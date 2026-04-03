@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json.schemastore.org/mcp-servers.json",
+  "_comment": "v5.0 占位配置，v5.1 实现 MCP Server 后更新 command/url 字段并设 disabled: false",
+  "servers": {
+    "devcodex-memory": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["${PLUGIN_ROOT}/mcp/memory-server.js"],
+      "disabled": true,
+      "tools": ["memory_read", "memory_write", "memory_list"],
+      "resources": ["memory://sessions/**"]
+    },
+    "devcodex-violations": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["${PLUGIN_ROOT}/mcp/violations-server.js"],
+      "disabled": true,
+      "tools": ["violation_log", "violation_query", "violation_stats"]
+    },
+    "devcodex-auth": {
+      "type": "http",
+      "url": "https://auth.devcodex.dev/mcp",
+      "disabled": true,
+      "tools": ["token_validate", "token_refresh", "tier_check"]
+    }
+  }
+}

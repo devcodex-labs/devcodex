@@ -1,0 +1,41 @@
+---
+id: dev-docs
+name: Dev Docs
+description: 文档开发子类型规范 — 技术文档/API文档/README 编写规范
+version: 1.0.0
+tier: free
+workflow: dev
+source: specs/dev/docs.md
+---
+
+# Dev Docs Skill
+
+## 触发条件
+
+用户要求编写/更新文档：README、API 文档、架构文档、开发指南、CHANGELOG、迁移指南等。
+
+## 豁免项
+
+- 豁免 `plan-review`（文档任务不需要实施计划审查）
+- 豁免 `impact-review`（文档变更不涉及代码影响评估）
+- 豁免 CP3（无需实施计划）
+- CP2 简化为**文档大纲确认**（不需要完整技术方案）
+
+## 文档质量标准
+
+| 维度 | 要求 |
+|------|------|
+| 结构完整 | 必含：目的/使用者/快速开始/详细说明/示例 |
+| 示例可执行 | 代码示例经过验证，可直接运行 |
+| 版本同步 | 文档中的 API/配置项与代码实现一致 |
+| 链接有效 | 内部/外部链接均可访问 |
+
+## API 文档规范
+
+- 每个公开 API 必须包含：方法/路径/参数/返回值/错误码/示例
+- 使用 `.http` 文件作为可执行示例（与 api-verification 联动）
+
+## 产出物
+
+- 文档文件（按项目目录结构放置）
+- 若更新 README/CHANGELOG：执行 `document-sync` 确认同步状态

@@ -1,0 +1,5 @@
+# Dev tools (not needed by plugin users)
+assets/README.md
+data/
+node_modules/
+*.tgz

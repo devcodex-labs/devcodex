@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+
+# Runtime data (AI-generated during usage, not committed)
+data/violations.md
+data/pending-fixes.md
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+npm-debug.log*
+
+# Build
+dist/
+*.tgz
+
+# Assets (placeholder files)
+assets/*.placeholder
+
+# Local env
+.env
+.env.local

@@ -1,0 +1,66 @@
+{
+  "$schema": "https://copilot-plugins.github.com/schema/plugin.json",
+  "id": "devcodex",
+  "version": "1.0.0",
+  "name": "DevCodex",
+  "publisher": "Rocky",
+  "displayName": "DevCodex – AI 开发规范助手",
+  "description": "为 GitHub Copilot 提供标准化的 AI 辅助开发规范体系（开发/修复/审计/分析工作流）。基于 ai-dev-guidelines 规范体系 v5 构建。",
+  "icon": "assets/icon-512.png",
+  "license": "AGPL-3.0-or-later",
+  "repository": "https://github.com/vextjs/devcodex",
+  "homepage": "https://devcodex.dev",
+  "tier": "pro",
+  "authentication": {
+    "type": "token",
+    "endpoint": "https://auth.devcodex.dev/validate",
+    "cacheFile": ".copilot/token-cache.json",
+    "offlineFallback": {
+      "enabled": true,
+      "defaultTier": "free",
+      "maxOfflineDays": 7
+    }
+  },
+  "agents": [
+    { "id": "dev",      "file": "agents/dev.agent.md",      "tier": "pro" },
+    { "id": "fix",      "file": "agents/fix.agent.md",      "tier": "pro" },
+    { "id": "audit",    "file": "agents/audit.agent.md",    "tier": "pro" },
+    { "id": "analyze",  "file": "agents/analyze.agent.md",  "tier": "free" },
+    { "id": "self-fix", "file": "agents/self-fix.agent.md", "tier": "pro" },
+    { "id": "chat",     "file": "agents/chat.agent.md",     "tier": "free" },
+    { "id": "resume",   "file": "agents/resume.agent.md",   "tier": "pro" },
+    { "id": "plan",     "file": "agents/plan.agent.md",     "tier": "pro" }
+  ],
+  "skills": [
+    { "id": "compliance", "file": "skills/core/compliance.skill.md", "tier": "pro" },
+    { "id": "memory",     "file": "skills/core/memory.skill.md",     "tier": "pro" },
+    { "id": "report",     "file": "skills/core/report.skill.md",     "tier": "pro" },
+    { "id": "cp-gate",    "file": "skills/core/cp-gate.skill.md",    "tier": "pro" },
+    { "id": "intent",     "file": "skills/core/intent.skill.md",     "tier": "free" },
+    { "id": "summary",    "file": "skills/core/summary.skill.md",    "tier": "pro" },
+    { "id": "plan",       "file": "skills/core/plan.skill.md",       "tier": "pro" }
+  ],
+  "_note_skills": "子类型 Skills（dev/fix/audit 等）通过各 Agent frontmatter 的 skills: 字段引用，不在此处注册，保持 plugin.json 简洁。",
+  "instructions": [
+    { "id": "safety",       "file": "instructions/00-safety.instructions.md",       "tier": "free" },
+    { "id": "common",       "file": "instructions/01-common.instructions.md",       "tier": "free" },
+    { "id": "output-paths", "file": "instructions/02-output-paths.instructions.md", "tier": "free" },
+    { "id": "dev",          "file": "instructions/10-dev.instructions.md",           "tier": "pro" },
+    { "id": "fix",          "file": "instructions/11-fix.instructions.md",           "tier": "pro" },
+    { "id": "audit",        "file": "instructions/12-audit.instructions.md",         "tier": "pro" },
+    { "id": "analyze",      "file": "instructions/13-analyze.instructions.md",       "tier": "free" },
+    { "id": "self-fix",     "file": "instructions/14-self-fix.instructions.md",      "tier": "pro" },
+    { "id": "memory-r",     "file": "instructions/15-memory.instructions.md",        "tier": "pro" },
+    { "id": "report-r",     "file": "instructions/16-report.instructions.md",        "tier": "pro" },
+    { "id": "compliance-r", "file": "instructions/17-compliance.instructions.md",    "tier": "pro" }
+  ],
+  "hooks": {
+    "pre": "hooks/pre-message.hook.md",
+    "post": "hooks/post-session.hook.md"
+  },
+  "mcp": {
+    "file": ".mcp.json"
+  },
+  "keywords": ["copilot", "dev-guidelines", "workflow", "audit", "ai-dev"],
+  "categories": ["Productivity", "Development Workflow"]
+}

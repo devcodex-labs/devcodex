@@ -135,25 +135,25 @@ function cmdInit(argv) {
     }
   }
 
-  // Create .devcodex/.ai-memory/ output directory + update .gitignore
+  // Create .devcodex/.memory/ output directory + update .gitignore
   if (!dryRun) {
     const devcodexDir = path.join(cwd, '.devcodex')
-    const aiMemDir    = path.join(devcodexDir, '.ai-memory')
+    const aiMemDir    = path.join(devcodexDir, '.memory')
     fs.mkdirSync(aiMemDir, { recursive: true })
 
     const gitignorePath  = path.join(cwd, '.gitignore')
-    const gitignoreEntry = '\n# DevCodex AI session memory (auto-generated, do not commit)\n.devcodex/.ai-memory/\n'
+    const gitignoreEntry = '\n# DevCodex AI session memory (auto-generated, do not commit)\n.devcodex/.memory/\n'
     if (fs.existsSync(gitignorePath)) {
       const content = fs.readFileSync(gitignorePath, 'utf8')
-      if (!content.includes('.devcodex/.ai-memory/')) {
+      if (!content.includes('.devcodex/.memory/')) {
         fs.appendFileSync(gitignorePath, gitignoreEntry)
         added++
-        console.log(c.green('  ✓ .gitignore  (.devcodex/.ai-memory/ added)'))
+        console.log(c.green('  ✓ .gitignore  (.devcodex/.memory/ added)'))
       }
     } else {
       fs.writeFileSync(gitignorePath, gitignoreEntry.trimStart())
       added++
-      console.log(c.green('  ✓ .gitignore  (created with .devcodex/.ai-memory/)'))
+      console.log(c.green('  ✓ .gitignore  (created with .devcodex/.memory/)'))
     }
   }
 

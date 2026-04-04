@@ -114,7 +114,7 @@ export DEVCODEX_TOKEN=pro_test  # 模拟 Pro 层授权（可选）
 # 直接用 node 运行，无需 link 或安装
 # 注意：必须先 cd 到目标项目目录，init 会复制文件到当前目录的 .github/
 cd /path/to/your-project
-node /path/to/devcodex/index.js init
+node /path/to/devcodex/index.js init --force
 ```
 
 ### 验证安装

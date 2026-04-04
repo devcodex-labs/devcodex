@@ -1,4 +1,4 @@
-# DevCodex 常见问题
+﻿# DevCodex 常见问题
 
 > **版本**: v0.0.1
 
@@ -30,7 +30,7 @@ A: Enterprise 专属功能，在 `instructions/tenants/<tenant-id>/` 下创建�
 A: 不可以，CP1/CP2/CP3 是保证工作质量的关键关卡，跳过违反 C02 约束（CP 不可跳过合并）。
 
 **Q: 记忆文件存在哪里？**  
-A: `<项目根>/.devcodex/.ai-memory/clients/<agent>/`，仅在本地，不上传。
+A: `<项目根>/.devcodex/.memory/clients/<agent>/`，仅在本地，不上传。
 
 **Q: 如何从中断的任务恢复？**  
 A: 使用 `@devcodex /resume` 或告诉 DevCodex "继续上次的任务"，DevCodex 会自动读取记忆文件恢复上下文。

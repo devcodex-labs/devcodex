@@ -1,11 +1,11 @@
----
+﻿---
 applyTo: **
 ---
 # 产物输出路径规范
 
 > 🔴 所有路径以 `<项目根>/.devcodex/` 为根，与源码目录天然隔离，无需手动区分。  
 > 🔴 禁止在 `.devcodex/` 下创建规范路径之外的一级目录。  
-> ⚠️ `init` 命令自动将 `.devcodex/.ai-memory/` 加入 `.gitignore`；`requirements/`、`bugs/`、`reports/` 等产物目录按需提交。
+> ⚠️ `init` 命令自动将 `.devcodex/.memory/` 加入 `.gitignore`；`requirements/`、`bugs/`、`reports/` 等产物目录按需提交。
 
 ## 目录结构
 
@@ -19,7 +19,7 @@ applyTo: **
 │   ├── 05-实施进度.md               # 🔴 强制（任务跨 2 轮以上会话时）
 │   ├── *-接口验证.http              # 🔴 强制（有接口变更时）
 │   ├── *-接口验证.cjs               # 🔴 强制（有接口变更时）
-│   ├── .ai-memory/sessions.md       # 🔴 强制（需求级记忆）
+│   ├── .memory/sessions.md       # 🔴 强制（需求级记忆）
 │   ├── .tmp/                        # 临时文件（.gitignore 排除）
 │   └── reports/<agent>/YYYYMMDD/    # 🔴 强制（需求级报告）
 ├── bugs/<中文描述>/                  # Bug 修复产物（fix）
@@ -27,7 +27,7 @@ applyTo: **
 ├── migrations/                        # 数据库迁移脚本
 ├── scenario-tests/<中文描述>/        # 场景测试产物
 ├── reports/<子目录>/<agent>/YYYYMMDD/ # 全局报告（NN--<简述>.md）
-├── .ai-memory/clients/<agent>/tasks/YYYYMMDD.md  # 记忆（.gitignore 排除）
+├── .memory/clients/<agent>/tasks/YYYYMMDD.md  # 记忆（.gitignore 排除）
 ├── profile/README.md                  # 项目规范（可提交）
 ├── TASK-INDEX.md                      # 任务索引
 └── README.md
@@ -57,7 +57,7 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 ## 记忆路径
 
 ```text
-.devcodex/.ai-memory/clients/<agent>/tasks/YYYYMMDD.md
+.devcodex/.memory/clients/<agent>/tasks/YYYYMMDD.md
 ```
 
 每天一个文件，文件内以 `## 会话 NN` 分段。

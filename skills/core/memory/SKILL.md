@@ -1,16 +1,16 @@
----
+﻿---
 name: 记忆读写 Skill
 description: 管理会话记忆的读取与写入。三层记忆体系：Agent 日记 / 需求记忆 / 项目总记忆。
 ---
 ## 文件路径
 
 ```
-<项目根>/.devcodex/.ai-memory/clients/<agent>/tasks/YYYYMMDD.md
+<项目根>/.devcodex/.memory/clients/<agent>/tasks/YYYYMMDD.md
 ```
 
 - `<agent>` 命名：产品标识优先，全小写，连字符分隔（`copilot` / `cursor` / `vscode-copilot`）
 - 无法确定时使用 `unknown-agent`（后续迁移到正确目录）
-- ⛔ **禁止使用 glob/find 扫描 `.ai-memory/` 目录**（隐藏目录会被跳过）
+- ⛔ **禁止使用 glob/find 扫描 `.memory/` 目录**（隐藏目录会被跳过）
 - 必须使用目录列出工具逐层进入：`clients/` → `<agent>/` → 读取日期文件
 
 ## 读取策略
@@ -48,7 +48,7 @@ description: 管理会话记忆的读取与写入。三层记忆体系：Agent �
 | 字段 | 说明 |
 |------|------|
 | 🎯 任务摘要 | 本次任务的核心目标和意图 |
-| 📨 对话记录 | 三列表格：轮次 \| 方向 \| 摘要 |
+| 📨 对话记录 | 四列表格：`轮次 \| 👤 用户消息 \| 🤖 AI执行 \| 状态` |
 
 ### 按需（有内容时写入）
 
@@ -75,7 +75,7 @@ description: 管理会话记忆的读取与写入。三层记忆体系：Agent �
 
 ### Agent SUMMARY（每 Agent 独立）
 ```
-<项目根>/.devcodex/.ai-memory/clients/<agent>/SUMMARY.md
+<项目根>/.devcodex/.memory/clients/<agent>/SUMMARY.md
 ```
 - 每次会话结束前（SC6 检查）追加一行索引
 - 模板：`prompts/agent-summary.prompt.md`
@@ -100,7 +100,7 @@ description: 管理会话记忆的读取与写入。三层记忆体系：Agent �
 
 ### 全局 SUMMARY（项目共用）
 ```
-<项目根>/.devcodex/.ai-memory/SUMMARY.md
+<项目根>/.devcodex/.memory/SUMMARY.md
 ```
 - 仅记录关键决策（规范变更/架构决策/P0修复）
 - SC7 检查时追加，纯 chat/无重要决策时 N/A
@@ -109,16 +109,16 @@ description: 管理会话记忆的读取与写入。三层记忆体系：Agent �
 
 | 层级 | 文件 | 写入频率 |
 |------|------|---------|
-| Agent 日记 | `.ai-memory/clients/<agent>/tasks/YYYYMMDD.md` | 每会话必写 |
-| 需求记忆 | `<需求>/.ai-memory/sessions.md` | 路由确定后追加 |
-| 项目总记忆 | `.ai-memory/SUMMARY.md` | 有关键决策时 |
+| Agent 日记 | `.memory/clients/<agent>/tasks/YYYYMMDD.md` | 每会话必写 |
+| 需求记忆 | `<需求>/.memory/sessions.md` | 路由确定后追加 |
+| 项目总记忆 | `.memory/SUMMARY.md` | 有关键决策时 |
 
 ### 需求级记忆路径构建
 
 ```
-<项目根>/.devcodex/requirements/<中文描述>/.ai-memory/sessions.md   # dev 需求
-<项目根>/.devcodex/bugs/<中文描述>/.ai-memory/sessions.md           # fix Bug
-<项目根>/.devcodex/optimizations/<中文描述>/.ai-memory/sessions.md  # dev 优化
+<项目根>/.devcodex/requirements/<中文描述>/.memory/sessions.md   # dev 需求
+<项目根>/.devcodex/bugs/<中文描述>/.memory/sessions.md           # fix Bug
+<项目根>/.devcodex/optimizations/<中文描述>/.memory/sessions.md  # dev 优化
 ```
 
 `<中文描述>` 与 `02-output-paths.instructions.md` 中的任务目录名一致。

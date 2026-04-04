@@ -1,4 +1,4 @@
-# v4 → v5 迁移指南
+﻿# v4 → v5 迁移指南
 
 > 从 `ai-dev-guidelines v4` 迁移到 `DevCodex v5 Plugin`
 
@@ -57,7 +57,7 @@ node tools/v4-to-v5-migration.js --tenant acme --src path/to/v4
 
 v4 的记忆文件写入项目 profile 目录。v5 的 `memory` Skill 默认写入：
 ```
-.devcodex/.ai-memory/clients/<agent>/tasks/YYYYMMDD.md
+.devcodex/.memory/clients/<agent>/tasks/YYYYMMDD.md
 ```
 
 ## 常见问题

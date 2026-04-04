@@ -1,4 +1,4 @@
----
+﻿---
 name: Post Session Hook
 description: 会话后置钩子 — 写入记忆文件 + 生成报告
 applyTo: **
@@ -14,13 +14,13 @@ applyTo: **
 | 步骤 | 动作 | 豁免条件 |
 |------|------|---------|
 | M1 写记忆 | 写入 `memory-session.prompt.md` 格式记忆文件 | chat 意图使用 `reply-summary.prompt.md` |
-| M2 更新摘要 | 向 `.ai-memory/clients/<agent>/SUMMARY.md` 追加一行索引（`memory` Skill（`skills/core/memory/SKILL.md`）§SUMMARY） | — |
+| M2 更新摘要 | 向 `.memory/clients/<agent>/SUMMARY.md` 追加一行索引（`memory` Skill（`skills/core/memory/SKILL.md`）§SUMMARY） | — |
 | M3 写报告 | 输出对应工作流报告文件 | chat/resume 意图豁免 |
 | M4 合规检查 | 执行 `compliance` Skill（`skills/core/compliance/SKILL.md`）FC→SC→RC 三层验证 | chat 豁免全部合规检查；analyze 豁免 RC |
 
 ## 记忆写入规则
 
-**路径**：`.devcodex/.ai-memory/clients/<agent>/tasks/YYYYMMDD.md`
+**路径**：`.devcodex/.memory/clients/<agent>/tasks/YYYYMMDD.md`
 
 | 意图 | 模板 | 保留策略 |
 |------|------|---------|

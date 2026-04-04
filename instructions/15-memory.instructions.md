@@ -1,4 +1,4 @@
----
+﻿---
 applyTo: **
 ---
 # 记忆写入规则（15-memory）
@@ -21,7 +21,7 @@ applyTo: **
 - ⛔ **禁止询问用户"是否需要写入记忆"**（C05/S05 — 强制自动写入）
 - ⛔ **禁止覆盖已有内容**（C06/S04 — 只能追加，使用增量编辑）
 - ⛔ **禁止使用终端命令修改 .md 文件**（C09 — 如 PowerShell `Set-Content`）
-- ⛔ **禁止使用 glob/find 扫描 `.ai-memory/`**（隐藏目录会被跳过）
+- ⛔ **禁止使用 glob/find 扫描 `.memory/`**（隐藏目录会被跳过）
 
 ## chat 豁免说明
 
@@ -30,7 +30,7 @@ applyTo: **
 ## 路径构建规则
 
 ```
-<项目根>/.devcodex/.ai-memory/clients/<agent>/tasks/YYYYMMDD.md
+<项目根>/.devcodex/.memory/clients/<agent>/tasks/YYYYMMDD.md
 ```
 
 `<agent>` 命名规则（全小写，连字符分隔）：

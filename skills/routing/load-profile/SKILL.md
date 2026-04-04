@@ -40,6 +40,7 @@ description: 项目 Profile 加载规范 — 意图识别后独立确定目标�
 | `03-代码风格.md` | 编码规范 | 是 |
 | `04-测试规范.md` | 测试框架/覆盖率 | 按需 |
 | `05-发布规范.md` | 版本号/发布流程 | 按需 |
+| `config.json` | 运行模式配置（ENV_MODE）| 按需 |
 
 ## Profile 缺失处理
 
@@ -54,3 +55,16 @@ description: 项目 Profile 加载规范 — 意图识别后独立确定目标�
 项目 profile > 租户规范（P3）> 工作流规范（P4）> 通用规范（P5）
 
 > `<project> = null` 时，工作流中如需 profile **必须询问用户**，禁止猜测。
+
+## ENV_MODE 注入
+
+加载 profile 时，读取 `config.json` 的 `mode` 字段，输出 ENV_MODE 供后续所有 Skill 引用：
+
+| 情况 | ENV_MODE |
+|------|---------|
+| `config.json` 存在且 `mode: "dev"` | `dev` |
+| `config.json` 存在且 `mode: "prod"` | `prod` |
+| `config.json` 不存在 | `prod`（保守默认）|
+| `mode` 字段缺失或非法值 | `prod`（保守默认）|
+
+加载后在上下文中声明：**`ENV_MODE = dev` 或 `ENV_MODE = prod`**，并在首次回复中标注当前模式。

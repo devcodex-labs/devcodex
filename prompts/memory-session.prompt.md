@@ -1,11 +1,11 @@
----
+﻿---
 mode: agent
 description: 记忆会话文档模板，用于写入每次会话的结构化记忆
-applyTo: .devcodex/.ai-memory/**
+applyTo: .devcodex/.memory/**
 ---
 # 记忆会话模板
 
-> **路径**: `.devcodex/.ai-memory/clients/<agent>/tasks/YYYYMMDD.md`
+> **路径**: `.devcodex/.memory/clients/<agent>/tasks/YYYYMMDD.md`
 > **触发**: 会话结束时，由 `memory/SKILL.md` 写入
 
 ---

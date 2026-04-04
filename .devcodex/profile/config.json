@@ -1,0 +1,4 @@
+{
+  "mode": "dev",
+  "_comment": "mode: dev=开发模式（轻量合规，跳过 FC1/FC2/SC/RC/CP 强制等待）; prod=生产模式（全量合规）。文件不存在时默认 prod。"
+}

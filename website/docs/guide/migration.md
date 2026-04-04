@@ -1,4 +1,4 @@
-# v4 → v5 迁移
+﻿# v4 → v5 迁移
 
 DevCodex v5 是 [ai-dev-guidelines v4](https://github.com/vextjs/ai-dev-guidelines) 的插件化封装，核心规范体系不变，主要变化是**使用方式**和**文件结构**。
 
@@ -52,7 +52,7 @@ skills/audit/audit-common/SKILL.md
 
 **v5**：
 ```
-.devcodex/.ai-memory/clients/<agent>/tasks/YYYYMMDD.md
+.devcodex/.memory/clients/<agent>/tasks/YYYYMMDD.md
 ```
 
 ## 迁移步骤
@@ -78,7 +78,7 @@ skills/audit/audit-common/SKILL.md
 
 将 v4 的记忆文件手动复制到 v5 的路径格式：
 ```
-.copilot/memory/ → .devcodex/.ai-memory/clients/copilot/tasks/
+.copilot/memory/ → .devcodex/.memory/clients/copilot/tasks/
 ```
 
 ## 行为差异说明

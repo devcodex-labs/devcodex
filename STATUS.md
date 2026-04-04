@@ -1,4 +1,4 @@
-# DevCodex v0.0.1 — 任务状态清单
+﻿# DevCodex v0.0.1 — 任务状态清单
 
 > **更新日期**: 2026-04-04  
 > **版本**: 0.0.1（内测阶段）  
@@ -152,7 +152,7 @@
 | PT4 | `post-session.hook.md` 路径更新 | ✅ 已完成 |
 | PT5 | 20 个 prompt 模板 `applyTo` + 路径引用批量更新 | ✅ 已完成 |
 | PT6 | `FAQ.md`、`MIGRATION.md`、`website/migration.md` 路径更新 | ✅ 已完成 |
-| PT7 | `index.js` `init` 命令自动创建 `.devcodex/.ai-memory/` + 写入 `.gitignore` | ✅ 已完成 |
+| PT7 | `index.js` `init` 命令自动创建 `.devcodex/.memory/` + 写入 `.gitignore` | ✅ 已完成 |
 | PT8 | 全局 grep 扫描零残留 `projects/<project>/` 引用 | ✅ 零残留 |
 
 ## 八、网站 Sidebar 死链修复（本次发现）

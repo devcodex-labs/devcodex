@@ -111,24 +111,10 @@ export DEVCODEX_TOKEN=pro_test  # 模拟 Pro 层授权（可选）
 ### 本地安装测试（在目标项目中验证）
 
 ```bash
-# 方式一：npm link（推荐）
-cd /path/to/devcodex
-npm link
-
+# 直接用 node 运行，无需 link 或安装
+# 注意：必须先 cd 到目标项目目录，init 会复制文件到当前目录的 .github/
 cd /path/to/your-project
-npm link @vextjs/devcodex
-npx @vextjs/devcodex init
-
-# 方式二：直接从本地路径安装
-npm install /path/to/devcodex
-npx @vextjs/devcodex init
-
-# 方式三：打包后安装（模拟真实发布）
-cd /path/to/devcodex
-npm pack
-# 生成 vextjs-devcodex-0.0.1.tgz
-cd /path/to/your-project
-npm install /path/to/devcodex/vextjs-devcodex-0.0.1.tgz
+node /path/to/devcodex/index.js init
 ```
 
 ### 验证安装

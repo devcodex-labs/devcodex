@@ -3,7 +3,7 @@ applyTo: **
 ---
 # 报告输出规则（16-report）
 
-> 本 Instructions 定义报告的命名、路径、输出格式约束。生成能力见 `skills/core/report.skill.md`。
+> 本 Instructions 定义报告的命名、路径、输出格式约束。生成能力见 `skills/core/report/SKILL.md`。
 
 ## 适用范围
 

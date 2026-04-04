@@ -1,13 +1,13 @@
 ---
 name: 会话摘要写入 Skill
-description: 写入会话摘要到记忆文件（N02 节点）。区别于 memory Skill（读取，N03）。任务结束前与 memory Skill 配合完成记忆持久化。
+description: 写入会话摘要到 SUMMARY.md 索引行。区别于 memory Skill（会话记录读写）。任务结束前与 memory Skill 配合完成记忆持久化。
 ---
 ## 写入流程
 
 | 步骤 | 动作 |
 |:----:|------|
 | 1 | 确定日期（`YYYYMMDD`） |
-| 2 | 定位文件：`projects/<project>/.ai-memory/clients/<agent>/tasks/YYYYMMDD.md` |
+| 2 | 定位文件：`.devcodex/.ai-memory/clients/<agent>/tasks/YYYYMMDD.md` |
 | 3 | 判断文件状态（不存在→创建；已存在→追加）|
 | 4 | 确定会话编号（`## 会话 01` 起递增）|
 | 5 | 写入初始段落（时间 + 意图 + 状态 🔄 + 摘要占位）|

@@ -5,7 +5,7 @@ applyTo: **
 ---
 # CP 确认关卡检查清单
 
-> **触发**: CP1 / CP2 / CP3 确认点，由 `cp-gate.skill.md` 驱动
+> **触发**: CP1 / CP2 / CP3 确认点，由 `skills/core/cp-gate/SKILL.md` 驱动
 
 ---
 
@@ -13,7 +13,7 @@ applyTo: **
 
 **确认前必须满足**：
 
-- [ ] 用户意图已明确（使用 `intent.skill.md` 三问法确认）
+- [ ] 用户意图已明确（使用 `intent/SKILL.md` 三问法确认）
 - [ ] 功能范围已边界清晰（含排除项）
 - [ ] 验收标准可测试
 - [ ] 影响范围初步评估完成

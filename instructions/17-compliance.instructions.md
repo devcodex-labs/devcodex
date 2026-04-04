@@ -3,12 +3,12 @@ applyTo: **
 ---
 # 合规检查规则（17-compliance）
 
-> 本 Instructions 定义合规检查的触发时机和约束规则。执行能力见 `skills/core/compliance.skill.md`。
+> 本 Instructions 定义合规检查的触发时机和约束规则。执行能力见 `skills/core/compliance/SKILL.md`。
 
 ## 触发时机（强制）
 
 - **所有工作流节点执行完毕后、回复发送前**必须执行合规检查
-- 检查不通过时修正后重检，直至全部通过
+- 检查不通过时修正后重检，直至全部通过（FC+SC 累计修正 ≥5 次仍未全通过 → 停止循环，输出剩余失败项摘要标 ⚠️，写入记忆后交由用户决策）
 - **chat 豁免** — 不执行合规检查
 
 ## 执行顺序
@@ -28,6 +28,9 @@ FC（形式合规）→ SC（实质合规）→ RC（恢复性检查）→ 报�
 - FC6：新建 .md ≤ 500 行
 
 ### SC 🔴 阻塞性 → 不通过则阻塞回复
+
+> 以下仅列出关键项，完整 SC1~SC13 清单见 `skills/core/compliance/SKILL.md` §3。
+
 - SC2：dev/fix 编码后已运行 diagnostics
 - SC3：fix 已执行三步扫描（同类全局+数据联动+grep零残留）
 - SC4：关联文件已同步（dev/fix/self-fix）

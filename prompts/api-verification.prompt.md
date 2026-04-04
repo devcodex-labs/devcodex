@@ -5,8 +5,8 @@ applyTo: tests/api/**
 ---
 # API 验证模板
 
-> **触发**: `api-verification.skill.md` 执行时生成
-> **产物路径**: `tests/api/<module>.http` + `tests/api/<module>.test.cjs`
+> **触发**: `api-verification/SKILL.md` 执行时生成
+> **产物路径**: 需求目录下 `*-接口验证.http` + `*-接口验证.cjs`（遵循 `02-output-paths.instructions.md`）
 
 ---
 

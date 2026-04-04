@@ -1,7 +1,7 @@
 # DevCodex 服务条款
 
-> **版本**: v1.0
-> **生效日期**: 2025-01-01
+> **版本**: v0.0.1
+> **生效日期**: 2026-04-04
 
 ## §1 服务说明
 
@@ -17,7 +17,7 @@ DevCodex 是一款 GitHub Copilot Agent Plugin，提供 AI 辅助开发工作流
 
 - 禁止用于违法目的
 - 禁止逆向工程 Pro/Enterprise 专属功能
-- API 调用频率限制：Free 100次/天，Pro 1000次/天，Enterprise 无限制
+- API 调用频率限制：Free 20次/天，Pro 无限制，Enterprise 无限制
 
 ## §4 数据隐私
 

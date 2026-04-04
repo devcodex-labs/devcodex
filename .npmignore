@@ -4,6 +4,9 @@ data/
 node_modules/
 *.tgz
 
+# Documentation website (separate build artifact)
+website/
+
 # Internal migration / codegen scripts (dev-only)
 tools/migrate-to-official-format.js
 tools/v4-to-v5-migration.js

@@ -61,4 +61,4 @@ description: 技术调研子类型规范 — 技术选型/可行性评估/根因
 
 ## 输出
 
-报告：`reports/analysis/` 目录，遵循 `report.skill.md` 命名规则。
+报告：`reports/analysis/` 目录，遵循 `report/SKILL.md` 命名规则。

@@ -3,13 +3,13 @@ applyTo: **
 ---
 # 分析工作流规则（13-analyze）
 
-> 本 Instructions 与 `agents/analyze.agent.md` 关联，在 analyze 工作流激活时由平台自动注入。Free 层可用。
+> 本 Instructions 与 `agents/devcodex.agent.md` 关联，在 analyze 工作流激活时由平台自动注入。Free 层可用。
 
 ## 核心约束
 
 ### 只读约束
 - **analyze 是只读工作流**：禁止修改任何源码文件
-- 需要修改时 → 在报告中建议切换 `@dev` 或 `@fix`
+- 需要修改时 → 在报告中建议切换 dev 或 fix 工作流
 
 ### 单轮分析约束
 - analyze 为单轮分析工作流，输出结论/报告即完成

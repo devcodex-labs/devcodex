@@ -1,11 +1,11 @@
 ---
 name: 记忆读写 Skill
-description: 管理会话记忆的读取（N03）和写入（N02）。三层记忆体系：Agent 日记 / 需求记忆 / 项目总记忆。
+description: 管理会话记忆的读取与写入。三层记忆体系：Agent 日记 / 需求记忆 / 项目总记忆。
 ---
 ## 文件路径
 
 ```
-<工作区>/projects/<project>/.ai-memory/clients/<agent>/tasks/YYYYMMDD.md
+<项目根>/.devcodex/.ai-memory/clients/<agent>/tasks/YYYYMMDD.md
 ```
 
 - `<agent>` 命名：产品标识优先，全小写，连字符分隔（`copilot` / `cursor` / `vscode-copilot`）
@@ -19,6 +19,7 @@ description: 管理会话记忆的读取（N03）和写入（N02）。三层记�
 |------|---------|
 | 正常会话 | 今日文件 + 昨日文件（并发读取，路径已知无依赖） |
 | 今日文件不存在 | 仅读昨日文件 |
+| 文件存在但解析失败 | 重命名为 `YYYYMMDD.bak.md`，创建新文件，不阻断 |
 | intent = resume | tasks/ 目录最近 **14 天**文件 |
 | 用户明确要求历史回溯 | 同 resume |
 
@@ -32,7 +33,7 @@ description: 管理会话记忆的读取（N03）和写入（N02）。三层记�
 | 每轮交互 | 追加对话记录 |
 | 子任务完成（多任务） | 追加 `T{N}进度：✅` |
 | 超 13 轮预警（C08） | 写编码检查点到当前段落 |
-| 报告写入后（N12） | 追加报告路径到 📄 关联报告 |
+| 报告写入后 | 追加报告路径到 📄 关联报告 |
 | 任务结束 | 状态更新为 ✅ |
 
 **约束**：
@@ -74,14 +75,32 @@ description: 管理会话记忆的读取（N03）和写入（N02）。三层记�
 
 ### Agent SUMMARY（每 Agent 独立）
 ```
-<工作区>/projects/<project>/.ai-memory/clients/<agent>/SUMMARY.md
+<项目根>/.devcodex/.ai-memory/clients/<agent>/SUMMARY.md
 ```
 - 每次会话结束前（SC6 检查）追加一行索引
 - 模板：`prompts/agent-summary.prompt.md`
 
+**文件格式**（首次创建时用此表头，之后只追加行）：
+
+```markdown
+# Agent SUMMARY — [agent-id]
+
+> 项目：[项目名]
+
+| 日期 | 会话 | 类型 | 摘要 | 关联报告 | 关联记忆 | 状态 |
+|------|:----:|------|------|---------|---------|:----:|
+| YYYY-MM-DD | NN | dev/fix/... | [50~100字摘要，含关键数字/结果] | [NN--简述.md](file:///路径) | [YYYYMMDD.md §NN](file:///路径) | ✅/🔄 |
+```
+
+**字段规则**：
+- 类型：工作流意图，多任务用 `+` 连接（如 `fix+audit`）
+- 摘要：一行 50~100 字，包含做了什么 + 关键数字/结果
+- 多任务会话：一行覆盖全部任务，不拆多行
+- 排序：按时间正序追加（最新在最后）
+
 ### 全局 SUMMARY（项目共用）
 ```
-<工作区>/projects/<project>/.ai-memory/SUMMARY.md
+<项目根>/.devcodex/.ai-memory/SUMMARY.md
 ```
 - 仅记录关键决策（规范变更/架构决策/P0修复）
 - SC7 检查时追加，纯 chat/无重要决策时 N/A
@@ -93,6 +112,16 @@ description: 管理会话记忆的读取（N03）和写入（N02）。三层记�
 | Agent 日记 | `.ai-memory/clients/<agent>/tasks/YYYYMMDD.md` | 每会话必写 |
 | 需求记忆 | `<需求>/.ai-memory/sessions.md` | 路由确定后追加 |
 | 项目总记忆 | `.ai-memory/SUMMARY.md` | 有关键决策时 |
+
+### 需求级记忆路径构建
+
+```
+<项目根>/.devcodex/requirements/<中文描述>/.ai-memory/sessions.md   # dev 需求
+<项目根>/.devcodex/bugs/<中文描述>/.ai-memory/sessions.md           # fix Bug
+<项目根>/.devcodex/optimizations/<中文描述>/.ai-memory/sessions.md  # dev 优化
+```
+
+`<中文描述>` 与 `02-output-paths.instructions.md` 中的任务目录名一致。
 
 ## 模板引用
 

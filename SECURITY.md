@@ -3,10 +3,9 @@
 ## Supported Versions
 
 | Version | Supported |
-|---------|-----------|
-| v1.x    | ✅         |
-| < v1.0  | ❌         |
-| < v4.0  | ❌         |
+|---------|:----------:|
+| 0.0.1（当前）| ✅ |
+| < 0.0.1 | ❌ |
 
 ## Reporting a Vulnerability
 

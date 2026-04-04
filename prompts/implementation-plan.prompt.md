@@ -1,11 +1,11 @@
 ---
 mode: agent
 description: 实施计划文档模板，用于 CP3 阶段创建标准实施计划
-applyTo: projects/**/docs/**
+applyTo: .devcodex/requirements/**
 ---
 # 实施计划模板
 
-> **路径**: `projects/<project>/docs/implementation/YYYYMMDD-<name>-plan.md`
+> **路径**: `.devcodex/requirements/<中文描述>/04-实施计划.md`
 > **触发**: dev 工作流 CP3 阶段
 
 ---
@@ -13,7 +13,7 @@ applyTo: projects/**/docs/**
 ```markdown
 # [功能名称] 实施计划
 
-> **版本**: v1.0
+> **版本**: v0.0.1
 > **日期**: YYYY-MM-DD
 > **关联方案**: [技术方案路径]
 > **状态**: 计划中 / 执行中 / 已完成

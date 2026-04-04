@@ -5,7 +5,7 @@ applyTo: README.md
 ---
 # 项目 README 模板
 
-> **触发**: `dev-init.skill.md` 初始化项目 / `dev-docs.skill.md` 更新文档
+> **触发**: `dev-init/SKILL.md` 初始化项目 / `dev-docs/SKILL.md` 更新文档
 
 ---
 

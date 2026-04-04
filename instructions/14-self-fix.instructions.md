@@ -3,7 +3,7 @@ applyTo: **
 ---
 # 规范自修复规则（14-self-fix）
 
-> 本 Instructions 与 `agents/self-fix.agent.md` 关联，在 self-fix 工作流激活时由平台自动注入。
+> 本 Instructions 与 `agents/devcodex.agent.md` 关联，在 self-fix 工作流激活时由平台自动注入。
 
 ## 核心约束
 
@@ -11,11 +11,11 @@ applyTo: **
 
 | 工具 | 修复对象 |
 |------|---------|
-| self-fix（本工作流）| `version/v5/` 下的规范文件（agents/skills/instructions/prompts/RULES.md）|
+| self-fix（本工作流）| DevCodex 插件目录下的规范文件（agents/skills/instructions/prompts/RULES.md）|
 | dev | 源码/配置文件变更 |
 | fix | 源码 Bug 修复 |
 
-> 功能性迭代（新增节点、重写架构）→ 路由到 `@dev`，不是 self-fix
+> 功能性迭代（新增节点、重写架构）→ 路由到 dev 工作流，不是 self-fix
 
 ### 修复文件数量限制
 - 单次最多修复 **5 个文件**
@@ -46,5 +46,5 @@ applyTo: **
   3. 后续流程验证生效（或用户明确确认）
 
 ### 不进入 self-fix 的场景（防递归）
-- N13 合规检查失败 → 在当前工作流内联修正后重检（**不进 self-fix**）
+- 合规检查失败 → 在当前工作流内联修正后重检（**不进 self-fix**）
 - 连续 2 次同类偏差 → `compliance` Skill §7 升级分析处理（**不进 self-fix**）

@@ -3,14 +3,14 @@ applyTo: **
 ---
 # 审计工作流规则（12-audit）
 
-> 本 Instructions 与 `agents/audit.agent.md` 关联，在 audit 工作流激活时由平台自动注入。
+> 本 Instructions 与 `agents/devcodex.agent.md` 关联，在 audit 工作流激活时由平台自动注入。
 
 ## 核心约束
 
 ### 只读约束（绝对）
 - **audit 是只读工作流**：执行中禁止修改任何文件
 - 发现问题只输出清单和变更建议
-- 需要修复时由用户启动 `@self-fix` 或 `@fix`
+- 需要修复时由用户启动 self-fix 或 fix 工作流
 
 ### 审查目标类型识别
 - 基于用户意图智能识别（规则见 `audit-common` Skill §1~§2）
@@ -31,6 +31,6 @@ applyTo: **
 - 发现盲区后写入 `data/gap-registry.md`（无盲区跳过）
 
 ### 报告规则
-- 含 🔴 问题时，建议用户启动 `@self-fix` 工作流
+- 含 🔴 问题时，建议用户启动 self-fix 工作流
 - 每条问题必须附三列验证（合理性 + 可实施性 + 收益）
 - 报告头部必须包含：审查目标类型 / 审查范围 / 收敛状态

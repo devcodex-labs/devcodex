@@ -6,7 +6,7 @@ description: 自动修复子类型规范 — 自动级白名单 A1~A5 + Pending 
 
 ## 职责
 
-规范文件（specs/、instructions/、agents/、skills/）的自动化修复，按修复分级执行，遵循 V1~V6 闭环验证。
+规范文件（instructions/、agents/、skills/、prompts/）的自动化修复，按修复分级执行，遵循 V1~V6 闭环验证。
 
 ## 修复分级
 

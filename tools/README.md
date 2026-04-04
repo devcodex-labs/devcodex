@@ -28,14 +28,6 @@ node tools/v4-to-v5-migration.js --tenant <id> --src <v4-path>
 | `--src <path>` | v4 tenants/<id>/specs/ 源目录 |
 | `--dry-run` | 仅预览，不写入文件 |
 
-### `trailing-spaces-fix.js`
-
-修复 Markdown 文件中的尾随空格（移植自 v4 `tools/fix-blockquote-trailing-spaces.js`）。
-
-```bash
-node tools/trailing-spaces-fix.js [--path <dir>]
-```
-
 ## 开发说明
 
 工具依赖 Node.js 18+，无需额外 npm 包（使用 Node.js 内置模块）。

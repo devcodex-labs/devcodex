@@ -1,11 +1,11 @@
 ---
 mode: agent
 description: 技术方案文档模板，用于 CP2 阶段创建标准技术方案
-applyTo: projects/**/docs/**
+applyTo: .devcodex/**/requirements/**
 ---
 # 技术方案模板
 
-> **路径**: `projects/<project>/docs/technical-design/YYYYMMDD-<name>.md`
+> **路径**: `.devcodex/requirements/<中文描述>/02-技术方案.md`（唯一信源：`02-output-paths.instructions.md`）
 > **触发**: dev 工作流 CP2 阶段
 
 ---
@@ -13,7 +13,7 @@ applyTo: projects/**/docs/**
 ```markdown
 # [方案名称] 技术方案
 
-> **版本**: v1.0
+> **版本**: v0.0.1
 > **日期**: YYYY-MM-DD
 > **状态**: 草稿 / 审查中 / 已确认
 > **关联需求**: [需求文档路径]

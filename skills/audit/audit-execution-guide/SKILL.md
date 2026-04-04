@@ -6,7 +6,7 @@ description: 审查执行指南 — 维度优先级分批、定向审查子集�
 
 ## 职责
 
-本 Skill 定义 audit 工作流的执行策略，补充 `audit-common.skill.md` 的收敛规则，提供：定向触发子集、新增子类型联动检查、数值引用联动协议。
+本 Skill 定义 audit 工作流的执行策略，补充 `audit-common/SKILL.md` 的收敛规则，提供：定向触发子集、新增子类型联动检查、数值引用联动协议。
 
 ## 维度优先级分批
 
@@ -21,7 +21,7 @@ description: 审查执行指南 — 维度优先级分批、定向审查子集�
 | 触发场景 | 推荐专属维度 |
 |---------|------------|
 | 修改了 RULES.md | D2·D3·D5·D9·D17 |
-| 修改了 specs/common.md | D2·D5·D6·D7·D10 |
+| 修改了 01-common.instructions.md | D2·D5·D6·D7·D10 |
 | 修改了 workflow README | D3·D5·D8·D9 |
 | 新增 spec 文件 | D1·D5·D9·D15·D17·D18 |
 | 新增子类型 spec | D5(#6)·D9·D15 — 联动 L1/L2/L3 |
@@ -33,7 +33,7 @@ description: 审查执行指南 — 维度优先级分批、定向审查子集�
 
 | # | 检查项 | 对应文件 |
 |:-:|--------|---------|
-| L1 | `routing.skill.md` 路由表包含该子类型行 | `skills/routing/routing.skill.md` |
+| L1 | `routing/SKILL.md` 路由表包含该子类型行 | `skills/routing/routing/SKILL.md` |
 | L2 | `02-output-paths.instructions.md` 注册该子类型目录 | `instructions/02-output-paths.instructions.md` |
 | L3 | 对应 workflow report 模板的子类型字段包含该子类型 | `prompts/report-*.prompt.md` |
 

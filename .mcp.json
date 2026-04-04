@@ -18,6 +18,7 @@
       "tools": ["violation_log", "violation_query", "violation_stats"]
     },
     "devcodex-auth": {
+      "_comment": "规划中（v5.1）：auth 服务的 MCP 协议层，/mcp 端点尚未实现。当前 auth.devcodex.dev 只暴露 /validate 和 /auth/* REST 接口。disabled 保持 true 直到 v5.1 实现后更新。",
       "type": "http",
       "url": "https://auth.devcodex.dev/mcp",
       "disabled": true,

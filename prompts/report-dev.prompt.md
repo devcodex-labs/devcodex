@@ -1,12 +1,12 @@
 ---
 mode: agent
 description: 开发工作流报告模板，用于 dev 工作流执行完成后输出标准报告
-applyTo: projects/**/reports/requirements/**
+applyTo: .devcodex/**/reports/requirements/**
 ---
 # 开发报告模板
 
 > **路径**: `reports/requirements/<agent>/YYYYMMDD/NN--<name>.md`
-> **触发**: dev 工作流完成后，由 `report.skill.md` 驱动生成
+> **触发**: dev 工作流完成后，由 `report/SKILL.md` 驱动生成
 
 ---
 

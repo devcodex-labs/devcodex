@@ -1,11 +1,11 @@
 ---
 mode: agent
 description: 需求会话记录模板，用于记录需求讨论过程中的会话快照
-applyTo: projects/**/docs/requirements/**
+applyTo: .devcodex/requirements/**
 ---
 # 需求会话记录模板
 
-> **路径**: `projects/<project>/docs/requirements/YYYYMMDD-<name>-session.md`
+> **路径**: `.devcodex/requirements/<中文描述>/01-需求概述.md`
 > **触发**: dev 工作流 CP1 确认前，记录需求讨论过程
 
 ---

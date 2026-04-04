@@ -1,9 +1,20 @@
 # Dependencies
 node_modules/
+website/node_modules/
+website/dist/
+auth/node_modules/
+auth/dist/
+
+# Auth server secrets
+auth/.env
+
+# Plugin token cache（由 plugin.json cacheFile 生成，不应提交）
+.copilot/token-cache.json
 
 # Runtime data (AI-generated during usage, not committed)
 data/violations.md
 data/pending-fixes.md
+data/gap-registry.md
 
 # OS
 .DS_Store

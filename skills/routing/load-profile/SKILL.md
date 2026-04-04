@@ -1,6 +1,6 @@
 ---
 name: Load Profile
-description: 项目 Profile 加载规范 — N15 节点，意图识别后独立确定目标项目并加载配置
+description: 项目 Profile 加载规范 — 意图识别后独立确定目标项目并加载配置
 ---
 # Load Profile Skill
 
@@ -27,7 +27,7 @@ description: 项目 Profile 加载规范 — N15 节点，意图识别后独立�
 ## Profile 路径约定
 
 ```
-<工作区根目录>/projects/<project>/profile/
+<项目根>/.devcodex/profile/
 ```
 
 ## 标准文件（按需加载）

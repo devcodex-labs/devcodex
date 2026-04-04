@@ -1,12 +1,12 @@
 ---
 mode: agent
 description: 修复工作流报告模板，用于 fix 工作流执行完成后输出标准报告
-applyTo: projects/**/reports/bugs/**
+applyTo: .devcodex/**/reports/bugs/**
 ---
 # 修复报告模板
 
 > **路径**: `reports/bugs/<agent>/YYYYMMDD/NN--<name>.md`
-> **触发**: fix 工作流完成后，由 `report.skill.md` 驱动生成
+> **触发**: fix 工作流完成后，由 `report/SKILL.md` 驱动生成
 
 ---
 

@@ -18,15 +18,16 @@ description: 重构子类型规范 — 测试覆盖前置确认 + 三段式重�
 ## 执行流程
 
 ```
-CP1（范围确认）→ CP2（方案确认）→ CP3（计划确认）→ 执行
+CP1（范围确认）→ CP2（方案确认）→ [plan-review] → [impact-review] → CP3（计划确认）→ 执行
 ```
+
+**plan-review**：调用 `dev-plan-review` Skill（PR-1~PR-6）；PR-5② 跨模块依赖变更时继续 `impact-review`，🔴 阻断时回 CP2。
 
 **执行阶段**：
 1. 最小增量重构，每步可独立回滚
 2. 重构后运行测试套件（零新增失败）
 3. 更新 API 文档（若接口签名变更）
-4. impact-review（评估下游依赖影响）
-5. document-sync（更新架构文档）
+4. document-sync（更新架构文档）
 
 ## 关键规则
 

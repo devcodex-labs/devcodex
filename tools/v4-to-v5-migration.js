@@ -29,9 +29,9 @@ const FILE_MAPPING = [
   { from: 'specs/output-paths.md', to: 'instructions/02-output-paths.instructions.md', type: 'instructions', applyTo: '**' },
   { from: 'specs/dev/README.md', to: 'instructions/10-dev.instructions.md', type: 'instructions', applyTo: 'src/**' },
   { from: 'specs/fix/README.md', to: 'instructions/11-fix.instructions.md', type: 'instructions', applyTo: 'src/**' },
-  { from: 'specs/compliance.md', to: 'skills/core/compliance.skill.md', type: 'skill', workflow: 'cross' },
-  { from: 'specs/memory.md', to: 'skills/core/memory.skill.md', type: 'skill', workflow: 'cross' },
-  { from: 'specs/report.md', to: 'skills/core/report.skill.md', type: 'skill', workflow: 'cross' },
+  { from: 'specs/compliance.md', to: 'skills/core/compliance/SKILL.md', type: 'skill', workflow: 'cross' },
+  { from: 'specs/memory.md', to: 'skills/core/memory/SKILL.md', type: 'skill', workflow: 'cross' },
+  { from: 'specs/report.md', to: 'skills/core/report/SKILL.md', type: 'skill', workflow: 'cross' },
 ]
 
 // ─── 租户迁移 ──────────────────────────────────────────────────────────────────

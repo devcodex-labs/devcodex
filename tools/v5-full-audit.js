@@ -35,7 +35,7 @@ const CHECKS = [
     run: checkPromptMode
   },
   {
-    name: 'C05: routing.skill.md 子类型表完整性',
+    name: 'C05: routing/SKILL.md 子类型表完整性',
     run: checkRoutingTable
   },
   {
@@ -147,7 +147,7 @@ function checkRoutingTable() {
   const subTypes = ['default', 'refactor', 'database', 'init', 'optimization', 'scenario-test', 'docs', 'plan-review']
   for (const st of subTypes) {
     if (!content.includes(st)) {
-      ERRORS.push(`[C05] routing.skill.md: 缺少子类型 '${st}'`)
+      ERRORS.push(`[C05] routing/SKILL.md: 缺少子类型 '${st}'`)
     }
   }
 }

@@ -1,12 +1,12 @@
 ---
 mode: agent
 description: Agent 会话摘要模板，用于生成跨会话 Agent 级别的工作摘要
-applyTo: projects/**/.ai-memory/**
+applyTo: .devcodex/.ai-memory/**
 ---
 # Agent 摘要模板
 
-> **路径**: `projects/<project>/.ai-memory/clients/<agent>/SUMMARY.md`
-> **触发**: 累计 3 次以上 memory-session 后，由 `summary.skill.md` 生成/更新
+> **路径**: `.devcodex/.ai-memory/clients/<agent>/SUMMARY.md`
+> **触发**: 累计 3 次以上 memory-session 后，由 `summary/SKILL.md` 生成/更新
 
 ---
 

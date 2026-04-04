@@ -1,6 +1,6 @@
 {
   "id": "devcodex",
-  "version": "1.0.1",
+  "version": "0.0.1",
   "name": "DevCodex",
   "publisher": "Rocky",
   "displayName": "DevCodex – AI 开发规范助手",
@@ -22,44 +22,9 @@
   },
   "agents": [
     {
-      "id": "dev",
-      "file": "agents/dev.agent.md",
-      "tier": "pro"
-    },
-    {
-      "id": "fix",
-      "file": "agents/fix.agent.md",
-      "tier": "pro"
-    },
-    {
-      "id": "audit",
-      "file": "agents/audit.agent.md",
-      "tier": "pro"
-    },
-    {
-      "id": "analyze",
-      "file": "agents/analyze.agent.md",
+      "id": "devcodex",
+      "file": "agents/devcodex.agent.md",
       "tier": "free"
-    },
-    {
-      "id": "self-fix",
-      "file": "agents/self-fix.agent.md",
-      "tier": "pro"
-    },
-    {
-      "id": "chat",
-      "file": "agents/chat.agent.md",
-      "tier": "free"
-    },
-    {
-      "id": "resume",
-      "file": "agents/resume.agent.md",
-      "tier": "pro"
-    },
-    {
-      "id": "plan",
-      "file": "agents/plan.agent.md",
-      "tier": "pro"
     }
   ],
   "skills": [
@@ -99,7 +64,7 @@
       "tier": "pro"
     }
   ],
-  "_note_skills": "子类型 Skills（dev/fix/audit 等）通过各 Agent frontmatter 的 skills: 字段引用，不在此处注册，保持 plugin.json 简洁。",
+  "_note_skills": "子类型 Skills（dev/fix/audit 等）通过 Agent 内置的 HTML 注释列表声明，不在此处注册，保持 plugin.json 简洁。",
   "instructions": [
     {
       "id": "safety",

@@ -37,17 +37,38 @@ Content-Type: application/json
 ###
 ```
 
-存放：`tests/api/<module>.http`
+存放：需求目录下 `*-接口验证.http`（遵循 `02-output-paths.instructions.md` 产物路径规范）
 
 ### `.cjs` 文件（自动化脚本）
 
 ```js
-// tests/api/<module>.test.cjs
-const { execSync } = require('child_process')
-// 执行所有接口并断言响应
+// *-接口验证.cjs
+const http = require('http')
+const assert = require('assert')
+
+async function testEndpoint(method, path, body, expected) {
+  return new Promise((resolve, reject) => {
+    const options = { hostname: 'localhost', port: 3000, path, method, headers: { 'Content-Type': 'application/json' } }
+    const req = http.request(options, res => {
+      let data = ''
+      res.on('data', chunk => data += chunk)
+      res.on('end', () => {
+        assert.strictEqual(res.statusCode, expected.status, `${method} ${path}: expected ${expected.status}, got ${res.statusCode}`)
+        if (expected.bodyContains) assert.ok(data.includes(expected.bodyContains), `Response missing: ${expected.bodyContains}`)
+        resolve({ status: res.statusCode, body: data })
+      })
+    })
+    req.on('error', reject)
+    if (body) req.write(JSON.stringify(body))
+    req.end()
+  })
+}
+
+// 按需添加接口测试用例
+// testEndpoint('GET', '/api/users', null, { status: 200 })
 ```
 
-存放：`tests/api/<module>.test.cjs`
+存放：需求目录下 `*-接口验证.cjs`（遵循 `02-output-paths.instructions.md` 产物路径规范）
 
 ## 执行规则
 

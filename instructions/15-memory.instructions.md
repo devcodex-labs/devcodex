@@ -3,7 +3,7 @@ applyTo: **
 ---
 # 记忆写入规则（15-memory）
 
-> 本 Instructions 定义记忆写入的触发时机和约束规则（"何时触发"）。执行能力见 `skills/core/memory.skill.md`（"如何读写"）。
+> 本 Instructions 定义记忆写入的触发时机和约束规则（"何时触发"）。执行能力见 `skills/core/memory/SKILL.md`（"如何读写"）。
 
 ## 触发规则（平台自动注入后由 AI 遵守）
 
@@ -14,7 +14,7 @@ applyTo: **
 | 子任务完成（多任务会话）| 追加 `T{N}进度：✅` |
 | 超 13 轮预警（SC9 C08）| 写入编码检查点（📦 字段）|
 | 报告写入后 | 追加报告路径到 📄 关联报告 |
-| 任务结束（N14）| 更新状态为 ✅ |
+| 任务结束 | 更新状态为 ✅ |
 
 ## 强制约束
 
@@ -30,7 +30,7 @@ applyTo: **
 ## 路径构建规则
 
 ```
-<工作区>/projects/<project>/.ai-memory/clients/<agent>/tasks/YYYYMMDD.md
+<项目根>/.devcodex/.ai-memory/clients/<agent>/tasks/YYYYMMDD.md
 ```
 
 `<agent>` 命名规则（全小写，连字符分隔）：

@@ -5,7 +5,7 @@ applyTo: CONTRIBUTING.md
 ---
 # 贡献指南模板
 
-> **触发**: `dev-init.skill.md` / `dev-docs.skill.md`
+> **触发**: `dev-init/SKILL.md` / `dev-docs/SKILL.md`
 
 ---
 

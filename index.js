@@ -135,6 +135,28 @@ function cmdInit(argv) {
     }
   }
 
+  // Create .devcodex/.ai-memory/ output directory + update .gitignore
+  if (!dryRun) {
+    const devcodexDir = path.join(cwd, '.devcodex')
+    const aiMemDir    = path.join(devcodexDir, '.ai-memory')
+    fs.mkdirSync(aiMemDir, { recursive: true })
+
+    const gitignorePath  = path.join(cwd, '.gitignore')
+    const gitignoreEntry = '\n# DevCodex AI session memory (auto-generated, do not commit)\n.devcodex/.ai-memory/\n'
+    if (fs.existsSync(gitignorePath)) {
+      const content = fs.readFileSync(gitignorePath, 'utf8')
+      if (!content.includes('.devcodex/.ai-memory/')) {
+        fs.appendFileSync(gitignorePath, gitignoreEntry)
+        added++
+        console.log(c.green('  ✓ .gitignore  (.devcodex/.ai-memory/ added)'))
+      }
+    } else {
+      fs.writeFileSync(gitignorePath, gitignoreEntry.trimStart())
+      added++
+      console.log(c.green('  ✓ .gitignore  (created with .devcodex/.ai-memory/)'))
+    }
+  }
+
   console.log()
   console.log(c.dim('  ──────────────────────────────────────'))
   if (dryRun) {
@@ -173,7 +195,7 @@ function cmdStatus(argv) {
 
   console.log()
   if (total === 0) {
-    console.log(`  ${c.yellow('Not initialized.')} Run ${c.bold('npx devcodex init')} to install.`)
+    console.log(`  ${c.yellow('Not initialized.')} Run ${c.bold('npx @vextjs/devcodex init')} to install.`)
   } else {
     console.log(`  ${c.green(`${total} total files`)} installed under .github/`)
   }
@@ -185,7 +207,7 @@ function cmdHelp() {
   ${c.bold('DevCodex')} – AI-powered development guidelines for GitHub Copilot
 
   ${c.bold('Usage:')}
-    npx devcodex <command> [options]
+    npx @vextjs/devcodex <command> [options]
 
   ${c.bold('Commands:')}
     ${c.cyan('init')}      Install DevCodex into .github/ (safe by default, skips existing)
@@ -197,10 +219,10 @@ function cmdHelp() {
     ${c.dim('--dry-run')}      Preview what would be installed without writing files
 
   ${c.bold('Examples:')}
-    npx devcodex init             # First-time install
-    npx devcodex init --force     # Overwrite with latest version
-    npx devcodex update           # Same as init --force
-    npx devcodex status           # Check installation
+    npx @vextjs/devcodex init             # First-time install
+    npx @vextjs/devcodex init --force     # Overwrite with latest version
+    npx @vextjs/devcodex update           # Same as init --force
+    npx @vextjs/devcodex status           # Check installation
 `)
 }
 

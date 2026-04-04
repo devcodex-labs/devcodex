@@ -14,11 +14,11 @@ applyTo: **
 | 步骤 | 动作 | 失败处理 |
 |------|------|---------|
 | ① GET_TIME | 从系统工具获取当前时间 `YYYY-MM-DD HH:MM` | 填 `unknown`，不阻断 |
-| ② READ_RULES | 加载 `RULES.md`（≤80行） | 降级：仅加载 safety.md |
+| ② READ_RULES | 加载 `RULES.md`（≤80行） | 降级：仅加载 `instructions/00-safety.instructions.md` |
 | ③ SAFETY_OK | 验证 S01~S06 安全底线 | 失败则拒绝执行，告知用户 |
 | ④ LOAD_COMMON | 加载 `instructions/01-common.instructions.md` | 降级：仅安全底线 |
-| ⑤ LOAD_PROFILE | 确定 `<project>`，加载 profile（并发执行） | null 则跳过 |
-| ⑥ INTENT | 通过 `intent.skill.md` 识别用户意图 | 兜底 → `other` |
+| ⑤ INTENT | 通过 `intent` Skill（`skills/core/intent/SKILL.md`）识别用户意图 | 兜底 → `other` |
+| ⑥ LOAD_PROFILE | 确定 `<project>`，加载 profile（⑤ 意图确认后串行执行） | null 则跳过 |
 | ⑦ PRECHECK_OUTPUT | 输出会话头信息（`precheck-status.prompt.md`） | — |
 
 ## 安全底线检测（S01~S06）
@@ -38,4 +38,4 @@ applyTo: **
 
 ## Token 检查
 
-加载 `token-check.skill.md`，确定当前授权层级，供后续工作流功能门控使用。
+加载 `token-check` Skill（`skills/token/token-check/SKILL.md`），确定当前授权层级，供后续工作流功能门控使用。

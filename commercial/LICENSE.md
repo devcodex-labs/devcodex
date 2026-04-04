@@ -1,37 +1,29 @@
 # DevCodex 许可证说明
 
-> **版本**: v5.0.0
+> **版本**: v0.0.1
 
 ## 许可证类型
 
-DevCodex 采用双许可证模式：
+DevCodex 采用 **AGPL-3.0-or-later + 商业许可** 双许可证模式：
 
 | 组件 | 许可证 | 说明 |
 |------|-------|------|
-| 核心框架（Free 功能）| MIT | 开源，可自由使用/修改/分发 |
-| Pro/Enterprise 功能 | 商业许可 | 需要有效 Token 授权 |
+| 开源核心（含 Free 功能）| AGPL-3.0-or-later | 开源，须遵守 AGPL 条款 |
+| Pro/Enterprise 附加功能 | 商业许可 | 需要有效 Token 授权 |
 
-## MIT 许可证（核心框架）
+## AGPL-3.0 许可证（开源核心）
 
-```
-MIT License
+本项目整体以 **GNU Affero General Public License v3.0 or later** 发布。
 
-Copyright (c) 2025 DevCodex Contributors
+完整许可证文本见项目根目录 [LICENSE](../LICENSE) 文件。
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+主要条款摘要：
+- 自由使用、修改、分发
+- 修改后的程序须以 AGPL-3.0 或兼容协议发布
+- 通过网络提供服务时须公开源码
+- 不提供任何形式的担保
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-```
+> Copyright (c) 2024-present VextJS Contributors
 
 ## 商业许可证（Pro/Enterprise）
 
@@ -52,4 +44,4 @@ DevCodex 使用以下开源依赖（完整列表见 `package.json`）：
 
 ## 贡献
 
-贡献代码即表示你同意将其以 MIT 许可证授权给本项目。详见 [CONTRIBUTING](https://github.com/vextjs/devcodex/blob/main/CONTRIBUTING.md)。
+贡献代码即表示你同意将其以 AGPL-3.0-or-later 许可证授权给本项目。详见 [CONTRIBUTING](https://github.com/vextjs/devcodex/blob/main/CONTRIBUTING.md)。

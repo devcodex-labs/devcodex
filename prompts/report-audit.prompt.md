@@ -1,12 +1,12 @@
 ---
 mode: agent
 description: 审查工作流报告模板，用于 audit 工作流完成后输出标准审查报告
-applyTo: projects/**/reports/audit/**
+applyTo: .devcodex/**/reports/audit/**
 ---
 # 审查报告模板
 
 > **路径**: `reports/audit/<agent>/YYYYMMDD/NN--<name>.md`
-> **触发**: audit 工作流完成后，由 `report.skill.md` 驱动生成
+> **触发**: audit 工作流完成后，由 `report/SKILL.md` 驱动生成
 
 ---
 

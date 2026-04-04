@@ -388,13 +388,13 @@ function genScreenshotSkills() {
   ctx.font = '12px "Segoe UI", Arial';
   ctx.fillStyle = C.gray;
   ctx.textBaseline = 'middle';
-  ctx.fillText('skills  >  core  >  routing.skill.md', mx, 46);
+  ctx.fillText('skills  >  core  >  routing  >  SKILL.md', mx, 46);
 
   // Skill card header
   ctx.font = 'bold 20px "Segoe UI", Arial';
   ctx.fillStyle = C.white;
   ctx.textAlign = 'left';
-  ctx.fillText('routing.skill.md', mx, 90);
+  ctx.fillText('routing/SKILL.md', mx, 90);
   ctx.font = '13px "Segoe UI", Arial';
   ctx.fillStyle = C.gray;
   ctx.fillText('Core Routing — intent → agent dispatch table', mx, 115);

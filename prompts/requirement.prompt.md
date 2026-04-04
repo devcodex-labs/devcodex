@@ -1,11 +1,11 @@
 ---
 mode: agent
 description: 需求文档模板，用于 CP1 阶段创建标准需求文档
-applyTo: projects/**/requirements/**
+applyTo: .devcodex/**/requirements/**
 ---
 # 需求文档模板
 
-> **路径**: `projects/<project>/docs/requirements/YYYYMMDD-<name>.md`
+> **路径**: `.devcodex/requirements/<中文描述>/01-需求概述.md`（唯一信源：`02-output-paths.instructions.md`）
 > **触发**: dev 工作流 CP1 阶段
 
 ---
@@ -15,7 +15,7 @@ applyTo: projects/**/requirements/**
 ```markdown
 # [需求名称]
 
-> **版本**: v1.0
+> **版本**: v0.0.1
 > **日期**: YYYY-MM-DD
 > **状态**: 草稿 / 确认 / 已实施
 > **作者**: [作者]

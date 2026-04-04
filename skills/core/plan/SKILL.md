@@ -1,6 +1,6 @@
 ---
 name: 执行计划 Skill
-description: 制定结构化执行计划（N06 节点）。当用户请求不匹配任何已有工作流（other 路由）时，由 plan.agent.md 调用。
+description: 制定结构化执行计划。当用户请求不匹配任何已有工作流（other 路由）时，由 devcodex.agent.md 的 plan 兜底路由触发。
 ---
 ## 触发场景
 

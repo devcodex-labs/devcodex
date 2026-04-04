@@ -6,17 +6,20 @@ description: 影响评估规范 — 代码变更六维影响框架 + 回归风�
 
 ## 职责
 
-在 dev/fix 工作流执行完成后，评估代码变更的潜在影响范围，输出影响评估报告。
+在 CP2（方案确认）后、EXEC（编码执行）前，评估技术方案的架构影响范围，输出影响评估报告。评估结果写入技术方案 §11。
 
 ## 触发时机
 
 | 工作流 | 触发条件 |
-|--------|---------|
-| dev | 涉及接口变更/新模块/架构调整 |
-| fix | 修复影响核心功能或多个模块 |
-| dev-refactor | 始终触发（Breaking Change 风险） |
+|--------|----------|
+| dev | 仅当 dev-plan-review PR-5② 标记"跨模块架构依赖变更"时 |
+| fix | 仅当修复方案涉及跨模块架构依赖变更（PR-5②）时 |
+| analyze | 分析结论涉及架构/方案影响时 |
 
-**豁免**：`dev-docs`、`dev-plan-review`、`analyze`、`audit`、`chat`
+> 🔴 PR-5① 对外接口变更 → EXEC 后走 `api-verification`，**不进 impact-review**。  
+> 🔴 PR-5③ 数据库 Schema 变更 → 走 `dev-database` Skill，**不进 impact-review**。
+
+**豁免**：`dev-docs`、`dev-plan-review`、`audit`、`chat`
 
 ## 六维评估框架
 

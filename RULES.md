@@ -1,6 +1,6 @@
 # DevCodex v5 — 使用入口
 
-> GitHub Copilot Agent Plugin · publisher: Rocky · version: 1.0.0
+> GitHub Copilot Agent Plugin · publisher: Rocky · version: 0.0.1
 
 ## 安装
 
@@ -9,23 +9,20 @@
 GitHub Copilot: Install Plugin → DevCodex
 ```
 
-## 工作流 Agents（Pro 层）
+## 统一入口
 
-| 触发方式 | Agent | 用途 |
-|---------|-------|------|
-| `@dev` | dev.agent | 开发（新功能/重构/数据库/初始化/优化/测试/文档/方案评审）|
-| `@fix` | fix.agent | 修复（常规Bug/线上事故/安全漏洞）|
-| `@audit` | audit.agent | 审计（规范文件/技术方案/需求文档/项目工程/报告/文档）|
-| `@self-fix` | self-fix.agent | 规范自修复（自动检测并修正 AI 行为偏差）|
-| `@resume` | resume.agent | 恢复（断点续接中断任务，还原上下文）|
-| `@plan` | plan.agent | 规划（制定执行计划，含 CP 确认关卡）|
+只有一个 Agent：**DevCodex**，收到消息后自动识别意图并路由到对应工作流。
 
-## 免费 Agents（Free 层）
-
-| 触发方式 | Agent | 用途 |
-|---------|-------|------|
-| `@analyze` | analyze.agent | 分析（单轮代码/需求/架构研究）|
-| `@chat` | chat.agent | 问答（轻量对话，无工作流开销）|
+| 意图关键词示例 | 路由工作流 | 授权 |
+|-------------|-----------|------|
+| 开发新功能 / 重构 / 优化 / 初始化 / 文档 | dev | Free（部分子类型需 Pro）|
+| Bug 修复 / 报错 / 线上事故 / 安全漏洞 | fix | Free（incident/security 需 Pro）|
+| 单轮分析 / 技术调研 / 评估 | analyze | Free |
+| 深度审查 / 全面体检 / 逐项检查 | audit | Free（项目工程需 Pro）|
+| 规范文件自修复 | self-fix | Pro |
+| 恢复/继续上次中断任务 | resume | Pro |
+| 不匹配上述意图 | plan（兜底）| Pro |
+| 纯问答 / 解释 | chat（快速路径）| Free |
 
 ## 安全底线
 
@@ -35,9 +32,14 @@ GitHub Copilot: Install Plugin → DevCodex
 
 ## 授权
 
-- **Free**：`@analyze` + `@chat`，20次/天
-- **Pro**：全部 8 Agents + 34 Skills，无次数限制
-- **Enterprise**：Pro + 多租户 Instructions 定制
+> 🚧 **开发阶段**：当前为内测版本，注册后享 7 天全功能试用，付费通道尚未开放。
+
+| 层级 | 激活条件 | 包含功能 |
+|------|---------|---------|
+| **Free** | 无需 Token | 基础工作流（dev 5子类型/fix-default/audit 5类审查/analyze/chat），20次/天 |
+| **Trial（试用）** | GitHub 注册后自动激活，有效期 7 天 | Pro 全部功能，到期自动降级 Free |
+| **Pro** | 订阅付费（内测期暂未开放）| 1 统一 Agent（DevCodex）+ 全部 34 Skills，无次数限制 |
+| **Enterprise** | 联系 sales@devcodex.dev | Pro + 多租户 Instructions 定制 |
 
 设置 Token：`DEVCODEX_TOKEN=<your-token>` 或运行 `/token-setup`
 

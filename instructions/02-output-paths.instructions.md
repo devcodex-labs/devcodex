@@ -3,13 +3,14 @@ applyTo: **
 ---
 # 产物输出路径规范
 
-> 🔴 所有路径以 `projects/<project>/` 为根，禁止写入项目源码目录。  
-> 🔴 禁止在 `projects/<project>/` 下创建规范路径之外的一级目录。
+> 🔴 所有路径以 `<项目根>/.devcodex/` 为根，与源码目录天然隔离，无需手动区分。  
+> 🔴 禁止在 `.devcodex/` 下创建规范路径之外的一级目录。  
+> ⚠️ `init` 命令自动将 `.devcodex/.ai-memory/` 加入 `.gitignore`；`requirements/`、`bugs/`、`reports/` 等产物目录按需提交。
 
 ## 目录结构
 
 ```text
-projects/<project>/
+<项目根>/.devcodex/
 ├── requirements/<中文描述>/          # 需求产物（dev 默认）
 │   ├── 01-需求概述.md               # 🔴 强制
 │   ├── 02-技术方案.md               # 🔴 强制（有架构/接口/设计决策时）
@@ -26,8 +27,8 @@ projects/<project>/
 ├── migrations/                        # 数据库迁移脚本
 ├── scenario-tests/<中文描述>/        # 场景测试产物
 ├── reports/<子目录>/<agent>/YYYYMMDD/ # 全局报告（NN--<简述>.md）
-├── .ai-memory/clients/<agent>/tasks/YYYYMMDD.md  # 记忆
-├── profile/README.md                  # 项目规范
+├── .ai-memory/clients/<agent>/tasks/YYYYMMDD.md  # 记忆（.gitignore 排除）
+├── profile/README.md                  # 项目规范（可提交）
 ├── TASK-INDEX.md                      # 任务索引
 └── README.md
 ```
@@ -38,7 +39,7 @@ projects/<project>/
 |------|------|
 | **目录命名** | `<中文描述>` 必须描述本任务的目标，禁止复用其他任务的目录 |
 | **任务隔离** | 每个 `<中文描述>/` 目录只服务一个明确任务 |
-| **禁止非规范路径** | `projects/<project>/` 下只允许上述目录树中的一级目录 |
+| **禁止非规范路径** | `.devcodex/` 下只允许上述目录树中的一级目录 |
 | **脚本命名** | `scripts/` 目录下的文件名必须使用**中文** |
 | **禁止写入源码目录** | 脚本/测试/辅助文件严禁放入项目源码目录 |
 | **强制产物首轮完成** | 01/02/03/04 在首轮会话结束前必须创建 |
@@ -56,7 +57,7 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 ## 记忆路径
 
 ```text
-.ai-memory/clients/<agent>/tasks/YYYYMMDD.md
+.devcodex/.ai-memory/clients/<agent>/tasks/YYYYMMDD.md
 ```
 
 每天一个文件，文件内以 `## 会话 NN` 分段。

@@ -22,16 +22,17 @@ description: 性能优化子类型规范 — 基准测试前置 + autocannon 压
 
 ```bash
 # 基线测量
-autocannon -c 100 -d 30 http://localhost:3000/api/target
+autocannon -c 100 -d 30 -j http://localhost:3000/api/target > baseline.json
 
 # 优化后对比
-autocannon -c 100 -d 30 --compare baseline.json http://localhost:3000/api/target
+autocannon -c 100 -d 30 -j http://localhost:3000/api/target > optimized.json
+npx autocannon-compare baseline.json optimized.json
 ```
 
 ## CP 流程
 
 - **CP1**：确认优化目标（指标 + 目标值）+ 当前基线数据
-- **CP2**：确认优化方案（无 Breaking Changes，或 BC 已评估）
+- **CP2**：确认优化方案（无 Breaking Changes，或 BC 已评估） → `dev-plan-review`（PR-1~PR-6）→ CP3
 - **CP3**：确认实施步骤 + 回滚策略
 
 ## 产出物

@@ -13,7 +13,7 @@ v4 是手动配置的规范目录，v5 是 GitHub Copilot Agent Plugin，安装�
 |------|----|----|
 | 分发方式 | 手动克隆目录 | VS Code Plugin 一键安装 |
 | 激活方式 | 修改 VS Code settings，手动引用路径 | Plugin 平台自动注入 Instructions |
-| 工作流触发 | 读取 RULES.md 后手动路由 | `@dev` / `@audit` 等 Agent 触发 |
+| 工作流触发 | 读取 RULES.md 后手动路由 | `@DevCodex` 统一 Agent 自动语义路由 |
 | 记忆系统 | 手写到项目目录 | memory.skill 自动管理 |
 | 多租户 | `tenants/<id>/specs/` 手动路径覆盖 | `instructions/tenants/<id>/` 自动优先级覆盖 |
 
@@ -25,9 +25,9 @@ v4 的每个 specs 文件都已 1:1 映射到 v5：
 |---------|------------|
 | `specs/safety.md` | `instructions/00-safety.instructions.md`（自动注入，不可覆盖）|
 | `specs/common.md` | `instructions/01-common.instructions.md` |
-| `specs/dev/README.md` | `agents/dev.agent.md` + `instructions/10-dev.instructions.md` |
-| `specs/dev/<sub>.md` | `skills/dev/dev-<sub>.skill.md` |
-| `specs/audit/<dim>.md` | `skills/audit/audit-<dim>.skill.md` |
+| `specs/dev/README.md` | `agents/devcodex.agent.md`（统一入口 agent）+ `instructions/10-dev.instructions.md` |
+| `specs/dev/<sub>.md` | `skills/dev/dev-<sub>/SKILL.md` |
+| `specs/audit/<dim>.md` | `skills/audit/audit-<dim>/SKILL.md` |
 | `templates/*.md` | `prompts/*.prompt.md` |
 
 完整映射规则见技术方案 §2.10。
@@ -55,9 +55,9 @@ node tools/v4-to-v5-migration.js --tenant acme --src path/to/v4
 
 ## 记忆文件位置
 
-v4 的记忆文件写入项目 profile 目录。v5 的 memory.skill 默认写入：
+v4 的记忆文件写入项目 profile 目录。v5 的 `memory` Skill 默认写入：
 ```
-<project-root>/.copilot/memory/
+.devcodex/.ai-memory/clients/<agent>/tasks/YYYYMMDD.md
 ```
 
 ## 常见问题

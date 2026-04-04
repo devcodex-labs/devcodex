@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json.schemastore.org/mcp-servers.json",
+  "_comment": "Placeholder config (v0.1.x). MCP servers will be enabled in v0.2.0.",
+  "servers": {
+    "devcodex-memory": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["${PLUGIN_ROOT}/mcp/memory-server.js"],
+      "disabled": true,
+      "tools": ["memory_read", "memory_write", "memory_list"],
+      "resources": ["memory://sessions/**"]
+    },
+    "devcodex-violations": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["${PLUGIN_ROOT}/mcp/violations-server.js"],
+      "disabled": true,
+      "tools": ["violation_log", "violation_query", "violation_stats"]
+    },
+    "devcodex-auth": {
+      "_comment": "Planned (v0.2.0): MCP protocol layer for auth service. Currently auth.devcodex.dev only exposes /validate and /auth/* REST endpoints.",
+      "type": "http",
+      "url": "https://auth.devcodex.dev/mcp",
+      "disabled": true,
+      "tools": ["token_validate", "token_refresh", "tier_check"]
+    }
+  }
+}

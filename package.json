@@ -1,6 +1,6 @@
 {
   "name": "@vextjs/devcodex",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "DevCodex – AI-powered development guidelines as a GitHub Copilot Agent Plugin",
   "main": "index.js",
   "bin": {

@@ -1,12 +1,8 @@
 ---
-id: pre-message
 name: Pre Message Hook
 description: 消息前置钩子 — 获取当前时间、安全底线检测、会话头输出
-version: 1.0.0
-trigger: before_message
-applyTo: "**"
+applyTo: **
 ---
-
 # Pre Message Hook
 
 ## 触发时机

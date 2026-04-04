@@ -1,37 +1,11 @@
 ---
-id: dev
 name: DevCodex – 开发工作流
 description: 处理新功能开发、重构、数据库变更、项目初始化、性能优化、场景测试、文档撰写、方案评审 8 类开发任务
-version: "1.0.0"
-tier: pro
 tools:
   - filesystem
   - terminal
-skills:
-  - compliance
-  - memory
-  - report
-  - cp-gate
-  - intent
-  - summary
-  - plan
-  - dev-default
-  - dev-refactor
-  - dev-database
-  - dev-init
-  - dev-optimization
-  - dev-scenario-test
-  - dev-docs
-  - dev-plan-review
-  - api-verification
-  - document-sync
-  - impact-review
-  - load-profile
-instructions:
-  - "10-dev"
-source: "v4:specs/dev/README.md"
 ---
-
+<!-- DevCodex Skills: compliance, memory, report, cp-gate, intent, summary, plan, dev-default, dev-refactor, dev-database, dev-init, dev-optimization, dev-scenario-test, dev-docs, dev-plan-review, api-verification, document-sync, impact-review, load-profile -->
 ## 子类型路由
 
 | 关键词 / 意图 | 子类型 | 对应 Skill |

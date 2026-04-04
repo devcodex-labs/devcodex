@@ -1,11 +1,6 @@
 ---
-applyTo: "**"
-priority: 5
-version: "1.0.0"
-source: "v4:specs/output-paths.md"
-description: "产物输出路径规范 — 全局强制，所有工作流产物必须遵循此路径体系"
+applyTo: **
 ---
-
 # 产物输出路径规范
 
 > 🔴 所有路径以 `projects/<project>/` 为根，禁止写入项目源码目录。  

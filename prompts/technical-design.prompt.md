@@ -1,9 +1,8 @@
 ---
 mode: agent
 description: 技术方案文档模板，用于 CP2 阶段创建标准技术方案
-applyTo: "projects/**/docs/**"
+applyTo: projects/**/docs/**
 ---
-
 # 技术方案模板
 
 > **路径**: `projects/<project>/docs/technical-design/YYYYMMDD-<name>.md`

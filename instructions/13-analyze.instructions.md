@@ -1,11 +1,6 @@
 ---
-applyTo: "**"
-priority: 3
-workflowAgent: analyze
-version: "1.0.0"
-source: "v4:specs/analyze/README.md + specs/analyze/*.md"
+applyTo: **
 ---
-
 # 分析工作流规则（13-analyze）
 
 > 本 Instructions 与 `agents/analyze.agent.md` 关联，在 analyze 工作流激活时由平台自动注入。Free 层可用。

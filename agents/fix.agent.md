@@ -1,31 +1,11 @@
 ---
-id: fix
 name: DevCodex – 修复工作流
 description: 处理常规 Bug 修复、线上事故响应、安全漏洞修复 3 类修复任务
-version: "1.0.0"
-tier: pro
 tools:
   - filesystem
   - terminal
-skills:
-  - compliance
-  - memory
-  - report
-  - cp-gate
-  - intent
-  - summary
-  - fix-default
-  - fix-incident
-  - fix-security
-  - api-verification
-  - document-sync
-  - impact-review
-  - load-profile
-instructions:
-  - "11-fix"
-source: "v4:specs/fix/README.md"
 ---
-
+<!-- DevCodex Skills: compliance, memory, report, cp-gate, intent, summary, fix-default, fix-incident, fix-security, api-verification, document-sync, impact-review, load-profile -->
 ## 子类型路由
 
 | 关键词 / 意图 | 子类型 | 对应 Skill |

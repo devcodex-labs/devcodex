@@ -1,9 +1,8 @@
 ---
 mode: agent
 description: 记忆会话文档模板，用于写入每次会话的结构化记忆
-applyTo: "projects/**/.ai-memory/**"
+applyTo: projects/**/.ai-memory/**
 ---
-
 # 记忆会话模板
 
 > **路径**: `projects/<project>/.ai-memory/clients/<agent>/tasks/YYYYMMDD.md`

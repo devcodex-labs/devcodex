@@ -1,29 +1,10 @@
 ---
-id: audit
 name: DevCodex – 审计工作流
 description: 多轮深度审查，直至收敛。支持规范文件、技术方案、需求文档、项目工程、报告、通用文档 6 类审查目标
-version: "1.0.0"
-tier: pro
 tools:
   - filesystem
-skills:
-  - compliance
-  - memory
-  - report
-  - summary
-  - audit-common
-  - audit-dimensions
-  - audit-tech-design
-  - audit-requirements
-  - audit-project
-  - audit-report
-  - audit-document
-  - audit-execution-guide
-instructions:
-  - "12-audit"
-source: "v4:specs/audit/README.md"
 ---
-
+<!-- DevCodex Skills: compliance, memory, report, summary, audit-common, audit-dimensions, audit-tech-design, audit-requirements, audit-project, audit-report, audit-document, audit-execution-guide -->
 ## 审查目标类型路由
 
 | 用户意图 | 目标类型 | 对应 Skill |

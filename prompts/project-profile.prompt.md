@@ -1,9 +1,8 @@
 ---
 mode: agent
 description: 项目 Profile README 模板，用于初始化项目 Profile 索引文件
-applyTo: "projects/*/profile/**"
+applyTo: projects/*/profile/**
 ---
-
 # 项目 Profile README 模板
 
 > **路径**: `projects/<project>/profile/README.md`

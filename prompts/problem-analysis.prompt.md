@@ -1,9 +1,8 @@
 ---
 mode: agent
 description: 问题分析报告模板，用于 fix 工作流三步扫描后输出问题诊断
-applyTo: "**"
+applyTo: **
 ---
-
 # 问题分析报告模板
 
 > **路径**: `reports/bugs/<agent>/YYYYMMDD/NN--<name>-analysis.md`

@@ -1,9 +1,8 @@
 ---
 mode: agent
 description: 分析工作流报告模板，用于 analyze 工作流完成后输出调研/分析报告
-applyTo: "projects/**/reports/analysis/**"
+applyTo: projects/**/reports/analysis/**
 ---
-
 # 分析报告模板
 
 > **路径**: `reports/analysis/<agent>/YYYYMMDD/NN--<name>.md`

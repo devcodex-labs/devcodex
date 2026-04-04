@@ -2,6 +2,24 @@
 
 All notable changes to DevCodex will be documented in this file.
 
+## [1.0.1] — 2026-04-03
+
+### Added
+- **`npx devcodex init`**：一行命令将所有文件安装到项目 `.github/` 目录
+- **`npx devcodex update`**：升级覆盖已有文件（同 `init --force`）
+- **`npx devcodex status`**：查看当前项目的 DevCodex 安装状态
+- **`--dry-run` 选项**：预览将要安装的文件，不实际写入
+- `bin.devcodex` 字段：`npx devcodex` 可直接执行
+
+### Changed
+- 文件结构迁移至 **GitHub Copilot 官方标准格式**：
+  - Skills 重组为 `skills/<category>/<name>/SKILL.md` 独立子目录结构
+  - Agent frontmatter 精简为官方字段（`name/description/tools`）
+  - Instructions frontmatter 精简为 `applyTo`
+  - Hooks 新增 `devcodex-hooks.json`（官方 JSON 格式）
+- Audit 工具（`tools/v5-full-audit.js`）更新以匹配官方标准
+- README 安装说明更新为 `npx devcodex init`
+
 ## [1.0.0] — 2026-04-03
 
 ### Added

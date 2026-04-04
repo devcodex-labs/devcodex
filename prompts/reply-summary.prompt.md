@@ -1,9 +1,8 @@
 ---
 mode: agent
 description: 回复摘要模板，用于 chat 工作流记录简短会话摘要
-applyTo: "projects/**/.ai-memory/**"
+applyTo: projects/**/.ai-memory/**
 ---
-
 # 回复摘要模板
 
 > **路径**: `projects/<project>/.ai-memory/clients/<agent>/chat/YYYYMMDD.md`

@@ -1,9 +1,8 @@
 ---
 mode: agent
 description: 开发工作流报告模板，用于 dev 工作流执行完成后输出标准报告
-applyTo: "projects/**/reports/requirements/**"
+applyTo: projects/**/reports/requirements/**
 ---
-
 # 开发报告模板
 
 > **路径**: `reports/requirements/<agent>/YYYYMMDD/NN--<name>.md`

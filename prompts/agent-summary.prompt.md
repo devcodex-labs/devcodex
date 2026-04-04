@@ -1,9 +1,8 @@
 ---
 mode: agent
 description: Agent 会话摘要模板，用于生成跨会话 Agent 级别的工作摘要
-applyTo: "projects/**/.ai-memory/**"
+applyTo: projects/**/.ai-memory/**
 ---
-
 # Agent 摘要模板
 
 > **路径**: `projects/<project>/.ai-memory/clients/<agent>/SUMMARY.md`

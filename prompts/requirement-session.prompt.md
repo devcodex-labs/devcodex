@@ -1,9 +1,8 @@
 ---
 mode: agent
 description: 需求会话记录模板，用于记录需求讨论过程中的会话快照
-applyTo: "projects/**/docs/requirements/**"
+applyTo: projects/**/docs/requirements/**
 ---
-
 # 需求会话记录模板
 
 > **路径**: `projects/<project>/docs/requirements/YYYYMMDD-<name>-session.md`

@@ -1,10 +1,6 @@
 ---
-applyTo: "**"
-priority: 3
-version: "1.0.0"
-source: "v4:specs/compliance.md（触发规则部分）"
+applyTo: **
 ---
-
 # 合规检查规则（17-compliance）
 
 > 本 Instructions 定义合规检查的触发时机和约束规则。执行能力见 `skills/core/compliance.skill.md`。

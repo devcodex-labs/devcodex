@@ -1,11 +1,6 @@
 ---
-applyTo: "**"
-priority: 5
-version: "1.0.0"
-source: "v4:specs/common.md"
-description: "通用约束 C01~C15 — 全工作流全节点有效"
+applyTo: **
 ---
-
 # 通用规范
 
 > 以下约束在所有工作流、所有节点中全程有效，优先级 P5。  

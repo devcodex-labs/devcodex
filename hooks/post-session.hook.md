@@ -1,12 +1,8 @@
 ---
-id: post-session
 name: Post Session Hook
 description: 会话后置钩子 — 写入记忆文件 + 生成报告（替代 v4 的 N02/N12 节点）
-version: 1.0.0
-trigger: after_session
-applyTo: "**"
+applyTo: **
 ---
-
 # Post Session Hook
 
 ## 触发时机

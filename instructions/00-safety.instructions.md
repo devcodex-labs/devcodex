@@ -1,11 +1,6 @@
 ---
-applyTo: "**"
-priority: 1
-version: "1.0.0"
-source: "v4:specs/safety.md"
-description: "P2 安全底线 — 不可被任何来源覆盖（包括用户指令 P1）"
+applyTo: **
 ---
-
 # 安全底线规范（S01~S06）
 
 > **优先级 P2** — 本文件在所有 Instructions 中最先生效，不可被租户规范（P3）、工作流规范（P4）或用户指令（P1）覆盖。

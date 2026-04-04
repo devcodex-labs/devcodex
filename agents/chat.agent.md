@@ -1,18 +1,10 @@
 ---
-id: chat
 name: DevCodex – 问答工作流
 description: 纯问答，无需工作流开销。无文件变更意图时直接回复。Free 层可用。
-version: "1.0.0"
-tier: free
-tools: []
-skills:
-  - intent
-  - memory
-  - summary
-instructions: []
-source: "v4:RULES.md N04/N05（chat 直接回复分支）"
+tools:
+  - []
 ---
-
+<!-- DevCodex Skills: intent, memory, summary -->
 ## 适用场景
 
 | 场景 | 说明 |

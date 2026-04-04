@@ -1,9 +1,8 @@
 ---
 mode: agent
 description: 项目 README 模板，用于生成标准开源项目 README
-applyTo: "README.md"
+applyTo: README.md
 ---
-
 # 项目 README 模板
 
 > **触发**: `dev-init.skill.md` 初始化项目 / `dev-docs.skill.md` 更新文档

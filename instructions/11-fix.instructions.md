@@ -1,11 +1,6 @@
 ---
-applyTo: "**"
-priority: 3
-workflowAgent: fix
-version: "1.0.0"
-source: "v4:specs/fix/README.md + specs/fix/*.md"
+applyTo: **
 ---
-
 # 修复工作流规则（11-fix）
 
 > 本 Instructions 与 `agents/fix.agent.md` 关联，在 fix 工作流激活时由平台自动注入。

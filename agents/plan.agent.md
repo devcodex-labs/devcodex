@@ -1,24 +1,11 @@
 ---
-id: plan
 name: DevCodex – 规划工作流
 description: 当用户请求不匹配任何已有工作流（other 路由）时，制定执行计划并分步执行。
-version: "1.0.0"
-tier: pro
 tools:
   - filesystem
   - terminal
-skills:
-  - compliance
-  - memory
-  - report
-  - cp-gate
-  - intent
-  - summary
-  - plan
-instructions: []
-source: "v4:specs/plan.md（N06 节点）"
 ---
-
+<!-- DevCodex Skills: compliance, memory, report, cp-gate, intent, summary, plan -->
 ## 触发条件
 
 | 来源 | 说明 |

@@ -1,11 +1,6 @@
 ---
-applyTo: "**"
-priority: 3
-workflowAgent: dev
-version: "1.0.0"
-source: "v4:specs/dev/README.md + specs/dev/*.md"
+applyTo: **
 ---
-
 # 开发工作流规则（10-dev）
 
 > 本 Instructions 与 `agents/dev.agent.md` 关联，在 dev 工作流激活时由平台自动注入。

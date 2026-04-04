@@ -1,19 +1,10 @@
 ---
-id: resume
 name: DevCodex – 上下文恢复工作流
 description: 恢复中断任务，从记忆文件读取上次会话状态，还原上下文后重路由到原始工作流继续执行。
-version: "1.0.0"
-tier: pro
 tools:
   - filesystem
-skills:
-  - memory
-  - intent
-  - summary
-instructions: []
-source: "v4:RULES.md N05（resume 静态路由分支）"
 ---
-
+<!-- DevCodex Skills: memory, intent, summary -->
 ## 触发条件
 
 满足以下**全部条件**时路由到 resume：

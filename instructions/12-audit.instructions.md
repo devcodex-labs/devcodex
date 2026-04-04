@@ -1,11 +1,6 @@
 ---
-applyTo: "**"
-priority: 3
-workflowAgent: audit
-version: "1.0.0"
-source: "v4:specs/audit/README.md + specs/audit/*.md"
+applyTo: **
 ---
-
 # 审计工作流规则（12-audit）
 
 > 本 Instructions 与 `agents/audit.agent.md` 关联，在 audit 工作流激活时由平台自动注入。

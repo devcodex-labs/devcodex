@@ -14,13 +14,31 @@ DevCodex 将 [ai-dev-guidelines v4](https://github.com/vextjs/ai-dev-guidelines)
 
 ## 安装
 
-在 VS Code 命令面板（`Ctrl+Shift+P`）执行：
+### 方式一：npx（推荐，一行命令）
 
-```
-GitHub Copilot: Install Plugin
+在你的项目根目录执行：
+
+```bash
+npx devcodex init
 ```
 
-搜索 **DevCodex** 安装。安装后在 Copilot Chat 中使用 `@dev`、`@audit` 等触发工作流。
+这会将所有 agents / skills / instructions / prompts / hooks 复制到项目的 `.github/` 目录，**重启 VS Code 后即可使用**。
+
+```bash
+# 查看已安装状态
+npx devcodex status
+
+# 升级到最新版本（覆盖已有文件）
+npx devcodex update
+```
+
+### 方式二：手动安装
+
+```bash
+npm install --save-dev devcodex
+```
+
+然后运行 `npx devcodex init`。
 
 ## 快速开始
 

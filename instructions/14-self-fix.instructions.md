@@ -1,11 +1,6 @@
 ---
-applyTo: "**"
-priority: 3
-workflowAgent: self-fix
-version: "1.0.0"
-source: "v4:specs/self-fix/README.md + specs/self-fix/*.md"
+applyTo: **
 ---
-
 # 规范自修复规则（14-self-fix）
 
 > 本 Instructions 与 `agents/self-fix.agent.md` 关联，在 self-fix 工作流激活时由平台自动注入。

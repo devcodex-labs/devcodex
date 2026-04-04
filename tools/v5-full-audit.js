@@ -75,9 +75,9 @@ function parseFrontmatter(content) {
 }
 
 function checkSkillFrontmatter() {
-  const required = ['id', 'name', 'description', 'version', 'tier']
-  // workflow is required for sub-type skills but optional for core/cross skills
-  const files = getAllFiles(path.join(V5_ROOT, 'skills'), '.md')
+  // Official standard: SKILL.md files require 'name' and 'description' only
+  const required = ['name', 'description']
+  const files = getAllFiles(path.join(V5_ROOT, 'skills'), 'SKILL.md')
   for (const f of files) {
     const content = fs.readFileSync(f, 'utf8')
     const fm = parseFrontmatter(content)
@@ -85,21 +85,18 @@ function checkSkillFrontmatter() {
     for (const field of required) {
       if (!fm[field]) ERRORS.push(`[C01] ${path.relative(V5_ROOT, f)}: 缺少字段 '${field}'`)
     }
-    // workflow is required unless tier indicates a core/cross skill (no subdir prefix)
-    const relPath = path.relative(V5_ROOT, f).replace(/\\/g, '/')
-    const isSubTypeSkill = !relPath.startsWith('skills/core/')
-    if (isSubTypeSkill && !fm['workflow']) {
-      ERRORS.push(`[C01] ${path.relative(V5_ROOT, f)}: 缺少字段 'workflow'`)
-    }
-    if (!isSubTypeSkill && !fm['workflow']) {
-      WARNINGS.push(`[C01] ${path.relative(V5_ROOT, f)}: 核心 skill 建议添加 workflow 字段`)
+    // Non-standard fields should NOT be present
+    const nonStandard = ['id', 'version', 'tier', 'workflow', 'source']
+    for (const field of nonStandard) {
+      if (fm[field]) WARNINGS.push(`[C01] ${path.relative(V5_ROOT, f)}: 含非官方字段 '${field}'（建议移除）`)
     }
   }
 }
 
 function checkAgentFrontmatter() {
-  const required = ['id', 'name', 'description', 'version', 'tier']
-  const files = getAllFiles(path.join(V5_ROOT, 'agents'), '.md')
+  // Official standard: agent files require 'description'; 'name' is optional (defaults to filename)
+  const required = ['description']
+  const files = getAllFiles(path.join(V5_ROOT, 'agents'), '.agent.md')
   for (const f of files) {
     const content = fs.readFileSync(f, 'utf8')
     const fm = parseFrontmatter(content)
@@ -107,12 +104,14 @@ function checkAgentFrontmatter() {
     for (const field of required) {
       if (!fm[field]) ERRORS.push(`[C02] ${path.relative(V5_ROOT, f)}: 缺少字段 '${field}'`)
     }
-    // skills and tools can be empty arrays but must be declared
-    if (!content.includes('skills:')) {
-      ERRORS.push(`[C02] ${path.relative(V5_ROOT, f)}: 缺少字段 'skills'`)
-    }
+    // 'tools' is optional but recommended
     if (!content.includes('tools:')) {
-      WARNINGS.push(`[C02] ${path.relative(V5_ROOT, f)}: 建议声明 'tools' 字段（即使为空数组）`)
+      WARNINGS.push(`[C02] ${path.relative(V5_ROOT, f)}: 建议声明 'tools' 字段`)
+    }
+    // Non-standard fields should NOT be present
+    const nonStandard = ['id', 'version', 'tier', 'skills', 'instructions']
+    for (const field of nonStandard) {
+      if (fm[field]) WARNINGS.push(`[C02] ${path.relative(V5_ROOT, f)}: 含非官方字段 '${field}'（建议移除）`)
     }
   }
 }
@@ -138,9 +137,10 @@ function checkPromptMode() {
 }
 
 function checkRoutingTable() {
-  const routingFile = path.join(V5_ROOT, 'skills', 'routing', 'routing.skill.md')
+  // New path: skills/routing/routing/SKILL.md
+  const routingFile = path.join(V5_ROOT, 'skills', 'routing', 'routing', 'SKILL.md')
   if (!fs.existsSync(routingFile)) {
-    ERRORS.push('[C05] routing.skill.md 不存在')
+    ERRORS.push('[C05] skills/routing/routing/SKILL.md 不存在')
     return
   }
   const content = fs.readFileSync(routingFile, 'utf8')

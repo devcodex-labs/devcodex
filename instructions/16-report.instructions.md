@@ -1,10 +1,6 @@
 ---
-applyTo: "**"
-priority: 3
-version: "1.0.0"
-source: "v4:specs/report.md（触发规则部分）"
+applyTo: **
 ---
-
 # 报告输出规则（16-report）
 
 > 本 Instructions 定义报告的命名、路径、输出格式约束。生成能力见 `skills/core/report.skill.md`。

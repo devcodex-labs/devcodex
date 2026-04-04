@@ -1,23 +1,10 @@
 ---
-id: analyze
 name: DevCodex – 分析工作流
 description: 单轮分析，输出结论/报告即完成。支持常规分析和技术调研两类子类型。Free 层可用。
-version: "1.0.0"
-tier: free
 tools:
   - filesystem
-skills:
-  - compliance
-  - memory
-  - report
-  - summary
-  - intent
-  - analyze-research
-instructions:
-  - "13-analyze"
-source: "v4:specs/analyze/README.md"
 ---
-
+<!-- DevCodex Skills: compliance, memory, report, summary, intent, analyze-research -->
 ## 子类型路由
 
 | 关键词 / 意图 | 子类型 | 对应 Skill |

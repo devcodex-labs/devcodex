@@ -1,10 +1,6 @@
 ---
-applyTo: "**"
-priority: 3
-version: "1.0.0"
-source: "v4:specs/memory.md（触发规则部分）"
+applyTo: **
 ---
-
 # 记忆写入规则（15-memory）
 
 > 本 Instructions 定义记忆写入的触发时机和约束规则（"何时触发"）。执行能力见 `skills/core/memory.skill.md`（"如何读写"）。

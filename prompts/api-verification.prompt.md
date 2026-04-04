@@ -1,9 +1,8 @@
 ---
 mode: agent
 description: API 验证文档模板，用于生成 .http 接口文档和 .cjs 自动化脚本说明
-applyTo: "tests/api/**"
+applyTo: tests/api/**
 ---
-
 # API 验证模板
 
 > **触发**: `api-verification.skill.md` 执行时生成

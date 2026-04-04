@@ -1,9 +1,8 @@
 ---
 mode: agent
 description: 实施进度报告模板，用于记录多阶段实施的当前进度
-applyTo: "projects/**/docs/**"
+applyTo: projects/**/docs/**
 ---
-
 # 实施进度模板
 
 > **路径**: `projects/<project>/docs/implementation/YYYYMMDD-<name>-progress.md`

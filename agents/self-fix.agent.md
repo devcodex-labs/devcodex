@@ -1,22 +1,10 @@
 ---
-id: self-fix
 name: DevCodex – 规范自修复工作流
 description: 修复 DevCodex 规范文件（instructions/agents/skills/prompts）中的不一致、错误、缺失。区别于 fix（修复源码 Bug）和 dev（新增功能）。
-version: "1.0.0"
-tier: pro
 tools:
   - filesystem
-skills:
-  - compliance
-  - memory
-  - report
-  - summary
-  - self-fix-auto
-instructions:
-  - "14-self-fix"
-source: "v4:specs/self-fix/README.md"
 ---
-
+<!-- DevCodex Skills: compliance, memory, report, summary, self-fix-auto -->
 ## 触发场景
 
 | 触发源 | 说明 |

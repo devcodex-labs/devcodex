@@ -1,9 +1,8 @@
 ---
 mode: agent
 description: Token 授权设置向导，引导用户完成 DevCodex Token 配置
-applyTo: "**"
+applyTo: **
 ---
-
 # Token 设置向导
 
 > **触发**: 用户首次使用 Pro/Enterprise 功能 / 显式调用

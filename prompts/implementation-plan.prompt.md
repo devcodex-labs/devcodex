@@ -1,9 +1,8 @@
 ---
 mode: agent
 description: 实施计划文档模板，用于 CP3 阶段创建标准实施计划
-applyTo: "projects/**/docs/**"
+applyTo: projects/**/docs/**
 ---
-
 # 实施计划模板
 
 > **路径**: `projects/<project>/docs/implementation/YYYYMMDD-<name>-plan.md`

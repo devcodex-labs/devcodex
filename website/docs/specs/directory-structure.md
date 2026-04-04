@@ -5,6 +5,21 @@
 
 ---
 
+## 各组件职责说明
+
+| 组件 | 官方定位 | DevCodex 中的用途 |
+|------|---------|-----------------|
+| **Agents** | 定义 AI 的角色、工具权限、运行模式和行为边界 | `@devcodex`（确认模式）/ `@devcodex-auto`（全自动模式）两个入口 Agent |
+| **Skills** | 按需触发的工作流能力入口，用户可 `/skill-name` 或 AI 自动调用 | **薄壳入口层**：SKILL.md 极简，触发后指向 `workflows/` 读取详细流程 |
+| **Instructions** | 全局注入的规范约束，`applyTo` 控制生效范围，每次会话自动加载 | 工作流规则（dev/fix/audit...）+ 安全底线（S01~S06）+ 合规规则（FC/SC）|
+| **Prompts** | 单次有参数的任务模板，`/prompt-name` 触发，结构化输出 | CP 节点输出模板（CP1需求确认、CP2方案确认、CP3实施计划等）|
+| **Hooks** | 生命周期钩子，在特定事件执行 shell 命令（确定性，不可被 AI 绕过）| `UserPromptSubmit` 注入上下文 / `Stop` 触发后置操作 |
+| **Workflows** | ⚠️ DevCodex 自定义目录（非官方组件）| 存储各 Skill 的详细工作流内容，Skills 薄壳读取此目录执行 |
+
+> **核心区别**：Instructions 是"始终有效的约束"，Skills 是"按需触发的入口"，Workflows 是"实际工作流内容"，Prompts 是"结构化输出模板"，Hooks 是"确定性的生命周期动作"。
+
+---
+
 ## 官方标准概览
 
 VS Code Copilot 识别以下目录和文件类型（均位于 `.github/` 下）：
@@ -17,6 +32,21 @@ VS Code Copilot 识别以下目录和文件类型（均位于 `.github/` 下）�
 | Prompts | `.github/prompts/*.prompt.md` | CP 节点模板 |
 | Hooks | `.github/hooks/*.json` | 生命周期钩子 |
 | 全局指令 | `.github/copilot-instructions.md` 或根目录 `AGENTS.md` | — |
+
+---
+
+## 组件职责速查
+
+| 组件 | 核心职责 | DevCodex 中的角色 | 触发方式 |
+|------|---------|-----------------|---------|
+| **Agents** | 定义 AI 身份、工具权限、行为边界 | `@devcodex`（确认模式）/ `@devcodex-auto`（全自动）| 用户在 Chat 选择 Agent |
+| **Skills** | 按需触发的工作流**入口**（薄壳）| 路由层：接收意图 → 指向 `workflows/` 详细流程 | `/skill-name` 或 AI 自动发现 |
+| **workflows/** | 工作流**详细内容**（非官方组件，自定义目录）| 每个 Skill 对应的完整执行流程文件集合 | 由 SKILL.md 引用读取 |
+| **Instructions** | 始终有效的全局规范约束 | 工作流规则（dev/fix/audit）+ 安全底线 + 合规规则 | 每次会话自动注入 |
+| **Prompts** | 有参数的结构化输出模板 | CP 节点模板（需求确认/方案确认/实施计划）| `/prompt-name` 或 AI 调用 |
+| **Hooks** | 生命周期事件的 shell 钩子（确定性执行）| `UserPromptSubmit` 注入上下文 / `Stop` 触发后置操作 | 平台事件自动触发 |
+
+> **关键区别**：Instructions 是"约束"（始终有效），Skills 是"能力入口"（按需触发），workflows/ 是"执行内容"（由 Skills 读取）。
 
 ---
 
@@ -222,6 +252,17 @@ e:\MySelf\devcodex\          ← npm 包根目录
 │   │   └── SKILL.md
 │   └── impact-review/
 │       └── SKILL.md
+├── workflows/               ← 工作流详细内容（非官方组件，自定义目录）
+│   │                        ← v2.0.0 此目录整体替换为 MCP 调用
+│   ├── dev-default/
+│   │   ├── index.md         ← 主流程总览（CP 顺序、约束）
+│   │   ├── cp1.md           ← 需求确认节点
+│   │   ├── cp2.md           ← 方案确认节点
+│   │   ├── cp3.md           ← 实施计划节点
+│   │   └── execute.md       ← 执行阶段约束
+│   ├── fix-default/
+│   │   └── ...
+│   └── <skill-name>/        ← 每个 Skill 对应一个子目录
 ├── prompts/                 ← Prompts 源文件
 │   └── *.prompt.md
 ├── hooks/                   ← Hooks 源文件

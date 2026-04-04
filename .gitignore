@@ -39,3 +39,6 @@ assets/*.placeholder
 # Local env
 .env
 .env.local
+
+# DevCodex AI session memory (auto-generated, do not commit)
+.devcodex/.ai-memory/

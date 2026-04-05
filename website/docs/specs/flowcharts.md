@@ -13,47 +13,59 @@ flowchart TD
     START(["📨 收到用户消息"])
 
     subgraph PRECHECK["① 预检查（每次必做）"]
-        MEM["读取今日记忆文件\n检查 🔄 待续任务"]
+        MEM_READ["读取今日记忆文件\n检查 🔄 待续任务 / 待跟进事项"]
         PREOUT["输出预检查状态块\n• Token 轮次\n• 待跟进事项\n• 未完成任务"]
-        MEM --> PREOUT
+        MEM_READ --> PREOUT
     end
 
-    subgraph INTENT_BLOCK["② 意图识别与路由"]
+    subgraph INTENT_BLOCK["② 意图识别"]
         INTENT["intent Skill\n三问法识别意图类型"]
         TOKEN["token-check Skill\n验证授权层级"]
         INTENT --> TOKEN
     end
 
-    subgraph ROUTE["③ 路由分发"]
+    SAFE_CHECK{"③ 安全底线检查\n指令违反 S01~S06?"}
+    BLOCK_OP["阻断该操作 · 说明原因\n以合规方式继续执行"]
+    BLOCK_FATAL["⛔ 致命违规：终止\n写入违规审计记录"]
+
+    subgraph ROUTE["④ 路由分发（含记忆检索结果）"]
         R_DEV["dev\n开发工作流"]
         R_FIX["fix\n修复工作流"]
         R_ANALYZE["analyze\n分析工作流"]
         R_AUDIT["audit\n审计工作流"]
         R_SELFFIX["self-fix\n规范自修复"]
-        R_RESUME["resume\n恢复工作流"]
+        R_RESUME["resume\n恢复工作流\n（需记忆中存在 🔄 任务）"]
         R_CHAT["chat\n快速问答"]
         R_PLAN["plan\n规划工作流"]
     end
 
-    subgraph POST["④ 收尾（chat 豁免报告）"]
+    subgraph POST["⑤ 收尾（chat 豁免报告）"]
         COMPLY["compliance Skill\nFC → SC → RC 合规检查"]
         REPORT["report Skill\n写入报告文件"]
-        MEMORY["memory Skill\n写入记忆文件"]
-        COMPLY --> REPORT --> MEMORY
+        MEMORY_W["memory Skill\n写入记忆文件，状态 ✅"]
+        COMPLY --> REPORT --> MEMORY_W
     end
 
     START --> PRECHECK --> INTENT_BLOCK
-    TOKEN -->|dev| R_DEV
-    TOKEN -->|fix| R_FIX
-    TOKEN -->|analyze| R_ANALYZE
-    TOKEN -->|audit| R_AUDIT
-    TOKEN -->|self-fix| R_SELFFIX
-    TOKEN -->|resume| R_RESUME
-    TOKEN -->|chat| R_CHAT
-    TOKEN -->|other| R_PLAN
+    TOKEN --> SAFE_CHECK
+    SAFE_CHECK -->|"操作级违规"| BLOCK_OP --> ROUTE
+    SAFE_CHECK -->|"致命违规"| BLOCK_FATAL --> TERM(["⛔ 终止"])
+    SAFE_CHECK -->|"通过"| ROUTE
+
+    %% 记忆检索结果作为路由决策输入
+    MEM_READ -.->|"🔄 记忆状态输入"| ROUTE
+
+    ROUTE -->|dev| R_DEV
+    ROUTE -->|fix| R_FIX
+    ROUTE -->|analyze| R_ANALYZE
+    ROUTE -->|audit| R_AUDIT
+    ROUTE -->|self-fix| R_SELFFIX
+    ROUTE -->|resume| R_RESUME
+    ROUTE -->|chat| R_CHAT
+    ROUTE -->|other| R_PLAN
 
     R_DEV & R_FIX & R_ANALYZE & R_AUDIT & R_SELFFIX & R_RESUME & R_PLAN --> POST
-    R_CHAT --> MEMORY
+    R_CHAT --> MEMORY_W
 ```
 
 ---
@@ -209,6 +221,8 @@ flowchart TD
 
 | 决策点 | 规则 |
 |--------|------|
+| **路由前记忆检索** | 预检查阶段的 `MEM_READ` 结果（是否存在 🔄 任务）以虚线输入路由节点，作为 resume 分支的触发依据 |
+| **SAFE_CHECK 位置** | 位于意图识别之后、路由之前；致命违规（S02/S03）立即终止，操作级违规（S01/S06 等）阻断该操作后继续路由 |
 | 全自动模式切换 | 选择 `@devcodex-auto` Agent 进入全自动模式，会话级生效 |
 | 安全底线不可跳过 | 任何模式下 S01~S06/C01/C10 强制触发，全自动也不例外 |
 | 全自动失败处理 | 自动重试 ≤2 次；仍失败则停止标 ⚠️ |

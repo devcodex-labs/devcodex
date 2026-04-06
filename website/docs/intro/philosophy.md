@@ -91,3 +91,25 @@ Instructions 是全量注入（每次会话都加载），Skills 是按需触发
 DevCodex 严格遵循 GitHub Copilot 官方目录规范（`.github/skills/<name>/SKILL.md` 扁平结构、`name` 字段一致性等），而不是自行设计格式。
 
 原因很简单：**平台更新时不需要改 DevCodex，只需跟随官方格式即可**。偏离官方标准意味着每次平台升级都要额外维护兼容层。
+
+---
+
+## 与 ai-dev-guidelines v4 的关系
+
+DevCodex 的开发过程使用 `ai-dev-guidelines/version/v4/RULES.md` 作为 AI 协作工具的**执行规范参考**，但两者之间存在根本性的层级差异：
+
+| 维度 | ai-dev-guidelines v4 | DevCodex |
+|------|----------------------|----------|
+| 定位 | AI 开发工具的通用执行规范 | 面向软件开发全周期的完整 Agent 体系 |
+| 作用 | 辅助开发 DevCodex 时的行为约束参考 | DevCodex 自身的产品规范与流程定义 |
+| 关系 | **工具**，DevCodex 开发期间使用它 | **产品**，DevCodex 是完全重构的独立体系 |
+
+**DevCodex 是对 v4 体系的完全重构，而不是 v4 的扩展或子集。**
+
+具体体现在：
+
+- DevCodex 增加了 v4 中没有的节点（如"前置状态汇总"、"开发阶段合规检查"），这是主动设计决策，不是与 v4 的"不一致"
+- DevCodex 的合规框架（SC/FC/RC 三层）与 v4 的合规机制是独立设计，语义不同
+- DevCodex 的版本需求文档、记忆系统、CP 确认流程等均为独立规范体系
+
+分析 DevCodex 的合理性时，**以 DevCodex 自身的 `flowcharts.md` 和 `specs/` 为权威**，v4 RULES.md 仅用于了解 AI 工具执行背景，不作为 DevCodex 规范的评判标准。

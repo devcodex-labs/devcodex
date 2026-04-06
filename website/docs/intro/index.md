@@ -6,9 +6,10 @@
 
 ## DevCodex 是什么
 
-DevCodex 是一个通过 `devcodex init` 安装到项目 `.github/` 目录的 GitHub Copilot Agent Plugin，为 VS Code Copilot Agent 提供一套完整的、结构化的 AI 开发规范体系。
+DevCodex 当前仍处于**开发前整理阶段**。  
+这个站点的作用，是先定义 GitHub Copilot Agent Plugin 的目标形态：目录结构、执行骨架、版本边界、以及后续的开发路线。
 
-安装后，`@devcodex` Agent 按照内置的工作流规范执行开发、修复、审查等任务——不再是随机的 AI 输出，而是可预期、可审计的工程流程。
+因此，你现在看到的内容以**需求、规范、设计决策**为主，而不是“已经完成实现的产品说明”。
 
 ---
 
@@ -16,15 +17,15 @@ DevCodex 是一个通过 `devcodex init` 安装到项目 `.github/` 目录的 Gi
 
 | 目标 | 解法 |
 |------|------|
-| AI 行为可预期 | CP 确认机制（CP1→CP2→CP3），每步输出经过人工确认后再推进 |
-| 跨会话上下文保持 | 记忆系统自动持久化每次会话，AI 知道上次做了什么 |
-| 工作流行为可审计 | 每次执行自动写报告 + 记忆文件，行为完全可追溯 |
-| 规范随代码版本化 | `.github/` 目录纳入 Git，团队共享同一套 AI 行为约束 |
-| 跨项目零配置复用 | `devcodex init` 在任意项目安装，无需重新配置 |
-| 平台升级免维护 | 严格遵循官方目录规范，平台升级无需修改 DevCodex |
-| 灵活的执行模式 | `@devcodex` 确认模式保质量，`@devcodex-auto` 全自动提效率 |
-| AI 对自身行为自检 | 合规检查（FC/SC/RC）在工作流执行后强制验证 AI 执行质量 |
-| 分层功能授权 | Free/Pro/Enterprise 功能分层，按需启用高级工作流 |
+| AI 行为可预期 | 通过 CP 与工作流骨架把 AI 行为先定义清楚 |
+| 跨会话上下文保持 | 将记忆系统作为既定设计目标，后续再落地实现 |
+| 工作流行为可审计 | 先定义报告与合规机制，再进入开发 |
+| 规范随代码版本化 | 用版本文档管理规范演进与实现边界 |
+| 跨项目零配置复用 | 目标是后续通过 `devcodex init` 安装到任意项目 |
+| 平台升级免维护 | 提前对齐官方目录规范，降低后续实现风险 |
+| 灵活的执行模式 | 先冻结确认模式 / 全自动模式的需求边界 |
+| AI 对自身行为自检 | 把合规检查作为核心设计原则保留下来 |
+| 分层功能授权 | 商业化能力暂时仅做规划，不视为已实现功能 |
 
 ---
 
@@ -42,20 +43,20 @@ DevCodex 是一个通过 `devcodex init` 安装到项目 `.github/` 目录的 Gi
 写入报告 + 记忆
 ```
 
-详细流程见 [执行流程图](/specs/flowcharts)。
+主流程见 [执行流程图](/specs/flowcharts)，版本化执行要求见 [P0：执行流程骨架](/versions/v1/1.0.0/requirements/p0/execution-flow)。
 
 ---
 
 ## Agent 入口
 
-DevCodex 提供两个 Agent，选择权交给用户：
+当前规划中，DevCodex 将提供两个 Agent 入口：
 
 | Agent | 模式 | 适用场景 |
 |-------|------|---------|
 | `@devcodex` | 确认模式（默认）| 正式开发、架构变更、需要逐步确认 |
-| `@devcodex-auto` | 全自动模式（Pro）| 熟悉流程后的快速迭代、批量操作 |
+| `@devcodex-auto` | 全自动模式（规划）| 熟悉流程后的快速迭代、批量操作 |
 
-> `@devcodex-auto` 跳过所有 CP 节点确认，但安全底线（S01~S06）始终强制执行。
+> 该能力当前仍属于需求定义，不代表已经进入实现。
 
 ---
 
@@ -64,7 +65,7 @@ DevCodex 提供两个 Agent，选择权交给用户：
 | 组件 | 说明 |
 |------|------|
 | Agent | `devcodex.agent.md`（确认模式）+ `devcodex-auto.agent.md`（全自动模式）|
-| Instructions | 全局规范，`applyTo: **` 强制注入每次会话 |
+| Instructions | 全局规范（规划态），目标为后续按 `applyTo` 规则注入会话 |
 | Skills | 按需触发的工作流技能，覆盖完整开发生命周期 |
 | Prompts | CP 节点输出模板 |
 | Hooks | `UserPromptSubmit` / `Stop` 生命周期钩子 |
@@ -73,14 +74,16 @@ DevCodex 提供两个 Agent，选择权交给用户：
 
 ## 合规检查说明
 
-> ⚠️ DevCodex 合规检查（FC/SC/RC）是 **AI 工作流执行阶段的自检机制**，不是对用户业务代码的生产合规校验。
+> ⚠️ DevCodex 合规检查采用三层框架（SC / FC / RC），用于 AI 自身执行质量与收尾闭环检查，不是对用户业务代码的生产合规校验。
 
 它检查的是 AI 自身的执行质量：记忆文件是否写入、fix 三步扫描是否执行、dev 后是否运行了 lint/typecheck 等。
+
+详细定义见：[合规检查框架](/specs/compliance-framework)。
 
 ---
 
 ## 延伸阅读
 
 - [设计理念](/intro/philosophy) — 为什么这样构建，而不是另一种方式
-- [套餐与定价](/intro/pricing) — 商业化规划参考（正式销售站点待建）
+- [商业化规划](/intro/pricing) — v1 免费策略与 v2 商业化方向
 

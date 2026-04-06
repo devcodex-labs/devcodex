@@ -6,15 +6,17 @@
 
 | 类型 | 触发条件 | 处理方式 |
 |------|---------|---------|
-| **MAJOR** | 架构性重构、破坏性变更（如存储层替换）| 新建 `versions/vX.0.0/` 目录，更新版本导航 |
-| **MINOR** | 新增功能模块、新 Skill/Agent | 在当前版本需求目录追加需求，更新 CHANGELOG |
-| **PATCH** | Bug 修复、文档修正、规范微调 | 直接修改，CHANGELOG 追加一行 |
+| **MAJOR** | 架构性重构、破坏性变更（如存储层替换）| 新建 `versions/vX/` 系列目录，并创建首个快照 `versions/vX/X.Y.Z/` |
+| **MINOR** | 同一大版本下出现需求/流程级演进 | 在对应 major 下新增快照（如 `versions/v1/1.1.0/`），继承并迭代上一版文档 |
+| **PATCH** | Bug 修复、文档修正、规范微调 | 默认在当前快照内修正并更新 CHANGELOG；只有当补丁需要独立文档快照时才新建 `X.Y.Z` 目录 |
+
+> 采用 `major/minor` 两级结构的原因：一个大版本下通常会有多次小版本迭代，提前分层能避免后续整体搬目录。
 
 ---
 
 ## CHANGELOG 写入规范
 
-**文件位置**：`website/docs/versions/v1.0.0/CHANGELOG.md`
+**文件位置**：`website/docs/versions/v1/1.0.0/CHANGELOG.md`
 
 ### 写入时机
 
@@ -56,7 +58,7 @@
 
 > 发布 v1.0.0 前，以下项目必须全部完成。
 
-参见：[发布前检查清单](/versions/v1.0.0/release/checklist)
+参见：[发布前检查清单](/versions/v1/1.0.0/release/checklist)
 
 发布时额外执行：
 1. `config.json` 中 `mode` 从 `"dev"` 改为 `"prod"`

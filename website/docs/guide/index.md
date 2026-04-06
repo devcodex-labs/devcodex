@@ -1,7 +1,7 @@
 # 工作指南
 
 > 本指南**同时面向 AI 和开发人员**。  
-> AI 通过 `load-profile` 在每次会话开始时读取，作为本项目的操作规范；  
+> 当 `load-profile` 完成实现后，AI 将在每次会话开始时读取，作为本项目的操作规范；  
 > 开发人员阅读后了解整套开发流程，两者遵循相同规则。
 
 ---
@@ -21,7 +21,8 @@
 
 | 用途 | 路径 | 说明 |
 |------|------|------|
-| 需求文档 | `website/docs/versions/v1.0.0/requirements/` | 唯一需求来源 |
+| 需求文档 | `website/docs/versions/v1/1.0.0/requirements/` | 唯一需求来源 |
+| 版本分层 | `website/docs/versions/v1/1.0.0/` | 采用 `major/minor` 两级结构 |
 | P0 核心需求 | `requirements/p0/<名称>.md` | 单文件 |
 | P1 基础需求 | `requirements/p1/<名称>/`（5 文件）| 含开发文档 |
 | P2 功能需求 | `requirements/p2/<名称>.md` | 单文件 |
@@ -34,5 +35,5 @@
 ## 导航
 
 - [需求管理](./requirements) — 新建需求、优先级判断、文件模板
-- [开发规范](./development) — 开发文档维护、进度更新、dev/prod 模式
+- [开发规范](./development) — 开发文档维护、进度更新、执行上下文草案
 - [版本与发布](./release) — 版本规则、CHANGELOG 写入规范

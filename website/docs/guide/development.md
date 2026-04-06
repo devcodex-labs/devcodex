@@ -113,16 +113,17 @@ workflows/<skill-name>/
 
 ---
 
-## dev / prod 模式说明
+## 执行上下文（Draft）
 
-`.devcodex/profile/config.json` 中的 `mode` 字段控制 AI 运行行为：
+`.devcodex/profile/config.json` 中的 `mode` 字段目前**仅保留为预留能力**，但 `dev / prod` 的行为矩阵尚未冻结，不应视为正式规范。
 
-| 模式 | 适用阶段 | 行为差异 |
-|------|---------|---------|
-| `dev` | 开发阶段（**当前**）| 启用预检查（PC1~PC3）、输出 DEV 状态块、详细合规日志 |
-| `prod` | 正式发布后 | 关闭预检查输出，精简执行日志，面向最终用户 |
+当前约定：
 
-> ⚠️ v1.0.0 开发期间始终使用 `dev` 模式。发布前执行 `config.json` 中 `"mode": "dev"` → `"prod"` 切换。
+- **已冻结**：确认模式 / 全自动模式属于 Agent 入口设计，见 [P1：Agent 双模式](/versions/v1/1.0.0/requirements/p1/agent-modes/)
+- **未冻结**：`dev` / `prod` 对日志、预检查输出、合规展示的差异
+- **文档策略**：在行为未确定前，只保留 Draft 说明，不写成永久规范
+
+> ⚠️ 等执行上下文真正定稿后，再决定它归入 P0 执行流程还是独立 P1 需求。
 
 ---
 

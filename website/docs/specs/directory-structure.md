@@ -1,7 +1,7 @@
 # 项目目录结构规范
 
-> 本文档定义 DevCodex 的目录结构标准，以 VS Code Copilot 官方规范为基准。
-> 官方文档：https://code.visualstudio.com/docs/copilot/customization/
+> 本文档定义 DevCodex 的目录结构标准，以 GitHub Copilot / VS Code Copilot 官方自定义规范为基准。  
+> 本页同时明确哪些是**官方组件**，哪些是 **DevCodex 扩展约定**。
 
 ---
 
@@ -20,6 +20,19 @@
 
 ---
 
+## 官方组件 vs DevCodex 扩展
+
+| 类型 | 名称 | 归属 | 说明 |
+|------|------|------|------|
+| 官方组件 | Agents / Skills / Instructions / Prompts / Hooks | 官方 | 平台可识别的目录与文件格式 |
+| DevCodex 扩展 | `workflows/` | 自定义 | 给薄壳 Skill 提供详细流程内容 |
+| DevCodex 扩展 | CP1 / CP2 / CP3 | 自定义 | DevCodex 的确认节点体系，不是官方内建能力 |
+| DevCodex 扩展 | major/minor 版本文档结构 | 自定义 | 文档站采用 `versions/v1/1.0.0/` 以容纳同一大版本的多次迭代 |
+
+> 结论：**官方标准负责“可被平台发现”**，DevCodex 扩展负责“如何组织复杂流程内容”。
+
+---
+
 ## 官方标准概览
 
 VS Code Copilot 识别以下目录和文件类型（均位于 `.github/` 下）：
@@ -31,7 +44,7 @@ VS Code Copilot 识别以下目录和文件类型（均位于 `.github/` 下）�
 | Instructions | `.github/instructions/*.instructions.md` | 全局规范，`applyTo` 控制生效范围 |
 | Prompts | `.github/prompts/*.prompt.md` | CP 节点模板 |
 | Hooks | `.github/hooks/*.json` | 生命周期钩子 |
-| 全局指令 | `.github/copilot-instructions.md` 或根目录 `AGENTS.md` | — |
+| 全局指令（官方参考） | `.github/copilot-instructions.md` 或根目录 `AGENTS.md` | 当前阶段仅作为官方能力参考，不视为已启用 |
 
 ---
 
@@ -157,123 +170,46 @@ Markdown 内容
 
 ---
 
-### 6. 全局工作区指令
+### 6. 全局工作区指令（官方参考，当前未启用）
 
 | 文件 | 位置 | 说明 |
 |------|------|------|
-| `copilot-instructions.md` | `.github/` | 推荐，跨编辑器兼容 |
-| `AGENTS.md` | 根目录或子目录 | 开放标准，支持 monorepo 层级覆盖 |
+| `copilot-instructions.md` | `.github/` | 官方推荐，跨编辑器兼容（规划参考） |
+| `AGENTS.md` | 根目录或子目录 | 开放标准，支持 monorepo 层级覆盖（规划参考） |
 
-> **只选一种，不要同时使用。**
+> 当前文档站处于流程与规范定义阶段，以上内容用于对齐官方能力边界，**不表示当前仓库已落地启用**。  
+> 进入实现阶段后，再按“只选一种，不要同时使用”的规则落地。
 
 
-```
-e:\MySelf\devcodex\          ← npm 包根目录
-├── agents/                  ← Agents 源文件（install 后复制到 .github/agents/）
-│   └── devcodex.agent.md
-├── instructions/            ← Instructions 源文件
-│   ├── 00-safety.instructions.md
-│   ├── 01-common.instructions.md
-│   ├── 02-output-paths.instructions.md
-│   ├── 10-dev.instructions.md
-│   ├── 11-fix.instructions.md
-│   ├── 12-audit.instructions.md
-│   ├── 13-analyze.instructions.md
-│   ├── 14-self-fix.instructions.md
-│   ├── 15-memory.instructions.md
-│   ├── 16-report.instructions.md
-│   └── 17-compliance.instructions.md
-├── skills/                  ← Skills 源文件（扁平结构，官方标准）
-│   ├── compliance/
-│   │   └── SKILL.md         ← name: compliance
-│   ├── memory/
-│   │   └── SKILL.md         ← name: memory
-│   ├── report/
-│   │   └── SKILL.md         ← name: report
-│   ├── intent/
-│   │   └── SKILL.md
-│   ├── cp-gate/
-│   │   └── SKILL.md
-│   ├── summary/
-│   │   └── SKILL.md
-│   ├── plan/
-│   │   └── SKILL.md
-│   ├── token-check/
-│   │   └── SKILL.md
-│   ├── load-profile/
-│   │   └── SKILL.md
-│   ├── routing/
-│   │   └── SKILL.md
-│   ├── dev-default/
-│   │   └── SKILL.md
-│   ├── dev-refactor/
-│   │   └── SKILL.md
-│   ├── dev-database/
-│   │   └── SKILL.md
-│   ├── dev-init/
-│   │   └── SKILL.md
-│   ├── dev-optimization/
-│   │   └── SKILL.md
-│   ├── dev-scenario-test/
-│   │   └── SKILL.md
-│   ├── dev-docs/
-│   │   └── SKILL.md
-│   ├── dev-plan-review/
-│   │   └── SKILL.md
-│   ├── fix-default/
-│   │   └── SKILL.md
-│   ├── fix-incident/
-│   │   └── SKILL.md
-│   ├── fix-security/
-│   │   └── SKILL.md
-│   ├── audit-common/
-│   │   └── SKILL.md
-│   ├── audit-dimensions/
-│   │   └── SKILL.md
-│   ├── audit-tech-design/
-│   │   └── SKILL.md
-│   ├── audit-requirements/
-│   │   └── SKILL.md
-│   ├── audit-project/
-│   │   └── SKILL.md
-│   ├── audit-report/
-│   │   └── SKILL.md
-│   ├── audit-document/
-│   │   └── SKILL.md
-│   ├── audit-execution-guide/
-│   │   └── SKILL.md
-│   ├── analyze-research/
-│   │   └── SKILL.md
-│   ├── self-fix-auto/
-│   │   └── SKILL.md
-│   ├── api-verification/
-│   │   └── SKILL.md
-│   ├── document-sync/
-│   │   └── SKILL.md
-│   └── impact-review/
-│       └── SKILL.md
-├── workflows/               ← 工作流详细内容（非官方组件，自定义目录）
-│   │                        ← v2.0.0 此目录整体替换为 MCP 调用
-│   ├── dev-default/
-│   │   ├── index.md         ← 主流程总览（CP 顺序、约束）
-│   │   ├── cp1.md           ← 需求确认节点
-│   │   ├── cp2.md           ← 方案确认节点
-│   │   ├── cp3.md           ← 实施计划节点
-│   │   └── execute.md       ← 执行阶段约束
-│   ├── fix-default/
-│   │   └── ...
-│   └── <skill-name>/        ← 每个 Skill 对应一个子目录
-├── prompts/                 ← Prompts 源文件
-│   └── *.prompt.md
-├── hooks/                   ← Hooks 源文件
-│   └── devcodex-hooks.json
-├── data/                    ← 运行时数据模板（violations.md/pending-fixes.md 等）
-├── .devcodex/               ← DevCodex 自身配置（devcodex init 时生成）
+### 7. 当前阶段推荐骨架（精简版）
+
+> 当前仍在流程定义阶段，目录结构只保留**最小骨架**。  
+> 具体会有哪些 skills/workflows 文件，留到进入开发阶段再冻结。
+
+```text
+e:\MySelf\devcodex\
+├── agents/
+├── instructions/
+├── skills/
+│   └── <skill-name>/SKILL.md
+├── workflows/            （DevCodex 扩展，v2 计划迁移到 MCP）
+│   └── <workflow-name>/index.md
+├── prompts/
+├── hooks/
+├── data/
+├── .devcodex/
 │   └── profile/
-├── website/                 ← 文档站（Rspress）
-├── index.js                 ← CLI 入口（devcodex init/update/status）
+├── website/
 ├── package.json
-├── CHANGELOG.md
-└── README.md
+├── README.md
+└── CHANGELOG.md
 ```
+
+### 8. 为什么这里不列详细目录
+
+1. 现在还没进入开发实施阶段，详细文件清单会被误读为“已经落地”
+2. 当前目标是先冻结流程与规范边界，不是冻结实现文件数量
+3. v1.0.0 和 v2.0.0 的实现策略不同（v2 存在 MCP / MongoDB 平台化演进）
+
+> 结论：本页仅冻结**结构原则**，不冻结“几十个具体目录和文件名”。
 

@@ -29,8 +29,8 @@
 
 | ENV_MODE | 预检查行为 |
 |----------|----------|
-| `dev` | 输出预检查状态块（PC1~PC3）；合规检查仅 FC4/FC5 |
-| `prod`（默认）| 不输出预检查状态块；合规检查执行全量 FC+SC+RC+T |
+| `dev` | 输出预检查状态块（PC0~PC3）；全量合规检查 FC+SC+RC+T |
+| `prod`（默认）| 不输出预检查状态块；不执行合规检查（规范已验证） |
 
 > v0.03 `compliance` Skill §0 和 `17-compliance.instructions.md` 均定义此规则。
 

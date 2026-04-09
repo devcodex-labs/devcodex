@@ -1,6 +1,6 @@
 ---
 name: compliance
-description: 执行 FC（形式合规）/ SC（实质合规）/ RC（恢复性检查）三层合规校验。在所有工作流节点执行完毕后、回复发送前强制运行（chat 豁免全部；analyze 豁免 RC 层）。dev 模式下仅执行 FC4/FC5。
+description: 执行 FC（形式合规）/ SC（实质合规）/ RC（恢复性检查）三层合规校验。仅 dev 模式执行全量合规校验，prod 模式不执行（规范已验证）。chat 豁免。
 ---
 ## §0 模式判断（前置，优先执行）
 
@@ -8,39 +8,29 @@ description: 执行 FC（形式合规）/ SC（实质合规）/ RC（恢复性�
 
 | ENV_MODE | 检查策略 |
 |----------|---------|
-| `prod`（默认）| 执行全量 FC1~FC6 + SC1~SC13 + RC1~RC4 + T1~T9 |
-| `dev` | **仅执行 FC4/FC5**；跳过 FC1/FC2/FC3/FC6/SC1~SC13/RC1~RC4 |
+| `prod`（默认）| 不执行合规检查（规范已验证，Instructions 直接指导 AI 行为） |
+| `dev` | 全量执行 FC1~FC6 + SC1~SC13 + RC1~RC4 + T1~T9 |
 
 > ⛔ **[S01~S06](../../instructions/00-safety.instructions.md) 安全底线不受 ENV_MODE 影响**，无论 dev/prod 均强制执行。
 >
-> ⚠️ **预检查（PC1~PC3）独立于 FC/SC**，dev 模式下同样强制执行，不受"仅执行 FC4/FC5"限制。预检查在意图识别之前运行，属于独立前置阶段。
+> ⚠️ **预检查（PC0~PC3）仅在 dev 模式启用**，收到用户消息后立即执行，详见 [`17-compliance.instructions.md`](../../instructions/17-compliance.instructions.md) §预检查。
 >
-> ℹ️ ENV_MODE 未注入（profile 未加载）时，默认按 `prod` 执行全量检查。
->
-> ℹ️ **预检查（PC1~PC3）仅在 dev 模式启用**，收到用户消息后立即执行，详见 [`17-compliance.instructions.md`](../../instructions/17-compliance.instructions.md) §预检查。
+> ℹ️ ENV_MODE 未注入（profile 未加载）时，默认按 `prod`（不执行合规检查）。
 
-### 🔴 强制可见输出（dev/prod 均适用，chat 豁免）
+### 🔴 强制可见输出（仅 dev 模式，chat 豁免）
 
-每次回复末尾**必须**输出合规检查状态块，格式如下：
+每次回复末尾**必须**输出合规检查状态块：
 
-**dev 模式**：
 ```
 ---
-🔧 DEV 模式 | 合规检查（FC4/FC5）
-- FC4 路径格式：✅ / ❌ <原因>
-- FC5 产物路径：✅ 已输出 / ❌ 未输出
-```
-
-**prod 模式**：
-```
----
-🛡️ PROD 模式 | 合规检查
+🛡️ DEV 模式 | 合规检查
 FC: FC1 ✅ FC2 ✅ FC3 ✅ FC4 ✅ FC5 ✅ FC6 ✅
 SC: SC2 ✅ SC4 ✅ SC6 ✅ ...（仅列适用项）
 整体：✅ 全通过 / ⚠️ <N> 项待修正
 ```
 
-> ⛔ 不输出状态块视为未执行合规检查（FC5 不通过）。
+> ⛔ dev 模式下不输出状态块视为未执行合规检查。
+> ℹ️ prod 模式不执行合规检查，不输出状态块。
 > ℹ️ chat 工作流豁免此输出。
 
 ### 全自动模式差异

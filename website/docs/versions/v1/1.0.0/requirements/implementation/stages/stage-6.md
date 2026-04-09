@@ -37,7 +37,7 @@
 | 内容项 | 中文说明 | 备注 |
 |--------|---------|------|
 | frontmatter | `name: compliance` / `description: "Three-layer compliance check..."` | |
-| **§0 ENV_MODE 模式判断** | prod=全量 FC+SC+RC+T / dev=**仅 FC4/FC5** | **v0.03 明确** |
+| **§0 ENV_MODE 模式判断** | prod=不执行合规检查（规范已验证）/ dev=全量 FC+SC+RC+T | **v1.0.0 修正** |
 | **S01~S06 不受 ENV_MODE 影响** | 无论 dev/prod 均强制执行安全底线 | |
 | **预检查（PC1~PC3）独立性** | 独立于 FC/SC，dev 模式同样强制；PC1 Token轮次 / PC2 待跟进 / PC3 未完成任务 | **v0.03 明确** |
 | **强制可见输出** | dev 模式：FC4/FC5 状态块 / prod 模式：FC+SC 状态块（chat 豁免）| **v0.03 强制** |

@@ -17,7 +17,7 @@ DevCodex v1.0.0 是私有项目，发布指"部署到 `E:\MySelf\.github\` 可�
 
 ### Agent
 
-- [ ] `agents/devcodex.agent.md` （当前 v0.03 是中文）
+- [x] `agents/devcodex.agent.md` （中文编写，已完成）
 - [ ] `description` 字段符合官方 "Use when..." 格式
 - [ ] `tools` 列表与实际使用的工具一致
 
@@ -120,8 +120,8 @@ DevCodex v1.0.0 是私有项目，发布指"部署到 `E:\MySelf\.github\` 可�
 
 | 日期 | 完成内容 |
 |------|---------|
-| 2026-04-04 | v0.03 Skills 结构修复（扁平化 + name 字段修正，34 个）|
-| 2026-04-04 | `E:\MySelf\.github\` 重建（从 v0.03 同步）|
+| 2026-04-04 | Skills 结构修复（扁平化 + name 字段修正，34 个，原 v0.03 已删除）|
+| 2026-04-04 | `E:\MySelf\.github\` 重建（从源码目录同步）|
 | 2026-04-04 | Hooks 事件名修复（`UserPromptSubmit` / `Stop`）|
 | 2026-04-04 | `directory-structure.md` 官方标准规范文档完成 |
 | 2026-04-04 | 需求文档框架搭建（agent-modes / dev-validation / storage-spec / memory-resume / v2-roadmap）|

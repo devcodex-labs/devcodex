@@ -117,14 +117,14 @@
 | 修复范围边界 | ✅ 已补充 | self-fix vs dev vs fix 三路 |
 | 拒绝级 | ✅ 已补充 | 规范语义变更→拒绝 |
 | 防递归 | ✅ 已补充 | 合规失败→内联修正 |
-| ENV_MODE CP 行为 | ✅ 已补充 | dev→建议性 / prod→强制等待 |
+| ENV_MODE CP 行为 | ✅ 已修正 | dev/prod 均强制等待（CP 不受 ENV_MODE 影响） |
 | 全自动模式 | ✅ | v1 新增 |
 
 ### Stage 6 — ⑨⑩⑪⑫ 合规 + 报告 + 收尾
 
 | 检查项 | 结果 | 说明 |
 |--------|:----:|------|
-| ENV_MODE §0 | ✅ 已补充 | prod=全量 / dev=FC4/FC5 |
+| ENV_MODE §0 | ✅ 已修正 | prod=不执行 / dev=全量 |
 | 预检查 PC1~PC3 | ✅ 已补充 | 独立于 FC/SC |
 | 强制可见输出 | ✅ 已补充 | 合规状态块（dev/prod 不同格式）|
 | analyze 豁免 RC | ✅ 已补充 | |
@@ -189,8 +189,8 @@ ENV_MODE 影响出现在三处：
 
 | 文件 | 影响描述 |
 |------|---------|
-| `cp-gate/SKILL.md` | dev→CP建议性 / prod→CP强制 |
-| `compliance/SKILL.md` §0 | dev→仅FC4/FC5 / prod→全量 |
+| `cp-gate/SKILL.md` | dev/prod 均 CP 强制等待（跳过仅限 @devcodex-auto） |
+| `compliance/SKILL.md` §0 | prod=不执行 / dev=全量 |
 | `17-compliance.instructions.md` | dev→输出PC1~PC3 / prod→无 |
 
 **建议**：在 `01-common.instructions.md` 中增加一个 "ENV_MODE 行为总表"，集中描述 dev/prod 对各 Skill 的影响差异，各 Skill 文件引用该总表。

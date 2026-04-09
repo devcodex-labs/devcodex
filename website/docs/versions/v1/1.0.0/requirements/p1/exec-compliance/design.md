@@ -32,8 +32,8 @@
 - SC9：Token 防护（>15 轮先持久化记忆）
 
 ### ENV_MODE 差异
-- `prod`：全量 FC1~FC6 + SC1~SC13
-- `dev`：仅 FC4/FC5
+- `prod`：不执行合规检查（规范已验证）
+- `dev`：全量 FC+SC+RC+T
 
 ---
 

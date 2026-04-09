@@ -4,14 +4,15 @@ description: 执行 CP1（需求确认）/ CP2（方案确认）/ CP3（实施�
 ---
 ## 模式判断
 
-读取由 [`load-profile`](../load-profile/SKILL.md) 注入的 ENV_MODE（参见 [`01-common`](../../instructions/01-common.instructions.md) §ENV_MODE 行为总表）：
+CP 门控**不受 ENV_MODE 影响**，dev/prod 均为 🔴 强制等待用户确认：
 
 | ENV_MODE | CP 行为 |
 |----------|--------|
 | `prod`（默认）| CP1→CP2→CP3 强制按序，每步必须等待用户明确确认后方可继续 |
-| `dev` | CP 步骤变为**建议性**：AI 可在输出 CP 内容后直接执行，无需等待用户确认 |
+| `dev` | 同 prod：CP1→CP2→CP3 强制按序，每步必须等待用户明确确认 |
 
-> ⛔ dev 模式下 CP 仍会**输出**（让用户可见当前理解/方案/计划），只是不强制阻断等待确认。
+> ⛔ CP 是用户交互机制（确认需求/方案/计划），与规范验证无关，始终需要确认。
+> **CP 跳过的唯一路径**：`@devcodex-auto`（全自动模式），这是 Agent 级行为，与 ENV_MODE 无关。
 
 ## 全自动模式
 

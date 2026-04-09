@@ -11,12 +11,12 @@
 | 场景 | 用哪个组件 | 理由 |
 |------|-----------|------|
 | 需要始终约束 AI 的规则 | Instructions | 每次会话自动注入，不需要手动触发 |
-| 按需触发的工作流 | Skills（薄壳）+ Workflows（详情）| Skills 提供入口，Workflows 存放内容 |
+| 按需触发的工作流 | Skills（SKILL.md 完整内容）| AI 按需读取，包含完整工作流检查标准与执行步骤 |
 | CP 节点的结构化输出 | Prompts | 有参数、有格式的单次任务 |
 | 会话开始/结束的自动动作 | Hooks | 确定性执行，AI 无法跳过 |
 | 定义 AI 的工具权限和运行模式 | Agents | 只有两个（确认模式/全自动模式）|
 
-> ⛔ **禁止把工作流详细内容写进 SKILL.md**。SKILL.md 只写入口路由，详细内容放 `workflows/<name>/`。
+> ℹ️ **当前实现**：SKILL.md 包含完整的工作流内容（触发条件 + 检查标准 + 执行步骤）。v2.0.0 规划中可能演进为 Skills（薄壳路由）+ MCP 工作流分离架构。
 
 ---
 
@@ -40,8 +40,7 @@
 | 场景 | 用哪个 | 禁止误用 |
 |------|-------|---------|
 | 定义 AI 身份和工具权限 | **Agents** | ❌ 不要写进 Instructions |
-| 工作流触发入口（按需）| **Skills** | ❌ SKILL.md 只写路由，不写详细流程 |
-| 工作流详细执行步骤 | **workflows/** | ❌ 不要塞进 SKILL.md |
+| 按需触发的工作流技能 | **Skills** | ❌ SKILL.md 包含完整内容（触发条件 + 执行步骤） |
 | 始终有效的规范约束 | **Instructions** | ❌ 不要写进 SKILL.md |
 | CP 节点结构化输出 | **Prompts** | ❌ 不要在 SKILL.md 内联模板 |
 | 生命周期事件强制执行 | **Hooks** | ❌ 不要用 Instructions 模拟 Hooks |
@@ -54,32 +53,25 @@ name: dev-default              # 必须与文件夹名完全一致
 description: "Use when: ..."   # 必填，AI 靠这个发现 Skill
 ---
 
-Read `.github/workflows/dev-default/index.md` and follow the workflow.
+# dev-default Skill
 
-<!-- v2.0.0: Replace with → MCP devcodex_getWorkflow({ intent: "dev-default" }) -->
+## 触发条件
+...
+
+## 执行步骤
+...
+
+## 检查标准
+...
 ```
 
-- SKILL.md 只做两件事：**描述触发条件** + **指向 workflows/**
-- 工作流详细内容全部写在 `workflows/<skill-name>/` 目录下
-- 每个工作流目录包含：`index.md`（主流程）+ 各节点文件
-
-### workflows/ 目录规范
-
-```
-workflows/<skill-name>/
-├── index.md     ← 必须有，主流程总览（CP 顺序、约束、节点引用）
-├── cp1.md       ← 需求确认节点（按需创建）
-├── cp2.md       ← 方案确认节点
-├── cp3.md       ← 实施计划节点
-└── execute.md   ← 执行阶段约束
-```
-
-- `index.md` 必须包含完整节点引用，AI 从这里开始读取
-- 节点文件按需创建，简单工作流可只有 `index.md`
+- SKILL.md 包含完整的工作流内容：**触发条件** + **执行步骤** + **检查标准**
+- 每个 Skill 目录只有一个 `SKILL.md`，扁平一级目录
+- v2.0.0 规划：MCP `devcodex_getWorkflow()` 替代文件读取
 
 
 
-### AI 必须完成以下操作：
+| 文件 | 何时填写 | 填写内容 |
 
 1. **更新步骤状态**：在 `progress.md` 对应步骤行，将 `⬜` 改为 `🔄`（进行中）或 `✅`（完成）
 2. **追加会话记录**：在 `progress.md` 会话记录表追加一行

@@ -2,7 +2,7 @@
 
 **状态**：⬜ 待开发  
 **优先级**：P2  
-**参考**：`v0.03/skills/routing/`
+**参考**：原 v0.03 `skills/routing/`（目录已删除，当前实现见 `skills/routing/`）
 
 ## 目标
 

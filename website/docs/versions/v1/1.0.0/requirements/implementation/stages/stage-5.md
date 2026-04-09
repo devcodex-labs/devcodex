@@ -146,7 +146,7 @@ Agent 文件引用的 **34 个 Skills** 中，Stage 5 仅产出 **4 个**。其�
 | 内容项 | 中文说明 | 备注 |
 |--------|---------|------|
 | frontmatter | `name: cp-gate` / `description: "Checkpoint gate control..."` | |
-| **ENV_MODE 模式判断** | prod=强制等待确认 / dev=建议性（输出但不阻断等待）| **v0.03 明确** |
+| **ENV_MODE 模式判断** | dev/prod 均强制等待确认（CP 不受 ENV_MODE 影响，跳过仅限 @devcodex-auto）| **v1.0.0 修正** |
 | CP1/CP2/CP3 定义 | 每个 CP 的输入/输出/等待条件 | |
 | 确认模式 | 每个 CP 等待用户 yes/no | 默认 |
 | **全自动模式** | CP 自动通过；但 S01/C01/C10 不可豁免 | **v1.0.0 新增** |

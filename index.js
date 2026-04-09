@@ -47,6 +47,16 @@ const SOURCES = [
   { from: 'data',         to: 'data'         },
 ]
 
+// ─── Source repo self-detection ───────────────────────────────────────────────
+
+/** Check if cwd is the DevCodex source repo itself */
+function isSourceRepo(dir) {
+  try {
+    const pkg = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'))
+    return pkg.name === '@vextjs/devcodex'
+  } catch { return false }
+}
+
 // ─── Commands ─────────────────────────────────────────────────────────────────
 
 function cmdInit(argv) {
@@ -55,9 +65,21 @@ function cmdInit(argv) {
   const cwd    = process.cwd()
   const ghDir  = path.join(cwd, '.github')
 
+  // Warn if running inside the DevCodex source repo
+  if (isSourceRepo(cwd)) {
+    console.log()
+    console.log(c.yellow('  ⚠️  You are running DevCodex inside its own source repository.'))
+    console.log(c.yellow('     Files will be written to: ') + c.bold(ghDir))
+    console.log(c.dim('     If you intended to install into a target project, run from the project root:'))
+    console.log(c.dim('       cd /path/to/your-project && devcodex ' + (force ? 'update' : 'init')))
+    console.log()
+  }
+
   console.log()
   console.log(c.bold('  DevCodex') + c.dim(' — GitHub Copilot Agent Plugin'))
   console.log(c.dim('  ──────────────────────────────────────'))
+  console.log(`  ${c.cyan('Source:')} ${c.dim(PKG_ROOT)}`)
+  console.log(`  ${c.cyan('Target:')} ${c.dim(ghDir)}`)
   console.log()
 
   if (dryRun) console.log(c.yellow('  [DRY RUN] No files will be written.\n'))
@@ -160,8 +182,10 @@ function cmdInit(argv) {
 function cmdStatus() {
   const cwd   = process.cwd()
   const ghDir = path.join(cwd, '.github')
+  const isSrc = isSourceRepo(cwd)
   console.log()
   console.log(c.bold('  DevCodex status') + c.dim(` in ${cwd}`))
+  if (isSrc) console.log(c.yellow('  ⚠️  Source repository detected — showing source repo status'))
   console.log(c.dim('  ──────────────────────────────────────'))
   console.log()
 
@@ -180,9 +204,16 @@ function cmdStatus() {
 
   console.log()
   if (total === 0) {
-    console.log(`  ${c.yellow('Not initialized.')} Run ${c.bold('npx @vextjs/devcodex init')} to install.`)
+    if (isSrc) {
+      console.log(`  ${c.dim('No .github/ directory.')} ${c.dim('This is the source repo — use')} ${c.bold('devcodex update')} ${c.dim('from a target project.')}`)
+    } else {
+      console.log(`  ${c.yellow('Not initialized.')} Run ${c.bold('devcodex init')} to install.`)
+    }
   } else {
     console.log(`  ${c.green(`${total} total files`)} installed under .github/`)
+    if (isSrc) {
+      console.log(c.dim('  (Source repo: these are development copies, not a target project installation)'))
+    }
   }
   console.log()
 }
@@ -192,7 +223,8 @@ function cmdHelp() {
   ${c.bold('DevCodex')} — AI-powered development workflow rules for GitHub Copilot
 
   ${c.bold('Usage:')}
-    npx @vextjs/devcodex <command> [options]
+    devcodex <command> [options]
+    npx @vextjs/devcodex <command> [options]   ${c.dim('(without npm link)')}
 
   ${c.bold('Commands:')}
     ${c.cyan('init')}      Install DevCodex into .github/ (safe by default, skips existing)
@@ -204,10 +236,10 @@ function cmdHelp() {
     ${c.dim('--dry-run')}      Preview what would be installed without writing files
 
   ${c.bold('Examples:')}
-    npx @vextjs/devcodex init             # First-time install
-    npx @vextjs/devcodex init --force     # Overwrite with latest version
-    npx @vextjs/devcodex update           # Same as init --force
-    npx @vextjs/devcodex status           # Check installation
+    devcodex init                 # First-time install
+    devcodex init --force         # Overwrite with latest version
+    devcodex update               # Same as init --force
+    devcodex status               # Check installation
 `)
 }
 

@@ -46,5 +46,8 @@
     "CHANGELOG.md",
     "SECURITY.md",
     "LICENSE"
-  ]
+  ],
+  "dependencies": {
+    "@vextjs/devcodex": "^1.0.0"
+  }
 }

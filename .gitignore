@@ -11,3 +11,6 @@ dist/
 .devcodex/.memory/
 .devcodex/.tmp/
 
+
+# npm auth (never commit tokens)
+.npmrc

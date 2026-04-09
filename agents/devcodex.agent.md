@@ -27,4 +27,5 @@ tools:
 | `16-report` | 报告命名/路径/格式 |
 | `17-compliance` | FC/SC/RC/T 四层合规检查 |
 
-> 无需动态加载 SKILL.md — 所有规则已内联到 instructions 中。
+> Instructions 包含工作流规则摘要。执行特定子类型时，按需读取对应的 SKILL.md 获取详细检查标准。
+> ⚠️ 禁止一次性读取全部 Skills — 仅读取当前工作流子类型对应的 1~3 个 Skill（见 `01-common` §Skill 按需读取表）。

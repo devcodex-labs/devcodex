@@ -1,7 +1,7 @@
 ---
 mode: agent
 description: Token 授权设置向导，引导用户完成 DevCodex Token 配置
-applyTo: **
+applyTo: "**"
 ---
 # Token 设置向导
 

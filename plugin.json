@@ -53,7 +53,6 @@
     { "id": "dev-scenario-test",   "file": "skills/dev-scenario-test/SKILL.md",   "tier": "pro"  },
     { "id": "dev-docs",            "file": "skills/dev-docs/SKILL.md",            "tier": "free" },
     { "id": "dev-plan-review",     "file": "skills/dev-plan-review/SKILL.md",     "tier": "free" },
-    { "id": "fix-incident",        "file": "skills/fix-incident/SKILL.md",        "tier": "pro"  },
     { "id": "fix-security",        "file": "skills/fix-security/SKILL.md",        "tier": "pro"  },
     { "id": "audit-common",        "file": "skills/audit-common/SKILL.md",        "tier": "free" },
     { "id": "audit-dimensions",    "file": "skills/audit-dimensions/SKILL.md",    "tier": "free" },
@@ -64,12 +63,11 @@
     { "id": "audit-document",      "file": "skills/audit-document/SKILL.md",      "tier": "free" },
     { "id": "audit-execution-guide","file": "skills/audit-execution-guide/SKILL.md","tier": "free" },
     { "id": "analyze-research",    "file": "skills/analyze-research/SKILL.md",    "tier": "free" },
-    { "id": "self-fix-auto",       "file": "skills/self-fix-auto/SKILL.md",       "tier": "pro"  },
     { "id": "api-verification",    "file": "skills/api-verification/SKILL.md",    "tier": "pro"  },
     { "id": "document-sync",       "file": "skills/document-sync/SKILL.md",       "tier": "pro"  },
     { "id": "impact-review",       "file": "skills/impact-review/SKILL.md",       "tier": "pro"  }
   ],
-  "_note_skills": "All 34 Skills registered. Core rules also merged into instructions/ for auto-injection.",
+  "_note_skills": "32 Skills registered (v1.0.0: removed fix-incident + self-fix-auto, covered by instructions). On-demand reading via 01-common §Skill按需读取表.",
   "instructions": [
     { "id": "safety",       "file": "instructions/00-safety.instructions.md",      "tier": "free" },
     { "id": "common",       "file": "instructions/01-common.instructions.md",      "tier": "free" },

@@ -2,7 +2,7 @@
 
 > **文件路径**: `data/violations.md`  
 > **写入时机**: [`00-safety.instructions.md`](../instructions/00-safety.instructions.md) S02 或 S03 致命违规触发时自动追加（AUDIT_LOG 双写）  
-> **触发位置**: ② 安全检查（主动）或 ⑨ 合规检查（被动），详见 [`devcodex.agent.md`](../agents/devcodex.agent.md) §违规审计触发点  
+> **触发位置**: 安全检查（主动）或合规检查（被动），详见 [`00-safety.instructions.md`](../instructions/00-safety.instructions.md) §违规处理 + §违规审计记录  
 > **清理策略**: 保留最近 90 天记录，超期归档到 `violations-archive/YYYY.md`  
 > **格式**: v4 十列格式（对齐 [`ai-dev-guidelines/version/v4/violations.md`](../../ai-dev-guidelines/version/v4/violations.md)）
 

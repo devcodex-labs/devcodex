@@ -1,12 +1,24 @@
 ---
 name: audit-common
-description: 审查公共维度 G1~G5 — 所有 audit 子类型必先执行的基础维度层
+description: 审查公共维度 G0~G5 — 所有 audit 子类型必先执行的基础维度层
 ---
 # Audit Common Skill
 
 ## 职责
 
-所有 audit 工作流**必须先执行** G1~G5 公共维度，再叠加子类型专属维度（TD/RQ/PE/RA/DA）。
+所有 audit 工作流**必须先执行** G0 体量评估 + G1~G5 公共维度，再叠加子类型专属维度（TD/RQ/PE/RA/DA）。
+
+## G0 体量评估（前置，G1 之前执行）
+
+审查开始前统计待审查文件/目录总数，决定执行策略：
+
+| 文件总数 | 策略 | 说明 |
+|:--------:|------|------|
+| 1~30 | 直接执行全量 audit | 无需分批 |
+| 31~60 | 建议定向审查 | 输出分批建议，等待用户确认后执行 |
+| > 60 | 强制分批 | 输出分批计划后自动开始第一批 |
+
+> 分批策略详见 [`audit-execution-guide/SKILL.md`](../audit-execution-guide/SKILL.md) §体量分批策略。
 
 ## 公共维度（G1~G5）
 

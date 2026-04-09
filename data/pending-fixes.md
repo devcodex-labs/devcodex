@@ -3,7 +3,7 @@
 > **文件路径**: `data/pending-fixes.md`  
 > **写入时机**: [`14-self-fix.instructions.md`](../instructions/14-self-fix.instructions.md) 中 Pending 级（超出 A1~A5 白名单范围）问题写入  
 > **处理时机**: 由用户选择时机，通过 self-fix 工作流批量处理  
-> **关联 Skill**: [`self-fix-auto`](../skills/self-fix-auto/SKILL.md)
+> **关联规范**: [`14-self-fix.instructions.md`](../instructions/14-self-fix.instructions.md)
 
 ## 格式规范
 

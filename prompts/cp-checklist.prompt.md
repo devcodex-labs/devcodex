@@ -1,7 +1,7 @@
 ---
 mode: agent
 description: CP 确认关卡检查清单模板，用于 CP1/CP2/CP3 前的标准化确认
-applyTo: **
+applyTo: "**"
 ---
 # CP 确认关卡检查清单
 

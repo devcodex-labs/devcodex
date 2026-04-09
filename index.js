@@ -141,7 +141,7 @@ function cmdInit(argv) {
     console.log(`  ${c.bold('Done!')} ${parts.join(', ')}`)
     if (added + updated > 0) {
       console.log()
-      console.log(`  ${c.cyan('→')} Restart VS Code to activate DevCodex agents & skills.`)
+      console.log(`  ${c.cyan('→')} Restart your IDE to activate DevCodex agents & skills.`)
     }
   }
 
@@ -156,7 +156,7 @@ function cmdInit(argv) {
   console.log()
 }
 
-function cmdStatus(argv) {
+function cmdStatus() {
   const cwd   = process.cwd()
   const ghDir = path.join(cwd, '.github')
   console.log()
@@ -217,6 +217,6 @@ const [,, cmd, ...argv] = process.argv
 switch (cmd) {
   case 'init':   cmdInit(argv);  break
   case 'update': cmdInit(['--force', ...argv]); break
-  case 'status': cmdStatus(argv); break
+  case 'status': cmdStatus(); break
   default:       cmdHelp(); break
 }

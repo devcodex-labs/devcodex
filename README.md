@@ -40,17 +40,17 @@ npx devcodex init
 
 ```
 .github/
-├── agents/         ← Agent 定义（精简索引）
-├── instructions/   ← Instructions 约束（含全部工作流规则）
-├── skills/         ← 参考文件（4 个模板）
-├── prompts/        ← Prompt 模板
+├── agents/         ← Agent 定义（2 个：确认 + 全自动）
+├── instructions/   ← Instructions 约束（11 个，含全部工作流规则）
+├── skills/         ← Skill 详细检查标准（32 个，按需读取）
+├── prompts/        ← Prompt 模板（20 个）
 ├── data/           ← 运行时数据模板
 └── RULES.md        ← 使用入口
 ```
 
 ## 使用
 
-在 VS Code Copilot Chat 中输入 `@DevCodex` 即可开始。Agent 会自动识别意图并路由到对应工作流：
+在 IDE 的 Copilot Chat 中输入 `@DevCodex` 即可开始（支持 VS Code / WebStorm / Cursor 等）。Agent 会自动识别意图并路由到对应工作流：
 
 ```
 @DevCodex 帮我重构 user 模块的权限校验逻辑
@@ -110,10 +110,10 @@ node /path/to/devcodex/index.js status
 #   data           X files
 ```
 
-### 在 VS Code 中测试 Agent
+### 在 IDE 中测试 Agent
 
 1. 在目标项目执行 `devcodex init`（将文件复制到 `.github/`）
-2. 重启 VS Code
+2. 重启 IDE
 3. 在 Copilot Chat 中输入 `@DevCodex` 测试响应
 
 ### 文档站本地预览
@@ -129,9 +129,9 @@ npm run dev
 
 ```
 devcodex/
-├── agents/        # Agent 定义（2 个：确认模式 + 全自动模式，精简索引文件）
-├── instructions/  # 全局 Instructions（11 个，含全部工作流规则，按优先级编号）
-├── skills/        # 参考文件（4 个，API验证/文档同步/影响评估/计划模板）
+├── agents/        # Agent 定义（2 个：确认模式 + 全自动模式）
+├── instructions/  # 全局 Instructions（11 个，含工作流规则摘要，自动注入）
+├── skills/        # Skill 详细检查标准（32 个，按 01-common §按需读取表 路由读取）
 ├── prompts/       # Prompt 模板（20 个）
 ├── data/          # 运行时数据模板（violations/pending-fixes/gap-registry）
 ├── index.js       # CLI 入口（零依赖）

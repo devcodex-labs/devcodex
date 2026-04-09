@@ -1,4 +1,4 @@
-che---
+---
 applyTo: "**"
 ---
 # 通用规范
@@ -64,10 +64,42 @@ applyTo: "**"
 | 多轮审查 | 防止首轮盲区导致问题遗漏 | 不是"重复" |
 
 **强制执行原则**：
-1. 当 `fetch=true` 时，必须读取对应 spec/Skill 文件，不得以"没必要"为由跳过
+1. 仅读取**当前工作流子类型直接对应**的 Skill 文件（见下方 §Skill 按需读取表），禁止一次性读取全部 Skills
 2. 读取到的规范内容必须逐条完整执行，不得选择性忽略
 3. 即使 AI 认为某条"不适用当前场景"也必须执行 — 裁剪决策只属于用户（P1）
 4. spec 文件不存在时必须走降级路径，绝不允许直接跳过节点
+
+## Skill 按需读取表
+
+> ⚠️ 仅读取当前工作流子类型对应的 Skills，禁止全量读取。
+
+| 工作流.子类型 | 必读 Skills |
+|-------------|------------|
+| dev.default | `dev-default` · `cp-gate` · `dev-plan-review` |
+| dev.refactor | `dev-refactor` · `cp-gate` · `dev-plan-review` |
+| dev.database | `dev-database` · `cp-gate` · `dev-plan-review` |
+| dev.init | `dev-init` |
+| dev.optimization | `dev-optimization` · `cp-gate` · `dev-plan-review` |
+| dev.scenario-test | `dev-scenario-test` · `cp-gate` |
+| dev.docs | `dev-docs` |
+| fix.default | `fix-default` · `cp-gate` |
+| fix.security | `fix-security` · `cp-gate` |
+| fix.incident | （Instruction 已完整，无需额外 Skill）|
+| audit.规范文件 | `audit-common` · `audit-dimensions` · `audit-execution-guide` |
+| audit.技术方案 | `audit-common` · `audit-tech-design` |
+| audit.需求文档 | `audit-common` · `audit-requirements` |
+| audit.项目工程 | `audit-common` · `audit-project` |
+| audit.报告 | `audit-common` · `audit-report` |
+| audit.通用文档 | `audit-common` · `audit-document` |
+| analyze | （Instruction 已完整，无需额外 Skill）|
+| self-fix | （Instruction 已完整，无需额外 Skill）|
+| chat | （无需 Skill）|
+| resume | `memory` |
+
+**按需触发 Skills**（不预读，仅在执行中满足条件时读取）：
+- `api-verification`：PR-5① 标记触发
+- `impact-review`：PR-5② 标记触发
+- `document-sync`：dev/fix 执行完成后触发
 
 ## ENV_MODE 行为总表
 
@@ -82,10 +114,10 @@ applyTo: "**"
 
 ## NODE_META 读取规则
 
-当 Agent 进入带 `fetch:true` 的节点时，按优先级读取规范文件：
+当 Agent 进入特定工作流子类型时，按 §Skill 按需读取表 确定需要读取的 Skill 文件，然后按优先级读取：
 
 1. `instructions/tenants/<tenant-id>/` — 租户定制（若有）
-2. 对应 Skill 文件 — 默认规范
+2. §Skill 按需读取表 中对应的 Skill 文件 — 详细检查标准
 3. 本文件（`01-common.instructions.md`） — 兜底
 
 ## 术语约定

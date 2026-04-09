@@ -6,6 +6,11 @@
   "bin": {
     "devcodex": "./index.js"
   },
+  "scripts": {
+    "test": "node index.js status",
+    "test:init": "node index.js init --dry-run",
+    "test:version": "node -e \"const p=require('./package.json');const pl=require('./plugin.json');if(p.version!==pl.version){console.error('Version mismatch:',p.version,'vs',pl.version);process.exit(1)}else{console.log('Version OK:',p.version)}\""
+  },
   "keywords": [
     "copilot",
     "ai",

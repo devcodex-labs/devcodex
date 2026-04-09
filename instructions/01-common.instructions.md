@@ -83,6 +83,7 @@ applyTo: "**"
 | dev.optimization | `dev-optimization` · `cp-gate` · `dev-plan-review` |
 | dev.scenario-test | `dev-scenario-test` · `cp-gate` |
 | dev.docs | `dev-docs` |
+| dev.plan-review | （Instruction 已完整，无需额外 Skill）|
 | fix.default | `fix-default` · `cp-gate` |
 | fix.security | `fix-security` · `cp-gate` |
 | fix.incident | （Instruction 已完整，无需额外 Skill）|

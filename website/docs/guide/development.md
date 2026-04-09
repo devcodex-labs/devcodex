@@ -141,7 +141,7 @@ workflows/<skill-name>/
 
 | 规则 | 说明 |
 |------|------|
-| 语言 | agents/skills/instructions/prompts 统一用**英文**编写 |
+| 语言 | agents/skills/instructions/prompts 统一用**中文**编写 |
 | Skill 目录 | 必须是扁平一级目录，`name` 字段与文件夹名完全一致（小写+连字符）|
 | Instructions | `applyTo: "**"` 全局注入，单文件 ≤ 500 行 |
 | 文件名 | Instructions: `NN-<kebab>.instructions.md`；报告: `NN--<简述>.md`（双横杠）|

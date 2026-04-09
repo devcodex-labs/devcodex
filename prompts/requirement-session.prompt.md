@@ -5,8 +5,8 @@ applyTo: .devcodex/requirements/**
 ---
 # 需求会话记录模板
 
-> **路径**: `.devcodex/requirements/<中文描述>/01-需求概述.md`
-> **触发**: dev 工作流 CP1 确认前，记录需求讨论过程
+> **路径**: `.devcodex/requirements/<中文描述>/.memory/sessions.md`
+> **触发**: dev 工作流 CP1 确认后，记录需求级会话记录
 
 ---
 

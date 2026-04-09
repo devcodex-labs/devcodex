@@ -26,7 +26,7 @@
 | P0 核心需求 | `requirements/p0/<名称>.md` | 单文件 |
 | P1 基础需求 | `requirements/p1/<名称>/`（5 文件）| 含开发文档 |
 | P2 功能需求 | `requirements/p2/<名称>.md` | 单文件 |
-| 规范文件 | `.github/`（agents/skills/instructions）| 英文编写 |
+| 规范文件 | `.github/`（agents/skills/instructions）| 中文编写 |
 | 产物文件 | `.devcodex/`（记忆/报告/data）| 分类提交 |
 | 工作指南 | `website/docs/guide/` | 本章节 |
 

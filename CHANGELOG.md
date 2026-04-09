@@ -29,11 +29,18 @@
    - 在"版本概览"表格最上方添加新行
    - 格式：`| [vX.Y.Z](./changelogs/vX.Y.Z.md) | 日期 | 摘要 | [查看](./changelogs/vX.Y.Z.md) |`
 
-3. **同步 plugin.json version 字段**
+3. **同步版本号到所有文件**
+   - `plugin.json` → version 字段
+   - `RULES.md` → 标题行和 frontmatter 版本号
 
-4. **提交变更**
+4. **重建 lockfile**
    ```bash
-   git add CHANGELOG.md changelogs/vX.Y.Z.md plugin.json package.json
+   rm package-lock.json && npm install
+   ```
+
+5. **提交变更**
+   ```bash
+   git add CHANGELOG.md changelogs/vX.Y.Z.md plugin.json package.json RULES.md package-lock.json
    git commit -m "release: vX.Y.Z — 摘要"
    ```
 

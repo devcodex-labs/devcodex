@@ -15,16 +15,16 @@ hero:
 
 features:
   - title: 🎯 结构化工作流
-    details: 当前正在整理工作流骨架与边界，细化内容以 1.0.0 需求文档为准
+    details: 8 种工作流（dev/fix/audit/analyze/self-fix/resume/plan/chat），执行流程骨架已冻结
   - title: 🛠️ 34 个 Skills
-    details: 目标是形成符合 GitHub Copilot 官方标准的扁平化 Skill 体系
+    details: 扁平化 Skill 体系，覆盖开发、修复、审计、分析、自修复等全场景
   - title: 🔒 三层合规检查
-    details: 合规检查是规划中的核心机制，当前仍在整理稳定骨架与阶段边界
+    details: FC（形式合规）→ SC（实质合规）→ RC（恢复性检查），所有工作流回复前强制执行
   - title: 🧠 跨会话记忆
-    details: 记忆系统是既定方向，当前先冻结本地文件版设计，再推进实现
+    details: 三层记忆体系（Agent 日记 / 需求记忆 / 项目总记忆），支持 resume 恢复中断任务
   - title: ⚡ 双执行模式
-    details: 双 Agent 模式已确定为需求方向，但具体实现仍未开始开发
+    details: 确认模式（@DevCodex）与全自动模式（@DevCodex Auto），安全底线始终强制执行
   - title: 🏢 v2.0.0 多租户
-    details: v2 系列目前仅保留路线图，用于平台化与多租户方向规划
+    details: v2 系列规划中，用于平台化与多租户方向
 ---
 

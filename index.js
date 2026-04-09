@@ -44,7 +44,7 @@ const SOURCES = [
   { from: 'skills',       to: 'skills'       },
   { from: 'instructions', to: 'instructions' },
   { from: 'prompts',      to: 'prompts'      },
-  { from: 'hooks',        to: 'hooks'        },
+  { from: 'data',         to: 'data'         },
 ]
 
 // ─── Commands ─────────────────────────────────────────────────────────────────
@@ -61,6 +61,9 @@ function cmdInit(argv) {
   console.log()
 
   if (dryRun) console.log(c.yellow('  [DRY RUN] No files will be written.\n'))
+
+  // Guard: detect missing content dirs before copying
+  const anySrcExists = SOURCES.some(({ from }) => fs.existsSync(path.join(PKG_ROOT, from)))
 
   let added = 0, updated = 0, skipped = 0
 
@@ -141,6 +144,15 @@ function cmdInit(argv) {
       console.log(`  ${c.cyan('→')} Restart VS Code to activate DevCodex agents & skills.`)
     }
   }
+
+  // Warn when no content files were found (skeleton state)
+  if (!dryRun && !anySrcExists) {
+    console.log()
+    console.log(c.yellow('  ⚠️  No content files installed.'))
+    console.log(c.dim('    agents/ skills/ instructions/ not found in package root.'))
+    console.log(c.dim('    Run  devcodex update  after content files are added.'))
+  }
+
   console.log()
 }
 
@@ -159,6 +171,11 @@ function cmdStatus(argv) {
     const label = files.length > 0 ? c.green(`${files.length} files`) : c.red('not installed')
     console.log(`  ${c.cyan(to.padEnd(14))} ${label}`)
   }
+
+  // Check RULES.md
+  const rulesInstalled = fs.existsSync(path.join(ghDir, 'RULES.md'))
+  if (rulesInstalled) total++
+  console.log(`  ${c.cyan('RULES.md'.padEnd(14))} ${rulesInstalled ? c.green('installed') : c.red('not installed')}`)
 
   console.log()
   if (total === 0) {

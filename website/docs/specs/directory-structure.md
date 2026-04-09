@@ -5,18 +5,60 @@
 
 ---
 
+## 三层加载架构
+
+DevCodex 的核心设计问题是：**主流程里有十几个节点规范，如何高效注入 AI 上下文，同时不撑爆上下文窗口？**
+
+官方 VS Code Copilot 提供三种加载方式：
+
+| 方式 | 触发机制 | 特点 |
+|------|---------|------|
+| `AGENTS.md` / `copilot-instructions.md` | 每次会话全量自动注入 | 始终在线，上下文成本固定 |
+| `*.instructions.md` | `applyTo` 文件匹配 或 `description` 语义判断 | 按需加载，平台自动决策 |
+| `skills/<name>/SKILL.md` | 用户触发或 Agent 判断调用 | 触发时加载，最省上下文 |
+
+基于这三种方式，DevCodex 采用**三层分层架构**：
+
+```
+第一层：AGENTS.md              ← 核心规则 + 安全底线 + 通用规范（始终全量注入）
+第二层：instructions/*.md      ← 主流程节点执行规范（语义按需加载）
+第三层：skills/<name>/SKILL.md ← 工作流执行细节（触发时加载）
+```
+
+---
+
+## 为什么这样分层
+
+### 第一层用 AGENTS.md — 不能按需的内容
+
+核心规则、安全底线、通用规范是整个执行体系的**前置条件**——AI 不读这三样，就不知道主流程是什么、安全底线在哪里、规范优先级怎么合并。
+
+这三样必须在任何任务开始前就加载完毕，没有"按需"的可能性，所以放进始终注入的 `AGENTS.md`。  
+同时把内容控制在最小必要集合，避免 `AGENTS.md` 过重。
+
+### 第二层用 `*.instructions.md` — 节点规范按语义匹配
+
+主流程里的中间节点（摘要、记忆、合规检查等）本质上是执行约束规范，适合 `*.instructions.md`。  
+VS Code Copilot 会根据 `description` 语义判断当前任务是否需要加载，不需要每次全量注入。  
+即使某节点规范未被加载，`AGENTS.md` 里的主流程骨架也能兜底，不会完全失控。
+
+### 第三层用 Skills — 工作流执行细节只在触发时加载
+
+dev / fix / audit 等工作流的执行细节，只有在用户或 Agent 实际触发对应工作流时才需要。  
+官方 Skills 机制正好适配这个场景——触发时加载，不触发不占用上下文。
+
+---
+
 ## 各组件职责说明
 
-| 组件 | 官方定位 | DevCodex 中的用途 |
-|------|---------|-----------------|
-| **Agents** | 定义 AI 的角色、工具权限、运行模式和行为边界 | `@devcodex`（确认模式）/ `@devcodex-auto`（全自动模式）两个入口 Agent |
-| **Skills** | 按需触发的工作流能力入口，用户可 `/skill-name` 或 AI 自动调用 | **薄壳入口层**：SKILL.md 极简，触发后指向 `workflows/` 读取详细流程 |
-| **Instructions** | 全局注入的规范约束，`applyTo` 控制生效范围，每次会话自动加载 | 工作流规则（dev/fix/audit...）+ 安全底线（S01~S06）+ 合规规则（FC/SC）|
-| **Prompts** | 单次有参数的任务模板，`/prompt-name` 触发，结构化输出 | CP 节点输出模板（CP1需求确认、CP2方案确认、CP3实施计划等）|
-| **Hooks** | 生命周期钩子，在特定事件执行 shell 命令（确定性，不可被 AI 绕过）| `UserPromptSubmit` 注入上下文 / `Stop` 触发后置操作 |
-| **Workflows** | ⚠️ DevCodex 自定义目录（非官方组件）| 存储各 Skill 的详细工作流内容，Skills 薄壳读取此目录执行 |
-
-> **核心区别**：Instructions 是"始终有效的约束"，Skills 是"按需触发的入口"，Workflows 是"实际工作流内容"，Prompts 是"结构化输出模板"，Hooks 是"确定性的生命周期动作"。
+| 层级 | 组件 | 官方定位 | DevCodex 中的用途 |
+|------|------|---------|-----------------|
+| 第一层 | **AGENTS.md** | 始终注入的全局指令 | 核心规则 + 安全底线 + 通用规范 |
+| 第二层 | **Instructions** | 按需加载的规范约束（`description` 语义匹配）| 主流程节点执行规范（预检查/摘要/记忆/合规等）|
+| 第三层 | **Skills** | 按需触发的工作流能力入口 | dev / fix / audit / analyze / self-fix / plan / resume / chat |
+| 配套 | **Agents** | 定义 AI 角色、工具权限、行为边界 | `@devcodex`（确认模式）/ `@devcodex-auto`（全自动模式）|
+| 配套 | **Prompts** | 有参数的结构化输出模板 | CP 节点输出模板（CP1/CP2/CP3）|
+| 配套 | **Hooks** | 生命周期钩子，执行 shell 命令（确定性）| `UserPromptSubmit` 注入上下文 / `Stop` 触发后置操作 |
 
 ---
 
@@ -24,12 +66,11 @@
 
 | 类型 | 名称 | 归属 | 说明 |
 |------|------|------|------|
-| 官方组件 | Agents / Skills / Instructions / Prompts / Hooks | 官方 | 平台可识别的目录与文件格式 |
-| DevCodex 扩展 | `workflows/` | 自定义 | 给薄壳 Skill 提供详细流程内容 |
+| 官方组件 | Agents / Skills / Instructions / Prompts / Hooks / AGENTS.md | 官方 | 平台可识别的目录与文件格式 |
 | DevCodex 扩展 | CP1 / CP2 / CP3 | 自定义 | DevCodex 的确认节点体系，不是官方内建能力 |
 | DevCodex 扩展 | major/minor 版本文档结构 | 自定义 | 文档站采用 `versions/v1/1.0.0/` 以容纳同一大版本的多次迭代 |
 
-> 结论：**官方标准负责“可被平台发现”**，DevCodex 扩展负责“如何组织复杂流程内容”。
+> 结论：**官方标准负责"可被平台发现与加载"**，DevCodex 在此之上定义执行流程与分层规范。
 
 ---
 
@@ -41,175 +82,161 @@ VS Code Copilot 识别以下目录和文件类型（均位于 `.github/` 下）�
 |------|------|------|
 | Agent | `.github/agents/*.agent.md` | 两个入口（确认模式 + 全自动模式）|
 | Skills | `.github/skills/<name>/SKILL.md` | 扁平一级目录，`name` 与文件夹名一致 |
-| Instructions | `.github/instructions/*.instructions.md` | 全局规范，`applyTo` 控制生效范围 |
+| Instructions | `.github/instructions/*.instructions.md` | 按需规范，`description` 语义匹配或 `applyTo` 文件匹配 |
 | Prompts | `.github/prompts/*.prompt.md` | CP 节点模板 |
 | Hooks | `.github/hooks/*.json` | 生命周期钩子 |
-| 全局指令（官方参考） | `.github/copilot-instructions.md` 或根目录 `AGENTS.md` | 当前阶段仅作为官方能力参考，不视为已启用 |
+| 全局始终注入 | `AGENTS.md`（根目录）或 `.github/copilot-instructions.md` | 每次会话自动全量加载 |
 
 ---
 
-## 组件职责速查
+## 目录结构骨架
 
-| 组件 | 核心职责 | DevCodex 中的角色 | 触发方式 |
-|------|---------|-----------------|---------|
-| **Agents** | 定义 AI 身份、工具权限、行为边界 | `@devcodex`（确认模式）/ `@devcodex-auto`（全自动）| 用户在 Chat 选择 Agent |
-| **Skills** | 按需触发的工作流**入口**（薄壳）| 路由层：接收意图 → 指向 `workflows/` 详细流程 | `/skill-name` 或 AI 自动发现 |
-| **workflows/** | 工作流**详细内容**（非官方组件，自定义目录）| 每个 Skill 对应的完整执行流程文件集合 | 由 SKILL.md 引用读取 |
-| **Instructions** | 始终有效的全局规范约束 | 工作流规则（dev/fix/audit）+ 安全底线 + 合规规则 | 每次会话自动注入 |
-| **Prompts** | 有参数的结构化输出模板 | CP 节点模板（需求确认/方案确认/实施计划）| `/prompt-name` 或 AI 调用 |
-| **Hooks** | 生命周期事件的 shell 钩子（确定性执行）| `UserPromptSubmit` 注入上下文 / `Stop` 触发后置操作 | 平台事件自动触发 |
+> 当前仍在流程定义阶段，以下骨架只冻结**结构原则**，不冻结具体文件数量。
 
-> **关键区别**：Instructions 是"约束"（始终有效），Skills 是"能力入口"（按需触发），workflows/ 是"执行内容"（由 Skills 读取）。
+```text
+<project-root>/
+│
+├── AGENTS.md                            ← 第一层：核心规则 + 安全底线 + 通用规范
+│
+├── agents/
+│   ├── devcodex.agent.md                ← @devcodex（确认模式）
+│   └── devcodex-auto.agent.md           ← @devcodex-auto（全自动模式）
+│
+├── instructions/                        ← 第二层：主流程节点执行规范（按需加载）
+│   ├── precheck.instructions.md             ① 预检查（意图/profile/落点）
+│   ├── summary.instructions.md              ③ 写入摘要
+│   ├── memory.instructions.md               ④⑪ 检索/更新记忆
+│   ├── pre-state-summary.instructions.md    ⑤ 前置状态汇总
+│   ├── dev-compliance.instructions.md       ⑥ 开发阶段合规检查
+│   ├── exec-compliance.instructions.md      ⑨ 执行阶段合规检查
+│   ├── report.instructions.md               ⑩ 输出报告
+│   └── completion-compliance.instructions.md ⑫ 完成前合规检查
+│
+├── skills/                              ← 第三层：工作流入口（触发时加载）
+│   ├── dev/SKILL.md
+│   ├── fix/SKILL.md
+│   ├── audit/SKILL.md
+│   ├── analyze/SKILL.md
+│   ├── self-fix/SKILL.md
+│   ├── plan/SKILL.md
+│   ├── resume/SKILL.md
+│   └── chat/SKILL.md
+│
+├── prompts/                             ← CP 确认节点输出模板
+│   ├── cp1-requirements.prompt.md
+│   ├── cp2-design.prompt.md
+│   └── cp3-implementation.prompt.md
+│
+├── hooks/                               ← 生命周期钩子
+│
+├── .devcodex/                           ← 运行时数据（不提交 Git）
+│   ├── profile/                             项目 profile 上下文
+│   ├── .memory/                             ④⑪ 记忆读写
+│   └── reports/                             ⑩ 输出报告存放
+│
+└── website/                             ← 文档站
+```
 
 ---
 
 ## 各组件官方格式
 
-### 1. Agents
+### 1. AGENTS.md
+
+```markdown
+# DevCodex Agent Instructions
+
+<!-- 核心规则、安全底线、通用规范内容 -->
+```
+
+无 frontmatter，纯 Markdown，放项目根目录，每次会话自动全量注入。
+
+---
+
+### 2. Agents
 
 ```yaml
 ---
 description: "<必填，供子 Agent 发现用，富含关键词>"
-name: "Agent Name"           # 可选，默认取文件名
-tools: [read, edit, search, execute, web]  # 可选
-model: "Claude Sonnet 4"     # 可选
-argument-hint: "Task..."     # 可选
-user-invocable: true         # 可选，是否显示在 Agent 选择器（默认 true）
+name: "Agent Name"
+tools: [read, edit, search, execute, web]
+model: "Claude Sonnet 4"
 ---
 Markdown 内容
 ```
 
 ---
 
-### 2. Skills
+### 3. Skills
 
 **目录结构**：
 ```
-.github/skills/<skill-name>/     ← 必须是扁平一级目录，不能嵌套
-├── SKILL.md                     ← 必填，name 字段必须与文件夹名完全一致
-├── scripts/                     ← 可执行脚本
-├── references/                  ← 参考文档（按需加载）
-└── assets/                      ← 模板、样板文件
+skills/<skill-name>/
+├── SKILL.md        ← 必填，name 字段必须与文件夹名完全一致
+├── references/     ← 详细流程内容（按需加载）
+├── scripts/
+└── assets/
 ```
 
 **SKILL.md frontmatter**：
 ```yaml
 ---
-name: skill-name              # 必填：1-64字符，小写字母数字+连字符，必须与文件夹名一致
-description: 'What and when to use. Max 1024 chars.'  # 必填
-argument-hint: '可选提示'      # 可选
-user-invocable: true          # 可选，是否显示为斜杠命令（默认 true）
-disable-model-invocation: false  # 可选，禁止模型自动触发（默认 false）
+name: skill-name
+description: 'What and when to use. Max 1024 chars.'
 ---
 ```
 
 ---
 
-### 3. Instructions
+### 4. Instructions
 
 ```yaml
 ---
-description: "<强烈推荐，供按需发现用>"  # on-demand 模式必填
-name: "Instruction Name"               # 可选
-applyTo: "**/*.ts"                     # 可选，匹配文件时自动附加
+description: "当执行 XX 阶段时加载此规范"   ← 语义匹配触发
 ---
 Markdown 内容
 ```
 
-**发现模式**：
-| 模式 | 触发条件 | 用途 |
-|------|---------|------|
-| 按需（`description`）| Agent 判断任务相关性 | 任务型：迁移、重构、API |
-| 显式（`applyTo`）| 上下文中有匹配文件 | 文件型：语言规范、框架规则 |
-| 手动 | 用户手动添加上下文 | 临时附加 |
+**加载方式**：
+| 方式 | 触发条件 |
+|------|---------|
+| `description` 语义匹配 | Agent 判断当前任务与描述相关时自动加载 |
+| `applyTo` 文件匹配 | 上下文中有匹配文件时自动附加 |
+| 手动 | 用户手动添加到上下文 |
 
 ---
 
-### 4. Prompts
+### 5. Prompts
 
 ```yaml
 ---
-description: "<推荐，提升可发现性>"  # 可选
-name: "Prompt Name"                  # 可选
-argument-hint: "Task..."             # 可选
-agent: "agent"                       # 可选：ask / agent / plan / 自定义 agent
-model: "GPT-5 (copilot)"             # 可选
-tools: [search, web]                 # 可选
+description: "<推荐>"
+name: "Prompt Name"
 ---
 Markdown 内容
 ```
 
 ---
 
-### 5. Hooks
+### 6. Hooks
 
 ```json
 {
   "hooks": {
-    "UserPromptSubmit": [
-      {
-        "type": "command",
-        "command": "./scripts/hook.sh",
-        "timeout": 15
-      }
-    ]
+    "UserPromptSubmit": [{ "type": "command", "command": "./scripts/hook.sh", "timeout": 15 }]
   }
 }
 ```
 
-**官方事件名**（区分大小写）：
-| 事件 | 触发时机 |
-|------|---------|
-| `SessionStart` | 新会话第一条消息 |
-| `UserPromptSubmit` | 用户提交消息 |
-| `PreToolUse` | 工具调用前 |
-| `PostToolUse` | 工具调用成功后 |
-| `PreCompact` | 上下文压缩前 |
-| `SubagentStart` / `SubagentStop` | 子 Agent 启停 |
-| `Stop` | 会话结束 |
+**官方事件**：`SessionStart` / `UserPromptSubmit` / `PreToolUse` / `PostToolUse` / `PreCompact` / `SubagentStart` / `SubagentStop` / `Stop`
 
 ---
 
-### 6. 全局工作区指令（官方参考，当前未启用）
+## 为什么不列详细文件清单
 
-| 文件 | 位置 | 说明 |
-|------|------|------|
-| `copilot-instructions.md` | `.github/` | 官方推荐，跨编辑器兼容（规划参考） |
-| `AGENTS.md` | 根目录或子目录 | 开放标准，支持 monorepo 层级覆盖（规划参考） |
+1. 当前处于流程与规范定义阶段，详细文件清单会被误读为"已落地"
+2. v1.0.0 和 v2.0.0 实现策略不同（v2 存在 MCP / MongoDB 平台化演进）
+3. 骨架原则冻结后，具体文件随实现阶段按需补充
 
-> 当前文档站处于流程与规范定义阶段，以上内容用于对齐官方能力边界，**不表示当前仓库已落地启用**。  
-> 进入实现阶段后，再按“只选一种，不要同时使用”的规则落地。
-
-
-### 7. 当前阶段推荐骨架（精简版）
-
-> 当前仍在流程定义阶段，目录结构只保留**最小骨架**。  
-> 具体会有哪些 skills/workflows 文件，留到进入开发阶段再冻结。
-
-```text
-e:\MySelf\devcodex\
-├── agents/
-├── instructions/
-├── skills/
-│   └── <skill-name>/SKILL.md
-├── workflows/            （DevCodex 扩展，v2 计划迁移到 MCP）
-│   └── <workflow-name>/index.md
-├── prompts/
-├── hooks/
-├── data/
-├── .devcodex/
-│   └── profile/
-├── website/
-├── package.json
-├── README.md
-└── CHANGELOG.md
-```
-
-### 8. 为什么这里不列详细目录
-
-1. 现在还没进入开发实施阶段，详细文件清单会被误读为“已经落地”
-2. 当前目标是先冻结流程与规范边界，不是冻结实现文件数量
-3. v1.0.0 和 v2.0.0 的实现策略不同（v2 存在 MCP / MongoDB 平台化演进）
-
-> 结论：本页仅冻结**结构原则**，不冻结“几十个具体目录和文件名”。
-
+> 结论：本页冻结**三层架构原则与骨架结构**，不冻结具体文件数量。
+

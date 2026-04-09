@@ -1,18 +1,15 @@
 # Dev tooling (not needed by plugin users)
-data/
 node_modules/
 *.tgz
 
 # Documentation website (separate build artifact)
 website/
 
-# Internal dev/migration scripts
-tools/gen-assets.js
-tools/migrate-*.js
-tools/sync-dev.ps1
-
 # Archive snapshot
 v0.03/
+
+# Changelogs detail (CHANGELOG.md summary is enough for users)
+changelogs/
 
 # Dev workspace artifacts
 .devcodex/.memory/

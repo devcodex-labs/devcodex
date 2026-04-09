@@ -17,13 +17,13 @@ DevCodex v1.0.0 是私有项目，发布指"部署到 `E:\MySelf\.github\` 可�
 
 ### Agent
 
-- [ ] `agents/devcodex.agent.md` 英文重写（当前 v0.03 是中文）
+- [ ] `agents/devcodex.agent.md` （当前 v0.03 是中文）
 - [ ] `description` 字段符合官方 "Use when..." 格式
 - [ ] `tools` 列表与实际使用的工具一致
 
 ### Instructions（11 个）
 
-- [ ] `00-safety.instructions.md` — 安全底线，英文重写验证
+- [ ] `00-safety.instructions.md` — 安全底线
 - [ ] `01-common.instructions.md` — 通用规范（包含全自动模式 C02 豁免条件）
 - [ ] `02-output-paths.instructions.md` — 路径规范
 - [ ] `10-dev.instructions.md` — dev 工作流规范

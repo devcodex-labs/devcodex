@@ -6,3 +6,8 @@ dist/
 *.log
 .env
 .env.local
+
+# DevCodex AI session memory (auto-generated, do not commit)
+.devcodex/.memory/
+.devcodex/.tmp/
+

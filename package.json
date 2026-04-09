@@ -39,23 +39,12 @@
     "skills/",
     "instructions/",
     "prompts/",
-    "hooks/",
-    "auth/",
-    "commercial/",
-    "tools/v5-full-audit.js",
-    "tools/README.md",
+    "data/",
+    "assets/",
     "RULES.md",
-    "MIGRATION.md",
     "README.md",
     "CHANGELOG.md",
     "SECURITY.md",
-    "LICENSE",
-    "assets/icon-512.png",
-    "assets/banner.png",
-    "assets/screenshot-agents.png",
-    "assets/screenshot-skills.png"
-  ],
-  "devDependencies": {
-    "canvas": "^3.2.3"
-  }
+    "LICENSE"
+  ]
 }

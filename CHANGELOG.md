@@ -1,7 +1,7 @@
 # 变更日志 (CHANGELOG)
 
-> **说明**: 版本概览摘要，详细变更见 [changelogs/](./changelogs/) 目录  
-> **最后更新**: 2026-04-09
+> **说明**: 版本概览摘要，详细变更见 [`changelogs/v1.0.0.md`](./changelogs/v1.0.0.md) 等详细变更文件  
+> **最后更新**: 2026-04-10
 
 ---
 
@@ -54,7 +54,7 @@
 
 ## 相关文档
 
-- [changelogs/](./changelogs/) — 详细变更文档目录
+- [`changelogs/v1.0.0.md`](./changelogs/v1.0.0.md) — 当前维护中的详细变更文档
 - [README.md](./README.md) — 项目说明
-- [website/docs/versions/v1/1.0.0/requirements/](./website/docs/versions/v1/1.0.0/requirements/) — 需求文档
+- [requirements/index.md](./website/docs/versions/v1/1.0.0/requirements/index.md) — 需求文档总览
 

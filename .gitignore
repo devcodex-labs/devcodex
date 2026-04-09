@@ -13,3 +13,6 @@ dist/
 
 # npm auth (never commit tokens)
 .npmrc
+
+# DevCodex AI session memory (auto-generated, do not commit)
+.devcodex/.memory/

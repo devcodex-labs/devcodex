@@ -92,7 +92,8 @@ applyTo: "**"
 | audit.项目工程 | `audit-common` · `audit-project` |
 | audit.报告 | `audit-common` · `audit-report` |
 | audit.通用文档 | `audit-common` · `audit-document` |
-| analyze | （Instruction 已完整，无需额外 Skill）|
+| analyze.default | （Instruction 已完整，无需额外 Skill）|
+| analyze.research | `analyze-research` |
 | self-fix | （Instruction 已完整，无需额外 Skill）|
 | chat | （无需 Skill）|
 | resume | `memory` |

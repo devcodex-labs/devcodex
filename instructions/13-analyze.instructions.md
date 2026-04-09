@@ -33,6 +33,8 @@ applyTo: "**"
 
 ### research（技术调研）
 
+> ⚠️ 执行 `analyze.research` 时，须按 `01-common` §Skill 按需读取表读取 `analyze-research` Skill 获取详细调研规范。
+
 **触发条件**：用户要求调研/评估/比较某技术方案
 
 | 场景 | 示例 |

@@ -117,7 +117,8 @@ function cmdInit(argv) {
     const gitignoreEntry = '\n# DevCodex AI session memory (auto-generated, do not commit)\n.devcodex/.memory/\n'
     if (fs.existsSync(gitignorePath)) {
       const content = fs.readFileSync(gitignorePath, 'utf8')
-      if (!content.includes('.devcodex/.memory/')) {
+      // Skip if .devcodex/ (whole dir) or .devcodex/.memory/ is already excluded
+      if (!content.includes('.devcodex/') && !content.includes('.devcodex/.memory/')) {
         fs.appendFileSync(gitignorePath, gitignoreEntry)
         added++
         console.log(c.green('  ✓ .gitignore  (.devcodex/.memory/ added)'))

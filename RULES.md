@@ -1,6 +1,11 @@
-# DevCodex v1.0.1 — 使用入口
+# DevCodex v1.1.0 — 使用入口
 
-> GitHub Copilot Agent Plugin · publisher: Rocky · version: 1.0.1
+> GitHub Copilot Agent Plugin · publisher: Rocky · version: 1.1.0
+
+## 默认 Copilot 支持
+
+安装后 Copilot 自动加载 DevCodex 规则（通过 `copilot-instructions.md` + `instructions/`），无需选择 Agent。
+如需 CP 门控确认模式或全自动模式，可使用下方 Agent 入口。
 
 ## 统一入口
 

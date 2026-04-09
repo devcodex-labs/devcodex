@@ -1,6 +1,6 @@
 # DevCodex
 
-> AI 开发规范注入器 — GitHub Copilot Agent Plugin
+> AI 开发规范注入器 — GitHub Copilot Agent Plugin（Instructions-First）
 
 [![npm](https://img.shields.io/badge/npm-%40vextjs%2Fdevcodex-blue)](https://github.com/vextjs/devcodex)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green)](LICENSE)
@@ -40,6 +40,7 @@ npx devcodex init
 
 ```
 .github/
+├── copilot-instructions.md  ← 默认 Copilot always-on 总则（新增）
 ├── agents/         ← Agent 定义（2 个：确认 + 全自动）
 ├── instructions/   ← Instructions 约束（11 个，含全部工作流规则）
 ├── skills/         ← Skill 详细检查标准（32 个，按需读取）
@@ -48,22 +49,24 @@ npx devcodex init
 └── RULES.md        ← 使用入口
 ```
 
+> ⚠️ 请确保 IDE 的 "Use Instruction Files" 设置已开启（默认开启）。
+
 ## 使用
 
-在 IDE 的 Copilot Chat 中输入 `@DevCodex` 即可开始（支持 VS Code / WebStorm / Cursor 等）。Agent 会自动识别意图并路由到对应工作流：
+安装后 Copilot 自动加载 DevCodex 规则（通过 `copilot-instructions.md` + `instructions/`），无需选择 Agent。直接在 Copilot Chat 中对话即可：
 
 ```
-@DevCodex 帮我重构 user 模块的权限校验逻辑
+帮我重构 user 模块的权限校验逻辑
 → 自动识别为 dev 工作流 → CP1 需求确认 → CP2 方案确认 → CP3 实施计划 → 执行
 
-@DevCodex 这个接口返回 500 了
+这个接口返回 500 了
 → 自动识别为 fix 工作流 → 根因分析 → 修复方案 → 三步扫描验证
 
-@DevCodex 深度审查一下这个项目的代码质量
+深度审查一下这个项目的代码质量
 → 自动识别为 audit 工作流 → 多轮收敛审查 → 输出报告
 ```
 
-全自动模式：`@DevCodex Auto`（CP 门控自动通过，安全底线仍强制执行）
+如需模式切换，可使用 `@DevCodex`（确认模式）或 `@DevCodex Auto`（全自动模式，CP 门控自动通过，安全底线仍强制执行）。
 
 
 ## CLI 命令
@@ -130,6 +133,7 @@ npm run dev
 
 ```
 devcodex/
+├── copilot-instructions.md  # 默认 Copilot always-on 总则
 ├── agents/        # Agent 定义（2 个：确认模式 + 全自动模式）
 ├── instructions/  # 全局 Instructions（11 个，含工作流规则摘要，自动注入）
 ├── skills/        # Skill 详细检查标准（32 个，按 01-common §按需读取表 路由读取）
@@ -138,6 +142,18 @@ devcodex/
 ├── index.js       # CLI 入口（零依赖）
 └── plugin.json    # 插件元数据
 ```
+
+## IDE 兼容性
+
+| 功能 | VS Code | JetBrains | Visual Studio | Xcode | Eclipse |
+|------|:-------:|:---------:|:------------:|:-----:|:-------:|
+| `copilot-instructions.md` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `instructions/*.instructions.md` | ✅ | ✅ | ✅ | ❌ | ❌ |
+| `agents/*.agent.md` | ✅ | ✅ | ❌ | ❌ | ❌ |
+| `skills/*/SKILL.md` | ✅ | ✅ | ❌ | ❌ | ❌ |
+| `prompts/*.prompt.md` | ✅ | ✅ | ✅ | ❌ | ❌ |
+
+> JetBrains 的 path-specific instructions / agents / skills 已实测确认可用（WebStorm 2026）。
 
 
 ## 文档

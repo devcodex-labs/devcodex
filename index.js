@@ -131,6 +131,21 @@ function cmdInit(argv) {
     }
   }
 
+  // Copy copilot-instructions.md to .github/
+  const ciSrc  = path.join(PKG_ROOT, 'copilot-instructions.md')
+  const ciDest = path.join(ghDir, 'copilot-instructions.md')
+  if (fs.existsSync(ciSrc)) {
+    const existed = fs.existsSync(ciDest)
+    if (!existed || force) {
+      if (!dryRun) { fs.mkdirSync(ghDir, { recursive: true }); fs.copyFileSync(ciSrc, ciDest) }
+      if (existed) { updated++; console.log(c.yellow('  ↺ .github/copilot-instructions.md')) }
+      else          { added++;   console.log(c.green ('  ✓ .github/copilot-instructions.md')) }
+    } else {
+      skipped++
+      console.log(c.dim('  ~ .github/copilot-instructions.md'))
+    }
+  }
+
   // Create .devcodex/.memory/ and update .gitignore
   if (!dryRun) {
     fs.mkdirSync(path.join(cwd, '.devcodex', '.memory'), { recursive: true })
@@ -201,6 +216,11 @@ function cmdStatus() {
   const rulesInstalled = fs.existsSync(path.join(ghDir, 'RULES.md'))
   if (rulesInstalled) total++
   console.log(`  ${c.cyan('RULES.md'.padEnd(14))} ${rulesInstalled ? c.green('installed') : c.red('not installed')}`)
+
+  // Check copilot-instructions.md
+  const ciInstalled = fs.existsSync(path.join(ghDir, 'copilot-instructions.md'))
+  if (ciInstalled) total++
+  console.log(`  ${c.cyan('copilot-instr'.padEnd(14))} ${ciInstalled ? c.green('installed') : c.red('not installed')}`)
 
   console.log()
   if (total === 0) {

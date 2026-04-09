@@ -7,9 +7,8 @@ dist/
 .env
 .env.local
 
-# DevCodex AI session memory (auto-generated, do not commit)
-.devcodex/.memory/
-.devcodex/.tmp/
+# DevCodex AI context data (session memory, reports, profile, etc. - do not commit)
+.devcodex/
 
 
 # npm auth (never commit tokens)

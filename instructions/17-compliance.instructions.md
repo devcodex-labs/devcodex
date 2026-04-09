@@ -24,10 +24,13 @@ applyTo: "**"
 ```
 ---
 🔍 预检查（DEV 模式）
+- PC0 Profile 已加载：✅ 已读取 .devcodex/profile/ / ❌ 未加载（立即读取后继续）
 - Token 轮次：第 N 轮（>10 关注 / >13 预警 / >15 防护）
 - 待跟进事项：✅ 无 / ⚠️ 上次有待跟进：[简述]
 - 未完成任务：✅ 无 / ⚠️ 存在 🔄 会话：[简述] → 建议先 resume
 ```
+
+> ⚠️ PC0 检查失败时（Profile 未加载）不得跳过 — 必须立即加载后才能继续，ENV_MODE 由 Profile 的 `config.json` 决定。
 
 ## 触发时机（强制）
 
@@ -69,7 +72,7 @@ applyTo: "**"
 | SC1 | 报告验证列完整（合理性+可实施性+收益三列） | 全工作流 |
 | SC2 | 代码已诊断（无未处理 error） | dev/fix 🔴 |
 | SC3 | 修复已全局扫描（同类全局+数据联动+grep零残留） | fix 🔴 |
-| SC4 | 关联文件已同步 | dev/fix/self-fix 🔴 |
+| SC4 | 关联文件已同步（含 profile 中定义的 dev 模式专属同步命令，如 `devcodex update`）| dev/fix/self-fix 🔴 |
 | SC5 | 后续建议已输出 | 全工作流 |
 | SC6 | Agent SUMMARY 已更新 | 全工作流 🔴 |
 | SC7 | 全局 SUMMARY 关键决策已追加 | 有关键决策时 🔴 |

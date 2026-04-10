@@ -5,16 +5,7 @@
 ## 默认 Copilot 支持
 
 安装后 Copilot 自动加载 DevCodex 规则（通过 `copilot-instructions.md` + `instructions/`），无需选择 Agent。
-如需 CP 门控确认模式或全自动模式，可使用下方 Agent 入口。
-
-## 统一入口
-
-两个 Agent 模式，收到消息后自动识别意图并路由到对应工作流：
-
-| Agent | 说明 |
-|-------|------|
-| **@DevCodex** | 确认模式（默认）— CP 门控需用户确认 |
-| **@DevCodex Auto** | 全自动模式 — CP 自动通过，安全底线仍强制 |
+`v1.1.0` 起，CLI 不再向目标项目默认分发 `.github/agents/`。如果项目中仍存在 `.github/agents/`，属于历史残留，需要手动清理。
 
 ## 意图路由
 

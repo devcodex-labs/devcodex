@@ -13,15 +13,15 @@ DevCodex 的核心设计问题是：**主流程里有十几个节点规范，如
 
 | 方式 | 触发机制 | 特点 |
 |------|---------|------|
-| `AGENTS.md` / `copilot-instructions.md` | 每次会话全量自动注入 | 始终在线，上下文成本固定 |
+| `copilot-instructions.md` | 每次会话全量自动注入 | 始终在线，上下文成本固定 |
 | `*.instructions.md` | `applyTo` 文件匹配 或 `description` 语义判断 | 按需加载，平台自动决策 |
 | `skills/<name>/SKILL.md` | 用户触发或 Agent 判断调用 | 触发时加载，最省上下文 |
 
 基于这三种方式，DevCodex 采用**三层分层架构**：
 
 ```
-第一层：AGENTS.md              ← 核心规则 + 安全底线 + 通用规范（始终全量注入）
-第二层：instructions/*.md      ← 主流程节点执行规范（语义按需加载）
+第一层：copilot-instructions.md ← 核心规则 + 安全底线 + 通用规范（始终全量注入）
+第二层：instructions/*.md       ← 主流程节点执行规范（语义按需加载）
 第三层：skills/<name>/SKILL.md ← 工作流执行细节（触发时加载）
 ```
 
@@ -29,18 +29,18 @@ DevCodex 的核心设计问题是：**主流程里有十几个节点规范，如
 
 ## 为什么这样分层
 
-### 第一层用 AGENTS.md — 不能按需的内容
+### 第一层用 copilot-instructions.md — 不能按需的内容
 
 核心规则、安全底线、通用规范是整个执行体系的**前置条件**——AI 不读这三样，就不知道主流程是什么、安全底线在哪里、规范优先级怎么合并。
 
-这三样必须在任何任务开始前就加载完毕，没有"按需"的可能性，所以放进始终注入的 `AGENTS.md`。  
-同时把内容控制在最小必要集合，避免 `AGENTS.md` 过重。
+这三样必须在任何任务开始前就加载完毕，没有"按需"的可能性，所以放进始终注入的 `copilot-instructions.md`。  
+同时把内容控制在最小必要集合，避免 always-on 入口过重。
 
 ### 第二层用 `*.instructions.md` — 节点规范按语义匹配
 
 主流程里的中间节点（摘要、记忆、合规检查等）本质上是执行约束规范，适合 `*.instructions.md`。  
 VS Code Copilot 会根据 `description` 语义判断当前任务是否需要加载，不需要每次全量注入。  
-即使某节点规范未被加载，`AGENTS.md` 里的主流程骨架也能兜底，不会完全失控。
+即使某节点规范未被加载，`copilot-instructions.md` 里的主流程骨架也能兜底，不会完全失控。
 
 ### 第三层用 Skills — 工作流执行细节只在触发时加载
 
@@ -53,12 +53,11 @@ dev / fix / audit 等工作流的执行细节，只有在用户或 Agent 实际�
 
 | 层级 | 组件 | 官方定位 | DevCodex 中的用途 |
 |------|------|---------|-----------------|
-| 第一层 | **AGENTS.md** | 始终注入的全局指令 | 核心规则 + 安全底线 + 通用规范 |
+| 第一层 | **copilot-instructions.md** | 始终注入的全局指令 | 核心规则 + 安全底线 + 通用规范 |
 | 第二层 | **Instructions** | 按需加载的规范约束（`description` 语义匹配）| 主流程节点执行规范（预检查/摘要/记忆/合规等）|
 | 第三层 | **Skills** | 按需触发的工作流能力入口 | dev / fix / audit / analyze / self-fix / plan / resume / chat |
-| 配套 | **Agents** | 定义 AI 角色、工具权限、行为边界 | `@devcodex`（确认模式）/ `@devcodex-auto`（全自动模式）|
 | 配套 | **Prompts** | 有参数的结构化输出模板 | CP 节点输出模板（CP1/CP2/CP3）|
-| 配套 | **Hooks** | 生命周期钩子，执行 shell 命令（确定性）| `UserPromptSubmit` 注入上下文 / `Stop` 触发后置操作 |
+| 可选源码资产 | **Agents** | 源码仓中的可选 Agent 入口 | `@devcodex` / `@devcodex-auto`，保留在源码仓，不属于目标项目默认安装集合 |
 
 ---
 
@@ -66,7 +65,7 @@ dev / fix / audit 等工作流的执行细节，只有在用户或 Agent 实际�
 
 | 类型 | 名称 | 归属 | 说明 |
 |------|------|------|------|
-| 官方组件 | Agents / Skills / Instructions / Prompts / Hooks / AGENTS.md | 官方 | 平台可识别的目录与文件格式 |
+| 官方组件 | Custom Instructions / Skills / Instructions / Prompts | 官方 | 平台可识别并自动加载或按需触发的资产格式 |
 | DevCodex 扩展 | CP1 / CP2 / CP3 | 自定义 | DevCodex 的确认节点体系，不是官方内建能力 |
 | DevCodex 扩展 | major/minor 版本文档结构 | 自定义 | 文档站采用 `versions/v1/1.0.0/` 以容纳同一大版本的多次迭代 |
 
@@ -76,16 +75,17 @@ dev / fix / audit 等工作流的执行细节，只有在用户或 Agent 实际�
 
 ## 官方标准概览
 
-VS Code Copilot 识别以下目录和文件类型（均位于 `.github/` 下）：
+DevCodex 当前默认安装面向目标项目分发以下目录和文件（均位于 `.github/` 下）：
 
 | 组件 | 路径 | 说明 |
 |------|------|------|
-| Agent | `.github/agents/*.agent.md` | 两个入口（确认模式 + 全自动模式）|
 | Skills | `.github/skills/<name>/SKILL.md` | 扁平一级目录，`name` 与文件夹名一致 |
 | Instructions | `.github/instructions/*.instructions.md` | 按需规范，`description` 语义匹配或 `applyTo` 文件匹配 |
 | Prompts | `.github/prompts/*.prompt.md` | CP 节点模板 |
-| Hooks | `.github/hooks/*.json` | 生命周期钩子 |
-| 全局始终注入 | `AGENTS.md`（根目录）或 `.github/copilot-instructions.md` | 每次会话自动全量加载 |
+| Data | `.github/data/*` | 运行时模板（如 `violations.md`、`pending-fixes.md`、`gap-registry.md`） |
+| 全局始终注入 | `.github/copilot-instructions.md` | 每次会话自动全量加载 |
+
+> 说明：`agents/` 仍保留在 DevCodex 源码仓中，但 `v1.1.0` 起不再作为目标项目默认分发路径。
 
 ---
 
@@ -96,38 +96,36 @@ VS Code Copilot 识别以下目录和文件类型（均位于 `.github/` 下）�
 ```text
 <project-root>/
 │
-├── AGENTS.md                            ← 第一层：核心规则 + 安全底线 + 通用规范
-│
-├── agents/
-│   ├── devcodex.agent.md                ← @devcodex（确认模式）
-│   └── devcodex-auto.agent.md           ← @devcodex-auto（全自动模式）
-│
-├── instructions/                        ← 第二层：主流程节点执行规范（按需加载）
-│   ├── precheck.instructions.md             ① 预检查（意图/profile/落点）
-│   ├── summary.instructions.md              ③ 写入摘要
-│   ├── memory.instructions.md               ④⑪ 检索/更新记忆
-│   ├── pre-state-summary.instructions.md    ⑤ 前置状态汇总
-│   ├── dev-compliance.instructions.md       ⑥ 开发阶段合规检查
-│   ├── exec-compliance.instructions.md      ⑨ 执行阶段合规检查
-│   ├── report.instructions.md               ⑩ 输出报告
-│   └── completion-compliance.instructions.md ⑫ 完成前合规检查
-│
-├── skills/                              ← 第三层：工作流入口（触发时加载）
-│   ├── dev/SKILL.md
-│   ├── fix/SKILL.md
-│   ├── audit/SKILL.md
-│   ├── analyze/SKILL.md
-│   ├── self-fix/SKILL.md
-│   ├── plan/SKILL.md
-│   ├── resume/SKILL.md
-│   └── chat/SKILL.md
-│
-├── prompts/                             ← CP 确认节点输出模板
-│   ├── cp1-requirements.prompt.md
-│   ├── cp2-design.prompt.md
-│   └── cp3-implementation.prompt.md
-│
-├── hooks/                               ← 生命周期钩子
+├── .github/
+│   ├── copilot-instructions.md          ← 第一层：核心规则 + 安全底线 + 通用规范
+│   │
+│   ├── instructions/                    ← 第二层：主流程节点执行规范（按需加载）
+│   │   ├── precheck.instructions.md             ① 预检查（意图/profile/落点）
+│   │   ├── summary.instructions.md              ③ 写入摘要
+│   │   ├── memory.instructions.md               ④⑪ 检索/更新记忆
+│   │   ├── pre-state-summary.instructions.md    ⑤ 前置状态汇总
+│   │   ├── dev-compliance.instructions.md       ⑥ 开发阶段合规检查
+│   │   ├── exec-compliance.instructions.md      ⑨ 执行阶段合规检查
+│   │   ├── report.instructions.md               ⑩ 输出报告
+│   │   └── completion-compliance.instructions.md ⑫ 完成前合规检查
+│   │
+│   ├── skills/                          ← 第三层：工作流入口（触发时加载）
+│   │   ├── dev/SKILL.md
+│   │   ├── fix/SKILL.md
+│   │   ├── audit/SKILL.md
+│   │   ├── analyze/SKILL.md
+│   │   ├── self-fix/SKILL.md
+│   │   ├── plan/SKILL.md
+│   │   ├── resume/SKILL.md
+│   │   └── chat/SKILL.md
+│   │
+│   ├── prompts/                         ← CP 确认节点输出模板
+│   │   ├── cp1-requirements.prompt.md
+│   │   ├── cp2-design.prompt.md
+│   │   └── cp3-implementation.prompt.md
+│   │
+│   ├── data/                            ← 运行时数据模板
+│   └── RULES.md                         ← 使用入口
 │
 ├── .devcodex/                           ← 运行时数据（不提交 Git）
 │   ├── profile/                             项目 profile 上下文
@@ -141,72 +139,44 @@ VS Code Copilot 识别以下目录和文件类型（均位于 `.github/` 下）�
 
 ## 各组件官方格式
 
-### 1. AGENTS.md
+### 1. copilot-instructions.md
 
 ```markdown
-# DevCodex Agent Instructions
+# DevCodex Instructions
 
 <!-- 核心规则、安全底线、通用规范内容 -->
 ```
 
-无 frontmatter，纯 Markdown，放项目根目录，每次会话自动全量注入。
+无 frontmatter，纯 Markdown，放 `.github/` 目录，每次会话自动全量注入。
 
 ---
 
-### 2. Agents
+### 2. Skills
 
-```yaml
----
-description: "<必填，供子 Agent 发现用，富含关键词>"
-name: "Agent Name"
-tools: [read, edit, search, execute, web]
-model: "Claude Sonnet 4"
----
-Markdown 内容
-```
-
----
-
-### 3. Skills
-
-**目录结构**：
-```
-skills/<skill-name>/
-├── SKILL.md        ← 必填，name 字段必须与文件夹名完全一致
-├── references/     ← 详细流程内容（按需加载）
-├── scripts/
-└── assets/
-```
-
-**SKILL.md frontmatter**：
 ```yaml
 ---
 name: skill-name
 description: 'What and when to use. Max 1024 chars.'
 ---
+Markdown 内容
 ```
 
 ---
 
-### 4. Instructions
+### 3. Instructions
 
 ```yaml
 ---
-description: "当执行 XX 阶段时加载此规范"   ← 语义匹配触发
+applyTo: "**"
 ---
 Markdown 内容
 ```
 
-**加载方式**：
-| 方式 | 触发条件 |
-|------|---------|
-| `description` 语义匹配 | Agent 判断当前任务与描述相关时自动加载 |
-| `applyTo` 文件匹配 | 上下文中有匹配文件时自动附加 |
-| 手动 | 用户手动添加到上下文 |
+DevCodex 当前采用 `applyTo` 全局注入 + 路由后按需读取 Skill 的组合，不再依赖早期的 `AGENTS.md` 主入口设计。
 
 ---
 
-### 5. Prompts
+### 4. Prompts
 
 ```yaml
 ---
@@ -239,4 +209,4 @@ Markdown 内容
 3. 骨架原则冻结后，具体文件随实现阶段按需补充
 
 > 结论：本页冻结**三层架构原则与骨架结构**，不冻结具体文件数量。
-
+

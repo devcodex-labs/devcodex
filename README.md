@@ -41,7 +41,6 @@ npx devcodex init
 ```
 .github/
 ├── copilot-instructions.md  ← 默认 Copilot always-on 总则（新增）
-├── agents/         ← Agent 定义（2 个：确认 + 全自动）
 ├── instructions/   ← Instructions 约束（11 个，含全部工作流规则）
 ├── skills/         ← Skill 详细检查标准（32 个，按需读取）
 ├── prompts/        ← Prompt 模板（20 个）
@@ -50,6 +49,8 @@ npx devcodex init
 ```
 
 > ⚠️ 请确保 IDE 的 "Use Instruction Files" 设置已开启（默认开启）。
+>
+> ℹ️ `v1.1.0` 起，`devcodex init/update` **不再默认分发** `.github/agents/`。如果目标项目里仍看到 `.github/agents/`，那是历史残留，需要手动清理。
 
 ## 使用
 
@@ -66,7 +67,7 @@ npx devcodex init
 → 自动识别为 audit 工作流 → 多轮收敛审查 → 输出报告
 ```
 
-如需模式切换，可使用 `@DevCodex`（确认模式）或 `@DevCodex Auto`（全自动模式，CP 门控自动通过，安全底线仍强制执行）。
+标准安装路径下，无需也不依赖 `@DevCodex`。如你的项目中仍保留历史 `.github/agents/`，那属于 legacy custom agents，而非当前默认安装集合。
 
 
 ## CLI 命令
@@ -107,18 +108,20 @@ devcodex init --force
 node /path/to/devcodex/index.js status
 
 # 预期输出：
-#   agents         X files
 #   skills         X files
 #   instructions   X files
 #   prompts        X files
 #   data           X files
+#   RULES.md       installed
+#   copilot-instr  installed
+#   legacy-agents  not installed   # 若有历史残留会显示 N files (legacy)
 ```
 
-### 在 IDE 中测试 Agent
+### 在 IDE 中验证规则自动生效
 
 1. 在目标项目执行 `devcodex init`（将文件复制到 `.github/`）
 2. 重启 IDE
-3. 在 Copilot Chat 中输入 `@DevCodex` 测试响应
+3. 直接在 Copilot Chat 中输入普通需求，确认无需 `@DevCodex` 也会按规则工作
 
 ### 文档站本地预览
 
@@ -134,7 +137,7 @@ npm run dev
 ```
 devcodex/
 ├── copilot-instructions.md  # 默认 Copilot always-on 总则
-├── agents/        # Agent 定义（2 个：确认模式 + 全自动模式）
+├── agents/        # Agent 源文件（源码仓保留，不再默认分发到目标项目）
 ├── instructions/  # 全局 Instructions（11 个，含工作流规则摘要，自动注入）
 ├── skills/        # Skill 详细检查标准（32 个，按 01-common §按需读取表 路由读取）
 ├── prompts/       # Prompt 模板（20 个）

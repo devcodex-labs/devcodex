@@ -63,7 +63,7 @@ flowchart TD
 - 主流程入口见：[主流程图](/specs/flowcharts)
 - 上游阶段见：[⑥ 开发阶段合规检查流程图](/specs/dev-compliance-flow)
 - 下游阶段见：[⑧ 工作流执行流程图](/specs/workflow-execution-flow)
-- 路由参考文档见：[`routing` Skill](../../skills/routing/SKILL.md)
+- 路由参考文档见：`skills/routing/SKILL.md`
 
 > 约束：路由为主链必经阶段，不可跳过。chat / resume / 违规质疑为特殊路径。
 

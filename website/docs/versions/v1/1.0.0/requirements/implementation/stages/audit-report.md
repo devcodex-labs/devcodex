@@ -286,24 +286,24 @@ prompts/reply-summary.prompt.md
 | # | 行动项 | 预估影响 | 状态 |
 |:-:|--------|---------|:----:|
 | A01 | **创建 [Stage 7](stage-7.md)**：产出 23 个子类型 Skill 文件 + 20 个 prompts 模板 | 否则 Agent 引用的 34 个 Skill 中 23 个不存在 | ✅ 已完成 |
-| A02 | **统一 violations.md 格式**：选择十列（v4），在 [`data/violations.md`](../../../../data/violations.md) 模板中确定 | 否则安全审计记录不一致 | ✅ 已完成 |
+| A02 | **统一 violations.md 格式**：选择十列（v4），在 `data/violations.md` 模板中确定 | 否则安全审计记录不一致 | ✅ 已完成 |
 
 ### 🟡 应当修复（影响规范质量）
 
 | # | 行动项 | 预估影响 | 状态 |
 |:-:|--------|---------|:----:|
-| A03 | **消除 S/C 重复**：[`01-common`](../../../../instructions/01-common.instructions.md) 中 C01/C03/C04/C05/C06/C10 改为一句引用 | 减少歧义和维护成本 | ✅ 已完成 |
-| A04 | **产物路径增加语言规则**：[`02-output-paths`](../../../../instructions/02-output-paths.instructions.md) 顶部增加文件名语言跟随用户语言的规则 | 支持非中文用户 | ✅ 已完成 |
+| A03 | **消除 S/C 重复**：`instructions/01-common.instructions.md` 中 C01/C03/C04/C05/C06/C10 改为一句引用 | 减少歧义和维护成本 | ✅ 已完成 |
+| A04 | **产物路径增加语言规则**：`instructions/02-output-paths.instructions.md` 顶部增加文件名语言跟随用户语言的规则 | 支持非中文用户 | ✅ 已完成 |
 | A05 | **在 Agent 中标注违规审计双触发点**：② 安全检查（主动）+ ⑨ 合规检查（被动）| 消除触发时机歧义 | ✅ 已完成 |
-| A06 | **增加路径映射文档**：在 [`02-output-paths`](../../../../instructions/02-output-paths.instructions.md) 中说明 v4 `.ai-memory/` 与 v1 `.devcodex/.memory/` 的对应关系 | 跨体系开发者理解 | ✅ 已完成 |
+| A06 | **增加路径映射文档**：在 `instructions/02-output-paths.instructions.md` 中说明 v4 `.ai-memory/` 与 v1 `.devcodex/.memory/` 的对应关系 | 跨体系开发者理解 | ✅ 已完成 |
 
 ### 💡 建议改进
 
 | # | 行动项 | 预估影响 | 状态 |
 |:-:|--------|---------|:----:|
-| A07 | **集中 ENV_MODE 行为总表**：在 [`01-common`](../../../../instructions/01-common.instructions.md) 增加 dev/prod 对各 Skill 行为差异的统一表 | 减少分散描述不同步风险 | ✅ 已完成 |
+| A07 | **集中 ENV_MODE 行为总表**：在 `instructions/01-common.instructions.md` 增加 dev/prod 对各 Skill 行为差异的统一表 | 减少分散描述不同步风险 | ✅ 已完成 |
 | A08 | **并入 [Stage 7](stage-7.md)**：产出 20 个 prompts 模板文件 | 否则 Skill 引用的模板不存在 | ✅ 已完成 |
-| A09 | **v4 设计原则搬入 [`01-common`](../../../../instructions/01-common.instructions.md)**：将"质量第一效率第二"、强制执行原则等写入通用规范 | 提升 AI 执行合规性 | ✅ 已完成 |
+| A09 | **v4 设计原则搬入 `instructions/01-common.instructions.md`**：将"质量第一效率第二"、强制执行原则等写入通用规范 | 提升 AI 执行合规性 | ✅ 已完成 |
 
 ---
 

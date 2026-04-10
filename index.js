@@ -40,11 +40,14 @@ function walkDir(dir) {
 // ─── Source directories (inside the npm package) ─────────────────────────────
 const PKG_ROOT = __dirname
 const SOURCES = [
-  { from: 'agents',       to: 'agents'       },
   { from: 'skills',       to: 'skills'       },
   { from: 'instructions', to: 'instructions' },
   { from: 'prompts',      to: 'prompts'      },
   { from: 'data',         to: 'data'         },
+]
+
+const LEGACY_TARGETS = [
+  { label: 'legacy-agents', pathParts: ['agents'] },
 ]
 
 // ─── Source repo self-detection ───────────────────────────────────────────────
@@ -55,6 +58,14 @@ function isSourceRepo(dir) {
     const pkg = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'))
     return pkg.name === '@vextjs/devcodex'
   } catch { return false }
+}
+
+function getLegacyCounts(ghDir) {
+  return LEGACY_TARGETS.map(({ label, pathParts }) => {
+    const fullPath = path.join(ghDir, ...pathParts)
+    const count = walkDir(fullPath).length
+    return { label, count, fullPath }
+  })
 }
 
 // ─── Commands ─────────────────────────────────────────────────────────────────
@@ -179,15 +190,25 @@ function cmdInit(argv) {
     console.log(`  ${c.bold('Done!')} ${parts.join(', ')}`)
     if (added + updated > 0) {
       console.log()
-      console.log(`  ${c.cyan('→')} Restart your IDE to activate DevCodex agents & skills.`)
+      console.log(`  ${c.cyan('→')} Restart your IDE to activate DevCodex instructions and skills.`)
     }
+  }
+
+  const legacyCounts = getLegacyCounts(ghDir).filter(item => item.count > 0)
+  if (legacyCounts.length > 0) {
+    console.log()
+    console.log(c.yellow('  ⚠️  Legacy custom agent files are still present in the target project.'))
+    for (const item of legacyCounts) {
+      console.log(c.yellow(`     - .github/${path.relative(ghDir, item.fullPath).replace(/\\/g, '/')} (${item.count} files)`))
+    }
+    console.log(c.dim('     These files are no longer distributed by devcodex init/update. Remove them manually if no longer needed.'))
   }
 
   // Warn when no content files were found (skeleton state)
   if (!dryRun && !anySrcExists) {
     console.log()
     console.log(c.yellow('  ⚠️  No content files installed.'))
-    console.log(c.dim('    agents/ skills/ instructions/ not found in package root.'))
+    console.log(c.dim('    skills/ instructions/ prompts/ data/ not found in package root.'))
     console.log(c.dim('    Run  devcodex update  after content files are added.'))
   }
 
@@ -222,6 +243,12 @@ function cmdStatus() {
   if (ciInstalled) total++
   console.log(`  ${c.cyan('copilot-instr'.padEnd(14))} ${ciInstalled ? c.green('installed') : c.red('not installed')}`)
 
+  const legacyCounts = getLegacyCounts(ghDir)
+  for (const item of legacyCounts) {
+    const label = item.count > 0 ? c.yellow(`${item.count} files (legacy)`) : c.dim('not installed')
+    console.log(`  ${c.cyan(item.label.padEnd(14))} ${label}`)
+  }
+
   console.log()
   if (total === 0) {
     if (isSrc) {
@@ -234,6 +261,10 @@ function cmdStatus() {
     if (isSrc) {
       console.log(c.dim('  (Source repo: these are development copies, not a target project installation)'))
     }
+  }
+  const legacyPresent = legacyCounts.some(item => item.count > 0)
+  if (legacyPresent) {
+    console.log(c.yellow('  ⚠️  Legacy custom agent files detected. They are no longer part of the default installation set.'))
   }
   console.log()
 }

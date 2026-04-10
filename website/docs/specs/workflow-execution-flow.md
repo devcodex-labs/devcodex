@@ -110,7 +110,7 @@ flowchart TD
 
     subgraph analyze
         B1["单轮只读分析"]
-        B2["每条结论附三项验证"]
+        B2["每条结论附三项验证\n（用户面可见）"]
         B3["输出报告"]
         B1 --> B2 --> B3
     end
@@ -149,9 +149,9 @@ flowchart TD
 
 ## 与主流程关系
 
-- 主流程入口见：[主流程图](/specs/flowcharts)
-- 上游阶段见：[⑦ 路由到工作流流程图](/specs/routing-flow)
-- 下游阶段见：[⑨ 执行阶段合规检查流程图](/specs/exec-compliance-flow)
+- 主流程入口见：[主流程图](./flowcharts)
+- 上游阶段见：[⑦ 路由到工作流流程图](./routing-flow)
+- 下游阶段见：[⑨ 执行阶段合规检查流程图](./exec-compliance-flow)
 
 > 约束：工作流执行为主链必经阶段，不可跳过。
 

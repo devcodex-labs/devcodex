@@ -18,54 +18,54 @@
 
 | # | 目标文件 | v0.03 参考 | 说明 |
 |:-:|---------|-----------|------|
-| 1 | `skills/token-check/SKILL.md` | [`v0.03/skills/token-check/SKILL.md`](../../v0.03/skills/token-check/SKILL.md) | 路由后调用，验证 Free/Pro 层级 |
+| 1 | `skills/token-check/SKILL.md` | `v0.03/skills/token-check/SKILL.md` | 路由后调用，验证 Free/Pro 层级 |
 
 ### A2. dev 子类型 Skills（7 个）
 
 | # | 目标文件 | v0.03 参考 | 说明 |
 |:-:|---------|-----------|------|
-| 2 | `skills/dev-refactor/SKILL.md` | [`v0.03/skills/dev-refactor/SKILL.md`](../../v0.03/skills/dev-refactor/SKILL.md) | 重构子类型 |
-| 3 | `skills/dev-database/SKILL.md` | [`v0.03/skills/dev-database/SKILL.md`](../../v0.03/skills/dev-database/SKILL.md) | 数据库变更 ⚠️ Pro |
-| 4 | `skills/dev-init/SKILL.md` | [`v0.03/skills/dev-init/SKILL.md`](../../v0.03/skills/dev-init/SKILL.md) | 项目初始化 |
-| 5 | `skills/dev-optimization/SKILL.md` | [`v0.03/skills/dev-optimization/SKILL.md`](../../v0.03/skills/dev-optimization/SKILL.md) | 性能优化 ⚠️ Pro |
-| 6 | `skills/dev-scenario-test/SKILL.md` | [`v0.03/skills/dev-scenario-test/SKILL.md`](../../v0.03/skills/dev-scenario-test/SKILL.md) | 场景测试 ⚠️ Pro |
-| 7 | `skills/dev-docs/SKILL.md` | [`v0.03/skills/dev-docs/SKILL.md`](../../v0.03/skills/dev-docs/SKILL.md) | 文档撰写（豁免 plan-review） |
-| 8 | `skills/dev-plan-review/SKILL.md` | [`v0.03/skills/dev-plan-review/SKILL.md`](../../v0.03/skills/dev-plan-review/SKILL.md) | 🔴 dev 强制门禁（PR-1~PR-6） |
+| 2 | `skills/dev-refactor/SKILL.md` | `v0.03/skills/dev-refactor/SKILL.md` | 重构子类型 |
+| 3 | `skills/dev-database/SKILL.md` | `v0.03/skills/dev-database/SKILL.md` | 数据库变更 ⚠️ Pro |
+| 4 | `skills/dev-init/SKILL.md` | `v0.03/skills/dev-init/SKILL.md` | 项目初始化 |
+| 5 | `skills/dev-optimization/SKILL.md` | `v0.03/skills/dev-optimization/SKILL.md` | 性能优化 ⚠️ Pro |
+| 6 | `skills/dev-scenario-test/SKILL.md` | `v0.03/skills/dev-scenario-test/SKILL.md` | 场景测试 ⚠️ Pro |
+| 7 | `skills/dev-docs/SKILL.md` | `v0.03/skills/dev-docs/SKILL.md` | 文档撰写（豁免 plan-review） |
+| 8 | `skills/dev-plan-review/SKILL.md` | `v0.03/skills/dev-plan-review/SKILL.md` | 🔴 dev 强制门禁（PR-1~PR-6） |
 
 ### A3. fix 子类型 Skills（2 个）
 
 | # | 目标文件 | v0.03 参考 | 说明 |
 |:-:|---------|-----------|------|
-| 9 | `skills/fix-incident/SKILL.md` | [`v0.03/skills/fix-incident/SKILL.md`](../../v0.03/skills/fix-incident/SKILL.md) | 线上事故 ⚠️ Pro |
-| 10 | `skills/fix-security/SKILL.md` | [`v0.03/skills/fix-security/SKILL.md`](../../v0.03/skills/fix-security/SKILL.md) | 安全修复 ⚠️ Pro |
+| 9 | `skills/fix-incident/SKILL.md` | `v0.03/skills/fix-incident/SKILL.md` | 线上事故 ⚠️ Pro |
+| 10 | `skills/fix-security/SKILL.md` | `v0.03/skills/fix-security/SKILL.md` | 安全修复 ⚠️ Pro |
 
 ### A4. audit 相关 Skills（8 个）
 
 | # | 目标文件 | v0.03 参考 | 说明 |
 |:-:|---------|-----------|------|
-| 11 | `skills/audit-common/SKILL.md` | [`v0.03/skills/audit-common/SKILL.md`](../../v0.03/skills/audit-common/SKILL.md) | 审查通用规则（目标类型识别 + 收敛规则） |
-| 12 | `skills/audit-dimensions/SKILL.md` | [`v0.03/skills/audit-dimensions/SKILL.md`](../../v0.03/skills/audit-dimensions/SKILL.md) | 规范文件审查维度（D1~D20） |
-| 13 | `skills/audit-tech-design/SKILL.md` | [`v0.03/skills/audit-tech-design/SKILL.md`](../../v0.03/skills/audit-tech-design/SKILL.md) | 技术方案审查（TD-1~TD-13） |
-| 14 | `skills/audit-requirements/SKILL.md` | [`v0.03/skills/audit-requirements/SKILL.md`](../../v0.03/skills/audit-requirements/SKILL.md) | 需求文档审查（RQ-1~RQ-8） |
-| 15 | `skills/audit-project/SKILL.md` | [`v0.03/skills/audit-project/SKILL.md`](../../v0.03/skills/audit-project/SKILL.md) | 项目工程审查（PE-1~PE-11）⚠️ Pro |
-| 16 | `skills/audit-report/SKILL.md` | [`v0.03/skills/audit-report/SKILL.md`](../../v0.03/skills/audit-report/SKILL.md) | 报告审查（RA-1~RA-6） |
-| 17 | `skills/audit-document/SKILL.md` | [`v0.03/skills/audit-document/SKILL.md`](../../v0.03/skills/audit-document/SKILL.md) | 通用文档审查（DA-1~DA-6） |
-| 18 | `skills/audit-execution-guide/SKILL.md` | [`v0.03/skills/audit-execution-guide/SKILL.md`](../../v0.03/skills/audit-execution-guide/SKILL.md) | 审查执行指南 |
+| 11 | `skills/audit-common/SKILL.md` | `v0.03/skills/audit-common/SKILL.md` | 审查通用规则（目标类型识别 + 收敛规则） |
+| 12 | `skills/audit-dimensions/SKILL.md` | `v0.03/skills/audit-dimensions/SKILL.md` | 规范文件审查维度（D1~D20） |
+| 13 | `skills/audit-tech-design/SKILL.md` | `v0.03/skills/audit-tech-design/SKILL.md` | 技术方案审查（TD-1~TD-13） |
+| 14 | `skills/audit-requirements/SKILL.md` | `v0.03/skills/audit-requirements/SKILL.md` | 需求文档审查（RQ-1~RQ-8） |
+| 15 | `skills/audit-project/SKILL.md` | `v0.03/skills/audit-project/SKILL.md` | 项目工程审查（PE-1~PE-11）⚠️ Pro |
+| 16 | `skills/audit-report/SKILL.md` | `v0.03/skills/audit-report/SKILL.md` | 报告审查（RA-1~RA-6） |
+| 17 | `skills/audit-document/SKILL.md` | `v0.03/skills/audit-document/SKILL.md` | 通用文档审查（DA-1~DA-6） |
+| 18 | `skills/audit-execution-guide/SKILL.md` | `v0.03/skills/audit-execution-guide/SKILL.md` | 审查执行指南 |
 
 ### A5. analyze / self-fix 子类型（2 个）
 
 | # | 目标文件 | v0.03 参考 | 说明 |
 |:-:|---------|-----------|------|
-| 19 | `skills/analyze-research/SKILL.md` | [`v0.03/skills/analyze-research/SKILL.md`](../../v0.03/skills/analyze-research/SKILL.md) | 技术调研子类型 |
-| 20 | `skills/self-fix-auto/SKILL.md` | [`v0.03/skills/self-fix-auto/SKILL.md`](../../v0.03/skills/self-fix-auto/SKILL.md) | 自动级修复（A1~A5 + V1~V6） |
+| 19 | `skills/analyze-research/SKILL.md` | `v0.03/skills/analyze-research/SKILL.md` | 技术调研子类型 |
+| 20 | `skills/self-fix-auto/SKILL.md` | `v0.03/skills/self-fix-auto/SKILL.md` | 自动级修复（A1~A5 + V1~V6） |
 
 ### A6. 执行后验证 Skills（3 个）
 
 | # | 目标文件 | v0.03 参考 | v4 参考 | 说明 |
 |:-:|---------|-----------|--------|------|
-| 21 | `skills/api-verification/SKILL.md` | [`v0.03/skills/api-verification/SKILL.md`](../../v0.03/skills/api-verification/SKILL.md) | [`v4/specs/api-verification.md`](../../../../ai-dev-guidelines/version/v4/specs/api-verification.md) | HTTP 接口变更后验证 |
-| 22 | `skills/document-sync/SKILL.md` | [`v0.03/skills/document-sync/SKILL.md`](../../v0.03/skills/document-sync/SKILL.md) | [`v4/specs/document-sync.md`](../../../../ai-dev-guidelines/version/v4/specs/document-sync.md) | 源码/配置变更后文档同步 |
-| 23 | `skills/impact-review/SKILL.md` | [`v0.03/skills/impact-review/SKILL.md`](../../v0.03/skills/impact-review/SKILL.md) | [`v4/specs/impact-review.md`](../../../../ai-dev-guidelines/version/v4/specs/impact-review.md) | 跨模块架构影响评估（六维框架） |
+| 21 | `skills/api-verification/SKILL.md` | `v0.03/skills/api-verification/SKILL.md` | `ai-dev-guidelines/version/v4/specs/api-verification.md` | HTTP 接口变更后验证 |
+| 22 | `skills/document-sync/SKILL.md` | `v0.03/skills/document-sync/SKILL.md` | `ai-dev-guidelines/version/v4/specs/document-sync.md` | 源码/配置变更后文档同步 |
+| 23 | `skills/impact-review/SKILL.md` | `v0.03/skills/impact-review/SKILL.md` | `ai-dev-guidelines/version/v4/specs/impact-review.md` | 跨模块架构影响评估（六维框架） |
 
 ---
 
@@ -77,26 +77,26 @@
 
 | # | 目标文件 | v0.03 参考 | v4 参考 | 引用方 |
 |:-:|---------|-----------|--------|-------|
-| 1 | `prompts/agent-summary.prompt.md` | [`v0.03/prompts/agent-summary.prompt.md`](../../v0.03/prompts/agent-summary.prompt.md) | [`v4/templates/agent-summary.md`](../../../../ai-dev-guidelines/version/v4/templates/agent-summary.md) | [`memory`](../../skills/memory/SKILL.md) Skill |
-| 2 | `prompts/api-verification.prompt.md` | [`v0.03/prompts/api-verification.prompt.md`](../../v0.03/prompts/api-verification.prompt.md) | [`v4/templates/api-verification.md`](../../../../ai-dev-guidelines/version/v4/templates/api-verification.md) | [`api-verification`](../../skills/api-verification/SKILL.md) Skill |
-| 3 | `prompts/contributing.prompt.md` | [`v0.03/prompts/contributing.prompt.md`](../../v0.03/prompts/contributing.prompt.md) | [`v4/templates/contributing.md`](../../../../ai-dev-guidelines/version/v4/templates/contributing.md) | dev-init Skill |
-| 4 | `prompts/cp-checklist.prompt.md` | [`v0.03/prompts/cp-checklist.prompt.md`](../../v0.03/prompts/cp-checklist.prompt.md) | [`v4/templates/cp-checklist.md`](../../../../ai-dev-guidelines/version/v4/templates/cp-checklist.md) | [`cp-gate`](../../skills/cp-gate/SKILL.md) Skill |
-| 5 | `prompts/implementation-plan.prompt.md` | [`v0.03/prompts/implementation-plan.prompt.md`](../../v0.03/prompts/implementation-plan.prompt.md) | [`v4/templates/implementation-plan.md`](../../../../ai-dev-guidelines/version/v4/templates/implementation-plan.md) | dev CP3 |
-| 6 | `prompts/implementation-progress.prompt.md` | [`v0.03/prompts/implementation-progress.prompt.md`](../../v0.03/prompts/implementation-progress.prompt.md) | [`v4/templates/implementation-progress.md`](../../../../ai-dev-guidelines/version/v4/templates/implementation-progress.md) | dev 05-实施进度 |
-| 7 | `prompts/memory-session.prompt.md` | [`v0.03/prompts/memory-session.prompt.md`](../../v0.03/prompts/memory-session.prompt.md) | [`v4/templates/memory-session.md`](../../../../ai-dev-guidelines/version/v4/templates/memory-session.md) | [`summary`](../../skills/summary/SKILL.md) / [`memory`](../../skills/memory/SKILL.md) Skill |
-| 8 | `prompts/precheck-status.prompt.md` | [`v0.03/prompts/precheck-status.prompt.md`](../../v0.03/prompts/precheck-status.prompt.md) | [`v4/templates/precheck-status.md`](../../../../ai-dev-guidelines/version/v4/templates/precheck-status.md) | ⑥ 预检查输出 |
-| 9 | `prompts/problem-analysis.prompt.md` | [`v0.03/prompts/problem-analysis.prompt.md`](../../v0.03/prompts/problem-analysis.prompt.md) | [`v4/templates/problem-analysis.md`](../../../../ai-dev-guidelines/version/v4/templates/problem-analysis.md) | fix CP1 |
-| 10 | `prompts/project-profile.prompt.md` | [`v0.03/prompts/project-profile.prompt.md`](../../v0.03/prompts/project-profile.prompt.md) | [`v4/templates/project-profile.md`](../../../../ai-dev-guidelines/version/v4/templates/project-profile.md) | [`load-profile`](../../skills/load-profile/SKILL.md) Skill |
-| 11 | `prompts/project-readme.prompt.md` | [`v0.03/prompts/project-readme.prompt.md`](../../v0.03/prompts/project-readme.prompt.md) | [`v4/templates/project-readme.md`](../../../../ai-dev-guidelines/version/v4/templates/project-readme.md) | dev-init Skill |
-| 12 | `prompts/reply-summary.prompt.md` | [`v0.03/prompts/reply-summary.prompt.md`](../../v0.03/prompts/reply-summary.prompt.md) | [`v4/templates/reply-summary.md`](../../../../ai-dev-guidelines/version/v4/templates/reply-summary.md) | C14 多任务进度快照 |
-| 13 | `prompts/report-analysis.prompt.md` | [`v0.03/prompts/report-analysis.prompt.md`](../../v0.03/prompts/report-analysis.prompt.md) | [`v4/templates/report-analysis.md`](../../../../ai-dev-guidelines/version/v4/templates/report-analysis.md) | [`report`](../../skills/report/SKILL.md) Skill |
-| 14 | `prompts/report-audit.prompt.md` | [`v0.03/prompts/report-audit.prompt.md`](../../v0.03/prompts/report-audit.prompt.md) | [`v4/templates/report-audit.md`](../../../../ai-dev-guidelines/version/v4/templates/report-audit.md) | [`report`](../../skills/report/SKILL.md) Skill |
-| 15 | `prompts/report-dev.prompt.md` | [`v0.03/prompts/report-dev.prompt.md`](../../v0.03/prompts/report-dev.prompt.md) | [`v4/templates/report-dev.md`](../../../../ai-dev-guidelines/version/v4/templates/report-dev.md) | [`report`](../../skills/report/SKILL.md) Skill |
-| 16 | `prompts/report-fix.prompt.md` | [`v0.03/prompts/report-fix.prompt.md`](../../v0.03/prompts/report-fix.prompt.md) | [`v4/templates/report-fix.md`](../../../../ai-dev-guidelines/version/v4/templates/report-fix.md) | [`report`](../../skills/report/SKILL.md) Skill |
-| 17 | `prompts/requirement-session.prompt.md` | [`v0.03/prompts/requirement-session.prompt.md`](../../v0.03/prompts/requirement-session.prompt.md) | [`v4/templates/requirement-session.md`](../../../../ai-dev-guidelines/version/v4/templates/requirement-session.md) | [`memory`](../../skills/memory/SKILL.md) Skill |
-| 18 | `prompts/requirement.prompt.md` | [`v0.03/prompts/requirement.prompt.md`](../../v0.03/prompts/requirement.prompt.md) | [`v4/templates/requirement.md`](../../../../ai-dev-guidelines/version/v4/templates/requirement.md) | dev CP1 |
-| 19 | `prompts/technical-design.prompt.md` | [`v0.03/prompts/technical-design.prompt.md`](../../v0.03/prompts/technical-design.prompt.md) | [`v4/templates/technical-design.md`](../../../../ai-dev-guidelines/version/v4/templates/technical-design.md) | dev CP2 |
-| 20 | `prompts/token-setup.prompt.md` | [`v0.03/prompts/token-setup.prompt.md`](../../v0.03/prompts/token-setup.prompt.md) | ❌ v4 无对应 | Token 设置 |
+| 1 | `prompts/agent-summary.prompt.md` | `v0.03/prompts/agent-summary.prompt.md` | `ai-dev-guidelines/version/v4/templates/agent-summary.md` | `skills/memory/SKILL.md` Skill |
+| 2 | `prompts/api-verification.prompt.md` | `v0.03/prompts/api-verification.prompt.md` | `ai-dev-guidelines/version/v4/templates/api-verification.md` | `skills/api-verification/SKILL.md` Skill |
+| 3 | `prompts/contributing.prompt.md` | `v0.03/prompts/contributing.prompt.md` | `ai-dev-guidelines/version/v4/templates/contributing.md` | dev-init Skill |
+| 4 | `prompts/cp-checklist.prompt.md` | `v0.03/prompts/cp-checklist.prompt.md` | `ai-dev-guidelines/version/v4/templates/cp-checklist.md` | `skills/cp-gate/SKILL.md` Skill |
+| 5 | `prompts/implementation-plan.prompt.md` | `v0.03/prompts/implementation-plan.prompt.md` | `ai-dev-guidelines/version/v4/templates/implementation-plan.md` | dev CP3 |
+| 6 | `prompts/implementation-progress.prompt.md` | `v0.03/prompts/implementation-progress.prompt.md` | `ai-dev-guidelines/version/v4/templates/implementation-progress.md` | dev 05-实施进度 |
+| 7 | `prompts/memory-session.prompt.md` | `v0.03/prompts/memory-session.prompt.md` | `ai-dev-guidelines/version/v4/templates/memory-session.md` | `skills/summary/SKILL.md` / `skills/memory/SKILL.md` Skill |
+| 8 | `prompts/precheck-status.prompt.md` | `v0.03/prompts/precheck-status.prompt.md` | `ai-dev-guidelines/version/v4/templates/precheck-status.md` | ⑥ 预检查输出 |
+| 9 | `prompts/problem-analysis.prompt.md` | `v0.03/prompts/problem-analysis.prompt.md` | `ai-dev-guidelines/version/v4/templates/problem-analysis.md` | fix CP1 |
+| 10 | `prompts/project-profile.prompt.md` | `v0.03/prompts/project-profile.prompt.md` | `ai-dev-guidelines/version/v4/templates/project-profile.md` | `skills/load-profile/SKILL.md` Skill |
+| 11 | `prompts/project-readme.prompt.md` | `v0.03/prompts/project-readme.prompt.md` | `ai-dev-guidelines/version/v4/templates/project-readme.md` | dev-init Skill |
+| 12 | `prompts/reply-summary.prompt.md` | `v0.03/prompts/reply-summary.prompt.md` | `ai-dev-guidelines/version/v4/templates/reply-summary.md` | C14 多任务进度快照 |
+| 13 | `prompts/report-analysis.prompt.md` | `v0.03/prompts/report-analysis.prompt.md` | `ai-dev-guidelines/version/v4/templates/report-analysis.md` | `skills/report/SKILL.md` Skill |
+| 14 | `prompts/report-audit.prompt.md` | `v0.03/prompts/report-audit.prompt.md` | `ai-dev-guidelines/version/v4/templates/report-audit.md` | `skills/report/SKILL.md` Skill |
+| 15 | `prompts/report-dev.prompt.md` | `v0.03/prompts/report-dev.prompt.md` | `ai-dev-guidelines/version/v4/templates/report-dev.md` | `skills/report/SKILL.md` Skill |
+| 16 | `prompts/report-fix.prompt.md` | `v0.03/prompts/report-fix.prompt.md` | `ai-dev-guidelines/version/v4/templates/report-fix.md` | `skills/report/SKILL.md` Skill |
+| 17 | `prompts/requirement-session.prompt.md` | `v0.03/prompts/requirement-session.prompt.md` | `ai-dev-guidelines/version/v4/templates/requirement-session.md` | `skills/memory/SKILL.md` Skill |
+| 18 | `prompts/requirement.prompt.md` | `v0.03/prompts/requirement.prompt.md` | `ai-dev-guidelines/version/v4/templates/requirement.md` | dev CP1 |
+| 19 | `prompts/technical-design.prompt.md` | `v0.03/prompts/technical-design.prompt.md` | `ai-dev-guidelines/version/v4/templates/technical-design.md` | dev CP2 |
+| 20 | `prompts/token-setup.prompt.md` | `v0.03/prompts/token-setup.prompt.md` | ❌ v4 无对应 | Token 设置 |
 
 ---
 

@@ -16,7 +16,7 @@ DevCodex 在用户项目中产生多类文件（规范文件、需求产物、�
 
 | 目录 | 用途 | 是否提交 |
 |------|------|---------|
-| `<工作区>/.github/` | DevCodex 规范文件（agents/skills/instructions/prompts/hooks）| ✅ 提交 |
+| `<工作区>/.github/` | DevCodex 规范文件（copilot-instructions/skills/instructions/prompts/data/RULES）| ✅ 提交 |
 | `<工作区>/.devcodex/` | DevCodex 产物（需求/报告/记忆/数据/profile）| 分类提交 |
 
 ### .devcodex/ 目录结构
@@ -82,9 +82,12 @@ NN--<简述>.md   （双横杠，NN 从 01 起递增）
 ```mermaid
 flowchart LR
     subgraph 规范文件
-        A[.github/agents/]
+        A[.github/copilot-instructions.md]
         B[.github/skills/]
         C[.github/instructions/]
+        H[.github/prompts/]
+        I[.github/data/]
+        J[.github/RULES.md]
     end
 
     subgraph 产物文件
@@ -101,6 +104,8 @@ flowchart LR
     产物文件 -->|✅ 提交 git| R
     本机文件 -->|❌ .gitignore| L[(本地only)]
 ```
+
+> 说明：`agents/` 仍可保留在 DevCodex 源码仓中作为可选入口资产，但 `v1.1.0` 起不再属于目标项目 `.github/` 的默认分发集合。
 
 ---
 

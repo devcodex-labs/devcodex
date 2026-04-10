@@ -74,7 +74,7 @@ flowchart TD
 - 主流程入口见：[主流程图](/specs/flowcharts)
 - 上游阶段见：[⑩ 输出报告流程图](/specs/report-output-flow)
 - 下游阶段见：[⑫ 完成前合规检查流程图](/specs/completion-compliance-flow)
-- 记忆规范见：[`memory` Skill](/skills/memory/SKILL.md)
+- 记忆规范见：`skills/memory/SKILL.md`
 
 > 约束：更新记忆为主链必经阶段（chat 仍须写记忆），不可跳过。
 

@@ -42,6 +42,7 @@
 | 需求 | 技术方案 | 进度 | 状态 |
 |------|---------|------|------|
 | [Agent 双模式（确认 vs 全自动）](./p1/agent-modes/) | [设计](./p1/agent-modes/design) | [进度](./p1/agent-modes/progress) | ✅ 已实现 |
+| [变更护栏（提交边界 / 官方文档 / Commit 摘要）](./p1/change-guardrails/) | [设计](./p1/change-guardrails/design) | [进度](./p1/change-guardrails/progress) | ✅ 已实现 |
 | [存储规范（位置 / 产物 / gitignore）](./p1/storage-spec/) | [设计](./p1/storage-spec/design) | [进度](./p1/storage-spec/progress) | ✅ 已实现 |
 | [记忆恢复与 Resume 工作流](./p1/memory-resume/) | [设计](./p1/memory-resume/design) | [进度](./p1/memory-resume/progress) | ✅ 已实现 |
 

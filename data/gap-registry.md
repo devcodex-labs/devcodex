@@ -65,7 +65,15 @@
 - 建议维度：N/A
 - 状态：已登记（2026-04-14 修复：分批模板新增批次3专集D16/D17/D21/D22）
 
-## Gap #GAP-003
+## Gap #GAP-007
+- 发现日期：2026-04-14
+- 审查目标：`instructions/12-audit.instructions.md` §专属维度规则 §核心约束
+- 盲区描述：①D22 同时出现在 Group B（内容质量）和 Group H（语义正确性），违反 D16 唯一性；`audit-dimensions` 无 Group H，造成 G3 跨文件不一致。②§核心约束"由用户启动 self-fix"与 §审查元循环 元循环自动触发语义矛盾（G2）。根因：M3 层次盲点——R1~R5 对 Skill 层检查细致，Instruction 层 §专属维度规则 未做逐行分组重复校验。
+- 盲点类型：M3 层次盲点
+- 建议维度：N/A
+- 状态：已登记（2026-04-14 修复：12-audit Group B 移除 D22 / audit-dimensions 新增 Group H / §核心约束更新）
+
+
 - 发现日期：2026-04-13
 - 审查目标：`skills/audit-execution-guide/SKILL.md` §事件驱动定向审查
 - 盲区描述：自我审视触发（R2+ 发现新问题）是明确执行事件，事件驱动表中缺少对应行；audit-execution-guide 不在 CRS 初始 `自我审视` 关键词命中文件中

@@ -47,3 +47,10 @@
 - 发现时间：2026-04-13
 - 状态：已关闭（2026-04-13，已补写至 `10-dev.instructions.md` §PR-2 + `skills/dev-plan-review/SKILL.md` §PR-2）
 
+
+## Pending Fix #PF-003
+- 文件：instructions/17-compliance.instructions.md §预检查 + instructions/01-common.instructions.md §Profile加载
+- 问题：规范定义了"收到消息后立即执行预检查"，但未明确禁止"以 context 摘要代替 Profile 加载和预检查"。跨会话恢复时，AI 从摘要中获取项目信息，产生"Profile 已加载"的错误推断，系统性跳过预检查块和 devcodex update 等强制步骤。
+- 建议修复：明确补充跨会话硬约束：摘要≠Profile已加载，第一个tool call必须是Profile读取。
+- 发现时间：2026-04-13
+- 状态：已关闭（2026-04-13，已补写至 17-compliance §预检查、01-common §Profile加载、18-spec-radar G3 触发场景）

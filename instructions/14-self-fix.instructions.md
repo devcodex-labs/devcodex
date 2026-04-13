@@ -9,7 +9,7 @@ applyTo: "**"
 
 | 工具 | 修复对象 |
 |------|---------|
-| self-fix（本工作流）| DevCodex 插件目录下的规范文件（instructions/prompts/RULES.md）|
+| self-fix（本工作流）| DevCodex 插件目录下的规范文件（`instructions/` · `skills/` · `prompts/` · `RULES.md`）|
 | dev | 源码/配置文件变更 |
 | fix | 源码 Bug 修复 |
 

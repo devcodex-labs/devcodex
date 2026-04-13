@@ -13,7 +13,7 @@ description: 执行 FC（形式合规）/ SC（实质合规）/ RC（恢复性�
 
 > ⛔ **[S01~S06](../../instructions/00-safety.instructions.md) 安全底线不受 ENV_MODE 影响**，无论 dev/prod 均强制执行。
 >
-> ⚠️ **预检查（PC0~PC3）仅在 dev 模式启用**，收到用户消息后立即执行，详见 [`17-compliance.instructions.md`](../../instructions/17-compliance.instructions.md) §预检查。
+> ⚠️ **预检查（PC0~PC4）仅在 dev 模式启用**，收到用户消息后立即执行，详见 [`17-compliance.instructions.md`](../../instructions/17-compliance.instructions.md) §预检查。
 >
 > ℹ️ ENV_MODE 未注入（profile 未加载）时，默认按 `prod`（不执行合规检查）。
 
@@ -129,7 +129,7 @@ FC/SC 失败时自动修正（不暂停等待用户），但 [S01~S06](../../ins
 | T4 | ✅ CP 完整（dev/fix；其他 N/A） |
 | T5 | ✅ 合规通过（FC+SC 全通过） |
 | T6 | ✅ 约束遵守（C01~C15 + 关联文件已同步） |
-| T7 | ✅ 工作流验证（fix 三步扫描等） |
+| T7 | ✅ 工作流验证（fix 三步扫描等；audit/analyze: PCV 已执行）|
 | T8 | ✅ SUMMARY 已更新 |
 | T9 | ✅ 产物路径已输出 |
 

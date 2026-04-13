@@ -223,6 +223,8 @@ applyTo: "**"
 
 > ⚠️ **适用范围：所有工作流（含 analyze / audit / chat）**。无论工作流子类型是否有对应 Skill，均须在收到消息后、执行工作流前完成 Profile 加载。Profile 缺失时 ENV_MODE 默认为 `prod`（保守降级）。
 
+> 🔴 **dev 模式下 chat 不豁免 Profile 加载和预检查**：chat 的豁免范围仅限于合规检查层（FC/SC/RC/T），预检查（PC0~PC4）和 Profile 加载在 dev 模式下对所有工作流均强制。
+
 > 🔴 **跨会话重新加载约束**：当上下文来自会话摘要时，**必须重新读取 Profile 文件**（不得以摘要内容代替）。摘要 ≠ Profile 已加载。
 
 ### 确定目标项目

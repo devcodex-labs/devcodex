@@ -65,7 +65,15 @@
 - 建议维度：N/A
 - 状态：已登记（2026-04-14 修复：分批模板新增批次3专集D16/D17/D21/D22）
 
-## Gap #GAP-008
+## Gap #GAP-009
+- 发现日期：2026-04-14
+- 审查目标：`prompts/report-audit.prompt.md` §5 收敛声明 · `instructions/13-analyze.instructions.md` §比较说明
+- 盲区描述：v1.3.4 将 audit 收敛规则统一为"连续3轮（不区分定向/全面）"，但 report-audit §5 和 13-analyze §analyze vs audit 比较表仍使用旧规则"定向2轮/全面3轮"。根因：M4 分离盲点——规则变更集中在12-audit+audit-common，未扫描 report 模板和 analyze compare 表。
+- 盲点类型：M4 分离盲点
+- 建议维度：N/A
+- 状态：已登记（2026-04-14 修复：两文件同步为统一3轮规则）
+
+
 - 发现日期：2026-04-14
 - 审查目标：`instructions/17-compliance.instructions.md` §预检查（PC4 格式，两处）
 - 盲区描述：R5 修复 precheck-status.prompt.md 中的 PC4 G4/G7 行时，未执行全库 grep 确认同类格式零残留；17-compliance 中存在同一格式的两个副本（lines 37, 54），均未同步修复。根因：违反 fix 三步必做的"grep 零残留复核"原则（即使在 audit/self-fix 场景下仍应执行跨文件一致性扫描）。

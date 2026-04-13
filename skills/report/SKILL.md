@@ -56,7 +56,7 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 ### audit 报告额外头部
 
 ```markdown
-> **审查目标类型**: [规范文件 / 源码 / 技术方案 / 需求文档 / 项目工程 / 报告 / 通用文档]
+> **审查目标类型**: [规范文件 / 技术方案 / 需求文档 / 项目工程 / 报告 / 通用文档]
 > **审查范围**: [全面体检 / 定向深度 / 修复验证]
 > **收敛**: R{N}+R{N+1} 连续 N 轮零新发现
 > **PCV状态**: ✅已完成 / 🔄进行中
@@ -93,6 +93,7 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 |---------|------|
 | 分析报告 | `prompts/report-analysis.prompt.md` |
 | 审查报告 | `prompts/report-audit.prompt.md` |
+| 规范自修复报告 | `prompts/report-audit.prompt.md`（结构相同，路径映射 `self-fix/`）|
 | 开发报告 | `prompts/report-dev.prompt.md` |
 | 修复报告 | `prompts/report-fix.prompt.md` |
 

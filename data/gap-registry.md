@@ -73,7 +73,7 @@
 - 建议维度：N/A
 - 状态：已登记（2026-04-14 修复：两文件同步为统一3轮规则）
 
-
+## Gap #GAP-008
 - 发现日期：2026-04-14
 - 审查目标：`instructions/17-compliance.instructions.md` §预检查（PC4 格式，两处）
 - 盲区描述：R5 修复 precheck-status.prompt.md 中的 PC4 G4/G7 行时，未执行全库 grep 确认同类格式零残留；17-compliance 中存在同一格式的两个副本（lines 37, 54），均未同步修复。根因：违反 fix 三步必做的"grep 零残留复核"原则（即使在 audit/self-fix 场景下仍应执行跨文件一致性扫描）。
@@ -81,7 +81,7 @@
 - 建议维度：N/A
 - 状态：已登记（2026-04-14 修复：17-compliance 两处 PC4 格式补全 · 延迟追加）
 
-
+## Gap #GAP-007
 - 发现日期：2026-04-14
 - 审查目标：`instructions/12-audit.instructions.md` §专属维度规则 §核心约束
 - 盲区描述：①D22 同时出现在 Group B（内容质量）和 Group H（语义正确性），违反 D16 唯一性；`audit-dimensions` 无 Group H，造成 G3 跨文件不一致。②§核心约束"由用户启动 self-fix"与 §审查元循环 元循环自动触发语义矛盾（G2）。根因：M3 层次盲点——R1~R5 对 Skill 层检查细致，Instruction 层 §专属维度规则 未做逐行分组重复校验。
@@ -89,10 +89,18 @@
 - 建议维度：N/A
 - 状态：已登记（2026-04-14 修复：12-audit Group B 移除 D22 / audit-dimensions 新增 Group H / §核心约束更新）
 
-
+## Gap #GAP-003
 - 发现日期：2026-04-13
 - 审查目标：`skills/audit-execution-guide/SKILL.md` §事件驱动定向审查
 - 盲区描述：自我审视触发（R2+ 发现新问题）是明确执行事件，事件驱动表中缺少对应行；audit-execution-guide 不在 CRS 初始 `自我审视` 关键词命中文件中
 - 盲点类型：M1 范围盲点 · M2 缺席盲点
 - 建议维度：N/A
 - 状态：已登记（2026-04-13 修复）
+
+## Gap #GAP-010
+- 发现日期：2026-04-14
+- 审查目标：`data/gap-registry.md` 格式
+- 盲区描述：R3~R12 每轮审查聚焦 `instructions/` 和 `skills/` 层，`data/gap-registry.md` 属于数据文件未纳入正式审查范围；三条记录（GAP-003/GAP-007/GAP-008）在追加时遗漏了 `## Gap #GAP-NNN` 标头，违反 §格式规范 要求。
+- 盲点类型：M2 缺席盲点（数据文件未纳入 CRS 关键词扫描范围）
+- 建议维度：N/A — 建议 CRS 关键词扫描范围扩展至 `data/` 目录的格式性文件
+- 状态：已登记（2026-04-14 修复：补全三条缺失标头）

@@ -9,6 +9,7 @@
 
 | 版本 | 日期 | 变更摘要 | 详细 |
 |------|------|---------|------|
+| [v1.3.3](./changelogs/v1.3.3.md) | 2026-04-13 | 🎉 **自我审视机制（Meta-Audit）**：R2+发现新问题时触发四轴盲点分析（M1范围/M2缺席/M3层次/M4分离），结果写 gap-registry，下轮定向补查；三层同步（audit-common+12-audit+audit-execution-guide）| [查看](./changelogs/v1.3.3.md) |
 | [v1.3.2](./changelogs/v1.3.2.md) | 2026-04-13 | 🔧 **V4 缺席检查 + audit 补全**：self-fix V4 新增反向三层覆盖检查；self-fix 报告模板 applyTo 补全；删除 skills/report 多余源码选项；audit-common R1 行补充 CRS 时序 | [查看](./changelogs/v1.3.2.md) |
 | [v1.3.1](./changelogs/v1.3.1.md) | 2026-04-13 | 🔧 **规范一致性修复**：PCV状态字段/self-fix报告路径/CRS时序/术语统一 — 7项跨文件一致性缺口修复 | [查看](./changelogs/v1.3.1.md) |
 | [v1.3.0](./changelogs/v1.3.0.md) | 2026-04-13 | 🎉 **PCV 收敛后汇总验证**：audit/analyze 新增强制 PCV 五步（实证核查+三列验证+分级标注），三列验证时机由每轮分散改为 PCV-3 统一完成 | [查看](./changelogs/v1.3.0.md) |

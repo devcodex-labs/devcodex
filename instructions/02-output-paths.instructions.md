@@ -95,3 +95,31 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 |---------|----------------|---------------|
 | MAJOR / MINOR | 🔴 添加版本概览行 + 更新日期 | 🔴 创建 `changelogs/vX.Y.Z.md` |
 | PATCH | 不新增版本概览行 | 追加到最近 MINOR 的 `changelogs/vX.Y.0.md` |
+
+## Git Tag 发布规范
+
+> 🔴 每次 release commit 后必须立即打 tag，禁止无 tag 的版本发布。
+
+| 版本类型 | 是否打 Tag | Tag 格式 |
+|---------|:--------:|---------|
+| MAJOR | 🔴 必须 | `vX.0.0` |
+| MINOR | 🔴 必须 | `vX.Y.0` |
+| PATCH | 🔴 必须 | `vX.Y.Z` |
+
+**发布步骤（每次 release 必须按序执行）**：
+
+```bash
+# 1. 更新 package.json / plugin.json 版本号
+# 2. 更新 CHANGELOG.md 和 changelogs/vX.Y.Z.md
+# 3. 提交变更
+git commit -m "release: vX.Y.Z — <一句话摘要>"
+# 4. 打 Tag（与版本号完全一致）
+git tag vX.Y.Z
+# 5. 推送（commit + tag 同步推送）
+git push && git push origin vX.Y.Z
+```
+
+**版本号递增规则（Semver）**：
+- `MAJOR`（x.0.0）— 工作流或架构破坏性变更（Breaking Change）
+- `MINOR`（1.x.0）— 新增工作流、新增 Skill、新增 Instructions
+- `PATCH`（1.0.x）— Bug 修复、文字修正、规范小幅改进

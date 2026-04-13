@@ -1,7 +1,7 @@
 {
   "_format": "DevCodex internal metadata — NOT a GitHub Copilot official format. Copilot reads .github/agents|skills|instructions|prompts directly.",
   "id": "devcodex",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "name": "DevCodex",
   "publisher": "Rocky",
   "displayName": "DevCodex — AI Development Workflow Assistant",
@@ -79,8 +79,10 @@
     { "id": "self-fix",     "file": "instructions/14-self-fix.instructions.md",    "tier": "pro"  },
     { "id": "memory-r",     "file": "instructions/15-memory.instructions.md",      "tier": "pro"  },
     { "id": "report-r",     "file": "instructions/16-report.instructions.md",      "tier": "pro"  },
-    { "id": "compliance-r", "file": "instructions/17-compliance.instructions.md",  "tier": "pro"  }
+    { "id": "compliance-r", "file": "instructions/17-compliance.instructions.md",  "tier": "pro"  },
+    { "id": "spec-radar",   "file": "instructions/18-spec-radar.instructions.md",  "tier": "pro"  }
   ],
+  "_note_instructions": "12 Instructions (00-18). 18-spec-radar added v1.2.0: PC4 三轴诊断规范自我升级机制 (dev 模式专属).",
   "_hooks_todo": "hooks/ directory pending v1.1+ or user decision, not registered to avoid platform load failure",
   "mcp": {
     "file": ".mcp.json"

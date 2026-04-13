@@ -16,8 +16,8 @@ description: 定义意图识别结果到工作流的路由映射。本 Skill 为
 |------|--------|------|
 | `dev` | 开发工作流 | CP1→CP2→CP3，8 子类型（见 `10-dev.instructions.md`） |
 | `fix` | 修复工作流 | Bug 修复三步扫描（见 `11-fix.instructions.md`） |
-| `analyze` | 分析工作流 | 单轮分析（见 `13-analyze.instructions.md`），只读 |
-| `audit` | 审计工作流 | 多轮深度审查（见 `12-audit.instructions.md`） |
+| `analyze` | 分析工作流 | 多轮收敛分析，≥3 轮（见 `13-analyze.instructions.md`），只读 |
+| `audit` | 审计工作流 | 多轮深度审查，≥3 轮（见 `12-audit.instructions.md`） |
 | `self-fix` | 自修复工作流 | 规范文件自修复（见 `14-self-fix.instructions.md`） |
 | `chat` | 问答工作流 | 纯问答，快速路径 |
 | `resume` | 上下文恢复 | 恢复记忆后重路由到原始工作流 |

@@ -1,5 +1,5 @@
 ---
-mode: agent
+agent: agent
 description: 需求文档模板，用于 CP1 阶段创建标准需求文档
 applyTo: .devcodex/**/requirements/**
 ---

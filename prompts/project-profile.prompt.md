@@ -1,5 +1,5 @@
 ---
-mode: agent
+agent: agent
 description: 项目 Profile README 模板，用于初始化项目 Profile 索引文件
 applyTo: .devcodex/profile/**
 ---

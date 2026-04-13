@@ -1,5 +1,5 @@
 ---
-mode: agent
+agent: agent
 description: 技术方案文档模板，用于 CP2 阶段创建标准技术方案
 applyTo: .devcodex/**/requirements/**
 ---

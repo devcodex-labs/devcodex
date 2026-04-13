@@ -1,6 +1,6 @@
-# DevCodex v1.3.4 — 使用入口
+# DevCodex v1.3.5 — 使用入口
 
-> GitHub Copilot Agent Plugin · publisher: Rocky · version: 1.3.4
+> GitHub Copilot Agent Plugin · publisher: Rocky · version: 1.3.5
 
 ## 默认 Copilot 支持
 
@@ -13,7 +13,7 @@
 |------|-----------|------|
 | 开发新功能 / 重构 / 优化 / 初始化 / 文档 | dev（8 子类型） | Free（部分子类型需 Pro）|
 | Bug 修复 / 报错 / 线上事故 / 安全漏洞 | fix（3 子类型） | Free（incident/security 需 Pro）|
-| 多轮分析（≥3轮） / 技术调研 / 评估 | analyze | Free |
+| 多轮分析（≥3轮）/ 技术调研 / 可行性评估 | analyze | Free |
 | 深度审查 / 全面体检 / 逐项检查 | audit（6 子类型） | Free（项目工程需 Pro）|
 | 规范文件自修复 | self-fix | Pro |
 | 恢复/继续上次中断任务 | resume | Pro |

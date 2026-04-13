@@ -1,5 +1,5 @@
 ---
-mode: agent
+agent: agent
 description: 问题分析报告模板，用于 fix 工作流三步扫描后输出问题诊断
 applyTo: "**"
 ---

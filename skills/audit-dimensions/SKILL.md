@@ -12,7 +12,7 @@ description: D1~D22 规范文件审查维度总览 — 规范库/specs 文件专
 
 | 分组 | 维度 | 优先级 |
 |------|------|:------:|
-| A — 结构规范 | D1 文件结构 · D2 NODE_META/frontmatter 规范 · D3 流程图语法 | 🔴 |
+| A — 结构规范 | D1 文件结构 · D2 NODE_META/frontmatter 规范 · D3 路由语法正确性 | 🔴 |
 | B — 内容质量 | D4 内容完整性 · D5 跨文件一致性 · D6 示例可执行性 | 🔴/🟡 |
 | C — 可维护性 | D7 职责边界 · D8 版本标注 · D9 引用准确性 | 🔴/🟡 |
 | D — AI 执行性 | D10 指令明确性 · D11 冲突检测 · D12 路由正确性 | 🔴 |
@@ -49,7 +49,7 @@ description: D1~D22 规范文件审查维度总览 — 规范库/specs 文件专
 | 1 | `plugin.json` 注册的所有 `agents/*/` 和 `skills/*/` 文件是否实际存在 |
 | 2 | 每个 SKILL.md 是否有 YAML frontmatter（`name` + `description`）|
 | 3 | 每个 agent 文件是否有 `name`/`description`/`tools` 三字段 |
-| 4 | 所有 `prompts/*.prompt.md` 是否有 `mode`/`description`/`applyTo` frontmatter |
+| 4 | 所有 `prompts/*.prompt.md` 是否有 `agent`/`description`/`applyTo` frontmatter（注：`agent: agent` 为 VS Code Copilot prompt 的正确字段，非 `mode`）|
 | 5 | instructions 目录中是否存在无 `applyTo` 的文件（需添加）|
 
 **D2 frontmatter 规范 🔴**
@@ -210,14 +210,14 @@ description: D1~D22 规范文件审查维度总览 — 规范库/specs 文件专
 
 ### G — 运维
 
-**D19 废弃说明 💡**
+**D19 废弃说明 🟡**
 
 | # | 检查内容 |
 |:-:|---------|
 | 1 | `CHANGELOG.md` 是否记录了已删除的 8 个独立 agent 文件 |
 | 2 | 废弃的触发方式（`@dev`/`@fix` 等旧指令）是否有迁移说明 |
 
-**D20 变更历史 💡**
+**D20 变更历史 🟡**
 
 | # | 检查内容 |
 |:-:|---------|

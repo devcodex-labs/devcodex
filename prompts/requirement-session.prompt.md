@@ -1,5 +1,5 @@
 ---
-mode: agent
+agent: agent
 description: 需求会话记录模板，用于记录需求讨论过程中的会话快照
 applyTo: .devcodex/requirements/**
 ---

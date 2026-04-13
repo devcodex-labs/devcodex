@@ -36,7 +36,7 @@ applyTo: "**"
 
 ## CP 门控（C02 约束，严格按序）
 
-```
+```text
 CP1（需求确认）→ CP2（方案确认）→ plan-review → [impact-review] → CP3（实施计划）→ 执行
 ```
 

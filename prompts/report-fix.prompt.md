@@ -1,5 +1,5 @@
 ---
-mode: agent
+agent: agent
 description: 修复工作流报告模板，用于 fix 工作流执行完成后输出标准报告
 applyTo: .devcodex/**/reports/bugs/**
 ---

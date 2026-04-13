@@ -1,5 +1,5 @@
 ---
-mode: agent
+agent: agent
 description: 回复摘要模板，用于 chat 工作流记录简短会话摘要
 applyTo: .devcodex/.memory/**
 ---

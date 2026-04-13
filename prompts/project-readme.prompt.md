@@ -1,5 +1,5 @@
 ---
-mode: agent
+agent: agent
 description: 项目 README 模板，用于生成标准开源项目 README
 applyTo: README.md
 ---

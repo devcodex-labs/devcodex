@@ -104,3 +104,33 @@
 - 盲点类型：M2 缺席盲点（数据文件未纳入 CRS 关键词扫描范围）
 - 建议维度：N/A — 建议 CRS 关键词扫描范围扩展至 `data/` 目录的格式性文件
 - 状态：已登记（2026-04-14 修复：补全三条缺失标头）
+
+## Gap #GAP-011
+- 发现日期：2026-04-13
+- 审查目标：`RULES.md` 路由说明表 / `skills/routing/SKILL.md` / `skills/intent/SKILL.md`
+- 盲区描述：历次审查聚焦 instructions/skills 层，未覆盖根目录文档（RULES.md），导致 RULES.md 长期未纳入 G3 跨文件一致性检查。同时本轮审查暴露 M3 层次盲点：修复前未读取磁盘上 13-analyze.instructions.md 实际内容，错误信任了会话注入上下文中的旧版描述（单轮），差点将正确的"多轮分析"描述错改为"单次分析"，随即自我纠错恢复。
+- 盲点类型：M4 分离盲点（根目录文档在 CRS 扫描范围之外）· M3 层次盲点（修复前未实证读取磁盘文件）
+- 建议维度：N/A — 建议 CRS 扫描范围扩展至根目录 *.md 文件（RULES.md / README.md / CHANGELOG.md）；修复前必须实证读取磁盘文件，不得依赖会话上下文记忆
+- 状态：已登记（2026-04-13：CRS 扫描范围已扩展至根目录 + prompts + data）
+
+## Gap #GAP-012
+- 发现日期：2026-04-14
+- 审查目标：`instructions/17-compliance.instructions.md` / `skills/audit-common/SKILL.md` / `skills/compliance/SKILL.md` §FC5 产物路径格式
+- 盲区描述：三个模板文件的 FC5 产物路径格式（`📁 … • [link]`）与权威来源 `02-output-paths.instructions.md` §产物路径输出格式（`📂 … - [link]\n  \`纯文本路径\``）不一致：缺少第二行纯文本路径、图标错误（📁→📂）、列表符错误（•→-）。根因：M2 来源依赖盲点——对比三个副本间的一致性时，未追溯 `02-output-paths.instructions.md` 作为权威基准验证。
+- 盲点类型：M2 来源依赖盲点（忽略权威来源文件作为验证基准）
+- 建议维度：N/A
+- 状态：已登记（2026-04-14 修复：三处模板同步为双行格式 Markdown链接+纯文本路径）
+
+## Gap #GAP-014
+- 发现日期：2026-04-13
+- 审查目标：`prompts/` 报告模板 + `instructions/02-output-paths.instructions.md` §报告路径
+- 盲区描述：① `dev.optimization` 有 `reports/optimizations/` 报告子目录（L71），但 `prompts/` 缺少对应 `report-optimization.prompt.md` 模板（D5 L3 联动缺失）。② `dev.scenario-test` 有 `scenario-tests/` 产物目录（L46），但 `02-output-paths` L71 报告子目录列表未包含 `scenario-tests/`。根因：M4 分离盲点——报告模板文件夹、报告路径定义（L71列表）、产物目录（L46树）三处独立维护，新增子类型时只更新了产物目录，未联动更新报告路径列表和报告模板。
+- 盲点类型：M4 分离盲点
+- 建议维度：N/A
+- 状态：已登记（2026-04-13 修复：创建 report-optimization.prompt.md；L71 补充 scenario-tests/ 子目录）
+- 发现日期：2026-04-13
+- 审查目标：`skills/audit-dimensions/SKILL.md` §维度总览表 vs §详细章节
+- 盲区描述：①维度总览表 L15 写"D3 流程图语法"，但详细章节 L64 标题是"D3 路由语法正确性"——同文件内部命名自相矛盾。②D1 检查项 L52 写 `mode/description/applyTo`，但 v1.3.x 已将所有 prompts 从 `mode: agent` 改为 `agent: agent`，D1 检查准则未随实现同步，导致 AI 会错误判断所有 prompt 文件 D1 不通过。根因：M3 层次盲点——历次 D5 跨文件一致性检查聚焦跨文件对比，未对单文件内"总览表行"vs"详细章节标题"进行一致性校验；M4 分离盲点——frontmatter 字段名的实现变更未触发 D1 检查准则的同步更新。
+- 盲点类型：M3 层次盲点（同文件内部命名未交叉校验）· M4 分离盲点（实现变更未联动规范）
+- 建议维度：N/A
+- 状态：已登记（2026-04-13 修复：L15 "流程图语法"→"路由语法正确性"；L52 `mode`→`agent`）

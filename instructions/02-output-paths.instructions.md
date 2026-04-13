@@ -68,7 +68,7 @@ applyTo: "**"
 reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 ```
 
-- 子目录：`analysis/` · `audit/` · `self-fix/` · `bugs/` · `requirements/` · `optimizations/`
+- 子目录：`analysis/` · `audit/` · `self-fix/` · `bugs/` · `requirements/` · `optimizations/` · `scenario-tests/`
 - `NN`：当日序号，从 `01` 起递增
 - `--`：双横杠分隔序号与简述
 

@@ -1,5 +1,5 @@
 ---
-mode: agent
+agent: agent
 description: 记忆会话文档模板，用于写入每次会话的结构化记忆
 applyTo: .devcodex/.memory/**
 ---

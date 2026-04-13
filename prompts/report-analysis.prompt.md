@@ -1,5 +1,5 @@
 ---
-mode: agent
+agent: agent
 description: 分析工作流报告模板，用于 analyze 工作流完成后输出调研/分析报告
 applyTo: .devcodex/**/reports/analysis/**
 ---

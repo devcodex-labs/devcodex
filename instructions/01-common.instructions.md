@@ -95,6 +95,13 @@ applyTo: "**"
 > ⚠️ **Profile 加载（读取 `.devcodex/profile/`）是所有工作流的前置步骤，不受本表约束，必须在执行任何工作流前完成。**
 > ℹ️ `18-spec-radar.instructions.md`（PC4 规范雷达）是 Instruction（不是 Skill），通过 `applyTo:"**"` 全局注入，无需在本表中加载，dev 模式预检查时自动可用。
 
+> ⚠️ **扩展点**：新增工作流子类型时，须同时更新以下5处（D5 L1~L3 联动）：
+> 1. 本表（§Skill按需读取表）
+> 2. 对应 Instruction 文件的子类型路由表
+> 3. `skills/routing/SKILL.md` 路由表
+> 4. `skills/report/SKILL.md` 模板引用表
+> 5. `instructions/02-output-paths.instructions.md` §报告子目录列表
+
 | 工作流.子类型 | 必读 Skills |
 |-------------|------------|
 | dev.default | `dev-default` · `cp-gate` · `dev-plan-review` |

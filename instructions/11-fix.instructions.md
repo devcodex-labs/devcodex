@@ -29,7 +29,7 @@ applyTo: "**"
 
 ## CP 流程（C02 约束）
 
-```
+```text
 CP1（问题确认）→ CP2（方案确认）→ [impact-review] → 执行 → [CP3]
 ```
 

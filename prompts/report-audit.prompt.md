@@ -1,5 +1,5 @@
 ---
-mode: agent
+agent: agent
 description: 审查工作流报告模板，用于 audit 工作流完成后输出标准审查报告
 applyTo: ".devcodex/**/reports/audit/**, .devcodex/**/reports/self-fix/**"
 ---

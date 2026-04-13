@@ -1,5 +1,5 @@
 ---
-mode: agent
+agent: agent
 description: Agent 会话摘要模板，用于生成跨会话 Agent 级别的工作摘要
 applyTo: .devcodex/.memory/**
 ---

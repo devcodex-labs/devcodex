@@ -1,5 +1,5 @@
 ---
-mode: agent
+agent: agent
 description: 输出会话头部信息（时间、意图、项目、记忆路径），每次会话开始时使用
 applyTo: "**"
 ---

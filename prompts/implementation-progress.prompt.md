@@ -1,5 +1,5 @@
 ---
-mode: agent
+agent: agent
 description: 实施进度报告模板，用于记录多阶段实施的当前进度
 applyTo: .devcodex/requirements/**
 ---

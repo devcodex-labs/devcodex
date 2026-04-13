@@ -54,3 +54,38 @@
 - 建议修复：明确补充跨会话硬约束：摘要≠Profile已加载，第一个tool call必须是Profile读取。
 - 发现时间：2026-04-13
 - 状态：已关闭（2026-04-13，已补写至 17-compliance §预检查、01-common §Profile加载、18-spec-radar G3 触发场景）
+
+## Pending Fix #PF-004
+- 文件：`instructions/` 全部 11 个文件 + `skills/` 全部 32 个 SKILL.md（共 43 个文件）
+- 问题：D8 检查项要求规范文件标注引入版本（如 `> 引入于 v1.x`），但当前所有 43 个规范文件均无版本标注，无法追踪具体规范节点的引入时间点。
+- 建议修复：在每个文件的 frontmatter 或首段补充版本标注；优先级较高的新增节点（如 12-audit §审查元循环 引入于 v1.2.x、D22 引入于 v1.3.x）优先补充，其余按版本迭代逐步追加。
+- 发现时间：2026-04-13
+- 状态：已关闭（2026-04-13，D8实际只检查3个项目级文件版本一致性：plugin.json/CHANGELOG.md/RULES.md，并非每文件标注；PF-004基于对D8的误解，无需修复43个文件；用户决策：per-file版本标注增加维护负担，不引入）
+
+## Pending Fix #PF-005
+- 文件：`changelogs/v1.0.0.md` §重构内容
+- 问题：D19 检查项 1 要求 CHANGELOG 记录已删除的 8 个独立 agent 文件，但 v1.0.0.md 仅说"旧根目录所有源文件（已归档到 v0.03/）"，未枚举具体被废弃的 agent 文件名（如原 v0.x 的 @dev/@fix/@analyze 等）。
+- 建议修复：在 changelogs/v1.0.0.md 的 §Breaking Changes 或 §Deprecated 下补充被废弃的旧 agent 文件名列表及迁移路径说明（需从 v0.03/ 归档目录或 git 历史确认具体文件名）。
+- 发现时间：2026-04-13
+- 状态：已关闭（2026-04-13，用户决策：已发布历史版本 CHANGELOG 不追溯修正，git blame 提供完整变更历史）
+
+## Pending Fix #PF-006
+- 文件：`plugin.json` 第 70 行 `_note_skills` 字段；`instructions/01-common.instructions.md` §Skill按需读取表
+- 问题：D13 扩展点标注缺失。`_note_skills` 只说明了"按需读取"机制，未说明"新增子类型 Skill 时需要同时更新的文件清单"；`01-common` Skill 按需读取表上方无"⚠️ 扩展点：新增子类型需同时更新"警告，但 L1~L3 联动检查已在 audit-execution-guide Skill 中有说明。
+- 建议修复：在 `plugin.json` `_note_skills` 字段末尾补充"新增子类型需更新：01-common Skill按需读取表 + 对应 Instruction 子类型路由表 + routing/SKILL.md"；在 01-common Skill 按需读取表上方添加扩展点注释。属 dev 工作流（文档更新）。
+- 发现时间：2026-04-13
+- 状态：已关闭（2026-04-13，plugin.json _note_skills 补充5处扩展点清单；01-common Skill按需读取表上方新增 ⚠️ 扩展点警告块）
+
+## Pending Fix #PF-007
+- 文件：`instructions/tenants/`（目录不存在）
+- 问题：D14 租户覆盖支持。`01-common` §NODE_META 读取规则 第1优先级引用 `instructions/tenants/<tenant-id>/`，但该目录不存在。租户定制是可选功能（"若有"），但 D14 检查项要求"目录存在且有 README 说明"。
+- 建议修复：创建 `instructions/tenants/README.md`，说明租户覆盖规则（命名规范、frontmatter 格式、覆盖范围）并提供示例。属 dev 工作流（新增功能文档）。
+- 发现时间：2026-04-13
+- 状态：已关闭（2026-04-13，创建 instructions/tenants/README.md，含目录结构/命名规范/frontmatter格式/覆盖范围/优先级说明/示例）
+
+## Pending Fix #PF-008
+- 文件：`instructions/17-compliance.instructions.md` L103
+- 问题：D10 指令明确性。SC3 检查项描述"同类全局"措辞模糊，AI 须查看 `11-fix.instructions.md` 的修复三步定义才能准确执行，可能导致遗漏。完整定义应为"同一错误模式全局扫描"。
+- 建议修复：将 SC3 描述从 `修复已全局扫描（同类全局+数据联动+grep零残留）` 改为 `修复已全局扫描（同类错误模式全局+数据联动+grep零残留）`。
+- 发现时间：2026-04-13
+- 状态：已关闭（2026-04-13，SC3措辞修正为"同类错误模式全局"）

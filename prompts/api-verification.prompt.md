@@ -1,5 +1,5 @@
 ---
-mode: agent
+agent: agent
 description: API 验证文档模板，用于生成 .http 接口文档和 .cjs 自动化脚本说明
 applyTo: tests/api/**
 ---

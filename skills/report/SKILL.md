@@ -95,5 +95,7 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 | 审查报告 | `prompts/report-audit.prompt.md` |
 | 规范自修复报告 | `prompts/report-audit.prompt.md`（结构相同，路径映射 `self-fix/`）|
 | 开发报告 | `prompts/report-dev.prompt.md` |
+| 开发报告（性能优化） | `prompts/report-optimization.prompt.md` |
+| 开发报告（场景测试） | `prompts/report-scenario-test.prompt.md` |
 | 修复报告 | `prompts/report-fix.prompt.md` |
 

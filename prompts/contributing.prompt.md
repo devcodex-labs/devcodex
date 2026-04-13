@@ -1,5 +1,5 @@
 ---
-mode: agent
+agent: agent
 description: 贡献指南模板，用于生成标准 CONTRIBUTING.md
 applyTo: CONTRIBUTING.md
 ---

@@ -1,5 +1,5 @@
 ---
-mode: agent
+agent: agent
 description: 实施计划文档模板，用于 CP3 阶段创建标准实施计划
 applyTo: .devcodex/requirements/**
 ---

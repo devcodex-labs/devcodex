@@ -23,7 +23,8 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 | dev (optimization) | `optimizations/` |
 | fix | `bugs/` |
 | analyze | `analysis/` |
-| audit / self-fix | `audit/` |
+| audit | `audit/` |
+| self-fix | `self-fix/` |
 
 > 路径详细规范见 [`02-output-paths.instructions.md`](../../instructions/02-output-paths.instructions.md)。
 

@@ -1,6 +1,6 @@
 # 变更日志 (CHANGELOG)
 
-> **说明**: 版本概览摘要，当前维护中的详细变更见 [`changelogs/v1.1.0.md`](./changelogs/v1.1.0.md)，历史版本见对应详细变更文件  
+> **说明**: 版本概览摘要，当前维护中的详细变更见 [`changelogs/v1.3.0.md`](./changelogs/v1.3.0.md)，历史版本见对应详细变更文件  
 > **最后更新**: 2026-04-13
 
 ---
@@ -9,6 +9,7 @@
 
 | 版本 | 日期 | 变更摘要 | 详细 |
 |------|------|---------|------|
+| [v1.3.0](./changelogs/v1.3.0.md) | 2026-04-13 | 🎉 **PCV 收敛后汇总验证**：audit/analyze 新增强制 PCV 五步（实证核查+三列验证+分级标注），三列验证时机由每轮分散改为 PCV-3 统一完成 | [查看](./changelogs/v1.3.0.md) |
 | [v1.2.0](./changelogs/v1.2.0.md) | 2026-04-13 | 🎉 **PC4 规范雷达 + 全工作流多轮收敛**：新增 `18-spec-radar.instructions.md`（三轴诊断 G1~G9），analyze 改为多轮收敛（≥3轮），audit 定向审查最少轮次 2→3 | [查看](./changelogs/v1.2.0.md) |
 | [v1.1.0](./changelogs/v1.1.0.md) | 2026-04-10 | 🎉 **Instructions-First 架构迁移**：新增 `copilot-instructions.md` always-on 入口，Agent 精简，CLI 分发更新，并停止向目标项目默认分发 `.github/agents/` | [查看](./changelogs/v1.1.0.md) |
 | [v1.0.0](./changelogs/v1.0.0.md) | 2026-04-04 | 🎉 **v1.0.0 重构**：全新项目结构，规范文件统一中文，需求管理迁移至 website/docs/versions/v1/1.0.0/requirements/ | [查看](./changelogs/v1.0.0.md) |

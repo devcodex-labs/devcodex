@@ -135,7 +135,7 @@ applyTo: "**"
 | CP 门控 | 🔴 强制等待用户确认 | 🔴 强制等待用户确认 |
 | 合规检查 | 不执行（规范已验证） | 全量 FC1~FC6 + SC1~SC13 + RC1~RC4 + T1~T9 |
 | 预检查输出 | 不输出 | 输出 PC0~PC4（PC4 执行完整三轴诊断：Axis A 认知锚点 / Axis B 对话轨迹 / Axis C 用户满足度；规范见 `18-spec-radar.instructions.md`）|
-| 合规状态块 | 不输出 | 输出全量状态块 |
+| 合规状态块 | 不输出 | 输出全量状态块（chat 豁免此块；但 chat 在 dev 模式仍须输出预检查块）|
 | 安全底线 S01~S06 | 🔴 强制（不受 ENV_MODE 影响）| 🔴 强制（不受 ENV_MODE 影响）|
 
 > **CP 跳过的唯一路径**：`@devcodex-auto`（全自动模式），这是 Agent 级行为，与 ENV_MODE 无关。

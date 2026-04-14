@@ -11,23 +11,29 @@ applyTo: "**"
 <项目根>/.devcodex/.memory/clients/<agent>/tasks/YYYYMMDD.md
 ```
 
-`<agent>` 命名规则（全小写，连字符分隔）：
-- 单编辑器：`copilot` / `cursor` / `claude`
-- 跨编辑器：`vscode-copilot` / `zed-copilot`
-- 无法确定：`unknown-agent`
-- ⛔ **禁止使用 glob/find 扫描 `.memory/`**（隐藏目录会被跳过）
-- 必须使用目录列出工具逐层进入
+`<agent>` 确定规则（优先级从高到低）：
+1. **Profile 显式配置**（优先）：读取 `.devcodex/profile/config.json` 的 `"agent"` 字段（如 `"agent": "copilot"`）
+2. **AI 自行推断**（兜底）：根据当前运行环境推断，全小写，连字符分隔
+   - 单编辑器：`copilot` / `cursor` / `claude`
+   - 跨编辑器：`vscode-copilot` / `zed-copilot`
+   - 无法确定：`unknown-agent`
+- ⛔ **禁止使用 shell 命令（bash find、PowerShell glob）查找记忆文件**（shell glob 会跳过以 `.` 开头的隐藏目录）
+- 必须使用 IDE 工具（list_dir）逐层进入：`clients/` → `<agent>/` → 读取日期文件
 
 ## 读取策略
 
+> 🔴 **SUMMARY 优先**：每次会话开始时，先读取 Agent SUMMARY.md（轻量索引），从中快速定位最近相关会话，再按需精准读取对应日记文件。
+
 | 场景 | 读取范围 |
 |------|---------|
+| **首步（必做）** | 读取 Agent SUMMARY.md（快速定位最近会话状态）|
 | 正常会话 | 今日文件 + 昨日文件 |
 | 今日文件不存在 | 仅读昨日文件 |
 | 文件存在但解析失败 | 重命名为 `.bak.md`，创建新文件 |
 | intent = resume | tasks/ 目录最近 **14 天**文件 |
+| resume 超 14 天 | ① 从 SUMMARY.md 查找最后 🔄 状态行 → ② 提示用户提供具体日期或会话编号 → ③ 精准读取对应日期文件 |
 
-> ⛔ 禁止默认读取超过昨日以前的文件
+> ⛔ 禁止默认读取超过昨日以前的文件（resume 和用户明确要求除外）
 
 ## 触发规则
 

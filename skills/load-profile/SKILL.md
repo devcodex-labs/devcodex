@@ -40,7 +40,7 @@ description: 项目 Profile 加载规范 — 意图识别后独立确定目标�
 | `03-代码风格.md` | 编码规范 | 是 |
 | `04-测试规范.md` | 测试框架/覆盖率 | 按需 |
 | `05-发布规范.md` | 版本号/发布流程 | 按需 |
-| `config.json` | 运行模式配置（ENV_MODE）| 按需 |
+| `config.json` | 运行模式配置（ENV_MODE）+ agent 标识 | 按需 |
 
 ## Profile 缺失处理
 

@@ -70,13 +70,14 @@ description: 定义意图识别结果到工作流的路由映射。本 Skill 为
 ### resume 路径
 
 ```
-RESTORE → 读取记忆（最近 14 天）→ 还原上下文 → 提取原始意图 → 重路由到原始工作流
+RESTORE → 先读 Agent SUMMARY.md → 读取相关记忆（默认今日/昨日；resume 时最近 14 天）→ 还原上下文 → 提取原始意图 → 重路由到原始工作流
 ```
 
 ### resume 约束
 
 - chat 不产生中断 → resume 不接受 chat 类型原始意图
 - resume 不改变原始意图类型
+- resume 超过 14 天时：从 SUMMARY.md 查找最后 🔄 状态行，再提示用户提供具体日期或会话编号后精准恢复
 
 ### chat 快速路径
 

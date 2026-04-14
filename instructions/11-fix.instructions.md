@@ -57,7 +57,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → 执行 →
 - 编码后必须运行 lint/typecheck/test；error 最多 2 次迭代
 - 2 次仍失败 → 停止，输出错误摘要标 ⚠️
 - 涉及 HTTP 接口变更 → 生成双产物（.http + .cjs）
-- 涉及源码/配置文件变更 → 检查四类文档同步
+- 涉及源码/配置文件变更 → 检查文档同步（CHANGELOG/README 为必查；TASK-INDEX/STATUS 按项目存在或启用时同步）
 
 ## 影响评估触发条件
 

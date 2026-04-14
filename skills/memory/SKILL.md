@@ -8,20 +8,26 @@ description: 管理会话记忆的读取与写入。三层记忆体系：Agent �
 <项目根>/.devcodex/.memory/clients/<agent>/tasks/YYYYMMDD.md
 ```
 
-- `<agent>` 命名：产品标识优先，全小写，连字符分隔（`copilot` / `cursor` / `claude`）
+- `<agent>` 确定规则（优先级从高到低）：
+  1. **Profile 显式配置**（优先）：读取 `.devcodex/profile/config.json` 的 `"agent"` 字段
+  2. **AI 自行推断**（兜底）：产品标识优先，全小写，连字符分隔（`copilot` / `cursor` / `claude`）
 - 跨编辑器：`vscode-copilot` / `zed-copilot`
 - 无法确定时使用 `unknown-agent`（后续迁移到正确目录）
-- ⛔ **禁止使用 glob/find 扫描 `.memory/` 目录**（隐藏目录会被跳过）
-- 必须使用目录列出工具逐层进入：`clients/` → `<agent>/` → 读取日期文件
+- ⛔ **禁止使用 shell 命令（bash find、PowerShell glob）查找记忆文件**（shell glob 会跳过隐藏目录）
+- 必须使用 IDE 工具（list_dir）逐层进入：`clients/` → `<agent>/` → 读取日期文件
 
 ## 读取策略
 
+> 🔴 **SUMMARY 优先**：每次会话开始时，先读取 Agent SUMMARY.md（轻量索引），快速定位最近会话状态，再按需精准读取日记文件。
+
 | 场景 | 读取范围 |
 |------|---------|
+| **首步（必做）** | 读取 Agent SUMMARY.md（快速定位最近会话状态） |
 | 正常会话 | 今日文件 + 昨日文件（并发读取，路径已知无依赖） |
 | 今日文件不存在 | 仅读昨日文件 |
 | 文件存在但解析失败 | 重命名为 `YYYYMMDD.bak.md`，创建新文件，不阻断 |
 | intent = resume | tasks/ 目录最近 **14 天**文件 |
+| resume 超 14 天 | ① 从 SUMMARY.md 查找最后 🔄 状态行 → ② 提示用户提供具体日期/会话编号 → ③ 精准读取对应日期文件 |
 | 用户明确要求历史回溯 | 同 resume |
 
 > ⛔ 禁止默认读取超过昨日以前的文件

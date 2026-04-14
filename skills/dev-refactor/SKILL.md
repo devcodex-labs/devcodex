@@ -21,7 +21,7 @@ description: 重构子类型规范 — 测试覆盖前置确认 + 三段式重�
 CP1（范围确认）→ CP2（方案确认）→ [plan-review] → [impact-review] → CP3（计划确认）→ 执行
 ```
 
-**plan-review**：调用 `dev-plan-review` Skill（PR-1~PR-6）；PR-5② 跨模块依赖变更时继续 `impact-review`，🔴 阻断时回 CP2。
+**plan-review**：PR-1 在 CP2 前自检，PR-2~PR-7 在 CP2→CP3 之间执行；PR-5② 跨模块依赖变更时继续 `impact-review`，🔴 阻断时回 CP2。
 
 **执行阶段**：
 1. 最小增量重构，每步可独立回滚

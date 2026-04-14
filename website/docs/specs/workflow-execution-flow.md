@@ -40,8 +40,9 @@ flowchart TD
 ```mermaid
 flowchart TD
     CP1["CP1 需求确认\n（输出需求理解，等待确认）"]
+    PR1["PR-1 需求完整性自检\n（AI 内部，不等用户）"]
     CP2["CP2 方案确认\n（输出技术方案，等待确认）"]
-    PR["plan-review 方案验证\n（PR-1~PR-6 门禁）"]
+    PR["plan-review 方案验证\n（PR-2~PR-7 门禁）"]
     PR_OK{"plan-review 通过?"}
     IR{"PR-5② 跨模块\n架构依赖变更?"}
     IMPACT["impact-review\n影响评估"]
@@ -53,7 +54,7 @@ flowchart TD
     DOC_S["document-sync"]
     DONE["dev 执行完成"]
 
-    CP1 --> CP2 --> PR --> PR_OK
+    CP1 --> PR1 --> CP2 --> PR --> PR_OK
     PR_OK -->|"🔴 阻断"| CP2
     PR_OK -->|"通过"| IR
     IR -->|"是"| IMPACT --> CP3

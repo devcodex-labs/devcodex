@@ -12,7 +12,9 @@ description: Token 授权验证规范 — Free/Trial/Pro/Enterprise 四层授权
 
 | 层级 | 标识 | 开放功能 |
 |------|------|---------|
-| Free | 无 Token | 基础开发/修复/审查/分析/聊天工作流 || Trial | `DEVCODEX_TOKEN=trial_*` | 等效 Pro 全部功能（7 天有效期，到期自动降级 Free）|| Pro | `DEVCODEX_TOKEN=pro_*` | + 高级子类型（数据库/优化/场景测试/安全修复/项目审查）+ 自修复/续接/规划/API验证/影响评估 |
+| Free | 无 Token | 基础开发/修复/审查/分析/聊天工作流 |
+| Trial | `DEVCODEX_TOKEN=trial_*` | 等效 Pro 全部功能（7 天有效期，到期自动降级 Free） |
+| Pro | `DEVCODEX_TOKEN=pro_*` | + 高级子类型（数据库/优化/场景测试/安全修复/项目审查）+ 自修复/续接/规划/API验证/影响评估 |
 | Enterprise | `DEVCODEX_TOKEN=ent_*` | + 多租户配置/自定义 Profile/优先支持/团队协作功能 |
 
 ## 功能门控矩阵

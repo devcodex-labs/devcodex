@@ -39,6 +39,7 @@ function walkDir(dir) {
 
 // ─── Source directories (inside the npm package) ─────────────────────────────
 const PKG_ROOT = __dirname
+const VERSION  = JSON.parse(fs.readFileSync(path.join(PKG_ROOT, 'package.json'), 'utf8')).version
 const SOURCES = [
   { from: 'skills',       to: 'skills'       },
   { from: 'instructions', to: 'instructions' },
@@ -190,7 +191,7 @@ function cmdInit(argv) {
     console.log(`  ${c.bold('Done!')} ${parts.join(', ')}`)
     if (added + updated > 0) {
       console.log()
-      console.log(`  ${c.cyan('→')} Restart your IDE to activate DevCodex instructions and skills.`)
+      console.log(`  ${c.cyan('→')} Start a new Copilot Chat session ${c.dim('(Ctrl+N)')} to activate DevCodex.`)
     }
   }
 
@@ -220,7 +221,7 @@ function cmdStatus() {
   const ghDir = path.join(cwd, '.github')
   const isSrc = isSourceRepo(cwd)
   console.log()
-  console.log(c.bold('  DevCodex status') + c.dim(` in ${cwd}`))
+  console.log(c.bold('  DevCodex status') + c.dim(` v${VERSION}`) + c.dim(` in ${cwd}`))
   if (isSrc) console.log(c.yellow('  ⚠️  Source repository detected — showing source repo status'))
   console.log(c.dim('  ──────────────────────────────────────'))
   console.log()
@@ -271,7 +272,7 @@ function cmdStatus() {
 
 function cmdHelp() {
   console.log(`
-  ${c.bold('DevCodex')} — AI-powered development workflow rules for GitHub Copilot
+  ${c.bold('DevCodex')} ${c.dim(`v${VERSION}`)} — AI-powered development workflow rules for GitHub Copilot
 
   ${c.bold('Usage:')}
     devcodex <command> [options]

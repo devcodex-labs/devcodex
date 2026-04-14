@@ -21,6 +21,7 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 |--------|:----------:|
 | dev | `requirements/` |
 | dev (optimization) | `optimizations/` |
+| dev (scenario-test) | `scenario-tests/` |
 | fix | `bugs/` |
 | analyze | `analysis/` |
 | audit | `audit/` |

@@ -97,7 +97,13 @@
 - 建议维度：N/A
 - 状态：已登记（2026-04-13 修复）
 
-## Gap #GAP-010
+## Gap #GAP-015
+- 发现日期：2026-04-14
+- 审查目标：`README.md` L45/L46/L150
+- 盲区描述：今日修复 F-02（Instructions 计数 11→12）和 F-06（Skills 计数 32→33）时，只更新了 `copilot-instructions.md` 和 `plugin.json`，未同步 `README.md`（三处）和 `website/docs/index.md`（一处）。根因：README.md 属于根目录文档，CRS 扫描关键词"11 个 Instructions"/"32 个 Skills"时，搜索路径局限于 instructions/skills/prompts/data，未覆盖 README.md；website/docs 更在扫描范围之外。
+- 盲点类型：M2 缺席盲点（数字类引用散落在文档层，非 grep 能自动覆盖的规范路径）
+- 建议维度：N/A — 建议在数字类引用更新时，专门扩展 CRS 扫描至 README.md + website/docs/*.md
+- 状态：已登记（2026-04-14 修复：README.md 3处 + website/docs/index.md 1处同步更新）
 - 发现日期：2026-04-14
 - 审查目标：`data/gap-registry.md` 格式
 - 盲区描述：R3~R12 每轮审查聚焦 `instructions/` 和 `skills/` 层，`data/gap-registry.md` 属于数据文件未纳入正式审查范围；三条记录（GAP-003/GAP-007/GAP-008）在追加时遗漏了 `## Gap #GAP-NNN` 标头，违反 §格式规范 要求。
@@ -128,9 +134,26 @@
 - 盲点类型：M4 分离盲点
 - 建议维度：N/A
 - 状态：已登记（2026-04-13 修复：创建 report-optimization.prompt.md；L71 补充 scenario-tests/ 子目录）
+
+## Gap #GAP-013
 - 发现日期：2026-04-13
 - 审查目标：`skills/audit-dimensions/SKILL.md` §维度总览表 vs §详细章节
 - 盲区描述：①维度总览表 L15 写"D3 流程图语法"，但详细章节 L64 标题是"D3 路由语法正确性"——同文件内部命名自相矛盾。②D1 检查项 L52 写 `mode/description/applyTo`，但 v1.3.x 已将所有 prompts 从 `mode: agent` 改为 `agent: agent`，D1 检查准则未随实现同步，导致 AI 会错误判断所有 prompt 文件 D1 不通过。根因：M3 层次盲点——历次 D5 跨文件一致性检查聚焦跨文件对比，未对单文件内"总览表行"vs"详细章节标题"进行一致性校验；M4 分离盲点——frontmatter 字段名的实现变更未触发 D1 检查准则的同步更新。
 - 盲点类型：M3 层次盲点（同文件内部命名未交叉校验）· M4 分离盲点（实现变更未联动规范）
 - 建议维度：N/A
 - 状态：已登记（2026-04-13 修复：L15 "流程图语法"→"路由语法正确性"；L52 `mode`→`agent`）
+## Gap #GAP-016
+- 发现日期：2026-04-14
+- 审查目标：`skills/dev-init/SKILL.md` L33 .gitignore 路径
+- 盲区描述：dev-init SKILL 在 v1.0.0 Stage 7 创建时使用旧 `data/` 路径，后续 `.devcodex/` 体系迁移（v1.0.0→v1.1.0）未触发 dev-init SKILL 同步更新。10-dev.instructions.md 和 02-output-paths.instructions.md 均已迁移至 `.devcodex/.memory/`，但 SKILL 层遗漏。
+- 盲点类型：M4 分离盲点
+- 建议维度：N/A
+- 状态：已登记（2026-04-14 修复：L33 `data/` → `.devcodex/.memory/`）
+
+## Gap #GAP-017
+- 发现日期：2026-04-14
+- 审查目标：`copilot-instructions.md` / `README.md` / `02-架构约束.md` Prompt 数量
+- 盲区描述：v1.3.5 新建 report-optimization.prompt.md 和 report-scenario-test.prompt.md（20→22）时，仅更新了 report/SKILL.md 模板引用表和 02-output-paths 子目录列表，未触发数值引用联动（copilot-instructions.md / README.md / 02-架构约束.md 仍写"20 个"）。与 GAP-015 同类：数值引用散落在文档层，非结构化 grep 能自动覆盖。
+- 盲点类型：M2 缺席盲点
+- 建议维度：N/A
+- 状态：已登记（2026-04-14 修复：4 处 "20 个" → "22 个"）

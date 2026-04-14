@@ -37,7 +37,7 @@ applyTo: "**"
 ## CP 门控（C02 约束，严格按序）
 
 ```text
-CP1（需求确认）→ CP2（方案确认）→ plan-review → [impact-review] → CP3（实施计划）→ 执行
+CP1（需求确认）→ PR-1 内部自检 → CP2（方案确认）→ plan-review（PR-2~PR-7）→ [impact-review] → CP3（实施计划）→ 执行 → 方案一致性验证
 ```
 
 ### CP 定义
@@ -53,7 +53,7 @@ CP1（需求确认）→ CP2（方案确认）→ plan-review → [impact-review
 1. **严格按序**：CP1 → CP2 → CP3，不得跳过中间步骤
 2. **禁止合并**：不得将 CP1+CP2 合并为一次输出
 3. **每个 CP 独立确认**：输出后必须等待用户明确响应
-4. **产物文件前置创建**：CP1 → `01-需求概述.md`；CP2 → `02-技术方案.md`（有架构/接口/设计决策时，否则跳过）
+4. **产物文件前置创建**：CP1 → `01-需求概述.md` + `<需求>/.memory/sessions.md`（需求级记忆）；CP2 → `02-技术方案.md`（有架构/接口/设计决策时，否则跳过）
 
 ### CP 响应处理
 
@@ -71,9 +71,9 @@ CP1（需求确认）→ CP2（方案确认）→ plan-review → [impact-review
 - S01~S06 / C01 / C10 **不可豁免**
 - 可恢复失败：重试 ≤ 2 次；不可恢复失败：通知用户 ⚠️
 
-## plan-review 质量门禁（CP2→CP3 强制）
+## plan-review 质量门禁（两阶段强制）
 
-非 docs/plan-review/scenario-test 子类型后必须执行 PR-1~PR-6 检查。🔴 阻断时回 CP2 重确认。
+> 非 docs/plan-review/scenario-test 子类型必须执行。PR-1 在 CP2 前做 AI 内部自检；PR-2~PR-7 在 CP2→CP3 之间执行。🔴 阻断时短路停止（不继续后续 PR），回 CP2 重确认。
 
 ### PR-1 需求完整性 🔴
 - 方案覆盖 CP1 确认的所有需求点
@@ -104,6 +104,11 @@ CP1（需求确认）→ CP2（方案确认）→ plan-review → [impact-review
 ### PR-6 架构质量视角（C15）
 三维评估：可扩展性 / 可维护性 / 易上手性。未达标须说明原因并记录改善方向。
 
+### PR-7 测试策略与风险评估 🟡
+- §7 测试策略覆盖目标明确，关键路径有对应测试类型
+- §9 风险至少识别 1 条技术风险，每条有缓解措施
+- 未通过不阻断，标注 `⚠️` 并建议补充
+
 ## 影响评估触发条件（IMPACT_REVIEW）
 
 - **仅**由 PR-5②"跨模块架构依赖变更"触发
@@ -115,7 +120,7 @@ CP1（需求确认）→ CP2（方案确认）→ plan-review → [impact-review
 - 逐文件执行，编码后必须运行 lint/typecheck/test
 - error 最多 2 次迭代；2 次仍失败 → 停止，输出错误摘要标 ⚠️
 - 涉及 HTTP 接口变更 → 生成双产物（.http + .cjs）
-- 涉及源码/配置文件变更 → 检查四类文档同步（STATUS/CHANGELOG/TASK-INDEX/README）
+- 涉及源码/配置文件变更 → 检查文档同步（CHANGELOG/README 为必查；TASK-INDEX/STATUS 按项目存在或启用时同步）
 
 ## 代码风格
 
@@ -125,7 +130,7 @@ CP1（需求确认）→ CP2（方案确认）→ plan-review → [impact-review
 ## 子类型专属规则
 
 ### default（新功能开发）
-- 五阶段执行：N1 需求确认 → N2 技术方案 → N3 方案验证 → N4 实施计划 → N5 执行
+- 六阶段执行：N1 需求确认 → N2 技术方案（含 PR-1 自检）→ N3 方案验证 → N4 实施计划 → N5 执行 → N6 方案一致性验证
 - 无特殊豁免，完整走 CP1→CP2→CP3
 
 ### refactor（重构）

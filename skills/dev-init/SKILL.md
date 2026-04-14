@@ -30,5 +30,5 @@ init 完成后**必须**在 `.devcodex/profile/` 创建：
 ## 关键规则
 
 - 跳过 CP3（init 无需实施计划阶段）；同时豁免 `dev-plan-review`（CP3 已跳过，质量门禁不适用）
-- 生成的 .gitignore 必须包含 `data/` 目录（报告/记忆不入版本库）
+- 生成的 .gitignore 必须包含 `.devcodex/.memory/`（记忆文件不入版本库）
 - 依赖选型遵循项目 profile 中的技术栈约束（若已有 profile）

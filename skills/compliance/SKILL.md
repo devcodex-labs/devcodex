@@ -9,7 +9,7 @@ description: 执行 FC（形式合规）/ SC（实质合规）/ RC（恢复性�
 | ENV_MODE | 检查策略 |
 |----------|---------|
 | `prod`（默认）| 不执行合规检查（规范已验证，Instructions 直接指导 AI 行为） |
-| `dev` | 全量执行 FC1~FC6 + SC1~SC13 + RC1~RC4 + T1~T9 |
+| `dev` | 全量执行 FC1~FC6 + SC1~SC14 + RC1~RC4 + T1~T9 |
 
 > ⛔ **[S01~S06](../../instructions/00-safety.instructions.md) 安全底线不受 ENV_MODE 影响**，无论 dev/prod 均强制执行。
 >

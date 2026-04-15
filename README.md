@@ -42,9 +42,9 @@ npx devcodex init
 ```
 .github/
 ├── copilot-instructions.md  ← 默认 Copilot always-on 总则（新增）
-├── instructions/   ← Instructions 约束（12 个，含全部工作流规则）
-├── skills/         ← Skill 详细检查标准（33 个，按需读取）
-├── prompts/        ← Prompt 模板（22 个）
+├── instructions/   ← Instructions 约束（11 个，含全部工作流规则）
+├── skills/         ← Skill 详细检查标准（32 个，按需读取）
+├── prompts/        ← Prompt 模板（20 个）
 ├── data/           ← 运行时数据模板
 └── RULES.md        ← 使用入口
 ```
@@ -146,9 +146,9 @@ npm run dev
 devcodex/
 ├── copilot-instructions.md  # 默认 Copilot always-on 总则
 ├── agents/        # Agent 源文件（源码仓保留，不再默认分发到目标项目）
-├── instructions/  # 全局 Instructions（12 个，含工作流规则摘要，自动注入）
-├── skills/        # Skill 详细检查标准（33 个，按 01-common §按需读取表 路由读取）
-├── prompts/       # Prompt 模板（22 个）
+├── instructions/  # 全局 Instructions（11 个，含工作流规则摘要，自动注入）
+├── skills/        # Skill 详细检查标准（32 个，按 01-common §按需读取表 路由读取）
+├── prompts/       # Prompt 模板（20 个）
 ├── data/          # 运行时数据模板（violations/pending-fixes/gap-registry）
 ├── index.js       # CLI 入口（零依赖）
 └── plugin.json    # 插件元数据

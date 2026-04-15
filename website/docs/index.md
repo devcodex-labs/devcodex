@@ -16,7 +16,7 @@ hero:
 features:
   - title: 🎯 结构化工作流
     details: 8 种工作流（dev/fix/audit/analyze/self-fix/resume/plan/chat），执行流程骨架已冻结
-  - title: 🛠️ 33 个 Skills
+  - title: 🛠️ 32 个 Skills
     details: 扁平化 Skill 体系，覆盖开发、修复、审计、分析、自修复等全场景
   - title: 🔒 四层合规检查
     details: FC（形式合规）→ SC（实质合规）→ RC（恢复性检查）→ T（任务完成验证），所有工作流回复前强制执行

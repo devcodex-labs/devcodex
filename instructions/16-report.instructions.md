@@ -18,6 +18,8 @@ applyTo: "**"
 <任务目录>/reports/<agent>/YYYYMMDD/NN--<简述>.md
 ```
 
+> ⚠️ **跨服务需求**：报告路径以**入口服务**的 `.devcodex/` 为根，与 `01-需求概述.md` 同目录树；不拆分到各关联服务目录。
+
 ### 项目级（兜底）
 ```
 reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md

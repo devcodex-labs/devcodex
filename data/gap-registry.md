@@ -87,7 +87,7 @@
 - 盲区描述：①D22 同时出现在 Group B（内容质量）和 Group H（语义正确性），违反 D16 唯一性；`audit-dimensions` 无 Group H，造成 G3 跨文件不一致。②§核心约束"由用户启动 self-fix"与 §审查元循环 元循环自动触发语义矛盾（G2）。根因：M3 层次盲点——R1~R5 对 Skill 层检查细致，Instruction 层 §专属维度规则 未做逐行分组重复校验。
 - 盲点类型：M3 层次盲点
 - 建议维度：N/A
-- 状态：已登记（2026-04-14 修复：12-audit Group B 移除 D22 / audit-dimensions 新增 Group H / §核心约束更新）
+- 状态：已登记（2026-04-14 修复：12-audit Group B 移除 D22 / audit-dimensions 新增 Group H / §核心约束更新；矛盾②于 v1.5.2 修复：§核心约束和§审查元循环统一为"DevCodex plugin 文件路径"判断边界）
 
 ## Gap #GAP-003
 - 发现日期：2026-04-13
@@ -104,6 +104,8 @@
 - 盲点类型：M2 缺席盲点（数字类引用散落在文档层，非 grep 能自动覆盖的规范路径）
 - 建议维度：N/A — 建议在数字类引用更新时，专门扩展 CRS 扫描至 README.md + website/docs/*.md
 - 状态：已登记（2026-04-14 修复：README.md 3处 + website/docs/index.md 1处同步更新）
+
+## Gap #GAP-010
 - 发现日期：2026-04-14
 - 审查目标：`data/gap-registry.md` 格式
 - 盲区描述：R3~R12 每轮审查聚焦 `instructions/` 和 `skills/` 层，`data/gap-registry.md` 属于数据文件未纳入正式审查范围；三条记录（GAP-003/GAP-007/GAP-008）在追加时遗漏了 `## Gap #GAP-NNN` 标头，违反 §格式规范 要求。

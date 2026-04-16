@@ -19,6 +19,8 @@ applyTo: "**"
 
 > ⛔ PC4 不是"验证 AI 是否遵守规范"，而是"检测规范本身是否存在缺陷"。两者的诊断对象完全不同。
 
+> **设计原则：记录在使用，修复在维护** — PC4 在所有项目/所有工作流中只负责感知并记录（PF → `pending-fixes.md`，VL → `violations.md`），**不触发任何修复动作**。修复动作只在 audit 工作流 + DevCodex plugin 文件两个条件同时满足时才由元循环驱动（见 `12-audit §审查元循环`）。
+
 ## 核心原则 — 意图模式驱动，非关键词匹配
 
 > ⚠️ PC4 **禁止依赖关键词匹配触发**（如："确定吗"、"不对"、"再解释"等表面词汇）。  
@@ -198,5 +200,5 @@ PC4 入口（仅 dev 模式）
 | `17-compliance.instructions.md` | PC4 触发点在预检查（PC0~PC4），合规检查（FC/SC/RC/T）在任务完成后；两者独立不重叠 |
 | `data/pending-fixes.md` | PC4 的 PF 输出目标 |
 | `data/violations.md` | PC4 的 VL / T_RECORD 输出目标 |
-| `data/process-improvements.md` | PF 修复后的改进记录（PI 条目） |
+| `data/process-improvements.md` | C17 触发的过程改进记录（PI 条目）——当用户建议的执行策略被 AI 确认更优时写入 |
 | `website/docs/specs/precheck-flow.md` | PC4 的可视化流程图 |

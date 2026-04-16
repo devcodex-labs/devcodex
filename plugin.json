@@ -1,7 +1,7 @@
 {
   "_format": "DevCodex internal metadata — NOT a GitHub Copilot official format. Copilot reads .github/agents|skills|instructions|prompts directly.",
   "id": "devcodex",
-  "version": "1.5.1",
+  "version": "1.5.2",
   "name": "DevCodex",
   "publisher": "Rocky",
   "displayName": "DevCodex — AI Development Workflow Assistant",

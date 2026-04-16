@@ -2,7 +2,7 @@
 
 > **文件路径**: `data/process-improvements.md`  
 > **写入时机**: 当用户建议的策略经验证优于当前执行方式时，由 AI 自动追加（不得询问是否记录）  
-> **关联规范**: `01-common.instructions.md` C16  
+> **关联规范**: `01-common.instructions.md` C17  
 > **触发条件**: 用户提出更优执行策略 → AI 确认更优 → 立即追加 PI 条目 → 后续会话可引用
 
 ## 格式规范

@@ -9,7 +9,9 @@
 
 | 版本 | 日期 | 变更摘要 | 详细 |
 |------|------|---------|------|
-| [v1.5.2](./changelogs/v1.5.0.md) | 2026-04-17 | 🔧 **规范自进化修复边界重构**："记录在使用，修复在维护"原则；audit 元循环触发条件改为 DevCodex plugin 文件路径判断（不再以"规范文件类型"为依据）；PC4 明确仅记录不修复；PF-009 关闭 | — |
+| v1.5.3 | 2026-04-17 | 🔧 **深度审查修复**：RULES.md 版本号修正（v1.5.0→v1.5.2）；compliance/SKILL.md 补 SC14；DevCodex plugin scope 五处统一（新增 `agents/`）；CHANGELOG v1.5.1 补条目/v1.5.2 链接修正；routing/SKILL.md 描述修正；README.md + website/docs 数字更新（12 Instructions/33 Skills/22 Prompts） | — |
+| v1.5.2 | 2026-04-17 | 🔧 **规范自进化修复边界重构**："记录在使用，修复在维护"原则；audit 元循环触发条件改为 DevCodex plugin 文件路径判断（不再以"规范文件类型"为依据）；PC4 明确仅记录不修复；PF-009 关闭 | — |
+| v1.5.1 | 2026-04-16 | 🔧 **代码优先探索原则**：新增"实现情况分析"规范（必须实际读取代码，禁止用计划路径推断）；跨服务需求产物存储规范明确（入口服务 .devcodex/）；广交会需求文档迁移 | — |
 | [v1.5.0](./changelogs/v1.5.0.md) | 2026-04-15 | 🎉 **跨服务需求规范 + 业务流程模板**：需求模板新增 §3 业务流程（Mermaid 流程图 + 节点详解）；入口服务驱动模式（services/ 子目录）；10-dev 跨服务 CP1 规则；load-profile 多服务加载策略；audit-requirements RQ-1 业务流程条件检查 | [查看](./changelogs/v1.5.0.md) |
 | [v1.4.0](./changelogs/v1.4.0.md) | 2026-04-14 | 🎉 **技术方案流程重构**：plan-review 两阶段（PR-1 CP2前自检）、新增 PR-7 测试策略、dev-default 六阶段（+N6方案一致性）、技术方案模板增§0现状分析+编写指南、§8→实施约束、备选强制；记忆改进 M-01~M-06；CLI 版本显示；规范一致性批量修复 | [查看](./changelogs/v1.4.0.md) |
 | [v1.3.5](./changelogs/v1.3.5.md) | 2026-04-14 | 🔧 **规范深度审查修复**：Prompt frontmatter 统一（mode→agent）、D5三元组补全（optimization/scenario-test报告模板）、D21代码块语言标记、D13/D14扩展点/租户文档、SC3措辞修正、PF-004/005用户决策关闭 | [查看](./changelogs/v1.3.5.md) |

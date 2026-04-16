@@ -10,7 +10,7 @@ applyTo: "**"
 ### 只读约束（绝对）
 - **audit 是只读工作流**：执行中禁止修改任何文件
 - 发现问题只输出清单和变更建议
-- **需要修复时**：DevCodex plugin 文件（`instructions/` · `skills/` · `prompts/`）→ 元循环自动触发 self-fix（见 §审查元循环）；其他文件/代码 → 记录 PF/VL，由用户决定时机启动 fix 或 self-fix
+- **需要修复时**：DevCodex plugin 文件（`instructions/` · `skills/` · `prompts/` · `agents/` · `RULES.md`）→ 元循环自动触发 self-fix（见 §审查元循环）；其他文件/代码 → 记录 PF/VL，由用户决定时机启动 fix 或 self-fix
 
 > **设计原则：记录在使用，修复在维护** — 正常开发工作流（dev/fix/analyze）中 PC4 发现规范缺口，只写入 `data/pending-fixes.md`，不触发任何修复；只有 audit 明确针对 DevCodex plugin 文件本身时，才进入立即修复的元循环。
 
@@ -39,7 +39,7 @@ applyTo: "**"
 
 ## 审查元循环（即发即修）
 
-> 🔴 **触发前置条件**：元循环只在审查 **DevCodex plugin 文件**（`instructions/*.md` · `skills/**/SKILL.md` · `prompts/*.md`）时启动。审查其他类型文件时，发现问题 → 记录 PF/VL → 继续下一轮，**不触发 self-fix**。
+> 🔴 **触发前置条件**：元循环只在审查 **DevCodex plugin 文件**（`instructions/` · `skills/` · `prompts/` · `agents/` · `RULES.md`）时启动。审查其他类型文件时，发现问题 → 记录 PF/VL → 继续下一轮，**不触发 self-fix**。
 >
 > 🔴 audit 是只读工作流，但**元循环不是**：每发现一批问题 → 立即自我审视 + self-fix 修复 → 修复完成后重新启动新一轮 audit。禁止等所有轮次完成后批量修复（批量修复导致修复本身引入的新问题无法当轮检测）。
 

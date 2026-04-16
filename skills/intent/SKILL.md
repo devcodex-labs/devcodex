@@ -74,7 +74,7 @@ description: 识别用户意图类型（dev/fix/analyze/audit/self-fix/chat/resu
 
 | 条件 | 说明 |
 |------|------|
-| 修改对象 | DevCodex 插件目录下的规范文件（agents/skills/instructions/prompts/RULES.md）|
+| 修改对象 | DevCodex 插件目录下的规范文件（`instructions/` · `skills/` · `prompts/` · `agents/` · `RULES.md`）|
 | 修改动机 | 修复规范内部不一致、错误、缺失（非功能迭代、非新增）|
 
 **特殊场景——记录违规**（T_RECORD 分支）：

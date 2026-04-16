@@ -68,7 +68,7 @@ grep "02-技术方案" instructions/ skills/
 
 ## 审查元循环（即发即修）
 
-> 🔴 **触发前置条件**：元循环（即发即修）只在审查 **DevCodex plugin 文件**（`instructions/*.md` · `skills/**/SKILL.md` · `prompts/*.md`）时启动。审查其他类型文件时，发现问题 → 记录 PF/VL → 继续下一轮，**不触发 self-fix**（设计原则：**记录在使用，修复在维护**）。
+> 🔴 **触发前置条件**：元循环（即发即修）只在审查 **DevCodex plugin 文件**（`instructions/` · `skills/` · `prompts/` · `agents/` · `RULES.md`）时启动。审查其他类型文件时，发现问题 → 记录 PF/VL → 继续下一轮，**不触发 self-fix**（设计原则：**记录在使用，修复在维护**）。
 >
 > 🔴 **核心原则**：audit 是只读工作流，但元循环不是——每发现一批问题，立即触发 self-fix 修复，修复完成后重新启动新一轮 audit，而非等所有轮次结束后批量修复。批量修复会导致"修复本身引入的新问题"只能在下次用户主动触发审查时才能发现。
 

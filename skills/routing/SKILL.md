@@ -8,7 +8,7 @@ description: 定义意图识别结果到工作流的路由映射。本 Skill 为
 
 定义意图识别结果到工作流的路由映射。所有意图均通过单一入口 [`devcodex.agent.md`](../../agents/devcodex.agent.md) 分发。
 
-> ⚠️ 本 Skill 为**人类可读参考**，实际路由由 Agent 的 frontmatter + 内置 intent-routing 逻辑完成，无需在执行中显式调用本文件。
+> ⚠️ 本 Skill 为**人类可读参考**，实际路由由 `01-common.instructions.md` §意图路由表 + intent/SKILL.md 三问法完成，无需在执行中显式调用本文件。
 
 ## 路由映射表
 

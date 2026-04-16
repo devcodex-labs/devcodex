@@ -152,9 +152,14 @@
 - 建议维度：N/A
 - 状态：已登记（2026-04-14 修复：L33 `data/` → `.devcodex/.memory/`）
 
-## Gap #GAP-017
-- 发现日期：2026-04-14
-- 审查目标：`copilot-instructions.md` / `README.md` / `02-架构约束.md` Prompt 数量
+## Gap #GAP-018
+- 发现日期：2026-04-17
+- 审查目标：`README.md` L20/L21/L22/L40/L41/L42（或类似行）
+- 盲区描述：v1.3.5 更新 Instructions 12→11（实为 11→12）、Skills 32→33、Prompts 20→22 时，`copilot-instructions.md` 和 `plugin.json` 已同步，但 `README.md` 两处目录树（快速浏览结构 + 目录结构详解）均未同步，仍显示 11/32/20。属 GAP-015/GAP-017 同类盲点的再次出现。
+- 盲点类型：M2 缺席盲点（数字引用散落在 README.md 两处目录树中，未被 CRS 关键词覆盖）
+- 建议维度：N/A
+- 状态：已登记（2026-04-17 修复：README.md 两处 11/32/20 → 12/33/22）
+
 - 盲区描述：v1.3.5 新建 report-optimization.prompt.md 和 report-scenario-test.prompt.md（20→22）时，仅更新了 report/SKILL.md 模板引用表和 02-output-paths 子目录列表，未触发数值引用联动（copilot-instructions.md / README.md / 02-架构约束.md 仍写"20 个"）。与 GAP-015 同类：数值引用散落在文档层，非结构化 grep 能自动覆盖。
 - 盲点类型：M2 缺席盲点
 - 建议维度：N/A

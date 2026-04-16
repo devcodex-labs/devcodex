@@ -88,6 +88,7 @@ FC/SC 失败时自动修正（不暂停等待用户），但 [S01~S06](../../ins
 | SC11 | [C14](../../instructions/01-common.instructions.md) 多任务拆分检查（≥5任务需建议拆分会话） | 任务≥5时 🔴 |
 | SC12 | [C14](../../instructions/01-common.instructions.md) 多任务进度快照验证（每完成子任务有 T{N}进度 标记） | 任务≥2时 🔴 |
 | SC13 | [C15](../../instructions/01-common.instructions.md) 架构质量自检（dev plan-review 三维评估；fix CP2 三维评估） | dev/fix 🔴 |
+| SC14 | analyze/audit 工作流中，所有标注 ✅已验证 的运行时结论（测试通过率/性能数字/命令输出）均已在**本轮实际执行**对应命令；SUMMARY.md 或记忆文件中的历史数字不得直接用作 ✅已验证，必须降级为 ⚠️待验证 | analyze/audit 🔴 |
 
 ## §4 恢复性检查（RC）— 非阻塞
 

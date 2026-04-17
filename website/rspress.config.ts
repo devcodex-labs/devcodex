@@ -49,7 +49,13 @@ export default defineConfig({
                             link: '/specs/flowcharts',
                             collapsed: false,
                             items: [
-                                { text: '① 预检查流程图', link: '/specs/precheck-flow' },
+                                {
+                                    text: '① 预检查流程图',
+                                    link: '/specs/precheck-flow',
+                                    items: [
+                                        { text: 'PC4 规范雷达流程图', link: '/specs/spec-radar-flow' },
+                                    ],
+                                },
                                 {
                                     text: '② 安全检查流程图',
                                     link: '/specs/safety-check-flow',

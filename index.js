@@ -40,10 +40,10 @@ function walkDir(dir) {
 // ─── Source directories (inside the npm package) ─────────────────────────────
 const PKG_ROOT = __dirname
 const SOURCES = [
-  { from: 'skills',       to: 'skills'       },
-  { from: 'instructions', to: 'instructions' },
-  { from: 'prompts',      to: 'prompts'      },
-  { from: 'data',         to: 'data'         },
+  { from: 'skills',         to: 'skills'       },
+  { from: 'instructions',   to: 'instructions' },
+  { from: 'prompts',        to: 'prompts'      },
+  { from: 'data/templates', to: 'data'         },
 ]
 
 const LEGACY_TARGETS = [
@@ -296,11 +296,15 @@ function cmdHelp() {
 
 // ─── Entry point ─────────────────────────────────────────────────────────────
 
-const [,, cmd, ...argv] = process.argv
+if (require.main === module) {
+  const [,, cmd, ...argv] = process.argv
 
-switch (cmd) {
-  case 'init':   cmdInit(argv);  break
-  case 'update': cmdInit(['--force', ...argv]); break
-  case 'status': cmdStatus(); break
-  default:       cmdHelp(); break
+  switch (cmd) {
+    case 'init':   cmdInit(argv);  break
+    case 'update': cmdInit(['--force', ...argv]); break
+    case 'status': cmdStatus(); break
+    default:       cmdHelp(); break
+  }
 }
+
+module.exports = { walkDir, cmdInit, cmdStatus, cmdHelp, isSourceRepo, SOURCES }

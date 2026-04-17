@@ -9,6 +9,7 @@
 
 | 版本 | 日期 | 变更摘要 | 详细 |
 |------|------|---------|------|
+| [v1.6.0](./changelogs/v1.6.0.md) | 2026-04-17 | 🎉 **v1.6.0 全维度优化**：npm 分发清洁化（维护者状态文件不再分发，data/templates/ 骨架）、index.js 可测试化（require.main guard + module.exports）、PC4 输出格式单一来源（17 仅引用）、自动化校验脚本（validate.js V1-V6 + test-pack-clean + validate-versions）、CI 工作流、边界声明/Tier 声明/双入口说明补全 | [查看](./changelogs/v1.6.0.md) |
 | v1.5.4 | 2026-04-16 | 🔧 **data/ 格式检查 + changelog 补全**：changelogs/v1.5.0.md 补 v1.5.2 + v1.5.3 Patch 节；process-improvements.md 修复重复 PI-002（重编号为 PI-004）；violations.md 归档策略改为手动可选；audit-common/SKILL.md 新增 DF 轻量检查（DF-1 编号唯一/DF-2 状态字段/DF-3 路径引用）| — |
 | v1.5.3 | 2026-04-17 | 🔧 **深度审查修复**：RULES.md 版本号修正（v1.5.0→v1.5.2）；compliance/SKILL.md 补 SC14；DevCodex plugin scope 五处统一（新增 `agents/`）；CHANGELOG v1.5.1 补条目/v1.5.2 链接修正；routing/SKILL.md 描述修正；README.md + website/docs 数字更新（12 Instructions/33 Skills/22 Prompts） | — |
 | v1.5.2 | 2026-04-17 | 🔧 **规范自进化修复边界重构**："记录在使用，修复在维护"原则；audit 元循环触发条件改为 DevCodex plugin 文件路径判断（不再以"规范文件类型"为依据）；PC4 明确仅记录不修复；PF-009 关闭 | — |

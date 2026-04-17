@@ -11,6 +11,8 @@ v0.03/
 # Changelogs detail (CHANGELOG.md summary is enough for users)
 changelogs/
 
-# Dev workspace artifacts
-.devcodex/.memory/
-.devcodex/.tmp/
+# Dev workspace artifacts — defense-in-depth; primary control is package.json "files" whitelist
+.devcodex/
+scripts/
+tests/
+.github/workflows/

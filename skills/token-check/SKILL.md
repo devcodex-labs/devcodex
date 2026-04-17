@@ -4,6 +4,8 @@ description: Token 授权验证规范 — Free/Trial/Pro/Enterprise 四层授权
 ---
 # Token Check Skill
 
+&gt; ℹ️ **声明层级**：本 Skill 描述 prompt-level 的授权门控规则，供 AI Agent 在规范层识别 tier 差异使用。**CLI（`index.js`）不做任何 token 校验**：`npm install` / `devcodex init/update/status` 对所有用户开放。服务端 token 校验在未来版本通过 `plugin.json.authentication` 字段接入时才会生效。
+
 ## 职责
 
 在执行需要 Pro/Enterprise 功能时，验证用户 Token 授权层级，按层级开放对应功能。

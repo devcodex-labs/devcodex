@@ -149,10 +149,14 @@ devcodex/
 ├── instructions/  # 全局 Instructions（12 个，含工作流规则摘要，自动注入）
 ├── skills/        # Skill 详细检查标准（33 个，按 01-common §按需读取表 路由读取）
 ├── prompts/       # Prompt 模板（22 个）
-├── data/          # 运行时数据模板（violations/pending-fixes/gap-registry）
+├── data/          # 运行时数据模板（分发到目标项目的空骨架）
+│   ├── README.md
+│   └── templates/ # 空模板：violations / pending-fixes / gap-registry / process-improvements
 ├── index.js       # CLI 入口（零依赖）
 └── plugin.json    # 插件元数据
 ```
+
+&gt; ℹ️ 维护者状态文件（本仓库开发过程中累积的 violations/pending-fixes 记录）保存在 `.devcodex/.maintainer-state/`，**不分发**给用户。
 
 ## IDE 兼容性
 
@@ -170,6 +174,38 @@ devcodex/
 ## 文档
 
 完整文档: [devcodex.dev](https://devcodex.dev)
+
+## 边界声明
+
+**DevCodex 适合用于**：
+- 团队/个人需要在多项目之间统一 AI 开发工作流
+- 希望 Copilot 在 dev / fix / audit 场景下遵守一致的 CP 门控、合规检查与报告产出
+- 需要持久化会话记忆、规范自修复机制（PC4）的协作流程
+
+**DevCodex 不适合用于**：
+- 单次、一次性、无需规范约束的快速原型场景
+- 不使用 GitHub Copilot 的 IDE/Agent（规范通过 Copilot Agent Plugin 协议生效）
+- 对 `.github/` 目录有其他强约束、无法接受 DevCodex 写入的项目
+
+**前置条件**：
+- Node.js ≥ 16（CLI 零依赖，仅使用标准库）
+- 已启用 Copilot `Use Instruction Files`（默认开启）
+- 已安装 GitHub Copilot 的 IDE（VS Code / JetBrains 全量支持；Visual Studio / Xcode / Eclipse 部分支持，详见 §IDE 兼容性）
+
+## Tier 说明
+
+DevCodex 的 `plugin.json` 声明 `tier: "pro"`，以及部分 Skill 标注 `tier: "free"` / `tier: "pro"`。这些 tier 字段是**面向未来的 prompt-level 声明**（供 `token-check` Skill 在 Agent 侧做软门控），**CLI 不做任何授权校验**：
+
+- `npm install @vextjs/devcodex` 与 `devcodex init/update/status` 对所有用户完全开放
+- 未来接入服务端 token 校验时，tier 字段才会生效
+- 当前阶段 tier 仅作为规划信息，不影响功能使用
+
+## Agent 入口
+
+仓库内保留两个 Agent 文件（`agents/devcodex.agent.md`、`agents/devcodex-auto.agent.md`）供 IDE 直接调用，但 **默认安装路径不再分发 `.github/agents/`**（v1.1.0 起）。标准使用路径是：
+
+- **推荐**：通过 `copilot-instructions.md` + `instructions/` 自动注入，直接在 Copilot Chat 对话即可
+- **可选**：保留本仓库的 `agents/` 作为 `@devcodex` / `@devcodex-auto` 自定义 Agent，项目侧按需手动引入
 
 ## 许可证
 

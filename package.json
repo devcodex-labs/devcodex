@@ -1,6 +1,6 @@
 {
   "name": "@vextjs/devcodex",
-  "version": "1.5.4",
+  "version": "1.6.0",
   "description": "DevCodex — AI-powered development workflow rules as a GitHub Copilot Agent Plugin",
   "main": "index.js",
   "bin": {
@@ -9,7 +9,9 @@
   "scripts": {
     "test": "node index.js status",
     "test:init": "node index.js init --dry-run",
-    "test:version": "node -e \"const p=require('./package.json');const pl=require('./plugin.json');if(p.version!==pl.version){console.error('Version mismatch:',p.version,'vs',pl.version);process.exit(1)}else{console.log('Version OK:',p.version)}\""
+    "test:version": "node scripts/validate-versions.js",
+    "test:pack-clean": "node scripts/test-pack-clean.js",
+    "validate": "node scripts/validate.js"
   },
   "keywords": [
     "copilot",
@@ -38,6 +40,7 @@
     "access": "restricted"
   },
   "files": [
+    "index.js",
     "copilot-instructions.md",
     "plugin.json",
     ".mcp.json",
@@ -45,7 +48,8 @@
     "skills/",
     "instructions/",
     "prompts/",
-    "data/",
+    "data/templates/",
+    "data/README.md",
     "assets/",
     "RULES.md",
     "README.md",

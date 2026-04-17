@@ -1,7 +1,7 @@
 {
   "_format": "DevCodex internal metadata — NOT a GitHub Copilot official format. Copilot reads .github/agents|skills|instructions|prompts directly.",
   "id": "devcodex",
-  "version": "1.5.4",
+  "version": "1.6.0",
   "name": "DevCodex",
   "publisher": "Rocky",
   "displayName": "DevCodex — AI Development Workflow Assistant",
@@ -11,6 +11,7 @@
   "repository": "https://github.com/vextjs/devcodex",
   "homepage": "https://devcodex.dev",
   "tier": "pro",
+  "_note_tier": "prompt-level declaration; not CLI-enforced. See skills/token-check/SKILL.md.",
   "authentication": {
     "type": "token",
     "endpoint": "https://auth.devcodex.dev/validate",

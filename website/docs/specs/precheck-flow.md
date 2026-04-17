@@ -27,7 +27,7 @@ flowchart TD
 ```
 
 > ℹ️ **检查点 2（任务执行中）**：若任务执行中任意 Axis 检测到异常，在当前回复中立即完成 PC4 诊断并输出，不等待下轮消息。  
-> PC4 内部决策细节见下方细图；完整规范见 `18-spec-radar.instructions.md`。
+> PC4 内部决策细节见下方细图及专属页面；完整规范见 `18-spec-radar.instructions.md`。
 
 ---
 
@@ -56,25 +56,25 @@ flowchart TD
     T_RECORD["立即写入 VL-NNN\nT_RECORD 分支（不延迟）"]
 
     AXIS_A{"Axis A：AI 认知锚点\n当前决策有明确规范支撑？"}
-    A_NORMAL["Axis A ✅ → 继续 B"]
-    A_VL["标记 VL（执行偏差）\n→ 继续 Axis B"]
-    A_PF_G1["标记 PF — G1\n认知锚点缺失\n→ 继续 Axis B"]
-    A_PF_G6["标记 PF — G6\n规范冲突\n→ 继续 Axis B"]
-    A_PF_G8["标记 PF — G8\n外部假设失效\n→ 继续 Axis B"]
+    A_NORMAL["Axis A 认知锚点 ✅\n→ 继续 Axis B 对话轨迹"]
+    A_VL["标记 VL（执行偏差）\n→ 继续 Axis B 对话轨迹"]
+    A_PF_G1["标记 PF — G1\n认知锚点缺失\n→ 继续 Axis B 对话轨迹"]
+    A_PF_G6["标记 PF — G6\n规范冲突\n→ 继续 Axis B 对话轨迹"]
+    A_PF_G8["标记 PF — G8\n外部假设失效\n→ 继续 Axis B 对话轨迹"]
 
     AXIS_B{"Axis B：对话轨迹\n话题是否在收敛？"}
-    B_NORMAL["Axis B ✅ → 继续 C"]
-    B_PF_G2["标记 PF — G2\n循环（≥3轮）\n→ 继续 Axis C"]
-    B_PF_G1["标记 PF — G1\n答案漂移\n→ 继续 Axis C"]
-    B_PF_G3["标记 PF — G3\n拦截滞后\n→ 继续 Axis C"]
-    B_PF_G5["标记 PF — G5\n重复违规\n⚠️ 仅检查点 2\n→ 继续 Axis C"]
-    B_PF_G9["标记 PF — G9\n完成边界缺失\n→ 继续 Axis C"]
+    B_NORMAL["Axis B 对话轨迹 ✅\n→ 继续 Axis C 用户满足度"]
+    B_PF_G2["标记 PF — G2\n循环（≥3轮）\n→ 继续 Axis C 用户满足度"]
+    B_PF_G1["标记 PF — G1\n答案漂移\n→ 继续 Axis C 用户满足度"]
+    B_PF_G3["标记 PF — G3\n拦截滞后\n→ 继续 Axis C 用户满足度"]
+    B_PF_G5["标记 PF — G5\n重复违规\n⚠️ 仅检查点 2\n→ 继续 Axis C 用户满足度"]
+    B_PF_G9["标记 PF — G9\n完成边界缺失\n→ 继续 Axis C 用户满足度"]
 
     AXIS_C{"Axis C：用户预期满足度\n用户是否在补偿 AI 的规范缺陷？"}
     C_OK["PC4 ✅ 三轴正常"]
     C_PF_STRONG["标记 PF — G4\n放弃/重复粘贴\n（单次即确认）"]
     C_PF_WEAK["标记 PF — G4/G7\n微操/纠正/补充背景\n（单次=疑似；≥2次=确认）"]
-    C_PF_G9["标记 PF — G9\n用户说"不够/还差"\n（与 Axis B 联合）"]
+    C_PF_G9["标记 PF — G9\n用户说"不够/还差"\n（与 Axis B 对话轨迹联合）"]
     C_SUSPECT["⚠️ 疑似 PF\n待确认"]
 
     DEFERRED["延迟执行（FC 前）\nPF → pending-fixes.md\nVL → violations.md\n疑似 → 回复末尾提示"]
@@ -123,8 +123,8 @@ flowchart TD
 |------|:------:|---------|
 | **G1** 认知锚点缺失 | A | AI 使用推断性语言（"我认为"/"可能"/"视情况"）而非引用规范；AI 将本应由规范决定的事交给用户选择；同类问题跨会话答案不一致 |
 | **G2** 轨迹循环 | B | 同一话题 ≥3 轮未收敛；用户换了表达方式但实质未变，AI 仍无稳定答案 |
-| **G3** 拦截节点滞后 | B | 应在 CP1 发现的问题在执行阶段才暴露；应在 plan-review 拦截的设计缺陷在 Audit 才发现 |
-| **G4** 用户补偿微操 | C | 用户开始提供逐步指令；用户复制粘贴之前说过的话；用户放弃子任务（"算了我自己做"）|
+| **G3** 拦截节点滞后 | B | 应在 CP1 发现的问题在执行阶段才暴露；应在 plan-review 拦截的设计缺陷在 Audit 才发现；AI 未完成规定前置检查就推进了流程；跨会话恢复后跳过预检查直接执行任务（高频场景）|
+| **G4** 用户预期补偿 | C | 用户开始提供逐步指令；用户复制粘贴之前说过的话；用户放弃子任务（"算了我自己做"）|
 | **G5** 重复违规 | A+B | 当前问题与 violations.md 已有 VL 同类型 → 已有 VL 未转化为规范改进 ⚠️ **仅检查点 2 可评估** |
 | **G6** 规范内部冲突 | A | 两条规范同时适用且指向不同方向，AI 无法裁决 |
 | **G7** 领域知识缺口 | C | 用户在对话中教 AI 项目惯例/框架特性/架构约束 → profile 或规范应覆盖但未包含 |
@@ -138,6 +138,7 @@ flowchart TD
 - 主流程入口见：[主流程图](/specs/flowcharts)
 - 合规语义见：[合规检查框架](/specs/compliance-framework)
 - 前置状态汇总见：[前置状态汇总流程图](/specs/pre-state-summary-flow)
+- **PC4 规范雷达专属流程图见：[PC4 规范雷达流程图](/specs/spec-radar-flow)**（三轴决策树 + G1~G9 + 多轴优先级 + 置信度 + 延迟执行）
 - PC4 完整规范见：`18-spec-radar.instructions.md`（三轴诊断模型 + G1~G9 + 决策流程）
 
 > 约束：预检查是必经阶段，不可跳过；PC4 仅 dev 模式生效，prod 模式跳过。

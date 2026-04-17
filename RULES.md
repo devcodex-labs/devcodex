@@ -1,11 +1,20 @@
-# DevCodex v1.5.4 — 使用入口
+# DevCodex v1.6.0 — 使用入口
 
-> GitHub Copilot Agent Plugin · publisher: Rocky · version: 1.5.4
+> GitHub Copilot Agent Plugin · publisher: Rocky · version: 1.6.0
 
 ## 默认 Copilot 支持
 
 安装后 Copilot 自动加载 DevCodex 规则（通过 `copilot-instructions.md` + `instructions/`），无需选择 Agent。
 `v1.1.0` 起，CLI 不再向目标项目默认分发 `.github/agents/`。如果项目中仍存在 `.github/agents/`，属于历史残留，需要手动清理。
+
+## 双入口加载机制
+
+DevCodex 同时支持两种加载路径，**两条路径功能一致**，由 IDE 决定实际生效方式：
+
+- **默认路径**：`.github/copilot-instructions.md` + `.github/instructions/*` — 通过 Copilot `Use Instruction Files` 自动注入，无需选择 Agent
+- **Agent 路径（可选）**：`@devcodex` / `@devcodex-auto` — 项目侧手动保留 `.github/agents/` 时可用，提供全自动模式（CP 自动通过）
+
+无论哪条路径进入，所有 Instructions 均通过 `applyTo: "**"` 全局生效，规则完全一致。
 
 ## 意图路由
 

@@ -1,7 +1,7 @@
 {
   "_format": "DevCodex internal metadata — NOT a GitHub Copilot official format. Copilot reads .github/agents|skills|instructions|prompts directly.",
   "id": "devcodex",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "name": "DevCodex",
   "publisher": "Rocky",
   "displayName": "DevCodex — AI Development Workflow Assistant",
@@ -69,7 +69,7 @@
     { "id": "impact-review",       "file": "skills/impact-review/SKILL.md",       "tier": "pro"  },
     { "id": "dev-testing",         "file": "skills/dev-testing/SKILL.md",         "tier": "free" }
   ],
-  "_note_skills": "33 Skills registered (v1.0.0: removed fix-incident + self-fix-auto, covered by instructions; dev-testing added as 按需触发 Skill). On-demand reading via 01-common §Skill按需读取表. ⚠️ 扩展点：新增工作流子类型时，需同步更新：01-common §Skill按需读取表 + 对应 Instruction 子类型路由表 + skills/routing/SKILL.md + report/SKILL.md 模板引用表 + 02-output-paths §报告子目录",
+  "_note_skills": "33 Skills registered (v1.0.0: removed fix-incident + self-fix-auto, covered by instructions; dev-testing added as 按需触发 Skill). On-demand reading via 01-common §Skill按需读取表. ⚠️ 扩展点：新增工作流子类型时，需同步更新：01-common §Skill按需读取表 + 对应 Instruction 子类型路由表 + skills/routing/SKILL.md + report/SKILL.md 模板引用表 + 02-output-paths §报告子目录. v1.7.0: delivery-checklist + behavior-checklist 新增 Prompts（不计入 Skills 总数）",
   "instructions": [
     { "id": "safety",       "file": "instructions/00-safety.instructions.md",      "tier": "free" },
     { "id": "common",       "file": "instructions/01-common.instructions.md",      "tier": "free" },

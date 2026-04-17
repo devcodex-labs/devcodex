@@ -83,3 +83,18 @@ async function testEndpoint(method, path, body, expected) {
 - 🔴 禁止只生成 `.http` 不生成 `.cjs`（双产物缺一不可）
 - 脚本必须包含断言（不是只发请求，要验证响应）
 - 接口变更后必须更新双产物（禁止过期文档）
+
+## 流程串联验证模式（F-14）
+
+> 当接口间有依赖关系（如先登录取 token → 再调用业务接口）时，须使用流程串联模式：
+
+```js
+// 串联示例：先获取 token，再使用 token 调用业务接口
+async function runFlow() {
+  const loginRes = await testEndpoint('POST', '/auth/login', { user: 'test', pass: 'test' }, { status: 200 })
+  const token = JSON.parse(loginRes.body).token
+  await testEndpoint('GET', '/api/resource', null, { status: 200 }, { Authorization: `Bearer ${token}` })
+}
+```
+
+触发条件：接口测试用例中有前序接口产出数据被后序接口消费（如 token/id/session）。

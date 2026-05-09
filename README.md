@@ -74,7 +74,7 @@ npx devcodex init
 → 自动识别为 audit 工作流 → 多轮收敛审查 → 输出报告
 ```
 
-标准安装路径下，无需也不依赖 `@DevCodex`。`v1.7.0` 起，Hook 运行时也随 `init/update` 分发到 `.github/hooks/_runtime/`，不再要求目标项目从 `node_modules/@vextjs/devcodex/...` 读取 Hook 脚本。如你的项目中仍保留历史 `.github/agents/`，那属于 legacy custom agents，而非当前默认安装集合。
+标准安装路径下，无需也不依赖 `@DevCodex`。`v1.9.0` 起，Hook 运行时也随 `init/update` 分发到 `.github/hooks/_runtime/`，不再要求目标项目从 `node_modules/@vextjs/devcodex/...` 读取 Hook 脚本。如你的项目中仍保留历史 `.github/agents/`，那属于 legacy custom agents，而非当前默认安装集合。
 
 ## 默认执行原则
 

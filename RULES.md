@@ -1,11 +1,11 @@
-# DevCodex v1.7.0 — 使用入口
+# DevCodex v1.9.0 — 使用入口
 
-> GitHub Copilot Agent Plugin · publisher: Rocky · version: 1.7.0
+> GitHub Copilot Agent Plugin · publisher: Rocky · version: 1.9.0
 
 ## 默认 Copilot 支持
 
 安装后 Copilot 自动加载 DevCodex 规则（通过 `copilot-instructions.md` + `instructions/`），无需选择 Agent。
-`v1.7.0` 起，若宿主支持并启用 Hooks，DevCodex 还会通过 `.github/hooks/` 提供确定性的生命周期护栏；若宿主不支持 Hooks，则自动回退到 instruction-fallback。
+`v1.9.0` 起，若宿主支持并启用 Hooks，DevCodex 还会通过 `.github/hooks/` 提供确定性的生命周期护栏；若宿主不支持 Hooks，则自动回退到 instruction-fallback。
 `v1.1.0` 起，CLI 不再向目标项目默认分发 `.github/agents/`。如果项目中仍存在 `.github/agents/`，属于历史残留，需要手动清理。
 
 ## 双入口加载机制

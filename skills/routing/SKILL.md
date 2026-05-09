@@ -1,14 +1,14 @@
 ---
 name: routing
-description: 定义意图识别结果到工作流的路由映射。本 Skill 为人类可读参考，实际路由逻辑内联在 Agent 文件中。
+description: 定义意图识别结果到工作流的路由映射。本 Skill 为人类可读参考，实际路由由 `01-common.instructions.md` + `intent/SKILL.md` + 各工作流 instructions 共同定义。
 ---
 # Routing Skill
 
 ## 职责
 
-定义意图识别结果到工作流的路由映射。所有意图均通过单一入口 [`devcodex.agent.md`](../../agents/devcodex.agent.md) 分发。
+定义意图识别结果到工作流的路由映射。用户通常经 Agent 入口进入，但**实际路由判定**由 `01-common.instructions.md` §意图路由表 + `intent/SKILL.md` 三问法完成。
 
-> ⚠️ 本 Skill 为**人类可读参考**，实际路由由 `01-common.instructions.md` §意图路由表 + intent/SKILL.md 三问法完成，无需在执行中显式调用本文件。
+> ⚠️ 本 Skill 为**人类可读参考**。Agent 文件只负责入口包装，不再承载完整路由表或工作流主逻辑；执行中无需显式调用本文件。
 
 ## 路由映射表
 

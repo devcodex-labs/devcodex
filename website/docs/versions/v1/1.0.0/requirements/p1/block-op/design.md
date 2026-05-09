@@ -8,7 +8,7 @@
 
 ## 方案概述
 
-操作级违规处理逻辑内联在 `devcodex.agent.md` §② 的操作级违规分支中，按违规类型分级处理。
+操作级违规处理逻辑由 `00-safety.instructions.md` 与 `01-common.instructions.md` 共同定义，按违规类型分级处理。
 
 ---
 
@@ -26,8 +26,8 @@
 
 | 文件 | 角色 |
 |------|------|
-| `agents/devcodex.agent.md` §② | 操作级违规分支逻辑 |
 | `instructions/00-safety.instructions.md` §违规处理 | 分级处理规则 |
+| `instructions/01-common.instructions.md` | 全自动模式豁免边界与优先级规则 |
 
 ---
 

@@ -46,9 +46,11 @@ flowchart TD
 |--------|:-----------:|
 | dev | `requirements/` |
 | dev (optimization) | `optimizations/` |
+| dev (scenario-test) | `scenario-tests/` |
 | fix | `bugs/` |
 | analyze | `analysis/` |
-| audit / self-fix | `audit/` |
+| audit | `audit/` |
+| self-fix | `self-fix/` |
 
 ## 报告二次验证（V1~V6）
 

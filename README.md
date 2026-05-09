@@ -45,7 +45,7 @@ npx devcodex init
 ├── copilot-instructions.md  ← 默认 Copilot always-on 总则（新增）
 ├── instructions/   ← Instructions 约束（12 个，含全部工作流规则）
 ├── skills/         ← Skill 详细检查标准（33 个，按需读取）
-├── prompts/        ← Prompt 模板（22 个）
+├── prompts/        ← Prompt 模板（24 个）
 ├── hooks/          ← 宿主生命周期 Hook 配置与运行时
 │   ├── devcodex.lifecycle.json
 │   └── _runtime/
@@ -156,7 +156,7 @@ devcodex/
 ├── agents/        # Agent 源文件（源码仓保留，不再默认分发到目标项目）
 ├── instructions/  # 全局 Instructions（12 个，含工作流规则摘要，自动注入）
 ├── skills/        # Skill 详细检查标准（33 个，按 01-common §按需读取表 路由读取）
-├── prompts/       # Prompt 模板（22 个）
+├── prompts/       # Prompt 模板（24 个）
 ├── hooks/         # Workspace Hooks 配置与分发到 `.github/hooks/_runtime/` 的运行时
 ├── data/          # 运行时数据模板（分发到目标项目的空骨架）
 │   ├── README.md
@@ -198,7 +198,7 @@ devcodex/
 - 对 `.github/` 目录有其他强约束、无法接受 DevCodex 写入的项目
 
 **前置条件**：
-- Node.js ≥ 16（CLI 零依赖，仅使用标准库）
+- Node.js ≥ 18（CLI 零依赖，仅使用标准库）
 - 已启用 Copilot `Use Instruction Files`（默认开启）
 - 已安装 GitHub Copilot 的 IDE（VS Code / JetBrains 全量支持；Visual Studio / Xcode / Eclipse 部分支持，详见 §IDE 兼容性）
 

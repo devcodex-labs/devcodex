@@ -8,7 +8,7 @@
 
 ## 方案概述
 
-执行阶段合规检查通过 `compliance` Skill 实现 FC（形式合规）+ SC（实质合规）三层校验，在所有工作流执行完毕后、回复发送前强制运行。
+执行阶段合规检查由 `17-compliance.instructions.md` 定义触发顺序与检查层级，`compliance` Skill 提供辅助标准；在适用工作流执行完毕后、回复发送前强制运行。
 
 ---
 
@@ -31,6 +31,11 @@
 - SC6：Agent SUMMARY 已更新
 - SC9：Token 防护（>15 轮先持久化记忆）
 
+### RC / 报告 / 任务完成验证
+- RC：恢复性检查，确认记忆与产物足以恢复上下文
+- V：报告二次验证（V1~V6）
+- T：任务完成验证（T1~T9）
+
 ### ENV_MODE 差异
 - `prod`：不执行合规检查（规范已验证）
 - `dev`：全量 FC+SC+RC+T
@@ -43,7 +48,7 @@
 |------|------|
 | `skills/compliance/SKILL.md` | FC/SC/RC 完整检查逻辑 |
 | `instructions/17-compliance.instructions.md` | 合规检查触发规则 |
-| `agents/devcodex.agent.md` 全局约束 | 合规检查强制执行声明 |
+| `instructions/15-memory.instructions.md` | 记忆 / SUMMARY 写入约束 |
 
 ---
 

@@ -25,9 +25,11 @@
 |--------|--------|
 | dev | `requirements/` |
 | dev (optimization) | `optimizations/` |
+| dev (scenario-test) | `scenario-tests/` |
 | fix | `bugs/` |
 | analyze | `analysis/` |
-| audit / self-fix | `audit/` |
+| audit | `audit/` |
+| self-fix | `self-fix/` |
 
 ### 头部必填项
 项目 / 类型 / 子类型 / 创建日期 / Agent / 状态

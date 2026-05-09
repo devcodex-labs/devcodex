@@ -4,6 +4,8 @@
 > **对应流程图**：各工作流有独立流程，v1.0.0 不在 `/specs/` 中固化，属于版本化需求  
 > **状态**：✅ 已完成（2026-04-08）
 
+> ⚠️ 历史阶段说明：本页记录的是 **v1.0.0 / 2026-04-08** 当时的工作流实施设计。当前 `audit` / `analyze` 的收敛规则已在后续版本中演进；若与当前 `12-audit.instructions.md` / `13-analyze.instructions.md` 冲突，以当前规则文件为准。
+
 ---
 
 ## 流程回顾
@@ -12,8 +14,8 @@
 路由完成后 → 进入对应工作流：
   dev  → CP1(需求确认)→CP2(方案确认)→plan-review→impact-review→CP3(实施计划)→执行
   fix  → CP1(问题确认)→CP2(方案确认)→执行→三步扫描→CP3(条件触发)
-  audit → 多轮收敛（连续 N 轮无新发现）
-  analyze → 单轮只读分析
+  audit → 当时设计为多轮收敛（现已统一为连续 3 轮零发现）
+  analyze → 当时设计为更轻量的只读分析（现已升级为 ≥3 轮收敛）
   self-fix → A1~A5 自动修复 / Pending 级记录
   resume → 恢复上下文 → 重路由原始工作流
   plan → 拆解目标 → 执行计划
@@ -93,7 +95,7 @@ Agent 文件引用的 **34 个 Skills** 中，Stage 5 仅产出 **4 个**。其�
 | 6 审查目标类型 | 规范文件 / 技术方案 / 需求文档 / 项目工程(Pro) / 报告 / 通用文档 | |
 | **审查目标识别** | 基于用户意图智能识别（不依赖关键词，以覆盖范围和收敛期望为准）| **v0.03 §1~§2** |
 | **维度规范加载优先级** | 租户定制(P3) > Plugin 默认(P5) > 01-common 兜底(P5) | **v0.03 明确** |
-| 收敛规则 | 连续 N 轮无新发现（定向=2轮，全面=3轮） | |
+| 收敛规则 | 当时草案为连续 N 轮无新发现（定向=2轮，全面=3轮）；当前以 `12-audit.instructions.md` 为准 | |
 | **未收敛时** | 自动进入下一轮，不询问用户 | **v0.03 明确** |
 | 三项验证 | 每条问题必须附合理性+可实施性+收益 | |
 | **维度盲区** | 遇到无对应维度的问题 → 标注 `[维度盲区]` → 写入 `data/gap-registry.md` | **v0.03 明确** |
@@ -109,8 +111,8 @@ Agent 文件引用的 **34 个 Skills** 中，Stage 5 仅产出 **4 个**。其�
 | 内容项 | 中文说明 | 备注 |
 |--------|---------|------|
 | 只读约束 | 禁止修改文件 | |
-| 单轮完成 | 输出结论即完成（不进行多轮收敛，区别于 audit） | |
-| 子类型 | 技术调研(research) — 按 analyze-research Skill 多步骤执行 / 默认分析 — 单轮直接分析 | **v0.03 明确** |
+| 收敛方式 | 当时草案中 analyze 比 audit 更轻；当前默认 analyze 也执行多轮收敛 | |
+| 子类型 | 技术调研(research) — 按 analyze-research Skill 多步骤执行 / 默认分析 — 当前同样遵循多轮收敛 | **后续已演进** |
 | 三项验证 | 每条结论附合理性+可实施性+收益（⛔ 缺少任意一项 → SC1 不通过）| |
 | **影响评估触发** | 分析结论涉及架构/方案影响时 → 调用 impact-review Skill | **v0.03 明确** |
 | 需修改时 | 报告中建议用户重新发送 → 触发 dev/fix | |
@@ -214,7 +216,7 @@ Agent 文件引用的 **34 个 Skills** 中，Stage 5 仅产出 **4 个**。其�
 | 1 | `instructions/10-dev.instructions.md` | dev 工作流 8 子类型 | ✅ 有（56 行）| ⑧ dev 执行 |
 | 2 | `instructions/11-fix.instructions.md` | fix 工作流 3 子类型 | ✅ 有（51 行）| ⑧ fix 执行 |
 | 3 | `instructions/12-audit.instructions.md` | audit 多轮收敛 | ✅ 有（39 行）| ⑧ audit 执行 |
-| 4 | `instructions/13-analyze.instructions.md` | analyze 单轮只读 | ✅ 有（32 行）| ⑧ analyze 执行 |
+| 4 | `instructions/13-analyze.instructions.md` | analyze 执行规则（历史阶段草案较轻，当前已演进为多轮收敛） | ✅ 有（32 行）| ⑧ analyze 执行 |
 | 5 | `instructions/14-self-fix.instructions.md` | self-fix A1~A5 | ✅ 有（51 行）| ⑧ self-fix 执行 |
 | 6 | `skills/cp-gate/SKILL.md` | CP 门控 + ENV_MODE + 全自动 | ✅ 有（71 行）| CP1/CP2/CP3 |
 | 7 | `skills/plan/SKILL.md` | plan 兜底工作流 | ✅ 有（43 行）| ⑧ plan 执行 |

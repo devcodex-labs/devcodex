@@ -8,13 +8,13 @@
 
 ## 方案概述
 
-写入摘要通过 `devcodex.agent.md` §③ 调用 `summary` Skill 实现，在安全检查通过后立即执行。
+写入摘要由 `skills/summary/SKILL.md` 与 `15-memory.instructions.md` 共同定义，在安全底线未触发致命终止时立即执行。
 
 ---
 
 ## 核心设计
 
-按 `devcodex.agent.md` §③ 定义：
+按当前规则定义：
 1. 确定日期 + 定位记忆日文件（`.devcodex/.memory/clients/<agent>/tasks/YYYYMMDD.md`）
 2. 确定会话编号（`## 会话 NN`，两位数递增）
 3. 写入初始段落（时间 + 意图 + 状态 🔄）
@@ -34,8 +34,8 @@
 
 | 文件 | 角色 |
 |------|------|
-| `agents/devcodex.agent.md` §③ | 写入摘要调用入口 |
 | `skills/summary/SKILL.md` | 摘要写入逻辑（格式/字段/防护）|
+| `instructions/15-memory.instructions.md` | 记忆触发规则与字段约束 |
 
 ---
 

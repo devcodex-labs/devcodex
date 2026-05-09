@@ -29,9 +29,11 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 |--------|:------:|
 | dev | `requirements/` |
 | dev (optimization) | `optimizations/` |
+| dev (scenario-test) | `scenario-tests/` |
 | fix | `bugs/` |
 | analyze | `analysis/` |
-| audit / self-fix | `audit/` |
+| audit | `audit/` |
+| self-fix | `self-fix/` |
 
 ## 命名规则（FC4 检查）
 

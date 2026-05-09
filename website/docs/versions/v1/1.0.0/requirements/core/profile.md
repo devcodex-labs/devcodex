@@ -18,6 +18,6 @@
 
 ## 核心规范（已写入 profile）
 
-- 所有需求统一写入 `website/docs/requirements/`
-- 规范文件（agents/skills/instructions）统一用**英文**编写
-- `devcodex update` 同步变更到 `e:\MySelf\.github\`
+- `1.0.0` 基线需求保留在 `website/docs/versions/v1/1.0.0/requirements/`；后续新增需求、Bug 修复和发布准备必须在同级新版本目录中继续（如 `1.0.1`）
+- 规范文件（agents/skills/instructions）统一用**中文**编写
+- `devcodex update` 从源码仓同步变更到目标工作区的 `.github/`

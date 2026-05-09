@@ -4,6 +4,8 @@
 > **对应流程图**：[写入摘要流程图](/specs/summary-flow) · [检索记忆流程图](/specs/memory-retrieval-flow)  
 > **状态**：✅ 已完成（2026-04-08）
 
+> ⚠️ 历史阶段说明：本页记录的是 **v1.0.0 / 2026-04-08** 的 Stage 3 设计，保留了当时对摘要与记忆模块的拆分方式。当前真实规则以 `15-memory.instructions.md`、`skills/memory/SKILL.md` 与 `skills/summary/SKILL.md` 为准。
+
 ---
 
 ## 流程回顾

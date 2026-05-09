@@ -8,18 +8,18 @@
 
 ## 方案概述
 
-检索记忆通过 `devcodex.agent.md` §④ 调用 `memory` Skill 实现，按意图类型分级读取。
+检索记忆通过 `skills/memory/SKILL.md` 与 `15-memory.instructions.md` 实现，按意图类型分级读取，并受 SUMMARY 优先 / resume 优先读取当日日志的顺序约束。
 
 ---
 
 ## 核心设计
 
-按 `devcodex.agent.md` §④ 定义的读取策略：
+按当前规则定义的读取策略：
 
 | 场景 | 读取范围 |
 |------|---------|
-| 正常会话 | 今日 + 昨日文件（并发读取）|
-| resume | 最近 14 天文件 |
+| 正常会话 | Agent SUMMARY → 今日文件 + 昨日文件 |
+| resume | 今日任务文件 → Agent SUMMARY；超过 14 天时再按索引精确定位 |
 | 今日不存在 | 仅昨日 |
 | 解析失败 | 重命名 `.bak.md` + 新建 |
 
@@ -32,7 +32,6 @@
 
 | 文件 | 角色 |
 |------|------|
-| `agents/devcodex.agent.md` §④ | 检索记忆调用入口 |
 | `skills/memory/SKILL.md` | 记忆读写逻辑（路径/策略/约束）|
 | `instructions/15-memory.instructions.md` | 记忆触发规则 |
 

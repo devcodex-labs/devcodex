@@ -8,13 +8,13 @@
 
 ## 方案概述
 
-安全检查通过 `devcodex.agent.md` §② 内联实现，对用户请求逐项执行 S01~S06 判定，分三路分流。
+安全检查由 `00-safety.instructions.md` 的 S01~S06 与 `01-common.instructions.md` 的强制约束共同定义；预检查完成后，对用户请求逐项判定并分三路分流。
 
 ---
 
 ## 核心设计
 
-按 `devcodex.agent.md` §② 定义，预检查完成后执行 S01~S06 逐项判定：
+按当前规则定义，预检查完成后执行 S01~S06 逐项判定：
 
 - **通过** → 进入 ③ 写入摘要
 - **操作级违规**（S01 不可逆 / S04 overwrite / S06 危险命令）→ 阻断该操作，给出合规替代，继续主流程
@@ -32,8 +32,8 @@ AUDIT_LOG 在两个位置触发（相同写入方式）：
 
 | 文件 | 角色 |
 |------|------|
-| `agents/devcodex.agent.md` §② | 安全检查主逻辑 |
 | `instructions/00-safety.instructions.md` | S01~S06 完整规则定义 |
+| `instructions/01-common.instructions.md` | 安全底线与工作流规则的优先级边界 |
 | `data/violations.md` | 违规审计记录存储 |
 
 ---

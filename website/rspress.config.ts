@@ -99,6 +99,15 @@ export default defineConfig({
                     items: [
                         { text: '系列概览', link: '/versions/v1/' },
                         {
+                            text: '1.0.1',
+                            collapsed: false,
+                            items: [
+                                { text: '版本概述', link: '/versions/v1/1.0.1/' },
+                                { text: '需求变更日志', link: '/versions/v1/1.0.1/CHANGELOG' },
+                                { text: '需求总览', link: '/versions/v1/1.0.1/requirements/' },
+                            ],
+                        },
+                        {
                             text: '1.0.0',
                             collapsed: false,
                             items: [

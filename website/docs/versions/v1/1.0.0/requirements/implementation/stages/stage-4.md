@@ -4,6 +4,8 @@
 > **对应流程图**：[前置状态汇总](/specs/pre-state-summary-flow) · [开发阶段合规检查](/specs/dev-compliance-flow) · [主流程图](/specs/flowcharts)  
 > **状态**：✅ 已完成（2026-04-08）
 
+> ⚠️ 历史阶段说明：本页保留的是 **v1.0.0 / 2026-04-08** 的 Stage 4 设计，仍把前置状态汇总与路由映射写成 Agent 内联段落。当前实际路由与预检查输出已由 `01-common.instructions.md`、`17-compliance.instructions.md` 与相关 Skill 承载。
+
 ---
 
 ## 流程回顾
@@ -41,7 +43,7 @@
 ### 1. Agent 前置状态汇总 + 预检查输出段（内联补全）
 
 **中文对应**：Agent 文件内的前置汇总与开发闸门  
-**目标文件**：`agents/devcodex.agent.md`（Stage 1 已创建）中追加 ⑤⑥ 段  
+**当时目标文件**：`agents/devcodex.agent.md`（Stage 1 已创建）中追加 ⑤⑥ 段  
 **v4 参考**：`v4/specs/common.md` §2（N16 PRECHECK_OUTPUT）
 
 | 内容项 | 中文说明 | 备注 |
@@ -65,7 +67,7 @@
 | 内容项 | 中文说明 | 备注 |
 |--------|---------|------|
 | frontmatter | `name: routing` / `description: "Route to workflow..."` | |
-| **参考文档声明** | 本 Skill 为**人类可读参考**，路由映射逻辑已内联在 Agent 文件中 | **v4 routing.md 声明** |
+| **参考文档声明** | 本 Skill 为**人类可读参考**；当前实际路由已迁到 `01-common.instructions.md` + `intent/SKILL.md`，此处保留的是当时阶段设计背景 | **历史说明** |
 | 路由表 | intent → workflow 映射（dev/fix/analyze/audit/self-fix/resume/other/chat） | 8 种意图 |
 | 授权门控 | 路由确定后调用 token-check 验证层级 | Free 访问 Pro → 提示升级 |
 | chat 快速路径 | 三问全指向分析 + 无文件变更 → 跳过 CP 和报告 → CHAT_EXEC→CHAT_MEM→CLOSE | |

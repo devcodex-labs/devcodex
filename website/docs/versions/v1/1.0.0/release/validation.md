@@ -1,12 +1,14 @@
-# 开发验证规范
+# 开发验证规范（v1.0.0 历史记录）
 
 > **优先级**：P2  
-> **状态**：⬜ 待开发  
+> **状态**：✅ 历史记录（当前能力已落地）  
 > **关联**：[agent-modes.md](/versions/v1/1.0.0/requirements/p1/agent-modes/) · [skills-core.md](/versions/v1/1.0.0/requirements/p2/skills-core)
 
 ---
 
 ## 背景
+
+> ⚠️ 本页记录的是 **v1.0.0 发布期** 的验证设计与场景拆分。当前仓库已经落地 `scripts/validate.js` 与真实 Hooks 验证闭环；若与当前实现冲突，以当前脚本与主规范文件为准。
 
 DevCodex 是一个 AI Agent 规范系统，本身没有传统意义上的单元测试。  
 验证方式以"场景驱动"为主——在 AI 会话中执行场景，观察 Agent 行为是否符合规范预期。
@@ -27,7 +29,7 @@ DevCodex 是一个 AI Agent 规范系统，本身没有传统意义上的单元�
 | Hooks 事件名格式正确（`UserPromptSubmit` 等）| JSON 解析 | 同上 |
 | 所有 `.md` 文件有效 frontmatter | gray-matter 解析 | 同上 |
 
-**验证脚本位置**：`scripts/validate.js`（待开发，见 [root.md](/versions/v1/1.0.0/requirements/p0/root)）
+**验证脚本位置**：`scripts/validate.js`（当前已实现；本页保留的是当时的设计口径）
 
 ---
 
@@ -93,7 +95,7 @@ DevCodex 是一个 AI Agent 规范系统，本身没有传统意义上的单元�
 
 - VS Code Insiders（支持 GitHub Copilot Agent 功能）
 - `.github/` 目录已完整部署（通过 `devcodex init` 或手动同步）
-- 测试项目：`E:\MySelf`（已有 `.github/` 目录）
+- 测试项目：目标工作区根目录（已有 `.github/` 目录）
 
 ---
 

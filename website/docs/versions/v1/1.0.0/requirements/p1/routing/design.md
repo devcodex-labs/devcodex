@@ -8,19 +8,19 @@
 
 ## 方案概述
 
-路由通过 `devcodex.agent.md` §⑦ 内联实现意图到工作流的映射，配合 `routing` Skill 和授权门控。
+路由由 `01-common.instructions.md` §意图路由表定义主映射，`intent/SKILL.md` 负责前置识别 + 三问法，`routing/SKILL.md` 仅保留人类可读参考，授权门控再由 `token-check` Skill 执行。
 
 ---
 
 ## 核心设计
 
-按 `devcodex.agent.md` §⑦ 定义的路由映射：
+按当前主规则定义的路由映射：
 
 | 意图 | 工作流 | 授权 |
 |------|--------|------|
 | `dev` | 开发工作流（8 子类型）| Free（部分需 Pro）|
 | `fix` | 修复工作流（3 子类型）| Free（部分需 Pro）|
-| `analyze` | 分析工作流（单轮）| Free |
+| `analyze` | 分析工作流（多轮收敛）| Free |
 | `audit` | 审计工作流（多轮收敛）| Free |
 | `self-fix` | 规范自修复工作流 | Pro |
 | `resume` | 上下文恢复工作流 | Pro |
@@ -37,9 +37,10 @@
 
 | 文件 | 角色 |
 |------|------|
-| `agents/devcodex.agent.md` §⑦ | 路由主逻辑 + 特殊规则 |
-| `skills/routing/SKILL.md` | 路由映射参考（人类可读）|
+| `instructions/01-common.instructions.md` §意图路由表 | 路由主逻辑 + 授权声明 |
+| `skills/routing/SKILL.md` | 路由映射参考（人类可读，不再作为权威执行面） |
 | `skills/intent/SKILL.md` | 意图识别结果输入 |
+| `skills/token-check/SKILL.md` | 路由后的授权门控 |
 
 ---
 

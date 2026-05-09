@@ -8,13 +8,13 @@
 
 ## 方案概述
 
-前置状态汇总通过 `devcodex.agent.md` §⑤ 内联实现，聚合 ①~④ 输出为统一状态视图。
+前置状态汇总由 `17-compliance.instructions.md` 的 PC0~PC4 状态块承载，聚合预检查、Profile、记忆与产物落点信息，输出统一状态视图。
 
 ---
 
 ## 核心设计
 
-按 `devcodex.agent.md` §⑤ 定义，汇总以下检查项：
+按当前规则定义，汇总以下检查项：
 
 | 检查项 | 来源 |
 |--------|------|
@@ -32,7 +32,8 @@
 
 | 文件 | 角色 |
 |------|------|
-| `agents/devcodex.agent.md` §⑤ | 状态汇总逻辑（无独立 Skill）|
+| `instructions/17-compliance.instructions.md` | PC0~PC4 状态块与预检查输出 |
+| `instructions/15-memory.instructions.md` | 会话状态与未完成任务读取规则 |
 
 ---
 

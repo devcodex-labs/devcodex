@@ -4,6 +4,8 @@
 > **对应流程图**：[预检查流程图](/specs/precheck-flow)  
 > **状态**：✅ 已完成（2026-04-08）
 
+> ⚠️ 历史阶段说明：本页记录的是 **v1.0.0 / 2026-04-08** 当时的 Stage 1 设计与拆分方式，保留了早期以 `agents/devcodex.agent.md` 为主承载面的写法。当前 `1.9.0` 的真实实现面已经迁移到 `instructions + skills + hooks`，本页不应再作为当前事实源使用。
+
 ---
 
 ## 预检查流程回顾
@@ -91,7 +93,7 @@
 | 前置识别 | chat 检测（纯问答，无文件变更意图）→ 直接路由 | 优先于三问 |
 | 三问判断法 | Q1 变更 vs 结论 / Q2 手段 vs 目的 / Q3 是否需要修改文件 | 基于语义，不依赖关键词 |
 | 意图类型 | dev / fix / analyze / audit / self-fix / chat / resume / other | 8 种 |
-| analyze vs audit 区分 | 单轮 vs 多轮收敛 | |
+| analyze vs audit 区分 | 早期草案中 analyze 更轻、audit 走多轮收敛；当前以 `13-analyze.instructions.md` / `12-audit.instructions.md` 为准 | |
 | dev vs fix 区分 | 主动改进 vs 被动修正；模糊时优先 fix | |
 | self-fix 识别标准 | 修改对象是 DevCodex 规范文件 + 修复动机是内部不一致 | |
 | 多任务检测 | ≥2 任务→列出建议拆分；≥5 任务→建议拆分会话 | C14 |

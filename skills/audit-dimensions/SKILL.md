@@ -65,7 +65,7 @@ description: D1~D22 规范文件审查维度总览 — 规范库/specs 文件专
 
 | # | 检查内容 |
 |:-:|---------|
-| 1 | `devcodex.agent.md` 的路由表是否覆盖所有 8 个意图（dev/fix/analyze/audit/self-fix/resume/other/chat）|
+| 1 | `01-common.instructions.md` §意图路由表是否覆盖所有 8 个意图（dev/fix/analyze/audit/self-fix/resume/other/chat），且与 `routing/SKILL.md` / `intent/SKILL.md` 一致 |
 | 2 | `intent/SKILL.md` 的三问法和前置识别是否可由 LLM 无歧义执行 |
 | 3 | `routing/SKILL.md` 的子类型路由表是否与各工作流 Skill 声明的子类型一致 |
 
@@ -89,8 +89,8 @@ description: D1~D22 规范文件审查维度总览 — 规范库/specs 文件专
 | 1 | L1~L3 联动检查（见上方关键检查）|
 | 2 | `02-output-paths.instructions.md` 与各工作流 report 模板的产物路径是否一致 |
 | 3 | `token-check/SKILL.md` 的功能门控矩阵与各工作流描述的 tier 限制是否一致 |
-| 4 | `devcodex.agent.md` 中的路由表 tier 列与 `plugin.json` 注册的 tier 是否一致 |
-| 5 | `devcodex.agent.md` ①~⑦ 前置检查步骤是否与 `01-common.instructions.md` 预检查规则对齐 |
+| 4 | `01-common.instructions.md` §意图路由表中的授权列是否与各工作流描述的 tier 限制一致 |
+| 5 | `17-compliance.instructions.md` 的 PC0~PC4 预检查、`15-memory.instructions.md` 的读取顺序与 `01-common.instructions.md` 的路由 / Profile 规则是否对齐 |
 
 **D6 示例可执行性 🟡**
 
@@ -108,8 +108,8 @@ description: D1~D22 规范文件审查维度总览 — 规范库/specs 文件专
 
 | # | 检查内容 |
 |:-:|---------|
-| 1 | 工作流逻辑是否只定义在 `devcodex.agent.md` + 各 Skill 文件中，未散落到 instructions |
-| 2 | `instructions/` 目录下是否存在本应在 Skills 中的执行逻辑（instructions 应只含约束规则）|
+| 1 | 工作流主规则是否收敛在 `instructions/`，Skill 仅承载详细检查标准 / 模板 / 补充说明，Agent 入口不重复维护同一事实 |
+| 2 | `instructions/`、`skills/`、`website` 之间是否存在同一事实多处维护但无权威来源声明的分叉 |
 | 3 | `compliance/SKILL.md` 是否包含非合规检查内容（如执行逻辑）→ 应拆出 |
 
 **D8 版本标注 🟡**
@@ -124,7 +124,7 @@ description: D1~D22 规范文件审查维度总览 — 规范库/specs 文件专
 | # | 检查内容 |
 |:-:|---------|
 | 1 | 各 SKILL.md 中引用的 prompt 模板路径（`prompts/*.prompt.md`）是否全部存在 |
-| 2 | `devcodex.agent.md` Skills 注释与 `plugin.json` skills 注册 id 是否一一对应 |
+| 2 | Agent 入口文件中的职责说明是否与 `instructions/` 当前真实执行面一致，未继续引用已下沉或已移除的主逻辑 |
 | 3 | `report/SKILL.md` 模板引用是否覆盖所有工作流（dev/fix/analyze/audit） |
 
 ---
@@ -144,9 +144,9 @@ description: D1~D22 规范文件审查维度总览 — 规范库/specs 文件专
 
 | # | 检查内容 |
 |:-:|---------|
-| 1 | `00-safety.instructions.md` 与 `devcodex.agent.md` 之间是否存在规则冲突 |
+| 1 | `00-safety.instructions.md` 与 `01-common.instructions.md` / 各工作流 instructions 之间是否存在规则冲突 |
 | 2 | `instructions/` 各文件之间优先级是否明确，是否有相互矛盾的约束 |
-| 3 | `devcodex.agent.md` 步骤顺序是否与 `01-common.instructions.md` 的约束优先级一致 |
+| 3 | `17-compliance.instructions.md` 的预检查 / 合规顺序是否与 `01-common.instructions.md`、`15-memory.instructions.md` 的约束优先级一致 |
 
 **D12 路由正确性 🔴**
 

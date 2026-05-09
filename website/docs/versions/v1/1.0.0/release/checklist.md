@@ -1,4 +1,4 @@
-# 发布前检查清单
+# 发布前检查清单（v1.0.0 历史记录）
 
 > **优先级**：P1  
 > **状态**：🔄 持续更新  
@@ -8,7 +8,9 @@
 
 ## 概述
 
-DevCodex v1.0.0 是私有项目，发布指"部署到 `E:\MySelf\.github\` 可稳定使用"。  
+> ⚠️ 本页保留的是 **v1.0.0 发布阶段** 的历史检查清单，用于回顾当时的交付范围；若与当前 `1.9.0` 实现冲突，以当前 `README.md`、`.devcodex/profile/*` 和 `scripts/validate.js` 的规则为准。
+
+DevCodex v1.0.0 的发布，指部署到**目标工作区**的 `.github/` 后可稳定使用。  
 本清单定义发布前必须完成的所有工作项。
 
 ---
@@ -121,7 +123,7 @@ DevCodex v1.0.0 是私有项目，发布指"部署到 `E:\MySelf\.github\` 可�
 | 日期 | 完成内容 |
 |------|---------|
 | 2026-04-04 | Skills 结构修复（扁平化 + name 字段修正，34 个，原 v0.03 已删除）|
-| 2026-04-04 | `E:\MySelf\.github\` 重建（从源码目录同步）|
+| 2026-04-04 | 目标工作区 `.github/` 重建（从源码目录同步）|
 | 2026-04-04 | Hooks 事件名修复（`UserPromptSubmit` / `Stop`）|
 | 2026-04-04 | `directory-structure.md` 官方标准规范文档完成 |
 | 2026-04-04 | 需求文档框架搭建（agent-modes / dev-validation / storage-spec / memory-resume / v2-roadmap）|

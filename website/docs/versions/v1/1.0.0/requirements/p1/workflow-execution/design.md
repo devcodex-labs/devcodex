@@ -8,7 +8,7 @@
 
 ## 方案概述
 
-工作流执行通过 `devcodex.agent.md` 各工作流章节实现，每种工作流有独立的执行链和子类型 Skill。
+工作流执行以 `instructions/10-dev.instructions.md` ~ `14-self-fix.instructions.md` 作为主规则面，子类型 Skill 提供细化标准；Agent 文件只保留入口包装，不再承载各工作流完整执行章节。
 
 ---
 
@@ -25,15 +25,15 @@
 - 修复三步必做：同类全局扫描 / 数据联动扫描 / grep 零残留复核
 
 ### audit 工作流
-- 只读，多轮收敛（连续 N 轮无新发现）
+- 只读，多轮收敛（连续 3 轮零发现）
 - 6 种目标类型对应不同 Skill
 - 用户面问题清单与建议也必须附三列验证（合理性 / 可实施性 / 收益）
 
 ### analyze 工作流
-- 只读，单轮分析，每条结论附三项验证，且三项验证必须在用户面结论中可见
+- 只读，至少 3 轮分析，连续 2 轮无新发现后收敛；每条结论附三项验证，且三项验证必须在用户面结论中可见
 
 ### self-fix / resume / chat / plan
-- 分别有独立执行逻辑，详见 `devcodex.agent.md` 各节
+- 分别由对应 instruction / skill 组合定义，Agent 文件仅作为入口包装
 
 ---
 
@@ -41,7 +41,6 @@
 
 | 文件 | 角色 |
 |------|------|
-| `agents/devcodex.agent.md` dev~plan 各节 | 各工作流执行逻辑 |
 | `instructions/10-dev.instructions.md` | dev 工作流规则 |
 | `instructions/11-fix.instructions.md` | fix 工作流规则 |
 | `instructions/12-audit.instructions.md` | audit 工作流规则 |
@@ -50,6 +49,7 @@
 | `skills/dev-default/SKILL.md` | dev 默认子类型 |
 | `skills/fix-default/SKILL.md` | fix 默认子类型 |
 | `skills/cp-gate/SKILL.md` | CP 确认机制 |
+| `skills/routing/SKILL.md` | 子类型 / 特殊路由参考 |
 
 ---
 

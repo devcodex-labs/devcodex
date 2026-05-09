@@ -4,6 +4,8 @@
 > **对应流程图**：[主流程图](/specs/flowcharts) · [合规检查框架](/specs/compliance-framework)  
 > **状态**：✅ 已完成（2026-04-08）
 
+> ⚠️ 历史阶段说明：本页记录的是 **v1.0.0 / 2026-04-08** 的 Stage 6 设计与审查结果。当前报告路径、文件数量和 Hooks 分发面已在后续版本演进；若与当前 `16-report.instructions.md`、`17-compliance.instructions.md` 或 `README.md` 冲突，以当前文件为准。
+
 ---
 
 ## 流程回顾
@@ -81,7 +83,7 @@
 | frontmatter | `name: report` / `description: "Generate workflow report..."` | |
 | **需求级路径（优先）** | `<任务目录>/reports/<agent>/YYYYMMDD/NN--<简述>.md` | v0.03 双层路径 |
 | **项目级路径（兜底）** | `.devcodex/reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md` | |
-| 子目录规则 | dev→requirements / dev(optimization)→optimizations / fix→bugs / analyze→analysis / audit/self-fix→audit | **v0.03 五类** |
+| 子目录规则 | 当前：dev→requirements / dev(optimization)→optimizations / dev(scenario-test)→scenario-tests / fix→bugs / analyze→analysis / audit→audit / self-fix→self-fix | **已按当前规则收口** |
 | 编号规则 | NN 当日序号，01 起递增（扫描同目录取 max+1），**双横杠**分隔（FC4 检查）| |
 | 头部必填 | 项目 / 类型 / 子类型（无时省略）/ 日期 / Agent / 状态 | |
 | **audit 额外头部** | 审查目标类型 / 审查范围 / 收敛状态 | **v0.03 明确** |

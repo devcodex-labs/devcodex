@@ -45,6 +45,7 @@
 | [变更护栏（提交边界 / 官方文档 / Commit 摘要）](./p1/change-guardrails/) | [设计](./p1/change-guardrails/design) | [进度](./p1/change-guardrails/progress) | ✅ 已实现 |
 | [存储规范（位置 / 产物 / gitignore）](./p1/storage-spec/) | [设计](./p1/storage-spec/design) | [进度](./p1/storage-spec/progress) | ✅ 已实现 |
 | [记忆恢复与 Resume 工作流](./p1/memory-resume/) | [设计](./p1/memory-resume/design) | [进度](./p1/memory-resume/progress) | ✅ 已实现 |
+| [宿主生命周期硬门禁（Hooks 优先）](./p1/host-lifecycle-gates/) | [设计](./p1/host-lifecycle-gates/design) | [进度](./p1/host-lifecycle-gates/progress) | 🟡 实施中 |
 
 ## P2 实现规范
 

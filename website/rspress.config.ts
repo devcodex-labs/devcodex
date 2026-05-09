@@ -241,6 +241,15 @@ export default defineConfig({
                                                     ],
                                                 },
                                                 {
+                                                    text: '变更护栏',
+                                                    collapsed: true,
+                                                    items: [
+                                                        { text: '需求概况', link: '/versions/v1/1.0.0/requirements/p1/change-guardrails/' },
+                                                        { text: '技术方案', link: '/versions/v1/1.0.0/requirements/p1/change-guardrails/design' },
+                                                        { text: '实施进度', link: '/versions/v1/1.0.0/requirements/p1/change-guardrails/progress' },
+                                                    ],
+                                                },
+                                                {
                                                     text: '存储规范',
                                                     collapsed: true,
                                                     items: [
@@ -256,6 +265,15 @@ export default defineConfig({
                                                         { text: '需求概况', link: '/versions/v1/1.0.0/requirements/p1/memory-resume/' },
                                                         { text: '技术方案', link: '/versions/v1/1.0.0/requirements/p1/memory-resume/design' },
                                                         { text: '实施进度', link: '/versions/v1/1.0.0/requirements/p1/memory-resume/progress' },
+                                                    ],
+                                                },
+                                                {
+                                                    text: '宿主生命周期硬门禁',
+                                                    collapsed: true,
+                                                    items: [
+                                                        { text: '需求概况', link: '/versions/v1/1.0.0/requirements/p1/host-lifecycle-gates/' },
+                                                        { text: '技术方案', link: '/versions/v1/1.0.0/requirements/p1/host-lifecycle-gates/design' },
+                                                        { text: '实施进度', link: '/versions/v1/1.0.0/requirements/p1/host-lifecycle-gates/progress' },
                                                     ],
                                                 },
                                             ],

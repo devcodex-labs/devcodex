@@ -43,6 +43,7 @@ const SOURCES = [
   { from: 'skills',         to: 'skills'       },
   { from: 'instructions',   to: 'instructions' },
   { from: 'prompts',        to: 'prompts'      },
+  { from: 'hooks',          to: 'hooks'        },
   { from: 'data/templates', to: 'data'         },
 ]
 

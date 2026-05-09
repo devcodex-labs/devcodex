@@ -1,6 +1,6 @@
 # DevCodex
 
-> AI 开发规范注入器 — GitHub Copilot Agent Plugin（Instructions-First）
+> AI 开发规范注入器 — GitHub Copilot Agent Plugin（Hook-First / Instruction-Fallback）
 
 [![npm](https://img.shields.io/badge/npm-%40vextjs%2Fdevcodex-blue)](https://github.com/vextjs/devcodex)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green)](LICENSE)
@@ -8,7 +8,7 @@
 ## DevCodex 是什么？
 
 DevCodex 通过 GitHub Copilot Agent Plugin API 向 Copilot 注入结构化的开发工作流规范。  
-它强制执行一致的 dev → fix → audit → analyze 循环，内置合规检查、记忆系统和自动报告。
+在支持 Hooks 的宿主中，它优先用 `.github/hooks/` 提供确定性的生命周期护栏；在不支持 Hooks 的宿主中，则回退到 instructions 语义层继续工作。
 
 ## 功能特性
 
@@ -18,6 +18,7 @@ DevCodex 通过 GitHub Copilot Agent Plugin API 向 Copilot 注入结构化的�
 - **持久记忆**: 每 Agent、每日的会话记录，结构化字段
 - **自动报告**: 每次会话自动写入报告，从不询问 — 直接执行
 - **安全底线**: S01~S06 六条不可覆盖的安全规则
+- **宿主硬门禁**: 在 VS Code Hooks 可用时，通过 `UserPromptSubmit` / `PreToolUse` / `PostToolUse` / `PreCompact` / `Stop` 提供确定性护栏
 - **执行护栏**: 新需求切换时优先按意图判断边界；涉及外部平台/API/兼容性判断时优先看官方文档；提交时压缩 commit subject
 
 ## 安装
@@ -45,11 +46,16 @@ npx devcodex init
 ├── instructions/   ← Instructions 约束（12 个，含全部工作流规则）
 ├── skills/         ← Skill 详细检查标准（33 个，按需读取）
 ├── prompts/        ← Prompt 模板（22 个）
+├── hooks/          ← 宿主生命周期 Hook 配置与运行时
+│   ├── devcodex.lifecycle.json
+│   └── _runtime/
 ├── data/           ← 运行时数据模板
 └── RULES.md        ← 使用入口
 ```
 
 > ⚠️ 请确保 IDE 的 "Use Instruction Files" 设置已开启（默认开启）。
+>
+> ℹ️ VS Code 中若启用 Hooks（Preview）且未被管理员禁用，DevCodex 会同时加载 `.github/hooks/*.json` 作为确定性生命周期护栏；不支持 Hooks 的宿主自动回退到 instruction-fallback。
 >
 > ℹ️ `v1.1.0` 起，`devcodex init/update` **不再默认分发** `.github/agents/`。如果目标项目里仍看到 `.github/agents/`，那是历史残留，需要手动清理。
 
@@ -68,7 +74,7 @@ npx devcodex init
 → 自动识别为 audit 工作流 → 多轮收敛审查 → 输出报告
 ```
 
-标准安装路径下，无需也不依赖 `@DevCodex`。如你的项目中仍保留历史 `.github/agents/`，那属于 legacy custom agents，而非当前默认安装集合。
+标准安装路径下，无需也不依赖 `@DevCodex`。`v1.7.0` 起，Hook 运行时也随 `init/update` 分发到 `.github/hooks/_runtime/`，不再要求目标项目从 `node_modules/@vextjs/devcodex/...` 读取 Hook 脚本。如你的项目中仍保留历史 `.github/agents/`，那属于 legacy custom agents，而非当前默认安装集合。
 
 ## 默认执行原则
 
@@ -119,6 +125,7 @@ node /path/to/devcodex/index.js status
 #   skills         X files
 #   instructions   X files
 #   prompts        X files
+#   hooks          X files
 #   data           X files
 #   RULES.md       installed
 #   copilot-instr  installed
@@ -130,6 +137,7 @@ node /path/to/devcodex/index.js status
 1. 在目标项目执行 `devcodex init`（将文件复制到 `.github/`）
 2. 重启 IDE
 3. 直接在 Copilot Chat 中输入普通需求，确认无需 `@DevCodex` 也会按规则工作
+4. 若在 VS Code 中启用了 Hooks，可在输出面板检查 `GitHub Copilot Chat Hooks`，确认 `.github/hooks/devcodex.lifecycle.json` 已被加载
 
 ### 文档站本地预览
 
@@ -149,6 +157,7 @@ devcodex/
 ├── instructions/  # 全局 Instructions（12 个，含工作流规则摘要，自动注入）
 ├── skills/        # Skill 详细检查标准（33 个，按 01-common §按需读取表 路由读取）
 ├── prompts/       # Prompt 模板（22 个）
+├── hooks/         # Workspace Hooks 配置与分发到 `.github/hooks/_runtime/` 的运行时
 ├── data/          # 运行时数据模板（分发到目标项目的空骨架）
 │   ├── README.md
 │   └── templates/ # 空模板：violations / pending-fixes / gap-registry / process-improvements
@@ -164,11 +173,12 @@ devcodex/
 |------|:-------:|:---------:|:------------:|:-----:|:-------:|
 | `copilot-instructions.md` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `instructions/*.instructions.md` | ✅ | ✅ | ✅ | ❌ | ❌ |
+| `hooks/*.json` | ✅ | ❌ | ❌ | ❌ | ❌ |
 | `agents/*.agent.md` | ✅ | ✅ | ❌ | ❌ | ❌ |
 | `skills/*/SKILL.md` | ✅ | ✅ | ❌ | ❌ | ❌ |
 | `prompts/*.prompt.md` | ✅ | ✅ | ✅ | ❌ | ❌ |
 
-> JetBrains 的 path-specific instructions / agents / skills 已实测确认可用（WebStorm 2026）。
+> JetBrains 的 path-specific instructions / agents / skills 已实测确认可用（WebStorm 2026）；Workspace Hooks 当前按 VS Code Hooks Preview 能力建模。
 
 
 ## 文档

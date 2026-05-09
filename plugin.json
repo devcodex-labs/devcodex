@@ -85,7 +85,7 @@
     { "id": "spec-radar",   "file": "instructions/18-spec-radar.instructions.md",  "tier": "pro"  }
   ],
   "_note_instructions": "12 Instructions (00-18). 18-spec-radar added v1.2.0: PC4 三轴诊断规范自我升级机制 (dev 模式专属).",
-  "_hooks_todo": "hooks/ directory pending v1.1+ or user decision, not registered to avoid platform load failure",
+  "_hooks_todo": "Workspace Hooks are now shipped via hooks/ and CLI distribution to .github/hooks/; official plugin-native hook registration remains intentionally deferred.",
   "mcp": {
     "file": ".mcp.json"
   },

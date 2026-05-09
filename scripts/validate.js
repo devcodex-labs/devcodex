@@ -168,15 +168,32 @@ function checkV6() {
     const out = execSync('npm pack --dry-run --json', { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
     const arr = JSON.parse(out)
     const files = arr[0]?.files?.map(f => f.path) || []
+    const required = [
+      'hooks/devcodex.lifecycle.json',
+      'hooks/_runtime/lifecycle.cjs',
+      'assets/icon-512.png'
+    ]
     const forbidden = files.filter(f =>
-      (/violations\.md$/i.test(f) ||
+      (/^assets\/hooks\//i.test(f) ||
+       /violations\.md$/i.test(f) ||
        /pending-fixes\.md$/i.test(f) ||
        /process-improvements\.md$/i.test(f) ||
        /gap-registry\.md$/i.test(f)) &&
       !f.startsWith('data/templates/')
     )
+    const missingRequired = required.filter(f => !files.includes(f))
     if (forbidden.length) {
       err(`[V6] Forbidden files in pack: ${forbidden.join(', ')}`)
+    }
+    if (missingRequired.length) {
+      err(`[V6] Missing hooks assets in pack: ${missingRequired.join(', ')}`)
+    }
+    const hookConfig = JSON.parse(read(path.join(ROOT, 'hooks/devcodex.lifecycle.json')))
+    const hookCommands = Object.values(hookConfig.hooks).flat().map(entry => entry.command)
+    const expectedCommand = 'node ./.github/hooks/_runtime/lifecycle.cjs'
+    const invalidCommands = hookCommands.filter(command => command !== expectedCommand)
+    if (invalidCommands.length) {
+      err(`[V6] Hook commands must use workspace runtime path: ${invalidCommands.join(', ')}`)
     }
     const packed = execSync('npm pack --dry-run 2>&1', { cwd: ROOT, encoding: 'utf8' })
     if (/schema-dsl|vext-test/.test(packed)) {

@@ -1,0 +1,39 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "type": "command",
+        "command": "node ./.github/hooks/_runtime/lifecycle.cjs",
+        "timeout": 10
+      }
+    ],
+    "PreToolUse": [
+      {
+        "type": "command",
+        "command": "node ./.github/hooks/_runtime/lifecycle.cjs",
+        "timeout": 10
+      }
+    ],
+    "PostToolUse": [
+      {
+        "type": "command",
+        "command": "node ./.github/hooks/_runtime/lifecycle.cjs",
+        "timeout": 10
+      }
+    ],
+    "PreCompact": [
+      {
+        "type": "command",
+        "command": "node ./.github/hooks/_runtime/lifecycle.cjs",
+        "timeout": 10
+      }
+    ],
+    "Stop": [
+      {
+        "type": "command",
+        "command": "node ./.github/hooks/_runtime/lifecycle.cjs",
+        "timeout": 10
+      }
+    ]
+  }
+}

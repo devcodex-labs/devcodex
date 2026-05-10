@@ -1,6 +1,21 @@
+import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { defineConfig } from '@rspress/core';
 import pluginMermaid from 'rspress-plugin-mermaid';
+
+function readVersion(fileName: string) {
+    const filePath = path.join(__dirname, '..', fileName);
+    return JSON.parse(fs.readFileSync(filePath, 'utf8')).version as string;
+}
+
+const packageVersion = readVersion('package.json');
+const pluginVersion = readVersion('plugin.json');
+
+if (packageVersion !== pluginVersion) {
+    throw new Error(`Version mismatch: package.json=${packageVersion}, plugin.json=${pluginVersion}`);
+}
+
+const currentVersionLabel = `v${packageVersion}`;
 
 export default defineConfig({
     root: path.join(__dirname, 'docs'),
@@ -15,7 +30,14 @@ export default defineConfig({
             { text: '介绍', link: '/intro/', activeMatch: '/intro/' },
             { text: '工作指南', link: '/guide/', activeMatch: '/guide/' },
             { text: '规范与流程', link: '/specs/directory-structure', activeMatch: '/specs/' },
-            { text: '版本', link: '/versions/', activeMatch: '/versions/' },
+            {
+                text: currentVersionLabel,
+                items: [
+                    { text: '版本归档', link: '/versions/' },
+                    { text: 'CHANGELOG', link: 'https://github.com/vextjs/devcodex/blob/main/CHANGELOG.md' },
+                    { text: 'Releases', link: 'https://github.com/vextjs/devcodex/releases' },
+                ],
+            },
         ],
         sidebar: {
             '/guide/': [

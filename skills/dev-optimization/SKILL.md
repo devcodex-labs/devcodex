@@ -33,7 +33,7 @@ npx autocannon-compare baseline.json optimized.json
 
 - **CP1**：确认优化目标（指标 + 目标值）+ 当前基线数据
 - **CP2**：确认优化方案（无 Breaking Changes，或 BC 已评估） → `dev-plan-review`（PR-1 已自检，PR-2~PR-7 详细验证）→ CP3
-- **CP3**：确认实施步骤 + 回滚策略
+- **CP3**：确认任务拆分、执行顺序、依赖、验证方式与回滚策略；`05-实施进度.md` 仅在跨多轮、存在明确阻塞或用户要求持续跟踪时启用
 
 ## 产出物
 

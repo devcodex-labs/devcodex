@@ -15,7 +15,7 @@ dev 工作流未匹配其他子类型时的默认路径，适用于：新功能�
 | N1 需求确认 | 明确功能目标、验收标准、影响范围 | [CP1](../cp-gate/SKILL.md) 确认 |
 | N2 技术方案 | 架构设计、接口定义、数据流 → **PR-1 内部自检**（需求完整性），不通过则修正后重检 | 自检通过后 → [CP2](../cp-gate/SKILL.md) 确认 |
 | N3 方案验证 | 调用 `dev-plan-review` Skill（PR-2~PR-7）；PR-5② 触发则继续 `impact-review` | 🔴 阻断时回 CP2 |
-| N4 实施计划 | 任务拆分、里程碑、风险点 | [CP3](../cp-gate/SKILL.md) 确认 |
+| N4 实施计划 | 任务拆分、顺序、依赖、验证与回滚 | [CP3](../cp-gate/SKILL.md) 确认 |
 | N5 执行 | 编码实现 → 接口变更时 `api-verification` → `document-sync` | — |
 | N6 方案一致性验证 | 对照 §2 核心设计逐项确认：模块划分、接口设计、数据流是否与实现一致 | 不一致须说明偏离原因 |
 
@@ -47,6 +47,7 @@ dev 工作流未匹配其他子类型时的默认路径，适用于：新功能�
 - PR-1 在 CP2 前做 AI 内部自检，PR-2~PR-7 在 CP2→CP3 之间做详细验证（`dev-plan-review` 两阶段流程）
 - 执行阶段结束后触发：`api-verification`（若涉及接口）→ `document-sync` → **方案一致性验证**（N6）
 - `impact-review` 仅由 PR-5②（跨模块架构依赖变更）触发，position：plan-review 之后、CP3 之前
+- N4 只确认实施计划，不重复技术方案中的架构决策、接口论证和兼容性主说明；`05-实施进度.md` 仅在任务跨多轮、存在明确阻塞或用户要求持续跟踪时启用
 - 输出报告：`reports/requirements/` 目录，遵循 [`report`](../report/SKILL.md) Skill 命名规则
 - 测试覆盖：实现完成后确认关键路径单测
 

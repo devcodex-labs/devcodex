@@ -1,6 +1,6 @@
 {
   "name": "@vextjs/devcodex",
-  "version": "1.9.0",
+  "version": "1.9.1",
   "description": "DevCodex — AI-powered development workflow rules as a GitHub Copilot Agent Plugin",
   "main": "index.js",
   "bin": {
@@ -9,6 +9,7 @@
   "scripts": {
     "test": "node index.js status",
     "test:init": "node index.js init --dry-run",
+    "test:hooks-runtime": "node scripts/test-hooks-runtime.js",
     "test:version": "node scripts/validate-versions.js",
     "test:pack-clean": "node scripts/test-pack-clean.js",
     "validate": "node scripts/validate.js"

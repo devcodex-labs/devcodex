@@ -1,7 +1,7 @@
 # 变更日志 (CHANGELOG)
 
-> **说明**: 版本概览摘要，当前维护中的详细变更见 [`changelogs/v1.9.0.md`](./changelogs/v1.9.0.md)，历史版本见对应详细变更文件  
-> **最后更新**: 2026-05-09
+> **说明**: 版本概览摘要，当前维护中的详细变更见 [`changelogs/v1.9.1.md`](./changelogs/v1.9.1.md)，历史版本见对应详细变更文件
+> **最后更新**: 2026-05-10
 
 ---
 
@@ -9,6 +9,7 @@
 
 | 版本 | 日期 | 变更摘要 | 详细 |
 |------|------|---------|------|
+| [v1.9.1](./changelogs/v1.9.1.md) | 2026-05-10 | 🔧 **模板链收口 + Dev 模式硬门禁加固**：收口默认 requirement/design/plan/progress 模板边界、同步 CP3/进度规则到 Instructions 与 Skills，强化 Hooks 运行时 bootstrap/closure 行为并补齐回归校验，同时移除仓库内明文 GitHub Packages token | [查看](./changelogs/v1.9.1.md) |
 | [v1.9.0](./changelogs/v1.9.0.md) | 2026-05-09 | 🎉 **Workspace Hooks MVP + VS Code 实机验证闭环**：新增 `hooks/` 正式分发面、补齐 Hook-First / Instruction-Fallback 文档语义、修复 `hook_event_name` 兼容与命令误拦截，并完成包校验、站点同步和真实 VS Code Hook 触发验证 | [查看](./changelogs/v1.9.0.md) |
 | [v1.7.0](./changelogs/v1.7.0.md) | 2026-04-17 | 🎉 **规范增强 F-01~F-26**：需求验收标准五列+负向场景强制（F-01/F-02）、时序图触发规则（F-03）、N6偏离分级（F-04）、实施计划关联需求列+验收清单扩展（F-05/F-06/F-15）、变更管理章节（F-07/F-08/F-10/F-11）、Migration执行后验证（F-13）、接口流程串联验证（F-14）、delivery/behavior-checklist新Prompt（F-12/F-16/F-17）、读取前置/回归扫描/错误处理/调试清理/长会话重锚定（F-18~F-21/F-24）、.env.example同步（F-22）、PR-2扩展三行（F-23/F-25/F-26）、RQ-3负向覆盖（F-01 audit层）| [查看](./changelogs/v1.7.0.md) |
 | [v1.6.0](./changelogs/v1.6.0.md) | 2026-04-17 | 🎉 **v1.6.0 全维度优化**：npm 分发清洁化（维护者状态文件不再分发，data/templates/ 骨架）、index.js 可测试化（require.main guard + module.exports）、PC4 输出格式单一来源（17 仅引用）、自动化校验脚本（validate.js V1-V6 + test-pack-clean + validate-versions）、CI 工作流、边界声明/Tier 声明/双入口说明补全 | [查看](./changelogs/v1.6.0.md) |
@@ -71,7 +72,8 @@
 
 ## 相关文档
 
-- [`changelogs/v1.9.0.md`](./changelogs/v1.9.0.md) — 最新版本详细变更文档
+- [`changelogs/v1.9.1.md`](./changelogs/v1.9.1.md) — 最新版本详细变更文档
+- [`changelogs/v1.9.0.md`](./changelogs/v1.9.0.md) — 上一个版本详细变更文档
 - [`changelogs/v1.1.0.md`](./changelogs/v1.1.0.md) — 历史版本详细变更文档
 - [README.md](./README.md) — 项目说明
 - [requirements/index.md](./website/docs/versions/v1/1.0.0/requirements/index.md) — 需求文档总览

@@ -8,6 +8,7 @@
  * V4 版本一致性（package.json / plugin.json / RULES.md / SECURITY.md）
  * V5 PC4 输出格式唯一定义
  * V6 npm pack 白名单不含维护者状态
+ * V7 Hooks 运行时 bootstrap 行为冒烟
  *
  * Exit: 0=OK, 1=error, 2=warnings only
  */
@@ -205,12 +206,24 @@ function checkV6() {
   }
 }
 
+// ── V7: hooks runtime bootstrap smoke test ─────────────────────────────────
+function checkV7() {
+  try {
+    execSync('node scripts/test-hooks-runtime.js', { cwd: ROOT, stdio: 'pipe', encoding: 'utf8' })
+    console.log('[V7] hooks runtime smoke test passed')
+  } catch (e) {
+    const detail = String((e.stderr || e.stdout || e.message || '')).trim().split('\n')[0]
+    err(`[V7] hooks runtime smoke test failed${detail ? `: ${detail}` : ''}`)
+  }
+}
+
 checkV1()
 checkV2()
 checkV3()
 checkV4()
 checkV5()
 checkV6()
+checkV7()
 
 console.log('')
 if (errors.length) {

@@ -26,9 +26,14 @@ DevCodex 通过 GitHub Copilot Agent Plugin API 向 Copilot 注入结构化的�
 ### 1. 配置 GitHub Packages 认证
 
 ```bash
-# 创建 .npmrc（需要有 read:packages 权限的 GitHub PAT）
+# 创建 .npmrc（推荐使用环境变量注入 GitHub PAT，避免把 token 写入仓库或本地文件）
 echo "@vextjs:registry=https://npm.pkg.github.com" >> .npmrc
-echo "//npm.pkg.github.com/:_authToken=YOUR_GITHUB_PAT" >> .npmrc
+echo "//npm.pkg.github.com/:_authToken=\${NODE_AUTH_TOKEN}" >> .npmrc
+```
+
+```bash
+# 当前 shell 注入 PAT（需具备 read:packages；发布时还需 write:packages）
+export NODE_AUTH_TOKEN=YOUR_GITHUB_PAT
 ```
 
 ### 2. 安装并初始化

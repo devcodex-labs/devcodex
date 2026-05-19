@@ -29,7 +29,7 @@ applyTo: "**"
 | 级别 | 来源 | 可被覆盖？ |
 |:----:|------|:--------:|
 | P1 | 用户当前会话的明确指令（本会话有效） | 不适用（P2 可阻断违规指令） |
-| P2 | `00-safety.instructions.md`（S01~S06） | 否 |
+| P2 | `00-safety.instructions.md`（S01~S07） | 否 |
 | — | 项目 profile（`.devcodex/profile/`） | 是（可被 P1 覆盖）|
 | P3 | 租户定制 Instructions（`instructions/tenants/<id>/`） | 是（可被 P1/profile 覆盖）|
 | P4 | 默认工作流规范（`10-dev.instructions.md` 等） | 是（可被 P1/profile/P3 覆盖）|
@@ -51,6 +51,7 @@ applyTo: "**"
 | C10 | 禁止执行危险命令 | 同 S06，完整规则见 [`00-safety.instructions.md`](./00-safety.instructions.md) | 🔒 S06 |
 | C11 | 关联文件同步 | 修改/新建/重命名文件后检查所有引用处并同步（SC4 🔴 阻塞性检查） | — |
 | C12 | 合理性评估 | **意图识别后、CP1 前**必须评估请求合理性：有更好建议先提出并等待确认再执行。**扩展覆盖**：用户给出判断或引用已有设计时，AI 须独立验证其合理性，不得直接顺从论证 | — |
+| C18 | dev 模式预检查不可跳过 | 同 S07，完整规则见 [`00-safety.instructions.md`](./00-safety.instructions.md) | 🔒 S07 |
 
 ## 🟡 执行约束（必须执行）
 
@@ -67,7 +68,7 @@ applyTo: "**"
 当用户选择 `@devcodex-auto`（全自动模式）时：
 
 - CP1 / CP2 / CP3 确认**自动通过**（不等待用户确认）
-- 以下约束**不可豁免**：S01（不可逆确认）/ S02~S06 / C01 / C10
+- 以下约束**不可豁免**：S01（不可逆确认）/ S02~S07 / C01 / C10 / C18
 - 可恢复失败：重试 ≤ 2 次；不可恢复失败：切换回确认模式并通知用户 ⚠️
 
 ## 设计原则
@@ -144,6 +145,7 @@ applyTo: "**"
 | 预检查输出 | 不输出 | 输出 PC0~PC4（PC4 执行完整三轴诊断：Axis A 认知锚点 / Axis B 对话轨迹 / Axis C 用户满足度；规范见 `18-spec-radar.instructions.md`）|
 | 合规状态块 | 不输出 | 输出全量状态块（chat 豁免此块；但 chat 在 dev 模式仍须输出预检查块）|
 | 安全底线 S01~S06 | 🔴 强制（不受 ENV_MODE 影响）| 🔴 强制（不受 ENV_MODE 影响）|
+| S07（dev 预检查强制）| N/A（prod 模式豁免）| 🔴 致命自修正（`instruction-fallback` 模式自检触发，自动补输出 PC0~PC4）|
 
 > **CP 跳过的唯一路径**：`@devcodex-auto`（全自动模式），这是 Agent 级行为，与 ENV_MODE 无关。
 
@@ -161,7 +163,7 @@ applyTo: "**"
 |------|------|
 | **工作流** | 路由级完整执行路径（dev/fix/analyze/audit/self-fix/resume/plan/chat）|
 | **流程** | 步骤级执行序列（某个功能的具体操作步骤）|
-| **约束** | C01~C15 编号的强制/执行规则 |
+| **约束** | C01~C18 编号的强制/执行规则 |
 | **规则** | 更宽泛的执行规定（含约束、建议、说明等）|
 
 ## 意图识别（三问法）

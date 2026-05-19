@@ -15,7 +15,7 @@ DevCodex 是一个零依赖的 GitHub Copilot Agent Plugin CLI 工具，通过 h
 
 ## 安全底线
 
-本项目所有 Instructions 包含 S01~S06 六条不可覆盖的安全规则，详见 `00-safety.instructions.md`。
+本项目所有 Instructions 包含 S01~S07 七条不可覆盖的安全规则，详见 `00-safety.instructions.md`。
 
 ## 产物输出
 

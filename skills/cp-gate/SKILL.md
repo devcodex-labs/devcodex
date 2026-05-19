@@ -19,7 +19,7 @@ CP 门控**不受 ENV_MODE 影响**，dev/prod 均为 🔴 强制等待用户确
 > 当用户选择 `@devcodex-auto` 时：
 
 - CP1 / CP2 / CP3 确认**自动通过**（不等待用户确认）
-- 以下约束**不可豁免**：[S01](../../instructions/00-safety.instructions.md)（不可逆确认）/ S02~S06 / [C01](../../instructions/01-common.instructions.md) / [C10](../../instructions/01-common.instructions.md)
+- 以下约束**不可豁免**：[S01](../../instructions/00-safety.instructions.md)（不可逆确认）/ S02~S07 / [C01](../../instructions/01-common.instructions.md) / [C10](../../instructions/01-common.instructions.md) / [C18](../../instructions/00-safety.instructions.md)
 - 可恢复失败：重试 ≤ 2 次
 - 不可恢复失败：切换回确认模式并通知用户 ⚠️
 

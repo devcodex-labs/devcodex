@@ -14,8 +14,6 @@ dist/
 # npm auth (never commit tokens)
 .npmrc
 
-# DevCodex AI session memory (auto-generated, do not commit)
-.devcodex/.memory/
 
 # Hook replay payloads (local validation only, do not commit)
 .tmp-hook-editfiles.json

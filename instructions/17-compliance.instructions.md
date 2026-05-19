@@ -14,7 +14,7 @@ applyTo: "**"
 | `prod`（默认）| 不执行合规检查（规范已验证，Instructions 直接指导 AI 行为） |
 | `dev` | 全量执行 FC1~FC6 + SC1~SC14 + RC1~RC4 + T1~T9 |
 
-> ⛔ S01~S06 安全底线不受 ENV_MODE 影响，无论 dev/prod 均强制。
+> ⛔ S01~S06 安全底线不受 ENV_MODE 影响，无论 dev/prod 均强制；S07（dev 预检查强制）仅 dev + instruction-fallback 模式触发（见 `00-safety.instructions.md` §S07）。
 > ℹ️ ENV_MODE 未注入时，默认按 `prod`（不执行合规检查）。
 
 ## 预检查（仅 dev 模式，进入实质任务前执行）
@@ -44,6 +44,8 @@ applyTo: "**"
 > ⚠️ PC0 检查失败时（Profile 未加载）不得跳过 — 必须立即加载后才能继续，ENV_MODE 由 Profile 的 `config.json` 决定。
 >
 > ⚠️ `hook-enforced` 模式下，预检查状态可以由宿主事件驱动后显示为**首个结构化状态块**；`instruction-fallback` 模式下，预检查块仍应尽量位于回复开头，但不再机械要求“第一批 tool call”“第一行输出”。
+>
+> ⚠️ **S07 自修正触发**（见 [`00-safety.instructions.md`](./00-safety.instructions.md) §S07）：AI 自检发现已开始生成实质内容但尚未输出预检查块时，立即触发 S07 — 在当前位置补输出 PC0~PC4，重新评估意图后继续，**不等待用户重新发送消息，不终止当前请求**。
 
 ### PC4 规范雷达（dev 模式专属）
 

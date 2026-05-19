@@ -17,7 +17,7 @@ DevCodex 通过 GitHub Copilot Agent Plugin API 向 Copilot 注入结构化的�
 - **合规管线**: FC（形式合规）→ SC（实质合规）→ RC（恢复性检查）→ T（任务完成验证）
 - **持久记忆**: 每 Agent、每日的会话记录，结构化字段
 - **自动报告**: 每次会话自动写入报告，从不询问 — 直接执行
-- **安全底线**: S01~S06 六条不可覆盖的安全规则
+- **安全底线**: S01~S07 七条不可覆盖的安全规则
 - **宿主硬门禁**: 在 VS Code Hooks 可用时，通过 `UserPromptSubmit` / `PreToolUse` / `PostToolUse` / `PreCompact` / `Stop` 提供确定性护栏
 - **执行护栏**: 新需求切换时优先按意图判断边界；涉及外部平台/API/兼容性判断时优先看官方文档；提交时压缩 commit subject
 

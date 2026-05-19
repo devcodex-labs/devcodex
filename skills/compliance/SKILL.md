@@ -11,7 +11,7 @@ description: 执行 FC（形式合规）/ SC（实质合规）/ RC（恢复性�
 | `prod`（默认）| 不执行合规检查（规范已验证，Instructions 直接指导 AI 行为） |
 | `dev` | 全量执行 FC1~FC6 + SC1~SC14 + RC1~RC4 + T1~T9 |
 
-> ⛔ **[S01~S06](../../instructions/00-safety.instructions.md) 安全底线不受 ENV_MODE 影响**，无论 dev/prod 均强制执行。
+> ⛔ **[S01~S06](../../instructions/00-safety.instructions.md) 安全底线不受 ENV_MODE 影响**，无论 dev/prod 均强制执行；**[S07](../../instructions/00-safety.instructions.md)** 仅 dev + instruction-fallback 模式触发（致命自修正）。
 >
 > ⚠️ **预检查（PC0~PC4）仅在 dev 模式启用**，收到用户消息后立即执行，详见 [`17-compliance.instructions.md`](../../instructions/17-compliance.instructions.md) §预检查。
 >

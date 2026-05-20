@@ -7,11 +7,11 @@ applyTo: "**"
 
 ## 子类型路由
 
-| 意图 | 子类型 | 授权 |
-|------|--------|------|
-| 线上事故/incident/P0/P1/生产故障 | incident | ⚠️ Pro |
-| 安全漏洞/security/CVE/注入/XSS | security | ⚠️ Pro |
-| 默认（常规 Bug/报错/异常）| default | Free |
+| 意图 | 子类型 |
+|------|--------|
+| 线上事故/incident/P0/P1/生产故障 | incident |
+| 安全漏洞/security/CVE/注入/XSS | security |
+| 默认（常规 Bug/报错/异常）| default |
 
 - 进入 fix 工作流前，确认子类型（default/incident/security）
 - 三类均从读取代码风格开始
@@ -88,7 +88,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → 执行 →
 - 修复必须附带回归测试，禁止无测试的 hotfix（emergency 除外）
 - 修复范围不得超出问题边界（禁止顺手重构）
 
-### incident（事故响应）⚠️ Pro
+### incident（事故响应）
 
 **事故级别**：
 
@@ -104,7 +104,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → 执行 →
 - 执行流程：止血 → 定位根因 → CP1 → 修复 → 验证 → 事后复盘
 - 事后 24h 内输出事故复盘报告
 
-### security（安全修复）⚠️ Pro
+### security（安全修复）
 
 **安全专项扫描（S1~S4，标准三步之外额外执行）**：
 

@@ -223,7 +223,7 @@ R2+ 发现新问题
 
 > ⚠️ **触发条件**：仅当审查目标为 **DevCodex plugin 文件**（`instructions/` · `skills/` · `prompts/` · `agents/` · `RULES.md`）时，在 CRS 步骤中顺带对 `data/` 文件执行 DF 检查。
 >
-> ℹ️ **不适用 D1~D22**：`data/*.md` 是运营数据文件（violations/pending-fixes/gap-registry/process-improvements），不是规范定义文件，使用轻量 DF 3项检查（不走全维度审查）。
+> ℹ️ **不适用 D1~D25**：`data/*.md` 是运营数据文件（violations/pending-fixes/gap-registry/process-improvements），不是规范定义文件，使用轻量 DF 3项检查（不走全维度审查）。
 
 ### DF 检查项
 

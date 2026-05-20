@@ -30,7 +30,7 @@ applyTo: "**"
 |:----:|------|:--------:|
 | P1 | 用户当前会话的明确指令（本会话有效） | 不适用（P2 可阻断违规指令） |
 | P2 | `00-safety.instructions.md`（S01~S07） | 否 |
-| — | 项目 profile（`.devcodex/profile/`） | 是（可被 P1 覆盖）|
+| P2.5 | 项目 profile（`.devcodex/profile/`） | 是（可被 P1 覆盖；不可覆盖 P2 安全底线）|
 | P3 | 租户定制 Instructions（`instructions/tenants/<id>/`） | 是（可被 P1/profile 覆盖）|
 | P4 | 默认工作流规范（`10-dev.instructions.md` 等） | 是（可被 P1/profile/P3 覆盖）|
 | P5 | 本文件（01-common.instructions.md）通用规范 | 是（可被以上全部覆盖）|
@@ -188,16 +188,16 @@ applyTo: "**"
 
 ### 意图路由表
 
-| 意图 | 工作流 | 授权 |
-|------|--------|------|
-| `dev` | 开发（8 子类型）| Free（部分需 Pro）|
-| `fix` | 修复（3 子类型）| Free（部分需 Pro）|
-| `analyze` | 分析（多轮收敛，≥3 轮）| Free |
-| `audit` | 审计（多轮收敛，≥3 轮）| Free（项目工程需 Pro）|
-| `self-fix` | 规范自修复 | Pro |
-| `resume` | 恢复中断任务 | Pro |
-| `other` | 规划（兜底）| Pro |
-| `chat` | 问答（快速路径）| Free |
+| 意图 | 工作流 |
+|------|--------|
+| `dev` | 开发（8 子类型）|
+| `fix` | 修复（3 子类型）|
+| `analyze` | 分析（多轮收敛，≥3 轮）|
+| `audit` | 审计（多轮收敛，≥3 轮）|
+| `self-fix` | 规范自修复 |
+| `resume` | 恢复中断任务 |
+| `other` | 规划（兜底）|
+| `chat` | 问答（快速路径）|
 
 ## 任务切换与资料来源优先
 

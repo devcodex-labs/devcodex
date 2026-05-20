@@ -63,7 +63,27 @@ CP 门控**不受 ENV_MODE 影响**，dev/prod 均为 🔴 强制等待用户确
 | ？追问 | 回答后重新输出当前 CP，等待确认 |
 | 🔀 模糊（含批评/情绪/意图不明）| **不得推进**，必须明确询问再等待显式响应 |
 
-## CP 记录格式
+## 需求级记忆（sessions.md）CP 确认格式
+
+> 🔴 **hook 强制读取此格式**：`hooks/_runtime/lifecycle.cjs` 通过读取 `.devcodex/requirements/<需求名>/.memory/sessions.md` 判断 CP 确认状态，正则为 `| CP[123] | ✅ |`。格式不符则 hook 视为"未确认"，持续阻断代码写入工具（Write/Edit/apply_patch）。
+
+每次用户确认 CP 后，立即在 `.devcodex/requirements/<需求名>/.memory/sessions.md` 写入或更新：
+
+```markdown
+### CP 确认记录
+| CP  | 状态 | 时间  |
+|:---:|:----:|-------|
+| CP1 | ✅   | 10:30 |
+| CP2 | ⏳   | —     |
+| CP3 | ⏹️   | —     |
+```
+
+- `✅` 已确认 · `⏳` 等待确认 · `⏹️` 未开始
+- 推荐：使用 MCP 工具 `memory_cp_confirm {requirement, phase, time}` 自动写入（格式保证正确）
+- 无 MCP 时：用 Edit 工具追加/更新此表格，确保 `| CP1 | ✅ |` 格式出现在文件中
+- **禁止**：用 Bash/shell 命令修改此文件（C09：破坏 UTF-8 编码）
+
+## CP 记录格式（报告文件）
 
 报告中「CP 确认记录」表：
 

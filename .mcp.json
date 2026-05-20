@@ -1,30 +1,35 @@
-﻿{
+{
   "$schema": "https://json.schemastore.org/mcp-servers.json",
-  "_comment": "Placeholder config (v1.0.x). MCP servers will be enabled in future version.",
+  "_note": "DevCodex MCP servers — all run as local stdio processes, no server deployment required.",
   "servers": {
     "devcodex-memory": {
-      "_comment": "Planned (v1.1): mcp/memory-server.js does not exist yet. Enable after implementation.",
       "type": "stdio",
       "command": "node",
-      "args": ["${PLUGIN_ROOT}/mcp/memory-server.js"],
-      "disabled": true,
-      "tools": ["memory_read", "memory_write", "memory_list"],
-      "resources": ["memory://sessions/**"]
+      "args": [
+        "${workspaceFolder}/.claude/mcp/memory-server.js",
+        "${workspaceFolder}"
+      ],
+      "_note": "Reads/writes .devcodex/.memory/ session files and records CP confirmations.",
+      "tools": [
+        "memory_session_read",
+        "memory_session_write",
+        "memory_cp_confirm",
+        "memory_summary_read",
+        "memory_summary_append"
+      ]
     },
-    "devcodex-violations": {
-      "_comment": "Planned (v1.1): mcp/violations-server.js does not exist yet. Enable after implementation.",
+    "devcodex-profile": {
       "type": "stdio",
       "command": "node",
-      "args": ["${PLUGIN_ROOT}/mcp/violations-server.js"],
-      "disabled": true,
-      "tools": ["violation_log", "violation_query", "violation_stats"]
-    },
-    "devcodex-auth": {
-      "_comment": "Planned (v1.1): MCP protocol layer for auth service. Currently auth.devcodex.dev only exposes /validate and /auth/* REST endpoints.",
-      "type": "http",
-      "url": "https://auth.devcodex.dev/mcp",
-      "disabled": true,
-      "tools": ["token_validate", "token_refresh", "tier_check"]
+      "args": [
+        "${workspaceFolder}/.claude/mcp/profile-server.js",
+        "${workspaceFolder}"
+      ],
+      "_note": "Loads .devcodex/profile/ files and returns ENV_MODE / agent config.",
+      "tools": [
+        "profile_load",
+        "profile_get_mode"
+      ]
     }
   }
 }

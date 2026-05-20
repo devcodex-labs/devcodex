@@ -13,12 +13,16 @@ applyTo: "**"
 
 `<agent>` 确定规则（优先级从高到低）：
 1. **Profile 显式配置**（优先）：读取 `.devcodex/profile/config.json` 的 `"agent"` 字段（如 `"agent": "copilot"`）
-2. **AI 自行推断**（兜底）：根据当前运行环境推断，全小写，连字符分隔
-   - 单编辑器：`copilot` / `cursor` / `claude`
-   - 跨编辑器：`vscode-copilot` / `zed-copilot`
+2. **AI 自行推断**（兜底）：根据当前运行环境推断，**枚举值固定，全小写连字符分隔**：
+   - Copilot in VS Code：`copilot` 或 `vscode-copilot`
+   - Claude Code（CLI/桌面端）：`claude-code` ⚠️ 禁止使用裸 `claude`（与 Claude API/Claude.ai 区分）
+   - ChatGPT/Codex：`codex`（当前未官方适配，仅占位）
+   - Cursor IDE：`cursor`
+   - 跨编辑器：`zed-copilot`
    - 无法确定：`unknown-agent`
+3. **写入约定**：`devcodex init --claude` 必须向 `config.json` 写入 `"agent": "claude-code"`；`devcodex init` (Copilot) 应写入 `"agent": "copilot"`
 - ⛔ **禁止使用 shell 命令（bash find、PowerShell glob）查找记忆文件**（shell glob 会跳过以 `.` 开头的隐藏目录）
-- 必须使用 IDE 工具（list_dir）逐层进入：`clients/` → `<agent>/` → 读取日期文件
+- 必须使用 IDE 工具（Copilot: list_dir；Claude Code: Read/Glob）逐层进入：`clients/` → `<agent>/` → 读取日期文件
 
 ## 读取策略
 
@@ -132,3 +136,4 @@ applyTo: "**"
 ## chat 豁免说明
 
 - chat 工作流豁免**报告**，但**记忆仍须写入**
+- chat 场景的 📨 对话记录可简化：用单行 `chat：[一句话描述]` 代替完整四列表格

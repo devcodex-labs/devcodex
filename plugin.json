@@ -1,27 +1,16 @@
 {
   "_format": "DevCodex internal metadata — NOT a GitHub Copilot official format. Copilot reads .github/agents|skills|instructions|prompts directly.",
   "id": "devcodex",
-  "version": "1.9.1",
+  "version": "1.9.2",
   "name": "DevCodex",
   "publisher": "Rocky",
   "displayName": "DevCodex — AI Development Workflow Assistant",
-  "description": "Standardized AI-assisted development workflow system for GitHub Copilot. Built on ai-dev-guidelines v4.",
+  "description": "Standardized AI-assisted development workflow system for GitHub Copilot.",
   "icon": "assets/icon-512.png",
   "license": "AGPL-3.0-or-later",
   "repository": "https://github.com/vextjs/devcodex",
   "homepage": "https://devcodex.dev",
-  "tier": "pro",
-  "_note_tier": "prompt-level declaration; not CLI-enforced. See skills/token-check/SKILL.md.",
-  "authentication": {
-    "type": "token",
-    "endpoint": "https://auth.devcodex.dev/validate",
-    "cacheFile": ".copilot/token-cache.json",
-    "offlineFallback": {
-      "enabled": true,
-      "defaultTier": "free",
-      "maxOfflineDays": 7
-    }
-  },
+  "tier": "free",
   "agents": [
     {
       "id": "devcodex",
@@ -35,60 +24,256 @@
     }
   ],
   "skills": [
-    { "id": "compliance",          "file": "skills/compliance/SKILL.md",          "tier": "pro"  },
-    { "id": "memory",              "file": "skills/memory/SKILL.md",              "tier": "pro"  },
-    { "id": "report",              "file": "skills/report/SKILL.md",              "tier": "pro"  },
-    { "id": "cp-gate",             "file": "skills/cp-gate/SKILL.md",             "tier": "pro"  },
-    { "id": "intent",              "file": "skills/intent/SKILL.md",              "tier": "free" },
-    { "id": "summary",             "file": "skills/summary/SKILL.md",             "tier": "pro"  },
-    { "id": "plan",                "file": "skills/plan/SKILL.md",                "tier": "pro"  },
-    { "id": "routing",             "file": "skills/routing/SKILL.md",             "tier": "free" },
-    { "id": "load-profile",        "file": "skills/load-profile/SKILL.md",        "tier": "free" },
-    { "id": "dev-default",         "file": "skills/dev-default/SKILL.md",         "tier": "free" },
-    { "id": "fix-default",         "file": "skills/fix-default/SKILL.md",         "tier": "free" },
-    { "id": "token-check",         "file": "skills/token-check/SKILL.md",         "tier": "free" },
-    { "id": "dev-refactor",        "file": "skills/dev-refactor/SKILL.md",        "tier": "free" },
-    { "id": "dev-database",        "file": "skills/dev-database/SKILL.md",        "tier": "pro"  },
-    { "id": "dev-init",            "file": "skills/dev-init/SKILL.md",            "tier": "free" },
-    { "id": "dev-optimization",    "file": "skills/dev-optimization/SKILL.md",    "tier": "pro"  },
-    { "id": "dev-scenario-test",   "file": "skills/dev-scenario-test/SKILL.md",   "tier": "pro"  },
-    { "id": "dev-docs",            "file": "skills/dev-docs/SKILL.md",            "tier": "free" },
-    { "id": "dev-plan-review",     "file": "skills/dev-plan-review/SKILL.md",     "tier": "free" },
-    { "id": "fix-security",        "file": "skills/fix-security/SKILL.md",        "tier": "pro"  },
-    { "id": "audit-common",        "file": "skills/audit-common/SKILL.md",        "tier": "free" },
-    { "id": "audit-dimensions",    "file": "skills/audit-dimensions/SKILL.md",    "tier": "free" },
-    { "id": "audit-tech-design",   "file": "skills/audit-tech-design/SKILL.md",   "tier": "free" },
-    { "id": "audit-requirements",  "file": "skills/audit-requirements/SKILL.md",  "tier": "free" },
-    { "id": "audit-project",       "file": "skills/audit-project/SKILL.md",       "tier": "pro"  },
-    { "id": "audit-report",        "file": "skills/audit-report/SKILL.md",        "tier": "free" },
-    { "id": "audit-document",      "file": "skills/audit-document/SKILL.md",      "tier": "free" },
-    { "id": "audit-execution-guide","file": "skills/audit-execution-guide/SKILL.md","tier": "free" },
-    { "id": "analyze-research",    "file": "skills/analyze-research/SKILL.md",    "tier": "free" },
-    { "id": "api-verification",    "file": "skills/api-verification/SKILL.md",    "tier": "pro"  },
-    { "id": "document-sync",       "file": "skills/document-sync/SKILL.md",       "tier": "pro"  },
-    { "id": "impact-review",       "file": "skills/impact-review/SKILL.md",       "tier": "pro"  },
-    { "id": "dev-testing",         "file": "skills/dev-testing/SKILL.md",         "tier": "free" }
+    {
+      "id": "compliance",
+      "file": "skills/compliance/SKILL.md",
+      "tier": "free"
+    },
+    {
+      "id": "memory",
+      "file": "skills/memory/SKILL.md",
+      "tier": "free"
+    },
+    {
+      "id": "report",
+      "file": "skills/report/SKILL.md",
+      "tier": "free"
+    },
+    {
+      "id": "cp-gate",
+      "file": "skills/cp-gate/SKILL.md",
+      "tier": "free"
+    },
+    {
+      "id": "intent",
+      "file": "skills/intent/SKILL.md",
+      "tier": "free"
+    },
+    {
+      "id": "summary",
+      "file": "skills/summary/SKILL.md",
+      "tier": "free"
+    },
+    {
+      "id": "plan",
+      "file": "skills/plan/SKILL.md",
+      "tier": "free"
+    },
+    {
+      "id": "routing",
+      "file": "skills/routing/SKILL.md",
+      "tier": "free"
+    },
+    {
+      "id": "load-profile",
+      "file": "skills/load-profile/SKILL.md",
+      "tier": "free"
+    },
+    {
+      "id": "dev-default",
+      "file": "skills/dev-default/SKILL.md",
+      "tier": "free"
+    },
+    {
+      "id": "fix-default",
+      "file": "skills/fix-default/SKILL.md",
+      "tier": "free"
+    },
+    {
+      "id": "token-check",
+      "file": "skills/token-check/SKILL.md",
+      "tier": "free"
+    },
+    {
+      "id": "dev-refactor",
+      "file": "skills/dev-refactor/SKILL.md",
+      "tier": "free"
+    },
+    {
+      "id": "dev-database",
+      "file": "skills/dev-database/SKILL.md",
+      "tier": "free"
+    },
+    {
+      "id": "dev-init",
+      "file": "skills/dev-init/SKILL.md",
+      "tier": "free"
+    },
+    {
+      "id": "dev-optimization",
+      "file": "skills/dev-optimization/SKILL.md",
+      "tier": "free"
+    },
+    {
+      "id": "dev-scenario-test",
+      "file": "skills/dev-scenario-test/SKILL.md",
+      "tier": "free"
+    },
+    {
+      "id": "dev-docs",
+      "file": "skills/dev-docs/SKILL.md",
+      "tier": "free"
+    },
+    {
+      "id": "dev-plan-review",
+      "file": "skills/dev-plan-review/SKILL.md",
+      "tier": "free"
+    },
+    {
+      "id": "fix-security",
+      "file": "skills/fix-security/SKILL.md",
+      "tier": "free"
+    },
+    {
+      "id": "audit-common",
+      "file": "skills/audit-common/SKILL.md",
+      "tier": "free"
+    },
+    {
+      "id": "audit-dimensions",
+      "file": "skills/audit-dimensions/SKILL.md",
+      "tier": "free"
+    },
+    {
+      "id": "audit-tech-design",
+      "file": "skills/audit-tech-design/SKILL.md",
+      "tier": "free"
+    },
+    {
+      "id": "audit-requirements",
+      "file": "skills/audit-requirements/SKILL.md",
+      "tier": "free"
+    },
+    {
+      "id": "audit-project",
+      "file": "skills/audit-project/SKILL.md",
+      "tier": "free"
+    },
+    {
+      "id": "audit-report",
+      "file": "skills/audit-report/SKILL.md",
+      "tier": "free"
+    },
+    {
+      "id": "audit-document",
+      "file": "skills/audit-document/SKILL.md",
+      "tier": "free"
+    },
+    {
+      "id": "audit-execution-guide",
+      "file": "skills/audit-execution-guide/SKILL.md",
+      "tier": "free"
+    },
+    {
+      "id": "audit-session",
+      "file": "skills/audit-session/SKILL.md",
+      "tier": "free"
+    },
+    {
+      "id": "profile-bootstrap",
+      "file": "skills/profile-bootstrap/SKILL.md",
+      "tier": "free"
+    },
+    {
+      "id": "analyze-research",
+      "file": "skills/analyze-research/SKILL.md",
+      "tier": "free"
+    },
+    {
+      "id": "api-verification",
+      "file": "skills/api-verification/SKILL.md",
+      "tier": "free"
+    },
+    {
+      "id": "document-sync",
+      "file": "skills/document-sync/SKILL.md",
+      "tier": "free"
+    },
+    {
+      "id": "impact-review",
+      "file": "skills/impact-review/SKILL.md",
+      "tier": "free"
+    },
+    {
+      "id": "dev-testing",
+      "file": "skills/dev-testing/SKILL.md",
+      "tier": "free"
+    }
   ],
-  "_note_skills": "33 Skills registered (v1.0.0: removed fix-incident + self-fix-auto, covered by instructions; dev-testing added as 按需触发 Skill). On-demand reading via 01-common §Skill按需读取表. ⚠️ 扩展点：新增工作流子类型时，需同步更新：01-common §Skill按需读取表 + 对应 Instruction 子类型路由表 + skills/routing/SKILL.md + report/SKILL.md 模板引用表 + 02-output-paths §报告子目录. v1.7.0: delivery-checklist + behavior-checklist 新增 Prompts（不计入 Skills 总数）",
   "instructions": [
-    { "id": "safety",       "file": "instructions/00-safety.instructions.md",      "tier": "free" },
-    { "id": "common",       "file": "instructions/01-common.instructions.md",      "tier": "free" },
-    { "id": "output-paths", "file": "instructions/02-output-paths.instructions.md","tier": "free" },
-    { "id": "dev",          "file": "instructions/10-dev.instructions.md",         "tier": "pro"  },
-    { "id": "fix",          "file": "instructions/11-fix.instructions.md",         "tier": "pro"  },
-    { "id": "audit",        "file": "instructions/12-audit.instructions.md",       "tier": "pro"  },
-    { "id": "analyze",      "file": "instructions/13-analyze.instructions.md",     "tier": "free" },
-    { "id": "self-fix",     "file": "instructions/14-self-fix.instructions.md",    "tier": "pro"  },
-    { "id": "memory-r",     "file": "instructions/15-memory.instructions.md",      "tier": "pro"  },
-    { "id": "report-r",     "file": "instructions/16-report.instructions.md",      "tier": "pro"  },
-    { "id": "compliance-r", "file": "instructions/17-compliance.instructions.md",  "tier": "pro"  },
-    { "id": "spec-radar",   "file": "instructions/18-spec-radar.instructions.md",  "tier": "pro"  }
+    {
+      "id": "safety",
+      "file": "instructions/00-safety.instructions.md",
+      "tier": "free"
+    },
+    {
+      "id": "common",
+      "file": "instructions/01-common.instructions.md",
+      "tier": "free"
+    },
+    {
+      "id": "output-paths",
+      "file": "instructions/02-output-paths.instructions.md",
+      "tier": "free"
+    },
+    {
+      "id": "dev",
+      "file": "instructions/10-dev.instructions.md",
+      "tier": "free"
+    },
+    {
+      "id": "fix",
+      "file": "instructions/11-fix.instructions.md",
+      "tier": "free"
+    },
+    {
+      "id": "audit",
+      "file": "instructions/12-audit.instructions.md",
+      "tier": "free"
+    },
+    {
+      "id": "analyze",
+      "file": "instructions/13-analyze.instructions.md",
+      "tier": "free"
+    },
+    {
+      "id": "self-fix",
+      "file": "instructions/14-self-fix.instructions.md",
+      "tier": "free"
+    },
+    {
+      "id": "memory-r",
+      "file": "instructions/15-memory.instructions.md",
+      "tier": "free"
+    },
+    {
+      "id": "report-r",
+      "file": "instructions/16-report.instructions.md",
+      "tier": "free"
+    },
+    {
+      "id": "compliance-r",
+      "file": "instructions/17-compliance.instructions.md",
+      "tier": "free"
+    },
+    {
+      "id": "spec-radar",
+      "file": "instructions/18-spec-radar.instructions.md",
+      "tier": "free"
+    }
   ],
-  "_note_instructions": "12 Instructions (00-18). 18-spec-radar added v1.2.0: PC4 三轴诊断规范自我升级机制 (dev 模式专属).",
-  "_hooks_todo": "Workspace Hooks are now shipped via hooks/ and CLI distribution to .github/hooks/; official plugin-native hook registration remains intentionally deferred.",
   "mcp": {
     "file": ".mcp.json"
   },
-  "keywords": ["copilot", "dev-guidelines", "workflow", "audit", "ai-dev"],
-  "categories": ["Productivity", "Development Workflow"]
+  "keywords": [
+    "copilot",
+    "dev-guidelines",
+    "workflow",
+    "audit",
+    "ai-dev"
+  ],
+  "categories": [
+    "Productivity",
+    "Development Workflow"
+  ]
 }

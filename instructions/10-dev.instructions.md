@@ -7,16 +7,16 @@ applyTo: "**"
 
 ## 子类型路由
 
-| 意图 | 子类型 | 授权 |
-|------|--------|------|
-| 重构/refactor/结构变更 | refactor | Free |
-| 数据库/db/migration/Schema | database | ⚠️ Pro |
-| 初始化/init/新项目 | init | Free |
-| 性能/optimize/优化指标 | optimization | ⚠️ Pro |
-| 测试/scenario-test/压测 | scenario-test | ⚠️ Pro |
-| 文档/docs/README/注释 | docs | Free |
-| 方案评审/plan-review/review | plan-review | Free |
-| 默认（新功能/需求）| default | Free |
+| 意图 | 子类型 |
+|------|--------|
+| 重构/refactor/结构变更 | refactor |
+| 数据库/db/migration/Schema | database |
+| 初始化/init/新项目 | init |
+| 性能/optimize/优化指标 | optimization |
+| 测试/scenario-test/压测 | scenario-test |
+| 文档/docs/README/注释 | docs |
+| 方案评审/plan-review/review | plan-review |
+| 默认（新功能/需求）| default |
 
 - optimization/scenario-test 前置条件：`api-verification` 已通过，否则阻断并提示
 
@@ -189,7 +189,7 @@ CP1（需求确认）→ PR-1 内部自检 → CP2（方案确认）→ plan-rev
 - 禁止在重构中混入功能变更（行为不变原则）
 - 重构 vs 优化边界：重构 ≡ 结构/可读性变更；优化 ≡ 性能/资源改善
 
-### database（数据库）⚠️ Pro
+### database（数据库）
 - Migration 安全策略：
   - 新增列：DEFAULT 或 NULLABLE，禁止 NOT NULL 无默认值
   - 删除列：先废弃（rename），至少一版本后再删除
@@ -204,13 +204,13 @@ CP1（需求确认）→ PR-1 内部自检 → CP2（方案确认）→ plan-rev
 - init 完成后**必须**创建 `.devcodex/profile/`（README + 01~03）
 - 生成的 .gitignore 必须包含 `.devcodex/.memory/`
 
-### optimization（性能优化）⚠️ Pro
+### optimization（性能优化）
 - 前置条件：api-verification 已通过 + 有基准数据 + 测试环境隔离
 - 默认工具：autocannon
 - 🔴 禁止无基线数据的"盲优化"
 - 优化不改变外部接口行为
 
-### scenario-test（场景测试）⚠️ Pro
+### scenario-test（场景测试）
 - 前置条件：api-verification 已通过 + 测试环境就绪
 - 负载测试默认工具：artillery
 - 测试数据使用 fixtures，禁止依赖生产数据

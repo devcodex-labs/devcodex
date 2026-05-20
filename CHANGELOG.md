@@ -1,7 +1,7 @@
 # 变更日志 (CHANGELOG)
 
-> **说明**: 版本概览摘要，当前维护中的详细变更见 [`changelogs/v1.9.1.md`](./changelogs/v1.9.1.md)，历史版本见对应详细变更文件
-> **最后更新**: 2026-05-10
+> **说明**: 版本概览摘要，当前维护中的详细变更见 [`changelogs/v1.9.2.md`](./changelogs/v1.9.2.md)，历史版本见对应详细变更文件
+> **最后更新**: 2026-05-20
 
 ---
 
@@ -9,6 +9,7 @@
 
 | 版本 | 日期 | 变更摘要 | 详细 |
 |------|------|---------|------|
+| [v1.9.2](./changelogs/v1.9.2.md) | 2026-05-20 | 🔧 **跨客户端审计闭环 + 双平台 Bootstrap 硬门禁**：`lifecycle.cjs` 对 Copilot/Claude Code 双平台同启 Bootstrap 拦截；agent 字段枚举固定化（禁裸 `claude`，强制 `claude-code`）；audit 维度扩展 D23~D25（Claude 适配/客户端矩阵/agent 字段）；README 新增 Client Support Matrix；新增 `skills/audit-session`（跨会话审计状态机）+ `skills/profile-bootstrap`（Profile 自动生成）+ `devcodex profile init` CLI；CLAUDE.md SC/RC/T 完整索引；devcodex-v2 标记 LEGACY | [查看](./changelogs/v1.9.2.md) |
 | [v1.9.1](./changelogs/v1.9.1.md) | 2026-05-10 | 🔧 **模板链收口 + Dev 模式硬门禁加固**：收口默认 requirement/design/plan/progress 模板边界、同步 CP3/进度规则到 Instructions 与 Skills，强化 Hooks 运行时 bootstrap/closure 行为并补齐回归校验，同时移除仓库内明文 GitHub Packages token | [查看](./changelogs/v1.9.1.md) |
 | [v1.9.0](./changelogs/v1.9.0.md) | 2026-05-09 | 🎉 **Workspace Hooks MVP + VS Code 实机验证闭环**：新增 `hooks/` 正式分发面、补齐 Hook-First / Instruction-Fallback 文档语义、修复 `hook_event_name` 兼容与命令误拦截，并完成包校验、站点同步和真实 VS Code Hook 触发验证 | [查看](./changelogs/v1.9.0.md) |
 | [v1.7.0](./changelogs/v1.7.0.md) | 2026-04-17 | 🎉 **规范增强 F-01~F-26**：需求验收标准五列+负向场景强制（F-01/F-02）、时序图触发规则（F-03）、N6偏离分级（F-04）、实施计划关联需求列+验收清单扩展（F-05/F-06/F-15）、变更管理章节（F-07/F-08/F-10/F-11）、Migration执行后验证（F-13）、接口流程串联验证（F-14）、delivery/behavior-checklist新Prompt（F-12/F-16/F-17）、读取前置/回归扫描/错误处理/调试清理/长会话重锚定（F-18~F-21/F-24）、.env.example同步（F-22）、PR-2扩展三行（F-23/F-25/F-26）、RQ-3负向覆盖（F-01 audit层）| [查看](./changelogs/v1.7.0.md) |
@@ -72,8 +73,9 @@
 
 ## 相关文档
 
-- [`changelogs/v1.9.1.md`](./changelogs/v1.9.1.md) — 最新版本详细变更文档
-- [`changelogs/v1.9.0.md`](./changelogs/v1.9.0.md) — 上一个版本详细变更文档
+- [`changelogs/v1.9.2.md`](./changelogs/v1.9.2.md) — 最新版本详细变更文档
+- [`changelogs/v1.9.1.md`](./changelogs/v1.9.1.md) — 上一个版本详细变更文档
+- [`changelogs/v1.9.0.md`](./changelogs/v1.9.0.md) — 历史版本详细变更文档
 - [`changelogs/v1.1.0.md`](./changelogs/v1.1.0.md) — 历史版本详细变更文档
 - [README.md](./README.md) — 项目说明
 - [requirements/index.md](./website/docs/versions/v1/1.0.0/requirements/index.md) — 需求文档总览

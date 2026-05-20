@@ -172,6 +172,20 @@ devcodex/
 
 &gt; ℹ️ 维护者状态文件（本仓库开发过程中累积的 violations/pending-fixes 记录）保存在 `.devcodex/.maintainer-state/`，**不分发**给用户。
 
+## 客户端支持矩阵（Client Support Matrix）
+
+| AI 客户端 | 注入路径 | Bootstrap 硬门禁 | CP 门控 | 记忆/MCP | 等级 |
+|---|---|:---:|:---:|:---:|:---:|
+| **GitHub Copilot (VS Code)** | `.github/instructions/*.md` + `copilot-instructions.md` + hooks | ✅ `lifecycle.cjs` PreToolUse | ✅ Hook | ✅ MCP | 🟢 Full |
+| **GitHub Copilot (JetBrains)** | 同上但无 hooks（instruction-fallback） | ⚠️ 仅文本约束 | ⚠️ 仅文本 | ⚠️ 部分 | 🟡 Beta |
+| **Claude Code (CLI/桌面端)** | `CLAUDE.md` + `.claude/{instructions,skills,prompts,hooks/_runtime,mcp}/` + `settings.json` hooks + `.mcp.json` | ✅ `lifecycle.cjs` v1.9.2+ | ✅ Hook | ✅ MCP | 🟢 Full |
+| **Cursor IDE** | 通过 `.github/instructions/` 兼容读取（实测） | ❌ 不支持 hooks | ⚠️ 仅文本 | ❌ | 🟡 Best-effort |
+| **ChatGPT / OpenAI Codex** | ❌ 无官方适配路径 | ❌ | ❌ | ❌ | 🔴 Unsupported |
+
+> **安装命令**：Copilot → `npx devcodex init`；Claude Code → `npx devcodex init --claude`（v1.9.0+）；Codex → 暂无（如需要可手工复制 `prompts/` 模板使用，但无记忆/合规自动化）。
+>
+> **能力差异**：🟢 Full = 硬门禁 + MCP + 自动同步；🟡 Beta/Best-effort = 仅 instruction 注入，无运行时拦截；🔴 Unsupported = 不在当前发布范围。
+
 ## IDE 兼容性
 
 | 功能 | VS Code | JetBrains | Visual Studio | Xcode | Eclipse |
@@ -209,7 +223,7 @@ devcodex/
 
 ## Tier 说明
 
-DevCodex 的 `plugin.json` 声明 `tier: "pro"`，以及部分 Skill 标注 `tier: "free"` / `tier: "pro"`。这些 tier 字段是**面向未来的 prompt-level 声明**（供 `token-check` Skill 在 Agent 侧做软门控），**CLI 不做任何授权校验**：
+DevCodex 的 `plugin.json` 声明 `tier: "free"`，所有 Skill 均标注 `tier: "free"`。这些 tier 字段是**面向未来的 prompt-level 声明**（供 `token-check` Skill 在 Agent 侧做软门控），**CLI 不做任何授权校验**：
 
 - `npm install @vextjs/devcodex` 与 `devcodex init/update/status` 对所有用户完全开放
 - 未来接入服务端 token 校验时，tier 字段才会生效

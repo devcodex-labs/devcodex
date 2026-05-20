@@ -1,6 +1,6 @@
 ---
 name: audit-dimensions
-description: D1~D22 规范文件审查维度总览 — 规范库/specs 文件专属审查层
+description: D1~D25 规范文件审查维度总览 — 规范库/specs 文件专属审查层
 ---
 # Audit Dimensions Skill
 
@@ -8,7 +8,7 @@ description: D1~D22 规范文件审查维度总览 — 规范库/specs 文件专
 
 审查目标为**规范文件**（instructions/*.md、skills/**/SKILL.md、agents/*.agent.md、RULES.md 等 AI 指导文档）时加载本 Skill。
 
-## 维度总览（D1~D22）
+## 维度总览（D1~D25）
 
 | 分组 | 维度 | 优先级 |
 |------|------|:------:|
@@ -20,12 +20,13 @@ description: D1~D22 规范文件审查维度总览 — 规范库/specs 文件专
 | F — 维度体系 | D16 维度编号唯一 · D17 优先级标注 · D18 AI-first 设计 | 🔴/🟡 |
 | G — 运维 | D19 废弃说明 · D20 变更历史 · D21 Markdown 渲染格式 | 🟡/🔴 |
 | H — 语义正确性 | D22 产品语义正确性 | 🔴 |
+| I — 跨客户端适配 | D23 Claude Code 适配层 · D24 客户端支持矩阵 · D25 记忆/报告 agent 字段 | 🔴 |
 
 ## 执行优先级分批
 
 | 批次 | 维度 | 说明 |
 |------|------|------|
-| 🔴 第一批 | D1·D2·D3·D4·D5·D7·D9·D10·D11·D12·D16·D17·D21·D22 | 强制，发现问题立即标记 |
+| 🔴 第一批 | D1·D2·D3·D4·D5·D7·D9·D10·D11·D12·D16·D17·D21·D22·D23·D24·D25 | 强制，发现问题立即标记 |
 | 🟡 第二批 | D6·D8·D18·D19·D20 | 建议，不阻塞 |
 | 💡 第三批 | D13·D14·D15 | 改进，按 Token 预算执行 |
 
@@ -88,9 +89,7 @@ description: D1~D22 规范文件审查维度总览 — 规范库/specs 文件专
 |:-:|---------|
 | 1 | L1~L3 联动检查（见上方关键检查）|
 | 2 | `02-output-paths.instructions.md` 与各工作流 report 模板的产物路径是否一致 |
-| 3 | `token-check/SKILL.md` 的功能门控矩阵与各工作流描述的 tier 限制是否一致 |
-| 4 | `01-common.instructions.md` §意图路由表中的授权列是否与各工作流描述的 tier 限制一致 |
-| 5 | `17-compliance.instructions.md` 的 PC0~PC4 预检查、`15-memory.instructions.md` 的读取顺序与 `01-common.instructions.md` 的路由 / Profile 规则是否对齐 |
+| 3 | `17-compliance.instructions.md` 的 PC0~PC4 预检查、`15-memory.instructions.md` 的读取顺序与 `01-common.instructions.md` 的路由 / Profile 规则是否对齐 |
 
 **D6 示例可执行性 🟡**
 
@@ -154,7 +153,7 @@ description: D1~D22 规范文件审查维度总览 — 规范库/specs 文件专
 |:-:|---------|
 | 1 | `intent/SKILL.md` 三问法的每个分支是否都能唯一确定一个目标工作流 |
 | 2 | 意图为 `other` 时是否明确路由到 plan 工作流（无兜底缺失）|
-| 3 | `token-check/SKILL.md` 的功能门控在 Free 层下是否正确拦截 Pro 功能 |
+| 3 | `token-check/SKILL.md` 的当前状态声明是否与 `plugin.json` tier 配置一致 |
 
 ---
 
@@ -189,7 +188,7 @@ description: D1~D22 规范文件审查维度总览 — 规范库/specs 文件专
 
 | # | 检查内容 |
 |:-:|---------|
-| 1 | D1~D22 编号在本文件内无重复 |
+| 1 | D1~D25 编号在本文件内无重复 |
 | 2 | `audit-execution-guide/SKILL.md` 的分批表与本文件维度编号一致 |
 
 **D17 优先级标注 🔴**
@@ -249,4 +248,37 @@ description: D1~D22 规范文件审查维度总览 — 规范库/specs 文件专
 | 2 | **角色/层级语义**：Free/Pro/Enterprise 等层级名称的权限分配是否符合层级递进含义（Free ⊂ Pro ⊂ Enterprise）|
 | 3 | **功能开关语义**：enable/disable、skip/enforce、required/optional 等控制标志的实际行为是否与名称语义一致 |
 | 4 | **跨文件语义传播**：同一模式/角色名称在所有引用处的行为描述是否语义一致（防止 A 文件说 dev=轻量、B 文件说 dev=全量）|
+
+---
+
+### I — 跨客户端适配（v1.9.2+）
+
+> 历史背景：v1.9.0 引入 Claude Code 适配（`devcodex init --claude`、`CLAUDE.md`、`.mcp.json`、`.claude/settings.json` hooks）后，规范分发面从单一 Copilot 扩展为多客户端，但 audit 维度长期未覆盖适配层，导致 CLAUDE.md 与 `lifecycle.cjs` 实现错位、记忆 `<agent>` 字段歧义等问题。
+
+**D23 Claude Code 适配层 🔴**
+
+| # | 检查内容 |
+|:-:|---------|
+| 1 | `CLAUDE.md` 与 `index.js` `cmdInitClaude`/`CLAUDE_SOURCES`/`CLAUDE_SETTINGS_HOOKS` 是否描述同一现实（不出现"文档说 A、实现是 B"）|
+| 2 | `CLAUDE.md` 引用的 `.claude/skills/` `.claude/instructions/` 路径是否与 `index.js` 实际写入路径一致 |
+| 3 | `hooks/_runtime/lifecycle.cjs` 对 Copilot 与 Claude 双平台的 Bootstrap / CP gate / 危险命令拦截是否对称（不出现单边漏判）|
+| 4 | `.mcp.json` 与 `index.js` `CLAUDE_MCP_JSON` 是否一致 |
+| 5 | `CLAUDE.md` 是否包含 SC/RC/T 完整索引或显式跳转（避免 Claude 用户必须额外读 17-compliance）|
+
+**D24 客户端支持矩阵 🔴**
+
+| # | 检查内容 |
+|:-:|---------|
+| 1 | `README.md` 或官网首页是否给出 Client Support Matrix（明示 Copilot/Claude Code/Cursor/Codex 各等级）|
+| 2 | 矩阵描述与实际分发链路（`SOURCES` vs `CLAUDE_SOURCES`）一致 |
+| 3 | 未支持客户端（如 Codex）是否明示"无适配"而非默认隐瞒 |
+
+**D25 记忆/报告 `<agent>` 字段 🔴**
+
+| # | 检查内容 |
+|:-:|---------|
+| 1 | `15-memory.instructions.md`、`CLAUDE.md` `02-output-paths.instructions.md` 三处的 `<agent>` 枚举值是否一致（固定集合，无散值）|
+| 2 | `devcodex init` / `devcodex init --claude` 是否分别写入 `"agent": "copilot"` / `"agent": "claude-code"` 到 `.devcodex/profile/config.json` |
+| 3 | `.devcodex/.memory/clients/<agent>/` 目录命名是否符合上述枚举 |
+| 4 | 报告路径 `.devcodex/reports/<type>/<agent>/YYYYMMDD/` 中 `<agent>` 是否同样符合枚举 |
 

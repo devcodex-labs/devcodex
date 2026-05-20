@@ -48,13 +48,6 @@ description: 定义意图识别结果到工作流的路由映射。本 Skill 为
 | audit | 报告 | `skills/audit-report/SKILL.md` |
 | audit | 通用文档 | `skills/audit-document/SKILL.md` |
 
-## 授权门控
-
-路由确定后验证当前授权层级（`token-check` Skill）：
-
-- Free 层访问 Pro 功能 → 提示升级并列出可用替代
-- 功能层级标注见各子类型路由表中的 ⚠️ Pro 标记
-
 ## 特殊路由规则
 
 ### 违规质疑路由（优先于主路由表）

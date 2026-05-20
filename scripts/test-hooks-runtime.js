@@ -3,25 +3,35 @@
 
 const assert = require('assert')
 const fs = require('fs')
+const os = require('os')
 const path = require('path')
 const { spawnSync } = require('child_process')
 
 const ROOT = path.resolve(__dirname, '..')
 const RUNTIME = path.join(ROOT, 'hooks', '_runtime', 'lifecycle.cjs')
-const STATE_DIR = path.join(ROOT, '.devcodex', '.memory', 'hooks')
+
+// Use a temp directory as the workspace root to isolate from real requirements
+const TEMP_ROOT = path.join(os.tmpdir(), `devcodex-hooks-test-${process.pid}`)
+const STATE_DIR = path.join(TEMP_ROOT, '.devcodex', '.memory', 'hooks')
 const STATE_FILE = path.join(STATE_DIR, 'lifecycle-state.json')
 const CAPTURE_FLAG = path.join(STATE_DIR, 'capture-final-payload.flag')
 const CAPTURE_LOG = path.join(STATE_DIR, 'captured-final-payloads.ndjson')
 
 function cleanState() {
-  if (fs.existsSync(STATE_DIR)) {
-    fs.rmSync(STATE_DIR, { recursive: true, force: true })
+  if (fs.existsSync(TEMP_ROOT)) {
+    fs.rmSync(TEMP_ROOT, { recursive: true, force: true })
   }
+  // Bootstrap the temp workspace with a dev-mode profile
+  fs.mkdirSync(path.join(TEMP_ROOT, '.devcodex', 'profile'), { recursive: true })
+  fs.writeFileSync(
+    path.join(TEMP_ROOT, '.devcodex', 'profile', 'config.json'),
+    JSON.stringify({ mode: 'dev' })
+  )
 }
 
 function run(payload) {
   const result = spawnSync(process.execPath, [RUNTIME], {
-    cwd: ROOT,
+    cwd: TEMP_ROOT,
     input: JSON.stringify(payload),
     encoding: 'utf8'
   })

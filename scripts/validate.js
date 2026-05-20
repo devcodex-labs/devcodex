@@ -42,7 +42,7 @@ function checkV1() {
     .filter(f => f.endsWith('.instructions.md'))
   for (const f of instructionFiles) {
     const content = read(f)
-    const fm = content.match(/^---\n([\s\S]*?)\n---/)
+    const fm = content.match(/^---\r?\n([\s\S]*?)\r?\n---/)
     if (!fm) {
       err(`[V1] Missing frontmatter: ${path.relative(ROOT, f)}`)
       continue
@@ -55,7 +55,7 @@ function checkV1() {
     .filter(f => path.basename(f) === 'SKILL.md')
   for (const f of skillFiles) {
     const content = read(f)
-    const fm = content.match(/^---\n([\s\S]*?)\n---/)
+    const fm = content.match(/^---\r?\n([\s\S]*?)\r?\n---/)
     if (!fm) {
       err(`[V1] Missing frontmatter: ${path.relative(ROOT, f)}`)
       continue
@@ -176,10 +176,10 @@ function checkV6() {
     ]
     const forbidden = files.filter(f =>
       (/^assets\/hooks\//i.test(f) ||
-       /violations\.md$/i.test(f) ||
-       /pending-fixes\.md$/i.test(f) ||
-       /process-improvements\.md$/i.test(f) ||
-       /gap-registry\.md$/i.test(f)) &&
+        /violations\.md$/i.test(f) ||
+        /pending-fixes\.md$/i.test(f) ||
+        /process-improvements\.md$/i.test(f) ||
+        /gap-registry\.md$/i.test(f)) &&
       !f.startsWith('data/templates/')
     )
     const missingRequired = required.filter(f => !files.includes(f))

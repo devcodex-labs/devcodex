@@ -142,6 +142,27 @@ function main() {
   assert.strictEqual(captureEntries[1].eventName, 'Stop')
   assert.strictEqual(fs.existsSync(CAPTURE_FLAG), false)
 
+  // Archive marker bypass test: an unfinished requirement with .archived must NOT block
+  const reqDir = path.join(TEMP_ROOT, '.devcodex', 'requirements', '历史归档需求')
+  fs.mkdirSync(path.join(reqDir, '.memory'), { recursive: true })
+  fs.writeFileSync(path.join(reqDir, '01-需求概述.md'), '# req\n')
+  fs.writeFileSync(path.join(reqDir, '.memory', 'sessions.md'), '| CP1 | ✅ |\n')
+  const blockedByOldReq = run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'apply_patch',
+    tool_input: { input: '*** Begin Patch\n*** Update File: src/app.js\n*** End Patch' }
+  })
+  assert.strictEqual(blockedByOldReq.hookSpecificOutput.permissionDecision, 'deny')
+  assert.match(blockedByOldReq.hookSpecificOutput.permissionDecisionReason || '', /CP gate/i)
+  fs.writeFileSync(path.join(reqDir, '.archived'), '')
+  const allowedAfterArchive = run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'apply_patch',
+    tool_input: { input: '*** Begin Patch\n*** Update File: src/app.js\n*** End Patch' }
+  })
+  assert.strictEqual(allowedAfterArchive.continue, true)
+  assert.ok(!allowedAfterArchive.hookSpecificOutput)
+
   cleanState()
   process.stdout.write('hooks runtime smoke test passed\n')
 }

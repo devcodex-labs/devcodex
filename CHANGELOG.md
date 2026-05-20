@@ -1,6 +1,6 @@
 # 变更日志 (CHANGELOG)
 
-> **说明**: 版本概览摘要，当前维护中的详细变更见 [`changelogs/v1.9.2.md`](./changelogs/v1.9.2.md)，历史版本见对应详细变更文件
+> **说明**: 版本概览摘要，当前维护中的详细变更见 [`changelogs/v1.9.3.md`](./changelogs/v1.9.3.md)，历史版本见对应详细变更文件
 > **最后更新**: 2026-05-20
 
 ---
@@ -9,6 +9,7 @@
 
 | 版本 | 日期 | 变更摘要 | 详细 |
 |------|------|---------|------|
+| [v1.9.3](./changelogs/v1.9.3.md) | 2026-05-20 | 🔧 **CP gate archive 旁路 + 报告头部回填**：`lifecycle.cjs` 支持 `.archived` 跳过历史需求，消除全局阻断风险；报告 03 头部补齐强制字段；L 级建议补三列验证；v1.9.2 git tag 补打；hooks runtime 测试新增 archive 用例 | [查看](./changelogs/v1.9.3.md) |
 | [v1.9.2](./changelogs/v1.9.2.md) | 2026-05-20 | 🔧 **跨客户端审计闭环 + 双平台 Bootstrap 硬门禁**：`lifecycle.cjs` 对 Copilot/Claude Code 双平台同启 Bootstrap 拦截；agent 字段枚举固定化（禁裸 `claude`，强制 `claude-code`）；audit 维度扩展 D23~D25（Claude 适配/客户端矩阵/agent 字段）；README 新增 Client Support Matrix；新增 `skills/audit-session`（跨会话审计状态机）+ `skills/profile-bootstrap`（Profile 自动生成）+ `devcodex profile init` CLI；CLAUDE.md SC/RC/T 完整索引；devcodex-v2 标记 LEGACY | [查看](./changelogs/v1.9.2.md) |
 | [v1.9.1](./changelogs/v1.9.1.md) | 2026-05-10 | 🔧 **模板链收口 + Dev 模式硬门禁加固**：收口默认 requirement/design/plan/progress 模板边界、同步 CP3/进度规则到 Instructions 与 Skills，强化 Hooks 运行时 bootstrap/closure 行为并补齐回归校验，同时移除仓库内明文 GitHub Packages token | [查看](./changelogs/v1.9.1.md) |
 | [v1.9.0](./changelogs/v1.9.0.md) | 2026-05-09 | 🎉 **Workspace Hooks MVP + VS Code 实机验证闭环**：新增 `hooks/` 正式分发面、补齐 Hook-First / Instruction-Fallback 文档语义、修复 `hook_event_name` 兼容与命令误拦截，并完成包校验、站点同步和真实 VS Code Hook 触发验证 | [查看](./changelogs/v1.9.0.md) |

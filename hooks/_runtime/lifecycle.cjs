@@ -282,6 +282,7 @@ function findIncompleteRequirement() {
     })
     .filter(Boolean)
   return dirs.find(d => {
+    if (fs.existsSync(path.join(d.fullPath, '.archived'))) return false
     if (!fs.existsSync(path.join(d.fullPath, CP1_FILE))) return false
     if (!fs.existsSync(path.join(d.fullPath, CP3_FILE))) return true
     return !readCpConfirmations(d.fullPath).CP3

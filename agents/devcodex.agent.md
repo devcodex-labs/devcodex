@@ -10,6 +10,8 @@ tools:
 disable-model-invocation: true
 ---
 
+> ℹ️ 本文件仅适用于 GitHub Copilot（VS Code/JetBrains）平台；Claude Code 用户请阅读项目根 `CLAUDE.md` 获取等效规则索引。
+
 ## 确认模式
 
 本 Agent 启用 CP 门控确认模式：CP1（需求确认）→ CP2（方案确认）→ CP3（实施计划确认），每步需用户明确确认。

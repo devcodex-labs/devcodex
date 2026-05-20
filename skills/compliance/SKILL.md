@@ -29,13 +29,13 @@ SC: SC2 [✅/❌] SC4 [✅/❌] SC6 [✅/❌] ...（仅列适用项，逐项实�
 整体：✅ 全通过 / ⚠️ <N> 项待修正
 
 📂 本次会话产物：
-- [[filename] ([类型])](file:///[绝对路径])
-  `E:\绝对路径`
+- [filename (类型)](workspace相对路径/file.md)
+  `E:\绝对路径\file.md`
 ---
 ```
 
 > ⛔ dev 模式下不输出状态块视为未执行合规检查。
-> ⚠️ **FC5 填写规则**：必须在回复末尾以 Markdown 链接 + 纯文本路径**双行**格式逐行列出（格式见 `02-output-paths.instructions.md` §产物路径输出格式）；链接路径用正斜杠，纯文本路径用反斜杠；本轮无文件变更时填 N/A，有变更时不得填 ✅ 而不列出路径。
+> ⚠️ **FC5 填写规则**：必须在回复末尾以 Markdown 链接 + 纯文本路径**双行**格式逐行列出（详见 [`02-output-paths`](../../instructions/02-output-paths.instructions.md) §产物路径输出格式）；**第一行使用工作区根的相对路径**（不带 `file://` 协议，VS Code Claude 插件 webview / VS Code Markdown Preview / JetBrains 均可点击）；**第二行使用纯文本绝对路径**（Windows 反斜杠 `E:\...`，终端/跨工具用）；本轮无文件变更时填 N/A，有变更时不得填 ✅ 而不列出路径。
 > ℹ️ prod 模式不执行合规检查，不输出状态块。
 > ℹ️ chat 工作流豁免此输出。
 

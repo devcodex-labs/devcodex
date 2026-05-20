@@ -51,10 +51,12 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 > **项目**: [项目名]
 > **类型**: [类型]
 > **子类型**: [子类型]（无时省略）
-> **创建日期**: YYYY-MM-DD
+> **创建日期**: YYYY-MM-DD HH:MM
 > **Agent**: [agent-id]
 > **状态**: 进行中 / 已完成
 ```
+
+> ℹ️ **日期精度规则**：`创建日期` 使用 **`YYYY-MM-DD HH:MM`** 分钟级（便于跨会话定位 + 同一天多报告区分）；目录路径仍用 `YYYYMMDD` 天级（避免目录碎片化）。
 
 ### audit 报告额外头部
 ```markdown
@@ -68,18 +70,36 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 - CP 确认记录表
 - 三步扫描结果
 
+### fix.incident 报告额外头部（响应时效审计）
+```markdown
+> **事件级别**: P0 / P1 / P2
+> **事件时间**: YYYY-MM-DD HH:MM:SS（事件首次发现时间，秒级精度）
+> **响应时间**: YYYY-MM-DD HH:MM:SS（AI 接手时间）
+> **修复时间**: YYYY-MM-DD HH:MM:SS（修复完成时间）
+```
+
 ## 强制约束
 
 - ⛔ **禁止仅在对话中输出报告**，必须写入文件（FC2 检查）
 - ⛔ **禁止覆盖已有报告**，每次会话独立新建文件
-- 每条建议/问题必须附三列验证（合理性 + 可实施性 + 收益）
+- 每条建议/问题必须附五项验证（合理性 + 可实施性 + 收益 + 验证状态 + 影响范围）— 与 [`17-compliance.instructions.md`](./17-compliance.instructions.md) §1 输出验证保持一致
 - 报告写入后必须执行二次验证（V1~V6，见 `17-compliance.instructions.md`）
-- 回复末尾必须输出报告路径：
+- 回复末尾必须输出报告路径（双行格式，详见 [`02-output-paths.instructions.md`](./02-output-paths.instructions.md) §产物路径输出格式）：
   ```
-  file:///完整路径/NN--简述.md
-  完整路径/NN--简述.md
+  - [NN--简述.md](workspace相对路径/.devcodex/reports/.../NN--简述.md)
+    `E:\绝对路径\.devcodex\reports\...\NN--简述.md`
   ```
+  > 第一行用相对路径（VS Code/JetBrains 可点击）；第二行用绝对路径纯文本（终端/跨工具用）。
 - ≤ 500 行（C13），超出拆分
+
+### 写入工具选择（v1.9.4+）
+
+| 报告规模 | 推荐工具 | 理由 |
+|---------|---------|------|
+| 新建报告，预计 ≥ 200 行 | **Write 单次写入** | 避免 Edit 多段写入被 session limit 截断在中间（参见 [`18-spec-radar §G10`](./18-spec-radar.instructions.md) limit 截断恢复未 resume 案例）|
+| 新建报告，< 200 行 | Write 或 Edit 均可 | 截断风险低 |
+| 已有报告小修订 | Edit | 不动其余内容，最小化变更面 |
+| 已有报告大改写 | 新建独立报告（NN+1）+ 头部引用原报告 | 避免覆盖历史（C06）|
 
 ## 跨会话报告
 

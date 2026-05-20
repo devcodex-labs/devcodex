@@ -9,6 +9,7 @@
  * V5 PC4 输出格式唯一定义
  * V6 npm pack 白名单不含维护者状态
  * V7 Hooks 运行时 bootstrap 行为冒烟
+ * V8 父级部署同步检查（.claude/ 与 .github/ vs 源仓库关键文件 mtime）
  *
  * Exit: 0=OK, 1=error, 2=warnings only
  */
@@ -189,12 +190,26 @@ function checkV6() {
     if (missingRequired.length) {
       err(`[V6] Missing hooks assets in pack: ${missingRequired.join(', ')}`)
     }
+    // Copilot 分支：hooks/devcodex.lifecycle.json 必须使用 .github/hooks/_runtime/ 路径
     const hookConfig = JSON.parse(read(path.join(ROOT, 'hooks/devcodex.lifecycle.json')))
     const hookCommands = Object.values(hookConfig.hooks).flat().map(entry => entry.command)
     const expectedCommand = 'node ./.github/hooks/_runtime/lifecycle.cjs'
     const invalidCommands = hookCommands.filter(command => command !== expectedCommand)
     if (invalidCommands.length) {
-      err(`[V6] Hook commands must use workspace runtime path: ${invalidCommands.join(', ')}`)
+      err(`[V6] Copilot hook commands must use workspace runtime path: ${invalidCommands.join(', ')}`)
+    }
+    // Claude Code 分支：index.js 必须定义 CLAUDE_HOOK_COMMAND 常量并使用向上爬路径模式（避免相对路径解析失败）
+    const indexSrc = read(path.join(ROOT, 'index.js'))
+    if (!/const\s+CLAUDE_HOOK_COMMAND\s*=/.test(indexSrc)) {
+      err('[V6] Claude Code adapter missing CLAUDE_HOOK_COMMAND constant in index.js (required for hooks settings.json injection)')
+    } else {
+      const claudeHookMatch = indexSrc.match(/CLAUDE_HOOK_COMMAND\s*=\s*`([^`]+)`/)
+      if (claudeHookMatch && !/process\.cwd\(\)|while\s*\(/.test(claudeHookMatch[1])) {
+        err('[V6] CLAUDE_HOOK_COMMAND must use upward-walk pattern (cwd→parent→...→root) to survive subdir invocation; relative `.claude/hooks/_runtime/lifecycle.cjs` alone fails')
+      }
+    }
+    if (!/CLAUDE_SETTINGS_HOOKS/.test(indexSrc)) {
+      err('[V6] Claude Code adapter missing CLAUDE_SETTINGS_HOOKS constant in index.js (required to write .claude/settings.json)')
     }
     const packed = execSync('npm pack --dry-run 2>&1', { cwd: ROOT, encoding: 'utf8' })
     if (/schema-dsl|vext-test/.test(packed)) {
@@ -217,6 +232,74 @@ function checkV7() {
   }
 }
 
+// ── V8: deployment sync check ─────────────────────────────────────────────
+// 验证工作区根的部署体（父级 .claude/ 与 .github/）是否同步源仓库的关键文件。
+// 仅在父级部署体存在时运行；不存在则跳过（属于纯 plugin 仓库场景）。
+function checkV8() {
+  const PARENT = path.dirname(ROOT)
+  const claudeDir = path.join(PARENT, '.claude')
+  const githubDir = path.join(PARENT, '.github')
+  const claudeExists = fs.existsSync(claudeDir)
+  const githubExists = fs.existsSync(githubDir)
+
+  if (!claudeExists && !githubExists) {
+    console.log('[V8] no parent deployment (.claude/ / .github/) detected — skip')
+    return
+  }
+
+  // 关键文件清单：source repo path → expected target paths
+  const checkPairs = [
+    { src: 'instructions/01-common.instructions.md', claude: 'instructions/01-common.instructions.md', github: 'instructions/01-common.instructions.md' },
+    { src: 'instructions/16-report.instructions.md', claude: 'instructions/16-report.instructions.md', github: 'instructions/16-report.instructions.md' },
+    { src: 'instructions/17-compliance.instructions.md', claude: 'instructions/17-compliance.instructions.md', github: 'instructions/17-compliance.instructions.md' },
+    { src: 'instructions/02-output-paths.instructions.md', claude: 'instructions/02-output-paths.instructions.md', github: 'instructions/02-output-paths.instructions.md' },
+    { src: 'instructions/12-audit.instructions.md', claude: 'instructions/12-audit.instructions.md', github: 'instructions/12-audit.instructions.md' },
+    { src: 'skills/report/SKILL.md', claude: 'skills/report/SKILL.md', github: 'skills/report/SKILL.md' },
+    { src: 'skills/compliance/SKILL.md', claude: 'skills/compliance/SKILL.md', github: 'skills/compliance/SKILL.md' },
+    { src: 'hooks/_runtime/lifecycle.cjs', claude: 'hooks/_runtime/lifecycle.cjs', github: 'hooks/_runtime/lifecycle.cjs' }
+  ]
+
+  let stale = 0
+  for (const pair of checkPairs) {
+    const srcPath = path.join(ROOT, pair.src)
+    if (!fs.existsSync(srcPath)) continue
+    const srcStat = fs.statSync(srcPath)
+    const srcMtime = srcStat.mtimeMs
+
+    if (claudeExists) {
+      const dest = path.join(claudeDir, pair.claude)
+      if (fs.existsSync(dest)) {
+        const dStat = fs.statSync(dest)
+        if (dStat.mtimeMs < srcMtime - 1000) {
+          warn(`[V8] .claude/ stale: ${pair.claude} (run: npx devcodex update --claude)`)
+          stale++
+        }
+      } else {
+        warn(`[V8] .claude/ missing: ${pair.claude} (source repo has v1.9.2+ addition)`)
+        stale++
+      }
+    }
+    if (githubExists) {
+      const dest = path.join(githubDir, pair.github)
+      if (fs.existsSync(dest)) {
+        const dStat = fs.statSync(dest)
+        if (dStat.mtimeMs < srcMtime - 1000) {
+          warn(`[V8] .github/ stale: ${pair.github} (run: npx devcodex update)`)
+          stale++
+        }
+      } else {
+        warn(`[V8] .github/ missing: ${pair.github}`)
+        stale++
+      }
+    }
+  }
+  if (stale === 0) {
+    console.log('[V8] parent deployment (.claude/ / .github/) in sync with source repo')
+  } else {
+    console.log(`[V8] parent deployment has ${stale} stale/missing file(s) — see warnings`)
+  }
+}
+
 checkV1()
 checkV2()
 checkV3()
@@ -224,6 +307,7 @@ checkV4()
 checkV5()
 checkV6()
 checkV7()
+checkV8()
 
 console.log('')
 if (errors.length) {

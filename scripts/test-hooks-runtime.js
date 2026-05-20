@@ -163,6 +163,61 @@ function main() {
   assert.strictEqual(allowedAfterArchive.continue, true)
   assert.ok(!allowedAfterArchive.hookSpecificOutput)
 
+  // v1.9.4+ Cross-requirement bypass test:
+  // When any requirement has CP3 confirmed (i.e. user is implementing),
+  // stale unfinished requirements should not block src/ code mutations globally.
+  cleanState()
+  const reqIncomplete = path.join(TEMP_ROOT, '.devcodex', 'requirements', '陈旧未完成需求')
+  fs.mkdirSync(path.join(reqIncomplete, '.memory'), { recursive: true })
+  fs.writeFileSync(path.join(reqIncomplete, '01-需求概述.md'), '# stale\n')
+  fs.writeFileSync(path.join(reqIncomplete, '.memory', 'sessions.md'), '| CP1 | ✅ |\n')
+
+  // Bootstrap first so we can test CP gate cleanly
+  run({ hookEventName: 'UserPromptSubmit', prompt: 'cross-req test' })
+  run({ hookEventName: 'PreToolUse', tool_name: 'read_file', tool_input: { filePath: '.devcodex/profile/config.json' } })
+  run({ hookEventName: 'PreToolUse', tool_name: 'read_file', tool_input: { filePath: '.devcodex/.memory/clients/copilot/SUMMARY.md' } })
+  run({ hookEventName: 'PreToolUse', tool_name: 'read_file', tool_input: { filePath: '.devcodex/.memory/clients/copilot/tasks/20260510.md' } })
+
+  // Without any CP3-done requirement: src/ mutation must be denied (original behavior)
+  const blockedNoCp3 = run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'apply_patch',
+    tool_input: { input: '*** Begin Patch\n*** Update File: src/foo.js\n*** End Patch' }
+  })
+  assert.strictEqual(blockedNoCp3.hookSpecificOutput.permissionDecision, 'deny')
+
+  // Add a second requirement that has CP3 confirmed → cross-req bypass should kick in
+  const reqDone = path.join(TEMP_ROOT, '.devcodex', 'requirements', '当前实施需求')
+  fs.mkdirSync(path.join(reqDone, '.memory'), { recursive: true })
+  fs.writeFileSync(path.join(reqDone, '01-需求概述.md'), '# done\n')
+  fs.writeFileSync(path.join(reqDone, '02-技术方案.md'), '# plan\n')
+  fs.writeFileSync(path.join(reqDone, '04-实施计划.md'), '# impl\n')
+  fs.writeFileSync(
+    path.join(reqDone, '.memory', 'sessions.md'),
+    '| CP1 | ✅ |\n| CP2 | ✅ |\n| CP3 | ✅ |\n'
+  )
+
+  const allowedCrossReq = run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'apply_patch',
+    tool_input: { input: '*** Begin Patch\n*** Update File: src/foo.js\n*** End Patch' }
+  })
+  assert.strictEqual(allowedCrossReq.continue, true,
+    'cross-requirement bypass: src/ mutation should be allowed when any other requirement has CP3 confirmed')
+  assert.ok(!allowedCrossReq.hookSpecificOutput)
+
+  // Path-aware test: writing inside reqIncomplete dir while reqDone has CP3
+  // hasAnyCp3Done=true → still allowed (cross-req bypass takes precedence)
+  const allowedInReqDir = run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'Write',  // Claude Code PascalCase tool
+    tool_input: {
+      file_path: path.join(reqIncomplete, '02-技术方案.md'),
+      content: '# new plan\n'
+    }
+  })
+  assert.strictEqual(allowedInReqDir.continue, true)
+
   cleanState()
   process.stdout.write('hooks runtime smoke test passed\n')
 }

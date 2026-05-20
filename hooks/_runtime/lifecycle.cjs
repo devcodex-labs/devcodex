@@ -281,6 +281,18 @@ function findIncompleteRequirement() {
       catch { return null }
     })
     .filter(Boolean)
+
+  // v1.9.4+ 跨需求阻断缓解：先扫描"是否存在任意已 CP3 通过的需求"
+  // 若存在 → 视为有需求已进入实施阶段 → 全局放行（避免旧未完成需求阻断当前实施）
+  // 配合 `.archived` 旁路（v1.9.3+）共同工作；archived 视为"已归档"，不参与 CP3 通过统计
+  const hasAnyCp3Done = dirs.some(d => {
+    if (fs.existsSync(path.join(d.fullPath, '.archived'))) return false
+    if (!fs.existsSync(path.join(d.fullPath, CP1_FILE))) return false
+    if (!fs.existsSync(path.join(d.fullPath, CP3_FILE))) return false
+    return readCpConfirmations(d.fullPath).CP3
+  })
+  if (hasAnyCp3Done) return null  // 已有需求进入实施 → 全局放行（跨需求场景）
+
   return dirs.find(d => {
     if (fs.existsSync(path.join(d.fullPath, '.archived'))) return false
     if (!fs.existsSync(path.join(d.fullPath, CP1_FILE))) return false
@@ -289,8 +301,61 @@ function findIncompleteRequirement() {
   }) || null
 }
 
-function checkCpGate() {
-  const req = findIncompleteRequirement()
+// Extract file paths from a PreToolUse payload (Claude Code + Copilot field names)
+function extractToolPaths(payload) {
+  if (!payload) return []
+  const input = payload.tool_input || payload.toolInput || {}
+  const out = []
+  if (typeof input.file_path === 'string' && input.file_path) out.push(input.file_path)
+  if (typeof input.filePath === 'string' && input.filePath) out.push(input.filePath)
+  if (typeof input.path === 'string' && input.path && /[/\\]/.test(input.path)) out.push(input.path)
+  if (Array.isArray(input.files)) {
+    for (const f of input.files) if (typeof f === 'string' && f) out.push(f)
+  }
+  return out.map(p => { try { return path.normalize(p) } catch { return p } }).filter(Boolean)
+}
+
+// Map a file path to its owning requirement name (.devcodex/requirements/<X>/...);
+// returns null when the path is not under any requirement directory.
+function getRequirementNameFromPath(p) {
+  if (!p) return null
+  let abs = p
+  if (!path.isAbsolute(abs)) abs = path.resolve(WORKSPACE_ROOT, abs)
+  const norm = path.normalize(abs)
+  const reqsDir = path.normalize(REQUIREMENTS_DIR)
+  if (!norm.toLowerCase().startsWith(reqsDir.toLowerCase() + path.sep)) return null
+  const rel = path.relative(reqsDir, norm)
+  const parts = rel.split(path.sep).filter(Boolean)
+  return parts.length > 0 ? parts[0] : null
+}
+
+// Path-aware CP gate: when all tool paths belong to specific requirement dirs,
+// only check those requirements' CP status (avoids cross-requirement deny).
+// Falls back to global findIncompleteRequirement() for mixed/source-code paths.
+function findIncompleteRequirementForPaths(payload) {
+  const paths = extractToolPaths(payload)
+  if (paths.length === 0) return findIncompleteRequirement()
+
+  const reqNames = paths.map(getRequirementNameFromPath)
+  const allInReq = reqNames.every(n => n !== null)
+  if (!allInReq) return findIncompleteRequirement()  // mixed or source-code → preserve original behavior
+
+  const targetSet = new Set(reqNames)
+  for (const reqName of targetSet) {
+    const fullPath = path.join(REQUIREMENTS_DIR, reqName)
+    if (!fs.existsSync(fullPath)) continue
+    if (fs.existsSync(path.join(fullPath, '.archived'))) continue
+    if (!fs.existsSync(path.join(fullPath, CP1_FILE))) continue
+    if (!fs.existsSync(path.join(fullPath, CP3_FILE))) return { name: reqName, fullPath }
+    if (!readCpConfirmations(fullPath).CP3) return { name: reqName, fullPath }
+  }
+  return null  // all target requirements have CP3 confirmed → allow
+}
+
+function checkCpGate(payload) {
+  const req = (payload && extractToolPaths(payload).length > 0)
+    ? findIncompleteRequirementForPaths(payload)
+    : findIncompleteRequirement()
   if (!req) return null
   const confirmed = readCpConfirmations(req.fullPath)
   if (!fs.existsSync(path.join(req.fullPath, CP2_FILE)) || !confirmed.CP2) {
@@ -521,7 +586,8 @@ async function main() {
     }
 
     // 3. CP gate — block source code mutations until checkpoints confirmed
-    const gate = checkCpGate()
+    //    payload-aware: when tool paths target specific requirement dirs, only that requirement's CP is checked
+    const gate = checkCpGate(payload)
     if (gate && isSourceCodeMutation(payload, platform)) {
       state.lastReason = `cp-gate-${gate.phase}`
       saveState(state)

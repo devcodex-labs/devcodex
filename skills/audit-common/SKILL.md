@@ -51,9 +51,17 @@ description: 审查公共维度 G0~G5 — 所有 audit 子类型必先执行的�
    - `agents/`（Agent 定义）
    - `data/`（数据文件：gap-registry.md / pending-fixes.md 等）
    - 根目录 `*.md`（RULES.md / README.md / CHANGELOG.md）
-3. **发现关联文件**：将 grep 命中且不在当前审查范围内的文件列入扩展范围
-4. **补充 G3 审查**：对每个新发现文件执行 G3 外部一致性检查
-5. **确认覆盖完整**：所有命中文件均已审查后，CRS ✅
+3. **【v1.9.4+ 父链部署体扫描】**（关联 GAP-019）：
+   - **检测条件**：当 cwd 是 plugin 源仓库（含 `package.json` 且 `name` 含 `devcodex`），且 cwd 父链上存在 `.claude/` 或 `.github/` 部署体
+   - **触发动作**：
+     a. 将工作区根的 `.claude/{instructions,skills,prompts}/`、`.github/{instructions,skills,prompts}/` 也纳入 grep 范围
+     b. 对每个命中文件做 G3 外部一致性检查（与源仓库对应文件是否一致）
+     c. 若发现部署体与源仓库不一致 → 标注 `⚠️ 部署滞后`（建议运行 `devcodex update --claude` 或运行 `node scripts/validate.js` 的 V8 部署同步检查）
+   - **目的**：避免源仓库与工作区根部署体并存时 CRS 仅扫源仓库导致误判（GAP-019 案例：F-03/F-04 因未扫父级 `e:\Worker\.claude/` 而误判为"hooks 不生效"）
+   - **跳过条件**：当 cwd 即工作区根（无父链 .claude/.github/）→ 跳过本步骤
+4. **发现关联文件**：将 grep 命中且不在当前审查范围内的文件列入扩展范围
+5. **补充 G3 审查**：对每个新发现文件执行 G3 外部一致性检查
+6. **确认覆盖完整**：所有命中文件均已审查后，CRS ✅
 
 > ℹ️ CRS 发现的文件只需做 G3（外部一致性），不需要完整重跑全部维度。
 
@@ -119,10 +127,10 @@ SC: SC4 [✅/❌] SC6 [✅/❌] ...（仅列适用项，逐项实际验证后填
 整体：✅ 全通过 / ⚠️ <N> 项待修正
 
 📂 本次会话产物：
-- [[filename] ([类型])](file:///[绝对路径，正斜杠，如 E:/project/skills/xxx/SKILL.md])
-  `E:\绝对路径\反斜杠格式`
-- [[filename] ([类型])](file:///[绝对路径])
-  `E:\绝对路径`
+- [filename (类型)](workspace相对路径/skills/xxx/SKILL.md)
+  `E:\绝对路径\skills\xxx\SKILL.md`
+- [filename (类型)](workspace相对路径/file.md)
+  `E:\绝对路径\file.md`
 ---
 ```
 

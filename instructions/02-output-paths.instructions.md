@@ -80,6 +80,8 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 - `NN`：当日序号，从 `01` 起递增
 - `--`：双横杠分隔序号与简述
 
+> ℹ️ **路径目录 `YYYYMMDD` 保持天级**（避免同天多报告产生过多子目录）；**报告头部"创建日期"使用分钟级 `YYYY-MM-DD HH:MM`**（便于跨会话定位）；`fix.incident` 子类型的报告须含 `事件时间: YYYY-MM-DD HH:MM:SS` 字段（响应时效审计，参见 `prompts/report-fix.prompt.md`）。
+
 ## 记忆路径
 
 ```text
@@ -94,11 +96,15 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 
 ```
 📂 本次会话产物：
-- [文件名（类型）](file:///E:/绝对路径)
-  `E:\绝对路径`
+- [文件名（类型）](workspace相对路径/file.md)
+  `E:\绝对路径\file.md`
 ```
 
-> 🔴 Markdown 链接 + 纯文本路径双行均须输出。禁止询问"是否需要打开"；禁止省略产物路径输出。
+> 🔴 **格式说明**：
+> - **第一行**：Markdown 链接使用**工作区根的相对路径**（不以 `/` 开头、不带 `file://` 协议）。理由：VS Code Claude 插件 webview / VS Code Markdown Preview / JetBrains 均能直接点击打开相对路径；`file:///` 协议在 VS Code Claude 插件 webview CSP 下被阻止。
+> - **第二行**：纯文本绝对路径（Windows 反斜杠 `E:\...`，POSIX 用 `/`）。用于终端 Ctrl+Click、复制粘贴到资源管理器、跨工具引用。
+> - 两行都必须输出。禁止询问"是否需要打开"；禁止省略产物路径输出。
+> - ⚠️ **历史版本兼容**：v1.9.3 及之前使用 `[name](file:///E:/...)` 格式，存量报告无需回填，但新增报告须按本格式生成。
 
 ## CHANGELOG 维护规范
 

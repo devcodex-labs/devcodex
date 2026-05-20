@@ -19,7 +19,7 @@ applyTo: .devcodex/.memory/**
 
 | 日期 | 会话 | 类型 | 摘要 | 关联报告 | 关联记忆 | 状态 |
 |------|:----:|------|------|---------|---------|:----:|
-| YYYY-MM-DD | NN | dev/fix/... | [50~100字摘要，含关键数字/结果] | [NN--简述.md](file:///路径) | [YYYYMMDD.md §NN](file:///路径) | ✅/🔄 |
+| YYYY-MM-DD HH:MM | NN | dev/fix/... | [50~100字摘要，含关键数字/结果] | [NN--简述.md](workspace相对路径/NN--简述.md) | [YYYYMMDD.md §NN](workspace相对路径/YYYYMMDD.md) | ✅/🔄 |
 ```
 
 ### 字段规则
@@ -28,6 +28,7 @@ applyTo: .devcodex/.memory/**
 - **摘要**：一行 50~100 字，包含做了什么 + 关键数字/结果
 - **多任务会话**：一行覆盖全部任务，不拆多行
 - **排序**：按时间正序追加（最新在最后）
+- **状态字段（v1.9.4+ 延迟写入）**：会话进行中先写 `🔄`；任务完整结束、合规检查全通过、V8 部署同步通过后才改 `✅`。防止 session limit 截断时 SUMMARY 已 ✅ 但 tasks 段落不完整造成数据不一致（参见 [`15-memory §新会话首步强制`](../instructions/15-memory.instructions.md)）。
 
 ## SUMMARY 纯索引约束
 

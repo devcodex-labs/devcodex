@@ -111,17 +111,17 @@ applyTo: "**"
 | dev.init | `dev-init` |
 | dev.optimization | `dev-optimization` · `cp-gate` · `dev-plan-review` |
 | dev.scenario-test | `dev-scenario-test` · `cp-gate` |
-| dev.docs | `dev-docs` |
+| dev.docs | `dev-docs` · `cp-gate` |
 | dev.plan-review | （Instruction 已完整，无需额外 Skill）|
 | fix.default | `fix-default` · `cp-gate` |
 | fix.security | `fix-security` · `cp-gate` |
 | fix.incident | （Instruction 已完整，无需额外 Skill）|
-| audit.规范文件 | `audit-common` · `audit-dimensions` · `audit-execution-guide` |
-| audit.技术方案 | `audit-common` · `audit-tech-design` |
-| audit.需求文档 | `audit-common` · `audit-requirements` |
-| audit.项目工程 | `audit-common` · `audit-project` |
-| audit.报告 | `audit-common` · `audit-report` |
-| audit.通用文档 | `audit-common` · `audit-document` |
+| audit.规范文件 | `audit-common` · `audit-dimensions` · `audit-execution-guide` · `audit-session` |
+| audit.技术方案 | `audit-common` · `audit-tech-design` · `audit-session` |
+| audit.需求文档 | `audit-common` · `audit-requirements` · `audit-session` |
+| audit.项目工程 | `audit-common` · `audit-project` · `audit-session` |
+| audit.报告 | `audit-common` · `audit-report` · `audit-session` |
+| audit.通用文档 | `audit-common` · `audit-document` · `audit-session` |
 | analyze.default | （Instruction 已完整，无需额外 Skill）|
 | analyze.research | `analyze-research` |
 | self-fix | （Instruction 已完整，无需额外 Skill）|

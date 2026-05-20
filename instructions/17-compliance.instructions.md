@@ -38,7 +38,9 @@ applyTo: "**"
 - PC1 意图： [用户意图] → [工作流名称/子类型]
 - PC2 会话状态：第 N 轮（>10 关注 / >13 预警 / >15 防护） · 待跟进事项 ✅ 无 / ⚠️ [简述]
 - PC3 执行准备：未完成任务 ✅ 无 / ⚠️ 存在 🔄 会话：[简述] → 建议先 resume · 产物落点 [已确定/无需产物/待确定]
-- PC4 规范雷达：见 `18-spec-radar.instructions.md` §预检查输出格式
+- PC4 规范雷达：见 `18-spec-radar.instructions.md` §预检查输出格式（v1.9.4+ 含 G10 limit 截断恢复检测）
+- PC5 部署体状态（v1.9.4+）：cwd 父链 .claude/.github/ ✅ 存在 / N/A 无父级 · 与源仓库同步 ✅ / ⚠️ [N 文件滞后] / N/A
+- PC6 工作区一致性（v1.9.4+）：git 未提交变更 ✅ 无 / ⚠️ [N 文件 dirty] · 当前需求目录 [requirements/<X>/ / 无关联]
 ```
 
 > ⚠️ PC0 检查失败时（Profile 未加载）不得跳过 — 必须立即加载后才能继续，ENV_MODE 由 Profile 的 `config.json` 决定。
@@ -50,6 +52,42 @@ applyTo: "**"
 ### PC4 规范雷达（dev 模式专属）
 
 > ⚠️ PC4 完整规范与**唯一输出格式定义**在 18-spec-radar.instructions.md。本文件上方预检查示例块仅为说明用途，不重复定义。
+
+### PC5 部署体状态（v1.9.4+，dev 模式专属）
+
+> 检测条件：当 cwd 是 plugin 源仓库（含 `package.json` 且 `name` 含 `devcodex`），且 cwd 父链上存在 `.claude/` 或 `.github/` 部署体。
+>
+> 触发动作：
+> - 比对源仓库关键文件（instructions/skills/hooks）与父级部署体的 mtime
+> - 落后 → ⚠️ 标记，建议运行 `npx devcodex update --claude`
+> - 同步 → ✅
+> - 无父级部署体 → N/A
+>
+> 与 `scripts/validate.js` §V8 共享算法；PC5 是运行时即时检测，V8 是 CI 静态校验。
+
+### PC6 工作区一致性（v1.9.4+，dev 模式专属）
+
+> 检测条件：项目根有 `.git/` 目录。
+>
+> 触发动作：
+> - 检测 `git status` 是否有未提交变更
+> - 检测当前对话是否在某个 `.devcodex/requirements/<X>/` 任务上下文（通过 sessions.md CP 状态推断）
+> - 输出 N 文件 dirty + 当前需求目录指针，供用户提早察觉工作区漂移
+
+### PC7 新会话首步 resume 强制检测（v1.9.4+，每次会话仅首条用户消息触发）
+
+> 检测条件：本次为会话首条用户消息（不是后续轮次）。
+>
+> 触发动作（hook 强制 + AI 兜底，AI 不可跳过）：
+> 1. Read `.devcodex/.memory/clients/<agent>/tasks/YYYYMMDD.md`（今日）+ 昨日（如今日不存在）
+> 2. 检测最末 `## 会话段落 #N` 的状态字段：
+>    - 显式 `状态: ✅` → 上一会话完成，正常推进
+>    - 显式 `状态: 🔄` 或状态字段缺失 → ⚠️ 触发 resume 提示
+> 3. 比对 SUMMARY 最末行 vs tasks 最末段落状态一致性：
+>    - SUMMARY ✅ + tasks 🔄/缺失 → 🔴 报警："数据不一致，可能上次 limit 截断；建议 resume"
+> 4. 仅本步通过后才进入 cp-gate / 工作流路由
+
+> ⚠️ **关键防漂移机制**：PC7 直接对应 G10 limit 截断恢复触发；防止本会话 #9 截断后未 resume 类问题复发（关联 GAP-019 → 但 GAP 仅覆盖 CRS 扫描；PC7 覆盖 resume 入口）。
 
 ## 触发时机（仅 dev 模式）
 
@@ -168,12 +206,12 @@ SC: SC2 [✅/❌] SC4 [✅/❌] SC6 [✅/❌] ...（仅列适用项，逐项实�
 整体：✅ 全通过 / ⚠️ <N> 项待修正
 
 📂 本次会话产物：
-- [文件名（类型）](file:///[绝对路径，正斜杠，如 E:/project/file.md])
-  `E:\绝对路径`
+- [文件名（类型）](workspace相对路径/file.md)
+  `E:\绝对路径\file.md`
 ---
 ```
 
-> ⚠️ **FC5 填写规则**：必须在回复末尾以 Markdown 链接 + 纯文本路径**双行**格式逐行列出（格式见 `02-output-paths.instructions.md` §产物路径输出格式）；路径用正斜杠（链接）和反斜杠（纯文本）；本轮无文件变更时填 N/A，有变更时不得填 ✅ 而不列出路径。Windows 路径格式：`file:///E:/...`；Unix 路径格式：`file:///home/...` 或 `file:///Users/...`。
+> ⚠️ **FC5 填写规则**：必须在回复末尾以 Markdown 链接 + 纯文本路径**双行**格式逐行列出（详见 [`02-output-paths.instructions.md`](./02-output-paths.instructions.md) §产物路径输出格式）；**第一行使用工作区根的相对路径**（不带 `file://` 协议），保证 VS Code Claude 插件 webview / VS Code Markdown Preview / JetBrains 均可点击；**第二行使用纯文本绝对路径**（Windows 反斜杠 `E:\...`），供终端/跨工具使用；本轮无文件变更时填 N/A，有变更时不得填 ✅ 而不列出路径。
 
 ## 自修复触发（不进入 self-fix 工作流）
 

@@ -71,14 +71,18 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 ## 输出规则
 
 - 每次会话必须写入报告文件（**chat 豁免**，[C05/S05](../../instructions/00-safety.instructions.md)）
-- 报告中每条建议/问题必须附三列验证（合理性 + 可实施性 + 收益）
+- 报告中每条建议/问题必须附五项验证（合理性 + 可实施性 + 收益 + 验证状态 + 影响范围）— 与 [`17-compliance`](../compliance/SKILL.md) §1 输出验证保持一致
 - 报告写入后必须执行 [`compliance`](../compliance/SKILL.md) Skill §5 二次验证（V1~V6）
 - 报告末尾引用本次会话记忆路径
-- 回复末尾必须输出产物文件路径（`file:///` + 纯文本双行格式，[FC5](../compliance/SKILL.md)）
+- 回复末尾必须输出产物文件路径（双行格式：第一行**相对路径**Markdown 链接 + 第二行**绝对路径**纯文本，详见 [`02-output-paths.instructions.md`](../../instructions/02-output-paths.instructions.md) §产物路径输出格式，[FC5](../compliance/SKILL.md)）
 
 ## 行数限制
 
 - ≤ 500 行（[C13](../../instructions/01-common.instructions.md)）；超出拆分
+
+## 写入工具选择（v1.9.4+）
+
+新建报告预计 ≥ 200 行 → **Write 单次写入**（避免 Edit 多段写入被 session limit 截断；详见 [`16-report.instructions.md §写入工具选择`](../../instructions/16-report.instructions.md)）。已有报告小修订 → Edit。
 
 ## 跨会话报告
 

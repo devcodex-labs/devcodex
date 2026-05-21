@@ -178,6 +178,8 @@ function checkV6() {
     const packName = arr[0]?.name || ''
     const packFilename = arr[0]?.filename || ''
     const required = [
+      'instructions.md',
+      'plugin.json',
       'hooks/devcodex.lifecycle.json',
       'hooks/_runtime/lifecycle.cjs',
       'assets/icon-512.png'
@@ -195,7 +197,7 @@ function checkV6() {
       err(`[V6] Forbidden files in pack: ${forbidden.join(', ')}`)
     }
     if (missingRequired.length) {
-      err(`[V6] Missing hooks assets in pack: ${missingRequired.join(', ')}`)
+      err(`[V6] Missing required package assets in pack: ${missingRequired.join(', ')}`)
     }
     // Copilot 分支：hooks/devcodex.lifecycle.json 必须使用 .github/hooks/_runtime/ 路径
     const hookConfig = JSON.parse(read(path.join(ROOT, 'hooks/devcodex.lifecycle.json')))
@@ -285,8 +287,8 @@ function checkV8() {
     { src: 'skills/routing/SKILL.md', claude: 'skills/routing/SKILL.md', github: 'skills/routing/SKILL.md' },
     // Hooks（1 file，双平台共享 _runtime）
     { src: 'hooks/_runtime/lifecycle.cjs', claude: 'hooks/_runtime/lifecycle.cjs', github: 'hooks/_runtime/lifecycle.cjs' },
-    // CLAUDE.md（仅 .claude/ 同步；Copilot 无对应文件）
-    { src: 'CLAUDE.md', claude: '../CLAUDE.md', github: null }
+    // Workspace CLAUDE.md is generated from the v1.9.8+ single source instructions.md.
+    { src: 'instructions.md', claude: '../CLAUDE.md', github: null }
   ]
 
   let stale = 0

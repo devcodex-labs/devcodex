@@ -49,7 +49,8 @@ npx devcodex init
 .github/
 ├── copilot-instructions.md  ← 默认 Copilot always-on 总则（新增）
 ├── instructions/   ← Instructions 约束（12 个，含全部工作流规则）
-├── skills/         ← Skill 详细检查标准（33 个，按需读取）
+├── agents/         ← Copilot 自定义 Agent（v1.9.8 起恢复默认分发）
+├── skills/         ← Skill 详细检查标准（35 个，按需读取）
 ├── prompts/        ← Prompt 模板（24 个）
 ├── hooks/          ← 宿主生命周期 Hook 配置与运行时
 │   ├── devcodex.lifecycle.json
@@ -62,7 +63,7 @@ npx devcodex init
 >
 > ℹ️ VS Code 中若启用 Hooks（Preview）且未被管理员禁用，DevCodex 会同时加载 `.github/hooks/*.json` 作为确定性生命周期护栏；不支持 Hooks 的宿主自动回退到 instruction-fallback。
 >
-> ℹ️ `v1.1.0` 起，`devcodex init/update` **不再默认分发** `.github/agents/`。如果目标项目里仍看到 `.github/agents/`，那是历史残留，需要手动清理。
+> ℹ️ `v1.9.8` 起，`devcodex init/update` 已恢复 Copilot 端 `.github/agents/` 默认分发；Claude Code 端仍通过 Skills 路由，不分发 agents。
 
 ## 使用
 
@@ -79,7 +80,7 @@ npx devcodex init
 → 自动识别为 audit 工作流 → 多轮收敛审查 → 输出报告
 ```
 
-标准安装路径下，无需也不依赖 `@DevCodex`。`v1.9.0` 起，Hook 运行时也随 `init/update` 分发到 `.github/hooks/_runtime/`，不再要求目标项目从 `node_modules/@vextjs/devcodex/...` 读取 Hook 脚本。如你的项目中仍保留历史 `.github/agents/`，那属于 legacy custom agents，而非当前默认安装集合。
+标准安装路径下，无需也不依赖 `@DevCodex`；`.github/agents/` 作为可选显式入口随 Copilot 端默认安装。`v1.9.0` 起，Hook 运行时也随 `init/update` 分发到 `.github/hooks/_runtime/`，不再要求目标项目从 `node_modules/@vextjs/devcodex/...` 读取 Hook 脚本。
 
 ## 默认执行原则
 
@@ -157,10 +158,10 @@ npm run dev
 
 ```
 devcodex/
-├── copilot-instructions.md  # 默认 Copilot always-on 总则
-├── agents/        # Agent 源文件（源码仓保留，不再默认分发到目标项目）
+├── instructions.md # 单源规范文件；安装时按平台生成 copilot-instructions.md / CLAUDE.md
+├── agents/        # Agent 源文件；Copilot 端默认分发，Claude Code 端不分发
 ├── instructions/  # 全局 Instructions（12 个，含工作流规则摘要，自动注入）
-├── skills/        # Skill 详细检查标准（33 个，按 01-common §按需读取表 路由读取）
+├── skills/        # Skill 详细检查标准（35 个，按 01-common §按需读取表 路由读取）
 ├── prompts/       # Prompt 模板（24 个）
 ├── hooks/         # Workspace Hooks 配置与分发到 `.github/hooks/_runtime/` 的运行时
 ├── data/          # 运行时数据模板（分发到目标项目的空骨架）
@@ -233,10 +234,10 @@ DevCodex 的 `plugin.json` 声明 `tier: "free"`，所有 Skill 均标注 `tier:
 
 ## Agent 入口
 
-仓库内保留两个 Agent 文件（`agents/devcodex.agent.md`、`agents/devcodex-auto.agent.md`）供 IDE 直接调用，但 **默认安装路径不再分发 `.github/agents/`**（v1.1.0 起）。标准使用路径是：
+仓库内保留两个 Agent 文件（`agents/devcodex.agent.md`、`agents/devcodex-auto.agent.md`）供 IDE 直接调用；`v1.9.8` 起 Copilot 端默认安装会同步到 `.github/agents/`，Claude Code 端仍不分发 agents。标准使用路径是：
 
 - **推荐**：通过 `copilot-instructions.md` + `instructions/` 自动注入，直接在 Copilot Chat 对话即可
-- **可选**：保留本仓库的 `agents/` 作为 `@devcodex` / `@devcodex-auto` 自定义 Agent，项目侧按需手动引入
+- **可选**：通过 `.github/agents/` 使用 `@devcodex` / `@devcodex-auto` 自定义 Agent 入口
 
 ## 许可证
 

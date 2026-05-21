@@ -351,7 +351,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → 执行 →
 | T8 | 报告 V1~V6 验证通过 |
 | T9 | 记忆 + SUMMARY 写入完成 |
 
-> 完整逐项定义见 `.claude/instructions/17-compliance.instructions.md`；本表为 Claude Code 用户的就地索引。
+> 完整逐项定义见当前平台部署目录中的 `instructions/17-compliance.instructions.md`；本表为就地索引。
 
 ---
 

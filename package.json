@@ -1,6 +1,6 @@
 {
   "name": "@vextjs/devcodex",
-  "version": "1.9.8",
+  "version": "1.9.9",
   "description": "DevCodex — AI-powered development workflow rules as a GitHub Copilot Agent Plugin",
   "main": "index.js",
   "bin": {
@@ -43,7 +43,7 @@
   },
   "files": [
     "index.js",
-    "copilot-instructions.md",
+    "instructions.md",
     "plugin.json",
     ".mcp.json",
     "agents/",

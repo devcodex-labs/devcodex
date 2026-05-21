@@ -14,7 +14,7 @@ applyTo: .devcodex/**/reports/analysis/**
 ```markdown
 # [分析主题] 分析报告
 
-> **日期**: YYYY-MM-DD HH:MM
+> **创建日期**: YYYY-MM-DD HH:MM
 > **项目**: <project>
 > **调研类型**: 技术选型 / 可行性评估 / 根因调查 / 依赖安全调研 / 概念验证
 > **状态**: 草稿 / 已确认

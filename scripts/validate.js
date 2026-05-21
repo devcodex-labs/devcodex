@@ -13,6 +13,7 @@
  * V9 报告/记忆日期格式（YYYY-MM-DD HH:MM）一致性
  * V10 audit-state regressionProbes 回归扫描（已 fixed 项的 grep 计数验证）
  * V11 AskUserQuestion / 决策点格式（FC7：1 个 (推荐) 标签 + "推荐理由：" 前缀）
+ * V12 源仓库不得保留 `copilot-instructions.md`（v1.9.8 单源规范，由 `instructions.md` 替代）
  *
  * Exit: 0=OK, 1=error, 2=warnings only
  */
@@ -268,6 +269,7 @@ function checkV8() {
     { src: 'instructions/11-fix.instructions.md', claude: 'instructions/11-fix.instructions.md', github: 'instructions/11-fix.instructions.md' },
     { src: 'instructions/12-audit.instructions.md', claude: 'instructions/12-audit.instructions.md', github: 'instructions/12-audit.instructions.md' },
     { src: 'instructions/13-analyze.instructions.md', claude: 'instructions/13-analyze.instructions.md', github: 'instructions/13-analyze.instructions.md' },
+    { src: 'instructions/14-self-fix.instructions.md', claude: 'instructions/14-self-fix.instructions.md', github: 'instructions/14-self-fix.instructions.md' },
     { src: 'instructions/15-memory.instructions.md', claude: 'instructions/15-memory.instructions.md', github: 'instructions/15-memory.instructions.md' },
     { src: 'instructions/16-report.instructions.md', claude: 'instructions/16-report.instructions.md', github: 'instructions/16-report.instructions.md' },
     { src: 'instructions/17-compliance.instructions.md', claude: 'instructions/17-compliance.instructions.md', github: 'instructions/17-compliance.instructions.md' },
@@ -410,6 +412,15 @@ function checkV11() {
   console.log(`[V11] decision blocks scanned: ${blocks}, ${violations} FC7 violation(s)`)
 }
 
+function checkV12() {
+  const legacy = path.join(ROOT, 'copilot-instructions.md')
+  if (fs.existsSync(legacy)) {
+    err(`[V12] legacy file 'copilot-instructions.md' must be removed (v1.9.8 single-source: use 'instructions.md')`)
+  } else {
+    console.log(`[V12] single-source check passed (no copilot-instructions.md in repo root)`)
+  }
+}
+
 checkV1()
 checkV2()
 checkV3()
@@ -421,6 +432,7 @@ checkV8()
 checkV9()
 checkV10()
 checkV11()
+checkV12()
 
 console.log('')
 if (errors.length) {

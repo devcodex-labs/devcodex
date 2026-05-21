@@ -45,6 +45,12 @@ applyTo: "**"
 
 > ⚠️ PC0 检查失败时（Profile 未加载）不得跳过 — 必须立即加载后才能继续，ENV_MODE 由 Profile 的 `config.json` 决定。
 >
+> 🔴 **项目未识别阻断**（v1.9.8+）：当 PC0 列出"项目 [未识别]"时，**必须暂停后续 PC1~PC7 输出**，在预检查块位置输出：
+> ```
+> ⚠️ 项目未识别，请确认当前请求关联哪个项目（如 cacheHub / payment / vext / monSQLize 等）。未明确前不得启动任何工作流、不得发起超出当前文件范围的工作区扫描。
+> ```
+> 等用户明确后再续输出完整 PC0~PC7。豁免词（同步 `lifecycle.cjs` `isMultiProjectWorkspace`）：`workspace` / `monorepo` / `全工作区` / `all projects` / `所有项目`。
+>
 > ⚠️ `hook-enforced` 模式下，预检查状态可以由宿主事件驱动后显示为**首个结构化状态块**；`instruction-fallback` 模式下，预检查块仍应尽量位于回复开头，但不再机械要求“第一批 tool call”“第一行输出”。
 >
 > ⚠️ **S07 自修正触发**（见 [`00-safety.instructions.md`](./00-safety.instructions.md) §S07）：AI 自检发现已开始生成实质内容但尚未输出预检查块时，立即触发 S07 — 在当前位置补输出 PC0~PC4，重新评估意图后继续，**不等待用户重新发送消息，不终止当前请求**。

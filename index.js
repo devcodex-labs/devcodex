@@ -44,6 +44,7 @@ const SOURCES = [
   { from: 'instructions', to: 'instructions' },
   { from: 'prompts', to: 'prompts' },
   { from: 'hooks', to: 'hooks' },
+  { from: 'agents', to: 'agents' },
   { from: 'data/templates', to: 'data' },
 ]
 
@@ -61,9 +62,9 @@ const CLAUDE_SOURCES = [
   { from: 'data/templates', to: 'data' },
 ]
 
-const LEGACY_TARGETS = [
-  { label: 'legacy-agents', pathParts: ['agents'] },
-]
+// v1.9.8+: agents/ 已恢复 Copilot 端默认分发（Q1），不再视为遗留物。
+// 保留此数组结构以便后续可重新引入其他遗留迁移项。
+const LEGACY_TARGETS = []
 
 // ─── Source repo self-detection ───────────────────────────────────────────────
 
@@ -157,15 +158,15 @@ function cmdInit(argv) {
     }
   }
 
-  // Copy copilot-instructions.md to .github/
-  const ciSrc = path.join(PKG_ROOT, 'copilot-instructions.md')
+  // Copy instructions.md → .github/copilot-instructions.md (v1.9.8+ single-source rename)
+  const ciSrc = path.join(PKG_ROOT, 'instructions.md')
   const ciDest = path.join(ghDir, 'copilot-instructions.md')
   if (fs.existsSync(ciSrc)) {
     const existed = fs.existsSync(ciDest)
     if (!existed || force) {
       if (!dryRun) { fs.mkdirSync(ghDir, { recursive: true }); fs.copyFileSync(ciSrc, ciDest) }
-      if (existed) { updated++; console.log(c.yellow('  ↺ .github/copilot-instructions.md')) }
-      else { added++; console.log(c.green('  ✓ .github/copilot-instructions.md')) }
+      if (existed) { updated++; console.log(c.yellow('  ↺ .github/copilot-instructions.md  (from instructions.md)')) }
+      else { added++; console.log(c.green('  ✓ .github/copilot-instructions.md  (from instructions.md)')) }
     } else {
       skipped++
       console.log(c.dim('  ~ .github/copilot-instructions.md'))
@@ -227,7 +228,8 @@ function cmdInit(argv) {
     console.log(c.dim('    Run  devcodex update  after content files are added.'))
   }
 
-  console.log()
+  console.log(c.dim('\n  ── Also deploying Claude Code adapter (.claude/) ──'))
+  cmdInitClaude(argv, { internal: true })
 }
 
 function cmdStatus() {
@@ -344,41 +346,44 @@ const CLAUDE_MCP_JSON = {
   }
 }
 
-function cmdInitClaude(argv) {
+function cmdInitClaude(argv, { internal = false } = {}) {
   const force = argv.includes('--force') || argv.includes('-f')
   const dryRun = argv.includes('--dry-run')
   const cwd = process.cwd()
   const clDir = path.join(cwd, '.claude')
 
-  if (isSourceRepo(cwd)) {
+  if (!internal && isSourceRepo(cwd)) {
     console.log()
     console.log(c.yellow('  ⚠️  You are running DevCodex inside its own source repository.'))
     console.log(c.yellow('     Files will be written to: ') + c.bold(clDir))
     console.log()
   }
 
-  console.log()
-  console.log(c.bold('  DevCodex') + c.dim(' — Claude Code Adapter'))
-  console.log(c.dim('  ──────────────────────────────────────'))
-  console.log(`  ${c.cyan('Source:')} ${c.dim(PKG_ROOT)}`)
-  console.log(`  ${c.cyan('Target:')} ${c.dim(clDir)}`)
-  console.log()
-
-  if (dryRun) console.log(c.yellow('  [DRY RUN] No files will be written.\n'))
+  if (!internal) {
+    console.log()
+    console.log(c.bold('  DevCodex') + c.dim(' — Claude Code Adapter'))
+    console.log(c.dim('  ──────────────────────────────────────'))
+    console.log(`  ${c.cyan('Source:')} ${c.dim(PKG_ROOT)}`)
+    console.log(`  ${c.cyan('Target:')} ${c.dim(clDir)}`)
+    console.log()
+    if (dryRun) console.log(c.yellow('  [DRY RUN] No files will be written.\n'))
+  }
 
   let added = 0, updated = 0, skipped = 0
+  const log = internal ? () => { } : (...args) => console.log(...args)
 
-  // 1. Copy CLAUDE.md to project root
-  const claudeMdSrc = path.join(PKG_ROOT, 'CLAUDE.md')
+  // 1. Copy instructions.md → <cwd>/CLAUDE.md (v1.9.8+ single-source rename)
+  //    Source file is the unified instructions.md; target file name is fixed by Claude Code platform.
+  const claudeMdSrc = path.join(PKG_ROOT, 'instructions.md')
   const claudeMdDest = path.join(cwd, 'CLAUDE.md')
   if (fs.existsSync(claudeMdSrc)) {
     const existed = fs.existsSync(claudeMdDest)
     if (!existed || force) {
       if (!dryRun) fs.copyFileSync(claudeMdSrc, claudeMdDest)
-      if (existed) { updated++; console.log(c.yellow('  ↺ CLAUDE.md')) }
-      else { added++; console.log(c.green('  ✓ CLAUDE.md')) }
+      if (existed) { updated++; log(c.yellow('  ↺ CLAUDE.md  (from instructions.md)')) }
+      else { added++; log(c.green('  ✓ CLAUDE.md  (from instructions.md)')) }
     } else {
-      skipped++; console.log(c.dim('  ~ CLAUDE.md'))
+      skipped++; log(c.dim('  ~ CLAUDE.md'))
     }
   }
 
@@ -395,15 +400,15 @@ function cmdInitClaude(argv) {
 
       if (existed && !force) {
         skipped++
-        console.log(c.dim(`  ~ .claude/${to}/${rel.replace(/\\/g, '/')}`))
+        log(c.dim(`  ~ .claude/${to}/${rel.replace(/\\/g, '/')}`))
         continue
       }
       if (!dryRun) {
         fs.mkdirSync(path.dirname(destFile), { recursive: true })
         fs.copyFileSync(srcFile, destFile)
       }
-      if (existed) { updated++; console.log(c.yellow(`  ↺ .claude/${to}/${rel.replace(/\\/g, '/')}`)) }
-      else { added++; console.log(c.green(`  ✓ .claude/${to}/${rel.replace(/\\/g, '/')}`)) }
+      if (existed) { updated++; log(c.yellow(`  ↺ .claude/${to}/${rel.replace(/\\/g, '/')}`)) }
+      else { added++; log(c.green(`  ✓ .claude/${to}/${rel.replace(/\\/g, '/')}`)) }
     }
   }
 
@@ -419,8 +424,8 @@ function cmdInitClaude(argv) {
     settings.hooks = Object.assign({}, settings.hooks || {}, CLAUDE_SETTINGS_HOOKS.hooks)
     fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n')
     const existed = added + updated === 0 && fs.existsSync(settingsPath)
-    if (existed) { updated++; console.log(c.yellow('  ↺ .claude/settings.json')) }
-    else { added++; console.log(c.green('  ✓ .claude/settings.json')) }
+    if (existed) { updated++; log(c.yellow('  ↺ .claude/settings.json')) }
+    else { added++; log(c.green('  ✓ .claude/settings.json')) }
   }
 
   // 4. Write .mcp.json to project root (MCP server configuration with explicit workspace arg)
@@ -429,11 +434,11 @@ function cmdInitClaude(argv) {
     const mcpExisted = fs.existsSync(mcpJsonPath)
     if (!mcpExisted || force) {
       fs.writeFileSync(mcpJsonPath, JSON.stringify(CLAUDE_MCP_JSON, null, 2) + '\n')
-      if (mcpExisted) { updated++; console.log(c.yellow('  ↺ .mcp.json')) }
-      else { added++; console.log(c.green('  ✓ .mcp.json')) }
+      if (mcpExisted) { updated++; log(c.yellow('  ↺ .mcp.json')) }
+      else { added++; log(c.green('  ✓ .mcp.json')) }
     } else {
       skipped++
-      console.log(c.dim('  ~ .mcp.json'))
+      log(c.dim('  ~ .mcp.json'))
     }
   }
 
@@ -442,14 +447,16 @@ function cmdInitClaude(argv) {
     fs.mkdirSync(path.join(cwd, '.devcodex', '.memory'), { recursive: true })
 
     // F-002: warn about legacy .claude/agents/ (Claude Code uses skills/ via Skill tool, not agents/)
-    const claudeAgentsDir = path.join(clDir, 'agents')
-    if (fs.existsSync(claudeAgentsDir)) {
-      const agentFiles = walkDir(claudeAgentsDir)
-      if (agentFiles.length > 0) {
-        console.log()
-        console.log(c.yellow(`  ⚠️  Legacy .claude/agents/ detected (${agentFiles.length} files).`))
-        console.log(c.dim('     Claude Code uses skills/ via the Skill tool; agents/ is no longer distributed.'))
-        console.log(c.dim('     Remove manually if no longer needed.'))
+    if (!internal) {
+      const claudeAgentsDir = path.join(clDir, 'agents')
+      if (fs.existsSync(claudeAgentsDir)) {
+        const agentFiles = walkDir(claudeAgentsDir)
+        if (agentFiles.length > 0) {
+          console.log()
+          console.log(c.yellow(`  ⚠️  Legacy .claude/agents/ detected (${agentFiles.length} files).`))
+          console.log(c.dim('     Claude Code uses skills/ via the Skill tool; agents/ is no longer distributed.'))
+          console.log(c.dim('     Remove manually if no longer needed.'))
+        }
       }
     }
 
@@ -460,33 +467,47 @@ function cmdInitClaude(argv) {
       if (!content.includes('.devcodex/') && !content.includes('.devcodex/.memory/')) {
         fs.appendFileSync(gitignorePath, gitignoreEntry)
         added++
-        console.log(c.green('  ✓ .gitignore  (.devcodex/.memory/ added)'))
+        log(c.green('  ✓ .gitignore  (.devcodex/.memory/ added)'))
       }
     } else {
       fs.writeFileSync(gitignorePath, gitignoreEntry.trimStart())
       added++
-      console.log(c.green('  ✓ .gitignore  (created)'))
+      log(c.green('  ✓ .gitignore  (created)'))
     }
   }
 
-  console.log()
-  console.log(c.dim('  ──────────────────────────────────────'))
-  if (dryRun) {
-    console.log(`  ${c.bold('Dry run complete.')} Would add ${c.green(added)} files.`)
+  if (!internal) {
+    console.log()
+    console.log(c.dim('  ──────────────────────────────────────'))
+    if (dryRun) {
+      console.log(`  ${c.bold('Dry run complete.')} Would add ${c.green(added)} files.`)
+    } else {
+      const parts = []
+      if (added) parts.push(c.green(`${added} added`))
+      if (updated) parts.push(c.yellow(`${updated} updated`))
+      if (skipped) parts.push(c.dim(`${skipped} skipped (use --force to overwrite)`))
+      console.log(`  ${c.bold('Done!')} ${parts.join(', ')}`)
+      if (added + updated > 0) {
+        console.log()
+        console.log(`  ${c.cyan('→')} Restart Claude Code to activate hooks and MCP servers.`)
+        console.log(`  ${c.cyan('→')} Verify MCP: run ${c.bold('claude mcp list')} in your project.`)
+      }
+    }
+    console.log()
   } else {
     const parts = []
     if (added) parts.push(c.green(`${added} added`))
     if (updated) parts.push(c.yellow(`${updated} updated`))
-    if (skipped) parts.push(c.dim(`${skipped} skipped (use --force to overwrite)`))
-    console.log(`  ${c.bold('Done!')} ${parts.join(', ')}`)
-    if (added + updated > 0) {
-      console.log()
-      console.log(`  ${c.cyan('→')} Restart Claude Code to activate hooks and MCP servers.`)
-      console.log(`  ${c.cyan('→')} Verify MCP: run ${c.bold('claude mcp list')} in your project.`)
+    if (skipped) parts.push(c.dim(`${skipped} skipped`))
+    if (parts.length) {
+      console.log(`  ${c.dim('.claude/')} ${parts.join(', ')}`)
+      if (added + updated > 0) {
+        console.log(`  ${c.cyan('→')} Restart Claude Code to activate hooks and MCP servers.`)
+        console.log(`  ${c.cyan('→')} Verify MCP: run ${c.bold('claude mcp list')} in your project.`)
+      }
     }
+    console.log()
   }
-
-  console.log()
 }
 
 // ─── Profile bootstrap (v1.9.2+) ──────────────────────────────────────────────

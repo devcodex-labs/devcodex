@@ -28,6 +28,11 @@ const CP2_FILE = '02-技术方案.md'
 const CP3_FILE = '04-实施计划.md'
 const REQUIREMENTS_DIR = path.join(WORKSPACE_ROOT, '.devcodex', 'requirements')
 
+// ─── Multi-project workspace guard (v1.9.8+) ─────────────────────────────────────
+const MULTI_PROJECT_EXEMPTION_KEYWORDS = [
+  'workspace', 'monorepo', '全工作区', 'all projects', '所有项目'
+]
+
 // ─── Tiny helpers ─────────────────────────────────────────────────────────────
 
 function readStdin() {
@@ -113,6 +118,49 @@ function blockOutput(platform, eventName, reason, detail) {
 
 function systemMessageOutput(message) {
   return { continue: true, systemMessage: message }
+}
+
+// ─── Multi-project workspace detection (v1.9.8+) ──────────────────────────────
+function isMultiProjectWorkspace() {
+  let entries
+  try { entries = fs.readdirSync(WORKSPACE_ROOT) } catch { return false }
+  let projectCount = 0
+  for (const name of entries) {
+    if (name.startsWith('.') || name === 'node_modules') continue
+    const dir = path.join(WORKSPACE_ROOT, name)
+    let stat
+    try { stat = fs.statSync(dir) } catch { continue }
+    if (!stat.isDirectory()) continue
+    const hasPkg = fs.existsSync(path.join(dir, 'package.json'))
+    const hasProfile = fs.existsSync(path.join(dir, '.devcodex', 'profile'))
+    if (hasPkg || hasProfile) {
+      projectCount += 1
+      if (projectCount >= 2) return true
+    }
+  }
+  return false
+}
+
+function extractUserPrompt(payload) {
+  return String(
+    payload.prompt || payload.user_prompt || payload.userPrompt ||
+    payload.message || payload.text || ''
+  )
+}
+
+function hasMultiProjectExemption(prompt) {
+  if (!prompt) return false
+  const lower = prompt.toLowerCase()
+  return MULTI_PROJECT_EXEMPTION_KEYWORDS.some(k => lower.includes(k.toLowerCase()))
+}
+
+function buildMultiProjectBlockMessage() {
+  return [
+    '⚠️ Multi-project workspace detected.',
+    '检测到当前工作区包含多个项目且未在工作区根配置 .devcodex/profile/。',
+    '请在提示词中明确指定目标项目（如“in cacheHub/”或“对 payment 项目”）后重发。',
+    '豁免词：workspace / monorepo / 全工作区 / all projects / 所有项目。'
+  ].join(' ')
 }
 
 // ─── Payload helpers ──────────────────────────────────────────────────────────
@@ -574,6 +622,22 @@ async function main() {
   // ── UserPromptSubmit ───────────────────────────────────────────────────────
   if (eventName === 'UserPromptSubmit') {
     state = resetState(mode)
+    // Multi-project workspace guard (v1.9.8+):
+    // when no workspace-root profile exists and ≥2 sibling projects detected,
+    // require the user to specify the target project explicitly.
+    const hasWorkspaceProfile = fs.existsSync(PROFILE_CONFIG_FILE)
+    if (!hasWorkspaceProfile && isMultiProjectWorkspace()) {
+      const prompt = extractUserPrompt(payload)
+      if (!hasMultiProjectExemption(prompt)) {
+        state.lastReason = 'multi-project-workspace-block'
+        saveState(state)
+        writeStdout(blockOutput(
+          platform, eventName, 'multi-project-workspace',
+          buildMultiProjectBlockMessage()
+        ))
+        return
+      }
+    }
     if (mode === 'dev') {
       writeStdout(systemMessageOutput(buildBootstrapMessage()))
     } else {

@@ -14,7 +14,7 @@ applyTo: .devcodex/**/reports/bugs/**
 ```markdown
 # [问题名称] 修复报告
 
-> **日期**: YYYY-MM-DD HH:MM
+> **创建日期**: YYYY-MM-DD HH:MM
 > **项目**: <project>
 > **子类型**: default / incident / security
 > **严重级别**: P0 / P1 / P2 / P3

@@ -14,7 +14,7 @@ applyTo: .devcodex/**/reports/optimizations/**
 ```markdown
 # [优化目标] 性能优化报告
 
-> **日期**: YYYY-MM-DD HH:MM
+> **创建日期**: YYYY-MM-DD HH:MM
 > **项目**: <project>
 > **子类型**: optimization
 > **状态**: 完成 / 部分完成 / 中断

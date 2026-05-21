@@ -14,7 +14,9 @@ description: 项目 Profile 加载规范 — 意图识别后独立确定目标�
 |:------:|------|------|
 | 1 | 用户消息明确指定项目名称 | 直接使用 |
 | 2 | 消息涉及工作区目录（如 `vext/`、`ai-dev-guidelines/`） | 映射到项目名 |
-| 3 | 无法确定 | `<project> = null`，跳过加载 |
+| 3 | 🔴 无法确定 | **必须先询问用户**："当前请求关联哪个项目？"。在用户明确回复前，**禁止发起任何超出当前文件范围的工作区扫描**（`file_search` / `semantic_search` / `grep_search` / `list_dir` 调用与当前任务无关的、以及项目以外的 `read_file`）。`<project> = null` **不再是合法默认状态** |
+
+> 🔴 **多项目工作区扫描禁令**（v1.9.8+）：当 cwd 是 monorepo 根目录且未明确 `<project>` 时，AI 侧与 Hook 侧同步阐断扫描。豁免词：`workspace` / `monorepo` / `全工作区` / `all projects` / `所有项目`。详见 `lifecycle.cjs` `isMultiProjectWorkspace`。
 
 ## 工作区目录映射
 
@@ -67,7 +69,7 @@ description: 项目 Profile 加载规范 — 意图识别后独立确定目标�
 
 项目 profile > 租户规范（P3）> 工作流规范（P4）> 通用规范（P5）
 
-> `<project> = null` 时，工作流中如需 profile **必须询问用户**，禁止猜测。
+> 🔴 `<project>` 未确定时，任何工作流都必须先询问用户，**禁止猜测、禁止跳过项目询问进入工作流**（与上表优先级 3 一致）。
 
 ## ENV_MODE 注入
 

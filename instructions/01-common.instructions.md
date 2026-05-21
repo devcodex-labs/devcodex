@@ -125,6 +125,7 @@ applyTo: "**"
 | analyze.default | （Instruction 已完整，无需额外 Skill）|
 | analyze.research | `analyze-research` |
 | self-fix | （Instruction 已完整，无需额外 Skill）|
+| other | `plan` |
 | chat | （无需 Skill）|
 | resume | `memory` |
 
@@ -242,7 +243,9 @@ applyTo: "**"
 |:------:|------|------|
 | 1 | 用户明确指定项目名称 | 直接使用 |
 | 2 | 消息涉及工作区目录 | 映射到项目名 |
-| 3 | 无法确定 | `<project> = null`，跳过加载 |
+| 3 | 🔴 无法确定 | **必须先询问用户**："当前请求关联哪个项目？" — 在用户明确回复前，**禁止发起任何超出当前文件范围的工作区扫描**（`file_search` / `semantic_search` / `grep_search` / `list_dir` 与当前任务无关的调用、以及项目以外的 `read_file`）。仅允许读取用户本轮消息明确提及的文件以便询问。`<project> = null` **不再是合法默认状态** |
+
+> 🔴 **多项目工作区扫描禁令**（v1.9.8+）：当 cwd 是 monorepo 根目录（包含 ≥ 2 个含 `package.json` 或 `.devcodex/profile/` 的子项目）且未明确 `<project>` 时，AI 必须先询问用户。豁免词：用户消息含 `workspace` / `monorepo` / `全工作区` / `all projects` / `所有项目` 则允许全工作区扫描。同步扣与 `lifecycle.cjs` `UserPromptSubmit` 的 monorepo 阐断逻辑（Hook 是硬门禁，本条是 AI 侧能推断的表述层）。
 
 ### Profile 标准文件
 

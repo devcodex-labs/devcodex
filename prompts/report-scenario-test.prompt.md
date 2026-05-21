@@ -14,7 +14,7 @@ applyTo: .devcodex/**/reports/scenario-tests/**
 ```markdown
 # [测试场景名称] 场景测试报告
 
-> **日期**: YYYY-MM-DD HH:MM
+> **创建日期**: YYYY-MM-DD HH:MM
 > **项目**: <project>
 > **子类型**: scenario-test
 > **状态**: 完成 / 部分完成 / 中断

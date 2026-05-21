@@ -14,7 +14,7 @@ applyTo: .devcodex/**/reports/requirements/**
 ```markdown
 # [功能名称] 开发报告
 
-> **日期**: YYYY-MM-DD HH:MM
+> **创建日期**: YYYY-MM-DD HH:MM
 > **项目**: <project>
 > **子类型**: default / refactor / database / init / optimization / scenario-test / docs / plan-review
 > **状态**: 完成 / 部分完成 / 中断

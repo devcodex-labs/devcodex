@@ -2,8 +2,8 @@
 
 本目录保留两个 Agent 源文件，供 IDE 以 `@devcodex` / `@devcodex-auto` 方式调用。
 
-&gt; ⚠️ **默认安装路径（`devcodex init` / `update`）不再分发 `.github/agents/`**（v1.1.0 起）。
-&gt; 目标项目如需 Agent 入口，请手动拷贝本目录到 `.github/agents/`。
+> ✅ **v1.9.8 起恢复 Copilot 端默认分发**：`devcodex init` / `update` 会自动安装到 `.github/agents/`。  
+> ⚠️ **Claude Code 端不分发**：Claude Code 平台不识别 Copilot agent frontmatter schema（`disable-model-invocation` / `tools` 枚举），且 Claude Code 主推 Skill 路径（通过 Skill 工具调用 `.claude/skills/<name>/SKILL.md`），不需要 agent 入口。
 
 ## Agent 对比
 

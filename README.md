@@ -13,7 +13,7 @@ DevCodex 通过 GitHub Copilot Agent Plugin API 向 Copilot 注入结构化的�
 ## 功能特性
 
 - **8 种工作流**: `dev` / `fix` / `audit` / `analyze` / `self-fix` / `resume` / `plan` / `chat`
-- **2 种模式**: 确认模式（@DevCodex）/ 全自动模式（@DevCodex Auto）
+- **2 种模式**: 确认模式（@DevCodex）/ 全自动模式（@DevCodex Auto，Auto v1.1 仅对显式 `@devcodex-auto` + 白名单路径提供硬保证）
 - **合规管线**: FC（形式合规）→ SC（实质合规）→ RC（恢复性检查）→ T（任务完成验证）
 - **持久记忆**: 每 Agent、每日的会话记录，结构化字段
 - **自动报告**: 每次会话自动写入报告，从不询问 — 直接执行
@@ -240,6 +240,8 @@ DevCodex 的 `plugin.json` 声明 `tier: "free"`，所有 Skill 均标注 `tier:
 
 - **推荐**：通过 `copilot-instructions.md` + `instructions/` 自动注入，直接在 Copilot Chat 对话即可
 - **可选**：通过 `.github/agents/` 使用 `@devcodex` / `@devcodex-auto` 自定义 Agent 入口
+
+Auto v1.1 当前只在 `hook-enforced` 宿主里，对显式 `@devcodex-auto` 入口下的白名单路径提供 runtime 级硬保证；JetBrains 等 `instruction-fallback` 宿主与 Claude Code 仅同步规则语义，不承诺完全等价的自动放行。
 
 ## 许可证
 

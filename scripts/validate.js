@@ -15,6 +15,7 @@
  * V11 AskUserQuestion / 决策点格式（FC7：1 个 (推荐) 标签 + "推荐理由：" 前缀）
  * V12 源仓库不得保留 `copilot-instructions.md`（v1.9.8 单源规范，由 `instructions.md` 替代）
  * V13 关键模板语义探针（防止 prompts/skills 与权威 instructions 漂移）
+ * V14 auto v1.1 语义联动（agent/common/cp-gate/compliance/runtime/test/README）
  *
  * Exit: 0=OK, 1=error, 2=warnings only
  */
@@ -489,6 +490,24 @@ function checkV13() {
   console.log('[V13] template semantic probes passed')
 }
 
+function checkV14() {
+  mustInclude('agents/devcodex-auto.agent.md', '@devcodex-auto', 'auto agent')
+  mustInclude('agents/devcodex-auto.agent.md', '白名单', 'auto agent')
+  mustInclude('instructions/01-common.instructions.md', 'Auto v1.1 **唯一正式入口**为显式 `@devcodex-auto`', '01-common auto mode')
+  mustInclude('instructions/01-common.instructions.md', '非白名单路径默认切回确认模式', '01-common auto mode')
+  mustInclude('skills/cp-gate/SKILL.md', '白名单路径', 'cp-gate auto mode')
+  mustInclude('skills/cp-gate/SKILL.md', 'instruction-fallback', 'cp-gate auto mode')
+  mustInclude('skills/compliance/SKILL.md', 'hook-enforced', 'compliance auto mode')
+  mustInclude('skills/compliance/SKILL.md', 'instruction-fallback', 'compliance auto mode')
+  mustInclude('hooks/_runtime/lifecycle.cjs', 'AUTO_ALLOWED_PATH_PATTERNS', 'lifecycle runtime auto mode')
+  mustInclude('hooks/_runtime/lifecycle.cjs', 'detectExecutionMode', 'lifecycle runtime auto mode')
+  mustInclude('scripts/test-hooks-runtime.js', 'autoWhitelistAllowed', 'hooks runtime test')
+  mustInclude('scripts/test-hooks-runtime.js', 'autoNonWhitelistBlocked', 'hooks runtime test')
+  mustInclude('README.md', '白名单路径提供 runtime 级硬保证', 'README auto mode')
+  mustInclude('README.md', '不承诺完全等价的自动放行', 'README auto mode')
+  console.log('[V14] auto mode semantic probes passed')
+}
+
 checkV1()
 checkV2()
 checkV3()
@@ -502,6 +521,7 @@ checkV10()
 checkV11()
 checkV12()
 checkV13()
+checkV14()
 
 console.log('')
 if (errors.length) {

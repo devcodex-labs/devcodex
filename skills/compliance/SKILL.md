@@ -43,7 +43,9 @@ SC: SC2 [✅/❌] SC4 [✅/❌] SC6 [✅/❌] ...（仅列适用项，逐项实�
 
 > `@devcodex-auto` 模式下：
 
-FC/SC 失败时自动修正（不暂停等待用户），但 [S01~S06](../../instructions/00-safety.instructions.md) 仍阻断。
+仅在 `hook-enforced` 宿主 + 白名单路径下，FC/SC 失败时自动修正（不暂停等待用户），但 [S01~S06](../../instructions/00-safety.instructions.md) 仍阻断。
+
+`instruction-fallback` / Claude Code 仅保留 auto 规则语义，不承诺 runtime 级自动放行；因此其“自动”更多体现为规则层说明，而不是 hook 门禁豁免。
 
 ## §1 输出验证（每条建议/方案/问题必须附）
 

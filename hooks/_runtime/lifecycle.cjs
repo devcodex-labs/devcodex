@@ -27,6 +27,19 @@ const CP1_FILE = '01-需求概述.md'
 const CP2_FILE = '02-技术方案.md'
 const CP3_FILE = '04-实施计划.md'
 const REQUIREMENTS_DIR = path.join(WORKSPACE_ROOT, '.devcodex', 'requirements')
+const EXECUTION_MODE = { CONFIRM: 'confirm', AUTO: 'auto' }
+const AUTO_ALLOWED_PATH_PATTERNS = [
+  /^\.devcodex\//,
+  /^agents\/devcodex-auto\.agent\.md$/i,
+  /^instructions\/01-common\.instructions\.md$/i,
+  /^skills\/cp-gate\/SKILL\.md$/i,
+  /^skills\/compliance\/SKILL\.md$/i,
+  /^hooks\/_runtime\/lifecycle\.cjs$/i,
+  /^scripts\/test-hooks-runtime\.js$/i,
+  /^scripts\/validate\.js$/i,
+  /^README\.md$/i,
+  /^\.(?:claude|github)\/(?:instructions|skills|hooks|agents|prompts|data|settings\.json|settings\.local\.json)(?:\/|$)/i
+]
 
 // ─── Multi-project workspace guard (v1.9.8+) ─────────────────────────────────────
 const MULTI_PROJECT_EXEMPTION_KEYWORDS = [
@@ -175,6 +188,11 @@ function detectProjectFromPrompt(prompt) {
   return ''
 }
 
+function detectExecutionMode(payload) {
+  const prompt = extractUserPrompt(payload)
+  return /@devcodex-auto\b/i.test(prompt) ? EXECUTION_MODE.AUTO : EXECUTION_MODE.CONFIRM
+}
+
 function buildMultiProjectBlockMessage() {
   return [
     '⚠️ Multi-project workspace detected.',
@@ -264,6 +282,7 @@ function buildDefaultState(mode) {
   const m = mode === 'dev' ? 'dev' : 'prod'
   return {
     version: 1, mode: m,
+    executionMode: EXECUTION_MODE.CONFIRM,
     phase: m === 'dev' ? 'bootstrapping' : 'active',
     startedAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
     promptCount: 0, toolUseCount: 0,
@@ -419,6 +438,13 @@ function extractToolPaths(payload) {
   if (!payload) return []
   const input = payload.tool_input || payload.toolInput || {}
   const out = []
+  if (typeof input.input === 'string' && input.input) {
+    const patchPathRe = /^\*\*\* (?:Update|Add|Delete) File:\s+(.+)$/gm
+    let m
+    while ((m = patchPathRe.exec(input.input)) !== null) {
+      if (m[1]) out.push(m[1].trim())
+    }
+  }
   if (typeof input.file_path === 'string' && input.file_path) out.push(input.file_path)
   if (typeof input.filePath === 'string' && input.filePath) out.push(input.filePath)
   if (typeof input.path === 'string' && input.path && /[/\\]/.test(input.path)) out.push(input.path)
@@ -457,6 +483,39 @@ function getRequirementNameFromPath(p) {
   const rel = path.relative(reqsDir, norm)
   const parts = rel.split(path.sep).filter(Boolean)
   return parts.length > 0 ? parts[0] : null
+}
+
+function toWorkspaceRelativePath(p) {
+  if (!p) return ''
+  let abs = p
+  try { abs = path.isAbsolute(abs) ? abs : path.resolve(WORKSPACE_ROOT, abs) } catch { }
+  let rel = abs
+  try { rel = path.isAbsolute(abs) ? path.relative(WORKSPACE_ROOT, abs) : abs } catch { }
+  return String(rel || '').replace(/\\/g, '/').replace(/^\.\//, '').trim()
+}
+
+function isAutoAllowedPath(p) {
+  const rel = toWorkspaceRelativePath(p)
+  return AUTO_ALLOWED_PATH_PATTERNS.some(re => re.test(rel))
+}
+
+function checkAutoWhitelist(payload, platform, state) {
+  if (state.executionMode !== EXECUTION_MODE.AUTO) return null
+  if (!isSourceCodeMutation(payload, platform)) return null
+  const paths = [...new Set(extractToolPaths(payload))]
+  if (!paths.length) {
+    return {
+      allowed: false,
+      reason: 'Auto v1.1 无法识别当前变更目标路径，不能安全判定是否属于白名单。'
+    }
+  }
+  const nonWhitelisted = paths.filter(p => !isAutoAllowedPath(p))
+  if (!nonWhitelisted.length) return { allowed: true }
+  const preview = nonWhitelisted.map(toWorkspaceRelativePath).slice(0, 3).join(', ')
+  return {
+    allowed: false,
+    reason: `Auto v1.1 仅对白名单路径自动推进，以下目标不在白名单内：${preview}`
+  }
 }
 
 // Path-aware CP gate: when all tool paths belong to specific requirement dirs,
@@ -640,7 +699,7 @@ function captureFinalPayloadSample(payload, eventName, state) {
     payloadKeys: Object.keys(payload).sort(),
     visiblePayloadDetected: hasVisibleReplyPayload(payload),
     interestingStrings: collectInterestingStrings(payload),
-    state: { mode: state.mode, phase: state.phase, mutated: state.mutated }
+    state: { mode: state.mode, executionMode: state.executionMode, phase: state.phase, mutated: state.mutated }
   }
   fs.appendFileSync(FINAL_PAYLOAD_LOG, `${JSON.stringify(snap)}\n`)
   if (eventName === 'Stop') fs.unlinkSync(FINAL_PAYLOAD_FLAG)
@@ -683,6 +742,7 @@ async function main() {
     const prompt = extractUserPrompt(payload)
     const explicitProject = detectProjectFromPrompt(prompt)
     state = resetState(mode, state)
+    state.executionMode = detectExecutionMode(payload)
     if (hasMultiProjectExemption(prompt)) {
       state.activeProject = ''
     } else if (explicitProject) {
@@ -739,6 +799,25 @@ async function main() {
         return
       }
       updateBootstrapState(state, payload)
+    }
+
+    // 2.5. Auto v1.1 whitelist gate — only whitelisted governance/test/docs paths can bypass CP gate
+    const autoWhitelist = checkAutoWhitelist(payload, platform, state)
+    if (autoWhitelist && autoWhitelist.allowed) {
+      state.lastReason = 'auto-whitelist-bypass'
+      updateArtifactTouches(state, payload, platform)
+      saveState(state)
+      writeStdout(noopOutput())
+      return
+    }
+    if (autoWhitelist && !autoWhitelist.allowed) {
+      state.lastReason = 'auto-non-whitelist-block'
+      saveState(state)
+      writeStdout(blockOutput(
+        platform, eventName, 'auto-whitelist-boundary',
+        `${autoWhitelist.reason} — 请切回确认模式，或先把变更范围收敛到白名单路径。`
+      ))
+      return
     }
 
     // 3. CP gate — block source code mutations until checkpoints confirmed

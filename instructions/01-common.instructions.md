@@ -67,7 +67,11 @@ applyTo: "**"
 
 当用户选择 `@devcodex-auto`（全自动模式）时：
 
-- CP1 / CP2 / CP3 确认**自动通过**（不等待用户确认）
+- Auto v1.1 **唯一正式入口**为显式 `@devcodex-auto`；`auto:` / `/auto` / profile `executionMode` 延后到后续版本
+- 仅在 `hook-enforced` 宿主中，对治理文件 / `.devcodex/` 产物 / README / auto 专属回归脚本等**白名单路径**启用自动推进
+- 非白名单路径默认切回确认模式，不承诺“所有源码任务自动执行”
+- `instruction-fallback` 宿主只保留 auto 规则语义，不承诺 runtime 级硬放行
+- CP1 / CP2 / CP3 确认**自动通过**（不等待用户确认），但该自动通过只对上述白名单路径形成 runtime 放行效果
 - 以下约束**不可豁免**：S01（不可逆确认）/ S02~S07 / C01 / C10 / C18
 - 可恢复失败：重试 ≤ 2 次；不可恢复失败：切换回确认模式并通知用户 ⚠️
 

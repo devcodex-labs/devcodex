@@ -18,6 +18,10 @@ CP 门控**不受 ENV_MODE 影响**，dev/prod 均为 🔴 强制等待用户确
 
 > 当用户选择 `@devcodex-auto` 时：
 
+- Auto v1.1 **唯一正式入口**为显式 `@devcodex-auto`
+- `hook-enforced` 宿主下，CP 自动通过只对白名单路径形成 runtime 放行；非白名单路径默认回确认模式
+- `instruction-fallback` / Claude Code 只同步 auto 规则说明，不承诺 runtime 级 CP 硬放行
+- `auto:` / `/auto` / profile `executionMode` 不属于本轮正式入口
 - CP1 / CP2 / CP3 确认**自动通过**（不等待用户确认）
 - 以下约束**不可豁免**：[S01](../../instructions/00-safety.instructions.md)（不可逆确认）/ S02~S07 / [C01](../../instructions/01-common.instructions.md) / [C10](../../instructions/01-common.instructions.md) / [C18](../../instructions/00-safety.instructions.md)
 - 可恢复失败：重试 ≤ 2 次

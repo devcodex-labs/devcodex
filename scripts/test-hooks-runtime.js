@@ -142,6 +142,71 @@ function main() {
   assert.strictEqual(captureEntries[1].eventName, 'Stop')
   assert.strictEqual(fs.existsSync(CAPTURE_FLAG), false)
 
+  // Auto v1.1: explicit @devcodex-auto should write executionMode=auto and only allow whitelisted paths.
+  cleanState()
+  const autoReq = path.join(TEMP_ROOT, '.devcodex', 'requirements', '自动模式需求')
+  fs.mkdirSync(path.join(autoReq, '.memory'), { recursive: true })
+  fs.writeFileSync(path.join(autoReq, '01-需求概述.md'), '# auto req\n')
+  fs.writeFileSync(path.join(autoReq, '.memory', 'sessions.md'), '| CP1 | ✅ |\n')
+
+  run({ hookEventName: 'UserPromptSubmit', prompt: '@devcodex-auto 修复 auto runtime 行为' })
+  run({ hookEventName: 'PreToolUse', tool_name: 'read_file', tool_input: { filePath: '.devcodex/profile/config.json' } })
+  run({ hookEventName: 'PreToolUse', tool_name: 'read_file', tool_input: { filePath: '.devcodex/.memory/clients/copilot/SUMMARY.md' } })
+  run({ hookEventName: 'PreToolUse', tool_name: 'read_file', tool_input: { filePath: '.devcodex/.memory/clients/copilot/tasks/20260510.md' } })
+  const autoState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(autoState.executionMode, 'auto')
+
+  const autoWhitelistAllowed = run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'apply_patch',
+    tool_input: {
+      input: '*** Begin Patch\n*** Update File: README.md\n*** End Patch'
+    }
+  })
+  assert.strictEqual(autoWhitelistAllowed.continue, true)
+  assert.ok(!autoWhitelistAllowed.hookSpecificOutput)
+
+  const autoNonWhitelistBlocked = run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'apply_patch',
+    tool_input: {
+      input: '*** Begin Patch\n*** Update File: src/foo.js\n*** End Patch'
+    }
+  })
+  assert.strictEqual(autoNonWhitelistBlocked.hookSpecificOutput.permissionDecision, 'deny')
+  assert.match(autoNonWhitelistBlocked.hookSpecificOutput.additionalContext || '', /白名单|whitelist/i)
+
+  const autoDangerousCommand = run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'run_in_terminal',
+    tool_input: {
+      command: 'git reset --hard HEAD~1'
+    }
+  })
+  assert.strictEqual(autoDangerousCommand.hookSpecificOutput.permissionDecision, 'deny')
+  assert.match(autoDangerousCommand.hookSpecificOutput.permissionDecisionReason || '', /git reset --hard/i)
+
+  cleanState()
+  run({
+    hookEventName: 'UserPromptSubmit',
+    prompt: 'Need a root cure for dev mode drift.'
+  })
+  run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'read_file',
+    tool_input: { filePath: '.devcodex/profile/config.json' }
+  })
+  run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'read_file',
+    tool_input: { filePath: '.devcodex/.memory/clients/copilot/SUMMARY.md' }
+  })
+  run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'read_file',
+    tool_input: { filePath: '.devcodex/.memory/clients/copilot/tasks/20260510.md' }
+  })
+
   // Archive marker bypass test: an unfinished requirement with .archived must NOT block
   const reqDir = path.join(TEMP_ROOT, '.devcodex', 'requirements', '历史归档需求')
   fs.mkdirSync(path.join(reqDir, '.memory'), { recursive: true })

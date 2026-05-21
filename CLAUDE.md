@@ -15,7 +15,7 @@
 | S04 | 源码和规范文件(.md)修改必须用增量编辑（Edit），禁止整文件重写 | 🟡 操作级阻断 |
 | S05 | 每次会话结束前必须写入记忆文件和报告文件，禁止询问用户"是否需要写入" | 🔴 强制 |
 | S06 | 禁止直接执行不可逆破坏性命令（`DROP TABLE`、无 WHERE 的 `DELETE FROM`、`rm -rf /`），必须先输出预览等待确认 | 🟡 操作级阻断 |
-| S07 | dev 模式下，生成实质任务内容前必须先输出 PC0~PC4 预检查块；若已开始生成但未输出，立即补输出后继续 | 🔴 致命自修正 |
+| S07 | dev 模式下，生成实质任务内容前必须先输出 PC0~PC4 预检查块；若已开始生成但未输出，立即补输出后继续。**v1.9.6+ compaction 触发**：`/compact`、`/resume`、summary 恢复后的首条回复同样视为"首条"，须重新输出 PC0~PC4（即使被指示"continue without acknowledging"） | 🔴 致命自修正 |
 
 ---
 
@@ -145,6 +145,8 @@ CP1（需求确认）→ CP2（方案确认）→ [plan-review] → CP3（实施
 - **CP2**：输出技术方案（架构/文件清单/依赖）→ 等待用户确认
 - **plan-review**：评估计划可行性（CP2 后、CP3 前）
 - **CP3**：**必须**（dev 工作流始终执行，确认任务拆分、顺序、依赖、验证与回滚）
+
+> **无 Hooks 宿主软门禁**（v1.9.6+）：当宿主为 `jetbrains-copilot`、`cursor` 或其他 `instruction-fallback` 模式时，`lifecycle.cjs` CP gate 不强制。AI 必须在每个 CP 输出末尾显式追加 `⏸ 等待用户确认（CP{N}）`，收到明确回复前禁止 source mutation 工具调用。
 
 **高风险操作**：DDL 变更 / `.env`/`package.json`/CI 配置变更 / 文件删除 / 直接影响生产环境
 

@@ -76,13 +76,19 @@ function normalizePreview(text) {
 
 /**
  * Detect which AI platform is running the hook.
- * Claude Code uses PascalCase tool names (Write, Edit, Bash).
- * Copilot uses snake_case / lowercase (apply_patch, create_file).
+ * v1.9.6+: env vars take priority over tool-name heuristic.
+ * - CLAUDE_CODE_VERSION / CLAUDE_HOOK_COMMAND → claude
+ * - IDEA_INITIAL_DIRECTORY / JETBRAINS_IDE / IDEA_* → jetbrains-copilot
+ * - TERM_PROGRAM=vscode → vscode-copilot (when not Claude)
+ * Fallback: PascalCase tool name → claude; otherwise copilot.
  */
 function detectPlatform(payload) {
+  if (process.env.CLAUDE_CODE_VERSION || process.env.CLAUDE_HOOK_COMMAND) return 'claude'
+  if (process.env.IDEA_INITIAL_DIRECTORY || process.env.JETBRAINS_IDE) return 'jetbrains-copilot'
   const toolName = String(payload.tool_name || payload.toolName || '').trim()
-  if (!toolName) return 'copilot' // default for non-tool events
-  return /^[A-Z]/.test(toolName) ? 'claude' : 'copilot'
+  if (toolName && /^[A-Z]/.test(toolName)) return 'claude'
+  if (process.env.TERM_PROGRAM === 'vscode') return 'vscode-copilot'
+  return 'copilot'
 }
 
 // ─── Platform-specific output builders ───────────────────────────────────────
@@ -236,7 +242,9 @@ function buildBootstrapMessage() {
     'DevCodex hook-enforced bootstrap is active for this user message.',
     'In dev mode, load the project profile under .devcodex/profile/ and memory files under',
     '.devcodex/.memory/clients/ before any substantive work.',
-    'Your first user-visible block must be the DEV precheck PC0-PC4 before substantive task content.'
+    'Your first user-visible block must be the DEV precheck PC0-PC4 before substantive task content.',
+    '*** S07 compaction trigger (v1.9.6+): if this turn resumes from /compact, /resume, or summary-restore,',
+    'this also counts as "first user-visible reply" — you MUST re-output PC0-PC4 even when instructed to "continue without acknowledging".'
   ].join(' ')
 }
 

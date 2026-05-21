@@ -620,9 +620,15 @@ function genConfigJson(agent, mode) {
 }
 
 function detectAgent(cwd) {
+  // v1.9.6+: agent enum aligned with CLAUDE.md/15-memory: copilot/vscode-copilot/jetbrains-copilot/claude-code/codex/cursor/unknown-agent
   if (fs.existsSync(path.join(cwd, 'CLAUDE.md')) || fs.existsSync(path.join(cwd, '.claude'))) return 'claude-code'
-  if (fs.existsSync(path.join(cwd, '.github', 'copilot-instructions.md'))) return 'copilot'
-  return 'copilot'
+  const hasCopilotMd = fs.existsSync(path.join(cwd, '.github', 'copilot-instructions.md'))
+  if (hasCopilotMd) {
+    if (process.env.IDEA_INITIAL_DIRECTORY || process.env.JETBRAINS_IDE) return 'jetbrains-copilot'
+    if (process.env.TERM_PROGRAM === 'vscode' || process.env.VSCODE_PID) return 'vscode-copilot'
+    return 'copilot'
+  }
+  return 'unknown-agent'
 }
 
 function cmdProfileInit(argv) {

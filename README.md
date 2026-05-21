@@ -188,13 +188,15 @@ devcodex/
 
 ## IDE 兼容性
 
+> v1.9.6+ 与上方"客户端支持矩阵"语义对齐：✅=自动加载且经实测；⚠️=加载但能力降级或未实测；❌=不支持。Hooks 列与客户端矩阵的 "Bootstrap 硬门禁" 一致。
+
 | 功能 | VS Code | JetBrains | Visual Studio | Xcode | Eclipse |
 |------|:-------:|:---------:|:------------:|:-----:|:-------:|
 | `copilot-instructions.md` | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `instructions/*.instructions.md` | ✅ | ✅ | ✅ | ❌ | ❌ |
+| `instructions/*.instructions.md` | ✅ | ⚠️ 实测中 | ✅ | ❌ | ❌ |
 | `hooks/*.json` | ✅ | ❌ | ❌ | ❌ | ❌ |
-| `agents/*.agent.md` | ✅ | ✅ | ❌ | ❌ | ❌ |
-| `skills/*/SKILL.md` | ✅ | ✅ | ❌ | ❌ | ❌ |
+| `agents/*.agent.md` | ✅ | ⚠️ legacy | ❌ | ❌ | ❌ |
+| `skills/*/SKILL.md` | ✅ | ⚠️ 实测中 | ❌ | ❌ | ❌ |
 | `prompts/*.prompt.md` | ✅ | ✅ | ✅ | ❌ | ❌ |
 
 > JetBrains 的 path-specific instructions / agents / skills 已实测确认可用（WebStorm 2026）；Workspace Hooks 当前按 VS Code Hooks Preview 能力建模。

@@ -15,7 +15,7 @@ applyTo: "**"
 | S04 | 禁止 overwrite 源码/规范文件 | 对所有源码文件及规范文件（.md）的修改，必须使用增量编辑（edit 工具），禁止整文件重写 | 新建文件（create 不是 overwrite） |
 | S05 | 记忆+报告自动写入 | 每次会话结束前必须写入记忆文件和报告文件，禁止询问用户"是否需要写入" | 纯 chat 会话（无任何变更意图时可豁免报告，但记忆仍需写入） |
 | S06 | 禁止执行危险命令 | 不得直接执行不可逆的破坏性系统/数据库命令（如 `DROP TABLE`、无 WHERE 子句的 `DELETE FROM`、`rm -rf /`、`TRUNCATE` 等），必须先输出命令预览等待用户确认 | 有明确 WHERE 条件的 DELETE、有明确备份前提的 DROP |
-| S07 | dev 模式预检查强制输出 | `instruction-fallback` + `dev` 模式下，AI 生成实质性工作流内容前必须已输出 PC0~PC4 预检查块。若 AI 自检发现当前回复已开始生成实质内容但尚未输出预检查块，必须立即在当前位置补输出完整预检查块，重新评估任务意图后再继续生成后续内容；不终止本次请求 | `prod` 模式（无预检查要求）；`hook-enforced` 模式（预检查已由宿主 bootstrap 完成）|
+| S07 | dev 模式预检查强制输出 | `instruction-fallback` + `dev` 模式下，AI 生成实质性工作流内容前必须已输出 PC0~PC4 预检查块。若 AI 自检发现当前回复已开始生成实质内容但尚未输出预检查块，必须立即在当前位置补输出完整预检查块，重新评估任务意图后再继续生成后续内容；不终止本次请求。**v1.9.6+ compaction 触发**：当本轮回复源自 `/compact`、`/resume`、summary 恢复或上下文压缩重启时，同样视为"首条用户可见回复"，必须重新输出 PC0~PC4，即使被指示"continue without acknowledging" | `prod` 模式（无预检查要求）；`hook-enforced` 模式（预检查已由宿主 bootstrap 完成）|
 
 ## 输出语言规则
 

@@ -298,11 +298,12 @@ function cmdStatus() {
 /**
  * Hook command: locate .claude/hooks/_runtime/lifecycle.cjs by walking up from cwd.
  * Why: settings.json may live at workspace root while Claude Code runs in a project subdir.
- * A plain `node .claude/hooks/_runtime/lifecycle.cjs` resolves against cwd and fails when
- * the file only exists in an ancestor directory. The inline node snippet searches upward
- * (cwd → parent → ... → root); silently exits if no DevCodex install is found.
+ * v1.9.7+ monorepo-safe: requires lifecycle.cjs AND a project-root marker (.devcodex/ or
+ * package.json) to coexist at the same level, otherwise keeps walking. Prevents false hits
+ * on ancestor .claude/ directories that belong to a different (outer) workspace.
+ * Silently exits if no DevCodex install is found.
  */
-const CLAUDE_HOOK_COMMAND = `node -e "let d=process.cwd(),fs=require('fs'),p=require('path');while(true){const f=p.join(d,'.claude','hooks','_runtime','lifecycle.cjs');if(fs.existsSync(f)){require(f);break}const n=p.dirname(d);if(n===d){process.exit(0)}d=n}"`
+const CLAUDE_HOOK_COMMAND = `node -e "let d=process.cwd(),fs=require('fs'),p=require('path');while(true){const f=p.join(d,'.claude','hooks','_runtime','lifecycle.cjs');if(fs.existsSync(f)&&(fs.existsSync(p.join(d,'.devcodex'))||fs.existsSync(p.join(d,'package.json')))){require(f);break}const n=p.dirname(d);if(n===d){process.exit(0)}d=n}"`
 
 /** Claude Code settings.json hook configuration */
 const CLAUDE_SETTINGS_HOOKS = {
@@ -695,6 +696,63 @@ function cmdProfileInit(argv) {
   console.log()
 }
 
+function cmdDoctor() {
+  // v1.9.7+ P-001/P-004: runtime diagnostic for host detection & JetBrains verification
+  const cwd = process.cwd()
+  const env = process.env
+  let platform = 'copilot'
+  if (env.CLAUDE_CODE_VERSION || env.CLAUDE_HOOK_COMMAND) platform = 'claude'
+  else if (env.IDEA_INITIAL_DIRECTORY || env.JETBRAINS_IDE) platform = 'jetbrains-copilot'
+  else if (env.TERM_PROGRAM === 'vscode' || env.VSCODE_PID) platform = 'vscode-copilot'
+  const agent = detectAgent(cwd)
+
+  const hasGithubHooks = fs.existsSync(path.join(cwd, '.github', 'hooks', '_runtime', 'lifecycle.cjs'))
+  const hasClaudeHooks = fs.existsSync(path.join(cwd, '.claude', 'hooks', '_runtime', 'lifecycle.cjs'))
+  const hasCopilotMd = fs.existsSync(path.join(cwd, '.github', 'copilot-instructions.md'))
+  const hasClaudeMd = fs.existsSync(path.join(cwd, 'CLAUDE.md'))
+  const hasInstructions = fs.existsSync(path.join(cwd, '.github', 'instructions'))
+  const hasProfile = fs.existsSync(path.join(cwd, '.devcodex', 'profile'))
+
+  let mode = 'instruction-fallback'
+  if (platform === 'claude' && hasClaudeHooks) mode = 'hook-enforced (Claude Code)'
+  else if (platform === 'vscode-copilot' && hasGithubHooks) mode = 'hook-enforced (VS Code Copilot)'
+  else if (platform === 'jetbrains-copilot') mode = 'instruction-fallback (JetBrains — Hooks unsupported)'
+
+  console.log()
+  console.log(c.bold('  DevCodex Doctor') + c.dim(` v1.9.7+ — runtime diagnostics`))
+  console.log(c.dim('  ──────────────────────────────────────'))
+  console.log(`  cwd:             ${cwd}`)
+  console.log(`  platform:        ${c.cyan(platform)}  ${c.dim('(env-derived)')}`)
+  console.log(`  agent:           ${c.cyan(agent)}`)
+  console.log(`  mode:            ${c.bold(mode)}`)
+  console.log()
+  console.log(c.bold('  Install artifacts:'))
+  console.log(`    CLAUDE.md                            ${hasClaudeMd ? c.green('✅') : c.dim('—')}`)
+  console.log(`    .claude/hooks/_runtime/lifecycle.cjs ${hasClaudeHooks ? c.green('✅') : c.dim('—')}`)
+  console.log(`    .github/copilot-instructions.md      ${hasCopilotMd ? c.green('✅') : c.dim('—')}`)
+  console.log(`    .github/instructions/                ${hasInstructions ? c.green('✅') : c.dim('—')}`)
+  console.log(`    .github/hooks/_runtime/lifecycle.cjs ${hasGithubHooks ? c.green('✅') : c.dim('—')}`)
+  console.log(`    .devcodex/profile/                   ${hasProfile ? c.green('✅') : c.yellow('⚠️  missing — run `devcodex profile init`')}`)
+  console.log()
+
+  if (platform === 'jetbrains-copilot' || mode.startsWith('instruction-fallback')) {
+    console.log(c.bold('  JetBrains / instruction-fallback verification checklist (P-004):'))
+    console.log('    1. Settings → GitHub Copilot → Custom Instructions → Use Instruction Files: ON')
+    console.log('    2. Open `.github/copilot-instructions.md` — confirm Copilot Chat references "DevCodex"')
+    console.log('    3. Open any `.github/instructions/*.instructions.md` — verify `applyTo:` glob semantics:')
+    console.log('       • Edit a matching file (e.g. `**/*.ts`) → ask Copilot a related question → expect rule cited')
+    console.log('       • JetBrains support for `applyTo` is BETA — fallback is always-on injection')
+    console.log('    4. CP gate (no Hooks): AI must append `⏸ 等待用户确认（CPN）` to every CP output')
+    console.log('    5. Optional: enable `scripts/instruction-fallback-check.js` as git pre-commit hook (CP3 soft-gate)')
+    console.log()
+  }
+
+  if (platform === 'claude' && !hasClaudeHooks) {
+    console.log(c.yellow('  ⚠️  Claude Code detected but .claude/hooks/ missing — run `devcodex init --claude`'))
+    console.log()
+  }
+}
+
 function cmdHelp() {
   console.log(`
   ${c.bold('DevCodex')} — AI-powered development workflow rules for GitHub Copilot & Claude Code
@@ -710,6 +768,7 @@ function cmdHelp() {
     ${c.cyan('update --claude')}   Re-install and overwrite Claude Code files
     ${c.cyan('profile init')}      Auto-generate .devcodex/profile/ drafts (v1.9.2+)
     ${c.cyan('status')}            Show what DevCodex files are installed
+    ${c.cyan('doctor')}            Diagnose host platform / agent / mode (v1.9.7+)
 
   ${c.bold('Options:')}
     ${c.dim('--force,  -f')}       Overwrite existing files
@@ -751,8 +810,9 @@ if (require.main === module) {
       }
       break
     case 'status': cmdStatus(); break
+    case 'doctor': cmdDoctor(); break
     default: cmdHelp(); break
   }
 }
 
-module.exports = { walkDir, cmdInit, cmdInitClaude, cmdStatus, cmdHelp, cmdProfileInit, isSourceRepo, SOURCES, CLAUDE_SOURCES }
+module.exports = { walkDir, cmdInit, cmdInitClaude, cmdStatus, cmdHelp, cmdProfileInit, cmdDoctor, isSourceRepo, SOURCES, CLAUDE_SOURCES }

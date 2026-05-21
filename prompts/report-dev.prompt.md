@@ -14,10 +14,12 @@ applyTo: .devcodex/**/reports/requirements/**
 ```markdown
 # [功能名称] 开发报告
 
-> **创建日期**: YYYY-MM-DD HH:MM
 > **项目**: <project>
+> **类型**: dev
 > **子类型**: default / refactor / database / init / optimization / scenario-test / docs / plan-review
-> **状态**: 完成 / 部分完成 / 中断
+> **创建日期**: YYYY-MM-DD HH:MM
+> **Agent**: <agent-id>
+> **状态**: 进行中 / 已完成
 > **关联需求**: [路径]
 > **关联方案**: [路径]
 ```
@@ -71,5 +73,6 @@ applyTo: .devcodex/**/reports/requirements/**
 
 ## §8 遗留问题
 
-| 问题 | 优先级 | 后续处理 |
-|------|:------:|---------|
+| 问题/建议 | 优先级 | 合理性 | 可实施性 | 收益 | 验证状态 | 影响范围 | 后续处理 |
+|-----------|:------:|--------|----------|------|----------|----------|----------|
+| | | | | | ✅已验证 / ⚠️待验证 | | |

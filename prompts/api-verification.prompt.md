@@ -1,12 +1,13 @@
 ---
 agent: agent
 description: API 验证文档模板，用于生成 .http 接口文档和 .cjs 自动化脚本说明
-applyTo: tests/api/**
+applyTo: .devcodex/**
 ---
 # API 验证模板
 
 > **触发**: `api-verification/SKILL.md` 执行时生成
-> **产物路径**: 需求目录下 `*-接口验证.http` + `*-接口验证.cjs`（遵循 `02-output-paths.instructions.md`）
+> **产物路径**: 任务目录根 `*-接口验证.http` + `*-接口验证.cjs`（遵循 `02-output-paths.instructions.md`）
+> **执行前提**: 脚本只连接外部已运行实例，不在脚本内自启服务
 
 ---
 
@@ -52,7 +53,7 @@ GET {{baseUrl}}/api/<resource>/{{resourceId}}
 ## .cjs 文件模板
 
 ```javascript
-// tests/api/<module>.test.cjs
+// <任务目录>/<module>-接口验证.cjs
 // DevCodex API Verification Script
 // 生成时间：YYYY-MM-DD
 
@@ -89,8 +90,8 @@ runTests().catch(e => { console.error('❌', e.message); process.exit(1) })
 ## 执行验证
 
 ```bash
-# 执行 API 验证
-node tests/api/<module>.test.cjs
+# 先在独立终端手动启动目标服务，再执行 API 验证
+API_BASE_URL=http://localhost:3000 node .devcodex/requirements/<需求名>/<module>-接口验证.cjs
 
 # 预期输出
 # 🧪 Running API verification: <module>
@@ -98,3 +99,5 @@ node tests/api/<module>.test.cjs
 #   ✅ POST /api/<resource>
 # ✅ All tests passed
 ```
+
+> 项目自身的单元/集成/API 测试仍可放在 `tests/`；本模板只定义 DevCodex 归档级接口验证双产物。

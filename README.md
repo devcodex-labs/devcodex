@@ -36,6 +36,8 @@ echo "//npm.pkg.github.com/:_authToken=\${NODE_AUTH_TOKEN}" >> .npmrc
 export NODE_AUTH_TOKEN=YOUR_GITHUB_PAT
 ```
 
+这里的环境变量仅用于 GitHub Packages 认证密钥，不代表项目里的普通配置默认都应 env 化；非敏感、本地、测试或一次性脚本配置优先保持最简单、可直接读懂的写法。
+
 ### 2. 安装并初始化
 
 ```bash

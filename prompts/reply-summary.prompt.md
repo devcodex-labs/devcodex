@@ -1,37 +1,39 @@
 ---
 agent: agent
-description: 回复摘要模板，用于 chat 工作流记录简短会话摘要
+description: 回复摘要模板，用于 chat 工作流在 daily tasks 记忆中记录简短会话摘要
 applyTo: .devcodex/.memory/**
 ---
 # 回复摘要模板
 
-> **路径**: `.devcodex/.memory/clients/<agent>/chat/YYYYMMDD.md`
-> **触发**: chat 意图工作流结束后，由 `memory/SKILL.md` 写入（轻量记录）
+> **路径**: `.devcodex/.memory/clients/<agent>/tasks/YYYYMMDD.md`
+> **触发**: chat 意图收到首条消息时创建/追加会话段落，任务结束时更新状态
 
 ---
 
 ```markdown
-# Chat 记录 — YYYY-MM-DD
+## 会话 NN
 
-## HH:MM — [问题摘要]
+- **时间**：YYYY-MM-DD
+- **意图**：chat
+- **状态**：🔄 / ✅
 
-**问题**：[用户问题一句话摘要]  
-**回复要点**：[回答的关键信息，1~3条]  
-**相关文件/资源**：[若有引用]
+### 🎯 任务摘要
 
----
+chat：[一句话描述]
 
-## HH:MM — [问题摘要]
+### 📨 对话记录
 
-...
+| 轮次 | 👤 用户消息 | 🤖 AI执行 | 状态 |
+|:----:|-----------|----------|:----:|
+| 1 | [问题摘要] | [回复要点，1~3条] | ✅ |
 ```
 
 ## 写入规则
 
-- chat 记录追加写入到当天文件（同一天多次 chat 追加段落）
-- 不需要详细上下文（chat 豁免完整记忆）
-- 保留 7 天（超过 7 天的 chat 记录自动清理）
-- 不包含：代码实现细节、文件变更记录（这些在 memory-session 中）
+- chat 豁免报告，不豁免记忆；必须写入 daily tasks 文件
+- 可使用紧凑格式，但必须包含 🎯 任务摘要和 📨 四列表格
+- 不单独创建 `chat/YYYYMMDD.md`，不设置 7 天自动清理规则
+- 若 chat 中引用了文件或产生后续事项，可在紧凑记录中追加一句说明
 
 ## §6 多任务进度快照格式
 

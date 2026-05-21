@@ -36,10 +36,11 @@ scenarios:
 
 | 类型 | 工具 | 产物路径 |
 |------|------|---------|
-| 端到端测试 | Playwright / Cypress | `tests/e2e/` |
-| 集成测试 | Vitest / Jest | `tests/integration/` |
-| 负载测试 | artillery | `tests/load/` |
-| API 场景测试 | `.http` 脚本 | `tests/api/` |
+| 项目端到端测试 | Playwright / Cypress | 项目测试目录，如 `tests/e2e/` |
+| 项目集成测试 | Vitest / Jest | 项目测试目录，如 `tests/integration/` |
+| 项目负载测试 | artillery | 项目测试目录，如 `tests/load/` |
+| DevCodex 场景测试归档 | artillery / `.http` / `.cjs` | `.devcodex/scenario-tests/<场景>/` 或关联任务目录 |
+| 归档级 API 场景验证 | `.http` + `.cjs` 双产物 | 任务目录根 `*-接口验证.http` + `*-接口验证.cjs` |
 
 ## 执行规则
 
@@ -47,4 +48,4 @@ scenarios:
 - CP2：确认测试工具/框架 + 数据准备策略
 - CP3：确认执行顺序 + 环境准备/回收方式 + 风险点
 - 测试数据：使用 fixtures，禁止依赖生产数据
-- 测试完成后输出覆盖率报告到 `reports/requirements/`
+- 测试完成后输出场景测试报告到 `.devcodex/scenario-tests/<场景>/reports/<agent>/YYYYMMDD/`；项目自身覆盖率报告仍按项目测试框架约定输出

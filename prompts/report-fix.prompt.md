@@ -14,11 +14,17 @@ applyTo: .devcodex/**/reports/bugs/**
 ```markdown
 # [问题名称] 修复报告
 
-> **创建日期**: YYYY-MM-DD HH:MM
 > **项目**: <project>
+> **类型**: fix
 > **子类型**: default / incident / security
+> **创建日期**: YYYY-MM-DD HH:MM
+> **Agent**: <agent-id>
 > **严重级别**: P0 / P1 / P2 / P3
-> **状态**: 已修复 / 验证中 / 待验证
+> **状态**: 进行中 / 已完成
+> **事件级别**: P0 / P1 / P2（incident 类型必填）
+> **事件时间**: YYYY-MM-DD HH:MM:SS（incident 类型必填）
+> **响应时间**: YYYY-MM-DD HH:MM:SS（incident 类型必填）
+> **修复时间**: YYYY-MM-DD HH:MM:SS（incident 类型必填）
 ```
 
 ## §1 问题摘要
@@ -37,7 +43,23 @@ applyTo: .devcodex/**/reports/bugs/**
   src/xxx.ts (修复内容)
 ```
 
-## §3 回归验证
+## §3 CP 确认记录
+
+| CP | 状态 | 用户响应 | 时间 |
+|:--:|:----:|---------|------|
+| CP1 | ✅ / N/A | 确认问题分析 | HH:MM |
+| CP2 | ✅ / N/A | 确认修复方案 | HH:MM |
+| CP3 | ✅ / N/A | 确认实施计划 | HH:MM |
+
+## §4 修复三步扫描
+
+| 扫描项 | 结果 | 证据 |
+|--------|:----:|------|
+| 同类全局扫描 | ✅ / ⚠️ | |
+| 数据联动扫描 | ✅ / ⚠️ | |
+| grep 零残留复核 | ✅ / ⚠️ | |
+
+## §5 回归验证
 
 | 测试用例 | 结果 |
 |---------|:----:|
@@ -45,7 +67,7 @@ applyTo: .devcodex/**/reports/bugs/**
 | 关联功能回归 | ✅ 正常 |
 | api-verification | ✅ 通过 / N/A |
 
-## §4 时间线（incident 类型必填，秒级精度供响应时效审计）
+## §6 时间线（incident 类型必填，秒级精度供响应时效审计）
 
 | 时间 | 事件 |
 |------|------|
@@ -57,12 +79,18 @@ applyTo: .devcodex/**/reports/bugs/**
 
 > ⚠️ **incident 必须秒级**：P0 要求 15 分钟内初步方案，秒级时间是后续 SLA 审计依据；P1/P2 可降级为分钟级 `YYYY-MM-DD HH:MM`。
 
-## §5 改进 Action Items（incident 必填）
+## §7 问题/建议验证
+
+| 问题/建议 | 合理性 | 可实施性 | 收益 | 验证状态 | 影响范围 |
+|-----------|--------|----------|------|----------|----------|
+| | | | | ✅已验证 / ⚠️待验证 | |
+
+## §8 改进 Action Items（incident 必填）
 
 | 改进点 | 优先级 | 负责人 | 截止时间 |
 |--------|:------:|--------|---------|
 
-## §6 后置处理
+## §9 后置处理
 
 - [ ] document-sync：✅ 完成
 - [ ] CHANGELOG 已更新

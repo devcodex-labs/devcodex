@@ -77,6 +77,10 @@ function normalizePreview(text) {
   return String(text || '').replace(/\s+/g, ' ').trim().slice(0, PAYLOAD_PREVIEW_LIMIT)
 }
 
+function escapeRegExp(text) {
+  return String(text || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 // ─── Platform detection ───────────────────────────────────────────────────────
 
 /**
@@ -121,10 +125,10 @@ function systemMessageOutput(message) {
 }
 
 // ─── Multi-project workspace detection (v1.9.8+) ──────────────────────────────
-function isMultiProjectWorkspace() {
+function listWorkspaceProjects() {
   let entries
-  try { entries = fs.readdirSync(WORKSPACE_ROOT) } catch { return false }
-  let projectCount = 0
+  try { entries = fs.readdirSync(WORKSPACE_ROOT) } catch { return [] }
+  const projects = []
   for (const name of entries) {
     if (name.startsWith('.') || name === 'node_modules') continue
     const dir = path.join(WORKSPACE_ROOT, name)
@@ -134,11 +138,14 @@ function isMultiProjectWorkspace() {
     const hasPkg = fs.existsSync(path.join(dir, 'package.json'))
     const hasProfile = fs.existsSync(path.join(dir, '.devcodex', 'profile'))
     if (hasPkg || hasProfile) {
-      projectCount += 1
-      if (projectCount >= 2) return true
+      projects.push(name)
     }
   }
-  return false
+  return projects
+}
+
+function isMultiProjectWorkspace() {
+  return listWorkspaceProjects().length >= 2
 }
 
 function extractUserPrompt(payload) {
@@ -152,6 +159,20 @@ function hasMultiProjectExemption(prompt) {
   if (!prompt) return false
   const lower = prompt.toLowerCase()
   return MULTI_PROJECT_EXEMPTION_KEYWORDS.some(k => lower.includes(k.toLowerCase()))
+}
+
+function detectProjectFromPrompt(prompt) {
+  if (!prompt) return ''
+  for (const projectName of listWorkspaceProjects()) {
+    const escaped = escapeRegExp(projectName)
+    const patterns = [
+      new RegExp(`\\bin\\s+${escaped}(?:/|\\b)`, 'i'),
+      new RegExp(`对\\s*${escaped}\\s*项目`, 'i'),
+      new RegExp(`项目\\s*${escaped}\\b`, 'i')
+    ]
+    if (patterns.some(pattern => pattern.test(prompt))) return projectName
+  }
+  return ''
 }
 
 function buildMultiProjectBlockMessage() {
@@ -214,7 +235,27 @@ function getCommandText(payload) {
 
 function touchesPath(payload, ...needles) {
   const strings = getToolInputStrings(payload)
-  return strings.some(s => needles.some(n => s.includes(n)))
+  return strings.some(s => needles.some(n => s.includes(normalizeText(n))))
+}
+
+function getActiveProjectRoot(state) {
+  if (state?.activeProject) return path.join(WORKSPACE_ROOT, state.activeProject)
+  return WORKSPACE_ROOT
+}
+
+function buildProjectScopedNeedles(projectRoot, segments) {
+  const absolute = path.join(projectRoot, ...segments)
+  const relativeRoot = path.relative(WORKSPACE_ROOT, projectRoot)
+  const relative = relativeRoot ? path.join(relativeRoot, ...segments) : path.join(...segments)
+  return [absolute, relative]
+}
+
+function getBootstrapScopes(state) {
+  const projectRoot = getActiveProjectRoot(state)
+  return {
+    profileNeedles: buildProjectScopedNeedles(projectRoot, ['.devcodex', 'profile']),
+    memoryNeedles: buildProjectScopedNeedles(projectRoot, ['.devcodex', '.memory', 'clients'])
+  }
 }
 
 // ─── State ────────────────────────────────────────────────────────────────────
@@ -226,6 +267,7 @@ function buildDefaultState(mode) {
     phase: m === 'dev' ? 'bootstrapping' : 'active',
     startedAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
     promptCount: 0, toolUseCount: 0,
+    activeProject: '',
     bootstrap: { profileRead: false, summaryRead: false, tasksRead: false },
     bootstrapComplete: m !== 'dev',
     visible: { payloadObserved: false, precheck: false, compliance: false },
@@ -252,31 +294,37 @@ function saveState(state) {
   fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2))
 }
 
-function resetState(mode) {
+function resetState(mode, previousState) {
   const state = buildDefaultState(mode)
   state.promptCount = 1
+  state.activeProject = previousState?.activeProject || ''
   saveState(state)
   return state
 }
 
 // ─── Bootstrap (Copilot dev mode only) ───────────────────────────────────────
 
-function isBootstrapReadTool(payload) {
+function isBootstrapReadTool(payload, state) {
   const tn = getToolName(payload).toLowerCase()
+  const scopes = getBootstrapScopes(state)
   // Copilot: read_file/list_dir/file_search/grep_search/semantic_search
   // Claude Code: Read/Glob/Grep (PascalCase → lowercased above)
   const readPatterns = [
     /^read([_-]?file)?$/, /^list[_-]?dir$/, /^file[_-]?search$/,
     /^grep([_-]?search)?$/, /^semantic[_-]?search$/, /^glob$/
   ]
-  return readPatterns.some(p => p.test(tn)) && touchesPath(payload, '.devcodex/profile/', '.devcodex/.memory/clients/')
+  return readPatterns.some(p => p.test(tn)) && (
+    touchesPath(payload, ...scopes.profileNeedles) ||
+    touchesPath(payload, ...scopes.memoryNeedles)
+  )
 }
 
 function updateBootstrapState(state, payload) {
-  if (touchesPath(payload, '.devcodex/profile/')) state.bootstrap.profileRead = true
-  if (touchesPath(payload, '.devcodex/.memory/clients/') &&
+  const scopes = getBootstrapScopes(state)
+  if (touchesPath(payload, ...scopes.profileNeedles)) state.bootstrap.profileRead = true
+  if (touchesPath(payload, ...scopes.memoryNeedles) &&
     getToolInputStrings(payload).some(s => s.includes('/summary.md'))) state.bootstrap.summaryRead = true
-  if (touchesPath(payload, '.devcodex/.memory/clients/') &&
+  if (touchesPath(payload, ...scopes.memoryNeedles) &&
     getToolInputStrings(payload).some(s => s.includes('/tasks/') && s.endsWith('.md')))
     state.bootstrap.tasksRead = true
   state.bootstrapComplete = !!(
@@ -290,9 +338,9 @@ function buildBootstrapMessage() {
     'DevCodex hook-enforced bootstrap is active for this user message.',
     'In dev mode, load the project profile under .devcodex/profile/ and memory files under',
     '.devcodex/.memory/clients/ before any substantive work.',
-    'Your first user-visible block must be the DEV precheck PC0-PC4 before substantive task content.',
+    'Your first user-visible block must be the DEV precheck PC0-PC7 before substantive task content.',
     '*** S07 compaction trigger (v1.9.6+): if this turn resumes from /compact, /resume, or summary-restore,',
-    'this also counts as "first user-visible reply" — you MUST re-output PC0-PC4 even when instructed to "continue without acknowledging".'
+    'this also counts as "first user-visible reply" — you MUST re-output PC0-PC7 even when instructed to "continue without acknowledging".'
   ].join(' ')
 }
 
@@ -313,15 +361,20 @@ function buildBootstrapDenyOutput(state, payload, eventName, platform) {
 
 function readCpConfirmations(reqPath) {
   const p = path.join(reqPath, '.memory', 'sessions.md')
-  const none = { CP1: false, CP2: false, CP3: false }
+  const none = { CP1: false, CP2: false, CP3: false, CP3Exempt: false }
   if (!fs.existsSync(p)) return none
   let text
   try { text = fs.readFileSync(p, 'utf8') } catch { return none }
-  const confirmed = { CP1: false, CP2: false, CP3: false }
+  const confirmed = { CP1: false, CP2: false, CP3: false, CP3Exempt: false }
   const re = /\|\s*(CP[123])\s*\|\s*✅/g
   let m
   while ((m = re.exec(text)) !== null) {
     if (m[1] in confirmed) confirmed[m[1]] = true
+  }
+  const cp3Exempt = /(?:\|\s*CP3\s*\|\s*N\/A\b|CP3\s*[:：]\s*N\/A)/i.test(text)
+  if (cp3Exempt) {
+    confirmed.CP3 = true
+    confirmed.CP3Exempt = true
   }
   return confirmed
 }
@@ -344,16 +397,20 @@ function findIncompleteRequirement() {
   const hasAnyCp3Done = dirs.some(d => {
     if (fs.existsSync(path.join(d.fullPath, '.archived'))) return false
     if (!fs.existsSync(path.join(d.fullPath, CP1_FILE))) return false
+    const cp = readCpConfirmations(d.fullPath)
+    if (cp.CP3Exempt) return false
     if (!fs.existsSync(path.join(d.fullPath, CP3_FILE))) return false
-    return readCpConfirmations(d.fullPath).CP3
+    return cp.CP3
   })
   if (hasAnyCp3Done) return null  // 已有需求进入实施 → 全局放行（跨需求场景）
 
   return dirs.find(d => {
     if (fs.existsSync(path.join(d.fullPath, '.archived'))) return false
     if (!fs.existsSync(path.join(d.fullPath, CP1_FILE))) return false
+    const cp = readCpConfirmations(d.fullPath)
+    if (cp.CP3) return false
     if (!fs.existsSync(path.join(d.fullPath, CP3_FILE))) return true
-    return !readCpConfirmations(d.fullPath).CP3
+    return !cp.CP3
   }) || null
 }
 
@@ -419,8 +476,10 @@ function findIncompleteRequirementForPaths(payload) {
     if (!fs.existsSync(fullPath)) continue
     if (fs.existsSync(path.join(fullPath, '.archived'))) continue
     if (!fs.existsSync(path.join(fullPath, CP1_FILE))) continue
+    const cp = readCpConfirmations(fullPath)
+    if (cp.CP3) continue
     if (!fs.existsSync(path.join(fullPath, CP3_FILE))) return { name: reqName, fullPath }
-    if (!readCpConfirmations(fullPath).CP3) return { name: reqName, fullPath }
+    if (!cp.CP3) return { name: reqName, fullPath }
   }
   return null  // all target requirements have CP3 confirmed → allow
 }
@@ -592,7 +651,7 @@ function captureFinalPayloadSample(payload, eventName, state) {
 function buildClosureReminder(state, eventName) {
   const items = []
   if (eventName === 'Stop' && state.mode === 'dev' && state.visible && !state.visible.precheck) {
-    items.push('precheck block 未输出（S07/C18：dev 模式首条用户可见回复必须含 PC0~PC4 预检查块）')
+    items.push('precheck block 未输出（S07/C18：dev 模式首条用户可见回复必须含 PC0~PC7 预检查块）')
   }
   if (state.mutated && !state.memoryTouched) items.push('记忆文件尚未写入（S05：会话结束前必须写入）')
   if (state.mutated && !state.reportTouched) items.push('报告文件尚未写入（chat 工作流豁免）')
@@ -621,14 +680,20 @@ async function main() {
 
   // ── UserPromptSubmit ───────────────────────────────────────────────────────
   if (eventName === 'UserPromptSubmit') {
-    state = resetState(mode)
+    const prompt = extractUserPrompt(payload)
+    const explicitProject = detectProjectFromPrompt(prompt)
+    state = resetState(mode, state)
+    if (hasMultiProjectExemption(prompt)) {
+      state.activeProject = ''
+    } else if (explicitProject) {
+      state.activeProject = explicitProject
+    }
     // Multi-project workspace guard (v1.9.8+):
     // when no workspace-root profile exists and ≥2 sibling projects detected,
     // require the user to specify the target project explicitly.
     const hasWorkspaceProfile = fs.existsSync(PROFILE_CONFIG_FILE)
     if (!hasWorkspaceProfile && isMultiProjectWorkspace()) {
-      const prompt = extractUserPrompt(payload)
-      if (!hasMultiProjectExemption(prompt)) {
+      if (!hasMultiProjectExemption(prompt) && !state.activeProject) {
         state.lastReason = 'multi-project-workspace-block'
         saveState(state)
         writeStdout(blockOutput(
@@ -638,6 +703,7 @@ async function main() {
         return
       }
     }
+    saveState(state)
     if (mode === 'dev') {
       writeStdout(systemMessageOutput(buildBootstrapMessage()))
     } else {
@@ -666,7 +732,7 @@ async function main() {
 
     // 2. Bootstrap enforcement (dev mode, both Copilot and Claude Code)
     if (mode === 'dev' && !state.bootstrapComplete) {
-      if (!isBootstrapReadTool(payload)) {
+      if (!isBootstrapReadTool(payload, state)) {
         state.lastReason = 'blocked-before-bootstrap'
         saveState(state)
         writeStdout(buildBootstrapDenyOutput(state, payload, eventName, platform))

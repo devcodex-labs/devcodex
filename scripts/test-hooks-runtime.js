@@ -51,7 +51,7 @@ function main() {
     prompt: 'Need a root cure for dev mode drift.'
   })
   assert.strictEqual(promptOutput.continue, true)
-  assert.match(promptOutput.systemMessage || '', /PC0-PC4/)
+  assert.match(promptOutput.systemMessage || '', /PC0-PC7/)
 
   const blockedBeforeBootstrap = run({
     hookEventName: 'PreToolUse',
@@ -218,10 +218,30 @@ function main() {
   })
   assert.strictEqual(allowedInReqDir.continue, true)
 
+  // CP3 N/A exemptions for docs/init should not keep old requirements blocking later source work.
   cleanState()
+  const reqDocsExempt = path.join(TEMP_ROOT, '.devcodex', 'requirements', '文档任务')
+  fs.mkdirSync(path.join(reqDocsExempt, '.memory'), { recursive: true })
+  fs.writeFileSync(path.join(reqDocsExempt, '01-需求概述.md'), '# docs\n')
+  fs.writeFileSync(path.join(reqDocsExempt, '02-技术方案.md'), '# outline\n')
+  fs.writeFileSync(
+    path.join(reqDocsExempt, '.memory', 'sessions.md'),
+    '| CP1 | ✅ |\n| CP2 | ✅ |\nCP3: N/A（docs 子类型豁免）\n'
+  )
+  run({ hookEventName: 'UserPromptSubmit', prompt: 'cp3 exemption test' })
+  run({ hookEventName: 'PreToolUse', tool_name: 'read_file', tool_input: { filePath: '.devcodex/profile/config.json' } })
+  run({ hookEventName: 'PreToolUse', tool_name: 'read_file', tool_input: { filePath: '.devcodex/.memory/clients/copilot/SUMMARY.md' } })
+  run({ hookEventName: 'PreToolUse', tool_name: 'read_file', tool_input: { filePath: '.devcodex/.memory/clients/copilot/tasks/20260510.md' } })
+  const allowedAfterCp3Exempt = run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'apply_patch',
+    tool_input: { input: '*** Begin Patch\n*** Update File: src/exempt.js\n*** End Patch' }
+  })
+  assert.strictEqual(allowedAfterCp3Exempt.continue, true)
 
   // F-008 (v1.9.5): DEVCODEX_PATH_RE 边缘场景测试
   // Bootstrap a fresh workspace
+  cleanState()
   run({ hookEventName: 'UserPromptSubmit', prompt: 'F-008 path-regex tests' })
   run({ hookEventName: 'PreToolUse', tool_name: 'read_file', tool_input: { filePath: '.devcodex/profile/config.json' } })
   run({ hookEventName: 'PreToolUse', tool_name: 'read_file', tool_input: { filePath: '.devcodex/.memory/clients/copilot/SUMMARY.md' } })

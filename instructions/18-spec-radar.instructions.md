@@ -200,7 +200,7 @@ PC4 入口（仅 dev 模式）
 
 | 文件 | 关系 |
 |------|------|
-| `17-compliance.instructions.md` | PC4 触发点在预检查（PC0~PC4），合规检查（FC/SC/RC/T）在任务完成后；两者独立不重叠 |
+| `17-compliance.instructions.md` | PC4 触发点在预检查（PC0~PC7），合规检查（FC/SC/RC/T）在任务完成后；两者独立不重叠 |
 | `data/pending-fixes.md` | PC4 的 PF 输出目标 |
 | `data/violations.md` | PC4 的 VL / T_RECORD 输出目标 |
 | `data/process-improvements.md` | C17 触发的过程改进记录（PI 条目）——当用户建议的执行策略被 AI 确认更优时写入 |

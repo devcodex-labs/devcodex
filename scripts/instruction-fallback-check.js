@@ -56,7 +56,7 @@ function findActiveRequirements() {
       const sessions = path.join(full, '.memory', 'sessions.md')
       if (fs.existsSync(cp1) && fs.existsSync(sessions)) {
         const text = fs.readFileSync(sessions, 'utf8')
-        const cp3Done = /CP3[^\n]*✅|CP3[^\n]*已确认|CP3[^\n]*confirmed/i.test(text)
+        const cp3Done = /CP3[^\n]*✅|CP3[^\n]*已确认|CP3[^\n]*confirmed|CP3[^\n]*N\/A/i.test(text)
         if (!cp3Done) out.push(path.relative(cwd, full))
       } else {
         walk(full, depth + 1)

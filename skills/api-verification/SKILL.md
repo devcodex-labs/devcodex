@@ -6,7 +6,7 @@ description: 接口验证规范 — 双产物（.http + .cjs）生成 + 自动�
 
 ## 职责
 
-在 dev/fix 工作流涉及接口变更时，生成**双产物**并执行验证：
+在 dev/fix 工作流涉及接口变更时，生成**归档级双产物**并执行验证：
 - `.http` — 可读接口文档（VS Code REST Client 格式）
 - `.cjs` — 自动化执行脚本（Node.js）
 
@@ -37,7 +37,7 @@ Content-Type: application/json
 ###
 ```
 
-存放：需求目录下 `*-接口验证.http`（遵循 `02-output-paths.instructions.md` 产物路径规范）
+存放：任务目录根 `*-接口验证.http`（dev 需求目录或 fix bug 目录，遵循 `02-output-paths.instructions.md` 产物路径规范）
 
 ### `.cjs` 文件（自动化脚本）
 
@@ -68,7 +68,7 @@ async function testEndpoint(method, path, body, expected) {
 // testEndpoint('GET', '/api/users', null, { status: 200 })
 ```
 
-存放：需求目录下 `*-接口验证.cjs`（遵循 `02-output-paths.instructions.md` 产物路径规范）
+存放：任务目录根 `*-接口验证.cjs`（dev 需求目录或 fix bug 目录，遵循 `02-output-paths.instructions.md` 产物路径规范）；归档级脚本只连接外部已运行实例，不在脚本内启动服务。
 
 ## 执行规则
 
@@ -78,11 +78,21 @@ async function testEndpoint(method, path, body, expected) {
 4. 执行 `.cjs` 脚本，确认全部通过
 5. 输出验证摘要（通过/失败/跳过 数量）
 
+## 轻量验证模式（本地调试 / 一次性验证）
+
+> 当目标仅为本地调试、联调排查或一次性自用验证，且不会作为需求/bug 的正式归档产物提交时，可使用轻量模式：
+
+1. 可只写 `.http` 或单个 `.js` / `.cjs` 脚本，不强制生成双产物
+2. 脚本以“能直接看懂、能快速执行”为优先，可直接使用局部常量、fixture 或命令行参数；仅敏感信息仍需走 env/secret 注入
+3. 不要求抽象通用测试框架，只需覆盖当前调试路径
+4. 一旦要提交到任务目录、沉淀为正式回归资产或用于对外接口验收，必须升级回标准双产物模式
+
 ## 关键规则
 
-- 🔴 禁止只生成 `.http` 不生成 `.cjs`（双产物缺一不可）
-- 脚本必须包含断言（不是只发请求，要验证响应）
-- 接口变更后必须更新双产物（禁止过期文档）
+- 🔴 对外接口变更的归档验证禁止只生成 `.http` 不生成 `.cjs`（双产物缺一不可）
+- 归档级脚本必须包含断言（不是只发请求，要验证响应）
+- 归档级脚本禁止自启服务；必须通过 `API_BASE_URL` 或同等配置连接用户已启动的目标实例
+- 接口变更进入正式产物时必须更新双产物（禁止过期文档）
 
 ## 流程串联验证模式（F-14）
 

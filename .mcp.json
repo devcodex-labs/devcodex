@@ -1,6 +1,5 @@
 {
   "$schema": "https://json.schemastore.org/mcp-servers.json",
-  "_note": "DevCodex MCP servers — all run as local stdio processes, no server deployment required.",
   "servers": {
     "devcodex-memory": {
       "type": "stdio",
@@ -9,14 +8,7 @@
         "${workspaceFolder}/.claude/mcp/memory-server.js",
         "${workspaceFolder}"
       ],
-      "_note": "Reads/writes .devcodex/.memory/ session files and records CP confirmations.",
-      "tools": [
-        "memory_session_read",
-        "memory_session_write",
-        "memory_cp_confirm",
-        "memory_summary_read",
-        "memory_summary_append"
-      ]
+      "_note": "Reads/writes .devcodex/.memory/ session files and records CP confirmations."
     },
     "devcodex-profile": {
       "type": "stdio",
@@ -25,11 +17,7 @@
         "${workspaceFolder}/.claude/mcp/profile-server.js",
         "${workspaceFolder}"
       ],
-      "_note": "Loads .devcodex/profile/ files and returns ENV_MODE / agent config.",
-      "tools": [
-        "profile_load",
-        "profile_get_mode"
-      ]
+      "_note": "Loads .devcodex/profile/ files and returns ENV_MODE / agent config."
     }
   }
 }

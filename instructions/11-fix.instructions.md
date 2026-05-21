@@ -38,7 +38,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → 执行 →
 - **impact-review**：涉及跨模块架构依赖变更（PR-5②）时执行
 - **CP3**：≥5 文件变更 或 含高风险操作时**必须**；其他可选
 
-**高风险操作**：DDL 变更 / 配置文件变更（.env/package.json/CI）/ 文件删除 / 直接影响生产环境
+**高风险操作**：DDL 变更 / 共享配置文件变更（如 `.env.example`、`package.json`、CI）/ 生产环境配置变更（如生产用 `.env`）/ 文件删除 / 直接影响生产环境。仅本地使用且不提交的 `.env.local`、`.env.test.local` 或任务临时配置不在此列。
 
 ### CP 响应处理
 
@@ -61,7 +61,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → 执行 →
 
 ## 影响评估触发条件
 
-- 仅由 PR-5②"跨模块架构依赖变更"触发
+- 在 CP2 方案分析阶段，若判断修复方案涉及跨模块架构依赖变更，则在 CP2 确认后执行 impact-review；不涉及时跳过
 - 对外接口变更 → api-verification；不进 impact-review
 
 ## 代码风格

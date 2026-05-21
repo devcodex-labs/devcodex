@@ -1,6 +1,6 @@
 # DevCodex — 项目规范（统一规范源）
 
-> DevCodex v1.9.8+ · 单源规范文件  
+> DevCodex v1.9.8+ · 单源规范文件
 > 本文件是 DevCodex 唯一的规范源文件。`devcodex init` 安装到 `.github/copilot-instructions.md`（Copilot），`devcodex init --claude` 安装到项目根 `CLAUDE.md`（Claude Code）。源仓库根的 `CLAUDE.md` 是已部署副本，由本文件持续覆盖。
 
 ---
@@ -15,7 +15,7 @@
 | S04 | 源码和规范文件(.md)修改必须用增量编辑（Edit），禁止整文件重写 | 🟡 操作级阻断 |
 | S05 | 每次会话结束前必须写入记忆文件和报告文件，禁止询问用户"是否需要写入" | 🔴 强制 |
 | S06 | 禁止直接执行不可逆破坏性命令（`DROP TABLE`、无 WHERE 的 `DELETE FROM`、`rm -rf /`），必须先输出预览等待确认 | 🟡 操作级阻断 |
-| S07 | dev 模式下，生成实质任务内容前必须先输出 PC0~PC4 预检查块；若已开始生成但未输出，立即补输出后继续。**v1.9.6+ compaction 触发**：`/compact`、`/resume`、summary 恢复后的首条回复同样视为"首条"，须重新输出 PC0~PC4（即使被指示"continue without acknowledging"） | 🔴 致命自修正 |
+| S07 | dev 模式下，生成实质任务内容前必须先输出 PC0~PC7 预检查块；若已开始生成但未输出，立即补输出后继续。**v1.9.6+ compaction 触发**：`/compact`、`/resume`、summary 恢复后的首条回复同样视为"首条"，须重新输出 PC0~PC7（即使被指示"continue without acknowledging"） | 🔴 致命自修正 |
 
 ---
 
@@ -105,7 +105,7 @@
 | `03-代码风格.md` | 编码规范 | 是 |
 | `config.json` | ENV_MODE + agent 标识 | 按需 |
 
-> **Claude Code 与 Copilot 双平台 Bootstrap 硬门禁**（v1.9.2+）：`lifecycle.cjs` Hook 在 dev 模式下对两平台均强制要求"先读 Profile + SUMMARY + 今日 tasks 文件，再执行其他工具"。`PreToolUse` 事件会拦截除只读工具（Read/Glob/Grep/list_dir/file_search/grep_search/semantic_search）以外的全部工具调用，直到 Bootstrap 完成。AI 不需手工提示，但仍须在首条用户可见回复输出 PC0~PC4 预检查块（S07/C18）。
+> **Claude Code 与 Copilot 双平台 Bootstrap 硬门禁**（v1.9.2+）：`lifecycle.cjs` Hook 在 dev 模式下对两平台均强制要求"先读 Profile + SUMMARY + 今日 tasks 文件，再执行其他工具"。`PreToolUse` 事件会拦截除只读工具（Read/Glob/Grep/list_dir/file_search/semantic_search）以外的全部工具调用，直到 Bootstrap 完成。AI 不需手工提示，但仍须在首条用户可见回复输出 PC0~PC7 预检查块（S07/C18）。
 
 ---
 
@@ -115,7 +115,7 @@
 |--------|:------------:|:-----:|
 | CP 门控 | 🔴 强制等待用户确认 | 🔴 强制等待用户确认 |
 | 合规检查 | 不执行 | 全量 FC1~FC6 + SC1~SC14 + RC1~RC4 + T1~T9 |
-| 预检查输出 | 不输出 | 输出 PC0~PC4 |
+| 预检查输出 | 不输出 | 输出 PC0~PC7 |
 | 合规状态块 | 不输出 | 输出全量状态块（chat 豁免合规块，但仍须预检查）|
 | 安全底线 S01~S06 | 🔴 强制 | 🔴 强制 |
 
@@ -144,7 +144,7 @@ CP1（需求确认）→ CP2（方案确认）→ [plan-review] → CP3（实施
 - **CP1**：输出完整需求理解（目标/边界/风险）→ 等待用户确认
 - **CP2**：输出技术方案（架构/文件清单/依赖）→ 等待用户确认
 - **plan-review**：评估计划可行性（CP2 后、CP3 前）
-- **CP3**：**必须**（dev 工作流始终执行，确认任务拆分、顺序、依赖、验证与回滚）
+- **CP3**：条件触发。default/refactor/database/optimization/scenario-test 必须执行；docs/init/plan-review 按子类型规则豁免，并记录 `CP3: N/A（<子类型> 子类型豁免）`。
 
 > **无 Hooks 宿主软门禁**（v1.9.6+）：当宿主为 `jetbrains-copilot`、`cursor` 或其他 `instruction-fallback` 模式时，`lifecycle.cjs` CP gate 不强制。AI 必须在每个 CP 输出末尾显式追加 `⏸ 等待用户确认（CP{N}）`，收到明确回复前禁止 source mutation 工具调用。
 
@@ -280,7 +280,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → 执行 →
 
 ## 合规检查（仅 dev 模式）
 
-执行顺序：`预检查 PC0~PC4 → FC → SC → RC → 报告验证 V1~V6 → 任务完成验证 T1~T9`
+执行顺序：`预检查 PC0~PC7 → FC → SC → RC → 报告验证 V1~V6 → 任务完成验证 T1~T9`
 
 ### 预检查输出格式（dev 模式，所有工作流前置，chat 也须执行）
 

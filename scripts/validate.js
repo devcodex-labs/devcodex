@@ -14,6 +14,7 @@
  * V10 audit-state regressionProbes 回归扫描（已 fixed 项的 grep 计数验证）
  * V11 AskUserQuestion / 决策点格式（FC7：1 个 (推荐) 标签 + "推荐理由：" 前缀）
  * V12 源仓库不得保留 `copilot-instructions.md`（v1.9.8 单源规范，由 `instructions.md` 替代）
+ * V13 关键模板语义探针（防止 prompts/skills 与权威 instructions 漂移）
  *
  * Exit: 0=OK, 1=error, 2=warnings only
  */
@@ -260,7 +261,7 @@ function checkV8() {
     return
   }
 
-  // F-005: 关键文件清单扩展至 23 文件（覆盖率 33% → ~95%），含 instructions/skills/hooks/CLAUDE.md/prompts/agents 全维度
+  // F-005: 关键文件清单扩展至 prompts/skills/instructions/hooks/CLAUDE.md 全维度
   // 注：CLAUDE.md 仅在 .claude/ 同步（Copilot 不需要），agents/ 同理；prompts/ 在 .claude/ 和 .github/ 均同步
   const checkPairs = [
     // Instructions（12 files）
@@ -285,6 +286,17 @@ function checkV8() {
     { src: 'skills/audit-session/SKILL.md', claude: 'skills/audit-session/SKILL.md', github: 'skills/audit-session/SKILL.md' },
     { src: 'skills/intent/SKILL.md', claude: 'skills/intent/SKILL.md', github: 'skills/intent/SKILL.md' },
     { src: 'skills/routing/SKILL.md', claude: 'skills/routing/SKILL.md', github: 'skills/routing/SKILL.md' },
+    // Prompts（关键模板）
+    { src: 'prompts/precheck-status.prompt.md', claude: 'prompts/precheck-status.prompt.md', github: 'prompts/precheck-status.prompt.md' },
+    { src: 'prompts/token-setup.prompt.md', claude: 'prompts/token-setup.prompt.md', github: 'prompts/token-setup.prompt.md' },
+    { src: 'prompts/reply-summary.prompt.md', claude: 'prompts/reply-summary.prompt.md', github: 'prompts/reply-summary.prompt.md' },
+    { src: 'prompts/memory-session.prompt.md', claude: 'prompts/memory-session.prompt.md', github: 'prompts/memory-session.prompt.md' },
+    { src: 'prompts/api-verification.prompt.md', claude: 'prompts/api-verification.prompt.md', github: 'prompts/api-verification.prompt.md' },
+    { src: 'prompts/report-analysis.prompt.md', claude: 'prompts/report-analysis.prompt.md', github: 'prompts/report-analysis.prompt.md' },
+    { src: 'prompts/report-dev.prompt.md', claude: 'prompts/report-dev.prompt.md', github: 'prompts/report-dev.prompt.md' },
+    { src: 'prompts/report-fix.prompt.md', claude: 'prompts/report-fix.prompt.md', github: 'prompts/report-fix.prompt.md' },
+    { src: 'prompts/report-optimization.prompt.md', claude: 'prompts/report-optimization.prompt.md', github: 'prompts/report-optimization.prompt.md' },
+    { src: 'prompts/report-scenario-test.prompt.md', claude: 'prompts/report-scenario-test.prompt.md', github: 'prompts/report-scenario-test.prompt.md' },
     // Hooks（1 file，双平台共享 _runtime）
     { src: 'hooks/_runtime/lifecycle.cjs', claude: 'hooks/_runtime/lifecycle.cjs', github: 'hooks/_runtime/lifecycle.cjs' },
     // Workspace CLAUDE.md is generated from the v1.9.8+ single source instructions.md.
@@ -423,6 +435,60 @@ function checkV12() {
   }
 }
 
+// ── V13: template semantic probes ───────────────────────────────────────────
+function mustInclude(file, needle, label) {
+  const content = read(path.join(ROOT, file))
+  if (!content.includes(needle)) err(`[V13] ${label || file} missing required text: ${needle}`)
+}
+
+function mustNotInclude(file, needle, label) {
+  const content = read(path.join(ROOT, file))
+  if (content.includes(needle)) err(`[V13] ${label || file} contains forbidden legacy text: ${needle}`)
+}
+
+function checkV13() {
+  mustInclude('prompts/precheck-status.prompt.md', 'PC7 新会话首步 resume 强制检测', 'precheck prompt')
+  mustNotInclude('prompts/precheck-status.prompt.md', 'chat：不输出预检查块', 'precheck prompt')
+
+  mustInclude('prompts/token-setup.prompt.md', '当前版本所有功能全量开放', 'token prompt')
+  mustInclude('prompts/token-setup.prompt.md', 'DEVCODEX_TOKEN` 是未来服务端授权预留环境变量', 'token prompt')
+  mustNotInclude('prompts/token-setup.prompt.md', 'your_token_here', 'token prompt')
+  mustNotInclude('prompts/token-setup.prompt.md', 'echo $DEVCODEX_TOKEN', 'token prompt')
+
+  const reportPrompts = [
+    'prompts/report-analysis.prompt.md',
+    'prompts/report-dev.prompt.md',
+    'prompts/report-fix.prompt.md',
+    'prompts/report-optimization.prompt.md',
+    'prompts/report-scenario-test.prompt.md'
+  ]
+  for (const file of reportPrompts) {
+    mustInclude(file, '**类型**', file)
+    mustInclude(file, '**Agent**', file)
+    mustInclude(file, '验证状态', file)
+    mustInclude(file, '影响范围', file)
+  }
+  mustInclude('prompts/report-fix.prompt.md', 'CP 确认记录', 'fix report prompt')
+  mustInclude('prompts/report-fix.prompt.md', '修复三步扫描', 'fix report prompt')
+  mustInclude('prompts/report-fix.prompt.md', '**事件时间**: YYYY-MM-DD HH:MM:SS', 'fix report prompt')
+
+  mustInclude('prompts/reply-summary.prompt.md', 'tasks/YYYYMMDD.md', 'reply summary prompt')
+  mustInclude('prompts/reply-summary.prompt.md', 'chat 豁免报告，不豁免记忆', 'reply summary prompt')
+  mustNotInclude('prompts/reply-summary.prompt.md', '.devcodex/.memory/clients/<agent>/chat/YYYYMMDD.md', 'reply summary prompt')
+  mustNotInclude('prompts/reply-summary.prompt.md', '保留 7 天', 'reply summary prompt')
+  mustInclude('prompts/memory-session.prompt.md', '收到首条用户消息时', 'memory session prompt')
+
+  mustInclude('prompts/api-verification.prompt.md', '不在脚本内自启服务', 'api verification prompt')
+  mustNotInclude('prompts/api-verification.prompt.md', 'tests/api/<module>.test.cjs', 'api verification prompt')
+  mustInclude('skills/api-verification/SKILL.md', '禁止自启服务', 'api verification skill')
+  mustInclude('skills/dev-scenario-test/SKILL.md', '.devcodex/scenario-tests', 'scenario test skill')
+  mustInclude('skills/dev-testing/SKILL.md', '项目自身 API 测试可另存 `tests/api/`', 'dev testing skill')
+
+  mustInclude('skills/cp-gate/SKILL.md', 'CP3: N/A', 'cp gate skill')
+  mustInclude('hooks/_runtime/lifecycle.cjs', 'CP3Exempt', 'lifecycle runtime')
+  console.log('[V13] template semantic probes passed')
+}
+
 checkV1()
 checkV2()
 checkV3()
@@ -435,6 +501,7 @@ checkV9()
 checkV10()
 checkV11()
 checkV12()
+checkV13()
 
 console.log('')
 if (errors.length) {

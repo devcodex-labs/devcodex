@@ -289,7 +289,10 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → 执行 →
 - PC1 意图：[用户意图] → [工作流/子类型]
 - PC2 会话状态：第 N 轮（>10关注/>13预警/>15防护） · 待跟进 ✅无/⚠️[简述]
 - PC3 执行准备：未完成任务 ✅无/⚠️存在🔄：[简述] · 产物落点 [已确定/无需/待确定]
-- PC4 规范雷达：[三轴诊断结果，见 18-spec-radar.instructions.md]
+- PC4 规范雷达：[三轴诊断结果，见 18-spec-radar.instructions.md]（v1.9.4+ 含 G10 limit 截断恢复检测）
+- PC5 部署体状态（v1.9.4+）：cwd 父链 .claude/.github/ ✅ 存在 / N/A 无父级 · 与源仓库同步 ✅ / ⚠️ [N 文件滞后] / N/A
+- PC6 工作区一致性（v1.9.4+）：git 未提交变更 ✅ 无 / ⚠️ [N 文件 dirty] · 当前需求目录 [requirements/<X>/ / 无关联]
+- PC7 新会话首步 resume 强制检测（v1.9.4+，仅首条用户消息触发）：✅ 已 Read tasks 文件 + 比对 SUMMARY 一致 / ⚠️ 数据不一致需 resume / N/A（非首条）
 ---
 ```
 

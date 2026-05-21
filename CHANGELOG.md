@@ -1,7 +1,7 @@
 # 变更日志 (CHANGELOG)
 
-> **说明**: 版本概览摘要，当前维护中的详细变更见 [`changelogs/v1.9.3.md`](./changelogs/v1.9.3.md)，历史版本见对应详细变更文件
-> **最后更新**: 2026-05-20
+> **说明**: 版本概览摘要。最新版本的详细变更见下方表格首行的 `changelogs/vX.Y.Z.md` 链接；历史版本见对应详细变更文件
+> **最后更新**: 2026-05-21
 
 ---
 
@@ -9,6 +9,7 @@
 
 | 版本 | 日期 | 变更摘要 | 详细 |
 |------|------|---------|------|
+| [v1.9.4](./changelogs/v1.9.4.md) | 2026-05-21 | 🎉 **防漂移机制 + CP gate 跨需求旁路 + V8 部署同步 + Profile 同步**：新增 PC5/PC6/PC7 三项预检查 + G10 limit 截断恢复检测；`15-memory` 新会话首步强制 + SUMMARY 状态延迟 + 任务清单字段；`lifecycle.cjs` CP gate 路径感知 + `findIncompleteRequirement` 跨需求旁路（`hasAnyCp3Done`）；`validate.js` V6 Claude 分支 + 新增 V8 部署同步检查；6 prompts/report-* 模板补五项验证；02-output-paths 链接格式分钟级；Profile 01/02 同步 v1.9.4 候选 + Skill 35；audit-common §CRS 父链部署体扫描（GAP-019）；F-007 CLAUDE.md PC5-7 即发即修；R3 修 F-009（plugin.json `_note_skills`）+ F-011（CHANGELOG L3 通用化）| [查看](./changelogs/v1.9.4.md) |
 | [v1.9.3](./changelogs/v1.9.3.md) | 2026-05-20 | 🔧 **CP gate archive 旁路 + 报告头部回填**：`lifecycle.cjs` 支持 `.archived` 跳过历史需求，消除全局阻断风险；报告 03 头部补齐强制字段；L 级建议补三列验证；v1.9.2 git tag 补打；hooks runtime 测试新增 archive 用例 | [查看](./changelogs/v1.9.3.md) |
 | [v1.9.2](./changelogs/v1.9.2.md) | 2026-05-20 | 🔧 **跨客户端审计闭环 + 双平台 Bootstrap 硬门禁**：`lifecycle.cjs` 对 Copilot/Claude Code 双平台同启 Bootstrap 拦截；agent 字段枚举固定化（禁裸 `claude`，强制 `claude-code`）；audit 维度扩展 D23~D25（Claude 适配/客户端矩阵/agent 字段）；README 新增 Client Support Matrix；新增 `skills/audit-session`（跨会话审计状态机）+ `skills/profile-bootstrap`（Profile 自动生成）+ `devcodex profile init` CLI；CLAUDE.md SC/RC/T 完整索引；devcodex-v2 标记 LEGACY | [查看](./changelogs/v1.9.2.md) |
 | [v1.9.1](./changelogs/v1.9.1.md) | 2026-05-10 | 🔧 **模板链收口 + Dev 模式硬门禁加固**：收口默认 requirement/design/plan/progress 模板边界、同步 CP3/进度规则到 Instructions 与 Skills，强化 Hooks 运行时 bootstrap/closure 行为并补齐回归校验，同时移除仓库内明文 GitHub Packages token | [查看](./changelogs/v1.9.1.md) |
@@ -74,8 +75,10 @@
 
 ## 相关文档
 
-- [`changelogs/v1.9.2.md`](./changelogs/v1.9.2.md) — 最新版本详细变更文档
-- [`changelogs/v1.9.1.md`](./changelogs/v1.9.1.md) — 上一个版本详细变更文档
+- [`changelogs/v1.9.4.md`](./changelogs/v1.9.4.md) — 最新版本详细变更文档
+- [`changelogs/v1.9.3.md`](./changelogs/v1.9.3.md) — 上一个版本详细变更文档
+- [`changelogs/v1.9.2.md`](./changelogs/v1.9.2.md) — 历史版本详细变更文档
+- [`changelogs/v1.9.1.md`](./changelogs/v1.9.1.md) — 历史版本详细变更文档
 - [`changelogs/v1.9.0.md`](./changelogs/v1.9.0.md) — 历史版本详细变更文档
 - [`changelogs/v1.1.0.md`](./changelogs/v1.1.0.md) — 历史版本详细变更文档
 - [README.md](./README.md) — 项目说明

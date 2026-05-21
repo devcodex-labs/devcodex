@@ -440,6 +440,18 @@ function cmdInitClaude(argv) {
   if (!dryRun) {
     fs.mkdirSync(path.join(cwd, '.devcodex', '.memory'), { recursive: true })
 
+    // F-002: warn about legacy .claude/agents/ (Claude Code uses skills/ via Skill tool, not agents/)
+    const claudeAgentsDir = path.join(clDir, 'agents')
+    if (fs.existsSync(claudeAgentsDir)) {
+      const agentFiles = walkDir(claudeAgentsDir)
+      if (agentFiles.length > 0) {
+        console.log()
+        console.log(c.yellow(`  ⚠️  Legacy .claude/agents/ detected (${agentFiles.length} files).`))
+        console.log(c.dim('     Claude Code uses skills/ via the Skill tool; agents/ is no longer distributed.'))
+        console.log(c.dim('     Remove manually if no longer needed.'))
+      }
+    }
+
     const gitignorePath = path.join(cwd, '.gitignore')
     const gitignoreEntry = '\n# DevCodex AI session memory (auto-generated, do not commit)\n.devcodex/.memory/\n'
     if (fs.existsSync(gitignorePath)) {

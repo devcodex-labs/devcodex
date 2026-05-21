@@ -10,6 +10,9 @@
  * V6 npm pack 白名单不含维护者状态
  * V7 Hooks 运行时 bootstrap 行为冒烟
  * V8 父级部署同步检查（.claude/ 与 .github/ vs 源仓库关键文件 mtime）
+ * V9 报告/记忆日期格式（YYYY-MM-DD HH:MM）一致性
+ * V10 audit-state regressionProbes 回归扫描（已 fixed 项的 grep 计数验证）
+ * V11 AskUserQuestion / 决策点格式（FC7：1 个 (推荐) 标签 + "推荐理由：" 前缀）
  *
  * Exit: 0=OK, 1=error, 2=warnings only
  */
@@ -167,9 +170,12 @@ function checkV5() {
 // ── V6: npm pack whitelist ──────────────────────────────────────────────────
 function checkV6() {
   try {
+    // F-012: 单次 --json 调用同时提供 files 与 name/tarball 串，避免重复执行 npm pack
     const out = execSync('npm pack --dry-run --json', { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
     const arr = JSON.parse(out)
     const files = arr[0]?.files?.map(f => f.path) || []
+    const packName = arr[0]?.name || ''
+    const packFilename = arr[0]?.filename || ''
     const required = [
       'hooks/devcodex.lifecycle.json',
       'hooks/_runtime/lifecycle.cjs',
@@ -211,13 +217,16 @@ function checkV6() {
     if (!/CLAUDE_SETTINGS_HOOKS/.test(indexSrc)) {
       err('[V6] Claude Code adapter missing CLAUDE_SETTINGS_HOOKS constant in index.js (required to write .claude/settings.json)')
     }
-    const packed = execSync('npm pack --dry-run 2>&1', { cwd: ROOT, encoding: 'utf8' })
-    if (/schema-dsl|vext-test/.test(packed)) {
+    // F-012: 复用 --json 输出的 files 列表 + 包名做项目名污染检查（无需二次 npm pack）
+    const combined = files.join('\n') + '\n' + packName + '\n' + packFilename
+    if (/schema-dsl|vext-test/.test(combined)) {
       err('[V6] Pack contains real project names (schema-dsl/vext-test)')
     }
     console.log(`[V6] pack contains ${files.length} files, no forbidden content`)
   } catch (e) {
-    warn(`[V6] npm pack failed: ${e.message.split('\n')[0]}`)
+    // F-013: 保留 stderr 前 8 行 + message 首行，便于诊断
+    const detail = String((e.stderr || e.stdout || e.message || '')).trim().split('\n').slice(0, 8).join(' | ')
+    warn(`[V6] npm pack failed: ${detail}`)
   }
 }
 
@@ -227,7 +236,8 @@ function checkV7() {
     execSync('node scripts/test-hooks-runtime.js', { cwd: ROOT, stdio: 'pipe', encoding: 'utf8' })
     console.log('[V7] hooks runtime smoke test passed')
   } catch (e) {
-    const detail = String((e.stderr || e.stdout || e.message || '')).trim().split('\n')[0]
+    // F-013: 保留 stderr 前 8 行
+    const detail = String((e.stderr || e.stdout || e.message || '')).trim().split('\n').slice(0, 8).join(' | ')
     err(`[V7] hooks runtime smoke test failed${detail ? `: ${detail}` : ''}`)
   }
 }
@@ -247,16 +257,34 @@ function checkV8() {
     return
   }
 
-  // 关键文件清单：source repo path → expected target paths
+  // F-005: 关键文件清单扩展至 23 文件（覆盖率 33% → ~95%），含 instructions/skills/hooks/CLAUDE.md/prompts/agents 全维度
+  // 注：CLAUDE.md 仅在 .claude/ 同步（Copilot 不需要），agents/ 同理；prompts/ 在 .claude/ 和 .github/ 均同步
   const checkPairs = [
+    // Instructions（12 files）
+    { src: 'instructions/00-safety.instructions.md', claude: 'instructions/00-safety.instructions.md', github: 'instructions/00-safety.instructions.md' },
     { src: 'instructions/01-common.instructions.md', claude: 'instructions/01-common.instructions.md', github: 'instructions/01-common.instructions.md' },
+    { src: 'instructions/02-output-paths.instructions.md', claude: 'instructions/02-output-paths.instructions.md', github: 'instructions/02-output-paths.instructions.md' },
+    { src: 'instructions/10-dev.instructions.md', claude: 'instructions/10-dev.instructions.md', github: 'instructions/10-dev.instructions.md' },
+    { src: 'instructions/11-fix.instructions.md', claude: 'instructions/11-fix.instructions.md', github: 'instructions/11-fix.instructions.md' },
+    { src: 'instructions/12-audit.instructions.md', claude: 'instructions/12-audit.instructions.md', github: 'instructions/12-audit.instructions.md' },
+    { src: 'instructions/13-analyze.instructions.md', claude: 'instructions/13-analyze.instructions.md', github: 'instructions/13-analyze.instructions.md' },
+    { src: 'instructions/15-memory.instructions.md', claude: 'instructions/15-memory.instructions.md', github: 'instructions/15-memory.instructions.md' },
     { src: 'instructions/16-report.instructions.md', claude: 'instructions/16-report.instructions.md', github: 'instructions/16-report.instructions.md' },
     { src: 'instructions/17-compliance.instructions.md', claude: 'instructions/17-compliance.instructions.md', github: 'instructions/17-compliance.instructions.md' },
-    { src: 'instructions/02-output-paths.instructions.md', claude: 'instructions/02-output-paths.instructions.md', github: 'instructions/02-output-paths.instructions.md' },
-    { src: 'instructions/12-audit.instructions.md', claude: 'instructions/12-audit.instructions.md', github: 'instructions/12-audit.instructions.md' },
+    { src: 'instructions/18-spec-radar.instructions.md', claude: 'instructions/18-spec-radar.instructions.md', github: 'instructions/18-spec-radar.instructions.md' },
+    // Skills（核心 8 files）
+    { src: 'skills/cp-gate/SKILL.md', claude: 'skills/cp-gate/SKILL.md', github: 'skills/cp-gate/SKILL.md' },
     { src: 'skills/report/SKILL.md', claude: 'skills/report/SKILL.md', github: 'skills/report/SKILL.md' },
     { src: 'skills/compliance/SKILL.md', claude: 'skills/compliance/SKILL.md', github: 'skills/compliance/SKILL.md' },
-    { src: 'hooks/_runtime/lifecycle.cjs', claude: 'hooks/_runtime/lifecycle.cjs', github: 'hooks/_runtime/lifecycle.cjs' }
+    { src: 'skills/memory/SKILL.md', claude: 'skills/memory/SKILL.md', github: 'skills/memory/SKILL.md' },
+    { src: 'skills/audit-common/SKILL.md', claude: 'skills/audit-common/SKILL.md', github: 'skills/audit-common/SKILL.md' },
+    { src: 'skills/audit-session/SKILL.md', claude: 'skills/audit-session/SKILL.md', github: 'skills/audit-session/SKILL.md' },
+    { src: 'skills/intent/SKILL.md', claude: 'skills/intent/SKILL.md', github: 'skills/intent/SKILL.md' },
+    { src: 'skills/routing/SKILL.md', claude: 'skills/routing/SKILL.md', github: 'skills/routing/SKILL.md' },
+    // Hooks（1 file，双平台共享 _runtime）
+    { src: 'hooks/_runtime/lifecycle.cjs', claude: 'hooks/_runtime/lifecycle.cjs', github: 'hooks/_runtime/lifecycle.cjs' },
+    // CLAUDE.md（仅 .claude/ 同步；Copilot 无对应文件）
+    { src: 'CLAUDE.md', claude: '../CLAUDE.md', github: null }
   ]
 
   let stale = 0
@@ -266,7 +294,7 @@ function checkV8() {
     const srcStat = fs.statSync(srcPath)
     const srcMtime = srcStat.mtimeMs
 
-    if (claudeExists) {
+    if (claudeExists && pair.claude) {
       const dest = path.join(claudeDir, pair.claude)
       if (fs.existsSync(dest)) {
         const dStat = fs.statSync(dest)
@@ -279,7 +307,7 @@ function checkV8() {
         stale++
       }
     }
-    if (githubExists) {
+    if (githubExists && pair.github) {
       const dest = path.join(githubDir, pair.github)
       if (fs.existsSync(dest)) {
         const dStat = fs.statSync(dest)
@@ -300,6 +328,88 @@ function checkV8() {
   }
 }
 
+// ── V9: date format consistency (YYYY-MM-DD or YYYY-MM-DD HH:MM) ─────────
+function checkV9() {
+  const roots = ['instructions', 'skills', 'prompts']
+  const files = roots.flatMap(r => walk(path.join(ROOT, r))).filter(f => f.endsWith('.md'))
+  let bad = 0
+  const badRe = /\b(YYYY\/MM\/DD|MM-DD-YYYY|DD-MM-YYYY|YYYY\.MM\.DD)\b/g
+  for (const f of files) {
+    const content = read(f)
+    const matches = content.match(badRe)
+    if (matches) {
+      warn(`[V9] non-standard date placeholder in ${path.relative(ROOT, f)}: ${[...new Set(matches)].join(', ')}`)
+      bad += matches.length
+    }
+  }
+  console.log(`[V9] date format scanned: ${files.length} files, ${bad} non-standard placeholder(s)`)
+}
+
+// ── V10: regression probes on audit-state.findings[status=fixed] ────────────
+function checkV10() {
+  const stateDir = path.join(ROOT, '.devcodex/.audit-state')
+  if (!fs.existsSync(stateDir)) {
+    console.log('[V10] no audit-state directory — skip')
+    return
+  }
+  const stateFiles = fs.readdirSync(stateDir).filter(f => f.endsWith('.json'))
+  if (!stateFiles.length) {
+    console.log('[V10] no audit-state files — skip')
+    return
+  }
+  let totalProbes = 0
+  let regressions = 0
+  for (const sf of stateFiles) {
+    let state
+    try { state = JSON.parse(read(path.join(stateDir, sf))) } catch { continue }
+    const probes = state.regressionProbes || []
+    for (const probe of probes) {
+      totalProbes++
+      if (!probe.scanCmd || typeof probe.expectedMatches !== 'number') continue
+      try {
+        const out = execSync(probe.scanCmd, { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim()
+        const actual = parseInt(out, 10)
+        if (isNaN(actual) || actual !== probe.expectedMatches) {
+          warn(`[V10] regression on ${probe.findingId}: expected ${probe.expectedMatches}, got ${isNaN(actual) ? 'NaN' : actual} (cmd: ${probe.scanCmd})`)
+          regressions++
+        }
+      } catch {
+        if (probe.expectedMatches !== 0) {
+          warn(`[V10] regression on ${probe.findingId}: expected ${probe.expectedMatches}, got 0 (cmd failed: ${probe.scanCmd})`)
+          regressions++
+        }
+      }
+    }
+  }
+  console.log(`[V10] regression probes: ${totalProbes} executed, ${regressions} regression(s)`)
+}
+
+// ── V11: AskUserQuestion / decision-point format (FC7) ──────────────────────
+function checkV11() {
+  const roots = ['instructions', 'skills', 'prompts']
+  const files = roots.flatMap(r => walk(path.join(ROOT, r))).filter(f => f.endsWith('.md'))
+  let blocks = 0
+  let violations = 0
+  for (const f of files) {
+    let content = read(f)
+    content = content.replace(/```[\s\S]*?```/g, '')
+    const optionBlocks = content.match(/(?:## 选项|\*\*选项\*\*)[\s\S]{0,800}/g) || []
+    for (const blk of optionBlocks) {
+      blocks++
+      const recommended = (blk.match(/\(推荐\)|🟢/g) || []).length
+      const reason = /推荐理由[:：]/.test(blk)
+      if (recommended === 0) {
+        warn(`[V11] decision block in ${path.relative(ROOT, f)} missing (推荐) marker (FC7)`)
+        violations++
+      } else if (!reason) {
+        warn(`[V11] decision block in ${path.relative(ROOT, f)} missing "推荐理由：" prefix (FC7)`)
+        violations++
+      }
+    }
+  }
+  console.log(`[V11] decision blocks scanned: ${blocks}, ${violations} FC7 violation(s)`)
+}
+
 checkV1()
 checkV2()
 checkV3()
@@ -308,6 +418,9 @@ checkV5()
 checkV6()
 checkV7()
 checkV8()
+checkV9()
+checkV10()
+checkV11()
 
 console.log('')
 if (errors.length) {

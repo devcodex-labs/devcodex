@@ -59,6 +59,7 @@ description: 审查公共维度 G0~G5 — 所有 audit 子类型必先执行的�
      c. 若发现部署体与源仓库不一致 → 标注 `⚠️ 部署滞后`（建议运行 `devcodex update --claude` 或运行 `node scripts/validate.js` 的 V8 部署同步检查）
    - **目的**：避免源仓库与工作区根部署体并存时 CRS 仅扫源仓库导致误判（GAP-019 案例：F-03/F-04 因未扫父级 `e:\Worker\.claude/` 而误判为"hooks 不生效"）
    - **跳过条件**：当 cwd 即工作区根（无父链 .claude/.github/）→ 跳过本步骤
+   - **⚠️ V8 与 CRS 职责不可互替（PI-006，v1.9.5+）**：`scripts/validate.js` 的 V8 checkPairs 当前覆盖率约 33%（8 文件抽样），仅作为 CI 快速门禁；CRS 手动 grep 仍是收敛前全量同步的必要补充——V8 ✅ ≠ 全量部署同步
 4. **发现关联文件**：将 grep 命中且不在当前审查范围内的文件列入扩展范围
 5. **补充 G3 审查**：对每个新发现文件执行 G3 外部一致性检查
 6. **确认覆盖完整**：所有命中文件均已审查后，CRS ✅
@@ -226,6 +227,8 @@ R2+ 发现新问题
 | PCV-3 三列验证 | 为每条已确认问题补充：合理性（依据）+ 可实施性（前置条件）+ 收益（改善效果）|
 | PCV-4 分级标注 | ✅已验证（有实证）/ ⚠️待验证（推断，需用户确认）/ ❌排除（证据不支持，从报告中移除）|
 | PCV-5 最终清单 | 输出过滤后的最终问题清单；❌排除 项须说明排除原因 |
+| PCV-6 回归复扫（v1.9.5+）| 对 audit-state `findings[].status=fixed` 的所有项执行 `regressionProbes[].scanCmd` 复扫，对比 `expectedMatches`；任一回归 → 切回 `status=open`，`zeroFindingStreak` 归零，重启新轮 |
+| PCV-7 收敛门禁 | 上述 6 步全过 + `crsPassed && pcvPassed && zeroFindingStreak>=3` 后方可宣告收敛 |
 
 ## DF 数据文件轻量检查（审查 DevCodex plugin 时执行）
 

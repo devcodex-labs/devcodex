@@ -111,3 +111,60 @@ CP 门控**不受 ENV_MODE 影响**，dev/prod 均为 🔴 强制等待用户确
 |--------|------|
 | CP1/CP2/CP3 确认格式 | `prompts/cp-checklist.prompt.md` |
 
+## 用户决策节点（AskUserQuestion / 多选项呈现）
+
+> 🔴 **FC7 强制（v1.9.5+，PI-005 规范化）**：所有用户决策节点必须有且仅有 1 个 🟢 推荐项 + 一句话推荐理由。
+
+适用范围：
+- AskUserQuestion 工具调用（多 option）
+- CP1 范围选择（如发版 vs 暂停 vs 子集）
+- CP2 方案对比（如 A/B/C 实现路径）
+- audit/analyze 报告 §决策点（如继续 / 暂停 / 强扫）
+
+### AskUserQuestion 调用模板
+
+```json
+{
+  "questions": [{
+    "question": "选择哪个方案？",
+    "header": "方案选择",
+    "multiSelect": false,
+    "options": [
+      {
+        "label": "方案 A（推荐）",
+        "description": "推荐理由：[实证依据 / 风险权衡 / 性价比 一句话]"
+      },
+      {
+        "label": "方案 B",
+        "description": "代价：... 适用场景：..."
+      },
+      {
+        "label": "方案 C",
+        "description": "代价：... 适用场景：..."
+      }
+    ]
+  }]
+}
+```
+
+格式要求：
+1. 推荐项必须放**首位**
+2. 推荐项标签**必须**含 `(推荐)` 字样
+3. 推荐项 description **必须**以"推荐理由："开头
+4. 其他选项 description **建议**列出"代价/适用场景"对比信息
+5. 不得出现 0 推荐项或 ≥2 推荐项
+
+### 报告/Markdown 决策点模板
+
+```markdown
+**选项**：
+
+| 选项 | 描述 | 推荐 |
+|------|------|:---:|
+| 🟢 A | 方案 A 描述 / **推荐理由**：... | ⭐ |
+| B | 方案 B 描述 / 代价：... | |
+| C | 方案 C 描述 / 代价：... | |
+```
+
+> 关联：[PI-005](../../.devcodex/.maintainer-state/process-improvements.md) · [FC7](../../instructions/17-compliance.instructions.md)
+

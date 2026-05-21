@@ -8,7 +8,7 @@ DevCodex 是一个零依赖的 GitHub Copilot Agent Plugin CLI 工具，通过 h
 - `index.js` — CLI 入口（init/update/status），零依赖
 - `hooks/` — Workspace Hooks 配置与运行时（宿主硬门禁）
 - `instructions/` — 12 个全局 Instructions（工作流规则，通过 applyTo 自动注入）
-- `skills/` — 33 个 Skill（详细检查标准，按需读取）
+- `skills/` — 35 个 Skill（详细检查标准，按需读取）
 - `prompts/` — 24 个 Prompt 模板
 - `agents/` — 2 个 Agent 定义（确认模式 + 全自动模式）
 - `data/` — 运行时数据模板

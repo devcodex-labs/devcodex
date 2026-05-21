@@ -63,21 +63,56 @@ converged ──> closed
       "severity": "🔴 | 🟡 | 💡",
       "summary": "<一句话>",
       "status": "open | fixed | wontfix",
+      "category": "spec-defect | release-pending | v{X.Y.Z}-candidate",
+      "fixPlan": "<修复方案概述>",
+      "fixCommit": "<git commit hash, 修复后写入>",
       "linkedPF": "PF-NNN | null"
     }
   ],
+  "regressionProbes": [
+    {
+      "findingId": "F-007",
+      "scanCmd": "grep -c 'PC5' CLAUDE.md",
+      "expectedMatches": 3,
+      "lastVerifiedRound": 4,
+      "lastVerifiedAt": "2026-05-21T03:30:00+08:00"
+    }
+  ],
+  "r2Probes": [{"name": "<probe>", "status": "✅|⚠️|❌"}],
+  "r3Probes": [{"name": "<probe>", "status": "✅|⚠️|❌"}],
+  "r4Probes": [{"name": "<probe>", "status": "✅|⚠️|❌"}],
   "zeroFindingStreak": 0,
   "crsPassed": false,
   "pcvPassed": false,
+  "remoteReleased": {
+    "gitPush": false,
+    "npmPublish": false,
+    "recordedAt": "ISO8601",
+    "source": "user-confirmed-manual | ci-automation"
+  },
   "lastCheckpoint": {
     "round": 3,
     "writtenAt": "2026-05-20T16:12:33+08:00",
-    "reason": "round-end | token-protect | user-interrupt"
+    "reason": "round-end | token-protect | user-interrupt | switching-to-release-vX.Y.Z | release-pending-vX.Y.Z"
   },
   "linkedMemory": "tasks/20260520.md",
-  "linkedReport": "reports/audit/<agent>/20260520/01--<name>.md"
+  "linkedReport": "reports/audit/<agent>/20260520/01--<name>.md",
+  "linkedRelease": "reports/requirements/<agent>/YYYYMMDD/01--vX.Y.Z-release.md"
 }
 ```
+
+### v1.9.4+ schema 字段说明
+
+| 字段 | 引入 | 用途 |
+|------|:----:|------|
+| `findings[].category` | v1.9.4 | 分类标识：`spec-defect`（规范缺陷）/ `release-pending`（仅发版动作未启动导致）/ `v{X.Y.Z}-candidate`（推迟到下版本同源合并）|
+| `findings[].fixPlan` | v1.9.4 | 修复方案概述，留作 release/dev 工作流参考 |
+| `findings[].fixCommit` | v1.9.4 | 修复 commit hash，与 `status=fixed` 配对 |
+| `regressionProbes[]` | v1.9.5+ | 已修复 finding 的回归扫描定义；audit-common §收敛门禁第 7 步触发；任一回归 → status 切回 open，streak 归零 |
+| `r{N}Probes[]` | v1.9.4 | 第 N 轮的探针清单与状态，便于跨会话 resume 时审计深度可追溯 |
+| `remoteReleased` | v1.9.4 | 远端发版动作状态（git push + npm publish），消除 release-pending findings 的依据 |
+| `lastCheckpoint.reason` | v1.9.4 | 扩充值：`switching-to-release-vX.Y.Z`（切 release 流程缓冲）/ `release-pending-vX.Y.Z`（等下版本合并）|
+| `linkedRelease` | v1.9.4 | 关联 release 报告路径，建立 audit → release 双向链 |
 
 ## 写入时机
 

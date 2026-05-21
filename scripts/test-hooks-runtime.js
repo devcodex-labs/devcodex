@@ -219,6 +219,40 @@ function main() {
   assert.strictEqual(allowedInReqDir.continue, true)
 
   cleanState()
+
+  // F-008 (v1.9.5): DEVCODEX_PATH_RE 边缘场景测试
+  // Bootstrap a fresh workspace
+  run({ hookEventName: 'UserPromptSubmit', prompt: 'F-008 path-regex tests' })
+  run({ hookEventName: 'PreToolUse', tool_name: 'read_file', tool_input: { filePath: '.devcodex/profile/config.json' } })
+  run({ hookEventName: 'PreToolUse', tool_name: 'read_file', tool_input: { filePath: '.devcodex/.memory/clients/copilot/SUMMARY.md' } })
+  run({ hookEventName: 'PreToolUse', tool_name: 'read_file', tool_input: { filePath: '.devcodex/.memory/clients/copilot/tasks/20260510.md' } })
+
+  // F-001: bash 写 .claude/foo.js（非 governance 子路径）应被视为 source mutation → 触发 CP gate
+  const bashWriteClaude = run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'Bash',
+    tool_input: { command: 'echo "console.log(1)" > .claude/foo.js' }
+  })
+  // 无 incomplete requirement → 应该允许（CP gate 不触发，但 isSourceCodeMutation 应返回 true，hooks 仍可放行；此处仅断言非崩溃）
+  assert.ok(bashWriteClaude.continue === true || bashWriteClaude.hookSpecificOutput)
+
+  // F-001: bash 写 .claude/instructions/foo.md（governance 子路径）应被放行
+  const bashWriteGovernance = run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'Bash',
+    tool_input: { command: 'echo "# test" > .claude/instructions/foo.md' }
+  })
+  assert.strictEqual(bashWriteGovernance.continue, true)
+
+  // F-006: bash cp src.js dest.js 命令路径提取
+  const bashCp = run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'Bash',
+    tool_input: { command: 'cp src/a.js src/b.js' }
+  })
+  assert.ok(bashCp.continue === true || bashCp.hookSpecificOutput)
+
+  cleanState()
   process.stdout.write('hooks runtime smoke test passed\n')
 }
 

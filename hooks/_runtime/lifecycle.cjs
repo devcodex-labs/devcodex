@@ -312,6 +312,23 @@ function extractToolPaths(payload) {
   if (Array.isArray(input.files)) {
     for (const f of input.files) if (typeof f === 'string' && f) out.push(f)
   }
+  // F-006: 从 Bash 命令文本中提取路径（重定向 / tee / Set-Content / Out-File / cp / mv / rm 第一参数）
+  if (typeof input.command === 'string' && input.command) {
+    const cmd = input.command
+    const pathPatterns = [
+      />{1,2}\s*['"]?([^\s'";&|]+)/g,
+      /\btee\s+(?:-a\s+)?['"]?([^\s'";&|]+)/gi,
+      /\bSet-Content\b\s+(?:-Path\s+)?['"]?([^\s'";&|]+)/gi,
+      /\bOut-File\b\s+(?:-FilePath\s+)?['"]?([^\s'";&|]+)/gi,
+      /\b(?:cp|mv|rm|cat|touch)\s+(?:-[a-zA-Z]+\s+)*['"]?([^\s'";&|]+)/g
+    ]
+    for (const re of pathPatterns) {
+      let m
+      while ((m = re.exec(cmd)) !== null) {
+        if (m[1] && /[/\\]|\.[a-zA-Z0-9]+$/.test(m[1])) out.push(m[1])
+      }
+    }
+  }
   return out.map(p => { try { return path.normalize(p) } catch { return p } }).filter(Boolean)
 }
 
@@ -366,7 +383,8 @@ function checkCpGate(payload) {
 
 // Source file extensions that indicate code/config being written
 const SOURCE_EXT_RE = /\.(js|ts|tsx|jsx|mjs|cjs|py|go|rs|java|cs|rb|php|c|cpp|h|swift|kt|vue|svelte|css|scss|less|html|sql|sh|bash|zsh|ps1|psm1|json|yaml|yml|toml|ini|xml|env)$/i
-const DEVCODEX_PATH_RE = /\.devcodex[/\\]|\.claude[/\\]|\.github[/\\]/
+// F-001: 仅放行 DevCodex governance 子路径（.devcodex/ 全域；.claude/.github/ 下的规范子目录）；不再无条件放行 .claude/foo.js 这类裸写入
+const DEVCODEX_PATH_RE = /\.devcodex[/\\]|\.(?:claude|github)[/\\](?:instructions|skills|hooks|agents|prompts|settings\.json|settings\.local\.json|data)/
 
 function bashWritesToSourceCode(cmd) {
   if (!cmd || DEVCODEX_PATH_RE.test(cmd)) return false

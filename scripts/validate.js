@@ -16,6 +16,7 @@
  * V12 源仓库不得保留 `copilot-instructions.md`（v1.9.8 单源规范，由 `instructions.md` 替代）
  * V13 关键模板语义探针（防止 prompts/skills 与权威 instructions 漂移）
  * V14 auto v1.1 语义联动（agent/common/cp-gate/compliance/runtime/test/README）
+ * V15 audit-state 状态机一致性（状态枚举 + converged 门禁）
  *
  * Exit: 0=OK, 1=error, 2=warnings only
  */
@@ -363,6 +364,71 @@ function checkV9() {
 }
 
 // ── V10: regression probes on audit-state.findings[status=fixed] ────────────
+function stripOuterQuotes(text) {
+  const value = String(text || '').trim()
+  if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+    return value.slice(1, -1)
+  }
+  return value
+}
+
+function resolveProbeFiles(probe) {
+  if (typeof probe.file === 'string') return [stripOuterQuotes(probe.file)].filter(Boolean)
+  if (typeof probe.include === 'string') return [stripOuterQuotes(probe.include)].filter(Boolean)
+  if (Array.isArray(probe.include)) {
+    return probe.include
+      .filter(entry => typeof entry === 'string')
+      .map(stripOuterQuotes)
+      .filter(Boolean)
+  }
+  return []
+}
+
+function normalizeRegressionProbe(probe) {
+  if (!probe || typeof probe.expectedMatches !== 'number') return { kind: 'skip' }
+
+  if (probe.type === 'grepCount') {
+    const files = resolveProbeFiles(probe)
+    if (typeof probe.pattern !== 'string' || !files.length) {
+      return { kind: 'invalid', reason: 'missing pattern/include' }
+    }
+    return {
+      kind: 'grepCount',
+      findingId: probe.findingId || 'unknown',
+      expectedMatches: probe.expectedMatches,
+      pattern: probe.pattern,
+      files
+    }
+  }
+
+  if (typeof probe.scanCmd === 'string') {
+    const match = probe.scanCmd.trim().match(/^grep\s+-c\s+(['"])(.*?)\1\s+(.+)$/)
+    if (!match) {
+      return { kind: 'invalid', reason: `unsupported legacy scanCmd: ${probe.scanCmd}` }
+    }
+    return {
+      kind: 'grepCount',
+      findingId: probe.findingId || 'unknown',
+      expectedMatches: probe.expectedMatches,
+      pattern: match[2],
+      files: [stripOuterQuotes(match[3])]
+    }
+  }
+
+  return { kind: 'skip' }
+}
+
+function countProbeMatches(pattern, files) {
+  let total = 0
+  for (const file of files) {
+    const abs = path.join(ROOT, file)
+    if (!fs.existsSync(abs)) continue
+    const lines = read(abs).split(/\r?\n/)
+    total += lines.filter(line => line.includes(pattern)).length
+  }
+  return total
+}
+
 function checkV10() {
   const stateDir = path.join(ROOT, '.devcodex/.audit-state')
   if (!fs.existsSync(stateDir)) {
@@ -382,23 +448,24 @@ function checkV10() {
     const probes = state.regressionProbes || []
     for (const probe of probes) {
       totalProbes++
-      if (!probe.scanCmd || typeof probe.expectedMatches !== 'number') continue
-      try {
-        const out = execSync(probe.scanCmd, { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim()
-        const actual = parseInt(out, 10)
-        if (isNaN(actual) || actual !== probe.expectedMatches) {
-          warn(`[V10] regression on ${probe.findingId}: expected ${probe.expectedMatches}, got ${isNaN(actual) ? 'NaN' : actual} (cmd: ${probe.scanCmd})`)
-          regressions++
-        }
-      } catch {
-        if (probe.expectedMatches !== 0) {
-          warn(`[V10] regression on ${probe.findingId}: expected ${probe.expectedMatches}, got 0 (cmd failed: ${probe.scanCmd})`)
-          regressions++
-        }
+      const normalized = normalizeRegressionProbe(probe)
+      if (normalized.kind === 'skip') continue
+      if (normalized.kind === 'invalid') {
+        warn(`[V10] invalid probe on ${probe.findingId || 'unknown'}: ${normalized.reason}`)
+        regressions++
+        continue
+      }
+      const actual = countProbeMatches(normalized.pattern, normalized.files)
+      if (actual !== normalized.expectedMatches) {
+        warn(
+          `[V10] regression on ${normalized.findingId}: expected ${normalized.expectedMatches}, ` +
+          `got ${actual} (pattern: ${normalized.pattern}; files: ${normalized.files.join(', ')})`
+        )
+        regressions++
       }
     }
   }
-  console.log(`[V10] regression probes: ${totalProbes} executed, ${regressions} regression(s)`)
+  console.log(`[V10] regression probes: ${totalProbes} evaluated, ${regressions} regression(s)`)
 }
 
 // ── V11: AskUserQuestion / decision-point format (FC7) ──────────────────────
@@ -508,6 +575,49 @@ function checkV14() {
   console.log('[V14] auto mode semantic probes passed')
 }
 
+function checkV15() {
+  const stateDir = path.join(ROOT, '.devcodex/.audit-state')
+  if (!fs.existsSync(stateDir)) {
+    console.log('[V15] no audit-state directory — skip')
+    return
+  }
+  const stateFiles = fs.readdirSync(stateDir).filter(f => f.endsWith('.json'))
+  if (!stateFiles.length) {
+    console.log('[V15] no audit-state files — skip')
+    return
+  }
+
+  const allowedStates = new Set(['active', 'paused', 'resumed', 'converged', 'closed'])
+  let violations = 0
+
+  for (const sf of stateFiles) {
+    let state
+    try { state = JSON.parse(read(path.join(stateDir, sf))) } catch {
+      warn(`[V15] invalid JSON: .devcodex/.audit-state/${sf}`)
+      violations++
+      continue
+    }
+
+    if (!allowedStates.has(state.state)) {
+      warn(`[V15] invalid state in .devcodex/.audit-state/${sf}: ${state.state || 'missing'}`)
+      violations++
+    }
+
+    if (state.state === 'converged') {
+      const convergedOk = state.zeroFindingStreak >= 3 && state.crsPassed === true && state.pcvPassed === true
+      if (!convergedOk) {
+        warn(
+          `[V15] invalid converged gate in .devcodex/.audit-state/${sf}: ` +
+          `zeroFindingStreak=${state.zeroFindingStreak}, crsPassed=${state.crsPassed}, pcvPassed=${state.pcvPassed}`
+        )
+        violations++
+      }
+    }
+  }
+
+  console.log(`[V15] audit-state consistency checked: ${stateFiles.length} files, ${violations} violation(s)`)
+}
+
 checkV1()
 checkV2()
 checkV3()
@@ -522,6 +632,7 @@ checkV11()
 checkV12()
 checkV13()
 checkV14()
+checkV15()
 
 console.log('')
 if (errors.length) {

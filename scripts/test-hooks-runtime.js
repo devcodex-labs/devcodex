@@ -16,8 +16,51 @@ const STATE_DIR = path.join(TEMP_ROOT, '.devcodex', '.memory', 'hooks')
 const STATE_FILE = path.join(STATE_DIR, 'lifecycle-state.json')
 const CAPTURE_FLAG = path.join(STATE_DIR, 'capture-final-payload.flag')
 const CAPTURE_LOG = path.join(STATE_DIR, 'captured-final-payloads.ndjson')
+const TEST_AGENT = 'claude-code'
+const FALLBACK_BOOTSTRAP_AGENT = (() => {
+  if (process.env.CLAUDE_CODE_VERSION || process.env.CLAUDE_HOOK_COMMAND) return 'claude-code'
+  if (process.env.IDEA_INITIAL_DIRECTORY || process.env.JETBRAINS_IDE) return 'jetbrains-copilot'
+  if (process.env.TERM_PROGRAM === 'vscode' || process.env.VSCODE_PID) return 'vscode-copilot'
+  return 'copilot'
+})()
+const WRONG_FALLBACK_AGENT = FALLBACK_BOOTSTRAP_AGENT === 'claude-code' ? 'copilot' : 'claude-code'
 
-function cleanState() {
+function formatDateStamp(date) {
+  const year = String(date.getFullYear())
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}${month}${day}`
+}
+
+function getTaskStamp(dayOffset) {
+  const date = new Date()
+  date.setDate(date.getDate() + dayOffset)
+  return formatDateStamp(date)
+}
+
+function getMemoryFilePath(agent, ...segments) {
+  return path.posix.join('.devcodex', '.memory', 'clients', agent, ...segments)
+}
+
+function runBootstrapReads(agent = TEST_AGENT) {
+  run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'read_file',
+    tool_input: { filePath: '.devcodex/profile/config.json' }
+  })
+  run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'read_file',
+    tool_input: { filePath: getMemoryFilePath(agent, 'SUMMARY.md') }
+  })
+  run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'read_file',
+    tool_input: { filePath: getMemoryFilePath(agent, 'tasks', `${getTaskStamp(0)}.md`) }
+  })
+}
+
+function cleanState(profileConfig = { mode: 'dev', agent: TEST_AGENT }) {
   if (fs.existsSync(TEMP_ROOT)) {
     fs.rmSync(TEMP_ROOT, { recursive: true, force: true })
   }
@@ -25,7 +68,7 @@ function cleanState() {
   fs.mkdirSync(path.join(TEMP_ROOT, '.devcodex', 'profile'), { recursive: true })
   fs.writeFileSync(
     path.join(TEMP_ROOT, '.devcodex', 'profile', 'config.json'),
-    JSON.stringify({ mode: 'dev' })
+    JSON.stringify(profileConfig)
   )
 }
 
@@ -71,11 +114,29 @@ function main() {
     }
   })
 
+  const wrongAgentSummary = run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'read_file',
+    tool_input: {
+      filePath: getMemoryFilePath('copilot', 'SUMMARY.md')
+    }
+  })
+  assert.strictEqual(wrongAgentSummary.hookSpecificOutput.permissionDecision, 'deny')
+
+  const staleTaskRead = run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'read_file',
+    tool_input: {
+      filePath: getMemoryFilePath(TEST_AGENT, 'tasks', `${getTaskStamp(-7)}.md`)
+    }
+  })
+  assert.strictEqual(staleTaskRead.continue, true)
+
   run({
     hookEventName: 'PreToolUse',
     tool_name: 'read_file',
     tool_input: {
-      filePath: '.devcodex/.memory/clients/copilot/SUMMARY.md'
+      filePath: getMemoryFilePath(TEST_AGENT, 'SUMMARY.md')
     }
   })
 
@@ -83,12 +144,36 @@ function main() {
     hookEventName: 'PreToolUse',
     tool_name: 'read_file',
     tool_input: {
-      filePath: '.devcodex/.memory/clients/copilot/tasks/20260510.md'
+      filePath: getMemoryFilePath(TEST_AGENT, 'tasks', `${getTaskStamp(0)}.md`)
     }
   })
 
   const state = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
   assert.strictEqual(state.bootstrapComplete, true)
+
+  cleanState({ mode: 'dev' })
+  run({
+    hookEventName: 'UserPromptSubmit',
+    prompt: 'bootstrap missing agent fallback'
+  })
+  run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'read_file',
+    tool_input: {
+      filePath: '.devcodex/profile/config.json'
+    }
+  })
+  const wrongFallbackSummary = run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'read_file',
+    tool_input: {
+      filePath: getMemoryFilePath(WRONG_FALLBACK_AGENT, 'SUMMARY.md')
+    }
+  })
+  assert.strictEqual(wrongFallbackSummary.hookSpecificOutput.permissionDecision, 'deny')
+  runBootstrapReads(FALLBACK_BOOTSTRAP_AGENT)
+  const fallbackState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(fallbackState.bootstrapComplete, true)
 
   const noVisiblePayloadReminder = run({
     hookEventName: 'PreCompact'
@@ -150,9 +235,7 @@ function main() {
   fs.writeFileSync(path.join(autoReq, '.memory', 'sessions.md'), '| CP1 | ✅ |\n')
 
   run({ hookEventName: 'UserPromptSubmit', prompt: '@devcodex-auto 修复 auto runtime 行为' })
-  run({ hookEventName: 'PreToolUse', tool_name: 'read_file', tool_input: { filePath: '.devcodex/profile/config.json' } })
-  run({ hookEventName: 'PreToolUse', tool_name: 'read_file', tool_input: { filePath: '.devcodex/.memory/clients/copilot/SUMMARY.md' } })
-  run({ hookEventName: 'PreToolUse', tool_name: 'read_file', tool_input: { filePath: '.devcodex/.memory/clients/copilot/tasks/20260510.md' } })
+  runBootstrapReads()
   const autoState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
   assert.strictEqual(autoState.executionMode, 'auto')
 
@@ -191,21 +274,7 @@ function main() {
     hookEventName: 'UserPromptSubmit',
     prompt: 'Need a root cure for dev mode drift.'
   })
-  run({
-    hookEventName: 'PreToolUse',
-    tool_name: 'read_file',
-    tool_input: { filePath: '.devcodex/profile/config.json' }
-  })
-  run({
-    hookEventName: 'PreToolUse',
-    tool_name: 'read_file',
-    tool_input: { filePath: '.devcodex/.memory/clients/copilot/SUMMARY.md' }
-  })
-  run({
-    hookEventName: 'PreToolUse',
-    tool_name: 'read_file',
-    tool_input: { filePath: '.devcodex/.memory/clients/copilot/tasks/20260510.md' }
-  })
+  runBootstrapReads()
 
   // Archive marker bypass test: an unfinished requirement with .archived must NOT block
   const reqDir = path.join(TEMP_ROOT, '.devcodex', 'requirements', '历史归档需求')
@@ -239,9 +308,7 @@ function main() {
 
   // Bootstrap first so we can test CP gate cleanly
   run({ hookEventName: 'UserPromptSubmit', prompt: 'cross-req test' })
-  run({ hookEventName: 'PreToolUse', tool_name: 'read_file', tool_input: { filePath: '.devcodex/profile/config.json' } })
-  run({ hookEventName: 'PreToolUse', tool_name: 'read_file', tool_input: { filePath: '.devcodex/.memory/clients/copilot/SUMMARY.md' } })
-  run({ hookEventName: 'PreToolUse', tool_name: 'read_file', tool_input: { filePath: '.devcodex/.memory/clients/copilot/tasks/20260510.md' } })
+  runBootstrapReads()
 
   // Without any CP3-done requirement: src/ mutation must be denied (original behavior)
   const blockedNoCp3 = run({
@@ -294,9 +361,7 @@ function main() {
     '| CP1 | ✅ |\n| CP2 | ✅ |\nCP3: N/A（docs 子类型豁免）\n'
   )
   run({ hookEventName: 'UserPromptSubmit', prompt: 'cp3 exemption test' })
-  run({ hookEventName: 'PreToolUse', tool_name: 'read_file', tool_input: { filePath: '.devcodex/profile/config.json' } })
-  run({ hookEventName: 'PreToolUse', tool_name: 'read_file', tool_input: { filePath: '.devcodex/.memory/clients/copilot/SUMMARY.md' } })
-  run({ hookEventName: 'PreToolUse', tool_name: 'read_file', tool_input: { filePath: '.devcodex/.memory/clients/copilot/tasks/20260510.md' } })
+  runBootstrapReads()
   const allowedAfterCp3Exempt = run({
     hookEventName: 'PreToolUse',
     tool_name: 'apply_patch',
@@ -308,9 +373,7 @@ function main() {
   // Bootstrap a fresh workspace
   cleanState()
   run({ hookEventName: 'UserPromptSubmit', prompt: 'F-008 path-regex tests' })
-  run({ hookEventName: 'PreToolUse', tool_name: 'read_file', tool_input: { filePath: '.devcodex/profile/config.json' } })
-  run({ hookEventName: 'PreToolUse', tool_name: 'read_file', tool_input: { filePath: '.devcodex/.memory/clients/copilot/SUMMARY.md' } })
-  run({ hookEventName: 'PreToolUse', tool_name: 'read_file', tool_input: { filePath: '.devcodex/.memory/clients/copilot/tasks/20260510.md' } })
+  runBootstrapReads()
 
   // F-001: bash 写 .claude/foo.js（非 governance 子路径）应被视为 source mutation → 触发 CP gate
   const bashWriteClaude = run({

@@ -587,15 +587,22 @@ function genProjectInfo(ctx) {
 > 由 \`devcodex profile init\` 于 ${new Date().toISOString().slice(0, 10)} 自动生成，需人工复核后定稿。
 
 ## 基础信息
-- 项目名：${name}
-- 当前版本：${ver}
-- 描述：${desc}
-- Node 版本：${node}
-- 仓库：${repo}
+
+| 字段 | 内容 |
+|------|------|
+| **项目名** | ${name} |
+| **当前版本** | ${ver} |
+| **描述** | ${desc} |
+| **Node 版本** | ${node} |
+| **仓库** | ${repo} |
 
 ## 当前阶段
-- 主版本分支：${branch}
-- 阶段摘要：${changelogTop || '(未在 CHANGELOG.md 中识别)'}
+
+| 字段 | 内容 |
+|------|------|
+| **当前阶段** | v${ver} 初始草稿 |
+| **主版本分支** | ${branch} |
+| **阶段摘要** | ${changelogTop || '(未在 CHANGELOG.md 中识别)'} |
 `
 }
 

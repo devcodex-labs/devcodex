@@ -19,12 +19,42 @@ const profileDir = path.join(cwd, '.devcodex', 'profile')
 
 const errors = []
 const warnings = []
+const pluginVersion = (() => {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(PLUGIN_ROOT, 'plugin.json'), 'utf8')).version
+  } catch {
+    return ''
+  }
+})()
 
 function err(msg) { errors.push(msg) }
 function warn(msg) { warnings.push(msg) }
 
+function escapeRegExp(text) {
+  return String(text || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function extractVersion(label, text) {
+  const safeLabel = escapeRegExp(label)
+  const patterns = [
+    new RegExp(`\\|\\s*\\*\\*${safeLabel}\\*\\*\\s*\\|\\s*v?(\\d+\\.\\d+\\.\\d+)`),
+    new RegExp(`^\\s*[-*]\\s*${safeLabel}[：:]\\s*v?(\\d+\\.\\d+\\.\\d+)`, 'm')
+  ]
+  for (const pattern of patterns) {
+    const match = text.match(pattern)
+    if (match) return match[1]
+  }
+  return ''
+}
+
+function hasLegacyStageDraft(text) {
+  return /##\s*当前阶段/m.test(text) &&
+    /^\s*[-*]\s*主版本分支[：:]/m.test(text) &&
+    /^\s*[-*]\s*阶段摘要[：:]/m.test(text)
+}
+
 if (!fs.existsSync(profileDir)) {
-  console.log(`[profile] no .devcodex/profile/ in ${cwd} — skip (run \`devcodex profile-init\` to bootstrap)`)
+  console.log(`[profile] no .devcodex/profile/ in ${cwd} — skip (run \`devcodex profile init\` to bootstrap)`)
   process.exit(0)
 }
 
@@ -33,6 +63,27 @@ const REQUIRED = ['README.md', '01-项目信息.md', '02-架构约束.md', '03-�
 for (const f of REQUIRED) {
   if (!fs.existsSync(path.join(profileDir, f))) {
     err(`[profile] missing required: ${f}`)
+  }
+}
+
+const projectInfoPath = path.join(profileDir, '01-项目信息.md')
+if (pluginVersion && fs.existsSync(projectInfoPath)) {
+  const projectInfo = fs.readFileSync(projectInfoPath, 'utf8')
+  const currentVersion = extractVersion('当前版本', projectInfo)
+  const currentStageVersion = extractVersion('当前阶段', projectInfo)
+
+  if (!currentVersion) {
+    warn('[profile] 01-项目信息.md missing 当前版本 entry')
+  } else if (currentVersion !== pluginVersion) {
+    warn(`[profile] 01-项目信息.md 当前版本漂移: ${currentVersion} → ${pluginVersion}`)
+  }
+
+  if (!currentStageVersion) {
+    if (!hasLegacyStageDraft(projectInfo)) {
+      warn('[profile] 01-项目信息.md missing 当前阶段 version entry')
+    }
+  } else if (currentStageVersion !== pluginVersion) {
+    warn(`[profile] 01-项目信息.md 当前阶段漂移: ${currentStageVersion} → ${pluginVersion}`)
   }
 }
 
@@ -53,12 +104,9 @@ if (fs.existsSync(cfgPath)) {
   else if (!validAgents.includes(cfg.agent)) err(`[profile] invalid agent: ${cfg.agent} (expected: ${validAgents.join('|')})`)
   // plugin version drift
   if (cfg.pluginVersion) {
-    try {
-      const pluginVer = JSON.parse(fs.readFileSync(path.join(PLUGIN_ROOT, 'plugin.json'), 'utf8')).version
-      if (cfg.pluginVersion !== pluginVer) {
-        warn(`[profile] pluginVersion drift: profile says ${cfg.pluginVersion}, plugin is ${pluginVer} (run \`devcodex update\`)`)
-      }
-    } catch { /* plugin.json missing — skip */ }
+    if (pluginVersion && cfg.pluginVersion !== pluginVersion) {
+      warn(`[profile] pluginVersion drift: profile says ${cfg.pluginVersion}, plugin is ${pluginVersion} (run \`devcodex update\`)`)
+    }
   }
 } else {
   warn('[profile] config.json missing — defaults applied (mode=prod, agent inferred)')

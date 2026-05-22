@@ -82,6 +82,67 @@ function readProfileMode() {
   return String(cfg?.mode ?? 'prod').trim().toLowerCase() === 'dev' ? 'dev' : 'prod'
 }
 
+function readProjectProfileConfig(state) {
+  const projectRoot = getActiveProjectRoot(state)
+  return readJsonFile(path.join(projectRoot, '.devcodex', 'profile', 'config.json')) || null
+}
+
+function listMemoryAgents(state) {
+  const clientsDir = path.join(getActiveProjectRoot(state), '.devcodex', '.memory', 'clients')
+  if (!fs.existsSync(clientsDir)) return []
+  try {
+    return fs.readdirSync(clientsDir, { withFileTypes: true })
+      .filter(entry => entry.isDirectory())
+      .map(entry => String(entry.name || '').trim().toLowerCase())
+      .filter(Boolean)
+  } catch {
+    return []
+  }
+}
+
+function inferBootstrapAgent(state, payload) {
+  const existingAgents = new Set(listMemoryAgents(state))
+  const platform = detectPlatform(payload || {})
+
+  if (platform === 'claude') return 'claude-code'
+  if (platform === 'jetbrains-copilot') return 'jetbrains-copilot'
+  if (platform === 'vscode-copilot') {
+    if (existingAgents.has('vscode-copilot')) return 'vscode-copilot'
+    if (existingAgents.has('copilot')) return 'copilot'
+    return 'vscode-copilot'
+  }
+  if (platform === 'copilot') {
+    if (existingAgents.has('copilot')) return 'copilot'
+    if (existingAgents.has('vscode-copilot')) return 'vscode-copilot'
+    return 'copilot'
+  }
+  return 'unknown-agent'
+}
+
+function getBootstrapAgent(state, payload) {
+  const configuredAgent = String(readProjectProfileConfig(state)?.agent || '').trim().toLowerCase()
+  return configuredAgent || inferBootstrapAgent(state, payload)
+}
+
+function formatDateStamp(date) {
+  const year = String(date.getFullYear())
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}${month}${day}`
+}
+
+function getRecentBootstrapTaskStamps() {
+  const today = new Date()
+  const yesterday = new Date(today)
+  yesterday.setDate(today.getDate() - 1)
+  return [formatDateStamp(today), formatDateStamp(yesterday)]
+}
+
+function isRecentBootstrapTaskPath(input) {
+  const normalized = normalizeText(input)
+  return getRecentBootstrapTaskStamps().some(stamp => normalized.endsWith(`/tasks/${stamp}.md`))
+}
+
 function normalizeText(v) {
   return String(v || '').replace(/\\/g, '/').trim().toLowerCase()
 }
@@ -268,11 +329,27 @@ function buildProjectScopedNeedles(projectRoot, segments) {
   return [absolute, relative]
 }
 
-function getBootstrapScopes(state) {
+function getBootstrapScopes(state, payload) {
   const projectRoot = getActiveProjectRoot(state)
+  const bootstrapAgent = getBootstrapAgent(state, payload)
+  const memorySegments = ['.devcodex', '.memory', 'clients']
+  const memoryNeedles = bootstrapAgent
+    ? buildProjectScopedNeedles(projectRoot, [...memorySegments, bootstrapAgent])
+    : buildProjectScopedNeedles(projectRoot, memorySegments)
+  const summaryNeedles = bootstrapAgent
+    ? buildProjectScopedNeedles(projectRoot, [...memorySegments, bootstrapAgent, 'SUMMARY.md'])
+    : []
+  const taskNeedles = bootstrapAgent
+    ? getRecentBootstrapTaskStamps().flatMap(stamp => buildProjectScopedNeedles(
+      projectRoot,
+      [...memorySegments, bootstrapAgent, 'tasks', `${stamp}.md`]
+    ))
+    : []
   return {
     profileNeedles: buildProjectScopedNeedles(projectRoot, ['.devcodex', 'profile']),
-    memoryNeedles: buildProjectScopedNeedles(projectRoot, ['.devcodex', '.memory', 'clients'])
+    memoryNeedles,
+    summaryNeedles,
+    taskNeedles
   }
 }
 
@@ -325,7 +402,7 @@ function resetState(mode, previousState) {
 
 function isBootstrapReadTool(payload, state) {
   const tn = getToolName(payload).toLowerCase()
-  const scopes = getBootstrapScopes(state)
+  const scopes = getBootstrapScopes(state, payload)
   // Copilot: read_file/list_dir/file_search/grep_search/semantic_search
   // Claude Code: Read/Glob/Grep (PascalCase → lowercased above)
   const readPatterns = [
@@ -339,13 +416,21 @@ function isBootstrapReadTool(payload, state) {
 }
 
 function updateBootstrapState(state, payload) {
-  const scopes = getBootstrapScopes(state)
+  const scopes = getBootstrapScopes(state, payload)
+  const inputStrings = getToolInputStrings(payload)
   if (touchesPath(payload, ...scopes.profileNeedles)) state.bootstrap.profileRead = true
-  if (touchesPath(payload, ...scopes.memoryNeedles) &&
-    getToolInputStrings(payload).some(s => s.includes('/summary.md'))) state.bootstrap.summaryRead = true
-  if (touchesPath(payload, ...scopes.memoryNeedles) &&
-    getToolInputStrings(payload).some(s => s.includes('/tasks/') && s.endsWith('.md')))
+  if ((scopes.summaryNeedles.length && touchesPath(payload, ...scopes.summaryNeedles)) ||
+    (!scopes.summaryNeedles.length &&
+      touchesPath(payload, ...scopes.memoryNeedles) &&
+      inputStrings.some(s => s.includes('/summary.md')))) {
+    state.bootstrap.summaryRead = true
+  }
+  if ((scopes.taskNeedles.length && touchesPath(payload, ...scopes.taskNeedles)) ||
+    (!scopes.taskNeedles.length &&
+      touchesPath(payload, ...scopes.memoryNeedles) &&
+      inputStrings.some(isRecentBootstrapTaskPath))) {
     state.bootstrap.tasksRead = true
+  }
   state.bootstrapComplete = !!(
     state.bootstrap.profileRead && state.bootstrap.summaryRead && state.bootstrap.tasksRead
   )

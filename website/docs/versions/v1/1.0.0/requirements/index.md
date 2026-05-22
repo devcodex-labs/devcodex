@@ -3,6 +3,8 @@
 > **规范**：本目录保存的是 DevCodex `v1.0.0` 的需求基线快照。  
 > 后续新增需求、Bug 修复和发布准备，不再继续写入本目录，而是在 `website/docs/versions/v1/<next-version>/` 下创建对应版本目录（例如 `1.0.1`）。
 
+> ⚠️ **历史快照提示**：本目录内部分 P2 页面保留了当时的规划名、Free/Pro 分层和旧实现口径；它们只用于追溯历史，不代表当前 `skills/`、`instructions/`、`prompts/` 或授权能力的真实状态。当前实现事实以源码目录、README 与项目 profile 为准。
+
 > **导航提示**：  
 > - P0 核心骨架 / P1 功能需求 / P2 实现规范  
 > - `implementation/` 记录"怎么做、做到哪"（[实施总览](./implementation/)）

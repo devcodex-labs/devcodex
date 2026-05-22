@@ -17,10 +17,8 @@ flowchart TD
     VIOLATION["违规质疑路由\n强制 → audit"]
     WORKFLOW["标准工作流路由"]
 
-    AUTH["授权门控\n（token-check）"]
-    AUTH_OK{"授权通过?"}
-    UPGRADE["提示升级\n列出可用替代"]
     SUB_ROUTE{"子类型路由"}
+    TOKEN_RESERVED["token-check\n当前仅作授权占位\n无 tier 阻断"]
 
     DEV["dev（8 子类型）"]
     FIX["fix（3 子类型）"]
@@ -34,9 +32,8 @@ flowchart TD
     INTENT -->|"chat"| CHAT_PATH --> MEMORY_W["⑪ 更新记忆"] --> FINAL["⑫ 完成前合规检查"]
     INTENT -->|"resume"| RESUME_PATH --> EXEC
     INTENT -->|"违规质疑"| VIOLATION --> EXEC
-    INTENT -->|"其他"| WORKFLOW --> AUTH --> AUTH_OK
-    AUTH_OK -->|"通过"| SUB_ROUTE
-    AUTH_OK -->|"Free 层访问 Pro"| UPGRADE
+    INTENT -->|"其他"| WORKFLOW --> SUB_ROUTE
+    WORKFLOW -. "未来授权预留" .-> TOKEN_RESERVED
 
     SUB_ROUTE -->|dev| DEV --> EXEC
     SUB_ROUTE -->|fix| FIX --> EXEC
@@ -54,7 +51,7 @@ flowchart TD
 2. **resume 路径**：读取记忆（最近 14 天）→ 还原上下文 → 提取原始意图 → 重路由
 3. **违规质疑**：用户质疑规范违反 → 强制路由到 audit → 先执行 compliance
 4. **多意图处理**：≥2 意图 → 按序逐一路由，每个独立走完整工作流周期
-5. **授权门控**：路由后调用 `token-check` 验证层级
+5. **授权占位**：当前版本 `token-check` 仅说明所有功能全量开放；Token/Tier 校验保留给未来版本，不阻断 v1 工作流
 
 ---
 

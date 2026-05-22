@@ -1,6 +1,6 @@
 # 需求管理
 
-> AI 在新建需求或更新需求状态时，严格按本页规范执行。
+> AI 在新建需求或更新需求状态时，严格按本页规范执行。需求目录以当前活跃版本为准，当前为 `website/docs/versions/v1/1.0.1/requirements/`。
 
 ---
 
@@ -77,7 +77,7 @@ requirements/p1/<需求名>/
 1. 修改 `index.md` 对应内容
 2. 在 `index.md` 底部 `版本变更记录` 追加一行
 3. 在 `decisions.md` 追加决策记录（如涉及架构决策）
-4. 在 `versions/v1/1.0.0/CHANGELOG.md` 追加变更日志行
+4. 在 `versions/v1/<active-version>/CHANGELOG.md` 追加变更日志行（当前为 `versions/v1/1.0.1/CHANGELOG.md`）
 
 ---
 

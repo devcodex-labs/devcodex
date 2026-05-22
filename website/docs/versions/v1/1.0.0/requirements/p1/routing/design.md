@@ -6,9 +6,11 @@
 
 ---
 
+> ⚠️ 历史快照说明：本页保留 `1.0.0` 阶段的路由技术方案。当时规划了 Free/Pro 层级和授权门控；当前版本 `token-check` 仅为授权占位，所有工作流全量开放，无 tier 阻断。
+
 ## 方案概述
 
-路由由 `01-common.instructions.md` §意图路由表定义主映射，`intent/SKILL.md` 负责前置识别 + 三问法，`routing/SKILL.md` 仅保留人类可读参考，授权门控再由 `token-check` Skill 执行。
+路由在 `1.0.0` 阶段由 `01-common.instructions.md` §意图路由表定义主映射，`intent/SKILL.md` 负责前置识别 + 三问法，`routing/SKILL.md` 仅保留人类可读参考；当时规划的授权门控当前已收口为 `token-check` 占位。
 
 ---
 
@@ -16,20 +18,20 @@
 
 按当前主规则定义的路由映射：
 
-| 意图 | 工作流 | 授权 |
-|------|--------|------|
-| `dev` | 开发工作流（8 子类型）| Free（部分需 Pro）|
-| `fix` | 修复工作流（3 子类型）| Free（部分需 Pro）|
-| `analyze` | 分析工作流（多轮收敛）| Free |
-| `audit` | 审计工作流（多轮收敛）| Free |
-| `self-fix` | 规范自修复工作流 | Pro |
-| `resume` | 上下文恢复工作流 | Pro |
-| `other` | 规划工作流（兜底）| Pro |
-| `chat` | 问答（快速路径）| Free |
+| 意图 | 工作流 | 当前状态 |
+|------|--------|----------|
+| `dev` | 开发工作流（8 子类型）| 当前全量开放 |
+| `fix` | 修复工作流（3 子类型）| 当前全量开放 |
+| `analyze` | 分析工作流（多轮收敛）| 当前全量开放 |
+| `audit` | 审计工作流（多轮收敛）| 当前全量开放 |
+| `self-fix` | 规范自修复工作流 | 当前全量开放 |
+| `resume` | 上下文恢复工作流 | 当前全量开放 |
+| `other` | 规划工作流（兜底）| 当前全量开放 |
+| `chat` | 问答（快速路径）| 当前全量开放 |
 
 ### 特殊路由规则
 - **违规质疑路由**（优先于上表）— 用户质疑规范违反 → 强制路由到 audit
-- **授权门控** — 路由确定后调用 `token-check` Skill 验证层级
+- **授权占位** — 当前 `token-check` 仅说明所有功能全量开放，未来版本才可能接入 tier 校验
 
 ---
 
@@ -37,10 +39,10 @@
 
 | 文件 | 角色 |
 |------|------|
-| `instructions/01-common.instructions.md` §意图路由表 | 路由主逻辑 + 授权声明 |
+| `instructions/01-common.instructions.md` §意图路由表 | 路由主逻辑；授权仅保留未来占位 |
 | `skills/routing/SKILL.md` | 路由映射参考（人类可读，不再作为权威执行面） |
 | `skills/intent/SKILL.md` | 意图识别结果输入 |
-| `skills/token-check/SKILL.md` | 路由后的授权门控 |
+| `skills/token-check/SKILL.md` | 授权占位，当前无 tier 阻断 |
 
 ---
 

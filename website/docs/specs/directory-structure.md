@@ -57,7 +57,7 @@ dev / fix / audit 等工作流的执行细节，只有在用户或 Agent 实际�
 | 第二层 | **Instructions** | 按需加载的规范约束（`description` 语义匹配）| 主流程节点执行规范（预检查/摘要/记忆/合规等）|
 | 第三层 | **Skills** | 按需触发的工作流能力入口 | dev / fix / audit / analyze / self-fix / plan / resume / chat |
 | 配套 | **Prompts** | 有参数的结构化输出模板 | CP 节点输出模板（CP1/CP2/CP3）|
-| 可选源码资产 | **Agents** | 源码仓中的可选 Agent 入口 | `@devcodex` / `@devcodex-auto`，保留在源码仓，不属于目标项目默认安装集合 |
+| 分发资产 | **Agents** | Copilot 自定义 Agent 入口 | `@devcodex` / `@devcodex-auto`；Copilot 端默认分发，Claude Code 端不分发 |
 
 ---
 
@@ -67,7 +67,7 @@ dev / fix / audit 等工作流的执行细节，只有在用户或 Agent 实际�
 |------|------|------|------|
 | 官方组件 | Custom Instructions / Skills / Instructions / Prompts | 官方 | 平台可识别并自动加载或按需触发的资产格式 |
 | DevCodex 扩展 | CP1 / CP2 / CP3 | 自定义 | DevCodex 的确认节点体系，不是官方内建能力 |
-| DevCodex 扩展 | major/minor 版本文档结构 | 自定义 | 文档站采用 `versions/v1/1.0.0/` 以容纳同一大版本的多次迭代 |
+| DevCodex 扩展 | major/minor 版本文档结构 | 自定义 | 文档站采用 `versions/v1/<active-version>/` 承载当前迭代，`1.0.0` 仅保留历史基线 |
 
 > 结论：**官方标准负责"可被平台发现与加载"**，DevCodex 在此之上定义执行流程与分层规范。
 
@@ -79,51 +79,56 @@ DevCodex 当前默认安装面向目标项目分发以下目录和文件（均�
 
 | 组件 | 路径 | 说明 |
 |------|------|------|
+| Agents | `.github/agents/*.agent.md` | Copilot 端默认分发；Claude Code 端不分发 |
 | Skills | `.github/skills/<name>/SKILL.md` | 扁平一级目录，`name` 与文件夹名一致 |
 | Instructions | `.github/instructions/*.instructions.md` | 按需规范，`description` 语义匹配或 `applyTo` 文件匹配 |
 | Prompts | `.github/prompts/*.prompt.md` | CP 节点模板 |
+| Hooks | `.github/hooks/*` | 宿主生命周期 Hook 配置与运行时 |
 | Data | `.github/data/*` | 运行时模板（如 `violations.md`、`pending-fixes.md`、`gap-registry.md`） |
 | 全局始终注入 | `.github/copilot-instructions.md` | 每次会话自动全量加载 |
 
-> 说明：`agents/` 仍保留在 DevCodex 源码仓中，但 `v1.1.0` 起不再作为目标项目默认分发路径。
+> 说明：`v1.9.8` 起，`devcodex init/update` 已恢复 Copilot 端 `.github/agents/` 默认分发；`devcodex init --claude` 仍不分发 agents。
 
 ---
 
 ## 目录结构骨架
 
-> 当前仍在流程定义阶段，以下骨架只冻结**结构原则**，不冻结具体文件数量。
+> 当前骨架反映 v1.9.11 的本地文件版分发面；具体数量以 README 与项目 profile 的资产清单为准。
 
 ```text
 <project-root>/
 │
 ├── .github/
 │   ├── copilot-instructions.md          ← 第一层：核心规则 + 安全底线 + 通用规范
+│   ├── agents/                          ← Copilot Agent 入口（devcodex / devcodex-auto）
 │   │
-│   ├── instructions/                    ← 第二层：主流程节点执行规范（按需加载）
-│   │   ├── precheck.instructions.md             ① 预检查（意图/profile/落点）
-│   │   ├── summary.instructions.md              ③ 写入摘要
-│   │   ├── memory.instructions.md               ④⑪ 检索/更新记忆
-│   │   ├── pre-state-summary.instructions.md    ⑤ 前置状态汇总
-│   │   ├── dev-compliance.instructions.md       ⑥ 开发阶段合规检查
-│   │   ├── exec-compliance.instructions.md      ⑨ 执行阶段合规检查
-│   │   ├── report.instructions.md               ⑩ 输出报告
-│   │   └── completion-compliance.instructions.md ⑫ 完成前合规检查
+│   ├── instructions/                    ← 第二层：全局约束 + 工作流主规则
+│   │   ├── 00-safety.instructions.md
+│   │   ├── 01-common.instructions.md
+│   │   ├── 02-output-paths.instructions.md
+│   │   ├── 10-dev.instructions.md       ← dev 工作流
+│   │   ├── 11-fix.instructions.md       ← fix 工作流
+│   │   ├── 12-audit.instructions.md     ← audit 工作流
+│   │   ├── 13-analyze.instructions.md   ← analyze 工作流
+│   │   ├── 14-self-fix.instructions.md  ← self-fix 工作流
+│   │   ├── 15-memory.instructions.md
+│   │   ├── 16-report.instructions.md
+│   │   ├── 17-compliance.instructions.md
+│   │   └── 18-spec-radar.instructions.md
 │   │
-│   ├── skills/                          ← 第三层：工作流入口（触发时加载）
-│   │   ├── dev/SKILL.md
-│   │   ├── fix/SKILL.md
-│   │   ├── audit/SKILL.md
-│   │   ├── analyze/SKILL.md
-│   │   ├── self-fix/SKILL.md
-│   │   ├── plan/SKILL.md
-│   │   ├── resume/SKILL.md
-│   │   └── chat/SKILL.md
+│   ├── skills/                          ← 第三层：扁平一级 Skill（35 个）
+│   │   ├── dev-default/SKILL.md
+│   │   ├── fix-default/SKILL.md
+│   │   ├── audit-common/SKILL.md
+│   │   └── ...
 │   │
 │   ├── prompts/                         ← CP 确认节点输出模板
-│   │   ├── cp1-requirements.prompt.md
-│   │   ├── cp2-design.prompt.md
-│   │   └── cp3-implementation.prompt.md
+│   │   ├── requirement.prompt.md
+│   │   ├── technical-design.prompt.md
+│   │   ├── implementation-plan.prompt.md
+│   │   └── ...
 │   │
+│   ├── hooks/                           ← Workspace Hooks 配置与运行时
 │   ├── data/                            ← 运行时数据模板
 │   └── RULES.md                         ← 使用入口
 │
@@ -204,9 +209,9 @@ Markdown 内容
 
 ## 为什么不列详细文件清单
 
-1. 当前处于流程与规范定义阶段，详细文件清单会被误读为"已落地"
-2. v1.0.0 和 v2.0.0 实现策略不同（v2 存在 MCP / MongoDB 平台化演进）
-3. 骨架原则冻结后，具体文件随实现阶段按需补充
+1. 文件数量会随 patch 迭代变化，应以 README 和 profile 资产清单为当前事实源
+2. v1 与 v2 实现策略不同（v2 存在 MCP / MongoDB 平台化演进）
+3. 本页只冻结分发面和目录职责，具体文件列表由源码目录实际内容决定
 
-> 结论：本页冻结**三层架构原则与骨架结构**，不冻结具体文件数量。
+> 结论：本页冻结**三层架构原则、分发面与目录职责**；数量类信息需要与 README/profile 同步维护。
 

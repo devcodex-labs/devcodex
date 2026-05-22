@@ -5,12 +5,13 @@
 > **状态**：✅ 已完成（2026-04-08）
 
 > ⚠️ 历史阶段说明：本页记录的是 **v1.0.0 / 2026-04-08** 当时对 Stage 7 的补齐计划与完成状态，用于保留历史实施闭环；若与当前 `skills/`、`prompts/` 或版本现状冲突，以当前仓库真实文件和现行规范为准。
+> 下文 34 Skills、23 个补齐项、`self-fix-auto` 与 Pro 标注均为 `1.0.0` 阶段历史口径；当前版本 `token-check` 仅为授权占位，实际 Skills 数量以 `plugin.json` 为准。
 
 ---
 
 ## 目标
 
-补全 Agent 引用的 34 个 Skills 中 Stage 0~6 未覆盖的 **23 个子类型/辅助 Skill** + v0.03 引用的 **20 个 prompts 模板**。
+补全 Agent 在 `1.0.0` 阶段引用的 34 个 Skills 中 Stage 0~6 未覆盖的 **23 个子类型/辅助 Skill** + v0.03 引用的 **20 个 prompts 模板**。
 
 ---
 
@@ -20,7 +21,7 @@
 
 | # | 目标文件 | v0.03 参考 | 说明 |
 |:-:|---------|-----------|------|
-| 1 | `skills/token-check/SKILL.md` | `v0.03/skills/token-check/SKILL.md` | 路由后调用，验证 Free/Pro 层级 |
+| 1 | `skills/token-check/SKILL.md` | `v0.03/skills/token-check/SKILL.md` | 历史规划为层级验证；当前实现为授权占位，全量开放 |
 
 ### A2. dev 子类型 Skills（7 个）
 

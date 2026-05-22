@@ -1,7 +1,9 @@
 # 模板边界与开发流程收口 — 技术方案
 
 > **需求来源**：[模板边界与开发流程收口 — 需求概况](./index)
-> **状态**：🟡 待确认
+> **状态**：✅ 已完成
+
+> **2026-05-22 校准**：当前方案不再把本需求视为“从零重做模板链”，而是基于已经落地的主链，补齐了 formal source、`04-实施计划.md` 两档，以及 workflow gate 的剩余边界缺口。
 
 ---
 
@@ -34,11 +36,12 @@
 
 | 位置 | 当前事实 | 问题 |
 |------|---------|------|
-| `.devcodex/profile/01-项目信息.md` | 正式需求入口已冻结到 `website/docs/versions/v1/<active-version>/requirements/` | 与 prompt 的挂载面未显式对齐 |
-| `prompts/requirement.prompt.md` | 仍声明应用于 `.devcodex/**/requirements/**` | 若未显式写清“默认模板 vs 项目自定义优先”关系，容易让首次接手者误读当前项目正式需求入口 |
-| `prompts/technical-design.prompt.md` | 已有接口设计，但“实现流程 / 节点职责”还不是主结构 | CP2 容易继续偏模块说明式 |
-| `instructions/02-output-paths.instructions.md` | `03` 条件、`04` 强制、`05` 条件 | 只定义了触发，不足以解释职责分工 |
-| `instructions/10-dev.instructions.md` | CP1 → CP2 → CP3 结构完整 | 但三阶段关注点未与模板语义完全对齐 |
+| `.devcodex/profile/01-项目信息.md` | 已显式说明正式需求入口与 `prompts/*.prompt.md` 的执行模板职责 | 已与 README / RULES 对齐 |
+| `prompts/requirement.prompt.md` | 已以“触发方动作 / 系统可观察反馈 / 状态变化 / 业务结果”为主语义 | 主链已落地，本轮无需重复修改 |
+| `prompts/technical-design.prompt.md` | 已具备“实现流程与节点职责 / 契约设计（现状 → 目标）/ 兼容性策略与边界问题”主结构 | 主链已落地，本轮无需重复修改 |
+| `prompts/implementation-plan.prompt.md` | 已支持“轻计划摘要 / 完整实施计划”两档与计划模式字段 | 已与 `04-实施计划.md` 两档收口目标对齐 |
+| `instructions/02-output-paths.instructions.md` | `03` 条件、`04` 两档、`05` 条件已显式说明 | 已与计划模板层对齐 |
+| `instructions/10-dev.instructions.md` | CP1 → CP2 → CP3 结构完整，且三阶段关注点已显式冻结 | 已与 requirement/design 边界对齐 |
 | `skills/api-verification/SKILL.md` | 执行前提是“读取接口定义” | 反证公共契约应在 EXEC 前完成设计 |
 
 ### 2. 根因定位

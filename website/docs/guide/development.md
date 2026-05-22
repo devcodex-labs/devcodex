@@ -105,17 +105,17 @@ description: "Use when: ..."   # 必填，AI 靠这个发现 Skill
 
 ---
 
-## 执行上下文（Draft）
+## 执行上下文（当前规则）
 
-`.devcodex/profile/config.json` 中的 `mode` 字段目前**仅保留为预留能力**，但 `dev / prod` 的行为矩阵尚未冻结，不应视为正式规范。
+`.devcodex/profile/config.json` 中的 `mode` 字段当前已经参与正式的 `ENV_MODE` 行为分叉，不再是 Draft 或预留能力。
 
-当前约定：
+当前规则：
 
-- **已冻结**：确认模式 / 全自动模式属于 Agent 入口设计，见 [P1：Agent 双模式](/versions/v1/1.0.0/requirements/p1/agent-modes/)
-- **未冻结**：`dev` / `prod` 对日志、预检查输出、合规展示的差异
-- **文档策略**：在行为未确定前，只保留 Draft 说明，不写成永久规范
+- **`mode: "dev"`**：进入实质任务前输出 PC0~PC7 预检查，并在收尾执行 FC / SC / RC / T 合规检查
+- **`mode: "prod"`**：不输出预检查块，也不执行合规检查；但 CP1 / CP2 / CP3 仍然强制
+- **执行模式与 `ENV_MODE` 分离**：确认模式 / 全自动模式属于 Agent 入口语义；当前全自动正式入口仍只认显式 `@devcodex-auto`，且只有在 hook-enforced 宿主 + 白名单路径上形成 runtime 级自动推进
 
-> ⚠️ 等执行上下文真正定稿后，再决定它归入 P0 执行流程还是独立 P1 需求。
+> 当前正式规则源以 `instructions/01-common.instructions.md`、`instructions/17-compliance.instructions.md` 和 `skills/cp-gate/SKILL.md` 为准；本页负责解释这些规则如何落到日常开发流程中。
 
 ---
 

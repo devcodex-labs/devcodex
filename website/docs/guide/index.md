@@ -20,12 +20,12 @@
 
 | 用途 | 路径 | 说明 |
 |------|------|------|
-| 需求文档 | `website/docs/versions/v1/1.0.0/requirements/` | 唯一需求来源 |
-| 版本分层 | `website/docs/versions/v1/1.0.0/` | 采用 `major/minor` 两级结构 |
+| 需求文档 | `website/docs/versions/v1/<active-version>/requirements/` | 当前活跃版本的唯一需求来源；当前为 `1.0.1` |
+| 版本分层 | `website/docs/versions/v1/<active-version>/` | `1.0.0` 为基线快照，后续 patch 使用同级活动版本目录 |
 | P0 核心需求 | `requirements/p0/<名称>.md` | 单文件 |
 | P1 基础需求 | `requirements/p1/<名称>/`（5 文件）| 含开发文档 |
 | P2 功能需求 | `requirements/p2/<名称>.md` | 单文件 |
-| 规范文件 | `.github/`（agents/skills/instructions）| 中文编写 |
+| 规范文件 | `.github/`（agents/skills/instructions/prompts/hooks/data）| 中文编写 |
 | 产物文件 | `.devcodex/`（记忆/报告/data）| 分类提交 |
 | 工作指南 | `website/docs/guide/` | 本章节 |
 

@@ -5,6 +5,7 @@
 > **状态**：✅ 已完成（2026-04-08）
 
 > ⚠️ 历史阶段说明：本页记录的是 **v1.0.0 / 2026-04-08** 当时的工作流实施设计。当前 `audit` / `analyze` 的收敛规则已在后续版本中演进；若与当前 `12-audit.instructions.md` / `13-analyze.instructions.md` 冲突，以当前规则文件为准。
+> 下文出现的 34 Skills、缺失 Skills、`fix-incident`、`self-fix-auto`、Pro 层级等均为当时补齐计划与验收口径；当前实现以仓库实际 `skills/` 与 `plugin.json` 为准。
 
 ---
 
@@ -28,7 +29,7 @@
 
 **Stage 5 仅覆盖**：主线工作流 Instructions + 核心 Skills（cp-gate/plan/dev-default/fix-default）。
 
-Agent 文件引用的 **34 个 Skills** 中，Stage 5 仅产出 **4 个**。其余 **23 个子类型 Skills**（已在 Stage 1~4/6 中覆盖 7 个）不在本阶段范围内：
+Agent 文件在 `1.0.0` 阶段引用的 **34 个 Skills** 中，Stage 5 仅产出 **4 个**。其余 **23 个子类型 Skills**（已在 Stage 1~4/6 中覆盖 7 个）不在本阶段范围内：
 
 | 类别 | 缺失 Skills | 说明 |
 |------|------------|------|

@@ -4,13 +4,15 @@
 **优先级**：P2  
 **参考**：原 v0.03 `skills/`（目录已删除，当前实现见 `skills/` 根目录）
 
+> ⚠️ 历史快照说明：本页保留 `1.0.0` 阶段的规划拆分。当前实现中不存在 `self-fix-auto` Skill；自修复能力由 `skills/self-fix/SKILL.md` 与 `14-self-fix.instructions.md` 承载。当前 Token/Tier 门控未启用，所有功能全量开放。
+
 ## self-fix
 
 > ⚠️ **官方结构要求**：扁平一级目录，`name` 与文件夹名一致。
 
 | Skill | 路径（官方扁平结构）| 职责 |
 |-------|---------------------|------|
-| `self-fix-auto` | `skills/self-fix-auto/SKILL.md` | A1~A5 白名单自动修复 |
+| `self-fix` | `skills/self-fix/SKILL.md` | A1~A5 自动级修复分级与规范自修复流程 |
 
 ## cross（跨工作流）
 
@@ -24,4 +26,4 @@
 
 | Skill | 路径（官方扁平结构）| 职责 |
 |-------|---------------------|------|
-| `token-check` | `skills/token-check/SKILL.md` | 验证 Free/Pro 层级 |
+| `token-check` | `skills/token-check/SKILL.md` | 授权占位；当前所有功能全量开放，无 tier 限制 |

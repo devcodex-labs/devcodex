@@ -84,6 +84,18 @@ npx devcodex init
 
 标准安装路径下，无需也不依赖 `@DevCodex`；`.github/agents/` 作为可选显式入口随 Copilot 端默认安装。`v1.9.0` 起，Hook 运行时也随 `init/update` 分发到 `.github/hooks/_runtime/`，不再要求目标项目从 `node_modules/@vextjs/devcodex/...` 读取 Hook 脚本。
 
+## 正式需求与执行模板边界
+
+当前仓库的正式需求信源是 `website/docs/versions/v1/<active-version>/requirements/`，版本内的 `index/design/plan/progress/decisions` 都以这里为准。
+
+`prompts/*.prompt.md` 不是当前项目的正式需求入口，而是 CP1 / CP2 / CP3 的默认执行模板：它们负责约束 AI 如何生成需求概述、技术方案、实施计划与实施进度。若项目已经定义自定义 requirement 规范，则项目规范优先，prompt 只提供通用骨架。
+
+默认职责边界如下：
+
+- CP1：确认需求目标、用户交互、业务流程、验收结果与范围边界
+- CP2：确认实现流程、节点职责、公共契约、兼容性策略、边界问题与测试策略
+- CP3：确认实施顺序、里程碑、验证方式、风险与回滚
+
 ## 默认执行原则
 
 - **意图优先**：当用户看起来切到新需求时，先基于上下文判断意图；只有意图不清晰时才用关键词辅助，而不是反过来。

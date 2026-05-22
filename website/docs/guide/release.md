@@ -16,7 +16,7 @@
 
 ## CHANGELOG 写入规范
 
-**文件位置**：`website/docs/versions/v1/1.0.0/CHANGELOG.md`
+**文件位置**：`website/docs/versions/v1/<active-version>/CHANGELOG.md`（当前为 `website/docs/versions/v1/1.0.1/CHANGELOG.md`）
 
 ### 写入时机
 
@@ -56,9 +56,9 @@
 
 ## 发布前检查清单
 
-> 发布 v1.0.0 前，以下项目必须全部完成。
+> 发布当前版本前，以下项目必须全部完成。
 
-参见：[发布前检查清单](/versions/v1/1.0.0/release/checklist)
+优先查看当前活动版本的 `release/checklist`；若当前版本尚未建立发布清单，可参考基线快照：[v1.0.0 发布前检查清单](/versions/v1/1.0.0/release/checklist)。
 
 发布时额外执行：
 1. `config.json` 中 `mode` 从 `"dev"` 改为 `"prod"`

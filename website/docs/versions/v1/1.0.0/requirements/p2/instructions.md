@@ -1,5 +1,7 @@
 # 需求：instructions/
 
+> ⚠️ 历史快照说明：本页保留 `1.0.0` 阶段的 Instructions 需求。当时文档中的 Free/Pro 层级和英文编写要求是历史口径；当前版本以仓库实际 `instructions/`、`README.md` 与 `.devcodex/profile/01-项目信息.md` 为准，`token-check` 不做 tier 阻断。
+
 **状态**：⬜ 待开发  
 **优先级**：P2  
 **参考**：`v0.03/instructions/`
@@ -10,8 +12,8 @@
 
 ## 文件列表
 
-| 文件 | 编号 | 优先级 | 层级 |
-|------|------|--------|------|
+| 文件 | 编号 | 优先级 | `1.0.0` 阶段规划层级 |
+|------|------|--------|----------------------|
 | `00-safety.instructions.md` | P2 | 安全底线（S01~S06）| Free |
 | `01-common.instructions.md` | P5 | 通用约束（C01~C15）| Free |
 | `02-output-paths.instructions.md` | P5 | 产物路径规范 | Free |
@@ -37,7 +39,7 @@ description: "Use when..."  # 推荐，供 on-demand 发现
 
 ## 核心规范
 
-- 所有文件用**英文**编写
+- `1.0.0` 阶段规划所有文件用**英文**编写；当前规范源以仓库真实文件语言为准
 - 文件名格式：`NN-<kebab>.instructions.md`
 - `applyTo: "**"` 全局注入
 - 单文件 ≤ 500 行

@@ -1,5 +1,7 @@
 ﻿# ⑥ 开发阶段合规检查 — 技术方案
 
+> ⚠️ 历史快照说明：本页保留 `1.0.0` 阶段的开发合规技术方案。当时预检查只覆盖 PC0~PC3；当前版本已扩展为 PC0~PC7，实际规则以 `instructions/17-compliance.instructions.md` 和永久规范页 `website/docs/specs/precheck-flow.md` 为准。
+
 > **需求来源**：[⑥ 开发阶段合规检查 需求概况](./index)
 > **状态**：✅ 已完成
 > **关联**：[实施进度](./progress)

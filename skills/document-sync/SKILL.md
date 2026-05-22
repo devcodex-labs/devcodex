@@ -13,6 +13,11 @@ description: 文档同步规范 — 代码变更后同步必查与条件文档
 | `CHANGELOG.md` | 🔴 必查 | 本次变更的版本记录 |
 | `README.md` | 🔴 必查 | 安装/使用/API 说明与代码一致 |
 | `.env.example` | 🔴 必查 | 有新增/修改/删除共享环境变量时同步更新示例文件，禁止遗漏；仅本地专用 `.env.local` / `.env.test.local` 或临时 task config 不在此列 |
+| `.devcodex/profile/01-项目信息.md` / `02-架构约束.md` | 🟡 条件 | 当工作流边界、分发面、活动版本入口或当前规则事实变更时同步 |
+| `RULES.md` | 🟡 条件 | 当入口路由、工作流说明、当前可用状态或使用方式变更时同步 |
+| `website/docs/guide/*.md` | 🟡 条件 | 当面向使用者的流程指南、开发说明、发布说明变更时同步 |
+| `website/docs/specs/*.md` | 🟡 条件 | 当永久规范页中的当前行为、流程图、规则说明变更时同步 |
+| `website/docs/versions/v1/<active-version>/requirements/**` | 🟡 条件 | 当正式需求入口、模板职责边界或活动版本 requirement 口径变更时同步 |
 | `TASK-INDEX.md` | 🟡 条件 | 项目存在任务索引时更新任务状态 |
 | `STATUS.md` | 🟡 条件 | 项目存在状态看板时同步当前版本状态/功能完成度 |
 
@@ -29,6 +34,16 @@ description: 文档同步规范 — 代码变更后同步必查与条件文档
 | 3 | 更新需要同步的文档 |
 | 4 | 确认文档与代码一致（版本号/API/配置项） |
 
+### 文档即产品仓库的附加检查
+
+当仓库自身以 profile、规则页和文档站作为正式产品入口时，除通用必查项外，还应补查：
+
+- profile 真相源：`.devcodex/profile/01-项目信息.md` / `02-架构约束.md`
+- 入口说明：`RULES.md`
+- 使用者指南：`website/docs/guide/*.md`
+- 永久规范页：`website/docs/specs/*.md`
+- 当前活跃版本 requirement：`website/docs/versions/v1/<active-version>/requirements/**`
+
 ## 同步规则
 
 **CHANGELOG.md 格式**：
@@ -43,6 +58,12 @@ description: 文档同步规范 — 代码变更后同步必查与条件文档
 - 安装步骤（依赖版本）
 - API 示例代码（与实现匹配）
 - 配置项说明（完整且准确）
+
+**DevCodex 类仓库检查点**：
+- 分发面说明是否仍与当前 `agents / instructions.md / hooks` 事实一致
+- `token-check` 是否仍被描述为授权占位，而非当前 tier 门控
+- `ENV_MODE` 是否仍按当前 `dev / prod` 规则说明，而不是 Draft
+- 正式需求入口是否仍指向 `website/docs/versions/v1/<active-version>/requirements/`
 
 ## 豁免
 

@@ -5,6 +5,7 @@
 > **审查方法**：逐文件对照 + 规则映射 + 缺口分析
 
 > ⚠️ 历史审查说明：本页是 **2026-04-08** 针对 v1.0.0 Stage 计划面的历史审查记录，保留的是当时的差异判断与闭环动作，不再作为当前规范真相源。
+> 下文 34 Skills、23 个 Skill 缺口、PC1~PC3 等判断均为当时计划审查结论；当前实现以 `plugin.json`、`instructions/17-compliance.instructions.md` 与 `skills/token-check/SKILL.md` 为准。
 
 ---
 

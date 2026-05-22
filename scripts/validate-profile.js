@@ -26,6 +26,13 @@ const pluginVersion = (() => {
     return ''
   }
 })()
+const pluginPackageName = (() => {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(PLUGIN_ROOT, 'package.json'), 'utf8')).name || ''
+  } catch {
+    return ''
+  }
+})()
 
 function err(msg) { errors.push(msg) }
 function warn(msg) { warnings.push(msg) }
@@ -51,6 +58,44 @@ function hasLegacyStageDraft(text) {
   return /##\s*当前阶段/m.test(text) &&
     /^\s*[-*]\s*主版本分支[：:]/m.test(text) &&
     /^\s*[-*]\s*阶段摘要[：:]/m.test(text)
+}
+
+function readJsonIfExists(filePath) {
+  try {
+    return JSON.parse(fs.readFileSync(filePath, 'utf8'))
+  } catch {
+    return null
+  }
+}
+
+function isSourceRepoProfileTarget() {
+  if (path.resolve(cwd) === PLUGIN_ROOT) return true
+  const cwdPackage = readJsonIfExists(path.join(cwd, 'package.json'))
+  return !!(pluginPackageName && cwdPackage && cwdPackage.name === pluginPackageName)
+}
+
+function hasCurrentAgentsDistribution(text) {
+  return /devcodex\/agents\/\s*→\s*\.github\/agents\//.test(text) &&
+    /(Copilot[^\n。]*默认分发|默认分发[^\n。]*Copilot)/.test(text) &&
+    /(Claude Code[^\n。]*不分发|不分发[^\n。]*Claude Code)/.test(text)
+}
+
+function checkProjectInfoSemantics(text) {
+  if (/不再作为目标项目默认分发路径/.test(text)) {
+    warn('[profile] 01-项目信息.md still contains legacy agents distribution wording')
+  }
+  if (!hasCurrentAgentsDistribution(text)) {
+    warn('[profile] 01-项目信息.md missing current agents distribution truth')
+  }
+  if (/##\s*授权层级/m.test(text) || /\|\s*\*\*Free\*\*\s*\|/.test(text) || /\|\s*\*\*Pro\*\*\s*\|/.test(text)) {
+    warn('[profile] 01-项目信息.md still contains legacy Free/Pro authorization tiers')
+  }
+  if (!/授权占位/.test(text) || !/全量开放/.test(text)) {
+    warn('[profile] 01-项目信息.md missing current authorization placeholder truth')
+  }
+  if (!/website\/docs\/versions\/v1\/<active-version>\/requirements\//.test(text)) {
+    warn('[profile] 01-项目信息.md missing current formal requirement entry')
+  }
 }
 
 if (!fs.existsSync(profileDir)) {
@@ -84,6 +129,10 @@ if (pluginVersion && fs.existsSync(projectInfoPath)) {
     }
   } else if (currentStageVersion !== pluginVersion) {
     warn(`[profile] 01-项目信息.md 当前阶段漂移: ${currentStageVersion} → ${pluginVersion}`)
+  }
+
+  if (isSourceRepoProfileTarget()) {
+    checkProjectInfoSemantics(projectInfo)
   }
 }
 

@@ -5,6 +5,7 @@
 > **状态**：✅ 已完成（2026-04-08）
 
 > ⚠️ 历史阶段说明：本页保留的是 **v1.0.0 / 2026-04-08** 的 Stage 4 设计，仍把前置状态汇总与路由映射写成 Agent 内联段落。当前实际路由与预检查输出已由 `01-common.instructions.md`、`17-compliance.instructions.md` 与相关 Skill 承载。
+> 下文 PC0~PC3、PC1~PC3、授权门控和 Free/Pro 表述均为当时阶段设计；当前预检查为 PC0~PC7，`token-check` 仅为授权占位。
 
 ---
 
@@ -19,7 +20,7 @@
   → 记忆冲突检测 → 具备条件? → 是→路由 / 否→补齐或回退 chat
 
   v4 对应节点：PRECHECK_OUTPUT（N16）— 检测输出语言并输出预检查状态摘要
-  v0.03 对应：compliance §预检查（PC1~PC3）— 仅 dev 模式
+  v0.03 对应：compliance §预检查（PC1~PC3）— 仅 dev 模式，当前已演进为 PC0~PC7
 
 ⑦ 路由：
   chat → 轻路径（豁免报告，仅记忆）
@@ -31,7 +32,7 @@
 
 | ENV_MODE | 预检查行为 |
 |----------|----------|
-| `dev` | 输出预检查状态块（PC0~PC3）；全量合规检查 FC+SC+RC+T |
+| `dev` | 输出预检查状态块（`1.0.0` 阶段为 PC0~PC3，当前为 PC0~PC7）；全量合规检查 FC+SC+RC+T |
 | `prod`（默认）| 不输出预检查状态块；不执行合规检查（规范已验证） |
 
 > v0.03 `compliance` Skill §0 和 `17-compliance.instructions.md` 均定义此规则。
@@ -69,7 +70,7 @@
 | frontmatter | `name: routing` / `description: "Route to workflow..."` | |
 | **参考文档声明** | 本 Skill 为**人类可读参考**；当前实际路由已迁到 `01-common.instructions.md` + `intent/SKILL.md`，此处保留的是当时阶段设计背景 | **历史说明** |
 | 路由表 | intent → workflow 映射（dev/fix/analyze/audit/self-fix/resume/other/chat） | 8 种意图 |
-| 授权门控 | 路由确定后调用 token-check 验证层级 | Free 访问 Pro → 提示升级 |
+| 授权门控 | `1.0.0` 阶段规划路由确定后调用 token-check 验证层级；当前为授权占位 | 历史口径：Free 访问 Pro → 提示升级；当前无 tier 阻断 |
 | chat 快速路径 | 三问全指向分析 + 无文件变更 → 跳过 CP 和报告 → CHAT_EXEC→CHAT_MEM→CLOSE | |
 | resume 路径 | RESTORE → 读取记忆 → 还原上下文 → 提取原始意图 → 重路由 | |
 | **resume 约束** | chat 不产生中断（原始意图为 chat → 重走 N04）；resume 不改变原始意图类型 | **v4 明确** |

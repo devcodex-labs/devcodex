@@ -1,5 +1,7 @@
 # 需求：agents/
 
+> ⚠️ 历史快照说明：本页保留 `1.0.0` 阶段的 Agent 需求。当时文档中的 Free/Pro 层级、语言规划和 Skills 数量是历史口径；当前版本以 `plugin.json`、`README.md` 与 `skills/token-check/SKILL.md` 为准，当前所有工作流全量开放。
+
 **状态**：⬜ 待开发  
 **优先级**：P2  
 **参考**：`v0.03/agents/devcodex.agent.md`
@@ -20,7 +22,7 @@ agents/
 
 ### 基本信息
 - Agent ID: `devcodex` / `devcodex-auto`
-- 语言：英文
+- `1.0.0` 阶段规划语言：英文；当前以仓库实际 Agent 文件为准
 
 ### 意图路由
 - 收到消息后调用 `intent` Skill 识别意图
@@ -29,8 +31,8 @@ agents/
 
 ### 工作流路由表
 
-| 意图 | 工作流 | 层级 |
-|------|--------|------|
+| 意图 | 工作流 | `1.0.0` 阶段规划层级 |
+|------|--------|----------------------|
 | dev | 开发（8 子类型）| Free/Pro |
 | fix | 修复（3 子类型）| Free/Pro |
 | analyze | 分析 | Free |
@@ -39,6 +41,8 @@ agents/
 | resume | 上下文恢复 | Pro |
 | other | 规划（兜底）| Pro |
 | chat | 快速问答 | Free |
+
+> 当前 `token-check` 仅为授权占位，不按上表层级阻断任何工作流。
 
 ### 全局约束（注入到 Agent）
 - 合规检查在每次工作流执行完毕后运行（chat 豁免）

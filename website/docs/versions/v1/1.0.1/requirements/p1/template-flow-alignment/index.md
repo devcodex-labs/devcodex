@@ -1,12 +1,14 @@
 # 模板边界与开发流程收口 — 需求概况
 
-> **优先级**：P1 · **状态**：🟡 待确认
+> **优先级**：P1 · **状态**：✅ 已收口（formal source / 计划两档 / workflow gate 已同步）
+
+> **2026-05-22 校准**：`requirement.prompt.md`、`technical-design.prompt.md`、`implementation-progress.prompt.md` 与版本入口主链已在此前完成主要落地；本轮已补齐 formal source、`04-实施计划.md` 两档，以及 workflow gate 的剩余收口项。
 
 ---
 
 ## 需求背景
 
-当前 `devcodex-v1.8.0` 已经具备较完整的需求模板、技术方案模板与开发流程规则，但在“正式需求体系”和“执行型模板体系”的边界上仍存在三类系统性漂移：
+当前 DevCodex 仓库已经具备较完整的需求模板、技术方案模板与开发流程规则，但在“正式需求体系”和“执行型模板体系”的边界上仍存在三类系统性漂移：
 
 1. 项目 profile 已将正式需求入口冻结到 `website/docs/versions/v1/<active-version>/requirements/`，而 `prompts/requirement.prompt.md` 与 `prompts/technical-design.prompt.md` 仍只挂在 `.devcodex/**/requirements/**`。如果这两者的关系不被显式说明，新接手者或 AI 容易误读当前项目的正式需求入口；若将 prompts 明确定位为默认执行模板、项目自定义规则优先，则这本身不构成结构冲突。
 2. 需求模板和技术方案模板都包含流程表达，但没有明确区分“需求图看最终功能/用户交互/业务结果”和“技术图看实现流程/节点职责/公共契约”，使 CP1 与 CP2 的确认重点容易重叠。
@@ -109,14 +111,14 @@
 
 | 模块 | 变更方向 |
 |------|---------|
-| `prompts/requirement.prompt.md` | 强化需求图与节点说明的业务语义，明确 CP1 关注点 |
-| `prompts/technical-design.prompt.md` | 强化实现流程、节点职责与公共契约前置冻结 |
 | `prompts/implementation-plan.prompt.md` | 支持轻计划摘要 / 完整计划两档 |
-| `prompts/implementation-progress.prompt.md` | 明确依赖 `04-实施计划.md` 的条件触发 |
-| `instructions/02-output-paths.instructions.md` | 收口 `03/04/05` 的职责与触发条件 |
+| `instructions/02-output-paths.instructions.md` | 收口 `03/04/05` 的职责与触发条件，并补 `04` 两档说明 |
 | `instructions/10-dev.instructions.md` | 收口 CP1 / CP2 / CP3 的确认重点 |
-| `skills/dev-plan-review/SKILL.md` | 对齐接口基线读取、公共契约冻结与 CP2 检查重点 |
+| `skills/dev-plan-review/SKILL.md` | 对齐现状契约 → 目标契约、兼容性策略与边界问题清单的 CP2 检查重点 |
 | `README.md` / `RULES.md` / `.devcodex/profile/01-项目信息.md` | 同步正式需求入口与模板职责说明 |
+| `website/docs/versions/v1/1.0.1/requirements/p1/template-flow-alignment/{index,design}` | 把活动版本 requirement 状态与当前真实实现同步 |
+
+> 已落地主链：`prompts/requirement.prompt.md`、`prompts/technical-design.prompt.md`、`prompts/implementation-progress.prompt.md` 与 `website/rspress.config.ts` 版本入口。本轮默认不再重复改动这些面。
 
 ### 潜在影响点
 
@@ -131,8 +133,8 @@
 
 | 文档 | 状态 |
 |------|------|
-| 技术方案（`design.md`） | 🟡 已起草，待 CP2 确认 |
-| 实施计划（`plan.md`） | ⏳ 待 CP3 |
+| 技术方案（`design.md`） | ✅ 已确认，进入收口实施 |
+| 实施计划（`plan.md`） | ✅ 已创建 |
 | 实施进度（`progress.md`） | ⏳ 待进入多轮实施后再建 |
 | 关键决策（`decisions.md`） | ⏳ 待 CP2 / CP3 后沉淀 |
 

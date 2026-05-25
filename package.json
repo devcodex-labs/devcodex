@@ -1,7 +1,7 @@
 {
   "name": "@vextjs/devcodex",
-  "version": "1.9.13",
-  "description": "DevCodex — AI-powered development workflow rules as a GitHub Copilot Agent Plugin",
+  "version": "1.10.0",
+  "description": "DevCodex — AI-powered development workflow rules for Copilot and Claude Code",
   "main": "index.js",
   "bin": {
     "devcodex": "index.js"
@@ -11,6 +11,7 @@
     "test:all": "npm test && node scripts/test-hooks-runtime.js && node scripts/test-pack-clean.js",
     "test:init": "node index.js init --dry-run",
     "test:hooks-runtime": "node scripts/test-hooks-runtime.js",
+    "test:migrate-layout": "node scripts/test-migrate-layout.js",
     "test:version": "node scripts/validate-versions.js",
     "test:pack-clean": "node scripts/test-pack-clean.js",
     "validate": "node scripts/validate.js"
@@ -22,7 +23,8 @@
     "workflow",
     "audit",
     "agent-plugin",
-    "github-copilot"
+    "github-copilot",
+    "claude-code"
   ],
   "author": "Rocky <rocky@vextjs.com> (https://github.com/vextjs)",
   "license": "AGPL-3.0-or-later",
@@ -52,6 +54,7 @@
     "prompts/",
     "hooks/",
     "mcp/",
+    "scripts/migrate-layout.js",
     "data/templates/",
     "data/README.md",
     "assets/icon-512.png",

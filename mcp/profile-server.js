@@ -14,7 +14,7 @@
 const fs = require('fs')
 const path = require('path')
 
-const WORKSPACE_ROOT = process.argv[2]
+const INPUT_ROOT = process.argv[2]
   ? path.resolve(process.argv[2])
   : process.cwd()
 
@@ -36,7 +36,7 @@ const TOOLS = [
       properties: {
         project: {
           type: 'string',
-          description: '可选。工作区模式下指定目标项目目录名；命中后优先读取 <project>/.devcodex/profile，缺失时再回退到工作区根。'
+          description: '可选。指定目标项目目录名。旧布局下兼容 <project>/.devcodex/profile；集中布局下命中 <workspace>/.devcodex/<project>/profile 并按 workspace base + project overlay 解析。'
         },
         files: {
           type: 'array',
@@ -54,7 +54,7 @@ const TOOLS = [
       properties: {
         project: {
           type: 'string',
-          description: '可选。工作区模式下指定目标项目目录名；命中后优先读取 <project>/.devcodex/profile，缺失时再回退到工作区根。'
+          description: '可选。指定目标项目目录名。旧布局下兼容 <project>/.devcodex/profile；集中布局下命中 <workspace>/.devcodex/<project>/profile 并按 workspace base + project overlay 解析。'
         }
       }
     }
@@ -87,38 +87,209 @@ const REQUIRED_FILES = new Set(['01-项目信息.md', '02-架构约束.md', '03-
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function resolveProjectRoot(projectName) {
-  if (!projectName) return WORKSPACE_ROOT
-  const candidate = path.isAbsolute(projectName)
-    ? path.resolve(projectName)
-    : path.resolve(WORKSPACE_ROOT, projectName)
-  return candidate
+function readFileText(filePath) {
+  try { return fs.readFileSync(filePath, 'utf8') } catch { return null }
 }
 
-function profileRoots(projectName) {
-  const primary = resolveProjectRoot(projectName)
+function readJsonFile(filePath) {
+  const raw = readFileText(filePath)
+  if (!raw) return null
+  try { return JSON.parse(raw) } catch { return null }
+}
+
+function isPlainObject(value) {
+  return !!value && typeof value === 'object' && !Array.isArray(value)
+}
+
+function mergeConfig(workspaceConfig, projectConfig) {
+  const merged = {}
+  for (const source of [workspaceConfig, projectConfig]) {
+    if (!isPlainObject(source)) continue
+    for (const [key, value] of Object.entries(source)) {
+      if (Array.isArray(value)) {
+        merged[key] = value.slice()
+      } else if (isPlainObject(value) && isPlainObject(merged[key])) {
+        merged[key] = { ...merged[key], ...value }
+      } else if (isPlainObject(value)) {
+        merged[key] = { ...value }
+      } else {
+        merged[key] = value
+      }
+    }
+  }
+  return merged
+}
+
+function findLayoutInfo(startDir) {
+  let current = path.resolve(startDir)
+  while (true) {
+    const markerPath = path.join(current, '.devcodex', 'layout.json')
+    const marker = readJsonFile(markerPath)
+    if (marker && String(marker.mode || '').trim() === 'workspace-namespace') {
+      return {
+        enabled: true,
+        mode: 'workspace-namespace',
+        workspaceRoot: current,
+        markerPath
+      }
+    }
+    const parent = path.dirname(current)
+    if (parent === current) break
+    current = parent
+  }
+  return {
+    enabled: false,
+    mode: 'legacy-project-root',
+    workspaceRoot: path.resolve(startDir),
+    markerPath: null
+  }
+}
+
+const LAYOUT = findLayoutInfo(INPUT_ROOT)
+
+function inferContextProject() {
+  if (!LAYOUT.enabled) return ''
+  const relative = path.relative(LAYOUT.workspaceRoot, INPUT_ROOT)
+  if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) return ''
+  const parts = relative.split(path.sep).filter(Boolean)
+  if (!parts.length) return ''
+  const first = parts[0]
+  if (first === '.devcodex' || first === 'workspace') return ''
+  return first
+}
+
+const CONTEXT_PROJECT = inferContextProject()
+
+function resolveProjectName(projectName) {
+  return String(projectName || '').trim() || CONTEXT_PROJECT || ''
+}
+
+function resolveProjectRoot(projectName) {
+  if (!projectName) return INPUT_ROOT
+  if (path.isAbsolute(projectName)) return path.resolve(projectName)
+  const base = LAYOUT.enabled ? LAYOUT.workspaceRoot : INPUT_ROOT
+  return path.resolve(base, projectName)
+}
+
+function getWorkspaceProfileDir() {
+  if (LAYOUT.enabled) {
+    return path.join(LAYOUT.workspaceRoot, '.devcodex', 'workspace', 'profile')
+  }
+  return path.join(LAYOUT.workspaceRoot, '.devcodex', 'profile')
+}
+
+function getProjectNamespaceProfileDir(projectName) {
+  const name = resolveProjectName(projectName)
+  if (!LAYOUT.enabled || !name) return null
+  return path.join(LAYOUT.workspaceRoot, '.devcodex', name, 'profile')
+}
+
+function getLegacyProfileDirs(projectName) {
+  const primary = path.join(resolveProjectRoot(projectName), '.devcodex', 'profile')
   const roots = [primary]
-  if (primary !== WORKSPACE_ROOT) roots.push(WORKSPACE_ROOT)
+  const workspaceProfile = path.join(LAYOUT.workspaceRoot, '.devcodex', 'profile')
+  if (primary !== workspaceProfile) roots.push(workspaceProfile)
   return roots
 }
 
-function profileDir(projectName) {
-  return path.join(resolveProjectRoot(projectName), '.devcodex', 'profile')
+function getLegacySourceLabel(dir, projectName) {
+  const projectRoot = resolveProjectRoot(projectName)
+  const projectDir = path.join(projectRoot, '.devcodex', 'profile')
+  return dir === projectDir ? `项目根（${path.basename(projectRoot)}）` : '工作区根'
 }
 
 function resolveProfileFile(name, projectName) {
-  for (const root of profileRoots(projectName)) {
-    const fullPath = path.join(root, '.devcodex', 'profile', name)
-    const content = readFileText(fullPath)
-    if (content !== null) {
-      return { fullPath, content, root }
+  if (name === 'config.json') return resolveConfigFile(projectName)
+
+  if (!LAYOUT.enabled) {
+    for (const dir of getLegacyProfileDirs(projectName)) {
+      const fullPath = path.join(dir, name)
+      const content = readFileText(fullPath)
+      if (content !== null) {
+        return {
+          exists: true,
+          content,
+          fullPath,
+          sourceLabel: getLegacySourceLabel(dir, projectName),
+          sourcePaths: [fullPath]
+        }
+      }
+    }
+    return null
+  }
+
+  const projectDir = getProjectNamespaceProfileDir(projectName)
+  const workspaceDir = getWorkspaceProfileDir()
+  const projectPath = projectDir ? path.join(projectDir, name) : null
+  const workspacePath = path.join(workspaceDir, name)
+
+  if (projectPath) {
+    const projectContent = readFileText(projectPath)
+    if (projectContent !== null) {
+      return {
+        exists: true,
+        content: projectContent,
+        fullPath: projectPath,
+        sourceLabel: `项目命名空间（${resolveProjectName(projectName)}）`,
+        sourcePaths: [projectPath]
+      }
     }
   }
+
+  const workspaceContent = readFileText(workspacePath)
+  if (workspaceContent !== null) {
+    return {
+      exists: true,
+      content: workspaceContent,
+      fullPath: workspacePath,
+      sourceLabel: '工作区基座（workspace）',
+      sourcePaths: [workspacePath]
+    }
+  }
+
   return null
 }
 
-function readFileText(filePath) {
-  try { return fs.readFileSync(filePath, 'utf8') } catch { return null }
+function resolveConfigFile(projectName) {
+  if (!LAYOUT.enabled) {
+    for (const dir of getLegacyProfileDirs(projectName)) {
+      const fullPath = path.join(dir, 'config.json')
+      const content = readFileText(fullPath)
+      if (content !== null) {
+        return {
+          exists: true,
+          content,
+          fullPath,
+          sourceLabel: getLegacySourceLabel(dir, projectName),
+          sourcePaths: [fullPath],
+          config: readJsonFile(fullPath) || {}
+        }
+      }
+    }
+    return { exists: false, content: null, fullPath: null, sourceLabel: '未命中', sourcePaths: [], config: null }
+  }
+
+  const workspaceDir = getWorkspaceProfileDir()
+  const projectDir = getProjectNamespaceProfileDir(projectName)
+  const workspacePath = path.join(workspaceDir, 'config.json')
+  const projectPath = projectDir ? path.join(projectDir, 'config.json') : null
+  const workspaceConfig = readJsonFile(workspacePath)
+  const projectConfig = projectPath ? readJsonFile(projectPath) : null
+  const exists = workspaceConfig !== null || projectConfig !== null
+  const merged = mergeConfig(workspaceConfig, projectConfig)
+  const sourcePaths = []
+  if (workspaceConfig !== null) sourcePaths.push(workspacePath)
+  if (projectConfig !== null && projectPath) sourcePaths.push(projectPath)
+  return {
+    exists,
+    content: exists ? JSON.stringify(merged, null, 2) : null,
+    fullPath: projectConfig !== null && projectPath ? projectPath : (workspaceConfig !== null ? workspacePath : null),
+    sourceLabel: projectConfig !== null
+      ? `工作区基座（workspace） + 项目命名空间（${resolveProjectName(projectName)}）`
+      : (workspaceConfig !== null ? '工作区基座（workspace）' : '未命中'),
+    sourcePaths,
+    config: exists ? merged : null
+  }
 }
 
 // ─── Tool handlers ────────────────────────────────────────────────────────────
@@ -131,10 +302,13 @@ function handleProfileLoad(args) {
   for (const name of names) {
     const resolved = resolveProfileFile(name, args.project)
     if (resolved) {
-      const sourceRoot = resolved.root === WORKSPACE_ROOT
-        ? '工作区根'
-        : `项目根（${path.basename(resolved.root)}）`
-      parts.push(`### ${name}\n\n> 来源：${sourceRoot}\n> 路径：${resolved.fullPath}\n\n${resolved.content}`)
+      const sourceLines = [
+        `> 来源：${resolved.sourceLabel}`
+      ]
+      for (const sourcePath of resolved.sourcePaths || []) {
+        sourceLines.push(`> 路径：${sourcePath}`)
+      }
+      parts.push(`### ${name}\n\n${sourceLines.join('\n')}\n\n${resolved.content}`)
     } else if (REQUIRED_FILES.has(name)) {
       parts.push(`### ${name}\n\n（⚠️ 必需文件不存在）`)
       missing.push(name)
@@ -157,17 +331,15 @@ function handleProfileLoad(args) {
 }
 
 function handleProfileGetMode(args = {}) {
-  const resolved = resolveProfileFile('config.json', args.project)
+  const resolved = resolveConfigFile(args.project)
   const raw = resolved?.content || null
   let mode = 'prod'
   let agent = DEFAULT_AGENT
 
-  if (raw) {
-    try {
-      const cfg = JSON.parse(raw)
-      if (cfg.mode && typeof cfg.mode === 'string') mode = cfg.mode.toLowerCase() === 'dev' ? 'dev' : 'prod'
-      if (cfg.agent && typeof cfg.agent === 'string') agent = cfg.agent
-    } catch { /* keep defaults */ }
+  if (resolved?.config) {
+    const cfg = resolved.config
+    if (cfg.mode && typeof cfg.mode === 'string') mode = cfg.mode.toLowerCase() === 'dev' ? 'dev' : 'prod'
+    if (cfg.agent && typeof cfg.agent === 'string') agent = cfg.agent
   }
 
   return {
@@ -177,7 +349,11 @@ function handleProfileGetMode(args = {}) {
         mode,
         agent,
         configExists: raw !== null,
-        sourceRoot: resolved ? resolved.root : null
+        sourceRoot: resolved ? resolved.fullPath : null,
+        sourceRoots: resolved?.sourcePaths || [],
+        layoutMode: LAYOUT.mode,
+        workspaceRoot: LAYOUT.workspaceRoot,
+        project: resolveProjectName(args.project) || null
       }, null, 2)
     }]
   }
@@ -193,7 +369,7 @@ function handlePromptsGet(args) {
   }
 
   // 读取 CLAUDE.md
-  const claudePath = path.join(WORKSPACE_ROOT, 'CLAUDE.md')
+  const claudePath = path.join(LAYOUT.workspaceRoot, 'CLAUDE.md')
   let claudeContent = readFileText(claudePath)
   if (!claudeContent) {
     claudeContent = '（⚠️ 工作区根目录未找到 CLAUDE.md）'

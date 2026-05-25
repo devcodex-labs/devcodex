@@ -12,7 +12,7 @@ const RUNTIME = path.join(ROOT, 'hooks', '_runtime', 'lifecycle.cjs')
 
 // Use a temp directory as the workspace root to isolate from real requirements
 const TEMP_ROOT = path.join(os.tmpdir(), `devcodex-hooks-test-${process.pid}`)
-const STATE_DIR = path.join(TEMP_ROOT, '.devcodex', '.memory', 'hooks')
+const STATE_DIR = path.join(TEMP_ROOT, '.devcodex', '.memory', 'hooks', 'legacy')
 const STATE_FILE = path.join(STATE_DIR, 'lifecycle-state.json')
 const CAPTURE_FLAG = path.join(STATE_DIR, 'capture-final-payload.flag')
 const CAPTURE_LOG = path.join(STATE_DIR, 'captured-final-payloads.ndjson')
@@ -42,6 +42,14 @@ function getMemoryFilePath(agent, ...segments) {
   return path.posix.join('.devcodex', '.memory', 'clients', agent, ...segments)
 }
 
+function getLayoutStateFile(project = 'chat') {
+  return path.join(TEMP_ROOT, '.devcodex', '.memory', 'hooks', project, 'lifecycle-state.json')
+}
+
+function getLayoutCaptureLog(project = 'chat') {
+  return path.join(TEMP_ROOT, '.devcodex', '.memory', 'hooks', project, 'captured-final-payloads.ndjson')
+}
+
 function runBootstrapReads(agent = TEST_AGENT) {
   run({
     hookEventName: 'PreToolUse',
@@ -60,6 +68,24 @@ function runBootstrapReads(agent = TEST_AGENT) {
   })
 }
 
+function runLayoutBootstrapReads(agent = TEST_AGENT, cwd = path.join(TEMP_ROOT, 'chat')) {
+  run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'read_file',
+    tool_input: { filePath: '../.devcodex/workspace/profile/config.json' }
+  }, cwd)
+  run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'read_file',
+    tool_input: { filePath: path.posix.join('..', '.devcodex', 'chat', '.memory', 'clients', agent, 'SUMMARY.md') }
+  }, cwd)
+  run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'read_file',
+    tool_input: { filePath: path.posix.join('..', '.devcodex', 'chat', '.memory', 'clients', agent, 'tasks', `${getTaskStamp(0)}.md`) }
+  }, cwd)
+}
+
 function cleanState(profileConfig = { mode: 'dev', agent: TEST_AGENT }) {
   if (fs.existsSync(TEMP_ROOT)) {
     fs.rmSync(TEMP_ROOT, { recursive: true, force: true })
@@ -72,9 +98,33 @@ function cleanState(profileConfig = { mode: 'dev', agent: TEST_AGENT }) {
   )
 }
 
-function run(payload) {
+function cleanLayoutState(
+  workspaceProfileConfig = { mode: 'prod', agent: TEST_AGENT },
+  projectProfileConfig = { mode: 'dev' }
+) {
+  if (fs.existsSync(TEMP_ROOT)) {
+    fs.rmSync(TEMP_ROOT, { recursive: true, force: true })
+  }
+  fs.mkdirSync(path.join(TEMP_ROOT, '.devcodex', 'workspace', 'profile'), { recursive: true })
+  fs.mkdirSync(path.join(TEMP_ROOT, '.devcodex', 'chat', 'profile'), { recursive: true })
+  fs.mkdirSync(path.join(TEMP_ROOT, 'chat'), { recursive: true })
+  fs.writeFileSync(
+    path.join(TEMP_ROOT, '.devcodex', 'layout.json'),
+    JSON.stringify({ version: 1, mode: 'workspace-namespace' })
+  )
+  fs.writeFileSync(
+    path.join(TEMP_ROOT, '.devcodex', 'workspace', 'profile', 'config.json'),
+    JSON.stringify(workspaceProfileConfig)
+  )
+  fs.writeFileSync(
+    path.join(TEMP_ROOT, '.devcodex', 'chat', 'profile', 'config.json'),
+    JSON.stringify(projectProfileConfig)
+  )
+}
+
+function run(payload, cwd = TEMP_ROOT) {
   const result = spawnSync(process.execPath, [RUNTIME], {
-    cwd: TEMP_ROOT,
+    cwd,
     input: JSON.stringify(payload),
     encoding: 'utf8'
   })
@@ -203,6 +253,34 @@ function main() {
   runBootstrapReads(FALLBACK_BOOTSTRAP_AGENT)
   const fallbackState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
   assert.strictEqual(fallbackState.bootstrapComplete, true)
+
+  cleanLayoutState()
+  const layoutProjectRoot = path.join(TEMP_ROOT, 'chat')
+  const layoutPromptOutput = run({
+    hookEventName: 'UserPromptSubmit',
+    prompt: 'chat 项目进入布局复审'
+  }, layoutProjectRoot)
+  assert.strictEqual(layoutPromptOutput.continue, true)
+  const layoutShellRead = run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'shell_command',
+    tool_input: {
+      command: 'Get-Content ../.devcodex/workspace/profile/config.json'
+    }
+  }, layoutProjectRoot)
+  assert.strictEqual(layoutShellRead.continue, true)
+  runLayoutBootstrapReads(TEST_AGENT, layoutProjectRoot)
+  const layoutState = JSON.parse(fs.readFileSync(getLayoutStateFile('chat'), 'utf8'))
+  assert.strictEqual(layoutState.bootstrapComplete, true)
+  assert.strictEqual(layoutState.activeScope, 'project')
+  assert.strictEqual(layoutState.activeProject, 'chat')
+
+  cleanState()
+  run({
+    hookEventName: 'UserPromptSubmit',
+    prompt: 'resume legacy validation chain'
+  })
+  runBootstrapReads(TEST_AGENT)
 
   const noVisiblePayloadReminder = run({
     hookEventName: 'PreCompact'

@@ -4,7 +4,7 @@ pageType: home
 hero:
   name: DevCodex
   text: AI 开发规范文档
-  tagline: GitHub Copilot Agent Plugin — 内部开发规范与版本演进文档
+  tagline: Copilot / Claude Code 双主支持 — 内部开发规范与版本演进文档
   actions:
     - theme: brand
       text: v1 系列概览
@@ -27,4 +27,3 @@ features:
   - title: 🏢 v2.0.0 多租户
     details: v2 系列规划中，用于平台化与多租户方向
 ---
-

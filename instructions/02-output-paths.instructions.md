@@ -3,8 +3,13 @@ applyTo: "**"
 ---
 # 产物输出路径规范
 
-> 🔴 所有路径以 `<项目根>/.devcodex/` 为根，与源码目录天然隔离，无需手动区分。  
-> 🔴 禁止在 `.devcodex/` 下创建规范路径之外的一级目录。  
+> 🔴 所有路径以当前 **`<active-root>`** 为根，与源码目录天然隔离。
+> 🔴 `<active-root>` 取值：
+> - 旧布局：`<项目根>/.devcodex/`
+> - 集中布局单项目：`<工作区根>/.devcodex/<project>/`
+> - 集中布局全工作区：`<工作区根>/.devcodex/workspace/`
+> 🔴 当 `<工作区根>/.devcodex/layout.json` 启用 `workspace-namespace` 时，进入集中布局；不存在时保持旧布局兼容。
+> 🔴 禁止在当前 active namespace 根下创建规范路径之外的一级目录。
 > ⚠️ `init` 命令自动将 `.devcodex/.memory/` 加入 `.gitignore`；`requirements/`、`bugs/`、`reports/` 等产物目录按需提交。
 
 ## 语言规则
@@ -15,8 +20,8 @@ applyTo: "**"
 
 | 项目 | v4（历史 `ai-dev-guidelines/version/v4/specs/output-paths.md` 规范）| v1（本文件）|
 |------|------------|---------|
-| 产物根 | `projects/<project>/` | `<项目根>/.devcodex/` |
-| 记忆根 | `projects/<project>/.ai-memory/` | `<项目根>/.devcodex/.memory/` |
+| 产物根 | `projects/<project>/` | `<active-root>/` |
+| 记忆根 | `projects/<project>/.ai-memory/` | `<active-root>/.memory/` |
 | 需求级记忆 | `<需求>/.ai-memory/sessions.md` | `<需求>/.memory/sessions.md` |
 | Agent SUMMARY | `.ai-memory/clients/<agent>/SUMMARY.md` | `.memory/clients/<agent>/SUMMARY.md` |
 
@@ -25,7 +30,7 @@ applyTo: "**"
 ## 目录结构
 
 ```text
-<项目根>/.devcodex/
+<active-root>/
 ├── requirements/<中文描述>/          # 需求产物（dev 默认）
 │   ├── 01-需求概述.md               # 🔴 强制
 │   ├── 02-技术方案.md               # ⚠️ 条件（有架构/接口/设计决策时）
@@ -62,7 +67,7 @@ applyTo: "**"
 |------|------|
 | **目录命名** | `<中文描述>` 必须描述本任务的目标，禁止复用其他任务的目录 |
 | **任务隔离** | 每个 `<中文描述>/` 目录只服务一个明确任务 |
-| **禁止非规范路径** | `.devcodex/` 下只允许上述目录树中的一级目录 |
+| **禁止非规范路径** | 当前 active namespace 根下只允许上述目录树中的一级目录 |
 | **scripts/ 触发条件** | 任务目录（requirements/<任务>/ 或 bugs/<任务>/）下有共享辅助脚本（数据迁移/数据填充/自动化验证等）时创建对应 `scripts/` 子目录；默认禁止放入业务逻辑或网络请求。`*-接口验证.cjs` 属规范强制产物，存放任务根目录（非 scripts/）|
 | **本地临时脚本豁免** | 仅本地执行、不会提交发布链路、无敏感信息的临时脚本/配置可放入任务目录 `.tmp/local-scripts/` 或保持未提交；允许直接使用局部常量和网络请求，但不得伪装成共享正式产物 |
 | **services/ 触发条件（跨服务）** | 需求涉及 ≥2 个服务时在 CP2 后创建；每个 `实施方案.md` 头部**必须**包含反向引用 `> 📎 上级需求：[需求名](../../01-需求概述.md)（入口服务：<服务名>）`；**禁止**各服务各自单独建 `requirements/<需求名>/` 目录（碎片化） |
@@ -87,7 +92,7 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 ## 记忆路径
 
 ```text
-.devcodex/.memory/clients/<agent>/tasks/YYYYMMDD.md
+<active-root>/.memory/clients/<agent>/tasks/YYYYMMDD.md
 ```
 
 每天一个文件，文件内以 `## 会话 NN` 分段。

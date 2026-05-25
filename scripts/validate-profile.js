@@ -15,7 +15,30 @@ const path = require('path')
 
 const PLUGIN_ROOT = path.resolve(__dirname, '..')
 const cwd = process.cwd()
-const profileDir = path.join(cwd, '.devcodex', 'profile')
+
+function readJsonIfExists(filePath) {
+  try {
+    return JSON.parse(fs.readFileSync(filePath, 'utf8'))
+  } catch {
+    return null
+  }
+}
+
+function resolveProfileDir(projectRoot) {
+  const legacyDir = path.join(projectRoot, '.devcodex', 'profile')
+  if (fs.existsSync(legacyDir)) return legacyDir
+
+  const workspaceRoot = path.dirname(projectRoot)
+  const layout = readJsonIfExists(path.join(workspaceRoot, '.devcodex', 'layout.json'))
+  if (layout && layout.mode === 'workspace-namespace') {
+    const namespacedDir = path.join(workspaceRoot, '.devcodex', path.basename(projectRoot), 'profile')
+    if (fs.existsSync(namespacedDir)) return namespacedDir
+  }
+
+  return legacyDir
+}
+
+const profileDir = resolveProfileDir(cwd)
 
 const errors = []
 const warnings = []
@@ -58,14 +81,6 @@ function hasLegacyStageDraft(text) {
   return /##\s*当前阶段/m.test(text) &&
     /^\s*[-*]\s*主版本分支[：:]/m.test(text) &&
     /^\s*[-*]\s*阶段摘要[：:]/m.test(text)
-}
-
-function readJsonIfExists(filePath) {
-  try {
-    return JSON.parse(fs.readFileSync(filePath, 'utf8'))
-  } catch {
-    return null
-  }
 }
 
 function isSourceRepoProfileTarget() {
@@ -148,7 +163,7 @@ if (fs.existsSync(cfgPath)) {
   if (!cfg.mode) warn('[profile] config.json missing "mode" (defaults to prod)')
   else if (!['dev', 'prod'].includes(cfg.mode)) err(`[profile] invalid mode: ${cfg.mode}`)
   // agent
-  const validAgents = ['copilot', 'claude-code', 'codex', 'cursor', 'vscode-copilot', 'unknown-agent']
+  const validAgents = ['copilot', 'vscode-copilot', 'jetbrains-copilot', 'claude-code', 'codex', 'cursor', 'unknown-agent']
   if (!cfg.agent) warn('[profile] config.json missing "agent" (inferred at runtime)')
   else if (!validAgents.includes(cfg.agent)) err(`[profile] invalid agent: ${cfg.agent} (expected: ${validAgents.join('|')})`)
   // plugin version drift

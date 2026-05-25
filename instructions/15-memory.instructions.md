@@ -8,8 +8,13 @@ applyTo: "**"
 ## 文件路径
 
 ```
-<项目根>/.devcodex/.memory/clients/<agent>/tasks/YYYYMMDD.md
+<active-root>/.memory/clients/<agent>/tasks/YYYYMMDD.md
 ```
+
+`<active-root>` 取值：
+- 旧布局：`<项目根>/.devcodex`
+- 集中布局单项目：`<工作区根>/.devcodex/<project>`
+- 集中布局全工作区：`<工作区根>/.devcodex/workspace`
 
 `<agent>` 确定规则（优先级从高到低）：
 1. **Profile 显式配置**（优先）：读取 `.devcodex/profile/config.json` 的 `"agent"` 字段（如 `"agent": "copilot"`）
@@ -18,7 +23,7 @@ applyTo: "**"
    - Claude Code（CLI/桌面端）：`claude-code` ⚠️ 禁止使用裸 `claude`（与 Claude API/Claude.ai 区分）
    - ChatGPT/Codex：`codex`（当前未官方适配，仅占位）
    - Cursor IDE：`cursor`
-   - 跨编辑器：`zed-copilot`
+   - JetBrains Copilot：`jetbrains-copilot`
    - 无法确定：`unknown-agent`
 3. **写入约定**：`devcodex init --claude` 必须向 `config.json` 写入 `"agent": "claude-code"`；`devcodex init` (Copilot) 应写入 `"agent": "copilot"`
 - ⛔ **禁止使用 shell 命令（bash find、PowerShell glob）查找记忆文件**（shell glob 会跳过以 `.` 开头的隐藏目录）
@@ -127,7 +132,7 @@ applyTo: "**"
 
 ### Agent SUMMARY（每 Agent 独立）
 ```
-<项目根>/.devcodex/.memory/clients/<agent>/SUMMARY.md
+<active-root>/.memory/clients/<agent>/SUMMARY.md
 ```
 - 每次会话结束前追加一行索引（SC6 检查）
 - 格式：`| 日期 | 会话 | 类型 | 摘要 | 关联报告 | 关联记忆 | 状态 |`
@@ -136,7 +141,7 @@ applyTo: "**"
 
 ### 全局 SUMMARY（项目共用）
 ```
-<项目根>/.devcodex/.memory/SUMMARY.md
+<active-root>/.memory/SUMMARY.md
 ```
 - 仅记录关键决策（规范变更/架构决策/P0修复）
 

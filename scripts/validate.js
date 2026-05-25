@@ -23,6 +23,9 @@
  * V19 Asset count sync（README/Profile 资产数量不得漂移）
  * V20 Release/changelog dual-track semantics（unreleased 默认流 + release 显式触发）
  * V21 Workflow control-plane semantics（前置复审显式输出 / 控制面交叉验证 / 语义批次提交 / 工作区 AGENTS 副本同步）
+ * V22 Workspace namespace layout + migrate-layout semantics（layout.json / active-root / 迁移器 smoke）
+ * V23 Independent evaluation semantics（独立验证可采纳，不机械唱反调）
+ * V24 Governance/template/client narrative sync（pending-issues 模板链 / 多客户端真相源 / agent 枚举一致性）
  *
  * Exit: 0=OK, 1=error, 2=warnings only
  */
@@ -33,6 +36,7 @@ const path = require('path')
 const { execSync } = require('child_process')
 
 const ROOT = path.resolve(__dirname, '..')
+const WORKSPACE_ROOT = path.dirname(ROOT)
 const errors = []
 const warnings = []
 
@@ -49,6 +53,32 @@ function walk(dir) {
   return out
 }
 function read(p) { return fs.readFileSync(p, 'utf8') }
+
+function readJsonIfExists(filePath) {
+  try {
+    return JSON.parse(fs.readFileSync(filePath, 'utf8'))
+  } catch {
+    return null
+  }
+}
+
+function resolveActiveDevcodexRoot(repoRoot) {
+  const legacyRoot = path.join(repoRoot, '.devcodex')
+  if (fs.existsSync(legacyRoot)) return legacyRoot
+
+  const layout = readJsonIfExists(path.join(path.dirname(repoRoot), '.devcodex', 'layout.json'))
+  if (layout && layout.mode === 'workspace-namespace') {
+    const namespacedRoot = path.join(path.dirname(repoRoot), '.devcodex', path.basename(repoRoot))
+    if (fs.existsSync(namespacedRoot)) return namespacedRoot
+  }
+
+  return legacyRoot
+}
+
+const ACTIVE_DEVCODEX_ROOT = resolveActiveDevcodexRoot(ROOT)
+function activePath(...segments) {
+  return path.join(ACTIVE_DEVCODEX_ROOT, ...segments)
+}
 
 // ── V1: frontmatter schema ──────────────────────────────────────────────────
 function checkV1() {
@@ -194,6 +224,7 @@ function checkV6() {
       'hooks/_runtime/lifecycle.cjs',
       'mcp/memory-server.js',
       'mcp/profile-server.js',
+      'scripts/migrate-layout.js',
       'assets/icon-512.png'
     ]
     const forbidden = files.filter(f =>
@@ -442,7 +473,7 @@ function countProbeMatches(pattern, files) {
 }
 
 function checkV10() {
-  const stateDir = path.join(ROOT, '.devcodex/.audit-state')
+  const stateDir = activePath('.audit-state')
   if (!fs.existsSync(stateDir)) {
     console.log('[V10] no audit-state directory — skip')
     return
@@ -603,7 +634,7 @@ function checkV14() {
 }
 
 function checkV15() {
-  const stateDir = path.join(ROOT, '.devcodex/.audit-state')
+  const stateDir = activePath('.audit-state')
   if (!fs.existsSync(stateDir)) {
     console.log('[V15] no audit-state directory — skip')
     return
@@ -715,19 +746,21 @@ function checkV18() {
 
 function checkV19() {
   const promptCount = walk(path.join(ROOT, 'prompts')).filter(f => f.endsWith('.prompt.md')).length
+  const dataTemplateCount = walk(path.join(ROOT, 'data', 'templates')).filter(f => f.endsWith('.md')).length
   const checks = [
     { file: 'README.md', needle: `Prompt 模板（${promptCount} 个）` },
-    { file: '.devcodex/profile/01-项目信息.md', needle: `| **Prompt** | ${promptCount} |` },
-    { file: '.devcodex/profile/01-项目信息.md', needle: `prompts ${promptCount}` },
-    { file: '.devcodex/profile/02-架构约束.md', needle: `Prompt 模板文件（.prompt.md，中文）${promptCount} 个` }
+    { file: activePath('profile', '01-项目信息.md'), needle: `| **Prompt** | ${promptCount} |`, rawPath: false },
+    { file: activePath('profile', '01-项目信息.md'), needle: `prompts ${promptCount}`, rawPath: false },
+    { file: activePath('profile', '02-架构约束.md'), needle: `Prompt 模板文件（.prompt.md，中文）${promptCount} 个`, rawPath: false },
+    { file: activePath('profile', '01-项目信息.md'), needle: `| **data 模板** | ${dataTemplateCount} |`, rawPath: false }
   ]
   for (const check of checks) {
-    const content = read(path.join(ROOT, check.file))
+    const content = check.rawPath === false ? read(check.file) : read(path.join(ROOT, check.file))
     if (!content.includes(check.needle)) {
-      err(`[V19] asset count drift in ${check.file}: expected text "${check.needle}"`)
+      err(`[V19] asset count drift in ${check.rawPath === false ? path.relative(ROOT, check.file) : check.file}: expected text "${check.needle}"`)
     }
   }
-  console.log(`[V19] asset counts checked: prompts=${promptCount}`)
+  console.log(`[V19] asset counts checked: prompts=${promptCount}, data-templates=${dataTemplateCount}`)
 }
 
 function checkV20() {
@@ -853,6 +886,194 @@ function checkV21() {
   console.log('[V21] workflow control-plane semantics checked')
 }
 
+function checkV22() {
+  try {
+    execSync('node scripts/test-migrate-layout.js', { cwd: ROOT, stdio: 'pipe', encoding: 'utf8' })
+    console.log('[V22] migrate-layout smoke test passed')
+  } catch (e) {
+    const detail = String((e.stderr || e.stdout || e.message || '')).trim().split('\n').slice(0, 8).join(' | ')
+    err(`[V22] migrate-layout smoke test failed${detail ? `: ${detail}` : ''}`)
+  }
+
+  const probes = [
+    {
+      file: 'instructions/01-common.instructions.md',
+      needles: ['workspace-namespace', 'single active scope write', 'workspace base + project overlay']
+    },
+    {
+      file: 'instructions/02-output-paths.instructions.md',
+      needles: ['<active-root>', 'layout.json', '<工作区根>/.devcodex/workspace/']
+    },
+    {
+      file: 'mcp/profile-server.js',
+      needles: ['workspace-namespace', '.devcodex', 'mergeConfig']
+    },
+    {
+      file: 'mcp/memory-server.js',
+      needles: ['scope', 'workspace-namespace', 'getActiveRoot']
+    },
+    {
+      file: 'hooks/_runtime/lifecycle.cjs',
+      needles: ['activeScope', 'workspace-namespace', 'getActiveNamespaceRoot']
+    },
+    {
+      file: 'README.md',
+      needles: ['migrate-layout', 'layout.json', '.devcodex/workspace']
+    }
+  ]
+
+  for (const probe of probes) {
+    const content = read(path.join(ROOT, probe.file))
+    for (const needle of probe.needles) {
+      if (!content.includes(needle)) {
+        err(`[V22] workspace namespace drift in ${probe.file}: missing "${needle}"`)
+      }
+    }
+  }
+  console.log('[V22] workspace namespace semantics checked')
+}
+
+function checkV23() {
+  const probes = [
+    {
+      file: 'instructions/01-common.instructions.md',
+      needles: ['机械唱反调', '用户方案已是当前最优', '不得直接顺从论证']
+    },
+    {
+      file: 'instructions/10-dev.instructions.md',
+      needles: ['机械反对', '用户给出的目录结构、实施顺序或方案本身经验证已是当前最优']
+    },
+    {
+      file: 'instructions/11-fix.instructions.md',
+      needles: ['机械反对', '修复路径经验证已是当前最优']
+    },
+    {
+      file: 'instructions/12-audit.instructions.md',
+      needles: ['已验证成立', '不得为了显得客观而反向挑错']
+    },
+    {
+      file: 'instructions/13-analyze.instructions.md',
+      needles: ['独立取证', '机械反对']
+    },
+    {
+      file: 'skills/audit-common/SKILL.md',
+      needles: ['判断独立性', '机械唱反调']
+    },
+    {
+      file: 'skills/report/SKILL.md',
+      needles: ['经独立验证后采纳', '证据来源']
+    },
+    {
+      file: 'skills/cp-gate/SKILL.md',
+      needles: ['推荐项可以与用户原始方案相同', '客观依据']
+    }
+  ]
+
+  for (const probe of probes) {
+    const content = read(path.join(ROOT, probe.file))
+    for (const needle of probe.needles) {
+      if (!content.includes(needle)) {
+        err(`[V23] independent-evaluation drift in ${probe.file}: missing "${needle}"`)
+      }
+    }
+  }
+
+  const workspaceAgents = path.resolve(ROOT, '..', 'AGENTS.md')
+  if (fs.existsSync(workspaceAgents)) {
+    const content = read(workspaceAgents)
+    for (const needle of ['workspace-namespace', '机械唱反调']) {
+      if (!content.includes(needle)) {
+        err(`[V23] workspace AGENTS drift: missing "${needle}" in ../AGENTS.md`)
+      }
+    }
+  }
+
+  console.log('[V23] independent evaluation semantics checked')
+}
+
+function checkV24() {
+  const requiredFiles = [
+    'data/templates/pending-issues.md',
+    'data/README.md',
+    'README.md',
+    'RULES.md',
+    activePath('profile', '01-项目信息.md'),
+    activePath('profile', '02-架构约束.md'),
+    'website/rspress.config.ts',
+    'website/docs/index.md',
+    'website/docs/intro/index.md',
+    'skills/audit-report/SKILL.md',
+    'skills/report/SKILL.md',
+    'instructions.md',
+    'instructions/12-audit.instructions.md',
+    'instructions/15-memory.instructions.md',
+    'skills/memory/SKILL.md',
+    'scripts/validate-profile.js',
+    'index.js',
+    'package.json',
+    'plugin.json'
+  ]
+
+  const missingFiles = requiredFiles.filter(file => !fs.existsSync(path.isAbsolute(file) ? file : path.join(ROOT, file)))
+  if (missingFiles.length) {
+    err(`[V24] missing governance/client/template files: ${missingFiles.map(file => path.isAbsolute(file) ? path.relative(ROOT, file) : file).join(', ')}`)
+    return
+  }
+
+  const musts = [
+    { file: 'instructions.md', needle: '阻断/非阻断分流' },
+    { file: 'instructions.md', needle: 'data/pending-issues.md' },
+    { file: 'instructions/12-audit.instructions.md', needle: '阻断/非阻断分流' },
+    { file: 'instructions/12-audit.instructions.md', needle: 'data/pending-issues.md' },
+    { file: 'data/README.md', needle: 'pending-issues.md' },
+    { file: 'data/templates/pending-issues.md', needle: 'ISSUE-000' },
+    { file: 'README.md', needle: 'Copilot / Claude Code 双主支持' },
+    { file: 'README.md', needle: 'init --claude' },
+    { file: 'README.md', needle: 'pending-issues / process-improvements' },
+    { file: 'RULES.md', needle: 'Copilot / Claude Code' },
+    { file: 'RULES.md', needle: 'init --claude' },
+    { file: activePath('profile', '01-项目信息.md'), needle: 'CLAUDE.md', rawPath: false },
+    { file: activePath('profile', '01-项目信息.md'), needle: 'pending-issues.md', rawPath: false },
+    { file: activePath('profile', '01-项目信息.md'), needle: '当前阶段', rawPath: false },
+    { file: activePath('profile', '02-架构约束.md'), needle: 'pending-issues', rawPath: false },
+    { file: activePath('profile', '02-架构约束.md'), needle: 'process-improvements', rawPath: false },
+    { file: 'website/rspress.config.ts', needle: 'Copilot / Claude Code' },
+    { file: 'website/docs/index.md', needle: 'Copilot / Claude Code' },
+    { file: 'website/docs/intro/index.md', needle: 'Copilot / Claude Code' },
+    { file: 'package.json', needle: 'Claude Code' },
+    { file: 'plugin.json', needle: 'Claude Code' },
+    { file: 'skills/audit-report/SKILL.md', needle: '两层结构' },
+    { file: 'skills/report/SKILL.md', needle: '两层问题清单' },
+    { file: 'instructions.md', needle: 'jetbrains-copilot' },
+    { file: 'instructions/15-memory.instructions.md', needle: 'jetbrains-copilot' },
+    { file: 'skills/memory/SKILL.md', needle: 'jetbrains-copilot' },
+    { file: 'scripts/validate-profile.js', needle: 'jetbrains-copilot' },
+    { file: 'index.js', needle: 'jetbrains-copilot' }
+  ]
+
+  for (const probe of musts) {
+    const content = probe.rawPath === false ? read(probe.file) : read(path.join(ROOT, probe.file))
+    if (!content.includes(probe.needle)) {
+      err(`[V24] governance/client drift in ${probe.rawPath === false ? path.relative(ROOT, probe.file) : probe.file}: missing "${probe.needle}"`)
+    }
+  }
+
+  const mustNots = [
+    { file: 'README.md', needle: '不使用 GitHub Copilot 的 IDE/Agent' },
+    { file: 'instructions/15-memory.instructions.md', needle: 'zed-copilot' },
+    { file: 'skills/memory/SKILL.md', needle: 'zed-copilot' }
+  ]
+
+  for (const probe of mustNots) {
+    const content = read(path.join(ROOT, probe.file))
+    if (content.includes(probe.needle)) {
+      err(`[V24] governance/client drift in ${probe.file}: contains legacy text "${probe.needle}"`)
+    }
+  }
+
+  console.log('[V24] governance/template/client narrative semantics checked')
+}
+
 function checkV7b() {
   try {
     execSync('node scripts/test-instruction-fallback-check.js', { cwd: ROOT, stdio: 'pipe', encoding: 'utf8' })
@@ -885,6 +1106,9 @@ checkV18()
 checkV19()
 checkV20()
 checkV21()
+checkV22()
+checkV23()
+checkV24()
 
 console.log('')
 if (errors.length) {

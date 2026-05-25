@@ -46,7 +46,7 @@
 | C09 | 文件编码安全 | 禁止用 Bash `Set-Content`/`sed -i` 批量修改中文 .md（破坏 UTF-8），必须用 Edit 工具逐文件修改 |
 | C10 | 禁止危险命令 | 同 S06 |
 | C11 | 关联文件同步 | 修改/新建/重命名后检查所有引用处并同步 |
-| C12 | 合理性评估 | 意图识别后、CP1 前必须评估合理性，有更好建议先提出确认后执行；用户给出判断时 AI 须独立验证，不得顺从论证 |
+| C12 | 合理性评估 | 意图识别后、CP1 前必须评估合理性，有更好建议先提出确认后执行；用户给出判断、目录结构或已有设计时 AI 须独立验证，不得顺从论证；若经核验用户方案已最优，可明确说明依据后直接采纳，禁止为了表现“独立”而机械唱反调 |
 | C13 | 文件分拆 | AI 新建 .md 超 500 行必须拆分（已有文件豁免）|
 | C14 | 多任务检查点 | ≥2 个独立任务：每完成一个追加进度到记忆 + 输出进度快照 |
 | C15 | 架构质量视角 | dev/fix 涉及代码设计须从架构师+平台工程师双视角评估：可扩展性/可维护性/易上手性 |
@@ -97,6 +97,11 @@
 - 收到消息后、执行工作流前必须读取 `.devcodex/profile/`
 - Profile 缺失时 ENV_MODE 默认为 `prod`（保守降级）
 - 跨会话恢复时**必须重新读取 Profile 文件**（摘要 ≠ Profile 已加载）
+- 当 `<工作区根>/.devcodex/layout.json` 启用 `workspace-namespace` 时，Profile 与运行态目录按**工作区集中命名空间**读取：
+  - `config.json`：`<工作区根>/.devcodex/workspace/profile/` 作为 base，`<工作区根>/.devcodex/<project>/profile/` 作为 overlay
+  - Profile 文档：项目命名空间文件优先，缺失回退到 `workspace/profile/`
+  - 运行态目录：单项目写 `<工作区根>/.devcodex/<project>/...`，全工作区写 `<工作区根>/.devcodex/workspace/...`
+- 未启用 `layout.json` 时，继续兼容 `<项目根>/.devcodex/...`
 
 | 文件 | 说明 | 必须 |
 |------|------|:----:|
@@ -230,7 +235,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → 执行 →
 
 - 只读工作流，禁止修改文件
 - 多轮收敛：至少 3 轮，连续 **3** 轮零发现后才可宣告收敛
-- DevCodex plugin 文件发现问题 → 立即自我审视 + self-fix，修复后重启新轮
+- DevCodex plugin 文件发现问题 → 先做阻断/非阻断分流：阻断项立即自我审视 + self-fix，修复后重启新轮；非阻断项写入 `data/pending-issues.md`，继续下一轮
 - 其他文件发现问题 → 记录 PF/VL，继续下一轮
 - 收敛前门禁：CRS（全库 grep）✅ + PCV（收敛后汇总验证）
 
@@ -254,12 +259,17 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → 执行 →
 ### 文件路径
 
 ```
-<项目根>/.devcodex/.memory/clients/<agent>/tasks/YYYYMMDD.md
+<active-root>/.memory/clients/<agent>/tasks/YYYYMMDD.md
 ```
+
+`<active-root>` 取值：
+- 旧布局：`<项目根>/.devcodex`
+- 集中布局单项目：`<工作区根>/.devcodex/<project>`
+- 集中布局全工作区：`<工作区根>/.devcodex/workspace`
 
 - `<agent>` 解析规则（按优先级）：
   1. 读 `.devcodex/profile/config.json` 的 `"agent"` 字段
-  2. 若缺失，按运行环境推断，**枚举值固定**：`copilot` / `claude-code` / `codex` / `cursor` / `vscode-copilot` / `unknown-agent`（禁止使用裸 `claude`，与 Claude API/Claude.ai 区分）
+  2. 若缺失，按运行环境推断，**枚举值固定**：`copilot` / `vscode-copilot` / `jetbrains-copilot` / `claude-code` / `codex` / `cursor` / `unknown-agent`（禁止使用裸 `claude`，与 Claude API/Claude.ai 区分）
   3. `devcodex init --claude` 应自动写入 `"agent": "claude-code"`
 - 禁止用 Bash 命令查找记忆文件（shell glob 跳过隐藏目录），必须用 Read 工具逐层进入
 
@@ -284,7 +294,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → 执行 →
 ### SUMMARY 文件
 
 ```
-.devcodex/.memory/clients/<agent>/SUMMARY.md
+<active-root>/.memory/clients/<agent>/SUMMARY.md
 ```
 
 每次会话结束前追加一行索引：`| 日期 | 会话 | 类型 | 摘要 | 关联报告 | 关联记忆 | 状态 |`
@@ -361,7 +371,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → 执行 →
 | T3 | 单元/集成测试通过 |
 | T4 | 关联文档已同步 |
 | T5 | 关联配置已更新 |
-| T6 | CHANGELOG 已追加（如属外部可见变更） |
+| T6 | CHANGELOG / unreleased 已按发布状态追加（如属外部可见变更） |
 | T7 | 影响评估已记录（impact-review） |
 | T8 | 报告 V1~V6 验证通过 |
 | T9 | 记忆 + SUMMARY 写入完成 |

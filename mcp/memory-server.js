@@ -17,7 +17,7 @@
 const fs = require('fs')
 const path = require('path')
 
-const WORKSPACE_ROOT = process.argv[2]
+const INPUT_ROOT = process.argv[2]
   ? path.resolve(process.argv[2])
   : process.cwd()
 
@@ -39,7 +39,9 @@ const TOOLS = [
       type: 'object',
       properties: {
         agent: { type: 'string', description: 'Agent 标识（如 claude-code / copilot），默认 claude-code' },
-        date: { type: 'string', description: 'YYYYMMDD 日期，默认今日' }
+        date: { type: 'string', description: 'YYYYMMDD 日期，默认今日' },
+        scope: { type: 'string', enum: ['project', 'workspace'], description: '可选。集中布局下指定写入域；默认按当前 cwd 推断。' },
+        project: { type: 'string', description: '可选。集中布局下显式指定项目命名空间。' }
       }
     }
   },
@@ -52,7 +54,9 @@ const TOOLS = [
       properties: {
         agent: { type: 'string', description: 'Agent 标识，默认 claude-code' },
         date: { type: 'string', description: 'YYYYMMDD 日期，默认今日' },
-        content: { type: 'string', description: '追加的 Markdown 内容' }
+        content: { type: 'string', description: '追加的 Markdown 内容' },
+        scope: { type: 'string', enum: ['project', 'workspace'], description: '可选。集中布局下指定写入域；默认按当前 cwd 推断。' },
+        project: { type: 'string', description: '可选。集中布局下显式指定项目命名空间。' }
       }
     }
   },
@@ -66,7 +70,9 @@ const TOOLS = [
         requirement: { type: 'string', description: '任务目录名（兼容旧字段名；配合 kind 指向 .devcodex/requirements/<name> 或 .devcodex/bugs/<name>）' },
         kind: { type: 'string', enum: ['requirements', 'bugs'], description: '任务根类型，默认 requirements' },
         phase: { type: 'string', enum: ['CP1', 'CP2', 'CP3'], description: 'CP 阶段' },
-        time: { type: 'string', description: '确认时间（如 10:30），默认当前时间' }
+        time: { type: 'string', description: '确认时间（如 10:30），默认当前时间' },
+        scope: { type: 'string', enum: ['project', 'workspace'], description: '可选。集中布局下指定写入域；默认按当前 cwd 推断。' },
+        project: { type: 'string', description: '可选。集中布局下显式指定项目命名空间。' }
       }
     }
   },
@@ -76,7 +82,9 @@ const TOOLS = [
     inputSchema: {
       type: 'object',
       properties: {
-        agent: { type: 'string', description: 'Agent 标识，默认 claude-code' }
+        agent: { type: 'string', description: 'Agent 标识，默认 claude-code' },
+        scope: { type: 'string', enum: ['project', 'workspace'], description: '可选。集中布局下指定读取域；默认按当前 cwd 推断。' },
+        project: { type: 'string', description: '可选。集中布局下显式指定项目命名空间。' }
       }
     }
   },
@@ -88,7 +96,9 @@ const TOOLS = [
       required: ['row'],
       properties: {
         agent: { type: 'string', description: 'Agent 标识，默认 claude-code' },
-        row: { type: 'string', description: 'Markdown 表格行（含首尾 |）' }
+        row: { type: 'string', description: 'Markdown 表格行（含首尾 |）' },
+        scope: { type: 'string', enum: ['project', 'workspace'], description: '可选。集中布局下指定写入域；默认按当前 cwd 推断。' },
+        project: { type: 'string', description: '可选。集中布局下显式指定项目命名空间。' }
       }
     }
   }
@@ -109,32 +119,108 @@ function validateDate(date) {
   if (date && !/^\d{8}$/.test(date)) throw new Error(`date must be YYYYMMDD, got: ${date}`)
 }
 
-function sessionFilePath(agent, date) {
-  return path.join(
-    WORKSPACE_ROOT, '.devcodex', '.memory', 'clients',
-    agent || DEFAULT_AGENT, 'tasks', `${date || today()}.md`
-  )
-}
-
-function summaryFilePath(agent) {
-  return path.join(
-    WORKSPACE_ROOT, '.devcodex', '.memory', 'clients',
-    agent || DEFAULT_AGENT, 'SUMMARY.md'
-  )
-}
-
-function taskSessionsPath(kind, requirement) {
-  return path.join(
-    WORKSPACE_ROOT, '.devcodex', kind,
-    requirement, '.memory', 'sessions.md'
-  )
-}
-
 function readFile(filePath) {
   try { return fs.readFileSync(filePath, 'utf8') } catch (err) {
     if (err.code === 'ENOENT') return ''
     throw err
   }
+}
+
+function readJsonFile(filePath) {
+  const raw = readFile(filePath)
+  if (!raw) return null
+  try { return JSON.parse(raw) } catch { return null }
+}
+
+function findLayoutInfo(startDir) {
+  let current = path.resolve(startDir)
+  while (true) {
+    const markerPath = path.join(current, '.devcodex', 'layout.json')
+    const marker = readJsonFile(markerPath)
+    if (marker && String(marker.mode || '').trim() === 'workspace-namespace') {
+      return {
+        enabled: true,
+        mode: 'workspace-namespace',
+        workspaceRoot: current,
+        markerPath
+      }
+    }
+    const parent = path.dirname(current)
+    if (parent === current) break
+    current = parent
+  }
+  return {
+    enabled: false,
+    mode: 'legacy-project-root',
+    workspaceRoot: path.resolve(startDir),
+    markerPath: null
+  }
+}
+
+const LAYOUT = findLayoutInfo(INPUT_ROOT)
+
+function inferContextProject() {
+  if (!LAYOUT.enabled) return ''
+  const relative = path.relative(LAYOUT.workspaceRoot, INPUT_ROOT)
+  if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) return ''
+  const parts = relative.split(path.sep).filter(Boolean)
+  if (!parts.length) return ''
+  const first = parts[0]
+  if (first === '.devcodex' || first === 'workspace') return ''
+  return first
+}
+
+const CONTEXT_PROJECT = inferContextProject()
+const DEFAULT_SCOPE = LAYOUT.enabled ? (CONTEXT_PROJECT ? 'project' : 'workspace') : 'project'
+
+function resolveProjectName(projectName) {
+  return String(projectName || '').trim() || CONTEXT_PROJECT || ''
+}
+
+function resolveProjectRoot(projectName) {
+  if (!projectName) return INPUT_ROOT
+  if (path.isAbsolute(projectName)) return path.resolve(projectName)
+  const base = LAYOUT.enabled ? LAYOUT.workspaceRoot : INPUT_ROOT
+  return path.resolve(base, projectName)
+}
+
+function resolveScope(scope) {
+  const value = String(scope || '').trim().toLowerCase()
+  if (value === 'workspace' || value === 'project') return value
+  return DEFAULT_SCOPE
+}
+
+function getActiveRoot(args = {}) {
+  if (!LAYOUT.enabled) {
+    return path.join(resolveProjectRoot(args.project), '.devcodex')
+  }
+  const scope = resolveScope(args.scope)
+  const projectName = resolveProjectName(args.project)
+  if (scope === 'workspace' || !projectName) {
+    return path.join(LAYOUT.workspaceRoot, '.devcodex', 'workspace')
+  }
+  return path.join(LAYOUT.workspaceRoot, '.devcodex', projectName)
+}
+
+function sessionFilePath(agent, date, args = {}) {
+  return path.join(
+    getActiveRoot(args), '.memory', 'clients',
+    agent || DEFAULT_AGENT, 'tasks', `${date || today()}.md`
+  )
+}
+
+function summaryFilePath(agent, args = {}) {
+  return path.join(
+    getActiveRoot(args), '.memory', 'clients',
+    agent || DEFAULT_AGENT, 'SUMMARY.md'
+  )
+}
+
+function taskSessionsPath(kind, requirement, args = {}) {
+  return path.join(
+    getActiveRoot(args), kind,
+    requirement, '.memory', 'sessions.md'
+  )
 }
 
 function appendFile(filePath, content) {
@@ -146,7 +232,7 @@ function appendFile(filePath, content) {
 
 function handleMemorySessionRead(args) {
   validateDate(args.date)
-  const p = sessionFilePath(args.agent, args.date)
+  const p = sessionFilePath(args.agent, args.date, args)
   const content = readFile(p)
   return { content: [{ type: 'text', text: content || '（文件不存在或为空）' }] }
 }
@@ -154,10 +240,10 @@ function handleMemorySessionRead(args) {
 function handleMemorySessionWrite(args) {
   if (!args.content) throw new Error('content is required')
   validateDate(args.date)
-  const p = sessionFilePath(args.agent, args.date)
+  const p = sessionFilePath(args.agent, args.date, args)
   const separator = fs.existsSync(p) ? '\n' : ''
   appendFile(p, separator + args.content)
-  return { content: [{ type: 'text', text: `已追加到 ${path.relative(WORKSPACE_ROOT, p)}` }] }
+  return { content: [{ type: 'text', text: `已追加到 ${path.relative(LAYOUT.workspaceRoot, p)}` }] }
 }
 
 function handleMemoryCpConfirm(args) {
@@ -166,7 +252,7 @@ function handleMemoryCpConfirm(args) {
   const kind = args.kind || 'requirements'
   if (!TASK_KINDS.has(kind)) throw new Error(`kind must be one of: ${[...TASK_KINDS].join(', ')}`)
 
-  const p = taskSessionsPath(kind, args.requirement)
+  const p = taskSessionsPath(kind, args.requirement, args)
   const time = args.time || currentTime()
   const existing = readFile(p)
 
@@ -204,14 +290,14 @@ function handleMemoryCpConfirm(args) {
 }
 
 function handleMemorySummaryRead(args) {
-  const p = summaryFilePath(args.agent)
+  const p = summaryFilePath(args.agent, args)
   const content = readFile(p)
   return { content: [{ type: 'text', text: content || '（SUMMARY.md 不存在或为空）' }] }
 }
 
 function handleMemorySummaryAppend(args) {
   if (!args.row) throw new Error('row is required')
-  const p = summaryFilePath(args.agent)
+  const p = summaryFilePath(args.agent, args)
   const existing = readFile(p)
 
   if (!existing) {

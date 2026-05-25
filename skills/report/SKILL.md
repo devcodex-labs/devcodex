@@ -28,6 +28,7 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 | self-fix | `self-fix/` |
 
 > 路径详细规范见 [`02-output-paths.instructions.md`](../../instructions/02-output-paths.instructions.md)。
+> 当 `<工作区根>/.devcodex/layout.json` 启用 `workspace-namespace` 时，本文中的任务目录与项目级 `reports/...` 均以当前 **`<active-root>`** 为根。
 
 ## 头部必填
 
@@ -72,6 +73,8 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 
 - 每次会话必须写入报告文件（**chat 豁免**，[C05/S05](../../instructions/00-safety.instructions.md)）
 - 报告中每条建议/问题必须附五项验证（合理性 + 可实施性 + 收益 + 验证状态 + 影响范围）— 与 [`17-compliance`](../compliance/SKILL.md) §1 输出验证保持一致
+- 若最终采纳的是用户原始方案，报告中也必须写明“经独立验证后采纳”及其证据来源，避免形成“顺从结论”的假象
+- audit / analyze / self-fix 的汇总型报告默认采用“两层问题清单”：先列根因级问题，再展开逐文件完整落点；边界/非缺陷结论单独成节，不混入缺陷编号
 - 报告写入后必须执行 [`compliance`](../compliance/SKILL.md) Skill §5 二次验证（V1~V6）
 - `dev` / `fix` 报告在最终宣告完成前，必须显式体现“执行后轻量复审收敛”这一正式阶段，并与关键产物和实际实现结果完成 1 轮复审对照；若发现阻断性问题，不得直接以“已完成”收尾
 - 报告末尾引用本次会话记忆路径

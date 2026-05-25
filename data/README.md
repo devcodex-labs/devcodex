@@ -7,6 +7,7 @@ data/
 ├── templates/                      ← 随 npm 包分发给用户（空模板）
 │   ├── violations.md
 │   ├── pending-fixes.md
+│   ├── pending-issues.md
 │   ├── process-improvements.md
 │   └── gap-registry.md
 └── README.md                       ← 本文件
@@ -23,7 +24,7 @@ data/
 
 ## init 行为
 
-`devcodex init` 将 `data/templates/*.md` 复制到用户项目的 `.github/data/*.md`（目标路径向后兼容，不变）。
+`devcodex init` / `devcodex init --claude` 将 `data/templates/*.md` 复制到目标项目的运行时数据目录（当前分发骨架仍落到 `.github/data/*.md` 或 `.claude/data/*.md` 对应结构）。
 
 ## 路径语义
 

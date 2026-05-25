@@ -5,8 +5,13 @@ description: 管理会话记忆的读取与写入。三层记忆体系：Agent �
 ## 文件路径
 
 ```
-<项目根>/.devcodex/.memory/clients/<agent>/tasks/YYYYMMDD.md
+<active-root>/.memory/clients/<agent>/tasks/YYYYMMDD.md
 ```
+
+`<active-root>` 取值：
+- 旧布局：`<项目根>/.devcodex`
+- 集中布局单项目：`<工作区根>/.devcodex/<project>`
+- 集中布局全工作区：`<工作区根>/.devcodex/workspace`
 
 - `<agent>` 确定规则（优先级从高到低）：
   1. **Profile 显式配置**（优先）：读取 `.devcodex/profile/config.json` 的 `"agent"` 字段
@@ -15,7 +20,7 @@ description: 管理会话记忆的读取与写入。三层记忆体系：Agent �
      - Claude Code（CLI/桌面端）：`claude-code` ⚠️ 禁止使用裸 `claude`（与 Claude API/Claude.ai 区分）
      - ChatGPT/Codex：`codex`（当前未官方适配，仅占位）
      - Cursor IDE：`cursor`
-     - 跨编辑器：`zed-copilot`
+     - JetBrains Copilot：`jetbrains-copilot`
      - 无法确定：`unknown-agent`
   3. **写入约定**：`devcodex init --claude` 必须写入 `"agent": "claude-code"`；`devcodex init` (Copilot) 应写入 `"agent": "copilot"`
 - ⛔ **禁止使用 shell 命令（bash find、PowerShell glob）查找记忆文件**（shell glob 会跳过隐藏目录）
@@ -104,7 +109,7 @@ description: 管理会话记忆的读取与写入。三层记忆体系：Agent �
 
 ### Agent SUMMARY（每 Agent 独立）
 ```
-<项目根>/.devcodex/.memory/clients/<agent>/SUMMARY.md
+<active-root>/.memory/clients/<agent>/SUMMARY.md
 ```
 - 每次会话结束前（[SC6](../compliance/SKILL.md) 检查）追加一行索引
 - 模板：`prompts/agent-summary.prompt.md`
@@ -132,7 +137,7 @@ description: 管理会话记忆的读取与写入。三层记忆体系：Agent �
 
 ### 全局 SUMMARY（项目共用）
 ```
-<项目根>/.devcodex/.memory/SUMMARY.md
+<active-root>/.memory/SUMMARY.md
 ```
 - 仅记录关键决策（规范变更/架构决策/P0修复）
 - [SC7](../compliance/SKILL.md) 检查时追加，纯 chat/无重要决策时 N/A
@@ -148,9 +153,9 @@ description: 管理会话记忆的读取与写入。三层记忆体系：Agent �
 ### 需求级记忆路径构建
 
 ```
-<项目根>/.devcodex/requirements/<描述>/.memory/sessions.md   # dev 需求
-<项目根>/.devcodex/bugs/<描述>/.memory/sessions.md           # fix Bug
-<项目根>/.devcodex/optimizations/<描述>/.memory/sessions.md  # dev 优化
+<active-root>/requirements/<描述>/.memory/sessions.md   # dev 需求
+<active-root>/bugs/<描述>/.memory/sessions.md           # fix Bug
+<active-root>/optimizations/<描述>/.memory/sessions.md  # dev 优化
 ```
 
 `<描述>` 与 [`02-output-paths.instructions.md`](../../instructions/02-output-paths.instructions.md) 中的任务目录名一致。

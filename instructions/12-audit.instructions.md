@@ -19,7 +19,8 @@ applyTo: "**"
 ### 只读约束（绝对）
 - **audit 是只读工作流**：执行中禁止修改任何文件
 - 发现问题只输出清单和变更建议
-- **需要修复时**：DevCodex plugin 文件（`instructions/` · `skills/` · `prompts/` · `agents/` · `RULES.md`）→ 元循环自动触发 self-fix（见 §审查元循环）；其他文件/代码 → 记录 PF/VL，由用户决定时机启动 fix 或 self-fix
+- **需要修复时**：DevCodex plugin 文件（`instructions/` · `skills/` · `prompts/` · `agents/` · `RULES.md`）→ 先做阻断/非阻断分流：阻断项进入元循环自动 self-fix，非阻断项写入 `data/pending-issues.md`（见 §审查元循环）；其他文件/代码 → 记录 PF/VL，由用户决定时机启动 fix 或 self-fix
+- 用户已给出结论、分类或目录方案时，audit 仍须按证据独立验证；若核验后用户判断成立，可直接写明“已验证成立”，不得为了显得客观而反向挑错
 
 > **设计原则：记录在使用，修复在维护** — 正常开发工作流（dev/fix/analyze）中 PC4 发现规范缺口，只写入运行时 Pending 台账 `data/pending-fixes.md`，不触发任何修复；源仓内该台账由 `data/templates/pending-fixes.md` 提供模板、维护者实录位于 `.devcodex/.maintainer-state/`。只有 audit 明确针对 DevCodex plugin 文件本身时，才进入立即修复的元循环。
 
@@ -46,11 +47,11 @@ applyTo: "**"
 | G4 格式规范性 | 标题层级正确，代码块有语言标记 | 🟡 |
 | G5 链接有效性 | 内部/外部链接可访问 | 🟡 |
 
-## 审查元循环（即发即修）
+## 审查元循环（阻断即修 / 非阻断入池）
 
 > 🔴 **触发前置条件**：元循环只在审查 **DevCodex plugin 文件**（`instructions/` · `skills/` · `prompts/` · `agents/` · `RULES.md`）时启动。审查其他类型文件时，发现问题 → 记录 PF/VL → 继续下一轮，**不触发 self-fix**。
 >
-> 🔴 audit 是只读工作流，但**元循环不是**：每发现一批问题 → 立即自我审视 + self-fix 修复 → 修复完成后重新启动新一轮 audit。禁止等所有轮次完成后批量修复（批量修复导致修复本身引入的新问题无法当轮检测）。
+> 🔴 audit 是只读工作流，但**元循环不是**：每发现一批 DevCodex plugin 问题后，先做阻断/非阻断分流；阻断项立即自我审视 + self-fix 修复，并在修复后重新启动新一轮 audit；非阻断项写入 `data/pending-issues.md`，继续当前 audit。禁止把阻断项拖到所有轮次结束后再批量修复。
 
 > 🔴 **累计文件上限**：单次 audit 会话内，元循环累计通过 self-fix 修改的 DevCodex plugin 文件总数不得超过 10 个。达到上限后必须输出 `⛔ AUDIT-LOOP-LIMIT`，建议用户拆分为新会话继续，禁止在当前 audit 会话内继续扩大修改面。
 
@@ -59,9 +60,11 @@ applyTo: "**"
 发现问题 → 记录 PF/VL → 继续下一轮（不触发 self-fix）
 
 【DevCodex plugin 文件审查】
-发现问题 → 自我审视五步（实证→验证→感知→修复→盲点，见 `audit-common §自我审视机制`）
-         → 重启新一轮 audit → 再次发现？→ 再次自我审视...
-         → 零发现 → 计数 +1 → 连续 3 次零发现 → CRS 门禁 → PCV → 收敛
+发现问题 → 阻断/非阻断分流
+         → 阻断项：自我审视五步（实证→验证→感知→修复→盲点，见 `audit-common §自我审视机制`）
+         →        self-fix 修复 → 重启新一轮 audit → 再次发现？→ 再次分流...
+         → 非阻断项：写入 `data/pending-issues.md` → 继续当前/下一轮 audit
+         → 连续 3 轮零发现 → CRS 门禁 → PCV → 收敛
 ```
 
 ## 多轮收敛规则
@@ -69,7 +72,7 @@ applyTo: "**"
 | 轮次 | 规则 |
 |------|------|
 | R1 | **先执行初始 CRS**（见 `audit-common §关联文件发现`）确定关联文件范围，再输出维度清单供用户确认（可增删维度）|
-| Rn | 每轮全量审查；**plugin 文件发现问题则立即触发自我审视 + self-fix 修复，修复后重启新轮**（见 `audit-common §审查元循环`）；**非 plugin 文件发现问题则记录 PF/VL，继续下一轮** |
+| Rn | 每轮全量审查；**plugin 文件发现问题先做阻断/非阻断分流：阻断项触发自我审视 + self-fix 修复并重启新轮，非阻断项写入 `data/pending-issues.md` 后继续**（见 `audit-common §审查元循环`）；**非 plugin 文件发现问题则记录 PF/VL，继续下一轮** |
 | 收敛前门禁 | **CRS ✅**（见下方说明）|
 | 收敛条件 | **连续 3 轮零发现**（所有子类型统一，不区分定向/全面），同时所有 🔴 已解决 + 🟡 已处理或标注 N/A |
 

@@ -28,9 +28,17 @@ description: 项目 Profile 加载规范 — 意图识别后独立确定目标�
 
 ## Profile 路径约定
 
+默认兼容路径：
+
 ```
 <项目根>/.devcodex/profile/
 ```
+
+当 `<工作区根>/.devcodex/layout.json` 启用 `workspace-namespace` 时：
+
+- `config.json`：`<工作区根>/.devcodex/workspace/profile/config.json` 作为 base，`<工作区根>/.devcodex/<project>/profile/config.json` 作为 overlay
+- `README.md`、`01-项目信息.md`、`02-架构约束.md`、`03-代码风格.md`：项目命名空间文件优先，缺失回退到 `workspace/profile/`
+- `<project>` 未确定时，禁止猜测项目命名空间
 
 ## 标准文件（按需加载）
 
@@ -48,9 +56,9 @@ description: 项目 Profile 加载规范 — 意图识别后独立确定目标�
 
 | 情况 | 处理 |
 |------|------|
-| profile/ 存在 | 读取 README.md + 按需读其他文件 |
-| profile/ 不存在 | 提示用户是否自动生成（扫描项目源码推断） |
-| 部分文件缺失 | 提示用户补充缺少的必须文件 |
+| profile/ 或集中布局命名空间存在 | 读取 README.md + 按需读其他文件 |
+| 二者都不存在 | 提示用户是否自动生成（扫描项目源码推断） |
+| 部分文件缺失 | 文档文件可按 `workspace fallback` 继续读取；必须文件仍提示用户补充 |
 
 ## 跨服务需求 Profile 加载
 

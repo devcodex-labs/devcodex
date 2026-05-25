@@ -6,11 +6,6 @@
 
 ---
 
-## 2026-05-25
+## 2026-05-26
 
-- **Claude MCP / 宿主适配收口**：修复 Claude Code 项目级 MCP 配置与 `.claude/settings` 权限放开逻辑，补齐 `mcpServers`、permissions allowlist、部署同步与对应校验探针，降低 Claude 宿主下的假绿与反复授权问题。
-- **TypeScript 无产物类型校验补强**：为 dev/fix 主链补入 TS 项目执行后类型校验要求，优先项目既有 `typecheck`，否则执行 `tsc --noEmit`，并明确禁止通过临时 `tsconfig` 或参数文件污染仓库来“过校验”。
-- **发布与 CHANGELOG 双阶段收口**：建立“未明确发版默认写 `unreleased`、明确发版后再归档正式版本”的统一规则，新增三层日志模型说明并同步到规范、文档同步、发布指南和报告模板。
-- **控制面规则与 API 验证模板收口**：统一前置复审显式输出、控制面交叉验证、语义批次 `unreleased/commit` 边界和 `fix.default` 路径锚点；同时把 `api-verification` 的 `.http/.cjs` 模板、Skill 示例和 `validate.js` 探针修到一致，并同步工作区 `AGENTS.md`、`.github`、`.claude` 部署副本。
-- **工作区优先配置与 profile 读取链升级**：新增工作区级 VS Code 启动配置（`chat/payment/user/search/resource/push`），并把 runtime 与 MCP profile 读取升级为“项目根优先、工作区兜底、不隐式合并”，同时补齐需求级实施报告、会话产物与记忆索引，便于按语义批次追踪与本地回滚。
-- **Bootstrap 门禁兼容 shell_command 只读链路**：修复 `hooks/_runtime/lifecycle.cjs` 在 dev bootstrap 阶段误拦 `shell_command` 的问题；新增只读 shell 判定（允许 `Get-Content/ls/rg` 等读取命令，拒绝 `Set-Content`/重定向/复制移动删除等写操作），并补齐 `scripts/test-hooks-runtime.js` 回归用例，避免再次出现“读取命令被误拦”。
+_当前无未发布变更。下一批开发/修复默认继续在此处追加。_

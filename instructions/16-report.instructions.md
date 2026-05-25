@@ -5,6 +5,11 @@ applyTo: "**"
 
 > 本文件定义报告的完整规则，含命名、路径、格式约束。
 
+> ⚠️ 当 `<工作区根>/.devcodex/layout.json` 启用 `workspace-namespace` 时，本文中的 `<任务目录>`、`reports/<子目录>/...` 与相关示例都以当前 **`<active-root>`** 为根：
+> - 单项目任务：`<工作区根>/.devcodex/<project>/`
+> - 全工作区任务：`<工作区根>/.devcodex/workspace/`
+> - 未启用 `layout.json`：继续兼容 `<项目根>/.devcodex/`
+
 ## 适用范围
 
 - **必须写入报告**：dev / fix / analyze / audit / self-fix

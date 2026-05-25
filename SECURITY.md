@@ -4,7 +4,7 @@
 
 | Version | Supported |
 |---------|:----------:|
-| 1.9.x（当前） | ✅ |
+| 1.10.x（当前） | ✅ |
 | 1.6.x | ⚠️ 仅安全补丁 |
 | < 1.6.0 | ❌ |
 
@@ -21,4 +21,3 @@
 - 我们遵循 90 天披露政策
 - 修复后会在 [Releases](https://github.com/vextjs/devcodex/releases) 发布安全公告
 - CVE 编号申请视严重程度决定
-

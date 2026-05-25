@@ -12,6 +12,7 @@
 
 const fs = require('fs')
 const path = require('path')
+const { runCli: runMigrateLayout } = require('./scripts/migrate-layout.js')
 
 // ─── Tiny ANSI helpers ────────────────────────────────────────────────────────
 const c = {
@@ -103,7 +104,7 @@ function cmdInit(argv) {
   }
 
   console.log()
-  console.log(c.bold('  DevCodex') + c.dim(' — GitHub Copilot Agent Plugin'))
+  console.log(c.bold('  DevCodex') + c.dim(' — AI workflow injector for Copilot / Claude Code'))
   console.log(c.dim('  ──────────────────────────────────────'))
   console.log(`  ${c.cyan('Source:')} ${c.dim(PKG_ROOT)}`)
   console.log(`  ${c.cyan('Target:')} ${c.dim(ghDir)}`)
@@ -689,7 +690,7 @@ function genConfigJson(agent, mode) {
 }
 
 function detectAgent(cwd) {
-  // v1.9.6+: agent enum aligned with CLAUDE.md/15-memory: copilot/vscode-copilot/jetbrains-copilot/claude-code/codex/cursor/unknown-agent
+  // agent enum aligned with instructions.md / 15-memory: copilot/vscode-copilot/jetbrains-copilot/claude-code/codex/cursor/unknown-agent
   if (fs.existsSync(path.join(cwd, 'CLAUDE.md')) || fs.existsSync(path.join(cwd, '.claude'))) return 'claude-code'
   const hasCopilotMd = fs.existsSync(path.join(cwd, '.github', 'copilot-instructions.md'))
   if (hasCopilotMd) {
@@ -834,6 +835,7 @@ function cmdHelp() {
     ${c.cyan('init --claude')}     Install DevCodex into .claude/ for Claude Code
     ${c.cyan('update')}            Re-install and overwrite Copilot files (init --force)
     ${c.cyan('update --claude')}   Re-install and overwrite Claude Code files
+    ${c.cyan('migrate-layout')}    Plan/apply/rollback centralized .devcodex workspace layout
     ${c.cyan('profile init')}      Auto-generate .devcodex/profile/ drafts (v1.9.2+)
     ${c.cyan('status')}            Show what DevCodex files are installed
     ${c.cyan('doctor')}            Diagnose host platform / agent / mode (v1.9.7+)
@@ -847,6 +849,7 @@ function cmdHelp() {
   ${c.bold('Examples:')}
     devcodex init                 # First-time Copilot install
     devcodex init --claude        # First-time Claude Code install
+    devcodex migrate-layout plan  # Generate centralized layout migration manifest
     devcodex profile init         # Generate Profile drafts from package.json + scan
     devcodex update               # Overwrite Copilot files
     devcodex status               # Check installation
@@ -877,10 +880,13 @@ if (require.main === module) {
         process.exit(1)
       }
       break
+    case 'migrate-layout':
+      runMigrateLayout(argv)
+      break
     case 'status': cmdStatus(); break
     case 'doctor': cmdDoctor(); break
     default: cmdHelp(); break
   }
 }
 
-module.exports = { walkDir, cmdInit, cmdInitClaude, cmdStatus, cmdHelp, cmdProfileInit, cmdDoctor, isSourceRepo, SOURCES, CLAUDE_SOURCES }
+module.exports = { walkDir, cmdInit, cmdInitClaude, cmdStatus, cmdHelp, cmdProfileInit, cmdDoctor, isSourceRepo, SOURCES, CLAUDE_SOURCES, runMigrateLayout }

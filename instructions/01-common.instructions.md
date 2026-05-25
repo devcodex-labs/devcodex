@@ -50,7 +50,7 @@ applyTo: "**"
 | C09 | 文件编码安全 | 禁止终端命令批量修改中文 .md 文件（`Set-Content`/`sed -i` 会破坏 UTF-8 编码），必须使用编辑器工具逐文件修改 | — |
 | C10 | 禁止执行危险命令 | 同 S06，完整规则见 [`00-safety.instructions.md`](./00-safety.instructions.md) | 🔒 S06 |
 | C11 | 关联文件同步 | 修改/新建/重命名文件后检查所有引用处并同步（SC4 🔴 阻塞性检查） | — |
-| C12 | 合理性评估 | **意图识别后、CP1 前**必须评估请求合理性：有更好建议先提出并等待确认再执行。**扩展覆盖**：用户给出判断或引用已有设计时，AI 须独立验证其合理性，不得直接顺从论证 | — |
+| C12 | 合理性评估 | **意图识别后、CP1 前**必须评估请求合理性：有更好建议先提出并等待确认再执行。**扩展覆盖**：用户给出判断、目录结构或引用已有设计时，AI 须独立验证其合理性，不得直接顺从论证；若经核验用户方案已是当前最优，可明确说明依据后直接采纳，禁止为了表现“独立”而机械唱反调 | — |
 | C18 | dev 模式预检查不可跳过 | 同 S07，完整规则见 [`00-safety.instructions.md`](./00-safety.instructions.md) | 🔒 S07 |
 
 ## 🟡 执行约束（必须执行）
@@ -264,12 +264,19 @@ applyTo: "**"
 
 > 🔴 **跨会话重新加载约束**：当上下文来自会话摘要时，**必须重新读取 Profile 文件**（不得以摘要内容代替）。摘要 ≠ Profile 已加载。
 
-### `.devcodex` 读取优先级
+### `.devcodex` 读取与写入模型
 
-- 当请求已明确锁定目标项目时，`.devcodex/profile/`、`.devcodex/.memory/`、`.devcodex/requirements/`、`.devcodex/bugs/` 默认以**项目根**为主读取。
-- 仅当项目根缺失对应文件或目录时，才允许回退到**工作区根**下的同名 `.devcodex` 路径。
-- 项目级与工作区级 `.devcodex` **不得做隐式内容合并**；必须能明确说明当前使用的是哪个根。
-- 工作区级分析或用户明确要求 `workspace` / `monorepo` / `全工作区` 时，才允许直接以工作区根作为主读取源。
+> ⚠️ **layout.json 是集中存储开关**：当 `<工作区根>/.devcodex/layout.json` 存在且声明 `workspace-namespace` 模式时，进入工作区集中存储模型；不存在时，保持旧的 `<项目根>/.devcodex/` 兼容路径。
+
+- **Profile / config 读取**：
+  - `config.json` 采用 `workspace base + project overlay`
+  - `README.md`、`01-项目信息.md`、`02-架构约束.md`、`03-代码风格.md` 采用 `project file first + workspace fallback`
+- **运行态目录写入**：采用 `single active scope write`
+  - 单项目任务：写入 `<工作区根>/.devcodex/<project>/...`
+  - 全工作区任务：写入 `<工作区根>/.devcodex/workspace/...`
+- **旧布局兼容**：未启用 `layout.json` 时，继续使用 `<项目根>/.devcodex/...`
+- **禁止双真相源**：同一轮执行只能存在一个活动写入域；不得同时向项目旧路径与工作区新命名空间双写。
+- **必须说明命中域**：涉及 `.devcodex` 读取或写入时，必须能明确说明当前使用的是 `workspace` 还是 `<project>` 命名空间。
 
 ### 确定目标项目
 

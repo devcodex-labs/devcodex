@@ -185,6 +185,7 @@ CP 门控**不受 ENV_MODE 影响**，dev/prod 均为 🔴 强制等待用户确
 3. 推荐项 description **必须**以"推荐理由："开头
 4. 其他选项 description **建议**列出"代价/适用场景"对比信息
 5. 不得出现 0 推荐项或 ≥2 推荐项
+6. 推荐项可以与用户原始方案相同，但前提是已完成独立比较并能写出“推荐理由：”中的客观依据
 
 ### 报告/Markdown 决策点模板
 
@@ -198,5 +199,5 @@ CP 门控**不受 ENV_MODE 影响**，dev/prod 均为 🔴 强制等待用户确
 | C | 方案 C 描述 / 代价：... | |
 ```
 
-> 关联：[PI-005](../../.devcodex/.maintainer-state/process-improvements.md) · [FC7](../../instructions/17-compliance.instructions.md)
+> 关联：[PI-005](../../data/process-improvements.md#pi-005) · [FC7](../../instructions/17-compliance.instructions.md)
 

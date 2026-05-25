@@ -1,7 +1,7 @@
 # 变更日志 (CHANGELOG)
 
 > **说明**: 版本概览摘要。最新版本的详细变更见下方表格首行的 `changelogs/vX.Y.Z.md` 链接；历史版本见对应详细变更文件
-> **最后更新**: 2026-05-25
+> **最后更新**: 2026-05-26
 
 ---
 
@@ -9,6 +9,7 @@
 
 | 版本 | 日期 | 变更摘要 | 详细 |
 |------|------|---------|------|
+| [v1.10.0](./changelogs/v1.10.0.md) | 2026-05-26 | 🎯 **工作区集中存储 + 真实迁移闭环**：新增 `migrate-layout` CLI 与迁移 smoke test，落地 `.devcodex` `workspace-namespace` 存储模型并完成真实 `E:\Worker` 工作区迁移；统一 MCP/Hook/validate/profile 对新布局的解析，收口 `pending-issues` 模板链、多客户端真相源、agent 枚举与治理探针，并同步 `.github/.claude` 部署副本 | [查看](./changelogs/v1.10.0.md) |
 | [v1.9.13](./changelogs/v1.9.13.md) | 2026-05-25 | 🔧 **目标文档前置 + 最终回复闭环提醒补强**：为 `dev` / `docs` 主链补入契约驱动型“目标文档前置”与执行后“轻量复审收敛”正式阶段表达，澄清 `dev-docs` 与 `api-verification` 的轻量文档 / 归档验证边界；同时在 `hooks/_runtime/lifecycle.cjs` 为 dev 模式最终回复补入合规状态块与 FC5 产物路径的 `Stop` 兜底提醒，并通过 `test-hooks-runtime.js` 覆盖 artifact section 边界误判样本 | [查看](./changelogs/v1.9.13.md) |
 | [v1.9.12](./changelogs/v1.9.12.md) | 2026-05-25 | 🔧 **MCP 发布链补强 + 控制面一致性闭环**：补齐 `mcp/` 发布资产与 MCP smoke test，统一 `bugs/` / `requirements/` 任务链口径，收紧跨任务 CP gate 边界，新增确认后前置轻量复审（C19），统一 `data/*` 运行时台账语义、`sessions.md` 模板和任务级报告优先路径；`instruction-fallback-check.js` 对齐 `.archived` 跳过与排序策略，并新增 `V7b` fallback smoke test | [查看](./changelogs/v1.9.12.md) |
 | [v1.9.11](./changelogs/v1.9.11.md) | 2026-05-22 | 🔧 **Auto v1.1 runtime 收口 + 控制面校验补强**：在 auto 白名单门禁落地后，继续收紧 bootstrap 到当前 agent + 今日/昨日 tasks，补齐缺少 `agent` 的 fallback 推断与回归测试；对齐 `profile init` 与 `validate-profile.js` 模板/真相源校验；`validate.js` V10 改为结构化探针并新增 V15 audit-state 状态机校验，同时同步父级 `.github/.claude` runtime 副本 | [查看](./changelogs/v1.9.11.md) |
@@ -84,8 +85,8 @@
 
 ## 相关文档
 
-- [`changelogs/v1.9.13.md`](./changelogs/v1.9.13.md) — 最新版本详细变更文档
-- [`changelogs/v1.9.12.md`](./changelogs/v1.9.12.md) — 上一个版本详细变更文档
+- [`changelogs/v1.10.0.md`](./changelogs/v1.10.0.md) — 最新版本详细变更文档
+- [`changelogs/v1.9.13.md`](./changelogs/v1.9.13.md) — 上一个版本详细变更文档
 - [`changelogs/v1.9.11.md`](./changelogs/v1.9.11.md) — 历史版本详细变更文档
 - [`changelogs/v1.9.10.md`](./changelogs/v1.9.10.md) — 历史版本详细变更文档
 - [`changelogs/v1.9.9.md`](./changelogs/v1.9.9.md) — 历史版本详细变更文档

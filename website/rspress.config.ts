@@ -22,7 +22,7 @@ export default defineConfig({
     base: '/devcodex/',
     title: 'DevCodex',
     icon: '/favicon.svg',
-    description: 'GitHub Copilot Agent Plugin — AI 辅助开发规范体系',
+    description: 'Copilot / Claude Code 双主支持的 AI 辅助开发规范体系',
     outDir: 'dist',
     plugins: [pluginMermaid()],
     themeConfig: {
@@ -371,4 +371,3 @@ export default defineConfig({
         },
     },
 });
-

@@ -14,11 +14,7 @@
 const fs = require('fs')
 const path = require('path')
 
-const WORKSPACE_ROOT = process.cwd()
-const STATE_DIR = path.join(WORKSPACE_ROOT, '.devcodex', '.memory', 'hooks')
-const STATE_FILE = path.join(STATE_DIR, 'lifecycle-state.json')
-const FINAL_PAYLOAD_FLAG = path.join(STATE_DIR, 'capture-final-payload.flag')
-const FINAL_PAYLOAD_LOG = path.join(STATE_DIR, 'captured-final-payloads.ndjson')
+const CONTEXT_ROOT = process.cwd()
 const PAYLOAD_PREVIEW_LIMIT = 160
 
 // ─── CP Gate constants ────────────────────────────────────────────────────────
@@ -75,32 +71,156 @@ function readJsonFile(p) {
   try { return JSON.parse(raw) } catch { return null }
 }
 
+function isPlainObject(value) {
+  return !!value && typeof value === 'object' && !Array.isArray(value)
+}
+
+function mergeConfig(baseConfig, overlayConfig) {
+  const merged = {}
+  for (const source of [baseConfig, overlayConfig]) {
+    if (!isPlainObject(source)) continue
+    for (const [key, value] of Object.entries(source)) {
+      if (Array.isArray(value)) {
+        merged[key] = value.slice()
+      } else if (isPlainObject(value) && isPlainObject(merged[key])) {
+        merged[key] = { ...merged[key], ...value }
+      } else if (isPlainObject(value)) {
+        merged[key] = { ...value }
+      } else {
+        merged[key] = value
+      }
+    }
+  }
+  return merged
+}
+
+function findLayoutInfo(startDir) {
+  let current = path.resolve(startDir)
+  while (true) {
+    const markerPath = path.join(current, '.devcodex', 'layout.json')
+    const marker = readJsonFile(markerPath)
+    if (marker && String(marker.mode || '').trim() === 'workspace-namespace') {
+      return {
+        enabled: true,
+        mode: 'workspace-namespace',
+        workspaceRoot: current,
+        markerPath
+      }
+    }
+    const parent = path.dirname(current)
+    if (parent === current) break
+    current = parent
+  }
+  return {
+    enabled: false,
+    mode: 'legacy-project-root',
+    workspaceRoot: path.resolve(startDir),
+    markerPath: null
+  }
+}
+
+const LAYOUT = findLayoutInfo(CONTEXT_ROOT)
+const WORKSPACE_ROOT = LAYOUT.workspaceRoot
+
+function inferContextProject() {
+  if (!LAYOUT.enabled) return ''
+  const relative = path.relative(WORKSPACE_ROOT, CONTEXT_ROOT)
+  if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) return ''
+  const parts = relative.split(path.sep).filter(Boolean)
+  if (!parts.length) return ''
+  const first = parts[0]
+  if (first === '.devcodex' || first === 'workspace') return ''
+  return first
+}
+
+const CONTEXT_PROJECT = inferContextProject()
+const DEFAULT_SCOPE = LAYOUT.enabled ? (CONTEXT_PROJECT ? 'project' : 'workspace') : 'project'
+const STATE_SCOPE_KEY = LAYOUT.enabled ? (CONTEXT_PROJECT || 'workspace') : 'legacy'
+const STATE_DIR = path.join(WORKSPACE_ROOT, '.devcodex', '.memory', 'hooks', STATE_SCOPE_KEY)
+const STATE_FILE = path.join(STATE_DIR, 'lifecycle-state.json')
+const FINAL_PAYLOAD_FLAG = path.join(STATE_DIR, 'capture-final-payload.flag')
+const FINAL_PAYLOAD_LOG = path.join(STATE_DIR, 'captured-final-payloads.ndjson')
+
+function resolveProjectName(projectName) {
+  return String(projectName || '').trim() || CONTEXT_PROJECT || ''
+}
+
+function resolveRelativeToContext(p) {
+  if (!p) return ''
+  try { return path.isAbsolute(p) ? path.normalize(p) : path.resolve(CONTEXT_ROOT, p) } catch { return p }
+}
+
+function buildPathNeedles(absolutePath) {
+  const needles = [absolutePath]
+  try {
+    const workspaceRelative = path.relative(WORKSPACE_ROOT, absolutePath)
+    if (workspaceRelative && workspaceRelative !== '.') needles.push(workspaceRelative)
+  } catch { }
+  try {
+    const contextRelative = path.relative(CONTEXT_ROOT, absolutePath)
+    if (contextRelative && contextRelative !== '.') needles.push(contextRelative)
+  } catch { }
+  return [...new Set(needles)]
+}
+
+function getWorkspaceNamespaceRoot() {
+  return path.join(WORKSPACE_ROOT, '.devcodex', 'workspace')
+}
+
+function getProjectNamespaceRoot(projectName) {
+  return path.join(WORKSPACE_ROOT, '.devcodex', resolveProjectName(projectName))
+}
+
+function getActiveScope(state) {
+  return state?.activeScope || DEFAULT_SCOPE
+}
+
 function getWorkspaceProfileConfigPath() {
+  if (LAYOUT.enabled) {
+    return path.join(getWorkspaceNamespaceRoot(), 'profile', 'config.json')
+  }
   return path.join(WORKSPACE_ROOT, '.devcodex', 'profile', 'config.json')
 }
 
 function getProjectRoot(projectName) {
-  return projectName ? path.join(WORKSPACE_ROOT, projectName) : WORKSPACE_ROOT
+  const name = resolveProjectName(projectName)
+  if (name) return path.join(WORKSPACE_ROOT, name)
+  return CONTEXT_ROOT
 }
 
 function getActiveProjectRoot(state) {
-  return getProjectRoot(state?.activeProject || '')
+  return getProjectRoot(state?.activeProject || CONTEXT_PROJECT || '')
 }
 
-function getProfileSearchRoots(state, explicitProject) {
-  const roots = []
-  const projectRoot = getProjectRoot(explicitProject || state?.activeProject || '')
-  roots.push(projectRoot)
-  if (projectRoot !== WORKSPACE_ROOT) roots.push(WORKSPACE_ROOT)
-  return [...new Set(roots)]
+function getActiveNamespaceRoot(state, explicitProject, explicitScope) {
+  if (!LAYOUT.enabled) {
+    return path.join(getProjectRoot(explicitProject || state?.activeProject || ''), '.devcodex')
+  }
+  const scope = explicitScope || getActiveScope(state)
+  const projectName = resolveProjectName(explicitProject || state?.activeProject || '')
+  if (scope === 'workspace' || !projectName) return getWorkspaceNamespaceRoot()
+  return getProjectNamespaceRoot(projectName)
 }
 
 function readResolvedProfileConfig(state, explicitProject) {
-  for (const root of getProfileSearchRoots(state, explicitProject)) {
-    const cfg = readJsonFile(path.join(root, '.devcodex', 'profile', 'config.json'))
-    if (cfg) return cfg
+  if (!LAYOUT.enabled) {
+    const roots = []
+    const projectRoot = getProjectRoot(explicitProject || state?.activeProject || '')
+    roots.push(projectRoot)
+    if (projectRoot !== WORKSPACE_ROOT) roots.push(WORKSPACE_ROOT)
+    for (const root of roots) {
+      const cfg = readJsonFile(path.join(root, '.devcodex', 'profile', 'config.json'))
+      if (cfg) return cfg
+    }
+    return null
   }
-  return null
+  const workspaceCfg = readJsonFile(path.join(getWorkspaceNamespaceRoot(), 'profile', 'config.json'))
+  const projectName = resolveProjectName(explicitProject || state?.activeProject || '')
+  const projectCfg = projectName
+    ? readJsonFile(path.join(getProjectNamespaceRoot(projectName), 'profile', 'config.json'))
+    : null
+  if (!workspaceCfg && !projectCfg) return null
+  return mergeConfig(workspaceCfg, projectCfg)
 }
 
 function readProfileMode(state, explicitProject) {
@@ -113,7 +233,7 @@ function readProjectProfileConfig(state, explicitProject) {
 }
 
 function listMemoryAgents(state) {
-  const clientsDir = path.join(getActiveProjectRoot(state), '.devcodex', '.memory', 'clients')
+  const clientsDir = path.join(getActiveNamespaceRoot(state), '.memory', 'clients')
   if (!fs.existsSync(clientsDir)) return []
   try {
     return fs.readdirSync(clientsDir, { withFileTypes: true })
@@ -236,7 +356,8 @@ function listWorkspaceProjects() {
     if (!stat.isDirectory()) continue
     const hasPkg = fs.existsSync(path.join(dir, 'package.json'))
     const hasProfile = fs.existsSync(path.join(dir, '.devcodex', 'profile'))
-    if (hasPkg || hasProfile) {
+    const hasNamespaceProfile = LAYOUT.enabled && fs.existsSync(path.join(WORKSPACE_ROOT, '.devcodex', name, 'profile'))
+    if (hasPkg || hasProfile || hasNamespaceProfile) {
       projects.push(name)
     }
   }
@@ -342,31 +463,32 @@ function touchesPath(payload, ...needles) {
   return strings.some(s => needles.some(n => s.includes(normalizeText(n))))
 }
 
-function buildProjectScopedNeedles(projectRoot, segments) {
-  const absolute = path.join(projectRoot, ...segments)
-  const relativeRoot = path.relative(WORKSPACE_ROOT, projectRoot)
-  const relative = relativeRoot ? path.join(relativeRoot, ...segments) : path.join(...segments)
-  return [absolute, relative]
+function buildScopedNeedles(scopeRoot, segments) {
+  return buildPathNeedles(path.join(scopeRoot, ...segments))
 }
 
 function getBootstrapScopes(state, payload) {
-  const projectRoot = getActiveProjectRoot(state)
+  const namespaceRoot = getActiveNamespaceRoot(state)
   const bootstrapAgent = getBootstrapAgent(state, payload)
-  const memorySegments = ['.devcodex', '.memory', 'clients']
+  const memorySegments = ['.memory', 'clients']
   const memoryNeedles = bootstrapAgent
-    ? buildProjectScopedNeedles(projectRoot, [...memorySegments, bootstrapAgent])
-    : buildProjectScopedNeedles(projectRoot, memorySegments)
+    ? buildScopedNeedles(namespaceRoot, [...memorySegments, bootstrapAgent])
+    : buildScopedNeedles(namespaceRoot, memorySegments)
   const summaryNeedles = bootstrapAgent
-    ? buildProjectScopedNeedles(projectRoot, [...memorySegments, bootstrapAgent, 'SUMMARY.md'])
+    ? buildScopedNeedles(namespaceRoot, [...memorySegments, bootstrapAgent, 'SUMMARY.md'])
     : []
   const taskNeedles = bootstrapAgent
-    ? getRecentBootstrapTaskStamps().flatMap(stamp => buildProjectScopedNeedles(
-      projectRoot,
+    ? getRecentBootstrapTaskStamps().flatMap(stamp => buildScopedNeedles(
+      namespaceRoot,
       [...memorySegments, bootstrapAgent, 'tasks', `${stamp}.md`]
     ))
     : []
+  const profileNeedles = buildScopedNeedles(namespaceRoot, ['profile'])
+  if (LAYOUT.enabled && getActiveScope(state) !== 'workspace') {
+    profileNeedles.push(...buildScopedNeedles(getWorkspaceNamespaceRoot(), ['profile']))
+  }
   return {
-    profileNeedles: buildProjectScopedNeedles(projectRoot, ['.devcodex', 'profile']),
+    profileNeedles: [...new Set(profileNeedles)],
     memoryNeedles,
     summaryNeedles,
     taskNeedles
@@ -383,7 +505,8 @@ function buildDefaultState(mode) {
     phase: m === 'dev' ? 'bootstrapping' : 'active',
     startedAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
     promptCount: 0, toolUseCount: 0,
-    activeProject: '',
+    activeProject: CONTEXT_PROJECT || '',
+    activeScope: DEFAULT_SCOPE,
     bootstrap: { profileRead: false, summaryRead: false, tasksRead: false },
     bootstrapComplete: m !== 'dev',
     visible: { payloadObserved: false, precheck: false, compliance: false, artifactPaths: false },
@@ -413,7 +536,8 @@ function saveState(state) {
 function resetState(mode, previousState) {
   const state = buildDefaultState(mode)
   state.promptCount = 1
-  state.activeProject = previousState?.activeProject || ''
+  state.activeProject = previousState?.activeProject || CONTEXT_PROJECT || ''
+  state.activeScope = previousState?.activeScope || DEFAULT_SCOPE
   saveState(state)
   return state
 }
@@ -491,8 +615,8 @@ function isReadOnlyBootstrapShellCommand(payload) {
 function buildBootstrapMessage() {
   return [
     'DevCodex hook-enforced bootstrap is active for this user message.',
-    'In dev mode, load the project profile under .devcodex/profile/ and memory files under',
-    '.devcodex/.memory/clients/ before any substantive work.',
+    'In dev mode, load the effective profile (legacy .devcodex/profile/ or workspace-namespace profile roots) and memory files under',
+    'the active .devcodex namespace before any substantive work.',
     'Your first user-visible block must be the DEV precheck PC0-PC7 before substantive task content.',
     '*** S07 compaction trigger (v1.9.6+): if this turn resumes from /compact, /resume, or summary-restore,',
     'this also counts as "first user-visible reply" — you MUST re-output PC0-PC7 even when instructed to "continue without acknowledging".'
@@ -591,10 +715,10 @@ function listTaskDirs(state) {
 }
 
 function getTaskRoots(state) {
-  const projectRoot = getActiveProjectRoot(state)
+  const namespaceRoot = getActiveNamespaceRoot(state)
   return [
-    { kind: 'requirements', dir: path.join(projectRoot, '.devcodex', 'requirements') },
-    { kind: 'bugs', dir: path.join(projectRoot, '.devcodex', 'bugs') }
+    { kind: 'requirements', dir: path.join(namespaceRoot, 'requirements') },
+    { kind: 'bugs', dir: path.join(namespaceRoot, 'bugs') }
   ]
 }
 
@@ -654,8 +778,7 @@ function extractToolPaths(payload) {
 // returns null when the path is not under any supported task directory.
 function getTaskScopeFromPath(p, state) {
   if (!p) return null
-  let abs = p
-  if (!path.isAbsolute(abs)) abs = path.resolve(WORKSPACE_ROOT, abs)
+  let abs = resolveRelativeToContext(p)
   const norm = path.normalize(abs)
   for (const root of getTaskRoots(state)) {
     const rootDir = path.normalize(root.dir)
@@ -674,8 +797,7 @@ function getTaskScopeFromPath(p, state) {
 
 function toWorkspaceRelativePath(p) {
   if (!p) return ''
-  let abs = p
-  try { abs = path.isAbsolute(abs) ? abs : path.resolve(WORKSPACE_ROOT, abs) } catch { }
+  let abs = resolveRelativeToContext(p)
   let rel = abs
   try { rel = path.isAbsolute(abs) ? path.relative(WORKSPACE_ROOT, abs) : abs } catch { }
   return String(rel || '').replace(/\\/g, '/').replace(/^\.\//, '').trim()
@@ -943,8 +1065,8 @@ async function main() {
   const platform = detectPlatform(payload)
   const prompt = eventName === 'UserPromptSubmit' ? extractUserPrompt(payload) : ''
   const explicitProject = eventName === 'UserPromptSubmit' ? detectProjectFromPrompt(prompt) : ''
-  const modeHint = eventName === 'UserPromptSubmit' && explicitProject
-    ? readProfileMode(null, explicitProject)
+  const modeHint = eventName === 'UserPromptSubmit'
+    ? readProfileMode(null, explicitProject || CONTEXT_PROJECT || '')
     : undefined
   let state = loadState(modeHint)
   const mode = state.mode
@@ -958,8 +1080,16 @@ async function main() {
     state.executionMode = detectExecutionMode(payload)
     if (hasMultiProjectExemption(prompt)) {
       state.activeProject = ''
+      state.activeScope = LAYOUT.enabled ? 'workspace' : 'project'
     } else if (explicitProject) {
       state.activeProject = explicitProject
+      state.activeScope = 'project'
+    } else if (CONTEXT_PROJECT) {
+      state.activeProject = CONTEXT_PROJECT
+      state.activeScope = 'project'
+    } else if (LAYOUT.enabled) {
+      state.activeProject = ''
+      state.activeScope = 'workspace'
     }
     // Multi-project workspace guard (v1.9.8+):
     // when no workspace-root profile exists and ≥2 sibling projects detected,

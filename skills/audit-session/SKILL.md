@@ -13,8 +13,13 @@ description: 审计工作流的跨会话状态机 — 在 .devcodex/.audit-state
 ## 状态文件路径
 
 ```
-<项目根>/.devcodex/.audit-state/<session-id>.json
+<audit-root>/.audit-state/<session-id>.json
 ```
+
+`<audit-root>` 取值：
+- 旧布局：`<项目根>/.devcodex`
+- 集中布局单项目：`<工作区根>/.devcodex/<project>`
+- 集中布局全工作区：`<工作区根>/.devcodex/workspace`
 
 - `<session-id>` 取首次启动审计的时间戳：`YYYYMMDD-HHmmss`
 - `.devcodex/.audit-state/` 目录由本 Skill 首次写入时创建（不随 `init` 分发）
@@ -96,8 +101,8 @@ converged ──> closed
     "reason": "round-end | token-protect | user-interrupt | switching-to-release-vX.Y.Z | release-pending-vX.Y.Z"
   },
   "linkedMemory": "tasks/20260520.md",
-  "linkedReport": ".devcodex/<task-kind>/<task>/reports/<agent>/20260520/01--<name>.md",
-  "linkedRelease": ".devcodex/requirements/<task>/reports/<agent>/YYYYMMDD/01--vX.Y.Z-release.md"
+  "linkedReport": "<active-root>/<task-kind>/<task>/reports/<agent>/20260520/01--<name>.md",
+  "linkedRelease": "<active-root>/requirements/<task>/reports/<agent>/YYYYMMDD/01--vX.Y.Z-release.md"
 }
 ```
 

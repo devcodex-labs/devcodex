@@ -7,8 +7,10 @@ description: 接口验证规范 — 双产物（.http + .cjs）生成 + 自动�
 ## 职责
 
 在 dev/fix 工作流涉及接口变更时，生成**归档级双产物**并执行验证：
-- `.http` — 可读接口文档（VS Code REST Client 格式）
+- `.http` — 可执行请求示例（VS Code REST Client 格式）
 - `.cjs` — 自动化执行脚本（Node.js）
+
+> 说明：本 Skill 不负责“给前端或调用方看的轻量接口说明”。这类阅读型目标文档由 `dev-docs` 的 `light-api` / `frontend-api` 模式负责。
 
 ## 触发时机
 
@@ -21,7 +23,7 @@ description: 接口验证规范 — 双产物（.http + .cjs）生成 + 自动�
 
 ## 双产物规范
 
-### `.http` 文件（接口文档）
+### `.http` 文件（可执行请求示例）
 
 ```http
 ### POST 创建用户
@@ -72,7 +74,7 @@ async function testEndpoint(method, path, body, expected) {
 
 ## 执行规则
 
-1. 读取接口定义（代码/文档）
+1. 读取接口定义（代码/已确认目标文档）
 2. 生成 `.http` 文件（覆盖所有公开接口）
 3. 生成 `.cjs` 脚本（包含断言：状态码/必填字段）
 4. 执行 `.cjs` 脚本，确认全部通过

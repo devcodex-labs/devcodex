@@ -227,6 +227,131 @@ function main() {
   assert.strictEqual(captureEntries[1].eventName, 'Stop')
   assert.strictEqual(fs.existsSync(CAPTURE_FLAG), false)
 
+  cleanState()
+  run({
+    hookEventName: 'UserPromptSubmit',
+    prompt: 'Need a root cure for dev mode drift.'
+  })
+  runBootstrapReads()
+  run({
+    hookEventName: 'PostToolUse',
+    tool_name: 'apply_patch',
+    tool_input: {
+      input: '*** Begin Patch\n*** Add File: .devcodex/reports/analysis/claude-code/20260525/01--sample.md\n+# report\n*** End Patch'
+    }
+  })
+  run({
+    hookEventName: 'PostToolUse',
+    tool_name: 'apply_patch',
+    tool_input: {
+      input: `*** Begin Patch\n*** Update File: ${getMemoryFilePath(TEST_AGENT, 'tasks', `${getTaskStamp(0)}.md`)}\n*** End Patch`
+    }
+  })
+  run({
+    hookEventName: 'PreCompact',
+    assistantMessage: [
+      '---',
+      '🔍 预检查（DEV 模式）',
+      '- PC0 上下文：项目 devcodex-v1',
+      '---'
+    ].join('\n')
+  })
+  const missingComplianceAndPathsReminder = run({
+    hookEventName: 'Stop',
+    assistantMessage: 'Final answer without compliance block or artifact paths.'
+  })
+  assert.match(missingComplianceAndPathsReminder.systemMessage || '', /合规检查状态块未输出/)
+  assert.match(missingComplianceAndPathsReminder.systemMessage || '', /产物路径未输出/)
+
+  cleanState()
+  run({
+    hookEventName: 'UserPromptSubmit',
+    prompt: 'Need a root cure for dev mode drift.'
+  })
+  runBootstrapReads()
+  run({
+    hookEventName: 'PostToolUse',
+    tool_name: 'apply_patch',
+    tool_input: {
+      input: '*** Begin Patch\n*** Add File: .devcodex/reports/analysis/claude-code/20260525/01--sample.md\n+# report\n*** End Patch'
+    }
+  })
+  run({
+    hookEventName: 'PostToolUse',
+    tool_name: 'apply_patch',
+    tool_input: {
+      input: `*** Begin Patch\n*** Update File: ${getMemoryFilePath(TEST_AGENT, 'tasks', `${getTaskStamp(0)}.md`)}\n*** End Patch`
+    }
+  })
+  run({
+    hookEventName: 'PreCompact',
+    assistantMessage: [
+      '---',
+      '🔍 预检查（DEV 模式）',
+      '- PC0 上下文：项目 devcodex-v1',
+      '---',
+      '---',
+      '🛡️ DEV 模式 | 合规检查',
+      'FC: FC1 [✅] FC2 [✅] FC3 [✅] FC4 [✅] FC5 [✅] FC6 [✅]',
+      'SC: SC1 [✅]',
+      '整体：✅ 全通过',
+      '',
+      '参考文件：',
+      '- [01--sample.md](devcodex-v1/.devcodex/reports/analysis/claude-code/20260525/01--sample.md)',
+      '  E:\\Worker\\devcodex-v1\\.devcodex\\reports\\analysis\\claude-code\\20260525\\01--sample.md'
+    ].join('\n')
+  })
+  const artifactSectionRequiredReminder = run({
+    hookEventName: 'Stop',
+    assistantMessage: 'Final answer still missed the artifact section.'
+  })
+  assert.ok(!/合规检查状态块未输出/.test(artifactSectionRequiredReminder.systemMessage || ''))
+  assert.match(artifactSectionRequiredReminder.systemMessage || '', /产物路径未输出/)
+
+  cleanState()
+  run({
+    hookEventName: 'UserPromptSubmit',
+    prompt: 'Need a root cure for dev mode drift.'
+  })
+  runBootstrapReads()
+  run({
+    hookEventName: 'PostToolUse',
+    tool_name: 'apply_patch',
+    tool_input: {
+      input: '*** Begin Patch\n*** Add File: .devcodex/reports/analysis/claude-code/20260525/01--sample.md\n+# report\n*** End Patch'
+    }
+  })
+  run({
+    hookEventName: 'PostToolUse',
+    tool_name: 'apply_patch',
+    tool_input: {
+      input: `*** Begin Patch\n*** Update File: ${getMemoryFilePath(TEST_AGENT, 'tasks', `${getTaskStamp(0)}.md`)}\n*** End Patch`
+    }
+  })
+  run({
+    hookEventName: 'PreCompact',
+    assistantMessage: [
+      '---',
+      '🔍 预检查（DEV 模式）',
+      '- PC0 上下文：项目 devcodex-v1',
+      '---',
+      '---',
+      '🛡️ DEV 模式 | 合规检查',
+      'FC: FC1 [✅] FC2 [✅] FC3 [✅] FC4 [✅] FC5 [✅] FC6 [✅]',
+      'SC: SC1 [✅]',
+      '整体：✅ 全通过',
+      '',
+      '📂 本次会话产物：',
+      '- [01--sample.md](devcodex-v1/.devcodex/reports/analysis/claude-code/20260525/01--sample.md)',
+      '  E:\\Worker\\devcodex-v1\\.devcodex\\reports\\analysis\\claude-code\\20260525\\01--sample.md'
+    ].join('\n')
+  })
+  const completeClosureReply = run({
+    hookEventName: 'Stop',
+    assistantMessage: 'Completed with compliant final reply.'
+  })
+  assert.ok(!completeClosureReply.systemMessage)
+
   // Auto v1.1: explicit @devcodex-auto should write executionMode=auto and only allow whitelisted paths.
   cleanState()
   const autoReq = path.join(TEMP_ROOT, '.devcodex', 'requirements', '自动模式需求')

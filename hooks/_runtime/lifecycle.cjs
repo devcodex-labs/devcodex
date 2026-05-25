@@ -371,7 +371,7 @@ function buildDefaultState(mode) {
     activeProject: '',
     bootstrap: { profileRead: false, summaryRead: false, tasksRead: false },
     bootstrapComplete: m !== 'dev',
-    visible: { payloadObserved: false, precheck: false, compliance: false },
+    visible: { payloadObserved: false, precheck: false, compliance: false, artifactPaths: false },
     mutated: false, reportTouched: false, memoryTouched: false,
     lastEvent: '', lastReason: ''
   }
@@ -814,6 +814,22 @@ function hasVisibleReplyPayload(payload) {
   return candidates.some(v => typeof v === 'string' && v.trim())
 }
 
+function hasArtifactPathOutput(text) {
+  const lines = String(text || '').split(/\r?\n/)
+  let inArtifactSection = false
+  for (let index = 0; index < lines.length - 1; index++) {
+    const line = lines[index]
+    if (/^\s*📂\s*本次会话产物[:：]?\s*$/.test(line)) {
+      inArtifactSection = true
+      continue
+    }
+    if (!inArtifactSection) continue
+    if (!/^\s*-\s*\[[^\]]+\]\([^\)]+\)\s*$/.test(line)) continue
+    if (/^\s*[A-Za-z]:\\.+/.test(lines[index + 1])) return true
+  }
+  return false
+}
+
 function updateVisibleReplyState(state, payload, eventName) {
   if (eventName !== 'PreCompact' && eventName !== 'Stop') return
   if (!hasVisibleReplyPayload(payload)) return
@@ -821,6 +837,7 @@ function updateVisibleReplyState(state, payload, eventName) {
   const text = collectStrings(payload).join('\n')
   if (/预检查（DEV 模式）|PC0 上下文/.test(text)) state.visible.precheck = true
   if (/🛡️ DEV 模式 \| 合规检查|FC:\s*FC1/.test(text)) state.visible.compliance = true
+  if (hasArtifactPathOutput(text)) state.visible.artifactPaths = true
 }
 
 function captureFinalPayloadSample(payload, eventName, state) {
@@ -843,6 +860,12 @@ function buildClosureReminder(state, eventName) {
   const items = []
   if (eventName === 'Stop' && state.mode === 'dev' && state.visible && !state.visible.precheck) {
     items.push('precheck block 未输出（S07/C18：dev 模式首条用户可见回复必须含 PC0~PC7 预检查块）')
+  }
+  if (eventName === 'Stop' && state.mode === 'dev' && state.reportTouched && state.visible && !state.visible.compliance) {
+    items.push('合规检查状态块未输出（17-compliance：dev 模式非 chat 回复末尾必须含 🛡️ DEV 模式 | 合规检查 状态块）')
+  }
+  if (eventName === 'Stop' && state.mode === 'dev' && state.reportTouched && state.visible && !state.visible.artifactPaths) {
+    items.push('产物路径未输出（FC5/T9：回复末尾必须按双行格式输出产物路径）')
   }
   if (state.mutated && !state.memoryTouched) items.push('记忆文件尚未写入（S05：会话结束前必须写入）')
   if (state.mutated && !state.reportTouched) items.push('报告文件尚未写入（chat 工作流豁免）')

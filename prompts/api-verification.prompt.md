@@ -1,6 +1,6 @@
 ---
 agent: agent
-description: API 验证文档模板，用于生成 .http 接口文档和 .cjs 自动化脚本说明
+description: API 验证模板，用于生成 .http 可执行请求示例和 .cjs 自动化脚本说明
 applyTo: .devcodex/**
 ---
 # API 验证模板
@@ -8,13 +8,14 @@ applyTo: .devcodex/**
 > **触发**: `api-verification/SKILL.md` 执行时生成
 > **产物路径**: 任务目录根 `*-接口验证.http` + `*-接口验证.cjs`（遵循 `02-output-paths.instructions.md`）
 > **执行前提**: 脚本只连接外部已运行实例，不在脚本内自启服务
+> **边界**: 本模板用于归档级接口验证，不用于生成轻量 API 文档或前端接口文档
 
 ---
 
-## .http 文件模板（VS Code REST Client）
+## .http 文件模板（VS Code REST Client 可执行请求示例）
 
 ```http
-# <模块名> API 验证文档
+# <模块名> API 验证请求示例
 # 生成时间：YYYY-MM-DD
 # 模块：<module>
 
@@ -100,4 +101,4 @@ API_BASE_URL=http://localhost:3000 node .devcodex/requirements/<需求名>/<modu
 # ✅ All tests passed
 ```
 
-> 项目自身的单元/集成/API 测试仍可放在 `tests/`；本模板只定义 DevCodex 归档级接口验证双产物。
+> 项目自身的单元/集成/API 测试仍可放在 `tests/`；本模板只定义 DevCodex 归档级接口验证双产物。面向前端或调用方的阅读型说明请走 `dev-docs` 的轻量文档模式。

@@ -1,6 +1,6 @@
-# DevCodex v1.9.12 — 使用入口
+# DevCodex v1.9.13 — 使用入口
 
-> GitHub Copilot Agent Plugin · publisher: Rocky · version: 1.9.12
+> GitHub Copilot Agent Plugin · publisher: Rocky · version: 1.9.13
 
 ## 默认 Copilot 支持
 

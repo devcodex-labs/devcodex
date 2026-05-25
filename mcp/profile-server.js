@@ -34,6 +34,10 @@ const TOOLS = [
     inputSchema: {
       type: 'object',
       properties: {
+        project: {
+          type: 'string',
+          description: '可选。工作区模式下指定目标项目目录名；命中后优先读取 <project>/.devcodex/profile，缺失时再回退到工作区根。'
+        },
         files: {
           type: 'array',
           items: { type: 'string' },
@@ -47,7 +51,12 @@ const TOOLS = [
     description: '从 .devcodex/profile/config.json 读取 ENV_MODE（dev 或 prod）及 agent 字段。Profile 不存在时返回 prod（保守默认）。',
     inputSchema: {
       type: 'object',
-      properties: {}
+      properties: {
+        project: {
+          type: 'string',
+          description: '可选。工作区模式下指定目标项目目录名；命中后优先读取 <project>/.devcodex/profile，缺失时再回退到工作区根。'
+        }
+      }
     }
   }
 ]
@@ -78,8 +87,34 @@ const REQUIRED_FILES = new Set(['01-项目信息.md', '02-架构约束.md', '03-
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function profileDir() {
-  return path.join(WORKSPACE_ROOT, '.devcodex', 'profile')
+function resolveProjectRoot(projectName) {
+  if (!projectName) return WORKSPACE_ROOT
+  const candidate = path.isAbsolute(projectName)
+    ? path.resolve(projectName)
+    : path.resolve(WORKSPACE_ROOT, projectName)
+  return candidate
+}
+
+function profileRoots(projectName) {
+  const primary = resolveProjectRoot(projectName)
+  const roots = [primary]
+  if (primary !== WORKSPACE_ROOT) roots.push(WORKSPACE_ROOT)
+  return roots
+}
+
+function profileDir(projectName) {
+  return path.join(resolveProjectRoot(projectName), '.devcodex', 'profile')
+}
+
+function resolveProfileFile(name, projectName) {
+  for (const root of profileRoots(projectName)) {
+    const fullPath = path.join(root, '.devcodex', 'profile', name)
+    const content = readFileText(fullPath)
+    if (content !== null) {
+      return { fullPath, content, root }
+    }
+  }
+  return null
 }
 
 function readFileText(filePath) {
@@ -89,16 +124,17 @@ function readFileText(filePath) {
 // ─── Tool handlers ────────────────────────────────────────────────────────────
 
 function handleProfileLoad(args) {
-  const dir = profileDir()
   const names = (args.files && args.files.length > 0) ? args.files : STANDARD_FILES
   const parts = []
   const missing = []
 
   for (const name of names) {
-    const fullPath = path.join(dir, name)
-    const content = readFileText(fullPath)
-    if (content !== null) {
-      parts.push(`### ${name}\n\n${content}`)
+    const resolved = resolveProfileFile(name, args.project)
+    if (resolved) {
+      const sourceRoot = resolved.root === WORKSPACE_ROOT
+        ? '工作区根'
+        : `项目根（${path.basename(resolved.root)}）`
+      parts.push(`### ${name}\n\n> 来源：${sourceRoot}\n> 路径：${resolved.fullPath}\n\n${resolved.content}`)
     } else if (REQUIRED_FILES.has(name)) {
       parts.push(`### ${name}\n\n（⚠️ 必需文件不存在）`)
       missing.push(name)
@@ -120,9 +156,9 @@ function handleProfileLoad(args) {
   }
 }
 
-function handleProfileGetMode() {
-  const configPath = path.join(profileDir(), 'config.json')
-  const raw = readFileText(configPath)
+function handleProfileGetMode(args = {}) {
+  const resolved = resolveProfileFile('config.json', args.project)
+  const raw = resolved?.content || null
   let mode = 'prod'
   let agent = DEFAULT_AGENT
 
@@ -137,7 +173,12 @@ function handleProfileGetMode() {
   return {
     content: [{
       type: 'text',
-      text: JSON.stringify({ mode, agent, configExists: raw !== null }, null, 2)
+      text: JSON.stringify({
+        mode,
+        agent,
+        configExists: raw !== null,
+        sourceRoot: resolved ? resolved.root : null
+      }, null, 2)
     }]
   }
 }
@@ -195,7 +236,7 @@ function dispatch(method, params) {
       try {
         switch (name) {
           case 'profile_load': return handleProfileLoad(args)
-          case 'profile_get_mode': return handleProfileGetMode()
+          case 'profile_get_mode': return handleProfileGetMode(args)
           default:
             throw Object.assign(new Error(`Unknown tool: ${name}`), { code: -32601 })
         }

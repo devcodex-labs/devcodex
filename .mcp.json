@@ -1,12 +1,11 @@
 {
-  "$schema": "https://json.schemastore.org/mcp-servers.json",
-  "servers": {
+  "mcpServers": {
     "devcodex-memory": {
       "type": "stdio",
       "command": "node",
       "args": [
-        "${workspaceFolder}/.claude/mcp/memory-server.js",
-        "${workspaceFolder}"
+        "${CLAUDE_PROJECT_DIR:-.}/.claude/mcp/memory-server.js",
+        "${CLAUDE_PROJECT_DIR:-.}"
       ],
       "_note": "Reads/writes .devcodex/.memory/ session files and records CP confirmations."
     },
@@ -14,8 +13,8 @@
       "type": "stdio",
       "command": "node",
       "args": [
-        "${workspaceFolder}/.claude/mcp/profile-server.js",
-        "${workspaceFolder}"
+        "${CLAUDE_PROJECT_DIR:-.}/.claude/mcp/profile-server.js",
+        "${CLAUDE_PROJECT_DIR:-.}"
       ],
       "_note": "Loads .devcodex/profile/ files and returns ENV_MODE / agent config."
     }

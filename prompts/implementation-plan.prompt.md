@@ -71,6 +71,6 @@ applyTo: .devcodex/requirements/**
 - [ ] api-verification 通过（若涉及接口）
 - [ ] impact-review 完成
 - [ ] document-sync 完成
-- [ ] CHANGELOG 已更新
+- [ ] CHANGELOG / unreleased 已按发布状态更新
 - [ ] §8 验收标准逐条核查通过（含负向场景）
 - [ ] delivery-checklist 交付物完整性核查通过

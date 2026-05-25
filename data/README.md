@@ -31,6 +31,7 @@ data/
 
 - `data/violations.md`
 - `data/pending-fixes.md`
+- `data/pending-issues.md`
 - `data/process-improvements.md`
 
 而在**源仓**里：
@@ -39,3 +40,9 @@ data/
 - `.devcodex/.maintainer-state/`：维护者自己的实际记录，不参与 npm 分发
 
 换句话说，规范里写 `data/*.md` 时，表达的是“应该把记录落到运行时台账”，不是说源仓根 `data/` 目录里直接保存真实记录。
+
+## 问题池说明
+
+- `data/pending-fixes.md`：承载运行时 PF（规范缺口）记录，主要由 PC4 / spec-radar / audit 轻量登记使用
+- `data/pending-issues.md`：承载**已确认但不阻断当前任务**的治理改进项，按批次进入后续需求或 bug 修复流程
+- `data/process-improvements.md`：只记录“已确认更优的执行策略”，不替代前两者

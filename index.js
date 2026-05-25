@@ -327,20 +327,51 @@ const CLAUDE_SETTINGS_HOOKS = {
   }
 }
 
+/** Claude Code project settings permissions: pre-approve DevCodex's normal tool surface */
+const CLAUDE_SETTINGS_PERMISSIONS = {
+  $schema: 'https://json.schemastore.org/claude-code-settings.json',
+  permissions: {
+    allow: [
+      'Bash',
+      'BashOutput',
+      'Edit',
+      'Glob',
+      'Grep',
+      'KillBash',
+      'LS',
+      'MultiEdit',
+      'NotebookEdit',
+      'NotebookRead',
+      'Read',
+      'Task',
+      'TodoWrite',
+      'WebFetch',
+      'WebSearch',
+      'Write',
+      'mcp__devcodex-memory',
+      'mcp__devcodex-memory__*',
+      'mcp__devcodex-profile',
+      'mcp__devcodex-profile__*'
+    ],
+    ask: [],
+    deny: []
+  },
+  enableAllProjectMcpServers: true
+}
+
 /** Claude Code .mcp.json content written to target project root */
 const CLAUDE_MCP_JSON = {
-  $schema: 'https://json.schemastore.org/mcp-servers.json',
-  servers: {
+  mcpServers: {
     'devcodex-memory': {
       type: 'stdio',
       command: 'node',
-      args: ['${workspaceFolder}/.claude/mcp/memory-server.js', '${workspaceFolder}'],
+      args: ['${CLAUDE_PROJECT_DIR:-.}/.claude/mcp/memory-server.js', '${CLAUDE_PROJECT_DIR:-.}'],
       _note: 'Reads/writes .devcodex/.memory/ session files and records CP confirmations.'
     },
     'devcodex-profile': {
       type: 'stdio',
       command: 'node',
-      args: ['${workspaceFolder}/.claude/mcp/profile-server.js', '${workspaceFolder}'],
+      args: ['${CLAUDE_PROJECT_DIR:-.}/.claude/mcp/profile-server.js', '${CLAUDE_PROJECT_DIR:-.}'],
       _note: 'Loads .devcodex/profile/ files and returns ENV_MODE / agent config.'
     }
   }
@@ -420,6 +451,15 @@ function cmdInitClaude(argv, { internal = false } = {}) {
     if (fs.existsSync(settingsPath)) {
       try { settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8')) } catch { /* keep empty */ }
     }
+    settings.$schema = settings.$schema || CLAUDE_SETTINGS_PERMISSIONS.$schema
+    settings.permissions = Object.assign({}, settings.permissions || {}, CLAUDE_SETTINGS_PERMISSIONS.permissions)
+    settings.permissions.allow = Array.from(new Set([
+      ...(Array.isArray(settings.permissions.allow) ? settings.permissions.allow : []),
+      ...CLAUDE_SETTINGS_PERMISSIONS.permissions.allow
+    ])).sort()
+    settings.permissions.ask = []
+    settings.permissions.deny = []
+    settings.enableAllProjectMcpServers = true
     // Merge hooks (overwrite devcodex keys, preserve others)
     settings.hooks = Object.assign({}, settings.hooks || {}, CLAUDE_SETTINGS_HOOKS.hooks)
     fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n')

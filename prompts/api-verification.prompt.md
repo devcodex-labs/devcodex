@@ -18,13 +18,15 @@ applyTo: .devcodex/**
 # <模块名> API 验证请求示例
 # 生成时间：YYYY-MM-DD
 # 模块：<module>
+# 注意：`@expects` 仅作为人工检查提示，不是跨宿主通用断言语法
 
 @baseUrl = http://localhost:3000
 @contentType = application/json
+@resourceId = replace-with-created-id
 
 ### ① GET 列表
 # @description 获取<资源>列表
-# @expects 200 + data.items 数组
+# @expects 200 + `data.items` 为数组
 GET {{baseUrl}}/api/<resource>
 Content-Type: {{contentType}}
 
@@ -32,7 +34,7 @@ Content-Type: {{contentType}}
 
 ### ② POST 创建
 # @description 创建新<资源>
-# @expects 201 + data.id
+# @expects 201 + 返回体包含 `data.id`
 POST {{baseUrl}}/api/<resource>
 Content-Type: {{contentType}}
 
@@ -44,8 +46,8 @@ Content-Type: {{contentType}}
 ###
 
 ### ③ GET 单条
-# @description 获取指定<资源>
-# @expects 200 + data.id === :id
+# @description 获取指定<资源>（`resourceId` 填写上一步创建接口返回的 `data.id`）
+# @expects 200 + 返回体中的 `data.id` 与 `resourceId` 一致
 GET {{baseUrl}}/api/<resource>/{{resourceId}}
 
 ###
@@ -59,12 +61,50 @@ GET {{baseUrl}}/api/<resource>/{{resourceId}}
 // 生成时间：YYYY-MM-DD
 
 const http = require('http')
+const https = require('https')
 const assert = require('assert')
 
 const BASE_URL = process.env.API_BASE_URL || 'http://localhost:3000'
 
-async function request(method, path, body) {
-  // ... HTTP 请求实现
+async function request(method, path, body, headers = {}) {
+  const url = new URL(path, BASE_URL)
+  const client = url.protocol === 'https:' ? https : http
+  const payload = body ? JSON.stringify(body) : null
+  const requestHeaders = {
+    Accept: 'application/json',
+    ...headers
+  }
+
+  if (payload) {
+    requestHeaders['Content-Type'] = 'application/json'
+    requestHeaders['Content-Length'] = Buffer.byteLength(payload)
+  }
+
+  return new Promise((resolve, reject) => {
+    const req = client.request(
+      {
+        protocol: url.protocol,
+        hostname: url.hostname,
+        port: url.port || (url.protocol === 'https:' ? 443 : 80),
+        path: `${url.pathname}${url.search}`,
+        method,
+        headers: requestHeaders
+      },
+      res => {
+        let raw = ''
+        res.on('data', chunk => { raw += chunk })
+        res.on('end', () => {
+          let data = null
+          try { data = raw ? JSON.parse(raw) : null } catch {}
+          resolve({ status: res.statusCode, headers: res.headers, body: raw, data })
+        })
+      }
+    )
+
+    req.on('error', reject)
+    if (payload) req.write(payload)
+    req.end()
+  })
 }
 
 async function runTests() {

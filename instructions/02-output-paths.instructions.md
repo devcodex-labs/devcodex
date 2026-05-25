@@ -108,16 +108,30 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 > - 两行都必须输出。禁止询问"是否需要打开"；禁止省略产物路径输出。
 > - ⚠️ **历史版本兼容**：v1.9.3 及之前使用 `[name](file:///E:/...)` 格式，存量报告无需回填，但新增报告须按本格式生成。
 
-## CHANGELOG 维护规范
+## CHANGELOG / Release 双阶段规范
 
-| 版本类型 | `CHANGELOG.md` | `changelogs/` |
-|---------|----------------|---------------|
-| MAJOR / MINOR | 🔴 添加版本概览行 + 更新日期 | 🔴 创建 `changelogs/vX.Y.Z.md` |
-| PATCH | 不新增版本概览行 | 追加到最近 MINOR 的 `changelogs/vX.Y.0.md` |
+### 日志分层
+
+| 层级 | 文件 | 用途 | 默认写入时机 |
+|------|------|------|-------------|
+| 需求轨 | `website/docs/versions/v1/<active-version>/CHANGELOG.md` | 需求/规格变更记录 | 需求定义、需求完成、需求口径变更 |
+| 未发布实现轨 | `changelogs/unreleased.md` | 尚未正式发版的实现/修复/规范变更 | 用户未明确要求 `tag` / `release` / `publish` 时 |
+| 已发布轨 | 根 `CHANGELOG.md` + `changelogs/vX.Y.Z.md` | 正式已发布版本索引与详细说明 | 用户明确确认 release 后 |
+
+### 默认规则
+
+1. 用户**未明确要求** `tag` / `release` / `publish` 时：
+   - 默认只更新 `changelogs/unreleased.md`
+   - 不默认 bump `package.json` / `plugin.json`
+   - 不默认更新根 `CHANGELOG.md`
+   - 不默认打 `git tag`
+   - 不默认执行 `publish`
+2. 用户**明确确认发版**时，才进入正式 release 流程。
+3. 历史 `CHANGELOG.md` 与 `changelogs/vX.Y.Z.md` 不要求回填迁移；新规则仅约束后续新增变更。
 
 ## Git Tag 发布规范
 
-> 🔴 每次 release commit 后必须立即打 tag，禁止无 tag 的版本发布。
+> 🔴 每次正式 release commit 后必须立即打 tag，禁止无 tag 的版本发布。
 
 | 版本类型 | 是否打 Tag | Tag 格式 |
 |---------|:--------:|---------|
@@ -125,16 +139,18 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 | MINOR | 🔴 必须 | `vX.Y.0` |
 | PATCH | 🔴 必须 | `vX.Y.Z` |
 
-**发布步骤（每次 release 必须按序执行）**：
+**正式发布步骤（仅在用户明确确认 release 后执行）**：
 
 ```bash
-# 1. 更新 package.json / plugin.json 版本号
-# 2. 更新 CHANGELOG.md 和 changelogs/vX.Y.Z.md
-# 3. 提交变更
+# 1. 确认最终版本号（MAJOR / MINOR / PATCH）
+# 2. 将 changelogs/unreleased.md 中待发布条目归档到 changelogs/vX.Y.Z.md
+# 3. 更新根 CHANGELOG.md（仅正式发布时）
+# 4. 更新 package.json / plugin.json 版本号
+# 5. 提交变更
 git commit -m "release: vX.Y.Z — <一句话摘要>"
-# 4. 打 Tag（与版本号完全一致）
+# 6. 打 Tag（与版本号完全一致）
 git tag vX.Y.Z
-# 5. 推送（commit + tag 同步推送）
+# 7. 推送（commit + tag 同步推送）
 git push && git push origin vX.Y.Z
 ```
 

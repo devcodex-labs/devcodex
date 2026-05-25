@@ -12,7 +12,7 @@ applyTo: "**"
 | ENV_MODE | 检查策略 |
 |----------|---------|
 | `prod`（默认）| 不执行合规检查（规范已验证，Instructions 直接指导 AI 行为） |
-| `dev` | 全量执行 FC1~FC6 + SC1~SC14 + RC1~RC4 + T1~T9 |
+| `dev` | 全量执行 FC1~FC7 + SC1~SC15 + RC1~RC4 + T1~T9 |
 
 > ⛔ S01~S06 安全底线不受 ENV_MODE 影响，无论 dev/prod 均强制；S07（dev 预检查强制）仅 dev + instruction-fallback 模式触发（见 `00-safety.instructions.md` §S07）。
 > ℹ️ ENV_MODE 未注入时，默认按 `prod`（不执行合规检查）。
@@ -143,7 +143,7 @@ applyTo: "**"
 
 | # | 检查项 | 适用范围 |
 |:-:|--------|---------|
-| SC1 | 报告验证列完整（合理性+可实施性+收益三列） | 全工作流 |
+| SC1 | 报告验证列完整（合理性 + 可实施性 + 收益 + 验证状态 + 影响范围五项） | 全工作流 |
 | SC2 | 代码已诊断（无未处理 error） | dev/fix 🔴 |
 | SC3 | 修复已全局扫描（同类错误模式全局+数据联动+grep零残留） | fix 🔴 |
 | SC4 | 关联文件已同步（含 profile 中定义的 dev 模式专属同步命令，如 `devcodex update`）| dev/fix/self-fix 🔴 |
@@ -199,7 +199,7 @@ applyTo: "**"
 | T3 | ✅ 记忆完整 |
 | T4 | ✅ CP 完整（dev/fix；其他 N/A） |
 | T5 | ✅ 合规通过 |
-| T6 | ✅ 约束遵守（C01~C15） |
+| T6 | ✅ 约束遵守（C01~C19） |
 | T7 | ✅ 工作流验证（dev/fix: 适用门禁已执行，且“执行 → 复审收敛 → 完成”正式阶段已走完；其中 fix 的三步扫描与轻量复审收敛已完成；audit/analyze: PCV 已执行）|
 | T8 | ✅ SUMMARY 已更新 |
 | T9 | ✅ 产物路径已输出 |
@@ -214,7 +214,7 @@ applyTo: "**"
 ```text
 ---
 🛡️ DEV 模式 | 合规检查
-FC: FC1 [✅/❌] FC2 [✅/N/A] FC3 [✅/N/A] FC4 [✅/❌] FC5 [✅/N/A] FC6 [✅/❌]
+FC: FC1 [✅/❌] FC2 [✅/N/A] FC3 [✅/N/A] FC4 [✅/❌] FC5 [✅/N/A] FC6 [✅/❌] FC7 [✅/N/A]
 SC: SC2 [✅/❌] SC4 [✅/❌] SC6 [✅/❌] ...（仅列适用项，逐项实际验证后填写）
 整体：✅ 全通过 / ⚠️ <N> 项待修正
 

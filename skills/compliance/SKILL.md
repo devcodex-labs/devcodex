@@ -9,7 +9,7 @@ description: 执行 FC（形式合规）/ SC（实质合规）/ RC（恢复性�
 | ENV_MODE | 检查策略 |
 |----------|---------|
 | `prod`（默认）| 不执行合规检查（规范已验证，Instructions 直接指导 AI 行为） |
-| `dev` | 全量执行 FC1~FC6 + SC1~SC14 + RC1~RC4 + T1~T9 |
+| `dev` | 全量执行 FC1~FC7 + SC1~SC15 + RC1~RC4 + T1~T9 |
 
 > ⛔ **[S01~S06](../../instructions/00-safety.instructions.md) 安全底线不受 ENV_MODE 影响**，无论 dev/prod 均强制执行；**[S07](../../instructions/00-safety.instructions.md)** 仅 dev + instruction-fallback 模式触发（致命自修正）。
 >
@@ -24,7 +24,7 @@ description: 执行 FC（形式合规）/ SC（实质合规）/ RC（恢复性�
 ```
 ---
 🛡️ DEV 模式 | 合规检查
-FC: FC1 [✅/❌] FC2 [✅/N/A] FC3 [✅/N/A] FC4 [✅/❌] FC5 [✅/N/A] FC6 [✅/❌]
+FC: FC1 [✅/❌] FC2 [✅/N/A] FC3 [✅/N/A] FC4 [✅/❌] FC5 [✅/N/A] FC6 [✅/❌] FC7 [✅/N/A]
 SC: SC2 [✅/❌] SC4 [✅/❌] SC6 [✅/❌] ...（仅列适用项，逐项实际验证后填写）
 整体：✅ 全通过 / ⚠️ <N> 项待修正
 
@@ -72,12 +72,13 @@ SC: SC2 [✅/❌] SC4 [✅/❌] SC6 [✅/❌] ...（仅列适用项，逐项实�
 | FC4 | 文件名/路径合规（`NN--` 双横杠开头） |
 | FC5 | 产物路径已输出（回复末尾以 Markdown 链接 + 纯文本路径**双行格式**逐行列出，见 `02-output-paths.instructions.md` §产物路径输出格式）|
 | FC6 | 新建 .md 行数检查（超 500 行须拆分 [C13](../../instructions/01-common.instructions.md)） |
+| FC7 | 用户决策选项必带推荐 + 理由：所有 AskUserQuestion / 多选项呈现节点必须有且仅有 1 个推荐项，推荐项置首且说明推荐理由 |
 
 ## §3 实质合规（SC）— 🔴 阻塞性
 
 | # | 检查项 | 适用范围 |
 |:-:|--------|---------|
-| SC1 | 报告验证列完整（合理性+可实施性+收益三列） | 全工作流 |
+| SC1 | 报告验证列完整（合理性 + 可实施性 + 收益 + 验证状态 + 影响范围五项） | 全工作流 |
 | SC2 | 代码已诊断（无未处理 error） | dev/fix 🔴；其他 N/A |
 | SC3 | 修复已全局扫描（三步扫描：同类全局+数据联动+grep零残留） | fix 🔴；dev(重构) 🔴 |
 | SC4 | 关联文件已同步 | dev/fix/self-fix 🔴 |
@@ -91,6 +92,7 @@ SC: SC2 [✅/❌] SC4 [✅/❌] SC6 [✅/❌] ...（仅列适用项，逐项实�
 | SC12 | [C14](../../instructions/01-common.instructions.md) 多任务进度快照验证（每完成子任务有 T{N}进度 标记） | 任务≥2时 🔴 |
 | SC13 | [C15](../../instructions/01-common.instructions.md) 架构质量自检（dev plan-review 三维评估；fix CP2 三维评估） | dev/fix 🔴 |
 | SC14 | analyze/audit 工作流中，所有标注 ✅已验证 的运行时结论（测试通过率/性能数字/命令输出）均已在**本轮实际执行**对应命令；SUMMARY.md 或记忆文件中的历史数字不得直接用作 ✅已验证，必须降级为 ⚠️待验证 | analyze/audit 🔴 |
+| SC15 | dev/fix 关键产物已完成轻量复审收敛：执行后正式复审阶段已完成，最后一次阻断性修正后至少再复审 1 轮且无新增阻断性问题 | dev/fix 🔴 |
 
 ## §4 恢复性检查（RC）— 非阻塞
 
@@ -137,7 +139,7 @@ SC: SC2 [✅/❌] SC4 [✅/❌] SC6 [✅/❌] ...（仅列适用项，逐项实�
 | T3 | ✅ 记忆完整（任务摘要+对话记录+关联报告） |
 | T4 | ✅ CP 完整（dev/fix；其他 N/A） |
 | T5 | ✅ 合规通过（FC+SC 全通过） |
-| T6 | ✅ 约束遵守（C01~C15 + 关联文件已同步） |
+| T6 | ✅ 约束遵守（C01~C19 + 关联文件已同步） |
 | T7 | ✅ 工作流验证（fix 三步扫描等；audit/analyze: PCV 已执行）|
 | T8 | ✅ SUMMARY 已更新 |
 | T9 | ✅ 产物路径已输出 |

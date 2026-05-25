@@ -10,10 +10,10 @@
 ```mermaid
 flowchart TD
     IN["接收工作流执行结果"]
-    FC["FC 形式合规检查\nFC1~FC6"]
+    FC["FC 形式合规检查\nFC1~FC7"]
     FC_OK{"FC 全通过?"}
     FC_FIX["立即修正不通过项"]
-    SC["SC 实质合规检查\nSC1~SC13"]
+    SC["SC 实质合规检查\nSC1~SC15"]
     SC_OK{"SC 全通过?"}
     SC_FIX["立即修正不通过项"]
     RETRY{"累计修正 ≥5 次?"}
@@ -45,6 +45,7 @@ flowchart TD
 | FC4 | 文件名/路径合规 | `NN--` 双横杠 |
 | FC5 | 产物路径已输出 | `file:///` + 纯文本双行 |
 | FC6 | 新建 .md 行数 | ≤ 500 行 |
+| FC7 | 决策推荐项 | 用户决策节点必须有推荐项和推荐理由 |
 
 ## SC 实质合规检查项（关键）
 
@@ -54,6 +55,7 @@ flowchart TD
 | SC3 | 修复已全局扫描（三步） | fix 🔴 |
 | SC4 | 关联文件已同步 | dev/fix/self-fix 🔴 |
 | SC6 | Agent SUMMARY 已更新 | 全工作流 🔴 |
+| SC15 | 执行后复审收敛 | dev/fix 🔴 |
 
 ---
 
@@ -74,4 +76,3 @@ flowchart TD
 - 下游阶段见：[⑩ 输出报告流程图](/specs/report-output-flow)
 
 > 约束：执行阶段合规检查为主链必经阶段（chat 豁免），不可跳过。
-

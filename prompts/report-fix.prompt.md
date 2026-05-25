@@ -25,6 +25,8 @@ applyTo: .devcodex/**/reports/bugs/**
 > **事件时间**: YYYY-MM-DD HH:MM:SS（incident 类型必填）
 > **响应时间**: YYYY-MM-DD HH:MM:SS（incident 类型必填）
 > **修复时间**: YYYY-MM-DD HH:MM:SS（incident 类型必填）
+> **Release 状态**: 未进入 / 待用户确认 / 已执行
+> **日志落点**: `changelogs/unreleased.md` / `CHANGELOG.md + changelogs/vX.Y.Z.md`
 ```
 
 ## §1 问题摘要
@@ -63,6 +65,7 @@ applyTo: .devcodex/**/reports/bugs/**
 
 | 测试用例 | 结果 |
 |---------|:----:|
+| 静态/类型检查 | ✅ 通过 / N/A |
 | 原始重现步骤 | ✅ 已修复 |
 | 关联功能回归 | ✅ 正常 |
 | api-verification | ✅ 通过 / N/A |
@@ -93,4 +96,5 @@ applyTo: .devcodex/**/reports/bugs/**
 ## §9 后置处理
 
 - [ ] document-sync：✅ 完成
-- [ ] CHANGELOG 已更新
+- [ ] release-status：未进入 / 待用户确认 / 已执行
+- [ ] CHANGELOG / unreleased 已按发布状态更新

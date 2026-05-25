@@ -22,6 +22,8 @@ applyTo: .devcodex/**/reports/requirements/**
 > **状态**: 进行中 / 已完成
 > **关联需求**: [路径]
 > **关联方案**: [路径]
+> **Release 状态**: 未进入 / 待用户确认 / 已执行
+> **日志落点**: `changelogs/unreleased.md` / `CHANGELOG.md + changelogs/vX.Y.Z.md`
 ```
 
 ## §1 执行摘要
@@ -62,6 +64,7 @@ applyTo: .devcodex/**/reports/requirements/**
 
 | 类型 | 结果 | 覆盖率 |
 |------|:----:|:------:|
+| 静态/类型检查 | ✅ 通过 / N/A | — |
 | 单元测试 | ✅ 通过 | X% |
 | api-verification | ✅ 通过 / N/A | — |
 
@@ -70,6 +73,7 @@ applyTo: .devcodex/**/reports/requirements/**
 - [ ] api-verification：✅ 通过 / N/A
 - [ ] impact-review：✅ 完成 / N/A
 - [ ] document-sync：✅ 完成
+- [ ] release-status：未进入 / 待用户确认 / 已执行
 
 ## §8 遗留问题
 

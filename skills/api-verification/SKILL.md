@@ -28,6 +28,7 @@ description: 接口验证规范 — 双产物（.http + .cjs）生成 + 自动�
 ```http
 ### POST 创建用户
 # @description 创建新用户账号
+# @expects 201 + 返回体包含 data.id（人工检查提示）
 POST {{baseUrl}}/api/users
 Content-Type: application/json
 
@@ -46,12 +47,27 @@ Content-Type: application/json
 ```js
 // *-接口验证.cjs
 const http = require('http')
+const https = require('https')
 const assert = require('assert')
+const BASE_URL = process.env.API_BASE_URL || 'http://localhost:3000'
 
-async function testEndpoint(method, path, body, expected) {
+async function testEndpoint(method, path, body, expected, headers = {}) {
   return new Promise((resolve, reject) => {
-    const options = { hostname: 'localhost', port: 3000, path, method, headers: { 'Content-Type': 'application/json' } }
-    const req = http.request(options, res => {
+    const url = new URL(path, BASE_URL)
+    const client = url.protocol === 'https:' ? https : http
+    const payload = body ? JSON.stringify(body) : null
+    const options = {
+      hostname: url.hostname,
+      port: url.port || (url.protocol === 'https:' ? 443 : 80),
+      path: `${url.pathname}${url.search}`,
+      method,
+      headers: { Accept: 'application/json', ...headers }
+    }
+    if (payload) {
+      options.headers['Content-Type'] = 'application/json'
+      options.headers['Content-Length'] = Buffer.byteLength(payload)
+    }
+    const req = client.request(options, res => {
       let data = ''
       res.on('data', chunk => data += chunk)
       res.on('end', () => {
@@ -61,7 +77,7 @@ async function testEndpoint(method, path, body, expected) {
       })
     })
     req.on('error', reject)
-    if (body) req.write(JSON.stringify(body))
+    if (payload) req.write(payload)
     req.end()
   })
 }
@@ -95,6 +111,7 @@ async function testEndpoint(method, path, body, expected) {
 - 归档级脚本必须包含断言（不是只发请求，要验证响应）
 - 归档级脚本禁止自启服务；必须通过 `API_BASE_URL` 或同等配置连接用户已启动的目标实例
 - 接口变更进入正式产物时必须更新双产物（禁止过期文档）
+- `.http` 默认定位为“请求样本 + 可选轻提示”，不承诺跨宿主统一断言语法；正式归档级验证以 `.cjs` 为准
 
 ## 流程串联验证模式（F-14）
 

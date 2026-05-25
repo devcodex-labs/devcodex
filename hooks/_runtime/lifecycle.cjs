@@ -19,19 +19,12 @@ const STATE_DIR = path.join(WORKSPACE_ROOT, '.devcodex', '.memory', 'hooks')
 const STATE_FILE = path.join(STATE_DIR, 'lifecycle-state.json')
 const FINAL_PAYLOAD_FLAG = path.join(STATE_DIR, 'capture-final-payload.flag')
 const FINAL_PAYLOAD_LOG = path.join(STATE_DIR, 'captured-final-payloads.ndjson')
-const PROFILE_CONFIG_FILE = path.join(WORKSPACE_ROOT, '.devcodex', 'profile', 'config.json')
 const PAYLOAD_PREVIEW_LIMIT = 160
 
 // ─── CP Gate constants ────────────────────────────────────────────────────────
 const CP1_FILE = '01-需求概述.md'
 const CP2_FILE = '02-技术方案.md'
 const CP3_FILE = '04-实施计划.md'
-const REQUIREMENTS_DIR = path.join(WORKSPACE_ROOT, '.devcodex', 'requirements')
-const BUGS_DIR = path.join(WORKSPACE_ROOT, '.devcodex', 'bugs')
-const TASK_ROOTS = [
-  { kind: 'requirements', dir: REQUIREMENTS_DIR },
-  { kind: 'bugs', dir: BUGS_DIR }
-]
 const EXECUTION_MODE = { CONFIRM: 'confirm', AUTO: 'auto' }
 const AUTO_ALLOWED_PATH_PATTERNS = [
   /^\.devcodex\//,
@@ -82,14 +75,41 @@ function readJsonFile(p) {
   try { return JSON.parse(raw) } catch { return null }
 }
 
-function readProfileMode() {
-  const cfg = readJsonFile(PROFILE_CONFIG_FILE)
+function getWorkspaceProfileConfigPath() {
+  return path.join(WORKSPACE_ROOT, '.devcodex', 'profile', 'config.json')
+}
+
+function getProjectRoot(projectName) {
+  return projectName ? path.join(WORKSPACE_ROOT, projectName) : WORKSPACE_ROOT
+}
+
+function getActiveProjectRoot(state) {
+  return getProjectRoot(state?.activeProject || '')
+}
+
+function getProfileSearchRoots(state, explicitProject) {
+  const roots = []
+  const projectRoot = getProjectRoot(explicitProject || state?.activeProject || '')
+  roots.push(projectRoot)
+  if (projectRoot !== WORKSPACE_ROOT) roots.push(WORKSPACE_ROOT)
+  return [...new Set(roots)]
+}
+
+function readResolvedProfileConfig(state, explicitProject) {
+  for (const root of getProfileSearchRoots(state, explicitProject)) {
+    const cfg = readJsonFile(path.join(root, '.devcodex', 'profile', 'config.json'))
+    if (cfg) return cfg
+  }
+  return null
+}
+
+function readProfileMode(state, explicitProject) {
+  const cfg = readResolvedProfileConfig(state, explicitProject)
   return String(cfg?.mode ?? 'prod').trim().toLowerCase() === 'dev' ? 'dev' : 'prod'
 }
 
-function readProjectProfileConfig(state) {
-  const projectRoot = getActiveProjectRoot(state)
-  return readJsonFile(path.join(projectRoot, '.devcodex', 'profile', 'config.json')) || null
+function readProjectProfileConfig(state, explicitProject) {
+  return readResolvedProfileConfig(state, explicitProject)
 }
 
 function listMemoryAgents(state) {
@@ -322,11 +342,6 @@ function touchesPath(payload, ...needles) {
   return strings.some(s => needles.some(n => s.includes(normalizeText(n))))
 }
 
-function getActiveProjectRoot(state) {
-  if (state?.activeProject) return path.join(WORKSPACE_ROOT, state.activeProject)
-  return WORKSPACE_ROOT
-}
-
 function buildProjectScopedNeedles(projectRoot, segments) {
   const absolute = path.join(projectRoot, ...segments)
   const relativeRoot = path.relative(WORKSPACE_ROOT, projectRoot)
@@ -378,9 +393,9 @@ function buildDefaultState(mode) {
 }
 
 function loadState(modeHint) {
-  const mode = modeHint || readProfileMode()
-  const current = buildDefaultState(mode)
   const saved = readJsonFile(STATE_FILE)
+  const mode = modeHint || readProfileMode(saved || null)
+  const current = buildDefaultState(mode)
   if (!saved || typeof saved !== 'object') return current
   return {
     ...current, ...saved, mode,
@@ -526,9 +541,10 @@ function hasTaskArtifact(task, phase) {
   return false
 }
 
-function listTaskDirs() {
+function listTaskDirs(state) {
+  const taskRoots = getTaskRoots(state)
   const out = []
-  for (const root of TASK_ROOTS) {
+  for (const root of taskRoots) {
     if (!fs.existsSync(root.dir)) continue
     let entries
     try { entries = fs.readdirSync(root.dir) } catch { continue }
@@ -543,8 +559,16 @@ function listTaskDirs() {
   return out.sort((a, b) => (b.mtimeMs || 0) - (a.mtimeMs || 0))
 }
 
-function findIncompleteTask() {
-  const dirs = listTaskDirs()
+function getTaskRoots(state) {
+  const projectRoot = getActiveProjectRoot(state)
+  return [
+    { kind: 'requirements', dir: path.join(projectRoot, '.devcodex', 'requirements') },
+    { kind: 'bugs', dir: path.join(projectRoot, '.devcodex', 'bugs') }
+  ]
+}
+
+function findIncompleteTask(state) {
+  const dirs = listTaskDirs(state)
   if (!dirs.length) return null
 
   return dirs.find(d => {
@@ -597,12 +621,12 @@ function extractToolPaths(payload) {
 
 // Map a file path to its owning task scope (.devcodex/requirements/<X>/... or .devcodex/bugs/<X>/...).
 // returns null when the path is not under any supported task directory.
-function getTaskScopeFromPath(p) {
+function getTaskScopeFromPath(p, state) {
   if (!p) return null
   let abs = p
   if (!path.isAbsolute(abs)) abs = path.resolve(WORKSPACE_ROOT, abs)
   const norm = path.normalize(abs)
-  for (const root of TASK_ROOTS) {
+  for (const root of getTaskRoots(state)) {
     const rootDir = path.normalize(root.dir)
     if (!norm.toLowerCase().startsWith(rootDir.toLowerCase() + path.sep)) continue
     const rel = path.relative(rootDir, norm)
@@ -653,13 +677,13 @@ function checkAutoWhitelist(payload, platform, state) {
 // Path-aware CP gate: when all tool paths belong to specific task dirs,
 // only check those tasks' CP status (avoids cross-task deny).
 // Falls back to global findIncompleteTask() for mixed/source-code paths.
-function findIncompleteTaskForPaths(payload) {
+function findIncompleteTaskForPaths(payload, state) {
   const paths = extractToolPaths(payload)
-  if (paths.length === 0) return findIncompleteTask()
+  if (paths.length === 0) return findIncompleteTask(state)
 
-  const taskScopes = paths.map(getTaskScopeFromPath)
+  const taskScopes = paths.map(p => getTaskScopeFromPath(p, state))
   const allInTask = taskScopes.every(scope => scope !== null)
-  if (!allInTask) return findIncompleteTask()  // mixed or source-code → preserve original behavior
+  if (!allInTask) return findIncompleteTask(state)  // mixed or source-code → preserve original behavior
 
   const targetMap = new Map()
   for (const scope of taskScopes) targetMap.set(`${scope.kind}:${scope.name}`, scope)
@@ -675,10 +699,10 @@ function findIncompleteTaskForPaths(payload) {
   return null  // all target tasks have CP3 confirmed → allow
 }
 
-function checkCpGate(payload) {
+function checkCpGate(payload, state) {
   const task = (payload && extractToolPaths(payload).length > 0)
-    ? findIncompleteTaskForPaths(payload)
-    : findIncompleteTask()
+    ? findIncompleteTaskForPaths(payload, state)
+    : findIncompleteTask(state)
   if (!task) return null
   const confirmed = readCpConfirmations(task.fullPath)
   if (!hasTaskArtifact(task, 'CP2') || !confirmed.CP2) {
@@ -886,16 +910,19 @@ async function main() {
 
   const eventName = getEventName(payload)
   const platform = detectPlatform(payload)
-  const mode = readProfileMode()
-  let state = loadState(mode)
+  const prompt = eventName === 'UserPromptSubmit' ? extractUserPrompt(payload) : ''
+  const explicitProject = eventName === 'UserPromptSubmit' ? detectProjectFromPrompt(prompt) : ''
+  const modeHint = eventName === 'UserPromptSubmit' && explicitProject
+    ? readProfileMode(null, explicitProject)
+    : undefined
+  let state = loadState(modeHint)
+  const mode = state.mode
 
   updateVisibleReplyState(state, payload, eventName)
   state.lastEvent = eventName || state.lastEvent
 
   // ── UserPromptSubmit ───────────────────────────────────────────────────────
   if (eventName === 'UserPromptSubmit') {
-    const prompt = extractUserPrompt(payload)
-    const explicitProject = detectProjectFromPrompt(prompt)
     state = resetState(mode, state)
     state.executionMode = detectExecutionMode(payload)
     if (hasMultiProjectExemption(prompt)) {
@@ -906,7 +933,7 @@ async function main() {
     // Multi-project workspace guard (v1.9.8+):
     // when no workspace-root profile exists and ≥2 sibling projects detected,
     // require the user to specify the target project explicitly.
-    const hasWorkspaceProfile = fs.existsSync(PROFILE_CONFIG_FILE)
+    const hasWorkspaceProfile = fs.existsSync(getWorkspaceProfileConfigPath())
     if (!hasWorkspaceProfile && isMultiProjectWorkspace()) {
       if (!hasMultiProjectExemption(prompt) && !state.activeProject) {
         state.lastReason = 'multi-project-workspace-block'
@@ -977,7 +1004,7 @@ async function main() {
 
     // 3. CP gate — block source code mutations until checkpoints confirmed
     //    payload-aware: when tool paths target specific requirement dirs, only that requirement's CP is checked
-    const gate = checkCpGate(payload)
+    const gate = checkCpGate(payload, state)
     if (gate && isSourceCodeMutation(payload, platform)) {
       state.lastReason = `cp-gate-${gate.phase}`
       saveState(state)

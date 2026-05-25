@@ -18,6 +18,11 @@
  * V14 auto v1.1 语义联动（agent/common/cp-gate/compliance/runtime/test/README）
  * V15 audit-state 状态机一致性（状态枚举 + converged 门禁）
  * V16 MCP servers smoke test（profile prompts + memory default agent）
+ * V17 Profile drift detection（当前源码仓 profile 不得落后 package/plugin）
+ * V18 Claude Code MCP/settings schema（mcpServers + permissions allowlist）
+ * V19 Asset count sync（README/Profile 资产数量不得漂移）
+ * V20 Release/changelog dual-track semantics（unreleased 默认流 + release 显式触发）
+ * V21 Workflow control-plane semantics（前置复审显式输出 / 控制面交叉验证 / 语义批次提交 / 工作区 AGENTS 副本同步）
  *
  * Exit: 0=OK, 1=error, 2=warnings only
  */
@@ -554,10 +559,25 @@ function checkV13() {
   mustInclude('prompts/memory-session.prompt.md', '收到首条用户消息时', 'memory session prompt')
 
   mustInclude('prompts/api-verification.prompt.md', '不在脚本内自启服务', 'api verification prompt')
+  mustInclude('prompts/api-verification.prompt.md', '仅作为人工检查提示', 'api verification prompt')
+  mustInclude('prompts/api-verification.prompt.md', '@resourceId = replace-with-created-id', 'api verification prompt')
+  mustInclude('prompts/api-verification.prompt.md', 'new URL(path, BASE_URL)', 'api verification prompt')
+  mustNotInclude('prompts/api-verification.prompt.md', '// ... HTTP 请求实现', 'api verification prompt')
   mustNotInclude('prompts/api-verification.prompt.md', 'tests/api/<module>.test.cjs', 'api verification prompt')
   mustInclude('skills/api-verification/SKILL.md', '禁止自启服务', 'api verification skill')
+  mustInclude('skills/api-verification/SKILL.md', "const BASE_URL = process.env.API_BASE_URL || 'http://localhost:3000'", 'api verification skill')
+  mustInclude('skills/api-verification/SKILL.md', 'headers = {}', 'api verification skill')
+  mustInclude('skills/api-verification/SKILL.md', '请求样本 + 可选轻提示', 'api verification skill')
+  mustNotInclude('skills/api-verification/SKILL.md', "hostname: 'localhost'", 'api verification skill')
   mustInclude('skills/dev-scenario-test/SKILL.md', '.devcodex/scenario-tests', 'scenario test skill')
   mustInclude('skills/dev-testing/SKILL.md', '项目自身 API 测试可另存 `tests/api/`', 'dev testing skill')
+  mustInclude('skills/dev-testing/SKILL.md', 'tsc --noEmit', 'dev testing skill')
+  mustInclude('skills/dev-testing/SKILL.md', '临时创建 `tsconfig`', 'dev testing skill')
+  mustInclude('instructions/10-dev.instructions.md', 'tsc --noEmit', '10-dev typecheck rule')
+  mustInclude('instructions/11-fix.instructions.md', 'tsc --noEmit', '11-fix typecheck rule')
+  mustInclude('prompts/technical-design.prompt.md', 'tsc --noEmit', 'technical design prompt')
+  mustInclude('prompts/report-dev.prompt.md', '静态/类型检查', 'report dev prompt')
+  mustInclude('prompts/report-fix.prompt.md', '静态/类型检查', 'report fix prompt')
 
   mustInclude('skills/cp-gate/SKILL.md', 'CP3: N/A', 'cp gate skill')
   mustInclude('hooks/_runtime/lifecycle.cjs', 'CP3Exempt', 'lifecycle runtime')
@@ -635,6 +655,204 @@ function checkV16() {
   }
 }
 
+function checkV17() {
+  try {
+    execSync('node scripts/validate-profile.js', { cwd: ROOT, stdio: 'pipe', encoding: 'utf8' })
+    console.log('[V17] profile drift check passed')
+  } catch (e) {
+    const detail = String((e.stderr || e.stdout || e.message || '')).trim().split('\n').slice(0, 8).join(' | ')
+    err(`[V17] profile drift check failed${detail ? `: ${detail}` : ''}`)
+  }
+}
+
+function checkV18() {
+  let mcp
+  try {
+    mcp = JSON.parse(read(path.join(ROOT, '.mcp.json')))
+  } catch (e) {
+    err(`[V18] .mcp.json invalid JSON: ${e.message}`)
+    return
+  }
+
+  if (!mcp.mcpServers || typeof mcp.mcpServers !== 'object') {
+    err('[V18] .mcp.json must use Claude Code project schema root "mcpServers"')
+  }
+  if (Object.prototype.hasOwnProperty.call(mcp, 'servers')) {
+    err('[V18] .mcp.json must not use VS Code-style root "servers" for Claude Code')
+  }
+  for (const name of ['devcodex-memory', 'devcodex-profile']) {
+    const server = mcp.mcpServers && mcp.mcpServers[name]
+    if (!server) {
+      err(`[V18] .mcp.json missing MCP server: ${name}`)
+      continue
+    }
+    const args = Array.isArray(server.args) ? server.args.join(' ') : ''
+    if (!args.includes('${CLAUDE_PROJECT_DIR:-.}')) {
+      err(`[V18] ${name} must use Claude Code project env expansion \${CLAUDE_PROJECT_DIR:-.}`)
+    }
+  }
+
+  const indexSrc = read(path.join(ROOT, 'index.js'))
+  if (!indexSrc.includes('mcpServers:')) {
+    err('[V18] index.js CLAUDE_MCP_JSON must generate "mcpServers"')
+  }
+  if (/\n\s+servers:\s*\{/.test(indexSrc)) {
+    err('[V18] index.js still contains VS Code-style "servers" root in generated MCP config')
+  }
+  for (const required of [
+    'CLAUDE_SETTINGS_PERMISSIONS',
+    'enableAllProjectMcpServers',
+    'permissions.allow',
+    'mcp__devcodex-memory__*',
+    'mcp__devcodex-profile__*'
+  ]) {
+    if (!indexSrc.includes(required)) {
+      err(`[V18] index.js missing Claude Code settings permission probe text: ${required}`)
+    }
+  }
+  console.log('[V18] Claude Code MCP/settings schema checked')
+}
+
+function checkV19() {
+  const promptCount = walk(path.join(ROOT, 'prompts')).filter(f => f.endsWith('.prompt.md')).length
+  const checks = [
+    { file: 'README.md', needle: `Prompt 模板（${promptCount} 个）` },
+    { file: '.devcodex/profile/01-项目信息.md', needle: `| **Prompt** | ${promptCount} |` },
+    { file: '.devcodex/profile/01-项目信息.md', needle: `prompts ${promptCount}` },
+    { file: '.devcodex/profile/02-架构约束.md', needle: `Prompt 模板文件（.prompt.md，中文）${promptCount} 个` }
+  ]
+  for (const check of checks) {
+    const content = read(path.join(ROOT, check.file))
+    if (!content.includes(check.needle)) {
+      err(`[V19] asset count drift in ${check.file}: expected text "${check.needle}"`)
+    }
+  }
+  console.log(`[V19] asset counts checked: prompts=${promptCount}`)
+}
+
+function checkV20() {
+  const probes = [
+    {
+      file: 'instructions/02-output-paths.instructions.md',
+      needles: [
+        'changelogs/unreleased.md',
+        '用户**未明确要求** `tag` / `release` / `publish` 时',
+        '仅在用户明确确认 release 后执行'
+      ]
+    },
+    {
+      file: 'website/docs/guide/release.md',
+      needles: [
+        '三层日志',
+        'changelogs/unreleased.md',
+        '用户**未明确要求** `tag` / `release` / `publish` 时'
+      ]
+    },
+    {
+      file: 'skills/document-sync/SKILL.md',
+      needles: [
+        '`changelogs/unreleased.md`',
+        '仅正式发版时更新已发布版本索引'
+      ]
+    },
+    {
+      file: 'prompts/report-dev.prompt.md',
+      needles: [
+        'Release 状态',
+        '日志落点'
+      ]
+    },
+    {
+      file: 'prompts/report-fix.prompt.md',
+      needles: [
+        'Release 状态',
+        'CHANGELOG / unreleased 已按发布状态更新'
+      ]
+    }
+  ]
+
+  for (const probe of probes) {
+    const content = read(path.join(ROOT, probe.file))
+    for (const needle of probe.needles) {
+      if (!content.includes(needle)) {
+        err(`[V20] release/changelog dual-track drift in ${probe.file}: missing "${needle}"`)
+      }
+    }
+  }
+  console.log('[V20] release/changelog dual-track semantics checked')
+}
+
+function checkV21() {
+  const probes = [
+    {
+      file: 'instructions/01-common.instructions.md',
+      needles: [
+        '默认更新 `changelogs/unreleased.md`',
+        '`commit` 默认**不自动执行**',
+        '按**语义批次**提交',
+        '显式输出结果',
+        '必须追加交叉验证'
+      ]
+    },
+    {
+      file: 'skills/cp-gate/SKILL.md',
+      needles: [
+        '显式输出结果',
+        '必须追加交叉验证',
+        '前置复审结果：✅ 无阻断，可进入下一阶段'
+      ]
+    },
+    {
+      file: 'instructions/10-dev.instructions.md',
+      needles: [
+        '已验证的语义变更批次',
+        '必须追加交叉验证',
+        '前置复审结果：✅ 无阻断，可进入下一阶段'
+      ]
+    },
+    {
+      file: 'instructions/11-fix.instructions.md',
+      needles: [
+        '已验证的语义修复批次',
+        '必须追加交叉验证',
+        '前置复审结果：✅ 无阻断，可进入下一阶段'
+      ]
+    },
+    {
+      file: 'skills/fix-default/SKILL.md',
+      needles: [
+        '模板/示例不可直接执行',
+        '自动化校验假绿'
+      ]
+    }
+  ]
+
+  for (const probe of probes) {
+    const content = read(path.join(ROOT, probe.file))
+    for (const needle of probe.needles) {
+      if (!content.includes(needle)) {
+        err(`[V21] workflow control-plane drift in ${probe.file}: missing "${needle}"`)
+      }
+    }
+  }
+
+  const workspaceAgents = path.resolve(ROOT, '..', 'AGENTS.md')
+  if (fs.existsSync(workspaceAgents)) {
+    const content = read(workspaceAgents)
+    for (const needle of [
+      '强制约束（C01~C19）',
+      '全量 FC1~FC7 + SC1~SC15 + RC1~RC4 + T1~T9',
+      'CHANGELOG / unreleased 已按发布状态追加'
+    ]) {
+      if (!content.includes(needle)) {
+        err(`[V21] workspace AGENTS drift: missing "${needle}" in ../AGENTS.md`)
+      }
+    }
+  }
+
+  console.log('[V21] workflow control-plane semantics checked')
+}
+
 function checkV7b() {
   try {
     execSync('node scripts/test-instruction-fallback-check.js', { cwd: ROOT, stdio: 'pipe', encoding: 'utf8' })
@@ -662,6 +880,11 @@ checkV13()
 checkV14()
 checkV15()
 checkV16()
+checkV17()
+checkV18()
+checkV19()
+checkV20()
+checkV21()
 
 console.log('')
 if (errors.length) {

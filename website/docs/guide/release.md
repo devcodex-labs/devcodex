@@ -8,7 +8,7 @@
 |------|---------|---------|
 | **MAJOR** | 架构性重构、破坏性变更（如存储层替换）| 新建 `versions/vX/` 系列目录，并创建首个快照 `versions/vX/X.Y.Z/` |
 | **MINOR** | 同一大版本下出现需求/流程级演进 | 在对应 major 下新增快照（如 `versions/v1/1.1.0/`），继承并迭代上一版文档 |
-| **PATCH** | Bug 修复、文档修正、规范微调 | 默认在当前快照内修正并更新 CHANGELOG；只有当补丁需要独立文档快照时才新建 `X.Y.Z` 目录 |
+| **PATCH** | Bug 修复、文档修正、规范微调 | 需求文档默认在当前快照内修正并更新需求级 CHANGELOG；实现变更默认写 `changelogs/unreleased.md`，只有正式发版时才归档为 `vX.Y.Z` |
 
 > 采用 `major/minor` 两级结构的原因：一个大版本下通常会有多次小版本迭代，提前分层能避免后续整体搬目录。
 
@@ -54,6 +54,39 @@
 
 ---
 
+## 实现变更与正式发版
+
+DevCodex 采用“双阶段发布 + 三层日志”：
+
+1. **需求轨**：`website/docs/versions/v1/<active-version>/CHANGELOG.md`
+   - 只记录需求/规格变更
+2. **未发布实现轨**：`changelogs/unreleased.md`
+   - 记录尚未正式发版的实现/修复/规范调整
+3. **已发布轨**：根 `CHANGELOG.md` + `changelogs/vX.Y.Z.md`
+   - 只记录真正已经发布的版本
+
+### 默认规则
+
+- 用户**未明确要求** `tag` / `release` / `publish` 时：
+  - 每完成一个**已验证的语义变更批次**，默认更新 `changelogs/unreleased.md`
+  - 默认建议执行**本地 `commit`** 作为回滚锚点
+  - 不默认 bump version
+  - 不默认更新根 `CHANGELOG.md`
+  - 不默认 `push`
+  - 不默认打 tag 或 publish
+- 默认 `commit` 按**语义批次**而不是按“问题个数”切分；它是本地回滚锚点，不等于正式发版动作
+- 仅在用户明确要求、需要独立回滚点或当前批次已闭环时，才把该建议转成实际本地提交
+- 用户**明确确认发版**时：
+  1. 确认最终版本号
+  2. 从 `changelogs/unreleased.md` 归档到 `changelogs/vX.Y.Z.md`
+  3. 更新根 `CHANGELOG.md`
+  4. 更新 `package.json` / `plugin.json`
+  5. commit / tag / publish
+
+> 旧日志不要求迁移；本规则只约束新变更。
+
+---
+
 ## 发布前检查清单
 
 > 发布当前版本前，以下项目必须全部完成。
@@ -63,4 +96,6 @@
 发布时额外执行：
 1. `config.json` 中 `mode` 从 `"dev"` 改为 `"prod"`
 2. 确认 `.gitignore` 包含 `.devcodex/.memory/`
-3. 更新 `package.json` version 字段为正式版本号
+3. 将 `changelogs/unreleased.md` 中待发布条目归档到 `changelogs/vX.Y.Z.md`
+4. 更新根 `CHANGELOG.md`
+5. 更新 `package.json` version 字段为正式版本号

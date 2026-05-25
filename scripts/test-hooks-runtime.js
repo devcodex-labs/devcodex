@@ -106,6 +106,35 @@ function main() {
   assert.strictEqual(blockedBeforeBootstrap.hookSpecificOutput.permissionDecision, 'deny')
   assert.match(blockedBeforeBootstrap.hookSpecificOutput.permissionDecisionReason || '', /bootstrap/i)
 
+  const shellReadAllowedDuringBootstrap = run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'shell_command',
+    tool_input: {
+      command: 'Get-Content .devcodex/profile/config.json'
+    }
+  })
+  assert.strictEqual(shellReadAllowedDuringBootstrap.continue, true)
+
+  const shellWriteBlockedDuringBootstrap = run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'shell_command',
+    tool_input: {
+      command: 'Set-Content .devcodex/profile/config.json "{}"'
+    }
+  })
+  assert.strictEqual(shellWriteBlockedDuringBootstrap.hookSpecificOutput.permissionDecision, 'deny')
+  assert.match(shellWriteBlockedDuringBootstrap.hookSpecificOutput.permissionDecisionReason || '', /bootstrap/i)
+
+  const shellAliasWriteBlockedDuringBootstrap = run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'shell_command',
+    tool_input: {
+      command: 'Get-Content .devcodex/profile/config.json; sc .devcodex/profile/config.json "{}"'
+    }
+  })
+  assert.strictEqual(shellAliasWriteBlockedDuringBootstrap.hookSpecificOutput.permissionDecision, 'deny')
+  assert.match(shellAliasWriteBlockedDuringBootstrap.hookSpecificOutput.permissionDecisionReason || '', /bootstrap/i)
+
   run({
     hookEventName: 'PreToolUse',
     tool_name: 'read_file',

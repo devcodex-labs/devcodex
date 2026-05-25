@@ -429,7 +429,19 @@ function isBootstrapReadTool(payload, state) {
     /^read([_-]?file)?$/, /^list[_-]?dir$/, /^file[_-]?search$/,
     /^grep([_-]?search)?$/, /^semantic[_-]?search$/, /^glob$/
   ]
-  return readPatterns.some(p => p.test(tn)) && (
+  if (readPatterns.some(p => p.test(tn))) {
+    return (
+      touchesPath(payload, ...scopes.profileNeedles) ||
+      touchesPath(payload, ...scopes.memoryNeedles)
+    )
+  }
+  const shellReadPatterns = [
+    /^shell[_-]?command$/, /^run[_-]?in[_-]?terminal$/, /^send[_-]?to[_-]?terminal$/,
+    /^bash$/, /^powershell$/
+  ]
+  if (!shellReadPatterns.some(p => p.test(tn))) return false
+  if (!isReadOnlyBootstrapShellCommand(payload)) return false
+  return (
     touchesPath(payload, ...scopes.profileNeedles) ||
     touchesPath(payload, ...scopes.memoryNeedles)
   )
@@ -455,6 +467,25 @@ function updateBootstrapState(state, payload) {
     state.bootstrap.profileRead && state.bootstrap.summaryRead && state.bootstrap.tasksRead
   )
   if (state.bootstrapComplete) state.phase = 'active'
+}
+
+function isReadOnlyBootstrapShellCommand(payload) {
+  const command = getCommandText(payload)
+  if (!command || !command.trim()) return false
+  const cmd = command.toLowerCase()
+  // Bootstrap should only allow a single, simple read-only command.
+  if (/[;&|`]/.test(command) || /\$\(|\b(?:&&|\|\|)\b/.test(command)) return false
+  // Block obvious write/mutation behaviors up front.
+  if (
+    />{1,2}/.test(command) ||
+    /\b(set-content|add-content|out-file|tee|copy-item|move-item|remove-item|new-item|rename-item)\b/i.test(command) ||
+    /\b(sc|ac|ni|ri|mi)\b/i.test(command) ||
+    /\b(cp|mv|rm|del|erase|touch|mkdir|rmdir|git\s+add|git\s+commit|npm\s+install)\b/i.test(command)
+  ) {
+    return false
+  }
+  // Allow common read-only introspection commands.
+  return /\b(get-content|cat|type|get-childitem|ls|dir|rg|findstr|select-string|head|tail|more|echo)\b/.test(cmd)
 }
 
 function buildBootstrapMessage() {

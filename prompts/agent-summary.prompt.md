@@ -40,6 +40,6 @@ applyTo: .devcodex/.memory/**
 | 关键决策/技术选型 | daily file `💡 关键决策` / 全局 SUMMARY |
 | 待处理事项 | daily file `⚠️ 待跟进` |
 | 注意事项/踩坑记录 | 项目 profile（`profile/` 目录） |
-| 过程改进 | `data/process-improvements.md` |
+| 过程改进 | `data/process-improvements.md`（运行时台账；源仓仅保留模板与维护者记录） |
 
 > 原因：SUMMARY 中的自由文本状态段落（如"Phase 12~14 🔄 进行中"）会被 AI 误判为未完成任务标记，干扰 resume 时的任务路由。🔄 状态仅出现在索引表的「状态」列。

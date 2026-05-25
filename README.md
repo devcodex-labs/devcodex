@@ -253,7 +253,7 @@ DevCodex 的 `plugin.json` 声明 `tier: "free"`，所有 Skill 均标注 `tier:
 - **推荐**：通过 `copilot-instructions.md` + `instructions/` 自动注入，直接在 Copilot Chat 对话即可
 - **可选**：通过 `.github/agents/` 使用 `@devcodex` / `@devcodex-auto` 自定义 Agent 入口
 
-Auto v1.1 当前只在 `hook-enforced` 宿主里，对显式 `@devcodex-auto` 入口下的白名单路径提供 runtime 级硬保证；JetBrains 等 `instruction-fallback` 宿主与 Claude Code 仅同步规则语义，不承诺完全等价的自动放行。
+Auto v1.1 当前只在支持 Hook 的宿主里，对显式 `@devcodex-auto` 入口下的白名单路径提供 runtime 级硬保证；JetBrains 等 `instruction-fallback` 宿主仅同步规则语义，不承诺完全等价的自动放行。
 
 ## 许可证
 

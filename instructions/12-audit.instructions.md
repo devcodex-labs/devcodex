@@ -21,7 +21,7 @@ applyTo: "**"
 - 发现问题只输出清单和变更建议
 - **需要修复时**：DevCodex plugin 文件（`instructions/` · `skills/` · `prompts/` · `agents/` · `RULES.md`）→ 元循环自动触发 self-fix（见 §审查元循环）；其他文件/代码 → 记录 PF/VL，由用户决定时机启动 fix 或 self-fix
 
-> **设计原则：记录在使用，修复在维护** — 正常开发工作流（dev/fix/analyze）中 PC4 发现规范缺口，只写入 `data/pending-fixes.md`，不触发任何修复；只有 audit 明确针对 DevCodex plugin 文件本身时，才进入立即修复的元循环。
+> **设计原则：记录在使用，修复在维护** — 正常开发工作流（dev/fix/analyze）中 PC4 发现规范缺口，只写入运行时 Pending 台账 `data/pending-fixes.md`，不触发任何修复；源仓内该台账由 `data/templates/pending-fixes.md` 提供模板、维护者实录位于 `.devcodex/.maintainer-state/`。只有 audit 明确针对 DevCodex plugin 文件本身时，才进入立即修复的元循环。
 
 ### 审查目标类型
 

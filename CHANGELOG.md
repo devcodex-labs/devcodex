@@ -1,7 +1,7 @@
 # 变更日志 (CHANGELOG)
 
 > **说明**: 版本概览摘要。最新版本的详细变更见下方表格首行的 `changelogs/vX.Y.Z.md` 链接；历史版本见对应详细变更文件
-> **最后更新**: 2026-05-22
+> **最后更新**: 2026-05-25
 
 ---
 
@@ -9,6 +9,7 @@
 
 | 版本 | 日期 | 变更摘要 | 详细 |
 |------|------|---------|------|
+| [v1.9.12](./changelogs/v1.9.12.md) | 2026-05-25 | 🔧 **MCP 发布链补强 + 控制面一致性闭环**：补齐 `mcp/` 发布资产与 MCP smoke test，统一 `bugs/` / `requirements/` 任务链口径，收紧跨任务 CP gate 边界，新增确认后前置轻量复审（C19），统一 `data/*` 运行时台账语义、`sessions.md` 模板和任务级报告优先路径；`instruction-fallback-check.js` 对齐 `.archived` 跳过与排序策略，并新增 `V7b` fallback smoke test | [查看](./changelogs/v1.9.12.md) |
 | [v1.9.11](./changelogs/v1.9.11.md) | 2026-05-22 | 🔧 **Auto v1.1 runtime 收口 + 控制面校验补强**：在 auto 白名单门禁落地后，继续收紧 bootstrap 到当前 agent + 今日/昨日 tasks，补齐缺少 `agent` 的 fallback 推断与回归测试；对齐 `profile init` 与 `validate-profile.js` 模板/真相源校验；`validate.js` V10 改为结构化探针并新增 V15 audit-state 状态机校验，同时同步父级 `.github/.claude` runtime 副本 | [查看](./changelogs/v1.9.11.md) |
 | [v1.9.10](./changelogs/v1.9.10.md) | 2026-05-21 | 🔧 **模板/工作流漂移修复 + V13 语义门禁**：修复 precheck 模板 PC0~PC7 与 chat 预检查口径、Token 当前全开放说明、报告模板强制头部和 fix 专属章节、chat daily memory、CP3 `N/A` 豁免运行时识别、API/场景测试归档路径；`validate.js` 扩展 V8 prompts 覆盖并新增 V13 模板语义探针；同步仓内与父级 `.github/.claude` 部署体 | [查看](./changelogs/v1.9.10.md) |
 | [v1.9.9](./changelogs/v1.9.9.md) | 2026-05-21 | 🔧 **单源分发回归修复 + 发布门禁补强**：修复 v1.9.8 `instructions.md` 未进入 npm tarball 导致 `init/update` 主链缺失的问题；V6 与 `test-pack-clean` 新增 required package assets 正向断言；同步 README/RULES/profile 的 agents 分发语义和单源路径；单源正文改为平台中性索引说明；更新 audit-common V8 职责描述，避免 8 文件/33% 旧口径误导审查 | [查看](./changelogs/v1.9.9.md) |
@@ -82,12 +83,11 @@
 
 ## 相关文档
 
-- [`changelogs/v1.9.4.md`](./changelogs/v1.9.4.md) — 最新版本详细变更文档
-- [`changelogs/v1.9.3.md`](./changelogs/v1.9.3.md) — 上一个版本详细变更文档
-- [`changelogs/v1.9.2.md`](./changelogs/v1.9.2.md) — 历史版本详细变更文档
-- [`changelogs/v1.9.1.md`](./changelogs/v1.9.1.md) — 历史版本详细变更文档
-- [`changelogs/v1.9.0.md`](./changelogs/v1.9.0.md) — 历史版本详细变更文档
+- [`changelogs/v1.9.12.md`](./changelogs/v1.9.12.md) — 最新版本详细变更文档
+- [`changelogs/v1.9.11.md`](./changelogs/v1.9.11.md) — 上一个版本详细变更文档
+- [`changelogs/v1.9.10.md`](./changelogs/v1.9.10.md) — 历史版本详细变更文档
+- [`changelogs/v1.9.9.md`](./changelogs/v1.9.9.md) — 历史版本详细变更文档
+- [`changelogs/v1.9.8.md`](./changelogs/v1.9.8.md) — 历史版本详细变更文档
 - [`changelogs/v1.1.0.md`](./changelogs/v1.1.0.md) — 历史版本详细变更文档
 - [README.md](./README.md) — 项目说明
 - [requirements/index.md](./website/docs/versions/v1/1.0.0/requirements/index.md) — 需求文档总览
-

@@ -28,6 +28,9 @@ const SERVER_INFO = {
   version: '1.0.0'
 }
 
+const DEFAULT_AGENT = 'claude-code'
+const TASK_KINDS = new Set(['requirements', 'bugs'])
+
 const TOOLS = [
   {
     name: 'memory_session_read',
@@ -35,7 +38,7 @@ const TOOLS = [
     inputSchema: {
       type: 'object',
       properties: {
-        agent: { type: 'string', description: 'Agent 标识（如 claude / copilot），默认 claude' },
+        agent: { type: 'string', description: 'Agent 标识（如 claude-code / copilot），默认 claude-code' },
         date: { type: 'string', description: 'YYYYMMDD 日期，默认今日' }
       }
     }
@@ -47,7 +50,7 @@ const TOOLS = [
       type: 'object',
       required: ['content'],
       properties: {
-        agent: { type: 'string', description: 'Agent 标识，默认 claude' },
+        agent: { type: 'string', description: 'Agent 标识，默认 claude-code' },
         date: { type: 'string', description: 'YYYYMMDD 日期，默认今日' },
         content: { type: 'string', description: '追加的 Markdown 内容' }
       }
@@ -55,12 +58,13 @@ const TOOLS = [
   },
   {
     name: 'memory_cp_confirm',
-    description: '在需求的 .memory/sessions.md 中记录 CP 确认状态（✅）。',
+    description: '在任务的 .memory/sessions.md 中记录 CP 确认状态（✅）。',
     inputSchema: {
       type: 'object',
       required: ['requirement', 'phase'],
       properties: {
-        requirement: { type: 'string', description: '需求目录名（.devcodex/requirements/<name>）' },
+        requirement: { type: 'string', description: '任务目录名（兼容旧字段名；配合 kind 指向 .devcodex/requirements/<name> 或 .devcodex/bugs/<name>）' },
+        kind: { type: 'string', enum: ['requirements', 'bugs'], description: '任务根类型，默认 requirements' },
         phase: { type: 'string', enum: ['CP1', 'CP2', 'CP3'], description: 'CP 阶段' },
         time: { type: 'string', description: '确认时间（如 10:30），默认当前时间' }
       }
@@ -72,7 +76,7 @@ const TOOLS = [
     inputSchema: {
       type: 'object',
       properties: {
-        agent: { type: 'string', description: 'Agent 标识，默认 claude' }
+        agent: { type: 'string', description: 'Agent 标识，默认 claude-code' }
       }
     }
   },
@@ -83,7 +87,7 @@ const TOOLS = [
       type: 'object',
       required: ['row'],
       properties: {
-        agent: { type: 'string', description: 'Agent 标识，默认 claude' },
+        agent: { type: 'string', description: 'Agent 标识，默认 claude-code' },
         row: { type: 'string', description: 'Markdown 表格行（含首尾 |）' }
       }
     }
@@ -108,20 +112,20 @@ function validateDate(date) {
 function sessionFilePath(agent, date) {
   return path.join(
     WORKSPACE_ROOT, '.devcodex', '.memory', 'clients',
-    agent || 'claude', 'tasks', `${date || today()}.md`
+    agent || DEFAULT_AGENT, 'tasks', `${date || today()}.md`
   )
 }
 
 function summaryFilePath(agent) {
   return path.join(
     WORKSPACE_ROOT, '.devcodex', '.memory', 'clients',
-    agent || 'claude', 'SUMMARY.md'
+    agent || DEFAULT_AGENT, 'SUMMARY.md'
   )
 }
 
-function requirementsSessionsPath(requirement) {
+function taskSessionsPath(kind, requirement) {
   return path.join(
-    WORKSPACE_ROOT, '.devcodex', 'requirements',
+    WORKSPACE_ROOT, '.devcodex', kind,
     requirement, '.memory', 'sessions.md'
   )
 }
@@ -159,8 +163,10 @@ function handleMemorySessionWrite(args) {
 function handleMemoryCpConfirm(args) {
   if (!args.requirement) throw new Error('requirement is required')
   if (!args.phase) throw new Error('phase is required')
+  const kind = args.kind || 'requirements'
+  if (!TASK_KINDS.has(kind)) throw new Error(`kind must be one of: ${[...TASK_KINDS].join(', ')}`)
 
-  const p = requirementsSessionsPath(args.requirement)
+  const p = taskSessionsPath(kind, args.requirement)
   const time = args.time || currentTime()
   const existing = readFile(p)
 

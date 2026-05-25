@@ -27,6 +27,11 @@ const CP1_FILE = '01-需求概述.md'
 const CP2_FILE = '02-技术方案.md'
 const CP3_FILE = '04-实施计划.md'
 const REQUIREMENTS_DIR = path.join(WORKSPACE_ROOT, '.devcodex', 'requirements')
+const BUGS_DIR = path.join(WORKSPACE_ROOT, '.devcodex', 'bugs')
+const TASK_ROOTS = [
+  { kind: 'requirements', dir: REQUIREMENTS_DIR },
+  { kind: 'bugs', dir: BUGS_DIR }
+]
 const EXECUTION_MODE = { CONFIRM: 'confirm', AUTO: 'auto' }
 const AUTO_ALLOWED_PATH_PATTERNS = [
   /^\.devcodex\//,
@@ -483,37 +488,71 @@ function readCpConfirmations(reqPath) {
   return confirmed
 }
 
-function findIncompleteRequirement() {
-  if (!fs.existsSync(REQUIREMENTS_DIR)) return null
+function directoryContainsFileMatching(dir, matcher, depth = 4) {
+  if (!fs.existsSync(dir) || depth < 0) return false
   let entries
-  try { entries = fs.readdirSync(REQUIREMENTS_DIR) } catch { return null }
-  const dirs = entries
-    .map(name => {
-      const fullPath = path.join(REQUIREMENTS_DIR, name)
-      try { const s = fs.statSync(fullPath); return s.isDirectory() ? { name, fullPath } : null }
-      catch { return null }
-    })
-    .filter(Boolean)
+  try { entries = fs.readdirSync(dir, { withFileTypes: true }) } catch { return false }
+  for (const entry of entries) {
+    const full = path.join(dir, entry.name)
+    if (entry.isFile() && matcher(entry.name, full)) return true
+    if (entry.isDirectory() && directoryContainsFileMatching(full, matcher, depth - 1)) return true
+  }
+  return false
+}
 
-  // v1.9.4+ 跨需求阻断缓解：先扫描"是否存在任意已 CP3 通过的需求"
-  // 若存在 → 视为有需求已进入实施阶段 → 全局放行（避免旧未完成需求阻断当前实施）
-  // 配合 `.archived` 旁路（v1.9.3+）共同工作；archived 视为"已归档"，不参与 CP3 通过统计
-  const hasAnyCp3Done = dirs.some(d => {
-    if (fs.existsSync(path.join(d.fullPath, '.archived'))) return false
-    if (!fs.existsSync(path.join(d.fullPath, CP1_FILE))) return false
-    const cp = readCpConfirmations(d.fullPath)
-    if (cp.CP3Exempt) return false
-    if (!fs.existsSync(path.join(d.fullPath, CP3_FILE))) return false
-    return cp.CP3
-  })
-  if (hasAnyCp3Done) return null  // 已有需求进入实施 → 全局放行（跨需求场景）
+function hasTaskArtifact(task, phase) {
+  const fullPath = task.fullPath
+  if (phase === 'CP1') {
+    if (fs.existsSync(path.join(fullPath, CP1_FILE))) return true
+    if (task.kind === 'bugs') {
+      return directoryContainsFileMatching(
+        path.join(fullPath, 'reports'),
+        name => /^01--.*CP1.*\.md$/i.test(name)
+      )
+    }
+    return false
+  }
+  if (phase === 'CP2') {
+    if (fs.existsSync(path.join(fullPath, CP2_FILE))) return true
+    if (task.kind === 'bugs') {
+      return directoryContainsFileMatching(
+        path.join(fullPath, 'reports'),
+        name => /^02--.*CP2.*\.md$/i.test(name)
+      )
+    }
+    return false
+  }
+  if (phase === 'CP3') return fs.existsSync(path.join(fullPath, CP3_FILE))
+  return false
+}
+
+function listTaskDirs() {
+  const out = []
+  for (const root of TASK_ROOTS) {
+    if (!fs.existsSync(root.dir)) continue
+    let entries
+    try { entries = fs.readdirSync(root.dir) } catch { continue }
+    for (const name of entries) {
+      const fullPath = path.join(root.dir, name)
+      try {
+        const s = fs.statSync(fullPath)
+        if (s.isDirectory()) out.push({ kind: root.kind, name, fullPath, mtimeMs: s.mtimeMs || 0 })
+      } catch { }
+    }
+  }
+  return out.sort((a, b) => (b.mtimeMs || 0) - (a.mtimeMs || 0))
+}
+
+function findIncompleteTask() {
+  const dirs = listTaskDirs()
+  if (!dirs.length) return null
 
   return dirs.find(d => {
     if (fs.existsSync(path.join(d.fullPath, '.archived'))) return false
-    if (!fs.existsSync(path.join(d.fullPath, CP1_FILE))) return false
+    if (!hasTaskArtifact(d, 'CP1')) return false
     const cp = readCpConfirmations(d.fullPath)
     if (cp.CP3) return false
-    if (!fs.existsSync(path.join(d.fullPath, CP3_FILE))) return true
+    if (!hasTaskArtifact(d, 'CP3')) return true
     return !cp.CP3
   }) || null
 }
@@ -556,18 +595,26 @@ function extractToolPaths(payload) {
   return out.map(p => { try { return path.normalize(p) } catch { return p } }).filter(Boolean)
 }
 
-// Map a file path to its owning requirement name (.devcodex/requirements/<X>/...);
-// returns null when the path is not under any requirement directory.
-function getRequirementNameFromPath(p) {
+// Map a file path to its owning task scope (.devcodex/requirements/<X>/... or .devcodex/bugs/<X>/...).
+// returns null when the path is not under any supported task directory.
+function getTaskScopeFromPath(p) {
   if (!p) return null
   let abs = p
   if (!path.isAbsolute(abs)) abs = path.resolve(WORKSPACE_ROOT, abs)
   const norm = path.normalize(abs)
-  const reqsDir = path.normalize(REQUIREMENTS_DIR)
-  if (!norm.toLowerCase().startsWith(reqsDir.toLowerCase() + path.sep)) return null
-  const rel = path.relative(reqsDir, norm)
-  const parts = rel.split(path.sep).filter(Boolean)
-  return parts.length > 0 ? parts[0] : null
+  for (const root of TASK_ROOTS) {
+    const rootDir = path.normalize(root.dir)
+    if (!norm.toLowerCase().startsWith(rootDir.toLowerCase() + path.sep)) continue
+    const rel = path.relative(rootDir, norm)
+    const parts = rel.split(path.sep).filter(Boolean)
+    if (!parts.length) return null
+    return {
+      kind: root.kind,
+      name: parts[0],
+      fullPath: path.join(root.dir, parts[0])
+    }
+  }
+  return null
 }
 
 function toWorkspaceRelativePath(p) {
@@ -603,41 +650,41 @@ function checkAutoWhitelist(payload, platform, state) {
   }
 }
 
-// Path-aware CP gate: when all tool paths belong to specific requirement dirs,
-// only check those requirements' CP status (avoids cross-requirement deny).
-// Falls back to global findIncompleteRequirement() for mixed/source-code paths.
-function findIncompleteRequirementForPaths(payload) {
+// Path-aware CP gate: when all tool paths belong to specific task dirs,
+// only check those tasks' CP status (avoids cross-task deny).
+// Falls back to global findIncompleteTask() for mixed/source-code paths.
+function findIncompleteTaskForPaths(payload) {
   const paths = extractToolPaths(payload)
-  if (paths.length === 0) return findIncompleteRequirement()
+  if (paths.length === 0) return findIncompleteTask()
 
-  const reqNames = paths.map(getRequirementNameFromPath)
-  const allInReq = reqNames.every(n => n !== null)
-  if (!allInReq) return findIncompleteRequirement()  // mixed or source-code → preserve original behavior
+  const taskScopes = paths.map(getTaskScopeFromPath)
+  const allInTask = taskScopes.every(scope => scope !== null)
+  if (!allInTask) return findIncompleteTask()  // mixed or source-code → preserve original behavior
 
-  const targetSet = new Set(reqNames)
-  for (const reqName of targetSet) {
-    const fullPath = path.join(REQUIREMENTS_DIR, reqName)
-    if (!fs.existsSync(fullPath)) continue
-    if (fs.existsSync(path.join(fullPath, '.archived'))) continue
-    if (!fs.existsSync(path.join(fullPath, CP1_FILE))) continue
-    const cp = readCpConfirmations(fullPath)
+  const targetMap = new Map()
+  for (const scope of taskScopes) targetMap.set(`${scope.kind}:${scope.name}`, scope)
+  for (const task of targetMap.values()) {
+    if (!fs.existsSync(task.fullPath)) continue
+    if (fs.existsSync(path.join(task.fullPath, '.archived'))) continue
+    if (!hasTaskArtifact(task, 'CP1')) continue
+    const cp = readCpConfirmations(task.fullPath)
     if (cp.CP3) continue
-    if (!fs.existsSync(path.join(fullPath, CP3_FILE))) return { name: reqName, fullPath }
-    if (!cp.CP3) return { name: reqName, fullPath }
+    if (!hasTaskArtifact(task, 'CP3')) return task
+    if (!cp.CP3) return task
   }
-  return null  // all target requirements have CP3 confirmed → allow
+  return null  // all target tasks have CP3 confirmed → allow
 }
 
 function checkCpGate(payload) {
-  const req = (payload && extractToolPaths(payload).length > 0)
-    ? findIncompleteRequirementForPaths(payload)
-    : findIncompleteRequirement()
-  if (!req) return null
-  const confirmed = readCpConfirmations(req.fullPath)
-  if (!fs.existsSync(path.join(req.fullPath, CP2_FILE)) || !confirmed.CP2) {
-    return { phase: 'CP2', reqName: req.name, reqPath: req.fullPath }
+  const task = (payload && extractToolPaths(payload).length > 0)
+    ? findIncompleteTaskForPaths(payload)
+    : findIncompleteTask()
+  if (!task) return null
+  const confirmed = readCpConfirmations(task.fullPath)
+  if (!hasTaskArtifact(task, 'CP2') || !confirmed.CP2) {
+    return { phase: 'CP2', reqName: task.name, reqPath: task.fullPath, kind: task.kind }
   }
-  return { phase: 'CP3', reqName: req.name, reqPath: req.fullPath }
+  return { phase: 'CP3', reqName: task.name, reqPath: task.fullPath, kind: task.kind }
 }
 
 // Source file extensions that indicate code/config being written
@@ -698,7 +745,7 @@ function isSourceCodeMutation(payload, platform) {
 
 function buildCpDenyOutput(platform, eventName, gate, toolName) {
   const msgs = {
-    CP2: `CP2 (技术方案) 未完成 — 请先输出 ${CP2_FILE} 并在 .memory/sessions.md 记录用户确认（✅）后再编码。`,
+    CP2: 'CP2 (技术方案) 未完成 — 请先输出对应的 CP2 方案产物（如 02-技术方案.md 或 CP2 报告产物），并在 .memory/sessions.md 记录用户确认（✅）后再编码。',
     CP3: `CP3 (实施计划) 未完成 — 请先输出 ${CP3_FILE} 并在 .memory/sessions.md 记录用户确认（✅）后再编码。`
   }
   const msg = msgs[gate.phase]

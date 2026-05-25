@@ -24,3 +24,18 @@ data/
 ## init 行为
 
 `devcodex init` 将 `data/templates/*.md` 复制到用户项目的 `.github/data/*.md`（目标路径向后兼容，不变）。
+
+## 路径语义
+
+规范文件里出现的以下路径，默认都指**目标项目 / 已部署副本的运行时台账路径**：
+
+- `data/violations.md`
+- `data/pending-fixes.md`
+- `data/process-improvements.md`
+
+而在**源仓**里：
+
+- `data/templates/*.md`：仅提供空模板
+- `.devcodex/.maintainer-state/`：维护者自己的实际记录，不参与 npm 分发
+
+换句话说，规范里写 `data/*.md` 时，表达的是“应该把记录落到运行时台账”，不是说源仓根 `data/` 目录里直接保存真实记录。

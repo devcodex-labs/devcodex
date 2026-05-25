@@ -20,8 +20,11 @@ const forbidden = [
 const required = [
   'instructions.md',
   'plugin.json',
+  '.mcp.json',
   'hooks/devcodex.lifecycle.json',
   'hooks/_runtime/lifecycle.cjs',
+  'mcp/memory-server.js',
+  'mcp/profile-server.js',
   'assets/icon-512.png',
 ]
 

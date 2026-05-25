@@ -25,6 +25,8 @@ const SERVER_INFO = {
   version: '1.0.0'
 }
 
+const DEFAULT_AGENT = 'claude-code'
+
 const TOOLS = [
   {
     name: 'profile_load',
@@ -47,6 +49,16 @@ const TOOLS = [
       type: 'object',
       properties: {}
     }
+  }
+]
+
+// ─── Prompts ──────────────────────────────────────────────────────────────────
+
+const PROMPTS = [
+  {
+    name: 'devcodex-init',
+    description: '一键加载 DevCodex 工作流规范与当前项目 Profile。在新建会话时使用，实现免手敲挂载规范。',
+    arguments: []
   }
 ]
 
@@ -112,7 +124,7 @@ function handleProfileGetMode() {
   const configPath = path.join(profileDir(), 'config.json')
   const raw = readFileText(configPath)
   let mode = 'prod'
-  let agent = 'claude'
+  let agent = DEFAULT_AGENT
 
   if (raw) {
     try {
@@ -130,6 +142,39 @@ function handleProfileGetMode() {
   }
 }
 
+function handlePromptsList() {
+  return { prompts: PROMPTS }
+}
+
+function handlePromptsGet(args) {
+  if (args.name !== 'devcodex-init') {
+    throw Object.assign(new Error(`Unknown prompt: ${args.name}`), { code: -32601 })
+  }
+
+  // 读取 CLAUDE.md
+  const claudePath = path.join(WORKSPACE_ROOT, 'CLAUDE.md')
+  let claudeContent = readFileText(claudePath)
+  if (!claudeContent) {
+    claudeContent = '（⚠️ 工作区根目录未找到 CLAUDE.md）'
+  }
+
+  // 复用 handleProfileLoad 获取 Profile 内容
+  const profileResponse = handleProfileLoad({})
+  const profileText = profileResponse.content[0].text
+
+  const promptText = `请严格遵循以下工作流规范与项目配置执行后续任务：\n\n## 1. 核心规范 (CLAUDE.md)\n\n${claudeContent}\n\n## 2. 项目专属配置 (Profile)\n\n${profileText}\n\n请在充分理解上述规范后，输出预检查块 (PC0~PC7) 并等待我的进一步指示。`
+
+  return {
+    description: PROMPTS[0].description,
+    messages: [
+      {
+        role: 'user',
+        content: { type: 'text', text: promptText }
+      }
+    ]
+  }
+}
+
 // ─── MCP JSON-RPC dispatcher ──────────────────────────────────────────────────
 
 function dispatch(method, params) {
@@ -137,7 +182,7 @@ function dispatch(method, params) {
     case 'initialize':
       return {
         protocolVersion: '2024-11-05',
-        capabilities: { tools: {} },
+        capabilities: { tools: {}, prompts: {} },
         serverInfo: SERVER_INFO
       }
 
@@ -154,6 +199,21 @@ function dispatch(method, params) {
           default:
             throw Object.assign(new Error(`Unknown tool: ${name}`), { code: -32601 })
         }
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: `Error: ${err.message}` }],
+          isError: true
+        }
+      }
+    }
+
+    case 'prompts/list':
+      return handlePromptsList()
+
+    case 'prompts/get': {
+      const args = params || {}
+      try {
+        return handlePromptsGet(args)
       } catch (err) {
         return {
           content: [{ type: 'text', text: `Error: ${err.message}` }],

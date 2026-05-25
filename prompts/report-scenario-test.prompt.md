@@ -5,7 +5,7 @@ applyTo: .devcodex/**/reports/scenario-tests/**
 ---
 # 场景测试报告模板
 
-> **路径**: `reports/scenario-tests/<agent>/YYYYMMDD/NN--<name>.md`
+> **路径**: 优先 `.devcodex/scenario-tests/<场景>/reports/<agent>/YYYYMMDD/NN--<name>.md`；无任务上下文时回退到 `.devcodex/reports/scenario-tests/<agent>/YYYYMMDD/NN--<name>.md`
 > **触发**: dev.scenario-test 工作流完成后，由 `report/SKILL.md` 驱动生成
 > **字段约束**: 每条问题/建议必须附五项验证（合理性 + 可实施性 + 收益 + 验证状态 + 影响范围），详见 [`17-compliance.instructions.md`](../instructions/17-compliance.instructions.md) §1 输出验证
 

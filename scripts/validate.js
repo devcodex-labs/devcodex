@@ -17,6 +17,7 @@
  * V13 关键模板语义探针（防止 prompts/skills 与权威 instructions 漂移）
  * V14 auto v1.1 语义联动（agent/common/cp-gate/compliance/runtime/test/README）
  * V15 audit-state 状态机一致性（状态枚举 + converged 门禁）
+ * V16 MCP servers smoke test（profile prompts + memory default agent）
  *
  * Exit: 0=OK, 1=error, 2=warnings only
  */
@@ -183,8 +184,11 @@ function checkV6() {
     const required = [
       'instructions.md',
       'plugin.json',
+      '.mcp.json',
       'hooks/devcodex.lifecycle.json',
       'hooks/_runtime/lifecycle.cjs',
+      'mcp/memory-server.js',
+      'mcp/profile-server.js',
       'assets/icon-512.png'
     ]
     const forbidden = files.filter(f =>
@@ -263,8 +267,8 @@ function checkV8() {
     return
   }
 
-  // F-005: 关键文件清单扩展至 prompts/skills/instructions/hooks/CLAUDE.md 全维度
-  // 注：CLAUDE.md 仅在 .claude/ 同步（Copilot 不需要），agents/ 同理；prompts/ 在 .claude/ 和 .github/ 均同步
+  // F-005: 关键文件清单扩展至 prompts/skills/instructions/hooks/CLAUDE.md/mcp 全维度
+  // 注：CLAUDE.md 与 mcp/ 仅在 .claude/ 同步（Copilot 不需要）；agents/ 同理；prompts/ 在 .claude/ 和 .github/ 均同步
   const checkPairs = [
     // Instructions（12 files）
     { src: 'instructions/00-safety.instructions.md', claude: 'instructions/00-safety.instructions.md', github: 'instructions/00-safety.instructions.md' },
@@ -301,6 +305,9 @@ function checkV8() {
     { src: 'prompts/report-scenario-test.prompt.md', claude: 'prompts/report-scenario-test.prompt.md', github: 'prompts/report-scenario-test.prompt.md' },
     // Hooks（1 file，双平台共享 _runtime）
     { src: 'hooks/_runtime/lifecycle.cjs', claude: 'hooks/_runtime/lifecycle.cjs', github: 'hooks/_runtime/lifecycle.cjs' },
+    // MCP（Claude Code only）
+    { src: 'mcp/memory-server.js', claude: 'mcp/memory-server.js', github: null },
+    { src: 'mcp/profile-server.js', claude: 'mcp/profile-server.js', github: null },
     // Workspace CLAUDE.md is generated from the v1.9.8+ single source instructions.md.
     { src: 'instructions.md', claude: '../CLAUDE.md', github: null }
   ]
@@ -618,6 +625,26 @@ function checkV15() {
   console.log(`[V15] audit-state consistency checked: ${stateFiles.length} files, ${violations} violation(s)`)
 }
 
+function checkV16() {
+  try {
+    execSync('node scripts/test-mcp-servers.js', { cwd: ROOT, stdio: 'pipe', encoding: 'utf8' })
+    console.log('[V16] MCP servers smoke test passed')
+  } catch (e) {
+    const detail = String((e.stderr || e.stdout || e.message || '')).trim().split('\n').slice(0, 8).join(' | ')
+    err(`[V16] MCP servers smoke test failed${detail ? `: ${detail}` : ''}`)
+  }
+}
+
+function checkV7b() {
+  try {
+    execSync('node scripts/test-instruction-fallback-check.js', { cwd: ROOT, stdio: 'pipe', encoding: 'utf8' })
+    console.log('[V7b] instruction-fallback smoke test passed')
+  } catch (e) {
+    const detail = String((e.stderr || e.stdout || e.message || '')).trim().split('\n').slice(0, 8).join(' | ')
+    err(`[V7b] instruction-fallback smoke test failed${detail ? `: ${detail}` : ''}`)
+  }
+}
+
 checkV1()
 checkV2()
 checkV3()
@@ -625,6 +652,7 @@ checkV4()
 checkV5()
 checkV6()
 checkV7()
+checkV7b()
 checkV8()
 checkV9()
 checkV10()
@@ -633,6 +661,7 @@ checkV12()
 checkV13()
 checkV14()
 checkV15()
+checkV16()
 
 console.log('')
 if (errors.length) {

@@ -79,7 +79,7 @@ description: 识别用户意图类型（dev/fix/analyze/audit/self-fix/chat/resu
 
 **特殊场景——记录违规**（T_RECORD 分支）：
 - 典型表述："记录这次违规"/"登记一下刚才的问题"
-- 写入目标：`data/violations.md`（追加 VL-NNN）
+- 写入目标：运行时违规台账 `data/violations.md`（追加 VL-NNN）；源仓仅保留 `data/templates/violations.md` 模板，维护者实录位于 `.devcodex/.maintainer-state/`
 - 不走 SCOPE→CLASSIFY 流程
 
 ## 多任务检测（强制）

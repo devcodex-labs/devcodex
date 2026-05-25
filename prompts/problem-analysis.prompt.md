@@ -5,7 +5,7 @@ applyTo: "**"
 ---
 # 问题分析报告模板
 
-> **路径**: `reports/bugs/<agent>/YYYYMMDD/NN--<name>-analysis.md`
+> **路径**: 优先 `.devcodex/bugs/<问题>/reports/<agent>/YYYYMMDD/NN--<name>-analysis.md`；无任务上下文时回退到 `.devcodex/reports/bugs/<agent>/YYYYMMDD/NN--<name>-analysis.md`
 > **触发**: fix 工作流三步扫描（S1~S3）完成后
 
 ---

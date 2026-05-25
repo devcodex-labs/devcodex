@@ -96,8 +96,8 @@ converged ──> closed
     "reason": "round-end | token-protect | user-interrupt | switching-to-release-vX.Y.Z | release-pending-vX.Y.Z"
   },
   "linkedMemory": "tasks/20260520.md",
-  "linkedReport": "reports/audit/<agent>/20260520/01--<name>.md",
-  "linkedRelease": "reports/requirements/<agent>/YYYYMMDD/01--vX.Y.Z-release.md"
+  "linkedReport": ".devcodex/<task-kind>/<task>/reports/<agent>/20260520/01--<name>.md",
+  "linkedRelease": ".devcodex/requirements/<task>/reports/<agent>/YYYYMMDD/01--vX.Y.Z-release.md"
 }
 ```
 

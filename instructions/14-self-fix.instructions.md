@@ -33,7 +33,7 @@ applyTo: "**"
 
 ### Pending 级（暂存等待）
 - 规范表述/流程/体系变更；新增检查项；修改约束等级
-- 记录到 `data/pending-fixes.md`，不在当前会话修改
+- 记录到运行时 Pending 台账 `data/pending-fixes.md`，不在当前会话修改
 - Pending 清单消化：① 当 AI 进入 dev 工作流且判断当前任务涉及规范执行路径时，在 CP1 前提示当前 Pending 积压数量；② 当 audit 工作流完成收敛并输出最终报告时，附上当前 Pending 列表摘要或数量，提醒用户择期处理
 
 ### 拒绝级
@@ -53,7 +53,7 @@ applyTo: "**"
 
 ## 违规记录（T_RECORD 分支）
 - 典型表述："记录这次违规"/"登记一下刚才的问题"
-- 直接追加到 `data/violations.md`（格式：VL-NNN 行）
+- 直接追加到运行时违规台账 `data/violations.md`（格式：VL-NNN 行）
 - 不走 SCOPE→CLASSIFY→AUTO/PENDING 流程
 
 ## 违规登记状态规则

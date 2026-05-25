@@ -32,4 +32,4 @@ description: 安全修复子类型规范 — CVE/漏洞响应 + 四项安全专�
 2. 准备 Security Advisory
 3. 协调发布节奏（如有 CVE 编号，对齐披露时间）
 4. 发布 patch 版本 + CHANGELOG 安全公告
-5. 输出安全报告：`reports/bugs/<agent>/YYYYMMDD/NN--security.md`
+5. 输出安全报告：优先 `.devcodex/bugs/<问题>/reports/<agent>/YYYYMMDD/NN--security.md`；无任务上下文时回退到 `.devcodex/reports/bugs/<agent>/YYYYMMDD/NN--security.md`

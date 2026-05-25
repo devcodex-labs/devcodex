@@ -52,4 +52,7 @@ applyTo: "**"
 | 状态 | ⛔ 致命违规终止 |
 | 🎯 任务摘要 | `⛔ S0{N} 违规：[违规类型简述]` |
 
-同时在 `data/violations.md` 登记表中追加违规记录。
+同时在运行时违规台账中追加违规记录：
+
+- **目标项目 / 已部署副本**：`data/violations.md`
+- **源仓维护态**：模板位于 `data/templates/violations.md`，维护者实录位于 `.devcodex/.maintainer-state/`

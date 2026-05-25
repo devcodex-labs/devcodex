@@ -15,7 +15,7 @@ applyTo: .devcodex/**/requirements/**
 | 2 | 技术方案 | `.devcodex/requirements/<需求>/02-技术方案.md`（有设计决策时）| ☐/N/A |
 | 3 | 实施计划 | `.devcodex/requirements/<需求>/04-实施计划.md` | ☐ |
 | 4 | 接口验证双产物 | `*-接口验证.http` + `*-接口验证.cjs`（有接口变更时）| ☐/N/A |
-| 5 | 开发报告 | `.devcodex/reports/requirements/<agent>/YYYYMMDD/NN--*.md` | ☐ |
+| 5 | 开发报告 | `.devcodex/requirements/<需求>/reports/<agent>/YYYYMMDD/NN--*.md`（无任务上下文时才回退到 `.devcodex/reports/requirements/...`） | ☐ |
 | 6 | 记忆文件 | `.devcodex/.memory/clients/<agent>/tasks/YYYYMMDD.md` | ☐ |
 | 7 | 需求级记忆 | `.devcodex/requirements/<需求>/.memory/sessions.md` | ☐ |
 

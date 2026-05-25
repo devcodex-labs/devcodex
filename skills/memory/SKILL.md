@@ -68,7 +68,7 @@ description: 管理会话记忆的读取与写入。三层记忆体系：Agent �
 - 有 🔄 → 输出提示：`⚠️ 上次存在未完成任务：[简述]，建议先 resume`
 - 用户说"继续"/"恢复" + 存在 🔄 → 判定为 `resume`
 
-## 会话段落字段
+## 会话字段
 
 ### 必填
 
@@ -162,4 +162,3 @@ description: 管理会话记忆的读取与写入。三层记忆体系：Agent �
 | 记忆日文件 | `prompts/memory-session.prompt.md` |
 | Agent SUMMARY | `prompts/agent-summary.prompt.md` |
 | 需求级记忆 | `prompts/requirement-session.prompt.md` |
-

@@ -20,7 +20,7 @@ CP 门控**不受 ENV_MODE 影响**，dev/prod 均为 🔴 强制等待用户确
 
 - Auto v1.1 **唯一正式入口**为显式 `@devcodex-auto`
 - `hook-enforced` 宿主下，CP 自动通过只对白名单路径形成 runtime 放行；非白名单路径默认回确认模式
-- `instruction-fallback` / Claude Code 只同步 auto 规则说明，不承诺 runtime 级 CP 硬放行
+- `instruction-fallback` 宿主（如 JetBrains / Cursor）只同步 auto 规则说明，不承诺 runtime 级 CP 硬放行；支持 Hook 的宿主按白名单执行 runtime 放行
 - `auto:` / `/auto` / profile `executionMode` 不属于本轮正式入口
 - CP1 / CP2 / CP3 确认**自动通过**（不等待用户确认）
 - 以下约束**不可豁免**：[S01](../../instructions/00-safety.instructions.md)（不可逆确认）/ S02~S07 / [C01](../../instructions/01-common.instructions.md) / [C10](../../instructions/01-common.instructions.md) / [C18](../../instructions/00-safety.instructions.md)
@@ -58,9 +58,10 @@ CP 门控**不受 ENV_MODE 影响**，dev/prod 均为 🔴 强制等待用户确
 5. **"继续" ≠ CP3 授权**：必须先展示变更计划才能进入执行
 6. **跨轮次状态保持**：CP 确认状态不因后续轮次消息重置
 7. **CP3 内容边界**：CP3 只确认实施计划，不重复技术方案中的架构决策、接口论证和兼容性主说明；必须显式覆盖任务拆分、顺序、依赖、验证方式与回滚策略
-8. **产物文件前置创建**：输出 CP 确认请求前，对应产物文件必须已写入磁盘（CP1 → `01-需求概述.md` + `<需求>/.memory/sessions.md`（需求级记忆，🔴 强制创建）；CP2 → `02-技术方案.md`（有架构/接口/设计决策时，否则跳过）；CP3 → `04-实施计划.md`）
+8. **产物文件前置创建**：输出 CP 确认请求前，对应产物文件必须已写入磁盘（dev/requirements 默认：CP1 → `01-需求概述.md` + `<任务>/.memory/sessions.md`；fix/bugs 允许使用 `01--问题确认与CP1.md`、`02--技术方案与CP2.md` 这类报告承载 CP1/CP2；CP3 → `04-实施计划.md`）
 9. **进度文档条件触发**：`05-实施进度.md` 不是默认必产物，仅在任务跨 2 轮以上会话、存在明确阻塞或用户要求持续跟踪时创建，且前提是已存在 `04-实施计划.md`
 10. **CP3 豁免记录**：docs/init/plan-review 等被工作流规则明确豁免 CP3 时，必须写入 `CP3: N/A（<子类型> 子类型豁免）`，让 hook/fallback 能区分“合法豁免”和“遗漏确认”。
+11. **确认后前置轻量复审**（C19）：每次用户明确确认后、进入下一阶段前，必须先对当前已确认产物做 1 轮轻量前置复审；发现阻断性问题则先修正并回到对应 CP 重新确认，无阻断问题方可推进。
 
 ## CP 响应处理
 
@@ -72,11 +73,24 @@ CP 门控**不受 ENV_MODE 影响**，dev/prod 均为 🔴 强制等待用户确
 | ？追问 | 回答后重新输出当前 CP，等待确认 |
 | 🔀 模糊（含批评/情绪/意图不明）| **不得推进**，必须明确询问再等待显式响应 |
 
-## 需求级记忆（sessions.md）CP 确认格式
+## 确认后前置轻量复审
 
-> 🔴 **hook 强制读取此格式**：`hooks/_runtime/lifecycle.cjs` 通过读取 `.devcodex/requirements/<需求名>/.memory/sessions.md` 判断 CP 确认状态，正则为 `| CP[123] | ✅ |`。格式不符则 hook 视为"未确认"，持续阻断代码写入工具（Write/Edit/apply_patch）。
+- **适用节点**：每次 CP 确认之后、进入下一阶段之前
+- **复审对象**：刚被确认的 CP 产物
+- **最小检查**：
+  1. 当前产物内部自洽
+  2. 与上游已确认内容一致
+  3. 不存在会在下一阶段立即触发阻断的缺口
+- **处理规则**：
+  - 无阻断问题：进入下一阶段
+  - 发现阻断问题：停止推进，修正当前产物，告知用户，再回到对应 CP 重新确认
+  - 连续 2 次仍发现新的阻断问题：提示升级为定向 `audit` 或扩大扫描范围
 
-每次用户确认 CP 后，立即在 `.devcodex/requirements/<需求名>/.memory/sessions.md` 写入或更新：
+## 任务级记忆（sessions.md）CP 确认格式
+
+> 🔴 **hook 强制读取此格式**：`hooks/_runtime/lifecycle.cjs` 通过读取 `.devcodex/requirements/<任务名>/.memory/sessions.md` 或 `.devcodex/bugs/<任务名>/.memory/sessions.md` 判断 CP 确认状态，正则为 `| CP[123] | ✅ |`。格式不符则 hook 视为"未确认"，持续阻断代码写入工具（Write/Edit/apply_patch）。
+
+每次用户确认 CP 后，立即在对应任务目录的 `.memory/sessions.md` 写入或更新：
 
 ```markdown
 ### CP 确认记录
@@ -88,7 +102,7 @@ CP 门控**不受 ENV_MODE 影响**，dev/prod 均为 🔴 强制等待用户确
 ```
 
 - `✅` 已确认 · `⏳` 等待确认 · `⏹️` 未开始
-- 推荐：使用 MCP 工具 `memory_cp_confirm {requirement, phase, time}` 自动写入（格式保证正确）
+- 推荐：使用 MCP 工具 `memory_cp_confirm {requirement, kind, phase, time}` 自动写入（格式保证正确；`kind=requirements|bugs`，旧调用保持兼容）
 - 无 MCP 时：用 Edit 工具追加/更新此表格，确保 `| CP1 | ✅ |` 格式出现在文件中
 - **禁止**：用 Bash/shell 命令修改此文件（C09：破坏 UTF-8 编码）
 

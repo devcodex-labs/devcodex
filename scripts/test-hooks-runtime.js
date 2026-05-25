@@ -298,8 +298,8 @@ function main() {
   assert.ok(!allowedAfterArchive.hookSpecificOutput)
 
   // v1.9.4+ Cross-requirement bypass test:
-  // When any requirement has CP3 confirmed (i.e. user is implementing),
-  // stale unfinished requirements should not block src/ code mutations globally.
+  // An unfinished requirement should keep blocking global src/ mutations
+  // even if another requirement has already entered implementation.
   cleanState()
   const reqIncomplete = path.join(TEMP_ROOT, '.devcodex', 'requirements', '陈旧未完成需求')
   fs.mkdirSync(path.join(reqIncomplete, '.memory'), { recursive: true })
@@ -318,7 +318,7 @@ function main() {
   })
   assert.strictEqual(blockedNoCp3.hookSpecificOutput.permissionDecision, 'deny')
 
-  // Add a second requirement that has CP3 confirmed → cross-req bypass should kick in
+  // Add a second requirement that has CP3 confirmed → stale unfinished task must still block
   const reqDone = path.join(TEMP_ROOT, '.devcodex', 'requirements', '当前实施需求')
   fs.mkdirSync(path.join(reqDone, '.memory'), { recursive: true })
   fs.writeFileSync(path.join(reqDone, '01-需求概述.md'), '# done\n')
@@ -329,17 +329,16 @@ function main() {
     '| CP1 | ✅ |\n| CP2 | ✅ |\n| CP3 | ✅ |\n'
   )
 
-  const allowedCrossReq = run({
+  const blockedCrossReq = run({
     hookEventName: 'PreToolUse',
     tool_name: 'apply_patch',
     tool_input: { input: '*** Begin Patch\n*** Update File: src/foo.js\n*** End Patch' }
   })
-  assert.strictEqual(allowedCrossReq.continue, true,
-    'cross-requirement bypass: src/ mutation should be allowed when any other requirement has CP3 confirmed')
-  assert.ok(!allowedCrossReq.hookSpecificOutput)
+  assert.strictEqual(blockedCrossReq.hookSpecificOutput.permissionDecision, 'deny',
+    'global src/ mutation should stay blocked while a newer unfinished task still lacks CP3')
 
   // Path-aware test: writing inside reqIncomplete dir while reqDone has CP3
-  // hasAnyCp3Done=true → still allowed (cross-req bypass takes precedence)
+  // should remain allowed because task artifact writes are not source mutations.
   const allowedInReqDir = run({
     hookEventName: 'PreToolUse',
     tool_name: 'Write',  // Claude Code PascalCase tool
@@ -368,6 +367,42 @@ function main() {
     tool_input: { input: '*** Begin Patch\n*** Update File: src/exempt.js\n*** End Patch' }
   })
   assert.strictEqual(allowedAfterCp3Exempt.continue, true)
+
+  // bug task support: unfinished bug task should block source mutation
+  cleanState()
+  const bugDir = path.join(TEMP_ROOT, '.devcodex', 'bugs', 'MCP全链路收口')
+  fs.mkdirSync(path.join(bugDir, '.memory'), { recursive: true })
+  fs.mkdirSync(path.join(bugDir, 'reports', 'claude-code', getTaskStamp(0)), { recursive: true })
+  fs.writeFileSync(
+    path.join(bugDir, 'reports', 'claude-code', getTaskStamp(0), '01--问题确认与CP1.md'),
+    '# cp1\n'
+  )
+  fs.writeFileSync(path.join(bugDir, '.memory', 'sessions.md'), '| CP1 | ✅ |\n')
+  run({ hookEventName: 'UserPromptSubmit', prompt: 'bug task gate test' })
+  runBootstrapReads()
+  const blockedBugTask = run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'apply_patch',
+    tool_input: { input: '*** Begin Patch\n*** Update File: src/bug.js\n*** End Patch' }
+  })
+  assert.strictEqual(blockedBugTask.hookSpecificOutput.permissionDecision, 'deny')
+
+  // bug task with CP2/CP3 complete should allow source mutation
+  fs.writeFileSync(
+    path.join(bugDir, 'reports', 'claude-code', getTaskStamp(0), '02--技术方案与CP2.md'),
+    '# cp2\n'
+  )
+  fs.writeFileSync(path.join(bugDir, '04-实施计划.md'), '# cp3\n')
+  fs.writeFileSync(
+    path.join(bugDir, '.memory', 'sessions.md'),
+    '| CP1 | ✅ |\n| CP2 | ✅ |\n| CP3 | ✅ |\n'
+  )
+  const allowedBugTask = run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'apply_patch',
+    tool_input: { input: '*** Begin Patch\n*** Update File: src/bug.js\n*** End Patch' }
+  })
+  assert.strictEqual(allowedBugTask.continue, true)
 
   // F-008 (v1.9.5): DEVCODEX_PATH_RE 边缘场景测试
   // Bootstrap a fresh workspace

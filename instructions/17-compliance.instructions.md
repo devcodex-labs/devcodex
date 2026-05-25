@@ -40,7 +40,7 @@ applyTo: "**"
 - PC3 执行准备：未完成任务 ✅ 无 / ⚠️ 存在 🔄 会话：[简述] → 建议先 resume · 产物落点 [已确定/无需产物/待确定]
 - PC4 规范雷达：见 `18-spec-radar.instructions.md` §预检查输出格式（v1.9.4+ 含 G10 limit 截断恢复检测）
 - PC5 部署体状态（v1.9.4+）：cwd 父链 .claude/.github/ ✅ 存在 / N/A 无父级 · 与源仓库同步 ✅ / ⚠️ [N 文件滞后] / N/A
-- PC6 工作区一致性（v1.9.4+）：git 未提交变更 ✅ 无 / ⚠️ [N 文件 dirty] · 当前需求目录 [requirements/<X>/ / 无关联]
+- PC6 工作区一致性（v1.9.4+）：git 未提交变更 ✅ 无 / ⚠️ [N 文件 dirty] · 当前任务目录 [requirements/<X>/ / bugs/<Y>/ / 无关联]
 - PC7 新会话首步 resume 强制检测（v1.9.4+，仅首条用户消息触发）：✅ 已 Read tasks 文件 + 比对 SUMMARY 一致 / ⚠️ 数据不一致需 resume / N/A（非首条）
 ```
 
@@ -78,8 +78,8 @@ applyTo: "**"
 >
 > 触发动作：
 > - 检测 `git status` 是否有未提交变更
-> - 检测当前对话是否在某个 `.devcodex/requirements/<X>/` 任务上下文（通过 sessions.md CP 状态推断）
-> - 输出 N 文件 dirty + 当前需求目录指针，供用户提早察觉工作区漂移
+> - 检测当前对话是否在某个 `.devcodex/requirements/<X>/` 或 `.devcodex/bugs/<Y>/` 任务上下文（通过 sessions.md CP 状态推断）
+> - 输出 N 文件 dirty + 当前任务目录指针，供用户提早察觉工作区漂移
 
 ### PC7 新会话首步 resume 强制检测（v1.9.4+，每次会话仅首条用户消息触发）
 
@@ -87,7 +87,7 @@ applyTo: "**"
 >
 > 触发动作（hook 强制 + AI 兜底，AI 不可跳过）：
 > 1. Read `.devcodex/.memory/clients/<agent>/tasks/YYYYMMDD.md`（今日）+ 昨日（如今日不存在）
-> 2. 检测最末 `## 会话段落 #N` 的状态字段：
+> 2. 检测最末 `## 会话 NN` 的状态字段：
 >    - 显式 `状态: ✅` → 上一会话完成，正常推进
 >    - 显式 `状态: 🔄` 或状态字段缺失 → ⚠️ 触发 resume 提示
 > 3. 比对 SUMMARY 最末行 vs tasks 最末段落状态一致性：
@@ -157,6 +157,7 @@ applyTo: "**"
 | SC12 | C14 多任务进度快照验证 | 任务≥2时 🔴 |
 | SC13 | C15 架构质量自检 | dev/fix 🔴 |
 | SC14 | analyze/audit 工作流中，所有标注 ✅已验证 的运行时结论（测试通过率/性能数字/命令输出）均已在**本轮实际执行**对应命令；SUMMARY.md 或记忆文件中的历史执行数据不得直接用作 ✅已验证，必须降级为 ⚠️待验证 | analyze/audit 🔴 |
+| SC15 | dev/fix 关键产物已完成轻量复审收敛：最后一次阻断性修正后，至少再复审 1 轮且无新增阻断性问题；未满足前不得宣告完成 | dev/fix 🔴 |
 
 ## RC 恢复性检查（非阻塞）
 
@@ -167,7 +168,7 @@ applyTo: "**"
 | RC1 | 记忆文件是否足以让下一个 Agent 恢复上下文 |
 | RC2 | 已产出文件是否自洽完整 |
 | RC3 | 🔄 标记任务是否提供了足够恢复线索 |
-| RC4 | 关联需求的 `.memory/sessions.md` 是否已创建 |
+| RC4 | 关联任务的 `.memory/sessions.md` 是否已创建 |
 
 ## 报告二次验证（V1~V6）
 
@@ -199,7 +200,7 @@ applyTo: "**"
 | T4 | ✅ CP 完整（dev/fix；其他 N/A） |
 | T5 | ✅ 合规通过 |
 | T6 | ✅ 约束遵守（C01~C15） |
-| T7 | ✅ 工作流验证（fix: 三步扫描已执行；audit/analyze: PCV 已执行）|
+| T7 | ✅ 工作流验证（dev/fix: 适用门禁已执行，其中 fix 的三步扫描与轻量复审收敛已完成；audit/analyze: PCV 已执行）|
 | T8 | ✅ SUMMARY 已更新 |
 | T9 | ✅ 产物路径已输出 |
 

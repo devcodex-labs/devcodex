@@ -13,7 +13,7 @@ applyTo: "**"
 
 ## 路径映射说明（v4 ↔ v1）
 
-| 项目 | v4（[ai-dev-guidelines](../../ai-dev-guidelines/version/v4/specs/output-paths.md)）| v1（本文件）|
+| 项目 | v4（历史 `ai-dev-guidelines/version/v4/specs/output-paths.md` 规范）| v1（本文件）|
 |------|------------|---------|
 | 产物根 | `projects/<project>/` | `<项目根>/.devcodex/` |
 | 记忆根 | `projects/<project>/.ai-memory/` | `<项目根>/.devcodex/.memory/` |

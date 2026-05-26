@@ -17,4 +17,11 @@
 
 ## 当前状态
 
-- 当前暂无已登记的非阻断问题池条目。
+- 当前已有 2 条已登记的非阻断问题池条目。
+
+## 登记表
+
+| 编号 | 标题 | 发现时间 | 影响范围 | 建议动作 | 状态 |
+|------|------|-----------|----------|----------|:----:|
+| ISSUE-001 | 单源 instructions.md 仍混入 Claude 专属路径与工具语义 | 2026-05-26 | instructions.md、index.js init/update、Copilot 端 .github/copilot-instructions.md | 将单源正文改为平台中性表达，或在复制阶段按目标平台注入专属尾注/章节，并补跨端语义校验 | 🔄 |
+| ISSUE-002 | audit-state 历史 paused 会话会保留过时 open findings 并继续进入 resume 候选集 | 2026-05-26 | .audit-state/*.json、skills/audit-session/SKILL.md、scripts/validate.js V15 | 为 audit-state 增加 superseded/过时检测与收口策略，并在 resume 选择和 V15 中排除或告警陈旧 paused 会话 | 🔄 |

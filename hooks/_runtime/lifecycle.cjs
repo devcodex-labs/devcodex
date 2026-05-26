@@ -22,6 +22,10 @@ const CP1_FILE = '01-需求概述.md'
 const CP2_FILE = '02-技术方案.md'
 const CP3_FILE = '04-实施计划.md'
 const EXECUTION_MODE = { CONFIRM: 'confirm', AUTO: 'auto' }
+const ENFORCEMENT_MODE = (() => {
+  const mode = String(process.env.DEVCODEX_HOOK_ENFORCEMENT || 'safety-only').trim().toLowerCase()
+  return mode === 'strict' ? 'strict' : 'safety-only'
+})()
 const AUTO_ALLOWED_PATH_PATTERNS = [
   /^\.devcodex\//,
   /^agents\/devcodex-auto\.agent\.md$/i,
@@ -323,6 +327,8 @@ function detectPlatform(payload) {
 
 function noopOutput() { return { continue: true } }
 
+function isStrictEnforcement() { return ENFORCEMENT_MODE === 'strict' }
+
 function blockOutput(platform, eventName, reason, detail) {
   if (platform === 'claude') {
     return { decision: 'block', reason: detail || reason }
@@ -341,6 +347,10 @@ function blockOutput(platform, eventName, reason, detail) {
 
 function systemMessageOutput(message) {
   return { continue: true, systemMessage: message }
+}
+
+function warningOutput(reason, detail) {
+  return systemMessageOutput(`DevCodex hook warning: ${reason}${detail ? ` — ${detail}` : ''}`)
 }
 
 // ─── Multi-project workspace detection (v1.9.8+) ──────────────────────────────
@@ -383,6 +393,8 @@ function hasMultiProjectExemption(prompt) {
 
 function detectProjectFromPrompt(prompt) {
   if (!prompt) return ''
+  const normalizedPrompt = normalizeText(prompt)
+  const bareMatches = []
   for (const projectName of listWorkspaceProjects()) {
     const escaped = escapeRegExp(projectName)
     const patterns = [
@@ -391,8 +403,28 @@ function detectProjectFromPrompt(prompt) {
       new RegExp(`项目\\s*${escaped}\\b`, 'i')
     ]
     if (patterns.some(pattern => pattern.test(prompt))) return projectName
+    if (normalizedPrompt.includes(normalizeText(projectName))) bareMatches.push(projectName)
   }
+  if (bareMatches.length === 1) return bareMatches[0]
   return ''
+}
+
+function detectProjectFromPayload(payload) {
+  const strings = collectStrings(payload).map(normalizeText).filter(Boolean)
+  const projects = listWorkspaceProjects()
+  const matches = []
+  for (const projectName of projects) {
+    const normalizedProject = normalizeText(projectName)
+    const projectRoot = normalizeText(path.join(WORKSPACE_ROOT, projectName))
+    const hit = strings.some(value => (
+      value === normalizedProject ||
+      value.includes(projectRoot) ||
+      value.includes(`/${normalizedProject}/`) ||
+      value.endsWith(`/${normalizedProject}`)
+    ))
+    if (hit) matches.push(projectName)
+  }
+  return matches.length === 1 ? matches[0] : ''
 }
 
 function detectExecutionMode(payload) {
@@ -571,6 +603,19 @@ function isBootstrapReadTool(payload, state) {
   )
 }
 
+function isPureReadTool(payload) {
+  const tn = getToolName(payload).toLowerCase()
+  const readPatterns = [
+    /^read([_-]?file)?$/, /^list[_-]?dir$/, /^file[_-]?search$/,
+    /^grep([_-]?search)?$/, /^semantic[_-]?search$/, /^glob$/
+  ]
+  return readPatterns.some(p => p.test(tn))
+}
+
+function isClarificationTool(payload) {
+  return /^vscode[_-]?askquestions$/.test(getToolName(payload).toLowerCase())
+}
+
 function updateBootstrapState(state, payload) {
   const scopes = getBootstrapScopes(state, payload)
   const inputStrings = getToolInputStrings(payload)
@@ -633,6 +678,18 @@ function buildBootstrapDenyOutput(state, payload, eventName, platform) {
     platform || 'copilot', eventName,
     `Blocked tool use before DevCodex bootstrap: ${toolName}`,
     `Read .devcodex/profile/ plus SUMMARY/tasks memory files first. Missing: ${missing.join(', ') || 'none'}.`
+  )
+}
+
+function buildBootstrapWarningOutput(state, payload) {
+  const missing = []
+  if (!state.bootstrap.profileRead) missing.push('profile')
+  if (!state.bootstrap.summaryRead) missing.push('SUMMARY')
+  if (!state.bootstrap.tasksRead) missing.push('tasks')
+  const toolName = getToolName(payload) || 'tool'
+  return warningOutput(
+    `Bootstrap incomplete before ${toolName}`,
+    `Read .devcodex/profile/ plus SUMMARY/tasks memory files as soon as possible. Missing: ${missing.join(', ') || 'none'}. Tool allowed in safety-only mode.`
   )
 }
 
@@ -933,6 +990,16 @@ function buildCpDenyOutput(platform, eventName, gate, toolName) {
   )
 }
 
+function buildCpWarningOutput(gate, toolName) {
+  const detail = gate.phase === 'CP2'
+    ? 'CP2 (技术方案) 未完成；请尽快补齐方案产物与用户确认记录。'
+    : `CP3 (实施计划) 未完成；请尽快补齐 ${CP3_FILE} 与用户确认记录。`
+  return warningOutput(
+    `CP gate warning: ${gate.phase} not confirmed for "${gate.reqName}" before ${toolName}`,
+    `${detail} Tool allowed in safety-only mode.`
+  )
+}
+
 // ─── Dangerous command detection ──────────────────────────────────────────────
 
 const DANGEROUS_PATTERNS = [
@@ -1064,7 +1131,9 @@ async function main() {
   const eventName = getEventName(payload)
   const platform = detectPlatform(payload)
   const prompt = eventName === 'UserPromptSubmit' ? extractUserPrompt(payload) : ''
-  const explicitProject = eventName === 'UserPromptSubmit' ? detectProjectFromPrompt(prompt) : ''
+  const explicitProject = eventName === 'UserPromptSubmit'
+    ? (detectProjectFromPrompt(prompt) || detectProjectFromPayload(payload))
+    : ''
   const modeHint = eventName === 'UserPromptSubmit'
     ? readProfileMode(null, explicitProject || CONTEXT_PROJECT || '')
     : undefined
@@ -1099,10 +1168,14 @@ async function main() {
       if (!hasMultiProjectExemption(prompt) && !state.activeProject) {
         state.lastReason = 'multi-project-workspace-block'
         saveState(state)
-        writeStdout(blockOutput(
-          platform, eventName, 'multi-project-workspace',
-          buildMultiProjectBlockMessage()
-        ))
+        if (isStrictEnforcement()) {
+          writeStdout(blockOutput(
+            platform, eventName, 'multi-project-workspace',
+            buildMultiProjectBlockMessage()
+          ))
+        } else {
+          writeStdout(warningOutput('multi-project-workspace', `${buildMultiProjectBlockMessage()} Prompt allowed in safety-only mode.`))
+        }
         return
       }
     }
@@ -1131,10 +1204,19 @@ async function main() {
 
     // 2. Bootstrap enforcement (all modes, both Copilot and Claude Code)
     if (!state.bootstrapComplete) {
+      if (isPureReadTool(payload) || isClarificationTool(payload)) {
+        updateBootstrapState(state, payload)
+        state.lastReason = 'bootstrap-read-or-clarification-allowed'
+        saveState(state)
+        writeStdout(noopOutput())
+        return
+      }
       if (!isBootstrapReadTool(payload, state)) {
         state.lastReason = 'blocked-before-bootstrap'
         saveState(state)
-        writeStdout(buildBootstrapDenyOutput(state, payload, eventName, platform))
+        writeStdout(isStrictEnforcement()
+          ? buildBootstrapDenyOutput(state, payload, eventName, platform)
+          : buildBootstrapWarningOutput(state, payload))
         return
       }
       updateBootstrapState(state, payload)
@@ -1152,10 +1234,14 @@ async function main() {
     if (autoWhitelist && !autoWhitelist.allowed) {
       state.lastReason = 'auto-non-whitelist-block'
       saveState(state)
-      writeStdout(blockOutput(
-        platform, eventName, 'auto-whitelist-boundary',
-        `${autoWhitelist.reason} — 请切回确认模式，或先把变更范围收敛到白名单路径。`
-      ))
+      if (isStrictEnforcement()) {
+        writeStdout(blockOutput(
+          platform, eventName, 'auto-whitelist-boundary',
+          `${autoWhitelist.reason} — 请切回确认模式，或先把变更范围收敛到白名单路径。`
+        ))
+      } else {
+        writeStdout(warningOutput('auto-whitelist-boundary', `${autoWhitelist.reason} Tool allowed in safety-only mode.`))
+      }
       return
     }
 
@@ -1165,7 +1251,9 @@ async function main() {
     if (gate && isSourceCodeMutation(payload, platform)) {
       state.lastReason = `cp-gate-${gate.phase}`
       saveState(state)
-      writeStdout(buildCpDenyOutput(platform, eventName, gate, getToolName(payload) || 'tool'))
+      writeStdout(isStrictEnforcement()
+        ? buildCpDenyOutput(platform, eventName, gate, getToolName(payload) || 'tool')
+        : buildCpWarningOutput(gate, getToolName(payload) || 'tool'))
       return
     }
 

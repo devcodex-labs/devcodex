@@ -119,7 +119,7 @@
 | `03-代码风格.md` | 编码规范 | 是 |
 | `config.json` | ENV_MODE + agent 标识 | 按需 |
 
-> **Claude Code 与 Copilot 双平台 Bootstrap 硬门禁**（v1.9.2+）：`lifecycle.cjs` Hook 在所有模式下对两平台均强制要求"先读 Profile + SUMMARY + 今日 tasks 文件，再执行其他工具"。`PreToolUse` 事件会拦截除只读工具（Read/Glob/Grep/list_dir/file_search/semantic_search）以外的全部工具调用，直到 Bootstrap 完成。AI 不需手工提示，但仍须在首条用户可见回复输出 PC0~PC7 入口检查块（S07/C18）。
+> **Claude Code 与 Copilot 双平台 Bootstrap 提醒**（v1.9.14+）：`lifecycle.cjs` Hook 在所有模式下对两平台均要求"先读 Profile + SUMMARY + 今日 tasks 文件，再执行实质任务"。默认 `safety-only` 模式下，`PreToolUse` 对 bootstrap / CP / auto 白名单等流程问题输出提醒并放行工具，仅危险命令继续硬拦；设置 `DEVCODEX_HOOK_ENFORCEMENT=strict` 时恢复流程硬拦截。AI 不需手工提示，但仍须在首条用户可见回复输出 PC0~PC7 入口检查块（S07/C18）。
 
 ---
 

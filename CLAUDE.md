@@ -15,7 +15,7 @@
 | S04 | 源码和规范文件(.md)修改必须用增量编辑（Edit），禁止整文件重写 | 🟡 操作级阻断 |
 | S05 | 每次会话结束前必须写入记忆文件和报告文件，禁止询问用户"是否需要写入" | 🔴 强制 |
 | S06 | 禁止直接执行不可逆破坏性命令（`DROP TABLE`、无 WHERE 的 `DELETE FROM`、`rm -rf /`），必须先输出预览等待确认 | 🟡 操作级阻断 |
-| S07 | dev 模式下，生成实质任务内容前必须先输出 PC0~PC7 预检查块；若已开始生成但未输出，立即补输出后继续。**v1.9.6+ compaction 触发**：`/compact`、`/resume`、summary 恢复后的首条回复同样视为"首条"，须重新输出 PC0~PC7（即使被指示"continue without acknowledging"） | 🔴 致命自修正 |
+| S07 | 全模式下，生成实质任务内容前必须先输出 PC0~PC7 入口检查块；dev 模式追加 PC4 完整规范雷达，非 dev 模式 PC4 标注 N/A。若已开始生成但未输出，立即补输出后继续。**v1.9.6+ compaction 触发**：`/compact`、`/resume`、summary 恢复后的首条回复同样视为"首条"，须重新输出 PC0~PC7（即使被指示"continue without acknowledging"） | 🔴 致命自修正 |
 
 ---
 
@@ -46,13 +46,13 @@
 | C09 | 文件编码安全 | 禁止用 Bash `Set-Content`/`sed -i` 批量修改中文 .md（破坏 UTF-8），必须用 Edit 工具逐文件修改 |
 | C10 | 禁止危险命令 | 同 S06 |
 | C11 | 关联文件同步 | 修改/新建/重命名后检查所有引用处并同步 |
-| C12 | 合理性评估 | 意图识别后、CP1 前必须评估合理性，有更好建议先提出确认后执行；用户给出判断时 AI 须独立验证，不得顺从论证 |
+| C12 | 合理性评估 | 意图识别后、CP1 前必须评估合理性，有更好建议先提出确认后执行；用户给出判断、目录结构或已有设计时 AI 须独立验证，不得顺从论证；若经核验用户方案已最优，可明确说明依据后直接采纳，禁止为了表现“独立”而机械唱反调 |
 | C13 | 文件分拆 | AI 新建 .md 超 500 行必须拆分（已有文件豁免）|
 | C14 | 多任务检查点 | ≥2 个独立任务：每完成一个追加进度到记忆 + 输出进度快照 |
 | C15 | 架构质量视角 | dev/fix 涉及代码设计须从架构师+平台工程师双视角评估：可扩展性/可维护性/易上手性 |
 | C16 | 批量操作分批 | ≥10 文件批量操作必须主动提出分批方案（推荐每批 10 个），输出计划后等待确认 |
 | C17 | 过程改进记录 | 用户建议的策略经确认更优时立即追加 PI 条目到 `data/process-improvements.md` |
-| C18 | dev 预检查不可跳过 | 同 S07 |
+| C18 | 全模式入口检查不可跳过 | 同 S07 |
 | C19 | 确认后前置复审 | 每次用户明确确认后、进入下一阶段前，必须先对当前已确认产物做 1 轮轻量前置复审，并显式输出结果；控制面 / 多文件联动 / 真相源同步 / 模板-示例-校验链场景必须追加交叉验证；若发现阻断性问题，先修正并告知用户，再重新确认；无阻断问题方可推进 |
 
 ---
@@ -98,6 +98,19 @@
 - Profile 缺失时 ENV_MODE 默认为 `prod`（保守降级）
 - 跨会话恢复时**必须重新读取 Profile 文件**（摘要 ≠ Profile 已加载）
 
+### 项目现实扩展
+
+执行顺序必须为：`用户消息语义初判 → 目标项目识别 → Profile/config 加载 → 项目现实扩展 → 最终意图与工作流路由`。
+
+- 项目现实扩展必须结合目标项目的技术栈、目录结构、当前需求/bug 产物、测试/发布约束，修正或确认最终工作流/子类型。
+- 项目未识别时，不得为了扩展意图而无界扫描工作区；必须先询问用户。
+- PC1 应表达“语义初判 → 项目现实扩展后的最终路由”，PC3 应表达扩展结果与产物落点。
+- 当 `<工作区根>/.devcodex/layout.json` 启用 `workspace-namespace` 时，Profile 与运行态目录按**工作区集中命名空间**读取：
+  - `config.json`：`<工作区根>/.devcodex/workspace/profile/` 作为 base，`<工作区根>/.devcodex/<project>/profile/` 作为 overlay
+  - Profile 文档：项目命名空间文件优先，缺失回退到 `workspace/profile/`
+  - 运行态目录：单项目写 `<工作区根>/.devcodex/<project>/...`，全工作区写 `<工作区根>/.devcodex/workspace/...`
+- 未启用 `layout.json` 时，继续兼容 `<项目根>/.devcodex/...`
+
 | 文件 | 说明 | 必须 |
 |------|------|:----:|
 | `README.md` | profile 索引 | 是 |
@@ -106,7 +119,7 @@
 | `03-代码风格.md` | 编码规范 | 是 |
 | `config.json` | ENV_MODE + agent 标识 | 按需 |
 
-> **Claude Code 与 Copilot 双平台 Bootstrap 硬门禁**（v1.9.2+）：`lifecycle.cjs` Hook 在 dev 模式下对两平台均强制要求"先读 Profile + SUMMARY + 今日 tasks 文件，再执行其他工具"。`PreToolUse` 事件会拦截除只读工具（Read/Glob/Grep/list_dir/file_search/semantic_search）以外的全部工具调用，直到 Bootstrap 完成。AI 不需手工提示，但仍须在首条用户可见回复输出 PC0~PC7 预检查块（S07/C18）。
+> **Claude Code 与 Copilot 双平台 Bootstrap 提醒**（v1.9.14+）：`lifecycle.cjs` Hook 在所有模式下对两平台均要求"先读 Profile + SUMMARY + 今日 tasks 文件，再执行实质任务"。默认 `safety-only` 模式下，`PreToolUse` 对 bootstrap / CP / auto 白名单等流程问题输出提醒并放行工具，仅危险命令继续硬拦；设置 `DEVCODEX_HOOK_ENFORCEMENT=strict` 时恢复流程硬拦截。AI 不需手工提示，但仍须在首条用户可见回复输出 PC0~PC7 入口检查块（S07/C18）。
 
 ---
 
@@ -116,7 +129,7 @@
 |--------|:------------:|:-----:|
 | CP 门控 | 🔴 强制等待用户确认 | 🔴 强制等待用户确认 |
 | 合规检查 | 不执行 | 全量 FC1~FC7 + SC1~SC15 + RC1~RC4 + T1~T9 |
-| 预检查输出 | 不输出 | 输出 PC0~PC7 |
+| 入口检查输出 | 输出 PC0~PC7 基础状态，PC4 标注 N/A | 输出 PC0~PC7，PC4 执行完整规范雷达 |
 | 合规状态块 | 不输出 | 输出全量状态块（chat 豁免合规块，但仍须预检查）|
 | 安全底线 S01~S06 | 🔴 强制 | 🔴 强制 |
 
@@ -230,7 +243,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → 执行 →
 
 - 只读工作流，禁止修改文件
 - 多轮收敛：至少 3 轮，连续 **3** 轮零发现后才可宣告收敛
-- DevCodex plugin 文件发现问题 → 立即自我审视 + self-fix，修复后重启新轮
+- DevCodex plugin 文件发现问题 → 先做阻断/非阻断分流：阻断项立即自我审视 + self-fix，修复后重启新轮；非阻断项写入 `data/pending-issues.md`，继续下一轮
 - 其他文件发现问题 → 记录 PF/VL，继续下一轮
 - 收敛前门禁：CRS（全库 grep）✅ + PCV（收敛后汇总验证）
 
@@ -254,12 +267,17 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → 执行 →
 ### 文件路径
 
 ```
-<项目根>/.devcodex/.memory/clients/<agent>/tasks/YYYYMMDD.md
+<active-root>/.memory/clients/<agent>/tasks/YYYYMMDD.md
 ```
+
+`<active-root>` 取值：
+- 旧布局：`<项目根>/.devcodex`
+- 集中布局单项目：`<工作区根>/.devcodex/<project>`
+- 集中布局全工作区：`<工作区根>/.devcodex/workspace`
 
 - `<agent>` 解析规则（按优先级）：
   1. 读 `.devcodex/profile/config.json` 的 `"agent"` 字段
-  2. 若缺失，按运行环境推断，**枚举值固定**：`copilot` / `claude-code` / `codex` / `cursor` / `vscode-copilot` / `unknown-agent`（禁止使用裸 `claude`，与 Claude API/Claude.ai 区分）
+  2. 若缺失，按运行环境推断，**枚举值固定**：`copilot` / `vscode-copilot` / `jetbrains-copilot` / `claude-code` / `codex` / `cursor` / `unknown-agent`（禁止使用裸 `claude`，与 Claude API/Claude.ai 区分）
   3. `devcodex init --claude` 应自动写入 `"agent": "claude-code"`
 - 禁止用 Bash 命令查找记忆文件（shell glob 跳过隐藏目录），必须用 Read 工具逐层进入
 
@@ -284,7 +302,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → 执行 →
 ### SUMMARY 文件
 
 ```
-.devcodex/.memory/clients/<agent>/SUMMARY.md
+<active-root>/.memory/clients/<agent>/SUMMARY.md
 ```
 
 每次会话结束前追加一行索引：`| 日期 | 会话 | 类型 | 摘要 | 关联报告 | 关联记忆 | 状态 |`
@@ -295,16 +313,16 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → 执行 →
 
 执行顺序：`预检查 PC0~PC7 → FC → SC → RC → 报告验证 V1~V6 → 任务完成验证 T1~T9`
 
-### 预检查输出格式（dev 模式，所有工作流前置，chat 也须执行）
+### 入口检查输出格式（所有模式，所有工作流前置，chat 也须执行）
 
 ```
 ---
-🔍 预检查（DEV 模式）
+🔍 入口检查（[DEV/PROD] 模式）
 - PC0 上下文：项目 [项目名] · 输出语言 [中/英] · Profile ✅已加载/❌未加载
-- PC1 意图：[用户意图] → [工作流/子类型]
+- PC1 意图：语义初判 [用户意图] → 项目现实扩展后 [工作流/子类型]
 - PC2 会话状态：第 N 轮（>10关注/>13预警/>15防护） · 待跟进 ✅无/⚠️[简述]
-- PC3 执行准备：未完成任务 ✅无/⚠️存在🔄：[简述] · 产物落点 [已确定/无需/待确定]
-- PC4 规范雷达：[三轴诊断结果，见 18-spec-radar.instructions.md]（v1.9.4+ 含 G10 limit 截断恢复检测）
+- PC3 执行准备：项目现实扩展 [已完成/待澄清] · 未完成任务 ✅无/⚠️存在🔄：[简述] · 产物落点 [已确定/无需/待确定]
+- PC4 规范雷达：dev 模式输出三轴诊断结果；非 dev 模式 N/A（dev 扩展诊断未启用）
 - PC5 部署体状态（v1.9.4+）：cwd 父链 .claude/.github/ ✅ 存在 / N/A 无父级 · 与源仓库同步 ✅ / ⚠️ [N 文件滞后] / N/A
 - PC6 工作区一致性（v1.9.4+）：git 未提交变更 ✅ 无 / ⚠️ [N 文件 dirty] · 当前需求目录 [requirements/<X>/ / 无关联]
 - PC7 新会话首步 resume 强制检测（v1.9.4+，仅首条用户消息触发）：✅ 已 Read tasks 文件 + 比对 SUMMARY 一致 / ⚠️ 数据不一致需 resume / N/A（非首条）
@@ -361,7 +379,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → 执行 →
 | T3 | 单元/集成测试通过 |
 | T4 | 关联文档已同步 |
 | T5 | 关联配置已更新 |
-| T6 | CHANGELOG 已追加（如属外部可见变更） |
+| T6 | CHANGELOG / unreleased 已按发布状态追加（如属外部可见变更） |
 | T7 | 影响评估已记录（impact-review） |
 | T8 | 报告 V1~V6 验证通过 |
 | T9 | 记忆 + SUMMARY 写入完成 |

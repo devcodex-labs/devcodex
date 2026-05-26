@@ -45,11 +45,11 @@ applyTo: "**"
 
 > ⚠️ PC0 检查失败时（Profile 未加载）不得跳过 — 必须立即加载后才能继续，ENV_MODE 由 Profile 的 `config.json` 决定。
 >
-> 🔴 **项目未识别阻断**（v1.9.8+）：当 PC0 列出"项目 [未识别]"时，**必须暂停后续 PC1~PC7 输出**，在入口检查块位置输出：
+> 🔴 **项目未识别处理**（v1.9.8+）：当 PC0 列出"项目 [未识别]"时，AI **必须暂停后续 PC1~PC7 输出**，在入口检查块位置输出：
 > ```
 > ⚠️ 项目未识别，请确认当前请求关联哪个项目（如 cacheHub / payment / vext / monSQLize 等）。未明确前不得启动任何工作流、不得发起超出当前文件范围的工作区扫描。
 > ```
-> 等用户明确后再续输出完整 PC0~PC7。豁免词（同步 `lifecycle.cjs` `isMultiProjectWorkspace`）：`workspace` / `monorepo` / `全工作区` / `all projects` / `所有项目`。
+> 等用户明确后再续输出完整 PC0~PC7。豁免词（同步 `lifecycle.cjs` `isMultiProjectWorkspace`）：`workspace` / `monorepo` / `全工作区` / `all projects` / `所有项目`。运行时默认 `safety-only` 只提醒放行，`strict` 模式才硬拦截；AI 侧流程仍不得跳过澄清。
 >
 > ⚠️ `hook-enforced` 模式下，入口检查状态可以由宿主事件驱动后显示为**首个结构化状态块**；`instruction-fallback` 模式下，入口检查块仍应尽量位于回复开头，但不再机械要求“第一批 tool call”“第一行输出”。
 >

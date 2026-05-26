@@ -19,8 +19,8 @@ CP 门控**不受 ENV_MODE 影响**，dev/prod 均为 🔴 强制等待用户确
 > 当用户选择 `@devcodex-auto` 时：
 
 - Auto v1.1 **唯一正式入口**为显式 `@devcodex-auto`
-- `hook-enforced` 宿主下，CP 自动通过只对白名单路径形成 runtime 放行；非白名单路径默认回确认模式
-- `instruction-fallback` 宿主（如 JetBrains / Cursor）只同步 auto 规则说明，不承诺 runtime 级 CP 硬放行；支持 Hook 的宿主按白名单执行 runtime 放行
+- `hook-enforced` 宿主下，CP 自动通过对白名单路径形成无提醒通过；非白名单路径在默认 `safety-only` 下提醒放行，在 `strict` 模式下回确认模式并硬拦截
+- `instruction-fallback` 宿主（如 JetBrains / Cursor）只同步 auto 规则说明，不承诺 runtime 级 CP 行为；支持 Hook 的宿主由 `DEVCODEX_HOOK_ENFORCEMENT` 决定提醒或硬拦截
 - `auto:` / `/auto` / profile `executionMode` 不属于本轮正式入口
 - CP1 / CP2 / CP3 确认**自动通过**（不等待用户确认）
 - 以下约束**不可豁免**：[S01](../../instructions/00-safety.instructions.md)（不可逆确认）/ S02~S07 / [C01](../../instructions/01-common.instructions.md) / [C10](../../instructions/01-common.instructions.md) / [C18](../../instructions/00-safety.instructions.md)
@@ -96,7 +96,7 @@ CP 门控**不受 ENV_MODE 影响**，dev/prod 均为 🔴 强制等待用户确
 
 ## 任务级记忆（sessions.md）CP 确认格式
 
-> 🔴 **hook 强制读取此格式**：`hooks/_runtime/lifecycle.cjs` 通过读取 `.devcodex/requirements/<任务名>/.memory/sessions.md` 或 `.devcodex/bugs/<任务名>/.memory/sessions.md` 判断 CP 确认状态，正则为 `| CP[123] | ✅ |`。格式不符则 hook 视为"未确认"，持续阻断代码写入工具（Write/Edit/apply_patch）。
+> 🔴 **hook 读取此格式**：`hooks/_runtime/lifecycle.cjs` 通过读取 `.devcodex/requirements/<任务名>/.memory/sessions.md` 或 `.devcodex/bugs/<任务名>/.memory/sessions.md` 判断 CP 确认状态，正则为 `| CP[123] | ✅ |`。格式不符则 hook 视为"未确认"；默认 `safety-only` 下输出提醒并放行，`strict` 模式下阻断代码写入工具（Write/Edit/apply_patch）。
 
 每次用户确认 CP 后，立即在对应任务目录的 `.memory/sessions.md` 写入或更新：
 

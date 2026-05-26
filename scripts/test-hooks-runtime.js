@@ -122,11 +122,22 @@ function cleanLayoutState(
   )
 }
 
-function run(payload, cwd = TEMP_ROOT) {
+function cleanMultiProjectState() {
+  if (fs.existsSync(TEMP_ROOT)) {
+    fs.rmSync(TEMP_ROOT, { recursive: true, force: true })
+  }
+  fs.mkdirSync(path.join(TEMP_ROOT, 'devcodex-v1'), { recursive: true })
+  fs.mkdirSync(path.join(TEMP_ROOT, 'payment'), { recursive: true })
+  fs.writeFileSync(path.join(TEMP_ROOT, 'devcodex-v1', 'package.json'), '{}')
+  fs.writeFileSync(path.join(TEMP_ROOT, 'payment', 'package.json'), '{}')
+}
+
+function run(payload, cwd = TEMP_ROOT, env = {}) {
   const result = spawnSync(process.execPath, [RUNTIME], {
     cwd,
     input: JSON.stringify(payload),
-    encoding: 'utf8'
+    encoding: 'utf8',
+    env: { ...process.env, ...env }
   })
 
   if (result.status !== 0) {
@@ -147,15 +158,54 @@ function main() {
   assert.match(promptOutput.systemMessage || '', /PC0-PC7/)
   assert.match(promptOutput.systemMessage || '', /entry check/)
 
-  const blockedBeforeBootstrap = run({
+  const warningBeforeBootstrap = run({
     hookEventName: 'PreToolUse',
     tool_name: 'apply_patch',
     tool_input: {
       input: '*** Begin Patch\n*** Update File: README.md\n*** End Patch'
     }
   })
+  assert.strictEqual(warningBeforeBootstrap.continue, true)
+  assert.match(warningBeforeBootstrap.systemMessage || '', /bootstrap/i)
+
+  cleanState()
+  run({
+    hookEventName: 'UserPromptSubmit',
+    prompt: 'strict bootstrap gate test'
+  }, TEMP_ROOT, { DEVCODEX_HOOK_ENFORCEMENT: 'strict' })
+  const blockedBeforeBootstrap = run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'apply_patch',
+    tool_input: {
+      input: '*** Begin Patch\n*** Update File: README.md\n*** End Patch'
+    }
+  }, TEMP_ROOT, { DEVCODEX_HOOK_ENFORCEMENT: 'strict' })
   assert.strictEqual(blockedBeforeBootstrap.hookSpecificOutput.permissionDecision, 'deny')
   assert.match(blockedBeforeBootstrap.hookSpecificOutput.permissionDecisionReason || '', /bootstrap/i)
+
+  cleanState()
+  run({
+    hookEventName: 'UserPromptSubmit',
+    prompt: 'Need a root cure for dev mode drift.'
+  })
+
+  const sourceReadAllowedDuringBootstrap = run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'read_file',
+    tool_input: {
+      filePath: 'package.json'
+    }
+  })
+  assert.strictEqual(sourceReadAllowedDuringBootstrap.continue, true)
+
+  const questionAllowedDuringBootstrap = run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'vscode_askQuestions',
+    tool_input: {
+      questions: [{ header: '目标项目', question: '审查哪个项目？' }]
+    }
+  })
+  assert.strictEqual(questionAllowedDuringBootstrap.continue, true)
 
   const shellReadAllowedDuringBootstrap = run({
     hookEventName: 'PreToolUse',
@@ -173,15 +223,15 @@ function main() {
   })
   assert.strictEqual(prodPromptOutput.continue, true)
   assert.match(prodPromptOutput.systemMessage || '', /entry check PC0-PC7/)
-  const prodWriteBlockedBeforeBootstrap = run({
+  const prodWriteWarningBeforeBootstrap = run({
     hookEventName: 'PreToolUse',
     tool_name: 'apply_patch',
     tool_input: {
       input: '*** Begin Patch\n*** Update File: README.md\n*** End Patch'
     }
   })
-  assert.strictEqual(prodWriteBlockedBeforeBootstrap.hookSpecificOutput.permissionDecision, 'deny')
-  assert.match(prodWriteBlockedBeforeBootstrap.hookSpecificOutput.permissionDecisionReason || '', /bootstrap/i)
+  assert.strictEqual(prodWriteWarningBeforeBootstrap.continue, true)
+  assert.match(prodWriteWarningBeforeBootstrap.systemMessage || '', /bootstrap/i)
 
   cleanState()
   run({
@@ -189,25 +239,25 @@ function main() {
     prompt: 'Need a root cure for dev mode drift.'
   })
 
-  const shellWriteBlockedDuringBootstrap = run({
+  const shellWriteWarningDuringBootstrap = run({
     hookEventName: 'PreToolUse',
     tool_name: 'shell_command',
     tool_input: {
       command: 'Set-Content .devcodex/profile/config.json "{}"'
     }
   })
-  assert.strictEqual(shellWriteBlockedDuringBootstrap.hookSpecificOutput.permissionDecision, 'deny')
-  assert.match(shellWriteBlockedDuringBootstrap.hookSpecificOutput.permissionDecisionReason || '', /bootstrap/i)
+  assert.strictEqual(shellWriteWarningDuringBootstrap.continue, true)
+  assert.match(shellWriteWarningDuringBootstrap.systemMessage || '', /bootstrap/i)
 
-  const shellAliasWriteBlockedDuringBootstrap = run({
+  const shellAliasWriteWarningDuringBootstrap = run({
     hookEventName: 'PreToolUse',
     tool_name: 'shell_command',
     tool_input: {
       command: 'Get-Content .devcodex/profile/config.json; sc .devcodex/profile/config.json "{}"'
     }
   })
-  assert.strictEqual(shellAliasWriteBlockedDuringBootstrap.hookSpecificOutput.permissionDecision, 'deny')
-  assert.match(shellAliasWriteBlockedDuringBootstrap.hookSpecificOutput.permissionDecisionReason || '', /bootstrap/i)
+  assert.strictEqual(shellAliasWriteWarningDuringBootstrap.continue, true)
+  assert.match(shellAliasWriteWarningDuringBootstrap.systemMessage || '', /bootstrap/i)
 
   run({
     hookEventName: 'PreToolUse',
@@ -224,7 +274,7 @@ function main() {
       filePath: getMemoryFilePath('copilot', 'SUMMARY.md')
     }
   })
-  assert.strictEqual(wrongAgentSummary.hookSpecificOutput.permissionDecision, 'deny')
+  assert.strictEqual(wrongAgentSummary.continue, true)
 
   const staleTaskRead = run({
     hookEventName: 'PreToolUse',
@@ -273,10 +323,29 @@ function main() {
       filePath: getMemoryFilePath(WRONG_FALLBACK_AGENT, 'SUMMARY.md')
     }
   })
-  assert.strictEqual(wrongFallbackSummary.hookSpecificOutput.permissionDecision, 'deny')
+  assert.strictEqual(wrongFallbackSummary.continue, true)
   runBootstrapReads(FALLBACK_BOOTSTRAP_AGENT)
   const fallbackState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
   assert.strictEqual(fallbackState.bootstrapComplete, true)
+
+  cleanMultiProjectState()
+  const attachmentPrompt = run({
+    hookEventName: 'UserPromptSubmit',
+    prompt: '审查这个项目',
+    attachments: [{ folderPath: path.join(TEMP_ROOT, 'devcodex-v1') }]
+  })
+  assert.strictEqual(attachmentPrompt.continue, true)
+  let multiProjectState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(multiProjectState.activeProject, 'devcodex-v1')
+
+  cleanMultiProjectState()
+  const bareProjectPrompt = run({
+    hookEventName: 'UserPromptSubmit',
+    prompt: '审查 devcodex-v1 项目'
+  })
+  assert.strictEqual(bareProjectPrompt.continue, true)
+  multiProjectState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(multiProjectState.activeProject, 'devcodex-v1')
 
   cleanLayoutState()
   const layoutProjectRoot = path.join(TEMP_ROOT, 'chat')
@@ -483,7 +552,8 @@ function main() {
   })
   assert.ok(!completeClosureReply.systemMessage)
 
-  // Auto v1.1: explicit @devcodex-auto should write executionMode=auto and only allow whitelisted paths.
+  // Auto v1.1: explicit @devcodex-auto writes executionMode=auto; in safety-only mode,
+  // non-whitelisted paths warn instead of hard-blocking.
   cleanState()
   const autoReq = path.join(TEMP_ROOT, '.devcodex', 'requirements', '自动模式需求')
   fs.mkdirSync(path.join(autoReq, '.memory'), { recursive: true })
@@ -505,15 +575,25 @@ function main() {
   assert.strictEqual(autoWhitelistAllowed.continue, true)
   assert.ok(!autoWhitelistAllowed.hookSpecificOutput)
 
-  const autoNonWhitelistBlocked = run({
+  const autoNonWhitelistWarning = run({
     hookEventName: 'PreToolUse',
     tool_name: 'apply_patch',
     tool_input: {
       input: '*** Begin Patch\n*** Update File: src/foo.js\n*** End Patch'
     }
   })
-  assert.strictEqual(autoNonWhitelistBlocked.hookSpecificOutput.permissionDecision, 'deny')
-  assert.match(autoNonWhitelistBlocked.hookSpecificOutput.additionalContext || '', /白名单|whitelist/i)
+  assert.strictEqual(autoNonWhitelistWarning.continue, true)
+  assert.match(autoNonWhitelistWarning.systemMessage || '', /白名单|whitelist/i)
+
+  const autoNonWhitelistBlockedStrict = run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'apply_patch',
+    tool_input: {
+      input: '*** Begin Patch\n*** Update File: src/foo.js\n*** End Patch'
+    }
+  }, TEMP_ROOT, { DEVCODEX_HOOK_ENFORCEMENT: 'strict' })
+  assert.strictEqual(autoNonWhitelistBlockedStrict.hookSpecificOutput.permissionDecision, 'deny')
+  assert.match(autoNonWhitelistBlockedStrict.hookSpecificOutput.additionalContext || '', /白名单|whitelist/i)
 
   const autoDangerousCommand = run({
     hookEventName: 'PreToolUse',
@@ -532,18 +612,26 @@ function main() {
   })
   runBootstrapReads()
 
-  // Archive marker bypass test: an unfinished requirement with .archived must NOT block
+  // Archive marker bypass test: in safety-only mode, unfinished requirements warn instead of blocking;
+  // archived requirements should not even warn.
   const reqDir = path.join(TEMP_ROOT, '.devcodex', 'requirements', '历史归档需求')
   fs.mkdirSync(path.join(reqDir, '.memory'), { recursive: true })
   fs.writeFileSync(path.join(reqDir, '01-需求概述.md'), '# req\n')
   fs.writeFileSync(path.join(reqDir, '.memory', 'sessions.md'), '| CP1 | ✅ |\n')
-  const blockedByOldReq = run({
+  const warningByOldReq = run({
     hookEventName: 'PreToolUse',
     tool_name: 'apply_patch',
     tool_input: { input: '*** Begin Patch\n*** Update File: src/app.js\n*** End Patch' }
   })
-  assert.strictEqual(blockedByOldReq.hookSpecificOutput.permissionDecision, 'deny')
-  assert.match(blockedByOldReq.hookSpecificOutput.permissionDecisionReason || '', /CP gate/i)
+  assert.strictEqual(warningByOldReq.continue, true)
+  assert.match(warningByOldReq.systemMessage || '', /CP gate/i)
+  const blockedByOldReqStrict = run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'apply_patch',
+    tool_input: { input: '*** Begin Patch\n*** Update File: src/app.js\n*** End Patch' }
+  }, TEMP_ROOT, { DEVCODEX_HOOK_ENFORCEMENT: 'strict' })
+  assert.strictEqual(blockedByOldReqStrict.hookSpecificOutput.permissionDecision, 'deny')
+  assert.match(blockedByOldReqStrict.hookSpecificOutput.permissionDecisionReason || '', /CP gate/i)
   fs.writeFileSync(path.join(reqDir, '.archived'), '')
   const allowedAfterArchive = run({
     hookEventName: 'PreToolUse',
@@ -554,7 +642,7 @@ function main() {
   assert.ok(!allowedAfterArchive.hookSpecificOutput)
 
   // v1.9.4+ Cross-requirement bypass test:
-  // An unfinished requirement should keep blocking global src/ mutations
+  // An unfinished requirement should keep warning on global src/ mutations
   // even if another requirement has already entered implementation.
   cleanState()
   const reqIncomplete = path.join(TEMP_ROOT, '.devcodex', 'requirements', '陈旧未完成需求')
@@ -566,13 +654,14 @@ function main() {
   run({ hookEventName: 'UserPromptSubmit', prompt: 'cross-req test' })
   runBootstrapReads()
 
-  // Without any CP3-done requirement: src/ mutation must be denied (original behavior)
-  const blockedNoCp3 = run({
+  // Without any CP3-done requirement: src/ mutation warns in safety-only mode.
+  const warningNoCp3 = run({
     hookEventName: 'PreToolUse',
     tool_name: 'apply_patch',
     tool_input: { input: '*** Begin Patch\n*** Update File: src/foo.js\n*** End Patch' }
   })
-  assert.strictEqual(blockedNoCp3.hookSpecificOutput.permissionDecision, 'deny')
+  assert.strictEqual(warningNoCp3.continue, true)
+  assert.match(warningNoCp3.systemMessage || '', /CP gate/i)
 
   // Add a second requirement that has CP3 confirmed → stale unfinished task must still block
   const reqDone = path.join(TEMP_ROOT, '.devcodex', 'requirements', '当前实施需求')
@@ -585,13 +674,14 @@ function main() {
     '| CP1 | ✅ |\n| CP2 | ✅ |\n| CP3 | ✅ |\n'
   )
 
-  const blockedCrossReq = run({
+  const warningCrossReq = run({
     hookEventName: 'PreToolUse',
     tool_name: 'apply_patch',
     tool_input: { input: '*** Begin Patch\n*** Update File: src/foo.js\n*** End Patch' }
   })
-  assert.strictEqual(blockedCrossReq.hookSpecificOutput.permissionDecision, 'deny',
-    'global src/ mutation should stay blocked while a newer unfinished task still lacks CP3')
+  assert.strictEqual(warningCrossReq.continue, true,
+    'global src/ mutation should warn while a newer unfinished task still lacks CP3')
+  assert.match(warningCrossReq.systemMessage || '', /CP gate/i)
 
   // Path-aware test: writing inside reqIncomplete dir while reqDone has CP3
   // should remain allowed because task artifact writes are not source mutations.
@@ -624,7 +714,7 @@ function main() {
   })
   assert.strictEqual(allowedAfterCp3Exempt.continue, true)
 
-  // bug task support: unfinished bug task should block source mutation
+  // bug task support: unfinished bug task should warn on source mutation
   cleanState()
   const bugDir = path.join(TEMP_ROOT, '.devcodex', 'bugs', 'MCP全链路收口')
   fs.mkdirSync(path.join(bugDir, '.memory'), { recursive: true })
@@ -636,12 +726,13 @@ function main() {
   fs.writeFileSync(path.join(bugDir, '.memory', 'sessions.md'), '| CP1 | ✅ |\n')
   run({ hookEventName: 'UserPromptSubmit', prompt: 'bug task gate test' })
   runBootstrapReads()
-  const blockedBugTask = run({
+  const warningBugTask = run({
     hookEventName: 'PreToolUse',
     tool_name: 'apply_patch',
     tool_input: { input: '*** Begin Patch\n*** Update File: src/bug.js\n*** End Patch' }
   })
-  assert.strictEqual(blockedBugTask.hookSpecificOutput.permissionDecision, 'deny')
+  assert.strictEqual(warningBugTask.continue, true)
+  assert.match(warningBugTask.systemMessage || '', /CP gate/i)
 
   // bug task with CP2/CP3 complete should allow source mutation
   fs.writeFileSync(

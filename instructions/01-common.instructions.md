@@ -108,8 +108,8 @@ applyTo: "**"
 - Auto v1.1 **唯一正式入口**为显式 `@devcodex-auto`；`auto:` / `/auto` / profile `executionMode` 延后到后续版本
 - 仅在 `hook-enforced` 宿主中，对治理文件 / `.devcodex/` 产物 / README / auto 专属回归脚本等**白名单路径**启用自动推进
 - 非白名单路径默认切回确认模式，不承诺“所有源码任务自动执行”
-- `instruction-fallback` 宿主（如 JetBrains / Cursor）只保留 auto 规则语义，不承诺 runtime 级硬放行；支持 Hook 的宿主按白名单执行 runtime 放行
-- CP1 / CP2 / CP3 确认**自动通过**（不等待用户确认），但该自动通过只对上述白名单路径形成 runtime 放行效果
+- `instruction-fallback` 宿主（如 JetBrains / Cursor）只保留 auto 规则语义，不承诺 runtime 级行为；支持 Hook 的宿主默认采用 `safety-only`：白名单边界输出提醒，`strict` 模式下才形成 runtime 硬拦截
+- CP1 / CP2 / CP3 确认**自动通过**（不等待用户确认），但该自动通过只对白名单路径形成无提醒通过；非白名单路径在默认 `safety-only` 下提醒放行，在 `strict` 模式下拦截
 - 以下约束**不可豁免**：S01（不可逆确认）/ S02~S07 / C01 / C10 / C18
 - 可恢复失败：重试 ≤ 2 次；不可恢复失败：切换回确认模式并通知用户 ⚠️
 
@@ -323,7 +323,7 @@ applyTo: "**"
 | 2 | 消息涉及工作区目录 | 映射到项目名 |
 | 3 | 🔴 无法确定 | **必须先询问用户**："当前请求关联哪个项目？" — 在用户明确回复前，**禁止发起任何超出当前文件范围的工作区扫描**（`file_search` / `semantic_search` / `grep_search` / `list_dir` 与当前任务无关的调用、以及项目以外的 `read_file`）。仅允许读取用户本轮消息明确提及的文件以便询问。`<project> = null` **不再是合法默认状态** |
 
-> 🔴 **多项目工作区扫描禁令**（v1.9.8+）：当 cwd 是 monorepo 根目录（包含 ≥ 2 个含 `package.json` 或 `.devcodex/profile/` 的子项目）且未明确 `<project>` 时，AI 必须先询问用户。豁免词：用户消息含 `workspace` / `monorepo` / `全工作区` / `all projects` / `所有项目` 则允许全工作区扫描。同步扣与 `lifecycle.cjs` `UserPromptSubmit` 的 monorepo 阐断逻辑（Hook 是硬门禁，本条是 AI 侧能推断的表述层）。
+> 🔴 **多项目工作区扫描禁令**（v1.9.8+）：当 cwd 是 monorepo 根目录（包含 ≥ 2 个含 `package.json` 或 `.devcodex/profile/` 的子项目）且未明确 `<project>` 时，AI 必须先询问用户。豁免词：用户消息含 `workspace` / `monorepo` / `全工作区` / `all projects` / `所有项目` 则允许全工作区扫描。`lifecycle.cjs` 默认 `safety-only` 下只输出提醒并放行工具，`strict` 模式下才执行 runtime 硬拦截；本条仍是 AI 侧必须遵守的流程约束。
 
 ### 项目现实扩展（Project Reality Expansion）
 

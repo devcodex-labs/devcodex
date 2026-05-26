@@ -22,7 +22,7 @@ export default defineConfig({
     base: '/devcodex/',
     title: 'DevCodex',
     icon: '/favicon.svg',
-    description: 'Copilot / Claude Code 双主支持的 AI 辅助开发规范体系',
+    description: 'Copilot / Claude Code 双主支持升级到 Codex 三宿主支持的 AI 辅助开发规范体系',
     outDir: 'dist',
     plugins: [pluginMermaid()],
     themeConfig: {

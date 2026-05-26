@@ -4,7 +4,7 @@ pageType: home
 hero:
   name: DevCodex
   text: AI 开发规范文档
-  tagline: Copilot / Claude Code 双主支持 — 内部开发规范与版本演进文档
+  tagline: Copilot / Claude Code 双主支持升级到 Codex 三宿主支持 — 内部开发规范与版本演进文档
   actions:
     - theme: brand
       text: v1 系列概览
@@ -18,6 +18,8 @@ features:
     details: 8 种工作流（dev/fix/audit/analyze/self-fix/resume/plan/chat），执行流程骨架已冻结
   - title: 🛠️ 35 个 Skills
     details: 扁平化 Skill 体系，覆盖开发、修复、审计、分析、自修复等全场景
+  - title: 🧩 三宿主分发
+    details: Copilot、Claude Code 与 Codex 共用同一规范源；Codex 通过 AGENTS.md、.agents/skills 与 .codex/hooks.json 生效
   - title: 🔒 四层合规检查
     details: FC（形式合规）→ SC（实质合规）→ RC（恢复性检查）→ T（任务完成验证）；chat 仅保留记忆与 dev 预检查
   - title: 🧠 跨会话记忆

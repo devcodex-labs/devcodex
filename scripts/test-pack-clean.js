@@ -44,11 +44,13 @@ const required = [
   'instructions.md',
   'plugin.json',
   '.mcp.json',
+  'codex/hooks.json',
   'hooks/devcodex.lifecycle.json',
   'hooks/_runtime/lifecycle.cjs',
   'mcp/memory-server.js',
   'mcp/profile-server.js',
   'scripts/instruction-fallback-check.js',
+  'scripts/migrate-layout.js',
   'assets/icon-512.png',
 ].concat(packageFiles, pluginFiles, promptFiles, dataTemplateFiles)
   .filter(Boolean)

@@ -1,13 +1,13 @@
 # DevCodex
 
-> AI 开发规范注入器 — Copilot / Claude Code 双主支持（Hook-First / Instruction-Fallback）
+> AI 开发规范注入器 — 从 Copilot / Claude Code 双主支持升级为 Copilot / Claude Code / Codex 三宿主支持（Hook-First / Instruction-Fallback）
 
 [![npm](https://img.shields.io/badge/npm-%40vextjs%2Fdevcodex-blue)](https://github.com/vextjs/devcodex)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green)](LICENSE)
 
 ## DevCodex 是什么？
 
-DevCodex 通过 `.github/`（Copilot）与 `CLAUDE.md + .claude/ + .mcp.json`（Claude Code）向受支持的 AI 编码客户端注入结构化的开发工作流规范。
+DevCodex 通过 `.github/`（Copilot）、`CLAUDE.md + .claude/ + .mcp.json`（Claude Code）以及 `AGENTS.md + .agents/ + .codex/`（Codex）向受支持的 AI 编码客户端注入结构化的开发工作流规范。
 在支持 Hooks 的宿主中，它优先用 `hooks/_runtime/lifecycle.cjs` 提供确定性的生命周期护栏；在不支持 Hooks 的宿主中，则回退到 instructions 语义层继续工作。
 
 ## 功能特性
@@ -18,7 +18,7 @@ DevCodex 通过 `.github/`（Copilot）与 `CLAUDE.md + .claude/ + .mcp.json`（
 - **持久记忆**: 每 Agent、每日的会话记录，结构化字段
 - **自动报告**: 每次会话自动写入报告，从不询问 — 直接执行
 - **安全底线**: S01~S07 七条不可覆盖的安全规则
-- **宿主硬门禁**: 在 VS Code Hooks 可用时，通过 `UserPromptSubmit` / `PreToolUse` / `PostToolUse` / `PreCompact` / `Stop` 提供确定性护栏
+- **宿主硬门禁**: 在 VS Code / Claude Code / Codex Hooks 可用时，通过 `UserPromptSubmit` / `PreToolUse` / `PostToolUse` / `PreCompact` / `Stop` 提供确定性护栏
 - **全模式入口检查**: 所有模式在实质任务前显示 PC0~PC7；dev 模式额外执行 PC4 规范雷达与完整合规链
 - **项目现实扩展**: 先做语义意图初判，再结合目标项目 Profile、目录与当前任务上下文修正最终路由、产物落点和验证方式
 - **执行护栏**: 新需求切换时优先按意图判断边界；涉及外部平台/API/兼容性判断时优先看官方文档；提交时压缩 commit subject
@@ -44,11 +44,12 @@ export NODE_AUTH_TOKEN=YOUR_GITHUB_PAT
 
 ```bash
 npm install @vextjs/devcodex
-npx @vextjs/devcodex init          # 默认双部署：Copilot + Claude Code adapter
+npx @vextjs/devcodex init          # 默认三宿主部署：Copilot + Claude Code adapter + Codex adapter
 npx @vextjs/devcodex init --claude # 仅 Claude Code adapter
+npx @vextjs/devcodex init --codex  # 仅 Codex adapter
 ```
 
-默认 `init` 会先将 Copilot 规范文件复制到项目的 `.github/` 目录，再链式部署 Claude Code adapter（`CLAUDE.md + .claude/ + .mcp.json`）：
+默认 `init` 会先将 Copilot 规范文件复制到项目的 `.github/` 目录，再链式部署 Claude Code adapter（`CLAUDE.md + .claude/ + .mcp.json`）与 Codex adapter（`AGENTS.md + .agents/ + .codex/`）：
 
 ```
 .github/
@@ -64,7 +65,20 @@ npx @vextjs/devcodex init --claude # 仅 Claude Code adapter
 └── RULES.md        ← 使用入口
 ```
 
+Codex adapter 会同步以下工作区根产物：
+
+```
+AGENTS.md                 ← 与 instructions.md / copilot-instructions.md / CLAUDE.md 同源
+.agents/
+└── skills/               ← Skill 详细检查标准（与源仓库 skills/ 同步）
+.codex/
+├── hooks.json            ← Codex Hook 入口配置
+└── hooks/_runtime/       ← 统一 lifecycle.cjs 运行时
+```
+
 `init --claude` 是 Claude Code-only 路径：只写入 `CLAUDE.md`、`.claude/{instructions,skills,prompts,hooks/_runtime,mcp,data}` 与 `.mcp.json`，并同步开启项目级 hooks / MCP / permissions 配置。
+
+`init --codex` 是 Codex-only 路径：只写入 `AGENTS.md`、`.agents/skills/` 与 `.codex/{hooks.json,hooks/_runtime}`。若工作区根已有非空 `AGENTS.md` 或 `.codex/hooks.json` 且内容不同，CLI 会先生成 `.bak.<timestamp>` 备份再覆盖为 DevCodex 受管副本。
 
 > ⚠️ 请确保 IDE 的 "Use Instruction Files" 设置已开启（默认开启）。
 >
@@ -74,7 +88,7 @@ npx @vextjs/devcodex init --claude # 仅 Claude Code adapter
 
 ## 使用
 
-标准安装后，Copilot 会通过 `copilot-instructions.md` + `.github/` 自动加载；Claude Code 会通过 `CLAUDE.md` + `.claude/` + `.mcp.json` 自动生效。两条正式主支持链都无需额外选择 Agent，直接对话即可：
+标准安装后，Copilot 会通过 `copilot-instructions.md` + `.github/` 自动加载；Claude Code 会通过 `CLAUDE.md` + `.claude/` + `.mcp.json` 自动生效；Codex 会通过工作区根 `AGENTS.md` + `.agents/skills/` + `.codex/hooks.json` 生效。正式支持链都无需额外选择 Agent，直接对话即可：
 
 ```
 帮我重构 user 模块的权限校验逻辑
@@ -125,10 +139,12 @@ npx @vextjs/devcodex init --claude # 仅 Claude Code adapter
 
 | 命令 | 说明 |
 |------|------|
-| `devcodex init` | 初始化：同步 Copilot `.github/`，并链式部署 Claude Code adapter |
+| `devcodex init` | 初始化：同步 Copilot `.github/`，并链式部署 Claude Code 与 Codex adapter |
 | `devcodex init --claude` | 初始化：仅同步 Claude Code adapter 到 `CLAUDE.md`、`.claude/` 与 `.mcp.json` |
-| `devcodex update` | 更新：覆盖同步 Copilot `.github/`，并链式覆盖 Claude Code adapter |
+| `devcodex init --codex` | 初始化：仅同步 Codex adapter 到 `AGENTS.md`、`.agents/` 与 `.codex/` |
+| `devcodex update` | 更新：覆盖同步 Copilot `.github/`，并链式覆盖 Claude Code 与 Codex adapter |
 | `devcodex update --claude` | 更新：仅覆盖同步 Claude Code adapter |
+| `devcodex update --codex` | 更新：仅覆盖同步 Codex adapter |
 | `devcodex migrate-layout plan` | 生成 `.devcodex` 工作区集中布局迁移清单 |
 | `devcodex migrate-layout apply --manifest <path>` | 按 manifest 执行集中布局切换 |
 | `devcodex migrate-layout rollback --manifest <path>` | 回滚集中布局迁移 |
@@ -195,11 +211,12 @@ node /path/to/devcodex/index.js status
 
 ### 在 IDE 中验证规则自动生效
 
-1. 在目标项目执行 `devcodex init`（默认同步 `.github/`，并链式部署 `CLAUDE.md + .claude/ + .mcp.json`）
+1. 在目标项目执行 `devcodex init`（默认同步 `.github/`，并链式部署 `CLAUDE.md + .claude/ + .mcp.json` 以及 `AGENTS.md + .agents/ + .codex/`）
 2. 重启 IDE
 3. Copilot：直接在 Copilot Chat 中输入普通需求，确认无需 `@DevCodex` 也会按规则工作
 4. Claude Code-only：仅需单独部署 Claude Code adapter 时执行 `devcodex init --claude`，随后新开会话并确认 `CLAUDE.md`、`.claude/settings.json`、`.mcp.json` 已生效
-5. 若在 VS Code 中启用了 Hooks，可在输出面板检查 `GitHub Copilot Chat Hooks`，确认 `.github/hooks/devcodex.lifecycle.json` 已被加载
+5. Codex-only：仅需单独部署 Codex adapter 时执行 `devcodex init --codex`，随后新开会话并确认 `AGENTS.md`、`.agents/skills/`、`.codex/hooks.json` 已生效
+6. 若在 VS Code 中启用了 Hooks，可在输出面板检查 `GitHub Copilot Chat Hooks`，确认 `.github/hooks/devcodex.lifecycle.json` 已被加载
 
 ### 文档站本地预览
 
@@ -214,12 +231,13 @@ npm run dev
 
 ```
 devcodex/
-├── instructions.md # 单源规范文件；安装时按平台生成 copilot-instructions.md / CLAUDE.md
+├── instructions.md # 单源规范文件；安装时按平台生成 copilot-instructions.md / CLAUDE.md / AGENTS.md
 ├── agents/        # Agent 源文件；Copilot 端默认分发，Claude Code 端不分发
 ├── instructions/  # 全局 Instructions（12 个，含工作流规则摘要，自动注入）
 ├── skills/        # Skill 详细检查标准（35 个，按 01-common §按需读取表 路由读取）
 ├── prompts/       # Prompt 模板（26 个）
 ├── hooks/         # Workspace Hooks 配置与分发到 `.github/hooks/_runtime/` 的运行时
+├── codex/         # Codex Hook 配置源，分发到 `.codex/hooks.json`
 ├── data/          # 运行时数据模板（分发到目标项目的空骨架）
 │   ├── README.md
 │   └── templates/ # 空模板：violations / pending-fixes / pending-issues / process-improvements / gap-registry
@@ -237,11 +255,12 @@ devcodex/
 | **GitHub Copilot (JetBrains)** | 同上但无 hooks（instruction-fallback） | ⚠️ 仅文本约束 | ⚠️ 仅文本 | ❌ 未内置 MCP | 🟡 Beta |
 | **Claude Code (CLI/桌面端)** | `CLAUDE.md` + `.claude/{instructions,skills,prompts,hooks/_runtime,mcp}/` + `settings.json` hooks + `.mcp.json` | ✅ `lifecycle.cjs` v1.9.2+ | ✅ Hook | ✅ MCP | 🟢 Full |
 | **Cursor IDE** | 通过 `.github/instructions/` 兼容读取（实测） | ❌ 不支持 hooks | ⚠️ 仅文本 | ❌ | 🟡 Best-effort |
-| **ChatGPT / OpenAI Codex** | ❌ 无官方适配路径 | ❌ | ❌ | ❌ | 🔴 Unsupported |
+| **OpenAI Codex app/CLI** | `AGENTS.md` + `.agents/skills/` + `.codex/hooks.json` | ✅ `lifecycle.cjs` | ✅ Hook | ❌ 未内置 MCP | 🟡 Beta |
+| **ChatGPT 普通对话** | 不读取本地工作区 `AGENTS.md` / `.agents/` / `.codex/`；可手工粘贴规则 | ❌ | ⚠️ 文本 | ❌ | 🔴 Unsupported |
 
-> **安装命令**：默认双部署 → `npx @vextjs/devcodex init`；仅 Claude Code adapter → `npx @vextjs/devcodex init --claude`（v1.9.0+）；Codex → 暂无（如需要可手工复制 `prompts/` 模板使用，但无记忆/合规自动化）。
+> **安装命令**：默认三宿主部署 → `npx @vextjs/devcodex init`；仅 Claude Code adapter → `npx @vextjs/devcodex init --claude`（v1.9.0+）；仅 Codex adapter → `npx @vextjs/devcodex init --codex`。
 >
-> **能力差异**：🟢 Full = 硬门禁 + MCP + 自动同步；🟡 Beta/Best-effort = 仅 instruction 注入，无运行时拦截；🔴 Unsupported = 不在当前发布范围。
+> **能力差异**：🟢 Full = 硬门禁 + MCP + 自动同步；🟡 Beta/Best-effort = 尚未达到 Full，具体能力以矩阵各列为准；🔴 Unsupported = 不在当前本地 adapter 发布范围。
 
 ## IDE 兼容性
 
@@ -267,19 +286,20 @@ devcodex/
 
 **DevCodex 适合用于**：
 - 团队/个人需要在多项目之间统一 AI 开发工作流
-- 希望 Copilot 或 Claude Code 在 dev / fix / audit 场景下遵守一致的 CP 门控、合规检查与报告产出
+- 希望 Copilot、Claude Code 或 Codex 在 dev / fix / audit 场景下遵守一致的 CP 门控、合规检查与报告产出
 - 需要持久化会话记忆、规范自修复机制（PC4）的协作流程
 
 **DevCodex 不适合用于**：
 - 单次、一次性、无需规范约束的快速原型场景
 - 当前不在正式支持矩阵中的客户端/宿主（见 §客户端支持矩阵）
-- 对 `.github/` / `.claude/` 目录有其他强约束、无法接受 DevCodex 写入的项目
+- 对 `.github/` / `.claude/` / `.agents/` / `.codex/` / `AGENTS.md` 有其他强约束、无法接受 DevCodex 写入的项目
 
 **前置条件**：
 - Node.js ≥ 18（CLI 零依赖，仅使用标准库）
-- 已启用目标宿主的规则加载能力（Copilot `Use Instruction Files` / Claude Code 标准项目规则加载）
+- 已启用目标宿主的规则加载能力（Copilot `Use Instruction Files` / Claude Code 标准项目规则加载 / Codex 工作区 `AGENTS.md` 加载）
 - Copilot 路径：已安装支持的 GitHub Copilot IDE（VS Code / JetBrains 全量支持；Visual Studio / Xcode / Eclipse 部分支持，详见 §IDE 兼容性）
 - Claude Code 路径：允许项目级 hooks 与 MCP（`init --claude` 会写入默认配置）
+- Codex 路径：允许工作区根 `AGENTS.md`、`.agents/skills/` 与 `.codex/hooks.json` 作为受管部署副本
 
 ## Tier 说明
 
@@ -291,10 +311,11 @@ DevCodex 的 `plugin.json` 声明 `tier: "free"`，所有 Skill 均标注 `tier:
 
 ## Agent 入口
 
-仓库内保留两个 Agent 文件（`agents/devcodex.agent.md`、`agents/devcodex-auto.agent.md`）供 IDE 直接调用；`v1.9.8` 起 Copilot 端默认安装会同步到 `.github/agents/`，Claude Code 端仍不分发 agents。标准使用路径是：
+仓库内保留两个 Agent 文件（`agents/devcodex.agent.md`、`agents/devcodex-auto.agent.md`）供 IDE 直接调用；`v1.9.8` 起 Copilot 端默认安装会同步到 `.github/agents/`，Claude Code 与 Codex 端仍不分发 agents。标准使用路径是：
 
 - **推荐**：通过 `copilot-instructions.md` + `instructions/` 自动注入，直接在 Copilot Chat 对话即可
 - **可选**：通过 `.github/agents/` 使用 `@devcodex` / `@devcodex-auto` 自定义 Agent 入口
+- **Codex**：通过 `AGENTS.md` 自动注入总则，通过 `.agents/skills/` 按需读取技能；不单独维护 `codex/AGENTS.md`
 
 Auto v1.1 当前只在支持 Hook 的宿主里，对显式 `@devcodex-auto` 入口下的白名单路径提供 runtime 级硬保证；JetBrains 等 `instruction-fallback` 宿主仅同步规则语义，不承诺完全等价的自动放行。
 

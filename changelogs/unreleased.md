@@ -6,6 +6,15 @@
 
 ---
 
+## 2026-05-27
+
+- 新增 Codex adapter：默认 `devcodex init/update` 升级为 Copilot + Claude Code + Codex 三宿主同步，`--codex` 提供 Codex-only 路径并与 `--claude` 互斥。
+- 补齐 Codex 入口与 Hook 链路：`instructions.md` 同源生成 `AGENTS.md`，`skills/` 同步到 `.agents/skills/`，新增 `codex/hooks.json` 并同步统一 `lifecycle.cjs` 到 `.codex/hooks/_runtime/`。
+- 修复 Codex 新会话无预检查风险：`UserPromptSubmit` 输出同时包含 `systemMessage` 与 `hookSpecificOutput.additionalContext`，并新增 Hook runtime 回归测试。
+- 扩展发布前校验：V6/V8/V13/V24 与 pack-clean 覆盖 Codex 打包资产、部署副本哈希、Hook 语义探针、文档/Profile 口径和 workspace adapter 同步状态。
+- 修复 Codex 边界诊断与文档口径：multi-project warning 同步注入 `additionalContext`，`status/doctor` 增加 Codex hook command 与 config/trust 诊断，README 支持矩阵区分 OpenAI Codex 与 ChatGPT 普通对话。
+- 修复记忆与报告 `<agent>` 落点规则：当前实际宿主优先，`profile/config.json` 的 `agent` 仅作为无法识别宿主时的兜底提示，并补 MCP/validate 回归探针。
+
 ## 2026-05-26
 
 - 澄清 init/update 同步语义：默认 `init/update` 会同步 Copilot `.github/` 并链式部署 Claude Code adapter，`--claude` 为 Claude-only 路径；同步更新 README、CLI help 与项目 Profile。

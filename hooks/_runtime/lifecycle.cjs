@@ -2,7 +2,7 @@
 'use strict'
 
 /**
- * DevCodex unified lifecycle hook — Copilot & Claude Code
+ * DevCodex unified lifecycle hook — Copilot, Claude Code & Codex
  *
  * Auto-detects platform from tool name casing:
  *   Claude Code  → PascalCase tools (Write, Edit, Bash, Read …)
@@ -37,6 +37,10 @@ const AUTO_ALLOWED_PATH_PATTERNS = [
   /^scripts\/test-hooks-runtime\.js$/i,
   /^scripts\/validate\.js$/i,
   /^README\.md$/i,
+  /^AGENTS\.md$/i,
+  /^\.agents\/(?:skills)(?:\/|$)/i,
+  /^\.codex\/(?:hooks\.json|hooks\/_runtime)(?:\/|$)/i,
+  /^codex\/hooks\.json$/i,
   /^\.(?:claude|github)\/(?:instructions|skills|hooks|agents|prompts|data|settings\.json|settings\.local\.json)(?:\/|$)/i
 ]
 
@@ -350,8 +354,21 @@ function systemMessageOutput(message) {
   return { continue: true, systemMessage: message }
 }
 
-function warningOutput(reason, detail) {
-  return systemMessageOutput(`DevCodex hook warning: ${reason}${detail ? ` — ${detail}` : ''}`)
+function contextMessageOutput(eventName, message) {
+  return {
+    continue: true,
+    systemMessage: message,
+    hookSpecificOutput: {
+      hookEventName: eventName,
+      additionalContext: message
+    }
+  }
+}
+
+function warningOutput(reason, detail, eventName) {
+  const message = `DevCodex hook warning: ${reason}${detail ? ` — ${detail}` : ''}`
+  if (eventName === 'UserPromptSubmit') return contextMessageOutput(eventName, message)
+  return systemMessageOutput(message)
 }
 
 // ─── Multi-project workspace detection (v1.9.8+) ──────────────────────────────
@@ -991,7 +1008,7 @@ function checkCpGate(payload, state) {
 // Source file extensions that indicate code/config being written
 const SOURCE_EXT_RE = /\.(js|ts|tsx|jsx|mjs|cjs|py|go|rs|java|cs|rb|php|c|cpp|h|swift|kt|vue|svelte|css|scss|less|html|sql|sh|bash|zsh|ps1|psm1|json|yaml|yml|toml|ini|xml|env)$/i
 // F-001: 仅放行 DevCodex governance 子路径（.devcodex/ 全域；.claude/.github/ 下的规范子目录）；不再无条件放行 .claude/foo.js 这类裸写入
-const DEVCODEX_PATH_RE = /\.devcodex[/\\]|\.(?:claude|github)[/\\](?:instructions|skills|hooks|agents|prompts|settings\.json|settings\.local\.json|data)/
+const DEVCODEX_PATH_RE = /\.devcodex[/\\]|\.(?:claude|github)[/\\](?:instructions|skills|hooks|agents|prompts|settings\.json|settings\.local\.json|data)|(?:^|[\s"'=]|[/\\])AGENTS\.md(?:$|[\s"';|&])|\.agents[/\\](?:skills)|\.codex[/\\](?:hooks\.json|hooks)|(?:^|[\s"'=]|[/\\])codex[/\\](?:hooks\.json|hooks)(?:$|[\s"';|&])/
 
 function bashWritesToSourceCode(cmd) {
   if (!cmd || DEVCODEX_PATH_RE.test(cmd)) return false
@@ -1251,13 +1268,13 @@ async function main() {
             buildMultiProjectBlockMessage()
           ))
         } else {
-          writeStdout(warningOutput('multi-project-workspace', `${buildMultiProjectBlockMessage()} Prompt allowed in safety-only mode.`))
+          writeStdout(warningOutput('multi-project-workspace', `${buildMultiProjectBlockMessage()} Prompt allowed in safety-only mode.`, eventName))
         }
         return
       }
     }
     saveState(state)
-    writeStdout(systemMessageOutput(buildBootstrapMessage()))
+    writeStdout(contextMessageOutput('UserPromptSubmit', buildBootstrapMessage()))
     return
   }
 

@@ -11,6 +11,7 @@
 'use strict'
 
 const fs = require('fs')
+const os = require('os')
 const path = require('path')
 const { runCli: runMigrateLayout } = require('./scripts/migrate-layout.js')
 
@@ -61,6 +62,12 @@ const CLAUDE_SOURCES = [
   { from: 'instructions', to: 'instructions' },
   { from: 'prompts', to: 'prompts' },
   { from: 'data/templates', to: 'data' },
+]
+
+const CODEX_SOURCES = [
+  { from: 'skills', to: path.join('.agents', 'skills') },
+  { from: 'hooks/_runtime', to: path.join('.codex', 'hooks', '_runtime') },
+  { from: 'codex', to: '.codex' },
 ]
 
 // v1.9.8+: agents/ 已恢复 Copilot 端默认分发（Q1），不再视为遗留物。
@@ -146,6 +153,29 @@ function getLegacyCounts(ghDir) {
   })
 }
 
+function backupSuffix() {
+  return new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14)
+}
+
+function copyManagedTextFile(src, dest, { dryRun = false, backup = false } = {}) {
+  const desired = fs.readFileSync(src, 'utf8')
+  const exists = fs.existsSync(dest)
+  const current = exists ? fs.readFileSync(dest, 'utf8') : ''
+  if (exists && current === desired) return { copied: false, backupPath: null, unchanged: true }
+
+  let backupPath = null
+  if (backup && exists && current.trim().length > 0) {
+    backupPath = `${dest}.bak.${backupSuffix()}`
+    if (!dryRun) fs.copyFileSync(dest, backupPath)
+  }
+
+  if (!dryRun) {
+    fs.mkdirSync(path.dirname(dest), { recursive: true })
+    fs.writeFileSync(dest, desired)
+  }
+  return { copied: true, backupPath, unchanged: false }
+}
+
 // ─── Commands ─────────────────────────────────────────────────────────────────
 
 function cmdInit(argv) {
@@ -165,7 +195,7 @@ function cmdInit(argv) {
   }
 
   console.log()
-  console.log(c.bold('  DevCodex') + c.dim(' — AI workflow injector for Copilot / Claude Code'))
+  console.log(c.bold('  DevCodex') + c.dim(' — AI workflow injector for Copilot / Claude Code / Codex'))
   console.log(c.dim('  ──────────────────────────────────────'))
   console.log(`  ${c.cyan('Source:')} ${c.dim(PKG_ROOT)}`)
   console.log(`  ${c.cyan('Target:')} ${c.dim(ghDir)}`)
@@ -278,6 +308,8 @@ function cmdInit(argv) {
 
   console.log(c.dim('\n  ── Also deploying Claude Code adapter (.claude/) ──'))
   cmdInitClaude(argv, { internal: true })
+  console.log(c.dim('  ── Also deploying Codex adapter (AGENTS.md + .agents/ + .codex/) ──'))
+  cmdInitCodex(argv, { internal: true })
 }
 
 function cmdStatus() {
@@ -308,6 +340,28 @@ function cmdStatus() {
   if (ciInstalled) total++
   console.log(`  ${c.cyan('copilot-instr'.padEnd(14))} ${ciInstalled ? c.green('installed') : c.red('not installed')}`)
 
+  // Check Claude Code adapter
+  const claudeMdInstalled = fs.existsSync(path.join(cwd, 'CLAUDE.md'))
+  const claudeHookFiles = walkDir(path.join(cwd, '.claude', 'hooks', '_runtime')).length
+  const claudeSkills = walkDir(path.join(cwd, '.claude', 'skills')).length
+  if (claudeMdInstalled) total++
+  console.log(`  ${c.cyan('CLAUDE.md'.padEnd(14))} ${claudeMdInstalled ? c.green('installed') : c.red('not installed')}`)
+  console.log(`  ${c.cyan('.claude/hooks'.padEnd(14))} ${claudeHookFiles ? c.green(`${claudeHookFiles} files`) : c.red('not installed')}`)
+  console.log(`  ${c.cyan('.claude/skills'.padEnd(14))} ${claudeSkills ? c.green(`${claudeSkills} files`) : c.red('not installed')}`)
+
+  // Check Codex adapter
+  const agentsMdInstalled = fs.existsSync(path.join(cwd, 'AGENTS.md'))
+  const codexHookJsonInstalled = fs.existsSync(path.join(cwd, '.codex', 'hooks.json'))
+  const codexHookFiles = walkDir(path.join(cwd, '.codex', 'hooks', '_runtime')).length
+  const codexHookDiagnostics = readCodexHookCommands(cwd)
+  const agentsSkills = walkDir(path.join(cwd, '.agents', 'skills')).length
+  if (agentsMdInstalled) total++
+  if (codexHookJsonInstalled) total++
+  console.log(`  ${c.cyan('AGENTS.md'.padEnd(14))} ${agentsMdInstalled ? c.green('installed') : c.red('not installed')}`)
+  console.log(`  ${c.cyan('.agents/skills'.padEnd(14))} ${agentsSkills ? c.green(`${agentsSkills} files`) : c.red('not installed')}`)
+  console.log(`  ${c.cyan('.codex/hooks'.padEnd(14))} ${codexHookJsonInstalled && codexHookFiles ? c.green(`${codexHookFiles + 1} files`) : c.red('not installed')}`)
+  console.log(`  ${c.cyan('.codex command'.padEnd(14))} ${formatCodexHookCommandStatus(codexHookDiagnostics)}`)
+
   // Check profile state (legacy project root or workspace-namespace active root)
   const profileDir = resolveProfileDir(cwd)
   const profilePresent = PROFILE_FILES.filter(f => fs.existsSync(path.join(profileDir, f))).length
@@ -331,7 +385,7 @@ function cmdStatus() {
       console.log(`  ${c.yellow('Not initialized.')} Run ${c.bold('devcodex init')} to install.`)
     }
   } else {
-    console.log(`  ${c.green(`${total} total files`)} installed under .github/`)
+    console.log(`  ${c.green(`${total} tracked entry files`)} installed across .github/ / .claude/ / Codex adapter`)
     if (isSrc) {
       console.log(c.dim('  (Source repo: these are development copies, not a target project installation)'))
     }
@@ -354,6 +408,65 @@ function cmdStatus() {
  * Silently exits if no DevCodex install is found.
  */
 const CLAUDE_HOOK_COMMAND = `node -e "let d=process.cwd(),fs=require('fs'),p=require('path');while(true){const f=p.join(d,'.claude','hooks','_runtime','lifecycle.cjs');if(fs.existsSync(f)&&(fs.existsSync(p.join(d,'.devcodex'))||fs.existsSync(p.join(d,'package.json')))){require(f);break}const n=p.dirname(d);if(n===d){process.exit(0)}d=n}"`
+
+const CODEX_HOOK_COMMAND = 'node ./.codex/hooks/_runtime/lifecycle.cjs'
+
+function collectHookCommands(config) {
+  const commands = []
+  function visit(value) {
+    if (Array.isArray(value)) {
+      for (const item of value) visit(item)
+      return
+    }
+    if (!value || typeof value !== 'object') return
+    if (typeof value.command === 'string') commands.push(value.command)
+    for (const [key, child] of Object.entries(value)) {
+      if (key !== 'command') visit(child)
+    }
+  }
+  visit(config?.hooks || config)
+  return commands
+}
+
+function readCodexHookCommands(cwd) {
+  const file = path.join(cwd, '.codex', 'hooks.json')
+  const result = {
+    file,
+    exists: fs.existsSync(file),
+    commands: [],
+    invalidCommands: [],
+    error: null,
+  }
+  if (!result.exists) return result
+
+  try {
+    const config = JSON.parse(fs.readFileSync(file, 'utf8'))
+    result.commands = collectHookCommands(config)
+    result.invalidCommands = result.commands.filter(command => command !== CODEX_HOOK_COMMAND)
+  } catch (err) {
+    result.error = String(err && err.message ? err.message : err)
+  }
+  return result
+}
+
+function formatCodexHookCommandStatus(diagnostics) {
+  if (!diagnostics.exists) return c.red('not installed')
+  if (diagnostics.error) return c.red('invalid JSON')
+  if (!diagnostics.commands.length) return c.red('missing command')
+  if (diagnostics.invalidCommands.length) return c.yellow(`invalid (${diagnostics.invalidCommands.length}/${diagnostics.commands.length})`)
+  return c.green('expected')
+}
+
+function getCodexConfigState(cwd) {
+  const userConfig = path.join(os.homedir(), '.codex', 'config.toml')
+  const workspaceConfig = path.join(cwd, '.codex', 'config.toml')
+  return {
+    userConfig,
+    workspaceConfig,
+    hasUserConfig: fs.existsSync(userConfig),
+    hasWorkspaceConfig: fs.existsSync(workspaceConfig),
+  }
+}
 
 /** Claude Code settings.json hook configuration */
 const CLAUDE_SETTINGS_HOOKS = {
@@ -586,6 +699,103 @@ function cmdInitClaude(argv, { internal = false } = {}) {
   }
 }
 
+// ─── Codex init ───────────────────────────────────────────────────────────────
+
+function cmdInitCodex(argv, { internal = false } = {}) {
+  const dryRun = argv.includes('--dry-run')
+  const cwd = process.cwd()
+
+  if (!internal && isSourceRepo(cwd)) {
+    console.log()
+    console.log(c.yellow('  ⚠️  You are running DevCodex inside its own source repository.'))
+    console.log(c.yellow('     Files will be written to: ') + c.bold(path.join(cwd, '.codex')))
+    console.log()
+  }
+
+  if (!internal) {
+    console.log()
+    console.log(c.bold('  DevCodex') + c.dim(' — Codex Adapter'))
+    console.log(c.dim('  ──────────────────────────────────────'))
+    console.log(`  ${c.cyan('Source:')} ${c.dim(PKG_ROOT)}`)
+    console.log(`  ${c.cyan('Target:')} ${c.dim(cwd)}`)
+    console.log()
+    if (dryRun) console.log(c.yellow('  [DRY RUN] No files will be written.\n'))
+  }
+
+  let added = 0, updated = 0, skipped = 0
+  const log = internal ? () => { } : (...args) => console.log(...args)
+  const inlineLog = (...args) => console.log(...args)
+
+  const agentsSrc = path.join(PKG_ROOT, 'instructions.md')
+  const agentsDest = path.join(cwd, 'AGENTS.md')
+  if (fs.existsSync(agentsSrc)) {
+    const existed = fs.existsSync(agentsDest)
+    const result = copyManagedTextFile(agentsSrc, agentsDest, { dryRun, backup: true })
+    if (result.backupPath) inlineLog(c.yellow(`  ⚠ backed up existing AGENTS.md to ${path.basename(result.backupPath)}`))
+    if (result.copied) {
+      existed ? updated++ : added++
+      inlineLog(existed ? c.yellow('  ↺ AGENTS.md  (from instructions.md)') : c.green('  ✓ AGENTS.md  (from instructions.md)'))
+    } else {
+      skipped++
+      log(c.dim('  ~ AGENTS.md'))
+    }
+  }
+
+  for (const { from, to } of CODEX_SOURCES) {
+    const srcDir = path.join(PKG_ROOT, from)
+    const destDir = path.join(cwd, to)
+    if (!fs.existsSync(srcDir)) continue
+
+    for (const srcFile of walkDir(srcDir)) {
+      const rel = path.relative(srcDir, srcFile)
+      const destFile = path.join(destDir, rel)
+      const existed = fs.existsSync(destFile)
+      const backup = from === 'codex' && rel.replace(/\\/g, '/') === 'hooks.json'
+      const result = copyManagedTextFile(srcFile, destFile, { dryRun, backup })
+      const shownTo = path.join(to, rel).replace(/\\/g, '/')
+      const shownFrom = path.join(from, rel).replace(/\\/g, '/')
+
+      if (result.backupPath) inlineLog(c.yellow(`  ⚠ backed up existing ${shownTo} to ${path.basename(result.backupPath)}`))
+      if (result.copied) {
+        existed ? updated++ : added++
+        inlineLog(existed ? c.yellow(`  ↺ ${shownTo}  (from ${shownFrom})`) : c.green(`  ✓ ${shownTo}  (from ${shownFrom})`))
+      } else {
+        skipped++
+        log(c.dim(`  ~ ${shownTo}`))
+      }
+    }
+  }
+
+  if (!dryRun) {
+    fs.mkdirSync(path.join(cwd, '.devcodex', '.memory'), { recursive: true })
+    fs.mkdirSync(path.join(cwd, '.devcodex', '.audit-state'), { recursive: true })
+    added += ensureDevCodexGitignore(cwd, dryRun, log)
+  }
+
+  if (!internal) {
+    console.log()
+    console.log(c.dim('  ──────────────────────────────────────'))
+    if (dryRun) {
+      console.log(`  ${c.bold('Dry run complete.')} Would add or update Codex adapter files.`)
+    } else {
+      const parts = []
+      if (added) parts.push(c.green(`${added} added`))
+      if (updated) parts.push(c.yellow(`${updated} updated`))
+      if (skipped) parts.push(c.dim(`${skipped} unchanged`))
+      console.log(`  ${c.bold('Done!')} ${parts.join(', ')}`)
+      if (added + updated > 0) console.log(`  ${c.cyan('→')} Restart Codex or open a new Codex conversation to load AGENTS.md and hooks.`)
+    }
+    console.log()
+  } else {
+    const parts = []
+    if (added) parts.push(c.green(`${added} added`))
+    if (updated) parts.push(c.yellow(`${updated} updated`))
+    if (skipped) parts.push(c.dim(`${skipped} unchanged`))
+    if (parts.length) console.log(`  ${c.dim('Codex adapter')} ${parts.join(', ')}`)
+    console.log()
+  }
+}
+
 // ─── Profile bootstrap (v1.9.2+) ──────────────────────────────────────────────
 
 const PROFILE_FILES = ['README.md', '01-项目信息.md', '02-架构约束.md', '03-代码风格.md', 'config.json']
@@ -647,7 +857,7 @@ function genProfileReadme(_ctx) {
 | 01-项目信息.md | 技术栈 / 仓库 / 版本 |
 | 02-架构约束.md | 目录结构 / 模块边界 |
 | 03-代码风格.md | 编码规范 / lint / 格式化 |
-| config.json | ENV_MODE + agent 标识 |
+| config.json | ENV_MODE + agent 兜底标识 |
 `
 }
 
@@ -725,11 +935,17 @@ function genConfigJson(agent, mode) {
 }
 
 function detectAgent(cwd) {
-  // agent enum aligned with instructions.md / 15-memory: copilot/vscode-copilot/jetbrains-copilot/claude-code/codex/cursor/unknown-agent
+  // agent fallback hint enum aligned with instructions.md / 15-memory.
   if (process.env.CLAUDE_CODE_VERSION || process.env.CLAUDE_HOOK_COMMAND) return 'claude-code'
+  if (process.env.CODEX_HOME || process.env.CODEX_ENV_PWD || process.env.OPENAI_CODEX) return 'codex'
   if (process.env.IDEA_INITIAL_DIRECTORY || process.env.JETBRAINS_IDE) return 'jetbrains-copilot'
   if (process.env.TERM_PROGRAM === 'vscode' || process.env.VSCODE_PID) return 'vscode-copilot'
   if (process.env.CURSOR_TRACE_ID || process.env.CURSOR_USER_ID) return 'cursor'
+  if (
+    fs.existsSync(path.join(cwd, 'AGENTS.md')) ||
+    fs.existsSync(path.join(cwd, '.codex')) ||
+    fs.existsSync(path.join(cwd, '.agents'))
+  ) return 'codex'
   if (fs.existsSync(path.join(cwd, 'CLAUDE.md')) || fs.existsSync(path.join(cwd, '.claude'))) return 'claude-code'
   const hasCopilotMd = fs.existsSync(path.join(cwd, '.github', 'copilot-instructions.md'))
   if (hasCopilotMd) {
@@ -808,20 +1024,29 @@ function cmdDoctor() {
   const env = process.env
   let platform = 'copilot'
   if (env.CLAUDE_CODE_VERSION || env.CLAUDE_HOOK_COMMAND) platform = 'claude'
+  else if (env.CODEX_HOME || env.CODEX_ENV_PWD || env.OPENAI_CODEX) platform = 'codex'
   else if (env.IDEA_INITIAL_DIRECTORY || env.JETBRAINS_IDE) platform = 'jetbrains-copilot'
   else if (env.TERM_PROGRAM === 'vscode' || env.VSCODE_PID) platform = 'vscode-copilot'
   const agent = detectAgent(cwd)
+  if (platform === 'copilot' && agent === 'codex') platform = 'codex'
 
   const hasGithubHooks = fs.existsSync(path.join(cwd, '.github', 'hooks', '_runtime', 'lifecycle.cjs'))
   const hasClaudeHooks = fs.existsSync(path.join(cwd, '.claude', 'hooks', '_runtime', 'lifecycle.cjs'))
+  const hasCodexHooksJson = fs.existsSync(path.join(cwd, '.codex', 'hooks.json'))
+  const hasCodexHooks = hasCodexHooksJson && fs.existsSync(path.join(cwd, '.codex', 'hooks', '_runtime', 'lifecycle.cjs'))
+  const codexHookDiagnostics = readCodexHookCommands(cwd)
+  const codexConfigState = getCodexConfigState(cwd)
   const hasCopilotMd = fs.existsSync(path.join(cwd, '.github', 'copilot-instructions.md'))
   const hasClaudeMd = fs.existsSync(path.join(cwd, 'CLAUDE.md'))
+  const hasAgentsMd = fs.existsSync(path.join(cwd, 'AGENTS.md'))
+  const hasAgentsSkills = fs.existsSync(path.join(cwd, '.agents', 'skills'))
   const hasInstructions = fs.existsSync(path.join(cwd, '.github', 'instructions'))
   const profileDir = resolveProfileDir(cwd)
   const hasProfile = PROFILE_FILES.every(file => fs.existsSync(path.join(profileDir, file)))
 
   let mode = 'instruction-fallback'
   if (platform === 'claude' && hasClaudeHooks) mode = 'hook-enforced (Claude Code)'
+  else if (platform === 'codex' && hasCodexHooks) mode = 'hook-enforced (Codex)'
   else if (platform === 'vscode-copilot' && hasGithubHooks) mode = 'hook-enforced (VS Code Copilot)'
   else if (platform === 'jetbrains-copilot') mode = 'instruction-fallback (JetBrains — Hooks unsupported)'
 
@@ -836,11 +1061,25 @@ function cmdDoctor() {
   console.log(c.bold('  Install artifacts:'))
   console.log(`    CLAUDE.md                            ${hasClaudeMd ? c.green('✅') : c.dim('—')}`)
   console.log(`    .claude/hooks/_runtime/lifecycle.cjs ${hasClaudeHooks ? c.green('✅') : c.dim('—')}`)
+  console.log(`    AGENTS.md                            ${hasAgentsMd ? c.green('✅') : c.dim('—')}`)
+  console.log(`    .agents/skills/                      ${hasAgentsSkills ? c.green('✅') : c.dim('—')}`)
+  console.log(`    .codex/hooks.json                    ${hasCodexHooksJson ? c.green('✅') : c.dim('—')}`)
+  console.log(`    .codex/hooks/_runtime/lifecycle.cjs  ${hasCodexHooks ? c.green('✅') : c.dim('—')}`)
+  console.log(`    .codex hook command                  ${formatCodexHookCommandStatus(codexHookDiagnostics)}`)
+  console.log(`    Codex config (user/workspace)        ${codexConfigState.hasUserConfig ? c.green('user') : c.dim('user —')} / ${codexConfigState.hasWorkspaceConfig ? c.green('workspace') : c.dim('workspace —')}`)
   console.log(`    .github/copilot-instructions.md      ${hasCopilotMd ? c.green('✅') : c.dim('—')}`)
   console.log(`    .github/instructions/                ${hasInstructions ? c.green('✅') : c.dim('—')}`)
   console.log(`    .github/hooks/_runtime/lifecycle.cjs ${hasGithubHooks ? c.green('✅') : c.dim('—')}`)
   console.log(`    profile (${path.relative(cwd, profileDir) || '.devcodex/profile'}) ${hasProfile ? c.green('✅') : c.yellow('⚠️  missing — run `devcodex profile init`')}`)
   console.log()
+
+  if (agent !== 'unknown-agent' && profileDir) {
+    const profileConfig = readJsonSafe(path.join(profileDir, 'config.json'))
+    if (profileConfig?.agent && profileConfig.agent !== agent) {
+      console.log(c.yellow(`  ⚠️  profile agent is ${profileConfig.agent}, current host evidence resolves to ${agent}. Use host evidence for this session.`))
+      console.log()
+    }
+  }
 
   if (platform === 'jetbrains-copilot' || mode.startsWith('instruction-fallback')) {
     console.log(c.bold('  JetBrains / instruction-fallback verification checklist (P-004):'))
@@ -858,21 +1097,43 @@ function cmdDoctor() {
     console.log(c.yellow('  ⚠️  Claude Code detected but .claude/hooks/ missing — run `devcodex init --claude`'))
     console.log()
   }
+  if (platform === 'codex' && !hasCodexHooks) {
+    console.log(c.yellow(`  ⚠️  Codex detected but .codex hooks are missing — run \`devcodex init --codex\``))
+    console.log(c.dim(`      Expected hook command: ${CODEX_HOOK_COMMAND}`))
+    console.log()
+  }
+  if (hasCodexHooksJson) {
+    if (codexHookDiagnostics.error) {
+      console.log(c.yellow(`  ⚠️  Codex hooks.json could not be parsed: ${codexHookDiagnostics.error}`))
+      console.log()
+    } else if (codexHookDiagnostics.invalidCommands.length || !codexHookDiagnostics.commands.length) {
+      console.log(c.yellow(`  ⚠️  Codex hook command mismatch — expected: ${CODEX_HOOK_COMMAND}`))
+      if (codexHookDiagnostics.commands.length) {
+        console.log(c.dim(`      Actual: ${codexHookDiagnostics.commands.join(', ')}`))
+      }
+      console.log()
+    }
+    console.log(c.dim('  Codex trust/config: hook changes may require trusting the workspace in Codex and opening a new conversation.'))
+    console.log(c.dim('  Config presence only is shown above; DevCodex does not read or write Codex config values.'))
+    console.log()
+  }
 }
 
 function cmdHelp() {
   console.log(`
-  ${c.bold('DevCodex')} — AI-powered development workflow rules for GitHub Copilot & Claude Code
+  ${c.bold('DevCodex')} — AI-powered development workflow rules for GitHub Copilot, Claude Code & Codex
 
   ${c.bold('Usage:')}
     devcodex <command> [options]
     npx @vextjs/devcodex <command> [options]   ${c.dim('(without npm link)')}
 
   ${c.bold('Commands:')}
-    ${c.cyan('init')}              Install Copilot files, then deploy Claude Code adapter
+    ${c.cyan('init')}              Install Copilot files, then deploy Claude Code and Codex adapters
     ${c.cyan('init --claude')}     Install Claude Code adapter only
-    ${c.cyan('update')}            Overwrite Copilot files, then deploy Claude Code adapter
+    ${c.cyan('init --codex')}      Install Codex adapter only
+    ${c.cyan('update')}            Overwrite Copilot files, then deploy Claude Code and Codex adapters
     ${c.cyan('update --claude')}   Overwrite Claude Code adapter only
+    ${c.cyan('update --codex')}    Overwrite Codex adapter only
     ${c.cyan('migrate-layout')}    Plan/apply/rollback centralized .devcodex workspace layout
     ${c.cyan('profile init')}      Auto-generate .devcodex/profile/ drafts (v1.9.2+)
     ${c.cyan('status')}            Show what DevCodex files are installed
@@ -882,15 +1143,18 @@ function cmdHelp() {
     ${c.dim('--force,  -f')}       Overwrite existing files
     ${c.dim('--dry-run')}          Preview what would be installed without writing files
     ${c.dim('--claude')}           Only target Claude Code adapter (skip Copilot .github/)
+    ${c.dim('--codex')}            Only target Codex adapter (skip Copilot .github/ and Claude Code)
     ${c.dim('--prod')}             (profile init only) Set mode=prod instead of dev
 
   ${c.bold('Examples:')}
-    devcodex init                 # First-time dual install
+    devcodex init                 # First-time three-host install
     devcodex init --claude        # Claude Code adapter only
+    devcodex init --codex         # Codex adapter only
     devcodex migrate-layout plan  # Generate centralized layout migration manifest
     devcodex profile init         # Generate Profile drafts from package.json + scan
-    devcodex update               # Refresh Copilot + Claude Code adapter
+    devcodex update               # Refresh Copilot + Claude Code + Codex adapters
     devcodex update --claude      # Refresh Claude Code adapter only
+    devcodex update --codex       # Refresh Codex adapter only
     devcodex status               # Check installation
 `)
 }
@@ -900,15 +1164,23 @@ function cmdHelp() {
 if (require.main === module) {
   const [, , cmd, ...argv] = process.argv
   const isClaude = argv.includes('--claude')
+  const isCodex = argv.includes('--codex')
+
+  if (isClaude && isCodex) {
+    console.log(c.red('  --claude and --codex are mutually exclusive. Choose one adapter target.'))
+    process.exit(1)
+  }
 
   switch (cmd) {
     case 'init':
-      isClaude ? cmdInitClaude(argv.filter(a => a !== '--claude')) : cmdInit(argv)
+      if (isClaude) cmdInitClaude(argv.filter(a => a !== '--claude'))
+      else if (isCodex) cmdInitCodex(argv.filter(a => a !== '--codex'))
+      else cmdInit(argv)
       break
     case 'update':
-      isClaude
-        ? cmdInitClaude(['--force', ...argv.filter(a => a !== '--claude')])
-        : cmdInit(['--force', ...argv])
+      if (isClaude) cmdInitClaude(['--force', ...argv.filter(a => a !== '--claude')])
+      else if (isCodex) cmdInitCodex(['--force', ...argv.filter(a => a !== '--codex')])
+      else cmdInit(['--force', ...argv])
       break
     case 'profile':
       if (argv[0] === 'init') {
@@ -928,4 +1200,20 @@ if (require.main === module) {
   }
 }
 
-module.exports = { walkDir, cmdInit, cmdInitClaude, cmdStatus, cmdHelp, cmdProfileInit, cmdDoctor, isSourceRepo, SOURCES, CLAUDE_SOURCES, runMigrateLayout }
+module.exports = {
+  walkDir,
+  cmdInit,
+  cmdInitClaude,
+  cmdInitCodex,
+  cmdStatus,
+  cmdHelp,
+  cmdProfileInit,
+  cmdDoctor,
+  isSourceRepo,
+  SOURCES,
+  CLAUDE_SOURCES,
+  CODEX_SOURCES,
+  CLAUDE_HOOK_COMMAND,
+  CODEX_HOOK_COMMAND,
+  runMigrateLayout
+}

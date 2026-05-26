@@ -8,7 +8,7 @@
  *
  * Tools:
  *   profile_load     — Read all standard profile files for a project
- *   profile_get_mode — Return ENV_MODE (dev/prod) from config.json
+ *   profile_get_mode — Return ENV_MODE (dev/prod) and resolved runtime agent
  */
 
 const fs = require('fs')
@@ -25,7 +25,28 @@ const SERVER_INFO = {
   version: '1.0.0'
 }
 
-const DEFAULT_AGENT = 'claude-code'
+const VALID_AGENTS = new Set([
+  'copilot',
+  'vscode-copilot',
+  'jetbrains-copilot',
+  'claude-code',
+  'codex',
+  'cursor',
+  'unknown-agent'
+])
+
+function normalizeAgent(value) {
+  const agent = String(value || '').trim().toLowerCase()
+  return VALID_AGENTS.has(agent) ? agent : ''
+}
+
+// This MCP server is deployed through the Claude Code adapter by default. An
+// explicit env value wins for tests or future host-specific launchers.
+function detectRuntimeAgent() {
+  return normalizeAgent(process.env.DEVCODEX_AGENT) || 'claude-code'
+}
+
+const DEFAULT_AGENT = detectRuntimeAgent()
 
 const TOOLS = [
   {
@@ -48,7 +69,7 @@ const TOOLS = [
   },
   {
     name: 'profile_get_mode',
-    description: '从 .devcodex/profile/config.json 读取 ENV_MODE（dev 或 prod）及 agent 字段。Profile 不存在时返回 prod（保守默认）。',
+    description: '从 .devcodex/profile/config.json 读取 ENV_MODE（dev 或 prod），并返回当前实际宿主 agent；config.json 的 agent 仅作为兜底提示。',
     inputSchema: {
       type: 'object',
       properties: {
@@ -335,11 +356,17 @@ function handleProfileGetMode(args = {}) {
   const raw = resolved?.content || null
   let mode = 'prod'
   let agent = DEFAULT_AGENT
+  let profileAgent = null
+  let agentSource = DEFAULT_AGENT === 'unknown-agent' ? 'unknown' : 'runtime'
 
   if (resolved?.config) {
     const cfg = resolved.config
     if (cfg.mode && typeof cfg.mode === 'string') mode = cfg.mode.toLowerCase() === 'dev' ? 'dev' : 'prod'
-    if (cfg.agent && typeof cfg.agent === 'string') agent = cfg.agent
+    profileAgent = normalizeAgent(cfg.agent) || null
+    if (agent === 'unknown-agent' && profileAgent) {
+      agent = profileAgent
+      agentSource = 'profile-fallback'
+    }
   }
 
   return {
@@ -348,6 +375,8 @@ function handleProfileGetMode(args = {}) {
       text: JSON.stringify({
         mode,
         agent,
+        agentSource,
+        profileAgent,
         configExists: raw !== null,
         sourceRoot: resolved ? resolved.fullPath : null,
         sourceRoots: resolved?.sourcePaths || [],

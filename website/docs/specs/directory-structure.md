@@ -1,6 +1,6 @@
 # 项目目录结构规范
 
-> 本文档定义 DevCodex 的目录结构标准，以 GitHub Copilot / VS Code Copilot 官方自定义规范为基准。  
+> 本文档定义 DevCodex 的目录结构标准，以 GitHub Copilot / VS Code Copilot 官方自定义规范为基准，并补充 Claude Code 与 Codex 适配分发面。  
 > 本页同时明确哪些是**官方组件**，哪些是 **DevCodex 扩展约定**。
 
 ---
@@ -20,7 +20,7 @@ DevCodex 的核心设计问题是：**主流程里有十几个节点规范，如
 基于这三种方式，DevCodex 采用**三层分层架构**：
 
 ```
-第一层：copilot-instructions.md ← 核心规则 + 安全底线 + 通用规范（始终全量注入）
+第一层：copilot-instructions.md / CLAUDE.md / AGENTS.md ← 核心规则 + 安全底线 + 通用规范（始终全量注入）
 第二层：instructions/*.md       ← 主流程节点执行规范（语义按需加载）
 第三层：skills/<name>/SKILL.md ← 工作流执行细节（触发时加载）
 ```
@@ -29,11 +29,11 @@ DevCodex 的核心设计问题是：**主流程里有十几个节点规范，如
 
 ## 为什么这样分层
 
-### 第一层用 copilot-instructions.md — 不能按需的内容
+### 第一层用 copilot-instructions.md / CLAUDE.md / AGENTS.md — 不能按需的内容
 
 核心规则、安全底线、通用规范是整个执行体系的**前置条件**——AI 不读这三样，就不知道主流程是什么、安全底线在哪里、规范优先级怎么合并。
 
-这三样必须在任何任务开始前就加载完毕，没有"按需"的可能性，所以放进始终注入的 `copilot-instructions.md`。  
+这三样必须在任何任务开始前就加载完毕，没有"按需"的可能性，所以放进始终注入的 `copilot-instructions.md`、`CLAUDE.md` 或 `AGENTS.md`。  
 同时把内容控制在最小必要集合，避免 always-on 入口过重。
 
 ### 第二层用 `*.instructions.md` — 节点规范按语义匹配
@@ -53,11 +53,11 @@ dev / fix / audit 等工作流的执行细节，只有在用户或 Agent 实际�
 
 | 层级 | 组件 | 官方定位 | DevCodex 中的用途 |
 |------|------|---------|-----------------|
-| 第一层 | **copilot-instructions.md** | 始终注入的全局指令 | 核心规则 + 安全底线 + 通用规范 |
+| 第一层 | **copilot-instructions.md / CLAUDE.md / AGENTS.md** | 始终注入的全局指令 | 核心规则 + 安全底线 + 通用规范 |
 | 第二层 | **Instructions** | 按需加载的规范约束（`description` 语义匹配）| 主流程节点执行规范（预检查/摘要/记忆/合规等）|
 | 第三层 | **Skills** | 按需触发的工作流能力入口 | dev / fix / audit / analyze / self-fix / plan / resume / chat |
 | 配套 | **Prompts** | 有参数的结构化输出模板 | CP 节点输出模板（CP1/CP2/CP3）|
-| 分发资产 | **Agents** | Copilot 自定义 Agent 入口 | `@devcodex` / `@devcodex-auto`；Copilot 端默认分发，Claude Code 端不分发 |
+| 分发资产 | **Agents** | Copilot 自定义 Agent 入口 | `@devcodex` / `@devcodex-auto`；Copilot 端默认分发，Claude Code / Codex 端不分发 |
 
 ---
 
@@ -75,7 +75,7 @@ dev / fix / audit 等工作流的执行细节，只有在用户或 Agent 实际�
 
 ## 官方标准概览
 
-DevCodex 当前默认安装面向目标项目分发以下目录和文件（均位于 `.github/` 下）：
+DevCodex 当前默认安装面向目标项目分发以下目录和文件：
 
 | 组件 | 路径 | 说明 |
 |------|------|------|
@@ -86,8 +86,10 @@ DevCodex 当前默认安装面向目标项目分发以下目录和文件（均�
 | Hooks | `.github/hooks/*` | 宿主生命周期 Hook 配置与运行时 |
 | Data | `.github/data/*` | 运行时模板（如 `violations.md`、`pending-fixes.md`、`gap-registry.md`） |
 | 全局始终注入 | `.github/copilot-instructions.md` | 每次会话自动全量加载 |
+| Claude Code adapter | `CLAUDE.md` + `.claude/{instructions,skills,prompts,hooks/_runtime,mcp,data}` + `.mcp.json` | Claude Code 项目规则、hooks 与 MCP |
+| Codex adapter | `AGENTS.md` + `.agents/skills/` + `.codex/hooks.json` + `.codex/hooks/_runtime/` | Codex 工作区规则、Skill 与 Hook 入口 |
 
-> 说明：`v1.9.8` 起，`devcodex init/update` 已恢复 Copilot 端 `.github/agents/` 默认分发；`devcodex init --claude` 仍不分发 agents。
+> 说明：`v1.9.8` 起，`devcodex init/update` 已恢复 Copilot 端 `.github/agents/` 默认分发；`devcodex init --claude` 与 `devcodex init --codex` 仍不分发 agents。
 
 ---
 
@@ -132,6 +134,14 @@ DevCodex 当前默认安装面向目标项目分发以下目录和文件（均�
 │   ├── data/                            ← 运行时数据模板
 │   └── RULES.md                         ← 使用入口
 │
+├── CLAUDE.md                             ← Claude Code 第一层入口（由 instructions.md 生成）
+├── .claude/                              ← Claude Code instructions/skills/prompts/hooks/mcp/data
+├── AGENTS.md                             ← Codex 第一层入口（由 instructions.md 生成）
+├── .agents/skills/                       ← Codex Skill 目录
+├── .codex/
+│   ├── hooks.json                        ← Codex Hook 入口配置
+│   └── hooks/_runtime/lifecycle.cjs      ← 统一生命周期运行时
+│
 ├── .devcodex/                           ← 运行时数据（不提交 Git）
 │   ├── profile/                             项目 profile 上下文
 │   ├── .memory/                             ④⑪ 记忆读写
@@ -144,7 +154,7 @@ DevCodex 当前默认安装面向目标项目分发以下目录和文件（均�
 
 ## 各组件官方格式
 
-### 1. copilot-instructions.md
+### 1. copilot-instructions.md / CLAUDE.md / AGENTS.md
 
 ```markdown
 # DevCodex Instructions
@@ -152,7 +162,7 @@ DevCodex 当前默认安装面向目标项目分发以下目录和文件（均�
 <!-- 核心规则、安全底线、通用规范内容 -->
 ```
 
-无 frontmatter，纯 Markdown，放 `.github/` 目录，每次会话自动全量注入。
+无 frontmatter，纯 Markdown，按宿主放入 `.github/copilot-instructions.md`、项目根 `CLAUDE.md` 或工作区根 `AGENTS.md`，每次会话自动全量注入。
 
 ---
 
@@ -177,7 +187,7 @@ applyTo: "**"
 Markdown 内容
 ```
 
-DevCodex 当前采用 `applyTo` 全局注入 + 路由后按需读取 Skill 的组合，不再依赖早期的 `AGENTS.md` 主入口设计。
+DevCodex 当前采用单源入口 + 路由后按需读取 Skill 的组合：Copilot 使用 `copilot-instructions.md`，Claude Code 使用 `CLAUDE.md`，Codex 使用 `AGENTS.md`；三者都由 `instructions.md` 生成，不维护独立 `codex/AGENTS.md`。
 
 ---
 

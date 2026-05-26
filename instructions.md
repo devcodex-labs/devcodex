@@ -1,7 +1,7 @@
 # DevCodex — 项目规范（统一规范源）
 
-> DevCodex v1.9.8+ · 单源规范文件
-> 本文件是 DevCodex 唯一的规范源文件。`devcodex init` 安装到 `.github/copilot-instructions.md`（Copilot），`devcodex init --claude` 安装到项目根 `CLAUDE.md`（Claude Code）。源仓库根的 `CLAUDE.md` 是已部署副本，由本文件持续覆盖。
+> DevCodex v1.11.0+ · 单源规范文件
+> 本文件是 DevCodex 唯一的规范源文件。`devcodex init` 默认安装到 `.github/copilot-instructions.md`（Copilot）、项目根 `CLAUDE.md`（Claude Code）与工作区根 `AGENTS.md`（Codex）。`devcodex init --claude` 仅安装 Claude Code 入口；`devcodex init --codex` 仅安装 Codex 入口。`CLAUDE.md` 与 `AGENTS.md` 都是本文件的部署副本，由本文件持续覆盖。
 
 ---
 
@@ -117,9 +117,9 @@
 | `01-项目信息.md` | 技术栈/仓库 | 是 |
 | `02-架构约束.md` | 目录结构/边界 | 是 |
 | `03-代码风格.md` | 编码规范 | 是 |
-| `config.json` | ENV_MODE + agent 标识 | 按需 |
+| `config.json` | ENV_MODE + agent 兜底标识 | 按需 |
 
-> **Claude Code 与 Copilot 双平台 Bootstrap 提醒**（v1.9.14+）：`lifecycle.cjs` Hook 在所有模式下对两平台均要求"先读 Profile + SUMMARY + 今日 tasks 文件，再执行实质任务"。默认 `safety-only` 模式下，`PreToolUse` 对 bootstrap / CP / auto 白名单等流程问题输出提醒并放行工具，仅危险命令继续硬拦；设置 `DEVCODEX_HOOK_ENFORCEMENT=strict` 时恢复流程硬拦截。AI 不需手工提示，但仍须在首条用户可见回复输出 PC0~PC7 入口检查块（S07/C18）。
+> **Copilot / Claude Code / Codex 三宿主 Bootstrap 提醒**（v1.11.0+）：`lifecycle.cjs` Hook 在所有模式下对三类宿主均要求"先读 Profile + SUMMARY + 今日 tasks 文件，再执行实质任务"。默认 `safety-only` 模式下，`PreToolUse` 对 bootstrap / CP / auto 白名单等流程问题输出提醒并放行工具，仅危险命令继续硬拦；设置 `DEVCODEX_HOOK_ENFORCEMENT=strict` 时恢复流程硬拦截。AI 不需手工提示，但仍须在首条用户可见回复输出 PC0~PC7 入口检查块（S07/C18）。
 
 ---
 
@@ -182,9 +182,9 @@ CP1（需求确认）→ CP2（方案确认）→ [plan-review] → CP3（实施
 
 ### Skill 按需读取（仅读对应子类型 Skill）
 
-> Skill 文件位于 `.claude/skills/<name>/SKILL.md`，按需用 Read 工具读取，禁止全量读取。
+> Skill 文件位于宿主部署目录：Claude Code 使用 `.claude/skills/<name>/SKILL.md`，Codex 使用 `.agents/skills/<name>/SKILL.md`，Copilot 使用 `.github/skills/<name>/SKILL.md`。按需用 Read 工具读取，禁止全量读取。
 
-| dev.子类型 | 必读 Skills（路径：`.claude/skills/<name>/SKILL.md`）|
+| dev.子类型 | 必读 Skills（路径：`<skills-root>/<name>/SKILL.md`）|
 |-----------|------------|
 | default | `dev-default` · `cp-gate` · `dev-plan-review` |
 | refactor | `dev-refactor` · `cp-gate` · `dev-plan-review` |
@@ -249,7 +249,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → 执行 →
 
 ### 审查目标类型路由
 
-> Skill 文件路径：`.claude/skills/<name>/SKILL.md`，同时加载 `audit-common` 作为公共维度。
+> Skill 文件路径：`<skills-root>/<name>/SKILL.md`（Claude Code: `.claude/skills`；Codex: `.agents/skills`；Copilot: `.github/skills`），同时加载 `audit-common` 作为公共维度。
 
 | 审查对象 | 专属维度 |
 |---------|---------|
@@ -276,9 +276,10 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → 执行 →
 - 集中布局全工作区：`<工作区根>/.devcodex/workspace`
 
 - `<agent>` 解析规则（按优先级）：
-  1. 读 `.devcodex/profile/config.json` 的 `"agent"` 字段
-  2. 若缺失，按运行环境推断，**枚举值固定**：`copilot` / `vscode-copilot` / `jetbrains-copilot` / `claude-code` / `codex` / `cursor` / `unknown-agent`（禁止使用裸 `claude`，与 Claude API/Claude.ai 区分）
-  3. `devcodex init --claude` 应自动写入 `"agent": "claude-code"`
+  1. 当前实际宿主优先：以当前会话/工具链可验证的宿主事实为准，产物必须写入对应宿主目录，例如当前在 Codex 中执行时写 `.memory/clients/codex/`，不得被历史 profile 覆盖。
+  2. Profile agent 兜底：仅当当前实际宿主无法可靠判断时，才读取 `.devcodex/profile/config.json` 的 `"agent"` 字段作为 fallback hint。
+  3. 若仍无法判断，写入 `unknown-agent` 并记录原因；枚举值固定：`copilot` / `vscode-copilot` / `jetbrains-copilot` / `claude-code` / `codex` / `cursor` / `unknown-agent`（禁止使用裸 `claude`，与 Claude API/Claude.ai 区分）。
+  4. `devcodex profile init` 可写入当时探测到的 `"agent"` 作为兜底提示；若 profile agent 与当前实际宿主不同，Agent 日记、SUMMARY、报告路径均按当前实际宿主写入，并在 PC0/doctor/报告中提示差异。
 - 禁止用 Bash 命令查找记忆文件（shell glob 跳过隐藏目录），必须用 Read 工具逐层进入
 
 ### 写入时机
@@ -323,7 +324,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → 执行 →
 - PC2 会话状态：第 N 轮（>10关注/>13预警/>15防护） · 待跟进 ✅无/⚠️[简述]
 - PC3 执行准备：项目现实扩展 [已完成/待澄清] · 未完成任务 ✅无/⚠️存在🔄：[简述] · 产物落点 [已确定/无需/待确定]
 - PC4 规范雷达：dev 模式输出三轴诊断结果；非 dev 模式 N/A（dev 扩展诊断未启用）
-- PC5 部署体状态（v1.9.4+）：cwd 父链 .claude/.github/ ✅ 存在 / N/A 无父级 · 与源仓库同步 ✅ / ⚠️ [N 文件滞后] / N/A
+- PC5 部署体状态（v1.11.0+）：cwd 父链 `.github/`、`.claude/`、`AGENTS.md`、`.agents/`、`.codex/` ✅ 存在 / N/A 无父级 · 与源仓库同步 ✅ / ⚠️ [N 文件滞后] / N/A
 - PC6 工作区一致性（v1.9.4+）：git 未提交变更 ✅ 无 / ⚠️ [N 文件 dirty] · 当前需求目录 [requirements/<X>/ / 无关联]
 - PC7 新会话首步 resume 强制检测（v1.9.4+，仅首条用户消息触发）：✅ 已 Read tasks 文件 + 比对 SUMMARY 一致 / ⚠️ 数据不一致需 resume / N/A（非首条）
 ---
@@ -405,7 +406,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → 执行 →
 
 ---
 
-## Claude Code 工具适配说明
+## 宿主工具适配说明
 
 | 场景 | 使用工具 |
 |------|---------|
@@ -417,7 +418,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → 执行 →
 | PowerShell 命令 | `PowerShell`（Windows 环境 shell 操作；需 CP gate 通过后才可写源码文件）|
 | 子 Agent | `Agent`（串行，禁止并行，见 C07）|
 
-> 详细合规检查规则（FC/SC/RC/T 逐项定义）见 `.claude/instructions/` 目录下各文件。
+> 详细合规检查规则（FC/SC/RC/T 逐项定义）见宿主部署目录：Copilot `.github/instructions/`，Claude Code `.claude/instructions/`；Codex 入口由 `AGENTS.md` 承载总则，并通过 `.agents/skills/` 按需读取详细 Skill。
 
 ---
 
@@ -427,4 +428,4 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → 执行 →
 
 ---
 
-*本文件由 DevCodex 管理，请勿手动修改。升级请运行 `devcodex update`（Copilot）或 `devcodex update --claude`（Claude Code）。*
+*本文件由 DevCodex 管理，请勿手动修改。升级请运行 `devcodex update`（Copilot + Claude Code + Codex）或 `devcodex update --claude` / `devcodex update --codex`（单宿主）。*

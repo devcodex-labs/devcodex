@@ -158,6 +158,16 @@ function writeTranscript(fileName, assistantContent) {
 }
 
 function main() {
+  cleanMultiProjectState()
+  const multiProjectPromptWarning = run({
+    hookEventName: 'UserPromptSubmit',
+    prompt: '这个项目继续'
+  })
+  assert.strictEqual(multiProjectPromptWarning.continue, true)
+  assert.match(multiProjectPromptWarning.systemMessage || '', /multi-project-workspace/)
+  assert.strictEqual(multiProjectPromptWarning.hookSpecificOutput?.hookEventName, 'UserPromptSubmit')
+  assert.match(multiProjectPromptWarning.hookSpecificOutput?.additionalContext || '', /Multi-project workspace|多项目|目标项目/)
+
   cleanState()
 
   const promptOutput = run({
@@ -167,6 +177,9 @@ function main() {
   assert.strictEqual(promptOutput.continue, true)
   assert.match(promptOutput.systemMessage || '', /PC0-PC7/)
   assert.match(promptOutput.systemMessage || '', /entry check/)
+  assert.strictEqual(promptOutput.hookSpecificOutput?.hookEventName, 'UserPromptSubmit')
+  assert.match(promptOutput.hookSpecificOutput?.additionalContext || '', /PC0-PC7/)
+  assert.match(promptOutput.hookSpecificOutput?.additionalContext || '', /entry check/)
 
   const warningBeforeBootstrap = run({
     hookEventName: 'PreToolUse',
@@ -718,6 +731,36 @@ function main() {
   assert.strictEqual(autoWhitelistAllowed.continue, true)
   assert.ok(!autoWhitelistAllowed.hookSpecificOutput)
 
+  const autoCodexEntryAllowed = run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'apply_patch',
+    tool_input: {
+      input: '*** Begin Patch\n*** Update File: AGENTS.md\n*** End Patch'
+    }
+  })
+  assert.strictEqual(autoCodexEntryAllowed.continue, true)
+  assert.ok(!autoCodexEntryAllowed.hookSpecificOutput)
+
+  const autoCodexSkillAllowed = run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'apply_patch',
+    tool_input: {
+      input: '*** Begin Patch\n*** Update File: .agents/skills/compliance/SKILL.md\n*** End Patch'
+    }
+  })
+  assert.strictEqual(autoCodexSkillAllowed.continue, true)
+  assert.ok(!autoCodexSkillAllowed.hookSpecificOutput)
+
+  const autoCodexHookAllowed = run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'apply_patch',
+    tool_input: {
+      input: '*** Begin Patch\n*** Update File: .codex/hooks.json\n*** End Patch'
+    }
+  })
+  assert.strictEqual(autoCodexHookAllowed.continue, true)
+  assert.ok(!autoCodexHookAllowed.hookSpecificOutput)
+
   const autoNonWhitelistWarning = run({
     hookEventName: 'PreToolUse',
     tool_name: 'apply_patch',
@@ -947,6 +990,13 @@ function main() {
     tool_input: { command: 'echo "# test" > .claude/instructions/foo.md' }
   })
   assert.strictEqual(bashWriteGovernance.continue, true)
+
+  const bashWriteCodexGovernance = run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'Bash',
+    tool_input: { command: 'echo "# test" > AGENTS.md && echo "# test" > .agents/skills/foo/SKILL.md && echo "{}" > .codex/hooks.json && echo "{}" > codex/hooks.json' }
+  })
+  assert.strictEqual(bashWriteCodexGovernance.continue, true)
 
   // F-006: bash cp src.js dest.js 命令路径提取
   const bashCp = run({

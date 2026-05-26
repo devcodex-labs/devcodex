@@ -311,6 +311,7 @@ applyTo: "**"
 - **运行态目录写入**：采用 `single active scope write`
   - 单项目任务：写入 `<工作区根>/.devcodex/<project>/...`
   - 全工作区任务：写入 `<工作区根>/.devcodex/workspace/...`
+  - 记忆与报告中的 `<agent>` 目录按当前实际宿主确定；`profile/config.json` 的 `agent` 仅作为无法识别宿主时的兜底提示，不能覆盖当前会话事实。
 - **旧布局兼容**：未启用 `layout.json` 时，继续使用 `<项目根>/.devcodex/...`
 - **禁止双真相源**：同一轮执行只能存在一个活动写入域；不得同时向项目旧路径与工作区新命名空间双写。
 - **必须说明命中域**：涉及 `.devcodex` 读取或写入时，必须能明确说明当前使用的是 `workspace` 还是 `<project>` 命名空间。
@@ -350,7 +351,7 @@ applyTo: "**"
 | `03-代码风格.md` | 编码规范 | 是 |
 | `04-测试规范.md` | 测试框架/覆盖率 | 按需 |
 | `05-发布规范.md` | 版本号/发布流程 | 按需 |
-| `config.json` | 运行模式配置（ENV_MODE）+ agent 标识 | 按需 |
+| `config.json` | 运行模式配置（ENV_MODE）+ agent 兜底标识 | 按需 |
 
 ### ENV_MODE 注入
 

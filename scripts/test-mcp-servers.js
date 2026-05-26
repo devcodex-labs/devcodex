@@ -14,12 +14,13 @@ function rpcRequest(id, method, params = {}) {
   return JSON.stringify({ jsonrpc: '2.0', id, method, params })
 }
 
-function runServer(script, requests, cwd = ROOT) {
+function runServer(script, requests, cwd = ROOT, env = {}) {
   const input = requests.concat('').join('\n')
   const result = spawnSync(process.execPath, [path.join(ROOT, script), cwd], {
     cwd: ROOT,
     input,
-    encoding: 'utf8'
+    encoding: 'utf8',
+    env: { ...process.env, ...env }
   })
 
   if (result.status !== 0) {
@@ -138,6 +139,25 @@ function testProfileModeFallbackAgent() {
   assert.strictEqual(payload.configExists, false)
 }
 
+function testProfileAgentUsesRuntimeBeforeProfileFallback() {
+  setupLegacyWorkspace()
+  fs.writeFileSync(
+    path.join(TEMP_ROOT, '.devcodex', 'profile', 'config.json'),
+    JSON.stringify({ mode: 'dev', agent: 'codex' })
+  )
+  const responses = runServer('mcp/profile-server.js', [
+    rpcRequest(1, 'initialize'),
+    rpcRequest(2, 'tools/call', { name: 'profile_get_mode', arguments: {} })
+  ], TEMP_ROOT)
+
+  const content = resultById(responses, 2).content?.[0]?.text || ''
+  const payload = JSON.parse(content)
+  assert.strictEqual(payload.mode, 'dev')
+  assert.strictEqual(payload.agent, 'claude-code')
+  assert.strictEqual(payload.agentSource, 'runtime')
+  assert.strictEqual(payload.profileAgent, 'codex')
+}
+
 function testMemoryDefaultAgent() {
   setupLegacyWorkspace()
   const responses = runServer('mcp/memory-server.js', [
@@ -162,6 +182,26 @@ function testMemoryDefaultAgent() {
     TEMP_ROOT, '.devcodex', '.memory', 'clients', 'claude-code', 'SUMMARY.md'
   )))
   assert.ok(!fs.existsSync(path.join(TEMP_ROOT, '.devcodex', '.memory', 'clients', 'claude')))
+}
+
+function testMemoryActualHostEnvAgent() {
+  setupLegacyWorkspace()
+  const responses = runServer('mcp/memory-server.js', [
+    rpcRequest(1, 'initialize'),
+    rpcRequest(2, 'tools/call', {
+      name: 'memory_session_write',
+      arguments: { date: '20260524', content: '# session\n' }
+    })
+  ], TEMP_ROOT, { DEVCODEX_AGENT: 'codex' })
+
+  assert.ok(resultById(responses, 1).capabilities.tools)
+  assert.ok(resultById(responses, 2).content[0].text.includes('codex'))
+  assert.ok(fs.existsSync(path.join(
+    TEMP_ROOT, '.devcodex', '.memory', 'clients', 'codex', 'tasks', '20260524.md'
+  )))
+  assert.ok(!fs.existsSync(path.join(
+    TEMP_ROOT, '.devcodex', '.memory', 'clients', 'claude-code', 'tasks', '20260524.md'
+  )))
 }
 
 function testMemoryCpConfirmForBugs() {
@@ -277,7 +317,9 @@ function testMcpJsonLaunchContract() {
 
 testProfilePrompts()
 testProfileModeFallbackAgent()
+testProfileAgentUsesRuntimeBeforeProfileFallback()
 testMemoryDefaultAgent()
+testMemoryActualHostEnvAgent()
 testMemoryCpConfirmForBugs()
 testMemoryCpConfirmForExtendedTaskKinds()
 testWorkspaceNamespaceProfileMerge()

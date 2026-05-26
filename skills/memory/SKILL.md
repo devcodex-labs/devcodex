@@ -14,17 +14,21 @@ description: 管理会话记忆的读取与写入。三层记忆体系：Agent �
 - 集中布局全工作区：`<工作区根>/.devcodex/workspace`
 
 - `<agent>` 确定规则（优先级从高到低）：
-  1. **Profile 显式配置**（优先）：读取 `.devcodex/profile/config.json` 的 `"agent"` 字段
-  2. **AI 自行推断**（兜底）：**枚举值固定**，全小写连字符分隔：
+  1. **当前实际宿主（优先）**：以当前会话/工具链可验证的宿主事实为准，产物必须写入对应宿主目录，例如当前在 Codex 中执行时写 `.memory/clients/codex/`，不得被历史 profile 覆盖。
+  2. **Profile agent 兜底**：仅当当前实际宿主无法可靠判断时，才读取 `.devcodex/profile/config.json` 的 `"agent"` 字段作为 fallback hint；它不能覆盖当前会话事实。
+  3. **无法判断**：写入 `unknown-agent`，并在报告或记忆中记录宿主无法识别的原因。
+
+  枚举值固定，全部小写连字符分隔：
      - Copilot in VS Code：`copilot` 或 `vscode-copilot`
      - Claude Code（CLI/桌面端）：`claude-code` ⚠️ 禁止使用裸 `claude`（与 Claude API/Claude.ai 区分）
-     - ChatGPT/Codex：`codex`（当前未官方适配，仅占位）
+     - Codex：`codex`（通过 `AGENTS.md` / `.agents/skills/` / `.codex/hooks.json` 适配）
      - Cursor IDE：`cursor`
      - JetBrains Copilot：`jetbrains-copilot`
      - 无法确定：`unknown-agent`
-  3. **写入约定**：`devcodex profile init` 生成 `config.json` 时必须写入当前宿主推断出的 `agent`；`devcodex init` / `devcodex init --claude` 只负责分发规则与运行时文件，不直接生成 profile config
+  4. **写入约定**：`devcodex profile init` 生成 `config.json` 时可以写入当时探测到的 `agent` 作为兜底提示；`devcodex init` / `devcodex init --claude` / `devcodex init --codex` 只负责分发规则与运行时文件，不直接生成 profile config。
+  5. **冲突处理**：若 profile agent 与当前实际宿主不同，Agent 日记、SUMMARY、报告路径均按当前实际宿主写入，并在 PC0/doctor/报告中提示差异。
 - ⛔ **禁止使用 shell 命令（bash find、PowerShell glob）查找记忆文件**（shell glob 会跳过隐藏目录）
-- 必须使用 IDE 工具（Copilot: list_dir；Claude Code: Read/Glob）逐层进入：`clients/` → `<agent>/` → 读取日期文件
+- 必须使用宿主文件工具（Copilot: list_dir；Claude Code: Read/Glob；Codex: 当前可用的文件读取/搜索工具）逐层进入：`clients/` → `<agent>/` → 读取日期文件
 
 ## 读取策略
 

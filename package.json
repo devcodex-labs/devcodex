@@ -1,7 +1,7 @@
 {
   "name": "@vextjs/devcodex",
   "version": "1.11.0",
-  "description": "DevCodex — AI-powered development workflow rules for Copilot and Claude Code",
+  "description": "DevCodex — AI-powered development workflow rules for Copilot, Claude Code and Codex",
   "main": "index.js",
   "bin": {
     "devcodex": "index.js"
@@ -24,7 +24,8 @@
     "audit",
     "agent-plugin",
     "github-copilot",
-    "claude-code"
+    "claude-code",
+    "codex"
   ],
   "author": "Rocky <rocky@vextjs.com> (https://github.com/vextjs)",
   "license": "AGPL-3.0-or-later",
@@ -53,6 +54,7 @@
     "instructions/",
     "prompts/",
     "hooks/",
+    "codex/",
     "mcp/",
     "scripts/migrate-layout.js",
     "scripts/instruction-fallback-check.js",

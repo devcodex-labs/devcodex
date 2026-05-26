@@ -7,7 +7,7 @@
 ## DevCodex 是什么
 
 DevCodex 当前处于**本地文件版持续迭代阶段**。  
-这个站点的作用，是持续同步 DevCodex 作为 Copilot / Claude Code 双主支持规范注入器的目标形态、当前实现边界、目录结构、执行骨架、版本边界和后续路线。
+这个站点的作用，是持续同步 DevCodex 作为 Copilot / Claude Code 双主支持并升级到 Codex 三宿主支持的规范注入器目标形态、当前实现边界、目录结构、执行骨架、版本边界和后续路线。
 
 因此，你现在看到的内容同时包含**需求、规范、设计决策与当前实现说明**；历史版本目录中的旧需求页只代表当时基线，不等同于当前实现。
 
@@ -22,6 +22,7 @@ DevCodex 当前处于**本地文件版持续迭代阶段**。
 | 工作流行为可审计 | 通过报告、audit-state 与合规检查形成可追溯闭环 |
 | 规范随代码版本化 | 用版本文档管理规范演进与实现边界 |
 | 跨项目零配置复用 | 目标是后续通过 `devcodex init` 安装到任意项目 |
+| 多宿主一致入口 | Copilot、Claude Code 与 Codex 共用同一规范源，分别落到 `.github/`、`CLAUDE.md + .claude/`、`AGENTS.md + .agents/ + .codex/` |
 | 平台升级免维护 | 提前对齐官方目录规范，降低后续实现风险 |
 | 灵活的执行模式 | 提供确认模式与 Auto v1.1；Auto 仅对白名单路径提供自动推进保证 |
 | AI 对自身行为自检 | 把合规检查作为核心设计原则保留下来 |
@@ -69,6 +70,7 @@ DevCodex 提供两个 Agent 入口：
 | Skills | 35 个按需触发的工作流技能，覆盖完整开发生命周期 |
 | Prompts | CP 节点输出模板 |
 | Hooks | `UserPromptSubmit` / `PreToolUse` / `Stop` 等生命周期钩子 |
+| Codex adapter | `AGENTS.md` + `.agents/skills/` + `.codex/hooks.json` |
 
 ---
 

@@ -52,7 +52,9 @@ description: 项目 Profile 加载规范 — 意图识别后独立确定目标�
 | `03-代码风格.md` | 编码规范 | 是 |
 | `04-测试规范.md` | 测试框架/覆盖率 | 按需 |
 | `05-发布规范.md` | 版本号/发布流程 | 按需 |
-| `config.json` | 运行模式配置（ENV_MODE）+ agent 标识 | 按需 |
+| `config.json` | 运行模式配置（ENV_MODE）+ agent 兜底标识 | 按需 |
+
+> ⚠️ `config.json.agent` 只用于当前实际宿主无法可靠判断时的 fallback hint。产物路径中的 `<agent>` 必须优先使用当前会话/工具链可验证的实际宿主；profile agent 不得覆盖当前会话事实。
 
 ## Profile 缺失处理
 
@@ -107,4 +109,4 @@ Profile 读取后，必须形成以下最小结论，供 PC1/PC3 与后续工作
 | `config.json` 不存在 | `prod`（保守默认）|
 | `mode` 字段缺失或非法值 | `prod`（保守默认）|
 
-加载后在上下文中声明：**`ENV_MODE = dev` 或 `ENV_MODE = prod`**，并在首次回复中标注当前模式。
+加载后在上下文中声明：**`ENV_MODE = dev` 或 `ENV_MODE = prod`**，并在首次回复中标注当前模式。若 profile agent 与当前实际宿主不同，应标注为“profile agent 兜底值与当前宿主不同”，但记忆、报告和产物仍按当前实际宿主落点写入。

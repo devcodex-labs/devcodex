@@ -1,27 +1,29 @@
 # DevCodex v1.11.0 — 使用入口
 
-> AI workflow injector for Copilot / Claude Code · publisher: Rocky · version: 1.11.0
+> AI workflow injector for Copilot / Claude Code / Codex · publisher: Rocky · version: 1.11.0
 
 ## 正式主支持客户端
 
 - **Copilot**：通过 `copilot-instructions.md` + `instructions/` 自动加载，无需选择 Agent；若宿主支持并启用 Hooks，还会通过 `.github/hooks/` 提供确定性的生命周期护栏。
 - **Claude Code**：通过 `CLAUDE.md` + `.claude/{instructions,skills,prompts,hooks/_runtime,mcp}/` + `.mcp.json` 自动生效；MCP、hooks 与 permissions 由 `devcodex init --claude` 一并写入。
-- Copilot 端默认分发 `.github/agents/` 作为可选显式入口；Claude Code 端仍通过 Skills 路由，不分发 agents。
+- **Codex**：通过 `AGENTS.md` + `.agents/skills/` + `.codex/hooks.json` 自动生效；Codex-only 部署由 `devcodex init --codex` 写入，`AGENTS.md` 与 Copilot/Claude 入口同源。
+- Copilot 端默认分发 `.github/agents/` 作为可选显式入口；Claude Code 与 Codex 端仍通过 Skills 路由，不分发 agents。
 
-## 双入口加载机制
+## 三宿主加载机制
 
-DevCodex 同时支持两种加载路径，规则语义保持一致，由 IDE 决定实际生效方式：
+DevCodex 同时支持三类宿主加载路径，规则语义保持一致，由 IDE/宿主决定实际生效方式：
 
 - **默认路径**：Copilot 走 `.github/copilot-instructions.md` + `.github/instructions/*`；Claude Code 走 `CLAUDE.md` + `.claude/instructions/*`
+- **Codex 路径**：Codex 走工作区根 `AGENTS.md`，并从 `.agents/skills/*` 按需读取 Skill；`.codex/hooks.json` 承载 Hook 入口
 - **Agent 路径（可选）**：`@devcodex` / `@devcodex-auto` — Copilot 端 `.github/agents/` 默认分发后可用，提供全自动模式（CP 自动通过）
 
-无论哪条路径进入，所有 Instructions 均通过 `applyTo: "**"` 全局生效；在 VS Code 中，workspace hooks 作为额外的宿主硬门禁层工作，不替代规则语义层。
+无论哪条路径进入，所有 Instructions 均通过同一 `instructions.md` / instructions 目录派生；在支持 Hook 的宿主中，workspace hooks 作为额外的宿主硬门禁层工作，不替代规则语义层。
 
 ## 宿主模式
 
-- **Hook-First**：VS Code Hooks 可用时，通过 `.github/hooks/` 承载 bootstrap、危险操作护栏和结束前兜底
+- **Hook-First**：VS Code / Claude Code / Codex Hooks 可用时，通过对应宿主 hooks 承载 bootstrap、危险操作护栏和结束前兜底
 - **Instruction-Fallback**：Hooks 不可用时，继续依赖 instructions / skills 承载软约束
-- **当前首阶段实现**：Hook 运行时由 `init/update` 一并分发到 `.github/hooks/_runtime/`，不要求目标项目从 `node_modules/@vextjs/devcodex/...` 读取脚本
+- **当前实现**：Hook 运行时由 `init/update` 一并分发到 `.github/hooks/_runtime/`、`.claude/hooks/_runtime/` 与 `.codex/hooks/_runtime/`，不要求目标项目从 `node_modules/@vextjs/devcodex/...` 读取脚本
 
 ## 正式需求与执行模板边界
 

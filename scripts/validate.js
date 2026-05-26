@@ -9,7 +9,7 @@
  * V5 PC4 输出格式唯一定义
  * V6 npm pack 白名单不含维护者状态
  * V7 Hooks 运行时 bootstrap 行为冒烟
- * V8 父级部署同步检查（.claude/ 与 .github/ vs 源仓库关键文件内容）
+ * V8 父级部署同步检查（.claude/ / .github/ / Codex adapter vs 源仓库关键文件内容）
  * V9 报告/记忆日期格式（YYYY-MM-DD HH:MM）一致性
  * V10 audit-state regressionProbes 回归扫描（已 fixed 项的 grep 计数验证）
  * V11 AskUserQuestion / 决策点格式（FC7：1 个 (推荐) 标签 + "推荐理由：" 前缀）
@@ -256,6 +256,7 @@ function checkV6() {
       'instructions.md',
       'plugin.json',
       '.mcp.json',
+      'codex/hooks.json',
       'hooks/devcodex.lifecycle.json',
       'hooks/_runtime/lifecycle.cjs',
       'mcp/memory-server.js',
@@ -301,6 +302,20 @@ function checkV6() {
     if (!/CLAUDE_SETTINGS_HOOKS/.test(indexSrc)) {
       err('[V6] Claude Code adapter missing CLAUDE_SETTINGS_HOOKS constant in index.js (required to write .claude/settings.json)')
     }
+    const codexHookConfig = JSON.parse(read(path.join(ROOT, 'codex/hooks.json')))
+    const codexHookCommands = Object.values(codexHookConfig.hooks || {})
+      .flat()
+      .flatMap(entry => entry.command ? [entry.command] : (entry.hooks || []).map(hook => hook.command).filter(Boolean))
+    const expectedCodexCommand = 'node ./.codex/hooks/_runtime/lifecycle.cjs'
+    const invalidCodexCommands = codexHookCommands.filter(command => command !== expectedCodexCommand)
+    if (!codexHookCommands.length || invalidCodexCommands.length) {
+      err(`[V6] Codex hook commands must use workspace runtime path: ${invalidCodexCommands.join(', ') || '(none found)'}`)
+    }
+    for (const probe of ['CODEX_SOURCES', 'CODEX_HOOK_COMMAND', 'cmdInitCodex', '--codex']) {
+      if (!indexSrc.includes(probe)) {
+        err(`[V6] Codex adapter missing index.js probe: ${probe}`)
+      }
+    }
     // F-012: 复用 --json 输出的 files 列表 + 包名做项目名污染检查（无需二次 npm pack）
     const combined = files.join('\n') + '\n' + packName + '\n' + packFilename
     if (/schema-dsl|vext-test/.test(combined)) {
@@ -327,17 +342,20 @@ function checkV7() {
 }
 
 // ── V8: deployment sync check ─────────────────────────────────────────────
-// 验证工作区根的部署体（父级 .claude/ 与 .github/）是否同步源仓库的关键文件。
+// 验证工作区根的部署体（父级 .claude/ / .github/ / Codex adapter）是否同步源仓库的关键文件。
 // 仅在父级部署体存在时运行；不存在则跳过（属于纯 plugin 仓库场景）。
 function checkV8() {
   const PARENT = path.dirname(ROOT)
   const claudeDir = path.join(PARENT, '.claude')
   const githubDir = path.join(PARENT, '.github')
+  const agentsDir = path.join(PARENT, '.agents')
+  const codexDir = path.join(PARENT, '.codex')
   const claudeExists = fs.existsSync(claudeDir)
   const githubExists = fs.existsSync(githubDir)
+  const codexExists = fs.existsSync(path.join(PARENT, 'AGENTS.md')) || fs.existsSync(agentsDir) || fs.existsSync(codexDir)
 
-  if (!claudeExists && !githubExists) {
-    console.log('[V8] no parent deployment (.claude/ / .github/) detected — skip')
+  if (!claudeExists && !githubExists && !codexExists) {
+    console.log('[V8] no parent deployment (.claude/ / .github/ / Codex adapter) detected — skip')
     return
   }
 
@@ -409,6 +427,20 @@ function checkV8() {
   addPair('hooks/devcodex.lifecycle.json', null, 'hooks/devcodex.lifecycle.json')
 
   let stale = 0
+  function compareDeployment(srcRel, destPath, label, fixHint) {
+    const srcPath = path.join(ROOT, srcRel)
+    if (!fs.existsSync(srcPath)) return
+    if (!fs.existsSync(destPath)) {
+      warn(`[V8] ${label} missing (run: ${fixHint})`)
+      stale++
+      return
+    }
+    if (fileHash(destPath) !== fileHash(srcPath)) {
+      warn(`[V8] ${label} stale (run: ${fixHint})`)
+      stale++
+    }
+  }
+
   for (const pair of checkPairs) {
     const srcPath = path.join(ROOT, pair.src)
     if (!fs.existsSync(srcPath)) continue
@@ -438,8 +470,63 @@ function checkV8() {
       }
     }
   }
+
+  if (githubExists) {
+    compareDeployment(
+      'instructions.md',
+      path.join(githubDir, 'copilot-instructions.md'),
+      '.github/copilot-instructions.md',
+      'npx devcodex update'
+    )
+  }
+
+  if (codexExists) {
+    compareDeployment('instructions.md', path.join(PARENT, 'AGENTS.md'), 'AGENTS.md', 'npx devcodex update --codex')
+    compareDeployment('codex/hooks.json', path.join(codexDir, 'hooks.json'), '.codex/hooks.json', 'npx devcodex update --codex')
+
+    for (const file of walk(path.join(ROOT, 'skills'))) {
+      const rel = path.relative(path.join(ROOT, 'skills'), file)
+      compareDeployment(
+        path.join('skills', rel).replace(/\\/g, '/'),
+        path.join(agentsDir, 'skills', rel),
+        `.agents/skills/${rel.replace(/\\/g, '/')}`,
+        'npx devcodex update --codex'
+      )
+    }
+    for (const file of walk(path.join(ROOT, 'hooks', '_runtime'))) {
+      const rel = path.relative(path.join(ROOT, 'hooks', '_runtime'), file)
+      compareDeployment(
+        path.join('hooks/_runtime', rel).replace(/\\/g, '/'),
+        path.join(codexDir, 'hooks', '_runtime', rel),
+        `.codex/hooks/_runtime/${rel.replace(/\\/g, '/')}`,
+        'npx devcodex update --codex'
+      )
+    }
+
+    const codexRuntime = path.join(codexDir, 'hooks', '_runtime', 'lifecycle.cjs')
+    if (fs.existsSync(codexRuntime)) {
+      try {
+        const out = execSync('node ./.codex/hooks/_runtime/lifecycle.cjs', {
+          cwd: PARENT,
+          input: JSON.stringify({ hookEventName: 'UserPromptSubmit', prompt: 'validate devcodex-v1 Codex bootstrap' }),
+          encoding: 'utf8',
+          stdio: ['pipe', 'pipe', 'pipe']
+        })
+        const payload = JSON.parse(out || '{}')
+        const context = payload.hookSpecificOutput?.additionalContext || ''
+        if (!payload.systemMessage || !/PC0-PC7/.test(context) || payload.hookSpecificOutput?.hookEventName !== 'UserPromptSubmit') {
+          warn('[V8] Codex UserPromptSubmit output missing systemMessage/additionalContext PC0-PC7 bootstrap context')
+          stale++
+        }
+      } catch (e) {
+        warn(`[V8] Codex hook semantic probe failed: ${String(e.message || e).split('\n')[0]}`)
+        stale++
+      }
+    }
+  }
+
   if (stale === 0) {
-    console.log('[V8] parent deployment (.claude/ / .github/) in sync with source repo')
+    console.log('[V8] parent deployment (.claude/ / .github/ / Codex adapter) in sync with source repo')
   } else {
     console.log(`[V8] parent deployment has ${stale} stale/missing file(s) — see warnings`)
   }
@@ -647,6 +734,18 @@ function checkV13() {
   mustNotInclude('prompts/reply-summary.prompt.md', '.devcodex/.memory/clients/<agent>/chat/YYYYMMDD.md', 'reply summary prompt')
   mustNotInclude('prompts/reply-summary.prompt.md', '保留 7 天', 'reply summary prompt')
   mustInclude('prompts/memory-session.prompt.md', '收到首条用户消息时', 'memory session prompt')
+  mustInclude('instructions.md', '当前实际宿主优先', 'instructions actual host agent priority')
+  mustInclude('instructions/15-memory.instructions.md', '当前实际宿主（优先）', '15-memory actual host agent priority')
+  mustInclude('instructions/15-memory.instructions.md', 'Profile agent 兜底', '15-memory profile agent fallback')
+  mustInclude('skills/memory/SKILL.md', '当前实际宿主（优先）', 'memory skill actual host agent priority')
+  mustInclude('skills/memory/SKILL.md', 'Profile agent 兜底', 'memory skill profile agent fallback')
+  mustInclude('skills/load-profile/SKILL.md', 'config.json.agent` 只用于当前实际宿主无法可靠判断时的 fallback hint', 'load-profile agent fallback')
+  mustInclude('mcp/profile-server.js', 'profileAgent', 'profile MCP exposes fallback agent')
+  mustInclude('mcp/memory-server.js', 'DEVCODEX_AGENT', 'memory MCP runtime agent')
+  mustInclude('scripts/test-mcp-servers.js', 'testProfileAgentUsesRuntimeBeforeProfileFallback', 'MCP actual host agent test')
+  mustInclude('scripts/test-mcp-servers.js', 'testMemoryActualHostEnvAgent', 'MCP memory actual host test')
+  mustNotInclude('instructions/15-memory.instructions.md', 'Profile 显式配置**（优先）', '15-memory legacy profile-priority agent')
+  mustNotInclude('skills/memory/SKILL.md', 'Profile 显式配置**（优先）', 'memory skill legacy profile-priority agent')
 
   mustInclude('prompts/api-verification.prompt.md', '不在脚本内自启服务', 'api verification prompt')
   mustInclude('prompts/api-verification.prompt.md', '仅作为人工检查提示', 'api verification prompt')
@@ -671,6 +770,20 @@ function checkV13() {
   mustInclude('skills/intent/SKILL.md', '项目现实扩展衔接', 'intent project reality expansion')
   mustInclude('skills/load-profile/SKILL.md', '项目现实扩展输出', 'load-profile project reality expansion')
   mustInclude('hooks/_runtime/lifecycle.cjs', 'entry check PC0-PC7', 'lifecycle all-mode entry check')
+  mustInclude('hooks/_runtime/lifecycle.cjs', 'contextMessageOutput', 'lifecycle Codex UserPromptSubmit context')
+  mustInclude('hooks/_runtime/lifecycle.cjs', 'additionalContext', 'lifecycle Codex UserPromptSubmit context')
+  mustInclude('hooks/_runtime/lifecycle.cjs', 'warningOutput(reason, detail, eventName)', 'lifecycle Codex warning context')
+  mustInclude('scripts/test-hooks-runtime.js', 'autoCodexEntryAllowed', 'hooks runtime Codex governance test')
+  mustInclude('scripts/test-hooks-runtime.js', 'autoCodexHookAllowed', 'hooks runtime Codex governance test')
+  mustInclude('scripts/test-hooks-runtime.js', 'multiProjectPromptWarning', 'hooks runtime Codex multi-project warning context')
+  mustInclude('index.js', 'cmdInitCodex', 'index Codex adapter')
+  mustInclude('index.js', 'CODEX_HOOK_COMMAND', 'index Codex adapter')
+  mustInclude('index.js', 'readCodexHookCommands', 'index Codex hook command diagnostics')
+  mustInclude('index.js', 'Codex trust/config', 'index Codex trust/config diagnostics')
+  mustInclude('codex/hooks.json', '.codex/hooks/_runtime/lifecycle.cjs', 'Codex hook config')
+  mustInclude('README.md', 'OpenAI Codex app/CLI', 'README Codex support matrix')
+  mustNotInclude('README.md', 'ChatGPT / OpenAI Codex', 'README Codex support matrix')
+  mustNotInclude('README.md', '仅 instruction 注入，无运行时拦截', 'README support-level legend')
   mustInclude('prompts/technical-design.prompt.md', 'tsc --noEmit', 'technical design prompt')
   mustInclude('prompts/report-dev.prompt.md', '静态/类型检查', 'report dev prompt')
   mustInclude('prompts/report-fix.prompt.md', '静态/类型检查', 'report fix prompt')
@@ -1225,6 +1338,7 @@ function checkV24() {
     'instructions/15-memory.instructions.md',
     'skills/memory/SKILL.md',
     'scripts/validate-profile.js',
+    'codex/hooks.json',
     'index.js',
     'package.json',
     'plugin.json'
@@ -1245,18 +1359,28 @@ function checkV24() {
     { file: 'data/templates/pending-issues.md', needle: 'ISSUE-000' },
     { file: 'README.md', needle: 'Copilot / Claude Code 双主支持' },
     { file: 'README.md', needle: 'init --claude' },
+    { file: 'README.md', needle: 'init --codex' },
+    { file: 'README.md', needle: 'AGENTS.md' },
+    { file: 'README.md', needle: 'OpenAI Codex app/CLI' },
     { file: 'README.md', needle: 'pending-issues / process-improvements' },
     { file: 'RULES.md', needle: 'Copilot / Claude Code' },
     { file: 'RULES.md', needle: 'init --claude' },
+    { file: 'RULES.md', needle: 'init --codex' },
+    { file: 'RULES.md', needle: 'AGENTS.md' },
     { file: activePath('profile', '01-项目信息.md'), needle: 'CLAUDE.md', rawPath: false },
+    { file: activePath('profile', '01-项目信息.md'), needle: 'AGENTS.md', rawPath: false },
     { file: activePath('profile', '01-项目信息.md'), needle: 'pending-issues.md', rawPath: false },
     { file: activePath('profile', '01-项目信息.md'), needle: '当前阶段', rawPath: false },
+    { file: activePath('profile', '02-架构约束.md'), needle: '.codex/hooks.json', rawPath: false },
     { file: activePath('profile', '02-架构约束.md'), needle: 'pending-issues', rawPath: false },
     { file: activePath('profile', '02-架构约束.md'), needle: 'process-improvements', rawPath: false },
     { file: 'website/rspress.config.ts', needle: 'Copilot / Claude Code' },
     { file: 'website/docs/index.md', needle: 'Copilot / Claude Code' },
+    { file: 'website/docs/index.md', needle: 'Codex' },
     { file: 'website/docs/intro/index.md', needle: 'Copilot / Claude Code' },
+    { file: 'website/docs/intro/index.md', needle: 'Codex' },
     { file: 'package.json', needle: 'Claude Code' },
+    { file: 'package.json', needle: 'Codex' },
     { file: 'plugin.json', needle: 'Claude Code' },
     { file: 'skills/audit-report/SKILL.md', needle: '两层结构' },
     { file: 'skills/report/SKILL.md', needle: '两层问题清单' },

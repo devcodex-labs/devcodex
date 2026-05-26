@@ -3,7 +3,7 @@
  * DevCodex — Profile drift detection (v1.9.5+)
  *
  * 检查项目级 .devcodex/profile/ 与 plugin 当前要求是否漂移：
- * - config.json 字段：mode / agent / version 是否匹配 plugin.json
+ * - config.json 字段：mode / agent fallback hint / version 是否匹配 plugin.json
  * - README.md / 01-项目信息.md / 02-架构约束.md / 03-代码风格.md 是否存在
  *
  * Exit: 0=OK, 1=missing required, 2=drift warnings only
@@ -164,7 +164,7 @@ if (fs.existsSync(cfgPath)) {
   else if (!['dev', 'prod'].includes(cfg.mode)) err(`[profile] invalid mode: ${cfg.mode}`)
   // agent
   const validAgents = ['copilot', 'vscode-copilot', 'jetbrains-copilot', 'claude-code', 'codex', 'cursor', 'unknown-agent']
-  if (!cfg.agent) warn('[profile] config.json missing "agent" (inferred at runtime)')
+  if (!cfg.agent) warn('[profile] config.json missing "agent" fallback hint (actual host inferred at runtime)')
   else if (!validAgents.includes(cfg.agent)) err(`[profile] invalid agent: ${cfg.agent} (expected: ${validAgents.join('|')})`)
   // plugin version drift
   if (cfg.pluginVersion) {

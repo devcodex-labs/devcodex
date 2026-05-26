@@ -28,7 +28,28 @@ const SERVER_INFO = {
   version: '1.0.0'
 }
 
-const DEFAULT_AGENT = 'claude-code'
+const VALID_AGENTS = new Set([
+  'copilot',
+  'vscode-copilot',
+  'jetbrains-copilot',
+  'claude-code',
+  'codex',
+  'cursor',
+  'unknown-agent'
+])
+
+function normalizeAgent(value) {
+  const agent = String(value || '').trim().toLowerCase()
+  return VALID_AGENTS.has(agent) ? agent : ''
+}
+
+// This server is normally launched by Claude Code. DEVCODEX_AGENT lets other
+// launchers/tests pin the actual host without consulting profile config.
+function detectRuntimeAgent() {
+  return normalizeAgent(process.env.DEVCODEX_AGENT) || 'claude-code'
+}
+
+const DEFAULT_AGENT = detectRuntimeAgent()
 const TASK_KINDS = new Set(['requirements', 'bugs', 'optimizations', 'scenario-tests'])
 
 const TOOLS = [
@@ -38,7 +59,7 @@ const TOOLS = [
     inputSchema: {
       type: 'object',
       properties: {
-        agent: { type: 'string', description: 'Agent 标识（如 claude-code / copilot），默认 claude-code' },
+        agent: { type: 'string', description: 'Agent 标识（如 claude-code / codex / copilot），默认当前实际宿主' },
         date: { type: 'string', description: 'YYYYMMDD 日期，默认今日' },
         scope: { type: 'string', enum: ['project', 'workspace'], description: '可选。集中布局下指定写入域；默认按当前 cwd 推断。' },
         project: { type: 'string', description: '可选。集中布局下显式指定项目命名空间。' }
@@ -52,7 +73,7 @@ const TOOLS = [
       type: 'object',
       required: ['content'],
       properties: {
-        agent: { type: 'string', description: 'Agent 标识，默认 claude-code' },
+        agent: { type: 'string', description: 'Agent 标识，默认当前实际宿主' },
         date: { type: 'string', description: 'YYYYMMDD 日期，默认今日' },
         content: { type: 'string', description: '追加的 Markdown 内容' },
         scope: { type: 'string', enum: ['project', 'workspace'], description: '可选。集中布局下指定写入域；默认按当前 cwd 推断。' },
@@ -82,7 +103,7 @@ const TOOLS = [
     inputSchema: {
       type: 'object',
       properties: {
-        agent: { type: 'string', description: 'Agent 标识，默认 claude-code' },
+        agent: { type: 'string', description: 'Agent 标识，默认当前实际宿主' },
         scope: { type: 'string', enum: ['project', 'workspace'], description: '可选。集中布局下指定读取域；默认按当前 cwd 推断。' },
         project: { type: 'string', description: '可选。集中布局下显式指定项目命名空间。' }
       }
@@ -95,7 +116,7 @@ const TOOLS = [
       type: 'object',
       required: ['row'],
       properties: {
-        agent: { type: 'string', description: 'Agent 标识，默认 claude-code' },
+        agent: { type: 'string', description: 'Agent 标识，默认当前实际宿主' },
         row: { type: 'string', description: 'Markdown 表格行（含首尾 |）' },
         scope: { type: 'string', enum: ['project', 'workspace'], description: '可选。集中布局下指定写入域；默认按当前 cwd 推断。' },
         project: { type: 'string', description: '可选。集中布局下显式指定项目命名空间。' }

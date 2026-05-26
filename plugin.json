@@ -6,7 +6,7 @@
   "name": "DevCodex",
   "publisher": "Rocky",
   "displayName": "DevCodex — AI Development Workflow Assistant",
-  "description": "Standardized AI-assisted development workflow system for Copilot and Claude Code.",
+  "description": "Standardized AI-assisted development workflow system for Copilot, Claude Code and Codex.",
   "icon": "assets/icon-512.png",
   "license": "AGPL-3.0-or-later",
   "repository": "https://github.com/vextjs/devcodex",
@@ -272,7 +272,8 @@
     "workflow",
     "audit",
     "ai-dev",
-    "claude-code"
+    "claude-code",
+    "codex"
   ],
   "categories": [
     "Productivity",

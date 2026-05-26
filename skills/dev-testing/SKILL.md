@@ -104,5 +104,6 @@ description: 测试规范 — 单元测试/集成测试/API测试/E2E测试四�
 
 ## 覆盖率报告
 
-- 测试完成后输出覆盖率报告到：`reports/requirements/<需求>/`
-- 格式：`NN--测试覆盖率报告.md`（包含各类型实际覆盖率 vs 目标对比）
+- 测试完成后输出覆盖率报告到任务目录报告区：`<任务目录>/reports/<agent>/YYYYMMDD/NN--测试覆盖率报告.md`
+- 无任务上下文时才回退到项目级：`reports/requirements/<agent>/YYYYMMDD/NN--测试覆盖率报告.md`
+- 内容包含各类型实际覆盖率 vs 目标对比，并引用本次测试命令与结果

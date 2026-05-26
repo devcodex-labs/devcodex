@@ -95,8 +95,8 @@ npx @vextjs/devcodex update
 
 ## 🔗 相关资源
 
-- [需求文档](../website/docs/requirements/)
-- [进度追踪](../website/docs/progress/)
+- 需求文档：填写实际 `website/docs/versions/.../requirements/...` 或 `.devcodex/.../requirements/...` 路径
+- 进度追踪：填写实际任务进度、报告或发布验证路径
 
 ---
 

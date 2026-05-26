@@ -4,8 +4,8 @@
       "type": "stdio",
       "command": "node",
       "args": [
-        "${CLAUDE_PROJECT_DIR:-.}/.claude/mcp/memory-server.js",
-        "${CLAUDE_PROJECT_DIR:-.}"
+        ".claude/mcp/memory-server.js",
+        "."
       ],
       "_note": "Reads/writes .devcodex/.memory/ session files and records CP confirmations."
     },
@@ -13,8 +13,8 @@
       "type": "stdio",
       "command": "node",
       "args": [
-        "${CLAUDE_PROJECT_DIR:-.}/.claude/mcp/profile-server.js",
-        "${CLAUDE_PROJECT_DIR:-.}"
+        ".claude/mcp/profile-server.js",
+        "."
       ],
       "_note": "Loads .devcodex/profile/ files and returns ENV_MODE / agent config."
     }

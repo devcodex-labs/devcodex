@@ -29,7 +29,7 @@
 
 ## 使用建议
 
-- **默认**：不引入 agents/，直接用 Copilot Chat（通过 instructions/ 自动注入规则）
+- **默认**：保留 `devcodex init/update` 自动分发的 `.github/agents/`；日常可直接用 Copilot Chat，只有需要显式入口时再 `@devcodex` / `@devcodex-auto`
 - **高频维护**：引入 `@devcodex-auto`，在确保仓库可回滚的前提下加速执行
 - **严格审查**：引入 `@devcodex`，确保每个关键节点有人工确认
 

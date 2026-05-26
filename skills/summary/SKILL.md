@@ -4,15 +4,15 @@ description: 写入会话摘要到记忆日文件。区别于 memory Skill（会
 ---
 ## 写入流程
 
-| 步骤 | 动作 |
-|:----:|------|
-| 1 | 确定日期（`YYYYMMDD`） |
-| 2 | 定位文件：`<active-root>/.memory/clients/<agent>/tasks/YYYYMMDD.md` |
-
 `<active-root>` 取值：
 - 旧布局：`<项目根>/.devcodex`
 - 集中布局单项目：`<工作区根>/.devcodex/<project>`
 - 集中布局全工作区：`<工作区根>/.devcodex/workspace`
+
+| 步骤 | 动作 |
+|:----:|------|
+| 1 | 确定日期（`YYYYMMDD`） |
+| 2 | 定位文件：`<active-root>/.memory/clients/<agent>/tasks/YYYYMMDD.md` |
 | 3 | 判断文件状态（不存在→创建；已存在→追加）|
 | 4 | 确定会话编号（`## 会话 01` 起递增，两位数，按文件内容确定）|
 | 5 | 写入初始段落（时间 + 意图 + 状态 🔄 + 摘要占位）|

@@ -320,7 +320,7 @@ flowchart TD
 
 ---
 
-## 完整触发场景（G1~G9）
+## 完整触发场景（G1~G11）
 
 | 编号 | 名称 | 触发轴 | 判别阈值 | 典型表现 |
 |:----:|------|:------:|:-------:|---------|
@@ -383,4 +383,4 @@ flowchart TD
 - 主流程入口见：[主流程图](/specs/flowcharts)
 - 预检查主链见：[① 预检查流程图](/specs/precheck-flow)
 - 合规检查框架见：[合规检查框架](/specs/compliance-framework)
-- 完整规范定义见：`18-spec-radar.instructions.md`（三轴诊断模型 + G1~G9 + 决策流程 + 输出格式）
+- 完整规范定义见：`18-spec-radar.instructions.md`（三轴诊断模型 + G1~G11 + 决策流程 + 输出格式）

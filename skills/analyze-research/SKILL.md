@@ -4,6 +4,8 @@ description: 技术调研子类型规范 — 技术选型/可行性评估/根因
 ---
 # Analyze Research Skill
 
+> 子类型标识：`analyze.research`
+
 ## 触发条件
 
 用户要求**调研、评估或比较**某技术方案，主要目标是获得信息和建议（而非直接实施）。

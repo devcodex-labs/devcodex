@@ -1,11 +1,11 @@
 ---
 agent: agent
 description: 记忆会话文档模板，用于写入每次会话的结构化记忆
-applyTo: .devcodex/.memory/**
+applyTo: .devcodex/**/.memory/**
 ---
 # 记忆会话模板
 
-> **路径**: `.devcodex/.memory/clients/<agent>/tasks/YYYYMMDD.md`
+> **路径**: `.devcodex/**/.memory/clients/<agent>/tasks/YYYYMMDD.md`
 > **触发**: 收到首条用户消息时创建/追加状态 🔄 的会话段落；任务结束时更新为 ✅
 
 ---

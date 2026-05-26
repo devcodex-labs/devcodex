@@ -3,6 +3,8 @@ applyTo: "**"
 ---
 # 分析工作流规则（13-analyze）
 
+> 子类型标识：`analyze.default` / `analyze.research`
+
 > 本文件定义 analyze 工作流的完整规则，含 research 子类型。
 
 ## 核心约束

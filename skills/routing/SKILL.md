@@ -26,6 +26,7 @@ description: 定义意图识别结果到工作流的路由映射。本 Skill 为
 ## 子类型路由表
 
 > ⚠️ 本表仅供路由参考。执行时按 `01-common` §Skill 按需读取表 读取对应 Skill，禁止全量读取。
+> 子类型标识汇总：`dev.default` / `dev.docs` / `dev.refactor` / `dev.database` / `dev.init` / `dev.optimization` / `dev.scenario-test` / `dev.plan-review` / `fix.default` / `fix.security` / `fix.incident` / `analyze.default` / `analyze.research`
 
 | 工作流 | 子类型 | Skill 文件 |
 |--------|--------|-----------|
@@ -40,6 +41,7 @@ description: 定义意图识别结果到工作流的路由映射。本 Skill 为
 | fix | default | `skills/fix-default/SKILL.md` |
 | fix | incident | （Instruction 已完整覆盖） |
 | fix | security | `skills/fix-security/SKILL.md` |
+| analyze | default | Instruction 内置默认分析路径 |
 | analyze | research | `skills/analyze-research/SKILL.md` |
 | audit | 规范文件 | `skills/audit-dimensions/SKILL.md` |
 | audit | 技术方案 | `skills/audit-tech-design/SKILL.md` |

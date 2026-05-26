@@ -1,11 +1,11 @@
 ---
 agent: agent
 description: Agent 会话摘要模板，用于生成跨会话 Agent 级别的工作摘要
-applyTo: .devcodex/.memory/**
+applyTo: .devcodex/**/.memory/**
 ---
 # Agent 摘要模板
 
-> **路径**: `.devcodex/.memory/clients/<agent>/SUMMARY.md`
+> **路径**: `.devcodex/**/.memory/clients/<agent>/SUMMARY.md`
 > **触发**: 每次会话结束前追加一行索引（SC6 检查）
 
 ---

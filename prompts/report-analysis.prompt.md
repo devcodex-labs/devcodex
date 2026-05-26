@@ -16,7 +16,7 @@ applyTo: .devcodex/**/reports/analysis/**
 
 > **项目**: <project>
 > **类型**: analyze
-> **子类型**: default / research
+> **子类型**: analyze.default / analyze.research
 > **创建日期**: YYYY-MM-DD HH:MM
 > **Agent**: <agent-id>
 > **状态**: 进行中 / 已完成

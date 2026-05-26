@@ -29,7 +29,7 @@ const SERVER_INFO = {
 }
 
 const DEFAULT_AGENT = 'claude-code'
-const TASK_KINDS = new Set(['requirements', 'bugs'])
+const TASK_KINDS = new Set(['requirements', 'bugs', 'optimizations', 'scenario-tests'])
 
 const TOOLS = [
   {
@@ -68,7 +68,7 @@ const TOOLS = [
       required: ['requirement', 'phase'],
       properties: {
         requirement: { type: 'string', description: '任务目录名（兼容旧字段名；配合 kind 指向 .devcodex/requirements/<name> 或 .devcodex/bugs/<name>）' },
-        kind: { type: 'string', enum: ['requirements', 'bugs'], description: '任务根类型，默认 requirements' },
+        kind: { type: 'string', enum: ['requirements', 'bugs', 'optimizations', 'scenario-tests'], description: '任务根类型，默认 requirements' },
         phase: { type: 'string', enum: ['CP1', 'CP2', 'CP3'], description: 'CP 阶段' },
         time: { type: 'string', description: '确认时间（如 10:30），默认当前时间' },
         scope: { type: 'string', enum: ['project', 'workspace'], description: '可选。集中布局下指定写入域；默认按当前 cwd 推断。' },

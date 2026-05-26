@@ -134,7 +134,7 @@ applyTo: "**"
 | FC2 | 报告文件已写入（chat 豁免） |
 | FC3 | CP 按序执行（dev/fix；其他 N/A） |
 | FC4 | 文件名/路径合规（`NN--` 双横杠开头；本轮无报告产物时标 N/A） |
-| FC5 | 产物路径已输出（回复末尾以 Markdown 链接 + 纯文本路径**双行格式**逐行列出，见 `02-output-paths.instructions.md` §产物路径输出格式）|
+| FC5 | 产物路径已输出（回复末尾在 `📂 本次会话产物` 区块内列出 Markdown 链接，见 `02-output-paths.instructions.md` §产物路径输出格式）|
 | FC6 | 新建 .md 行数检查（超 500 行须拆分 C13） |
 | FC7 | 用户决策选项必带推荐 + 理由（v1.9.5+，PI-005 规范化）：所有 AskUserQuestion / 多选项呈现节点必须有且仅有 1 个 🟢 推荐项（首位置 + 标签含"(推荐)"），并附一句话推荐理由（实证依据/风险权衡/性价比）；CP1/CP2/CP3 范围选择、方案对比、决策点同等适用 |
 
@@ -221,11 +221,10 @@ SC: SC2 [✅/❌] SC4 [✅/❌] SC6 [✅/❌] ...（仅列适用项，逐项实�
 
 📂 本次会话产物：
 - [文件名（类型）](workspace相对路径/file.md)
-  `E:\绝对路径\file.md`
 ---
 ```
 
-> ⚠️ **FC5 填写规则**：必须在回复末尾以 Markdown 链接 + 纯文本路径**双行**格式逐行列出（详见 [`02-output-paths.instructions.md`](./02-output-paths.instructions.md) §产物路径输出格式）；**第一行使用工作区根的相对路径**（不带 `file://` 协议），保证 VS Code Claude 插件 webview / VS Code Markdown Preview / JetBrains 均可点击；**第二行使用纯文本绝对路径**（Windows 反斜杠 `E:\...`），供终端/跨工具使用；本轮无文件变更时填 N/A，有变更时不得填 ✅ 而不列出路径。
+> ⚠️ **FC5 填写规则**：必须在回复末尾的 `📂 本次会话产物` 区块内列出 Markdown 链接（详见 [`02-output-paths.instructions.md`](./02-output-paths.instructions.md) §产物路径输出格式）；链接使用工作区根的相对路径（不带 `file://` 协议），保证 VS Code Claude 插件 webview / VS Code Markdown Preview / JetBrains 均可点击；绝对路径纯文本仅作为可选辅助行，本轮无文件变更时填 N/A，有变更时不得填 ✅ 而不列出路径。
 
 ## 自修复触发（不进入 self-fix 工作流）
 

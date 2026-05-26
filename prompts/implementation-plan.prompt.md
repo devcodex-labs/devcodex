@@ -1,11 +1,11 @@
 ---
 agent: agent
 description: 实施计划文档模板，用于 CP3 阶段创建标准实施计划
-applyTo: .devcodex/requirements/**
+applyTo: .devcodex/**/requirements/**
 ---
 # 实施计划模板
 
-> **路径**: `.devcodex/requirements/<中文描述>/04-实施计划.md`
+> **路径**: `.devcodex/**/requirements/<中文描述>/04-实施计划.md`
 > **触发**: dev 工作流 CP3 阶段
 > ⚠️ 本模板只承接任务拆分、实施顺序、前置依赖、验证方式与回滚策略，不重复需求背景或技术方案中的设计论证。
 > ⚠️ 生成的 Markdown 实施计划文档必须在头部后补 `## 目录导航`。

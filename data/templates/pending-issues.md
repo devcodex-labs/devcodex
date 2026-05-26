@@ -1,7 +1,7 @@
 # Pending Issues（template）
 
-> **文件定位**：模板。`devcodex init` 复制为目标项目运行时 `data/pending-issues.md`。  
-> **使用**：记录已确认、但**不阻断当前任务**的治理改进项，按批次进入后续需求或 bug 修复流程。  
+> **文件定位**：模板。`devcodex init` / `devcodex init --claude` 复制为目标项目运行时 `data/pending-issues.md`（Copilot: `.github/data/pending-issues.md`；Claude Code: `.claude/data/pending-issues.md`）。
+> **使用**：记录已确认、但**不阻断当前任务**的治理改进项，按批次进入后续需求或 bug 修复流程。
 > **维护者记录**：`.devcodex/.maintainer-state/pending-issues.md`。
 
 ---

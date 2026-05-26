@@ -132,7 +132,7 @@ runTests().catch(e => { console.error('❌', e.message); process.exit(1) })
 
 ```bash
 # 先在独立终端手动启动目标服务，再执行 API 验证
-API_BASE_URL=http://localhost:3000 node .devcodex/requirements/<需求名>/<module>-接口验证.cjs
+API_BASE_URL=http://localhost:3000 node .devcodex/<project>/requirements/<需求名>/<module>-接口验证.cjs
 
 # 预期输出
 # 🧪 Running API verification: <module>

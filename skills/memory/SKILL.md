@@ -22,7 +22,7 @@ description: 管理会话记忆的读取与写入。三层记忆体系：Agent �
      - Cursor IDE：`cursor`
      - JetBrains Copilot：`jetbrains-copilot`
      - 无法确定：`unknown-agent`
-  3. **写入约定**：`devcodex init --claude` 必须写入 `"agent": "claude-code"`；`devcodex init` (Copilot) 应写入 `"agent": "copilot"`
+  3. **写入约定**：`devcodex profile init` 生成 `config.json` 时必须写入当前宿主推断出的 `agent`；`devcodex init` / `devcodex init --claude` 只负责分发规则与运行时文件，不直接生成 profile config
 - ⛔ **禁止使用 shell 命令（bash find、PowerShell glob）查找记忆文件**（shell glob 会跳过隐藏目录）
 - 必须使用 IDE 工具（Copilot: list_dir；Claude Code: Read/Glob）逐层进入：`clients/` → `<agent>/` → 读取日期文件
 

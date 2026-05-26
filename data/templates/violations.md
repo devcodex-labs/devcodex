@@ -1,7 +1,7 @@
 # 违规登记表（template）
 
-> **文件定位**：模板。`devcodex init` 会将本文件复制到用户项目的 `.github/data/violations.md`。  
-> **使用**：在**用户项目内**，由 AI 按 `17-compliance` 规则追加 VL-001 起的违规记录。  
+> **文件定位**：模板。`devcodex init` / `devcodex init --claude` 会将本文件复制到目标项目运行时 `data/violations.md`（Copilot: `.github/data/violations.md`；Claude Code: `.claude/data/violations.md`）。
+> **使用**：在**用户项目内**，由 AI 按 `17-compliance` 规则追加 VL-001 起的违规记录。
 > **维护者自身的违规记录**：不在本包内分发；维护者在仓库 `.devcodex/.maintainer-state/violations.md` 管理。
 
 ---

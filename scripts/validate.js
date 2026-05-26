@@ -9,7 +9,7 @@
  * V5 PC4 输出格式唯一定义
  * V6 npm pack 白名单不含维护者状态
  * V7 Hooks 运行时 bootstrap 行为冒烟
- * V8 父级部署同步检查（.claude/ 与 .github/ vs 源仓库关键文件 mtime）
+ * V8 父级部署同步检查（.claude/ 与 .github/ vs 源仓库关键文件内容）
  * V9 报告/记忆日期格式（YYYY-MM-DD HH:MM）一致性
  * V10 audit-state regressionProbes 回归扫描（已 fixed 项的 grep 计数验证）
  * V11 AskUserQuestion / 决策点格式（FC7：1 个 (推荐) 标签 + "推荐理由：" 前缀）
@@ -33,6 +33,7 @@
 
 const fs = require('fs')
 const path = require('path')
+const crypto = require('crypto')
 const { execSync } = require('child_process')
 
 const ROOT = path.resolve(__dirname, '..')
@@ -54,6 +55,10 @@ function walk(dir) {
 }
 function read(p) { return fs.readFileSync(p, 'utf8') }
 
+function fileHash(filePath) {
+  return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex')
+}
+
 function readJsonIfExists(filePath) {
   try {
     return JSON.parse(fs.readFileSync(filePath, 'utf8'))
@@ -64,13 +69,17 @@ function readJsonIfExists(filePath) {
 
 function resolveActiveDevcodexRoot(repoRoot) {
   const legacyRoot = path.join(repoRoot, '.devcodex')
-  if (fs.existsSync(legacyRoot)) return legacyRoot
-
-  const layout = readJsonIfExists(path.join(path.dirname(repoRoot), '.devcodex', 'layout.json'))
+  const workspaceRoot = path.dirname(repoRoot)
+  const layout = readJsonIfExists(path.join(workspaceRoot, '.devcodex', 'layout.json'))
   if (layout && layout.mode === 'workspace-namespace') {
-    const namespacedRoot = path.join(path.dirname(repoRoot), '.devcodex', path.basename(repoRoot))
+    const namespacedRoot = path.join(workspaceRoot, '.devcodex', path.basename(repoRoot))
     if (fs.existsSync(namespacedRoot)) return namespacedRoot
   }
+
+  const legacyLooksComplete = ['profile', 'requirements', 'bugs', '.memory'].some(name => {
+    return fs.existsSync(path.join(legacyRoot, name))
+  })
+  if (legacyLooksComplete) return legacyRoot
 
   return legacyRoot
 }
@@ -116,8 +125,10 @@ function checkV1() {
 
 // ── V2: relative links ──────────────────────────────────────────────────────
 function checkV2() {
-  const roots = ['instructions', 'skills', 'prompts']
+  const roots = ['instructions', 'skills', 'prompts', 'website/docs', 'changelogs']
+  const topFiles = ['README.md', 'CHANGELOG.md', 'RULES.md']
   const files = roots.flatMap(r => walk(path.join(ROOT, r))).filter(f => f.endsWith('.md'))
+    .concat(topFiles.map(f => path.join(ROOT, f)).filter(f => fs.existsSync(f)))
   let checked = 0
   for (const f of files) {
     let content = read(f)
@@ -152,17 +163,32 @@ function extractSubtypes(content, workflow) {
   return set
 }
 function checkV3() {
-  const pluginContent = read(path.join(ROOT, 'plugin.json'))
   const commonContent = read(path.join(ROOT, 'instructions/01-common.instructions.md'))
-  for (const wf of ['dev', 'fix', 'audit']) {
-    const inCommon = extractSubtypes(commonContent, wf)
-    const inPlugin = extractSubtypes(pluginContent, wf)
-    const missingInCommon = [...inPlugin].filter(s => !inCommon.has(s))
-    if (missingInCommon.length) {
-      warn(`[V3] ${wf} subtypes in plugin.json but not in 01-common: ${missingInCommon.join(', ')}`)
+  const routingContent = read(path.join(ROOT, 'skills/routing/SKILL.md'))
+  const probes = [
+    { token: 'dev.default', files: ['instructions/01-common.instructions.md', 'skills/routing/SKILL.md', 'instructions/10-dev.instructions.md'] },
+    { token: 'dev.docs', files: ['instructions/01-common.instructions.md', 'skills/routing/SKILL.md', 'instructions/10-dev.instructions.md'] },
+    { token: 'dev.refactor', files: ['instructions/01-common.instructions.md', 'skills/routing/SKILL.md'] },
+    { token: 'dev.database', files: ['instructions/01-common.instructions.md', 'skills/routing/SKILL.md'] },
+    { token: 'dev.optimization', files: ['instructions/01-common.instructions.md', 'skills/routing/SKILL.md'] },
+    { token: 'dev.scenario-test', files: ['instructions/01-common.instructions.md', 'skills/routing/SKILL.md'] },
+    { token: 'dev.plan-review', files: ['instructions/01-common.instructions.md', 'skills/routing/SKILL.md'] },
+    { token: 'fix.default', files: ['instructions/01-common.instructions.md', 'skills/routing/SKILL.md', 'instructions/11-fix.instructions.md'] },
+    { token: 'fix.security', files: ['instructions/01-common.instructions.md', 'skills/routing/SKILL.md'] },
+    { token: 'analyze.default', files: ['instructions/01-common.instructions.md', 'skills/routing/SKILL.md', 'instructions/13-analyze.instructions.md', 'prompts/report-analysis.prompt.md'] },
+    { token: 'analyze.research', files: ['skills/routing/SKILL.md', 'skills/analyze-research/SKILL.md', 'prompts/report-analysis.prompt.md'] }
+  ]
+  for (const probe of probes) {
+    for (const file of probe.files) {
+      const content = file === 'instructions/01-common.instructions.md'
+        ? commonContent
+        : file === 'skills/routing/SKILL.md'
+          ? routingContent
+          : read(path.join(ROOT, file))
+      if (!content.includes(probe.token)) warn(`[V3] ${file} missing subtype token: ${probe.token}`)
     }
   }
-  console.log('[V3] subtype sync checked (dev/fix/audit)')
+  console.log('[V3] subtype sync checked (dev/fix/audit/analyze)')
 }
 
 // ── V4: version consistency ─────────────────────────────────────────────────
@@ -216,6 +242,16 @@ function checkV6() {
     const files = arr[0]?.files?.map(f => f.path) || []
     const packName = arr[0]?.name || ''
     const packFilename = arr[0]?.filename || ''
+    const pkg = JSON.parse(read(path.join(ROOT, 'package.json')))
+    const plugin = JSON.parse(read(path.join(ROOT, 'plugin.json')))
+    const packageFiles = new Set((pkg.files || []).filter(item => !item.endsWith('/')))
+    const pluginFiles = new Set((plugin.skills || []).map(item => item.file).filter(Boolean))
+    const promptFiles = walk(path.join(ROOT, 'prompts'))
+      .filter(file => file.endsWith('.prompt.md'))
+      .map(file => path.relative(ROOT, file).replace(/\\/g, '/'))
+    const dataTemplateFiles = walk(path.join(ROOT, 'data', 'templates'))
+      .filter(file => file.endsWith('.md'))
+      .map(file => path.relative(ROOT, file).replace(/\\/g, '/'))
     const required = [
       'instructions.md',
       'plugin.json',
@@ -224,9 +260,11 @@ function checkV6() {
       'hooks/_runtime/lifecycle.cjs',
       'mcp/memory-server.js',
       'mcp/profile-server.js',
+      'scripts/instruction-fallback-check.js',
       'scripts/migrate-layout.js',
       'assets/icon-512.png'
-    ]
+    ].concat([...packageFiles], [...pluginFiles], promptFiles, dataTemplateFiles)
+      .filter(file => file && !file.endsWith('/'))
     const forbidden = files.filter(f =>
       (/^assets\/hooks\//i.test(f) ||
         /violations\.md$/i.test(f) ||
@@ -347,19 +385,38 @@ function checkV8() {
     // Workspace CLAUDE.md is generated from the v1.9.8+ single source instructions.md.
     { src: 'instructions.md', claude: '../CLAUDE.md', github: null }
   ]
+  const seenPairs = new Set(checkPairs.map(pair => pair.src))
+  function addPair(src, claude = src, github = src) {
+    if (seenPairs.has(src)) return
+    seenPairs.add(src)
+    checkPairs.push({ src, claude, github })
+  }
+  for (const dir of ['instructions', 'skills', 'prompts']) {
+    for (const file of walk(path.join(ROOT, dir)).filter(file => file.endsWith('.md'))) {
+      const rel = path.relative(ROOT, file).replace(/\\/g, '/')
+      addPair(rel)
+    }
+  }
+  for (const file of walk(path.join(ROOT, 'data', 'templates')).filter(file => file.endsWith('.md'))) {
+    const rel = path.relative(ROOT, file).replace(/\\/g, '/')
+    addPair(rel, rel.replace(/^data\/templates\//, 'data/'), rel.replace(/^data\/templates\//, 'data/'))
+  }
+  for (const file of walk(path.join(ROOT, 'agents')).filter(file => file.endsWith('.md'))) {
+    const rel = path.relative(ROOT, file).replace(/\\/g, '/')
+    addPair(rel, null, rel)
+  }
+  addPair('RULES.md', null, 'RULES.md')
+  addPair('hooks/devcodex.lifecycle.json', null, 'hooks/devcodex.lifecycle.json')
 
   let stale = 0
   for (const pair of checkPairs) {
     const srcPath = path.join(ROOT, pair.src)
     if (!fs.existsSync(srcPath)) continue
-    const srcStat = fs.statSync(srcPath)
-    const srcMtime = srcStat.mtimeMs
 
     if (claudeExists && pair.claude) {
       const dest = path.join(claudeDir, pair.claude)
       if (fs.existsSync(dest)) {
-        const dStat = fs.statSync(dest)
-        if (dStat.mtimeMs < srcMtime - 1000) {
+        if (fileHash(dest) !== fileHash(srcPath)) {
           warn(`[V8] .claude/ stale: ${pair.claude} (run: npx devcodex update --claude)`)
           stale++
         }
@@ -371,8 +428,7 @@ function checkV8() {
     if (githubExists && pair.github) {
       const dest = path.join(githubDir, pair.github)
       if (fs.existsSync(dest)) {
-        const dStat = fs.statSync(dest)
-        if (dStat.mtimeMs < srcMtime - 1000) {
+        if (fileHash(dest) !== fileHash(srcPath)) {
           warn(`[V8] .github/ stale: ${pair.github} (run: npx devcodex update)`)
           stale++
         }
@@ -699,6 +755,8 @@ function checkV15() {
   }
 
   const allowedStates = new Set(['active', 'paused', 'resumed', 'converged', 'closed'])
+  const allowedFindingStates = new Set(['open', 'pending', 'in-progress', 'fixed', 'wontfix', 'accepted', 'recorded', 'transferred', 'superseded'])
+  const unresolvedFindingStates = new Set(['open', 'pending', 'in-progress'])
   let violations = 0
 
   for (const sf of stateFiles) {
@@ -721,6 +779,26 @@ function checkV15() {
           `[V15] invalid converged gate in .devcodex/.audit-state/${sf}: ` +
           `zeroFindingStreak=${state.zeroFindingStreak}, crsPassed=${state.crsPassed}, pcvPassed=${state.pcvPassed}`
         )
+        violations++
+      }
+    }
+
+    if (Array.isArray(state.findings)) {
+      for (const finding of state.findings) {
+        const status = String(finding.status || '').toLowerCase()
+        if (!allowedFindingStates.has(status)) {
+          warn(`[V15] invalid finding status in .devcodex/.audit-state/${sf}: ${finding.id || 'unknown'}=${finding.status || 'missing'}`)
+          violations++
+        }
+      }
+    }
+
+    if (state.state === 'converged' || state.state === 'closed') {
+      const unresolved = Array.isArray(state.findings)
+        ? state.findings.filter(finding => unresolvedFindingStates.has(String(finding.status || '').toLowerCase()))
+        : []
+      if (unresolved.length) {
+        warn(`[V15] terminal audit-state has unresolved findings: .devcodex/.audit-state/${sf} (${unresolved.length})`)
         violations++
       }
     }
@@ -770,9 +848,21 @@ function checkV18() {
       err(`[V18] .mcp.json missing MCP server: ${name}`)
       continue
     }
-    const args = Array.isArray(server.args) ? server.args.join(' ') : ''
-    if (!args.includes('${CLAUDE_PROJECT_DIR:-.}')) {
-      err(`[V18] ${name} must use Claude Code project env expansion \${CLAUDE_PROJECT_DIR:-.}`)
+    const expectedScript = name === 'devcodex-memory'
+      ? '.claude/mcp/memory-server.js'
+      : '.claude/mcp/profile-server.js'
+    if (server.command !== 'node') {
+      err(`[V18] ${name} command must be node`)
+    }
+    if (!Array.isArray(server.args) || server.args.length !== 2) {
+      err(`[V18] ${name} args must be ["${expectedScript}", "."]`)
+      continue
+    }
+    if (server.args[0] !== expectedScript || server.args[1] !== '.') {
+      err(`[V18] ${name} args must be ["${expectedScript}", "."]`)
+    }
+    if (server.args.some(arg => /\$\{/.test(String(arg)))) {
+      err(`[V18] ${name} args must not require shell parameter expansion`)
     }
   }
 
@@ -782,6 +872,9 @@ function checkV18() {
   }
   if (/\n\s+servers:\s*\{/.test(indexSrc)) {
     err('[V18] index.js still contains VS Code-style "servers" root in generated MCP config')
+  }
+  if (indexSrc.includes('${CLAUDE_PROJECT_DIR:-.}')) {
+    err('[V18] index.js must not generate shell-only MCP args with ${CLAUDE_PROJECT_DIR:-.}')
   }
   for (const required of [
     'CLAUDE_SETTINGS_PERMISSIONS',
@@ -808,7 +901,12 @@ function checkV19() {
     { file: activePath('profile', '01-项目信息.md'), needle: `| **data 模板** | ${dataTemplateCount} |`, rawPath: false }
   ]
   for (const check of checks) {
-    const content = check.rawPath === false ? read(check.file) : read(path.join(ROOT, check.file))
+    const filePath = check.rawPath === false ? check.file : path.join(ROOT, check.file)
+    if (!fs.existsSync(filePath)) {
+      warn(`[V19] asset count source missing, skip: ${path.relative(ROOT, filePath)}`)
+      continue
+    }
+    const content = read(filePath)
     if (!content.includes(check.needle)) {
       err(`[V19] asset count drift in ${check.rawPath === false ? path.relative(ROOT, check.file) : check.file}: expected text "${check.needle}"`)
     }

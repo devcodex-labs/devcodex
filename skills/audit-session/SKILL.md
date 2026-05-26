@@ -67,7 +67,7 @@ converged ──> closed
       "file": "instructions/12-audit.instructions.md",
       "severity": "🔴 | 🟡 | 💡",
       "summary": "<一句话>",
-      "status": "open | fixed | wontfix",
+      "status": "open | pending | in-progress | fixed | wontfix | accepted | recorded | transferred | superseded",
       "category": "spec-defect | release-pending | v{X.Y.Z}-candidate",
       "fixPlan": "<修复方案概述>",
       "fixCommit": "<git commit hash, 修复后写入>",
@@ -118,6 +118,22 @@ converged ──> closed
 | `remoteReleased` | v1.9.4 | 远端发版动作状态（git push + npm publish），消除 release-pending findings 的依据 |
 | `lastCheckpoint.reason` | v1.9.4 | 扩充值：`switching-to-release-vX.Y.Z`（切 release 流程缓冲）/ `release-pending-vX.Y.Z`（等下版本合并）|
 | `linkedRelease` | v1.9.4 | 关联 release 报告路径，建立 audit → release 双向链 |
+
+### findings[].status 枚举
+
+| 状态 | 含义 | 是否未解决 |
+|------|------|:----------:|
+| `open` | 当前审计仍需处理 | 是 |
+| `pending` | 已确认但等待后续批次处理 | 是 |
+| `in-progress` | 正在修复或验证中 | 是 |
+| `fixed` | 已修复并通过回归验证 | 否 |
+| `wontfix` | 已确认不修复，需保留理由 | 否 |
+| `accepted` | 已接受为项目例外或可接受风险，需保留理由 | 否 |
+| `recorded` | 已记录到外部台账、问题池或报告，当前审计不再直接处理 | 否 |
+| `transferred` | 已转入其他报告、需求或问题池继续跟进 | 否 |
+| `superseded` | 已被后续报告或新版结论取代 | 否 |
+
+> 终态 `converged` / `closed` 不得保留 `open`、`pending`、`in-progress` findings；允许 `fixed`、`wontfix`、`accepted`、`recorded`、`transferred`、`superseded` 作为已处置状态。
 
 ## 写入时机
 

@@ -44,11 +44,11 @@ export NODE_AUTH_TOKEN=YOUR_GITHUB_PAT
 
 ```bash
 npm install @vextjs/devcodex
-npx devcodex init          # Copilot
-npx devcodex init --claude # Claude Code
+npx @vextjs/devcodex init          # 默认双部署：Copilot + Claude Code adapter
+npx @vextjs/devcodex init --claude # 仅 Claude Code adapter
 ```
 
-`init` 会将规范文件复制到项目的 `.github/` 目录：
+默认 `init` 会先将 Copilot 规范文件复制到项目的 `.github/` 目录，再链式部署 Claude Code adapter（`CLAUDE.md + .claude/ + .mcp.json`）：
 
 ```
 .github/
@@ -64,7 +64,7 @@ npx devcodex init --claude # Claude Code
 └── RULES.md        ← 使用入口
 ```
 
-`init --claude` 会写入 `CLAUDE.md`、`.claude/{instructions,skills,prompts,hooks/_runtime,mcp,data}` 与 `.mcp.json`，并同步开启项目级 hooks / MCP / permissions 配置。
+`init --claude` 是 Claude Code-only 路径：只写入 `CLAUDE.md`、`.claude/{instructions,skills,prompts,hooks/_runtime,mcp,data}` 与 `.mcp.json`，并同步开启项目级 hooks / MCP / permissions 配置。
 
 > ⚠️ 请确保 IDE 的 "Use Instruction Files" 设置已开启（默认开启）。
 >
@@ -125,16 +125,17 @@ npx devcodex init --claude # Claude Code
 
 | 命令 | 说明 |
 |------|------|
-| `devcodex init` | 初始化：复制 Copilot 规范文件到 `.github/` |
-| `devcodex init --claude` | 初始化：复制 Claude Code 规范文件到 `CLAUDE.md`、`.claude/` 与 `.mcp.json` |
-| `devcodex update` | 更新：同步最新规范到 `.github/` |
+| `devcodex init` | 初始化：同步 Copilot `.github/`，并链式部署 Claude Code adapter |
+| `devcodex init --claude` | 初始化：仅同步 Claude Code adapter 到 `CLAUDE.md`、`.claude/` 与 `.mcp.json` |
+| `devcodex update` | 更新：覆盖同步 Copilot `.github/`，并链式覆盖 Claude Code adapter |
+| `devcodex update --claude` | 更新：仅覆盖同步 Claude Code adapter |
 | `devcodex migrate-layout plan` | 生成 `.devcodex` 工作区集中布局迁移清单 |
 | `devcodex migrate-layout apply --manifest <path>` | 按 manifest 执行集中布局切换 |
 | `devcodex migrate-layout rollback --manifest <path>` | 回滚集中布局迁移 |
 | `devcodex status` | 状态：检查已安装的组件 |
 | `devcodex init --dry-run` | 预览模式：仅显示将复制的文件 |
 
-## `.devcodex` 工作区集中布局（v1.9.14+）
+## `.devcodex` 工作区集中布局（v1.10.0+）
 
 当工作区根存在 `<workspace>/.devcodex/layout.json` 且 `mode = workspace-namespace` 时，DevCodex 会从“项目根各自持有 `.devcodex`”切换到集中命名空间模型：
 
@@ -194,10 +195,10 @@ node /path/to/devcodex/index.js status
 
 ### 在 IDE 中验证规则自动生效
 
-1. 在目标项目执行 `devcodex init`（将文件复制到 `.github/`）
+1. 在目标项目执行 `devcodex init`（默认同步 `.github/`，并链式部署 `CLAUDE.md + .claude/ + .mcp.json`）
 2. 重启 IDE
 3. Copilot：直接在 Copilot Chat 中输入普通需求，确认无需 `@DevCodex` 也会按规则工作
-4. Claude Code：执行 `devcodex init --claude` 后，新开会话并确认 `CLAUDE.md`、`.claude/settings.json`、`.mcp.json` 已生效
+4. Claude Code-only：仅需单独部署 Claude Code adapter 时执行 `devcodex init --claude`，随后新开会话并确认 `CLAUDE.md`、`.claude/settings.json`、`.mcp.json` 已生效
 5. 若在 VS Code 中启用了 Hooks，可在输出面板检查 `GitHub Copilot Chat Hooks`，确认 `.github/hooks/devcodex.lifecycle.json` 已被加载
 
 ### 文档站本地预览
@@ -232,13 +233,13 @@ devcodex/
 
 | AI 客户端 | 注入路径 | Bootstrap 硬门禁 | CP 门控 | 记忆/MCP | 等级 |
 |---|---|:---:|:---:|:---:|:---:|
-| **GitHub Copilot (VS Code)** | `.github/instructions/*.md` + `copilot-instructions.md` + hooks | ✅ `lifecycle.cjs` PreToolUse | ✅ Hook | ✅ MCP | 🟢 Full |
-| **GitHub Copilot (JetBrains)** | 同上但无 hooks（instruction-fallback） | ⚠️ 仅文本约束 | ⚠️ 仅文本 | ⚠️ 部分 | 🟡 Beta |
+| **GitHub Copilot (VS Code)** | `.github/instructions/*.md` + `copilot-instructions.md` + `.github/agents/` | ⚠️ instruction-fallback | ⚠️ 文本/本地 fallback | ❌ 未内置 MCP | 🟡 Beta |
+| **GitHub Copilot (JetBrains)** | 同上但无 hooks（instruction-fallback） | ⚠️ 仅文本约束 | ⚠️ 仅文本 | ❌ 未内置 MCP | 🟡 Beta |
 | **Claude Code (CLI/桌面端)** | `CLAUDE.md` + `.claude/{instructions,skills,prompts,hooks/_runtime,mcp}/` + `settings.json` hooks + `.mcp.json` | ✅ `lifecycle.cjs` v1.9.2+ | ✅ Hook | ✅ MCP | 🟢 Full |
 | **Cursor IDE** | 通过 `.github/instructions/` 兼容读取（实测） | ❌ 不支持 hooks | ⚠️ 仅文本 | ❌ | 🟡 Best-effort |
 | **ChatGPT / OpenAI Codex** | ❌ 无官方适配路径 | ❌ | ❌ | ❌ | 🔴 Unsupported |
 
-> **安装命令**：Copilot → `npx devcodex init`；Claude Code → `npx devcodex init --claude`（v1.9.0+）；Codex → 暂无（如需要可手工复制 `prompts/` 模板使用，但无记忆/合规自动化）。
+> **安装命令**：默认双部署 → `npx @vextjs/devcodex init`；仅 Claude Code adapter → `npx @vextjs/devcodex init --claude`（v1.9.0+）；Codex → 暂无（如需要可手工复制 `prompts/` 模板使用，但无记忆/合规自动化）。
 >
 > **能力差异**：🟢 Full = 硬门禁 + MCP + 自动同步；🟡 Beta/Best-effort = 仅 instruction 注入，无运行时拦截；🔴 Unsupported = 不在当前发布范围。
 

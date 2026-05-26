@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 'use strict'
 const { execSync } = require('child_process')
+const fs = require('fs')
 const path = require('path')
 
 const ROOT = path.resolve(__dirname, '..')
@@ -17,6 +18,28 @@ const forbidden = [
   /vext-test/i,
 ]
 
+function walk(dir) {
+  if (!fs.existsSync(dir)) return []
+  const out = []
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name)
+    if (entry.isDirectory()) out.push(...walk(full))
+    else out.push(full)
+  }
+  return out
+}
+
+const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
+const plugin = JSON.parse(fs.readFileSync(path.join(ROOT, 'plugin.json'), 'utf8'))
+const packageFiles = (pkg.files || []).filter(item => !item.endsWith('/'))
+const pluginFiles = (plugin.skills || []).map(item => item.file).filter(Boolean)
+const promptFiles = walk(path.join(ROOT, 'prompts'))
+  .filter(file => file.endsWith('.prompt.md'))
+  .map(file => path.relative(ROOT, file).replace(/\\/g, '/'))
+const dataTemplateFiles = walk(path.join(ROOT, 'data', 'templates'))
+  .filter(file => file.endsWith('.md'))
+  .map(file => path.relative(ROOT, file).replace(/\\/g, '/'))
+
 const required = [
   'instructions.md',
   'plugin.json',
@@ -25,8 +48,11 @@ const required = [
   'hooks/_runtime/lifecycle.cjs',
   'mcp/memory-server.js',
   'mcp/profile-server.js',
+  'scripts/instruction-fallback-check.js',
   'assets/icon-512.png',
-]
+].concat(packageFiles, pluginFiles, promptFiles, dataTemplateFiles)
+  .filter(Boolean)
+  .filter(file => !file.endsWith('/'))
 
 const combined = files.join('\n') + '\n' + (pack.name || '') + '\n' + (pack.filename || '')
 const hits = forbidden.filter(re => re.test(combined))

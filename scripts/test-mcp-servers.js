@@ -29,6 +29,32 @@ function runServer(script, requests, cwd = ROOT) {
   return result.stdout.trim().split(/\r?\n/).filter(Boolean).map(line => JSON.parse(line))
 }
 
+function runConfiguredServer(server, requests, cwd = ROOT) {
+  const command = server.command === 'node' ? process.execPath : server.command
+  const input = requests.concat('').join('\n')
+  const result = spawnSync(command, server.args || [], {
+    cwd,
+    input,
+    encoding: 'utf8',
+    shell: false
+  })
+
+  if (result.status !== 0) {
+    throw new Error((result.stderr || result.stdout || `${server.command} exited with failure`).trim())
+  }
+
+  return result.stdout.trim().split(/\r?\n/).filter(Boolean).map(line => JSON.parse(line))
+}
+
+function setupConfiguredMcpTarget() {
+  const targetRoot = path.join(TEMP_ROOT, 'configured-target')
+  fs.mkdirSync(path.join(targetRoot, '.claude', 'mcp'), { recursive: true })
+  fs.copyFileSync(path.join(ROOT, '.mcp.json'), path.join(targetRoot, '.mcp.json'))
+  fs.copyFileSync(path.join(ROOT, 'mcp', 'memory-server.js'), path.join(targetRoot, '.claude', 'mcp', 'memory-server.js'))
+  fs.copyFileSync(path.join(ROOT, 'mcp', 'profile-server.js'), path.join(targetRoot, '.claude', 'mcp', 'profile-server.js'))
+  return targetRoot
+}
+
 function resultById(responses, id) {
   const response = responses.find(item => item.id === id)
   assert.ok(response, `missing JSON-RPC response id=${id}`)
@@ -157,6 +183,27 @@ function testMemoryCpConfirmForBugs() {
   assert.match(sessions, /\| CP2 \| ✅ \| 10:30 \|/)
 }
 
+function testMemoryCpConfirmForExtendedTaskKinds() {
+  setupLegacyWorkspace()
+  const responses = runServer('mcp/memory-server.js', [
+    rpcRequest(1, 'initialize'),
+    rpcRequest(2, 'tools/call', {
+      name: 'memory_cp_confirm',
+      arguments: { requirement: '性能任务', kind: 'optimizations', phase: 'CP3', time: '11:00' }
+    }),
+    rpcRequest(3, 'tools/call', {
+      name: 'memory_cp_confirm',
+      arguments: { requirement: '场景测试任务', kind: 'scenario-tests', phase: 'CP3', time: '11:05' }
+    })
+  ], TEMP_ROOT)
+
+  assert.ok(resultById(responses, 1).capabilities.tools)
+  assert.match(resultById(responses, 2).content?.[0]?.text || '', /CP3/)
+  assert.match(resultById(responses, 3).content?.[0]?.text || '', /CP3/)
+  assert.ok(fs.existsSync(path.join(TEMP_ROOT, '.devcodex', 'optimizations', '性能任务', '.memory', 'sessions.md')))
+  assert.ok(fs.existsSync(path.join(TEMP_ROOT, '.devcodex', 'scenario-tests', '场景测试任务', '.memory', 'sessions.md')))
+}
+
 function testWorkspaceNamespaceProfileMerge() {
   setupLayoutWorkspace()
   const projectRoot = path.join(TEMP_ROOT, 'chat')
@@ -207,11 +254,34 @@ function testWorkspaceNamespaceMemoryScope() {
   )))
 }
 
+function testMcpJsonLaunchContract() {
+  const config = JSON.parse(fs.readFileSync(path.join(ROOT, '.mcp.json'), 'utf8'))
+  const servers = config.mcpServers || {}
+  const targetRoot = setupConfiguredMcpTarget()
+  const expected = {
+    'devcodex-memory': '.claude/mcp/memory-server.js',
+    'devcodex-profile': '.claude/mcp/profile-server.js'
+  }
+
+  for (const [name, scriptPath] of Object.entries(expected)) {
+    const server = servers[name]
+    assert.ok(server, `.mcp.json missing ${name}`)
+    assert.strictEqual(server.command, 'node')
+    assert.deepStrictEqual(server.args, [scriptPath, '.'])
+    assert.ok(!server.args.some(arg => /\$\{/.test(arg)), `${name} args must not require shell expansion`)
+
+    const responses = runConfiguredServer(server, [rpcRequest(90, 'initialize')], targetRoot)
+    assert.strictEqual(resultById(responses, 90).serverInfo.name, name)
+  }
+}
+
 testProfilePrompts()
 testProfileModeFallbackAgent()
 testMemoryDefaultAgent()
 testMemoryCpConfirmForBugs()
+testMemoryCpConfirmForExtendedTaskKinds()
 testWorkspaceNamespaceProfileMerge()
 testWorkspaceNamespaceMemoryScope()
+testMcpJsonLaunchContract()
 fs.rmSync(TEMP_ROOT, { recursive: true, force: true })
 process.stdout.write('mcp servers smoke test passed\n')

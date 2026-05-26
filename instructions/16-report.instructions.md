@@ -89,12 +89,11 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 - ⛔ **禁止覆盖已有报告**，每次会话独立新建文件
 - 每条建议/问题必须附五项验证（合理性 + 可实施性 + 收益 + 验证状态 + 影响范围）— 与 [`17-compliance.instructions.md`](./17-compliance.instructions.md) §1 输出验证保持一致
 - 报告写入后必须执行二次验证（V1~V6，见 `17-compliance.instructions.md`）
-- 回复末尾必须输出报告路径（双行格式，详见 [`02-output-paths.instructions.md`](./02-output-paths.instructions.md) §产物路径输出格式）：
+- 回复末尾必须输出报告路径（默认单行 Markdown 链接，详见 [`02-output-paths.instructions.md`](./02-output-paths.instructions.md) §产物路径输出格式）：
   ```
   - [NN--简述.md](workspace相对路径/.devcodex/reports/.../NN--简述.md)
-    `E:\绝对路径\.devcodex\reports\...\NN--简述.md`
   ```
-  > 第一行用相对路径（VS Code/JetBrains 可点击）；第二行用绝对路径纯文本（终端/跨工具用）。
+  > 默认只输出相对路径 Markdown 链接，避免 VS Code 重复渲染文件卡片；绝对路径纯文本仅在需要终端/跨工具复制时追加。
 - ≤ 500 行（C13），超出拆分
 
 ### 写入工具选择（v1.9.4+）

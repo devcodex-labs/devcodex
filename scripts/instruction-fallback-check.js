@@ -5,7 +5,7 @@
  * For hosts without Workspace Hooks (jetbrains-copilot / cursor / instruction-fallback),
  * this script enforces CP gating at git-commit time:
  *   1. If staged changes include source files (non-doc, non-.devcodex)
- *      AND there exists an active task under .devcodex/{requirements,bugs}/ without CP3 confirmed
+ *      AND there exists an active task under .devcodex/{requirements,bugs,optimizations,scenario-tests}/ without CP3 confirmed
  *      → exit 1 with explanation.
  *   2. If commit message indicates dev work but no CP markers visible in recent memory
  *      → warning (exit 0).
@@ -27,6 +27,37 @@ if (process.env.SKIP_DEVCODEX_FALLBACK === '1') {
 
 const cwd = process.cwd()
 
+function readJsonFile(filePath) {
+  try { return JSON.parse(fs.readFileSync(filePath, 'utf8')) } catch { return null }
+}
+
+function findLayoutInfo(startDir) {
+  let current = path.resolve(startDir)
+  while (true) {
+    const markerPath = path.join(current, '.devcodex', 'layout.json')
+    const marker = readJsonFile(markerPath)
+    if (marker && marker.mode === 'workspace-namespace') return { enabled: true, workspaceRoot: current }
+    const parent = path.dirname(current)
+    if (parent === current) break
+    current = parent
+  }
+  return { enabled: false, workspaceRoot: path.resolve(startDir) }
+}
+
+function inferProjectFromCwd(layout) {
+  if (!layout.enabled) return ''
+  const relative = path.relative(layout.workspaceRoot, cwd)
+  if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) return ''
+  return relative.split(path.sep).filter(Boolean)[0] || ''
+}
+
+function getActiveRoot() {
+  const layout = findLayoutInfo(cwd)
+  if (!layout.enabled) return path.join(cwd, '.devcodex')
+  const project = inferProjectFromCwd(layout)
+  return project ? path.join(layout.workspaceRoot, '.devcodex', project) : path.join(layout.workspaceRoot, '.devcodex', 'workspace')
+}
+
 function getStagedFiles() {
   try {
     return execSync('git diff --cached --name-only', { encoding: 'utf8' })
@@ -37,7 +68,7 @@ function getStagedFiles() {
 const SOURCE_EXTS = new Set(['.js', '.cjs', '.mjs', '.ts', '.tsx', '.jsx', '.py', '.go', '.rs', '.java', '.kt', '.swift', '.rb', '.php', '.c', '.cc', '.cpp', '.h', '.hpp', '.sql'])
 function isSourceFile(p) {
   if (p.startsWith('.devcodex/') || p.startsWith('.claude/') || p.startsWith('.github/')) return false
-  if (p.startsWith('docs/') || p.endsWith('.md') || p.endsWith('.json')) return false
+  if (p.startsWith('docs/') || p.endsWith('.md')) return false
   return SOURCE_EXTS.has(path.extname(p))
 }
 
@@ -74,8 +105,10 @@ function hasTaskArtifact(kind, full, phase) {
 
 function findActiveTasks() {
   const taskRoots = [
-    { kind: 'requirements', dir: path.join(cwd, '.devcodex', 'requirements') },
-    { kind: 'bugs', dir: path.join(cwd, '.devcodex', 'bugs') }
+    { kind: 'requirements', dir: path.join(getActiveRoot(), 'requirements') },
+    { kind: 'bugs', dir: path.join(getActiveRoot(), 'bugs') },
+    { kind: 'optimizations', dir: path.join(getActiveRoot(), 'optimizations') },
+    { kind: 'scenario-tests', dir: path.join(getActiveRoot(), 'scenario-tests') }
   ]
   const out = []
   for (const root of taskRoots) {

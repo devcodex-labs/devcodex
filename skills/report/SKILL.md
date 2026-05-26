@@ -78,7 +78,7 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 - 报告写入后必须执行 [`compliance`](../compliance/SKILL.md) Skill §5 二次验证（V1~V6）
 - `dev` / `fix` 报告在最终宣告完成前，必须显式体现“执行后轻量复审收敛”这一正式阶段，并与关键产物和实际实现结果完成 1 轮复审对照；若发现阻断性问题，不得直接以“已完成”收尾
 - 报告末尾引用本次会话记忆路径
-- 回复末尾必须输出产物文件路径（双行格式：第一行**相对路径**Markdown 链接 + 第二行**绝对路径**纯文本，详见 [`02-output-paths.instructions.md`](../../instructions/02-output-paths.instructions.md) §产物路径输出格式，[FC5](../compliance/SKILL.md)）
+- 回复末尾必须输出产物文件路径（默认单行**相对路径** Markdown 链接；绝对路径纯文本仅作为可选辅助行，详见 [`02-output-paths.instructions.md`](../../instructions/02-output-paths.instructions.md) §产物路径输出格式，[FC5](../compliance/SKILL.md)）
 
 ## 行数限制
 

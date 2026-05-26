@@ -5,6 +5,8 @@ applyTo: "**"
 
 > 本文件定义 dev 工作流的完整规则，含 8 个子类型和 CP 门控。
 
+> 子类型标识：`dev.default` / `dev.docs` / `dev.refactor` / `dev.database` / `dev.init` / `dev.optimization` / `dev.scenario-test` / `dev.plan-review`
+
 ## 子类型路由
 
 | 意图 | 子类型 |

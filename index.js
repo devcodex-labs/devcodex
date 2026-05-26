@@ -77,6 +77,67 @@ function isSourceRepo(dir) {
   } catch { return false }
 }
 
+function readJsonFile(filePath) {
+  try { return JSON.parse(fs.readFileSync(filePath, 'utf8')) } catch { return null }
+}
+
+function findLayoutInfo(startDir) {
+  let current = path.resolve(startDir)
+  while (true) {
+    const markerPath = path.join(current, '.devcodex', 'layout.json')
+    const marker = readJsonFile(markerPath)
+    if (marker && marker.mode === 'workspace-namespace') {
+      return { enabled: true, workspaceRoot: current }
+    }
+    const parent = path.dirname(current)
+    if (parent === current) break
+    current = parent
+  }
+  return { enabled: false, workspaceRoot: path.resolve(startDir) }
+}
+
+function inferProjectFromCwd(cwd, layout) {
+  if (!layout.enabled) return ''
+  const relative = path.relative(layout.workspaceRoot, cwd)
+  if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) return ''
+  const first = relative.split(path.sep).filter(Boolean)[0] || ''
+  return first && first !== '.devcodex' ? first : ''
+}
+
+function resolveProfileDir(cwd) {
+  const layout = findLayoutInfo(cwd)
+  const candidates = []
+  if (layout.enabled) {
+    const project = inferProjectFromCwd(cwd, layout)
+    if (project) candidates.push(path.join(layout.workspaceRoot, '.devcodex', project, 'profile'))
+    candidates.push(path.join(layout.workspaceRoot, '.devcodex', 'workspace', 'profile'))
+  }
+  candidates.push(path.join(cwd, '.devcodex', 'profile'))
+  return candidates.find(candidate => fs.existsSync(candidate)) || candidates[0]
+}
+
+const DEVCODEX_GITIGNORE_ENTRIES = [
+  '.devcodex/.memory/',
+  '.devcodex/.audit-state/',
+  '.devcodex/*/.memory/',
+  '.devcodex/*/.audit-state/'
+]
+
+function ensureDevCodexGitignore(cwd, dryRun, log = console.log) {
+  if (dryRun) return 0
+  const gitignorePath = path.join(cwd, '.gitignore')
+  const existing = fs.existsSync(gitignorePath) ? fs.readFileSync(gitignorePath, 'utf8') : ''
+  const missing = DEVCODEX_GITIGNORE_ENTRIES.filter(entry => !existing.includes(entry))
+  if (!missing.length) return 0
+  const header = '# DevCodex runtime state (auto-generated, do not commit)'
+  const prefix = existing.trimEnd() ? '\n\n' : ''
+  const block = `${prefix}${header}\n${missing.join('\n')}\n`
+  if (fs.existsSync(gitignorePath)) fs.appendFileSync(gitignorePath, block)
+  else fs.writeFileSync(gitignorePath, `${header}\n${missing.join('\n')}\n`)
+  log(c.green(`  ✓ .gitignore  (${missing.length} DevCodex runtime entr${missing.length === 1 ? 'y' : 'ies'} added)`))
+  return missing.length
+}
+
 function getLegacyCounts(ghDir) {
   return LEGACY_TARGETS.map(({ label, pathParts }) => {
     const fullPath = path.join(ghDir, ...pathParts)
@@ -174,25 +235,11 @@ function cmdInit(argv) {
     }
   }
 
-  // Create .devcodex/.memory/ and update .gitignore
+  // Create .devcodex runtime dirs and update .gitignore
   if (!dryRun) {
     fs.mkdirSync(path.join(cwd, '.devcodex', '.memory'), { recursive: true })
-
-    const gitignorePath = path.join(cwd, '.gitignore')
-    const gitignoreEntry = '\n# DevCodex AI session memory (auto-generated, do not commit)\n.devcodex/.memory/\n'
-    if (fs.existsSync(gitignorePath)) {
-      const content = fs.readFileSync(gitignorePath, 'utf8')
-      // Skip if .devcodex/ (whole dir) or .devcodex/.memory/ is already excluded
-      if (!content.includes('.devcodex/') && !content.includes('.devcodex/.memory/')) {
-        fs.appendFileSync(gitignorePath, gitignoreEntry)
-        added++
-        console.log(c.green('  ✓ .gitignore  (.devcodex/.memory/ added)'))
-      }
-    } else {
-      fs.writeFileSync(gitignorePath, gitignoreEntry.trimStart())
-      added++
-      console.log(c.green('  ✓ .gitignore  (created)'))
-    }
+    fs.mkdirSync(path.join(cwd, '.devcodex', '.audit-state'), { recursive: true })
+    added += ensureDevCodexGitignore(cwd, dryRun)
   }
 
   console.log()
@@ -261,8 +308,8 @@ function cmdStatus() {
   if (ciInstalled) total++
   console.log(`  ${c.cyan('copilot-instr'.padEnd(14))} ${ciInstalled ? c.green('installed') : c.red('not installed')}`)
 
-  // Check .devcodex/profile/ state (v1.9.2+)
-  const profileDir = path.join(cwd, '.devcodex', 'profile')
+  // Check profile state (legacy project root or workspace-namespace active root)
+  const profileDir = resolveProfileDir(cwd)
   const profilePresent = PROFILE_FILES.filter(f => fs.existsSync(path.join(profileDir, f))).length
   let profileLabel
   if (profilePresent === PROFILE_FILES.length) profileLabel = c.green(`complete  (${profilePresent}/${PROFILE_FILES.length} files)`)
@@ -366,13 +413,13 @@ const CLAUDE_MCP_JSON = {
     'devcodex-memory': {
       type: 'stdio',
       command: 'node',
-      args: ['${CLAUDE_PROJECT_DIR:-.}/.claude/mcp/memory-server.js', '${CLAUDE_PROJECT_DIR:-.}'],
+      args: ['.claude/mcp/memory-server.js', '.'],
       _note: 'Reads/writes .devcodex/.memory/ session files and records CP confirmations.'
     },
     'devcodex-profile': {
       type: 'stdio',
       command: 'node',
-      args: ['${CLAUDE_PROJECT_DIR:-.}/.claude/mcp/profile-server.js', '${CLAUDE_PROJECT_DIR:-.}'],
+      args: ['.claude/mcp/profile-server.js', '.'],
       _note: 'Loads .devcodex/profile/ files and returns ENV_MODE / agent config.'
     }
   }
@@ -483,9 +530,10 @@ function cmdInitClaude(argv, { internal = false } = {}) {
     }
   }
 
-  // 5. Create .devcodex/.memory/ and update .gitignore (same as copilot init)
+  // 5. Create .devcodex runtime dirs and update .gitignore (same as copilot init)
   if (!dryRun) {
     fs.mkdirSync(path.join(cwd, '.devcodex', '.memory'), { recursive: true })
+    fs.mkdirSync(path.join(cwd, '.devcodex', '.audit-state'), { recursive: true })
 
     // F-002: warn about legacy .claude/agents/ (Claude Code uses skills/ via Skill tool, not agents/)
     if (!internal) {
@@ -501,20 +549,7 @@ function cmdInitClaude(argv, { internal = false } = {}) {
       }
     }
 
-    const gitignorePath = path.join(cwd, '.gitignore')
-    const gitignoreEntry = '\n# DevCodex AI session memory (auto-generated, do not commit)\n.devcodex/.memory/\n'
-    if (fs.existsSync(gitignorePath)) {
-      const content = fs.readFileSync(gitignorePath, 'utf8')
-      if (!content.includes('.devcodex/') && !content.includes('.devcodex/.memory/')) {
-        fs.appendFileSync(gitignorePath, gitignoreEntry)
-        added++
-        log(c.green('  ✓ .gitignore  (.devcodex/.memory/ added)'))
-      }
-    } else {
-      fs.writeFileSync(gitignorePath, gitignoreEntry.trimStart())
-      added++
-      log(c.green('  ✓ .gitignore  (created)'))
-    }
+    added += ensureDevCodexGitignore(cwd, dryRun, log)
   }
 
   if (!internal) {
@@ -691,11 +726,13 @@ function genConfigJson(agent, mode) {
 
 function detectAgent(cwd) {
   // agent enum aligned with instructions.md / 15-memory: copilot/vscode-copilot/jetbrains-copilot/claude-code/codex/cursor/unknown-agent
+  if (process.env.CLAUDE_CODE_VERSION || process.env.CLAUDE_HOOK_COMMAND) return 'claude-code'
+  if (process.env.IDEA_INITIAL_DIRECTORY || process.env.JETBRAINS_IDE) return 'jetbrains-copilot'
+  if (process.env.TERM_PROGRAM === 'vscode' || process.env.VSCODE_PID) return 'vscode-copilot'
+  if (process.env.CURSOR_TRACE_ID || process.env.CURSOR_USER_ID) return 'cursor'
   if (fs.existsSync(path.join(cwd, 'CLAUDE.md')) || fs.existsSync(path.join(cwd, '.claude'))) return 'claude-code'
   const hasCopilotMd = fs.existsSync(path.join(cwd, '.github', 'copilot-instructions.md'))
   if (hasCopilotMd) {
-    if (process.env.IDEA_INITIAL_DIRECTORY || process.env.JETBRAINS_IDE) return 'jetbrains-copilot'
-    if (process.env.TERM_PROGRAM === 'vscode' || process.env.VSCODE_PID) return 'vscode-copilot'
     return 'copilot'
   }
   return 'unknown-agent'
@@ -780,7 +817,8 @@ function cmdDoctor() {
   const hasCopilotMd = fs.existsSync(path.join(cwd, '.github', 'copilot-instructions.md'))
   const hasClaudeMd = fs.existsSync(path.join(cwd, 'CLAUDE.md'))
   const hasInstructions = fs.existsSync(path.join(cwd, '.github', 'instructions'))
-  const hasProfile = fs.existsSync(path.join(cwd, '.devcodex', 'profile'))
+  const profileDir = resolveProfileDir(cwd)
+  const hasProfile = PROFILE_FILES.every(file => fs.existsSync(path.join(profileDir, file)))
 
   let mode = 'instruction-fallback'
   if (platform === 'claude' && hasClaudeHooks) mode = 'hook-enforced (Claude Code)'
@@ -801,7 +839,7 @@ function cmdDoctor() {
   console.log(`    .github/copilot-instructions.md      ${hasCopilotMd ? c.green('✅') : c.dim('—')}`)
   console.log(`    .github/instructions/                ${hasInstructions ? c.green('✅') : c.dim('—')}`)
   console.log(`    .github/hooks/_runtime/lifecycle.cjs ${hasGithubHooks ? c.green('✅') : c.dim('—')}`)
-  console.log(`    .devcodex/profile/                   ${hasProfile ? c.green('✅') : c.yellow('⚠️  missing — run `devcodex profile init`')}`)
+  console.log(`    profile (${path.relative(cwd, profileDir) || '.devcodex/profile'}) ${hasProfile ? c.green('✅') : c.yellow('⚠️  missing — run `devcodex profile init`')}`)
   console.log()
 
   if (platform === 'jetbrains-copilot' || mode.startsWith('instruction-fallback')) {
@@ -831,10 +869,10 @@ function cmdHelp() {
     npx @vextjs/devcodex <command> [options]   ${c.dim('(without npm link)')}
 
   ${c.bold('Commands:')}
-    ${c.cyan('init')}              Install DevCodex into .github/ for GitHub Copilot
-    ${c.cyan('init --claude')}     Install DevCodex into .claude/ for Claude Code
-    ${c.cyan('update')}            Re-install and overwrite Copilot files (init --force)
-    ${c.cyan('update --claude')}   Re-install and overwrite Claude Code files
+    ${c.cyan('init')}              Install Copilot files, then deploy Claude Code adapter
+    ${c.cyan('init --claude')}     Install Claude Code adapter only
+    ${c.cyan('update')}            Overwrite Copilot files, then deploy Claude Code adapter
+    ${c.cyan('update --claude')}   Overwrite Claude Code adapter only
     ${c.cyan('migrate-layout')}    Plan/apply/rollback centralized .devcodex workspace layout
     ${c.cyan('profile init')}      Auto-generate .devcodex/profile/ drafts (v1.9.2+)
     ${c.cyan('status')}            Show what DevCodex files are installed
@@ -843,15 +881,16 @@ function cmdHelp() {
   ${c.bold('Options:')}
     ${c.dim('--force,  -f')}       Overwrite existing files
     ${c.dim('--dry-run')}          Preview what would be installed without writing files
-    ${c.dim('--claude')}           Target Claude Code (.claude/) instead of Copilot (.github/)
+    ${c.dim('--claude')}           Only target Claude Code adapter (skip Copilot .github/)
     ${c.dim('--prod')}             (profile init only) Set mode=prod instead of dev
 
   ${c.bold('Examples:')}
-    devcodex init                 # First-time Copilot install
-    devcodex init --claude        # First-time Claude Code install
+    devcodex init                 # First-time dual install
+    devcodex init --claude        # Claude Code adapter only
     devcodex migrate-layout plan  # Generate centralized layout migration manifest
     devcodex profile init         # Generate Profile drafts from package.json + scan
-    devcodex update               # Overwrite Copilot files
+    devcodex update               # Refresh Copilot + Claude Code adapter
+    devcodex update --claude      # Refresh Claude Code adapter only
     devcodex status               # Check installation
 `)
 }

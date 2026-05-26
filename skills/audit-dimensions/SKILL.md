@@ -278,7 +278,6 @@ description: D1~D25 规范文件审查维度总览 — 规范库/specs 文件专
 | # | 检查内容 |
 |:-:|---------|
 | 1 | `15-memory.instructions.md`、`CLAUDE.md` `02-output-paths.instructions.md` 三处的 `<agent>` 枚举值是否一致（固定集合，无散值）|
-| 2 | `devcodex init` / `devcodex init --claude` 是否分别写入 `"agent": "copilot"` / `"agent": "claude-code"` 到 `.devcodex/profile/config.json` |
+| 2 | `devcodex profile init` 是否按当前宿主推断写入 `"agent"` 到 `.devcodex/profile/config.json`，且 `devcodex init` / `devcodex init --claude` 不伪造 profile config |
 | 3 | `.devcodex/.memory/clients/<agent>/` 目录命名是否符合上述枚举 |
 | 4 | 报告路径 `.devcodex/reports/<type>/<agent>/YYYYMMDD/` 中 `<agent>` 是否同样符合枚举 |
-

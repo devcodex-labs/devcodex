@@ -1,11 +1,11 @@
 ---
 agent: agent
 description: 实施进度报告模板，用于记录多阶段实施的当前进度
-applyTo: .devcodex/requirements/**
+applyTo: .devcodex/**/requirements/**
 ---
 # 实施进度模板
 
-> **路径**: `.devcodex/requirements/<中文描述>/05-实施进度.md`
+> **路径**: `.devcodex/**/requirements/<中文描述>/05-实施进度.md`
 > **触发**: 实施阶段中间检查点
 > ⚠️ 条件触发：仅在任务跨多轮/多阶段、存在明确阻塞或用户要求持续跟踪时启用；且前提是已存在 `04-实施计划.md` 或等价任务切片。
 > ⚠️ 生成的 Markdown 实施进度文档必须在头部后补 `## 目录导航`。

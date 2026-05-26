@@ -5,7 +5,7 @@ applyTo: .devcodex/**/reports/requirements/**
 ---
 # 开发报告模板
 
-> **路径**: 优先 `.devcodex/requirements/<需求>/reports/<agent>/YYYYMMDD/NN--<name>.md`；无任务上下文时回退到 `.devcodex/reports/requirements/<agent>/YYYYMMDD/NN--<name>.md`
+> **路径**: 优先 `.devcodex/**/requirements/<需求>/reports/<agent>/YYYYMMDD/NN--<name>.md`；无任务上下文时回退到 `.devcodex/**/reports/requirements/<agent>/YYYYMMDD/NN--<name>.md`
 > **触发**: dev 工作流完成后，由 `report/SKILL.md` 驱动生成
 > **字段约束**: 每条遗留问题/建议必须附五项验证（合理性 + 可实施性 + 收益 + 验证状态 + 影响范围），详见 [`17-compliance.instructions.md`](../instructions/17-compliance.instructions.md) §1 输出验证
 

@@ -25,7 +25,7 @@ applyTo: "**"
    - Cursor IDE：`cursor`
    - JetBrains Copilot：`jetbrains-copilot`
    - 无法确定：`unknown-agent`
-3. **写入约定**：`devcodex init --claude` 必须向 `config.json` 写入 `"agent": "claude-code"`；`devcodex init` (Copilot) 应写入 `"agent": "copilot"`
+3. **写入约定**：`devcodex profile init` 生成 `config.json` 时必须写入当前宿主推断出的 `agent`；`devcodex init` / `devcodex init --claude` 只负责分发规则与运行时文件，不直接生成 profile config
 - ⛔ **禁止使用 shell 命令（bash find、PowerShell glob）查找记忆文件**（shell glob 会跳过以 `.` 开头的隐藏目录）
 - 必须使用 IDE 工具（Copilot: list_dir；Claude Code: Read/Glob）逐层进入：`clients/` → `<agent>/` → 读取日期文件
 
@@ -162,4 +162,4 @@ applyTo: "**"
 ## chat 豁免说明
 
 - chat 工作流豁免**报告**，但**记忆仍须写入**
-- chat 场景的 📨 对话记录可简化：用单行 `chat：[一句话描述]` 代替完整四列表格
+- chat 场景的 📨 对话记录仍使用四列表格；可在 `🤖 AI执行` 列写成 `chat：[一句话描述]`，不得降级为表格外单行

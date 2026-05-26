@@ -3,6 +3,8 @@ applyTo: "**"
 ---
 # 修复工作流规则（11-fix）
 
+> 子类型标识：`fix.default` / `fix.security` / `fix.incident`
+
 > 本文件定义 fix 工作流的完整规则，含 3 个子类型和修复三步扫描。
 
 ## 子类型路由

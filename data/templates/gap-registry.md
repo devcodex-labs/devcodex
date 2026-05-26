@@ -1,7 +1,7 @@
 # 维度盲区 / 检测盲点登记（template）
 
-> **文件定位**：模板。`devcodex init` 复制为用户项目 `.github/data/gap-registry.md`。  
-> **使用**：审查中遇到无对应维度的问题，或 R2+ 自我审视发现 M1~M4 盲点时登记。  
+> **文件定位**：模板。`devcodex init` / `devcodex init --claude` 复制为目标项目运行时 `data/gap-registry.md`（Copilot: `.github/data/gap-registry.md`；Claude Code: `.claude/data/gap-registry.md`）。
+> **使用**：审查中遇到无对应维度的问题，或 R2+ 自我审视发现 M1~M4 盲点时登记。
 > **维护者记录**：`.devcodex/.maintainer-state/gap-registry.md`。
 
 ---

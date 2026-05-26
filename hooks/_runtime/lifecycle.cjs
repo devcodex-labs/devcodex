@@ -16,6 +16,7 @@ const path = require('path')
 
 const CONTEXT_ROOT = process.cwd()
 const PAYLOAD_PREVIEW_LIMIT = 160
+const TRANSCRIPT_TAIL_LIMIT = 2 * 1024 * 1024
 
 // ─── CP Gate constants ────────────────────────────────────────────────────────
 const CP1_FILE = '01-需求概述.md'
@@ -478,6 +479,54 @@ function collectInterestingStrings(value, prefix = '', out = []) {
   return out
 }
 
+function readTranscriptTail(transcriptPath) {
+  if (typeof transcriptPath !== 'string' || !transcriptPath.trim()) return ''
+  const resolved = path.resolve(transcriptPath)
+  let stat
+  try { stat = fs.statSync(resolved) } catch { return '' }
+  if (!stat.isFile()) return ''
+  const start = Math.max(0, stat.size - TRANSCRIPT_TAIL_LIMIT)
+  const length = stat.size - start
+  let fd
+  try { fd = fs.openSync(resolved, 'r') } catch { return '' }
+  try {
+    const buffer = Buffer.alloc(length)
+    fs.readSync(fd, buffer, 0, length, start)
+    return buffer.toString('utf8')
+  } catch {
+    return ''
+  } finally {
+    fs.closeSync(fd)
+  }
+}
+
+function extractLatestAssistantContentFromTranscript(transcriptPath) {
+  const tail = readTranscriptTail(transcriptPath)
+  if (!tail) return ''
+  const lines = tail.split(/\r?\n/).filter(Boolean)
+  for (let index = lines.length - 1; index >= 0; index--) {
+    const entry = safeJsonParse(lines[index])
+    if (!entry || entry.type !== 'assistant.message') continue
+    const content = entry.data && entry.data.content
+    if (typeof content === 'string' && content.trim()) return content
+  }
+  return ''
+}
+
+function getVisibleReplyText(payload) {
+  const directCandidates = [
+    payload.assistantMessage, payload.assistant_message, payload.response,
+    payload.responseText, payload.response_text, payload.output,
+    payload.reply, payload.content, payload.message, payload.transcript
+  ]
+  const directText = directCandidates
+    .filter(v => typeof v === 'string' && v.trim())
+    .join('\n')
+  if (directText.trim()) return directText
+  const transcriptPath = payload.transcript_path || payload.transcriptPath
+  return extractLatestAssistantContentFromTranscript(transcriptPath)
+}
+
 function getToolInputStrings(payload) {
   const input = payload.tool_input || payload.toolInput || {}
   return collectStrings(input).map(normalizeText).filter(Boolean)
@@ -540,6 +589,7 @@ function buildDefaultState(mode) {
     activeProject: CONTEXT_PROJECT || '',
     activeScope: DEFAULT_SCOPE,
     bootstrap: { profileRead: false, summaryRead: false, tasksRead: false },
+    lastBootstrapWarningKey: '', lastClosureReminderKey: '',
     bootstrapComplete: false,
     visible: { payloadObserved: false, precheck: false, compliance: false, artifactPaths: false },
     mutated: false, reportTouched: false, memoryTouched: false,
@@ -693,6 +743,21 @@ function buildBootstrapWarningOutput(state, payload) {
   )
 }
 
+function buildBootstrapWarningKey(state, payload) {
+  const missing = []
+  if (!state.bootstrap.profileRead) missing.push('profile')
+  if (!state.bootstrap.summaryRead) missing.push('SUMMARY')
+  if (!state.bootstrap.tasksRead) missing.push('tasks')
+  return [state.promptCount || 0, missing.join(',')].join('|')
+}
+
+function buildDedupedBootstrapWarningOutput(state, payload) {
+  const key = buildBootstrapWarningKey(state, payload)
+  if (state.lastBootstrapWarningKey === key) return noopOutput()
+  state.lastBootstrapWarningKey = key
+  return buildBootstrapWarningOutput(state, payload)
+}
+
 // ─── CP Gate ─────────────────────────────────────────────────────────────────
 
 function readCpConfirmations(reqPath) {
@@ -775,7 +840,9 @@ function getTaskRoots(state) {
   const namespaceRoot = getActiveNamespaceRoot(state)
   return [
     { kind: 'requirements', dir: path.join(namespaceRoot, 'requirements') },
-    { kind: 'bugs', dir: path.join(namespaceRoot, 'bugs') }
+    { kind: 'bugs', dir: path.join(namespaceRoot, 'bugs') },
+    { kind: 'optimizations', dir: path.join(namespaceRoot, 'optimizations') },
+    { kind: 'scenario-tests', dir: path.join(namespaceRoot, 'scenario-tests') }
   ]
 }
 
@@ -1006,6 +1073,7 @@ const DANGEROUS_PATTERNS = [
   { re: /\brm\s+-rf\b/i, reason: 'Blocked: rm -rf' },
   { re: /\bgit\s+reset\s+--hard\b/i, reason: 'Blocked: git reset --hard' },
   { re: /\bdrop\s+table\b/i, reason: 'Blocked: DROP TABLE' },
+  { re: /\bdelete\s+from\b(?:(?!\bwhere\b|;)[\s\S])*(?:;|$)/i, reason: 'Blocked: DELETE FROM without WHERE' },
   { re: /\btruncate\b/i, reason: 'Blocked: TRUNCATE' },
   { re: /\bdel\s+\/f\s+\/q\b/i, reason: 'Blocked: del /f /q' },
   { re: /Remove-Item.*-Recurse.*-Force/i, reason: 'Blocked: Remove-Item -Recurse -Force' }
@@ -1020,6 +1088,8 @@ function isCommandTool(payload, platform) {
 function checkDangerousCommand(payload, platform) {
   if (!isCommandTool(payload, platform)) return null
   const cmd = getCommandText(payload)
+  const readOnlySearch = /^\s*(?:rg|grep|Select-String)\b/i.test(cmd)
+  if (readOnlySearch && !/[;&|`$()]/.test(cmd.replace(/["'][^"']*["']/g, ''))) return null
   return DANGEROUS_PATTERNS.find(p => p.re.test(cmd)) || null
 }
 
@@ -1050,18 +1120,13 @@ function updateArtifactTouches(state, payload, platform) {
 // ─── Visible reply inspection (Copilot PreCompact/Stop) ──────────────────────
 
 function hasVisibleReplyPayload(payload) {
-  const candidates = [
-    payload.assistantMessage, payload.assistant_message, payload.response,
-    payload.responseText, payload.response_text, payload.output,
-    payload.reply, payload.content, payload.message, payload.transcript
-  ]
-  return candidates.some(v => typeof v === 'string' && v.trim())
+  return !!getVisibleReplyText(payload).trim()
 }
 
 function hasArtifactPathOutput(text) {
   const lines = String(text || '').split(/\r?\n/)
   let inArtifactSection = false
-  for (let index = 0; index < lines.length - 1; index++) {
+  for (let index = 0; index < lines.length; index++) {
     const line = lines[index]
     if (/^\s*📂\s*本次会话产物[:：]?\s*$/.test(line)) {
       inArtifactSection = true
@@ -1069,16 +1134,19 @@ function hasArtifactPathOutput(text) {
     }
     if (!inArtifactSection) continue
     if (!/^\s*-\s*\[[^\]]+\]\([^\)]+\)\s*$/.test(line)) continue
-    if (/^\s*[A-Za-z]:\\.+/.test(lines[index + 1])) return true
+    const nextLine = String(lines[index + 1] || '').trim()
+    if (/^`?[A-Za-z]:\\.+`?$/.test(nextLine)) return true
+    if (/^(?:绝对路径|Absolute path)[:：]\s*`?[A-Za-z]:\\.+`?$/.test(nextLine)) return true
+    return true
   }
   return false
 }
 
 function updateVisibleReplyState(state, payload, eventName) {
   if (eventName !== 'PreCompact' && eventName !== 'Stop') return
-  if (!hasVisibleReplyPayload(payload)) return
+  const text = getVisibleReplyText(payload)
+  if (!text.trim()) return
   state.visible.payloadObserved = true
-  const text = collectStrings(payload).join('\n')
   if (/入口检查（|预检查（DEV 模式）|PC0 上下文/.test(text)) state.visible.precheck = true
   if (/🛡️ DEV 模式 \| 合规检查|FC:\s*FC1/.test(text)) state.visible.compliance = true
   if (hasArtifactPathOutput(text)) state.visible.artifactPaths = true
@@ -1109,12 +1177,21 @@ function buildClosureReminder(state, eventName) {
     items.push('合规检查状态块未输出（17-compliance：dev 模式非 chat 回复末尾必须含 🛡️ DEV 模式 | 合规检查 状态块）')
   }
   if (eventName === 'Stop' && state.mode === 'dev' && state.reportTouched && state.visible && !state.visible.artifactPaths) {
-    items.push('产物路径未输出（FC5/T9：回复末尾必须按双行格式输出产物路径）')
+    items.push('产物路径未输出（FC5/T9：回复末尾必须在 📂 本次会话产物 区块列出 Markdown 链接）')
   }
   if (state.mutated && !state.memoryTouched) items.push('记忆文件尚未写入（S05：会话结束前必须写入）')
   if (state.mutated && !state.reportTouched) items.push('报告文件尚未写入（chat 工作流豁免）')
   if (!items.length) return ''
   return `DevCodex closure reminder: ${items.join('; ')}.`
+}
+
+function buildDedupedClosureReminder(state, eventName) {
+  const reminder = buildClosureReminder(state, eventName)
+  if (!reminder) return ''
+  const key = [eventName, state.promptCount || 0, reminder].join('|')
+  if (state.lastClosureReminderKey === key) return ''
+  state.lastClosureReminderKey = key
+  return reminder
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
@@ -1213,10 +1290,11 @@ async function main() {
       }
       if (!isBootstrapReadTool(payload, state)) {
         state.lastReason = 'blocked-before-bootstrap'
-        saveState(state)
-        writeStdout(isStrictEnforcement()
+        const output = isStrictEnforcement()
           ? buildBootstrapDenyOutput(state, payload, eventName, platform)
-          : buildBootstrapWarningOutput(state, payload))
+          : buildDedupedBootstrapWarningOutput(state, payload)
+        saveState(state)
+        writeStdout(output)
         return
       }
       updateBootstrapState(state, payload)
@@ -1274,7 +1352,7 @@ async function main() {
   // ── PreCompact / Stop ──────────────────────────────────────────────────────
   if (eventName === 'PreCompact' || eventName === 'Stop') {
     captureFinalPayloadSample(payload, eventName, state)
-    const reminder = buildClosureReminder(state, eventName)
+    const reminder = buildDedupedClosureReminder(state, eventName)
     saveState(state)
     writeStdout(reminder ? systemMessageOutput(reminder) : noopOutput())
     return

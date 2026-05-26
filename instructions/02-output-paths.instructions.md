@@ -104,13 +104,12 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 ```
 📂 本次会话产物：
 - [文件名（类型）](workspace相对路径/file.md)
-  `E:\绝对路径\file.md`
 ```
 
 > 🔴 **格式说明**：
-> - **第一行**：Markdown 链接使用**工作区根的相对路径**（不以 `/` 开头、不带 `file://` 协议）。理由：VS Code Claude 插件 webview / VS Code Markdown Preview / JetBrains 均能直接点击打开相对路径；`file:///` 协议在 VS Code Claude 插件 webview CSP 下被阻止。
-> - **第二行**：纯文本绝对路径（Windows 反斜杠 `E:\...`，POSIX 用 `/`）。用于终端 Ctrl+Click、复制粘贴到资源管理器、跨工具引用。
-> - 两行都必须输出。禁止询问"是否需要打开"；禁止省略产物路径输出。
+> - **必需行**：Markdown 链接使用**工作区根的相对路径**（不以 `/` 开头、不带 `file://` 协议）。理由：VS Code Claude 插件 webview / VS Code Markdown Preview / JetBrains 均能直接点击打开相对路径；`file:///` 协议在 VS Code Claude 插件 webview CSP 下被阻止。
+> - **可选辅助行**：仅当用户需要终端/跨工具复制路径时，才在下一行追加纯文本绝对路径（Windows 反斜杠 `E:\...`，POSIX 用 `/`）。为避免 VS Code 将同一产物渲染成重复文件卡片，默认不输出第二行。
+> - 禁止询问"是否需要打开"；禁止省略产物路径输出。
 > - ⚠️ **历史版本兼容**：v1.9.3 及之前使用 `[name](file:///E:/...)` 格式，存量报告无需回填，但新增报告须按本格式生成。
 
 ## CHANGELOG / Release 双阶段规范

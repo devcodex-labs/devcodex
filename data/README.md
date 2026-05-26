@@ -24,7 +24,11 @@ data/
 
 ## init 行为
 
-`devcodex init` / `devcodex init --claude` 将 `data/templates/*.md` 复制到目标项目的运行时数据目录（当前分发骨架仍落到 `.github/data/*.md` 或 `.claude/data/*.md` 对应结构）。
+`devcodex init` / `devcodex init --claude` 将 `data/templates/*.md` 复制到目标项目的运行时数据目录：
+
+- Copilot：`.github/data/*.md`
+- Claude Code：`.claude/data/*.md`
+- 规范正文中写 `data/*.md` 时，表示目标项目运行时台账的逻辑路径，不表示源仓根 `data/` 保存真实记录。
 
 ## 路径语义
 
@@ -37,7 +41,7 @@ data/
 
 而在**源仓**里：
 
-- `data/templates/*.md`：仅提供空模板
+- `data/templates/*.md`：仅提供空模板与允许的 EXAMPLE 行
 - `.devcodex/.maintainer-state/`：维护者自己的实际记录，不参与 npm 分发
 
 换句话说，规范里写 `data/*.md` 时，表达的是“应该把记录落到运行时台账”，不是说源仓根 `data/` 目录里直接保存真实记录。

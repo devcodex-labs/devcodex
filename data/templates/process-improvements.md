@@ -1,7 +1,7 @@
 # 过程改进记录（template）
 
-> **文件定位**：模板。`devcodex init` 复制为用户项目 `.github/data/process-improvements.md`。  
-> **使用**：C17 触发时追加 PI 条目。  
+> **文件定位**：模板。`devcodex init` / `devcodex init --claude` 复制为目标项目运行时 `data/process-improvements.md`（Copilot: `.github/data/process-improvements.md`；Claude Code: `.claude/data/process-improvements.md`）。
+> **使用**：C17 触发时追加 PI 条目。
 > **维护者记录**：`.devcodex/.maintainer-state/process-improvements.md`。
 
 ---

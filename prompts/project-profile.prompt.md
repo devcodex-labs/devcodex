@@ -1,11 +1,11 @@
 ---
 agent: agent
 description: 项目 Profile README 模板，用于初始化项目 Profile 索引文件
-applyTo: .devcodex/profile/**
+applyTo: .devcodex/**/profile/**
 ---
 # 项目 Profile README 模板
 
-> **路径**: `.devcodex/profile/README.md`
+> **路径**: `.devcodex/**/profile/README.md`
 > **触发**: `dev-init/SKILL.md` 或用户要求创建 Profile 时
 
 ---

@@ -1,11 +1,11 @@
 ---
 agent: agent
 description: 回复摘要模板，用于 chat 工作流在 daily tasks 记忆中记录简短会话摘要
-applyTo: .devcodex/.memory/**
+applyTo: .devcodex/**/.memory/**
 ---
 # 回复摘要模板
 
-> **路径**: `.devcodex/.memory/clients/<agent>/tasks/YYYYMMDD.md`
+> **路径**: `.devcodex/**/.memory/clients/<agent>/tasks/YYYYMMDD.md`
 > **触发**: chat 意图收到首条消息时创建/追加会话段落，任务结束时更新状态
 
 ---

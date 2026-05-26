@@ -146,7 +146,7 @@ flowchart TD
 - 主流程入口见：[主流程图](/specs/flowcharts)
 - 合规语义见：[合规检查框架](/specs/compliance-framework)
 - 前置状态汇总见：[前置状态汇总流程图](/specs/pre-state-summary-flow)
-- **PC4 规范雷达专属流程图见：[PC4 规范雷达流程图](/specs/spec-radar-flow)**（三轴决策树 + G1~G9 + 多轴优先级 + 置信度 + 延迟执行）
-- PC4 完整规范见：`18-spec-radar.instructions.md`（三轴诊断模型 + G1~G9 + 决策流程）
+- **PC4 规范雷达专属流程图见：[PC4 规范雷达流程图](/specs/spec-radar-flow)**（三轴决策树 + G1~G11 + 多轴优先级 + 置信度 + 延迟执行）
+- PC4 完整规范见：`18-spec-radar.instructions.md`（三轴诊断模型 + G1~G11 + 决策流程）
 
 > 约束：入口检查是所有模式必经阶段，不可跳过；PC5~PC7 为基础状态，PC4 完整三轴诊断仅在 dev 模式启用，非 dev 模式标注 N/A。

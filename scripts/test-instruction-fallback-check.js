@@ -27,15 +27,15 @@ function write(file, content) {
   fs.writeFileSync(file, content)
 }
 
-function stageAll(cwd) {
-  execSync('git add src/app.js', { cwd, stdio: 'pipe' })
+function stageFiles(cwd, files = ['src/app.js']) {
+  execSync(`git add ${files.join(' ')}`, { cwd, stdio: 'pipe' })
 }
 
 function setupRepo() {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-fallback-'))
   execSync('git init', { cwd: tempRoot, stdio: 'pipe' })
   write(path.join(tempRoot, 'src', 'app.js'), 'console.log("hello")\n')
-  stageAll(tempRoot)
+  stageFiles(tempRoot)
   return tempRoot
 }
 
@@ -67,6 +67,41 @@ function main() {
     write(path.join(bug, '.memory', 'sessions.md'), '| CP1 | ✅ |\n')
     const result = runCheck(cwd)
     assert.strictEqual(result.ok, false, 'active bug task should also block fallback gate')
+  }
+
+  {
+    const cwd = setupRepo()
+    write(path.join(cwd, 'package.json'), '{"name":"sample"}\n')
+    stageFiles(cwd, ['src/app.js', 'package.json'])
+    const bug = path.join(cwd, '.devcodex', 'bugs', '配置变更任务')
+    write(path.join(bug, '01-需求概述.md'), '# bug\n')
+    write(path.join(bug, '.memory', 'sessions.md'), '| CP1 | ✅ |\n| CP2 | ✅ |\n')
+    const result = runCheck(cwd)
+    assert.strictEqual(result.ok, false, 'staged package.json should be treated as source/config and block without CP3')
+  }
+
+  {
+    const cwd = setupRepo()
+    const opt = path.join(cwd, '.devcodex', 'optimizations', '性能优化任务')
+    write(path.join(opt, '01-需求概述.md'), '# opt\n')
+    write(path.join(opt, '.memory', 'sessions.md'), '| CP1 | ✅ |\n| CP2 | ✅ |\n')
+    const result = runCheck(cwd)
+    assert.strictEqual(result.ok, false, 'active optimization task should block fallback gate')
+  }
+
+  {
+    const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-fallback-ws-'))
+    const cwd = path.join(workspace, 'demo')
+    fs.mkdirSync(cwd, { recursive: true })
+    write(path.join(workspace, '.devcodex', 'layout.json'), '{"mode":"workspace-namespace"}\n')
+    execSync('git init', { cwd, stdio: 'pipe' })
+    write(path.join(cwd, 'src', 'app.js'), 'console.log("hello")\n')
+    stageFiles(cwd)
+    const req = path.join(workspace, '.devcodex', 'demo', 'requirements', '命名空间任务')
+    write(path.join(req, '01-需求概述.md'), '# req\n')
+    write(path.join(req, '.memory', 'sessions.md'), '| CP1 | ✅ |\n| CP2 | ✅ |\n')
+    const result = runCheck(cwd)
+    assert.strictEqual(result.ok, false, 'workspace-namespace active task should block fallback gate')
   }
 
   process.stdout.write('instruction fallback smoke test passed\n')

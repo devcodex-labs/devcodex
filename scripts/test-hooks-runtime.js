@@ -147,6 +147,16 @@ function run(payload, cwd = TEMP_ROOT, env = {}) {
   return JSON.parse(result.stdout || '{}')
 }
 
+function writeTranscript(fileName, assistantContent) {
+  const transcriptPath = path.join(TEMP_ROOT, fileName)
+  const entries = [
+    { type: 'user.message', data: { content: 'trigger prompt' } },
+    { type: 'assistant.message', data: { content: assistantContent } }
+  ]
+  fs.writeFileSync(transcriptPath, entries.map(entry => JSON.stringify(entry)).join('\n'))
+  return transcriptPath
+}
+
 function main() {
   cleanState()
 
@@ -167,6 +177,14 @@ function main() {
   })
   assert.strictEqual(warningBeforeBootstrap.continue, true)
   assert.match(warningBeforeBootstrap.systemMessage || '', /bootstrap/i)
+
+  const duplicateWarningBeforeBootstrap = run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'run_in_terminal',
+    tool_input: { command: 'npm test' }
+  })
+  assert.strictEqual(duplicateWarningBeforeBootstrap.continue, true)
+  assert.ok(!duplicateWarningBeforeBootstrap.systemMessage)
 
   cleanState()
   run({
@@ -257,7 +275,7 @@ function main() {
     }
   })
   assert.strictEqual(shellAliasWriteWarningDuringBootstrap.continue, true)
-  assert.match(shellAliasWriteWarningDuringBootstrap.systemMessage || '', /bootstrap/i)
+  assert.ok(!shellAliasWriteWarningDuringBootstrap.systemMessage)
 
   run({
     hookEventName: 'PreToolUse',
@@ -417,11 +435,46 @@ function main() {
   assert.strictEqual(dangerousCommand.hookSpecificOutput.permissionDecision, 'deny')
   assert.match(dangerousCommand.hookSpecificOutput.permissionDecisionReason || '', /git reset --hard/i)
 
+  const searchDangerousText = run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'run_in_terminal',
+    tool_input: {
+      command: 'rg -n "rm -rf|DROP TABLE|DELETE FROM" docs/example.md'
+    }
+  })
+  assert.strictEqual(searchDangerousText.continue, true)
+  assert.ok(!searchDangerousText.hookSpecificOutput)
+
+  const deleteWithoutWhere = run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'run_in_terminal',
+    tool_input: {
+      command: 'node -e "db.exec(`DELETE FROM users`)"'
+    }
+  })
+  assert.strictEqual(deleteWithoutWhere.hookSpecificOutput.permissionDecision, 'deny')
+  assert.match(deleteWithoutWhere.hookSpecificOutput.permissionDecisionReason || '', /DELETE FROM/i)
+
+  const deleteWithWhere = run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'run_in_terminal',
+    tool_input: {
+      command: 'node -e "db.exec(`DELETE FROM users WHERE id=1`)"'
+    }
+  })
+  assert.strictEqual(deleteWithWhere.continue, true)
+  assert.ok(!deleteWithWhere.hookSpecificOutput)
+
   const missingPrecheckReminder = run({
     hookEventName: 'Stop',
     assistantMessage: 'All work is complete.'
   })
   assert.match(missingPrecheckReminder.systemMessage || '', /entry check block/i)
+  const duplicateMissingPrecheckReminder = run({
+    hookEventName: 'Stop',
+    assistantMessage: 'All work is complete.'
+  })
+  assert.ok(!duplicateMissingPrecheckReminder.systemMessage)
   captureEntries = fs.readFileSync(CAPTURE_LOG, 'utf8').trim().split(/\r?\n/).map(line => JSON.parse(line))
   assert.strictEqual(captureEntries.length, 2)
   assert.strictEqual(captureEntries[1].eventName, 'Stop')
@@ -543,7 +596,7 @@ function main() {
       '',
       '📂 本次会话产物：',
       '- [01--sample.md](devcodex-v1/.devcodex/reports/analysis/claude-code/20260525/01--sample.md)',
-      '  E:\\Worker\\devcodex-v1\\.devcodex\\reports\\analysis\\claude-code\\20260525\\01--sample.md'
+      '  `E:\\Worker\\devcodex-v1\\.devcodex\\reports\\analysis\\claude-code\\20260525\\01--sample.md`'
     ].join('\n')
   })
   const completeClosureReply = run({
@@ -551,6 +604,96 @@ function main() {
     assistantMessage: 'Completed with compliant final reply.'
   })
   assert.ok(!completeClosureReply.systemMessage)
+
+  cleanState()
+  run({
+    hookEventName: 'UserPromptSubmit',
+    prompt: 'Need a root cure for duplicate artifact cards.'
+  })
+  runBootstrapReads()
+  run({
+    hookEventName: 'PostToolUse',
+    tool_name: 'apply_patch',
+    tool_input: {
+      input: '*** Begin Patch\n*** Add File: .devcodex/reports/analysis/claude-code/20260525/01--sample.md\n+# report\n*** End Patch'
+    }
+  })
+  run({
+    hookEventName: 'PostToolUse',
+    tool_name: 'apply_patch',
+    tool_input: {
+      input: `*** Begin Patch\n*** Update File: ${getMemoryFilePath(TEST_AGENT, 'tasks', `${getTaskStamp(0)}.md`)}\n*** End Patch`
+    }
+  })
+  run({
+    hookEventName: 'PreCompact',
+    assistantMessage: [
+      '---',
+      '🔍 入口检查（DEV 模式）',
+      '- PC0 上下文：项目 devcodex-v1',
+      '---',
+      '---',
+      '🛡️ DEV 模式 | 合规检查',
+      'FC: FC1 [✅] FC2 [✅] FC3 [✅] FC4 [✅] FC5 [✅] FC6 [✅]',
+      'SC: SC1 [✅]',
+      '整体：✅ 全通过',
+      '',
+      '📂 本次会话产物：',
+      '- [01--sample.md](devcodex-v1/.devcodex/reports/analysis/claude-code/20260525/01--sample.md)'
+    ].join('\n')
+  })
+  const singleLineArtifactClosureReply = run({
+    hookEventName: 'Stop',
+    assistantMessage: 'Completed with single-line artifact path.'
+  })
+  assert.ok(!singleLineArtifactClosureReply.systemMessage)
+
+  cleanState()
+  run({
+    hookEventName: 'UserPromptSubmit',
+    prompt: 'Need a root cure for transcript-backed Stop payloads.'
+  })
+  runBootstrapReads()
+  run({
+    hookEventName: 'PostToolUse',
+    tool_name: 'apply_patch',
+    tool_input: {
+      input: '*** Begin Patch\n*** Add File: .devcodex/reports/analysis/claude-code/20260525/01--sample.md\n+# report\n*** End Patch'
+    }
+  })
+  run({
+    hookEventName: 'PostToolUse',
+    tool_name: 'apply_patch',
+    tool_input: {
+      input: `*** Begin Patch\n*** Update File: ${getMemoryFilePath(TEST_AGENT, 'tasks', `${getTaskStamp(0)}.md`)}\n*** End Patch`
+    }
+  })
+  const transcriptPath = writeTranscript('copilot-stop-transcript.jsonl', [
+    '---',
+    '🔍 入口检查（DEV 模式）',
+    '- PC0 上下文：项目 devcodex-v1',
+    '---',
+    '---',
+    '🛡️ DEV 模式 | 合规检查',
+    'FC: FC1 [✅] FC2 [✅] FC3 [✅] FC4 [✅] FC5 [✅] FC6 [✅]',
+    'SC: SC1 [✅]',
+    '整体：✅ 全通过',
+    '',
+    '📂 本次会话产物：',
+    '- [01--sample.md](devcodex-v1/.devcodex/reports/analysis/claude-code/20260525/01--sample.md)'
+  ].join('\n'))
+  const transcriptBackedClosureReply = run({
+    hook_event_name: 'Stop',
+    session_id: 'copilot-transcript-stop',
+    transcript_path: transcriptPath,
+    cwd: TEMP_ROOT
+  })
+  assert.ok(!transcriptBackedClosureReply.systemMessage)
+  const transcriptBackedState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(transcriptBackedState.visible.payloadObserved, true)
+  assert.strictEqual(transcriptBackedState.visible.precheck, true)
+  assert.strictEqual(transcriptBackedState.visible.compliance, true)
+  assert.strictEqual(transcriptBackedState.visible.artifactPaths, true)
 
   // Auto v1.1: explicit @devcodex-auto writes executionMode=auto; in safety-only mode,
   // non-whitelisted paths warn instead of hard-blocking.
@@ -750,6 +893,37 @@ function main() {
     tool_input: { input: '*** Begin Patch\n*** Update File: src/bug.js\n*** End Patch' }
   })
   assert.strictEqual(allowedBugTask.continue, true)
+
+  // extended task roots: optimizations and scenario-tests must also participate in CP gate.
+  cleanState()
+  const optimizationDir = path.join(TEMP_ROOT, '.devcodex', 'optimizations', '性能优化任务')
+  fs.mkdirSync(path.join(optimizationDir, '.memory'), { recursive: true })
+  fs.writeFileSync(path.join(optimizationDir, '01-需求概述.md'), '# optimization\n')
+  fs.writeFileSync(path.join(optimizationDir, '.memory', 'sessions.md'), '| CP1 | ✅ |\n| CP2 | ✅ |\n')
+  run({ hookEventName: 'UserPromptSubmit', prompt: 'optimization task gate test' })
+  runBootstrapReads()
+  const warningOptimizationTask = run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'apply_patch',
+    tool_input: { input: '*** Begin Patch\n*** Update File: src/perf.js\n*** End Patch' }
+  })
+  assert.strictEqual(warningOptimizationTask.continue, true)
+  assert.match(warningOptimizationTask.systemMessage || '', /CP gate/i)
+
+  cleanState()
+  const scenarioDir = path.join(TEMP_ROOT, '.devcodex', 'scenario-tests', '端到端任务')
+  fs.mkdirSync(path.join(scenarioDir, '.memory'), { recursive: true })
+  fs.writeFileSync(path.join(scenarioDir, '01-需求概述.md'), '# scenario\n')
+  fs.writeFileSync(path.join(scenarioDir, '.memory', 'sessions.md'), '| CP1 | ✅ |\n| CP2 | ✅ |\n')
+  run({ hookEventName: 'UserPromptSubmit', prompt: 'scenario task gate test' })
+  runBootstrapReads()
+  const warningScenarioTask = run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'apply_patch',
+    tool_input: { input: '*** Begin Patch\n*** Update File: src/e2e.js\n*** End Patch' }
+  })
+  assert.strictEqual(warningScenarioTask.continue, true)
+  assert.match(warningScenarioTask.systemMessage || '', /CP gate/i)
 
   // F-008 (v1.9.5): DEVCODEX_PATH_RE 边缘场景测试
   // Bootstrap a fresh workspace

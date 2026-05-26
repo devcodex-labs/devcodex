@@ -5,7 +5,7 @@ applyTo: .devcodex/**/requirements/**
 ---
 # 需求文档模板
 
-> **路径**: `.devcodex/requirements/<中文描述>/01-需求概述.md`（唯一信源：`02-output-paths.instructions.md`）
+> **路径**: `.devcodex/**/requirements/<中文描述>/01-需求概述.md`（唯一信源：`02-output-paths.instructions.md`）
 > **触发**: dev 工作流 CP1 阶段
 
 ---

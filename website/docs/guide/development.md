@@ -117,6 +117,10 @@ description: "Use when: ..."   # 必填，AI 靠这个发现 Skill
 
 > 当前正式规则源以 `instructions/01-common.instructions.md`、`instructions/17-compliance.instructions.md` 和 `skills/cp-gate/SKILL.md` 为准；本页负责解释这些规则如何落到日常开发流程中。
 
+### 相关文件联查
+
+当前正式规则要求：当任务涉及控制面规则、模板、接口契约/验证产物、工作区真相源/部署副本或发布口径变更时，AI 不能只看单文件结果，必须联查相关文件；若同时命中多真相源同步或模板-示例-校验链，需进一步升级为交叉验证或 `CRS`。
+
 ---
 
 ## 架构约束动态更新说明

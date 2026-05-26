@@ -896,10 +896,75 @@ function checkV21() {
       ]
     },
     {
+      file: 'instructions/01-common.instructions.md',
+      needles: [
+        '统一联查矩阵（C11 扩展）',
+        'L1 最小联查',
+        'L2 标准联查',
+        'L3 强联查',
+        '控制面规则变更'
+      ]
+    },
+    {
+      file: 'instructions/10-dev.instructions.md',
+      needles: [
+        '统一联查矩阵（dev 最小动作）',
+        '高联动场景默认升为 L2 标准联查',
+        'L3 强联查'
+      ]
+    },
+    {
+      file: 'instructions/11-fix.instructions.md',
+      needles: [
+        '统一联查矩阵映射（fix）',
+        'fix 默认按 **L2 标准联查** 起步',
+        '工作区真相源 / 部署副本 / 分发链修复'
+      ]
+    },
+    {
+      file: 'instructions/13-analyze.instructions.md',
+      needles: [
+        '相关文件联查（analyze-lite）',
+        '建立关联文件集合',
+        '收敛前必须再跑一次 `CRS`'
+      ]
+    },
+    {
       file: 'skills/fix-default/SKILL.md',
       needles: [
         '模板/示例不可直接执行',
         '自动化校验假绿'
+      ]
+    },
+    {
+      file: 'skills/dev-default/SKILL.md',
+      needles: [
+        '统一联查矩阵（F-25）',
+        '默认升为 L2 标准联查',
+        '高联动场景不得只做单文件修改'
+      ]
+    },
+    {
+      file: 'skills/fix-default/SKILL.md',
+      needles: [
+        '统一联查矩阵视为 L2 起步',
+        '必须升为 L3'
+      ]
+    },
+    {
+      file: 'skills/analyze-research/SKILL.md',
+      needles: [
+        '建立关联文件集合',
+        '收敛前再跑一次 CRS',
+        '统一联查矩阵（research 最小动作）'
+      ]
+    },
+    {
+      file: 'skills/audit-common/SKILL.md',
+      needles: [
+        '统一联查矩阵映射（audit = L3）',
+        'L3 强联查',
+        '不被其他轻量联查规则替代'
       ]
     }
   ]

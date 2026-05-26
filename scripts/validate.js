@@ -559,6 +559,9 @@ function mustNotInclude(file, needle, label) {
 
 function checkV13() {
   mustInclude('prompts/precheck-status.prompt.md', 'PC7 新会话首步 resume 强制检测', 'precheck prompt')
+  mustInclude('prompts/precheck-status.prompt.md', '全模式入口检查', 'precheck prompt')
+  mustInclude('prompts/precheck-status.prompt.md', '项目现实扩展后', 'precheck prompt')
+  mustInclude('prompts/precheck-status.prompt.md', 'prod：输出 PC0~PC7 基础入口检查', 'precheck prompt')
   mustNotInclude('prompts/precheck-status.prompt.md', 'chat：不输出预检查块', 'precheck prompt')
 
   mustInclude('prompts/token-setup.prompt.md', '当前版本所有功能全量开放', 'token prompt')
@@ -606,6 +609,12 @@ function checkV13() {
   mustInclude('skills/dev-testing/SKILL.md', '临时创建 `tsconfig`', 'dev testing skill')
   mustInclude('instructions/10-dev.instructions.md', 'tsc --noEmit', '10-dev typecheck rule')
   mustInclude('instructions/11-fix.instructions.md', 'tsc --noEmit', '11-fix typecheck rule')
+  mustInclude('instructions/17-compliance.instructions.md', '入口检查（所有模式', '17-compliance all-mode entry check')
+  mustInclude('instructions/17-compliance.instructions.md', '项目现实扩展后', '17-compliance project reality expansion')
+  mustInclude('instructions/01-common.instructions.md', '项目现实扩展（Project Reality Expansion）', '01-common project reality expansion')
+  mustInclude('skills/intent/SKILL.md', '项目现实扩展衔接', 'intent project reality expansion')
+  mustInclude('skills/load-profile/SKILL.md', '项目现实扩展输出', 'load-profile project reality expansion')
+  mustInclude('hooks/_runtime/lifecycle.cjs', 'entry check PC0-PC7', 'lifecycle all-mode entry check')
   mustInclude('prompts/technical-design.prompt.md', 'tsc --noEmit', 'technical design prompt')
   mustInclude('prompts/report-dev.prompt.md', '静态/类型检查', 'report dev prompt')
   mustInclude('prompts/report-fix.prompt.md', '静态/类型检查', 'report fix prompt')

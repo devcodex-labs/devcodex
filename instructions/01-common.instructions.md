@@ -10,7 +10,7 @@ applyTo: "**"
 
 > ⚠️ **本文件及所有 Instructions 通过 `applyTo: "**"` 全局注入**，无论 AI 通过 `@devcodex` Agent 调用还是通过 Copilot Chat 直接对话，所有规则均完整适用，不区分调用路径。
 >
-> 具体执行内容（预检查是否输出、合规检查执行哪些层）由 **ENV_MODE 行为总表** 决定，不因调用方式不同而改变。
+> 具体执行内容（入口检查如何输出、合规检查执行哪些层）由 **ENV_MODE 行为总表** 决定，不因调用方式不同而改变。
 
 > ⚠️ **用户面输出约束**：面向用户时禁止直接输出内部实现语义：
 > - 内部工作流 ID（如 `dev.docs` / `fix.default` / `self-fix`）→ 应使用自然语言（如"文档规范调整""常规修复""规范自修复"）
@@ -51,7 +51,7 @@ applyTo: "**"
 | C10 | 禁止执行危险命令 | 同 S06，完整规则见 [`00-safety.instructions.md`](./00-safety.instructions.md) | 🔒 S06 |
 | C11 | 关联文件同步 | 修改/新建/重命名文件后检查所有引用处并同步（SC4 🔴 阻塞性检查） | — |
 | C12 | 合理性评估 | **意图识别后、CP1 前**必须评估请求合理性：有更好建议先提出并等待确认再执行。**扩展覆盖**：用户给出判断、目录结构或引用已有设计时，AI 须独立验证其合理性，不得直接顺从论证；若经核验用户方案已是当前最优，可明确说明依据后直接采纳，禁止为了表现“独立”而机械唱反调 | — |
-| C18 | dev 模式预检查不可跳过 | 同 S07，完整规则见 [`00-safety.instructions.md`](./00-safety.instructions.md) | 🔒 S07 |
+| C18 | 全模式入口检查不可跳过 | 同 S07，完整规则见 [`00-safety.instructions.md`](./00-safety.instructions.md) | 🔒 S07 |
 
 ## 🟡 执行约束（必须执行）
 
@@ -136,7 +136,7 @@ applyTo: "**"
 
 > ⚠️ 仅读取当前工作流子类型对应的 Skills，禁止全量读取。
 > ⚠️ **Profile 加载（读取 `.devcodex/profile/`）是所有工作流的前置步骤，不受本表约束，必须在执行任何工作流前完成。**
-> ℹ️ `18-spec-radar.instructions.md`（PC4 规范雷达）是 Instruction（不是 Skill），通过 `applyTo:"**"` 全局注入，无需在本表中加载，dev 模式预检查时自动可用。
+> ℹ️ `18-spec-radar.instructions.md`（PC4 规范雷达）是 Instruction（不是 Skill），通过 `applyTo:"**"` 全局注入，无需在本表中加载；仅 dev 模式在入口检查中执行完整三轴诊断。
 
 > ⚠️ **扩展点**：新增工作流子类型时，须同时更新以下5处（D5 L1~L3 联动）：
 > 1. 本表（§Skill按需读取表）
@@ -185,10 +185,10 @@ applyTo: "**"
 |--------|:------------:|:-----:|
 | CP 门控 | 🔴 强制等待用户确认 | 🔴 强制等待用户确认 |
 | 合规检查 | 不执行（规范已验证） | 全量 FC1~FC7 + SC1~SC15 + RC1~RC4 + T1~T9 |
-| 预检查输出 | 不输出 | 输出 PC0~PC7（PC4 执行完整三轴诊断：Axis A 认知锚点 / Axis B 对话轨迹 / Axis C 用户满足度；PC5~PC7 见 `17-compliance.instructions.md`）|
-| 合规状态块 | 不输出 | 输出全量状态块（chat 豁免此块；但 chat 在 dev 模式仍须输出预检查块）|
+| 入口检查输出 | 输出 PC0~PC7 基础状态；PC4 标注 N/A（dev 扩展诊断未启用）| 输出 PC0~PC7；PC4 执行完整三轴诊断：Axis A 认知锚点 / Axis B 对话轨迹 / Axis C 用户满足度；PC5~PC7 见 `17-compliance.instructions.md` |
+| 合规状态块 | 不输出 | 输出全量状态块（chat 豁免此块；但 chat 仍须输出入口检查块）|
 | 安全底线 S01~S06 | 🔴 强制（不受 ENV_MODE 影响）| 🔴 强制（不受 ENV_MODE 影响）|
-| S07（dev 预检查强制）| N/A（prod 模式豁免）| 🔴 致命自修正（`instruction-fallback` 模式自检触发，自动补输出 PC0~PC7）|
+| S07（入口检查强制）| 🔴 致命自修正（`instruction-fallback` 模式自检触发，自动补输出 PC0~PC7 基础状态）| 🔴 致命自修正（`instruction-fallback` 模式自检触发，自动补输出 PC0~PC7 + dev 扩展诊断）|
 
 > **CP 跳过的唯一路径**：`@devcodex-auto`（全自动模式），这是 Agent 级行为，与 ENV_MODE 无关。
 
@@ -297,7 +297,7 @@ applyTo: "**"
 
 > ⚠️ **适用范围：所有工作流（含 analyze / audit / chat）**。无论工作流子类型是否有对应 Skill，均须在收到消息后、执行工作流前完成 Profile 加载。Profile 缺失时 ENV_MODE 默认为 `prod`（保守降级）。
 
-> 🔴 **dev 模式下 chat 不豁免 Profile 加载和预检查**：chat 的豁免范围仅限于合规检查层（FC/SC/RC/T），预检查（PC0~PC7）和 Profile 加载在 dev 模式下对所有工作流均强制。
+> 🔴 **chat 不豁免 Profile 加载和入口检查**：chat 的豁免范围仅限于合规检查层（FC/SC/RC/T）和报告；入口检查（PC0~PC7）与 Profile 加载在所有模式、所有工作流均强制。
 
 > 🔴 **跨会话重新加载约束**：当上下文来自会话摘要时，**必须重新读取 Profile 文件**（不得以摘要内容代替）。摘要 ≠ Profile 已加载。
 
@@ -324,6 +324,21 @@ applyTo: "**"
 | 3 | 🔴 无法确定 | **必须先询问用户**："当前请求关联哪个项目？" — 在用户明确回复前，**禁止发起任何超出当前文件范围的工作区扫描**（`file_search` / `semantic_search` / `grep_search` / `list_dir` 与当前任务无关的调用、以及项目以外的 `read_file`）。仅允许读取用户本轮消息明确提及的文件以便询问。`<project> = null` **不再是合法默认状态** |
 
 > 🔴 **多项目工作区扫描禁令**（v1.9.8+）：当 cwd 是 monorepo 根目录（包含 ≥ 2 个含 `package.json` 或 `.devcodex/profile/` 的子项目）且未明确 `<project>` 时，AI 必须先询问用户。豁免词：用户消息含 `workspace` / `monorepo` / `全工作区` / `all projects` / `所有项目` 则允许全工作区扫描。同步扣与 `lifecycle.cjs` `UserPromptSubmit` 的 monorepo 阐断逻辑（Hook 是硬门禁，本条是 AI 侧能推断的表述层）。
+
+### 项目现实扩展（Project Reality Expansion）
+
+> 目的：避免只按用户字面意图路由，忽略目标项目实际技术栈、运行方式、文档真相源、测试/发布边界，导致后续方案和实施偏移。
+
+执行顺序必须为：
+
+```text
+用户消息语义初判 → 目标项目识别 → Profile / config 加载 → 项目现实扩展 → 最终意图与工作流路由
+```
+
+- 项目现实扩展只能使用已确定项目的 Profile、明确提及文件、当前需求产物和必要只读元信息；不得绕过“项目未识别先询问”的扫描禁令。
+- 扩展内容必须至少判断：真实项目范围、可能受影响文件族、适用工作流/子类型是否需要修正、产物落点、验证方式、是否存在多项目/跨服务边界。
+- 若扩展后发现初判意图不准确，应在 PC1 中表达为“语义初判 → 项目现实修正后的最终路由”，再进入对应工作流。
+- 若扩展不足以稳定判断，不得猜测；应在入口检查处提出最小澄清问题。
 
 ### Profile 标准文件
 

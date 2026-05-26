@@ -1,6 +1,6 @@
-# DevCodex v1.10.0 — 使用入口
+# DevCodex v1.11.0 — 使用入口
 
-> AI workflow injector for Copilot / Claude Code · publisher: Rocky · version: 1.10.0
+> AI workflow injector for Copilot / Claude Code · publisher: Rocky · version: 1.11.0
 
 ## 正式主支持客户端
 
@@ -49,7 +49,7 @@ DevCodex 同时支持两种加载路径，规则语义保持一致，由 IDE 决
 
 `00-safety.instructions.md` 全局自动注入，包含 S01~S07 七条不可覆盖的安全规则：
 - **S01** 破坏性操作需确认 · **S02** 禁止硬编码凭据 · **S03** 禁止编造规范
-- **S04** 禁止整文件覆写 · **S05** 记忆+报告自动写入 · **S06** 禁止危险命令 · **S07** dev 模式预检查强制输出 PC0~PC7
+- **S04** 禁止整文件覆写 · **S05** 记忆+报告自动写入 · **S06** 禁止危险命令 · **S07** 全模式入口检查强制输出 PC0~PC7（dev 模式追加 PC4 完整诊断）
 
 
 ## 相关链接

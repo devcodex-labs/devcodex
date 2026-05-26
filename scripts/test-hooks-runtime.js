@@ -145,6 +145,7 @@ function main() {
   })
   assert.strictEqual(promptOutput.continue, true)
   assert.match(promptOutput.systemMessage || '', /PC0-PC7/)
+  assert.match(promptOutput.systemMessage || '', /entry check/)
 
   const blockedBeforeBootstrap = run({
     hookEventName: 'PreToolUse',
@@ -164,6 +165,29 @@ function main() {
     }
   })
   assert.strictEqual(shellReadAllowedDuringBootstrap.continue, true)
+
+  cleanState({ mode: 'prod', agent: TEST_AGENT })
+  const prodPromptOutput = run({
+    hookEventName: 'UserPromptSubmit',
+    prompt: 'Explain current workflow.'
+  })
+  assert.strictEqual(prodPromptOutput.continue, true)
+  assert.match(prodPromptOutput.systemMessage || '', /entry check PC0-PC7/)
+  const prodWriteBlockedBeforeBootstrap = run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'apply_patch',
+    tool_input: {
+      input: '*** Begin Patch\n*** Update File: README.md\n*** End Patch'
+    }
+  })
+  assert.strictEqual(prodWriteBlockedBeforeBootstrap.hookSpecificOutput.permissionDecision, 'deny')
+  assert.match(prodWriteBlockedBeforeBootstrap.hookSpecificOutput.permissionDecisionReason || '', /bootstrap/i)
+
+  cleanState()
+  run({
+    hookEventName: 'UserPromptSubmit',
+    prompt: 'Need a root cure for dev mode drift.'
+  })
 
   const shellWriteBlockedDuringBootstrap = run({
     hookEventName: 'PreToolUse',
@@ -328,7 +352,7 @@ function main() {
     hookEventName: 'Stop',
     assistantMessage: 'All work is complete.'
   })
-  assert.match(missingPrecheckReminder.systemMessage || '', /precheck block/i)
+  assert.match(missingPrecheckReminder.systemMessage || '', /entry check block/i)
   captureEntries = fs.readFileSync(CAPTURE_LOG, 'utf8').trim().split(/\r?\n/).map(line => JSON.parse(line))
   assert.strictEqual(captureEntries.length, 2)
   assert.strictEqual(captureEntries[1].eventName, 'Stop')
@@ -358,7 +382,7 @@ function main() {
     hookEventName: 'PreCompact',
     assistantMessage: [
       '---',
-      '🔍 预检查（DEV 模式）',
+      '🔍 入口检查（DEV 模式）',
       '- PC0 上下文：项目 devcodex-v1',
       '---'
     ].join('\n')
@@ -394,7 +418,7 @@ function main() {
     hookEventName: 'PreCompact',
     assistantMessage: [
       '---',
-      '🔍 预检查（DEV 模式）',
+      '🔍 入口检查（DEV 模式）',
       '- PC0 上下文：项目 devcodex-v1',
       '---',
       '---',
@@ -439,7 +463,7 @@ function main() {
     hookEventName: 'PreCompact',
     assistantMessage: [
       '---',
-      '🔍 预检查（DEV 模式）',
+      '🔍 入口检查（DEV 模式）',
       '- PC0 上下文：项目 devcodex-v1',
       '---',
       '---',

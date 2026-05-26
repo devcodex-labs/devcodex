@@ -1,7 +1,7 @@
 # ① 预检查流程图
 
 > 本页聚焦主流程中的 `① 预检查` 阶段。  
-> 预检查是每次收到消息后必须经过的前置闸门；dev 模式执行完整 PC0~PC7，prod 模式不输出预检查块。
+> 入口检查是每次收到消息后必须经过的前置闸门；所有模式输出 PC0~PC7，dev 模式额外执行 PC4 完整规范雷达与后置合规链。
 
 ---
 
@@ -11,9 +11,10 @@
 flowchart TD
     START(["收到用户消息"])
     READ_RULES["PC0: 读取规则基线\n确认 profile + 输出语言"]
-    INTENT["PC1: 识别意图\n→ 工作流.子类型"]
+    INTENT["PC1: 语义意图初判\n→ 待项目现实扩展"]
     SESSION["PC2: 会话状态\n轮次 / 待跟进"]
-    PREP["PC3: 执行准备\n未完成任务 / 产物落点"]
+    REALITY["项目现实扩展\nProfile / 技术栈 / 范围 / 验证方式"]
+    PREP["PC3: 执行准备\n扩展结果 / 未完成任务 / 产物落点"]
     DEV_MODE{"ENV_MODE\n= dev?"}
     PC4["PC4: 规范雷达\n三轴诊断（见细图）"]
     PC5["PC5: 部署体状态\n父链 .claude/.github 同步"]
@@ -22,8 +23,8 @@ flowchart TD
     MARK["⚠️ 标记 PF/VL\n延迟追加文件"]
     NEXT["进入后续主流程"]
 
-    START --> READ_RULES --> INTENT --> SESSION --> PREP --> DEV_MODE
-    DEV_MODE -->|prod| NEXT
+    START --> READ_RULES --> INTENT --> SESSION --> REALITY --> PREP --> DEV_MODE
+    DEV_MODE -->|prod| PC5
     DEV_MODE -->|dev| PC4
     PC4 -->|"✅ 三轴正常"| PC5
     PC4 -->|"⚠️ 异常"| MARK --> PC5
@@ -35,15 +36,15 @@ flowchart TD
 
 ---
 
-## 预检查阶段输出（dev 模式完整版）
+## 入口检查阶段输出
 
 预检查阶段结束时，至少应产出以下基础信息：
 
 1. **PC0** — 当前会话适用的规则基线 + profile 加载状态 + 输出语言
-2. **PC1** — 当前任务意图分类结果（工作流.子类型）
+2. **PC1** — 语义初判与项目现实扩展后的最终路由
 3. **PC2** — 会话状态（轮次 / 待跟进）
-4. **PC3** — 执行准备状态（未完成任务 / 产物落点）
-5. **PC4** — 规范原因识别结果（仅 dev 模式）：✅ 无 / ⚠️ PF 标记 / VL 标记
+4. **PC3** — 执行准备状态（项目现实扩展结果 / 未完成任务 / 产物落点）
+5. **PC4** — 规范原因识别结果：dev 模式输出 ✅ 无 / ⚠️ PF 标记 / VL 标记；非 dev 模式标注 N/A
 6. **PC5** — 部署体状态：父链 `.claude/.github/` 是否存在、是否与源仓库关键文件同步
 7. **PC6** — 工作区一致性：git 未提交变更、当前需求目录或任务上下文
 8. **PC7** — 新会话 resume 强制检测：今日/昨日 tasks 文件与 SUMMARY 状态是否一致
@@ -148,4 +149,4 @@ flowchart TD
 - **PC4 规范雷达专属流程图见：[PC4 规范雷达流程图](/specs/spec-radar-flow)**（三轴决策树 + G1~G9 + 多轴优先级 + 置信度 + 延迟执行）
 - PC4 完整规范见：`18-spec-radar.instructions.md`（三轴诊断模型 + G1~G9 + 决策流程）
 
-> 约束：dev 模式预检查是必经阶段，不可跳过；PC4~PC7 均只在 dev 模式输出，prod 模式不输出预检查块。
+> 约束：入口检查是所有模式必经阶段，不可跳过；PC5~PC7 为基础状态，PC4 完整三轴诊断仅在 dev 模式启用，非 dev 模式标注 N/A。

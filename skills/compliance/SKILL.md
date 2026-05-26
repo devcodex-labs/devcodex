@@ -1,6 +1,6 @@
 ---
 name: compliance
-description: 执行 FC（形式合规）/ SC（实质合规）/ RC（恢复性检查）三层合规校验。仅 dev 模式执行全量合规校验，prod 模式不执行（规范已验证）。chat 豁免。
+description: 执行入口检查与 FC/SC/RC/T 合规校验。PC0~PC7 入口检查所有模式启用；仅 dev 模式执行全量合规校验，prod 模式不执行（规范已验证）。chat 豁免合规块。
 ---
 ## §0 模式判断（前置，优先执行）
 
@@ -11,13 +11,13 @@ description: 执行 FC（形式合规）/ SC（实质合规）/ RC（恢复性�
 | `prod`（默认）| 不执行合规检查（规范已验证，Instructions 直接指导 AI 行为） |
 | `dev` | 全量执行 FC1~FC7 + SC1~SC15 + RC1~RC4 + T1~T9 |
 
-> ⛔ **[S01~S06](../../instructions/00-safety.instructions.md) 安全底线不受 ENV_MODE 影响**，无论 dev/prod 均强制执行；**[S07](../../instructions/00-safety.instructions.md)** 仅 dev + instruction-fallback 模式触发（致命自修正）。
+> ⛔ **[S01~S06](../../instructions/00-safety.instructions.md) 安全底线不受 ENV_MODE 影响**，无论 dev/prod 均强制执行；**[S07](../../instructions/00-safety.instructions.md)** 在 instruction-fallback 模式下要求全模式入口检查（致命自修正）。
 >
-> ⚠️ **预检查（PC0~PC7）仅在 dev 模式启用**，收到用户消息后立即执行，详见 [`17-compliance.instructions.md`](../../instructions/17-compliance.instructions.md) §预检查。
+> ⚠️ **入口检查（PC0~PC7）所有模式启用**，收到用户消息后立即执行；dev 模式额外执行 PC4 完整规范雷达，非 dev 模式 PC4 标注 N/A，详见 [`17-compliance.instructions.md`](../../instructions/17-compliance.instructions.md) §入口检查。
 >
 > ℹ️ ENV_MODE 未注入（profile 未加载）时，默认按 `prod`（不执行合规检查）。
 
-### 🔴 强制可见输出（仅 dev 模式，chat 豁免）
+### 🔴 强制可见输出（仅 dev 模式合规块，chat 豁免）
 
 每次回复末尾**必须**输出合规检查状态块：
 

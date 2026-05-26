@@ -14,31 +14,30 @@ applyTo: "**"
 | `prod`（默认）| 不执行合规检查（规范已验证，Instructions 直接指导 AI 行为） |
 | `dev` | 全量执行 FC1~FC7 + SC1~SC15 + RC1~RC4 + T1~T9 |
 
-> ⛔ S01~S06 安全底线不受 ENV_MODE 影响，无论 dev/prod 均强制；S07（dev 预检查强制）仅 dev + instruction-fallback 模式触发（见 `00-safety.instructions.md` §S07）。
+> ⛔ S01~S06 安全底线不受 ENV_MODE 影响，无论 dev/prod 均强制；S07（全模式入口检查强制）在 instruction-fallback 模式触发（见 `00-safety.instructions.md` §S07）。dev 模式额外启用 PC4 完整规范雷达与 FC/SC/RC/T 合规检查。
 > ℹ️ ENV_MODE 未注入时，默认按 `prod`（不执行合规检查）。
 
-## 预检查（仅 dev 模式，进入实质任务前执行）
+## 入口检查（所有模式，进入实质任务前执行）
 
 > 🔴 **入口无例外原则**：**每一条用户消息到达 = 无条件触发完整预检查状态计算**，与消息长短、复杂度、工作流类型无关。预检查是进入实质任务前的必经门禁，不是"视任务需要选择性执行"的步骤。
 >
 > **入口流程操作性定义（按宿主模式分叉）**：
 > 1. `hook-enforced`：当宿主支持并加载 DevCodex Hooks 时，由宿主事件优先完成 bootstrap（Profile / Memory / 待续任务 / 执行准备），并在进入实质任务前向用户暴露预检查状态。
-> 2. `instruction-fallback`：当宿主不支持 Hooks 或 Hooks 未启用时，AI 必须在进入实质任务前完成 Profile + 记忆读取，并输出预检查块 PC0~PC7。
+> 2. `instruction-fallback`：当宿主不支持 Hooks 或 Hooks 未启用时，AI 必须在进入实质任务前完成 Profile + 记忆读取，并输出入口检查块 PC0~PC7。
 > 3. 两种模式都必须满足同一条结果契约：**预检查状态必须早于实质任务内容对用户可见**。
 
-> 🔴 **dev 模式下无任何豁免**：无论工作流类型（含 chat）、无论上下文来源（含会话摘要/checkpoint），预检查必须执行。
-> prod 模式无预检查。
+> 🔴 **所有模式下无任何豁免**：无论 ENV_MODE、工作流类型（含 chat）、上下文来源（含会话摘要/checkpoint），入口检查必须执行。dev 模式输出完整 PC4 规范雷达；非 dev 模式输出 PC0~PC7 基础状态，并将 PC4 标注为 N/A（dev 扩展诊断未启用）。
 
 > 🔴 **跨会话恢复硬约束**：当上下文来自会话摘要（summary/checkpoint）时，**不免除预检查**。摘要内容不构成 Profile 已加载的证明，也不构成记忆已读取的证明。每条新用户消息到达后，必须重新执行完整 PC0~PC7；若宿主 Hooks 已完成 bootstrap，可复用宿主结果并补齐可见状态；若处于 fallback 模式，则必须在进入任务前重新读取 Profile + 记忆，不得直接进入任务执行。
 
 ```text
 ---
-🔍 预检查（DEV 模式）
+🔍 入口检查（[DEV/PROD] 模式）
 - PC0 上下文：项目 [项目名/未识别] · 输出语言 [中文/英文] · Profile ✅ 已加载 / ❌ 未加载（立即读取后继续）
-- PC1 意图： [用户意图] → [工作流名称/子类型]
+- PC1 意图：语义初判 [用户意图] → 项目现实扩展后 [工作流名称/子类型]
 - PC2 会话状态：第 N 轮（>10 关注 / >13 预警 / >15 防护） · 待跟进事项 ✅ 无 / ⚠️ [简述]
-- PC3 执行准备：未完成任务 ✅ 无 / ⚠️ 存在 🔄 会话：[简述] → 建议先 resume · 产物落点 [已确定/无需产物/待确定]
-- PC4 规范雷达：见 `18-spec-radar.instructions.md` §预检查输出格式（v1.9.4+ 含 G10 limit 截断恢复检测）
+- PC3 执行准备：项目现实扩展 [已完成/待澄清] · 未完成任务 ✅ 无 / ⚠️ 存在 🔄 会话：[简述] → 建议先 resume · 产物落点 [已确定/无需产物/待确定]
+- PC4 规范雷达：dev 模式见 `18-spec-radar.instructions.md` §输出格式；非 dev 模式 N/A（dev 扩展诊断未启用）
 - PC5 部署体状态（v1.9.4+）：cwd 父链 .claude/.github/ ✅ 存在 / N/A 无父级 · 与源仓库同步 ✅ / ⚠️ [N 文件滞后] / N/A
 - PC6 工作区一致性（v1.9.4+）：git 未提交变更 ✅ 无 / ⚠️ [N 文件 dirty] · 当前任务目录 [requirements/<X>/ / bugs/<Y>/ / 无关联]
 - PC7 新会话首步 resume 强制检测（v1.9.4+，仅首条用户消息触发）：✅ 已 Read tasks 文件 + 比对 SUMMARY 一致 / ⚠️ 数据不一致需 resume / N/A（非首条）
@@ -46,21 +45,21 @@ applyTo: "**"
 
 > ⚠️ PC0 检查失败时（Profile 未加载）不得跳过 — 必须立即加载后才能继续，ENV_MODE 由 Profile 的 `config.json` 决定。
 >
-> 🔴 **项目未识别阻断**（v1.9.8+）：当 PC0 列出"项目 [未识别]"时，**必须暂停后续 PC1~PC7 输出**，在预检查块位置输出：
+> 🔴 **项目未识别阻断**（v1.9.8+）：当 PC0 列出"项目 [未识别]"时，**必须暂停后续 PC1~PC7 输出**，在入口检查块位置输出：
 > ```
 > ⚠️ 项目未识别，请确认当前请求关联哪个项目（如 cacheHub / payment / vext / monSQLize 等）。未明确前不得启动任何工作流、不得发起超出当前文件范围的工作区扫描。
 > ```
 > 等用户明确后再续输出完整 PC0~PC7。豁免词（同步 `lifecycle.cjs` `isMultiProjectWorkspace`）：`workspace` / `monorepo` / `全工作区` / `all projects` / `所有项目`。
 >
-> ⚠️ `hook-enforced` 模式下，预检查状态可以由宿主事件驱动后显示为**首个结构化状态块**；`instruction-fallback` 模式下，预检查块仍应尽量位于回复开头，但不再机械要求“第一批 tool call”“第一行输出”。
+> ⚠️ `hook-enforced` 模式下，入口检查状态可以由宿主事件驱动后显示为**首个结构化状态块**；`instruction-fallback` 模式下，入口检查块仍应尽量位于回复开头，但不再机械要求“第一批 tool call”“第一行输出”。
 >
-> ⚠️ **S07 自修正触发**（见 [`00-safety.instructions.md`](./00-safety.instructions.md) §S07）：AI 自检发现已开始生成实质内容但尚未输出预检查块时，立即触发 S07 — 在当前位置补输出 PC0~PC7，重新评估意图后继续，**不等待用户重新发送消息，不终止当前请求**。
+> ⚠️ **S07 自修正触发**（见 [`00-safety.instructions.md`](./00-safety.instructions.md) §S07）：AI 自检发现已开始生成实质内容但尚未输出入口检查块时，立即触发 S07 — 在当前位置补输出 PC0~PC7，重新评估意图与项目现实扩展后继续，**不等待用户重新发送消息，不终止当前请求**。
 
 ### PC4 规范雷达（dev 模式专属）
 
 > ⚠️ PC4 完整规范与**唯一输出格式定义**在 18-spec-radar.instructions.md。本文件上方预检查示例块仅为说明用途，不重复定义。
 
-### PC5 部署体状态（v1.9.4+，dev 模式专属）
+### PC5 部署体状态（v1.9.4+，全模式基础项）
 
 > 检测条件：当 cwd 是 plugin 源仓库（含 `package.json` 且 `name` 含 `devcodex`），且 cwd 父链上存在 `.claude/` 或 `.github/` 部署体。
 >
@@ -72,7 +71,7 @@ applyTo: "**"
 >
 > 与 `scripts/validate.js` §V8 共享算法；PC5 是运行时即时检测，V8 是 CI 静态校验。
 
-### PC6 工作区一致性（v1.9.4+，dev 模式专属）
+### PC6 工作区一致性（v1.9.4+，全模式基础项）
 
 > 检测条件：项目根有 `.git/` 目录。
 >
@@ -96,20 +95,22 @@ applyTo: "**"
 
 > ⚠️ **关键防漂移机制**：PC7 直接对应 G10 limit 截断恢复触发；防止本会话 #9 截断后未 resume 类问题复发（关联 GAP-019 → 但 GAP 仅覆盖 CRS 扫描；PC7 覆盖 resume 入口）。
 
-## 触发时机（仅 dev 模式）
+## 触发时机
+
+- **所有模式**：进入实质任务前必须输出入口检查 PC0~PC7；chat 也不豁免入口检查。
 
 - **dev 模式**：所有工作流节点执行完毕后、回复发送前必须执行合规检查
 - **prod 模式**：不执行合规检查（Instructions 直接指导 AI 行为，无需事后验证）
 - 检查不通过时修正后重检（FC+SC 累计修正 ≥5 次仍未全通过 → 停止循环，输出剩余失败项摘要标 ⚠️）
-- **chat 豁免** — 不执行合规检查（FC/SC/RC/T）；⚠️ dev 模式下 PC0~PC7 预检查对 chat 仍强制，见 §预检查
+- **chat 豁免** — 不执行合规检查（FC/SC/RC/T）；⚠️ PC0~PC7 入口检查对 chat 仍强制，见 §入口检查
 
-## 执行顺序（仅 dev 模式）
+## 执行顺序
 
 ```text
-[Hook/Fallback 预检查 PC0~PC7] → FC（形式合规）→ SC（实质合规）→ RC（恢复性检查）→ 报告二次验证（V1~V6）→ 任务完成验证（T1~T9）
+[Hook/Fallback 入口检查 PC0~PC7] → dev 模式继续 FC（形式合规）→ SC（实质合规）→ RC（恢复性检查）→ 报告二次验证（V1~V6）→ 任务完成验证（T1~T9）
 ```
 
-> ⚠️ **chat 快速路径**：chat 意图在 dev 模式下仅执行预检查（PC0~PC7），跳过 FC/SC/RC/T（§触发时机 §合规检查状态块 chat 豁免）。`hook-enforced` 模式下可由宿主先完成 bootstrap；`instruction-fallback` 模式下仍需在实质回答前输出预检查状态。
+> ⚠️ **chat 快速路径**：chat 意图在所有模式下仅执行入口检查（PC0~PC7），跳过 FC/SC/RC/T（§触发时机 §合规检查状态块 chat 豁免）。`hook-enforced` 模式下可由宿主先完成 bootstrap；`instruction-fallback` 模式下仍需在实质回答前输出入口检查状态。
 
 > PC4 标记的 PF/VL 追加动作在此阶段开始前（即 FC 执行前）自动执行。
 
@@ -208,7 +209,7 @@ applyTo: "**"
 
 ## 合规检查状态块输出（仅 dev 模式，chat 豁免）
 
-> ⚠️ chat 豁免的是**合规检查状态块**（FC/SC/RC/T），不豁免**预检查块**（PC0~PC7）。chat 在 dev 模式下仍需在回复开头输出预检查结果，但回复末尾无需输出合规状态块。
+> ⚠️ chat 豁免的是**合规检查状态块**（FC/SC/RC/T），不豁免**入口检查块**（PC0~PC7）。chat 在所有模式下仍需在实质回答前输出入口检查结果，但回复末尾无需输出合规状态块。
 
 **dev 模式**（回复末尾必须输出）：
 ```text

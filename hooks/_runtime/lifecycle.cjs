@@ -502,13 +502,13 @@ function buildDefaultState(mode) {
   return {
     version: 1, mode: m,
     executionMode: EXECUTION_MODE.CONFIRM,
-    phase: m === 'dev' ? 'bootstrapping' : 'active',
+    phase: 'bootstrapping',
     startedAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
     promptCount: 0, toolUseCount: 0,
     activeProject: CONTEXT_PROJECT || '',
     activeScope: DEFAULT_SCOPE,
     bootstrap: { profileRead: false, summaryRead: false, tasksRead: false },
-    bootstrapComplete: m !== 'dev',
+    bootstrapComplete: false,
     visible: { payloadObserved: false, precheck: false, compliance: false, artifactPaths: false },
     mutated: false, reportTouched: false, memoryTouched: false,
     lastEvent: '', lastReason: ''
@@ -615,9 +615,9 @@ function isReadOnlyBootstrapShellCommand(payload) {
 function buildBootstrapMessage() {
   return [
     'DevCodex hook-enforced bootstrap is active for this user message.',
-    'In dev mode, load the effective profile (legacy .devcodex/profile/ or workspace-namespace profile roots) and memory files under',
+    'Load the effective profile (legacy .devcodex/profile/ or workspace-namespace profile roots) and memory files under',
     'the active .devcodex namespace before any substantive work.',
-    'Your first user-visible block must be the DEV precheck PC0-PC7 before substantive task content.',
+    'Your first user-visible block must be the entry check PC0-PC7 before substantive task content; dev mode adds full PC4 diagnostics.',
     '*** S07 compaction trigger (v1.9.6+): if this turn resumes from /compact, /resume, or summary-restore,',
     'this also counts as "first user-visible reply" — you MUST re-output PC0-PC7 even when instructed to "continue without acknowledging".'
   ].join(' ')
@@ -631,7 +631,7 @@ function buildBootstrapDenyOutput(state, payload, eventName, platform) {
   const toolName = getToolName(payload) || 'tool'
   return blockOutput(
     platform || 'copilot', eventName,
-    `Blocked tool use before dev bootstrap: ${toolName}`,
+    `Blocked tool use before DevCodex bootstrap: ${toolName}`,
     `Read .devcodex/profile/ plus SUMMARY/tasks memory files first. Missing: ${missing.join(', ') || 'none'}.`
   )
 }
@@ -1012,7 +1012,7 @@ function updateVisibleReplyState(state, payload, eventName) {
   if (!hasVisibleReplyPayload(payload)) return
   state.visible.payloadObserved = true
   const text = collectStrings(payload).join('\n')
-  if (/预检查（DEV 模式）|PC0 上下文/.test(text)) state.visible.precheck = true
+  if (/入口检查（|预检查（DEV 模式）|PC0 上下文/.test(text)) state.visible.precheck = true
   if (/🛡️ DEV 模式 \| 合规检查|FC:\s*FC1/.test(text)) state.visible.compliance = true
   if (hasArtifactPathOutput(text)) state.visible.artifactPaths = true
 }
@@ -1035,8 +1035,8 @@ function captureFinalPayloadSample(payload, eventName, state) {
 
 function buildClosureReminder(state, eventName) {
   const items = []
-  if (eventName === 'Stop' && state.mode === 'dev' && state.visible && !state.visible.precheck) {
-    items.push('precheck block 未输出（S07/C18：dev 模式首条用户可见回复必须含 PC0~PC7 预检查块）')
+  if (eventName === 'Stop' && state.visible && !state.visible.precheck) {
+    items.push('entry check block 未输出（S07/C18：首条用户可见回复必须含 PC0~PC7 入口检查块）')
   }
   if (eventName === 'Stop' && state.mode === 'dev' && state.reportTouched && state.visible && !state.visible.compliance) {
     items.push('合规检查状态块未输出（17-compliance：dev 模式非 chat 回复末尾必须含 🛡️ DEV 模式 | 合规检查 状态块）')
@@ -1107,11 +1107,7 @@ async function main() {
       }
     }
     saveState(state)
-    if (mode === 'dev') {
-      writeStdout(systemMessageOutput(buildBootstrapMessage()))
-    } else {
-      writeStdout(noopOutput())
-    }
+    writeStdout(systemMessageOutput(buildBootstrapMessage()))
     return
   }
 
@@ -1133,8 +1129,8 @@ async function main() {
       return
     }
 
-    // 2. Bootstrap enforcement (dev mode, both Copilot and Claude Code)
-    if (mode === 'dev' && !state.bootstrapComplete) {
+    // 2. Bootstrap enforcement (all modes, both Copilot and Claude Code)
+    if (!state.bootstrapComplete) {
       if (!isBootstrapReadTool(payload, state)) {
         state.lastReason = 'blocked-before-bootstrap'
         saveState(state)

@@ -111,11 +111,21 @@ description: "Use when: ..."   # 必填，AI 靠这个发现 Skill
 
 当前规则：
 
-- **`mode: "dev"`**：进入实质任务前输出 PC0~PC7 预检查，并在收尾执行 FC / SC / RC / T 合规检查
-- **`mode: "prod"`**：不输出预检查块，也不执行合规检查；但 CP1 / CP2 / CP3 仍然强制
+- **`mode: "dev"`**：进入实质任务前输出 PC0~PC7 入口检查，PC4 执行完整规范雷达，并在收尾执行 FC / SC / RC / T 合规检查
+- **`mode: "prod"`**：进入实质任务前仍输出 PC0~PC7 基础入口检查，PC4 标注 N/A；不执行后置合规检查，但 CP1 / CP2 / CP3 仍然强制
 - **执行模式与 `ENV_MODE` 分离**：确认模式 / 全自动模式属于 Agent 入口语义；当前全自动正式入口仍只认显式 `@devcodex-auto`，且只有在 hook-enforced 宿主 + 白名单路径上形成 runtime 级自动推进
 
 > 当前正式规则源以 `instructions/01-common.instructions.md`、`instructions/17-compliance.instructions.md` 和 `skills/cp-gate/SKILL.md` 为准；本页负责解释这些规则如何落到日常开发流程中。
+
+### 项目现实扩展
+
+日常开发中，DevCodex 不应只按用户字面关键词决定工作流。当前正式流程为：
+
+```text
+语义意图初判 → 目标项目/Profile 加载 → 项目现实扩展 → 最终工作流/子类型
+```
+
+项目现实扩展至少要检查目标项目、真实影响范围、关联文件族、产物落点和验证方式；若项目未明确，必须先澄清，不能为了扩展意图而无界扫描工作区。
 
 ### 相关文件联查
 

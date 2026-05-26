@@ -8,24 +8,4 @@
 
 ## 2026-05-26
 
-- 统一联查矩阵与相关文件检查规则收口：
-  - 在 `instructions/01-common.instructions.md` 上提“统一联查矩阵（C11 扩展）”，定义 `L1/L2/L3` 联查级别、四类工作流最小动作与五类高联动场景默认联查清单
-  - 为 `dev / fix / analyze` 工作流补齐最小联查适配动作，并明确 `audit` 对应 `L3 强联查`
-  - 补充 `skills/dev-default`、`skills/fix-default`、`skills/analyze-research`、`skills/audit-common` 的联查矩阵映射
-  - 扩展 `scripts/validate.js` 的联查矩阵语义探针，并同步 README 与 `website/docs/guide/development.md` 的用户面说明
-  - 已完成 `.github/.claude` 部署同步，`node scripts/validate.js`、`node scripts/test-hooks-runtime.js`、`node scripts/test-mcp-servers.js`、`npm test` 全部通过
-
-- 模板链防偏移能力增强：
-  - 强化 `requirement.prompt.md`：补入需求类型判定、核心定义、作用域与边界判定、风险与开放问题、当前阶段结论，并要求 Markdown 需求文档包含 `## 目录导航`
-  - 强化 `technical-design.prompt.md`：补入“关联目标文档”显式锚点，以及“实施映射与范围边界 / 偏移触发器”
-  - 强化 `implementation-plan.prompt.md` 与 `implementation-progress.prompt.md`：补入分批执行策略、关键实施约束、独立验证方式、阻塞恢复字段与回滚触发条件
-- 文档模板链补强：
-  - 新增 `prompts/general-doc.prompt.md` 通用文档模板
-  - 收口 `project-readme.prompt.md` 的项目类型分流，避免默认偏开源 npm 库场景
-  - 收口 `light-api-doc.prompt.md` 的联调可用性，补入 `curl` 请求示例、成功响应和错误响应示例
-- 规则与校验链同步：
-  - `skills/dev-docs`、`skills/dev-default`、`instructions/10-dev.instructions.md` 已统一要求 Markdown 阅读型文档具备目录导航，并要求 CP2 技术方案显式引用目标文档路径 / 模式 / 契约范围
-  - `scripts/validate.js` 已补模板语义探针与资产计数联动校验
-- 部署与验证：
-  - 已同步工作区 `.github/` 与 `.claude/`
-  - `node scripts/validate.js`、`node scripts/validate-profile.js`、`node scripts/test-hooks-runtime.js`、`node scripts/test-mcp-servers.js`、`npm test` 全部通过
+- 当前无未发布变更。

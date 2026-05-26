@@ -610,6 +610,50 @@ function checkV13() {
   mustInclude('prompts/report-dev.prompt.md', '静态/类型检查', 'report dev prompt')
   mustInclude('prompts/report-fix.prompt.md', '静态/类型检查', 'report fix prompt')
 
+  mustInclude('prompts/requirement.prompt.md', '## 目录导航', 'requirement prompt')
+  mustInclude('prompts/requirement.prompt.md', '§0 需求类型判定', 'requirement prompt')
+  mustInclude('prompts/requirement.prompt.md', '§2.1 核心定义', 'requirement prompt')
+  mustInclude('prompts/requirement.prompt.md', '§2.2 作用域与边界判定', 'requirement prompt')
+  mustInclude('prompts/requirement.prompt.md', '§9 当前阶段结论', 'requirement prompt')
+
+  mustInclude('prompts/technical-design.prompt.md', '## 目录导航', 'technical design prompt')
+  mustInclude('prompts/technical-design.prompt.md', '§1.3 关联目标文档', 'technical design prompt')
+  mustInclude('prompts/technical-design.prompt.md', '§2.6 实施映射与范围边界', 'technical design prompt')
+  mustInclude('prompts/technical-design.prompt.md', '偏移触发器', 'technical design prompt')
+
+  mustInclude('prompts/implementation-plan.prompt.md', '## 目录导航', 'implementation plan prompt')
+  mustInclude('prompts/implementation-plan.prompt.md', '§3 分批执行策略', 'implementation plan prompt')
+  mustInclude('prompts/implementation-plan.prompt.md', '§4 关键实施约束', 'implementation plan prompt')
+  mustInclude('prompts/implementation-plan.prompt.md', '§5 独立验证方式', 'implementation plan prompt')
+  mustInclude('prompts/implementation-plan.prompt.md', '回滚触发条件', 'implementation plan prompt')
+
+  mustInclude('prompts/implementation-progress.prompt.md', '## 目录导航', 'implementation progress prompt')
+  mustInclude('prompts/implementation-progress.prompt.md', '是否阻断主线', 'implementation progress prompt')
+  mustInclude('prompts/implementation-progress.prompt.md', '责任方', 'implementation progress prompt')
+  mustInclude('prompts/implementation-progress.prompt.md', '预计解除时间', 'implementation progress prompt')
+  mustInclude('prompts/implementation-progress.prompt.md', '下次检查点', 'implementation progress prompt')
+  mustInclude('prompts/implementation-progress.prompt.md', '本轮验证结果', 'implementation progress prompt')
+
+  mustInclude('prompts/project-readme.prompt.md', '## 目录导航', 'project readme prompt')
+  mustInclude('prompts/project-readme.prompt.md', '**项目类型**', 'project readme prompt')
+  mustInclude('prompts/project-readme.prompt.md', '### service / backend', 'project readme prompt')
+
+  mustInclude('prompts/light-api-doc.prompt.md', '## 目录导航', 'light api doc prompt')
+  mustInclude('prompts/light-api-doc.prompt.md', 'curl -X', 'light api doc prompt')
+  mustInclude('prompts/light-api-doc.prompt.md', '典型成功响应', 'light api doc prompt')
+  mustInclude('prompts/light-api-doc.prompt.md', '典型错误响应', 'light api doc prompt')
+
+  mustInclude('prompts/general-doc.prompt.md', '## 目录导航', 'general doc prompt')
+  mustInclude('prompts/general-doc.prompt.md', '**文档类型**', 'general doc prompt')
+  mustInclude('prompts/general-doc.prompt.md', '## 4. 核心内容', 'general doc prompt')
+
+  mustInclude('skills/dev-docs/SKILL.md', 'general-doc', 'dev docs skill')
+  mustInclude('skills/dev-docs/SKILL.md', '所有 Markdown 文档必须包含 `## 目录导航`', 'dev docs skill')
+  mustInclude('instructions/10-dev.instructions.md', 'Markdown 文档可读性要求', '10-dev docs readability rule')
+  mustInclude('instructions/10-dev.instructions.md', '目标文档路径、文档模式', '10-dev target doc anchor rule')
+  mustInclude('skills/dev-default/SKILL.md', '目标文档路径/模式/契约范围', 'dev default skill')
+  mustInclude('skills/dev-default/SKILL.md', '目录导航', 'dev default skill')
+
   mustInclude('skills/cp-gate/SKILL.md', 'CP3: N/A', 'cp gate skill')
   mustInclude('hooks/_runtime/lifecycle.cjs', 'CP3Exempt', 'lifecycle runtime')
   console.log('[V13] template semantic probes passed')

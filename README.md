@@ -54,7 +54,7 @@ npx devcodex init --claude # Claude Code
 ├── instructions/   ← Instructions 约束（12 个，含全部工作流规则）
 ├── agents/         ← Copilot 自定义 Agent（v1.9.8 起恢复默认分发）
 ├── skills/         ← Skill 详细检查标准（35 个，按需读取）
-├── prompts/        ← Prompt 模板（25 个）
+├── prompts/        ← Prompt 模板（26 个）
 ├── hooks/          ← 宿主生命周期 Hook 配置与运行时
 │   ├── devcodex.lifecycle.json
 │   └── _runtime/
@@ -212,7 +212,7 @@ devcodex/
 ├── agents/        # Agent 源文件；Copilot 端默认分发，Claude Code 端不分发
 ├── instructions/  # 全局 Instructions（12 个，含工作流规则摘要，自动注入）
 ├── skills/        # Skill 详细检查标准（35 个，按 01-common §按需读取表 路由读取）
-├── prompts/       # Prompt 模板（25 个）
+├── prompts/       # Prompt 模板（26 个）
 ├── hooks/         # Workspace Hooks 配置与分发到 `.github/hooks/_runtime/` 的运行时
 ├── data/          # 运行时数据模板（分发到目标项目的空骨架）
 │   ├── README.md

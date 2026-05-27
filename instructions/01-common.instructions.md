@@ -341,6 +341,24 @@ applyTo: "**"
 - 若扩展后发现初判意图不准确，应在 PC1 中表达为“语义初判 → 项目现实修正后的最终路由”，再进入对应工作流。
 - 若扩展不足以稳定判断，不得猜测；应在入口检查处提出最小澄清问题。
 
+### Intent Expansion Card
+
+非 chat 工作流在 CP1 / 问题确认前必须形成可审查的 Intent Expansion Card，作为 PC1/PC3、CP1 产物、压缩恢复与错路由复盘的共同锚点。
+
+| 字段 | 说明 |
+|------|------|
+| `semantic` | 用户字面语义初判 |
+| `project` | 目标项目与 active-root |
+| `continuity` | 是否延续现有 requirement/bug/session |
+| `action` | 最终工作流与子类型 |
+| `domain` | 受影响模块/领域（如 hooks、memory、docs、mcp、runtime）|
+| `artifact-impact` | 影响源码、配置、规范、报告、记忆、部署体等哪类产物 |
+| `risk` | destructive / security / high-risk / normal |
+| `host-capability` | 是否涉及宿主能力差异及降级边界 |
+| `validation-route` | lint/test/typecheck/validate/direct replay/官方文档等验证路线 |
+| `confidence` | high / medium / low，并说明不确定点 |
+| `alternatives` | 被排除路线及原因 |
+
 ### Profile 标准文件
 
 | 文件 | 说明 | 必须 |

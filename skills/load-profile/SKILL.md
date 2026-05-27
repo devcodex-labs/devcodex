@@ -76,6 +76,12 @@ Profile 读取后，必须形成以下最小结论，供 PC1/PC3 与后续工作
 | 关联文件族 | 最小相关文件集合或文件族，不得扩大到无界扫描 |
 | 产物落点 | requirements / bugs / reports / workspace 命名空间等 |
 | 验证方式 | lint / test / typecheck / validate / 文档链接验证 / 发布验证等 |
+| `domain` | 受影响模块/领域，如 runtime/hooks/memory/docs/mcp/cli |
+| `risk` | destructive/security/high-risk/normal |
+| `host-capability` | 涉及 Claude/Codex/Copilot/Cursor/JetBrains 等宿主能力差异时，标注支持与降级边界 |
+| `validation-route` | test/lint/typecheck/validate/direct replay/官方文档等验证路线 |
+| `confidence` | high/medium/low，并说明不确定来源 |
+| `alternatives` | 被排除工作流/子类型及原因 |
 
 若任一字段无法稳定判断，应在入口检查中标注“待澄清”，不得伪造项目事实。
 

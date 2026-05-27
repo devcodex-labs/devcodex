@@ -34,7 +34,7 @@ applyTo: "**"
 ## CP 流程（C02 约束）
 
 ```text
-CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → 执行 → 三步扫描 → 轻量复审收敛 → 完成
+CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → 执行 → 三步扫描 → ECR 执行闭环复审 → 完成
 ```
 
 - **CP1**：AI 输出问题分析（根因 + 影响范围），用户确认
@@ -102,9 +102,9 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → 
 - 涉及 HTTP 接口变更 → 生成双产物（.http + .cjs）
 - 涉及源码/配置文件变更 → 检查文档同步（README 为必查；CHANGELOG 按发布状态区分：未明确发版默认更新 `changelogs/unreleased.md`，仅正式 release 更新根 `CHANGELOG.md` / `changelogs/vX.Y.Z.md`；TASK-INDEX/STATUS 按项目存在或启用时同步）
 
-## 轻量复审收敛（执行后正式阶段）
+## ECR 执行闭环复审（执行后正式阶段）
 
-> 适用于 `fix` 工作流的关键产物稳定性确认。该规则是 **执行后轻量复审层**，不是 audit 的 3 轮零发现重流程。
+> 适用于 `fix` 工作流的关键产物稳定性确认。ECR（Execution Closure Review）是执行后正式完成阶段，把原“轻量复审收敛”具体化为可检查清单；它不是 audit 的 3 轮零发现重流程。
 
 ### 触发时机
 
@@ -121,6 +121,18 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → 
 2. 修复报告是否存在“已完成/已验证”但证据不足的伪完成
 3. 三步扫描结果与最终结论是否一致
 4. 是否出现新的阻断性问题
+
+### ECR 最小清单
+
+| 项 | 检查对象 | 目的 |
+|----|----------|------|
+| ECR-1 | CP1/CP2/CP3、报告、daily tasks、SUMMARY | 避免压缩后状态错配 |
+| ECR-2 | 问题 ID / 根因链 → diff/commit 文件 | 避免确认问题漏修 |
+| ECR-3 | CP3 步骤 → 测试/部署/验证证据 | 避免计划与执行漂移 |
+| ECR-4 | 修复报告声明 → 测试/扫描/探针结果 | 避免过度宣称 |
+| ECR-5 | memory daily → SUMMARY | 避免 SUMMARY 早标绿 |
+| ECR-6 | git dirty 边界 | 避免混入用户另案变更 |
+| ECR-7 | 控制面任务追加 validate / direct replay / host-contract probe | 避免校验假绿 |
 
 ### 阻断性问题定义
 

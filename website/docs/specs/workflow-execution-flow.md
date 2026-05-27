@@ -52,6 +52,7 @@ flowchart TD
     API_V["api-verification"]
     POST_DOC{"涉及源码变更?"}
     DOC_S["document-sync"]
+    ECR["ECR 执行闭环复审\nCP/报告/记忆/SUMMARY/diff/tests"]
     DONE["dev 执行完成"]
 
     CP1 --> PR1 --> CP2 --> PR --> PR_OK
@@ -62,8 +63,9 @@ flowchart TD
     CP3 --> EXEC --> POST_API
     POST_API -->|"是"| API_V --> POST_DOC
     POST_API -->|"否"| POST_DOC
-    POST_DOC -->|"是"| DOC_S --> DONE
-    POST_DOC -->|"否"| DONE
+    POST_DOC -->|"是"| DOC_S --> ECR
+    POST_DOC -->|"否"| ECR
+    ECR --> DONE
 ```
 
 ---
@@ -82,14 +84,16 @@ flowchart TD
     SCAN["修复三步必做（SC3）\n① 同类全局扫描\n② 数据联动扫描\n③ grep 零残留复核"]
     CP3_CHECK{"≥5 文件 或\n含高风险操作?"}
     CP3["CP3 执行确认"]
+    ECR["ECR 执行闭环复审\nCP/报告/记忆/SUMMARY/diff/tests"]
     DONE["fix 执行完成"]
 
     DIAG --> CP1 --> CP2 --> IR
     IR -->|"是"| IMPACT --> EXEC
     IR -->|"否"| EXEC
     EXEC --> TEST --> SCAN --> CP3_CHECK
-    CP3_CHECK -->|"是"| CP3 --> DONE
-    CP3_CHECK -->|"否"| DONE
+    CP3_CHECK -->|"是"| CP3 --> ECR
+    CP3_CHECK -->|"否"| ECR
+    ECR --> DONE
 ```
 
 ---
@@ -103,7 +107,7 @@ flowchart TD
         A2["加载维度规范"]
         A3["多轮审查\n连续 N 轮无新发现"]
         A4{"收敛?"}
-        A5["输出问题清单 + 三列验证"]
+        A5["输出问题清单 + 三列验证\n多路径含推荐结论"]
         A1 --> A2 --> A3 --> A4
         A4 -->|"否"| A3
         A4 -->|"是"| A5

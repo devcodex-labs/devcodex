@@ -65,6 +65,18 @@ applyTo: .devcodex/**/reports/optimizations/**
 | 负载测试 (autocannon) | ✅ 通过 | — |
 | 单元测试 | ✅ 通过 | — |
 
+## §6.5 ECR 执行闭环复审
+
+| ECR 项 | 检查对象 | 结果 | 证据 |
+|--------|----------|:----:|------|
+| ECR-1 | CP1/CP2/CP3、报告、daily tasks、SUMMARY | ✅/⚠️ | |
+| ECR-2 | 优化目标 → diff/commit 文件 | ✅/⚠️ | |
+| ECR-3 | CP3 步骤 → 基准/测试/验证证据 | ✅/⚠️ | |
+| ECR-4 | 报告声明 → 性能数据/测试结果 | ✅/⚠️ | |
+| ECR-5 | memory daily → SUMMARY | ✅/⚠️ | |
+| ECR-6 | git dirty 边界 | ✅/⚠️ | |
+| ECR-7 | 控制面任务 validate / direct replay / host-contract probe | ✅/N/A | |
+
 ## §7 遗留问题
 
 | 问题/建议 | 优先级 | 合理性 | 可实施性 | 收益 | 验证状态 | 影响范围 | 后续处理 |

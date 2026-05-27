@@ -64,6 +64,24 @@ description: 识别用户意图类型（dev/fix/analyze/audit/self-fix/chat/resu
 - 若项目现实扩展推翻语义初判，应在 PC1 中写清“语义初判 → 最终路由”的变化。
 - 若扩展发现这是多项目或跨服务任务，应先标注边界与入口项目，再决定是否需要加载关联服务 profile。
 
+### Intent Expansion Card
+
+非 chat 工作流在 CP1 / 问题确认前输出或写入可审查的 Intent Expansion Card，避免压缩恢复后只剩模糊摘要。
+
+| 字段 | 说明 |
+|------|------|
+| `semantic` | 用户字面语义初判 |
+| `project` | 目标项目与 active-root |
+| `continuity` | 是否延续现有 requirement/bug/session |
+| `action` | 最终工作流与子类型 |
+| `domain` | 受影响模块/领域 |
+| `artifact-impact` | source/config/docs/memory/report/deployment 等影响面 |
+| `risk` | destructive/security/high-risk/normal |
+| `host-capability` | 是否涉及宿主能力差异及降级边界 |
+| `validation-route` | test/lint/typecheck/validate/direct replay/官方文档 |
+| `confidence` | high/medium/low |
+| `alternatives` | 被排除路线及原因 |
+
 ## analyze vs audit 区分
 
 | 维度 | analyze | audit |

@@ -143,8 +143,8 @@ flowchart TD
 
 `⑧ 工作流执行` 是路由完成后的核心执行阶段，按工作流类型执行不同流程：
 
-1. **dev**：CP1→CP2→plan-review→impact-review→CP3→执行→api-verification→document-sync
-2. **fix**：诊断三步→CP1→CP2→执行→三步扫描→CP3（条件触发）
+1. **dev**：CP1→CP2→plan-review→impact-review→CP3→执行→api-verification→document-sync→ECR 执行闭环复审
+2. **fix**：诊断三步→CP1→CP2→执行→三步扫描→CP3（条件触发）→ECR 执行闭环复审
 3. **audit**：多轮收敛，连续 3 轮零发现（所有子类型统一，不区分定向/全面），所有 🔴 已解决
 4. **analyze**：多轮只读分析，≥3 轮，连续 2 轮无新发现后收敛
 5. **self-fix**：分级（自动/Pending/拒绝）后修复规范文件
@@ -171,7 +171,7 @@ flowchart TD
 
 1. 按工作流类型选择报告模板
 2. 确定报告路径（需求级优先，项目级兜底）
-3. 填写头部必填项 + 正文（每条附三列验证）
+3. 填写头部必填项 + 正文（每条附五项验证，多路径含推荐结论）
 4. 执行报告二次验证（V1~V6）
 5. 回复末尾输出产物路径
 

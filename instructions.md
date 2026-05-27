@@ -105,6 +105,7 @@
 - 项目现实扩展必须结合目标项目的技术栈、目录结构、当前需求/bug 产物、测试/发布约束，修正或确认最终工作流/子类型。
 - 项目未识别时，不得为了扩展意图而无界扫描工作区；必须先询问用户。
 - PC1 应表达“语义初判 → 项目现实扩展后的最终路由”，PC3 应表达扩展结果与产物落点。
+- 非 chat 工作流在 CP1 / 问题确认前必须形成 Intent Expansion Card：`semantic`、`project`、`continuity`、`action`、`domain`、`artifact-impact`、`risk`、`host-capability`、`validation-route`、`confidence`、`alternatives`，用于 PC1/PC3、CP1 产物、压缩恢复与错路由复盘。
 - 当 `<工作区根>/.devcodex/layout.json` 启用 `workspace-namespace` 时，Profile 与运行态目录按**工作区集中命名空间**读取：
   - `config.json`：`<工作区根>/.devcodex/workspace/profile/` 作为 base，`<工作区根>/.devcodex/<project>/profile/` 作为 overlay
   - Profile 文档：项目命名空间文件优先，缺失回退到 `workspace/profile/`
@@ -131,6 +132,10 @@
 | `log_only` | 已确认危险命令、状态转换、审计痕迹 | 不打断流程，仅写入审计日志 |
 
 所有 runtime 拦截都必须追加写入 `interceptions.jsonl`，记录 `eventName`、`platform`、`action`、`code`、`reason`、`nextStep`、`effective`。`effective=true` 表示宿主实际阻断；`effective=false` 表示本次仅提示/记录，AI 侧仍需按规范补完后续动作。非工具事件的 DevCodex 元数据只写审计日志，不写入不受宿主支持的 `hookSpecificOutput` 字段。
+
+### ConfirmationRequest 与按钮降级
+
+用户确认语义必须先表示为宿主无关的 `ConfirmationRequest`（`id/kind/severity/question/options/recommendedOption/evidence/fallbackText/auditLogRequired`），再由宿主适配层选择按钮、权限提示、Hook 阻断或文本 fallback。Claude Code SDK / VS Code Chat Extension 等明确支持结构化按钮时可使用按钮；Codex/Claude/Copilot Hooks 以阻断原因和下一步为主；Cursor/JetBrains/repository instructions 使用文本确认 fallback。禁止把按钮 UI 写成全宿主能力。
 
 ---
 
@@ -170,6 +175,7 @@ CP1（需求确认）→ CP2（方案确认）→ [plan-review] → CP3（实施
 - **CP2**：输出技术方案（架构/文件清单/依赖）→ 等待用户确认
 - **plan-review**：评估计划可行性（CP2 后、CP3 前）
 - **CP3**：条件触发。default/refactor/database/optimization/scenario-test 必须执行；docs/init/plan-review 按子类型规则豁免，并记录 `CP3: N/A（<子类型> 子类型豁免）`。
+- **ECR**：执行完成后、宣告完成前必须执行 ECR 执行闭环复审，覆盖 CP1/CP2/CP3、报告、daily tasks、SUMMARY、diff/commit、测试/探针与 dirty 边界。
 
 > **无 Hooks 宿主软门禁**（v1.9.6+）：当宿主为 `jetbrains-copilot`、`cursor` 或其他 `instruction-fallback` 模式时，`lifecycle.cjs` CP gate 不强制。AI 必须在每个 CP 输出末尾显式追加 `⏸ 等待用户确认（CP{N}）`，收到明确回复前禁止 source mutation 工具调用。
 
@@ -227,6 +233,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → 执行 →
 - **CP1**：输出问题分析（根因 + 影响范围）→ 等待确认
 - **CP2**：输出修复方案 → 等待确认
 - **CP3**：≥5 文件变更 或 含高风险操作时必须
+- **ECR**：执行完成并完成修复三步扫描后、宣告完成前必须执行 ECR 执行闭环复审，覆盖 CP1/CP2/CP3、报告、daily tasks、SUMMARY、diff/commit、测试/扫描证据与 dirty 边界。
 
 ### 确认后前置轻量复审
 
@@ -247,6 +254,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → 执行 →
 - 只读工作流，禁止修改文件
 - 多轮收敛：至少 3 轮，连续 2 轮无新发现后收敛
 - 收敛前必须 CRS（关联文件全库 grep 核心关键词）
+- 多建议、多路径或技术选型时必须输出 `推荐结论` / `推荐方案` 与推荐理由；没有可推荐动作时写明 `推荐：无后续动作`。
 
 ---
 
@@ -351,7 +359,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → 执行 →
 | FC4 | 输出语言正确 |
 | FC5 | 引用规范文件存在 |
 | FC6 | 合规块已输出 |
-| FC7 | 用户决策选项必带推荐 + 理由 |
+| FC7 | 用户决策选项与报告决策点必带推荐 + 理由 |
 
 ### SC 实质合规（选取适用项检查）
 
@@ -371,7 +379,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → 执行 →
 | SC12 | 批量操作分批方案已确认（C16） |
 | SC13 | 过程改进 PI 已追加（C17） |
 | SC14 | 文件 UTF-8 编码安全（C09） |
-| SC15 | dev/fix 关键产物已完成轻量复审收敛 |
+| SC15 | dev/fix 关键产物已完成 ECR 执行闭环复审 |
 
 ### RC 恢复性检查
 
@@ -392,7 +400,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → 执行 →
 | T4 | 关联文档已同步 |
 | T5 | 关联配置已更新 |
 | T6 | CHANGELOG / unreleased 已按发布状态追加（如属外部可见变更） |
-| T7 | 影响评估已记录（impact-review） |
+| T7 | 工作流验证已完成（dev/fix 含 ECR；audit/analyze 含 PCV 与推荐结论） |
 | T8 | 报告 V1~V6 验证通过 |
 | T9 | 记忆 + SUMMARY 写入完成 |
 

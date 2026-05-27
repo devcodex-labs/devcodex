@@ -1,6 +1,6 @@
 ---
 name: dev-default
-description: 默认开发子类型规范 — 通用功能开发六阶段流程（CP1→PR-1自检→CP2→plan-review→CP3→执行→轻量复审收敛）
+description: 默认开发子类型规范 — 通用功能开发六阶段流程（CP1→PR-1自检→CP2→plan-review→CP3→执行→ECR执行闭环复审）
 ---
 # Dev Default Skill
 
@@ -17,7 +17,7 @@ dev 工作流未匹配其他子类型时的默认路径，适用于：新功能�
 | N3 方案验证 | 调用 `dev-plan-review` Skill（PR-2~PR-7）；PR-5② 触发则继续 `impact-review` | 🔴 阻断时回 CP2 |
 | N4 实施计划 | 任务拆分、顺序、依赖、验证与回滚 | [CP3](../cp-gate/SKILL.md) 确认 |
 | N5 执行 | 编码实现 → 接口变更时 `api-verification` → `document-sync` | — |
-| N6 轻量复审收敛 | 对照 §2 核心设计与关键产物做执行后正式复审，确认实现、报告与完成结论一致 | 发现阻断问题须回退修正 |
+| N6 ECR 执行闭环复审 | 对照 §2 核心设计、关键产物、报告、记忆、SUMMARY、diff/commit 与验证证据做执行后正式复审 | 发现阻断问题须回退修正 |
 
 ### N5 执行阶段补充规则
 
@@ -43,11 +43,25 @@ dev 工作流未匹配其他子类型时的默认路径，适用于：新功能�
 
 **长会话重锚定（F-24）**：会话超过 10 轮后，N6 开始前须重新 view `01-需求概述.md` 和 `02-技术方案.md`，确保复审基于最新文档而非记忆。
 
+### N6 ECR 最小清单
+
+执行完成后、最终报告完成前必须执行 ECR（Execution Closure Review）：
+
+| 项 | 检查对象 | 目的 |
+|----|----------|------|
+| ECR-1 | CP1/CP2/CP3、报告、daily tasks、SUMMARY | 避免压缩后状态错配 |
+| ECR-2 | 需求条款 / 问题 ID → diff/commit 文件 | 避免确认范围漏实现 |
+| ECR-3 | CP3 步骤 → 测试/部署/验证证据 | 避免计划与执行漂移 |
+| ECR-4 | 报告声明 → 测试/探针/官方文档 | 避免过度宣称 |
+| ECR-5 | memory daily → SUMMARY | 避免 SUMMARY 早标绿 |
+| ECR-6 | git dirty 边界 | 避免混入用户另案变更 |
+| ECR-7 | 控制面任务追加 validate / direct replay / host-contract probe | 避免校验假绿 |
+
 ## 关键规则
 
 - 三个 CP 必须按序获得用户确认，禁止合并跳过（[C02](../../instructions/01-common.instructions.md)）
 - PR-1 在 CP2 前做 AI 内部自检，PR-2~PR-7 在 CP2→CP3 之间做详细验证（`dev-plan-review` 两阶段流程）
-- 执行阶段结束后触发：`api-verification`（若涉及接口）→ `document-sync` → **轻量复审收敛**（N6，内部包含方案一致性验证）
+- 执行阶段结束后触发：`api-verification`（若涉及接口）→ `document-sync` → **ECR 执行闭环复审**（N6，内部包含方案一致性验证和 ECR-1~ECR-7）
 - 高联动场景不得只做单文件修改；至少要同步直接真相源与同层联动文件
 - `impact-review` 仅由 PR-5②（跨模块架构依赖变更）触发，position：plan-review 之后、CP3 之前
 - N4 只确认实施计划，不重复技术方案中的架构决策、接口论证和兼容性主说明；`05-实施进度.md` 仅在任务跨多轮、存在明确阻塞或用户要求持续跟踪时启用

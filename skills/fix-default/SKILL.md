@@ -33,6 +33,7 @@ description: 默认修复子类型规范 — Bug 修复三步扫描 + CP 流程
 4. `api-verification`（若涉及接口）
 5. `impact-review`（若 PR-5② 跨模块架构依赖变更）
 6. `document-sync`（若修复涉及文档说明）
+7. **ECR 执行闭环复审** — 对照 CP1/CP2/CP3、报告、daily tasks、SUMMARY、diff/commit、测试/扫描证据和 dirty 边界，确认无假完成、无状态错配、无用户另案变更混入
 
 ## 关键规则
 
@@ -40,4 +41,5 @@ description: 默认修复子类型规范 — Bug 修复三步扫描 + CP 流程
 - 修复必须附带回归测试，禁止无测试的 hotfix（emergency 除外）
 - 修复范围不得超出问题边界（禁止顺手重构）
 - 若问题同时满足“模板/示例不可直接执行、规则与示例冲突、自动化校验假绿、且涉及多文件联动的控制面缺陷”，应直接按 `fix.default` 处理，不当作文案微调顺手跳过修复流程
+- 修复报告若给出多个后续建议或处理路径，必须有 `推荐结论` / `推荐方案` 与推荐理由；无后续动作时写明 `推荐：无后续动作`
 - 输出报告：`reports/bugs/` 目录，遵循 [`report`](../report/SKILL.md) Skill 命名规则

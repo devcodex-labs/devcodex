@@ -13,7 +13,7 @@ flowchart TD
     READ_RULES["PC0: 读取规则基线\n确认 profile + 输出语言"]
     INTENT["PC1: 语义意图初判\n→ 待项目现实扩展"]
     SESSION["PC2: 会话状态\n轮次 / 待跟进"]
-    REALITY["项目现实扩展\nProfile / 技术栈 / 范围 / 验证方式"]
+    REALITY["项目现实扩展\nProfile / 技术栈 / 范围 / 验证方式\nIntent Expansion Card"]
     PREP["PC3: 执行准备\n扩展结果 / 未完成任务 / 产物落点"]
     DEV_MODE{"ENV_MODE\n= dev?"}
     PC4["PC4: 规范雷达\n三轴诊断（见细图）"]
@@ -48,6 +48,8 @@ flowchart TD
 6. **PC5** — 部署体状态：父链 `.claude/.github/` 是否存在、是否与源仓库关键文件同步
 7. **PC6** — 工作区一致性：git 未提交变更、当前需求目录或任务上下文
 8. **PC7** — 新会话 resume 强制检测：今日/昨日 tasks 文件与 SUMMARY 状态是否一致
+
+非 chat 工作流在 CP1 / 问题确认前还应形成 Intent Expansion Card，最小字段包括：`semantic`、`project`、`continuity`、`action`、`domain`、`artifact-impact`、`risk`、`host-capability`、`validation-route`、`confidence`、`alternatives`。
 
 ---
 

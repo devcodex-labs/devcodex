@@ -70,6 +70,18 @@ applyTo: .devcodex/**/reports/bugs/**
 | 关联功能回归 | ✅ 正常 |
 | api-verification | ✅ 通过 / N/A |
 
+## §5.5 ECR 执行闭环复审
+
+| ECR 项 | 检查对象 | 结果 | 证据 |
+|--------|----------|:----:|------|
+| ECR-1 | CP1/CP2/CP3、报告、daily tasks、SUMMARY | ✅/⚠️ | |
+| ECR-2 | 问题 ID / 根因链 → diff/commit 文件 | ✅/⚠️ | |
+| ECR-3 | CP3 步骤 → 测试/部署/验证证据 | ✅/⚠️ | |
+| ECR-4 | 修复报告声明 → 测试/扫描/探针结果 | ✅/⚠️ | |
+| ECR-5 | memory daily → SUMMARY | ✅/⚠️ | |
+| ECR-6 | git dirty 边界 | ✅/⚠️ | |
+| ECR-7 | 控制面任务 validate / direct replay / host-contract probe | ✅/N/A | |
+
 ## §6 时间线（incident 类型必填，秒级精度供响应时效审计）
 
 | 时间 | 事件 |
@@ -87,6 +99,11 @@ applyTo: .devcodex/**/reports/bugs/**
 | 问题/建议 | 合理性 | 可实施性 | 收益 | 验证状态 | 影响范围 |
 |-----------|--------|----------|------|----------|----------|
 | | | | | ✅已验证 / ⚠️待验证 | |
+
+## §7.5 推荐结论
+
+**推荐**：[推荐方案 / 推荐：无后续动作]
+**推荐理由**：[若有多个后续建议或处理路径，说明为何推荐该项；无后续动作时说明原因]
 
 ## §8 改进 Action Items（incident 必填）
 

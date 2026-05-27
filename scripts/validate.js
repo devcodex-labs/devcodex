@@ -1470,6 +1470,52 @@ function checkV24() {
   console.log('[V24] governance/template/client narrative semantics checked')
 }
 
+function checkV25() {
+  const probes = [
+    ['instructions.md', 'Intent Expansion Card', 'instructions single-source intent card'],
+    ['instructions.md', 'ConfirmationRequest', 'instructions single-source confirmation abstraction'],
+    ['instructions.md', 'ECR 执行闭环复审', 'instructions single-source ECR'],
+    ['instructions.md', '推荐结论', 'instructions single-source recommendation'],
+    ['instructions/01-common.instructions.md', 'Intent Expansion Card', '01-common intent card'],
+    ['instructions/10-dev.instructions.md', 'ECR-1', '10-dev ECR checklist'],
+    ['instructions/11-fix.instructions.md', 'ECR-1', '11-fix ECR checklist'],
+    ['instructions/13-analyze.instructions.md', '推荐结论', '13-analyze recommendation conclusion'],
+    ['instructions/17-compliance.instructions.md', '推荐：无后续动作', '17-compliance recommendation fallback'],
+    ['skills/dev-default/SKILL.md', 'ECR-1', 'dev-default ECR checklist'],
+    ['skills/fix-default/SKILL.md', 'ECR 执行闭环复审', 'fix-default ECR'],
+    ['skills/report/SKILL.md', '推荐结论', 'report recommendation conclusion'],
+    ['skills/compliance/SKILL.md', '推荐：无后续动作', 'compliance recommendation fallback'],
+    ['skills/intent/SKILL.md', 'Intent Expansion Card', 'intent card'],
+    ['skills/load-profile/SKILL.md', 'host-capability', 'load-profile host capability field'],
+    ['skills/cp-gate/SKILL.md', 'ConfirmationRequest', 'cp-gate confirmation abstraction'],
+    ['prompts/precheck-status.prompt.md', 'Intent Expansion Card', 'precheck prompt intent card'],
+    ['prompts/report-analysis.prompt.md', '推荐结论', 'analysis report recommendation'],
+    ['prompts/report-audit.prompt.md', '推荐结论', 'audit report recommendation'],
+    ['prompts/report-dev.prompt.md', 'ECR 执行闭环复审', 'dev report ECR'],
+    ['prompts/report-fix.prompt.md', 'ECR 执行闭环复审', 'fix report ECR'],
+    ['prompts/report-optimization.prompt.md', 'ECR 执行闭环复审', 'optimization report ECR'],
+    ['prompts/report-scenario-test.prompt.md', 'ECR 执行闭环复审', 'scenario report ECR'],
+    ['README.md', 'ECR 执行闭环复审', 'README ECR'],
+    ['README.md', '推荐结论', 'README recommendation'],
+    ['README.md', 'ConfirmationRequest', 'README confirmation abstraction'],
+    ['website/docs/guide/development.md', 'ECR 执行闭环复审', 'website development ECR'],
+    ['website/docs/specs/exec-compliance-flow.md', '推荐结论', 'website compliance recommendation'],
+    ['website/docs/specs/precheck-flow.md', 'Intent Expansion Card', 'website precheck intent card'],
+    ['website/docs/specs/report-output-flow.md', '推荐结论', 'website report recommendation']
+  ]
+  for (const [file, needle, label] of probes) mustInclude(file, needle, label)
+  const pkg = JSON.parse(read(path.join(ROOT, 'package.json')))
+  const releaseChangelog = `changelogs/v${pkg.version}.md`
+  const releaseNeedleFound = (
+    fs.existsSync(path.join(ROOT, releaseChangelog)) &&
+    read(path.join(ROOT, releaseChangelog)).includes('Intent Expansion Card')
+  ) || read(path.join(ROOT, 'changelogs/unreleased.md')).includes('Intent Expansion Card')
+  if (!releaseNeedleFound) {
+    err(`[V25] ECR change missing required text in changelogs/unreleased.md or ${releaseChangelog}: Intent Expansion Card`)
+  }
+  console.log('[V25] ECR / intent card / confirmation / recommendation semantics checked')
+}
+
 function checkV7b() {
   try {
     execSync('node scripts/test-instruction-fallback-check.js', { cwd: ROOT, stdio: 'pipe', encoding: 'utf8' })
@@ -1505,6 +1551,7 @@ checkV21()
 checkV22()
 checkV23()
 checkV24()
+checkV25()
 
 console.log('')
 if (errors.length) {

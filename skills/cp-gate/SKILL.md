@@ -154,6 +154,31 @@ CP 门控**不受 ENV_MODE 影响**，dev/prod 均为 🔴 强制等待用户确
 - CP2 方案对比（如 A/B/C 实现路径）
 - audit/analyze 报告 §决策点（如继续 / 暂停 / 强扫）
 
+### ConfirmationRequest 抽象
+
+用户确认语义必须先表示为宿主无关的 ConfirmationRequest，再由宿主适配层选择按钮、权限提示、Hook 阻断或文本 fallback；禁止把按钮 UI 写成全宿主能力。
+
+```text
+ConfirmationRequest
+- id
+- kind: cp_gate | destructive | high_risk | ambiguity | approval
+- severity: forbid | require_completion | warn_continue | log_only
+- question
+- options
+- recommendedOption
+- evidence
+- fallbackText
+- auditLogRequired
+```
+
+| 能力层级 | 使用场景 | 行为 |
+|----------|----------|------|
+| `structured_buttons` | Claude Code SDK / VS Code Chat Extension 等明确支持按钮或多选的宿主 | 渲染按钮或结构化多选 |
+| `tool_permission_prompt` | Claude SDK / Copilot CLI 等权限审批流 | 暂停等待 allow/deny |
+| `hook_block_reason` | Codex/Claude/Copilot hooks strict | 硬拦并输出原因与下一步 |
+| `text_confirm` | Cursor/JetBrains/repository instructions fallback | 明确文本等待确认 |
+| `audit_only` | 非阻断低风险 | 记录原因后放行 |
+
 ### AskUserQuestion 调用模板
 
 ```json

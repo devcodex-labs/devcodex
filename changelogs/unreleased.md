@@ -8,14 +8,7 @@
 
 ## 2026-05-27
 
-- 新增 Codex adapter：默认 `devcodex init/update` 升级为 Copilot + Claude Code + Codex 三宿主同步，`--codex` 提供 Codex-only 路径并与 `--claude` 互斥。
-- 补齐 Codex 入口与 Hook 链路：`instructions.md` 同源生成 `AGENTS.md`，`skills/` 同步到 `.agents/skills/`，新增 `codex/hooks.json` 并同步统一 `lifecycle.cjs` 到 `.codex/hooks/_runtime/`。
-- 修复 Codex 新会话无预检查风险：`UserPromptSubmit` 输出同时包含 `systemMessage` 与 `hookSpecificOutput.additionalContext`，并新增 Hook runtime 回归测试。
-- 扩展发布前校验：V6/V8/V13/V24 与 pack-clean 覆盖 Codex 打包资产、部署副本哈希、Hook 语义探针、文档/Profile 口径和 workspace adapter 同步状态。
-- 修复 Codex 边界诊断与文档口径：multi-project warning 同步注入 `additionalContext`，`status/doctor` 增加 Codex hook command 与 config/trust 诊断，README 支持矩阵区分 OpenAI Codex 与 ChatGPT 普通对话。
-- 修复记忆与报告 `<agent>` 落点规则：当前实际宿主优先，`profile/config.json` 的 `agent` 仅作为无法识别宿主时的兜底提示，并补 MCP/validate 回归探针。
-- 修复 Hook 拦截语义与 MCP 作用域边界：新增 `forbid / require_completion / warn_continue / log_only` 动作模型、`interceptions.jsonl` 审计日志、危险命令一次性确认令牌，收紧 doctor 的 Codex/VS Code Hook 能力口径，并要求 workspace-namespace 下 memory MCP 从工作区根调用时显式传 `project` 或 `scope:"workspace"`。
-- 修复 Hook 宿主输出契约：Codex `Stop/UserPromptSubmit` 改为顶层 `decision:"block"`，`PreCompact` 改为 `continue:false`；Claude `PreCompact` 纳入 strict 硬拦矩阵，危险命令 approval id 必须经用户确认后才可消费。
+- 暂无未发布变更。
 
 ## 2026-05-26
 

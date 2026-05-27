@@ -18,7 +18,7 @@ DevCodex 通过 `.github/`（Copilot）、`CLAUDE.md + .claude/ + .mcp.json`（C
 - **持久记忆**: 每 Agent、每日的会话记录，结构化字段
 - **自动报告**: 每次会话自动写入报告，从不询问 — 直接执行
 - **安全底线**: S01~S07 七条不可覆盖的安全规则
-- **宿主硬门禁**: 在 VS Code / Claude Code / Codex Hooks 可用时，通过 `UserPromptSubmit` / `PreToolUse` / `PostToolUse` / `PreCompact` / `Stop` 提供确定性护栏
+- **宿主生命周期护栏**: Claude Code 与 OpenAI Codex 在已支持的 Hook 事件上提供 runtime 护栏；Copilot / JetBrains / Cursor 等无等价本地 Hook 时降级为 instruction-fallback；默认 `safety-only` 仅对危险命令硬拦，流程项提醒放行，`strict` 模式才升级可阻断事件
 - **全模式入口检查**: 所有模式在实质任务前显示 PC0~PC7；dev 模式额外执行 PC4 规范雷达与完整合规链
 - **项目现实扩展**: 先做语义意图初判，再结合目标项目 Profile、目录与当前任务上下文修正最终路由、产物落点和验证方式
 - **执行护栏**: 新需求切换时优先按意图判断边界；涉及外部平台/API/兼容性判断时优先看官方文档；提交时压缩 commit subject
@@ -82,7 +82,7 @@ AGENTS.md                 ← 与 instructions.md / copilot-instructions.md / CL
 
 > ⚠️ 请确保 IDE 的 "Use Instruction Files" 设置已开启（默认开启）。
 >
-> ℹ️ VS Code 中若启用 Hooks（Preview）且未被管理员禁用，DevCodex 会同时加载 `.github/hooks/*.json` 作为确定性生命周期护栏；不支持 Hooks 的宿主自动回退到 instruction-fallback。
+> ℹ️ Copilot 路径当前以 instruction-fallback 作为公开能力口径；若目标 IDE 支持 Workspace Hooks 且未被管理员禁用，DevCodex 会加载 `.github/hooks/*.json` 作为额外生命周期护栏，但不把它计入 Full 等级承诺。不支持 Hooks 的宿主自动回退到 instruction-fallback。
 >
 > ℹ️ `v1.9.8` 起，`devcodex init/update` 已恢复 Copilot 端 `.github/agents/` 默认分发；Claude Code 端仍通过 Skills 路由，不分发 agents。
 
@@ -249,22 +249,35 @@ devcodex/
 
 ## 客户端支持矩阵（Client Support Matrix）
 
-| AI 客户端 | 注入路径 | Bootstrap 硬门禁 | CP 门控 | 记忆/MCP | 等级 |
+| AI 客户端 | 注入路径 | Bootstrap / Hook 护栏 | CP 门控 | 记忆/MCP | 等级 |
 |---|---|:---:|:---:|:---:|:---:|
-| **GitHub Copilot (VS Code)** | `.github/instructions/*.md` + `copilot-instructions.md` + `.github/agents/` | ⚠️ instruction-fallback | ⚠️ 文本/本地 fallback | ❌ 未内置 MCP | 🟡 Beta |
-| **GitHub Copilot (JetBrains)** | 同上但无 hooks（instruction-fallback） | ⚠️ 仅文本约束 | ⚠️ 仅文本 | ❌ 未内置 MCP | 🟡 Beta |
-| **Claude Code (CLI/桌面端)** | `CLAUDE.md` + `.claude/{instructions,skills,prompts,hooks/_runtime,mcp}/` + `settings.json` hooks + `.mcp.json` | ✅ `lifecycle.cjs` v1.9.2+ | ✅ Hook | ✅ MCP | 🟢 Full |
-| **Cursor IDE** | 通过 `.github/instructions/` 兼容读取（实测） | ❌ 不支持 hooks | ⚠️ 仅文本 | ❌ | 🟡 Best-effort |
-| **OpenAI Codex app/CLI** | `AGENTS.md` + `.agents/skills/` + `.codex/hooks.json` | ✅ `lifecycle.cjs` | ✅ Hook | ❌ 未内置 MCP | 🟡 Beta |
+| **GitHub Copilot (VS Code)** | `.github/instructions/*.md` + `copilot-instructions.md` + `.github/agents/` | ⚠️ instruction-fallback；Workspace Hooks 需按目标版本另行实测 | ⚠️ 文本/本地 fallback | ❌ 未内置 MCP | 🟡 Beta |
+| **GitHub Copilot (JetBrains)** | `.github/instructions/*.md` + `copilot-instructions.md`（instruction-fallback） | ⚠️ 官方自定义指令路径，无本地 Hook 硬拦承诺 | ⚠️ 仅文本 | ❌ 未内置 MCP | 🟡 Beta |
+| **Claude Code (CLI/桌面端)** | `CLAUDE.md` + `.claude/{instructions,skills,prompts,hooks/_runtime,mcp}/` + `settings.json` hooks + `.mcp.json` | ✅ Hook 事件支持硬拦；默认 `safety-only` 下流程项提醒放行 | ✅ Hook + 文本确认 | ✅ MCP | 🟢 Full |
+| **Cursor IDE** | 需手工配置 `.cursor/rules` 或 root `AGENTS.md`（instruction-fallback；DevCodex 不自动分发 Cursor 规则） | ⚠️ 无 DevCodex 本地 Hook 硬拦承诺 | ⚠️ 仅文本 | ❌ | 🟡 Best-effort |
+| **OpenAI Codex app/CLI** | `AGENTS.md` + `.agents/skills/` + `.codex/hooks.json` | ⚠️ Codex hook guardrail；阻断输出按事件契约分为顶层 `decision`、`continue:false` 与工具级 `permissionDecision` | ⚠️ Hook + 文本确认 | ⚠️ 可手工配置 MCP；DevCodex 未自动写入 | 🟡 Beta |
 | **ChatGPT 普通对话** | 不读取本地工作区 `AGENTS.md` / `.agents/` / `.codex/`；可手工粘贴规则 | ❌ | ⚠️ 文本 | ❌ | 🔴 Unsupported |
 
 > **安装命令**：默认三宿主部署 → `npx @vextjs/devcodex init`；仅 Claude Code adapter → `npx @vextjs/devcodex init --claude`（v1.9.0+）；仅 Codex adapter → `npx @vextjs/devcodex init --codex`。
 >
-> **能力差异**：🟢 Full = 硬门禁 + MCP + 自动同步；🟡 Beta/Best-effort = 尚未达到 Full，具体能力以矩阵各列为准；🔴 Unsupported = 不在当前本地 adapter 发布范围。
+> **能力差异**：🟢 Full = 已验证 Hook 事件 + MCP + 自动同步；🟡 Beta/Best-effort = 尚未达到 Full，具体能力以矩阵各列为准；🔴 Unsupported = 不在当前本地 adapter 发布范围。默认 `safety-only` 下，bootstrap / CP / auto 白名单等流程问题为提醒并继续，仅危险命令硬拦；设置 `DEVCODEX_HOOK_ENFORCEMENT=strict` 后，支持硬拦的事件才会停止流程。
+
+### Hook 拦截动作语义
+
+DevCodex Hook runtime 不再把所有拦截都等同为“停止”。拦截会写入 `interceptions.jsonl`，并按动作区分后续行为：
+
+| 动作 | 含义 | 后续行为 |
+|------|------|----------|
+| `forbid` | 禁止危险或不可恢复操作 | 支持 Hook 硬拦的宿主直接拒绝；可审批危险命令会先返回 pending `devcodex-approve:<id>`，只有用户在后续提示中明确确认该 id 后，同一命令/目录 10 分钟内才可消费一次；`DROP TABLE`、无 `WHERE` 的 `DELETE FROM`、根目录 `rm -rf` 等不可审批 |
+| `require_completion` | 必须补完某项才能进入下一步 | `strict` + 支持硬拦事件时停止；默认 `safety-only` 下提醒并继续，AI 必须补完缺项 |
+| `warn_continue` | 风险提示但允许继续 | 继续执行并记录原因，适合 bootstrap/CP/auto 等流程提醒 |
+| `log_only` | 仅审计记录 | 不打断流程，用于已确认危险命令、状态变更等可追溯事件 |
+
+> 宿主输出契约：Claude Code 与 Codex 的非工具事件不复用工具级 `hookSpecificOutput.permissionDecision`。Codex `Stop/UserPromptSubmit` 使用顶层 `decision:"block"`，`PreCompact` 使用 `continue:false`；工具调用拦截才使用 `permissionDecision`。
 
 ## IDE 兼容性
 
-> v1.9.6+ 与上方"客户端支持矩阵"语义对齐：✅=自动加载且经实测；⚠️=加载但能力降级或未实测；❌=不支持。Hooks 列与客户端矩阵的 "Bootstrap 硬门禁" 一致。
+> v1.9.6+ 与上方"客户端支持矩阵"语义对齐：✅=自动加载且经实测；⚠️=加载但能力降级或未实测；❌=不支持。Hooks 列仅代表宿主是否具备可接入 Hook 事件，不代表所有 DevCodex 规则都能硬拦。
 
 | 功能 | VS Code | JetBrains | Visual Studio | Xcode | Eclipse |
 |------|:-------:|:---------:|:------------:|:-----:|:-------:|

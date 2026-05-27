@@ -61,8 +61,8 @@ const TOOLS = [
       properties: {
         agent: { type: 'string', description: 'Agent 标识（如 claude-code / codex / copilot），默认当前实际宿主' },
         date: { type: 'string', description: 'YYYYMMDD 日期，默认今日' },
-        scope: { type: 'string', enum: ['project', 'workspace'], description: '可选。集中布局下指定写入域；默认按当前 cwd 推断。' },
-        project: { type: 'string', description: '可选。集中布局下显式指定项目命名空间。' }
+        scope: { type: 'string', enum: ['project', 'workspace'], description: '可选。集中布局下指定读取域；默认按当前 cwd 推断。若 cwd 在 workspace 根，必须显式传 project 或 scope:"workspace"。' },
+        project: { type: 'string', description: '可选。集中布局下显式指定项目命名空间；避免 workspace 根误读项目记忆。' }
       }
     }
   },
@@ -76,8 +76,8 @@ const TOOLS = [
         agent: { type: 'string', description: 'Agent 标识，默认当前实际宿主' },
         date: { type: 'string', description: 'YYYYMMDD 日期，默认今日' },
         content: { type: 'string', description: '追加的 Markdown 内容' },
-        scope: { type: 'string', enum: ['project', 'workspace'], description: '可选。集中布局下指定写入域；默认按当前 cwd 推断。' },
-        project: { type: 'string', description: '可选。集中布局下显式指定项目命名空间。' }
+        scope: { type: 'string', enum: ['project', 'workspace'], description: '可选。集中布局下指定写入域；默认按当前 cwd 推断。若 cwd 在 workspace 根，必须显式传 project 或 scope:"workspace"。' },
+        project: { type: 'string', description: '可选。集中布局下显式指定项目命名空间；避免 workspace 根误写项目记忆。' }
       }
     }
   },
@@ -92,8 +92,8 @@ const TOOLS = [
         kind: { type: 'string', enum: ['requirements', 'bugs', 'optimizations', 'scenario-tests'], description: '任务根类型，默认 requirements' },
         phase: { type: 'string', enum: ['CP1', 'CP2', 'CP3'], description: 'CP 阶段' },
         time: { type: 'string', description: '确认时间（如 10:30），默认当前时间' },
-        scope: { type: 'string', enum: ['project', 'workspace'], description: '可选。集中布局下指定写入域；默认按当前 cwd 推断。' },
-        project: { type: 'string', description: '可选。集中布局下显式指定项目命名空间。' }
+        scope: { type: 'string', enum: ['project', 'workspace'], description: '可选。集中布局下指定写入域；默认按当前 cwd 推断。若 cwd 在 workspace 根，必须显式传 project 或 scope:"workspace"。' },
+        project: { type: 'string', description: '可选。集中布局下显式指定项目命名空间；避免 workspace 根误写任务确认。' }
       }
     }
   },
@@ -104,8 +104,8 @@ const TOOLS = [
       type: 'object',
       properties: {
         agent: { type: 'string', description: 'Agent 标识，默认当前实际宿主' },
-        scope: { type: 'string', enum: ['project', 'workspace'], description: '可选。集中布局下指定读取域；默认按当前 cwd 推断。' },
-        project: { type: 'string', description: '可选。集中布局下显式指定项目命名空间。' }
+        scope: { type: 'string', enum: ['project', 'workspace'], description: '可选。集中布局下指定读取域；默认按当前 cwd 推断。若 cwd 在 workspace 根，必须显式传 project 或 scope:"workspace"。' },
+        project: { type: 'string', description: '可选。集中布局下显式指定项目命名空间；避免 workspace 根误读 SUMMARY。' }
       }
     }
   },
@@ -118,8 +118,8 @@ const TOOLS = [
       properties: {
         agent: { type: 'string', description: 'Agent 标识，默认当前实际宿主' },
         row: { type: 'string', description: 'Markdown 表格行（含首尾 |）' },
-        scope: { type: 'string', enum: ['project', 'workspace'], description: '可选。集中布局下指定写入域；默认按当前 cwd 推断。' },
-        project: { type: 'string', description: '可选。集中布局下显式指定项目命名空间。' }
+        scope: { type: 'string', enum: ['project', 'workspace'], description: '可选。集中布局下指定写入域；默认按当前 cwd 推断。若 cwd 在 workspace 根，必须显式传 project 或 scope:"workspace"。' },
+        project: { type: 'string', description: '可选。集中布局下显式指定项目命名空间；避免 workspace 根误写 SUMMARY。' }
       }
     }
   }
@@ -215,8 +215,15 @@ function getActiveRoot(args = {}) {
   if (!LAYOUT.enabled) {
     return path.join(resolveProjectRoot(args.project), '.devcodex')
   }
-  const scope = resolveScope(args.scope)
+  const explicitScope = Object.prototype.hasOwnProperty.call(args, 'scope') && String(args.scope || '').trim()
   const projectName = resolveProjectName(args.project)
+  const scope = explicitScope ? resolveScope(args.scope) : (projectName ? 'project' : DEFAULT_SCOPE)
+  if (!explicitScope && !projectName) {
+    throw new Error('workspace-namespace memory scope is ambiguous at workspace root; pass project or explicit scope:"workspace"')
+  }
+  if (scope === 'project' && !projectName) {
+    throw new Error('workspace-namespace project memory requires project when cwd is workspace root')
+  }
   if (scope === 'workspace' || !projectName) {
     return path.join(LAYOUT.workspaceRoot, '.devcodex', 'workspace')
   }

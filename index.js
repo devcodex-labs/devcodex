@@ -1046,8 +1046,8 @@ function cmdDoctor() {
 
   let mode = 'instruction-fallback'
   if (platform === 'claude' && hasClaudeHooks) mode = 'hook-enforced (Claude Code)'
-  else if (platform === 'codex' && hasCodexHooks) mode = 'hook-enforced (Codex)'
-  else if (platform === 'vscode-copilot' && hasGithubHooks) mode = 'hook-enforced (VS Code Copilot)'
+  else if (platform === 'codex' && hasCodexHooks) mode = 'hook guardrail (Codex; event-dependent)'
+  else if (platform === 'vscode-copilot' && hasGithubHooks) mode = 'workspace-hooks detected (VS Code Copilot preview; verify target IDE)'
   else if (platform === 'jetbrains-copilot') mode = 'instruction-fallback (JetBrains — Hooks unsupported)'
 
   console.log()
@@ -1057,6 +1057,7 @@ function cmdDoctor() {
   console.log(`  platform:        ${c.cyan(platform)}  ${c.dim('(env-derived)')}`)
   console.log(`  agent:           ${c.cyan(agent)}`)
   console.log(`  mode:            ${c.bold(mode)}`)
+  console.log(c.dim('  enforcement:     default safety-only warns/continues for bootstrap/CP/auto; strict blocks only host-supported events.'))
   console.log()
   console.log(c.bold('  Install artifacts:'))
   console.log(`    CLAUDE.md                            ${hasClaudeMd ? c.green('✅') : c.dim('—')}`)
@@ -1093,6 +1094,11 @@ function cmdDoctor() {
     console.log()
   }
 
+  if (platform === 'vscode-copilot' && hasGithubHooks) {
+    console.log(c.yellow('  ⚠️  VS Code Copilot hooks detected, but DevCodex treats this as preview/target-version dependent; verify actual IDE hook support before claiming hard enforcement.'))
+    console.log()
+  }
+
   if (platform === 'claude' && !hasClaudeHooks) {
     console.log(c.yellow('  ⚠️  Claude Code detected but .claude/hooks/ missing — run `devcodex init --claude`'))
     console.log()
@@ -1114,6 +1120,7 @@ function cmdDoctor() {
       console.log()
     }
     console.log(c.dim('  Codex trust/config: hook changes may require trusting the workspace in Codex and opening a new conversation.'))
+    console.log(c.dim('  Codex hook guardrail: blocking behavior is event-dependent; MCP is supported by Codex but DevCodex does not auto-write Codex MCP config.'))
     console.log(c.dim('  Config presence only is shown above; DevCodex does not read or write Codex config values.'))
     console.log()
   }

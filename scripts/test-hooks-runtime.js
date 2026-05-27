@@ -16,6 +16,7 @@ const STATE_DIR = path.join(TEMP_ROOT, '.devcodex', '.memory', 'hooks', 'legacy'
 const STATE_FILE = path.join(STATE_DIR, 'lifecycle-state.json')
 const CAPTURE_FLAG = path.join(STATE_DIR, 'capture-final-payload.flag')
 const CAPTURE_LOG = path.join(STATE_DIR, 'captured-final-payloads.ndjson')
+const INTERCEPTION_LOG = path.join(STATE_DIR, 'interceptions.jsonl')
 const TEST_AGENT = 'claude-code'
 const FALLBACK_BOOTSTRAP_AGENT = (() => {
   if (process.env.CLAUDE_CODE_VERSION || process.env.CLAUDE_HOOK_COMMAND) return 'claude-code'
@@ -145,6 +146,15 @@ function run(payload, cwd = TEMP_ROOT, env = {}) {
   }
 
   return JSON.parse(result.stdout || '{}')
+}
+
+function readInterceptionEntries() {
+  if (!fs.existsSync(INTERCEPTION_LOG)) return []
+  return fs.readFileSync(INTERCEPTION_LOG, 'utf8')
+    .trim()
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .map(line => JSON.parse(line))
 }
 
 function writeTranscript(fileName, assistantContent) {
@@ -478,6 +488,48 @@ function main() {
   assert.strictEqual(deleteWithWhere.continue, true)
   assert.ok(!deleteWithWhere.hookSpecificOutput)
 
+  const dangerousApprovalId = String(
+    dangerousCommand.hookSpecificOutput.additionalContext || ''
+  ).match(/devcodex-approve:([a-f0-9]{12})/)?.[1]
+  assert.ok(dangerousApprovalId, 'dangerous command should return one-time approval id')
+
+  const unconfirmedDangerousCommand = run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'run_in_terminal',
+    tool_input: {
+      command: `git reset --hard HEAD~1 # devcodex-approve:${dangerousApprovalId}`
+    }
+  })
+  assert.strictEqual(unconfirmedDangerousCommand.hookSpecificOutput.permissionDecision, 'deny')
+  assert.match(unconfirmedDangerousCommand.hookSpecificOutput.permissionDecisionReason || '', /git reset --hard/i)
+
+  run({
+    hookEventName: 'UserPromptSubmit',
+    prompt: `确认执行 devcodex-approve:${dangerousApprovalId}`
+  })
+  runBootstrapReads()
+  const approvedDangerousCommand = run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'run_in_terminal',
+    tool_input: {
+      command: `git reset --hard HEAD~1 # devcodex-approve:${dangerousApprovalId}`
+    }
+  })
+  assert.strictEqual(approvedDangerousCommand.continue, true)
+  assert.ok(!approvedDangerousCommand.hookSpecificOutput)
+  const reusedDangerousCommand = run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'run_in_terminal',
+    tool_input: {
+      command: `git reset --hard HEAD~1 # devcodex-approve:${dangerousApprovalId}`
+    }
+  })
+  assert.strictEqual(reusedDangerousCommand.hookSpecificOutput.permissionDecision, 'deny')
+  const interceptionEntries = readInterceptionEntries()
+  assert.ok(interceptionEntries.some(entry => entry.code === 'dangerous-command' && entry.action === 'forbid' && entry.effective === true))
+  assert.ok(interceptionEntries.some(entry => entry.code === 'dangerous-command-confirmed' && entry.action === 'log_only'))
+  assert.ok(interceptionEntries.some(entry => entry.code === 'dangerous-command-approved' && entry.action === 'log_only'))
+
   const missingPrecheckReminder = run({
     hookEventName: 'Stop',
     assistantMessage: 'All work is complete.'
@@ -492,6 +544,49 @@ function main() {
   assert.strictEqual(captureEntries.length, 2)
   assert.strictEqual(captureEntries[1].eventName, 'Stop')
   assert.strictEqual(fs.existsSync(CAPTURE_FLAG), false)
+
+  cleanState()
+  run({ hookEventName: 'UserPromptSubmit', prompt: 'strict stop closure test' })
+  const strictStopBlock = run({
+    hookEventName: 'Stop',
+    assistantMessage: 'All work is complete.'
+  }, TEMP_ROOT, { DEVCODEX_HOOK_ENFORCEMENT: 'strict', CODEX_HOME: '1' })
+  assert.strictEqual(strictStopBlock.decision, 'block')
+  assert.match(strictStopBlock.reason || '', /entry check block/i)
+  assert.ok(!strictStopBlock.hookSpecificOutput?.decision)
+  assert.ok(readInterceptionEntries().some(entry => entry.eventName === 'Stop' && entry.code === 'closure-incomplete' && entry.effective === true))
+
+  cleanState()
+  run({ hookEventName: 'UserPromptSubmit', prompt: 'codex strict precompact contract test' }, TEMP_ROOT, { CODEX_HOME: '1' })
+  run({
+    hookEventName: 'PostToolUse',
+    tool_name: 'apply_patch',
+    tool_input: {
+      input: '*** Begin Patch\n*** Add File: src/codex-contract.js\n+contract\n*** End Patch'
+    }
+  }, TEMP_ROOT, { CODEX_HOME: '1' })
+  const codexPreCompactBlock = run({
+    hookEventName: 'PreCompact',
+    assistantMessage: 'Progress before compact.'
+  }, TEMP_ROOT, { DEVCODEX_HOOK_ENFORCEMENT: 'strict', CODEX_HOME: '1' })
+  assert.strictEqual(codexPreCompactBlock.continue, false)
+  assert.match(codexPreCompactBlock.stopReason || '', /记忆文件尚未写入|memory/i)
+  assert.ok(!codexPreCompactBlock.hookSpecificOutput?.decision)
+
+  cleanState()
+  run({ hookEventName: 'UserPromptSubmit', prompt: 'claude strict precompact contract test' }, TEMP_ROOT, { CLAUDE_HOOK_COMMAND: '1' })
+  run({
+    hookEventName: 'PostToolUse',
+    tool_name: 'Edit',
+    tool_input: { file_path: 'src/claude-contract.js', old_string: 'a', new_string: 'b' }
+  }, TEMP_ROOT, { CLAUDE_HOOK_COMMAND: '1' })
+  const claudePreCompactBlock = run({
+    hook_event_name: 'PreCompact',
+    transcript_path: ''
+  }, TEMP_ROOT, { DEVCODEX_HOOK_ENFORCEMENT: 'strict', CLAUDE_HOOK_COMMAND: '1' })
+  assert.strictEqual(claudePreCompactBlock.decision, 'block')
+  assert.match(claudePreCompactBlock.reason || '', /记忆文件尚未写入|memory/i)
+  assert.ok(!claudePreCompactBlock.hookSpecificOutput?.decision)
 
   cleanState()
   run({

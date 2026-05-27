@@ -119,7 +119,18 @@
 | `03-代码风格.md` | 编码规范 | 是 |
 | `config.json` | ENV_MODE + agent 兜底标识 | 按需 |
 
-> **Copilot / Claude Code / Codex 三宿主 Bootstrap 提醒**（v1.11.0+）：`lifecycle.cjs` Hook 在所有模式下对三类宿主均要求"先读 Profile + SUMMARY + 今日 tasks 文件，再执行实质任务"。默认 `safety-only` 模式下，`PreToolUse` 对 bootstrap / CP / auto 白名单等流程问题输出提醒并放行工具，仅危险命令继续硬拦；设置 `DEVCODEX_HOOK_ENFORCEMENT=strict` 时恢复流程硬拦截。AI 不需手工提示，但仍须在首条用户可见回复输出 PC0~PC7 入口检查块（S07/C18）。
+> **Copilot / Claude Code / Codex 三宿主 Bootstrap 提醒**（v1.11.0+）：`lifecycle.cjs` 只在宿主实际提供 Hook 事件时形成 runtime 护栏。Claude Code 具备项目级 hooks + MCP，是当前 Full 路径；Codex 通过 `.codex/hooks.json` 接入，阻断输出按事件契约区分顶层 `decision`、`continue:false` 与工具级 `permissionDecision`；Copilot / JetBrains / Cursor 默认按 instruction-fallback 处理，不承诺本地 Hook 硬拦。默认 `safety-only` 模式下，bootstrap / CP / auto 白名单等流程问题输出提醒并放行工具，仅危险命令继续硬拦；设置 `DEVCODEX_HOOK_ENFORCEMENT=strict` 时，只有支持硬拦的事件才停止流程。AI 仍须在首条用户可见回复输出 PC0~PC7 入口检查块（S07/C18）。
+
+### Hook 拦截动作语义
+
+| 动作 | 使用场景 | 执行语义 |
+|------|----------|----------|
+| `forbid` | 危险命令、不可恢复破坏性操作、禁止类规则 | 支持硬拦的宿主直接阻断；可审批危险命令先返回 pending `devcodex-approve:<id>`，只有用户后续明确确认该 id 后，同一命令/目录 10 分钟内才可消费一次；不可审批命令只能改用安全替代方案 |
+| `require_completion` | 必须补完 Profile/记忆/CP/报告等前置项后才能进入下一步 | `strict` + 支持硬拦事件时停止；默认 `safety-only` 下提醒放行，但 AI 必须先补完缺项再继续 |
+| `warn_continue` | 流程风险、降级模式、auto 白名单不满足等可继续场景 | 提示并继续，原因必须记录到 Hook 状态或报告 |
+| `log_only` | 已确认危险命令、状态转换、审计痕迹 | 不打断流程，仅写入审计日志 |
+
+所有 runtime 拦截都必须追加写入 `interceptions.jsonl`，记录 `eventName`、`platform`、`action`、`code`、`reason`、`nextStep`、`effective`。`effective=true` 表示宿主实际阻断；`effective=false` 表示本次仅提示/记录，AI 侧仍需按规范补完后续动作。非工具事件的 DevCodex 元数据只写审计日志，不写入不受宿主支持的 `hookSpecificOutput` 字段。
 
 ---
 

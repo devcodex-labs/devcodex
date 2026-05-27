@@ -294,6 +294,46 @@ function testWorkspaceNamespaceMemoryScope() {
   )))
 }
 
+function testWorkspaceRootMemoryScopeRequiresExplicitTarget() {
+  setupLayoutWorkspace()
+  const ambiguous = runServer('mcp/memory-server.js', [
+    rpcRequest(1, 'initialize'),
+    rpcRequest(2, 'tools/call', {
+      name: 'memory_session_write',
+      arguments: { date: '20260524', content: '# ambiguous\n' }
+    })
+  ], TEMP_ROOT)
+
+  const ambiguousResult = resultById(ambiguous, 2)
+  assert.strictEqual(ambiguousResult.isError, true)
+  assert.match(ambiguousResult.content?.[0]?.text || '', /ambiguous|project|workspace/i)
+  assert.ok(!fs.existsSync(path.join(
+    TEMP_ROOT, '.devcodex', 'workspace', '.memory', 'clients', 'claude-code', 'tasks', '20260524.md'
+  )))
+
+  const explicitWorkspace = runServer('mcp/memory-server.js', [
+    rpcRequest(3, 'tools/call', {
+      name: 'memory_summary_append',
+      arguments: { scope: 'workspace', row: '| 2026-05-24 | #2 | test | explicit workspace | — | — | ✅ |' }
+    })
+  ], TEMP_ROOT)
+  assert.ok(resultById(explicitWorkspace, 3).content[0].text.includes('SUMMARY.md'))
+  assert.ok(fs.existsSync(path.join(
+    TEMP_ROOT, '.devcodex', 'workspace', '.memory', 'clients', 'claude-code', 'SUMMARY.md'
+  )))
+
+  const explicitProject = runServer('mcp/memory-server.js', [
+    rpcRequest(4, 'tools/call', {
+      name: 'memory_session_write',
+      arguments: { project: 'chat', date: '20260524', content: '# project\n' }
+    })
+  ], TEMP_ROOT)
+  assert.ok(resultById(explicitProject, 4).content[0].text.includes('chat'))
+  assert.ok(fs.existsSync(path.join(
+    TEMP_ROOT, '.devcodex', 'chat', '.memory', 'clients', 'claude-code', 'tasks', '20260524.md'
+  )))
+}
+
 function testMcpJsonLaunchContract() {
   const config = JSON.parse(fs.readFileSync(path.join(ROOT, '.mcp.json'), 'utf8'))
   const servers = config.mcpServers || {}
@@ -324,6 +364,7 @@ testMemoryCpConfirmForBugs()
 testMemoryCpConfirmForExtendedTaskKinds()
 testWorkspaceNamespaceProfileMerge()
 testWorkspaceNamespaceMemoryScope()
+testWorkspaceRootMemoryScopeRequiresExplicitTarget()
 testMcpJsonLaunchContract()
 fs.rmSync(TEMP_ROOT, { recursive: true, force: true })
 process.stdout.write('mcp servers smoke test passed\n')

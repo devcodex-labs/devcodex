@@ -16,6 +16,14 @@ applyTo: "**"
 - 集中布局单项目：`<工作区根>/.devcodex/<project>`
 - 集中布局全工作区：`<工作区根>/.devcodex/workspace`
 
+### MCP memory scope（workspace-namespace）
+
+当 `<工作区根>/.devcodex/layout.json` 启用 `workspace-namespace` 时，MCP memory 工具从工作区根调用不得静默回退到 workspace 记忆。调用方必须二选一：
+- 传入 `project`，写入 `<工作区根>/.devcodex/<project>/.memory/...`
+- 显式传入 `scope: "workspace"`，写入 `<工作区根>/.devcodex/workspace/.memory/...`
+
+若 cwd 位于工作区根且未传 `project` / `scope`，必须返回 `workspace-namespace memory scope is ambiguous` 错误，禁止误读/误写 workspace 级 SUMMARY 或 tasks。
+
 `<agent>` 确定规则（优先级从高到低）：
 1. **当前实际宿主（优先）**：以当前会话/工具链可验证的宿主事实为准，产物必须写入对应宿主目录。例如当前在 Codex 中执行时写 `.memory/clients/codex/`，不得被历史 profile 覆盖。
 2. **Profile agent 兜底**：仅当当前实际宿主无法可靠判断时，才读取 `.devcodex/profile/config.json` 的 `"agent"` 字段作为 fallback hint；它不能覆盖当前会话事实。

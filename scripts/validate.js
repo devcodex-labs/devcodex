@@ -32,9 +32,10 @@
 'use strict'
 
 const fs = require('fs')
+const os = require('os')
 const path = require('path')
 const crypto = require('crypto')
-const { execSync } = require('child_process')
+const { execSync, execFileSync } = require('child_process')
 
 const ROOT = path.resolve(__dirname, '..')
 const WORKSPACE_ROOT = path.dirname(ROOT)
@@ -333,6 +334,38 @@ function checkV6() {
 function checkV7() {
   try {
     execSync('node scripts/test-hooks-runtime.js', { cwd: ROOT, stdio: 'pipe', encoding: 'utf8' })
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-v7-hooks-'))
+    try {
+      fs.mkdirSync(path.join(tmp, '.devcodex', 'profile'), { recursive: true })
+      fs.writeFileSync(path.join(tmp, '.devcodex', 'profile', 'config.json'), JSON.stringify({ mode: 'dev', agent: 'codex' }))
+      const runHook = (payload, env = {}) => JSON.parse(execFileSync(
+        process.execPath,
+        [path.join(ROOT, 'hooks', '_runtime', 'lifecycle.cjs')],
+        { cwd: tmp, input: JSON.stringify(payload), encoding: 'utf8', env: { ...process.env, ...env } }
+      ) || '{}')
+      runHook({ hookEventName: 'UserPromptSubmit', prompt: 'validate codex hook contract' }, { CODEX_HOME: '1' })
+      runHook({
+        hookEventName: 'PostToolUse',
+        tool_name: 'apply_patch',
+        tool_input: { input: '*** Begin Patch\n*** Add File: src/contract.js\n+contract\n*** End Patch' }
+      }, { CODEX_HOME: '1' })
+      const precompact = runHook(
+        { hookEventName: 'PreCompact', assistantMessage: 'progress' },
+        { CODEX_HOME: '1', DEVCODEX_HOOK_ENFORCEMENT: 'strict' }
+      )
+      if (precompact.continue !== false || precompact.hookSpecificOutput?.decision) {
+        err('[V7] Codex PreCompact contract probe failed: expected continue:false without nested hookSpecificOutput.decision')
+      }
+      const stop = runHook(
+        { hookEventName: 'Stop', assistantMessage: 'done' },
+        { CODEX_HOME: '1', DEVCODEX_HOOK_ENFORCEMENT: 'strict' }
+      )
+      if (stop.decision !== 'block' || stop.hookSpecificOutput?.decision) {
+        err('[V7] Codex Stop contract probe failed: expected top-level decision:block without nested hookSpecificOutput.decision')
+      }
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true })
+    }
     console.log('[V7] hooks runtime smoke test passed')
   } catch (e) {
     // F-013: 保留 stderr 前 8 行
@@ -744,6 +777,10 @@ function checkV13() {
   mustInclude('mcp/memory-server.js', 'DEVCODEX_AGENT', 'memory MCP runtime agent')
   mustInclude('scripts/test-mcp-servers.js', 'testProfileAgentUsesRuntimeBeforeProfileFallback', 'MCP actual host agent test')
   mustInclude('scripts/test-mcp-servers.js', 'testMemoryActualHostEnvAgent', 'MCP memory actual host test')
+  mustInclude('mcp/memory-server.js', 'workspace-namespace memory scope is ambiguous', 'memory MCP explicit workspace scope')
+  mustInclude('scripts/test-mcp-servers.js', 'testWorkspaceRootMemoryScopeRequiresExplicitTarget', 'MCP workspace scope ambiguity test')
+  mustInclude('instructions/15-memory.instructions.md', 'MCP memory scope（workspace-namespace）', '15-memory explicit MCP scope')
+  mustInclude('skills/memory/SKILL.md', 'MCP memory scope（workspace-namespace）', 'memory skill explicit MCP scope')
   mustNotInclude('instructions/15-memory.instructions.md', 'Profile 显式配置**（优先）', '15-memory legacy profile-priority agent')
   mustNotInclude('skills/memory/SKILL.md', 'Profile 显式配置**（优先）', 'memory skill legacy profile-priority agent')
 
@@ -773,17 +810,33 @@ function checkV13() {
   mustInclude('hooks/_runtime/lifecycle.cjs', 'contextMessageOutput', 'lifecycle Codex UserPromptSubmit context')
   mustInclude('hooks/_runtime/lifecycle.cjs', 'additionalContext', 'lifecycle Codex UserPromptSubmit context')
   mustInclude('hooks/_runtime/lifecycle.cjs', 'warningOutput(reason, detail, eventName)', 'lifecycle Codex warning context')
+  mustInclude('hooks/_runtime/lifecycle.cjs', 'INTERCEPTION_ACTION', 'lifecycle interception action model')
+  mustInclude('hooks/_runtime/lifecycle.cjs', 'interceptions.jsonl', 'lifecycle interception audit log')
+  mustInclude('hooks/_runtime/lifecycle.cjs', 'eventSupportsHardBlock', 'lifecycle host hard-block capability')
+  mustInclude('hooks/_runtime/lifecycle.cjs', 'normalizeHookEvent', 'lifecycle host event normalization')
+  mustInclude('hooks/_runtime/lifecycle.cjs', 'dangerous-command-confirmed', 'lifecycle dangerous command confirmation audit')
+  mustInclude('hooks/_runtime/lifecycle.cjs', 'stopReason', 'lifecycle Codex PreCompact contract output')
+  mustInclude('hooks/_runtime/lifecycle.cjs', 'devcodex-approve', 'lifecycle dangerous command approval marker')
   mustInclude('scripts/test-hooks-runtime.js', 'autoCodexEntryAllowed', 'hooks runtime Codex governance test')
   mustInclude('scripts/test-hooks-runtime.js', 'autoCodexHookAllowed', 'hooks runtime Codex governance test')
   mustInclude('scripts/test-hooks-runtime.js', 'multiProjectPromptWarning', 'hooks runtime Codex multi-project warning context')
+  mustInclude('scripts/test-hooks-runtime.js', 'dangerous-command-approved', 'hooks runtime dangerous command audit test')
+  mustInclude('scripts/test-hooks-runtime.js', 'strictStopBlock', 'hooks runtime strict Stop block test')
   mustInclude('index.js', 'cmdInitCodex', 'index Codex adapter')
   mustInclude('index.js', 'CODEX_HOOK_COMMAND', 'index Codex adapter')
   mustInclude('index.js', 'readCodexHookCommands', 'index Codex hook command diagnostics')
   mustInclude('index.js', 'Codex trust/config', 'index Codex trust/config diagnostics')
+  mustInclude('index.js', 'hook guardrail (Codex; event-dependent)', 'index Codex event-dependent guardrail diagnostics')
+  mustInclude('index.js', 'workspace-hooks detected (VS Code Copilot preview; verify target IDE)', 'index VS Code hook preview diagnostics')
+  mustInclude('index.js', 'default safety-only warns/continues', 'index enforcement default diagnostics')
   mustInclude('codex/hooks.json', '.codex/hooks/_runtime/lifecycle.cjs', 'Codex hook config')
   mustInclude('README.md', 'OpenAI Codex app/CLI', 'README Codex support matrix')
+  mustInclude('README.md', 'Codex hook guardrail', 'README Codex support matrix capability caveat')
+  mustInclude('README.md', 'Hook 拦截动作语义', 'README interception action semantics')
+  mustInclude('instructions.md', 'Hook 拦截动作语义', 'instructions interception action semantics')
   mustNotInclude('README.md', 'ChatGPT / OpenAI Codex', 'README Codex support matrix')
   mustNotInclude('README.md', '仅 instruction 注入，无运行时拦截', 'README support-level legend')
+  mustNotInclude('README.md', 'OpenAI Codex app/CLI** | `AGENTS.md` + `.agents/skills/` + `.codex/hooks.json` | ✅ `lifecycle.cjs` | ✅ Hook | ❌ 未内置 MCP', 'README Codex MCP overclaim')
   mustInclude('prompts/technical-design.prompt.md', 'tsc --noEmit', 'technical design prompt')
   mustInclude('prompts/report-dev.prompt.md', '静态/类型检查', 'report dev prompt')
   mustInclude('prompts/report-fix.prompt.md', '静态/类型检查', 'report fix prompt')
@@ -833,6 +886,7 @@ function checkV13() {
   mustInclude('skills/dev-default/SKILL.md', '目录导航', 'dev default skill')
 
   mustInclude('skills/cp-gate/SKILL.md', 'CP3: N/A', 'cp gate skill')
+  mustInclude('skills/cp-gate/SKILL.md', '问题 ID 映射', 'cp gate audit-to-fix issue mapping')
   mustInclude('hooks/_runtime/lifecycle.cjs', 'CP3Exempt', 'lifecycle runtime')
   console.log('[V13] template semantic probes passed')
 }
@@ -1377,8 +1431,10 @@ function checkV24() {
     { file: 'website/rspress.config.ts', needle: 'Copilot / Claude Code' },
     { file: 'website/docs/index.md', needle: 'Copilot / Claude Code' },
     { file: 'website/docs/index.md', needle: 'Codex' },
+    { file: 'website/docs/index.md', needle: 'Hook 能力按宿主/事件降级' },
     { file: 'website/docs/intro/index.md', needle: 'Copilot / Claude Code' },
     { file: 'website/docs/intro/index.md', needle: 'Codex' },
+    { file: 'website/docs/intro/index.md', needle: 'Hook 能力按宿主/事件降级' },
     { file: 'package.json', needle: 'Claude Code' },
     { file: 'package.json', needle: 'Codex' },
     { file: 'plugin.json', needle: 'Claude Code' },

@@ -19,13 +19,13 @@ features:
   - title: 🛠️ 35 个 Skills
     details: 扁平化 Skill 体系，覆盖开发、修复、审计、分析、自修复等全场景
   - title: 🧩 三宿主分发
-    details: Copilot、Claude Code 与 Codex 共用同一规范源；Codex 通过 AGENTS.md、.agents/skills 与 .codex/hooks.json 生效
+    details: Copilot、Claude Code 与 Codex 共用同一规范源；Hook 能力按宿主/事件降级，Codex 按事件契约使用顶层 decision、continue:false 或工具级 permissionDecision
   - title: 🔒 四层合规检查
     details: FC（形式合规）→ SC（实质合规）→ RC（恢复性检查）→ T（任务完成验证）；chat 仅保留记忆与 dev 预检查
   - title: 🧠 跨会话记忆
     details: 三层记忆体系（Agent 日记 / 需求记忆 / 项目总记忆），支持 resume 恢复中断任务
   - title: ⚡ 双执行模式
-    details: 确认模式（@DevCodex）与 Auto v1.1（@DevCodex Auto，白名单路径自动推进），安全底线始终强制执行
+    details: 确认模式（@DevCodex）与 Auto v1.1（@DevCodex Auto，白名单路径自动推进）；默认 safety-only 流程提醒放行，危险命令需用户确认 id 后才可一次性重试
   - title: 🏢 v2.0.0 多租户
     details: v2 系列规划中，用于平台化与多租户方向
 ---

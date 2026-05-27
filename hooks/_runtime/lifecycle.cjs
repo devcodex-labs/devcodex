@@ -13,6 +13,7 @@
 
 const fs = require('fs')
 const path = require('path')
+const crypto = require('crypto')
 
 const CONTEXT_ROOT = process.cwd()
 const PAYLOAD_PREVIEW_LIMIT = 160
@@ -149,6 +150,14 @@ const STATE_DIR = path.join(WORKSPACE_ROOT, '.devcodex', '.memory', 'hooks', STA
 const STATE_FILE = path.join(STATE_DIR, 'lifecycle-state.json')
 const FINAL_PAYLOAD_FLAG = path.join(STATE_DIR, 'capture-final-payload.flag')
 const FINAL_PAYLOAD_LOG = path.join(STATE_DIR, 'captured-final-payloads.ndjson')
+const INTERCEPTION_LOG = path.join(STATE_DIR, 'interceptions.jsonl')
+const INTERCEPTION_ACTION = {
+  FORBID: 'forbid',
+  REQUIRE_COMPLETION: 'require_completion',
+  WARN_CONTINUE: 'warn_continue',
+  LOG_ONLY: 'log_only'
+}
+const APPROVAL_TTL_MS = 10 * 60 * 1000
 
 function resolveProjectName(projectName) {
   return String(projectName || '').trim() || CONTEXT_PROJECT || ''
@@ -321,6 +330,7 @@ function escapeRegExp(text) {
  */
 function detectPlatform(payload) {
   if (process.env.CLAUDE_CODE_VERSION || process.env.CLAUDE_HOOK_COMMAND) return 'claude'
+  if (process.env.CODEX_SANDBOX || process.env.CODEX_HOME || process.env.OPENAI_CODEX) return 'codex'
   if (process.env.IDEA_INITIAL_DIRECTORY || process.env.JETBRAINS_IDE) return 'jetbrains-copilot'
   const toolName = String(payload.tool_name || payload.toolName || '').trim()
   if (toolName && /^[A-Z]/.test(toolName)) return 'claude'
@@ -334,10 +344,25 @@ function noopOutput() { return { continue: true } }
 
 function isStrictEnforcement() { return ENFORCEMENT_MODE === 'strict' }
 
-function blockOutput(platform, eventName, reason, detail) {
-  if (platform === 'claude') {
-    return { decision: 'block', reason: detail || reason }
+function decorateHookOutput(output, meta = {}) {
+  if (!meta || !Object.keys(meta).length) return output
+  if (!output?.hookSpecificOutput || !Object.prototype.hasOwnProperty.call(output.hookSpecificOutput, 'permissionDecision')) {
+    return output
   }
+  const next = { ...output }
+  const hookSpecificOutput = { ...(next.hookSpecificOutput || {}) }
+  for (const [key, value] of Object.entries(meta)) {
+    if (value !== undefined && value !== null && value !== '') hookSpecificOutput[key] = value
+  }
+  if (Object.keys(hookSpecificOutput).length) next.hookSpecificOutput = hookSpecificOutput
+  return next
+}
+
+function normalizeHookEvent(eventName) {
+  return String(eventName || '').trim().toLowerCase().replace(/[^a-z]/g, '')
+}
+
+function toolBlockOutput(eventName, reason, detail) {
   return {
     continue: true,
     systemMessage: `DevCodex hook: ${reason}`,
@@ -348,6 +373,28 @@ function blockOutput(platform, eventName, reason, detail) {
       additionalContext: detail || reason
     }
   }
+}
+
+function blockOutput(platform, eventName, reason, detail) {
+  const event = normalizeHookEvent(eventName)
+  const message = detail || reason
+  if (platform === 'codex') {
+    if (['pretooluse', 'permissionrequest'].includes(event)) {
+      return toolBlockOutput(eventName, reason, detail)
+    }
+    if (['precompact', 'postcompact'].includes(event)) {
+      return { continue: false, suppressOutput: false, stopReason: message }
+    }
+    if (['userpromptsubmit', 'stop', 'subagentstop', 'agentstop'].includes(event)) {
+      return { decision: 'block', reason: message }
+    }
+    return toolBlockOutput(eventName, reason, detail)
+  }
+  if (platform === 'claude') {
+    if (event === 'pretooluse') return toolBlockOutput(eventName, reason, detail)
+    return { decision: 'block', reason: message }
+  }
+  return toolBlockOutput(eventName, reason, detail)
 }
 
 function systemMessageOutput(message) {
@@ -369,6 +416,57 @@ function warningOutput(reason, detail, eventName) {
   const message = `DevCodex hook warning: ${reason}${detail ? ` — ${detail}` : ''}`
   if (eventName === 'UserPromptSubmit') return contextMessageOutput(eventName, message)
   return systemMessageOutput(message)
+}
+
+function eventSupportsHardBlock(platform, eventName) {
+  const event = normalizeHookEvent(eventName)
+  if (platform === 'jetbrains-copilot' || platform === 'cursor' || platform === 'vscode-copilot') return false
+  if (platform === 'claude') {
+    return ['pretooluse', 'userpromptsubmit', 'posttooluse', 'stop', 'subagentstop', 'agentstop', 'precompact', 'configchange'].includes(event)
+  }
+  if (platform === 'codex') {
+    return ['pretooluse', 'permissionrequest', 'userpromptsubmit', 'stop', 'subagentstop', 'agentstop', 'precompact', 'postcompact'].includes(event)
+  }
+  return ['pretooluse', 'permissionrequest'].includes(event)
+}
+
+function appendInterception(state, entry) {
+  const record = {
+    time: new Date().toISOString(),
+    eventName: entry.eventName || '',
+    platform: entry.platform || 'unknown',
+    action: entry.action || INTERCEPTION_ACTION.LOG_ONLY,
+    code: entry.code || '',
+    effective: !!entry.effective,
+    reason: entry.reason || '',
+    nextStep: entry.nextStep || '',
+    mode: state?.mode || '',
+    enforcementMode: ENFORCEMENT_MODE,
+    activeProject: state?.activeProject || ''
+  }
+  fs.mkdirSync(STATE_DIR, { recursive: true })
+  fs.appendFileSync(INTERCEPTION_LOG, `${JSON.stringify(record)}\n`)
+}
+
+function recordInterception(state, eventName, platform, action, code, reason, nextStep, effective) {
+  state.lastReason = code || reason || state.lastReason
+  appendInterception(state, { eventName, platform, action, code, reason, nextStep, effective })
+}
+
+function buildInterceptionOutput(state, platform, eventName, action, code, reason, detail, nextStep) {
+  const strict = isStrictEnforcement()
+  const effective = action === INTERCEPTION_ACTION.FORBID ||
+    (action === INTERCEPTION_ACTION.REQUIRE_COMPLETION && strict && eventSupportsHardBlock(platform, eventName))
+  const output = effective
+    ? blockOutput(platform, eventName, reason, detail)
+    : warningOutput(reason, detail, eventName)
+  recordInterception(state, eventName, platform, action, code, reason, nextStep, effective)
+  return decorateHookOutput(output, {
+    devcodexAction: action,
+    devcodexCode: code,
+    devcodexEffective: effective,
+    devcodexNextStep: nextStep
+  })
 }
 
 // ─── Multi-project workspace detection (v1.9.8+) ──────────────────────────────
@@ -610,6 +708,7 @@ function buildDefaultState(mode) {
     bootstrapComplete: false,
     visible: { payloadObserved: false, precheck: false, compliance: false, artifactPaths: false },
     mutated: false, reportTouched: false, memoryTouched: false,
+    dangerousApprovals: {},
     lastEvent: '', lastReason: ''
   }
 }
@@ -622,7 +721,8 @@ function loadState(modeHint) {
   return {
     ...current, ...saved, mode,
     bootstrap: { ...current.bootstrap, ...(saved.bootstrap || {}) },
-    visible: { ...current.visible, ...(saved.visible || {}) }
+    visible: { ...current.visible, ...(saved.visible || {}) },
+    dangerousApprovals: { ...current.dangerousApprovals, ...(saved.dangerousApprovals || {}) }
   }
 }
 
@@ -637,6 +737,7 @@ function resetState(mode, previousState) {
   state.promptCount = 1
   state.activeProject = previousState?.activeProject || CONTEXT_PROJECT || ''
   state.activeScope = previousState?.activeScope || DEFAULT_SCOPE
+  state.dangerousApprovals = { ...(previousState?.dangerousApprovals || {}) }
   saveState(state)
   return state
 }
@@ -741,22 +842,25 @@ function buildBootstrapDenyOutput(state, payload, eventName, platform) {
   if (!state.bootstrap.summaryRead) missing.push('SUMMARY')
   if (!state.bootstrap.tasksRead) missing.push('tasks')
   const toolName = getToolName(payload) || 'tool'
-  return blockOutput(
-    platform || 'copilot', eventName,
+  return buildInterceptionOutput(
+    state, platform || 'copilot', eventName, INTERCEPTION_ACTION.REQUIRE_COMPLETION, 'bootstrap-incomplete',
     `Blocked tool use before DevCodex bootstrap: ${toolName}`,
-    `Read .devcodex/profile/ plus SUMMARY/tasks memory files first. Missing: ${missing.join(', ') || 'none'}.`
+    `Read .devcodex/profile/ plus SUMMARY/tasks memory files first. Missing: ${missing.join(', ') || 'none'}.`,
+    'Read the effective profile, SUMMARY, and today tasks file, then retry the tool.'
   )
 }
 
-function buildBootstrapWarningOutput(state, payload) {
+function buildBootstrapWarningOutput(state, payload, eventName, platform) {
   const missing = []
   if (!state.bootstrap.profileRead) missing.push('profile')
   if (!state.bootstrap.summaryRead) missing.push('SUMMARY')
   if (!state.bootstrap.tasksRead) missing.push('tasks')
   const toolName = getToolName(payload) || 'tool'
-  return warningOutput(
+  return buildInterceptionOutput(
+    state, platform || 'copilot', eventName, INTERCEPTION_ACTION.REQUIRE_COMPLETION, 'bootstrap-incomplete',
     `Bootstrap incomplete before ${toolName}`,
-    `Read .devcodex/profile/ plus SUMMARY/tasks memory files as soon as possible. Missing: ${missing.join(', ') || 'none'}. Tool allowed in safety-only mode.`
+    `Read .devcodex/profile/ plus SUMMARY/tasks memory files as soon as possible. Missing: ${missing.join(', ') || 'none'}. Tool allowed in safety-only mode.`,
+    'Read bootstrap files before substantive work.'
   )
 }
 
@@ -768,11 +872,11 @@ function buildBootstrapWarningKey(state, payload) {
   return [state.promptCount || 0, missing.join(',')].join('|')
 }
 
-function buildDedupedBootstrapWarningOutput(state, payload) {
+function buildDedupedBootstrapWarningOutput(state, payload, eventName, platform) {
   const key = buildBootstrapWarningKey(state, payload)
   if (state.lastBootstrapWarningKey === key) return noopOutput()
   state.lastBootstrapWarningKey = key
-  return buildBootstrapWarningOutput(state, payload)
+  return buildBootstrapWarningOutput(state, payload, eventName, platform)
 }
 
 // ─── CP Gate ─────────────────────────────────────────────────────────────────
@@ -1061,37 +1165,41 @@ function isSourceCodeMutation(payload, platform) {
   return !touchesPath(payload, '.devcodex/', '.github/', '.claude/')
 }
 
-function buildCpDenyOutput(platform, eventName, gate, toolName) {
+function buildCpDenyOutput(state, platform, eventName, gate, toolName) {
   const msgs = {
     CP2: 'CP2 (技术方案) 未完成 — 请先输出对应的 CP2 方案产物（如 02-技术方案.md 或 CP2 报告产物），并在 .memory/sessions.md 记录用户确认（✅）后再编码。',
     CP3: `CP3 (实施计划) 未完成 — 请先输出 ${CP3_FILE} 并在 .memory/sessions.md 记录用户确认（✅）后再编码。`
   }
   const msg = msgs[gate.phase]
-  return blockOutput(
-    platform, eventName,
+  return buildInterceptionOutput(
+    state, platform, eventName, INTERCEPTION_ACTION.REQUIRE_COMPLETION, `cp-gate-${gate.phase}`,
     `CP gate: ${gate.phase} not confirmed for "${gate.reqName}" — ${toolName} denied`,
-    msg
+    msg,
+    `Complete and confirm ${gate.phase}, then retry the source mutation.`
   )
 }
 
-function buildCpWarningOutput(gate, toolName) {
+function buildCpWarningOutput(state, platform, eventName, gate, toolName) {
   const detail = gate.phase === 'CP2'
     ? 'CP2 (技术方案) 未完成；请尽快补齐方案产物与用户确认记录。'
     : `CP3 (实施计划) 未完成；请尽快补齐 ${CP3_FILE} 与用户确认记录。`
-  return warningOutput(
+  return buildInterceptionOutput(
+    state, platform, eventName, INTERCEPTION_ACTION.REQUIRE_COMPLETION, `cp-gate-${gate.phase}`,
     `CP gate warning: ${gate.phase} not confirmed for "${gate.reqName}" before ${toolName}`,
-    `${detail} Tool allowed in safety-only mode.`
+    `${detail} Tool allowed in safety-only mode.`,
+    `Complete and confirm ${gate.phase}, then retry the source mutation.`
   )
 }
 
 // ─── Dangerous command detection ──────────────────────────────────────────────
 
 const DANGEROUS_PATTERNS = [
+  { re: /\brm\s+-rf\s+(?:\/|[A-Za-z]:\\?)(?:\s|$)/i, reason: 'Blocked: rm -rf root', neverApprove: true },
   { re: /\brm\s+-rf\b/i, reason: 'Blocked: rm -rf' },
   { re: /\bgit\s+reset\s+--hard\b/i, reason: 'Blocked: git reset --hard' },
-  { re: /\bdrop\s+table\b/i, reason: 'Blocked: DROP TABLE' },
-  { re: /\bdelete\s+from\b(?:(?!\bwhere\b|;)[\s\S])*(?:;|$)/i, reason: 'Blocked: DELETE FROM without WHERE' },
-  { re: /\btruncate\b/i, reason: 'Blocked: TRUNCATE' },
+  { re: /\bdrop\s+table\b/i, reason: 'Blocked: DROP TABLE', neverApprove: true },
+  { re: /\bdelete\s+from\b(?:(?!\bwhere\b|;)[\s\S])*(?:;|$)/i, reason: 'Blocked: DELETE FROM without WHERE', neverApprove: true },
+  { re: /\btruncate\b/i, reason: 'Blocked: TRUNCATE', neverApprove: true },
   { re: /\bdel\s+\/f\s+\/q\b/i, reason: 'Blocked: del /f /q' },
   { re: /Remove-Item.*-Recurse.*-Force/i, reason: 'Blocked: Remove-Item -Recurse -Force' }
 ]
@@ -1107,7 +1215,104 @@ function checkDangerousCommand(payload, platform) {
   const cmd = getCommandText(payload)
   const readOnlySearch = /^\s*(?:rg|grep|Select-String)\b/i.test(cmd)
   if (readOnlySearch && !/[;&|`$()]/.test(cmd.replace(/["'][^"']*["']/g, ''))) return null
-  return DANGEROUS_PATTERNS.find(p => p.re.test(cmd)) || null
+  const danger = DANGEROUS_PATTERNS.find(p => p.re.test(stripApprovalMarker(cmd)))
+  if (!danger) return null
+  return { ...danger, command: cmd }
+}
+
+function stripApprovalMarker(command) {
+  return String(command || '')
+    .replace(/(?:#\s*)?\bdevcodex-approve:([a-f0-9]{12})\b/ig, '')
+    .replace(/\s+#\s*$/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function extractApprovalId(command) {
+  const m = String(command || '').match(/\bdevcodex-approve:([a-f0-9]{12})\b/i)
+  return m ? m[1].toLowerCase() : ''
+}
+
+function hashDangerousCommand(command, cwd) {
+  const canonical = `${path.resolve(cwd || CONTEXT_ROOT)}\n${stripApprovalMarker(command)}`
+  return crypto.createHash('sha256').update(canonical).digest('hex')
+}
+
+function pruneDangerousApprovals(state) {
+  const approvals = state.dangerousApprovals || {}
+  const now = Date.now()
+  for (const [id, approval] of Object.entries(approvals)) {
+    if (!approval || approval.used || now - Number(approval.createdAtMs || 0) > APPROVAL_TTL_MS) {
+      delete approvals[id]
+    }
+  }
+  state.dangerousApprovals = approvals
+}
+
+function createDangerousApproval(state, danger) {
+  pruneDangerousApprovals(state)
+  const commandHash = hashDangerousCommand(danger.command, CONTEXT_ROOT)
+  const approvalId = commandHash.slice(0, 12)
+  const existing = state.dangerousApprovals?.[approvalId]
+  if (existing && !existing.used && existing.commandHash === commandHash && existing.cwd === path.resolve(CONTEXT_ROOT)) {
+    return approvalId
+  }
+  state.dangerousApprovals[approvalId] = {
+    commandHash,
+    cwd: path.resolve(CONTEXT_ROOT),
+    reason: danger.reason,
+    status: 'pending',
+    createdAt: new Date().toISOString(),
+    createdAtMs: Date.now(),
+    used: false
+  }
+  return approvalId
+}
+
+function extractApprovalIds(text) {
+  return [...String(text || '').matchAll(/\bdevcodex-approve:([a-f0-9]{12})\b/ig)].map(match => match[1].toLowerCase())
+}
+
+function promptConfirmsDangerousApproval(prompt) {
+  const text = String(prompt || '')
+  if (/(?:不(?:确认|同意|批准|允许|执行)|不要|拒绝|deny|do\s+not|don't|not\s+approve)/i.test(text)) return false
+  return /(?:确认|同意|批准|允许|执行|继续|重试|approve|approved|confirm|confirmed|yes|ok|okay|proceed|continue)/i.test(text)
+}
+
+function confirmDangerousApprovalsFromPrompt(state, prompt, eventName, platform) {
+  pruneDangerousApprovals(state)
+  const ids = extractApprovalIds(prompt)
+  if (!ids.length || !promptConfirmsDangerousApproval(prompt)) return []
+  const confirmed = []
+  for (const approvalId of ids) {
+    const approval = state.dangerousApprovals?.[approvalId]
+    if (!approval || approval.used || approval.status === 'confirmed') continue
+    approval.status = 'confirmed'
+    approval.confirmedAt = new Date().toISOString()
+    approval.confirmedBy = 'UserPromptSubmit'
+    confirmed.push(approvalId)
+    recordInterception(
+      state, eventName, platform, INTERCEPTION_ACTION.LOG_ONLY, 'dangerous-command-confirmed',
+      approval.reason || 'dangerous command approval confirmed',
+      `Dangerous command approval ${approvalId} confirmed by user prompt.`, true
+    )
+  }
+  return confirmed
+}
+
+function consumeDangerousApproval(state, danger) {
+  pruneDangerousApprovals(state)
+  const approvalId = extractApprovalId(danger.command)
+  if (!approvalId) return { approved: false }
+  const approval = state.dangerousApprovals?.[approvalId]
+  const commandHash = hashDangerousCommand(danger.command, CONTEXT_ROOT)
+  if (!approval || approval.used || approval.status !== 'confirmed' || approval.commandHash !== commandHash || approval.cwd !== path.resolve(CONTEXT_ROOT)) {
+    return { approved: false, approvalId }
+  }
+  approval.used = true
+  approval.status = 'used'
+  approval.usedAt = new Date().toISOString()
+  return { approved: true, approvalId }
 }
 
 // ─── Artifact touches ────────────────────────────────────────────────────────
@@ -1241,6 +1446,7 @@ async function main() {
   if (eventName === 'UserPromptSubmit') {
     state = resetState(mode, state)
     state.executionMode = detectExecutionMode(payload)
+    confirmDangerousApprovalsFromPrompt(state, prompt, eventName, platform)
     if (hasMultiProjectExemption(prompt)) {
       state.activeProject = ''
       state.activeScope = LAYOUT.enabled ? 'workspace' : 'project'
@@ -1261,15 +1467,15 @@ async function main() {
     if (!hasWorkspaceProfile && isMultiProjectWorkspace()) {
       if (!hasMultiProjectExemption(prompt) && !state.activeProject) {
         state.lastReason = 'multi-project-workspace-block'
+        const detail = isStrictEnforcement()
+          ? buildMultiProjectBlockMessage()
+          : `${buildMultiProjectBlockMessage()} Prompt allowed in safety-only mode.`
+        const output = buildInterceptionOutput(
+          state, platform, eventName, INTERCEPTION_ACTION.REQUIRE_COMPLETION, 'multi-project-workspace',
+          'multi-project-workspace', detail, 'Specify the target project or use a workspace-level exemption keyword.'
+        )
         saveState(state)
-        if (isStrictEnforcement()) {
-          writeStdout(blockOutput(
-            platform, eventName, 'multi-project-workspace',
-            buildMultiProjectBlockMessage()
-          ))
-        } else {
-          writeStdout(warningOutput('multi-project-workspace', `${buildMultiProjectBlockMessage()} Prompt allowed in safety-only mode.`, eventName))
-        }
+        writeStdout(output)
         return
       }
     }
@@ -1287,13 +1493,26 @@ async function main() {
     // 1. Dangerous command guard
     const danger = checkDangerousCommand(payload, platform)
     if (danger) {
-      state.lastReason = danger.reason
+      const approval = consumeDangerousApproval(state, danger)
+      if (approval.approved) {
+        recordInterception(
+          state, eventName, platform, INTERCEPTION_ACTION.LOG_ONLY, 'dangerous-command-approved',
+          danger.reason, `One-time approval ${approval.approvalId} consumed.`, true
+        )
+      } else {
+        const approvalId = danger.neverApprove ? '' : createDangerousApproval(state, danger)
+        const detail = danger.neverApprove
+          ? `${danger.reason} — 该命令属于不可放行危险操作，请改用安全替代方案（S06）。`
+          : `${danger.reason} — 请先输出命令预览并等待用户明确确认（S06）。确认后可在同一 cwd、10 分钟内以 devcodex-approve:${approvalId} 重试同一命令。`
+        const output = buildInterceptionOutput(
+          state, platform, eventName, INTERCEPTION_ACTION.FORBID, 'dangerous-command',
+          danger.reason, detail, danger.neverApprove ? 'Use a safe alternative command.' : `Get explicit user approval, then retry with devcodex-approve:${approvalId}.`
+        )
+        saveState(state)
+        writeStdout(output)
+        return
+      }
       saveState(state)
-      writeStdout(blockOutput(
-        platform, eventName, danger.reason,
-        `${danger.reason} — 请先输出命令预览并等待用户明确确认（S06）。`
-      ))
-      return
     }
 
     // 2. Bootstrap enforcement (all modes, both Copilot and Claude Code)
@@ -1309,7 +1528,7 @@ async function main() {
         state.lastReason = 'blocked-before-bootstrap'
         const output = isStrictEnforcement()
           ? buildBootstrapDenyOutput(state, payload, eventName, platform)
-          : buildDedupedBootstrapWarningOutput(state, payload)
+          : buildDedupedBootstrapWarningOutput(state, payload, eventName, platform)
         saveState(state)
         writeStdout(output)
         return
@@ -1330,12 +1549,19 @@ async function main() {
       state.lastReason = 'auto-non-whitelist-block'
       saveState(state)
       if (isStrictEnforcement()) {
-        writeStdout(blockOutput(
-          platform, eventName, 'auto-whitelist-boundary',
-          `${autoWhitelist.reason} — 请切回确认模式，或先把变更范围收敛到白名单路径。`
+        writeStdout(buildInterceptionOutput(
+          state, platform, eventName, INTERCEPTION_ACTION.REQUIRE_COMPLETION, 'auto-whitelist-boundary',
+          'auto-whitelist-boundary',
+          `${autoWhitelist.reason} — 请切回确认模式，或先把变更范围收敛到白名单路径。`,
+          'Switch back to confirm mode or keep the mutation within the auto whitelist.'
         ))
       } else {
-        writeStdout(warningOutput('auto-whitelist-boundary', `${autoWhitelist.reason} Tool allowed in safety-only mode.`))
+        writeStdout(buildInterceptionOutput(
+          state, platform, eventName, INTERCEPTION_ACTION.REQUIRE_COMPLETION, 'auto-whitelist-boundary',
+          'auto-whitelist-boundary',
+          `${autoWhitelist.reason} Tool allowed in safety-only mode.`,
+          'Switch back to confirm mode or keep the mutation within the auto whitelist.'
+        ))
       }
       return
     }
@@ -1347,8 +1573,8 @@ async function main() {
       state.lastReason = `cp-gate-${gate.phase}`
       saveState(state)
       writeStdout(isStrictEnforcement()
-        ? buildCpDenyOutput(platform, eventName, gate, getToolName(payload) || 'tool')
-        : buildCpWarningOutput(gate, getToolName(payload) || 'tool'))
+        ? buildCpDenyOutput(state, platform, eventName, gate, getToolName(payload) || 'tool')
+        : buildCpWarningOutput(state, platform, eventName, gate, getToolName(payload) || 'tool'))
       return
     }
 
@@ -1370,8 +1596,18 @@ async function main() {
   if (eventName === 'PreCompact' || eventName === 'Stop') {
     captureFinalPayloadSample(payload, eventName, state)
     const reminder = buildDedupedClosureReminder(state, eventName)
+    let output = reminder ? systemMessageOutput(reminder) : noopOutput()
+    if (reminder) {
+      output = buildInterceptionOutput(
+        state, platform, eventName, INTERCEPTION_ACTION.REQUIRE_COMPLETION, 'closure-incomplete',
+        'DevCodex closure incomplete', reminder,
+        eventName === 'Stop'
+          ? 'Complete the missing entry/compliance/artifact/memory/report items before ending.'
+          : 'Persist missing state before compacting.'
+      )
+    }
     saveState(state)
-    writeStdout(reminder ? systemMessageOutput(reminder) : noopOutput())
+    writeStdout(output)
     return
   }
 

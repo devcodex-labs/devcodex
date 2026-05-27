@@ -18,7 +18,7 @@ applyTo: "**"
 
 > ⛔ PC4 不是"验证 AI 是否遵守规范"，而是"检测规范本身是否存在缺陷"。两者的诊断对象完全不同。
 
-> **设计原则：记录在使用，修复在维护** — PC4 在所有项目/所有工作流中只负责感知并记录（PF → `pending-fixes.md`，VL → `violations.md`），**不触发任何修复动作**。修复动作只在 audit 工作流 + DevCodex plugin 文件两个条件同时满足时才由元循环驱动（见 `12-audit §审查元循环`）。
+> **设计原则：记录在使用，修复在维护** — PC4 在所有项目/所有工作流中只负责感知并记录；具体写入前必须先走 `spec-governance` 的记录意图识别与 RecordRouter（PF → `pending-fixes.md`，VL → `violations.md`，PI/ISSUE/GAP 按意图分流），**不触发任何修复动作**。修复动作只在 audit 工作流 + DevCodex plugin 文件两个条件同时满足时才由元循环驱动（见 `12-audit §审查元循环`）。
 
 ## 核心原则 — 意图模式驱动，非关键词匹配
 
@@ -137,8 +137,14 @@ PC4 入口（仅 dev 模式）
 ├── 检查点 1：收到新消息时（每轮必执行）
 └── 检查点 2：任务执行中检测到异常（当前回复内立即输出诊断）
 
-【前置】用户是否明确要求"记录违规/登记问题"？
-    ├── 是 → 立即走 T_RECORD → 写 VL-NNN → PC4 完成（不延迟）
+【前置】用户是否明确要求"记录/登记/优化规范问题"？
+    ├── 是 → 先走 Intent Detection → RecordRouter
+    │        ├── record.violation → 写 VL-NNN
+    │        ├── record.spec-defect → 写 PF-NNN
+    │        ├── record.process-improvement → 写 PI-NNN
+    │        ├── record.pending-issue → 写 ISSUE-NNN
+    │        ├── record.audit-gap → 写 GR-NNN
+    │        └── record.ambiguous → 先澄清，不写台账
     └── 否 ↓
 
 【Axis A 自检】AI 当前决策/输出是否有明确规范节点支撑？
@@ -203,5 +209,6 @@ PC4 入口（仅 dev 模式）
 | `data/pending-fixes.md` | 目标项目 / 已部署副本中的 PF 输出目标；源仓提供 `data/templates/pending-fixes.md` 模板，维护者实录位于 `.devcodex/.maintainer-state/` |
 | `data/violations.md` | 目标项目 / 已部署副本中的 VL / T_RECORD 输出目标；源仓提供 `data/templates/violations.md` 模板 |
 | `data/process-improvements.md` | 目标项目 / 已部署副本中的 PI 输出目标；源仓提供 `data/templates/process-improvements.md` 模板，维护者实录位于 `.devcodex/.maintainer-state/` |
+| `skills/spec-governance/SKILL.md` | 记录意图识别、RecordRouter 分流、SCV 规范变更验证的集中规则源 |
 | `website/docs/specs/spec-radar-flow.md` | PC4 的专属可视化流程图（三轴决策树 + G1~G9 + 多轴优先级 + 置信度 + 延迟执行）|
 | `website/docs/specs/precheck-flow.md` | 预检查主链流程图（含 PC4 概要入口及指向专属页的链接）|

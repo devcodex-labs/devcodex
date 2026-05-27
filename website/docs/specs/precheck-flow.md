@@ -63,7 +63,7 @@ flowchart TD
     ENTRY_B(["检查点 2：任务执行中发现异常\n→ 当前回复内立即输出诊断"])
     
     EXPLICIT{"用户明确要求\n记录违规/登记问题？"}
-    T_RECORD["立即写入 VL-NNN\nT_RECORD 分支（不延迟）"]
+    T_RECORD["Intent Detection → RecordRouter\n按 record.* 写入对应台账\nT_RECORD 分支（不延迟）"]
 
     AXIS_A{"Axis A：AI 认知锚点\n当前决策有明确规范支撑？"}
     A_NORMAL["Axis A 认知锚点 ✅\n→ 继续 Axis B 对话轨迹"]
@@ -87,7 +87,7 @@ flowchart TD
     C_PF_G9["标记 PF — G9\n用户表示不够/还差\n（与 Axis B 对话轨迹联合）"]
     C_SUSPECT["⚠️ 疑似 PF\n待确认"]
 
-    DEFERRED["延迟执行（FC 前）\nPF → pending-fixes.md\nVL → violations.md\n疑似 → 回复末尾提示"]
+    DEFERRED["延迟执行（FC 前）\nPF/VL/GAP → RecordRouter\n疑似 → 回复末尾提示"]
 
     ENTRY_A --> EXPLICIT
     ENTRY_B --> EXPLICIT

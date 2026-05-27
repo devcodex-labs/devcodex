@@ -26,6 +26,7 @@
  * V22 Workspace namespace layout + migrate-layout semantics（layout.json / active-root / 迁移器 smoke）
  * V23 Independent evaluation semantics（独立验证可采纳，不机械唱反调）
  * V24 Governance/template/client narrative sync（pending-issues 模板链 / 多客户端真相源 / agent 枚举一致性）
+ * V25~V27 ECR/RecordRouter/SCV 与 active-root 落点边界语义
  *
  * Exit: 0=OK, 1=error, 2=warnings only
  */
@@ -1078,7 +1079,9 @@ function checkV19() {
     { file: activePath('profile', '02-架构约束.md'), needle: `Prompt 模板文件（.prompt.md，中文）${promptCount} 个`, rawPath: false },
     { file: activePath('profile', '01-项目信息.md'), needle: `| **data 模板** | ${dataTemplateCount} |`, rawPath: false },
     { file: activePath('profile', '01-项目信息.md'), needle: `| **CLI 工程脚本** | ${scriptCount} |`, rawPath: false },
-    { file: activePath('profile', '01-项目信息.md'), needle: 'scripts/check-syntax.js', rawPath: false }
+    { file: activePath('profile', '01-项目信息.md'), needle: 'scripts/check-syntax.js', rawPath: false },
+    { file: 'website/docs/index.md', needle: `🛠️ ${walk(path.join(ROOT, 'skills')).filter(f => f.endsWith('SKILL.md')).length} 个 Skills` },
+    { file: 'website/docs/intro/index.md', needle: `${walk(path.join(ROOT, 'skills')).filter(f => f.endsWith('SKILL.md')).length} 个按需触发的工作流技能` }
   ]
   for (const check of checks) {
     const filePath = check.rawPath === false ? check.file : path.join(ROOT, check.file)
@@ -1537,6 +1540,121 @@ function checkV25() {
   console.log('[V25] ECR / intent card / confirmation / recommendation semantics checked')
 }
 
+function checkV26() {
+  const probes = [
+    {
+      file: 'skills/spec-governance/SKILL.md',
+      needles: ['RecordRouter', 'SCV-0', 'SCV-7', 'record.violation', 'record.ambiguous', 'AI 与确定性边界']
+    },
+    {
+      file: 'instructions.md',
+      needles: ['规范治理生命周期（RecordRouter + SCV）', 'record.spec-defect', 'SCV（Spec Change Verification）']
+    },
+    {
+      file: 'instructions/18-spec-radar.instructions.md',
+      needles: ['Intent Detection → RecordRouter', 'record.audit-gap', 'skills/spec-governance/SKILL.md']
+    },
+    {
+      file: 'website/docs/specs/precheck-flow.md',
+      needles: ['Intent Detection → RecordRouter', 'PF/VL/GAP → RecordRouter']
+    },
+    {
+      file: 'website/docs/specs/spec-radar-flow.md',
+      needles: ['RecordRouter 分流口径', 'PF/VL/GAP → RecordRouter']
+    },
+    {
+      file: 'instructions/14-self-fix.instructions.md',
+      needles: ['T_RECORD / RecordRouter', 'record.process-improvement', 'record.ambiguous']
+    },
+    {
+      file: 'skills/intent/SKILL.md',
+      needles: ['record.violation', 'record.none', 'RecordRouter']
+    },
+    {
+      file: 'skills/report/SKILL.md',
+      needles: ['规范化意图', 'SCV-0~SCV-7']
+    }
+  ]
+
+  for (const probe of probes) {
+    const content = read(path.join(ROOT, probe.file))
+    for (const needle of probe.needles) {
+      if (!content.includes(needle)) {
+        err(`[V26] spec governance drift in ${probe.file}: missing "${needle}"`)
+      }
+    }
+  }
+
+  const templateProbes = [
+    ['data/templates/violations.md', 'record.violation'],
+    ['data/templates/pending-fixes.md', 'record.spec-defect'],
+    ['data/templates/process-improvements.md', 'record.process-improvement'],
+    ['data/templates/pending-issues.md', 'record.pending-issue'],
+    ['data/templates/gap-registry.md', 'record.audit-gap']
+  ]
+  for (const [file, needle] of templateProbes) mustInclude(file, needle, `template ${needle}`)
+
+  try {
+    execSync('node scripts/test-spec-governance.js', { cwd: ROOT, stdio: 'pipe', encoding: 'utf8' })
+  } catch (e) {
+    const detail = String((e.stderr || e.stdout || e.message || '')).trim().split('\n').slice(0, 8).join(' | ')
+    err(`[V26] test-spec-governance failed${detail ? `: ${detail}` : ''}`)
+  }
+  console.log('[V26] spec governance semantics checked')
+}
+
+function checkV27() {
+  const workspaceRoot = path.dirname(ROOT)
+  const rootArtifactPatterns = [
+    /^AGENTS\.md\.bak\./i,
+    /^mail.*\.json$/i,
+    /^update-mail-temp-content/i,
+    /^webstorm-update-mail/i,
+    /^hs_err_pid.*\.log$/i,
+    /^replay_pid.*\.log$/i
+  ]
+  const misplacedRootArtifacts = fs.readdirSync(workspaceRoot, { withFileTypes: true })
+    .filter(entry => entry.isFile() && rootArtifactPatterns.some(re => re.test(entry.name)))
+    .map(entry => entry.name)
+  if (misplacedRootArtifacts.length) {
+    err(`[V27] workspace root contains transient artifacts that must live under .devcodex/workspace/.tmp: ${misplacedRootArtifacts.join(', ')}`)
+  }
+
+  const layout = readJsonIfExists(path.join(workspaceRoot, '.devcodex', 'layout.json'))
+  if (layout && String(layout.mode || '').trim() === 'workspace-namespace') {
+    const projectTmpLeaks = fs.readdirSync(workspaceRoot, { withFileTypes: true })
+      .filter(entry => entry.isDirectory() && entry.name !== '.devcodex')
+      .flatMap(entry => {
+        const tmpDir = path.join(workspaceRoot, entry.name, '.devcodex', '.tmp')
+        if (!fs.existsSync(tmpDir)) return []
+        const files = walk(tmpDir).filter(file => fs.existsSync(file) && fs.statSync(file).isFile())
+        return files.map(file => path.relative(workspaceRoot, file).replace(/\\/g, '/'))
+      })
+    if (projectTmpLeaks.length) {
+      err(`[V27] project-local .devcodex/.tmp leaks found under workspace-namespace: ${projectTmpLeaks.slice(0, 8).join(', ')}`)
+    }
+  }
+
+  const indexSrc = read(path.join(ROOT, 'index.js'))
+  for (const needle of ['resolveActiveRuntimeRoot', 'ensureRuntimeDirs', 'resolveGitignoreRoot', 'backupDir', '.devcodex/*/.tmp/']) {
+    if (!indexSrc.includes(needle)) {
+      err(`[V27] index.js active-root resolver missing "${needle}"`)
+    }
+  }
+
+  const lifecycleSrc = read(path.join(ROOT, 'hooks', '_runtime', 'lifecycle.cjs'))
+  for (const needle of ['ACTIVE_RUNTIME_ROOT', 'isDevCodexManagedPath', 'DEVCODEX_DEPLOYMENT_PATH_RE']) {
+    if (!lifecycleSrc.includes(needle)) {
+      err(`[V27] lifecycle runtime active-root guard missing "${needle}"`)
+    }
+  }
+  if (/const\s+DEVCODEX_PATH_RE\s*=\s*\/\\\.devcodex\[\/\\{2}\]\|/.test(lifecycleSrc)) {
+    err('[V27] lifecycle runtime still globally whitelists every .devcodex path')
+  }
+
+  console.log('[V27] active-root and transient artifact boundary checked')
+}
+
 function checkV7b() {
   try {
     execSync('node scripts/test-instruction-fallback-check.js', { cwd: ROOT, stdio: 'pipe', encoding: 'utf8' })
@@ -1573,6 +1691,8 @@ checkV22()
 checkV23()
 checkV24()
 checkV25()
+checkV26()
+checkV27()
 
 console.log('')
 if (errors.length) {

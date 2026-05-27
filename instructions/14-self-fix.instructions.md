@@ -54,10 +54,11 @@ applyTo: "**"
 | V6 | 编号唯一性（修复后无重复编号） |
 | V7 | **规则触发条件写作检查**（新增/修改约束时必做）：规范中所有触发条件的主语必须是 **AI 的内部判断**（如 `当 AI 自检发现...` / `当结论依赖...`），禁止以用户措辞/意图作为触发主语（如 `当用户要求...` / `适用场景：用户说...`）。以用户意图为触发主语会产生关键词依赖，用户换个表达即可绕过规则。 |
 
-## 违规记录（T_RECORD 分支）
-- 典型表述："记录这次违规"/"登记一下刚才的问题"
-- 直接追加到运行时违规台账 `data/violations.md`（格式：VL-NNN 行）
-- 不走 SCOPE→CLASSIFY→AUTO/PENDING 流程
+## 记录规范问题（T_RECORD / RecordRouter 分支）
+- 典型表述："记录这次违规"/"登记一下刚才的问题"/"这个规范要优化"/"以后应该这样做"
+- 禁止按关键词直接写 VL；必须先按 `skills/spec-governance/SKILL.md` 识别 `record.violation` / `record.spec-defect` / `record.process-improvement` / `record.pending-issue` / `record.audit-gap` / `record.ambiguous`
+- `record.violation` 写入 `data/violations.md`（VL-NNN），`record.spec-defect` 写入 `data/pending-fixes.md`（PF-NNN），`record.process-improvement` 写入 `data/process-improvements.md`（PI-NNN），`record.pending-issue` 写入 `data/pending-issues.md`（ISSUE-NNN），`record.audit-gap` 写入 `data/gap-registry.md`（GR-NNN）
+- 每次分流必须输出规范化意图、置信度、依据和目标台账；低置信度 `record.ambiguous` 先澄清，不写台账
 
 ## 违规登记状态规则
 - 临时处置 → 状态 `🔄 处理中`

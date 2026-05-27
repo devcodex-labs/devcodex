@@ -59,7 +59,7 @@ npx @vextjs/devcodex init --codex  # 仅 Codex adapter
 ├── copilot-instructions.md  ← 默认 Copilot always-on 总则（新增）
 ├── instructions/   ← Instructions 约束（12 个，含全部工作流规则）
 ├── agents/         ← Copilot 自定义 Agent（v1.9.8 起恢复默认分发）
-├── skills/         ← Skill 详细检查标准（35 个，按需读取）
+├── skills/         ← Skill 详细检查标准（36 个，按需读取，含 spec-governance）
 ├── prompts/        ← Prompt 模板（26 个）
 ├── hooks/          ← 宿主生命周期 Hook 配置与运行时
 │   ├── devcodex.lifecycle.json
@@ -81,7 +81,7 @@ AGENTS.md                 ← 与 instructions.md / copilot-instructions.md / CL
 
 `init --claude` 是 Claude Code-only 路径：只写入 `CLAUDE.md`、`.claude/{instructions,skills,prompts,hooks/_runtime,mcp,data}` 与 `.mcp.json`，并同步开启项目级 hooks / MCP / permissions 配置。
 
-`init --codex` 是 Codex-only 路径：只写入 `AGENTS.md`、`.agents/skills/` 与 `.codex/{hooks.json,hooks/_runtime}`。若工作区根已有非空 `AGENTS.md` 或 `.codex/hooks.json` 且内容不同，CLI 会先生成 `.bak.<timestamp>` 备份再覆盖为 DevCodex 受管副本。
+`init --codex` 是 Codex-only 路径：只写入 `AGENTS.md`、`.agents/skills/` 与 `.codex/{hooks.json,hooks/_runtime}`。若工作区根已有非空 `AGENTS.md` 或 `.codex/hooks.json` 且内容不同，CLI 会先把备份写入 active-root 的 `.tmp/backups/`，再覆盖为 DevCodex 受管副本。
 
 > ⚠️ 请确保 IDE 的 "Use Instruction Files" 设置已开启（默认开启）。
 >
@@ -165,6 +165,7 @@ AGENTS.md                 ← 与 instructions.md / copilot-instructions.md / CL
 - 全工作区任务：写入 `<workspace>/.devcodex/workspace/...`
 - `config.json`：`workspace/profile` 作为 base，`<project>/profile` 作为 overlay
 - Profile 文档：项目命名空间文件优先，缺失回退到 `workspace/profile`
+- CLI / Hook 运行态目录：统一写 active-root；单项目为 `<workspace>/.devcodex/<project>/.memory|.audit-state`，全工作区为 `<workspace>/.devcodex/workspace/.memory|.audit-state`
 
 配套 CLI：
 
@@ -174,7 +175,7 @@ devcodex migrate-layout apply --manifest <manifest-path>
 devcodex migrate-layout rollback --manifest <manifest-path>
 ```
 
-> 真相源说明：只有在 `layout.json` 已创建后，runtime / MCP 才会按 `.devcodex/workspace` 和 `.devcodex/<project>` 解析；未启用时继续兼容旧的 `<project>/.devcodex/`。
+> 真相源说明：只有在 `layout.json` 已创建后，runtime / MCP / profile init 才会按 `.devcodex/workspace` 和 `.devcodex/<project>` 解析；未启用时继续兼容旧的 `<project>/.devcodex/`。启用后不得再向 `<project>/.devcodex/.tmp` 等旧项目内运行态目录写入产物。
 
 ## 本地开发
 
@@ -240,7 +241,7 @@ devcodex/
 ├── instructions.md # 单源规范文件；安装时按平台生成 copilot-instructions.md / CLAUDE.md / AGENTS.md
 ├── agents/        # Agent 源文件；Copilot 端默认分发，Claude Code 端不分发
 ├── instructions/  # 全局 Instructions（12 个，含工作流规则摘要，自动注入）
-├── skills/        # Skill 详细检查标准（35 个，按 01-common §按需读取表 路由读取）
+├── skills/        # Skill 详细检查标准（36 个，按 01-common §按需读取表 路由读取）
 ├── prompts/       # Prompt 模板（26 个）
 ├── hooks/         # Workspace Hooks 配置与分发到 `.github/hooks/_runtime/` 的运行时
 ├── codex/         # Codex Hook 配置源，分发到 `.codex/hooks.json`
@@ -250,6 +251,8 @@ devcodex/
 ├── index.js       # CLI 入口（零依赖）
 └── plugin.json    # 插件元数据
 ```
+
+规范治理新增 `spec-governance` Skill：记录类动作先做意图识别，再由 RecordRouter 分流到 `violations / pending-fixes / process-improvements / pending-issues / gap-registry`；规范/控制面/路径/模板/部署/校验链变更后必须执行 SCV（Spec Change Verification），避免修复一处后引入漂移。
 
 &gt; ℹ️ 维护者状态文件（本仓库开发过程中累积的 violations/pending-fixes 记录）保存在 `.devcodex/.maintainer-state/`，**不分发**给用户。
 

@@ -44,11 +44,11 @@ function getMemoryFilePath(agent, ...segments) {
 }
 
 function getLayoutStateFile(project = 'chat') {
-  return path.join(TEMP_ROOT, '.devcodex', '.memory', 'hooks', project, 'lifecycle-state.json')
+  return path.join(TEMP_ROOT, '.devcodex', project, '.memory', 'hooks', project, 'lifecycle-state.json')
 }
 
 function getLayoutCaptureLog(project = 'chat') {
-  return path.join(TEMP_ROOT, '.devcodex', '.memory', 'hooks', project, 'captured-final-payloads.ndjson')
+  return path.join(TEMP_ROOT, '.devcodex', project, '.memory', 'hooks', project, 'captured-final-payloads.ndjson')
 }
 
 function runBootstrapReads(agent = TEST_AGENT) {
@@ -408,6 +408,19 @@ function main() {
   assert.strictEqual(layoutState.bootstrapComplete, true)
   assert.strictEqual(layoutState.activeScope, 'project')
   assert.strictEqual(layoutState.activeProject, 'chat')
+  assert.ok(!fs.existsSync(path.join(TEMP_ROOT, '.devcodex', '.memory', 'hooks', 'chat', 'lifecycle-state.json')))
+
+  layoutState.executionMode = 'auto'
+  fs.writeFileSync(getLayoutStateFile('chat'), JSON.stringify(layoutState, null, 2))
+  const misplacedTmpWrite = run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'shell_command',
+    tool_input: {
+      command: 'Set-Content .devcodex/.tmp/leak.json "{}"'
+    }
+  }, layoutProjectRoot)
+  assert.strictEqual(misplacedTmpWrite.continue, true)
+  assert.match(misplacedTmpWrite.systemMessage || '', /Auto v1\.1/)
 
   cleanState()
   run({

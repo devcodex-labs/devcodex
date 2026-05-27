@@ -12,10 +12,21 @@
 |--------|:-----------:|:----------------:|
 | 时机 | 任务执行**前/中** | 任务完成**后** |
 | 诊断对象 | **规范本身**是否存在缺陷 | AI 是否遵守了规范 |
-| 输出 | PF 标记 / VL 标记 | 通过 / 不通过 |
-| 修复 | 写入 `pending-fixes.md`（不立即修复）| 内联修正后重检 |
+| 输出 | `record.*` 规范化意图 + PF/VL/GAP 等证据 | 通过 / 不通过 |
+| 修复 | 经 RecordRouter 写入对应台账（不立即修复）| 内联修正后重检 |
 
-> 设计原则：**记录在使用，修复在维护**。PC4 只感知并记录，不触发任何修复动作。
+> 设计原则：**记录在使用，修复在维护**。PC4 只感知并记录，不触发任何修复动作；记录动作由 `spec-governance` 执行意图识别 → RecordRouter 分流，避免把“违规”“规范缺陷”“过程改进”“待排期问题”“审计空白”混写到同一台账。
+
+### RecordRouter 分流口径
+
+| 规范化意图 | 目标台账 |
+|------------|----------|
+| `record.violation` | `data/violations.md` |
+| `record.spec-defect` | `data/pending-fixes.md` |
+| `record.process-improvement` | `data/process-improvements.md` |
+| `record.pending-issue` | `data/pending-issues.md` |
+| `record.audit-gap` | `data/gap-registry.md` |
+| `record.none` / `record.ambiguous` | 不写入；先解释或澄清 |
 
 ---
 
@@ -47,7 +58,7 @@ flowchart TD
     C_Q{"Axis C\n用户预期满足度\n用户是否在补偿\nAI 的规范缺陷？"}
 
     OK["PC4 ✅ 三轴正常\n无规范问题"]
-    DEFERRED["延迟执行（FC 前）\n· PF → pending-fixes.md\n· VL → violations.md\n· 疑似 → 回复末尾提示"]
+    DEFERRED["延迟执行（FC 前）\n· PF/VL/GAP → RecordRouter\n· 疑似 → 回复末尾提示"]
 
     ENTRY --> A_Q
     A_Q -->|"✅ 有规范/已执行"| B_Q
@@ -204,7 +215,7 @@ flowchart TD
     ENTRY_B(["检查点 2：任务执行中发现异常\n→ 当前回复内立即输出诊断"])
     
     EXPLICIT{"用户明确要求\n记录违规/登记问题？"}
-    T_RECORD["立即写入 VL-NNN\nT_RECORD 分支（不延迟）"]
+    T_RECORD["Intent Detection → RecordRouter\n按 record.* 写入对应台账\nT_RECORD 分支（不延迟）"]
 
     AXIS_A{"Axis A：AI 认知锚点\n当前决策有明确规范支撑？"}
     A_NORMAL["Axis A 认知锚点 ✅\n→ 继续 Axis B 对话轨迹"]
@@ -228,7 +239,7 @@ flowchart TD
     C_PF_G9["标记 PF — G9\n用户说'不够/还差'\n（与 Axis B 对话轨迹联合）"]
     C_SUSPECT["⚠️ 疑似 PF\n待确认"]
 
-    DEFERRED["延迟执行（FC 前）\nPF → pending-fixes.md\nVL → violations.md\n疑似 → 回复末尾提示"]
+    DEFERRED["延迟执行（FC 前）\nPF/VL/GAP → RecordRouter\n疑似 → 回复末尾提示"]
 
     ENTRY_A --> EXPLICIT
     ENTRY_B --> EXPLICIT

@@ -118,7 +118,7 @@ DevCodex 当前默认安装面向目标项目分发以下目录和文件：
 │   │   ├── 17-compliance.instructions.md
 │   │   └── 18-spec-radar.instructions.md
 │   │
-│   ├── skills/                          ← 第三层：扁平一级 Skill（35 个）
+│   ├── skills/                          ← 第三层：扁平一级 Skill（36 个）
 │   │   ├── dev-default/SKILL.md
 │   │   ├── fix-default/SKILL.md
 │   │   ├── audit-common/SKILL.md
@@ -142,10 +142,9 @@ DevCodex 当前默认安装面向目标项目分发以下目录和文件：
 │   ├── hooks.json                        ← Codex Hook 入口配置
 │   └── hooks/_runtime/lifecycle.cjs      ← 统一生命周期运行时
 │
-├── .devcodex/                           ← 运行时数据（不提交 Git）
-│   ├── profile/                             项目 profile 上下文
-│   ├── .memory/                             ④⑪ 记忆读写
-│   └── reports/                             ⑩ 输出报告存放
+├── .devcodex/                           ← workspace-namespace 运行态（不提交 Git）
+│   ├── <project>/                           单项目 active-root：profile / requirements / reports / .memory / .audit-state
+│   └── workspace/                           全工作区 active-root：profile / reports / .memory / .audit-state
 │
 └── website/                             ← 文档站
 ```
@@ -175,6 +174,8 @@ description: 'What and when to use. Max 1024 chars.'
 ---
 Markdown 内容
 ```
+
+`spec-governance` 是规范治理专用 Skill，负责记录类意图识别、RecordRouter 台账分流，以及 SCV（Spec Change Verification）规范变更验证。
 
 ---
 

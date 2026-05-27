@@ -109,9 +109,10 @@ description: 识别用户意图类型（dev/fix/analyze/audit/self-fix/chat/resu
 | 修改动机 | 修复规范内部不一致、错误、缺失（非功能迭代、非新增）|
 
 **特殊场景——记录违规**（T_RECORD 分支）：
-- 典型表述："记录这次违规"/"登记一下刚才的问题"
-- 写入目标：运行时违规台账 `data/violations.md`（追加 VL-NNN）；源仓仅保留 `data/templates/violations.md` 模板，维护者实录位于 `.devcodex/.maintainer-state/`
-- 不走 SCOPE→CLASSIFY 流程
+- 典型表述："记录这次违规"/"登记一下刚才的问题"/"这个规范要优化"/"以后应该这样做"
+- 不再按关键词直写 VL；必须先归一为记录意图族：`record.violation`、`record.spec-defect`、`record.process-improvement`、`record.pending-issue`、`record.audit-gap`、`record.none`、`record.ambiguous`
+- 写入目标由 `skills/spec-governance/SKILL.md` 的 RecordRouter 决定：VL/PF/PI/ISSUE/GAP 或不写台账
+- 每次分流必须输出规范化意图、置信度、依据、目标台账；`record.ambiguous` 低置信度时先澄清，不写台账
 
 ## 多任务检测（强制）
 

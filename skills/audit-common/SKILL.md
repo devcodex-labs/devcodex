@@ -169,10 +169,10 @@ SC: SC4 [✅/❌] SC6 [✅/❌] ...（仅列适用项，逐项实际验证后填
 
 | 轴 | 盲点类型 | 判断条件 | 后续动作 |
 |:--:|---------|---------|---------|
-| M1 | **范围盲点** | 发现的文件在上一轮 CRS 扫描关键词中未命中 | 补充关键词重跑 CRS；更新 gap-registry |
+| M1 | **范围盲点** | 发现的文件在上一轮 CRS 扫描关键词中未命中 | 补充关键词重跑 CRS；经 `spec-governance` RecordRouter 记录 `record.audit-gap`，更新 gap-registry |
 | M2 | **缺席盲点** | 问题是字段/条目"缺失"而非"错误值"，grep 无法检测 | 下一轮切换为反向推导（V4 缺席检查逻辑）；更新 gap-registry |
 | M3 | **层次盲点** | 只检查了 Skill/prompt 层，未验证 Instruction 层（最高权威）| 下一轮补查所有三层；更新 gap-registry |
-| M4 | **分离盲点** | 路径/名称发生变更，引用/applyTo 未跟随更新 | 下一轮 grep 新旧名称交叉确认；更新 gap-registry |
+| M4 | **分离盲点** | 路径/名称发生变更，引用/applyTo 未跟随更新 | 下一轮 grep 新旧名称交叉确认；经 RecordRouter 更新 gap-registry |
 
 ### 执行流程
 
@@ -202,7 +202,7 @@ R2+ 发现新问题
   ↓
 步骤五：M1~M4 盲点分析
   - 对每个新问题逐轴过一遍 M1~M4，确定盲点类型（可多轴）
-  - 追加到 data/gap-registry.md（格式：GAP-NNN，含盲点轴编号）
+  - 先归一为 `record.audit-gap`，输出规范化意图、置信度、依据和目标台账，再追加到 data/gap-registry.md（格式：GAP-NNN，含盲点轴编号）
   ↓
 下一轮带着已知盲点类型定向补查
 ```

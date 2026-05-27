@@ -53,6 +53,7 @@ flowchart TD
     POST_DOC{"涉及源码变更?"}
     DOC_S["document-sync"]
     ECR["ECR 执行闭环复审\nCP/报告/记忆/SUMMARY/diff/tests"]
+    SCV["SCV 规范变更验证\nRecordRouter/真相源/部署副本/残留漂移"]
     DONE["dev 执行完成"]
 
     CP1 --> PR1 --> CP2 --> PR --> PR_OK
@@ -65,7 +66,7 @@ flowchart TD
     POST_API -->|"否"| POST_DOC
     POST_DOC -->|"是"| DOC_S --> ECR
     POST_DOC -->|"否"| ECR
-    ECR --> DONE
+    ECR --> SCV --> DONE
 ```
 
 ---
@@ -85,6 +86,7 @@ flowchart TD
     CP3_CHECK{"≥5 文件 或\n含高风险操作?"}
     CP3["CP3 执行确认"]
     ECR["ECR 执行闭环复审\nCP/报告/记忆/SUMMARY/diff/tests"]
+    SCV["SCV 规范变更验证\n规范/路径/模板/部署/校验链变更时必做"]
     DONE["fix 执行完成"]
 
     DIAG --> CP1 --> CP2 --> IR
@@ -93,7 +95,7 @@ flowchart TD
     EXEC --> TEST --> SCAN --> CP3_CHECK
     CP3_CHECK -->|"是"| CP3 --> ECR
     CP3_CHECK -->|"否"| ECR
-    ECR --> DONE
+    ECR --> SCV --> DONE
 ```
 
 ---
@@ -148,7 +150,8 @@ flowchart TD
 1. 工作流执行必须按对应 Skill 规范完整执行
 2. dev/fix 编码后必须运行 lint/typecheck/test；TypeScript 项目优先项目既有 `typecheck`，否则至少执行 1 次 `tsc --noEmit` 这类无产物校验（error ≤ 2 次迭代）
 3. 2 次仍失败 → 停止，输出错误摘要标 ⚠️ 等待用户决策
-4. 执行完成后进入 ⑨ 执行阶段合规检查
+4. 涉及规范、控制面、路径、模板、部署或校验链语义变更时，ECR 后必须执行 SCV（Spec Change Verification）
+5. 执行完成后进入 ⑨ 执行阶段合规检查
 
 ---
 

@@ -51,3 +51,4 @@ data/
 - `data/pending-fixes.md`：承载运行时 PF（规范缺口）记录，主要由 PC4 / spec-radar / audit 轻量登记使用
 - `data/pending-issues.md`：承载**已确认但不阻断当前任务**的治理改进项，按批次进入后续需求或 bug 修复流程
 - `data/process-improvements.md`：只记录“已确认更优的执行策略”，不替代前两者
+- `data/violations.md`、`data/pending-fixes.md`、`data/process-improvements.md`、`data/pending-issues.md`、`data/gap-registry.md` 的写入必须先经 `spec-governance` 的 RecordRouter 分流，记录规范化意图、置信度、依据和目标台账

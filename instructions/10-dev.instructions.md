@@ -296,7 +296,7 @@ CP1（需求确认）→ PR-1 内部自检 → CP2（方案确认）→ plan-rev
 | ECR-4 | 报告声明 → 测试/探针/官方文档 | 避免过度宣称 |
 | ECR-5 | memory daily → SUMMARY | 避免 SUMMARY 早标绿 |
 | ECR-6 | git dirty 边界 | 避免混入用户另案变更 |
-| ECR-7 | 控制面任务追加 validate / direct replay / host-contract probe | 避免校验假绿 |
+| ECR-7 | 控制面任务追加 validate / direct replay / host-contract probe；涉及规范源、Skill、Hook、CLI、MCP、模板、部署副本、路径规则或 validate 语义时必须执行 SCV（见 `skills/spec-governance/SKILL.md`） | 避免校验假绿与规范漂移 |
 
 ### 阻断性问题定义
 

@@ -50,7 +50,7 @@ agents/
 - 安全底线 S01~S06 不可覆盖
 
 ### Skills 声明
-- `1.0.0` 阶段规划通过 Agent 文件 HTML 注释声明 34 个 Skills；当前实现为 35 个 Skills
+- `1.0.0` 阶段规划通过 Agent 文件 HTML 注释声明 34 个 Skills；后续实现数量以 `plugin.json` 与 `skills/` 目录为准，本历史页不再维护固定数量
 - 核心 Skills 同时注册在 `plugin.json`
 
 ## 验收标准

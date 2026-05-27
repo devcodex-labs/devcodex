@@ -9,6 +9,8 @@ const { spawnSync } = require('child_process')
 
 const ROOT = path.resolve(__dirname, '..')
 const CLI = path.join(ROOT, 'scripts', 'migrate-layout.js')
+const INDEX = path.join(ROOT, 'index.js')
+const { resolveActiveRuntimeRoot, resolveGitignoreRoot } = require(INDEX)
 const TEMP_ROOT = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-layout-migrate-'))
 
 function run(args, cwd = TEMP_ROOT) {
@@ -51,6 +53,20 @@ function main() {
   assert.ok(fs.existsSync(path.join(TEMP_ROOT, '.devcodex', 'workspace', '.memory', 'SUMMARY.md')))
   assert.ok(!fs.existsSync(path.join(TEMP_ROOT, 'chat', '.devcodex')))
   assert.ok(!fs.existsSync(path.join(TEMP_ROOT, 'admin', '.devcodex')))
+  assert.strictEqual(resolveActiveRuntimeRoot(path.join(TEMP_ROOT, 'chat')), path.join(TEMP_ROOT, '.devcodex', 'chat'))
+  assert.strictEqual(resolveActiveRuntimeRoot(TEMP_ROOT), path.join(TEMP_ROOT, '.devcodex', 'workspace'))
+  assert.strictEqual(resolveGitignoreRoot(path.join(TEMP_ROOT, 'chat')), TEMP_ROOT)
+
+  fs.mkdirSync(path.join(TEMP_ROOT, 'newapp'), { recursive: true })
+  const profileInit = spawnSync(process.execPath, [INDEX, 'profile', 'init', '--force'], {
+    cwd: path.join(TEMP_ROOT, 'newapp'),
+    encoding: 'utf8'
+  })
+  if (profileInit.status !== 0) {
+    throw new Error((profileInit.stderr || profileInit.stdout || 'profile init failed').trim())
+  }
+  assert.ok(fs.existsSync(path.join(TEMP_ROOT, '.devcodex', 'newapp', 'profile', 'config.json')))
+  assert.ok(!fs.existsSync(path.join(TEMP_ROOT, 'newapp', '.devcodex', 'profile', 'config.json')))
 
   const rolledBack = run(['rollback', '--manifest', manifest.manifestPath, '--json'])
   assert.ok(rolledBack.lastRolledBackAt)

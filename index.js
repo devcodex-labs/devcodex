@@ -111,6 +111,26 @@ function inferProjectFromCwd(cwd, layout) {
   return first && first !== '.devcodex' ? first : ''
 }
 
+function resolveActiveRuntimeRoot(cwd) {
+  const layout = findLayoutInfo(cwd)
+  if (!layout.enabled) return path.join(cwd, '.devcodex')
+  const project = inferProjectFromCwd(cwd, layout)
+  return path.join(layout.workspaceRoot, '.devcodex', project || 'workspace')
+}
+
+function resolveGitignoreRoot(cwd) {
+  const layout = findLayoutInfo(cwd)
+  return layout.enabled ? layout.workspaceRoot : cwd
+}
+
+function ensureRuntimeDirs(cwd, dryRun) {
+  if (dryRun) return resolveActiveRuntimeRoot(cwd)
+  const runtimeRoot = resolveActiveRuntimeRoot(cwd)
+  fs.mkdirSync(path.join(runtimeRoot, '.memory'), { recursive: true })
+  fs.mkdirSync(path.join(runtimeRoot, '.audit-state'), { recursive: true })
+  return runtimeRoot
+}
+
 function resolveProfileDir(cwd) {
   const layout = findLayoutInfo(cwd)
   const candidates = []
@@ -126,8 +146,10 @@ function resolveProfileDir(cwd) {
 const DEVCODEX_GITIGNORE_ENTRIES = [
   '.devcodex/.memory/',
   '.devcodex/.audit-state/',
+  '.devcodex/.tmp/',
   '.devcodex/*/.memory/',
-  '.devcodex/*/.audit-state/'
+  '.devcodex/*/.audit-state/',
+  '.devcodex/*/.tmp/'
 ]
 
 function ensureDevCodexGitignore(cwd, dryRun, log = console.log) {
@@ -157,7 +179,7 @@ function backupSuffix() {
   return new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14)
 }
 
-function copyManagedTextFile(src, dest, { dryRun = false, backup = false } = {}) {
+function copyManagedTextFile(src, dest, { dryRun = false, backup = false, backupDir = null } = {}) {
   const desired = fs.readFileSync(src, 'utf8')
   const exists = fs.existsSync(dest)
   const current = exists ? fs.readFileSync(dest, 'utf8') : ''
@@ -165,8 +187,11 @@ function copyManagedTextFile(src, dest, { dryRun = false, backup = false } = {})
 
   let backupPath = null
   if (backup && exists && current.trim().length > 0) {
-    backupPath = `${dest}.bak.${backupSuffix()}`
-    if (!dryRun) fs.copyFileSync(dest, backupPath)
+    backupPath = path.join(backupDir || path.dirname(dest), `${path.basename(dest)}.bak.${backupSuffix()}`)
+    if (!dryRun) {
+      fs.mkdirSync(path.dirname(backupPath), { recursive: true })
+      fs.copyFileSync(dest, backupPath)
+    }
   }
 
   if (!dryRun) {
@@ -265,11 +290,10 @@ function cmdInit(argv) {
     }
   }
 
-  // Create .devcodex runtime dirs and update .gitignore
+  // Create active .devcodex namespace runtime dirs and update the owning .gitignore
   if (!dryRun) {
-    fs.mkdirSync(path.join(cwd, '.devcodex', '.memory'), { recursive: true })
-    fs.mkdirSync(path.join(cwd, '.devcodex', '.audit-state'), { recursive: true })
-    added += ensureDevCodexGitignore(cwd, dryRun)
+    ensureRuntimeDirs(cwd, dryRun)
+    added += ensureDevCodexGitignore(resolveGitignoreRoot(cwd), dryRun)
   }
 
   console.log()
@@ -643,10 +667,9 @@ function cmdInitClaude(argv, { internal = false } = {}) {
     }
   }
 
-  // 5. Create .devcodex runtime dirs and update .gitignore (same as copilot init)
+  // 5. Create active .devcodex namespace runtime dirs and update the owning .gitignore (same as copilot init)
   if (!dryRun) {
-    fs.mkdirSync(path.join(cwd, '.devcodex', '.memory'), { recursive: true })
-    fs.mkdirSync(path.join(cwd, '.devcodex', '.audit-state'), { recursive: true })
+    ensureRuntimeDirs(cwd, dryRun)
 
     // F-002: warn about legacy .claude/agents/ (Claude Code uses skills/ via Skill tool, not agents/)
     if (!internal) {
@@ -662,7 +685,7 @@ function cmdInitClaude(argv, { internal = false } = {}) {
       }
     }
 
-    added += ensureDevCodexGitignore(cwd, dryRun, log)
+    added += ensureDevCodexGitignore(resolveGitignoreRoot(cwd), dryRun, log)
   }
 
   if (!internal) {
@@ -725,13 +748,14 @@ function cmdInitCodex(argv, { internal = false } = {}) {
   let added = 0, updated = 0, skipped = 0
   const log = internal ? () => { } : (...args) => console.log(...args)
   const inlineLog = (...args) => console.log(...args)
+  const backupDir = path.join(resolveActiveRuntimeRoot(cwd), '.tmp', 'backups')
 
   const agentsSrc = path.join(PKG_ROOT, 'instructions.md')
   const agentsDest = path.join(cwd, 'AGENTS.md')
   if (fs.existsSync(agentsSrc)) {
     const existed = fs.existsSync(agentsDest)
-    const result = copyManagedTextFile(agentsSrc, agentsDest, { dryRun, backup: true })
-    if (result.backupPath) inlineLog(c.yellow(`  ⚠ backed up existing AGENTS.md to ${path.basename(result.backupPath)}`))
+    const result = copyManagedTextFile(agentsSrc, agentsDest, { dryRun, backup: true, backupDir })
+    if (result.backupPath) inlineLog(c.yellow(`  ⚠ backed up existing AGENTS.md to ${path.relative(cwd, result.backupPath)}`))
     if (result.copied) {
       existed ? updated++ : added++
       inlineLog(existed ? c.yellow('  ↺ AGENTS.md  (from instructions.md)') : c.green('  ✓ AGENTS.md  (from instructions.md)'))
@@ -751,11 +775,11 @@ function cmdInitCodex(argv, { internal = false } = {}) {
       const destFile = path.join(destDir, rel)
       const existed = fs.existsSync(destFile)
       const backup = from === 'codex' && rel.replace(/\\/g, '/') === 'hooks.json'
-      const result = copyManagedTextFile(srcFile, destFile, { dryRun, backup })
+      const result = copyManagedTextFile(srcFile, destFile, { dryRun, backup, backupDir })
       const shownTo = path.join(to, rel).replace(/\\/g, '/')
       const shownFrom = path.join(from, rel).replace(/\\/g, '/')
 
-      if (result.backupPath) inlineLog(c.yellow(`  ⚠ backed up existing ${shownTo} to ${path.basename(result.backupPath)}`))
+      if (result.backupPath) inlineLog(c.yellow(`  ⚠ backed up existing ${shownTo} to ${path.relative(cwd, result.backupPath)}`))
       if (result.copied) {
         existed ? updated++ : added++
         inlineLog(existed ? c.yellow(`  ↺ ${shownTo}  (from ${shownFrom})`) : c.green(`  ✓ ${shownTo}  (from ${shownFrom})`))
@@ -767,9 +791,8 @@ function cmdInitCodex(argv, { internal = false } = {}) {
   }
 
   if (!dryRun) {
-    fs.mkdirSync(path.join(cwd, '.devcodex', '.memory'), { recursive: true })
-    fs.mkdirSync(path.join(cwd, '.devcodex', '.audit-state'), { recursive: true })
-    added += ensureDevCodexGitignore(cwd, dryRun, log)
+    ensureRuntimeDirs(cwd, dryRun)
+    added += ensureDevCodexGitignore(resolveGitignoreRoot(cwd), dryRun, log)
   }
 
   if (!internal) {
@@ -959,7 +982,7 @@ function cmdProfileInit(argv) {
   const prod = argv.includes('--prod')
   const mode = prod ? 'prod' : 'dev'
   const cwd = process.cwd()
-  const dir = path.join(cwd, '.devcodex', 'profile')
+  const dir = path.join(resolveActiveRuntimeRoot(cwd), 'profile')
   console.log()
   console.log(c.bold('  DevCodex profile init') + c.dim(` in ${cwd}`))
   console.log(c.dim('  ──────────────────────────────────────'))
@@ -1217,6 +1240,11 @@ module.exports = {
   cmdProfileInit,
   cmdDoctor,
   isSourceRepo,
+  findLayoutInfo,
+  inferProjectFromCwd,
+  resolveActiveRuntimeRoot,
+  resolveGitignoreRoot,
+  ensureRuntimeDirs,
   SOURCES,
   CLAUDE_SOURCES,
   CODEX_SOURCES,

@@ -8,12 +8,13 @@
   },
   "scripts": {
     "test": "node scripts/validate-versions.js && node scripts/validate.js",
-    "test:all": "npm test && node scripts/test-hooks-runtime.js && node scripts/test-instruction-fallback-check.js && node scripts/test-mcp-servers.js && node scripts/test-migrate-layout.js && node scripts/test-pack-clean.js && npm --prefix website run build && npm audit --omit=dev && npm --prefix website audit --omit=dev && node scripts/check-syntax.js",
+    "test:all": "npm test && node scripts/test-spec-governance.js && node scripts/test-hooks-runtime.js && node scripts/test-instruction-fallback-check.js && node scripts/test-mcp-servers.js && node scripts/test-migrate-layout.js && node scripts/test-pack-clean.js && npm --prefix website run build && npm audit --omit=dev && npm --prefix website audit --omit=dev && node scripts/check-syntax.js",
     "test:init": "node index.js init --dry-run",
     "test:hooks-runtime": "node scripts/test-hooks-runtime.js",
     "test:migrate-layout": "node scripts/test-migrate-layout.js",
     "test:version": "node scripts/validate-versions.js",
     "test:pack-clean": "node scripts/test-pack-clean.js",
+    "test:spec-governance": "node scripts/test-spec-governance.js",
     "validate": "node scripts/validate.js"
   },
   "keywords": [

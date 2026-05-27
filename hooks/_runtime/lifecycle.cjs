@@ -29,7 +29,7 @@ const ENFORCEMENT_MODE = (() => {
   return mode === 'strict' ? 'strict' : 'safety-only'
 })()
 const AUTO_ALLOWED_PATH_PATTERNS = [
-  /^\.devcodex\//,
+  /^\.devcodex\/(?:workspace|[A-Za-z0-9][A-Za-z0-9._-]*|profile|requirements|bugs|optimizations|scenario-tests|reports|\.memory|\.audit-state)(?:\/|$)/,
   /^agents\/devcodex-auto\.agent\.md$/i,
   /^instructions\/01-common\.instructions\.md$/i,
   /^skills\/cp-gate\/SKILL\.md$/i,
@@ -146,7 +146,10 @@ function inferContextProject() {
 const CONTEXT_PROJECT = inferContextProject()
 const DEFAULT_SCOPE = LAYOUT.enabled ? (CONTEXT_PROJECT ? 'project' : 'workspace') : 'project'
 const STATE_SCOPE_KEY = LAYOUT.enabled ? (CONTEXT_PROJECT || 'workspace') : 'legacy'
-const STATE_DIR = path.join(WORKSPACE_ROOT, '.devcodex', '.memory', 'hooks', STATE_SCOPE_KEY)
+const ACTIVE_RUNTIME_ROOT = LAYOUT.enabled
+  ? path.join(WORKSPACE_ROOT, '.devcodex', CONTEXT_PROJECT || 'workspace')
+  : path.join(WORKSPACE_ROOT, '.devcodex')
+const STATE_DIR = path.join(ACTIVE_RUNTIME_ROOT, '.memory', 'hooks', STATE_SCOPE_KEY)
 const STATE_FILE = path.join(STATE_DIR, 'lifecycle-state.json')
 const FINAL_PAYLOAD_FLAG = path.join(STATE_DIR, 'capture-final-payload.flag')
 const FINAL_PAYLOAD_LOG = path.join(STATE_DIR, 'captured-final-payloads.ndjson')
@@ -1055,7 +1058,7 @@ function isAutoAllowedPath(p) {
 
 function checkAutoWhitelist(payload, platform, state) {
   if (state.executionMode !== EXECUTION_MODE.AUTO) return null
-  if (!isSourceCodeMutation(payload, platform)) return null
+  if (!isSourceCodeMutation(payload, platform, state)) return null
   const paths = [...new Set(extractToolPaths(payload))]
   if (!paths.length) {
     return {
@@ -1111,49 +1114,84 @@ function checkCpGate(payload, state) {
 
 // Source file extensions that indicate code/config being written
 const SOURCE_EXT_RE = /\.(js|ts|tsx|jsx|mjs|cjs|py|go|rs|java|cs|rb|php|c|cpp|h|swift|kt|vue|svelte|css|scss|less|html|sql|sh|bash|zsh|ps1|psm1|json|yaml|yml|toml|ini|xml|env)$/i
-// F-001: 仅放行 DevCodex governance 子路径（.devcodex/ 全域；.claude/.github/ 下的规范子目录）；不再无条件放行 .claude/foo.js 这类裸写入
-const DEVCODEX_PATH_RE = /\.devcodex[/\\]|\.(?:claude|github)[/\\](?:instructions|skills|hooks|agents|prompts|settings\.json|settings\.local\.json|data)|(?:^|[\s"'=]|[/\\])AGENTS\.md(?:$|[\s"';|&])|\.agents[/\\](?:skills)|\.codex[/\\](?:hooks\.json|hooks)|(?:^|[\s"'=]|[/\\])codex[/\\](?:hooks\.json|hooks)(?:$|[\s"';|&])/
+// F-001/F-037: only governance deployment paths and the active .devcodex namespace are exempt.
+// This prevents workspace-namespace projects from treating project/.devcodex/.tmp as managed state.
+const DEVCODEX_DEPLOYMENT_PATH_RE = /^(?:\.claude|\.github)\/(?:instructions|skills|hooks|agents|prompts|settings\.json|settings\.local\.json|data)(?:\/|$)|^AGENTS\.md$|^\.agents\/skills(?:\/|$)|^\.codex\/(?:hooks\.json|hooks)(?:\/|$)|^codex\/(?:hooks\.json|hooks)(?:\/|$)/
 
-function bashWritesToSourceCode(cmd) {
-  if (!cmd || DEVCODEX_PATH_RE.test(cmd)) return false
+function isInsideOrSamePath(child, parent) {
+  if (!child || !parent) return false
+  const normChild = path.normalize(child).toLowerCase()
+  const normParent = path.normalize(parent).toLowerCase()
+  return normChild === normParent || normChild.startsWith(normParent + path.sep)
+}
+
+function isActiveDevCodexNamespacePath(target, state) {
+  if (!target) return false
+  const abs = resolveRelativeToContext(target)
+  if (isInsideOrSamePath(abs, getActiveNamespaceRoot(state))) return true
+  if (LAYOUT.enabled && getActiveScope(state) !== 'workspace') {
+    return isInsideOrSamePath(abs, path.join(getWorkspaceNamespaceRoot(), 'profile'))
+  }
+  return false
+}
+
+function isDevCodexManagedPath(target, state) {
+  if (!target) return false
+  const rel = toWorkspaceRelativePath(target)
+  if (DEVCODEX_DEPLOYMENT_PATH_RE.test(rel)) return true
+  return isActiveDevCodexNamespacePath(target, state)
+}
+
+function payloadTouchesOnlyManagedPaths(payload, state) {
+  const paths = [...new Set(extractToolPaths(payload))]
+  return paths.length > 0 && paths.every(p => isDevCodexManagedPath(p, state))
+}
+
+function bashWritesToSourceCode(cmd, state) {
+  if (!cmd) return false
   // Detect output redirect  >  or  >>  to a source file
   const redirectRe = />{1,2}\s*['"]?([^\s'";&|]+)/g
   let m
   while ((m = redirectRe.exec(cmd)) !== null) {
     const target = m[1]
-    if (SOURCE_EXT_RE.test(target) && !DEVCODEX_PATH_RE.test(target)) return true
+    if (SOURCE_EXT_RE.test(target) && !isDevCodexManagedPath(target, state)) return true
   }
   // Detect tee targeting a source file
   const teeRe = /\btee\s+(?:-a\s+)?['"]?([^\s'";&|]+)/g
   while ((m = teeRe.exec(cmd)) !== null) {
     const target = m[1]
-    if (SOURCE_EXT_RE.test(target) && !DEVCODEX_PATH_RE.test(target)) return true
+    if (SOURCE_EXT_RE.test(target) && !isDevCodexManagedPath(target, state)) return true
   }
   // PowerShell Set-Content / Out-File — extract target path before testing
   const setContentMatch = cmd.match(/\bSet-Content\b\s+(?:-Path\s+)?['"]?([^\s'";&|]+)/i)
-  if (setContentMatch && SOURCE_EXT_RE.test(setContentMatch[1]) && !DEVCODEX_PATH_RE.test(setContentMatch[1])) return true
+  if (setContentMatch && SOURCE_EXT_RE.test(setContentMatch[1]) && !isDevCodexManagedPath(setContentMatch[1], state)) return true
   const outFileMatch = cmd.match(/\bOut-File\b\s+(?:-FilePath\s+)?['"]?([^\s'";&|]+)/i)
-  if (outFileMatch && SOURCE_EXT_RE.test(outFileMatch[1]) && !DEVCODEX_PATH_RE.test(outFileMatch[1])) return true
+  if (outFileMatch && SOURCE_EXT_RE.test(outFileMatch[1]) && !isDevCodexManagedPath(outFileMatch[1], state)) return true
   return false
 }
 
-function isSourceCodeMutation(payload, platform) {
+function isSourceCodeMutation(payload, platform, state) {
   const toolName = getToolName(payload)
   const lower = toolName.toLowerCase()
 
   if (platform === 'claude') {
     // Write/Edit tools
     if (lower === 'write' || lower === 'edit') {
-      return !touchesPath(payload, '.devcodex/', '.github/', '.claude/')
+      return !payloadTouchesOnlyManagedPaths(payload, state)
     }
     // Bash: detect redirect/tee writes to source files
     if (lower === 'bash') {
-      return bashWritesToSourceCode(getCommandText(payload))
+      return bashWritesToSourceCode(getCommandText(payload), state)
     }
     return false
   }
 
-  // Copilot
+  // Copilot / Codex / instruction-fallback shell tools
+  if (['bash', 'shell_command', 'run_in_terminal', 'powershell'].includes(lower)) {
+    return bashWritesToSourceCode(getCommandText(payload), state)
+  }
+
+  // Copilot / Codex patch-style tools
   const copilotWritePatterns = [
     /^apply[_-]?patch$/,
     /^create[_-]?file$/,
@@ -1162,7 +1200,7 @@ function isSourceCodeMutation(payload, platform) {
     /^rewrite[_-]?file$/
   ]
   if (!copilotWritePatterns.some(p => p.test(lower))) return false
-  return !touchesPath(payload, '.devcodex/', '.github/', '.claude/')
+  return !payloadTouchesOnlyManagedPaths(payload, state)
 }
 
 function buildCpDenyOutput(state, platform, eventName, gate, toolName) {
@@ -1569,7 +1607,7 @@ async function main() {
     // 3. CP gate — block source code mutations until checkpoints confirmed
     //    payload-aware: when tool paths target specific requirement dirs, only that requirement's CP is checked
     const gate = checkCpGate(payload, state)
-    if (gate && isSourceCodeMutation(payload, platform)) {
+    if (gate && isSourceCodeMutation(payload, platform, state)) {
       state.lastReason = `cp-gate-${gate.phase}`
       saveState(state)
       writeStdout(isStrictEnforcement()

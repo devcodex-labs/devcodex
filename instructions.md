@@ -139,6 +139,40 @@
 
 ---
 
+## 规范治理生命周期（RecordRouter + SCV）
+
+规范治理采用 `Intent Detection → RecordRouter → Ledger → Verification` 链路，详细规则见 `skills/spec-governance/SKILL.md`。
+
+### 记录意图驱动
+
+“记录一下”“这个规范要优化”“以后应该这样做”等表达不得按关键词直接写台账，必须先识别规范化意图：
+
+| 意图 | 目标 |
+|------|------|
+| `record.violation` | 已有规则未执行 → `data/violations.md` |
+| `record.spec-defect` | 规范缺失/冲突/滞后 → `data/pending-fixes.md` |
+| `record.process-improvement` | 可泛化策略改进 → `data/process-improvements.md` |
+| `record.pending-issue` | 已确认可排期治理项 → `data/pending-issues.md` |
+| `record.audit-gap` | 检查体系盲区 → `data/gap-registry.md` |
+| `record.none` | 普通需求/报告整理 → 不写台账 |
+| `record.ambiguous` | 指代不清 → 先澄清 |
+
+每次记录分流必须输出 `规范化意图`、`置信度`、`依据`、`目标台账`。低置信度不得静默写台账。重复 VL 必须判断是否升级 PF/GAP，不能只追加重复违规。
+
+### AI 与确定性边界
+
+AI 负责语义判断、上下文归因、多意图拆分、模糊表达澄清；安全底线、active-root 路径、CP 状态、台账格式、测试结果和部署同步必须由规则或工具验证。
+
+### SCV 规范变更验证
+
+修改规范源、Skill、Hook、CLI、MCP、模板、部署副本、website specs、路径规则或 validate 语义时，必须执行 `SCV（Spec Change Verification）`：
+
+`SCV-0 变更分类 → SCV-1 真相源映射 → SCV-2 CRS 双向联查 → SCV-3 可执行验证 → SCV-4 行为回放 → SCV-5 部署副本同步 → SCV-6 产物边界扫描 → SCV-7 完成判定`。
+
+SCV 结果必须写入报告；控制面任务的 ECR-7 必须引用 SCV 证据，不能只写“已验证”。
+
+---
+
 ## ENV_MODE 行为总表
 
 | 影响点 | `prod`（默认）| `dev` |

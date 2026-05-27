@@ -8,10 +8,4 @@
 
 ## 2026-05-28
 
-- 修复审查收敛后的文档/Profile 口径漂移：active-root Profile 改为全模式 PC0~PC7 入口检查口径，历史归档页不再维护固定 Skill 数量，并将旧 prod 预检查规则标注为历史阶段规则。
-
-## 2026-05-27
-
-- 增强规范治理生命周期：新增 `spec-governance` Skill、RecordRouter 意图驱动记录分流、SCV 规范变更验证链，并补充 validate 防回归校验。
-- 修复 workspace-namespace 运行态落点：CLI/Profile/Hook 状态目录与 Codex adapter 备份统一解析到 active-root，新增项目内 `.devcodex/.tmp` 与工作区根临时/备份产物漂移检查，自动 `.gitignore` 覆盖 `.devcodex/*/.tmp/`，并迁移现有临时产物到集中命名空间。
-- 修复治理链小修批次：统一 MCP SUMMARY 新建模板、清理已发布 unreleased 残留、同步 Profile scripts 资产清单，并增强 validate 对 release/profile/audit-state 漂移的防回归检查。
+- 当前无未发布条目。

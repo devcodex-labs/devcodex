@@ -244,6 +244,26 @@ function summaryFilePath(agent, args = {}) {
   )
 }
 
+function summaryProjectLabel(args = {}) {
+  if (!LAYOUT.enabled) return path.basename(resolveProjectRoot(args.project)) || 'project'
+  const explicitScope = Object.prototype.hasOwnProperty.call(args, 'scope') && String(args.scope || '').trim()
+  const projectName = resolveProjectName(args.project)
+  const scope = explicitScope ? resolveScope(args.scope) : (projectName ? 'project' : DEFAULT_SCOPE)
+  if (scope === 'workspace') return 'workspace'
+  return projectName || CONTEXT_PROJECT || 'project'
+}
+
+function summaryHeader(agent, args = {}) {
+  return [
+    `# Agent SUMMARY — ${agent || DEFAULT_AGENT}`,
+    '',
+    `> 项目：${summaryProjectLabel(args)}`,
+    '',
+    '| 日期 | 会话 | 类型 | 摘要 | 关联报告 | 关联记忆 | 状态 |',
+    '|------|:----:|------|------|---------|---------|:----:|'
+  ].join('\n') + '\n'
+}
+
 function taskSessionsPath(kind, requirement, args = {}) {
   return path.join(
     getActiveRoot(args), kind,
@@ -329,9 +349,8 @@ function handleMemorySummaryAppend(args) {
   const existing = readFile(p)
 
   if (!existing) {
-    const header = '| 日期 | 会话 | 类型 | 摘要 | 关联报告 | 关联记忆 | 状态 |\n|------|------|------|------|---------|---------|------|\n'
     fs.mkdirSync(path.dirname(p), { recursive: true })
-    fs.writeFileSync(p, header + args.row + '\n', 'utf8')
+    fs.writeFileSync(p, summaryHeader(args.agent || DEFAULT_AGENT, args) + args.row + '\n', 'utf8')
   } else {
     appendFile(p, args.row + '\n')
   }

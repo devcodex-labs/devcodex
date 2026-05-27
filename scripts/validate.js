@@ -969,6 +969,16 @@ function checkV15() {
         violations++
       }
     }
+
+    if (state.state === 'paused') {
+      const unresolved = Array.isArray(state.findings)
+        ? state.findings.filter(finding => unresolvedFindingStates.has(String(finding.status || '').toLowerCase()))
+        : []
+      if (unresolved.length && (!state.linkedReport || !state.lastCheckpoint || !state.lastCheckpoint.reason)) {
+        warn(`[V15] paused audit-state with unresolved findings must include linkedReport and lastCheckpoint.reason: .devcodex/.audit-state/${sf}`)
+        violations++
+      }
+    }
   }
 
   console.log(`[V15] audit-state consistency checked: ${stateFiles.length} files, ${violations} violation(s)`)
@@ -1060,12 +1070,15 @@ function checkV18() {
 function checkV19() {
   const promptCount = walk(path.join(ROOT, 'prompts')).filter(f => f.endsWith('.prompt.md')).length
   const dataTemplateCount = walk(path.join(ROOT, 'data', 'templates')).filter(f => f.endsWith('.md')).length
+  const scriptCount = walk(path.join(ROOT, 'scripts')).filter(f => f.endsWith('.js')).length
   const checks = [
     { file: 'README.md', needle: `Prompt 模板（${promptCount} 个）` },
     { file: activePath('profile', '01-项目信息.md'), needle: `| **Prompt** | ${promptCount} |`, rawPath: false },
     { file: activePath('profile', '01-项目信息.md'), needle: `prompts ${promptCount}`, rawPath: false },
     { file: activePath('profile', '02-架构约束.md'), needle: `Prompt 模板文件（.prompt.md，中文）${promptCount} 个`, rawPath: false },
-    { file: activePath('profile', '01-项目信息.md'), needle: `| **data 模板** | ${dataTemplateCount} |`, rawPath: false }
+    { file: activePath('profile', '01-项目信息.md'), needle: `| **data 模板** | ${dataTemplateCount} |`, rawPath: false },
+    { file: activePath('profile', '01-项目信息.md'), needle: `| **CLI 工程脚本** | ${scriptCount} |`, rawPath: false },
+    { file: activePath('profile', '01-项目信息.md'), needle: 'scripts/check-syntax.js', rawPath: false }
   ]
   for (const check of checks) {
     const filePath = check.rawPath === false ? check.file : path.join(ROOT, check.file)
@@ -1078,7 +1091,7 @@ function checkV19() {
       err(`[V19] asset count drift in ${check.rawPath === false ? path.relative(ROOT, check.file) : check.file}: expected text "${check.needle}"`)
     }
   }
-  console.log(`[V19] asset counts checked: prompts=${promptCount}, data-templates=${dataTemplateCount}`)
+  console.log(`[V19] asset counts checked: prompts=${promptCount}, data-templates=${dataTemplateCount}, scripts=${scriptCount}`)
 }
 
 function checkV20() {
@@ -1128,6 +1141,14 @@ function checkV20() {
       if (!content.includes(needle)) {
         err(`[V20] release/changelog dual-track drift in ${probe.file}: missing "${needle}"`)
       }
+    }
+  }
+  const unreleased = read(path.join(ROOT, 'changelogs', 'unreleased.md'))
+  if (unreleased.includes('暂无未发布变更')) {
+    const dateHeadings = [...unreleased.matchAll(/^## \d{4}-\d{2}-\d{2}/gm)]
+    const contentAfterEmptyMarker = unreleased.split('暂无未发布变更').slice(1).join('暂无未发布变更')
+    if (dateHeadings.length > 1 || /^## \d{4}-\d{2}-\d{2}/m.test(contentAfterEmptyMarker)) {
+      err('[V20] changelogs/unreleased.md mixes empty-template marker with archived date sections')
     }
   }
   console.log('[V20] release/changelog dual-track semantics checked')

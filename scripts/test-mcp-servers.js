@@ -181,6 +181,11 @@ function testMemoryDefaultAgent() {
   assert.ok(fs.existsSync(path.join(
     TEMP_ROOT, '.devcodex', '.memory', 'clients', 'claude-code', 'SUMMARY.md'
   )))
+  const summaryPath = path.join(TEMP_ROOT, '.devcodex', '.memory', 'clients', 'claude-code', 'SUMMARY.md')
+  const summary = fs.readFileSync(summaryPath, 'utf8')
+  assert.ok(summary.includes('# Agent SUMMARY — claude-code'))
+  assert.ok(summary.includes('> 项目：'))
+  assert.ok(summary.includes('|------|:----:|------|------|---------|---------|:----:|'))
   assert.ok(!fs.existsSync(path.join(TEMP_ROOT, '.devcodex', '.memory', 'clients', 'claude')))
 }
 
@@ -292,6 +297,12 @@ function testWorkspaceNamespaceMemoryScope() {
   assert.ok(fs.existsSync(path.join(
     TEMP_ROOT, '.devcodex', 'workspace', '.memory', 'clients', 'claude-code', 'SUMMARY.md'
   )))
+  const workspaceSummary = fs.readFileSync(path.join(
+    TEMP_ROOT, '.devcodex', 'workspace', '.memory', 'clients', 'claude-code', 'SUMMARY.md'
+  ), 'utf8')
+  assert.ok(workspaceSummary.includes('# Agent SUMMARY — claude-code'))
+  assert.ok(workspaceSummary.includes('> 项目：workspace'))
+  assert.ok(workspaceSummary.includes('|------|:----:|------|------|---------|---------|:----:|'))
 }
 
 function testWorkspaceRootMemoryScopeRequiresExplicitTarget() {

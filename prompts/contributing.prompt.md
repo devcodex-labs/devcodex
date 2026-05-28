@@ -16,16 +16,18 @@ applyTo: CONTRIBUTING.md
 
 ## 开发环境
 
+> 将以下占位命令替换为项目实际命令；包管理器与脚本名以仓库现状为准。
+
 \`\`\`bash
 # 克隆仓库
 git clone <repo-url>
 cd <project>
 
 # 安装依赖
-pnpm install
+<install-command>
 
 # 运行开发环境
-pnpm dev
+<dev-command>
 \`\`\`
 
 ## 提交代码
@@ -50,19 +52,19 @@ docs(readme): update installation steps
 ### Pull Request
 
 1. Fork 仓库并创建分支
-2. 确保测试全部通过：`pnpm test`
+2. 确保项目定义的测试全部通过：`<test-command>`
 3. 更新相关文档
 4. 提交 PR，填写模板说明
 
 ## 测试
 
 \`\`\`bash
-pnpm test           # 运行所有测试
-pnpm test:unit      # 单元测试
-pnpm test:coverage  # 覆盖率报告
+<test-command>          # 运行主测试套件
+<unit-test-command>     # 若项目提供单元测试命令
+<coverage-command>      # 若项目提供覆盖率命令
 \`\`\`
 
 ## 行为准则
 
-请遵守 [Code of Conduct](CODE_OF_CONDUCT.md)。
+若项目提供行为准则文件，请遵守仓库中的对应文档。
 ```

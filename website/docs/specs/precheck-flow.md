@@ -17,7 +17,7 @@ flowchart TD
     PREP["PC3: 执行准备\n扩展结果 / 未完成任务 / 产物落点"]
     DEV_MODE{"ENV_MODE\n= dev?"}
     PC4["PC4: 规范雷达\n三轴诊断（见细图）"]
-    PC5["PC5: 部署体状态\n父链 .claude/.github 同步"]
+    PC5["PC5: 部署体状态\n父链 .github/.claude/\nAGENTS.md/.agents/.codex 同步"]
     PC6["PC6: 工作区一致性\ngit dirty / 当前需求目录"]
     PC7["PC7: 新会话 resume 检测\ntasks + SUMMARY 一致性"]
     MARK["⚠️ 标记 PF/VL\n延迟追加文件"]
@@ -45,7 +45,7 @@ flowchart TD
 3. **PC2** — 会话状态（轮次 / 待跟进）
 4. **PC3** — 执行准备状态（项目现实扩展结果 / 未完成任务 / 产物落点）
 5. **PC4** — 规范原因识别结果：dev 模式输出 ✅ 无 / ⚠️ PF 标记 / VL 标记；非 dev 模式标注 N/A
-6. **PC5** — 部署体状态：父链 `.claude/.github/` 是否存在、是否与源仓库关键文件同步
+6. **PC5** — 部署体状态：父链 `.github/`、`.claude/`、`AGENTS.md`、`.agents/`、`.codex/` 是否存在、是否与源仓库关键文件同步
 7. **PC6** — 工作区一致性：git 未提交变更、当前需求目录或任务上下文
 8. **PC7** — 新会话 resume 强制检测：今日/昨日 tasks 文件与 SUMMARY 状态是否一致
 

@@ -65,7 +65,7 @@ description: 定义意图识别结果到工作流的路由映射。本 Skill 为
 ### resume 路径
 
 ```
-RESTORE → 先读 Agent SUMMARY.md → 读取相关记忆（默认今日/昨日；resume 时最近 14 天）→ 还原上下文 → 提取原始意图 → 重路由到原始工作流
+RESTORE → 先读今日 tasks/YYYYMMDD.md → 再读 Agent SUMMARY.md → 读取相关记忆（resume 时最近 14 天）→ 还原上下文 → 提取原始意图 → 重路由到原始工作流
 ```
 
 ### resume 约束

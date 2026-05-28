@@ -15,3 +15,4 @@
 - 新增 `execution-contract`、`test-router`、`release-verification` 三个支撑型 Skill，并同步注册到 `plugin.json`。
 - 补强 dev/fix、报告模板、实施计划、实施进度与交付清单对执行契约、测试路由、发布验证和多批次进度的强制消费。
 - 更新 README、website 与 Agent 文档，将 Skill 数量同步为 39，并说明 Auto/控制面/多批次/发布任务的闭环约束。
+- 收敛规范资产跨层漂移：统一 `resume` 读取顺序、PC5 的 Codex 部署面、`audit-state` 的 `<audit-root>` 口径、audit 报告收敛头部，以及 `CONTRIBUTING` 模板占位命令；新增 `validate` 的 `V30~V34` 探针并同步 website 当前消费者文案。

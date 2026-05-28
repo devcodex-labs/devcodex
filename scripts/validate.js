@@ -29,6 +29,7 @@
  * V25~V27 ECR/RecordRouter/SCV 与 active-root 落点边界语义
  * V28 Support skills / progress / release verification sync（执行契约、测试路由、发布验证与进度强触发）
  * V29 Hook visible reply / sticky project / intent expansion sync（Stop 三态、workspace profile 路径、意图扩展摘要）
+ * V30~V34 规范资产漂移收敛（resume 顺序 / PC5 部署面 / audit-state / audit 收敛 / contributing 模板）
  *
  * Exit: 0=OK, 1=error, 2=warnings only
  */
@@ -542,9 +543,10 @@ function checkV8() {
     const codexRuntime = path.join(codexDir, 'hooks', '_runtime', 'lifecycle.cjs')
     if (fs.existsSync(codexRuntime)) {
       try {
+        const probePrompt = `in ${path.basename(ROOT)}/ validate DevCodex Codex bootstrap`
         const out = execSync('node ./.codex/hooks/_runtime/lifecycle.cjs', {
           cwd: PARENT,
-          input: JSON.stringify({ hookEventName: 'UserPromptSubmit', prompt: 'validate DevCodex Codex bootstrap' }),
+          input: JSON.stringify({ hookEventName: 'UserPromptSubmit', prompt: probePrompt }),
           encoding: 'utf8',
           stdio: ['pipe', 'pipe', 'pipe']
         })
@@ -1980,6 +1982,132 @@ function checkV29() {
   console.log('[V29] Hook visible reply / sticky project / intent expansion sync checked')
 }
 
+function checkV30() {
+  const file = 'skills/routing/SKILL.md'
+  const content = read(path.join(ROOT, file))
+  for (const needle of ['先读今日 tasks/YYYYMMDD.md', '再读 Agent SUMMARY.md']) {
+    if (!content.includes(needle)) {
+      err(`[V30] resume restore ordering drift in ${file}: missing "${needle}"`)
+    }
+  }
+  if (content.includes('RESTORE → 先读 Agent SUMMARY.md')) {
+    err(`[V30] legacy resume restore ordering remains in ${file}`)
+  }
+  console.log('[V30] resume restore ordering sync checked')
+}
+
+function checkV31() {
+  const probes = [
+    'instructions/17-compliance.instructions.md',
+    'prompts/precheck-status.prompt.md',
+    'skills/audit-common/SKILL.md',
+    'website/docs/specs/precheck-flow.md',
+    'website/docs/specs/flowcharts.md'
+  ]
+  const required = ['.github/', '.claude/', 'AGENTS.md', '.agents/', '.codex/']
+  const forbidden = ['.claude/.github/', '父链 `.claude/.github/`', '无父链 .claude/.github/']
+
+  for (const file of probes) {
+    const content = read(path.join(ROOT, file))
+    for (const needle of required) {
+      if (!content.includes(needle)) {
+        err(`[V31] PC5 deployment surface drift in ${file}: missing "${needle}"`)
+      }
+    }
+    for (const needle of forbidden) {
+      if (content.includes(needle)) {
+        err(`[V31] legacy PC5 deployment wording remains in ${file}: "${needle}"`)
+      }
+    }
+  }
+
+  const complianceContent = read(path.join(ROOT, 'instructions/17-compliance.instructions.md'))
+  if (!complianceContent.includes('### PC5 部署体状态（v1.11.0+，全模式基础项）')) {
+    err('[V31] PC5 section heading in instructions/17-compliance.instructions.md must be v1.11.0+')
+  }
+
+  const auditCommonContent = read(path.join(ROOT, 'skills/audit-common/SKILL.md'))
+  if (!auditCommonContent.includes('【v1.11.0+ 父链部署体扫描】')) {
+    err('[V31] audit-common parent deployment heading must be v1.11.0+')
+  }
+  for (const needle of ['.claude/{instructions,skills,prompts,agents,hooks}/', '.github/{instructions,skills,prompts,agents,hooks}/']) {
+    if (!auditCommonContent.includes(needle)) {
+      err(`[V31] audit-common parent deployment scan missing "${needle}"`)
+    }
+  }
+
+  console.log('[V31] PC5 deployment surface sync checked')
+}
+
+function checkV32() {
+  const probes = [
+    {
+      file: 'instructions/12-audit.instructions.md',
+      required: ['<audit-root>/.audit-state/<session-id>.json', '<audit-root>/.audit-state/*.json', '取值与 active-root 一致'],
+      forbidden: ['`.devcodex/.audit-state/<session-id>.json`', '扫描 `.audit-state/*.json`']
+    },
+    {
+      file: 'skills/audit-session/SKILL.md',
+      required: ['<audit-root>/.audit-state/<session-id>.json', '<audit-root>/.audit-state/', '<audit-root>/.audit-state/*.json'],
+      forbidden: ['在 .devcodex/.audit-state/<session-id>.json 持久化', '`.devcodex/.audit-state/` 目录由本 Skill 首次写入时创建', '扫描 `.devcodex/.audit-state/*.json`', '读取 `.devcodex/.audit-state/` 下所有 `.json`']
+    }
+  ]
+
+  for (const probe of probes) {
+    const content = read(path.join(ROOT, probe.file))
+    for (const needle of probe.required) {
+      if (!content.includes(needle)) {
+        err(`[V32] audit-state active-root drift in ${probe.file}: missing "${needle}"`)
+      }
+    }
+    for (const needle of probe.forbidden) {
+      if (content.includes(needle)) {
+        err(`[V32] legacy audit-state wording remains in ${probe.file}: "${needle}"`)
+      }
+    }
+  }
+
+  console.log('[V32] audit-state active-root sync checked')
+}
+
+function checkV33() {
+  const probes = [
+    'instructions/16-report.instructions.md',
+    'skills/report/SKILL.md',
+    'prompts/report-audit.prompt.md'
+  ]
+
+  for (const file of probes) {
+    const content = read(path.join(ROOT, file))
+    if (!content.includes('连续 3 轮零发现')) {
+      err(`[V33] audit convergence wording drift in ${file}: missing "连续 3 轮零发现"`)
+    }
+    if (content.includes('R{N}+R{N+1}')) {
+      err(`[V33] legacy audit convergence wording remains in ${file}`)
+    }
+  }
+
+  console.log('[V33] audit convergence wording sync checked')
+}
+
+function checkV34() {
+  const file = 'prompts/contributing.prompt.md'
+  const content = read(path.join(ROOT, file))
+
+  for (const needle of ['<install-command>', '<dev-command>', '<test-command>', '若项目提供行为准则文件']) {
+    if (!content.includes(needle)) {
+      err(`[V34] contributing template missing generalized placeholder text: ${needle}`)
+    }
+  }
+  for (const needle of ['pnpm install', 'pnpm dev', 'pnpm test', 'pnpm test:unit', 'pnpm test:coverage', 'CODE_OF_CONDUCT.md']) {
+    if (content.includes(needle)) {
+      err(`[V34] contributing template still hardcodes project-specific text: ${needle}`)
+    }
+  }
+
+  console.log('[V34] contributing template assumptions checked')
+}
+
 function checkV7b() {
   try {
     execSync('node scripts/test-instruction-fallback-check.js', { cwd: ROOT, stdio: 'pipe', encoding: 'utf8' })
@@ -2020,6 +2148,11 @@ checkV26()
 checkV27()
 checkV28()
 checkV29()
+checkV30()
+checkV31()
+checkV32()
+checkV33()
+checkV34()
 
 console.log('')
 if (errors.length) {

@@ -1,6 +1,6 @@
 ---
 name: audit-session
-description: 审计工作流的跨会话状态机 — 在 .devcodex/.audit-state/<session-id>.json 持久化轮次/发现项/收敛状态，支持 Token 中断后精准恢复
+description: 审计工作流的跨会话状态机 — 在 <audit-root>/.audit-state/<session-id>.json 持久化轮次/发现项/收敛状态，支持 Token 中断后精准恢复
 ---
 
 # Audit Session Skill
@@ -22,8 +22,8 @@ description: 审计工作流的跨会话状态机 — 在 .devcodex/.audit-state
 - 集中布局全工作区：`<工作区根>/.devcodex/workspace`
 
 - `<session-id>` 取首次启动审计的时间戳：`YYYYMMDD-HHmmss`
-- `.devcodex/.audit-state/` 目录由本 Skill 首次写入时创建（不随 `init` 分发）
-- `.gitignore` 须包含 `.devcodex/.audit-state/`（同记忆策略）
+- `<audit-root>/.audit-state/` 目录由本 Skill 首次写入时创建（不随 `init` 分发）
+- `.gitignore` 须覆盖 `<audit-root>/.audit-state/` 对应路径（如 `.devcodex/.audit-state/`、`.devcodex/*/.audit-state/`，同记忆策略）
 
 ## 状态机
 
@@ -153,13 +153,13 @@ converged ──> closed
 |--------|------|
 | `instructions/12-audit.instructions.md` | 审计工作流入口须读取/创建本文件；收敛门禁须校验 `crsPassed && pcvPassed && zeroFindingStreak>=3` |
 | `instructions/15-memory.instructions.md` | tasks/YYYYMMDD.md 段落须追加 `🔗 审计会话：<session-id>` 字段，建立双向链 |
-| `intent/SKILL.md` | resume 意图识别后须在三层记忆读取之前优先扫描 `.devcodex/.audit-state/*.json` 查找未 closed 的会话 |
+| `intent/SKILL.md` | resume 意图识别后须在三层记忆读取之前优先扫描 `<audit-root>/.audit-state/*.json` 查找未 closed 的会话 |
 | `skills/audit-execution-guide/SKILL.md` | 即发即修元循环（self-fix 后重启新轮）须将旧 round 标 `fixed-restart`，新 round 继续累计 |
 
 ## 跨会话 resume 流程
 
 1. 用户说"继续审计" / "继续上次的审查"
-2. 读取 `.devcodex/.audit-state/` 下所有 `.json`，按 `lastUpdatedAt` 倒序
+2. 读取 `<audit-root>/.audit-state/` 下所有 `.json`，按 `lastUpdatedAt` 倒序
 3. 找出 state ∈ {paused, active, resumed} 的最新一份
 4. 输出："发现未完成审计会话 `<sessionId>`：目标 `<target.scope>`，已完成 `R{round}`，发现 `{open}` 项 open。是否继续？"
 5. 用户确认 → state=resumed → 立即 → active，从 round+1 开始

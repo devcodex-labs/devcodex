@@ -11,9 +11,10 @@ applyTo: "**"
 
 ### 跨会话状态持久化（v1.9.2+）
 
-- 所有 audit 启动时必须读取/创建 `.devcodex/.audit-state/<session-id>.json`（详见 `skills/audit-session/SKILL.md`）
+- 所有 audit 启动时必须读取/创建 `<audit-root>/.audit-state/<session-id>.json`（详见 `skills/audit-session/SKILL.md`）
 - 每轮收敛后 / Token 防护触发 / 用户中断时必须更新状态
-- resume 意图须优先扫描 `.audit-state/*.json`：若存在 state ∈ {paused, active, resumed} 的最新会话，提示恢复
+- `<audit-root>` 取值与 active-root 一致：旧布局为 `<项目根>/.devcodex`，集中布局单项目为 `<工作区根>/.devcodex/<project>`，全工作区为 `<工作区根>/.devcodex/workspace`
+- resume 意图须优先扫描 `<audit-root>/.audit-state/*.json`：若存在 state ∈ {paused, active, resumed} 的最新会话，提示恢复
 - 收敛门禁强制校验：`crsPassed && pcvPassed && zeroFindingStreak >= 3`
 
 ### 只读约束（绝对）

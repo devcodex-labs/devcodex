@@ -38,7 +38,7 @@ applyTo: "**"
 - PC2 会话状态：第 N 轮（>10 关注 / >13 预警 / >15 防护） · 待跟进事项 ✅ 无 / ⚠️ [简述]
 - PC3 执行准备：项目现实扩展 [已完成/待澄清] · 未完成任务 ✅ 无 / ⚠️ 存在 🔄 会话：[简述] → 建议先 resume · 产物落点 [已确定/无需产物/待确定]
 - PC4 规范雷达：dev 模式见 `18-spec-radar.instructions.md` §输出格式；非 dev 模式 N/A（dev 扩展诊断未启用）
-- PC5 部署体状态（v1.9.4+）：cwd 父链 .claude/.github/ ✅ 存在 / N/A 无父级 · 与源仓库同步 ✅ / ⚠️ [N 文件滞后] / N/A
+- PC5 部署体状态（v1.11.0+）：cwd 父链 `.github/`、`.claude/`、`AGENTS.md`、`.agents/`、`.codex/` ✅ 存在 / N/A 无父级 · 与源仓库同步 ✅ / ⚠️ [N 文件滞后] / N/A
 - PC6 工作区一致性（v1.9.4+）：git 未提交变更 ✅ 无 / ⚠️ [N 文件 dirty] · 当前任务目录 [requirements/<X>/ / bugs/<Y>/ / 无关联]
 - PC7 新会话首步 resume 强制检测（v1.9.4+，仅首条用户消息触发）：✅ 已 Read tasks 文件 + 比对 SUMMARY 一致 / ⚠️ 数据不一致需 resume / N/A（非首条）
 ```
@@ -59,13 +59,13 @@ applyTo: "**"
 
 > ⚠️ PC4 完整规范与**唯一输出格式定义**在 18-spec-radar.instructions.md。本文件上方预检查示例块仅为说明用途，不重复定义。
 
-### PC5 部署体状态（v1.9.4+，全模式基础项）
+### PC5 部署体状态（v1.11.0+，全模式基础项）
 
-> 检测条件：当 cwd 是 plugin 源仓库（含 `package.json` 且 `name` 含 `devcodex`），且 cwd 父链上存在 `.claude/` 或 `.github/` 部署体。
+> 检测条件：当 cwd 是 plugin 源仓库（含 `package.json` 且 `name` 含 `devcodex`），且 cwd 父链上存在 `.github/`、`.claude/`、`AGENTS.md`、`.agents/` 或 `.codex/` 部署体。
 >
 > 触发动作：
-> - 比对源仓库关键文件（instructions/skills/hooks）与父级部署体的 mtime
-> - 落后 → ⚠️ 标记，建议运行 `npx devcodex update --claude`
+> - 比对源仓库关键文件（instructions/skills/prompts/agents/hooks/入口副本）与父级部署体的 mtime
+> - 落后 → ⚠️ 标记，建议运行 `npx devcodex update`（按宿主需要追加 `--claude` / `--codex`）
 > - 同步 → ✅
 > - 无父级部署体 → N/A
 >

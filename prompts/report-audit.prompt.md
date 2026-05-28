@@ -24,6 +24,7 @@ applyTo: ".devcodex/**/reports/audit/**, .devcodex/**/reports/self-fix/**"
 > **审查范围**: 全面体检 / 定向深度 / 修复验证
 > **收敛**: 连续 3 轮零发现（所有子类型统一，不区分定向/全面）
 > **PCV状态**: ✅已完成 / 🔄进行中
+> **控制面证据**: Concept Sync Map / HostContractVerification / SCV / 新增探针 / 黄色偏离 / 部署同步（按适用填写）
 ```
 
 ## §1 审查轮次摘要
@@ -38,6 +39,18 @@ applyTo: ".devcodex/**/reports/audit/**, .devcodex/**/reports/self-fix/**"
 **公共维度（G1~G5）**：✅ 全部执行  
 **专属维度**：[已执行的维度编号列表]  
 **N/A 维度**：[标注 N/A 的维度及原因]
+
+## §2.5 控制面同步证据（条件）
+
+> 审查对象涉及规范源、Skill、Hook、CLI、模板、validate、README/website/Profile 或部署副本时填写；其他场景标 `N/A`。
+
+| 项 | 内容 |
+|----|------|
+| Concept Sync Map | sourceOfTruth / currentConsumers / historicalMirrors / validateProbes / deployCopies / yellowDeviationBoundary |
+| HostContractVerification | hostSurface / eventScope / evidenceMode / visibleReplyEvidence / workspaceGuard / bootstrapScope |
+| 新增探针 | |
+| 黄色偏离 | |
+| 部署同步证据 | |
 
 ## §3 问题清单
 

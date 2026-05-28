@@ -124,7 +124,7 @@ CP1（需求确认）→ PR-1 内部自检 → CP2（方案确认）→ plan-rev
   - 发布 / 版本 / changelog / profile 口径变更
 - 若同时涉及多真相源同步、模板-示例-校验链或部署副本，必须升级为 **L3 强联查**，并按 C19 追加交叉验证
 - `document-sync`、`impact-review`、`api-verification` 继续作为联查子动作使用，不替代统一联查矩阵
-- `execution-contract`、`test-router`、`release-verification` 作为支撑型 Skill：只提供契约、验证路线和发布验证链，不替代 CP、dev/fix 主流程或安全底线
+- `execution-contract`、`test-router`、`release-verification`、`host-contract-verification`、`source-consumer-sync` 作为支撑型 Skill：分别提供执行契约、验证路线、发布验证链、宿主契约证据与真相源-消费者同步边界，不替代 CP、dev/fix 主流程或安全底线
 
 ### 跨服务需求处理（CP1 前确认）
 

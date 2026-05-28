@@ -12,7 +12,8 @@
 - 修复 Hook Stop/PreCompact 可见回复验证：支持 content parts、messages、choices 与 transcript variants，并将 closure 判断升级为 `verified-present` / `verified-missing` / `unverified` 三态。
 - 修复 Copilot 多项目 workspace 根每轮 warning：已识别唯一项目后短 TTL 内沿用 sticky `activeProject` 与项目 `mode`，workspace-namespace 提示改为真实 `.devcodex/workspace/profile/` 路径，并避免把 payload `role: "user"`、prompt `user-visible`、URL 片段或前缀项目路径等通用/相邻词误判为同名项目。
 - 补充 dev/fix 用户可见意图扩展摘要规则，在控制面、宿主差异、路由修正、风险升高或跨会话 resume 时输出 3~5 行摘要。
-- 新增 `execution-contract`、`test-router`、`release-verification` 三个支撑型 Skill，并同步注册到 `plugin.json`。
+- 新增 `execution-contract`、`test-router`、`release-verification`、`host-contract-verification`、`source-consumer-sync` 五个支撑型 Skill，并同步注册到 `plugin.json`。
 - 补强 dev/fix、报告模板、实施计划、实施进度与交付清单对执行契约、测试路由、发布验证和多批次进度的强制消费。
-- 更新 README、website 与 Agent 文档，将 Skill 数量同步为 39，并说明 Auto/控制面/多批次/发布任务的闭环约束。
+- 补强 Concept Sync Map 与 HostContractRoute：控制面任务需显式区分真相源、当前消费者、历史镜像、validate 探针、部署副本与黄色偏离边界；宿主契约任务需显式记录 direct replay / fixture replay / bootstrap / workspace guard 证据。
+- 更新 README、website 与 Agent/Profile 文档，将 Skill 数量同步为 41，并说明 Auto/控制面/多批次/发布任务的闭环约束。
 - 收敛规范资产跨层漂移：统一 `resume` 读取顺序、PC5 的 Codex 部署面、`audit-state` 的 `<audit-root>` 口径、audit 报告收敛头部，以及 `CONTRIBUTING` 模板占位命令；新增 `validate` 的 `V30~V34` 探针并同步 website 当前消费者文案。

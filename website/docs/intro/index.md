@@ -67,7 +67,7 @@ DevCodex 提供两个 Agent 入口：
 |------|------|
 | Agent | `devcodex.agent.md`（确认模式）+ `devcodex-auto.agent.md`（全自动模式）|
 | Instructions | 全局规范与工作流主规则，按 `applyTo` 全局注入 |
-| Skills | 39 个按需触发的工作流技能，覆盖完整开发生命周期、规范治理与执行契约/测试路由/发布验证支撑能力 |
+| Skills | 41 个按需触发的工作流技能，覆盖完整开发生命周期、规范治理与 `execution-contract` / `test-router` / `release-verification` / `host-contract-verification` / `source-consumer-sync` 支撑能力 |
 | Prompts | CP 节点输出模板 |
 | Hooks | `UserPromptSubmit` / `PreToolUse` / `Stop` 等生命周期钩子 |
 | Codex adapter | `AGENTS.md` + `.agents/skills/` + `.codex/hooks.json` |

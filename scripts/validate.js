@@ -27,9 +27,11 @@
  * V23 Independent evaluation semantics（独立验证可采纳，不机械唱反调）
  * V24 Governance/template/client narrative sync（pending-issues 模板链 / 多客户端真相源 / agent 枚举一致性）
  * V25~V27 ECR/RecordRouter/SCV 与 active-root 落点边界语义
- * V28 Support skills / progress / release verification sync（执行契约、测试路由、发布验证与进度强触发）
+ * V28 Support skills / progress / release verification sync（五个支撑型 Skill、进度强触发与资产计数）
  * V29 Hook visible reply / sticky project / intent expansion sync（Stop 三态、workspace profile 路径、意图扩展摘要）
  * V30~V34 规范资产漂移收敛（resume 顺序 / PC5 部署面 / audit-state / audit 收敛 / contributing 模板）
+ * V35 Concept Sync Map sync（真相源、当前消费者、历史镜像、探针、部署副本、黄色偏离）
+ * V36 Host contract verification sync（宿主契约验证路线、HostContractRoute、报告证据）
  *
  * Exit: 0=OK, 1=error, 2=warnings only
  */
@@ -1721,7 +1723,7 @@ function checkV27() {
 }
 
 function checkV28() {
-  const supportSkills = ['execution-contract', 'test-router', 'release-verification']
+  const supportSkills = ['execution-contract', 'test-router', 'release-verification', 'host-contract-verification', 'source-consumer-sync']
   const plugin = JSON.parse(read(path.join(ROOT, 'plugin.json')))
   const skillFiles = walk(path.join(ROOT, 'skills')).filter(file => path.basename(file) === 'SKILL.md')
   const pluginSkillIds = new Set((plugin.skills || []).map(skill => skill.id))
@@ -1757,7 +1759,7 @@ function checkV28() {
   const probes = [
     {
       file: 'instructions/01-common.instructions.md',
-      needles: ['execution-contract', 'test-router', 'release-verification', '不是工作流子类型']
+      needles: ['execution-contract', 'test-router', 'release-verification', 'host-contract-verification', 'source-consumer-sync', '不是工作流子类型']
     },
     {
       file: 'instructions/10-dev.instructions.md',
@@ -1801,11 +1803,15 @@ function checkV28() {
     },
     {
       file: 'prompts/report-optimization.prompt.md',
-      needles: ['支撑产物状态', 'TestRoute 覆盖', 'ReleaseVerification']
+      needles: ['支撑产物状态', 'TestRoute 覆盖', 'ConceptSyncMap', 'HostContractVerification', '05-实施进度.md']
     },
     {
       file: 'prompts/report-scenario-test.prompt.md',
-      needles: ['支撑产物状态', 'ExecutionContract', 'TestRoute']
+      needles: ['支撑产物状态', 'TestRoute 覆盖', 'ConceptSyncMap', 'HostContractVerification', '05-实施进度.md']
+    },
+    {
+      file: 'instructions/10-dev.instructions.md',
+      needles: ['host-contract-verification', 'source-consumer-sync', '支撑型 Skill']
     },
     {
       file: 'prompts/technical-design.prompt.md',
@@ -1813,31 +1819,31 @@ function checkV28() {
     },
     {
       file: 'prompts/implementation-plan.prompt.md',
-      needles: ['§4.1 执行契约与支持技能', 'ExecutionContract', 'TestRoute', '05-实施进度.md']
+      needles: ['§4.1 执行契约与支持技能', 'ExecutionContract', 'TestRoute', 'ConceptSyncMap 已建立并核对当前消费者/探针/部署副本', 'HostContractVerification 已建立并核对宿主证据/guard/visible reply', '05-实施进度.md']
     },
     {
       file: 'prompts/implementation-progress.prompt.md',
-      needles: ['多批次执行', '预计修改 ≥10 文件', '支撑产物状态', 'ExecutionContract']
+      needles: ['多批次执行', '预计修改 ≥10 文件', '支撑产物状态', 'ExecutionContract', 'ConceptSyncMap', 'HostContractVerification']
     },
     {
       file: 'prompts/delivery-checklist.prompt.md',
-      needles: ['预计修改 ≥10 文件', 'ExecutionContract', 'TestRoute', 'ReleaseVerification']
+      needles: ['预计修改 ≥10 文件', 'ExecutionContract', 'TestRoute', 'ReleaseVerification', 'ConceptSyncMap', 'HostContractVerification']
     },
     {
       file: 'README.md',
-      needles: ['Skill 详细检查标准（39 个', '支撑型 Skill', 'ExecutionContract', 'ReleaseVerification']
+      needles: ['Skill 详细检查标准（41 个', '支撑型 Skill', 'host-contract-verification', 'source-consumer-sync']
     },
     {
       file: 'website/docs/index.md',
-      needles: ['39 个 Skills', '执行契约、测试路由、发布验证']
+      needles: ['41 个 Skills', '宿主契约验证', '真相源-消费者同步']
     },
     {
       file: 'website/docs/intro/index.md',
-      needles: ['39 个按需触发的工作流技能', 'ExecutionContract']
+      needles: ['41 个按需触发的工作流技能', 'host-contract-verification', 'source-consumer-sync']
     },
     {
       file: 'website/docs/specs/directory-structure.md',
-      needles: ['扁平一级 Skill（39 个）', 'execution-contract', 'release-verification']
+      needles: ['扁平一级 Skill（41 个）', 'host-contract-verification', 'source-consumer-sync']
     },
     {
       file: 'website/docs/guide/development.md',
@@ -1861,7 +1867,7 @@ function checkV28() {
     },
     {
       file: 'changelogs/unreleased.md',
-      needles: ['execution-contract', 'test-router', 'release-verification']
+      needles: ['execution-contract', 'test-router', 'release-verification', 'host-contract-verification', 'source-consumer-sync']
     }
   ]
 
@@ -1875,8 +1881,8 @@ function checkV28() {
   }
 
   const activeProfileProbes = [
-    { file: activePath('profile', '01-项目信息.md'), needles: ['| **Skill** | 39 |', 'execution-contract', 'release-verification', 'skills 39'] },
-    { file: activePath('profile', '02-架构约束.md'), needles: ['Skill 文件 39 个', '支撑型（3）', 'execution-contract'] }
+    { file: activePath('profile', '01-项目信息.md'), needles: ['| **Skill** | 41 |', 'host-contract-verification', 'source-consumer-sync', 'skills 41'] },
+    { file: activePath('profile', '02-架构约束.md'), needles: ['Skill 文件 41 个', '支撑型（5）', 'host-contract-verification'] }
   ]
   for (const probe of activeProfileProbes) {
     if (!fs.existsSync(probe.file)) {
@@ -1894,7 +1900,8 @@ function checkV28() {
   const legacyProgressNeedles = [
     ['prompts/implementation-progress.prompt.md', '仅在任务跨多轮/多阶段、存在明确阻塞或用户要求持续跟踪'],
     ['skills/dev-optimization/SKILL.md', '仅在跨多轮、存在明确阻塞或用户要求持续跟踪时启用'],
-    ['changelogs/unreleased.md', '当前无未发布条目。']
+    ['changelogs/unreleased.md', '当前无未发布条目。'],
+    ['skills/document-sync/SKILL.md', '支撑型 Skill（`execution-contract` / `test-router` / `release-verification`）的注册、触发说明、报告模板、validate 探针和用户文档是否一致']
   ]
   for (const [file, needle] of legacyProgressNeedles) {
     const content = read(path.join(ROOT, file))
@@ -1904,6 +1911,134 @@ function checkV28() {
   }
 
   console.log('[V28] support skills / progress / release verification sync checked')
+}
+
+function checkV35() {
+  const probes = [
+    {
+      file: 'skills/spec-governance/SKILL.md',
+      needles: ['Concept Sync Map', 'currentConsumers', 'historicalMirrors', 'validateProbes', 'deployCopies', 'yellowDeviationBoundary', 'source-consumer-sync']
+    },
+    {
+      file: 'skills/source-consumer-sync/SKILL.md',
+      needles: ['ConceptSyncMap', 'sourceOfTruth', 'currentConsumers', 'historicalMirrors', 'validateProbes', 'deployCopies', 'yellowDeviationBoundary']
+    },
+    {
+      file: 'skills/execution-contract/SKILL.md',
+      needles: ['consumerScope', 'verificationEvidence', 'deviationLog', 'currentConsumers', 'historicalMirrors']
+    },
+    {
+      file: 'skills/document-sync/SKILL.md',
+      needles: ['Concept Sync Map', '当前消费者', '历史镜像', 'source-consumer-sync']
+    },
+    {
+      file: 'skills/report/SKILL.md',
+      needles: ['ConceptSyncMap', '黄色偏离', '部署同步证据']
+    },
+    {
+      file: 'prompts/technical-design.prompt.md',
+      needles: ['Concept Sync Map', 'sourceOfTruth', 'yellowDeviationBoundary']
+    },
+    {
+      file: 'prompts/implementation-plan.prompt.md',
+      needles: ['ConceptSyncMap', 'currentConsumers', 'historicalMirrors', 'deployCopies']
+    },
+    {
+      file: 'prompts/report-dev.prompt.md',
+      needles: ['ConceptSyncMap', '黄色偏离', '部署同步证据']
+    },
+    {
+      file: 'prompts/report-audit.prompt.md',
+      needles: ['Concept Sync Map', '黄色偏离', '部署同步证据']
+    },
+    {
+      file: 'prompts/report-optimization.prompt.md',
+      needles: ['ConceptSyncMap', 'currentConsumers', 'yellowDeviationBoundary', '部署同步证据']
+    },
+    {
+      file: 'prompts/report-scenario-test.prompt.md',
+      needles: ['ConceptSyncMap', 'currentConsumers', 'yellowDeviationBoundary', '部署同步证据']
+    },
+    {
+      file: 'prompts/implementation-progress.prompt.md',
+      needles: ['ConceptSyncMap', 'currentConsumers', 'yellowDeviationBoundary']
+    }
+  ]
+
+  for (const probe of probes) {
+    const content = read(path.join(ROOT, probe.file))
+    for (const needle of probe.needles) {
+      if (!content.includes(needle)) {
+        err(`[V35] concept sync map drift in ${probe.file}: missing "${needle}"`)
+      }
+    }
+  }
+
+  console.log('[V35] concept sync map sync checked')
+}
+
+function checkV36() {
+  const probes = [
+    {
+      file: 'skills/host-contract-verification/SKILL.md',
+      needles: ['HostContractRoute', 'hostSurface', 'eventScope', 'visibleReplyEvidence', 'workspaceGuard', 'direct replay', 'fixture replay']
+    },
+    {
+      file: 'skills/test-router/SKILL.md',
+      needles: ['hostVerificationMode', 'workspaceGuard', 'evidenceSource', 'host-contract-verification']
+    },
+    {
+      file: 'skills/report/SKILL.md',
+      needles: ['HostContractVerification', 'hostSurface', 'workspaceGuard']
+    },
+    {
+      file: 'prompts/technical-design.prompt.md',
+      needles: ['hostVerificationMode', 'Concept Sync Map', 'HostContractRoute']
+    },
+    {
+      file: 'prompts/implementation-plan.prompt.md',
+      needles: ['HostContractVerification', 'hostSurface', 'workspaceGuard', 'bootstrapScope']
+    },
+    {
+      file: 'prompts/report-dev.prompt.md',
+      needles: ['HostContractVerification', 'HostContract 验证', 'host-contract probe']
+    },
+    {
+      file: 'prompts/report-fix.prompt.md',
+      needles: ['HostContractVerification', 'HostContract 验证', 'host-contract probe']
+    },
+    {
+      file: 'prompts/report-optimization.prompt.md',
+      needles: ['HostContractVerification', 'HostContract 验证', 'workspaceGuard', 'visibleReplyEvidence']
+    },
+    {
+      file: 'prompts/report-scenario-test.prompt.md',
+      needles: ['HostContractVerification', 'HostContract 验证', 'workspaceGuard', 'visibleReplyEvidence']
+    },
+    {
+      file: 'prompts/implementation-progress.prompt.md',
+      needles: ['HostContractVerification', 'workspaceGuard', 'bootstrapScope']
+    },
+    {
+      file: 'README.md',
+      needles: ['host-contract-verification', 'source-consumer-sync']
+    },
+    {
+      file: 'website/docs/guide/development.md',
+      needles: ['host-contract-verification', 'source-consumer-sync']
+    }
+  ]
+
+  for (const probe of probes) {
+    const content = read(path.join(ROOT, probe.file))
+    for (const needle of probe.needles) {
+      if (!content.includes(needle)) {
+        err(`[V36] host contract verification drift in ${probe.file}: missing "${needle}"`)
+      }
+    }
+  }
+
+  console.log('[V36] host contract verification sync checked')
 }
 
 function checkV29() {
@@ -2153,6 +2288,8 @@ checkV31()
 checkV32()
 checkV33()
 checkV34()
+checkV35()
+checkV36()
 
 console.log('')
 if (errors.length) {

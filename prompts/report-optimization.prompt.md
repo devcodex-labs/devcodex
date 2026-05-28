@@ -21,7 +21,7 @@ applyTo: .devcodex/**/reports/optimizations/**
 > **Agent**: <agent-id>
 > **状态**: 进行中 / 已完成
 > **关联需求**: [路径]
-> **支撑产物**: ExecutionContract / TestRoute / ReleaseVerification / 05-实施进度.md（按触发状态填写）
+> **支撑产物**: ExecutionContract / TestRoute / ReleaseVerification / ConceptSyncMap / HostContractVerification / 05-实施进度.md（按触发状态填写）
 ```
 
 ## §1 执行摘要
@@ -63,6 +63,7 @@ applyTo: .devcodex/**/reports/optimizations/**
 | 类型 | 结果 | 说明 |
 |------|:----:|------|
 | TestRoute 覆盖 | ✅ 通过 / N/A | — |
+| HostContract 验证 | ✅ 通过 / N/A | — |
 | api-verification | ✅ 通过 | 接口行为未变 |
 | 负载测试 (autocannon) | ✅ 通过 | — |
 | 单元测试 | ✅ 通过 | — |
@@ -74,6 +75,8 @@ applyTo: .devcodex/**/reports/optimizations/**
 | ExecutionContract | ✅/N/A | ✅/⚠️ | |
 | TestRoute | ✅/N/A | ✅/⚠️ | |
 | ReleaseVerification | ✅/N/A | ✅/⚠️ | |
+| ConceptSyncMap | ✅/N/A | ✅/⚠️ | sourceOfTruth / currentConsumers / historicalMirrors / validateProbes / deployCopies / yellowDeviationBoundary |
+| HostContractVerification | ✅/N/A | ✅/⚠️ | hostSurface / eventScope / evidenceMode / visibleReplyEvidence / workspaceGuard / bootstrapScope |
 | 05-实施进度.md | ✅/N/A | ✅/⚠️ | |
 
 ## §6.5 ECR 执行闭环复审
@@ -82,11 +85,11 @@ applyTo: .devcodex/**/reports/optimizations/**
 |--------|----------|:----:|------|
 | ECR-1 | CP1/CP2/CP3、05-实施进度、报告、daily tasks、SUMMARY | ✅/⚠️ | |
 | ECR-2 | 优化目标 → diff/commit 文件 | ✅/⚠️ | |
-| ECR-3 | CP3 步骤 / ExecutionContract / TestRoute → 基准/测试/验证证据 | ✅/⚠️ | |
-| ECR-4 | 报告声明 → 性能数据/测试结果/ReleaseVerification | ✅/⚠️ | |
+| ECR-3 | CP3 步骤 / ExecutionContract / TestRoute / ConceptSyncMap / HostContractVerification → 基准/测试/部署/验证证据 | ✅/⚠️ | |
+| ECR-4 | 报告声明 → 性能数据/测试结果/ReleaseVerification/部署同步证据 | ✅/⚠️ | |
 | ECR-5 | memory daily → SUMMARY | ✅/⚠️ | |
 | ECR-6 | git dirty 边界 | ✅/⚠️ | |
-| ECR-7 | 控制面任务 SCV / validate / direct replay / host-contract probe | ✅/N/A | |
+| ECR-7 | 控制面任务 SCV / validate / direct replay / host-contract probe / 新增探针 / 黄色偏离 | ✅/N/A | |
 
 ## §7 遗留问题
 

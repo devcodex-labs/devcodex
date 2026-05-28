@@ -25,8 +25,11 @@ description: 执行契约规范 — 为长流程、多文件、Auto 或控制面
 | `scope` | ✅ | 本次任务目标、排除范围和禁止事项 |
 | `allowedPaths` | ✅ | 允许修改的路径集合；Auto 不得仅依赖静态白名单 |
 | `requiredArtifacts` | ✅ | 必须产出的需求、方案、计划、进度、报告、测试、changelog 等 |
+| `consumerScope` | 条件 | 控制面 / 模板-示例-校验链任务必填；列出 `sourceOfTruth`、`currentConsumers`、`historicalMirrors`、`validateProbes`、`deployCopies` |
 | `validationRoute` | ✅ | 引用 `test-router`、`release-verification` 或当前 CP3 验证矩阵 |
+| `verificationEvidence` | 条件 | 宿主验证或控制面任务必填；记录 validate、targeted tests、fixture replay、direct replay、部署同步等证据计划 |
 | `deviationPolicy` | ✅ | 绿色/黄色/红色偏离分级与处理方式 |
+| `deviationLog` | 条件 | 多批次或发生绿色/黄色偏离时，记录实际新增消费者、探针、同步副本与理由 |
 | `rollbackPlan` | ✅ | 失败恢复路径、回滚锚点或重新确认条件 |
 | `progressArtifact` | 条件 | 多批次、预计 ≥10 文件、跨轮次或用户要求持续跟踪时必须写 `05-实施进度.md` |
 
@@ -35,7 +38,7 @@ description: 执行契约规范 — 为长流程、多文件、Auto 或控制面
 | 级别 | 判定 | 处理 |
 |------|------|------|
 | 🟢 绿色 | 不改变目标、范围、接口、路径边界的局部实现微调 | 记录原因后继续 |
-| 🟡 黄色 | 新增联动文件或验证动作，但不改变需求范围 | 更新计划/进度/报告后继续 |
+| 🟡 黄色 | 新增当前消费者、验证动作或部署副本，但不改变需求范围，且仍在 `yellowDeviationBoundary` 内 | 更新计划/进度/报告与 `deviationLog` 后继续 |
 | 🔴 红色 | 新增依赖、改 Hook runtime 权限模型、改 CLI 语义、改发布动作或扩大需求边界 | 停止执行，回 CP2 或 CP1 |
 
 ## Auto 消费规则
@@ -55,8 +58,11 @@ description: 执行契约规范 — 为长流程、多文件、Auto 或控制面
 | scope | |
 | allowedPaths | |
 | requiredArtifacts | |
+| consumerScope | |
 | validationRoute | |
+| verificationEvidence | |
 | deviationPolicy | |
+| deviationLog | |
 | rollbackPlan | |
 | progressArtifact | |
 ```
@@ -64,5 +70,5 @@ description: 执行契约规范 — 为长流程、多文件、Auto 或控制面
 ## 验证
 
 - 执行前：CP2/CP3 或修复方案中存在 Contract 字段。
-- 执行中：每个 Batch 对照 `allowedPaths` 和 `requiredArtifacts`。
-- 执行后：ECR-2/ECR-3/ECR-7 引用 Contract 与验证证据。
+- 执行中：每个 Batch 对照 `allowedPaths`、`requiredArtifacts`、`consumerScope` 与 `deviationLog`。
+- 执行后：ECR-2/ECR-3/ECR-7 引用 Contract、`verificationEvidence` 与最终偏离记录。

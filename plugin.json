@@ -216,6 +216,16 @@
       "tier": "free"
     },
     {
+      "id": "host-contract-verification",
+      "file": "skills/host-contract-verification/SKILL.md",
+      "tier": "free"
+    },
+    {
+      "id": "source-consumer-sync",
+      "file": "skills/source-consumer-sync/SKILL.md",
+      "tier": "free"
+    },
+    {
       "id": "spec-governance",
       "file": "skills/spec-governance/SKILL.md",
       "tier": "free"

@@ -13,7 +13,7 @@ applyTo: .devcodex/**/requirements/**
 > ⚠️ 技术方案各章节存在编写依赖关系，应按以下推荐顺序编写，禁止跳过必选章节。
 > ⚠️ 本模板优先回答：现状是什么、目标设计是什么、实现流程怎么走、关键节点谁负责、契约与边界如何处理、风险与测试如何覆盖。
 > ⚠️ 生成的 Markdown 技术方案文档必须在头部后补 `## 目录导航`。若需求属于契约驱动型，方案中必须显式引用目标文档路径、文档模式与本方案引用的契约范围。
-> ⚠️ 控制面、Auto、多批次、预计修改 ≥10 文件、模板-示例-校验链或发布前置任务，方案中必须说明是否触发 `execution-contract`、`test-router`、`release-verification` 与 `05-实施进度.md`。
+> ⚠️ 控制面、Auto、多批次、预计修改 ≥10 文件、模板-示例-校验链或发布前置任务，方案中必须说明是否触发 `execution-contract`、`test-router`、`release-verification`、`source-consumer-sync`、`host-contract-verification` 与 `05-实施进度.md`。
 > ⚠️ 若本方案承接了用户可见“意图扩展摘要”，必须在 §0 或 §1 说明语义初判、项目现实扩展后路由、关键风险、验证路线与备选路径如何落到方案中。
 
 | 顺序 | 章节 | 必选 | 依赖 | 说明 |
@@ -91,6 +91,19 @@ applyTo: .devcodex/**/requirements/**
 | 文档模式 | `light-api` / `frontend-api` |
 | 契约锚点范围 | |
 | 本方案如何引用 | |
+
+### §1.4 Concept Sync Map（条件）
+
+> 控制面、模板-示例-校验链、README/website/Profile/validate/部署副本联动任务必填；其他场景标 `N/A`。
+
+| 字段 | 内容 |
+|------|------|
+| sourceOfTruth | |
+| currentConsumers | |
+| historicalMirrors | |
+| validateProbes | |
+| deployCopies | |
+| yellowDeviationBoundary | |
 
 ## §2 核心设计 🔴
 
@@ -194,6 +207,9 @@ applyTo: .devcodex/**/requirements/**
 |------|------|
 | changeType | docs / spec / runtime / api / hook / cli / release / package / website / mixed |
 | routes | static / unit / integration / api-verification / e2e / scenario / release-dry-run / deploy-sync / validate |
+| hostVerificationMode | direct replay / fixture replay / targeted test / validate probe / N/A |
+| workspaceGuard | 单项目 / 多项目 / sticky project / workspace profile / N/A |
+| evidenceSource | validate / targeted test / fixture / direct replay / doc-only |
 | blockingLevel | 阻断 / 警告 / N/A |
 | skipReason | 未选择某验证路线时填写 |
 
@@ -208,7 +224,7 @@ applyTo: .devcodex/**/requirements/**
 
 > 仅描述影响实施顺序的**技术约束**（前置依赖、数据兼容、接口先后）。  
 > 常见约束类型：① 先改 schema 再改 controller（运行时 schema 不匹配）② 先改接口定义再改实现（TS 编译）③ 先补 i18n 语言包再落新错误码（避免裸 key 返回客户端）④ 写操作幂等性前置（Redis 锁/唯一索引）。  
-> 控制面 / Auto / 多批次 / 预计修改 ≥10 文件 / release 前置任务应补充 ExecutionContract：scope、allowedPaths、requiredArtifacts、validationRoute、deviationPolicy、rollbackPlan；正式发版前还须补充 ReleaseVerification R0~R7。
+> 控制面 / Auto / 多批次 / 预计修改 ≥10 文件 / release 前置任务应补充 ExecutionContract：scope、allowedPaths、requiredArtifacts、consumerScope、validationRoute、verificationEvidence、deviationPolicy、deviationLog、rollbackPlan；控制面或宿主契约任务还应补充 Concept Sync Map 与 HostContractRoute。正式发版前还须补充 ReleaseVerification R0~R7。
 > 无技术约束时整节标 N/A。具体任务拆分和里程碑在 CP3 实施计划中完成，本节不重复。
 
 ## §9 风险与缓解 🔴

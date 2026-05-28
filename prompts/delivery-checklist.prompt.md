@@ -33,6 +33,8 @@ applyTo: .devcodex/**/requirements/**
 | 8 | ExecutionContract | Auto / 控制面 / 多批次 / 预计修改 ≥10 文件 / release 前置任务 | ☐/N/A |
 | 9 | TestRoute | 跨模块、API、Hook/CLI、模板-示例-校验链或测试路线不明显 | ☐/N/A |
 | 10 | ReleaseVerification | 用户明确要求 tag / release / publish 或进入正式发版 | ☐/N/A |
+| 11 | ConceptSyncMap | 控制面、模板-示例-校验链、README / website / Profile / validate / 部署副本联动 | ☐/N/A |
+| 12 | HostContractVerification | Hook / CLI / visible reply / sticky project / workspace guard / bootstrap 相关任务 | ☐/N/A |
 
 ## 使用说明
 

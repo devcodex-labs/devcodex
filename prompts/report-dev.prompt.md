@@ -24,7 +24,7 @@ applyTo: .devcodex/**/reports/requirements/**
 > **关联方案**: [路径]
 > **Release 状态**: 未进入 / 待用户确认 / 已执行
 > **日志落点**: `changelogs/unreleased.md` / `CHANGELOG.md + changelogs/vX.Y.Z.md`
-> **支撑产物**: ExecutionContract / TestRoute / ReleaseVerification / 05-实施进度.md（按触发状态填写）
+> **支撑产物**: ExecutionContract / TestRoute / ReleaseVerification / ConceptSyncMap / HostContractVerification / 05-实施进度.md（按触发状态填写）
 ```
 
 ## §1 执行摘要
@@ -68,6 +68,8 @@ applyTo: .devcodex/**/reports/requirements/**
 | ExecutionContract | ✅/N/A | ✅/⚠️ | |
 | TestRoute | ✅/N/A | ✅/⚠️ | |
 | ReleaseVerification | ✅/N/A | ✅/⚠️ | |
+| ConceptSyncMap | ✅/N/A | ✅/⚠️ | sourceOfTruth / currentConsumers / historicalMirrors / validateProbes / deployCopies / yellowDeviationBoundary |
+| HostContractVerification | ✅/N/A | ✅/⚠️ | hostSurface / eventScope / evidenceMode / visibleReplyEvidence / workspaceGuard / bootstrapScope |
 | 05-实施进度.md | ✅/N/A | ✅/⚠️ | |
 | Hook closure 三态证据 | ✅/N/A | ✅/⚠️ | verified-present / verified-missing / unverified；控制面或 Hook 任务必填 |
 
@@ -76,6 +78,7 @@ applyTo: .devcodex/**/reports/requirements/**
 | 类型 | 结果 | 覆盖率 |
 |------|:----:|:------:|
 | TestRoute 覆盖 | ✅ 通过 / N/A | — |
+| HostContract 验证 | ✅ 通过 / N/A | — |
 | 静态/类型检查 | ✅ 通过 / N/A | — |
 | 单元测试 | ✅ 通过 | X% |
 | api-verification | ✅ 通过 / N/A | — |
@@ -88,6 +91,8 @@ applyTo: .devcodex/**/reports/requirements/**
 - [ ] ExecutionContract：✅ 完成 / N/A
 - [ ] TestRoute：✅ 完成 / N/A
 - [ ] ReleaseVerification：✅ 完成 / N/A
+- [ ] ConceptSyncMap：✅ 完成 / N/A
+- [ ] HostContractVerification：✅ 完成 / N/A
 - [ ] 05-实施进度.md：✅ 已同步 / N/A
 - [ ] release-status：未进入 / 待用户确认 / 已执行
 
@@ -97,11 +102,11 @@ applyTo: .devcodex/**/reports/requirements/**
 |--------|----------|:----:|------|
 | ECR-1 | CP1/CP2/CP3、05-实施进度、报告、daily tasks、SUMMARY | ✅/⚠️ | |
 | ECR-2 | 需求条款 / 问题 ID → diff/commit 文件 | ✅/⚠️ | |
-| ECR-3 | CP3 步骤 / ExecutionContract / TestRoute → 测试/部署/验证证据 | ✅/⚠️ | |
-| ECR-4 | 报告声明 → 测试/探针/官方文档/ReleaseVerification | ✅/⚠️ | |
+| ECR-3 | CP3 步骤 / ExecutionContract / TestRoute / ConceptSyncMap / HostContractVerification → 测试/部署/验证证据 | ✅/⚠️ | |
+| ECR-4 | 报告声明 → 测试/探针/官方文档/ReleaseVerification/部署同步证据 | ✅/⚠️ | |
 | ECR-5 | memory daily → SUMMARY | ✅/⚠️ | |
 | ECR-6 | git dirty 边界 | ✅/⚠️ | |
-| ECR-7 | 控制面任务 SCV / validate / direct replay / host-contract probe | ✅/N/A | |
+| ECR-7 | 控制面任务 SCV / validate / direct replay / host-contract probe / 新增探针 / 黄色偏离 | ✅/N/A | |
 
 ## §8 遗留问题
 

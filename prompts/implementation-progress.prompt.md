@@ -62,6 +62,8 @@ applyTo: .devcodex/**/requirements/**
 | ExecutionContract | Auto / 控制面 / 多批次 / 预计修改 ≥10 文件 / release 前置任务 | ✅/🔄/N/A | |
 | TestRoute | 跨模块 / API / Hook / CLI / 模板-示例-校验链 / 测试路线不明显 | ✅/🔄/N/A | |
 | ReleaseVerification | tag / release / publish / 发布前验证 | ✅/🔄/N/A | |
+| ConceptSyncMap | 控制面 / 模板-示例-校验链 / README / website / Profile / validate / 部署副本联动 | ✅/🔄/N/A | sourceOfTruth / currentConsumers / historicalMirrors / validateProbes / deployCopies / yellowDeviationBoundary |
+| HostContractVerification | Hook / CLI / visible reply / sticky project / workspace guard / bootstrap | ✅/🔄/N/A | hostSurface / eventScope / evidenceMode / visibleReplyEvidence / workspaceGuard / bootstrapScope |
 | document-sync | 代码/规范/模板/部署副本联动 | ✅/🔄/N/A | |
 
 ## 当前轮次工作

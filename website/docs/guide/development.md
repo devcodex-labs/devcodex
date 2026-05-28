@@ -67,7 +67,7 @@ description: "Use when: ..."   # 必填，AI 靠这个发现 Skill
 
 - SKILL.md 包含完整的工作流内容：**触发条件** + **执行步骤** + **检查标准**
 - 每个 Skill 目录只有一个 `SKILL.md`，扁平一级目录
-- 支撑型 Skill（如 `execution-contract` / `test-router` / `release-verification`）不能新增工作流分支；必须被 instructions、模板、报告、validate 与用户文档同时消费
+- 支撑型 Skill（如 `execution-contract` / `test-router` / `release-verification` / `host-contract-verification` / `source-consumer-sync`）不能新增工作流分支；必须被 instructions、模板、报告、validate 与用户文档同时消费
 - v2.0.0 规划：MCP `devcodex_getWorkflow()` 替代文件读取
 
 
@@ -142,7 +142,11 @@ Hook Stop / PreCompact 的可见回复验证区分 `verified-present`、`verifie
 
 dev/fix 完成前必须执行 ECR 执行闭环复审。ECR 会交叉验证 CP1/CP2/CP3、报告、daily tasks、SUMMARY、diff/commit、测试/探针和 git dirty 边界，确认没有“报告已完成但证据不足”或“SUMMARY 已完成但 daily 仍未闭环”的状态错配。
 
-当任务触发 ExecutionContract、TestRoute、ReleaseVerification 或 `05-实施进度.md` 时，ECR 必须把这些产物纳入关键证据；未触发时报告中写明 N/A 依据。
+当任务触发 ExecutionContract、TestRoute、ReleaseVerification、ConceptSyncMap、HostContractVerification 或 `05-实施进度.md` 时，ECR 必须把这些产物纳入关键证据；未触发时报告中写明 N/A 依据。
+
+控制面或模板-示例-校验链任务要先建立 Concept Sync Map：至少写清 `sourceOfTruth`、`currentConsumers`、`historicalMirrors`、`validateProbes`、`deployCopies`、`yellowDeviationBoundary`。其中当前消费者必须同批同步，历史镜像只有在明确标注历史性质时才允许保留旧口径。
+
+Hook / CLI / visible reply / sticky project / workspace guard 相关任务还要补 HostContractVerification 证据：至少说明 `hostSurface`、`eventScope`、`evidenceMode`、`visibleReplyEvidence`、`workspaceGuard` 与 `bootstrapScope`，避免把“文档已经写了”误当成宿主行为已验证。
 
 ### 推荐结论与确认交互
 

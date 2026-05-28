@@ -74,13 +74,26 @@ RecordRouter 只在记录意图识别后执行。
 
 当修改规范源、Skill、Hook、CLI、MCP、模板、部署副本、website specs、路径规则或 validate 语义时，必须执行 SCV。
 
+### Concept Sync Map
+
+控制面或模板-示例-校验链任务在进入 SCV-2 前，必须先建立 Concept Sync Map；推荐直接调用 `source-consumer-sync`：
+
+| 字段 | 说明 |
+|------|------|
+| `sourceOfTruth` | 当前事实源 |
+| `currentConsumers` | 本轮必须同步的当前消费者 |
+| `historicalMirrors` | 仅作历史归档的镜像 |
+| `validateProbes` | `validate` 编号、targeted tests、replay 或其他探针 |
+| `deployCopies` | `.github/`、`.claude/`、`AGENTS.md`、`.agents/`、`.codex/` 等部署副本 |
+| `yellowDeviationBoundary` | 允许按黄色偏离一并纳入的当前消费者/探针 |
+
 | 阶段 | 目标 | 最小动作 |
 |------|------|----------|
 | SCV-0 | 变更分类 | 判断文字、语义、控制面、宿主适配、路径存储、文档镜像 |
-| SCV-1 | 真相源映射 | 列出 instruction、skill、prompt、hook、MCP、CLI、website、README、deploy 副本 |
-| SCV-2 | CRS 双向联查 | 正向 grep 关键词，反向推导应同步但缺失的文件 |
+| SCV-1 | Concept Sync Map | 列出 `sourceOfTruth`、`currentConsumers`、`historicalMirrors`、`validateProbes`、`deployCopies`、`yellowDeviationBoundary` |
+| SCV-2 | CRS 双向联查 | 正向 grep 关键词，反向推导应同步但缺失的当前消费者和探针 |
 | SCV-3 | 可执行验证 | 运行 `node scripts\validate.js` 与相关 targeted tests |
-| SCV-4 | 行为回放 | 回放 Hook/MCP/CLI 场景，验证宿主契约与路径行为 |
+| SCV-4 | 行为回放 | 回放 Hook/MCP/CLI 场景，验证宿主契约、visible reply 证据与路径行为 |
 | SCV-5 | 部署副本同步 | 执行并验证部署副本同步或明确 N/A |
 | SCV-6 | 产物边界扫描 | 检查 workspace root、legacy `.devcodex`、错误 `.tmp`、报告/记忆落点 |
 | SCV-7 | 完成判定 | 报告、memory、SUMMARY、dirty 边界、推荐结论一致 |
@@ -88,6 +101,7 @@ RecordRouter 只在记录意图识别后执行。
 完成规则：
 
 - SCV 结果必须写入报告，不能只写“已验证”。
+- 黄色偏离必须写明为什么仍在 `yellowDeviationBoundary` 内，且不能把当前消费者伪装成历史镜像。
 - SCV 失败时不得宣告任务完成。
 - 控制面任务的 ECR-7 必须引用 SCV 证据。
 

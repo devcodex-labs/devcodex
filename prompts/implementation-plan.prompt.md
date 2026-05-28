@@ -9,7 +9,7 @@ applyTo: .devcodex/**/requirements/**
 > **触发**: dev 工作流 CP3 阶段
 > ⚠️ 本模板只承接任务拆分、实施顺序、前置依赖、验证方式与回滚策略，不重复需求背景或技术方案中的设计论证。
 > ⚠️ 生成的 Markdown 实施计划文档必须在头部后补 `## 目录导航`。
-> ⚠️ 控制面、Auto、多批次、预计修改 ≥10 文件、模板-示例-校验链或发布前置任务，计划中必须列出 ExecutionContract / TestRoute / ReleaseVerification / 05-实施进度.md 的触发状态与证据。
+> ⚠️ 控制面、Auto、多批次、预计修改 ≥10 文件、模板-示例-校验链或发布前置任务，计划中必须列出 ExecutionContract / TestRoute / ReleaseVerification / ConceptSyncMap / HostContractVerification / 05-实施进度.md 的触发状态与证据。
 
 ## 计划模式
 
@@ -90,6 +90,8 @@ applyTo: .devcodex/**/requirements/**
 | ExecutionContract | 是 / 否 | Auto / 控制面 / 多批次 / 预计修改 ≥10 文件 / release 前置任务 | scope / allowedPaths / requiredArtifacts / validationRoute / deviationPolicy / rollbackPlan |
 | TestRoute | 是 / 否 | 跨模块 / API / Hook / CLI / 模板-示例-校验链 / 测试路线不明显 | changeType / routes / commands / skipReason / blockingLevel |
 | ReleaseVerification | 是 / 否 | 用户要求 tag / release / publish 或进入正式发版 | R0~R7 |
+| ConceptSyncMap | 是 / 否 | 控制面 / 模板-示例-校验链 / README / website / Profile / validate / 部署副本联动 | sourceOfTruth / currentConsumers / historicalMirrors / validateProbes / deployCopies / yellowDeviationBoundary |
+| HostContractVerification | 是 / 否 | Hook / CLI / visible reply / sticky project / workspace guard / bootstrap | hostSurface / eventScope / evidenceMode / visibleReplyEvidence / workspaceGuard / bootstrapScope |
 | 05-实施进度.md | 是 / 否 | 跨多轮/多阶段、阻塞、用户要求持续跟踪、多批次、预计修改 ≥10 文件、控制面或模板-校验链任务 | CP 状态 / 批次状态 / 阻塞 / 验证证据 |
 
 ## §5 独立验证方式
@@ -100,6 +102,8 @@ applyTo: .devcodex/**/requirements/**
 |--------|---------|---------|
 | ExecutionContract | 对照 scope / allowedPaths / requiredArtifacts / validationRoute | 无范围偏移，偏移均按 deviationPolicy 处理 |
 | TestRoute | 对照变更类型执行对应命令 | 路线覆盖完整，跳过项有依据 |
+| ConceptSyncMap | 对照 sourceOfTruth / currentConsumers / historicalMirrors / validateProbes / deployCopies | 当前消费者与探针无漏改，历史镜像边界明确 |
+| HostContractVerification | 对照 hostSurface / eventScope / evidenceMode / workspaceGuard | direct replay / fixture / targeted test 证据与声明一致 |
 | 模板/规则一致性 | | |
 | 样本映射 | | |
 | 自动化校验 | | |
@@ -136,6 +140,8 @@ applyTo: .devcodex/**/requirements/**
 - [ ] ExecutionContract 已建立并执行（若触发）
 - [ ] TestRoute 已建立并覆盖（若触发）
 - [ ] ReleaseVerification R0~R7 已完成（若进入正式发版）
+- [ ] ConceptSyncMap 已建立并核对当前消费者/探针/部署副本（若触发）
+- [ ] HostContractVerification 已建立并核对宿主证据/guard/visible reply（若触发）
 - [ ] 05-实施进度.md 已按触发条件持续同步（若触发）
 - [ ] document-sync 完成
 - [ ] CHANGELOG / unreleased 已按发布状态更新

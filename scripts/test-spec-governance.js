@@ -28,6 +28,15 @@ const probes = [
   ['skills/spec-governance/SKILL.md', '你刚才漏了/错了/违反流程了'],
   ['skills/spec-governance/SKILL.md', 'VL/PF 关闭前必须具备修复方案'],
   ['skills/spec-governance/SKILL.md', '当前 DevCodex 源仓或规范维护项目的 active-root'],
+  ['skills/spec-governance/SKILL.md', 'Concept Sync Map'],
+  ['skills/spec-governance/SKILL.md', 'currentConsumers'],
+  ['skills/spec-governance/SKILL.md', 'yellowDeviationBoundary'],
+  ['skills/source-consumer-sync/SKILL.md', 'ConceptSyncMap'],
+  ['skills/source-consumer-sync/SKILL.md', 'historicalMirrors'],
+  ['skills/source-consumer-sync/SKILL.md', 'deployCopies'],
+  ['skills/host-contract-verification/SKILL.md', 'HostContractRoute'],
+  ['skills/host-contract-verification/SKILL.md', 'visibleReplyEvidence'],
+  ['skills/host-contract-verification/SKILL.md', 'workspaceGuard'],
   ['instructions.md', '规范治理生命周期（RecordRouter + SCV）'],
   ['instructions.md', '你刚才漏了/错了/违反流程了'],
   ['instructions.md', 'VL/PF 关闭前必须具备修复方案'],
@@ -44,7 +53,9 @@ const probes = [
   ['data/templates/pending-issues.md', 'record.pending-issue'],
   ['data/templates/gap-registry.md', 'record.audit-gap'],
   ['data/README.md', '旧 `.devcodex/.maintainer-state/` 只作为历史迁移口径'],
-  ['skills/report/SKILL.md', 'SCV-0~SCV-7']
+  ['skills/report/SKILL.md', 'SCV-0~SCV-7'],
+  ['skills/report/SKILL.md', 'ConceptSyncMap'],
+  ['skills/report/SKILL.md', 'HostContractVerification']
 ]
 
 for (const [file, needle] of probes) mustInclude(file, needle)
@@ -86,8 +97,14 @@ for (const file of genericDistributedFiles) {
 }
 
 const plugin = JSON.parse(read('plugin.json'))
-if (!plugin.skills.some(skill => skill.id === 'spec-governance' && skill.file === 'skills/spec-governance/SKILL.md')) {
-  failures.push('plugin.json missing spec-governance skill entry')
+for (const [id, file] of [
+  ['spec-governance', 'skills/spec-governance/SKILL.md'],
+  ['source-consumer-sync', 'skills/source-consumer-sync/SKILL.md'],
+  ['host-contract-verification', 'skills/host-contract-verification/SKILL.md']
+]) {
+  if (!plugin.skills.some(skill => skill.id === id && skill.file === file)) {
+    failures.push(`plugin.json missing ${id} skill entry`)
+  }
 }
 
 if (failures.length) {

@@ -31,10 +31,11 @@ description: 文档同步规范 — 代码变更后同步必查与条件文档
 
 | 步骤 | 动作 |
 |------|------|
-| 1 | 读取本次变更内容（diff 或变更摘要） |
-| 2 | 逐一检查必查文档，并确认条件文档是否存在/启用 |
-| 3 | 更新需要同步的文档 |
-| 4 | 确认文档与代码一致（版本号/API/配置项） |
+| 1 | 读取本次变更内容（diff 或变更摘要），必要时先建立 Concept Sync Map |
+| 2 | 区分当前消费者与历史镜像，确认本轮必须同步的当前文档与可保留的历史归档 |
+| 3 | 逐一检查必查文档，并确认条件文档是否存在/启用 |
+| 4 | 更新需要同步的文档 |
+| 5 | 确认文档与代码一致（版本号/API/配置项） |
 
 ### 文档即产品仓库的附加检查
 
@@ -45,6 +46,12 @@ description: 文档同步规范 — 代码变更后同步必查与条件文档
 - 使用者指南：`website/docs/guide/*.md`
 - 永久规范页：`website/docs/specs/*.md`
 - 当前活跃版本 requirement：`website/docs/versions/v1/<active-version>/requirements/**`
+
+### 当前消费者 vs 历史镜像
+
+- 当前消费者：仍以“当前行为”口吻描述现状，或会被 validate / 部署副本 / 模板继续消费；本轮必须同步。
+- 历史镜像：只保留基线、归档或历史阶段事实；只有明确标注历史性质时，才允许暂不改动。
+- 控制面任务建议先调用 `source-consumer-sync`，把 Concept Sync Map 写清后再执行文档同步。
 
 ## 同步规则
 
@@ -82,7 +89,9 @@ description: 文档同步规范 — 代码变更后同步必查与条件文档
 - `token-check` 是否仍被描述为授权占位，而非当前 tier 门控
 - `ENV_MODE` 是否仍按当前 `dev / prod` 规则说明，而不是 Draft
 - 正式需求入口是否仍指向 `website/docs/versions/v1/<active-version>/requirements/`
-- 支撑型 Skill（`execution-contract` / `test-router` / `release-verification`）的注册、触发说明、报告模板、validate 探针和用户文档是否一致
+- 支撑型 Skill（`execution-contract` / `test-router` / `release-verification` / `host-contract-verification` / `source-consumer-sync`）的注册、触发说明、报告模板、validate 探针和用户文档是否一致
+- 控制面任务是否已建立 Concept Sync Map，并把当前消费者、历史镜像、validate 探针、部署副本与黄色偏离边界说明清楚
+- 宿主契约相关变更是否补了 HostContractRoute 证据，而不是只改文档叙述
 - 多批次任务的 `05-实施进度.md` 是否随批次完成更新
 
 ## 豁免

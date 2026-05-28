@@ -23,13 +23,16 @@ applyTo: .devcodex/**/requirements/**
 
 | # | 产物 | 触发条件 | 状态 |
 |:-:|------|---------|:----:|
-| 1 | 实施进度 | 任务跨 2 轮以上会话、存在明确阻塞，或用户要求持续跟踪，且已存在 `04-实施计划.md` | ☐/N/A |
+| 1 | 实施进度 | 跨多轮/多阶段、阻塞、用户要求持续跟踪、多批次、预计修改 ≥10 文件、控制面任务、模板-示例-校验链或部署同步联动，且已存在 `04-实施计划.md` | ☐/N/A |
 | 2 | 行为核查清单 | 有多个业务规则需逐条验证时（使用 `behavior-checklist.prompt.md`）| ☐/N/A |
 | 3 | Impact Review 报告 | PR-5② 跨模块架构依赖变更 | ☐/N/A |
 | 4 | 数据库 Migration 文件 | 有 Schema 变更 | ☐/N/A |
 | 5 | CHANGELOG 更新 | 任何源码/配置文件变更 | ☐ |
 | 6 | README 更新 | 有安装步骤/API/配置变更 | ☐/N/A |
 | 7 | .env.example 更新 | 有新增/修改/删除环境变量 | ☐/N/A |
+| 8 | ExecutionContract | Auto / 控制面 / 多批次 / 预计修改 ≥10 文件 / release 前置任务 | ☐/N/A |
+| 9 | TestRoute | 跨模块、API、Hook/CLI、模板-示例-校验链或测试路线不明显 | ☐/N/A |
+| 10 | ReleaseVerification | 用户明确要求 tag / release / publish 或进入正式发版 | ☐/N/A |
 
 ## 使用说明
 

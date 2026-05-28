@@ -67,6 +67,7 @@ description: "Use when: ..."   # 必填，AI 靠这个发现 Skill
 
 - SKILL.md 包含完整的工作流内容：**触发条件** + **执行步骤** + **检查标准**
 - 每个 Skill 目录只有一个 `SKILL.md`，扁平一级目录
+- 支撑型 Skill（如 `execution-contract` / `test-router` / `release-verification`）不能新增工作流分支；必须被 instructions、模板、报告、validate 与用户文档同时消费
 - v2.0.0 规划：MCP `devcodex_getWorkflow()` 替代文件读取
 
 
@@ -135,6 +136,8 @@ description: "Use when: ..."   # 必填，AI 靠这个发现 Skill
 
 dev/fix 完成前必须执行 ECR 执行闭环复审。ECR 会交叉验证 CP1/CP2/CP3、报告、daily tasks、SUMMARY、diff/commit、测试/探针和 git dirty 边界，确认没有“报告已完成但证据不足”或“SUMMARY 已完成但 daily 仍未闭环”的状态错配。
 
+当任务触发 ExecutionContract、TestRoute、ReleaseVerification 或 `05-实施进度.md` 时，ECR 必须把这些产物纳入关键证据；未触发时报告中写明 N/A 依据。
+
 ### 推荐结论与确认交互
 
 分析、审计或执行报告存在多个建议/路径时，必须给出推荐结论与推荐理由；没有后续动作时写明“推荐：无后续动作”。用户确认先抽象为 ConfirmationRequest，再按宿主能力使用按钮、权限提示、Hook 阻断或文本确认 fallback。
@@ -142,6 +145,8 @@ dev/fix 完成前必须执行 ECR 执行闭环复审。ECR 会交叉验证 CP1/C
 ### 相关文件联查
 
 当前正式规则要求：当任务涉及控制面规则、模板、接口契约/验证产物、工作区真相源/部署副本或发布口径变更时，AI 不能只看单文件结果，必须联查相关文件；若同时命中多真相源同步或模板-示例-校验链，需进一步升级为交叉验证或 `CRS`。
+
+进度产物不是小任务默认文书；但跨多轮/多阶段、阻塞、用户要求持续跟踪、多批次、预计修改 ≥10 文件、控制面任务、模板-示例-校验链或部署同步联动时，必须在执行前初始化 `05-实施进度.md` 并随批次更新。
 
 ---
 

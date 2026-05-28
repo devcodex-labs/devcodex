@@ -24,7 +24,7 @@ DevCodex 当前处于**本地文件版持续迭代阶段**。
 | 跨项目零配置复用 | 目标是后续通过 `devcodex init` 安装到任意项目 |
 | 多宿主一致入口 | Copilot、Claude Code 与 Codex 共用同一规范源，分别落到 `.github/`、`CLAUDE.md + .claude/`、`AGENTS.md + .agents/ + .codex/`；Hook 能力按宿主/事件降级，并按官方输出契约区分顶层 block、`continue:false` 与工具级 deny |
 | 平台升级免维护 | 提前对齐官方目录规范，降低后续实现风险 |
-| 灵活的执行模式 | 提供确认模式与 Auto v1.1；Auto 仅对白名单路径提供自动推进保证 |
+| 灵活的执行模式 | 提供确认模式与 Auto v1.1；Auto 仅对白名单路径提供自动推进保证，控制面/多批次任务仍受 ExecutionContract 约束 |
 | AI 对自身行为自检 | 把合规检查作为核心设计原则保留下来 |
 | 分层功能授权 | 商业化能力暂时仅做规划，不视为已实现功能 |
 
@@ -67,7 +67,7 @@ DevCodex 提供两个 Agent 入口：
 |------|------|
 | Agent | `devcodex.agent.md`（确认模式）+ `devcodex-auto.agent.md`（全自动模式）|
 | Instructions | 全局规范与工作流主规则，按 `applyTo` 全局注入 |
-| Skills | 36 个按需触发的工作流技能，覆盖完整开发生命周期与规范治理 |
+| Skills | 39 个按需触发的工作流技能，覆盖完整开发生命周期、规范治理与执行契约/测试路由/发布验证支撑能力 |
 | Prompts | CP 节点输出模板 |
 | Hooks | `UserPromptSubmit` / `PreToolUse` / `Stop` 等生命周期钩子 |
 | Codex adapter | `AGENTS.md` + `.agents/skills/` + `.codex/hooks.json` |

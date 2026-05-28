@@ -81,7 +81,8 @@ DevCodex 采用“双阶段发布 + 三层日志”：
   2. 从 `changelogs/unreleased.md` 归档到 `changelogs/vX.Y.Z.md`
   3. 更新根 `CHANGELOG.md`
   4. 更新 `package.json` / `plugin.json`
-  5. commit / tag / publish
+  5. 执行 ReleaseVerification R0~R7
+  6. commit / tag / publish
 
 > 旧日志不要求迁移；本规则只约束新变更。
 
@@ -99,3 +100,4 @@ DevCodex 采用“双阶段发布 + 三层日志”：
 3. 将 `changelogs/unreleased.md` 中待发布条目归档到 `changelogs/vX.Y.Z.md`
 4. 更新根 `CHANGELOG.md`
 5. 更新 `package.json` version 字段为正式版本号
+6. 按 `release-verification` Skill 执行 R0~R7：dirty 边界、版本一致性、changelog 归档、validate/test、pack/publish dry-run、tag/publish、发布后验收

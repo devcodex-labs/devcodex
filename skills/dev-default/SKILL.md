@@ -16,7 +16,7 @@ dev 工作流未匹配其他子类型时的默认路径，适用于：新功能�
 | N2 技术方案 | 架构设计、接口定义、数据流 → **PR-1 内部自检**（需求完整性），不通过则修正后重检；契约驱动型需求须显式引用目标文档路径/模式/契约范围 | 自检通过后 → [CP2](../cp-gate/SKILL.md) 确认 |
 | N3 方案验证 | 调用 `dev-plan-review` Skill（PR-2~PR-7）；PR-5② 触发则继续 `impact-review` | 🔴 阻断时回 CP2 |
 | N4 实施计划 | 任务拆分、顺序、依赖、验证与回滚 | [CP3](../cp-gate/SKILL.md) 确认 |
-| N5 执行 | 编码实现 → 接口变更时 `api-verification` → `document-sync` | — |
+| N5 执行 | ExecutionContract/TestRoute 对照 → 编码实现 → 接口变更时 `api-verification` → `document-sync` | — |
 | N6 ECR 执行闭环复审 | 对照 §2 核心设计、关键产物、报告、记忆、SUMMARY、diff/commit 与验证证据做执行后正式复审 | 发现阻断问题须回退修正 |
 
 ### N5 执行阶段补充规则
@@ -62,9 +62,10 @@ dev 工作流未匹配其他子类型时的默认路径，适用于：新功能�
 - 三个 CP 必须按序获得用户确认，禁止合并跳过（[C02](../../instructions/01-common.instructions.md)）
 - PR-1 在 CP2 前做 AI 内部自检，PR-2~PR-7 在 CP2→CP3 之间做详细验证（`dev-plan-review` 两阶段流程）
 - 执行阶段结束后触发：`api-verification`（若涉及接口）→ `document-sync` → **ECR 执行闭环复审**（N6，内部包含方案一致性验证和 ECR-1~ECR-7）
+- Auto、控制面、多批次、预计 ≥10 文件或发布类任务，执行前必须调用 `execution-contract`；测试路线复杂或跨模块时调用 `test-router`
 - 高联动场景不得只做单文件修改；至少要同步直接真相源与同层联动文件
 - `impact-review` 仅由 PR-5②（跨模块架构依赖变更）触发，position：plan-review 之后、CP3 之前
-- N4 只确认实施计划，不重复技术方案中的架构决策、接口论证和兼容性主说明；`05-实施进度.md` 仅在任务跨多轮、存在明确阻塞或用户要求持续跟踪时启用
+- N4 只确认实施计划，不重复技术方案中的架构决策、接口论证和兼容性主说明；`05-实施进度.md` 对小任务不是默认文书，但多批次、预计 ≥10 文件、跨轮次、阻塞、控制面联动或用户要求持续跟踪时必须启用
 - 关键 Markdown 产物（需求 / 方案 / 实施计划 / 实施进度 / 阅读型文档 / README）必须包含 `## 目录导航`；`.http / .cjs` 不适用
 - 输出报告：`reports/requirements/` 目录，遵循 [`report`](../report/SKILL.md) Skill 命名规则
 - 测试覆盖：实现完成后确认关键路径单测

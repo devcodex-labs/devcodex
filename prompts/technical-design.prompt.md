@@ -13,6 +13,7 @@ applyTo: .devcodex/**/requirements/**
 > ⚠️ 技术方案各章节存在编写依赖关系，应按以下推荐顺序编写，禁止跳过必选章节。
 > ⚠️ 本模板优先回答：现状是什么、目标设计是什么、实现流程怎么走、关键节点谁负责、契约与边界如何处理、风险与测试如何覆盖。
 > ⚠️ 生成的 Markdown 技术方案文档必须在头部后补 `## 目录导航`。若需求属于契约驱动型，方案中必须显式引用目标文档路径、文档模式与本方案引用的契约范围。
+> ⚠️ 控制面、Auto、多批次、预计修改 ≥10 文件、模板-示例-校验链或发布前置任务，方案中必须说明是否触发 `execution-contract`、`test-router`、`release-verification` 与 `05-实施进度.md`。
 
 | 顺序 | 章节 | 必选 | 依赖 | 说明 |
 |:----:|------|:----:|------|------|
@@ -184,6 +185,16 @@ applyTo: .devcodex/**/requirements/**
 ## §7 测试策略 🔴
 
 > 包含：静态/类型检查（按项目技术栈选择；TypeScript 项目优先项目既有 `typecheck`，否则用 `tsc --noEmit` 一类无产物校验）、单元测试（核心计算/校验函数）、集成/联调（对外接口 happy path + edge case）、回归（现有功能未被破坏）。
+> 若测试路线不明显，或涉及跨模块、接口、Hook/CLI、模板-示例-校验链联动，应先输出 TestRoute，再按 TestRoute 选择 `dev-testing` / `api-verification` / `dev-scenario-test` 等专项验证。
+
+### §7.0 TestRoute（条件）
+
+| 字段 | 内容 |
+|------|------|
+| changeType | docs / spec / runtime / api / hook / cli / release / package / website / mixed |
+| routes | static / unit / integration / api-verification / e2e / scenario / release-dry-run / deploy-sync / validate |
+| blockingLevel | 阻断 / 警告 / N/A |
+| skipReason | 未选择某验证路线时填写 |
 
 | 类型 | 工具 | 覆盖目标 |
 |------|------|---------|
@@ -196,6 +207,7 @@ applyTo: .devcodex/**/requirements/**
 
 > 仅描述影响实施顺序的**技术约束**（前置依赖、数据兼容、接口先后）。  
 > 常见约束类型：① 先改 schema 再改 controller（运行时 schema 不匹配）② 先改接口定义再改实现（TS 编译）③ 先补 i18n 语言包再落新错误码（避免裸 key 返回客户端）④ 写操作幂等性前置（Redis 锁/唯一索引）。  
+> 控制面 / Auto / 多批次 / 预计修改 ≥10 文件 / release 前置任务应补充 ExecutionContract：scope、allowedPaths、requiredArtifacts、validationRoute、deviationPolicy、rollbackPlan；正式发版前还须补充 ReleaseVerification R0~R7。
 > 无技术约束时整节标 N/A。具体任务拆分和里程碑在 CP3 实施计划中完成，本节不重复。
 
 ## §9 风险与缓解 🔴

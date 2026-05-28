@@ -27,6 +27,7 @@ applyTo: .devcodex/**/reports/bugs/**
 > **修复时间**: YYYY-MM-DD HH:MM:SS（incident 类型必填）
 > **Release 状态**: 未进入 / 待用户确认 / 已执行
 > **日志落点**: `changelogs/unreleased.md` / `CHANGELOG.md + changelogs/vX.Y.Z.md`
+> **支撑产物**: ExecutionContract / TestRoute / ReleaseVerification / 05-实施进度.md（按触发状态填写）
 ```
 
 ## §1 问题摘要
@@ -61,10 +62,20 @@ applyTo: .devcodex/**/reports/bugs/**
 | 数据联动扫描 | ✅ / ⚠️ | |
 | grep 零残留复核 | ✅ / ⚠️ | |
 
+## §4.5 支撑产物状态
+
+| 产物 | 触发状态 | 结果 | 证据 |
+|------|----------|:----:|------|
+| ExecutionContract | ✅/N/A | ✅/⚠️ | |
+| TestRoute | ✅/N/A | ✅/⚠️ | |
+| ReleaseVerification | ✅/N/A | ✅/⚠️ | |
+| 05-实施进度.md | ✅/N/A | ✅/⚠️ | |
+
 ## §5 回归验证
 
 | 测试用例 | 结果 |
 |---------|:----:|
+| TestRoute 覆盖 | ✅ 通过 / N/A |
 | 静态/类型检查 | ✅ 通过 / N/A |
 | 原始重现步骤 | ✅ 已修复 |
 | 关联功能回归 | ✅ 正常 |
@@ -74,13 +85,13 @@ applyTo: .devcodex/**/reports/bugs/**
 
 | ECR 项 | 检查对象 | 结果 | 证据 |
 |--------|----------|:----:|------|
-| ECR-1 | CP1/CP2/CP3、报告、daily tasks、SUMMARY | ✅/⚠️ | |
+| ECR-1 | CP1/CP2/CP3、05-实施进度、报告、daily tasks、SUMMARY | ✅/⚠️ | |
 | ECR-2 | 问题 ID / 根因链 → diff/commit 文件 | ✅/⚠️ | |
-| ECR-3 | CP3 步骤 → 测试/部署/验证证据 | ✅/⚠️ | |
-| ECR-4 | 修复报告声明 → 测试/扫描/探针结果 | ✅/⚠️ | |
+| ECR-3 | CP3 步骤 / ExecutionContract / TestRoute → 测试/部署/验证证据 | ✅/⚠️ | |
+| ECR-4 | 修复报告声明 → 测试/扫描/探针结果/ReleaseVerification | ✅/⚠️ | |
 | ECR-5 | memory daily → SUMMARY | ✅/⚠️ | |
 | ECR-6 | git dirty 边界 | ✅/⚠️ | |
-| ECR-7 | 控制面任务 validate / direct replay / host-contract probe | ✅/N/A | |
+| ECR-7 | 控制面任务 SCV / validate / direct replay / host-contract probe | ✅/N/A | |
 
 ## §6 时间线（incident 类型必填，秒级精度供响应时效审计）
 
@@ -113,5 +124,9 @@ applyTo: .devcodex/**/reports/bugs/**
 ## §9 后置处理
 
 - [ ] document-sync：✅ 完成
+- [ ] ExecutionContract：✅ 完成 / N/A
+- [ ] TestRoute：✅ 完成 / N/A
+- [ ] ReleaseVerification：✅ 完成 / N/A
+- [ ] 05-实施进度.md：✅ 已同步 / N/A
 - [ ] release-status：未进入 / 待用户确认 / 已执行
 - [ ] CHANGELOG / unreleased 已按发布状态更新

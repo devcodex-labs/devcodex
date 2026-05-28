@@ -18,6 +18,7 @@ disable-model-invocation: true
 - **hook-enforced 宿主**：仅对白名单路径自动推进；非白名单路径默认回确认模式
 - **instruction-fallback 宿主**：如 JetBrains / Cursor，只同步规则语义，不承诺 runtime 级硬放行；支持 Hook 的宿主按白名单执行 runtime 放行
 - **白名单范围**：DevCodex 治理文件、`.devcodex/` 产物、README 与 auto 专属回归脚本
+- **执行契约**：控制面、多批次、预计修改 ≥10 文件或发布前置任务必须先形成 ExecutionContract，并按 `allowedPaths`、`requiredArtifacts`、`validationRoute` 推进
 - S01~S07 / C01 / C10 / C18 **不可豁免**
 - 可恢复失败：重试 ≤ 2 次；不可恢复失败：通知用户 ⚠️
 

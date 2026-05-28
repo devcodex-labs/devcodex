@@ -13,6 +13,7 @@ description: 文档同步规范 — 代码变更后同步必查与条件文档
 | `changelogs/unreleased.md` | 🔴 必查 | 用户未明确要求发版时的未发布实现变更记录 |
 | `CHANGELOG.md` | 🟡 条件 | 仅正式发版时更新已发布版本索引 |
 | `README.md` | 🔴 必查 | 安装/使用/API 说明与代码一致 |
+| `05-实施进度.md` | 🟡 条件 | 多批次、预计 ≥10 文件、跨轮次、阻塞或用户要求持续跟踪的任务必须更新当前批次状态 |
 | `.env.example` | 🔴 必查 | 有新增/修改/删除共享环境变量时同步更新示例文件，禁止遗漏；仅本地专用 `.env.local` / `.env.test.local` 或临时 task config 不在此列 |
 | `.devcodex/profile/01-项目信息.md` / `02-架构约束.md` | 🟡 条件 | 当工作流边界、分发面、活动版本入口或当前规则事实变更时同步 |
 | `RULES.md` | 🟡 条件 | 当入口路由、工作流说明、当前可用状态或使用方式变更时同步 |
@@ -81,6 +82,8 @@ description: 文档同步规范 — 代码变更后同步必查与条件文档
 - `token-check` 是否仍被描述为授权占位，而非当前 tier 门控
 - `ENV_MODE` 是否仍按当前 `dev / prod` 规则说明，而不是 Draft
 - 正式需求入口是否仍指向 `website/docs/versions/v1/<active-version>/requirements/`
+- 支撑型 Skill（`execution-contract` / `test-router` / `release-verification`）的注册、触发说明、报告模板、validate 探针和用户文档是否一致
+- 多批次任务的 `05-实施进度.md` 是否随批次完成更新
 
 ## 豁免
 

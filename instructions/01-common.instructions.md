@@ -92,6 +92,8 @@ applyTo: "**"
 | 控制面规则变更 | `instructions/`、`skills/`、`prompts/`、`hooks/`、`scripts/validate.js` | L2 | 涉及多真相源或部署副本 → L3 |
 | 模板变更 | `prompts/`、对应 `skills/`、对应 `instructions/`、`scripts/validate.js`、样本/示例文档 | L2 | 命中模板-示例-校验链 → L3 |
 | 接口契约 / 验证产物变更 | 技术方案、目标接口文档、`.http`、`.cjs`、调用方说明 | L2 | 对外契约 + 多端联调 → L3 |
+| 执行契约 / 测试路由 / 发布验证变更 | `skills/execution-contract`、`skills/test-router`、`skills/release-verification`、dev/fix instructions、报告模板、validate | L3 | 默认即强联查 |
+| 实施进度跟踪规则变更 | `instructions/02-output-paths`、`instructions/10-dev`、`skills/cp-gate`、`prompts/implementation-progress`、`scripts/validate.js` | L3 | 默认即强联查 |
 | 工作区真相源 / 部署副本 / 分发链变更 | `index.js`、`mcp/`、`hooks/_runtime/`、`README.md`、Profile、`.github/`、`.claude/` | L3 | 默认即强联查 |
 | 发布 / 版本 / changelog / profile 口径变更 | `package.json`、`plugin.json`、`CHANGELOG.md`、`changelogs/`、`README.md`、Profile、必要公告文档 | L2 | 多真相源口径同步 → L3 |
 
@@ -144,6 +146,8 @@ applyTo: "**"
 > 3. `skills/routing/SKILL.md` 路由表
 > 4. `skills/report/SKILL.md` 模板引用表
 > 5. `instructions/02-output-paths.instructions.md` §报告子目录列表
+>
+> ⚠️ **支撑型 Skill**（如 `execution-contract` / `test-router` / `release-verification`）不是工作流子类型，不强制写入子类型路由表；但必须同步 `plugin.json` 注册、触发说明、报告/模板消费点、文档说明与 validate 探针。
 
 | 工作流.子类型 | 必读 Skills |
 |-------------|------------|
@@ -172,6 +176,9 @@ applyTo: "**"
 | resume | `memory` |
 
 **按需触发 Skills**（不预读，仅在执行中满足条件时读取）：
+- `execution-contract`：Auto、控制面、预计 ≥10 文件、多批次、发布或需要强边界任务触发
+- `test-router`：dev/fix 执行前选择验证路线时触发
+- `release-verification`：用户明确要求 release / tag / publish 或版本发布验证时触发
 - `api-verification`：PR-5① 标记触发
 - `impact-review`：PR-5② 标记触发
 - `document-sync`：dev/fix 执行完成后触发

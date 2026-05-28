@@ -93,7 +93,7 @@ SC: SC2 [✅/❌] SC4 [✅/❌] SC6 [✅/❌] ...（仅列适用项，逐项实�
 | SC12 | [C14](../../instructions/01-common.instructions.md) 多任务进度快照验证（每完成子任务有 T{N}进度 标记） | 任务≥2时 🔴 |
 | SC13 | [C15](../../instructions/01-common.instructions.md) 架构质量自检（dev plan-review 三维评估；fix CP2 三维评估） | dev/fix 🔴 |
 | SC14 | analyze/audit 工作流中，所有标注 ✅已验证 的运行时结论（测试通过率/性能数字/命令输出）均已在**本轮实际执行**对应命令；SUMMARY.md 或记忆文件中的历史数字不得直接用作 ✅已验证，必须降级为 ⚠️待验证 | analyze/audit 🔴 |
-| SC15 | dev/fix 关键产物已完成 ECR 执行闭环复审：覆盖 CP1/CP2/CP3、报告、daily tasks、SUMMARY、diff/commit、测试/扫描证据、dirty 边界；最后一次阻断性修正后至少再复审 1 轮且无新增阻断性问题 | dev/fix 🔴 |
+| SC15 | dev/fix 关键产物已完成 ECR 执行闭环复审：覆盖 CP1/CP2/CP3、实施进度（触发时）、ExecutionContract/TestRoute/ReleaseVerification（触发时）、报告、daily tasks、SUMMARY、diff/commit、测试/扫描证据、dirty 边界；最后一次阻断性修正后至少再复审 1 轮且无新增阻断性问题 | dev/fix 🔴 |
 
 ## §4 恢复性检查（RC）— 非阻塞
 

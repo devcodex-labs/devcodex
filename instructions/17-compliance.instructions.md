@@ -160,7 +160,7 @@ applyTo: "**"
 | SC12 | C14 多任务进度快照验证 | 任务≥2时 🔴 |
 | SC13 | C15 架构质量自检 | dev/fix 🔴 |
 | SC14 | analyze/audit 工作流中，所有标注 ✅已验证 的运行时结论（测试通过率/性能数字/命令输出）均已在**本轮实际执行**对应命令；SUMMARY.md 或记忆文件中的历史执行数据不得直接用作 ✅已验证，必须降级为 ⚠️待验证 | analyze/audit 🔴 |
-| SC15 | dev/fix 关键产物已完成 ECR 执行闭环复审：覆盖 CP1/CP2/CP3、报告、daily tasks、SUMMARY、diff/commit、测试/探针、dirty 边界；控制面/规范/路径/模板/部署副本/validate 语义变更必须追加 SCV-0~SCV-7 证据；最后一次阻断性修正后至少再复审 1 轮且无新增阻断性问题；未满足前不得宣告完成 | dev/fix 🔴 |
+| SC15 | dev/fix 关键产物已完成 ECR 执行闭环复审：覆盖 CP1/CP2/CP3、实施进度（触发时）、ExecutionContract/TestRoute/ReleaseVerification（触发时）、报告、daily tasks、SUMMARY、diff/commit、测试/探针、dirty 边界；控制面/规范/路径/模板/部署副本/validate 语义变更必须追加 SCV-0~SCV-7 证据；最后一次阻断性修正后至少再复审 1 轮且无新增阻断性问题；未满足前不得宣告完成 | dev/fix 🔴 |
 
 ## RC 恢复性检查（非阻塞）
 

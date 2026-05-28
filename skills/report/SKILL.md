@@ -69,6 +69,17 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 - CP 确认记录表（CP1→CP2→CP3 状态，格式见 [`cp-gate`](../cp-gate/SKILL.md)）
 - 三步扫描结果（同类全局扫描 / 数据联动扫描 / grep 零残留复核）
 
+### dev/fix 支撑产物字段
+
+当以下支撑 Skill 被触发时，报告必须列出对应产物、判定结果与证据；未触发时可标 `N/A` 并说明原因。
+
+| 支撑产物 | 触发场景 | 报告要求 |
+|----------|----------|----------|
+| ExecutionContract | Auto / 控制面 / 多批次 / 预计修改 ≥10 文件 / release 前置任务 | 列出 scope、allowedPaths、requiredArtifacts、validationRoute、deviationPolicy、rollbackPlan |
+| TestRoute | 跨模块、接口、Hook/CLI、模板-示例-校验链、测试路径不明显的任务 | 列出 changeType、routes、commands、skipReason、blockingLevel |
+| ReleaseVerification | 用户明确要求正式发版、tag、publish 或已进入发布前验证 | 列出 R0~R7 的验证结果与证据 |
+| 05-实施进度.md | 跨多轮/多阶段、阻塞、用户要求持续跟踪、多批次、预计修改 ≥10 文件、控制面或模板-校验链任务 | 报告引用进度路径，并核对 CP/批次/阻塞/验证状态 |
+
 ## 输出规则
 
 - 每次会话必须写入报告文件（**chat 豁免**，[C05/S05](../../instructions/00-safety.instructions.md)）
@@ -78,6 +89,7 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 - audit / analyze / self-fix 的汇总型报告默认采用“两层问题清单”：先列根因级问题，再展开逐文件完整落点；边界/非缺陷结论单独成节，不混入缺陷编号
 - 报告写入后必须执行 [`compliance`](../compliance/SKILL.md) Skill §5 二次验证（V1~V6）
 - `dev` / `fix` 报告在最终宣告完成前，必须显式体现“ECR 执行闭环复审”这一正式阶段，并与 CP1/CP2/CP3、关键产物、报告、daily tasks、SUMMARY、diff/commit、测试/扫描证据和 dirty 边界完成 1 轮复审对照；若发现阻断性问题，不得直接以“已完成”收尾
+- `dev` / `fix` 报告的 ECR 必须把触发的 ExecutionContract / TestRoute / ReleaseVerification / 05-实施进度.md 纳入关键产物核对；未触发时写明 N/A 判定依据
 - 报告涉及记录规范问题时，必须列出规范化意图、置信度、依据、目标台账；涉及规范源、Skill、Hook、CLI、MCP、模板、部署副本、路径规则或 validate 语义变更时，必须列出 SCV-0~SCV-7 证据
 - 报告末尾引用本次会话记忆路径
 - 回复末尾必须输出产物文件路径（默认单行**相对路径** Markdown 链接；绝对路径纯文本仅作为可选辅助行，详见 [`02-output-paths.instructions.md`](../../instructions/02-output-paths.instructions.md) §产物路径输出格式，[FC5](../compliance/SKILL.md)）

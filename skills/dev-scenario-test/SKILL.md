@@ -8,11 +8,14 @@ description: 场景测试子类型规范 — 端到端/集成测试 + artillery 
 
 用户要求编写/完善端到端测试、集成测试、场景测试、负载测试。
 
+若由 `test-router` 触发，本 Skill 只承接 TestRoute 中的场景/负载/E2E 路线；测试路线之外的接口双产物仍交由 `api-verification`，静态/单元/集成覆盖标准仍以 `dev-testing` 为准。
+
 ## 前置条件
 
 | 项 | 要求 |
 |----|------|
 | api-verification 已通过 | 场景测试基于已验证的接口规范（`.http` 产物存在） |
+| TestRoute 已确认（条件） | 由 `test-router` 触发时，先确认场景/负载/E2E 路线与范围 |
 | 测试环境就绪 | 数据库/依赖服务可在测试环境访问 |
 
 ## 工具规范

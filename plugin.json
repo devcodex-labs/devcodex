@@ -201,6 +201,21 @@
       "tier": "free"
     },
     {
+      "id": "execution-contract",
+      "file": "skills/execution-contract/SKILL.md",
+      "tier": "free"
+    },
+    {
+      "id": "test-router",
+      "file": "skills/test-router/SKILL.md",
+      "tier": "free"
+    },
+    {
+      "id": "release-verification",
+      "file": "skills/release-verification/SKILL.md",
+      "tier": "free"
+    },
+    {
       "id": "spec-governance",
       "file": "skills/spec-governance/SKILL.md",
       "tier": "free"

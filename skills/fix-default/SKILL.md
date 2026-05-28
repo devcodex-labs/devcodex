@@ -32,8 +32,9 @@ description: 默认修复子类型规范 — Bug 修复三步扫描 + CP 流程
    - grep 零残留复核 — 确认无残留引用
 4. `api-verification`（若涉及接口）
 5. `impact-review`（若 PR-5② 跨模块架构依赖变更）
-6. `document-sync`（若修复涉及文档说明）
-7. **ECR 执行闭环复审** — 对照 CP1/CP2/CP3、报告、daily tasks、SUMMARY、diff/commit、测试/扫描证据和 dirty 边界，确认无假完成、无状态错配、无用户另案变更混入；涉及规范源、Skill、Hook、CLI、MCP、模板、部署副本、路径规则或 validate 语义时必须执行 SCV（`spec-governance`）
+6. `execution-contract` / `test-router`（≥5 文件、高风险、控制面或多批次修复时）
+7. `document-sync`（若修复涉及文档说明）
+8. **ECR 执行闭环复审** — 对照 CP1/CP2/CP3、实施进度（触发时）、报告、daily tasks、SUMMARY、diff/commit、测试/扫描证据和 dirty 边界，确认无假完成、无状态错配、无用户另案变更混入；涉及规范源、Skill、Hook、CLI、MCP、模板、部署副本、路径规则或 validate 语义时必须执行 SCV（`spec-governance`）
 
 ## 关键规则
 

@@ -24,6 +24,7 @@ applyTo: .devcodex/**/reports/requirements/**
 > **关联方案**: [路径]
 > **Release 状态**: 未进入 / 待用户确认 / 已执行
 > **日志落点**: `changelogs/unreleased.md` / `CHANGELOG.md + changelogs/vX.Y.Z.md`
+> **支撑产物**: ExecutionContract / TestRoute / ReleaseVerification / 05-实施进度.md（按触发状态填写）
 ```
 
 ## §1 执行摘要
@@ -60,10 +61,20 @@ applyTo: .devcodex/**/reports/requirements/**
 
 > 无 BC 时填"无"。
 
+## §5.5 支撑产物状态
+
+| 产物 | 触发状态 | 结果 | 证据 |
+|------|----------|:----:|------|
+| ExecutionContract | ✅/N/A | ✅/⚠️ | |
+| TestRoute | ✅/N/A | ✅/⚠️ | |
+| ReleaseVerification | ✅/N/A | ✅/⚠️ | |
+| 05-实施进度.md | ✅/N/A | ✅/⚠️ | |
+
 ## §6 测试验证
 
 | 类型 | 结果 | 覆盖率 |
 |------|:----:|:------:|
+| TestRoute 覆盖 | ✅ 通过 / N/A | — |
 | 静态/类型检查 | ✅ 通过 / N/A | — |
 | 单元测试 | ✅ 通过 | X% |
 | api-verification | ✅ 通过 / N/A | — |
@@ -73,19 +84,23 @@ applyTo: .devcodex/**/reports/requirements/**
 - [ ] api-verification：✅ 通过 / N/A
 - [ ] impact-review：✅ 完成 / N/A
 - [ ] document-sync：✅ 完成
+- [ ] ExecutionContract：✅ 完成 / N/A
+- [ ] TestRoute：✅ 完成 / N/A
+- [ ] ReleaseVerification：✅ 完成 / N/A
+- [ ] 05-实施进度.md：✅ 已同步 / N/A
 - [ ] release-status：未进入 / 待用户确认 / 已执行
 
 ## §7.5 ECR 执行闭环复审
 
 | ECR 项 | 检查对象 | 结果 | 证据 |
 |--------|----------|:----:|------|
-| ECR-1 | CP1/CP2/CP3、报告、daily tasks、SUMMARY | ✅/⚠️ | |
+| ECR-1 | CP1/CP2/CP3、05-实施进度、报告、daily tasks、SUMMARY | ✅/⚠️ | |
 | ECR-2 | 需求条款 / 问题 ID → diff/commit 文件 | ✅/⚠️ | |
-| ECR-3 | CP3 步骤 → 测试/部署/验证证据 | ✅/⚠️ | |
-| ECR-4 | 报告声明 → 测试/探针/官方文档 | ✅/⚠️ | |
+| ECR-3 | CP3 步骤 / ExecutionContract / TestRoute → 测试/部署/验证证据 | ✅/⚠️ | |
+| ECR-4 | 报告声明 → 测试/探针/官方文档/ReleaseVerification | ✅/⚠️ | |
 | ECR-5 | memory daily → SUMMARY | ✅/⚠️ | |
 | ECR-6 | git dirty 边界 | ✅/⚠️ | |
-| ECR-7 | 控制面任务 validate / direct replay / host-contract probe | ✅/N/A | |
+| ECR-7 | 控制面任务 SCV / validate / direct replay / host-contract probe | ✅/N/A | |
 
 ## §8 遗留问题
 

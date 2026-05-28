@@ -12,6 +12,12 @@ description: 接口验证规范 — 双产物（.http + .cjs）生成 + 自动�
 
 > 说明：本 Skill 不负责“给前端或调用方看的轻量接口说明”。这类阅读型目标文档由 `dev-docs` 的 `light-api` / `frontend-api` 模式负责。
 
+## 与 test-router 的关系
+
+- `test-router` 负责识别本轮是否存在 API/HTTP 契约变更、归档级接口验证或回归接口探针需求。
+- 一旦 TestRoute 判定需要 `api-verification`，本 Skill 的 `.http + .cjs` 双产物和自动化执行规则仍然强制适用。
+- TestRoute 只记录验证路线，不替代本 Skill 的接口覆盖清单、断言脚本和执行结果。
+
 ## 触发时机
 
 | 工作流 | 触发条件 |
@@ -20,6 +26,7 @@ description: 接口验证规范 — 双产物（.http + .cjs）生成 + 自动�
 | dev-optimization | 优化前（建立基线）和优化后（对比验证） |
 | dev-scenario-test | 场景测试基于接口规范 |
 | fix | 修复涉及接口行为变更 |
+| test-router | TestRoute 判定存在对外 HTTP/API 契约变更、归档级接口验证或接口回归探针 |
 
 ## 双产物规范
 

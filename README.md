@@ -21,6 +21,7 @@ DevCodex 通过 `.github/`（Copilot）、`CLAUDE.md + .claude/ + .mcp.json`（C
 - **宿主生命周期护栏**: Claude Code 与 OpenAI Codex 在已支持的 Hook 事件上提供 runtime 护栏；Copilot / JetBrains / Cursor 等无等价本地 Hook 时降级为 instruction-fallback；默认 `safety-only` 仅对危险命令硬拦，流程项提醒放行，`strict` 模式才升级可阻断事件
 - **全模式入口检查**: 所有模式在实质任务前显示 PC0~PC7；dev 模式额外执行 PC4 规范雷达与完整合规链
 - **项目现实扩展**: 先做语义意图初判，再结合目标项目 Profile、目录与当前任务上下文修正最终路由、产物落点和验证方式
+- **支撑型 Skill**: `execution-contract` / `test-router` / `release-verification` 为控制面、多批次、测试路线与正式发版提供可审计支撑，不新增工作流分支
 - **执行闭环复审**: dev/fix 完成前执行 ECR 执行闭环复审，交叉验证 CP 产物、报告、daily memory、SUMMARY、diff/commit、测试/探针与 dirty 边界
 - **推荐结论**: analyze/audit/report 多建议或多路径场景必须给出推荐结论与推荐理由；无后续动作时明确写“推荐：无后续动作”
 - **确认交互降级**: 用户确认先抽象为 ConfirmationRequest，再按宿主能力选择按钮、权限提示、Hook 阻断或文本确认 fallback，不把按钮 UI 承诺为全宿主能力
@@ -59,7 +60,7 @@ npx @vextjs/devcodex init --codex  # 仅 Codex adapter
 ├── copilot-instructions.md  ← 默认 Copilot always-on 总则（新增）
 ├── instructions/   ← Instructions 约束（12 个，含全部工作流规则）
 ├── agents/         ← Copilot 自定义 Agent（v1.9.8 起恢复默认分发）
-├── skills/         ← Skill 详细检查标准（36 个，按需读取，含 spec-governance）
+├── skills/         ← Skill 详细检查标准（39 个，按需读取，含 spec-governance 与支撑型 Skill）
 ├── prompts/        ← Prompt 模板（26 个）
 ├── hooks/          ← 宿主生命周期 Hook 配置与运行时
 │   ├── devcodex.lifecycle.json
@@ -133,6 +134,7 @@ AGENTS.md                 ← 与 instructions.md / copilot-instructions.md / CL
 - **入口检查全模式显示**：无论 `prod` 还是 `dev`，都会先展示 PC0~PC7；`prod` 只显示基础状态，`dev` 追加规范雷达、合规检查和完成验证。
 - **项目现实扩展再路由**：识别用户意图后，会先加载目标项目 Profile，并用项目技术栈、目录结构、当前需求上下文修正最终工作流，避免只按字面关键词执行。
 - **Intent Expansion Card**：非 chat 工作流会在 CP1 / 问题确认前形成可审查卡片，记录项目、连续性、模块领域、风险、宿主能力、验证路线、置信度和备选路线。
+- **长流程执行契约**：Auto、控制面、多批次、预计修改 ≥10 文件或发布前置任务会触发 ExecutionContract；测试路线不明显时触发 TestRoute；正式发版前触发 ReleaseVerification。
 - **边界先确认**：若已判断为新需求切换，且当前工作区还有未提交变更，会先提醒是否应先提交当前变更。
 - **报告推荐项**：当报告中存在多个可执行建议或后续路径时，会明确给出推荐结论和推荐理由；没有建议时也会写明“推荐：无后续动作”。
 - **确认交互适配**：ConfirmationRequest 是确认语义的统一抽象；Claude Code SDK / VS Code 扩展可用按钮，Hook 宿主可用阻断原因，Cursor / JetBrains 等 fallback 宿主使用文本确认。
@@ -241,7 +243,7 @@ devcodex/
 ├── instructions.md # 单源规范文件；安装时按平台生成 copilot-instructions.md / CLAUDE.md / AGENTS.md
 ├── agents/        # Agent 源文件；Copilot 端默认分发，Claude Code 端不分发
 ├── instructions/  # 全局 Instructions（12 个，含工作流规则摘要，自动注入）
-├── skills/        # Skill 详细检查标准（36 个，按 01-common §按需读取表 路由读取）
+├── skills/        # Skill 详细检查标准（39 个，按 01-common §按需读取表 路由读取）
 ├── prompts/       # Prompt 模板（26 个）
 ├── hooks/         # Workspace Hooks 配置与分发到 `.github/hooks/_runtime/` 的运行时
 ├── codex/         # Codex Hook 配置源，分发到 `.codex/hooks.json`
@@ -253,6 +255,8 @@ devcodex/
 ```
 
 规范治理新增 `spec-governance` Skill：记录类动作先做意图识别，再由 RecordRouter 分流到 `violations / pending-fixes / process-improvements / pending-issues / gap-registry`；规范/控制面/路径/模板/部署/校验链变更后必须执行 SCV（Spec Change Verification），避免修复一处后引入漂移。
+
+控制面与长流程新增三类支撑型 Skill：`execution-contract` 约束 scope / allowedPaths / requiredArtifacts / validationRoute / rollbackPlan，`test-router` 统一选择验证路线，`release-verification` 在正式 tag / publish 前执行 R0~R7 发布验证链。
 
 &gt; ℹ️ 维护者状态文件（本仓库开发过程中累积的 violations/pending-fixes 记录）保存在 `.devcodex/.maintainer-state/`，**不分发**给用户。
 
@@ -339,7 +343,7 @@ DevCodex 的 `plugin.json` 声明 `tier: "free"`，所有 Skill 均标注 `tier:
 - **可选**：通过 `.github/agents/` 使用 `@devcodex` / `@devcodex-auto` 自定义 Agent 入口
 - **Codex**：通过 `AGENTS.md` 自动注入总则，通过 `.agents/skills/` 按需读取技能；不单独维护 `codex/AGENTS.md`
 
-Auto v1.1 当前只在支持 Hook 的宿主里，对显式 `@devcodex-auto` 入口下的白名单路径提供 runtime 级硬保证；JetBrains 等 `instruction-fallback` 宿主仅同步规则语义，不承诺完全等价的自动放行。
+Auto v1.1 当前只在支持 Hook 的宿主里，对显式 `@devcodex-auto` 入口下的白名单路径提供 runtime 级硬保证；JetBrains 等 `instruction-fallback` 宿主仅同步规则语义，不承诺完全等价的自动放行。Auto 任务若命中控制面、多批次或预计修改 ≥10 文件，仍须先形成 ExecutionContract 并持续更新实施进度。
 
 ## 许可证
 

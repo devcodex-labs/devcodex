@@ -27,6 +27,7 @@
  * V23 Independent evaluation semantics（独立验证可采纳，不机械唱反调）
  * V24 Governance/template/client narrative sync（pending-issues 模板链 / 多客户端真相源 / agent 枚举一致性）
  * V25~V27 ECR/RecordRouter/SCV 与 active-root 落点边界语义
+ * V28 Support skills / progress / release verification sync（执行契约、测试路由、发布验证与进度强触发）
  *
  * Exit: 0=OK, 1=error, 2=warnings only
  */
@@ -1655,6 +1656,192 @@ function checkV27() {
   console.log('[V27] active-root and transient artifact boundary checked')
 }
 
+function checkV28() {
+  const supportSkills = ['execution-contract', 'test-router', 'release-verification']
+  const plugin = JSON.parse(read(path.join(ROOT, 'plugin.json')))
+  const skillFiles = walk(path.join(ROOT, 'skills')).filter(file => path.basename(file) === 'SKILL.md')
+  const pluginSkillIds = new Set((plugin.skills || []).map(skill => skill.id))
+
+  if ((plugin.skills || []).length !== skillFiles.length) {
+    err(`[V28] plugin skill count (${(plugin.skills || []).length}) does not match SKILL.md count (${skillFiles.length})`)
+  }
+
+  for (const id of supportSkills) {
+    const skill = (plugin.skills || []).find(item => item.id === id)
+    const expectedFile = `skills/${id}/SKILL.md`
+    if (!skill) {
+      err(`[V28] plugin.json missing support skill: ${id}`)
+      continue
+    }
+    if (skill.file !== expectedFile) {
+      err(`[V28] plugin.json support skill ${id} has wrong file: ${skill.file}`)
+    }
+    const filePath = path.join(ROOT, expectedFile)
+    if (!fs.existsSync(filePath)) {
+      err(`[V28] support skill file missing: ${expectedFile}`)
+      continue
+    }
+    const content = read(filePath)
+    if (!content.includes(`name: ${id}`)) {
+      err(`[V28] support skill frontmatter mismatch in ${expectedFile}`)
+    }
+    if (!pluginSkillIds.has(id)) {
+      err(`[V28] support skill not registered in plugin ids: ${id}`)
+    }
+  }
+
+  const probes = [
+    {
+      file: 'instructions/01-common.instructions.md',
+      needles: ['execution-contract', 'test-router', 'release-verification', '不是工作流子类型']
+    },
+    {
+      file: 'instructions/10-dev.instructions.md',
+      needles: ['execution-contract/test-router', 'release-verification', '05-实施进度.md', '多批次']
+    },
+    {
+      file: 'instructions/11-fix.instructions.md',
+      needles: ['execution-contract/test-router', '05-实施进度.md', '多批次修复']
+    },
+    {
+      file: 'instructions/02-output-paths.instructions.md',
+      needles: ['05-实施进度 触发条件', '多批次', '预计修改 ≥10 文件', 'R0~R7']
+    },
+    {
+      file: 'instructions/17-compliance.instructions.md',
+      needles: ['ExecutionContract/TestRoute/ReleaseVerification', '实施进度（触发时）']
+    },
+    {
+      file: 'skills/report/SKILL.md',
+      needles: ['dev/fix 支撑产物字段', 'ExecutionContract', 'TestRoute', 'ReleaseVerification', '05-实施进度.md']
+    },
+    {
+      file: 'skills/dev-testing/SKILL.md',
+      needles: ['与 test-router 的关系', 'TestRoute 包含对外 HTTP API']
+    },
+    {
+      file: 'skills/api-verification/SKILL.md',
+      needles: ['与 test-router 的关系', '.http + .cjs']
+    },
+    {
+      file: 'skills/dev-scenario-test/SKILL.md',
+      needles: ['TestRoute 中的场景/负载/E2E 路线', 'TestRoute 已确认']
+    },
+    {
+      file: 'prompts/report-dev.prompt.md',
+      needles: ['支撑产物状态', 'TestRoute 覆盖', 'ExecutionContract：✅ 完成 / N/A']
+    },
+    {
+      file: 'prompts/report-fix.prompt.md',
+      needles: ['支撑产物状态', 'TestRoute 覆盖', 'ExecutionContract：✅ 完成 / N/A']
+    },
+    {
+      file: 'prompts/report-optimization.prompt.md',
+      needles: ['支撑产物状态', 'TestRoute 覆盖', 'ReleaseVerification']
+    },
+    {
+      file: 'prompts/report-scenario-test.prompt.md',
+      needles: ['支撑产物状态', 'ExecutionContract', 'TestRoute']
+    },
+    {
+      file: 'prompts/technical-design.prompt.md',
+      needles: ['§7.0 TestRoute', 'ExecutionContract', 'ReleaseVerification R0~R7']
+    },
+    {
+      file: 'prompts/implementation-plan.prompt.md',
+      needles: ['§4.1 执行契约与支持技能', 'ExecutionContract', 'TestRoute', '05-实施进度.md']
+    },
+    {
+      file: 'prompts/implementation-progress.prompt.md',
+      needles: ['多批次执行', '预计修改 ≥10 文件', '支撑产物状态', 'ExecutionContract']
+    },
+    {
+      file: 'prompts/delivery-checklist.prompt.md',
+      needles: ['预计修改 ≥10 文件', 'ExecutionContract', 'TestRoute', 'ReleaseVerification']
+    },
+    {
+      file: 'README.md',
+      needles: ['Skill 详细检查标准（39 个', '支撑型 Skill', 'ExecutionContract', 'ReleaseVerification']
+    },
+    {
+      file: 'website/docs/index.md',
+      needles: ['39 个 Skills', '执行契约、测试路由、发布验证']
+    },
+    {
+      file: 'website/docs/intro/index.md',
+      needles: ['39 个按需触发的工作流技能', 'ExecutionContract']
+    },
+    {
+      file: 'website/docs/specs/directory-structure.md',
+      needles: ['扁平一级 Skill（39 个）', 'execution-contract', 'release-verification']
+    },
+    {
+      file: 'website/docs/guide/development.md',
+      needles: ['支撑型 Skill', '05-实施进度.md']
+    },
+    {
+      file: 'website/docs/guide/release.md',
+      needles: ['ReleaseVerification R0~R7', 'release-verification']
+    },
+    {
+      file: 'website/docs/guide/requirements.md',
+      needles: ['预计修改 ≥10 文件', '05-实施进度.md']
+    },
+    {
+      file: 'agents/devcodex-auto.agent.md',
+      needles: ['ExecutionContract', 'allowedPaths']
+    },
+    {
+      file: 'agents/README.md',
+      needles: ['ExecutionContract', 'ReleaseVerification']
+    },
+    {
+      file: 'changelogs/unreleased.md',
+      needles: ['execution-contract', 'test-router', 'release-verification']
+    }
+  ]
+
+  for (const probe of probes) {
+    const content = read(path.join(ROOT, probe.file))
+    for (const needle of probe.needles) {
+      if (!content.includes(needle)) {
+        err(`[V28] support skill/progress drift in ${probe.file}: missing "${needle}"`)
+      }
+    }
+  }
+
+  const activeProfileProbes = [
+    { file: activePath('profile', '01-项目信息.md'), needles: ['| **Skill** | 39 |', 'execution-contract', 'release-verification', 'skills 39'] },
+    { file: activePath('profile', '02-架构约束.md'), needles: ['Skill 文件 39 个', '支撑型（3）', 'execution-contract'] }
+  ]
+  for (const probe of activeProfileProbes) {
+    if (!fs.existsSync(probe.file)) {
+      warn(`[V28] active profile missing, skip support skill profile probe: ${path.relative(ROOT, probe.file)}`)
+      continue
+    }
+    const content = read(probe.file)
+    for (const needle of probe.needles) {
+      if (!content.includes(needle)) {
+        err(`[V28] active profile support skill drift in ${path.relative(ROOT, probe.file)}: missing "${needle}"`)
+      }
+    }
+  }
+
+  const legacyProgressNeedles = [
+    ['prompts/implementation-progress.prompt.md', '仅在任务跨多轮/多阶段、存在明确阻塞或用户要求持续跟踪'],
+    ['skills/dev-optimization/SKILL.md', '仅在跨多轮、存在明确阻塞或用户要求持续跟踪时启用'],
+    ['changelogs/unreleased.md', '当前无未发布条目。']
+  ]
+  for (const [file, needle] of legacyProgressNeedles) {
+    const content = read(path.join(ROOT, file))
+    if (content.includes(needle)) {
+      err(`[V28] legacy progress/release wording remains in ${file}: "${needle}"`)
+    }
+  }
+
+  console.log('[V28] support skills / progress / release verification sync checked')
+}
+
 function checkV7b() {
   try {
     execSync('node scripts/test-instruction-fallback-check.js', { cwd: ROOT, stdio: 'pipe', encoding: 'utf8' })
@@ -1693,6 +1880,7 @@ checkV24()
 checkV25()
 checkV26()
 checkV27()
+checkV28()
 
 console.log('')
 if (errors.length) {

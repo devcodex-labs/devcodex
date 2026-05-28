@@ -10,7 +10,14 @@ description: 测试规范 — 单元测试/集成测试/API测试/E2E测试四�
 - `dev.default`：新增模块/功能时（判断是否需要补测试）
 - `fix.default`：修复 Bug 后，验证回归测试覆盖
 - `dev.refactor`：重构前置检查（确认已有测试覆盖，无则禁止继续）
+- `test-router` 判定本轮需要静态/单元/集成/API/E2E 任一测试路线时
 - 用户明确要求"写测试"/"补测试"/"测试覆盖"
+
+## 与 test-router 的关系
+
+- `test-router` 负责在 CP2/CP3 与执行前判定“本轮需要哪些验证路线”，并输出 TestRoute。
+- 本 Skill 负责定义各类测试的覆盖标准、阻断规则和失败处理，不替代 `api-verification` / `dev-scenario-test` 的专项产物。
+- 当 TestRoute 包含对外 HTTP API 归档验证时，必须继续读取 `api-verification`；当 TestRoute 包含场景/负载测试时，必须继续读取 `dev-scenario-test`。
 
 ## 四类测试规范
 

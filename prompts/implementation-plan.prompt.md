@@ -9,6 +9,7 @@ applyTo: .devcodex/**/requirements/**
 > **触发**: dev 工作流 CP3 阶段
 > ⚠️ 本模板只承接任务拆分、实施顺序、前置依赖、验证方式与回滚策略，不重复需求背景或技术方案中的设计论证。
 > ⚠️ 生成的 Markdown 实施计划文档必须在头部后补 `## 目录导航`。
+> ⚠️ 控制面、Auto、多批次、预计修改 ≥10 文件、模板-示例-校验链或发布前置任务，计划中必须列出 ExecutionContract / TestRoute / ReleaseVerification / 05-实施进度.md 的触发状态与证据。
 
 ## 计划模式
 
@@ -40,6 +41,7 @@ applyTo: .devcodex/**/requirements/**
 - [§2 任务分解](#2-任务分解)
 - [§3 分批执行策略](#3-分批执行策略)
 - [§4 关键实施约束](#4-关键实施约束)
+- [§4.1 执行契约与支持技能](#41-执行契约与支持技能)
 - [§5 独立验证方式](#5-独立验证方式)
 - [§6 里程碑 / 实施顺序](#6-里程碑--实施顺序)
 - [§7 风险点、回滚触发与回滚方案](#7-风险点回滚触发与回滚方案)
@@ -81,12 +83,23 @@ applyTo: .devcodex/**/requirements/**
 - 不能顺手扩展的边界：
 - 需要回 CP2 / CP1 的触发条件：
 
+### §4.1 执行契约与支持技能
+
+| 产物 | 是否触发 | 触发依据 | 计划落点 |
+|------|:--------:|----------|----------|
+| ExecutionContract | 是 / 否 | Auto / 控制面 / 多批次 / 预计修改 ≥10 文件 / release 前置任务 | scope / allowedPaths / requiredArtifacts / validationRoute / deviationPolicy / rollbackPlan |
+| TestRoute | 是 / 否 | 跨模块 / API / Hook / CLI / 模板-示例-校验链 / 测试路线不明显 | changeType / routes / commands / skipReason / blockingLevel |
+| ReleaseVerification | 是 / 否 | 用户要求 tag / release / publish 或进入正式发版 | R0~R7 |
+| 05-实施进度.md | 是 / 否 | 跨多轮/多阶段、阻塞、用户要求持续跟踪、多批次、预计修改 ≥10 文件、控制面或模板-校验链任务 | CP 状态 / 批次状态 / 阻塞 / 验证证据 |
+
 ## §5 独立验证方式
 
 > 完整实施计划默认需要独立验证方式。轻计划摘要也至少要说明“执行后如何独立确认这批变更真的成立”。
 
 | 验证项 | 验证方式 | 通过标准 |
 |--------|---------|---------|
+| ExecutionContract | 对照 scope / allowedPaths / requiredArtifacts / validationRoute | 无范围偏移，偏移均按 deviationPolicy 处理 |
+| TestRoute | 对照变更类型执行对应命令 | 路线覆盖完整，跳过项有依据 |
 | 模板/规则一致性 | | |
 | 样本映射 | | |
 | 自动化校验 | | |
@@ -120,6 +133,10 @@ applyTo: .devcodex/**/requirements/**
 - [ ] 关键路径单测通过
 - [ ] api-verification 通过（若涉及接口）
 - [ ] impact-review 完成
+- [ ] ExecutionContract 已建立并执行（若触发）
+- [ ] TestRoute 已建立并覆盖（若触发）
+- [ ] ReleaseVerification R0~R7 已完成（若进入正式发版）
+- [ ] 05-实施进度.md 已按触发条件持续同步（若触发）
 - [ ] document-sync 完成
 - [ ] CHANGELOG / unreleased 已按发布状态更新
 - [ ] §8 验收标准逐条核查通过（含负向场景）

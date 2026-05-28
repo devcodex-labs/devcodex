@@ -70,6 +70,7 @@ applyTo: .devcodex/**/reports/bugs/**
 | TestRoute | ✅/N/A | ✅/⚠️ | |
 | ReleaseVerification | ✅/N/A | ✅/⚠️ | |
 | 05-实施进度.md | ✅/N/A | ✅/⚠️ | |
+| Hook closure 三态证据 | ✅/N/A | ✅/⚠️ | verified-present / verified-missing / unverified；控制面或 Hook 任务必填 |
 
 ## §5 回归验证
 

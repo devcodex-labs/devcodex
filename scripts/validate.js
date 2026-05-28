@@ -28,6 +28,7 @@
  * V24 Governance/template/client narrative sync（pending-issues 模板链 / 多客户端真相源 / agent 枚举一致性）
  * V25~V27 ECR/RecordRouter/SCV 与 active-root 落点边界语义
  * V28 Support skills / progress / release verification sync（执行契约、测试路由、发布验证与进度强触发）
+ * V29 Hook visible reply / sticky project / intent expansion sync（Stop 三态、workspace profile 路径、意图扩展摘要）
  *
  * Exit: 0=OK, 1=error, 2=warnings only
  */
@@ -1842,6 +1843,82 @@ function checkV28() {
   console.log('[V28] support skills / progress / release verification sync checked')
 }
 
+function checkV29() {
+  const probes = [
+    {
+      file: 'hooks/_runtime/lifecycle.cjs',
+      needles: ['getVisibleReplyEvidence', 'precheckStatus', 'stickyProject', 'collectProjectPayloadStrings', '.devcodex/workspace/profile/']
+    },
+    {
+      file: 'scripts/test-hooks-runtime.js',
+      needles: ['stickyFollowup', 'roleUserPayloadAmbiguity', 'prefixProjectPayload', 'promptUserWordAmbiguity', 'stickyPromptUserWordFollowup', 'stickyRoleUserPayloadFollowup', 'stickyFuzzyPayloadFollowup', 'contentPartsStop', 'variantTranscriptStop', 'unverifiedStop']
+    },
+    {
+      file: 'instructions.md',
+      needles: ['意图扩展摘要', 'verified-present', 'unverified', '.devcodex/workspace/profile/']
+    },
+    {
+      file: 'instructions/01-common.instructions.md',
+      needles: ['用户可见意图扩展摘要', 'Stop 可见回复证据三态', 'sticky `activeProject`', '.devcodex/workspace/profile/']
+    },
+    {
+      file: 'instructions/10-dev.instructions.md',
+      needles: ['意图扩展摘要', '控制面或宿主能力差异']
+    },
+    {
+      file: 'instructions/11-fix.instructions.md',
+      needles: ['意图扩展摘要', '控制面或宿主能力差异']
+    },
+    {
+      file: 'prompts/precheck-status.prompt.md',
+      needles: ['意图扩展摘要', '备选路径']
+    },
+    {
+      file: 'prompts/technical-design.prompt.md',
+      needles: ['意图扩展摘要', '项目现实扩展后路由']
+    },
+    {
+      file: 'prompts/report-dev.prompt.md',
+      needles: ['Hook closure 三态证据', 'verified-present / verified-missing / unverified']
+    },
+    {
+      file: 'prompts/report-fix.prompt.md',
+      needles: ['Hook closure 三态证据', 'verified-present / verified-missing / unverified']
+    },
+    {
+      file: 'skills/profile-bootstrap/SKILL.md',
+      needles: ['.devcodex/workspace/profile/', 'workspace-namespace']
+    },
+    {
+      file: 'README.md',
+      needles: ['意图扩展摘要', 'Hook closure 三态', '.devcodex/workspace/profile/']
+    },
+    {
+      file: 'website/docs/guide/development.md',
+      needles: ['意图扩展摘要', 'Hook closure 三态', 'unverified']
+    },
+    {
+      file: 'website/docs/specs/directory-structure.md',
+      needles: ['.devcodex/workspace/profile/', 'Hook warning']
+    },
+    {
+      file: 'changelogs/unreleased.md',
+      needles: ['verified-present', 'sticky `activeProject`', '意图扩展摘要']
+    }
+  ]
+
+  for (const probe of probes) {
+    const content = read(path.join(ROOT, probe.file))
+    for (const needle of probe.needles) {
+      if (!content.includes(needle)) {
+        err(`[V29] Hook visible reply / intent expansion drift in ${probe.file}: missing "${needle}"`)
+      }
+    }
+  }
+
+  console.log('[V29] Hook visible reply / sticky project / intent expansion sync checked')
+}
+
 function checkV7b() {
   try {
     execSync('node scripts/test-instruction-fallback-check.js', { cwd: ROOT, stdio: 'pipe', encoding: 'utf8' })
@@ -1881,6 +1958,7 @@ checkV25()
 checkV26()
 checkV27()
 checkV28()
+checkV29()
 
 console.log('')
 if (errors.length) {

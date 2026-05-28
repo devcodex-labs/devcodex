@@ -51,6 +51,10 @@ function getLayoutCaptureLog(project = 'chat') {
   return path.join(TEMP_ROOT, '.devcodex', project, '.memory', 'hooks', project, 'captured-final-payloads.ndjson')
 }
 
+function getWorkspaceLayoutStateFile() {
+  return path.join(TEMP_ROOT, '.devcodex', 'workspace', '.memory', 'hooks', 'workspace', 'lifecycle-state.json')
+}
+
 function runBootstrapReads(agent = TEST_AGENT) {
   run({
     hookEventName: 'PreToolUse',
@@ -133,6 +137,58 @@ function cleanMultiProjectState() {
   fs.writeFileSync(path.join(TEMP_ROOT, 'payment', 'package.json'), '{}')
 }
 
+function cleanLayoutMultiProjectState({ workspaceProfile = false } = {}) {
+  if (fs.existsSync(TEMP_ROOT)) {
+    fs.rmSync(TEMP_ROOT, { recursive: true, force: true })
+  }
+  fs.mkdirSync(path.join(TEMP_ROOT, 'devcodex-v1'), { recursive: true })
+  fs.mkdirSync(path.join(TEMP_ROOT, 'payment'), { recursive: true })
+  fs.mkdirSync(path.join(TEMP_ROOT, 'user'), { recursive: true })
+  fs.mkdirSync(path.join(TEMP_ROOT, 'vext'), { recursive: true })
+  fs.mkdirSync(path.join(TEMP_ROOT, 'vext-test'), { recursive: true })
+  fs.mkdirSync(path.join(TEMP_ROOT, '.devcodex', 'devcodex-v1', 'profile'), { recursive: true })
+  fs.mkdirSync(path.join(TEMP_ROOT, '.devcodex', 'payment', 'profile'), { recursive: true })
+  fs.mkdirSync(path.join(TEMP_ROOT, '.devcodex', 'user', 'profile'), { recursive: true })
+  fs.mkdirSync(path.join(TEMP_ROOT, '.devcodex', 'vext', 'profile'), { recursive: true })
+  fs.mkdirSync(path.join(TEMP_ROOT, '.devcodex', 'vext-test', 'profile'), { recursive: true })
+  fs.writeFileSync(path.join(TEMP_ROOT, 'devcodex-v1', 'package.json'), '{}')
+  fs.writeFileSync(path.join(TEMP_ROOT, 'payment', 'package.json'), '{}')
+  fs.writeFileSync(path.join(TEMP_ROOT, 'user', 'package.json'), '{}')
+  fs.writeFileSync(path.join(TEMP_ROOT, 'vext', 'package.json'), '{}')
+  fs.writeFileSync(path.join(TEMP_ROOT, 'vext-test', 'package.json'), '{}')
+  fs.writeFileSync(
+    path.join(TEMP_ROOT, '.devcodex', 'layout.json'),
+    JSON.stringify({ version: 1, mode: 'workspace-namespace' })
+  )
+  fs.writeFileSync(
+    path.join(TEMP_ROOT, '.devcodex', 'devcodex-v1', 'profile', 'config.json'),
+    JSON.stringify({ mode: 'dev', agent: TEST_AGENT })
+  )
+  fs.writeFileSync(
+    path.join(TEMP_ROOT, '.devcodex', 'payment', 'profile', 'config.json'),
+    JSON.stringify({ mode: 'prod', agent: TEST_AGENT })
+  )
+  fs.writeFileSync(
+    path.join(TEMP_ROOT, '.devcodex', 'user', 'profile', 'config.json'),
+    JSON.stringify({ mode: 'prod', agent: TEST_AGENT })
+  )
+  fs.writeFileSync(
+    path.join(TEMP_ROOT, '.devcodex', 'vext', 'profile', 'config.json'),
+    JSON.stringify({ mode: 'prod', agent: TEST_AGENT })
+  )
+  fs.writeFileSync(
+    path.join(TEMP_ROOT, '.devcodex', 'vext-test', 'profile', 'config.json'),
+    JSON.stringify({ mode: 'dev', agent: TEST_AGENT })
+  )
+  if (workspaceProfile) {
+    fs.mkdirSync(path.join(TEMP_ROOT, '.devcodex', 'workspace', 'profile'), { recursive: true })
+    fs.writeFileSync(
+      path.join(TEMP_ROOT, '.devcodex', 'workspace', 'profile', 'config.json'),
+      JSON.stringify({ mode: 'prod', agent: TEST_AGENT })
+    )
+  }
+}
+
 function run(payload, cwd = TEMP_ROOT, env = {}) {
   const result = spawnSync(process.execPath, [RUNTIME], {
     cwd,
@@ -163,6 +219,12 @@ function writeTranscript(fileName, assistantContent) {
     { type: 'user.message', data: { content: 'trigger prompt' } },
     { type: 'assistant.message', data: { content: assistantContent } }
   ]
+  fs.writeFileSync(transcriptPath, entries.map(entry => JSON.stringify(entry)).join('\n'))
+  return transcriptPath
+}
+
+function writeTranscriptEntries(fileName, entries) {
+  const transcriptPath = path.join(TEMP_ROOT, fileName)
   fs.writeFileSync(transcriptPath, entries.map(entry => JSON.stringify(entry)).join('\n'))
   return transcriptPath
 }
@@ -387,6 +449,166 @@ function main() {
   assert.strictEqual(bareProjectPrompt.continue, true)
   multiProjectState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
   assert.strictEqual(multiProjectState.activeProject, 'devcodex-v1')
+
+  cleanLayoutMultiProjectState()
+  const workspaceAmbiguity = run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: 'layout-ambiguous-session',
+    prompt: '继续'
+  })
+  assert.match(workspaceAmbiguity.systemMessage || '', /multi-project-workspace/)
+  assert.match(workspaceAmbiguity.systemMessage || '', /\.devcodex\/workspace\/profile\//)
+  assert.ok(!/未在工作区根配置 \.devcodex\/profile\//.test(workspaceAmbiguity.systemMessage || ''))
+
+  const dedupedWorkspaceAmbiguity = run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: 'layout-ambiguous-session',
+    prompt: '继续'
+  })
+  assert.ok(!/multi-project-workspace/.test(dedupedWorkspaceAmbiguity.systemMessage || ''))
+  assert.match(dedupedWorkspaceAmbiguity.systemMessage || '', /PC0-PC7/)
+
+  cleanLayoutMultiProjectState()
+  const prefixProjectPayload = run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: 'prefix-project-session',
+    prompt: '继续',
+    currentFile: path.join(TEMP_ROOT, 'vext-test', 'README.md')
+  })
+  assert.strictEqual(prefixProjectPayload.continue, true)
+  assert.ok(!/multi-project-workspace/.test(prefixProjectPayload.systemMessage || ''))
+  const prefixProjectState = JSON.parse(fs.readFileSync(getWorkspaceLayoutStateFile(), 'utf8'))
+  assert.strictEqual(prefixProjectState.activeProject, 'vext-test')
+  assert.strictEqual(prefixProjectState.activeProjectSource, 'payload')
+
+  cleanLayoutMultiProjectState()
+  const roleUserPayloadAmbiguity = run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: 'role-user-payload-session',
+    prompt: '继续',
+    messages: [{ role: 'user', content: '继续' }]
+  })
+  assert.match(roleUserPayloadAmbiguity.systemMessage || '', /multi-project-workspace/)
+  const roleUserPayloadState = JSON.parse(fs.readFileSync(getWorkspaceLayoutStateFile(), 'utf8'))
+  assert.strictEqual(roleUserPayloadState.activeProject, '')
+  assert.notStrictEqual(roleUserPayloadState.activeProjectSource, 'payload')
+
+  cleanLayoutMultiProjectState()
+  const promptUserWordAmbiguity = run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: 'prompt-user-word-session',
+    prompt: 'for user-visible reply audit'
+  })
+  assert.match(promptUserWordAmbiguity.systemMessage || '', /multi-project-workspace/)
+  const promptUserWordState = JSON.parse(fs.readFileSync(getWorkspaceLayoutStateFile(), 'utf8'))
+  assert.strictEqual(promptUserWordState.activeProject, '')
+  assert.notStrictEqual(promptUserWordState.activeProjectSource, 'prompt')
+
+  cleanLayoutMultiProjectState()
+  const layoutExplicitProject = run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: 'sticky-session',
+    prompt: '继续 devcodex-v1 的修复'
+  })
+  assert.strictEqual(layoutExplicitProject.continue, true)
+  assert.ok(!/multi-project-workspace/.test(layoutExplicitProject.systemMessage || ''))
+  let workspaceLayoutState = JSON.parse(fs.readFileSync(getWorkspaceLayoutStateFile(), 'utf8'))
+  assert.strictEqual(workspaceLayoutState.activeProject, 'devcodex-v1')
+  assert.strictEqual(workspaceLayoutState.activeScope, 'project')
+  assert.strictEqual(workspaceLayoutState.mode, 'dev')
+  assert.strictEqual(workspaceLayoutState.stickyProject.project, 'devcodex-v1')
+  assert.strictEqual(workspaceLayoutState.activeProjectSource, 'prompt')
+
+  const stickyFollowup = run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: 'sticky-session',
+    prompt: '继续'
+  })
+  assert.strictEqual(stickyFollowup.continue, true)
+  assert.ok(!/multi-project-workspace/.test(stickyFollowup.systemMessage || ''))
+  workspaceLayoutState = JSON.parse(fs.readFileSync(getWorkspaceLayoutStateFile(), 'utf8'))
+  assert.strictEqual(workspaceLayoutState.activeProject, 'devcodex-v1')
+  assert.strictEqual(workspaceLayoutState.activeProjectSource, 'sticky')
+  assert.strictEqual(workspaceLayoutState.mode, 'dev')
+
+  const stickyPromptUserWordFollowup = run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: 'sticky-session',
+    prompt: 'user-visible reply audit'
+  })
+  assert.strictEqual(stickyPromptUserWordFollowup.continue, true)
+  assert.ok(!/multi-project-workspace/.test(stickyPromptUserWordFollowup.systemMessage || ''))
+  workspaceLayoutState = JSON.parse(fs.readFileSync(getWorkspaceLayoutStateFile(), 'utf8'))
+  assert.strictEqual(workspaceLayoutState.activeProject, 'devcodex-v1')
+  assert.strictEqual(workspaceLayoutState.activeProjectSource, 'sticky')
+
+  const stickyRoleUserPayloadFollowup = run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: 'sticky-session',
+    prompt: '继续',
+    messages: [{ role: 'user', content: '继续' }]
+  })
+  assert.strictEqual(stickyRoleUserPayloadFollowup.continue, true)
+  assert.ok(!/multi-project-workspace/.test(stickyRoleUserPayloadFollowup.systemMessage || ''))
+  workspaceLayoutState = JSON.parse(fs.readFileSync(getWorkspaceLayoutStateFile(), 'utf8'))
+  assert.strictEqual(workspaceLayoutState.activeProject, 'devcodex-v1')
+  assert.strictEqual(workspaceLayoutState.activeProjectSource, 'sticky')
+
+  const stickyFuzzyPayloadFollowup = run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: 'sticky-session',
+    prompt: '继续',
+    metadata: {
+      urls: [
+        'https://example.test/user-visible-reply',
+        'https://example.test/payment-plan'
+      ]
+    }
+  })
+  assert.strictEqual(stickyFuzzyPayloadFollowup.continue, true)
+  assert.ok(!/multi-project-workspace/.test(stickyFuzzyPayloadFollowup.systemMessage || ''))
+  workspaceLayoutState = JSON.parse(fs.readFileSync(getWorkspaceLayoutStateFile(), 'utf8'))
+  assert.strictEqual(workspaceLayoutState.activeProject, 'devcodex-v1')
+  assert.strictEqual(workspaceLayoutState.activeProjectSource, 'sticky')
+
+  const workspaceExemption = run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: 'sticky-session',
+    prompt: '全工作区继续'
+  })
+  assert.strictEqual(workspaceExemption.continue, true)
+  assert.ok(!/multi-project-workspace/.test(workspaceExemption.systemMessage || ''))
+  workspaceLayoutState = JSON.parse(fs.readFileSync(getWorkspaceLayoutStateFile(), 'utf8'))
+  assert.strictEqual(workspaceLayoutState.activeProject, '')
+  assert.strictEqual(workspaceLayoutState.activeScope, 'workspace')
+  assert.strictEqual(workspaceLayoutState.stickyProject.project, '')
+
+  cleanLayoutMultiProjectState()
+  run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: 'old-session',
+    prompt: '修复 devcodex-v1 项目'
+  })
+  const newSessionFollowup = run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: 'new-session',
+    prompt: '继续'
+  })
+  assert.match(newSessionFollowup.systemMessage || '', /multi-project-workspace/)
+
+  cleanLayoutMultiProjectState()
+  run({
+    hookEventName: 'UserPromptSubmit',
+    prompt: '修复 devcodex-v1 项目'
+  })
+  workspaceLayoutState = JSON.parse(fs.readFileSync(getWorkspaceLayoutStateFile(), 'utf8'))
+  workspaceLayoutState.stickyProject.updatedAtMs = 1
+  fs.writeFileSync(getWorkspaceLayoutStateFile(), JSON.stringify(workspaceLayoutState, null, 2))
+  const expiredStickyFollowup = run({
+    hookEventName: 'UserPromptSubmit',
+    prompt: '继续'
+  })
+  assert.match(expiredStickyFollowup.systemMessage || '', /multi-project-workspace/)
 
   cleanLayoutState()
   const layoutProjectRoot = path.join(TEMP_ROOT, 'chat')
@@ -815,6 +1037,74 @@ function main() {
   assert.strictEqual(transcriptBackedState.visible.precheck, true)
   assert.strictEqual(transcriptBackedState.visible.compliance, true)
   assert.strictEqual(transcriptBackedState.visible.artifactPaths, true)
+
+  cleanState()
+  run({
+    hookEventName: 'UserPromptSubmit',
+    prompt: 'Stop content parts should be visible.'
+  })
+  const contentPartsStop = run({
+    hookEventName: 'Stop',
+    assistantMessage: [
+      { type: 'text', text: '---\n🔍 入口检查（DEV 模式）\n- PC0 上下文：项目 devcodex-v1\n---' }
+    ]
+  })
+  assert.ok(!contentPartsStop.systemMessage)
+  let visibleState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(visibleState.visible.precheckStatus, 'verified-present')
+
+  cleanState()
+  run({
+    hookEventName: 'UserPromptSubmit',
+    prompt: 'Stop messages should use latest assistant message.'
+  })
+  const messagesStop = run({
+    hookEventName: 'Stop',
+    messages: [
+      { role: 'user', content: 'PC0 上下文 should not count from a user message' },
+      { role: 'assistant', content: [{ type: 'text', text: '---\n🔍 入口检查（DEV 模式）\n- PC0 上下文：项目 devcodex-v1\n---' }] }
+    ]
+  })
+  assert.ok(!messagesStop.systemMessage)
+
+  cleanState()
+  run({
+    hookEventName: 'UserPromptSubmit',
+    prompt: 'Stop choices should be parsed.'
+  })
+  const choicesStop = run({
+    hookEventName: 'Stop',
+    choices: [
+      { message: { role: 'assistant', content: [{ text: '---\n🔍 入口检查（DEV 模式）\n- PC0 上下文：项目 devcodex-v1\n---' }] } }
+    ]
+  })
+  assert.ok(!choicesStop.systemMessage)
+
+  cleanState()
+  run({
+    hookEventName: 'UserPromptSubmit',
+    prompt: 'Transcript variants should be parsed.'
+  })
+  const variantTranscriptPath = writeTranscriptEntries('copilot-stop-transcript-variant.jsonl', [
+    { role: 'user', content: 'trigger prompt' },
+    { role: 'assistant', message: { content: [{ type: 'text', text: '---\n🔍 入口检查（DEV 模式）\n- PC0 上下文：项目 devcodex-v1\n---' }] } }
+  ])
+  const variantTranscriptStop = run({
+    hookEventName: 'Stop',
+    transcript_path: variantTranscriptPath
+  })
+  assert.ok(!variantTranscriptStop.systemMessage)
+
+  cleanState()
+  run({
+    hookEventName: 'UserPromptSubmit',
+    prompt: 'Unverified Stop payload should not assert missing entry block.'
+  })
+  const unverifiedStop = run({ hookEventName: 'Stop' })
+  assert.match(unverifiedStop.systemMessage || '', /无法验证最终用户可见回复/)
+  assert.ok(!/entry check block 未输出/.test(unverifiedStop.systemMessage || ''))
+  visibleState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(visibleState.visible.replyEvidence, 'unverified')
 
   // Auto v1.1: explicit @devcodex-auto writes executionMode=auto; in safety-only mode,
   // non-whitelisted paths warn instead of hard-blocking.

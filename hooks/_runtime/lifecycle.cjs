@@ -18,6 +18,7 @@ const crypto = require('crypto')
 const CONTEXT_ROOT = process.cwd()
 const PAYLOAD_PREVIEW_LIMIT = 160
 const TRANSCRIPT_TAIL_LIMIT = 2 * 1024 * 1024
+const STICKY_PROJECT_TTL_MS = 30 * 60 * 1000
 
 // ─── CP Gate constants ────────────────────────────────────────────────────────
 const CP1_FILE = '01-需求概述.md'
@@ -313,6 +314,19 @@ function normalizeText(v) {
   return String(v || '').replace(/\\/g, '/').trim().toLowerCase()
 }
 
+function normalizeKeyPath(v) {
+  return String(v || '')
+    .replace(/\[\d+\]/g, '')
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .replace(/\\/g, '/')
+    .toLowerCase()
+}
+
+function isProjectPayloadKeyPath(keyPath) {
+  const normalized = normalizeKeyPath(keyPath)
+  return /(^|[./_-])(cwd|workspace|workspace_folder|workspace_folders|folder|folders|root|project|project_root|project_path|repo|repository|path|paths|file|files|uri|uris|url|urls|directory|directories|dir|dirs|location)($|[./_-])/.test(normalized)
+}
+
 function normalizePreview(text) {
   return String(text || '').replace(/\s+/g, ' ').trim().slice(0, PAYLOAD_PREVIEW_LIMIT)
 }
@@ -512,38 +526,168 @@ function hasMultiProjectExemption(prompt) {
 
 function detectProjectFromPrompt(prompt) {
   if (!prompt) return ''
-  const normalizedPrompt = normalizeText(prompt)
-  const bareMatches = []
+  const matches = detectPromptProjectMentions(prompt)
+  return matches.length === 1 ? matches[0] : ''
+}
+
+function detectPromptProjectMentions(prompt) {
+  if (!prompt) return []
+  const matches = []
   for (const projectName of listWorkspaceProjects()) {
     const escaped = escapeRegExp(projectName)
+    const boundary = '(?=$|[\\s,.;:，。；：])'
     const patterns = [
-      new RegExp(`\\bin\\s+${escaped}(?:/|\\b)`, 'i'),
+      new RegExp(`\\bin\\s+${escaped}(?:[\\\\/]|${boundary})`, 'i'),
+      new RegExp(`\\bfor\\s+${escaped}(?:[\\\\/]|${boundary})`, 'i'),
       new RegExp(`对\\s*${escaped}\\s*项目`, 'i'),
-      new RegExp(`项目\\s*${escaped}\\b`, 'i')
+      new RegExp(`项目\\s*${escaped}${boundary}`, 'i'),
+      new RegExp(`project\\s+${escaped}${boundary}`, 'i'),
+      new RegExp(`${escaped}\\s*(?:项目|的|中|里|下)`, 'i'),
+      new RegExp(`${escaped}\\s+project\\b`, 'i'),
+      new RegExp(`${escaped}(?:/|\\\\)`, 'i')
     ]
-    if (patterns.some(pattern => pattern.test(prompt))) return projectName
-    if (normalizedPrompt.includes(normalizeText(projectName))) bareMatches.push(projectName)
+    if (patterns.some(pattern => pattern.test(prompt))) matches.push(projectName)
   }
-  if (bareMatches.length === 1) return bareMatches[0]
-  return ''
+  return [...new Set(matches)]
 }
 
 function detectProjectFromPayload(payload) {
-  const strings = collectStrings(payload).map(normalizeText).filter(Boolean)
+  const strings = collectProjectPayloadStrings(payload).map(normalizeText).filter(Boolean)
   const projects = listWorkspaceProjects()
   const matches = []
   for (const projectName of projects) {
-    const normalizedProject = normalizeText(projectName)
-    const projectRoot = normalizeText(path.join(WORKSPACE_ROOT, projectName))
-    const hit = strings.some(value => (
-      value === normalizedProject ||
-      value.includes(projectRoot) ||
-      value.includes(`/${normalizedProject}/`) ||
-      value.endsWith(`/${normalizedProject}`)
-    ))
+    const hit = strings.some(value => payloadValueMatchesProject(value, projectName))
     if (hit) matches.push(projectName)
   }
   return matches.length === 1 ? matches[0] : ''
+}
+
+function detectProjectCandidate(prompt, payload) {
+  const promptProject = detectProjectFromPrompt(prompt)
+  if (promptProject) return { project: promptProject, source: 'prompt' }
+  const payloadProject = detectProjectFromPayload(payload)
+  if (payloadProject) return { project: payloadProject, source: 'payload' }
+  return { project: '', source: '' }
+}
+
+function detectProjectMentions(prompt, payload) {
+  const matches = new Set(detectPromptProjectMentions(prompt))
+  const strings = collectProjectPayloadStrings(payload).map(normalizeText).filter(Boolean)
+  for (const projectName of listWorkspaceProjects()) {
+    if (strings.some(value => payloadValueMatchesProject(value, projectName))) {
+      matches.add(projectName)
+    }
+  }
+  return [...matches]
+}
+
+function payloadValueMatchesProject(value, projectName) {
+  const normalizedValue = normalizeText(value)
+  const normalizedProject = normalizeText(projectName)
+  const projectRoot = normalizeText(path.join(WORKSPACE_ROOT, projectName))
+  const workspaceRoot = normalizeText(WORKSPACE_ROOT)
+  if (!normalizedValue || !normalizedProject) return false
+  if (normalizedValue === normalizedProject) return true
+  if (normalizedValue === projectRoot || normalizedValue.startsWith(`${projectRoot}/`)) return true
+  const isRemoteUrl = /^[a-z][a-z0-9+.-]*:\/\//.test(normalizedValue) &&
+    !normalizedValue.startsWith('file://') &&
+    !normalizedValue.includes(workspaceRoot)
+  if (isRemoteUrl) return false
+  return normalizedValue.startsWith(`${normalizedProject}/`) ||
+    normalizedValue.includes(`/${normalizedProject}/`) ||
+    normalizedValue.endsWith(`/${normalizedProject}`)
+}
+
+function getPayloadSessionKey(payload) {
+  const candidates = [
+    payload.session_id, payload.sessionId, payload.conversation_id, payload.conversationId,
+    payload.thread_id, payload.threadId, payload.chat_id, payload.chatId,
+    payload.transcript_path, payload.transcriptPath
+  ]
+  return candidates.map(value => String(value || '').trim()).find(Boolean) || ''
+}
+
+function getValidStickyProject(previousState, payload) {
+  const sticky = previousState?.stickyProject || {}
+  const project = String(sticky.project || '').trim()
+  if (!project) return null
+  const now = Date.now()
+  const updatedAtMs = Number(sticky.updatedAtMs || 0)
+  if (!updatedAtMs || now - updatedAtMs > STICKY_PROJECT_TTL_MS) return null
+  const currentSessionKey = getPayloadSessionKey(payload)
+  const stickySessionKey = String(sticky.sessionKey || '').trim()
+  if (currentSessionKey && stickySessionKey && currentSessionKey !== stickySessionKey) return null
+  return { project, source: sticky.source || 'sticky', sessionKey: stickySessionKey }
+}
+
+function setStickyProject(state, project, source, payload) {
+  if (!project) return
+  state.stickyProject = {
+    project,
+    source: source || 'unknown',
+    sessionKey: getPayloadSessionKey(payload),
+    updatedAt: new Date().toISOString(),
+    updatedAtMs: Date.now()
+  }
+}
+
+function clearStickyProject(state, reason) {
+  state.stickyProject = { project: '', source: '', sessionKey: '', updatedAt: '', updatedAtMs: 0, reason: reason || '' }
+}
+
+function resolvePromptTarget(previousState, payload, prompt, projectCandidate) {
+  if (hasMultiProjectExemption(prompt)) {
+    return { activeProject: '', activeScope: LAYOUT.enabled ? 'workspace' : 'project', source: 'workspace-exemption', clearSticky: true }
+  }
+  if (projectCandidate.project) {
+    return { activeProject: projectCandidate.project, activeScope: 'project', source: projectCandidate.source || 'explicit' }
+  }
+  if (CONTEXT_PROJECT) {
+    return { activeProject: CONTEXT_PROJECT, activeScope: 'project', source: 'context' }
+  }
+  if (detectProjectMentions(prompt, payload).length > 1) {
+    return { activeProject: '', activeScope: LAYOUT.enabled ? 'workspace' : 'project', source: 'ambiguous-projects', clearSticky: true }
+  }
+  const sticky = getValidStickyProject(previousState, payload)
+  if (sticky) {
+    return { activeProject: sticky.project, activeScope: 'project', source: 'sticky' }
+  }
+  return { activeProject: '', activeScope: LAYOUT.enabled ? 'workspace' : DEFAULT_SCOPE, source: 'workspace' }
+}
+
+function readModeForPromptTarget(previousState, target) {
+  if (target?.activeProject) return readProfileMode(previousState || null, target.activeProject)
+  if (target?.activeScope === 'workspace') {
+    return readProfileMode({ ...(previousState || {}), activeProject: '', activeScope: 'workspace' }, '')
+  }
+  return readProfileMode(previousState || null)
+}
+
+function applyPromptTarget(state, target, payload) {
+  state.activeProject = target?.activeProject || ''
+  state.activeScope = target?.activeScope || DEFAULT_SCOPE
+  state.activeProjectSource = target?.source || ''
+  if (target?.clearSticky) {
+    clearStickyProject(state, target.source)
+  } else if (target?.activeProject && target.source !== 'sticky') {
+    setStickyProject(state, target.activeProject, target.source, payload)
+  }
+}
+
+function buildMultiProjectWarningKey(payload) {
+  return [
+    getPayloadSessionKey(payload) || 'no-session',
+    LAYOUT.enabled ? 'workspace-namespace' : 'legacy',
+    listWorkspaceProjects().sort().join(',')
+  ].join('|')
+}
+
+function shouldSuppressMultiProjectWarning(state, payload) {
+  if (isStrictEnforcement()) return false
+  const key = buildMultiProjectWarningKey(payload)
+  if (state.lastMultiProjectWarningKey === key) return true
+  state.lastMultiProjectWarningKey = key
+  return false
 }
 
 function detectExecutionMode(payload) {
@@ -552,10 +696,15 @@ function detectExecutionMode(payload) {
 }
 
 function buildMultiProjectBlockMessage() {
+  const profilePath = LAYOUT.enabled ? '.devcodex/workspace/profile/' : '.devcodex/profile/'
+  const profileConfigPath = LAYOUT.enabled
+    ? '.devcodex/workspace/profile/config.json'
+    : '.devcodex/profile/config.json'
   return [
     '⚠️ Multi-project workspace detected.',
-    '检测到当前工作区包含多个项目且未在工作区根配置 .devcodex/profile/。',
+    `检测到当前工作区包含多个项目且未在工作区根配置 ${profilePath}。`,
     '请在提示词中明确指定目标项目（如“in cacheHub/”或“对 payment 项目”）后重发。',
+    `当前布局期望的 workspace profile 配置为 ${profileConfigPath}；可在工作区根运行 devcodex profile init 生成。`,
     '豁免词：workspace / monorepo / 全工作区 / all projects / 所有项目。'
   ].join(' ')
 }
@@ -580,6 +729,23 @@ function collectStrings(value, out = []) {
   return out
 }
 
+function collectProjectPayloadStrings(value, keyPath = '', out = []) {
+  if (typeof value === 'string') {
+    if (isProjectPayloadKeyPath(keyPath)) out.push(value)
+    return out
+  }
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => collectProjectPayloadStrings(item, `${keyPath}[${index}]`, out))
+    return out
+  }
+  if (value && typeof value === 'object') {
+    for (const [key, item] of Object.entries(value)) {
+      collectProjectPayloadStrings(item, keyPath ? `${keyPath}.${key}` : key, out)
+    }
+  }
+  return out
+}
+
 function collectInterestingStrings(value, prefix = '', out = []) {
   if (typeof value === 'string') {
     if (value.trim()) out.push({ path: prefix, value })
@@ -595,6 +761,65 @@ function collectInterestingStrings(value, prefix = '', out = []) {
     }
   }
   return out
+}
+
+function extractTextContent(value, depth = 0) {
+  if (depth > 8 || value === null || value === undefined) return ''
+  if (typeof value === 'string') return value
+  if (Array.isArray(value)) {
+    return value.map(item => extractTextContent(item, depth + 1)).filter(Boolean).join('\n')
+  }
+  if (!value || typeof value !== 'object') return ''
+  const parts = []
+  for (const key of ['text', 'content', 'value', 'output_text', 'outputText', 'body']) {
+    if (Object.prototype.hasOwnProperty.call(value, key)) {
+      const text = extractTextContent(value[key], depth + 1)
+      if (text) parts.push(text)
+    }
+  }
+  return parts.join('\n')
+}
+
+function isAssistantRecord(entry) {
+  if (!entry || typeof entry !== 'object') return false
+  const role = String(
+    entry.role || entry.author?.role || entry.message?.role ||
+    entry.data?.role || entry.data?.message?.role || ''
+  ).trim().toLowerCase()
+  const type = String(entry.type || entry.kind || entry.event || '').trim().toLowerCase()
+  return role === 'assistant' || type === 'assistant' || type === 'assistant.message'
+}
+
+function extractAssistantRecordContent(entry) {
+  if (!isAssistantRecord(entry)) return ''
+  return extractTextContent(
+    entry.content ?? entry.text ?? entry.value ??
+    entry.message?.content ?? entry.data?.content ?? entry.data?.message?.content
+  )
+}
+
+function extractLatestAssistantContentFromMessages(messages) {
+  if (!Array.isArray(messages)) return ''
+  for (let index = messages.length - 1; index >= 0; index--) {
+    const text = extractAssistantRecordContent(messages[index])
+    if (text.trim()) return text
+  }
+  return ''
+}
+
+function extractLatestAssistantContentFromChoices(choices) {
+  if (!Array.isArray(choices)) return ''
+  for (let index = choices.length - 1; index >= 0; index--) {
+    const choice = choices[index]
+    if (!choice || typeof choice !== 'object') continue
+    const messageText = extractAssistantRecordContent(choice.message)
+    if (messageText.trim()) return messageText
+    const deltaText = extractTextContent(choice.delta?.content)
+    if (deltaText.trim()) return deltaText
+    const text = extractTextContent(choice.text)
+    if (text.trim()) return text
+  }
+  return ''
 }
 
 function readTranscriptTail(transcriptPath) {
@@ -618,31 +843,60 @@ function readTranscriptTail(transcriptPath) {
   }
 }
 
-function extractLatestAssistantContentFromTranscript(transcriptPath) {
-  const tail = readTranscriptTail(transcriptPath)
-  if (!tail) return ''
-  const lines = tail.split(/\r?\n/).filter(Boolean)
+function extractLatestAssistantContentFromTranscriptText(text) {
+  if (!text || !String(text).trim()) return ''
+  const parsed = safeJsonParse(text)
+  if (Array.isArray(parsed)) {
+    const messagesText = extractLatestAssistantContentFromMessages(parsed)
+    if (messagesText.trim()) return messagesText
+  } else if (parsed && typeof parsed === 'object') {
+    const nestedMessagesText = extractLatestAssistantContentFromMessages(parsed.messages)
+    if (nestedMessagesText.trim()) return nestedMessagesText
+    const choicesText = extractLatestAssistantContentFromChoices(parsed.choices)
+    if (choicesText.trim()) return choicesText
+    const recordText = extractAssistantRecordContent(parsed)
+    if (recordText.trim()) return recordText
+  }
+  const lines = String(text).split(/\r?\n/).filter(Boolean)
   for (let index = lines.length - 1; index >= 0; index--) {
     const entry = safeJsonParse(lines[index])
-    if (!entry || entry.type !== 'assistant.message') continue
-    const content = entry.data && entry.data.content
-    if (typeof content === 'string' && content.trim()) return content
+    const content = extractAssistantRecordContent(entry)
+    if (content.trim()) return content
   }
   return ''
 }
 
-function getVisibleReplyText(payload) {
-  const directCandidates = [
-    payload.assistantMessage, payload.assistant_message, payload.response,
-    payload.responseText, payload.response_text, payload.output,
-    payload.reply, payload.content, payload.message, payload.transcript
+function extractLatestAssistantContentFromTranscript(transcriptPath) {
+  const tail = readTranscriptTail(transcriptPath)
+  return extractLatestAssistantContentFromTranscriptText(tail)
+}
+
+function getVisibleReplyEvidence(payload) {
+  const directFieldNames = [
+    'assistantMessage', 'assistant_message', 'response',
+    'responseText', 'response_text', 'output', 'reply', 'content', 'message'
   ]
-  const directText = directCandidates
-    .filter(v => typeof v === 'string' && v.trim())
-    .join('\n')
-  if (directText.trim()) return directText
+  for (const fieldName of directFieldNames) {
+    if (!Object.prototype.hasOwnProperty.call(payload, fieldName)) continue
+    const text = extractTextContent(payload[fieldName])
+    if (text.trim()) return { observed: true, text, source: fieldName }
+  }
+  const messagesText = extractLatestAssistantContentFromMessages(payload.messages)
+  if (messagesText.trim()) return { observed: true, text: messagesText, source: 'messages' }
+  const choicesText = extractLatestAssistantContentFromChoices(payload.choices)
+  if (choicesText.trim()) return { observed: true, text: choicesText, source: 'choices' }
+  if (Object.prototype.hasOwnProperty.call(payload, 'transcript')) {
+    const transcriptText = extractLatestAssistantContentFromTranscriptText(payload.transcript)
+    if (transcriptText.trim()) return { observed: true, text: transcriptText, source: 'transcript' }
+  }
   const transcriptPath = payload.transcript_path || payload.transcriptPath
-  return extractLatestAssistantContentFromTranscript(transcriptPath)
+  const transcriptPathText = extractLatestAssistantContentFromTranscript(transcriptPath)
+  if (transcriptPathText.trim()) return { observed: true, text: transcriptPathText, source: 'transcript_path' }
+  return { observed: false, text: '', source: '' }
+}
+
+function getVisibleReplyText(payload) {
+  return getVisibleReplyEvidence(payload).text
 }
 
 function getToolInputStrings(payload) {
@@ -706,10 +960,15 @@ function buildDefaultState(mode) {
     promptCount: 0, toolUseCount: 0,
     activeProject: CONTEXT_PROJECT || '',
     activeScope: DEFAULT_SCOPE,
+    activeProjectSource: CONTEXT_PROJECT ? 'context' : '',
     bootstrap: { profileRead: false, summaryRead: false, tasksRead: false },
-    lastBootstrapWarningKey: '', lastClosureReminderKey: '',
+    lastBootstrapWarningKey: '', lastClosureReminderKey: '', lastMultiProjectWarningKey: '',
     bootstrapComplete: false,
-    visible: { payloadObserved: false, precheck: false, compliance: false, artifactPaths: false },
+    visible: {
+      payloadObserved: false, replyEvidence: 'unverified', replySource: '',
+      precheckStatus: 'unverified', precheck: false, compliance: false, artifactPaths: false
+    },
+    stickyProject: { project: CONTEXT_PROJECT || '', source: CONTEXT_PROJECT ? 'context' : '', sessionKey: '', updatedAt: '', updatedAtMs: 0 },
     mutated: false, reportTouched: false, memoryTouched: false,
     dangerousApprovals: {},
     lastEvent: '', lastReason: ''
@@ -725,6 +984,7 @@ function loadState(modeHint) {
     ...current, ...saved, mode,
     bootstrap: { ...current.bootstrap, ...(saved.bootstrap || {}) },
     visible: { ...current.visible, ...(saved.visible || {}) },
+    stickyProject: { ...current.stickyProject, ...(saved.stickyProject || {}) },
     dangerousApprovals: { ...current.dangerousApprovals, ...(saved.dangerousApprovals || {}) }
   }
 }
@@ -740,6 +1000,9 @@ function resetState(mode, previousState) {
   state.promptCount = 1
   state.activeProject = previousState?.activeProject || CONTEXT_PROJECT || ''
   state.activeScope = previousState?.activeScope || DEFAULT_SCOPE
+  state.activeProjectSource = previousState?.activeProjectSource || (CONTEXT_PROJECT ? 'context' : '')
+  state.lastMultiProjectWarningKey = previousState?.lastMultiProjectWarningKey || ''
+  state.stickyProject = { ...state.stickyProject, ...(previousState?.stickyProject || {}) }
   state.dangerousApprovals = { ...(previousState?.dangerousApprovals || {}) }
   saveState(state)
   return state
@@ -1380,7 +1643,7 @@ function updateArtifactTouches(state, payload, platform) {
 // ─── Visible reply inspection (Copilot PreCompact/Stop) ──────────────────────
 
 function hasVisibleReplyPayload(payload) {
-  return !!getVisibleReplyText(payload).trim()
+  return getVisibleReplyEvidence(payload).observed
 }
 
 function hasArtifactPathOutput(text) {
@@ -1404,10 +1667,18 @@ function hasArtifactPathOutput(text) {
 
 function updateVisibleReplyState(state, payload, eventName) {
   if (eventName !== 'PreCompact' && eventName !== 'Stop') return
-  const text = getVisibleReplyText(payload)
-  if (!text.trim()) return
+  const evidence = getVisibleReplyEvidence(payload)
+  state.visible.replyEvidence = evidence.observed ? 'verified' : 'unverified'
+  state.visible.replySource = evidence.source || ''
+  if (!evidence.observed) return
+  const text = evidence.text
   state.visible.payloadObserved = true
-  if (/入口检查（|预检查（DEV 模式）|PC0 上下文/.test(text)) state.visible.precheck = true
+  if (/入口检查（|预检查（DEV 模式）|PC0 上下文/.test(text)) {
+    state.visible.precheck = true
+    state.visible.precheckStatus = 'verified-present'
+  } else if (!state.visible.precheck) {
+    state.visible.precheckStatus = 'verified-missing'
+  }
   if (/🛡️ DEV 模式 \| 合规检查|FC:\s*FC1/.test(text)) state.visible.compliance = true
   if (hasArtifactPathOutput(text)) state.visible.artifactPaths = true
 }
@@ -1428,10 +1699,20 @@ function captureFinalPayloadSample(payload, eventName, state) {
 
 // ─── Closure reminder ─────────────────────────────────────────────────────────
 
+function getPrecheckEvidenceStatus(state) {
+  if (state.visible?.precheck) return 'verified-present'
+  if (state.visible?.precheckStatus === 'verified-missing') return 'verified-missing'
+  if (state.visible?.payloadObserved) return 'verified-missing'
+  return 'unverified'
+}
+
 function buildClosureReminder(state, eventName) {
   const items = []
-  if (eventName === 'Stop' && state.visible && !state.visible.precheck) {
+  const precheckStatus = getPrecheckEvidenceStatus(state)
+  if (eventName === 'Stop' && precheckStatus === 'verified-missing') {
     items.push('entry check block 未输出（S07/C18：首条用户可见回复必须含 PC0~PC7 入口检查块）')
+  } else if (eventName === 'Stop' && precheckStatus === 'unverified') {
+    items.push(`无法验证最终用户可见回复是否包含入口检查块（Stop/PreCompact 未提供可解析 assistant 内容；如需取证请创建 ${FINAL_PAYLOAD_FLAG} 后重试）`)
   }
   if (eventName === 'Stop' && state.mode === 'dev' && state.reportTouched && state.visible && !state.visible.compliance) {
     items.push('合规检查状态块未输出（17-compliance：dev 模式非 chat 回复末尾必须含 🛡️ DEV 模式 | 合规检查 状态块）')
@@ -1468,13 +1749,16 @@ async function main() {
   const eventName = getEventName(payload)
   const platform = detectPlatform(payload)
   const prompt = eventName === 'UserPromptSubmit' ? extractUserPrompt(payload) : ''
-  const explicitProject = eventName === 'UserPromptSubmit'
-    ? (detectProjectFromPrompt(prompt) || detectProjectFromPayload(payload))
-    : ''
-  const modeHint = eventName === 'UserPromptSubmit'
-    ? readProfileMode(null, explicitProject || CONTEXT_PROJECT || '')
-    : undefined
-  let state = loadState(modeHint)
+  const projectCandidate = eventName === 'UserPromptSubmit'
+    ? detectProjectCandidate(prompt, payload)
+    : { project: '', source: '' }
+  let state = loadState()
+  const promptTarget = eventName === 'UserPromptSubmit'
+    ? resolvePromptTarget(state, payload, prompt, projectCandidate)
+    : null
+  if (eventName === 'UserPromptSubmit') {
+    state = loadState(readModeForPromptTarget(state, promptTarget))
+  }
   const mode = state.mode
 
   updateVisibleReplyState(state, payload, eventName)
@@ -1485,36 +1769,26 @@ async function main() {
     state = resetState(mode, state)
     state.executionMode = detectExecutionMode(payload)
     confirmDangerousApprovalsFromPrompt(state, prompt, eventName, platform)
-    if (hasMultiProjectExemption(prompt)) {
-      state.activeProject = ''
-      state.activeScope = LAYOUT.enabled ? 'workspace' : 'project'
-    } else if (explicitProject) {
-      state.activeProject = explicitProject
-      state.activeScope = 'project'
-    } else if (CONTEXT_PROJECT) {
-      state.activeProject = CONTEXT_PROJECT
-      state.activeScope = 'project'
-    } else if (LAYOUT.enabled) {
-      state.activeProject = ''
-      state.activeScope = 'workspace'
-    }
+    applyPromptTarget(state, promptTarget, payload)
     // Multi-project workspace guard (v1.9.8+):
     // when no workspace-root profile exists and ≥2 sibling projects detected,
     // require the user to specify the target project explicitly.
     const hasWorkspaceProfile = fs.existsSync(getWorkspaceProfileConfigPath())
     if (!hasWorkspaceProfile && isMultiProjectWorkspace()) {
       if (!hasMultiProjectExemption(prompt) && !state.activeProject) {
-        state.lastReason = 'multi-project-workspace-block'
-        const detail = isStrictEnforcement()
-          ? buildMultiProjectBlockMessage()
-          : `${buildMultiProjectBlockMessage()} Prompt allowed in safety-only mode.`
-        const output = buildInterceptionOutput(
-          state, platform, eventName, INTERCEPTION_ACTION.REQUIRE_COMPLETION, 'multi-project-workspace',
-          'multi-project-workspace', detail, 'Specify the target project or use a workspace-level exemption keyword.'
-        )
-        saveState(state)
-        writeStdout(output)
-        return
+        if (!shouldSuppressMultiProjectWarning(state, payload)) {
+          state.lastReason = 'multi-project-workspace-block'
+          const detail = isStrictEnforcement()
+            ? buildMultiProjectBlockMessage()
+            : `${buildMultiProjectBlockMessage()} Prompt allowed in safety-only mode.`
+          const output = buildInterceptionOutput(
+            state, platform, eventName, INTERCEPTION_ACTION.REQUIRE_COMPLETION, 'multi-project-workspace',
+            'multi-project-workspace', detail, 'Specify the target project or use a workspace-level exemption keyword.'
+          )
+          saveState(state)
+          writeStdout(output)
+          return
+        }
       }
     }
     saveState(state)

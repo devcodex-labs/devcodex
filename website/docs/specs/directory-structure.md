@@ -149,6 +149,8 @@ DevCodex 当前默认安装面向目标项目分发以下目录和文件：
 └── website/                             ← 文档站
 ```
 
+启用 `workspace-namespace` 后，workspace 根的 Profile 路径是 `.devcodex/workspace/profile/`；单项目 Profile 路径是 `.devcodex/<project>/profile/`。多项目 workspace 根缺少 workspace profile 时，Hook warning 必须指向 `.devcodex/workspace/profile/`，不能再提示 legacy `.devcodex/profile/`。
+
 ---
 
 ## 各组件官方格式

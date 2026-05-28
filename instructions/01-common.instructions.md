@@ -332,6 +332,7 @@ applyTo: "**"
 | 3 | 🔴 无法确定 | **必须先询问用户**："当前请求关联哪个项目？" — 在用户明确回复前，**禁止发起任何超出当前文件范围的工作区扫描**（`file_search` / `semantic_search` / `grep_search` / `list_dir` 与当前任务无关的调用、以及项目以外的 `read_file`）。仅允许读取用户本轮消息明确提及的文件以便询问。`<project> = null` **不再是合法默认状态** |
 
 > 🔴 **多项目工作区扫描禁令**（v1.9.8+）：当 cwd 是 monorepo 根目录（包含 ≥ 2 个含 `package.json` 或 `.devcodex/profile/` 的子项目）且未明确 `<project>` 时，AI 必须先询问用户。豁免词：用户消息含 `workspace` / `monorepo` / `全工作区` / `all projects` / `所有项目` 则允许全工作区扫描。`lifecycle.cjs` 默认 `safety-only` 下只输出提醒并放行工具，`strict` 模式下才执行 runtime 硬拦截；本条仍是 AI 侧必须遵守的流程约束。
+> 当启用 `workspace-namespace` 且缺少 workspace profile 时，运行时提示必须指向真实路径 `.devcodex/workspace/profile/`；若同一宿主会话已识别唯一目标项目，后续“继续 / 确认”等消息可在短 TTL 内沿用 sticky `activeProject` 与项目 `mode`，但新会话、TTL 过期、命中多个项目或用户显式选择 workspace 时必须重新判断。
 
 ### 项目现实扩展（Project Reality Expansion）
 
@@ -365,6 +366,20 @@ applyTo: "**"
 | `validation-route` | lint/test/typecheck/validate/direct replay/官方文档等验证路线 |
 | `confidence` | high / medium / low，并说明不确定点 |
 | `alternatives` | 被排除路线及原因 |
+
+### 用户可见意图扩展摘要
+
+在 dev/fix 等非 chat 工作流中，若项目现实扩展导致工作流/子类型修正、命中控制面或宿主能力差异、风险不为 normal、`confidence` 非 high，或用户正在跨会话 resume，用户面必须追加 3~5 行“意图扩展摘要”。摘要只写：语义初判、项目现实扩展后路由、关键风险、验证路线、备选路径；禁止输出调试 JSON 或完整内部状态。
+
+### Stop 可见回复证据三态
+
+Hook closure 对入口检查块的判断必须区分三态：
+
+| 状态 | 含义 | 行为 |
+|------|------|------|
+| `verified-present` | 已解析最终 assistant 可见回复，且包含 PC0~PC7 | 不提醒入口块 |
+| `verified-missing` | 已解析最终 assistant 可见回复，但缺 PC0~PC7 | 提醒或 strict 阻断 `entry check block 未输出` |
+| `unverified` | Stop/PreCompact 未提供可解析 assistant 内容 | 提醒“无法验证最终用户可见回复”，附 payload capture 指引；不得断言“未输出” |
 
 ### Profile 标准文件
 

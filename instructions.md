@@ -106,10 +106,13 @@
 - 项目未识别时，不得为了扩展意图而无界扫描工作区；必须先询问用户。
 - PC1 应表达“语义初判 → 项目现实扩展后的最终路由”，PC3 应表达扩展结果与产物落点。
 - 非 chat 工作流在 CP1 / 问题确认前必须形成 Intent Expansion Card：`semantic`、`project`、`continuity`、`action`、`domain`、`artifact-impact`、`risk`、`host-capability`、`validation-route`、`confidence`、`alternatives`，用于 PC1/PC3、CP1 产物、压缩恢复与错路由复盘。
+- 当项目现实扩展导致工作流/子类型修正、命中控制面或宿主能力差异、风险不为 normal、`confidence` 非 high，或处于跨会话 resume 时，用户面必须追加 3~5 行“意图扩展摘要”；摘要只写语义初判、扩展后路由、关键风险、验证路线和备选路径，禁止输出调试 JSON。
+- Hook Stop/PreCompact 对入口检查块的可见回复验证必须区分 `verified-present` / `verified-missing` / `unverified` 三态；无法解析最终 assistant 内容时只能提示“无法验证最终用户可见回复”并附 payload capture 指引，禁止断言“未输出”。
 - 当 `<工作区根>/.devcodex/layout.json` 启用 `workspace-namespace` 时，Profile 与运行态目录按**工作区集中命名空间**读取：
   - `config.json`：`<工作区根>/.devcodex/workspace/profile/` 作为 base，`<工作区根>/.devcodex/<project>/profile/` 作为 overlay
   - Profile 文档：项目命名空间文件优先，缺失回退到 `workspace/profile/`
   - 运行态目录：单项目写 `<工作区根>/.devcodex/<project>/...`，全工作区写 `<工作区根>/.devcodex/workspace/...`
+- workspace-namespace 下缺少 workspace profile 的多项目提示必须指向 `.devcodex/workspace/profile/`；同一宿主会话已识别唯一目标项目时，后续“继续 / 确认”等消息可在短 TTL 内沿用 sticky `activeProject` 与项目 `mode`，但新会话、TTL 过期、命中多个项目或用户显式选择 workspace 时必须重新判断。
 - 未启用 `layout.json` 时，继续兼容 `<项目根>/.devcodex/...`
 
 | 文件 | 说明 | 必须 |

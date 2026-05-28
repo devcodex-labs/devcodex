@@ -9,6 +9,7 @@ description: Profile 自动生成 — 扫描 package.json / CHANGELOG.md / 顶�
 
 - 触发：`devcodex profile init` CLI 调用
 - 不触发：`devcodex init` / `devcodex init --claude` 完成后仅 **提示** "下一步运行 devcodex profile init"，不自动生成（避免覆盖用户已有 Profile）
+- workspace-namespace：当 `<workspace>/.devcodex/layout.json` 启用后，在工作区根执行 `devcodex profile init` 应治理 `.devcodex/workspace/profile/`；在明确项目上下文执行时治理 `.devcodex/<project>/profile/`。运行时多项目 warning 必须提示 `.devcodex/workspace/profile/`，不得继续指向 legacy `.devcodex/profile/`。
 
 ## 产出三件套
 
@@ -123,7 +124,7 @@ description: Profile 自动生成 — 扫描 package.json / CHANGELOG.md / 顶�
 
 | 步骤 | 动作 |
 |------|------|
-| 1 | 检查 `.devcodex/profile/` 是否存在 → 不存在则创建 |
+| 1 | 检查目标 Profile 根是否存在 → legacy 为 `.devcodex/profile/`，workspace-namespace 工作区根为 `.devcodex/workspace/profile/`，明确项目为 `.devcodex/<project>/profile/`；不存在则创建 |
 | 2 | 对四个产出文件逐一检查：已存在 → 跳过并提示 `[skip] 01-项目信息.md (existing)`；不存在 → 生成 |
 | 3 | 输出生成清单 + 提示"已生成 N 个 Profile 草稿，请人工复核后定稿" |
 | 4 | 退出码 0（即使全部 skip） |

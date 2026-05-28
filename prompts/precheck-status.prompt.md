@@ -39,6 +39,7 @@ applyTo: "**"
 - 输出语言：根据用户消息主要语言判断
 - 意图：先通过 `intent/SKILL.md` 做语义初判，再结合已加载 Profile、项目目录、当前需求上下文执行项目现实扩展；扩展后如需修正路由，应在 PC1 明示修正结果
 - 非 chat 工作流：在 CP1 / 问题确认前形成 Intent Expansion Card（semantic、project、continuity、action、domain、artifact-impact、risk、host-capability、validation-route、confidence、alternatives），用于 PC1/PC3 与压缩恢复复核
+- 意图扩展摘要：若扩展后路由变化、命中控制面/宿主差异、风险不为 normal、confidence 非 high 或跨会话 resume，入口检查后、CP1/问题确认前追加 3~5 行用户可见摘要；只写语义初判、扩展后路由、关键风险、验证路线、备选路径
 - 待跟进事项：来自记忆中的 `⚠️ 待跟进`
 - 产物落点：仅输出状态（已确定 / 无需产物 / 待确定），不要直接输出内部 filePath
 - PC5~PC7：与 `instructions/17-compliance.instructions.md` 保持一致；无法执行时必须标注 N/A 或 ⚠️ 原因，禁止省略

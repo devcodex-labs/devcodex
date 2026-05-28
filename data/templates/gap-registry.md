@@ -2,7 +2,7 @@
 
 > **文件定位**：模板。`devcodex init` / `devcodex init --claude` 复制为目标项目运行时 `data/gap-registry.md`（Copilot: `.github/data/gap-registry.md`；Claude Code: `.claude/data/gap-registry.md`）。
 > **使用**：审查中遇到无对应维度的问题，或 R2+ 自我审视发现 M1~M4 盲点时登记。
-> **维护者记录**：`.devcodex/.maintainer-state/gap-registry.md`。
+> **维护者记录**：不在本包内分发；启用 `workspace-namespace` 时写入对应 active-root，例如 `<工作区根>/.devcodex/<project>/data/gap-registry.md`。
 
 ---
 

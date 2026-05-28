@@ -225,5 +225,5 @@ ConfirmationRequest
 | C | 方案 C 描述 / 代价：... | |
 ```
 
-> 关联：PI-005（维护态记录：`.devcodex/.maintainer-state/process-improvements.md`） · [FC7](../../instructions/17-compliance.instructions.md)
+> 关联：PI-005（维护态记录按 active-root 写入，例如 `.devcodex/<project>/data/process-improvements.md`） · [FC7](../../instructions/17-compliance.instructions.md)
 

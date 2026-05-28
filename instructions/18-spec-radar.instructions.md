@@ -206,9 +206,9 @@ PC4 入口（仅 dev 模式）
 | 文件 | 关系 |
 |------|------|
 | `17-compliance.instructions.md` | PC4 触发点在预检查（PC0~PC7），合规检查（FC/SC/RC/T）在任务完成后；两者独立不重叠 |
-| `data/pending-fixes.md` | 目标项目 / 已部署副本中的 PF 输出目标；源仓提供 `data/templates/pending-fixes.md` 模板，维护者实录位于 `.devcodex/.maintainer-state/` |
+| `data/pending-fixes.md` | 目标项目 / 已部署副本中的 PF 输出目标；源仓提供 `data/templates/pending-fixes.md` 模板，维护者实录按 active-root 写入（workspace-namespace 单项目如 `.devcodex/<project>/data/pending-fixes.md`） |
 | `data/violations.md` | 目标项目 / 已部署副本中的 VL / T_RECORD 输出目标；源仓提供 `data/templates/violations.md` 模板 |
-| `data/process-improvements.md` | 目标项目 / 已部署副本中的 PI 输出目标；源仓提供 `data/templates/process-improvements.md` 模板，维护者实录位于 `.devcodex/.maintainer-state/` |
+| `data/process-improvements.md` | 目标项目 / 已部署副本中的 PI 输出目标；源仓提供 `data/templates/process-improvements.md` 模板，维护者实录按 active-root 写入 |
 | `skills/spec-governance/SKILL.md` | 记录意图识别、RecordRouter 分流、SCV 规范变更验证的集中规则源 |
 | `website/docs/specs/spec-radar-flow.md` | PC4 的专属可视化流程图（三轴决策树 + G1~G9 + 多轴优先级 + 置信度 + 延迟执行）|
 | `website/docs/specs/precheck-flow.md` | 预检查主链流程图（含 PC4 概要入口及指向专属页的链接）|

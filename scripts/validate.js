@@ -544,7 +544,7 @@ function checkV8() {
       try {
         const out = execSync('node ./.codex/hooks/_runtime/lifecycle.cjs', {
           cwd: PARENT,
-          input: JSON.stringify({ hookEventName: 'UserPromptSubmit', prompt: 'validate devcodex-v1 Codex bootstrap' }),
+          input: JSON.stringify({ hookEventName: 'UserPromptSubmit', prompt: 'validate DevCodex Codex bootstrap' }),
           encoding: 'utf8',
           stdio: ['pipe', 'pipe', 'pipe']
         })
@@ -1546,11 +1546,27 @@ function checkV26() {
   const probes = [
     {
       file: 'skills/spec-governance/SKILL.md',
-      needles: ['RecordRouter', 'SCV-0', 'SCV-7', 'record.violation', 'record.ambiguous', 'AI 与确定性边界']
+      needles: [
+        'RecordRouter',
+        'SCV-0',
+        'SCV-7',
+        'record.violation',
+        'record.ambiguous',
+        'AI 与确定性边界',
+        '你刚才漏了/错了/违反流程了',
+        'VL/PF 关闭前必须具备修复方案',
+        '当前 DevCodex 源仓或规范维护项目的 active-root'
+      ]
     },
     {
       file: 'instructions.md',
-      needles: ['规范治理生命周期（RecordRouter + SCV）', 'record.spec-defect', 'SCV（Spec Change Verification）']
+      needles: [
+        '规范治理生命周期（RecordRouter + SCV）',
+        'record.spec-defect',
+        'SCV（Spec Change Verification）',
+        '你刚才漏了/错了/违反流程了',
+        'VL/PF 关闭前必须具备修复方案'
+      ]
     },
     {
       file: 'instructions/18-spec-radar.instructions.md',
@@ -1589,12 +1605,57 @@ function checkV26() {
 
   const templateProbes = [
     ['data/templates/violations.md', 'record.violation'],
+    ['data/templates/violations.md', '验证证据'],
+    ['data/templates/violations.md', '关闭时间'],
     ['data/templates/pending-fixes.md', 'record.spec-defect'],
+    ['data/templates/pending-fixes.md', 'SCV要求'],
+    ['data/templates/pending-fixes.md', '验证证据'],
     ['data/templates/process-improvements.md', 'record.process-improvement'],
     ['data/templates/pending-issues.md', 'record.pending-issue'],
     ['data/templates/gap-registry.md', 'record.audit-gap']
   ]
   for (const [file, needle] of templateProbes) mustInclude(file, needle, `template ${needle}`)
+
+  const activeRuleFiles = [
+    'README.md',
+    'instructions.md',
+    'instructions/00-safety.instructions.md',
+    'instructions/12-audit.instructions.md',
+    'instructions/18-spec-radar.instructions.md',
+    'skills/cp-gate/SKILL.md',
+    'skills/spec-governance/SKILL.md',
+    'data/templates/violations.md',
+    'data/templates/pending-fixes.md',
+    'data/templates/process-improvements.md',
+    'data/templates/pending-issues.md',
+    'data/templates/gap-registry.md'
+  ]
+  for (const file of activeRuleFiles) {
+    const content = read(path.join(ROOT, file))
+    if (content.includes('.devcodex/.maintainer-state')) {
+      err(`[V26] current governance rule file must use active-root, not .devcodex/.maintainer-state: ${file}`)
+    }
+  }
+
+  const genericDistributedFiles = [
+    'instructions.md',
+    'instructions/00-safety.instructions.md',
+    'instructions/12-audit.instructions.md',
+    'skills/spec-governance/SKILL.md',
+    'data/README.md',
+    'data/templates/violations.md',
+    'data/templates/pending-fixes.md',
+    'data/templates/process-improvements.md',
+    'data/templates/pending-issues.md',
+    'data/templates/gap-registry.md'
+  ]
+  for (const file of genericDistributedFiles) {
+    const content = read(path.join(ROOT, file))
+    const sourceProjectName = ['devcodex', 'v1'].join('-')
+    if (content.includes(sourceProjectName)) {
+      err(`[V26] generic distributed governance asset must not hard-code source project name: ${file}`)
+    }
+  }
 
   try {
     execSync('node scripts/test-spec-governance.js', { cwd: ROOT, stdio: 'pipe', encoding: 'utf8' })

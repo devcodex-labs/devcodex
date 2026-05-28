@@ -261,7 +261,7 @@ devcodex/
 
 控制面与长流程新增三类支撑型 Skill：`execution-contract` 约束 scope / allowedPaths / requiredArtifacts / validationRoute / rollbackPlan，`test-router` 统一选择验证路线，`release-verification` 在正式 tag / publish 前执行 R0~R7 发布验证链。
 
-&gt; ℹ️ 维护者状态文件（本仓库开发过程中累积的 violations/pending-fixes 记录）保存在 `.devcodex/.maintainer-state/`，**不分发**给用户。
+&gt; ℹ️ 维护者状态文件（本仓库开发过程中累积的 violations/pending-fixes 记录）按 active-root 保存，例如 workspace-namespace 下的 `.devcodex/<project>/data/`，**不分发**给用户。
 
 ## 客户端支持矩阵（Client Support Matrix）
 

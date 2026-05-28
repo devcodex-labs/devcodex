@@ -55,4 +55,4 @@ applyTo: "**"
 同时在运行时违规台账中追加违规记录：
 
 - **目标项目 / 已部署副本**：`data/violations.md`
-- **源仓维护态**：模板位于 `data/templates/violations.md`，维护者实录位于 `.devcodex/.maintainer-state/`
+- **源仓维护态**：模板位于 `data/templates/violations.md`；维护者实录按 active-root 写入，例如 workspace-namespace 下的 `.devcodex/<project>/data/violations.md`

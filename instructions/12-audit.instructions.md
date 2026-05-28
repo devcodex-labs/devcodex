@@ -22,7 +22,7 @@ applyTo: "**"
 - **需要修复时**：DevCodex plugin 文件（`instructions/` · `skills/` · `prompts/` · `agents/` · `RULES.md`）→ 先做阻断/非阻断分流：阻断项进入元循环自动 self-fix，非阻断项写入 `data/pending-issues.md`（见 §审查元循环）；其他文件/代码 → 记录 PF/VL，由用户决定时机启动 fix 或 self-fix
 - 用户已给出结论、分类或目录方案时，audit 仍须按证据独立验证；若核验后用户判断成立，可直接写明“已验证成立”，不得为了显得客观而反向挑错
 
-> **设计原则：记录在使用，修复在维护** — 正常开发工作流（dev/fix/analyze）中 PC4 发现规范缺口，先经 `spec-governance` 的记录意图识别与 RecordRouter 分流，再写入运行时 Pending 台账（如 `data/pending-fixes.md`），不触发任何修复；源仓内该台账由 `data/templates/` 提供模板、维护者实录位于 `.devcodex/.maintainer-state/`。只有 audit 明确针对 DevCodex plugin 文件本身时，才进入立即修复的元循环。
+> **设计原则：记录在使用，修复在维护** — 正常开发工作流（dev/fix/analyze）中 PC4 发现规范缺口，先经 `spec-governance` 的记录意图识别与 RecordRouter 分流，再写入运行时 Pending 台账（如 `data/pending-fixes.md`），不触发任何修复；源仓内该台账由 `data/templates/` 提供模板，维护者实录按 active-root 写入（workspace-namespace 单项目如 `.devcodex/<project>/data/`）。只有 audit 明确针对 DevCodex plugin 文件本身时，才进入立即修复的元循环。
 
 ### 审查目标类型
 

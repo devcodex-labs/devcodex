@@ -18,9 +18,14 @@ data/
 **变更前（v1.5.x）**：`data/` 直接包含维护者自身的违规/过程记录；`npm pack` 会把 `violations.md` 等**连同真实项目名与历史数据**发给所有用户。
 
 **变更后（v1.6.0）**：
-- 维护者状态迁移到仓库根 `.devcodex/.maintainer-state/`（不分发）
+- 维护者状态不再放在源码包 `data/` 根目录中，避免随 npm 包分发
 - `data/templates/` 仅保留空模板 + schema + 1 条 EXAMPLE
 - `package.json "files"` 白名单改为 `data/templates/`，精确控制分发
+
+**当前规则（workspace-namespace）**：
+- 维护者实际记录按 active-root 写入，例如单项目 `.devcodex/<project>/data/*.md`
+- 全工作区治理记录写入 `.devcodex/workspace/data/*.md`
+- 旧 `.devcodex/.maintainer-state/` 只作为历史迁移口径，不作为当前写入目标
 
 ## init 行为
 
@@ -42,7 +47,8 @@ data/
 而在**源仓**里：
 
 - `data/templates/*.md`：仅提供空模板与允许的 EXAMPLE 行
-- `.devcodex/.maintainer-state/`：维护者自己的实际记录，不参与 npm 分发
+- `.devcodex/<project>/data/*.md`：workspace-namespace 下单项目维护者实际记录，不参与 npm 分发
+- `.devcodex/workspace/data/*.md`：workspace-namespace 下全工作区维护者实际记录，不参与 npm 分发
 
 换句话说，规范里写 `data/*.md` 时，表达的是“应该把记录落到运行时台账”，不是说源仓根 `data/` 目录里直接保存真实记录。
 

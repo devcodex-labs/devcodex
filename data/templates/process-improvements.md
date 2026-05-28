@@ -2,7 +2,7 @@
 
 > **文件定位**：模板。`devcodex init` / `devcodex init --claude` 复制为目标项目运行时 `data/process-improvements.md`（Copilot: `.github/data/process-improvements.md`；Claude Code: `.claude/data/process-improvements.md`）。
 > **使用**：C17 触发时追加 PI 条目。
-> **维护者记录**：`.devcodex/.maintainer-state/process-improvements.md`。
+> **维护者记录**：不在本包内分发；启用 `workspace-namespace` 时写入对应 active-root，例如 `<工作区根>/.devcodex/<project>/data/process-improvements.md`。
 
 ---
 

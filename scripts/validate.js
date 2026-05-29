@@ -34,6 +34,8 @@
  * V36 Host contract verification sync（宿主契约验证路线、HostContractRoute、报告证据）
  * V37 Namespace safety / CLI protection / deterministic test chain（容器命名空间、防 clobber、test:all 拆链）
  * V38 README authoring/review governance sync（README 用户视角写作、专项 review、targeted test 与消费者链）
+ * V39 Governance improvement intake sync（全模式主动优化清单、统一回执、PI/PF 联动与强制探针）
+ * V40 Profile local config sync（config.local schema、env 引用、受控扩展位与本地 overlay 消费链）
  *
  * Exit: 0=OK, 1=error, 2=warnings only
  */
@@ -2201,6 +2203,147 @@ function checkV38() {
   console.log('[V38] README authoring/review governance sync checked')
 }
 
+function checkV39() {
+  const probes = [
+    {
+      file: 'instructions.md',
+      needles: ['Improvement Intake（优化清单）', '所有模式命中后都必须显式回执']
+    },
+    {
+      file: 'instructions/01-common.instructions.md',
+      needles: ['Improvement Intake（优化清单）', '所有模式下，每条用户消息完成合理性评估后', '业务局部诉求']
+    },
+    {
+      file: 'skills/spec-governance/SKILL.md',
+      needles: ['Improvement Intake（优化清单）', '在所有模式下', 'PI + PF', '所有模式下，主动 Intake 完成后必须显式回执']
+    },
+    {
+      file: 'instructions/18-spec-radar.instructions.md',
+      needles: ['RecordRouter / Improvement Intake', '优化清单（PI）', '全模式规则执行']
+    },
+    {
+      file: 'data/templates/process-improvements.md',
+      needles: ['优化清单', '触发来源', '关联缺口']
+    },
+    {
+      file: 'data/README.md',
+      needles: ['优化清单（PI）', '承载 DevCodex 规范资产的 active-root']
+    },
+    {
+      file: 'README.md',
+      needles: ['规范治理 Intake', 'data/process-improvements.md', '所有模式下每条用户消息']
+    },
+    {
+      file: 'package.json',
+      needles: ['test:governance-intake', 'node scripts/test-governance-intake.js']
+    }
+  ]
+
+  for (const probe of probes) {
+    const content = read(path.join(ROOT, probe.file))
+    for (const needle of probe.needles) {
+      if (!content.includes(needle)) {
+        err(`[V39] governance intake drift in ${probe.file}: missing "${needle}"`)
+      }
+    }
+  }
+
+  const forbidden = [
+    ['instructions.md', 'dev 模式需显式回执已记录的 `PI-xxx / PF-xxx`'],
+    ['instructions.md', '在 `dev` 模式下，每条用户消息在完成合理性评估后'],
+    ['instructions/01-common.instructions.md', 'dev 模式必须回执 `已记录 PI-xxx / PF-xxx`'],
+    ['instructions/01-common.instructions.md', 'dev 模式必须显式回执'],
+    ['skills/spec-governance/SKILL.md', '在 `dev` 模式下，除了处理“记录一下”这类显式记录请求'],
+    ['skills/spec-governance/SKILL.md', 'dev 模式下，主动 Intake 完成后必须显式回执'],
+    ['skills/intent/SKILL.md', 'dev 模式下还要执行主动 Improvement Intake'],
+    ['instructions/18-spec-radar.instructions.md', '当前 dev 模式消息经合理性评估后命中'],
+    ['data/templates/process-improvements.md', 'dev 模式需回执'],
+    ['README.md', 'dev 模式下每条用户消息在合理性评估后都会额外检查'],
+    ['README.md', 'dev 模式下每条用户消息还会执行主动 Improvement Intake'],
+    ['website/docs/guide/development.md', 'dev 模式下若用户建议经验证更优且可泛化'],
+    ['changelogs/unreleased.md', 'dev 模式下对可泛化更优策略或规范缺口执行主动记录']
+  ]
+
+  for (const [file, needle] of forbidden) {
+    const content = read(path.join(ROOT, file))
+    if (content.includes(needle)) {
+      err(`[V39] governance intake drift in ${file}: legacy mode split remains "${needle}"`)
+    }
+  }
+
+  try {
+    execSync('node scripts/test-governance-intake.js', { cwd: ROOT, stdio: 'pipe', encoding: 'utf8' })
+  } catch (e) {
+    const detail = String((e.stderr || e.stdout || e.message || '')).trim().split('\n').slice(0, 8).join(' | ')
+    err(`[V39] test-governance-intake failed${detail ? `: ${detail}` : ''}`)
+  }
+
+  console.log('[V39] governance improvement intake sync checked')
+}
+
+function checkV40() {
+  const probes = [
+    {
+      file: 'skills/load-profile/SKILL.md',
+      needles: ['config.local.json', 'extensions.<namespace>', '不得覆盖 `mode` / `agent` / `pluginVersion`']
+    },
+    {
+      file: 'prompts/project-profile.prompt.md',
+      needles: ['config.local.json', 'extensions.<namespace>']
+    },
+    {
+      file: 'scripts/validate-profile.js',
+      needles: ['config.local.json', 'secretRef', 'must not override "${reserved}"', 'extensions']
+    },
+    {
+      file: 'scripts/test-validate-profile.js',
+      needles: ['validLocalConfig', 'invalidLocalConfig', 'config.local.json']
+    },
+    {
+      file: 'scripts/test-mcp-servers.js',
+      needles: ['config.local.json', 'REPORTING_DB_URL']
+    },
+    {
+      file: 'index.js',
+      needles: ['config.local.json', '.devcodex/*/profile/config.local.json']
+    },
+    {
+      file: 'mcp/profile-server.js',
+      needles: ['config.local.json']
+    },
+    {
+      file: 'README.md',
+      needles: ['config.local.json', 'extensions.<namespace>']
+    },
+    {
+      file: 'website/docs/guide/development.md',
+      needles: ['config.local.json', 'extensions.<namespace>']
+    },
+    {
+      file: 'package.json',
+      needles: ['test:profile-governance', 'node scripts/test-validate-profile.js']
+    }
+  ]
+
+  for (const probe of probes) {
+    const content = read(path.join(ROOT, probe.file))
+    for (const needle of probe.needles) {
+      if (!content.includes(needle)) {
+        err(`[V40] profile local config drift in ${probe.file}: missing "${needle}"`)
+      }
+    }
+  }
+
+  try {
+    execSync('node scripts/test-validate-profile.js', { cwd: ROOT, stdio: 'pipe', encoding: 'utf8' })
+  } catch (e) {
+    const detail = String((e.stderr || e.stdout || e.message || '')).trim().split('\n').slice(0, 8).join(' | ')
+    err(`[V40] test-validate-profile failed${detail ? `: ${detail}` : ''}`)
+  }
+
+  console.log('[V40] profile local config sync checked')
+}
+
 function checkV29() {
   const probes = [
     {
@@ -2452,6 +2595,8 @@ checkV35()
 checkV36()
 checkV37()
 checkV38()
+checkV39()
+checkV40()
 
 console.log('')
 if (errors.length) {

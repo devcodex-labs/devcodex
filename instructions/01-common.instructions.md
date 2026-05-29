@@ -61,7 +61,7 @@ applyTo: "**"
 | C14 | 多任务进度检查点 | 会话包含 ≥2 个独立任务时，每完成一个子任务必须：① 在记忆文件追加该任务进度状态 ② 在对话中输出进度快照（格式严格遵循 `prompts/reply-summary.prompt.md` §6） |
 | C15 | 架构质量视角 | dev/fix 任务中涉及代码设计或架构决策的输出须以**架构师与平台工程师**双重视角评估三维质量：① 可扩展性 ② 可维护性 ③ 易上手性。任意维度未达标须说明原因并记录改善方向 |
 | C16 | 批量操作分批 | 执行涉及 ≥10 个文件的批量操作（如测试迁移、批量重命名、批量改写）时，必须主动提出分批方案，推荐每批 10 个，并输出分批计划后等待用户确认再开始执行 |
-| C17 | 过程改进记录 | 用户建议的执行策略经 AI 确认更优时，必须立即追加一条 PI 条目到 `data/process-improvements.md`（不得询问是否记录），并标注是否已纳入规范 |
+| C17 | 过程改进记录 | 用户建议的执行策略经 AI 确认更优，或揭示规范未定义/不完整且可泛化时，必须立即走 Improvement Intake：写入 `data/process-improvements.md`（优化清单，PI）；若同时暴露规范缺口，再联动 `data/pending-fixes.md`（PF）。不得询问是否记录；所有模式命中后都必须回执 `已记录 PI-xxx / PF-xxx` |
 | C19 | 确认后前置复审 | 每次用户明确确认后、进入下一阶段前，必须先对当前已确认产物做 1 轮轻量前置复审，并显式输出结果；控制面 / 多文件联动 / 真相源同步 / 模板-示例-校验链场景必须追加交叉验证；若发现阻断性问题，先修正并告知用户，再重新确认；无阻断问题方可推进 |
 
 ## 统一联查矩阵（C11 扩展）
@@ -289,7 +289,19 @@ applyTo: "**"
   - 有明确问题描述
   - 有影响范围或适用范围
   - 能在后续按批次进入需求/bug 修复流程
-- `data/process-improvements.md` 只记录“已确认更优的执行策略”，不替代问题池本身。
+- `data/process-improvements.md`（优化清单，PI）只记录“已确认更优且可泛化的执行策略”，不替代问题池本身。
+- 若建议针对 DevCodex 规范自身、Hook、Skill、模板、validate 或宿主适配链路，而不是当前业务项目，则 PI/PF 必须写回承载 DevCodex 规范资产的 active-root。
+
+### Improvement Intake（优化清单）
+
+- 所有模式下，每条用户消息完成合理性评估后，都要额外检查是否命中“可泛化更优策略”或“规范缺口暴露”。
+- 命中后即使用户没有显式说“记录一下”，也要主动分流：
+  - 仅更优策略 → PI
+  - 仅规范缺口 → PF
+  - 二者并存 → PI + PF
+  - 已有规则未执行 → VL
+  - 一次性偏好或业务局部诉求 → 不写台账
+- 所有模式命中后都必须显式回执 `已记录 PI-xxx`、`已记录 PF-xxx` 或 `已记录 PI-xxx / PF-xxx`。
 
 ### 官方文档优先级
 
@@ -316,6 +328,7 @@ applyTo: "**"
 
 - **Profile / config 读取**：
   - `config.json` 采用 `workspace base + project overlay`
+  - `config.local.json` 与 `config.json` 同路径模型，但仅用于本地私有 overlay（长期连接、env 引用、`extensions.<namespace>`），不得覆盖 `mode` / `agent` / `pluginVersion`
   - `README.md`、`01-项目信息.md`、`02-架构约束.md`、`03-代码风格.md` 采用 `project file first + workspace fallback`
 - **运行态目录写入**：采用 `single active scope write`
   - 单项目任务：写入 `<工作区根>/.devcodex/<project>/...`

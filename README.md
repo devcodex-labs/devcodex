@@ -43,6 +43,8 @@ DevCodex 通过 `.github/`（Copilot）、`CLAUDE.md + .claude/ + .mcp.json`（C
 - **项目现实扩展**: 先做语义意图初判，再结合目标项目 Profile、目录与当前任务上下文修正最终路由、产物落点和验证方式
 - **支撑型 Skill**: `execution-contract` / `test-router` / `release-verification` / `host-contract-verification` / `source-consumer-sync` 为控制面、多批次、测试路线、宿主契约验证与真相源-消费者同步提供可审计支撑，不新增工作流分支
 - **README 专项能力**: `readme-authoring` 负责 README 用户/使用者优先写作，`audit-readme` 负责 README / 用户使用文档专项 review
+- **规范治理 Intake**: 所有模式下每条用户消息在合理性评估后都会额外检查是否命中可泛化改进；命中时主动写入 `data/process-improvements.md`（优化清单，PI），必要时联动 `data/pending-fixes.md`（PF），并显式回执 `PI/PF`
+- **Profile 本地私有配置**: `config.local.json` 支持长期连接、env 引用和 `extensions.<namespace>` 受控扩展位；文件应加入 `.gitignore`，且不能覆盖 `mode` / `agent`
 - **执行闭环复审**: dev/fix 完成前执行 ECR 执行闭环复审，交叉验证 CP 产物、报告、daily memory、SUMMARY、diff/commit、测试/探针与 dirty 边界
 - **推荐结论**: analyze/audit/report 多建议或多路径场景必须给出推荐结论与推荐理由；无后续动作时明确写“推荐：无后续动作”
 - **确认交互降级**: 用户确认先抽象为 ConfirmationRequest，再按宿主能力选择按钮、权限提示、Hook 阻断或文本确认 fallback，不把按钮 UI 承诺为全宿主能力
@@ -189,6 +191,7 @@ AGENTS.md                 ← 与 instructions.md / copilot-instructions.md / CL
 - 单项目任务：写入 `<workspace>/.devcodex/<project>/...`
 - 全工作区任务：写入 `<workspace>/.devcodex/workspace/...`
 - `config.json`：`workspace/profile` 作为 base，`<project>/profile` 作为 overlay
+- `config.local.json`：与 `config.json` 采用相同的 `workspace/profile + <project>/profile` overlay 模型，但仅用于本地私有配置、长期连接和 `extensions.<namespace>`；不覆盖 `mode` / `agent`
 - Profile 文档：项目命名空间文件优先，缺失回退到 `workspace/profile`
 - CLI / Hook 运行态目录：统一写 active-root；单项目为 `<workspace>/.devcodex/<project>/.memory|.audit-state`，全工作区为 `<workspace>/.devcodex/workspace/.memory|.audit-state`
 - 多项目 workspace 根缺少 workspace profile 时，Hook 提示真实路径 `.devcodex/workspace/profile/`；同一宿主会话已识别唯一项目后，后续“继续/确认”会在短 TTL 内沿用该项目和项目 `mode`，新会话、TTL 过期或显式 workspace 请求会重新判断。
@@ -278,7 +281,7 @@ devcodex/
 └── plugin.json    # 插件元数据
 ```
 
-规范治理新增 `spec-governance` Skill：记录类动作先做意图识别，再由 RecordRouter 分流到 `violations / pending-fixes / process-improvements / pending-issues / gap-registry`；规范/控制面/路径/模板/部署/校验链变更后必须执行 SCV（Spec Change Verification），避免修复一处后引入漂移。
+规范治理新增 `spec-governance` Skill：记录类动作先做意图识别，再由 RecordRouter 分流到 `violations / pending-fixes / process-improvements（优化清单，PI） / pending-issues / gap-registry`；所有模式下每条用户消息还会执行主动 Improvement Intake，把已验证更优且可泛化的策略记录到优化清单，并在暴露规范缺口时同步联动 PF。规范/控制面/路径/模板/部署/校验链变更后必须执行 SCV（Spec Change Verification），避免修复一处后引入漂移。
 
 控制面与长流程当前有五类支撑型 Skill：`execution-contract` 约束 scope / allowedPaths / requiredArtifacts / consumerScope / validationRoute / deviationLog，`test-router` 统一选择验证路线，`release-verification` 在正式 tag / publish 前执行 R0~R7 发布验证链，`host-contract-verification` 负责 direct replay / fixture replay / bootstrap / workspace guard 证据，`source-consumer-sync` 负责 Concept Sync Map 与当前消费者同步边界。
 

@@ -79,6 +79,10 @@ function setupLegacyWorkspace() {
     path.join(TEMP_ROOT, '.devcodex', 'profile', 'config.json'),
     JSON.stringify({ mode: 'dev', agent: 'claude-code' })
   )
+  fs.writeFileSync(
+    path.join(TEMP_ROOT, '.devcodex', 'profile', 'config.local.json'),
+    JSON.stringify({ connections: { local: { urlEnv: 'LOCAL_DB_URL' } } }, null, 2)
+  )
 }
 
 function setupLayoutWorkspace() {
@@ -103,6 +107,10 @@ function setupLayoutWorkspace() {
   fs.writeFileSync(
     path.join(TEMP_ROOT, '.devcodex', 'chat', 'profile', 'config.json'),
     JSON.stringify({ mode: 'dev', flags: { write: true }, tags: ['project'] }, null, 2)
+  )
+  fs.writeFileSync(
+    path.join(TEMP_ROOT, '.devcodex', 'chat', 'profile', 'config.local.json'),
+    JSON.stringify({ connections: { reporting: { urlEnv: 'REPORTING_DB_URL' } } }, null, 2)
   )
 }
 
@@ -152,6 +160,7 @@ function testProfilePrompts() {
   const text = prompt.messages?.[0]?.content?.text || ''
   assert.match(text, /CLAUDE\.md/)
   assert.match(text, /01-项目信息/)
+  assert.match(text, /config\.local\.json/)
   assert.match(text, /PC0~PC7/)
 }
 
@@ -289,7 +298,7 @@ function testWorkspaceNamespaceProfileMerge() {
     rpcRequest(2, 'tools/call', { name: 'profile_get_mode', arguments: {} }),
     rpcRequest(3, 'tools/call', {
       name: 'profile_load',
-      arguments: { files: ['01-项目信息.md', '03-代码风格.md', 'config.json'] }
+      arguments: { files: ['01-项目信息.md', '03-代码风格.md', 'config.json', 'config.local.json'] }
     })
   ], projectRoot)
 
@@ -304,6 +313,7 @@ function testWorkspaceNamespaceProfileMerge() {
   assert.match(profileText, /工作区基座（workspace）/)
   assert.match(profileText, /项目命名空间（chat）/)
   assert.match(profileText, /"tags": \[/)
+  assert.match(profileText, /REPORTING_DB_URL/)
 }
 
 function testWorkspaceNamespaceMemoryScope() {

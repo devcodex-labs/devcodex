@@ -69,6 +69,7 @@ description: "Use when: ..."   # 必填，AI 靠这个发现 Skill
 - 每个 Skill 目录只有一个 `SKILL.md`，扁平一级目录
 - 支撑型 Skill（如 `execution-contract` / `test-router` / `release-verification` / `host-contract-verification` / `source-consumer-sync`）不能新增工作流分支；必须被 instructions、模板、报告、validate 与用户文档同时消费
 - README / 用户使用文档默认通过 `readme-authoring` 收口用户 / 使用者优先写作，完成后再用 `audit-readme` 做专项 review
+- 所有模式下若用户建议经验证更优且可泛化，或暴露规范未定义/不完整，应主动触发 Improvement Intake：写入 `data/process-improvements.md`（优化清单，PI），必要时联动 `data/pending-fixes.md`，并显式回执 `PI/PF`
 - v2.0.0 规划：MCP `devcodex_getWorkflow()` 替代文件读取
 
 
@@ -148,6 +149,10 @@ dev/fix 完成前必须执行 ECR 执行闭环复审。ECR 会交叉验证 CP1/C
 控制面或模板-示例-校验链任务要先建立 Concept Sync Map：至少写清 `sourceOfTruth`、`currentConsumers`、`historicalMirrors`、`validateProbes`、`deployCopies`、`yellowDeviationBoundary`。其中当前消费者必须同批同步，历史镜像只有在明确标注历史性质时才允许保留旧口径。
 
 Hook / CLI / visible reply / sticky project / workspace guard 相关任务还要补 HostContractVerification 证据：至少说明 `hostSurface`、`eventScope`、`evidenceMode`、`visibleReplyEvidence`、`workspaceGuard` 与 `bootstrapScope`，避免把“文档已经写了”误当成宿主行为已验证。
+
+### Profile 本地私有配置
+
+`.devcodex/**/profile/config.local.json` 用于本地私有 overlay：长期连接、env 引用、受控扩展位 `extensions.<namespace>`。它不替代 `config.json`，也不能覆盖 `mode` / `agent` / `pluginVersion`。若项目使用了本地连接别名或扩展位，需在 `01-项目信息.md` 或 Profile README 说明用途、字段语义和使用方式。
 
 ### 推荐结论与确认交互
 

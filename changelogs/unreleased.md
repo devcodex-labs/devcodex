@@ -15,3 +15,5 @@
 ## 2026-05-29
 
 - README 治理增强：新增 `readme-authoring` / `audit-readme`，将 README 默认主视角收口为用户 / 使用者优先，并补 `V38`、`test-readme-governance`、资产口径同步与专项 README review。
+- 治理台账增强：引入 Improvement Intake，`process-improvements.md` 明确升格为“优化清单（PI）”；所有模式下对可泛化更优策略或规范缺口执行主动记录与 `PI/PF` 回执，并补 `V39` 与 `test-governance-intake`。
+- Profile 本地 overlay 增强：新增 `config.local.json` 受控模型（长期连接、env 引用、`extensions.<namespace>`、文档说明义务、gitignore 保护），同步到 profile init、MCP profile load、`validate-profile`、`test-validate-profile` 与 `V40`。

@@ -25,7 +25,7 @@ function createWorkspace(projectInfo) {
     TEMP_ROOTS.push(root)
 
     writeFile(root, 'package.json', JSON.stringify({ name: PACKAGE_NAME }, null, 2))
-    writeFile(root, '.devcodex/profile/README.md', '# README\n')
+    writeFile(root, '.devcodex/profile/README.md', '# README\n\n- `config.local.json`：本地私有 overlay。\n- `extensions.<namespace>`：扩展位需在 Profile 中说明。\n')
     writeFile(root, '.devcodex/profile/02-架构约束.md', '# 02\n')
     writeFile(root, '.devcodex/profile/03-代码风格.md', '# 03\n')
     writeFile(root, '.devcodex/profile/config.json', JSON.stringify({
@@ -121,8 +121,53 @@ function currentProjectInfo() {
         '',
         '- 当前 `token-check` 仅为授权占位，不执行 tier 阻断。',
         '- 所有工作流和子类型当前全量开放。',
+        '',
+        '## 本地配置说明（可选）',
+        '',
+        '- `config.local.json` 用于本地私有 overlay，不覆盖 `mode` / `agent`。',
+        '- 若使用 `extensions.<namespace>`，需在本文件或 Profile README 说明字段语义。',
         ''
     ].join('\n')
+}
+
+function validLocalConfig() {
+    return JSON.stringify({
+        connections: {
+            reporting: {
+                kind: 'postgres',
+                description: '本地报表库只读连接',
+                host: '127.0.0.1',
+                port: 5432,
+                database: 'analytics',
+                readonly: true,
+                urlEnv: 'REPORTING_DB_URL',
+                passwordEnv: 'REPORTING_DB_PASSWORD'
+            }
+        },
+        extensions: {
+            'docs-runtime': {
+                description: '本地文档运行时扩展',
+                refs: {
+                    tokenEnv: 'DOCS_RUNTIME_TOKEN',
+                    secretRef: 'op://team/docs/runtime'
+                },
+                config: {
+                    workspace: 'docs'
+                }
+            }
+        }
+    }, null, 2)
+}
+
+function invalidLocalConfig() {
+    return JSON.stringify({
+        mode: 'prod',
+        connections: {
+            broken: {
+                password: 'plain-secret'
+            }
+        }
+    }, null, 2)
 }
 
 function main() {
@@ -141,6 +186,24 @@ function main() {
         const currentOutput = `${currentResult.stdout}\n${currentResult.stderr}`
 
         assert.strictEqual(currentResult.status, 0, currentOutput)
+
+        const localConfigRoot = createWorkspace(currentProjectInfo())
+        writeFile(localConfigRoot, '.devcodex/profile/config.local.json', validLocalConfig())
+        writeFile(localConfigRoot, '.gitignore', '.devcodex/profile/config.local.json\n.devcodex/*/profile/config.local.json\n')
+        const localConfigResult = runValidate(localConfigRoot)
+        const localConfigOutput = `${localConfigResult.stdout}\n${localConfigResult.stderr}`
+
+        assert.strictEqual(localConfigResult.status, 0, localConfigOutput)
+
+        const invalidLocalRoot = createWorkspace(currentProjectInfo())
+        writeFile(invalidLocalRoot, '.devcodex/profile/config.local.json', invalidLocalConfig())
+        writeFile(invalidLocalRoot, '.gitignore', '.devcodex/profile/config.local.json\n')
+        const invalidLocalResult = runValidate(invalidLocalRoot)
+        const invalidLocalOutput = `${invalidLocalResult.stdout}\n${invalidLocalResult.stderr}`
+
+        assert.strictEqual(invalidLocalResult.status, 1, invalidLocalOutput)
+        assert.match(invalidLocalOutput, /must not override "mode"/)
+        assert.match(invalidLocalOutput, /must use \*Env or secretRef instead of raw "password"/)
 
         const workspaceRoot = createWorkspaceNamespaceWorkspace(currentProjectInfo())
         const workspaceChild = path.join(workspaceRoot, 'chat')

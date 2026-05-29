@@ -26,7 +26,7 @@ description: 规范治理生命周期 — 意图驱动记录、RecordRouter 分�
 |------------|----------|----------|
 | `record.violation` | 已有明确规则，但 AI 未执行或执行错 | `data/violations.md` |
 | `record.spec-defect` | 规范缺失、冲突、过窄、外部假设失效或拦截滞后 | `data/pending-fixes.md` |
-| `record.process-improvement` | 用户提出更优执行策略，AI 验证后可泛化 | `data/process-improvements.md` |
+| `record.process-improvement` | 用户提出更优执行策略，AI 验证后可泛化 | `data/process-improvements.md`（优化清单，PI） |
 | `record.pending-issue` | 已确认但不阻断当前任务，适合后续批次治理 | `data/pending-issues.md` |
 | `record.audit-gap` | 审计/validate/Hook 未发现本该发现的问题 | `data/gap-registry.md` |
 | `record.none` | 普通解释、需求整理、报告整理，不是治理记录 | 不写台账 |
@@ -42,11 +42,33 @@ description: 规范治理生命周期 — 意图驱动记录、RecordRouter 分�
 
 每次记录分流必须输出：`规范化意图`、`置信度`、`依据`、`目标台账`。
 
+## Improvement Intake（优化清单）
+
+在所有模式下，除了处理“记录一下”这类显式记录请求，每条用户消息在完成合理性评估后，还必须执行一次主动 Improvement Intake：
+
+- 若用户建议经验证**更优且可泛化**，即使没有说“记录一下”，也应主动写 PI。
+- 若用户建议同时暴露了**规范未定义、过窄或不完整**，应同步写 PF。
+- 若只是这次执行没有遵守已存在规则，应写 VL，而不是误写 PI/PF。
+- 若只是业务项目的一次性偏好、局部临时安排或不可泛化做法，应判为 `record.none`。
+
+### Intake 分流矩阵
+
+| 场景 | 目标 |
+|------|------|
+| 更优策略，可泛化 | `PI` |
+| 规范缺口 / 规范不完整 | `PF` |
+| 更优策略 + 规范缺口同时成立 | `PI + PF` |
+| 已有规则未执行 | `VL` |
+| 一次性偏好 / 不可泛化 / 普通讨论 | `none` |
+
+所有模式下，主动 Intake 完成后必须显式回执：`已记录 PI-xxx`、`已记录 PF-xxx` 或 `已记录 PI-xxx / PF-xxx`。
+
 ## 台账落点与关闭证据
 
 - `data/*.md` 是运行时逻辑台账路径，实际写入必须先解析 active-root。
 - 旧布局写 `<项目根>/.devcodex/data/`；workspace-namespace 单项目写 `<工作区根>/.devcodex/<project>/data/`；全工作区写 `<工作区根>/.devcodex/workspace/data/`。
 - DevCodex 规范自身、Hook、Skill、模板、validate 或宿主适配链路问题归属当前 DevCodex 源仓或规范维护项目的 active-root；在 `workspace-namespace` 下应解析为承载 DevCodex 源码或规范资产的项目命名空间，不得因当时正在处理业务项目而写入业务项目台账。
+- `data/process-improvements.md` 在本 Skill 中也可称“优化清单（PI）”；当建议针对 DevCodex 规范自身时，PI/PF 的 active-root 归属同样遵循上条，不得写入业务项目台账。
 - VL/PF 关闭前必须具备修复方案、修复时间、验证状态、验证时间、验证证据与关闭时间；仅“已登记”不得视为“已验证关闭”。
 
 ## RecordRouter

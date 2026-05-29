@@ -7,7 +7,7 @@
  * Implements MCP 2024-11-05 protocol over stdin/stdout (JSON-RPC 2.0).
  *
  * Tools:
- *   profile_load     — Read all standard profile files for a project
+ *   profile_load     — Read all standard profile files for a project (including optional local overlay metadata)
  *   profile_get_mode — Return ENV_MODE (dev/prod) and resolved runtime agent
  */
 
@@ -59,7 +59,7 @@ const DEFAULT_AGENT = detectRuntimeAgent()
 const TOOLS = [
   {
     name: 'profile_load',
-    description: '加载 .devcodex/profile/ 下的所有标准 Profile 文件，返回各文件的路径与内容。',
+    description: '加载 .devcodex/profile/ 下的所有标准 Profile 文件，返回各文件的路径与内容；若存在 `config.local.json`，也会作为本地 overlay 元数据返回。',
     inputSchema: {
       type: 'object',
       properties: {
@@ -109,7 +109,8 @@ const STANDARD_FILES = [
   '03-代码风格.md',
   '04-测试规范.md',
   '05-发布规范.md',
-  'config.json'
+  'config.json',
+  'config.local.json'
 ]
 
 const REQUIRED_FILES = new Set(['01-项目信息.md', '02-架构约束.md', '03-代码风格.md'])

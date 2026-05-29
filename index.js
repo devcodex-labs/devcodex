@@ -131,9 +131,12 @@ const DEVCODEX_GITIGNORE_ENTRIES = [
   '.devcodex/.memory/',
   '.devcodex/.audit-state/',
   '.devcodex/.tmp/',
+  '.devcodex/profile/config.local.json',
+  '.devcodex/workspace/profile/config.local.json',
   '.devcodex/*/.memory/',
   '.devcodex/*/.audit-state/',
-  '.devcodex/*/.tmp/'
+  '.devcodex/*/.tmp/',
+  '.devcodex/*/profile/config.local.json'
 ]
 
 function ensureDevCodexGitignore(cwd, dryRun, log = console.log) {
@@ -1021,6 +1024,7 @@ function genProfileReadme(_ctx) {
 | 02-架构约束.md | 目录结构 / 模块边界 |
 | 03-代码风格.md | 编码规范 / lint / 格式化 |
 | config.json | ENV_MODE + agent 兜底标识 |
+| config.local.json | 可选，本地私有 overlay：长期连接、env 引用、\`extensions.<namespace>\`（不提交） |
 `
 }
 
@@ -1052,6 +1056,11 @@ function genProjectInfo(ctx) {
 | **当前阶段** | v${ver} 初始草稿 |
 | **主版本分支** | ${branch} |
 | **阶段摘要** | ${changelogTop || '(未在 CHANGELOG.md 中识别)'} |
+
+## 本地配置与扩展说明（可选）
+
+- 若项目使用 \`config.local.json\` 保存长期连接别名、本机专属配置或 env 引用，请在本文件说明用途与使用方式。
+- 项目级扩展只能写在 \`extensions.<namespace>\` 下，并记录字段语义、取值来源和是否依赖 \`*Env\` / \`secretRef\`。
 `
 }
 

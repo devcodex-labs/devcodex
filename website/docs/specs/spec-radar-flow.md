@@ -23,7 +23,7 @@
 |------------|----------|
 | `record.violation` | `data/violations.md` |
 | `record.spec-defect` | `data/pending-fixes.md` |
-| `record.process-improvement` | `data/process-improvements.md` |
+| `record.process-improvement` | `data/process-improvements.md`（优化清单，PI） |
 | `record.pending-issue` | `data/pending-issues.md` |
 | `record.audit-gap` | `data/gap-registry.md` |
 | `record.none` / `record.ambiguous` | 不写入；先解释或澄清 |

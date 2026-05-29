@@ -51,7 +51,7 @@
 | C14 | 多任务检查点 | ≥2 个独立任务：每完成一个追加进度到记忆 + 输出进度快照 |
 | C15 | 架构质量视角 | dev/fix 涉及代码设计须从架构师+平台工程师双视角评估：可扩展性/可维护性/易上手性 |
 | C16 | 批量操作分批 | ≥10 文件批量操作必须主动提出分批方案（推荐每批 10 个），输出计划后等待确认 |
-| C17 | 过程改进记录 | 用户建议的策略经确认更优时立即追加 PI 条目到 `data/process-improvements.md` |
+| C17 | 过程改进记录 | 用户建议的策略经确认更优，或揭示规范未定义/不完整且可泛化时，必须走 Improvement Intake：将策略写入 `data/process-improvements.md`（优化清单，PI）；若同时暴露规范缺口，再联动 `data/pending-fixes.md`（PF）。不得询问是否记录；所有模式命中后都必须显式回执已记录的 `PI-xxx / PF-xxx` |
 | C18 | 全模式入口检查不可跳过 | 同 S07 |
 | C19 | 确认后前置复审 | 每次用户明确确认后、进入下一阶段前，必须先对当前已确认产物做 1 轮轻量前置复审，并显式输出结果；控制面 / 多文件联动 / 真相源同步 / 模板-示例-校验链场景必须追加交叉验证；若发现阻断性问题，先修正并告知用户，再重新确认；无阻断问题方可推进 |
 
@@ -110,6 +110,7 @@
 - Hook Stop/PreCompact 对入口检查块的可见回复验证必须区分 `verified-present` / `verified-missing` / `unverified` 三态；无法解析最终 assistant 内容时只能提示“无法验证最终用户可见回复”并附 payload capture 指引，禁止断言“未输出”。
 - 当 `<工作区根>/.devcodex/layout.json` 启用 `workspace-namespace` 时，Profile 与运行态目录按**工作区集中命名空间**读取：
   - `config.json`：`<工作区根>/.devcodex/workspace/profile/` 作为 base，`<工作区根>/.devcodex/<project>/profile/` 作为 overlay
+  - `config.local.json`：与 `config.json` 使用相同的 `workspace base + project overlay` 路径模型，但仅承载本地私有 overlay（长期连接、env 引用、`extensions.<namespace>`）；不得覆盖 `mode` / `agent` / `pluginVersion`
   - Profile 文档：项目命名空间文件优先，缺失回退到 `workspace/profile/`
   - 运行态目录：单项目写 `<工作区根>/.devcodex/<project>/...`，全工作区写 `<工作区根>/.devcodex/workspace/...`
 - workspace-namespace 下缺少 workspace profile 的多项目提示必须指向 `.devcodex/workspace/profile/`；同一宿主会话已识别唯一目标项目时，后续“继续 / 确认”等消息可在短 TTL 内沿用 sticky `activeProject` 与项目 `mode`，但新会话、TTL 过期、命中多个项目或用户显式选择 workspace 时必须重新判断。
@@ -122,6 +123,7 @@
 | `02-架构约束.md` | 目录结构/边界 | 是 |
 | `03-代码风格.md` | 编码规范 | 是 |
 | `config.json` | ENV_MODE + agent 兜底标识 | 按需 |
+| `config.local.json` | 本地私有 overlay：长期连接、env 引用、`extensions.<namespace>` 扩展位（不提交） | 可选 |
 
 > **Copilot / Claude Code / Codex 三宿主 Bootstrap 提醒**（v1.11.0+）：`lifecycle.cjs` 只在宿主实际提供 Hook 事件时形成 runtime 护栏。Claude Code 具备项目级 hooks + MCP，是当前 Full 路径；Codex 通过 `.codex/hooks.json` 接入，阻断输出按事件契约区分顶层 `decision`、`continue:false` 与工具级 `permissionDecision`；Copilot / JetBrains / Cursor 默认按 instruction-fallback 处理，不承诺本地 Hook 硬拦。默认 `safety-only` 模式下，bootstrap / CP / auto 白名单等流程问题输出提醒并放行工具，仅危险命令继续硬拦；设置 `DEVCODEX_HOOK_ENFORCEMENT=strict` 时，只有支持硬拦的事件才停止流程。AI 仍须在首条用户可见回复输出 PC0~PC7 入口检查块（S07/C18）。
 
@@ -161,6 +163,20 @@
 | `record.ambiguous` | 指代不清 → 先澄清 |
 
 每次记录分流必须输出 `规范化意图`、`置信度`、`依据`、`目标台账`。低置信度不得静默写台账。重复 VL 必须判断是否升级 PF/GAP，不能只追加重复违规。
+
+### Improvement Intake（优化清单）
+
+在所有模式下，每条用户消息在完成合理性评估后，都必须额外判断一次：该消息是否提出了**已验证更优且可泛化的执行策略**，或是否暴露了**规范未定义/不完整**。命中时，不必等待用户显式说“记录一下”，而是主动执行 Improvement Intake：
+
+| 判定 | 处理 |
+|------|------|
+| 仅更优策略，可泛化 | 记录 `PI`（优化清单） |
+| 仅暴露规范缺口 | 记录 `PF` |
+| 同时存在更优策略 + 规范缺口 | 同时记录 `PI + PF` |
+| 只是当前执行没做到，但规则已存在 | 记录 `VL` |
+| 一次性偏好、业务局部需求、不可泛化想法 | `record.none`，不写台账 |
+
+所有模式下，主动 Intake 完成后必须显式回执：`已记录 PI-xxx`、`已记录 PF-xxx` 或 `已记录 PI-xxx / PF-xxx`。`data/process-improvements.md` 在本轮也可称“优化清单（PI）”，但它仍是当前 active-root 的运行时台账；若建议针对 DevCodex 规范自身，则必须归属 DevCodex 规范维护项目的 active-root，而不是业务项目台账。
 
 ### 台账落点与关闭证据
 

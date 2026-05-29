@@ -57,7 +57,7 @@ applyTo: "**"
 ## 记录规范问题（T_RECORD / RecordRouter 分支）
 - 典型表述："记录这次违规"/"登记一下刚才的问题"/"这个规范要优化"/"以后应该这样做"
 - 禁止按关键词直接写 VL；必须先按 `skills/spec-governance/SKILL.md` 识别 `record.violation` / `record.spec-defect` / `record.process-improvement` / `record.pending-issue` / `record.audit-gap` / `record.ambiguous`
-- `record.violation` 写入 `data/violations.md`（VL-NNN），`record.spec-defect` 写入 `data/pending-fixes.md`（PF-NNN），`record.process-improvement` 写入 `data/process-improvements.md`（PI-NNN），`record.pending-issue` 写入 `data/pending-issues.md`（ISSUE-NNN），`record.audit-gap` 写入 `data/gap-registry.md`（GR-NNN）
+- `record.violation` 写入 `data/violations.md`（VL-NNN），`record.spec-defect` 写入 `data/pending-fixes.md`（PF-NNN），`record.process-improvement` 写入 `data/process-improvements.md`（PI-NNN，优化清单），`record.pending-issue` 写入 `data/pending-issues.md`（ISSUE-NNN），`record.audit-gap` 写入 `data/gap-registry.md`（GR-NNN）
 - 每次分流必须输出规范化意图、置信度、依据和目标台账；低置信度 `record.ambiguous` 先澄清，不写台账
 
 ## 违规登记状态规则

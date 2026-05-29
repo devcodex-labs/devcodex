@@ -4,6 +4,7 @@
  *
  * 检查项目级 .devcodex/profile/ 与 plugin 当前要求是否漂移：
  * - config.json 字段：mode / agent fallback hint / version 是否匹配 plugin.json
+ * - config.local.json（如存在）是否符合本地私有 overlay schema / env 引用 / 扩展位规则
  * - README.md / 01-项目信息.md / 02-架构约束.md / 03-代码风格.md 是否存在
  *
  * Exit: 0=OK, 1=missing required, 2=drift warnings only
@@ -100,6 +101,194 @@ function checkProjectInfoSemantics(text) {
   }
 }
 
+function isPlainObject(value) {
+  return !!value && typeof value === 'object' && !Array.isArray(value)
+}
+
+function findGitRoot(startDir) {
+  let current = path.resolve(startDir)
+  while (true) {
+    const gitDir = path.join(current, '.git')
+    if (fs.existsSync(gitDir)) return current
+    const parent = path.dirname(current)
+    if (parent === current) return startDir
+    current = parent
+  }
+}
+
+function hasRawSecretKey(key) {
+  return /^(password|token|apiKey|apikey|secret|privateKey|clientSecret)$/i.test(String(key || '').trim())
+}
+
+function validateLocalConfigDocumented(projectInfoText, readmeText, hasExtensions) {
+  const combined = `${projectInfoText}\n${readmeText}`
+  if (!/config\.local\.json/.test(combined)) {
+    warn('[profile] config.local.json exists but neither README nor 01-项目信息.md documents it')
+  }
+  if (hasExtensions && !/extensions\.<namespace>|extensions\./.test(combined)) {
+    warn('[profile] config.local.json uses extensions but README / 01-项目信息.md does not explain extensions.<namespace>')
+  }
+}
+
+function validateGitignoreForLocalConfig(startDir) {
+  const gitRoot = findGitRoot(startDir)
+  const gitignorePath = path.join(gitRoot, '.gitignore')
+  if (!fs.existsSync(gitignorePath)) {
+    warn('[profile] config.local.json exists but .gitignore is missing')
+    return
+  }
+  const gitignore = fs.readFileSync(gitignorePath, 'utf8')
+  if (!gitignore.includes('config.local.json')) {
+    warn('[profile] config.local.json exists but .gitignore does not appear to ignore it')
+  }
+}
+
+const LOCAL_ROOT_KEYS = new Set(['$schema', 'connections', 'extensions', 'notes'])
+const LOCAL_CONNECTION_KEYS = new Set([
+  'kind',
+  'description',
+  'host',
+  'port',
+  'database',
+  'schema',
+  'username',
+  'readonly',
+  'ssl',
+  'hostEnv',
+  'portEnv',
+  'databaseEnv',
+  'schemaEnv',
+  'usernameEnv',
+  'urlEnv',
+  'passwordEnv',
+  'tokenEnv',
+  'keyEnv',
+  'secretRef',
+  'options'
+])
+const LOCAL_EXTENSION_KEYS = new Set(['kind', 'description', 'refs', 'config'])
+
+function validateLocalConfig(cfg, projectInfoText, readmeText) {
+  if (!isPlainObject(cfg)) {
+    err('[profile] config.local.json must be a JSON object')
+    return
+  }
+
+  for (const reserved of ['mode', 'agent', 'pluginVersion']) {
+    if (Object.prototype.hasOwnProperty.call(cfg, reserved)) {
+      err(`[profile] config.local.json must not override "${reserved}"`)
+    }
+  }
+
+  for (const key of Object.keys(cfg)) {
+    if (!LOCAL_ROOT_KEYS.has(key)) {
+      err(`[profile] config.local.json contains unsupported root key: ${key}`)
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(cfg, 'notes')) {
+    const notes = cfg.notes
+    const validNotes = typeof notes === 'string' || (Array.isArray(notes) && notes.every(item => typeof item === 'string'))
+    if (!validNotes) err('[profile] config.local.json "notes" must be a string or string[]')
+  }
+
+  const connections = cfg.connections
+  if (connections !== undefined) {
+    if (!isPlainObject(connections)) {
+      err('[profile] config.local.json "connections" must be an object')
+    } else {
+      for (const [name, connection] of Object.entries(connections)) {
+        if (!isPlainObject(connection)) {
+          err(`[profile] config.local.json connections.${name} must be an object`)
+          continue
+        }
+        for (const key of Object.keys(connection)) {
+          if (hasRawSecretKey(key)) {
+            err(`[profile] config.local.json connections.${name} must use *Env or secretRef instead of raw "${key}"`)
+            continue
+          }
+          if (!LOCAL_CONNECTION_KEYS.has(key)) {
+            err(`[profile] config.local.json connections.${name} contains unsupported key: ${key}`)
+          }
+        }
+        for (const field of ['kind', 'description', 'host', 'database', 'schema', 'username']) {
+          if (field in connection && typeof connection[field] !== 'string') {
+            err(`[profile] config.local.json connections.${name}.${field} must be a string`)
+          }
+        }
+        for (const field of ['readonly', 'ssl']) {
+          if (field in connection && typeof connection[field] !== 'boolean') {
+            err(`[profile] config.local.json connections.${name}.${field} must be a boolean`)
+          }
+        }
+        if ('port' in connection && !Number.isInteger(connection.port)) {
+          err(`[profile] config.local.json connections.${name}.port must be an integer`)
+        }
+        for (const refKey of ['hostEnv', 'portEnv', 'databaseEnv', 'schemaEnv', 'usernameEnv', 'urlEnv', 'passwordEnv', 'tokenEnv', 'keyEnv', 'secretRef']) {
+          if (refKey in connection && typeof connection[refKey] !== 'string') {
+            err(`[profile] config.local.json connections.${name}.${refKey} must be a string`)
+          }
+        }
+        if ('options' in connection && !isPlainObject(connection.options)) {
+          err(`[profile] config.local.json connections.${name}.options must be an object`)
+        }
+      }
+    }
+  }
+
+  const extensions = cfg.extensions
+  const extensionKeys = isPlainObject(extensions) ? Object.keys(extensions) : []
+  if (extensions !== undefined) {
+    if (!isPlainObject(extensions)) {
+      err('[profile] config.local.json "extensions" must be an object')
+    } else {
+      for (const [namespace, extension] of Object.entries(extensions)) {
+        if (!/^[a-z0-9][a-z0-9-]*(\.[a-z0-9-]+)*$/.test(namespace)) {
+          err(`[profile] config.local.json extension namespace must be kebab or dotted-kebab: ${namespace}`)
+        }
+        if (!isPlainObject(extension)) {
+          err(`[profile] config.local.json extensions.${namespace} must be an object`)
+          continue
+        }
+        for (const key of Object.keys(extension)) {
+          if (!LOCAL_EXTENSION_KEYS.has(key)) {
+            err(`[profile] config.local.json extensions.${namespace} contains unsupported key: ${key}`)
+          }
+        }
+        if (typeof extension.description !== 'string' || !extension.description.trim()) {
+          err(`[profile] config.local.json extensions.${namespace}.description is required`)
+        }
+        if (extension.kind !== undefined && typeof extension.kind !== 'string') {
+          err(`[profile] config.local.json extensions.${namespace}.kind must be a string`)
+        }
+        if (!('refs' in extension) && !('config' in extension)) {
+          err(`[profile] config.local.json extensions.${namespace} must define refs or config`)
+        }
+        if ('refs' in extension) {
+          if (!isPlainObject(extension.refs)) {
+            err(`[profile] config.local.json extensions.${namespace}.refs must be an object`)
+          } else {
+            for (const [refKey, refValue] of Object.entries(extension.refs)) {
+              if (!(refKey === 'secretRef' || /Env$/.test(refKey))) {
+                err(`[profile] config.local.json extensions.${namespace}.refs key must end with Env or be secretRef: ${refKey}`)
+              }
+              if (typeof refValue !== 'string') {
+                err(`[profile] config.local.json extensions.${namespace}.refs.${refKey} must be a string`)
+              }
+            }
+          }
+        }
+        if ('config' in extension && !isPlainObject(extension.config)) {
+          err(`[profile] config.local.json extensions.${namespace}.config must be an object`)
+        }
+      }
+    }
+  }
+
+  validateLocalConfigDocumented(projectInfoText, readmeText, extensionKeys.length > 0)
+  validateGitignoreForLocalConfig(cwd)
+}
+
 if (!fs.existsSync(profileDir)) {
   const displayPath = path.relative(cwd, profileDir) || profileDir
   console.log(`[profile] no profile dir at ${displayPath} — skip (run \`devcodex profile init\` to bootstrap)`)
@@ -115,6 +304,8 @@ for (const f of REQUIRED) {
 }
 
 const projectInfoPath = path.join(profileDir, '01-项目信息.md')
+const readmePath = path.join(profileDir, 'README.md')
+const readmeText = fs.existsSync(readmePath) ? fs.readFileSync(readmePath, 'utf8') : ''
 if (pluginVersion && fs.existsSync(projectInfoPath)) {
   const projectInfo = fs.readFileSync(projectInfoPath, 'utf8')
   const currentVersion = extractVersion('当前版本', projectInfo)
@@ -162,6 +353,21 @@ if (fs.existsSync(cfgPath)) {
   }
 } else {
   warn('[profile] config.json missing — defaults applied (mode=prod, agent inferred)')
+}
+
+const localCfgPath = path.join(profileDir, 'config.local.json')
+if (fs.existsSync(localCfgPath)) {
+  let localCfg
+  try {
+    localCfg = JSON.parse(fs.readFileSync(localCfgPath, 'utf8'))
+  } catch (e) {
+    err(`[profile] config.local.json invalid JSON: ${e.message}`)
+    localCfg = null
+  }
+  if (localCfg !== null) {
+    const projectInfoText = fs.existsSync(projectInfoPath) ? fs.readFileSync(projectInfoPath, 'utf8') : ''
+    validateLocalConfig(localCfg, projectInfoText, readmeText)
+  }
 }
 
 if (errors.length) {

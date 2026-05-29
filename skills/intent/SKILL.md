@@ -111,7 +111,7 @@ description: 识别用户意图类型（dev/fix/analyze/audit/self-fix/chat/resu
 **特殊场景——记录违规**（T_RECORD 分支）：
 - 典型表述："记录这次违规"/"登记一下刚才的问题"/"这个规范要优化"/"以后应该这样做"
 - 不再按关键词直写 VL；必须先归一为记录意图族：`record.violation`、`record.spec-defect`、`record.process-improvement`、`record.pending-issue`、`record.audit-gap`、`record.none`、`record.ambiguous`
-- 写入目标由 `skills/spec-governance/SKILL.md` 的 RecordRouter 决定：VL/PF/PI/ISSUE/GAP 或不写台账
+- 写入目标由 `skills/spec-governance/SKILL.md` 的 RecordRouter 决定：VL/PF/PI（优化清单）/ISSUE/GAP 或不写台账；所有模式下还要执行主动 Improvement Intake
 - 每次分流必须输出规范化意图、置信度、依据、目标台账；`record.ambiguous` 低置信度时先澄清，不写台账
 
 ## 多任务检测（强制）

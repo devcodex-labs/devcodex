@@ -7,7 +7,7 @@ applyTo: "**"
 
 > 本文件定义 **PC4 规范原因识别**的完整规则。
 > PC4 是 DevCodex 的规范自我升级机制的感知层——在任务执行前/中持续监测，识别"当前问题是否源于规范本身的缺陷"。  
-> **仅 dev 模式执行完整诊断**；非 dev 模式不执行本文件的 PF/VL 感知逻辑。
+> **仅 dev 模式执行完整诊断**；非 dev 模式不执行本文件的三轴诊断，但显式记录意图识别与 Improvement Intake 仍按 `spec-governance` 的全模式规则执行。
 
 ## 定位与职责边界
 
@@ -18,7 +18,7 @@ applyTo: "**"
 
 > ⛔ PC4 不是"验证 AI 是否遵守规范"，而是"检测规范本身是否存在缺陷"。两者的诊断对象完全不同。
 
-> **设计原则：记录在使用，修复在维护** — PC4 在所有项目/所有工作流中只负责感知并记录；具体写入前必须先走 `spec-governance` 的记录意图识别与 RecordRouter（PF → `pending-fixes.md`，VL → `violations.md`，PI/ISSUE/GAP 按意图分流），**不触发任何修复动作**。修复动作只在 audit 工作流 + DevCodex plugin 文件两个条件同时满足时才由元循环驱动（见 `12-audit §审查元循环`）。
+> **设计原则：记录在使用，修复在维护** — PC4 在所有项目/所有工作流中只负责感知并记录；具体写入前必须先走 `spec-governance` 的记录意图识别与 RecordRouter（PF → `pending-fixes.md`，VL → `violations.md`，PI/ISSUE/GAP 按意图分流），**不触发任何修复动作**。修复动作只在 audit 工作流 + DevCodex plugin 文件两个条件同时满足时才由元循环驱动（见 `12-audit §审查元循环`）。`data/process-improvements.md` 在本页也可称“优化清单（PI）”。
 
 ## 核心原则 — 意图模式驱动，非关键词匹配
 
@@ -137,8 +137,8 @@ PC4 入口（仅 dev 模式）
 ├── 检查点 1：收到新消息时（每轮必执行）
 └── 检查点 2：任务执行中检测到异常（当前回复内立即输出诊断）
 
-【前置】用户是否明确要求"记录/登记/优化规范问题"？
-    ├── 是 → 先走 Intent Detection → RecordRouter
+【前置】用户是否明确要求"记录/登记/优化规范问题"，或当前消息经合理性评估后命中可泛化改进 / 规范缺口？
+    ├── 是 → 先走 Intent Detection → RecordRouter / Improvement Intake
     │        ├── record.violation → 写 VL-NNN
     │        ├── record.spec-defect → 写 PF-NNN
     │        ├── record.process-improvement → 写 PI-NNN
@@ -208,7 +208,7 @@ PC4 入口（仅 dev 模式）
 | `17-compliance.instructions.md` | PC4 触发点在预检查（PC0~PC7），合规检查（FC/SC/RC/T）在任务完成后；两者独立不重叠 |
 | `data/pending-fixes.md` | 目标项目 / 已部署副本中的 PF 输出目标；源仓提供 `data/templates/pending-fixes.md` 模板，维护者实录按 active-root 写入（workspace-namespace 单项目如 `.devcodex/<project>/data/pending-fixes.md`） |
 | `data/violations.md` | 目标项目 / 已部署副本中的 VL / T_RECORD 输出目标；源仓提供 `data/templates/violations.md` 模板 |
-| `data/process-improvements.md` | 目标项目 / 已部署副本中的 PI 输出目标；源仓提供 `data/templates/process-improvements.md` 模板，维护者实录按 active-root 写入 |
+| `data/process-improvements.md` | 目标项目 / 已部署副本中的 PI 输出目标（优化清单）；源仓提供 `data/templates/process-improvements.md` 模板，维护者实录按 active-root 写入 |
 | `skills/spec-governance/SKILL.md` | 记录意图识别、RecordRouter 分流、SCV 规范变更验证的集中规则源 |
 | `website/docs/specs/spec-radar-flow.md` | PC4 的专属可视化流程图（三轴决策树 + G1~G9 + 多轴优先级 + 置信度 + 延迟执行）|
 | `website/docs/specs/precheck-flow.md` | 预检查主链流程图（含 PC4 概要入口及指向专属页的链接）|

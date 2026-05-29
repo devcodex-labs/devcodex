@@ -39,6 +39,7 @@ description: 项目 Profile 加载规范 — 意图识别后独立确定目标�
 当 `<工作区根>/.devcodex/layout.json` 启用 `workspace-namespace` 时：
 
 - `config.json`：`<工作区根>/.devcodex/workspace/profile/config.json` 作为 base，`<工作区根>/.devcodex/<project>/profile/config.json` 作为 overlay
+- `config.local.json`：与 `config.json` 使用相同的 `workspace base + project overlay` 路径模型，但仅承载本地私有 overlay（长期连接、env 引用、`extensions.<namespace>`）
 - `README.md`、`01-项目信息.md`、`02-架构约束.md`、`03-代码风格.md`：项目命名空间文件优先，缺失回退到 `workspace/profile/`
 - `<project>` 未确定时，禁止猜测项目命名空间
 
@@ -53,14 +54,19 @@ description: 项目 Profile 加载规范 — 意图识别后独立确定目标�
 | `04-测试规范.md` | 测试框架/覆盖率 | 按需 |
 | `05-发布规范.md` | 版本号/发布流程 | 按需 |
 | `config.json` | 运行模式配置（ENV_MODE）+ agent 兜底标识 | 按需 |
+| `config.local.json` | 本地私有 overlay：长期连接、env 引用、`extensions.<namespace>` | 按需 |
 
 > ⚠️ `config.json.agent` 只用于当前实际宿主无法可靠判断时的 fallback hint。产物路径中的 `<agent>` 必须优先使用当前会话/工具链可验证的实际宿主；profile agent 不得覆盖当前会话事实。
+>
+> ⚠️ `config.local.json` 不得覆盖 `mode` / `agent` / `pluginVersion`。`ENV_MODE` 仍只由 `config.json` 决定；`config.local.json` 只补充本地私有上下文。
+>
+> ⚠️ `config.local.json` 若使用项目级扩展，只能放在 `extensions.<namespace>` 下，并且必须在 `01-项目信息.md` 或 Profile README 说明用途、字段语义与使用方式。
 
 ## Profile 缺失处理
 
 | 情况 | 处理 |
 |------|------|
-| profile/ 或集中布局命名空间存在 | 读取 README.md + 按需读其他文件 |
+| profile/ 或集中布局命名空间存在 | 读取 README.md + 按需读其他文件；存在 `config.local.json` 时一并作为本地 overlay 读取 |
 | 二者都不存在 | 提示用户是否自动生成（扫描项目源码推断） |
 | 部分文件缺失 | 文档文件可按 `workspace fallback` 继续读取；必须文件仍提示用户补充 |
 
@@ -115,4 +121,4 @@ Profile 读取后，必须形成以下最小结论，供 PC1/PC3 与后续工作
 | `config.json` 不存在 | `prod`（保守默认）|
 | `mode` 字段缺失或非法值 | `prod`（保守默认）|
 
-加载后在上下文中声明：**`ENV_MODE = dev` 或 `ENV_MODE = prod`**，并在首次回复中标注当前模式。若 profile agent 与当前实际宿主不同，应标注为“profile agent 兜底值与当前宿主不同”，但记忆、报告和产物仍按当前实际宿主落点写入。
+加载后在上下文中声明：**`ENV_MODE = dev` 或 `ENV_MODE = prod`**，并在首次回复中标注当前模式。若 profile agent 与当前实际宿主不同，应标注为“profile agent 兜底值与当前宿主不同”，但记忆、报告和产物仍按当前实际宿主落点写入。`config.local.json` 只补充本地连接/扩展上下文，不改变这里的 ENV_MODE 结论。

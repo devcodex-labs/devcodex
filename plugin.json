@@ -161,6 +161,11 @@
       "tier": "free"
     },
     {
+      "id": "audit-readme",
+      "file": "skills/audit-readme/SKILL.md",
+      "tier": "free"
+    },
+    {
       "id": "audit-execution-guide",
       "file": "skills/audit-execution-guide/SKILL.md",
       "tier": "free"
@@ -188,6 +193,11 @@
     {
       "id": "document-sync",
       "file": "skills/document-sync/SKILL.md",
+      "tier": "free"
+    },
+    {
+      "id": "readme-authoring",
+      "file": "skills/readme-authoring/SKILL.md",
       "tier": "free"
     },
     {

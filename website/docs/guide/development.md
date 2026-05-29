@@ -68,6 +68,7 @@ description: "Use when: ..."   # 必填，AI 靠这个发现 Skill
 - SKILL.md 包含完整的工作流内容：**触发条件** + **执行步骤** + **检查标准**
 - 每个 Skill 目录只有一个 `SKILL.md`，扁平一级目录
 - 支撑型 Skill（如 `execution-contract` / `test-router` / `release-verification` / `host-contract-verification` / `source-consumer-sync`）不能新增工作流分支；必须被 instructions、模板、报告、validate 与用户文档同时消费
+- README / 用户使用文档默认通过 `readme-authoring` 收口用户 / 使用者优先写作，完成后再用 `audit-readme` 做专项 review
 - v2.0.0 规划：MCP `devcodex_getWorkflow()` 替代文件读取
 
 

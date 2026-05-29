@@ -33,6 +33,7 @@
  * V35 Concept Sync Map sync（真相源、当前消费者、历史镜像、探针、部署副本、黄色偏离）
  * V36 Host contract verification sync（宿主契约验证路线、HostContractRoute、报告证据）
  * V37 Namespace safety / CLI protection / deterministic test chain（容器命名空间、防 clobber、test:all 拆链）
+ * V38 README authoring/review governance sync（README 用户视角写作、专项 review、targeted test 与消费者链）
  *
  * Exit: 0=OK, 1=error, 2=warnings only
  */
@@ -875,6 +876,11 @@ function checkV13() {
 
   mustInclude('prompts/project-readme.prompt.md', '## 目录导航', 'project readme prompt')
   mustInclude('prompts/project-readme.prompt.md', '**项目类型**', 'project readme prompt')
+  mustInclude('prompts/project-readme.prompt.md', '用户 / 使用者优先', 'project readme prompt')
+  mustInclude('prompts/project-readme.prompt.md', '## 适用对象与使用场景', 'project readme prompt')
+  mustInclude('prompts/project-readme.prompt.md', '## 常见用法', 'project readme prompt')
+  mustInclude('prompts/project-readme.prompt.md', '## 常见问题与排错', 'project readme prompt')
+  mustInclude('prompts/project-readme.prompt.md', '## 开发与贡献', 'project readme prompt')
   mustInclude('prompts/project-readme.prompt.md', '### service / backend', 'project readme prompt')
 
   mustInclude('prompts/light-api-doc.prompt.md', '## 目录导航', 'light api doc prompt')
@@ -1079,16 +1085,23 @@ function checkV19() {
   const promptCount = walk(path.join(ROOT, 'prompts')).filter(f => f.endsWith('.prompt.md')).length
   const dataTemplateCount = walk(path.join(ROOT, 'data', 'templates')).filter(f => f.endsWith('.md')).length
   const scriptCount = walk(path.join(ROOT, 'scripts')).filter(f => f.endsWith('.js')).length
+  const skillCount = walk(path.join(ROOT, 'skills')).filter(f => path.basename(f) === 'SKILL.md').length
   const checks = [
+    { file: 'README.md', needle: `Skill 详细检查标准（${skillCount} 个，按需读取，含 README 专项能力、spec-governance 与 5 个支撑型 Skill）` },
+    { file: 'README.md', needle: `Skill 详细检查标准（${skillCount} 个，按 01-common §按需读取表 路由读取）` },
     { file: 'README.md', needle: `Prompt 模板（${promptCount} 个）` },
+    { file: activePath('profile', '01-项目信息.md'), needle: `| **Skill** | ${skillCount} |`, rawPath: false },
     { file: activePath('profile', '01-项目信息.md'), needle: `| **Prompt** | ${promptCount} |`, rawPath: false },
     { file: activePath('profile', '01-项目信息.md'), needle: `prompts ${promptCount}`, rawPath: false },
+    { file: activePath('profile', '01-项目信息.md'), needle: `skills ${skillCount}`, rawPath: false },
+    { file: activePath('profile', '02-架构约束.md'), needle: `Skill 文件 ${skillCount} 个`, rawPath: false },
     { file: activePath('profile', '02-架构约束.md'), needle: `Prompt 模板文件（.prompt.md，中文）${promptCount} 个`, rawPath: false },
     { file: activePath('profile', '01-项目信息.md'), needle: `| **data 模板** | ${dataTemplateCount} |`, rawPath: false },
     { file: activePath('profile', '01-项目信息.md'), needle: `| **CLI 工程脚本** | ${scriptCount} |`, rawPath: false },
     { file: activePath('profile', '01-项目信息.md'), needle: 'scripts/check-syntax.js', rawPath: false },
-    { file: 'website/docs/index.md', needle: `🛠️ ${walk(path.join(ROOT, 'skills')).filter(f => f.endsWith('SKILL.md')).length} 个 Skills` },
-    { file: 'website/docs/intro/index.md', needle: `${walk(path.join(ROOT, 'skills')).filter(f => f.endsWith('SKILL.md')).length} 个按需触发的工作流技能` }
+    { file: 'website/docs/index.md', needle: `🛠️ ${skillCount} 个 Skills` },
+    { file: 'website/docs/intro/index.md', needle: `${skillCount} 个按需触发的工作流技能` },
+    { file: 'website/docs/specs/directory-structure.md', needle: `扁平一级 Skill（${skillCount} 个）` }
   ]
   for (const check of checks) {
     const filePath = check.rawPath === false ? check.file : path.join(ROOT, check.file)
@@ -1101,7 +1114,7 @@ function checkV19() {
       err(`[V19] asset count drift in ${check.rawPath === false ? path.relative(ROOT, check.file) : check.file}: expected text "${check.needle}"`)
     }
   }
-  console.log(`[V19] asset counts checked: prompts=${promptCount}, data-templates=${dataTemplateCount}, scripts=${scriptCount}`)
+  console.log(`[V19] asset counts checked: skills=${skillCount}, prompts=${promptCount}, data-templates=${dataTemplateCount}, scripts=${scriptCount}`)
 }
 
 function checkV20() {
@@ -1832,19 +1845,19 @@ function checkV28() {
     },
     {
       file: 'README.md',
-      needles: ['Skill 详细检查标准（41 个', '支撑型 Skill', 'host-contract-verification', 'source-consumer-sync']
+      needles: ['支撑型 Skill', 'host-contract-verification', 'source-consumer-sync']
     },
     {
       file: 'website/docs/index.md',
-      needles: ['41 个 Skills', '宿主契约验证', '真相源-消费者同步']
+      needles: ['宿主契约验证', '真相源-消费者同步']
     },
     {
       file: 'website/docs/intro/index.md',
-      needles: ['41 个按需触发的工作流技能', 'host-contract-verification', 'source-consumer-sync']
+      needles: ['host-contract-verification', 'source-consumer-sync']
     },
     {
       file: 'website/docs/specs/directory-structure.md',
-      needles: ['扁平一级 Skill（41 个）', 'host-contract-verification', 'source-consumer-sync']
+      needles: ['host-contract-verification', 'source-consumer-sync']
     },
     {
       file: 'website/docs/guide/development.md',
@@ -1882,8 +1895,8 @@ function checkV28() {
   }
 
   const activeProfileProbes = [
-    { file: activePath('profile', '01-项目信息.md'), needles: ['| **Skill** | 41 |', 'host-contract-verification', 'source-consumer-sync', 'skills 41'] },
-    { file: activePath('profile', '02-架构约束.md'), needles: ['Skill 文件 41 个', '支撑型（5）', 'host-contract-verification'] }
+    { file: activePath('profile', '01-项目信息.md'), needles: ['host-contract-verification', 'source-consumer-sync'] },
+    { file: activePath('profile', '02-架构约束.md'), needles: ['支撑型（5）', 'host-contract-verification'] }
   ]
   for (const probe of activeProfileProbes) {
     if (!fs.existsSync(probe.file)) {
@@ -2092,6 +2105,100 @@ function checkV37() {
   }
 
   console.log('[V37] namespace safety / CLI protection / deterministic test chain checked')
+}
+
+function checkV38() {
+  const plugin = JSON.parse(read(path.join(ROOT, 'plugin.json')))
+  const requiredSkills = [
+    ['readme-authoring', 'skills/readme-authoring/SKILL.md'],
+    ['audit-readme', 'skills/audit-readme/SKILL.md']
+  ]
+
+  for (const [id, file] of requiredSkills) {
+    const entry = (plugin.skills || []).find(skill => skill.id === id)
+    if (!entry) {
+      err(`[V38] plugin.json missing README governance skill: ${id}`)
+      continue
+    }
+    if (entry.file !== file) {
+      err(`[V38] plugin.json ${id} has wrong file: ${entry.file}`)
+    }
+    const filePath = path.join(ROOT, file)
+    if (!fs.existsSync(filePath)) {
+      err(`[V38] README governance skill file missing: ${file}`)
+      continue
+    }
+    const content = read(filePath)
+    if (!content.includes(`name: ${id}`)) {
+      err(`[V38] README governance skill frontmatter mismatch in ${file}`)
+    }
+  }
+
+  const probes = [
+    {
+      file: 'skills/readme-authoring/SKILL.md',
+      needles: ['primaryAudience', 'userJourney', 'consumerMap', '用户 / 使用者']
+    },
+    {
+      file: 'skills/audit-readme/SKILL.md',
+      needles: ['RM-1 用户路径完整性', 'RM-6 消费链一致性', '快速开始可执行性']
+    },
+    {
+      file: 'skills/dev-docs/SKILL.md',
+      needles: ['readme-authoring', 'audit-readme', 'README 专项写作分支']
+    },
+    {
+      file: 'skills/dev-init/SKILL.md',
+      needles: ['readme-authoring', 'audit-readme']
+    },
+    {
+      file: 'skills/document-sync/SKILL.md',
+      needles: ['readme-authoring', 'audit-readme', '目标用户 / 使用者是否明确']
+    },
+    {
+      file: 'skills/audit-document/SKILL.md',
+      needles: ['audit-readme', 'README 叠加规则']
+    },
+    {
+      file: 'skills/audit-execution-guide/SKILL.md',
+      needles: ['audit-readme', 'README / 用户使用文档']
+    },
+    {
+      file: 'prompts/project-readme.prompt.md',
+      needles: ['用户 / 使用者优先', '## 适用对象与使用场景', '## 常见用法', '## 常见问题与排错', '## 开发与贡献']
+    },
+    {
+      file: 'README.md',
+      needles: ['readme-authoring', 'audit-readme', 'README 专项能力']
+    },
+    {
+      file: 'website/docs/intro/index.md',
+      needles: ['readme-authoring', 'audit-readme']
+    },
+    {
+      file: 'website/docs/specs/directory-structure.md',
+      needles: ['readme-authoring', 'audit-readme']
+    },
+    {
+      file: 'website/docs/guide/development.md',
+      needles: ['readme-authoring', 'audit-readme']
+    },
+    {
+      file: 'package.json',
+      needles: ['test:readme-governance', 'node scripts/test-readme-governance.js']
+    }
+  ]
+
+  for (const probe of probes) {
+    const content = read(path.join(ROOT, probe.file))
+    for (const needle of probe.needles) {
+      if (!content.includes(needle)) {
+        err(`[V38] README governance drift in ${probe.file}: missing "${needle}"`)
+      }
+    }
+  }
+
+  console.log('[V38] README authoring/review governance sync checked')
 }
 
 function checkV29() {
@@ -2344,6 +2451,7 @@ checkV34()
 checkV35()
 checkV36()
 checkV37()
+checkV38()
 
 console.log('')
 if (errors.length) {

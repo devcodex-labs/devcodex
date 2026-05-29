@@ -83,6 +83,9 @@ description: 文档同步规范 — 代码变更后同步必查与条件文档
 - 安装步骤（依赖版本）
 - API 示例代码（与实现匹配）
 - 配置项说明（完整且准确）
+- 目标用户 / 使用者是否明确
+- 快速开始与常见用法是否仍能形成最短成功路径
+- 开发 / 贡献信息是否仍后置，没有抢占主叙事
 
 **DevCodex 类仓库检查点**：
 - 分发面说明是否仍与当前 `agents / instructions.md / hooks` 事实一致
@@ -90,6 +93,7 @@ description: 文档同步规范 — 代码变更后同步必查与条件文档
 - `ENV_MODE` 是否仍按当前 `dev / prod` 规则说明，而不是 Draft
 - 正式需求入口是否仍指向 `website/docs/versions/v1/<active-version>/requirements/`
 - 支撑型 Skill（`execution-contract` / `test-router` / `release-verification` / `host-contract-verification` / `source-consumer-sync`）的注册、触发说明、报告模板、validate 探针和用户文档是否一致
+- `readme-authoring` / `audit-readme` 的注册、README prompt、README / Profile / website 当前消费者、validate 与 targeted tests 是否一致
 - 控制面任务是否已建立 Concept Sync Map，并把当前消费者、历史镜像、validate 探针、部署副本与黄色偏离边界说明清楚
 - 宿主契约相关变更是否补了 HostContractRoute 证据，而不是只改文档叙述
 - 多批次任务的 `05-实施进度.md` 是否随批次完成更新

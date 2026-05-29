@@ -10,6 +10,26 @@
 DevCodex 通过 `.github/`（Copilot）、`CLAUDE.md + .claude/ + .mcp.json`（Claude Code）以及 `AGENTS.md + .agents/ + .codex/`（Codex）向受支持的 AI 编码客户端注入结构化的开发工作流规范。
 在支持 Hooks 的宿主中，它优先用 `hooks/_runtime/lifecycle.cjs` 提供确定性的生命周期护栏；在不支持 Hooks 的宿主中，则回退到 instructions 语义层继续工作。
 
+## 目录导航
+
+- [DevCodex 是什么？](#devcodex-是什么)
+- [功能特性](#功能特性)
+- [安装](#安装)
+- [使用](#使用)
+- [正式需求与执行模板边界](#正式需求与执行模板边界)
+- [默认执行原则](#默认执行原则)
+- [CLI 命令](#cli-命令)
+- [`.devcodex` 工作区集中布局（v1.10.0+）](#devcodex-工作区集中布局v1100)
+- [本地开发](#本地开发)
+- [架构概览](#架构概览)
+- [客户端支持矩阵（Client Support Matrix）](#客户端支持矩阵client-support-matrix)
+- [IDE 兼容性](#ide-兼容性)
+- [文档](#文档)
+- [边界声明](#边界声明)
+- [Tier 说明](#tier-说明)
+- [Agent 入口](#agent-入口)
+- [许可证](#许可证)
+
 ## 功能特性
 
 - **8 种工作流**: `dev` / `fix` / `audit` / `analyze` / `self-fix` / `resume` / `plan` / `chat`
@@ -22,6 +42,7 @@ DevCodex 通过 `.github/`（Copilot）、`CLAUDE.md + .claude/ + .mcp.json`（C
 - **全模式入口检查**: 所有模式在实质任务前显示 PC0~PC7；dev 模式额外执行 PC4 规范雷达与完整合规链
 - **项目现实扩展**: 先做语义意图初判，再结合目标项目 Profile、目录与当前任务上下文修正最终路由、产物落点和验证方式
 - **支撑型 Skill**: `execution-contract` / `test-router` / `release-verification` / `host-contract-verification` / `source-consumer-sync` 为控制面、多批次、测试路线、宿主契约验证与真相源-消费者同步提供可审计支撑，不新增工作流分支
+- **README 专项能力**: `readme-authoring` 负责 README 用户/使用者优先写作，`audit-readme` 负责 README / 用户使用文档专项 review
 - **执行闭环复审**: dev/fix 完成前执行 ECR 执行闭环复审，交叉验证 CP 产物、报告、daily memory、SUMMARY、diff/commit、测试/探针与 dirty 边界
 - **推荐结论**: analyze/audit/report 多建议或多路径场景必须给出推荐结论与推荐理由；无后续动作时明确写“推荐：无后续动作”
 - **确认交互降级**: 用户确认先抽象为 ConfirmationRequest，再按宿主能力选择按钮、权限提示、Hook 阻断或文本确认 fallback，不把按钮 UI 承诺为全宿主能力
@@ -60,7 +81,7 @@ npx @vextjs/devcodex init --codex  # 仅 Codex adapter
 ├── copilot-instructions.md  ← 默认 Copilot always-on 总则（新增）
 ├── instructions/   ← Instructions 约束（12 个，含全部工作流规则）
 ├── agents/         ← Copilot 自定义 Agent（v1.9.8 起恢复默认分发）
-├── skills/         ← Skill 详细检查标准（41 个，按需读取，含 spec-governance 与 5 个支撑型 Skill）
+├── skills/         ← Skill 详细检查标准（43 个，按需读取，含 README 专项能力、spec-governance 与 5 个支撑型 Skill）
 ├── prompts/        ← Prompt 模板（26 个）
 ├── hooks/          ← 宿主生命周期 Hook 配置与运行时
 │   ├── devcodex.lifecycle.json
@@ -246,7 +267,7 @@ devcodex/
 ├── instructions.md # 单源规范文件；安装时按平台生成 copilot-instructions.md / CLAUDE.md / AGENTS.md
 ├── agents/        # Agent 源文件；Copilot 端默认分发，Claude Code 端不分发
 ├── instructions/  # 全局 Instructions（12 个，含工作流规则摘要，自动注入）
-├── skills/        # Skill 详细检查标准（41 个，按 01-common §按需读取表 路由读取）
+├── skills/        # Skill 详细检查标准（43 个，按 01-common §按需读取表 路由读取）
 ├── prompts/       # Prompt 模板（26 个）
 ├── hooks/         # Workspace Hooks 配置与分发到 `.github/hooks/_runtime/` 的运行时
 ├── codex/         # Codex Hook 配置源，分发到 `.codex/hooks.json`
@@ -260,6 +281,8 @@ devcodex/
 规范治理新增 `spec-governance` Skill：记录类动作先做意图识别，再由 RecordRouter 分流到 `violations / pending-fixes / process-improvements / pending-issues / gap-registry`；规范/控制面/路径/模板/部署/校验链变更后必须执行 SCV（Spec Change Verification），避免修复一处后引入漂移。
 
 控制面与长流程当前有五类支撑型 Skill：`execution-contract` 约束 scope / allowedPaths / requiredArtifacts / consumerScope / validationRoute / deviationLog，`test-router` 统一选择验证路线，`release-verification` 在正式 tag / publish 前执行 R0~R7 发布验证链，`host-contract-verification` 负责 direct replay / fixture replay / bootstrap / workspace guard 证据，`source-consumer-sync` 负责 Concept Sync Map 与当前消费者同步边界。
+
+README / 用户使用文档当前补充两类专项 Skill：`readme-authoring` 负责把 README 默认主视角收口为用户 / 使用者优先，`audit-readme` 负责专项审查用户路径、快速开始、示例真实度、开发信息后置与消费链一致性。
 
 &gt; ℹ️ 维护者状态文件（本仓库开发过程中累积的 violations/pending-fixes 记录）按 active-root 保存，例如 workspace-namespace 下的 `.devcodex/<project>/data/`，**不分发**给用户。
 

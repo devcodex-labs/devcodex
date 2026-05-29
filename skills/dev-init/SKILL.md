@@ -17,7 +17,7 @@ description: 项目初始化子类型规范 — 新项目/模块脚手架 + Prof
 | 3 | CP2：确认依赖清单和配置文件方案 |
 | 4 | 生成脚手架：目录结构 + 配置文件 + 基础文件 |
 | 5 | 自动生成 Profile：`.devcodex/profile/` |
-| 6 | 初始化 Git + CHANGELOG + README |
+| 6 | 初始化 Git + CHANGELOG + README（README 默认通过 `readme-authoring` 生成） |
 
 ## Profile 自动生成
 
@@ -32,3 +32,4 @@ init 完成后**必须**在 `.devcodex/profile/` 创建：
 - 跳过 CP3（init 无需实施计划阶段）；同时豁免 `dev-plan-review`（CP3 已跳过，质量门禁不适用）；必须记录 `CP3: N/A（init 子类型豁免）`，供 hook/fallback 区分合法豁免与漏确认
 - 生成的 .gitignore 必须包含 `.devcodex/.memory/`（记忆文件不入版本库）
 - 依赖选型遵循项目 profile 中的技术栈约束（若已有 profile）
+- 初始化 README 时默认先写给真实使用者；开发/贡献信息后置，后续专项复审走 `audit-readme`

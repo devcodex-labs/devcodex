@@ -35,6 +35,15 @@ description: 文档开发子类型规范 — 技术文档/API文档/README 编�
 | `frontend-api` | 前端联调、页面/模块接口说明、字段映射说明 | Markdown 前端接口文档 |
 | `general-doc` | 架构文档、开发指南、迁移指南、治理说明、运行手册 | Markdown 通用文档 |
 
+## README 专项写作分支
+
+当目标文档是 `README.md` 或承担主使用入口职责的用户使用文档时，优先进入 README 专项分支，并调用 `readme-authoring`：
+
+- 默认第一受众是**用户 / 使用者**
+- 快速开始、常见用法、配置与排错必须早于开发/贡献内容
+- 章节骨架优先使用 `prompts/project-readme.prompt.md`
+- 完成后若需要专项复审，叠加 `audit-readme`
+
 ## 文档质量标准
 
 | 维度 | 要求 |
@@ -91,5 +100,6 @@ description: 文档开发子类型规范 — 技术文档/API文档/README 编�
 
 - 文档文件（按项目目录结构放置）
 - 契约驱动型文档优先使用 `prompts/light-api-doc.prompt.md` 统一骨架
+- README / 主用户使用文档优先使用 `readme-authoring` + `prompts/project-readme.prompt.md`
 - 非契约驱动型 Markdown 文档优先使用 `prompts/general-doc.prompt.md`
 - 若更新 README/CHANGELOG：执行 `document-sync` 确认同步状态

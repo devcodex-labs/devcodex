@@ -1,7 +1,7 @@
 # 变更日志 (CHANGELOG)
 
 > **说明**: 版本概览摘要。最新版本的详细变更见下方表格首行的 `changelogs/vX.Y.Z.md` 链接；历史版本见对应详细变更文件
-> **最后更新**: 2026-05-28
+> **最后更新**: 2026-05-29
 
 ---
 
@@ -9,6 +9,7 @@
 
 | 版本 | 日期 | 变更摘要 | 详细 |
 |------|------|---------|------|
+| [v1.11.3](./changelogs/v1.11.3.md) | 2026-05-29 | 🛡️ **命名空间安全边界与宿主配置保护收口**：统一 `workspace-layout` 真相源，阻断 MCP `project` 路径穿越、修复 nested monorepo 命名空间碰撞与无会话 sticky 误继承；Claude adapter 改为备份+保守合并，`doctor` 去除 Codex 偏置，并将 `test:audit` 从确定性主链拆分 | [查看](./changelogs/v1.11.3.md) |
 | [v1.11.2](./changelogs/v1.11.2.md) | 2026-05-28 | 🔧 **治理生命周期与运行态落点收口**：新增 `spec-governance` / RecordRouter / SCV 验证链，修复 workspace-namespace 运行态落点、临时/备份产物漂移、MCP SUMMARY 模板与 release/profile/audit-state 防漂移校验，并同步 Profile 全模式 PC0~PC7 与历史归档页口径 | [查看](./changelogs/v1.11.2.md) |
 | [v1.11.1](./changelogs/v1.11.1.md) | 2026-05-27 | 🔧 **Codex 宿主闭环 + Hook 契约与执行复审增强**：补齐 Codex adapter 分发、宿主实际落点、Hook 拦截状态机、危险命令确认、MCP memory scope、宿主输出契约 direct replay，并新增 ECR、Intent Expansion Card、ConfirmationRequest 与报告推荐结论校验 | [查看](./changelogs/v1.11.1.md) |
 | [v1.11.0](./changelogs/v1.11.0.md) | 2026-05-26 | 🎯 **全模式入口检查 + 项目现实扩展**：PC0~PC7 从 dev-only 提升为所有模式基础入口状态，dev 模式保留 PC4 完整规范雷达与 FC/SC/RC/T；新增“语义初判 → Profile → 项目现实扩展 → 最终路由”链路，并同步 runtime bootstrap/Stop 提醒、模板、Skills、validate 探针、README 与网站文档 | [查看](./changelogs/v1.11.0.md) |
@@ -88,7 +89,7 @@
 
 ## 相关文档
 
-- [`changelogs/v1.11.2.md`](./changelogs/v1.11.2.md) — 最新版本详细变更文档
+- [`changelogs/v1.11.3.md`](./changelogs/v1.11.3.md) — 最新版本详细变更文档
 - [`changelogs/v1.11.1.md`](./changelogs/v1.11.1.md) — 上一个版本详细变更文档
 - [`changelogs/v1.11.0.md`](./changelogs/v1.11.0.md) — 历史版本详细变更文档
 - [`changelogs/v1.10.0.md`](./changelogs/v1.10.0.md) — 历史版本详细变更文档

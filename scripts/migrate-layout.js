@@ -3,6 +3,10 @@
 
 const fs = require('fs')
 const path = require('path')
+const {
+  CONTAINER_DIR_NAMES,
+  UTILITY_ROOT_DIR_NAMES
+} = require('../hooks/_runtime/workspace-layout.cjs')
 
 const DEFAULT_LAYOUT = {
   version: 1,
@@ -127,24 +131,50 @@ function migrationRoot(workspaceRoot, migrationId) {
   return path.join(workspaceNamespaceRoot(workspaceRoot), 'migrations', migrationId)
 }
 
+function collectLegacyProjectDirs(workspaceRoot, { maxDepth = 3 } = {}) {
+  const projects = []
+
+  function scan(root, relativeSegments = [], depth = maxDepth) {
+    if (depth < 0 || !fs.existsSync(root)) return
+    let entries
+    try { entries = fs.readdirSync(root, { withFileTypes: true }) } catch { return }
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue
+      const name = String(entry.name || '').trim()
+      if (!name || name.startsWith('.') || name === 'node_modules') continue
+      const fullPath = path.join(root, name)
+      const nextSegments = [...relativeSegments, name]
+      const namespace = nextSegments.join('/')
+      const lowerName = name.toLowerCase()
+      const isUtilityRoot = relativeSegments.length === 0 && UTILITY_ROOT_DIR_NAMES.has(lowerName)
+      const isContainer = CONTAINER_DIR_NAMES.has(lowerName)
+      const legacyRoot = path.join(fullPath, '.devcodex')
+      if (fs.existsSync(legacyRoot) && !isUtilityRoot) {
+        projects.push({ name: namespace, legacyRoot })
+      }
+      if (depth > 0 && (isContainer || isUtilityRoot || relativeSegments.length === 0)) {
+        scan(fullPath, nextSegments, depth - 1)
+      }
+    }
+  }
+
+  scan(workspaceRoot)
+  return projects
+}
+
 function collectProjectCandidates(workspaceRoot) {
   const candidates = []
-  for (const entry of fs.readdirSync(workspaceRoot, { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue
-    if (entry.name.startsWith('.')) continue
-    if (entry.name === 'node_modules') continue
-    const legacyRoot = path.join(workspaceRoot, entry.name, '.devcodex')
-    if (!fs.existsSync(legacyRoot)) continue
+  for (const project of collectLegacyProjectDirs(workspaceRoot)) {
     const stats = {
-      name: entry.name,
-      legacyRoot,
-      targetRoot: path.join(workspaceDevcodexRoot(workspaceRoot), entry.name),
-      fileCount: countFiles(legacyRoot),
-      hasProfile: fs.existsSync(path.join(legacyRoot, 'profile')),
-      hasMemory: fs.existsSync(path.join(legacyRoot, '.memory')),
-      hasRequirements: fs.existsSync(path.join(legacyRoot, 'requirements')),
-      hasBugs: fs.existsSync(path.join(legacyRoot, 'bugs')),
-      hasReports: fs.existsSync(path.join(legacyRoot, 'reports'))
+      name: project.name,
+      legacyRoot: project.legacyRoot,
+      targetRoot: path.join(workspaceDevcodexRoot(workspaceRoot), ...project.name.split('/')),
+      fileCount: countFiles(project.legacyRoot),
+      hasProfile: fs.existsSync(path.join(project.legacyRoot, 'profile')),
+      hasMemory: fs.existsSync(path.join(project.legacyRoot, '.memory')),
+      hasRequirements: fs.existsSync(path.join(project.legacyRoot, 'requirements')),
+      hasBugs: fs.existsSync(path.join(project.legacyRoot, 'bugs')),
+      hasReports: fs.existsSync(path.join(project.legacyRoot, 'reports'))
     }
     stats.score = [
       stats.hasProfile,

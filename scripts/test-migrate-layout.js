@@ -25,9 +25,24 @@ function run(args, cwd = TEMP_ROOT) {
 }
 
 function writeFile(relativePath, content) {
-  const fullPath = path.join(TEMP_ROOT, relativePath)
+  writeFileIn(TEMP_ROOT, relativePath, content)
+}
+
+function writeFileIn(root, relativePath, content) {
+  const fullPath = path.join(root, relativePath)
   fs.mkdirSync(path.dirname(fullPath), { recursive: true })
   fs.writeFileSync(fullPath, content, 'utf8')
+}
+
+function setupNestedFixture(root) {
+  writeFileIn(root, 'packages/package.json', '{}')
+  writeFileIn(root, 'packages/app-a/.devcodex/profile/config.json', JSON.stringify({ mode: 'dev', agent: 'claude-code' }, null, 2))
+  writeFileIn(root, 'packages/app-a/.devcodex/.memory/clients/claude-code/tasks/20260525.md', '# app-a memory\n')
+  writeFileIn(root, 'packages/app-b/.devcodex/profile/config.json', JSON.stringify({ mode: 'prod', agent: 'claude-code' }, null, 2))
+  writeFileIn(root, 'packages/app-b/.devcodex/bugs/修复问题/01-问题概述.md', '# app-b bug\n')
+  writeFileIn(root, 'packages/app-a/package.json', '{}')
+  writeFileIn(root, 'packages/app-b/package.json', '{}')
+  writeFileIn(root, 'tools/package.json', '{}')
 }
 
 function setupFixture() {
@@ -73,6 +88,26 @@ function main() {
   assert.ok(!fs.existsSync(path.join(TEMP_ROOT, '.devcodex', 'layout.json')))
   assert.ok(fs.existsSync(path.join(TEMP_ROOT, 'chat', '.devcodex', 'profile', 'config.json')))
   assert.ok(fs.existsSync(path.join(TEMP_ROOT, 'admin', '.devcodex', 'requirements', '整理命名空间', '01-需求概述.md')))
+
+  const nestedRoot = path.join(TEMP_ROOT, 'nested-workspace')
+  fs.mkdirSync(nestedRoot, { recursive: true })
+  setupNestedFixture(nestedRoot)
+
+  const nestedManifest = run(['plan', '--json'], nestedRoot)
+  assert.deepStrictEqual(nestedManifest.projects.map(project => project.name), ['packages/app-a', 'packages/app-b'])
+  assert.ok(!nestedManifest.projects.some(project => project.name === 'tools'))
+
+  const nestedApplied = run(['apply', '--manifest', nestedManifest.manifestPath, '--json'], nestedRoot)
+  assert.strictEqual(nestedApplied.lastAppliedBatch, 'all')
+  assert.ok(fs.existsSync(path.join(nestedRoot, '.devcodex', 'packages', 'app-a', 'profile', 'config.json')))
+  assert.ok(fs.existsSync(path.join(nestedRoot, '.devcodex', 'packages', 'app-b', 'profile', 'config.json')))
+  assert.ok(!fs.existsSync(path.join(nestedRoot, 'packages', 'app-a', '.devcodex')))
+  assert.ok(!fs.existsSync(path.join(nestedRoot, 'packages', 'app-b', '.devcodex')))
+
+  const nestedRolledBack = run(['rollback', '--manifest', nestedManifest.manifestPath, '--json'], nestedRoot)
+  assert.ok(nestedRolledBack.lastRolledBackAt)
+  assert.ok(fs.existsSync(path.join(nestedRoot, 'packages', 'app-a', '.devcodex', 'profile', 'config.json')))
+  assert.ok(fs.existsSync(path.join(nestedRoot, 'packages', 'app-b', '.devcodex', 'profile', 'config.json')))
 }
 
 try {

@@ -19,6 +19,7 @@
 const fs = require('fs')
 const path = require('path')
 const { execSync } = require('child_process')
+const { resolveActiveRuntimeRoot } = require('../hooks/_runtime/workspace-layout.cjs')
 
 if (process.env.SKIP_DEVCODEX_FALLBACK === '1') {
   console.log('[devcodex] instruction-fallback-check skipped via SKIP_DEVCODEX_FALLBACK=1')
@@ -27,35 +28,8 @@ if (process.env.SKIP_DEVCODEX_FALLBACK === '1') {
 
 const cwd = process.cwd()
 
-function readJsonFile(filePath) {
-  try { return JSON.parse(fs.readFileSync(filePath, 'utf8')) } catch { return null }
-}
-
-function findLayoutInfo(startDir) {
-  let current = path.resolve(startDir)
-  while (true) {
-    const markerPath = path.join(current, '.devcodex', 'layout.json')
-    const marker = readJsonFile(markerPath)
-    if (marker && marker.mode === 'workspace-namespace') return { enabled: true, workspaceRoot: current }
-    const parent = path.dirname(current)
-    if (parent === current) break
-    current = parent
-  }
-  return { enabled: false, workspaceRoot: path.resolve(startDir) }
-}
-
-function inferProjectFromCwd(layout) {
-  if (!layout.enabled) return ''
-  const relative = path.relative(layout.workspaceRoot, cwd)
-  if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) return ''
-  return relative.split(path.sep).filter(Boolean)[0] || ''
-}
-
 function getActiveRoot() {
-  const layout = findLayoutInfo(cwd)
-  if (!layout.enabled) return path.join(cwd, '.devcodex')
-  const project = inferProjectFromCwd(layout)
-  return project ? path.join(layout.workspaceRoot, '.devcodex', project) : path.join(layout.workspaceRoot, '.devcodex', 'workspace')
+  return resolveActiveRuntimeRoot(cwd)
 }
 
 function getStagedFiles() {

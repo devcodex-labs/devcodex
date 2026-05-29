@@ -45,6 +45,26 @@ function runValidate(workspaceRoot) {
     })
 }
 
+function createWorkspaceNamespaceWorkspace(projectInfo) {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-validate-profile-ws-'))
+    TEMP_ROOTS.push(root)
+
+    writeFile(root, 'package.json', JSON.stringify({ name: PACKAGE_NAME }, null, 2))
+    writeFile(root, '.devcodex/layout.json', JSON.stringify({ version: 1, mode: 'workspace-namespace' }, null, 2))
+    writeFile(root, '.devcodex/workspace/profile/README.md', '# README\n')
+    writeFile(root, '.devcodex/workspace/profile/02-架构约束.md', '# 02\n')
+    writeFile(root, '.devcodex/workspace/profile/03-代码风格.md', '# 03\n')
+    writeFile(root, '.devcodex/workspace/profile/config.json', JSON.stringify({
+        mode: 'dev',
+        agent: 'claude-code',
+        pluginVersion: VERSION
+    }, null, 2))
+    writeFile(root, '.devcodex/workspace/profile/01-项目信息.md', projectInfo)
+    fs.mkdirSync(path.join(root, 'chat'), { recursive: true })
+
+    return root
+}
+
 function legacyProjectInfo() {
     return [
         '# 01 — 项目信息',
@@ -121,6 +141,15 @@ function main() {
         const currentOutput = `${currentResult.stdout}\n${currentResult.stderr}`
 
         assert.strictEqual(currentResult.status, 0, currentOutput)
+
+        const workspaceRoot = createWorkspaceNamespaceWorkspace(currentProjectInfo())
+        const workspaceChild = path.join(workspaceRoot, 'chat')
+        const workspaceResult = runValidate(workspaceChild)
+        const workspaceOutput = `${workspaceResult.stdout}\n${workspaceResult.stderr}`
+
+        assert.strictEqual(workspaceResult.status, 0, workspaceOutput)
+        assert.doesNotMatch(workspaceOutput, /no \.devcodex\/profile\//)
+        assert.doesNotMatch(workspaceOutput, /no profile dir at .*chat[\\/]?.*\.devcodex[\\/]profile/)
         console.log('\x1b[32m✓ validate-profile regression tests passed\x1b[0m')
     } finally {
         TEMP_ROOTS.forEach(root => fs.rmSync(root, { recursive: true, force: true }))

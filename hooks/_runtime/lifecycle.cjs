@@ -14,6 +14,11 @@
 const fs = require('fs')
 const path = require('path')
 const crypto = require('crypto')
+const {
+  collectWorkspaceProjectNamespaces,
+  findLayoutInfo,
+  inferProjectFromCwd
+} = require('./workspace-layout.cjs')
 
 const CONTEXT_ROOT = process.cwd()
 const PAYLOAD_PREVIEW_LIMIT = 160
@@ -105,56 +110,19 @@ function mergeConfig(baseConfig, overlayConfig) {
   return merged
 }
 
-function findLayoutInfo(startDir) {
-  let current = path.resolve(startDir)
-  while (true) {
-    const markerPath = path.join(current, '.devcodex', 'layout.json')
-    const marker = readJsonFile(markerPath)
-    if (marker && String(marker.mode || '').trim() === 'workspace-namespace') {
-      return {
-        enabled: true,
-        mode: 'workspace-namespace',
-        workspaceRoot: current,
-        markerPath
-      }
-    }
-    const parent = path.dirname(current)
-    if (parent === current) break
-    current = parent
-  }
-  return {
-    enabled: false,
-    mode: 'legacy-project-root',
-    workspaceRoot: path.resolve(startDir),
-    markerPath: null
-  }
-}
-
 const LAYOUT = findLayoutInfo(CONTEXT_ROOT)
 const WORKSPACE_ROOT = LAYOUT.workspaceRoot
 
 function inferContextProject() {
-  if (!LAYOUT.enabled) return ''
-  const relative = path.relative(WORKSPACE_ROOT, CONTEXT_ROOT)
-  if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) return ''
-  const parts = relative.split(path.sep).filter(Boolean)
-  if (!parts.length) return ''
-  const first = parts[0]
-  if (first === '.devcodex' || first === 'workspace') return ''
-  return first
+  return inferProjectFromCwd(CONTEXT_ROOT, LAYOUT)
 }
 
 const CONTEXT_PROJECT = inferContextProject()
 const DEFAULT_SCOPE = LAYOUT.enabled ? (CONTEXT_PROJECT ? 'project' : 'workspace') : 'project'
-const STATE_SCOPE_KEY = LAYOUT.enabled ? (CONTEXT_PROJECT || 'workspace') : 'legacy'
 const ACTIVE_RUNTIME_ROOT = LAYOUT.enabled
   ? path.join(WORKSPACE_ROOT, '.devcodex', CONTEXT_PROJECT || 'workspace')
   : path.join(WORKSPACE_ROOT, '.devcodex')
-const STATE_DIR = path.join(ACTIVE_RUNTIME_ROOT, '.memory', 'hooks', STATE_SCOPE_KEY)
-const STATE_FILE = path.join(STATE_DIR, 'lifecycle-state.json')
-const FINAL_PAYLOAD_FLAG = path.join(STATE_DIR, 'capture-final-payload.flag')
-const FINAL_PAYLOAD_LOG = path.join(STATE_DIR, 'captured-final-payloads.ndjson')
-const INTERCEPTION_LOG = path.join(STATE_DIR, 'interceptions.jsonl')
+const META_STATE_SCOPE_KEY = LAYOUT.enabled ? 'workspace' : 'legacy'
 const INTERCEPTION_ACTION = {
   FORBID: 'forbid',
   REQUIRE_COMPLETION: 'require_completion',
@@ -192,6 +160,41 @@ function getWorkspaceNamespaceRoot() {
 function getProjectNamespaceRoot(projectName) {
   return path.join(WORKSPACE_ROOT, '.devcodex', resolveProjectName(projectName))
 }
+
+function buildStatePaths(namespaceRoot, scopeKey) {
+  const dir = path.join(namespaceRoot, '.memory', 'hooks', scopeKey)
+  return {
+    dir,
+    file: path.join(dir, 'lifecycle-state.json'),
+    finalPayloadFlag: path.join(dir, 'capture-final-payload.flag'),
+    finalPayloadLog: path.join(dir, 'captured-final-payloads.ndjson'),
+    interceptionLog: path.join(dir, 'interceptions.jsonl')
+  }
+}
+
+function getMetaStatePaths() {
+  const namespaceRoot = LAYOUT.enabled ? getWorkspaceNamespaceRoot() : path.join(WORKSPACE_ROOT, '.devcodex')
+  return buildStatePaths(namespaceRoot, META_STATE_SCOPE_KEY)
+}
+
+function getStatePathsFor(projectName, scope) {
+  if (!LAYOUT.enabled) return getMetaStatePaths()
+  if (scope === 'workspace' || !projectName) return getMetaStatePaths()
+  return buildStatePaths(getProjectNamespaceRoot(projectName), projectName)
+}
+
+function getStatePaths(state, explicitProject, explicitScope) {
+  const scope = explicitScope || state?.activeScope || DEFAULT_SCOPE
+  const projectName = resolveProjectName(explicitProject || state?.activeProject || '')
+  return getStatePathsFor(projectName, scope)
+}
+
+const META_STATE_PATHS = getMetaStatePaths()
+const STATE_DIR = META_STATE_PATHS.dir
+const STATE_FILE = META_STATE_PATHS.file
+const FINAL_PAYLOAD_FLAG = META_STATE_PATHS.finalPayloadFlag
+const FINAL_PAYLOAD_LOG = META_STATE_PATHS.finalPayloadLog
+const INTERCEPTION_LOG = META_STATE_PATHS.interceptionLog
 
 function getActiveScope(state) {
   return state?.activeScope || DEFAULT_SCOPE
@@ -461,8 +464,12 @@ function appendInterception(state, entry) {
     enforcementMode: ENFORCEMENT_MODE,
     activeProject: state?.activeProject || ''
   }
-  fs.mkdirSync(STATE_DIR, { recursive: true })
-  fs.appendFileSync(INTERCEPTION_LOG, `${JSON.stringify(record)}\n`)
+  const targets = [getStatePaths(state)]
+  if (LAYOUT.enabled && targets[0].file !== META_STATE_PATHS.file) targets.push(META_STATE_PATHS)
+  for (const target of targets) {
+    fs.mkdirSync(target.dir, { recursive: true })
+    fs.appendFileSync(target.interceptionLog, `${JSON.stringify(record)}\n`)
+  }
 }
 
 function recordInterception(state, eventName, platform, action, code, reason, nextStep, effective) {
@@ -488,6 +495,9 @@ function buildInterceptionOutput(state, platform, eventName, action, code, reaso
 
 // ─── Multi-project workspace detection (v1.9.8+) ──────────────────────────────
 function listWorkspaceProjects() {
+  if (LAYOUT.enabled) {
+    return collectWorkspaceProjectNamespaces(WORKSPACE_ROOT)
+  }
   let entries
   try { entries = fs.readdirSync(WORKSPACE_ROOT) } catch { return [] }
   const projects = []
@@ -499,8 +509,7 @@ function listWorkspaceProjects() {
     if (!stat.isDirectory()) continue
     const hasPkg = fs.existsSync(path.join(dir, 'package.json'))
     const hasProfile = fs.existsSync(path.join(dir, '.devcodex', 'profile'))
-    const hasNamespaceProfile = LAYOUT.enabled && fs.existsSync(path.join(WORKSPACE_ROOT, '.devcodex', name, 'profile'))
-    if (hasPkg || hasProfile || hasNamespaceProfile) {
+    if (hasPkg || hasProfile) {
       projects.push(name)
     }
   }
@@ -616,6 +625,7 @@ function getValidStickyProject(previousState, payload) {
   if (!updatedAtMs || now - updatedAtMs > STICKY_PROJECT_TTL_MS) return null
   const currentSessionKey = getPayloadSessionKey(payload)
   const stickySessionKey = String(sticky.sessionKey || '').trim()
+  if (!currentSessionKey || !stickySessionKey) return null
   if (currentSessionKey && stickySessionKey && currentSessionKey !== stickySessionKey) return null
   return { project, source: sticky.source || 'sticky', sessionKey: stickySessionKey }
 }
@@ -976,23 +986,47 @@ function buildDefaultState(mode) {
 }
 
 function loadState(modeHint) {
-  const saved = readJsonFile(STATE_FILE)
-  const mode = modeHint || readProfileMode(saved || null)
+  const metaState = readJsonFile(META_STATE_PATHS.file)
+  let saved = metaState
+  if (LAYOUT.enabled) {
+    const preferredProject = String(metaState?.activeProject || CONTEXT_PROJECT || '').trim()
+    const preferredScope = metaState?.activeScope || (preferredProject ? 'project' : DEFAULT_SCOPE)
+    const activeState = readJsonFile(getStatePathsFor(preferredProject, preferredScope).file)
+    if (activeState && typeof activeState === 'object') {
+      saved = activeState
+    } else if (CONTEXT_PROJECT) {
+      const contextState = readJsonFile(getStatePathsFor(CONTEXT_PROJECT, 'project').file)
+      if (contextState && typeof contextState === 'object') saved = contextState
+    }
+  }
+  const mode = modeHint || readProfileMode(saved || metaState || null, saved?.activeProject || metaState?.activeProject || '')
   const current = buildDefaultState(mode)
   if (!saved || typeof saved !== 'object') return current
   return {
     ...current, ...saved, mode,
     bootstrap: { ...current.bootstrap, ...(saved.bootstrap || {}) },
     visible: { ...current.visible, ...(saved.visible || {}) },
-    stickyProject: { ...current.stickyProject, ...(saved.stickyProject || {}) },
+    stickyProject: { ...current.stickyProject, ...(saved.stickyProject || {}), ...(metaState?.stickyProject || {}) },
     dangerousApprovals: { ...current.dangerousApprovals, ...(saved.dangerousApprovals || {}) }
   }
 }
 
 function saveState(state) {
-  fs.mkdirSync(STATE_DIR, { recursive: true })
   state.updatedAt = new Date().toISOString()
-  fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2))
+  const activePaths = getStatePaths(state)
+  fs.mkdirSync(activePaths.dir, { recursive: true })
+  fs.writeFileSync(activePaths.file, JSON.stringify(state, null, 2))
+  if (LAYOUT.enabled && activePaths.file !== META_STATE_PATHS.file) {
+    const metaState = {
+      ...state,
+      bootstrap: { ...(state.bootstrap || {}) },
+      visible: { ...(state.visible || {}) },
+      stickyProject: { ...(state.stickyProject || {}) },
+      dangerousApprovals: { ...(state.dangerousApprovals || {}) }
+    }
+    fs.mkdirSync(META_STATE_PATHS.dir, { recursive: true })
+    fs.writeFileSync(META_STATE_PATHS.file, JSON.stringify(metaState, null, 2))
+  }
 }
 
 function resetState(mode, previousState) {
@@ -1684,8 +1718,9 @@ function updateVisibleReplyState(state, payload, eventName) {
 }
 
 function captureFinalPayloadSample(payload, eventName, state) {
-  if ((eventName !== 'PreCompact' && eventName !== 'Stop') || !fs.existsSync(FINAL_PAYLOAD_FLAG)) return
-  fs.mkdirSync(STATE_DIR, { recursive: true })
+  const statePaths = getStatePaths(state)
+  if ((eventName !== 'PreCompact' && eventName !== 'Stop') || !fs.existsSync(statePaths.finalPayloadFlag)) return
+  fs.mkdirSync(statePaths.dir, { recursive: true })
   const snap = {
     capturedAt: new Date().toISOString(), eventName,
     payloadKeys: Object.keys(payload).sort(),
@@ -1693,8 +1728,8 @@ function captureFinalPayloadSample(payload, eventName, state) {
     interestingStrings: collectInterestingStrings(payload),
     state: { mode: state.mode, executionMode: state.executionMode, phase: state.phase, mutated: state.mutated }
   }
-  fs.appendFileSync(FINAL_PAYLOAD_LOG, `${JSON.stringify(snap)}\n`)
-  if (eventName === 'Stop') fs.unlinkSync(FINAL_PAYLOAD_FLAG)
+  fs.appendFileSync(statePaths.finalPayloadLog, `${JSON.stringify(snap)}\n`)
+  if (eventName === 'Stop') fs.unlinkSync(statePaths.finalPayloadFlag)
 }
 
 // ─── Closure reminder ─────────────────────────────────────────────────────────
@@ -1712,7 +1747,7 @@ function buildClosureReminder(state, eventName) {
   if (eventName === 'Stop' && precheckStatus === 'verified-missing') {
     items.push('entry check block 未输出（S07/C18：首条用户可见回复必须含 PC0~PC7 入口检查块）')
   } else if (eventName === 'Stop' && precheckStatus === 'unverified') {
-    items.push(`无法验证最终用户可见回复是否包含入口检查块（Stop/PreCompact 未提供可解析 assistant 内容；如需取证请创建 ${FINAL_PAYLOAD_FLAG} 后重试）`)
+    items.push(`无法验证最终用户可见回复是否包含入口检查块（Stop/PreCompact 未提供可解析 assistant 内容；如需取证请创建 ${getStatePaths(state).finalPayloadFlag} 后重试）`)
   }
   if (eventName === 'Stop' && state.mode === 'dev' && state.reportTouched && state.visible && !state.visible.compliance) {
     items.push('合规检查状态块未输出（17-compliance：dev 模式非 chat 回复末尾必须含 🛡️ DEV 模式 | 合规检查 状态块）')

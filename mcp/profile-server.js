@@ -13,6 +13,14 @@
 
 const fs = require('fs')
 const path = require('path')
+const {
+  findLayoutInfo,
+  inferProjectFromCwd,
+  namespaceRootPath,
+  normalizeProjectNamespace,
+  readJsonFile,
+  resolveLegacyProjectRoot
+} = require('../hooks/_runtime/workspace-layout.cjs')
 
 const INPUT_ROOT = process.argv[2]
   ? path.resolve(process.argv[2])
@@ -57,7 +65,7 @@ const TOOLS = [
       properties: {
         project: {
           type: 'string',
-          description: '可选。指定目标项目目录名。旧布局下兼容 <project>/.devcodex/profile；集中布局下命中 <workspace>/.devcodex/<project>/profile 并按 workspace base + project overlay 解析。'
+          description: '可选。指定目标项目命名空间。旧布局下仅允许当前项目；集中布局下命中 <workspace>/.devcodex/<project-namespace>/profile 并按 workspace base + project overlay 解析。'
         },
         files: {
           type: 'array',
@@ -75,7 +83,7 @@ const TOOLS = [
       properties: {
         project: {
           type: 'string',
-          description: '可选。指定目标项目目录名。旧布局下兼容 <project>/.devcodex/profile；集中布局下命中 <workspace>/.devcodex/<project>/profile 并按 workspace base + project overlay 解析。'
+          description: '可选。指定目标项目命名空间。旧布局下仅允许当前项目；集中布局下命中 <workspace>/.devcodex/<project-namespace>/profile 并按 workspace base + project overlay 解析。'
         }
       }
     }
@@ -112,12 +120,6 @@ function readFileText(filePath) {
   try { return fs.readFileSync(filePath, 'utf8') } catch { return null }
 }
 
-function readJsonFile(filePath) {
-  const raw = readFileText(filePath)
-  if (!raw) return null
-  try { return JSON.parse(raw) } catch { return null }
-}
-
 function isPlainObject(value) {
   return !!value && typeof value === 'object' && !Array.isArray(value)
 }
@@ -141,59 +143,34 @@ function mergeConfig(workspaceConfig, projectConfig) {
   return merged
 }
 
-function findLayoutInfo(startDir) {
-  let current = path.resolve(startDir)
-  while (true) {
-    const markerPath = path.join(current, '.devcodex', 'layout.json')
-    const marker = readJsonFile(markerPath)
-    if (marker && String(marker.mode || '').trim() === 'workspace-namespace') {
-      return {
-        enabled: true,
-        mode: 'workspace-namespace',
-        workspaceRoot: current,
-        markerPath
-      }
-    }
-    const parent = path.dirname(current)
-    if (parent === current) break
-    current = parent
-  }
-  return {
-    enabled: false,
-    mode: 'legacy-project-root',
-    workspaceRoot: path.resolve(startDir),
-    markerPath: null
-  }
-}
-
 const LAYOUT = findLayoutInfo(INPUT_ROOT)
 
 function inferContextProject() {
-  if (!LAYOUT.enabled) return ''
-  const relative = path.relative(LAYOUT.workspaceRoot, INPUT_ROOT)
-  if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) return ''
-  const parts = relative.split(path.sep).filter(Boolean)
-  if (!parts.length) return ''
-  const first = parts[0]
-  if (first === '.devcodex' || first === 'workspace') return ''
-  return first
+  return inferProjectFromCwd(INPUT_ROOT, LAYOUT)
 }
 
 const CONTEXT_PROJECT = inferContextProject()
 
 function resolveProjectName(projectName) {
-  return String(projectName || '').trim() || CONTEXT_PROJECT || ''
+  if (LAYOUT.enabled) {
+    return normalizeProjectNamespace(projectName, {
+      layout: LAYOUT,
+      contextProject: CONTEXT_PROJECT,
+      allowEmpty: true
+    })
+  }
+  const raw = String(projectName || '').trim()
+  if (!raw) return ''
+  return path.basename(resolveLegacyProjectRoot(INPUT_ROOT, raw))
 }
 
 function resolveProjectRoot(projectName) {
-  if (!projectName) return INPUT_ROOT
-  if (path.isAbsolute(projectName)) return path.resolve(projectName)
-  const base = LAYOUT.enabled ? LAYOUT.workspaceRoot : INPUT_ROOT
-  return path.resolve(base, projectName)
+  return resolveLegacyProjectRoot(INPUT_ROOT, projectName)
 }
 
 function getWorkspaceProfileDir() {
   if (LAYOUT.enabled) {
+    // workspace-namespace: workspace base profile
     return path.join(LAYOUT.workspaceRoot, '.devcodex', 'workspace', 'profile')
   }
   return path.join(LAYOUT.workspaceRoot, '.devcodex', 'profile')
@@ -202,7 +179,7 @@ function getWorkspaceProfileDir() {
 function getProjectNamespaceProfileDir(projectName) {
   const name = resolveProjectName(projectName)
   if (!LAYOUT.enabled || !name) return null
-  return path.join(LAYOUT.workspaceRoot, '.devcodex', name, 'profile')
+  return path.join(namespaceRootPath(LAYOUT.workspaceRoot, name), 'profile')
 }
 
 function getLegacyProfileDirs(projectName) {

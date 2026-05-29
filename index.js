@@ -14,6 +14,12 @@ const fs = require('fs')
 const os = require('os')
 const path = require('path')
 const { runCli: runMigrateLayout } = require('./scripts/migrate-layout.js')
+const {
+  findLayoutInfo: sharedFindLayoutInfo,
+  inferProjectFromCwd: sharedInferProjectFromCwd,
+  resolveActiveRuntimeRoot: sharedResolveActiveRuntimeRoot,
+  resolveProfileDir: sharedResolveProfileDir
+} = require('./hooks/_runtime/workspace-layout.cjs')
 
 // ─── Tiny ANSI helpers ────────────────────────────────────────────────────────
 const c = {
@@ -88,34 +94,20 @@ function readJsonFile(filePath) {
   try { return JSON.parse(fs.readFileSync(filePath, 'utf8')) } catch { return null }
 }
 
+function isPlainObject(value) {
+  return !!value && typeof value === 'object' && !Array.isArray(value)
+}
+
 function findLayoutInfo(startDir) {
-  let current = path.resolve(startDir)
-  while (true) {
-    const markerPath = path.join(current, '.devcodex', 'layout.json')
-    const marker = readJsonFile(markerPath)
-    if (marker && marker.mode === 'workspace-namespace') {
-      return { enabled: true, workspaceRoot: current }
-    }
-    const parent = path.dirname(current)
-    if (parent === current) break
-    current = parent
-  }
-  return { enabled: false, workspaceRoot: path.resolve(startDir) }
+  return sharedFindLayoutInfo(startDir)
 }
 
 function inferProjectFromCwd(cwd, layout) {
-  if (!layout.enabled) return ''
-  const relative = path.relative(layout.workspaceRoot, cwd)
-  if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) return ''
-  const first = relative.split(path.sep).filter(Boolean)[0] || ''
-  return first && first !== '.devcodex' ? first : ''
+  return sharedInferProjectFromCwd(cwd, layout || sharedFindLayoutInfo(cwd))
 }
 
 function resolveActiveRuntimeRoot(cwd) {
-  const layout = findLayoutInfo(cwd)
-  if (!layout.enabled) return path.join(cwd, '.devcodex')
-  const project = inferProjectFromCwd(cwd, layout)
-  return path.join(layout.workspaceRoot, '.devcodex', project || 'workspace')
+  return sharedResolveActiveRuntimeRoot(cwd)
 }
 
 function resolveGitignoreRoot(cwd) {
@@ -132,15 +124,7 @@ function ensureRuntimeDirs(cwd, dryRun) {
 }
 
 function resolveProfileDir(cwd) {
-  const layout = findLayoutInfo(cwd)
-  const candidates = []
-  if (layout.enabled) {
-    const project = inferProjectFromCwd(cwd, layout)
-    if (project) candidates.push(path.join(layout.workspaceRoot, '.devcodex', project, 'profile'))
-    candidates.push(path.join(layout.workspaceRoot, '.devcodex', 'workspace', 'profile'))
-  }
-  candidates.push(path.join(cwd, '.devcodex', 'profile'))
-  return candidates.find(candidate => fs.existsSync(candidate)) || candidates[0]
+  return sharedResolveProfileDir(cwd)
 }
 
 const DEVCODEX_GITIGNORE_ENTRIES = [
@@ -199,6 +183,142 @@ function copyManagedTextFile(src, dest, { dryRun = false, backup = false, backup
     fs.writeFileSync(dest, desired)
   }
   return { copied: true, backupPath, unchanged: false }
+}
+
+function readJsonFileWithStatus(filePath) {
+  if (!fs.existsSync(filePath)) {
+    return { exists: false, value: null, parseError: null }
+  }
+  try {
+    return {
+      exists: true,
+      value: JSON.parse(fs.readFileSync(filePath, 'utf8')),
+      parseError: null
+    }
+  } catch (error) {
+    return { exists: true, value: null, parseError: error }
+  }
+}
+
+function writeManagedJsonFile(dest, value, { dryRun = false, backup = false, backupDir = null } = {}) {
+  const desired = JSON.stringify(value, null, 2) + '\n'
+  const exists = fs.existsSync(dest)
+  const current = exists ? fs.readFileSync(dest, 'utf8') : ''
+  if (exists && current === desired) {
+    return { written: false, existed: true, unchanged: true, backupPath: null }
+  }
+
+  let backupPath = null
+  if (backup && exists && current.trim().length > 0) {
+    backupPath = path.join(backupDir || path.dirname(dest), `${path.basename(dest)}.bak.${backupSuffix()}`)
+    if (!dryRun) {
+      fs.mkdirSync(path.dirname(backupPath), { recursive: true })
+      fs.copyFileSync(dest, backupPath)
+    }
+  }
+
+  if (!dryRun) {
+    fs.mkdirSync(path.dirname(dest), { recursive: true })
+    fs.writeFileSync(dest, desired)
+  }
+  return { written: true, existed: exists, unchanged: false, backupPath }
+}
+
+function normalizeStringArray(value) {
+  return Array.isArray(value)
+    ? value.filter(item => typeof item === 'string' && item.trim())
+    : []
+}
+
+function mergeUniqueStringArrays(...arrays) {
+  return Array.from(new Set(arrays.flatMap(normalizeStringArray))).sort()
+}
+
+function extractClaudeHookEntryCommands(entry) {
+  if (!entry || !Array.isArray(entry.hooks)) return []
+  return entry.hooks
+    .filter(hook => hook && typeof hook === 'object')
+    .map(hook => `${String(hook.type || '').trim()}:${String(hook.command || '').trim()}`)
+    .filter(text => !/:$/.test(text))
+}
+
+function sameClaudeHookEntry(left, right) {
+  const leftMatcher = Object.prototype.hasOwnProperty.call(left || {}, 'matcher')
+    ? String(left.matcher || '')
+    : ''
+  const rightMatcher = Object.prototype.hasOwnProperty.call(right || {}, 'matcher')
+    ? String(right.matcher || '')
+    : ''
+  if (leftMatcher !== rightMatcher) return false
+  const leftCommands = extractClaudeHookEntryCommands(left)
+  const rightCommands = extractClaudeHookEntryCommands(right)
+  return rightCommands.length > 0 && rightCommands.every(command => leftCommands.includes(command))
+}
+
+function mergeClaudeHooks(existingHooks, managedHooks) {
+  const merged = isPlainObject(existingHooks) ? { ...existingHooks } : {}
+  for (const [eventName, managedEntries] of Object.entries(managedHooks || {})) {
+    const existingEntries = Array.isArray(merged[eventName]) ? merged[eventName].slice() : []
+    for (const entry of managedEntries || []) {
+      if (!existingEntries.some(existing => sameClaudeHookEntry(existing, entry))) {
+        existingEntries.push(entry)
+      }
+    }
+    merged[eventName] = existingEntries
+  }
+  return merged
+}
+
+function mergeClaudeMcpConfig(existingConfig) {
+  const base = isPlainObject(existingConfig) ? { ...existingConfig } : {}
+  const legacyServers = isPlainObject(base.servers) ? base.servers : {}
+  const currentServers = isPlainObject(base.mcpServers) ? base.mcpServers : {}
+  delete base.servers
+  base.mcpServers = {
+    ...legacyServers,
+    ...currentServers,
+    ...CLAUDE_MCP_JSON.mcpServers
+  }
+  return base
+}
+
+function detectInstalledHostAssets(cwd) {
+  const installed = []
+  const hasCodex = (
+    fs.existsSync(path.join(cwd, 'AGENTS.md')) ||
+    fs.existsSync(path.join(cwd, '.codex')) ||
+    fs.existsSync(path.join(cwd, '.agents'))
+  )
+  const hasClaude = (
+    fs.existsSync(path.join(cwd, 'CLAUDE.md')) ||
+    fs.existsSync(path.join(cwd, '.claude'))
+  )
+  const hasCopilot = (
+    fs.existsSync(path.join(cwd, '.github', 'copilot-instructions.md')) ||
+    fs.existsSync(path.join(cwd, '.github', 'instructions')) ||
+    fs.existsSync(path.join(cwd, '.github', 'hooks', '_runtime', 'lifecycle.cjs'))
+  )
+  if (hasCodex) installed.push('codex')
+  if (hasClaude) installed.push('claude-code')
+  if (hasCopilot) installed.push('copilot')
+  return installed
+}
+
+function detectHostPlatform(env = process.env, cwd = process.cwd()) {
+  if (env.CLAUDE_CODE_VERSION || env.CLAUDE_HOOK_COMMAND) return { platform: 'claude', source: 'env-derived' }
+  if (env.CODEX_HOME || env.CODEX_ENV_PWD || env.OPENAI_CODEX) return { platform: 'codex', source: 'env-derived' }
+  if (env.IDEA_INITIAL_DIRECTORY || env.JETBRAINS_IDE) return { platform: 'jetbrains-copilot', source: 'env-derived' }
+  if (env.TERM_PROGRAM === 'vscode' || env.VSCODE_PID) return { platform: 'vscode-copilot', source: 'env-derived' }
+  if (env.CURSOR_TRACE_ID || env.CURSOR_USER_ID) return { platform: 'cursor', source: 'env-derived' }
+
+  const installed = detectInstalledHostAssets(cwd)
+  if (installed.length === 1) {
+    const only = installed[0]
+    if (only === 'claude-code') return { platform: 'claude', source: 'installed-artifacts' }
+    if (only === 'codex') return { platform: 'codex', source: 'installed-artifacts' }
+    if (only === 'copilot') return { platform: 'copilot', source: 'installed-artifacts' }
+  }
+  return { platform: 'unknown', source: 'unknown' }
 }
 
 // ─── Commands ─────────────────────────────────────────────────────────────────
@@ -587,6 +707,8 @@ function cmdInitClaude(argv, { internal = false } = {}) {
 
   let added = 0, updated = 0, skipped = 0
   const log = internal ? () => { } : (...args) => console.log(...args)
+  const inlineLog = (...args) => console.log(...args)
+  const backupDir = path.join(resolveActiveRuntimeRoot(cwd), '.tmp', 'backups')
 
   // 1. Copy instructions.md → <cwd>/CLAUDE.md (v1.9.8+ single-source rename)
   //    Source file is the unified instructions.md; target file name is fixed by Claude Code platform.
@@ -595,9 +717,14 @@ function cmdInitClaude(argv, { internal = false } = {}) {
   if (fs.existsSync(claudeMdSrc)) {
     const existed = fs.existsSync(claudeMdDest)
     if (!existed || force) {
-      if (!dryRun) fs.copyFileSync(claudeMdSrc, claudeMdDest)
-      if (existed) { updated++; log(c.yellow('  ↺ CLAUDE.md  (from instructions.md)')) }
-      else { added++; log(c.green('  ✓ CLAUDE.md  (from instructions.md)')) }
+      const result = copyManagedTextFile(claudeMdSrc, claudeMdDest, { dryRun, backup: true, backupDir })
+      if (result.backupPath) inlineLog(c.yellow(`  ⚠ backed up existing CLAUDE.md to ${path.relative(cwd, result.backupPath)}`))
+      if (result.copied) {
+        if (existed) { updated++; log(c.yellow('  ↺ CLAUDE.md  (from instructions.md)')) }
+        else { added++; log(c.green('  ✓ CLAUDE.md  (from instructions.md)')) }
+      } else {
+        skipped++; log(c.dim('  ~ CLAUDE.md'))
+      }
     } else {
       skipped++; log(c.dim('  ~ CLAUDE.md'))
     }
@@ -630,36 +757,49 @@ function cmdInitClaude(argv, { internal = false } = {}) {
 
   // 3. Write / merge .claude/settings.json
   const settingsPath = path.join(clDir, 'settings.json')
-  if (!dryRun) {
-    fs.mkdirSync(clDir, { recursive: true })
-    let settings = {}
-    if (fs.existsSync(settingsPath)) {
-      try { settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8')) } catch { /* keep empty */ }
-    }
+  {
+    const settingsState = readJsonFileWithStatus(settingsPath)
+    const settings = isPlainObject(settingsState.value) ? { ...settingsState.value } : {}
     settings.$schema = settings.$schema || CLAUDE_SETTINGS_PERMISSIONS.$schema
-    settings.permissions = Object.assign({}, settings.permissions || {}, CLAUDE_SETTINGS_PERMISSIONS.permissions)
-    settings.permissions.allow = Array.from(new Set([
-      ...(Array.isArray(settings.permissions.allow) ? settings.permissions.allow : []),
-      ...CLAUDE_SETTINGS_PERMISSIONS.permissions.allow
-    ])).sort()
-    settings.permissions.ask = []
-    settings.permissions.deny = []
+    settings.permissions = isPlainObject(settings.permissions) ? { ...settings.permissions } : {}
+    settings.permissions.allow = mergeUniqueStringArrays(
+      settings.permissions.allow,
+      CLAUDE_SETTINGS_PERMISSIONS.permissions.allow
+    )
+    settings.permissions.ask = normalizeStringArray(settings.permissions.ask)
+    settings.permissions.deny = normalizeStringArray(settings.permissions.deny)
     settings.enableAllProjectMcpServers = true
-    // Merge hooks (overwrite devcodex keys, preserve others)
-    settings.hooks = Object.assign({}, settings.hooks || {}, CLAUDE_SETTINGS_HOOKS.hooks)
-    fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n')
-    const existed = added + updated === 0 && fs.existsSync(settingsPath)
-    if (existed) { updated++; log(c.yellow('  ↺ .claude/settings.json')) }
-    else { added++; log(c.green('  ✓ .claude/settings.json')) }
+    settings.hooks = mergeClaudeHooks(settings.hooks, CLAUDE_SETTINGS_HOOKS.hooks)
+
+    const result = writeManagedJsonFile(settingsPath, settings, { dryRun, backup: true, backupDir })
+    if (settingsState.parseError) {
+      inlineLog(c.yellow(`  ⚠ existing .claude/settings.json was invalid JSON and has been replaced after backup`))
+    }
+    if (result.backupPath) {
+      inlineLog(c.yellow(`  ⚠ backed up existing .claude/settings.json to ${path.relative(cwd, result.backupPath)}`))
+    }
+    if (result.written) {
+      if (result.existed) { updated++; log(c.yellow('  ↺ .claude/settings.json')) }
+      else { added++; log(c.green('  ✓ .claude/settings.json')) }
+    } else {
+      skipped++; log(c.dim('  ~ .claude/settings.json'))
+    }
   }
 
-  // 4. Write .mcp.json to project root (MCP server configuration with explicit workspace arg)
+  // 4. Write / merge .mcp.json to project root (MCP server configuration with explicit workspace arg)
   const mcpJsonPath = path.join(cwd, '.mcp.json')
-  if (!dryRun) {
-    const mcpExisted = fs.existsSync(mcpJsonPath)
-    if (!mcpExisted || force) {
-      fs.writeFileSync(mcpJsonPath, JSON.stringify(CLAUDE_MCP_JSON, null, 2) + '\n')
-      if (mcpExisted) { updated++; log(c.yellow('  ↺ .mcp.json')) }
+  {
+    const mcpState = readJsonFileWithStatus(mcpJsonPath)
+    const merged = mergeClaudeMcpConfig(mcpState.value)
+    const result = writeManagedJsonFile(mcpJsonPath, merged, { dryRun, backup: true, backupDir })
+    if (mcpState.parseError) {
+      inlineLog(c.yellow('  ⚠ existing .mcp.json was invalid JSON and has been replaced after backup'))
+    }
+    if (result.backupPath) {
+      inlineLog(c.yellow(`  ⚠ backed up existing .mcp.json to ${path.relative(cwd, result.backupPath)}`))
+    }
+    if (result.written) {
+      if (result.existed) { updated++; log(c.yellow('  ↺ .mcp.json')) }
       else { added++; log(c.green('  ✓ .mcp.json')) }
     } else {
       skipped++
@@ -959,21 +1099,15 @@ function genConfigJson(agent, mode) {
 
 function detectAgent(cwd) {
   // agent fallback hint enum aligned with instructions.md / 15-memory.
-  if (process.env.CLAUDE_CODE_VERSION || process.env.CLAUDE_HOOK_COMMAND) return 'claude-code'
-  if (process.env.CODEX_HOME || process.env.CODEX_ENV_PWD || process.env.OPENAI_CODEX) return 'codex'
-  if (process.env.IDEA_INITIAL_DIRECTORY || process.env.JETBRAINS_IDE) return 'jetbrains-copilot'
-  if (process.env.TERM_PROGRAM === 'vscode' || process.env.VSCODE_PID) return 'vscode-copilot'
-  if (process.env.CURSOR_TRACE_ID || process.env.CURSOR_USER_ID) return 'cursor'
-  if (
-    fs.existsSync(path.join(cwd, 'AGENTS.md')) ||
-    fs.existsSync(path.join(cwd, '.codex')) ||
-    fs.existsSync(path.join(cwd, '.agents'))
-  ) return 'codex'
-  if (fs.existsSync(path.join(cwd, 'CLAUDE.md')) || fs.existsSync(path.join(cwd, '.claude'))) return 'claude-code'
-  const hasCopilotMd = fs.existsSync(path.join(cwd, '.github', 'copilot-instructions.md'))
-  if (hasCopilotMd) {
-    return 'copilot'
-  }
+  const platformEvidence = detectHostPlatform(process.env, cwd)
+  if (platformEvidence.platform === 'claude') return 'claude-code'
+  if (platformEvidence.platform === 'codex') return 'codex'
+  if (platformEvidence.platform === 'jetbrains-copilot') return 'jetbrains-copilot'
+  if (platformEvidence.platform === 'vscode-copilot') return 'vscode-copilot'
+  if (platformEvidence.platform === 'cursor') return 'cursor'
+
+  const installed = detectInstalledHostAssets(cwd)
+  if (installed.length === 1) return installed[0]
   return 'unknown-agent'
 }
 
@@ -1045,13 +1179,10 @@ function cmdDoctor() {
   // v1.9.7+ P-001/P-004: runtime diagnostic for host detection & JetBrains verification
   const cwd = process.cwd()
   const env = process.env
-  let platform = 'copilot'
-  if (env.CLAUDE_CODE_VERSION || env.CLAUDE_HOOK_COMMAND) platform = 'claude'
-  else if (env.CODEX_HOME || env.CODEX_ENV_PWD || env.OPENAI_CODEX) platform = 'codex'
-  else if (env.IDEA_INITIAL_DIRECTORY || env.JETBRAINS_IDE) platform = 'jetbrains-copilot'
-  else if (env.TERM_PROGRAM === 'vscode' || env.VSCODE_PID) platform = 'vscode-copilot'
+  const platformEvidence = detectHostPlatform(env, cwd)
+  const platform = platformEvidence.platform
   const agent = detectAgent(cwd)
-  if (platform === 'copilot' && agent === 'codex') platform = 'codex'
+  const installedHosts = detectInstalledHostAssets(cwd)
 
   const hasGithubHooks = fs.existsSync(path.join(cwd, '.github', 'hooks', '_runtime', 'lifecycle.cjs'))
   const hasClaudeHooks = fs.existsSync(path.join(cwd, '.claude', 'hooks', '_runtime', 'lifecycle.cjs'))
@@ -1072,13 +1203,15 @@ function cmdDoctor() {
   else if (platform === 'codex' && hasCodexHooks) mode = 'hook guardrail (Codex; event-dependent)'
   else if (platform === 'vscode-copilot' && hasGithubHooks) mode = 'workspace-hooks detected (VS Code Copilot preview; verify target IDE)'
   else if (platform === 'jetbrains-copilot') mode = 'instruction-fallback (JetBrains — Hooks unsupported)'
+  else if (platform === 'unknown' && installedHosts.length > 1) mode = 'mixed install (host unresolved; multiple adapters present)'
 
   console.log()
   console.log(c.bold('  DevCodex Doctor') + c.dim(` v1.9.7+ — runtime diagnostics`))
   console.log(c.dim('  ──────────────────────────────────────'))
   console.log(`  cwd:             ${cwd}`)
-  console.log(`  platform:        ${c.cyan(platform)}  ${c.dim('(env-derived)')}`)
+  console.log(`  platform:        ${c.cyan(platform)}  ${c.dim(`(${platformEvidence.source})`)}`)
   console.log(`  agent:           ${c.cyan(agent)}`)
+  console.log(`  installed hosts: ${installedHosts.length ? c.cyan(installedHosts.join(', ')) : c.dim('none detected')}`)
   console.log(`  mode:            ${c.bold(mode)}`)
   console.log(c.dim('  enforcement:     default safety-only warns/continues for bootstrap/CP/auto; strict blocks only host-supported events.'))
   console.log()

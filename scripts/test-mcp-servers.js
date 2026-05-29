@@ -50,9 +50,14 @@ function runConfiguredServer(server, requests, cwd = ROOT) {
 function setupConfiguredMcpTarget() {
   const targetRoot = path.join(TEMP_ROOT, 'configured-target')
   fs.mkdirSync(path.join(targetRoot, '.claude', 'mcp'), { recursive: true })
+  fs.mkdirSync(path.join(targetRoot, '.claude', 'hooks', '_runtime'), { recursive: true })
   fs.copyFileSync(path.join(ROOT, '.mcp.json'), path.join(targetRoot, '.mcp.json'))
   fs.copyFileSync(path.join(ROOT, 'mcp', 'memory-server.js'), path.join(targetRoot, '.claude', 'mcp', 'memory-server.js'))
   fs.copyFileSync(path.join(ROOT, 'mcp', 'profile-server.js'), path.join(targetRoot, '.claude', 'mcp', 'profile-server.js'))
+  fs.copyFileSync(
+    path.join(ROOT, 'hooks', '_runtime', 'workspace-layout.cjs'),
+    path.join(targetRoot, '.claude', 'hooks', '_runtime', 'workspace-layout.cjs')
+  )
   return targetRoot
 }
 
@@ -98,6 +103,33 @@ function setupLayoutWorkspace() {
   fs.writeFileSync(
     path.join(TEMP_ROOT, '.devcodex', 'chat', 'profile', 'config.json'),
     JSON.stringify({ mode: 'dev', flags: { write: true }, tags: ['project'] }, null, 2)
+  )
+}
+
+function setupNestedLayoutWorkspace() {
+  fs.rmSync(TEMP_ROOT, { recursive: true, force: true })
+  fs.mkdirSync(path.join(TEMP_ROOT, '.devcodex', 'workspace', 'profile'), { recursive: true })
+  fs.mkdirSync(path.join(TEMP_ROOT, '.devcodex', 'packages', 'app-a', 'profile'), { recursive: true })
+  fs.mkdirSync(path.join(TEMP_ROOT, '.devcodex', 'packages', 'app-b', 'profile'), { recursive: true })
+  fs.mkdirSync(path.join(TEMP_ROOT, 'packages', 'app-a'), { recursive: true })
+  fs.mkdirSync(path.join(TEMP_ROOT, 'packages', 'app-b'), { recursive: true })
+  fs.writeFileSync(path.join(TEMP_ROOT, 'packages', 'app-a', 'package.json'), '{}')
+  fs.writeFileSync(path.join(TEMP_ROOT, 'packages', 'app-b', 'package.json'), '{}')
+  fs.writeFileSync(
+    path.join(TEMP_ROOT, '.devcodex', 'layout.json'),
+    JSON.stringify({ version: 1, mode: 'workspace-namespace' }, null, 2)
+  )
+  fs.writeFileSync(
+    path.join(TEMP_ROOT, '.devcodex', 'workspace', 'profile', 'config.json'),
+    JSON.stringify({ mode: 'prod', agent: 'claude-code' }, null, 2)
+  )
+  fs.writeFileSync(
+    path.join(TEMP_ROOT, '.devcodex', 'packages', 'app-a', 'profile', 'config.json'),
+    JSON.stringify({ mode: 'dev', agent: 'claude-code', app: 'a' }, null, 2)
+  )
+  fs.writeFileSync(
+    path.join(TEMP_ROOT, '.devcodex', 'packages', 'app-b', 'profile', 'config.json'),
+    JSON.stringify({ mode: 'prod', agent: 'claude-code', app: 'b' }, null, 2)
   )
 }
 
@@ -345,6 +377,54 @@ function testWorkspaceRootMemoryScopeRequiresExplicitTarget() {
   )))
 }
 
+function testWorkspaceNamespaceNestedProjectInference() {
+  setupNestedLayoutWorkspace()
+  const projectRoot = path.join(TEMP_ROOT, 'packages', 'app-a')
+  const profileResponses = runServer('mcp/profile-server.js', [
+    rpcRequest(1, 'initialize'),
+    rpcRequest(2, 'tools/call', { name: 'profile_get_mode', arguments: {} })
+  ], projectRoot)
+  const profilePayload = JSON.parse(resultById(profileResponses, 2).content?.[0]?.text || '{}')
+  assert.strictEqual(profilePayload.project, 'packages/app-a')
+  assert.strictEqual(profilePayload.mode, 'dev')
+
+  const memoryResponses = runServer('mcp/memory-server.js', [
+    rpcRequest(3, 'tools/call', {
+      name: 'memory_session_write',
+      arguments: { date: '20260524', content: '# nested\n' }
+    })
+  ], projectRoot)
+  assert.ok(fs.existsSync(path.join(
+    TEMP_ROOT, '.devcodex', 'packages', 'app-a', '.memory', 'clients', 'claude-code', 'tasks', '20260524.md'
+  )))
+  assert.ok(!fs.existsSync(path.join(
+    TEMP_ROOT, '.devcodex', 'packages', '.memory', 'clients', 'claude-code', 'tasks', '20260524.md'
+  )))
+  assert.match(resultById(memoryResponses, 3).content?.[0]?.text || '', /packages[\\/]+app-a|packages\/app-a/)
+}
+
+function testWorkspaceNamespaceTraversalRejected() {
+  setupLayoutWorkspace()
+  const profileResponses = runServer('mcp/profile-server.js', [
+    rpcRequest(1, 'initialize'),
+    rpcRequest(2, 'tools/call', {
+      name: 'profile_load',
+      arguments: { project: '..\\..\\leak2', files: ['01-项目信息.md'] }
+    })
+  ], TEMP_ROOT)
+  assert.strictEqual(resultById(profileResponses, 2).isError, true)
+  assert.match(resultById(profileResponses, 2).content?.[0]?.text || '', /traversal|workspace-relative|reserved|namespace/i)
+
+  const memoryResponses = runServer('mcp/memory-server.js', [
+    rpcRequest(3, 'tools/call', {
+      name: 'memory_session_write',
+      arguments: { project: '..\\..\\escape-probe', date: '20260524', content: '# blocked\n' }
+    })
+  ], TEMP_ROOT)
+  assert.strictEqual(resultById(memoryResponses, 3).isError, true)
+  assert.match(resultById(memoryResponses, 3).content?.[0]?.text || '', /traversal|workspace-relative|reserved|namespace/i)
+}
+
 function testMcpJsonLaunchContract() {
   const config = JSON.parse(fs.readFileSync(path.join(ROOT, '.mcp.json'), 'utf8'))
   const servers = config.mcpServers || {}
@@ -376,6 +456,8 @@ testMemoryCpConfirmForExtendedTaskKinds()
 testWorkspaceNamespaceProfileMerge()
 testWorkspaceNamespaceMemoryScope()
 testWorkspaceRootMemoryScopeRequiresExplicitTarget()
+testWorkspaceNamespaceNestedProjectInference()
+testWorkspaceNamespaceTraversalRejected()
 testMcpJsonLaunchContract()
 fs.rmSync(TEMP_ROOT, { recursive: true, force: true })
 process.stdout.write('mcp servers smoke test passed\n')

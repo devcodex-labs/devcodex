@@ -189,6 +189,59 @@ function cleanLayoutMultiProjectState({ workspaceProfile = false } = {}) {
   }
 }
 
+function cleanNestedLayoutMultiProjectState({ workspaceProfile = false } = {}) {
+  if (fs.existsSync(TEMP_ROOT)) {
+    fs.rmSync(TEMP_ROOT, { recursive: true, force: true })
+  }
+  fs.mkdirSync(path.join(TEMP_ROOT, 'packages', 'app-a'), { recursive: true })
+  fs.mkdirSync(path.join(TEMP_ROOT, 'packages', 'app-b'), { recursive: true })
+  fs.mkdirSync(path.join(TEMP_ROOT, 'tools'), { recursive: true })
+  fs.mkdirSync(path.join(TEMP_ROOT, '.devcodex', 'packages', 'app-a', 'profile'), { recursive: true })
+  fs.mkdirSync(path.join(TEMP_ROOT, '.devcodex', 'packages', 'app-b', 'profile'), { recursive: true })
+  fs.writeFileSync(path.join(TEMP_ROOT, 'packages', 'package.json'), '{}')
+  fs.writeFileSync(path.join(TEMP_ROOT, 'packages', 'app-a', 'package.json'), '{}')
+  fs.writeFileSync(path.join(TEMP_ROOT, 'packages', 'app-b', 'package.json'), '{}')
+  fs.writeFileSync(path.join(TEMP_ROOT, 'tools', 'package.json'), '{}')
+  fs.writeFileSync(
+    path.join(TEMP_ROOT, '.devcodex', 'layout.json'),
+    JSON.stringify({ version: 1, mode: 'workspace-namespace' })
+  )
+  fs.writeFileSync(
+    path.join(TEMP_ROOT, '.devcodex', 'packages', 'app-a', 'profile', 'config.json'),
+    JSON.stringify({ mode: 'dev', agent: TEST_AGENT })
+  )
+  fs.writeFileSync(
+    path.join(TEMP_ROOT, '.devcodex', 'packages', 'app-b', 'profile', 'config.json'),
+    JSON.stringify({ mode: 'prod', agent: TEST_AGENT })
+  )
+  if (workspaceProfile) {
+    fs.mkdirSync(path.join(TEMP_ROOT, '.devcodex', 'workspace', 'profile'), { recursive: true })
+    fs.writeFileSync(
+      path.join(TEMP_ROOT, '.devcodex', 'workspace', 'profile', 'config.json'),
+      JSON.stringify({ mode: 'prod', agent: TEST_AGENT })
+    )
+  }
+}
+
+function cleanToolingSiblingState() {
+  if (fs.existsSync(TEMP_ROOT)) {
+    fs.rmSync(TEMP_ROOT, { recursive: true, force: true })
+  }
+  fs.mkdirSync(path.join(TEMP_ROOT, 'app'), { recursive: true })
+  fs.mkdirSync(path.join(TEMP_ROOT, 'tools'), { recursive: true })
+  fs.mkdirSync(path.join(TEMP_ROOT, '.devcodex', 'app', 'profile'), { recursive: true })
+  fs.writeFileSync(path.join(TEMP_ROOT, 'app', 'package.json'), '{}')
+  fs.writeFileSync(path.join(TEMP_ROOT, 'tools', 'package.json'), '{}')
+  fs.writeFileSync(
+    path.join(TEMP_ROOT, '.devcodex', 'layout.json'),
+    JSON.stringify({ version: 1, mode: 'workspace-namespace' })
+  )
+  fs.writeFileSync(
+    path.join(TEMP_ROOT, '.devcodex', 'app', 'profile', 'config.json'),
+    JSON.stringify({ mode: 'dev', agent: TEST_AGENT })
+  )
+}
+
 function run(payload, cwd = TEMP_ROOT, env = {}) {
   const result = spawnSync(process.execPath, [RUNTIME], {
     cwd,
@@ -480,6 +533,7 @@ function main() {
   const prefixProjectState = JSON.parse(fs.readFileSync(getWorkspaceLayoutStateFile(), 'utf8'))
   assert.strictEqual(prefixProjectState.activeProject, 'vext-test')
   assert.strictEqual(prefixProjectState.activeProjectSource, 'payload')
+  assert.ok(fs.existsSync(getLayoutStateFile('vext-test')))
 
   cleanLayoutMultiProjectState()
   const roleUserPayloadAmbiguity = run({
@@ -518,6 +572,7 @@ function main() {
   assert.strictEqual(workspaceLayoutState.mode, 'dev')
   assert.strictEqual(workspaceLayoutState.stickyProject.project, 'devcodex-v1')
   assert.strictEqual(workspaceLayoutState.activeProjectSource, 'prompt')
+  assert.ok(fs.existsSync(getLayoutStateFile('devcodex-v1')))
 
   const stickyFollowup = run({
     hookEventName: 'UserPromptSubmit',
@@ -601,6 +656,17 @@ function main() {
     hookEventName: 'UserPromptSubmit',
     prompt: '修复 devcodex-v1 项目'
   })
+  const noSessionFollowup = run({
+    hookEventName: 'UserPromptSubmit',
+    prompt: '继续'
+  })
+  assert.match(noSessionFollowup.systemMessage || '', /multi-project-workspace/)
+
+  cleanLayoutMultiProjectState()
+  run({
+    hookEventName: 'UserPromptSubmit',
+    prompt: '修复 devcodex-v1 项目'
+  })
   workspaceLayoutState = JSON.parse(fs.readFileSync(getWorkspaceLayoutStateFile(), 'utf8'))
   workspaceLayoutState.stickyProject.updatedAtMs = 1
   fs.writeFileSync(getWorkspaceLayoutStateFile(), JSON.stringify(workspaceLayoutState, null, 2))
@@ -643,6 +709,39 @@ function main() {
   }, layoutProjectRoot)
   assert.strictEqual(misplacedTmpWrite.continue, true)
   assert.match(misplacedTmpWrite.systemMessage || '', /Auto v1\.1/)
+
+  cleanNestedLayoutMultiProjectState()
+  const nestedWorkspaceAmbiguity = run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: 'nested-layout-session',
+    prompt: '继续'
+  })
+  assert.match(nestedWorkspaceAmbiguity.systemMessage || '', /multi-project-workspace/)
+
+  const nestedPayloadProject = run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: 'nested-payload-session',
+    prompt: '继续',
+    currentFile: path.join(TEMP_ROOT, 'packages', 'app-a', 'README.md')
+  })
+  assert.strictEqual(nestedPayloadProject.continue, true)
+  assert.ok(!/multi-project-workspace/.test(nestedPayloadProject.systemMessage || ''))
+  const nestedLayoutState = JSON.parse(fs.readFileSync(getWorkspaceLayoutStateFile(), 'utf8'))
+  assert.strictEqual(nestedLayoutState.activeProject, 'packages/app-a')
+  assert.strictEqual(nestedLayoutState.activeProjectSource, 'payload')
+  assert.ok(fs.existsSync(getLayoutStateFile(path.join('packages', 'app-a'))))
+
+  cleanToolingSiblingState()
+  const toolingSiblingPrompt = run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: 'tooling-sibling-session',
+    prompt: '继续 app 的修复'
+  })
+  assert.strictEqual(toolingSiblingPrompt.continue, true)
+  assert.ok(!/multi-project-workspace/.test(toolingSiblingPrompt.systemMessage || ''))
+  const toolingSiblingState = JSON.parse(fs.readFileSync(getWorkspaceLayoutStateFile(), 'utf8'))
+  assert.strictEqual(toolingSiblingState.activeProject, 'app')
+  assert.strictEqual(toolingSiblingState.activeProjectSource, 'prompt')
 
   cleanState()
   run({

@@ -32,6 +32,7 @@
  * V30~V34 规范资产漂移收敛（resume 顺序 / PC5 部署面 / audit-state / audit 收敛 / contributing 模板）
  * V35 Concept Sync Map sync（真相源、当前消费者、历史镜像、探针、部署副本、黄色偏离）
  * V36 Host contract verification sync（宿主契约验证路线、HostContractRoute、报告证据）
+ * V37 Namespace safety / CLI protection / deterministic test chain（容器命名空间、防 clobber、test:all 拆链）
  *
  * Exit: 0=OK, 1=error, 2=warnings only
  */
@@ -2041,6 +2042,58 @@ function checkV36() {
   console.log('[V36] host contract verification sync checked')
 }
 
+function checkV37() {
+  const probes = [
+    {
+      file: 'hooks/_runtime/workspace-layout.cjs',
+      needles: ['namespaceHasRuntimeState', 'collectWorkspaceProjectNamespaces', 'UTILITY_ROOT_DIR_NAMES', 'CONTAINER_DIR_NAMES']
+    },
+    {
+      file: 'hooks/_runtime/lifecycle.cjs',
+      needles: ['collectWorkspaceProjectNamespaces', '!currentSessionKey || !stickySessionKey']
+    },
+    {
+      file: 'index.js',
+      needles: ['writeManagedJsonFile', 'mergeClaudeHooks', 'mergeClaudeMcpConfig', 'detectHostPlatform', 'installed hosts:']
+    },
+    {
+      file: 'scripts/test-cli-behavior.js',
+      needles: ['testClaudeUpdateBacksUpAndPreservesCustomConfig', 'testDoctorAvoidsCodexBiasInMixedHostRepo', 'testProfileInitUsesNestedNamespaceRoot']
+    },
+    {
+      file: 'scripts/test-hooks-runtime.js',
+      needles: ['noSessionFollowup', 'nestedWorkspaceAmbiguity', 'toolingSiblingPrompt']
+    },
+    {
+      file: 'scripts/test-migrate-layout.js',
+      needles: ['nestedManifest', 'packages/app-a', 'tools']
+    }
+  ]
+
+  for (const probe of probes) {
+    const content = read(path.join(ROOT, probe.file))
+    for (const needle of probe.needles) {
+      if (!content.includes(needle)) {
+        err(`[V37] namespace safety / CLI protection drift in ${probe.file}: missing "${needle}"`)
+      }
+    }
+  }
+
+  const pkg = JSON.parse(read(path.join(ROOT, 'package.json')))
+  const scripts = pkg.scripts || {}
+  if (!scripts['test:audit']) {
+    err('[V37] package.json missing deterministic follow-up audit script: test:audit')
+  }
+  if ((scripts['test:all'] || '').includes('npm audit')) {
+    err('[V37] package.json test:all must stay deterministic and must not invoke npm audit directly')
+  }
+  if (!(scripts['test:all:with-audit'] || '').includes('npm run test:audit')) {
+    err('[V37] package.json test:all:with-audit must chain npm run test:audit')
+  }
+
+  console.log('[V37] namespace safety / CLI protection / deterministic test chain checked')
+}
+
 function checkV29() {
   const probes = [
     {
@@ -2290,6 +2343,7 @@ checkV33()
 checkV34()
 checkV35()
 checkV36()
+checkV37()
 
 console.log('')
 if (errors.length) {

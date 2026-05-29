@@ -12,6 +12,7 @@
 
 const fs = require('fs')
 const path = require('path')
+const { resolveProfileDir } = require('../hooks/_runtime/workspace-layout.cjs')
 
 const PLUGIN_ROOT = path.resolve(__dirname, '..')
 const cwd = process.cwd()
@@ -22,20 +23,6 @@ function readJsonIfExists(filePath) {
   } catch {
     return null
   }
-}
-
-function resolveProfileDir(projectRoot) {
-  const legacyDir = path.join(projectRoot, '.devcodex', 'profile')
-  if (fs.existsSync(legacyDir)) return legacyDir
-
-  const workspaceRoot = path.dirname(projectRoot)
-  const layout = readJsonIfExists(path.join(workspaceRoot, '.devcodex', 'layout.json'))
-  if (layout && layout.mode === 'workspace-namespace') {
-    const namespacedDir = path.join(workspaceRoot, '.devcodex', path.basename(projectRoot), 'profile')
-    if (fs.existsSync(namespacedDir)) return namespacedDir
-  }
-
-  return legacyDir
 }
 
 const profileDir = resolveProfileDir(cwd)
@@ -114,7 +101,8 @@ function checkProjectInfoSemantics(text) {
 }
 
 if (!fs.existsSync(profileDir)) {
-  console.log(`[profile] no .devcodex/profile/ in ${cwd} — skip (run \`devcodex profile init\` to bootstrap)`)
+  const displayPath = path.relative(cwd, profileDir) || profileDir
+  console.log(`[profile] no profile dir at ${displayPath} — skip (run \`devcodex profile init\` to bootstrap)`)
   process.exit(0)
 }
 

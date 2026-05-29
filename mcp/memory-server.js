@@ -16,6 +16,13 @@
 
 const fs = require('fs')
 const path = require('path')
+const {
+  findLayoutInfo,
+  inferProjectFromCwd,
+  namespaceRootPath,
+  normalizeProjectNamespace,
+  resolveLegacyProjectRoot
+} = require('../hooks/_runtime/workspace-layout.cjs')
 
 const INPUT_ROOT = process.argv[2]
   ? path.resolve(process.argv[2])
@@ -62,7 +69,7 @@ const TOOLS = [
         agent: { type: 'string', description: 'Agent 标识（如 claude-code / codex / copilot），默认当前实际宿主' },
         date: { type: 'string', description: 'YYYYMMDD 日期，默认今日' },
         scope: { type: 'string', enum: ['project', 'workspace'], description: '可选。集中布局下指定读取域；默认按当前 cwd 推断。若 cwd 在 workspace 根，必须显式传 project 或 scope:"workspace"。' },
-        project: { type: 'string', description: '可选。集中布局下显式指定项目命名空间；避免 workspace 根误读项目记忆。' }
+        project: { type: 'string', description: '可选。集中布局下显式指定项目命名空间；旧布局下仅允许当前项目，避免 workspace 根误读项目记忆。' }
       }
     }
   },
@@ -77,7 +84,7 @@ const TOOLS = [
         date: { type: 'string', description: 'YYYYMMDD 日期，默认今日' },
         content: { type: 'string', description: '追加的 Markdown 内容' },
         scope: { type: 'string', enum: ['project', 'workspace'], description: '可选。集中布局下指定写入域；默认按当前 cwd 推断。若 cwd 在 workspace 根，必须显式传 project 或 scope:"workspace"。' },
-        project: { type: 'string', description: '可选。集中布局下显式指定项目命名空间；避免 workspace 根误写项目记忆。' }
+        project: { type: 'string', description: '可选。集中布局下显式指定项目命名空间；旧布局下仅允许当前项目，避免 workspace 根误写项目记忆。' }
       }
     }
   },
@@ -93,7 +100,7 @@ const TOOLS = [
         phase: { type: 'string', enum: ['CP1', 'CP2', 'CP3'], description: 'CP 阶段' },
         time: { type: 'string', description: '确认时间（如 10:30），默认当前时间' },
         scope: { type: 'string', enum: ['project', 'workspace'], description: '可选。集中布局下指定写入域；默认按当前 cwd 推断。若 cwd 在 workspace 根，必须显式传 project 或 scope:"workspace"。' },
-        project: { type: 'string', description: '可选。集中布局下显式指定项目命名空间；避免 workspace 根误写任务确认。' }
+        project: { type: 'string', description: '可选。集中布局下显式指定项目命名空间；旧布局下仅允许当前项目，避免 workspace 根误写任务确认。' }
       }
     }
   },
@@ -105,7 +112,7 @@ const TOOLS = [
       properties: {
         agent: { type: 'string', description: 'Agent 标识，默认当前实际宿主' },
         scope: { type: 'string', enum: ['project', 'workspace'], description: '可选。集中布局下指定读取域；默认按当前 cwd 推断。若 cwd 在 workspace 根，必须显式传 project 或 scope:"workspace"。' },
-        project: { type: 'string', description: '可选。集中布局下显式指定项目命名空间；避免 workspace 根误读 SUMMARY。' }
+        project: { type: 'string', description: '可选。集中布局下显式指定项目命名空间；旧布局下仅允许当前项目，避免 workspace 根误读 SUMMARY。' }
       }
     }
   },
@@ -119,7 +126,7 @@ const TOOLS = [
         agent: { type: 'string', description: 'Agent 标识，默认当前实际宿主' },
         row: { type: 'string', description: 'Markdown 表格行（含首尾 |）' },
         scope: { type: 'string', enum: ['project', 'workspace'], description: '可选。集中布局下指定写入域；默认按当前 cwd 推断。若 cwd 在 workspace 根，必须显式传 project 或 scope:"workspace"。' },
-        project: { type: 'string', description: '可选。集中布局下显式指定项目命名空间；避免 workspace 根误写 SUMMARY。' }
+        project: { type: 'string', description: '可选。集中布局下显式指定项目命名空间；旧布局下仅允许当前项目，避免 workspace 根误写 SUMMARY。' }
       }
     }
   }
@@ -153,56 +160,30 @@ function readJsonFile(filePath) {
   try { return JSON.parse(raw) } catch { return null }
 }
 
-function findLayoutInfo(startDir) {
-  let current = path.resolve(startDir)
-  while (true) {
-    const markerPath = path.join(current, '.devcodex', 'layout.json')
-    const marker = readJsonFile(markerPath)
-    if (marker && String(marker.mode || '').trim() === 'workspace-namespace') {
-      return {
-        enabled: true,
-        mode: 'workspace-namespace',
-        workspaceRoot: current,
-        markerPath
-      }
-    }
-    const parent = path.dirname(current)
-    if (parent === current) break
-    current = parent
-  }
-  return {
-    enabled: false,
-    mode: 'legacy-project-root',
-    workspaceRoot: path.resolve(startDir),
-    markerPath: null
-  }
-}
-
 const LAYOUT = findLayoutInfo(INPUT_ROOT)
 
 function inferContextProject() {
-  if (!LAYOUT.enabled) return ''
-  const relative = path.relative(LAYOUT.workspaceRoot, INPUT_ROOT)
-  if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) return ''
-  const parts = relative.split(path.sep).filter(Boolean)
-  if (!parts.length) return ''
-  const first = parts[0]
-  if (first === '.devcodex' || first === 'workspace') return ''
-  return first
+  return inferProjectFromCwd(INPUT_ROOT, LAYOUT)
 }
 
 const CONTEXT_PROJECT = inferContextProject()
 const DEFAULT_SCOPE = LAYOUT.enabled ? (CONTEXT_PROJECT ? 'project' : 'workspace') : 'project'
 
 function resolveProjectName(projectName) {
-  return String(projectName || '').trim() || CONTEXT_PROJECT || ''
+  if (LAYOUT.enabled) {
+    return normalizeProjectNamespace(projectName, {
+      layout: LAYOUT,
+      contextProject: CONTEXT_PROJECT,
+      allowEmpty: true
+    })
+  }
+  const raw = String(projectName || '').trim()
+  if (!raw) return ''
+  return path.basename(resolveLegacyProjectRoot(INPUT_ROOT, raw))
 }
 
 function resolveProjectRoot(projectName) {
-  if (!projectName) return INPUT_ROOT
-  if (path.isAbsolute(projectName)) return path.resolve(projectName)
-  const base = LAYOUT.enabled ? LAYOUT.workspaceRoot : INPUT_ROOT
-  return path.resolve(base, projectName)
+  return resolveLegacyProjectRoot(INPUT_ROOT, projectName)
 }
 
 function resolveScope(scope) {
@@ -227,7 +208,7 @@ function getActiveRoot(args = {}) {
   if (scope === 'workspace' || !projectName) {
     return path.join(LAYOUT.workspaceRoot, '.devcodex', 'workspace')
   }
-  return path.join(LAYOUT.workspaceRoot, '.devcodex', projectName)
+  return namespaceRootPath(LAYOUT.workspaceRoot, projectName)
 }
 
 function sessionFilePath(agent, date, args = {}) {

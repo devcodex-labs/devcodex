@@ -104,6 +104,22 @@ function main() {
     assert.strictEqual(result.ok, false, 'workspace-namespace active task should block fallback gate')
   }
 
+  {
+    const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-fallback-nested-'))
+    const cwd = path.join(workspace, 'packages', 'app-a')
+    fs.mkdirSync(cwd, { recursive: true })
+    write(path.join(workspace, '.devcodex', 'layout.json'), '{"mode":"workspace-namespace"}\n')
+    write(path.join(cwd, 'package.json'), '{"name":"app-a"}\n')
+    execSync('git init', { cwd, stdio: 'pipe' })
+    write(path.join(cwd, 'src', 'app.js'), 'console.log("hello")\n')
+    stageFiles(cwd)
+    const bug = path.join(workspace, '.devcodex', 'packages', 'app-a', 'bugs', '嵌套命名空间任务')
+    write(path.join(bug, 'reports', 'codex', '20260529', '01--问题确认与CP1.md'), '# cp1\n')
+    write(path.join(bug, '.memory', 'sessions.md'), '| CP1 | ✅ |\n| CP2 | ✅ |\n')
+    const result = runCheck(cwd)
+    assert.strictEqual(result.ok, false, 'nested workspace-namespace active task should block fallback gate')
+  }
+
   process.stdout.write('instruction fallback smoke test passed\n')
 }
 

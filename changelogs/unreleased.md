@@ -12,8 +12,4 @@
 - 宿主输出、Hook 或项目现实扩展相关条目，建议显式写出 `verified-present / verified-missing / unverified`、sticky `activeProject` 与用户可见 `意图扩展摘要` 是否发生变化。
 - 执行闭环、确认机制或发布门禁相关条目，建议补充 `Intent Expansion Card`、`ConfirmationRequest`、`ECR` 与验证证据，方便正式发版时直接归档到版本 changelog。
 
-## 2026-05-29
-
-- README 治理增强：新增 `readme-authoring` / `audit-readme`，将 README 默认主视角收口为用户 / 使用者优先，并补 `V38`、`test-readme-governance`、资产口径同步与专项 README review。
-- 治理台账增强：引入 Improvement Intake，`process-improvements.md` 明确升格为“优化清单（PI）”；所有模式下对可泛化更优策略或规范缺口执行主动记录与 `PI/PF` 回执，并补 `V39` 与 `test-governance-intake`。
-- Profile 本地 overlay 增强：新增 `config.local.json` 受控模型（长期连接、env 引用、`extensions.<namespace>`、文档说明义务、gitignore 保护），同步到 profile init、MCP profile load、`validate-profile`、`test-validate-profile` 与 `V40`。
+已归档到最近版本；等待后续新增未发布条目。

@@ -9,6 +9,7 @@
 
 | 版本 | 日期 | 变更摘要 | 详细 |
 |------|------|---------|------|
+| [v1.11.4](./changelogs/v1.11.4.md) | 2026-05-29 | 🎯 **治理 Intake 全模式收口 + 本地 Profile overlay + README 专项治理**：将 Improvement Intake / 分流矩阵统一到所有模式，新增 `config.local.json` 受控 overlay、`V39/V40` 与 targeted tests，并补 `readme-authoring` / `audit-readme` / README 专项 review | [查看](./changelogs/v1.11.4.md) |
 | [v1.11.3](./changelogs/v1.11.3.md) | 2026-05-29 | 🛡️ **命名空间安全边界与宿主配置保护收口**：统一 `workspace-layout` 真相源，阻断 MCP `project` 路径穿越、修复 nested monorepo 命名空间碰撞与无会话 sticky 误继承；Claude adapter 改为备份+保守合并，`doctor` 去除 Codex 偏置，并将 `test:audit` 从确定性主链拆分 | [查看](./changelogs/v1.11.3.md) |
 | [v1.11.2](./changelogs/v1.11.2.md) | 2026-05-28 | 🔧 **治理生命周期与运行态落点收口**：新增 `spec-governance` / RecordRouter / SCV 验证链，修复 workspace-namespace 运行态落点、临时/备份产物漂移、MCP SUMMARY 模板与 release/profile/audit-state 防漂移校验，并同步 Profile 全模式 PC0~PC7 与历史归档页口径 | [查看](./changelogs/v1.11.2.md) |
 | [v1.11.1](./changelogs/v1.11.1.md) | 2026-05-27 | 🔧 **Codex 宿主闭环 + Hook 契约与执行复审增强**：补齐 Codex adapter 分发、宿主实际落点、Hook 拦截状态机、危险命令确认、MCP memory scope、宿主输出契约 direct replay，并新增 ECR、Intent Expansion Card、ConfirmationRequest 与报告推荐结论校验 | [查看](./changelogs/v1.11.1.md) |
@@ -89,7 +90,8 @@
 
 ## 相关文档
 
-- [`changelogs/v1.11.3.md`](./changelogs/v1.11.3.md) — 最新版本详细变更文档
+- [`changelogs/v1.11.4.md`](./changelogs/v1.11.4.md) — 最新版本详细变更文档
+- [`changelogs/v1.11.3.md`](./changelogs/v1.11.3.md) — 上一个版本详细变更文档
 - [`changelogs/v1.11.1.md`](./changelogs/v1.11.1.md) — 上一个版本详细变更文档
 - [`changelogs/v1.11.0.md`](./changelogs/v1.11.0.md) — 历史版本详细变更文档
 - [`changelogs/v1.10.0.md`](./changelogs/v1.10.0.md) — 历史版本详细变更文档

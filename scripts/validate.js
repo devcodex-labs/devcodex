@@ -36,6 +36,7 @@
  * V38 README authoring/review governance sync（README 用户视角写作、专项 review、targeted test 与消费者链）
  * V39 Governance improvement intake sync（全模式主动优化清单、统一回执、PI/PF 联动与强制探针）
  * V40 Profile local config sync（config.local schema、env 引用、受控扩展位与本地 overlay 消费链）
+ * V41 Requirement runtime artifact structure sync（recent requirements 的 01/04/05 运行时结构探针）
  *
  * Exit: 0=OK, 1=error, 2=warnings only
  */
@@ -46,6 +47,10 @@ const os = require('os')
 const path = require('path')
 const crypto = require('crypto')
 const { execSync, execFileSync } = require('child_process')
+const {
+  RECENT_REQUIREMENT_ARTIFACT_DAYS,
+  collectRecentRequirementArtifactIssues
+} = require('./lib/requirement-artifact-check')
 
 const ROOT = path.resolve(__dirname, '..')
 const WORKSPACE_ROOT = path.dirname(ROOT)
@@ -2344,6 +2349,19 @@ function checkV40() {
   console.log('[V40] profile local config sync checked')
 }
 
+function checkV41() {
+  const { checkedDirs, issues } = collectRecentRequirementArtifactIssues({
+    activeRoot: ACTIVE_DEVCODEX_ROOT,
+    recentDays: RECENT_REQUIREMENT_ARTIFACT_DAYS
+  })
+
+  for (const issue of issues) {
+    err(`[V41] ${issue}`)
+  }
+
+  console.log(`[V41] requirement runtime artifact structure checked: ${checkedDirs.length} dirs`)
+}
+
 function checkV29() {
   const probes = [
     {
@@ -2597,6 +2615,7 @@ checkV37()
 checkV38()
 checkV39()
 checkV40()
+checkV41()
 
 console.log('')
 if (errors.length) {

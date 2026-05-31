@@ -29,10 +29,17 @@ data/
 
 ## init 行为
 
-`devcodex init` / `devcodex init --claude` 将 `data/templates/*.md` 复制到目标项目的运行时数据目录：
+`devcodex init`、`devcodex init --claude` 与 `devcodex init --codex` 都必须先在目标项目的 **active-root** bootstrap 运行时台账模板：
+
+- 旧布局：`<项目根>/.devcodex/data/*.md`
+- workspace-namespace 单项目：`<工作区根>/.devcodex/<project>/data/*.md`
+- workspace-namespace 全工作区：`<工作区根>/.devcodex/workspace/data/*.md`
+
+同时，默认 `init` / `init --claude` 仍会把模板副本分发到宿主部署目录，作为随 adapter 下发的辅助副本：
 
 - Copilot：`.github/data/*.md`
 - Claude Code：`.claude/data/*.md`
+- Codex：不分发 `.codex/data/`，运行时只认 active-root `data/*.md`
 - 规范正文中写 `data/*.md` 时，表示目标项目运行时台账的逻辑路径，不表示源仓根 `data/` 保存真实记录。
 
 ## 路径语义

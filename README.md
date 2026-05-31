@@ -67,6 +67,8 @@ export NODE_AUTH_TOKEN=YOUR_GITHUB_PAT
 
 这里的环境变量仅用于 GitHub Packages 认证密钥，不代表项目里的普通配置默认都应 env 化；非敏感、本地、测试或一次性脚本配置优先保持最简单、可直接读懂的写法。
 
+> 当前安装包通过 **GitHub Packages** 分发；在执行 `npm install @vextjs/devcodex` 之前，必须先完成上述 registry 与 `NODE_AUTH_TOKEN` 认证配置。
+
 ### 2. 安装并初始化
 
 ```bash
@@ -360,7 +362,7 @@ DevCodex Hook runtime 不再把所有拦截都等同为“停止”。拦截会�
 
 DevCodex 的 `plugin.json` 声明 `tier: "free"`，所有 Skill 均标注 `tier: "free"`。这些 tier 字段是**面向未来的 prompt-level 声明**（供 `token-check` Skill 在 Agent 侧做软门控），**CLI 不做任何授权校验**：
 
-- `npm install @vextjs/devcodex` 与 `devcodex init/update/status` 对所有用户完全开放
+- CLI 本身不做额外 license/tier 授权校验；但当前安装包通过 GitHub Packages 分发，读取包仍需要有效的 registry/认证配置
 - 未来接入服务端 token 校验时，tier 字段才会生效
 - 当前阶段 tier 仅作为规划信息，不影响功能使用
 

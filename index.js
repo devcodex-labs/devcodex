@@ -115,11 +115,35 @@ function resolveGitignoreRoot(cwd) {
   return layout.enabled ? layout.workspaceRoot : cwd
 }
 
+function ensureRuntimeDataTemplates(runtimeRoot, dryRun) {
+  const templatesDir = path.join(PKG_ROOT, 'data', 'templates')
+  if (!fs.existsSync(templatesDir)) return 0
+
+  const dataDir = path.join(runtimeRoot, 'data')
+  const templateFiles = walkDir(templatesDir).filter(file => path.extname(file).toLowerCase() === '.md')
+  let created = 0
+
+  if (!dryRun) fs.mkdirSync(dataDir, { recursive: true })
+  for (const templateFile of templateFiles) {
+    const relative = path.relative(templatesDir, templateFile)
+    const destFile = path.join(dataDir, relative)
+    if (fs.existsSync(destFile)) continue
+    if (!dryRun) {
+      fs.mkdirSync(path.dirname(destFile), { recursive: true })
+      fs.copyFileSync(templateFile, destFile)
+    }
+    created++
+  }
+
+  return created
+}
+
 function ensureRuntimeDirs(cwd, dryRun) {
   if (dryRun) return resolveActiveRuntimeRoot(cwd)
   const runtimeRoot = resolveActiveRuntimeRoot(cwd)
   fs.mkdirSync(path.join(runtimeRoot, '.memory'), { recursive: true })
   fs.mkdirSync(path.join(runtimeRoot, '.audit-state'), { recursive: true })
+  ensureRuntimeDataTemplates(runtimeRoot, dryRun)
   return runtimeRoot
 }
 

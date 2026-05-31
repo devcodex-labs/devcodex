@@ -23,8 +23,9 @@ description: 发布验证规范 — 覆盖版本、changelog、测试、pack、i
 | R0 | 确认目标版本、SemVer、tag 和 registry 唯一性 |
 | R1 | 将 `changelogs/unreleased.md` 归档到 `changelogs/vX.Y.Z.md`，并更新根 `CHANGELOG.md` |
 | R2 | 同步 `package.json`、`package-lock.json`、`plugin.json`、Profile/README/website 版本口径 |
-| R3 | 执行 `npm test` 和 `npm run test:all` |
-| R4 | 执行 `npm publish --dry-run --access restricted` 或等价 pack dry-run |
+| R3 | 执行 `npm test`（默认全链）|
+| R3b | 执行 `npm run test:audit`，并完成 package completeness gate（`description`、`keywords`、`repository`、`homepage`、`bugs`、`license`、`files/exports/bin`、`publishConfig`、`engines`、`plugin.json` 元数据） |
+| R4 | 执行 `npm pack --dry-run` 与 `npm publish --dry-run`（遵循当前 `publishConfig`） |
 | R5 | 条件执行 pack install smoke |
 | R6 | commit/tag/push/publish 前输出确认，真实发布动作必须等待用户明确确认 |
 | R7 | 发布后验证 git tag、registry 版本、安装包边界和 `node scripts/validate.js` |
@@ -35,6 +36,8 @@ description: 发布验证规范 — 覆盖版本、changelog、测试、pack、i
 - 不把 `publish`、`push`、`tag` 设计为无确认自动动作。
 - tag 或 registry 已存在时必须阻断发布动作。
 - 发布失败时写报告和恢复路径，不静默重试凭据相关动作。
+- 若 `publishConfig` 指向 GitHub Packages / restricted access，README 与安装文档必须显式保留认证步骤，禁止再宣称“匿名直接安装”。
+- `prepublishOnly` 必须强制跑完整 release gate（至少 `npm run test:all:with-audit`）。
 
 ## 输出格式
 
@@ -47,6 +50,7 @@ description: 发布验证规范 — 覆盖版本、changelog、测试、pack、i
 | R1 | ✅/⚠️/N/A | |
 | R2 | ✅/⚠️/N/A | |
 | R3 | ✅/⚠️/N/A | |
+| R3b | ✅/⚠️/N/A | package completeness gate |
 | R4 | ✅/⚠️/N/A | |
 | R5 | ✅/⚠️/N/A | |
 | R6 | ✅/⚠️/N/A | |
@@ -55,4 +59,4 @@ description: 发布验证规范 — 覆盖版本、changelog、测试、pack、i
 
 ## 报告要求
 
-正式发布报告必须包含 ReleaseVerification R0~R7 状态、失败恢复路径、发布后 registry/tag 验收证据和关联 commit/tag。
+正式发布报告必须包含 ReleaseVerification R0~R7 状态、`R3b` package completeness gate 证据、失败恢复路径、发布后 registry/tag 验收证据和关联 commit/tag。

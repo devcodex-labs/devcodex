@@ -28,7 +28,7 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 | Hook / MCP / CLI | `npm test`、相关 targeted test、`npm run test:all` | `host-contract-verification`、direct replay、fixture replay、dry-run |
 | 对外 HTTP API | `api-verification` 生成 `.http + .cjs` | 项目集成/E2E |
 | 前端体验 | lint/typecheck/test | Browser/截图验证 |
-| 发布 / package | `release-verification`、pack dry-run | pack install smoke |
+| 发布 / package | `release-verification`、`npm run test:audit`、package completeness gate、pack dry-run | pack install smoke、publish dry-run |
 
 ## 输出格式
 

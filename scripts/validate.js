@@ -37,6 +37,7 @@
  * V39 Governance improvement intake sync（全模式主动优化清单、统一回执、PI/PF 联动与强制探针）
  * V40 Profile local config sync（config.local schema、env 引用、受控扩展位与本地 overlay 消费链）
  * V41 Requirement runtime artifact structure sync（recent requirements 的 01/04/05 运行时结构探针）
+ * V42 Release gate + package completeness sync（test:audit、metadata gate、prepublishOnly、pack forbidden 与 GitHub Packages 文档边界）
  *
  * Exit: 0=OK, 1=error, 2=warnings only
  */
@@ -287,6 +288,7 @@ function checkV6() {
         /violations\.md$/i.test(f) ||
         /pending-fixes\.md$/i.test(f) ||
         /process-improvements\.md$/i.test(f) ||
+        /pending-issues\.md$/i.test(f) ||
         /gap-registry\.md$/i.test(f)) &&
       !f.startsWith('data/templates/')
     )
@@ -2362,6 +2364,77 @@ function checkV41() {
   console.log(`[V41] requirement runtime artifact structure checked: ${checkedDirs.length} dirs`)
 }
 
+function checkV42() {
+  const pkg = JSON.parse(read(path.join(ROOT, 'package.json')))
+  const scripts = pkg.scripts || {}
+  const releaseSkill = read(path.join(ROOT, 'skills', 'release-verification', 'SKILL.md'))
+  const releaseGuide = read(path.join(ROOT, 'website', 'docs', 'guide', 'release.md'))
+  const readme = read(path.join(ROOT, 'README.md'))
+  const testRouter = read(path.join(ROOT, 'skills', 'test-router', 'SKILL.md'))
+
+  const scriptExpectations = [
+    ['test', 'npm run test:core'],
+    ['test', 'node scripts/test-release-metadata.js'],
+    ['test:all', 'npm test'],
+    ['test:all:with-audit', 'npm run test:audit'],
+    ['test:release-metadata', 'node scripts/test-release-metadata.js'],
+    ['prepublishOnly', 'npm run test:all:with-audit']
+  ]
+  for (const [scriptName, needle] of scriptExpectations) {
+    const value = scripts[scriptName] || ''
+    if (!value.includes(needle)) {
+      err(`[V42] package.json script ${scriptName} missing "${needle}"`)
+    }
+  }
+
+  for (const needle of [
+    'R3b',
+    'npm run test:audit',
+    'package completeness gate',
+    'keywords',
+    'publishConfig',
+    'prepublishOnly'
+  ]) {
+    if (!releaseSkill.includes(needle)) {
+      err(`[V42] release-verification skill missing "${needle}"`)
+    }
+  }
+
+  for (const needle of [
+    'R3b',
+    'npm run test:audit',
+    'package completeness gate',
+    'keywords',
+    'publishConfig',
+    'GitHub Packages'
+  ]) {
+    if (!releaseGuide.includes(needle)) {
+      err(`[V42] website release guide missing "${needle}"`)
+    }
+  }
+
+  for (const needle of [
+    'release-verification',
+    'npm run test:audit',
+    'package completeness gate',
+    'publish dry-run'
+  ]) {
+    if (!testRouter.includes(needle)) {
+      err(`[V42] test-router missing "${needle}"`)
+    }
+  }
+
+  if ((pkg.publishConfig?.registry || '').includes('npm.pkg.github.com') || pkg.publishConfig?.access === 'restricted') {
+    for (const needle of ['GitHub Packages', 'npm.pkg.github.com', 'NODE_AUTH_TOKEN']) {
+      if (!readme.includes(needle)) {
+        err(`[V42] README missing GitHub Packages install boundary "${needle}"`)
+      }
+    }
+  }
+
+  console.log('[V42] release gate / package completeness sync checked')
+}
+
 function checkV29() {
   const probes = [
     {
@@ -2616,6 +2689,7 @@ checkV38()
 checkV39()
 checkV40()
 checkV41()
+checkV42()
 
 console.log('')
 if (errors.length) {

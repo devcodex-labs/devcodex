@@ -7,8 +7,9 @@
     "devcodex": "index.js"
   },
   "scripts": {
-    "test": "node scripts/validate-versions.js && node scripts/validate.js",
-    "test:all": "npm test && node scripts/test-spec-governance.js && node scripts/test-governance-intake.js && node scripts/test-validate-profile.js && node scripts/test-readme-governance.js && node scripts/test-requirement-artifacts.js && node scripts/test-hooks-runtime.js && node scripts/test-instruction-fallback-check.js && node scripts/test-mcp-servers.js && node scripts/test-migrate-layout.js && node scripts/test-cli-behavior.js && node scripts/test-pack-clean.js && npm --prefix website run build && node scripts/check-syntax.js",
+    "test": "npm run test:core && node scripts/test-spec-governance.js && node scripts/test-governance-intake.js && node scripts/test-validate-profile.js && node scripts/test-readme-governance.js && node scripts/test-requirement-artifacts.js && node scripts/test-hooks-runtime.js && node scripts/test-instruction-fallback-check.js && node scripts/test-mcp-servers.js && node scripts/test-migrate-layout.js && node scripts/test-cli-behavior.js && node scripts/test-release-metadata.js && node scripts/test-pack-clean.js && npm --prefix website run build && node scripts/check-syntax.js",
+    "test:all": "npm test",
+    "test:core": "node scripts/validate-versions.js && node scripts/validate.js",
     "test:all:with-audit": "npm run test:all && npm run test:audit",
     "test:audit": "npm audit --omit=dev && npm --prefix website audit --omit=dev",
     "test:cli-behavior": "node scripts/test-cli-behavior.js",
@@ -20,9 +21,11 @@
     "test:profile-governance": "node scripts/test-validate-profile.js",
     "test:readme-governance": "node scripts/test-readme-governance.js",
     "test:requirement-artifacts": "node scripts/test-requirement-artifacts.js",
+    "test:release-metadata": "node scripts/test-release-metadata.js",
     "test:governance-intake": "node scripts/test-governance-intake.js",
     "test:spec-governance": "node scripts/test-spec-governance.js",
-    "validate": "node scripts/validate.js"
+    "validate": "node scripts/validate.js",
+    "prepublishOnly": "npm run test:all:with-audit"
   },
   "keywords": [
     "copilot",

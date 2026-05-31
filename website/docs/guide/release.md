@@ -100,4 +100,10 @@ DevCodex 采用“双阶段发布 + 三层日志”：
 3. 将 `changelogs/unreleased.md` 中待发布条目归档到 `changelogs/vX.Y.Z.md`
 4. 更新根 `CHANGELOG.md`
 5. 更新 `package.json` version 字段为正式版本号
-6. 按 `release-verification` Skill 执行 R0~R7：dirty 边界、版本一致性、changelog 归档、validate/test、pack/publish dry-run、tag/publish、发布后验收
+6. 按 `release-verification` Skill 执行 R0~R7：
+   - `R3`：执行 `npm test`（默认全链）
+   - `R3b`：执行 `npm run test:audit` + package completeness gate（`description`、`keywords`、`repository`、`homepage`、`bugs`、`license`、`files/exports/bin`、`publishConfig`、`engines`、`plugin.json`）
+   - `R4`：执行 `npm pack --dry-run` 与 `npm publish --dry-run`
+   - `R5~R7`：按需做 install smoke、tag/publish 前确认与发布后验收
+
+> 当前 `publishConfig` 指向 GitHub Packages；发布相关文档必须保留 `.npmrc` / `NODE_AUTH_TOKEN` 认证说明，除非后续明确切换到公共 registry。

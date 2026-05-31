@@ -85,8 +85,13 @@ const pkg = JSON.parse(read('package.json'))
 if (pkg.scripts['test:readme-governance'] !== 'node scripts/test-readme-governance.js') {
   failures.push('package.json missing test:readme-governance script')
 }
-if (!pkg.scripts['test:all'] || !pkg.scripts['test:all'].includes('node scripts/test-readme-governance.js')) {
-  failures.push('package.json test:all missing readme governance targeted test')
+const testAllScript = pkg.scripts['test:all'] || ''
+const testScript = pkg.scripts.test || ''
+const readmeGovernanceCovered =
+  testAllScript.includes('node scripts/test-readme-governance.js') ||
+  (testAllScript.trim() === 'npm test' && testScript.includes('node scripts/test-readme-governance.js'))
+if (!readmeGovernanceCovered) {
+  failures.push('package.json test/test:all missing readme governance targeted test')
 }
 
 if (failures.length) {

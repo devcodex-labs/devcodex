@@ -13,6 +13,7 @@ const forbidden = [
   /data\/violations\.md/,
   /data\/pending-fixes\.md/,
   /data\/process-improvements\.md/,
+  /data\/pending-issues\.md/,
   /data\/gap-registry\.md/,
   /schema-dsl/i,
   /vext-test/i,

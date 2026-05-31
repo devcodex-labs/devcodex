@@ -105,6 +105,12 @@ function buildClaudeProject(root) {
   })
 }
 
+function assertRuntimeDataBootstrap(runtimeRoot) {
+  for (const name of ['violations.md', 'pending-fixes.md', 'pending-issues.md', 'process-improvements.md', 'gap-registry.md']) {
+    assert.ok(fs.existsSync(path.join(runtimeRoot, 'data', name)), `missing runtime data file: ${name}`)
+  }
+}
+
 function assertClaudeMergeState(root, { claudeMdManaged }) {
   const settings = readJson(root, '.claude/settings.json')
   const mcp = readJson(root, '.mcp.json')
@@ -190,6 +196,27 @@ function testDoctorAvoidsCodexBiasInMixedHostRepo() {
   fs.rmSync(root, { recursive: true, force: true })
 }
 
+function testDefaultInitBootstrapsActiveRootData() {
+  const root = createTempRoot('devcodex-cli-runtime-data-')
+  writeFile(root, 'package.json', '{ "name": "tmp-runtime-data" }\n')
+
+  runCli(['init'], root)
+
+  assertRuntimeDataBootstrap(path.join(root, '.devcodex'))
+  fs.rmSync(root, { recursive: true, force: true })
+}
+
+function testCodexInitBootstrapsWorkspaceNamespaceData() {
+  const root = createTempRoot('devcodex-cli-codex-data-')
+  writeJson(root, '.devcodex/layout.json', { version: 1, mode: 'workspace-namespace' })
+  writeFile(root, 'packages/app-a/package.json', '{ "name": "app-a" }\n')
+
+  runCli(['init', '--codex'], path.join(root, 'packages', 'app-a'))
+
+  assertRuntimeDataBootstrap(path.join(root, '.devcodex', 'packages', 'app-a'))
+  fs.rmSync(root, { recursive: true, force: true })
+}
+
 function testProfileInitUsesNestedNamespaceRoot() {
   const root = createTempRoot('devcodex-cli-profile-')
   writeJson(root, '.devcodex/layout.json', { version: 1, mode: 'workspace-namespace' })
@@ -210,6 +237,8 @@ function main() {
   testClaudeInitPreservesCustomConfig()
   testClaudeUpdateBacksUpAndPreservesCustomConfig()
   testDoctorAvoidsCodexBiasInMixedHostRepo()
+  testDefaultInitBootstrapsActiveRootData()
+  testCodexInitBootstrapsWorkspaceNamespaceData()
   testProfileInitUsesNestedNamespaceRoot()
   process.stdout.write('cli behavior test passed\n')
 }

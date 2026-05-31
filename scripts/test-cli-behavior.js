@@ -111,6 +111,26 @@ function assertRuntimeDataBootstrap(runtimeRoot) {
   }
 }
 
+function assertCodexAdapterState(root) {
+  const sourceInstructions = fs.readFileSync(path.join(ROOT, 'instructions.md'), 'utf8')
+  const agentsMd = fs.readFileSync(path.join(root, 'AGENTS.md'), 'utf8')
+  const hooks = readJson(root, '.codex/hooks.json')
+  const sourceSkillFiles = walk(path.join(ROOT, 'skills')).filter(file => path.basename(file) === 'SKILL.md')
+  const installedSkillFiles = walk(path.join(root, '.agents', 'skills')).filter(file => path.basename(file) === 'SKILL.md')
+
+  assert.strictEqual(agentsMd, sourceInstructions)
+  assert.strictEqual(installedSkillFiles.length, sourceSkillFiles.length)
+  assert.ok(fs.existsSync(path.join(root, '.agents', 'skills', 'routing', 'SKILL.md')))
+  assert.ok(fs.existsSync(path.join(root, '.codex', 'hooks', '_runtime', 'lifecycle.cjs')))
+
+  for (const eventName of ['PreToolUse', 'UserPromptSubmit', 'PostToolUse', 'Stop']) {
+    const entries = hooks.hooks?.[eventName]
+    assert.ok(Array.isArray(entries) && entries.length > 0, `missing Codex hook event: ${eventName}`)
+    const commands = JSON.stringify(entries)
+    assert.ok(commands.includes('node ./.codex/hooks/_runtime/lifecycle.cjs'), `unexpected hook command for ${eventName}`)
+  }
+}
+
 function assertClaudeMergeState(root, { claudeMdManaged }) {
   const settings = readJson(root, '.claude/settings.json')
   const mcp = readJson(root, '.mcp.json')
@@ -149,6 +169,7 @@ function testClaudeInitPreservesCustomConfig() {
 
   runCli(['init', '--claude'], root)
   assertClaudeMergeState(root, { claudeMdManaged: false })
+  assertRuntimeDataBootstrap(path.join(root, '.devcodex'))
 
   const backupRoot = path.join(root, '.devcodex', '.tmp', 'backups')
   assert.strictEqual(findBackups(backupRoot, 'CLAUDE.md').length, 0)
@@ -164,6 +185,7 @@ function testClaudeUpdateBacksUpAndPreservesCustomConfig() {
 
   runCli(['update', '--claude'], root)
   assertClaudeMergeState(root, { claudeMdManaged: true })
+  assertRuntimeDataBootstrap(path.join(root, '.devcodex'))
 
   const backupRoot = path.join(root, '.devcodex', '.tmp', 'backups')
   assert.ok(findBackups(backupRoot, 'CLAUDE.md').length >= 1)
@@ -217,6 +239,51 @@ function testCodexInitBootstrapsWorkspaceNamespaceData() {
   fs.rmSync(root, { recursive: true, force: true })
 }
 
+function testCodexInitBacksUpManagedFiles() {
+  const root = createTempRoot('devcodex-cli-codex-init-')
+  writeFile(root, 'package.json', '{ "name": "tmp-codex-init" }\n')
+  writeFile(root, 'AGENTS.md', '# custom agents instructions\n')
+  writeJson(root, '.codex/hooks.json', {
+    hooks: {
+      Stop: [{ hooks: [{ type: 'command', command: 'echo custom-stop' }] }]
+    }
+  })
+
+  runCli(['init', '--codex'], root)
+
+  assertCodexAdapterState(root)
+  assertRuntimeDataBootstrap(path.join(root, '.devcodex'))
+
+  const backupRoot = path.join(root, '.devcodex', '.tmp', 'backups')
+  assert.ok(findBackups(backupRoot, 'AGENTS.md').length >= 1)
+  assert.ok(findBackups(backupRoot, 'hooks.json').length >= 1)
+
+  fs.rmSync(root, { recursive: true, force: true })
+}
+
+function testCodexUpdateRefreshesAdapterInWorkspaceNamespace() {
+  const root = createTempRoot('devcodex-cli-codex-update-')
+  writeJson(root, '.devcodex/layout.json', { version: 1, mode: 'workspace-namespace' })
+  writeFile(root, 'packages/app-a/package.json', '{ "name": "app-a" }\n')
+  writeFile(root, 'packages/app-a/AGENTS.md', '# stale codex agent\n')
+  writeJson(root, 'packages/app-a/.codex/hooks.json', {
+    hooks: {
+      UserPromptSubmit: [{ hooks: [{ type: 'command', command: 'echo stale-command' }] }]
+    }
+  })
+
+  runCli(['update', '--codex'], path.join(root, 'packages', 'app-a'))
+
+  assertCodexAdapterState(path.join(root, 'packages', 'app-a'))
+  assertRuntimeDataBootstrap(path.join(root, '.devcodex', 'packages', 'app-a'))
+
+  const backupRoot = path.join(root, '.devcodex', 'packages', 'app-a', '.tmp', 'backups')
+  assert.ok(findBackups(backupRoot, 'AGENTS.md').length >= 1)
+  assert.ok(findBackups(backupRoot, 'hooks.json').length >= 1)
+
+  fs.rmSync(root, { recursive: true, force: true })
+}
+
 function testProfileInitUsesNestedNamespaceRoot() {
   const root = createTempRoot('devcodex-cli-profile-')
   writeJson(root, '.devcodex/layout.json', { version: 1, mode: 'workspace-namespace' })
@@ -239,6 +306,8 @@ function main() {
   testDoctorAvoidsCodexBiasInMixedHostRepo()
   testDefaultInitBootstrapsActiveRootData()
   testCodexInitBootstrapsWorkspaceNamespaceData()
+  testCodexInitBacksUpManagedFiles()
+  testCodexUpdateRefreshesAdapterInWorkspaceNamespace()
   testProfileInitUsesNestedNamespaceRoot()
   process.stdout.write('cli behavior test passed\n')
 }

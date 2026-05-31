@@ -48,7 +48,7 @@ description: 定义意图识别结果到工作流的路由映射。本 Skill 为
 | audit | 需求文档 | `skills/audit-requirements/SKILL.md` |
 | audit | 项目工程 | `skills/audit-project/SKILL.md` |
 | audit | 报告 | `skills/audit-report/SKILL.md` |
-| audit | 通用文档 | `skills/audit-document/SKILL.md` |
+| audit | 通用文档 | `skills/audit-document/SKILL.md`（README / 用户使用文档额外叠加 `skills/audit-readme/SKILL.md`） |
 
 ## 特殊路由规则
 

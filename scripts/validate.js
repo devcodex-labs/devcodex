@@ -2435,6 +2435,46 @@ function checkV42() {
   console.log('[V42] release gate / package completeness sync checked')
 }
 
+function checkV43() {
+  const probes = [
+    {
+      file: 'README.md',
+      needles: ['devcodex doctor', 'devcodex help', '## 常见问题与排错', 'DEVCODEX_HOOK_ENFORCEMENT', 'MCP 边界']
+    },
+    {
+      file: 'agents/README.md',
+      needles: ['plugin.json', 'DevCodex 内部注册表', '.agent.md']
+    },
+    {
+      file: 'instructions/01-common.instructions.md',
+      needles: ['audit-readme', 'README / 用户使用文档额外叠加']
+    },
+    {
+      file: 'instructions/12-audit.instructions.md',
+      needles: ['audit-readme', 'README / 用户使用文档不单独开新的第 7 类审查目标']
+    },
+    {
+      file: 'skills/routing/SKILL.md',
+      needles: ['audit-readme', 'README / 用户使用文档额外叠加']
+    },
+    {
+      file: 'website/docs/guide/development.md',
+      needles: ['devcodex doctor', 'DEVCODEX_HOOK_ENFORCEMENT', '.mcp.json']
+    }
+  ]
+
+  for (const probe of probes) {
+    const content = read(path.join(ROOT, probe.file))
+    for (const needle of probe.needles) {
+      if (!content.includes(needle)) {
+        err(`[V43] host docs / README audit route drift in ${probe.file}: missing "${needle}"`)
+      }
+    }
+  }
+
+  console.log('[V43] host docs / README audit route sync checked')
+}
+
 function checkV29() {
   const probes = [
     {
@@ -2690,6 +2730,7 @@ checkV39()
 checkV40()
 checkV41()
 checkV42()
+checkV43()
 
 console.log('')
 if (errors.length) {

@@ -38,3 +38,9 @@
 ## 与 Instructions 路径的关系
 
 Agent 路径与默认 copilot-instructions 路径**两者规则完全一致**，由 IDE 决定实际生效方式（参见 `RULES.md §双入口加载机制`）。选择 Agent 路径不会改变 Instructions 的优先级与加载顺序。
+
+## 与 `plugin.json` 的边界
+
+- `agents/*.agent.md` 是 **Copilot 兼容的显式 Agent 入口**，解决的是“用户如何显式选择 `@devcodex` / `@devcodex-auto`”。
+- `plugin.json` 是 **DevCodex 内部注册表**：用于描述 skills / instructions / prompts / agents 的分发与打包元数据，不是 Copilot、Claude Code 或 Codex 直接读取的 Agent 入口文件。
+- 维护时若看到两处都提到 Agent，不应混为同一层：`.agent.md` 负责“入口体验”，`plugin.json` 负责“包内清单与元数据”。

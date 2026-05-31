@@ -184,6 +184,8 @@ AGENTS.md                 ← 与 instructions.md / copilot-instructions.md / CL
 | `devcodex migrate-layout apply --manifest <path>` | 按 manifest 执行集中布局切换 |
 | `devcodex migrate-layout rollback --manifest <path>` | 回滚集中布局迁移 |
 | `devcodex status` | 状态：检查已安装的组件 |
+| `devcodex doctor` | 诊断当前宿主、Agent、Hook、Profile 与记忆状态 |
+| `devcodex help` | 查看 CLI 子命令与选项帮助 |
 | `devcodex init --dry-run` | 预览模式：仅显示将复制的文件 |
 
 ## `.devcodex` 工作区集中布局（v1.10.0+）
@@ -305,6 +307,16 @@ README / 用户使用文档当前补充两类专项 Skill：`readme-authoring` �
 > **安装命令**：默认三宿主部署 → `npx @vextjs/devcodex init`；仅 Claude Code adapter → `npx @vextjs/devcodex init --claude`（v1.9.0+）；仅 Codex adapter → `npx @vextjs/devcodex init --codex`。
 >
 > **能力差异**：🟢 Full = 已验证 Hook 事件 + MCP + 自动同步；🟡 Beta/Best-effort = 尚未达到 Full，具体能力以矩阵各列为准；🔴 Unsupported = 不在当前本地 adapter 发布范围。默认 `safety-only` 下，bootstrap / CP / auto 白名单等流程问题为提醒并继续，仅危险命令硬拦；设置 `DEVCODEX_HOOK_ENFORCEMENT=strict` 后，支持硬拦的事件才会停止流程。
+>
+> **MCP 边界**：`.mcp.json` 是 Claude Code adapter 的自动写入文件；DevCodex 当前不会为 Copilot 或 Codex 自动写入 MCP manifest。若 Copilot / Codex 宿主后续支持本地 MCP，请按宿主能力手工配置，再用 `devcodex doctor` 或宿主自带诊断命令核对状态。
+
+## 运行时配置
+
+| 配置项 | 默认值 | 说明 |
+|--------|--------|------|
+| `DEVCODEX_HOOK_ENFORCEMENT` | `safety-only` | `safety-only` 只对危险命令硬拦，流程类问题提醒放行；`strict` 会对宿主支持硬拦的事件启用更严格的 runtime 阻断 |
+
+> 建议：默认先保持 `safety-only`；只有在团队已验证宿主 Hook 事件覆盖度后，再切到 `strict`。
 
 ### Hook 拦截动作语义
 
@@ -318,6 +330,24 @@ DevCodex Hook runtime 不再把所有拦截都等同为“停止”。拦截会�
 | `log_only` | 仅审计记录 | 不打断流程，用于已确认危险命令、状态变更等可追溯事件 |
 
 > 宿主输出契约：Claude Code 与 Codex 的非工具事件不复用工具级 `hookSpecificOutput.permissionDecision`。Codex `Stop/UserPromptSubmit` 使用顶层 `decision:"block"`，`PreCompact` 使用 `continue:false`；工具调用拦截才使用 `permissionDecision`。
+
+## 常见问题与排错
+
+1. **Hook 没生效 / 规则看起来没加载**
+   - 先运行 `devcodex doctor`
+   - 再核对当前宿主是否真的支持本地 Hook 硬拦，以及目标项目是否已重新打开会话
+2. **Profile 没加载或 workspace-namespace 路径不对**
+   - 先运行 `devcodex doctor`
+   - 再用 `devcodex help` 查看 `profile init` 和 `migrate-layout` 子命令，核对 `.devcodex/workspace/profile/` 与项目命名空间路径
+3. **Codex / Copilot 想用 MCP**
+   - 先确认宿主本身是否支持本地 MCP
+   - DevCodex 当前只会自动写 Claude Code 的 `.mcp.json`；Codex / Copilot 需要手工配置
+4. **CP 卡住或只看到提醒不拦截**
+   - 先确认当前是否处于 `safety-only`
+   - 如需更严格的流程门禁，再评估是否启用 `DEVCODEX_HOOK_ENFORCEMENT=strict`
+5. **不知道该跑哪个诊断命令**
+   - `devcodex doctor` 看宿主 / Hook / Profile / 记忆状态
+   - `devcodex help` 看 CLI 子命令与参数说明
 
 ## IDE 兼容性
 

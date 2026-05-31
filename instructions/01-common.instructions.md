@@ -167,7 +167,7 @@ applyTo: "**"
 | audit.需求文档 | `audit-common` · `audit-requirements` · `audit-session` |
 | audit.项目工程 | `audit-common` · `audit-project` · `audit-session` |
 | audit.报告 | `audit-common` · `audit-report` · `audit-session` |
-| audit.通用文档 | `audit-common` · `audit-document` · `audit-session` |
+| audit.通用文档 | `audit-common` · `audit-document` · `audit-session`（README / 用户使用文档额外叠加 `audit-readme`） |
 | analyze.default | （Instruction 已完整，无需额外 Skill）|
 | analyze.research | `analyze-research` |
 | self-fix | （Instruction 已完整，无需额外 Skill）|

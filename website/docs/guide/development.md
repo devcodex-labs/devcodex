@@ -154,6 +154,13 @@ Hook / CLI / visible reply / sticky project / workspace guard 相关任务还要
 
 `.devcodex/**/profile/config.local.json` 用于本地私有 overlay：长期连接、env 引用、受控扩展位 `extensions.<namespace>`。它不替代 `config.json`，也不能覆盖 `mode` / `agent` / `pluginVersion`。若项目使用了本地连接别名或扩展位，需在 `01-项目信息.md` 或 Profile README 说明用途、字段语义和使用方式。
 
+### 诊断与排错入口
+
+- `devcodex doctor`：查看当前宿主、Hook、Profile、记忆与 adapter 状态，适合先判断“规则到底有没有加载”
+- `devcodex help`：查看 CLI 子命令与参数，尤其是 `profile init`、`migrate-layout`、`init/update --claude/--codex`
+- `DEVCODEX_HOOK_ENFORCEMENT`：默认 `safety-only`，仅危险命令硬拦；切到 `strict` 前应先确认宿主确实支持对应 Hook 事件
+- `.mcp.json` 目前只由 Claude Code adapter 自动写入；Codex / Copilot 若宿主支持 MCP，需要手工配置，不能把 Claude 的 `.mcp.json` 当成三宿主通用入口
+
 ### 推荐结论与确认交互
 
 分析、审计或执行报告存在多个建议/路径时，必须给出推荐结论与推荐理由；没有后续动作时写明“推荐：无后续动作”。用户确认先抽象为 ConfirmationRequest，再按宿主能力使用按钮、权限提示、Hook 阻断或文本确认 fallback。

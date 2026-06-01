@@ -38,6 +38,10 @@
  * V40 Profile local config sync（config.local schema、env 引用、受控扩展位与本地 overlay 消费链）
  * V41 Requirement runtime artifact structure sync（recent requirements 的 01/04/05 运行时结构探针）
  * V42 Release gate + package completeness sync（test:audit、metadata gate、prepublishOnly、pack forbidden 与 GitHub Packages 文档边界）
+ * V44 Context rehydration / CP3 rollback sync（压缩恢复优先级、Intent Expansion 可见性、执行期 CP3 回退与 ConfirmationRequest 抽象）
+ * V45 Single-source aggregate vs split instructions sync（instructions.md 与 instructions/ 关键概念双向联查）
+ * V46 Tenant example coverage（tenants 示例目录与最小覆盖样例）
+ * V47 Source template hygiene（.npmignore 失效项、assets/hooks 边界说明、codex/ 源模板边界）
  *
  * Exit: 0=OK, 1=error, 2=warnings only
  */
@@ -119,6 +123,15 @@ function checkV1() {
     }
     if (!/^applyTo:\s*["'].+["']/m.test(fm[1])) {
       err(`[V1] Missing applyTo in: ${path.relative(ROOT, f)}`)
+    }
+    if (!/^description:\s*.+/m.test(fm[1])) {
+      err(`[V1] Missing description in: ${path.relative(ROOT, f)}`)
+    }
+    if (!/^priority:\s*P[1-5](?:\.[0-9]+)?/m.test(fm[1])) {
+      err(`[V1] Missing or invalid priority in: ${path.relative(ROOT, f)}`)
+    }
+    if (!/^version:\s*\d+\.\d+\.\d+/m.test(fm[1])) {
+      err(`[V1] Missing or invalid version in: ${path.relative(ROOT, f)}`)
     }
   }
   const skillFiles = walk(path.join(ROOT, 'skills'))
@@ -284,7 +297,7 @@ function checkV6() {
     ].concat([...packageFiles], [...pluginFiles], promptFiles, dataTemplateFiles)
       .filter(file => file && !file.endsWith('/'))
     const forbidden = files.filter(f =>
-      (/^assets\/hooks\//i.test(f) ||
+      ((/^assets\/hooks\//i.test(f) && f !== 'assets/hooks/README.md') ||
         /violations\.md$/i.test(f) ||
         /pending-fixes\.md$/i.test(f) ||
         /process-improvements\.md$/i.test(f) ||
@@ -2475,6 +2488,274 @@ function checkV43() {
   console.log('[V43] host docs / README audit route sync checked')
 }
 
+function checkV44() {
+  const probes = [
+    {
+      file: 'instructions.md',
+      needles: ['dev 模式默认应向用户展示完整 Intent Expansion Card', 'Context Rehydration Contract', '必须暂停执行，回补或重开 CP3']
+    },
+    {
+      file: 'instructions/01-common.instructions.md',
+      needles: ['dev 模式默认', 'Context Rehydration Contract', '回到对应 CP3']
+    },
+    {
+      file: 'instructions/10-dev.instructions.md',
+      needles: ['Intent Expansion 可见性', '执行期 CP3 回退', '回退到 `N4`']
+    },
+    {
+      file: 'instructions/11-fix.instructions.md',
+      needles: ['Intent Expansion 可见性', '执行期 CP3 回退', '不替代 CP3']
+    },
+    {
+      file: 'instructions/15-memory.instructions.md',
+      needles: ['Context Rehydration Contract（记忆侧）', 'SUMMARY.md` 是索引，不是事实源']
+    },
+    {
+      file: 'skills/intent/SKILL.md',
+      needles: ['dev 模式默认向用户展示完整 Card', '先按文件真相源重建 Card']
+    },
+    {
+      file: 'skills/cp-gate/SKILL.md',
+      needles: ['执行期 CP3 回退', '不要求 runtime 逐字输出一个同名对象']
+    },
+    {
+      file: 'skills/dev-default/SKILL.md',
+      needles: ['执行期 CP3 回退（F-26）', '历史能力回归矩阵']
+    },
+    {
+      file: 'skills/fix-default/SKILL.md',
+      needles: ['执行期 CP3 回退', '历史能力回归矩阵']
+    },
+    {
+      file: 'skills/execution-contract/SKILL.md',
+      needles: ['regressionMatrix', '历史能力 → 受影响批次 → 必跑验证 → 失败回滚点']
+    },
+    {
+      file: 'skills/test-router/SKILL.md',
+      needles: ['regressionChecks', '历史能力、必跑验证、对应批次和失败回滚点']
+    },
+    {
+      file: 'hooks/_runtime/lifecycle.cjs',
+      needles: ['CP3_RUNTIME_FILE_THRESHOLD', 'cp-gate-CP3-runtime-threshold', '执行中已触达']
+    },
+    {
+      file: 'scripts/test-hooks-runtime.js',
+      needles: ['bug-5.js', 'cp-gate-CP3-runtime-threshold', 'runtime threshold should not warn before the 5th unique source file']
+    },
+    {
+      file: 'prompts/precheck-status.prompt.md',
+      needles: ['dev 模式默认向用户展示完整 Card', 'Context Rehydration Contract']
+    },
+    {
+      file: 'README.md',
+      needles: ['Context Rehydration Contract', 'dev 模式默认会直接展示完整 Card', '执行期 CP3 回退']
+    },
+    {
+      file: 'website/docs/guide/development.md',
+      needles: ['Context Rehydration Contract', 'dev 模式默认向用户展示完整 Intent Expansion Card', '执行期 CP3 回退']
+    }
+  ]
+
+  for (const probe of probes) {
+    const content = read(path.join(ROOT, probe.file))
+    for (const needle of probe.needles) {
+      if (!content.includes(needle)) {
+        err(`[V44] context rehydration / CP3 rollback drift in ${probe.file}: missing "${needle}"`)
+      }
+    }
+  }
+
+  console.log('[V44] context rehydration / CP3 rollback sync checked')
+}
+
+function checkV45() {
+  const mappings = [
+    {
+      sourceFile: 'instructions.md',
+      sourceNeedle: '唯一的规范源文件',
+      targetFile: 'instructions/01-common.instructions.md',
+      targetNeedle: '单源聚合文件'
+    },
+    {
+      sourceFile: 'instructions.md',
+      sourceNeedle: 'Context Rehydration Contract',
+      targetFile: 'instructions/01-common.instructions.md',
+      targetNeedle: 'Context Rehydration Contract'
+    },
+    {
+      sourceFile: 'instructions.md',
+      sourceNeedle: 'Context Rehydration Contract',
+      targetFile: 'instructions/15-memory.instructions.md',
+      targetNeedle: 'Context Rehydration Contract（记忆侧）'
+    },
+    {
+      sourceFile: 'instructions.md',
+      sourceNeedle: '执行过程中新增范围触发 CP3 条件',
+      targetFile: 'instructions/10-dev.instructions.md',
+      targetNeedle: '执行期 CP3 回退'
+    },
+    {
+      sourceFile: 'instructions.md',
+      sourceNeedle: '执行过程中新增范围触发 CP3 条件',
+      targetFile: 'instructions/11-fix.instructions.md',
+      targetNeedle: '执行期 CP3 回退'
+    }
+  ]
+
+  for (const mapping of mappings) {
+    const source = read(path.join(ROOT, mapping.sourceFile))
+    const target = read(path.join(ROOT, mapping.targetFile))
+    if (!source.includes(mapping.sourceNeedle)) {
+      err(`[V45] source aggregate missing "${mapping.sourceNeedle}" in ${mapping.sourceFile}`)
+    }
+    if (!target.includes(mapping.targetNeedle)) {
+      err(`[V45] split instruction missing "${mapping.targetNeedle}" in ${mapping.targetFile}`)
+    }
+  }
+
+  console.log('[V45] single-source aggregate vs split instructions sync checked')
+}
+
+function checkV46() {
+  const requiredFiles = [
+    'instructions/tenants/example-tenant/README.md',
+    'instructions/tenants/example-tenant/10-dev.instructions.md'
+  ]
+
+  for (const file of requiredFiles) {
+    if (!fs.existsSync(path.join(ROOT, file))) {
+      err(`[V46] missing tenant example file: ${file}`)
+    }
+  }
+
+  mustInclude('instructions/tenants/README.md', 'example-tenant', 'tenant README example directory')
+  mustInclude('instructions/tenants/README.md', '10-dev.instructions.md', 'tenant README example file')
+  mustInclude('instructions/tenants/example-tenant/README.md', '示例租户', 'tenant example README')
+  mustInclude('instructions/tenants/example-tenant/10-dev.instructions.md', '局部覆盖示例', 'tenant example override')
+
+  console.log('[V46] tenant example coverage checked')
+}
+
+function checkV47() {
+  const npmignore = read(path.join(ROOT, '.npmignore'))
+  if (npmignore.includes('tests/')) {
+    err('[V47] .npmignore still contains stale "tests/" exclusion; tests now live under scripts/test-*.js')
+  }
+
+  const assetsHooksReadme = path.join(ROOT, 'assets', 'hooks', 'README.md')
+  if (!fs.existsSync(assetsHooksReadme)) {
+    err('[V47] missing assets/hooks/README.md for source-template boundary explanation')
+  } else {
+    const content = read(assetsHooksReadme)
+    for (const needle of ['Hooks 运行时相关的源码/模板占位目录', '源仓维护说明', '默认不会打包发布']) {
+      if (!content.includes(needle)) {
+        err(`[V47] assets/hooks/README.md missing "${needle}"`)
+      }
+    }
+  }
+
+  const codexReadme = path.join(ROOT, 'codex', 'README.md')
+  if (!fs.existsSync(codexReadme)) {
+    err('[V47] missing codex/README.md for source-template boundary explanation')
+  } else {
+    const content = read(codexReadme)
+    for (const needle of ['源模板目录', '`.codex/hooks.json`', '不是工作区部署副本']) {
+      if (!content.includes(needle)) {
+        err(`[V47] codex/README.md missing "${needle}"`)
+      }
+    }
+  }
+
+  mustInclude('README.md', '不是工作区部署副本 `.codex/`', 'README codex source-template boundary')
+  console.log('[V47] source template hygiene checked')
+}
+
+function checkV48() {
+  const requiredFiles = [
+    'instructions/01a-profile-loading.instructions.md',
+    'instructions/01b-record-router.instructions.md',
+    'instructions/01c-intent-expansion.instructions.md'
+  ]
+
+  for (const file of requiredFiles) {
+    if (!fs.existsSync(path.join(ROOT, file))) {
+      err(`[V48] missing split common instruction file: ${file}`)
+    }
+  }
+
+  const probes = [
+    {
+      file: 'instructions/01-common.instructions.md',
+      needles: [
+        'common-base / 锚点文件',
+        '01a-profile-loading.instructions.md',
+        '01b-record-router.instructions.md',
+        '01c-intent-expansion.instructions.md'
+      ]
+    },
+    {
+      file: 'instructions/01a-profile-loading.instructions.md',
+      needles: [
+        '项目现实扩展（Project Reality Expansion）',
+        '.devcodex/workspace/profile/',
+        'sticky `activeProject`',
+        'workspace base + project overlay',
+        'config.local.json'
+      ]
+    },
+    {
+      file: 'instructions/01b-record-router.instructions.md',
+      needles: [
+        'Improvement Intake（优化清单）',
+        '已记录 PI-xxx',
+        'Commit Subject 简洁化',
+        '未发布变更与提交边界',
+        '官方文档优先级'
+      ]
+    },
+    {
+      file: 'instructions/01c-intent-expansion.instructions.md',
+      needles: [
+        'Intent Expansion Card',
+        '用户可见意图扩展摘要',
+        'Context Rehydration Contract',
+        'Stop 可见回复证据三态',
+        '回到对应 CP3'
+      ]
+    },
+    {
+      file: 'website/docs/specs/directory-structure.md',
+      needles: [
+        '01a-profile-loading.instructions.md',
+        '01b-record-router.instructions.md',
+        '01c-intent-expansion.instructions.md'
+      ]
+    }
+  ]
+
+  for (const probe of probes) {
+    const content = read(path.join(ROOT, probe.file))
+    for (const needle of probe.needles) {
+      if (!content.includes(needle)) {
+        err(`[V48] split common instruction drift in ${probe.file}: missing "${needle}"`)
+      }
+    }
+  }
+
+  const plugin = JSON.parse(read(path.join(ROOT, 'plugin.json')))
+  for (const [id, file] of [
+    ['common-profile-loading', 'instructions/01a-profile-loading.instructions.md'],
+    ['common-record-router', 'instructions/01b-record-router.instructions.md'],
+    ['common-intent-expansion', 'instructions/01c-intent-expansion.instructions.md']
+  ]) {
+    if (!plugin.instructions.some(instruction => instruction.id === id && instruction.file === file)) {
+      err(`[V48] plugin.json missing split instruction entry ${id}`)
+    }
+  }
+
+  console.log('[V48] split common instruction structure checked')
+}
+
 function checkV29() {
   const probes = [
     {
@@ -2731,6 +3012,11 @@ checkV40()
 checkV41()
 checkV42()
 checkV43()
+checkV44()
+checkV45()
+checkV46()
+checkV47()
+checkV48()
 
 console.log('')
 if (errors.length) {

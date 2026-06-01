@@ -253,6 +253,21 @@
       "tier": "free"
     },
     {
+      "id": "common-profile-loading",
+      "file": "instructions/01a-profile-loading.instructions.md",
+      "tier": "free"
+    },
+    {
+      "id": "common-record-router",
+      "file": "instructions/01b-record-router.instructions.md",
+      "tier": "free"
+    },
+    {
+      "id": "common-intent-expansion",
+      "file": "instructions/01c-intent-expansion.instructions.md",
+      "tier": "free"
+    },
+    {
       "id": "output-paths",
       "file": "instructions/02-output-paths.instructions.md",
       "tier": "free"

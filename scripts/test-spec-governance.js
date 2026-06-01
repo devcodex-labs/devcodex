@@ -42,12 +42,42 @@ const probes = [
   ['skills/host-contract-verification/SKILL.md', 'visibleReplyEvidence'],
   ['skills/host-contract-verification/SKILL.md', 'workspaceGuard'],
   ['instructions.md', '规范治理生命周期（RecordRouter + SCV）'],
+  ['instructions.md', 'Context Rehydration Contract'],
+  ['instructions.md', 'dev 模式默认应向用户展示完整 Intent Expansion Card'],
   ['instructions.md', 'Improvement Intake（优化清单）'],
   ['instructions.md', '在所有模式下，每条用户消息在完成合理性评估后'],
   ['instructions.md', '你刚才漏了/错了/违反流程了'],
   ['instructions.md', 'VL/PF 关闭前必须具备修复方案'],
+  ['instructions/01-common.instructions.md', '单源聚合文件'],
+  ['instructions/01-common.instructions.md', 'Context Rehydration Contract'],
+  ['instructions/01-common.instructions.md', '01a-profile-loading.instructions.md'],
+  ['instructions/01-common.instructions.md', '01b-record-router.instructions.md'],
+  ['instructions/01-common.instructions.md', '01c-intent-expansion.instructions.md'],
+  ['instructions/01a-profile-loading.instructions.md', '项目现实扩展（Project Reality Expansion）'],
+  ['instructions/01a-profile-loading.instructions.md', '.devcodex/workspace/profile/'],
+  ['instructions/01b-record-router.instructions.md', 'Improvement Intake（优化清单）'],
+  ['instructions/01b-record-router.instructions.md', '已记录 PI-xxx'],
+  ['instructions/01c-intent-expansion.instructions.md', 'Intent Expansion Card'],
+  ['instructions/01c-intent-expansion.instructions.md', 'Context Rehydration Contract'],
+  ['instructions/10-dev.instructions.md', '执行期 CP3 回退'],
+  ['instructions/11-fix.instructions.md', '执行期 CP3 回退'],
+  ['instructions/15-memory.instructions.md', 'Context Rehydration Contract（记忆侧）'],
+  ['skills/dev-default/SKILL.md', '执行期 CP3 回退（F-26）'],
+  ['skills/fix-default/SKILL.md', '执行期 CP3 回退'],
+  ['skills/execution-contract/SKILL.md', 'regressionMatrix'],
+  ['skills/test-router/SKILL.md', 'regressionChecks'],
+  ['instructions/tenants/README.md', 'example-tenant'],
+  ['instructions/tenants/example-tenant/README.md', '示例租户'],
+  ['instructions/tenants/example-tenant/10-dev.instructions.md', '局部覆盖示例'],
+  ['assets/hooks/README.md', 'Hooks 运行时相关的源码/模板占位目录'],
+  ['codex/README.md', '源模板目录'],
+  ['README.md', '不是工作区部署副本 `.codex/`'],
+  ['prompts/precheck-status.prompt.md', 'Context Rehydration Contract'],
   ['instructions/18-spec-radar.instructions.md', 'Intent Detection → RecordRouter'],
   ['instructions/18-spec-radar.instructions.md', 'RecordRouter / Improvement Intake'],
+  ['website/docs/specs/directory-structure.md', '01a-profile-loading.instructions.md'],
+  ['website/docs/specs/directory-structure.md', '01b-record-router.instructions.md'],
+  ['website/docs/specs/directory-structure.md', '01c-intent-expansion.instructions.md'],
   ['instructions/14-self-fix.instructions.md', 'T_RECORD / RecordRouter'],
   ['skills/intent/SKILL.md', 'record.spec-defect'],
   ['data/templates/violations.md', 'record.violation'],
@@ -114,6 +144,16 @@ for (const [id, file] of [
 ]) {
   if (!plugin.skills.some(skill => skill.id === id && skill.file === file)) {
     failures.push(`plugin.json missing ${id} skill entry`)
+  }
+}
+
+for (const [id, file] of [
+  ['common-profile-loading', 'instructions/01a-profile-loading.instructions.md'],
+  ['common-record-router', 'instructions/01b-record-router.instructions.md'],
+  ['common-intent-expansion', 'instructions/01c-intent-expansion.instructions.md']
+]) {
+  if (!plugin.instructions.some(instruction => instruction.id === id && instruction.file === file)) {
+    failures.push(`plugin.json missing ${id} instruction entry`)
   }
 }
 

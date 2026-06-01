@@ -13,6 +13,6 @@ changelogs/
 
 # Dev workspace artifacts — defense-in-depth; primary control is package.json "files" whitelist
 .devcodex/
+assets/hooks/
 scripts/
-tests/
 .github/workflows/

@@ -1,5 +1,8 @@
 ---
 applyTo: "**"
+description: 记忆规则，覆盖 tasks、SUMMARY、需求记忆的读取顺序、写入时机与格式约束
+priority: P5
+version: 1.11.5
 ---
 # 记忆写入规则（15-memory）
 
@@ -63,6 +66,24 @@ applyTo: "**"
 > ⛔ 禁止默认读取超过昨日以前的文件（resume 和用户明确要求除外）
 > ⛔ **禁止静默回退**：resume 意图检测到当前项目无 🔄 任务时，禁止静默选取历史旧任务继续执行；必须明确告知用户当前状态并询问意图。
 > ⚠️ **跨项目 resume**：记忆文件是项目级独立管理的。当用户在不同项目间切换后说"继续"，AI 只能读取当前项目的记忆；若当前项目无 🔄，须主动询问是否需要恢复其他项目的工作，而非猜测。
+
+## Context Rehydration Contract（记忆侧）
+
+压缩恢复、summary 恢复、resume 或用户明确要求“按文件真相重建”时，记忆侧上下文必须按以下优先级参与重建：
+
+1. 当前用户消息
+2. 已确认需求/bug 产物
+3. 当前任务 `sessions.md`
+4. 当日 `tasks/YYYYMMDD.md`
+5. Agent `SUMMARY.md`
+6. compaction / summary 摘要
+7. AI 当前推断
+
+约束：
+
+- `SUMMARY.md` 是索引，不是事实源；不得用 SUMMARY 覆盖当日 tasks 或需求级 sessions。
+- 若 tasks / sessions / 已确认产物与摘要冲突，必须以文件真相源为准，并重建 Intent Expansion Card。
+- 新会话首步的 tasks + SUMMARY 一致性检查（PC7）是 Context Rehydration Contract 的最低执行面，不得省略。
 
 ## 触发规则
 

@@ -107,6 +107,9 @@ DevCodex 当前默认安装面向目标项目分发以下目录和文件：
 │   ├── instructions/                    ← 第二层：全局约束 + 工作流主规则
 │   │   ├── 00-safety.instructions.md
 │   │   ├── 01-common.instructions.md
+│   │   ├── 01a-profile-loading.instructions.md
+│   │   ├── 01b-record-router.instructions.md
+│   │   ├── 01c-intent-expansion.instructions.md
 │   │   ├── 02-output-paths.instructions.md
 │   │   ├── 10-dev.instructions.md       ← dev 工作流
 │   │   ├── 11-fix.instructions.md       ← fix 工作流
@@ -150,6 +153,8 @@ DevCodex 当前默认安装面向目标项目分发以下目录和文件：
 ```
 
 启用 `workspace-namespace` 后，workspace 根的 Profile 路径是 `.devcodex/workspace/profile/`；单项目 Profile 路径是 `.devcodex/<project>/profile/`。多项目 workspace 根缺少 workspace profile 时，Hook warning 必须指向 `.devcodex/workspace/profile/`，不能再提示 legacy `.devcodex/profile/`。
+
+其中 `01-common.instructions.md` 现在作为 common-base / 锚点文件保留跨消费者最短规则，`01a-profile-loading.instructions.md`、`01b-record-router.instructions.md`、`01c-intent-expansion.instructions.md` 承载拆分后的 Profile / RecordRouter / Intent Expansion 细节。
 
 ---
 

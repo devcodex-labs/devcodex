@@ -106,7 +106,9 @@
 - 项目未识别时，不得为了扩展意图而无界扫描工作区；必须先询问用户。
 - PC1 应表达“语义初判 → 项目现实扩展后的最终路由”，PC3 应表达扩展结果与产物落点。
 - 非 chat 工作流在 CP1 / 问题确认前必须形成 Intent Expansion Card：`semantic`、`project`、`continuity`、`action`、`domain`、`artifact-impact`、`risk`、`host-capability`、`validation-route`、`confidence`、`alternatives`，用于 PC1/PC3、CP1 产物、压缩恢复与错路由复盘。
+- dev 模式默认应向用户展示完整 Intent Expansion Card；prod、instruction-fallback 宿主或低风险场景可退化为 3~5 行摘要，但 CP1 / 问题确认产物中仍必须保留完整字段。
 - 当项目现实扩展导致工作流/子类型修正、命中控制面或宿主能力差异、风险不为 normal、`confidence` 非 high，或处于跨会话 resume 时，用户面必须追加 3~5 行“意图扩展摘要”；摘要只写语义初判、扩展后路由、关键风险、验证路线和备选路径，禁止输出调试 JSON。
+- Context Rehydration Contract：压缩恢复、resume、summary 恢复或用户明确要求“按文件真相重建”时，必须按 `当前用户消息 > 已确认需求/bug产物 > 任务 sessions.md > 当日 tasks > Agent SUMMARY > compaction/summary 摘要 > AI 当前推断` 的优先级重建上下文；摘要只能作导航提示，不得覆盖文件真相源。
 - Hook Stop/PreCompact 对入口检查块的可见回复验证必须区分 `verified-present` / `verified-missing` / `unverified` 三态；无法解析最终 assistant 内容时只能提示“无法验证最终用户可见回复”并附 payload capture 指引，禁止断言“未输出”。
 - 当 `<工作区根>/.devcodex/layout.json` 启用 `workspace-namespace` 时，Profile 与运行态目录按**工作区集中命名空间**读取：
   - `config.json`：`<工作区根>/.devcodex/workspace/profile/` 作为 base，`<工作区根>/.devcodex/<project>/profile/` 作为 overlay
@@ -140,7 +142,7 @@
 
 ### ConfirmationRequest 与按钮降级
 
-用户确认语义必须先表示为宿主无关的 `ConfirmationRequest`（`id/kind/severity/question/options/recommendedOption/evidence/fallbackText/auditLogRequired`），再由宿主适配层选择按钮、权限提示、Hook 阻断或文本 fallback。Claude Code SDK / VS Code Chat Extension 等明确支持结构化按钮时可使用按钮；Codex/Claude/Copilot Hooks 以阻断原因和下一步为主；Cursor/JetBrains/repository instructions 使用文本确认 fallback。禁止把按钮 UI 写成全宿主能力。
+用户确认语义必须先表示为宿主无关的 `ConfirmationRequest`（`id/kind/severity/question/options/recommendedOption/evidence/fallbackText/auditLogRequired`），再由宿主适配层选择按钮、权限提示、Hook 阻断或文本 fallback。该抽象是语义层契约，不要求 runtime 产物逐字输出名为 `ConfirmationRequest` 的对象；Claude Code SDK / VS Code Chat Extension 等明确支持结构化按钮时可使用按钮；Codex/Claude/Copilot Hooks 以阻断原因和下一步为主；Cursor/JetBrains/repository instructions 使用文本确认 fallback。禁止把按钮 UI 写成全宿主能力。
 
 ---
 
@@ -235,6 +237,7 @@ CP1（需求确认）→ CP2（方案确认）→ [plan-review] → CP3（实施
 - **CP2**：输出技术方案（架构/文件清单/依赖）→ 等待用户确认
 - **plan-review**：评估计划可行性（CP2 后、CP3 前）
 - **CP3**：条件触发。default/refactor/database/optimization/scenario-test 必须执行；docs/init/plan-review 按子类型规则豁免，并记录 `CP3: N/A（<子类型> 子类型豁免）`。
+- 若执行过程中新增范围触发 CP3 条件（例如最初判断 <5 文件但实际扩展到 ≥5 文件，或新增高风险操作/控制面联动），必须暂停执行，回补或重开 CP3 后再继续。
 - **ECR**：执行完成后、宣告完成前必须执行 ECR 执行闭环复审，覆盖 CP1/CP2/CP3、报告、daily tasks、SUMMARY、diff/commit、测试/探针与 dirty 边界。
 
 > **无 Hooks 宿主软门禁**（v1.9.6+）：当宿主为 `jetbrains-copilot`、`cursor` 或其他 `instruction-fallback` 模式时，`lifecycle.cjs` CP gate 不强制。AI 必须在每个 CP 输出末尾显式追加 `⏸ 等待用户确认（CP{N}）`，收到明确回复前禁止 source mutation 工具调用。
@@ -293,6 +296,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → 执行 →
 - **CP1**：输出问题分析（根因 + 影响范围）→ 等待确认
 - **CP2**：输出修复方案 → 等待确认
 - **CP3**：≥5 文件变更 或 含高风险操作时必须
+- 若执行过程中新增范围触发 CP3 条件（例如实际修改文件数扩展到 ≥5，或修复途中引入高风险/控制面联动），必须暂停执行，先补做 CP3，再继续修复。
 - **ECR**：执行完成并完成修复三步扫描后、宣告完成前必须执行 ECR 执行闭环复审，覆盖 CP1/CP2/CP3、报告、daily tasks、SUMMARY、diff/commit、测试/扫描证据与 dirty 边界。
 
 ### 确认后前置轻量复审

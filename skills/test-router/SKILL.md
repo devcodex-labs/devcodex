@@ -43,6 +43,7 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 | hostVerificationMode | |
 | workspaceGuard | |
 | evidenceSource | |
+| regressionChecks | |
 | skippedChecks | |
 | skipReason | |
 | blockingLevel | |
@@ -53,6 +54,7 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 - 跳过任何常规验证都必须写 `skipReason`、风险和替代验证。
 - API 行为变化不得跳过 `api-verification`。
 - 高风险控制面变更不得只运行单个局部检查；至少执行 validate + targeted tests + SCV。
+- 高风险控制面 / 多批次修复必须写出 `regressionChecks`：逐项列出历史能力、必跑验证、对应批次和失败回滚点。
 - 宿主契约、visible reply、sticky project 或 workspace guard 变更，不得只写“`npm test` 已过”；必须写明 direct replay / fixture replay / validate probe 的证据来源。
 - `npm run test:all` 失败时不得宣告完成，除非回 CP2 明确降级并有替代证据。
 

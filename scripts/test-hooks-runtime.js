@@ -1397,7 +1397,7 @@ function main() {
   })
   assert.strictEqual(allowedAfterCp3Exempt.continue, true)
 
-  // bug task support: unfinished bug task should warn on source mutation
+  // bug task support: unfinished bug task should warn on source mutation until CP2 is complete
   cleanState()
   const bugDir = path.join(TEMP_ROOT, '.devcodex', 'bugs', 'MCP全链路收口')
   fs.mkdirSync(path.join(bugDir, '.memory'), { recursive: true })
@@ -1417,22 +1417,62 @@ function main() {
   assert.strictEqual(warningBugTask.continue, true)
   assert.match(warningBugTask.systemMessage || '', /CP gate/i)
 
-  // bug task with CP2/CP3 complete should allow source mutation
+  // bug task with CP2 complete but no CP3 should allow source mutation until runtime threshold is hit
   fs.writeFileSync(
     path.join(bugDir, 'reports', 'claude-code', getTaskStamp(0), '02--技术方案与CP2.md'),
     '# cp2\n'
   )
+  fs.writeFileSync(
+    path.join(bugDir, '.memory', 'sessions.md'),
+    '| CP1 | ✅ |\n| CP2 | ✅ |\n'
+  )
+  for (const fileName of ['bug-1.js', 'bug-2.js', 'bug-3.js', 'bug-4.js']) {
+    const allowedBugTask = run({
+      hookEventName: 'PreToolUse',
+      tool_name: 'apply_patch',
+      tool_input: { input: `*** Begin Patch\n*** Update File: src/${fileName}\n*** End Patch` }
+    })
+    assert.strictEqual(allowedBugTask.continue, true)
+    assert.ok(!/CP gate/i.test(allowedBugTask.systemMessage || ''), 'runtime threshold should not warn before the 5th unique source file')
+  }
+
+  const bugRuntimeState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  const bugRuntimeRecord = Object.values(bugRuntimeState.cp3Runtime || {}).find(entry => entry && entry.name === 'MCP全链路收口')
+  assert.ok(bugRuntimeRecord, 'runtime CP3 tracking record should exist for bug task')
+  assert.strictEqual((bugRuntimeRecord.trackedFiles || []).length, 4)
+
+  const warningBugThreshold = run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'apply_patch',
+    tool_input: { input: '*** Begin Patch\n*** Update File: src/bug-5.js\n*** End Patch' }
+  })
+  assert.strictEqual(warningBugThreshold.continue, true)
+  assert.match(warningBugThreshold.systemMessage || '', /执行中已触达 5 个源码\/配置文件/)
+
+  const blockedBugThresholdStrict = run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'apply_patch',
+    tool_input: { input: '*** Begin Patch\n*** Update File: src/bug-5.js\n*** End Patch' }
+  }, TEMP_ROOT, { DEVCODEX_HOOK_ENFORCEMENT: 'strict' })
+  assert.strictEqual(blockedBugThresholdStrict.hookSpecificOutput.permissionDecision, 'deny')
+  assert.match(blockedBugThresholdStrict.hookSpecificOutput.permissionDecisionReason || '', /CP gate/i)
+  assert.ok(readInterceptionEntries().some(entry =>
+    entry.code === 'cp-gate-CP3-runtime-threshold' &&
+    entry.effective === true
+  ))
+
+  // bug task with CP3 complete should allow source mutation again
   fs.writeFileSync(path.join(bugDir, '04-实施计划.md'), '# cp3\n')
   fs.writeFileSync(
     path.join(bugDir, '.memory', 'sessions.md'),
     '| CP1 | ✅ |\n| CP2 | ✅ |\n| CP3 | ✅ |\n'
   )
-  const allowedBugTask = run({
+  const allowedAfterBugCp3 = run({
     hookEventName: 'PreToolUse',
     tool_name: 'apply_patch',
-    tool_input: { input: '*** Begin Patch\n*** Update File: src/bug.js\n*** End Patch' }
+    tool_input: { input: '*** Begin Patch\n*** Update File: src/bug-after-cp3.js\n*** End Patch' }
   })
-  assert.strictEqual(allowedBugTask.continue, true)
+  assert.strictEqual(allowedAfterBugCp3.continue, true)
 
   // extended task roots: optimizations and scenario-tests must also participate in CP gate.
   cleanState()

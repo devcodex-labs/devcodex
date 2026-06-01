@@ -134,7 +134,23 @@ description: "Use when: ..."   # 必填，AI 靠这个发现 Skill
 
 非 chat 工作流在 CP1 / 问题确认前需要形成 Intent Expansion Card，记录 `semantic`、`project`、`continuity`、`action`、`domain`、`artifact-impact`、`risk`、`host-capability`、`validation-route`、`confidence`、`alternatives`。这张卡用于把入口判断、CP 产物和压缩恢复后的复核锚在同一组事实上。
 
+dev 模式默认向用户展示完整 Intent Expansion Card；prod、instruction-fallback 宿主或低风险轻任务才退化为 3~5 行摘要。
+
 当项目现实扩展导致路由变化、命中控制面或宿主能力差异、风险不为 normal、`confidence` 非 high，或跨会话 resume 时，用户面还应输出 3~5 行意图扩展摘要。摘要只保留语义初判、扩展后路由、关键风险、验证路线和备选路径。
+
+### Context Rehydration Contract
+
+压缩恢复、resume、summary 恢复，或用户明确要求“按文件真相重建”时，必须按以下优先级重建上下文：
+
+1. 当前用户消息
+2. 已确认需求/bug 产物
+3. 当前任务 `sessions.md`
+4. 当日 `tasks/YYYYMMDD.md`
+5. Agent `SUMMARY.md`
+6. compaction / summary 摘要
+7. AI 当前推断
+
+摘要只能作导航提示，不能覆盖文件真相源；若文件态和当前推断冲突，必须重建 Intent Expansion Card。
 
 ### Hook closure 三态
 
@@ -164,6 +180,12 @@ Hook / CLI / visible reply / sticky project / workspace guard 相关任务还要
 ### 推荐结论与确认交互
 
 分析、审计或执行报告存在多个建议/路径时，必须给出推荐结论与推荐理由；没有后续动作时写明“推荐：无后续动作”。用户确认先抽象为 ConfirmationRequest，再按宿主能力使用按钮、权限提示、Hook 阻断或文本确认 fallback。
+
+ConfirmationRequest 是语义层抽象，不要求 runtime 逐字输出同名对象；不同宿主只需输出与各自契约匹配的按钮、阻断或文本确认结果。
+
+### 执行期 CP3 回退
+
+若 dev/fix 任务在执行过程中实际变更范围扩展到 CP3 门槛（≥5 文件、高风险、控制面联动），必须暂停执行、回补 CP3，并把新增验证与回滚路线写入实施计划后再继续。
 
 ### 相关文件联查
 

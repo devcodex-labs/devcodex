@@ -1,5 +1,8 @@
 ---
 applyTo: "**"
+description: 通用规范总则，覆盖优先级、意图路由、Profile/active-root、宿主适配与治理总线
+priority: P5
+version: 1.11.5
 ---
 # 通用规范
 
@@ -11,6 +14,8 @@ applyTo: "**"
 > ⚠️ **本文件及所有 Instructions 通过 `applyTo: "**"` 全局注入**，无论 AI 通过 `@devcodex` Agent 调用还是通过 Copilot Chat 直接对话，所有规则均完整适用，不区分调用路径。
 >
 > 具体执行内容（入口检查如何输出、合规检查执行哪些层）由 **ENV_MODE 行为总表** 决定，不因调用方式不同而改变。
+>
+> ℹ️ `instructions.md` 是单源聚合文件；`instructions/` 目录是按主题拆分视图。关键概念必须在当前拆分文件中可追溯，并通过 `validate` 探针与 `instructions.md` 保持同步。
 
 > ⚠️ **用户面输出约束**：面向用户时禁止直接输出内部实现语义：
 > - 内部工作流 ID（如 `dev.docs` / `fix.default` / `self-fix`）→ 应使用自然语言（如"文档规范调整""常规修复""规范自修复"）
@@ -209,7 +214,16 @@ applyTo: "**"
 2. §Skill 按需读取表 中对应的 Skill 文件 — 详细检查标准
 3. 本文件（`01-common.instructions.md`） — 兜底
 
-## 术语约定
+## 分拆视图索引与锚点
+
+> `instructions.md` 是唯一聚合源；`instructions/` 是按主题拆分视图。
+> `01-common.instructions.md` 现在作为 **common-base / 锚点文件**，只保留跨消费者必须直达的总则；详细内容已拆到：
+>
+> - [`01a-profile-loading.instructions.md`](./01a-profile-loading.instructions.md)
+> - [`01b-record-router.instructions.md`](./01b-record-router.instructions.md)
+> - [`01c-intent-expansion.instructions.md`](./01c-intent-expansion.instructions.md)
+
+### 术语约定
 
 | 术语 | 含义 |
 |------|------|
@@ -218,199 +232,29 @@ applyTo: "**"
 | **约束** | C01~C19 编号的强制/执行规则 |
 | **规则** | 更宽泛的执行规定（含约束、建议、说明等）|
 
-## 意图识别（三问法）
+### 意图识别（三问法）
 
-### 前置识别（优先于三问）
+- 前置识别仍保持：存在 🔄 会话的“继续/恢复”走 `resume`；纯问答走 `chat`。
+- 三问判断仍保持：任一指向变更 → `dev/fix/self-fix`；三问全指向分析 → `analyze/audit`。
+- `Intent Expansion Card`、用户可见摘要与恢复契约的详细定义已移动到 [`01c-intent-expansion.instructions.md`](./01c-intent-expansion.instructions.md)。
 
-| 检查 | 条件 | 意图 |
-|------|------|------|
-| 恢复中断？ | 用户说"继续"/"恢复"，**且**今日/昨日任务文件（daily file）中存在状态为 🔄 的会话（见 `15-memory` §新会话 🔄 检测；SUMMARY 索引表的状态列不作为判断依据）| `resume` → 跳过三问 |
-| 纯问答？ | 仅提问/求解释，无文件变更意图 | `chat` → 跳过三问 |
+### 任务切换与资料来源优先
 
-### 三问判断
+- 新需求切换、Commit Subject 简洁化、未发布变更与提交边界、自我进化与问题池、官方文档优先级的完整规则已移动到 [`01b-record-router.instructions.md`](./01b-record-router.instructions.md)。
+- 当本次开发/修复形成已验证批次且未明确要求 release / publish 时，默认更新 `changelogs/unreleased.md`。
+- `commit` 默认**不自动执行**，但一旦执行必须按**语义批次**提交。
+- 所有模式下，每条用户消息完成合理性评估后，都必须执行 `Improvement Intake（优化清单）` 判定。
+- 仅业务局部诉求、一次性偏好或不可泛化想法，不写 PI/PF；命中后必须显式回执 `已记录 PI-xxx`、`已记录 PF-xxx` 或 `已记录 PI-xxx / PF-xxx`。
 
-| 问题 | 指向变更 | 指向分析 |
-|------|---------|---------|
-| Q1：最终目的是变更还是结论？ | 变更 | 结论 |
-| Q2：分析是手段还是目的？ | 手段 | 目的 |
-| Q3：是否需要修改/创建/删除文件？ | 是 | 否 |
+### Intent Expansion / Rehydration 锚点
 
-- 任一指向变更 → `dev` 或 `fix`（或 `self-fix`）
-- 三问全指向分析 → `analyze` vs `audit`（按覆盖范围区分：`analyze` 聚焦特定问题，`audit` 使用完整维度框架；两者均执行多轮收敛，至少 3 轮）
+- `01c-intent-expansion.instructions.md` 是 `Intent Expansion Card`、`用户可见意图扩展摘要`、`Context Rehydration Contract` 与 `Stop 可见回复证据三态` 的详细信源。
+- dev 模式默认向用户展示完整 Card；prod、instruction-fallback 宿主或低风险轻任务可退化为 3~5 行摘要。
+- 若执行中新增范围触达 CP3 条件（≥5 文件、高风险、控制面联动），必须暂停执行并回到对应 CP3。
 
-### 意图路由表
+### Profile 加载
 
-| 意图 | 工作流 |
-|------|--------|
-| `dev` | 开发（8 子类型）|
-| `fix` | 修复（3 子类型）|
-| `analyze` | 分析（多轮收敛，≥3 轮）|
-| `audit` | 审计（多轮收敛，≥3 轮）|
-| `self-fix` | 规范自修复 |
-| `resume` | 恢复中断任务 |
-| `other` | 规划（兜底）|
-| `chat` | 问答（快速路径）|
-
-## 任务切换与资料来源优先
-
-### 新需求切换判断顺序
-
-- 当当前请求与本会话已执行内容明显不一致，或看起来可能进入新需求时，**必须优先基于上下文做意图判断**，不能先按关键词机械判定。
-- 只有在上下文不足、意图无法稳定判断时，才允许使用关键词、措辞变化、主题漂移等弱信号作为降级辅助。
-- 若判断结果为“新需求切换”，且当前工作区存在未提交变更，应先提醒用户确认边界：
-	- 先提交当前变更后再切换；
-	- 明确确认继续并行处理；
-	- 明确说明本次仍属于同一需求的后续。
-- 该提醒属于边界护栏，不是安全阻断，不得替代 S01 / C10 等强制确认规则。
-
-### Commit Subject 简洁化
-
-- 当用户明确要求 `git commit` 或“提交当前变更”时，生成的 commit subject 必须压缩为一句简洁描述。
-- subject 只描述本次主变更，不得直接复用长段会话摘要，不得堆叠背景、验证步骤或风险说明。
-- 若需要补充上下文，应放在回复正文、报告文件或 commit body 中；本规则默认**只约束 subject**。
-
-### 未发布变更与提交边界
-
-- 当本次开发/修复形成一个**已验证的语义变更批次**，且用户**未明确要求** `tag` / `release` / `publish` 时，默认更新 `changelogs/unreleased.md`，不默认进入正式发版流程。
-- `commit` 默认**不自动执行**；在满足上述条件后，默认**建议执行本地 `commit`** 作为回滚锚点，但不默认 `push`。
-- `commit` 不按“问题个数”切分；应按**语义批次**提交。
-- 以下场景适合执行 `commit`：
-  - 用户明确要求提交当前变更
-  - 需要独立回滚点
-  - 当前语义批次边界清晰且已验证闭环
-- `push` / `tag` / `publish` 仍须用户明确确认；本地 `commit` 不是正式发版动作。
-- `commit` 时仍适用“Commit Subject 简洁化”规则。
-
-### 自我进化与问题池
-
-- 当执行中发现**阻断当前任务**的规范/流程问题时，可直接进入修复或规范调整流程。
-- 当发现的问题**不阻断当前任务**，且本质属于流程优化、规则补强、模板体验或治理改进时，默认先进入问题池，避免在当前主任务中途穿插修复。
-- 问题池条目应满足：
-  - 有明确问题描述
-  - 有影响范围或适用范围
-  - 能在后续按批次进入需求/bug 修复流程
-- `data/process-improvements.md`（优化清单，PI）只记录“已确认更优且可泛化的执行策略”，不替代问题池本身。
-- 若建议针对 DevCodex 规范自身、Hook、Skill、模板、validate 或宿主适配链路，而不是当前业务项目，则 PI/PF 必须写回承载 DevCodex 规范资产的 active-root。
-
-### Improvement Intake（优化清单）
-
-- 所有模式下，每条用户消息完成合理性评估后，都要额外检查是否命中“可泛化更优策略”或“规范缺口暴露”。
-- 命中后即使用户没有显式说“记录一下”，也要主动分流：
-  - 仅更优策略 → PI
-  - 仅规范缺口 → PF
-  - 二者并存 → PI + PF
-  - 已有规则未执行 → VL
-  - 一次性偏好或业务局部诉求 → 不写台账
-- 所有模式命中后都必须显式回执 `已记录 PI-xxx`、`已记录 PF-xxx` 或 `已记录 PI-xxx / PF-xxx`。
-
-### 官方文档优先级
-
-- 当任务涉及外部事实判断时，应优先读取官方文档或官方参考资料，再继续分析或实施。
-- 适用场景包括：
-	- 平台 / 宿主能力判断
-	- 框架 API / SDK 行为
-	- 版本兼容性、弃用项、Breaking Change
-	- 第三方工具参数、命令语义、限制条件
-- 若官方文档不存在，再按顺序降级到官方源码 / 官方仓库说明、项目内已确认文档、社区资料。
-- 本地纯实现问题、已在仓库内可闭环验证的问题，不应机械触发该规则。
-
-## Profile 加载
-
-> ⚠️ **适用范围：所有工作流（含 analyze / audit / chat）**。无论工作流子类型是否有对应 Skill，均须在收到消息后、执行工作流前完成 Profile 加载。Profile 缺失时 ENV_MODE 默认为 `prod`（保守降级）。
-
-> 🔴 **chat 不豁免 Profile 加载和入口检查**：chat 的豁免范围仅限于合规检查层（FC/SC/RC/T）和报告；入口检查（PC0~PC7）与 Profile 加载在所有模式、所有工作流均强制。
-
-> 🔴 **跨会话重新加载约束**：当上下文来自会话摘要时，**必须重新读取 Profile 文件**（不得以摘要内容代替）。摘要 ≠ Profile 已加载。
-
-### `.devcodex` 读取与写入模型
-
-> ⚠️ **layout.json 是集中存储开关**：当 `<工作区根>/.devcodex/layout.json` 存在且声明 `workspace-namespace` 模式时，进入工作区集中存储模型；不存在时，保持旧的 `<项目根>/.devcodex/` 兼容路径。
-
-- **Profile / config 读取**：
-  - `config.json` 采用 `workspace base + project overlay`
-  - `config.local.json` 与 `config.json` 同路径模型，但仅用于本地私有 overlay（长期连接、env 引用、`extensions.<namespace>`），不得覆盖 `mode` / `agent` / `pluginVersion`
-  - `README.md`、`01-项目信息.md`、`02-架构约束.md`、`03-代码风格.md` 采用 `project file first + workspace fallback`
-- **运行态目录写入**：采用 `single active scope write`
-  - 单项目任务：写入 `<工作区根>/.devcodex/<project>/...`
-  - 全工作区任务：写入 `<工作区根>/.devcodex/workspace/...`
-  - 记忆与报告中的 `<agent>` 目录按当前实际宿主确定；`profile/config.json` 的 `agent` 仅作为无法识别宿主时的兜底提示，不能覆盖当前会话事实。
-- **旧布局兼容**：未启用 `layout.json` 时，继续使用 `<项目根>/.devcodex/...`
-- **禁止双真相源**：同一轮执行只能存在一个活动写入域；不得同时向项目旧路径与工作区新命名空间双写。
-- **必须说明命中域**：涉及 `.devcodex` 读取或写入时，必须能明确说明当前使用的是 `workspace` 还是 `<project>` 命名空间。
-
-### 确定目标项目
-
-| 优先级 | 条件 | 结果 |
-|:------:|------|------|
-| 1 | 用户明确指定项目名称 | 直接使用 |
-| 2 | 消息涉及工作区目录 | 映射到项目名 |
-| 3 | 🔴 无法确定 | **必须先询问用户**："当前请求关联哪个项目？" — 在用户明确回复前，**禁止发起任何超出当前文件范围的工作区扫描**（`file_search` / `semantic_search` / `grep_search` / `list_dir` 与当前任务无关的调用、以及项目以外的 `read_file`）。仅允许读取用户本轮消息明确提及的文件以便询问。`<project> = null` **不再是合法默认状态** |
-
-> 🔴 **多项目工作区扫描禁令**（v1.9.8+）：当 cwd 是 monorepo 根目录（包含 ≥ 2 个含 `package.json` 或 `.devcodex/profile/` 的子项目）且未明确 `<project>` 时，AI 必须先询问用户。豁免词：用户消息含 `workspace` / `monorepo` / `全工作区` / `all projects` / `所有项目` 则允许全工作区扫描。`lifecycle.cjs` 默认 `safety-only` 下只输出提醒并放行工具，`strict` 模式下才执行 runtime 硬拦截；本条仍是 AI 侧必须遵守的流程约束。
-> 当启用 `workspace-namespace` 且缺少 workspace profile 时，运行时提示必须指向真实路径 `.devcodex/workspace/profile/`；若同一宿主会话已识别唯一目标项目，后续“继续 / 确认”等消息可在短 TTL 内沿用 sticky `activeProject` 与项目 `mode`，但新会话、TTL 过期、命中多个项目或用户显式选择 workspace 时必须重新判断。
-
-### 项目现实扩展（Project Reality Expansion）
-
-> 目的：避免只按用户字面意图路由，忽略目标项目实际技术栈、运行方式、文档真相源、测试/发布边界，导致后续方案和实施偏移。
-
-执行顺序必须为：
-
-```text
-用户消息语义初判 → 目标项目识别 → Profile / config 加载 → 项目现实扩展 → 最终意图与工作流路由
-```
-
-- 项目现实扩展只能使用已确定项目的 Profile、明确提及文件、当前需求产物和必要只读元信息；不得绕过“项目未识别先询问”的扫描禁令。
-- 扩展内容必须至少判断：真实项目范围、可能受影响文件族、适用工作流/子类型是否需要修正、产物落点、验证方式、是否存在多项目/跨服务边界。
-- 若扩展后发现初判意图不准确，应在 PC1 中表达为“语义初判 → 项目现实修正后的最终路由”，再进入对应工作流。
-- 若扩展不足以稳定判断，不得猜测；应在入口检查处提出最小澄清问题。
-
-### Intent Expansion Card
-
-非 chat 工作流在 CP1 / 问题确认前必须形成可审查的 Intent Expansion Card，作为 PC1/PC3、CP1 产物、压缩恢复与错路由复盘的共同锚点。
-
-| 字段 | 说明 |
-|------|------|
-| `semantic` | 用户字面语义初判 |
-| `project` | 目标项目与 active-root |
-| `continuity` | 是否延续现有 requirement/bug/session |
-| `action` | 最终工作流与子类型 |
-| `domain` | 受影响模块/领域（如 hooks、memory、docs、mcp、runtime）|
-| `artifact-impact` | 影响源码、配置、规范、报告、记忆、部署体等哪类产物 |
-| `risk` | destructive / security / high-risk / normal |
-| `host-capability` | 是否涉及宿主能力差异及降级边界 |
-| `validation-route` | lint/test/typecheck/validate/direct replay/官方文档等验证路线 |
-| `confidence` | high / medium / low，并说明不确定点 |
-| `alternatives` | 被排除路线及原因 |
-
-### 用户可见意图扩展摘要
-
-在 dev/fix 等非 chat 工作流中，若项目现实扩展导致工作流/子类型修正、命中控制面或宿主能力差异、风险不为 normal、`confidence` 非 high，或用户正在跨会话 resume，用户面必须追加 3~5 行“意图扩展摘要”。摘要只写：语义初判、项目现实扩展后路由、关键风险、验证路线、备选路径；禁止输出调试 JSON 或完整内部状态。
-
-### Stop 可见回复证据三态
-
-Hook closure 对入口检查块的判断必须区分三态：
-
-| 状态 | 含义 | 行为 |
-|------|------|------|
-| `verified-present` | 已解析最终 assistant 可见回复，且包含 PC0~PC7 | 不提醒入口块 |
-| `verified-missing` | 已解析最终 assistant 可见回复，但缺 PC0~PC7 | 提醒或 strict 阻断 `entry check block 未输出` |
-| `unverified` | Stop/PreCompact 未提供可解析 assistant 内容 | 提醒“无法验证最终用户可见回复”，附 payload capture 指引；不得断言“未输出” |
-
-### Profile 标准文件
-
-| 文件 | 说明 | 必须 |
-|------|------|:----:|
-| `README.md` | profile 索引 | 是 |
-| `01-项目信息.md` | 技术栈/仓库地址 | 是 |
-| `02-架构约束.md` | 目录结构/模块边界 | 是 |
-| `03-代码风格.md` | 编码规范 | 是 |
-| `04-测试规范.md` | 测试框架/覆盖率 | 按需 |
-| `05-发布规范.md` | 版本号/发布流程 | 按需 |
-| `config.json` | 运行模式配置（ENV_MODE）+ agent 兜底标识 | 按需 |
-
-### ENV_MODE 注入
-
-| 情况 | ENV_MODE |
-|------|---------|
-| `config.json` 存在且 `mode: "dev"` | `dev` |
-| `config.json` 不存在 / mode 缺失 | `prod`（保守默认）|
+- Profile 加载适用于所有工作流（含 analyze / audit / chat）；跨会话恢复时必须重新读取，摘要不能替代 Profile。
+- `workspace-namespace` 命中时，Profile 与运行态目录采用集中路径模型；`.devcodex/workspace/profile/` 是 workspace base profile 的真实路径。
+- 运行态写入必须遵循 `single active scope write`，不得双写旧路径与新命名空间。
+- `config.local.json`、`workspace base + project overlay`、`sticky `activeProject`` 与 `项目现实扩展（Project Reality Expansion）` 的完整规则已移动到 [`01a-profile-loading.instructions.md`](./01a-profile-loading.instructions.md)。

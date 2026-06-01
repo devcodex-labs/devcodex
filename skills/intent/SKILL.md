@@ -68,6 +68,9 @@ description: 识别用户意图类型（dev/fix/analyze/audit/self-fix/chat/resu
 
 非 chat 工作流在 CP1 / 问题确认前输出或写入可审查的 Intent Expansion Card，避免压缩恢复后只剩模糊摘要。
 
+- dev 模式默认向用户展示完整 Card；prod、instruction-fallback 宿主或低风险轻任务可退化为 3~5 行摘要。
+- 压缩恢复、resume 或用户明确要求“按文件真相重建”时，必须先按文件真相源重建 Card，再决定最终路由。
+
 | 字段 | 说明 |
 |------|------|
 | `semantic` | 用户字面语义初判 |

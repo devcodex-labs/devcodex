@@ -32,6 +32,7 @@ function walk(dir) {
 
 const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
 const plugin = JSON.parse(fs.readFileSync(path.join(ROOT, 'plugin.json'), 'utf8'))
+const npmignore = fs.readFileSync(path.join(ROOT, '.npmignore'), 'utf8')
 const packageFiles = (pkg.files || []).filter(item => !item.endsWith('/'))
 const pluginFiles = (plugin.skills || []).map(item => item.file).filter(Boolean)
 const promptFiles = walk(path.join(ROOT, 'prompts'))
@@ -71,6 +72,10 @@ const missing = required.filter(file => !files.includes(file))
 if (missing.length) {
   console.error('\x1b[31m✗ Pack missing required content:\x1b[0m')
   missing.forEach(file => console.error('  ' + file))
+  process.exit(1)
+}
+if (npmignore.includes('tests/')) {
+  console.error('\x1b[31m✗ .npmignore contains stale "tests/" exclusion; tests live under scripts/test-*.js\x1b[0m')
   process.exit(1)
 }
 console.log('\x1b[32m✓ Pack clean\x1b[0m')

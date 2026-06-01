@@ -13,6 +13,9 @@
 ```text
 instructions/tenants/
 ├── README.md                          ← 本文件（说明文档）
+├── example-tenant/                    ← 示例租户（可直接对照修改）
+│   ├── README.md                      ← 示例说明
+│   └── 10-dev.instructions.md         ← 局部覆盖示例
 ├── <tenant-id>/                       ← 租户目录（以租户标识命名）
 │   ├── *.instructions.md              ← 覆盖规范（applyTo 自动注入）
 │   └── README.md                      ← 可选：该租户定制说明
@@ -36,6 +39,14 @@ applyTo: "**"
 ```
 
 > ⚠️ 租户 Instructions 通过 `applyTo` 全局注入，AI 会自动读取并以 P3 优先级应用，无需手动激活。
+
+## 示例租户
+
+仓库内提供 `instructions/tenants/example-tenant/` 作为最小可抄模板，展示：
+
+- 如何为租户目录编写 `README.md`
+- 如何覆盖单个工作流文件（示例：`10-dev.instructions.md`）
+- 如何在覆盖文件中保留 frontmatter，并只改动本租户真正需要的规则
 
 ## 覆盖范围
 

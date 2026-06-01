@@ -29,6 +29,7 @@ const STICKY_PROJECT_TTL_MS = 30 * 60 * 1000
 const CP1_FILE = '01-需求概述.md'
 const CP2_FILE = '02-技术方案.md'
 const CP3_FILE = '04-实施计划.md'
+const CP3_RUNTIME_FILE_THRESHOLD = 5
 const EXECUTION_MODE = { CONFIRM: 'confirm', AUTO: 'auto' }
 const ENFORCEMENT_MODE = (() => {
   const mode = String(process.env.DEVCODEX_HOOK_ENFORCEMENT || 'safety-only').trim().toLowerCase()
@@ -398,6 +399,8 @@ function toolBlockOutput(eventName, reason, detail) {
 function blockOutput(platform, eventName, reason, detail) {
   const event = normalizeHookEvent(eventName)
   const message = detail || reason
+  // ConfirmationRequest is a host-agnostic semantic contract; runtime outputs
+  // only need to match each host's actual hook schema, not emit a literal object.
   if (platform === 'codex') {
     if (['pretooluse', 'permissionrequest'].includes(event)) {
       return toolBlockOutput(eventName, reason, detail)
@@ -979,6 +982,7 @@ function buildDefaultState(mode) {
       precheckStatus: 'unverified', precheck: false, compliance: false, artifactPaths: false
     },
     stickyProject: { project: CONTEXT_PROJECT || '', source: CONTEXT_PROJECT ? 'context' : '', sessionKey: '', updatedAt: '', updatedAtMs: 0 },
+    cp3Runtime: {},
     mutated: false, reportTouched: false, memoryTouched: false,
     dangerousApprovals: {},
     lastEvent: '', lastReason: ''
@@ -1007,6 +1011,7 @@ function loadState(modeHint) {
     bootstrap: { ...current.bootstrap, ...(saved.bootstrap || {}) },
     visible: { ...current.visible, ...(saved.visible || {}) },
     stickyProject: { ...current.stickyProject, ...(saved.stickyProject || {}), ...(metaState?.stickyProject || {}) },
+    cp3Runtime: { ...current.cp3Runtime, ...(saved.cp3Runtime || {}) },
     dangerousApprovals: { ...current.dangerousApprovals, ...(saved.dangerousApprovals || {}) }
   }
 }
@@ -1037,6 +1042,7 @@ function resetState(mode, previousState) {
   state.activeProjectSource = previousState?.activeProjectSource || (CONTEXT_PROJECT ? 'context' : '')
   state.lastMultiProjectWarningKey = previousState?.lastMultiProjectWarningKey || ''
   state.stickyProject = { ...state.stickyProject, ...(previousState?.stickyProject || {}) }
+  state.cp3Runtime = { ...(previousState?.cp3Runtime || {}) }
   state.dangerousApprovals = { ...(previousState?.dangerousApprovals || {}) }
   saveState(state)
   return state
@@ -1275,10 +1281,42 @@ function findIncompleteTask(state) {
     if (fs.existsSync(path.join(d.fullPath, '.archived'))) return false
     if (!hasTaskArtifact(d, 'CP1')) return false
     const cp = readCpConfirmations(d.fullPath)
-    if (cp.CP3) return false
+    if (cp.CP3) {
+      clearTaskCp3RuntimeRecord(state, d)
+      return false
+    }
     if (!hasTaskArtifact(d, 'CP3')) return true
     return !cp.CP3
   }) || null
+}
+
+function getTaskRuntimeKey(task) {
+  return `${task.kind}:${path.normalize(task.fullPath).toLowerCase()}`
+}
+
+function getTaskCp3RuntimeRecord(state, task) {
+  if (!isPlainObject(state.cp3Runtime)) state.cp3Runtime = {}
+  const key = getTaskRuntimeKey(task)
+  if (!isPlainObject(state.cp3Runtime[key])) {
+    state.cp3Runtime[key] = {
+      kind: task.kind,
+      name: task.name,
+      reqPath: task.fullPath,
+      trackedFiles: [],
+      triggered: false,
+      triggerType: '',
+      triggerReason: '',
+      triggerCount: 0,
+      triggeredAt: '',
+      updatedAt: ''
+    }
+  }
+  return state.cp3Runtime[key]
+}
+
+function clearTaskCp3RuntimeRecord(state, task) {
+  if (!isPlainObject(state.cp3Runtime)) return
+  delete state.cp3Runtime[getTaskRuntimeKey(task)]
 }
 
 // Extract file paths from a PreToolUse payload (Claude Code + Copilot field names)
@@ -1317,6 +1355,72 @@ function extractToolPaths(payload) {
     }
   }
   return out.map(p => { try { return path.normalize(p) } catch { return p } }).filter(Boolean)
+}
+
+function extractSourceMutationTargets(payload, state) {
+  return [...new Set(extractToolPaths(payload))]
+    .map(resolveRelativeToContext)
+    .filter(target => SOURCE_EXT_RE.test(target) && !isDevCodexManagedPath(target, state))
+}
+
+function isHighRiskCp3RuntimeTarget(target) {
+  const rel = toWorkspaceRelativePath(target)
+  return [
+    /(^|\/)package\.json$/i,
+    /(^|\/)(package-lock\.json|pnpm-lock\.yaml|yarn\.lock)$/i,
+    /(^|\/)\.env(?:\.[^\/]+)?$/i,
+    /(^|\/)(Dockerfile|docker-compose(?:\.[^\/]+)?\.ya?ml)$/i,
+    /(^|\/)\.github\/workflows\/.+\.ya?ml$/i,
+    /(^|\/)(?:prisma\/schema\.prisma|schema\.prisma)$/i,
+    /(^|\/)(?:migrations?|db\/migrations?)\//i
+  ].some(re => re.test(rel))
+}
+
+function assessBugCp3RuntimeEscalation(task, payload, state) {
+  const targets = extractSourceMutationTargets(payload, state)
+  if (!targets.length) return null
+
+  const record = getTaskCp3RuntimeRecord(state, task)
+  const tracked = new Set(Array.isArray(record.trackedFiles) ? record.trackedFiles : [])
+  const nextTargets = targets.map(toWorkspaceRelativePath).filter(Boolean)
+  for (const rel of nextTargets) tracked.add(rel)
+
+  record.trackedFiles = [...tracked].sort()
+  record.updatedAt = new Date().toISOString()
+
+  const highRiskTarget = targets.find(isHighRiskCp3RuntimeTarget)
+  if (highRiskTarget) {
+    const rel = toWorkspaceRelativePath(highRiskTarget)
+    record.triggered = true
+    record.triggerType = 'high-risk'
+    record.triggerReason = `执行中新增高风险文件 ${rel}`
+    record.triggerCount = tracked.size
+    record.triggeredAt = record.updatedAt
+    return {
+      type: 'high-risk',
+      reason: record.triggerReason,
+      count: tracked.size,
+      threshold: CP3_RUNTIME_FILE_THRESHOLD,
+      trackedFiles: record.trackedFiles
+    }
+  }
+
+  if (tracked.size >= CP3_RUNTIME_FILE_THRESHOLD) {
+    record.triggered = true
+    record.triggerType = 'file-threshold'
+    record.triggerReason = `执行中已触达 ${tracked.size} 个源码/配置文件（阈值 ${CP3_RUNTIME_FILE_THRESHOLD}）`
+    record.triggerCount = tracked.size
+    record.triggeredAt = record.updatedAt
+    return {
+      type: 'file-threshold',
+      reason: record.triggerReason,
+      count: tracked.size,
+      threshold: CP3_RUNTIME_FILE_THRESHOLD,
+      trackedFiles: record.trackedFiles
+    }
+  }
+
+  return null
 }
 
 // Map a file path to its owning task scope (.devcodex/requirements/<X>/... or .devcodex/bugs/<X>/...).
@@ -1390,7 +1494,10 @@ function findIncompleteTaskForPaths(payload, state) {
     if (fs.existsSync(path.join(task.fullPath, '.archived'))) continue
     if (!hasTaskArtifact(task, 'CP1')) continue
     const cp = readCpConfirmations(task.fullPath)
-    if (cp.CP3) continue
+    if (cp.CP3) {
+      clearTaskCp3RuntimeRecord(state, task)
+      continue
+    }
     if (!hasTaskArtifact(task, 'CP3')) return task
     if (!cp.CP3) return task
   }
@@ -1405,6 +1512,20 @@ function checkCpGate(payload, state) {
   const confirmed = readCpConfirmations(task.fullPath)
   if (!hasTaskArtifact(task, 'CP2') || !confirmed.CP2) {
     return { phase: 'CP2', reqName: task.name, reqPath: task.fullPath, kind: task.kind }
+  }
+  if (task.kind === 'bugs' && !confirmed.CP3) {
+    const runtimeTrigger = assessBugCp3RuntimeEscalation(task, payload, state)
+    if (!runtimeTrigger) return null
+    return {
+      phase: 'CP3',
+      reqName: task.name,
+      reqPath: task.fullPath,
+      kind: task.kind,
+      code: runtimeTrigger.type === 'high-risk'
+        ? 'cp-gate-CP3-runtime-risk'
+        : 'cp-gate-CP3-runtime-threshold',
+      runtimeTrigger
+    }
   }
   return { phase: 'CP3', reqName: task.name, reqPath: task.fullPath, kind: task.kind }
 }
@@ -1505,9 +1626,12 @@ function buildCpDenyOutput(state, platform, eventName, gate, toolName) {
     CP2: 'CP2 (技术方案) 未完成 — 请先输出对应的 CP2 方案产物（如 02-技术方案.md 或 CP2 报告产物），并在 .memory/sessions.md 记录用户确认（✅）后再编码。',
     CP3: `CP3 (实施计划) 未完成 — 请先输出 ${CP3_FILE} 并在 .memory/sessions.md 记录用户确认（✅）后再编码。`
   }
-  const msg = msgs[gate.phase]
+  const runtimeDetail = gate.runtimeTrigger
+    ? `${gate.runtimeTrigger.reason}，请先回到 CP3 更新实施计划并获得确认后再继续。`
+    : ''
+  const msg = runtimeDetail || msgs[gate.phase]
   return buildInterceptionOutput(
-    state, platform, eventName, INTERCEPTION_ACTION.REQUIRE_COMPLETION, `cp-gate-${gate.phase}`,
+    state, platform, eventName, INTERCEPTION_ACTION.REQUIRE_COMPLETION, gate.code || `cp-gate-${gate.phase}`,
     `CP gate: ${gate.phase} not confirmed for "${gate.reqName}" — ${toolName} denied`,
     msg,
     `Complete and confirm ${gate.phase}, then retry the source mutation.`
@@ -1515,13 +1639,15 @@ function buildCpDenyOutput(state, platform, eventName, gate, toolName) {
 }
 
 function buildCpWarningOutput(state, platform, eventName, gate, toolName) {
-  const detail = gate.phase === 'CP2'
+  const detail = gate.runtimeTrigger
+    ? `${gate.runtimeTrigger.reason}，请先回到 CP3 更新实施计划并获得确认。 Tool allowed in safety-only mode.`
+    : gate.phase === 'CP2'
     ? 'CP2 (技术方案) 未完成；请尽快补齐方案产物与用户确认记录。'
     : `CP3 (实施计划) 未完成；请尽快补齐 ${CP3_FILE} 与用户确认记录。`
   return buildInterceptionOutput(
-    state, platform, eventName, INTERCEPTION_ACTION.REQUIRE_COMPLETION, `cp-gate-${gate.phase}`,
+    state, platform, eventName, INTERCEPTION_ACTION.REQUIRE_COMPLETION, gate.code || `cp-gate-${gate.phase}`,
     `CP gate warning: ${gate.phase} not confirmed for "${gate.reqName}" before ${toolName}`,
-    `${detail} Tool allowed in safety-only mode.`,
+    gate.runtimeTrigger ? detail : `${detail} Tool allowed in safety-only mode.`,
     `Complete and confirm ${gate.phase}, then retry the source mutation.`
   )
 }

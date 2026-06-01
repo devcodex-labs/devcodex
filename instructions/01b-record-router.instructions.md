@@ -2,7 +2,7 @@
 applyTo: "**"
 description: 任务切换边界、RecordRouter 分流、Improvement Intake 与提交发布边界的通用规范
 priority: P5
-version: 1.11.5
+version: 1.11.6
 ---
 # 任务边界与 RecordRouter
 
@@ -73,6 +73,7 @@ version: 1.11.5
 
 - 若实施、复审或范围收紧改变了 VL / PF / PI / ISSUE / GAP 的真实状态，必须在本轮结束前回写目标台账。
 - 回写至少包含：状态、验证证据、验证时间，以及关闭时间或“部分完成”说明。
+- VL/PF 关闭链时间顺序必须满足 `登记时间 ≤ 修复时间 ≤ 验证时间/关闭时间`；不得写入未来时间、倒填精确时间，或让关闭/验证早于登记。
 - 回写后必须再次核对 open 计数、实施进度、报告和 SUMMARY，避免“源码已修 / 台账仍 open”。
 
 ## 官方文档优先级

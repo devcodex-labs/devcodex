@@ -1,7 +1,7 @@
 # 变更日志 (CHANGELOG)
 
 > **说明**: 版本概览摘要。最新版本的详细变更见下方表格首行的 `changelogs/releases/vX.Y.Z.md` 链接；历史版本见对应详细变更文件
-> **最后更新**: 2026-05-29
+> **最后更新**: 2026-06-01
 
 ---
 
@@ -9,6 +9,7 @@
 
 | 版本 | 日期 | 变更摘要 | 详细 |
 |------|------|---------|------|
+| [v1.11.6](./changelogs/releases/v1.11.6.md) | 2026-06-01 | 🔧 **治理台账长尾收口 + 发布/宿主/时间线守门补强**：收口 backlog governance、audit-release、ArtifactLinkSet、Codex PreCompact、S02 受控例外、changelog releases 与 Profile Freshness，并补齐 `V49` active-root 台账关闭时间线探针 | [查看](./changelogs/releases/v1.11.6.md) |
 | [v1.11.5](./changelogs/releases/v1.11.5.md) | 2026-05-29 | 🔧 **requirement 运行时产物结构探针 + 最近样本收口**：新增 `V41` 与 `test-requirement-artifacts`，把 `01/04/05` 的运行时最低结构纳入自动校验，并回补近期 requirement 样本的计划/进度漂移 | [查看](./changelogs/releases/v1.11.5.md) |
 | [v1.11.4](./changelogs/releases/v1.11.4.md) | 2026-05-29 | 🎯 **治理 Intake 全模式收口 + 本地 Profile overlay + README 专项治理**：将 Improvement Intake / 分流矩阵统一到所有模式，新增 `config.local.json` 受控 overlay、`V39/V40` 与 targeted tests，并补 `readme-authoring` / `audit-readme` / README 专项 review | [查看](./changelogs/releases/v1.11.4.md) |
 | [v1.11.3](./changelogs/releases/v1.11.3.md) | 2026-05-29 | 🛡️ **命名空间安全边界与宿主配置保护收口**：统一 `workspace-layout` 真相源，阻断 MCP `project` 路径穿越、修复 nested monorepo 命名空间碰撞与无会话 sticky 误继承；Claude adapter 改为备份+保守合并，`doctor` 去除 Codex 偏置，并将 `test:audit` 从确定性主链拆分 | [查看](./changelogs/releases/v1.11.3.md) |
@@ -91,7 +92,7 @@
 
 ## 相关文档
 
-- [`changelogs/releases/v1.11.5.md`](./changelogs/releases/v1.11.5.md) — 最新版本详细变更文档
+- [`changelogs/releases/v1.11.6.md`](./changelogs/releases/v1.11.6.md) — 最新版本详细变更文档
 - [`changelogs/releases/v1.11.4.md`](./changelogs/releases/v1.11.4.md) — 上一个版本详细变更文档
 - [`changelogs/releases/v1.11.3.md`](./changelogs/releases/v1.11.3.md) — 历史版本详细变更文档
 - [`changelogs/releases/v1.11.1.md`](./changelogs/releases/v1.11.1.md) — 上一个版本详细变更文档

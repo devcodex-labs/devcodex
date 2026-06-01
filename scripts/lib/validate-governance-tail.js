@@ -361,14 +361,16 @@ function buildGovernanceTailChecks(ctx) {
 
   function checkV49() {
     const probes = [
-      { file: 'instructions.md', needles: ['Backlog Intake 真相复核', 'pure-open', 'already-fixed', '台账状态回写闭环'] },
-      { file: 'instructions/01b-record-router.instructions.md', needles: ['Backlog Intake 真相复核', 'misclassified', '台账状态回写闭环'] },
+      { file: 'instructions.md', needles: ['Backlog Intake 真相复核', 'pure-open', 'already-fixed', '台账状态回写闭环', '登记时间 ≤ 修复时间 ≤ 验证时间/关闭时间'] },
+      { file: 'instructions/01b-record-router.instructions.md', needles: ['Backlog Intake 真相复核', 'misclassified', '台账状态回写闭环', '登记时间 ≤ 修复时间 ≤ 验证时间/关闭时间'] },
       { file: 'instructions/10-dev.instructions.md', needles: ['backlog 来源前置真相复核'] },
       { file: 'instructions/11-fix.instructions.md', needles: ['backlog 来源前置真相复核', '台账状态回写闭环'] },
       { file: 'skills/cp-gate/SKILL.md', needles: ['backlog 来源前置真相复核', 'pure-open'] },
-      { file: 'skills/spec-governance/SKILL.md', needles: ['Backlog Intake 真相复核', 'residual-tail', '台账状态回写闭环'] },
+      { file: 'skills/spec-governance/SKILL.md', needles: ['Backlog Intake 真相复核', 'residual-tail', '台账状态回写闭环', '登记时间 ≤ 修复时间 ≤ 验证时间/关闭时间'] },
       { file: 'skills/execution-contract/SKILL.md', needles: ['backlogTruthReview', 'ledgerWriteback', 'scopeDelta', 'writebackEvidence'] },
       { file: 'skills/report/SKILL.md', needles: ['Backlog Intake 真相复核', '台账状态回写闭环'] },
+      { file: 'data/templates/violations.md', needles: ['登记时间 ≤ 修复时间 ≤ 验证时间/关闭时间', '不得早于登记时间或修复时间'] },
+      { file: 'data/templates/pending-fixes.md', needles: ['登记时间 ≤ 修复时间 ≤ 验证时间/关闭时间', '不得早于登记时间或修复时间'] },
       { file: 'prompts/implementation-plan.prompt.md', needles: ['Backlog Intake 真相复核', '台账状态回写闭环', 'scopeDelta', 'rescanResult'] },
       { file: 'prompts/implementation-progress.prompt.md', needles: ['Backlog Intake 真相复核', '台账状态回写闭环', 'open/partial'] },
       { file: 'prompts/report-dev.prompt.md', needles: ['Backlog Intake 真相复核', '台账状态回写闭环'] },
@@ -387,7 +389,58 @@ function buildGovernanceTailChecks(ctx) {
       }
     }
 
+    const activeLedgerDir = path.join(ACTIVE_DEVCODEX_ROOT, 'data')
+    const ledgerFiles = [
+      path.join(activeLedgerDir, 'violations.md'),
+      path.join(activeLedgerDir, 'pending-fixes.md')
+    ]
+    for (const ledgerFile of ledgerFiles) {
+      if (!fs.existsSync(ledgerFile)) continue
+      checkLedgerChronology(ledgerFile)
+    }
+
     console.log('[V49] backlog truth review / ledger writeback sync checked')
+  }
+
+  function parseLedgerTimestamp(value) {
+    if (!value || value === '—') return null
+    const match = String(value).trim().match(/^(\d{4})-(\d{2})-(\d{2})(?:\s+(\d{2}):(\d{2}))?$/)
+    if (!match) return null
+    return Date.UTC(
+      Number(match[1]),
+      Number(match[2]) - 1,
+      Number(match[3]),
+      Number(match[4] || 0),
+      Number(match[5] || 0)
+    )
+  }
+
+  function checkLedgerChronology(ledgerFile) {
+    const lines = read(ledgerFile).split(/\r?\n/)
+    let headers = null
+    for (const [idx, line] of lines.entries()) {
+      if (!line.startsWith('|')) continue
+      const cells = line.split('|').slice(1, -1).map(cell => cell.trim())
+      if (cells[0] === '编号' && cells.includes('登记时间')) {
+        headers = cells
+        continue
+      }
+      if (!headers || !/^([A-Z]+-|GAP-)/.test(cells[0] || '')) continue
+
+      const row = Object.fromEntries(headers.map((header, cellIndex) => [header, cells[cellIndex] || '']))
+      const id = row['编号'] || cells[0]
+      const reg = parseLedgerTimestamp(row['登记时间'])
+      const fix = parseLedgerTimestamp(row['修复时间'])
+      const verified = parseLedgerTimestamp(row['验证时间'])
+      const closed = parseLedgerTimestamp(row['关闭时间'])
+      const location = path.relative(ROOT, ledgerFile).replace(/\\/g, '/')
+
+      if (reg && fix && fix < reg) err(`[V49] ledger chronology drift in ${location}:${idx + 1} ${id}: 修复时间早于登记时间`)
+      if (reg && verified && verified < reg) err(`[V49] ledger chronology drift in ${location}:${idx + 1} ${id}: 验证时间早于登记时间`)
+      if (reg && closed && closed < reg) err(`[V49] ledger chronology drift in ${location}:${idx + 1} ${id}: 关闭时间早于登记时间`)
+      if (fix && verified && verified < fix) err(`[V49] ledger chronology drift in ${location}:${idx + 1} ${id}: 验证时间早于修复时间`)
+      if (fix && closed && closed < fix) err(`[V49] ledger chronology drift in ${location}:${idx + 1} ${id}: 关闭时间早于修复时间`)
+    }
   }
 
   function checkV50() {

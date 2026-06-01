@@ -2,7 +2,7 @@
 applyTo: "**"
 description: dev 工作流规则，覆盖子类型路由、CP 流程、计划复审、执行期回退与 ECR
 priority: P4
-version: 1.11.5
+version: 1.11.6
 ---
 # 开发工作流规则（10-dev）
 

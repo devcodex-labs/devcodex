@@ -214,6 +214,7 @@ S02 的核心秘密禁止项不可豁免；“私有仓库”“本地使用”�
 - `data/*.md` 是运行时逻辑台账路径，实际写入必须按当前 active-root 映射：旧布局写 `<项目根>/.devcodex/data/`，workspace-namespace 单项目写 `<工作区根>/.devcodex/<project>/data/`，全工作区写 `<工作区根>/.devcodex/workspace/data/`。
 - DevCodex 规范自身、Hook、Skill、模板、validate 或宿主适配链路问题归属当前 DevCodex 源仓或规范维护项目的 active-root；在 `workspace-namespace` 下应解析为承载 DevCodex 源码或规范资产的项目命名空间，不得因当时正在处理业务项目而写入业务项目台账。
 - VL/PF 关闭前必须具备修复方案、修复时间、验证状态、验证时间、验证证据与关闭时间；仅“已登记”不得视为“已验证关闭”。
+- VL/PF 关闭链时间顺序必须满足 `登记时间 ≤ 修复时间 ≤ 验证时间/关闭时间`；不得写入未来时间、倒填精确时间，或让关闭/验证早于登记。
 - 实施完成复审、ECR 或审计复审发现新问题时，必须记录逃逸原因、缺失检查/探针、补救方案，并判断是否升级 VL/PF/GAP。
 - 若本轮实施、复审或范围收紧改变了 VL/PF/PI/ISSUE/GAP 的真实状态，必须执行**台账状态回写闭环**：更新目标台账的状态、验证证据、验证时间、关闭时间/部分完成说明，并在批次完成前做 1 轮 target ledger rescan，确认 open 计数、进度、报告与 SUMMARY 口径一致。
 

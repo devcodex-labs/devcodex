@@ -115,7 +115,7 @@ DevCodex v1.0.0 的发布，指部署到**目标工作区**的 `.github/` 后可
 ### CHANGELOG
 
 - [ ] `CHANGELOG.md` 首版条目按 monSQLize 格式填写
-- [ ] `changelogs/v1.0.0.md` 详细变更记录
+- [ ] `changelogs/releases/v1.0.0.md` 详细变更记录
 
 ---
 

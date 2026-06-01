@@ -1,12 +1,12 @@
 ---
 name: host-contract-verification
-description: 宿主契约验证规范 — 为 Hook / CLI / bootstrap / visible reply / workspace guard 相关任务定义 direct replay、fixture replay、部署同步与证据输出路线
+description: 宿主契约验证规范 — 为 Hook / CLI / bootstrap / visible reply / workspace guard / ArtifactLinkSet / MCP fallback 相关任务定义 direct replay、fixture replay、部署同步与证据输出路线
 ---
 # Host Contract Verification Skill
 
 ## 职责
 
-当任务涉及宿主事件契约、Hook 可见回复、workspace 项目识别、bootstrap 护栏或部署副本同步时，本 Skill 负责把“怎么证明宿主行为真的成立”收口为可复审的验证路线。
+当任务涉及宿主事件契约、Hook 可见回复、workspace 项目识别、bootstrap 护栏、产物链接可点击性、MCP bridge fallback 或部署副本同步时，本 Skill 负责把“怎么证明宿主行为真的成立”收口为可复审的验证路线。
 
 它不替代 `test-router`、`report` 或 runtime tests，而是为这些产物提供统一的宿主证据模型。
 
@@ -18,6 +18,8 @@ description: 宿主契约验证规范 — 为 Hook / CLI / bootstrap / visible r
 | Stop / PreCompact 可见回复验证语义变更 | 🔴 必须 |
 | sticky `activeProject` / `mode` / workspace guard 变更 | 🔴 必须 |
 | Bootstrap、部署副本、父链同步口径变更 | 🔴 必须 |
+| `ArtifactLinkSet` / 产物文件点击兼容矩阵变更 | 🔴 必须 |
+| Copilot / Codex MCP bridge 报错、`profile_load` fallback、`invoke undefined` 恢复链变更 | 🔴 必须 |
 | 仅普通业务代码改动 | N/A |
 
 ## HostContractRoute
@@ -31,6 +33,8 @@ description: 宿主契约验证规范 — 为 Hook / CLI / bootstrap / visible r
 | `visibleReplyEvidence` | 条件 | `verified-present` / `verified-missing` / `unverified`，以及证据来源 |
 | `workspaceGuard` | 条件 | 多项目 workspace、sticky project、workspace profile 提示等边界验证 |
 | `bootstrapScope` | 条件 | 父链部署体、入口检查块、adapter 初始化或 update 部署验证 |
+| `artifactLinkMatrix` | 条件 | `ArtifactLinkSet` 对 Copilot / Claude Code / Codex / instruction-fallback 的主链接与 copy fallback 覆盖情况 |
+| `mcpFallback` | 条件 | MCP bridge 失败时是否降级到文件读取 / instruction-fallback；记录错误文本、fallback 路线和是否停止重试 |
 | `commands` | ✅ | 本轮实际执行命令或 targeted tests |
 
 ## 最小验证矩阵
@@ -41,6 +45,8 @@ description: 宿主契约验证规范 — 为 Hook / CLI / bootstrap / visible r
 | 可见回复三态 | fixture replay 或 direct replay，报告中写明 `visibleReplyEvidence` |
 | sticky project / workspace guard | multi-project fixture + follow-up replay |
 | bootstrap / 部署副本 | `node scripts/validate.js` + 部署同步后的落点复核 |
+| ArtifactLinkSet / 产物点击 | static matrix probe + visible reply fixture；若声称某客户端可点，需 direct replay 或用户实测证据 |
+| MCP bridge fallback | MCP server no-args direct replay + 非 Full 宿主 fallback 文案探针；若错误来自宿主桥接层，只能声明 fallback 已覆盖，不能声明宿主 bug 已修复 |
 | 仅文档声明变更 | `source-consumer-sync` + validate probe；若声称宿主行为改变则不得只改文档 |
 
 ## 证据要求
@@ -49,6 +55,8 @@ description: 宿主契约验证规范 — 为 Hook / CLI / bootstrap / visible r
 2. 无法直接读取最终 assistant 内容时，只能落为 `unverified`，不能伪造 `verified-present`。
 3. workspace guard 场景必须写清“唯一项目继续沿用”“真实歧义重新提示”“workspace profile 路径”三类边界是否覆盖。
 4. 若宿主不支持某类硬拦，只能记录为能力差异或 fallback，不得把缺失能力写成已验证通过。
+5. 产物链接必须区分“Markdown 主链接已生成”“当前宿主可点击已实测”“绝对路径 copy fallback 已提供”三种证据；不得把第一项等同于后两项。
+6. `profile_load` / MCP 工具出现 `Cannot read properties of undefined (reading 'invoke')` 时，若 DevCodex MCP server direct replay 通过，应记录为宿主 MCP bridge 失败并启用 `mcpFallback=used`，禁止反复重试同一 MCP 调用。
 
 ## 与其他 Skill 的关系
 
@@ -71,6 +79,8 @@ description: 宿主契约验证规范 — 为 Hook / CLI / bootstrap / visible r
 | visibleReplyEvidence | |
 | workspaceGuard | |
 | bootstrapScope | |
+| artifactLinkMatrix | |
+| mcpFallback | |
 | commands | |
 ```
 

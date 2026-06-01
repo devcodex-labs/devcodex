@@ -105,7 +105,7 @@ flowchart TD
 ```mermaid
 flowchart TD
     subgraph audit
-        A1["识别审查目标类型（6 种）"]
+        A1["识别审查目标类型（7 种，含发布前审查）"]
         A2["加载维度规范"]
         A3["多轮审查\n连续 N 轮无新发现"]
         A4{"收敛?"}

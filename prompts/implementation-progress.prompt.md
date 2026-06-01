@@ -9,6 +9,7 @@ applyTo: .devcodex/**/requirements/**
 > **触发**: 实施阶段中间检查点
 > ⚠️ 条件触发：任务跨多轮/多阶段、存在明确阻塞、用户要求持续跟踪、多批次执行、预计修改 ≥10 文件、控制面任务、模板-示例-校验链或部署同步联动时启用；且前提是已存在 `04-实施计划.md` 或等价任务切片。
 > ⚠️ 生成的 Markdown 实施进度文档必须在头部后补 `## 目录导航`。
+> ⚠️ 若本轮任务或批次来源于 `data/*.md` open/partial 项，进度中必须持续记录 Backlog Intake 真相复核分类结果，以及台账状态回写闭环是否已完成。
 
 ---
 
@@ -61,9 +62,12 @@ applyTo: .devcodex/**/requirements/**
 |------|----------|:--------:|------|
 | ExecutionContract | Auto / 控制面 / 多批次 / 预计修改 ≥10 文件 / release 前置任务 | ✅/🔄/N/A | |
 | TestRoute | 跨模块 / API / Hook / CLI / 模板-示例-校验链 / 测试路线不明显 | ✅/🔄/N/A | |
+| ReleaseAudit | 发版前 review / publish 或 tag 前风险审查 | ✅/🔄/N/A | RL-1~RL-10 / risks / recommendation |
 | ReleaseVerification | tag / release / publish / 发布前验证 | ✅/🔄/N/A | |
 | ConceptSyncMap | 控制面 / 模板-示例-校验链 / README / website / Profile / validate / 部署副本联动 | ✅/🔄/N/A | sourceOfTruth / currentConsumers / historicalMirrors / validateProbes / deployCopies / yellowDeviationBoundary |
-| HostContractVerification | Hook / CLI / visible reply / sticky project / workspace guard / bootstrap | ✅/🔄/N/A | hostSurface / eventScope / evidenceMode / visibleReplyEvidence / workspaceGuard / bootstrapScope |
+| HostContractVerification | Hook / CLI / visible reply / sticky project / workspace guard / bootstrap / ArtifactLinkSet / MCP fallback | ✅/🔄/N/A | hostSurface / eventScope / evidenceMode / visibleReplyEvidence / workspaceGuard / bootstrapScope / artifactLinkMatrix / mcpFallback |
+| Backlog Intake 真相复核 | `data/*.md` open/partial 项来源的需求/批次 | ✅/🔄/N/A | candidateIds / classification / scopeDelta |
+| 台账状态回写闭环 | 本轮改变了 VL/PF/PI/ISSUE/GAP 状态 | ✅/🔄/N/A | targetLedgers / writebackEvidence / rescanResult |
 | document-sync | 代码/规范/模板/部署副本联动 | ✅/🔄/N/A | |
 
 ## 当前轮次工作
@@ -72,6 +76,7 @@ applyTo: .devcodex/**/requirements/**
 
 **本轮验证结果**：
 -
+- backlog 来源任务需补充：本轮真相复核结果 / 状态回写结果 / open 计数变化。
 
 ## 阻塞与恢复
 

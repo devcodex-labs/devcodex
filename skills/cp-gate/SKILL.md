@@ -23,7 +23,7 @@ CP 门控**不受 ENV_MODE 影响**，dev/prod 均为 🔴 强制等待用户确
 - `instruction-fallback` 宿主（如 JetBrains / Cursor）只同步 auto 规则说明，不承诺 runtime 级 CP 行为；支持 Hook 的宿主由 `DEVCODEX_HOOK_ENFORCEMENT` 决定提醒或硬拦截
 - `auto:` / `/auto` / profile `executionMode` 不属于本轮正式入口
 - CP1 / CP2 / CP3 确认**自动通过**（不等待用户确认）
-- 以下约束**不可豁免**：[S01](../../instructions/00-safety.instructions.md)（不可逆确认）/ S02~S07 / [C01](../../instructions/01-common.instructions.md) / [C10](../../instructions/01-common.instructions.md) / [C18](../../instructions/00-safety.instructions.md)
+- 以下约束**不可豁免**：[S01](../../instructions/00-safety.instructions.md)（不可逆确认）/ S02 核心秘密禁止项 / S03~S07 / [C01](../../instructions/01-common.instructions.md) / [C10](../../instructions/01-common.instructions.md) / [C18](../../instructions/00-safety.instructions.md)。S02 受控私有例外只能按安全底线模型执行，不属于绕过安全底线。
 - 可恢复失败：重试 ≤ 2 次
 - 不可恢复失败：切换回确认模式并通知用户 ⚠️
 
@@ -64,6 +64,7 @@ CP 门控**不受 ENV_MODE 影响**，dev/prod 均为 🔴 强制等待用户确
 11. **确认后前置轻量复审**（C19）：每次用户明确确认后、进入下一阶段前，必须先对当前已确认产物做 1 轮轻量前置复审并显式输出结果；控制面 / 多文件联动 / 真相源同步 / 模板-示例-校验链场景必须追加交叉验证；发现阻断性问题则先修正并回到对应 CP 重新确认，无阻断问题方可推进。
 12. **审计问题清单转修复的 CP1 映射**：当 fix 源自 audit/analyze 的问题清单时，CP1 必须建立问题 ID 映射，逐项标注 `本轮修复 / 已关闭 / 延后 / 另起任务`，并把验收口径写入 CP1 产物；禁止只列新增问题而漏掉用户已指出或上轮已确认的问题。
 13. **执行期 CP3 回退**：若执行过程中实际变更范围触达 CP3 门槛（≥5 文件、高风险、控制面联动），必须暂停执行、补做或重开 CP3，再继续后续修改与验证。
+14. **backlog 来源前置真相复核**：当 CP1/问题确认直接来源于 `data/*.md` 的 open/partial 项时，进入正式确认前必须先把候选项分类为 `pure-open` / `residual-tail` / `already-fixed` / `misclassified`；非 `pure-open` 项须先回写状态并修正本轮范围，不得把 stale-open 条目继续按纯 open 统计。
 
 ## CP 响应处理
 

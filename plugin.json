@@ -166,6 +166,11 @@
       "tier": "free"
     },
     {
+      "id": "audit-release",
+      "file": "skills/audit-release/SKILL.md",
+      "tier": "free"
+    },
+    {
       "id": "audit-execution-guide",
       "file": "skills/audit-execution-guide/SKILL.md",
       "tier": "free"

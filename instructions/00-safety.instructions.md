@@ -13,12 +13,24 @@ version: 1.11.5
 | # | 规则 | 完整说明 | 豁免 |
 |:-:|------|---------|------|
 | S01 | 删除/破坏性操作需确认 | 破坏性操作分两级：**不可逆**（删除文件、清空目录）必须等待用户明确 yes/no 确认；**可逆**（重命名、移动）输出操作计划提示后执行 | 记忆文件、报告文件的自动写入（create/append 不属于破坏性操作） |
-| S02 | 禁止硬编码敏感信息 | API Key、密码、Token、私钥等凭据不得出现在代码、配置文件、注释中；本规则只约束敏感信息，不强制所有普通配置都改为 env/process.env | 占位符（如 `YOUR_API_KEY_HERE`）、`.env.example` 示例值、环境变量引用（如 `process.env.API_KEY`）、CI/CD secret 注入；非敏感的本地/测试/一次性脚本配置可使用文件局部常量、命令行参数或任务私有配置文件 |
+| S02 | 禁止硬编码敏感信息 | API Key、密码、Token、私钥、client secret、签名密钥、连接密码等核心秘密不得出现在代码、配置文件、注释中；私有仓库或用户授权不改变该核心禁止项 | 占位符（如 `YOUR_API_KEY_HERE`）、`.env.example` 示例值、环境变量引用（如 `process.env.API_KEY`）、CI/CD secret 注入；非核心本地私有信息可按下方“受控私有例外模型”写入不提交的本地 overlay |
 | S03 | 禁止编造规范内容 | 规范文件不存在或读取失败时，必须按降级路径执行，不得凭 AI 推测或"补全"规范内容 | 无 |
 | S04 | 禁止 overwrite 源码/规范文件 | 对所有源码文件及规范文件（.md）的修改，必须使用增量编辑（edit 工具），禁止整文件重写 | 新建文件（create 不是 overwrite） |
 | S05 | 记忆+报告自动写入 | 每次会话结束前必须写入记忆文件和报告文件，禁止询问用户"是否需要写入" | 纯 chat 会话（无任何变更意图时可豁免报告，但记忆仍需写入） |
 | S06 | 禁止执行危险命令 | 不得直接执行不可逆的破坏性系统/数据库命令（如 `DROP TABLE`、无 WHERE 子句的 `DELETE FROM`、`rm -rf /`、`TRUNCATE` 等），必须先输出命令预览等待用户确认 | 有明确 WHERE 条件的 DELETE、有明确备份前提的 DROP |
 | S07 | 全模式入口检查强制输出 | `instruction-fallback` 模式下，AI 生成实质性工作流内容前必须已输出 PC0~PC7 入口检查块；`dev` 模式在 PC4 执行完整规范雷达，非 `dev` 模式仍输出 PC0~PC7 基础状态并将 dev 专属诊断标注 N/A。若 AI 自检发现当前回复已开始生成实质内容但尚未输出入口检查块，必须立即在当前位置补输出完整 PC0~PC7，重新评估任务意图后再继续生成后续内容；不终止本次请求。**v1.9.6+ compaction 触发**：当本轮回复源自 `/compact`、`/resume`、summary 恢复或上下文压缩重启时，同样视为"首条用户可见回复"，必须重新输出 PC0~PC7，即使被指示"continue without acknowledging" | `hook-enforced` 模式下，入口检查可由宿主 bootstrap 先完成，但用户面仍需在实质内容前看到结构化状态 |
+
+### S02 受控私有例外模型
+
+S02 的核心秘密禁止项不可豁免；“私有仓库”“本地使用”或“用户确认可以”只能触发受控例外流程，不能把 API Key、密码、Token、私钥、client secret、签名密钥、连接密码等明文写入可提交文件。
+
+| 分类 | 处理 |
+|------|------|
+| 核心秘密 | 永不明文写入代码、配置、注释、README、Profile 或任务报告；必须使用环境变量、secret manager 引用、CI/CD secret 或 `config.local.json` 中的 `*Env` / `secretRef` |
+| 非核心本地私有信息 | 可在用户明确授权后写入不提交的本地 overlay，例如 host、port、database、schema、username、内部服务 URL、租户/项目 ID、只读开关、连接别名 |
+| 承载位置 | 首选 `.devcodex/**/profile/config.local.json`；也可使用 `.env.local`、`.env.test.local` 或任务目录 `.tmp/local-config/`；这些文件必须被 `.gitignore` 排除 |
+| 审计要求 | 报告或记忆中记录授权来源、目标文件、字段类型、是否使用 `*Env` / `secretRef`、脱敏策略和回退方式；不得记录秘密明文 |
+| Profile 说明 | 若使用 `config.local.json` 或 `extensions.<namespace>`，必须在 `01-项目信息.md` 或 Profile README 说明用途、字段语义和使用方式 |
 
 ## 输出语言规则
 

@@ -26,8 +26,8 @@ applyTo: .devcodex/**/reports/bugs/**
 > **响应时间**: YYYY-MM-DD HH:MM:SS（incident 类型必填）
 > **修复时间**: YYYY-MM-DD HH:MM:SS（incident 类型必填）
 > **Release 状态**: 未进入 / 待用户确认 / 已执行
-> **日志落点**: `changelogs/unreleased.md` / `CHANGELOG.md + changelogs/vX.Y.Z.md`
-> **支撑产物**: ExecutionContract / TestRoute / ReleaseVerification / ConceptSyncMap / HostContractVerification / 05-实施进度.md（按触发状态填写）
+> **日志落点**: `changelogs/unreleased.md` / `CHANGELOG.md + changelogs/releases/vX.Y.Z.md`
+> **支撑产物**: ExecutionContract / TestRoute / ReleaseAudit / ReleaseVerification / ConceptSyncMap / HostContractVerification / 05-实施进度.md（按触发状态填写）
 ```
 
 ## §1 问题摘要
@@ -68,10 +68,13 @@ applyTo: .devcodex/**/reports/bugs/**
 |------|----------|:----:|------|
 | ExecutionContract | ✅/N/A | ✅/⚠️ | |
 | TestRoute | ✅/N/A | ✅/⚠️ | |
+| ReleaseAudit | ✅/N/A | ✅/⚠️ | |
 | ReleaseVerification | ✅/N/A | ✅/⚠️ | |
 | ConceptSyncMap | ✅/N/A | ✅/⚠️ | sourceOfTruth / currentConsumers / historicalMirrors / validateProbes / deployCopies / yellowDeviationBoundary |
-| HostContractVerification | ✅/N/A | ✅/⚠️ | hostSurface / eventScope / evidenceMode / visibleReplyEvidence / workspaceGuard / bootstrapScope |
+| HostContractVerification | ✅/N/A | ✅/⚠️ | hostSurface / eventScope / evidenceMode / visibleReplyEvidence / workspaceGuard / bootstrapScope / artifactLinkMatrix / mcpFallback |
 | 05-实施进度.md | ✅/N/A | ✅/⚠️ | |
+| Backlog Intake 真相复核 | ✅/N/A | ✅/⚠️ | candidateIds / classification / evidence / scopeDelta |
+| 台账状态回写闭环 | ✅/N/A | ✅/⚠️ | targetLedgers / requiredFields / writebackEvidence / rescanResult |
 | Hook closure 三态证据 | ✅/N/A | ✅/⚠️ | verified-present / verified-missing / unverified；控制面或 Hook 任务必填 |
 
 ## §5 回归验证
@@ -92,10 +95,10 @@ applyTo: .devcodex/**/reports/bugs/**
 | ECR-1 | CP1/CP2/CP3、05-实施进度、报告、daily tasks、SUMMARY | ✅/⚠️ | |
 | ECR-2 | 问题 ID / 根因链 → diff/commit 文件 | ✅/⚠️ | |
 | ECR-3 | CP3 步骤 / ExecutionContract / TestRoute / ConceptSyncMap / HostContractVerification → 测试/部署/验证证据 | ✅/⚠️ | |
-| ECR-4 | 修复报告声明 → 测试/扫描/探针结果/ReleaseVerification/部署同步证据 | ✅/⚠️ | |
+| ECR-4 | 修复报告声明 → 测试/扫描/探针结果/ReleaseAudit/ReleaseVerification/部署同步证据 | ✅/⚠️ | |
 | ECR-5 | memory daily → SUMMARY | ✅/⚠️ | |
 | ECR-6 | git dirty 边界 | ✅/⚠️ | |
-| ECR-7 | 控制面任务 SCV / validate / direct replay / host-contract probe / 新增探针 / 黄色偏离 | ✅/N/A | |
+| ECR-7 | 控制面任务 SCV / validate / direct replay / host-contract probe / 新增探针 / 黄色偏离 / backlog 真相复核 / 台账状态回写 | ✅/N/A | |
 
 ## §6 时间线（incident 类型必填，秒级精度供响应时效审计）
 
@@ -130,6 +133,7 @@ applyTo: .devcodex/**/reports/bugs/**
 - [ ] document-sync：✅ 完成
 - [ ] ExecutionContract：✅ 完成 / N/A
 - [ ] TestRoute：✅ 完成 / N/A
+- [ ] ReleaseAudit：✅ 完成 / N/A
 - [ ] ReleaseVerification：✅ 完成 / N/A
 - [ ] ConceptSyncMap：✅ 完成 / N/A
 - [ ] HostContractVerification：✅ 完成 / N/A

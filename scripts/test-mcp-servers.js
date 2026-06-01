@@ -316,6 +316,24 @@ function testWorkspaceNamespaceProfileMerge() {
   assert.match(profileText, /REPORTING_DB_URL/)
 }
 
+function testProfileLoadWithoutArguments() {
+  setupLegacyWorkspace()
+  const responses = runServer('mcp/profile-server.js', [
+    rpcRequest(1, 'initialize'),
+    rpcRequest(2, 'tools/call', { name: 'profile_load' }),
+    rpcRequest(3, 'tools/call', { name: 'profile_load', arguments: null }),
+    rpcRequest(4, 'tools/call', { name: 'profile_load', arguments: {} })
+  ], TEMP_ROOT)
+
+  for (const id of [2, 3, 4]) {
+    const result = resultById(responses, id)
+    assert.notStrictEqual(result.isError, true)
+    const text = result.content?.[0]?.text || ''
+    assert.match(text, /01-项目信息/)
+    assert.doesNotMatch(text, /invoke|TypeError/i)
+  }
+}
+
 function testWorkspaceNamespaceMemoryScope() {
   setupLayoutWorkspace()
   const projectRoot = path.join(TEMP_ROOT, 'chat')
@@ -464,6 +482,7 @@ testMemoryActualHostEnvAgent()
 testMemoryCpConfirmForBugs()
 testMemoryCpConfirmForExtendedTaskKinds()
 testWorkspaceNamespaceProfileMerge()
+testProfileLoadWithoutArguments()
 testWorkspaceNamespaceMemoryScope()
 testWorkspaceRootMemoryScopeRequiresExplicitTarget()
 testWorkspaceNamespaceNestedProjectInference()

@@ -110,10 +110,30 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 ```
 
 > 🔴 **格式说明**：
-> - **必需行**：Markdown 链接使用**工作区根的相对路径**（不以 `/` 开头、不带 `file://` 协议）。理由：VS Code Claude 插件 webview / VS Code Markdown Preview / JetBrains 均能直接点击打开相对路径；`file:///` 协议在 VS Code Claude 插件 webview CSP 下被阻止。
-> - **可选辅助行**：仅当用户需要终端/跨工具复制路径时，才在下一行追加纯文本绝对路径（Windows 反斜杠 `E:\...`，POSIX 用 `/`）。为避免 VS Code 将同一产物渲染成重复文件卡片，默认不输出第二行。
+> - **必需行**：输出 `ArtifactLinkSet` 的主链接，必须是 Markdown 链接，禁止只输出裸文件名。默认使用**工作区根的相对路径**（不以 `/` 开头、不带 `file://` 协议），链接路径统一用正斜杠。
+> - **Copy fallback**：当当前宿主为 Codex Desktop/App、Copilot、未知宿主，或用户已反馈“无法点击”时，主链接下一行必须追加 `绝对路径：` 纯文本行，供复制打开。Windows 绝对路径统一写成 `E:\...` 或 `E:/...`，POSIX 用 `/...`。
+> - **Codex Desktop/App 特例**：当前宿主可验证为 Codex Desktop/App 时，主链接可以使用绝对文件系统路径作为 Markdown target；若路径包含空格，用尖括号包裹 target。
 > - 禁止询问"是否需要打开"；禁止省略产物路径输出。
+> - 禁止使用 `file://` 协议作为默认链接；它在部分 IDE webview / Chat 面板中会被 CSP 或宿主策略阻止。
 > - ⚠️ **历史版本兼容**：v1.9.3 及之前使用 `[name](file:///E:/...)` 格式，存量报告无需回填，但新增报告须按本格式生成。
+
+### ArtifactLinkSet 客户端兼容矩阵
+
+| 宿主 | 主链接 | Copy fallback | 说明 |
+|------|--------|---------------|------|
+| GitHub Copilot（VS Code / JetBrains / Visual Studio）| `[文件名](.devcodex/.../file.md)` | 强制追加 | Copilot Chat 不保证所有 Markdown 文件链接在所有视图都可点；必须同时保留可复制绝对路径 |
+| Claude Code | `[文件名](.devcodex/.../file.md)` | 可选；跨工具交付时追加 | Claude Code 项目级 `.mcp.json` 与文件上下文能力不等价于所有 Markdown 链接都可被其他宿主点击 |
+| Codex Desktop/App | `[文件名](E:/Worker/.../file.md)` 或绝对路径 target | 强制追加 | Codex App 用户面更适合绝对本地路径；仍保留 copy fallback |
+| Codex CLI | `[文件名](.devcodex/.../file.md)` | 强制追加 | 终端环境未必渲染可点击 Markdown，绝对路径是保底入口 |
+| instruction-fallback / 未识别宿主 | `[文件名](.devcodex/.../file.md)` | 强制追加 | 未知宿主不得假设 Markdown 链接可点击 |
+
+### MCP profile fallback
+
+若 Copilot / Codex 等非 Claude Code 宿主调用 `profile_load`、`profile_get_mode` 或其他 DevCodex MCP 工具时出现 `TypeError: Cannot read properties of undefined (reading 'invoke')`、工具桥接不可用、MCP server 未连接等错误，视为**宿主 MCP bridge 失败**，不得反复重试同一 MCP 调用。AI 必须立即降级：
+
+1. 优先通过可用文件读取能力读取 `.devcodex/**/profile/`、`SUMMARY.md` 与当日 `tasks/YYYYMMDD.md`；
+2. 文件读取也不可用时，说明当前宿主只能 instruction-fallback，并请求用户提供必要上下文或运行 `devcodex doctor`；
+3. 在报告或记忆中记录 `mcpFallback=used`、宿主、错误文本与最终恢复路径。
 
 ## CHANGELOG / Release 双阶段规范
 
@@ -123,7 +143,7 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 |------|------|------|-------------|
 | 需求轨 | `website/docs/versions/v1/<active-version>/CHANGELOG.md` | 需求/规格变更记录 | 需求定义、需求完成、需求口径变更 |
 | 未发布实现轨 | `changelogs/unreleased.md` | 尚未正式发版的实现/修复/规范变更 | 用户未明确要求 `tag` / `release` / `publish` 时 |
-| 已发布轨 | 根 `CHANGELOG.md` + `changelogs/vX.Y.Z.md` | 正式已发布版本索引与详细说明 | 用户明确确认 release 后 |
+| 已发布轨 | 根 `CHANGELOG.md` + `changelogs/releases/vX.Y.Z.md` | 正式已发布版本索引与详细说明 | 用户明确确认 release 后 |
 
 ### 默认规则
 
@@ -134,8 +154,8 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
    - 不默认打 `git tag`
    - 不默认执行 `publish`
 2. 用户**明确确认发版**时，才进入正式 release 流程。
-   - 正式 release 前必须执行 `release-verification` R0~R7。
-3. 历史 `CHANGELOG.md` 与 `changelogs/vX.Y.Z.md` 不要求回填迁移；新规则仅约束后续新增变更。
+   - 正式 release 前必须执行 `audit-release` RL-1~RL-10 与 `release-verification` R0~R7。
+3. 已发布详情统一存放在 `changelogs/releases/`；旧 flat 路径 `changelogs/vX.Y.Z.md` 仅作为历史兼容说明，不再作为当前写入位置。
 
 ## Git Tag 发布规范
 
@@ -151,7 +171,7 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 
 ```bash
 # 1. 确认最终版本号（MAJOR / MINOR / PATCH）
-# 2. 将 changelogs/unreleased.md 中待发布条目归档到 changelogs/vX.Y.Z.md
+# 2. 将 changelogs/unreleased.md 中待发布条目归档到 changelogs/releases/vX.Y.Z.md
 # 3. 更新根 CHANGELOG.md（仅正式发布时）
 # 4. 更新 package.json / plugin.json 版本号
 # 5. 提交变更

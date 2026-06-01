@@ -32,6 +32,17 @@
         ]
       }
     ],
+    "PreCompact": [
+      {
+        "matcher": "manual|auto",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ./.codex/hooks/_runtime/lifecycle.cjs"
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [

@@ -8,7 +8,7 @@
 |------|---------|---------|
 | **MAJOR** | 架构性重构、破坏性变更（如存储层替换）| 新建 `versions/vX/` 系列目录，并创建首个快照 `versions/vX/X.Y.Z/` |
 | **MINOR** | 同一大版本下出现需求/流程级演进 | 在对应 major 下新增快照（如 `versions/v1/1.1.0/`），继承并迭代上一版文档 |
-| **PATCH** | Bug 修复、文档修正、规范微调 | 需求文档默认在当前快照内修正并更新需求级 CHANGELOG；实现变更默认写 `changelogs/unreleased.md`，只有正式发版时才归档为 `vX.Y.Z` |
+| **PATCH** | Bug 修复、文档修正、规范微调 | 需求文档默认在当前快照内修正并更新需求级 CHANGELOG；实现变更默认写 `changelogs/unreleased.md`，只有正式发版时才归档为 `changelogs/releases/vX.Y.Z.md` |
 
 > 采用 `major/minor` 两级结构的原因：一个大版本下通常会有多次小版本迭代，提前分层能避免后续整体搬目录。
 
@@ -62,7 +62,9 @@ DevCodex 采用“双阶段发布 + 三层日志”：
    - 只记录需求/规格变更
 2. **未发布实现轨**：`changelogs/unreleased.md`
    - 记录尚未正式发版的实现/修复/规范调整
-3. **已发布轨**：根 `CHANGELOG.md` + `changelogs/vX.Y.Z.md`
+3. **已发布轨**：根 `CHANGELOG.md` + `changelogs/releases/vX.Y.Z.md`
+
+`changelogs/README.md` 是实现变更日志目录说明；根目录只保留 `unreleased.md`、`TEMPLATE.md` 和 README，已发布版本详情统一放入 `changelogs/releases/`。
    - 只记录真正已经发布的版本
 
 ### 默认规则
@@ -78,11 +80,12 @@ DevCodex 采用“双阶段发布 + 三层日志”：
 - 仅在用户明确要求、需要独立回滚点或当前批次已闭环时，才把该建议转成实际本地提交
 - 用户**明确确认发版**时：
   1. 确认最终版本号
-  2. 从 `changelogs/unreleased.md` 归档到 `changelogs/vX.Y.Z.md`
+  2. 从 `changelogs/unreleased.md` 归档到 `changelogs/releases/vX.Y.Z.md`
   3. 更新根 `CHANGELOG.md`
   4. 更新 `package.json` / `plugin.json`
-  5. 执行 ReleaseVerification R0~R7
-  6. commit / tag / publish
+  5. 执行 `audit-release` 发布前审查（RL-1~RL-10），确认 release readiness、兼容/迁移风险、包元数据、文档/Profile/website 同步、回滚与 registry/tag 风险
+  6. 执行 ReleaseVerification R0~R7
+  7. commit / tag / publish
 
 > 旧日志不要求迁移；本规则只约束新变更。
 
@@ -97,10 +100,14 @@ DevCodex 采用“双阶段发布 + 三层日志”：
 发布时额外执行：
 1. `config.json` 中 `mode` 从 `"dev"` 改为 `"prod"`
 2. 确认 `.gitignore` 包含 `.devcodex/.memory/`
-3. 将 `changelogs/unreleased.md` 中待发布条目归档到 `changelogs/vX.Y.Z.md`
+3. 将 `changelogs/unreleased.md` 中待发布条目归档到 `changelogs/releases/vX.Y.Z.md`
 4. 更新根 `CHANGELOG.md`
 5. 更新 `package.json` version 字段为正式版本号
-6. 按 `release-verification` Skill 执行 R0~R7：
+6. 按 `audit-release` Skill 执行 RL-1~RL-10 发布前审查：
+   - `RL-1~RL-3`：版本身份、发布说明质量、兼容与迁移风险
+   - `RL-4~RL-6`：package/plugin 元数据完整性、包边界与安装面、README/website/Profile 消费链同步
+   - `RL-7~RL-10`：验证准备度、回滚恢复、registry/token 安全与发布后验收
+7. 按 `release-verification` Skill 执行 R0~R7：
    - `R3`：执行 `npm test`（默认全链）
    - `R3b`：执行 `npm run test:audit` + package completeness gate（`description`、`keywords`、`repository`、`homepage`、`bugs`、`license`、`files/exports/bin`、`publishConfig`、`engines`、`plugin.json`）
    - `R4`：执行 `npm pack --dry-run` 与 `npm publish --dry-run`

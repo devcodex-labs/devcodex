@@ -10,12 +10,26 @@
 | # | 规则 | 执行 |
 |:-:|------|------|
 | S01 | 删除/破坏性操作分两级：**不可逆**（删除文件/清空目录）必须等待用户明确 yes/no；**可逆**（重命名/移动）输出计划后执行 | 🔴 强制 |
-| S02 | 禁止在代码/配置/注释中硬编码 API Key、密码、Token、私钥 | 🔴 致命终止 |
+| S02 | 禁止硬编码 API Key、密码、Token、私钥、client secret、签名密钥、连接密码等核心秘密；私有仓库或用户授权仅可触发受控私有例外，不能豁免核心秘密禁止项 | 🔴 致命终止 |
 | S03 | 规范文件不存在或读取失败时必须按降级路径执行，禁止 AI 推测补全规范内容 | 🔴 致命终止 |
 | S04 | 源码和规范文件(.md)修改必须用增量编辑（Edit），禁止整文件重写 | 🟡 操作级阻断 |
 | S05 | 每次会话结束前必须写入记忆文件和报告文件，禁止询问用户"是否需要写入" | 🔴 强制 |
 | S06 | 禁止直接执行不可逆破坏性命令（`DROP TABLE`、无 WHERE 的 `DELETE FROM`、`rm -rf /`），必须先输出预览等待确认 | 🟡 操作级阻断 |
 | S07 | 全模式下，生成实质任务内容前必须先输出 PC0~PC7 入口检查块；dev 模式追加 PC4 完整规范雷达，非 dev 模式 PC4 标注 N/A。若已开始生成但未输出，立即补输出后继续。**v1.9.6+ compaction 触发**：`/compact`、`/resume`、summary 恢复后的首条回复同样视为"首条"，须重新输出 PC0~PC7（即使被指示"continue without acknowledging"） | 🔴 致命自修正 |
+
+---
+
+### S02 受控私有例外模型
+
+S02 的核心秘密禁止项不可豁免；“私有仓库”“本地使用”或“用户确认可以”只能触发受控例外流程，不能把 API Key、密码、Token、私钥、client secret、签名密钥、连接密码等明文写入可提交文件。
+
+| 分类 | 处理 |
+|------|------|
+| 核心秘密 | 永不明文写入代码、配置、注释、README、Profile 或任务报告；必须使用环境变量、secret manager 引用、CI/CD secret 或 `config.local.json` 中的 `*Env` / `secretRef` |
+| 非核心本地私有信息 | 可在用户明确授权后写入不提交的本地 overlay，例如 host、port、database、schema、username、内部服务 URL、租户/项目 ID、只读开关、连接别名 |
+| 承载位置 | 首选 `.devcodex/**/profile/config.local.json`；也可使用 `.env.local`、`.env.test.local` 或任务目录 `.tmp/local-config/`；这些文件必须被 `.gitignore` 排除 |
+| 审计要求 | 报告或记忆中记录授权来源、目标文件、字段类型、是否使用 `*Env` / `secretRef`、脱敏策略和回退方式；不得记录秘密明文 |
+| Profile 说明 | 若使用 `config.local.json` 或 `extensions.<namespace>`，必须在 `01-项目信息.md` 或 Profile README 说明用途、字段语义和使用方式 |
 
 ---
 
@@ -37,7 +51,7 @@
 |:-:|------|------|
 | C01 | 删除/破坏性确认 | 同 S01 |
 | C02 | CP 不可跳过合并 | dev/fix 工作流 CP1→CP2 必须严格按序，禁止合并或跳跃 |
-| C03 | 禁止硬编码敏感信息 | 同 S02（API Key、密码、Token、私钥禁止出现在代码/配置/注释中）|
+| C03 | 禁止硬编码敏感信息 | 同 S02（核心秘密禁止项不可豁免；非核心本地私有信息只能按受控私有例外模型处理）|
 | C04 | 禁止编造规范 | 同 S03 |
 | C05 | 记忆+报告自动写入 | 同 S05 |
 | C06 | 禁止 overwrite 源码/规范 | 同 S04 |
@@ -180,12 +194,28 @@
 
 所有模式下，主动 Intake 完成后必须显式回执：`已记录 PI-xxx`、`已记录 PF-xxx` 或 `已记录 PI-xxx / PF-xxx`。`data/process-improvements.md` 在本轮也可称“优化清单（PI）”，但它仍是当前 active-root 的运行时台账；若建议针对 DevCodex 规范自身，则必须归属 DevCodex 规范维护项目的 active-root，而不是业务项目台账。
 
+### Backlog Intake 真相复核
+
+当新的需求、bug、批次计划或修复范围**直接来源于 `data/*.md` 的 open/partial 条目**时，不能把这些条目直接当成“纯 open backlog”。进入 CP1 / 问题确认或批次实施前，必须先做 1 轮 Backlog Intake 真相复核：
+
+| 分类 | 含义 | 处理 |
+|------|------|------|
+| `pure-open` | 主体尚未实施，仍是本轮真实 open | 可直接纳入本轮范围 |
+| `residual-tail` | 主体已修，只剩尾项/补强/探针/文书 | 缩减范围后纳入尾项治理 |
+| `already-fixed` | 源码/产物已修，仅台账状态未回写 | 先回写台账，再从新范围中剔除 |
+| `misclassified` | 原台账分类、描述、计数或归属有误 | 先修正台账和统计口径，再决定是否继续纳入 |
+
+- 真相复核至少要核对：源码现状、运行时台账、最近报告/进度、验证结果与最新记忆索引。
+- 非 `pure-open` 项不得原样沿用旧 open 统计；必须先回写台账、修正本轮范围和 CP1/CP2/CP3 口径，再继续推进。
+- 用户面至少要显式说明：候选编号、复核分类、是否缩减本轮范围。
+
 ### 台账落点与关闭证据
 
 - `data/*.md` 是运行时逻辑台账路径，实际写入必须按当前 active-root 映射：旧布局写 `<项目根>/.devcodex/data/`，workspace-namespace 单项目写 `<工作区根>/.devcodex/<project>/data/`，全工作区写 `<工作区根>/.devcodex/workspace/data/`。
 - DevCodex 规范自身、Hook、Skill、模板、validate 或宿主适配链路问题归属当前 DevCodex 源仓或规范维护项目的 active-root；在 `workspace-namespace` 下应解析为承载 DevCodex 源码或规范资产的项目命名空间，不得因当时正在处理业务项目而写入业务项目台账。
 - VL/PF 关闭前必须具备修复方案、修复时间、验证状态、验证时间、验证证据与关闭时间；仅“已登记”不得视为“已验证关闭”。
 - 实施完成复审、ECR 或审计复审发现新问题时，必须记录逃逸原因、缺失检查/探针、补救方案，并判断是否升级 VL/PF/GAP。
+- 若本轮实施、复审或范围收紧改变了 VL/PF/PI/ISSUE/GAP 的真实状态，必须执行**台账状态回写闭环**：更新目标台账的状态、验证证据、验证时间、关闭时间/部分完成说明，并在批次完成前做 1 轮 target ledger rescan，确认 open 计数、进度、报告与 SUMMARY 口径一致。
 
 ### AI 与确定性边界
 
@@ -342,6 +372,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → 执行 →
 | 项目工程/代码质量 | PE-1~PE-11（加载 `audit-common` + `audit-project` Skill）|
 | 报告文件 | RA-1~RA-6（加载 `audit-common` + `audit-report` Skill）|
 | 通用文档 | DA-1~DA-6（加载 `audit-common` + `audit-document` Skill）|
+| 发布前审查 | RL-1~RL-10（加载 `audit-common` + `audit-release` Skill；审查 release readiness，不替代 `release-verification` R0~R7）|
 
 ---
 
@@ -476,6 +507,8 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → 执行 →
 
 - **用户面禁止输出**：内部工作流 ID（`dev.docs`/`fix.default`）、原始工具参数 XML、内部路由标签、调试 JSON
 - 仅在用户明确追问内部分类/机制时才展开内部术语，且最小化展开
+- 涉及文件产物时，回复末尾必须输出 `ArtifactLinkSet`：主 Markdown 链接 + 必要 `绝对路径：` copy fallback；Copilot / Codex / 未知宿主或用户反馈无法点击时不得只输出相对链接或裸文件名
+- Copilot / Codex 等非 Claude Code 宿主调用 DevCodex MCP 出现 `invoke` undefined 或工具桥接失败时，按宿主 MCP bridge 失败处理：停止重试同一 MCP，降级读取 Profile / SUMMARY / tasks 文件，并记录 `mcpFallback=used`
 - Commit subject 只描述主变更，不堆叠背景/验证步骤
 
 ## 提交与未发布变更边界
@@ -507,7 +540,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → 执行 →
 
 ## 全自动模式豁免
 
-当用户选择全自动执行时：CP1/CP2/CP3 确认自动通过；S01/S02~S07/C01/C10/C18 不可豁免。
+当用户选择全自动执行时：CP1/CP2/CP3 确认自动通过；S01/S02 核心秘密禁止项/S03~S07/C01/C10/C18 不可豁免。S02 受控私有例外只能按上文模型执行，不属于绕过安全底线。
 
 ---
 

@@ -61,6 +61,8 @@ description: 项目 Profile 加载规范 — 意图识别后独立确定目标�
 > ⚠️ `config.local.json` 不得覆盖 `mode` / `agent` / `pluginVersion`。`ENV_MODE` 仍只由 `config.json` 决定；`config.local.json` 只补充本地私有上下文。
 >
 > ⚠️ `config.local.json` 若使用项目级扩展，只能放在 `extensions.<namespace>` 下，并且必须在 `01-项目信息.md` 或 Profile README 说明用途、字段语义与使用方式。
+>
+> ⚠️ `config.local.json` 属于 S02 受控私有例外模型的本地 overlay：可保存 host、port、database、schema、username、内部 URL、连接别名等非核心本地私有信息；密码、Token、API Key、私钥、client secret、签名密钥、连接密码等核心秘密仍必须使用 `*Env` / `secretRef`，不得明文写入。
 
 ## Profile 缺失处理
 

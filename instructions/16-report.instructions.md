@@ -68,7 +68,7 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 
 ### audit 报告额外头部
 ```markdown
-> **审查目标类型**: [规范文件 / 技术方案 / 需求文档 / 项目工程 / 报告 / 通用文档]
+> **审查目标类型**: [规范文件 / 技术方案 / 需求文档 / 项目工程 / 报告 / 通用文档 / 发布前审查]
 > **审查范围**: [全面体检 / 定向深度 / 修复验证]
 > **收敛**: 连续 3 轮零发现（所有子类型统一，不区分定向/全面）
 > **PCV状态**: ✅已完成 / 🔄进行中
@@ -92,11 +92,12 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 - ⛔ **禁止覆盖已有报告**，每次会话独立新建文件
 - 每条建议/问题必须附五项验证（合理性 + 可实施性 + 收益 + 验证状态 + 影响范围）— 与 [`17-compliance.instructions.md`](./17-compliance.instructions.md) §1 输出验证保持一致
 - 报告写入后必须执行二次验证（V1~V6，见 `17-compliance.instructions.md`）
-- 回复末尾必须输出报告路径（默认单行 Markdown 链接，详见 [`02-output-paths.instructions.md`](./02-output-paths.instructions.md) §产物路径输出格式）：
+- 回复末尾必须输出报告路径（按 `ArtifactLinkSet` 输出主 Markdown 链接与必要 copy fallback，详见 [`02-output-paths.instructions.md`](./02-output-paths.instructions.md) §产物路径输出格式）：
   ```
   - [NN--简述.md](workspace相对路径/.devcodex/reports/.../NN--简述.md)
+  绝对路径：E:\...\NN--简述.md
   ```
-  > 默认只输出相对路径 Markdown 链接，避免 VS Code 重复渲染文件卡片；绝对路径纯文本仅在需要终端/跨工具复制时追加。
+  > 当前宿主为 Codex Desktop/App、Copilot、未知宿主，或用户反馈无法点击时，必须追加 `绝对路径：` 行；禁止只输出裸文件名。
 - ≤ 500 行（C13），超出拆分
 
 ### 写入工具选择（v1.9.4+）

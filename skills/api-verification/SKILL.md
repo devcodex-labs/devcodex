@@ -33,11 +33,23 @@ description: 接口验证规范 — 双产物（.http + .cjs）生成 + 自动�
 ### `.http` 文件（可执行请求示例）
 
 ```http
+# <模块名> API 验证请求示例
+
+@baseUrl = http://localhost:3000
+@contentType = application/json
+@token = replace-with-token-if-required
+@language = zh-CN
+@userName = test-user
+@userEmail = test@example.com
+
 ### POST 创建用户
 # @description 创建新用户账号
 # @expects 201 + 返回体包含 data.id（人工检查提示）
 POST {{baseUrl}}/api/users
-Content-Type: application/json
+Content-Type: {{contentType}}
+Accept-Language: {{language}}
+# 鉴权接口必须使用占位变量，禁止写真实 token；未鉴权接口可删除此行
+Authorization: Bearer {{token}}
 
 {
   "name": "{{userName}}",
@@ -117,6 +129,8 @@ async function testEndpoint(method, path, body, expected, headers = {}) {
 - 🔴 对外接口变更的归档验证禁止只生成 `.http` 不生成 `.cjs`（双产物缺一不可）
 - 归档级脚本必须包含断言（不是只发请求，要验证响应）
 - 归档级脚本禁止自启服务；必须通过 `API_BASE_URL` 或同等配置连接用户已启动的目标实例
+- 归档级 `.http` 必须声明标准变量块：`@baseUrl`、`@contentType`，鉴权接口必须声明 `@token`，有语言/区域差异时必须声明 `@language`
+- `.http` 的 Host 必须通过 `{{baseUrl}}`，鉴权头必须通过 `Authorization: Bearer {{token}}` 占位；禁止写真实 Token、Cookie、API Key 或项目私有密码
 - 接口变更进入正式产物时必须更新双产物（禁止过期文档）
 - `.http` 默认定位为“请求样本 + 可选轻提示”，不承诺跨宿主统一断言语法；正式归档级验证以 `.cjs` 为准
 

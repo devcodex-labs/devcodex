@@ -74,6 +74,7 @@ CP1（需求确认）→ PR-1 内部自检 → CP2（方案确认）→ plan-rev
 9. **确认后前置轻量复审**（C19）：每次用户明确确认 CP1 / CP2 / CP3 后、进入下一阶段前，必须先对当前已确认产物做 1 轮轻量前置复审并显式输出结果；控制面 / 多文件联动 / 真相源同步 / 模板-示例-校验链场景必须追加交叉验证；发现阻断性问题则先修正当前产物、告知用户并重新确认，无阻断问题方可推进。
 10. **Intent Expansion 可见性**：dev 模式下，CP1 / 需求确认前默认向用户展示完整 Intent Expansion Card；这会覆盖旧的“意图扩展摘要”默认行为，但当命中控制面或宿主能力差异、跨会话 resume、prod、instruction-fallback 宿主或低风险轻任务时，仍允许退化为 3~5 行意图扩展摘要。
 11. **执行期 CP3 回退**：若 N5 执行过程中实际变更范围扩展到 CP3 门槛（如文件数从 <5 增至 ≥5、临时引入高风险操作、命中控制面/模板/validate/部署副本联动），必须暂停执行，回到 N4 / CP3 补做实施计划确认后再继续。
+12. **backlog 来源前置真相复核**：若本轮需求、批次或范围直接来源于 `data/*.md` 的 open/partial 项，CP1 前必须先把候选项分类为 `pure-open` / `residual-tail` / `already-fixed` / `misclassified`；非 `pure-open` 项须先回写状态并修正范围口径，禁止直接按旧 open 计数开做。
 
 ### 目标文档前置（条件触发）
 
@@ -128,7 +129,7 @@ CP1（需求确认）→ PR-1 内部自检 → CP2（方案确认）→ plan-rev
   - 发布 / 版本 / changelog / profile 口径变更
 - 若同时涉及多真相源同步、模板-示例-校验链或部署副本，必须升级为 **L3 强联查**，并按 C19 追加交叉验证
 - `document-sync`、`impact-review`、`api-verification` 继续作为联查子动作使用，不替代统一联查矩阵
-- `execution-contract`、`test-router`、`release-verification`、`host-contract-verification`、`source-consumer-sync` 作为支撑型 Skill：分别提供执行契约、验证路线、发布验证链、宿主契约证据与真相源-消费者同步边界，不替代 CP、dev/fix 主流程或安全底线
+- `execution-contract`、`test-router`、`release-verification`、`host-contract-verification`、`source-consumer-sync` 作为支撑型 Skill：分别提供执行契约、验证路线、发布验证链、宿主契约证据与真相源-消费者同步边界，不替代 CP、dev/fix 主流程或安全底线；发版前风险审查使用 `audit-release`，不替代 `release-verification`
 
 ### 跨服务需求处理（CP1 前确认）
 
@@ -272,9 +273,9 @@ CP1（需求确认）→ PR-1 内部自检 → CP2（方案确认）→ plan-rev
 - **无污染要求**：类型校验不得通过创建临时 `tsconfig`、修改 `noEmit` 配置、写入构建产物或额外参数文件来“绕过”项目现状；验证应以当前仓库真实配置为准
 - error 最多 2 次迭代；2 次仍失败 → 停止，输出错误摘要标 ⚠️
 - 涉及 HTTP 接口变更 → 生成双产物（.http + .cjs）
-- 涉及源码/配置文件变更 → 检查文档同步（README 为必查；CHANGELOG 按发布状态区分：未明确发版默认更新 `changelogs/unreleased.md`，仅正式 release 更新根 `CHANGELOG.md` / `changelogs/vX.Y.Z.md`；TASK-INDEX/STATUS 按项目存在或启用时同步）
+- 涉及源码/配置文件变更 → 检查文档同步（README 为必查；CHANGELOG 按发布状态区分：未明确发版默认更新 `changelogs/unreleased.md`，仅正式 release 更新根 `CHANGELOG.md` / `changelogs/releases/vX.Y.Z.md`；TASK-INDEX/STATUS 按项目存在或启用时同步）
 - Auto、控制面、多批次、预计 ≥10 文件或发布类任务 → 执行前必须有 ExecutionContract；执行中按 `allowedPaths`、`requiredArtifacts`、`validationRoute` 对照推进
-- 未明确发版时不得执行真实 `tag` / `push` / `publish`；用户明确要求 release 时先走 `release-verification`
+- 未明确发版时不得执行真实 `tag` / `push` / `publish`；用户明确要求 release 时先走 `audit-release` 与 `release-verification`
 
 ## ECR 执行闭环复审（执行后强制）
 

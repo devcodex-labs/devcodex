@@ -26,9 +26,11 @@ description: 执行契约规范 — 为长流程、多文件、Auto 或控制面
 | `allowedPaths` | ✅ | 允许修改的路径集合；Auto 不得仅依赖静态白名单 |
 | `requiredArtifacts` | ✅ | 必须产出的需求、方案、计划、进度、报告、测试、changelog 等 |
 | `consumerScope` | 条件 | 控制面 / 模板-示例-校验链任务必填；列出 `sourceOfTruth`、`currentConsumers`、`historicalMirrors`、`validateProbes`、`deployCopies` |
-| `validationRoute` | ✅ | 引用 `test-router`、`release-verification` 或当前 CP3 验证矩阵 |
+| `backlogTruthReview` | 条件 | 当任务/批次直接来源于 `data/*.md` open/partial 项时必填；列出 `candidateIds`、`classification`、`evidence`、`scopeDelta` |
+| `validationRoute` | ✅ | 引用 `test-router`、`audit-release`、`release-verification` 或当前 CP3 验证矩阵 |
 | `regressionMatrix` | 条件 | 高风险控制面 / 多批次修复必填；列出“历史能力 → 受影响批次 → 必跑验证 → 失败回滚点” |
-| `verificationEvidence` | 条件 | 宿主验证或控制面任务必填；记录 validate、targeted tests、fixture replay、direct replay、部署同步等证据计划 |
+| `verificationEvidence` | 条件 | 宿主验证或控制面任务必填；记录 validate、targeted tests、fixture replay、direct replay、部署同步、ArtifactLinkSet、MCP fallback 等证据计划 |
+| `ledgerWriteback` | 条件 | 当本轮会改变 VL/PF/PI/ISSUE/GAP 的状态时必填；列出 `targetLedgers`、`requiredFields`、`writebackEvidence`、`rescanResult` |
 | `deviationPolicy` | ✅ | 绿色/黄色/红色偏离分级与处理方式 |
 | `deviationLog` | 条件 | 多批次或发生绿色/黄色偏离时，记录实际新增消费者、探针、同步副本与理由 |
 | `rollbackPlan` | ✅ | 失败恢复路径、回滚锚点或重新确认条件 |
@@ -60,7 +62,9 @@ description: 执行契约规范 — 为长流程、多文件、Auto 或控制面
 | allowedPaths | |
 | requiredArtifacts | |
 | consumerScope | |
+| backlogTruthReview | |
 | validationRoute | |
+| ledgerWriteback | |
 | verificationEvidence | |
 | deviationPolicy | |
 | deviationLog | |
@@ -71,5 +75,5 @@ description: 执行契约规范 — 为长流程、多文件、Auto 或控制面
 ## 验证
 
 - 执行前：CP2/CP3 或修复方案中存在 Contract 字段。
-- 执行中：每个 Batch 对照 `allowedPaths`、`requiredArtifacts`、`consumerScope`、`regressionMatrix` 与 `deviationLog`。
-- 执行后：ECR-2/ECR-3/ECR-7 引用 Contract、`verificationEvidence`、历史能力回归结果与最终偏离记录。
+- 执行中：每个 Batch 对照 `allowedPaths`、`requiredArtifacts`、`consumerScope`、`backlogTruthReview`、`regressionMatrix`、`ledgerWriteback` 与 `deviationLog`。
+- 执行后：ECR-2/ECR-3/ECR-7 引用 Contract、`verificationEvidence`、历史能力回归结果、backlog 真相复核结果与最终偏离记录。

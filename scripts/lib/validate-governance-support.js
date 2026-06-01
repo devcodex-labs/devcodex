@@ -48,7 +48,7 @@ function buildGovernanceSupportChecks(ctx) {
     ]
     for (const [file, needle, label] of probes) mustInclude(file, needle, label)
     const pkg = JSON.parse(read(path.join(ROOT, 'package.json')))
-    const releaseChangelog = `changelogs/v${pkg.version}.md`
+    const releaseChangelog = `changelogs/releases/v${pkg.version}.md`
     const releaseNeedleFound = (
       fs.existsSync(path.join(ROOT, releaseChangelog)) &&
       read(path.join(ROOT, releaseChangelog)).includes('Intent Expansion Card')
@@ -297,7 +297,7 @@ function buildGovernanceSupportChecks(ctx) {
       },
       {
         file: 'instructions/17-compliance.instructions.md',
-        needles: ['ExecutionContract/TestRoute/ReleaseVerification', '实施进度（触发时）']
+        needles: ['ExecutionContract/TestRoute/ReleaseAudit/ReleaseVerification', '实施进度（触发时）']
       },
       {
         file: 'skills/report/SKILL.md',

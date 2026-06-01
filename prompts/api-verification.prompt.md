@@ -22,6 +22,8 @@ applyTo: .devcodex/**
 
 @baseUrl = http://localhost:3000
 @contentType = application/json
+@token = replace-with-token-if-required
+@language = zh-CN
 @resourceId = replace-with-created-id
 
 ### ① GET 列表
@@ -29,6 +31,7 @@ applyTo: .devcodex/**
 # @expects 200 + `data.items` 为数组
 GET {{baseUrl}}/api/<resource>
 Content-Type: {{contentType}}
+Accept-Language: {{language}}
 
 ###
 
@@ -37,6 +40,9 @@ Content-Type: {{contentType}}
 # @expects 201 + 返回体包含 `data.id`
 POST {{baseUrl}}/api/<resource>
 Content-Type: {{contentType}}
+Accept-Language: {{language}}
+# 鉴权接口必须使用占位变量，禁止写真实 token；未鉴权接口可删除此行
+Authorization: Bearer {{token}}
 
 {
   "field1": "value1",
@@ -49,6 +55,7 @@ Content-Type: {{contentType}}
 # @description 获取指定<资源>（`resourceId` 填写上一步创建接口返回的 `data.id`）
 # @expects 200 + 返回体中的 `data.id` 与 `resourceId` 一致
 GET {{baseUrl}}/api/<resource>/{{resourceId}}
+Accept-Language: {{language}}
 
 ###
 ```

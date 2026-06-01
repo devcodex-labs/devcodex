@@ -11,6 +11,7 @@ description: 文档同步规范 — 代码变更后同步必查与条件文档
 | 文档 | 同步级别 | 同步内容 |
 |------|:--------:|---------|
 | `changelogs/unreleased.md` | 🔴 必查 | 用户未明确要求发版时的未发布实现变更记录 |
+| `changelogs/README.md` | 🟡 条件 | changelog 目录结构或发布归档路径变化时同步说明 |
 | `CHANGELOG.md` | 🟡 条件 | 仅正式发版时更新已发布版本索引 |
 | `README.md` | 🔴 必查 | 安装/使用/API 说明与代码一致 |
 | `05-实施进度.md` | 🟡 条件 | 多批次、预计 ≥10 文件、跨轮次、阻塞或用户要求持续跟踪的任务必须更新当前批次状态 |
@@ -68,7 +69,7 @@ description: 文档同步规范 — 代码变更后同步必查与条件文档
 
 **正式发版时**：
 
-1. 先将 `changelogs/unreleased.md` 中待发布条目归档到 `changelogs/vX.Y.Z.md`
+1. 先将 `changelogs/unreleased.md` 中待发布条目归档到 `changelogs/releases/vX.Y.Z.md`
 2. 再更新根 `CHANGELOG.md`
 
 **CHANGELOG.md 格式**：
@@ -92,7 +93,7 @@ description: 文档同步规范 — 代码变更后同步必查与条件文档
 - `token-check` 是否仍被描述为授权占位，而非当前 tier 门控
 - `ENV_MODE` 是否仍按当前 `dev / prod` 规则说明，而不是 Draft
 - 正式需求入口是否仍指向 `website/docs/versions/v1/<active-version>/requirements/`
-- 支撑型 Skill（`execution-contract` / `test-router` / `release-verification` / `host-contract-verification` / `source-consumer-sync`）的注册、触发说明、报告模板、validate 探针和用户文档是否一致
+- 支撑型 Skill（`execution-contract` / `test-router` / `release-verification` / `host-contract-verification` / `source-consumer-sync`）以及发布前审查 Skill（`audit-release`）的注册、触发说明、报告模板、validate 探针和用户文档是否一致
 - `readme-authoring` / `audit-readme` 的注册、README prompt、README / Profile / website 当前消费者、validate 与 targeted tests 是否一致
 - 控制面任务是否已建立 Concept Sync Map，并把当前消费者、历史镜像、validate 探针、部署副本与黄色偏离边界说明清楚
 - 宿主契约相关变更是否补了 HostContractRoute 证据，而不是只改文档叙述

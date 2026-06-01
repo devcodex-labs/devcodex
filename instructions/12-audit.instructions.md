@@ -6,7 +6,7 @@ version: 1.11.5
 ---
 # 审计工作流规则（12-audit）
 
-> 本文件定义 audit 工作流的完整规则，含 6 个审查目标类型和收敛规则。
+> 本文件定义 audit 工作流的完整规则，含 7 个审查目标类型和收敛规则。
 
 > ⚠️ **PC4 关系说明**：`18-spec-radar` 的 PC4 结果作为 audit R1 的初始输入，帮助 AI 提前锁定规范盲区；进入 audit 轮次后，同一问题不得再以 PF 重复登记一次，避免 PC4 与 audit 双重记录。
 
@@ -38,6 +38,7 @@ version: 1.11.5
 | 项目工程/代码质量 | 项目工程 |
 | 报告文件 | 报告 |
 | 一般文档 | 通用文档（README / 用户使用文档额外叠加 `audit-readme`） |
+| 发布前审查 / release pre-review / publish 或 tag 前风险 review | 发布前审查（加载 `audit-release`） |
 
 - 基于用户意图智能识别，不依赖关键词
 
@@ -170,4 +171,12 @@ version: 1.11.5
 - B — 引用 🔴/🟡：DA-3 引用有效性 · DA-4 术语一致性
 - C — 受众 💡/🔴：DA-5 受众适配 · DA-6 关联一致性
 
-> README / 用户使用文档不单独开新的第 7 类审查目标，仍归入“通用文档”；但执行时必须在 `audit-document` 基础上额外叠加 `audit-readme`，补做 `RM-1~RM-6` 用户路径、快速开始、排错与消费链一致性检查。
+> README / 用户使用文档不单独开新的审查目标，仍归入“通用文档”；但执行时必须在 `audit-document` 基础上额外叠加 `audit-readme`，补做 `RM-1~RM-6` 用户路径、快速开始、排错与消费链一致性检查。
+
+### 发布前审查（RL-1~RL-10）
+- A — 发布身份 🔴：RL-1 版本身份 · RL-2 发布说明质量
+- B — 风险边界 🔴：RL-3 兼容与迁移风险 · RL-9 凭据与 registry 安全
+- C — 包与消费链 🔴：RL-4 元数据完整性 · RL-5 包边界与安装面 · RL-6 消费链同步
+- D — 验证与恢复 🟡：RL-7 验证准备度 · RL-8 回滚与恢复 · RL-10 发布后验收
+
+> 发布前审查加载 `audit-common` + `audit-release`，定位为“是否适合发布”的风险审查；`release-verification` 仍负责 R0~R7 执行验证链。不得用 `npm test`、pack 或 publish dry-run 通过来替代 RL 维度审查。

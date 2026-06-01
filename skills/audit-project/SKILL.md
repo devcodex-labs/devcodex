@@ -20,6 +20,11 @@ description: 项目工程审查维度 PE-1~PE-11 — 代码质量/项目结构/�
 
 ## 核心检查维度
 
+**PE-0 Profile Freshness 衔接 🔴**
+- 先执行 `audit-common` 的 `Profile Freshness Check（PFresh）`
+- 不只检查“项目是否符合 Profile”，还要反向检查 Profile 是否仍符合当前 package、目录结构、脚本清单、发布状态、宿主能力和当前任务现实
+- 若 Profile 过期，项目工程审查结论不得直接标注收敛；需先记录漂移或同步要求
+
 **PE-1 项目结构合理性 🔴**
 - 目录结构与 profile `02-架构约束.md` 一致
 - 模块/文件职责单一（不混合路由/业务/数据层）

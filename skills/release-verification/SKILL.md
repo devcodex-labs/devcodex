@@ -21,7 +21,7 @@ description: 发布验证规范 — 覆盖版本、changelog、测试、pack、i
 | 阶段 | 检查 |
 |------|------|
 | R0 | 确认目标版本、SemVer、tag 和 registry 唯一性 |
-| R1 | 将 `changelogs/unreleased.md` 归档到 `changelogs/vX.Y.Z.md`，并更新根 `CHANGELOG.md` |
+| R1 | 将 `changelogs/unreleased.md` 归档到 `changelogs/releases/vX.Y.Z.md`，并更新根 `CHANGELOG.md` |
 | R2 | 同步 `package.json`、`package-lock.json`、`plugin.json`、Profile/README/website 版本口径 |
 | R3 | 执行 `npm test`（默认全链）|
 | R3b | 执行 `npm run test:audit`，并完成 package completeness gate（`description`、`keywords`、`repository`、`homepage`、`bugs`、`license`、`files/exports/bin`、`publishConfig`、`engines`、`plugin.json` 元数据） |

@@ -38,10 +38,17 @@
  * V40 Profile local config sync（config.local schema、env 引用、受控扩展位与本地 overlay 消费链）
  * V41 Requirement runtime artifact structure sync（recent requirements 的 01/04/05 运行时结构探针）
  * V42 Release gate + package completeness sync（test:audit、metadata gate、prepublishOnly、pack forbidden 与 GitHub Packages 文档边界）
+ * V43 Host docs / README audit route sync（宿主文档、README 排错、audit-readme 路由）
  * V44 Context rehydration / CP3 rollback sync（压缩恢复优先级、Intent Expansion 可见性、执行期 CP3 回退与 ConfirmationRequest 抽象）
  * V45 Single-source aggregate vs split instructions sync（instructions.md 与 instructions/ 关键概念双向联查）
  * V46 Tenant example coverage（tenants 示例目录与最小覆盖样例）
  * V47 Source template hygiene（.npmignore 失效项、assets/hooks 边界说明、codex/ 源模板边界）
+ * V48 Split common instruction structure sync（01-common 锚点文件与 01a/01b/01c 拆分视图）
+ * V49 Backlog truth review + ledger writeback sync（backlog 来源真相复核、状态回写闭环、规范源/模板/当前消费者与探针联查）
+ * V50 Release audit governance sync（audit-release、RL-1~RL-10、发布审查/发布验证职责边界）
+ * V51 Client artifact + MCP fallback sync（ArtifactLinkSet、跨客户端产物点击矩阵、Copilot/Codex MCP bridge fallback）
+ * V52 Codex PreCompact adapter sync（Codex compaction runtime 兜底、adapter 模板、CLI/validate/direct replay 探针）
+ * V53 Security exception / API variables / changelog releases / profile freshness sync（安全例外、接口变量、发布日志结构、Profile 新鲜度审查）
  *
  * Exit: 0=OK, 1=error, 2=warnings only
  */
@@ -495,7 +502,12 @@ const {
   checkV45,
   checkV46,
   checkV47,
-  checkV48
+  checkV48,
+  checkV49,
+  checkV50,
+  checkV51,
+  checkV52,
+  checkV53
 } = buildGovernanceTailChecks({
   ROOT,
   ACTIVE_DEVCODEX_ROOT,
@@ -781,7 +793,7 @@ function checkV19() {
 }
 
 // V29~V38 moved to scripts/lib/validate-governance-mid.js
-// V39~V48 moved to scripts/lib/validate-governance-tail.js
+// V39~V53 moved to scripts/lib/validate-governance-tail.js
 
 function checkV7b() {
   try {
@@ -842,6 +854,11 @@ checkV45()
 checkV46()
 checkV47()
 checkV48()
+checkV49()
+checkV50()
+checkV51()
+checkV52()
+checkV53()
 
 console.log('')
 if (errors.length) {

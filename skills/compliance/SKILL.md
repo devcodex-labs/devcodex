@@ -34,7 +34,7 @@ SC: SC2 [✅/❌] SC4 [✅/❌] SC6 [✅/❌] ...（仅列适用项，逐项实�
 ```
 
 > ⛔ dev 模式下不输出状态块视为未执行合规检查。
-> ⚠️ **FC5 填写规则**：必须在回复末尾的 `📂 本次会话产物` 区块内列出 Markdown 链接（详见 [`02-output-paths`](../../instructions/02-output-paths.instructions.md) §产物路径输出格式）；链接使用工作区根的相对路径（不带 `file://` 协议，VS Code Claude 插件 webview / VS Code Markdown Preview / JetBrains 均可点击）；绝对路径纯文本仅作为可选辅助行。本轮无文件变更时填 N/A，有变更时不得填 ✅ 而不列出路径。
+> ⚠️ **FC5 填写规则**：必须在回复末尾的 `📂 本次会话产物` 区块内列出 `ArtifactLinkSet`（详见 [`02-output-paths`](../../instructions/02-output-paths.instructions.md) §产物路径输出格式）；主链接必须是 Markdown 链接，当前宿主为 Codex Desktop/App、Copilot、未知宿主，或用户反馈无法点击时，必须追加 `绝对路径：` copy fallback；禁止只输出裸文件名。本轮无文件变更时填 N/A，有变更时不得填 ✅ 而不列出路径。
 > ℹ️ prod 模式不执行合规检查，不输出状态块。
 > ℹ️ chat 工作流豁免此输出。
 
@@ -71,7 +71,7 @@ SC: SC2 [✅/❌] SC4 [✅/❌] SC6 [✅/❌] ...（仅列适用项，逐项实�
 | FC2 | 报告文件已写入（chat 豁免） |
 | FC3 | CP 按序执行（dev/fix；其他 N/A） |
 | FC4 | 文件名/路径合规（`NN--` 双横杠开头） |
-| FC5 | 产物路径已输出（回复末尾在 `📂 本次会话产物` 区块内列出 Markdown 链接，见 `02-output-paths.instructions.md` §产物路径输出格式）|
+| FC5 | 产物路径已输出（回复末尾在 `📂 本次会话产物` 区块内列出 `ArtifactLinkSet`：Markdown 链接 + 必要 `绝对路径：` copy fallback，见 `02-output-paths.instructions.md` §产物路径输出格式）|
 | FC6 | 新建 .md 行数检查（超 500 行须拆分 [C13](../../instructions/01-common.instructions.md)） |
 | FC7 | 用户决策选项与报告决策点必带推荐 + 理由：所有 AskUserQuestion / 多选项呈现 / CP 选项 / 方案对比 / analyze-audit 报告决策点必须有且仅有 1 个推荐项，推荐项置首且说明推荐理由；无后续动作时写明 `推荐：无后续动作` |
 
@@ -93,7 +93,7 @@ SC: SC2 [✅/❌] SC4 [✅/❌] SC6 [✅/❌] ...（仅列适用项，逐项实�
 | SC12 | [C14](../../instructions/01-common.instructions.md) 多任务进度快照验证（每完成子任务有 T{N}进度 标记） | 任务≥2时 🔴 |
 | SC13 | [C15](../../instructions/01-common.instructions.md) 架构质量自检（dev plan-review 三维评估；fix CP2 三维评估） | dev/fix 🔴 |
 | SC14 | analyze/audit 工作流中，所有标注 ✅已验证 的运行时结论（测试通过率/性能数字/命令输出）均已在**本轮实际执行**对应命令；SUMMARY.md 或记忆文件中的历史数字不得直接用作 ✅已验证，必须降级为 ⚠️待验证 | analyze/audit 🔴 |
-| SC15 | dev/fix 关键产物已完成 ECR 执行闭环复审：覆盖 CP1/CP2/CP3、实施进度（触发时）、ExecutionContract/TestRoute/ReleaseVerification（触发时）、报告、daily tasks、SUMMARY、diff/commit、测试/扫描证据、dirty 边界；最后一次阻断性修正后至少再复审 1 轮且无新增阻断性问题 | dev/fix 🔴 |
+| SC15 | dev/fix 关键产物已完成 ECR 执行闭环复审：覆盖 CP1/CP2/CP3、实施进度（触发时）、ExecutionContract/TestRoute/ReleaseAudit/ReleaseVerification（触发时）、报告、daily tasks、SUMMARY、diff/commit、测试/扫描证据、dirty 边界；最后一次阻断性修正后至少再复审 1 轮且无新增阻断性问题 | dev/fix 🔴 |
 
 ## §4 恢复性检查（RC）— 非阻塞
 

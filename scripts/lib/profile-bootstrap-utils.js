@@ -63,7 +63,7 @@ function buildProfileBootstrapUtils(context) {
 | 02-架构约束.md | 目录结构 / 模块边界 |
 | 03-代码风格.md | 编码规范 / lint / 格式化 |
 | config.json | ENV_MODE + agent 兜底标识 |
-| config.local.json | 可选，本地私有 overlay：长期连接、env 引用、\`extensions.<namespace>\`（不提交） |
+| config.local.json | 可选，本地私有 overlay：长期连接、env 引用、\`extensions.<namespace>\`（不提交；核心秘密仅用 \`*Env\` / \`secretRef\`） |
 `
   }
 
@@ -100,6 +100,7 @@ function buildProfileBootstrapUtils(context) {
 
 - 若项目使用 \`config.local.json\` 保存长期连接别名、本机专属配置或 env 引用，请在本文件说明用途与使用方式。
 - 项目级扩展只能写在 \`extensions.<namespace>\` 下，并记录字段语义、取值来源和是否依赖 \`*Env\` / \`secretRef\`。
+- 受控私有例外只允许非核心本地私有信息写入 \`config.local.json\`；密码、Token、API Key、私钥、client secret、签名密钥、连接密码等核心秘密必须使用 \`*Env\` / \`secretRef\`。
 `
   }
 

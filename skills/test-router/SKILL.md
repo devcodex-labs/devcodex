@@ -25,10 +25,10 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 |----------|----------|----------|
 | 文档/规范 | `node scripts/validate.js`、引用扫描 | website build、SCV |
 | Skill / instructions / prompts | `node scripts/validate.js`、`npm test`、引用扫描 | `npm run test:all`、部署副本同步 |
-| Hook / MCP / CLI | `npm test`、相关 targeted test、`npm run test:all` | `host-contract-verification`、direct replay、fixture replay、dry-run |
+| Hook / MCP / CLI / ArtifactLinkSet | `npm test`、相关 targeted test、`npm run test:all` | `host-contract-verification`、direct replay、fixture replay、dry-run；产物点击需覆盖 `ArtifactLinkSet` 主链接 + copy fallback，MCP bridge 失败需覆盖 `mcpFallback` |
 | 对外 HTTP API | `api-verification` 生成 `.http + .cjs` | 项目集成/E2E |
 | 前端体验 | lint/typecheck/test | Browser/截图验证 |
-| 发布 / package | `release-verification`、`npm run test:audit`、package completeness gate、pack dry-run | pack install smoke、publish dry-run |
+| 发布 / package | `audit-release`、`release-verification`、`npm run test:audit`、package completeness gate、pack dry-run | pack install smoke、publish dry-run |
 
 ## 输出格式
 

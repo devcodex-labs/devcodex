@@ -33,7 +33,7 @@
 - **默认**：保留 `devcodex init/update` 自动分发的 `.github/agents/`；日常可直接用 Copilot Chat，只有需要显式入口时再 `@devcodex` / `@devcodex-auto`
 - **高频维护**：引入 `@devcodex-auto`，在确保仓库可回滚的前提下加速执行
 - **严格审查**：引入 `@devcodex`，确保每个关键节点有人工确认
-- **长流程任务**：无论确认模式还是 Auto，命中控制面、多批次、预计修改 ≥10 文件或正式发版时，都应把 ExecutionContract / TestRoute / ReleaseVerification 写入报告证据
+- **长流程任务**：无论确认模式还是 Auto，命中控制面、多批次、预计修改 ≥10 文件或正式发版时，都应把 ExecutionContract / TestRoute / ReleaseAudit / ReleaseVerification 写入报告证据
 
 ## 与 Instructions 路径的关系
 

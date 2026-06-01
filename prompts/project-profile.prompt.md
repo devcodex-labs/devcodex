@@ -50,4 +50,5 @@ applyTo: .devcodex/**/profile/**
 - 若项目需要长期连接别名、本机专属配置或 env 引用，请额外维护 `config.local.json`
 - `config.local.json` 只用于本地私有 overlay，不覆盖 `config.json` 中的 `mode` / `agent`
 - 项目级扩展只能写在 `extensions.<namespace>` 下，并在 `01-项目信息.md` 或本 README 说明用途、字段语义和使用方式
+- 受控私有例外只允许非核心本地私有信息（如 host、port、database、schema、username、内部 URL、连接别名）写入 `config.local.json`；密码、Token、API Key、私钥、client secret、签名密钥、连接密码等核心秘密必须使用 `*Env` / `secretRef`
 ```

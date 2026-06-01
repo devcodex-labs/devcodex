@@ -68,8 +68,12 @@ description: "Use when: ..."   # 必填，AI 靠这个发现 Skill
 - SKILL.md 包含完整的工作流内容：**触发条件** + **执行步骤** + **检查标准**
 - 每个 Skill 目录只有一个 `SKILL.md`，扁平一级目录
 - 支撑型 Skill（如 `execution-contract` / `test-router` / `release-verification` / `host-contract-verification` / `source-consumer-sync`）不能新增工作流分支；必须被 instructions、模板、报告、validate 与用户文档同时消费
+- 发布前审查使用 `audit-release` 专项维度，负责 release readiness 风险审查；它与 `release-verification` 的 R0~R7 执行验证链必须保持边界清晰
 - README / 用户使用文档默认通过 `readme-authoring` 收口用户 / 使用者优先写作，完成后再用 `audit-readme` 做专项 review
+- audit 会先执行 `Profile Freshness Check`，反向核对 Profile 是否仍匹配当前包版本、目录资产、脚本、发布状态、宿主能力和任务现实；不得基于过期 Profile 宣告收敛
 - 所有模式下若用户建议经验证更优且可泛化，或暴露规范未定义/不完整，应主动触发 Improvement Intake：写入 `data/process-improvements.md`（优化清单，PI），必要时联动 `data/pending-fixes.md`，并显式回执 `PI/PF`
+- 若新的需求、bug 或批次直接来源于 `data/*.md` 的 open/partial 项，进入 CP1 / 问题确认前必须先做 Backlog Intake 真相复核：把候选项分成 `pure-open / residual-tail / already-fixed / misclassified`，避免把“已修但未回写”的条目继续按纯 open 统计
+- 当实施或复审改变了 VL / PF / PI / ISSUE / GAP 的真实状态时，必须执行台账状态回写闭环：回写状态、验证证据、验证时间和关闭/部分完成说明，并复核 open 计数是否与进度、报告、SUMMARY 一致
 - v2.0.0 规划：MCP `devcodex_getWorkflow()` 替代文件读取
 
 
@@ -154,13 +158,13 @@ dev 模式默认向用户展示完整 Intent Expansion Card；prod、instruction
 
 ### Hook closure 三态
 
-Hook Stop / PreCompact 的可见回复验证区分 `verified-present`、`verified-missing`、`unverified`。无法解析最终 assistant 内容时，提示“无法验证最终用户可见回复”并给出 payload capture 指引；只有已解析且确实缺入口检查时，才提示 `entry check block 未输出`。
+Hook Stop / PreCompact 的可见回复验证区分 `verified-present`、`verified-missing`、`unverified`。无法解析最终 assistant 内容时，提示“无法验证最终用户可见回复”并给出 payload capture 指引；只有已解析且确实缺入口检查时，才提示 `entry check block 未输出`。Codex adapter 默认注册 `PreCompact`，并用 `manual|auto` matcher 覆盖手动与自动压缩触发。
 
 ### ECR 执行闭环复审
 
 dev/fix 完成前必须执行 ECR 执行闭环复审。ECR 会交叉验证 CP1/CP2/CP3、报告、daily tasks、SUMMARY、diff/commit、测试/探针和 git dirty 边界，确认没有“报告已完成但证据不足”或“SUMMARY 已完成但 daily 仍未闭环”的状态错配。
 
-当任务触发 ExecutionContract、TestRoute、ReleaseVerification、ConceptSyncMap、HostContractVerification 或 `05-实施进度.md` 时，ECR 必须把这些产物纳入关键证据；未触发时报告中写明 N/A 依据。
+当任务触发 ExecutionContract、TestRoute、ReleaseAudit、ReleaseVerification、ConceptSyncMap、HostContractVerification 或 `05-实施进度.md` 时，ECR 必须把这些产物纳入关键证据；未触发时报告中写明 N/A 依据。
 
 控制面或模板-示例-校验链任务要先建立 Concept Sync Map：至少写清 `sourceOfTruth`、`currentConsumers`、`historicalMirrors`、`validateProbes`、`deployCopies`、`yellowDeviationBoundary`。其中当前消费者必须同批同步，历史镜像只有在明确标注历史性质时才允许保留旧口径。
 
@@ -168,14 +172,20 @@ Hook / CLI / visible reply / sticky project / workspace guard 相关任务还要
 
 ### Profile 本地私有配置
 
-`.devcodex/**/profile/config.local.json` 用于本地私有 overlay：长期连接、env 引用、受控扩展位 `extensions.<namespace>`。它不替代 `config.json`，也不能覆盖 `mode` / `agent` / `pluginVersion`。若项目使用了本地连接别名或扩展位，需在 `01-项目信息.md` 或 Profile README 说明用途、字段语义和使用方式。
+`.devcodex/**/profile/config.local.json` 用于本地私有 overlay：长期连接、env 引用、受控扩展位 `extensions.<namespace>`。它不替代 `config.json`，也不能覆盖 `mode` / `agent` / `pluginVersion`。若项目使用了本地连接别名或扩展位，需在 `01-项目信息.md` 或 Profile README 说明用途、字段语义和使用方式。受控私有例外只允许 host、port、database、schema、username、内部 URL、连接别名等非核心本地私有信息写入本地 overlay；密码、Token、API Key、私钥、client secret、签名密钥、连接密码等核心秘密必须使用 `*Env` / `secretRef`。
 
 ### 诊断与排错入口
 
 - `devcodex doctor`：查看当前宿主、Hook、Profile、记忆与 adapter 状态，适合先判断“规则到底有没有加载”
 - `devcodex help`：查看 CLI 子命令与参数，尤其是 `profile init`、`migrate-layout`、`init/update --claude/--codex`
-- `DEVCODEX_HOOK_ENFORCEMENT`：默认 `safety-only`，仅危险命令硬拦；切到 `strict` 前应先确认宿主确实支持对应 Hook 事件
+- `DEVCODEX_HOOK_ENFORCEMENT`：默认 `safety-only`，仅危险命令硬拦；切到 `strict` 前应先确认宿主确实支持对应 Hook 事件；当前 Codex adapter 已内置 `PreCompact` compaction runtime 兜底
 - `.mcp.json` 目前只由 Claude Code adapter 自动写入；Codex / Copilot 若宿主支持 MCP，需要手工配置，不能把 Claude 的 `.mcp.json` 当成三宿主通用入口
+
+### 产物链接与 MCP fallback
+
+用户面产物路径必须按 `ArtifactLinkSet` 输出：主 Markdown 链接 + 必要 `绝对路径：` copy fallback。Copilot / JetBrains / Visual Studio 默认使用工作区相对 Markdown 链接，并强制追加绝对路径 fallback；Codex Desktop/App 可使用绝对路径 Markdown target；未知宿主或用户已反馈“无法点击”时同样必须追加绝对路径。
+
+若 Copilot / Codex 等非 Claude Code 宿主在 `profile_load`、`profile_get_mode` 等 MCP 工具上出现 `Cannot read properties of undefined (reading 'invoke')`，按宿主 MCP bridge 失败处理：不要反复重试同一 MCP 调用，立即降级读取 `.devcodex/**/profile/`、`SUMMARY.md` 与当日任务记忆，并在 HostContractRoute 中记录 `mcpFallback=used`。
 
 ### 推荐结论与确认交互
 

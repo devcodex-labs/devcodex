@@ -9,7 +9,8 @@ applyTo: .devcodex/**/requirements/**
 > **触发**: dev 工作流 CP3 阶段
 > ⚠️ 本模板只承接任务拆分、实施顺序、前置依赖、验证方式与回滚策略，不重复需求背景或技术方案中的设计论证。
 > ⚠️ 生成的 Markdown 实施计划文档必须在头部后补 `## 目录导航`。
-> ⚠️ 控制面、Auto、多批次、预计修改 ≥10 文件、模板-示例-校验链或发布前置任务，计划中必须列出 ExecutionContract / TestRoute / ReleaseVerification / ConceptSyncMap / HostContractVerification / 05-实施进度.md 的触发状态与证据。
+> ⚠️ 控制面、Auto、多批次、预计修改 ≥10 文件、模板-示例-校验链或发布前置任务，计划中必须列出 ExecutionContract / TestRoute / ReleaseAudit / ReleaseVerification / ConceptSyncMap / HostContractVerification / 05-实施进度.md 的触发状态与证据。
+> ⚠️ 若本轮任务或批次直接来源于 `data/*.md` 的 open/partial 项，计划中必须显式写出 Backlog Intake 真相复核和台账状态回写闭环：先分类 `pure-open / residual-tail / already-fixed / misclassified`，再说明本轮范围是否缩减以及回写证据如何产出。
 
 ## 计划模式
 
@@ -89,10 +90,13 @@ applyTo: .devcodex/**/requirements/**
 |------|:--------:|----------|----------|
 | ExecutionContract | 是 / 否 | Auto / 控制面 / 多批次 / 预计修改 ≥10 文件 / release 前置任务 | scope / allowedPaths / requiredArtifacts / validationRoute / deviationPolicy / rollbackPlan |
 | TestRoute | 是 / 否 | 跨模块 / API / Hook / CLI / 模板-示例-校验链 / 测试路线不明显 | changeType / routes / commands / skipReason / blockingLevel |
+| ReleaseAudit | 是 / 否 | 发版前 review / publish 或 tag 前风险审查 / release readiness | RL-1~RL-10 / risks / recommendation |
 | ReleaseVerification | 是 / 否 | 用户要求 tag / release / publish 或进入正式发版 | R0~R7 |
 | ConceptSyncMap | 是 / 否 | 控制面 / 模板-示例-校验链 / README / website / Profile / validate / 部署副本联动 | sourceOfTruth / currentConsumers / historicalMirrors / validateProbes / deployCopies / yellowDeviationBoundary |
-| HostContractVerification | 是 / 否 | Hook / CLI / visible reply / sticky project / workspace guard / bootstrap | hostSurface / eventScope / evidenceMode / visibleReplyEvidence / workspaceGuard / bootstrapScope |
+| HostContractVerification | 是 / 否 | Hook / CLI / visible reply / sticky project / workspace guard / bootstrap / ArtifactLinkSet / MCP fallback | hostSurface / eventScope / evidenceMode / visibleReplyEvidence / workspaceGuard / bootstrapScope / artifactLinkMatrix / mcpFallback |
 | 05-实施进度.md | 是 / 否 | 跨多轮/多阶段、阻塞、用户要求持续跟踪、多批次、预计修改 ≥10 文件、控制面或模板-校验链任务 | CP 状态 / 批次状态 / 阻塞 / 验证证据 |
+| Backlog Intake 真相复核 | 是 / 否 | 任务/批次直接来源于 `data/*.md` open/partial 项 | candidateIds / classification / evidence / scopeDelta |
+| 台账状态回写闭环 | 是 / 否 | 本轮会关闭/部分关闭/改分类任何 VL/PF/PI/ISSUE/GAP | targetLedgers / requiredFields / writebackEvidence / rescanResult |
 
 ## §5 独立验证方式
 
@@ -103,7 +107,9 @@ applyTo: .devcodex/**/requirements/**
 | ExecutionContract | 对照 scope / allowedPaths / requiredArtifacts / validationRoute | 无范围偏移，偏移均按 deviationPolicy 处理 |
 | TestRoute | 对照变更类型执行对应命令 | 路线覆盖完整，跳过项有依据 |
 | ConceptSyncMap | 对照 sourceOfTruth / currentConsumers / historicalMirrors / validateProbes / deployCopies | 当前消费者与探针无漏改，历史镜像边界明确 |
-| HostContractVerification | 对照 hostSurface / eventScope / evidenceMode / workspaceGuard | direct replay / fixture / targeted test 证据与声明一致 |
+| HostContractVerification | 对照 hostSurface / eventScope / evidenceMode / workspaceGuard / artifactLinkMatrix / mcpFallback | direct replay / fixture / targeted test 证据与声明一致；产物链接与 MCP fallback 不只停留在文案 |
+| Backlog Intake 真相复核 | 对照 candidateIds / classification / evidence / scopeDelta | open 统计与本轮范围一致，非 `pure-open` 项已缩减或剔除 |
+| 台账状态回写闭环 | 对照 targetLedgers / requiredFields / writebackEvidence / rescanResult | 状态、证据、计数与报告/进度/SUMMARY 一致 |
 | 模板/规则一致性 | | |
 | 样本映射 | | |
 | 自动化校验 | | |
@@ -139,10 +145,13 @@ applyTo: .devcodex/**/requirements/**
 - [ ] impact-review 完成
 - [ ] ExecutionContract 已建立并执行（若触发）
 - [ ] TestRoute 已建立并覆盖（若触发）
+- [ ] ReleaseAudit RL-1~RL-10 已完成（若触发布前审查）
 - [ ] ReleaseVerification R0~R7 已完成（若进入正式发版）
 - [ ] ConceptSyncMap 已建立并核对当前消费者/探针/部署副本（若触发）
-- [ ] HostContractVerification 已建立并核对宿主证据/guard/visible reply（若触发）
+- [ ] HostContractVerification 已建立并核对宿主证据/guard/visible reply/ArtifactLinkSet/MCP fallback（若触发）
 - [ ] 05-实施进度.md 已按触发条件持续同步（若触发）
+- [ ] Backlog Intake 真相复核已完成并收紧范围（若触发）
+- [ ] 台账状态回写闭环已完成并复核 open 计数（若触发）
 - [ ] document-sync 完成
 - [ ] CHANGELOG / unreleased 已按发布状态更新
 - [ ] §8 验收标准逐条核查通过（含负向场景）

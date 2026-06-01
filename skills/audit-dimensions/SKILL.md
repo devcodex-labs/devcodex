@@ -221,7 +221,7 @@ description: D1~D25 规范文件审查维度总览 — 规范库/specs 文件专
 | # | 检查内容 |
 |:-:|---------|
 | 1 | `CHANGELOG.md` 格式是否符合 `02-output-paths.instructions.md` 的 CHANGELOG 维护规范 |
-| 2 | MAJOR/MINOR 版本是否有对应 `changelogs/vX.Y.Z.md` 详情文件 |
+| 2 | MAJOR/MINOR 版本是否有对应 `changelogs/releases/vX.Y.Z.md` 详情文件 |
 
 **D21 Markdown 渲染格式 🔴**
 

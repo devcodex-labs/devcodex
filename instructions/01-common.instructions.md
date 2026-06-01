@@ -28,6 +28,10 @@ version: 1.11.5
 > 即使在明确追问场景下，默认用户输出也不应直接罗列完整规则原文、完整内部路径清单或编号清单；仅在当前回答确有必要时，才做最小化展开。
 >
 > 上述"最小化展开"主要约束**面向用户的默认输出场景**；项目内 `dev` 模式下的规范优化、规则提升与实现讨论不受此条新增限制。
+>
+> ⚠️ **产物链接兼容**：涉及文件产物时，回复末尾必须按 `02-output-paths.instructions.md` 输出 `ArtifactLinkSet`（主 Markdown 链接 + 必要 `绝对路径：` copy fallback）。Copilot / Codex / 未知宿主或用户反馈无法点击时，不得只输出相对链接或裸文件名。
+>
+> ⚠️ **MCP fallback**：Copilot / Codex 等非 Claude Code 宿主调用 DevCodex MCP 出现 `invoke` undefined、工具桥接不可用或 server 未连接时，视为宿主 MCP bridge 失败；停止重试同一 MCP，降级读取 Profile / SUMMARY / tasks 文件，并在报告或记忆中记录 `mcpFallback=used`。
 
 ## 优先级规则 P1~P5
 
@@ -46,7 +50,7 @@ version: 1.11.5
 |:-:|------|------|:--:|
 | C01 | 删除/破坏性操作需确认 | 同 S01，完整规则见 [`00-safety.instructions.md`](./00-safety.instructions.md) | 🔒 S01 |
 | C02 | CP 不可跳过合并 | dev/fix 工作流的 CP1→CP2 必须严格按序，禁止合并或跳跃；CP3 触发条件由各工作流规范定义 | — |
-| C03 | 禁止硬编码敏感信息 | 同 S02，完整规则见 [`00-safety.instructions.md`](./00-safety.instructions.md) | 🔒 S02 |
+| C03 | 禁止硬编码敏感信息 | 同 S02，完整规则见 [`00-safety.instructions.md`](./00-safety.instructions.md)；核心秘密禁止项不可豁免，非核心本地私有信息只能按受控私有例外模型处理 | 🔒 S02 |
 | C04 | 禁止编造规范内容 | 同 S03，完整规则见 [`00-safety.instructions.md`](./00-safety.instructions.md) | 🔒 S03 |
 | C05 | 记忆+报告自动写入 | 同 S05，完整规则见 [`00-safety.instructions.md`](./00-safety.instructions.md) | 🔒 S05 |
 | C06 | 禁止 overwrite 源码/规范文件 | 同 S04，完整规则见 [`00-safety.instructions.md`](./00-safety.instructions.md) | 🔒 S04 |
@@ -97,10 +101,10 @@ version: 1.11.5
 | 控制面规则变更 | `instructions/`、`skills/`、`prompts/`、`hooks/`、`scripts/validate.js` | L2 | 涉及多真相源或部署副本 → L3 |
 | 模板变更 | `prompts/`、对应 `skills/`、对应 `instructions/`、`scripts/validate.js`、样本/示例文档 | L2 | 命中模板-示例-校验链 → L3 |
 | 接口契约 / 验证产物变更 | 技术方案、目标接口文档、`.http`、`.cjs`、调用方说明 | L2 | 对外契约 + 多端联调 → L3 |
-| 执行契约 / 测试路由 / 发布验证 / 宿主契约 / 消费链同步变更 | `skills/execution-contract`、`skills/test-router`、`skills/release-verification`、`skills/host-contract-verification`、`skills/source-consumer-sync`、dev/fix instructions、报告模板、validate | L3 | 默认即强联查 |
+| 执行契约 / 测试路由 / 发布审查 / 发布验证 / 宿主契约 / 消费链同步变更 | `skills/execution-contract`、`skills/test-router`、`skills/audit-release`、`skills/release-verification`、`skills/host-contract-verification`、`skills/source-consumer-sync`、dev/fix/audit instructions、报告模板、validate | L3 | 默认即强联查 |
 | 实施进度跟踪规则变更 | `instructions/02-output-paths`、`instructions/10-dev`、`skills/cp-gate`、`prompts/implementation-progress`、`scripts/validate.js` | L3 | 默认即强联查 |
 | 工作区真相源 / 部署副本 / 分发链变更 | `index.js`、`mcp/`、`hooks/_runtime/`、`README.md`、Profile、`.github/`、`.claude/` | L3 | 默认即强联查 |
-| 发布 / 版本 / changelog / profile 口径变更 | `package.json`、`plugin.json`、`CHANGELOG.md`、`changelogs/`、`README.md`、Profile、必要公告文档 | L2 | 多真相源口径同步 → L3 |
+| 发布 / 版本 / changelog / profile 口径变更 | `package.json`、`plugin.json`、`CHANGELOG.md`、`changelogs/`、`README.md`、Profile、必要公告文档、`skills/audit-release` | L2 | 多真相源口径同步 → L3 |
 
 ### 升级规则
 
@@ -117,7 +121,7 @@ version: 1.11.5
 - 非白名单路径默认切回确认模式，不承诺“所有源码任务自动执行”
 - `instruction-fallback` 宿主（如 JetBrains / Cursor）只保留 auto 规则语义，不承诺 runtime 级行为；支持 Hook 的宿主默认采用 `safety-only`：白名单边界输出提醒，`strict` 模式下才形成 runtime 硬拦截
 - CP1 / CP2 / CP3 确认**自动通过**（不等待用户确认），但该自动通过只对白名单路径形成无提醒通过；非白名单路径在默认 `safety-only` 下提醒放行，在 `strict` 模式下拦截
-- 以下约束**不可豁免**：S01（不可逆确认）/ S02~S07 / C01 / C10 / C18
+- 以下约束**不可豁免**：S01（不可逆确认）/ S02 核心秘密禁止项 / S03~S07 / C01 / C10 / C18。S02 受控私有例外只能按 `00-safety.instructions.md` 的模型执行，不属于绕过安全底线。
 - 可恢复失败：重试 ≤ 2 次；不可恢复失败：切换回确认模式并通知用户 ⚠️
 
 ## 设计原则
@@ -173,6 +177,7 @@ version: 1.11.5
 | audit.项目工程 | `audit-common` · `audit-project` · `audit-session` |
 | audit.报告 | `audit-common` · `audit-report` · `audit-session` |
 | audit.通用文档 | `audit-common` · `audit-document` · `audit-session`（README / 用户使用文档额外叠加 `audit-readme`） |
+| audit.发布前审查 | `audit-common` · `audit-release` · `audit-session` |
 | analyze.default | （Instruction 已完整，无需额外 Skill）|
 | analyze.research | `analyze-research` |
 | self-fix | （Instruction 已完整，无需额外 Skill）|
@@ -183,6 +188,7 @@ version: 1.11.5
 **按需触发 Skills**（不预读，仅在执行中满足条件时读取）：
 - `execution-contract`：Auto、控制面、预计 ≥10 文件、多批次、发布或需要强边界任务触发
 - `test-router`：dev/fix 执行前选择验证路线时触发
+- `audit-release` / `ReleaseAudit`：发版前 review、release pre-review、publish/tag 前风险审查或 audit 识别为发布准备审查时触发
 - `release-verification`：用户明确要求 release / tag / publish 或版本发布验证时触发
 - `host-contract-verification`：宿主事件契约、visible reply、sticky project、workspace guard、bootstrap 证据任务触发
 - `source-consumer-sync`：规范源、README/website/Profile/validate/部署副本联动时触发

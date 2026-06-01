@@ -97,6 +97,12 @@ function buildGovernancePackageDeploymentChecks(ctx) {
       if (!codexHookCommands.length || invalidCodexCommands.length) {
         err(`[V6] Codex hook commands must use workspace runtime path: ${invalidCodexCommands.join(', ') || '(none found)'}`)
       }
+      const codexPreCompactEntries = codexHookConfig.hooks?.PreCompact || []
+      if (!Array.isArray(codexPreCompactEntries) || !codexPreCompactEntries.length) {
+        err('[V6] Codex hooks.json missing PreCompact event for compaction guardrail')
+      } else if (!JSON.stringify(codexPreCompactEntries).includes('manual|auto')) {
+        err('[V6] Codex PreCompact hook must match manual|auto compaction triggers')
+      }
       for (const probe of ['CODEX_SOURCES', 'CODEX_HOOK_COMMAND', 'cmdInitCodex', '--codex']) {
         if (!indexSrc.includes(probe)) {
           err(`[V6] Codex adapter missing index.js probe: ${probe}`)

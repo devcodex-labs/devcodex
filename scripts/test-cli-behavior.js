@@ -123,12 +123,16 @@ function assertCodexAdapterState(root) {
   assert.ok(fs.existsSync(path.join(root, '.agents', 'skills', 'routing', 'SKILL.md')))
   assert.ok(fs.existsSync(path.join(root, '.codex', 'hooks', '_runtime', 'lifecycle.cjs')))
 
-  for (const eventName of ['PreToolUse', 'UserPromptSubmit', 'PostToolUse', 'Stop']) {
+  for (const eventName of ['PreToolUse', 'UserPromptSubmit', 'PostToolUse', 'PreCompact', 'Stop']) {
     const entries = hooks.hooks?.[eventName]
     assert.ok(Array.isArray(entries) && entries.length > 0, `missing Codex hook event: ${eventName}`)
     const commands = JSON.stringify(entries)
     assert.ok(commands.includes('node ./.codex/hooks/_runtime/lifecycle.cjs'), `unexpected hook command for ${eventName}`)
   }
+  assert.ok(
+    JSON.stringify(hooks.hooks.PreCompact).includes('manual|auto'),
+    'Codex PreCompact hook must match manual and auto compaction triggers'
+  )
 }
 
 function assertClaudeMergeState(root, { claudeMdManaged }) {

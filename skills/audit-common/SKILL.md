@@ -1,12 +1,12 @@
 ---
 name: audit-common
-description: 审查公共维度 G0~G5 — 所有 audit 子类型必先执行的基础维度层
+description: 审查公共维度 G0~G5 + Profile Freshness Check — 所有 audit 子类型必先执行的基础维度层
 ---
 # Audit Common Skill
 
 ## 职责
 
-所有 audit 工作流**必须先执行** G0 体量评估 + G1~G5 公共维度，再叠加子类型专属维度（TD/RQ/PE/RA/DA）。
+所有 audit 工作流**必须先执行** G0 体量评估 + Profile Freshness Check + G1~G5 公共维度，再叠加子类型专属维度（TD/RQ/PE/RA/DA/RL）。
 
 ## G0 体量评估（前置，G1 之前执行）
 
@@ -19,6 +19,20 @@ description: 审查公共维度 G0~G5 — 所有 audit 子类型必先执行的�
 | > 60 | 强制分批 | 输出分批计划后自动开始第一批 |
 
 > 分批策略详见 [`audit-execution-guide/SKILL.md`](../audit-execution-guide/SKILL.md) §体量分批策略。
+
+## Profile Freshness Check（PFresh）
+
+> 🔴 audit 不得默认 Profile 永远可信；在使用 Profile 做 G3 外部一致性之前，必须先反向核对 Profile 是否仍匹配当前项目事实。
+
+| 编号 | 检查项 | 说明 |
+|------|--------|------|
+| PFresh-1 | 版本与包身份 | 对照 `package.json`、`plugin.json`、根 `CHANGELOG.md` 与 `changelogs/`，检查 Profile 当前版本、阶段摘要、发布状态是否过期 |
+| PFresh-2 | 资产数量与目录事实 | 对照 `instructions/`、`skills/`、`prompts/`、`scripts/`、`data/templates/`、主要源码目录，检查 Profile 资产数量和目录边界是否漂移 |
+| PFresh-3 | 脚本与验证路线 | 对照 `package.json scripts`、CI/发布脚本和当前 TestRoute，检查 Profile 中的测试、构建、发布命令是否仍真实可用 |
+| PFresh-4 | 宿主与部署能力 | 对照 `.github/`、`.claude/`、`.codex/`、`AGENTS.md`、MCP/Hook 配置，检查 Profile 的宿主能力说明是否滞后 |
+| PFresh-5 | 当前任务现实 | 对照 active-root 下当前 `requirements/`、`bugs/`、报告、SUMMARY 与 open ledger，检查 Profile 是否漏记新增边界、风险或治理能力 |
+
+若任一 PFresh 项无法验证，审查结论中必须标注 `⚠️ Profile freshness 待验证`；若确认过期，应先记录为审查发现或治理台账项，再继续后续 G1~G5，不得基于过期 Profile 宣告收敛。
 
 ## 公共维度（G1~G5）
 
@@ -146,7 +160,7 @@ SC: SC4 [✅/❌] SC6 [✅/❌] ...（仅列适用项，逐项实际验证后填
 ```
 
 > ℹ️ 合规检查块是 dev 模式下的强制输出，审查元循环不例外。FC2（报告文件）在 PCV 完成后输出最终报告时满足；中间轮次标注 N/A（进行中，未到输出节点）。
-> ⚠️ **FC5 填写规则**：必须在回复末尾的 `📂 本次会话产物` 区块内列出 Markdown 链接（格式见 `02-output-paths.instructions.md` §产物路径输出格式）；链接路径用正斜杠；绝对路径纯文本仅作为可选辅助行。本轮无文件变更时填 N/A，有变更时不得填 ✅ 而不列出路径。
+> ⚠️ **FC5 填写规则**：必须在回复末尾的 `📂 本次会话产物` 区块内列出 `ArtifactLinkSet`（格式见 `02-output-paths.instructions.md` §产物路径输出格式）；主链接必须是 Markdown 链接，链接路径用正斜杠；当前宿主为 Codex Desktop/App、Copilot、未知宿主，或用户反馈无法点击时，必须追加 `绝对路径：` copy fallback。本轮无文件变更时填 N/A，有变更时不得填 ✅ 而不列出路径。
 
 ## 审查收敛规则
 

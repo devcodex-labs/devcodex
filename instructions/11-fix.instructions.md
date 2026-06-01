@@ -44,6 +44,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → 
 - **CP2**：AI 输出修复方案，用户确认
 - **impact-review**：涉及跨模块架构依赖变更（PR-5②）时执行
 - **CP3**：≥5 文件变更 或 含高风险操作时**必须**；其他可选
+- **backlog 来源前置真相复核**：若本轮 bug、批次或修复范围直接来源于 `data/*.md` 的 open/partial 项，CP1 前必须先把候选项分类为 `pure-open` / `residual-tail` / `already-fixed` / `misclassified`；非 `pure-open` 项须先回写状态并修正范围口径，再进入修复。
 - **执行期 CP3 回退**：若执行过程中实际修改范围扩展到 CP3 门槛（文件数从 <5 增至 ≥5，或新增高风险/控制面联动），必须暂停执行，补做 CP3 后再继续。
 - **execution-contract/test-router**：≥5 文件、高风险、控制面或多批次修复时执行，明确允许路径、必需产物和验证路线
 - **Intent Expansion 可见性**：dev 模式下，CP1 / 问题确认前默认向用户展示完整 Intent Expansion Card；这会覆盖旧的“意图扩展摘要”默认行为，但当命中控制面或宿主能力差异、跨会话 resume、prod、instruction-fallback 宿主或低风险轻任务时，仍允许退化为 3~5 行意图扩展摘要。
@@ -86,6 +87,8 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → 
 
 > 若执行途中新增范围触达 CP3 门槛，必须先补做 CP3，再继续修复三步；“修复三步必做”不替代 CP3。
 
+若本轮在真相复核后发现条目仅剩尾项或已修未回写，修复报告、实施进度和最终结论必须显式体现范围收紧结果，并在完成前执行台账状态回写闭环。
+
 ## 统一联查矩阵映射（fix）
 
 - fix 默认按 **L2 标准联查** 起步
@@ -108,7 +111,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → 
 - **无污染要求**：类型校验不得通过创建临时 `tsconfig`、修改 `noEmit` 配置、写入构建产物或额外参数文件来“绕过”项目现状；验证应以当前仓库真实配置为准
 - 2 次仍失败 → 停止，输出错误摘要标 ⚠️
 - 涉及 HTTP 接口变更 → 生成双产物（.http + .cjs）
-- 涉及源码/配置文件变更 → 检查文档同步（README 为必查；CHANGELOG 按发布状态区分：未明确发版默认更新 `changelogs/unreleased.md`，仅正式 release 更新根 `CHANGELOG.md` / `changelogs/vX.Y.Z.md`；TASK-INDEX/STATUS 按项目存在或启用时同步）
+- 涉及源码/配置文件变更 → 检查文档同步（README 为必查；CHANGELOG 按发布状态区分：未明确发版默认更新 `changelogs/unreleased.md`，仅正式 release 更新根 `CHANGELOG.md` / `changelogs/releases/vX.Y.Z.md`；TASK-INDEX/STATUS 按项目存在或启用时同步）
 
 ## ECR 执行闭环复审（执行后正式阶段）
 

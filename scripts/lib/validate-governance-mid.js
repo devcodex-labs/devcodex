@@ -5,11 +5,27 @@ function buildGovernanceMidChecks(ctx) {
     const probes = [
       {
         file: 'hooks/_runtime/lifecycle.cjs',
-        needles: ['getVisibleReplyEvidence', 'precheckStatus', 'stickyProject', 'collectProjectPayloadStrings', '.devcodex/workspace/profile/']
+        needles: ['getVisibleReplyEvidence', 'collectProjectPayloadStrings']
       },
       {
-        file: 'scripts/test-hooks-runtime.js',
-        needles: ['stickyFollowup', 'roleUserPayloadAmbiguity', 'prefixProjectPayload', 'promptUserWordAmbiguity', 'stickyPromptUserWordFollowup', 'stickyRoleUserPayloadFollowup', 'stickyFuzzyPayloadFollowup', 'contentPartsStop', 'variantTranscriptStop', 'unverifiedStop']
+        file: 'hooks/_runtime/lifecycle-bootstrap-state.cjs',
+        needles: ['stickyProject', 'buildBootstrapMessage', 'bootstrapComplete']
+      },
+      {
+        file: 'hooks/_runtime/lifecycle-visible-reply.cjs',
+        needles: ['precheckStatus', 'verified-present', 'verified-missing']
+      },
+      {
+        file: 'hooks/_runtime/lifecycle-project-target.cjs',
+        needles: ['.devcodex/workspace/profile/', 'stickySessionKey', 'hasMultiProjectExemption']
+      },
+      {
+        file: 'scripts/lib/test-hooks-runtime-bootstrap-layout.js',
+        needles: ['stickyFollowup', 'roleUserPayloadAmbiguity', 'prefixProjectPayload', 'promptUserWordAmbiguity', 'stickyPromptUserWordFollowup', 'stickyRoleUserPayloadFollowup', 'stickyFuzzyPayloadFollowup']
+      },
+      {
+        file: 'scripts/lib/test-hooks-runtime-visibility.js',
+        needles: ['contentPartsStop', 'variantTranscriptStop', 'unverifiedStop']
       },
       {
         file: 'instructions.md',
@@ -339,7 +355,11 @@ function buildGovernanceMidChecks(ctx) {
       },
       {
         file: 'hooks/_runtime/lifecycle.cjs',
-        needles: ['collectWorkspaceProjectNamespaces', '!currentSessionKey || !stickySessionKey']
+        needles: ['collectWorkspaceProjectNamespaces']
+      },
+      {
+        file: 'hooks/_runtime/lifecycle-project-target.cjs',
+        needles: ['!currentSessionKey || !stickySessionKey', 'collectWorkspaceProjectNamespaces']
       },
       {
         file: 'index.js',
@@ -350,7 +370,7 @@ function buildGovernanceMidChecks(ctx) {
         needles: ['testClaudeUpdateBacksUpAndPreservesCustomConfig', 'testDoctorAvoidsCodexBiasInMixedHostRepo', 'testProfileInitUsesNestedNamespaceRoot']
       },
       {
-        file: 'scripts/test-hooks-runtime.js',
+        file: 'scripts/lib/test-hooks-runtime-bootstrap-layout.js',
         needles: ['noSessionFollowup', 'nestedWorkspaceAmbiguity', 'toolingSiblingPrompt']
       },
       {

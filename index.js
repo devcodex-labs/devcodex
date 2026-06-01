@@ -13,6 +13,9 @@
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
+const { buildCliHostUtils } = require('./scripts/lib/cli-host-utils.js')
+const { buildCliRuntimeUtils } = require('./scripts/lib/cli-runtime-utils.js')
+const { buildProfileBootstrapUtils } = require('./scripts/lib/profile-bootstrap-utils.js')
 const { runCli: runMigrateLayout } = require('./scripts/migrate-layout.js')
 const {
   findLayoutInfo: sharedFindLayoutInfo,
@@ -110,47 +113,6 @@ function resolveActiveRuntimeRoot(cwd) {
   return sharedResolveActiveRuntimeRoot(cwd)
 }
 
-function resolveGitignoreRoot(cwd) {
-  const layout = findLayoutInfo(cwd)
-  return layout.enabled ? layout.workspaceRoot : cwd
-}
-
-function ensureRuntimeDataTemplates(runtimeRoot, dryRun) {
-  const templatesDir = path.join(PKG_ROOT, 'data', 'templates')
-  if (!fs.existsSync(templatesDir)) return 0
-
-  const dataDir = path.join(runtimeRoot, 'data')
-  const templateFiles = walkDir(templatesDir).filter(file => path.extname(file).toLowerCase() === '.md')
-  let created = 0
-
-  if (!dryRun) fs.mkdirSync(dataDir, { recursive: true })
-  for (const templateFile of templateFiles) {
-    const relative = path.relative(templatesDir, templateFile)
-    const destFile = path.join(dataDir, relative)
-    if (fs.existsSync(destFile)) continue
-    if (!dryRun) {
-      fs.mkdirSync(path.dirname(destFile), { recursive: true })
-      fs.copyFileSync(templateFile, destFile)
-    }
-    created++
-  }
-
-  return created
-}
-
-function ensureRuntimeDirs(cwd, dryRun) {
-  if (dryRun) return resolveActiveRuntimeRoot(cwd)
-  const runtimeRoot = resolveActiveRuntimeRoot(cwd)
-  fs.mkdirSync(path.join(runtimeRoot, '.memory'), { recursive: true })
-  fs.mkdirSync(path.join(runtimeRoot, '.audit-state'), { recursive: true })
-  ensureRuntimeDataTemplates(runtimeRoot, dryRun)
-  return runtimeRoot
-}
-
-function resolveProfileDir(cwd) {
-  return sharedResolveProfileDir(cwd)
-}
-
 const DEVCODEX_GITIGNORE_ENTRIES = [
   '.devcodex/.memory/',
   '.devcodex/.audit-state/',
@@ -162,191 +124,6 @@ const DEVCODEX_GITIGNORE_ENTRIES = [
   '.devcodex/*/.tmp/',
   '.devcodex/*/profile/config.local.json'
 ]
-
-function ensureDevCodexGitignore(cwd, dryRun, log = console.log) {
-  if (dryRun) return 0
-  const gitignorePath = path.join(cwd, '.gitignore')
-  const existing = fs.existsSync(gitignorePath) ? fs.readFileSync(gitignorePath, 'utf8') : ''
-  const missing = DEVCODEX_GITIGNORE_ENTRIES.filter(entry => !existing.includes(entry))
-  if (!missing.length) return 0
-  const header = '# DevCodex runtime state (auto-generated, do not commit)'
-  const prefix = existing.trimEnd() ? '\n\n' : ''
-  const block = `${prefix}${header}\n${missing.join('\n')}\n`
-  if (fs.existsSync(gitignorePath)) fs.appendFileSync(gitignorePath, block)
-  else fs.writeFileSync(gitignorePath, `${header}\n${missing.join('\n')}\n`)
-  log(c.green(`  ✓ .gitignore  (${missing.length} DevCodex runtime entr${missing.length === 1 ? 'y' : 'ies'} added)`))
-  return missing.length
-}
-
-function getLegacyCounts(ghDir) {
-  return LEGACY_TARGETS.map(({ label, pathParts }) => {
-    const fullPath = path.join(ghDir, ...pathParts)
-    const count = walkDir(fullPath).length
-    return { label, count, fullPath }
-  })
-}
-
-function backupSuffix() {
-  return new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14)
-}
-
-function copyManagedTextFile(src, dest, { dryRun = false, backup = false, backupDir = null } = {}) {
-  const desired = fs.readFileSync(src, 'utf8')
-  const exists = fs.existsSync(dest)
-  const current = exists ? fs.readFileSync(dest, 'utf8') : ''
-  if (exists && current === desired) return { copied: false, backupPath: null, unchanged: true }
-
-  let backupPath = null
-  if (backup && exists && current.trim().length > 0) {
-    backupPath = path.join(backupDir || path.dirname(dest), `${path.basename(dest)}.bak.${backupSuffix()}`)
-    if (!dryRun) {
-      fs.mkdirSync(path.dirname(backupPath), { recursive: true })
-      fs.copyFileSync(dest, backupPath)
-    }
-  }
-
-  if (!dryRun) {
-    fs.mkdirSync(path.dirname(dest), { recursive: true })
-    fs.writeFileSync(dest, desired)
-  }
-  return { copied: true, backupPath, unchanged: false }
-}
-
-function readJsonFileWithStatus(filePath) {
-  if (!fs.existsSync(filePath)) {
-    return { exists: false, value: null, parseError: null }
-  }
-  try {
-    return {
-      exists: true,
-      value: JSON.parse(fs.readFileSync(filePath, 'utf8')),
-      parseError: null
-    }
-  } catch (error) {
-    return { exists: true, value: null, parseError: error }
-  }
-}
-
-function writeManagedJsonFile(dest, value, { dryRun = false, backup = false, backupDir = null } = {}) {
-  const desired = JSON.stringify(value, null, 2) + '\n'
-  const exists = fs.existsSync(dest)
-  const current = exists ? fs.readFileSync(dest, 'utf8') : ''
-  if (exists && current === desired) {
-    return { written: false, existed: true, unchanged: true, backupPath: null }
-  }
-
-  let backupPath = null
-  if (backup && exists && current.trim().length > 0) {
-    backupPath = path.join(backupDir || path.dirname(dest), `${path.basename(dest)}.bak.${backupSuffix()}`)
-    if (!dryRun) {
-      fs.mkdirSync(path.dirname(backupPath), { recursive: true })
-      fs.copyFileSync(dest, backupPath)
-    }
-  }
-
-  if (!dryRun) {
-    fs.mkdirSync(path.dirname(dest), { recursive: true })
-    fs.writeFileSync(dest, desired)
-  }
-  return { written: true, existed: exists, unchanged: false, backupPath }
-}
-
-function normalizeStringArray(value) {
-  return Array.isArray(value)
-    ? value.filter(item => typeof item === 'string' && item.trim())
-    : []
-}
-
-function mergeUniqueStringArrays(...arrays) {
-  return Array.from(new Set(arrays.flatMap(normalizeStringArray))).sort()
-}
-
-function extractClaudeHookEntryCommands(entry) {
-  if (!entry || !Array.isArray(entry.hooks)) return []
-  return entry.hooks
-    .filter(hook => hook && typeof hook === 'object')
-    .map(hook => `${String(hook.type || '').trim()}:${String(hook.command || '').trim()}`)
-    .filter(text => !/:$/.test(text))
-}
-
-function sameClaudeHookEntry(left, right) {
-  const leftMatcher = Object.prototype.hasOwnProperty.call(left || {}, 'matcher')
-    ? String(left.matcher || '')
-    : ''
-  const rightMatcher = Object.prototype.hasOwnProperty.call(right || {}, 'matcher')
-    ? String(right.matcher || '')
-    : ''
-  if (leftMatcher !== rightMatcher) return false
-  const leftCommands = extractClaudeHookEntryCommands(left)
-  const rightCommands = extractClaudeHookEntryCommands(right)
-  return rightCommands.length > 0 && rightCommands.every(command => leftCommands.includes(command))
-}
-
-function mergeClaudeHooks(existingHooks, managedHooks) {
-  const merged = isPlainObject(existingHooks) ? { ...existingHooks } : {}
-  for (const [eventName, managedEntries] of Object.entries(managedHooks || {})) {
-    const existingEntries = Array.isArray(merged[eventName]) ? merged[eventName].slice() : []
-    for (const entry of managedEntries || []) {
-      if (!existingEntries.some(existing => sameClaudeHookEntry(existing, entry))) {
-        existingEntries.push(entry)
-      }
-    }
-    merged[eventName] = existingEntries
-  }
-  return merged
-}
-
-function mergeClaudeMcpConfig(existingConfig) {
-  const base = isPlainObject(existingConfig) ? { ...existingConfig } : {}
-  const legacyServers = isPlainObject(base.servers) ? base.servers : {}
-  const currentServers = isPlainObject(base.mcpServers) ? base.mcpServers : {}
-  delete base.servers
-  base.mcpServers = {
-    ...legacyServers,
-    ...currentServers,
-    ...CLAUDE_MCP_JSON.mcpServers
-  }
-  return base
-}
-
-function detectInstalledHostAssets(cwd) {
-  const installed = []
-  const hasCodex = (
-    fs.existsSync(path.join(cwd, 'AGENTS.md')) ||
-    fs.existsSync(path.join(cwd, '.codex')) ||
-    fs.existsSync(path.join(cwd, '.agents'))
-  )
-  const hasClaude = (
-    fs.existsSync(path.join(cwd, 'CLAUDE.md')) ||
-    fs.existsSync(path.join(cwd, '.claude'))
-  )
-  const hasCopilot = (
-    fs.existsSync(path.join(cwd, '.github', 'copilot-instructions.md')) ||
-    fs.existsSync(path.join(cwd, '.github', 'instructions')) ||
-    fs.existsSync(path.join(cwd, '.github', 'hooks', '_runtime', 'lifecycle.cjs'))
-  )
-  if (hasCodex) installed.push('codex')
-  if (hasClaude) installed.push('claude-code')
-  if (hasCopilot) installed.push('copilot')
-  return installed
-}
-
-function detectHostPlatform(env = process.env, cwd = process.cwd()) {
-  if (env.CLAUDE_CODE_VERSION || env.CLAUDE_HOOK_COMMAND) return { platform: 'claude', source: 'env-derived' }
-  if (env.CODEX_HOME || env.CODEX_ENV_PWD || env.OPENAI_CODEX) return { platform: 'codex', source: 'env-derived' }
-  if (env.IDEA_INITIAL_DIRECTORY || env.JETBRAINS_IDE) return { platform: 'jetbrains-copilot', source: 'env-derived' }
-  if (env.TERM_PROGRAM === 'vscode' || env.VSCODE_PID) return { platform: 'vscode-copilot', source: 'env-derived' }
-  if (env.CURSOR_TRACE_ID || env.CURSOR_USER_ID) return { platform: 'cursor', source: 'env-derived' }
-
-  const installed = detectInstalledHostAssets(cwd)
-  if (installed.length === 1) {
-    const only = installed[0]
-    if (only === 'claude-code') return { platform: 'claude', source: 'installed-artifacts' }
-    if (only === 'codex') return { platform: 'codex', source: 'installed-artifacts' }
-    if (only === 'copilot') return { platform: 'copilot', source: 'installed-artifacts' }
-  }
-  return { platform: 'unknown', source: 'unknown' }
-}
 
 // ─── Commands ─────────────────────────────────────────────────────────────────
 
@@ -709,6 +486,61 @@ const CLAUDE_MCP_JSON = {
   }
 }
 
+const {
+  normalizeStringArray,
+  mergeUniqueStringArrays,
+  mergeClaudeHooks,
+  mergeClaudeMcpConfig,
+  detectInstalledHostAssets,
+  detectHostPlatform
+} = buildCliHostUtils({
+  fs,
+  path,
+  isPlainObject,
+  claudeMcpJson: CLAUDE_MCP_JSON
+})
+
+const {
+  resolveGitignoreRoot,
+  ensureRuntimeDirs,
+  resolveProfileDir,
+  ensureDevCodexGitignore,
+  getLegacyCounts,
+  copyManagedTextFile,
+  readJsonFileWithStatus,
+  writeManagedJsonFile
+} = buildCliRuntimeUtils({
+  fs,
+  path,
+  walkDir,
+  pkgRoot: PKG_ROOT,
+  findLayoutInfo,
+  resolveActiveRuntimeRoot,
+  resolveProfileDirImpl: sharedResolveProfileDir,
+  legacyTargets: LEGACY_TARGETS,
+  devcodexGitignoreEntries: DEVCODEX_GITIGNORE_ENTRIES
+})
+
+const {
+  readJsonSafe,
+  safeFirstLine,
+  detectArch,
+  listTopDirs,
+  detectStyle,
+  genProfileReadme,
+  genProjectInfo,
+  genArchitecture,
+  genStyle,
+  genConfigJson,
+  detectAgent
+} = buildProfileBootstrapUtils({
+  fs,
+  path,
+  detectHostPlatform,
+  detectInstalledHostAssets,
+  processEnv: process.env
+})
+
 function cmdInitClaude(argv, { internal = false } = {}) {
   const force = argv.includes('--force') || argv.includes('-f')
   const dryRun = argv.includes('--dry-run')
@@ -989,160 +821,6 @@ function cmdInitCodex(argv, { internal = false } = {}) {
 // ─── Profile bootstrap (v1.9.2+) ──────────────────────────────────────────────
 
 const PROFILE_FILES = ['README.md', '01-项目信息.md', '02-架构约束.md', '03-代码风格.md', 'config.json']
-
-function readJsonSafe(file) {
-  try { return JSON.parse(fs.readFileSync(file, 'utf-8')) } catch { return null }
-}
-
-function safeFirstLine(file, prefix) {
-  if (!fs.existsSync(file)) return null
-  const lines = fs.readFileSync(file, 'utf-8').split(/\r?\n/)
-  return lines.find(l => l.startsWith(prefix)) || null
-}
-
-function detectArch(cwd) {
-  const pkg = readJsonSafe(path.join(cwd, 'package.json'))
-  if (pkg && pkg.workspaces) return 'monorepo:npm'
-  if (fs.existsSync(path.join(cwd, 'pnpm-workspace.yaml'))) return 'monorepo:pnpm'
-  if (fs.existsSync(path.join(cwd, 'lerna.json'))) return 'monorepo:lerna'
-  return 'single'
-}
-
-function listTopDirs(cwd, depth = 2) {
-  const skip = new Set(['node_modules', '.git', 'dist', 'build', '.next', 'coverage'])
-  const lines = []
-  function walk(dir, prefix, currentDepth) {
-    if (currentDepth > depth) return
-    let entries
-    try { entries = fs.readdirSync(dir, { withFileTypes: true }) } catch { return }
-    for (const e of entries.sort((a, b) => a.name.localeCompare(b.name))) {
-      if (skip.has(e.name) || e.name.startsWith('.')) continue
-      if (e.isDirectory()) {
-        lines.push(`${prefix}${e.name}/`)
-        walk(path.join(dir, e.name), prefix + '  ', currentDepth + 1)
-      }
-    }
-  }
-  walk(cwd, '', 1)
-  return lines.join('\n')
-}
-
-function detectStyle(cwd) {
-  const eslint = ['.eslintrc', '.eslintrc.js', '.eslintrc.cjs', '.eslintrc.json', 'eslint.config.js', 'eslint.config.mjs']
-    .some(f => fs.existsSync(path.join(cwd, f)))
-  const prettier = ['.prettierrc', '.prettierrc.json', '.prettierrc.js', 'prettier.config.js']
-    .some(f => fs.existsSync(path.join(cwd, f)))
-  const tsconfig = readJsonSafe(path.join(cwd, 'tsconfig.json'))
-  const editorconfig = fs.existsSync(path.join(cwd, '.editorconfig'))
-  return { eslint, prettier, tsconfig, editorconfig }
-}
-
-function genProfileReadme(_ctx) {
-  return `# Profile Index
-
-> 项目规范文件目录。由 \`devcodex profile init\` 于 ${new Date().toISOString().slice(0, 10)} 自动生成。
-
-| 文件 | 说明 |
-|------|------|
-| 01-项目信息.md | 技术栈 / 仓库 / 版本 |
-| 02-架构约束.md | 目录结构 / 模块边界 |
-| 03-代码风格.md | 编码规范 / lint / 格式化 |
-| config.json | ENV_MODE + agent 兜底标识 |
-| config.local.json | 可选，本地私有 overlay：长期连接、env 引用、\`extensions.<namespace>\`（不提交） |
-`
-}
-
-function genProjectInfo(ctx) {
-  const { pkg, branch, changelogTop } = ctx
-  const name = pkg?.name || '(unknown)'
-  const ver = pkg?.version || '0.0.0'
-  const desc = pkg?.description || '(no description)'
-  const node = pkg?.engines?.node || '(unspecified)'
-  const repo = (typeof pkg?.repository === 'string' ? pkg.repository : pkg?.repository?.url) || '(unspecified)'
-  return `# 01 — 项目信息
-
-> 由 \`devcodex profile init\` 于 ${new Date().toISOString().slice(0, 10)} 自动生成，需人工复核后定稿。
-
-## 基础信息
-
-| 字段 | 内容 |
-|------|------|
-| **项目名** | ${name} |
-| **当前版本** | ${ver} |
-| **描述** | ${desc} |
-| **Node 版本** | ${node} |
-| **仓库** | ${repo} |
-
-## 当前阶段
-
-| 字段 | 内容 |
-|------|------|
-| **当前阶段** | v${ver} 初始草稿 |
-| **主版本分支** | ${branch} |
-| **阶段摘要** | ${changelogTop || '(未在 CHANGELOG.md 中识别)'} |
-
-## 本地配置与扩展说明（可选）
-
-- 若项目使用 \`config.local.json\` 保存长期连接别名、本机专属配置或 env 引用，请在本文件说明用途与使用方式。
-- 项目级扩展只能写在 \`extensions.<namespace>\` 下，并记录字段语义、取值来源和是否依赖 \`*Env\` / \`secretRef\`。
-`
-}
-
-function genArchitecture(ctx) {
-  const { arch, tree } = ctx
-  return `# 02 — 架构约束
-
-> 由 \`devcodex profile init\` 于 ${new Date().toISOString().slice(0, 10)} 自动生成，需人工复核后定稿。
-
-## 项目结构（自动扫描，深度 2）
-
-\`\`\`
-${tree || '(empty)'}
-\`\`\`
-
-## 架构特征
-- 组织模式：${arch}
-- 服务拆分：${ctx.hasServices ? '是（services/ 目录存在）' : '否'}
-`
-}
-
-function genStyle(ctx) {
-  const { style, pkg } = ctx
-  const scripts = pkg?.scripts || {}
-  return `# 03 — 代码风格
-
-> 由 \`devcodex profile init\` 于 ${new Date().toISOString().slice(0, 10)} 自动生成，需人工复核后定稿。
-
-## 静态检查
-- ESLint：${style.eslint ? '✅ 启用' : '❌ 未启用'}
-- Prettier：${style.prettier ? '✅ 启用' : '❌ 未启用'}
-- TypeScript：${style.tsconfig ? `✅ 启用（target=${style.tsconfig.compilerOptions?.target || '?'}, strict=${!!style.tsconfig.compilerOptions?.strict}）` : '❌ 未启用'}
-- EditorConfig：${style.editorconfig ? '✅ 存在' : '❌ 无'}
-
-## 工程命令
-- lint: \`${scripts.lint || '未定义'}\`
-- format: \`${scripts.format || '未定义'}\`
-- test: \`${scripts.test || '未定义'}\`
-`
-}
-
-function genConfigJson(agent, mode) {
-  return JSON.stringify({ mode, agent }, null, 2) + '\n'
-}
-
-function detectAgent(cwd) {
-  // agent fallback hint enum aligned with instructions.md / 15-memory.
-  const platformEvidence = detectHostPlatform(process.env, cwd)
-  if (platformEvidence.platform === 'claude') return 'claude-code'
-  if (platformEvidence.platform === 'codex') return 'codex'
-  if (platformEvidence.platform === 'jetbrains-copilot') return 'jetbrains-copilot'
-  if (platformEvidence.platform === 'vscode-copilot') return 'vscode-copilot'
-  if (platformEvidence.platform === 'cursor') return 'cursor'
-
-  const installed = detectInstalledHostAssets(cwd)
-  if (installed.length === 1) return installed[0]
-  return 'unknown-agent'
-}
 
 function cmdProfileInit(argv) {
   const force = argv.includes('--force') || argv.includes('-f')

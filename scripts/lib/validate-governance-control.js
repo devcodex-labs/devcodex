@@ -224,7 +224,7 @@ function buildGovernanceControlChecks(ctx) {
         needles: ['scope', 'workspace-namespace', 'getActiveRoot']
       },
       {
-        file: 'hooks/_runtime/lifecycle.cjs',
+        file: 'hooks/_runtime/lifecycle-bootstrap-state.cjs',
         needles: ['activeScope', 'workspace-namespace', 'getActiveNamespaceRoot']
       },
       {

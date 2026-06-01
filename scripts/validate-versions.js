@@ -7,8 +7,42 @@ const ROOT = path.resolve(__dirname, '..')
 const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
 const plugin = JSON.parse(fs.readFileSync(path.join(ROOT, 'plugin.json'), 'utf8'))
 
+function walk(dir) {
+  if (!fs.existsSync(dir)) return []
+  const out = []
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name)
+    if (entry.isDirectory()) out.push(...walk(full))
+    else out.push(full)
+  }
+  return out
+}
+
 if (pkg.version !== plugin.version) {
   console.error(`✗ Version mismatch: package.json (${pkg.version}) ≠ plugin.json (${plugin.version})`)
   process.exit(1)
 }
+
+const rules = fs.readFileSync(path.join(ROOT, 'RULES.md'), 'utf8')
+const mismatches = []
+if (!rules.includes(`# DevCodex v${pkg.version}`) || !rules.includes(`version: ${pkg.version}`)) {
+  mismatches.push(`RULES.md does not reference version ${pkg.version}`)
+}
+
+for (const file of walk(path.join(ROOT, 'instructions')).filter(item => item.endsWith('.md'))) {
+  const content = fs.readFileSync(file, 'utf8')
+  const match = content.match(/^version:\s*([^\r\n]+)/m)
+  if (match && match[1].trim() !== pkg.version) {
+    mismatches.push(`${path.relative(ROOT, file)} version ${match[1].trim()} ≠ ${pkg.version}`)
+  }
+}
+
+if (mismatches.length) {
+  console.error('✗ Version metadata mismatch:')
+  for (const mismatch of mismatches) {
+    console.error(`  - ${mismatch}`)
+  }
+  process.exit(1)
+}
+
 console.log(`✓ Version OK: ${pkg.version}`)

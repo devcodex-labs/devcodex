@@ -25,6 +25,7 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 |----------|----------|----------|
 | 文档/规范 | `node scripts/validate.js`、引用扫描 | website build、SCV |
 | Skill / instructions / prompts | `node scripts/validate.js`、`npm test`、引用扫描 | `npm run test:all`、部署副本同步 |
+| 依赖 / 框架 / SDK / 平台 API | `OfficialDocsEvidence`、安装/版本可用性检查、最小用法验证 | 兼容性回归、迁移 smoke、ProfileImpactCheck |
 | Hook / MCP / CLI / ArtifactLinkSet | `npm test`、相关 targeted test、`npm run test:all` | `host-contract-verification`、direct replay、fixture replay、dry-run；产物点击需覆盖 `ArtifactLinkSet` 主链接 + copy fallback，MCP bridge 失败需覆盖 `mcpFallback` |
 | 对外 HTTP API | `api-verification` 生成 `.http + .cjs` | 项目集成/E2E |
 | 前端体验 | lint/typecheck/test | Browser/截图验证 |
@@ -54,6 +55,8 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 - 跳过任何常规验证都必须写 `skipReason`、风险和替代验证。
 - API 行为变化不得跳过 `api-verification`。
 - 高风险控制面变更不得只运行单个局部检查；至少执行 validate + targeted tests + SCV。
+- 新增/升级依赖、框架、SDK、平台 API 或外部模块时，不得只验证“能安装”；必须引用 `OfficialDocsEvidence` 并至少验证一次项目内采用的关键用法。
+- 项目事实变化时必须执行 `ProfileImpactCheck`；若跳过 Profile 更新，报告需要写 `skipReason`。
 - 高风险控制面 / 多批次修复必须写出 `regressionChecks`：逐项列出历史能力、必跑验证、对应批次和失败回滚点。
 - 宿主契约、visible reply、sticky project 或 workspace guard 变更，不得只写“`npm test` 已过”；必须写明 direct replay / fixture replay / validate probe 的证据来源。
 - `npm run test:all` 失败时不得宣告完成，除非回 CP2 明确降级并有替代证据。

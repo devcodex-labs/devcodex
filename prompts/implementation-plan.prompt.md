@@ -94,6 +94,8 @@ applyTo: .devcodex/**/requirements/**
 | ReleaseVerification | 是 / 否 | 用户要求 tag / release / publish 或进入正式发版 | R0~R7 |
 | ConceptSyncMap | 是 / 否 | 控制面 / 模板-示例-校验链 / README / website / Profile / validate / 部署副本联动 | sourceOfTruth / currentConsumers / historicalMirrors / validateProbes / deployCopies / yellowDeviationBoundary |
 | HostContractVerification | 是 / 否 | Hook / CLI / visible reply / sticky project / workspace guard / bootstrap / ArtifactLinkSet / MCP fallback | hostSurface / eventScope / evidenceMode / visibleReplyEvidence / workspaceGuard / bootstrapScope / artifactLinkMatrix / mcpFallback |
+| OfficialDocsEvidence | 是 / 否 | 新增/升级依赖、框架、SDK、平台 API、外部模块或外部平台能力判断 | 官方文档来源 / 版本日期 / 关键用法 / 限制 / 兼容性 / skipReason |
+| ProfileImpactCheck | 是 / 否 | 技术栈、目录边界、脚本、测试/发布路线、分发面、配置项、长期连接或本地 overlay schema 变化 | targetProfileFiles / updateOrSkip / skipReason / evidence |
 | 05-实施进度.md | 是 / 否 | 跨多轮/多阶段、阻塞、用户要求持续跟踪、多批次、预计修改 ≥10 文件、控制面或模板-校验链任务 | CP 状态 / 批次状态 / 阻塞 / 验证证据 |
 | Backlog Intake 真相复核 | 是 / 否 | 任务/批次直接来源于 `data/*.md` open/partial 项 | candidateIds / classification / evidence / scopeDelta |
 | 台账状态回写闭环 | 是 / 否 | 本轮会关闭/部分关闭/改分类任何 VL/PF/PI/ISSUE/GAP | targetLedgers / requiredFields / writebackEvidence / rescanResult |
@@ -108,6 +110,8 @@ applyTo: .devcodex/**/requirements/**
 | TestRoute | 对照变更类型执行对应命令 | 路线覆盖完整，跳过项有依据 |
 | ConceptSyncMap | 对照 sourceOfTruth / currentConsumers / historicalMirrors / validateProbes / deployCopies | 当前消费者与探针无漏改，历史镜像边界明确 |
 | HostContractVerification | 对照 hostSurface / eventScope / evidenceMode / workspaceGuard / artifactLinkMatrix / mcpFallback | direct replay / fixture / targeted test 证据与声明一致；产物链接与 MCP fallback 不只停留在文案 |
+| OfficialDocsEvidence | 对照官方文档来源 / 关键用法 / 限制 / 兼容性 | 方案采用的 API / 配置与官方文档一致；N/A 有 skipReason |
+| ProfileImpactCheck | 对照 targetProfileFiles / updateOrSkip / skipReason | Profile 已同步或跳过理由成立；ECR 与 document-sync 有证据 |
 | Backlog Intake 真相复核 | 对照 candidateIds / classification / evidence / scopeDelta | open 统计与本轮范围一致，非 `pure-open` 项已缩减或剔除 |
 | 台账状态回写闭环 | 对照 targetLedgers / requiredFields / writebackEvidence / rescanResult | 状态、证据、计数与报告/进度/SUMMARY 一致 |
 | 模板/规则一致性 | | |
@@ -149,6 +153,8 @@ applyTo: .devcodex/**/requirements/**
 - [ ] ReleaseVerification R0~R7 已完成（若进入正式发版）
 - [ ] ConceptSyncMap 已建立并核对当前消费者/探针/部署副本（若触发）
 - [ ] HostContractVerification 已建立并核对宿主证据/guard/visible reply/ArtifactLinkSet/MCP fallback（若触发）
+- [ ] OfficialDocsEvidence 已建立并核对官方用法证据（若触发）
+- [ ] ProfileImpactCheck 已完成并同步 Profile 或记录跳过理由（若触发）
 - [ ] 05-实施进度.md 已按触发条件持续同步（若触发）
 - [ ] Backlog Intake 真相复核已完成并收紧范围（若触发）
 - [ ] 台账状态回写闭环已完成并复核 open 计数（若触发）

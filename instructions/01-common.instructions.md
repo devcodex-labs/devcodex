@@ -2,7 +2,7 @@
 applyTo: "**"
 description: 通用规范总则，覆盖优先级、意图路由、Profile/active-root、宿主适配与治理总线
 priority: P5
-version: 1.11.6
+version: 1.11.7
 ---
 # 通用规范
 
@@ -72,6 +72,8 @@ version: 1.11.6
 | C16 | 批量操作分批 | 执行涉及 ≥10 个文件的批量操作（如测试迁移、批量重命名、批量改写）时，必须主动提出分批方案，推荐每批 10 个，并输出分批计划后等待用户确认再开始执行 |
 | C17 | 过程改进记录 | 用户建议的执行策略经 AI 确认更优，或揭示规范未定义/不完整且可泛化时，必须立即走 Improvement Intake：写入 `data/process-improvements.md`（优化清单，PI）；若同时暴露规范缺口，再联动 `data/pending-fixes.md`（PF）。不得询问是否记录；所有模式命中后都必须回执 `已记录 PI-xxx / PF-xxx` |
 | C19 | 确认后前置复审 | 每次用户明确确认后、进入下一阶段前，必须先对当前已确认产物做 1 轮轻量前置复审，并显式输出结果；控制面 / 多文件联动 / 真相源同步 / 模板-示例-校验链场景必须追加交叉验证；若发现阻断性问题，先修正并告知用户，再重新确认；无阻断问题方可推进 |
+| C20 | 官方文档证据前置 | 新增/升级依赖、框架、SDK、平台 API 或外部模块前必须形成 `OfficialDocsEvidence`；缺失证据不得进入编码 |
+| C21 | Profile 联动判定 | dev/fix 项目事实变化后必须执行 `ProfileImpactCheck`：更新 Profile 或写明跳过理由 |
 
 ## 统一联查矩阵（C11 扩展）
 
@@ -101,6 +103,7 @@ version: 1.11.6
 | 控制面规则变更 | `instructions/`、`skills/`、`prompts/`、`hooks/`、`scripts/validate.js` | L2 | 涉及多真相源或部署副本 → L3 |
 | 模板变更 | `prompts/`、对应 `skills/`、对应 `instructions/`、`scripts/validate.js`、样本/示例文档 | L2 | 命中模板-示例-校验链 → L3 |
 | 接口契约 / 验证产物变更 | 技术方案、目标接口文档、`.http`、`.cjs`、调用方说明 | L2 | 对外契约 + 多端联调 → L3 |
+| 依赖 / 框架 / SDK / 平台 API 引入或升级 | 官方文档、技术方案 `OfficialDocsEvidence`、`dev-plan-review`、报告模板、README/website | L2 | 控制面或多端兼容 → L3 |
 | 执行契约 / 测试路由 / 发布审查 / 发布验证 / 宿主契约 / 消费链同步变更 | `skills/execution-contract`、`skills/test-router`、`skills/audit-release`、`skills/release-verification`、`skills/host-contract-verification`、`skills/source-consumer-sync`、dev/fix/audit instructions、报告模板、validate | L3 | 默认即强联查 |
 | 实施进度跟踪规则变更 | `instructions/02-output-paths`、`instructions/10-dev`、`skills/cp-gate`、`prompts/implementation-progress`、`scripts/validate.js` | L3 | 默认即强联查 |
 | 工作区真相源 / 部署副本 / 分发链变更 | `index.js`、`mcp/`、`hooks/_runtime/`、`README.md`、Profile、`.github/`、`.claude/` | L3 | 默认即强联查 |
@@ -235,7 +238,7 @@ version: 1.11.6
 |------|------|
 | **工作流** | 路由级完整执行路径（dev/fix/analyze/audit/self-fix/resume/plan/chat）|
 | **流程** | 步骤级执行序列（某个功能的具体操作步骤）|
-| **约束** | C01~C19 编号的强制/执行规则 |
+| **约束** | C01~C21 编号的强制/执行规则 |
 | **规则** | 更宽泛的执行规定（含约束、建议、说明等）|
 
 ### 意图识别（三问法）
@@ -246,7 +249,7 @@ version: 1.11.6
 
 ### 任务切换与资料来源优先
 
-- 新需求切换、Commit Subject 简洁化、未发布变更与提交边界、自我进化与问题池、官方文档优先级的完整规则已移动到 [`01b-record-router.instructions.md`](./01b-record-router.instructions.md)。
+- 新需求切换、Commit Subject 简洁化、未发布变更与提交边界、自我进化与问题池、官方文档优先级、`OfficialDocsEvidence` 与 `ProfileImpactCheck` 的完整规则已移动到 [`01b-record-router.instructions.md`](./01b-record-router.instructions.md)。
 - 当本次开发/修复形成已验证批次且未明确要求 release / publish 时，默认更新 `changelogs/unreleased.md`。
 - `commit` 默认**不自动执行**，但一旦执行必须按**语义批次**提交。
 - 所有模式下，每条用户消息完成合理性评估后，都必须执行 `Improvement Intake（优化清单）` 判定。

@@ -624,6 +624,68 @@ function buildGovernanceTailChecks(ctx) {
     console.log('[V53] security exception / API variables / changelog releases / profile freshness sync checked')
   }
 
+  function checkV54() {
+    const probes = [
+      { file: 'instructions.md', needles: ['C20', 'C21', 'OfficialDocsEvidence', 'ProfileImpactCheck', '官方文档证据前置', 'Profile 联动判定'] },
+      { file: 'instructions/01-common.instructions.md', needles: ['OfficialDocsEvidence', 'ProfileImpactCheck', '依赖 / 框架 / SDK / 平台 API 引入或升级'] },
+      { file: 'instructions/01b-record-router.instructions.md', needles: ['OfficialDocsEvidence', '官方文档来源、版本或发布日期', 'ProfileImpactCheck', 'skipReason'] },
+      { file: 'instructions/10-dev.instructions.md', needles: ['OfficialDocsEvidence', 'ProfileImpactCheck', '缺失证据不得进入 PR-2 通过态'] },
+      { file: 'instructions/11-fix.instructions.md', needles: ['OfficialDocsEvidence', 'ProfileImpactCheck', '缺失证据不得进入执行'] },
+      { file: 'skills/dev-plan-review/SKILL.md', needles: ['OfficialDocsEvidence', 'ProfileImpactCheck', '缺少 `OfficialDocsEvidence`'] },
+      { file: 'skills/document-sync/SKILL.md', needles: ['ProfileImpactCheck', 'Profile Freshness Check 是 audit 的事后审查'] },
+      { file: 'skills/test-router/SKILL.md', needles: ['OfficialDocsEvidence', 'ProfileImpactCheck', '不得只验证“能安装”'] },
+      { file: 'skills/report/SKILL.md', needles: ['OfficialDocsEvidence', 'ProfileImpactCheck', 'N/A 判定依据'] },
+      { file: 'prompts/technical-design.prompt.md', needles: ['§1.5 ProfileImpactCheck', 'OfficialDocsEvidence', '官方文档来源 / 版本日期'] },
+      { file: 'prompts/implementation-plan.prompt.md', needles: ['OfficialDocsEvidence', 'ProfileImpactCheck', 'targetProfileFiles'] },
+      { file: 'prompts/implementation-progress.prompt.md', needles: ['OfficialDocsEvidence', 'ProfileImpactCheck'] },
+      { file: 'prompts/report-dev.prompt.md', needles: ['OfficialDocsEvidence', 'ProfileImpactCheck'] },
+      { file: 'prompts/report-fix.prompt.md', needles: ['OfficialDocsEvidence', 'ProfileImpactCheck'] },
+      { file: 'prompts/delivery-checklist.prompt.md', needles: ['OfficialDocsEvidence', 'ProfileImpactCheck'] },
+      { file: 'README.md', needles: ['官方文档证据前置', 'ProfileImpactCheck', '避免凭经验猜 API'] },
+      { file: 'website/docs/guide/development.md', needles: ['OfficialDocsEvidence', 'ProfileImpactCheck', '不能只验证“包能安装”'] },
+      { file: 'scripts/test-spec-governance.js', needles: ['OfficialDocsEvidence', 'ProfileImpactCheck', 'checkV54'] }
+    ]
+
+    for (const probe of probes) {
+      const content = read(path.join(ROOT, probe.file))
+      for (const needle of probe.needles) {
+        if (!content.includes(needle)) {
+          err(`[V54] official docs / profile impact drift in ${probe.file}: missing "${needle}"`)
+        }
+      }
+    }
+
+    const pkg = JSON.parse(read(path.join(ROOT, 'package.json')))
+    const releaseFile = `changelogs/releases/v${pkg.version}.md`
+    const changelogSources = [
+      { file: 'changelogs/unreleased.md', content: read(path.join(ROOT, 'changelogs/unreleased.md')) },
+      {
+        file: releaseFile,
+        content: fs.existsSync(path.join(ROOT, releaseFile)) ? read(path.join(ROOT, releaseFile)) : ''
+      }
+    ]
+
+    for (const needle of ['OfficialDocsEvidence', 'ProfileImpactCheck']) {
+      if (!changelogSources.some((source) => source.content.includes(needle))) {
+        err(`[V54] official docs / profile impact changelog drift: missing "${needle}" in changelogs/unreleased.md or ${releaseFile}`)
+      }
+    }
+
+    for (const file of [
+      'instructions/01-common.instructions.md',
+      'instructions/01c-intent-expansion.instructions.md',
+      'instructions/17-compliance.instructions.md',
+      'skills/compliance/SKILL.md'
+    ]) {
+      const content = read(path.join(ROOT, file))
+      if (content.includes('C01~C19')) {
+        err(`[V54] constraint range drift in ${file}: legacy "C01~C19" remains after C20/C21`)
+      }
+    }
+
+    console.log('[V54] official docs evidence / profile impact sync checked')
+  }
+
   return {
     checkV39,
     checkV40,
@@ -639,7 +701,8 @@ function buildGovernanceTailChecks(ctx) {
     checkV50,
     checkV51,
     checkV52,
-    checkV53
+    checkV53,
+    checkV54
   }
 }
 

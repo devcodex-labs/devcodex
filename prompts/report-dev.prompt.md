@@ -71,6 +71,8 @@ applyTo: .devcodex/**/reports/requirements/**
 | ReleaseVerification | ✅/N/A | ✅/⚠️ | |
 | ConceptSyncMap | ✅/N/A | ✅/⚠️ | sourceOfTruth / currentConsumers / historicalMirrors / validateProbes / deployCopies / yellowDeviationBoundary |
 | HostContractVerification | ✅/N/A | ✅/⚠️ | hostSurface / eventScope / evidenceMode / visibleReplyEvidence / workspaceGuard / bootstrapScope / artifactLinkMatrix / mcpFallback |
+| OfficialDocsEvidence | ✅/N/A | ✅/⚠️ | 官方文档来源 / 版本日期 / 关键用法 / 限制 / 兼容性 / skipReason |
+| ProfileImpactCheck | ✅/N/A | ✅/⚠️ | targetProfileFiles / updateOrSkip / skipReason / evidence |
 | 05-实施进度.md | ✅/N/A | ✅/⚠️ | |
 | Backlog Intake 真相复核 | ✅/N/A | ✅/⚠️ | candidateIds / classification / evidence / scopeDelta |
 | 台账状态回写闭环 | ✅/N/A | ✅/⚠️ | targetLedgers / requiredFields / writebackEvidence / rescanResult |
@@ -107,7 +109,7 @@ applyTo: .devcodex/**/reports/requirements/**
 | ECR-1 | CP1/CP2/CP3、05-实施进度、报告、daily tasks、SUMMARY | ✅/⚠️ | |
 | ECR-2 | 需求条款 / 问题 ID → diff/commit 文件 | ✅/⚠️ | |
 | ECR-3 | CP3 步骤 / ExecutionContract / TestRoute / ConceptSyncMap / HostContractVerification → 测试/部署/验证证据 | ✅/⚠️ | |
-| ECR-4 | 报告声明 → 测试/探针/官方文档/ReleaseAudit/ReleaseVerification/部署同步证据 | ✅/⚠️ | |
+| ECR-4 | 报告声明 → 测试/探针/官方文档/OfficialDocsEvidence/ProfileImpactCheck/ReleaseAudit/ReleaseVerification/部署同步证据 | ✅/⚠️ | |
 | ECR-5 | memory daily → SUMMARY | ✅/⚠️ | |
 | ECR-6 | git dirty 边界 | ✅/⚠️ | |
 | ECR-7 | 控制面任务 SCV / validate / direct replay / host-contract probe / 新增探针 / 黄色偏离 / backlog 真相复核 / 台账状态回写 | ✅/N/A | |

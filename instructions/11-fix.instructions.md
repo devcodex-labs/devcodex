@@ -2,7 +2,7 @@
 applyTo: "**"
 description: fix 工作流规则，覆盖子类型路由、CP 流程、修复三步扫描、执行期回退与 ECR
 priority: P4
-version: 1.11.6
+version: 1.11.7
 ---
 # 修复工作流规则（11-fix）
 
@@ -41,13 +41,15 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → 
 ```
 
 - **CP1**：AI 输出问题分析（根因 + 影响范围），用户确认
-- **CP2**：AI 输出修复方案，用户确认
+- **CP2**：AI 输出修复方案，用户确认；若修复涉及依赖/框架/SDK/平台 API 或外部模块变更，必须附 `OfficialDocsEvidence`；涉及项目事实变化时必须附 `ProfileImpactCheck`
 - **impact-review**：涉及跨模块架构依赖变更（PR-5②）时执行
 - **CP3**：≥5 文件变更 或 含高风险操作时**必须**；其他可选
 - **backlog 来源前置真相复核**：若本轮 bug、批次或修复范围直接来源于 `data/*.md` 的 open/partial 项，CP1 前必须先把候选项分类为 `pure-open` / `residual-tail` / `already-fixed` / `misclassified`；非 `pure-open` 项须先回写状态并修正范围口径，再进入修复。
 - **执行期 CP3 回退**：若执行过程中实际修改范围扩展到 CP3 门槛（文件数从 <5 增至 ≥5，或新增高风险/控制面联动），必须暂停执行，补做 CP3 后再继续。
 - **execution-contract/test-router**：≥5 文件、高风险、控制面或多批次修复时执行，明确允许路径、必需产物和验证路线
 - **Intent Expansion 可见性**：dev 模式下，CP1 / 问题确认前默认向用户展示完整 Intent Expansion Card；这会覆盖旧的“意图扩展摘要”默认行为，但当命中控制面或宿主能力差异、跨会话 resume、prod、instruction-fallback 宿主或低风险轻任务时，仍允许退化为 3~5 行意图扩展摘要。
+- **OfficialDocsEvidence**：依赖升级、框架/SDK/API 修复、平台行为变更或外部模块替换时，CP2 前必须读取官方使用文档/官方参考资料；缺失证据不得进入执行。
+- **ProfileImpactCheck**：修复改变技术栈、目录边界、脚本、测试/发布路线、分发面、配置项、长期连接或本地 overlay schema 时，必须同步 Profile 或记录 `skipReason`。
 
 ### 确认后前置轻量复审
 
@@ -112,6 +114,8 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → 
 - 2 次仍失败 → 停止，输出错误摘要标 ⚠️
 - 涉及 HTTP 接口变更 → 生成双产物（.http + .cjs）
 - 涉及源码/配置文件变更 → 检查文档同步（README 为必查；CHANGELOG 按发布状态区分：未明确发版默认更新 `changelogs/unreleased.md`，仅正式 release 更新根 `CHANGELOG.md` / `changelogs/releases/vX.Y.Z.md`；TASK-INDEX/STATUS 按项目存在或启用时同步）
+- 涉及依赖/框架/SDK/平台 API 变更 → 验证 `OfficialDocsEvidence` 与修复实现一致；不得只以安装成功替代官方用法验证
+- 涉及项目事实变化 → 执行 `ProfileImpactCheck` 并通过 `document-sync` 更新 Profile 或记录跳过理由
 
 ## ECR 执行闭环复审（执行后正式阶段）
 
@@ -141,7 +145,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → 
 | ECR-1 | CP1/CP2/CP3、实施进度、报告、daily tasks、SUMMARY | 避免压缩后状态错配 |
 | ECR-2 | 问题 ID / 根因链 → diff/commit 文件 | 避免确认问题漏修 |
 | ECR-3 | CP3 步骤 → 测试/部署/验证证据 | 避免计划与执行漂移 |
-| ECR-4 | 修复报告声明 → 测试/扫描/探针结果 | 避免过度宣称 |
+| ECR-4 | 修复报告声明 → 测试/扫描/探针结果 / `OfficialDocsEvidence` / `ProfileImpactCheck` | 避免过度宣称 |
 | ECR-5 | memory daily → SUMMARY | 避免 SUMMARY 早标绿 |
 | ECR-6 | git dirty 边界 | 避免混入用户另案变更 |
 | ECR-7 | 控制面任务追加 validate / direct replay / host-contract probe；涉及规范源、Skill、Hook、CLI、MCP、模板、部署副本、路径规则或 validate 语义时必须执行 SCV（见 `skills/spec-governance/SKILL.md`） | 避免校验假绿与规范漂移 |

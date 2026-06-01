@@ -9,6 +9,7 @@
 
 | 版本 | 日期 | 变更摘要 | 详细 |
 |------|------|---------|------|
+| [v1.11.7](./changelogs/releases/v1.11.7.md) | 2026-06-01 | 🔧 **官方文档证据前置 + Profile 联动判定补强**：新增 `C20/C21`、`OfficialDocsEvidence` 与 `ProfileImpactCheck` 执行链，同步 dev/fix、plan-review、document-sync、Prompt、README/website 与 `V54` 探针，并补齐 CLI runtime helper 包边界 | [查看](./changelogs/releases/v1.11.7.md) |
 | [v1.11.6](./changelogs/releases/v1.11.6.md) | 2026-06-01 | 🔧 **治理台账长尾收口 + 发布/宿主/时间线守门补强**：收口 backlog governance、audit-release、ArtifactLinkSet、Codex PreCompact、S02 受控例外、changelog releases 与 Profile Freshness，并补齐 `V49` active-root 台账关闭时间线探针 | [查看](./changelogs/releases/v1.11.6.md) |
 | [v1.11.5](./changelogs/releases/v1.11.5.md) | 2026-05-29 | 🔧 **requirement 运行时产物结构探针 + 最近样本收口**：新增 `V41` 与 `test-requirement-artifacts`，把 `01/04/05` 的运行时最低结构纳入自动校验，并回补近期 requirement 样本的计划/进度漂移 | [查看](./changelogs/releases/v1.11.5.md) |
 | [v1.11.4](./changelogs/releases/v1.11.4.md) | 2026-05-29 | 🎯 **治理 Intake 全模式收口 + 本地 Profile overlay + README 专项治理**：将 Improvement Intake / 分流矩阵统一到所有模式，新增 `config.local.json` 受控 overlay、`V39/V40` 与 targeted tests，并补 `readme-authoring` / `audit-readme` / README 专项 review | [查看](./changelogs/releases/v1.11.4.md) |
@@ -92,9 +93,10 @@
 
 ## 相关文档
 
-- [`changelogs/releases/v1.11.6.md`](./changelogs/releases/v1.11.6.md) — 最新版本详细变更文档
-- [`changelogs/releases/v1.11.4.md`](./changelogs/releases/v1.11.4.md) — 上一个版本详细变更文档
-- [`changelogs/releases/v1.11.3.md`](./changelogs/releases/v1.11.3.md) — 历史版本详细变更文档
+- [`changelogs/releases/v1.11.7.md`](./changelogs/releases/v1.11.7.md) — 最新版本详细变更文档
+- [`changelogs/releases/v1.11.6.md`](./changelogs/releases/v1.11.6.md) — 上一个版本详细变更文档
+- [`changelogs/releases/v1.11.5.md`](./changelogs/releases/v1.11.5.md) — 历史版本详细变更文档
+- [`changelogs/releases/v1.11.4.md`](./changelogs/releases/v1.11.4.md) — 历史版本详细变更文档
 - [`changelogs/releases/v1.11.1.md`](./changelogs/releases/v1.11.1.md) — 上一个版本详细变更文档
 - [`changelogs/releases/v1.11.0.md`](./changelogs/releases/v1.11.0.md) — 历史版本详细变更文档
 - [`changelogs/releases/v1.10.0.md`](./changelogs/releases/v1.10.0.md) — 历史版本详细变更文档

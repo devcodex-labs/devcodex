@@ -9,6 +9,12 @@ const out = execSync('npm pack --dry-run --json', { cwd: ROOT, encoding: 'utf8' 
 const pack = JSON.parse(out)[0] || {}
 const files = (pack.files || []).map(file => file.path)
 
+function collectLocalRequires(file) {
+  const content = fs.readFileSync(path.join(ROOT, file), 'utf8')
+  const matches = content.matchAll(/require\(['"]\.\/([^'"]+)['"]\)/g)
+  return Array.from(matches, match => match[1].replace(/\\/g, '/'))
+}
+
 const forbidden = [
   /data\/violations\.md/,
   /data\/pending-fixes\.md/,
@@ -41,6 +47,7 @@ const promptFiles = walk(path.join(ROOT, 'prompts'))
 const dataTemplateFiles = walk(path.join(ROOT, 'data', 'templates'))
   .filter(file => file.endsWith('.md'))
   .map(file => path.relative(ROOT, file).replace(/\\/g, '/'))
+const indexRuntimeRequires = collectLocalRequires('index.js')
 
 const required = [
   'instructions.md',
@@ -54,7 +61,7 @@ const required = [
   'scripts/instruction-fallback-check.js',
   'scripts/migrate-layout.js',
   'assets/icon-512.png',
-].concat(packageFiles, pluginFiles, promptFiles, dataTemplateFiles)
+].concat(packageFiles, pluginFiles, promptFiles, dataTemplateFiles, indexRuntimeRequires)
   .filter(Boolean)
   .filter(file => !file.endsWith('/'))
 

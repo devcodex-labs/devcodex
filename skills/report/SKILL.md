@@ -82,6 +82,8 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 | ConceptSyncMap | 控制面、模板-示例-校验链、README/website/Profile/validate/部署副本联动任务 | 列出 sourceOfTruth、currentConsumers、historicalMirrors、validateProbes、deployCopies、yellowDeviationBoundary |
 | HostContractVerification | Hook/CLI/宿主契约、visible reply、sticky project、workspace guard、bootstrap 相关任务 | 列出 hostSurface、eventScope、evidenceMode、visibleReplyEvidence、workspaceGuard、bootstrapScope |
 | 05-实施进度.md | 跨多轮/多阶段、阻塞、用户要求持续跟踪、多批次、预计修改 ≥10 文件、控制面或模板-校验链任务 | 报告引用进度路径，并核对 CP/批次/阻塞/验证状态 |
+| OfficialDocsEvidence | 新增/升级依赖、框架、SDK、平台 API、外部模块或外部平台能力判断 | 列出官方文档来源、版本/日期、关键用法、限制、兼容性 / 弃用 / Breaking Change 判断；N/A 时写 `skipReason` |
+| ProfileImpactCheck | dev/fix 改变项目技术栈、目录边界、脚本、测试/发布路线、分发面、配置项、长期连接或本地 overlay schema | 列出是否更新 Profile、目标文件、diff/证据；N/A 时写 `skipReason` |
 | Backlog Intake 真相复核 | 任务或批次直接来源于 `data/*.md` open/partial 项 | 列出 `candidateIds`、`classification`、`evidence`、`scopeDelta` |
 | 台账状态回写闭环 | 本轮会关闭/部分关闭/改分类任何 VL/PF/PI/ISSUE/GAP | 列出 `targetLedgers`、`requiredFields`、`writebackEvidence`、`rescanResult` |
 
@@ -94,7 +96,7 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 - audit / analyze / self-fix 的汇总型报告默认采用“两层问题清单”：先列根因级问题，再展开逐文件完整落点；边界/非缺陷结论单独成节，不混入缺陷编号
 - 报告写入后必须执行 [`compliance`](../compliance/SKILL.md) Skill §5 二次验证（V1~V6）
 - `dev` / `fix` 报告在最终宣告完成前，必须显式体现“ECR 执行闭环复审”这一正式阶段，并与 CP1/CP2/CP3、关键产物、报告、daily tasks、SUMMARY、diff/commit、测试/扫描证据和 dirty 边界完成 1 轮复审对照；若发现阻断性问题，不得直接以“已完成”收尾
-- `dev` / `fix` 报告的 ECR 必须把触发的 ExecutionContract / TestRoute / ReleaseAudit / ReleaseVerification / ConceptSyncMap / HostContractVerification / 05-实施进度.md 纳入关键产物核对；未触发时写明 N/A 判定依据
+- `dev` / `fix` 报告的 ECR 必须把触发的 ExecutionContract / TestRoute / ReleaseAudit / ReleaseVerification / ConceptSyncMap / HostContractVerification / OfficialDocsEvidence / ProfileImpactCheck / 05-实施进度.md 纳入关键产物核对；未触发时写明 N/A 判定依据
 - 若本轮来源于 backlog open/partial 项，报告必须额外写出 Backlog Intake 真相复核结果；若本轮改变了台账真实状态，报告必须额外写出台账状态回写闭环证据
 - 报告涉及记录规范问题时，必须列出规范化意图、置信度、依据、目标台账；涉及规范源、Skill、Hook、CLI、MCP、模板、部署副本、路径规则或 validate 语义变更时，必须列出 SCV-0~SCV-7 证据
 - 控制面报告若出现新增探针、黄色偏离或部署同步，必须单独写出部署同步证据与其他证据来源，不能只在摘要里带过

@@ -16,7 +16,7 @@ description: 文档同步规范 — 代码变更后同步必查与条件文档
 | `README.md` | 🔴 必查 | 安装/使用/API 说明与代码一致 |
 | `05-实施进度.md` | 🟡 条件 | 多批次、预计 ≥10 文件、跨轮次、阻塞或用户要求持续跟踪的任务必须更新当前批次状态 |
 | `.env.example` | 🔴 必查 | 有新增/修改/删除共享环境变量时同步更新示例文件，禁止遗漏；仅本地专用 `.env.local` / `.env.test.local` 或临时 task config 不在此列 |
-| `.devcodex/profile/01-项目信息.md` / `02-架构约束.md` | 🟡 条件 | 当工作流边界、分发面、活动版本入口或当前规则事实变更时同步 |
+| `.devcodex/profile/README.md` / `01-项目信息.md` / `02-架构约束.md` / `03-代码风格.md` | 🟡 条件 | 命中 `ProfileImpactCheck` 时同步；包括技术栈、框架/SDK、依赖管理、目录/模块边界、脚本/测试/发布路线、分发面、配置项、长期连接、`config.local.json` schema 或当前阶段变化 |
 | `RULES.md` | 🟡 条件 | 当入口路由、工作流说明、当前可用状态或使用方式变更时同步 |
 | `website/docs/guide/*.md` | 🟡 条件 | 当面向使用者的流程指南、开发说明、发布说明变更时同步 |
 | `website/docs/specs/*.md` | 🟡 条件 | 当永久规范页中的当前行为、流程图、规则说明变更时同步 |
@@ -98,6 +98,21 @@ description: 文档同步规范 — 代码变更后同步必查与条件文档
 - 控制面任务是否已建立 Concept Sync Map，并把当前消费者、历史镜像、validate 探针、部署副本与黄色偏离边界说明清楚
 - 宿主契约相关变更是否补了 HostContractRoute 证据，而不是只改文档叙述
 - 多批次任务的 `05-实施进度.md` 是否随批次完成更新
+
+### ProfileImpactCheck
+
+dev/fix 执行完成后必须显式判定 `ProfileImpactCheck`：
+
+| 触发项 | 同步目标 | 证据 |
+|--------|----------|------|
+| 技术栈、框架、SDK、依赖管理器变化 | `01-项目信息.md` 技术栈 / 依赖 / 验证路线 | diff + report |
+| 目录结构、模块边界、分发面、宿主能力变化 | `02-架构约束.md` 目录 / 模块职责 / 分发边界 | diff + ConceptSyncMap |
+| 代码风格、脚本、测试、构建、发布命令变化 | `03-代码风格.md` 或 `01-项目信息.md` | package/script diff + TestRoute |
+| 共享配置、环境变量、长期连接、`config.local.json` schema 或 `extensions.<namespace>` 变化 | Profile README / `01-项目信息.md` / config 说明 | config diff + 安全检查 |
+| 当前阶段、活跃版本、任务现实、发布状态变化 | `01-项目信息.md` 当前开发重点 | release / task report |
+
+- 若无需同步，报告必须写 `ProfileImpactCheck: N/A` 与 `skipReason`，例如“仅修正文案 typo，不影响技术栈/目录/配置/验证路线”。
+- Profile Freshness Check 是 audit 的事后审查；不能替代 dev/fix 中的 `ProfileImpactCheck` 主动判定。
 
 ## 豁免
 

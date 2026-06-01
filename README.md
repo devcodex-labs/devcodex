@@ -47,6 +47,8 @@ DevCodex 通过 `.github/`（Copilot）、`CLAUDE.md + .claude/ + .mcp.json`（C
 - **Profile 新鲜度审查**: audit 会先执行 `Profile Freshness Check`，反向核对 Profile 是否仍匹配当前包版本、目录资产、脚本、发布状态、宿主能力和任务现实
 - **规范治理 Intake**: 所有模式下每条用户消息在合理性评估后都会额外检查是否命中可泛化改进；命中时主动写入 `data/process-improvements.md`（优化清单，PI），必要时联动 `data/pending-fixes.md`（PF），并显式回执 `PI/PF`
 - **Backlog 真相复核与状态回写**: 从 `data/*.md` open/partial 项组织新需求或新批次前，先按 `pure-open / residual-tail / already-fixed / misclassified` 分类；实施后再执行台账状态回写闭环，避免“源码已修但 backlog 仍旧 open”
+- **官方文档证据前置**: 新增或升级依赖、框架、SDK、平台 API、外部模块前，CP2 会要求 `OfficialDocsEvidence`，记录官方文档来源、关键用法、限制与兼容性，避免凭经验猜 API
+- **ProfileImpactCheck**: dev/fix 改动项目技术栈、目录、脚本、测试/发布路线、分发面、配置或长期连接时，会主动判定是否需要更新 Profile；无需更新时也要写明跳过理由
 - **Profile 本地私有配置**: `config.local.json` 支持长期连接、env 引用和 `extensions.<namespace>` 受控扩展位；文件应加入 `.gitignore`，且不能覆盖 `mode` / `agent`；核心秘密只允许 `*Env` / `secretRef`
 - **变更日志分层**: 未发布实现变更写 `changelogs/unreleased.md`，已发布详情统一归档到 `changelogs/releases/vX.Y.Z.md`，目录说明见 `changelogs/README.md`
 - **执行闭环复审**: dev/fix 完成前执行 ECR 执行闭环复审，交叉验证 CP 产物、报告、daily memory、SUMMARY、diff/commit、测试/探针与 dirty 边界
@@ -175,7 +177,8 @@ AGENTS.md                 ← 与 instructions.md / copilot-instructions.md / CL
 - **高联动默认联查**：当任务涉及控制面规则、模板、接口契约/验证产物、工作区真相源/部署副本或发布口径变更时，会默认联查相关文件；若同时命中多真相源同步或模板-示例-校验链，会升级为交叉验证或 `CRS`。
 - **Backlog Intake 真相复核**：若本轮需求、bug 或批次直接来源于 `data/*.md` 的 open/partial 项，会先核对源码、最新报告、测试和台账，把候选项分为 `pure-open / residual-tail / already-fixed / misclassified`，再决定是否继续纳入本轮。
 - **台账状态回写闭环**：当实施或复审改变了 VL / PF / PI / ISSUE / GAP 的真实状态时，会在完成前回写状态、验证证据、验证时间与关闭/部分完成说明，并再核对 open 计数、进度、报告和 SUMMARY 是否一致。
-- **官方资料优先**：涉及平台能力、框架 API、版本兼容性或工具语义判断时，优先读取官方文档，再降级到其他资料。
+- **官方资料优先**：涉及平台能力、框架 API、版本兼容性或工具语义判断时，优先读取官方文档，再降级到其他资料；新增/升级依赖、框架、SDK、平台 API 或外部模块时必须形成 `OfficialDocsEvidence`。
+- **ProfileImpactCheck**：项目事实变化后，DevCodex 会检查是否需要同步 Profile 的技术栈、目录边界、脚本/测试/发布路线、配置说明或当前阶段；若不更新，需要在报告中写明 `skipReason`。
 - **提交标题收短**：用户要求提交时，DevCodex 会优先生成一句简洁的 commit subject，而不是把整段会话摘要塞进标题。
 
 

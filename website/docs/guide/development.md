@@ -74,6 +74,8 @@ description: "Use when: ..."   # 必填，AI 靠这个发现 Skill
 - 所有模式下若用户建议经验证更优且可泛化，或暴露规范未定义/不完整，应主动触发 Improvement Intake：写入 `data/process-improvements.md`（优化清单，PI），必要时联动 `data/pending-fixes.md`，并显式回执 `PI/PF`
 - 若新的需求、bug 或批次直接来源于 `data/*.md` 的 open/partial 项，进入 CP1 / 问题确认前必须先做 Backlog Intake 真相复核：把候选项分成 `pure-open / residual-tail / already-fixed / misclassified`，避免把“已修但未回写”的条目继续按纯 open 统计
 - 当实施或复审改变了 VL / PF / PI / ISSUE / GAP 的真实状态时，必须执行台账状态回写闭环：回写状态、验证证据、验证时间和关闭/部分完成说明，并复核 open 计数是否与进度、报告、SUMMARY 一致
+- 新增/升级依赖、框架、SDK、平台 API 或外部模块时，CP2 必须包含 `OfficialDocsEvidence`：官方文档来源、版本/日期、关键用法、限制、兼容性和降级来源；不能只验证“包能安装”
+- dev/fix 改动项目技术栈、目录边界、脚本、测试/发布路线、分发面、配置项、长期连接或本地 overlay schema 时，必须执行 `ProfileImpactCheck`，同步 Profile 或在报告中写明 `skipReason`
 - v2.0.0 规划：MCP `devcodex_getWorkflow()` 替代文件读取
 
 
@@ -167,6 +169,8 @@ dev/fix 完成前必须执行 ECR 执行闭环复审。ECR 会交叉验证 CP1/C
 当任务触发 ExecutionContract、TestRoute、ReleaseAudit、ReleaseVerification、ConceptSyncMap、HostContractVerification 或 `05-实施进度.md` 时，ECR 必须把这些产物纳入关键证据；未触发时报告中写明 N/A 依据。
 
 控制面或模板-示例-校验链任务要先建立 Concept Sync Map：至少写清 `sourceOfTruth`、`currentConsumers`、`historicalMirrors`、`validateProbes`、`deployCopies`、`yellowDeviationBoundary`。其中当前消费者必须同批同步，历史镜像只有在明确标注历史性质时才允许保留旧口径。
+
+`OfficialDocsEvidence` 与 `ProfileImpactCheck` 属于 dev/fix 的前置和收尾证据：前者防止依赖、框架、SDK 或平台 API 用法靠猜；后者防止项目事实已经变化但 Profile 仍停留在旧技术栈、旧目录或旧验证路线。
 
 Hook / CLI / visible reply / sticky project / workspace guard 相关任务还要补 HostContractVerification 证据：至少说明 `hostSurface`、`eventScope`、`evidenceMode`、`visibleReplyEvidence`、`workspaceGuard` 与 `bootstrapScope`，避免把“文档已经写了”误当成宿主行为已验证。
 

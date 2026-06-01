@@ -2,7 +2,7 @@
 applyTo: "**"
 description: 任务切换边界、RecordRouter 分流、Improvement Intake 与提交发布边界的通用规范
 priority: P5
-version: 1.11.6
+version: 1.11.7
 ---
 # 任务边界与 RecordRouter
 
@@ -79,10 +79,19 @@ version: 1.11.6
 ## 官方文档优先级
 
 - 当任务涉及外部事实判断时，应优先读取官方文档或官方参考资料，再继续分析或实施。
+- 新增/升级第三方依赖、引入框架、SDK、平台 API、外部模块或需要依据外部平台能力设计方案时，必须在 CP2 前形成 `OfficialDocsEvidence`，不得凭经验猜测 API、配置或命令语义。
+- `OfficialDocsEvidence` 至少包含：官方文档来源、版本或发布日期、关键用法、限制条件、兼容性 / 弃用 / Breaking Change 判断，以及本方案采用的具体 API / 配置依据。
 - 适用场景包括：
   - 平台 / 宿主能力判断
   - 框架 API / SDK 行为
   - 版本兼容性、弃用项、Breaking Change
   - 第三方工具参数、命令语义、限制条件
-- 若官方文档不存在，再按顺序降级到官方源码 / 官方仓库说明、项目内已确认文档、社区资料。
-- 本地纯实现问题、已在仓库内可闭环验证的问题，不应机械触发该规则。
+- 若官方文档不存在，再按顺序降级到官方源码 / 官方仓库说明、项目内已确认文档、社区资料，并在方案与报告中记录降级原因和风险。
+- 本地纯实现问题、已在仓库内可闭环验证且不新增/升级外部依赖的问题，可标 `OfficialDocsEvidence: N/A`，但必须写明 N/A 理由。
+
+## ProfileImpactCheck
+
+- dev/fix 修改项目事实后必须执行 `ProfileImpactCheck`，不能只等 audit 的 `Profile Freshness Check` 事后发现漂移。
+- 触发项包括：技术栈/框架/SDK/依赖管理器、目录结构/模块边界/分发面、脚本/测试/构建/发布命令、共享配置/环境变量、长期连接、`config.local.json` schema、`extensions.<namespace>`、当前阶段/活跃版本/发布状态。
+- 命中触发项时必须更新 Profile：`01-项目信息.md`（技术栈、脚本、验证/发布路线、当前阶段）、`02-架构约束.md`（目录/边界/分发面）、`03-代码风格.md`（代码风格/工具链），或 Profile README / config 说明。
+- 若判断无需更新 Profile，必须在 CP2 / CP3 / ECR / 报告中写明 `ProfileImpactCheck: N/A` 与 `skipReason`。

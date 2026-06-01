@@ -2,7 +2,7 @@
 applyTo: "**"
 description: dev 模式合规检查规则，覆盖 FC/SC/RC/T、入口检查与完成验证
 priority: P4
-version: 1.11.6
+version: 1.11.7
 ---
 # 合规检查规则（17-compliance）
 
@@ -205,7 +205,7 @@ version: 1.11.6
 | T3 | ✅ 记忆完整 |
 | T4 | ✅ CP 完整（dev/fix；其他 N/A） |
 | T5 | ✅ 合规通过 |
-| T6 | ✅ 约束遵守（C01~C19） |
+| T6 | ✅ 约束遵守（C01~C21） |
 | T7 | ✅ 工作流验证（dev/fix: 适用门禁已执行，且“执行 → 扫描/验证 → ECR → 完成”正式阶段已走完；其中 fix 的三步扫描与 ECR 已完成；audit/analyze: PCV 与推荐结论已执行）|
 | T8 | ✅ SUMMARY 已更新 |
 | T9 | ✅ 产物路径已输出 |

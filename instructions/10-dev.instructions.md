@@ -2,7 +2,7 @@
 applyTo: "**"
 description: dev 工作流规则，覆盖子类型路由、CP 流程、计划复审、执行期回退与 ECR
 priority: P4
-version: 1.11.6
+version: 1.11.7
 ---
 # 开发工作流规则（10-dev）
 
@@ -58,7 +58,7 @@ CP1（需求确认）→ PR-1 内部自检 → CP2（方案确认）→ plan-rev
 ### CP 关注点边界
 
 - **CP1**：重点确认需求目标、用户交互、业务流程、验收结果与范围边界；不提前展开实现时序、内部节点设计或接口细节。
-- **CP2**：重点确认实现流程、节点职责、公共契约、兼容性策略、边界问题与测试策略；已有公共接口、Schema、返回结构或错误码变更时，必须给出“现状契约 → 目标契约”差异说明。
+- **CP2**：重点确认实现流程、节点职责、公共契约、兼容性策略、边界问题与测试策略；已有公共接口、Schema、返回结构或错误码变更时，必须给出“现状契约 → 目标契约”差异说明；新增/升级依赖、框架、SDK、平台 API 或外部模块时必须附 `OfficialDocsEvidence`；涉及项目事实变化时必须附 `ProfileImpactCheck`。
 - **CP3**：只确认实施顺序、里程碑、验证方式、风险与回滚；不得重复需求正文、方案论证或兼容性主说明。
 
 ### CP 执行规则
@@ -75,6 +75,8 @@ CP1（需求确认）→ PR-1 内部自检 → CP2（方案确认）→ plan-rev
 10. **Intent Expansion 可见性**：dev 模式下，CP1 / 需求确认前默认向用户展示完整 Intent Expansion Card；这会覆盖旧的“意图扩展摘要”默认行为，但当命中控制面或宿主能力差异、跨会话 resume、prod、instruction-fallback 宿主或低风险轻任务时，仍允许退化为 3~5 行意图扩展摘要。
 11. **执行期 CP3 回退**：若 N5 执行过程中实际变更范围扩展到 CP3 门槛（如文件数从 <5 增至 ≥5、临时引入高风险操作、命中控制面/模板/validate/部署副本联动），必须暂停执行，回到 N4 / CP3 补做实施计划确认后再继续。
 12. **backlog 来源前置真相复核**：若本轮需求、批次或范围直接来源于 `data/*.md` 的 open/partial 项，CP1 前必须先把候选项分类为 `pure-open` / `residual-tail` / `already-fixed` / `misclassified`；非 `pure-open` 项须先回写状态并修正范围口径，禁止直接按旧 open 计数开做。
+13. **OfficialDocsEvidence**：新增/升级依赖、框架、SDK、平台 API 或外部模块时，CP2 前必须读取官方使用文档/官方参考资料；CP2 记录文档来源、版本/日期、关键用法、限制和兼容性，缺失证据不得进入 PR-2 通过态。
+14. **ProfileImpactCheck**：项目技术栈、目录边界、脚本、测试/发布路线、分发面、配置项、长期连接或本地 overlay schema 变化时，CP2/CP3 必须判定并同步 Profile；不需要同步时写明 `skipReason`。
 
 ### 目标文档前置（条件触发）
 
@@ -199,6 +201,7 @@ CP1（需求确认）→ PR-1 内部自检 → CP2（方案确认）→ plan-rev
 ### PR-2 技术可行性 🔴
 - 技术选型与项目 profile 技术栈一致
 - 依赖可安装，无模糊"待定"步骤
+- 触发依赖/框架/SDK/平台 API 引入或升级时，已读取官方使用文档并形成 `OfficialDocsEvidence`
 - 对已有代码的改动方案，必须逐行追踪新代码在原始执行路径中的实际插入位置，验证新逻辑不会被已有的提前 return/throw/break 跳过
 - 对已有公共接口、Schema、返回结构或错误码的变更，必须给出“现状契约 → 目标契约”差异说明
 - CP2 方案必须显式给出兼容性策略与边界问题清单，不能只散落在风险说明中
@@ -207,6 +210,7 @@ CP1（需求确认）→ PR-1 内部自检 → CP2（方案确认）→ plan-rev
 - 无硬编码敏感信息（S02）
 - 不可逆操作有确认步骤（S01）
 - 不违反项目 profile 架构约束
+- 已执行 `ProfileImpactCheck`：需同步 Profile 的变更已列出同步目标；无需同步时已有 `skipReason`
 
 ### PR-4 性能与安全隐患
 - N+1 查询/循环 I/O → 🟡 标注
@@ -274,6 +278,8 @@ CP1（需求确认）→ PR-1 内部自检 → CP2（方案确认）→ plan-rev
 - error 最多 2 次迭代；2 次仍失败 → 停止，输出错误摘要标 ⚠️
 - 涉及 HTTP 接口变更 → 生成双产物（.http + .cjs）
 - 涉及源码/配置文件变更 → 检查文档同步（README 为必查；CHANGELOG 按发布状态区分：未明确发版默认更新 `changelogs/unreleased.md`，仅正式 release 更新根 `CHANGELOG.md` / `changelogs/releases/vX.Y.Z.md`；TASK-INDEX/STATUS 按项目存在或启用时同步）
+- 涉及依赖/框架/SDK/平台 API 变更 → 验证 `OfficialDocsEvidence` 与实际实现一致；不得只以安装成功替代官方用法验证
+- 涉及项目事实变化 → 执行 `ProfileImpactCheck` 并通过 `document-sync` 更新 Profile 或记录跳过理由
 - Auto、控制面、多批次、预计 ≥10 文件或发布类任务 → 执行前必须有 ExecutionContract；执行中按 `allowedPaths`、`requiredArtifacts`、`validationRoute` 对照推进
 - 未明确发版时不得执行真实 `tag` / `push` / `publish`；用户明确要求 release 时先走 `audit-release` 与 `release-verification`
 
@@ -304,7 +310,7 @@ CP1（需求确认）→ PR-1 内部自检 → CP2（方案确认）→ plan-rev
 | ECR-1 | CP1/CP2/CP3、实施进度、报告、daily tasks、SUMMARY | 避免压缩后状态错配 |
 | ECR-2 | 需求条款 / 问题 ID → diff/commit 文件 | 避免确认范围漏实现 |
 | ECR-3 | CP3 步骤 → 测试/部署/验证证据 | 避免计划与执行漂移 |
-| ECR-4 | 报告声明 → 测试/探针/官方文档 | 避免过度宣称 |
+| ECR-4 | 报告声明 → 测试/探针/官方文档 / `OfficialDocsEvidence` / `ProfileImpactCheck` | 避免过度宣称 |
 | ECR-5 | memory daily → SUMMARY | 避免 SUMMARY 早标绿 |
 | ECR-6 | git dirty 边界 | 避免混入用户另案变更 |
 | ECR-7 | 控制面任务追加 validate / direct replay / host-contract probe；涉及规范源、Skill、Hook、CLI、MCP、模板、部署副本、路径规则或 validate 语义时必须执行 SCV（见 `skills/spec-governance/SKILL.md`） | 避免校验假绿与规范漂移 |

@@ -2,7 +2,7 @@
 applyTo: "**"
 description: 安全底线与输出语言规则，定义 S01~S07、违规处理与不可豁免边界
 priority: P2
-version: 1.11.9
+version: 1.11.10
 ---
 # 安全底线规范（S01~S07）
 
@@ -13,7 +13,7 @@ version: 1.11.9
 | # | 规则 | 完整说明 | 豁免 |
 |:-:|------|---------|------|
 | S01 | 删除/破坏性操作需确认 | 破坏性操作分两级：**不可逆**（删除文件、清空目录）必须等待用户明确 yes/no 确认；**可逆**（重命名、移动）输出操作计划提示后执行 | 记忆文件、报告文件的自动写入（create/append 不属于破坏性操作） |
-| S02 | 禁止硬编码敏感信息 | API Key、密码、Token、私钥、client secret、签名密钥、连接密码等核心秘密不得出现在代码、配置文件、注释中；私有仓库或用户授权不改变该核心禁止项 | 占位符（如 `YOUR_API_KEY_HERE`）、`.env.example` 示例值、环境变量引用（如 `process.env.API_KEY`）、CI/CD secret 注入；非核心本地私有信息可按下方“受控私有例外模型”写入不提交的本地 overlay |
+| S02 | 禁止硬编码敏感信息到可提交产物 | API Key、密码、Token、私钥、client secret、签名密钥、连接密码等秘密不得出现在代码、可提交配置、注释、README、Profile 文档、报告、日志或示例真实值中；用户明确授权时，明文秘密只能写入已被 `.gitignore` 排除的 `profile/config.local.json` 本地 overlay | 占位符（如 `YOUR_API_KEY_HERE`）、`.env.example` 示例值、环境变量引用（如 `process.env.API_KEY`）、CI/CD secret 注入；已授权本地明文秘密与非核心本地私有信息可按下方“受控私有例外模型”写入 `config.local.json` |
 | S03 | 禁止编造规范内容 | 规范文件不存在或读取失败时，必须按降级路径执行，不得凭 AI 推测或"补全"规范内容 | 无 |
 | S04 | 禁止 overwrite 源码/规范文件 | 对所有源码文件及规范文件（.md）的修改，必须使用增量编辑（edit 工具），禁止整文件重写 | 新建文件（create 不是 overwrite） |
 | S05 | 记忆+报告自动写入 | 每次会话结束前必须写入记忆文件和报告文件，禁止询问用户"是否需要写入" | 纯 chat 会话（无任何变更意图时可豁免报告，但记忆仍需写入） |
@@ -22,14 +22,16 @@ version: 1.11.9
 
 ### S02 受控私有例外模型
 
-S02 的核心秘密禁止项不可豁免；“私有仓库”“本地使用”或“用户确认可以”只能触发受控例外流程，不能把 API Key、密码、Token、私钥、client secret、签名密钥、连接密码等明文写入可提交文件。
+S02 的安全底线是禁止秘密进入可提交或可传播产物；“私有仓库”“本地使用”或“用户确认可以”只能触发受控本地例外，不能把 API Key、密码、Token、私钥、client secret、签名密钥、连接密码等明文写入可提交文件、文档、日志或报告。用户明确授权明文保存时，安全底线不得高于用户确认，但承载位置必须收敛到已忽略的 `profile/config.local.json`。
 
 | 分类 | 处理 |
 |------|------|
-| 核心秘密 | 永不明文写入代码、配置、注释、README、Profile 或任务报告；必须使用环境变量、secret manager 引用、CI/CD secret 或 `config.local.json` 中的 `*Env` / `secretRef` |
-| 非核心本地私有信息 | 可在用户明确授权后写入不提交的本地 overlay，例如 host、port、database、schema、username、内部服务 URL、租户/项目 ID、只读开关、连接别名 |
-| 承载位置 | 首选 `.devcodex/**/profile/config.local.json`；也可使用 `.env.local`、`.env.test.local` 或任务目录 `.tmp/local-config/`；这些文件必须被 `.gitignore` 排除 |
-| 审计要求 | 报告或记忆中记录授权来源、目标文件、字段类型、是否使用 `*Env` / `secretRef`、脱敏策略和回退方式；不得记录秘密明文 |
+| 可提交产物秘密 | 永不明文写入代码、可提交配置、注释、README、Profile 文档、任务报告、日志或示例真实值；应使用占位符、环境变量引用、secret manager 引用、CI/CD secret、`*Env` 或 `secretRef` |
+| 已授权本地明文秘密 | 用户明确授权后，可写入不提交的 `profile/config.local.json`，例如 `connections.<alias>.password`、`token`、`apiKey`、`privateKey`、`clientSecret`、`signingKey`、`connectionPassword`；文件必须被 `.gitignore` 排除，且输出、报告、记忆、测试快照不得回显明文值 |
+| 非核心本地私有信息 | 可在用户明确授权后写入 `profile/config.local.json`，例如 host、port、database、schema、username、内部服务 URL、租户/项目 ID、只读开关、连接别名 |
+| 连接配置唯一入口 | 脚本、测试、数据库 / SSH / MongoDB / 数据操作等连接信息必须先从当前 Profile 路径模型下的 `config.local.json` 读取；缺失文件或字段时提醒用户补齐该文件，不得自行发明 `.env` 文件、环境变量名或并行配置格式；如需环境变量，也只能使用 `config.local.json` 中声明的 `*Env` 字段作为间接引用 |
+| 承载位置 | 唯一首选 `.devcodex/**/profile/config.local.json`（workspace-namespace 下按 `workspace base + project overlay` 读取）。`.env.local` / `.env.test.local` 只能作为被 `config.local.json` 中 `*Env` 引用的运行时变量来源，AI 不得将其创建为连接配置入口；本地文件必须被 `.gitignore` 排除 |
+| 审计要求 | 报告或记忆中记录授权来源、目标文件、字段类型、是否使用明文字段 / `*Env` / `secretRef`、脱敏策略和回退方式；不得记录秘密明文 |
 | Profile 说明 | 若使用 `config.local.json` 或 `extensions.<namespace>`，必须在 `01-项目信息.md` 或 Profile README 说明用途、字段语义和使用方式 |
 
 ## 输出语言规则
@@ -49,7 +51,7 @@ S02 的核心秘密禁止项不可豁免；“私有仓库”“本地使用”�
 |------|:----:|---------|
 | S01（不可逆：删除文件/清空目录） | 🟡 操作级阻断 | 拒绝直接执行，提示用户明确 yes/no 确认后重新发送，继续执行其余合规任务 |
 | S01（可逆：重命名/移动） | ℹ️ 轻量提示 | 输出操作计划提示后直接执行，无需 yes/no |
-| S02（硬编码密钥） | 🔴 致命终止 | 拒绝生成含敏感信息的代码，写入违规审计记录，**终止本次请求执行** |
+| S02（可提交产物硬编码密钥 / 未授权本地明文秘密） | 🔴 致命终止 | 拒绝生成含敏感信息的可提交产物；若用户授权本地明文保存，仅写入已忽略的 `profile/config.local.json` 并脱敏记录审计信息 |
 | S03（编造规范） | 🔴 致命终止 | 停止执行，输出 ⚠️ 警告，写入违规审计记录，**终止本次请求执行** |
 | S04（overwrite 源码/规范文件） | 🟡 操作级阻断 | 拒绝整文件覆盖，自动改用增量编辑工具，继续执行 |
 | S05（记忆/报告未写入） | — | 在合规检查节点发现遗漏时立即补写 |

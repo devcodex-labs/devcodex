@@ -159,12 +159,33 @@ function validLocalConfig() {
     }, null, 2)
 }
 
+function validRawSecretLocalConfig() {
+    return JSON.stringify({
+        connections: {
+            reporting: {
+                kind: 'postgres',
+                description: '本地授权明文字段示例',
+                host: '127.0.0.1',
+                port: 5432,
+                database: 'analytics',
+                username: 'reporting_user',
+                password: 'local-password-placeholder',
+                apiKey: 'local-api-key-placeholder',
+                privateKey: 'local-private-key-placeholder',
+                clientSecret: 'local-client-secret-placeholder',
+                signingKey: 'local-signing-key-placeholder',
+                connectionPassword: 'local-connection-password-placeholder'
+            }
+        }
+    }, null, 2)
+}
+
 function invalidLocalConfig() {
     return JSON.stringify({
         mode: 'prod',
         connections: {
             broken: {
-                password: 'plain-secret'
+                port: '5432'
             }
         }
     }, null, 2)
@@ -195,6 +216,14 @@ function main() {
 
         assert.strictEqual(localConfigResult.status, 0, localConfigOutput)
 
+        const rawSecretLocalRoot = createWorkspace(currentProjectInfo())
+        writeFile(rawSecretLocalRoot, '.devcodex/profile/config.local.json', validRawSecretLocalConfig())
+        writeFile(rawSecretLocalRoot, '.gitignore', '.devcodex/profile/config.local.json\n')
+        const rawSecretLocalResult = runValidate(rawSecretLocalRoot)
+        const rawSecretLocalOutput = `${rawSecretLocalResult.stdout}\n${rawSecretLocalResult.stderr}`
+
+        assert.strictEqual(rawSecretLocalResult.status, 0, rawSecretLocalOutput)
+
         const invalidLocalRoot = createWorkspace(currentProjectInfo())
         writeFile(invalidLocalRoot, '.devcodex/profile/config.local.json', invalidLocalConfig())
         writeFile(invalidLocalRoot, '.gitignore', '.devcodex/profile/config.local.json\n')
@@ -203,7 +232,7 @@ function main() {
 
         assert.strictEqual(invalidLocalResult.status, 1, invalidLocalOutput)
         assert.match(invalidLocalOutput, /must not override "mode"/)
-        assert.match(invalidLocalOutput, /must use \*Env or secretRef instead of raw "password"/)
+        assert.match(invalidLocalOutput, /connections\.broken\.port must be an integer/)
 
         const workspaceRoot = createWorkspaceNamespaceWorkspace(currentProjectInfo())
         const workspaceChild = path.join(workspaceRoot, 'chat')

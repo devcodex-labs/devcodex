@@ -15,7 +15,7 @@ description: 文档同步规范 — 代码变更后同步必查与条件文档
 | `CHANGELOG.md` | 🟡 条件 | 仅正式发版时更新已发布版本索引 |
 | `README.md` | 🔴 必查 | 安装/使用/API 说明与代码一致 |
 | `05-实施进度.md` | 🟡 条件 | 多批次、预计 ≥10 文件、跨轮次、阻塞或用户要求持续跟踪的任务必须更新当前批次状态 |
-| `.env.example` | 🔴 必查 | 有新增/修改/删除共享环境变量时同步更新示例文件，禁止遗漏；仅本地专用 `.env.local` / `.env.test.local` 或临时 task config 不在此列 |
+| `.env.example` | 🔴 必查 | 有新增/修改/删除共享环境变量时同步更新示例文件，禁止遗漏；仅作为 `config.local.json` 中 `*Env` 引用来源的 `.env.local` / `.env.test.local` 或临时 task config 不在此列，且不得成为连接配置入口 |
 | `.devcodex/profile/README.md` / `01-项目信息.md` / `02-架构约束.md` / `03-代码风格.md` | 🟡 条件 | 命中 `ProfileImpactCheck` 时同步；包括技术栈、框架/SDK、依赖管理、目录/模块边界、脚本/测试/发布路线、分发面、配置项、长期连接、`config.local.json` schema 或当前阶段变化 |
 | `RULES.md` | 🟡 条件 | 当入口路由、工作流说明、当前可用状态或使用方式变更时同步 |
 | `website/docs/guide/*.md` | 🟡 条件 | 当面向使用者的流程指南、开发说明、发布说明变更时同步 |

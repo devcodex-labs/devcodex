@@ -2,7 +2,7 @@
 applyTo: "**"
 description: fix 工作流规则，覆盖子类型路由、CP 流程、修复三步扫描、执行期回退与 ECR
 priority: P4
-version: 1.11.9
+version: 1.11.10
 ---
 # 修复工作流规则（11-fix）
 
@@ -50,6 +50,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → 
 - **Intent Expansion 可见性**：dev 模式下，CP1 / 问题确认前默认向用户展示完整 Intent Expansion Card；这会覆盖旧的“意图扩展摘要”默认行为，但当命中控制面或宿主能力差异、跨会话 resume、prod、instruction-fallback 宿主或低风险轻任务时，仍允许退化为 3~5 行意图扩展摘要。
 - **OfficialDocsEvidence**：依赖升级、框架/SDK/API 修复、平台行为变更或外部模块替换时，CP2 前必须读取官方使用文档/官方参考资料；缺失证据不得进入执行。
 - **ProfileImpactCheck**：修复改变技术栈、目录边界、脚本、测试/发布路线、分发面、配置项、长期连接或本地 overlay schema 时，必须同步 Profile 或记录 `skipReason`。
+- **连接配置唯一入口**：凡修复涉及脚本、测试、数据库 / SSH / MongoDB / 数据操作连接信息，修复方案必须写明从当前 Profile 路径模型下的 `config.local.json` 读取；缺失时提醒用户补齐该文件，不得自行发明 `.env` 文件、环境变量名或并行配置格式。
 
 ### 确认后前置轻量复审
 
@@ -73,7 +74,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → 
   - 发现阻断问题：停止推进，先修正当前产物并告知用户，再回到对应 CP 重新确认
   - 连续 2 次前置复审仍发现新的阻断问题：提示升级为定向 `audit` 或扩大扫描范围
 
-**高风险操作**：DDL 变更 / 共享配置文件变更（如 `.env.example`、`package.json`、CI）/ 生产环境配置变更（如生产用 `.env`）/ 文件删除 / 直接影响生产环境。仅本地使用且不提交的 `.env.local`、`.env.test.local` 或任务临时配置不在此列。
+**高风险操作**：DDL 变更 / 共享配置文件变更（如 `.env.example`、`package.json`、CI）/ 生产环境配置变更（如生产用 `.env`）/ 文件删除 / 直接影响生产环境。仅作为 `config.local.json` 中 `*Env` 引用来源且不提交的 `.env.local`、`.env.test.local` 或任务临时配置不在此列；它们不得成为连接配置入口。
 
 ### CP 响应处理
 

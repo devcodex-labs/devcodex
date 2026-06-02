@@ -2,7 +2,7 @@
 applyTo: "**"
 description: Profile 加载、active-root 路径、目标项目识别与项目现实扩展的通用规范
 priority: P5
-version: 1.11.9
+version: 1.11.10
 ---
 # Profile 加载与项目现实扩展
 
@@ -24,7 +24,8 @@ version: 1.11.9
 
 - `config.json` 采用 `workspace base + project overlay`
 - `config.local.json` 与 `config.json` 同路径模型，但仅用于本地私有 overlay（长期连接、env 引用、`extensions.<namespace>`），不得覆盖 `mode` / `agent` / `pluginVersion`
-- `config.local.json` 是 S02 受控私有例外模型的推荐承载层：可保存 host、port、database、schema、username、内部 URL、连接别名等非核心本地私有信息；密码、Token、API Key、私钥、client secret、签名密钥、连接密码等核心秘密仍必须使用 `*Env` / `secretRef`
+- `config.local.json` 是连接配置唯一入口：脚本、测试、数据库 / SSH / MongoDB / 数据操作必须先从当前 Profile 路径模型下的 `config.local.json` 读取连接信息；缺失文件或字段时提醒用户补齐，不得自行发明 `.env` 文件、环境变量名或并行配置格式
+- `config.local.json` 是 S02 受控私有例外模型的推荐承载层：可保存 host、port、database、schema、username、内部 URL、连接别名等非核心本地私有信息；用户明确授权后，也可保存 password、token、apiKey、privateKey、clientSecret、signingKey、connectionPassword 等本地明文字段；若选择环境变量间接引用，也必须由 `config.local.json` 中的 `*Env` 字段声明
 - `README.md`、`01-项目信息.md`、`02-架构约束.md`、`03-代码风格.md` 采用 `project file first + workspace fallback`
 
 ### 运行态目录写入
@@ -76,7 +77,7 @@ version: 1.11.9
 | `04-测试规范.md` | 测试框架/覆盖率 | 按需 |
 | `05-发布规范.md` | 版本号/发布流程 | 按需 |
 | `config.json` | 运行模式配置（ENV_MODE）+ agent 兜底标识 | 按需 |
-| `config.local.json` | 本地私有 overlay：长期连接、env 引用、`extensions.<namespace>` 扩展位（不提交）；核心秘密只允许 `*Env` / `secretRef` | 可选 |
+| `config.local.json` | 本地私有 overlay 与连接配置唯一入口：长期连接、env 引用、已授权本地明文秘密、`extensions.<namespace>` 扩展位（不提交） | 可选 |
 
 ## ENV_MODE 注入
 

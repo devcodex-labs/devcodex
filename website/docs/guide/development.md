@@ -177,7 +177,7 @@ Hook / CLI / visible reply / sticky project / workspace guard 相关任务还要
 
 ### Profile 本地私有配置
 
-`.devcodex/**/profile/config.local.json` 用于本地私有 overlay：长期连接、env 引用、受控扩展位 `extensions.<namespace>`。它不替代 `config.json`，也不能覆盖 `mode` / `agent` / `pluginVersion`。若项目使用了本地连接别名或扩展位，需在 `01-项目信息.md` 或 Profile README 说明用途、字段语义和使用方式。受控私有例外只允许 host、port、database、schema、username、内部 URL、连接别名等非核心本地私有信息写入本地 overlay；密码、Token、API Key、私钥、client secret、签名密钥、连接密码等核心秘密必须使用 `*Env` / `secretRef`。
+`.devcodex/**/profile/config.local.json` 用于本地私有 overlay 与连接配置唯一入口：长期连接、env 引用、已授权本地明文秘密、受控扩展位 `extensions.<namespace>`。它不替代 `config.json`，也不能覆盖 `mode` / `agent` / `pluginVersion`。脚本、测试、数据库 / SSH / MongoDB / 数据操作连接信息必须先从这里取得；缺失文件或字段时提醒用户补齐，不得自行发明 `.env` 文件、环境变量名或并行配置格式。若项目使用了本地连接别名或扩展位，需在 `01-项目信息.md` 或 Profile README 说明用途、字段语义和使用方式；报告、记忆和日志不得回显秘密明文。
 
 ### 诊断与排错入口
 

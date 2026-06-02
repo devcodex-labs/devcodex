@@ -116,10 +116,6 @@ function findGitRoot(startDir) {
   }
 }
 
-function hasRawSecretKey(key) {
-  return /^(password|token|apiKey|apikey|secret|privateKey|clientSecret)$/i.test(String(key || '').trim())
-}
-
 function validateLocalConfigDocumented(projectInfoText, readmeText, hasExtensions) {
   const combined = `${projectInfoText}\n${readmeText}`
   if (!/config\.local\.json/.test(combined)) {
@@ -154,6 +150,13 @@ const LOCAL_CONNECTION_KEYS = new Set([
   'username',
   'readonly',
   'ssl',
+  'password',
+  'token',
+  'apiKey',
+  'privateKey',
+  'clientSecret',
+  'signingKey',
+  'connectionPassword',
   'hostEnv',
   'portEnv',
   'databaseEnv',
@@ -162,6 +165,11 @@ const LOCAL_CONNECTION_KEYS = new Set([
   'urlEnv',
   'passwordEnv',
   'tokenEnv',
+  'apiKeyEnv',
+  'privateKeyEnv',
+  'clientSecretEnv',
+  'signingKeyEnv',
+  'connectionPasswordEnv',
   'keyEnv',
   'secretRef',
   'options'
@@ -203,15 +211,11 @@ function validateLocalConfig(cfg, projectInfoText, readmeText) {
           continue
         }
         for (const key of Object.keys(connection)) {
-          if (hasRawSecretKey(key)) {
-            err(`[profile] config.local.json connections.${name} must use *Env or secretRef instead of raw "${key}"`)
-            continue
-          }
           if (!LOCAL_CONNECTION_KEYS.has(key)) {
             err(`[profile] config.local.json connections.${name} contains unsupported key: ${key}`)
           }
         }
-        for (const field of ['kind', 'description', 'host', 'database', 'schema', 'username']) {
+        for (const field of ['kind', 'description', 'host', 'database', 'schema', 'username', 'password', 'token', 'apiKey', 'privateKey', 'clientSecret', 'signingKey', 'connectionPassword']) {
           if (field in connection && typeof connection[field] !== 'string') {
             err(`[profile] config.local.json connections.${name}.${field} must be a string`)
           }
@@ -224,7 +228,7 @@ function validateLocalConfig(cfg, projectInfoText, readmeText) {
         if ('port' in connection && !Number.isInteger(connection.port)) {
           err(`[profile] config.local.json connections.${name}.port must be an integer`)
         }
-        for (const refKey of ['hostEnv', 'portEnv', 'databaseEnv', 'schemaEnv', 'usernameEnv', 'urlEnv', 'passwordEnv', 'tokenEnv', 'keyEnv', 'secretRef']) {
+        for (const refKey of ['hostEnv', 'portEnv', 'databaseEnv', 'schemaEnv', 'usernameEnv', 'urlEnv', 'passwordEnv', 'tokenEnv', 'apiKeyEnv', 'privateKeyEnv', 'clientSecretEnv', 'signingKeyEnv', 'connectionPasswordEnv', 'keyEnv', 'secretRef']) {
           if (refKey in connection && typeof connection[refKey] !== 'string') {
             err(`[profile] config.local.json connections.${name}.${refKey} must be a string`)
           }

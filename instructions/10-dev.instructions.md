@@ -2,7 +2,7 @@
 applyTo: "**"
 description: dev 工作流规则，覆盖子类型路由、CP 流程、计划复审、执行期回退与 ECR
 priority: P4
-version: 1.11.9
+version: 1.11.10
 ---
 # 开发工作流规则（10-dev）
 
@@ -77,6 +77,7 @@ CP1（需求确认）→ PR-1 内部自检 → CP2（方案确认）→ plan-rev
 12. **backlog 来源前置真相复核**：若本轮需求、批次或范围直接来源于 `data/*.md` 的 open/partial 项，CP1 前必须先把候选项分类为 `pure-open` / `residual-tail` / `already-fixed` / `misclassified`；非 `pure-open` 项须先回写状态并修正范围口径，禁止直接按旧 open 计数开做。
 13. **OfficialDocsEvidence**：新增/升级依赖、框架、SDK、平台 API 或外部模块时，CP2 前必须读取官方使用文档/官方参考资料；CP2 记录文档来源、版本/日期、关键用法、限制和兼容性，缺失证据不得进入 PR-2 通过态。
 14. **ProfileImpactCheck**：项目技术栈、目录边界、脚本、测试/发布路线、分发面、配置项、长期连接或本地 overlay schema 变化时，CP2/CP3 必须判定并同步 Profile；不需要同步时写明 `skipReason`。
+15. **连接配置唯一入口**：凡 CP2/CP3 涉及脚本、测试、数据库 / SSH / MongoDB / 数据操作连接信息，方案必须写明从当前 Profile 路径模型下的 `config.local.json` 读取；缺失时提醒用户补齐该文件，不得自行发明 `.env` 文件、环境变量名或并行配置格式。
 
 ### 目标文档前置（条件触发）
 

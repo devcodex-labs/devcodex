@@ -10,7 +10,7 @@
 | # | 规则 | 执行 |
 |:-:|------|------|
 | S01 | 删除/破坏性操作分两级：**不可逆**（删除文件/清空目录）必须等待用户明确 yes/no；**可逆**（重命名/移动）输出计划后执行 | 🔴 强制 |
-| S02 | 禁止硬编码 API Key、密码、Token、私钥、client secret、签名密钥、连接密码等核心秘密；私有仓库或用户授权仅可触发受控私有例外，不能豁免核心秘密禁止项 | 🔴 致命终止 |
+| S02 | 禁止硬编码 API Key、密码、Token、私钥、client secret、签名密钥、连接密码等秘密到可提交 / 可传播产物；用户明确授权时，明文秘密只能写入已被 `.gitignore` 排除的 `profile/config.local.json` 本地 overlay | 🔴 致命终止 |
 | S03 | 规范文件不存在或读取失败时必须按降级路径执行，禁止 AI 推测补全规范内容 | 🔴 致命终止 |
 | S04 | 源码和规范文件(.md)修改必须用增量编辑（Edit），禁止整文件重写 | 🟡 操作级阻断 |
 | S05 | 每次会话结束前必须写入记忆文件和报告文件，禁止询问用户"是否需要写入" | 🔴 强制 |
@@ -21,14 +21,16 @@
 
 ### S02 受控私有例外模型
 
-S02 的核心秘密禁止项不可豁免；“私有仓库”“本地使用”或“用户确认可以”只能触发受控例外流程，不能把 API Key、密码、Token、私钥、client secret、签名密钥、连接密码等明文写入可提交文件。
+S02 的安全底线是禁止秘密进入可提交或可传播产物；“私有仓库”“本地使用”或“用户确认可以”只能触发受控本地例外，不能把 API Key、密码、Token、私钥、client secret、签名密钥、连接密码等明文写入可提交文件、文档、日志或报告。用户明确授权明文保存时，安全底线不得高于用户确认，但承载位置必须收敛到已忽略的 `profile/config.local.json`。
 
 | 分类 | 处理 |
 |------|------|
-| 核心秘密 | 永不明文写入代码、配置、注释、README、Profile 或任务报告；必须使用环境变量、secret manager 引用、CI/CD secret 或 `config.local.json` 中的 `*Env` / `secretRef` |
-| 非核心本地私有信息 | 可在用户明确授权后写入不提交的本地 overlay，例如 host、port、database、schema、username、内部服务 URL、租户/项目 ID、只读开关、连接别名 |
-| 承载位置 | 首选 `.devcodex/**/profile/config.local.json`；也可使用 `.env.local`、`.env.test.local` 或任务目录 `.tmp/local-config/`；这些文件必须被 `.gitignore` 排除 |
-| 审计要求 | 报告或记忆中记录授权来源、目标文件、字段类型、是否使用 `*Env` / `secretRef`、脱敏策略和回退方式；不得记录秘密明文 |
+| 可提交产物秘密 | 永不明文写入代码、可提交配置、注释、README、Profile 文档、任务报告、日志或示例真实值；应使用占位符、环境变量引用、secret manager 引用、CI/CD secret、`*Env` 或 `secretRef` |
+| 已授权本地明文秘密 | 用户明确授权后，可写入不提交的 `profile/config.local.json`，例如 `connections.<alias>.password`、`token`、`apiKey`、`privateKey`、`clientSecret`、`signingKey`、`connectionPassword`；文件必须被 `.gitignore` 排除，且输出、报告、记忆、测试快照不得回显明文值 |
+| 非核心本地私有信息 | 可在用户明确授权后写入 `profile/config.local.json`，例如 host、port、database、schema、username、内部服务 URL、租户/项目 ID、只读开关、连接别名 |
+| 连接配置唯一入口 | 脚本、测试、数据库 / SSH / MongoDB / 数据操作等连接信息必须先从当前 Profile 路径模型下的 `config.local.json` 读取；缺失文件或字段时提醒用户补齐该文件，不得自行发明 `.env` 文件、环境变量名或并行配置格式；如需环境变量，也只能使用 `config.local.json` 中声明的 `*Env` 字段作为间接引用 |
+| 承载位置 | 唯一首选 `.devcodex/**/profile/config.local.json`（workspace-namespace 下按 `workspace base + project overlay` 读取）。`.env.local` / `.env.test.local` 只能作为被 `config.local.json` 中 `*Env` 引用的运行时变量来源，AI 不得将其创建为连接配置入口；本地文件必须被 `.gitignore` 排除 |
+| 审计要求 | 报告或记忆中记录授权来源、目标文件、字段类型、是否使用明文字段 / `*Env` / `secretRef`、脱敏策略和回退方式；不得记录秘密明文 |
 | Profile 说明 | 若使用 `config.local.json` 或 `extensions.<namespace>`，必须在 `01-项目信息.md` 或 Profile README 说明用途、字段语义和使用方式 |
 
 ---
@@ -51,7 +53,7 @@ S02 的核心秘密禁止项不可豁免；“私有仓库”“本地使用”�
 |:-:|------|------|
 | C01 | 删除/破坏性确认 | 同 S01 |
 | C02 | CP 不可跳过合并 | dev/fix 工作流 CP1→CP2 必须严格按序，禁止合并或跳跃 |
-| C03 | 禁止硬编码敏感信息 | 同 S02（核心秘密禁止项不可豁免；非核心本地私有信息只能按受控私有例外模型处理）|
+| C03 | 禁止硬编码敏感信息 | 同 S02（可提交产物秘密禁止项不可豁免；已授权本地明文秘密与非核心本地私有信息只能写入被忽略的 `profile/config.local.json`）|
 | C04 | 禁止编造规范 | 同 S03 |
 | C05 | 记忆+报告自动写入 | 同 S05 |
 | C06 | 禁止 overwrite 源码/规范 | 同 S04 |
@@ -128,7 +130,8 @@ S02 的核心秘密禁止项不可豁免；“私有仓库”“本地使用”�
 - Hook Stop/PreCompact 对入口检查块的可见回复验证必须区分 `verified-present` / `verified-missing` / `unverified` 三态；无法解析最终 assistant 内容时只能提示“无法验证最终用户可见回复”并附 payload capture 指引，禁止断言“未输出”。
 - 当 `<工作区根>/.devcodex/layout.json` 启用 `workspace-namespace` 时，Profile 与运行态目录按**工作区集中命名空间**读取：
   - `config.json`：`<工作区根>/.devcodex/workspace/profile/` 作为 base，`<工作区根>/.devcodex/<project>/profile/` 作为 overlay
-  - `config.local.json`：与 `config.json` 使用相同的 `workspace base + project overlay` 路径模型，但仅承载本地私有 overlay（长期连接、env 引用、`extensions.<namespace>`）；不得覆盖 `mode` / `agent` / `pluginVersion`
+  - `config.local.json`：与 `config.json` 使用相同的 `workspace base + project overlay` 路径模型，但仅承载本地私有 overlay（长期连接、env 引用、已授权本地明文秘密、`extensions.<namespace>`）；不得覆盖 `mode` / `agent` / `pluginVersion`
+  - `config.local.json` 是连接配置唯一入口：脚本、测试、数据库 / SSH / MongoDB / 数据操作必须先从当前 Profile 路径模型下的 `config.local.json` 读取连接信息；缺失文件或字段时提醒用户补齐，不得自行发明 `.env` 文件、环境变量名或并行配置格式
   - Profile 文档：项目命名空间文件优先，缺失回退到 `workspace/profile/`
   - 运行态目录：单项目写 `<工作区根>/.devcodex/<project>/...`，全工作区写 `<工作区根>/.devcodex/workspace/...`
 - workspace-namespace 下缺少 workspace profile 的多项目提示必须指向 `.devcodex/workspace/profile/`；同一宿主会话已识别唯一目标项目时，后续“继续 / 确认”等消息可在短 TTL 内沿用 sticky `activeProject` 与项目 `mode`，但新会话、TTL 过期、命中多个项目或用户显式选择 workspace 时必须重新判断。
@@ -141,7 +144,7 @@ S02 的核心秘密禁止项不可豁免；“私有仓库”“本地使用”�
 | `02-架构约束.md` | 目录结构/边界 | 是 |
 | `03-代码风格.md` | 编码规范 | 是 |
 | `config.json` | ENV_MODE + agent 兜底标识 | 按需 |
-| `config.local.json` | 本地私有 overlay：长期连接、env 引用、`extensions.<namespace>` 扩展位（不提交） | 可选 |
+| `config.local.json` | 本地私有 overlay 与连接配置唯一入口：长期连接、env 引用、已授权本地明文秘密、`extensions.<namespace>` 扩展位（不提交） | 可选 |
 
 > **Copilot / Claude Code / Codex 三宿主 Bootstrap 提醒**（v1.11.0+）：`lifecycle.cjs` 只在宿主实际提供 Hook 事件时形成 runtime 护栏。Claude Code 具备项目级 hooks + MCP，是当前 Full 路径；Codex 通过 `.codex/hooks.json` 接入，阻断输出按事件契约区分顶层 `decision`、`continue:false` 与工具级 `permissionDecision`；Copilot / JetBrains / Cursor 默认按 instruction-fallback 处理，不承诺本地 Hook 硬拦。默认 `safety-only` 模式下，bootstrap / CP / auto 白名单等流程问题输出提醒并放行工具，仅危险命令继续硬拦；设置 `DEVCODEX_HOOK_ENFORCEMENT=strict` 时，只有支持硬拦的事件才停止流程。AI 仍须在首条用户可见回复输出 PC0~PC7 入口检查块（S07/C18）。
 
@@ -587,7 +590,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → 执行 →
 
 ## 全自动模式豁免
 
-当用户选择 `@devcodex-auto` 或明确自然语言 auto 授权（如“进入 auto 模式执行”）时：CP1/CP2/CP3 确认自动通过；模糊提及、询问 auto 规则或普通“继续”不等价于 auto 授权；S01/S02 核心秘密禁止项/S03~S07/C01/C10/C18 不可豁免。S02 受控私有例外只能按上文模型执行，不属于绕过安全底线。
+当用户选择 `@devcodex-auto` 或明确自然语言 auto 授权（如“进入 auto 模式执行”）时：CP1/CP2/CP3 确认自动通过；模糊提及、询问 auto 规则或普通“继续”不等价于 auto 授权；S01/S02 可提交产物秘密禁止项/S03~S07/C01/C10/C18 不可豁免。S02 受控私有例外只能按上文模型执行；用户明确授权本地明文时，只能写入被忽略的 `profile/config.local.json`，不属于绕过安全底线。
 
 ---
 

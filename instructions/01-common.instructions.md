@@ -2,7 +2,7 @@
 applyTo: "**"
 description: 通用规范总则，覆盖优先级、意图路由、Profile/active-root、宿主适配与治理总线
 priority: P5
-version: 1.11.9
+version: 1.11.10
 ---
 # 通用规范
 
@@ -50,7 +50,7 @@ version: 1.11.9
 |:-:|------|------|:--:|
 | C01 | 删除/破坏性操作需确认 | 同 S01，完整规则见 [`00-safety.instructions.md`](./00-safety.instructions.md) | 🔒 S01 |
 | C02 | CP 不可跳过合并 | dev/fix 工作流的 CP1→CP2 必须严格按序，禁止合并或跳跃；CP3 触发条件由各工作流规范定义 | — |
-| C03 | 禁止硬编码敏感信息 | 同 S02，完整规则见 [`00-safety.instructions.md`](./00-safety.instructions.md)；核心秘密禁止项不可豁免，非核心本地私有信息只能按受控私有例外模型处理 | 🔒 S02 |
+| C03 | 禁止硬编码敏感信息 | 同 S02，完整规则见 [`00-safety.instructions.md`](./00-safety.instructions.md)；可提交产物秘密禁止项不可豁免，已授权本地明文秘密与非核心本地私有信息只能写入被忽略的 `profile/config.local.json` | 🔒 S02 |
 | C04 | 禁止编造规范内容 | 同 S03，完整规则见 [`00-safety.instructions.md`](./00-safety.instructions.md) | 🔒 S03 |
 | C05 | 记忆+报告自动写入 | 同 S05，完整规则见 [`00-safety.instructions.md`](./00-safety.instructions.md) | 🔒 S05 |
 | C06 | 禁止 overwrite 源码/规范文件 | 同 S04，完整规则见 [`00-safety.instructions.md`](./00-safety.instructions.md) | 🔒 S04 |
@@ -124,7 +124,7 @@ version: 1.11.9
 - 非白名单路径默认切回确认模式，不承诺“所有源码任务自动执行”
 - `instruction-fallback` 宿主（如 JetBrains / Cursor）只保留 auto 规则语义，不承诺 runtime 级行为；支持 Hook 的宿主默认采用 `safety-only`：白名单边界输出提醒，`strict` 模式下才形成 runtime 硬拦截
 - CP1 / CP2 / CP3 确认**自动通过**（不等待用户确认），但该自动通过只对白名单路径形成无提醒通过；非白名单路径在默认 `safety-only` 下提醒放行，在 `strict` 模式下拦截
-- 以下约束**不可豁免**：S01（不可逆确认）/ S02 核心秘密禁止项 / S03~S07 / C01 / C10 / C18。S02 受控私有例外只能按 `00-safety.instructions.md` 的模型执行，不属于绕过安全底线。
+- 以下约束**不可豁免**：S01（不可逆确认）/ S02 可提交产物秘密禁止项 / S03~S07 / C01 / C10 / C18。S02 受控私有例外只能按 `00-safety.instructions.md` 的模型执行；用户明确授权本地明文时，只能写入被忽略的 `profile/config.local.json`，不属于绕过安全底线。
 - 可恢复失败：重试 ≤ 2 次；不可恢复失败：切换回确认模式并通知用户 ⚠️
 
 ## 设计原则

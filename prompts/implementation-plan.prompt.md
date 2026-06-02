@@ -99,6 +99,7 @@ applyTo: .devcodex/**/requirements/**
 | DependencyUpgradeCheck | 是 / 否 | 依赖升级、框架升级、SDK 替换或平台 API 兼容性任务 | 业务源码平滑性 / 依赖层落地条件 / 纯依赖层零附加动作（条件） |
 | InternalSharedLibraryReview | 是 / 否 | 根因位于内部共享库、中间件、SDK 或 adapter 抽象层 | 修共享库 + 消费项目升级 / 单项目补丁理由 / 风险 |
 | ProfileImpactCheck | 是 / 否 | 技术栈、目录边界、脚本、测试/发布路线、分发面、配置项、长期连接或本地 overlay schema 变化 | targetProfileFiles / updateOrSkip / skipReason / evidence |
+| ConfigLocalConnectionSource | 是 / 否 | 脚本、测试、数据库 / SSH / MongoDB / 数据操作需要连接信息 | configLocalPath / requiredFields / missingFieldAction / noAdHocEnvEvidence |
 | 05-实施进度.md | 是 / 否 | 跨多轮/多阶段、阻塞、用户要求持续跟踪、多批次、预计修改 ≥10 文件、控制面或模板-校验链任务 | CP 状态 / 批次状态 / 阻塞 / 验证证据 |
 | Backlog Intake 真相复核 | 是 / 否 | 任务/批次直接来源于 `data/*.md` open/partial 项 | candidateIds / classification / evidence / scopeDelta |
 | 台账状态回写闭环 | 是 / 否 | 本轮会关闭/部分关闭/改分类任何 VL/PF/PI/ISSUE/GAP | targetLedgers / requiredFields / writebackEvidence / rescanResult |

@@ -63,6 +63,8 @@ description: 测试规范 — 单元测试/集成测试/API测试/E2E测试四�
 | 触发要求 | 新增跨模块调用链时 |
 | 数据策略 | 使用 fixtures 或 in-memory DB，禁止依赖生产数据 |
 
+> 若集成测试必须连接外部数据库、MongoDB、SSH 隧道或数据服务，连接信息只能从当前 Profile 路径模型下的 `config.local.json` 读取；缺失时提醒用户补齐该文件，不得自行发明 `.env` 文件、环境变量名或并行配置格式。
+
 ### API 测试（API Test）
 
 | 项 | 规范 |

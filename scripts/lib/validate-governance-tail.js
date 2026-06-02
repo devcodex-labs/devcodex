@@ -104,11 +104,11 @@ function buildGovernanceTailChecks(ctx) {
       },
       {
         file: 'scripts/validate-profile.js',
-        needles: ['config.local.json', 'secretRef', 'must not override "${reserved}"', 'extensions']
+        needles: ['config.local.json', 'connectionPassword', 'must not override "${reserved}"', 'extensions']
       },
       {
         file: 'scripts/test-validate-profile.js',
-        needles: ['validLocalConfig', 'invalidLocalConfig', 'config.local.json']
+        needles: ['validLocalConfig', 'validRawSecretLocalConfig', 'invalidLocalConfig', 'config.local.json']
       },
       {
         file: 'scripts/test-mcp-servers.js',
@@ -584,15 +584,15 @@ function buildGovernanceTailChecks(ctx) {
     }
 
     const probes = [
-      { file: 'instructions/00-safety.instructions.md', needles: ['S02 受控私有例外模型', '核心秘密', 'secretRef', 'config.local.json'] },
-      { file: 'instructions.md', needles: ['S02 受控私有例外模型', '核心秘密禁止项不可豁免', '受控私有例外'] },
-      { file: 'instructions/01-common.instructions.md', needles: ['S02 核心秘密禁止项', '受控私有例外模型'] },
-      { file: 'instructions/01a-profile-loading.instructions.md', needles: ['S02 受控私有例外模型', '核心秘密仍必须使用 `*Env` / `secretRef`'] },
-      { file: 'skills/cp-gate/SKILL.md', needles: ['S02 核心秘密禁止项', '受控私有例外'] },
-      { file: 'skills/load-profile/SKILL.md', needles: ['S02 受控私有例外模型', '核心秘密仍必须使用 `*Env` / `secretRef`'] },
-      { file: 'prompts/project-profile.prompt.md', needles: ['受控私有例外', '核心秘密必须使用 `*Env` / `secretRef`'] },
-      { file: 'scripts/validate-profile.js', needles: ['secretRef', 'must use *Env or secretRef instead of raw'] },
-      { file: 'scripts/test-validate-profile.js', needles: ['passwordEnv', 'secretRef', 'must use \\*Env or secretRef instead of raw "password"'] },
+      { file: 'instructions/00-safety.instructions.md', needles: ['S02 受控私有例外模型', '连接配置唯一入口', '已授权本地明文秘密', '不得自行发明 `.env`'] },
+      { file: 'instructions.md', needles: ['S02 受控私有例外模型', '可提交产物秘密禁止项', '连接配置唯一入口'] },
+      { file: 'instructions/01-common.instructions.md', needles: ['S02 可提交产物秘密禁止项', 'profile/config.local.json'] },
+      { file: 'instructions/01a-profile-loading.instructions.md', needles: ['连接配置唯一入口', '已授权本地明文秘密', '不得自行发明 `.env`'] },
+      { file: 'skills/cp-gate/SKILL.md', needles: ['S02 可提交产物秘密禁止项', 'profile/config.local.json'] },
+      { file: 'skills/load-profile/SKILL.md', needles: ['连接配置唯一入口', '已授权本地明文秘密', '不得自行发明 `.env`'] },
+      { file: 'prompts/project-profile.prompt.md', needles: ['连接配置唯一入口', '已授权本地明文秘密', '不得自行发明 `.env`'] },
+      { file: 'scripts/validate-profile.js', needles: ['connectionPassword', 'apiKeyEnv', 'config.local.json connections.${name}.${field} must be a string'] },
+      { file: 'scripts/test-validate-profile.js', needles: ['validRawSecretLocalConfig', 'local-password-placeholder', 'connections\\.broken\\.port must be an integer'] },
       { file: 'skills/api-verification/SKILL.md', needles: ['@baseUrl = http://localhost:3000', '@token = replace-with-token-if-required', '@language = zh-CN', 'Authorization: Bearer {{token}}', 'Host 必须通过 `{{baseUrl}}`'] },
       { file: 'prompts/api-verification.prompt.md', needles: ['@baseUrl = http://localhost:3000', '@token = replace-with-token-if-required', '@language = zh-CN', 'Authorization: Bearer {{token}}'] },
       { file: 'prompts/delivery-checklist.prompt.md', needles: ['@baseUrl', '@token', '@language'] },
@@ -605,11 +605,11 @@ function buildGovernanceTailChecks(ctx) {
       { file: 'skills/audit-dimensions/SKILL.md', needles: ['changelogs/releases/vX.Y.Z.md'] },
       { file: 'scripts/lib/validate-governance-support.js', needles: ['changelogs/releases/v${pkg.version}.md'] },
       { file: 'website/docs/guide/release.md', needles: ['changelogs/README.md', 'changelogs/releases/vX.Y.Z.md'] },
-      { file: 'README.md', needles: ['Profile Freshness Check', 'changelogs/releases/vX.Y.Z.md', '核心秘密只允许 `*Env` / `secretRef`'] },
-      { file: 'website/docs/guide/development.md', needles: ['Profile Freshness Check', '核心秘密必须使用 `*Env` / `secretRef`'] },
+      { file: 'README.md', needles: ['Profile Freshness Check', 'changelogs/releases/vX.Y.Z.md', '连接配置唯一入口'] },
+      { file: 'website/docs/guide/development.md', needles: ['Profile Freshness Check', '连接配置唯一入口'] },
       { file: 'skills/audit-common/SKILL.md', needles: ['Profile Freshness Check（PFresh）', 'PFresh-1', 'PFresh-5', 'Profile freshness 待验证'] },
       { file: 'skills/audit-project/SKILL.md', needles: ['PE-0 Profile Freshness', 'Profile Freshness Check（PFresh）'] },
-      { file: 'scripts/test-spec-governance.js', needles: ['Profile Freshness Check', 'changelogs/releases/vX.Y.Z.md', 'S02 受控私有例外模型'] }
+      { file: 'scripts/test-spec-governance.js', needles: ['Profile Freshness Check', 'changelogs/releases/vX.Y.Z.md', '连接配置唯一入口'] }
     ]
 
     for (const probe of probes) {

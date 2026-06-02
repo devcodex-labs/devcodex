@@ -153,7 +153,7 @@ const probes = [
   ['scripts/test-cli-behavior.js', 'PreCompact'],
   ['scripts/lib/validate-governance-tail.js', 'checkV52'],
   ['instructions/00-safety.instructions.md', 'S02 受控私有例外模型'],
-  ['skills/load-profile/SKILL.md', '核心秘密仍必须使用 `*Env` / `secretRef`'],
+  ['skills/load-profile/SKILL.md', '连接配置唯一入口'],
   ['skills/api-verification/SKILL.md', '@token = replace-with-token-if-required'],
   ['prompts/api-verification.prompt.md', '@language = zh-CN'],
   ['changelogs/README.md', 'changelogs/releases/vX.Y.Z.md'],

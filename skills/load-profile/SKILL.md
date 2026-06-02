@@ -39,7 +39,7 @@ description: 项目 Profile 加载规范 — 意图识别后独立确定目标�
 当 `<工作区根>/.devcodex/layout.json` 启用 `workspace-namespace` 时：
 
 - `config.json`：`<工作区根>/.devcodex/workspace/profile/config.json` 作为 base，`<工作区根>/.devcodex/<project>/profile/config.json` 作为 overlay
-- `config.local.json`：与 `config.json` 使用相同的 `workspace base + project overlay` 路径模型，但仅承载本地私有 overlay（长期连接、env 引用、`extensions.<namespace>`）
+- `config.local.json`：与 `config.json` 使用相同的 `workspace base + project overlay` 路径模型，但仅承载本地私有 overlay（长期连接、env 引用、已授权本地明文秘密、`extensions.<namespace>`），并作为脚本、测试、数据库 / SSH / MongoDB / 数据操作的连接配置唯一入口
 - `README.md`、`01-项目信息.md`、`02-架构约束.md`、`03-代码风格.md`：项目命名空间文件优先，缺失回退到 `workspace/profile/`
 - `<project>` 未确定时，禁止猜测项目命名空间
 
@@ -54,7 +54,7 @@ description: 项目 Profile 加载规范 — 意图识别后独立确定目标�
 | `04-测试规范.md` | 测试框架/覆盖率 | 按需 |
 | `05-发布规范.md` | 版本号/发布流程 | 按需 |
 | `config.json` | 运行模式配置（ENV_MODE）+ agent 兜底标识 | 按需 |
-| `config.local.json` | 本地私有 overlay：长期连接、env 引用、`extensions.<namespace>` | 按需 |
+| `config.local.json` | 本地私有 overlay 与连接配置唯一入口：长期连接、env 引用、已授权本地明文秘密、`extensions.<namespace>` | 按需 |
 
 > ⚠️ `config.json.agent` 只用于当前实际宿主无法可靠判断时的 fallback hint。产物路径中的 `<agent>` 必须优先使用当前会话/工具链可验证的实际宿主；profile agent 不得覆盖当前会话事实。
 >
@@ -62,7 +62,9 @@ description: 项目 Profile 加载规范 — 意图识别后独立确定目标�
 >
 > ⚠️ `config.local.json` 若使用项目级扩展，只能放在 `extensions.<namespace>` 下，并且必须在 `01-项目信息.md` 或 Profile README 说明用途、字段语义与使用方式。
 >
-> ⚠️ `config.local.json` 属于 S02 受控私有例外模型的本地 overlay：可保存 host、port、database、schema、username、内部 URL、连接别名等非核心本地私有信息；密码、Token、API Key、私钥、client secret、签名密钥、连接密码等核心秘密仍必须使用 `*Env` / `secretRef`，不得明文写入。
+> ⚠️ `config.local.json` 属于 S02 受控私有例外模型的本地 overlay：可保存 host、port、database、schema、username、内部 URL、连接别名等非核心本地私有信息；用户明确授权后，也可保存 password、token、apiKey、privateKey、clientSecret、signingKey、connectionPassword 等本地明文字段；若选择环境变量间接引用，也必须由 `config.local.json` 中的 `*Env` 字段声明。
+>
+> ⚠️ 连接信息必须从 `config.local.json` 取得：脚本、测试、数据库 / SSH / MongoDB / 数据操作发现连接文件或字段缺失时，应提醒用户补齐当前 Profile 下的 `config.local.json`，不得自行发明 `.env` 文件、环境变量名或并行配置格式。
 
 ## Profile 缺失处理
 

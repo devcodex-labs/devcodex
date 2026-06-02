@@ -9,6 +9,7 @@
 
 | 版本 | 日期 | 变更摘要 | 详细 |
 |------|------|---------|------|
+| [v1.11.10](./changelogs/releases/v1.11.10.md) | 2026-06-02 | 🔧 **config.local 连接配置唯一入口收口**：收窄 S02 为可提交产物秘密禁止，允许用户授权的本地明文秘密写入已忽略的 `profile/config.local.json`，并强制脚本、测试、数据库 / SSH / MongoDB / 数据操作连接信息只能从 `config.local.json` 取得 | [查看](./changelogs/releases/v1.11.10.md) |
 | [v1.11.9](./changelogs/releases/v1.11.9.md) | 2026-06-02 | 🔧 **通用规范吸纳与提示词激励收口**：吸纳自然语言 Auto、Node.js >=18、远端 CI、依赖/兼容拆层、内部共享库评估、包工程层、TS 契约迁移、provider/connector 字段合同、service 防过度防御、README 能力矩阵与 JS/Node 标准 JSDoc，并补齐最小实现/复杂度预算守门 | [查看](./changelogs/releases/v1.11.9.md) |
 | [v1.11.8](./changelogs/releases/v1.11.8.md) | 2026-06-02 | 🔧 **technical-design 技术方案模板字段补强**：补齐目标架构、模块边界、接口契约矩阵、数据/状态模型、执行流程锚点与需求验收映射，并同步 `dev-plan-review` 与 `V13` 探针，避免 CP2 技术方案退化为文件清单或散落测试备注 | [查看](./changelogs/releases/v1.11.8.md) |
 | [v1.11.7](./changelogs/releases/v1.11.7.md) | 2026-06-01 | 🔧 **官方文档证据前置 + Profile 联动判定补强**：新增 `C20/C21`、`OfficialDocsEvidence` 与 `ProfileImpactCheck` 执行链，同步 dev/fix、plan-review、document-sync、Prompt、README/website 与 `V54` 探针，并补齐 CLI runtime helper 包边界 | [查看](./changelogs/releases/v1.11.7.md) |
@@ -95,9 +96,9 @@
 
 ## 相关文档
 
-- [`changelogs/releases/v1.11.9.md`](./changelogs/releases/v1.11.9.md) — 最新版本详细变更文档
-- [`changelogs/releases/v1.11.8.md`](./changelogs/releases/v1.11.8.md) — 上一版本详细变更文档
-- [`changelogs/releases/v1.11.7.md`](./changelogs/releases/v1.11.7.md) — 历史版本详细变更文档
+- [`changelogs/releases/v1.11.10.md`](./changelogs/releases/v1.11.10.md) — 最新版本详细变更文档
+- [`changelogs/releases/v1.11.9.md`](./changelogs/releases/v1.11.9.md) — 上一版本详细变更文档
+- [`changelogs/releases/v1.11.8.md`](./changelogs/releases/v1.11.8.md) — 历史版本详细变更文档
 - [`changelogs/releases/v1.11.6.md`](./changelogs/releases/v1.11.6.md) — 上一个版本详细变更文档
 - [`changelogs/releases/v1.11.5.md`](./changelogs/releases/v1.11.5.md) — 历史版本详细变更文档
 - [`changelogs/releases/v1.11.4.md`](./changelogs/releases/v1.11.4.md) — 历史版本详细变更文档

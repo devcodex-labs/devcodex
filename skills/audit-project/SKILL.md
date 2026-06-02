@@ -30,6 +30,7 @@ description: 项目工程审查维度 PE-1~PE-11 — 代码质量/项目结构/�
 - 模块/文件职责单一（不混合路由/业务/数据层）
 - 函数/方法长度 ≤50 行，嵌套深度 ≤4 层
 - 无循环依赖
+- 简单业务 service 不重复 route validate、model/schema、数据导入或框架已承担的校验、归一化、配置兜底和二次治理
 
 **PE-2 错误处理完整性 🔴**
 - 异步操作有 catch 处理
@@ -40,6 +41,15 @@ description: 项目工程审查维度 PE-1~PE-11 — 代码质量/项目结构/�
 - 无硬编码密钥/密码
 - 输入验证覆盖边界条件
 - SQL/NoSQL 查询无注入风险
+
+**PE-7 依赖健康度 🟡**
+- Node.js 项目默认 `engines.node`、CI matrix、Profile 与 README 不低于 `>=18`；低于 v18 有业务理由、风险和验证证据
+- 依赖升级 / 兼容修复已区分 `业务源码平滑性` 与 `依赖层落地条件`
+- 根因位于内部共享库、中间件、SDK 或 adapter 抽象层时，已评估“修共享库 + 消费项目升级”是否优于单项目补丁
+
+**PE-8 接口一致性 🔴**
+- provider / connector / SDK 接入具备 provider metadata、内部 payload、上游 request 映射、标准化 result、错误 detail 字段级合同
+- JavaScript / Node.js 中命中必要注释的导出函数、核心业务函数、类、复杂对象契约、参数/返回/异常说明使用标准 JSDoc
 
 ## N/A 规则
 

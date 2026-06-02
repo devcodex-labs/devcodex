@@ -84,7 +84,7 @@ DevCodex 采用“双阶段发布 + 三层日志”：
   3. 更新根 `CHANGELOG.md`
   4. 更新 `package.json` / `plugin.json`
   5. 执行 `audit-release` 发布前审查（RL-1~RL-10），确认 release readiness、兼容/迁移风险、包元数据、文档/Profile/website 同步、回滚与 registry/tag 风险
-  6. 执行 ReleaseVerification R0~R7
+  6. 执行 ReleaseVerification R0~R7（含 R3c：如存在远端 CI，确认目标 commit 对应远端 CI 绿色）
   7. commit / tag / publish
 
 > 旧日志不要求迁移；本规则只约束新变更。
@@ -110,6 +110,7 @@ DevCodex 采用“双阶段发布 + 三层日志”：
 7. 按 `release-verification` Skill 执行 R0~R7：
    - `R3`：执行 `npm test`（默认全链）
    - `R3b`：执行 `npm run test:audit` + package completeness gate（`description`、`keywords`、`repository`、`homepage`、`bugs`、`license`、`files/exports/bin`、`publishConfig`、`engines`、`plugin.json`）
+   - `R3c`：若项目存在远端 CI，确认目标 commit 对应远端 CI 绿色；无 CI 或无权限查询时必须写 `N/A + skipReason`，不得把本地测试冒充远端 CI
    - `R4`：执行 `npm pack --dry-run` 与 `npm publish --dry-run`
    - `R5~R7`：按需做 install smoke、tag/publish 前确认与发布后验收
 

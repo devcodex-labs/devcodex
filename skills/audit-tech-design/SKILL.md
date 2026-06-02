@@ -26,6 +26,8 @@ description: 技术方案审查维度 TD-1~TD-13 — 架构/技术选型/实施�
 - `§1.2` 关键架构决策表存在且每条有选择理由和"为何不选备选"说明
 - 核心模块职责单一（≤3 个核心功能）
 - 新增生产依赖有选型说明
+- 依赖升级 / SDK 替换 / 平台 API 兼容方案已拆分 `业务源码平滑性` 与 `依赖层落地条件`
+- provider / connector / SDK 接入方案已冻结 provider metadata、内部 payload、上游 request 映射、标准化 result、错误 detail，且首个 provider 未反向定义公共契约
 
 **TD-4 Breaking Changes 🔴**
 - BC 清单完整（无遗漏的接口/行为变更）
@@ -34,6 +36,11 @@ description: 技术方案审查维度 TD-1~TD-13 — 架构/技术选型/实施�
 **TD-8 测试策略 🟡**
 - 覆盖率目标明确
 - 有针对性的负向测试场景
+- 包 / 库 / adapter / CLI 方案同时覆盖代码实现层与包工程层验证（public API / public types / shared tests / benchmark / docs / scripts / package metadata）
+
+**TD-12 API/接口设计质量 🟡**
+- 简单 service 只承担业务编排、外部能力调用和必要上游错误映射，不重复 route validate、model/schema、数据导入或框架已承担的校验、归一化和配置兜底
+- JavaScript / Node.js 方案中命中必要注释的导出函数、核心业务函数、类、复杂对象契约、参数/返回/异常说明使用标准 JSDoc
 
 ## N/A 规则
 

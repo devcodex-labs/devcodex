@@ -2,7 +2,7 @@
 applyTo: "**"
 description: dev 工作流规则，覆盖子类型路由、CP 流程、计划复审、执行期回退与 ECR
 priority: P4
-version: 1.11.8
+version: 1.11.9
 ---
 # 开发工作流规则（10-dev）
 
@@ -132,6 +132,25 @@ CP1（需求确认）→ PR-1 内部自检 → CP2（方案确认）→ plan-rev
 - 若同时涉及多真相源同步、模板-示例-校验链或部署副本，必须升级为 **L3 强联查**，并按 C19 追加交叉验证
 - `document-sync`、`impact-review`、`api-verification` 继续作为联查子动作使用，不替代统一联查矩阵
 - `execution-contract`、`test-router`、`release-verification`、`host-contract-verification`、`source-consumer-sync` 作为支撑型 Skill：分别提供执行契约、验证路线、发布验证链、宿主契约证据与真相源-消费者同步边界，不替代 CP、dev/fix 主流程或安全底线；发版前风险审查使用 `audit-release`，不替代 `release-verification`
+
+### 代码实现复杂度与注释守门
+
+- CP2 技术方案必须给出 `§2.7 最小实现与注释策略`；非纯文案或单文件小修时，至少写明复杂度预算、抽象准入、防御分支边界和必要注释触发点。
+- 实施默认采用满足验收项的最小实现，优先局部补丁和既有本地模式；禁止为“企业级”“可扩展”预设新增无真实消费者的 service / factory / adapter / manager、策略注册表、通用配置或预留扩展点。
+- 新增抽象只在真实消费者、既有本地模式、边界隔离或已确认契约需要时允许；防御性分支只覆盖已确认输入、兼容、安全或错误契约。
+- 必要注释必须覆盖非显然业务规则、状态转换、不变量、兼容约束、安全边界、外部契约映射和反直觉权衡，注释解释“为什么”和“守住什么约束”。
+- JavaScript / Node.js 代码中命中必要注释的导出函数、核心业务函数、类、复杂对象契约、参数/返回/异常说明必须使用标准 JSDoc；普通行注释只允许用于局部短说明，不能替代 JSDoc 契约。
+- 禁止逐行解释、重复变量/函数名含义、保留临时 TODO 或把调试说明当业务注释；可自解释代码且不命中必要注释触发点时，可记录 `注释策略: N/A + skipReason`。
+- 执行中若发现需要超出复杂度预算、新增未计划抽象或加入未计划防御分支，必须暂停 source mutation，回到 CP2 / CP3 更新方案后再继续。
+
+### 通用工程吸纳守门
+
+- **Node 基线**：Node.js 项目的 `engines.node`、CI matrix、Profile 与 README 运行时说明默认不得低于 `>=18`；需要支持更低版本时，CP2 必须列出业务理由、风险和独立验证证据。
+- **包工程层**：包 / 库 / adapter / CLI 方案除代码实现层外，还必须检查 public API、public types、internal 工具、shared tests、benchmark、docs、scripts、dist/coverage 边界、package metadata 与 `changelogs/unreleased.md`。
+- **TypeScript 契约迁移**：TS 重构或迁移按公开契约与消费面逐步完善类型，不机械复制旧版本缺陷；跨模块业务契约、公开类型与配置类型优先集中到 types 契约层，本地私有 interface 可保留但须说明理由。
+- **Provider / connector**：三方 provider、connector、SDK 接入类 CP2 必须先区分业务功能接口与底层 provider adapter；面向前端或业务调用方时优先冻结业务功能契约，provider/model/operation 作为内部实现或配置维度。随后冻结字段级合同：provider metadata、内部 payload、上游 request 映射、标准化 result、错误 detail；首个 provider 只能验证统一 operation contract，不能反向定义公共命名和层次。
+- **Service 职责边界**：简单业务 service 默认只做业务编排、外部能力调用和必要上游错误映射；不得重复 route validate、model/schema、数据导入或框架已承担的校验、归一化、配置兜底和二次治理。
+- **README 使用者表达**：README / 使用文档涉及性能表、语法/能力矩阵或模式优先级时，先给用户选择结论，再解释字段；同时写清支持形式、不支持形式和优先级示例，避免内部术语抢占主叙事。
 
 ### 跨服务需求处理（CP1 前确认）
 

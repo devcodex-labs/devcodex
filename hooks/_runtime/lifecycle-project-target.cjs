@@ -223,9 +223,20 @@ function buildLifecycleProjectTargetUtils({
     return false
   }
 
+  function hasAutoAuthorizationPrompt(prompt) {
+    if (/@devcodex-auto\b/i.test(prompt)) return true
+    const normalized = String(prompt || '').replace(/\s+/g, ' ').trim()
+    const naturalLanguageAutoPatterns = [
+      /(?:进入|启用|开启|使用|切换到)\s*(?:auto|自动|全自动)\s*(?:模式|执行|推进|处理)?/i,
+      /(?:auto|自动|全自动)\s*(?:模式)?\s*(?:开始|继续|执行|推进|处理|修复|实施)/i,
+      /(?:run|continue|proceed)\s+(?:in\s+)?auto\s+mode/i
+    ]
+    return naturalLanguageAutoPatterns.some(pattern => pattern.test(normalized))
+  }
+
   function detectExecutionMode(payload) {
     const prompt = extractUserPrompt(payload)
-    return /@devcodex-auto\b/i.test(prompt) ? EXECUTION_MODE.AUTO : EXECUTION_MODE.CONFIRM
+    return hasAutoAuthorizationPrompt(prompt) ? EXECUTION_MODE.AUTO : EXECUTION_MODE.CONFIRM
   }
 
   function buildMultiProjectBlockMessage() {
@@ -262,6 +273,7 @@ function buildLifecycleProjectTargetUtils({
     applyPromptTarget,
     buildMultiProjectWarningKey,
     shouldSuppressMultiProjectWarning,
+    hasAutoAuthorizationPrompt,
     detectExecutionMode,
     buildMultiProjectBlockMessage
   }

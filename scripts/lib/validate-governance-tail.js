@@ -186,13 +186,13 @@ function buildGovernanceTailChecks(ctx) {
       if (!value.includes(needle)) err(`[V42] package.json script ${scriptName} missing "${needle}"`)
     }
 
-    for (const needle of ['R3b', 'npm run test:audit', 'package completeness gate', 'keywords', 'publishConfig', 'prepublishOnly']) {
+    for (const needle of ['R3b', 'R3c', 'npm run test:audit', 'package completeness gate', '远端 CI', 'keywords', 'publishConfig', 'prepublishOnly']) {
       if (!releaseSkill.includes(needle)) err(`[V42] release-verification skill missing "${needle}"`)
     }
-    for (const needle of ['R3b', 'npm run test:audit', 'package completeness gate', 'keywords', 'publishConfig', 'GitHub Packages']) {
+    for (const needle of ['R3b', 'R3c', 'npm run test:audit', 'package completeness gate', '远端 CI', 'keywords', 'publishConfig', 'GitHub Packages']) {
       if (!releaseGuide.includes(needle)) err(`[V42] website release guide missing "${needle}"`)
     }
-    for (const needle of ['release-verification', 'npm run test:audit', 'package completeness gate', 'publish dry-run']) {
+    for (const needle of ['release-verification', 'npm run test:audit', 'package completeness gate', '远端 CI', 'publish dry-run']) {
       if (!testRouter.includes(needle)) err(`[V42] test-router missing "${needle}"`)
     }
 
@@ -445,7 +445,7 @@ function buildGovernanceTailChecks(ctx) {
 
   function checkV50() {
     const probes = [
-      { file: 'skills/audit-release/SKILL.md', needles: ['RL-1 版本身份', 'RL-4 元数据完整性', 'RL-10 发布后验收', '不同于 release-verification'] },
+      { file: 'skills/audit-release/SKILL.md', needles: ['RL-1 版本身份', 'RL-4 元数据完整性', '远端 CI 绿色', 'RL-10 发布后验收', '不同于 release-verification'] },
       { file: 'instructions.md', needles: ['发布前审查', 'RL-1~RL-10', 'audit-release', 'release-verification'] },
       { file: 'instructions/01-common.instructions.md', needles: ['audit.发布前审查', 'audit-release', 'ReleaseAudit', '发布审查 / 发布验证'] },
       { file: 'instructions/12-audit.instructions.md', needles: ['含 7 个审查目标类型', '发布前审查（RL-1~RL-10）', '不得用 `npm test`、pack 或 publish dry-run 通过来替代 RL 维度审查'] },
@@ -456,7 +456,7 @@ function buildGovernanceTailChecks(ctx) {
       { file: 'prompts/implementation-plan.prompt.md', needles: ['ReleaseAudit', 'RL-1~RL-10'] },
       { file: 'prompts/implementation-progress.prompt.md', needles: ['ReleaseAudit', 'RL-1~RL-10 / risks / recommendation'] },
       { file: 'README.md', needles: ['audit-release', 'release readiness', '不替代 `release-verification`'] },
-      { file: 'website/docs/guide/release.md', needles: ['audit-release', 'RL-1~RL-10', 'ReleaseVerification R0~R7'] },
+      { file: 'website/docs/guide/release.md', needles: ['audit-release', 'RL-1~RL-10', 'ReleaseVerification R0~R7', '远端 CI'] },
       { file: 'website/docs/specs/directory-structure.md', needles: ['audit-release', '发布前审查', 'release-verification` 继续负责 R0~R7'] },
       { file: 'scripts/test-spec-governance.js', needles: ['audit-release', 'RL-1~RL-10', 'ReleaseAudit'] }
     ]

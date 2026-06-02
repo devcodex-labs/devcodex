@@ -24,7 +24,7 @@ DevCodex 当前处于**本地文件版持续迭代阶段**。
 | 跨项目零配置复用 | 目标是后续通过 `devcodex init` 安装到任意项目 |
 | 多宿主一致入口 | Copilot、Claude Code 与 Codex 共用同一规范源，分别落到 `.github/`、`CLAUDE.md + .claude/`、`AGENTS.md + .agents/ + .codex/`；Hook 能力按宿主/事件降级，并按官方输出契约区分顶层 block、`continue:false` 与工具级 deny |
 | 平台升级免维护 | 提前对齐官方目录规范，降低后续实现风险 |
-| 灵活的执行模式 | 提供确认模式与 Auto v1.1；Auto 仅对白名单路径提供自动推进保证，控制面/多批次任务仍受 ExecutionContract 约束 |
+| 灵活的执行模式 | 提供确认模式与 Auto v1.1；Auto 通过显式 `@devcodex-auto` 或明确自然语言 auto 授权进入，仅对白名单路径提供自动推进保证，控制面/多批次任务仍受 ExecutionContract 约束 |
 | AI 对自身行为自检 | 把合规检查作为核心设计原则保留下来 |
 | 分层功能授权 | 商业化能力暂时仅做规划，不视为已实现功能 |
 
@@ -57,7 +57,7 @@ DevCodex 提供两个 Agent 入口：
 | `@devcodex` | 确认模式（默认）| 正式开发、架构变更、需要逐步确认 |
 | `@devcodex-auto` | Auto v1.1 | 熟悉流程后的治理文件、文档、`.devcodex/` 产物等白名单路径快速迭代 |
 
-> Auto v1.1 的正式入口是显式 `@devcodex-auto`。它只在 hook-enforced 宿主里对白名单路径形成 runtime 级自动推进保证；非白名单源码路径默认回确认模式；默认 safety-only 流程提醒放行，危险命令硬拦且必须在用户明确确认 approval id 后才可一次性重试，安全底线始终强制执行。
+> Auto v1.1 的正式入口包括显式 `@devcodex-auto` 与明确自然语言 auto 授权（如“进入 auto 模式执行”）。它只在 hook-enforced 宿主里对白名单路径形成 runtime 级自动推进保证；模糊提及、询问 auto 规则或普通“继续”不算授权；非白名单源码路径默认回确认模式；默认 safety-only 流程提醒放行，危险命令硬拦且必须在用户明确确认 approval id 后才可一次性重试，安全底线始终强制执行。
 
 ---
 

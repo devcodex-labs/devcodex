@@ -120,6 +120,12 @@ description: Profile 自动生成 — 扫描 package.json / CHANGELOG.md / 顶�
 
 ## CLI 行为
 
+## Node.js 默认基线
+
+- 生成或复核 Node.js 项目 Profile 时，`engines.node` 缺失或低于 `>=18` 应标注为待人工确认的风险。
+- 新项目或新包默认建议 `Node 版本：>=18`；低于 v18 只能作为项目例外，并须在 `01-项目信息.md` 写明业务理由、兼容风险和验证证据。
+- CI matrix、README 运行时说明和 Profile 的 Node 基线应保持一致。
+
 ### `devcodex profile init`
 
 | 步骤 | 动作 |

@@ -29,7 +29,7 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 | Hook / MCP / CLI / ArtifactLinkSet | `npm test`、相关 targeted test、`npm run test:all` | `host-contract-verification`、direct replay、fixture replay、dry-run；产物点击需覆盖 `ArtifactLinkSet` 主链接 + copy fallback，MCP bridge 失败需覆盖 `mcpFallback` |
 | 对外 HTTP API | `api-verification` 生成 `.http + .cjs` | 项目集成/E2E |
 | 前端体验 | lint/typecheck/test | Browser/截图验证 |
-| 发布 / package | `audit-release`、`release-verification`、`npm run test:audit`、package completeness gate、pack dry-run | pack install smoke、publish dry-run |
+| 发布 / package | `audit-release`、`release-verification`、`npm run test:audit`、package completeness gate、远端 CI 绿色（如存在）、pack dry-run | pack install smoke、publish dry-run |
 
 ## 输出格式
 
@@ -60,6 +60,7 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 - 高风险控制面 / 多批次修复必须写出 `regressionChecks`：逐项列出历史能力、必跑验证、对应批次和失败回滚点。
 - 宿主契约、visible reply、sticky project 或 workspace guard 变更，不得只写“`npm test` 已过”；必须写明 direct replay / fixture replay / validate probe 的证据来源。
 - `npm run test:all` 失败时不得宣告完成，除非回 CP2 明确降级并有替代证据。
+- 有远端 CI 的项目进入 tag / release / publish 前，不得只写本地测试通过；必须记录目标 commit 对应远端 CI run 的状态，无法查询时写 `N/A + skipReason` 或阻断正式动作。
 
 ## 报告要求
 

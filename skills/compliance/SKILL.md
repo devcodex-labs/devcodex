@@ -40,7 +40,7 @@ SC: SC2 [✅/❌] SC4 [✅/❌] SC6 [✅/❌] ...（仅列适用项，逐项实�
 
 ### 全自动模式差异
 
-> `@devcodex-auto` 模式下：
+> 显式 `@devcodex-auto` 或明确自然语言 auto 授权模式下：
 
 仅在 `hook-enforced` 宿主 + 白名单路径下，FC/SC 失败时自动修正（不暂停等待用户），但 [S01~S06](../../instructions/00-safety.instructions.md) 仍阻断。
 

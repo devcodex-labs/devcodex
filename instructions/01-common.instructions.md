@@ -2,7 +2,7 @@
 applyTo: "**"
 description: 通用规范总则，覆盖优先级、意图路由、Profile/active-root、宿主适配与治理总线
 priority: P5
-version: 1.11.8
+version: 1.11.9
 ---
 # 通用规范
 
@@ -117,9 +117,9 @@ version: 1.11.8
 
 ## 全自动模式 C02 豁免
 
-当用户选择 `@devcodex-auto`（全自动模式）时：
+当用户选择 `@devcodex-auto` 或在文本宿主中明确自然语言授权 auto（如“进入 auto 模式执行”“全自动继续”“run in auto mode”）时：
 
-- Auto v1.1 **唯一正式入口**为显式 `@devcodex-auto`；`auto:` / `/auto` / profile `executionMode` 延后到后续版本
+- Auto v1.1 正式入口包括显式 `@devcodex-auto` 与明确自然语言 auto 授权；模糊提及、追问 auto 规则或普通“继续”不等价于 auto 授权
 - 仅在 `hook-enforced` 宿主中，对治理文件 / `.devcodex/` 产物 / README / auto 专属回归脚本等**白名单路径**启用自动推进
 - 非白名单路径默认切回确认模式，不承诺“所有源码任务自动执行”
 - `instruction-fallback` 宿主（如 JetBrains / Cursor）只保留 auto 规则语义，不承诺 runtime 级行为；支持 Hook 的宿主默认采用 `safety-only`：白名单边界输出提醒，`strict` 模式下才形成 runtime 硬拦截
@@ -213,7 +213,7 @@ version: 1.11.8
 | 安全底线 S01~S06 | 🔴 强制（不受 ENV_MODE 影响）| 🔴 强制（不受 ENV_MODE 影响）|
 | S07（入口检查强制）| 🔴 致命自修正（`instruction-fallback` 模式自检触发，自动补输出 PC0~PC7 基础状态）| 🔴 致命自修正（`instruction-fallback` 模式自检触发，自动补输出 PC0~PC7 + dev 扩展诊断）|
 
-> **CP 跳过的唯一路径**：`@devcodex-auto`（全自动模式），这是 Agent 级行为，与 ENV_MODE 无关。
+> **CP 跳过路径**：显式 `@devcodex-auto` 或明确自然语言 auto 授权（如“进入 auto 模式执行”）；这是 Agent 级行为，与 ENV_MODE 无关。
 
 ## NODE_META 读取规则
 

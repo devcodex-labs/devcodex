@@ -3,6 +3,11 @@ node_modules/
 .github/
 # DevCodex Claude Code adapter output (devcodex init --claude target; do not commit in source repo)
 .claude/
+# DevCodex Codex adapter output (devcodex init --codex target; do not commit in source repo)
+.agents/
+.codex/
+AGENTS.md
+CLAUDE.md
 .vscode/
 dist/
 *.log

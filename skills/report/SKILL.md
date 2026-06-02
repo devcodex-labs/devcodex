@@ -77,7 +77,7 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 |----------|----------|----------|
 | ExecutionContract | Auto / 控制面 / 多批次 / 预计修改 ≥10 文件 / release 前置任务 | 列出 scope、allowedPaths、requiredArtifacts、validationRoute、deviationPolicy、rollbackPlan |
 | TestRoute | 跨模块、接口、Hook/CLI、模板-示例-校验链、测试路径不明显的任务 | 列出 changeType、routes、commands、skipReason、blockingLevel |
-| ReleaseVerification | 用户明确要求正式发版、tag、publish 或已进入发布前验证 | 列出 R0~R7 的验证结果与证据 |
+| ReleaseVerification | 用户明确要求正式发版、tag、publish 或已进入发布前验证 | 列出 R0~R7 的验证结果与证据；如存在远端 CI，补 R3c 目标 commit CI 绿色证据或 `N/A + skipReason` |
 | ReleaseAudit | 用户要求发版前 review、publish/tag 前风险审查或 audit.发布前审查 | 列出 RL-1~RL-10 审查结果、风险、证据与推荐结论 |
 | ConceptSyncMap | 控制面、模板-示例-校验链、README/website/Profile/validate/部署副本联动任务 | 列出 sourceOfTruth、currentConsumers、historicalMirrors、validateProbes、deployCopies、yellowDeviationBoundary |
 | HostContractVerification | Hook/CLI/宿主契约、visible reply、sticky project、workspace guard、bootstrap 相关任务 | 列出 hostSurface、eventScope、evidenceMode、visibleReplyEvidence、workspaceGuard、bootstrapScope |

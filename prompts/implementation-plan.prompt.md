@@ -43,6 +43,7 @@ applyTo: .devcodex/**/requirements/**
 - [§3 分批执行策略](#3-分批执行策略)
 - [§4 关键实施约束](#4-关键实施约束)
 - [§4.1 执行契约与支持技能](#41-执行契约与支持技能)
+- [§4.2 最小实现与注释守门](#42-最小实现与注释守门)
 - [§5 独立验证方式](#5-独立验证方式)
 - [§6 里程碑 / 实施顺序](#6-里程碑--实施顺序)
 - [§7 风险点、回滚触发与回滚方案](#7-风险点回滚触发与回滚方案)
@@ -91,14 +92,36 @@ applyTo: .devcodex/**/requirements/**
 | ExecutionContract | 是 / 否 | Auto / 控制面 / 多批次 / 预计修改 ≥10 文件 / release 前置任务 | scope / allowedPaths / requiredArtifacts / validationRoute / deviationPolicy / rollbackPlan |
 | TestRoute | 是 / 否 | 跨模块 / API / Hook / CLI / 模板-示例-校验链 / 测试路线不明显 | changeType / routes / commands / skipReason / blockingLevel |
 | ReleaseAudit | 是 / 否 | 发版前 review / publish 或 tag 前风险审查 / release readiness | RL-1~RL-10 / risks / recommendation |
-| ReleaseVerification | 是 / 否 | 用户要求 tag / release / publish 或进入正式发版 | R0~R7 |
+| ReleaseVerification | 是 / 否 | 用户要求 tag / release / publish 或进入正式发版 | R0~R7；如存在远端 CI，补 R3c 目标 commit CI 绿色证据 |
 | ConceptSyncMap | 是 / 否 | 控制面 / 模板-示例-校验链 / README / website / Profile / validate / 部署副本联动 | sourceOfTruth / currentConsumers / historicalMirrors / validateProbes / deployCopies / yellowDeviationBoundary |
 | HostContractVerification | 是 / 否 | Hook / CLI / visible reply / sticky project / workspace guard / bootstrap / ArtifactLinkSet / MCP fallback | hostSurface / eventScope / evidenceMode / visibleReplyEvidence / workspaceGuard / bootstrapScope / artifactLinkMatrix / mcpFallback |
 | OfficialDocsEvidence | 是 / 否 | 新增/升级依赖、框架、SDK、平台 API、外部模块或外部平台能力判断 | 官方文档来源 / 版本日期 / 关键用法 / 限制 / 兼容性 / skipReason |
+| DependencyUpgradeCheck | 是 / 否 | 依赖升级、框架升级、SDK 替换或平台 API 兼容性任务 | 业务源码平滑性 / 依赖层落地条件 / 纯依赖层零附加动作（条件） |
+| InternalSharedLibraryReview | 是 / 否 | 根因位于内部共享库、中间件、SDK 或 adapter 抽象层 | 修共享库 + 消费项目升级 / 单项目补丁理由 / 风险 |
 | ProfileImpactCheck | 是 / 否 | 技术栈、目录边界、脚本、测试/发布路线、分发面、配置项、长期连接或本地 overlay schema 变化 | targetProfileFiles / updateOrSkip / skipReason / evidence |
 | 05-实施进度.md | 是 / 否 | 跨多轮/多阶段、阻塞、用户要求持续跟踪、多批次、预计修改 ≥10 文件、控制面或模板-校验链任务 | CP 状态 / 批次状态 / 阻塞 / 验证证据 |
 | Backlog Intake 真相复核 | 是 / 否 | 任务/批次直接来源于 `data/*.md` open/partial 项 | candidateIds / classification / evidence / scopeDelta |
 | 台账状态回写闭环 | 是 / 否 | 本轮会关闭/部分关闭/改分类任何 VL/PF/PI/ISSUE/GAP | targetLedgers / requiredFields / writebackEvidence / rescanResult |
+
+### §4.2 最小实现与注释守门
+
+> 实施计划必须把“做小”和“必要注释”落到任务级，避免执行阶段把 5 行修复扩展成无计划的企业级结构。
+
+#### 复杂度预算
+
+| 项 | 本轮计划 | 不得顺手扩展的边界 | 偏移处理 |
+|----|---------|-------------------|----------|
+| 变更文件 / 函数 / 类 | | | |
+| 新增分支 / 状态 | | | |
+| 新增抽象 / 工具层 | | 禁止无计划新增抽象；仅已确认消费者、既有本地模式、边界隔离或契约需要可新增 | 回 CP2 / CP3 |
+| 防御性处理 | | 只覆盖已确认输入、兼容、安全或错误契约；service 不重复 route/model/schema 已保证职责 | 回 CP2 / CP3 |
+| 必要注释 | | 非显然业务规则、状态转换、不变量、兼容约束、安全边界、外部契约映射、反直觉权衡必须写短注释；JS/Node 必要注释使用标准 JSDoc | 执行前补齐 |
+
+- “不能顺手扩展的边界”必须点名禁止新增的抽象、配置、分支或预留能力。
+- 执行中发现确需超出复杂度预算、引入新抽象或新增注释依赖的复杂逻辑，先暂停并更新 CP2/CP3；不得在实现里自行扩写。
+- 注释只解释关键意图和约束，禁止逐行解释、重复代码含义或保留临时 TODO。
+- JavaScript / Node.js 任务中，导出函数、核心业务函数、类、复杂对象契约、参数/返回/异常说明如命中必要注释触发点，计划必须写明 JSDoc 落点。
+- provider / connector / 三方 SDK 任务必须在任务分解中包含字段级合同落地项；包 / 库 / adapter / CLI 任务必须包含包工程层检查项。
 
 ## §5 独立验证方式
 
@@ -111,6 +134,8 @@ applyTo: .devcodex/**/requirements/**
 | ConceptSyncMap | 对照 sourceOfTruth / currentConsumers / historicalMirrors / validateProbes / deployCopies | 当前消费者与探针无漏改，历史镜像边界明确 |
 | HostContractVerification | 对照 hostSurface / eventScope / evidenceMode / workspaceGuard / artifactLinkMatrix / mcpFallback | direct replay / fixture / targeted test 证据与声明一致；产物链接与 MCP fallback 不只停留在文案 |
 | OfficialDocsEvidence | 对照官方文档来源 / 关键用法 / 限制 / 兼容性 | 方案采用的 API / 配置与官方文档一致；N/A 有 skipReason |
+| DependencyUpgradeCheck | 对照业务源码平滑性 / 依赖层落地条件 | 不把工程前提误报成业务源码阻断；纯依赖升级结论有证据 |
+| InternalSharedLibraryReview | 对照共享库根因与消费项目影响 | 已评估修共享库 + 升级消费项目，单项目补丁有理由 |
 | ProfileImpactCheck | 对照 targetProfileFiles / updateOrSkip / skipReason | Profile 已同步或跳过理由成立；ECR 与 document-sync 有证据 |
 | Backlog Intake 真相复核 | 对照 candidateIds / classification / evidence / scopeDelta | open 统计与本轮范围一致，非 `pure-open` 项已缩减或剔除 |
 | 台账状态回写闭环 | 对照 targetLedgers / requiredFields / writebackEvidence / rescanResult | 状态、证据、计数与报告/进度/SUMMARY 一致 |
@@ -150,7 +175,7 @@ applyTo: .devcodex/**/requirements/**
 - [ ] ExecutionContract 已建立并执行（若触发）
 - [ ] TestRoute 已建立并覆盖（若触发）
 - [ ] ReleaseAudit RL-1~RL-10 已完成（若触发布前审查）
-- [ ] ReleaseVerification R0~R7 已完成（若进入正式发版）
+- [ ] ReleaseVerification R0~R7 已完成（若进入正式发版；如存在远端 CI，R3c 已记录目标 commit CI 绿色证据或 `N/A + skipReason`）
 - [ ] ConceptSyncMap 已建立并核对当前消费者/探针/部署副本（若触发）
 - [ ] HostContractVerification 已建立并核对宿主证据/guard/visible reply/ArtifactLinkSet/MCP fallback（若触发）
 - [ ] OfficialDocsEvidence 已建立并核对官方用法证据（若触发）

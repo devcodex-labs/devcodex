@@ -76,6 +76,7 @@ description: "Use when: ..."   # 必填，AI 靠这个发现 Skill
 - 当实施或复审改变了 VL / PF / PI / ISSUE / GAP 的真实状态时，必须执行台账状态回写闭环：回写状态、验证证据、验证时间和关闭/部分完成说明，并复核 open 计数是否与进度、报告、SUMMARY 一致
 - 新增/升级依赖、框架、SDK、平台 API 或外部模块时，CP2 必须包含 `OfficialDocsEvidence`：官方文档来源、版本/日期、关键用法、限制、兼容性和降级来源；不能只验证“包能安装”
 - dev/fix 改动项目技术栈、目录边界、脚本、测试/发布路线、分发面、配置项、长期连接或本地 overlay schema 时，必须执行 `ProfileImpactCheck`，同步 Profile 或在报告中写明 `skipReason`
+- 通用工程守门：Node.js 项目默认 `engines.node` / CI / Profile / README 不低于 `>=18`；JS/Node 必要注释使用标准 JSDoc；依赖升级或兼容修复必须拆分 `业务源码平滑性` 与 `依赖层落地条件`；包/库/adapter/CLI 同时检查代码实现层和包工程层；简单 service 不重复 route/model/schema 已承担的校验、归一化和配置兜底
 - v2.0.0 规划：MCP `devcodex_getWorkflow()` 替代文件读取
 
 
@@ -122,7 +123,7 @@ description: "Use when: ..."   # 必填，AI 靠这个发现 Skill
 
 - **`mode: "dev"`**：进入实质任务前输出 PC0~PC7 入口检查，PC4 执行完整规范雷达，并在收尾执行 FC / SC / RC / T 合规检查
 - **`mode: "prod"`**：进入实质任务前仍输出 PC0~PC7 基础入口检查，PC4 标注 N/A；不执行后置合规检查，但 CP1 / CP2 / CP3 仍然强制
-- **执行模式与 `ENV_MODE` 分离**：确认模式 / 全自动模式属于 Agent 入口语义；当前全自动正式入口仍只认显式 `@devcodex-auto`，且只有在 hook-enforced 宿主 + 白名单路径上形成 runtime 级自动推进
+- **执行模式与 `ENV_MODE` 分离**：确认模式 / 全自动模式属于 Agent 入口语义；当前全自动正式入口包括显式 `@devcodex-auto` 与明确自然语言 auto 授权，且只有在 hook-enforced 宿主 + 白名单路径上形成 runtime 级自动推进；模糊提及、询问 auto 规则或普通“继续”不算授权
 
 > 当前正式规则源以 `instructions/01-common.instructions.md`、`instructions/17-compliance.instructions.md` 和 `skills/cp-gate/SKILL.md` 为准；本页负责解释这些规则如何落到日常开发流程中。
 

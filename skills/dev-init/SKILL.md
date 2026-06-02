@@ -33,3 +33,5 @@ init 完成后**必须**在 `.devcodex/profile/` 创建：
 - 生成的 .gitignore 必须包含 `.devcodex/.memory/`（记忆文件不入版本库）
 - 依赖选型遵循项目 profile 中的技术栈约束（若已有 profile）
 - 初始化 README 时默认先写给真实使用者；开发/贡献信息后置，后续专项复审走 `audit-readme`
+- Node.js 项目默认生成 `engines.node >=18`，并同步 README、Profile 与 CI matrix；低于 v18 必须在 CP2 写明业务理由、风险和验证证据
+- 包 / 库 / adapter / CLI 初始化必须同时生成或确认代码实现层与包工程层入口：public API、public types、internal 工具、shared tests、benchmark（如适用）、docs、scripts、dist/coverage 边界、package metadata 与 `changelogs/unreleased.md`

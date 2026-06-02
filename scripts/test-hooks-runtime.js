@@ -90,8 +90,9 @@ function main() {
   runHooksRuntimeBootstrapLayoutScenarios(runtimeScenarioContext)
   runHooksRuntimeVisibilityScenarios(runtimeScenarioContext)
 
-  // Auto v1.1: explicit @devcodex-auto writes executionMode=auto; in safety-only mode,
-  // non-whitelisted paths warn instead of hard-blocking.
+  // Auto v1.1: explicit @devcodex-auto or explicit natural-language auto authorization
+  // writes executionMode=auto; in safety-only mode, non-whitelisted paths warn instead
+  // of hard-blocking.
   cleanState()
   const autoReq = path.join(TEMP_ROOT, '.devcodex', 'requirements', '自动模式需求')
   fs.mkdirSync(path.join(autoReq, '.memory'), { recursive: true })
@@ -102,6 +103,12 @@ function main() {
   runBootstrapReads()
   const autoState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
   assert.strictEqual(autoState.executionMode, 'auto')
+
+  cleanState()
+  run({ hookEventName: 'UserPromptSubmit', prompt: '进入 auto 模式执行规范吸纳' })
+  runBootstrapReads()
+  const naturalAutoState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(naturalAutoState.executionMode, 'auto')
 
   const autoWhitelistAllowed = run({
     hookEventName: 'PreToolUse',

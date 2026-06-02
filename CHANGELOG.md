@@ -1,7 +1,7 @@
 # 变更日志 (CHANGELOG)
 
 > **说明**: 版本概览摘要。最新版本的详细变更见下方表格首行的 `changelogs/releases/vX.Y.Z.md` 链接；历史版本见对应详细变更文件
-> **最后更新**: 2026-06-01
+> **最后更新**: 2026-06-02
 
 ---
 
@@ -9,6 +9,7 @@
 
 | 版本 | 日期 | 变更摘要 | 详细 |
 |------|------|---------|------|
+| [v1.11.8](./changelogs/releases/v1.11.8.md) | 2026-06-02 | 🔧 **technical-design 技术方案模板字段补强**：补齐目标架构、模块边界、接口契约矩阵、数据/状态模型、执行流程锚点与需求验收映射，并同步 `dev-plan-review` 与 `V13` 探针，避免 CP2 技术方案退化为文件清单或散落测试备注 | [查看](./changelogs/releases/v1.11.8.md) |
 | [v1.11.7](./changelogs/releases/v1.11.7.md) | 2026-06-01 | 🔧 **官方文档证据前置 + Profile 联动判定补强**：新增 `C20/C21`、`OfficialDocsEvidence` 与 `ProfileImpactCheck` 执行链，同步 dev/fix、plan-review、document-sync、Prompt、README/website 与 `V54` 探针，并补齐 CLI runtime helper 包边界 | [查看](./changelogs/releases/v1.11.7.md) |
 | [v1.11.6](./changelogs/releases/v1.11.6.md) | 2026-06-01 | 🔧 **治理台账长尾收口 + 发布/宿主/时间线守门补强**：收口 backlog governance、audit-release、ArtifactLinkSet、Codex PreCompact、S02 受控例外、changelog releases 与 Profile Freshness，并补齐 `V49` active-root 台账关闭时间线探针 | [查看](./changelogs/releases/v1.11.6.md) |
 | [v1.11.5](./changelogs/releases/v1.11.5.md) | 2026-05-29 | 🔧 **requirement 运行时产物结构探针 + 最近样本收口**：新增 `V41` 与 `test-requirement-artifacts`，把 `01/04/05` 的运行时最低结构纳入自动校验，并回补近期 requirement 样本的计划/进度漂移 | [查看](./changelogs/releases/v1.11.5.md) |
@@ -93,7 +94,8 @@
 
 ## 相关文档
 
-- [`changelogs/releases/v1.11.7.md`](./changelogs/releases/v1.11.7.md) — 最新版本详细变更文档
+- [`changelogs/releases/v1.11.8.md`](./changelogs/releases/v1.11.8.md) — 最新版本详细变更文档
+- [`changelogs/releases/v1.11.7.md`](./changelogs/releases/v1.11.7.md) — 上一版本详细变更文档
 - [`changelogs/releases/v1.11.6.md`](./changelogs/releases/v1.11.6.md) — 上一个版本详细变更文档
 - [`changelogs/releases/v1.11.5.md`](./changelogs/releases/v1.11.5.md) — 历史版本详细变更文档
 - [`changelogs/releases/v1.11.4.md`](./changelogs/releases/v1.11.4.md) — 历史版本详细变更文档

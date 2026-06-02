@@ -129,8 +129,16 @@ function buildGovernancePromptChecks(ctx) {
 
     mustInclude('prompts/technical-design.prompt.md', '## 目录导航', 'technical design prompt')
     mustInclude('prompts/technical-design.prompt.md', '§1.3 关联目标文档', 'technical design prompt')
+    mustInclude('prompts/technical-design.prompt.md', '§2.0 目标架构与模块边界', 'technical design prompt')
+    mustInclude('prompts/technical-design.prompt.md', '契约矩阵', 'technical design prompt')
+    mustInclude('prompts/technical-design.prompt.md', '数据模型 / 状态模型', 'technical design prompt')
     mustInclude('prompts/technical-design.prompt.md', '§2.6 实施映射与范围边界', 'technical design prompt')
+    mustInclude('prompts/technical-design.prompt.md', '§7.1 需求验收映射', 'technical design prompt')
+    mustInclude('prompts/technical-design.prompt.md', 'CP3任务锚点', 'technical design prompt')
     mustInclude('prompts/technical-design.prompt.md', '偏移触发器', 'technical design prompt')
+    mustInclude('skills/dev-plan-review/SKILL.md', '§7.1 需求验收映射', 'dev plan review acceptance mapping')
+    mustInclude('skills/dev-plan-review/SKILL.md', '目标架构与模块边界', 'dev plan review architecture section')
+    mustInclude('skills/dev-plan-review/SKILL.md', '契约矩阵', 'dev plan review contract matrix')
 
     mustInclude('prompts/implementation-plan.prompt.md', '## 目录导航', 'implementation plan prompt')
     mustInclude('prompts/implementation-plan.prompt.md', '§3 分批执行策略', 'implementation plan prompt')

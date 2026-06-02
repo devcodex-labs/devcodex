@@ -2,7 +2,7 @@
 applyTo: "**"
 description: 产物输出路径与命名规范，定义 active-root 下的 requirements、bugs、reports 与记忆落点
 priority: P5
-version: 1.11.7
+version: 1.11.8
 ---
 # 产物输出路径规范
 

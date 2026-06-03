@@ -2,7 +2,7 @@
 applyTo: "**"
 description: Profile 加载、active-root 路径、目标项目识别与项目现实扩展的通用规范
 priority: P5
-version: 1.11.10
+version: 1.11.11
 ---
 # Profile 加载与项目现实扩展
 
@@ -23,9 +23,9 @@ version: 1.11.10
 ### Profile / config 读取
 
 - `config.json` 采用 `workspace base + project overlay`
-- `config.local.json` 与 `config.json` 同路径模型，但仅用于本地私有 overlay（长期连接、env 引用、`extensions.<namespace>`），不得覆盖 `mode` / `agent` / `pluginVersion`
-- `config.local.json` 是连接配置唯一入口：脚本、测试、数据库 / SSH / MongoDB / 数据操作必须先从当前 Profile 路径模型下的 `config.local.json` 读取连接信息；缺失文件或字段时提醒用户补齐，不得自行发明 `.env` 文件、环境变量名或并行配置格式
-- `config.local.json` 是 S02 受控私有例外模型的推荐承载层：可保存 host、port、database、schema、username、内部 URL、连接别名等非核心本地私有信息；用户明确授权后，也可保存 password、token、apiKey、privateKey、clientSecret、signingKey、connectionPassword 等本地明文字段；若选择环境变量间接引用，也必须由 `config.local.json` 中的 `*Env` 字段声明
+- `config.local.json` 与 `config.json` 同路径模型，可作为用户 / 项目指定的本地 overlay（长期连接、本地明文连接信息、env / secretRef 引用、`extensions.<namespace>`），不得覆盖 `mode` / `agent` / `pluginVersion`
+- 连接配置来源遵循 S02：默认可直写或沿用项目既有模式；只有用户或项目明确指定 `config.local.json` 时，脚本、测试、数据库 / SSH / MongoDB / 数据操作才从当前 Profile 路径模型下的 `config.local.json` 读取，缺失文件或字段时提醒补齐
+- `config.local.json` 可保存 host、port、database、schema、username、内部 URL、连接别名、password、token、apiKey、privateKey、clientSecret、signingKey、connectionPassword、connectionString 等本地字段；`*Env` / `secretRef` 只有在用户指定、项目既有配置或用户指定的发布流程明确要求时才使用
 - `README.md`、`01-项目信息.md`、`02-架构约束.md`、`03-代码风格.md` 采用 `project file first + workspace fallback`
 
 ### 运行态目录写入
@@ -77,7 +77,7 @@ version: 1.11.10
 | `04-测试规范.md` | 测试框架/覆盖率 | 按需 |
 | `05-发布规范.md` | 版本号/发布流程 | 按需 |
 | `config.json` | 运行模式配置（ENV_MODE）+ agent 兜底标识 | 按需 |
-| `config.local.json` | 本地私有 overlay 与连接配置唯一入口：长期连接、env 引用、已授权本地明文秘密、`extensions.<namespace>` 扩展位（不提交） | 可选 |
+| `config.local.json` | 用户 / 项目指定时使用的本地 overlay：长期连接、本地明文连接信息、env / secretRef 引用、`extensions.<namespace>` 扩展位 | 可选 |
 
 ## ENV_MODE 注入
 

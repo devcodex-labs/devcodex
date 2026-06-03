@@ -68,6 +68,7 @@ applyTo: .devcodex/**/reports/bugs/**
 |------|----------|:----:|------|
 | ExecutionContract | ✅/N/A | ✅/⚠️ | |
 | TestRoute | ✅/N/A | ✅/⚠️ | |
+| ServiceLifecycleCleanup | ✅/N/A | ✅/⚠️ | AI 自启动服务的 command/cwd/PID/job/port/url、关闭验证或 keepAliveReason |
 | ReleaseAudit | ✅/N/A | ✅/⚠️ | |
 | ReleaseVerification | ✅/N/A | ✅/⚠️ | |
 | ConceptSyncMap | ✅/N/A | ✅/⚠️ | sourceOfTruth / currentConsumers / historicalMirrors / validateProbes / deployCopies / yellowDeviationBoundary |
@@ -84,6 +85,7 @@ applyTo: .devcodex/**/reports/bugs/**
 | 测试用例 | 结果 |
 |---------|:----:|
 | TestRoute 覆盖 | ✅ 通过 / N/A |
+| AI 自启动服务清理 | ✅ 已关闭 / N/A / 保留运行 |
 | HostContract 验证 | ✅ 通过 / N/A |
 | 静态/类型检查 | ✅ 通过 / N/A |
 | 原始重现步骤 | ✅ 已修复 |
@@ -96,7 +98,7 @@ applyTo: .devcodex/**/reports/bugs/**
 |--------|----------|:----:|------|
 | ECR-1 | CP1/CP2/CP3、05-实施进度、报告、daily tasks、SUMMARY | ✅/⚠️ | |
 | ECR-2 | 问题 ID / 根因链 → diff/commit 文件 | ✅/⚠️ | |
-| ECR-3 | CP3 步骤 / ExecutionContract / TestRoute / ConceptSyncMap / HostContractVerification → 测试/部署/验证证据 | ✅/⚠️ | |
+| ECR-3 | CP3 步骤 / ExecutionContract / TestRoute / ServiceLifecycleCleanup / ConceptSyncMap / HostContractVerification → 测试/部署/验证证据 | ✅/⚠️ | |
 | ECR-4 | 修复报告声明 → 测试/扫描/探针结果/OfficialDocsEvidence/ProfileImpactCheck/ReleaseAudit/ReleaseVerification/部署同步证据 | ✅/⚠️ | |
 | ECR-5 | memory daily → SUMMARY | ✅/⚠️ | |
 | ECR-6 | git dirty 边界 | ✅/⚠️ | |
@@ -135,6 +137,7 @@ applyTo: .devcodex/**/reports/bugs/**
 - [ ] document-sync：✅ 完成
 - [ ] ExecutionContract：✅ 完成 / N/A
 - [ ] TestRoute：✅ 完成 / N/A
+- [ ] ServiceLifecycleCleanup：✅ 完成 / N/A（若保留运行，已记录用户要求、PID/端口和关闭方式）
 - [ ] ReleaseAudit：✅ 完成 / N/A
 - [ ] ReleaseVerification：✅ 完成 / N/A
 - [ ] ConceptSyncMap：✅ 完成 / N/A

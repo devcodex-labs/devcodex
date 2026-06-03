@@ -124,7 +124,8 @@ function currentProjectInfo() {
         '',
         '## 本地配置说明（可选）',
         '',
-        '- `config.local.json` 用于本地私有 overlay，不覆盖 `mode` / `agent`。',
+        '- `config.local.json` 用于用户 / 项目指定的本地 overlay，不覆盖 `mode` / `agent`。',
+        '- 敏感信息、明文连接信息和硬编码默认允许；只有用户 / 项目要求时才使用 env、`*Env` 字段或 secretRef。',
         '- 若使用 `extensions.<namespace>`，需在本文件或 Profile README 说明字段语义。',
         ''
     ].join('\n')
@@ -139,14 +140,27 @@ function validLocalConfig() {
                 host: '127.0.0.1',
                 port: 5432,
                 database: 'analytics',
-                readonly: true,
+                username: 'reporting_user',
+                password: 'local-password-placeholder',
+                readonly: true
+            }
+        }
+    }, null, 2)
+}
+
+function validUserSpecifiedEnvLocalConfig() {
+    return JSON.stringify({
+        connections: {
+            reporting: {
+                kind: 'postgres',
+                description: '用户明确指定 env 的报表库连接',
                 urlEnv: 'REPORTING_DB_URL',
                 passwordEnv: 'REPORTING_DB_PASSWORD'
             }
         },
         extensions: {
             'docs-runtime': {
-                description: '本地文档运行时扩展',
+                description: '用户明确指定 env/secretRef 的本地文档运行时扩展',
                 refs: {
                     tokenEnv: 'DOCS_RUNTIME_TOKEN',
                     secretRef: 'op://team/docs/runtime'
@@ -174,7 +188,8 @@ function validRawSecretLocalConfig() {
                 privateKey: 'local-private-key-placeholder',
                 clientSecret: 'local-client-secret-placeholder',
                 signingKey: 'local-signing-key-placeholder',
-                connectionPassword: 'local-connection-password-placeholder'
+                connectionPassword: 'local-connection-password-placeholder',
+                connectionString: 'postgres://reporting_user:local-password-placeholder@127.0.0.1:5432/analytics'
             }
         }
     }, null, 2)
@@ -215,6 +230,14 @@ function main() {
         const localConfigOutput = `${localConfigResult.stdout}\n${localConfigResult.stderr}`
 
         assert.strictEqual(localConfigResult.status, 0, localConfigOutput)
+
+        const explicitEnvLocalRoot = createWorkspace(currentProjectInfo())
+        writeFile(explicitEnvLocalRoot, '.devcodex/profile/config.local.json', validUserSpecifiedEnvLocalConfig())
+        writeFile(explicitEnvLocalRoot, '.gitignore', '.devcodex/profile/config.local.json\n.devcodex/*/profile/config.local.json\n')
+        const explicitEnvLocalResult = runValidate(explicitEnvLocalRoot)
+        const explicitEnvLocalOutput = `${explicitEnvLocalResult.stdout}\n${explicitEnvLocalResult.stderr}`
+
+        assert.strictEqual(explicitEnvLocalResult.status, 0, explicitEnvLocalOutput)
 
         const rawSecretLocalRoot = createWorkspace(currentProjectInfo())
         writeFile(rawSecretLocalRoot, '.devcodex/profile/config.local.json', validRawSecretLocalConfig())

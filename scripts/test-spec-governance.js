@@ -152,8 +152,12 @@ const probes = [
   ['codex/hooks.json', 'manual|auto'],
   ['scripts/test-cli-behavior.js', 'PreCompact'],
   ['scripts/lib/validate-governance-tail.js', 'checkV52'],
-  ['instructions/00-safety.instructions.md', 'S02 受控私有例外模型'],
-  ['skills/load-profile/SKILL.md', '连接配置唯一入口'],
+  ['instructions/00-safety.instructions.md', 'S02 用户策略优先的敏感信息与硬编码模型'],
+  ['instructions/00-safety.instructions.md', '默认允许'],
+  ['instructions/01-common.instructions.md', 'S02 用户 / 项目敏感信息策略'],
+  ['skills/dev-plan-review/SKILL.md', '敏感信息、明文连接信息或硬编码处理是否符合用户 / 项目显式策略'],
+  ['scripts/lib/validate-governance-tail.js', 'stale S02 wording'],
+  ['skills/load-profile/SKILL.md', '用户 / 项目指定时使用的本地 overlay'],
   ['skills/api-verification/SKILL.md', '@token = replace-with-token-if-required'],
   ['prompts/api-verification.prompt.md', '@language = zh-CN'],
   ['changelogs/README.md', 'changelogs/releases/vX.Y.Z.md'],
@@ -186,7 +190,16 @@ const probes = [
   ['scripts/lib/validate-governance-tail.js', 'changelogSources'],
   ['scripts/lib/validate-governance-tail.js', 'changelogs/releases/v'],
   ['README.md', 'PreCompact'],
-  ['website/docs/guide/development.md', 'PreCompact']
+  ['website/docs/guide/development.md', 'PreCompact'],
+  ['instructions.md', 'ServiceLifecycleCleanup'],
+  ['instructions.md', 'C22'],
+  ['instructions/01-common.instructions.md', 'AI 自启动服务清理'],
+  ['skills/test-router/SKILL.md', 'cleanupEvidence'],
+  ['skills/dev-testing/SKILL.md', '不得静默遗留后台进程'],
+  ['prompts/implementation-plan.prompt.md', 'ServiceLifecycleCleanup'],
+  ['scripts/lib/validate-governance-tail.js', 'checkV55'],
+  ['README.md', 'AI 自启动服务清理'],
+  ['website/docs/guide/development.md', 'ServiceLifecycleCleanup']
 ]
 
 for (const [file, needle] of probes) mustInclude(file, needle)

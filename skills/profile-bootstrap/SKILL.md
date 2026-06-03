@@ -162,5 +162,5 @@ profile        missing   (0/4 files — run: devcodex profile init)
 ## ⛔ 禁止
 
 - ⛔ 已有 Profile 文件存在时禁止默认覆盖（须 `--force` 才覆盖且必须先备份）
-- ⛔ 自动扫描不得读取 `.env` / `.env.local` 等密钥文件（避免泄漏到生成文件中）
+- ⛔ 自动扫描默认不主动读取 `.env` / `.env.local` 等文件；用户或项目明确要求读取时可按指定范围读取并写入 Profile 说明
 - ⛔ 生成内容须明确标注"由 `devcodex profile init` 自动生成，需人工复核"

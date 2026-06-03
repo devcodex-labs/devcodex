@@ -112,7 +112,7 @@ function buildGovernanceTailChecks(ctx) {
       },
       {
         file: 'scripts/test-mcp-servers.js',
-        needles: ['config.local.json', 'REPORTING_DB_URL']
+        needles: ['config.local.json', 'connectionString']
       },
       {
         file: 'index.js',
@@ -584,16 +584,17 @@ function buildGovernanceTailChecks(ctx) {
     }
 
     const probes = [
-      { file: 'instructions/00-safety.instructions.md', needles: ['S02 受控私有例外模型', '连接配置唯一入口', '已授权本地明文秘密', '不得自行发明 `.env`'] },
-      { file: 'instructions.md', needles: ['S02 受控私有例外模型', '可提交产物秘密禁止项', '连接配置唯一入口'] },
-      { file: 'instructions/01-common.instructions.md', needles: ['S02 可提交产物秘密禁止项', 'profile/config.local.json'] },
-      { file: 'instructions/01a-profile-loading.instructions.md', needles: ['连接配置唯一入口', '已授权本地明文秘密', '不得自行发明 `.env`'] },
-      { file: 'skills/cp-gate/SKILL.md', needles: ['S02 可提交产物秘密禁止项', 'profile/config.local.json'] },
-      { file: 'skills/load-profile/SKILL.md', needles: ['连接配置唯一入口', '已授权本地明文秘密', '不得自行发明 `.env`'] },
-      { file: 'prompts/project-profile.prompt.md', needles: ['连接配置唯一入口', '已授权本地明文秘密', '不得自行发明 `.env`'] },
-      { file: 'scripts/validate-profile.js', needles: ['connectionPassword', 'apiKeyEnv', 'config.local.json connections.${name}.${field} must be a string'] },
-      { file: 'scripts/test-validate-profile.js', needles: ['validRawSecretLocalConfig', 'local-password-placeholder', 'connections\\.broken\\.port must be an integer'] },
-      { file: 'skills/api-verification/SKILL.md', needles: ['@baseUrl = http://localhost:3000', '@token = replace-with-token-if-required', '@language = zh-CN', 'Authorization: Bearer {{token}}', 'Host 必须通过 `{{baseUrl}}`'] },
+      { file: 'instructions/00-safety.instructions.md', needles: ['S02 用户策略优先的敏感信息与硬编码模型', '默认允许', '不得因“安全最佳实践”主动加严'] },
+      { file: 'instructions.md', needles: ['S02 用户策略优先的敏感信息与硬编码模型', '默认允许', '不得因“安全最佳实践”主动加严'] },
+      { file: 'instructions/01-common.instructions.md', needles: ['S02 用户 / 项目敏感信息策略', '默认允许敏感信息、明文连接信息和硬编码'] },
+      { file: 'instructions/01a-profile-loading.instructions.md', needles: ['连接配置来源遵循 S02', '默认可直写或沿用项目既有模式', '用户或项目明确指定 `config.local.json`'] },
+      { file: 'skills/cp-gate/SKILL.md', needles: ['S02 用户 / 项目敏感信息策略', '不阻断明文、硬编码或真实秘密写入'] },
+      { file: 'RULES.md', needles: ['默认允许敏感信息与硬编码', '用户 / 项目显式策略'] },
+      { file: 'skills/load-profile/SKILL.md', needles: ['用户 / 项目指定时使用的本地 overlay', '默认可直写或沿用项目既有模式'] },
+      { file: 'prompts/project-profile.prompt.md', needles: ['用户 / 项目指定时使用的本地 overlay', '默认可按用户提供内容直写'] },
+      { file: 'scripts/validate-profile.js', needles: ['connectionPassword', 'connectionString', 'config.local.json connections.${name}.${field} must be a string'] },
+      { file: 'scripts/test-validate-profile.js', needles: ['validUserSpecifiedEnvLocalConfig', 'validRawSecretLocalConfig', 'local-password-placeholder', 'connections\\.broken\\.port must be an integer'] },
+      { file: 'skills/api-verification/SKILL.md', needles: ['@baseUrl = http://localhost:3000', '@token = replace-with-token-if-required', '@language = zh-CN', 'Authorization: Bearer {{token}}', '默认可直写真实 Token'] },
       { file: 'prompts/api-verification.prompt.md', needles: ['@baseUrl = http://localhost:3000', '@token = replace-with-token-if-required', '@language = zh-CN', 'Authorization: Bearer {{token}}'] },
       { file: 'prompts/delivery-checklist.prompt.md', needles: ['@baseUrl', '@token', '@language'] },
       { file: 'changelogs/README.md', needles: ['releases/vX.Y.Z.md', 'changelogs/vX.Y.Z.md', 'changelogs/releases/vX.Y.Z.md'] },
@@ -605,11 +606,11 @@ function buildGovernanceTailChecks(ctx) {
       { file: 'skills/audit-dimensions/SKILL.md', needles: ['changelogs/releases/vX.Y.Z.md'] },
       { file: 'scripts/lib/validate-governance-support.js', needles: ['changelogs/releases/v${pkg.version}.md'] },
       { file: 'website/docs/guide/release.md', needles: ['changelogs/README.md', 'changelogs/releases/vX.Y.Z.md'] },
-      { file: 'README.md', needles: ['Profile Freshness Check', 'changelogs/releases/vX.Y.Z.md', '连接配置唯一入口'] },
-      { file: 'website/docs/guide/development.md', needles: ['Profile Freshness Check', '连接配置唯一入口'] },
+      { file: 'README.md', needles: ['Profile Freshness Check', 'changelogs/releases/vX.Y.Z.md', '敏感信息与硬编码策略'] },
+      { file: 'website/docs/guide/development.md', needles: ['Profile Freshness Check', '敏感信息与连接配置'] },
       { file: 'skills/audit-common/SKILL.md', needles: ['Profile Freshness Check（PFresh）', 'PFresh-1', 'PFresh-5', 'Profile freshness 待验证'] },
       { file: 'skills/audit-project/SKILL.md', needles: ['PE-0 Profile Freshness', 'Profile Freshness Check（PFresh）'] },
-      { file: 'scripts/test-spec-governance.js', needles: ['Profile Freshness Check', 'changelogs/releases/vX.Y.Z.md', '连接配置唯一入口'] }
+      { file: 'scripts/test-spec-governance.js', needles: ['Profile Freshness Check', 'changelogs/releases/vX.Y.Z.md', '用户 / 项目指定时使用的本地 overlay'] }
     ]
 
     for (const probe of probes) {
@@ -621,7 +622,39 @@ function buildGovernanceTailChecks(ctx) {
       }
     }
 
-    console.log('[V53] security exception / API variables / changelog releases / profile freshness sync checked')
+    const s02WordingGuards = [
+      'instructions.md',
+      'instructions/00-safety.instructions.md',
+      'instructions/01-common.instructions.md',
+      'skills/cp-gate/SKILL.md',
+      'skills/dev-plan-review/SKILL.md',
+      'instructions/10-dev.instructions.md',
+      'RULES.md'
+    ]
+    const staleS02Patterns = [
+      '禁止硬编码敏感信息',
+      '禁止硬编码凭据',
+      '不得出现在代码',
+      '可提交产物秘密禁止项',
+      '可提交产物硬编码密钥',
+      '方案是否涉及硬编码敏感信息',
+      '无硬编码敏感信息',
+      '真实秘密提交/传播边界',
+      '真实秘密写入可提交 / 可传播产物',
+      '用户 / 项目 / 平台明确禁止',
+      '连接配置唯一入口',
+      '不得自行发明 `.env`'
+    ]
+    for (const file of s02WordingGuards) {
+      const content = read(path.join(ROOT, file))
+      for (const pattern of staleS02Patterns) {
+        if (content.includes(pattern)) {
+          err(`[V53] stale S02 wording in ${file}: "${pattern}"`)
+        }
+      }
+    }
+
+    console.log('[V53] user-policy S02 / API variables / changelog releases / profile freshness sync checked')
   }
 
   function checkV54() {
@@ -686,6 +719,62 @@ function buildGovernanceTailChecks(ctx) {
     console.log('[V54] official docs evidence / profile impact sync checked')
   }
 
+  function checkV55() {
+    const probes = [
+      { file: 'instructions.md', needles: ['C22', 'ServiceLifecycleCleanup', 'AI 自启动服务清理', '不得杀用户既有进程'] },
+      { file: 'instructions/01-common.instructions.md', needles: ['C22', 'AI 自启动服务清理', 'ServiceLifecycleCleanup'] },
+      { file: 'instructions/10-dev.instructions.md', needles: ['AI 自启动服务清理', '端口释放'] },
+      { file: 'instructions/11-fix.instructions.md', needles: ['AI 自启动服务清理', '端口释放'] },
+      { file: 'skills/test-router/SKILL.md', needles: ['ServiceLifecycleCleanup', 'cleanupEvidence', '不得杀用户既有进程'] },
+      { file: 'skills/dev-testing/SKILL.md', needles: ['ServiceLifecycleCleanup', '不得静默遗留后台进程'] },
+      { file: 'skills/dev-scenario-test/SKILL.md', needles: ['ServiceLifecycleCleanup', '不得杀用户既有进程'] },
+      { file: 'skills/dev-optimization/SKILL.md', needles: ['ServiceLifecycleCleanup', '压测 target'] },
+      { file: 'prompts/technical-design.prompt.md', needles: ['serviceLifecycle', 'cleanupEvidence'] },
+      { file: 'prompts/implementation-plan.prompt.md', needles: ['ServiceLifecycleCleanup', 'keepAliveReason'] },
+      { file: 'prompts/report-dev.prompt.md', needles: ['ServiceLifecycleCleanup', 'AI 自启动服务清理'] },
+      { file: 'prompts/report-fix.prompt.md', needles: ['ServiceLifecycleCleanup', 'AI 自启动服务清理'] },
+      { file: 'README.md', needles: ['AI 自启动服务清理', '不会为了释放端口杀掉用户已有进程'] },
+      { file: 'website/docs/guide/development.md', needles: ['ServiceLifecycleCleanup', '非本轮 AI 进程只报告线索'] },
+      { file: 'scripts/test-spec-governance.js', needles: ['ServiceLifecycleCleanup', 'checkV55'] }
+    ]
+
+    for (const probe of probes) {
+      const content = read(path.join(ROOT, probe.file))
+      for (const needle of probe.needles) {
+        if (!content.includes(needle)) {
+          err(`[V55] service lifecycle cleanup drift in ${probe.file}: missing "${needle}"`)
+        }
+      }
+    }
+
+    const pkg = JSON.parse(read(path.join(ROOT, 'package.json')))
+    const releaseFile = `changelogs/releases/v${pkg.version}.md`
+    const changelogSources = [
+      { file: 'changelogs/unreleased.md', content: read(path.join(ROOT, 'changelogs/unreleased.md')) },
+      {
+        file: releaseFile,
+        content: fs.existsSync(path.join(ROOT, releaseFile)) ? read(path.join(ROOT, releaseFile)) : ''
+      }
+    ]
+    for (const needle of ['ServiceLifecycleCleanup', 'C22']) {
+      if (!changelogSources.some(source => source.content.includes(needle))) {
+        err(`[V55] service lifecycle cleanup changelog drift: missing "${needle}" in changelogs/unreleased.md or ${releaseFile}`)
+      }
+    }
+
+    for (const file of [
+      'instructions.md',
+      'instructions/01-common.instructions.md'
+    ]) {
+      const content = read(path.join(ROOT, file))
+      if (content.includes('C01~C21')) {
+        err(`[V55] constraint range drift in ${file}: legacy "C01~C21" remains after C22`)
+      }
+    }
+
+    console.log('[V55] service lifecycle cleanup sync checked')
+  }
+
   return {
     checkV39,
     checkV40,
@@ -702,7 +791,8 @@ function buildGovernanceTailChecks(ctx) {
     checkV51,
     checkV52,
     checkV53,
-    checkV54
+    checkV54,
+    checkV55
   }
 }
 

@@ -19,6 +19,13 @@ description: 测试规范 — 单元测试/集成测试/API测试/E2E测试四�
 - 本 Skill 负责定义各类测试的覆盖标准、阻断规则和失败处理，不替代 `api-verification` / `dev-scenario-test` 的专项产物。
 - 当 TestRoute 包含对外 HTTP API 归档验证时，必须继续读取 `api-verification`；当 TestRoute 包含场景/负载测试时，必须继续读取 `dev-scenario-test`。
 
+## ServiceLifecycleCleanup
+
+- 若测试或 E2E 验证需要 AI 启动 dev server、文档站、本地 API/mock、数据库代理、SSH 隧道、Playwright/Cypress server 或压测 target，启动时必须记录 command、cwd、PID/job、端口/URL 和启动时间。
+- 测试完成、失败、重试放弃或最终回复前，必须停止仅由 AI 本轮启动的服务，并核验端口或 PID/job 已释放。
+- 不得为释放端口杀掉用户既有进程；若端口被非本轮 AI 进程占用，只能报告 PID/端口/命令线线索并请用户确认。
+- 用户明确要求保留服务供试用时，报告保留原因、PID/端口/URL 和关闭命令；默认不得静默遗留后台进程。
+
 ## 四类测试规范
 
 ### 静态/类型检查（Static / Type Check）
@@ -63,7 +70,7 @@ description: 测试规范 — 单元测试/集成测试/API测试/E2E测试四�
 | 触发要求 | 新增跨模块调用链时 |
 | 数据策略 | 使用 fixtures 或 in-memory DB，禁止依赖生产数据 |
 
-> 若集成测试必须连接外部数据库、MongoDB、SSH 隧道或数据服务，连接信息只能从当前 Profile 路径模型下的 `config.local.json` 读取；缺失时提醒用户补齐该文件，不得自行发明 `.env` 文件、环境变量名或并行配置格式。
+> 若集成测试必须连接外部数据库、MongoDB、SSH 隧道或数据服务，连接信息默认可按用户提供内容直写或沿用项目既有模式。只有用户或项目明确指定 `config.local.json`、env、`secretRef` 或 secret manager 时，才从对应入口读取；缺失时提醒用户补齐该入口。
 
 ### API 测试（API Test）
 

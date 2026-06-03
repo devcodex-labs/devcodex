@@ -69,7 +69,7 @@ function buildGovernancePromptChecks(ctx) {
     mustInclude('skills/api-verification/SKILL.md', '@token = replace-with-token-if-required', 'api verification skill')
     mustInclude('skills/api-verification/SKILL.md', '@language = zh-CN', 'api verification skill')
     mustInclude('skills/api-verification/SKILL.md', 'Authorization: Bearer {{token}}', 'api verification skill')
-    mustInclude('skills/api-verification/SKILL.md', "const BASE_URL = process.env.API_BASE_URL || 'http://localhost:3000'", 'api verification skill')
+    mustInclude('skills/api-verification/SKILL.md', "const BASE_URL = 'http://localhost:3000'", 'api verification skill')
     mustInclude('skills/api-verification/SKILL.md', 'headers = {}', 'api verification skill')
     mustInclude('skills/api-verification/SKILL.md', '请求样本 + 可选轻提示', 'api verification skill')
     mustNotInclude('skills/api-verification/SKILL.md', "hostname: 'localhost'", 'api verification skill')

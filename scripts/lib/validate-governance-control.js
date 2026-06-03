@@ -184,7 +184,7 @@ function buildGovernanceControlChecks(ctx) {
     if (fs.existsSync(workspaceAgents)) {
       const content = read(workspaceAgents)
       for (const needle of [
-        '强制约束（C01~C21）',
+        '强制约束（C01~C22）',
         '全量 FC1~FC7 + SC1~SC15 + RC1~RC4 + T1~T9',
         'CHANGELOG / unreleased 已按发布状态追加'
       ]) {

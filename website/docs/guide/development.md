@@ -76,6 +76,7 @@ description: "Use when: ..."   # 必填，AI 靠这个发现 Skill
 - 当实施或复审改变了 VL / PF / PI / ISSUE / GAP 的真实状态时，必须执行台账状态回写闭环：回写状态、验证证据、验证时间和关闭/部分完成说明，并复核 open 计数是否与进度、报告、SUMMARY 一致
 - 新增/升级依赖、框架、SDK、平台 API 或外部模块时，CP2 必须包含 `OfficialDocsEvidence`：官方文档来源、版本/日期、关键用法、限制、兼容性和降级来源；不能只验证“包能安装”
 - dev/fix 改动项目技术栈、目录边界、脚本、测试/发布路线、分发面、配置项、长期连接或本地 overlay schema 时，必须执行 `ProfileImpactCheck`，同步 Profile 或在报告中写明 `skipReason`
+- 若 AI 为验证启动 dev server、文档站、本地 API/mock、数据库代理、SSH 隧道、Playwright/Cypress server 或压测 target，必须执行 `ServiceLifecycleCleanup`：记录命令/cwd/PID/job/端口/URL，验证完成、失败或最终回复前关闭仅由 AI 本轮启动的服务并核验端口释放；用户要求保留时记录 PID/端口和关闭方式
 - 通用工程守门：Node.js 项目默认 `engines.node` / CI / Profile / README 不低于 `>=18`；JS/Node 必要注释使用标准 JSDoc；依赖升级或兼容修复必须拆分 `业务源码平滑性` 与 `依赖层落地条件`；包/库/adapter/CLI 同时检查代码实现层和包工程层；简单 service 不重复 route/model/schema 已承担的校验、归一化和配置兜底
 - v2.0.0 规划：MCP `devcodex_getWorkflow()` 替代文件读取
 
@@ -173,11 +174,13 @@ dev/fix 完成前必须执行 ECR 执行闭环复审。ECR 会交叉验证 CP1/C
 
 `OfficialDocsEvidence` 与 `ProfileImpactCheck` 属于 dev/fix 的前置和收尾证据：前者防止依赖、框架、SDK 或平台 API 用法靠猜；后者防止项目事实已经变化但 Profile 仍停留在旧技术栈、旧目录或旧验证路线。
 
+`ServiceLifecycleCleanup` 属于测试路线和 ECR 证据：AI 自己启动的 dev server、文档站、本地 API/mock、数据库代理、SSH 隧道、Playwright/Cypress server 或压测 target，验证结束后必须主动关闭并核验端口释放；非本轮 AI 进程只报告线索，不擅自终止。
+
 Hook / CLI / visible reply / sticky project / workspace guard 相关任务还要补 HostContractVerification 证据：至少说明 `hostSurface`、`eventScope`、`evidenceMode`、`visibleReplyEvidence`、`workspaceGuard` 与 `bootstrapScope`，避免把“文档已经写了”误当成宿主行为已验证。
 
-### Profile 本地私有配置
+### 敏感信息与连接配置
 
-`.devcodex/**/profile/config.local.json` 用于本地私有 overlay 与连接配置唯一入口：长期连接、env 引用、已授权本地明文秘密、受控扩展位 `extensions.<namespace>`。它不替代 `config.json`，也不能覆盖 `mode` / `agent` / `pluginVersion`。脚本、测试、数据库 / SSH / MongoDB / 数据操作连接信息必须先从这里取得；缺失文件或字段时提醒用户补齐，不得自行发明 `.env` 文件、环境变量名或并行配置格式。若项目使用了本地连接别名或扩展位，需在 `01-项目信息.md` 或 Profile README 说明用途、字段语义和使用方式；报告、记忆和日志不得回显秘密明文。
+默认允许敏感信息、明文连接信息和硬编码出现在用户要求的代码、脚本、配置、文档、测试或报告中；只有用户 / 项目明确禁止时，AI 才脱敏、占位或改用 env、`secretRef`、secret manager、`config.local.json`。`.devcodex/**/profile/config.local.json` 只是用户 / 项目指定时使用的本地 overlay：可承载长期连接、本地明文连接信息、env / secretRef 引用和受控扩展位 `extensions.<namespace>`，不替代 `config.json`，也不能覆盖 `mode` / `agent` / `pluginVersion`。脚本、测试、数据库 / SSH / MongoDB / 数据操作连接信息默认可直写或沿用项目既有模式，只有用户或项目明确指定时才从这里取得；若项目使用本地连接别名、env / secretRef 或扩展位，需在 `01-项目信息.md` 或 Profile README 说明用途、字段语义和使用方式。
 
 ### 诊断与排错入口
 

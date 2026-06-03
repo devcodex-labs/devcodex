@@ -17,6 +17,7 @@ description: 场景测试子类型规范 — 端到端/集成测试 + artillery 
 | api-verification 已通过 | 场景测试基于已验证的接口规范（`.http` 产物存在） |
 | TestRoute 已确认（条件） | 由 `test-router` 触发时，先确认场景/负载/E2E 路线与范围 |
 | 测试环境就绪 | 数据库/依赖服务可在测试环境访问 |
+| ServiceLifecycleCleanup | 若 AI 启动 dev server、文档站、本地 API/mock、数据库代理、SSH 隧道、Playwright/Cypress server 或压测 target，必须记录 PID/job/端口并在验证完成后主动关闭 |
 
 ## 工具规范
 
@@ -51,4 +52,5 @@ scenarios:
 - CP2：确认测试工具/框架 + 数据准备策略
 - CP3：确认执行顺序 + 环境准备/回收方式 + 风险点
 - 测试数据：使用 fixtures，禁止依赖生产数据
+- 场景/负载/E2E 执行后必须完成 `ServiceLifecycleCleanup`：停止仅由 AI 本轮启动的服务，核验端口释放；用户要求保留时记录 PID/端口/关闭方式；不得杀用户既有进程
 - 测试完成后输出场景测试报告到 `.devcodex/scenario-tests/<场景>/reports/<agent>/YYYYMMDD/`；项目自身覆盖率报告仍按项目测试框架约定输出

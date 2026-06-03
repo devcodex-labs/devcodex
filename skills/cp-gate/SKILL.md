@@ -23,7 +23,7 @@ CP 门控**不受 ENV_MODE 影响**，dev/prod 均为 🔴 强制等待用户确
 - `instruction-fallback` 宿主（如 JetBrains / Cursor）只同步 auto 规则说明，不承诺 runtime 级 CP 行为；支持 Hook 的宿主由 `DEVCODEX_HOOK_ENFORCEMENT` 决定提醒或硬拦截
 - `auto:` / `/auto` / profile `executionMode` 不属于本轮正式入口
 - CP1 / CP2 / CP3 确认**自动通过**（不等待用户确认）
-- 以下约束**不可豁免**：[S01](../../instructions/00-safety.instructions.md)（不可逆确认）/ S02 可提交产物秘密禁止项 / S03~S07 / [C01](../../instructions/01-common.instructions.md) / [C10](../../instructions/01-common.instructions.md) / [C18](../../instructions/00-safety.instructions.md)。S02 受控私有例外只能按安全底线模型执行；用户明确授权本地明文时，只能写入被忽略的 `profile/config.local.json`，不属于绕过安全底线。
+- 以下约束**不可豁免**：[S01](../../instructions/00-safety.instructions.md)（不可逆确认）/ S02 用户 / 项目敏感信息策略 / S03~S07 / [C01](../../instructions/01-common.instructions.md) / [C10](../../instructions/01-common.instructions.md) / [C18](../../instructions/00-safety.instructions.md)。S02 不阻断明文、硬编码或真实秘密写入；它只禁止 AI 未经用户 / 项目要求自行加严、改成 env、`secretRef`、secret manager、`config.local.json` 或占位符。
 - 可恢复失败：重试 ≤ 2 次
 - 不可恢复失败：切换回确认模式并通知用户 ⚠️
 
@@ -47,7 +47,7 @@ CP 门控**不受 ENV_MODE 影响**，dev/prod 均为 🔴 强制等待用户确
 | fix | ≥5 文件变更 **或** 含高风险操作 |
 | fix | 其他场景 → 可选 |
 
-**高风险操作**：DDL 变更 / 共享配置文件变更（如 `.env.example`、`package.json`、CI 配置）/ 生产环境配置变更（如生产用 `.env`） / 文件删除 / 直接影响生产环境的修改。仅作为 `config.local.json` 中 `*Env` 引用来源且不提交的 `.env.local`、`.env.test.local` 或任务临时配置不在此列；它们不得成为连接配置入口。
+**高风险操作**：DDL 变更 / 共享配置文件、`package.json`、CI 或生产配置变更 / 文件删除 / 直接影响生产环境的修改。env、`secretRef`、secret manager 或 `config.local.json` 仅在用户 / 项目明确指定时作为连接配置入口。
 
 ## 执行规则（[C02](../../instructions/01-common.instructions.md) 约束）
 

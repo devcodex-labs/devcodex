@@ -4,7 +4,7 @@
  *
  * 检查项目级 .devcodex/profile/ 与 plugin 当前要求是否漂移：
  * - config.json 字段：mode / agent fallback hint / version 是否匹配 plugin.json
- * - config.local.json（如存在）是否符合本地私有 overlay schema / env 引用 / 扩展位规则
+ * - config.local.json（如存在）是否符合用户 / 项目指定的本地 overlay schema / env 引用 / 扩展位规则
  * - README.md / 01-项目信息.md / 02-架构约束.md / 03-代码风格.md 是否存在
  *
  * Exit: 0=OK, 1=missing required, 2=drift warnings only
@@ -105,17 +105,6 @@ function isPlainObject(value) {
   return !!value && typeof value === 'object' && !Array.isArray(value)
 }
 
-function findGitRoot(startDir) {
-  let current = path.resolve(startDir)
-  while (true) {
-    const gitDir = path.join(current, '.git')
-    if (fs.existsSync(gitDir)) return current
-    const parent = path.dirname(current)
-    if (parent === current) return startDir
-    current = parent
-  }
-}
-
 function validateLocalConfigDocumented(projectInfoText, readmeText, hasExtensions) {
   const combined = `${projectInfoText}\n${readmeText}`
   if (!/config\.local\.json/.test(combined)) {
@@ -123,19 +112,6 @@ function validateLocalConfigDocumented(projectInfoText, readmeText, hasExtension
   }
   if (hasExtensions && !/extensions\.<namespace>|extensions\./.test(combined)) {
     warn('[profile] config.local.json uses extensions but README / 01-项目信息.md does not explain extensions.<namespace>')
-  }
-}
-
-function validateGitignoreForLocalConfig(startDir) {
-  const gitRoot = findGitRoot(startDir)
-  const gitignorePath = path.join(gitRoot, '.gitignore')
-  if (!fs.existsSync(gitignorePath)) {
-    warn('[profile] config.local.json exists but .gitignore is missing')
-    return
-  }
-  const gitignore = fs.readFileSync(gitignorePath, 'utf8')
-  if (!gitignore.includes('config.local.json')) {
-    warn('[profile] config.local.json exists but .gitignore does not appear to ignore it')
   }
 }
 
@@ -157,6 +133,7 @@ const LOCAL_CONNECTION_KEYS = new Set([
   'clientSecret',
   'signingKey',
   'connectionPassword',
+  'connectionString',
   'hostEnv',
   'portEnv',
   'databaseEnv',
@@ -215,7 +192,7 @@ function validateLocalConfig(cfg, projectInfoText, readmeText) {
             err(`[profile] config.local.json connections.${name} contains unsupported key: ${key}`)
           }
         }
-        for (const field of ['kind', 'description', 'host', 'database', 'schema', 'username', 'password', 'token', 'apiKey', 'privateKey', 'clientSecret', 'signingKey', 'connectionPassword']) {
+        for (const field of ['kind', 'description', 'host', 'database', 'schema', 'username', 'password', 'token', 'apiKey', 'privateKey', 'clientSecret', 'signingKey', 'connectionPassword', 'connectionString']) {
           if (field in connection && typeof connection[field] !== 'string') {
             err(`[profile] config.local.json connections.${name}.${field} must be a string`)
           }
@@ -290,7 +267,6 @@ function validateLocalConfig(cfg, projectInfoText, readmeText) {
   }
 
   validateLocalConfigDocumented(projectInfoText, readmeText, extensionKeys.length > 0)
-  validateGitignoreForLocalConfig(cwd)
 }
 
 if (!fs.existsSync(profileDir)) {

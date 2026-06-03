@@ -2,7 +2,7 @@
 applyTo: "**"
 description: 通用规范总则，覆盖优先级、意图路由、Profile/active-root、宿主适配与治理总线
 priority: P5
-version: 1.11.10
+version: 1.11.11
 ---
 # 通用规范
 
@@ -50,7 +50,7 @@ version: 1.11.10
 |:-:|------|------|:--:|
 | C01 | 删除/破坏性操作需确认 | 同 S01，完整规则见 [`00-safety.instructions.md`](./00-safety.instructions.md) | 🔒 S01 |
 | C02 | CP 不可跳过合并 | dev/fix 工作流的 CP1→CP2 必须严格按序，禁止合并或跳跃；CP3 触发条件由各工作流规范定义 | — |
-| C03 | 禁止硬编码敏感信息 | 同 S02，完整规则见 [`00-safety.instructions.md`](./00-safety.instructions.md)；可提交产物秘密禁止项不可豁免，已授权本地明文秘密与非核心本地私有信息只能写入被忽略的 `profile/config.local.json` | 🔒 S02 |
+| C03 | 敏感信息与硬编码策略 | 同 S02，完整规则见 [`00-safety.instructions.md`](./00-safety.instructions.md)；默认允许敏感信息、明文连接信息和硬编码；仅用户 / 项目明确禁止时才限制；未指定 env、`secretRef` 或 `config.local.json` 时不得主动引入 | 🔒 S02 |
 | C04 | 禁止编造规范内容 | 同 S03，完整规则见 [`00-safety.instructions.md`](./00-safety.instructions.md) | 🔒 S03 |
 | C05 | 记忆+报告自动写入 | 同 S05，完整规则见 [`00-safety.instructions.md`](./00-safety.instructions.md) | 🔒 S05 |
 | C06 | 禁止 overwrite 源码/规范文件 | 同 S04，完整规则见 [`00-safety.instructions.md`](./00-safety.instructions.md) | 🔒 S04 |
@@ -74,6 +74,7 @@ version: 1.11.10
 | C19 | 确认后前置复审 | 每次用户明确确认后、进入下一阶段前，必须先对当前已确认产物做 1 轮轻量前置复审，并显式输出结果；控制面 / 多文件联动 / 真相源同步 / 模板-示例-校验链场景必须追加交叉验证；若发现阻断性问题，先修正并告知用户，再重新确认；无阻断问题方可推进 |
 | C20 | 官方文档证据前置 | 新增/升级依赖、框架、SDK、平台 API 或外部模块前必须形成 `OfficialDocsEvidence`；缺失证据不得进入编码 |
 | C21 | Profile 联动判定 | dev/fix 项目事实变化后必须执行 `ProfileImpactCheck`：更新 Profile 或写明跳过理由 |
+| C22 | AI 自启动服务清理（ServiceLifecycleCleanup） | AI 为验证启动 dev server、文档站、本地 API/mock、数据库代理、SSH 隧道、Playwright/Cypress server、压测 target 等长运行进程时，必须记录启动命令、cwd、PID/job、端口/URL；验证完成、失败或中断收尾前主动停止仅由 AI 启动的服务并核验端口释放；不得杀用户既有进程；用户明确要求保留时记录保留原因、PID/端口和关闭方式 |
 
 ## 统一联查矩阵（C11 扩展）
 
@@ -104,7 +105,7 @@ version: 1.11.10
 | 模板变更 | `prompts/`、对应 `skills/`、对应 `instructions/`、`scripts/validate.js`、样本/示例文档 | L2 | 命中模板-示例-校验链 → L3 |
 | 接口契约 / 验证产物变更 | 技术方案、目标接口文档、`.http`、`.cjs`、调用方说明 | L2 | 对外契约 + 多端联调 → L3 |
 | 依赖 / 框架 / SDK / 平台 API 引入或升级 | 官方文档、技术方案 `OfficialDocsEvidence`、`dev-plan-review`、报告模板、README/website | L2 | 控制面或多端兼容 → L3 |
-| 执行契约 / 测试路由 / 发布审查 / 发布验证 / 宿主契约 / 消费链同步变更 | `skills/execution-contract`、`skills/test-router`、`skills/audit-release`、`skills/release-verification`、`skills/host-contract-verification`、`skills/source-consumer-sync`、dev/fix/audit instructions、报告模板、validate | L3 | 默认即强联查 |
+| 执行契约 / 测试路由 / 服务生命周期 / 发布审查 / 发布验证 / 宿主契约 / 消费链同步变更 | `skills/execution-contract`、`skills/test-router`、`skills/dev-testing`、`skills/dev-scenario-test`、`skills/audit-release`、`skills/release-verification`、`skills/host-contract-verification`、`skills/source-consumer-sync`、dev/fix/audit instructions、报告模板、validate | L3 | 默认即强联查 |
 | 实施进度跟踪规则变更 | `instructions/02-output-paths`、`instructions/10-dev`、`skills/cp-gate`、`prompts/implementation-progress`、`scripts/validate.js` | L3 | 默认即强联查 |
 | 工作区真相源 / 部署副本 / 分发链变更 | `index.js`、`mcp/`、`hooks/_runtime/`、`README.md`、Profile、`.github/`、`.claude/` | L3 | 默认即强联查 |
 | 发布 / 版本 / changelog / profile 口径变更 | `package.json`、`plugin.json`、`CHANGELOG.md`、`changelogs/`、`README.md`、Profile、必要公告文档、`skills/audit-release` | L2 | 多真相源口径同步 → L3 |
@@ -124,7 +125,7 @@ version: 1.11.10
 - 非白名单路径默认切回确认模式，不承诺“所有源码任务自动执行”
 - `instruction-fallback` 宿主（如 JetBrains / Cursor）只保留 auto 规则语义，不承诺 runtime 级行为；支持 Hook 的宿主默认采用 `safety-only`：白名单边界输出提醒，`strict` 模式下才形成 runtime 硬拦截
 - CP1 / CP2 / CP3 确认**自动通过**（不等待用户确认），但该自动通过只对白名单路径形成无提醒通过；非白名单路径在默认 `safety-only` 下提醒放行，在 `strict` 模式下拦截
-- 以下约束**不可豁免**：S01（不可逆确认）/ S02 可提交产物秘密禁止项 / S03~S07 / C01 / C10 / C18。S02 受控私有例外只能按 `00-safety.instructions.md` 的模型执行；用户明确授权本地明文时，只能写入被忽略的 `profile/config.local.json`，不属于绕过安全底线。
+- 以下约束**不可豁免**：S01（不可逆确认）/ S02 用户 / 项目敏感信息策略 / S03~S07 / C01 / C10 / C18。S02 不阻断明文、硬编码或真实秘密写入；它只禁止 AI 未经用户 / 项目要求自行加严、改成 env、`secretRef`、secret manager、`config.local.json` 或占位符。
 - 可恢复失败：重试 ≤ 2 次；不可恢复失败：切换回确认模式并通知用户 ⚠️
 
 ## 设计原则
@@ -238,7 +239,7 @@ version: 1.11.10
 |------|------|
 | **工作流** | 路由级完整执行路径（dev/fix/analyze/audit/self-fix/resume/plan/chat）|
 | **流程** | 步骤级执行序列（某个功能的具体操作步骤）|
-| **约束** | C01~C21 编号的强制/执行规则 |
+| **约束** | C01~C22 编号的强制/执行规则 |
 | **规则** | 更宽泛的执行规定（含约束、建议、说明等）|
 
 ### 意图识别（三问法）

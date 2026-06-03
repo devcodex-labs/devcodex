@@ -81,7 +81,7 @@ function setupLegacyWorkspace() {
   )
   fs.writeFileSync(
     path.join(TEMP_ROOT, '.devcodex', 'profile', 'config.local.json'),
-    JSON.stringify({ connections: { local: { urlEnv: 'LOCAL_DB_URL' } } }, null, 2)
+    JSON.stringify({ connections: { local: { connectionString: 'postgres://local-user:local-password@127.0.0.1:5432/local' } } }, null, 2)
   )
 }
 
@@ -110,7 +110,7 @@ function setupLayoutWorkspace() {
   )
   fs.writeFileSync(
     path.join(TEMP_ROOT, '.devcodex', 'chat', 'profile', 'config.local.json'),
-    JSON.stringify({ connections: { reporting: { urlEnv: 'REPORTING_DB_URL' } } }, null, 2)
+    JSON.stringify({ connections: { reporting: { connectionString: 'postgres://reporting:local-password@127.0.0.1:5432/reporting' } } }, null, 2)
   )
 }
 
@@ -313,7 +313,7 @@ function testWorkspaceNamespaceProfileMerge() {
   assert.match(profileText, /工作区基座（workspace）/)
   assert.match(profileText, /项目命名空间（chat）/)
   assert.match(profileText, /"tags": \[/)
-  assert.match(profileText, /REPORTING_DB_URL/)
+  assert.match(profileText, /connectionString/)
 }
 
 function testProfileLoadWithoutArguments() {

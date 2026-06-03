@@ -34,7 +34,7 @@ description: 数据库开发子类型规范 — Migration 安全策略 + Schema 
 
 - 🔴 禁止在 Migration 中写业务逻辑（纯 DDL + 数据修复）
 - 🔴 大表（>100万行）变更必须评估锁时间，提供在线变更方案
-- 🔴 数据库、MongoDB 或数据操作连接信息必须从当前 Profile 路径模型下的 `config.local.json` 读取；缺失文件或字段时提醒用户补齐，不得自行发明 `.env` 文件、环境变量名或并行配置格式
+- 🔴 数据库、MongoDB 或数据操作连接信息默认可按用户提供内容直写或沿用项目既有模式；只有用户或项目明确指定 `config.local.json`、env、`secretRef` 或 secret manager 时，才从对应入口读取，缺失文件或字段时提醒用户补齐
 
 ## Migration 执行后验证（F-13）
 

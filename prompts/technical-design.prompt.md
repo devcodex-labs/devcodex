@@ -129,7 +129,7 @@ applyTo: .devcodex/**/requirements/**
 | 目录结构 / 模块边界 / 分发面 | 是 / 否 | `02-架构约束.md` | 更新 / N/A | |
 | 脚本 / 测试 / 构建 / 发布命令 | 是 / 否 | `01-项目信息.md` / `03-代码风格.md` | 更新 / N/A | |
 | 配置 / 环境变量 / 长期连接 / `config.local.json` schema | 是 / 否 | Profile README / `01-项目信息.md` | 更新 / N/A | |
-| 脚本 / 测试 / 数据库 / SSH / MongoDB / 数据操作连接来源 | 是 / 否 | `config.local.json` | 读取 / 提醒补齐 / N/A | 不得发明 `.env` 文件、环境变量名或并行配置 |
+| 脚本 / 测试 / 数据库 / SSH / MongoDB / 数据操作连接来源 | 是 / 否 | 用户 / 项目指定入口 | 直写 / 沿用现有模式 / 读取指定入口 / N/A | 未指定限制时默认允许明文和硬编码；不得主动发明 `.env`、`*Env`、secretRef、secret manager 或 `config.local.json` |
 | 当前阶段 / 活跃版本 / 发布状态 | 是 / 否 | `01-项目信息.md` | 更新 / N/A | |
 
 ## §2 核心设计 🔴
@@ -319,6 +319,7 @@ applyTo: .devcodex/**/requirements/**
 | hostVerificationMode | direct replay / fixture replay / targeted test / validate probe / N/A |
 | workspaceGuard | 单项目 / 多项目 / sticky project / workspace profile / N/A |
 | evidenceSource | validate / targeted test / fixture / direct replay / doc-only |
+| serviceLifecycle | N/A / startedByAI / userProvided；若 `startedByAI`，写 command/cwd/PID/job/port/url 与 cleanupEvidence；若保留运行，写 keepAliveReason |
 | blockingLevel | 阻断 / 警告 / N/A |
 | skipReason | 未选择某验证路线时填写 |
 

@@ -35,7 +35,7 @@
  * V37 Namespace safety / CLI protection / deterministic test chain（容器命名空间、防 clobber、test:all 拆链）
  * V38 README authoring/review governance sync（README 用户视角写作、专项 review、targeted test 与消费者链）
  * V39 Governance improvement intake sync（全模式主动优化清单、统一回执、PI/PF 联动与强制探针）
- * V40 Profile local config sync（config.local schema、env 引用、受控扩展位与本地 overlay 消费链）
+ * V40 Profile local config sync（config.local schema、用户指定 env 引用、受控扩展位与本地 overlay 消费链）
  * V41 Requirement runtime artifact structure sync（recent requirements 的 01/04/05 运行时结构探针）
  * V42 Release gate + package completeness sync（test:audit、metadata gate、prepublishOnly、pack forbidden 与 GitHub Packages 文档边界）
  * V43 Host docs / README audit route sync（宿主文档、README 排错、audit-readme 路由）
@@ -509,7 +509,8 @@ const {
   checkV51,
   checkV52,
   checkV53,
-  checkV54
+  checkV54,
+  checkV55
 } = buildGovernanceTailChecks({
   ROOT,
   ACTIVE_DEVCODEX_ROOT,
@@ -795,7 +796,7 @@ function checkV19() {
 }
 
 // V29~V38 moved to scripts/lib/validate-governance-mid.js
-// V39~V54 moved to scripts/lib/validate-governance-tail.js
+// V39~V55 moved to scripts/lib/validate-governance-tail.js
 
 function checkV7b() {
   try {
@@ -862,6 +863,7 @@ checkV51()
 checkV52()
 checkV53()
 checkV54()
+checkV55()
 
 console.log('')
 if (errors.length) {

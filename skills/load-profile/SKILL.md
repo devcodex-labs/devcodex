@@ -39,7 +39,7 @@ description: 项目 Profile 加载规范 — 意图识别后独立确定目标�
 当 `<工作区根>/.devcodex/layout.json` 启用 `workspace-namespace` 时：
 
 - `config.json`：`<工作区根>/.devcodex/workspace/profile/config.json` 作为 base，`<工作区根>/.devcodex/<project>/profile/config.json` 作为 overlay
-- `config.local.json`：与 `config.json` 使用相同的 `workspace base + project overlay` 路径模型，但仅承载本地私有 overlay（长期连接、env 引用、已授权本地明文秘密、`extensions.<namespace>`），并作为脚本、测试、数据库 / SSH / MongoDB / 数据操作的连接配置唯一入口
+- `config.local.json`：与 `config.json` 使用相同的 `workspace base + project overlay` 路径模型，可作为用户 / 项目指定的本地 overlay（长期连接、本地明文连接信息、env / secretRef 引用、`extensions.<namespace>`）；脚本、测试、数据库 / SSH / MongoDB / 数据操作只有在用户或项目明确指定时才以它作为连接配置入口
 - `README.md`、`01-项目信息.md`、`02-架构约束.md`、`03-代码风格.md`：项目命名空间文件优先，缺失回退到 `workspace/profile/`
 - `<project>` 未确定时，禁止猜测项目命名空间
 
@@ -54,7 +54,7 @@ description: 项目 Profile 加载规范 — 意图识别后独立确定目标�
 | `04-测试规范.md` | 测试框架/覆盖率 | 按需 |
 | `05-发布规范.md` | 版本号/发布流程 | 按需 |
 | `config.json` | 运行模式配置（ENV_MODE）+ agent 兜底标识 | 按需 |
-| `config.local.json` | 本地私有 overlay 与连接配置唯一入口：长期连接、env 引用、已授权本地明文秘密、`extensions.<namespace>` | 按需 |
+| `config.local.json` | 用户 / 项目指定时使用的本地 overlay：长期连接、本地明文连接信息、env / secretRef 引用、`extensions.<namespace>` | 按需 |
 
 > ⚠️ `config.json.agent` 只用于当前实际宿主无法可靠判断时的 fallback hint。产物路径中的 `<agent>` 必须优先使用当前会话/工具链可验证的实际宿主；profile agent 不得覆盖当前会话事实。
 >
@@ -62,9 +62,9 @@ description: 项目 Profile 加载规范 — 意图识别后独立确定目标�
 >
 > ⚠️ `config.local.json` 若使用项目级扩展，只能放在 `extensions.<namespace>` 下，并且必须在 `01-项目信息.md` 或 Profile README 说明用途、字段语义与使用方式。
 >
-> ⚠️ `config.local.json` 属于 S02 受控私有例外模型的本地 overlay：可保存 host、port、database、schema、username、内部 URL、连接别名等非核心本地私有信息；用户明确授权后，也可保存 password、token、apiKey、privateKey、clientSecret、signingKey、connectionPassword 等本地明文字段；若选择环境变量间接引用，也必须由 `config.local.json` 中的 `*Env` 字段声明。
+> ⚠️ `config.local.json` 可保存 host、port、database、schema、username、内部 URL、连接别名、password、token、apiKey、privateKey、clientSecret、signingKey、connectionPassword、connectionString 等本地字段。它不是默认唯一入口；只有用户、项目既有配置或目标平台明确指定时，才读取或新增 `config.local.json`、env、`*Env`、`secretRef` 或 secret manager。
 >
-> ⚠️ 连接信息必须从 `config.local.json` 取得：脚本、测试、数据库 / SSH / MongoDB / 数据操作发现连接文件或字段缺失时，应提醒用户补齐当前 Profile 下的 `config.local.json`，不得自行发明 `.env` 文件、环境变量名或并行配置格式。
+> ⚠️ 连接信息默认可直写或沿用项目既有模式；脚本、测试、数据库 / SSH / MongoDB / 数据操作只有在用户或项目明确指定 `config.local.json` 时，才从当前 Profile 路径模型读取，发现文件或字段缺失时提醒用户补齐。
 
 ## Profile 缺失处理
 
@@ -125,4 +125,4 @@ Profile 读取后，必须形成以下最小结论，供 PC1/PC3 与后续工作
 | `config.json` 不存在 | `prod`（保守默认）|
 | `mode` 字段缺失或非法值 | `prod`（保守默认）|
 
-加载后在上下文中声明：**`ENV_MODE = dev` 或 `ENV_MODE = prod`**，并在首次回复中标注当前模式。若 profile agent 与当前实际宿主不同，应标注为“profile agent 兜底值与当前宿主不同”，但记忆、报告和产物仍按当前实际宿主落点写入。`config.local.json` 只补充本地连接/扩展上下文，不改变这里的 ENV_MODE 结论。
+加载后在上下文中声明：**`ENV_MODE = dev` 或 `ENV_MODE = prod`**，并在首次回复中标注当前模式。若 profile agent 与当前实际宿主不同，应标注为“profile agent 兜底值与当前宿主不同”，但记忆、报告和产物仍按当前实际宿主落点写入。`config.local.json` 只在用户 / 项目指定时补充本地连接/扩展上下文，不改变这里的 ENV_MODE 结论。

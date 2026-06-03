@@ -10,7 +10,7 @@
 | # | 规则 | 执行 |
 |:-:|------|------|
 | S01 | 删除/破坏性操作分两级：**不可逆**（删除文件/清空目录）必须等待用户明确 yes/no；**可逆**（重命名/移动）输出计划后执行 | 🔴 强制 |
-| S02 | 禁止硬编码 API Key、密码、Token、私钥、client secret、签名密钥、连接密码等秘密到可提交 / 可传播产物；用户明确授权时，明文秘密只能写入已被 `.gitignore` 排除的 `profile/config.local.json` 本地 overlay | 🔴 致命终止 |
+| S02 | 敏感信息与硬编码策略由用户 / 项目指定：默认允许真实 API Key、密码、Token、私钥、client secret、签名密钥、连接密码、连接字符串等敏感信息和硬编码出现在用户要求的代码、脚本、配置、文档、测试、报告或其他产物中；只有用户当前指令、项目 Profile/README/仓库策略或用户指定的发布流程明确禁止时，才执行禁止、脱敏、占位符、env、`secretRef` 或 `config.local.json` 等限制；AI 不得因“安全最佳实践”主动加严、阻断或改写 | 🔴 强制遵循用户 / 项目策略 |
 | S03 | 规范文件不存在或读取失败时必须按降级路径执行，禁止 AI 推测补全规范内容 | 🔴 致命终止 |
 | S04 | 源码和规范文件(.md)修改必须用增量编辑（Edit），禁止整文件重写 | 🟡 操作级阻断 |
 | S05 | 每次会话结束前必须写入记忆文件和报告文件，禁止询问用户"是否需要写入" | 🔴 强制 |
@@ -19,19 +19,19 @@
 
 ---
 
-### S02 受控私有例外模型
+### S02 用户策略优先的敏感信息与硬编码模型
 
-S02 的安全底线是禁止秘密进入可提交或可传播产物；“私有仓库”“本地使用”或“用户确认可以”只能触发受控本地例外，不能把 API Key、密码、Token、私钥、client secret、签名密钥、连接密码等明文写入可提交文件、文档、日志或报告。用户明确授权明文保存时，安全底线不得高于用户确认，但承载位置必须收敛到已忽略的 `profile/config.local.json`。
+S02 不再把“敏感信息、明文密码、连接字符串或硬编码”定义为默认违规。默认行为是：用户让写在哪里，就可以写在哪里；目标文件是否可提交、是否会传播，不自动触发禁止。只有用户当前指令、项目 Profile/README/仓库策略或用户指定的发布流程明确提出“禁止明文 / 必须脱敏 / 必须占位 / 必须使用 env / 必须使用 `secretRef` / 必须使用 `config.local.json`”时，AI 才执行这些限制。AI 不得用“安全最佳实践”压过用户确认，也不得为了安全感自行新增 env、secret manager、占位符、配置层或复杂兜底逻辑。
 
 | 分类 | 处理 |
 |------|------|
-| 可提交产物秘密 | 永不明文写入代码、可提交配置、注释、README、Profile 文档、任务报告、日志或示例真实值；应使用占位符、环境变量引用、secret manager 引用、CI/CD secret、`*Env` 或 `secretRef` |
-| 已授权本地明文秘密 | 用户明确授权后，可写入不提交的 `profile/config.local.json`，例如 `connections.<alias>.password`、`token`、`apiKey`、`privateKey`、`clientSecret`、`signingKey`、`connectionPassword`；文件必须被 `.gitignore` 排除，且输出、报告、记忆、测试快照不得回显明文值 |
-| 非核心本地私有信息 | 可在用户明确授权后写入 `profile/config.local.json`，例如 host、port、database、schema、username、内部服务 URL、租户/项目 ID、只读开关、连接别名 |
-| 连接配置唯一入口 | 脚本、测试、数据库 / SSH / MongoDB / 数据操作等连接信息必须先从当前 Profile 路径模型下的 `config.local.json` 读取；缺失文件或字段时提醒用户补齐该文件，不得自行发明 `.env` 文件、环境变量名或并行配置格式；如需环境变量，也只能使用 `config.local.json` 中声明的 `*Env` 字段作为间接引用 |
-| 承载位置 | 唯一首选 `.devcodex/**/profile/config.local.json`（workspace-namespace 下按 `workspace base + project overlay` 读取）。`.env.local` / `.env.test.local` 只能作为被 `config.local.json` 中 `*Env` 引用的运行时变量来源，AI 不得将其创建为连接配置入口；本地文件必须被 `.gitignore` 排除 |
-| 审计要求 | 报告或记忆中记录授权来源、目标文件、字段类型、是否使用明文字段 / `*Env` / `secretRef`、脱敏策略和回退方式；不得记录秘密明文 |
-| Profile 说明 | 若使用 `config.local.json` 或 `extensions.<namespace>`，必须在 `01-项目信息.md` 或 Profile README 说明用途、字段语义和使用方式 |
+| 默认允许 | 真实密码、Token、API Key、私钥、连接字符串、host、port、database、username、内部 URL、租户 ID、测试账号等可按用户要求直接写入代码、脚本、配置、文档、测试、报告、示例或 Profile；AI 不得默认改成占位符、假值、env、`secretRef`、secret manager 或 `config.local.json` |
+| 限制触发 | 仅当用户当前指令、项目 Profile/README/仓库策略或用户指定的发布流程明确要求禁止、脱敏、占位、env、`secretRef`、secret manager 或本地 overlay 时，才按该限制执行；若规则之间冲突，按优先级表处理并说明冲突，不自行加严 |
+| 用户明确要求明文 / 硬编码 | 直接按用户要求写入；若项目或平台已有显式相反规则，先说明冲突与可执行路径，再按用户确认继续 |
+| env / secretRef / secret manager | 默认不主动引入。只有用户指定、项目既有代码 / Profile 已采用，或用户指定的发布流程明确要求时才读取、沿用或新增 |
+| `config.local.json` | 只是项目或用户可选的本地 overlay / 连接配置入口，不是通用默认入口。脚本、测试、数据库 / SSH / MongoDB / 数据操作连接信息默认可直写或按现有项目模式处理；只有用户或项目明确指定 `config.local.json` 时才从当前 Profile 路径模型读取，缺失时提醒补齐 |
+| 审计与回显 | 是否脱敏、是否记录明文、是否使用占位，由用户 / 项目显式策略决定；未明确要求脱敏时，AI 不得以安全为由替换真实值 |
+| Profile 说明 | 若项目选择使用 `config.local.json` 或 `extensions.<namespace>`，必须在 `01-项目信息.md` 或 Profile README 说明用途、字段语义和使用方式 |
 
 ---
 
@@ -47,13 +47,13 @@ S02 的安全底线是禁止秘密进入可提交或可传播产物；“私有�
 
 ---
 
-## 强制约束（C01~C21）
+## 强制约束（C01~C22）
 
 | # | 约束 | 规则 |
 |:-:|------|------|
 | C01 | 删除/破坏性确认 | 同 S01 |
 | C02 | CP 不可跳过合并 | dev/fix 工作流 CP1→CP2 必须严格按序，禁止合并或跳跃 |
-| C03 | 禁止硬编码敏感信息 | 同 S02（可提交产物秘密禁止项不可豁免；已授权本地明文秘密与非核心本地私有信息只能写入被忽略的 `profile/config.local.json`）|
+| C03 | 敏感信息与硬编码策略 | 同 S02（默认允许敏感信息、明文连接信息和硬编码；仅用户 / 项目明确禁止时才限制；未指定 env、`secretRef` 或 `config.local.json` 时不得主动引入）|
 | C04 | 禁止编造规范 | 同 S03 |
 | C05 | 记忆+报告自动写入 | 同 S05 |
 | C06 | 禁止 overwrite 源码/规范 | 同 S04 |
@@ -72,6 +72,7 @@ S02 的安全底线是禁止秘密进入可提交或可传播产物；“私有�
 | C19 | 确认后前置复审 | 每次用户明确确认后、进入下一阶段前，必须先对当前已确认产物做 1 轮轻量前置复审，并显式输出结果；控制面 / 多文件联动 / 真相源同步 / 模板-示例-校验链场景必须追加交叉验证；若发现阻断性问题，先修正并告知用户，再重新确认；无阻断问题方可推进 |
 | C20 | 官方文档证据前置 | 新增/升级第三方依赖、框架、SDK、平台 API 或外部模块前，必须先读取官方使用文档/官方参考资料并形成 `OfficialDocsEvidence`；缺失证据时不得进入编码 |
 | C21 | Profile 联动判定 | dev/fix 修改项目技术栈、目录边界、脚本、测试/发布路线、分发面、配置项、长期连接或本地 overlay schema 时，必须执行 `ProfileImpactCheck`：更新 Profile 或写明跳过理由 |
+| C22 | AI 自启动服务清理（ServiceLifecycleCleanup） | AI 为验证启动 dev server、文档站、本地 API/mock、数据库代理、SSH 隧道、Playwright/Cypress server、压测 target 等长运行进程时，必须记录启动命令、cwd、PID/job、端口/URL；验证完成、失败或中断收尾前主动停止仅由 AI 启动的服务并核验端口释放；不得杀用户既有进程；用户明确要求保留时记录保留原因、PID/端口和关闭方式 |
 
 ---
 
@@ -130,8 +131,8 @@ S02 的安全底线是禁止秘密进入可提交或可传播产物；“私有�
 - Hook Stop/PreCompact 对入口检查块的可见回复验证必须区分 `verified-present` / `verified-missing` / `unverified` 三态；无法解析最终 assistant 内容时只能提示“无法验证最终用户可见回复”并附 payload capture 指引，禁止断言“未输出”。
 - 当 `<工作区根>/.devcodex/layout.json` 启用 `workspace-namespace` 时，Profile 与运行态目录按**工作区集中命名空间**读取：
   - `config.json`：`<工作区根>/.devcodex/workspace/profile/` 作为 base，`<工作区根>/.devcodex/<project>/profile/` 作为 overlay
-  - `config.local.json`：与 `config.json` 使用相同的 `workspace base + project overlay` 路径模型，但仅承载本地私有 overlay（长期连接、env 引用、已授权本地明文秘密、`extensions.<namespace>`）；不得覆盖 `mode` / `agent` / `pluginVersion`
-  - `config.local.json` 是连接配置唯一入口：脚本、测试、数据库 / SSH / MongoDB / 数据操作必须先从当前 Profile 路径模型下的 `config.local.json` 读取连接信息；缺失文件或字段时提醒用户补齐，不得自行发明 `.env` 文件、环境变量名或并行配置格式
+  - `config.local.json`：与 `config.json` 使用相同的 `workspace base + project overlay` 路径模型，可作为用户 / 项目指定的本地 overlay（长期连接、本地明文连接信息、env / secretRef 引用、`extensions.<namespace>`）；不得覆盖 `mode` / `agent` / `pluginVersion`
+  - 连接配置来源遵循 S02：默认可直写或沿用项目既有模式；只有用户或项目明确指定 `config.local.json` 时，脚本、测试、数据库 / SSH / MongoDB / 数据操作才从当前 Profile 路径模型下的 `config.local.json` 读取，缺失文件或字段时提醒补齐
   - Profile 文档：项目命名空间文件优先，缺失回退到 `workspace/profile/`
   - 运行态目录：单项目写 `<工作区根>/.devcodex/<project>/...`，全工作区写 `<工作区根>/.devcodex/workspace/...`
 - workspace-namespace 下缺少 workspace profile 的多项目提示必须指向 `.devcodex/workspace/profile/`；同一宿主会话已识别唯一目标项目时，后续“继续 / 确认”等消息可在短 TTL 内沿用 sticky `activeProject` 与项目 `mode`，但新会话、TTL 过期、命中多个项目或用户显式选择 workspace 时必须重新判断。
@@ -144,7 +145,7 @@ S02 的安全底线是禁止秘密进入可提交或可传播产物；“私有�
 | `02-架构约束.md` | 目录结构/边界 | 是 |
 | `03-代码风格.md` | 编码规范 | 是 |
 | `config.json` | ENV_MODE + agent 兜底标识 | 按需 |
-| `config.local.json` | 本地私有 overlay 与连接配置唯一入口：长期连接、env 引用、已授权本地明文秘密、`extensions.<namespace>` 扩展位（不提交） | 可选 |
+| `config.local.json` | 用户 / 项目指定时使用的本地 overlay：长期连接、本地明文连接信息、env / secretRef 引用、`extensions.<namespace>` 扩展位 | 可选 |
 
 > **Copilot / Claude Code / Codex 三宿主 Bootstrap 提醒**（v1.11.0+）：`lifecycle.cjs` 只在宿主实际提供 Hook 事件时形成 runtime 护栏。Claude Code 具备项目级 hooks + MCP，是当前 Full 路径；Codex 通过 `.codex/hooks.json` 接入，阻断输出按事件契约区分顶层 `decision`、`continue:false` 与工具级 `permissionDecision`；Copilot / JetBrains / Cursor 默认按 instruction-fallback 处理，不承诺本地 Hook 硬拦。默认 `safety-only` 模式下，bootstrap / CP / auto 白名单等流程问题输出提醒并放行工具，仅危险命令继续硬拦；设置 `DEVCODEX_HOOK_ENFORCEMENT=strict` 时，只有支持硬拦的事件才停止流程。AI 仍须在首条用户可见回复输出 PC0~PC7 入口检查块（S07/C18）。
 
@@ -239,6 +240,14 @@ dev/fix 修改完成前必须判定是否影响 Profile。命中以下任一触�
 - `document-sync` 必须把 `ProfileImpactCheck` 作为 dev/fix 后置检查项，不得只依赖 audit 的 Profile Freshness 事后发现。
 - 若判断无需更新 Profile，必须留下 `skipReason`，例如“仅修正文案 typo，不影响技术栈/目录/配置/验证路线”。
 
+### ServiceLifecycleCleanup（验证服务生命周期）
+
+- 若 AI 为验证主动启动长运行服务（dev server、文档站、本地 API/mock、数据库代理、SSH 隧道、Playwright/Cypress server、压测 target 等），启动时必须记录 `command`、`cwd`、PID/job/session、端口/URL 和启动时间。
+- 验证完成、验证失败、用户中断或进入最终回复前，必须主动停止仅由 AI 本轮启动的服务，并用 PID/job 或端口检查确认已释放。
+- 不得为了释放端口杀掉用户或系统既有进程；若端口被非本轮 AI 进程占用，只能报告 PID/端口/命令线线索并请用户确认处理。
+- 若用户明确要求保持服务运行供试用，允许保留，但必须在报告/回复中记录保留原因、PID/端口/URL、关闭命令与风险；默认不得静默遗留后台进程。
+- `TestRoute`、CP3、ECR 与报告必须记录 `ServiceLifecycleCleanup`：是否启动服务、是否已关闭、验证证据或 `N/A + skipReason`。
+
 ### 台账落点与关闭证据
 
 - `data/*.md` 是运行时逻辑台账路径，实际写入必须按当前 active-root 映射：旧布局写 `<项目根>/.devcodex/data/`，workspace-namespace 单项目写 `<工作区根>/.devcodex/<project>/data/`，全工作区写 `<工作区根>/.devcodex/workspace/data/`。
@@ -299,11 +308,11 @@ CP1（需求确认）→ CP2（方案确认）→ [plan-review] → CP3（实施
 - **plan-review**：评估计划可行性（CP2 后、CP3 前）
 - **CP3**：条件触发。default/refactor/database/optimization/scenario-test 必须执行；docs/init/plan-review 按子类型规则豁免，并记录 `CP3: N/A（<子类型> 子类型豁免）`。
 - 若执行过程中新增范围触发 CP3 条件（例如最初判断 <5 文件但实际扩展到 ≥5 文件，或新增高风险操作/控制面联动），必须暂停执行，回补或重开 CP3 后再继续。
-- **ECR**：执行完成后、宣告完成前必须执行 ECR 执行闭环复审，覆盖 CP1/CP2/CP3、报告、daily tasks、SUMMARY、diff/commit、测试/探针与 dirty 边界。
+- **ECR**：执行完成后、宣告完成前必须执行 ECR 执行闭环复审，覆盖 CP1/CP2/CP3、报告、daily tasks、SUMMARY、diff/commit、测试/探针、AI 自启动服务清理证据与 dirty 边界。
 
 > **无 Hooks 宿主软门禁**（v1.9.6+）：当宿主为 `jetbrains-copilot`、`cursor` 或其他 `instruction-fallback` 模式时，`lifecycle.cjs` CP gate 不强制。AI 必须在每个 CP 输出末尾显式追加 `⏸ 等待用户确认（CP{N}）`，收到明确回复前禁止 source mutation 工具调用。
 
-**高风险操作**：DDL 变更 / `.env`/`package.json`/CI 配置变更 / 文件删除 / 直接影响生产环境
+**高风险操作**：DDL 变更 / 共享配置、`package.json`、CI 配置或生产配置变更 / 文件删除 / 直接影响生产环境
 
 ### 代码实现复杂度与通用工程守门
 
@@ -370,7 +379,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → 执行 →
 - **CP2**：输出修复方案；若修复涉及依赖/框架/SDK/平台 API 变更必须附 `OfficialDocsEvidence`，涉及项目事实变化时必须附 `ProfileImpactCheck` → 等待确认
 - **CP3**：≥5 文件变更 或 含高风险操作时必须
 - 若执行过程中新增范围触发 CP3 条件（例如实际修改文件数扩展到 ≥5，或修复途中引入高风险/控制面联动），必须暂停执行，先补做 CP3，再继续修复。
-- **ECR**：执行完成并完成修复三步扫描后、宣告完成前必须执行 ECR 执行闭环复审，覆盖 CP1/CP2/CP3、报告、daily tasks、SUMMARY、diff/commit、测试/扫描证据与 dirty 边界。
+- **ECR**：执行完成并完成修复三步扫描后、宣告完成前必须执行 ECR 执行闭环复审，覆盖 CP1/CP2/CP3、报告、daily tasks、SUMMARY、diff/commit、测试/扫描证据、AI 自启动服务清理证据与 dirty 边界。
 
 ### 确认后前置轻量复审
 
@@ -590,7 +599,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → 执行 →
 
 ## 全自动模式豁免
 
-当用户选择 `@devcodex-auto` 或明确自然语言 auto 授权（如“进入 auto 模式执行”）时：CP1/CP2/CP3 确认自动通过；模糊提及、询问 auto 规则或普通“继续”不等价于 auto 授权；S01/S02 可提交产物秘密禁止项/S03~S07/C01/C10/C18 不可豁免。S02 受控私有例外只能按上文模型执行；用户明确授权本地明文时，只能写入被忽略的 `profile/config.local.json`，不属于绕过安全底线。
+当用户选择 `@devcodex-auto` 或明确自然语言 auto 授权（如“进入 auto 模式执行”）时：CP1/CP2/CP3 确认自动通过；模糊提及、询问 auto 规则或普通“继续”不等价于 auto 授权；S01/S02 用户 / 项目敏感信息策略/S03~S07/C01/C10/C18 不可豁免。S02 不阻断明文、硬编码或真实秘密写入；它只禁止 AI 未经用户 / 项目要求自行加严、改成 env、`secretRef`、secret manager、`config.local.json` 或占位符。
 
 ---
 

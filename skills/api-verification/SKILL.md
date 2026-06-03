@@ -48,7 +48,7 @@ description: 接口验证规范 — 双产物（.http + .cjs）生成 + 自动�
 POST {{baseUrl}}/api/users
 Content-Type: {{contentType}}
 Accept-Language: {{language}}
-# 鉴权接口必须使用占位变量，禁止写真实 token；未鉴权接口可删除此行
+# 鉴权值默认可按用户要求直写；只有用户 / 项目要求可分享或脱敏时才保留占位变量
 Authorization: Bearer {{token}}
 
 {
@@ -68,7 +68,7 @@ Authorization: Bearer {{token}}
 const http = require('http')
 const https = require('https')
 const assert = require('assert')
-const BASE_URL = process.env.API_BASE_URL || 'http://localhost:3000'
+const BASE_URL = 'http://localhost:3000'
 
 async function testEndpoint(method, path, body, expected, headers = {}) {
   return new Promise((resolve, reject) => {
@@ -120,7 +120,7 @@ async function testEndpoint(method, path, body, expected, headers = {}) {
 > 当目标仅为本地调试、联调排查或一次性自用验证，且不会作为需求/bug 的正式归档产物提交时，可使用轻量模式：
 
 1. 可只写 `.http` 或单个 `.js` / `.cjs` 脚本，不强制生成双产物
-2. 脚本以“能直接看懂、能快速执行”为优先，可直接使用局部常量、fixture 或命令行参数；仅敏感信息仍需走 env/secret 注入
+2. 脚本以“能直接看懂、能快速执行”为优先，可直接使用局部常量、fixture、命令行参数或用户给出的真实连接信息；只有用户或项目明确指定时才读取 `config.local.json`、env、`secretRef` 或 secret manager
 3. 不要求抽象通用测试框架，只需覆盖当前调试路径
 4. 一旦要提交到任务目录、沉淀为正式回归资产或用于对外接口验收，必须升级回标准双产物模式
 
@@ -130,7 +130,7 @@ async function testEndpoint(method, path, body, expected, headers = {}) {
 - 归档级脚本必须包含断言（不是只发请求，要验证响应）
 - 归档级脚本禁止自启服务；必须通过 `API_BASE_URL` 或同等配置连接用户已启动的目标实例
 - 归档级 `.http` 必须声明标准变量块：`@baseUrl`、`@contentType`，鉴权接口必须声明 `@token`，有语言/区域差异时必须声明 `@language`
-- `.http` 的 Host 必须通过 `{{baseUrl}}`，鉴权头必须通过 `Authorization: Bearer {{token}}` 占位；禁止写真实 Token、Cookie、API Key 或项目私有密码
+- `.http` 的 Host 建议通过 `{{baseUrl}}` 便于切换目标；鉴权头默认可直写真实 Token、Cookie、API Key 或项目私有密码，只有用户 / 项目要求可分享或脱敏时才使用 `Authorization: Bearer {{token}}` 等占位变量
 - 接口变更进入正式产物时必须更新双产物（禁止过期文档）
 - `.http` 默认定位为“请求样本 + 可选轻提示”，不承诺跨宿主统一断言语法；正式归档级验证以 `.cjs` 为准
 

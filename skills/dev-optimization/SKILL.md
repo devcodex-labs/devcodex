@@ -15,6 +15,7 @@ description: 性能优化子类型规范 — 基准测试前置 + autocannon 压
 | api-verification 已通过 | 优化前接口测试基线已建立（`.http` + `.cjs` 产物存在） |
 | 基准数据 | 优化前已有性能指标（QPS/P99/内存）作为对比基线 |
 | 测试环境 | 压测在隔离环境执行，不影响生产 |
+| ServiceLifecycleCleanup | 若 AI 启动压测 target、dev server、本地 API/mock、数据库代理或 SSH 隧道，必须记录 PID/job/端口并在验证完成后主动关闭 |
 
 ## 工具规范
 
@@ -33,7 +34,7 @@ npx autocannon-compare baseline.json optimized.json
 
 - **CP1**：确认优化目标（指标 + 目标值）+ 当前基线数据
 - **CP2**：确认优化方案（无 Breaking Changes，或 BC 已评估） → `dev-plan-review`（PR-1 已自检，PR-2~PR-7 详细验证）→ CP3
-- **CP3**：确认任务拆分、执行顺序、依赖、验证方式与回滚策略；`05-实施进度.md` 对小任务不是默认产物，但跨多轮/多阶段、阻塞、用户要求持续跟踪、多批次、预计修改 ≥10 文件、控制面或模板-校验链任务必须启用
+- **CP3**：确认任务拆分、执行顺序、依赖、验证方式、ServiceLifecycleCleanup 与回滚策略；`05-实施进度.md` 对小任务不是默认产物，但跨多轮/多阶段、阻塞、用户要求持续跟踪、多批次、预计修改 ≥10 文件、控制面或模板-校验链任务必须启用
 
 ## 产出物
 

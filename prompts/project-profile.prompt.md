@@ -29,7 +29,7 @@ applyTo: .devcodex/**/profile/**
 | `02-架构约束.md` | 目录结构、模块边界、依赖规则 | ✅ |
 | `03-代码风格.md` | 缩进、命名、注释规范 | ✅ |
 | `config.json` | 共享运行模式、agent 兜底标识、可提交的安全配置 | ✅ / 按需 |
-| `config.local.json` | 本地私有 overlay 与连接配置唯一入口：长期连接、env 引用、已授权本地明文秘密、`extensions.<namespace>`（不提交） | ⏳ 可选 |
+| `config.local.json` | 用户 / 项目指定时使用的本地 overlay：长期连接、本地明文连接信息、env / secretRef 引用、`extensions.<namespace>` | ⏳ 可选 |
 | `04-测试规范.md` | 测试框架、覆盖率要求 | ✅ / ⏳ 待创建 |
 | `05-发布规范.md` | 版本号规则、发布流程 | ✅ / ⏳ 待创建 |
 
@@ -47,9 +47,9 @@ applyTo: .devcodex/**/profile/**
 
 ## 本地配置说明（可选）
 
-- 若项目需要长期连接别名、本机专属配置或 env 引用，请额外维护 `config.local.json`
-- 脚本、测试、数据库 / SSH / MongoDB / 数据操作的连接信息只能从 `config.local.json` 取得；缺失时提示用户补齐该文件，不得自行发明 `.env` 文件、环境变量名或并行配置格式
+- 若项目需要长期连接别名、本机专属配置或本地明文连接信息，可额外维护 `config.local.json`
+- 脚本、测试、数据库 / SSH / MongoDB / 数据操作的连接信息默认可按用户提供内容直写或沿用项目既有模式；只有用户或项目明确指定 `config.local.json` 时，才从该文件取得，缺失时提示用户补齐
 - `config.local.json` 只用于本地私有 overlay，不覆盖 `config.json` 中的 `mode` / `agent`
 - 项目级扩展只能写在 `extensions.<namespace>` 下，并在 `01-项目信息.md` 或本 README 说明用途、字段语义和使用方式
-- 受控私有例外允许非核心本地私有信息（如 host、port、database、schema、username、内部 URL、连接别名）写入 `config.local.json`；用户明确授权后，也可保存 password、token、apiKey、privateKey、clientSecret、signingKey、connectionPassword 等本地明文字段；如需环境变量间接引用，变量名也必须由 `config.local.json` 中的 `*Env` 字段声明
+- `config.local.json` 可保存 host、port、database、schema、username、内部 URL、连接别名、password、token、apiKey、privateKey、clientSecret、signingKey、connectionPassword、connectionString 等本地字段；只有用户、项目既有配置或目标平台明确要求时，才写入或沿用 `*Env` / `secretRef` 字段
 ```

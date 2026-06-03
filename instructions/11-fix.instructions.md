@@ -2,7 +2,7 @@
 applyTo: "**"
 description: fix 工作流规则，覆盖子类型路由、CP 流程、修复三步扫描、执行期回退与 ECR
 priority: P4
-version: 1.11.10
+version: 1.11.11
 ---
 # 修复工作流规则（11-fix）
 
@@ -50,7 +50,8 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → 
 - **Intent Expansion 可见性**：dev 模式下，CP1 / 问题确认前默认向用户展示完整 Intent Expansion Card；这会覆盖旧的“意图扩展摘要”默认行为，但当命中控制面或宿主能力差异、跨会话 resume、prod、instruction-fallback 宿主或低风险轻任务时，仍允许退化为 3~5 行意图扩展摘要。
 - **OfficialDocsEvidence**：依赖升级、框架/SDK/API 修复、平台行为变更或外部模块替换时，CP2 前必须读取官方使用文档/官方参考资料；缺失证据不得进入执行。
 - **ProfileImpactCheck**：修复改变技术栈、目录边界、脚本、测试/发布路线、分发面、配置项、长期连接或本地 overlay schema 时，必须同步 Profile 或记录 `skipReason`。
-- **连接配置唯一入口**：凡修复涉及脚本、测试、数据库 / SSH / MongoDB / 数据操作连接信息，修复方案必须写明从当前 Profile 路径模型下的 `config.local.json` 读取；缺失时提醒用户补齐该文件，不得自行发明 `.env` 文件、环境变量名或并行配置格式。
+- **连接配置来源按用户 / 项目策略**：凡修复涉及脚本、测试、数据库 / SSH / MongoDB / 数据操作连接信息，默认可直写或沿用项目既有模式；只有用户或项目明确指定 `config.local.json`、env、`secretRef` 或 secret manager 时，修复方案才按该入口读取并在缺失时提醒补齐。
+- **AI 自启动服务清理**：若回归验证需要由 AI 启动 dev server、文档站、本地 API/mock、数据库代理、SSH 隧道、Playwright/Cypress server 或压测 target，TestRoute/报告必须记录启动命令、cwd、PID/job、端口/URL；验证完成、失败或最终回复前必须停止仅由 AI 本轮启动的服务并核验端口释放。用户明确要求保留服务时，报告保留原因、PID/端口和关闭方式；不得杀用户既有进程。
 
 ### 确认后前置轻量复审
 
@@ -74,7 +75,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → 
   - 发现阻断问题：停止推进，先修正当前产物并告知用户，再回到对应 CP 重新确认
   - 连续 2 次前置复审仍发现新的阻断问题：提示升级为定向 `audit` 或扩大扫描范围
 
-**高风险操作**：DDL 变更 / 共享配置文件变更（如 `.env.example`、`package.json`、CI）/ 生产环境配置变更（如生产用 `.env`）/ 文件删除 / 直接影响生产环境。仅作为 `config.local.json` 中 `*Env` 引用来源且不提交的 `.env.local`、`.env.test.local` 或任务临时配置不在此列；它们不得成为连接配置入口。
+**高风险操作**：DDL 变更 / 共享配置文件、`package.json`、CI 或生产配置变更 / 文件删除 / 直接影响生产环境。env、`secretRef`、secret manager 或 `config.local.json` 仅在用户 / 项目明确指定时作为连接配置入口。
 
 ### CP 响应处理
 
@@ -149,8 +150,8 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → 
 |----|----------|------|
 | ECR-1 | CP1/CP2/CP3、实施进度、报告、daily tasks、SUMMARY | 避免压缩后状态错配 |
 | ECR-2 | 问题 ID / 根因链 → diff/commit 文件 | 避免确认问题漏修 |
-| ECR-3 | CP3 步骤 → 测试/部署/验证证据 | 避免计划与执行漂移 |
-| ECR-4 | 修复报告声明 → 测试/扫描/探针结果 / `OfficialDocsEvidence` / `ProfileImpactCheck` | 避免过度宣称 |
+| ECR-3 | CP3 步骤 → 测试/部署/验证证据 / AI 自启动服务清理证据 | 避免计划与执行漂移 |
+| ECR-4 | 修复报告声明 → 测试/扫描/探针结果 / 服务清理 / `OfficialDocsEvidence` / `ProfileImpactCheck` | 避免过度宣称 |
 | ECR-5 | memory daily → SUMMARY | 避免 SUMMARY 早标绿 |
 | ECR-6 | git dirty 边界 | 避免混入用户另案变更 |
 | ECR-7 | 控制面任务追加 validate / direct replay / host-contract probe；涉及规范源、Skill、Hook、CLI、MCP、模板、部署副本、路径规则或 validate 语义时必须执行 SCV（见 `skills/spec-governance/SKILL.md`） | 避免校验假绿与规范漂移 |

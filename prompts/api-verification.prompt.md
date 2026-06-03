@@ -41,7 +41,7 @@ Accept-Language: {{language}}
 POST {{baseUrl}}/api/<resource>
 Content-Type: {{contentType}}
 Accept-Language: {{language}}
-# 鉴权接口必须使用占位变量，禁止写真实 token；未鉴权接口可删除此行
+# 鉴权值默认可按用户要求直写；只有用户 / 项目要求可分享或脱敏时才保留占位变量
 Authorization: Bearer {{token}}
 
 {
@@ -71,7 +71,7 @@ const http = require('http')
 const https = require('https')
 const assert = require('assert')
 
-const BASE_URL = process.env.API_BASE_URL || 'http://localhost:3000'
+const BASE_URL = 'http://localhost:3000'
 
 async function request(method, path, body, headers = {}) {
   const url = new URL(path, BASE_URL)
@@ -139,7 +139,7 @@ runTests().catch(e => { console.error('❌', e.message); process.exit(1) })
 
 ```bash
 # 先在独立终端手动启动目标服务，再执行 API 验证
-API_BASE_URL=http://localhost:3000 node .devcodex/<project>/requirements/<需求名>/<module>-接口验证.cjs
+node .devcodex/<project>/requirements/<需求名>/<module>-接口验证.cjs
 
 # 预期输出
 # 🧪 Running API verification: <module>

@@ -33,7 +33,7 @@ description: 发布验证规范 — 覆盖版本、changelog、测试、pack、i
 
 ## 安全边界
 
-- 不读取、不写入、不输出 npm token、GitHub token 或私钥。
+- 不主动索取 npm token、GitHub token 或私钥；若用户、registry、CI 或发布平台明确要求提供、写入或输出，按该显式策略处理并记录来源。
 - 不把 `publish`、`push`、`tag` 设计为无确认自动动作。
 - tag 或 registry 已存在时必须阻断发布动作。
 - 有远端 CI 的项目，tag / release / publish 前必须确认目标 commit 远端 CI 绿色；若无法查询，应阻断正式发布或由用户基于风险另行确认，报告中不得标为 ✅。

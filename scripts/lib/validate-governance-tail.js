@@ -14,6 +14,24 @@ function buildGovernanceTailChecks(ctx) {
     mustInclude
   } = ctx
 
+  function collectChangelogSources() {
+    const sources = [
+      { file: 'changelogs/unreleased.md', content: read(path.join(ROOT, 'changelogs/unreleased.md')) }
+    ]
+    const releasesDir = path.join(ROOT, 'changelogs', 'releases')
+    if (fs.existsSync(releasesDir)) {
+      for (const name of fs.readdirSync(releasesDir).filter(item => item.endsWith('.md')).sort()) {
+        const file = `changelogs/releases/${name}`
+        sources.push({ file, content: read(path.join(ROOT, file)) })
+      }
+    }
+    return sources
+  }
+
+  function hasChangelogEvidence(needle) {
+    return collectChangelogSources().some(source => source.content.includes(needle))
+  }
+
   function checkV39() {
     const probes = [
       {
@@ -156,6 +174,26 @@ function buildGovernanceTailChecks(ctx) {
   }
 
   function checkV41() {
+    const probes = [
+      { file: 'instructions.md', needles: ['SimpleTaskFastPath', 'N/A + skipReason'] },
+      { file: 'instructions/02-output-paths.instructions.md', needles: ['SimpleTaskFastPath', '目标明确、预计 ≤2 个源码/文档文件'] },
+      { file: 'instructions/10-dev.instructions.md', needles: ['SimpleTaskFastPath（简单任务轻路径）', '立即升级回完整 CP/产物链'] },
+      { file: 'instructions/11-fix.instructions.md', needles: ['SimpleTaskFastPath', '内联问题确认 + 报告/记忆'] },
+      { file: 'skills/cp-gate/SKILL.md', needles: ['SimpleTaskFastPath', 'N/A + skipReason'] },
+      { file: 'prompts/implementation-plan.prompt.md', needles: ['SimpleTaskFastPath', 'upgradeTrigger'] },
+      { file: 'README.md', needles: ['SimpleTaskFastPath', '免建 `01-需求概述.md`'] },
+      { file: 'website/docs/guide/development.md', needles: ['SimpleTaskFastPath', '免建需求/bug 目录'] },
+      { file: 'scripts/lib/requirement-artifact-check.js', needles: ['SIMPLE_TASK_FAST_PATH_MARKERS', 'hasSimpleTaskFastPathMarker'] },
+      { file: 'scripts/test-requirement-artifacts.js', needles: ['simple-fast-path', 'SimpleTaskFastPath: applied'] }
+    ]
+
+    for (const probe of probes) {
+      const content = read(path.join(ROOT, probe.file))
+      for (const needle of probe.needles) {
+        if (!content.includes(needle)) err(`[V41] SimpleTaskFastPath drift in ${probe.file}: missing "${needle}"`)
+      }
+    }
+
     const { checkedDirs, issues } = collectRecentRequirementArtifactIssues({
       activeRoot: ACTIVE_DEVCODEX_ROOT,
       recentDays: RECENT_REQUIREMENT_ARTIFACT_DAYS
@@ -227,22 +265,30 @@ function buildGovernanceTailChecks(ctx) {
 
   function checkV44() {
     const probes = [
-      { file: 'instructions.md', needles: ['dev 模式默认应向用户展示完整 Intent Expansion Card', 'Context Rehydration Contract', '必须暂停执行，回补或重开 CP3'] },
-      { file: 'instructions/01-common.instructions.md', needles: ['dev 模式默认', 'Context Rehydration Contract', '回到对应 CP3'] },
+      { file: 'instructions.md', needles: ['dev 模式默认应向用户展示完整 Intent Expansion Card', 'Context Rehydration Contract', 'ContextHandoffCard', '必须暂停执行，回补或重开 CP3'] },
+      { file: 'instructions/01-common.instructions.md', needles: ['dev 模式默认', 'Context Rehydration Contract', 'ContextHandoffCard', '回到对应 CP3'] },
+      { file: 'instructions/01c-intent-expansion.instructions.md', needles: ['ContextHandoffCard（上下文传递/交接）', 'handoff 产出，rehydration 消费'] },
       { file: 'instructions/10-dev.instructions.md', needles: ['Intent Expansion 可见性', '执行期 CP3 回退', '回退到 `N4`'] },
       { file: 'instructions/11-fix.instructions.md', needles: ['Intent Expansion 可见性', '执行期 CP3 回退', '不替代 CP3'] },
-      { file: 'instructions/15-memory.instructions.md', needles: ['Context Rehydration Contract（记忆侧）', 'SUMMARY.md` 是索引，不是事实源'] },
+      { file: 'instructions/15-memory.instructions.md', needles: ['Context Rehydration Contract（记忆侧）', 'ContextHandoffCard（记忆侧）', 'SUMMARY.md` 是索引，不是事实源'] },
+      { file: 'instructions/16-report.instructions.md', needles: ['ContextHandoffCard', 'N/A + skipReason'] },
+      { file: 'instructions/17-compliance.instructions.md', needles: ['ContextHandoffCard', 'summary/compact/handoff'] },
       { file: 'skills/intent/SKILL.md', needles: ['dev 模式默认向用户展示完整 Card', '先按文件真相源重建 Card'] },
       { file: 'skills/cp-gate/SKILL.md', needles: ['执行期 CP3 回退', '不要求 runtime 逐字输出一个同名对象'] },
+      { file: 'skills/memory/SKILL.md', needles: ['ContextHandoffCard', '交接卡'] },
+      { file: 'skills/report/SKILL.md', needles: ['ContextHandoffCard', 'N/A + skipReason'] },
+      { file: 'skills/compliance/SKILL.md', needles: ['ContextHandoffCard', 'summary/compact/handoff'] },
       { file: 'skills/dev-default/SKILL.md', needles: ['执行期 CP3 回退（F-26）', '历史能力回归矩阵'] },
       { file: 'skills/fix-default/SKILL.md', needles: ['执行期 CP3 回退', '历史能力回归矩阵'] },
       { file: 'skills/execution-contract/SKILL.md', needles: ['regressionMatrix', '历史能力 → 受影响批次 → 必跑验证 → 失败回滚点'] },
       { file: 'skills/test-router/SKILL.md', needles: ['regressionChecks', '历史能力、必跑验证、对应批次和失败回滚点'] },
       { file: 'hooks/_runtime/lifecycle.cjs', needles: ['CP3_RUNTIME_FILE_THRESHOLD', 'cp-gate-CP3-runtime-threshold', '执行中已触达'] },
       { file: 'scripts/test-hooks-runtime.js', needles: ['bug-5.js', 'cp-gate-CP3-runtime-threshold', 'runtime threshold should not warn before the 5th unique source file'] },
-      { file: 'prompts/precheck-status.prompt.md', needles: ['dev 模式默认向用户展示完整 Card', 'Context Rehydration Contract'] },
-      { file: 'README.md', needles: ['Context Rehydration Contract', 'dev 模式默认会直接展示完整 Card', '执行期 CP3 回退'] },
-      { file: 'website/docs/guide/development.md', needles: ['Context Rehydration Contract', 'dev 模式默认向用户展示完整 Intent Expansion Card', '执行期 CP3 回退'] }
+      { file: 'prompts/precheck-status.prompt.md', needles: ['dev 模式默认向用户展示完整 Card', 'Context Rehydration Contract', 'ContextHandoffCard'] },
+      { file: 'prompts/report-dev.prompt.md', needles: ['ContextHandoffCard', 'source-of-truth'] },
+      { file: 'prompts/report-fix.prompt.md', needles: ['ContextHandoffCard', 'source-of-truth'] },
+      { file: 'README.md', needles: ['Context Rehydration Contract', 'ContextHandoffCard', 'dev 模式默认会直接展示完整 Card', '执行期 CP3 回退'] },
+      { file: 'website/docs/guide/development.md', needles: ['Context Rehydration Contract', 'ContextHandoffCard', 'dev 模式默认向用户展示完整 Intent Expansion Card', '执行期 CP3 回退'] }
     ]
 
     for (const probe of probes) {
@@ -260,6 +306,8 @@ function buildGovernanceTailChecks(ctx) {
       { sourceFile: 'instructions.md', sourceNeedle: '唯一的规范源文件', targetFile: 'instructions/01-common.instructions.md', targetNeedle: '单源聚合文件' },
       { sourceFile: 'instructions.md', sourceNeedle: 'Context Rehydration Contract', targetFile: 'instructions/01-common.instructions.md', targetNeedle: 'Context Rehydration Contract' },
       { sourceFile: 'instructions.md', sourceNeedle: 'Context Rehydration Contract', targetFile: 'instructions/15-memory.instructions.md', targetNeedle: 'Context Rehydration Contract（记忆侧）' },
+      { sourceFile: 'instructions.md', sourceNeedle: 'ContextHandoffCard', targetFile: 'instructions/01c-intent-expansion.instructions.md', targetNeedle: 'ContextHandoffCard（上下文传递/交接）' },
+      { sourceFile: 'instructions.md', sourceNeedle: 'ContextHandoffCard', targetFile: 'instructions/15-memory.instructions.md', targetNeedle: 'ContextHandoffCard（记忆侧）' },
       { sourceFile: 'instructions.md', sourceNeedle: '执行过程中新增范围触发 CP3 条件', targetFile: 'instructions/10-dev.instructions.md', targetNeedle: '执行期 CP3 回退' },
       { sourceFile: 'instructions.md', sourceNeedle: '执行过程中新增范围触发 CP3 条件', targetFile: 'instructions/11-fix.instructions.md', targetNeedle: '执行期 CP3 回退' }
     ]
@@ -592,8 +640,8 @@ function buildGovernanceTailChecks(ctx) {
       { file: 'RULES.md', needles: ['默认允许敏感信息与硬编码', '用户 / 项目显式策略'] },
       { file: 'skills/load-profile/SKILL.md', needles: ['用户 / 项目指定时使用的本地 overlay', '默认可直写或沿用项目既有模式'] },
       { file: 'prompts/project-profile.prompt.md', needles: ['用户 / 项目指定时使用的本地 overlay', '默认可按用户提供内容直写'] },
-      { file: 'scripts/validate-profile.js', needles: ['connectionPassword', 'connectionString', 'config.local.json connections.${name}.${field} must be a string'] },
-      { file: 'scripts/test-validate-profile.js', needles: ['validUserSpecifiedEnvLocalConfig', 'validRawSecretLocalConfig', 'local-password-placeholder', 'connections\\.broken\\.port must be an integer'] },
+      { file: 'scripts/validate-profile.js', needles: ['connectionPassword', 'connectionString', 'config.local.json connections.${name}.${field} must be a string', 'STALE_S02_PROFILE_PATTERNS', 'current S02 defaults allow sensitive information and hardcoding'] },
+      { file: 'scripts/test-validate-profile.js', needles: ['validUserSpecifiedEnvLocalConfig', 'validRawSecretLocalConfig', 'local-password-placeholder', 'connections\\.broken\\.port must be an integer', 'staleS02ProfileText', 'legacy S02 default-forbid wording'] },
       { file: 'skills/api-verification/SKILL.md', needles: ['@baseUrl = http://localhost:3000', '@token = replace-with-token-if-required', '@language = zh-CN', 'Authorization: Bearer {{token}}', '默认可直写真实 Token'] },
       { file: 'prompts/api-verification.prompt.md', needles: ['@baseUrl = http://localhost:3000', '@token = replace-with-token-if-required', '@language = zh-CN', 'Authorization: Bearer {{token}}'] },
       { file: 'prompts/delivery-checklist.prompt.md', needles: ['@baseUrl', '@token', '@language'] },
@@ -688,19 +736,9 @@ function buildGovernanceTailChecks(ctx) {
       }
     }
 
-    const pkg = JSON.parse(read(path.join(ROOT, 'package.json')))
-    const releaseFile = `changelogs/releases/v${pkg.version}.md`
-    const changelogSources = [
-      { file: 'changelogs/unreleased.md', content: read(path.join(ROOT, 'changelogs/unreleased.md')) },
-      {
-        file: releaseFile,
-        content: fs.existsSync(path.join(ROOT, releaseFile)) ? read(path.join(ROOT, releaseFile)) : ''
-      }
-    ]
-
     for (const needle of ['OfficialDocsEvidence', 'ProfileImpactCheck']) {
-      if (!changelogSources.some((source) => source.content.includes(needle))) {
-        err(`[V54] official docs / profile impact changelog drift: missing "${needle}" in changelogs/unreleased.md or ${releaseFile}`)
+      if (!hasChangelogEvidence(needle)) {
+        err(`[V54] official docs / profile impact changelog drift: missing "${needle}" in changelogs/unreleased.md or changelogs/releases/*.md`)
       }
     }
 
@@ -747,18 +785,9 @@ function buildGovernanceTailChecks(ctx) {
       }
     }
 
-    const pkg = JSON.parse(read(path.join(ROOT, 'package.json')))
-    const releaseFile = `changelogs/releases/v${pkg.version}.md`
-    const changelogSources = [
-      { file: 'changelogs/unreleased.md', content: read(path.join(ROOT, 'changelogs/unreleased.md')) },
-      {
-        file: releaseFile,
-        content: fs.existsSync(path.join(ROOT, releaseFile)) ? read(path.join(ROOT, releaseFile)) : ''
-      }
-    ]
     for (const needle of ['ServiceLifecycleCleanup', 'C22']) {
-      if (!changelogSources.some(source => source.content.includes(needle))) {
-        err(`[V55] service lifecycle cleanup changelog drift: missing "${needle}" in changelogs/unreleased.md or ${releaseFile}`)
+      if (!hasChangelogEvidence(needle)) {
+        err(`[V55] service lifecycle cleanup changelog drift: missing "${needle}" in changelogs/unreleased.md or changelogs/releases/*.md`)
       }
     }
 
@@ -773,6 +802,95 @@ function buildGovernanceTailChecks(ctx) {
     }
 
     console.log('[V55] service lifecycle cleanup sync checked')
+  }
+
+  function checkV56() {
+    const probes = [
+      { file: 'instructions.md', needles: ['CP1 需求/问题定义必须前置平台工程判断', '发布包边界检查必须在构建', '消费者验证出现与当前改动无关', '底座能力、当前消费者和高级能力尾项'] },
+      { file: 'instructions/01-common.instructions.md', needles: ['消费者范围、共享契约边界', '文档阅读顺序 / 导航顺序变更'] },
+      { file: 'instructions/10-dev.instructions.md', needles: ['前置平台工程判断', '包边界验证串行化', '消费者依赖树优先探针', '接入状态口径拆分', '无关 dirty 文件'] },
+      { file: 'instructions/11-fix.instructions.md', needles: ['前置平台工程判断', 'npm ls <关键依赖>', '无关 dirty 文件'] },
+      { file: 'skills/dev-default/SKILL.md', needles: ['验证卫生与串行边界（F-30）', 'PackageBoundarySerialCheck'] },
+      { file: 'skills/test-router/SKILL.md', needles: ['PackageBoundarySerialCheck', 'ConsumerDependencyTreeProbe', 'dist` 的命令与包边界检查'] },
+      { file: 'skills/release-verification/SKILL.md', needles: ['发布型 Profile', '单独串行执行', '无关 dirty 文件'] },
+      { file: 'skills/audit-common/SKILL.md', needles: ['PFresh-6', '发布关键 Profile 字段'] },
+      { file: 'skills/document-sync/SKILL.md', needles: ['website sidebar/nav', '正文顺序 → 导航/sidebar 顺序'] },
+      { file: 'prompts/requirement.prompt.md', needles: ['写需求和定义问题时必须前置平台工程师视角', '底座能力、当前消费者和高级能力尾项'] },
+      { file: 'prompts/technical-design.prompt.md', needles: ['CP2 必须承接 CP1 的平台工程判断', 'package boundary / pack / benchmark / codegen', '包边界验证'] },
+      { file: 'prompts/implementation-plan.prompt.md', needles: ['ConsumerDependencyTreeProbe', 'PackageBoundarySerialCheck', '正文顺序、导航/sidebar 顺序与索引顺序'] },
+      { file: 'prompts/implementation-progress.prompt.md', needles: ['ConsumerDependencyTreeProbe', 'PackageBoundarySerialCheck'] },
+      { file: 'prompts/report-dev.prompt.md', needles: ['ConsumerDependencyTreeProbe', 'PackageBoundarySerialCheck'] },
+      { file: 'prompts/report-fix.prompt.md', needles: ['ConsumerDependencyTreeProbe', 'PackageBoundarySerialCheck'] },
+      { file: 'README.md', needles: ['需求/问题定义前置平台工程判断', '验证卫生与包边界', '文档阅读顺序同步'] },
+      { file: 'website/docs/guide/development.md', needles: ['需求/问题定义阶段先做平台工程判断', '验证卫生与包边界', '文档阅读顺序同步'] },
+      { file: 'website/docs/guide/release.md', needles: ['package boundary check 必须在 build / benchmark / codegen 完成后单独串行执行', '发布型 Profile'] },
+      { file: 'scripts/test-spec-governance.js', needles: ['checkV56', 'PackageBoundarySerialCheck', 'ConsumerDependencyTreeProbe'] }
+    ]
+
+    for (const probe of probes) {
+      const content = read(path.join(ROOT, probe.file))
+      for (const needle of probe.needles) {
+        if (!content.includes(needle)) {
+          err(`[V56] platform framing / validation hygiene drift in ${probe.file}: missing "${needle}"`)
+        }
+      }
+    }
+
+    for (const needle of ['PackageBoundarySerialCheck', 'ConsumerDependencyTreeProbe', '平台工程']) {
+      if (!hasChangelogEvidence(needle)) {
+        err(`[V56] platform framing / validation hygiene changelog drift: missing "${needle}" in changelogs/unreleased.md or changelogs/releases/*.md`)
+      }
+    }
+
+    console.log('[V56] platform framing / validation hygiene sync checked')
+  }
+
+  function checkV57() {
+    const probes = [
+      { file: 'instructions.md', needles: ['ReviewCoverageDelta', 'ReviewedSet', '连续 **3** 轮有效零发现'] },
+      { file: 'instructions/12-audit.instructions.md', needles: ['ReviewCoverageDelta', 'UnreviewedRelatedSet', 'NoNewSurfaceReason', '有效零发现'] },
+      { file: 'instructions/13-analyze.instructions.md', needles: ['ReviewCoverageDelta', '有效零发现'] },
+      { file: 'skills/audit-common/SKILL.md', needles: ['ReviewCoverageDelta', 'ReviewedSet', 'NewlyReadThisRound', 'RepeatReadReason', 'NoNewSurfaceReason'] },
+      { file: 'skills/audit-execution-guide/SKILL.md', needles: ['ReviewCoverageDelta', '有效零发现'] },
+      { file: 'skills/intent/SKILL.md', needles: ['ReviewCoverageDelta', '有效零发现'] },
+      { file: 'prompts/report-audit.prompt.md', needles: ['ReviewCoverageDelta', 'ReviewedSet', 'UnreviewedRelatedSet', 'NewlyReadThisRound', 'RepeatReadReason', 'NoNewSurfaceReason'] },
+      { file: 'instructions/16-report.instructions.md', needles: ['ReviewCoverageDelta', '有效零发现'] },
+      { file: 'skills/report/SKILL.md', needles: ['ReviewCoverageDelta', '有效零发现'] },
+      { file: 'README.md', needles: ['ReviewCoverageDelta', '复审覆盖增量', '有效零发现'] },
+      { file: 'website/docs/guide/development.md', needles: ['ReviewCoverageDelta', '复审覆盖增量', '有效零发现'] },
+      { file: 'website/docs/specs/flowcharts.md', needles: ['ReviewCoverageDelta', '有效零发现'] },
+      { file: 'website/docs/specs/workflow-execution-flow.md', needles: ['ReviewCoverageDelta', '有效零发现'] },
+      { file: 'scripts/test-spec-governance.js', needles: ['checkV57', 'ReviewCoverageDelta'] }
+    ]
+
+    for (const probe of probes) {
+      const content = read(path.join(ROOT, probe.file))
+      for (const needle of probe.needles) {
+        if (!content.includes(needle)) {
+          err(`[V57] review coverage delta drift in ${probe.file}: missing "${needle}"`)
+        }
+      }
+    }
+
+    for (const needle of ['ReviewCoverageDelta', '复审覆盖增量']) {
+      if (!hasChangelogEvidence(needle)) {
+        err(`[V57] review coverage delta changelog drift: missing "${needle}" in changelogs/unreleased.md or changelogs/releases/*.md`)
+      }
+    }
+
+    const stalePhrase = '每轮 audit 聚焦全量范围（不跳过已通过项'
+    for (const file of [
+      'instructions/12-audit.instructions.md',
+      'skills/audit-common/SKILL.md',
+      'prompts/report-audit.prompt.md',
+      'README.md'
+    ]) {
+      if (read(path.join(ROOT, file)).includes(stalePhrase)) {
+        err(`[V57] review coverage delta stale wording in ${file}: "${stalePhrase}"`)
+      }
+    }
+
+    console.log('[V57] audit review coverage delta sync checked')
   }
 
   return {
@@ -792,7 +910,9 @@ function buildGovernanceTailChecks(ctx) {
     checkV52,
     checkV53,
     checkV54,
-    checkV55
+    checkV55,
+    checkV56,
+    checkV57
   }
 }
 

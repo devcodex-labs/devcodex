@@ -101,7 +101,7 @@ SC: SC2 [✅/❌] SC4 [✅/❌] SC6 [✅/❌] ...（仅列适用项，逐项实�
 
 | # | 检查项 |
 |:-:|--------|
-| RC1 | 记忆文件是否足以让下一个 Agent 恢复上下文 |
+| RC1 | 记忆文件是否足以让下一个 Agent 恢复上下文；跨会话/多批次/summary/compact/handoff 场景是否已有 `ContextHandoffCard` |
 | RC2 | 已产出文件是否自洽完整 |
 | RC3 | 🔄 标记任务是否提供了足够恢复线索 |
 | RC4 | 关联需求的 `.memory/sessions.md` 是否已创建 |
@@ -142,7 +142,7 @@ SC: SC2 [✅/❌] SC4 [✅/❌] SC6 [✅/❌] ...（仅列适用项，逐项实�
 | T5 | ✅ 合规通过（FC+SC 全通过） |
 | T6 | ✅ 约束遵守（C01~C22 + 关联文件已同步） |
 | T7 | ✅ 工作流验证（dev/fix: 扫描/验证 + ECR 已执行；audit/analyze: PCV 与推荐结论已执行）|
-| T8 | ✅ SUMMARY 已更新 |
+| T8 | ✅ SUMMARY 已更新；若触发上下文交接，daily tasks 或报告已写 `ContextHandoffCard` |
 | T9 | ✅ 产物路径已输出 |
 
 ## §7 自修复触发

@@ -49,7 +49,7 @@ applyTo: .devcodex/**/profile/**
 
 - 若项目需要长期连接别名、本机专属配置或本地明文连接信息，可额外维护 `config.local.json`
 - 脚本、测试、数据库 / SSH / MongoDB / 数据操作的连接信息默认可按用户提供内容直写或沿用项目既有模式；只有用户或项目明确指定 `config.local.json` 时，才从该文件取得，缺失时提示用户补齐
-- `config.local.json` 只用于本地私有 overlay，不覆盖 `config.json` 中的 `mode` / `agent`
+- `config.local.json` 只作为用户 / 项目指定的本地 overlay，不覆盖 `config.json` 中的 `mode` / `agent`
 - 项目级扩展只能写在 `extensions.<namespace>` 下，并在 `01-项目信息.md` 或本 README 说明用途、字段语义和使用方式
 - `config.local.json` 可保存 host、port、database、schema、username、内部 URL、连接别名、password、token、apiKey、privateKey、clientSecret、signingKey、connectionPassword、connectionString 等本地字段；只有用户、项目既有配置或目标平台明确要求时，才写入或沿用 `*Env` / `secretRef` 字段
 ```

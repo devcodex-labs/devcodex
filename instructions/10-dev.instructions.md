@@ -2,7 +2,7 @@
 applyTo: "**"
 description: dev 工作流规则，覆盖子类型路由、CP 流程、计划复审、执行期回退与 ECR
 priority: P4
-version: 1.11.11
+version: 1.11.12
 ---
 # 开发工作流规则（10-dev）
 
@@ -57,7 +57,7 @@ CP1（需求确认）→ PR-1 内部自检 → CP2（方案确认）→ plan-rev
 
 ### CP 关注点边界
 
-- **CP1**：重点确认需求目标、用户交互、业务流程、验收结果与范围边界；不提前展开实现时序、内部节点设计或接口细节。
+- **CP1**：重点确认需求目标、用户交互、业务流程、验收结果与范围边界，并前置平台工程判断：消费者范围、共享契约边界、模块职责、维护成本和非目标；不提前展开实现时序、内部节点设计或接口细节，也不得把“通用性/模块化”扩写成无真实消费者的空心抽象。
 - **CP2**：重点确认实现流程、节点职责、公共契约、兼容性策略、边界问题与测试策略；已有公共接口、Schema、返回结构或错误码变更时，必须给出“现状契约 → 目标契约”差异说明；新增/升级依赖、框架、SDK、平台 API 或外部模块时必须附 `OfficialDocsEvidence`；涉及项目事实变化时必须附 `ProfileImpactCheck`。
 - **CP3**：只确认实施顺序、里程碑、验证方式、风险与回滚；不得重复需求正文、方案论证或兼容性主说明。
 
@@ -67,7 +67,7 @@ CP1（需求确认）→ PR-1 内部自检 → CP2（方案确认）→ plan-rev
 2. **禁止合并**：不得将 CP1+CP2 合并为一次输出
 3. **每个 CP 独立确认**：输出后必须等待用户明确响应
 4. **CP3 内容边界**：CP3 只确认实施计划，不重复技术方案中的架构决策、接口论证和兼容性主说明；必须显式覆盖任务拆分、顺序、依赖、验证方式与回滚策略
-5. **产物文件前置创建**：CP1 → `01-需求概述.md` + `<需求>/.memory/sessions.md`（需求级记忆）；CP2 → `02-技术方案.md`（有架构/接口/设计决策时，否则跳过）；CP3 → `04-实施计划.md`
+5. **产物文件前置创建**：默认 CP1 → `01-需求概述.md` + `<需求>/.memory/sessions.md`（需求级记忆）；CP2 → `02-技术方案.md`（有架构/接口/设计决策时，否则跳过）；CP3 → `04-实施计划.md`。若命中 `SimpleTaskFastPath`，可用回复内联 CP1 摘要 + 报告/记忆替代需求目录，并将 `01-需求概述.md` / `04-实施计划.md` 记为 `N/A + skipReason`。
 6. **进度文档触发**：`05-实施进度.md` 不是小任务默认必产物；但当任务跨 2 轮以上会话、存在明确阻塞、用户要求持续跟踪、CP3 计划拆分为多批次、预计修改 ≥10 文件或命中控制面/模板/validate/部署副本联动时，必须在执行前创建并在每批完成后更新，且前提是已存在 `04-实施计划.md`
 7. **无 Hooks 宿主软门禁**（v1.9.6+）：当运行宿主为 `jetbrains-copilot`、`cursor` 或其他 `instruction-fallback` 客户端时，`lifecycle.cjs` CP gate 不可执行。AI 必须在每个 CP 输出末尾显式追加 `⏸ 等待用户确认（CP{N}）— 收到"好/继续/ok"前不得进入下一阶段或写源码`，并在用户未明确回复前禁止 source mutation 工具调用。
 8. **CP3 豁免记录**：docs/init/plan-review 子类型被规则明确豁免 CP3 时，须在需求级记忆或报告中记录 `CP3: N/A（<子类型> 子类型豁免）`，供 hook/fallback 区分合法豁免与漏确认。
@@ -79,6 +79,20 @@ CP1（需求确认）→ PR-1 内部自检 → CP2（方案确认）→ plan-rev
 14. **ProfileImpactCheck**：项目技术栈、目录边界、脚本、测试/发布路线、分发面、配置项、长期连接或本地 overlay schema 变化时，CP2/CP3 必须判定并同步 Profile；不需要同步时写明 `skipReason`。
 15. **连接配置来源按用户 / 项目策略**：凡 CP2/CP3 涉及脚本、测试、数据库 / SSH / MongoDB / 数据操作连接信息，默认可直写或沿用项目既有模式；只有用户或项目明确指定 `config.local.json`、env、`secretRef` 或 secret manager 时，方案才按该入口读取并在缺失时提醒补齐。
 16. **AI 自启动服务清理**：若开发验证需要由 AI 启动 dev server、文档站、本地 API/mock、数据库代理、SSH 隧道、Playwright/Cypress server 或压测 target，CP3/TestRoute 必须记录启动命令、cwd、PID/job、端口/URL；验证完成、失败或最终回复前必须停止仅由 AI 本轮启动的服务并核验端口释放。用户明确要求保留服务时，报告保留原因、PID/端口和关闭方式；不得杀用户既有进程。
+
+### SimpleTaskFastPath（简单任务轻路径）
+
+当 dev 任务同时满足以下条件时，可直接执行最小实现，不创建需求目录、`01-需求概述.md` 或 `04-实施计划.md`：
+
+- 用户目标明确，验收结果可在一句话内表达。
+- 预计修改 ≤2 个源码/文档文件，且不涉及公共 API、公开类型、Schema、依赖、配置、发布、控制面、模板/validate/部署副本或跨服务边界。
+- 本轮不是从 `data/*.md` open/partial 台账派生，不需要 Backlog Intake 批次治理。
+- 不含 S01/S06 高风险操作，不需要多轮跟踪、压测、长运行服务或正式需求归档。
+
+轻路径约束：
+
+- 仍必须执行 PC0~PC7、Profile/记忆/报告、安全底线、必要测试和 ECR；CP1/CP2 以回复内联摘要或报告字段承载，报告写明 `SimpleTaskFastPath: applied`、`skipReason` 与验证证据。
+- 一旦执行中新增第 3 个文件、命中公共契约/配置/控制面/台账来源/高风险，立即升级回完整 CP/产物链，补建对应需求产物后再继续。
 
 ### 目标文档前置（条件触发）
 
@@ -149,6 +163,9 @@ CP1（需求确认）→ PR-1 内部自检 → CP2（方案确认）→ plan-rev
 
 - **Node 基线**：Node.js 项目的 `engines.node`、CI matrix、Profile 与 README 运行时说明默认不得低于 `>=18`；需要支持更低版本时，CP2 必须列出业务理由、风险和独立验证证据。
 - **包工程层**：包 / 库 / adapter / CLI 方案除代码实现层外，还必须检查 public API、public types、internal 工具、shared tests、benchmark、docs、scripts、dist/coverage 边界、package metadata 与 `changelogs/unreleased.md`。
+- **包边界验证串行化**：`npm pack --dry-run`、package boundary check、files/exports/bin 检查不得与任何会删除、重建或写入 `dist` 的 build / benchmark / codegen 命令并行；必须在构建稳定后单独执行并以单独结果作为报告证据。
+- **消费者依赖树优先探针**：跨仓库或外部消费者验证失败且症状指向依赖、插件、共享库或框架适配时，源码修改前必须先核对 `package.json`、lockfile、`node_modules` 与 `npm ls <关键依赖>`；确认依赖树一致后才进入源码补丁。
+- **接入状态口径拆分**：需求、报告和复盘描述“已接入 / 未接入”状态时，必须区分底座能力、当前消费者和高级能力尾项；基础底座已消费但 Redis / MultiLevel / Distributed 等高级能力未接入时，不得写成整体未接入。
 - **TypeScript 契约迁移**：TS 重构或迁移按公开契约与消费面逐步完善类型，不机械复制旧版本缺陷；跨模块业务契约、公开类型与配置类型优先集中到 types 契约层，本地私有 interface 可保留但须说明理由。
 - **Provider / connector**：三方 provider、connector、SDK 接入类 CP2 必须先区分业务功能接口与底层 provider adapter；面向前端或业务调用方时优先冻结业务功能契约，provider/model/operation 作为内部实现或配置维度。随后冻结字段级合同：provider metadata、内部 payload、上游 request 映射、标准化 result、错误 detail；首个 provider 只能验证统一 operation contract，不能反向定义公共命名和层次。
 - **Service 职责边界**：简单业务 service 默认只做业务编排、外部能力调用和必要上游错误映射；不得重复 route validate、model/schema、数据导入或框架已承担的校验、归一化、配置兜底和二次治理。
@@ -299,6 +316,8 @@ CP1（需求确认）→ PR-1 内部自检 → CP2（方案确认）→ plan-rev
 - error 最多 2 次迭代；2 次仍失败 → 停止，输出错误摘要标 ⚠️
 - 涉及 HTTP 接口变更 → 生成双产物（.http + .cjs）
 - 涉及源码/配置文件变更 → 检查文档同步（README 为必查；CHANGELOG 按发布状态区分：未明确发版默认更新 `changelogs/unreleased.md`，仅正式 release 更新根 `CHANGELOG.md` / `changelogs/releases/vX.Y.Z.md`；TASK-INDEX/STATUS 按项目存在或启用时同步）
+- 涉及验证、发布、pack、benchmark、codegen 或生成产物 → 完成前必须检查并清理与本轮无关的新增/残留文件；release / verification close-out 不得把无关 dirty 文件、并行验证残留或旧失败产物留给后续任务。
+- 涉及文档阅读顺序、审查顺序、实施顺序或“先看什么”入口 → `document-sync` / ConceptSyncMap 必须把 README、索引页、website sidebar/nav 和目录页列为当前消费者，同批校验呈现顺序；若信息架构故意不同，必须说明差异原因。
 - 涉及依赖/框架/SDK/平台 API 变更 → 验证 `OfficialDocsEvidence` 与实际实现一致；不得只以安装成功替代官方用法验证
 - 涉及项目事实变化 → 执行 `ProfileImpactCheck` 并通过 `document-sync` 更新 Profile 或记录跳过理由
 - Auto、控制面、多批次、预计 ≥10 文件或发布类任务 → 执行前必须有 ExecutionContract；执行中按 `allowedPaths`、`requiredArtifacts`、`validationRoute` 对照推进

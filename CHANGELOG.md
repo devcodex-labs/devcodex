@@ -1,7 +1,7 @@
 # 变更日志 (CHANGELOG)
 
 > **说明**: 版本概览摘要。最新版本的详细变更见下方表格首行的 `changelogs/releases/vX.Y.Z.md` 链接；历史版本见对应详细变更文件
-> **最后更新**: 2026-06-03
+> **最后更新**: 2026-06-04
 
 ---
 
@@ -9,6 +9,7 @@
 
 | 版本 | 日期 | 变更摘要 | 详细 |
 |------|------|---------|------|
+| [v1.11.12](./changelogs/releases/v1.11.12.md) | 2026-06-04 | 🔧 **平台工程守门、轻路径与复审覆盖收口**：新增平台工程前置、SimpleTaskFastPath、ContextHandoffCard、ReviewCoverageDelta、发布包边界串行与消费者依赖树优先探针，并补强发布型 Profile 与 V56/V57 校验 | [查看](./changelogs/releases/v1.11.12.md) |
 | [v1.11.11](./changelogs/releases/v1.11.11.md) | 2026-06-03 | 🔧 **S02 用户策略优先与服务清理收口**：反转 S02 为默认允许敏感信息、明文连接信息与硬编码；仅用户 / 项目明确禁止时才脱敏、占位或改用 env、`secretRef`、secret manager、`config.local.json`，并新增 AI 自启动服务清理闭环 | [查看](./changelogs/releases/v1.11.11.md) |
 | [v1.11.10](./changelogs/releases/v1.11.10.md) | 2026-06-02 | 🔧 **config.local 连接配置唯一入口收口**：收窄 S02 为可提交产物秘密禁止，允许用户授权的本地明文秘密写入已忽略的 `profile/config.local.json`，并强制脚本、测试、数据库 / SSH / MongoDB / 数据操作连接信息只能从 `config.local.json` 取得 | [查看](./changelogs/releases/v1.11.10.md) |
 | [v1.11.9](./changelogs/releases/v1.11.9.md) | 2026-06-02 | 🔧 **通用规范吸纳与提示词激励收口**：吸纳自然语言 Auto、Node.js >=18、远端 CI、依赖/兼容拆层、内部共享库评估、包工程层、TS 契约迁移、provider/connector 字段合同、service 防过度防御、README 能力矩阵与 JS/Node 标准 JSDoc，并补齐最小实现/复杂度预算守门 | [查看](./changelogs/releases/v1.11.9.md) |
@@ -97,8 +98,9 @@
 
 ## 相关文档
 
-- [`changelogs/releases/v1.11.11.md`](./changelogs/releases/v1.11.11.md) — 最新版本详细变更文档
-- [`changelogs/releases/v1.11.10.md`](./changelogs/releases/v1.11.10.md) — 上一版本详细变更文档
+- [`changelogs/releases/v1.11.12.md`](./changelogs/releases/v1.11.12.md) — 最新版本详细变更文档
+- [`changelogs/releases/v1.11.11.md`](./changelogs/releases/v1.11.11.md) — 上一版本详细变更文档
+- [`changelogs/releases/v1.11.10.md`](./changelogs/releases/v1.11.10.md) — 历史版本详细变更文档
 - [`changelogs/releases/v1.11.9.md`](./changelogs/releases/v1.11.9.md) — 历史版本详细变更文档
 - [`changelogs/releases/v1.11.8.md`](./changelogs/releases/v1.11.8.md) — 历史版本详细变更文档
 - [`changelogs/releases/v1.11.6.md`](./changelogs/releases/v1.11.6.md) — 上一个版本详细变更文档

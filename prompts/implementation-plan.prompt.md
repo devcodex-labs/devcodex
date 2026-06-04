@@ -11,6 +11,8 @@ applyTo: .devcodex/**/requirements/**
 > ⚠️ 生成的 Markdown 实施计划文档必须在头部后补 `## 目录导航`。
 > ⚠️ 控制面、Auto、多批次、预计修改 ≥10 文件、模板-示例-校验链或发布前置任务，计划中必须列出 ExecutionContract / TestRoute / ReleaseAudit / ReleaseVerification / ConceptSyncMap / HostContractVerification / 05-实施进度.md 的触发状态与证据。
 > ⚠️ 若本轮任务或批次直接来源于 `data/*.md` 的 open/partial 项，计划中必须显式写出 Backlog Intake 真相复核和台账状态回写闭环：先分类 `pure-open / residual-tail / already-fixed / misclassified`，再说明本轮范围是否缩减以及回写证据如何产出。
+> ⚠️ 发布、pack、benchmark、codegen 或包边界任务必须写明串行验证顺序：构建/生成完成后再单独执行 package boundary check，不得与会写入 `dist` 的命令并行。
+> ⚠️ 文档阅读顺序或站点入口变更必须写明正文顺序、导航/sidebar 顺序与索引顺序的校验方式；若故意不同序，计划中说明信息架构理由。
 
 ## 计划模式
 
@@ -98,10 +100,14 @@ applyTo: .devcodex/**/requirements/**
 | HostContractVerification | 是 / 否 | Hook / CLI / visible reply / sticky project / workspace guard / bootstrap / ArtifactLinkSet / MCP fallback | hostSurface / eventScope / evidenceMode / visibleReplyEvidence / workspaceGuard / bootstrapScope / artifactLinkMatrix / mcpFallback |
 | OfficialDocsEvidence | 是 / 否 | 新增/升级依赖、框架、SDK、平台 API、外部模块或外部平台能力判断 | 官方文档来源 / 版本日期 / 关键用法 / 限制 / 兼容性 / skipReason |
 | DependencyUpgradeCheck | 是 / 否 | 依赖升级、框架升级、SDK 替换或平台 API 兼容性任务 | 业务源码平滑性 / 依赖层落地条件 / 纯依赖层零附加动作（条件） |
+| ConsumerDependencyTreeProbe | 是 / 否 | 消费者验证失败且症状指向依赖、插件、共享库或框架适配 | package.json / lockfile / node_modules / npm ls <关键依赖> / 是否允许源码补丁 |
+| PackageBoundarySerialCheck | 是 / 否 | release / pack / package boundary / benchmark / codegen 任务 | build 完成点 / 单独 pack 命令 / dist 写入竞争排除 / dirty 残留清理 |
 | InternalSharedLibraryReview | 是 / 否 | 根因位于内部共享库、中间件、SDK 或 adapter 抽象层 | 修共享库 + 消费项目升级 / 单项目补丁理由 / 风险 |
 | ProfileImpactCheck | 是 / 否 | 技术栈、目录边界、脚本、测试/发布路线、分发面、配置项、长期连接或本地 overlay schema 变化 | targetProfileFiles / updateOrSkip / skipReason / evidence |
 | ConfigLocalConnectionSource | 是 / 否 | 脚本、测试、数据库 / SSH / MongoDB / 数据操作需要连接信息 | configLocalPath / requiredFields / missingFieldAction / noAdHocEnvEvidence / noEnvUnlessUserSpecified |
 | 05-实施进度.md | 是 / 否 | 跨多轮/多阶段、阻塞、用户要求持续跟踪、多批次、预计修改 ≥10 文件、控制面或模板-校验链任务 | CP 状态 / 批次状态 / 阻塞 / 验证证据 |
+| SimpleTaskFastPath | 是 / 否 | 非常明确、预计 ≤2 文件、无公共契约/配置/发布/控制面/台账来源/高风险、无需多轮跟踪 | inline CP summary / N/A + skipReason / upgradeTrigger |
+| ContextHandoffCard | 是 / 否 | 跨会话、跨 Agent、多批次、summary/compact 前或用户要求传递上下文 | source-of-truth / confirmed-decisions / open-risks / next-action / must-not-overwrite / validation-state / artifact-links |
 | Backlog Intake 真相复核 | 是 / 否 | 任务/批次直接来源于 `data/*.md` open/partial 项 | candidateIds / classification / evidence / scopeDelta |
 | 台账状态回写闭环 | 是 / 否 | 本轮会关闭/部分关闭/改分类任何 VL/PF/PI/ISSUE/GAP | targetLedgers / requiredFields / writebackEvidence / rescanResult |
 
@@ -138,6 +144,8 @@ applyTo: .devcodex/**/requirements/**
 | HostContractVerification | 对照 hostSurface / eventScope / evidenceMode / workspaceGuard / artifactLinkMatrix / mcpFallback | direct replay / fixture / targeted test 证据与声明一致；产物链接与 MCP fallback 不只停留在文案 |
 | OfficialDocsEvidence | 对照官方文档来源 / 关键用法 / 限制 / 兼容性 | 方案采用的 API / 配置与官方文档一致；N/A 有 skipReason |
 | DependencyUpgradeCheck | 对照业务源码平滑性 / 依赖层落地条件 | 不把工程前提误报成业务源码阻断；纯依赖升级结论有证据 |
+| ConsumerDependencyTreeProbe | 对照 package.json / lockfile / node_modules / npm ls <关键依赖> | 先排除依赖树漂移，再决定是否修改源码 |
+| PackageBoundarySerialCheck | 对照 build/benchmark/codegen 与 pack 执行顺序 | package boundary 检查未与 `dist` 写入命令并行，报告采用稳定包清单 |
 | InternalSharedLibraryReview | 对照共享库根因与消费项目影响 | 已评估修共享库 + 升级消费项目，单项目补丁有理由 |
 | ProfileImpactCheck | 对照 targetProfileFiles / updateOrSkip / skipReason | Profile 已同步或跳过理由成立；ECR 与 document-sync 有证据 |
 | Backlog Intake 真相复核 | 对照 candidateIds / classification / evidence / scopeDelta | open 统计与本轮范围一致，非 `pure-open` 项已缩减或剔除 |
@@ -183,6 +191,8 @@ applyTo: .devcodex/**/requirements/**
 - [ ] ConceptSyncMap 已建立并核对当前消费者/探针/部署副本（若触发）
 - [ ] HostContractVerification 已建立并核对宿主证据/guard/visible reply/ArtifactLinkSet/MCP fallback（若触发）
 - [ ] OfficialDocsEvidence 已建立并核对官方用法证据（若触发）
+- [ ] ConsumerDependencyTreeProbe 已完成（若消费者验证失败指向依赖树或共享库漂移）
+- [ ] PackageBoundarySerialCheck 已完成（若触发 release / pack / benchmark / codegen）
 - [ ] ProfileImpactCheck 已完成并同步 Profile 或记录跳过理由（若触发）
 - [ ] 05-实施进度.md 已按触发条件持续同步（若触发）
 - [ ] Backlog Intake 真相复核已完成并收紧范围（若触发）

@@ -107,7 +107,7 @@ flowchart TD
     subgraph audit
         A1["识别审查目标类型（7 种，含发布前审查）"]
         A2["加载维度规范"]
-        A3["多轮审查\n连续 N 轮无新发现"]
+        A3["多轮审查\nReviewCoverageDelta\n连续 N 轮有效零发现"]
         A4{"收敛?"}
         A5["输出问题清单 + 三列验证\n多路径含推荐结论"]
         A1 --> A2 --> A3 --> A4

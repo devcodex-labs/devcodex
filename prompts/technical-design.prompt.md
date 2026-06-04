@@ -19,6 +19,8 @@ applyTo: .devcodex/**/requirements/**
 > ⚠️ 新增/升级依赖、框架、SDK、平台 API 或外部模块时，§4 必须填写 `OfficialDocsEvidence`：官方文档来源、版本/日期、关键用法、限制、兼容性与降级来源。
 > ⚠️ dev/fix 项目事实变化时，必须填写 `ProfileImpactCheck`：是否更新 Profile、目标文件与 `skipReason`。
 > ⚠️ provider / connector / 三方 SDK 接入类方案必须先冻结业务功能接口，再说明底层 provider adapter / model / operation / 配置如何实现该功能；不得把内部 provider 能力直接反向暴露成业务接口。随后冻结字段级合同和统一 operation contract；包 / 库 / adapter / CLI 方案必须同时检查代码实现层与包工程层。
+> ⚠️ CP2 必须承接 CP1 的平台工程判断：消费者范围、共享契约边界、模块职责、可维护性成本、非目标和最小实现预算要互相一致；没有真实复用者或演进边界时，不得新增 factory / manager / adapter / registry 等预设抽象。
+> ⚠️ package boundary / pack / benchmark / codegen 验证必须写清串行顺序；任何会删除、重建或写入 `dist` 的命令不得和包边界检查并行。
 
 | 顺序 | 章节 | 必选 | 依赖 | 说明 |
 |:----:|------|:----:|------|------|
@@ -287,6 +289,7 @@ applyTo: .devcodex/**/requirements/**
 > 有新增/升级/移除依赖、框架、SDK、平台 API 或外部模块时必填，无依赖变更时整节标 N/A。
 > 新增/升级项必须先读取官方使用文档或官方参考资料；若官方文档不可用，按官方源码 / 官方仓库说明、项目内已确认文档、社区资料降级，并说明风险。
 > 依赖升级方案必须拆分 `业务源码平滑性` 与 `依赖层落地条件`；用户关心“只升级依赖即可”时，追加 `纯依赖层零附加动作` 判定。
+> 消费者验证失败且症状指向依赖、插件、共享库或框架适配时，源码修改前先核对 `package.json`、lockfile、`node_modules` 与 `npm ls <关键依赖>`；确认依赖树一致后才进入源码补丁。
 
 | 依赖 / 框架 / SDK / API | 类型 | 版本 | OfficialDocsEvidence（官方文档来源 / 版本日期） | 关键用法 / 限制 / 兼容性 | 选型理由 |
 |------|------|------|-------------------------------------------|--------------------------|---------|
@@ -329,6 +332,7 @@ applyTo: .devcodex/**/requirements/**
 | 单元测试 | | |
 | 集成测试 | | |
 | 回归 | | |
+| 包边界验证 | 构建完成后单独执行 `npm pack --dry-run` / package boundary check | 不与 build/benchmark/codegen 并行，files/exports/bin/dist 边界来自稳定包清单 |
 
 ### §7.1 需求验收映射
 
@@ -344,6 +348,7 @@ applyTo: .devcodex/**/requirements/**
 > 常见约束类型：① 先改 schema 再改 controller（运行时 schema 不匹配）② 先改接口定义再改实现（TS 编译）③ 先补 i18n 语言包再落新错误码（避免裸 key 返回客户端）④ 写操作幂等性前置（Redis 锁/唯一索引）。  
 > 控制面 / Auto / 多批次 / 预计修改 ≥10 文件 / release 前置任务应补充 ExecutionContract：scope、allowedPaths、requiredArtifacts、consumerScope、validationRoute、verificationEvidence、deviationPolicy、deviationLog、rollbackPlan；控制面或宿主契约任务还应补充 Concept Sync Map 与 HostContractRoute。正式发版前还须补充 ReleaseAudit RL-1~RL-10 与 ReleaseVerification R0~R7。
 > 包 / 库 / adapter / CLI 方案还必须检查 public API、public types、internal 工具、shared tests、benchmark、docs、scripts、dist/coverage、package metadata 与 changelog 入口。
+> 文档正文若定义阅读顺序、审查顺序、实施顺序或“先看什么”，必须把 README、索引页、website sidebar/nav 与目录页纳入 Concept Sync Map 当前消费者，同批校验呈现顺序。
 > 无技术约束时整节标 N/A。具体任务拆分和里程碑在 CP3 实施计划中完成，本节不重复。
 
 ## §9 风险与缓解 🔴

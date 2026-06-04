@@ -2,7 +2,7 @@
 applyTo: "**"
 description: 记忆规则，覆盖 tasks、SUMMARY、需求记忆的读取顺序、写入时机与格式约束
 priority: P5
-version: 1.11.11
+version: 1.11.12
 ---
 # 记忆写入规则（15-memory）
 
@@ -85,6 +85,23 @@ version: 1.11.11
 - 若 tasks / sessions / 已确认产物与摘要冲突，必须以文件真相源为准，并重建 Intent Expansion Card。
 - 新会话首步的 tasks + SUMMARY 一致性检查（PC7）是 Context Rehydration Contract 的最低执行面，不得省略。
 
+## ContextHandoffCard（记忆侧）
+
+当任务跨会话、跨 Agent、多批次，或在 summary/compact 前、用户明确要求“传递上下文”、即将中断时，必须在 daily tasks 或报告中写入 `ContextHandoffCard`，用于把当前事实交给后续执行者：
+
+| 字段 | 必填 | 说明 |
+|------|:----:|------|
+| `source-of-truth` | ✅ | 当前可信文件、台账、报告、需求/bug 产物 |
+| `confirmed-decisions` | ✅ | 已确认决策、CP/auto 状态 |
+| `open-risks` | ✅ | 剩余风险、黄色偏离、未验证假设 |
+| `next-action` | ✅ | 下一步动作、验证命令或恢复入口 |
+| `blocked-reason` | 条件 | 阻塞时写明原因与所需输入 |
+| `must-not-overwrite` | ✅ | 不得覆盖的用户变更、dirty 边界、不可删除项 |
+| `validation-state` | ✅ | 已验证/失败/待验证证据 |
+| `artifact-links` | ✅ | 报告、记忆、关键产物的 ArtifactLinkSet 或 copy fallback |
+
+`ContextHandoffCard` 只负责交接，不替代 Context Rehydration Contract；恢复方仍须按文件真相源优先级重新核对。
+
 ## 触发规则
 
 | 时机 | 必须动作 |
@@ -94,6 +111,7 @@ version: 1.11.11
 | 子任务完成（多任务会话）| 追加 `T{N}进度：✅` |
 | 超 13 轮预警（C08）| 写入编码检查点（📦 字段）|
 | 报告写入后 | 追加报告路径到 📄 关联报告 |
+| 跨会话 / compact / handoff | 写入 `ContextHandoffCard` 到 daily tasks 或报告 |
 | 完成回复前 | 确保 📨 对话记录已追加本轮 |
 | 任务结束 | 更新状态为 ✅ |
 

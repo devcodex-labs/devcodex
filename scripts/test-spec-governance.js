@@ -20,6 +20,23 @@ function mustNotInclude(file, needle, reason) {
   if (read(file).includes(needle)) failures.push(`${file} must not include "${needle}" (${reason})`)
 }
 
+function collectChangelogContents() {
+  const contents = [read('changelogs/unreleased.md')]
+  const releasesDir = path.join(ROOT, 'changelogs', 'releases')
+  if (fs.existsSync(releasesDir)) {
+    for (const name of fs.readdirSync(releasesDir).filter(item => item.endsWith('.md'))) {
+      contents.push(read(`changelogs/releases/${name}`))
+    }
+  }
+  return contents
+}
+
+function mustIncludeInChangelogs(needle) {
+  if (!collectChangelogContents().some(content => content.includes(needle))) {
+    failures.push(`changelogs/unreleased.md or changelogs/releases/*.md missing "${needle}"`)
+  }
+}
+
 const probes = [
   ['skills/spec-governance/SKILL.md', 'RecordRouter'],
   ['skills/spec-governance/SKILL.md', 'SCV-0'],
@@ -48,6 +65,8 @@ const probes = [
   ['skills/host-contract-verification/SKILL.md', 'mcpFallback'],
   ['instructions.md', '规范治理生命周期（RecordRouter + SCV）'],
   ['instructions.md', 'Context Rehydration Contract'],
+  ['instructions.md', 'ContextHandoffCard'],
+  ['instructions.md', 'SimpleTaskFastPath'],
   ['instructions.md', 'dev 模式默认应向用户展示完整 Intent Expansion Card'],
   ['instructions.md', 'Improvement Intake（优化清单）'],
   ['instructions.md', '在所有模式下，每条用户消息在完成合理性评估后'],
@@ -74,11 +93,20 @@ const probes = [
   ['instructions/01b-record-router.instructions.md', '登记时间 ≤ 修复时间 ≤ 验证时间/关闭时间'],
   ['instructions/01c-intent-expansion.instructions.md', 'Intent Expansion Card'],
   ['instructions/01c-intent-expansion.instructions.md', 'Context Rehydration Contract'],
+  ['instructions/01c-intent-expansion.instructions.md', 'ContextHandoffCard（上下文传递/交接）'],
+  ['instructions/02-output-paths.instructions.md', 'SimpleTaskFastPath'],
   ['instructions/10-dev.instructions.md', '执行期 CP3 回退'],
+  ['instructions/10-dev.instructions.md', 'SimpleTaskFastPath（简单任务轻路径）'],
   ['instructions/10-dev.instructions.md', 'backlog 来源前置真相复核'],
   ['instructions/11-fix.instructions.md', '执行期 CP3 回退'],
+  ['instructions/11-fix.instructions.md', 'SimpleTaskFastPath'],
   ['instructions/11-fix.instructions.md', 'backlog 来源前置真相复核'],
   ['instructions/15-memory.instructions.md', 'Context Rehydration Contract（记忆侧）'],
+  ['instructions/15-memory.instructions.md', 'ContextHandoffCard（记忆侧）'],
+  ['instructions/16-report.instructions.md', 'ContextHandoffCard'],
+  ['skills/cp-gate/SKILL.md', 'SimpleTaskFastPath'],
+  ['skills/memory/SKILL.md', 'ContextHandoffCard'],
+  ['skills/report/SKILL.md', 'ContextHandoffCard'],
   ['skills/dev-default/SKILL.md', '执行期 CP3 回退（F-26）'],
   ['skills/fix-default/SKILL.md', '执行期 CP3 回退'],
   ['skills/execution-contract/SKILL.md', 'regressionMatrix'],
@@ -136,6 +164,8 @@ const probes = [
   ['website/docs/guide/release.md', 'RL-1~RL-10'],
   ['website/docs/guide/release.md', '远端 CI'],
   ['prompts/implementation-plan.prompt.md', 'Backlog Intake 真相复核'],
+  ['prompts/implementation-plan.prompt.md', 'SimpleTaskFastPath'],
+  ['prompts/implementation-plan.prompt.md', 'ContextHandoffCard'],
   ['prompts/implementation-plan.prompt.md', '台账状态回写闭环'],
   ['prompts/implementation-progress.prompt.md', 'Backlog Intake 真相复核'],
   ['prompts/implementation-progress.prompt.md', '台账状态回写闭环'],
@@ -157,6 +187,8 @@ const probes = [
   ['instructions/01-common.instructions.md', 'S02 用户 / 项目敏感信息策略'],
   ['skills/dev-plan-review/SKILL.md', '敏感信息、明文连接信息或硬编码处理是否符合用户 / 项目显式策略'],
   ['scripts/lib/validate-governance-tail.js', 'stale S02 wording'],
+  ['scripts/validate-profile.js', 'STALE_S02_PROFILE_PATTERNS'],
+  ['scripts/test-validate-profile.js', 'staleS02ProfileText'],
   ['skills/load-profile/SKILL.md', '用户 / 项目指定时使用的本地 overlay'],
   ['skills/api-verification/SKILL.md', '@token = replace-with-token-if-required'],
   ['prompts/api-verification.prompt.md', '@language = zh-CN'],
@@ -187,7 +219,7 @@ const probes = [
   ['README.md', '官方文档证据前置'],
   ['website/docs/guide/development.md', 'OfficialDocsEvidence'],
   ['scripts/lib/validate-governance-tail.js', 'checkV54'],
-  ['scripts/lib/validate-governance-tail.js', 'changelogSources'],
+  ['scripts/lib/validate-governance-tail.js', 'collectChangelogSources'],
   ['scripts/lib/validate-governance-tail.js', 'changelogs/releases/v'],
   ['README.md', 'PreCompact'],
   ['website/docs/guide/development.md', 'PreCompact'],
@@ -199,10 +231,41 @@ const probes = [
   ['prompts/implementation-plan.prompt.md', 'ServiceLifecycleCleanup'],
   ['scripts/lib/validate-governance-tail.js', 'checkV55'],
   ['README.md', 'AI 自启动服务清理'],
-  ['website/docs/guide/development.md', 'ServiceLifecycleCleanup']
+  ['website/docs/guide/development.md', 'ServiceLifecycleCleanup'],
+  ['instructions.md', 'CP1 需求/问题定义必须前置平台工程判断'],
+  ['instructions/10-dev.instructions.md', '包边界验证串行化'],
+  ['instructions/10-dev.instructions.md', '消费者依赖树优先探针'],
+  ['skills/test-router/SKILL.md', 'PackageBoundarySerialCheck'],
+  ['skills/test-router/SKILL.md', 'ConsumerDependencyTreeProbe'],
+  ['skills/release-verification/SKILL.md', '发布型 Profile'],
+  ['skills/audit-common/SKILL.md', 'PFresh-6'],
+  ['skills/document-sync/SKILL.md', '正文顺序 → 导航/sidebar 顺序'],
+  ['prompts/requirement.prompt.md', '写需求和定义问题时必须前置平台工程师视角'],
+  ['prompts/implementation-plan.prompt.md', 'PackageBoundarySerialCheck'],
+  ['prompts/report-dev.prompt.md', 'ConsumerDependencyTreeProbe'],
+  ['scripts/lib/validate-governance-tail.js', 'checkV56'],
+  ['README.md', '验证卫生与包边界'],
+  ['website/docs/guide/development.md', '文档阅读顺序同步'],
+  ['instructions.md', 'ReviewCoverageDelta'],
+  ['instructions/12-audit.instructions.md', 'ReviewedSet'],
+  ['instructions/13-analyze.instructions.md', 'ReviewCoverageDelta'],
+  ['skills/audit-common/SKILL.md', 'NoNewSurfaceReason'],
+  ['skills/audit-execution-guide/SKILL.md', '有效零发现'],
+  ['skills/intent/SKILL.md', 'ReviewCoverageDelta'],
+  ['prompts/report-audit.prompt.md', 'ReviewCoverageDelta'],
+  ['instructions/16-report.instructions.md', 'ReviewCoverageDelta'],
+  ['skills/report/SKILL.md', 'ReviewCoverageDelta'],
+  ['README.md', '复审覆盖增量'],
+  ['website/docs/guide/development.md', 'ReviewCoverageDelta'],
+  ['website/docs/specs/flowcharts.md', '有效零发现'],
+  ['website/docs/specs/workflow-execution-flow.md', 'ReviewCoverageDelta'],
+  ['scripts/lib/validate-governance-tail.js', 'collectChangelogSources'],
+  ['scripts/lib/validate-governance-tail.js', 'checkV57']
 ]
 
 for (const [file, needle] of probes) mustInclude(file, needle)
+mustIncludeInChangelogs('ReviewCoverageDelta')
+mustIncludeInChangelogs('复审覆盖增量')
 
 const activeRuleFiles = [
   'README.md',

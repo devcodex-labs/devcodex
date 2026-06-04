@@ -206,6 +206,14 @@ function invalidLocalConfig() {
     }, null, 2)
 }
 
+function staleS02ProfileText() {
+    return [
+        '# 02',
+        '',
+        '- 该例外仅适用于当前私有项目上下文，不可推广为通用规范，也不改变 S02 对其他敏感信息的默认禁止规则。'
+    ].join('\n')
+}
+
 function main() {
     try {
         const legacyRoot = createWorkspace(legacyProjectInfo())
@@ -222,6 +230,22 @@ function main() {
         const currentOutput = `${currentResult.stdout}\n${currentResult.stderr}`
 
         assert.strictEqual(currentResult.status, 0, currentOutput)
+
+        const staleS02Root = createWorkspace(currentProjectInfo())
+        writeFile(staleS02Root, '.devcodex/profile/02-架构约束.md', staleS02ProfileText())
+        writeFile(staleS02Root, '.devcodex/profile/03-代码风格.md', [
+            '# 03',
+            '',
+            '| 禁止 | 原因 |',
+            '|------|------|',
+            '| 硬编码 API Key / Token / 密码 | S02 安全底线 |'
+        ].join('\n'))
+        const staleS02Result = runValidate(staleS02Root)
+        const staleS02Output = `${staleS02Result.stdout}\n${staleS02Result.stderr}`
+
+        assert.strictEqual(staleS02Result.status, 2, staleS02Output)
+        assert.match(staleS02Output, /legacy S02 default-forbid wording/)
+        assert.match(staleS02Output, /default S02 violation/)
 
         const localConfigRoot = createWorkspace(currentProjectInfo())
         writeFile(localConfigRoot, '.devcodex/profile/config.local.json', validLocalConfig())

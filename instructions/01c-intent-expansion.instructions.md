@@ -2,11 +2,11 @@
 applyTo: "**"
 description: 意图识别、Intent Expansion Card、上下文重建与可见回复证据的通用规范
 priority: P5
-version: 1.11.11
+version: 1.11.12
 ---
 # 意图扩展与上下文重建
 
-> 本文件是 `01-common` 的分拆视图，承载意图识别、Intent Expansion Card、用户可见摘要、Context Rehydration Contract 与 Stop 可见回复证据三态。
+> 本文件是 `01-common` 的分拆视图，承载意图识别、Intent Expansion Card、用户可见摘要、Context Rehydration Contract、ContextHandoffCard 与 Stop 可见回复证据三态。
 
 ## 术语约定
 
@@ -92,6 +92,23 @@ version: 1.11.11
 - 摘要只能作导航提示，不能覆盖文件真相源。
 - 若文件态与当前推断冲突，必须以文件态为准并重建 Intent Expansion Card。
 - 若执行中新增范围触达 CP3 条件（≥5 文件、高风险、控制面联动），必须暂停执行并回到对应 CP3。
+
+## ContextHandoffCard（上下文传递/交接）
+
+`ContextHandoffCard` 是交接方在跨会话、跨 Agent、多批次、summary/compact 前、用户明确要求“传递上下文”或即将中断时产出的最小交接卡；`Context Rehydration Contract` 是恢复方消费该交接卡后重新核对文件真相源的规则。二者关系是“handoff 产出，rehydration 消费”，禁止用 handoff 覆盖已确认产物、sessions、tasks 或 SUMMARY。
+
+| 字段 | 说明 |
+|------|------|
+| `source-of-truth` | 本轮事实源文件、台账、报告、需求/bug 产物 |
+| `confirmed-decisions` | 已确认决策、CP 状态、auto 授权或用户选择 |
+| `open-risks` | 剩余风险、待验证假设、黄色偏离边界 |
+| `next-action` | 下一步建议动作、验证命令或恢复入口 |
+| `blocked-reason` | 若阻塞，写明阻塞条件与需要的外部输入 |
+| `must-not-overwrite` | 不得覆盖的用户变更、dirty 边界、不可删除项 |
+| `validation-state` | 已执行验证、失败验证、待验证项与证据路径 |
+| `artifact-links` | 报告、记忆、关键产物的 ArtifactLinkSet 或 copy fallback |
+
+触发后必须写入报告或 daily tasks；若任务仍未完成，SUMMARY 只能保留索引状态，不得把 ContextHandoffCard 写成自由文本段落。
 
 ## Stop 可见回复证据三态
 

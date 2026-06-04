@@ -109,9 +109,11 @@ DevCodex 采用“双阶段发布 + 三层日志”：
    - `RL-7~RL-10`：验证准备度、回滚恢复、registry/token 安全与发布后验收
 7. 按 `release-verification` Skill 执行 R0~R7：
    - `R3`：执行 `npm test`（默认全链）
-   - `R3b`：执行 `npm run test:audit` + package completeness gate（`description`、`keywords`、`repository`、`homepage`、`bugs`、`license`、`files/exports/bin`、`publishConfig`、`engines`、`plugin.json`）
+   - `R3b`：执行 `npm run test:audit` + package completeness gate（`description`、`keywords`、`repository`、`homepage`、`bugs`、`license`、`files/exports/bin`、`publishConfig`、`engines`、`plugin.json`）；package boundary check 必须在 build / benchmark / codegen 完成后单独串行执行
    - `R3c`：若项目存在远端 CI，确认目标 commit 对应远端 CI 绿色；无 CI 或无权限查询时必须写 `N/A + skipReason`，不得把本地测试冒充远端 CI
    - `R4`：执行 `npm pack --dry-run` 与 `npm publish --dry-run`
    - `R5~R7`：按需做 install smoke、tag/publish 前确认与发布后验收
 
 > 当前 `publishConfig` 指向 GitHub Packages；发布相关文档必须保留 `.npmrc` / `NODE_AUTH_TOKEN` 认证说明，除非后续明确切换到公共 registry。
+
+> 发布型 Profile 不能只写基础项目介绍；还应覆盖 CI workflow/job 矩阵、tag/publish 触发链、失败恢复路径、外部消费者验证矩阵、dist 产物边界、registry/tag 验收与常见故障诊断。ReleaseVerification 收尾前必须清理无关 dirty 文件和旧验证残留。

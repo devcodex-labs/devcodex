@@ -50,6 +50,8 @@
  * V52 Codex PreCompact adapter sync（Codex compaction runtime 兜底、adapter 模板、CLI/validate/direct replay 探针）
  * V53 Security exception / API variables / changelog releases / profile freshness sync（安全例外、接口变量、发布日志结构、Profile 新鲜度审查）
  * V54 Official docs evidence + Profile impact sync（官方文档证据前置与 Profile 联动判定）
+ * V55 Service lifecycle cleanup sync（AI 自启动服务清理）
+ * V56 Platform framing + validation hygiene sync（平台工程前置、包边界串行、依赖树优先、导航顺序同步）
  *
  * Exit: 0=OK, 1=error, 2=warnings only
  */
@@ -510,7 +512,9 @@ const {
   checkV52,
   checkV53,
   checkV54,
-  checkV55
+  checkV55,
+  checkV56,
+  checkV57
 } = buildGovernanceTailChecks({
   ROOT,
   ACTIVE_DEVCODEX_ROOT,
@@ -796,7 +800,7 @@ function checkV19() {
 }
 
 // V29~V38 moved to scripts/lib/validate-governance-mid.js
-// V39~V55 moved to scripts/lib/validate-governance-tail.js
+// V39~V57 moved to scripts/lib/validate-governance-tail.js
 
 function checkV7b() {
   try {
@@ -864,6 +868,8 @@ checkV52()
 checkV53()
 checkV54()
 checkV55()
+checkV56()
+checkV57()
 
 console.log('')
 if (errors.length) {

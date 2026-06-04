@@ -71,13 +71,16 @@ description: "Use when: ..."   # 必填，AI 靠这个发现 Skill
 - 发布前审查使用 `audit-release` 专项维度，负责 release readiness 风险审查；它与 `release-verification` 的 R0~R7 执行验证链必须保持边界清晰
 - README / 用户使用文档默认通过 `readme-authoring` 收口用户 / 使用者优先写作，完成后再用 `audit-readme` 做专项 review
 - audit 会先执行 `Profile Freshness Check`，反向核对 Profile 是否仍匹配当前包版本、目录资产、脚本、发布状态、宿主能力和任务现实；不得基于过期 Profile 宣告收敛
+- audit / review / ECR 的复审覆盖增量必须维护 `ReviewCoverageDelta`：每轮列出 `ReviewedSet`、`UnreviewedRelatedSet`、`NewlyReadThisRound`、`RepeatReadReason` 与 `NoNewSurfaceReason`，优先阅读此前未审查但相关联的代码、配置、测试、文档、部署副本和消费者链；无新增覆盖且无证据化理由时，不计入有效零发现
 - 所有模式下若用户建议经验证更优且可泛化，或暴露规范未定义/不完整，应主动触发 Improvement Intake：写入 `data/process-improvements.md`（优化清单，PI），必要时联动 `data/pending-fixes.md`，并显式回执 `PI/PF`
 - 若新的需求、bug 或批次直接来源于 `data/*.md` 的 open/partial 项，进入 CP1 / 问题确认前必须先做 Backlog Intake 真相复核：把候选项分成 `pure-open / residual-tail / already-fixed / misclassified`，避免把“已修但未回写”的条目继续按纯 open 统计
 - 当实施或复审改变了 VL / PF / PI / ISSUE / GAP 的真实状态时，必须执行台账状态回写闭环：回写状态、验证证据、验证时间和关闭/部分完成说明，并复核 open 计数是否与进度、报告、SUMMARY 一致
 - 新增/升级依赖、框架、SDK、平台 API 或外部模块时，CP2 必须包含 `OfficialDocsEvidence`：官方文档来源、版本/日期、关键用法、限制、兼容性和降级来源；不能只验证“包能安装”
 - dev/fix 改动项目技术栈、目录边界、脚本、测试/发布路线、分发面、配置项、长期连接或本地 overlay schema 时，必须执行 `ProfileImpactCheck`，同步 Profile 或在报告中写明 `skipReason`
 - 若 AI 为验证启动 dev server、文档站、本地 API/mock、数据库代理、SSH 隧道、Playwright/Cypress server 或压测 target，必须执行 `ServiceLifecycleCleanup`：记录命令/cwd/PID/job/端口/URL，验证完成、失败或最终回复前关闭仅由 AI 本轮启动的服务并核验端口释放；用户要求保留时记录 PID/端口和关闭方式
-- 通用工程守门：Node.js 项目默认 `engines.node` / CI / Profile / README 不低于 `>=18`；JS/Node 必要注释使用标准 JSDoc；依赖升级或兼容修复必须拆分 `业务源码平滑性` 与 `依赖层落地条件`；包/库/adapter/CLI 同时检查代码实现层和包工程层；简单 service 不重复 route/model/schema 已承担的校验、归一化和配置兜底
+- 通用工程守门：Node.js 项目默认 `engines.node` / CI / Profile / README 不低于 `>=18`；需求/问题定义阶段先做平台工程判断，确认消费者范围、共享契约边界、模块职责、维护成本和非目标；JS/Node 必要注释使用标准 JSDoc；依赖升级或兼容修复必须拆分 `业务源码平滑性` 与 `依赖层落地条件`；包/库/adapter/CLI 同时检查代码实现层和包工程层；简单 service 不重复 route/model/schema 已承担的校验、归一化和配置兜底
+- 验证卫生与包边界：release / pack / benchmark / codegen 任务中，package boundary check 必须在构建完成后单独串行执行；消费者验证异常先查 package.json、lockfile、node_modules 与 `npm ls <关键依赖>`，最终收尾前清理无关 dirty 文件和验证残留
+- 文档阅读顺序同步：正文、README 或维护者文档定义“先看什么 / 审查顺序 / 实施顺序”时，website sidebar/nav、索引页和目录页必须作为当前消费者同批校验；信息架构故意不同序时要说明差异
 - v2.0.0 规划：MCP `devcodex_getWorkflow()` 替代文件读取
 
 
@@ -159,6 +162,14 @@ dev 模式默认向用户展示完整 Intent Expansion Card；prod、instruction
 7. AI 当前推断
 
 摘要只能作导航提示，不能覆盖文件真相源；若文件态和当前推断冲突，必须重建 Intent Expansion Card。
+
+### ContextHandoffCard
+
+跨会话、跨 Agent、多批次、summary/compact 前或用户要求传递上下文时，交接方必须在报告或 daily tasks 写入 `ContextHandoffCard`，覆盖 `source-of-truth`、`confirmed-decisions`、`open-risks`、`next-action`、`blocked-reason`、`must-not-overwrite`、`validation-state` 与 `artifact-links`。恢复方仍按 Context Rehydration Contract 核对文件真相源，不能用 handoff 覆盖已确认产物、sessions、tasks 或 SUMMARY。
+
+### SimpleTaskFastPath
+
+非常明确、预计 ≤2 个源码/文档文件、无公共 API/Schema/依赖/配置/发布/控制面/台账来源/高风险、无需多轮跟踪的简单 dev/fix 任务，可免建需求/bug 目录、`01-需求概述.md` 或 `04-实施计划.md`。AI 必须在报告/记忆写明 `SimpleTaskFastPath: applied`、`N/A + skipReason`、验证证据和升级回退判断；执行中任一条件失效时，立即升级回完整 CP/产物链。
 
 ### Hook closure 三态
 

@@ -65,7 +65,7 @@ S02 不再把“敏感信息、明文密码、连接字符串或硬编码”定�
 | C12 | 合理性评估 | 意图识别后、CP1 前必须评估合理性，有更好建议先提出确认后执行；用户给出判断、目录结构或已有设计时 AI 须独立验证，不得顺从论证；若经核验用户方案已最优，可明确说明依据后直接采纳，禁止为了表现“独立”而机械唱反调 |
 | C13 | 文件分拆 | AI 新建 .md 超 500 行必须拆分（已有文件豁免）|
 | C14 | 多任务检查点 | ≥2 个独立任务：每完成一个追加进度到记忆 + 输出进度快照 |
-| C15 | 架构质量视角 | dev/fix 涉及代码设计须从架构师+平台工程师双视角评估：可扩展性/可维护性/易上手性 |
+| C15 | 架构质量视角 | dev/fix 的需求/问题定义与代码设计须从架构师+平台工程师双视角评估：消费者范围、共享契约边界、模块职责、可扩展性、可维护性、易上手性；模块化只在真实复用者、演进边界或跨模块共享契约存在时成立 |
 | C16 | 批量操作分批 | ≥10 文件批量操作必须主动提出分批方案（推荐每批 10 个），输出计划后等待确认 |
 | C17 | 过程改进记录 | 用户建议的策略经确认更优，或揭示规范未定义/不完整且可泛化时，必须走 Improvement Intake：将策略写入 `data/process-improvements.md`（优化清单，PI）；若同时暴露规范缺口，再联动 `data/pending-fixes.md`（PF）。不得询问是否记录；所有模式命中后都必须显式回执已记录的 `PI-xxx / PF-xxx` |
 | C18 | 全模式入口检查不可跳过 | 同 S07 |
@@ -128,6 +128,7 @@ S02 不再把“敏感信息、明文密码、连接字符串或硬编码”定�
 - dev 模式默认应向用户展示完整 Intent Expansion Card；prod、instruction-fallback 宿主或低风险场景可退化为 3~5 行摘要，但 CP1 / 问题确认产物中仍必须保留完整字段。
 - 当项目现实扩展导致工作流/子类型修正、命中控制面或宿主能力差异、风险不为 normal、`confidence` 非 high，或处于跨会话 resume 时，用户面必须追加 3~5 行“意图扩展摘要”；摘要只写语义初判、扩展后路由、关键风险、验证路线和备选路径，禁止输出调试 JSON。
 - Context Rehydration Contract：压缩恢复、resume、summary 恢复或用户明确要求“按文件真相重建”时，必须按 `当前用户消息 > 已确认需求/bug产物 > 任务 sessions.md > 当日 tasks > Agent SUMMARY > compaction/summary 摘要 > AI 当前推断` 的优先级重建上下文；摘要只能作导航提示，不得覆盖文件真相源。
+- ContextHandoffCard：跨会话、跨 Agent、多批次、summary/compact 前、用户明确要求“传递上下文”或即将中断时，交接方必须在报告或 daily tasks 写入 `source-of-truth`、`confirmed-decisions`、`open-risks`、`next-action`、`blocked-reason`、`must-not-overwrite`、`validation-state`、`artifact-links`；恢复方按 Context Rehydration Contract 消费并重新核对文件真相源，禁止用 handoff 覆盖已确认产物、sessions、tasks 或 SUMMARY。
 - Hook Stop/PreCompact 对入口检查块的可见回复验证必须区分 `verified-present` / `verified-missing` / `unverified` 三态；无法解析最终 assistant 内容时只能提示“无法验证最终用户可见回复”并附 payload capture 指引，禁止断言“未输出”。
 - 当 `<工作区根>/.devcodex/layout.json` 启用 `workspace-namespace` 时，Profile 与运行态目录按**工作区集中命名空间**读取：
   - `config.json`：`<工作区根>/.devcodex/workspace/profile/` 作为 base，`<工作区根>/.devcodex/<project>/profile/` 作为 overlay
@@ -307,6 +308,7 @@ CP1（需求确认）→ CP2（方案确认）→ [plan-review] → CP3（实施
 - **CP2**：输出技术方案（架构/文件清单/依赖）；新增/升级依赖、框架、SDK 或平台 API 时必须附 `OfficialDocsEvidence`，涉及项目事实变化时必须附 `ProfileImpactCheck` → 等待用户确认
 - **plan-review**：评估计划可行性（CP2 后、CP3 前）
 - **CP3**：条件触发。default/refactor/database/optimization/scenario-test 必须执行；docs/init/plan-review 按子类型规则豁免，并记录 `CP3: N/A（<子类型> 子类型豁免）`。
+- **SimpleTaskFastPath**：非常明确、预计 ≤2 个源码/文档文件、无公共 API/Schema/依赖/配置/发布/控制面/台账来源/高风险、无需多轮跟踪的 dev/fix 任务，可不创建需求/bug 目录、`01-需求概述.md` 或 `04-实施计划.md`，改用内联 CP 摘要 + 报告/记忆记录 `N/A + skipReason`；PC0~PC7、Profile、报告、记忆、安全底线、必要验证和 ECR 不可省略，执行中任一条件失效立即升级回完整产物链。
 - 若执行过程中新增范围触发 CP3 条件（例如最初判断 <5 文件但实际扩展到 ≥5 文件，或新增高风险操作/控制面联动），必须暂停执行，回补或重开 CP3 后再继续。
 - **ECR**：执行完成后、宣告完成前必须执行 ECR 执行闭环复审，覆盖 CP1/CP2/CP3、报告、daily tasks、SUMMARY、diff/commit、测试/探针、AI 自启动服务清理证据与 dirty 边界。
 
@@ -316,11 +318,15 @@ CP1（需求确认）→ CP2（方案确认）→ [plan-review] → CP3（实施
 
 ### 代码实现复杂度与通用工程守门
 
+- CP1 需求/问题定义必须前置平台工程判断：谁会复用、哪一层值得抽象、哪一层应保持局部、长期维护成本和明确非目标；不得把“通用性/模块化”写成无消费者的空心抽象。
 - CP2 技术方案必须给出最小实现与注释策略；实施默认采用满足验收项的最小实现，优先局部补丁和既有本地模式。
 - 禁止为“企业级”“可扩展”预设新增无真实消费者的 service / factory / adapter / manager、策略注册表、通用配置或预留扩展点。
 - 必要注释必须覆盖非显然业务规则、状态转换、不变量、兼容约束、安全边界、外部契约映射和反直觉权衡；JavaScript / Node.js 中命中必要注释的导出函数、核心业务函数、类、复杂对象契约、参数/返回/异常说明必须使用标准 JSDoc。
 - Node.js 项目的 `engines.node`、CI matrix、Profile 与 README 运行时说明默认不得低于 `>=18`；支持更低版本时必须在 CP2 写明业务理由、风险和独立验证证据。
 - 包 / 库 / adapter / CLI 方案除代码实现层外，还必须检查 public API、public types、internal 工具、shared tests、benchmark、docs、scripts、dist/coverage 边界、package metadata 与未发布变更日志。
+- 发布包边界检查必须在构建、benchmark 或其他会删除/重建/写入 `dist` 的命令完成后单独串行执行；报告以单独 `pack` / boundary 结果为准，不得采用并行读写竞争期间的包清单。
+- 消费者验证出现与当前改动无关的依赖/插件/共享库失败时，源码修改前必须先核对 `package.json`、lockfile、`node_modules` 与 `npm ls <关键依赖>` 等依赖树事实，避免把依赖漂移误修成源码兼容补丁。
+- 需求、报告和复盘描述“已接入 / 未接入”类状态时，必须拆分底座能力、当前消费者和高级能力尾项；先核验依赖与源码消费点，再避免把“基础已接入但高级能力未接入”误写成整体未接入。
 - TypeScript 重构或迁移按公开契约与消费面逐步完善类型，不机械复制旧版本缺陷；跨模块业务契约、公开类型与配置类型优先集中到 types 契约层。
 - 三方 provider、connector、SDK 接入类 CP2 必须先区分业务功能接口与底层 provider adapter；面向前端或业务调用方时优先冻结业务功能契约，provider/model/operation 作为内部实现或配置维度。随后冻结字段级合同：provider metadata、内部 payload、上游 request 映射、标准化 result、错误 detail；首个 provider 只能验证统一 operation contract，不能反向定义公共命名和层次。
 - 简单业务 service 默认只做业务编排、外部能力调用和必要上游错误映射；不得重复 route validate、model/schema、数据导入或框架已承担的校验、归一化、配置兜底和二次治理。
@@ -414,7 +420,8 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → 执行 →
 ## 审计工作流（audit）
 
 - 只读工作流，禁止修改文件
-- 多轮收敛：至少 3 轮，连续 **3** 轮零发现后才可宣告收敛
+- 多轮收敛：至少 3 轮，连续 **3** 轮有效零发现后才可宣告收敛（仍须满足连续 3 轮零发现）
+- 复审覆盖增量：R2+ 必须输出 `ReviewCoverageDelta`（`ReviewedSet` / `UnreviewedRelatedSet` / `NewlyReadThisRound` / `RepeatReadReason` / `NoNewSurfaceReason`），优先阅读此前未审查但相关联的代码、配置、测试、文档、部署副本和消费者链；无新增阅读且无 `NoNewSurfaceReason` 时，该轮零发现不得计入收敛
 - DevCodex plugin 文件发现问题 → 先做阻断/非阻断分流：阻断项立即自我审视 + self-fix，修复后重启新轮；非阻断项写入 `data/pending-issues.md`，继续下一轮
 - 其他文件发现问题 → 记录 PF/VL，继续下一轮
 - 收敛前门禁：CRS（全库 grep）✅ + PCV（收敛后汇总验证）
@@ -539,7 +546,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → 执行 →
 
 | # | 检查 |
 |:-:|------|
-| RC1 | 失败任务已写入待跟进字段 |
+| RC1 | 失败任务已写入待跟进字段；跨会话/多批次/summary/compact/handoff 场景已有 `ContextHandoffCard` |
 | RC2 | 中断点状态 🔄 已持久化 |
 | RC3 | 回滚路径有据可查（commit/备份/migrations down） |
 | RC4 | 下次会话可直接 resume |
@@ -555,7 +562,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → 执行 →
 | T5 | 关联配置已更新 |
 | T6 | CHANGELOG / unreleased 已按发布状态追加（如属外部可见变更） |
 | T7 | 工作流验证已完成（dev/fix 含 ECR；audit/analyze 含 PCV 与推荐结论） |
-| T8 | 报告 V1~V6 验证通过 |
+| T8 | 报告 V1~V6 验证通过；若触发上下文交接，daily tasks 或报告已写 `ContextHandoffCard` |
 | T9 | 记忆 + SUMMARY 写入完成 |
 
 > 完整逐项定义见当前平台部署目录中的 `instructions/17-compliance.instructions.md`；本表为就地索引。

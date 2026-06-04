@@ -68,6 +68,8 @@ applyTo: .devcodex/**/requirements/**
 | HostContractVerification | Hook / CLI / visible reply / sticky project / workspace guard / bootstrap / ArtifactLinkSet / MCP fallback | ✅/🔄/N/A | hostSurface / eventScope / evidenceMode / visibleReplyEvidence / workspaceGuard / bootstrapScope / artifactLinkMatrix / mcpFallback |
 | OfficialDocsEvidence | 依赖 / 框架 / SDK / 平台 API / 外部模块引入或升级 | ✅/🔄/N/A | 官方文档来源 / 关键用法 / 限制 / 兼容性 / skipReason |
 | ProfileImpactCheck | 项目技术栈 / 目录 / 脚本 / 配置 / 发布状态变化 | ✅/🔄/N/A | targetProfileFiles / updateOrSkip / skipReason / evidence |
+| ConsumerDependencyTreeProbe | 消费者验证失败且症状指向依赖、插件、共享库或框架适配 | ✅/🔄/N/A | package.json / lockfile / node_modules / npm ls <关键依赖> / sourcePatchDecision |
+| PackageBoundarySerialCheck | release / pack / package boundary / benchmark / codegen | ✅/🔄/N/A | build 完成点 / 单独 pack 命令 / dist 写入竞争排除 / dirty 残留清理 |
 | Backlog Intake 真相复核 | `data/*.md` open/partial 项来源的需求/批次 | ✅/🔄/N/A | candidateIds / classification / scopeDelta |
 | 台账状态回写闭环 | 本轮改变了 VL/PF/PI/ISSUE/GAP 状态 | ✅/🔄/N/A | targetLedgers / writebackEvidence / rescanResult |
 | document-sync | 代码/规范/模板/部署副本联动 | ✅/🔄/N/A | |

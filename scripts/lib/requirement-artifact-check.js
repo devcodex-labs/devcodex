@@ -5,6 +5,7 @@ const path = require('path')
 
 const RECENT_REQUIREMENT_ARTIFACT_DAYS = 2
 const REQUIREMENT_FILES = ['01-需求概述.md', '04-实施计划.md', '05-实施进度.md']
+const SIMPLE_TASK_FAST_PATH_MARKERS = ['SimpleTaskFastPath', '简单任务轻路径', 'N/A + skipReason']
 
 function hasText(filePath, needle) {
   return fs.readFileSync(filePath, 'utf8').includes(needle)
@@ -72,6 +73,12 @@ function checkRequirementDir(dirPath) {
   return issues
 }
 
+function hasSimpleTaskFastPathMarker(dirPath) {
+  const sessionsFile = path.join(dirPath, '.memory', 'sessions.md')
+  if (!fs.existsSync(sessionsFile)) return false
+  return hasAnyText(sessionsFile, SIMPLE_TASK_FAST_PATH_MARKERS)
+}
+
 function collectRecentRequirementArtifactIssues({
   activeRoot,
   recentDays = RECENT_REQUIREMENT_ARTIFACT_DAYS,
@@ -88,6 +95,7 @@ function collectRecentRequirementArtifactIssues({
   for (const entry of fs.readdirSync(requirementsRoot, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue
     const dirPath = path.join(requirementsRoot, entry.name)
+    if (hasSimpleTaskFastPathMarker(dirPath)) continue
     const hasTrackedArtifact = REQUIREMENT_FILES.some(name => fs.existsSync(path.join(dirPath, name)))
     if (!hasTrackedArtifact) continue
     if (!hasRecentArtifact(dirPath, nowMs, recentDays)) continue
@@ -100,6 +108,8 @@ function collectRecentRequirementArtifactIssues({
 
 module.exports = {
   RECENT_REQUIREMENT_ARTIFACT_DAYS,
+  SIMPLE_TASK_FAST_PATH_MARKERS,
   checkRequirementDir,
+  hasSimpleTaskFastPathMarker,
   collectRecentRequirementArtifactIssues
 }

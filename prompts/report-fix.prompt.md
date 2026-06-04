@@ -28,6 +28,7 @@ applyTo: .devcodex/**/reports/bugs/**
 > **Release 状态**: 未进入 / 待用户确认 / 已执行
 > **日志落点**: `changelogs/unreleased.md` / `CHANGELOG.md + changelogs/releases/vX.Y.Z.md`
 > **支撑产物**: ExecutionContract / TestRoute / ReleaseAudit / ReleaseVerification / ConceptSyncMap / HostContractVerification / 05-实施进度.md（按触发状态填写）
+> **ContextHandoffCard**: 触发时填写；未触发写 N/A + skipReason
 ```
 
 ## §1 问题摘要
@@ -75,7 +76,10 @@ applyTo: .devcodex/**/reports/bugs/**
 | HostContractVerification | ✅/N/A | ✅/⚠️ | hostSurface / eventScope / evidenceMode / visibleReplyEvidence / workspaceGuard / bootstrapScope / artifactLinkMatrix / mcpFallback |
 | OfficialDocsEvidence | ✅/N/A | ✅/⚠️ | 官方文档来源 / 版本日期 / 关键用法 / 限制 / 兼容性 / skipReason |
 | ProfileImpactCheck | ✅/N/A | ✅/⚠️ | targetProfileFiles / updateOrSkip / skipReason / evidence |
+| ConsumerDependencyTreeProbe | ✅/N/A | ✅/⚠️ | package.json / lockfile / node_modules / npm ls <关键依赖> / sourcePatchDecision |
+| PackageBoundarySerialCheck | ✅/N/A | ✅/⚠️ | build 完成点 / 单独 pack 命令 / dist 写入竞争排除 / dirty 残留清理 |
 | 05-实施进度.md | ✅/N/A | ✅/⚠️ | |
+| ContextHandoffCard | ✅/N/A | ✅/⚠️ | source-of-truth / confirmed-decisions / open-risks / next-action / must-not-overwrite / validation-state / artifact-links |
 | Backlog Intake 真相复核 | ✅/N/A | ✅/⚠️ | candidateIds / classification / evidence / scopeDelta |
 | 台账状态回写闭环 | ✅/N/A | ✅/⚠️ | targetLedgers / requiredFields / writebackEvidence / rescanResult |
 | Hook closure 三态证据 | ✅/N/A | ✅/⚠️ | verified-present / verified-missing / unverified；控制面或 Hook 任务必填 |
@@ -143,5 +147,6 @@ applyTo: .devcodex/**/reports/bugs/**
 - [ ] ConceptSyncMap：✅ 完成 / N/A
 - [ ] HostContractVerification：✅ 完成 / N/A
 - [ ] 05-实施进度.md：✅ 已同步 / N/A
+- [ ] ContextHandoffCard：✅ 已写入 / N/A + skipReason
 - [ ] release-status：未进入 / 待用户确认 / 已执行
 - [ ] CHANGELOG / unreleased 已按发布状态更新

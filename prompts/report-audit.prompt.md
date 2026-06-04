@@ -22,7 +22,8 @@ applyTo: ".devcodex/**/reports/audit/**, .devcodex/**/reports/self-fix/**"
 > **状态**: 进行中 / 已完成
 > **审查目标类型**: 规范文件(D1~D25) / 技术方案(TD-1~TD-13) / 需求文档(RQ-1~RQ-8) / 项目工程(PE-1~PE-11) / 报告(RA-1~RA-6) / 通用文档(DA-1~DA-6) / 发布前审查(RL-1~RL-10)
 > **审查范围**: 全面体检 / 定向深度 / 修复验证
-> **收敛**: 连续 3 轮零发现（所有子类型统一，不区分定向/全面）
+> **收敛**: 连续 3 轮有效零发现（仍须满足连续 3 轮零发现；所有子类型统一，不区分定向/全面）
+> **ReviewCoverageDelta**: ✅已核验 / ⚠️缺失 / N/A（说明）
 > **PCV状态**: ✅已完成 / 🔄进行中
 > **控制面证据**: Concept Sync Map / HostContractVerification / SCV / 新增探针 / 黄色偏离 / 部署同步（按适用填写）
 ```
@@ -39,6 +40,15 @@ applyTo: ".devcodex/**/reports/audit/**, .devcodex/**/reports/self-fix/**"
 **公共维度（G1~G5）**：✅ 全部执行  
 **专属维度**：[已执行的维度编号列表]  
 **N/A 维度**：[标注 N/A 的维度及原因]
+
+## §2.1 ReviewCoverageDelta（复审覆盖增量）
+
+> R2 及以后轮次必须填写；若为单轮审查或不适用，写 `N/A + skipReason`。
+
+| 轮次 | ReviewedSet | UnreviewedRelatedSet | NewlyReadThisRound | RepeatReadReason | NoNewSurfaceReason | 是否计入有效零发现 |
+|:----:|-------------|----------------------|--------------------|------------------|--------------------|:------------------:|
+| R1 | 初始 CRS 范围 | | | N/A | N/A | N/A |
+| R2 | | | | | | ✅/❌ |
 
 ## §2.5 控制面同步证据（条件）
 
@@ -76,6 +86,7 @@ applyTo: ".devcodex/**/reports/audit/**, .devcodex/**/reports/self-fix/**"
 - [ ] CRS ✅（关联文件扫描完成，无新发现文件）
 - [ ] 所有 🔴 级问题已解决
 - [ ] 所有 🟡 级问题已处理或标注 N/A
-- [ ] 达到收敛条件：连续 3 轮零发现（所有审查类型统一，不区分定向/全面，见 `12-audit §多轮收敛规则`）
+- [ ] 达到收敛条件：连续 3 轮有效零发现（仍须满足连续 3 轮零发现；所有审查类型统一，不区分定向/全面，见 `12-audit §多轮收敛规则`）
+- [ ] `ReviewCoverageDelta` 已核验：最近 3 次有效零发现均有新增覆盖，或有证据化 `NoNewSurfaceReason`，未用机械重复同一批已读内容凑数
 
 **最终结论**：✅ 已收敛 / ⚠️ 未收敛（需继续审查）

@@ -2,7 +2,7 @@
 applyTo: "**"
 description: fix 工作流规则，覆盖子类型路由、CP 流程、修复三步扫描、执行期回退与 ECR
 priority: P4
-version: 1.11.11
+version: 1.11.12
 ---
 # 修复工作流规则（11-fix）
 
@@ -40,7 +40,7 @@ version: 1.11.11
 CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → [execution-contract/test-router] → 执行 → 三步扫描 → ECR 执行闭环复审 → 完成
 ```
 
-- **CP1**：AI 输出问题分析（根因 + 影响范围），用户确认
+- **CP1**：AI 输出问题分析（根因 + 影响范围），并前置平台工程判断：消费者范围、共享契约边界、模块职责、维护成本和非目标；模块化只在真实复用者、演进边界或跨模块共享契约存在时成立，用户确认
 - **CP2**：AI 输出修复方案，用户确认；若修复涉及依赖/框架/SDK/平台 API 或外部模块变更，必须附 `OfficialDocsEvidence`；涉及项目事实变化时必须附 `ProfileImpactCheck`
 - **impact-review**：涉及跨模块架构依赖变更（PR-5②）时执行
 - **CP3**：≥5 文件变更 或 含高风险操作时**必须**；其他可选
@@ -52,6 +52,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → 
 - **ProfileImpactCheck**：修复改变技术栈、目录边界、脚本、测试/发布路线、分发面、配置项、长期连接或本地 overlay schema 时，必须同步 Profile 或记录 `skipReason`。
 - **连接配置来源按用户 / 项目策略**：凡修复涉及脚本、测试、数据库 / SSH / MongoDB / 数据操作连接信息，默认可直写或沿用项目既有模式；只有用户或项目明确指定 `config.local.json`、env、`secretRef` 或 secret manager 时，修复方案才按该入口读取并在缺失时提醒补齐。
 - **AI 自启动服务清理**：若回归验证需要由 AI 启动 dev server、文档站、本地 API/mock、数据库代理、SSH 隧道、Playwright/Cypress server 或压测 target，TestRoute/报告必须记录启动命令、cwd、PID/job、端口/URL；验证完成、失败或最终回复前必须停止仅由 AI 本轮启动的服务并核验端口释放。用户明确要求保留服务时，报告保留原因、PID/端口和关闭方式；不得杀用户既有进程。
+- **SimpleTaskFastPath**：非常明确、预计 ≤2 文件、无公共 API/Schema/依赖/配置/发布/控制面/台账来源/高风险、无需多轮跟踪的简单修复，可用内联问题确认 + 报告/记忆替代 bug 目录与完整 CP 产物；报告必须写 `SimpleTaskFastPath: applied`、`skipReason`、验证证据和升级回退判断。执行中任一条件失效时，立即升级回完整 fix CP/产物链。
 
 ### 确认后前置轻量复审
 
@@ -119,9 +120,11 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → 
 - 涉及源码/配置文件变更 → 检查文档同步（README 为必查；CHANGELOG 按发布状态区分：未明确发版默认更新 `changelogs/unreleased.md`，仅正式 release 更新根 `CHANGELOG.md` / `changelogs/releases/vX.Y.Z.md`；TASK-INDEX/STATUS 按项目存在或启用时同步）
 - 涉及依赖/框架/SDK/平台 API 变更 → 验证 `OfficialDocsEvidence` 与修复实现一致；不得只以安装成功替代官方用法验证
 - 依赖升级、兼容修复或批量适配类问题先记录问题清单与归因，再统一确认修复范围；用户明确授权即时修复或 auto 执行时可边发现边处理，但仍要回写问题清单和证据
+- 消费者验证失败且症状指向依赖、插件、共享库或框架适配时，源码修改前必须先核对 `package.json`、lockfile、`node_modules` 与 `npm ls <关键依赖>`；若运行时依赖目录残留了错误版本，优先恢复依赖树，不在宿主框架里写临时兼容补丁
 - 根因位于内部共享库、中间件、SDK 或 adapter 抽象层时，优先评估“修共享库 + 消费项目升级”；若只做单项目补丁，修复方案必须说明共享库不改的理由
 - JavaScript / Node.js 修复中命中必要注释的导出函数、核心业务函数、类、复杂对象契约、参数/返回/异常说明必须使用标准 JSDoc
 - 涉及项目事实变化 → 执行 `ProfileImpactCheck` 并通过 `document-sync` 更新 Profile 或记录跳过理由
+- 涉及验证、发布、pack、benchmark、codegen 或生成产物 → 完成前必须检查并清理与本轮无关的新增/残留文件；不得把无关 dirty 文件、并行验证残留或旧失败产物留给后续任务
 
 ## ECR 执行闭环复审（执行后正式阶段）
 

@@ -69,8 +69,9 @@ description: 审查执行指南 — 维度优先级分批、定向审查子集�
 批次 3（🔴 格式/语义/跨客户端）：D16·D17·D21·D22·D23·D24·D25 → 输出发现 → 即发即修 → 更新记忆
 批次 4（🟡 建议维度）：D6·D8·D18·D19·D20 → 输出发现 → 即发即修 → 更新记忆
 批次 5（💡 改进维度）：D13·D14·D15 → 输出发现 → 即发即修 → 更新记忆
-重启轮次：所有批次完成且本轮无新发现 → 计数 +1 → 连续 3 轮零发现则进入 CRS 门禁
-CRS 收敛门禁：连续 3 轮零发现后执行全库关键词扫描（见 audit-common §关联文件发现）
+ReviewCoverageDelta：R2+ 先列 ReviewedSet / UnreviewedRelatedSet / NewlyReadThisRound / RepeatReadReason / NoNewSurfaceReason，优先补读此前未审查但相关的代码、配置、测试、文档、部署副本和消费者链
+重启轮次：所有批次完成、本轮无新发现，且 ReviewCoverageDelta 合格 → 有效零发现计数 +1 → 连续 3 轮有效零发现则进入 CRS 门禁（仍须满足连续 3 轮零发现）
+CRS 收敛门禁：连续 3 轮有效零发现后执行全库关键词扫描（见 audit-common §关联文件发现）
 PCV：CRS ✅ 后执行 PCV（见 audit-common §收敛后汇总验证）→ 最终报告
 ```
 

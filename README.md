@@ -45,10 +45,12 @@ DevCodex 通过 `.github/`（Copilot）、`CLAUDE.md + .claude/ + .mcp.json`（C
 - **发布前审查能力**: `audit-release` 负责 release readiness、发布说明质量、兼容/迁移风险、package/plugin 元数据、文档/Profile/website 同步、回滚策略、registry/tag 风险与发布后验收 review；`release-verification` 仍负责 R0~R7 执行验证链
 - **README 专项能力**: `readme-authoring` 负责 README 用户/使用者优先写作，`audit-readme` 负责 README / 用户使用文档专项 review
 - **Profile 新鲜度审查**: audit 会先执行 `Profile Freshness Check`，反向核对 Profile 是否仍匹配当前包版本、目录资产、脚本、发布状态、宿主能力和任务现实
+- **复审覆盖增量**: audit / review / ECR 的连续零发现必须附 `ReviewCoverageDelta`（`ReviewedSet` / `UnreviewedRelatedSet` / `NewlyReadThisRound` / `RepeatReadReason` / `NoNewSurfaceReason`），优先阅读此前未审查但相关联的代码、配置、测试、文档、部署副本和消费者链；无新增覆盖且无证据化理由时，不计入有效零发现
 - **规范治理 Intake**: 所有模式下每条用户消息在合理性评估后都会额外检查是否命中可泛化改进；命中时主动写入 `data/process-improvements.md`（优化清单，PI），必要时联动 `data/pending-fixes.md`（PF），并显式回执 `PI/PF`
 - **Backlog 真相复核与状态回写**: 从 `data/*.md` open/partial 项组织新需求或新批次前，先按 `pure-open / residual-tail / already-fixed / misclassified` 分类；实施后再执行台账状态回写闭环，避免“源码已修但 backlog 仍旧 open”
 - **官方文档证据前置**: 新增或升级依赖、框架、SDK、平台 API、外部模块前，CP2 会要求 `OfficialDocsEvidence`，记录官方文档来源、关键用法、限制与兼容性，避免凭经验猜 API
-- **通用工程守门**: Node.js 项目默认不低于 `>=18`；依赖/兼容任务拆分业务源码平滑性与依赖层落地条件；包/库/adapter/CLI 同查代码层与包工程层；JS/Node 必要注释使用标准 JSDoc；简单 service 不重复 route/model/schema 已承担的校验
+- **通用工程守门**: Node.js 项目默认不低于 `>=18`；需求/问题定义前置平台工程判断，先确认消费者范围、共享契约边界、模块职责、维护成本和非目标；依赖/兼容任务拆分业务源码平滑性与依赖层落地条件；包/库/adapter/CLI 同查代码层与包工程层；JS/Node 必要注释使用标准 JSDoc；简单 service 不重复 route/model/schema 已承担的校验
+- **验证卫生与包边界**: release / pack / benchmark / codegen 任务中，package boundary check 必须在构建完成后单独串行执行；消费者验证异常先查 package.json、lockfile、node_modules 与 `npm ls <关键依赖>`，收尾前清理无关 dirty 文件和验证残留
 - **ProfileImpactCheck**: dev/fix 改动项目技术栈、目录、脚本、测试/发布路线、分发面、配置或长期连接时，会主动判定是否需要更新 Profile；无需更新时也要写明跳过理由
 - **敏感信息与硬编码策略**: 默认允许敏感信息、明文连接信息和硬编码出现在用户要求的代码、脚本、配置、文档、测试或报告中；只有用户 / 项目明确禁止时才脱敏、占位或改用 env、`secretRef`、secret manager、`config.local.json`
 - **AI 自启动服务清理**: AI 为验证启动 dev server、文档站、本地 API/mock、数据库代理、SSH 隧道、Playwright/Cypress server 或压测 target 后，验证完成、失败或最终回复前会主动关闭仅由 AI 本轮启动的服务并核验端口释放；用户要求保留时会记录 PID/端口和关闭方式
@@ -170,6 +172,8 @@ AGENTS.md                 ← 与 instructions.md / copilot-instructions.md / CL
 - **Intent Expansion 可见性**：dev 模式默认会直接展示完整 Card；prod、instruction-fallback 宿主或低风险轻任务才退化为 3~5 行摘要。
 - **意图扩展摘要**：当扩展后路由变化、命中控制面/宿主差异、风险较高或跨会话恢复时，会在用户面输出 3~5 行摘要，便于确认“为什么这样路由”。
 - **Context Rehydration Contract**：压缩恢复、resume 或用户要求按文件真相重建时，会按“当前用户消息 → 已确认产物 → sessions → tasks → SUMMARY → 摘要 → AI 推断”的优先级恢复上下文，摘要不能覆盖文件真相源。
+- **ContextHandoffCard**：跨会话、跨 Agent、多批次、summary/compact 前或用户要求传递上下文时，会把 source-of-truth、confirmed decisions、open risks、next action、must-not-overwrite、validation state 与 ArtifactLinkSet 写入报告或 daily tasks；恢复时仍按 Context Rehydration Contract 重新核对文件真相源。
+- **SimpleTaskFastPath**：非常明确、预计 ≤2 文件、无公共契约/配置/发布/控制面/台账来源/高风险、无需多轮跟踪的简单 dev/fix 任务，可免建 `01-需求概述.md` / `04-实施计划.md`，改用内联 CP 摘要 + 报告/记忆 `N/A + skipReason`；范围扩大时立即升级回完整产物链。
 - **Hook closure 三态**：Stop/PreCompact 可见回复验证区分 `verified-present`、`verified-missing`、`unverified`；无法解析最终 assistant 内容时只提示无法验证，并给出 payload capture 指引，不再断言“未输出”。
 - **长流程执行契约**：Auto、控制面、多批次、预计修改 ≥10 文件或发布前置任务会触发 ExecutionContract；测试路线不明显时触发 TestRoute；正式发版前触发 ReleaseAudit 与 ReleaseVerification；控制面消费链联动时建立 Concept Sync Map；宿主契约变化时触发 `host-contract-verification`。
 - **执行期 CP3 回退**：若执行过程中实际修改范围扩展到 CP3 门槛（≥5 文件、高风险、控制面联动），必须暂停执行并先补做 CP3，再继续改动。
@@ -182,6 +186,7 @@ AGENTS.md                 ← 与 instructions.md / copilot-instructions.md / CL
 - **官方资料优先**：涉及平台能力、框架 API、版本兼容性或工具语义判断时，优先读取官方文档，再降级到其他资料；新增/升级依赖、框架、SDK、平台 API 或外部模块时必须形成 `OfficialDocsEvidence`。
 - **ProfileImpactCheck**：项目事实变化后，DevCodex 会检查是否需要同步 Profile 的技术栈、目录边界、脚本/测试/发布路线、配置说明或当前阶段；若不更新，需要在报告中写明 `skipReason`。
 - **ServiceLifecycleCleanup**：若验证需要 AI 自己启动本地服务，会记录启动命令、cwd、PID/job、端口/URL，并在验证完成、失败或最终回复前关闭仅由 AI 本轮启动的服务；不会为了释放端口杀掉用户已有进程。
+- **文档阅读顺序同步**：正文、README 或维护者文档一旦定义“先看什么 / 审查顺序 / 实施顺序”，website sidebar/nav、索引页和目录页要作为当前消费者同批校验；若信息架构故意不同，必须说明差异。
 - **提交标题收短**：用户要求提交时，DevCodex 会优先生成一句简洁的 commit subject，而不是把整段会话摘要塞进标题。
 
 
@@ -274,6 +279,8 @@ node /path/to/devcodex/index.js status
 6. 若在 VS Code 中启用了 Hooks，可在输出面板检查 `GitHub Copilot Chat Hooks`，确认 `.github/hooks/devcodex.lifecycle.json` 已被加载
 
 ### 文档站本地预览
+
+> 维护者提示：CLI 安装/运行仍只要求 Node.js >=18；文档站基于 Rspress 2，当前本地构建需 Node.js `^20.19.0 || >=22.12.0`。
 
 ```bash
 cd website
@@ -421,6 +428,7 @@ DevCodex Hook runtime 不再把所有拦截都等同为“停止”。拦截会�
 
 **前置条件**：
 - Node.js ≥ 18（CLI 零依赖，仅使用标准库）
+- 若维护或构建 `website/` 文档站，需要 Node.js `^20.19.0 || >=22.12.0`（Rspress 2 依赖要求）
 - 已启用目标宿主的规则加载能力（Copilot `Use Instruction Files` / Claude Code 标准项目规则加载 / Codex 工作区 `AGENTS.md` 加载）
 - Copilot 路径：已安装支持的 GitHub Copilot IDE（VS Code / JetBrains 全量支持；Visual Studio / Xcode / Eclipse 部分支持，详见 §IDE 兼容性）
 - Claude Code 路径：允许项目级 hooks 与 MCP（`init --claude` 会写入默认配置）

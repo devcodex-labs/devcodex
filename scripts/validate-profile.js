@@ -101,6 +101,33 @@ function checkProjectInfoSemantics(text) {
   }
 }
 
+const STALE_S02_PROFILE_PATTERNS = [
+  {
+    pattern: /不改变 S02 对其他敏感信息的默认禁止规则/,
+    message: '02-架构约束.md contains legacy S02 default-forbid wording'
+  },
+  {
+    pattern: /\|\s*硬编码 API Key \/ Token \/ 密码\s*\|\s*S02 安全底线\s*\|/,
+    message: '03-代码风格.md treats hardcoded API Key / Token / password as a default S02 violation'
+  },
+  {
+    pattern: /禁止硬编码敏感信息/,
+    message: 'Profile contains legacy hardcoded-sensitive-info prohibition wording'
+  }
+]
+
+function checkS02ProfileFreshness(profileTexts) {
+  const combined = Object.entries(profileTexts)
+    .map(([name, text]) => `\n--- ${name} ---\n${text || ''}`)
+    .join('\n')
+
+  for (const { pattern, message } of STALE_S02_PROFILE_PATTERNS) {
+    if (pattern.test(combined)) {
+      warn(`[profile] ${message}; current S02 defaults allow sensitive information and hardcoding unless user/project policy explicitly restricts them`)
+    }
+  }
+}
+
 function isPlainObject(value) {
   return !!value && typeof value === 'object' && !Array.isArray(value)
 }
@@ -285,7 +312,11 @@ for (const f of REQUIRED) {
 
 const projectInfoPath = path.join(profileDir, '01-项目信息.md')
 const readmePath = path.join(profileDir, 'README.md')
+const architecturePath = path.join(profileDir, '02-架构约束.md')
+const stylePath = path.join(profileDir, '03-代码风格.md')
 const readmeText = fs.existsSync(readmePath) ? fs.readFileSync(readmePath, 'utf8') : ''
+const architectureText = fs.existsSync(architecturePath) ? fs.readFileSync(architecturePath, 'utf8') : ''
+const styleText = fs.existsSync(stylePath) ? fs.readFileSync(stylePath, 'utf8') : ''
 if (pluginVersion && fs.existsSync(projectInfoPath)) {
   const projectInfo = fs.readFileSync(projectInfoPath, 'utf8')
   const currentVersion = extractVersion('当前版本', projectInfo)
@@ -309,6 +340,12 @@ if (pluginVersion && fs.existsSync(projectInfoPath)) {
     checkProjectInfoSemantics(projectInfo)
   }
 }
+
+checkS02ProfileFreshness({
+  'README.md': readmeText,
+  '02-架构约束.md': architectureText,
+  '03-代码风格.md': styleText
+})
 
 // config.json checks
 const cfgPath = path.join(profileDir, 'config.json')

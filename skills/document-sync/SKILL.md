@@ -20,6 +20,7 @@ description: 文档同步规范 — 代码变更后同步必查与条件文档
 | `RULES.md` | 🟡 条件 | 当入口路由、工作流说明、当前可用状态或使用方式变更时同步 |
 | `website/docs/guide/*.md` | 🟡 条件 | 当面向使用者的流程指南、开发说明、发布说明变更时同步 |
 | `website/docs/specs/*.md` | 🟡 条件 | 当永久规范页中的当前行为、流程图、规则说明变更时同步 |
+| website sidebar/nav / README 索引 / 目录页 | 🟡 条件 | 当正文定义阅读顺序、审查顺序、实施顺序或“先看什么”时，同批校验导航、sidebar 与索引页是否按同一顺序呈现 |
 | `website/docs/versions/v1/<active-version>/requirements/**` | 🟡 条件 | 当正式需求入口、模板职责边界或活动版本 requirement 口径变更时同步 |
 | `TASK-INDEX.md` | 🟡 条件 | 项目存在任务索引时更新任务状态 |
 | `STATUS.md` | 🟡 条件 | 项目存在状态看板时同步当前版本状态/功能完成度 |
@@ -96,6 +97,7 @@ description: 文档同步规范 — 代码变更后同步必查与条件文档
 - 支撑型 Skill（`execution-contract` / `test-router` / `release-verification` / `host-contract-verification` / `source-consumer-sync`）以及发布前审查 Skill（`audit-release`）的注册、触发说明、报告模板、validate 探针和用户文档是否一致
 - `readme-authoring` / `audit-readme` 的注册、README prompt、README / Profile / website 当前消费者、validate 与 targeted tests 是否一致
 - 控制面任务是否已建立 Concept Sync Map，并把当前消费者、历史镜像、validate 探针、部署副本与黄色偏离边界说明清楚
+- 文档正文若定义阅读顺序、审查顺序、实施顺序或“先看什么”，Concept Sync Map 必须列出“正文顺序 → 导航/sidebar 顺序 → README/索引顺序”；若信息架构故意不同，报告必须解释差异而不是让用户猜
 - 宿主契约相关变更是否补了 HostContractRoute 证据，而不是只改文档叙述
 - 多批次任务的 `05-实施进度.md` 是否随批次完成更新
 

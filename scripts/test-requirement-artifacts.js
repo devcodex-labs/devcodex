@@ -8,6 +8,7 @@ const path = require('path')
 
 const {
   RECENT_REQUIREMENT_ARTIFACT_DAYS,
+  hasSimpleTaskFastPathMarker,
   collectRecentRequirementArtifactIssues
 } = require('./lib/requirement-artifact-check')
 
@@ -88,6 +89,14 @@ try {
   write(path.join(requirementsRoot, 'old-requirement', '01-需求概述.md'), '# old\n')
   setAge(path.join(requirementsRoot, 'old-requirement', '01-需求概述.md'), RECENT_REQUIREMENT_ARTIFACT_DAYS + 10)
 
+  write(path.join(requirementsRoot, 'simple-fast-path', '.memory', 'sessions.md'), [
+    '# sessions',
+    '',
+    'SimpleTaskFastPath: applied',
+    '01-需求概述.md: N/A + skipReason',
+    '04-实施计划.md: N/A + skipReason'
+  ].join('\n'))
+
   const { checkedDirs, issues } = collectRecentRequirementArtifactIssues({
     activeRoot: tempRoot,
     recentDays: RECENT_REQUIREMENT_ARTIFACT_DAYS
@@ -96,6 +105,8 @@ try {
   assert(checkedDirs.includes('good-requirement'))
   assert(checkedDirs.includes('bad-requirement'))
   assert(!checkedDirs.includes('old-requirement'))
+  assert(!checkedDirs.includes('simple-fast-path'))
+  assert(hasSimpleTaskFastPathMarker(path.join(requirementsRoot, 'simple-fast-path')))
   assert(issues.some(item => item.includes('bad-requirement/01-需求概述.md missing "## 目录导航"')))
   assert(issues.some(item => item.includes('bad-requirement/04-实施计划.md missing plan mode')))
   assert(issues.some(item => item.includes('bad-requirement/04-实施计划.md missing rollback section')))

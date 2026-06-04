@@ -2,7 +2,7 @@
 applyTo: "**"
 description: 通用规范总则，覆盖优先级、意图路由、Profile/active-root、宿主适配与治理总线
 priority: P5
-version: 1.11.11
+version: 1.11.12
 ---
 # 通用规范
 
@@ -68,7 +68,7 @@ version: 1.11.11
 |:-:|------|------|
 | C13 | 文件过大必须拆分 | AI 新建 .md 超 500 行必须拆分为多个文件（已有文件豁免） |
 | C14 | 多任务进度检查点 | 会话包含 ≥2 个独立任务时，每完成一个子任务必须：① 在记忆文件追加该任务进度状态 ② 在对话中输出进度快照（格式严格遵循 `prompts/reply-summary.prompt.md` §6） |
-| C15 | 架构质量视角 | dev/fix 任务中涉及代码设计或架构决策的输出须以**架构师与平台工程师**双重视角评估三维质量：① 可扩展性 ② 可维护性 ③ 易上手性。任意维度未达标须说明原因并记录改善方向 |
+| C15 | 架构质量视角 | dev/fix 的需求/问题定义、代码设计或架构决策须以**架构师与平台工程师**双重视角评估：消费者范围、共享契约边界、模块职责、可扩展性、可维护性、易上手性。模块化只在真实复用者、演进边界或跨模块共享契约存在时成立；任意维度未达标须说明原因并记录改善方向 |
 | C16 | 批量操作分批 | 执行涉及 ≥10 个文件的批量操作（如测试迁移、批量重命名、批量改写）时，必须主动提出分批方案，推荐每批 10 个，并输出分批计划后等待用户确认再开始执行 |
 | C17 | 过程改进记录 | 用户建议的执行策略经 AI 确认更优，或揭示规范未定义/不完整且可泛化时，必须立即走 Improvement Intake：写入 `data/process-improvements.md`（优化清单，PI）；若同时暴露规范缺口，再联动 `data/pending-fixes.md`（PF）。不得询问是否记录；所有模式命中后都必须回执 `已记录 PI-xxx / PF-xxx` |
 | C19 | 确认后前置复审 | 每次用户明确确认后、进入下一阶段前，必须先对当前已确认产物做 1 轮轻量前置复审，并显式输出结果；控制面 / 多文件联动 / 真相源同步 / 模板-示例-校验链场景必须追加交叉验证；若发现阻断性问题，先修正并告知用户，再重新确认；无阻断问题方可推进 |
@@ -103,6 +103,7 @@ version: 1.11.11
 |------|---------------|:--------:|---------|
 | 控制面规则变更 | `instructions/`、`skills/`、`prompts/`、`hooks/`、`scripts/validate.js` | L2 | 涉及多真相源或部署副本 → L3 |
 | 模板变更 | `prompts/`、对应 `skills/`、对应 `instructions/`、`scripts/validate.js`、样本/示例文档 | L2 | 命中模板-示例-校验链 → L3 |
+| 文档阅读顺序 / 导航顺序变更 | 正文顺序、README/索引页、website sidebar/nav、目录页、`scripts/validate.js` 探针 | L3 | 正文定义“先看/先做/审查顺序”时，导航和索引必须作为当前消费者同批校验 |
 | 接口契约 / 验证产物变更 | 技术方案、目标接口文档、`.http`、`.cjs`、调用方说明 | L2 | 对外契约 + 多端联调 → L3 |
 | 依赖 / 框架 / SDK / 平台 API 引入或升级 | 官方文档、技术方案 `OfficialDocsEvidence`、`dev-plan-review`、报告模板、README/website | L2 | 控制面或多端兼容 → L3 |
 | 执行契约 / 测试路由 / 服务生命周期 / 发布审查 / 发布验证 / 宿主契约 / 消费链同步变更 | `skills/execution-contract`、`skills/test-router`、`skills/dev-testing`、`skills/dev-scenario-test`、`skills/audit-release`、`skills/release-verification`、`skills/host-contract-verification`、`skills/source-consumer-sync`、dev/fix/audit instructions、报告模板、validate | L3 | 默认即强联查 |
@@ -258,7 +259,7 @@ version: 1.11.11
 
 ### Intent Expansion / Rehydration 锚点
 
-- `01c-intent-expansion.instructions.md` 是 `Intent Expansion Card`、`用户可见意图扩展摘要`、`Context Rehydration Contract` 与 `Stop 可见回复证据三态` 的详细信源。
+- `01c-intent-expansion.instructions.md` 是 `Intent Expansion Card`、`用户可见意图扩展摘要`、`Context Rehydration Contract`、`ContextHandoffCard` 与 `Stop 可见回复证据三态` 的详细信源。
 - dev 模式默认向用户展示完整 Card；prod、instruction-fallback 宿主或低风险轻任务可退化为 3~5 行摘要。
 - 若执行中新增范围触达 CP3 条件（≥5 文件、高风险、控制面联动），必须暂停执行并回到对应 CP3。
 

@@ -147,6 +147,10 @@ description: 管理会话记忆的读取与写入。三层记忆体系：Agent �
 
 > 🔴 **SUMMARY 纯索引约束**：SUMMARY 仅包含表头 + 会话索引行，**禁止添加任何自由文本段落**（如"当前状态""关键决策""待处理事项"等非索引内容）。🔄 状态标记仅出现在索引表的「状态」列，不得出现在表外文本中。已有旧格式 SUMMARY 应在下次写入时迁移（移除非索引段落，内容转入 daily file 或 profile）。
 
+### ContextHandoffCard
+
+跨会话、跨 Agent、多批次、summary/compact 前、用户要求“传递上下文”或即将中断时，daily tasks 或报告必须写入 `ContextHandoffCard`，字段至少包含：`source-of-truth`、`confirmed-decisions`、`open-risks`、`next-action`、`blocked-reason`、`must-not-overwrite`、`validation-state`、`artifact-links`。`ContextHandoffCard` 是交接卡，恢复方仍须按 `Context Rehydration Contract` 重新核对文件真相源；禁止把交接卡写成 SUMMARY 自由文本段落。
+
 ### 全局 SUMMARY（项目共用）
 ```
 <active-root>/.memory/SUMMARY.md

@@ -2,7 +2,7 @@
 applyTo: "**"
 description: dev 模式合规检查规则，覆盖 FC/SC/RC/T、入口检查与完成验证
 priority: P4
-version: 1.11.11
+version: 1.11.12
 ---
 # 合规检查规则（17-compliance）
 
@@ -171,7 +171,7 @@ version: 1.11.11
 
 | # | 检查项 |
 |:-:|--------|
-| RC1 | 记忆文件是否足以让下一个 Agent 恢复上下文 |
+| RC1 | 记忆文件是否足以让下一个 Agent 恢复上下文；跨会话/多批次/summary/compact/handoff 场景是否已有 `ContextHandoffCard` |
 | RC2 | 已产出文件是否自洽完整 |
 | RC3 | 🔄 标记任务是否提供了足够恢复线索 |
 | RC4 | 关联任务的 `.memory/sessions.md` 是否已创建 |
@@ -207,7 +207,7 @@ version: 1.11.11
 | T5 | ✅ 合规通过 |
 | T6 | ✅ 约束遵守（C01~C22） |
 | T7 | ✅ 工作流验证（dev/fix: 适用门禁已执行，且“执行 → 扫描/验证 → ECR → 完成”正式阶段已走完；其中 fix 的三步扫描与 ECR 已完成；audit/analyze: PCV 与推荐结论已执行）|
-| T8 | ✅ SUMMARY 已更新 |
+| T8 | ✅ SUMMARY 已更新；若触发上下文交接，daily tasks 或报告已写 `ContextHandoffCard` |
 | T9 | ✅ 产物路径已输出 |
 
 > ℹ️ **T 层补充**：T2/T3/T8 验证的是最终完成态，和 FC/SC 的“写入动作是否发生”不同；只有两层都通过，才表示既没有漏写，也没有在收尾阶段失配。

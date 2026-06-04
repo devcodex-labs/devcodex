@@ -41,6 +41,7 @@ applyTo: "**"
 - 非 chat 工作流：在 CP1 / 问题确认前形成 Intent Expansion Card（semantic、project、continuity、action、domain、artifact-impact、risk、host-capability、validation-route、confidence、alternatives），用于 PC1/PC3 与压缩恢复复核；dev 模式默认向用户展示完整 Card
 - 意图扩展摘要：若扩展后路由变化、命中控制面/宿主差异、风险不为 normal、confidence 非 high 或跨会话 resume，且当前不是 dev 模式完整 Card 展示场景时，入口检查后、CP1/问题确认前追加 3~5 行用户可见摘要；只写语义初判、扩展后路由、关键风险、验证路线、备选路径
 - Context Rehydration Contract：压缩恢复、summary 恢复或用户要求按文件真相重建时，按“当前用户消息 → 已确认产物 → sessions → tasks → SUMMARY → 摘要 → AI 推断”的优先级重建上下文
+- ContextHandoffCard：跨会话、跨 Agent、多批次、summary/compact 前或用户要求“传递上下文”时，由交接方输出 source-of-truth / confirmed-decisions / open-risks / next-action / must-not-overwrite / validation-state / artifact-links；恢复方仍按 Context Rehydration Contract 核对文件真相源
 - 待跟进事项：来自记忆中的 `⚠️ 待跟进`
 - 产物落点：仅输出状态（已确定 / 无需产物 / 待确定），不要直接输出内部 filePath
 - PC5~PC7：与 `instructions/17-compliance.instructions.md` 保持一致；无法执行时必须标注 N/A 或 ⚠️ 原因，禁止省略

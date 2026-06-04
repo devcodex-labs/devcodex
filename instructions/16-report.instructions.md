@@ -2,7 +2,7 @@
 applyTo: "**"
 description: 报告输出规则，覆盖路径、命名、结构、ECR 引用与用户面产物路径要求
 priority: P5
-version: 1.11.11
+version: 1.11.12
 ---
 # 报告输出规则（16-report）
 
@@ -70,13 +70,18 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 ```markdown
 > **审查目标类型**: [规范文件 / 技术方案 / 需求文档 / 项目工程 / 报告 / 通用文档 / 发布前审查]
 > **审查范围**: [全面体检 / 定向深度 / 修复验证]
-> **收敛**: 连续 3 轮零发现（所有子类型统一，不区分定向/全面）
+> **收敛**: 连续 3 轮有效零发现（仍须满足连续 3 轮零发现；所有子类型统一，不区分定向/全面）
+> **ReviewCoverageDelta**: ✅已核验 / ⚠️缺失 / N/A（说明）
 > **PCV状态**: ✅已完成 / 🔄进行中
 ```
 
 ### fix 报告须包含
 - CP 确认记录表
 - 三步扫描结果
+
+### ContextHandoffCard
+
+当报告对应的任务跨会话、跨 Agent、多批次、summary/compact 前、用户要求“传递上下文”、或最终状态不是 ✅ 已完成时，报告必须包含 `ContextHandoffCard`，字段至少覆盖 `source-of-truth`、`confirmed-decisions`、`open-risks`、`next-action`、`blocked-reason`、`must-not-overwrite`、`validation-state` 与 `artifact-links`。已完成且无需交接时写 `ContextHandoffCard: N/A + skipReason`。
 
 ### fix.incident 报告额外头部（响应时效审计）
 ```markdown
@@ -92,6 +97,7 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 - ⛔ **禁止覆盖已有报告**，每次会话独立新建文件
 - 每条建议/问题必须附五项验证（合理性 + 可实施性 + 收益 + 验证状态 + 影响范围）— 与 [`17-compliance.instructions.md`](./17-compliance.instructions.md) §1 输出验证保持一致
 - 报告写入后必须执行二次验证（V1~V6，见 `17-compliance.instructions.md`）
+- 跨会话/未完成/多批次任务不得缺少 `ContextHandoffCard`；SUMMARY 只能作为索引，不得替代交接卡
 - 回复末尾必须输出报告路径（按 `ArtifactLinkSet` 输出主 Markdown 链接与必要 copy fallback，详见 [`02-output-paths.instructions.md`](./02-output-paths.instructions.md) §产物路径输出格式）：
   ```
   - [NN--简述.md](workspace相对路径/.devcodex/reports/.../NN--简述.md)

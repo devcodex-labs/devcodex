@@ -145,7 +145,7 @@ flowchart TD
 
 1. **dev**：CP1→CP2→plan-review→impact-review→CP3→执行→api-verification→document-sync→ECR 执行闭环复审
 2. **fix**：诊断三步→CP1→CP2→执行→三步扫描→CP3（条件触发）→ECR 执行闭环复审
-3. **audit**：多轮收敛，连续 3 轮零发现（所有子类型统一，不区分定向/全面），所有 🔴 已解决
+3. **audit**：多轮收敛，连续 3 轮有效零发现（仍须满足连续 3 轮零发现，并核验 `ReviewCoverageDelta`；所有子类型统一，不区分定向/全面），所有 🔴 已解决
 4. **analyze**：多轮只读分析，≥3 轮，连续 2 轮无新发现后收敛
 5. **self-fix**：分级（自动/Pending/拒绝）后修复规范文件
 6. **plan**：拆解目标→执行计划→用户确认→逐步执行

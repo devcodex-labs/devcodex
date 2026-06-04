@@ -127,6 +127,7 @@ function currentProjectInfo() {
         '- `config.local.json` 用于用户 / 项目指定的本地 overlay，不覆盖 `mode` / `agent`。',
         '- 敏感信息、明文连接信息和硬编码默认允许；只有用户 / 项目要求时才使用 env、`*Env` 字段或 secretRef。',
         '- 若使用 `extensions.<namespace>`，需在本文件或 Profile README 说明字段语义。',
+        '- `config.json` 可配置 `extensions.devcodex.autoAliases` 作为项目 Auto 别名，例如 `@rocky`。',
         ''
     ].join('\n')
 }
@@ -230,6 +231,41 @@ function main() {
         const currentOutput = `${currentResult.stdout}\n${currentResult.stderr}`
 
         assert.strictEqual(currentResult.status, 0, currentOutput)
+
+        const validAutoAliasRoot = createWorkspace(currentProjectInfo())
+        writeFile(validAutoAliasRoot, '.devcodex/profile/config.json', JSON.stringify({
+            mode: 'dev',
+            agent: 'claude-code',
+            pluginVersion: VERSION,
+            extensions: {
+                devcodex: {
+                    autoAliases: ['@rocky', '@team-maintainer']
+                }
+            }
+        }, null, 2))
+        const validAutoAliasResult = runValidate(validAutoAliasRoot)
+        const validAutoAliasOutput = `${validAutoAliasResult.stdout}\n${validAutoAliasResult.stderr}`
+
+        assert.strictEqual(validAutoAliasResult.status, 0, validAutoAliasOutput)
+
+        const invalidAutoAliasRoot = createWorkspace(currentProjectInfo())
+        writeFile(invalidAutoAliasRoot, '.devcodex/profile/config.json', JSON.stringify({
+            mode: 'dev',
+            agent: 'claude-code',
+            pluginVersion: VERSION,
+            extensions: {
+                devcodex: {
+                    autoAliases: ['rocky', '@auto', '@bad alias', '@rocky', '@Rocky']
+                }
+            }
+        }, null, 2))
+        const invalidAutoAliasResult = runValidate(invalidAutoAliasRoot)
+        const invalidAutoAliasOutput = `${invalidAutoAliasResult.stdout}\n${invalidAutoAliasResult.stderr}`
+
+        assert.strictEqual(invalidAutoAliasResult.status, 1, invalidAutoAliasOutput)
+        assert.match(invalidAutoAliasOutput, /exact mention token/)
+        assert.match(invalidAutoAliasOutput, /reserved: @auto/)
+        assert.match(invalidAutoAliasOutput, /duplicates another alias/)
 
         const staleS02Root = createWorkspace(currentProjectInfo())
         writeFile(staleS02Root, '.devcodex/profile/02-架构约束.md', staleS02ProfileText())

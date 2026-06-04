@@ -132,6 +132,66 @@ function isPlainObject(value) {
   return !!value && typeof value === 'object' && !Array.isArray(value)
 }
 
+const RESERVED_AUTO_ALIASES = new Set(['@devcodex', '@devcodex-auto', '@auto'])
+
+function validateAutoAliases(autoAliases, sourceName) {
+  if (autoAliases === undefined) return
+  if (!Array.isArray(autoAliases)) {
+    err(`[profile] ${sourceName}.extensions.devcodex.autoAliases must be an array`)
+    return
+  }
+  const seen = new Set()
+  for (let i = 0; i < autoAliases.length; i += 1) {
+    const alias = autoAliases[i]
+    if (typeof alias !== 'string') {
+      err(`[profile] ${sourceName}.extensions.devcodex.autoAliases[${i}] must be a string`)
+      continue
+    }
+    const normalized = alias.trim()
+    const lower = normalized.toLowerCase()
+    if (alias !== normalized) {
+      err(`[profile] ${sourceName}.extensions.devcodex.autoAliases[${i}] must not contain leading or trailing whitespace`)
+    }
+    if (!/^@[A-Za-z][A-Za-z0-9_-]*$/.test(normalized) || normalized.length > 65) {
+      err(`[profile] ${sourceName}.extensions.devcodex.autoAliases[${i}] must be an exact mention token like "@rocky"`)
+    }
+    if (RESERVED_AUTO_ALIASES.has(lower)) {
+      err(`[profile] ${sourceName}.extensions.devcodex.autoAliases[${i}] is reserved: ${normalized}`)
+    }
+    if (seen.has(lower)) {
+      err(`[profile] ${sourceName}.extensions.devcodex.autoAliases[${i}] duplicates another alias: ${normalized}`)
+    }
+    seen.add(lower)
+  }
+}
+
+function validateProfileConfigExtensions(cfg, sourceName, projectInfoText, readmeText) {
+  const extensions = cfg.extensions
+  if (extensions === undefined) return
+  if (!isPlainObject(extensions)) {
+    err(`[profile] ${sourceName}.extensions must be an object`)
+    return
+  }
+  const devcodex = extensions.devcodex
+  if (devcodex === undefined) return
+  if (!isPlainObject(devcodex)) {
+    err(`[profile] ${sourceName}.extensions.devcodex must be an object`)
+    return
+  }
+  for (const key of Object.keys(devcodex)) {
+    if (key !== 'autoAliases') {
+      err(`[profile] ${sourceName}.extensions.devcodex contains unsupported key: ${key}`)
+    }
+  }
+  validateAutoAliases(devcodex.autoAliases, sourceName)
+  if (Array.isArray(devcodex.autoAliases) && devcodex.autoAliases.length > 0) {
+    const combined = `${projectInfoText}\n${readmeText}`
+    if (!/extensions\.devcodex\.autoAliases|autoAliases|auto 别名|Auto 别名/i.test(combined)) {
+      warn(`[profile] ${sourceName}.extensions.devcodex.autoAliases is configured but Profile README / 01-项目信息.md does not document it`)
+    }
+  }
+}
+
 function validateLocalConfigDocumented(projectInfoText, readmeText, hasExtensions) {
   const combined = `${projectInfoText}\n${readmeText}`
   if (!/config\.local\.json/.test(combined)) {
@@ -368,6 +428,8 @@ if (fs.existsSync(cfgPath)) {
       warn(`[profile] pluginVersion drift: profile says ${cfg.pluginVersion}, plugin is ${pluginVersion} (run \`devcodex update\`)`)
     }
   }
+  const projectInfoText = fs.existsSync(projectInfoPath) ? fs.readFileSync(projectInfoPath, 'utf8') : ''
+  validateProfileConfigExtensions(cfg, 'config.json', projectInfoText, readmeText)
 } else {
   warn('[profile] config.json missing — defaults applied (mode=prod, agent inferred)')
 }

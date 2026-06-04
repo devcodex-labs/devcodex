@@ -131,7 +131,7 @@ S02 不再把“敏感信息、明文密码、连接字符串或硬编码”定�
 - ContextHandoffCard：跨会话、跨 Agent、多批次、summary/compact 前、用户明确要求“传递上下文”或即将中断时，交接方必须在报告或 daily tasks 写入 `source-of-truth`、`confirmed-decisions`、`open-risks`、`next-action`、`blocked-reason`、`must-not-overwrite`、`validation-state`、`artifact-links`；恢复方按 Context Rehydration Contract 消费并重新核对文件真相源，禁止用 handoff 覆盖已确认产物、sessions、tasks 或 SUMMARY。
 - Hook Stop/PreCompact 对入口检查块的可见回复验证必须区分 `verified-present` / `verified-missing` / `unverified` 三态；无法解析最终 assistant 内容时只能提示“无法验证最终用户可见回复”并附 payload capture 指引，禁止断言“未输出”。
 - 当 `<工作区根>/.devcodex/layout.json` 启用 `workspace-namespace` 时，Profile 与运行态目录按**工作区集中命名空间**读取：
-  - `config.json`：`<工作区根>/.devcodex/workspace/profile/` 作为 base，`<工作区根>/.devcodex/<project>/profile/` 作为 overlay
+  - `config.json`：`<工作区根>/.devcodex/workspace/profile/` 作为 base，`<工作区根>/.devcodex/<project>/profile/` 作为 overlay；可在 `extensions.devcodex.autoAliases` 配置项目 Auto 精确别名（如 `@rocky`）
   - `config.local.json`：与 `config.json` 使用相同的 `workspace base + project overlay` 路径模型，可作为用户 / 项目指定的本地 overlay（长期连接、本地明文连接信息、env / secretRef 引用、`extensions.<namespace>`）；不得覆盖 `mode` / `agent` / `pluginVersion`
   - 连接配置来源遵循 S02：默认可直写或沿用项目既有模式；只有用户或项目明确指定 `config.local.json` 时，脚本、测试、数据库 / SSH / MongoDB / 数据操作才从当前 Profile 路径模型下的 `config.local.json` 读取，缺失文件或字段时提醒补齐
   - Profile 文档：项目命名空间文件优先，缺失回退到 `workspace/profile/`
@@ -145,7 +145,7 @@ S02 不再把“敏感信息、明文密码、连接字符串或硬编码”定�
 | `01-项目信息.md` | 技术栈/仓库 | 是 |
 | `02-架构约束.md` | 目录结构/边界 | 是 |
 | `03-代码风格.md` | 编码规范 | 是 |
-| `config.json` | ENV_MODE + agent 兜底标识 | 按需 |
+| `config.json` | ENV_MODE + agent 兜底标识；可配置 `extensions.devcodex.autoAliases` 项目 Auto 别名 | 按需 |
 | `config.local.json` | 用户 / 项目指定时使用的本地 overlay：长期连接、本地明文连接信息、env / secretRef 引用、`extensions.<namespace>` 扩展位 | 可选 |
 
 > **Copilot / Claude Code / Codex 三宿主 Bootstrap 提醒**（v1.11.0+）：`lifecycle.cjs` 只在宿主实际提供 Hook 事件时形成 runtime 护栏。Claude Code 具备项目级 hooks + MCP，是当前 Full 路径；Codex 通过 `.codex/hooks.json` 接入，阻断输出按事件契约区分顶层 `decision`、`continue:false` 与工具级 `permissionDecision`；Copilot / JetBrains / Cursor 默认按 instruction-fallback 处理，不承诺本地 Hook 硬拦。默认 `safety-only` 模式下，bootstrap / CP / auto 白名单等流程问题输出提醒并放行工具，仅危险命令继续硬拦；设置 `DEVCODEX_HOOK_ENFORCEMENT=strict` 时，只有支持硬拦的事件才停止流程。AI 仍须在首条用户可见回复输出 PC0~PC7 入口检查块（S07/C18）。
@@ -235,7 +235,7 @@ dev/fix 修改完成前必须判定是否影响 Profile。命中以下任一触�
 | 技术栈、框架、SDK、依赖管理器变化 | `01-项目信息.md` 技术栈 / 依赖说明 |
 | 目录结构、模块边界、分发面、宿主能力变化 | `02-架构约束.md` 目录与边界 |
 | 代码风格、脚本、测试、构建、发布命令变化 | `03-代码风格.md` 或 `01-项目信息.md` 验证路线 |
-| 共享配置、环境变量、本地长期连接、`config.local.json` schema 或 `extensions.<namespace>` 变化 | Profile README / `01-项目信息.md` / `config.local.json` 说明 |
+| 共享配置、环境变量、本地长期连接、`config.json` extensions、`config.local.json` schema 或 `extensions.<namespace>` 变化 | Profile README / `01-项目信息.md` / `config.json` / `config.local.json` 说明 |
 | 当前阶段、活跃版本、任务现实、发布状态变化 | `01-项目信息.md` 当前开发重点 |
 
 - `document-sync` 必须把 `ProfileImpactCheck` 作为 dev/fix 后置检查项，不得只依赖 audit 的 Profile Freshness 事后发现。
@@ -304,7 +304,7 @@ SCV 结果必须写入报告；控制面任务的 ECR-7 必须引用 SCV 证据�
 CP1（需求确认）→ CP2（方案确认）→ [plan-review] → CP3（实施确认）→ 执行
 ```
 
-- **CP1**：输出完整需求理解（目标/边界/风险）→ 等待用户确认
+- **CP1**：输出完整需求理解（目标/边界/风险）与 `ImplementationComplexityPreference`（默认 `simple`）→ 等待用户确认
 - **CP2**：输出技术方案（架构/文件清单/依赖）；新增/升级依赖、框架、SDK 或平台 API 时必须附 `OfficialDocsEvidence`，涉及项目事实变化时必须附 `ProfileImpactCheck` → 等待用户确认
 - **plan-review**：评估计划可行性（CP2 后、CP3 前）
 - **CP3**：条件触发。default/refactor/database/optimization/scenario-test 必须执行；docs/init/plan-review 按子类型规则豁免，并记录 `CP3: N/A（<子类型> 子类型豁免）`。
@@ -319,7 +319,8 @@ CP1（需求确认）→ CP2（方案确认）→ [plan-review] → CP3（实施
 ### 代码实现复杂度与通用工程守门
 
 - CP1 需求/问题定义必须前置平台工程判断：谁会复用、哪一层值得抽象、哪一层应保持局部、长期维护成本和明确非目标；不得把“通用性/模块化”写成无消费者的空心抽象。
-- CP2 技术方案必须给出最小实现与注释策略；实施默认采用满足验收项的最小实现，优先局部补丁和既有本地模式。
+- CP1 必须给出 `ImplementationComplexityPreference`：`simple`（默认，满足验收项的局部最小实现）、`balanced`（存在明确复用/演进边界但不做通用平台化）、`robust`（用户明确要求或已有公共契约/多消费者/高风险长期演进）。用户未提出复杂化、需求未说明或任务可用简单方案满足验收时，默认选择 `simple`；若 AI 判断需要 `balanced/robust`，必须列出 2~3 个方案、维护成本和取舍，等待用户确认后再升级。
+- CP2 技术方案必须继承 CP1 的 `ImplementationComplexityPreference` 并给出最小实现与注释策略；实施默认采用满足验收项的最小实现，优先局部补丁和既有本地模式。
 - 禁止为“企业级”“可扩展”预设新增无真实消费者的 service / factory / adapter / manager、策略注册表、通用配置或预留扩展点。
 - 必要注释必须覆盖非显然业务规则、状态转换、不变量、兼容约束、安全边界、外部契约映射和反直觉权衡；JavaScript / Node.js 中命中必要注释的导出函数、核心业务函数、类、复杂对象契约、参数/返回/异常说明必须使用标准 JSDoc。
 - Node.js 项目的 `engines.node`、CI matrix、Profile 与 README 运行时说明默认不得低于 `>=18`；支持更低版本时必须在 CP2 写明业务理由、风险和独立验证证据。
@@ -606,7 +607,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → 执行 →
 
 ## 全自动模式豁免
 
-当用户选择 `@devcodex-auto` 或明确自然语言 auto 授权（如“进入 auto 模式执行”）时：CP1/CP2/CP3 确认自动通过；模糊提及、询问 auto 规则或普通“继续”不等价于 auto 授权；S01/S02 用户 / 项目敏感信息策略/S03~S07/C01/C10/C18 不可豁免。S02 不阻断明文、硬编码或真实秘密写入；它只禁止 AI 未经用户 / 项目要求自行加严、改成 env、`secretRef`、secret manager、`config.local.json` 或占位符。
+当用户选择 `@devcodex-auto`、Profile `config.json` 的 `extensions.devcodex.autoAliases` 中配置的精确别名（如 `@rocky`），或明确自然语言 auto 授权（如“进入 auto 模式执行”）时：CP1/CP2/CP3 确认自动通过；模糊提及、询问 auto 规则、普通“继续”或未配置的昵称不等价于 auto 授权；S01/S02 用户 / 项目敏感信息策略/S03~S07/C01/C10/C18 不可豁免。S02 不阻断明文、硬编码或真实秘密写入；它只禁止 AI 未经用户 / 项目要求自行加严、改成 env、`secretRef`、secret manager、`config.local.json` 或占位符。
 
 ---
 

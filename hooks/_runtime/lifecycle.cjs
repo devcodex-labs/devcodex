@@ -322,6 +322,7 @@ const {
   collectProjectPayloadStrings,
   normalizeText,
   readProfileMode,
+  readProjectProfileConfig,
   isStrictEnforcement
 })
 
@@ -986,9 +987,9 @@ async function main() {
   // ── UserPromptSubmit ───────────────────────────────────────────────────────
   if (eventName === 'UserPromptSubmit') {
     state = resetState(mode, state)
-    state.executionMode = detectExecutionMode(payload)
-    confirmDangerousApprovalsFromPrompt(state, prompt, eventName, platform)
     applyPromptTarget(state, promptTarget, payload)
+    state.executionMode = detectExecutionMode(payload, state, promptTarget)
+    confirmDangerousApprovalsFromPrompt(state, prompt, eventName, platform)
     // Multi-project workspace guard (v1.9.8+):
     // when no workspace-root profile exists and ≥2 sibling projects detected,
     // require the user to specify the target project explicitly.

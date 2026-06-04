@@ -57,7 +57,7 @@ dev / fix / audit 等工作流的执行细节，只有在用户或 Agent 实际�
 | 第二层 | **Instructions** | 按需加载的规范约束（`description` 语义匹配）| 主流程节点执行规范（预检查/摘要/记忆/合规等）|
 | 第三层 | **Skills** | 按需触发的工作流能力入口 | dev / fix / audit / analyze / self-fix / plan / resume / chat，以及 `readme-authoring` / `audit-readme` README 专项能力、`audit-release` 发布前审查和 execution-contract / test-router / release-verification / host-contract-verification / source-consumer-sync 等支撑能力 |
 | 配套 | **Prompts** | 有参数的结构化输出模板 | CP 节点输出模板（CP1/CP2/CP3）|
-| 分发资产 | **Agents** | Copilot 自定义 Agent 入口 | `@devcodex` / `@devcodex-auto`；Copilot 端默认分发，Claude Code / Codex 端不分发 |
+| 分发资产 | **Agents** | Copilot 自定义 Agent 入口 | `@devcodex` / `@devcodex-auto`；Auto 可通过 Profile `extensions.devcodex.autoAliases` 增加项目别名；Copilot 端默认分发，Claude Code / Codex 端不分发 |
 
 ---
 

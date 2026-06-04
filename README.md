@@ -33,7 +33,7 @@ DevCodex 通过 `.github/`（Copilot）、`CLAUDE.md + .claude/ + .mcp.json`（C
 ## 功能特性
 
 - **8 种工作流**: `dev` / `fix` / `audit` / `analyze` / `self-fix` / `resume` / `plan` / `chat`
-- **2 种模式**: 确认模式（@DevCodex）/ 全自动模式（@DevCodex Auto，Auto v1.1 对显式 `@devcodex-auto` 或明确自然语言 auto 授权 + 白名单路径提供硬保证）
+- **2 种模式**: 确认模式（@DevCodex）/ 全自动模式（@DevCodex Auto，Auto v1.1 对显式 `@devcodex-auto`、Profile `extensions.devcodex.autoAliases`（如 `@rocky`）或明确自然语言 auto 授权 + 白名单路径提供硬保证）
 - **合规管线**: FC（形式合规）→ SC（实质合规）→ RC（恢复性检查）→ T（任务完成验证）
 - **持久记忆**: 每 Agent、每日的会话记录，结构化字段
 - **自动报告**: 每次会话自动写入报告，从不询问 — 直接执行
@@ -49,7 +49,7 @@ DevCodex 通过 `.github/`（Copilot）、`CLAUDE.md + .claude/ + .mcp.json`（C
 - **规范治理 Intake**: 所有模式下每条用户消息在合理性评估后都会额外检查是否命中可泛化改进；命中时主动写入 `data/process-improvements.md`（优化清单，PI），必要时联动 `data/pending-fixes.md`（PF），并显式回执 `PI/PF`
 - **Backlog 真相复核与状态回写**: 从 `data/*.md` open/partial 项组织新需求或新批次前，先按 `pure-open / residual-tail / already-fixed / misclassified` 分类；实施后再执行台账状态回写闭环，避免“源码已修但 backlog 仍旧 open”
 - **官方文档证据前置**: 新增或升级依赖、框架、SDK、平台 API、外部模块前，CP2 会要求 `OfficialDocsEvidence`，记录官方文档来源、关键用法、限制与兼容性，避免凭经验猜 API
-- **通用工程守门**: Node.js 项目默认不低于 `>=18`；需求/问题定义前置平台工程判断，先确认消费者范围、共享契约边界、模块职责、维护成本和非目标；依赖/兼容任务拆分业务源码平滑性与依赖层落地条件；包/库/adapter/CLI 同查代码层与包工程层；JS/Node 必要注释使用标准 JSDoc；简单 service 不重复 route/model/schema 已承担的校验
+- **通用工程守门**: Node.js 项目默认不低于 `>=18`；需求/问题定义前置平台工程判断，并记录 `ImplementationComplexityPreference`，用户未要求复杂化时默认 `simple`；依赖/兼容任务拆分业务源码平滑性与依赖层落地条件；包/库/adapter/CLI 同查代码层与包工程层；JS/Node 必要注释使用标准 JSDoc；简单 service 不重复 route/model/schema 已承担的校验
 - **验证卫生与包边界**: release / pack / benchmark / codegen 任务中，package boundary check 必须在构建完成后单独串行执行；消费者验证异常先查 package.json、lockfile、node_modules 与 `npm ls <关键依赖>`，收尾前清理无关 dirty 文件和验证残留
 - **ProfileImpactCheck**: dev/fix 改动项目技术栈、目录、脚本、测试/发布路线、分发面、配置或长期连接时，会主动判定是否需要更新 Profile；无需更新时也要写明跳过理由
 - **敏感信息与硬编码策略**: 默认允许敏感信息、明文连接信息和硬编码出现在用户要求的代码、脚本、配置、文档、测试或报告中；只有用户 / 项目明确禁止时才脱敏、占位或改用 env、`secretRef`、secret manager、`config.local.json`
@@ -450,7 +450,7 @@ DevCodex 的 `plugin.json` 声明 `tier: "free"`，所有 Skill 均标注 `tier:
 - **可选**：通过 `.github/agents/` 使用 `@devcodex` / `@devcodex-auto` 自定义 Agent 入口
 - **Codex**：通过 `AGENTS.md` 自动注入总则，通过 `.agents/skills/` 按需读取技能；不单独维护 `codex/AGENTS.md`
 
-Auto v1.1 当前只在支持 Hook 的宿主里，对显式 `@devcodex-auto` 或明确自然语言 auto 授权（如“进入 auto 模式执行”）下的白名单路径提供 runtime 级硬保证；模糊提及、询问 auto 规则或普通“继续”不算授权。JetBrains 等 `instruction-fallback` 宿主仅同步规则语义，不承诺完全等价的自动放行。Auto 任务若命中控制面、多批次或预计修改 ≥10 文件，仍须先形成 ExecutionContract 并持续更新实施进度。
+Auto v1.1 当前只在支持 Hook 的宿主里，对显式 `@devcodex-auto`、Profile `config.json` 中 `extensions.devcodex.autoAliases` 配置的精确别名（如 `@rocky`），或明确自然语言 auto 授权（如“进入 auto 模式执行”）下的白名单路径提供 runtime 级硬保证；模糊提及、询问 auto 规则、未配置昵称或普通“继续”不算授权。JetBrains 等 `instruction-fallback` 宿主仅同步规则语义，不承诺完全等价的自动放行。Auto 任务若命中控制面、多批次或预计修改 ≥10 文件，仍须先形成 ExecutionContract 并持续更新实施进度。
 
 ## 许可证
 

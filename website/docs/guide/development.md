@@ -127,7 +127,7 @@ description: "Use when: ..."   # 必填，AI 靠这个发现 Skill
 
 - **`mode: "dev"`**：进入实质任务前输出 PC0~PC7 入口检查，PC4 执行完整规范雷达，并在收尾执行 FC / SC / RC / T 合规检查
 - **`mode: "prod"`**：进入实质任务前仍输出 PC0~PC7 基础入口检查，PC4 标注 N/A；不执行后置合规检查，但 CP1 / CP2 / CP3 仍然强制
-- **执行模式与 `ENV_MODE` 分离**：确认模式 / 全自动模式属于 Agent 入口语义；当前全自动正式入口包括显式 `@devcodex-auto` 与明确自然语言 auto 授权，且只有在 hook-enforced 宿主 + 白名单路径上形成 runtime 级自动推进；模糊提及、询问 auto 规则或普通“继续”不算授权
+- **执行模式与 `ENV_MODE` 分离**：确认模式 / 全自动模式属于 Agent 入口语义；当前全自动正式入口包括显式 `@devcodex-auto`、Profile `config.json` 的 `extensions.devcodex.autoAliases` 精确别名（如 `@rocky`）与明确自然语言 auto 授权，且只有在 hook-enforced 宿主 + 白名单路径上形成 runtime 级自动推进；模糊提及、询问 auto 规则、未配置昵称或普通“继续”不算授权
 
 > 当前正式规则源以 `instructions/01-common.instructions.md`、`instructions/17-compliance.instructions.md` 和 `skills/cp-gate/SKILL.md` 为准；本页负责解释这些规则如何落到日常开发流程中。
 
@@ -170,6 +170,10 @@ dev 模式默认向用户展示完整 Intent Expansion Card；prod、instruction
 ### SimpleTaskFastPath
 
 非常明确、预计 ≤2 个源码/文档文件、无公共 API/Schema/依赖/配置/发布/控制面/台账来源/高风险、无需多轮跟踪的简单 dev/fix 任务，可免建需求/bug 目录、`01-需求概述.md` 或 `04-实施计划.md`。AI 必须在报告/记忆写明 `SimpleTaskFastPath: applied`、`N/A + skipReason`、验证证据和升级回退判断；执行中任一条件失效时，立即升级回完整 CP/产物链。
+
+### ImplementationComplexityPreference
+
+CP1 需求/问题确认必须记录实现复杂度档位：`simple`、`balanced` 或 `robust`。用户未要求复杂化、需求未说明或简单方案可满足验收时，默认选择 `simple`，优先局部补丁、既有模式和最少维护成本；若 AI 判断需要升级到 `balanced/robust`，必须先列出 2~3 个方案、维护成本、非目标和取舍，等待用户确认后再进入 CP2/CP3。
 
 ### Hook closure 三态
 

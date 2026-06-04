@@ -2,7 +2,7 @@
 applyTo: "**"
 description: 任务切换边界、RecordRouter 分流、Improvement Intake 与提交发布边界的通用规范
 priority: P5
-version: 1.11.12
+version: 1.11.13
 ---
 # 任务边界与 RecordRouter
 
@@ -101,6 +101,6 @@ version: 1.11.12
 ## ProfileImpactCheck
 
 - dev/fix 修改项目事实后必须执行 `ProfileImpactCheck`，不能只等 audit 的 `Profile Freshness Check` 事后发现漂移。
-- 触发项包括：技术栈/框架/SDK/依赖管理器、目录结构/模块边界/分发面、脚本/测试/构建/发布命令、共享配置/用户指定环境变量、长期连接、`config.local.json` schema、`extensions.<namespace>`、当前阶段/活跃版本/发布状态。
+- 触发项包括：技术栈/框架/SDK/依赖管理器、目录结构/模块边界/分发面、脚本/测试/构建/发布命令、共享配置/用户指定环境变量、长期连接、`config.json` extensions、`config.local.json` schema、`extensions.<namespace>`、当前阶段/活跃版本/发布状态。
 - 命中触发项时必须更新 Profile：`01-项目信息.md`（技术栈、脚本、验证/发布路线、当前阶段）、`02-架构约束.md`（目录/边界/分发面）、`03-代码风格.md`（代码风格/工具链），或 Profile README / config 说明。
 - 若判断无需更新 Profile，必须在 CP2 / CP3 / ECR / 报告中写明 `ProfileImpactCheck: N/A` 与 `skipReason`。

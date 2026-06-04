@@ -15,6 +15,7 @@ function buildLifecycleProjectTargetUtils({
   collectProjectPayloadStrings,
   normalizeText,
   readProfileMode,
+  readProjectProfileConfig,
   isStrictEnforcement
 }) {
   function listWorkspaceProjects() {
@@ -223,8 +224,44 @@ function buildLifecycleProjectTargetUtils({
     return false
   }
 
-  function hasAutoAuthorizationPrompt(prompt) {
-    if (/@devcodex-auto\b/i.test(prompt)) return true
+  function isValidAutoAlias(alias) {
+    if (typeof alias !== 'string') return false
+    const normalized = alias.trim()
+    if (normalized.length > 65) return false
+    if (!/^@[A-Za-z][A-Za-z0-9_-]*$/.test(normalized)) return false
+    const lower = normalized.toLowerCase()
+    return !['@devcodex', '@devcodex-auto', '@auto'].includes(lower)
+  }
+
+  function hasMentionToken(prompt, alias) {
+    const escaped = escapeRegExp(alias)
+    return new RegExp(`(^|\\s)${escaped}(?=$|[\\s,.;:!?，。；：！？])`, 'i').test(prompt)
+  }
+
+  function getConfiguredAutoAliases(state, target) {
+    if (typeof readProjectProfileConfig !== 'function') return []
+    const activeProject = target?.activeProject || state?.activeProject || ''
+    const cfg = readProjectProfileConfig(state || {}, activeProject)
+    const aliases = cfg?.extensions?.devcodex?.autoAliases
+    if (!Array.isArray(aliases)) return []
+    const seen = new Set()
+    const validAliases = []
+    for (const alias of aliases) {
+      if (!isValidAutoAlias(alias)) continue
+      const normalized = alias.trim()
+      const key = normalized.toLowerCase()
+      if (seen.has(key)) continue
+      seen.add(key)
+      validAliases.push(normalized)
+    }
+    return validAliases
+  }
+
+  function hasAutoAuthorizationPrompt(prompt, state, target) {
+    if (hasMentionToken(String(prompt || ''), '@devcodex-auto')) return true
+    for (const alias of getConfiguredAutoAliases(state, target)) {
+      if (hasMentionToken(String(prompt || ''), alias)) return true
+    }
     const normalized = String(prompt || '').replace(/\s+/g, ' ').trim()
     const naturalLanguageAutoPatterns = [
       /(?:进入|启用|开启|使用|切换到)\s*(?:auto|自动|全自动)\s*(?:模式|执行|推进|处理)?/i,
@@ -234,9 +271,9 @@ function buildLifecycleProjectTargetUtils({
     return naturalLanguageAutoPatterns.some(pattern => pattern.test(normalized))
   }
 
-  function detectExecutionMode(payload) {
+  function detectExecutionMode(payload, state, target) {
     const prompt = extractUserPrompt(payload)
-    return hasAutoAuthorizationPrompt(prompt) ? EXECUTION_MODE.AUTO : EXECUTION_MODE.CONFIRM
+    return hasAutoAuthorizationPrompt(prompt, state, target) ? EXECUTION_MODE.AUTO : EXECUTION_MODE.CONFIRM
   }
 
   function buildMultiProjectBlockMessage() {

@@ -110,6 +110,51 @@ function main() {
   const naturalAutoState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
   assert.strictEqual(naturalAutoState.executionMode, 'auto')
 
+  cleanState({
+    mode: 'dev',
+    agent: TEST_AGENT,
+    extensions: {
+      devcodex: {
+        autoAliases: ['@rocky']
+      }
+    }
+  })
+  run({ hookEventName: 'UserPromptSubmit', prompt: '@rocky 修复 Profile auto alias' })
+  runBootstrapReads()
+  const profileAliasState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(profileAliasState.executionMode, 'auto')
+
+  cleanState({
+    mode: 'dev',
+    agent: TEST_AGENT,
+    extensions: {
+      devcodex: {
+        autoAliases: ['rocky', '@auto', '@devcodex', '@bad alias']
+      }
+    }
+  })
+  run({ hookEventName: 'UserPromptSubmit', prompt: '@rocky should not enter auto without a valid configured alias' })
+  runBootstrapReads()
+  const invalidAliasState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(invalidAliasState.executionMode, 'confirm')
+
+  cleanLayoutState(
+    { mode: 'prod', agent: TEST_AGENT },
+    {
+      mode: 'dev',
+      extensions: {
+        devcodex: {
+          autoAliases: ['@rocky']
+        }
+      }
+    }
+  )
+  const layoutChild = path.join(TEMP_ROOT, 'chat')
+  run({ hookEventName: 'UserPromptSubmit', prompt: '@rocky 继续修复 chat 项目' }, layoutChild)
+  runLayoutBootstrapReads(TEST_AGENT, layoutChild)
+  const projectOverlayAliasState = JSON.parse(fs.readFileSync(getLayoutStateFile(), 'utf8'))
+  assert.strictEqual(projectOverlayAliasState.executionMode, 'auto')
+
   const autoWhitelistAllowed = run({
     hookEventName: 'PreToolUse',
     tool_name: 'apply_patch',

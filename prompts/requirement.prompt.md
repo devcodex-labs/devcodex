@@ -17,6 +17,7 @@ applyTo: .devcodex/**/requirements/**
 > ⚠️ 写需求和定义问题时必须前置平台工程师视角：先判断消费者范围、共享契约边界、模块职责、可维护性成本和明确非目标；“通用性/模块化”只有在真实复用者、演进边界或跨模块共享契约存在时才成立，否则保持局部最小实现。
 > ⚠️ CP1 必须填写 `ImplementationComplexityPreference`：用户未要求复杂化、需求未说明或简单方案能满足验收时，默认 `simple`；若 AI 建议升级到 `balanced/robust`，先给用户 2~3 个方案、维护成本与取舍，等待确认后再升级。
 > ⚠️ ExistingRequirementArtifactOverride：用户要求调整/修改/补充既有需求时，如果已有 `01-需求概述.md`、Profile 声明的正式需求文件或 website requirement，必须先增量编辑该文件；回复只能概述变更，不能替代文件回写。SimpleTaskFastPath 只豁免新建完整需求产物，不豁免更新既有真相源。
+> ⚠️ CP1 必须给出 ArtifactDecisionMatrix：列出 `01-需求概述.md`、`02-技术方案.md`、`04-实施计划.md`、`05-实施进度.md`、目标文档、报告、记忆的 `create` / `update` / `skip` / `N/A` 状态、原因和升级回退条件；判定优先级为已有真相源回写 > 任务触发条件 > SimpleTaskFastPath > 子类型豁免。
 > ⚠️ 描述“已接入 / 未接入”类状态时，先核验依赖与源码消费点，再拆分底座能力、当前消费者和高级能力尾项，避免把“基础已接入但高级能力未接入”误写成整体未接入。
 
 | 类型 | 适用场景 | 默认重点 |

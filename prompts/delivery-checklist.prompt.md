@@ -11,9 +11,9 @@ applyTo: .devcodex/**/requirements/**
 
 | # | 产物 | 路径规范 | 状态 |
 |:-:|------|---------|:----:|
-| 1 | 需求概述 | `.devcodex/**/requirements/<需求>/01-需求概述.md` | ☐ |
-| 2 | 技术方案 | `.devcodex/**/requirements/<需求>/02-技术方案.md`（有设计决策时）| ☐/N/A |
-| 3 | 实施计划 | `.devcodex/**/requirements/<需求>/04-实施计划.md` | ☐ |
+| 1 | 需求概述 | `.devcodex/**/requirements/<需求>/01-需求概述.md`（已有真相源必须 update；SimpleTaskFastPath 可 N/A） | ☐/N/A |
+| 2 | 技术方案 | `.devcodex/**/requirements/<需求>/02-技术方案.md`（有架构/接口/设计决策时 create/update）| ☐/N/A |
+| 3 | 实施计划 | `.devcodex/**/requirements/<需求>/04-实施计划.md`（CP3 触发时 create/update；轻路径或子类型豁免可 N/A） | ☐/N/A |
 | 4 | 接口验证双产物 | `*-接口验证.http` + `*-接口验证.cjs`（有接口变更时；`.http` 须含 `@baseUrl` / `@token` / `@language` 标准变量）| ☐/N/A |
 | 5 | 开发报告 | `.devcodex/**/requirements/<需求>/reports/<agent>/YYYYMMDD/NN--*.md`（无任务上下文时才回退到 `.devcodex/**/reports/requirements/...`） | ☐ |
 | 6 | 记忆文件 | `.devcodex/**/.memory/clients/<agent>/tasks/YYYYMMDD.md` | ☐ |
@@ -23,7 +23,7 @@ applyTo: .devcodex/**/requirements/**
 
 | # | 产物 | 触发条件 | 状态 |
 |:-:|------|---------|:----:|
-| 1 | 实施进度 | 跨多轮/多阶段、阻塞、用户要求持续跟踪、多批次、预计修改 ≥10 文件、控制面任务、模板-示例-校验链或部署同步联动，且已存在 `04-实施计划.md` | ☐/N/A |
+| 1 | 实施进度 | 跨多轮/多阶段、阻塞、用户要求持续跟踪、多批次、预计修改 ≥10 文件、控制面任务、模板-示例-校验链或部署同步联动；默认需 `04-实施计划.md`，CP3 豁免场景可用等价任务切片 / ContextHandoffCard | ☐/N/A |
 | 2 | 行为核查清单 | 有多个业务规则需逐条验证时（使用 `behavior-checklist.prompt.md`）| ☐/N/A |
 | 3 | Impact Review 报告 | PR-5② 跨模块架构依赖变更 | ☐/N/A |
 | 4 | 数据库 Migration 文件 | 有 Schema 变更 | ☐/N/A |

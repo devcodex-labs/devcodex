@@ -174,6 +174,7 @@ AGENTS.md                 ← 与 instructions.md / copilot-instructions.md / CL
 - **Context Rehydration Contract**：压缩恢复、resume 或用户要求按文件真相重建时，会按“当前用户消息 → 已确认产物 → sessions → tasks → SUMMARY → 摘要 → AI 推断”的优先级恢复上下文，摘要不能覆盖文件真相源。
 - **ContextHandoffCard**：跨会话、跨 Agent、多批次、summary/compact 前或用户要求传递上下文时，会把 source-of-truth、confirmed decisions、open risks、next action、must-not-overwrite、validation state 与 ArtifactLinkSet 写入报告或 daily tasks；恢复时仍按 Context Rehydration Contract 重新核对文件真相源。
 - **SimpleTaskFastPath**：非常明确、预计 ≤2 文件、无公共契约/配置/发布/控制面/台账来源/高风险、无需多轮跟踪的简单 dev/fix 任务，可免建 `01-需求概述.md` / `04-实施计划.md`，改用内联 CP 摘要 + 报告/记忆 `N/A + skipReason`；范围扩大时立即升级回完整产物链。若已有需求/bug 真相源，命中 `ExistingRequirementArtifactOverride`，调整内容必须先回写文件，回复只做摘要。
+- **ArtifactDecisionMatrix**：CP1/CP2/CP3/ECR 会按任务规模列出关键产物的 `create` / `update` / `skip` / `N/A` 状态，覆盖需求、技术方案、实施计划、实施进度、目标文档、报告和记忆；判定优先级为已有真相源回写 > 任务触发条件 > SimpleTaskFastPath > 子类型豁免，避免模板“必填”口径压过轻路径或条件触发。
 - **Hook closure 三态**：Stop/PreCompact 可见回复验证区分 `verified-present`、`verified-missing`、`unverified`；无法解析最终 assistant 内容时只提示无法验证，并给出 payload capture 指引，不再断言“未输出”。
 - **长流程执行契约**：Auto、控制面、多批次、预计修改 ≥10 文件或发布前置任务会触发 ExecutionContract；测试路线不明显时触发 TestRoute；正式发版前触发 ReleaseAudit 与 ReleaseVerification；控制面消费链联动时建立 Concept Sync Map；宿主契约变化时触发 `host-contract-verification`。
 - **执行期 CP3 回退**：若执行过程中实际修改范围扩展到 CP3 门槛（≥5 文件、高风险、控制面联动），必须暂停执行并先补做 CP3，再继续改动。

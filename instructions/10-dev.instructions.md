@@ -68,17 +68,18 @@ CP1（需求确认）→ PR-1 内部自检 → CP2（方案确认）→ plan-rev
 3. **每个 CP 独立确认**：输出后必须等待用户明确响应
 4. **CP3 内容边界**：CP3 只确认实施计划，不重复技术方案中的架构决策、接口论证和兼容性主说明；必须显式覆盖任务拆分、顺序、依赖、验证方式与回滚策略
 5. **产物文件前置创建**：默认 CP1 → `01-需求概述.md` + `<需求>/.memory/sessions.md`（需求级记忆）；CP2 → `02-技术方案.md`（有架构/接口/设计决策时，否则跳过）；CP3 → `04-实施计划.md`。若命中 `SimpleTaskFastPath`，可用回复内联 CP1 摘要 + 报告/记忆替代需求目录，并将 `01-需求概述.md` / `04-实施计划.md` 记为 `N/A + skipReason`；但命中 ExistingRequirementArtifactOverride 时必须先更新已有需求真相源。
-6. **进度文档触发**：`05-实施进度.md` 不是小任务默认必产物；但当任务跨 2 轮以上会话、存在明确阻塞、用户要求持续跟踪、CP3 计划拆分为多批次、预计修改 ≥10 文件或命中控制面/模板/validate/部署副本联动时，必须在执行前创建并在每批完成后更新，且前提是已存在 `04-实施计划.md`
-7. **无 Hooks 宿主软门禁**（v1.9.6+）：当运行宿主为 `jetbrains-copilot`、`cursor` 或其他 `instruction-fallback` 客户端时，`lifecycle.cjs` CP gate 不可执行。AI 必须在每个 CP 输出末尾显式追加 `⏸ 等待用户确认（CP{N}）— 收到"好/继续/ok"前不得进入下一阶段或写源码`，并在用户未明确回复前禁止 source mutation 工具调用。
-8. **CP3 豁免记录**：docs/init/plan-review 子类型被规则明确豁免 CP3 时，须在需求级记忆或报告中记录 `CP3: N/A（<子类型> 子类型豁免）`，供 hook/fallback 区分合法豁免与漏确认。
-9. **确认后前置轻量复审**（C19）：每次用户明确确认 CP1 / CP2 / CP3 后、进入下一阶段前，必须先对当前已确认产物做 1 轮轻量前置复审并显式输出结果；控制面 / 多文件联动 / 真相源同步 / 模板-示例-校验链场景必须追加交叉验证；发现阻断性问题则先修正当前产物、告知用户并重新确认，无阻断问题方可推进。
-10. **Intent Expansion 可见性**：dev 模式下，CP1 / 需求确认前默认向用户展示完整 Intent Expansion Card；这会覆盖旧的“意图扩展摘要”默认行为，但当命中控制面或宿主能力差异、跨会话 resume、prod、instruction-fallback 宿主或低风险轻任务时，仍允许退化为 3~5 行意图扩展摘要。
-11. **执行期 CP3 回退**：若 N5 执行过程中实际变更范围扩展到 CP3 门槛（如文件数从 <5 增至 ≥5、临时引入高风险操作、命中控制面/模板/validate/部署副本联动），必须暂停执行，回到 N4 / CP3 补做实施计划确认后再继续。
-12. **backlog 来源前置真相复核**：若本轮需求、批次或范围直接来源于 `data/*.md` 的 open/partial 项，CP1 前必须先把候选项分类为 `pure-open` / `residual-tail` / `already-fixed` / `misclassified`；非 `pure-open` 项须先回写状态并修正范围口径，禁止直接按旧 open 计数开做。
-13. **OfficialDocsEvidence**：新增/升级依赖、框架、SDK、平台 API 或外部模块时，CP2 前必须读取官方使用文档/官方参考资料；CP2 记录文档来源、版本/日期、关键用法、限制和兼容性，缺失证据不得进入 PR-2 通过态。
-14. **ProfileImpactCheck**：项目技术栈、目录边界、脚本、测试/发布路线、分发面、配置项、长期连接或本地 overlay schema 变化时，CP2/CP3 必须判定并同步 Profile；不需要同步时写明 `skipReason`。
-15. **连接配置来源按用户 / 项目策略**：凡 CP2/CP3 涉及脚本、测试、数据库 / SSH / MongoDB / 数据操作连接信息，默认可直写或沿用项目既有模式；只有用户或项目明确指定 `config.local.json`、env、`secretRef` 或 secret manager 时，方案才按该入口读取并在缺失时提醒补齐。
-16. **AI 自启动服务清理**：若开发验证需要由 AI 启动 dev server、文档站、本地 API/mock、数据库代理、SSH 隧道、Playwright/Cypress server 或压测 target，CP3/TestRoute 必须记录启动命令、cwd、PID/job、端口/URL；验证完成、失败或最终回复前必须停止仅由 AI 本轮启动的服务并核验端口释放。用户明确要求保留服务时，报告保留原因、PID/端口和关闭方式；不得杀用户既有进程。
+6. **ArtifactDecisionMatrix / ArtifactLifecycleState**：CP1/CP2/CP3/ECR 必须按任务规模列出关键产物 `create` / `update` / `skip` / `N/A` 状态，至少覆盖 `01-需求概述.md`、`02-技术方案.md`、`04-实施计划.md`、`05-实施进度.md`、目标文档、报告、记忆；每项写明 `reason`、`trigger`、`upgradeTrigger`、`targetArtifact`。判定优先级：已有真相源回写 > 任务触发条件 > SimpleTaskFastPath > 子类型豁免。
+7. **进度文档触发**：`05-实施进度.md` 不是小任务默认必产物；但当任务跨 2 轮以上会话、存在明确阻塞、用户要求持续跟踪、CP3 计划拆分为多批次、预计修改 ≥10 文件或命中控制面/模板/validate/部署副本联动时，必须在执行前创建并在每批完成后更新。默认前提是已存在 `04-实施计划.md`；docs/init 等 CP3 豁免场景可使用已确认文档大纲、任务切片或 ContextHandoffCard 作为等价计划锚点。
+8. **无 Hooks 宿主软门禁**（v1.9.6+）：当运行宿主为 `jetbrains-copilot`、`cursor` 或其他 `instruction-fallback` 客户端时，`lifecycle.cjs` CP gate 不可执行。AI 必须在每个 CP 输出末尾显式追加 `⏸ 等待用户确认（CP{N}）— 收到"好/继续/ok"前不得进入下一阶段或写源码`，并在用户未明确回复前禁止 source mutation 工具调用。
+9. **CP3 豁免记录**：docs/init/plan-review 子类型被规则明确豁免 CP3 时，须在需求级记忆或报告中记录 `CP3: N/A（<子类型> 子类型豁免）`，供 hook/fallback 区分合法豁免与漏确认。
+10. **确认后前置轻量复审**（C19）：每次用户明确确认 CP1 / CP2 / CP3 后、进入下一阶段前，必须先对当前已确认产物做 1 轮轻量前置复审并显式输出结果；控制面 / 多文件联动 / 真相源同步 / 模板-示例-校验链场景必须追加交叉验证；发现阻断性问题则先修正当前产物、告知用户并重新确认，无阻断问题方可推进。
+11. **Intent Expansion 可见性**：dev 模式下，CP1 / 需求确认前默认向用户展示完整 Intent Expansion Card；这会覆盖旧的“意图扩展摘要”默认行为，但当命中控制面或宿主能力差异、跨会话 resume、prod、instruction-fallback 宿主或低风险轻任务时，仍允许退化为 3~5 行意图扩展摘要。
+12. **执行期 CP3 回退**：若 N5 执行过程中实际变更范围扩展到 CP3 门槛（如文件数从 <5 增至 ≥5、临时引入高风险操作、命中控制面/模板/validate/部署副本联动），必须暂停执行，回到 N4 / CP3 补做实施计划确认后再继续。
+13. **backlog 来源前置真相复核**：若本轮需求、批次或范围直接来源于 `data/*.md` 的 open/partial 项，CP1 前必须先把候选项分类为 `pure-open` / `residual-tail` / `already-fixed` / `misclassified`；非 `pure-open` 项须先回写状态并修正范围口径，禁止直接按旧 open 计数开做。
+14. **OfficialDocsEvidence**：新增/升级依赖、框架、SDK、平台 API 或外部模块时，CP2 前必须读取官方使用文档/官方参考资料；CP2 记录文档来源、版本/日期、关键用法、限制和兼容性，缺失证据不得进入 PR-2 通过态。
+15. **ProfileImpactCheck**：项目技术栈、目录边界、脚本、测试/发布路线、分发面、配置项、长期连接或本地 overlay schema 变化时，CP2/CP3 必须判定并同步 Profile；不需要同步时写明 `skipReason`。
+16. **连接配置来源按用户 / 项目策略**：凡 CP2/CP3 涉及脚本、测试、数据库 / SSH / MongoDB / 数据操作连接信息，默认可直写或沿用项目既有模式；只有用户或项目明确指定 `config.local.json`、env、`secretRef` 或 secret manager 时，方案才按该入口读取并在缺失时提醒补齐。
+17. **AI 自启动服务清理**：若开发验证需要由 AI 启动 dev server、文档站、本地 API/mock、数据库代理、SSH 隧道、Playwright/Cypress server 或压测 target，CP3/TestRoute 必须记录启动命令、cwd、PID/job、端口/URL；验证完成、失败或最终回复前必须停止仅由 AI 本轮启动的服务并核验端口释放。用户明确要求保留服务时，报告保留原因、PID/端口和关闭方式；不得杀用户既有进程。
 
 ### SimpleTaskFastPath（简单任务轻路径）
 

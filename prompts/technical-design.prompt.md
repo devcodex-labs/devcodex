@@ -6,15 +6,17 @@ applyTo: .devcodex/**/requirements/**
 # 技术方案模板
 
 > **路径**: `.devcodex/**/requirements/<中文描述>/02-技术方案.md`（唯一信源：`02-output-paths.instructions.md`）
-> **触发**: dev 工作流 CP2 阶段
+> **触发**: dev 工作流 CP2 阶段，且 ArtifactDecisionMatrix 判定 `02-技术方案.md` 为 `create` / `update`
 
 ## 编写指南
 
-> ⚠️ 技术方案各章节存在编写依赖关系，应按以下推荐顺序编写，禁止跳过必选章节。
+> ⚠️ 本模板只在 `02-技术方案.md` 被 ArtifactDecisionMatrix 判定为需要创建或更新时使用；若 CP2 无架构、接口、公共契约、设计决策、依赖/API 或项目事实变化，可在矩阵中将 `02-技术方案.md` 标为 `N/A + skipReason`，不得为凑模板强行生成完整技术方案。
+> ⚠️ 技术方案各章节存在编写依赖关系，应按以下推荐顺序编写；一旦进入本模板，标为 🔴 的章节不得跳过，条件章节无触发时写 `N/A + skipReason`。
 > ⚠️ 本模板优先回答：现状是什么、目标设计是什么、实现流程怎么走、关键节点谁负责、契约与边界如何处理、风险与测试如何覆盖。
 > ⚠️ CP2 技术方案必须把**目标架构/模块边界、数据/状态模型、契约矩阵、技术执行流程、需求验收映射**作为一等或条件章节表达，禁止只散落在说明文字、文件清单或测试备注中。
 > ⚠️ 生成的 Markdown 技术方案文档必须在头部后补 `## 目录导航`。若需求属于契约驱动型，方案中必须显式引用目标文档路径、文档模式与本方案引用的契约范围。
 > ⚠️ 控制面、Auto、多批次、预计修改 ≥10 文件、模板-示例-校验链或发布前置任务，方案中必须说明是否触发 `execution-contract`、`test-router`、`audit-release`、`release-verification`、`source-consumer-sync`、`host-contract-verification` 与 `05-实施进度.md`。
+> ⚠️ 若本方案触发或豁免任何关键产物，必须在 §1 或 §8 写出 ArtifactDecisionMatrix：`artifact`、`state(create/update/skip/N/A)`、`reason`、`trigger`、`upgradeTrigger`、`targetArtifact`。
 > ⚠️ 若本方案承接了用户可见“意图扩展摘要”，必须在 §0 或 §1 说明语义初判、项目现实扩展后路由、关键风险、验证路线与备选路径如何落到方案中。
 > ⚠️ 新增/升级依赖、框架、SDK、平台 API 或外部模块时，§4 必须填写 `OfficialDocsEvidence`：官方文档来源、版本/日期、关键用法、限制、兼容性与降级来源。
 > ⚠️ dev/fix 项目事实变化时，必须填写 `ProfileImpactCheck`：是否更新 Profile、目标文件与 `skipReason`。

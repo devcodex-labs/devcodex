@@ -6,9 +6,10 @@ applyTo: .devcodex/**/requirements/**
 # 实施计划模板
 
 > **路径**: `.devcodex/**/requirements/<中文描述>/04-实施计划.md`
-> **触发**: dev 工作流 CP3 阶段
+> **触发**: dev 工作流 CP3 阶段，且 ArtifactDecisionMatrix 判定 `04-实施计划.md` 为 `create` / `update`
 > ⚠️ 本模板只承接任务拆分、实施顺序、前置依赖、验证方式与回滚策略，不重复需求背景或技术方案中的设计论证。
 > ⚠️ 生成的 Markdown 实施计划文档必须在头部后补 `## 目录导航`。
+> ⚠️ SimpleTaskFastPath、docs/init/plan-review 子类型豁免或其他合法 CP3 豁免场景，可将 `04-实施计划.md` 标为 `N/A + skipReason`；不得用本模板“补文书”覆盖已确认的轻路径或子类型豁免。
 > ⚠️ 控制面、Auto、多批次、预计修改 ≥10 文件、模板-示例-校验链或发布前置任务，计划中必须列出 ExecutionContract / TestRoute / ReleaseAudit / ReleaseVerification / ConceptSyncMap / HostContractVerification / 05-实施进度.md 的触发状态与证据。
 > ⚠️ 若本轮任务或批次直接来源于 `data/*.md` 的 open/partial 项，计划中必须显式写出 Backlog Intake 真相复核和台账状态回写闭环：先分类 `pure-open / residual-tail / already-fixed / misclassified`，再说明本轮范围是否缩减以及回写证据如何产出。
 > ⚠️ 发布、pack、benchmark、codegen 或包边界任务必须写明串行验证顺序：构建/生成完成后再单独执行 package boundary check，不得与会写入 `dist` 的命令并行。
@@ -21,7 +22,7 @@ applyTo: .devcodex/**/requirements/**
 | 轻计划摘要 | 小到中型任务、单阶段收口、无高风险接口或 Schema 破坏性变更 | 总览、任务分解、实施顺序、验证方式、回滚摘要 |
 | 完整实施计划 | 高风险 / 多模块 / 接口或 Schema 变更 / 跨轮次实施 | 总览、任务分解、里程碑、风险点与回滚、验收清单 |
 
-> ⚠️ `04-实施计划.md` 始终要创建，但不要求所有任务都套用同一重量级模板；小任务优先使用“轻计划摘要”，只有高风险或多阶段任务才展开为“完整实施计划”。
+> ⚠️ `04-实施计划.md` 只在 CP3 触发且 ArtifactDecisionMatrix 判定需要 `create` / `update` 时创建；小任务优先使用“轻计划摘要”，只有高风险或多阶段任务才展开为“完整实施计划”。若状态为 `skip` / `N/A`，必须在报告或记忆写明 `reason` 与 `upgradeTrigger`。
 
 ---
 
@@ -98,6 +99,7 @@ applyTo: .devcodex/**/requirements/**
 | ReleaseVerification | 是 / 否 | 用户要求 tag / release / publish 或进入正式发版 | R0~R7；如存在远端 CI，补 R3c 目标 commit CI 绿色证据 |
 | ConceptSyncMap | 是 / 否 | 控制面 / 模板-示例-校验链 / README / website / Profile / validate / 部署副本联动 | sourceOfTruth / currentConsumers / historicalMirrors / validateProbes / deployCopies / yellowDeviationBoundary |
 | HostContractVerification | 是 / 否 | Hook / CLI / visible reply / sticky project / workspace guard / bootstrap / ArtifactLinkSet / MCP fallback | hostSurface / eventScope / evidenceMode / visibleReplyEvidence / workspaceGuard / bootstrapScope / artifactLinkMatrix / mcpFallback |
+| ArtifactDecisionMatrix | 是 / 否 | CP1/CP2/CP3/ECR 的关键产物创建、更新、跳过或 N/A 判定 | artifact / state(create-update-skip-N/A) / reason / trigger / upgradeTrigger / targetArtifact |
 | OfficialDocsEvidence | 是 / 否 | 新增/升级依赖、框架、SDK、平台 API、外部模块或外部平台能力判断 | 官方文档来源 / 版本日期 / 关键用法 / 限制 / 兼容性 / skipReason |
 | DependencyUpgradeCheck | 是 / 否 | 依赖升级、框架升级、SDK 替换或平台 API 兼容性任务 | 业务源码平滑性 / 依赖层落地条件 / 纯依赖层零附加动作（条件） |
 | ConsumerDependencyTreeProbe | 是 / 否 | 消费者验证失败且症状指向依赖、插件、共享库或框架适配 | package.json / lockfile / node_modules / npm ls <关键依赖> / 是否允许源码补丁 |

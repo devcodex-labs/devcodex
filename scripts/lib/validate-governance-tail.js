@@ -175,14 +175,14 @@ function buildGovernanceTailChecks(ctx) {
 
   function checkV41() {
     const probes = [
-      { file: 'instructions.md', needles: ['SimpleTaskFastPath', 'N/A + skipReason', 'ExistingRequirementArtifactOverride'] },
-      { file: 'instructions/02-output-paths.instructions.md', needles: ['SimpleTaskFastPath', '目标明确、预计 ≤2 个源码/文档文件', 'ExistingRequirementArtifactOverride'] },
-      { file: 'instructions/10-dev.instructions.md', needles: ['SimpleTaskFastPath（简单任务轻路径）', '立即升级回完整 CP/产物链', 'ExistingRequirementArtifactOverride'] },
-      { file: 'instructions/11-fix.instructions.md', needles: ['SimpleTaskFastPath', '内联问题确认 + 报告/记忆', 'ExistingRequirementArtifactOverride'] },
-      { file: 'skills/cp-gate/SKILL.md', needles: ['SimpleTaskFastPath', 'N/A + skipReason', 'ExistingRequirementArtifactOverride'] },
-      { file: 'prompts/implementation-plan.prompt.md', needles: ['SimpleTaskFastPath', 'upgradeTrigger', 'ExistingRequirementArtifactOverride'] },
-      { file: 'README.md', needles: ['SimpleTaskFastPath', '免建 `01-需求概述.md`', 'ExistingRequirementArtifactOverride'] },
-      { file: 'website/docs/guide/development.md', needles: ['SimpleTaskFastPath', '免建需求/bug 目录', 'ExistingRequirementArtifactOverride'] },
+      { file: 'instructions.md', needles: ['SimpleTaskFastPath', 'N/A + skipReason', 'ExistingRequirementArtifactOverride', 'ArtifactDecisionMatrix'] },
+      { file: 'instructions/02-output-paths.instructions.md', needles: ['SimpleTaskFastPath', '目标明确、预计 ≤2 个源码/文档文件', 'ExistingRequirementArtifactOverride', 'ArtifactDecisionMatrix'] },
+      { file: 'instructions/10-dev.instructions.md', needles: ['SimpleTaskFastPath（简单任务轻路径）', '立即升级回完整 CP/产物链', 'ExistingRequirementArtifactOverride', 'ArtifactLifecycleState'] },
+      { file: 'instructions/11-fix.instructions.md', needles: ['SimpleTaskFastPath', '内联问题确认 + 报告/记忆', 'ExistingRequirementArtifactOverride', 'ArtifactDecisionMatrix'] },
+      { file: 'skills/cp-gate/SKILL.md', needles: ['SimpleTaskFastPath', 'N/A + skipReason', 'ExistingRequirementArtifactOverride', 'ArtifactDecisionMatrix'] },
+      { file: 'prompts/implementation-plan.prompt.md', needles: ['SimpleTaskFastPath', 'upgradeTrigger', 'ExistingRequirementArtifactOverride', 'ArtifactDecisionMatrix'] },
+      { file: 'README.md', needles: ['SimpleTaskFastPath', '免建 `01-需求概述.md`', 'ExistingRequirementArtifactOverride', 'ArtifactDecisionMatrix'] },
+      { file: 'website/docs/guide/development.md', needles: ['SimpleTaskFastPath', '免建需求/bug 目录', 'ExistingRequirementArtifactOverride', 'ArtifactDecisionMatrix'] },
       { file: 'scripts/lib/requirement-artifact-check.js', needles: ['SIMPLE_TASK_FAST_PATH_MARKERS', 'hasSimpleTaskFastPathMarker'] },
       { file: 'scripts/test-requirement-artifacts.js', needles: ['simple-fast-path', 'SimpleTaskFastPath: applied'] }
     ]
@@ -191,6 +191,17 @@ function buildGovernanceTailChecks(ctx) {
       const content = read(path.join(ROOT, probe.file))
       for (const needle of probe.needles) {
         if (!content.includes(needle)) err(`[V41] SimpleTaskFastPath drift in ${probe.file}: missing "${needle}"`)
+      }
+    }
+
+    const forbiddenPromptPhrases = [
+      { file: 'prompts/implementation-plan.prompt.md', phrase: '`04-实施计划.md` 始终要创建' },
+      { file: 'prompts/technical-design.prompt.md', phrase: '禁止跳过必选章节。' }
+    ]
+    for (const item of forbiddenPromptPhrases) {
+      const content = read(path.join(ROOT, item.file))
+      if (content.includes(item.phrase)) {
+        err(`[V41] ArtifactDecisionMatrix drift in ${item.file}: forbidden phrase "${item.phrase}"`)
       }
     }
 

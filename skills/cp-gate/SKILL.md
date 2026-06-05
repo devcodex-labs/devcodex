@@ -48,6 +48,7 @@ CP 门控**不受 ENV_MODE 影响**，dev/prod 均为 🔴 强制等待用户确
 | fix | 其他场景 → 可选 |
 | dev/fix SimpleTaskFastPath | 目标明确、预计 ≤2 文件、无公共 API/Schema/依赖/配置/发布/控制面/台账来源/高风险、无需多轮跟踪时，允许 CP1/CP2 用内联摘要 + 报告/记忆承载，`01-需求概述.md` / `04-实施计划.md` 记为 `N/A + skipReason` |
 | ExistingRequirementArtifactOverride | 用户调整/修改/补充既有需求/问题且已有需求或 bug 真相源时，必须先更新已有文件；SimpleTaskFastPath 只允许不新建完整产物，不能用回复替代文件回写 |
+| ArtifactDecisionMatrix | CP1/CP2/CP3/ECR 按任务规模列出关键产物 `create` / `update` / `skip` / `N/A`，判定优先级为已有真相源回写 > 任务触发条件 > SimpleTaskFastPath > 子类型豁免 |
 
 **高风险操作**：DDL 变更 / 共享配置文件、`package.json`、CI 或生产配置变更 / 文件删除 / 直接影响生产环境的修改。env、`secretRef`、secret manager 或 `config.local.json` 仅在用户 / 项目明确指定时作为连接配置入口。
 
@@ -60,8 +61,8 @@ CP 门控**不受 ENV_MODE 影响**，dev/prod 均为 🔴 强制等待用户确
 5. **"继续" ≠ CP3 授权**：必须先展示变更计划才能进入执行
 6. **跨轮次状态保持**：CP 确认状态不因后续轮次消息重置
 7. **CP3 内容边界**：CP3 只确认实施计划，不重复技术方案中的架构决策、接口论证和兼容性主说明；必须显式覆盖任务拆分、顺序、依赖、验证方式与回滚策略
-8. **产物文件前置创建**：输出 CP 确认请求前，对应产物文件必须已写入磁盘（dev/requirements 默认：CP1 → `01-需求概述.md` + `<任务>/.memory/sessions.md`；fix/bugs 允许使用 `01--问题确认与CP1.md`、`02--技术方案与CP2.md` 这类报告承载 CP1/CP2；CP3 → `04-实施计划.md`）。命中 `SimpleTaskFastPath` 时，允许不创建需求/bug 目录，用内联 CP 摘要 + 报告/记忆替代，但必须记录 `N/A + skipReason` 和升级回退条件；若命中 ExistingRequirementArtifactOverride，则必须先增量编辑已有真相源，回复内联摘要不得替代文件回写。
-9. **进度文档触发**：`05-实施进度.md` 不是小任务默认必产物；当任务跨 2 轮以上会话、存在明确阻塞、用户要求持续跟踪、CP3 计划拆为多批次、预计修改 ≥10 文件或命中控制面/模板/validate/部署副本联动时，必须在执行前创建并在每批完成后更新，且前提是已存在 `04-实施计划.md`
+8. **产物文件前置创建**：输出 CP 确认请求前，对应产物文件必须已写入磁盘（dev/requirements 默认：CP1 → `01-需求概述.md` + `<任务>/.memory/sessions.md`；fix/bugs 允许使用 `01--问题确认与CP1.md`、`02--技术方案与CP2.md` 这类报告承载 CP1/CP2；CP3 → `04-实施计划.md`）。命中 `SimpleTaskFastPath` 时，允许不创建需求/bug 目录，用内联 CP 摘要 + 报告/记忆替代，但必须记录 `N/A + skipReason` 和升级回退条件；若命中 ExistingRequirementArtifactOverride，则必须先增量编辑已有真相源，回复内联摘要不得替代文件回写。所有场景必须用 ArtifactDecisionMatrix 说明每个产物是 `create`、`update`、`skip` 还是 `N/A`。
+9. **进度文档触发**：`05-实施进度.md` 不是小任务默认必产物；当任务跨 2 轮以上会话、存在明确阻塞、用户要求持续跟踪、CP3 计划拆为多批次、预计修改 ≥10 文件或命中控制面/模板/validate/部署副本联动时，必须在执行前创建并在每批完成后更新。默认前提是已存在 `04-实施计划.md`；docs/init/plan-review 等 CP3 豁免场景可使用已确认文档大纲、任务切片或 ContextHandoffCard 作为等价计划锚点。
 10. **CP3 豁免记录**：docs/init/plan-review 等被工作流规则明确豁免 CP3 时，必须写入 `CP3: N/A（<子类型> 子类型豁免）`，让 hook/fallback 能区分“合法豁免”和“遗漏确认”。
 11. **确认后前置轻量复审**（C19）：每次用户明确确认后、进入下一阶段前，必须先对当前已确认产物做 1 轮轻量前置复审并显式输出结果；控制面 / 多文件联动 / 真相源同步 / 模板-示例-校验链场景必须追加交叉验证；发现阻断性问题则先修正并回到对应 CP 重新确认，无阻断问题方可推进。
 12. **审计问题清单转修复的 CP1 映射**：当 fix 源自 audit/analyze 的问题清单时，CP1 必须建立问题 ID 映射，逐项标注 `本轮修复 / 已关闭 / 延后 / 另起任务`，并把验收口径写入 CP1 产物；禁止只列新增问题而漏掉用户已指出或上轮已确认的问题。

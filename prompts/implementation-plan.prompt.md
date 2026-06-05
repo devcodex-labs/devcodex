@@ -107,6 +107,7 @@ applyTo: .devcodex/**/requirements/**
 | ConfigLocalConnectionSource | 是 / 否 | 脚本、测试、数据库 / SSH / MongoDB / 数据操作需要连接信息 | configLocalPath / requiredFields / missingFieldAction / noAdHocEnvEvidence / noEnvUnlessUserSpecified |
 | 05-实施进度.md | 是 / 否 | 跨多轮/多阶段、阻塞、用户要求持续跟踪、多批次、预计修改 ≥10 文件、控制面或模板-校验链任务 | CP 状态 / 批次状态 / 阻塞 / 验证证据 |
 | SimpleTaskFastPath | 是 / 否 | 非常明确、预计 ≤2 文件、无公共契约/配置/发布/控制面/台账来源/高风险、无需多轮跟踪 | inline CP summary / N/A + skipReason / upgradeTrigger |
+| ExistingRequirementArtifactOverride | 是 / 否 | 调整/修改/补充既有需求或问题，且已有需求/bug 真相源 | targetArtifact / fileUpdatedBeforeReply / inlineSummaryOnly / cannotLocateAction |
 | ContextHandoffCard | 是 / 否 | 跨会话、跨 Agent、多批次、summary/compact 前或用户要求传递上下文 | source-of-truth / confirmed-decisions / open-risks / next-action / must-not-overwrite / validation-state / artifact-links |
 | Backlog Intake 真相复核 | 是 / 否 | 任务/批次直接来源于 `data/*.md` open/partial 项 | candidateIds / classification / evidence / scopeDelta |
 | 台账状态回写闭环 | 是 / 否 | 本轮会关闭/部分关闭/改分类任何 VL/PF/PI/ISSUE/GAP | targetLedgers / requiredFields / writebackEvidence / rescanResult |

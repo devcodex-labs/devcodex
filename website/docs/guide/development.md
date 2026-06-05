@@ -171,6 +171,8 @@ dev 模式默认向用户展示完整 Intent Expansion Card；prod、instruction
 
 非常明确、预计 ≤2 个源码/文档文件、无公共 API/Schema/依赖/配置/发布/控制面/台账来源/高风险、无需多轮跟踪的简单 dev/fix 任务，可免建需求/bug 目录、`01-需求概述.md` 或 `04-实施计划.md`。AI 必须在报告/记忆写明 `SimpleTaskFastPath: applied`、`N/A + skipReason`、验证证据和升级回退判断；执行中任一条件失效时，立即升级回完整 CP/产物链。
 
+若用户是在调整/修改/补充既有需求或问题，且已有需求/bug 真相源，则命中 `ExistingRequirementArtifactOverride`：SimpleTaskFastPath 只允许不新建完整产物，不能跳过文件回写；AI 必须先更新已有文件，再在回复中摘要说明。
+
 ### ImplementationComplexityPreference
 
 CP1 需求/问题确认必须记录实现复杂度档位：`simple`、`balanced` 或 `robust`。用户未要求复杂化、需求未说明或简单方案可满足验收时，默认选择 `simple`，优先局部补丁、既有模式和最少维护成本；若 AI 判断需要升级到 `balanced/robust`，必须先列出 2~3 个方案、维护成本、非目标和取舍，等待用户确认后再进入 CP2/CP3。

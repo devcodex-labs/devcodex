@@ -309,6 +309,7 @@ CP1（需求确认）→ CP2（方案确认）→ [plan-review] → CP3（实施
 - **plan-review**：评估计划可行性（CP2 后、CP3 前）
 - **CP3**：条件触发。default/refactor/database/optimization/scenario-test 必须执行；docs/init/plan-review 按子类型规则豁免，并记录 `CP3: N/A（<子类型> 子类型豁免）`。
 - **SimpleTaskFastPath**：非常明确、预计 ≤2 个源码/文档文件、无公共 API/Schema/依赖/配置/发布/控制面/台账来源/高风险、无需多轮跟踪的 dev/fix 任务，可不创建需求/bug 目录、`01-需求概述.md` 或 `04-实施计划.md`，改用内联 CP 摘要 + 报告/记忆记录 `N/A + skipReason`；PC0~PC7、Profile、报告、记忆、安全底线、必要验证和 ECR 不可省略，执行中任一条件失效立即升级回完整产物链。
+- **ExistingRequirementArtifactOverride**：当用户表达“调整/修改/补充/变更需求或问题”且已存在 `01-需求概述.md`、bug CP 产物、Profile 声明的正式需求文件或 website requirement 时，SimpleTaskFastPath 只能跳过**新建**完整产物，不能跳过**更新已有真相源**；必须先增量编辑对应文件，用户回复只作为摘要。若无法定位既有产物，先按项目 Profile/当前任务线索定位，仍无法确认时再最小澄清，禁止静默只在回复中变更口径。
 - 若执行过程中新增范围触发 CP3 条件（例如最初判断 <5 文件但实际扩展到 ≥5 文件，或新增高风险操作/控制面联动），必须暂停执行，回补或重开 CP3 后再继续。
 - **ECR**：执行完成后、宣告完成前必须执行 ECR 执行闭环复审，覆盖 CP1/CP2/CP3、报告、daily tasks、SUMMARY、diff/commit、测试/探针、AI 自启动服务清理证据与 dirty 边界。
 

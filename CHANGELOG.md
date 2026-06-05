@@ -1,7 +1,7 @@
 # 变更日志 (CHANGELOG)
 
 > **说明**: 版本概览摘要。最新版本的详细变更见下方表格首行的 `changelogs/releases/vX.Y.Z.md` 链接；历史版本见对应详细变更文件
-> **最后更新**: 2026-06-04
+> **最后更新**: 2026-06-05
 
 ---
 
@@ -9,6 +9,7 @@
 
 | 版本 | 日期 | 变更摘要 | 详细 |
 |------|------|---------|------|
+| [v1.11.14](./changelogs/releases/v1.11.14.md) | 2026-06-05 | 🔧 **ExistingRequirementArtifactOverride 与需求回写收口**：修复 `SimpleTaskFastPath` 对既有需求/bug 真相源的过宽豁免，明确调整需求必须先回写已有文件，回复只做摘要；`v1.11.14` 替代未 registry 发布的 `v1.11.13` | [查看](./changelogs/releases/v1.11.14.md) |
 | [v1.11.13](./changelogs/releases/v1.11.13.md) | 2026-06-04 | 🔧 **默认简单实现档位与 Profile Auto 别名**：CP1 新增 `ImplementationComplexityPreference` 且默认 `simple`，Auto v1.1 支持 Profile `extensions.devcodex.autoAliases`（本项目 `@rocky`），并补齐 runtime / profile schema / V13-V14 探针 | [查看](./changelogs/releases/v1.11.13.md) |
 | [v1.11.12](./changelogs/releases/v1.11.12.md) | 2026-06-04 | 🔧 **平台工程守门、轻路径与复审覆盖收口**：新增平台工程前置、SimpleTaskFastPath、ContextHandoffCard、ReviewCoverageDelta、发布包边界串行与消费者依赖树优先探针，并补强发布型 Profile 与 V56/V57 校验 | [查看](./changelogs/releases/v1.11.12.md) |
 | [v1.11.11](./changelogs/releases/v1.11.11.md) | 2026-06-03 | 🔧 **S02 用户策略优先与服务清理收口**：反转 S02 为默认允许敏感信息、明文连接信息与硬编码；仅用户 / 项目明确禁止时才脱敏、占位或改用 env、`secretRef`、secret manager、`config.local.json`，并新增 AI 自启动服务清理闭环 | [查看](./changelogs/releases/v1.11.11.md) |
@@ -99,8 +100,9 @@
 
 ## 相关文档
 
-- [`changelogs/releases/v1.11.13.md`](./changelogs/releases/v1.11.13.md) — 最新版本详细变更文档
-- [`changelogs/releases/v1.11.12.md`](./changelogs/releases/v1.11.12.md) — 上一版本详细变更文档
+- [`changelogs/releases/v1.11.14.md`](./changelogs/releases/v1.11.14.md) — 最新版本详细变更文档
+- [`changelogs/releases/v1.11.13.md`](./changelogs/releases/v1.11.13.md) — 上一版本详细变更文档
+- [`changelogs/releases/v1.11.12.md`](./changelogs/releases/v1.11.12.md) — 历史版本详细变更文档
 - [`changelogs/releases/v1.11.11.md`](./changelogs/releases/v1.11.11.md) — 历史版本详细变更文档
 - [`changelogs/releases/v1.11.10.md`](./changelogs/releases/v1.11.10.md) — 历史版本详细变更文档
 - [`changelogs/releases/v1.11.9.md`](./changelogs/releases/v1.11.9.md) — 历史版本详细变更文档

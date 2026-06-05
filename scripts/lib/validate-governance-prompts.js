@@ -222,6 +222,7 @@ function buildGovernancePromptChecks(ctx) {
     mustInclude('hooks/_runtime/lifecycle.cjs', 'CP3Exempt', 'lifecycle runtime')
     mustInclude('prompts/requirement.prompt.md', 'ImplementationComplexityPreference', 'requirement prompt complexity preference')
     mustInclude('prompts/requirement.prompt.md', '默认 `simple`', 'requirement prompt complexity preference')
+    mustInclude('prompts/requirement.prompt.md', 'ExistingRequirementArtifactOverride', 'requirement prompt existing artifact override')
     mustInclude('prompts/technical-design.prompt.md', 'ImplementationComplexityPreference', 'technical design complexity preference')
     mustInclude('prompts/implementation-plan.prompt.md', 'ImplementationComplexityPreference', 'implementation plan complexity preference')
     mustInclude('skills/dev-plan-review/SKILL.md', '默认 `simple`', 'plan review complexity preference')

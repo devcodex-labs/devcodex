@@ -175,14 +175,14 @@ function buildGovernanceTailChecks(ctx) {
 
   function checkV41() {
     const probes = [
-      { file: 'instructions.md', needles: ['SimpleTaskFastPath', 'N/A + skipReason'] },
-      { file: 'instructions/02-output-paths.instructions.md', needles: ['SimpleTaskFastPath', '目标明确、预计 ≤2 个源码/文档文件'] },
-      { file: 'instructions/10-dev.instructions.md', needles: ['SimpleTaskFastPath（简单任务轻路径）', '立即升级回完整 CP/产物链'] },
-      { file: 'instructions/11-fix.instructions.md', needles: ['SimpleTaskFastPath', '内联问题确认 + 报告/记忆'] },
-      { file: 'skills/cp-gate/SKILL.md', needles: ['SimpleTaskFastPath', 'N/A + skipReason'] },
-      { file: 'prompts/implementation-plan.prompt.md', needles: ['SimpleTaskFastPath', 'upgradeTrigger'] },
-      { file: 'README.md', needles: ['SimpleTaskFastPath', '免建 `01-需求概述.md`'] },
-      { file: 'website/docs/guide/development.md', needles: ['SimpleTaskFastPath', '免建需求/bug 目录'] },
+      { file: 'instructions.md', needles: ['SimpleTaskFastPath', 'N/A + skipReason', 'ExistingRequirementArtifactOverride'] },
+      { file: 'instructions/02-output-paths.instructions.md', needles: ['SimpleTaskFastPath', '目标明确、预计 ≤2 个源码/文档文件', 'ExistingRequirementArtifactOverride'] },
+      { file: 'instructions/10-dev.instructions.md', needles: ['SimpleTaskFastPath（简单任务轻路径）', '立即升级回完整 CP/产物链', 'ExistingRequirementArtifactOverride'] },
+      { file: 'instructions/11-fix.instructions.md', needles: ['SimpleTaskFastPath', '内联问题确认 + 报告/记忆', 'ExistingRequirementArtifactOverride'] },
+      { file: 'skills/cp-gate/SKILL.md', needles: ['SimpleTaskFastPath', 'N/A + skipReason', 'ExistingRequirementArtifactOverride'] },
+      { file: 'prompts/implementation-plan.prompt.md', needles: ['SimpleTaskFastPath', 'upgradeTrigger', 'ExistingRequirementArtifactOverride'] },
+      { file: 'README.md', needles: ['SimpleTaskFastPath', '免建 `01-需求概述.md`', 'ExistingRequirementArtifactOverride'] },
+      { file: 'website/docs/guide/development.md', needles: ['SimpleTaskFastPath', '免建需求/bug 目录', 'ExistingRequirementArtifactOverride'] },
       { file: 'scripts/lib/requirement-artifact-check.js', needles: ['SIMPLE_TASK_FAST_PATH_MARKERS', 'hasSimpleTaskFastPathMarker'] },
       { file: 'scripts/test-requirement-artifacts.js', needles: ['simple-fast-path', 'SimpleTaskFastPath: applied'] }
     ]

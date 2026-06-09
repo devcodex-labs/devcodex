@@ -21,7 +21,7 @@ applyTo: .devcodex/**/requirements/**
 > ⚠️ 新增/升级依赖、框架、SDK、平台 API 或外部模块时，§4 必须填写 `OfficialDocsEvidence`：官方文档来源、版本/日期、关键用法、限制、兼容性与降级来源。
 > ⚠️ dev/fix 项目事实变化时，必须填写 `ProfileImpactCheck`：是否更新 Profile、目标文件与 `skipReason`。
 > ⚠️ provider / connector / 三方 SDK 接入类方案必须先冻结业务功能接口，再说明底层 provider adapter / model / operation / 配置如何实现该功能；不得把内部 provider 能力直接反向暴露成业务接口。随后冻结字段级合同和统一 operation contract；包 / 库 / adapter / CLI 方案必须同时检查代码实现层与包工程层。
-> ⚠️ CP2 必须承接 CP1 的平台工程判断和 `ImplementationComplexityPreference`：消费者范围、共享契约边界、模块职责、可维护性成本、非目标和最小实现预算要互相一致；没有真实复用者或演进边界时，不得新增 factory / manager / adapter / registry 等预设抽象。
+> ⚠️ CP2 必须承接 CP1 的平台工程判断和 `ImplementationComplexityLevel`（兼容旧字段 `ImplementationComplexityPreference`）：消费者范围、共享契约边界、模块职责、可维护性成本、非目标和最小实现预算要互相一致；没有真实复用者或演进边界时，不得新增 factory / manager / adapter / registry 等预设抽象。
 > ⚠️ package boundary / pack / benchmark / codegen 验证必须写清串行顺序；任何会删除、重建或写入 `dist` 的命令不得和包边界检查并行。
 
 | 顺序 | 章节 | 必选 | 依赖 | 说明 |
@@ -250,13 +250,13 @@ applyTo: .devcodex/**/requirements/**
 
 ### §2.7 最小实现与注释策略
 
-> 必须继承 CP1 的 `ImplementationComplexityPreference`。默认采用 `simple`：能满足已确认验收项的最小实现，优先局部补丁和既有模式；复杂度预算超限、新增抽象或新增防御分支必须有证据，否则回 CP2/CP1 收窄范围。
+> 必须继承 CP1 的 `ImplementationComplexityLevel`。默认采用 `简单够用`：能满足已确认验收项的最小实现，优先局部补丁和既有模式；复杂度预算超限、新增抽象或新增防御分支必须有证据，否则回 CP2/CP1 收窄范围。
 
 | CP1 档位 | CP2 落地要求 |
 |----------|--------------|
-| `simple` | 只保留满足验收的局部最小实现；不新增 service / factory / adapter / manager、策略注册表、通用配置或预留扩展点 |
-| `balanced` | 写明真实复用者、演进边界或跨模块共享契约，以及为什么直接实现不足 |
-| `robust` | 写明用户确认依据、多方案取舍、长期维护成本、迁移/回滚和验证路线 |
+| `简单够用` | 只保留满足验收的局部最小实现；不新增 service / factory / adapter / manager、策略注册表、通用配置或预留扩展点 |
+| `中等` | 写明真实复用者、演进边界或跨模块共享契约，以及为什么直接实现不足 |
+| `企业级` | 写明用户确认依据、多方案取舍、开发周期 / 难度 / 长期维护成本、迁移/回滚和验证路线 |
 
 #### 复杂度预算
 

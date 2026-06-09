@@ -1,6 +1,6 @@
-# DevCodex v1.11.14 — 使用入口
+# DevCodex v1.11.15 — 使用入口
 
-> AI workflow injector for Copilot / Claude Code / Codex · publisher: Rocky · version: 1.11.14
+> AI workflow injector for Copilot / Claude Code / Codex · publisher: Rocky · version: 1.11.15
 
 ## 正式主支持客户端
 

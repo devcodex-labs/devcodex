@@ -9,7 +9,7 @@
  * V5 PC4 输出格式唯一定义
  * V6 npm pack 白名单不含维护者状态
  * V7 Hooks 运行时 bootstrap 行为冒烟
- * V8 父级部署同步检查（.claude/ / .github/ / Codex adapter vs 源仓库关键文件内容）
+ * V8 父级与源仓根部署同步检查（.claude/ / .github/ / Codex adapter vs 源仓库关键文件内容）
  * V9 报告/记忆日期格式（YYYY-MM-DD HH:MM）一致性
  * V10 audit-state regressionProbes 回归扫描（已 fixed 项的 grep 计数验证）
  * V11 AskUserQuestion / 决策点格式（FC7：1 个 (推荐) 标签 + "推荐理由：" 前缀）

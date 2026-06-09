@@ -226,6 +226,13 @@ S02 不再把“敏感信息、明文密码、连接字符串或硬编码”定�
 - 依赖升级、框架升级、SDK 替换或平台 API 兼容性分析必须拆分 `业务源码平滑性` 与 `依赖层落地条件`；用户关心“只升级依赖即可”时，追加 `纯依赖层零附加动作` 结论，不得把工程前提误报成业务源码阻断。
 - 根因位于内部共享库、中间件、SDK 或 adapter 抽象层时，CP2 前必须评估“修共享库 + 消费项目升级”是否优于单项目临时补丁。
 
+### QuestionEvidenceGate（问答证据深度与对比调研门禁）
+
+- 当用户询问“是否应该”“哪个更好”“有没有更好建议”“推荐方案/工具/产品/架构/技术选型”，或 AI 的回答会影响用户投入明显时间、金钱、迁移成本、公共契约、长期维护成本时，必须先执行 `QuestionEvidenceGate`，选择合适证据深度后再给推荐。
+- `ComparativeResearchGate` 只在推荐、选型、产品/项目路线、架构/技术方案、外部平台能力、同类产品或同类项目判断中触发：先比较同类产品 / 项目 / 本仓库相似模块 / 已有设计，再输出推荐结论；若信息可能近期变化，按外部资料时效规则检索当前资料。
+- 纯定义解释、语法说明、低风险本地事实核验、用户明确要求快速答复且不涉及高影响决策，或仓库事实已足以闭环的问题，可写 `ComparativeResearchGate: N/A + skipReason`，不得把普通问答默认升级成重调研。
+- 输出推荐时必须说明证据范围：`repo-local`（同仓库相似实现）、`same-type-project`（同类项目/产品对比）、`official/current-docs`（官方或当前资料）、或 `N/A + skipReason`。证据不足时只能给条件结论，不得伪装成已充分调研。
+
 ### ProfileImpactCheck（Profile 联动判定）
 
 dev/fix 修改完成前必须判定是否影响 Profile。命中以下任一触发项时，必须更新对应 Profile 文件，或在 CP2 / CP3 / ECR / 报告中写明跳过理由：
@@ -304,7 +311,7 @@ SCV 结果必须写入报告；控制面任务的 ECR-7 必须引用 SCV 证据�
 CP1（需求确认）→ CP2（方案确认）→ [plan-review] → CP3（实施确认）→ 执行
 ```
 
-- **CP1**：输出完整需求理解（目标/边界/风险）与 `ImplementationComplexityPreference`（默认 `simple`）→ 等待用户确认
+- **CP1**：输出完整需求理解（目标/边界/风险）与 `ImplementationComplexityLevel`（开发程度等级，默认 `简单够用`；兼容旧字段 `ImplementationComplexityPreference`）→ 等待用户确认
 - **CP2**：输出技术方案（架构/文件清单/依赖）；新增/升级依赖、框架、SDK 或平台 API 时必须附 `OfficialDocsEvidence`，涉及项目事实变化时必须附 `ProfileImpactCheck` → 等待用户确认
 - **plan-review**：评估计划可行性（CP2 后、CP3 前）
 - **CP3**：条件触发。default/refactor/database/optimization/scenario-test 必须执行；docs/init/plan-review 按子类型规则豁免，并记录 `CP3: N/A（<子类型> 子类型豁免）`。
@@ -321,8 +328,8 @@ CP1（需求确认）→ CP2（方案确认）→ [plan-review] → CP3（实施
 ### 代码实现复杂度与通用工程守门
 
 - CP1 需求/问题定义必须前置平台工程判断：谁会复用、哪一层值得抽象、哪一层应保持局部、长期维护成本和明确非目标；不得把“通用性/模块化”写成无消费者的空心抽象。
-- CP1 必须给出 `ImplementationComplexityPreference`：`simple`（默认，满足验收项的局部最小实现）、`balanced`（存在明确复用/演进边界但不做通用平台化）、`robust`（用户明确要求或已有公共契约/多消费者/高风险长期演进）。用户未提出复杂化、需求未说明或任务可用简单方案满足验收时，默认选择 `simple`；若 AI 判断需要 `balanced/robust`，必须列出 2~3 个方案、维护成本和取舍，等待用户确认后再升级。
-- CP2 技术方案必须继承 CP1 的 `ImplementationComplexityPreference` 并给出最小实现与注释策略；实施默认采用满足验收项的最小实现，优先局部补丁和既有本地模式。
+- CP1 必须给出 `ImplementationComplexityLevel`（兼容旧字段名 `ImplementationComplexityPreference`），并用用户能理解的三档表达：`简单够用`（默认，需求不详细或简单方案可满足验收时只做局部最小实现）、`中等`（存在明确复用者、演进边界或跨模块协作，但不做平台化 / 企业级预设）、`企业级`（仅用户明确选择，或已有公共契约、多消费者、高风险长期演进且经用户确认）。用户未提出复杂化、需求未说明或任务可用简单方案满足验收时，必须默认选择 `简单够用`；AI 可以展示 `中等` / `企业级` 可选方案、开发周期 / 难度 / 维护成本和取舍，但不得默认按企业级脑补实现。
+- CP2 技术方案必须继承 CP1 的 `ImplementationComplexityLevel` 并给出最小实现与注释策略；实施默认采用满足验收项的最小实现，优先局部补丁和既有本地模式。
 - 禁止为“企业级”“可扩展”预设新增无真实消费者的 service / factory / adapter / manager、策略注册表、通用配置或预留扩展点。
 - 必要注释必须覆盖非显然业务规则、状态转换、不变量、兼容约束、安全边界、外部契约映射和反直觉权衡；JavaScript / Node.js 中命中必要注释的导出函数、核心业务函数、类、复杂对象契约、参数/返回/异常说明必须使用标准 JSDoc。
 - Node.js 项目的 `engines.node`、CI matrix、Profile 与 README 运行时说明默认不得低于 `>=18`；支持更低版本时必须在 CP2 写明业务理由、风险和独立验证证据。

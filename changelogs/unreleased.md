@@ -6,11 +6,9 @@
 
 ---
 
-## 2026-06-05
+## 当前状态
 
-- 修复产物生命周期口径：新增 `ArtifactDecisionMatrix / ArtifactLifecycleState`，统一 `01-需求概述.md`、`02-技术方案.md`、`04-实施计划.md`、`05-实施进度.md`、目标文档、报告和记忆的 `create / update / skip / N/A` 判定，优先级为“已有真相源回写 > 任务触发条件 > SimpleTaskFastPath > 子类型豁免”。
-- 修正模板漂移：`technical-design.prompt.md` 仅在 `02-技术方案.md` 被判定需要创建/更新时使用；`implementation-plan.prompt.md` 不再要求 `04-实施计划.md` 始终创建；`implementation-progress.prompt.md` 支持 docs/init 等 CP3 豁免场景使用等价任务切片或 `ContextHandoffCard` 作为进度锚点。
-- 补充验证守门：`V41` 与 `test-spec-governance` 增加 `ArtifactDecisionMatrix` 正向探针和旧口径负向探针，防止“始终创建实施计划 / 技术方案禁止跳过”类表述回流。
+- 暂无未发布变更。
 
 ## 记录提示
 

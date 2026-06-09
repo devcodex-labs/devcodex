@@ -30,6 +30,7 @@ applyTo: .devcodex/**/reports/analysis/**
 
 - 深度：快速概览 / 深度分析
 - 技术栈约束：（来自项目 profile）
+- QuestionEvidenceGate：triggered / N/A；若 triggered，写明 `ComparativeResearchGate` 证据范围（repo-local / same-type-project / official-current-docs）或 `N/A + skipReason`
 - 排除范围：
 
 ## §3 分析结论
@@ -37,9 +38,11 @@ applyTo: .devcodex/**/reports/analysis/**
 ### §3.1 推荐结论
 
 > 多建议、多路径或技术选型时必须填写；无后续动作时写“推荐：无后续动作”并说明原因。
+> 命中 `QuestionEvidenceGate` 时，推荐理由必须引用 `ComparativeResearchGate` 的同类产品 / 项目 / 模块对比证据；不触发时写 `N/A + skipReason`。
 
 **推荐**：[推荐方案 / 推荐：无后续动作]
 **推荐理由**：[关联合理性、可实施性、收益、验证状态、影响范围]
+**ComparativeResearchGate**：[applied: 证据范围 / N/A + skipReason]
 
 ### §3.2 技术选型
 
@@ -63,7 +66,7 @@ applyTo: .devcodex/**/reports/analysis/**
 | 结论 | 证据 | 来源 |
 |------|------|------|
 
-## §5 对比矩阵（技术选型时）
+## §5 对比矩阵（技术选型 / ComparativeResearchGate 触发时）
 
 | 维度 | 方案A | 方案B | 方案C |
 |------|:-----:|:-----:|:-----:|

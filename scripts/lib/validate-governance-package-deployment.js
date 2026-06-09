@@ -133,9 +133,16 @@ function buildGovernancePackageDeploymentChecks(ctx) {
     const claudeExists = fs.existsSync(claudeDir)
     const githubExists = fs.existsSync(githubDir)
     const codexExists = fs.existsSync(path.join(parentRoot, 'AGENTS.md')) || fs.existsSync(agentsDir) || fs.existsSync(codexDir)
+    const sourceClaudeDir = path.join(ROOT, '.claude')
+    const sourceGithubDir = path.join(ROOT, '.github')
+    const sourceAgentsDir = path.join(ROOT, '.agents')
+    const sourceCodexDir = path.join(ROOT, '.codex')
+    const sourceClaudeExists = fs.existsSync(path.join(ROOT, 'CLAUDE.md')) || fs.existsSync(sourceClaudeDir)
+    const sourceGithubExists = fs.existsSync(sourceGithubDir)
+    const sourceCodexExists = fs.existsSync(path.join(ROOT, 'AGENTS.md')) || fs.existsSync(sourceAgentsDir) || fs.existsSync(sourceCodexDir)
 
-    if (!claudeExists && !githubExists && !codexExists) {
-      console.log('[V8] no parent deployment (.claude/ / .github/ / Codex adapter) detected — skip')
+    if (!claudeExists && !githubExists && !codexExists && !sourceClaudeExists && !sourceGithubExists && !sourceCodexExists) {
+      console.log('[V8] no parent/source-root deployment (.claude/ / .github/ / Codex adapter) detected — skip')
       return
     }
 
@@ -301,10 +308,76 @@ function buildGovernancePackageDeploymentChecks(ctx) {
       }
     }
 
+    if (sourceClaudeExists || sourceGithubExists || sourceCodexExists) {
+      for (const pair of checkPairs) {
+        const srcPath = path.join(ROOT, pair.src)
+        if (!fs.existsSync(srcPath)) continue
+
+        if (sourceClaudeExists && pair.claude) {
+          const dest = path.join(sourceClaudeDir, pair.claude)
+          if (fs.existsSync(dest)) {
+            if (fileHash(dest) !== fileHash(srcPath)) {
+              warn(`[V8] source-root .claude/ stale: ${pair.claude} (run from source repo: node ./index.js update --claude)`)
+              stale++
+            }
+          } else {
+            warn(`[V8] source-root .claude/ missing: ${pair.claude} (run from source repo: node ./index.js update --claude)`)
+            stale++
+          }
+        }
+
+        if (sourceGithubExists && pair.github) {
+          const dest = path.join(sourceGithubDir, pair.github)
+          if (fs.existsSync(dest)) {
+            if (fileHash(dest) !== fileHash(srcPath)) {
+              warn(`[V8] source-root .github/ stale: ${pair.github} (run from source repo: node ./index.js update)`)
+              stale++
+            }
+          } else {
+            warn(`[V8] source-root .github/ missing: ${pair.github}`)
+            stale++
+          }
+        }
+      }
+
+      if (sourceGithubExists) {
+        compareDeployment(
+          'instructions.md',
+          path.join(sourceGithubDir, 'copilot-instructions.md'),
+          'source-root .github/copilot-instructions.md',
+          'node ./index.js update'
+        )
+      }
+
+      if (sourceCodexExists) {
+        compareDeployment('instructions.md', path.join(ROOT, 'AGENTS.md'), 'source-root AGENTS.md', 'node ./index.js update --codex')
+        compareDeployment('codex/hooks.json', path.join(sourceCodexDir, 'hooks.json'), 'source-root .codex/hooks.json', 'node ./index.js update --codex')
+
+        for (const file of walk(path.join(ROOT, 'skills'))) {
+          const rel = path.relative(path.join(ROOT, 'skills'), file)
+          compareDeployment(
+            path.join('skills', rel).replace(/\\/g, '/'),
+            path.join(sourceAgentsDir, 'skills', rel),
+            `source-root .agents/skills/${rel.replace(/\\/g, '/')}`,
+            'node ./index.js update --codex'
+          )
+        }
+        for (const file of walk(path.join(ROOT, 'hooks', '_runtime'))) {
+          const rel = path.relative(path.join(ROOT, 'hooks', '_runtime'), file)
+          compareDeployment(
+            path.join('hooks/_runtime', rel).replace(/\\/g, '/'),
+            path.join(sourceCodexDir, 'hooks', '_runtime', rel),
+            `source-root .codex/hooks/_runtime/${rel.replace(/\\/g, '/')}`,
+            'node ./index.js update --codex'
+          )
+        }
+      }
+    }
+
     if (stale === 0) {
-      console.log('[V8] parent deployment (.claude/ / .github/ / Codex adapter) in sync with source repo')
+      console.log('[V8] parent/source-root deployment (.claude/ / .github/ / Codex adapter) in sync with source repo')
     } else {
-      console.log(`[V8] parent deployment has ${stale} stale/missing file(s) — see warnings`)
+      console.log(`[V8] parent/source-root deployment has ${stale} stale/missing file(s) — see warnings`)
     }
   }
 

@@ -113,11 +113,11 @@ applyTo: .devcodex/**/requirements/**
 | ContextHandoffCard | 是 / 否 | 跨会话、跨 Agent、多批次、summary/compact 前或用户要求传递上下文 | source-of-truth / confirmed-decisions / open-risks / next-action / must-not-overwrite / validation-state / artifact-links |
 | Backlog Intake 真相复核 | 是 / 否 | 任务/批次直接来源于 `data/*.md` open/partial 项 | candidateIds / classification / evidence / scopeDelta |
 | 台账状态回写闭环 | 是 / 否 | 本轮会关闭/部分关闭/改分类任何 VL/PF/PI/ISSUE/GAP | targetLedgers / requiredFields / writebackEvidence / rescanResult |
-| ImplementationComplexityPreference | simple / balanced / robust | CP1/CP2 已确认的实现复杂度档位；未说明时默认 simple | inheritedPreference / optionTradeoff / upgradeConfirmation / noOverengineeringBoundary |
+| ImplementationComplexityLevel | 简单够用 / 中等 / 企业级 | CP1/CP2 已确认的开发程度等级；未说明时默认简单够用，兼容旧字段 `ImplementationComplexityPreference` | inheritedPreference / optionTradeoff / upgradeConfirmation / noOverengineeringBoundary |
 
 ### §4.2 最小实现与注释守门
 
-> 实施计划必须继承 CP1/CP2 的 `ImplementationComplexityPreference`，把“做小”和“必要注释”落到任务级，避免执行阶段把 5 行修复扩展成无计划的企业级结构。默认 `simple` 时，只排满足验收的局部最小任务；若要升级复杂度，必须已有用户确认。
+> 实施计划必须继承 CP1/CP2 的 `ImplementationComplexityLevel`，把“做小”和“必要注释”落到任务级，避免执行阶段把 5 行修复扩展成无计划的企业级结构。默认 `简单够用` 时，只排满足验收的局部最小任务；若要升级到 `中等` / `企业级`，必须已有用户确认，并写明开发周期、难度、维护成本和取舍。
 
 #### 复杂度预算
 

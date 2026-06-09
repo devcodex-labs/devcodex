@@ -147,6 +147,13 @@ function buildGovernanceMidChecks(ctx) {
       }
     }
 
+    const deploymentCheckContent = read(path.join(ROOT, 'scripts/lib/validate-governance-package-deployment.js'))
+    for (const needle of ['source-root AGENTS.md', 'source-root .github/copilot-instructions.md', 'parent/source-root deployment']) {
+      if (!deploymentCheckContent.includes(needle)) {
+        err(`[V31] V8 source-root deployment probe missing "${needle}"`)
+      }
+    }
+
     console.log('[V31] PC5 deployment surface sync checked')
   }
 

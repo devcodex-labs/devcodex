@@ -2,7 +2,7 @@
 applyTo: "**"
 description: 通用规范总则，覆盖优先级、意图路由、Profile/active-root、宿主适配与治理总线
 priority: P5
-version: 1.11.14
+version: 1.11.15
 ---
 # 通用规范
 
@@ -75,6 +75,13 @@ version: 1.11.14
 | C20 | 官方文档证据前置 | 新增/升级依赖、框架、SDK、平台 API 或外部模块前必须形成 `OfficialDocsEvidence`；缺失证据不得进入编码 |
 | C21 | Profile 联动判定 | dev/fix 项目事实变化后必须执行 `ProfileImpactCheck`：更新 Profile 或写明跳过理由 |
 | C22 | AI 自启动服务清理（ServiceLifecycleCleanup） | AI 为验证启动 dev server、文档站、本地 API/mock、数据库代理、SSH 隧道、Playwright/Cypress server、压测 target 等长运行进程时，必须记录启动命令、cwd、PID/job、端口/URL；验证完成、失败或中断收尾前主动停止仅由 AI 启动的服务并核验端口释放；不得杀用户既有进程；用户明确要求保留时记录保留原因、PID/端口和关闭方式 |
+
+### QuestionEvidenceGate（问答证据深度与对比调研门禁）
+
+- 当用户询问“是否应该”“哪个更好”“有没有更好建议”“推荐方案/工具/产品/架构/技术选型”，或 AI 的回答会影响用户投入明显时间、金钱、迁移成本、公共契约、长期维护成本时，必须先执行 `QuestionEvidenceGate`，选择合适证据深度后再给推荐。
+- `ComparativeResearchGate` 只在推荐、选型、产品/项目路线、架构/技术方案、外部平台能力、同类产品或同类项目判断中触发：先比较同类产品 / 项目 / 本仓库相似模块 / 已有设计，再输出推荐结论；若信息可能近期变化，按外部资料时效规则检索当前资料。
+- 纯定义解释、语法说明、低风险本地事实核验、用户明确要求快速答复且不涉及高影响决策，或仓库事实已足以闭环的问题，可写 `ComparativeResearchGate: N/A + skipReason`，不得把普通问答默认升级成重调研。
+- 输出推荐时必须说明证据范围：`repo-local`（同仓库相似实现）、`same-type-project`（同类项目/产品对比）、`official/current-docs`（官方或当前资料）、或 `N/A + skipReason`。证据不足时只能给条件结论，不得伪装成已充分调研。
 
 ## 统一联查矩阵（C11 扩展）
 

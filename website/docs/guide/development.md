@@ -179,9 +179,9 @@ CP1 / CP2 / CP3 / ECR 会按任务规模列出关键产物的 `create` / `update
 
 这意味着技术方案、实施计划和实施进度不是“所有任务都机械创建”。一旦命中轻路径或 docs/init 等 CP3 豁免，AI 必须写清 `N/A + skipReason` 与升级回退条件；一旦已有需求/问题真相源，则必须先更新文件。
 
-### ImplementationComplexityPreference
+### ImplementationComplexityLevel
 
-CP1 需求/问题确认必须记录实现复杂度档位：`simple`、`balanced` 或 `robust`。用户未要求复杂化、需求未说明或简单方案可满足验收时，默认选择 `simple`，优先局部补丁、既有模式和最少维护成本；若 AI 判断需要升级到 `balanced/robust`，必须先列出 2~3 个方案、维护成本、非目标和取舍，等待用户确认后再进入 CP2/CP3。
+CP1 需求/问题确认必须记录开发程度等级：`简单够用`、`中等` 或 `企业级`（兼容旧字段 `ImplementationComplexityPreference`）。用户未要求复杂化、需求未说明或简单方案可满足验收时，默认选择 `简单够用`，优先局部补丁、既有模式和最少维护成本；AI 可以展示更高级方案，但若判断需要升级到 `中等` / `企业级`，必须先列出 2~3 个方案、开发周期、难度、维护成本、非目标和取舍，等待用户确认后再进入 CP2/CP3。
 
 ### Hook closure 三态
 
@@ -223,6 +223,10 @@ Hook / CLI / visible reply / sticky project / workspace guard 相关任务还要
 分析、审计或执行报告存在多个建议/路径时，必须给出推荐结论与推荐理由；没有后续动作时写明“推荐：无后续动作”。用户确认先抽象为 ConfirmationRequest，再按宿主能力使用按钮、权限提示、Hook 阻断或文本确认 fallback。
 
 ConfirmationRequest 是语义层抽象，不要求 runtime 逐字输出同名对象；不同宿主只需输出与各自契约匹配的按钮、阻断或文本确认结果。
+
+### QuestionEvidenceGate 与对比调研门禁
+
+当用户问“是否应该 / 哪个更好 / 有没有更好建议 / 推荐什么”，且结论会影响时间、金钱、架构、产品/项目路线或长期维护成本时，先执行 `QuestionEvidenceGate`。命中推荐、选型、同类产品或同类项目判断时，再执行 `ComparativeResearchGate`，比较同类产品 / 项目 / 本仓库相似模块 / 已有设计并说明证据范围；纯解释、低风险本地事实或用户明确要求快速答复时，写 `N/A + skipReason`，避免把普通问答默认升级成重调研。
 
 ### 执行期 CP3 回退
 

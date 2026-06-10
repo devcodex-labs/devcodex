@@ -151,6 +151,7 @@ function buildLifecycleNamespaceStateUtils(ctx) {
     const existingAgents = new Set(listMemoryAgents(state))
     const platform = detectPlatform(payload || {})
 
+    if (platform === 'codex') return 'codex'
     if (platform === 'claude') return 'claude-code'
     if (platform === 'jetbrains-copilot') return 'jetbrains-copilot'
     if (platform === 'vscode-copilot') {
@@ -167,8 +168,12 @@ function buildLifecycleNamespaceStateUtils(ctx) {
   }
 
   function getBootstrapAgent(state, payload) {
+    const inferredAgent = inferBootstrapAgent(state, payload)
     const configuredAgent = String(readProjectProfileConfig(state)?.agent || '').trim().toLowerCase()
-    return configuredAgent || inferBootstrapAgent(state, payload)
+    // Profile agent is a fallback hint only. When the host is explicitly
+    // detectable (Codex/Claude/VS Code/JetBrains), current host wins.
+    if (inferredAgent && !['unknown-agent', 'copilot'].includes(inferredAgent)) return inferredAgent
+    return configuredAgent || inferredAgent
   }
 
   return {

@@ -116,7 +116,7 @@ function buildGovernanceMidChecks(ctx) {
       'website/docs/specs/flowcharts.md'
     ]
     const required = ['.github/', '.claude/', 'AGENTS.md', '.agents/', '.codex/']
-    const forbidden = ['.claude/.github/', '父链 `.claude/.github/`', '无父链 .claude/.github/']
+    const forbidden = ['.claude/.github/', '父链 `.claude/.github/`', '无父链 .claude/.github/', 'parent/source-root deployment']
 
     for (const file of probes) {
       const content = read(path.join(ROOT, file))
@@ -148,9 +148,9 @@ function buildGovernanceMidChecks(ctx) {
     }
 
     const deploymentCheckContent = read(path.join(ROOT, 'scripts/lib/validate-governance-package-deployment.js'))
-    for (const needle of ['source-root AGENTS.md', 'source-root .github/copilot-instructions.md', 'parent/source-root deployment']) {
+    for (const needle of ['source-root deployment must not exist', 'single active deployment target', 'parent deployment']) {
       if (!deploymentCheckContent.includes(needle)) {
-        err(`[V31] V8 source-root deployment probe missing "${needle}"`)
+        err(`[V31] V8 deployment guard missing "${needle}"`)
       }
     }
 

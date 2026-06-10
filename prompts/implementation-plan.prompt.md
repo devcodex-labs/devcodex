@@ -114,6 +114,7 @@ applyTo: .devcodex/**/requirements/**
 | Backlog Intake 真相复核 | 是 / 否 | 任务/批次直接来源于 `data/*.md` open/partial 项 | candidateIds / classification / evidence / scopeDelta |
 | 台账状态回写闭环 | 是 / 否 | 本轮会关闭/部分关闭/改分类任何 VL/PF/PI/ISSUE/GAP | targetLedgers / requiredFields / writebackEvidence / rescanResult |
 | ImplementationComplexityLevel | 简单够用 / 中等 / 企业级 | CP1/CP2 已确认的开发程度等级；未说明时默认简单够用，兼容旧字段 `ImplementationComplexityPreference` | inheritedPreference / optionTradeoff / upgradeConfirmation / noOverengineeringBoundary |
+| CrossProjectLearnedGuards | 是 / 否 | 命中字段/配置/接口文档/数据脚本/吸纳建议/v1 完整首版/启动性能等跨项目已吸纳守门 | ExistingDomainContractAudit / ConfigOwnershipMatrix / ApiDocVerificationSync / DataMutationPlan / AbsorptionDecision / FullV1ScopeGuard / StartupPhaseTrace |
 
 ### §4.2 最小实现与注释守门
 
@@ -154,6 +155,7 @@ applyTo: .devcodex/**/requirements/**
 | ProfileImpactCheck | 对照 targetProfileFiles / updateOrSkip / skipReason | Profile 已同步或跳过理由成立；ECR 与 document-sync 有证据 |
 | Backlog Intake 真相复核 | 对照 candidateIds / classification / evidence / scopeDelta | open 统计与本轮范围一致，非 `pure-open` 项已缩减或剔除 |
 | 台账状态回写闭环 | 对照 targetLedgers / requiredFields / writebackEvidence / rescanResult | 状态、证据、计数与报告/进度/SUMMARY 一致 |
+| CrossProjectLearnedGuards | 对照 ExistingDomainContractAudit / ConfigOwnershipMatrix / ApiDocVerificationSync / DataMutationPlan / AbsorptionDecision / FullV1ScopeGuard / StartupPhaseTrace | 已触发的跨项目吸纳守门均有证据；未触发项有 `N/A + skipReason` |
 | 模板/规则一致性 | | |
 | 样本映射 | | |
 | 自动化校验 | | |

@@ -132,6 +132,8 @@ async function testEndpoint(method, path, body, expected, headers = {}) {
 - 归档级 `.http` 必须声明标准变量块：`@baseUrl`、`@contentType`，鉴权接口必须声明 `@token`，有语言/区域差异时必须声明 `@language`
 - `.http` 的 Host 建议通过 `{{baseUrl}}` 便于切换目标；鉴权头默认可直写真实 Token、Cookie、API Key 或项目私有密码，只有用户 / 项目要求可分享或脱敏时才使用 `Authorization: Bearer {{token}}` 等占位变量
 - 接口变更进入正式产物时必须更新双产物（禁止过期文档）
+- 前端接口文档、轻量 API 文档、字段映射、错误码或状态枚举发生变更时，必须执行 `ApiDocVerificationSync`：检查归档级 `.http` / `.cjs` 是否需要同步；若不更新，写 `N/A + skipReason`
+- 异步、队列、任务型或数据库落库型接口不得只断言 HTTP 状态码；`.cjs` 应按 TestRoute 查询持久化真相源，并在可能时验证最终消费者响应字段
 - `.http` 默认定位为“请求样本 + 可选轻提示”，不承诺跨宿主统一断言语法；正式归档级验证以 `.cjs` 为准
 
 ## 流程串联验证模式（F-14）

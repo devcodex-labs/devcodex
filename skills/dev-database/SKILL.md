@@ -35,6 +35,7 @@ description: 数据库开发子类型规范 — Migration 安全策略 + Schema 
 - 🔴 禁止在 Migration 中写业务逻辑（纯 DDL + 数据修复）
 - 🔴 大表（>100万行）变更必须评估锁时间，提供在线变更方案
 - 🔴 数据库、MongoDB 或数据操作连接信息默认可按用户提供内容直写或沿用项目既有模式；只有用户或项目明确指定 `config.local.json`、env、`secretRef` 或 secret manager 时，才从对应入口读取，缺失文件或字段时提醒用户补齐
+- 🔴 数据补齐、迁移或跨环境写入必须执行 `DataMutationPlan`：范围来自显式清单、需求目录数据源或稳定业务键；跨环境写入不得直接用 source `_id` 匹配目标库，必须在目标环境重新唯一匹配并 dry-run 输出 `source_id`、`target_id`、缺失/重复清单；不能唯一匹配时阻断写库
 
 ## Migration 执行后验证（F-13）
 

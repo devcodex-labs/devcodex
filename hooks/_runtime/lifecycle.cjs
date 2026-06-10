@@ -16,6 +16,7 @@ const path = require('path')
 const crypto = require('crypto')
 const { buildLifecycleBootstrapStateUtils } = require('./lifecycle-bootstrap-state.cjs')
 const { buildLifecycleDangerousCommandUtils } = require('./lifecycle-dangerous-command.cjs')
+const { buildLifecycleGovernanceIntakeUtils } = require('./lifecycle-governance-intake.cjs')
 const { buildLifecycleHookOutput } = require('./lifecycle-hook-output.cjs')
 const { buildLifecycleNamespaceStateUtils } = require('./lifecycle-namespace-state.cjs')
 const { buildLifecyclePayloadUtils } = require('./lifecycle-payload-utils.cjs')
@@ -250,6 +251,13 @@ const FINAL_PAYLOAD_FLAG = META_STATE_PATHS.finalPayloadFlag
 const FINAL_PAYLOAD_LOG = META_STATE_PATHS.finalPayloadLog
 const INTERCEPTION_LOG = META_STATE_PATHS.interceptionLog
 
+const {
+  emptyGovernanceIntakeState,
+  buildGovernanceIntakeCandidate,
+  updateGovernanceIntakeResolutionState,
+  buildGovernanceIntakeReminderItem
+} = buildLifecycleGovernanceIntakeUtils()
+
 function appendInterception(state, entry) {
   const record = {
     time: new Date().toISOString(),
@@ -415,7 +423,8 @@ const {
   isRecentBootstrapTaskPath,
   buildInterceptionOutput,
   INTERCEPTION_ACTION,
-  noopOutput
+  noopOutput,
+  emptyGovernanceIntakeState
 })
 
 // ─── CP Gate ─────────────────────────────────────────────────────────────────
@@ -952,7 +961,8 @@ const {
   fs,
   getStatePaths,
   getVisibleReplyEvidence,
-  collectInterestingStrings
+  collectInterestingStrings,
+  buildGovernanceIntakeReminderItem
 })
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
@@ -982,12 +992,16 @@ async function main() {
   const mode = state.mode
 
   updateVisibleReplyState(state, payload, eventName)
+  if (eventName === 'PreCompact' || eventName === 'Stop') {
+    updateGovernanceIntakeResolutionState(state, getVisibleReplyText(payload), eventName)
+  }
   state.lastEvent = eventName || state.lastEvent
 
   // ── UserPromptSubmit ───────────────────────────────────────────────────────
   if (eventName === 'UserPromptSubmit') {
     state = resetState(mode, state)
     applyPromptTarget(state, promptTarget, payload)
+    state.governanceIntake = buildGovernanceIntakeCandidate(prompt)
     state.executionMode = detectExecutionMode(payload, state, promptTarget)
     confirmDangerousApprovalsFromPrompt(state, prompt, eventName, platform)
     // Multi-project workspace guard (v1.9.8+):

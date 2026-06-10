@@ -50,6 +50,7 @@ DevCodex 通过 `.github/`（Copilot）、`CLAUDE.md + .claude/ + .mcp.json`（C
 - **Backlog 真相复核与状态回写**: 从 `data/*.md` open/partial 项组织新需求或新批次前，先按 `pure-open / residual-tail / already-fixed / misclassified` 分类；实施后再执行台账状态回写闭环，避免“源码已修但 backlog 仍旧 open”
 - **官方文档证据前置**: 新增或升级依赖、框架、SDK、平台 API、外部模块前，CP2 会要求 `OfficialDocsEvidence`，记录官方文档来源、关键用法、限制与兼容性，避免凭经验猜 API
 - **通用工程守门**: Node.js 项目默认不低于 `>=18`；需求/问题定义前置平台工程判断，并记录 `ImplementationComplexityLevel`，开发程度分为 `简单够用 / 中等 / 企业级`，用户未要求复杂化或需求不详细时默认 `简单够用`；依赖/兼容任务拆分业务源码平滑性与依赖层落地条件；包/库/adapter/CLI 同查代码层与包工程层；JS/Node 必要注释使用标准 JSDoc；简单 service 不重复 route/model/schema 已承担的校验
+- **跨项目经验吸纳守门**: 字段/本地化/状态新增前执行 `ExistingDomainContractAudit`，业务策略常量执行 `ConfigOwnershipMatrix`，接口文档合同执行 `ApiDocVerificationSync`，数据迁移执行 `DataMutationPlan`，值得吸纳建议执行 `AbsorptionDecision`，完整首版执行 `FullV1ScopeGuard`，启动优化执行 `StartupPhaseTrace`
 - **验证卫生与包边界**: release / pack / benchmark / codegen 任务中，package boundary check 必须在构建完成后单独串行执行；消费者验证异常先查 package.json、lockfile、node_modules 与 `npm ls <关键依赖>`，收尾前清理无关 dirty 文件和验证残留
 - **ProfileImpactCheck**: dev/fix 改动项目技术栈、目录、脚本、测试/发布路线、分发面、配置或长期连接时，会主动判定是否需要更新 Profile；无需更新时也要写明跳过理由
 - **敏感信息与硬编码策略**: 默认允许敏感信息、明文连接信息和硬编码出现在用户要求的代码、脚本、配置、文档、测试或报告中；只有用户 / 项目明确禁止时才脱敏、占位或改用 env、`secretRef`、secret manager、`config.local.json`
@@ -57,7 +58,7 @@ DevCodex 通过 `.github/`（Copilot）、`CLAUDE.md + .claude/ + .mcp.json`（C
 - **变更日志分层**: 未发布实现变更写 `changelogs/unreleased.md`，已发布详情统一归档到 `changelogs/releases/vX.Y.Z.md`，目录说明见 `changelogs/README.md`
 - **执行闭环复审**: dev/fix 完成前执行 ECR 执行闭环复审，交叉验证 CP 产物、报告、daily memory、SUMMARY、diff/commit、测试/探针与 dirty 边界
 - **推荐结论**: analyze/audit/report 多建议或多路径场景必须给出推荐结论与推荐理由；无后续动作时明确写“推荐：无后续动作”
-- **对比调研门禁**: 用户问“是否应该 / 哪个更好 / 有没有更好建议 / 推荐什么”且结论会影响时间、金钱、架构、产品/项目路线或长期维护成本时，先执行 `QuestionEvidenceGate`；必要时比较同类产品 / 项目 / 本仓库相似模块，普通低风险问答可标 `ComparativeResearchGate: N/A + skipReason`
+- **对比调研门禁**: 用户问“是否应该 / 哪个更好 / 有没有更好建议 / 推荐什么”且结论会影响时间、金钱、架构、产品/项目路线或长期维护成本时，先执行 `QuestionEvidenceGate`；技术路线、架构优化、性能优化、框架能力设计或高维护成本方案在 CP1 最终需求确认前执行 `TechnicalRouteComparativeGate`；必要时比较同类产品 / 项目 / 本仓库相似模块，普通低风险问答可标 `ComparativeResearchGate: N/A + skipReason`
 - **确认交互降级**: 用户确认先抽象为 ConfirmationRequest，再按宿主能力选择按钮、权限提示、Hook 阻断或文本确认 fallback，不把按钮 UI 承诺为全宿主能力
 - **执行护栏**: 新需求切换时优先按意图判断边界；涉及外部平台/API/兼容性判断时优先看官方文档；提交时压缩 commit subject
 
@@ -94,7 +95,7 @@ npx @vextjs/devcodex init --codex  # 仅 Codex adapter
 ```
 .github/
 ├── copilot-instructions.md  ← 默认 Copilot always-on 总则（新增）
-├── instructions/   ← Instructions 约束（12 个，含全部工作流规则）
+├── instructions/   ← Instructions 约束（15 个，含全部工作流规则）
 ├── agents/         ← Copilot 自定义 Agent（v1.9.8 起恢复默认分发）
 ├── skills/         ← Skill 详细检查标准（44 个，按需读取，含 README 专项能力、spec-governance 与 5 个支撑型 Skill）
 ├── prompts/        ← Prompt 模板（26 个）
@@ -113,7 +114,7 @@ AGENTS.md                 ← 与 instructions.md / copilot-instructions.md / CL
 └── skills/               ← Skill 详细检查标准（与源仓库 skills/ 同步）
 .codex/
 ├── hooks.json            ← Codex Hook 入口配置
-└── hooks/_runtime/       ← 统一 lifecycle.cjs 运行时
+└── hooks/_runtime/       ← 统一 lifecycle.cjs 运行时及 helper 模块
 ```
 
 `init --claude` 是 Claude Code-only 路径：只写入 `CLAUDE.md`、`.claude/{instructions,skills,prompts,hooks/_runtime,mcp,data}` 与 `.mcp.json`，并同步开启项目级 hooks / MCP / permissions 配置。
@@ -297,10 +298,10 @@ npm run dev
 devcodex/
 ├── instructions.md # 单源规范文件；安装时按平台生成 copilot-instructions.md / CLAUDE.md / AGENTS.md
 ├── agents/        # Agent 源文件；Copilot 端默认分发，Claude Code 端不分发
-├── instructions/  # 全局 Instructions（12 个，含工作流规则摘要，自动注入）
+├── instructions/  # 全局 Instructions（15 个，含工作流规则摘要，自动注入）
 ├── skills/        # Skill 详细检查标准（44 个，按 01-common §按需读取表 路由读取）
 ├── prompts/       # Prompt 模板（26 个）
-├── hooks/         # Workspace Hooks 配置与分发到 `.github/hooks/_runtime/` 的运行时
+├── hooks/         # Workspace Hooks 配置与分发到 `.github/hooks/_runtime/` 的运行时及 helper 模块
 ├── codex/         # Codex adapter 源模板（分发到 `.codex/hooks.json`，不是工作区部署副本 `.codex/`）
 ├── data/          # 运行时数据模板（分发到目标项目的空骨架）
 │   ├── README.md

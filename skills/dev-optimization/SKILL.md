@@ -45,3 +45,4 @@ npx autocannon-compare baseline.json optimized.json
 
 - 🔴 禁止无基线数据的"盲优化"
 - 优化不改变外部接口行为（否则走 dev-default 流程）
+- 启动性能优化或 dev 日志治理必须执行 `StartupPhaseTrace`：先把启动日志按阶段归类，并与 Profile / startup summary 使用同一套阶段命名，再决定减噪、lazy loading 或 background warmup；不得只隐藏扁平日志后宣告优化完成

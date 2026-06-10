@@ -105,6 +105,13 @@ PR-7 测试与风险（🟡 标注，不阻断）
 | 新增/升级依赖、框架、SDK、平台 API 或外部模块是否已读取官方使用文档？（C20 OfficialDocsEvidence） | 已记录官方文档来源、版本/日期、关键用法、限制条件、兼容性 / 弃用 / Breaking Change；无官方文档时已记录降级来源和风险；不触发时写 `N/A + skipReason` |
 | 依赖升级分析是否拆分层次？ | 已拆分 `业务源码平滑性` 与 `依赖层落地条件`；用户要求纯依赖升级时有 `纯依赖层零附加动作` 结论 |
 | 内部共享库根因是否评估共享修复？ | 已评估“修共享库 + 消费项目升级”；若做单项目补丁，已有理由、风险和后续动作 |
+| 技术路线、架构优化、性能优化、框架能力设计或高维护成本方案是否完成 TechnicalRouteComparativeGate？ | CP1/CP2 已记录 `ComparativeResearchGate` 证据范围（`repo-local` / `same-type-project` / `official/current-docs`）与采纳/不采纳理由；不触发时有 `N/A + skipReason` |
+| 新增字段/配置/本地化容器/状态枚举是否完成 ExistingDomainContractAudit？ | 已检索既有模型、类型、validator、service、controller、脚本、历史数据样本和消费者接口；新增平行字段/容器/回退读取有理由和用户确认 |
+| 业务策略常量、provider 选项、阈值或开关是否完成 ConfigOwnershipMatrix？ | 已逐项标明 `DB feature config` / `provider runtime` / `服务运行配置` / `代码契约`；可运营调整项未默认硬编码为发版改代码 |
+| 前端/API 文档变更是否完成 ApiDocVerificationSync？ | 已同步检查 `.http` / `.cjs`，异步或落库型接口包含持久化真相源与最终消费者响应字段验证；跳过有 `N/A + skipReason` |
+| 数据补齐/迁移脚本是否完成 DataMutationPlan？ | 范围来自显式清单、需求目录数据源或稳定业务键；跨环境写入使用目标环境唯一匹配，dry-run 输出 `source_id`、`target_id`、缺失/重复清单 |
+| 可吸纳建议与完整首版边界是否有明确决策？ | `AbsorptionDecision` 已进入当前确认清单、设计占位、backlog 或明确拒收；`FullV1ScopeGuard` 未把有真实消费者/发布契约的 v1 自动降级为 MVP |
+| 启动性能或日志治理是否完成 StartupPhaseTrace？ | 启动日志先按阶段归类，并与 Profile / startup summary 使用同一阶段命名；未仅通过隐藏扁平日志宣告优化 |
 
 ### PR-3 约束合规性
 

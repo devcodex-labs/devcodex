@@ -2,7 +2,7 @@
 applyTo: "**"
 description: fix 工作流规则，覆盖子类型路由、CP 流程、修复三步扫描、执行期回退与 ECR
 priority: P4
-version: 1.11.15
+version: 1.11.16
 ---
 # 修复工作流规则（11-fix）
 
@@ -217,6 +217,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → 
 - 修复范围不得超出问题边界（禁止顺手重构）
 - CP1 问题确认必须给出 `ImplementationComplexityLevel`（兼容旧字段 `ImplementationComplexityPreference`），默认 `简单够用`：只修确认根因和影响范围；若 AI 判断需要升级到 `中等` / `企业级`，先列备选、开发周期、难度、维护成本和取舍并等待用户确认
 - 修复默认采用最小实现，禁止无计划新增抽象、通用配置、预留扩展点或未确认防御分支
+- 修复涉及字段/配置/接口文档/验证产物/数据脚本/跨环境写入/启动性能时，必须沿用 dev 的 `ExistingDomainContractAudit`、`ConfigOwnershipMatrix`、`ApiDocVerificationSync`、`DataMutationPlan`、`StartupPhaseTrace` 等通用工程吸纳守门；无关时写 `N/A + skipReason`
 - 必要注释必须覆盖非显然根因、兼容约束、安全边界、状态转换或反直觉修复取舍；禁止逐行解释、重复代码含义或保留临时 TODO
 
 ### incident（事故响应）

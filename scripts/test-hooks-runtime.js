@@ -155,6 +155,48 @@ function main() {
   const projectOverlayAliasState = JSON.parse(fs.readFileSync(getLayoutStateFile(), 'utf8'))
   assert.strictEqual(projectOverlayAliasState.executionMode, 'auto')
 
+  cleanState({ mode: 'dev', agent: 'claude-code' })
+  run({ hookEventName: 'UserPromptSubmit', prompt: 'Codex bootstrap should prefer current host over profile agent' }, TEMP_ROOT, { CODEX_HOME: '1' })
+  run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'read_file',
+    tool_input: { filePath: '.devcodex/profile/config.json' }
+  }, TEMP_ROOT, { CODEX_HOME: '1' })
+  run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'read_file',
+    tool_input: { filePath: getMemoryFilePath('claude-code', 'SUMMARY.md') }
+  }, TEMP_ROOT, { CODEX_HOME: '1' })
+  const codexMismatchState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(codexMismatchState.bootstrap.profileRead, true)
+  assert.strictEqual(codexMismatchState.bootstrap.summaryRead, false)
+  run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'read_file',
+    tool_input: { filePath: getMemoryFilePath('codex', 'SUMMARY.md') }
+  }, TEMP_ROOT, { CODEX_HOME: '1' })
+  run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'read_file',
+    tool_input: { filePath: getMemoryFilePath('codex', 'tasks', `${getTaskStamp(0)}.md`) }
+  }, TEMP_ROOT, { CODEX_HOME: '1' })
+  const codexBootstrapState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(codexBootstrapState.bootstrapComplete, true)
+
+  cleanLayoutState(
+    { mode: 'prod', agent: TEST_AGENT },
+    {
+      mode: 'dev',
+      extensions: {
+        devcodex: {
+          autoAliases: ['@rocky']
+        }
+      }
+    }
+  )
+  run({ hookEventName: 'UserPromptSubmit', prompt: '@rocky restore auto mode after codex bootstrap replay' }, layoutChild)
+  runLayoutBootstrapReads(TEST_AGENT, layoutChild)
+
   const autoWhitelistAllowed = run({
     hookEventName: 'PreToolUse',
     tool_name: 'apply_patch',

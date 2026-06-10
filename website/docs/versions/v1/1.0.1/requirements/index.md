@@ -8,17 +8,13 @@
 | 模块 | 状态 | 说明 |
 |------|------|------|
 | 版本入口与导航 | ✅ 已建立 | `versions/`、`v1/` 和 sidebar 已接入 `1.0.1` |
-| 具体需求条目 | ✅ 已补充首批索引 | 近期 light-api、frontend-api、目标文档前置、实施后复审、Claude MCP/合规漂移修复均从本目录追踪 |
+| 具体需求条目 | ✅ 已补充首个详情页 | 当前目录内已有 `p1/template-flow-alignment/` 详情页；其他已实现能力按仓库根 `CHANGELOG.md` 与 `changelogs/releases/` 追溯 |
 
 ## 当前需求索引
 
 | 优先级 | 主题 | 状态 | 说明 |
 |--------|------|------|------|
-| P1 | 轻量接口文档与前端接口文档支持 | ✅ 已实现 | `dev-docs` 支持 light-api / frontend-api 双模式目标文档 |
-| P1 | 条件触发的目标文档前置 | ✅ 已实现 | API/前端契约驱动型需求可在 CP1 后先冻结目标文档，再进入 CP2 技术方案 |
-| P1 | 实施后复审阶段显式化 | ✅ 已实现 | dev/fix 主链统一表达为“执行 → 轻量复审收敛 → 完成” |
-| P1 | Claude Code MCP 与 permissions 同步修复 | ✅ 已实现 | `.mcp.json` 对齐 Claude Code `mcpServers`，`.claude/settings.json` 预批准常用工具与项目 MCP |
-| P1 | 合规编号与验证链漂移修复 | ✅ 已实现 | C19、FC7、SC15、profile/README 统计和 validate 探针同步 |
+| P1 | [模板边界与开发流程收口](./p1/template-flow-alignment/) | ✅ 已收口 | 正式需求入口、执行模板职责、CP1/CP2/CP3 关注点与 `03/04/05` 产物边界已同步 |
 
 ## 版本内开发规则
 

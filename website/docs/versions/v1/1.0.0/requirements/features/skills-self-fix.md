@@ -4,7 +4,7 @@
 **优先级**：P2  
 **参考**：原 v0.03 `skills/`（目录已删除，当前实现见 `skills/` 根目录）
 
-> ⚠️ 历史快照说明：本页保留 `1.0.0` 阶段的规划拆分。当前实现中不存在 `self-fix-auto` Skill；自修复能力由 `skills/self-fix/SKILL.md` 与 `14-self-fix.instructions.md` 承载。当前 Token/Tier 门控未启用，所有功能全量开放。
+> ⚠️ 历史快照说明：本页保留 `1.0.0` 阶段的规划拆分。当前实现中不存在独立 `self-fix` / `self-fix-auto` Skill；自修复能力由 `instructions/14-self-fix.instructions.md` 承载，并由 `skills/spec-governance/SKILL.md` 提供记录分流与 SCV 治理支撑。当前 Token/Tier 门控未启用，所有功能全量开放。
 
 ## self-fix
 
@@ -12,7 +12,7 @@
 
 | Skill | 路径（官方扁平结构）| 职责 |
 |-------|---------------------|------|
-| `self-fix` | `skills/self-fix/SKILL.md` | A1~A5 自动级修复分级与规范自修复流程 |
+| `self-fix` | `instructions/14-self-fix.instructions.md` + `skills/spec-governance/SKILL.md` | 规范自修复流程、RecordRouter 分流与 SCV 验证 |
 
 ## cross（跨工作流）
 

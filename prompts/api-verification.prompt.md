@@ -149,3 +149,4 @@ node .devcodex/<project>/requirements/<需求名>/<module>-接口验证.cjs
 ```
 
 > 项目自身的单元/集成/API 测试仍可放在 `tests/`；本模板只定义 DevCodex 归档级接口验证双产物。面向前端或调用方的阅读型说明请走 `dev-docs` 的轻量文档模式。
+> 若前端接口文档、字段映射、错误码或状态枚举变更，必须执行 `ApiDocVerificationSync`；异步、队列、任务型或数据库落库型接口还应查询持久化真相源，并在可能时断言最终消费者响应字段。

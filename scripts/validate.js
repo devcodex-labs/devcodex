@@ -9,7 +9,7 @@
  * V5 PC4 输出格式唯一定义
  * V6 npm pack 白名单不含维护者状态
  * V7 Hooks 运行时 bootstrap 行为冒烟
- * V8 父级与源仓根部署同步检查（.claude/ / .github/ / Codex adapter vs 源仓库关键文件内容）
+ * V8 父级/目标工作区部署同步检查 + 源码仓根宿主副本禁止检查
  * V9 报告/记忆日期格式（YYYY-MM-DD HH:MM）一致性
  * V10 audit-state regressionProbes 回归扫描（已 fixed 项的 grep 计数验证）
  * V11 AskUserQuestion / 决策点格式（FC7：1 个 (推荐) 标签 + "推荐理由：" 前缀）
@@ -768,16 +768,25 @@ function checkV19() {
   const dataTemplateCount = walk(path.join(ROOT, 'data', 'templates')).filter(f => f.endsWith('.md')).length
   const scriptCount = walk(path.join(ROOT, 'scripts')).filter(f => f.endsWith('.js')).length
   const skillCount = walk(path.join(ROOT, 'skills')).filter(f => path.basename(f) === 'SKILL.md').length
+  const instructionCount = fs.readdirSync(path.join(ROOT, 'instructions')).filter(f => f.endsWith('.instructions.md')).length
+  const hookRuntimeFiles = walk(path.join(ROOT, 'hooks', '_runtime')).filter(f => f.endsWith('.cjs'))
+  const hookRuntimeCount = hookRuntimeFiles.length
   const checks = [
+    { file: 'README.md', needle: `Instructions 约束（${instructionCount} 个，含全部工作流规则）` },
+    { file: 'README.md', needle: `全局 Instructions（${instructionCount} 个，含工作流规则摘要，自动注入）` },
     { file: 'README.md', needle: `Skill 详细检查标准（${skillCount} 个，按需读取，含 README 专项能力、spec-governance 与 5 个支撑型 Skill）` },
     { file: 'README.md', needle: `Skill 详细检查标准（${skillCount} 个，按 01-common §按需读取表 路由读取）` },
     { file: 'README.md', needle: `Prompt 模板（${promptCount} 个）` },
     { file: activePath('profile', '01-项目信息.md'), needle: `| **Skill** | ${skillCount} |`, rawPath: false },
+    { file: activePath('profile', '01-项目信息.md'), needle: `| **Instruction** | ${instructionCount} |`, rawPath: false },
     { file: activePath('profile', '01-项目信息.md'), needle: `| **Prompt** | ${promptCount} |`, rawPath: false },
+    { file: activePath('profile', '01-项目信息.md'), needle: `| **Hooks runtime** | ${hookRuntimeCount} |`, rawPath: false },
     { file: activePath('profile', '01-项目信息.md'), needle: `prompts ${promptCount}`, rawPath: false },
     { file: activePath('profile', '01-项目信息.md'), needle: `skills ${skillCount}`, rawPath: false },
     { file: activePath('profile', '02-架构约束.md'), needle: `Skill 文件 ${skillCount} 个`, rawPath: false },
     { file: activePath('profile', '02-架构约束.md'), needle: `Prompt 模板文件（.prompt.md，中文）${promptCount} 个`, rawPath: false },
+    { file: activePath('profile', '02-架构约束.md'), needle: 'lifecycle-governance-intake.cjs', rawPath: false },
+    { file: activePath('profile', '02-架构约束.md'), needle: 'workspace-layout.cjs', rawPath: false },
     { file: activePath('profile', '01-项目信息.md'), needle: `| **data 模板** | ${dataTemplateCount} |`, rawPath: false },
     { file: activePath('profile', '01-项目信息.md'), needle: `| **CLI 工程脚本** | ${scriptCount} |`, rawPath: false },
     { file: activePath('profile', '01-项目信息.md'), needle: 'scripts/check-syntax.js', rawPath: false },
@@ -796,7 +805,22 @@ function checkV19() {
       err(`[V19] asset count drift in ${check.rawPath === false ? path.relative(ROOT, check.file) : check.file}: expected text "${check.needle}"`)
     }
   }
-  console.log(`[V19] asset counts checked: skills=${skillCount}, prompts=${promptCount}, data-templates=${dataTemplateCount}, scripts=${scriptCount}`)
+
+  const activeRequirementsIndex = read(path.join(ROOT, 'website/docs/versions/v1/1.0.1/requirements/index.md'))
+  const activeRequirementsChangelog = read(path.join(ROOT, 'website/docs/versions/v1/1.0.1/CHANGELOG.md'))
+  for (const stale of ['light-api', 'frontend-api', 'Claude MCP/合规漂移修复']) {
+    if (activeRequirementsIndex.includes(stale)) {
+      err(`[V19] active requirements index contains stale unbacked summary text: ${stale}`)
+    }
+  }
+  if (!activeRequirementsIndex.includes('template-flow-alignment')) {
+    err('[V19] active requirements index must link the existing template-flow-alignment requirement detail')
+  }
+  if (!activeRequirementsChangelog.includes('模板边界与开发流程收口')) {
+    err('[V19] active version CHANGELOG must record the existing template-flow-alignment requirement detail')
+  }
+
+  console.log(`[V19] asset counts checked: instructions=${instructionCount}, skills=${skillCount}, prompts=${promptCount}, hook-runtime=${hookRuntimeCount}, data-templates=${dataTemplateCount}, scripts=${scriptCount}`)
 }
 
 // V29~V38 moved to scripts/lib/validate-governance-mid.js

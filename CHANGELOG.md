@@ -1,7 +1,7 @@
 # 变更日志 (CHANGELOG)
 
 > **说明**: 版本概览摘要。最新版本的详细变更见下方表格首行的 `changelogs/releases/vX.Y.Z.md` 链接；历史版本见对应详细变更文件
-> **最后更新**: 2026-06-09
+> **最后更新**: 2026-06-10
 
 ---
 
@@ -9,6 +9,7 @@
 
 | 版本 | 日期 | 变更摘要 | 详细 |
 |------|------|---------|------|
+| [v1.11.16](./changelogs/releases/v1.11.16.md) | 2026-06-10 | 🔧 **治理 intake 行为闭环、跨项目吸纳守门与发布前收敛**：新增用户建议/纠错的行为级治理 intake replay，修正 source-root 宿主副本治理、Profile/website 新鲜度与 C13 作用域，吸纳跨项目 data 守门并补齐 `TechnicalRouteComparativeGate` | [查看](./changelogs/releases/v1.11.16.md) |
 | [v1.11.15](./changelogs/releases/v1.11.15.md) | 2026-06-09 | 🔧 **问答证据门禁、复杂度用户面与产物生命周期收口**：新增 `QuestionEvidenceGate / ComparativeResearchGate`，将 CP1 复杂度主口径升级为 `ImplementationComplexityLevel` 三档，并补齐 `ArtifactDecisionMatrix / ArtifactLifecycleState`、模板漂移探针与 V8 source-root 部署副本检查 | [查看](./changelogs/releases/v1.11.15.md) |
 | [v1.11.14](./changelogs/releases/v1.11.14.md) | 2026-06-05 | 🔧 **ExistingRequirementArtifactOverride 与需求回写收口**：修复 `SimpleTaskFastPath` 对既有需求/bug 真相源的过宽豁免，明确调整需求必须先回写已有文件，回复只做摘要；`v1.11.14` 替代未 registry 发布的 `v1.11.13` | [查看](./changelogs/releases/v1.11.14.md) |
 | [v1.11.13](./changelogs/releases/v1.11.13.md) | 2026-06-04 | 🔧 **默认简单实现档位与 Profile Auto 别名**：CP1 新增 `ImplementationComplexityPreference` 且默认 `simple`，Auto v1.1 支持 Profile `extensions.devcodex.autoAliases`（本项目 `@rocky`），并补齐 runtime / profile schema / V13-V14 探针 | [查看](./changelogs/releases/v1.11.13.md) |
@@ -101,8 +102,9 @@
 
 ## 相关文档
 
-- [`changelogs/releases/v1.11.15.md`](./changelogs/releases/v1.11.15.md) — 最新版本详细变更文档
-- [`changelogs/releases/v1.11.14.md`](./changelogs/releases/v1.11.14.md) — 上一版本详细变更文档
+- [`changelogs/releases/v1.11.16.md`](./changelogs/releases/v1.11.16.md) — 最新版本详细变更文档
+- [`changelogs/releases/v1.11.15.md`](./changelogs/releases/v1.11.15.md) — 上一版本详细变更文档
+- [`changelogs/releases/v1.11.14.md`](./changelogs/releases/v1.11.14.md) — 历史版本详细变更文档
 - [`changelogs/releases/v1.11.13.md`](./changelogs/releases/v1.11.13.md) — 历史版本详细变更文档
 - [`changelogs/releases/v1.11.12.md`](./changelogs/releases/v1.11.12.md) — 历史版本详细变更文档
 - [`changelogs/releases/v1.11.11.md`](./changelogs/releases/v1.11.11.md) — 历史版本详细变更文档
@@ -121,4 +123,5 @@
 - [`changelogs/releases/v1.9.8.md`](./changelogs/releases/v1.9.8.md) — 历史版本详细变更文档
 - [`changelogs/releases/v1.1.0.md`](./changelogs/releases/v1.1.0.md) — 历史版本详细变更文档
 - [README.md](./README.md) — 项目说明
-- [requirements/index.md](./website/docs/versions/v1/1.0.0/requirements/index.md) — 需求文档总览
+- [requirements/index.md](./website/docs/versions/v1/1.0.1/requirements/index.md) — 当前活动版本需求文档总览
+- [v1.0.0 requirements](./website/docs/versions/v1/1.0.0/requirements/index.md) — 历史基线需求快照

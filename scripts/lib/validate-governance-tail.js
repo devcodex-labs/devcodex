@@ -63,6 +63,18 @@ function buildGovernanceTailChecks(ctx) {
         needles: ['规范治理 Intake', 'data/process-improvements.md', '所有模式下每条用户消息']
       },
       {
+        file: 'hooks/_runtime/lifecycle-governance-intake.cjs',
+        needles: ['governanceIntakeCandidate', 'record.none', 'requiresCoupledRecordRouterEvidence', 'CONFIDENCE_RE', 'BASIS_RE', 'buildGovernanceIntakeReminderItem']
+      },
+      {
+        file: 'hooks/_runtime/lifecycle-visible-reply.cjs',
+        needles: ['buildGovernanceIntakeReminderItem']
+      },
+      {
+        file: 'scripts/test-governance-intake.js',
+        needles: ['runGovernanceIntakeBehaviorReplay', '用户纠正', 'record.none', 'historical ledger id', 'ordinary future-question prompt', 'cleanupRuntimeTempRoots']
+      },
+      {
         file: 'package.json',
         needles: ['test:governance-intake', 'node scripts/test-governance-intake.js']
       }

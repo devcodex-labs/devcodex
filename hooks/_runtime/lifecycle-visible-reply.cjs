@@ -5,7 +5,8 @@ function buildLifecycleVisibleReplyUtils(ctx) {
     fs,
     getStatePaths,
     getVisibleReplyEvidence,
-    collectInterestingStrings
+    collectInterestingStrings,
+    buildGovernanceIntakeReminderItem
   } = ctx
 
   function hasVisibleReplyPayload(payload) {
@@ -88,6 +89,8 @@ function buildLifecycleVisibleReplyUtils(ctx) {
     }
     if (state.mutated && !state.memoryTouched) items.push('记忆文件尚未写入（S05：会话结束前必须写入）')
     if (state.mutated && !state.reportTouched) items.push('报告文件尚未写入（chat 工作流豁免）')
+    const governanceIntakeReminder = buildGovernanceIntakeReminderItem(state)
+    if (governanceIntakeReminder) items.push(governanceIntakeReminder)
     if (!items.length) return ''
     return `DevCodex closure reminder: ${items.join('; ')}.`
   }

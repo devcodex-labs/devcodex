@@ -2,7 +2,7 @@
 applyTo: "**"
 description: 任务切换边界、RecordRouter 分流、Improvement Intake 与提交发布边界的通用规范
 priority: P5
-version: 1.11.15
+version: 1.11.16
 ---
 # 任务边界与 RecordRouter
 
@@ -57,6 +57,7 @@ version: 1.11.15
   - 已有规则未执行 → VL
   - 一次性偏好或业务局部诉求 → 不写台账
 - 所有模式命中后都必须显式回执 `已记录 PI-xxx`、`已记录 PF-xxx` 或 `已记录 PI-xxx / PF-xxx`。
+- 支持 Hook 的宿主可把疑似治理输入标记为 `governanceIntakeCandidate` 并在收尾提醒未分流候选；该提醒只防止漏记，不替代语义判断。最终仍必须由 AI 给出 RecordRouter 判定，或明确 `record.none + skipReason`。
 
 ## Backlog Intake 真相复核
 

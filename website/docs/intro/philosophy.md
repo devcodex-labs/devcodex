@@ -38,7 +38,7 @@ Auto v1.1（`@devcodex-auto`、Profile `extensions.devcodex.autoAliases` 精确�
 
 它检查的问题包括：
 - AI 是否执行了三步扫描（fix 工作流）？
-- AI 新建的 .md 文件是否超过 500 行限制？
+- AI 新建的 DevCodex 规范资产 `.md` 是否超过 500 行限制？业务需求、技术方案、报告和正式项目文档是否按可读性与项目规范拆分？
 - AI 是否在 dev 后运行了 lint/typecheck？
 - 报告、记忆、审计是否已经完成闭环？
 

@@ -63,6 +63,8 @@ description: 规范治理生命周期 — 意图驱动记录、RecordRouter 分�
 
 所有模式下，主动 Intake 完成后必须显式回执：`已记录 PI-xxx`、`已记录 PF-xxx` 或 `已记录 PI-xxx / PF-xxx`。
 
+宿主 runtime 若标记 `governanceIntakeCandidate`，只能作为“可能需要 RecordRouter”的收尾提醒；AI 仍必须输出规范化意图、置信度、依据和目标台账，或明确 `record.none + skipReason`。禁止仅凭关键词由 Hook 自动写台账。
+
 ## Backlog Intake 真相复核
 
 当新的需求、bug、批次计划或尾项治理**直接来源于 `data/*.md` 的 open/partial 条目**时，不能把这些编号直接视为本轮真实 open。进入 CP1 / 问题确认或批次实施前，必须先做 Backlog Intake 真相复核：

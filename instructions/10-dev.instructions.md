@@ -2,7 +2,7 @@
 applyTo: "**"
 description: dev 工作流规则，覆盖子类型路由、CP 流程、计划复审、执行期回退与 ECR
 priority: P4
-version: 1.11.15
+version: 1.11.16
 ---
 # 开发工作流规则（10-dev）
 
@@ -172,8 +172,16 @@ CP1（需求确认）→ PR-1 内部自检 → CP2（方案确认）→ plan-rev
 - **接入状态口径拆分**：需求、报告和复盘描述“已接入 / 未接入”状态时，必须区分底座能力、当前消费者和高级能力尾项；基础底座已消费但 Redis / MultiLevel / Distributed 等高级能力未接入时，不得写成整体未接入。
 - **TypeScript 契约迁移**：TS 重构或迁移按公开契约与消费面逐步完善类型，不机械复制旧版本缺陷；跨模块业务契约、公开类型与配置类型优先集中到 types 契约层，本地私有 interface 可保留但须说明理由。
 - **Provider / connector**：三方 provider、connector、SDK 接入类 CP2 必须先区分业务功能接口与底层 provider adapter；面向前端或业务调用方时优先冻结业务功能契约，provider/model/operation 作为内部实现或配置维度。随后冻结字段级合同：provider metadata、内部 payload、上游 request 映射、标准化 result、错误 detail；首个 provider 只能验证统一 operation contract，不能反向定义公共命名和层次。
+- **TechnicalRouteComparativeGate**：技术路线、架构优化、性能优化、框架能力设计或高维护成本方案在 CP1 最终需求确认前，若存在同类产品 / 项目 / 框架 / 本仓库相似模块可比，必须执行 `ComparativeResearchGate`，记录证据范围（`repo-local` / `same-type-project` / `official/current-docs`）与采纳/不采纳理由；不触发时写 `N/A + skipReason`。
+- **ExistingDomainContractAudit**：新增字段、配置、多语言 / 本地化容器、状态枚举、返回结构或平行数据结构前，CP2 必须检索既有模型、类型、validator、service、controller、脚本、历史数据样本和消费者接口；优先复用既有领域真相源，新增平行字段 / 容器 / 回退读取必须说明原因、迁移边界并经用户确认。
+- **ConfigOwnershipMatrix**：新增或修改业务策略常量、provider 选项、阈值、开关或运行参数时，CP2 必须逐项标明落点属于 `DB feature config` / `provider runtime` / `服务运行配置` / `代码契约`；可由运营或业务调整的策略不得默认硬编码为发布改代码，除非用户明确接受。
+- **DataMutationPlan**：数据补齐、迁移或跨环境写入脚本必须从已确认的显式清单、需求目录数据源或稳定业务键派生范围；宽泛查询只能用于背景排查，不能保留为写入口。跨环境写入时，source `_id` 只作审计字段，目标环境必须用稳定业务键或显式清单重新唯一匹配，dry-run 输出 `source_id`、`target_id`、缺失/重复清单；不能唯一匹配时阻断写库。
+- **ApiDocVerificationSync**：前端接口文档、轻量 API 文档、字段映射、错误码或状态枚举新增/调整时，必须同步检查归档级 `.http` / `.cjs` 是否需要更新；若不更新，CP2/报告写明 `N/A + skipReason`。异步、队列或数据库落库型接口验证不得只断言 HTTP 状态码，还应按 TestRoute 查询持久化真相源并验证最终消费者响应字段。
 - **Service 职责边界**：简单业务 service 默认只做业务编排、外部能力调用和必要上游错误映射；不得重复 route validate、model/schema、数据导入或框架已承担的校验、归一化、配置兜底和二次治理。
 - **README 使用者表达**：README / 使用文档涉及性能表、语法/能力矩阵或模式优先级时，先给用户选择结论，再解释字段；同时写清支持形式、不支持形式和优先级示例，避免内部术语抢占主叙事。
+- **AbsorptionDecision**：调研、审查、复审或方案讨论中被判断“值得吸纳”的建议，必须进入当前确认清单、设计占位或显式 backlog；若不纳入当前范围，必须明确拒收或延后原因，禁止只写“二期 / 以后再说”而无台账或设计占位。
+- **FullV1ScopeGuard**：用户表达“第一版 / v1 / 完整首版”且存在真实消费项目、发布契约或主要功能验收时，不得自动降级为 MVP；只有用户明确接受 MVP / 分期时，才可把主功能延后，并在非目标 / 后续清单中写明。
+- **StartupPhaseTrace**：启动性能优化或 dev 日志治理必须先把启动日志按阶段归类，并与 Profile / startup summary 使用同一套阶段命名，再决定减噪、lazy loading 或 background warmup；禁止只隐藏扁平日志后宣称完成优化。
 
 ### 跨服务需求处理（CP1 前确认）
 

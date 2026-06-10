@@ -19,6 +19,7 @@ applyTo: .devcodex/**/requirements/**
 > ⚠️ ExistingRequirementArtifactOverride：用户要求调整/修改/补充既有需求时，如果已有 `01-需求概述.md`、Profile 声明的正式需求文件或 website requirement，必须先增量编辑该文件；回复只能概述变更，不能替代文件回写。SimpleTaskFastPath 只豁免新建完整需求产物，不豁免更新既有真相源。
 > ⚠️ CP1 必须给出 ArtifactDecisionMatrix：列出 `01-需求概述.md`、`02-技术方案.md`、`04-实施计划.md`、`05-实施进度.md`、目标文档、报告、记忆的 `create` / `update` / `skip` / `N/A` 状态、原因和升级回退条件；判定优先级为已有真相源回写 > 任务触发条件 > SimpleTaskFastPath > 子类型豁免。
 > ⚠️ 描述“已接入 / 未接入”类状态时，先核验依赖与源码消费点，再拆分底座能力、当前消费者和高级能力尾项，避免把“基础已接入但高级能力未接入”误写成整体未接入。
+> ⚠️ TechnicalRouteComparativeGate：技术路线、架构优化、性能优化、框架能力设计或高维护成本方案在 CP1 最终需求确认前，若存在同类产品 / 项目 / 框架 / 本仓库相似模块可比，必须执行 `ComparativeResearchGate`；不触发时写 `N/A + skipReason`。
 
 | 类型 | 适用场景 | 默认重点 |
 |------|---------|---------|
@@ -55,6 +56,7 @@ applyTo: .devcodex/**/requirements/**
 - [§1 背景与问题](#1-背景与问题)
 - [§2 目标](#2-目标)
   - [§2.3 开发程度等级](#23-开发程度等级)
+  - [§2.4 技术路线对比证据](#24-技术路线对比证据)
 - [§3 业务流程](#3-业务流程)
 - [§4 功能需求](#4-功能需求)
 - [§5 非功能需求](#5-非功能需求)
@@ -103,6 +105,14 @@ applyTo: .devcodex/**/requirements/**
 **选择理由**：
 
 **可选升级方案**（默认不升级；仅供用户选择）：
+
+### §2.4 技术路线对比证据（TechnicalRouteComparativeGate，条件）
+
+> 技术路线、架构优化、性能优化、框架能力设计或高维护成本方案必填；普通低风险实现可写 `N/A + skipReason`。
+
+| 是否触发 ComparativeResearchGate | 证据范围 | 对比对象 | 采纳 / 不采纳理由 |
+|----------------------------------|----------|----------|-------------------|
+| 是 / 否 | repo-local / same-type-project / official/current-docs / N/A | | |
 
 ## §3 业务流程
 

@@ -72,7 +72,7 @@ SC: SC2 [✅/❌] SC4 [✅/❌] SC6 [✅/❌] ...（仅列适用项，逐项实�
 | FC3 | CP 按序执行（dev/fix；其他 N/A） |
 | FC4 | 文件名/路径合规（`NN--` 双横杠开头） |
 | FC5 | 产物路径已输出（回复末尾在 `📂 本次会话产物` 区块内列出 `ArtifactLinkSet`：Markdown 链接 + 必要 `绝对路径：` copy fallback，见 `02-output-paths.instructions.md` §产物路径输出格式）|
-| FC6 | 新建 .md 行数检查（超 500 行须拆分 [C13](../../instructions/01-common.instructions.md)） |
+| FC6 | 新增 DevCodex 规范资产 `.md` 行数检查（instructions / skills / prompts / templates / 规范源等超 500 行须按 [C13](../../instructions/01-common.instructions.md) 拆分；业务项目需求、技术方案、报告和正式项目文档不因 C13 强制拆分） |
 | FC7 | 用户决策选项与报告决策点必带推荐 + 理由：所有 AskUserQuestion / 多选项呈现 / CP 选项 / 方案对比 / analyze-audit 报告决策点必须有且仅有 1 个推荐项，推荐项置首且说明推荐理由；无后续动作时写明 `推荐：无后续动作` |
 
 ## §3 实质合规（SC）— 🔴 阻塞性

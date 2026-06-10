@@ -2,7 +2,7 @@
 applyTo: "**"
 description: dev 模式合规检查规则，覆盖 FC/SC/RC/T、入口检查与完成验证
 priority: P4
-version: 1.11.15
+version: 1.11.16
 ---
 # 合规检查规则（17-compliance）
 
@@ -140,7 +140,7 @@ version: 1.11.15
 | FC3 | CP 按序执行（dev/fix；其他 N/A） |
 | FC4 | 文件名/路径合规（`NN--` 双横杠开头；本轮无报告产物时标 N/A） |
 | FC5 | 产物路径已输出（回复末尾在 `📂 本次会话产物` 区块内列出 `ArtifactLinkSet`：Markdown 链接 + 必要 `绝对路径：` copy fallback，见 `02-output-paths.instructions.md` §产物路径输出格式）|
-| FC6 | 新建 .md 行数检查（超 500 行须拆分 C13） |
+| FC6 | 新增 DevCodex 规范资产 `.md` 行数检查（instructions / skills / prompts / templates / 规范源等超 500 行须按 C13 拆分；业务项目需求、技术方案、报告和正式项目文档不因 C13 强制拆分） |
 | FC7 | 用户决策选项与报告决策点必带推荐 + 理由：所有 AskUserQuestion / 多选项呈现 / CP 范围选择 / 方案对比 / analyze-audit 报告决策点必须有且仅有 1 个 🟢 推荐项（首位置 + 标签含"(推荐)"或表格标 ⭐），并附一句话推荐理由；没有可推荐动作时必须显式写 `推荐：无后续动作` 与原因 |
 
 > ℹ️ **层次说明**：FC 关注“写入与输出格式是否完整落盘”，T 层关注“任务目标是否最终达成”。看似相近的检查项（如 FC1 vs T3、FC2 vs T2）属于不同验证层，前者防止漏写，后者确认闭环完成。

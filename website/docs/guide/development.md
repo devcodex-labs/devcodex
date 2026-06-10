@@ -78,7 +78,7 @@ description: "Use when: ..."   # 必填，AI 靠这个发现 Skill
 - 新增/升级依赖、框架、SDK、平台 API 或外部模块时，CP2 必须包含 `OfficialDocsEvidence`：官方文档来源、版本/日期、关键用法、限制、兼容性和降级来源；不能只验证“包能安装”
 - dev/fix 改动项目技术栈、目录边界、脚本、测试/发布路线、分发面、配置项、长期连接或本地 overlay schema 时，必须执行 `ProfileImpactCheck`，同步 Profile 或在报告中写明 `skipReason`
 - 若 AI 为验证启动 dev server、文档站、本地 API/mock、数据库代理、SSH 隧道、Playwright/Cypress server 或压测 target，必须执行 `ServiceLifecycleCleanup`：记录命令/cwd/PID/job/端口/URL，验证完成、失败或最终回复前关闭仅由 AI 本轮启动的服务并核验端口释放；用户要求保留时记录 PID/端口和关闭方式
-- 通用工程守门：Node.js 项目默认 `engines.node` / CI / Profile / README 不低于 `>=18`；需求/问题定义阶段先做平台工程判断，确认消费者范围、共享契约边界、模块职责、维护成本和非目标；JS/Node 必要注释使用标准 JSDoc；依赖升级或兼容修复必须拆分 `业务源码平滑性` 与 `依赖层落地条件`；包/库/adapter/CLI 同时检查代码实现层和包工程层；简单 service 不重复 route/model/schema 已承担的校验、归一化和配置兜底
+- 通用工程守门：Node.js 项目默认 `engines.node` / CI / Profile / README 不低于 `>=18`；需求/问题定义阶段先做平台工程判断，确认消费者范围、共享契约边界、模块职责、维护成本和非目标；JS/Node 必要注释使用标准 JSDoc；依赖升级或兼容修复必须拆分 `业务源码平滑性` 与 `依赖层落地条件`；包/库/adapter/CLI 同时检查代码实现层和包工程层；简单 service 不重复 route/model/schema 已承担的校验、归一化和配置兜底；跨项目经验吸纳守门包括 `ExistingDomainContractAudit`、`ConfigOwnershipMatrix`、`ApiDocVerificationSync`、`DataMutationPlan`、`AbsorptionDecision`、`FullV1ScopeGuard` 与 `StartupPhaseTrace`
 - 验证卫生与包边界：release / pack / benchmark / codegen 任务中，package boundary check 必须在构建完成后单独串行执行；消费者验证异常先查 package.json、lockfile、node_modules 与 `npm ls <关键依赖>`，最终收尾前清理无关 dirty 文件和验证残留
 - 文档阅读顺序同步：正文、README 或维护者文档定义“先看什么 / 审查顺序 / 实施顺序”时，website sidebar/nav、索引页和目录页必须作为当前消费者同批校验；信息架构故意不同序时要说明差异
 - v2.0.0 规划：MCP `devcodex_getWorkflow()` 替代文件读取
@@ -226,7 +226,7 @@ ConfirmationRequest 是语义层抽象，不要求 runtime 逐字输出同名对
 
 ### QuestionEvidenceGate 与对比调研门禁
 
-当用户问“是否应该 / 哪个更好 / 有没有更好建议 / 推荐什么”，且结论会影响时间、金钱、架构、产品/项目路线或长期维护成本时，先执行 `QuestionEvidenceGate`。命中推荐、选型、同类产品或同类项目判断时，再执行 `ComparativeResearchGate`，比较同类产品 / 项目 / 本仓库相似模块 / 已有设计并说明证据范围；纯解释、低风险本地事实或用户明确要求快速答复时，写 `N/A + skipReason`，避免把普通问答默认升级成重调研。
+当用户问“是否应该 / 哪个更好 / 有没有更好建议 / 推荐什么”，且结论会影响时间、金钱、架构、产品/项目路线或长期维护成本时，先执行 `QuestionEvidenceGate`。命中推荐、选型、同类产品或同类项目判断时，再执行 `ComparativeResearchGate`，比较同类产品 / 项目 / 本仓库相似模块 / 已有设计并说明证据范围；技术路线、架构优化、性能优化、框架能力设计或高维护成本方案在 CP1 最终需求确认前执行 `TechnicalRouteComparativeGate`，把证据范围和采纳 / 不采纳理由写入需求。纯解释、低风险本地事实或用户明确要求快速答复时，写 `N/A + skipReason`，避免把普通问答默认升级成重调研。
 
 ### 执行期 CP3 回退
 
@@ -256,5 +256,5 @@ ConfirmationRequest 是语义层抽象，不要求 runtime 逐字输出同名对
 |------|------|
 | 语言 | agents/skills/instructions/prompts 统一用**中文**编写 |
 | Skill 目录 | 必须是扁平一级目录，`name` 字段与文件夹名完全一致（小写+连字符）|
-| Instructions | `applyTo: "**"` 全局注入，单文件 ≤ 500 行 |
+| Instructions | `applyTo: "**"` 全局注入，单文件 ≤ 500 行；500 行上限属于 DevCodex 规范资产写作约束，不机械约束业务需求、技术方案、报告或正式项目文档 |
 | 文件名 | Instructions: `NN-<kebab>.instructions.md`；报告: `NN--<简述>.md`（双横杠）|

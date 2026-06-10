@@ -26,7 +26,8 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     isRecentBootstrapTaskPath,
     buildInterceptionOutput,
     INTERCEPTION_ACTION,
-    noopOutput
+    noopOutput,
+    emptyGovernanceIntakeState
   } = ctx
 
   function buildScopedNeedles(scopeRoot, segments) {
@@ -97,6 +98,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
         updatedAtMs: 0
       },
       cp3Runtime: {},
+      governanceIntake: emptyGovernanceIntakeState(),
       mutated: false,
       reportTouched: false,
       memoryTouched: false,
@@ -131,6 +133,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       visible: { ...current.visible, ...(saved.visible || {}) },
       stickyProject: { ...current.stickyProject, ...(saved.stickyProject || {}), ...(metaState?.stickyProject || {}) },
       cp3Runtime: { ...current.cp3Runtime, ...(saved.cp3Runtime || {}) },
+      governanceIntake: { ...current.governanceIntake, ...(saved.governanceIntake || {}) },
       dangerousApprovals: { ...current.dangerousApprovals, ...(saved.dangerousApprovals || {}) }
     }
   }

@@ -178,6 +178,17 @@ applyTo: .devcodex/**/requirements/**
 |------|---------------|---------------|-------------------|-----------------|----------|----------|
 | | | | | | | |
 
+#### ExistingDomainContractAudit / ConfigOwnershipMatrix / ApiDocVerificationSync / DataMutationPlan（条件）
+
+> 新增字段、配置、多语言 / 本地化容器、状态枚举、返回结构、业务策略常量、接口文档合同或数据写入脚本时必填；不触发时写 `N/A + skipReason`。
+
+| 守门项 | 当前真相源 / 调查范围 | 目标落点 / 匹配键 | 用户确认 / 跳过理由 | 验证方式 |
+|--------|----------------------|-------------------|----------------------|----------|
+| ExistingDomainContractAudit | 模型 / 类型 / validator / service / controller / 脚本 / 历史数据样本 / 消费者接口 | 复用既有字段/容器或新增平行结构的理由 | | |
+| ConfigOwnershipMatrix | `DB feature config` / `provider runtime` / `服务运行配置` / `代码契约` | 每个常量、阈值、开关或 provider 选项的归属 | | |
+| ApiDocVerificationSync | 前端接口文档 / 轻量 API 文档 / 字段映射 / 错误码 / 状态枚举 / `.http` / `.cjs` | 同步更新验证产物，或写明不更新的 `N/A + skipReason` | | |
+| DataMutationPlan | 显式清单 / 需求目录数据源 / 稳定业务键 | dry-run 输出 `source_id`、`target_id`、缺失/重复清单；不能唯一匹配则阻断写库 | | |
+
 #### 类型 / 字段 / 行为差异
 
 | 项 | 当前 | 目标 | 影响范围 | 兼容 / 迁移 |
@@ -247,6 +258,16 @@ applyTo: .devcodex/**/requirements/**
 > 满足以下任一情况，说明实施阶段需要回到 CP2 或 CP1 重新确认：
 
 -
+
+#### AbsorptionDecision / FullV1ScopeGuard / StartupPhaseTrace（条件）
+
+> 调研、审查、复审或方案讨论中出现“值得吸纳”的建议，必须给出吸纳决策；用户表达“第一版 / v1 / 完整首版”且存在真实消费者、发布契约或主功能验收时，必须给出完整首版边界判断；启动性能优化或 dev 日志治理必须先给出阶段化日志追踪。
+
+| 项 | 当前吸纳 / 设计占位 / backlog / 拒收 | 理由 | 后续真相源 |
+|----|--------------------------------------|------|------------|
+| AbsorptionDecision | | | |
+| FullV1ScopeGuard | | | |
+| StartupPhaseTrace | 阶段命名 / Profile 或 startup summary 同步 / 减噪、lazy loading 或 background warmup 决策 | | |
 
 ### §2.7 最小实现与注释策略
 

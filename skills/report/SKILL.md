@@ -105,9 +105,9 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 - 报告末尾引用本次会话记忆路径
 - 回复末尾必须输出产物文件路径（按 `ArtifactLinkSet` 输出主 Markdown 链接；当前宿主为 Codex Desktop/App、Copilot、未知宿主或用户反馈无法点击时，追加 `绝对路径：` copy fallback，详见 [`02-output-paths.instructions.md`](../../instructions/02-output-paths.instructions.md) §产物路径输出格式，[FC5](../compliance/SKILL.md)）
 
-## 行数限制
+## 行数与拆分
 
-- ≤ 500 行（[C13](../../instructions/01-common.instructions.md)）；超出拆分
+- [C13](../../instructions/01-common.instructions.md) 只约束新建 DevCodex 规范资产 `.md`；报告不因 C13 强制压缩或拆分，超长报告按可读性、索引导航和项目规范决定是否拆分
 
 ## 写入工具选择（v1.9.4+）
 

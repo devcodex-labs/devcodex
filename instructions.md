@@ -57,7 +57,7 @@ S02 不再把“敏感信息、明文密码、连接字符串或硬编码”定�
 | C04 | 禁止编造规范 | 同 S03 |
 | C05 | 记忆+报告自动写入 | 同 S05 |
 | C06 | 禁止 overwrite 源码/规范 | 同 S04 |
-| C07 | 禁止并行子 Agent | 同一回复中只能串行启动 Agent |
+| C07 | 并发执行策略 | 默认按 `ConcurrencyPolicy` 执行：只读准备和隔离验证可按配置并行；同一 active-root、CP 状态、记忆、报告、台账、audit session、source mutation、package boundary 和危险操作必须串行或单写者。禁止并行启动会写共享状态的子 Agent |
 | C08 | Token 防护 | >10 轮关注；>13 轮写编码检查点；>15 轮写完整记忆+建议新会话；≥15 轮+≥5 文件→硬性暂停 |
 | C09 | 文件编码安全 | 禁止用 Bash `Set-Content`/`sed -i` 批量修改中文 .md（破坏 UTF-8），必须用 Edit 工具逐文件修改 |
 | C10 | 禁止危险命令 | 同 S06 |
@@ -73,6 +73,12 @@ S02 不再把“敏感信息、明文密码、连接字符串或硬编码”定�
 | C20 | 官方文档证据前置 | 新增/升级第三方依赖、框架、SDK、平台 API 或外部模块前，必须先读取官方使用文档/官方参考资料并形成 `OfficialDocsEvidence`；缺失证据时不得进入编码 |
 | C21 | Profile 联动判定 | dev/fix 修改项目技术栈、目录边界、脚本、测试/发布路线、分发面、配置项、长期连接或本地 overlay schema 时，必须执行 `ProfileImpactCheck`：更新 Profile 或写明跳过理由 |
 | C22 | AI 自启动服务清理（ServiceLifecycleCleanup） | AI 为验证启动 dev server、文档站、本地 API/mock、数据库代理、SSH 隧道、Playwright/Cypress server、压测 target 等长运行进程时，必须记录启动命令、cwd、PID/job、端口/URL；验证完成、失败或中断收尾前主动停止仅由 AI 启动的服务并核验端口释放；不得杀用户既有进程；用户明确要求保留时记录保留原因、PID/端口和关闭方式 |
+
+### ConcurrencyPolicy（C07）
+
+`config.json` 可通过 `extensions.devcodex.concurrency` 配置并发策略。缺省为 `mode=auto`：只读上下文收集、只读子 Agent 分析和互不写同一输出的隔离验证可按通道上限并行；`mode=serial` 表示全部通道按串行执行。项目只能追加更保守的 `locks.additionalSingleWriterScopes`，不得删除或覆盖核心单写者域。
+
+核心单写者域固定为：`active-root`、`memory`、`report`、`ledger`、`audit-session`、`cp-state`、`source-mutation`、`package-boundary`、`dangerous-operation`。首期不支持 `parallel` 模式、`allowParallelMutations` 或任何并行 mutation 配置。
 
 ---
 
@@ -131,7 +137,7 @@ S02 不再把“敏感信息、明文密码、连接字符串或硬编码”定�
 - ContextHandoffCard：跨会话、跨 Agent、多批次、summary/compact 前、用户明确要求“传递上下文”或即将中断时，交接方必须在报告或 daily tasks 写入 `source-of-truth`、`confirmed-decisions`、`open-risks`、`next-action`、`blocked-reason`、`must-not-overwrite`、`validation-state`、`artifact-links`；恢复方按 Context Rehydration Contract 消费并重新核对文件真相源，禁止用 handoff 覆盖已确认产物、sessions、tasks 或 SUMMARY。
 - Hook Stop/PreCompact 对入口检查块的可见回复验证必须区分 `verified-present` / `verified-missing` / `unverified` 三态；无法解析最终 assistant 内容时只能提示“无法验证最终用户可见回复”并附 payload capture 指引，禁止断言“未输出”。
 - 当 `<工作区根>/.devcodex/layout.json` 启用 `workspace-namespace` 时，Profile 与运行态目录按**工作区集中命名空间**读取：
-  - `config.json`：`<工作区根>/.devcodex/workspace/profile/` 作为 base，`<工作区根>/.devcodex/<project>/profile/` 作为 overlay；可在 `extensions.devcodex.autoAliases` 配置项目 Auto 精确别名（如 `@rocky`）
+  - `config.json`：`<工作区根>/.devcodex/workspace/profile/` 作为 base，`<工作区根>/.devcodex/<project>/profile/` 作为 overlay；Auto 精确别名全局默认 `@rocky`，可用 `extensions.devcodex.autoAliases` 替换全局默认别名（省略表示沿用默认，空数组表示关闭默认别名），也可在 `extensions.devcodex.concurrency` 配置 `ConcurrencyPolicy`
   - `config.local.json`：与 `config.json` 使用相同的 `workspace base + project overlay` 路径模型，可作为用户 / 项目指定的本地 overlay（长期连接、本地明文连接信息、env / secretRef 引用、`extensions.<namespace>`）；不得覆盖 `mode` / `agent` / `pluginVersion`
   - 连接配置来源遵循 S02：默认可直写或沿用项目既有模式；只有用户或项目明确指定 `config.local.json` 时，脚本、测试、数据库 / SSH / MongoDB / 数据操作才从当前 Profile 路径模型下的 `config.local.json` 读取，缺失文件或字段时提醒补齐
   - Profile 文档：项目命名空间文件优先，缺失回退到 `workspace/profile/`
@@ -145,7 +151,7 @@ S02 不再把“敏感信息、明文密码、连接字符串或硬编码”定�
 | `01-项目信息.md` | 技术栈/仓库 | 是 |
 | `02-架构约束.md` | 目录结构/边界 | 是 |
 | `03-代码风格.md` | 编码规范 | 是 |
-| `config.json` | ENV_MODE + agent 兜底标识；可配置 `extensions.devcodex.autoAliases` 项目 Auto 别名 | 按需 |
+| `config.json` | ENV_MODE + agent 兜底标识；Auto 别名全局默认 `@rocky`，可配置 `extensions.devcodex.autoAliases` 替换默认别名；也可配置 `extensions.devcodex.concurrency` 并发策略 | 按需 |
 | `config.local.json` | 用户 / 项目指定时使用的本地 overlay：长期连接、本地明文连接信息、env / secretRef 引用、`extensions.<namespace>` 扩展位 | 可选 |
 
 > **Copilot / Claude Code / Codex 三宿主 Bootstrap 提醒**（v1.11.0+）：`lifecycle.cjs` 只在宿主实际提供 Hook 事件时形成 runtime 护栏。Claude Code 具备项目级 hooks + MCP，是当前 Full 路径；Codex 通过 `.codex/hooks.json` 接入，阻断输出按事件契约区分顶层 `decision`、`continue:false` 与工具级 `permissionDecision`；Copilot / JetBrains / Cursor 默认按 instruction-fallback 处理，不承诺本地 Hook 硬拦。默认 `safety-only` 模式下，bootstrap / CP / auto 白名单等流程问题输出提醒并放行工具，仅危险命令继续硬拦；设置 `DEVCODEX_HOOK_ENFORCEMENT=strict` 时，只有支持硬拦的事件才停止流程。AI 仍须在首条用户可见回复输出 PC0~PC7 入口检查块（S07/C18）。
@@ -257,6 +263,14 @@ dev/fix 修改完成前必须判定是否影响 Profile。命中以下任一触�
 - 不得为了释放端口杀掉用户或系统既有进程；若端口被非本轮 AI 进程占用，只能报告 PID/端口/命令线线索并请用户确认处理。
 - 若用户明确要求保持服务运行供试用，允许保留，但必须在报告/回复中记录保留原因、PID/端口/URL、关闭命令与风险；默认不得静默遗留后台进程。
 - `TestRoute`、CP3、ECR 与报告必须记录 `ServiceLifecycleCleanup`：是否启动服务、是否已关闭、验证证据或 `N/A + skipReason`。
+
+### LeakRiskStabilityPressureTest（泄漏风险稳定性压测）
+
+- 写测试用例、规划回归验证或 TestRoute 时，必须先按项目现实判定是否触发泄漏风险稳定性压测；该规则是条件触发，不是所有测试任务默认压测。
+- 命中以下任一风险时，TestRoute 应将 `leakRiskPressure` 标为 `required`，并交由 `dev-scenario-test` 或项目既有压测/场景工具执行：长运行服务、高并发/高频路径、缓存/队列/连接池、数据库/HTTP 连接、文件/流/socket、EventEmitter/DOM 监听器、定时器、worker、订阅、前端组件 mount/unmount，或审查发现 `PE-12 资源生命周期与泄漏风险`。
+- 最小证据包含：基线指标、压力或重复生命周期场景、持续时间/迭代次数、冷却窗口、heap/RSS/active handles/监听器/连接数/缓存规模或项目等价指标前后对比、清理证据和失败阈值。
+- 纯计算函数、静态文档、一次性脚本、无状态转换且无长生命周期资源的变更可写 `N/A + skipReason`；不得为了形式满足而引入新压测依赖或扩大低风险测试范围。
+- 若泄漏稳定性压测需要 AI 启动服务、压测 target 或监控脚本，必须同时执行 `ServiceLifecycleCleanup`。
 
 ### 台账落点与关闭证据
 
@@ -447,7 +461,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → 执行 →
 | 规范文件（instructions/skills/agents）| D1~D25（加载 `audit-common` + `audit-dimensions` Skill）|
 | 技术方案/架构设计 | TD-1~TD-13（加载 `audit-common` + `audit-tech-design` Skill）|
 | 需求文档/PRD | RQ-1~RQ-8（加载 `audit-common` + `audit-requirements` Skill）|
-| 项目工程/代码质量 | PE-1~PE-11（加载 `audit-common` + `audit-project` Skill）|
+| 项目工程/代码质量 | PE-1~PE-12（加载 `audit-common` + `audit-project` Skill；含资源生命周期与泄漏风险审查）|
 | 报告文件 | RA-1~RA-6（加载 `audit-common` + `audit-report` Skill）|
 | 通用文档 | DA-1~DA-6（加载 `audit-common` + `audit-document` Skill）|
 | 发布前审查 | RL-1~RL-10（加载 `audit-common` + `audit-release` Skill；审查 release readiness，不替代 `release-verification` R0~R7）|
@@ -610,7 +624,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → 执行 →
 | 搜索文件 | `Glob` / `Grep`（禁止 Bash find/grep）|
 | 运行命令 | `Bash`（lint/test/build；禁止破坏性命令）|
 | PowerShell 命令 | `PowerShell`（Windows 环境 shell 操作；需 CP gate 通过后才可写源码文件）|
-| 子 Agent | `Agent`（串行，禁止并行，见 C07）|
+| 子 Agent | `Agent`（按 C07 `ConcurrencyPolicy`：只读分析可并行，写共享状态的 Agent 必须串行/单写者）|
 
 > 详细合规检查规则（FC/SC/RC/T 逐项定义）见宿主部署目录：Copilot `.github/instructions/`，Claude Code `.claude/instructions/`；Codex 入口由 `AGENTS.md` 承载总则，并通过 `.agents/skills/` 按需读取详细 Skill。
 
@@ -618,7 +632,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → 执行 →
 
 ## 全自动模式豁免
 
-当用户选择 `@devcodex-auto`、Profile `config.json` 的 `extensions.devcodex.autoAliases` 中配置的精确别名（如 `@rocky`），或明确自然语言 auto 授权（如“进入 auto 模式执行”）时：CP1/CP2/CP3 确认自动通过；模糊提及、询问 auto 规则、普通“继续”或未配置的昵称不等价于 auto 授权；S01/S02 用户 / 项目敏感信息策略/S03~S07/C01/C10/C18 不可豁免。S02 不阻断明文、硬编码或真实秘密写入；它只禁止 AI 未经用户 / 项目要求自行加严、改成 env、`secretRef`、secret manager、`config.local.json` 或占位符。
+当用户选择 `@devcodex-auto`、全局默认 `@rocky`、Profile `config.json` 的 `extensions.devcodex.autoAliases` 替换别名，或明确自然语言 auto 授权（如“进入 auto 模式执行”）时：CP1/CP2/CP3 确认自动通过；配置了 `autoAliases` 时该列表替换全局默认别名，空数组表示关闭默认别名；模糊提及、询问 auto 规则、普通“继续”或未生效的昵称不等价于 auto 授权；S01/S02 用户 / 项目敏感信息策略/S03~S07/C01/C10/C18 不可豁免。S02 不阻断明文、硬编码或真实秘密写入；它只禁止 AI 未经用户 / 项目要求自行加严、改成 env、`secretRef`、secret manager、`config.local.json` 或占位符。
 
 ---
 

@@ -25,7 +25,7 @@ features:
   - title: 🧠 跨会话记忆
     details: 三层记忆体系（Agent 日记 / 需求记忆 / 项目总记忆），支持 resume 恢复中断任务
   - title: ⚡ 双执行模式
-    details: 确认模式（@DevCodex）与 Auto v1.1（@DevCodex Auto、Profile autoAliases 如 @rocky，或明确自然语言 auto 授权，白名单路径自动推进）；默认 safety-only 流程提醒放行，危险命令需用户确认 id 后才可一次性重试
+    details: 确认模式（@DevCodex）与 Auto v1.1（@DevCodex Auto、全局默认 @rocky、Profile autoAliases 替换别名，或明确自然语言 auto 授权，白名单路径自动推进）；默认 safety-only 流程提醒放行，危险命令需用户确认 id 后才可一次性重试
   - title: 🏢 v2.0.0 多租户
     details: v2 系列规划中，用于平台化与多租户方向
 ---

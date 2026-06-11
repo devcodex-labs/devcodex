@@ -6,9 +6,9 @@ description: 场景测试子类型规范 — 端到端/集成测试 + artillery 
 
 ## 触发条件
 
-用户要求编写/完善端到端测试、集成测试、场景测试、负载测试。
+用户要求编写/完善端到端测试、集成测试、场景测试、负载测试，或 TestRoute 判定需要 `LeakRiskStabilityPressureTest` 泄漏风险稳定性压测。
 
-若由 `test-router` 触发，本 Skill 只承接 TestRoute 中的场景/负载/E2E 路线；测试路线之外的接口双产物仍交由 `api-verification`，静态/单元/集成覆盖标准仍以 `dev-testing` 为准。
+若由 `test-router` 触发，本 Skill 只承接 TestRoute 中的场景/负载/E2E 路线；当 TestRoute 追加 `LeakRiskStabilityPressureTest` 时，本 Skill 同时承接泄漏稳定性路线。测试路线之外的接口双产物仍交由 `api-verification`，静态/单元/集成覆盖标准仍以 `dev-testing` 为准。
 
 ## 前置条件
 
@@ -43,6 +43,7 @@ scenarios:
 | 项目端到端测试 | Playwright / Cypress | 项目测试目录，如 `tests/e2e/` |
 | 项目集成测试 | Vitest / Jest | 项目测试目录，如 `tests/integration/` |
 | 项目负载测试 | artillery | 项目测试目录，如 `tests/load/` |
+| 泄漏风险稳定性压测 | artillery / k6 / autocannon / 项目既有压测工具 / 轻量采样脚本 | 项目测试目录，如 `tests/load/`、`tests/scenario/` 或关联任务目录 |
 | DevCodex 场景测试归档 | artillery / `.http` / `.cjs` | `.devcodex/scenario-tests/<场景>/` 或关联任务目录 |
 | 归档级 API 场景验证 | `.http` + `.cjs` 双产物 | 任务目录根 `*-接口验证.http` + `*-接口验证.cjs` |
 
@@ -52,5 +53,7 @@ scenarios:
 - CP2：确认测试工具/框架 + 数据准备策略
 - CP3：确认执行顺序 + 环境准备/回收方式 + 风险点
 - 测试数据：使用 fixtures，禁止依赖生产数据
+- 若 TestRoute 的 `leakRiskPressure` 为 `required`，必须执行泄漏风险稳定性压测：记录 heap/RSS、active handles、监听器、连接数、缓存规模或项目等价指标的基线、压力过程、冷却后回落、清理证据和失败阈值；若项目无法采集某项指标，写 `N/A + skipReason` 并选择可观测替代指标
+- 泄漏稳定性压测不要求所有项目安装新工具；优先复用项目已有压测/监控/测试脚本，必要时用最小轻量采样脚本补足证据
 - 场景/负载/E2E 执行后必须完成 `ServiceLifecycleCleanup`：停止仅由 AI 本轮启动的服务，核验端口释放；用户要求保留时记录 PID/端口/关闭方式；不得杀用户既有进程
 - 测试完成后输出场景测试报告到 `.devcodex/scenario-tests/<场景>/reports/<agent>/YYYYMMDD/`；项目自身覆盖率报告仍按项目测试框架约定输出

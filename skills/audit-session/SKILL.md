@@ -168,5 +168,5 @@ converged ──> closed
 ## ⛔ 禁止
 
 - ⛔ 状态文件不得提交到 git（同 `.devcodex/.memory/`）
-- ⛔ 同一 sessionId 不得并行写入（C07 串行约束的延伸）
+- ⛔ 同一 sessionId 不得并行写入；这是 C07 `ConcurrencyPolicy` 中不可变 `audit-session` 单写者锁，不受项目 concurrency 配置放开
 - ⛔ converged 状态不得自动转 closed —— 须用户明确确认（避免静默关闭）

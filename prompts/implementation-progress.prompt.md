@@ -63,6 +63,7 @@ applyTo: .devcodex/**/requirements/**
 |------|----------|:--------:|------|
 | ExecutionContract | Auto / 控制面 / 多批次 / 预计修改 ≥10 文件 / release 前置任务 | ✅/🔄/N/A | |
 | TestRoute | 跨模块 / API / Hook / CLI / 模板-示例-校验链 / 测试路线不明显 | ✅/🔄/N/A | |
+| LeakRiskStabilityPressureTest | 写测试/回归验证命中长运行、并发、资源生命周期或 PE-12 风险 | ✅/🔄/N/A | baseline / pressureScenario / cooldown / resourceMetrics / skipReason |
 | ReleaseAudit | 发版前 review / publish 或 tag 前风险审查 | ✅/🔄/N/A | RL-1~RL-10 / risks / recommendation |
 | ReleaseVerification | tag / release / publish / 发布前验证 | ✅/🔄/N/A | |
 | ConceptSyncMap | 控制面 / 模板-示例-校验链 / README / website / Profile / validate / 部署副本联动 | ✅/🔄/N/A | sourceOfTruth / currentConsumers / historicalMirrors / validateProbes / deployCopies / yellowDeviationBoundary |

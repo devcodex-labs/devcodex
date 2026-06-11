@@ -1,6 +1,6 @@
 ---
 name: DevCodex Auto
-description: AI 开发规范助手（全自动模式 v1.1）— 显式 @devcodex-auto、Profile autoAliases（如 @rocky）或明确自然语言 auto 授权 + 白名单路径下自动推进，安全底线仍强制执行。所有规则由 instructions/ 自动注入。
+description: AI 开发规范助手（全自动模式 v1.1）— 显式 @devcodex-auto、全局默认 @rocky、Profile autoAliases 替换别名或明确自然语言 auto 授权 + 白名单路径下自动推进，安全底线仍强制执行。所有规则由 instructions/ 自动注入。
 tools:
   - edit
   - execute
@@ -14,7 +14,7 @@ disable-model-invocation: true
 
 `DevCodex Auto` 不是“所有任务都自动推进”，而是 **Auto v1.1 最小闭环**：
 
-- **正式入口**：显式 `@devcodex-auto`、项目 Profile `config.json` 的 `extensions.devcodex.autoAliases` 精确别名（如 `@rocky`），或明确自然语言 auto 授权；模糊提及、询问 auto 规则、未配置昵称或普通“继续”不算授权
+- **正式入口**：显式 `@devcodex-auto`、全局默认 `@rocky`、项目 Profile `config.json` 的 `extensions.devcodex.autoAliases` 替换别名，或明确自然语言 auto 授权；配置了 `autoAliases` 时该列表替换全局默认别名，空数组表示关闭默认别名；模糊提及、询问 auto 规则、未生效昵称或普通“继续”不算授权
 - **hook-enforced 宿主**：仅对白名单路径自动推进；非白名单路径默认回确认模式
 - **instruction-fallback 宿主**：如 JetBrains / Cursor，只同步规则语义，不承诺 runtime 级硬放行；支持 Hook 的宿主按白名单执行 runtime 放行
 - **白名单范围**：DevCodex 治理文件、`.devcodex/` 产物、README 与 auto 专属回归脚本

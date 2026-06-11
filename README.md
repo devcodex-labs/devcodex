@@ -33,7 +33,7 @@ DevCodex 通过 `.github/`（Copilot）、`CLAUDE.md + .claude/ + .mcp.json`（C
 ## 功能特性
 
 - **8 种工作流**: `dev` / `fix` / `audit` / `analyze` / `self-fix` / `resume` / `plan` / `chat`
-- **2 种模式**: 确认模式（@DevCodex）/ 全自动模式（@DevCodex Auto，Auto v1.1 对显式 `@devcodex-auto`、Profile `extensions.devcodex.autoAliases`（如 `@rocky`）或明确自然语言 auto 授权 + 白名单路径提供硬保证）
+- **2 种模式**: 确认模式（@DevCodex）/ 全自动模式（@DevCodex Auto，Auto v1.1 对显式 `@devcodex-auto`、全局默认 `@rocky`、Profile `extensions.devcodex.autoAliases` 替换别名或明确自然语言 auto 授权 + 白名单路径提供硬保证）
 - **合规管线**: FC（形式合规）→ SC（实质合规）→ RC（恢复性检查）→ T（任务完成验证）
 - **持久记忆**: 每 Agent、每日的会话记录，结构化字段
 - **自动报告**: 每次会话自动写入报告，从不询问 — 直接执行
@@ -41,10 +41,13 @@ DevCodex 通过 `.github/`（Copilot）、`CLAUDE.md + .claude/ + .mcp.json`（C
 - **宿主生命周期护栏**: Claude Code 与 OpenAI Codex 在已支持的 Hook 事件上提供 runtime 护栏；Copilot / JetBrains / Cursor 等无等价本地 Hook 时降级为 instruction-fallback；默认 `safety-only` 仅对危险命令硬拦，流程项提醒放行，`strict` 模式才升级可阻断事件
 - **全模式入口检查**: 所有模式在实质任务前显示 PC0~PC7；dev 模式额外执行 PC4 规范雷达与完整合规链
 - **项目现实扩展**: 先做语义意图初判，再结合目标项目 Profile、目录与当前任务上下文修正最终路由、产物落点和验证方式
+- **可配置并发策略**: Profile `config.json` 可配置 `extensions.devcodex.concurrency`；默认 `auto` 表示只读准备和隔离验证可并行、共享状态写入保持单写者，保守项目可设为 `serial`
 - **支撑型 Skill**: `execution-contract` / `test-router` / `release-verification` / `host-contract-verification` / `source-consumer-sync` 为控制面、多批次、测试路线、宿主契约验证与真相源-消费者同步提供可审计支撑，不新增工作流分支
 - **发布前审查能力**: `audit-release` 负责 release readiness、发布说明质量、兼容/迁移风险、package/plugin 元数据、文档/Profile/website 同步、回滚策略、registry/tag 风险与发布后验收 review；`release-verification` 仍负责 R0~R7 执行验证链
 - **README 专项能力**: `readme-authoring` 负责 README 用户/使用者优先写作，`audit-readme` 负责 README / 用户使用文档专项 review
 - **Profile 新鲜度审查**: audit 会先执行 `Profile Freshness Check`，反向核对 Profile 是否仍匹配当前包版本、目录资产、脚本、发布状态、宿主能力和任务现实
+- **项目工程泄漏审查**: 项目工程 / 代码质量审查执行 `PE-12 资源生命周期与泄漏风险`，必须检查内存泄露、资源泄漏、监听器/定时器/连接/流未释放、缓存无界增长和组件卸载清理缺失
+- **泄漏风险稳定性压测**: 写测试用例或回归验证时先执行 `LeakRiskStabilityPressureTest` 条件判定；命中长运行、高并发、缓存/连接/监听器/定时器/流/socket/worker/订阅/组件生命周期或 `PE-12` 风险时，TestRoute 纳入场景/负载/稳定性压测并记录基线、冷却后回落和资源指标前后对比；低风险任务写 `N/A + skipReason`
 - **复审覆盖增量**: audit / review / ECR 的连续零发现必须附 `ReviewCoverageDelta`（`ReviewedSet` / `UnreviewedRelatedSet` / `NewlyReadThisRound` / `RepeatReadReason` / `NoNewSurfaceReason`），优先阅读此前未审查但相关联的代码、配置、测试、文档、部署副本和消费者链；无新增覆盖且无证据化理由时，不计入有效零发现
 - **规范治理 Intake**: 所有模式下每条用户消息在合理性评估后都会额外检查是否命中可泛化改进；命中时主动写入 `data/process-improvements.md`（优化清单，PI），必要时联动 `data/pending-fixes.md`（PF），并显式回执 `PI/PF`
 - **Backlog 真相复核与状态回写**: 从 `data/*.md` open/partial 项组织新需求或新批次前，先按 `pure-open / residual-tail / already-fixed / misclassified` 分类；实施后再执行台账状态回写闭环，避免“源码已修但 backlog 仍旧 open”
@@ -453,7 +456,26 @@ DevCodex 的 `plugin.json` 声明 `tier: "free"`，所有 Skill 均标注 `tier:
 - **可选**：通过 `.github/agents/` 使用 `@devcodex` / `@devcodex-auto` 自定义 Agent 入口
 - **Codex**：通过 `AGENTS.md` 自动注入总则，通过 `.agents/skills/` 按需读取技能；不单独维护 `codex/AGENTS.md`
 
-Auto v1.1 当前只在支持 Hook 的宿主里，对显式 `@devcodex-auto`、Profile `config.json` 中 `extensions.devcodex.autoAliases` 配置的精确别名（如 `@rocky`），或明确自然语言 auto 授权（如“进入 auto 模式执行”）下的白名单路径提供 runtime 级硬保证；模糊提及、询问 auto 规则、未配置昵称或普通“继续”不算授权。JetBrains 等 `instruction-fallback` 宿主仅同步规则语义，不承诺完全等价的自动放行。Auto 任务若命中控制面、多批次或预计修改 ≥10 文件，仍须先形成 ExecutionContract 并持续更新实施进度。
+Auto v1.1 当前只在支持 Hook 的宿主里，对显式 `@devcodex-auto`、全局默认 `@rocky`、Profile `config.json` 中 `extensions.devcodex.autoAliases` 配置的替换别名，或明确自然语言 auto 授权（如“进入 auto 模式执行”）下的白名单路径提供 runtime 级硬保证；配置了 `autoAliases` 时该列表替换全局默认别名，空数组表示关闭默认别名；模糊提及、询问 auto 规则、未生效昵称或普通“继续”不算授权。JetBrains 等 `instruction-fallback` 宿主仅同步规则语义，不承诺完全等价的自动放行。Auto 任务若命中控制面、多批次或预计修改 ≥10 文件，仍须先形成 ExecutionContract 并持续更新实施进度。
+
+`config.json` 还可配置 `extensions.devcodex.concurrency`：
+
+```json
+{
+  "extensions": {
+    "devcodex": {
+      "concurrency": {
+        "mode": "auto",
+        "readOnly": { "enabled": true, "maxParallel": 4, "allowAgents": true },
+        "validation": { "enabled": true, "maxParallel": 2 },
+        "locks": { "additionalSingleWriterScopes": [] }
+      }
+    }
+  }
+}
+```
+
+默认 `auto` 采用 `parallel prepare, serial commit`：文件搜索、Profile/记忆读取、只读分析和互不写同一输出的验证可并行；同一 active-root 的 CP 状态、记忆、报告、台账、audit session、source mutation、package boundary 和危险操作必须串行或单写者。保守项目可设 `mode: "serial"`；首期不支持 `parallel` 或 `allowParallelMutations`。
 
 ## 许可证
 

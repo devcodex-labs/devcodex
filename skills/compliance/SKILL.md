@@ -40,7 +40,7 @@ SC: SC2 [✅/❌] SC4 [✅/❌] SC6 [✅/❌] ...（仅列适用项，逐项实�
 
 ### 全自动模式差异
 
-> 显式 `@devcodex-auto`、Profile `extensions.devcodex.autoAliases` 精确别名（如 `@rocky`）或明确自然语言 auto 授权模式下：
+> 显式 `@devcodex-auto`、全局默认 `@rocky`、Profile `extensions.devcodex.autoAliases` 替换别名或明确自然语言 auto 授权模式下：
 
 仅在 `hook-enforced` 宿主 + 白名单路径下，FC/SC 失败时自动修正（不暂停等待用户），但 [S01~S06](../../instructions/00-safety.instructions.md) 仍阻断。
 
@@ -88,7 +88,7 @@ SC: SC2 [✅/❌] SC4 [✅/❌] SC6 [✅/❌] ...（仅列适用项，逐项实�
 | SC7 | 全局 SUMMARY 关键决策已追加（仅规范变更/架构决策/P0修复） | 有关键决策时 🔴 |
 | SC8 | 上次待跟进已查阅（首次会话 N/A） | 全工作流 🔴 |
 | SC9 | [C08](../../instructions/01-common.instructions.md) Token 防护状态（>10轮关注 / >13轮预警 / >15轮防护） | 全工作流 |
-| SC10 | [C07](../../instructions/01-common.instructions.md) 串行 Agent 执行（禁止并行启动多 Agent） | 涉及 Agent 调用 🔴 |
+| SC10 | [C07](../../instructions/01-common.instructions.md) 并发策略合规：只读/隔离验证并发需符合 `ConcurrencyPolicy`，写共享状态、同一 audit session 或 package boundary 竞争写视为阻断 | 涉及 Agent 调用或并发任务 🔴 |
 | SC11 | [C14](../../instructions/01-common.instructions.md) 多任务拆分检查（≥5任务需建议拆分会话） | 任务≥5时 🔴 |
 | SC12 | [C14](../../instructions/01-common.instructions.md) 多任务进度快照验证（每完成子任务有 T{N}进度 标记） | 任务≥2时 🔴 |
 | SC13 | [C15](../../instructions/01-common.instructions.md) 架构质量自检（dev plan-review 三维评估；fix CP2 三维评估） | dev/fix 🔴 |

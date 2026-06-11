@@ -12,13 +12,13 @@ CP 门控**不受 ENV_MODE 影响**，dev/prod 均为 🔴 强制等待用户确
 | `dev` | 同 prod：CP1→CP2→CP3 强制按序，每步必须等待用户明确确认 |
 
 > ⛔ CP 是用户交互机制（确认需求/方案/计划），与规范验证无关，始终需要确认。
-> **CP 跳过路径**：显式 `@devcodex-auto`、Profile `config.json` 的 `extensions.devcodex.autoAliases` 精确别名（如 `@rocky`）或明确自然语言 auto 授权（如“进入 auto 模式执行”）；这是 Agent 级行为，与 ENV_MODE 无关。
+> **CP 跳过路径**：显式 `@devcodex-auto`、全局默认 `@rocky`、Profile `config.json` 的 `extensions.devcodex.autoAliases` 替换别名或明确自然语言 auto 授权（如“进入 auto 模式执行”）；这是 Agent 级行为，与 ENV_MODE 无关。
 
 ## 全自动模式
 
-> 当用户选择 `@devcodex-auto`、Profile 配置的 auto 别名（如 `@rocky`），或在文本宿主中明确自然语言授权 auto（如“进入 auto 模式执行”“全自动继续”“run in auto mode”）时：
+> 当用户选择 `@devcodex-auto`、全局默认 `@rocky`、Profile 配置的 auto 替换别名，或在文本宿主中明确自然语言授权 auto（如“进入 auto 模式执行”“全自动继续”“run in auto mode”）时：
 
-- Auto v1.1 正式入口包括显式 `@devcodex-auto`、项目 Profile `extensions.devcodex.autoAliases` 精确别名与明确自然语言 auto 授权；模糊提及、询问 auto 规则、普通“继续”或未配置昵称不等价于 auto 授权
+- Auto v1.1 正式入口包括显式 `@devcodex-auto`、全局默认 `@rocky`、项目 Profile `extensions.devcodex.autoAliases` 替换别名与明确自然语言 auto 授权；配置了 `autoAliases` 时该列表替换全局默认别名，空数组表示关闭默认别名；模糊提及、询问 auto 规则、普通“继续”或未生效昵称不等价于 auto 授权
 - `hook-enforced` 宿主下，CP 自动通过对白名单路径形成无提醒通过；非白名单路径在默认 `safety-only` 下提醒放行，在 `strict` 模式下回确认模式并硬拦截
 - `instruction-fallback` 宿主（如 JetBrains / Cursor）只同步 auto 规则说明，不承诺 runtime 级 CP 行为；支持 Hook 的宿主由 `DEVCODEX_HOOK_ENFORCEMENT` 决定提醒或硬拦截
 - `auto:` / `/auto` / profile `executionMode` 不属于本轮正式入口

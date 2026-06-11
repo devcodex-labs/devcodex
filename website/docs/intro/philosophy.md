@@ -28,7 +28,7 @@ CP 流程（CP1 需求确认 → CP2 方案确认 → CP3 实施确认）的设�
 - **每个阶段独立**：需求理解不代表方案正确，方案正确不代表实施计划合理
 - **不可跳过**：单次跳过会导致后续所有阶段建立在错误假设上，代价远高于多等一轮确认
 
-Auto v1.1（`@devcodex-auto`、Profile `extensions.devcodex.autoAliases` 精确别名如 `@rocky`，或明确自然语言 auto 授权）并不是"去掉约束"。它只在 hook-enforced 宿主里，对治理文件、文档、`.devcodex/` 产物、README 与 auto 专属回归脚本等白名单路径自动推进；模糊提及、询问 auto 规则、未配置昵称或普通“继续”不算授权；非白名单源码路径默认回确认模式，安全底线始终有效。
+Auto v1.1（`@devcodex-auto`、全局默认 `@rocky`、Profile `extensions.devcodex.autoAliases` 替换别名，或明确自然语言 auto 授权）并不是"去掉约束"。它只在 hook-enforced 宿主里，对治理文件、文档、`.devcodex/` 产物、README 与 auto 专属回归脚本等白名单路径自动推进；配置了 `autoAliases` 时该列表替换全局默认别名，空数组表示关闭默认别名；模糊提及、询问 auto 规则、未生效昵称或普通“继续”不算授权；非白名单源码路径默认回确认模式，安全底线始终有效。
 
 ---
 
@@ -70,7 +70,7 @@ DevCodex 提供两个 Agent 入口，而非通过指令切换：
 | Agent | 适用场景 |
 |-------|---------|
 | `@devcodex` | 正式开发、架构变更、需要逐步确认 |
-| `@devcodex-auto` / Profile alias / 明确自然语言 auto 授权 | 熟悉流程后的白名单路径快速迭代；非白名单源码路径回确认模式 |
+| `@devcodex-auto` / `@rocky` / Profile alias / 明确自然语言 auto 授权 | 熟悉流程后的白名单路径快速迭代；非白名单源码路径回确认模式 |
 
 这个设计的理由是：**选择执行模式是一个会话级决策，不是消息级决策**。在开始工作前选择 Agent，比在每条消息里加前缀更自然。
 

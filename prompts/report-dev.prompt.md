@@ -68,6 +68,7 @@ applyTo: .devcodex/**/reports/requirements/**
 |------|----------|:----:|------|
 | ExecutionContract | ✅/N/A | ✅/⚠️ | |
 | TestRoute | ✅/N/A | ✅/⚠️ | |
+| LeakRiskStabilityPressureTest | ✅/N/A | ✅/⚠️ | leakRiskPressure 判定、基线、压力场景、冷却窗口、资源指标前后对比、skipReason |
 | ServiceLifecycleCleanup | ✅/N/A | ✅/⚠️ | AI 自启动服务的 command/cwd/PID/job/port/url、关闭验证或 keepAliveReason |
 | ReleaseAudit | ✅/N/A | ✅/⚠️ | |
 | ReleaseVerification | ✅/N/A | ✅/⚠️ | |
@@ -88,6 +89,7 @@ applyTo: .devcodex/**/reports/requirements/**
 | 类型 | 结果 | 覆盖率 |
 |------|:----:|:------:|
 | TestRoute 覆盖 | ✅ 通过 / N/A | — |
+| 泄漏风险稳定性压测 | ✅ 通过 / N/A | baseline/cooldown/resourceMetrics |
 | AI 自启动服务清理 | ✅ 已关闭 / N/A / 保留运行 | PID/端口/cleanupEvidence/keepAliveReason |
 | HostContract 验证 | ✅ 通过 / N/A | — |
 | 静态/类型检查 | ✅ 通过 / N/A | — |
@@ -101,6 +103,7 @@ applyTo: .devcodex/**/reports/requirements/**
 - [ ] document-sync：✅ 完成
 - [ ] ExecutionContract：✅ 完成 / N/A
 - [ ] TestRoute：✅ 完成 / N/A
+- [ ] LeakRiskStabilityPressureTest：✅ 完成 / N/A + skipReason
 - [ ] ServiceLifecycleCleanup：✅ 完成 / N/A（若保留运行，已记录用户要求、PID/端口和关闭方式）
 - [ ] ReleaseAudit：✅ 完成 / N/A
 - [ ] ReleaseVerification：✅ 完成 / N/A

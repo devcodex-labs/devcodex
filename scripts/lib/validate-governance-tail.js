@@ -916,6 +916,118 @@ function buildGovernanceTailChecks(ctx) {
     console.log('[V57] audit review coverage delta sync checked')
   }
 
+  function checkV58() {
+    const probes = [
+      { file: 'instructions.md', needles: ['ConcurrencyPolicy', 'extensions.devcodex.concurrency', 'allowParallelMutations'] },
+      { file: 'instructions/01-common.instructions.md', needles: ['ConcurrencyPolicy', 'additionalSingleWriterScopes', 'allowParallelMutations'] },
+      { file: 'instructions/01a-profile-loading.instructions.md', needles: ['extensions.devcodex.concurrency', 'mode=auto', 'mode=serial'] },
+      { file: 'instructions/17-compliance.instructions.md', needles: ['并发策略合规', 'ConcurrencyPolicy', 'package boundary'] },
+      { file: 'skills/compliance/SKILL.md', needles: ['并发策略合规', 'ConcurrencyPolicy', 'package boundary'] },
+      { file: 'skills/load-profile/SKILL.md', needles: ['extensions.devcodex.concurrency', 'additionalSingleWriterScopes'] },
+      { file: 'skills/intent/SKILL.md', needles: ['ConcurrencyPolicy', '前置只读识别'] },
+      { file: 'skills/routing/SKILL.md', needles: ['ConcurrencyPolicy', '只读识别'] },
+      { file: 'skills/audit-session/SKILL.md', needles: ['audit-session', '单写者锁'] },
+      { file: 'skills/memory/SKILL.md', needles: ['ConcurrencyPolicy', 'memory` 单写者锁'] },
+      { file: 'skills/dev-default/SKILL.md', needles: ['验证卫生与并发边界', 'ConcurrencyPolicy'] },
+      { file: 'skills/test-router/SKILL.md', needles: ['ConcurrencyPolicy', 'PackageBoundarySerialCheck'] },
+      { file: 'skills/release-verification/SKILL.md', needles: ['ConcurrencyPolicy', '单独执行的 pack 结果'] },
+      { file: 'scripts/validate-profile.js', needles: ['validateConcurrencyPolicy', 'CORE_SINGLE_WRITER_SCOPES', 'additionalSingleWriterScopes'] },
+      { file: 'scripts/test-validate-profile.js', needles: ['validConcurrencyRoot', 'invalidConcurrencyRoot', 'allowParallelMutations'] },
+      { file: 'README.md', needles: ['extensions.devcodex.concurrency', 'parallel prepare, serial commit'] },
+      { file: 'website/docs/guide/development.md', needles: ['extensions.devcodex.concurrency', '并发策略与 `ENV_MODE` 分离'] },
+      { file: 'website/docs/specs/directory-structure.md', needles: ['ConcurrencyPolicy', 'extensions.devcodex.concurrency'] },
+      { file: 'website/docs/versions/v1/1.0.1/requirements/index.md', needles: ['可配置并发执行策略', 'concurrency-policy'] },
+      { file: 'website/docs/versions/v1/1.0.1/requirements/p1/concurrency-policy/index.md', needles: ['ConcurrencyPolicy', 'allowParallelMutations'] },
+      { file: 'website/docs/versions/v1/1.0.1/requirements/p1/concurrency-policy/design.md', needles: ['核心单写者域', 'runtime 调度器'] },
+      { file: 'scripts/test-spec-governance.js', needles: ['checkV58', 'ConcurrencyPolicy'] }
+    ]
+
+    for (const probe of probes) {
+      const content = read(path.join(ROOT, probe.file))
+      for (const needle of probe.needles) {
+        if (!content.includes(needle)) {
+          err(`[V58] concurrency policy sync drift in ${probe.file}: missing "${needle}"`)
+        }
+      }
+    }
+
+    for (const needle of ['ConcurrencyPolicy', 'extensions.devcodex.concurrency', 'allowParallelMutations']) {
+      if (!hasChangelogEvidence(needle)) {
+        err(`[V58] concurrency policy changelog drift: missing "${needle}" in changelogs/unreleased.md or changelogs/releases/*.md`)
+      }
+    }
+
+    console.log('[V58] concurrency policy sync checked')
+  }
+
+  function checkV59() {
+    const probes = [
+      { file: 'instructions.md', needles: ['PE-1~PE-12', '资源生命周期与泄漏风险审查'] },
+      { file: 'instructions/12-audit.instructions.md', needles: ['PE-1~PE-12', 'PE-12 资源生命周期与泄漏风险', '内存泄露'] },
+      { file: 'skills/audit-project/SKILL.md', needles: ['PE-1~PE-12', 'PE-12 资源生命周期与泄漏风险', '内存泄露', '监听器', 'N/A + skipReason'] },
+      { file: 'prompts/report-audit.prompt.md', needles: ['项目工程(PE-1~PE-12)'] },
+      { file: 'README.md', needles: ['项目工程泄漏审查', 'PE-12 资源生命周期与泄漏风险', '缓存无界增长'] },
+      { file: 'website/docs/guide/development.md', needles: ['PE-12 资源生命周期与泄漏风险', '内存泄露', 'N/A + skipReason'] },
+      { file: 'scripts/test-spec-governance.js', needles: ['checkV59', '资源生命周期与泄漏风险'] }
+    ]
+
+    for (const probe of probes) {
+      const content = read(path.join(ROOT, probe.file))
+      for (const needle of probe.needles) {
+        if (!content.includes(needle)) {
+          err(`[V59] project audit leak-risk drift in ${probe.file}: missing "${needle}"`)
+        }
+      }
+    }
+
+    for (const needle of ['PE-12', '资源生命周期与泄漏风险']) {
+      if (!hasChangelogEvidence(needle)) {
+        err(`[V59] project audit leak-risk changelog drift: missing "${needle}" in changelogs/unreleased.md or changelogs/releases/*.md`)
+      }
+    }
+
+    console.log('[V59] project audit resource lifecycle leak-risk sync checked')
+  }
+
+  function checkV60() {
+    const probes = [
+      { file: 'instructions.md', needles: ['LeakRiskStabilityPressureTest', '泄漏风险稳定性压测', 'PE-12 资源生命周期与泄漏风险'] },
+      { file: 'instructions/10-dev.instructions.md', needles: ['LeakRiskStabilityPressureTest', '写测试用例', '场景/负载/稳定性验证'] },
+      { file: 'instructions/11-fix.instructions.md', needles: ['LeakRiskStabilityPressureTest', '泄漏风险稳定性压测'] },
+      { file: 'skills/test-router/SKILL.md', needles: ['LeakRiskStabilityPressureTest', 'leakRiskPressure', 'heap/RSS'] },
+      { file: 'skills/dev-testing/SKILL.md', needles: ['LeakRiskStabilityPressureTest', '泄漏风险稳定性压测', 'N/A + skipReason'] },
+      { file: 'skills/dev-scenario-test/SKILL.md', needles: ['LeakRiskStabilityPressureTest', '冷却后回落', '轻量采样脚本'] },
+      { file: 'prompts/technical-design.prompt.md', needles: ['leakRiskPressure', '泄漏风险稳定性压测'] },
+      { file: 'prompts/implementation-plan.prompt.md', needles: ['LeakRiskStabilityPressureTest', 'resourceMetrics'] },
+      { file: 'prompts/report-dev.prompt.md', needles: ['LeakRiskStabilityPressureTest', '泄漏风险稳定性压测'] },
+      { file: 'prompts/report-fix.prompt.md', needles: ['LeakRiskStabilityPressureTest', '泄漏风险稳定性压测'] },
+      { file: 'prompts/report-scenario-test.prompt.md', needles: ['LeakRiskStabilityPressureTest', '泄漏风险稳定性压测结果'] },
+      { file: 'README.md', needles: ['泄漏风险稳定性压测', 'LeakRiskStabilityPressureTest', '低风险任务写 `N/A + skipReason`'] },
+      { file: 'website/docs/guide/development.md', needles: ['LeakRiskStabilityPressureTest', '资源指标前后对比', 'N/A + skipReason'] },
+      { file: 'website/docs/versions/v1/1.0.1/requirements/index.md', needles: ['leak-risk-stability-pressure', '泄漏风险稳定性压测'] },
+      { file: 'website/docs/versions/v1/1.0.1/requirements/p1/leak-risk-stability-pressure/index.md', needles: ['LeakRiskStabilityPressureTest', 'leakRiskPressure', 'ServiceLifecycleCleanup'] },
+      { file: 'website/rspress.config.ts', needles: ['leak-risk-stability-pressure', '泄漏风险稳定性压测'] },
+      { file: 'scripts/test-spec-governance.js', needles: ['checkV60', 'LeakRiskStabilityPressureTest'] }
+    ]
+
+    for (const probe of probes) {
+      const content = read(path.join(ROOT, probe.file))
+      for (const needle of probe.needles) {
+        if (!content.includes(needle)) {
+          err(`[V60] leak-risk stability pressure test sync drift in ${probe.file}: missing "${needle}"`)
+        }
+      }
+    }
+
+    for (const needle of ['LeakRiskStabilityPressureTest', '泄漏风险稳定性压测']) {
+      if (!hasChangelogEvidence(needle)) {
+        err(`[V60] leak-risk stability pressure test changelog drift: missing "${needle}" in changelogs/unreleased.md or changelogs/releases/*.md`)
+      }
+    }
+
+    console.log('[V60] leak-risk stability pressure test sync checked')
+  }
+
   return {
     checkV39,
     checkV40,
@@ -935,7 +1047,10 @@ function buildGovernanceTailChecks(ctx) {
     checkV54,
     checkV55,
     checkV56,
-    checkV57
+    checkV57,
+    checkV58,
+    checkV59,
+    checkV60
   }
 }
 

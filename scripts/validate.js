@@ -52,6 +52,10 @@
  * V54 Official docs evidence + Profile impact sync（官方文档证据前置与 Profile 联动判定）
  * V55 Service lifecycle cleanup sync（AI 自启动服务清理）
  * V56 Platform framing + validation hygiene sync（平台工程前置、包边界串行、依赖树优先、导航顺序同步）
+ * V57 Audit review coverage delta sync（复审覆盖增量）
+ * V58 Concurrency policy sync（并发策略）
+ * V59 Project audit resource lifecycle leak-risk sync（项目工程资源生命周期与泄漏风险审查）
+ * V60 Leak-risk stability pressure test sync（写测试/回归验证时的泄漏风险稳定性压测条件路线）
  *
  * Exit: 0=OK, 1=error, 2=warnings only
  */
@@ -514,7 +518,10 @@ const {
   checkV54,
   checkV55,
   checkV56,
-  checkV57
+  checkV57,
+  checkV58,
+  checkV59,
+  checkV60
 } = buildGovernanceTailChecks({
   ROOT,
   ACTIVE_DEVCODEX_ROOT,
@@ -894,6 +901,9 @@ checkV54()
 checkV55()
 checkV56()
 checkV57()
+checkV58()
+checkV59()
+checkV60()
 
 console.log('')
 if (errors.length) {

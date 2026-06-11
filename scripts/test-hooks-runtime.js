@@ -110,19 +110,53 @@ function main() {
   const naturalAutoState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
   assert.strictEqual(naturalAutoState.executionMode, 'auto')
 
+  cleanState({ mode: 'dev', agent: TEST_AGENT })
+  run({ hookEventName: 'UserPromptSubmit', prompt: '@rocky should enter auto by global default alias' })
+  runBootstrapReads()
+  const defaultAliasState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(defaultAliasState.executionMode, 'auto')
+
   cleanState({
     mode: 'dev',
     agent: TEST_AGENT,
     extensions: {
       devcodex: {
-        autoAliases: ['@rocky']
+        autoAliases: ['@maintainer']
       }
     }
   })
-  run({ hookEventName: 'UserPromptSubmit', prompt: '@rocky 修复 Profile auto alias' })
+  run({ hookEventName: 'UserPromptSubmit', prompt: '@maintainer 修复 Profile auto alias' })
   runBootstrapReads()
   const profileAliasState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
   assert.strictEqual(profileAliasState.executionMode, 'auto')
+
+  cleanState({
+    mode: 'dev',
+    agent: TEST_AGENT,
+    extensions: {
+      devcodex: {
+        autoAliases: ['@maintainer']
+      }
+    }
+  })
+  run({ hookEventName: 'UserPromptSubmit', prompt: '@rocky should not enter auto when autoAliases replaces defaults' })
+  runBootstrapReads()
+  const replacedDefaultAliasState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(replacedDefaultAliasState.executionMode, 'confirm')
+
+  cleanState({
+    mode: 'dev',
+    agent: TEST_AGENT,
+    extensions: {
+      devcodex: {
+        autoAliases: []
+      }
+    }
+  })
+  run({ hookEventName: 'UserPromptSubmit', prompt: '@rocky should not enter auto when autoAliases is an empty replacement' })
+  runBootstrapReads()
+  const disabledDefaultAliasState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(disabledDefaultAliasState.executionMode, 'confirm')
 
   cleanState({
     mode: 'dev',
@@ -140,17 +174,27 @@ function main() {
 
   cleanLayoutState(
     { mode: 'prod', agent: TEST_AGENT },
+    { mode: 'dev' }
+  )
+  const layoutChildDefaultAlias = path.join(TEMP_ROOT, 'chat')
+  run({ hookEventName: 'UserPromptSubmit', prompt: '@rocky 继续修复 chat 项目' }, layoutChildDefaultAlias)
+  runLayoutBootstrapReads(TEST_AGENT, layoutChildDefaultAlias)
+  const layoutDefaultAliasState = JSON.parse(fs.readFileSync(getLayoutStateFile(), 'utf8'))
+  assert.strictEqual(layoutDefaultAliasState.executionMode, 'auto')
+
+  cleanLayoutState(
+    { mode: 'prod', agent: TEST_AGENT },
     {
       mode: 'dev',
       extensions: {
         devcodex: {
-          autoAliases: ['@rocky']
+          autoAliases: ['@chat-auto']
         }
       }
     }
   )
   const layoutChild = path.join(TEMP_ROOT, 'chat')
-  run({ hookEventName: 'UserPromptSubmit', prompt: '@rocky 继续修复 chat 项目' }, layoutChild)
+  run({ hookEventName: 'UserPromptSubmit', prompt: '@chat-auto 继续修复 chat 项目' }, layoutChild)
   runLayoutBootstrapReads(TEST_AGENT, layoutChild)
   const projectOverlayAliasState = JSON.parse(fs.readFileSync(getLayoutStateFile(), 'utf8'))
   assert.strictEqual(projectOverlayAliasState.executionMode, 'auto')

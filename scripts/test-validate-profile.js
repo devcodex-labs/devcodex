@@ -127,7 +127,8 @@ function currentProjectInfo() {
         '- `config.local.json` 用于用户 / 项目指定的本地 overlay，不覆盖 `mode` / `agent`。',
         '- 敏感信息、明文连接信息和硬编码默认允许；只有用户 / 项目要求时才使用 env、`*Env` 字段或 secretRef。',
         '- 若使用 `extensions.<namespace>`，需在本文件或 Profile README 说明字段语义。',
-        '- `config.json` 可配置 `extensions.devcodex.autoAliases` 作为项目 Auto 别名，例如 `@rocky`。',
+        '- Auto 别名全局默认 `@rocky`；`config.json` 可配置 `extensions.devcodex.autoAliases` 替换默认别名，空数组表示关闭默认别名。',
+        '- `config.json` 可配置 `extensions.devcodex.concurrency` 并发策略：默认 `auto`，保守项目可设 `serial`，核心单写者锁不可删除。',
         ''
     ].join('\n')
 }
@@ -247,6 +248,75 @@ function main() {
         const validAutoAliasOutput = `${validAutoAliasResult.stdout}\n${validAutoAliasResult.stderr}`
 
         assert.strictEqual(validAutoAliasResult.status, 0, validAutoAliasOutput)
+
+        const validConcurrencyRoot = createWorkspace(currentProjectInfo())
+        writeFile(validConcurrencyRoot, '.devcodex/profile/config.json', JSON.stringify({
+            mode: 'dev',
+            agent: 'claude-code',
+            pluginVersion: VERSION,
+            extensions: {
+                devcodex: {
+                    concurrency: {
+                        mode: 'auto',
+                        readOnly: { enabled: true, maxParallel: 4, allowAgents: true },
+                        validation: { enabled: true, maxParallel: 2 },
+                        locks: { additionalSingleWriterScopes: ['project-cache'] }
+                    }
+                }
+            }
+        }, null, 2))
+        const validConcurrencyResult = runValidate(validConcurrencyRoot)
+        const validConcurrencyOutput = `${validConcurrencyResult.stdout}\n${validConcurrencyResult.stderr}`
+
+        assert.strictEqual(validConcurrencyResult.status, 0, validConcurrencyOutput)
+
+        const serialConcurrencyRoot = createWorkspace(currentProjectInfo())
+        writeFile(serialConcurrencyRoot, '.devcodex/profile/config.json', JSON.stringify({
+            mode: 'dev',
+            agent: 'claude-code',
+            pluginVersion: VERSION,
+            extensions: {
+                devcodex: {
+                    concurrency: { mode: 'serial' }
+                }
+            }
+        }, null, 2))
+        const serialConcurrencyResult = runValidate(serialConcurrencyRoot)
+        const serialConcurrencyOutput = `${serialConcurrencyResult.stdout}\n${serialConcurrencyResult.stderr}`
+
+        assert.strictEqual(serialConcurrencyResult.status, 0, serialConcurrencyOutput)
+
+        const invalidConcurrencyRoot = createWorkspace(currentProjectInfo())
+        writeFile(invalidConcurrencyRoot, '.devcodex/profile/config.json', JSON.stringify({
+            mode: 'dev',
+            agent: 'claude-code',
+            pluginVersion: VERSION,
+            extensions: {
+                devcodex: {
+                    concurrency: {
+                        mode: 'parallel',
+                        allowParallelMutations: true,
+                        readOnly: { maxParallel: 0 },
+                        validation: { maxParallel: 99 },
+                        locks: {
+                            additionalSingleWriterScopes: ['project-cache', 'project-cache', 'memory'],
+                            coreSingleWriterScopes: []
+                        },
+                        singleWriterScopes: []
+                    }
+                }
+            }
+        }, null, 2))
+        const invalidConcurrencyResult = runValidate(invalidConcurrencyRoot)
+        const invalidConcurrencyOutput = `${invalidConcurrencyResult.stdout}\n${invalidConcurrencyResult.stderr}`
+
+        assert.strictEqual(invalidConcurrencyResult.status, 1, invalidConcurrencyOutput)
+        assert.match(invalidConcurrencyOutput, /concurrency\.mode must be one of: auto, serial/)
+        assert.match(invalidConcurrencyOutput, /allowParallelMutations/)
+        assert.match(invalidConcurrencyOutput, /readOnly\.maxParallel must be an integer between 1 and 8/)
+        assert.match(invalidConcurrencyOutput, /validation\.maxParallel must be an integer between 1 and 4/)
+        assert.match(invalidConcurrencyOutput, /duplicates another additional scope/)
+        assert.match(invalidConcurrencyOutput, /must not duplicate a core single-writer scope/)
 
         const invalidAutoAliasRoot = createWorkspace(currentProjectInfo())
         writeFile(invalidAutoAliasRoot, '.devcodex/profile/config.json', JSON.stringify({

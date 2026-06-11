@@ -2,7 +2,7 @@
 applyTo: "**"
 description: dev 模式合规检查规则，覆盖 FC/SC/RC/T、入口检查与完成验证
 priority: P4
-version: 1.11.16
+version: 1.11.17
 ---
 # 合规检查规则（17-compliance）
 
@@ -158,7 +158,7 @@ version: 1.11.16
 | SC7 | 全局 SUMMARY 关键决策已追加 | 有关键决策时 🔴 |
 | SC8 | 上次待跟进已查阅 | 全工作流 🔴 |
 | SC9 | C08 Token 防护状态 | 全工作流 |
-| SC10 | C07 串行执行（禁止并行多 Agent） | 涉及 Agent 调用 🔴 |
+| SC10 | C07 并发策略合规：只读/隔离验证并发需符合 `ConcurrencyPolicy`，写共享状态、同一 audit session 或 package boundary 竞争写视为阻断 | 涉及 Agent 调用或并发任务 🔴 |
 | SC11 | C14 多任务拆分检查 | 任务≥5时 🔴 |
 | SC12 | C14 多任务进度快照验证 | 任务≥2时 🔴 |
 | SC13 | C15 架构质量自检 | dev/fix 🔴 |

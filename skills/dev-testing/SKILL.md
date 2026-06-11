@@ -18,6 +18,7 @@ description: 测试规范 — 单元测试/集成测试/API测试/E2E测试四�
 - `test-router` 负责在 CP2/CP3 与执行前判定“本轮需要哪些验证路线”，并输出 TestRoute。
 - 本 Skill 负责定义各类测试的覆盖标准、阻断规则和失败处理，不替代 `api-verification` / `dev-scenario-test` 的专项产物。
 - 当 TestRoute 包含对外 HTTP API 归档验证时，必须继续读取 `api-verification`；当 TestRoute 包含场景/负载测试时，必须继续读取 `dev-scenario-test`。
+- 写测试用例时必须同步执行 `LeakRiskStabilityPressureTest` 条件判定：命中资源生命周期或稳定性风险时，继续读取 `dev-scenario-test` 并把泄漏风险稳定性压测纳入 TestRoute；未命中时记录 `N/A + skipReason`，不得把所有低风险单元测试机械升级为压测。
 
 ## ServiceLifecycleCleanup
 
@@ -25,6 +26,24 @@ description: 测试规范 — 单元测试/集成测试/API测试/E2E测试四�
 - 测试完成、失败、重试放弃或最终回复前，必须停止仅由 AI 本轮启动的服务，并核验端口或 PID/job 已释放。
 - 不得为释放端口杀掉用户既有进程；若端口被非本轮 AI 进程占用，只能报告 PID/端口/命令线线索并请用户确认。
 - 用户明确要求保留服务供试用时，报告保留原因、PID/端口/URL 和关闭命令；默认不得静默遗留后台进程。
+
+## 泄漏风险稳定性压测（条件）
+
+`LeakRiskStabilityPressureTest` 是写测试用例或规划回归验证时的条件判定，不是所有测试任务的默认强制压测。
+
+| 判定项 | 触发条件 | 验证要求 |
+|--------|----------|----------|
+| 长运行服务 | dev server、worker、daemon、queue consumer、scheduler、WebSocket/SSE 等 | 在持续或并发场景下记录 heap/RSS 或项目等价内存指标，冷却后不得持续增长 |
+| 资源生命周期 | 数据库/HTTP 连接、文件句柄、流、socket、连接池、事务、临时文件 | 记录连接/句柄/流数量前后对比，确认关闭或回收 |
+| 监听与定时器 | EventEmitter、DOM listener、interval/timeout、订阅、watcher | 验证重复创建/销毁后监听器、定时器、订阅数量可回落 |
+| 缓存与队列 | cache/map/set、LRU、队列 backlog、批处理缓冲 | 验证容量上限、淘汰策略或积压回落，不出现无界增长 |
+| 前端生命周期 | React/Vue/Svelte 组件 mount/unmount、路由切换、长列表/可视化 | 验证卸载清理、订阅释放和重复切换后资源回落 |
+
+**执行规则**：
+1. 命中上述任一项，TestRoute 的 `leakRiskPressure` 标为 `required`，并选择项目既有压测/场景工具；没有专用工具时可用轻量脚本采样内存、句柄、监听器或连接数。
+2. 最小证据包含：基线指标、压力/重复生命周期场景、持续时间或迭代次数、冷却窗口、前后对比、清理证据和失败阈值。
+3. 纯计算函数、静态文档、一次性脚本、无状态转换且无长生命周期资源的变更可标 `N/A + skipReason`。
+4. 若验证需要 AI 启动服务或压测 target，必须同时执行 `ServiceLifecycleCleanup`。
 
 ## 四类测试规范
 

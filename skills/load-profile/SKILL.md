@@ -38,7 +38,8 @@ description: 项目 Profile 加载规范 — 意图识别后独立确定目标�
 
 当 `<工作区根>/.devcodex/layout.json` 启用 `workspace-namespace` 时：
 
-- `config.json`：`<工作区根>/.devcodex/workspace/profile/config.json` 作为 base，`<工作区根>/.devcodex/<project>/profile/config.json` 作为 overlay；可在 `extensions.devcodex.autoAliases` 配置项目 Auto 精确别名（如 `@rocky`）
+- `config.json`：`<工作区根>/.devcodex/workspace/profile/config.json` 作为 base，`<工作区根>/.devcodex/<project>/profile/config.json` 作为 overlay；Auto 精确别名全局默认 `@rocky`，可用 `extensions.devcodex.autoAliases` 替换全局默认别名（省略表示沿用默认，空数组表示关闭默认别名），也可在 `extensions.devcodex.concurrency` 配置 `ConcurrencyPolicy`
+- `extensions.devcodex.concurrency` 缺省为 `mode=auto`：只读准备与隔离验证可按通道上限并行；`mode=serial` 表示全串行；项目只能追加 `locks.additionalSingleWriterScopes`，不得删除核心单写者域或开启并行 mutation
 - `config.local.json`：与 `config.json` 使用相同的 `workspace base + project overlay` 路径模型，可作为用户 / 项目指定的本地 overlay（长期连接、本地明文连接信息、env / secretRef 引用、`extensions.<namespace>`）；脚本、测试、数据库 / SSH / MongoDB / 数据操作只有在用户或项目明确指定时才以它作为连接配置入口
 - `README.md`、`01-项目信息.md`、`02-架构约束.md`、`03-代码风格.md`：项目命名空间文件优先，缺失回退到 `workspace/profile/`
 - `<project>` 未确定时，禁止猜测项目命名空间
@@ -53,12 +54,12 @@ description: 项目 Profile 加载规范 — 意图识别后独立确定目标�
 | `03-代码风格.md` | 编码规范 | 是 |
 | `04-测试规范.md` | 测试框架/覆盖率 | 按需 |
 | `05-发布规范.md` | 版本号/发布流程 | 按需 |
-| `config.json` | 运行模式配置（ENV_MODE）+ agent 兜底标识；可配置 `extensions.devcodex.autoAliases` 项目 Auto 别名 | 按需 |
+| `config.json` | 运行模式配置（ENV_MODE）+ agent 兜底标识；Auto 别名全局默认 `@rocky`，可配置 `extensions.devcodex.autoAliases` 替换默认别名；也可配置 `extensions.devcodex.concurrency` 并发策略 | 按需 |
 | `config.local.json` | 用户 / 项目指定时使用的本地 overlay：长期连接、本地明文连接信息、env / secretRef 引用、`extensions.<namespace>` | 按需 |
 
 > ⚠️ `config.json.agent` 只用于当前实际宿主无法可靠判断时的 fallback hint。产物路径中的 `<agent>` 必须优先使用当前会话/工具链可验证的实际宿主；profile agent 不得覆盖当前会话事实。
 >
-> ⚠️ `config.json.extensions.devcodex.autoAliases` 只接受精确 `@alias` token（如 `@rocky`），用于把项目内约定昵称映射为 Auto 授权入口；未配置昵称、普通“继续”、模糊提及或询问 auto 规则不算授权。
+> ⚠️ Auto 精确别名全局默认 `@rocky`。`config.json.extensions.devcodex.autoAliases` 只接受精确 `@alias` token，并用于替换全局默认别名：省略表示沿用 `@rocky`，空数组表示关闭默认别名；普通“继续”、模糊提及或询问 auto 规则不算授权。
 >
 > ⚠️ `config.local.json` 不得覆盖 `mode` / `agent` / `pluginVersion`。`ENV_MODE` 仍只由 `config.json` 决定；`config.local.json` 只补充本地私有上下文。
 >

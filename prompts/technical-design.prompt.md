@@ -352,6 +352,7 @@ applyTo: .devcodex/**/requirements/**
 | workspaceGuard | 单项目 / 多项目 / sticky project / workspace profile / N/A |
 | evidenceSource | validate / targeted test / fixture / direct replay / doc-only |
 | serviceLifecycle | N/A / startedByAI / userProvided；若 `startedByAI`，写 command/cwd/PID/job/port/url 与 cleanupEvidence；若保留运行，写 keepAliveReason |
+| leakRiskPressure | N/A / required / optional；命中长运行、并发、缓存/连接/监听器/定时器/流/socket/worker/订阅/组件生命周期或 PE-12 风险时必填触发依据、指标、场景、冷却窗口和通过标准 |
 | blockingLevel | 阻断 / 警告 / N/A |
 | skipReason | 未选择某验证路线时填写 |
 
@@ -361,6 +362,7 @@ applyTo: .devcodex/**/requirements/**
 | 单元测试 | | |
 | 集成测试 | | |
 | 回归 | | |
+| 泄漏风险稳定性压测 | 项目既有压测/监控/测试脚本；可选 artillery/k6/autocannon/轻量采样脚本 | 仅在 `LeakRiskStabilityPressureTest` 命中时执行，验证 heap/RSS/active handles/监听器/连接数/缓存规模等指标前后对比和冷却后回落 |
 | 包边界验证 | 构建完成后单独执行 `npm pack --dry-run` / package boundary check | 不与 build/benchmark/codegen 并行，files/exports/bin/dist 边界来自稳定包清单 |
 
 ### §7.1 需求验收映射

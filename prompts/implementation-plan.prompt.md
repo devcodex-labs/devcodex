@@ -94,6 +94,7 @@ applyTo: .devcodex/**/requirements/**
 |------|:--------:|----------|----------|
 | ExecutionContract | 是 / 否 | Auto / 控制面 / 多批次 / 预计修改 ≥10 文件 / release 前置任务 | scope / allowedPaths / requiredArtifacts / validationRoute / deviationPolicy / rollbackPlan |
 | TestRoute | 是 / 否 | 跨模块 / API / Hook / CLI / 模板-示例-校验链 / 测试路线不明显 | changeType / routes / commands / skipReason / blockingLevel |
+| LeakRiskStabilityPressureTest | 是 / 否 | 写测试用例或回归验证命中长运行、并发、缓存/连接/监听器/定时器/流/socket/worker/订阅/组件生命周期或 PE-12 风险 | leakRiskPressure / baseline / pressureScenario / cooldown / resourceMetrics / passThreshold / skipReason |
 | ServiceLifecycleCleanup | 是 / 否 | AI 需要启动 dev server、文档站、本地 API/mock、数据库代理、SSH 隧道、Playwright/Cypress server 或压测 target | command / cwd / PID-job / port-url / cleanupEvidence / keepAliveReason |
 | ReleaseAudit | 是 / 否 | 发版前 review / publish 或 tag 前风险审查 / release readiness | RL-1~RL-10 / risks / recommendation |
 | ReleaseVerification | 是 / 否 | 用户要求 tag / release / publish 或进入正式发版 | R0~R7；如存在远端 CI，补 R3c 目标 commit CI 绿色证据 |
@@ -144,6 +145,7 @@ applyTo: .devcodex/**/requirements/**
 |--------|---------|---------|
 | ExecutionContract | 对照 scope / allowedPaths / requiredArtifacts / validationRoute | 无范围偏移，偏移均按 deviationPolicy 处理 |
 | TestRoute | 对照变更类型执行对应命令 | 路线覆盖完整，跳过项有依据 |
+| LeakRiskStabilityPressureTest | 对照 TestRoute 的 leakRiskPressure 判定 | 命中资源生命周期风险时有基线、压力过程、冷却后回落、资源指标前后对比和清理证据；未触发有 `N/A + skipReason` |
 | ServiceLifecycleCleanup | 对照 AI 自启动服务记录和清理证据 | 仅 AI 本轮启动的服务已关闭并核验端口释放；保留运行有用户要求、PID/端口和关闭方式 |
 | ConceptSyncMap | 对照 sourceOfTruth / currentConsumers / historicalMirrors / validateProbes / deployCopies | 当前消费者与探针无漏改，历史镜像边界明确 |
 | HostContractVerification | 对照 hostSurface / eventScope / evidenceMode / workspaceGuard / artifactLinkMatrix / mcpFallback | direct replay / fixture / targeted test 证据与声明一致；产物链接与 MCP fallback 不只停留在文案 |
@@ -191,6 +193,7 @@ applyTo: .devcodex/**/requirements/**
 - [ ] impact-review 完成
 - [ ] ExecutionContract 已建立并执行（若触发）
 - [ ] TestRoute 已建立并覆盖（若触发）
+- [ ] LeakRiskStabilityPressureTest 已完成或记录 `N/A + skipReason`（写测试/回归验证时按项目资源生命周期风险判定）
 - [ ] ServiceLifecycleCleanup 已完成（若 AI 自启动服务；保留运行需记录用户要求、PID/端口和关闭方式）
 - [ ] ReleaseAudit RL-1~RL-10 已完成（若触发布前审查）
 - [ ] ReleaseVerification R0~R7 已完成（若进入正式发版；如存在远端 CI，R3c 已记录目标 commit CI 绿色证据或 `N/A + skipReason`）

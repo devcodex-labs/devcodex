@@ -2,7 +2,7 @@
 applyTo: "**"
 description: 通用规范总则，覆盖优先级、意图路由、Profile/active-root、宿主适配与治理总线
 priority: P5
-version: 1.11.16
+version: 1.11.17
 ---
 # 通用规范
 
@@ -54,7 +54,7 @@ version: 1.11.16
 | C04 | 禁止编造规范内容 | 同 S03，完整规则见 [`00-safety.instructions.md`](./00-safety.instructions.md) | 🔒 S03 |
 | C05 | 记忆+报告自动写入 | 同 S05，完整规则见 [`00-safety.instructions.md`](./00-safety.instructions.md) | 🔒 S05 |
 | C06 | 禁止 overwrite 源码/规范文件 | 同 S04，完整规则见 [`00-safety.instructions.md`](./00-safety.instructions.md) | 🔒 S04 |
-| C07 | 禁止并行调用子 Agent | 同一回复中只能串行启动 Agent，禁止并发 | — |
+| C07 | 并发执行策略 | 默认按 `ConcurrencyPolicy` 执行：只读准备和隔离验证可按配置并行；同一 active-root、CP 状态、记忆、报告、台账、audit session、source mutation、package boundary 和危险操作必须串行或单写者。禁止并行启动会写共享状态的子 Agent | — |
 | C08 | Token 耗尽防护 | 超 10 轮进入关注区；超 13 轮预警（写编码检查点到记忆）；超 15 轮防护（立即写完整记忆 + 建议开新会话）；≥15 轮+≥5 文件→硬性暂停（立即停止当前工具调用序列，输出 `⛔ PAUSE` 说明原因，写入记忆，等待用户明确继续指令，不再执行新的文件变更） | — |
 | C09 | 文件编码安全 | 禁止终端命令批量修改中文 .md 文件（`Set-Content`/`sed -i` 会破坏 UTF-8 编码），必须使用编辑器工具逐文件修改 | — |
 | C10 | 禁止执行危险命令 | 同 S06，完整规则见 [`00-safety.instructions.md`](./00-safety.instructions.md) | 🔒 S06 |
@@ -75,6 +75,12 @@ version: 1.11.16
 | C20 | 官方文档证据前置 | 新增/升级依赖、框架、SDK、平台 API 或外部模块前必须形成 `OfficialDocsEvidence`；缺失证据不得进入编码 |
 | C21 | Profile 联动判定 | dev/fix 项目事实变化后必须执行 `ProfileImpactCheck`：更新 Profile 或写明跳过理由 |
 | C22 | AI 自启动服务清理（ServiceLifecycleCleanup） | AI 为验证启动 dev server、文档站、本地 API/mock、数据库代理、SSH 隧道、Playwright/Cypress server、压测 target 等长运行进程时，必须记录启动命令、cwd、PID/job、端口/URL；验证完成、失败或中断收尾前主动停止仅由 AI 启动的服务并核验端口释放；不得杀用户既有进程；用户明确要求保留时记录保留原因、PID/端口和关闭方式 |
+
+### ConcurrencyPolicy（C07）
+
+`config.json` 可通过 `extensions.devcodex.concurrency` 配置并发策略。缺省为 `mode=auto`：只读上下文收集、只读子 Agent 分析和互不写同一输出的隔离验证可按通道上限并行；`mode=serial` 表示全部通道按串行执行。项目只能追加更保守的 `locks.additionalSingleWriterScopes`，不得删除或覆盖核心单写者域。
+
+核心单写者域固定为：`active-root`、`memory`、`report`、`ledger`、`audit-session`、`cp-state`、`source-mutation`、`package-boundary`、`dangerous-operation`。首期不支持 `parallel` 模式、`allowParallelMutations` 或任何并行 mutation 配置。
 
 ### QuestionEvidenceGate（问答证据深度与对比调研门禁）
 
@@ -126,9 +132,9 @@ version: 1.11.16
 
 ## 全自动模式 C02 豁免
 
-当用户选择 `@devcodex-auto`、Profile `config.json` 的 `extensions.devcodex.autoAliases` 中配置的精确别名（如 `@rocky`），或在文本宿主中明确自然语言授权 auto（如“进入 auto 模式执行”“全自动继续”“run in auto mode”）时：
+当用户选择 `@devcodex-auto`、全局默认 `@rocky`、Profile `config.json` 的 `extensions.devcodex.autoAliases` 替换别名，或在文本宿主中明确自然语言授权 auto（如“进入 auto 模式执行”“全自动继续”“run in auto mode”）时：
 
-- Auto v1.1 正式入口包括显式 `@devcodex-auto`、项目 Profile 配置的 `extensions.devcodex.autoAliases` 精确别名与明确自然语言 auto 授权；模糊提及、追问 auto 规则、普通“继续”或未配置昵称不等价于 auto 授权
+- Auto v1.1 正式入口包括显式 `@devcodex-auto`、全局默认 `@rocky`、项目 Profile 配置的 `extensions.devcodex.autoAliases` 替换别名与明确自然语言 auto 授权；配置了 `autoAliases` 时该列表替换全局默认别名，空数组表示关闭默认别名；模糊提及、追问 auto 规则、普通“继续”或未生效昵称不等价于 auto 授权
 - 仅在 `hook-enforced` 宿主中，对治理文件 / `.devcodex/` 产物 / README / auto 专属回归脚本等**白名单路径**启用自动推进
 - 非白名单路径默认切回确认模式，不承诺“所有源码任务自动执行”
 - `instruction-fallback` 宿主（如 JetBrains / Cursor）只保留 auto 规则语义，不承诺 runtime 级行为；支持 Hook 的宿主默认采用 `safety-only`：白名单边界输出提醒，`strict` 模式下才形成 runtime 硬拦截
@@ -222,7 +228,7 @@ version: 1.11.16
 | 安全底线 S01~S06 | 🔴 强制（不受 ENV_MODE 影响）| 🔴 强制（不受 ENV_MODE 影响）|
 | S07（入口检查强制）| 🔴 致命自修正（`instruction-fallback` 模式自检触发，自动补输出 PC0~PC7 基础状态）| 🔴 致命自修正（`instruction-fallback` 模式自检触发，自动补输出 PC0~PC7 + dev 扩展诊断）|
 
-> **CP 跳过路径**：显式 `@devcodex-auto`、Profile `extensions.devcodex.autoAliases` 精确别名（如 `@rocky`）或明确自然语言 auto 授权（如“进入 auto 模式执行”）；这是 Agent 级行为，与 ENV_MODE 无关。
+> **CP 跳过路径**：显式 `@devcodex-auto`、全局默认 `@rocky`、Profile `extensions.devcodex.autoAliases` 替换别名或明确自然语言 auto 授权（如“进入 auto 模式执行”）；这是 Agent 级行为，与 ENV_MODE 无关。
 
 ## NODE_META 读取规则
 

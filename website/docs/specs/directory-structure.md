@@ -57,7 +57,7 @@ dev / fix / audit 等工作流的执行细节，只有在用户或 Agent 实际�
 | 第二层 | **Instructions** | 按需加载的规范约束（`description` 语义匹配）| 主流程节点执行规范（预检查/摘要/记忆/合规等）|
 | 第三层 | **Skills** | 按需触发的工作流能力入口 | dev / fix / audit / analyze / self-fix / plan / resume / chat，以及 `readme-authoring` / `audit-readme` README 专项能力、`audit-release` 发布前审查和 execution-contract / test-router / release-verification / host-contract-verification / source-consumer-sync 等支撑能力 |
 | 配套 | **Prompts** | 有参数的结构化输出模板 | CP 节点输出模板（CP1/CP2/CP3）|
-| 分发资产 | **Agents** | Copilot 自定义 Agent 入口 | `@devcodex` / `@devcodex-auto`；Auto 可通过 Profile `extensions.devcodex.autoAliases` 增加项目别名；Copilot 端默认分发，Claude Code / Codex 端不分发 |
+| 分发资产 | **Agents** | Copilot 自定义 Agent 入口 | `@devcodex` / `@devcodex-auto`；Auto 别名全局默认 `@rocky`，Profile `extensions.devcodex.autoAliases` 可替换默认别名；Copilot 端默认分发，Claude Code / Codex 端不分发 |
 
 ---
 
@@ -67,6 +67,7 @@ dev / fix / audit 等工作流的执行细节，只有在用户或 Agent 实际�
 |------|------|------|------|
 | 官方组件 | Custom Instructions / Skills / Instructions / Prompts | 官方 | 平台可识别并自动加载或按需触发的资产格式 |
 | DevCodex 扩展 | CP1 / CP2 / CP3 | 自定义 | DevCodex 的确认节点体系，不是官方内建能力 |
+| DevCodex 扩展 | ConcurrencyPolicy | 自定义 | Profile `extensions.devcodex.concurrency` 描述只读/验证并发策略；核心单写者域不由项目配置删除 |
 | DevCodex 扩展 | major/minor 版本文档结构 | 自定义 | 文档站采用 `versions/v1/<active-version>/` 承载当前迭代，`1.0.0` 仅保留历史基线 |
 
 > 结论：**官方标准负责"可被平台发现与加载"**，DevCodex 在此之上定义执行流程与分层规范。

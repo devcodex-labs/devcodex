@@ -71,6 +71,8 @@ description: "Use when: ..."   # 必填，AI 靠这个发现 Skill
 - 发布前审查使用 `audit-release` 专项维度，负责 release readiness 风险审查；它与 `release-verification` 的 R0~R7 执行验证链必须保持边界清晰
 - README / 用户使用文档默认通过 `readme-authoring` 收口用户 / 使用者优先写作，完成后再用 `audit-readme` 做专项 review
 - audit 会先执行 `Profile Freshness Check`，反向核对 Profile 是否仍匹配当前包版本、目录资产、脚本、发布状态、宿主能力和任务现实；不得基于过期 Profile 宣告收敛
+- 项目工程 / 代码质量审查必须执行 `PE-12 资源生命周期与泄漏风险`：检查内存泄露、资源泄漏、监听器/定时器/连接/流未释放、缓存无界增长、组件卸载清理缺失，并在不适用时写明 `N/A + skipReason`
+- 写测试用例或回归验证时必须执行 `LeakRiskStabilityPressureTest` 条件判定：命中长运行服务、高并发路径、缓存/队列/连接池、监听器/定时器、连接/文件/流/socket/worker、订阅、前端组件生命周期或 `PE-12` 风险时，TestRoute 纳入泄漏风险稳定性压测；证据至少包含基线、压力场景、冷却后回落、资源指标前后对比和清理结果。低风险纯单元测试、静态文档或无长生命周期资源变更可写 `N/A + skipReason`
 - audit / review / ECR 的复审覆盖增量必须维护 `ReviewCoverageDelta`：每轮列出 `ReviewedSet`、`UnreviewedRelatedSet`、`NewlyReadThisRound`、`RepeatReadReason` 与 `NoNewSurfaceReason`，优先阅读此前未审查但相关联的代码、配置、测试、文档、部署副本和消费者链；无新增覆盖且无证据化理由时，不计入有效零发现
 - 所有模式下若用户建议经验证更优且可泛化，或暴露规范未定义/不完整，应主动触发 Improvement Intake：写入 `data/process-improvements.md`（优化清单，PI），必要时联动 `data/pending-fixes.md`，并显式回执 `PI/PF`
 - 若新的需求、bug 或批次直接来源于 `data/*.md` 的 open/partial 项，进入 CP1 / 问题确认前必须先做 Backlog Intake 真相复核：把候选项分成 `pure-open / residual-tail / already-fixed / misclassified`，避免把“已修但未回写”的条目继续按纯 open 统计
@@ -79,6 +81,7 @@ description: "Use when: ..."   # 必填，AI 靠这个发现 Skill
 - dev/fix 改动项目技术栈、目录边界、脚本、测试/发布路线、分发面、配置项、长期连接或本地 overlay schema 时，必须执行 `ProfileImpactCheck`，同步 Profile 或在报告中写明 `skipReason`
 - 若 AI 为验证启动 dev server、文档站、本地 API/mock、数据库代理、SSH 隧道、Playwright/Cypress server 或压测 target，必须执行 `ServiceLifecycleCleanup`：记录命令/cwd/PID/job/端口/URL，验证完成、失败或最终回复前关闭仅由 AI 本轮启动的服务并核验端口释放；用户要求保留时记录 PID/端口和关闭方式
 - 通用工程守门：Node.js 项目默认 `engines.node` / CI / Profile / README 不低于 `>=18`；需求/问题定义阶段先做平台工程判断，确认消费者范围、共享契约边界、模块职责、维护成本和非目标；JS/Node 必要注释使用标准 JSDoc；依赖升级或兼容修复必须拆分 `业务源码平滑性` 与 `依赖层落地条件`；包/库/adapter/CLI 同时检查代码实现层和包工程层；简单 service 不重复 route/model/schema 已承担的校验、归一化和配置兜底；跨项目经验吸纳守门包括 `ExistingDomainContractAudit`、`ConfigOwnershipMatrix`、`ApiDocVerificationSync`、`DataMutationPlan`、`AbsorptionDecision`、`FullV1ScopeGuard` 与 `StartupPhaseTrace`
+- 可配置并发策略：Profile `config.json` 可配置 `extensions.devcodex.concurrency`；默认 `mode=auto` 采用 `parallel prepare, serial commit`，只读准备和隔离验证可按上限并行，同一 active-root 的 CP 状态、记忆、报告、台账、audit session、source mutation、package boundary 和危险操作保持单写者；保守项目可设 `mode=serial`
 - 验证卫生与包边界：release / pack / benchmark / codegen 任务中，package boundary check 必须在构建完成后单独串行执行；消费者验证异常先查 package.json、lockfile、node_modules 与 `npm ls <关键依赖>`，最终收尾前清理无关 dirty 文件和验证残留
 - 文档阅读顺序同步：正文、README 或维护者文档定义“先看什么 / 审查顺序 / 实施顺序”时，website sidebar/nav、索引页和目录页必须作为当前消费者同批校验；信息架构故意不同序时要说明差异
 - v2.0.0 规划：MCP `devcodex_getWorkflow()` 替代文件读取
@@ -127,7 +130,8 @@ description: "Use when: ..."   # 必填，AI 靠这个发现 Skill
 
 - **`mode: "dev"`**：进入实质任务前输出 PC0~PC7 入口检查，PC4 执行完整规范雷达，并在收尾执行 FC / SC / RC / T 合规检查
 - **`mode: "prod"`**：进入实质任务前仍输出 PC0~PC7 基础入口检查，PC4 标注 N/A；不执行后置合规检查，但 CP1 / CP2 / CP3 仍然强制
-- **执行模式与 `ENV_MODE` 分离**：确认模式 / 全自动模式属于 Agent 入口语义；当前全自动正式入口包括显式 `@devcodex-auto`、Profile `config.json` 的 `extensions.devcodex.autoAliases` 精确别名（如 `@rocky`）与明确自然语言 auto 授权，且只有在 hook-enforced 宿主 + 白名单路径上形成 runtime 级自动推进；模糊提及、询问 auto 规则、未配置昵称或普通“继续”不算授权
+- **执行模式与 `ENV_MODE` 分离**：确认模式 / 全自动模式属于 Agent 入口语义；当前全自动正式入口包括显式 `@devcodex-auto`、全局默认 `@rocky`、Profile `config.json` 的 `extensions.devcodex.autoAliases` 替换别名与明确自然语言 auto 授权，且只有在 hook-enforced 宿主 + 白名单路径上形成 runtime 级自动推进；配置了 `autoAliases` 时该列表替换全局默认别名，空数组表示关闭默认别名；模糊提及、询问 auto 规则、未生效昵称或普通“继续”不算授权
+- **并发策略与 `ENV_MODE` 分离**：`extensions.devcodex.concurrency.mode=auto` 默认允许只读准备、只读子 Agent 分析和隔离验证并行；`mode=serial` 退回全串行；核心单写者域不是项目可删除配置，`allowParallelMutations` 不是合法字段
 
 > 当前正式规则源以 `instructions/01-common.instructions.md`、`instructions/17-compliance.instructions.md` 和 `skills/cp-gate/SKILL.md` 为准；本页负责解释这些规则如何落到日常开发流程中。
 

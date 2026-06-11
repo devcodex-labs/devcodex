@@ -2,7 +2,7 @@
 applyTo: "**"
 description: fix 工作流规则，覆盖子类型路由、CP 流程、修复三步扫描、执行期回退与 ECR
 priority: P4
-version: 1.11.16
+version: 1.11.17
 ---
 # 修复工作流规则（11-fix）
 
@@ -52,6 +52,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → 
 - **ProfileImpactCheck**：修复改变技术栈、目录边界、脚本、测试/发布路线、分发面、配置项、长期连接或本地 overlay schema 时，必须同步 Profile 或记录 `skipReason`。
 - **连接配置来源按用户 / 项目策略**：凡修复涉及脚本、测试、数据库 / SSH / MongoDB / 数据操作连接信息，默认可直写或沿用项目既有模式；只有用户或项目明确指定 `config.local.json`、env、`secretRef` 或 secret manager 时，修复方案才按该入口读取并在缺失时提醒补齐。
 - **AI 自启动服务清理**：若回归验证需要由 AI 启动 dev server、文档站、本地 API/mock、数据库代理、SSH 隧道、Playwright/Cypress server 或压测 target，TestRoute/报告必须记录启动命令、cwd、PID/job、端口/URL；验证完成、失败或最终回复前必须停止仅由 AI 本轮启动的服务并核验端口释放。用户明确要求保留服务时，报告保留原因、PID/端口和关闭方式；不得杀用户既有进程。
+- **LeakRiskStabilityPressureTest**：修复内存泄露、资源泄漏、稳定性、性能退化、连接/监听器/定时器/流/socket/worker/订阅/缓存增长等问题，或回归测试触及长运行和高并发路径时，TestRoute 必须纳入泄漏风险稳定性压测；未触发时写 `N/A + skipReason`。
 - **SimpleTaskFastPath**：非常明确、预计 ≤2 文件、无公共 API/Schema/依赖/配置/发布/控制面/台账来源/高风险、无需多轮跟踪的简单修复，可用内联问题确认 + 报告/记忆替代 bug 目录与完整 CP 产物；报告必须写 `SimpleTaskFastPath: applied`、`skipReason`、验证证据和升级回退判断。执行中任一条件失效时，立即升级回完整 fix CP/产物链。
 - **ExistingRequirementArtifactOverride**：当用户是在调整/修改/补充既有问题确认、bug CP 产物或需求文件时，SimpleTaskFastPath 只能跳过新建完整 bug 目录，不能跳过更新已有真相源；必须先增量编辑已有问题/需求产物，回复仅作为摘要。找不到目标产物时先按 Profile、bugs/requirements、sessions、tasks 与用户提及路径定位，仍无法确认才最小澄清。
 - **ArtifactDecisionMatrix / ArtifactLifecycleState**：CP1/CP2/[CP3]/ECR 必须按修复规模列出关键产物 `create` / `update` / `skip` / `N/A` 状态，至少覆盖问题确认、技术方案、实施计划、实施进度、报告和记忆；判定优先级为已有真相源回写 > 修复触发条件 > SimpleTaskFastPath > fix CP3 可选/豁免。若后续三步扫描或 ECR 发现范围扩大，必须更新矩阵并回到对应 CP。

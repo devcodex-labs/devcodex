@@ -93,6 +93,8 @@ RESTORE → 先读今日 tasks/YYYYMMDD.md → 再读 Agent SUMMARY.md → 读�
 
 ≥2 意图 → 按序逐一路由，每个独立走完整工作流周期 → 独立报告 → 再路由下一个
 
+`ConcurrencyPolicy` 允许多意图前置只读识别或隔离分析并行，但不允许并行推进多个会写 CP 状态、报告、记忆、台账或 source mutation 的工作流。
+
 ### 工作流内部强制步骤
 
 dev: `plan-review`（CP2 后、CP3 前强制）为工作流内部步骤，不参与子类型路由。

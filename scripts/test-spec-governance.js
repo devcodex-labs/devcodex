@@ -279,12 +279,49 @@ const probes = [
   ['website/docs/specs/flowcharts.md', '有效零发现'],
   ['website/docs/specs/workflow-execution-flow.md', 'ReviewCoverageDelta'],
   ['scripts/lib/validate-governance-tail.js', 'collectChangelogSources'],
-  ['scripts/lib/validate-governance-tail.js', 'checkV57']
+  ['scripts/lib/validate-governance-tail.js', 'checkV57'],
+  ['instructions.md', 'ConcurrencyPolicy'],
+  ['instructions/01-common.instructions.md', 'extensions.devcodex.concurrency'],
+  ['instructions/17-compliance.instructions.md', '并发策略合规'],
+  ['skills/compliance/SKILL.md', '并发策略合规'],
+  ['skills/load-profile/SKILL.md', 'extensions.devcodex.concurrency'],
+  ['skills/audit-session/SKILL.md', '单写者锁'],
+  ['skills/memory/SKILL.md', 'memory` 单写者锁'],
+  ['scripts/validate-profile.js', 'validateConcurrencyPolicy'],
+  ['scripts/test-validate-profile.js', 'validConcurrencyRoot'],
+  ['README.md', 'parallel prepare, serial commit'],
+  ['website/docs/guide/development.md', '并发策略与 `ENV_MODE` 分离'],
+  ['website/docs/versions/v1/1.0.1/requirements/p1/concurrency-policy/index.md', 'allowParallelMutations'],
+  ['scripts/lib/validate-governance-tail.js', 'checkV58'],
+  ['skills/audit-project/SKILL.md', 'PE-12 资源生命周期与泄漏风险'],
+  ['instructions/12-audit.instructions.md', 'PE-12 资源生命周期与泄漏风险'],
+  ['prompts/report-audit.prompt.md', '项目工程(PE-1~PE-12)'],
+  ['README.md', '项目工程泄漏审查'],
+  ['website/docs/guide/development.md', 'PE-12 资源生命周期与泄漏风险'],
+  ['scripts/lib/validate-governance-tail.js', 'checkV59'],
+  ['instructions.md', 'LeakRiskStabilityPressureTest'],
+  ['instructions/10-dev.instructions.md', 'LeakRiskStabilityPressureTest'],
+  ['instructions/11-fix.instructions.md', '泄漏风险稳定性压测'],
+  ['skills/test-router/SKILL.md', 'leakRiskPressure'],
+  ['skills/dev-testing/SKILL.md', 'LeakRiskStabilityPressureTest'],
+  ['skills/dev-scenario-test/SKILL.md', '冷却后回落'],
+  ['prompts/implementation-plan.prompt.md', 'LeakRiskStabilityPressureTest'],
+  ['prompts/report-scenario-test.prompt.md', '泄漏风险稳定性压测结果'],
+  ['README.md', '泄漏风险稳定性压测'],
+  ['website/docs/guide/development.md', 'LeakRiskStabilityPressureTest'],
+  ['website/docs/versions/v1/1.0.1/requirements/index.md', 'leak-risk-stability-pressure'],
+  ['website/docs/versions/v1/1.0.1/requirements/p1/leak-risk-stability-pressure/index.md', 'LeakRiskStabilityPressureTest'],
+  ['website/rspress.config.ts', '泄漏风险稳定性压测'],
+  ['scripts/lib/validate-governance-tail.js', 'checkV60']
 ]
 
 for (const [file, needle] of probes) mustInclude(file, needle)
 mustIncludeInChangelogs('ReviewCoverageDelta')
 mustIncludeInChangelogs('复审覆盖增量')
+mustIncludeInChangelogs('PE-12')
+mustIncludeInChangelogs('资源生命周期与泄漏风险')
+mustIncludeInChangelogs('LeakRiskStabilityPressureTest')
+mustIncludeInChangelogs('泄漏风险稳定性压测')
 
 const activeRuleFiles = [
   'README.md',

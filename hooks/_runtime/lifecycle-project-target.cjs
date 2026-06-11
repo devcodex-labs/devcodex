@@ -238,11 +238,14 @@ function buildLifecycleProjectTargetUtils({
     return new RegExp(`(^|\\s)${escaped}(?=$|[\\s,.;:!?，。；：！？])`, 'i').test(prompt)
   }
 
+  const DEFAULT_AUTO_ALIASES = ['@rocky']
+
   function getConfiguredAutoAliases(state, target) {
-    if (typeof readProjectProfileConfig !== 'function') return []
+    if (typeof readProjectProfileConfig !== 'function') return DEFAULT_AUTO_ALIASES.slice()
     const activeProject = target?.activeProject || state?.activeProject || ''
     const cfg = readProjectProfileConfig(state || {}, activeProject)
     const aliases = cfg?.extensions?.devcodex?.autoAliases
+    if (aliases === undefined) return DEFAULT_AUTO_ALIASES.slice()
     if (!Array.isArray(aliases)) return []
     const seen = new Set()
     const validAliases = []

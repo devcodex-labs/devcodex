@@ -133,6 +133,24 @@ function isPlainObject(value) {
 }
 
 const RESERVED_AUTO_ALIASES = new Set(['@devcodex', '@devcodex-auto', '@auto'])
+const CONCURRENCY_MODES = new Set(['auto', 'serial'])
+const CORE_SINGLE_WRITER_SCOPES = new Set([
+  'active-root',
+  'memory',
+  'report',
+  'ledger',
+  'audit-session',
+  'cp-state',
+  'source-mutation',
+  'package-boundary',
+  'dangerous-operation'
+])
+
+function validateIntegerRange(value, sourceName, pathLabel, min, max) {
+  if (!Number.isInteger(value) || value < min || value > max) {
+    err(`[profile] ${sourceName}.${pathLabel} must be an integer between ${min} and ${max}`)
+  }
+}
 
 function validateAutoAliases(autoAliases, sourceName) {
   if (autoAliases === undefined) return
@@ -165,6 +183,96 @@ function validateAutoAliases(autoAliases, sourceName) {
   }
 }
 
+function validateConcurrencyLane(lane, sourceName, pathLabel, allowedKeys, maxParallelRange) {
+  if (lane === undefined) return
+  if (!isPlainObject(lane)) {
+    err(`[profile] ${sourceName}.${pathLabel} must be an object`)
+    return
+  }
+  for (const key of Object.keys(lane)) {
+    if (!allowedKeys.has(key)) {
+      err(`[profile] ${sourceName}.${pathLabel} contains unsupported key: ${key}`)
+    }
+  }
+  if (lane.enabled !== undefined && typeof lane.enabled !== 'boolean') {
+    err(`[profile] ${sourceName}.${pathLabel}.enabled must be a boolean`)
+  }
+  if (lane.allowAgents !== undefined && typeof lane.allowAgents !== 'boolean') {
+    err(`[profile] ${sourceName}.${pathLabel}.allowAgents must be a boolean`)
+  }
+  if (lane.maxParallel !== undefined) {
+    validateIntegerRange(lane.maxParallel, sourceName, `${pathLabel}.maxParallel`, maxParallelRange[0], maxParallelRange[1])
+  }
+}
+
+function validateConcurrencyLocks(locks, sourceName) {
+  if (locks === undefined) return
+  if (!isPlainObject(locks)) {
+    err(`[profile] ${sourceName}.extensions.devcodex.concurrency.locks must be an object`)
+    return
+  }
+  for (const key of Object.keys(locks)) {
+    if (key !== 'additionalSingleWriterScopes') {
+      err(`[profile] ${sourceName}.extensions.devcodex.concurrency.locks contains unsupported key: ${key}`)
+    }
+  }
+  const scopes = locks.additionalSingleWriterScopes
+  if (scopes === undefined) return
+  if (!Array.isArray(scopes)) {
+    err(`[profile] ${sourceName}.extensions.devcodex.concurrency.locks.additionalSingleWriterScopes must be an array`)
+    return
+  }
+  const seen = new Set()
+  for (let i = 0; i < scopes.length; i += 1) {
+    const scope = scopes[i]
+    if (typeof scope !== 'string') {
+      err(`[profile] ${sourceName}.extensions.devcodex.concurrency.locks.additionalSingleWriterScopes[${i}] must be a string`)
+      continue
+    }
+    if (!/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/.test(scope)) {
+      err(`[profile] ${sourceName}.extensions.devcodex.concurrency.locks.additionalSingleWriterScopes[${i}] must be kebab-case`)
+    }
+    if (CORE_SINGLE_WRITER_SCOPES.has(scope)) {
+      err(`[profile] ${sourceName}.extensions.devcodex.concurrency.locks.additionalSingleWriterScopes[${i}] must not duplicate a core single-writer scope: ${scope}`)
+    }
+    if (seen.has(scope)) {
+      err(`[profile] ${sourceName}.extensions.devcodex.concurrency.locks.additionalSingleWriterScopes[${i}] duplicates another additional scope: ${scope}`)
+    }
+    seen.add(scope)
+  }
+}
+
+function validateConcurrencyPolicy(concurrency, sourceName) {
+  if (concurrency === undefined) return
+  if (!isPlainObject(concurrency)) {
+    err(`[profile] ${sourceName}.extensions.devcodex.concurrency must be an object`)
+    return
+  }
+  for (const key of Object.keys(concurrency)) {
+    if (!['mode', 'readOnly', 'validation', 'locks'].includes(key)) {
+      err(`[profile] ${sourceName}.extensions.devcodex.concurrency contains unsupported key: ${key}`)
+    }
+  }
+  if (concurrency.mode !== undefined && !CONCURRENCY_MODES.has(concurrency.mode)) {
+    err(`[profile] ${sourceName}.extensions.devcodex.concurrency.mode must be one of: auto, serial`)
+  }
+  validateConcurrencyLane(
+    concurrency.readOnly,
+    sourceName,
+    'extensions.devcodex.concurrency.readOnly',
+    new Set(['enabled', 'maxParallel', 'allowAgents']),
+    [1, 8]
+  )
+  validateConcurrencyLane(
+    concurrency.validation,
+    sourceName,
+    'extensions.devcodex.concurrency.validation',
+    new Set(['enabled', 'maxParallel']),
+    [1, 4]
+  )
+  validateConcurrencyLocks(concurrency.locks, sourceName)
+}
+
 function validateProfileConfigExtensions(cfg, sourceName, projectInfoText, readmeText) {
   const extensions = cfg.extensions
   if (extensions === undefined) return
@@ -179,15 +287,22 @@ function validateProfileConfigExtensions(cfg, sourceName, projectInfoText, readm
     return
   }
   for (const key of Object.keys(devcodex)) {
-    if (key !== 'autoAliases') {
+    if (!['autoAliases', 'concurrency'].includes(key)) {
       err(`[profile] ${sourceName}.extensions.devcodex contains unsupported key: ${key}`)
     }
   }
   validateAutoAliases(devcodex.autoAliases, sourceName)
+  validateConcurrencyPolicy(devcodex.concurrency, sourceName)
   if (Array.isArray(devcodex.autoAliases) && devcodex.autoAliases.length > 0) {
     const combined = `${projectInfoText}\n${readmeText}`
     if (!/extensions\.devcodex\.autoAliases|autoAliases|auto 别名|Auto 别名/i.test(combined)) {
       warn(`[profile] ${sourceName}.extensions.devcodex.autoAliases is configured but Profile README / 01-项目信息.md does not document it`)
+    }
+  }
+  if (devcodex.concurrency !== undefined) {
+    const combined = `${projectInfoText}\n${readmeText}`
+    if (!/extensions\.devcodex\.concurrency|ConcurrencyPolicy|并发策略/i.test(combined)) {
+      warn(`[profile] ${sourceName}.extensions.devcodex.concurrency is configured but Profile README / 01-项目信息.md does not document it`)
     }
   }
 }

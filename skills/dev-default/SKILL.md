@@ -37,7 +37,7 @@ dev 工作流未匹配其他子类型时的默认路径，适用于：新功能�
 
 **通用工程吸纳守门（F-29）**：CP1 起前置平台工程判断，先确认消费者范围、共享契约边界、模块职责、维护成本与非目标；provider / connector / SDK 接入须落字段级合同；包 / 库 / adapter / CLI 须检查代码实现层与包工程层；依赖升级须拆分业务源码平滑性与依赖层落地条件；内部共享库根因优先评估“修共享库 + 消费项目升级”；简单业务 service 不重复 route/model/schema 已承担的校验与归一化。新增字段/配置/本地化容器/状态枚举须做 `ExistingDomainContractAudit`；业务策略常量须做 `ConfigOwnershipMatrix`；接口文档变更须做 `ApiDocVerificationSync`；数据补齐/迁移脚本须做 `DataMutationPlan`；值得吸纳建议须做 `AbsorptionDecision`；完整首版须做 `FullV1ScopeGuard`；启动优化须做 `StartupPhaseTrace`。
 
-**验证卫生与串行边界（F-30）**：release / pack / benchmark / codegen / package boundary 检查不得与会删除、重建或写入 `dist` 的命令并行；消费者验证异常时先核对 package.json / lockfile / node_modules / `npm ls <关键依赖>`；完成前检查并清理本轮或旧验证遗留的无关 dirty 文件。
+**验证卫生与串行边界（F-30） / 验证卫生与并发边界**：按 `ConcurrencyPolicy` 执行：只读准备和隔离验证可在不共享输出目录时并行；release / pack / benchmark / codegen / package boundary 检查不得与会删除、重建或写入 `dist` 的命令并行；消费者验证异常时先核对 package.json / lockfile / node_modules / `npm ls <关键依赖>`；完成前检查并清理本轮或旧验证遗留的无关 dirty 文件。
 
 **技术路线对比门禁（F-31）**：技术路线、架构优化、性能优化、框架能力设计或高维护成本方案，在 CP1 最终需求确认前执行 `TechnicalRouteComparativeGate`；若存在同类产品 / 项目 / 框架 / 本仓库相似模块可比，必须记录 `ComparativeResearchGate` 证据范围和采纳/不采纳理由；不触发时写 `N/A + skipReason`。
 

@@ -2,7 +2,7 @@
 applyTo: "**"
 description: dev 工作流规则，覆盖子类型路由、CP 流程、计划复审、执行期回退与 ECR
 priority: P4
-version: 1.11.16
+version: 1.11.17
 ---
 # 开发工作流规则（10-dev）
 
@@ -80,6 +80,7 @@ CP1（需求确认）→ PR-1 内部自检 → CP2（方案确认）→ plan-rev
 15. **ProfileImpactCheck**：项目技术栈、目录边界、脚本、测试/发布路线、分发面、配置项、长期连接或本地 overlay schema 变化时，CP2/CP3 必须判定并同步 Profile；不需要同步时写明 `skipReason`。
 16. **连接配置来源按用户 / 项目策略**：凡 CP2/CP3 涉及脚本、测试、数据库 / SSH / MongoDB / 数据操作连接信息，默认可直写或沿用项目既有模式；只有用户或项目明确指定 `config.local.json`、env、`secretRef` 或 secret manager 时，方案才按该入口读取并在缺失时提醒补齐。
 17. **AI 自启动服务清理**：若开发验证需要由 AI 启动 dev server、文档站、本地 API/mock、数据库代理、SSH 隧道、Playwright/Cypress server 或压测 target，CP3/TestRoute 必须记录启动命令、cwd、PID/job、端口/URL；验证完成、失败或最终回复前必须停止仅由 AI 本轮启动的服务并核验端口释放。用户明确要求保留服务时，报告保留原因、PID/端口和关闭方式；不得杀用户既有进程。
+18. **LeakRiskStabilityPressureTest**：写测试用例或规划回归验证时，CP2/CP3/TestRoute 必须按项目情况判定是否需要泄漏风险稳定性压测；涉及长运行服务、高并发路径、缓存/队列/连接池、监听器/定时器、连接/文件/流/socket/worker、订阅、前端组件生命周期或 `PE-12` 发现时，必须纳入场景/负载/稳定性验证；未触发时写 `N/A + skipReason`。
 
 ### SimpleTaskFastPath（简单任务轻路径）
 
@@ -167,7 +168,7 @@ CP1（需求确认）→ PR-1 内部自检 → CP2（方案确认）→ plan-rev
 
 - **Node 基线**：Node.js 项目的 `engines.node`、CI matrix、Profile 与 README 运行时说明默认不得低于 `>=18`；需要支持更低版本时，CP2 必须列出业务理由、风险和独立验证证据。
 - **包工程层**：包 / 库 / adapter / CLI 方案除代码实现层外，还必须检查 public API、public types、internal 工具、shared tests、benchmark、docs、scripts、dist/coverage 边界、package metadata 与 `changelogs/unreleased.md`。
-- **包边界验证串行化**：`npm pack --dry-run`、package boundary check、files/exports/bin 检查不得与任何会删除、重建或写入 `dist` 的 build / benchmark / codegen 命令并行；必须在构建稳定后单独执行并以单独结果作为报告证据。
+- **包边界验证串行化**：按 `ConcurrencyPolicy`，只读准备和隔离验证可并行，但 `npm pack --dry-run`、package boundary check、files/exports/bin 检查不得与任何会删除、重建或写入 `dist` 的 build / benchmark / codegen 命令并行；必须在构建稳定后单独执行并以单独结果作为报告证据。
 - **消费者依赖树优先探针**：跨仓库或外部消费者验证失败且症状指向依赖、插件、共享库或框架适配时，源码修改前必须先核对 `package.json`、lockfile、`node_modules` 与 `npm ls <关键依赖>`；确认依赖树一致后才进入源码补丁。
 - **接入状态口径拆分**：需求、报告和复盘描述“已接入 / 未接入”状态时，必须区分底座能力、当前消费者和高级能力尾项；基础底座已消费但 Redis / MultiLevel / Distributed 等高级能力未接入时，不得写成整体未接入。
 - **TypeScript 契约迁移**：TS 重构或迁移按公开契约与消费面逐步完善类型，不机械复制旧版本缺陷；跨模块业务契约、公开类型与配置类型优先集中到 types 契约层，本地私有 interface 可保留但须说明理由。
@@ -232,10 +233,10 @@ CP1（需求确认）→ PR-1 内部自检 → CP2（方案确认）→ plan-rev
   - 发现阻断问题：停止推进，先修正当前产物并告知用户，再回到对应 CP 重新确认
   - 连续 2 次前置复审仍发现新的阻断问题：提示升级为定向 `audit` 或扩大扫描范围
 
-### 全自动模式（@devcodex-auto / Profile autoAliases）
+### 全自动模式（@devcodex-auto / @rocky / Profile autoAliases）
 
 - CP1/CP2/CP3 确认**自动通过**
-- 正式入口包括显式 `@devcodex-auto`、Profile `extensions.devcodex.autoAliases` 精确别名（如 `@rocky`）与明确自然语言 auto 授权；未配置昵称或普通“继续”不算授权
+- 正式入口包括显式 `@devcodex-auto`、全局默认 `@rocky`、Profile `extensions.devcodex.autoAliases` 替换别名与明确自然语言 auto 授权；配置了 `autoAliases` 时该列表替换全局默认别名，空数组表示关闭默认别名；未生效昵称或普通“继续”不算授权
 - 支持 Hook 的宿主仅对白名单路径自动推进；`instruction-fallback` 宿主只同步规则语义
 - S01~S07 / C01 / C10 / C18 **不可豁免**
 - 可恢复失败：重试 ≤ 2 次；不可恢复失败：通知用户 ⚠️
@@ -439,6 +440,7 @@ CP1（需求确认）→ PR-1 内部自检 → CP2（方案确认）→ plan-rev
 ### scenario-test（场景测试）
 - 前置条件：若场景测试目标包含 HTTP 接口，则需 api-verification 已通过；若仅测试内部逻辑或数据层，则需被测模块具备可执行的测试数据/基线 + 测试环境就绪
 - 负载测试默认工具：artillery
+- 泄漏风险稳定性压测按 `LeakRiskStabilityPressureTest` 条件触发，优先复用项目已有压测/监控/测试脚本；证据至少包含基线、压力过程、冷却后回落、资源指标前后对比和清理结果
 - 测试数据使用 fixtures，禁止依赖生产数据
 
 ### docs（文档开发）

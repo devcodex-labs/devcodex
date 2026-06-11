@@ -10,7 +10,7 @@
 | Agent | 名称 | CP 门控 | 适用场景 |
 |-------|------|:-------:|---------|
 | `@devcodex` | 确认模式 | 🔴 CP1/CP2/CP3 逐项等待用户确认 | 开发/修复/审计的常规交互 |
-| `@devcodex-auto` / Profile `autoAliases`（如 `@rocky`） | 全自动模式 | ✅ CP 自动通过 | 批量任务、CI/CD 环境、信任度高的仓库维护 |
+| `@devcodex-auto` / `@rocky` / Profile `autoAliases` 替换别名 | 全自动模式 | ✅ CP 自动通过 | 批量任务、CI/CD 环境、信任度高的仓库维护 |
 
 ## 核心差异
 
@@ -31,7 +31,7 @@
 ## 使用建议
 
 - **默认**：保留 `devcodex init/update` 自动分发的 `.github/agents/`；日常可直接用 Copilot Chat，只有需要显式入口时再 `@devcodex` / `@devcodex-auto`
-- **高频维护**：引入 `@devcodex-auto`，或在项目 Profile `config.json` 配置 `extensions.devcodex.autoAliases`（如 `["@rocky"]`），在确保仓库可回滚的前提下加速执行
+- **高频维护**：直接使用全局默认 `@rocky` 或 `@devcodex-auto`；若团队要换口令或关闭默认别名，可在项目 Profile `config.json` 配置 `extensions.devcodex.autoAliases` 替换默认值（省略沿用 `@rocky`，空数组关闭默认别名）
 - **严格审查**：引入 `@devcodex`，确保每个关键节点有人工确认
 - **长流程任务**：无论确认模式还是 Auto，命中控制面、多批次、预计修改 ≥10 文件或正式发版时，都应把 ExecutionContract / TestRoute / ReleaseAudit / ReleaseVerification 写入报告证据
 

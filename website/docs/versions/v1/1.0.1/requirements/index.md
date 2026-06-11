@@ -8,13 +8,16 @@
 | 模块 | 状态 | 说明 |
 |------|------|------|
 | 版本入口与导航 | ✅ 已建立 | `versions/`、`v1/` 和 sidebar 已接入 `1.0.1` |
-| 具体需求条目 | ✅ 已补充首个详情页 | 当前目录内已有 `p1/template-flow-alignment/` 详情页；其他已实现能力按仓库根 `CHANGELOG.md` 与 `changelogs/releases/` 追溯 |
+| 具体需求条目 | ✅ 持续补充 | 当前目录内已有 `p1/template-flow-alignment/`、`p1/concurrency-policy/`、`p1/global-auto-alias/` 与 `p1/leak-risk-stability-pressure/` 详情页；其他已实现能力按仓库根 `CHANGELOG.md` 与 `changelogs/releases/` 追溯 |
 
 ## 当前需求索引
 
 | 优先级 | 主题 | 状态 | 说明 |
 |--------|------|------|------|
 | P1 | [模板边界与开发流程收口](./p1/template-flow-alignment/) | ✅ 已收口 | 正式需求入口、执行模板职责、CP1/CP2/CP3 关注点与 `03/04/05` 产物边界已同步 |
+| P1 | [可配置并发执行策略](./p1/concurrency-policy/) | ✅ 已实现 | `extensions.devcodex.concurrency`、`ConcurrencyPolicy`、只读/验证并发与不可变单写者锁 |
+| P1 | [全局默认 Auto 别名](./p1/global-auto-alias/) | ✅ 已实现 | `@rocky` 全局默认；`extensions.devcodex.autoAliases` 替换默认别名，空数组关闭默认 |
+| P1 | [泄漏风险稳定性压测](./p1/leak-risk-stability-pressure/) | ✅ 已实现 | `LeakRiskStabilityPressureTest`、`leakRiskPressure`、按资源生命周期风险条件触发场景/负载/稳定性压测 |
 
 ## 版本内开发规则
 

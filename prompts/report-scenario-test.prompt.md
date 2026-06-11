@@ -52,6 +52,17 @@ applyTo: .devcodex/**/reports/scenario-tests/**
 | P99 延迟 | X ms | ✅/❌ |
 | 错误率 | X% | ✅/❌ |
 
+## §4.1 泄漏风险稳定性压测结果（条件）
+
+> TestRoute 的 `leakRiskPressure` 为 `required` 时填写；未触发时写 `N/A + skipReason`。
+
+| 指标 | 基线 | 压力后 | 冷却后 | 通过？ |
+|------|------|--------|--------|:------:|
+| heap/RSS 或项目等价内存指标 | | | | ✅/❌ |
+| active handles / 监听器 / 定时器 | | | | ✅/❌ |
+| 连接数 / 流 / socket / worker / 订阅 | | | | ✅/❌ |
+| 缓存规模 / 队列积压 | | | | ✅/❌ |
+
 ## §5 场景验证结果
 
 | 场景 | 实际结果 | 符合预期？ |
@@ -67,6 +78,7 @@ applyTo: .devcodex/**/reports/scenario-tests/**
 | 类型 | 结果 | 说明 |
 |------|:----:|------|
 | TestRoute 覆盖 | ✅ 通过 / N/A | — |
+| LeakRiskStabilityPressureTest | ✅ 通过 / N/A | baseline / pressureScenario / cooldown / resourceMetrics / skipReason |
 | HostContract 验证 | ✅ 通过 / N/A | — |
 | 负载测试 (artillery) | ✅ 通过 | — |
 | 场景回放 | ✅ 通过 | direct replay / fixture replay / N/A |
@@ -77,6 +89,7 @@ applyTo: .devcodex/**/reports/scenario-tests/**
 |------|----------|:----:|------|
 | ExecutionContract | ✅/N/A | ✅/⚠️ | |
 | TestRoute | ✅/N/A | ✅/⚠️ | |
+| LeakRiskStabilityPressureTest | ✅/N/A | ✅/⚠️ | leakRiskPressure / baseline / cooldown / resourceMetrics / skipReason |
 | ReleaseAudit | ✅/N/A | ✅/⚠️ | |
 | ReleaseVerification | ✅/N/A | ✅/⚠️ | |
 | ConceptSyncMap | ✅/N/A | ✅/⚠️ | sourceOfTruth / currentConsumers / historicalMirrors / validateProbes / deployCopies / yellowDeviationBoundary |

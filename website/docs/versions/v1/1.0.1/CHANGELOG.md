@@ -6,6 +6,11 @@
 
 | 日期 | 变更内容 | 影响范围 | 原因 |
 |------|---------|---------|------|
+| 2026-06-11 | 新增测试路线 `LeakRiskStabilityPressureTest` | `test-router`、`dev-testing`、`dev-scenario-test`、测试/报告模板、README/website、V60 探针 | 写测试用例或回归验证时按项目资源生命周期风险判定是否纳入泄漏风险稳定性压测，避免漏测运行时增长问题或把所有测试机械升级为压测 |
+| 2026-06-11 | 新增“泄漏风险稳定性压测”P1 需求入口 | `requirements/p1/leak-risk-stability-pressure/` | 为 `LeakRiskStabilityPressureTest` 建立活动版本详情页，补齐 requirements index 与站点 sidebar |
+| 2026-06-10 | 新增“全局默认 Auto 别名”P1 需求入口 | `requirements/p1/global-auto-alias/` | 将 `@rocky` 从项目配置示例升级为全局默认 Auto 精确别名，`autoAliases` 改为替换默认别名 |
+| 2026-06-10 | 新增项目工程审查 `PE-12 资源生命周期与泄漏风险` | `audit-project`、`12-audit`、审查报告模板、README/website、V59 探针 | 代码审查需明确覆盖内存泄露、资源泄漏、监听器/定时器/连接/流未释放、缓存无界增长和组件卸载清理缺失 |
+| 2026-06-10 | 新增“可配置并发执行策略”P1 需求与设计入口 | `requirements/p1/concurrency-policy/` | 将 C07 从绝对串行口径升级为 `ConcurrencyPolicy`：只读/验证可并行，写入状态域保持单写者 |
 | 2026-05-10 | 建立并收口“模板边界与开发流程收口”P1 需求详情 | `requirements/p1/template-flow-alignment/` | 明确正式需求入口、执行模板职责、CP1/CP2/CP3 关注点与 `03/04/05` 产物边界 |
 | 2026-05-09 | 建立 `v1.0.1` 版本目录、版本概述页、需求总览页和站点导航入口 | `versions/v1/1.0.1/` | 将 `1.0.0` 与后续活动版本职责拆开，为新增需求、Bug 修复和发布准备提供正式落点 |
 | 2026-05-09 | 更新 `versions/` 与 `v1/` 系列页的当前版本指向 | `versions/index.md`、`versions/v1/index.md` | 避免站点仍把 `1.0.0` 误展示为当前活动版本 |

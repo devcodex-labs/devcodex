@@ -6,10 +6,6 @@
 
 ---
 
-## 当前状态
-
-- 暂无未发布变更。
-
 ## 记录提示
 
 - 控制面 / 长流程 / 多批次变更写入本文件时，优先标明 `execution-contract`、`test-router`、`release-verification`、`host-contract-verification`、`source-consumer-sync` 等支撑型能力是否同步更新。

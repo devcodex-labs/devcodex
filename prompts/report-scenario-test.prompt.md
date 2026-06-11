@@ -90,6 +90,8 @@ applyTo: .devcodex/**/reports/scenario-tests/**
 | ExecutionContract | ✅/N/A | ✅/⚠️ | |
 | TestRoute | ✅/N/A | ✅/⚠️ | |
 | LeakRiskStabilityPressureTest | ✅/N/A | ✅/⚠️ | leakRiskPressure / baseline / cooldown / resourceMetrics / skipReason |
+| FrontendExperienceQualityGate | ✅/N/A | ✅/⚠️ | frontendExperience / Browser / 截图 / E2E / 人工复核 / skipReason |
+| CrossProjectLearnedGuards | ✅/N/A | ✅/⚠️ | ManualReviewEvidenceRetention / VerificationScopeBudgetGate / LiveVerificationExecutionObligation / AdapterBenchmarkAttribution |
 | ReleaseAudit | ✅/N/A | ✅/⚠️ | |
 | ReleaseVerification | ✅/N/A | ✅/⚠️ | |
 | ConceptSyncMap | ✅/N/A | ✅/⚠️ | sourceOfTruth / currentConsumers / historicalMirrors / validateProbes / deployCopies / yellowDeviationBoundary |

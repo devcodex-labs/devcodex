@@ -56,6 +56,7 @@
  * V58 Concurrency policy sync（并发策略）
  * V59 Project audit resource lifecycle leak-risk sync（项目工程资源生命周期与泄漏风险审查）
  * V60 Leak-risk stability pressure test sync（写测试/回归验证时的泄漏风险稳定性压测条件路线）
+ * V61 Frontend experience / learned guards sync（前端 UI/交互体验门禁与跨项目已吸纳守门）
  *
  * Exit: 0=OK, 1=error, 2=warnings only
  */
@@ -521,7 +522,8 @@ const {
   checkV57,
   checkV58,
   checkV59,
-  checkV60
+  checkV60,
+  checkV61
 } = buildGovernanceTailChecks({
   ROOT,
   ACTIVE_DEVCODEX_ROOT,
@@ -904,6 +906,7 @@ checkV57()
 checkV58()
 checkV59()
 checkV60()
+checkV61()
 
 console.log('')
 if (errors.length) {

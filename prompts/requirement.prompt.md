@@ -20,6 +20,8 @@ applyTo: .devcodex/**/requirements/**
 > ⚠️ CP1 必须给出 ArtifactDecisionMatrix：列出 `01-需求概述.md`、`02-技术方案.md`、`04-实施计划.md`、`05-实施进度.md`、目标文档、报告、记忆的 `create` / `update` / `skip` / `N/A` 状态、原因和升级回退条件；判定优先级为已有真相源回写 > 任务触发条件 > SimpleTaskFastPath > 子类型豁免。
 > ⚠️ 描述“已接入 / 未接入”类状态时，先核验依赖与源码消费点，再拆分底座能力、当前消费者和高级能力尾项，避免把“基础已接入但高级能力未接入”误写成整体未接入。
 > ⚠️ TechnicalRouteComparativeGate：技术路线、架构优化、性能优化、框架能力设计或高维护成本方案在 CP1 最终需求确认前，若存在同类产品 / 项目 / 框架 / 本仓库相似模块可比，必须执行 `ComparativeResearchGate`；不触发时写 `N/A + skipReason`。
+> ⚠️ FrontendExperienceQualityGate：前端页面、组件、控制台、官网、文档站、可视化工具、游戏或用户可见 UI / 交互需求，CP1 验收必须覆盖设计来源、UI 还原度、风格主题、响应式状态、视觉验证、用户流、交互反馈、输入方式/可访问性、错误恢复和动效转场；不触发时写 `N/A + skipReason`。
+> ⚠️ CrossProjectLearnedGuards：涉及接入状态、人工复核、翻译/正式文档边界、prompt/Hook/MCP 契约、验证范围、真实执行或 benchmark 归因时，CP1 必须列出 `CodeTruthRequirementGate`、`ManualReviewEvidenceRetention`、`DocumentationTranslationParityGuard`、`FormalDocsDevCodexBoundary`、`LLMPromptContractTriage`、`VerificationScopeBudgetGate`、`LiveVerificationExecutionObligation`、`AdapterBenchmarkAttribution` 的验收口径；未触发项写 `N/A + skipReason`。
 
 | 类型 | 适用场景 | 默认重点 |
 |------|---------|---------|
@@ -57,6 +59,7 @@ applyTo: .devcodex/**/requirements/**
 - [§2 目标](#2-目标)
   - [§2.3 开发程度等级](#23-开发程度等级)
   - [§2.4 技术路线对比证据](#24-技术路线对比证据)
+  - [§2.5 体验与已吸纳守门](#25-体验与已吸纳守门)
 - [§3 业务流程](#3-业务流程)
 - [§4 功能需求](#4-功能需求)
 - [§5 非功能需求](#5-非功能需求)
@@ -113,6 +116,22 @@ applyTo: .devcodex/**/requirements/**
 | 是否触发 ComparativeResearchGate | 证据范围 | 对比对象 | 采纳 / 不采纳理由 |
 |----------------------------------|----------|----------|-------------------|
 | 是 / 否 | repo-local / same-type-project / official/current-docs / N/A | | |
+
+### §2.5 体验与已吸纳守门（条件）
+
+> 涉及前端体验或跨项目已吸纳守门时必填；不触发时写 `N/A + skipReason`。
+
+| 守门项 | 是否触发 | 验收口径 / skipReason |
+|--------|:--------:|-----------------------|
+| FrontendExperienceQualityGate | 是 / 否 | 设计来源、还原度、主题、响应式、状态、用户流、反馈、输入方式、错误恢复、动效、视觉验证 |
+| CodeTruthRequirementGate | 是 / 否 | |
+| ManualReviewEvidenceRetention | 是 / 否 | |
+| DocumentationTranslationParityGuard | 是 / 否 | |
+| FormalDocsDevCodexBoundary | 是 / 否 | |
+| LLMPromptContractTriage | 是 / 否 | |
+| VerificationScopeBudgetGate | 是 / 否 | |
+| LiveVerificationExecutionObligation | 是 / 否 | |
+| AdapterBenchmarkAttribution | 是 / 否 | |
 
 ## §3 业务流程
 

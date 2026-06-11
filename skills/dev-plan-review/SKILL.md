@@ -59,6 +59,8 @@ PR-7 测试与风险（🟡 标注，不阻断）
 - PR-2 在 CP1 为 `简单够用` 或用户未要求复杂化时自行升级为 `中等` / `企业级`，但缺少用户确认、多方案取舍和维护成本说明
 - PR-2 三方 provider / connector / SDK 接入类方案未先区分业务功能接口与底层 provider adapter，缺少 provider metadata、内部 payload、上游 request 映射、标准化 result、错误 detail 字段级合同，或首个 provider 反向定义公共 contract
 - PR-2 包 / 库 / adapter / CLI 方案缺少代码实现层 + 包工程层检查，且未写 `N/A + skipReason`
+- PR-2 触发跨项目已吸纳守门但缺少 `CodeTruthRequirementGate`、`ManualReviewEvidenceRetention`、`DocumentationTranslationParityGuard`、`FormalDocsDevCodexBoundary`、`LLMPromptContractTriage`、`VerificationScopeBudgetGate`、`LiveVerificationExecutionObligation` 或 `AdapterBenchmarkAttribution` 的判定与证据
+- PR-2 前端页面、组件、控制台、官网、文档站、可视化工具或游戏任务缺少 `FrontendExperienceQualityGate` 判定，或命中后未覆盖设计来源、UI 还原度、风格主题、响应式状态、用户流、交互反馈、输入方式/可访问性、错误恢复、动效转场和视觉验证
 - PR-2 触发依赖/框架/SDK/平台 API 引入或升级，但缺少 `OfficialDocsEvidence`
 - PR-2 依赖升级 / 兼容任务未拆分 `业务源码平滑性` 与 `依赖层落地条件`
 - PR-3 违反安全底线（C01/C03）或项目架构约束
@@ -112,6 +114,8 @@ PR-7 测试与风险（🟡 标注，不阻断）
 | 数据补齐/迁移脚本是否完成 DataMutationPlan？ | 范围来自显式清单、需求目录数据源或稳定业务键；跨环境写入使用目标环境唯一匹配，dry-run 输出 `source_id`、`target_id`、缺失/重复清单 |
 | 可吸纳建议与完整首版边界是否有明确决策？ | `AbsorptionDecision` 已进入当前确认清单、设计占位、backlog 或明确拒收；`FullV1ScopeGuard` 未把有真实消费者/发布契约的 v1 自动降级为 MVP |
 | 启动性能或日志治理是否完成 StartupPhaseTrace？ | 启动日志先按阶段归类，并与 Profile / startup summary 使用同一阶段命名；未仅通过隐藏扁平日志宣告优化 |
+| 跨项目已吸纳守门是否完成条件判定？ | `CrossProjectLearnedGuards` 已判定；`CodeTruthRequirementGate`、`ManualReviewEvidenceRetention`、`DocumentationTranslationParityGuard`、`FormalDocsDevCodexBoundary`、`LLMPromptContractTriage`、`VerificationScopeBudgetGate`、`LiveVerificationExecutionObligation`、`AdapterBenchmarkAttribution` 已按触发条件填写证据；未触发时有 `N/A + skipReason` |
+| 前端 UI / 交互体验是否完成质量门禁？ | `FrontendExperienceQualityGate` 已判定；命中时覆盖 `FrontendDesignSourceGate`、`UIFidelityGate`、`StyleThemeConsistencyGate`、`ResponsiveStateCoverageGate`、`VisualVerificationGate`、`InteractionFlowGate`、`InteractionFeedbackGate`、`InputModalityAccessibilityGate`、`ErrorPreventionRecoveryGate`、`MotionTransitionUsabilityGate` |
 
 ### PR-3 约束合规性
 
@@ -161,6 +165,8 @@ PR-7 测试与风险（🟡 标注，不阻断）
 | 技术方案 §7 测试策略是否明确覆盖目标和工具？ | 关键路径有对应测试类型 |
 | 技术方案 §7.1 需求验收映射是否完整？ | CP1 验收项逐项映射到设计点、TestRoute/测试类型、CP3任务锚点和通过标准 |
 | 是否有针对性的负向测试场景（异常/边界/失败路径）？ | 至少覆盖主要错误场景 |
+| TestRoute 是否体现验证范围预算与真实执行义务？ | `VerificationScopeBudgetGate` 匹配风险强度，`LiveVerificationExecutionObligation` 对“已验证/可运行/已发布”等声明有实际命令或等价证据 |
+| 前端体验验证是否纳入 TestRoute？ | 命中 `FrontendExperienceQualityGate` 时包含 Browser/截图/Playwright/E2E/人工复核等项目等价证据；未触发时有 `N/A + skipReason` |
 | 技术方案 §9 风险是否已识别关键风险？ | 至少列出 1 条技术风险 |
 | 每条风险是否有对应缓解措施？ | 无"待定"缓解措施 |
 

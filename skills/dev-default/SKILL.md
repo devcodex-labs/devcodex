@@ -35,11 +35,13 @@ dev 工作流未匹配其他子类型时的默认路径，适用于：新功能�
 
 **必要注释守门（F-28）**：非显然业务规则、状态转换、不变量、兼容约束、安全边界、外部契约映射或反直觉权衡必须保留短注释；JavaScript / Node.js 中命中必要注释的导出函数、核心业务函数、类、复杂对象契约、参数/返回/异常说明必须使用标准 JSDoc；禁止逐行解释、重复代码含义、临时 TODO 或调试注释。
 
-**通用工程吸纳守门（F-29）**：CP1 起前置平台工程判断，先确认消费者范围、共享契约边界、模块职责、维护成本与非目标；provider / connector / SDK 接入须落字段级合同；包 / 库 / adapter / CLI 须检查代码实现层与包工程层；依赖升级须拆分业务源码平滑性与依赖层落地条件；内部共享库根因优先评估“修共享库 + 消费项目升级”；简单业务 service 不重复 route/model/schema 已承担的校验与归一化。新增字段/配置/本地化容器/状态枚举须做 `ExistingDomainContractAudit`；业务策略常量须做 `ConfigOwnershipMatrix`；接口文档变更须做 `ApiDocVerificationSync`；数据补齐/迁移脚本须做 `DataMutationPlan`；值得吸纳建议须做 `AbsorptionDecision`；完整首版须做 `FullV1ScopeGuard`；启动优化须做 `StartupPhaseTrace`。
+**通用工程吸纳守门（F-29）**：CP1 起前置平台工程判断，先确认消费者范围、共享契约边界、模块职责、维护成本与非目标；provider / connector / SDK 接入须落字段级合同；包 / 库 / adapter / CLI 须检查代码实现层与包工程层；依赖升级须拆分业务源码平滑性与依赖层落地条件；内部共享库根因优先评估“修共享库 + 消费项目升级”；简单业务 service 不重复 route/model/schema 已承担的校验与归一化。新增字段/配置/本地化容器/状态枚举须做 `ExistingDomainContractAudit`；业务策略常量须做 `ConfigOwnershipMatrix`；接口文档变更须做 `ApiDocVerificationSync`；数据补齐/迁移脚本须做 `DataMutationPlan`；值得吸纳建议须做 `AbsorptionDecision`；完整首版须做 `FullV1ScopeGuard`；启动优化须做 `StartupPhaseTrace`；跨项目已吸纳守门须按条件判定 `CodeTruthRequirementGate`、`ManualReviewEvidenceRetention`、`DocumentationTranslationParityGuard`、`FormalDocsDevCodexBoundary`、`LLMPromptContractTriage`、`VerificationScopeBudgetGate`、`LiveVerificationExecutionObligation` 与 `AdapterBenchmarkAttribution`。
 
 **验证卫生与串行边界（F-30） / 验证卫生与并发边界**：按 `ConcurrencyPolicy` 执行：只读准备和隔离验证可在不共享输出目录时并行；release / pack / benchmark / codegen / package boundary 检查不得与会删除、重建或写入 `dist` 的命令并行；消费者验证异常时先核对 package.json / lockfile / node_modules / `npm ls <关键依赖>`；完成前检查并清理本轮或旧验证遗留的无关 dirty 文件。
 
 **技术路线对比门禁（F-31）**：技术路线、架构优化、性能优化、框架能力设计或高维护成本方案，在 CP1 最终需求确认前执行 `TechnicalRouteComparativeGate`；若存在同类产品 / 项目 / 框架 / 本仓库相似模块可比，必须记录 `ComparativeResearchGate` 证据范围和采纳/不采纳理由；不触发时写 `N/A + skipReason`。
+
+**前端体验质量门禁（F-32）**：前端页面、组件、控制台、官网、文档站、可视化工具或游戏任务必须执行 `FrontendExperienceQualityGate` 条件判定；命中时把设计来源、UI 还原度、风格主题、响应式状态、用户流、交互反馈、输入方式/可访问性、错误恢复、动效转场和视觉验证纳入 CP2/CP3/TestRoute/ECR，未触发时写 `N/A + skipReason`。
 
 **错误处理验证（F-21）**：实施完成后须验证边界/异常路径（如空值/权限拒绝/超时）均有处理，不得只验证正常路径。
 

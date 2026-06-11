@@ -312,7 +312,29 @@ const probes = [
   ['website/docs/versions/v1/1.0.1/requirements/index.md', 'leak-risk-stability-pressure'],
   ['website/docs/versions/v1/1.0.1/requirements/p1/leak-risk-stability-pressure/index.md', 'LeakRiskStabilityPressureTest'],
   ['website/rspress.config.ts', '泄漏风险稳定性压测'],
-  ['scripts/lib/validate-governance-tail.js', 'checkV60']
+  ['scripts/lib/validate-governance-tail.js', 'checkV60'],
+  ['instructions.md', 'FrontendExperienceQualityGate'],
+  ['instructions.md', 'CrossProjectLearnedGuards'],
+  ['instructions/10-dev.instructions.md', 'ManualReviewEvidenceRetention'],
+  ['instructions/11-fix.instructions.md', 'AdapterBenchmarkAttribution'],
+  ['instructions/12-audit.instructions.md', 'LLMPromptContractTriage'],
+  ['skills/test-router/SKILL.md', 'frontendExperience'],
+  ['skills/test-router/SKILL.md', 'verificationScopeBudget'],
+  ['skills/dev-testing/SKILL.md', 'LiveVerificationExecutionObligation'],
+  ['skills/dev-docs/SKILL.md', 'DocumentationTranslationParityGuard'],
+  ['skills/audit-project/SKILL.md', 'CrossProjectLearnedGuards'],
+  ['skills/audit-requirements/SKILL.md', 'CodeTruthRequirementGate'],
+  ['prompts/requirement.prompt.md', 'FrontendExperienceQualityGate'],
+  ['prompts/technical-design.prompt.md', 'manualReviewEvidence'],
+  ['prompts/implementation-plan.prompt.md', 'CrossProjectLearnedGuards'],
+  ['prompts/report-dev.prompt.md', 'FrontendExperienceQualityGate'],
+  ['prompts/report-audit.prompt.md', 'CrossProjectLearnedGuards'],
+  ['README.md', 'FrontendExperienceQualityGate'],
+  ['website/docs/guide/development.md', 'AdapterBenchmarkAttribution'],
+  ['website/docs/versions/v1/1.0.1/requirements/index.md', 'frontend-experience-quality'],
+  ['website/docs/versions/v1/1.0.1/requirements/p1/frontend-experience-quality/index.md', 'CrossProjectLearnedGuards'],
+  ['website/rspress.config.ts', '前端体验质量门禁'],
+  ['scripts/lib/validate-governance-tail.js', 'checkV61']
 ]
 
 for (const [file, needle] of probes) mustInclude(file, needle)
@@ -322,6 +344,10 @@ mustIncludeInChangelogs('PE-12')
 mustIncludeInChangelogs('资源生命周期与泄漏风险')
 mustIncludeInChangelogs('LeakRiskStabilityPressureTest')
 mustIncludeInChangelogs('泄漏风险稳定性压测')
+mustIncludeInChangelogs('FrontendExperienceQualityGate')
+mustIncludeInChangelogs('CrossProjectLearnedGuards')
+mustIncludeInChangelogs('CodeTruthRequirementGate')
+mustIncludeInChangelogs('AdapterBenchmarkAttribution')
 
 const activeRuleFiles = [
   'README.md',

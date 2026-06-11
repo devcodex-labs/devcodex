@@ -1,6 +1,6 @@
 {
   "name": "@vextjs/devcodex",
-  "version": "1.11.17",
+  "version": "1.11.18",
   "description": "DevCodex — AI-powered development workflow rules for Copilot, Claude Code and Codex",
   "main": "index.js",
   "bin": {
@@ -11,7 +11,7 @@
     "test:all": "npm test",
     "test:core": "node scripts/validate-versions.js && node scripts/validate.js",
     "test:all:with-audit": "npm run test:all && npm run test:audit",
-    "test:audit": "npm audit --omit=dev && npm --prefix website audit --omit=dev",
+    "test:audit": "npm audit --omit=dev --registry=https://registry.npmjs.org && npm --prefix website audit --omit=dev --registry=https://registry.npmjs.org",
     "test:cli-behavior": "node scripts/test-cli-behavior.js",
     "test:init": "node index.js init --dry-run",
     "test:hooks-runtime": "node scripts/test-hooks-runtime.js",

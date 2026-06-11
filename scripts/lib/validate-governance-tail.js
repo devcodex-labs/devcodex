@@ -246,6 +246,9 @@ function buildGovernanceTailChecks(ctx) {
       const value = scripts[scriptName] || ''
       if (!value.includes(needle)) err(`[V42] package.json script ${scriptName} missing "${needle}"`)
     }
+    if (!(scripts['test:audit'] || '').includes('registry=https://registry.npmjs.org')) {
+      err('[V42] package.json test:audit must pin npm audit to registry.npmjs.org so GitHub Packages publishConfig does not break publish dry-run/prepublishOnly')
+    }
 
     for (const needle of ['R3b', 'R3c', 'npm run test:audit', 'package completeness gate', '远端 CI', 'keywords', 'publishConfig', 'prepublishOnly']) {
       if (!releaseSkill.includes(needle)) err(`[V42] release-verification skill missing "${needle}"`)
@@ -1028,6 +1031,56 @@ function buildGovernanceTailChecks(ctx) {
     console.log('[V60] leak-risk stability pressure test sync checked')
   }
 
+  function checkV61() {
+    const probes = [
+      { file: 'instructions.md', needles: ['FrontendExperienceQualityGate', 'CrossProjectLearnedGuards', 'CodeTruthRequirementGate', 'ManualReviewEvidenceRetention', 'VerificationScopeBudgetGate'] },
+      { file: 'instructions/10-dev.instructions.md', needles: ['FrontendExperienceQualityGate', 'CrossProjectLearnedGuards', 'LiveVerificationExecutionObligation'] },
+      { file: 'instructions/11-fix.instructions.md', needles: ['CrossProjectLearnedGuards', 'AdapterBenchmarkAttribution'] },
+      { file: 'instructions/12-audit.instructions.md', needles: ['FrontendExperienceQualityGate', 'CrossProjectLearnedGuards', 'LLMPromptContractTriage'] },
+      { file: 'skills/dev-default/SKILL.md', needles: ['前端体验质量门禁', 'CodeTruthRequirementGate', 'ManualReviewEvidenceRetention'] },
+      { file: 'skills/dev-plan-review/SKILL.md', needles: ['FrontendExperienceQualityGate', 'CrossProjectLearnedGuards', 'VerificationScopeBudgetGate'] },
+      { file: 'skills/test-router/SKILL.md', needles: ['frontendExperience', 'manualReviewEvidence', 'verificationScopeBudget', 'DocumentationTranslationParityGuard'] },
+      { file: 'skills/dev-testing/SKILL.md', needles: ['VerificationScopeBudgetGate', 'LiveVerificationExecutionObligation', 'ManualReviewEvidenceRetention'] },
+      { file: 'skills/dev-docs/SKILL.md', needles: ['DocumentationTranslationParityGuard', 'FormalDocsDevCodexBoundary', 'CodeTruthRequirementGate'] },
+      { file: 'skills/document-sync/SKILL.md', needles: ['FrontendExperienceQualityGate', 'CrossProjectLearnedGuards', 'FormalDocsDevCodexBoundary'] },
+      { file: 'skills/dev-optimization/SKILL.md', needles: ['AdapterBenchmarkAttribution', '归因边界'] },
+      { file: 'skills/audit-project/SKILL.md', needles: ['FrontendExperienceQualityGate', 'CrossProjectLearnedGuards', 'AdapterBenchmarkAttribution'] },
+      { file: 'skills/audit-requirements/SKILL.md', needles: ['FrontendExperienceQualityGate', 'CrossProjectLearnedGuards', 'LiveVerificationExecutionObligation'] },
+      { file: 'skills/audit-document/SKILL.md', needles: ['DocumentationTranslationParityGuard', 'FormalDocsDevCodexBoundary', 'LiveVerificationExecutionObligation'] },
+      { file: 'skills/audit-readme/SKILL.md', needles: ['CodeTruthRequirementGate', 'DocumentationTranslationParityGuard', 'FormalDocsDevCodexBoundary'] },
+      { file: 'prompts/requirement.prompt.md', needles: ['FrontendExperienceQualityGate', 'CrossProjectLearnedGuards', 'AdapterBenchmarkAttribution'] },
+      { file: 'prompts/technical-design.prompt.md', needles: ['frontendExperience', 'manualReviewEvidence', 'verificationScopeBudget', 'AdapterBenchmarkAttribution'] },
+      { file: 'prompts/implementation-plan.prompt.md', needles: ['FrontendExperienceQualityGate', 'CrossProjectLearnedGuards', 'LiveVerificationExecutionObligation'] },
+      { file: 'prompts/report-dev.prompt.md', needles: ['FrontendExperienceQualityGate', 'CrossProjectLearnedGuards', 'VerificationScopeBudgetGate'] },
+      { file: 'prompts/report-fix.prompt.md', needles: ['FrontendExperienceQualityGate', 'CrossProjectLearnedGuards', 'LiveVerificationExecutionObligation'] },
+      { file: 'prompts/report-audit.prompt.md', needles: ['FrontendExperienceQualityGate', 'CrossProjectLearnedGuards', 'ManualReviewEvidenceRetention'] },
+      { file: 'prompts/report-scenario-test.prompt.md', needles: ['FrontendExperienceQualityGate', 'CrossProjectLearnedGuards', 'AdapterBenchmarkAttribution'] },
+      { file: 'README.md', needles: ['FrontendExperienceQualityGate', 'CodeTruthRequirementGate', 'AdapterBenchmarkAttribution'] },
+      { file: 'website/docs/guide/development.md', needles: ['FrontendExperienceQualityGate', 'CrossProjectLearnedGuards', 'AdapterBenchmarkAttribution'] },
+      { file: 'website/docs/versions/v1/1.0.1/requirements/index.md', needles: ['frontend-experience-quality', '前端体验质量门禁'] },
+      { file: 'website/docs/versions/v1/1.0.1/requirements/p1/frontend-experience-quality/index.md', needles: ['FrontendExperienceQualityGate', 'CrossProjectLearnedGuards', 'ManualReviewEvidenceRetention'] },
+      { file: 'website/rspress.config.ts', needles: ['frontend-experience-quality', '前端体验质量门禁'] },
+      { file: 'scripts/test-spec-governance.js', needles: ['checkV61', 'FrontendExperienceQualityGate', 'CrossProjectLearnedGuards'] }
+    ]
+
+    for (const probe of probes) {
+      const content = read(path.join(ROOT, probe.file))
+      for (const needle of probe.needles) {
+        if (!content.includes(needle)) {
+          err(`[V61] frontend experience / learned guards sync drift in ${probe.file}: missing "${needle}"`)
+        }
+      }
+    }
+
+    for (const needle of ['FrontendExperienceQualityGate', 'CrossProjectLearnedGuards', 'CodeTruthRequirementGate', 'AdapterBenchmarkAttribution']) {
+      if (!hasChangelogEvidence(needle)) {
+        err(`[V61] frontend experience / learned guards changelog drift: missing "${needle}" in changelogs/unreleased.md or changelogs/releases/*.md`)
+      }
+    }
+
+    console.log('[V61] frontend experience / learned guards sync checked')
+  }
+
   return {
     checkV39,
     checkV40,
@@ -1050,7 +1103,8 @@ function buildGovernanceTailChecks(ctx) {
     checkV57,
     checkV58,
     checkV59,
-    checkV60
+    checkV60,
+    checkV61
   }
 }
 

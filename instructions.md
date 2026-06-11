@@ -272,6 +272,26 @@ dev/fix 修改完成前必须判定是否影响 Profile。命中以下任一触�
 - 纯计算函数、静态文档、一次性脚本、无状态转换且无长生命周期资源的变更可写 `N/A + skipReason`；不得为了形式满足而引入新压测依赖或扩大低风险测试范围。
 - 若泄漏稳定性压测需要 AI 启动服务、压测 target 或监控脚本，必须同时执行 `ServiceLifecycleCleanup`。
 
+### FrontendExperienceQualityGate（前端 UI / 交互体验质量门禁）
+
+- 涉及前端页面、组件、控制台、官网、文档站、可视化工具、游戏或其他用户可见 UI / 交互时，CP1/CP2/TestRoute 必须按项目现实判定是否触发 `FrontendExperienceQualityGate`；该规则是条件门禁，不适用于纯后端、纯 CLI、纯文档或无界面任务，未触发时写 `N/A + skipReason`。
+- UI 视觉组：`FrontendDesignSourceGate` 要求确认设计来源（设计稿/截图/Figma/既有页面/设计系统/品牌主题/领域推导）；`UIFidelityGate` 要求有参考时尽量还原布局、间距、层级、字体、颜色、状态、图标和关键资产，偏离必须说明；`StyleThemeConsistencyGate` 要求沿用项目既有设计系统、主题 token、颜色语义、组件库和图标体系；`ResponsiveStateCoverageGate` 要求覆盖桌面/移动、关键断点、主题模式、loading/empty/error/disabled/hover/focus 等状态；`VisualVerificationGate` 要求 UI 变更后用 Browser/Playwright/截图或项目等价方式留证，无法运行时记录阻塞与降级证据。
+- UX 交互组：`InteractionFlowGate` 要求识别核心用户流、入口/出口、主次行动、导航、返回、取消、撤销和任务完成路径；`InteractionFeedbackGate` 要求关键控件、异步行为和结果状态具备即时、可感知且不过度打扰的反馈；`InputModalityAccessibilityGate` 要求关键交互按场景覆盖键盘、鼠标、触摸、焦点可见、目标尺寸、拖拽/手势替代；`ErrorPreventionRecoveryGate` 要求高成本、破坏性或易误操作路径具备预防、确认、撤销/恢复和可理解错误提示；`MotionTransitionUsabilityGate` 要求动效和转场用于解释状态变化、空间关系和连续性，保持克制、稳定并尊重减弱动态设置。
+- 前端体验验证应按风险选择项目既有 lint/typecheck/test、Browser/截图、Playwright/E2E 或人工复核证据；不得为了形式满足而引入新 UI 库、设计系统、视觉 diff 平台或把所有前端任务升级为重可用性研究。
+- 若前端体验任务同时涉及组件生命周期、监听器、订阅、worker、定时器、缓存或长运行可视化状态，仍须并行执行 `LeakRiskStabilityPressureTest` 判定。
+
+### CrossProjectLearnedGuards（跨项目已吸纳守门）
+
+- 来自 `data/*.md`、复审、发布验证、同类项目实践或用户纠偏的可泛化规范被吸纳后，必须落入可执行门禁而不是只写成建议；CP1/CP2/TestRoute/审查报告需按项目现实判定触发，未触发时写 `N/A + skipReason`。
+- `CodeTruthRequirementGate`：需求、方案或报告描述“已实现 / 已接入 / 未接入 / 已支持”前，必须先核对代码真相源、消费者入口和运行证据，禁止仅凭历史报告、目录名或记忆判断。
+- `ManualReviewEvidenceRetention`：人工复核、视觉检查、手工冒烟、外部页面观察或无法自动化的验证必须保留复核人/时间/范围/输入/观察结果/截图或日志位置；不得只写“人工检查通过”。
+- `DocumentationTranslationParityGuard`：多语言文档、翻译页、README/website 同步页或中英文双入口变更时，必须核对信息等价、版本号、链接、示例、术语和当前消费者顺序；无法同步时写明历史镜像或降级理由。
+- `FormalDocsDevCodexBoundary`：正式用户文档、官网、README、规范页与 DevCodex 运行时报告/台账/临时分析必须区分边界；不得把内部流程噪声、待办台账或一次性报告口吻泄漏到正式文档，也不得把正式需求入口只写在运行时台账。
+- `LLMPromptContractTriage`：变更 prompt、Agent 指令、Hook 输出、MCP 工具描述或面向 LLM 的契约时，必须区分人读说明、模型指令、结构化输出字段和宿主能力边界；字段级契约、示例、失败降级和验证探针需同步。
+- `VerificationScopeBudgetGate`：验证路线必须与风险和变更面匹配；高风险、控制面、发布、资源生命周期或前端体验不能只跑轻量检查，低风险纯文档/纯计算也不得为形式引入重压测、E2E 或外部依赖。
+- `LiveVerificationExecutionObligation`：声明“已验证 / 可运行 / 可点击 / 已发布 / 已安装”前必须真实执行对应命令、页面、接口、pack/install、registry/tag 查询或项目等价验证；无法执行时只能写阻塞/降级证据，不能用预期代替结果。
+- `AdapterBenchmarkAttribution`：adapter、provider、connector、SDK 或性能优化 benchmark 必须写清基线、环境、版本、负载、归因边界和不可比较因素；不得把框架、网络、缓存预热、依赖树或测试环境差异误归因给业务代码。
+
 ### 台账落点与关闭证据
 
 - `data/*.md` 是运行时逻辑台账路径，实际写入必须按当前 active-root 映射：旧布局写 `<项目根>/.devcodex/data/`，workspace-namespace 单项目写 `<工作区根>/.devcodex/<project>/data/`，全工作区写 `<工作区根>/.devcodex/workspace/data/`。

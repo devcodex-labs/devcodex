@@ -63,8 +63,22 @@ description: 项目工程审查维度 PE-1~PE-12 — 代码质量/项目结构/�
 - 异常分支、早返回、重试失败、超时、取消和测试 teardown 场景必须同样释放资源；不能只检查 happy path
 - 若项目语言或框架提供专用工具（heap snapshot、profiler、leak detector、lint rule、test teardown hook 等），审查报告应说明是否执行或标注 `N/A + skipReason`
 
+**FrontendExperienceQualityGate 前端 UI / 交互体验质量（条件）**
+- 涉及前端页面、组件、控制台、官网、文档站、可视化工具或游戏时，必须检查 UI 视觉组：`FrontendDesignSourceGate`、`UIFidelityGate`、`StyleThemeConsistencyGate`、`ResponsiveStateCoverageGate`、`VisualVerificationGate`
+- 必须检查 UX 交互组：`InteractionFlowGate`、`InteractionFeedbackGate`、`InputModalityAccessibilityGate`、`ErrorPreventionRecoveryGate`、`MotionTransitionUsabilityGate`
+- 审查报告应核对 Browser/截图/Playwright/E2E 或项目等价视觉/交互证据；无法运行时需记录阻塞和降级证据
+- 无用户可见 UI / 交互的工程审查可标 `N/A + skipReason`
+
+**CrossProjectLearnedGuards 跨项目已吸纳守门（条件）**
+- 审查需求、方案、报告或工程实现中“已实现 / 已接入 / 未接入 / 已验证”声明时，检查 `CodeTruthRequirementGate` 与 `LiveVerificationExecutionObligation` 是否有代码真相源和真实执行证据
+- 人工复核、视觉检查、手工冒烟或外部页面观察需有 `ManualReviewEvidenceRetention`，包含范围、输入、观察结果、截图/日志或等价证据
+- adapter、provider、connector、SDK、benchmark 或性能优化需检查 `AdapterBenchmarkAttribution`，确认基线、环境、版本、负载和归因边界清晰
+- 验证路线需检查 `VerificationScopeBudgetGate`：高风险不低配验证，低风险不为形式扩大压测/E2E/外部依赖
+
 ## N/A 规则
 
 - 纯前端项目无 DB：PE-11 标 N/A
 - 纯库项目无日志需求：PE-9 标 N/A
 - 无长生命周期资源、订阅、连接、定时器、缓存或 UI 生命周期的纯静态内容变更：PE-12 可标 `N/A + skipReason`
+- 无用户可见 UI、交互流或视觉呈现的后端 / CLI / 文档变更：`FrontendExperienceQualityGate` 可标 `N/A + skipReason`
+- 未触发跨项目已吸纳守门时，`CrossProjectLearnedGuards` 可标 `N/A + skipReason`

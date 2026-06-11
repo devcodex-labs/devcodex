@@ -40,6 +40,11 @@ README / 用户使用文档场景在本 Skill 基础上，还应叠加 `audit-re
 - 同一概念在文档内用统一术语（不混用别名）
 - 术语与项目 profile 定义一致
 
+**DocumentationTranslationParityGuard / FormalDocsDevCodexBoundary（条件）**
+- 多语言文档、翻译页、README/website 双入口变更必须核对信息等价、版本号、链接、示例、术语和导航/索引顺序
+- 正式用户文档、官网、README 或规范页不得混入运行时报告、台账、临时分析、内部待办或一次性复盘口吻
+- 若文档被声明“已验证 / 可运行 / 可点击”，审查需核对 `LiveVerificationExecutionObligation` 的实际命令、页面、链接或等价证据
+
 ## README 叠加规则
 
 当目标是 README 或主用户使用文档时：
@@ -53,3 +58,4 @@ README / 用户使用文档场景在本 Skill 基础上，还应叠加 `audit-re
 
 - 纯图表/示意图文件无受众概念：DA-5 标 N/A
 - 无关联代码：DA-6 标 N/A
+- 非多语言、非正式用户文档且无验证声明：上述文档边界守门可标 `N/A + skipReason`

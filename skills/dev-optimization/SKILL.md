@@ -16,6 +16,7 @@ description: 性能优化子类型规范 — 基准测试前置 + autocannon 压
 | 基准数据 | 优化前已有性能指标（QPS/P99/内存）作为对比基线 |
 | 测试环境 | 压测在隔离环境执行，不影响生产 |
 | ServiceLifecycleCleanup | 若 AI 启动压测 target、dev server、本地 API/mock、数据库代理或 SSH 隧道，必须记录 PID/job/端口并在验证完成后主动关闭 |
+| AdapterBenchmarkAttribution | adapter、provider、connector、SDK 或性能 benchmark 必须记录基线、环境、版本、负载、归因边界和不可比较因素 |
 
 ## 工具规范
 
@@ -46,3 +47,4 @@ npx autocannon-compare baseline.json optimized.json
 - 🔴 禁止无基线数据的"盲优化"
 - 优化不改变外部接口行为（否则走 dev-default 流程）
 - 启动性能优化或 dev 日志治理必须执行 `StartupPhaseTrace`：先把启动日志按阶段归类，并与 Profile / startup summary 使用同一套阶段命名，再决定减噪、lazy loading 或 background warmup；不得只隐藏扁平日志后宣告优化完成
+- adapter、provider、connector、SDK 或框架适配 benchmark 必须执行 `AdapterBenchmarkAttribution`；不得把网络、缓存预热、依赖树、框架版本、测试环境或压测工具差异误归因给业务代码

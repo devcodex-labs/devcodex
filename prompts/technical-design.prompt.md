@@ -23,6 +23,8 @@ applyTo: .devcodex/**/requirements/**
 > ⚠️ provider / connector / 三方 SDK 接入类方案必须先冻结业务功能接口，再说明底层 provider adapter / model / operation / 配置如何实现该功能；不得把内部 provider 能力直接反向暴露成业务接口。随后冻结字段级合同和统一 operation contract；包 / 库 / adapter / CLI 方案必须同时检查代码实现层与包工程层。
 > ⚠️ CP2 必须承接 CP1 的平台工程判断和 `ImplementationComplexityLevel`（兼容旧字段 `ImplementationComplexityPreference`）：消费者范围、共享契约边界、模块职责、可维护性成本、非目标和最小实现预算要互相一致；没有真实复用者或演进边界时，不得新增 factory / manager / adapter / registry 等预设抽象。
 > ⚠️ package boundary / pack / benchmark / codegen 验证必须写清串行顺序；任何会删除、重建或写入 `dist` 的命令不得和包边界检查并行。
+> ⚠️ 前端页面、组件、控制台、官网、文档站、可视化工具、游戏或用户可见 UI / 交互方案必须填写 `FrontendExperienceQualityGate`：设计来源、UI 还原度、风格主题、响应式状态、视觉验证、用户流、交互反馈、输入方式/可访问性、错误恢复和动效转场；不触发时写 `N/A + skipReason`。
+> ⚠️ 接入状态、人工复核、翻译/正式文档边界、prompt/Hook/MCP 契约、验证范围、真实执行或 benchmark 归因必须填写 `CrossProjectLearnedGuards`：`CodeTruthRequirementGate`、`ManualReviewEvidenceRetention`、`DocumentationTranslationParityGuard`、`FormalDocsDevCodexBoundary`、`LLMPromptContractTriage`、`VerificationScopeBudgetGate`、`LiveVerificationExecutionObligation`、`AdapterBenchmarkAttribution`；未触发项写 `N/A + skipReason`。
 
 | 顺序 | 章节 | 必选 | 依赖 | 说明 |
 |:----:|------|:----:|------|------|
@@ -259,15 +261,23 @@ applyTo: .devcodex/**/requirements/**
 
 -
 
-#### AbsorptionDecision / FullV1ScopeGuard / StartupPhaseTrace（条件）
+#### CrossProjectLearnedGuards / AbsorptionDecision / FullV1ScopeGuard / StartupPhaseTrace（条件）
 
-> 调研、审查、复审或方案讨论中出现“值得吸纳”的建议，必须给出吸纳决策；用户表达“第一版 / v1 / 完整首版”且存在真实消费者、发布契约或主功能验收时，必须给出完整首版边界判断；启动性能优化或 dev 日志治理必须先给出阶段化日志追踪。
+> 调研、审查、复审或方案讨论中出现“值得吸纳”的建议，必须给出吸纳决策；用户表达“第一版 / v1 / 完整首版”且存在真实消费者、发布契约或主功能验收时，必须给出完整首版边界判断；启动性能优化或 dev 日志治理必须先给出阶段化日志追踪。涉及接入状态、人工复核、翻译/正式文档边界、prompt/Hook/MCP 契约、验证范围、真实执行或 benchmark 归因时，逐项填写跨项目已吸纳守门；未触发项写 `N/A + skipReason`。
 
 | 项 | 当前吸纳 / 设计占位 / backlog / 拒收 | 理由 | 后续真相源 |
 |----|--------------------------------------|------|------------|
 | AbsorptionDecision | | | |
 | FullV1ScopeGuard | | | |
 | StartupPhaseTrace | 阶段命名 / Profile 或 startup summary 同步 / 减噪、lazy loading 或 background warmup 决策 | | |
+| CodeTruthRequirementGate | 代码真相源 / 消费者入口 / 运行证据 | | |
+| ManualReviewEvidenceRetention | 复核人 / 时间 / 范围 / 输入 / 观察结果 / 截图或日志位置 | | |
+| DocumentationTranslationParityGuard | 多语言 / 翻译页 / README/website 等价与顺序核对 | | |
+| FormalDocsDevCodexBoundary | 正式文档与运行时报告 / 台账 / 临时分析边界 | | |
+| LLMPromptContractTriage | 人读说明 / 模型指令 / 结构化字段 / 宿主能力边界 | | |
+| VerificationScopeBudgetGate | 风险等级 / 验证强度 / 降级或减负理由 | | |
+| LiveVerificationExecutionObligation | 已执行命令 / 页面 / 接口 / pack-install / registry-tag 查询或阻塞证据 | | |
+| AdapterBenchmarkAttribution | 基线 / 环境 / 版本 / 负载 / 归因边界 / 不可比较因素 | | |
 
 ### §2.7 最小实现与注释策略
 
@@ -353,6 +363,9 @@ applyTo: .devcodex/**/requirements/**
 | evidenceSource | validate / targeted test / fixture / direct replay / doc-only |
 | serviceLifecycle | N/A / startedByAI / userProvided；若 `startedByAI`，写 command/cwd/PID/job/port/url 与 cleanupEvidence；若保留运行，写 keepAliveReason |
 | leakRiskPressure | N/A / required / optional；命中长运行、并发、缓存/连接/监听器/定时器/流/socket/worker/订阅/组件生命周期或 PE-12 风险时必填触发依据、指标、场景、冷却窗口和通过标准 |
+| frontendExperience | N/A / required / optional；命中 `FrontendExperienceQualityGate` 时写 UI/UX 门禁、Browser/截图/Playwright/E2E/人工复核证据 |
+| manualReviewEvidence | N/A / required / optional；命中 `ManualReviewEvidenceRetention` 时写复核人/时间/范围/输入/观察结果/截图或日志位置 |
+| verificationScopeBudget | N/A / aligned / under-scoped / over-scoped；写风险匹配依据、降级/减负理由和残余风险 |
 | blockingLevel | 阻断 / 警告 / N/A |
 | skipReason | 未选择某验证路线时填写 |
 
@@ -363,6 +376,8 @@ applyTo: .devcodex/**/requirements/**
 | 集成测试 | | |
 | 回归 | | |
 | 泄漏风险稳定性压测 | 项目既有压测/监控/测试脚本；可选 artillery/k6/autocannon/轻量采样脚本 | 仅在 `LeakRiskStabilityPressureTest` 命中时执行，验证 heap/RSS/active handles/监听器/连接数/缓存规模等指标前后对比和冷却后回落 |
+| 前端 UI / 交互体验 | Browser/截图、Playwright/E2E、人工复核或项目等价工具 | 仅在 `FrontendExperienceQualityGate` 命中时执行，验证设计来源、还原度、主题、响应式状态、用户流、反馈、输入方式、错误恢复和动效转场 |
+| 手工 / 现场复核 | 复核记录、截图、日志、页面观察或等价证据 | 仅在 `ManualReviewEvidenceRetention` 命中时执行，保留范围、输入和观察结果 |
 | 包边界验证 | 构建完成后单独执行 `npm pack --dry-run` / package boundary check | 不与 build/benchmark/codegen 并行，files/exports/bin/dist 边界来自稳定包清单 |
 
 ### §7.1 需求验收映射

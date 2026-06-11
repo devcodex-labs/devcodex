@@ -53,6 +53,8 @@ description: 文档开发子类型规范 — 技术文档/API文档/README 编�
 | 版本同步 | 文档中的 API/配置项与代码实现一致 |
 | 链接有效 | 内部/外部链接均可访问 |
 | 导航可读 | 所有 Markdown 文档必须包含 `## 目录导航` |
+| 翻译等价 | 多语言文档、翻译页或中英文双入口变更时执行 `DocumentationTranslationParityGuard`，核对信息等价、版本号、链接、示例、术语和当前消费者顺序 |
+| 正式边界 | README、官网、正式规范页或用户文档执行 `FormalDocsDevCodexBoundary`，不得混入运行时报告、台账口吻、一次性分析或内部待办 |
 
 ## API 文档规范
 
@@ -95,6 +97,13 @@ description: 文档开发子类型规范 — 技术文档/API文档/README 编�
 - 迁移指南
 - 治理说明
 - 运行手册
+
+## 文档同步守门
+
+- `CodeTruthRequirementGate`：写“已支持 / 已接入 / 未接入 / 已实现”前先核对代码真相源、命令输出或当前消费者。
+- `DocumentationTranslationParityGuard`：同步多语言、翻译页、README 与 website 入口时，必须核对语义等价和导航/索引顺序。
+- `FormalDocsDevCodexBoundary`：正式用户文档只呈现稳定使用信息；运行时台账、审查报告、临时分析和内部治理噪声保留在 `.devcodex/**`。
+- `ManualReviewEvidenceRetention`：人工文档复核或链接/视觉抽查要留范围、输入和证据；不得只写“已人工检查”。
 
 ## 产出物
 

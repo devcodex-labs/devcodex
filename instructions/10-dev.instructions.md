@@ -2,7 +2,7 @@
 applyTo: "**"
 description: dev 工作流规则，覆盖子类型路由、CP 流程、计划复审、执行期回退与 ECR
 priority: P4
-version: 1.11.17
+version: 1.11.18
 ---
 # 开发工作流规则（10-dev）
 
@@ -81,6 +81,7 @@ CP1（需求确认）→ PR-1 内部自检 → CP2（方案确认）→ plan-rev
 16. **连接配置来源按用户 / 项目策略**：凡 CP2/CP3 涉及脚本、测试、数据库 / SSH / MongoDB / 数据操作连接信息，默认可直写或沿用项目既有模式；只有用户或项目明确指定 `config.local.json`、env、`secretRef` 或 secret manager 时，方案才按该入口读取并在缺失时提醒补齐。
 17. **AI 自启动服务清理**：若开发验证需要由 AI 启动 dev server、文档站、本地 API/mock、数据库代理、SSH 隧道、Playwright/Cypress server 或压测 target，CP3/TestRoute 必须记录启动命令、cwd、PID/job、端口/URL；验证完成、失败或最终回复前必须停止仅由 AI 本轮启动的服务并核验端口释放。用户明确要求保留服务时，报告保留原因、PID/端口和关闭方式；不得杀用户既有进程。
 18. **LeakRiskStabilityPressureTest**：写测试用例或规划回归验证时，CP2/CP3/TestRoute 必须按项目情况判定是否需要泄漏风险稳定性压测；涉及长运行服务、高并发路径、缓存/队列/连接池、监听器/定时器、连接/文件/流/socket/worker、订阅、前端组件生命周期或 `PE-12` 发现时，必须纳入场景/负载/稳定性验证；未触发时写 `N/A + skipReason`。
+19. **FrontendExperienceQualityGate**：前端页面、组件、控制台、官网、文档站、可视化工具或游戏任务，CP1/CP2/TestRoute 必须判定 UI / 交互体验门禁；命中时覆盖设计来源、还原度、风格主题、响应式状态、视觉验证、用户流、交互反馈、输入方式/可访问性、错误恢复和动效转场；纯后端、纯 CLI、纯文档或无界面任务写 `N/A + skipReason`。
 
 ### SimpleTaskFastPath（简单任务轻路径）
 
@@ -178,6 +179,8 @@ CP1（需求确认）→ PR-1 内部自检 → CP2（方案确认）→ plan-rev
 - **ConfigOwnershipMatrix**：新增或修改业务策略常量、provider 选项、阈值、开关或运行参数时，CP2 必须逐项标明落点属于 `DB feature config` / `provider runtime` / `服务运行配置` / `代码契约`；可由运营或业务调整的策略不得默认硬编码为发布改代码，除非用户明确接受。
 - **DataMutationPlan**：数据补齐、迁移或跨环境写入脚本必须从已确认的显式清单、需求目录数据源或稳定业务键派生范围；宽泛查询只能用于背景排查，不能保留为写入口。跨环境写入时，source `_id` 只作审计字段，目标环境必须用稳定业务键或显式清单重新唯一匹配，dry-run 输出 `source_id`、`target_id`、缺失/重复清单；不能唯一匹配时阻断写库。
 - **ApiDocVerificationSync**：前端接口文档、轻量 API 文档、字段映射、错误码或状态枚举新增/调整时，必须同步检查归档级 `.http` / `.cjs` 是否需要更新；若不更新，CP2/报告写明 `N/A + skipReason`。异步、队列或数据库落库型接口验证不得只断言 HTTP 状态码，还应按 TestRoute 查询持久化真相源并验证最终消费者响应字段。
+- **FrontendExperienceQualityGate**：前端页面、组件、控制台、官网、文档站、可视化工具或游戏任务必须做条件判定；命中后按 UI 视觉组 `FrontendDesignSourceGate` / `UIFidelityGate` / `StyleThemeConsistencyGate` / `ResponsiveStateCoverageGate` / `VisualVerificationGate` 与 UX 交互组 `InteractionFlowGate` / `InteractionFeedbackGate` / `InputModalityAccessibilityGate` / `ErrorPreventionRecoveryGate` / `MotionTransitionUsabilityGate` 规划设计、实现和验证；不触发时写 `N/A + skipReason`，不得引入未确认的新 UI 库、设计系统或视觉 diff 平台。
+- **CrossProjectLearnedGuards**：跨项目 data、复审和发布验证中已吸纳的泛化经验必须条件判定并落证据：`CodeTruthRequirementGate`（先核代码真相源再写接入状态）、`ManualReviewEvidenceRetention`（手工/视觉复核留范围与证据）、`DocumentationTranslationParityGuard`（多语言/多入口文档等价）、`FormalDocsDevCodexBoundary`（正式文档与运行时台账/报告边界）、`LLMPromptContractTriage`（prompt/Agent/Hook/MCP 契约分层）、`VerificationScopeBudgetGate`（验证强度匹配风险）、`LiveVerificationExecutionObligation`（声明已验证前必须真实执行）、`AdapterBenchmarkAttribution`（adapter/provider/benchmark 归因清晰）。未触发项写 `N/A + skipReason`。
 - **Service 职责边界**：简单业务 service 默认只做业务编排、外部能力调用和必要上游错误映射；不得重复 route validate、model/schema、数据导入或框架已承担的校验、归一化、配置兜底和二次治理。
 - **README 使用者表达**：README / 使用文档涉及性能表、语法/能力矩阵或模式优先级时，先给用户选择结论，再解释字段；同时写清支持形式、不支持形式和优先级示例，避免内部术语抢占主叙事。
 - **AbsorptionDecision**：调研、审查、复审或方案讨论中被判断“值得吸纳”的建议，必须进入当前确认清单、设计占位或显式 backlog；若不纳入当前范围，必须明确拒收或延后原因，禁止只写“二期 / 以后再说”而无台账或设计占位。

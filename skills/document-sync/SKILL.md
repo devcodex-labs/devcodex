@@ -96,6 +96,9 @@ description: 文档同步规范 — 代码变更后同步必查与条件文档
 - 正式需求入口是否仍指向 `website/docs/versions/v1/<active-version>/requirements/`
 - 支撑型 Skill（`execution-contract` / `test-router` / `release-verification` / `host-contract-verification` / `source-consumer-sync`）以及发布前审查 Skill（`audit-release`）的注册、触发说明、报告模板、validate 探针和用户文档是否一致
 - `readme-authoring` / `audit-readme` 的注册、README prompt、README / Profile / website 当前消费者、validate 与 targeted tests 是否一致
+- 前端 UI / 交互体验规范是否同步到 `FrontendExperienceQualityGate`、TestRoute、报告模板、README/website 与 validate；视觉或交互证据不得只停留在口头说明
+- `CrossProjectLearnedGuards` 跨项目已吸纳守门是否同步到当前消费者：`CodeTruthRequirementGate`、`ManualReviewEvidenceRetention`、`DocumentationTranslationParityGuard`、`FormalDocsDevCodexBoundary`、`LLMPromptContractTriage`、`VerificationScopeBudgetGate`、`LiveVerificationExecutionObligation`、`AdapterBenchmarkAttribution`
+- 多语言、翻译页或正式用户文档变更是否执行 `DocumentationTranslationParityGuard` 与 `FormalDocsDevCodexBoundary`，避免 README/website/Profile/changelog 之间语义漂移或把运行时台账口吻混进正式文档
 - 控制面任务是否已建立 Concept Sync Map，并把当前消费者、历史镜像、validate 探针、部署副本与黄色偏离边界说明清楚
 - 文档正文若定义阅读顺序、审查顺序、实施顺序或“先看什么”，Concept Sync Map 必须列出“正文顺序 → 导航/sidebar 顺序 → README/索引顺序”；若信息架构故意不同，报告必须解释差异而不是让用户猜
 - 宿主契约相关变更是否补了 HostContractRoute 证据，而不是只改文档叙述

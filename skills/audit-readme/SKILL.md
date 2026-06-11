@@ -48,6 +48,9 @@ description: README / 用户使用文档专项审查维度 RM-1~RM-6 — 聚焦�
 - README 与 `package.json`、CLI、website、examples、Profile、changelog 是否一致
 - 版本号、命令、路径、配置项、能力声明是否同步
 - 是否出现“README 说能做，其他入口说法不同”的漂移
+- README 中“已支持 / 已接入 / 已验证 / 可运行”类声明是否有 `CodeTruthRequirementGate` 与 `LiveVerificationExecutionObligation` 证据
+- README 若存在翻译页或 website 双入口，是否执行 `DocumentationTranslationParityGuard` 并保持信息等价
+- README 是否遵守 `FormalDocsDevCodexBoundary`，没有混入运行时报告、台账、内部待办或一次性复盘口吻
 
 ## 与 audit-document 的边界
 

@@ -6,6 +6,8 @@
 
 | 日期 | 变更内容 | 影响范围 | 原因 |
 |------|---------|---------|------|
+| 2026-06-11 | 新增前端体验质量门禁与跨项目已吸纳守门 | `FrontendExperienceQualityGate`、`CrossProjectLearnedGuards`、test-router、dev/audit/report 模板、README/website、V61 探针 | 前端需求需要同步覆盖 UI 还原度、风格主题和 UX 交互；data 目录中已验证可泛化的规范需进入可执行门禁 |
+| 2026-06-11 | 新增“前端体验质量门禁”P1 需求入口 | `requirements/p1/frontend-experience-quality/` | 为 UI/UX 体验门禁、人工复核证据、验证范围预算和跨项目吸纳清单建立活动版本详情页 |
 | 2026-06-11 | 新增测试路线 `LeakRiskStabilityPressureTest` | `test-router`、`dev-testing`、`dev-scenario-test`、测试/报告模板、README/website、V60 探针 | 写测试用例或回归验证时按项目资源生命周期风险判定是否纳入泄漏风险稳定性压测，避免漏测运行时增长问题或把所有测试机械升级为压测 |
 | 2026-06-11 | 新增“泄漏风险稳定性压测”P1 需求入口 | `requirements/p1/leak-risk-stability-pressure/` | 为 `LeakRiskStabilityPressureTest` 建立活动版本详情页，补齐 requirements index 与站点 sidebar |
 | 2026-06-10 | 新增“全局默认 Auto 别名”P1 需求入口 | `requirements/p1/global-auto-alias/` | 将 `@rocky` 从项目配置示例升级为全局默认 Auto 精确别名，`autoAliases` 改为替换默认别名 |

@@ -2,7 +2,7 @@
 applyTo: "**"
 description: fix 工作流规则，覆盖子类型路由、CP 流程、修复三步扫描、执行期回退与 ECR
 priority: P4
-version: 1.11.17
+version: 1.11.18
 ---
 # 修复工作流规则（11-fix）
 
@@ -53,6 +53,8 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → 
 - **连接配置来源按用户 / 项目策略**：凡修复涉及脚本、测试、数据库 / SSH / MongoDB / 数据操作连接信息，默认可直写或沿用项目既有模式；只有用户或项目明确指定 `config.local.json`、env、`secretRef` 或 secret manager 时，修复方案才按该入口读取并在缺失时提醒补齐。
 - **AI 自启动服务清理**：若回归验证需要由 AI 启动 dev server、文档站、本地 API/mock、数据库代理、SSH 隧道、Playwright/Cypress server 或压测 target，TestRoute/报告必须记录启动命令、cwd、PID/job、端口/URL；验证完成、失败或最终回复前必须停止仅由 AI 本轮启动的服务并核验端口释放。用户明确要求保留服务时，报告保留原因、PID/端口和关闭方式；不得杀用户既有进程。
 - **LeakRiskStabilityPressureTest**：修复内存泄露、资源泄漏、稳定性、性能退化、连接/监听器/定时器/流/socket/worker/订阅/缓存增长等问题，或回归测试触及长运行和高并发路径时，TestRoute 必须纳入泄漏风险稳定性压测；未触发时写 `N/A + skipReason`。
+- **FrontendExperienceQualityGate**：修复前端页面、组件、控制台、官网、文档站、可视化工具或游戏体验问题时，必须判定 UI / 交互体验门禁；涉及视觉漂移、主题不一致、响应式/状态缺失、点击无反馈、用户流断点、焦点/目标尺寸/拖拽替代、错误恢复或动效干扰时，TestRoute 必须纳入 Browser/截图/E2E 或项目等价验证；未触发时写 `N/A + skipReason`。
+- **CrossProjectLearnedGuards**：修复涉及接入状态误判、人工复核、翻译/正式文档边界、prompt/Hook/MCP 契约、验证范围不足或过度、未真实执行验证、adapter/provider benchmark 归因时，必须分别执行 `CodeTruthRequirementGate`、`ManualReviewEvidenceRetention`、`DocumentationTranslationParityGuard`、`FormalDocsDevCodexBoundary`、`LLMPromptContractTriage`、`VerificationScopeBudgetGate`、`LiveVerificationExecutionObligation`、`AdapterBenchmarkAttribution`；未触发时写 `N/A + skipReason`。
 - **SimpleTaskFastPath**：非常明确、预计 ≤2 文件、无公共 API/Schema/依赖/配置/发布/控制面/台账来源/高风险、无需多轮跟踪的简单修复，可用内联问题确认 + 报告/记忆替代 bug 目录与完整 CP 产物；报告必须写 `SimpleTaskFastPath: applied`、`skipReason`、验证证据和升级回退判断。执行中任一条件失效时，立即升级回完整 fix CP/产物链。
 - **ExistingRequirementArtifactOverride**：当用户是在调整/修改/补充既有问题确认、bug CP 产物或需求文件时，SimpleTaskFastPath 只能跳过新建完整 bug 目录，不能跳过更新已有真相源；必须先增量编辑已有问题/需求产物，回复仅作为摘要。找不到目标产物时先按 Profile、bugs/requirements、sessions、tasks 与用户提及路径定位，仍无法确认才最小澄清。
 - **ArtifactDecisionMatrix / ArtifactLifecycleState**：CP1/CP2/[CP3]/ECR 必须按修复规模列出关键产物 `create` / `update` / `skip` / `N/A` 状态，至少覆盖问题确认、技术方案、实施计划、实施进度、报告和记忆；判定优先级为已有真相源回写 > 修复触发条件 > SimpleTaskFastPath > fix CP3 可选/豁免。若后续三步扫描或 ECR 发现范围扩大，必须更新矩阵并回到对应 CP。
@@ -126,6 +128,8 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → 
 - 消费者验证失败且症状指向依赖、插件、共享库或框架适配时，源码修改前必须先核对 `package.json`、lockfile、`node_modules` 与 `npm ls <关键依赖>`；若运行时依赖目录残留了错误版本，优先恢复依赖树，不在宿主框架里写临时兼容补丁
 - 根因位于内部共享库、中间件、SDK 或 adapter 抽象层时，优先评估“修共享库 + 消费项目升级”；若只做单项目补丁，修复方案必须说明共享库不改的理由
 - JavaScript / Node.js 修复中命中必要注释的导出函数、核心业务函数、类、复杂对象契约、参数/返回/异常说明必须使用标准 JSDoc
+- 前端 UI / 交互修复须沿用 `FrontendExperienceQualityGate`；不得只修功能断言而不验证视觉状态、交互反馈或关键用户流
+- 跨项目已吸纳守门须沿用 `CrossProjectLearnedGuards`；不得用“已验证/已接入/人工看过/benchmark 更快”等结论替代真相源、执行证据或归因边界
 - 涉及项目事实变化 → 执行 `ProfileImpactCheck` 并通过 `document-sync` 更新 Profile 或记录跳过理由
 - 涉及验证、发布、pack、benchmark、codegen 或生成产物 → 完成前必须检查并清理与本轮无关的新增/残留文件；不得把无关 dirty 文件、并行验证残留或旧失败产物留给后续任务
 

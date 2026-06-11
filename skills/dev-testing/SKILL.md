@@ -19,6 +19,9 @@ description: 测试规范 — 单元测试/集成测试/API测试/E2E测试四�
 - 本 Skill 负责定义各类测试的覆盖标准、阻断规则和失败处理，不替代 `api-verification` / `dev-scenario-test` 的专项产物。
 - 当 TestRoute 包含对外 HTTP API 归档验证时，必须继续读取 `api-verification`；当 TestRoute 包含场景/负载测试时，必须继续读取 `dev-scenario-test`。
 - 写测试用例时必须同步执行 `LeakRiskStabilityPressureTest` 条件判定：命中资源生命周期或稳定性风险时，继续读取 `dev-scenario-test` 并把泄漏风险稳定性压测纳入 TestRoute；未命中时记录 `N/A + skipReason`，不得把所有低风险单元测试机械升级为压测。
+- 前端页面、组件、控制台、官网、文档站、可视化工具或游戏测试必须同步执行 `FrontendExperienceQualityGate` 条件判定；命中时测试路线覆盖 UI 视觉和 UX 交互证据，未命中时记录 `N/A + skipReason`。
+- 测试路线必须同步执行 `VerificationScopeBudgetGate` 与 `LiveVerificationExecutionObligation`：验证强度匹配风险和变更面，声明“已验证/可运行/可点击/已安装/已发布”前必须真实执行对应命令、页面、接口、pack/install、registry/tag 查询或项目等价验证。
+- 人工复核、视觉检查、手工冒烟、外部页面观察或无法自动化验证必须执行 `ManualReviewEvidenceRetention`，记录复核人/时间/范围/输入/观察结果/截图或日志位置。
 
 ## ServiceLifecycleCleanup
 
@@ -44,6 +47,21 @@ description: 测试规范 — 单元测试/集成测试/API测试/E2E测试四�
 2. 最小证据包含：基线指标、压力/重复生命周期场景、持续时间或迭代次数、冷却窗口、前后对比、清理证据和失败阈值。
 3. 纯计算函数、静态文档、一次性脚本、无状态转换且无长生命周期资源的变更可标 `N/A + skipReason`。
 4. 若验证需要 AI 启动服务或压测 target，必须同时执行 `ServiceLifecycleCleanup`。
+
+## 前端 UI / 交互体验验证（条件）
+
+`FrontendExperienceQualityGate` 是前端体验相关任务的条件判定，不是所有测试任务的默认视觉审查。
+
+| 判定项 | 触发条件 | 验证要求 |
+|--------|----------|----------|
+| UI 视觉 | 页面、组件、主题、设计稿还原、响应式或状态变化 | 覆盖 `FrontendDesignSourceGate`、`UIFidelityGate`、`StyleThemeConsistencyGate`、`ResponsiveStateCoverageGate`、`VisualVerificationGate` |
+| UX 交互 | 用户流、导航、表单、异步操作、错误恢复、动效或输入方式变化 | 覆盖 `InteractionFlowGate`、`InteractionFeedbackGate`、`InputModalityAccessibilityGate`、`ErrorPreventionRecoveryGate`、`MotionTransitionUsabilityGate` |
+
+**执行规则**：
+1. 命中前端体验风险时，TestRoute 的 `frontendExperience` 标为 `required`。
+2. 最小证据包含：设计来源或既有风格依据、关键状态清单、桌面/移动或目标断点、核心用户流、反馈/错误恢复检查，以及 Browser/截图/Playwright/E2E/人工复核之一。
+3. 纯后端、纯 CLI、纯文档或无界面变更可标 `N/A + skipReason`。
+4. 若验证需要 AI 启动 dev server、文档站或浏览器自动化 target，必须同时执行 `ServiceLifecycleCleanup`。
 
 ## 四类测试规范
 

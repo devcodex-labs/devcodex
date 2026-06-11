@@ -110,6 +110,7 @@ DevCodex 采用“双阶段发布 + 三层日志”：
 7. 按 `release-verification` Skill 执行 R0~R7：
    - `R3`：执行 `npm test`（默认全链）
    - `R3b`：执行 `npm run test:audit` + package completeness gate（`description`、`keywords`、`repository`、`homepage`、`bugs`、`license`、`files/exports/bin`、`publishConfig`、`engines`、`plugin.json`）；package boundary check 必须在 build / benchmark / codegen 完成后单独串行执行
+   - GitHub Packages 发布链中，`test:audit` 必须显式使用 `https://registry.npmjs.org` 作为 audit registry，避免 publish dry-run / prepublishOnly 继承 GitHub Packages 的非审计端点；这不等于跳过审计
    - `R3c`：若项目存在远端 CI，确认目标 commit 对应远端 CI 绿色；无 CI 或无权限查询时必须写 `N/A + skipReason`，不得把本地测试冒充远端 CI
    - `R4`：执行 `npm pack --dry-run` 与 `npm publish --dry-run`
    - `R5~R7`：按需做 install smoke、tag/publish 前确认与发布后验收

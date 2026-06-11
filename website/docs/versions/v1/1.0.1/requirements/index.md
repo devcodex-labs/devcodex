@@ -8,7 +8,7 @@
 | 模块 | 状态 | 说明 |
 |------|------|------|
 | 版本入口与导航 | ✅ 已建立 | `versions/`、`v1/` 和 sidebar 已接入 `1.0.1` |
-| 具体需求条目 | ✅ 持续补充 | 当前目录内已有 `p1/template-flow-alignment/`、`p1/concurrency-policy/`、`p1/global-auto-alias/` 与 `p1/leak-risk-stability-pressure/` 详情页；其他已实现能力按仓库根 `CHANGELOG.md` 与 `changelogs/releases/` 追溯 |
+| 具体需求条目 | ✅ 持续补充 | 当前目录内已有 `p1/template-flow-alignment/`、`p1/concurrency-policy/`、`p1/global-auto-alias/`、`p1/leak-risk-stability-pressure/` 与 `p1/frontend-experience-quality/` 详情页；其他已实现能力按仓库根 `CHANGELOG.md` 与 `changelogs/releases/` 追溯 |
 
 ## 当前需求索引
 
@@ -18,6 +18,7 @@
 | P1 | [可配置并发执行策略](./p1/concurrency-policy/) | ✅ 已实现 | `extensions.devcodex.concurrency`、`ConcurrencyPolicy`、只读/验证并发与不可变单写者锁 |
 | P1 | [全局默认 Auto 别名](./p1/global-auto-alias/) | ✅ 已实现 | `@rocky` 全局默认；`extensions.devcodex.autoAliases` 替换默认别名，空数组关闭默认 |
 | P1 | [泄漏风险稳定性压测](./p1/leak-risk-stability-pressure/) | ✅ 已实现 | `LeakRiskStabilityPressureTest`、`leakRiskPressure`、按资源生命周期风险条件触发场景/负载/稳定性压测 |
+| P1 | [前端体验质量门禁](./p1/frontend-experience-quality/) | ✅ 已实现 | `FrontendExperienceQualityGate`、UI/UX 体验门禁、跨项目已吸纳守门、Browser/截图/E2E/人工复核证据 |
 
 ## 版本内开发规则
 

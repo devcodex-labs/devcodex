@@ -1,7 +1,7 @@
 # 变更日志 (CHANGELOG)
 
 > **说明**: 版本概览摘要。最新版本的详细变更见下方表格首行的 `changelogs/releases/vX.Y.Z.md` 链接；历史版本见对应详细变更文件
-> **最后更新**: 2026-06-11
+> **最后更新**: 2026-06-12
 
 ---
 
@@ -9,6 +9,7 @@
 
 | 版本 | 日期 | 变更摘要 | 详细 |
 |------|------|---------|------|
+| [v1.11.19](./changelogs/releases/v1.11.19.md) | 2026-06-12 | 🔧 **剩余 data 吸纳守门扩展与 v2 MCP-first 路线纠偏**：新增产品原文追溯、本机可执行配置、人工复核数据留存、相邻范围扩大、包名权限、性能 benchmark-first、公开模块差异化与 V2 MCP-first 规划守门，并补齐 V62 探针 | [查看](./changelogs/releases/v1.11.19.md) |
 | [v1.11.18](./changelogs/releases/v1.11.18.md) | 2026-06-11 | 🔧 **前端体验质量门禁与跨项目吸纳守门收口**：新增 `FrontendExperienceQualityGate`、UI/UX 体验门禁、8 项 `CrossProjectLearnedGuards`，并同步 dev/fix/audit/test Skill、CP/报告模板、README、website、活动版本 P1 需求页与 V61 探针 | [查看](./changelogs/releases/v1.11.18.md) |
 | [v1.11.17](./changelogs/releases/v1.11.17.md) | 2026-06-11 | 🔧 **并发策略、默认 Auto 别名与泄漏稳定性测试路线收口**：新增 `ConcurrencyPolicy` Profile schema、全局默认 `@rocky` Auto 别名、`PE-12` 资源生命周期审查维度与 `LeakRiskStabilityPressureTest` 测试路线，并补齐活动版本 P1 需求页、website sidebar 与治理探针 | [查看](./changelogs/releases/v1.11.17.md) |
 | [v1.11.16](./changelogs/releases/v1.11.16.md) | 2026-06-10 | 🔧 **治理 intake 行为闭环、跨项目吸纳守门与发布前收敛**：新增用户建议/纠错的行为级治理 intake replay，修正 source-root 宿主副本治理、Profile/website 新鲜度与 C13 作用域，吸纳跨项目 data 守门并补齐 `TechnicalRouteComparativeGate` | [查看](./changelogs/releases/v1.11.16.md) |
@@ -104,8 +105,9 @@
 
 ## 相关文档
 
-- [`changelogs/releases/v1.11.17.md`](./changelogs/releases/v1.11.17.md) — 最新版本详细变更文档
-- [`changelogs/releases/v1.11.16.md`](./changelogs/releases/v1.11.16.md) — 上一版本详细变更文档
+- [`changelogs/releases/v1.11.19.md`](./changelogs/releases/v1.11.19.md) — 最新版本详细变更文档
+- [`changelogs/releases/v1.11.18.md`](./changelogs/releases/v1.11.18.md) — 上一版本详细变更文档
+- [`changelogs/releases/v1.11.17.md`](./changelogs/releases/v1.11.17.md) — 历史版本详细变更文档
 - [`changelogs/releases/v1.11.15.md`](./changelogs/releases/v1.11.15.md) — 历史版本详细变更文档
 - [`changelogs/releases/v1.11.13.md`](./changelogs/releases/v1.11.13.md) — 历史版本详细变更文档
 - [`changelogs/releases/v1.11.12.md`](./changelogs/releases/v1.11.12.md) — 历史版本详细变更文档

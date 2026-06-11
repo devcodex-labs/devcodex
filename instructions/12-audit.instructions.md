@@ -2,7 +2,7 @@
 applyTo: "**"
 description: audit 工作流规则，覆盖审查目标路由、收敛门禁、元循环与只读边界
 priority: P4
-version: 1.11.18
+version: 1.11.19
 ---
 # 审计工作流规则（12-audit）
 

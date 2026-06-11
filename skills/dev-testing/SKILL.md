@@ -22,6 +22,7 @@ description: 测试规范 — 单元测试/集成测试/API测试/E2E测试四�
 - 前端页面、组件、控制台、官网、文档站、可视化工具或游戏测试必须同步执行 `FrontendExperienceQualityGate` 条件判定；命中时测试路线覆盖 UI 视觉和 UX 交互证据，未命中时记录 `N/A + skipReason`。
 - 测试路线必须同步执行 `VerificationScopeBudgetGate` 与 `LiveVerificationExecutionObligation`：验证强度匹配风险和变更面，声明“已验证/可运行/可点击/已安装/已发布”前必须真实执行对应命令、页面、接口、pack/install、registry/tag 查询或项目等价验证。
 - 人工复核、视觉检查、手工冒烟、外部页面观察或无法自动化验证必须执行 `ManualReviewEvidenceRetention`，记录复核人/时间/范围/输入/观察结果/截图或日志位置。
+- 测试来源于产品需求整理、真实联调、本机/跨环境配置、包名/发布名、性能第一或公开模块承诺时，必须同步判定 `ProductRequirementTraceabilityGate`、`LocalExecutionConfigProbe`、`ManualReviewEvidenceDataRetention`、`PackageNameAuthorityGate`、`PerformanceBenchmarkFirstGate` 与 `PublicModuleDifferentiationGate`；未命中时记录 `N/A + skipReason`。
 
 ## ServiceLifecycleCleanup
 

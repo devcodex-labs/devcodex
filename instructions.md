@@ -291,6 +291,14 @@ dev/fix 修改完成前必须判定是否影响 Profile。命中以下任一触�
 - `VerificationScopeBudgetGate`：验证路线必须与风险和变更面匹配；高风险、控制面、发布、资源生命周期或前端体验不能只跑轻量检查，低风险纯文档/纯计算也不得为形式引入重压测、E2E 或外部依赖。
 - `LiveVerificationExecutionObligation`：声明“已验证 / 可运行 / 可点击 / 已发布 / 已安装”前必须真实执行对应命令、页面、接口、pack/install、registry/tag 查询或项目等价验证；无法执行时只能写阻塞/降级证据，不能用预期代替结果。
 - `AdapterBenchmarkAttribution`：adapter、provider、connector、SDK 或性能优化 benchmark 必须写清基线、环境、版本、负载、归因边界和不可比较因素；不得把框架、网络、缓存预热、依赖树或测试环境差异误归因给业务代码。
+- `ProductRequirementTraceabilityGate`：从 PRD、Word、原型、截图、会议纪要或用户补充消息整理需求时，必须保留需求来源、条款/页码/截图/消息锚点、结构化提取口径和遗漏/冲突处理；不得把 AI 归纳当成唯一真相源。
+- `LocalExecutionConfigProbe`：脚本、本机验证、数据库/SSH/HTTP 连接或跨环境执行需要本地配置时，必须先核对项目指定配置入口、Profile `config.local.json` 模型或既有脚本约定；未指定时按 S02 默认可直写/沿用现状，禁止臆造 env/secret/config.local 层。
+- `ManualReviewEvidenceDataRetention`：人工复核涉及数据、页面、外部系统、发布包或真实联调时，除 `ManualReviewEvidenceRetention` 外还必须记录证据保存位置、可复核输入、样本范围、保留/不可保留原因和敏感信息策略；不得只在聊天里口头确认。
+- `AdjacentScopeExpansionGuard`：用户指定模块、adapter、provider、文档页或目录时，不得顺手扩展相邻模块；若相邻范围确有共同契约、共享缺陷或验证必需，必须先写明扩展理由、影响面和回退边界。
+- `PackageNameAuthorityGate`：涉及 npm/GitHub Packages/插件/发布包名称、scope、bin、exports 或安装说明时，必须以当前 `package.json`、`plugin.json`、registry/包管理器证据和官方命名约束为准；禁止凭历史记忆或目录名推断包名。
+- `PerformanceBenchmarkFirstGate`：用户要求“最快、首个、优于、性能提升、压测、benchmark”时，必须先冻结基线、环境、指标、负载和比较对象，再实施优化；缺少基线时不得宣称提升或第一。
+- `PublicModuleDifferentiationGate`：面向公开模块、SDK、CLI、插件或文档站能力时，必须区分 public API、内部实现、示例代码、发布包文件和消费者入口；不得把内部 helper 或历史镜像描述成公开承诺。
+- `V2MCPFirstPlanningGate`：DevCodex v2 一期规划默认以 Intent-Gated Hosted Spec MCP / Codex-only 验证 MVP 为优先路线；未形成正式 CP1/CP2 方案包前，不得把 MongoDB、控制台、多租户自定义工作流、本地规则正文缓存或安装 `.github` / `CLAUDE.md` / `AGENTS.md` 副本作为一期默认范围。
 
 ### 台账落点与关闭证据
 
@@ -560,58 +568,58 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → 执行 →
 
 | # | 检查 |
 |:-:|------|
-| FC1 | CP 按序执行（CP1→CP2，不跳跃）|
-| FC2 | 记忆文件已写入 |
-| FC3 | 报告文件已生成（dev/fix/analyze/audit 必须）|
-| FC4 | 输出语言正确 |
-| FC5 | 引用规范文件存在 |
-| FC6 | 合规块已输出 |
+| FC1 | 记忆文件完整（必填字段齐全，📨 四列表格格式）|
+| FC2 | 报告文件已写入（chat 豁免）|
+| FC3 | CP 按序执行（dev/fix；其他 N/A）|
+| FC4 | 文件名/路径合规（`NN--` 双横杠开头；本轮无报告产物时 N/A）|
+| FC5 | 产物路径已输出（`ArtifactLinkSet`：Markdown 主链接 + 必要 `绝对路径：` copy fallback）|
+| FC6 | 新增 DevCodex 规范资产 `.md` 超 500 行须按 C13 拆分（业务产物不强制）|
 | FC7 | 用户决策选项与报告决策点必带推荐 + 理由 |
 
 ### SC 实质合规（选取适用项检查）
 
 | # | 关键项 |
 |:-:|--------|
-| SC1 | Profile 完整加载（README + 01/02/03 + config.json） |
-| SC2 | 意图识别理由可追溯 |
-| SC3 | 修复三步必做（同类全局/数据联动/零残留） |
-| SC4 | 关联文件同步（C11） |
-| SC5 | 高风险操作有 CP3 确认 |
-| SC6 | SUMMARY 已追加一行索引 |
-| SC7 | 任务摘要字段不缺失 |
-| SC8 | 报告产物路径符合 `02-output-paths` |
-| SC9 | API 变更产出双产物（接口契约 + 验证脚本，见 api-verification） |
-| SC10 | dev/fix 子类型 Skill 已按需读取 |
-| SC11 | 多任务进度逐项追加（C14） |
-| SC12 | 批量操作分批方案已确认（C16） |
-| SC13 | 过程改进 PI 已追加（C17） |
-| SC14 | 文件 UTF-8 编码安全（C09） |
-| SC15 | dev/fix 关键产物已完成 ECR 执行闭环复审 |
+| SC1 | 报告验证列完整（合理性 + 可实施性 + 收益 + 验证状态 + 影响范围五项） |
+| SC2 | 代码已诊断（无未处理 error；dev/fix） |
+| SC3 | 修复已全局扫描（同类全局/数据联动/grep 零残留；fix） |
+| SC4 | 关联文件已同步（C11；含 profile 定义的 dev 模式专属同步命令） |
+| SC5 | 后续建议与推荐结论已输出（多建议/多路径必有推荐；无则显式"推荐：无后续动作"） |
+| SC6 | Agent SUMMARY 已更新（写入动作已发生） |
+| SC7 | 全局 SUMMARY 关键决策已追加（有关键决策时） |
+| SC8 | 上次待跟进已查阅 |
+| SC9 | C08 Token 防护状态 |
+| SC10 | C07 并发策略合规（只读/隔离验证并发符合 `ConcurrencyPolicy`；写共享状态竞争视为阻断） |
+| SC11 | C14 多任务拆分检查（任务 ≥5） |
+| SC12 | C14 多任务进度快照验证（任务 ≥2） |
+| SC13 | C15 架构质量自检（dev/fix） |
+| SC14 | analyze/audit 标注 ✅已验证 的运行时结论均为本轮实际执行（历史数据须降级 ⚠️待验证） |
+| SC15 | dev/fix 关键产物已完成 ECR 执行闭环复审（控制面变更追加 SCV 证据） |
 
 ### RC 恢复性检查
 
 | # | 检查 |
 |:-:|------|
-| RC1 | 失败任务已写入待跟进字段；跨会话/多批次/summary/compact/handoff 场景已有 `ContextHandoffCard` |
-| RC2 | 中断点状态 🔄 已持久化 |
-| RC3 | 回滚路径有据可查（commit/备份/migrations down） |
-| RC4 | 下次会话可直接 resume |
+| RC1 | 记忆文件足以让下一个 Agent 恢复上下文；跨会话/多批次/summary/compact/handoff 场景已有 `ContextHandoffCard` |
+| RC2 | 已产出文件自洽完整 |
+| RC3 | 🔄 标记任务已提供足够恢复线索 |
+| RC4 | 关联任务的 `.memory/sessions.md` 已创建 |
 
 ### T 任务完成验证（dev/fix 必跑）
 
 | # | 检查 |
 |:-:|------|
-| T1 | 代码改动通过 lint |
-| T2 | 类型检查通过（如适用） |
-| T3 | 单元/集成测试通过 |
-| T4 | 关联文档已同步 |
-| T5 | 关联配置已更新 |
-| T6 | CHANGELOG / unreleased 已按发布状态追加（如属外部可见变更） |
-| T7 | 工作流验证已完成（dev/fix 含 ECR；audit/analyze 含 PCV 与推荐结论） |
-| T8 | 报告 V1~V6 验证通过；若触发上下文交接，daily tasks 或报告已写 `ContextHandoffCard` |
-| T9 | 记忆 + SUMMARY 写入完成 |
+| T1 | 需求覆盖 |
+| T2 | 报告存在（chat 豁免） |
+| T3 | 记忆完整 |
+| T4 | CP 完整（dev/fix；其他 N/A） |
+| T5 | 合规通过 |
+| T6 | 约束遵守（C01~C22） |
+| T7 | 工作流验证（dev/fix 含适用门禁、三步扫描与 ECR；audit/analyze 含 PCV 与推荐结论） |
+| T8 | SUMMARY 已更新；若触发上下文交接，daily tasks 或报告已写 `ContextHandoffCard` |
+| T9 | 产物路径已输出 |
 
-> 完整逐项定义见当前平台部署目录中的 `instructions/17-compliance.instructions.md`；本表为就地索引。
+> 完整逐项定义见当前平台部署目录中的 `instructions/17-compliance.instructions.md`；本表为就地索引（编号与语义与该文件一一对应）。
 
 ---
 

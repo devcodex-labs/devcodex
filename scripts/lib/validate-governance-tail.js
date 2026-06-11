@@ -1081,6 +1081,73 @@ function buildGovernanceTailChecks(ctx) {
     console.log('[V61] frontend experience / learned guards sync checked')
   }
 
+  function checkV62() {
+    const probes = [
+      { file: 'instructions.md', needles: ['ProductRequirementTraceabilityGate', 'PackageNameAuthorityGate', 'PerformanceBenchmarkFirstGate', 'PublicModuleDifferentiationGate', 'V2MCPFirstPlanningGate'] },
+      { file: 'instructions/10-dev.instructions.md', needles: ['LocalExecutionConfigProbe', 'ManualReviewEvidenceDataRetention', 'AdjacentScopeExpansionGuard', 'PerformanceBenchmarkFirstGate'] },
+      { file: 'prompts/requirement.prompt.md', needles: ['ProductRequirementTraceabilityGate', 'PackageNameAuthorityGate', 'PublicModuleDifferentiationGate', 'V2MCPFirstPlanningGate'] },
+      { file: 'prompts/technical-design.prompt.md', needles: ['LocalExecutionConfigProbe', 'ManualReviewEvidenceDataRetention', 'AdjacentScopeExpansionGuard', 'V2MCPFirstPlanningGate'] },
+      { file: 'prompts/implementation-plan.prompt.md', needles: ['ProductRequirementTraceabilityGate', 'PerformanceBenchmarkFirstGate', 'V2MCPFirstPlanningGate'] },
+      { file: 'prompts/report-dev.prompt.md', needles: ['ProductRequirementTraceabilityGate', 'PackageNameAuthorityGate', 'V2MCPFirstPlanningGate'] },
+      { file: 'prompts/report-fix.prompt.md', needles: ['LocalExecutionConfigProbe', 'PerformanceBenchmarkFirstGate', 'PublicModuleDifferentiationGate'] },
+      { file: 'prompts/report-audit.prompt.md', needles: ['ManualReviewEvidenceDataRetention', 'AdjacentScopeExpansionGuard', 'PackageNameAuthorityGate'] },
+      { file: 'prompts/report-scenario-test.prompt.md', needles: ['PerformanceBenchmarkFirstGate', 'PackageNameAuthorityGate', 'V2MCPFirstPlanningGate'] },
+      { file: 'skills/dev-default/SKILL.md', needles: ['ProductRequirementTraceabilityGate', 'LocalExecutionConfigProbe', 'V2MCPFirstPlanningGate'] },
+      { file: 'skills/dev-plan-review/SKILL.md', needles: ['ProductRequirementTraceabilityGate', 'PackageNameAuthorityGate', 'PerformanceBenchmarkFirstGate'] },
+      { file: 'skills/test-router/SKILL.md', needles: ['LocalExecutionConfigProbe', 'ManualReviewEvidenceDataRetention', 'packageNameAuthority', 'performanceBenchmarkFirst'] },
+      { file: 'skills/dev-testing/SKILL.md', needles: ['ProductRequirementTraceabilityGate', 'LocalExecutionConfigProbe', 'PerformanceBenchmarkFirstGate'] },
+      { file: 'skills/dev-docs/SKILL.md', needles: ['PackageNameAuthorityGate', 'PublicModuleDifferentiationGate', 'ProductRequirementTraceabilityGate'] },
+      { file: 'skills/document-sync/SKILL.md', needles: ['ManualReviewEvidenceDataRetention', 'AdjacentScopeExpansionGuard', 'V2MCPFirstPlanningGate'] },
+      { file: 'skills/audit-project/SKILL.md', needles: ['ProductRequirementTraceabilityGate', 'PackageNameAuthorityGate', 'PublicModuleDifferentiationGate'] },
+      { file: 'skills/audit-requirements/SKILL.md', needles: ['LocalExecutionConfigProbe', 'ManualReviewEvidenceDataRetention', 'V2MCPFirstPlanningGate'] },
+      { file: 'README.md', needles: ['ProductRequirementTraceabilityGate', 'PerformanceBenchmarkFirstGate', 'PublicModuleDifferentiationGate'] },
+      { file: 'website/docs/guide/development.md', needles: ['ProductRequirementTraceabilityGate', 'PackageNameAuthorityGate', 'V2MCPFirstPlanningGate'] },
+      { file: 'instructions/18-spec-radar.instructions.md', needles: ['01a-profile-loading', '§确定目标项目'] },
+      { file: 'instructions/01-common.instructions.md', needles: ['profile-bootstrap', 'Profile 缺失'] },
+      { file: 'instructions/01a-profile-loading.instructions.md', needles: ['profile-bootstrap', 'devcodex profile init'] },
+      { file: 'RULES.md', needles: ['audit（7 目标类型）'] },
+      { file: 'website/docs/specs/routing-flow.md', needles: ['audit（7 目标类型）'] },
+      { file: 'website/docs/versions/v2/2.0.0/index.md', needles: ['Intent-Gated Hosted Spec MCP', '不安装 `.github`', '不本地持久化缓存规则正文', 'Codex-only'] },
+      { file: 'website/docs/versions/v1/1.0.1/requirements/index.md', needles: ['data-absorption-guard-extensions', '剩余 data 吸纳守门扩展'] },
+      { file: 'website/docs/versions/v1/1.0.1/requirements/p1/data-absorption-guard-extensions/index.md', needles: ['ProductRequirementTraceabilityGate', 'PackageNameAuthorityGate', 'V2MCPFirstPlanningGate'] },
+      { file: 'website/rspress.config.ts', needles: ['data-absorption-guard-extensions'] },
+      { file: 'changelogs/unreleased.md', needles: ['ProductRequirementTraceabilityGate', 'PackageNameAuthorityGate', 'V2MCPFirstPlanningGate'] },
+      { file: 'scripts/test-spec-governance.js', needles: ['checkV62', 'ProductRequirementTraceabilityGate', 'PackageNameAuthorityGate'] }
+    ]
+
+    for (const probe of probes) {
+      const content = read(path.join(ROOT, probe.file))
+      for (const needle of probe.needles) {
+        if (!content.includes(needle)) {
+          err(`[V62] data absorption guard extension drift in ${probe.file}: missing "${needle}"`)
+        }
+      }
+    }
+
+    const forbidden = [
+      { file: 'RULES.md', needles: ['audit（6 子类型）', 'audit（6 目标类型）'] },
+      { file: 'website/docs/specs/routing-flow.md', needles: ['audit（6 子类型）', 'audit（6 目标类型）'] },
+      { file: 'instructions/18-spec-radar.instructions.md', needles: ['01-common 优先级 3 硬约束'] }
+    ]
+
+    for (const probe of forbidden) {
+      const content = read(path.join(ROOT, probe.file))
+      for (const needle of probe.needles) {
+        if (content.includes(needle)) {
+          err(`[V62] stale governance wording remains in ${probe.file}: "${needle}"`)
+        }
+      }
+    }
+
+    for (const needle of ['ProductRequirementTraceabilityGate', 'PackageNameAuthorityGate', 'V2MCPFirstPlanningGate']) {
+      if (!hasChangelogEvidence(needle)) {
+        err(`[V62] data absorption guard extension changelog drift: missing "${needle}" in changelogs/unreleased.md or changelogs/releases/*.md`)
+      }
+    }
+
+    console.log('[V62] data absorption guard extensions sync checked')
+  }
+
   return {
     checkV39,
     checkV40,
@@ -1104,7 +1171,8 @@ function buildGovernanceTailChecks(ctx) {
     checkV58,
     checkV59,
     checkV60,
-    checkV61
+    checkV61,
+    checkV62
   }
 }
 

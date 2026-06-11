@@ -55,6 +55,8 @@ description: 文档开发子类型规范 — 技术文档/API文档/README 编�
 | 导航可读 | 所有 Markdown 文档必须包含 `## 目录导航` |
 | 翻译等价 | 多语言文档、翻译页或中英文双入口变更时执行 `DocumentationTranslationParityGuard`，核对信息等价、版本号、链接、示例、术语和当前消费者顺序 |
 | 正式边界 | README、官网、正式规范页或用户文档执行 `FormalDocsDevCodexBoundary`，不得混入运行时报告、台账口吻、一次性分析或内部待办 |
+| 公开承诺 | 面向公开模块、SDK、CLI、插件、包安装说明或文档站能力时执行 `PackageNameAuthorityGate` 与 `PublicModuleDifferentiationGate`，以 package/plugin/registry 证据区分公开 API、内部实现、示例和历史镜像 |
+| 需求来源 | 从 PRD、Word、原型、截图或用户消息整理文档需求时执行 `ProductRequirementTraceabilityGate`，保留来源锚点、提取口径和验收映射 |
 
 ## API 文档规范
 

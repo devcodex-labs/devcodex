@@ -523,7 +523,8 @@ const {
   checkV58,
   checkV59,
   checkV60,
-  checkV61
+  checkV61,
+  checkV62
 } = buildGovernanceTailChecks({
   ROOT,
   ACTIVE_DEVCODEX_ROOT,
@@ -907,6 +908,7 @@ checkV58()
 checkV59()
 checkV60()
 checkV61()
+checkV62()
 
 console.log('')
 if (errors.length) {

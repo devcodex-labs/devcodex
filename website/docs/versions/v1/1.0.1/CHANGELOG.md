@@ -6,6 +6,8 @@
 
 | 日期 | 变更内容 | 影响范围 | 原因 |
 |------|---------|---------|------|
+| 2026-06-11 | 新增剩余 data 吸纳守门扩展 | `ProductRequirementTraceabilityGate`、`LocalExecutionConfigProbe`、`ManualReviewEvidenceDataRetention`、`AdjacentScopeExpansionGuard`、`PackageNameAuthorityGate`、`PerformanceBenchmarkFirstGate`、`PublicModuleDifferentiationGate`、`V2MCPFirstPlanningGate`、V62 探针 | 将已验证值得吸纳的剩余 `data/*.md` 清单转为可执行条件门禁，并修正 v2 MCP-first 路线、profile-bootstrap 路由和 audit 7 目标类型漂移 |
+| 2026-06-11 | 新增“剩余 data 吸纳守门扩展”P1 需求入口 | `requirements/p1/data-absorption-guard-extensions/` | 为产品需求可追溯、本机配置、人工证据留存、相邻范围、包名、性能基线、公开模块和 v2 一期路线建立活动版本详情页 |
 | 2026-06-11 | 新增前端体验质量门禁与跨项目已吸纳守门 | `FrontendExperienceQualityGate`、`CrossProjectLearnedGuards`、test-router、dev/audit/report 模板、README/website、V61 探针 | 前端需求需要同步覆盖 UI 还原度、风格主题和 UX 交互；data 目录中已验证可泛化的规范需进入可执行门禁 |
 | 2026-06-11 | 新增“前端体验质量门禁”P1 需求入口 | `requirements/p1/frontend-experience-quality/` | 为 UI/UX 体验门禁、人工复核证据、验证范围预算和跨项目吸纳清单建立活动版本详情页 |
 | 2026-06-11 | 新增测试路线 `LeakRiskStabilityPressureTest` | `test-router`、`dev-testing`、`dev-scenario-test`、测试/报告模板、README/website、V60 探针 | 写测试用例或回归验证时按项目资源生命周期风险判定是否纳入泄漏风险稳定性压测，避免漏测运行时增长问题或把所有测试机械升级为压测 |

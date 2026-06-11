@@ -185,7 +185,7 @@ version: 1.11.18
 | dev.optimization | `dev-optimization` · `cp-gate` · `dev-plan-review` |
 | dev.scenario-test | `dev-scenario-test` · `cp-gate` |
 | dev.docs | `dev-docs` · `cp-gate` |
-| dev.plan-review | （Instruction 已完整，无需额外 Skill）|
+| dev.plan-review | `audit-common`（豁免 `dev-plan-review`，防递归）|
 | fix.default | `fix-default` · `cp-gate` |
 | fix.security | `fix-security` · `cp-gate` |
 | fix.incident | （Instruction 已完整，无需额外 Skill）|
@@ -210,6 +210,7 @@ version: 1.11.18
 - `release-verification`：用户明确要求 release / tag / publish 或版本发布验证时触发
 - `host-contract-verification`：宿主事件契约、visible reply、sticky project、workspace guard、bootstrap 证据任务触发
 - `source-consumer-sync`：规范源、README/website/Profile/validate/部署副本联动时触发
+- `profile-bootstrap`：Profile 缺失、用户要求补建 Profile、需要从 prod 降级恢复到 dev 模式，或需要生成 `.devcodex/profile/` 初稿时触发；优先建议/执行 `devcodex profile init`，不得用 AI 推测内容替代文件真相源
 - `api-verification`：PR-5① 标记触发
 - `impact-review`：PR-5② 标记触发
 - `document-sync`：dev/fix 执行完成后触发

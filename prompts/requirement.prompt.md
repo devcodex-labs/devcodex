@@ -21,7 +21,7 @@ applyTo: .devcodex/**/requirements/**
 > ⚠️ 描述“已接入 / 未接入”类状态时，先核验依赖与源码消费点，再拆分底座能力、当前消费者和高级能力尾项，避免把“基础已接入但高级能力未接入”误写成整体未接入。
 > ⚠️ TechnicalRouteComparativeGate：技术路线、架构优化、性能优化、框架能力设计或高维护成本方案在 CP1 最终需求确认前，若存在同类产品 / 项目 / 框架 / 本仓库相似模块可比，必须执行 `ComparativeResearchGate`；不触发时写 `N/A + skipReason`。
 > ⚠️ FrontendExperienceQualityGate：前端页面、组件、控制台、官网、文档站、可视化工具、游戏或用户可见 UI / 交互需求，CP1 验收必须覆盖设计来源、UI 还原度、风格主题、响应式状态、视觉验证、用户流、交互反馈、输入方式/可访问性、错误恢复和动效转场；不触发时写 `N/A + skipReason`。
-> ⚠️ CrossProjectLearnedGuards：涉及接入状态、人工复核、翻译/正式文档边界、prompt/Hook/MCP 契约、验证范围、真实执行或 benchmark 归因时，CP1 必须列出 `CodeTruthRequirementGate`、`ManualReviewEvidenceRetention`、`DocumentationTranslationParityGuard`、`FormalDocsDevCodexBoundary`、`LLMPromptContractTriage`、`VerificationScopeBudgetGate`、`LiveVerificationExecutionObligation`、`AdapterBenchmarkAttribution` 的验收口径；未触发项写 `N/A + skipReason`。
+> ⚠️ CrossProjectLearnedGuards：涉及接入状态、人工复核、翻译/正式文档边界、prompt/Hook/MCP 契约、验证范围、真实执行、benchmark 归因、产品需求来源、本机执行配置、人工证据留存、相邻范围扩展、包名/发布名、性能第一、公开模块或 DevCodex v2 一期路线时，CP1 必须列出对应守门项的验收口径；未触发项写 `N/A + skipReason`。
 
 | 类型 | 适用场景 | 默认重点 |
 |------|---------|---------|
@@ -132,6 +132,14 @@ applyTo: .devcodex/**/requirements/**
 | VerificationScopeBudgetGate | 是 / 否 | |
 | LiveVerificationExecutionObligation | 是 / 否 | |
 | AdapterBenchmarkAttribution | 是 / 否 | |
+| ProductRequirementTraceabilityGate | 是 / 否 | PRD/Word/原型/截图/消息锚点、提取口径、冲突/遗漏处理、验收映射 |
+| LocalExecutionConfigProbe | 是 / 否 | 本机/跨环境执行配置来源、Profile/config.local 或既有约定、S02 处理 |
+| ManualReviewEvidenceDataRetention | 是 / 否 | 证据保存位置、样本范围、可复核输入、保留/不可保留原因 |
+| AdjacentScopeExpansionGuard | 是 / 否 | 用户指定范围、相邻范围扩展理由、影响面与回退边界 |
+| PackageNameAuthorityGate | 是 / 否 | package/plugin/registry/bin/exports/scope 证据 |
+| PerformanceBenchmarkFirstGate | 是 / 否 | 基线、环境、指标、负载、比较对象、成功阈值 |
+| PublicModuleDifferentiationGate | 是 / 否 | public API、内部实现、示例、发布文件、消费者入口、历史镜像边界 |
+| V2MCPFirstPlanningGate | 是 / 否 | Intent-Gated Hosted Spec MCP、Codex-only MVP、无本地规则正文缓存、非一期范围 |
 
 ## §3 业务流程
 

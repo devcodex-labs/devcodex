@@ -70,7 +70,7 @@ applyTo: .devcodex/**/reports/requirements/**
 | TestRoute | ✅/N/A | ✅/⚠️ | |
 | LeakRiskStabilityPressureTest | ✅/N/A | ✅/⚠️ | leakRiskPressure 判定、基线、压力场景、冷却窗口、资源指标前后对比、skipReason |
 | FrontendExperienceQualityGate | ✅/N/A | ✅/⚠️ | 设计来源、UI 还原度、风格主题、响应式状态、视觉验证、用户流、交互反馈、输入方式/可访问性、错误恢复、动效转场、skipReason |
-| CrossProjectLearnedGuards | ✅/N/A | ✅/⚠️ | CodeTruthRequirementGate / ManualReviewEvidenceRetention / DocumentationTranslationParityGuard / FormalDocsDevCodexBoundary / LLMPromptContractTriage / VerificationScopeBudgetGate / LiveVerificationExecutionObligation / AdapterBenchmarkAttribution |
+| CrossProjectLearnedGuards | ✅/N/A | ✅/⚠️ | CodeTruthRequirementGate / ManualReviewEvidenceRetention / DocumentationTranslationParityGuard / FormalDocsDevCodexBoundary / LLMPromptContractTriage / VerificationScopeBudgetGate / LiveVerificationExecutionObligation / AdapterBenchmarkAttribution / ProductRequirementTraceabilityGate / LocalExecutionConfigProbe / ManualReviewEvidenceDataRetention / AdjacentScopeExpansionGuard / PackageNameAuthorityGate / PerformanceBenchmarkFirstGate / PublicModuleDifferentiationGate / V2MCPFirstPlanningGate |
 | ServiceLifecycleCleanup | ✅/N/A | ✅/⚠️ | AI 自启动服务的 command/cwd/PID/job/port/url、关闭验证或 keepAliveReason |
 | ReleaseAudit | ✅/N/A | ✅/⚠️ | |
 | ReleaseVerification | ✅/N/A | ✅/⚠️ | |

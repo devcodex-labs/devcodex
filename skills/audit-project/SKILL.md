@@ -74,6 +74,9 @@ description: 项目工程审查维度 PE-1~PE-12 — 代码质量/项目结构/�
 - 人工复核、视觉检查、手工冒烟或外部页面观察需有 `ManualReviewEvidenceRetention`，包含范围、输入、观察结果、截图/日志或等价证据
 - adapter、provider、connector、SDK、benchmark 或性能优化需检查 `AdapterBenchmarkAttribution`，确认基线、环境、版本、负载和归因边界清晰
 - 验证路线需检查 `VerificationScopeBudgetGate`：高风险不低配验证，低风险不为形式扩大压测/E2E/外部依赖
+- 产品需求整理需检查 `ProductRequirementTraceabilityGate`；本机/跨环境执行配置需检查 `LocalExecutionConfigProbe`；真实联调或人工证据需检查 `ManualReviewEvidenceDataRetention`
+- 指定模块或相邻范围变更需检查 `AdjacentScopeExpansionGuard`；包名/发布名/安装说明需检查 `PackageNameAuthorityGate`
+- 性能第一、benchmark 或优化声明需检查 `PerformanceBenchmarkFirstGate`；公开模块、SDK、CLI 或插件承诺需检查 `PublicModuleDifferentiationGate`
 
 ## N/A 规则
 

@@ -27,6 +27,7 @@ description: 定义意图识别结果到工作流的路由映射。本 Skill 为
 
 > ⚠️ 本表仅供路由参考。执行时按 `01-common` §Skill 按需读取表 读取对应 Skill，禁止全量读取。
 > 子类型标识汇总：`dev.default` / `dev.docs` / `dev.refactor` / `dev.database` / `dev.init` / `dev.optimization` / `dev.scenario-test` / `dev.plan-review` / `fix.default` / `fix.security` / `fix.incident` / `analyze.default` / `analyze.research`
+> 支撑型 Skill 不作为工作流子类型；Profile 缺失、补建 Profile 或恢复 dev 模式时按需触发 `profile-bootstrap`。
 
 | 工作流 | 子类型 | Skill 文件 |
 |--------|--------|-----------|
@@ -37,7 +38,7 @@ description: 定义意图识别结果到工作流的路由映射。本 Skill 为
 | dev | optimization | `skills/dev-optimization/SKILL.md` |
 | dev | scenario-test | `skills/dev-scenario-test/SKILL.md` |
 | dev | docs | `skills/dev-docs/SKILL.md` |
-| dev | plan-review | `skills/dev-plan-review/SKILL.md`（工作流内部步骤） |
+| dev | plan-review | `skills/audit-common/SKILL.md`（豁免 `dev-plan-review`，防递归） |
 | fix | default | `skills/fix-default/SKILL.md` |
 | fix | incident | （Instruction 已完整覆盖） |
 | fix | security | `skills/fix-security/SKILL.md` |

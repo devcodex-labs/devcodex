@@ -45,6 +45,8 @@ description: 需求文档审查维度 RQ-1~RQ-8 — 需求定义/功能描述/�
 - 涉及“已接入 / 已支持 / 已实现 / 未接入”等状态判断时，需求应要求 `CodeTruthRequirementGate` 核对代码真相源和消费者入口
 - 涉及人工复核、视觉验收或手工冒烟时，需求应要求 `ManualReviewEvidenceRetention`
 - 涉及多语言文档、正式文档、prompt/Agent/Hook/MCP 契约、验证范围、真实执行或 benchmark 归因时，需求应分别列出 `DocumentationTranslationParityGuard`、`FormalDocsDevCodexBoundary`、`LLMPromptContractTriage`、`VerificationScopeBudgetGate`、`LiveVerificationExecutionObligation`、`AdapterBenchmarkAttribution` 验收口径
+- 涉及 PRD/Word/原型/截图/用户消息提炼需求时，需求应要求 `ProductRequirementTraceabilityGate`
+- 涉及本机执行配置、人工证据留存、相邻范围扩展、包名/发布名、性能第一、公开模块或 DevCodex v2 一期路线时，需求应分别列出 `LocalExecutionConfigProbe`、`ManualReviewEvidenceDataRetention`、`AdjacentScopeExpansionGuard`、`PackageNameAuthorityGate`、`PerformanceBenchmarkFirstGate`、`PublicModuleDifferentiationGate`、`V2MCPFirstPlanningGate` 验收口径
 
 ## N/A 规则
 

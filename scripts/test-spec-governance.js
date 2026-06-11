@@ -334,7 +334,26 @@ const probes = [
   ['website/docs/versions/v1/1.0.1/requirements/index.md', 'frontend-experience-quality'],
   ['website/docs/versions/v1/1.0.1/requirements/p1/frontend-experience-quality/index.md', 'CrossProjectLearnedGuards'],
   ['website/rspress.config.ts', '前端体验质量门禁'],
-  ['scripts/lib/validate-governance-tail.js', 'checkV61']
+  ['scripts/lib/validate-governance-tail.js', 'checkV61'],
+  ['instructions.md', 'ProductRequirementTraceabilityGate'],
+  ['instructions/10-dev.instructions.md', 'LocalExecutionConfigProbe'],
+  ['skills/test-router/SKILL.md', 'packageNameAuthority'],
+  ['skills/dev-plan-review/SKILL.md', 'PerformanceBenchmarkFirstGate'],
+  ['prompts/requirement.prompt.md', 'PublicModuleDifferentiationGate'],
+  ['prompts/technical-design.prompt.md', 'ManualReviewEvidenceDataRetention'],
+  ['prompts/implementation-plan.prompt.md', 'V2MCPFirstPlanningGate'],
+  ['prompts/report-dev.prompt.md', 'PackageNameAuthorityGate'],
+  ['README.md', 'ProductRequirementTraceabilityGate'],
+  ['website/docs/guide/development.md', 'V2MCPFirstPlanningGate'],
+  ['instructions/18-spec-radar.instructions.md', '01a-profile-loading'],
+  ['instructions/01-common.instructions.md', 'profile-bootstrap'],
+  ['RULES.md', 'audit（7 目标类型）'],
+  ['website/docs/specs/routing-flow.md', 'audit（7 目标类型）'],
+  ['website/docs/versions/v2/2.0.0/index.md', 'Intent-Gated Hosted Spec MCP'],
+  ['website/docs/versions/v1/1.0.1/requirements/index.md', 'data-absorption-guard-extensions'],
+  ['website/docs/versions/v1/1.0.1/requirements/p1/data-absorption-guard-extensions/index.md', 'ProductRequirementTraceabilityGate'],
+  ['website/rspress.config.ts', 'data-absorption-guard-extensions'],
+  ['scripts/lib/validate-governance-tail.js', 'checkV62']
 ]
 
 for (const [file, needle] of probes) mustInclude(file, needle)
@@ -348,6 +367,9 @@ mustIncludeInChangelogs('FrontendExperienceQualityGate')
 mustIncludeInChangelogs('CrossProjectLearnedGuards')
 mustIncludeInChangelogs('CodeTruthRequirementGate')
 mustIncludeInChangelogs('AdapterBenchmarkAttribution')
+mustIncludeInChangelogs('ProductRequirementTraceabilityGate')
+mustIncludeInChangelogs('PackageNameAuthorityGate')
+mustIncludeInChangelogs('V2MCPFirstPlanningGate')
 
 const activeRuleFiles = [
   'README.md',

@@ -28,6 +28,7 @@ version: 1.11.18
 - 连接配置来源遵循 S02：默认可直写或沿用项目既有模式；只有用户或项目明确指定 `config.local.json` 时，脚本、测试、数据库 / SSH / MongoDB / 数据操作才从当前 Profile 路径模型下的 `config.local.json` 读取，缺失文件或字段时提醒补齐
 - `config.local.json` 可保存 host、port、database、schema、username、内部 URL、连接别名、password、token、apiKey、privateKey、clientSecret、signingKey、connectionPassword、connectionString 等本地字段；`*Env` / `secretRef` 只有在用户指定、项目既有配置或用户指定的发布流程明确要求时才使用
 - `README.md`、`01-项目信息.md`、`02-架构约束.md`、`03-代码风格.md` 采用 `project file first + workspace fallback`
+- Profile 缺失时仍按 `prod` 保守降级；若用户要求补建 Profile、恢复 dev 模式、初始化 `.devcodex/profile/` 或修复 Profile 缺失，应读取 `profile-bootstrap` 并优先建议/执行 `devcodex profile init`，不得用 AI 推测内容静默替代 Profile 文件真相源。
 
 ### 运行态目录写入
 

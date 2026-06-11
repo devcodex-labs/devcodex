@@ -186,7 +186,7 @@ function buildGovernanceControlChecks(ctx) {
       for (const needle of [
         '强制约束（C01~C22）',
         '全量 FC1~FC7 + SC1~SC15 + RC1~RC4 + T1~T9',
-        'CHANGELOG / unreleased 已按发布状态追加'
+        '编号与语义与该文件一一对应'
       ]) {
         if (!content.includes(needle)) {
           err(`[V21] workspace AGENTS drift: missing "${needle}" in ../AGENTS.md`)

@@ -131,6 +131,7 @@ export default defineConfig({
                                 { text: '全局默认 Auto 别名', link: '/versions/v1/1.0.1/requirements/p1/global-auto-alias/' },
                                 { text: '泄漏风险稳定性压测', link: '/versions/v1/1.0.1/requirements/p1/leak-risk-stability-pressure/' },
                                 { text: '前端体验质量门禁', link: '/versions/v1/1.0.1/requirements/p1/frontend-experience-quality/' },
+                                { text: '剩余 data 吸纳守门扩展', link: '/versions/v1/1.0.1/requirements/p1/data-absorption-guard-extensions/' },
                             ],
                         },
                         {

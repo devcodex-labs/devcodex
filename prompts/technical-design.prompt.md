@@ -24,7 +24,7 @@ applyTo: .devcodex/**/requirements/**
 > ⚠️ CP2 必须承接 CP1 的平台工程判断和 `ImplementationComplexityLevel`（兼容旧字段 `ImplementationComplexityPreference`）：消费者范围、共享契约边界、模块职责、可维护性成本、非目标和最小实现预算要互相一致；没有真实复用者或演进边界时，不得新增 factory / manager / adapter / registry 等预设抽象。
 > ⚠️ package boundary / pack / benchmark / codegen 验证必须写清串行顺序；任何会删除、重建或写入 `dist` 的命令不得和包边界检查并行。
 > ⚠️ 前端页面、组件、控制台、官网、文档站、可视化工具、游戏或用户可见 UI / 交互方案必须填写 `FrontendExperienceQualityGate`：设计来源、UI 还原度、风格主题、响应式状态、视觉验证、用户流、交互反馈、输入方式/可访问性、错误恢复和动效转场；不触发时写 `N/A + skipReason`。
-> ⚠️ 接入状态、人工复核、翻译/正式文档边界、prompt/Hook/MCP 契约、验证范围、真实执行或 benchmark 归因必须填写 `CrossProjectLearnedGuards`：`CodeTruthRequirementGate`、`ManualReviewEvidenceRetention`、`DocumentationTranslationParityGuard`、`FormalDocsDevCodexBoundary`、`LLMPromptContractTriage`、`VerificationScopeBudgetGate`、`LiveVerificationExecutionObligation`、`AdapterBenchmarkAttribution`；未触发项写 `N/A + skipReason`。
+> ⚠️ 接入状态、人工复核、翻译/正式文档边界、prompt/Hook/MCP 契约、验证范围、真实执行、benchmark 归因、产品需求来源、本机执行配置、人工证据留存、相邻范围扩展、包名/发布名、性能第一、公开模块或 DevCodex v2 一期路线必须填写 `CrossProjectLearnedGuards`；未触发项写 `N/A + skipReason`。
 
 | 顺序 | 章节 | 必选 | 依赖 | 说明 |
 |:----:|------|:----:|------|------|
@@ -263,7 +263,7 @@ applyTo: .devcodex/**/requirements/**
 
 #### CrossProjectLearnedGuards / AbsorptionDecision / FullV1ScopeGuard / StartupPhaseTrace（条件）
 
-> 调研、审查、复审或方案讨论中出现“值得吸纳”的建议，必须给出吸纳决策；用户表达“第一版 / v1 / 完整首版”且存在真实消费者、发布契约或主功能验收时，必须给出完整首版边界判断；启动性能优化或 dev 日志治理必须先给出阶段化日志追踪。涉及接入状态、人工复核、翻译/正式文档边界、prompt/Hook/MCP 契约、验证范围、真实执行或 benchmark 归因时，逐项填写跨项目已吸纳守门；未触发项写 `N/A + skipReason`。
+> 调研、审查、复审或方案讨论中出现“值得吸纳”的建议，必须给出吸纳决策；用户表达“第一版 / v1 / 完整首版”且存在真实消费者、发布契约或主功能验收时，必须给出完整首版边界判断；启动性能优化或 dev 日志治理必须先给出阶段化日志追踪。涉及接入状态、人工复核、翻译/正式文档边界、prompt/Hook/MCP 契约、验证范围、真实执行、benchmark 归因、产品需求来源、本机执行配置、证据留存、相邻范围、包名/发布名、性能第一、公开模块或 DevCodex v2 一期路线时，逐项填写跨项目已吸纳守门；未触发项写 `N/A + skipReason`。
 
 | 项 | 当前吸纳 / 设计占位 / backlog / 拒收 | 理由 | 后续真相源 |
 |----|--------------------------------------|------|------------|
@@ -278,6 +278,14 @@ applyTo: .devcodex/**/requirements/**
 | VerificationScopeBudgetGate | 风险等级 / 验证强度 / 降级或减负理由 | | |
 | LiveVerificationExecutionObligation | 已执行命令 / 页面 / 接口 / pack-install / registry-tag 查询或阻塞证据 | | |
 | AdapterBenchmarkAttribution | 基线 / 环境 / 版本 / 负载 / 归因边界 / 不可比较因素 | | |
+| ProductRequirementTraceabilityGate | 来源锚点 / 提取口径 / 冲突遗漏处理 / 验收映射 | | |
+| LocalExecutionConfigProbe | 配置入口 / config.local 或既有脚本约定 / S02 策略 / 缺失处理 | | |
+| ManualReviewEvidenceDataRetention | 证据保存位置 / 可复核输入 / 样本范围 / 保留或不可保留原因 | | |
+| AdjacentScopeExpansionGuard | 指定范围 / 相邻扩展理由 / 影响面 / 回退边界 | | |
+| PackageNameAuthorityGate | package.json / plugin.json / registry / bin / exports / scope 证据 | | |
+| PerformanceBenchmarkFirstGate | 基线 / 环境 / 指标 / 负载 / 比较对象 / 成功阈值 | | |
+| PublicModuleDifferentiationGate | public API / 内部实现 / 示例 / 发布文件 / 消费者入口 / 历史镜像 | | |
+| V2MCPFirstPlanningGate | Intent-Gated Hosted Spec MCP / Codex-only MVP / 无本地规则正文缓存 / 非一期范围 | | |
 
 ### §2.7 最小实现与注释策略
 

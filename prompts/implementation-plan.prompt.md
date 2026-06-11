@@ -116,7 +116,7 @@ applyTo: .devcodex/**/requirements/**
 | Backlog Intake 真相复核 | 是 / 否 | 任务/批次直接来源于 `data/*.md` open/partial 项 | candidateIds / classification / evidence / scopeDelta |
 | 台账状态回写闭环 | 是 / 否 | 本轮会关闭/部分关闭/改分类任何 VL/PF/PI/ISSUE/GAP | targetLedgers / requiredFields / writebackEvidence / rescanResult |
 | ImplementationComplexityLevel | 简单够用 / 中等 / 企业级 | CP1/CP2 已确认的开发程度等级；未说明时默认简单够用，兼容旧字段 `ImplementationComplexityPreference` | inheritedPreference / optionTradeoff / upgradeConfirmation / noOverengineeringBoundary |
-| CrossProjectLearnedGuards | 是 / 否 | 命中字段/配置/接口文档/数据脚本/吸纳建议/v1 完整首版/启动性能/接入状态/人工复核/翻译/正式文档/prompt契约/验证范围/真实执行/benchmark 等跨项目已吸纳守门 | ExistingDomainContractAudit / ConfigOwnershipMatrix / ApiDocVerificationSync / DataMutationPlan / AbsorptionDecision / FullV1ScopeGuard / StartupPhaseTrace / CodeTruthRequirementGate / ManualReviewEvidenceRetention / DocumentationTranslationParityGuard / FormalDocsDevCodexBoundary / LLMPromptContractTriage / VerificationScopeBudgetGate / LiveVerificationExecutionObligation / AdapterBenchmarkAttribution |
+| CrossProjectLearnedGuards | 是 / 否 | 命中字段/配置/接口文档/数据脚本/吸纳建议/v1 完整首版/启动性能/接入状态/人工复核/翻译/正式文档/prompt契约/验证范围/真实执行/benchmark/产品需求来源/本机配置/相邻范围/包名/性能第一/公开模块/v2 一期路线等跨项目已吸纳守门 | ExistingDomainContractAudit / ConfigOwnershipMatrix / ApiDocVerificationSync / DataMutationPlan / AbsorptionDecision / FullV1ScopeGuard / StartupPhaseTrace / CodeTruthRequirementGate / ManualReviewEvidenceRetention / DocumentationTranslationParityGuard / FormalDocsDevCodexBoundary / LLMPromptContractTriage / VerificationScopeBudgetGate / LiveVerificationExecutionObligation / AdapterBenchmarkAttribution / ProductRequirementTraceabilityGate / LocalExecutionConfigProbe / ManualReviewEvidenceDataRetention / AdjacentScopeExpansionGuard / PackageNameAuthorityGate / PerformanceBenchmarkFirstGate / PublicModuleDifferentiationGate / V2MCPFirstPlanningGate |
 
 ### §4.2 最小实现与注释守门
 
@@ -159,7 +159,7 @@ applyTo: .devcodex/**/requirements/**
 | ProfileImpactCheck | 对照 targetProfileFiles / updateOrSkip / skipReason | Profile 已同步或跳过理由成立；ECR 与 document-sync 有证据 |
 | Backlog Intake 真相复核 | 对照 candidateIds / classification / evidence / scopeDelta | open 统计与本轮范围一致，非 `pure-open` 项已缩减或剔除 |
 | 台账状态回写闭环 | 对照 targetLedgers / requiredFields / writebackEvidence / rescanResult | 状态、证据、计数与报告/进度/SUMMARY 一致 |
-| CrossProjectLearnedGuards | 对照 ExistingDomainContractAudit / ConfigOwnershipMatrix / ApiDocVerificationSync / DataMutationPlan / AbsorptionDecision / FullV1ScopeGuard / StartupPhaseTrace / CodeTruthRequirementGate / ManualReviewEvidenceRetention / DocumentationTranslationParityGuard / FormalDocsDevCodexBoundary / LLMPromptContractTriage / VerificationScopeBudgetGate / LiveVerificationExecutionObligation / AdapterBenchmarkAttribution | 已触发的跨项目吸纳守门均有证据；未触发项有 `N/A + skipReason` |
+| CrossProjectLearnedGuards | 对照 ExistingDomainContractAudit / ConfigOwnershipMatrix / ApiDocVerificationSync / DataMutationPlan / AbsorptionDecision / FullV1ScopeGuard / StartupPhaseTrace / CodeTruthRequirementGate / ManualReviewEvidenceRetention / DocumentationTranslationParityGuard / FormalDocsDevCodexBoundary / LLMPromptContractTriage / VerificationScopeBudgetGate / LiveVerificationExecutionObligation / AdapterBenchmarkAttribution / ProductRequirementTraceabilityGate / LocalExecutionConfigProbe / ManualReviewEvidenceDataRetention / AdjacentScopeExpansionGuard / PackageNameAuthorityGate / PerformanceBenchmarkFirstGate / PublicModuleDifferentiationGate / V2MCPFirstPlanningGate | 已触发的跨项目吸纳守门均有证据；未触发项有 `N/A + skipReason` |
 | 模板/规则一致性 | | |
 | 样本映射 | | |
 | 自动化校验 | | |
@@ -197,7 +197,7 @@ applyTo: .devcodex/**/requirements/**
 - [ ] TestRoute 已建立并覆盖（若触发）
 - [ ] LeakRiskStabilityPressureTest 已完成或记录 `N/A + skipReason`（写测试/回归验证时按项目资源生命周期风险判定）
 - [ ] FrontendExperienceQualityGate 已完成或记录 `N/A + skipReason`（前端 UI / 交互任务需覆盖设计来源、还原度、主题、响应式状态、用户流、反馈、输入方式、错误恢复、动效和视觉验证）
-- [ ] CrossProjectLearnedGuards 已完成或记录 `N/A + skipReason`（含 CodeTruthRequirementGate / ManualReviewEvidenceRetention / DocumentationTranslationParityGuard / FormalDocsDevCodexBoundary / LLMPromptContractTriage / VerificationScopeBudgetGate / LiveVerificationExecutionObligation / AdapterBenchmarkAttribution）
+- [ ] CrossProjectLearnedGuards 已完成或记录 `N/A + skipReason`（含 CodeTruthRequirementGate / ManualReviewEvidenceRetention / DocumentationTranslationParityGuard / FormalDocsDevCodexBoundary / LLMPromptContractTriage / VerificationScopeBudgetGate / LiveVerificationExecutionObligation / AdapterBenchmarkAttribution / ProductRequirementTraceabilityGate / LocalExecutionConfigProbe / ManualReviewEvidenceDataRetention / AdjacentScopeExpansionGuard / PackageNameAuthorityGate / PerformanceBenchmarkFirstGate / PublicModuleDifferentiationGate / V2MCPFirstPlanningGate）
 - [ ] ServiceLifecycleCleanup 已完成（若 AI 自启动服务；保留运行需记录用户要求、PID/端口和关闭方式）
 - [ ] ReleaseAudit RL-1~RL-10 已完成（若触发布前审查）
 - [ ] ReleaseVerification R0~R7 已完成（若进入正式发版；如存在远端 CI，R3c 已记录目标 commit CI 绿色证据或 `N/A + skipReason`）

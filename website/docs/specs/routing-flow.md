@@ -22,7 +22,7 @@ flowchart TD
 
     DEV["dev（8 子类型）"]
     FIX["fix（3 子类型）"]
-    AUDIT["audit（6 目标类型）"]
+    AUDIT["audit（7 目标类型）"]
     ANALYZE["analyze（2 子类型）"]
     SELF_FIX["self-fix"]
     PLAN["plan（兜底）"]
@@ -63,4 +63,3 @@ flowchart TD
 - 路由参考文档见：`skills/routing/SKILL.md`
 
 > 约束：路由为主链必经阶段，不可跳过。chat / resume / 违规质疑为特殊路径。
-

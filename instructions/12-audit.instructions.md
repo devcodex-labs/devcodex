@@ -171,7 +171,7 @@ R2 及以后轮次必须把复审从“机械重复已读范围”改为“覆�
 - C — 影响 🟡：RQ-5 影响分析 · RQ-6 约束条件
 - D — 上下文 🟡：RQ-8 项目上下文一致性
 - 涉及前端页面、组件、控制台、官网、文档站、可视化工具或游戏的需求，还必须按 `FrontendExperienceQualityGate` 检查 UI / 交互体验验收是否覆盖设计来源、还原度、风格主题、响应式状态、视觉验证、用户流、交互反馈、输入方式/可访问性、错误恢复和动效转场；不涉及时写 `N/A + skipReason`
-- 涉及接入状态、人工复核、翻译/正式文档边界、prompt/Hook/MCP 契约、验证范围、真实执行或 benchmark 归因的需求，还必须按 `CrossProjectLearnedGuards` 检查 `CodeTruthRequirementGate`、`ManualReviewEvidenceRetention`、`DocumentationTranslationParityGuard`、`FormalDocsDevCodexBoundary`、`LLMPromptContractTriage`、`VerificationScopeBudgetGate`、`LiveVerificationExecutionObligation`、`AdapterBenchmarkAttribution` 是否有验收口径；不涉及时写 `N/A + skipReason`
+- 涉及接入状态、人工复核、翻译/正式文档边界、prompt/Hook/MCP 契约、验证范围、真实执行、benchmark 归因、产品需求来源、本机执行配置、人工证据留存、相邻范围扩展、包名/发布名、性能第一、公开模块或 DevCodex v2 一期路线的需求，还必须按 `CrossProjectLearnedGuards` 检查 `CodeTruthRequirementGate`、`ManualReviewEvidenceRetention`、`DocumentationTranslationParityGuard`、`FormalDocsDevCodexBoundary`、`LLMPromptContractTriage`、`VerificationScopeBudgetGate`、`LiveVerificationExecutionObligation`、`AdapterBenchmarkAttribution`、`ProductRequirementTraceabilityGate`、`LocalExecutionConfigProbe`、`ManualReviewEvidenceDataRetention`、`AdjacentScopeExpansionGuard`、`PackageNameAuthorityGate`、`PerformanceBenchmarkFirstGate`、`PublicModuleDifferentiationGate`、`V2MCPFirstPlanningGate` 是否有验收口径；不涉及时写 `N/A + skipReason`
 
 ### 项目工程审查（PE-1~PE-12）
 - A — 结构 🔴/🟡：PE-1 项目结构合理性 · PE-5 可维护性
@@ -180,7 +180,7 @@ R2 及以后轮次必须把复审从“机械重复已读范围”改为“覆�
 - D — 质量 🟡/💡：PE-6 测试覆盖 · PE-7 依赖健康度
 - E — 可观测 🟡：PE-9 日志 · PE-11 数据层质量
 - 前端项目或包含用户可见 UI 的项目工程审查需叠加 `FrontendExperienceQualityGate`：检查视觉一致性、交互反馈、焦点/输入方式、错误恢复、动效转场和 Browser/截图/E2E 证据；不涉及前端体验时写 `N/A + skipReason`
-- 项目工程、通用文档、README 或控制面审查遇到“已接入/已验证”、人工复核、翻译同步、正式文档边界、LLM 契约、验证范围预算、adapter/provider benchmark 时需叠加 `CrossProjectLearnedGuards`，并在不涉及的维度写 `N/A + skipReason`
+- 项目工程、通用文档、README 或控制面审查遇到“已接入/已验证”、人工复核、翻译同步、正式文档边界、LLM 契约、验证范围预算、adapter/provider benchmark、产品需求来源、本机执行配置、证据留存、相邻范围扩展、包名/发布名、性能第一、公开模块或 DevCodex v2 一期路线时需叠加 `CrossProjectLearnedGuards`，并在不涉及的维度写 `N/A + skipReason`
 
 ### 报告审查（RA-1~RA-6）
 - A — 内容 🔴：RA-1 完整性 · RA-2 事实准确性

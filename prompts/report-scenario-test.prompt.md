@@ -79,6 +79,8 @@ applyTo: .devcodex/**/reports/scenario-tests/**
 |------|:----:|------|
 | TestRoute 覆盖 | ✅ 通过 / N/A | — |
 | LeakRiskStabilityPressureTest | ✅ 通过 / N/A | baseline / pressureScenario / cooldown / resourceMetrics / skipReason |
+| MethodLevelLeakPressureProbe | ✅ 通过 / N/A | publicMethod / lifecycleScenario / iterations / resourceMetrics / cleanupEvidence / skipReason |
+| methodLevelLeakPressure | required / optional / N/A | publicMethod / lifecycleScenario / iterations / resourceMetrics / cleanupEvidence / skipReason |
 | HostContract 验证 | ✅ 通过 / N/A | — |
 | 负载测试 (artillery) | ✅ 通过 | — |
 | 场景回放 | ✅ 通过 | direct replay / fixture replay / N/A |
@@ -91,7 +93,7 @@ applyTo: .devcodex/**/reports/scenario-tests/**
 | TestRoute | ✅/N/A | ✅/⚠️ | |
 | LeakRiskStabilityPressureTest | ✅/N/A | ✅/⚠️ | leakRiskPressure / baseline / cooldown / resourceMetrics / skipReason |
 | FrontendExperienceQualityGate | ✅/N/A | ✅/⚠️ | frontendExperience / Browser / 截图 / E2E / 人工复核 / skipReason |
-| CrossProjectLearnedGuards | ✅/N/A | ✅/⚠️ | ManualReviewEvidenceRetention / VerificationScopeBudgetGate / LiveVerificationExecutionObligation / AdapterBenchmarkAttribution / ProductRequirementTraceabilityGate / LocalExecutionConfigProbe / ManualReviewEvidenceDataRetention / AdjacentScopeExpansionGuard / PackageNameAuthorityGate / PerformanceBenchmarkFirstGate / PublicModuleDifferentiationGate / V2MCPFirstPlanningGate |
+| CrossProjectLearnedGuards | ✅/N/A | ✅/⚠️ | ManualReviewEvidenceRetention / VerificationScopeBudgetGate / LiveVerificationExecutionObligation / AdapterBenchmarkAttribution / ProductRequirementTraceabilityGate / LocalExecutionConfigProbe / ManualReviewEvidenceDataRetention / AdjacentScopeExpansionGuard / PackageNameAuthorityGate / PerformanceBenchmarkFirstGate / PublicModuleDifferentiationGate / V2MCPFirstPlanningGate / WorkspaceDataAbsorptionScopeGate / FlowchartNodeExplanationGate / DocsSiteVisualAcceptanceGate / OmissionOnlyReviewGate / MethodLevelLeakPressureProbe / V2FormalSolutionPackage |
 | ReleaseAudit | ✅/N/A | ✅/⚠️ | |
 | ReleaseVerification | ✅/N/A | ✅/⚠️ | |
 | ConceptSyncMap | ✅/N/A | ✅/⚠️ | sourceOfTruth / currentConsumers / historicalMirrors / validateProbes / deployCopies / yellowDeviationBoundary |

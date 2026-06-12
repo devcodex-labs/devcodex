@@ -35,7 +35,7 @@ dev 工作流未匹配其他子类型时的默认路径，适用于：新功能�
 
 **必要注释守门（F-28）**：非显然业务规则、状态转换、不变量、兼容约束、安全边界、外部契约映射或反直觉权衡必须保留短注释；JavaScript / Node.js 中命中必要注释的导出函数、核心业务函数、类、复杂对象契约、参数/返回/异常说明必须使用标准 JSDoc；禁止逐行解释、重复代码含义、临时 TODO 或调试注释。
 
-**通用工程吸纳守门（F-29）**：CP1 起前置平台工程判断，先确认消费者范围、共享契约边界、模块职责、维护成本与非目标；provider / connector / SDK 接入须落字段级合同；包 / 库 / adapter / CLI 须检查代码实现层与包工程层；依赖升级须拆分业务源码平滑性与依赖层落地条件；内部共享库根因优先评估“修共享库 + 消费项目升级”；简单业务 service 不重复 route/model/schema 已承担的校验与归一化。新增字段/配置/本地化容器/状态枚举须做 `ExistingDomainContractAudit`；业务策略常量须做 `ConfigOwnershipMatrix`；接口文档变更须做 `ApiDocVerificationSync`；数据补齐/迁移脚本须做 `DataMutationPlan`；值得吸纳建议须做 `AbsorptionDecision`；完整首版须做 `FullV1ScopeGuard`；启动优化须做 `StartupPhaseTrace`；跨项目已吸纳守门须按条件判定 `CodeTruthRequirementGate`、`ManualReviewEvidenceRetention`、`DocumentationTranslationParityGuard`、`FormalDocsDevCodexBoundary`、`LLMPromptContractTriage`、`VerificationScopeBudgetGate`、`LiveVerificationExecutionObligation`、`AdapterBenchmarkAttribution`、`ProductRequirementTraceabilityGate`、`LocalExecutionConfigProbe`、`ManualReviewEvidenceDataRetention`、`AdjacentScopeExpansionGuard`、`PackageNameAuthorityGate`、`PerformanceBenchmarkFirstGate`、`PublicModuleDifferentiationGate` 与 `V2MCPFirstPlanningGate`。
+**通用工程吸纳守门（F-29）**：CP1 起前置平台工程判断，先确认消费者范围、共享契约边界、模块职责、维护成本与非目标；provider / connector / SDK 接入须落字段级合同；包 / 库 / adapter / CLI 须检查代码实现层与包工程层；依赖升级须拆分业务源码平滑性与依赖层落地条件；内部共享库根因优先评估“修共享库 + 消费项目升级”；简单业务 service 不重复 route/model/schema 已承担的校验与归一化。新增字段/配置/本地化容器/状态枚举须做 `ExistingDomainContractAudit`；业务策略常量须做 `ConfigOwnershipMatrix`；接口文档变更须做 `ApiDocVerificationSync`；数据补齐/迁移脚本须做 `DataMutationPlan`；值得吸纳建议须做 `AbsorptionDecision`；完整首版须做 `FullV1ScopeGuard`；启动优化须做 `StartupPhaseTrace`；跨项目已吸纳守门须按条件判定 `CodeTruthRequirementGate`、`ManualReviewEvidenceRetention`、`DocumentationTranslationParityGuard`、`FormalDocsDevCodexBoundary`、`LLMPromptContractTriage`、`VerificationScopeBudgetGate`、`LiveVerificationExecutionObligation`、`AdapterBenchmarkAttribution`、`ProductRequirementTraceabilityGate`、`LocalExecutionConfigProbe`、`ManualReviewEvidenceDataRetention`、`AdjacentScopeExpansionGuard`、`PackageNameAuthorityGate`、`PerformanceBenchmarkFirstGate`、`PublicModuleDifferentiationGate`、`V2MCPFirstPlanningGate`、`WorkspaceDataAbsorptionScopeGate`、`FlowchartNodeExplanationGate`、`DocsSiteVisualAcceptanceGate`、`OmissionOnlyReviewGate`、`MethodLevelLeakPressureProbe` 与 `V2FormalSolutionPackage`。
 
 **验证卫生与串行边界（F-30） / 验证卫生与并发边界**：按 `ConcurrencyPolicy` 执行：只读准备和隔离验证可在不共享输出目录时并行；release / pack / benchmark / codegen / package boundary 检查不得与会删除、重建或写入 `dist` 的命令并行；消费者验证异常时先核对 package.json / lockfile / node_modules / `npm ls <关键依赖>`；完成前检查并清理本轮或旧验证遗留的无关 dirty 文件。
 
@@ -43,7 +43,9 @@ dev 工作流未匹配其他子类型时的默认路径，适用于：新功能�
 
 **前端体验质量门禁（F-32）**：前端页面、组件、控制台、官网、文档站、可视化工具或游戏任务必须执行 `FrontendExperienceQualityGate` 条件判定；命中时把设计来源、UI 还原度、风格主题、响应式状态、用户流、交互反馈、输入方式/可访问性、错误恢复、动效转场和视觉验证纳入 CP2/CP3/TestRoute/ECR，未触发时写 `N/A + skipReason`。
 
-**数据吸纳扩展守门（F-33）**：来源于 `data/*.md`、用户纠偏或同类项目的剩余吸纳项，只有通过价值复核且能落入 CP/TestRoute/审查/validate 的，才进入规范源；其中产品需求、执行配置、人工证据、相邻范围、包名、性能基线、公开模块和 v2 MCP-first 路线必须分别执行对应 Gate。
+**数据吸纳扩展守门（F-33）**：来源于 `data/*.md`、用户纠偏或同类项目的剩余吸纳项，只有通过价值复核且能落入 CP/TestRoute/审查/validate 的，才进入规范源；其中产品需求、执行配置、人工证据、相邻范围、包名、性能基线、公开模块、v2 MCP-first 路线、全工作区 data 扫描、流程图节点解释、文档站视觉验收、遗漏专审、方法级泄漏压测和 v2 正式方案包必须分别执行对应 Gate。
+
+**全工作区 data 吸纳范围（F-34）**：从 `data/*.md` 扫描最新问题、生成仍需吸纳清单或执行吸纳修复时，必须执行 `WorkspaceDataAbsorptionScopeGate`，扫描 `.devcodex/*/data/` 下所有项目命名空间和 workspace 台账；只扫描当前项目、源码目录或 sticky activeProject 视为范围缺失。
 
 **错误处理验证（F-21）**：实施完成后须验证边界/异常路径（如空值/权限拒绝/超时）均有处理，不得只验证正常路径。
 

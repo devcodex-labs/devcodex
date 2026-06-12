@@ -87,6 +87,7 @@ description: 规范治理生命周期 — 意图驱动记录、RecordRouter 分�
 
 - `data/*.md` 是运行时逻辑台账路径，实际写入必须先解析 active-root。
 - 旧布局写 `<项目根>/.devcodex/data/`；workspace-namespace 单项目写 `<工作区根>/.devcodex/<project>/data/`；全工作区写 `<工作区根>/.devcodex/workspace/data/`。
+- `WorkspaceDataAbsorptionScopeGate`：当用户要求“检查 data 目录、最新可吸纳问题、仍需吸纳清单、开始吸纳”时，候选扫描范围必须是工作区 `.devcodex/*/data/` 全部命名空间；不能只扫描源码项目、当前 sticky activeProject 或某一个 runtime active-root。输出至少包含命名空间、台账文件、候选编号、归属判断、跳过原因与最终纳入范围。
 - DevCodex 规范自身、Hook、Skill、模板、validate 或宿主适配链路问题归属当前 DevCodex 源仓或规范维护项目的 active-root；在 `workspace-namespace` 下应解析为承载 DevCodex 源码或规范资产的项目命名空间，不得因当时正在处理业务项目而写入业务项目台账。
 - `data/process-improvements.md` 在本 Skill 中也可称“优化清单（PI）”；当建议针对 DevCodex 规范自身时，PI/PF 的 active-root 归属同样遵循上条，不得写入业务项目台账。
 - VL/PF 关闭前必须具备修复方案、修复时间、验证状态、验证时间、验证证据与关闭时间；仅“已登记”不得视为“已验证关闭”。

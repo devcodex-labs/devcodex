@@ -1148,6 +1148,61 @@ function buildGovernanceTailChecks(ctx) {
     console.log('[V62] data absorption guard extensions sync checked')
   }
 
+  function checkV63() {
+    const probes = [
+      { file: 'instructions.md', needles: ['WorkspaceDataAbsorptionScopeGate', 'FlowchartNodeExplanationGate', 'DocsSiteVisualAcceptanceGate', 'OmissionOnlyReviewGate', 'MethodLevelLeakPressureProbe', 'V2FormalSolutionPackage'] },
+      { file: 'instructions/10-dev.instructions.md', needles: ['WorkspaceDataAbsorptionScopeGate', 'DocsSiteVisualAcceptanceGate', 'MethodLevelLeakPressureProbe', 'V2FormalSolutionPackage'] },
+      { file: 'instructions/12-audit.instructions.md', needles: ['OmissionOnlyReviewGate', 'WorkspaceDataAbsorptionScopeGate', 'ReviewCoverageDelta'] },
+      { file: 'skills/spec-governance/SKILL.md', needles: ['WorkspaceDataAbsorptionScopeGate', '.devcodex/*/data/'] },
+      { file: 'skills/dev-default/SKILL.md', needles: ['WorkspaceDataAbsorptionScopeGate', 'FlowchartNodeExplanationGate', 'MethodLevelLeakPressureProbe', 'V2FormalSolutionPackage'] },
+      { file: 'skills/dev-plan-review/SKILL.md', needles: ['WorkspaceDataAbsorptionScopeGate', 'DocsSiteVisualAcceptanceGate', 'V2FormalSolutionPackage'] },
+      { file: 'skills/test-router/SKILL.md', needles: ['workspaceDataAbsorption', 'docsSiteVisualAcceptance', 'methodLevelLeakPressure', 'v2FormalSolutionPackage'] },
+      { file: 'skills/dev-testing/SKILL.md', needles: ['MethodLevelLeakPressureProbe', '公开方法', '生命周期'] },
+      { file: 'skills/dev-scenario-test/SKILL.md', needles: ['MethodLevelLeakPressureProbe', 'methodLevelLeakPressure'] },
+      { file: 'skills/dev-docs/SKILL.md', needles: ['FlowchartNodeExplanationGate', 'DocsSiteVisualAcceptanceGate'] },
+      { file: 'skills/document-sync/SKILL.md', needles: ['WorkspaceDataAbsorptionScopeGate', 'FlowchartNodeExplanationGate', 'DocsSiteVisualAcceptanceGate'] },
+      { file: 'skills/audit-common/SKILL.md', needles: ['OmissionOnlyReviewGate', 'WorkspaceDataAbsorptionScopeGate'] },
+      { file: 'skills/audit-project/SKILL.md', needles: ['DocsSiteVisualAcceptanceGate', 'MethodLevelLeakPressureProbe', 'V2FormalSolutionPackage'] },
+      { file: 'skills/audit-document/SKILL.md', needles: ['FlowchartNodeExplanationGate', 'DocsSiteVisualAcceptanceGate'] },
+      { file: 'skills/audit-requirements/SKILL.md', needles: ['WorkspaceDataAbsorptionScopeGate', 'MethodLevelLeakPressureProbe', 'V2FormalSolutionPackage'] },
+      { file: 'prompts/requirement.prompt.md', needles: ['WorkspaceDataAbsorptionScopeGate', 'DocsSiteVisualAcceptanceGate', 'V2FormalSolutionPackage'] },
+      { file: 'prompts/technical-design.prompt.md', needles: ['FlowchartNodeExplanationGate', 'MethodLevelLeakPressureProbe', 'V2FormalSolutionPackage'] },
+      { file: 'prompts/implementation-plan.prompt.md', needles: ['WorkspaceDataAbsorptionScopeGate', 'OmissionOnlyReviewGate', 'MethodLevelLeakPressureProbe'] },
+      { file: 'prompts/report-dev.prompt.md', needles: ['WorkspaceDataAbsorptionScopeGate', 'DocsSiteVisualAcceptanceGate', 'V2FormalSolutionPackage'] },
+      { file: 'prompts/report-fix.prompt.md', needles: ['MethodLevelLeakPressureProbe', 'V2FormalSolutionPackage'] },
+      { file: 'prompts/report-audit.prompt.md', needles: ['OmissionOnlyReviewGate', 'WorkspaceDataAbsorptionScopeGate'] },
+      { file: 'prompts/report-scenario-test.prompt.md', needles: ['MethodLevelLeakPressureProbe', 'methodLevelLeakPressure'] },
+      { file: 'README.md', needles: ['WorkspaceDataAbsorptionScopeGate', 'DocsSiteVisualAcceptanceGate', 'V2FormalSolutionPackage'] },
+      { file: 'website/docs/guide/development.md', needles: ['WorkspaceDataAbsorptionScopeGate', 'MethodLevelLeakPressureProbe', 'V2FormalSolutionPackage'] },
+      { file: 'website/docs/specs/flowcharts.md', needles: ['FlowchartNodeExplanationGate', '中文说明'] },
+      { file: 'website/docs/versions/v1/1.0.1/requirements/index.md', needles: ['latest-data-absorption-guards', '最新 data 吸纳守门补强'] },
+      { file: 'website/docs/versions/v1/1.0.1/requirements/p1/latest-data-absorption-guards/index.md', needles: ['WorkspaceDataAbsorptionScopeGate', 'DocsSiteVisualAcceptanceGate', 'V2FormalSolutionPackage'] },
+      { file: 'website/docs/versions/v1/1.0.1/CHANGELOG.md', needles: ['WorkspaceDataAbsorptionScopeGate', 'V63 探针'] },
+      { file: 'website/docs/versions/v2/2.0.0/index.md', needles: ['一期正式方案包', 'formal-solution-package'] },
+      { file: 'website/docs/versions/v2/2.0.0/formal-solution-package.md', needles: ['V2FormalSolutionPackage', 'MCP API Contract', '节点说明'] },
+      { file: 'website/rspress.config.ts', needles: ['latest-data-absorption-guards', 'formal-solution-package'] },
+      { file: 'changelogs/unreleased.md', needles: ['WorkspaceDataAbsorptionScopeGate', 'DocsSiteVisualAcceptanceGate', 'MethodLevelLeakPressureProbe', 'V2FormalSolutionPackage'] },
+      { file: 'scripts/test-spec-governance.js', needles: ['checkV63', 'WorkspaceDataAbsorptionScopeGate', 'V2FormalSolutionPackage'] }
+    ]
+
+    for (const probe of probes) {
+      const content = read(path.join(ROOT, probe.file))
+      for (const needle of probe.needles) {
+        if (!content.includes(needle)) {
+          err(`[V63] latest data absorption guard drift in ${probe.file}: missing "${needle}"`)
+        }
+      }
+    }
+
+    for (const needle of ['WorkspaceDataAbsorptionScopeGate', 'DocsSiteVisualAcceptanceGate', 'OmissionOnlyReviewGate', 'MethodLevelLeakPressureProbe', 'V2FormalSolutionPackage']) {
+      if (!hasChangelogEvidence(needle)) {
+        err(`[V63] latest data absorption guard changelog drift: missing "${needle}" in changelogs/unreleased.md or changelogs/releases/*.md`)
+      }
+    }
+
+    console.log('[V63] latest data absorption guard sync checked')
+  }
+
   return {
     checkV39,
     checkV40,
@@ -1172,7 +1227,8 @@ function buildGovernanceTailChecks(ctx) {
     checkV59,
     checkV60,
     checkV61,
-    checkV62
+    checkV62,
+    checkV63
   }
 }
 

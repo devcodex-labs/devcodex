@@ -2,7 +2,7 @@
 applyTo: "**"
 description: audit 工作流规则，覆盖审查目标路由、收敛门禁、元循环与只读边界
 priority: P4
-version: 1.11.19
+version: 1.11.20
 ---
 # 审计工作流规则（12-audit）
 
@@ -102,6 +102,15 @@ R2 及以后轮次必须把复审从“机械重复已读范围”改为“覆�
 - `NewlyReadThisRound` 非空且本轮无新增问题，或 `NoNewSurfaceReason` 有证据支撑且本轮无新增问题，才可计为一次有效零发现。
 - `NewlyReadThisRound` 为空且缺少 `NoNewSurfaceReason` 时，本轮零发现不得增加收敛计数。
 - `UnreviewedRelatedSet` 非空时，下一轮必须优先读取其中高相关项；不得连续重复读取同一批已通过文件来替代覆盖增量。
+
+### OmissionOnlyReviewGate（遗漏专审）
+
+用户明确要求“只审查遗漏 / 上次没检查的 / 不要列已吸纳或没必要项”时，audit/analyze/review 必须切换为 omission-only 范围：
+
+- 先列明用户限定范围、指定轮次、此前已覆盖集合、已吸纳/排除集合和本轮新增覆盖集合。
+- 最终清单只保留“此前未覆盖且仍有吸纳或修复价值”的遗漏项；已吸纳、已关闭、重复项或明确无必要项只能写入排除理由，不进入最终待吸纳清单。
+- 复审仍须满足 `ReviewCoverageDelta`，并在 `NewlyReadThisRound` 中优先覆盖此前未读的 data 台账、消费者链、部署副本、报告和记忆索引。
+- 若遗漏审查来源是“data 目录吸纳”，必须同时执行 `WorkspaceDataAbsorptionScopeGate`，扫描 `.devcodex/*/data/` 全部命名空间。
 
 ## 收敛后汇总验证（PCV）
 

@@ -45,6 +45,11 @@ README / 用户使用文档场景在本 Skill 基础上，还应叠加 `audit-re
 - 正式用户文档、官网、README 或规范页不得混入运行时报告、台账、临时分析、内部待办或一次性复盘口吻
 - 若文档被声明“已验证 / 可运行 / 可点击”，审查需核对 `LiveVerificationExecutionObligation` 的实际命令、页面、链接或等价证据
 
+**FlowchartNodeExplanationGate / DocsSiteVisualAcceptanceGate（条件）**
+- 正式流程图、生命周期图、Nxx 节点图或维护者流程页必须配套中文节点说明，覆盖触发、前置条件、处理动作、成功/失败出口和异常/回退
+- 官网、文档站、技术站或正式说明页涉及视觉/交互验收时，需核对主题集成、真实点击、异步动效绑定、`prefers-reduced-motion`、代码 token 对比度、终端 demo 范围、TOC inline code 和辅助导航层级
+- 纯文本内容、历史镜像或临时草图可标 `N/A + skipReason`
+
 ## README 叠加规则
 
 当目标是 README 或主用户使用文档时：
@@ -59,3 +64,4 @@ README / 用户使用文档场景在本 Skill 基础上，还应叠加 `audit-re
 - 纯图表/示意图文件无受众概念：DA-5 标 N/A
 - 无关联代码：DA-6 标 N/A
 - 非多语言、非正式用户文档且无验证声明：上述文档边界守门可标 `N/A + skipReason`
+- 非正式流程图、纯文本内容页或无视觉交互变更：上述流程图/文档站验收守门可标 `N/A + skipReason`

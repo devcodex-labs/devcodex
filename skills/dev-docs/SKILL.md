@@ -106,6 +106,8 @@ description: 文档开发子类型规范 — 技术文档/API文档/README 编�
 - `DocumentationTranslationParityGuard`：同步多语言、翻译页、README 与 website 入口时，必须核对语义等价和导航/索引顺序。
 - `FormalDocsDevCodexBoundary`：正式用户文档只呈现稳定使用信息；运行时台账、审查报告、临时分析和内部治理噪声保留在 `.devcodex/**`。
 - `ManualReviewEvidenceRetention`：人工文档复核或链接/视觉抽查要留范围、输入和证据；不得只写“已人工检查”。
+- `FlowchartNodeExplanationGate`：正式流程图、生命周期图、Nxx 节点图或维护者流程页必须给每个非终止节点配中文解释，说明触发、前置、动作、出口和异常/回退。
+- `DocsSiteVisualAcceptanceGate`：官网/文档站/技术站视觉或交互调整必须验收主题集成、真实点击、异步动效、减弱动态、代码 token 对比度、终端 demo 范围、TOC inline code 和辅助导航层级；纯内容页写 `N/A + skipReason`。
 
 ## 产出物
 

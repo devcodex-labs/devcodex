@@ -23,6 +23,10 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 | `frontendExperience` | 是否涉及前端页面、组件、控制台、官网、文档站、可视化工具、游戏或用户可见 UI / 交互 |
 | `manualReview` | 是否存在人工复核、视觉检查、手工冒烟、外部页面观察或无法自动化的验证 |
 | `scopeBudget` | 验证强度是否与风险、变更面、发布/控制面/资源生命周期/前端体验匹配 |
+| `workspaceDataAbsorption` | 是否从 `.devcodex/*/data/` 扫描、吸纳或裁剪候选问题 |
+| `docsSiteVisualAcceptance` | 是否涉及文档站/官网/技术站视觉、导航、点击路径、动效或代码展示验收 |
+| `methodLevelLeakPressure` | 是否涉及公开方法级资源泄漏修复、adapter/SDK/连接/监听/定时器/worker/cache 生命周期风险 |
+| `v2FormalSolutionPackage` | 是否进入 DevCodex v2 一期正式 CP1/CP2 方案包冻结 |
 
 ## 路由矩阵
 
@@ -53,6 +57,12 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 | 性能第一 / benchmark | PerformanceBenchmarkFirstGate：先冻结基线、环境、版本、指标、负载、比较对象和成功阈值 | 缺少基线不得宣称提升、最快或第一 |
 | 公开模块 / SDK / CLI / 插件 | PublicModuleDifferentiationGate：区分 public API、内部 helper、示例代码、发布包文件、消费者入口和历史镜像 | 正式文档只承诺真实公开面 |
 | DevCodex v2 一期路线 | V2MCPFirstPlanningGate：核对 Intent-Gated Hosted Spec MCP、Codex-only MVP、私有可追踪 docs 和无本地规则正文缓存边界 | MongoDB/控制台/多租户自定义工作流默认不进一期 |
+| data 吸纳 / 最新问题扫描 | WorkspaceDataAbsorptionScopeGate：扫描 `.devcodex/*/data/` 全命名空间，列出命中台账、候选编号、归属和跳过理由 | 不得只扫当前源码项目、当前 active-root 或 sticky activeProject |
+| 正式流程图 / 生命周期图 | FlowchartNodeExplanationGate：Mermaid/Nxx 流程图配套中文节点说明，覆盖触发、前置、动作、出口、异常 | 临时草图写 `N/A + skipReason` |
+| 文档站视觉 / 交互验收 | DocsSiteVisualAcceptanceGate：覆盖主题集成、真实点击、异步动效、减弱动态、代码 token 对比度、终端 demo 范围、TOC inline code、辅助导航层级 | 纯内容页可降级为链接/构建/人工证据 |
+| 遗漏专审 / 只列仍需吸纳项 | OmissionOnlyReviewGate：只输出此前未覆盖且仍有价值项，保留已吸纳/排除理由和覆盖增量 | 不得把已吸纳、已关闭或没必要项重新列入最终清单 |
+| 方法级泄漏压测 | MethodLevelLeakPressureProbe：公开方法、adapter/SDK、连接池、监听器、定时器、worker/cache 风险命中时评估重复调用或生命周期压测 | 低风险纯函数写 `N/A + skipReason` |
+| v2 一期正式方案包 | V2FormalSolutionPackage：冻结 CP1/CP2，覆盖架构、数据模型、MCP API contract、instruction return、可见性、cache/signature/rollback、Codex-only 验证、Registry/Marketplace、维护站和 Mermaid 节点 | 未完成前不得宣告 v2 一期收敛 |
 
 ## 输出格式
 
@@ -80,6 +90,10 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 | performanceBenchmarkFirst | N/A / required / optional；若 required，写基线、指标、负载、比较对象和成功阈值 |
 | publicModuleDifferentiation | N/A / required / optional；若 required，写 public API、内部实现、示例、发布文件和消费者入口边界 |
 | v2McpFirstPlanning | N/A / required / optional；若 required，写 v2 一期 MCP-first 范围和非一期排除项 |
+| workspaceDataAbsorption | N/A / required / optional；若 required，写 `.devcodex/*/data` 命名空间、台账文件、候选编号、跳过理由和纳入范围 |
+| docsSiteVisualAcceptance | N/A / required / optional；若 required，写主题、点击、动效、reduced-motion、代码 token、终端 demo、TOC 和辅助导航证据 |
+| methodLevelLeakPressure | N/A / required / optional；若 required，写公开方法、重复调用/生命周期场景、资源指标、阈值、冷却和清理证据 |
+| v2FormalSolutionPackage | N/A / required / optional；若 required，写 CP1/CP2 包位置、MCP API contract、验证矩阵、回滚和发布/维护站证据 |
 | verificationScopeBudget | N/A / aligned / under-scoped / over-scoped；写风险匹配依据和降级/减负理由 |
 | skippedChecks | |
 | skipReason | |
@@ -106,6 +120,12 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 - 涉及“最快 / 第一 / 优于 / 性能提升 / 压测 / benchmark”时必须执行 PerformanceBenchmarkFirstGate；没有基线不能声明提升或第一。
 - 面向公开模块、SDK、CLI、插件、文档站能力或对外 API 时必须执行 PublicModuleDifferentiationGate，区分公开承诺与内部实现。
 - DevCodex v2 一期规划必须执行 V2MCPFirstPlanningGate；无正式 CP1/CP2 方案包时，MongoDB、控制台、多租户自定义工作流和本地规则正文缓存不作为默认范围。
+- 扫描 data 目录、吸纳最新问题或裁剪仍需吸纳清单时必须执行 WorkspaceDataAbsorptionScopeGate，覆盖 `.devcodex/*/data/` 全命名空间。
+- 正式流程图、生命周期图、Nxx 节点图或维护者流程页必须执行 FlowchartNodeExplanationGate，图中非终止节点需要中文节点说明。
+- 官网、文档站、技术站或正式说明页涉及视觉/交互验收时必须执行 DocsSiteVisualAcceptanceGate，不能只跑构建后宣称“观感通过”。
+- 用户要求遗漏专审或只列仍需吸纳项时必须执行 OmissionOnlyReviewGate，最终清单排除已吸纳、已关闭、重复和明确无必要项。
+- 高风险资源泄漏修复、公开库/adapter/SDK 或连接/监听/定时器/worker/cache 风险命中时必须评估 MethodLevelLeakPressureProbe；低风险任务写 `N/A + skipReason`。
+- DevCodex v2 一期进入正式规划、冻结方案或 ISSUE-027 尾项治理时必须执行 V2FormalSolutionPackage，未形成正式 CP1/CP2 包不得宣告范围收敛。
 - 新增/升级依赖、框架、SDK、平台 API 或外部模块时，不得只验证“能安装”；必须引用 `OfficialDocsEvidence` 并至少验证一次项目内采用的关键用法。
 - 写测试用例或规划回归验证时必须先做 `LeakRiskStabilityPressureTest` 判定；若变更涉及长运行进程、高并发/高频路径、缓存/队列/连接池、文件/流/socket、事件监听器、定时器、worker、订阅、前端组件生命周期，或来自 `PE-12 资源生命周期与泄漏风险` / 性能稳定性问题，不得只写单元测试，必须把场景/负载/稳定性验证纳入 TestRoute，或写明 `N/A + skipReason`。
 - 涉及前端页面、组件、控制台、官网、文档站、可视化工具、游戏或用户可见 UI / 交互时必须执行 `FrontendExperienceQualityGate` 判定；命中视觉或交互风险时不得只跑构建/单测，必须纳入 Browser/截图、Playwright/E2E 或项目等价视觉/交互验证，无法运行时记录阻塞与降级证据。

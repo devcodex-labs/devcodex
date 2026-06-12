@@ -299,6 +299,12 @@ dev/fix 修改完成前必须判定是否影响 Profile。命中以下任一触�
 - `PerformanceBenchmarkFirstGate`：用户要求“最快、首个、优于、性能提升、压测、benchmark”时，必须先冻结基线、环境、指标、负载和比较对象，再实施优化；缺少基线时不得宣称提升或第一。
 - `PublicModuleDifferentiationGate`：面向公开模块、SDK、CLI、插件或文档站能力时，必须区分 public API、内部实现、示例代码、发布包文件和消费者入口；不得把内部 helper 或历史镜像描述成公开承诺。
 - `V2MCPFirstPlanningGate`：DevCodex v2 一期规划默认以 Intent-Gated Hosted Spec MCP / Codex-only 验证 MVP 为优先路线；未形成正式 CP1/CP2 方案包前，不得把 MongoDB、控制台、多租户自定义工作流、本地规则正文缓存或安装 `.github` / `CLAUDE.md` / `AGENTS.md` 副本作为一期默认范围。
+- `WorkspaceDataAbsorptionScopeGate`：用户要求“检查/吸纳最新问题、data 目录、仍需吸纳清单”时，必须扫描工作区 `.devcodex/*/data/` 下所有项目命名空间与 workspace data 台账，而不是只扫当前源码项目或 sticky activeProject；扫描结果须列出命中命名空间、台账类型、跳过原因和最终归属。
+- `FlowchartNodeExplanationGate`：正式流程图、生命周期图、Nxx 节点图、维护者流程页或需求/方案中的 Mermaid 流程图必须配套中文节点说明；每个非终止节点至少说明角色/触发、前置条件、处理动作、成功/失败出口和异常/回退，禁止只给图不解释。
+- `DocsSiteVisualAcceptanceGate`：官网、文档站、技术站或正式说明页的视觉/交互验收需覆盖主题集成、真实点击路径、异步动效绑定、`prefers-reduced-motion`、代码 token 对比度、终端 demo 可读范围、TOC inline code 展示和辅助导航层级；纯内容页可写 `N/A + skipReason`。
+- `OmissionOnlyReviewGate`：用户明确要求“只审查遗漏、上次没检查的、不要重复已吸纳/没必要项”时，审查范围必须切换为 omission-only；输出需包含用户指定轮次/范围、此前已覆盖集合、本轮新增覆盖集合、遗漏候选、排除理由和收敛状态，禁止把已确认吸纳或明确无必要项重新列入最终清单。
+- `MethodLevelLeakPressureProbe`：高风险资源泄漏修复、公开库/adapter/SDK、连接池/监听器/定时器/worker/cache 或 PE-12 命中项，除常规单测和发布验证外，需按项目现实评估是否追加公开方法级重复调用/生命周期压测探针；未触发时记录 `N/A + skipReason`，不得把所有低风险纯函数机械升级为方法级压测。
+- `V2FormalSolutionPackage`：DevCodex v2 一期进入正式规划、用户要求冻结方案或 ISSUE-027 残余尾项时，必须形成正式 CP1/CP2 方案包，覆盖架构、数据模型、MCP API contract、最小 instruction return、可见性分层、cache/signature/rollback、Codex-only 验证矩阵、Registry/Marketplace、私有维护站和 Mermaid 节点流程；未完成前不得宣告 v2 一期范围已收敛。
 
 ### 台账落点与关闭证据
 

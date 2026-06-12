@@ -132,6 +132,7 @@ export default defineConfig({
                                 { text: '泄漏风险稳定性压测', link: '/versions/v1/1.0.1/requirements/p1/leak-risk-stability-pressure/' },
                                 { text: '前端体验质量门禁', link: '/versions/v1/1.0.1/requirements/p1/frontend-experience-quality/' },
                                 { text: '剩余 data 吸纳守门扩展', link: '/versions/v1/1.0.1/requirements/p1/data-absorption-guard-extensions/' },
+                                { text: '最新 data 吸纳守门补强', link: '/versions/v1/1.0.1/requirements/p1/latest-data-absorption-guards/' },
                             ],
                         },
                         {
@@ -361,6 +362,7 @@ export default defineConfig({
                             collapsed: true,
                             items: [
                                 { text: '路线图', link: '/versions/v2/2.0.0/' },
+                                { text: '一期正式方案包', link: '/versions/v2/2.0.0/formal-solution-package' },
                             ],
                         },
                     ],

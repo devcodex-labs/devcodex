@@ -19,6 +19,7 @@ description: 测试规范 — 单元测试/集成测试/API测试/E2E测试四�
 - 本 Skill 负责定义各类测试的覆盖标准、阻断规则和失败处理，不替代 `api-verification` / `dev-scenario-test` 的专项产物。
 - 当 TestRoute 包含对外 HTTP API 归档验证时，必须继续读取 `api-verification`；当 TestRoute 包含场景/负载测试时，必须继续读取 `dev-scenario-test`。
 - 写测试用例时必须同步执行 `LeakRiskStabilityPressureTest` 条件判定：命中资源生命周期或稳定性风险时，继续读取 `dev-scenario-test` 并把泄漏风险稳定性压测纳入 TestRoute；未命中时记录 `N/A + skipReason`，不得把所有低风险单元测试机械升级为压测。
+- 高风险资源泄漏修复、公开库/adapter/SDK、连接池、监听器、定时器、worker、cache 或 PE-12 命中项必须同步评估 `MethodLevelLeakPressureProbe`：需要时为公开方法、生命周期入口或资源创建/释放路径补重复调用/重复挂载卸载/重复 open-close 压测；低风险纯函数写 `N/A + skipReason`。
 - 前端页面、组件、控制台、官网、文档站、可视化工具或游戏测试必须同步执行 `FrontendExperienceQualityGate` 条件判定；命中时测试路线覆盖 UI 视觉和 UX 交互证据，未命中时记录 `N/A + skipReason`。
 - 测试路线必须同步执行 `VerificationScopeBudgetGate` 与 `LiveVerificationExecutionObligation`：验证强度匹配风险和变更面，声明“已验证/可运行/可点击/已安装/已发布”前必须真实执行对应命令、页面、接口、pack/install、registry/tag 查询或项目等价验证。
 - 人工复核、视觉检查、手工冒烟、外部页面观察或无法自动化验证必须执行 `ManualReviewEvidenceRetention`，记录复核人/时间/范围/输入/观察结果/截图或日志位置。
@@ -48,6 +49,18 @@ description: 测试规范 — 单元测试/集成测试/API测试/E2E测试四�
 2. 最小证据包含：基线指标、压力/重复生命周期场景、持续时间或迭代次数、冷却窗口、前后对比、清理证据和失败阈值。
 3. 纯计算函数、静态文档、一次性脚本、无状态转换且无长生命周期资源的变更可标 `N/A + skipReason`。
 4. 若验证需要 AI 启动服务或压测 target，必须同时执行 `ServiceLifecycleCleanup`。
+
+### MethodLevelLeakPressureProbe（方法级泄漏压测）
+
+该探针用于补强“单元测试通过但公开方法重复调用仍泄漏”的风险，不是所有测试任务的默认要求。
+
+| 判定项 | 触发条件 | 验证要求 |
+|--------|----------|----------|
+| 公开方法 / 导出类 | SDK、adapter、CLI helper、长期运行库或公共 API 暴露资源创建/注册/订阅能力 | 对 public method 做重复调用、失败分支和 cleanup 路径采样 |
+| 生命周期入口 | mount/unmount、open/close、connect/disconnect、subscribe/unsubscribe、start/stop | 验证重复生命周期后 active handles、监听器、连接、缓存或项目等价指标可回落 |
+| 修复回归 | 本轮修复 PE-12、内存泄漏、监听器泄漏、连接泄漏或无界缓存 | 用修复前失败模式设计最小重复场景，并记录阈值 |
+
+最小证据：公开入口、重复次数或持续时间、基线/结束/冷却指标、清理断言、失败阈值和 `ServiceLifecycleCleanup` 状态。
 
 ## 前端 UI / 交互体验验证（条件）
 

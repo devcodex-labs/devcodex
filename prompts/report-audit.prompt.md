@@ -62,7 +62,8 @@ applyTo: ".devcodex/**/reports/audit/**, .devcodex/**/reports/self-fix/**"
 | 黄色偏离 | |
 | 部署同步证据 | |
 | FrontendExperienceQualityGate | 设计来源 / UI 还原度 / 风格主题 / 响应式状态 / 视觉验证 / 用户流 / 交互反馈 / 输入方式 / 错误恢复 / 动效转场 |
-| CrossProjectLearnedGuards | CodeTruthRequirementGate / ManualReviewEvidenceRetention / DocumentationTranslationParityGuard / FormalDocsDevCodexBoundary / LLMPromptContractTriage / VerificationScopeBudgetGate / LiveVerificationExecutionObligation / AdapterBenchmarkAttribution / ProductRequirementTraceabilityGate / LocalExecutionConfigProbe / ManualReviewEvidenceDataRetention / AdjacentScopeExpansionGuard / PackageNameAuthorityGate / PerformanceBenchmarkFirstGate / PublicModuleDifferentiationGate / V2MCPFirstPlanningGate |
+| CrossProjectLearnedGuards | CodeTruthRequirementGate / ManualReviewEvidenceRetention / DocumentationTranslationParityGuard / FormalDocsDevCodexBoundary / LLMPromptContractTriage / VerificationScopeBudgetGate / LiveVerificationExecutionObligation / AdapterBenchmarkAttribution / ProductRequirementTraceabilityGate / LocalExecutionConfigProbe / ManualReviewEvidenceDataRetention / AdjacentScopeExpansionGuard / PackageNameAuthorityGate / PerformanceBenchmarkFirstGate / PublicModuleDifferentiationGate / V2MCPFirstPlanningGate / WorkspaceDataAbsorptionScopeGate / FlowchartNodeExplanationGate / DocsSiteVisualAcceptanceGate / OmissionOnlyReviewGate / MethodLevelLeakPressureProbe / V2FormalSolutionPackage |
+| OmissionOnlyReviewGate | 已覆盖集合 / 新增覆盖 / 遗漏候选 / 排除理由 / 收敛状态 |
 
 ## §3 问题清单
 

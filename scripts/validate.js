@@ -57,6 +57,8 @@
  * V59 Project audit resource lifecycle leak-risk sync（项目工程资源生命周期与泄漏风险审查）
  * V60 Leak-risk stability pressure test sync（写测试/回归验证时的泄漏风险稳定性压测条件路线）
  * V61 Frontend experience / learned guards sync（前端 UI/交互体验门禁与跨项目已吸纳守门）
+ * V62 Data absorption guard extensions sync（剩余 data 吸纳守门扩展）
+ * V63 Latest data absorption guard sync（全工作区 data 扫描、遗漏专审、文档站体验、方法级泄漏压测与 v2 正式方案包）
  *
  * Exit: 0=OK, 1=error, 2=warnings only
  */
@@ -524,7 +526,8 @@ const {
   checkV59,
   checkV60,
   checkV61,
-  checkV62
+  checkV62,
+  checkV63
 } = buildGovernanceTailChecks({
   ROOT,
   ACTIVE_DEVCODEX_ROOT,
@@ -909,6 +912,7 @@ checkV59()
 checkV60()
 checkV61()
 checkV62()
+checkV63()
 
 console.log('')
 if (errors.length) {

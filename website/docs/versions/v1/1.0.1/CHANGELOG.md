@@ -6,6 +6,8 @@
 
 | 日期 | 变更内容 | 影响范围 | 原因 |
 |------|---------|---------|------|
+| 2026-06-12 | 新增最新 data 吸纳守门补强 | `WorkspaceDataAbsorptionScopeGate`、`FlowchartNodeExplanationGate`、`DocsSiteVisualAcceptanceGate`、`OmissionOnlyReviewGate`、`MethodLevelLeakPressureProbe`、`V2FormalSolutionPackage`、V63 探针 | 将全工作区 data 扫描、遗漏专审、文档站视觉验收、方法级泄漏压测和 v2 正式方案包从待吸纳项升级为可执行门禁 |
+| 2026-06-12 | 新增“最新 data 吸纳守门补强”P1 需求入口 | `requirements/p1/latest-data-absorption-guards/` | 为最新仍需吸纳清单建立活动版本详情页，并同步站点导航 |
 | 2026-06-11 | 新增剩余 data 吸纳守门扩展 | `ProductRequirementTraceabilityGate`、`LocalExecutionConfigProbe`、`ManualReviewEvidenceDataRetention`、`AdjacentScopeExpansionGuard`、`PackageNameAuthorityGate`、`PerformanceBenchmarkFirstGate`、`PublicModuleDifferentiationGate`、`V2MCPFirstPlanningGate`、V62 探针 | 将已验证值得吸纳的剩余 `data/*.md` 清单转为可执行条件门禁，并修正 v2 MCP-first 路线、profile-bootstrap 路由和 audit 7 目标类型漂移 |
 | 2026-06-11 | 新增“剩余 data 吸纳守门扩展”P1 需求入口 | `requirements/p1/data-absorption-guard-extensions/` | 为产品需求可追溯、本机配置、人工证据留存、相邻范围、包名、性能基线、公开模块和 v2 一期路线建立活动版本详情页 |
 | 2026-06-11 | 新增前端体验质量门禁与跨项目已吸纳守门 | `FrontendExperienceQualityGate`、`CrossProjectLearnedGuards`、test-router、dev/audit/report 模板、README/website、V61 探针 | 前端需求需要同步覆盖 UI 还原度、风格主题和 UX 交互；data 目录中已验证可泛化的规范需进入可执行门禁 |

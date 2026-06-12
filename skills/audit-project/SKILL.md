@@ -62,11 +62,13 @@ description: 项目工程审查维度 PE-1~PE-12 — 代码质量/项目结构/�
 - 前端 / UI 代码必须在组件卸载、路由切换、effect 重新执行或异步任务取消时清理监听器、定时器、订阅、AbortController 和外部引用
 - 异常分支、早返回、重试失败、超时、取消和测试 teardown 场景必须同样释放资源；不能只检查 happy path
 - 若项目语言或框架提供专用工具（heap snapshot、profiler、leak detector、lint rule、test teardown hook 等），审查报告应说明是否执行或标注 `N/A + skipReason`
+- 高风险资源泄漏修复、公开库/adapter/SDK、连接池、监听器、定时器、worker、cache 或公开方法生命周期风险命中时，应检查 `MethodLevelLeakPressureProbe` 是否有重复调用/生命周期压测证据；低风险纯函数可写 `N/A + skipReason`
 
 **FrontendExperienceQualityGate 前端 UI / 交互体验质量（条件）**
 - 涉及前端页面、组件、控制台、官网、文档站、可视化工具或游戏时，必须检查 UI 视觉组：`FrontendDesignSourceGate`、`UIFidelityGate`、`StyleThemeConsistencyGate`、`ResponsiveStateCoverageGate`、`VisualVerificationGate`
 - 必须检查 UX 交互组：`InteractionFlowGate`、`InteractionFeedbackGate`、`InputModalityAccessibilityGate`、`ErrorPreventionRecoveryGate`、`MotionTransitionUsabilityGate`
 - 审查报告应核对 Browser/截图/Playwright/E2E 或项目等价视觉/交互证据；无法运行时需记录阻塞和降级证据
+- 官网、文档站或技术站改动还应检查 `DocsSiteVisualAcceptanceGate`：主题集成、真实点击、异步动效、减弱动态、代码 token 对比度、终端 demo 范围、TOC inline code 和辅助导航层级
 - 无用户可见 UI / 交互的工程审查可标 `N/A + skipReason`
 
 **CrossProjectLearnedGuards 跨项目已吸纳守门（条件）**
@@ -77,6 +79,7 @@ description: 项目工程审查维度 PE-1~PE-12 — 代码质量/项目结构/�
 - 产品需求整理需检查 `ProductRequirementTraceabilityGate`；本机/跨环境执行配置需检查 `LocalExecutionConfigProbe`；真实联调或人工证据需检查 `ManualReviewEvidenceDataRetention`
 - 指定模块或相邻范围变更需检查 `AdjacentScopeExpansionGuard`；包名/发布名/安装说明需检查 `PackageNameAuthorityGate`
 - 性能第一、benchmark 或优化声明需检查 `PerformanceBenchmarkFirstGate`；公开模块、SDK、CLI 或插件承诺需检查 `PublicModuleDifferentiationGate`
+- data 吸纳任务需检查 `WorkspaceDataAbsorptionScopeGate`；正式流程图需检查 `FlowchartNodeExplanationGate`；遗漏专审需检查 `OmissionOnlyReviewGate`；DevCodex v2 正式规划需检查 `V2FormalSolutionPackage`
 
 ## N/A 规则
 
@@ -85,3 +88,4 @@ description: 项目工程审查维度 PE-1~PE-12 — 代码质量/项目结构/�
 - 无长生命周期资源、订阅、连接、定时器、缓存或 UI 生命周期的纯静态内容变更：PE-12 可标 `N/A + skipReason`
 - 无用户可见 UI、交互流或视觉呈现的后端 / CLI / 文档变更：`FrontendExperienceQualityGate` 可标 `N/A + skipReason`
 - 未触发跨项目已吸纳守门时，`CrossProjectLearnedGuards` 可标 `N/A + skipReason`
+- 未触发资源生命周期或公开方法泄漏风险时，`MethodLevelLeakPressureProbe` 可标 `N/A + skipReason`

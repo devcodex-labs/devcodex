@@ -353,7 +353,33 @@ const probes = [
   ['website/docs/versions/v1/1.0.1/requirements/index.md', 'data-absorption-guard-extensions'],
   ['website/docs/versions/v1/1.0.1/requirements/p1/data-absorption-guard-extensions/index.md', 'ProductRequirementTraceabilityGate'],
   ['website/rspress.config.ts', 'data-absorption-guard-extensions'],
-  ['scripts/lib/validate-governance-tail.js', 'checkV62']
+  ['scripts/lib/validate-governance-tail.js', 'checkV62'],
+  ['instructions.md', 'WorkspaceDataAbsorptionScopeGate'],
+  ['instructions.md', 'DocsSiteVisualAcceptanceGate'],
+  ['instructions.md', 'MethodLevelLeakPressureProbe'],
+  ['instructions/10-dev.instructions.md', 'V2FormalSolutionPackage'],
+  ['instructions/12-audit.instructions.md', 'OmissionOnlyReviewGate'],
+  ['skills/spec-governance/SKILL.md', '.devcodex/*/data/'],
+  ['skills/test-router/SKILL.md', 'workspaceDataAbsorption'],
+  ['skills/test-router/SKILL.md', 'methodLevelLeakPressure'],
+  ['skills/dev-testing/SKILL.md', 'MethodLevelLeakPressureProbe'],
+  ['skills/dev-docs/SKILL.md', 'FlowchartNodeExplanationGate'],
+  ['skills/audit-common/SKILL.md', 'OmissionOnlyReviewGate'],
+  ['skills/audit-document/SKILL.md', 'DocsSiteVisualAcceptanceGate'],
+  ['prompts/requirement.prompt.md', 'WorkspaceDataAbsorptionScopeGate'],
+  ['prompts/technical-design.prompt.md', 'V2FormalSolutionPackage'],
+  ['prompts/implementation-plan.prompt.md', 'MethodLevelLeakPressureProbe'],
+  ['prompts/report-dev.prompt.md', 'DocsSiteVisualAcceptanceGate'],
+  ['prompts/report-audit.prompt.md', 'OmissionOnlyReviewGate'],
+  ['prompts/report-scenario-test.prompt.md', 'MethodLevelLeakPressureProbe'],
+  ['README.md', 'WorkspaceDataAbsorptionScopeGate'],
+  ['website/docs/guide/development.md', 'V2FormalSolutionPackage'],
+  ['website/docs/specs/flowcharts.md', 'FlowchartNodeExplanationGate'],
+  ['website/docs/versions/v1/1.0.1/requirements/index.md', 'latest-data-absorption-guards'],
+  ['website/docs/versions/v1/1.0.1/requirements/p1/latest-data-absorption-guards/index.md', 'WorkspaceDataAbsorptionScopeGate'],
+  ['website/docs/versions/v2/2.0.0/formal-solution-package.md', 'MCP API Contract'],
+  ['website/rspress.config.ts', 'formal-solution-package'],
+  ['scripts/lib/validate-governance-tail.js', 'checkV63']
 ]
 
 for (const [file, needle] of probes) mustInclude(file, needle)
@@ -370,6 +396,11 @@ mustIncludeInChangelogs('AdapterBenchmarkAttribution')
 mustIncludeInChangelogs('ProductRequirementTraceabilityGate')
 mustIncludeInChangelogs('PackageNameAuthorityGate')
 mustIncludeInChangelogs('V2MCPFirstPlanningGate')
+mustIncludeInChangelogs('WorkspaceDataAbsorptionScopeGate')
+mustIncludeInChangelogs('DocsSiteVisualAcceptanceGate')
+mustIncludeInChangelogs('OmissionOnlyReviewGate')
+mustIncludeInChangelogs('MethodLevelLeakPressureProbe')
+mustIncludeInChangelogs('V2FormalSolutionPackage')
 
 const activeRuleFiles = [
   'README.md',

@@ -74,6 +74,8 @@ description: 项目工程审查维度 PE-1~PE-12 — 代码质量/项目结构/�
 **CrossProjectLearnedGuards 跨项目已吸纳守门（条件）**
 - 审查需求、方案、报告或工程实现中“已实现 / 已接入 / 未接入 / 已验证”声明时，检查 `CodeTruthRequirementGate` 与 `LiveVerificationExecutionObligation` 是否有代码真相源和真实执行证据
 - 审查发现来源为外部报告、AI review finding、audit issue 或代码评审时，检查 `ReviewFindingIntakeGate` 是否已补本地证据并分流 must-fix、设计如此、用户决策、文档/实现漂移、测试覆盖缺口和未复现项
+- 前端/Figma/截图/既有页面审查需检查 `FigmaHighFidelityRestorationGate`、`ScopedVisualChangeGate`、`InstalledPluginVisualVerificationGate`、`ActualPreviewChainAndMockFallbackGate`、`UIStateScopeRegressionGate`、`FigmaProductionAssetBudgetGate` 与 `RuntimeI18nArtifactVerificationGate` 是否留有真实视觉、状态、资产和运行时本地化证据
+- 提交、兼容契约、UI 主真相源冲突、公开文档版本、集合关系 id 命名或用户可见验证产物语言相关审查需检查 `ExplicitCommitAuthorizationGate`、`CompatibilityAndContractAuthorityGate`、`UIConfirmedSourceConflictTraceGate`、`PublicDocsReleasedVersionGate`、`CollectionRelationIdNamingGate` 与 `UserFacingVerificationArtifactLanguageGate`
 - 人工复核、视觉检查、手工冒烟或外部页面观察需有 `ManualReviewEvidenceRetention`，包含范围、输入、观察结果、截图/日志或等价证据
 - adapter、provider、connector、SDK、benchmark 或性能优化需检查 `AdapterBenchmarkAttribution`，确认基线、环境、版本、负载和归因边界清晰
 - 验证路线需检查 `VerificationScopeBudgetGate`：高风险不低配验证，低风险不为形式扩大压测/E2E/外部依赖

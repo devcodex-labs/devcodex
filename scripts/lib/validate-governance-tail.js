@@ -1253,6 +1253,57 @@ function buildGovernanceTailChecks(ctx) {
     console.log('[V64] review finding intake gate sync checked')
   }
 
+  function checkV65() {
+    const probes = [
+      { file: 'instructions.md', needles: ['FigmaHighFidelityRestorationGate', 'ScopedVisualChangeGate', 'InstalledPluginVisualVerificationGate', 'ActualPreviewChainAndMockFallbackGate', 'UIStateScopeRegressionGate', 'FigmaProductionAssetBudgetGate', 'RuntimeI18nArtifactVerificationGate', 'ExplicitCommitAuthorizationGate', 'CompatibilityAndContractAuthorityGate', 'UIConfirmedSourceConflictTraceGate', 'PublicDocsReleasedVersionGate', 'CollectionRelationIdNamingGate', 'UserFacingVerificationArtifactLanguageGate'] },
+      { file: 'instructions/01b-record-router.instructions.md', needles: ['ExplicitCommitAuthorizationGate', '只有用户当前会话明确要求'] },
+      { file: 'instructions/10-dev.instructions.md', needles: ['FigmaHighFidelityRestorationGate', 'ActualPreviewChainAndMockFallbackGate', 'ExplicitCommitAuthorizationGate', 'CompatibilityAndContractAuthorityGate', 'PublicDocsReleasedVersionGate', 'UserFacingVerificationArtifactLanguageGate'] },
+      { file: 'instructions/11-fix.instructions.md', needles: ['FigmaHighFidelityRestorationGate', 'RuntimeI18nArtifactVerificationGate', 'CompatibilityAndContractAuthorityGate', 'CollectionRelationIdNamingGate'] },
+      { file: 'instructions/12-audit.instructions.md', needles: ['ActualPreviewChainAndMockFallbackGate', 'ExplicitCommitAuthorizationGate', 'UIConfirmedSourceConflictTraceGate', 'PublicDocsReleasedVersionGate'] },
+      { file: 'instructions/13-analyze.instructions.md', needles: ['CrossProjectLearnedGuards 分析侧取证', 'CompatibilityAndContractAuthorityGate', 'UserFacingVerificationArtifactLanguageGate'] },
+      { file: 'skills/test-router/SKILL.md', needles: ['highFidelityUi', 'actualPreviewChain', 'runtimeI18nArtifacts', 'commitAuthorization', 'compatibilityAuthority', 'publicDocsVersionBoundary'] },
+      { file: 'skills/dev-default/SKILL.md', needles: ['FigmaHighFidelityRestorationGate', 'ExplicitCommitAuthorizationGate', 'PublicDocsReleasedVersionGate'] },
+      { file: 'skills/dev-plan-review/SKILL.md', needles: ['CompatibilityAndContractAuthorityGate', 'RuntimeI18nArtifactVerificationGate'] },
+      { file: 'skills/dev-testing/SKILL.md', needles: ['CollectionRelationIdNamingGate', 'UserFacingVerificationArtifactLanguageGate'] },
+      { file: 'skills/api-verification/SKILL.md', needles: ['UserFacingVerificationArtifactLanguageGate', '用户当前语言'] },
+      { file: 'skills/dev-docs/SKILL.md', needles: ['PublicDocsReleasedVersionGate', 'UIConfirmedSourceConflictTraceGate'] },
+      { file: 'skills/document-sync/SKILL.md', needles: ['InstalledPluginVisualVerificationGate', 'CompatibilityAndContractAuthorityGate'] },
+      { file: 'skills/audit-project/SKILL.md', needles: ['FigmaProductionAssetBudgetGate', 'ExplicitCommitAuthorizationGate'] },
+      { file: 'skills/audit-requirements/SKILL.md', needles: ['ActualPreviewChainAndMockFallbackGate', 'PublicDocsReleasedVersionGate'] },
+      { file: 'skills/report/SKILL.md', needles: ['FigmaHighFidelityRestorationGate', 'CompatibilityAndContractAuthorityGate', 'CollectionRelationIdNamingGate'] },
+      { file: 'prompts/requirement.prompt.md', needles: ['FigmaHighFidelityRestorationGate', 'ExplicitCommitAuthorizationGate', 'UserFacingVerificationArtifactLanguageGate'] },
+      { file: 'prompts/technical-design.prompt.md', needles: ['actualPreviewChain', 'RuntimeI18nArtifactVerificationGate', 'CompatibilityAndContractAuthorityGate'] },
+      { file: 'prompts/implementation-plan.prompt.md', needles: ['FigmaHighFidelityRestorationGate', 'ExplicitCommitAuthorizationGate', 'PublicDocsReleasedVersionGate'] },
+      { file: 'prompts/report-dev.prompt.md', needles: ['FigmaHighFidelityRestorationGate', 'CompatibilityAndContractAuthorityGate'] },
+      { file: 'prompts/report-fix.prompt.md', needles: ['RuntimeI18nArtifactVerificationGate', 'UserFacingVerificationArtifactLanguageGate'] },
+      { file: 'prompts/report-audit.prompt.md', needles: ['ExplicitCommitAuthorizationGate', 'CollectionRelationIdNamingGate'] },
+      { file: 'prompts/report-scenario-test.prompt.md', needles: ['ActualPreviewChainAndMockFallbackGate', 'PublicDocsReleasedVersionGate'] },
+      { file: 'README.md', needles: ['FigmaHighFidelityRestorationGate', 'ExplicitCommitAuthorizationGate', 'PublicDocsReleasedVersionGate'] },
+      { file: 'website/docs/guide/development.md', needles: ['FigmaProductionAssetBudgetGate', 'CompatibilityAndContractAuthorityGate', 'UserFacingVerificationArtifactLanguageGate'] },
+      { file: 'website/docs/versions/v1/1.0.1/requirements/p1/latest-data-absorption-guards/index.md', needles: ['FigmaHighFidelityRestorationGate', 'ExplicitCommitAuthorizationGate', 'CompatibilityAndContractAuthorityGate'] },
+      { file: 'website/docs/versions/v1/1.0.1/CHANGELOG.md', needles: ['V65 探针', 'PublicDocsReleasedVersionGate'] },
+      { file: 'changelogs/unreleased.md', needles: ['V65', 'FigmaHighFidelityRestorationGate', 'CompatibilityAndContractAuthorityGate', 'PublicDocsReleasedVersionGate'] },
+      { file: 'scripts/test-spec-governance.js', needles: ['checkV65', 'FigmaHighFidelityRestorationGate', 'CompatibilityAndContractAuthorityGate'] }
+    ]
+
+    for (const probe of probes) {
+      const content = read(path.join(ROOT, probe.file))
+      for (const needle of probe.needles) {
+        if (!content.includes(needle)) {
+          err(`[V65] high-fidelity UI / commit authorization / compatibility gate drift in ${probe.file}: missing "${needle}"`)
+        }
+      }
+    }
+
+    for (const needle of ['FigmaHighFidelityRestorationGate', 'ExplicitCommitAuthorizationGate', 'CompatibilityAndContractAuthorityGate', 'PublicDocsReleasedVersionGate', 'UserFacingVerificationArtifactLanguageGate']) {
+      if (!hasChangelogEvidence(needle)) {
+        err(`[V65] high-fidelity UI / commit authorization / compatibility changelog drift: missing "${needle}" in changelogs/unreleased.md or changelogs/releases/*.md`)
+      }
+    }
+
+    console.log('[V65] high-fidelity UI / commit authorization / compatibility sync checked')
+  }
+
   return {
     checkV39,
     checkV40,
@@ -1279,7 +1330,8 @@ function buildGovernanceTailChecks(ctx) {
     checkV61,
     checkV62,
     checkV63,
-    checkV64
+    checkV64,
+    checkV65
   }
 }
 

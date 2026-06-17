@@ -23,8 +23,8 @@ applyTo: .devcodex/**/requirements/**
 > ⚠️ provider / connector / 三方 SDK 接入类方案必须先冻结业务功能接口，再说明底层 provider adapter / model / operation / 配置如何实现该功能；不得把内部 provider 能力直接反向暴露成业务接口。随后冻结字段级合同和统一 operation contract；包 / 库 / adapter / CLI 方案必须同时检查代码实现层与包工程层。
 > ⚠️ CP2 必须承接 CP1 的平台工程判断和 `ImplementationComplexityLevel`（兼容旧字段 `ImplementationComplexityPreference`）：消费者范围、共享契约边界、模块职责、可维护性成本、非目标和最小实现预算要互相一致；没有真实复用者或演进边界时，不得新增 factory / manager / adapter / registry 等预设抽象。
 > ⚠️ package boundary / pack / benchmark / codegen 验证必须写清串行顺序；任何会删除、重建或写入 `dist` 的命令不得和包边界检查并行。
-> ⚠️ 前端页面、组件、控制台、官网、文档站、可视化工具、游戏或用户可见 UI / 交互方案必须填写 `FrontendExperienceQualityGate`：设计来源、UI 还原度、风格主题、响应式状态、视觉验证、用户流、交互反馈、输入方式/可访问性、错误恢复和动效转场；不触发时写 `N/A + skipReason`。
-> ⚠️ 接入状态、人工复核、翻译/正式文档边界、prompt/Hook/MCP 契约、验证范围、真实执行、benchmark 归因、产品需求来源、本机执行配置、人工证据留存、相邻范围扩展、包名/发布名、性能第一、公开模块、DevCodex v2 一期路线、全工作区 data 吸纳、正式流程图、文档站视觉验收、遗漏专审、审查发现 intake、方法级泄漏压测或 v2 正式方案包必须填写 `CrossProjectLearnedGuards`；未触发项写 `N/A + skipReason`。
+> ⚠️ 前端页面、组件、控制台、官网、文档站、可视化工具、游戏或用户可见 UI / 交互方案必须填写 `FrontendExperienceQualityGate`：设计来源、UI 还原度、风格主题、响应式状态、视觉验证、用户流、交互反馈、输入方式/可访问性、错误恢复和动效转场；Figma/截图/既有页面还原需追加 `FigmaHighFidelityRestorationGate`、`ScopedVisualChangeGate`、`InstalledPluginVisualVerificationGate`、`ActualPreviewChainAndMockFallbackGate`、`UIStateScopeRegressionGate`、`FigmaProductionAssetBudgetGate` 与 `RuntimeI18nArtifactVerificationGate`；不触发时写 `N/A + skipReason`。
+> ⚠️ 接入状态、人工复核、翻译/正式文档边界、prompt/Hook/MCP 契约、验证范围、真实执行、benchmark 归因、产品需求来源、本机执行配置、人工证据留存、相邻范围扩展、包名/发布名、性能第一、公开模块、提交授权、兼容契约、UI 源冲突、公开文档版本、集合关系命名、验证产物语言、DevCodex v2 一期路线、全工作区 data 吸纳、正式流程图、文档站视觉验收、遗漏专审、审查发现 intake、方法级泄漏压测或 v2 正式方案包必须填写 `CrossProjectLearnedGuards`；未触发项写 `N/A + skipReason`。
 
 | 顺序 | 章节 | 必选 | 依赖 | 说明 |
 |:----:|------|:----:|------|------|
@@ -277,6 +277,13 @@ applyTo: .devcodex/**/requirements/**
 | LLMPromptContractTriage | 人读说明 / 模型指令 / 结构化字段 / 宿主能力边界 | | |
 | VerificationScopeBudgetGate | 风险等级 / 验证强度 / 降级或减负理由 | | |
 | LiveVerificationExecutionObligation | 已执行命令 / 页面 / 接口 / pack-install / registry-tag 查询或阻塞证据 | | |
+| FigmaHighFidelityRestorationGate / ScopedVisualChangeGate | 设计来源 / allowedScope / frozenScope / 元素分类 / 偏离理由 | | |
+| ActualPreviewChainAndMockFallbackGate / UIStateScopeRegressionGate | 真实 preview URL / API target / 路由入口 / 状态清单 / mock 排除 | | |
+| FigmaProductionAssetBudgetGate / RuntimeI18nArtifactVerificationGate | 资产尺寸体积格式 / public 路径 / 源 JSON / 构建合并产物 / runtime key 残留 | | |
+| ExplicitCommitAuthorizationGate | 用户明确授权 / 语义批次 / commit 边界 | | |
+| CompatibilityAndContractAuthorityGate | 零代码消费者兼容 / 上游合同权威 / 官方 public API 证据 / 共享库优先判断 | | |
+| UIConfirmedSourceConflictTraceGate / PublicDocsReleasedVersionGate | 旧 PRD 与新 UI 冲突表 / released-unreleased-preview 边界 | | |
+| CollectionRelationIdNamingGate / UserFacingVerificationArtifactLanguageGate | 集合实体命名依据 / 用户当前语言 / 验证产物语言 | | |
 | AdapterBenchmarkAttribution | 基线 / 环境 / 版本 / 负载 / 归因边界 / 不可比较因素 | | |
 | ProductRequirementTraceabilityGate | 来源锚点 / 提取口径 / 冲突遗漏处理 / 验收映射 | | |
 | LocalExecutionConfigProbe | 配置入口 / config.local 或既有脚本约定 / S02 策略 / 缺失处理 | | |
@@ -379,6 +386,9 @@ applyTo: .devcodex/**/requirements/**
 | serviceLifecycle | N/A / startedByAI / userProvided；若 `startedByAI`，写 command/cwd/PID/job/port/url 与 cleanupEvidence；若保留运行，写 keepAliveReason |
 | leakRiskPressure | N/A / required / optional；命中长运行、并发、缓存/连接/监听器/定时器/流/socket/worker/订阅/组件生命周期或 PE-12 风险时必填触发依据、指标、场景、冷却窗口和通过标准 |
 | frontendExperience | N/A / required / optional；命中 `FrontendExperienceQualityGate` 时写 UI/UX 门禁、Browser/截图/Playwright/E2E/人工复核证据 |
+| highFidelityUi | N/A / required / optional；命中 Figma/截图/既有页面时写 `FigmaHighFidelityRestorationGate`、`ScopedVisualChangeGate`、插件验证链与偏离理由 |
+| actualPreviewChain | N/A / required / optional；写真实 preview URL、API target、路由入口、状态清单和 mock fallback 排除证据 |
+| runtimeI18nArtifacts | N/A / required / optional；写源 JSON、构建合并产物和页面 runtime key 残留 |
 | manualReviewEvidence | N/A / required / optional；命中 `ManualReviewEvidenceRetention` 时写复核人/时间/范围/输入/观察结果/截图或日志位置 |
 | verificationScopeBudget | N/A / aligned / under-scoped / over-scoped；写风险匹配依据、降级/减负理由和残余风险 |
 | blockingLevel | 阻断 / 警告 / N/A |
@@ -391,7 +401,7 @@ applyTo: .devcodex/**/requirements/**
 | 集成测试 | | |
 | 回归 | | |
 | 泄漏风险稳定性压测 | 项目既有压测/监控/测试脚本；可选 artillery/k6/autocannon/轻量采样脚本 | 仅在 `LeakRiskStabilityPressureTest` 命中时执行，验证 heap/RSS/active handles/监听器/连接数/缓存规模等指标前后对比和冷却后回落 |
-| 前端 UI / 交互体验 | Browser/截图、Playwright/E2E、人工复核或项目等价工具 | 仅在 `FrontendExperienceQualityGate` 命中时执行，验证设计来源、还原度、主题、响应式状态、用户流、反馈、输入方式、错误恢复和动效转场 |
+| 前端 UI / 交互体验 | Browser/截图、Playwright/E2E、人工复核或项目等价工具 | 仅在 `FrontendExperienceQualityGate` 命中时执行，验证设计来源、还原度、主题、响应式状态、用户流、反馈、输入方式、错误恢复和动效转场；Figma/截图/既有页面还原追加高保真、范围、真实 preview、状态、资产与 runtime i18n 证据 |
 | 手工 / 现场复核 | 复核记录、截图、日志、页面观察或等价证据 | 仅在 `ManualReviewEvidenceRetention` 命中时执行，保留范围、输入和观察结果 |
 | 包边界验证 | 构建完成后单独执行 `npm pack --dry-run` / package boundary check | 不与 build/benchmark/codegen 并行，files/exports/bin/dist 边界来自稳定包清单 |
 

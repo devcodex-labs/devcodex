@@ -130,6 +130,7 @@ async function testEndpoint(method, path, body, expected, headers = {}) {
 - 归档级脚本必须包含断言（不是只发请求，要验证响应）
 - 归档级脚本禁止自启服务；必须通过 `API_BASE_URL` 或同等配置连接用户已启动的目标实例
 - 归档级 `.http` 必须声明标准变量块：`@baseUrl`、`@contentType`，鉴权接口必须声明 `@token`，有语言/区域差异时必须声明 `@language`
+- `UserFacingVerificationArtifactLanguageGate`：`.http` 的标题、说明、人工检查提示、接口验证脚本注释和执行说明默认使用用户当前语言；项目要求英文、双语或特定文档语言时按项目要求；HTTP 方法、Header、变量名、JSON 字段和代码标识保持原样。
 - `.http` 的 Host 建议通过 `{{baseUrl}}` 便于切换目标；鉴权头默认可直写真实 Token、Cookie、API Key 或项目私有密码，只有用户 / 项目要求可分享或脱敏时才使用 `Authorization: Bearer {{token}}` 等占位变量
 - 接口变更进入正式产物时必须更新双产物（禁止过期文档）
 - 前端接口文档、轻量 API 文档、字段映射、错误码或状态枚举发生变更时，必须执行 `ApiDocVerificationSync`：检查归档级 `.http` / `.cjs` 是否需要同步；若不更新，写 `N/A + skipReason`

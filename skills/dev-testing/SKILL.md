@@ -20,10 +20,10 @@ description: 测试规范 — 单元测试/集成测试/API测试/E2E测试四�
 - 当 TestRoute 包含对外 HTTP API 归档验证时，必须继续读取 `api-verification`；当 TestRoute 包含场景/负载测试时，必须继续读取 `dev-scenario-test`。
 - 写测试用例时必须同步执行 `LeakRiskStabilityPressureTest` 条件判定：命中资源生命周期或稳定性风险时，继续读取 `dev-scenario-test` 并把泄漏风险稳定性压测纳入 TestRoute；未命中时记录 `N/A + skipReason`，不得把所有低风险单元测试机械升级为压测。
 - 高风险资源泄漏修复、公开库/adapter/SDK、连接池、监听器、定时器、worker、cache 或 PE-12 命中项必须同步评估 `MethodLevelLeakPressureProbe`：需要时为公开方法、生命周期入口或资源创建/释放路径补重复调用/重复挂载卸载/重复 open-close 压测；低风险纯函数写 `N/A + skipReason`。
-- 前端页面、组件、控制台、官网、文档站、可视化工具或游戏测试必须同步执行 `FrontendExperienceQualityGate` 条件判定；命中时测试路线覆盖 UI 视觉和 UX 交互证据，未命中时记录 `N/A + skipReason`。
+- 前端页面、组件、控制台、官网、文档站、可视化工具或游戏测试必须同步执行 `FrontendExperienceQualityGate` 条件判定；命中时测试路线覆盖 UI 视觉和 UX 交互证据；Figma/截图/既有页面还原、真实 preview、状态回归、生产资产或运行时本地化场景追加 `FigmaHighFidelityRestorationGate`、`ScopedVisualChangeGate`、`ActualPreviewChainAndMockFallbackGate`、`UIStateScopeRegressionGate`、`FigmaProductionAssetBudgetGate` 与 `RuntimeI18nArtifactVerificationGate`，未命中时记录 `N/A + skipReason`。
 - 测试路线必须同步执行 `VerificationScopeBudgetGate` 与 `LiveVerificationExecutionObligation`：验证强度匹配风险和变更面，声明“已验证/可运行/可点击/已安装/已发布”前必须真实执行对应命令、页面、接口、pack/install、registry/tag 查询或项目等价验证。
 - 人工复核、视觉检查、手工冒烟、外部页面观察或无法自动化验证必须执行 `ManualReviewEvidenceRetention`，记录复核人/时间/范围/输入/观察结果/截图或日志位置。
-- 测试来源于产品需求整理、真实联调、本机/跨环境配置、包名/发布名、性能第一或公开模块承诺时，必须同步判定 `ProductRequirementTraceabilityGate`、`LocalExecutionConfigProbe`、`ManualReviewEvidenceDataRetention`、`PackageNameAuthorityGate`、`PerformanceBenchmarkFirstGate` 与 `PublicModuleDifferentiationGate`；未命中时记录 `N/A + skipReason`。
+- 测试来源于产品需求整理、真实联调、本机/跨环境配置、包名/发布名、性能第一、公开模块承诺、兼容契约、集合关系命名或用户可见验证产物时，必须同步判定 `ProductRequirementTraceabilityGate`、`LocalExecutionConfigProbe`、`ManualReviewEvidenceDataRetention`、`PackageNameAuthorityGate`、`PerformanceBenchmarkFirstGate`、`PublicModuleDifferentiationGate`、`CompatibilityAndContractAuthorityGate`、`CollectionRelationIdNamingGate` 与 `UserFacingVerificationArtifactLanguageGate`；未命中时记录 `N/A + skipReason`。
 
 ## ServiceLifecycleCleanup
 

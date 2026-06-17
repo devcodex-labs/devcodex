@@ -2,7 +2,7 @@
 applyTo: "**"
 description: 任务切换边界、RecordRouter 分流、Improvement Intake 与提交发布边界的通用规范
 priority: P5
-version: 1.11.21
+version: 1.11.22
 ---
 # 任务边界与 RecordRouter
 
@@ -29,10 +29,11 @@ version: 1.11.21
 - 当本次开发/修复形成一个已验证的语义变更批次，且用户未明确要求 `tag` / `release` / `publish` 时，默认更新 `changelogs/unreleased.md`，不默认进入正式发版流程。
 - `commit` 默认不自动执行；在满足上述条件后，默认建议执行本地 `commit` 作为回滚锚点，但不默认 `push`。
 - `commit` 不按“问题个数”切分；应按语义批次提交。
-- 以下场景适合执行 `commit`：
-  - 用户明确要求提交当前变更
-  - 需要独立回滚点
-  - 当前语义批次边界清晰且已验证闭环
+- `ExplicitCommitAuthorizationGate`：只有用户当前会话明确要求提交当前变更时，才可实际执行本地 `git commit`；需要独立回滚点或当前语义批次边界清晰且已验证闭环，只能作为建议提交或请求确认的理由。
+- 以下场景适合建议或执行 `commit`：
+  - 用户明确要求提交当前变更（可执行）
+  - 需要独立回滚点（仅建议 / 请求确认）
+  - 当前语义批次边界清晰且已验证闭环（仅建议 / 请求确认）
 - `push` / `tag` / `publish` 仍须用户明确确认；本地 `commit` 不是正式发版动作。
 - `commit` 时仍适用 Commit Subject 简洁化规则。
 

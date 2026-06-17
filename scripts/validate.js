@@ -60,6 +60,7 @@
  * V62 Data absorption guard extensions sync（剩余 data 吸纳守门扩展）
  * V63 Latest data absorption guard sync（全工作区 data 扫描、遗漏专审、文档站体验、方法级泄漏压测与 v2 正式方案包）
  * V64 Review finding intake gate sync（审查发现 intake 分流门禁）
+ * V65 High-fidelity UI / commit authorization / compatibility sync（高保真 UI、提交授权、兼容契约与公开文档版本边界）
  *
  * Exit: 0=OK, 1=error, 2=warnings only
  */
@@ -529,7 +530,8 @@ const {
   checkV61,
   checkV62,
   checkV63,
-  checkV64
+  checkV64,
+  checkV65
 } = buildGovernanceTailChecks({
   ROOT,
   ACTIVE_DEVCODEX_ROOT,
@@ -916,6 +918,7 @@ checkV61()
 checkV62()
 checkV63()
 checkV64()
+checkV65()
 
 console.log('')
 if (errors.length) {

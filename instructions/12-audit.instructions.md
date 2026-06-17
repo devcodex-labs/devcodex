@@ -2,7 +2,7 @@
 applyTo: "**"
 description: audit 工作流规则，覆盖审查目标路由、收敛门禁、元循环与只读边界
 priority: P4
-version: 1.11.21
+version: 1.11.22
 ---
 # 审计工作流规则（12-audit）
 
@@ -189,8 +189,8 @@ R2 及以后轮次必须把复审从“机械重复已读范围”改为“覆�
 - B — 一致性 🔴/💡：RQ-4 需求一致性 · RQ-7 版本追溯
 - C — 影响 🟡：RQ-5 影响分析 · RQ-6 约束条件
 - D — 上下文 🟡：RQ-8 项目上下文一致性
-- 涉及前端页面、组件、控制台、官网、文档站、可视化工具或游戏的需求，还必须按 `FrontendExperienceQualityGate` 检查 UI / 交互体验验收是否覆盖设计来源、还原度、风格主题、响应式状态、视觉验证、用户流、交互反馈、输入方式/可访问性、错误恢复和动效转场；不涉及时写 `N/A + skipReason`
-- 涉及接入状态、人工复核、翻译/正式文档边界、prompt/Hook/MCP 契约、验证范围、真实执行、benchmark 归因、产品需求来源、本机执行配置、人工证据留存、相邻范围扩展、包名/发布名、性能第一、公开模块或 DevCodex v2 一期路线的需求，还必须按 `CrossProjectLearnedGuards` 检查 `CodeTruthRequirementGate`、`ManualReviewEvidenceRetention`、`DocumentationTranslationParityGuard`、`FormalDocsDevCodexBoundary`、`LLMPromptContractTriage`、`VerificationScopeBudgetGate`、`LiveVerificationExecutionObligation`、`AdapterBenchmarkAttribution`、`ProductRequirementTraceabilityGate`、`LocalExecutionConfigProbe`、`ManualReviewEvidenceDataRetention`、`AdjacentScopeExpansionGuard`、`PackageNameAuthorityGate`、`PerformanceBenchmarkFirstGate`、`PublicModuleDifferentiationGate`、`V2MCPFirstPlanningGate` 是否有验收口径；不涉及时写 `N/A + skipReason`
+- 涉及前端页面、组件、控制台、官网、文档站、可视化工具或游戏的需求，还必须按 `FrontendExperienceQualityGate` 检查 UI / 交互体验验收是否覆盖设计来源、还原度、风格主题、响应式状态、视觉验证、用户流、交互反馈、输入方式/可访问性、错误恢复和动效转场；Figma/截图/既有页面还原还需检查 `FigmaHighFidelityRestorationGate`、`ScopedVisualChangeGate`、`ActualPreviewChainAndMockFallbackGate`、`UIStateScopeRegressionGate`、`FigmaProductionAssetBudgetGate` 与 `RuntimeI18nArtifactVerificationGate`；不涉及时写 `N/A + skipReason`
+- 涉及接入状态、人工复核、翻译/正式文档边界、prompt/Hook/MCP 契约、验证范围、真实执行、benchmark 归因、产品需求来源、本机执行配置、人工证据留存、相邻范围扩展、包名/发布名、性能第一、公开模块、提交边界、兼容契约、UI 真相源冲突、公开文档版本边界、集合关系命名、验证产物语言或 DevCodex v2 一期路线的需求，还必须按 `CrossProjectLearnedGuards` 检查 `CodeTruthRequirementGate`、`ManualReviewEvidenceRetention`、`DocumentationTranslationParityGuard`、`FormalDocsDevCodexBoundary`、`LLMPromptContractTriage`、`VerificationScopeBudgetGate`、`LiveVerificationExecutionObligation`、`ExplicitCommitAuthorizationGate`、`CompatibilityAndContractAuthorityGate`、`UIConfirmedSourceConflictTraceGate`、`PublicDocsReleasedVersionGate`、`CollectionRelationIdNamingGate`、`UserFacingVerificationArtifactLanguageGate`、`AdapterBenchmarkAttribution`、`ProductRequirementTraceabilityGate`、`LocalExecutionConfigProbe`、`ManualReviewEvidenceDataRetention`、`AdjacentScopeExpansionGuard`、`PackageNameAuthorityGate`、`PerformanceBenchmarkFirstGate`、`PublicModuleDifferentiationGate`、`V2MCPFirstPlanningGate` 是否有验收口径；不涉及时写 `N/A + skipReason`
 - 需求来源为审查报告、AI review finding 或 audit issue 时，还必须按 `ReviewFindingIntakeGate` 检查 evidence replay、intentional design、user decision、docs drift 与 test gap 分流是否完整。
 
 ### 项目工程审查（PE-1~PE-12）
@@ -199,8 +199,8 @@ R2 及以后轮次必须把复审从“机械重复已读范围”改为“覆�
 - C — 接口 🔴/🟡：PE-8 接口一致性 · PE-10 配置管理
 - D — 质量 🟡/💡：PE-6 测试覆盖 · PE-7 依赖健康度
 - E — 可观测 🟡：PE-9 日志 · PE-11 数据层质量
-- 前端项目或包含用户可见 UI 的项目工程审查需叠加 `FrontendExperienceQualityGate`：检查视觉一致性、交互反馈、焦点/输入方式、错误恢复、动效转场和 Browser/截图/E2E 证据；不涉及前端体验时写 `N/A + skipReason`
-- 项目工程、通用文档、README 或控制面审查遇到“已接入/已验证”、人工复核、翻译同步、正式文档边界、LLM 契约、验证范围预算、adapter/provider benchmark、产品需求来源、本机执行配置、证据留存、相邻范围扩展、包名/发布名、性能第一、公开模块或 DevCodex v2 一期路线时需叠加 `CrossProjectLearnedGuards`，并在不涉及的维度写 `N/A + skipReason`
+- 前端项目或包含用户可见 UI 的项目工程审查需叠加 `FrontendExperienceQualityGate`：检查视觉一致性、交互反馈、焦点/输入方式、错误恢复、动效转场和 Browser/截图/E2E 证据；Figma/截图还原、真实 preview、状态回归、生产资产或运行时 i18n 需叠加对应新增 gate；不涉及前端体验时写 `N/A + skipReason`
+- 项目工程、通用文档、README 或控制面审查遇到“已接入/已验证”、人工复核、翻译同步、正式文档边界、LLM 契约、验证范围预算、adapter/provider benchmark、产品需求来源、本机执行配置、证据留存、相邻范围扩展、包名/发布名、性能第一、公开模块、提交授权、兼容契约、UI 真相源冲突、公开文档版本边界、集合关系命名、验证产物语言或 DevCodex v2 一期路线时需叠加 `CrossProjectLearnedGuards`，并在不涉及的维度写 `N/A + skipReason`
 - 审查报告、AI review finding 或 audit issue 本身作为输入时需叠加 `ReviewFindingIntakeGate`，避免把报告结论直接当证据或把设计/文档/测试缺口误归类为 must-fix runtime bug。
 
 ### 报告审查（RA-1~RA-6）

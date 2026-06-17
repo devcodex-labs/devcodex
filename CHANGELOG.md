@@ -9,6 +9,7 @@
 
 | 版本 | 日期 | 变更摘要 | 详细 |
 |------|------|---------|------|
+| [v1.11.22](./changelogs/releases/v1.11.22.md) | 2026-06-17 | 🔧 **高保真 UI / 提交授权 / 兼容契约吸纳门禁**：新增 V65 探针，固化 Figma/截图还原、真实 preview、状态回归、生产资产预算、运行时 i18n、显式 commit 授权、兼容契约权威和公开文档版本边界等守门 | [查看](./changelogs/releases/v1.11.22.md) |
 | [v1.11.21](./changelogs/releases/v1.11.21.md) | 2026-06-17 | 🔧 **审查发现 intake 分流门禁**：新增 `ReviewFindingIntakeGate` / `DesignIntentAndDocsConsistencyGate` 与 V64 探针，要求外部审查报告、AI review finding、audit issue 和代码评审发现先经本地证据、设计取舍、用户决策、文档漂移与测试缺口分流 | [查看](./changelogs/releases/v1.11.21.md) |
 | [v1.11.20](./changelogs/releases/v1.11.20.md) | 2026-06-12 | 🔧 **最新 data 吸纳守门补强**：新增全工作区 data 扫描、流程图节点说明、文档站视觉验收、遗漏专审、方法级泄漏压测与 v2 正式方案包守门，并补齐 V63 探针 | [查看](./changelogs/releases/v1.11.20.md) |
 | [v1.11.19](./changelogs/releases/v1.11.19.md) | 2026-06-12 | 🔧 **剩余 data 吸纳守门扩展与 v2 MCP-first 路线纠偏**：新增产品原文追溯、本机可执行配置、人工复核数据留存、相邻范围扩大、包名权限、性能 benchmark-first、公开模块差异化与 V2 MCP-first 规划守门，并补齐 V62 探针 | [查看](./changelogs/releases/v1.11.19.md) |
@@ -107,8 +108,8 @@
 
 ## 相关文档
 
-- [`changelogs/releases/v1.11.21.md`](./changelogs/releases/v1.11.21.md) — 最新版本详细变更文档
-- [`changelogs/releases/v1.11.20.md`](./changelogs/releases/v1.11.20.md) — 上一版本详细变更文档
+- [`changelogs/releases/v1.11.22.md`](./changelogs/releases/v1.11.22.md) — 最新版本详细变更文档
+- [`changelogs/releases/v1.11.21.md`](./changelogs/releases/v1.11.21.md) — 上一版本详细变更文档
 - [`changelogs/releases/v1.11.18.md`](./changelogs/releases/v1.11.18.md) — 历史版本详细变更文档
 - [`changelogs/releases/v1.11.17.md`](./changelogs/releases/v1.11.17.md) — 历史版本详细变更文档
 - [`changelogs/releases/v1.11.15.md`](./changelogs/releases/v1.11.15.md) — 历史版本详细变更文档

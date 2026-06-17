@@ -2,7 +2,7 @@
 applyTo: "**"
 description: fix 工作流规则，覆盖子类型路由、CP 流程、修复三步扫描、执行期回退与 ECR
 priority: P4
-version: 1.11.21
+version: 1.11.22
 ---
 # 修复工作流规则（11-fix）
 
@@ -32,7 +32,7 @@ version: 1.11.21
 - 在 fix 会话中，若用户中途提出的新请求与当前 bug/问题边界明显不一致，应先按 `01-common` 的“意图优先、关键词兜底”顺序判断是否已切入新需求。
 - 仅当判断为新需求切换，且工作区仍有未提交变更时，提醒用户确认是否先提交当前修复，再切换到新主题，避免修复范围漂移。
 - 用户明确要求提交当前修复时，commit subject 必须保持一句简洁描述，不得把问题背景、验证步骤或多段总结直接塞进标题行。
-- `unreleased` / `commit` 主协议遵循 `01-common`：每完成一个**已验证的语义修复批次**默认更新 `changelogs/unreleased.md`，并默认建议执行本地 `commit` 作为回滚锚点；`push` / `tag` / `publish` 仍须用户明确确认。
+- `unreleased` / `commit` 主协议遵循 `01-common`：每完成一个**已验证的语义修复批次**默认更新 `changelogs/unreleased.md`；`ExplicitCommitAuthorizationGate` 要求本地 `commit` 只有用户明确要求时才执行，其他情况仅建议作为回滚锚点；`push` / `tag` / `publish` 仍须用户明确确认。
 
 ## CP 流程（C02 约束）
 
@@ -53,8 +53,8 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → 
 - **连接配置来源按用户 / 项目策略**：凡修复涉及脚本、测试、数据库 / SSH / MongoDB / 数据操作连接信息，默认可直写或沿用项目既有模式；只有用户或项目明确指定 `config.local.json`、env、`secretRef` 或 secret manager 时，修复方案才按该入口读取并在缺失时提醒补齐。
 - **AI 自启动服务清理**：若回归验证需要由 AI 启动 dev server、文档站、本地 API/mock、数据库代理、SSH 隧道、Playwright/Cypress server 或压测 target，TestRoute/报告必须记录启动命令、cwd、PID/job、端口/URL；验证完成、失败或最终回复前必须停止仅由 AI 本轮启动的服务并核验端口释放。用户明确要求保留服务时，报告保留原因、PID/端口和关闭方式；不得杀用户既有进程。
 - **LeakRiskStabilityPressureTest**：修复内存泄露、资源泄漏、稳定性、性能退化、连接/监听器/定时器/流/socket/worker/订阅/缓存增长等问题，或回归测试触及长运行和高并发路径时，TestRoute 必须纳入泄漏风险稳定性压测；未触发时写 `N/A + skipReason`。
-- **FrontendExperienceQualityGate**：修复前端页面、组件、控制台、官网、文档站、可视化工具或游戏体验问题时，必须判定 UI / 交互体验门禁；涉及视觉漂移、主题不一致、响应式/状态缺失、点击无反馈、用户流断点、焦点/目标尺寸/拖拽替代、错误恢复或动效干扰时，TestRoute 必须纳入 Browser/截图/E2E 或项目等价验证；未触发时写 `N/A + skipReason`。
-- **CrossProjectLearnedGuards**：修复涉及接入状态误判、人工复核、翻译/正式文档边界、prompt/Hook/MCP 契约、验证范围不足或过度、未真实执行验证、adapter/provider benchmark 归因、产品需求来源、本机执行配置、人工证据留存、相邻范围扩展、包名/发布名、性能第一、公开模块或 DevCodex v2 一期路线时，必须分别执行 `CodeTruthRequirementGate`、`ManualReviewEvidenceRetention`、`DocumentationTranslationParityGuard`、`FormalDocsDevCodexBoundary`、`LLMPromptContractTriage`、`VerificationScopeBudgetGate`、`LiveVerificationExecutionObligation`、`AdapterBenchmarkAttribution`、`ProductRequirementTraceabilityGate`、`LocalExecutionConfigProbe`、`ManualReviewEvidenceDataRetention`、`AdjacentScopeExpansionGuard`、`PackageNameAuthorityGate`、`PerformanceBenchmarkFirstGate`、`PublicModuleDifferentiationGate`、`V2MCPFirstPlanningGate`；未触发时写 `N/A + skipReason`。
+- **FrontendExperienceQualityGate**：修复前端页面、组件、控制台、官网、文档站、可视化工具或游戏体验问题时，必须判定 UI / 交互体验门禁；涉及视觉漂移、主题不一致、响应式/状态缺失、点击无反馈、用户流断点、焦点/目标尺寸/拖拽替代、错误恢复或动效干扰时，TestRoute 必须纳入 Browser/截图/E2E 或项目等价验证；Figma/截图/既有页面还原、资源优化、本地化或状态修复追加 `FigmaHighFidelityRestorationGate`、`ScopedVisualChangeGate`、`InstalledPluginVisualVerificationGate`、`ActualPreviewChainAndMockFallbackGate`、`UIStateScopeRegressionGate`、`FigmaProductionAssetBudgetGate` 与 `RuntimeI18nArtifactVerificationGate`；未触发时写 `N/A + skipReason`。
+- **CrossProjectLearnedGuards**：修复涉及接入状态误判、人工复核、翻译/正式文档边界、prompt/Hook/MCP 契约、验证范围不足或过度、未真实执行验证、adapter/provider benchmark 归因、产品需求来源、本机执行配置、人工证据留存、相邻范围扩展、包名/发布名、性能第一、公开模块、提交边界、兼容契约、UI 真相源冲突、公开文档版本边界、集合关系命名、验证产物语言或 DevCodex v2 一期路线时，必须分别执行 `CodeTruthRequirementGate`、`ManualReviewEvidenceRetention`、`DocumentationTranslationParityGuard`、`FormalDocsDevCodexBoundary`、`LLMPromptContractTriage`、`VerificationScopeBudgetGate`、`LiveVerificationExecutionObligation`、`ExplicitCommitAuthorizationGate`、`CompatibilityAndContractAuthorityGate`、`UIConfirmedSourceConflictTraceGate`、`PublicDocsReleasedVersionGate`、`CollectionRelationIdNamingGate`、`UserFacingVerificationArtifactLanguageGate`、`AdapterBenchmarkAttribution`、`ProductRequirementTraceabilityGate`、`LocalExecutionConfigProbe`、`ManualReviewEvidenceDataRetention`、`AdjacentScopeExpansionGuard`、`PackageNameAuthorityGate`、`PerformanceBenchmarkFirstGate`、`PublicModuleDifferentiationGate`、`V2MCPFirstPlanningGate`；未触发时写 `N/A + skipReason`。
 - **ReviewFindingIntakeGate**：修复范围来自审查报告、AI review finding、audit issue 或代码评审发现时，CP1 前必须逐条分类为 `must-fix` / `user-decision-required` / `docs-implementation-drift` / `test-coverage-gap` / `already-fixed-or-not-reproduced` / `intentional-design-accepted`；命中 `user-decision-required`、兼容风险或文档/实现二选一时，修改源码前必须先取得用户确认。
 - **SimpleTaskFastPath**：非常明确、预计 ≤2 文件、无公共 API/Schema/依赖/配置/发布/控制面/台账来源/高风险、无需多轮跟踪的简单修复，可用内联问题确认 + 报告/记忆替代 bug 目录与完整 CP 产物；报告必须写 `SimpleTaskFastPath: applied`、`skipReason`、验证证据和升级回退判断。执行中任一条件失效时，立即升级回完整 fix CP/产物链。
 - **ExistingRequirementArtifactOverride**：当用户是在调整/修改/补充既有问题确认、bug CP 产物或需求文件时，SimpleTaskFastPath 只能跳过新建完整 bug 目录，不能跳过更新已有真相源；必须先增量编辑已有问题/需求产物，回复仅作为摘要。找不到目标产物时先按 Profile、bugs/requirements、sessions、tasks 与用户提及路径定位，仍无法确认才最小澄清。

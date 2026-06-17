@@ -404,7 +404,38 @@ const probes = [
   ['README.md', 'ReviewFindingIntakeGate'],
   ['website/docs/guide/development.md', 'ReviewFindingIntakeGate'],
   ['website/docs/versions/v1/1.0.1/requirements/p1/latest-data-absorption-guards/index.md', 'ReviewFindingIntakeGate'],
-  ['scripts/lib/validate-governance-tail.js', 'checkV64']
+  ['scripts/lib/validate-governance-tail.js', 'checkV64'],
+  ['instructions.md', 'FigmaHighFidelityRestorationGate'],
+  ['instructions.md', 'ExplicitCommitAuthorizationGate'],
+  ['instructions.md', 'CompatibilityAndContractAuthorityGate'],
+  ['instructions/01b-record-router.instructions.md', 'ExplicitCommitAuthorizationGate'],
+  ['instructions/10-dev.instructions.md', 'RuntimeI18nArtifactVerificationGate'],
+  ['instructions/11-fix.instructions.md', 'CollectionRelationIdNamingGate'],
+  ['instructions/12-audit.instructions.md', 'PublicDocsReleasedVersionGate'],
+  ['instructions/13-analyze.instructions.md', 'UserFacingVerificationArtifactLanguageGate'],
+  ['skills/test-router/SKILL.md', 'highFidelityUi'],
+  ['skills/test-router/SKILL.md', 'compatibilityAuthority'],
+  ['skills/api-verification/SKILL.md', 'UserFacingVerificationArtifactLanguageGate'],
+  ['skills/dev-default/SKILL.md', 'FigmaProductionAssetBudgetGate'],
+  ['skills/dev-plan-review/SKILL.md', 'CompatibilityAndContractAuthorityGate'],
+  ['skills/dev-testing/SKILL.md', 'CollectionRelationIdNamingGate'],
+  ['skills/dev-docs/SKILL.md', 'PublicDocsReleasedVersionGate'],
+  ['skills/audit-project/SKILL.md', 'ActualPreviewChainAndMockFallbackGate'],
+  ['skills/audit-requirements/SKILL.md', 'UIConfirmedSourceConflictTraceGate'],
+  ['skills/document-sync/SKILL.md', 'InstalledPluginVisualVerificationGate'],
+  ['skills/report/SKILL.md', 'CompatibilityAndContractAuthorityGate'],
+  ['prompts/requirement.prompt.md', 'FigmaHighFidelityRestorationGate'],
+  ['prompts/technical-design.prompt.md', 'actualPreviewChain'],
+  ['prompts/implementation-plan.prompt.md', 'ExplicitCommitAuthorizationGate'],
+  ['prompts/report-dev.prompt.md', 'PublicDocsReleasedVersionGate'],
+  ['prompts/report-fix.prompt.md', 'UserFacingVerificationArtifactLanguageGate'],
+  ['prompts/report-audit.prompt.md', 'CollectionRelationIdNamingGate'],
+  ['prompts/report-scenario-test.prompt.md', 'ActualPreviewChainAndMockFallbackGate'],
+  ['README.md', 'CompatibilityAndContractAuthorityGate'],
+  ['website/docs/guide/development.md', 'RuntimeI18nArtifactVerificationGate'],
+  ['website/docs/versions/v1/1.0.1/requirements/p1/latest-data-absorption-guards/index.md', 'ExplicitCommitAuthorizationGate'],
+  ['website/docs/versions/v1/1.0.1/CHANGELOG.md', 'V65 探针'],
+  ['scripts/lib/validate-governance-tail.js', 'checkV65']
 ]
 
 for (const [file, needle] of probes) mustInclude(file, needle)
@@ -429,6 +460,11 @@ mustIncludeInChangelogs('PF-054')
 mustIncludeInChangelogs('PI-051')
 mustIncludeInChangelogs('MethodLevelLeakPressureProbe')
 mustIncludeInChangelogs('V2FormalSolutionPackage')
+mustIncludeInChangelogs('FigmaHighFidelityRestorationGate')
+mustIncludeInChangelogs('ExplicitCommitAuthorizationGate')
+mustIncludeInChangelogs('CompatibilityAndContractAuthorityGate')
+mustIncludeInChangelogs('PublicDocsReleasedVersionGate')
+mustIncludeInChangelogs('UserFacingVerificationArtifactLanguageGate')
 
 const activeRuleFiles = [
   'README.md',

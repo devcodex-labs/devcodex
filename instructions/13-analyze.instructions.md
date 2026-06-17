@@ -2,7 +2,7 @@
 applyTo: "**"
 description: analyze 工作流规则，覆盖只读分析、代码取证顺序、多轮收敛与推荐结论
 priority: P4
-version: 1.11.21
+version: 1.11.22
 ---
 # 分析工作流规则（13-analyze）
 
@@ -92,6 +92,11 @@ version: 1.11.21
 - 每条 finding 必须先补本地证据并分类为 `must-fix` / `user-decision-required` / `docs-implementation-drift` / `test-coverage-gap` / `already-fixed-or-not-reproduced` / `intentional-design-accepted`。
 - 命中 intentional design、兼容设计、性能取舍或产品策略时，应记录设计依据、消费者影响和文档/测试承托；命中用户决策项时，最终结论只能给确认问题，不得建议直接改源码。
 - 文档与实现不一致时，需判断文档是否代表产品目标或历史承诺；测试覆盖不足时，优先建议补测试、复现脚本或验证证据。
+
+### CrossProjectLearnedGuards 分析侧取证
+
+- 前端/Figma/截图/既有页面分析涉及 UI 还原、视觉漂移、真实 preview、状态回归、生产资产或运行时本地化时，应检查 `FigmaHighFidelityRestorationGate`、`ScopedVisualChangeGate`、`InstalledPluginVisualVerificationGate`、`ActualPreviewChainAndMockFallbackGate`、`UIStateScopeRegressionGate`、`FigmaProductionAssetBudgetGate` 与 `RuntimeI18nArtifactVerificationGate`，并标明证据范围。
+- 分析结论涉及提交边界、兼容修复、上游契约、UI 主真相源冲突、公开文档版本、集合关系命名或验证产物语言时，应分别检查 `ExplicitCommitAuthorizationGate`、`CompatibilityAndContractAuthorityGate`、`UIConfirmedSourceConflictTraceGate`、`PublicDocsReleasedVersionGate`、`CollectionRelationIdNamingGate` 与 `UserFacingVerificationArtifactLanguageGate`；若只是当前问题无关，写 `N/A + skipReason`。
 
 ### 收敛后汇总验证（PCV）
 

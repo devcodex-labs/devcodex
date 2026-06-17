@@ -88,6 +88,12 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 | Backlog Intake 真相复核 | 任务或批次直接来源于 `data/*.md` open/partial 项 | 列出 `candidateIds`、`classification`、`evidence`、`scopeDelta` |
 | 台账状态回写闭环 | 本轮会关闭/部分关闭/改分类任何 VL/PF/PI/ISSUE/GAP | 列出 `targetLedgers`、`requiredFields`、`writebackEvidence`、`rescanResult` |
 | ReviewFindingIntakeGate | 输入来自外部审查报告、AI review finding、audit issue 或代码评审发现 | 列出 finding 来源、本地证据、`must-fix / user-decision-required / docs-implementation-drift / test-coverage-gap / already-fixed-or-not-reproduced / intentional-design-accepted` 分类、用户确认点与最终处理 |
+| FigmaHighFidelityRestorationGate / ScopedVisualChangeGate | Figma、截图、既有页面、高保真 UI 或局部视觉修复 | 列出设计来源、allowedScope/frozenScope、还原检查项、偏离理由和视觉证据 |
+| ActualPreviewChainAndMockFallbackGate / UIStateScopeRegressionGate | 前端真实页面验证、mock fallback 风险或状态回归 | 列出真实 URL、API target、路由入口、受影响状态、主 CTA 可见性与 mock 排除证据 |
+| FigmaProductionAssetBudgetGate / RuntimeI18nArtifactVerificationGate | 生产设计资产或多语言运行时验证 | 列出资产尺寸/体积/格式/public 路径、源 JSON、构建合并产物、页面 runtime key 残留 |
+| ExplicitCommitAuthorizationGate / CompatibilityAndContractAuthorityGate | 执行 commit、兼容修复、共享库/adapter/SDK 或上游契约判断 | 列出用户明确授权、消费者零代码兼容、上游合同权威、官方 public API 证据和共享库优先判断 |
+| UIConfirmedSourceConflictTraceGate / PublicDocsReleasedVersionGate | UI 主真相源覆盖旧 PRD，或公开文档描述版本能力 | 列出冲突表、采纳理由、同步路线、released/unreleased/preview 边界 |
+| CollectionRelationIdNamingGate / UserFacingVerificationArtifactLanguageGate | 数据库/ORM 关系字段命名或用户可读验证产物 | 列出集合/实体命名依据、项目 convention、用户当前语言和例外理由 |
 
 ## 输出规则
 
@@ -103,6 +109,7 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 - 若本轮来源于 backlog open/partial 项，报告必须额外写出 Backlog Intake 真相复核结果；若本轮改变了台账真实状态，报告必须额外写出台账状态回写闭环证据
 - 报告涉及记录规范问题时，必须列出规范化意图、置信度、依据、目标台账；涉及规范源、Skill、Hook、CLI、MCP、模板、部署副本、路径规则或 validate 语义变更时，必须列出 SCV-0~SCV-7 证据
 - 报告涉及审查报告、AI review finding、audit issue 或代码评审发现 intake 时，必须列出 `ReviewFindingIntakeGate` 证据；不得只写“按报告修复”或把报告结论当已验证事实
+- 报告涉及新增跨项目已吸纳守门时，必须按触发情况列出 `FigmaHighFidelityRestorationGate`、`ScopedVisualChangeGate`、`InstalledPluginVisualVerificationGate`、`ActualPreviewChainAndMockFallbackGate`、`UIStateScopeRegressionGate`、`FigmaProductionAssetBudgetGate`、`RuntimeI18nArtifactVerificationGate`、`ExplicitCommitAuthorizationGate`、`CompatibilityAndContractAuthorityGate`、`UIConfirmedSourceConflictTraceGate`、`PublicDocsReleasedVersionGate`、`CollectionRelationIdNamingGate` 与 `UserFacingVerificationArtifactLanguageGate` 的证据或 `N/A + skipReason`
 - 控制面报告若出现新增探针、黄色偏离或部署同步，必须单独写出部署同步证据与其他证据来源，不能只在摘要里带过
 - 报告末尾引用本次会话记忆路径
 - 回复末尾必须输出产物文件路径（按 `ArtifactLinkSet` 输出主 Markdown 链接；当前宿主为 Codex Desktop/App、Copilot、未知宿主或用户反馈无法点击时，追加 `绝对路径：` copy fallback，详见 [`02-output-paths.instructions.md`](../../instructions/02-output-paths.instructions.md) §产物路径输出格式，[FC5](../compliance/SKILL.md)）

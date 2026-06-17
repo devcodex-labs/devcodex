@@ -49,6 +49,8 @@ description: 需求文档审查维度 RQ-1~RQ-8 — 需求定义/功能描述/�
 - 涉及 PRD/Word/原型/截图/用户消息提炼需求时，需求应要求 `ProductRequirementTraceabilityGate`
 - 涉及本机执行配置、人工证据留存、相邻范围扩展、包名/发布名、性能第一、公开模块或 DevCodex v2 一期路线时，需求应分别列出 `LocalExecutionConfigProbe`、`ManualReviewEvidenceDataRetention`、`AdjacentScopeExpansionGuard`、`PackageNameAuthorityGate`、`PerformanceBenchmarkFirstGate`、`PublicModuleDifferentiationGate`、`V2MCPFirstPlanningGate` 验收口径
 - 涉及 data 吸纳、正式流程图、文档站视觉验收、遗漏专审、审查发现 intake、方法级泄漏压测或 DevCodex v2 正式方案包时，需求应分别列出 `WorkspaceDataAbsorptionScopeGate`、`FlowchartNodeExplanationGate`、`DocsSiteVisualAcceptanceGate`、`OmissionOnlyReviewGate`、`ReviewFindingIntakeGate`、`MethodLevelLeakPressureProbe`、`V2FormalSolutionPackage` 验收口径
+- 涉及 Figma/截图/既有页面还原、真实 preview、状态回归、生产设计资产或运行时本地化时，需求应分别列出 `FigmaHighFidelityRestorationGate`、`ScopedVisualChangeGate`、`InstalledPluginVisualVerificationGate`、`ActualPreviewChainAndMockFallbackGate`、`UIStateScopeRegressionGate`、`FigmaProductionAssetBudgetGate`、`RuntimeI18nArtifactVerificationGate` 验收口径
+- 涉及提交边界、兼容契约、UI 确认源覆盖旧 PRD、公开文档版本、集合关系 id 命名或用户可见验证产物语言时，需求应分别列出 `ExplicitCommitAuthorizationGate`、`CompatibilityAndContractAuthorityGate`、`UIConfirmedSourceConflictTraceGate`、`PublicDocsReleasedVersionGate`、`CollectionRelationIdNamingGate`、`UserFacingVerificationArtifactLanguageGate` 验收口径
 
 ## N/A 规则
 

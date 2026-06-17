@@ -1,6 +1,6 @@
 {
   "name": "@vextjs/devcodex",
-  "version": "1.11.21",
+  "version": "1.11.22",
   "description": "DevCodex — AI-powered development workflow rules for Copilot, Claude Code and Codex",
   "main": "index.js",
   "bin": {

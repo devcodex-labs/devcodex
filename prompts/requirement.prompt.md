@@ -20,8 +20,8 @@ applyTo: .devcodex/**/requirements/**
 > ⚠️ CP1 必须给出 ArtifactDecisionMatrix：列出 `01-需求概述.md`、`02-技术方案.md`、`04-实施计划.md`、`05-实施进度.md`、目标文档、报告、记忆的 `create` / `update` / `skip` / `N/A` 状态、原因和升级回退条件；判定优先级为已有真相源回写 > 任务触发条件 > SimpleTaskFastPath > 子类型豁免。
 > ⚠️ 描述“已接入 / 未接入”类状态时，先核验依赖与源码消费点，再拆分底座能力、当前消费者和高级能力尾项，避免把“基础已接入但高级能力未接入”误写成整体未接入。
 > ⚠️ TechnicalRouteComparativeGate：技术路线、架构优化、性能优化、框架能力设计或高维护成本方案在 CP1 最终需求确认前，若存在同类产品 / 项目 / 框架 / 本仓库相似模块可比，必须执行 `ComparativeResearchGate`；不触发时写 `N/A + skipReason`。
-> ⚠️ FrontendExperienceQualityGate：前端页面、组件、控制台、官网、文档站、可视化工具、游戏或用户可见 UI / 交互需求，CP1 验收必须覆盖设计来源、UI 还原度、风格主题、响应式状态、视觉验证、用户流、交互反馈、输入方式/可访问性、错误恢复和动效转场；不触发时写 `N/A + skipReason`。
-> ⚠️ CrossProjectLearnedGuards：涉及接入状态、人工复核、翻译/正式文档边界、prompt/Hook/MCP 契约、验证范围、真实执行、benchmark 归因、产品需求来源、本机执行配置、人工证据留存、相邻范围扩展、包名/发布名、性能第一、公开模块、DevCodex v2 一期路线、全工作区 data 吸纳、正式流程图、文档站视觉验收、遗漏专审、审查发现 intake、方法级泄漏压测或 v2 正式方案包时，CP1 必须列出对应守门项的验收口径；未触发项写 `N/A + skipReason`。
+> ⚠️ FrontendExperienceQualityGate：前端页面、组件、控制台、官网、文档站、可视化工具、游戏或用户可见 UI / 交互需求，CP1 验收必须覆盖设计来源、UI 还原度、风格主题、响应式状态、视觉验证、用户流、交互反馈、输入方式/可访问性、错误恢复和动效转场；Figma/截图/既有页面还原需追加 `FigmaHighFidelityRestorationGate`、`ScopedVisualChangeGate`、`InstalledPluginVisualVerificationGate`、`ActualPreviewChainAndMockFallbackGate`、`UIStateScopeRegressionGate`、`FigmaProductionAssetBudgetGate`、`RuntimeI18nArtifactVerificationGate`；不触发时写 `N/A + skipReason`。
+> ⚠️ CrossProjectLearnedGuards：涉及接入状态、人工复核、翻译/正式文档边界、prompt/Hook/MCP 契约、验证范围、真实执行、benchmark 归因、产品需求来源、本机执行配置、人工证据留存、相邻范围扩展、包名/发布名、性能第一、公开模块、提交授权、兼容契约、UI 源冲突、公开文档版本、集合关系命名、验证产物语言、DevCodex v2 一期路线、全工作区 data 吸纳、正式流程图、文档站视觉验收、遗漏专审、审查发现 intake、方法级泄漏压测或 v2 正式方案包时，CP1 必须列出对应守门项的验收口径；未触发项写 `N/A + skipReason`。
 
 | 类型 | 适用场景 | 默认重点 |
 |------|---------|---------|
@@ -124,6 +124,9 @@ applyTo: .devcodex/**/requirements/**
 | 守门项 | 是否触发 | 验收口径 / skipReason |
 |--------|:--------:|-----------------------|
 | FrontendExperienceQualityGate | 是 / 否 | 设计来源、还原度、主题、响应式、状态、用户流、反馈、输入方式、错误恢复、动效、视觉验证 |
+| FigmaHighFidelityRestorationGate / ScopedVisualChangeGate | 是 / 否 | Figma/截图/既有页面来源、allowedScope/frozenScope、元素分类、偏离理由 |
+| ActualPreviewChainAndMockFallbackGate / UIStateScopeRegressionGate | 是 / 否 | 真实 preview URL、API target、路由入口、状态清单、主 CTA 可见性、mock 排除 |
+| FigmaProductionAssetBudgetGate / RuntimeI18nArtifactVerificationGate | 是 / 否 | 资产尺寸/体积/格式/public 路径、源 JSON、构建合并产物、runtime key 残留 |
 | CodeTruthRequirementGate | 是 / 否 | |
 | ManualReviewEvidenceRetention | 是 / 否 | |
 | DocumentationTranslationParityGuard | 是 / 否 | |
@@ -131,6 +134,12 @@ applyTo: .devcodex/**/requirements/**
 | LLMPromptContractTriage | 是 / 否 | |
 | VerificationScopeBudgetGate | 是 / 否 | |
 | LiveVerificationExecutionObligation | 是 / 否 | |
+| ExplicitCommitAuthorizationGate | 是 / 否 | 是否会提交、用户明确授权证据、语义批次边界 |
+| CompatibilityAndContractAuthorityGate | 是 / 否 | 零代码消费者兼容、上游合同权威、官方 public API 证据、共享库优先判断 |
+| UIConfirmedSourceConflictTraceGate | 是 / 否 | 旧 PRD/文档 vs 新 UI/Figma/截图来源、冲突表、采纳理由、同步路线 |
+| PublicDocsReleasedVersionGate | 是 / 否 | released / unreleased / preview 边界、公开文档落点 |
+| CollectionRelationIdNamingGate | 是 / 否 | 关系 id 命名依据、项目 convention、消费者影响 |
+| UserFacingVerificationArtifactLanguageGate | 是 / 否 | 用户当前语言、项目例外、`.http` / 集成测试说明语言 |
 | AdapterBenchmarkAttribution | 是 / 否 | |
 | ProductRequirementTraceabilityGate | 是 / 否 | PRD/Word/原型/截图/消息锚点、提取口径、冲突/遗漏处理、验收映射 |
 | LocalExecutionConfigProbe | 是 / 否 | 本机/跨环境执行配置来源、Profile/config.local 或既有约定、S02 处理 |

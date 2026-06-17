@@ -56,6 +56,9 @@ description: 文档开发子类型规范 — 技术文档/API文档/README 编�
 | 翻译等价 | 多语言文档、翻译页或中英文双入口变更时执行 `DocumentationTranslationParityGuard`，核对信息等价、版本号、链接、示例、术语和当前消费者顺序 |
 | 正式边界 | README、官网、正式规范页或用户文档执行 `FormalDocsDevCodexBoundary`，不得混入运行时报告、台账口吻、一次性分析或内部待办 |
 | 公开承诺 | 面向公开模块、SDK、CLI、插件、包安装说明或文档站能力时执行 `PackageNameAuthorityGate` 与 `PublicModuleDifferentiationGate`，以 package/plugin/registry 证据区分公开 API、内部实现、示例和历史镜像 |
+| 发布版本边界 | 面向 README、官网、迁移指南或版本页时执行 `PublicDocsReleasedVersionGate`，未发布能力只能写在 unreleased、草案、需求页或明确 preview 区域 |
+| UI 真相源冲突 | 当 Figma/截图/线上页面覆盖旧 PRD 或历史文档时执行 `UIConfirmedSourceConflictTraceGate`，保留冲突表、采纳理由和同步路线 |
+| 验证产物语言 | `.http`、集成测试说明、手工验证步骤等用户可读验证产物执行 `UserFacingVerificationArtifactLanguageGate`，默认使用用户当前语言 |
 | 需求来源 | 从 PRD、Word、原型、截图或用户消息整理文档需求时执行 `ProductRequirementTraceabilityGate`，保留来源锚点、提取口径和验收映射 |
 
 ## API 文档规范

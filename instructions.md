@@ -277,6 +277,9 @@ dev/fix 修改完成前必须判定是否影响 Profile。命中以下任一触�
 - 涉及前端页面、组件、控制台、官网、文档站、可视化工具、游戏或其他用户可见 UI / 交互时，CP1/CP2/TestRoute 必须按项目现实判定是否触发 `FrontendExperienceQualityGate`；该规则是条件门禁，不适用于纯后端、纯 CLI、纯文档或无界面任务，未触发时写 `N/A + skipReason`。
 - UI 视觉组：`FrontendDesignSourceGate` 要求确认设计来源（设计稿/截图/Figma/既有页面/设计系统/品牌主题/领域推导）；`UIFidelityGate` 要求有参考时尽量还原布局、间距、层级、字体、颜色、状态、图标和关键资产，偏离必须说明；`StyleThemeConsistencyGate` 要求沿用项目既有设计系统、主题 token、颜色语义、组件库和图标体系；`ResponsiveStateCoverageGate` 要求覆盖桌面/移动、关键断点、主题模式、loading/empty/error/disabled/hover/focus 等状态；`VisualVerificationGate` 要求 UI 变更后用 Browser/Playwright/截图或项目等价方式留证，无法运行时记录阻塞与降级证据。
 - UX 交互组：`InteractionFlowGate` 要求识别核心用户流、入口/出口、主次行动、导航、返回、取消、撤销和任务完成路径；`InteractionFeedbackGate` 要求关键控件、异步行为和结果状态具备即时、可感知且不过度打扰的反馈；`InputModalityAccessibilityGate` 要求关键交互按场景覆盖键盘、鼠标、触摸、焦点可见、目标尺寸、拖拽/手势替代；`ErrorPreventionRecoveryGate` 要求高成本、破坏性或易误操作路径具备预防、确认、撤销/恢复和可理解错误提示；`MotionTransitionUsabilityGate` 要求动效和转场用于解释状态变化、空间关系和连续性，保持克制、稳定并尊重减弱动态设置。
+- 高保真还原组：`FigmaHighFidelityRestorationGate` 要求以 Figma/截图/既有页面为真相源时先冻结参考范围，按布局、尺寸、间距、字体、色彩、图标、图片资产、状态与交互逐项还原；若以代码重建 Figma 页面，必须区分真实组件、装饰层、文本、图片和交互控件，偏离须留理由。`ScopedVisualChangeGate` 要求 UI 修改先声明 `allowedScope` 与 `frozenScope`，资源优化、性能修正或局部 bug 修复不得静默改变非授权区域的风格、布局或主题。`InstalledPluginVisualVerificationGate` 要求宿主已安装 Figma / Browser / Chrome 等可用视觉工具时优先走实际插件链验证，无法使用时记录阻塞与降级证据。
+- 真实预览与状态组：`ActualPreviewChainAndMockFallbackGate` 要求前端验证先确认真实 preview URL、API target、构建产物和路由入口；不得把 mock、临时服务、静态截图或错误 target 伪装成用户页面通过。`UIStateScopeRegressionGate` 要求列出受影响状态（如默认、登录、加入后、空态、错误态、禁用态等）并验证主 CTA 与关键路径仍可见可用。
+- 资产与本地化组：`FigmaProductionAssetBudgetGate` 要求从 Figma 或设计稿进入生产代码的图片/图标/位图资产记录尺寸、体积、格式、来源节点、public 路径、WebP/SVG 内嵌位图检查与替换理由；不得无预算地复制大图或把临时截图当生产资产。`RuntimeI18nArtifactVerificationGate` 要求多语言 / 本地化变更同时核对源 JSON、构建/合并后的实际加载产物和页面运行时残留 key，禁止只 grep 源文件后宣称多语言通过。
 - 前端体验验证应按风险选择项目既有 lint/typecheck/test、Browser/截图、Playwright/E2E 或人工复核证据；不得为了形式满足而引入新 UI 库、设计系统、视觉 diff 平台或把所有前端任务升级为重可用性研究。
 - 若前端体验任务同时涉及组件生命周期、监听器、订阅、worker、定时器、缓存或长运行可视化状态，仍须并行执行 `LeakRiskStabilityPressureTest` 判定。
 
@@ -291,6 +294,14 @@ dev/fix 修改完成前必须判定是否影响 Profile。命中以下任一触�
 - `VerificationScopeBudgetGate`：验证路线必须与风险和变更面匹配；高风险、控制面、发布、资源生命周期或前端体验不能只跑轻量检查，低风险纯文档/纯计算也不得为形式引入重压测、E2E 或外部依赖。
 - `LiveVerificationExecutionObligation`：声明“已验证 / 可运行 / 可点击 / 已发布 / 已安装”前必须真实执行对应命令、页面、接口、pack/install、registry/tag 查询或项目等价验证；无法执行时只能写阻塞/降级证据，不能用预期代替结果。
 - `ReviewFindingIntakeGate` / `DesignIntentAndDocsConsistencyGate`：外部审查报告、AI review finding、audit issue 或代码评审发现进入 analyze/audit/fix 处理前，必须先按 5 个子探针分流：`AuditReportIsSignalNotEvidence`（报告只是线索，需本地代码/文档/测试/运行证据，无法复现标 `not-reproduced` 或 `needs-evidence`）、`IntentionalDesignClassification`（识别 intentional design、兼容设计、性能取舍或产品策略并记录依据）、`UserDecisionBeforeMutation`（公共契约、兼容风险、设计取舍或文档/实现二选一时，修改源码前先用户确认）、`DocsImplementationDriftAttribution`（文档与实现不一致时先判断文档是否代表产品目标或历史承诺，再决定修代码/文档/示例/测试）、`TestCoverageGapOnly`（仅测试浅、回归缺失或证据不足时优先补测试/复现/验证证据，不直接改 runtime）。该门禁是审查发现 intake 场景的组合门禁，不作为 5 个独立顶层守门。
+- `FigmaHighFidelityRestorationGate` / `ScopedVisualChangeGate` / `InstalledPluginVisualVerificationGate`：前端、官网、文档站或 Figma 还原类任务必须把设计来源、允许修改范围、冻结范围和实际视觉验证工具链落入 TestRoute；不得在优化图片、修复交互或重建页面时顺手改整体风格。
+- `ActualPreviewChainAndMockFallbackGate` / `UIStateScopeRegressionGate` / `FigmaProductionAssetBudgetGate` / `RuntimeI18nArtifactVerificationGate`：用户可见 UI 验证必须证明命中真实页面、真实运行态和关键状态；涉及生产资产或本地化时必须保留资产预算、运行时加载产物和残留 key 检查证据。
+- `ExplicitCommitAuthorizationGate`：实际执行本地 `git commit` 必须有用户当前会话明确要求；“需要回滚点”“语义批次已验证”只能作为建议提交或请求确认的理由，不能自动 commit。`push` / `tag` / `publish` 仍按用户明确确认执行。
+- `CompatibilityAndContractAuthorityGate`：兼容修复、共享库/adapter/SDK、上游契约或消费者验证相关任务必须区分零代码消费者兼容性、上游合同权威和官方 public API 证据；禁止用影子 allowlist、历史报告或内部 helper 替代上游公开契约，必要时验证“修共享库 + 消费项目升级”是否优于单项目补丁。
+- `UIConfirmedSourceConflictTraceGate`：当用户确认的 UI、Figma、截图或当前线上页面成为主真相源并覆盖旧 PRD/文档时，需求或方案必须保留冲突表，写清旧来源、新来源、采纳理由、影响范围和后续文档同步路线。
+- `PublicDocsReleasedVersionGate`：公开 README、官网、迁移指南、版本页或用户文档不得把未发布能力写成已发布历史、迁移负担或正式可用功能；未发布内容只允许出现在 unreleased、草案、需求页或明确标注的 preview 区域。
+- `CollectionRelationIdNamingGate`：数据库 / Mongo / ORM 关系字段命名应优先使用被关联集合 / 实体语义（如 `userId`、`orderId`），项目既有 convention 或用户确认可覆盖；跨集合写入、迁移或 API 字段暴露前须检查命名不会误导消费者。
+- `UserFacingVerificationArtifactLanguageGate`：`.http`、接口验证脚本、集成测试说明、手工验证步骤和用户可读错误提示默认使用用户当前语言；项目/用户要求英文或双语时按要求执行，机器字段、协议名和代码标识不翻译。
 - `AdapterBenchmarkAttribution`：adapter、provider、connector、SDK 或性能优化 benchmark 必须写清基线、环境、版本、负载、归因边界和不可比较因素；不得把框架、网络、缓存预热、依赖树或测试环境差异误归因给业务代码。
 - `ProductRequirementTraceabilityGate`：从 PRD、Word、原型、截图、会议纪要或用户补充消息整理需求时，必须保留需求来源、条款/页码/截图/消息锚点、结构化提取口径和遗漏/冲突处理；不得把 AI 归纳当成唯一真相源。
 - `LocalExecutionConfigProbe`：脚本、本机验证、数据库/SSH/HTTP 连接或跨环境执行需要本地配置时，必须先核对项目指定配置入口、Profile `config.local.json` 模型或既有脚本约定；未指定时按 S02 默认可直写/沿用现状，禁止臆造 env/secret/config.local 层。
@@ -642,10 +653,11 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → 执行 →
 
 - 当本次开发/修复形成一个**已验证的语义变更批次**，且用户**未明确要求** `tag` / `release` / `publish` 时，默认更新 `changelogs/unreleased.md`，不默认进入正式发版流程。
 - `commit` 默认不自动执行，也不按“问题个数”切分；应按**语义批次**提交。
-- 以下场景适合执行 `commit`：
-  - 用户明确要求提交当前变更
-  - 需要独立回滚点
-  - 当前语义批次边界清晰且已验证闭环
+- `ExplicitCommitAuthorizationGate`：只有用户当前会话明确要求提交当前变更时，才可实际执行本地 `git commit`；“需要独立回滚点”或“语义批次边界清晰且已验证闭环”只能作为建议 commit 或请求用户确认的理由，不能自动 commit。
+- 以下场景适合建议或执行 `commit`：
+  - 用户明确要求提交当前变更（可执行）
+  - 需要独立回滚点（仅建议 / 请求确认）
+  - 当前语义批次边界清晰且已验证闭环（仅建议 / 请求确认）
 
 ---
 

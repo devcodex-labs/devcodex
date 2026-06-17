@@ -6,6 +6,7 @@
 
 | 日期 | 变更内容 | 影响范围 | 原因 |
 |------|---------|---------|------|
+| 2026-06-17 | 补充高保真 UI / 提交授权 / 兼容契约等 V65 吸纳门禁 | `FigmaHighFidelityRestorationGate`、`ExplicitCommitAuthorizationGate`、`CompatibilityAndContractAuthorityGate`、`PublicDocsReleasedVersionGate`、V65 探针 | 将最新确认的可吸纳项转为 TestRoute、Skill、Prompt、README/website 与 validate 可执行门禁 |
 | 2026-06-17 | 发布 v1.11.21 审查发现 intake 分流门禁 | `ReviewFindingIntakeGate`、`DesignIntentAndDocsConsistencyGate`、V64 探针、release notes | 将 `PF-054 / PI-051` 已吸纳能力归档到正式版本，补齐发布说明与版本口径 |
 | 2026-06-17 | 补充审查发现 intake 分流门禁 | `ReviewFindingIntakeGate`、`DesignIntentAndDocsConsistencyGate`、V64 探针 | 将“审查报告只是线索、设计如此、修改前需用户确认、文档/实现漂移和测试缺口”从待吸纳清单升级为可执行组合门禁 |
 | 2026-06-12 | 新增最新 data 吸纳守门补强 | `WorkspaceDataAbsorptionScopeGate`、`FlowchartNodeExplanationGate`、`DocsSiteVisualAcceptanceGate`、`OmissionOnlyReviewGate`、`MethodLevelLeakPressureProbe`、`V2FormalSolutionPackage`、V63 探针 | 将全工作区 data 扫描、遗漏专审、文档站视觉验收、方法级泄漏压测和 v2 正式方案包从待吸纳项升级为可执行门禁 |

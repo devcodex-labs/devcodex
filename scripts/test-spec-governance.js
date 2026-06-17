@@ -379,7 +379,32 @@ const probes = [
   ['website/docs/versions/v1/1.0.1/requirements/p1/latest-data-absorption-guards/index.md', 'WorkspaceDataAbsorptionScopeGate'],
   ['website/docs/versions/v2/2.0.0/formal-solution-package.md', 'MCP API Contract'],
   ['website/rspress.config.ts', 'formal-solution-package'],
-  ['scripts/lib/validate-governance-tail.js', 'checkV63']
+  ['scripts/lib/validate-governance-tail.js', 'checkV63'],
+  ['instructions.md', 'ReviewFindingIntakeGate'],
+  ['instructions.md', 'AuditReportIsSignalNotEvidence'],
+  ['instructions.md', 'DocsImplementationDriftAttribution'],
+  ['instructions/10-dev.instructions.md', 'ReviewFindingIntakeGate'],
+  ['instructions/11-fix.instructions.md', 'ReviewFindingIntakeGate'],
+  ['instructions/12-audit.instructions.md', 'ReviewFindingIntakeGate'],
+  ['instructions/13-analyze.instructions.md', 'ReviewFindingIntakeGate'],
+  ['skills/audit-common/SKILL.md', 'ReviewFindingIntakeGate'],
+  ['skills/analyze-research/SKILL.md', 'ReviewFindingIntakeGate'],
+  ['skills/fix-default/SKILL.md', 'ReviewFindingIntakeGate'],
+  ['skills/test-router/SKILL.md', 'ReviewFindingIntakeGate'],
+  ['skills/audit-project/SKILL.md', 'ReviewFindingIntakeGate'],
+  ['skills/audit-requirements/SKILL.md', 'ReviewFindingIntakeGate'],
+  ['skills/audit-report/SKILL.md', 'ReviewFindingIntakeGate'],
+  ['skills/report/SKILL.md', 'ReviewFindingIntakeGate'],
+  ['prompts/requirement.prompt.md', 'ReviewFindingIntakeGate'],
+  ['prompts/technical-design.prompt.md', 'ReviewFindingIntakeGate'],
+  ['prompts/implementation-plan.prompt.md', 'ReviewFindingIntakeGate'],
+  ['prompts/report-dev.prompt.md', 'ReviewFindingIntakeGate'],
+  ['prompts/report-fix.prompt.md', 'ReviewFindingIntakeGate'],
+  ['prompts/report-audit.prompt.md', 'ReviewFindingIntakeGate'],
+  ['README.md', 'ReviewFindingIntakeGate'],
+  ['website/docs/guide/development.md', 'ReviewFindingIntakeGate'],
+  ['website/docs/versions/v1/1.0.1/requirements/p1/latest-data-absorption-guards/index.md', 'ReviewFindingIntakeGate'],
+  ['scripts/lib/validate-governance-tail.js', 'checkV64']
 ]
 
 for (const [file, needle] of probes) mustInclude(file, needle)
@@ -399,6 +424,9 @@ mustIncludeInChangelogs('V2MCPFirstPlanningGate')
 mustIncludeInChangelogs('WorkspaceDataAbsorptionScopeGate')
 mustIncludeInChangelogs('DocsSiteVisualAcceptanceGate')
 mustIncludeInChangelogs('OmissionOnlyReviewGate')
+mustIncludeInChangelogs('ReviewFindingIntakeGate')
+mustIncludeInChangelogs('PF-054')
+mustIncludeInChangelogs('PI-051')
 mustIncludeInChangelogs('MethodLevelLeakPressureProbe')
 mustIncludeInChangelogs('V2FormalSolutionPackage')
 

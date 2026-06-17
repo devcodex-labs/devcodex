@@ -41,6 +41,7 @@ description: 技术调研子类型规范 — 技术选型/可行性评估/根因
 - `research` 默认执行 analyze-lite 联查：关键词提取 → 关联文件集合 → 收敛前再跑一次 CRS
 - 命中控制面、多真相源、模板-示例-校验链或单轮发现 ≥5 条 / 出现 🔴 问题时，应主动建议升级到 `audit`
 - `ComparativeResearchGate` 命中时，先比较同类产品 / 项目 / 本仓库相似模块 / 已有设计；若属于纯解释、低风险本地事实或用户明确要求快速答复，记录 `N/A + skipReason`，不得把普通问答默认升级成重调研
+- 输入来自审查报告、AI review finding、audit issue 或代码评审发现时，必须执行 `ReviewFindingIntakeGate`：先把报告当线索补本地证据，再区分 must-fix、设计如此、用户决策、文档/实现漂移、测试覆盖缺口和未复现项
 
 ## 各类型输出格式
 

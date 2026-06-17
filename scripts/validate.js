@@ -59,6 +59,7 @@
  * V61 Frontend experience / learned guards sync（前端 UI/交互体验门禁与跨项目已吸纳守门）
  * V62 Data absorption guard extensions sync（剩余 data 吸纳守门扩展）
  * V63 Latest data absorption guard sync（全工作区 data 扫描、遗漏专审、文档站体验、方法级泄漏压测与 v2 正式方案包）
+ * V64 Review finding intake gate sync（审查发现 intake 分流门禁）
  *
  * Exit: 0=OK, 1=error, 2=warnings only
  */
@@ -527,7 +528,8 @@ const {
   checkV60,
   checkV61,
   checkV62,
-  checkV63
+  checkV63,
+  checkV64
 } = buildGovernanceTailChecks({
   ROOT,
   ACTIVE_DEVCODEX_ROOT,
@@ -913,6 +915,7 @@ checkV60()
 checkV61()
 checkV62()
 checkV63()
+checkV64()
 
 console.log('')
 if (errors.length) {

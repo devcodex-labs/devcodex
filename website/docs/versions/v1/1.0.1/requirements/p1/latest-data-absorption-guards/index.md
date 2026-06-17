@@ -2,7 +2,7 @@
 
 > **状态**：✅ 已实现  
 > **优先级**：P1  
-> **关联规则**：`WorkspaceDataAbsorptionScopeGate`、`FlowchartNodeExplanationGate`、`DocsSiteVisualAcceptanceGate`、`OmissionOnlyReviewGate`、`MethodLevelLeakPressureProbe`、`V2FormalSolutionPackage`
+> **关联规则**：`WorkspaceDataAbsorptionScopeGate`、`FlowchartNodeExplanationGate`、`DocsSiteVisualAcceptanceGate`、`OmissionOnlyReviewGate`、`ReviewFindingIntakeGate`、`MethodLevelLeakPressureProbe`、`V2FormalSolutionPackage`
 
 ## 背景
 
@@ -18,11 +18,12 @@
 | `FlowchartNodeExplanationGate` | 正式流程图、生命周期图、Nxx 节点图、维护者流程页 | 每个非终止节点有中文说明，覆盖触发、前置、动作、出口、异常/回退 |
 | `DocsSiteVisualAcceptanceGate` | 官网、文档站、技术站或正式说明页的视觉/交互验收 | 覆盖主题集成、真实点击、异步动效、减弱动态、代码 token 对比度、终端 demo 范围、TOC inline code 和辅助导航层级 |
 | `OmissionOnlyReviewGate` | 用户要求只审遗漏、上次没检查、只列仍需吸纳项 | 只输出此前未覆盖且仍有处理价值的遗漏项，已吸纳/关闭/无必要项只写排除理由 |
+| `ReviewFindingIntakeGate` | 外部审查报告、AI review finding、audit issue 或代码评审发现进入修复/建议前 | 报告只是线索，逐条补本地证据并分流 must-fix、用户决策、文档/实现漂移、测试覆盖缺口、未复现或设计如此 |
 | `MethodLevelLeakPressureProbe` | 高风险资源泄漏修复、公开库/adapter/SDK、连接/监听/定时器/worker/cache 风险 | 评估公开方法级重复调用或生命周期压测，记录指标、阈值、冷却和清理证据 |
 | `V2FormalSolutionPackage` | v2 一期正式规划、方案冻结或 ISSUE-027 尾项治理 | 形成 CP1/CP2 方案包，覆盖架构、数据模型、MCP API contract、instruction return、可见性、cache/signature/rollback、Codex-only 验证、Registry/Marketplace、私有维护站和 Mermaid 节点流程 |
 
 ## 验证
 
 - `node scripts/validate.js` 必须包含 V63 探针。
-- `node scripts/test-spec-governance.js` 必须覆盖上述规则在 instructions、skills、prompts、README、website 与 changelog 的同步。
+- `node scripts/test-spec-governance.js` 必须覆盖上述规则在 instructions、skills、prompts、README、website 与 changelog 的同步，包含 `ReviewFindingIntakeGate`。
 - 文档站 sidebar 与需求索引必须出现本页入口。

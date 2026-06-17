@@ -70,7 +70,7 @@ applyTo: .devcodex/**/reports/requirements/**
 | TestRoute | ✅/N/A | ✅/⚠️ | |
 | LeakRiskStabilityPressureTest | ✅/N/A | ✅/⚠️ | leakRiskPressure 判定、基线、压力场景、冷却窗口、资源指标前后对比、skipReason |
 | FrontendExperienceQualityGate | ✅/N/A | ✅/⚠️ | 设计来源、UI 还原度、风格主题、响应式状态、视觉验证、用户流、交互反馈、输入方式/可访问性、错误恢复、动效转场、skipReason |
-| CrossProjectLearnedGuards | ✅/N/A | ✅/⚠️ | CodeTruthRequirementGate / ManualReviewEvidenceRetention / DocumentationTranslationParityGuard / FormalDocsDevCodexBoundary / LLMPromptContractTriage / VerificationScopeBudgetGate / LiveVerificationExecutionObligation / AdapterBenchmarkAttribution / ProductRequirementTraceabilityGate / LocalExecutionConfigProbe / ManualReviewEvidenceDataRetention / AdjacentScopeExpansionGuard / PackageNameAuthorityGate / PerformanceBenchmarkFirstGate / PublicModuleDifferentiationGate / V2MCPFirstPlanningGate / WorkspaceDataAbsorptionScopeGate / FlowchartNodeExplanationGate / DocsSiteVisualAcceptanceGate / OmissionOnlyReviewGate / MethodLevelLeakPressureProbe / V2FormalSolutionPackage |
+| CrossProjectLearnedGuards | ✅/N/A | ✅/⚠️ | CodeTruthRequirementGate / ManualReviewEvidenceRetention / DocumentationTranslationParityGuard / FormalDocsDevCodexBoundary / LLMPromptContractTriage / VerificationScopeBudgetGate / LiveVerificationExecutionObligation / AdapterBenchmarkAttribution / ProductRequirementTraceabilityGate / LocalExecutionConfigProbe / ManualReviewEvidenceDataRetention / AdjacentScopeExpansionGuard / PackageNameAuthorityGate / PerformanceBenchmarkFirstGate / PublicModuleDifferentiationGate / V2MCPFirstPlanningGate / WorkspaceDataAbsorptionScopeGate / FlowchartNodeExplanationGate / DocsSiteVisualAcceptanceGate / OmissionOnlyReviewGate / ReviewFindingIntakeGate / MethodLevelLeakPressureProbe / V2FormalSolutionPackage |
 | ServiceLifecycleCleanup | ✅/N/A | ✅/⚠️ | AI 自启动服务的 command/cwd/PID/job/port/url、关闭验证或 keepAliveReason |
 | ReleaseAudit | ✅/N/A | ✅/⚠️ | |
 | ReleaseVerification | ✅/N/A | ✅/⚠️ | |
@@ -110,6 +110,7 @@ applyTo: .devcodex/**/reports/requirements/**
 - [ ] LeakRiskStabilityPressureTest：✅ 完成 / N/A + skipReason
 - [ ] FrontendExperienceQualityGate：✅ 完成 / N/A + skipReason
 - [ ] CrossProjectLearnedGuards：✅ 完成 / N/A + skipReason
+- [ ] ReviewFindingIntakeGate：✅ 完成 / N/A + skipReason
 - [ ] WorkspaceDataAbsorptionScopeGate / DocsSiteVisualAcceptanceGate / MethodLevelLeakPressureProbe / V2FormalSolutionPackage：✅ 完成 / N/A + skipReason
 - [ ] ServiceLifecycleCleanup：✅ 完成 / N/A（若保留运行，已记录用户要求、PID/端口和关闭方式）
 - [ ] ReleaseAudit：✅ 完成 / N/A

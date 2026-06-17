@@ -1203,6 +1203,56 @@ function buildGovernanceTailChecks(ctx) {
     console.log('[V63] latest data absorption guard sync checked')
   }
 
+  function checkV64() {
+    const probes = [
+      { file: 'instructions.md', needles: ['ReviewFindingIntakeGate', 'DesignIntentAndDocsConsistencyGate', 'AuditReportIsSignalNotEvidence', 'IntentionalDesignClassification', 'UserDecisionBeforeMutation', 'DocsImplementationDriftAttribution', 'TestCoverageGapOnly'] },
+      { file: 'instructions/10-dev.instructions.md', needles: ['ReviewFindingIntakeGate', '审查发现 intake'] },
+      { file: 'instructions/11-fix.instructions.md', needles: ['ReviewFindingIntakeGate', 'user-decision-required', 'docs-implementation-drift', 'test-coverage-gap', 'intentional-design-accepted'] },
+      { file: 'instructions/12-audit.instructions.md', needles: ['ReviewFindingIntakeGate', 'AuditReportIsSignalNotEvidence', 'UserDecisionBeforeMutation', 'DocsImplementationDriftAttribution', 'TestCoverageGapOnly'] },
+      { file: 'instructions/13-analyze.instructions.md', needles: ['ReviewFindingIntakeGate', 'DesignIntentAndDocsConsistencyGate', 'already-fixed-or-not-reproduced'] },
+      { file: 'skills/audit-common/SKILL.md', needles: ['ReviewFindingIntakeGate', 'AuditReportIsSignalNotEvidence', 'IntentionalDesignClassification', 'TestCoverageGapOnly'] },
+      { file: 'skills/analyze-research/SKILL.md', needles: ['ReviewFindingIntakeGate', 'must-fix', '未复现项'] },
+      { file: 'skills/fix-default/SKILL.md', needles: ['ReviewFindingIntakeGate', '公共契约风险'] },
+      { file: 'skills/test-router/SKILL.md', needles: ['ReviewFindingIntakeGate', '审查发现 intake', 'runtime bug 修复'] },
+      { file: 'skills/audit-project/SKILL.md', needles: ['ReviewFindingIntakeGate', '文档/实现漂移'] },
+      { file: 'skills/audit-requirements/SKILL.md', needles: ['ReviewFindingIntakeGate', 'docs drift'] },
+      { file: 'skills/audit-report/SKILL.md', needles: ['ReviewFindingIntakeGate', 'must-fix runtime bug'] },
+      { file: 'skills/report/SKILL.md', needles: ['ReviewFindingIntakeGate', 'finding 来源'] },
+      { file: 'skills/dev-default/SKILL.md', needles: ['ReviewFindingIntakeGate'] },
+      { file: 'skills/dev-plan-review/SKILL.md', needles: ['ReviewFindingIntakeGate'] },
+      { file: 'skills/document-sync/SKILL.md', needles: ['ReviewFindingIntakeGate'] },
+      { file: 'prompts/requirement.prompt.md', needles: ['ReviewFindingIntakeGate', 'intentional design'] },
+      { file: 'prompts/technical-design.prompt.md', needles: ['ReviewFindingIntakeGate', '文档实现漂移'] },
+      { file: 'prompts/implementation-plan.prompt.md', needles: ['ReviewFindingIntakeGate'] },
+      { file: 'prompts/report-dev.prompt.md', needles: ['ReviewFindingIntakeGate'] },
+      { file: 'prompts/report-fix.prompt.md', needles: ['ReviewFindingIntakeGate'] },
+      { file: 'prompts/report-audit.prompt.md', needles: ['ReviewFindingIntakeGate', 'finding 来源'] },
+      { file: 'prompts/report-scenario-test.prompt.md', needles: ['ReviewFindingIntakeGate'] },
+      { file: 'README.md', needles: ['ReviewFindingIntakeGate'] },
+      { file: 'website/docs/guide/development.md', needles: ['ReviewFindingIntakeGate'] },
+      { file: 'website/docs/versions/v1/1.0.1/requirements/p1/latest-data-absorption-guards/index.md', needles: ['ReviewFindingIntakeGate', '报告只是线索'] },
+      { file: 'website/docs/versions/v1/1.0.1/CHANGELOG.md', needles: ['ReviewFindingIntakeGate', 'V64 探针'] },
+      { file: 'scripts/test-spec-governance.js', needles: ['ReviewFindingIntakeGate', 'AuditReportIsSignalNotEvidence'] }
+    ]
+
+    for (const probe of probes) {
+      const content = read(path.join(ROOT, probe.file))
+      for (const needle of probe.needles) {
+        if (!content.includes(needle)) {
+          err(`[V64] review finding intake gate drift in ${probe.file}: missing "${needle}"`)
+        }
+      }
+    }
+
+    for (const needle of ['ReviewFindingIntakeGate', 'DesignIntentAndDocsConsistencyGate', 'PF-054', 'PI-051']) {
+      if (!hasChangelogEvidence(needle)) {
+        err(`[V64] review finding intake gate changelog drift: missing "${needle}" in changelogs/unreleased.md or changelogs/releases/*.md`)
+      }
+    }
+
+    console.log('[V64] review finding intake gate sync checked')
+  }
+
   return {
     checkV39,
     checkV40,
@@ -1228,7 +1278,8 @@ function buildGovernanceTailChecks(ctx) {
     checkV60,
     checkV61,
     checkV62,
-    checkV63
+    checkV63,
+    checkV64
   }
 }
 

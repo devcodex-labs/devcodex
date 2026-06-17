@@ -211,6 +211,16 @@ R2 及以后轮次必须维护复审覆盖增量，防止连续零发现退化�
 - 最终发现只保留此前未覆盖且仍有处理价值的遗漏项；重复项、已关闭项和无必要项只写排除理由。
 - 来源为 data 吸纳时，同步执行 `WorkspaceDataAbsorptionScopeGate`，覆盖 `.devcodex/*/data/` 全命名空间。
 
+### ReviewFindingIntakeGate（审查发现 intake 分流）
+
+当审查对象或输入材料包含外部审查报告、AI review finding、audit issue 或代码评审发现时，R1 起必须执行审查发现 intake 分流：
+
+- `AuditReportIsSignalNotEvidence`：报告只是线索；每条 finding 必须有本地代码、文档、测试或运行复现证据，无法复现标 `not-reproduced` / `needs-evidence`。
+- `IntentionalDesignClassification`：判断是否为 intentional design、兼容设计、性能取舍或产品策略，并记录依据、消费者影响和文档/测试承托。
+- `UserDecisionBeforeMutation`：公共契约、兼容风险、设计取舍或文档/实现二选一，必须输出用户确认点，不得直接推进源码修改。
+- `DocsImplementationDriftAttribution`：文档与实现不一致时，先判断文档是否合理、是否代表产品目标或历史承诺，再归因到代码、文档、示例或测试。
+- `TestCoverageGapOnly`：仅测试浅、回归缺失或证据不足时，审查结论优先指向补测试/复现/验证证据，不直接要求 runtime mutation。
+
 ## 自我审视机制（Meta-Audit）
 
 > 🔴 **触发条件**：R2 及以后轮次发现新问题时，必须在输出问题清单前先执行自我审视，分析上一轮为何漏掉该问题。

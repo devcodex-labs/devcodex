@@ -290,6 +290,7 @@ dev/fix 修改完成前必须判定是否影响 Profile。命中以下任一触�
 - `LLMPromptContractTriage`：变更 prompt、Agent 指令、Hook 输出、MCP 工具描述或面向 LLM 的契约时，必须区分人读说明、模型指令、结构化输出字段和宿主能力边界；字段级契约、示例、失败降级和验证探针需同步。
 - `VerificationScopeBudgetGate`：验证路线必须与风险和变更面匹配；高风险、控制面、发布、资源生命周期或前端体验不能只跑轻量检查，低风险纯文档/纯计算也不得为形式引入重压测、E2E 或外部依赖。
 - `LiveVerificationExecutionObligation`：声明“已验证 / 可运行 / 可点击 / 已发布 / 已安装”前必须真实执行对应命令、页面、接口、pack/install、registry/tag 查询或项目等价验证；无法执行时只能写阻塞/降级证据，不能用预期代替结果。
+- `ReviewFindingIntakeGate` / `DesignIntentAndDocsConsistencyGate`：外部审查报告、AI review finding、audit issue 或代码评审发现进入 analyze/audit/fix 处理前，必须先按 5 个子探针分流：`AuditReportIsSignalNotEvidence`（报告只是线索，需本地代码/文档/测试/运行证据，无法复现标 `not-reproduced` 或 `needs-evidence`）、`IntentionalDesignClassification`（识别 intentional design、兼容设计、性能取舍或产品策略并记录依据）、`UserDecisionBeforeMutation`（公共契约、兼容风险、设计取舍或文档/实现二选一时，修改源码前先用户确认）、`DocsImplementationDriftAttribution`（文档与实现不一致时先判断文档是否代表产品目标或历史承诺，再决定修代码/文档/示例/测试）、`TestCoverageGapOnly`（仅测试浅、回归缺失或证据不足时优先补测试/复现/验证证据，不直接改 runtime）。该门禁是审查发现 intake 场景的组合门禁，不作为 5 个独立顶层守门。
 - `AdapterBenchmarkAttribution`：adapter、provider、connector、SDK 或性能优化 benchmark 必须写清基线、环境、版本、负载、归因边界和不可比较因素；不得把框架、网络、缓存预热、依赖树或测试环境差异误归因给业务代码。
 - `ProductRequirementTraceabilityGate`：从 PRD、Word、原型、截图、会议纪要或用户补充消息整理需求时，必须保留需求来源、条款/页码/截图/消息锚点、结构化提取口径和遗漏/冲突处理；不得把 AI 归纳当成唯一真相源。
 - `LocalExecutionConfigProbe`：脚本、本机验证、数据库/SSH/HTTP 连接或跨环境执行需要本地配置时，必须先核对项目指定配置入口、Profile `config.local.json` 模型或既有脚本约定；未指定时按 S02 默认可直写/沿用现状，禁止臆造 env/secret/config.local 层。

@@ -87,6 +87,7 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 | ProfileImpactCheck | dev/fix 改变项目技术栈、目录边界、脚本、测试/发布路线、分发面、配置项、长期连接或本地 overlay schema | 列出是否更新 Profile、目标文件、diff/证据；N/A 时写 `skipReason` |
 | Backlog Intake 真相复核 | 任务或批次直接来源于 `data/*.md` open/partial 项 | 列出 `candidateIds`、`classification`、`evidence`、`scopeDelta` |
 | 台账状态回写闭环 | 本轮会关闭/部分关闭/改分类任何 VL/PF/PI/ISSUE/GAP | 列出 `targetLedgers`、`requiredFields`、`writebackEvidence`、`rescanResult` |
+| ReviewFindingIntakeGate | 输入来自外部审查报告、AI review finding、audit issue 或代码评审发现 | 列出 finding 来源、本地证据、`must-fix / user-decision-required / docs-implementation-drift / test-coverage-gap / already-fixed-or-not-reproduced / intentional-design-accepted` 分类、用户确认点与最终处理 |
 
 ## 输出规则
 
@@ -101,6 +102,7 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 - `dev` / `fix` 报告的 ECR 必须把触发的 ExecutionContract / TestRoute / ReleaseAudit / ReleaseVerification / ConceptSyncMap / HostContractVerification / OfficialDocsEvidence / ProfileImpactCheck / 05-实施进度.md 纳入关键产物核对；未触发时写明 N/A 判定依据
 - 若本轮来源于 backlog open/partial 项，报告必须额外写出 Backlog Intake 真相复核结果；若本轮改变了台账真实状态，报告必须额外写出台账状态回写闭环证据
 - 报告涉及记录规范问题时，必须列出规范化意图、置信度、依据、目标台账；涉及规范源、Skill、Hook、CLI、MCP、模板、部署副本、路径规则或 validate 语义变更时，必须列出 SCV-0~SCV-7 证据
+- 报告涉及审查报告、AI review finding、audit issue 或代码评审发现 intake 时，必须列出 `ReviewFindingIntakeGate` 证据；不得只写“按报告修复”或把报告结论当已验证事实
 - 控制面报告若出现新增探针、黄色偏离或部署同步，必须单独写出部署同步证据与其他证据来源，不能只在摘要里带过
 - 报告末尾引用本次会话记忆路径
 - 回复末尾必须输出产物文件路径（按 `ArtifactLinkSet` 输出主 Markdown 链接；当前宿主为 Codex Desktop/App、Copilot、未知宿主或用户反馈无法点击时，追加 `绝对路径：` copy fallback，详见 [`02-output-paths.instructions.md`](../../instructions/02-output-paths.instructions.md) §产物路径输出格式，[FC5](../compliance/SKILL.md)）

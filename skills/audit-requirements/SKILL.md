@@ -43,11 +43,12 @@ description: 需求文档审查维度 RQ-1~RQ-8 — 需求定义/功能描述/�
 
 **CrossProjectLearnedGuards 跨项目已吸纳需求（条件）**
 - 涉及“已接入 / 已支持 / 已实现 / 未接入”等状态判断时，需求应要求 `CodeTruthRequirementGate` 核对代码真相源和消费者入口
+- 需求来源于审查报告、AI review finding、audit issue 或代码评审发现时，应要求 `ReviewFindingIntakeGate`：报告只是线索、补本地证据、区分 must-fix / user-decision / docs drift / test gap / intentional design / not-reproduced
 - 涉及人工复核、视觉验收或手工冒烟时，需求应要求 `ManualReviewEvidenceRetention`
 - 涉及多语言文档、正式文档、prompt/Agent/Hook/MCP 契约、验证范围、真实执行或 benchmark 归因时，需求应分别列出 `DocumentationTranslationParityGuard`、`FormalDocsDevCodexBoundary`、`LLMPromptContractTriage`、`VerificationScopeBudgetGate`、`LiveVerificationExecutionObligation`、`AdapterBenchmarkAttribution` 验收口径
 - 涉及 PRD/Word/原型/截图/用户消息提炼需求时，需求应要求 `ProductRequirementTraceabilityGate`
 - 涉及本机执行配置、人工证据留存、相邻范围扩展、包名/发布名、性能第一、公开模块或 DevCodex v2 一期路线时，需求应分别列出 `LocalExecutionConfigProbe`、`ManualReviewEvidenceDataRetention`、`AdjacentScopeExpansionGuard`、`PackageNameAuthorityGate`、`PerformanceBenchmarkFirstGate`、`PublicModuleDifferentiationGate`、`V2MCPFirstPlanningGate` 验收口径
-- 涉及 data 吸纳、正式流程图、文档站视觉验收、遗漏专审、方法级泄漏压测或 DevCodex v2 正式方案包时，需求应分别列出 `WorkspaceDataAbsorptionScopeGate`、`FlowchartNodeExplanationGate`、`DocsSiteVisualAcceptanceGate`、`OmissionOnlyReviewGate`、`MethodLevelLeakPressureProbe`、`V2FormalSolutionPackage` 验收口径
+- 涉及 data 吸纳、正式流程图、文档站视觉验收、遗漏专审、审查发现 intake、方法级泄漏压测或 DevCodex v2 正式方案包时，需求应分别列出 `WorkspaceDataAbsorptionScopeGate`、`FlowchartNodeExplanationGate`、`DocsSiteVisualAcceptanceGate`、`OmissionOnlyReviewGate`、`ReviewFindingIntakeGate`、`MethodLevelLeakPressureProbe`、`V2FormalSolutionPackage` 验收口径
 
 ## N/A 规则
 

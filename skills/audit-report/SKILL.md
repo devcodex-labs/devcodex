@@ -30,6 +30,7 @@ description: 报告审查维度 RA-1~RA-6 — 分析报告/审查报告质量专
 - 结论有证据支撑（引用文件/终端输出/工具结果）
 - 问题描述有具体位置（文件名+行号或章节标题）
 - 无无法验证的断言
+- 若报告把外部审查报告、AI review finding 或 audit issue 作为输入，需检查 `ReviewFindingIntakeGate`：报告是否仅作为线索、每条 finding 是否有本地证据和分类、是否误把设计/文档/测试缺口写成 must-fix runtime bug
 
 **RA-4 结论可追溯 🔴**
 - 每条结论可追溯到具体证据

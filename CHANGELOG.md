@@ -1,7 +1,7 @@
 # 变更日志 (CHANGELOG)
 
 > **说明**: 版本概览摘要。最新版本的详细变更见下方表格首行的 `changelogs/releases/vX.Y.Z.md` 链接；历史版本见对应详细变更文件
-> **最后更新**: 2026-06-12
+> **最后更新**: 2026-06-17
 
 ---
 
@@ -9,6 +9,7 @@
 
 | 版本 | 日期 | 变更摘要 | 详细 |
 |------|------|---------|------|
+| [v1.11.21](./changelogs/releases/v1.11.21.md) | 2026-06-17 | 🔧 **审查发现 intake 分流门禁**：新增 `ReviewFindingIntakeGate` / `DesignIntentAndDocsConsistencyGate` 与 V64 探针，要求外部审查报告、AI review finding、audit issue 和代码评审发现先经本地证据、设计取舍、用户决策、文档漂移与测试缺口分流 | [查看](./changelogs/releases/v1.11.21.md) |
 | [v1.11.20](./changelogs/releases/v1.11.20.md) | 2026-06-12 | 🔧 **最新 data 吸纳守门补强**：新增全工作区 data 扫描、流程图节点说明、文档站视觉验收、遗漏专审、方法级泄漏压测与 v2 正式方案包守门，并补齐 V63 探针 | [查看](./changelogs/releases/v1.11.20.md) |
 | [v1.11.19](./changelogs/releases/v1.11.19.md) | 2026-06-12 | 🔧 **剩余 data 吸纳守门扩展与 v2 MCP-first 路线纠偏**：新增产品原文追溯、本机可执行配置、人工复核数据留存、相邻范围扩大、包名权限、性能 benchmark-first、公开模块差异化与 V2 MCP-first 规划守门，并补齐 V62 探针 | [查看](./changelogs/releases/v1.11.19.md) |
 | [v1.11.18](./changelogs/releases/v1.11.18.md) | 2026-06-11 | 🔧 **前端体验质量门禁与跨项目吸纳守门收口**：新增 `FrontendExperienceQualityGate`、UI/UX 体验门禁、8 项 `CrossProjectLearnedGuards`，并同步 dev/fix/audit/test Skill、CP/报告模板、README、website、活动版本 P1 需求页与 V61 探针 | [查看](./changelogs/releases/v1.11.18.md) |
@@ -106,8 +107,9 @@
 
 ## 相关文档
 
-- [`changelogs/releases/v1.11.20.md`](./changelogs/releases/v1.11.20.md) — 最新版本详细变更文档
-- [`changelogs/releases/v1.11.18.md`](./changelogs/releases/v1.11.18.md) — 上一版本详细变更文档
+- [`changelogs/releases/v1.11.21.md`](./changelogs/releases/v1.11.21.md) — 最新版本详细变更文档
+- [`changelogs/releases/v1.11.20.md`](./changelogs/releases/v1.11.20.md) — 上一版本详细变更文档
+- [`changelogs/releases/v1.11.18.md`](./changelogs/releases/v1.11.18.md) — 历史版本详细变更文档
 - [`changelogs/releases/v1.11.17.md`](./changelogs/releases/v1.11.17.md) — 历史版本详细变更文档
 - [`changelogs/releases/v1.11.15.md`](./changelogs/releases/v1.11.15.md) — 历史版本详细变更文档
 - [`changelogs/releases/v1.11.13.md`](./changelogs/releases/v1.11.13.md) — 历史版本详细变更文档

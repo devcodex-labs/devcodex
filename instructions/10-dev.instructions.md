@@ -2,7 +2,7 @@
 applyTo: "**"
 description: dev 工作流规则，覆盖子类型路由、CP 流程、计划复审、执行期回退与 ECR
 priority: P4
-version: 1.11.20
+version: 1.11.21
 ---
 # 开发工作流规则（10-dev）
 
@@ -181,6 +181,7 @@ CP1（需求确认）→ PR-1 内部自检 → CP2（方案确认）→ plan-rev
 - **ApiDocVerificationSync**：前端接口文档、轻量 API 文档、字段映射、错误码或状态枚举新增/调整时，必须同步检查归档级 `.http` / `.cjs` 是否需要更新；若不更新，CP2/报告写明 `N/A + skipReason`。异步、队列或数据库落库型接口验证不得只断言 HTTP 状态码，还应按 TestRoute 查询持久化真相源并验证最终消费者响应字段。
 - **FrontendExperienceQualityGate**：前端页面、组件、控制台、官网、文档站、可视化工具或游戏任务必须做条件判定；命中后按 UI 视觉组 `FrontendDesignSourceGate` / `UIFidelityGate` / `StyleThemeConsistencyGate` / `ResponsiveStateCoverageGate` / `VisualVerificationGate` 与 UX 交互组 `InteractionFlowGate` / `InteractionFeedbackGate` / `InputModalityAccessibilityGate` / `ErrorPreventionRecoveryGate` / `MotionTransitionUsabilityGate` 规划设计、实现和验证；不触发时写 `N/A + skipReason`，不得引入未确认的新 UI 库、设计系统或视觉 diff 平台。
 - **CrossProjectLearnedGuards**：跨项目 data、复审和发布验证中已吸纳的泛化经验必须条件判定并落证据：`CodeTruthRequirementGate`（先核代码真相源再写接入状态）、`ManualReviewEvidenceRetention`（手工/视觉复核留范围与证据）、`DocumentationTranslationParityGuard`（多语言/多入口文档等价）、`FormalDocsDevCodexBoundary`（正式文档与运行时台账/报告边界）、`LLMPromptContractTriage`（prompt/Agent/Hook/MCP 契约分层）、`VerificationScopeBudgetGate`（验证强度匹配风险）、`LiveVerificationExecutionObligation`（声明已验证前必须真实执行）、`AdapterBenchmarkAttribution`（adapter/provider/benchmark 归因清晰）、`ProductRequirementTraceabilityGate`（需求来源与条款锚点可追溯）、`LocalExecutionConfigProbe`（本机/跨环境执行配置先核项目约定）、`ManualReviewEvidenceDataRetention`（人工复核证据保存位置与样本范围）、`AdjacentScopeExpansionGuard`（禁止无确认扩相邻范围）、`PackageNameAuthorityGate`（包名/发布名以 package/registry 证据为准）、`PerformanceBenchmarkFirstGate`（性能/最快/第一先冻结基线）、`PublicModuleDifferentiationGate`（公开契约与内部实现区分）、`V2MCPFirstPlanningGate`（v2 一期 MCP-first 路线优先）、`WorkspaceDataAbsorptionScopeGate`（data 吸纳扫 `.devcodex/*/data` 全命名空间）、`FlowchartNodeExplanationGate`（正式流程图配中文节点说明）、`DocsSiteVisualAcceptanceGate`（文档站视觉/交互验收覆盖真实点击和可访问性细节）、`OmissionOnlyReviewGate`（遗漏专审只列未覆盖且仍有价值项）、`MethodLevelLeakPressureProbe`（高风险资源泄漏补方法级压测探针）、`V2FormalSolutionPackage`（v2 一期冻结正式 CP1/CP2 方案包）。未触发项写 `N/A + skipReason`。
+- **ReviewFindingIntakeGate**：开发需求若直接来自外部审查报告、AI review finding、audit issue 或代码评审发现，CP1/CP2 前必须先完成审查发现 intake 分流：报告只是线索、是否设计如此、是否需用户决策、文档/实现漂移归因、是否仅测试覆盖缺口；未完成分流不得直接把 finding 写成必须修代码。
 - **ProductRequirementTraceabilityGate**：从产品需求文档、Word、原型、截图、会议纪要或用户补充消息提炼需求时，CP1 必须列出来源锚点、结构化提取口径、冲突/缺失处理与验收映射；不得仅输出 AI 摘要。
 - **LocalExecutionConfigProbe**：本机脚本、联调、数据库/SSH/HTTP 连接、跨环境数据操作或验证命令依赖配置时，CP2/TestRoute 必须先确认项目指定配置入口、Profile `config.local.json` 模型或既有脚本约定；未指定时按 S02 默认直写或沿用现状，不得主动引入 env/secret/config.local。
 - **ManualReviewEvidenceDataRetention**：人工复核涉及真实数据、页面、外部系统、发布包或联调结果时，TestRoute/报告必须写明证据保存位置、可复核输入、样本范围、保留策略和不能保留的原因。

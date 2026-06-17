@@ -2,7 +2,7 @@
 applyTo: "**"
 description: audit 工作流规则，覆盖审查目标路由、收敛门禁、元循环与只读边界
 priority: P4
-version: 1.11.20
+version: 1.11.21
 ---
 # 审计工作流规则（12-audit）
 
@@ -112,6 +112,16 @@ R2 及以后轮次必须把复审从“机械重复已读范围”改为“覆�
 - 复审仍须满足 `ReviewCoverageDelta`，并在 `NewlyReadThisRound` 中优先覆盖此前未读的 data 台账、消费者链、部署副本、报告和记忆索引。
 - 若遗漏审查来源是“data 目录吸纳”，必须同时执行 `WorkspaceDataAbsorptionScopeGate`，扫描 `.devcodex/*/data/` 全部命名空间。
 
+### ReviewFindingIntakeGate（审查发现 intake 分流）
+
+外部审查报告、AI review finding、audit issue 或代码评审发现进入结论、修复建议或 fix/dev 范围前，必须先执行 `ReviewFindingIntakeGate`：
+
+- `AuditReportIsSignalNotEvidence`：报告只是线索，不是证据；每条 finding 需补本地代码、文档、测试或运行复现证据，无法复现时标 `not-reproduced` 或 `needs-evidence`。
+- `IntentionalDesignClassification`：先判断是否为 intentional design、兼容设计、性能取舍或产品策略；若成立，记录设计依据、消费者影响和文档/测试承托。
+- `UserDecisionBeforeMutation`：命中 `user-decision-required`、公共契约变化、兼容风险、设计取舍或文档/实现二选一时，提出用户确认点，不得直接给出“已修代码”结论。
+- `DocsImplementationDriftAttribution`：文档与实现不一致时，需判断文档是否合理、是否代表产品目标或历史承诺，再决定修代码、修文档、修示例或补测试。
+- `TestCoverageGapOnly`：若 finding 本质是测试断言浅、回归缺失或证据不足，结论应优先指向补测试、复现脚本或验证证据，不直接要求 runtime mutation。
+
 ## 收敛后汇总验证（PCV）
 
 > 🔴 强制步骤：所有轮次收敛后，必须执行 PCV，方可输出最终报告。
@@ -181,6 +191,7 @@ R2 及以后轮次必须把复审从“机械重复已读范围”改为“覆�
 - D — 上下文 🟡：RQ-8 项目上下文一致性
 - 涉及前端页面、组件、控制台、官网、文档站、可视化工具或游戏的需求，还必须按 `FrontendExperienceQualityGate` 检查 UI / 交互体验验收是否覆盖设计来源、还原度、风格主题、响应式状态、视觉验证、用户流、交互反馈、输入方式/可访问性、错误恢复和动效转场；不涉及时写 `N/A + skipReason`
 - 涉及接入状态、人工复核、翻译/正式文档边界、prompt/Hook/MCP 契约、验证范围、真实执行、benchmark 归因、产品需求来源、本机执行配置、人工证据留存、相邻范围扩展、包名/发布名、性能第一、公开模块或 DevCodex v2 一期路线的需求，还必须按 `CrossProjectLearnedGuards` 检查 `CodeTruthRequirementGate`、`ManualReviewEvidenceRetention`、`DocumentationTranslationParityGuard`、`FormalDocsDevCodexBoundary`、`LLMPromptContractTriage`、`VerificationScopeBudgetGate`、`LiveVerificationExecutionObligation`、`AdapterBenchmarkAttribution`、`ProductRequirementTraceabilityGate`、`LocalExecutionConfigProbe`、`ManualReviewEvidenceDataRetention`、`AdjacentScopeExpansionGuard`、`PackageNameAuthorityGate`、`PerformanceBenchmarkFirstGate`、`PublicModuleDifferentiationGate`、`V2MCPFirstPlanningGate` 是否有验收口径；不涉及时写 `N/A + skipReason`
+- 需求来源为审查报告、AI review finding 或 audit issue 时，还必须按 `ReviewFindingIntakeGate` 检查 evidence replay、intentional design、user decision、docs drift 与 test gap 分流是否完整。
 
 ### 项目工程审查（PE-1~PE-12）
 - A — 结构 🔴/🟡：PE-1 项目结构合理性 · PE-5 可维护性
@@ -190,6 +201,7 @@ R2 及以后轮次必须把复审从“机械重复已读范围”改为“覆�
 - E — 可观测 🟡：PE-9 日志 · PE-11 数据层质量
 - 前端项目或包含用户可见 UI 的项目工程审查需叠加 `FrontendExperienceQualityGate`：检查视觉一致性、交互反馈、焦点/输入方式、错误恢复、动效转场和 Browser/截图/E2E 证据；不涉及前端体验时写 `N/A + skipReason`
 - 项目工程、通用文档、README 或控制面审查遇到“已接入/已验证”、人工复核、翻译同步、正式文档边界、LLM 契约、验证范围预算、adapter/provider benchmark、产品需求来源、本机执行配置、证据留存、相邻范围扩展、包名/发布名、性能第一、公开模块或 DevCodex v2 一期路线时需叠加 `CrossProjectLearnedGuards`，并在不涉及的维度写 `N/A + skipReason`
+- 审查报告、AI review finding 或 audit issue 本身作为输入时需叠加 `ReviewFindingIntakeGate`，避免把报告结论直接当证据或把设计/文档/测试缺口误归类为 must-fix runtime bug。
 
 ### 报告审查（RA-1~RA-6）
 - A — 内容 🔴：RA-1 完整性 · RA-2 事实准确性

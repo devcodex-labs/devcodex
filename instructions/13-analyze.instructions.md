@@ -2,7 +2,7 @@
 applyTo: "**"
 description: analyze 工作流规则，覆盖只读分析、代码取证顺序、多轮收敛与推荐结论
 priority: P4
-version: 1.11.20
+version: 1.11.21
 ---
 # 分析工作流规则（13-analyze）
 
@@ -85,6 +85,13 @@ version: 1.11.20
 - 用户没有直接说“调研/比较”，但问题本质是在问“是否应该”“哪个更好”“有没有更好建议”“推荐什么方案/工具/项目/产品”时，analyze 必须先判定 `QuestionEvidenceGate`，再决定是否升级为 `analyze.research` 或在当前轮补足对比证据。
 - 命中高影响建议、技术选型、产品/项目路线、架构方案、外部平台能力或时间/金钱投入决策时，必须执行 `ComparativeResearchGate`：比较同类产品 / 项目 / 本仓库相似模块 / 已有设计，并在最终结论写明证据范围与 `N/A + skipReason`。
 - 纯解释、低风险本地事实核验、用户明确要求快速答复且不影响高成本决策时，可标 `ComparativeResearchGate: N/A + skipReason`；不得为了“调研完整”把普通问答默认升级成多轮重调研。
+
+### ReviewFindingIntakeGate / DesignIntentAndDocsConsistencyGate
+
+- 当 analyze 输入是外部审查报告、AI review finding、audit issue 或代码评审发现时，报告内容只能作为线索，不能直接作为已验证结论。
+- 每条 finding 必须先补本地证据并分类为 `must-fix` / `user-decision-required` / `docs-implementation-drift` / `test-coverage-gap` / `already-fixed-or-not-reproduced` / `intentional-design-accepted`。
+- 命中 intentional design、兼容设计、性能取舍或产品策略时，应记录设计依据、消费者影响和文档/测试承托；命中用户决策项时，最终结论只能给确认问题，不得建议直接改源码。
+- 文档与实现不一致时，需判断文档是否代表产品目标或历史承诺；测试覆盖不足时，优先建议补测试、复现脚本或验证证据。
 
 ### 收敛后汇总验证（PCV）
 

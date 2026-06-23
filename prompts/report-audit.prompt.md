@@ -24,6 +24,7 @@ applyTo: ".devcodex/**/reports/audit/**, .devcodex/**/reports/self-fix/**"
 > **审查范围**: 全面体检 / 定向深度 / 修复验证
 > **收敛**: 连续 3 轮有效零发现（仍须满足连续 3 轮零发现；所有子类型统一，不区分定向/全面）
 > **ReviewCoverageDelta**: ✅已核验 / ⚠️缺失 / N/A（说明）
+> **ReviewDimensionDeltaGate**: ✅已核验 / ⚠️缺失 / N/A（说明）
 > **PCV状态**: ✅已完成 / 🔄进行中
 > **控制面证据**: Concept Sync Map / HostContractVerification / SCV / 新增探针 / 黄色偏离 / 部署同步（按适用填写）
 ```
@@ -43,12 +44,12 @@ applyTo: ".devcodex/**/reports/audit/**, .devcodex/**/reports/self-fix/**"
 
 ## §2.1 ReviewCoverageDelta（复审覆盖增量）
 
-> R2 及以后轮次必须填写；若为单轮审查或不适用，写 `N/A + skipReason`。
+> R2 及以后轮次必须填写；若为单轮审查或不适用，写 `N/A + skipReason`。R2+ 同步执行 `ReviewDimensionDeltaGate`，避免每轮机械重复同一组维度。
 
-| 轮次 | ReviewedSet | UnreviewedRelatedSet | NewlyReadThisRound | RepeatReadReason | NoNewSurfaceReason | 是否计入有效零发现 |
-|:----:|-------------|----------------------|--------------------|------------------|--------------------|:------------------:|
-| R1 | 初始 CRS 范围 | | | N/A | N/A | N/A |
-| R2 | | | | | | ✅/❌ |
+| 轮次 | ReviewedSet | UnreviewedRelatedSet | NewlyReadThisRound | RepeatReadReason | NoNewSurfaceReason | PreviousDimensionSet | CurrentDimensionFocus | NewDimensionRationale | RepeatedDimensionReason | 是否计入有效零发现 |
+|:----:|-------------|----------------------|--------------------|------------------|--------------------|----------------------|-----------------------|-----------------------|-------------------------|:------------------:|
+| R1 | 初始 CRS 范围 | | | N/A | N/A | N/A | 初始维度集合 | N/A | N/A | N/A |
+| R2 | | | | | | | | | | ✅/❌ |
 
 ## §2.5 控制面同步证据（条件）
 
@@ -62,9 +63,13 @@ applyTo: ".devcodex/**/reports/audit/**, .devcodex/**/reports/self-fix/**"
 | 黄色偏离 | |
 | 部署同步证据 | |
 | FrontendExperienceQualityGate | 设计来源 / UI 还原度 / 风格主题 / 响应式状态 / 视觉验证 / 用户流 / 交互反馈 / 输入方式 / 错误恢复 / 动效转场 / FigmaHighFidelityRestorationGate / ActualPreviewChainAndMockFallbackGate / RuntimeI18nArtifactVerificationGate |
-| CrossProjectLearnedGuards | CodeTruthRequirementGate / ManualReviewEvidenceRetention / DocumentationTranslationParityGuard / FormalDocsDevCodexBoundary / LLMPromptContractTriage / VerificationScopeBudgetGate / LiveVerificationExecutionObligation / ExplicitCommitAuthorizationGate / CompatibilityAndContractAuthorityGate / UIConfirmedSourceConflictTraceGate / PublicDocsReleasedVersionGate / CollectionRelationIdNamingGate / UserFacingVerificationArtifactLanguageGate / AdapterBenchmarkAttribution / ProductRequirementTraceabilityGate / LocalExecutionConfigProbe / ManualReviewEvidenceDataRetention / AdjacentScopeExpansionGuard / PackageNameAuthorityGate / PerformanceBenchmarkFirstGate / PublicModuleDifferentiationGate / V2MCPFirstPlanningGate / WorkspaceDataAbsorptionScopeGate / FlowchartNodeExplanationGate / DocsSiteVisualAcceptanceGate / OmissionOnlyReviewGate / ReviewFindingIntakeGate / MethodLevelLeakPressureProbe / V2FormalSolutionPackage |
+| CrossProjectLearnedGuards | CodeTruthRequirementGate / ManualReviewEvidenceRetention / DocumentationTranslationParityGuard / FormalDocsDevCodexBoundary / LLMPromptContractTriage / VerificationScopeBudgetGate / LiveVerificationExecutionObligation / ExplicitCommitAuthorizationGate / CompatibilityAndContractAuthorityGate / UIConfirmedSourceConflictTraceGate / PublicDocsReleasedVersionGate / CollectionRelationIdNamingGate / UserFacingVerificationArtifactLanguageGate / AdapterBenchmarkAttribution / ProductRequirementTraceabilityGate / LocalExecutionConfigProbe / ManualReviewEvidenceDataRetention / AdjacentScopeExpansionGuard / PackageNameAuthorityGate / PerformanceBenchmarkFirstGate / PublicModuleDifferentiationGate / V2MCPFirstPlanningGate / WorkspaceDataAbsorptionScopeGate / FlowchartNodeExplanationGate / DocsSiteVisualAcceptanceGate / OmissionOnlyReviewGate / ReviewFindingIntakeGate / ReviewDimensionDeltaGate / UserPerspectiveDocsGate / PublicUserDocsMaintainerBoundaryGate / DocsConsumerSweep / ArtifactLinkSetDedupeGate / FrontendRuntimeNetworkProbeGate / ActiveRequirementFinalResponseGate / MethodLevelLeakPressureProbe / V2FormalSolutionPackage |
 | OmissionOnlyReviewGate | 已覆盖集合 / 新增覆盖 / 遗漏候选 / 排除理由 / 收敛状态 |
 | ReviewFindingIntakeGate | finding 来源 / 本地证据 / must-fix-user-decision-docs-drift-test-gap-intentional-design-not-reproduced 分类 / 用户确认点 |
+| ReviewDimensionDeltaGate | PreviousDimensionSet / CurrentDimensionFocus / NewDimensionRationale / RepeatedDimensionReason |
+| UserPerspectiveDocsGate / PublicUserDocsMaintainerBoundaryGate / DocsConsumerSweep | 使用者视角 / 详细度 / 心智负担 / 维护者 checklist 边界 / 字段与示例解释 / 当前消费者与导航同步 |
+| ArtifactLinkSetDedupeGate / FrontendRuntimeNetworkProbeGate | 规范化路径去重 / 主产物消歧 / console-network-resource-runtime 证据 |
+| ActiveRequirementFinalResponseGate | active requirement/task/bug id / 相邻需求未切换 / 最终回复范围 |
 
 ## §3 问题清单
 
@@ -92,5 +97,6 @@ applyTo: ".devcodex/**/reports/audit/**, .devcodex/**/reports/self-fix/**"
 - [ ] 所有 🟡 级问题已处理或标注 N/A
 - [ ] 达到收敛条件：连续 3 轮有效零发现（仍须满足连续 3 轮零发现；所有审查类型统一，不区分定向/全面，见 `12-audit §多轮收敛规则`）
 - [ ] `ReviewCoverageDelta` 已核验：最近 3 次有效零发现均有新增覆盖，或有证据化 `NoNewSurfaceReason`，未用机械重复同一批已读内容凑数
+- [ ] `ReviewDimensionDeltaGate` 已核验：最近 3 次有效零发现均有新增/轮换/补强的维度焦点，或有证据化 `RepeatedDimensionReason`，未用机械重复同一组维度凑数
 
 **最终结论**：✅ 已收敛 / ⚠️ 未收敛（需继续审查）

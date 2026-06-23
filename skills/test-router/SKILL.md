@@ -33,6 +33,13 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 | `compatibilityAuthority` | 是否涉及兼容修复、共享库/adapter/SDK、上游契约或官方 public API 依据 |
 | `commitAuthorization` | 是否将执行本地 commit；若是，必须有用户明确授权证据 |
 | `publicDocsVersionBoundary` | 是否涉及公开文档、迁移指南、版本页或 preview / unreleased 能力边界 |
+| `reviewDimensionDelta` | 是否处于 R2+ 复审、audit 连续零发现、ECR 或遗漏专审，需要证明本轮维度焦点不是机械重复 |
+| `userPerspectiveDocs` | 是否涉及 README、官网/文档站、接口说明、运行手册、需求/方案等面向使用者的人读文档 |
+| `publicDocsMaintainerBoundary` | 是否涉及公开用户文档、教程、快速开始、配置/扩展/框架接入指南，需要排除维护者 checklist / 内部同步清单 |
+| `docsConsumerSweep` | 文档是否新增/调整命令、配置项、字段、状态、路径、能力承诺、阅读顺序或用户路径，需要扫描当前消费者 |
+| `artifactLinkDedupe` | 是否会输出最终回复、报告、记忆、SUMMARY 或宿主文件面板消费的 ArtifactLinkSet |
+| `frontendRuntimeNetwork` | 是否涉及真实前端预览、文档站/官网视觉验收、API target、资源加载、runtime i18n 或 hydration/runtime error 风险 |
+| `activeRequirementFinalResponse` | 是否存在多个相邻需求、backlog、open 任务或未完成候选，需要约束最终回复 active 范围 |
 
 ## 路由矩阵
 
@@ -49,7 +56,7 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 | Prompt / Agent / Hook / MCP 契约 | LLMPromptContractTriage：区分人读说明、模型指令、结构化输出字段和宿主能力边界 | validate probe、targeted test、direct/fixture replay |
 | 前端体验 | FrontendExperienceQualityGate：判定设计来源、UI 还原度、风格主题一致性、响应式/状态覆盖、用户流、交互反馈、输入方式/可访问性、错误恢复、动效转场和视觉验证 | lint/typecheck/test、Browser/截图、Playwright/E2E 或人工复核证据；纯后端/CLI/文档写 `N/A + skipReason` |
 | Figma / 高保真 UI 还原 | FigmaHighFidelityRestorationGate、ScopedVisualChangeGate、InstalledPluginVisualVerificationGate：冻结设计来源、allowedScope/frozenScope、元素分类和可用插件验证链 | Browser/Chrome/Figma 插件、截图对比、人工复核；无插件时写降级证据 |
-| 真实预览 / mock fallback | ActualPreviewChainAndMockFallbackGate、UIStateScopeRegressionGate：确认真实 preview URL、API target、路由入口、构建产物与受影响状态清单 | 不得用 mock、错误 target、临时服务或静态截图冒充用户页面通过 |
+| 真实预览 / mock fallback | ActualPreviewChainAndMockFallbackGate、FrontendRuntimeNetworkProbeGate、UIStateScopeRegressionGate：确认真实 preview URL、API target、路由入口、构建产物、console/network/failed requests、资源 404、hydration/runtime error 与受影响状态清单 | 不得用 mock、错误 target、临时服务、静态截图或构建成功冒充用户页面通过 |
 | Figma 生产资产 / 运行时 i18n | FigmaProductionAssetBudgetGate、RuntimeI18nArtifactVerificationGate：记录资产尺寸/体积/格式/来源/public 路径，核对源 JSON、构建合并产物和页面残留 key | WebP/SVG 内嵌位图检查、runtime page check、fallback 说明 |
 | 资源生命周期 / 泄漏稳定性风险 | LeakRiskStabilityPressureTest：判定是否需要场景/负载/稳定性压测，命中时记录 heap/RSS、active handles、监听器、连接数、缓存规模或项目等价指标的基线、压力过程、冷却后回落与清理证据 | 纯计算、静态文档、一次性脚本或无长生命周期资源变更可写 `N/A + skipReason` |
 | 本地服务验证 | ServiceLifecycleCleanup：记录启动命令、cwd、PID/job、端口/URL，并在验证完成、失败或最终回复前关闭仅由 AI 启动的服务 | 用户明确要求保留服务时，记录保留原因、PID/端口/URL 与关闭方式 |
@@ -75,6 +82,12 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 | v2 一期正式方案包 | V2FormalSolutionPackage：冻结 CP1/CP2，覆盖架构、数据模型、MCP API contract、instruction return、可见性、cache/signature/rollback、Codex-only 验证、Registry/Marketplace、维护站和 Mermaid 节点 | 未完成前不得宣告 v2 一期收敛 |
 | 提交授权 / 公开文档版本 | ExplicitCommitAuthorizationGate、PublicDocsReleasedVersionGate：实际 commit 必须有用户明确授权；公开文档不得把未发布能力写成已发布历史或迁移负担 | commit 证据、release/unreleased 边界、preview 标识 |
 | 兼容契约 / 命名 / 产物语言 | CompatibilityAndContractAuthorityGate、CollectionRelationIdNamingGate、UserFacingVerificationArtifactLanguageGate：核对消费者零代码兼容、上游 public API、关系 id 命名和 `.http` / 测试说明语言 | 官方/源码/registry 证据、命名 convention、用户语言证据 |
+| 复审维度增量 | ReviewDimensionDeltaGate：R2+ 复审、audit 连续零发现、ECR 或遗漏专审必须记录 PreviousDimensionSet、CurrentDimensionFocus、NewDimensionRationale、RepeatedDimensionReason | 不得每轮机械重复同一组维度；重复维度须有阻断项回归、高风险锚点、新证据或抽样理由 |
+| 用户视角文档 | UserPerspectiveDocsGate：README、官网/文档站、接口说明、运行手册、需求/方案等人读文档从使用者角度验证详细度、字段解释、首次成功路径、心智负担和排错恢复 | 纯内部临时报告或维护者专用文档写 `N/A + skipReason` |
+| 公开用户文档维护边界 | PublicUserDocsMaintainerBoundaryGate：公开用户文档不得把维护者验收、发布 checklist、内部同步清单、台账状态或实现者复审任务放进用户主路径 | 迁移到 CONTRIBUTING、release checklist、requirements/report 或 maintainer-only 文档 |
+| 文档消费者扫描 | DocsConsumerSweep：文档新增/调整命令、配置项、字段、状态、路径、能力承诺或阅读顺序时同步 README / website / Profile / prompts / templates / examples / nav/sidebar / validate probes / 部署副本与代码消费点 | 不得只改一处文档后宣称消费者已同步 |
+| 产物链接去重 | ArtifactLinkSetDedupeGate：输出前按规范化绝对路径去重最终回复、报告、记忆、SUMMARY、相对链接、绝对链接和 copy fallback | 同名不同文件要路径消歧；历史镜像/部署副本需标识身份 |
+| 最终回复 active 范围 | ActiveRequirementFinalResponseGate：同日或同工作区有相邻需求、backlog 或候选时，最终回复先声明当前 active requirement/task/bug id，完成状态和下一步仅围绕当前范围 | 未切换的相邻需求只能列入未执行/观察范围 |
 
 ## 输出格式
 
@@ -113,6 +126,13 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 | compatibilityAuthority | N/A / required / optional；若 required，写零代码消费者兼容、上游契约权威、官方 public API 证据和共享库优先判断 |
 | uiConfirmedSourceConflictTrace | N/A / required / optional；若 required，写旧 PRD/文档、新 UI/Figma/截图来源、采纳理由和同步路线 |
 | publicDocsVersionBoundary | N/A / required / optional；若 required，写 released / unreleased / preview 边界和公开文档落点 |
+| reviewDimensionDelta | N/A / required / optional；若 required，写 PreviousDimensionSet / CurrentDimensionFocus / NewDimensionRationale / RepeatedDimensionReason |
+| userPerspectiveDocs | N/A / required / optional；若 required，写使用者路径、详细度、字段/参数/状态/错误解释、心智负担和排错恢复 |
+| publicDocsMaintainerBoundary | N/A / required / optional；若 required，写公开用户路径是否移除维护者 checklist、内部同步清单、台账状态和复审任务 |
+| docsConsumerSweep | N/A / required / optional；若 required，写 README / website / Profile / prompts / templates / examples / nav/sidebar / validate probes / 部署副本 / 代码消费点扫描结果 |
+| artifactLinkDedupe | N/A / required / optional；若 required，写 canonical path 去重、同名消歧、历史镜像/部署副本标识和最终 ArtifactLinkSet |
+| frontendRuntimeNetwork | N/A / required / optional；若 required，写真实 URL、console/network、failed requests、资源 404、API target、hydration/runtime error、runtime i18n key 检查证据 |
+| activeRequirementFinalResponse | N/A / required / optional；若 required，写当前 active requirement/task/bug id、未切换相邻需求和最终回复范围 |
 | collectionRelationIdNaming | N/A / required / optional；若 required，写集合/实体命名依据、项目 convention 和消费者影响 |
 | userFacingVerificationArtifactLanguage | N/A / required / optional；若 required，写用户当前语言、项目例外和 `.http` / 测试说明语言 |
 | verificationScopeBudget | N/A / aligned / under-scoped / over-scoped；写风险匹配依据和降级/减负理由 |
@@ -151,11 +171,15 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 - 新增/升级依赖、框架、SDK、平台 API 或外部模块时，不得只验证“能安装”；必须引用 `OfficialDocsEvidence` 并至少验证一次项目内采用的关键用法。
 - 写测试用例或规划回归验证时必须先做 `LeakRiskStabilityPressureTest` 判定；若变更涉及长运行进程、高并发/高频路径、缓存/队列/连接池、文件/流/socket、事件监听器、定时器、worker、订阅、前端组件生命周期，或来自 `PE-12 资源生命周期与泄漏风险` / 性能稳定性问题，不得只写单元测试，必须把场景/负载/稳定性验证纳入 TestRoute，或写明 `N/A + skipReason`。
 - 涉及前端页面、组件、控制台、官网、文档站、可视化工具、游戏或用户可见 UI / 交互时必须执行 `FrontendExperienceQualityGate` 判定；命中视觉或交互风险时不得只跑构建/单测，必须纳入 Browser/截图、Playwright/E2E 或项目等价视觉/交互验证，无法运行时记录阻塞与降级证据。
-- 涉及 Figma/截图/既有页面还原、局部视觉修复、资源优化或 UI 回归时必须执行 `FigmaHighFidelityRestorationGate`、`ScopedVisualChangeGate`、`InstalledPluginVisualVerificationGate`、`ActualPreviewChainAndMockFallbackGate` 与 `UIStateScopeRegressionGate`；不得用 mock 页面、错误 target 或非授权视觉改动替代真实验收。
+- 涉及 Figma/截图/既有页面还原、局部视觉修复、资源优化或 UI 回归时必须执行 `FigmaHighFidelityRestorationGate`、`ScopedVisualChangeGate`、`InstalledPluginVisualVerificationGate`、`ActualPreviewChainAndMockFallbackGate`、`FrontendRuntimeNetworkProbeGate` 与 `UIStateScopeRegressionGate`；不得用 mock 页面、错误 target、静态截图或非授权视觉改动替代真实验收。
 - 涉及设计资产进入生产或多语言运行时验证时必须执行 `FigmaProductionAssetBudgetGate` 与 `RuntimeI18nArtifactVerificationGate`；不得只复制大图或只 grep 源 JSON 后宣称通过。
 - 实际执行本地 `git commit` 前必须执行 `ExplicitCommitAuthorizationGate`；没有用户明确授权时只能建议 commit，不能自动提交。
 - 兼容修复、共享库/adapter/SDK 或上游契约判断必须执行 `CompatibilityAndContractAuthorityGate`；不得用影子 allowlist、历史报告或内部 helper 替代官方/public API 证据。
 - UI 确认源覆盖旧 PRD、公开文档描述未发布能力、集合关系 id 命名或用户可见验证产物语言变化时，分别执行 `UIConfirmedSourceConflictTraceGate`、`PublicDocsReleasedVersionGate`、`CollectionRelationIdNamingGate` 与 `UserFacingVerificationArtifactLanguageGate`。
+- R2+ 复审、audit 连续零发现、ECR 或遗漏专审必须执行 `ReviewDimensionDeltaGate`；不得把同一组维度和同一批文件重复检查后直接计入有效零发现。
+- README、官网/文档站、接口说明、运行手册、需求/方案等面向使用者的人读文档必须执行 `UserPerspectiveDocsGate`；文档新增/调整命令、配置项、字段、状态、路径、能力承诺或阅读顺序时必须执行 `DocsConsumerSweep`。
+- 公开用户文档、快速上手、教程、配置/扩展/框架接入指南必须执行 `PublicUserDocsMaintainerBoundaryGate`；最终回复或完成报告存在多个相邻任务时必须执行 `ActiveRequirementFinalResponseGate`。
+- 输出 ArtifactLinkSet 前必须执行 `ArtifactLinkSetDedupeGate`，按 canonical path 去重同一物理文件的相对链接、绝对链接和 copy fallback，避免宿主文件面板展示成双份产物。
 - 消费者验证出现与当前改动无关的依赖、插件、共享库或框架适配失败时，不得直接改源码；必须先执行 ConsumerDependencyTreeProbe，确认 package.json / lockfile / node_modules / `npm ls <关键依赖>` 一致后再进入源码修复。
 - adapter、provider、connector、SDK 或性能 benchmark 变更必须执行 AdapterBenchmarkAttribution，报告基线、环境、版本、负载、归因边界和不可比较因素。
 - 项目事实变化时必须执行 `ProfileImpactCheck`；若跳过 Profile 更新，报告需要写 `skipReason`。

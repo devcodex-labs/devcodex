@@ -40,6 +40,12 @@ README / 用户使用文档场景在本 Skill 基础上，还应叠加 `audit-re
 - 同一概念在文档内用统一术语（不混用别名）
 - 术语与项目 profile 定义一致
 
+**UserPerspectiveDocsGate / DocsConsumerSweep（条件）**
+- README、官网/文档站、接口说明、运行手册、开发指南或其他面向使用者的文档，必须从使用者角度审查：是否先说明“这是什么、适合谁、如何第一次成功、常见任务、参数/字段/状态/错误、失败恢复、限制和下一步”
+- 文档是否足够详细，术语是否首次解释，字段/配置/命令/状态是否逐项说明，示例是否真实，读者是否能用低心智负担完成目标
+- 文档新增或调整命令、配置项、字段、状态、路径、能力承诺、阅读顺序时，是否同步当前消费者：README / website / Profile / prompts / templates / examples / nav/sidebar / validate probes / 部署副本 / 代码消费点
+- 纯内部临时报告、运行时台账或只面向维护者的文档可标 `N/A + skipReason`，但不得把正式用户文档降级为内部笔记口吻
+
 **DocumentationTranslationParityGuard / FormalDocsDevCodexBoundary（条件）**
 - 多语言文档、翻译页、README/website 双入口变更必须核对信息等价、版本号、链接、示例、术语和导航/索引顺序
 - 正式用户文档、官网、README 或规范页不得混入运行时报告、台账、临时分析、内部待办或一次性复盘口吻
@@ -65,3 +71,5 @@ README / 用户使用文档场景在本 Skill 基础上，还应叠加 `audit-re
 - 无关联代码：DA-6 标 N/A
 - 非多语言、非正式用户文档且无验证声明：上述文档边界守门可标 `N/A + skipReason`
 - 非正式流程图、纯文本内容页或无视觉交互变更：上述流程图/文档站验收守门可标 `N/A + skipReason`
+- 非使用者文档且无字段/命令/导航/消费者变更：`UserPerspectiveDocsGate` / `DocsConsumerSweep` 可标 `N/A + skipReason`
+- 非公开用户文档、README、教程、快速开始、配置/扩展/框架接入指南：`PublicUserDocsMaintainerBoundaryGate` 可标 `N/A + skipReason`

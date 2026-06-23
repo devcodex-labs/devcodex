@@ -1304,6 +1304,105 @@ function buildGovernanceTailChecks(ctx) {
     console.log('[V65] high-fidelity UI / commit authorization / compatibility sync checked')
   }
 
+  function checkV66() {
+    const probes = [
+      { file: 'instructions.md', needles: ['ReviewDimensionDeltaGate', 'UserPerspectiveDocsGate', 'DocsConsumerSweep', 'ArtifactLinkSetDedupeGate', 'FrontendRuntimeNetworkProbeGate'] },
+      { file: 'instructions/02-output-paths.instructions.md', needles: ['ArtifactLinkSetDedupeGate', '规范化绝对路径去重', '同一物理文件'] },
+      { file: 'instructions/10-dev.instructions.md', needles: ['UserPerspectiveDocsGate', 'DocsConsumerSweep', 'ArtifactLinkSetDedupeGate', 'FrontendRuntimeNetworkProbeGate'] },
+      { file: 'instructions/11-fix.instructions.md', needles: ['UserPerspectiveDocsGate', 'DocsConsumerSweep', 'ArtifactLinkSetDedupeGate', 'FrontendRuntimeNetworkProbeGate'] },
+      { file: 'instructions/12-audit.instructions.md', needles: ['ReviewDimensionDeltaGate', 'PreviousDimensionSet', 'CurrentDimensionFocus', 'RepeatedDimensionReason'] },
+      { file: 'instructions/13-analyze.instructions.md', needles: ['ReviewDimensionDeltaGate', 'UserPerspectiveDocsGate', 'ArtifactLinkSetDedupeGate'] },
+      { file: 'skills/audit-common/SKILL.md', needles: ['ReviewDimensionDeltaGate', 'PreviousDimensionSet', 'CurrentDimensionFocus', 'RepeatedDimensionReason'] },
+      { file: 'skills/audit-execution-guide/SKILL.md', needles: ['ReviewDimensionDeltaGate', '维度焦点'] },
+      { file: 'skills/test-router/SKILL.md', needles: ['reviewDimensionDelta', 'userPerspectiveDocs', 'docsConsumerSweep', 'artifactLinkDedupe', 'frontendRuntimeNetwork'] },
+      { file: 'skills/dev-docs/SKILL.md', needles: ['UserPerspectiveDocsGate', 'DocsConsumerSweep', '心智负担'] },
+      { file: 'skills/document-sync/SKILL.md', needles: ['UserPerspectiveDocsGate', 'DocsConsumerSweep', '代码消费位置'] },
+      { file: 'skills/audit-document/SKILL.md', needles: ['UserPerspectiveDocsGate', 'DocsConsumerSweep', '低心智负担'] },
+      { file: 'skills/audit-readme/SKILL.md', needles: ['UserPerspectiveDocsGate', 'DocsConsumerSweep', '普通使用者能看懂'] },
+      { file: 'skills/report/SKILL.md', needles: ['ReviewDimensionDeltaGate', 'UserPerspectiveDocsGate', 'DocsConsumerSweep', 'ArtifactLinkSetDedupeGate', 'FrontendRuntimeNetworkProbeGate'] },
+      { file: 'skills/memory/SKILL.md', needles: ['ArtifactLinkSetDedupeGate', 'canonical path'] },
+      { file: 'prompts/requirement.prompt.md', needles: ['ReviewDimensionDeltaGate', 'UserPerspectiveDocsGate', 'DocsConsumerSweep', 'ArtifactLinkSetDedupeGate', 'FrontendRuntimeNetworkProbeGate'] },
+      { file: 'prompts/technical-design.prompt.md', needles: ['reviewDimensionDelta', 'userPerspectiveDocs', 'docsConsumerSweep', 'artifactLinkDedupe', 'frontendRuntimeNetwork'] },
+      { file: 'prompts/implementation-plan.prompt.md', needles: ['ReviewDimensionDeltaGate', 'UserPerspectiveDocsGate', 'DocsConsumerSweep', 'ArtifactLinkSetDedupeGate', 'FrontendRuntimeNetworkProbeGate'] },
+      { file: 'prompts/report-dev.prompt.md', needles: ['UserPerspectiveDocsGate', 'DocsConsumerSweep', 'ArtifactLinkSetDedupeGate', 'ReviewDimensionDeltaGate'] },
+      { file: 'prompts/report-fix.prompt.md', needles: ['UserPerspectiveDocsGate', 'DocsConsumerSweep', 'ArtifactLinkSetDedupeGate', 'FrontendRuntimeNetworkProbeGate'] },
+      { file: 'prompts/report-audit.prompt.md', needles: ['ReviewDimensionDeltaGate', 'UserPerspectiveDocsGate', 'DocsConsumerSweep', 'ArtifactLinkSetDedupeGate', 'FrontendRuntimeNetworkProbeGate'] },
+      { file: 'prompts/report-scenario-test.prompt.md', needles: ['FrontendRuntimeNetworkProbeGate', 'ReviewDimensionDeltaGate'] },
+      { file: 'README.md', needles: ['ReviewDimensionDeltaGate', 'UserPerspectiveDocsGate', 'DocsConsumerSweep', 'ArtifactLinkSetDedupeGate', 'FrontendRuntimeNetworkProbeGate'] },
+      { file: 'website/docs/guide/development.md', needles: ['ReviewDimensionDeltaGate', 'UserPerspectiveDocsGate', 'DocsConsumerSweep', 'ArtifactLinkSetDedupeGate', 'FrontendRuntimeNetworkProbeGate'] },
+      { file: 'website/docs/versions/v1/1.0.1/requirements/p1/latest-data-absorption-guards/index.md', needles: ['ReviewDimensionDeltaGate', 'UserPerspectiveDocsGate', 'DocsConsumerSweep', 'ArtifactLinkSetDedupeGate', 'FrontendRuntimeNetworkProbeGate'] },
+      { file: 'website/docs/versions/v1/1.0.1/CHANGELOG.md', needles: ['V66 探针', 'ReviewDimensionDeltaGate', 'UserPerspectiveDocsGate'] },
+      { file: 'changelogs/unreleased.md', needles: ['V66', 'ReviewDimensionDeltaGate', 'UserPerspectiveDocsGate', 'DocsConsumerSweep', 'ArtifactLinkSetDedupeGate', 'FrontendRuntimeNetworkProbeGate', 'PI-052', 'PF-056'] },
+      { file: 'scripts/test-spec-governance.js', needles: ['checkV66', 'ReviewDimensionDeltaGate', 'ArtifactLinkSetDedupeGate'] },
+      { file: 'scripts/validate.js', needles: ['V66 Review dimension', 'checkV66()'] }
+    ]
+
+    for (const probe of probes) {
+      const content = read(path.join(ROOT, probe.file))
+      for (const needle of probe.needles) {
+        if (!content.includes(needle)) {
+          err(`[V66] review dimension / user docs / artifact dedupe / runtime network drift in ${probe.file}: missing "${needle}"`)
+        }
+      }
+    }
+
+    for (const needle of ['ReviewDimensionDeltaGate', 'UserPerspectiveDocsGate', 'DocsConsumerSweep', 'ArtifactLinkSetDedupeGate', 'FrontendRuntimeNetworkProbeGate', 'PI-052', 'PF-056']) {
+      if (!hasChangelogEvidence(needle)) {
+        err(`[V66] review dimension / user docs changelog drift: missing "${needle}" in changelogs/unreleased.md or changelogs/releases/*.md`)
+      }
+    }
+
+    console.log('[V66] review dimension / user docs / artifact dedupe / runtime network sync checked')
+  }
+
+  function checkV67() {
+    const probes = [
+      { file: 'instructions.md', needles: ['PublicUserDocsMaintainerBoundaryGate', 'ActiveRequirementFinalResponseGate', '维护者验收', 'active requirement'] },
+      { file: 'instructions/10-dev.instructions.md', needles: ['PublicUserDocsMaintainerBoundaryGate', 'ActiveRequirementFinalResponseGate', '公开用户文档', '当前 active'] },
+      { file: 'instructions/11-fix.instructions.md', needles: ['PublicUserDocsMaintainerBoundaryGate', 'ActiveRequirementFinalResponseGate', '最终回复范围漂移'] },
+      { file: 'instructions/12-audit.instructions.md', needles: ['公开用户文档混入维护者 checklist', '最终回复范围漂移'] },
+      { file: 'instructions/13-analyze.instructions.md', needles: ['PublicUserDocsMaintainerBoundaryGate', 'ActiveRequirementFinalResponseGate'] },
+      { file: 'skills/test-router/SKILL.md', needles: ['publicDocsMaintainerBoundary', 'activeRequirementFinalResponse', 'PublicUserDocsMaintainerBoundaryGate', 'ActiveRequirementFinalResponseGate'] },
+      { file: 'skills/dev-docs/SKILL.md', needles: ['PublicUserDocsMaintainerBoundaryGate', '维护者验收'] },
+      { file: 'skills/document-sync/SKILL.md', needles: ['PublicUserDocsMaintainerBoundaryGate', 'ActiveRequirementFinalResponseGate'] },
+      { file: 'skills/audit-document/SKILL.md', needles: ['PublicUserDocsMaintainerBoundaryGate'] },
+      { file: 'skills/audit-readme/SKILL.md', needles: ['PublicUserDocsMaintainerBoundaryGate', '发布 checklist'] },
+      { file: 'skills/audit-project/SKILL.md', needles: ['PublicUserDocsMaintainerBoundaryGate', 'ActiveRequirementFinalResponseGate'] },
+      { file: 'skills/report/SKILL.md', needles: ['PublicUserDocsMaintainerBoundaryGate', 'ActiveRequirementFinalResponseGate', 'active requirement/task/bug id'] },
+      { file: 'prompts/requirement.prompt.md', needles: ['PublicUserDocsMaintainerBoundaryGate', 'ActiveRequirementFinalResponseGate'] },
+      { file: 'prompts/technical-design.prompt.md', needles: ['PublicUserDocsMaintainerBoundaryGate', 'ActiveRequirementFinalResponseGate'] },
+      { file: 'prompts/implementation-plan.prompt.md', needles: ['PublicUserDocsMaintainerBoundaryGate', 'ActiveRequirementFinalResponseGate'] },
+      { file: 'prompts/report-dev.prompt.md', needles: ['PublicUserDocsMaintainerBoundaryGate', 'ActiveRequirementFinalResponseGate'] },
+      { file: 'prompts/report-fix.prompt.md', needles: ['PublicUserDocsMaintainerBoundaryGate', 'ActiveRequirementFinalResponseGate'] },
+      { file: 'prompts/report-audit.prompt.md', needles: ['PublicUserDocsMaintainerBoundaryGate', 'ActiveRequirementFinalResponseGate'] },
+      { file: 'prompts/report-scenario-test.prompt.md', needles: ['PublicUserDocsMaintainerBoundaryGate', 'ActiveRequirementFinalResponseGate'] },
+      { file: 'README.md', needles: ['PublicUserDocsMaintainerBoundaryGate', 'ActiveRequirementFinalResponseGate'] },
+      { file: 'website/docs/guide/development.md', needles: ['PublicUserDocsMaintainerBoundaryGate', 'ActiveRequirementFinalResponseGate'] },
+      { file: 'website/docs/versions/v1/1.0.1/requirements/p1/latest-data-absorption-guards/index.md', needles: ['PublicUserDocsMaintainerBoundaryGate', 'ActiveRequirementFinalResponseGate', 'V67'] },
+      { file: 'website/docs/versions/v1/1.0.1/CHANGELOG.md', needles: ['PublicUserDocsMaintainerBoundaryGate', 'ActiveRequirementFinalResponseGate', 'V67 探针'] },
+      { file: 'changelogs/unreleased.md', needles: ['PublicUserDocsMaintainerBoundaryGate', 'ActiveRequirementFinalResponseGate', 'V67', 'PI-053', 'PI-054', 'PF-057', 'PF-058'] },
+      { file: 'scripts/test-spec-governance.js', needles: ['checkV67', 'PublicUserDocsMaintainerBoundaryGate', 'ActiveRequirementFinalResponseGate'] },
+      { file: 'scripts/validate.js', needles: ['V67 Public user docs', 'checkV67()'] }
+    ]
+
+    for (const probe of probes) {
+      const content = read(path.join(ROOT, probe.file))
+      for (const needle of probe.needles) {
+        if (!content.includes(needle)) {
+          err(`[V67] public user docs / active final response drift in ${probe.file}: missing "${needle}"`)
+        }
+      }
+    }
+
+    for (const needle of ['PublicUserDocsMaintainerBoundaryGate', 'ActiveRequirementFinalResponseGate', 'PI-053', 'PI-054', 'PF-057', 'PF-058']) {
+      if (!hasChangelogEvidence(needle)) {
+        err(`[V67] public user docs / active final response changelog drift: missing "${needle}" in changelogs/unreleased.md or changelogs/releases/*.md`)
+      }
+    }
+
+    console.log('[V67] public user docs / active final response sync checked')
+  }
+
   return {
     checkV39,
     checkV40,
@@ -1331,7 +1430,9 @@ function buildGovernanceTailChecks(ctx) {
     checkV62,
     checkV63,
     checkV64,
-    checkV65
+    checkV65,
+    checkV66,
+    checkV67
   }
 }
 

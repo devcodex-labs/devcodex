@@ -2,7 +2,7 @@
 
 > **状态**：✅ 已实现  
 > **优先级**：P1  
-> **关联规则**：`WorkspaceDataAbsorptionScopeGate`、`FlowchartNodeExplanationGate`、`DocsSiteVisualAcceptanceGate`、`OmissionOnlyReviewGate`、`ReviewFindingIntakeGate`、`FigmaHighFidelityRestorationGate`、`ScopedVisualChangeGate`、`InstalledPluginVisualVerificationGate`、`ActualPreviewChainAndMockFallbackGate`、`UIStateScopeRegressionGate`、`FigmaProductionAssetBudgetGate`、`RuntimeI18nArtifactVerificationGate`、`ExplicitCommitAuthorizationGate`、`CompatibilityAndContractAuthorityGate`、`UIConfirmedSourceConflictTraceGate`、`PublicDocsReleasedVersionGate`、`CollectionRelationIdNamingGate`、`UserFacingVerificationArtifactLanguageGate`、`MethodLevelLeakPressureProbe`、`V2FormalSolutionPackage`
+> **关联规则**：`WorkspaceDataAbsorptionScopeGate`、`FlowchartNodeExplanationGate`、`DocsSiteVisualAcceptanceGate`、`OmissionOnlyReviewGate`、`ReviewFindingIntakeGate`、`ReviewDimensionDeltaGate`、`UserPerspectiveDocsGate`、`PublicUserDocsMaintainerBoundaryGate`、`DocsConsumerSweep`、`ArtifactLinkSetDedupeGate`、`FigmaHighFidelityRestorationGate`、`ScopedVisualChangeGate`、`InstalledPluginVisualVerificationGate`、`ActualPreviewChainAndMockFallbackGate`、`FrontendRuntimeNetworkProbeGate`、`UIStateScopeRegressionGate`、`FigmaProductionAssetBudgetGate`、`RuntimeI18nArtifactVerificationGate`、`ExplicitCommitAuthorizationGate`、`CompatibilityAndContractAuthorityGate`、`UIConfirmedSourceConflictTraceGate`、`PublicDocsReleasedVersionGate`、`CollectionRelationIdNamingGate`、`UserFacingVerificationArtifactLanguageGate`、`ActiveRequirementFinalResponseGate`、`MethodLevelLeakPressureProbe`、`V2FormalSolutionPackage`
 
 ## 背景
 
@@ -19,8 +19,14 @@
 | `DocsSiteVisualAcceptanceGate` | 官网、文档站、技术站或正式说明页的视觉/交互验收 | 覆盖主题集成、真实点击、异步动效、减弱动态、代码 token 对比度、终端 demo 范围、TOC inline code 和辅助导航层级 |
 | `OmissionOnlyReviewGate` | 用户要求只审遗漏、上次没检查、只列仍需吸纳项 | 只输出此前未覆盖且仍有处理价值的遗漏项，已吸纳/关闭/无必要项只写排除理由 |
 | `ReviewFindingIntakeGate` | 外部审查报告、AI review finding、audit issue 或代码评审发现进入修复/建议前 | 报告只是线索，逐条补本地证据并分流 must-fix、用户决策、文档/实现漂移、测试覆盖缺口、未复现或设计如此 |
+| `ReviewDimensionDeltaGate` | R2+ 复审、audit 连续零发现、ECR 或遗漏专审 | 记录 PreviousDimensionSet、CurrentDimensionFocus、NewDimensionRationale、RepeatedDimensionReason，避免每轮机械重复同一组维度 |
+| `UserPerspectiveDocsGate` | README、官网/文档站、接口说明、运行手册、需求/方案等人读文档 | 从使用者角度覆盖第一次成功、常见任务、字段/参数/状态/错误解释、排错恢复、限制和低心智负担 |
+| `PublicUserDocsMaintainerBoundaryGate` | README、官网教程、快速上手、配置/扩展/框架接入等公开用户文档 | 用户主路径不得混入维护者验收、发布 checklist、内部同步清单、台账状态或实现者复审任务 |
+| `DocsConsumerSweep` | 文档新增/调整命令、配置项、字段、状态、路径、能力承诺或阅读顺序 | 扫描 README、website、Profile、prompts、templates、examples、nav/sidebar、validate probes、部署副本和代码消费点 |
+| `ArtifactLinkSetDedupeGate` | 最终回复、报告、记忆、SUMMARY 或宿主文件面板消费产物链接 | 按 canonical path 去重同一物理文件，区分同名不同目录、历史镜像和部署副本，避免双份产物展示 |
+| `ActiveRequirementFinalResponseGate` | 同日或同工作区存在多个相邻需求、backlog、open 任务或未完成候选 | 最终回复和完成报告先声明当前 active requirement/task/bug id，完成状态、验证证据、dirty 边界和下一步只围绕当前范围 |
 | `FigmaHighFidelityRestorationGate` / `ScopedVisualChangeGate` | Figma、截图、既有页面还原或局部视觉修复 | 冻结设计来源、allowedScope/frozenScope、元素分类、偏离理由和实际视觉验证证据 |
-| `InstalledPluginVisualVerificationGate` / `ActualPreviewChainAndMockFallbackGate` / `UIStateScopeRegressionGate` | 前端真实页面验证、插件链可用或多状态回归 | 优先使用已安装 Figma/Browser/Chrome 工具，确认真实 preview/API/路由，列出状态清单和 mock 排除证据 |
+| `InstalledPluginVisualVerificationGate` / `ActualPreviewChainAndMockFallbackGate` / `FrontendRuntimeNetworkProbeGate` / `UIStateScopeRegressionGate` | 前端真实页面验证、插件链可用或多状态回归 | 优先使用已安装 Figma/Browser/Chrome 工具，确认真实 preview/API/路由，检查 console/network/resource/runtime，列出状态清单和 mock 排除证据 |
 | `FigmaProductionAssetBudgetGate` / `RuntimeI18nArtifactVerificationGate` | 设计资产进入生产或多语言运行时变更 | 记录资产尺寸/体积/格式/public 路径，核对源 JSON、构建合并产物和页面 runtime key 残留 |
 | `ExplicitCommitAuthorizationGate` | 需要执行本地 commit | 只有用户明确要求才提交，回滚点和语义批次清晰只能作为建议或确认理由 |
 | `CompatibilityAndContractAuthorityGate` | 兼容修复、共享库/adapter/SDK 或上游契约判断 | 区分零代码消费者兼容、上游合同权威和官方 public API 证据，避免影子 allowlist |
@@ -32,5 +38,5 @@
 ## 验证
 
 - `node scripts/validate.js` 必须包含 V63 探针。
-- `node scripts/test-spec-governance.js` 必须覆盖上述规则在 instructions、skills、prompts、README、website 与 changelog 的同步，包含 `ReviewFindingIntakeGate` 与 V65 新增门禁。
+- `node scripts/test-spec-governance.js` 必须覆盖上述规则在 instructions、skills、prompts、README、website 与 changelog 的同步，包含 `ReviewFindingIntakeGate`、`ReviewDimensionDeltaGate`、`UserPerspectiveDocsGate`、`PublicUserDocsMaintainerBoundaryGate`、`DocsConsumerSweep`、`ArtifactLinkSetDedupeGate`、`FrontendRuntimeNetworkProbeGate`、`ActiveRequirementFinalResponseGate` 与 V67 新增门禁。
 - 文档站 sidebar 与需求索引必须出现本页入口。

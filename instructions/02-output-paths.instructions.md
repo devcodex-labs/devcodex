@@ -2,7 +2,7 @@
 applyTo: "**"
 description: 产物输出路径与命名规范，定义 active-root 下的 requirements、bugs、reports 与记忆落点
 priority: P5
-version: 1.11.22
+version: 1.11.23
 ---
 # 产物输出路径规范
 
@@ -116,6 +116,7 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 > - **必需行**：输出 `ArtifactLinkSet` 的主链接，必须是 Markdown 链接，禁止只输出裸文件名。默认使用**工作区根的相对路径**（不以 `/` 开头、不带 `file://` 协议），链接路径统一用正斜杠。
 > - **Copy fallback**：当当前宿主为 Codex Desktop/App、Copilot、未知宿主，或用户已反馈“无法点击”时，主链接下一行必须追加 `绝对路径：` 纯文本行，供复制打开。Windows 绝对路径统一写成 `E:\...` 或 `E:/...`，POSIX 用 `/...`。
 > - **Codex Desktop/App 特例**：当前宿主可验证为 Codex Desktop/App 时，主链接可以使用绝对文件系统路径作为 Markdown target；若路径包含空格，用尖括号包裹 target。
+> - **ArtifactLinkSetDedupeGate**：输出前必须按规范化绝对路径去重，同一物理文件无论同时出现在最终回复、报告、记忆、SUMMARY、相对链接、绝对链接或 copy fallback 中，只保留一个主 ArtifactLinkSet 条目；不同目录的同名文件必须带足够路径消歧，历史镜像 / 部署副本 / 当前主产物要明确标注身份，避免宿主文件面板展示成双份产物。
 > - 禁止询问"是否需要打开"；禁止省略产物路径输出。
 > - 禁止使用 `file://` 协议作为默认链接；它在部分 IDE webview / Chat 面板中会被 CSP 或宿主策略阻止。
 > - ⚠️ **历史版本兼容**：v1.9.3 及之前使用 `[name](file:///E:/...)` 格式，存量报告无需回填，但新增报告须按本格式生成。

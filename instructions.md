@@ -278,7 +278,7 @@ dev/fix 修改完成前必须判定是否影响 Profile。命中以下任一触�
 - UI 视觉组：`FrontendDesignSourceGate` 要求确认设计来源（设计稿/截图/Figma/既有页面/设计系统/品牌主题/领域推导）；`UIFidelityGate` 要求有参考时尽量还原布局、间距、层级、字体、颜色、状态、图标和关键资产，偏离必须说明；`StyleThemeConsistencyGate` 要求沿用项目既有设计系统、主题 token、颜色语义、组件库和图标体系；`ResponsiveStateCoverageGate` 要求覆盖桌面/移动、关键断点、主题模式、loading/empty/error/disabled/hover/focus 等状态；`VisualVerificationGate` 要求 UI 变更后用 Browser/Playwright/截图或项目等价方式留证，无法运行时记录阻塞与降级证据。
 - UX 交互组：`InteractionFlowGate` 要求识别核心用户流、入口/出口、主次行动、导航、返回、取消、撤销和任务完成路径；`InteractionFeedbackGate` 要求关键控件、异步行为和结果状态具备即时、可感知且不过度打扰的反馈；`InputModalityAccessibilityGate` 要求关键交互按场景覆盖键盘、鼠标、触摸、焦点可见、目标尺寸、拖拽/手势替代；`ErrorPreventionRecoveryGate` 要求高成本、破坏性或易误操作路径具备预防、确认、撤销/恢复和可理解错误提示；`MotionTransitionUsabilityGate` 要求动效和转场用于解释状态变化、空间关系和连续性，保持克制、稳定并尊重减弱动态设置。
 - 高保真还原组：`FigmaHighFidelityRestorationGate` 要求以 Figma/截图/既有页面为真相源时先冻结参考范围，按布局、尺寸、间距、字体、色彩、图标、图片资产、状态与交互逐项还原；若以代码重建 Figma 页面，必须区分真实组件、装饰层、文本、图片和交互控件，偏离须留理由。`ScopedVisualChangeGate` 要求 UI 修改先声明 `allowedScope` 与 `frozenScope`，资源优化、性能修正或局部 bug 修复不得静默改变非授权区域的风格、布局或主题。`InstalledPluginVisualVerificationGate` 要求宿主已安装 Figma / Browser / Chrome 等可用视觉工具时优先走实际插件链验证，无法使用时记录阻塞与降级证据。
-- 真实预览与状态组：`ActualPreviewChainAndMockFallbackGate` 要求前端验证先确认真实 preview URL、API target、构建产物和路由入口；不得把 mock、临时服务、静态截图或错误 target 伪装成用户页面通过。`UIStateScopeRegressionGate` 要求列出受影响状态（如默认、登录、加入后、空态、错误态、禁用态等）并验证主 CTA 与关键路径仍可见可用。
+- 真实预览与状态组：`ActualPreviewChainAndMockFallbackGate` 要求前端验证先确认真实 preview URL、API target、构建产物和路由入口；不得把 mock、临时服务、静态截图或错误 target 伪装成用户页面通过。`FrontendRuntimeNetworkProbeGate` 要求真实页面打开后检查 console / network / failed requests、资源 404、API target、hydration/runtime error、关键图片/字体/icon/i18n 产物加载与接口响应，不得只凭静态截图或构建成功宣称真实预览通过。`UIStateScopeRegressionGate` 要求列出受影响状态（如默认、登录、加入后、空态、错误态、禁用态等）并验证主 CTA 与关键路径仍可见可用。
 - 资产与本地化组：`FigmaProductionAssetBudgetGate` 要求从 Figma 或设计稿进入生产代码的图片/图标/位图资产记录尺寸、体积、格式、来源节点、public 路径、WebP/SVG 内嵌位图检查与替换理由；不得无预算地复制大图或把临时截图当生产资产。`RuntimeI18nArtifactVerificationGate` 要求多语言 / 本地化变更同时核对源 JSON、构建/合并后的实际加载产物和页面运行时残留 key，禁止只 grep 源文件后宣称多语言通过。
 - 前端体验验证应按风险选择项目既有 lint/typecheck/test、Browser/截图、Playwright/E2E 或人工复核证据；不得为了形式满足而引入新 UI 库、设计系统、视觉 diff 平台或把所有前端任务升级为重可用性研究。
 - 若前端体验任务同时涉及组件生命周期、监听器、订阅、worker、定时器、缓存或长运行可视化状态，仍须并行执行 `LeakRiskStabilityPressureTest` 判定。
@@ -296,6 +296,13 @@ dev/fix 修改完成前必须判定是否影响 Profile。命中以下任一触�
 - `ReviewFindingIntakeGate` / `DesignIntentAndDocsConsistencyGate`：外部审查报告、AI review finding、audit issue 或代码评审发现进入 analyze/audit/fix 处理前，必须先按 5 个子探针分流：`AuditReportIsSignalNotEvidence`（报告只是线索，需本地代码/文档/测试/运行证据，无法复现标 `not-reproduced` 或 `needs-evidence`）、`IntentionalDesignClassification`（识别 intentional design、兼容设计、性能取舍或产品策略并记录依据）、`UserDecisionBeforeMutation`（公共契约、兼容风险、设计取舍或文档/实现二选一时，修改源码前先用户确认）、`DocsImplementationDriftAttribution`（文档与实现不一致时先判断文档是否代表产品目标或历史承诺，再决定修代码/文档/示例/测试）、`TestCoverageGapOnly`（仅测试浅、回归缺失或证据不足时优先补测试/复现/验证证据，不直接改 runtime）。该门禁是审查发现 intake 场景的组合门禁，不作为 5 个独立顶层守门。
 - `FigmaHighFidelityRestorationGate` / `ScopedVisualChangeGate` / `InstalledPluginVisualVerificationGate`：前端、官网、文档站或 Figma 还原类任务必须把设计来源、允许修改范围、冻结范围和实际视觉验证工具链落入 TestRoute；不得在优化图片、修复交互或重建页面时顺手改整体风格。
 - `ActualPreviewChainAndMockFallbackGate` / `UIStateScopeRegressionGate` / `FigmaProductionAssetBudgetGate` / `RuntimeI18nArtifactVerificationGate`：用户可见 UI 验证必须证明命中真实页面、真实运行态和关键状态；涉及生产资产或本地化时必须保留资产预算、运行时加载产物和残留 key 检查证据。
+- `ReviewDimensionDeltaGate`：R2+ 复审、audit 连续零发现、ECR 或遗漏专审不得机械重复同一组维度；必须记录 `PreviousDimensionSet`、`CurrentDimensionFocus`、`NewDimensionRationale`、`RepeatedDimensionReason`，重复维度只允许用于阻断项回归、高风险锚点、新证据复核或抽样。若连续轮次维度与文件都无新增焦点且无证据化理由，该轮不得计入有效零发现或“已复审”。
+- `UserPerspectiveDocsGate`：README、用户使用文档、官网/文档站、接口说明、运行手册、需求/方案中面向人读的章节必须从使用者角度组织，先回答“这是什么、适合谁、如何第一次成功、常见任务怎么做、参数/字段/状态/错误怎么理解、失败如何恢复、限制和下一步是什么”；要求足够详细、术语首次解释、示例真实、心智负担低，避免只按维护者内部实现顺序堆叠。纯内部临时报告或只面向维护者的文档可写 `N/A + skipReason`。
+- `PublicUserDocsMaintainerBoundaryGate`：公开用户文档、README、官网教程、快速上手、配置/扩展/框架接入指南不得把维护者验收、发布前 checklist、内部同步清单、台账状态或实现者复审任务混入用户主路径；确需保留时迁移到 CONTRIBUTING、release checklist、requirements/report 或 maintainer-only 文档，并在公开页只保留用户任务、配置语义、正反示例、能力边界和可运行入口。
+- `DocsConsumerSweep`：文档变更后必须扫描当前消费者和消费位置，至少覆盖 README / website / Profile / prompts / templates / examples / nav/sidebar / validate probes / 部署副本；文档新增字段、配置项、命令、状态、路径或能力承诺时，要核对代码或配置消费点，避免“文档写了但入口、示例、导航或校验仍旧口径”。
+- `ArtifactLinkSetDedupeGate`：最终回复、报告、记忆、SUMMARY 或宿主文件面板会消费的产物清单必须按规范化绝对路径去重；同一物理文件的相对链接、绝对链接和 copy fallback 只能形成一个主 ArtifactLinkSet 条目。不同目录的同名文件需显示足够路径消歧；历史镜像或部署副本要标明身份，不得让用户误以为重复生成了双份产物。
+- `FrontendRuntimeNetworkProbeGate`：前端真实预览或文档站/官网视觉验收命中时，除截图/视觉检查外，还需按项目能力检查 console、network、资源加载、API target、runtime i18n key 和 hydration/runtime error；无法检查时写阻塞、降级证据和残余风险。
+- `ActiveRequirementFinalResponseGate`：同一天或同一工作区存在多个相邻需求、backlog、open 任务或未完成候选时，最终回复和完成报告必须先声明当前 active requirement / task / bug id，并且完成状态、验证证据、dirty 边界和下一步默认只围绕该 active 范围输出；未被用户确认切换的相邻需求只能放入“未切换范围 / 未执行事项 / backlog 观察”并说明未执行，禁止把另一个需求的“可接下一步”写成当前任务默认结尾。
 - `ExplicitCommitAuthorizationGate`：实际执行本地 `git commit` 必须有用户当前会话明确要求；“需要回滚点”“语义批次已验证”只能作为建议提交或请求确认的理由，不能自动 commit。`push` / `tag` / `publish` 仍按用户明确确认执行。
 - `CompatibilityAndContractAuthorityGate`：兼容修复、共享库/adapter/SDK、上游契约或消费者验证相关任务必须区分零代码消费者兼容性、上游合同权威和官方 public API 证据；禁止用影子 allowlist、历史报告或内部 helper 替代上游公开契约，必要时验证“修共享库 + 消费项目升级”是否优于单项目补丁。
 - `UIConfirmedSourceConflictTraceGate`：当用户确认的 UI、Figma、截图或当前线上页面成为主真相源并覆盖旧 PRD/文档时，需求或方案必须保留冲突表，写清旧来源、新来源、采纳理由、影响范围和后续文档同步路线。
@@ -493,7 +500,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → 执行 →
 
 - 只读工作流，禁止修改文件
 - 多轮收敛：至少 3 轮，连续 **3** 轮有效零发现后才可宣告收敛（仍须满足连续 3 轮零发现）
-- 复审覆盖增量：R2+ 必须输出 `ReviewCoverageDelta`（`ReviewedSet` / `UnreviewedRelatedSet` / `NewlyReadThisRound` / `RepeatReadReason` / `NoNewSurfaceReason`），优先阅读此前未审查但相关联的代码、配置、测试、文档、部署副本和消费者链；无新增阅读且无 `NoNewSurfaceReason` 时，该轮零发现不得计入收敛
+- 复审覆盖增量：R2+ 必须输出 `ReviewCoverageDelta`（`ReviewedSet` / `UnreviewedRelatedSet` / `NewlyReadThisRound` / `RepeatReadReason` / `NoNewSurfaceReason`）与 `ReviewDimensionDeltaGate`（`PreviousDimensionSet` / `CurrentDimensionFocus` / `NewDimensionRationale` / `RepeatedDimensionReason`），优先阅读此前未审查但相关联的代码、配置、测试、文档、部署副本和消费者链，并轮换或补强审查维度；无新增阅读、无新增维度焦点且无证据化理由时，该轮零发现不得计入收敛
 - DevCodex plugin 文件发现问题 → 先做阻断/非阻断分流：阻断项立即自我审视 + self-fix，修复后重启新轮；非阻断项写入 `data/pending-issues.md`，继续下一轮
 - 其他文件发现问题 → 记录 PF/VL，继续下一轮
 - 收敛前门禁：CRS（全库 grep）✅ + PCV（收敛后汇总验证）

@@ -1,7 +1,7 @@
 # 变更日志 (CHANGELOG)
 
 > **说明**: 版本概览摘要。最新版本的详细变更见下方表格首行的 `changelogs/releases/vX.Y.Z.md` 链接；历史版本见对应详细变更文件
-> **最后更新**: 2026-06-17
+> **最后更新**: 2026-06-23
 
 ---
 
@@ -9,6 +9,7 @@
 
 | 版本 | 日期 | 变更摘要 | 详细 |
 |------|------|---------|------|
+| [v1.11.23](./changelogs/releases/v1.11.23.md) | 2026-06-23 | 🔧 **复审文档体验 / 公开用户文档 / 最终汇报吸纳门禁**：归档 V66/V67 探针，固化复审维度增量、用户视角文档、文档消费者扫描、产物链接去重、前端运行时网络探针、公开用户文档维护边界和最终回复 active 范围守门，并修复官网锁文件 DOMPurify 审计项 | [查看](./changelogs/releases/v1.11.23.md) |
 | [v1.11.22](./changelogs/releases/v1.11.22.md) | 2026-06-17 | 🔧 **高保真 UI / 提交授权 / 兼容契约吸纳门禁**：新增 V65 探针，固化 Figma/截图还原、真实 preview、状态回归、生产资产预算、运行时 i18n、显式 commit 授权、兼容契约权威和公开文档版本边界等守门 | [查看](./changelogs/releases/v1.11.22.md) |
 | [v1.11.21](./changelogs/releases/v1.11.21.md) | 2026-06-17 | 🔧 **审查发现 intake 分流门禁**：新增 `ReviewFindingIntakeGate` / `DesignIntentAndDocsConsistencyGate` 与 V64 探针，要求外部审查报告、AI review finding、audit issue 和代码评审发现先经本地证据、设计取舍、用户决策、文档漂移与测试缺口分流 | [查看](./changelogs/releases/v1.11.21.md) |
 | [v1.11.20](./changelogs/releases/v1.11.20.md) | 2026-06-12 | 🔧 **最新 data 吸纳守门补强**：新增全工作区 data 扫描、流程图节点说明、文档站视觉验收、遗漏专审、方法级泄漏压测与 v2 正式方案包守门，并补齐 V63 探针 | [查看](./changelogs/releases/v1.11.20.md) |
@@ -108,8 +109,9 @@
 
 ## 相关文档
 
-- [`changelogs/releases/v1.11.22.md`](./changelogs/releases/v1.11.22.md) — 最新版本详细变更文档
-- [`changelogs/releases/v1.11.21.md`](./changelogs/releases/v1.11.21.md) — 上一版本详细变更文档
+- [`changelogs/releases/v1.11.23.md`](./changelogs/releases/v1.11.23.md) — 最新版本详细变更文档
+- [`changelogs/releases/v1.11.22.md`](./changelogs/releases/v1.11.22.md) — 上一版本详细变更文档
+- [`changelogs/releases/v1.11.21.md`](./changelogs/releases/v1.11.21.md) — 历史版本详细变更文档
 - [`changelogs/releases/v1.11.18.md`](./changelogs/releases/v1.11.18.md) — 历史版本详细变更文档
 - [`changelogs/releases/v1.11.17.md`](./changelogs/releases/v1.11.17.md) — 历史版本详细变更文档
 - [`changelogs/releases/v1.11.15.md`](./changelogs/releases/v1.11.15.md) — 历史版本详细变更文档

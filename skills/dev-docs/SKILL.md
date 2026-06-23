@@ -60,6 +60,8 @@ description: 文档开发子类型规范 — 技术文档/API文档/README 编�
 | UI 真相源冲突 | 当 Figma/截图/线上页面覆盖旧 PRD 或历史文档时执行 `UIConfirmedSourceConflictTraceGate`，保留冲突表、采纳理由和同步路线 |
 | 验证产物语言 | `.http`、集成测试说明、手工验证步骤等用户可读验证产物执行 `UserFacingVerificationArtifactLanguageGate`，默认使用用户当前语言 |
 | 需求来源 | 从 PRD、Word、原型、截图或用户消息整理文档需求时执行 `ProductRequirementTraceabilityGate`，保留来源锚点、提取口径和验收映射 |
+| 使用者视角 | 正式用户文档、README、官网/文档站、接口说明、运行手册执行 `UserPerspectiveDocsGate`，先回答这是什么、适合谁、如何第一次成功、常见任务、参数/字段/状态/错误、失败恢复、限制和下一步；要求足够详细、术语首次解释、示例真实、心智负担低 |
+| 消费链扫描 | 文档新增/调整命令、配置项、字段、状态、路径、能力承诺或阅读顺序时执行 `DocsConsumerSweep`，同步 README / website / Profile / prompts / templates / examples / nav/sidebar / validate probes / 部署副本与代码消费位置 |
 
 ## API 文档规范
 
@@ -111,6 +113,9 @@ description: 文档开发子类型规范 — 技术文档/API文档/README 编�
 - `ManualReviewEvidenceRetention`：人工文档复核或链接/视觉抽查要留范围、输入和证据；不得只写“已人工检查”。
 - `FlowchartNodeExplanationGate`：正式流程图、生命周期图、Nxx 节点图或维护者流程页必须给每个非终止节点配中文解释，说明触发、前置、动作、出口和异常/回退。
 - `DocsSiteVisualAcceptanceGate`：官网/文档站/技术站视觉或交互调整必须验收主题集成、真实点击、异步动效、减弱动态、代码 token 对比度、终端 demo 范围、TOC inline code 和辅助导航层级；纯内容页写 `N/A + skipReason`。
+- `UserPerspectiveDocsGate`：面向使用者的文档不得只按内部实现、维护者分工或历史治理顺序堆叠；要让首次读者能低心智成本完成“理解 → 安装/进入 → 第一次成功 → 常见任务 → 排错”的路径。
+- `PublicUserDocsMaintainerBoundaryGate`：公开用户文档不得把维护者验收、发布 checklist、内部同步清单、台账状态或实现者复审任务作为用户需要阅读的步骤；此类内容应迁移到 CONTRIBUTING、release checklist、requirements/report 或 maintainer-only 文档。
+- `DocsConsumerSweep`：文档即产品入口时，正文、导航、索引、示例、模板、Profile、validate 和部署副本都是当前消费者；同步失败或刻意不同序必须写明原因。
 
 ## 产出物
 

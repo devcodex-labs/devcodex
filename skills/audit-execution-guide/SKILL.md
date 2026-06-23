@@ -30,7 +30,7 @@ description: 审查执行指南 — 维度优先级分批、定向审查子集�
 | 新增维度/约束编号 | D5·D15·D18 + 数值引用联动 |
 | 修改了 ENV_MODE/模式行为定义 | D5·D22 — 跨文件语义传播核查 |
 | 修改了规则定义文件（字段/术语/路径等） | D5 · **CRS 全库关键词扫描**（见 `audit-common §关联文件发现`）|
-| R2+ 发现新问题（持续审查中） | **自我审视四轴分析**（见 `audit-common §自我审视机制`）· D5 三层覆盖补查 |
+| R2+ 发现新问题（持续审查中） | **自我审视四轴分析**（见 `audit-common §自我审视机制`）· D5 三层覆盖补查 · `ReviewDimensionDeltaGate` 维度焦点补强 |
 
 ## 新增子类型联动检查（L1~L3）⚠️
 
@@ -70,7 +70,8 @@ description: 审查执行指南 — 维度优先级分批、定向审查子集�
 批次 4（🟡 建议维度）：D6·D8·D18·D19·D20 → 输出发现 → 即发即修 → 更新记忆
 批次 5（💡 改进维度）：D13·D14·D15 → 输出发现 → 即发即修 → 更新记忆
 ReviewCoverageDelta：R2+ 先列 ReviewedSet / UnreviewedRelatedSet / NewlyReadThisRound / RepeatReadReason / NoNewSurfaceReason，优先补读此前未审查但相关的代码、配置、测试、文档、部署副本和消费者链
-重启轮次：所有批次完成、本轮无新发现，且 ReviewCoverageDelta 合格 → 有效零发现计数 +1 → 连续 3 轮有效零发现则进入 CRS 门禁（仍须满足连续 3 轮零发现）
+ReviewDimensionDeltaGate：R2+ 同步列 PreviousDimensionSet / CurrentDimensionFocus / NewDimensionRationale / RepeatedDimensionReason，避免每轮机械重复同一组维度；重复维度只允许阻断项回归、高风险锚点、新证据或抽样
+重启轮次：所有批次完成、本轮无新发现，且 ReviewCoverageDelta + ReviewDimensionDeltaGate 合格 → 有效零发现计数 +1 → 连续 3 轮有效零发现则进入 CRS 门禁（仍须满足连续 3 轮零发现）
 CRS 收敛门禁：连续 3 轮有效零发现后执行全库关键词扫描（见 audit-common §关联文件发现）
 PCV：CRS ✅ 后执行 PCV（见 audit-common §收敛后汇总验证）→ 最终报告
 ```

@@ -20,8 +20,8 @@ applyTo: .devcodex/**/requirements/**
 > ⚠️ CP1 必须给出 ArtifactDecisionMatrix：列出 `01-需求概述.md`、`02-技术方案.md`、`04-实施计划.md`、`05-实施进度.md`、目标文档、报告、记忆的 `create` / `update` / `skip` / `N/A` 状态、原因和升级回退条件；判定优先级为已有真相源回写 > 任务触发条件 > SimpleTaskFastPath > 子类型豁免。
 > ⚠️ 描述“已接入 / 未接入”类状态时，先核验依赖与源码消费点，再拆分底座能力、当前消费者和高级能力尾项，避免把“基础已接入但高级能力未接入”误写成整体未接入。
 > ⚠️ TechnicalRouteComparativeGate：技术路线、架构优化、性能优化、框架能力设计或高维护成本方案在 CP1 最终需求确认前，若存在同类产品 / 项目 / 框架 / 本仓库相似模块可比，必须执行 `ComparativeResearchGate`；不触发时写 `N/A + skipReason`。
-> ⚠️ FrontendExperienceQualityGate：前端页面、组件、控制台、官网、文档站、可视化工具、游戏或用户可见 UI / 交互需求，CP1 验收必须覆盖设计来源、UI 还原度、风格主题、响应式状态、视觉验证、用户流、交互反馈、输入方式/可访问性、错误恢复和动效转场；Figma/截图/既有页面还原需追加 `FigmaHighFidelityRestorationGate`、`ScopedVisualChangeGate`、`InstalledPluginVisualVerificationGate`、`ActualPreviewChainAndMockFallbackGate`、`UIStateScopeRegressionGate`、`FigmaProductionAssetBudgetGate`、`RuntimeI18nArtifactVerificationGate`；不触发时写 `N/A + skipReason`。
-> ⚠️ CrossProjectLearnedGuards：涉及接入状态、人工复核、翻译/正式文档边界、prompt/Hook/MCP 契约、验证范围、真实执行、benchmark 归因、产品需求来源、本机执行配置、人工证据留存、相邻范围扩展、包名/发布名、性能第一、公开模块、提交授权、兼容契约、UI 源冲突、公开文档版本、集合关系命名、验证产物语言、DevCodex v2 一期路线、全工作区 data 吸纳、正式流程图、文档站视觉验收、遗漏专审、审查发现 intake、方法级泄漏压测或 v2 正式方案包时，CP1 必须列出对应守门项的验收口径；未触发项写 `N/A + skipReason`。
+> ⚠️ FrontendExperienceQualityGate：前端页面、组件、控制台、官网、文档站、可视化工具、游戏或用户可见 UI / 交互需求，CP1 验收必须覆盖设计来源、UI 还原度、风格主题、响应式状态、视觉验证、用户流、交互反馈、输入方式/可访问性、错误恢复和动效转场；Figma/截图/既有页面还原需追加 `FigmaHighFidelityRestorationGate`、`ScopedVisualChangeGate`、`InstalledPluginVisualVerificationGate`、`ActualPreviewChainAndMockFallbackGate`、`FrontendRuntimeNetworkProbeGate`、`UIStateScopeRegressionGate`、`FigmaProductionAssetBudgetGate`、`RuntimeI18nArtifactVerificationGate`；不触发时写 `N/A + skipReason`。
+> ⚠️ CrossProjectLearnedGuards：涉及接入状态、人工复核、翻译/正式文档边界、prompt/Hook/MCP 契约、验证范围、真实执行、benchmark 归因、产品需求来源、本机执行配置、人工证据留存、相邻范围扩展、包名/发布名、性能第一、公开模块、提交授权、兼容契约、UI 源冲突、公开文档版本、集合关系命名、验证产物语言、DevCodex v2 一期路线、全工作区 data 吸纳、正式流程图、文档站视觉验收、遗漏专审、审查发现 intake、复审维度增量、使用者文档、公开用户文档维护边界、文档消费者扫描、产物链接去重、前端运行时网络探针、最终回复 active 范围、方法级泄漏压测或 v2 正式方案包时，CP1 必须列出对应守门项的验收口径；未触发项写 `N/A + skipReason`。
 
 | 类型 | 适用场景 | 默认重点 |
 |------|---------|---------|
@@ -154,6 +154,13 @@ applyTo: .devcodex/**/requirements/**
 | DocsSiteVisualAcceptanceGate | 是 / 否 | 主题集成、真实点击、动效、reduced-motion、代码 token、终端 demo、TOC、辅助导航 |
 | OmissionOnlyReviewGate | 是 / 否 | 已覆盖集合、本轮新增覆盖、遗漏候选、排除理由和收敛口径 |
 | ReviewFindingIntakeGate | 是 / 否 | finding 来源、本地证据、must-fix / user-decision / docs drift / test gap / intentional design / not-reproduced 分类 |
+| ReviewDimensionDeltaGate | 是 / 否 | PreviousDimensionSet、CurrentDimensionFocus、NewDimensionRationale、RepeatedDimensionReason |
+| UserPerspectiveDocsGate | 是 / 否 | 使用者路径、第一次成功、常见任务、字段/参数/状态/错误解释、心智负担、排错恢复 |
+| PublicUserDocsMaintainerBoundaryGate | 是 / 否 | 公开用户文档是否排除维护者 checklist、内部同步清单、台账状态和复审任务 |
+| DocsConsumerSweep | 是 / 否 | README、website、Profile、prompts、templates、examples、nav/sidebar、validate probes、部署副本、代码消费点 |
+| ArtifactLinkSetDedupeGate | 是 / 否 | canonical path 去重、同名消歧、历史镜像/部署副本标识、最终主 ArtifactLinkSet |
+| FrontendRuntimeNetworkProbeGate | 是 / 否 | 真实 URL、console/network、failed requests、资源 404、API target、hydration/runtime error、runtime i18n key |
+| ActiveRequirementFinalResponseGate | 是 / 否 | 当前 active requirement/task/bug id、未切换相邻需求、最终回复范围 |
 | MethodLevelLeakPressureProbe | 是 / 否 | 公开方法、重复调用/生命周期场景、资源指标、阈值、冷却和清理证据 |
 | V2FormalSolutionPackage | 是 / 否 | CP1/CP2 包、架构/数据模型、MCP API contract、验证矩阵、回滚、维护站 |
 

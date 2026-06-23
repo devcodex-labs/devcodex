@@ -435,7 +435,52 @@ const probes = [
   ['website/docs/guide/development.md', 'RuntimeI18nArtifactVerificationGate'],
   ['website/docs/versions/v1/1.0.1/requirements/p1/latest-data-absorption-guards/index.md', 'ExplicitCommitAuthorizationGate'],
   ['website/docs/versions/v1/1.0.1/CHANGELOG.md', 'V65 探针'],
-  ['scripts/lib/validate-governance-tail.js', 'checkV65']
+  ['scripts/lib/validate-governance-tail.js', 'checkV65'],
+  ['instructions.md', 'ReviewDimensionDeltaGate'],
+  ['instructions.md', 'UserPerspectiveDocsGate'],
+  ['instructions.md', 'DocsConsumerSweep'],
+  ['instructions.md', 'ArtifactLinkSetDedupeGate'],
+  ['instructions.md', 'FrontendRuntimeNetworkProbeGate'],
+  ['instructions/02-output-paths.instructions.md', 'ArtifactLinkSetDedupeGate'],
+  ['instructions/12-audit.instructions.md', 'PreviousDimensionSet'],
+  ['skills/audit-common/SKILL.md', 'ReviewDimensionDeltaGate'],
+  ['skills/test-router/SKILL.md', 'reviewDimensionDelta'],
+  ['skills/test-router/SKILL.md', 'artifactLinkDedupe'],
+  ['skills/dev-docs/SKILL.md', 'UserPerspectiveDocsGate'],
+  ['skills/document-sync/SKILL.md', 'DocsConsumerSweep'],
+  ['skills/audit-document/SKILL.md', '低心智负担'],
+  ['skills/audit-readme/SKILL.md', '普通使用者能看懂'],
+  ['skills/report/SKILL.md', 'ArtifactLinkSetDedupeGate'],
+  ['skills/memory/SKILL.md', 'ArtifactLinkSetDedupeGate'],
+  ['prompts/requirement.prompt.md', 'FrontendRuntimeNetworkProbeGate'],
+  ['prompts/technical-design.prompt.md', 'userPerspectiveDocs'],
+  ['prompts/implementation-plan.prompt.md', 'DocsConsumerSweep'],
+  ['prompts/report-audit.prompt.md', 'ReviewDimensionDeltaGate'],
+  ['README.md', 'UserPerspectiveDocsGate'],
+  ['website/docs/guide/development.md', 'ArtifactLinkSetDedupeGate'],
+  ['website/docs/versions/v1/1.0.1/requirements/p1/latest-data-absorption-guards/index.md', 'FrontendRuntimeNetworkProbeGate'],
+  ['website/docs/versions/v1/1.0.1/CHANGELOG.md', 'V66 探针'],
+  ['scripts/lib/validate-governance-tail.js', 'checkV66'],
+  ['scripts/validate.js', 'checkV66()'],
+  ['instructions.md', 'PublicUserDocsMaintainerBoundaryGate'],
+  ['instructions.md', 'ActiveRequirementFinalResponseGate'],
+  ['skills/test-router/SKILL.md', 'PublicUserDocsMaintainerBoundaryGate'],
+  ['skills/test-router/SKILL.md', 'ActiveRequirementFinalResponseGate'],
+  ['skills/dev-docs/SKILL.md', 'PublicUserDocsMaintainerBoundaryGate'],
+  ['skills/document-sync/SKILL.md', 'ActiveRequirementFinalResponseGate'],
+  ['skills/report/SKILL.md', 'active requirement/task/bug id'],
+  ['prompts/requirement.prompt.md', 'PublicUserDocsMaintainerBoundaryGate'],
+  ['prompts/technical-design.prompt.md', 'ActiveRequirementFinalResponseGate'],
+  ['prompts/implementation-plan.prompt.md', 'PublicUserDocsMaintainerBoundaryGate'],
+  ['prompts/report-dev.prompt.md', 'ActiveRequirementFinalResponseGate'],
+  ['prompts/report-fix.prompt.md', 'PublicUserDocsMaintainerBoundaryGate'],
+  ['prompts/report-audit.prompt.md', 'ActiveRequirementFinalResponseGate'],
+  ['README.md', 'PublicUserDocsMaintainerBoundaryGate'],
+  ['website/docs/guide/development.md', 'ActiveRequirementFinalResponseGate'],
+  ['website/docs/versions/v1/1.0.1/requirements/p1/latest-data-absorption-guards/index.md', 'V67'],
+  ['website/docs/versions/v1/1.0.1/CHANGELOG.md', 'V67 探针'],
+  ['scripts/lib/validate-governance-tail.js', 'checkV67'],
+  ['scripts/validate.js', 'checkV67()']
 ]
 
 for (const [file, needle] of probes) mustInclude(file, needle)
@@ -465,6 +510,19 @@ mustIncludeInChangelogs('ExplicitCommitAuthorizationGate')
 mustIncludeInChangelogs('CompatibilityAndContractAuthorityGate')
 mustIncludeInChangelogs('PublicDocsReleasedVersionGate')
 mustIncludeInChangelogs('UserFacingVerificationArtifactLanguageGate')
+mustIncludeInChangelogs('ReviewDimensionDeltaGate')
+mustIncludeInChangelogs('UserPerspectiveDocsGate')
+mustIncludeInChangelogs('DocsConsumerSweep')
+mustIncludeInChangelogs('ArtifactLinkSetDedupeGate')
+mustIncludeInChangelogs('FrontendRuntimeNetworkProbeGate')
+mustIncludeInChangelogs('PI-052')
+mustIncludeInChangelogs('PF-056')
+mustIncludeInChangelogs('PublicUserDocsMaintainerBoundaryGate')
+mustIncludeInChangelogs('ActiveRequirementFinalResponseGate')
+mustIncludeInChangelogs('PI-053')
+mustIncludeInChangelogs('PI-054')
+mustIncludeInChangelogs('PF-057')
+mustIncludeInChangelogs('PF-058')
 
 const activeRuleFiles = [
   'README.md',

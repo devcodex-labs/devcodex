@@ -80,6 +80,7 @@ description: 管理会话记忆的读取与写入。三层记忆体系：Agent �
 - 🔴 **禁止询问用户"是否需要写入记忆"**（[C05/S05](../../instructions/00-safety.instructions.md) 自动写入）
 - 追加段落时使用增量编辑，禁止覆盖已有内容（[C06/S04](../../instructions/00-safety.instructions.md)）
 - 禁止使用 `Set-Content` 等命令修改 .md 文件（[C09](../../instructions/01-common.instructions.md)）
+- 写入报告路径、ContextHandoffCard 或 artifact-links 前执行 `ArtifactLinkSetDedupeGate`：同一物理文件按规范化绝对路径只保留一个主引用；记忆/SUMMARY 可作为索引证据，但不得把同一文件的相对链接、绝对链接和 copy fallback 记录成多份主产物。
 
 ## 新会话 🔄 检测
 
@@ -146,6 +147,7 @@ description: 管理会话记忆的读取与写入。三层记忆体系：Agent �
 - 摘要：一行 50~100 字，包含做了什么 + 关键数字/结果
 - 多任务会话：一行覆盖全部任务，不拆多行
 - 排序：按时间正序追加（最新在最后）
+- 关联报告与关联记忆按 `ArtifactLinkSetDedupeGate` 只写当前主报告 / 主记忆索引；同一物理文件在报告、记忆和最终回复重复出现时，用同一 canonical path 归并。
 
 > 🔴 **SUMMARY 纯索引约束**：SUMMARY 仅包含表头 + 会话索引行，**禁止添加任何自由文本段落**（如"当前状态""关键决策""待处理事项"等非索引内容）。🔄 状态标记仅出现在索引表的「状态」列，不得出现在表外文本中。已有旧格式 SUMMARY 应在下次写入时迁移（移除非索引段落，内容转入 daily file 或 profile）。
 

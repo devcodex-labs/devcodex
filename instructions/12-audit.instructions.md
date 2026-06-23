@@ -2,7 +2,7 @@
 applyTo: "**"
 description: audit 工作流规则，覆盖审查目标路由、收敛门禁、元循环与只读边界
 priority: P4
-version: 1.11.22
+version: 1.11.23
 ---
 # 审计工作流规则（12-audit）
 
@@ -77,13 +77,13 @@ version: 1.11.22
 | 轮次 | 规则 |
 |------|------|
 | R1 | **先执行初始 CRS**（见 `audit-common §关联文件发现`）确定关联文件范围，再输出维度清单供用户确认（可增删维度）|
-| Rn | 每轮先输出 `ReviewCoverageDelta`，优先阅读此前未审查但相关联的代码、配置、测试、文档、部署副本和消费者链；重复审查已读范围只能作为高风险锚点、修复点回归、抽样或新证据复核；**plugin 文件发现问题先做阻断/非阻断分流：阻断项触发自我审视 + self-fix 修复并重启新轮，非阻断项写入 `data/pending-issues.md` 后继续**（见 `audit-common §审查元循环`）；**非 plugin 文件发现问题则记录 PF/VL，继续下一轮** |
+| Rn | 每轮先输出 `ReviewCoverageDelta` 与 `ReviewDimensionDeltaGate`，优先阅读此前未审查但相关联的代码、配置、测试、文档、部署副本和消费者链，并调整本轮维度焦点；重复审查已读范围或同一维度组合只能作为高风险锚点、修复点回归、抽样或新证据复核；**plugin 文件发现问题先做阻断/非阻断分流：阻断项触发自我审视 + self-fix 修复并重启新轮，非阻断项写入 `data/pending-issues.md` 后继续**（见 `audit-common §审查元循环`）；**非 plugin 文件发现问题则记录 PF/VL，继续下一轮** |
 | 收敛前门禁 | **CRS ✅**（见下方说明）|
 | 收敛条件 | **连续 3 轮有效零发现**（仍须满足连续 3 轮零发现；所有子类型统一，不区分定向/全面），同时所有 🔴 已解决 + 🟡 已处理或标注 N/A |
 
 - 未收敛时自动进入下一轮，**不询问用户**
 - 🔴 **CRS 收敛门禁**：宣告收敛前，必须在 `instructions/` 和 `skills/` 全库 grep 本次审查涉及的核心关键词，确认所有引用相同概念的文件均已纳入审查范围并完成 G3 检查；CRS 发现未审查文件时，**零发现计数重置为 0**
-- 🔴 **连续 3 轮有效零发现**：必须是**修复后重启的新轮次**均零发现，且每轮 `ReviewCoverageDelta` 合格；不得用同一轮、同一批文件或无新增覆盖证据的重复检查凑数
+- 🔴 **连续 3 轮有效零发现**：必须是**修复后重启的新轮次**均零发现，且每轮 `ReviewCoverageDelta` 与 `ReviewDimensionDeltaGate` 合格；不得用同一轮、同一批文件、同一组维度或无新增覆盖证据的重复检查凑数
 - 🔴 **零发现精确定义**：当轮全维度检查完成后，无任何新增 PF/VL 记录，且无待修复的 plugin 文件问题；PCV 阶段被标记为 `❌排除` 的条目不重置零发现计数，self-fix 执行失败则该轮不得计入零发现，且必须在修复后重启新轮重新计算
 - 禁止提前收敛：CRS 未完成、未达到 3 轮零发现，或最近 3 次零发现缺少有效 `ReviewCoverageDelta` 时不得输出"已收敛"结论
 
@@ -103,6 +103,21 @@ R2 及以后轮次必须把复审从“机械重复已读范围”改为“覆�
 - `NewlyReadThisRound` 为空且缺少 `NoNewSurfaceReason` 时，本轮零发现不得增加收敛计数。
 - `UnreviewedRelatedSet` 非空时，下一轮必须优先读取其中高相关项；不得连续重复读取同一批已通过文件来替代覆盖增量。
 
+### ReviewDimensionDeltaGate（复审维度增量）
+
+R2 及以后轮次必须把复审从“同一维度反复跑一遍”改为“覆盖面递增 + 维度焦点递进 + 风险回归抽样”。每轮至少输出并在报告中保留以下字段：
+
+| 字段 | 说明 |
+|------|------|
+| `PreviousDimensionSet` | 上一轮或已完成轮次实际覆盖的维度集合，而不是模板默认维度全集 |
+| `CurrentDimensionFocus` | 本轮重点审查的新增、轮换、补强或回归维度 |
+| `NewDimensionRationale` | 为什么本轮选择这些新维度或新组合，例如新增文件类型、消费者链变化、上轮盲区、风险面变化 |
+| `RepeatedDimensionReason` | 复用上一轮维度时的证据化理由，仅允许阻断项回归、高风险锚点、新证据复核或抽样 |
+
+- 连续轮次不得无理由重复同一组维度、同一批文件和同一验证问题来凑“复审完成”。
+- 若 `CurrentDimensionFocus` 与 `PreviousDimensionSet` 完全相同，且缺少有效 `RepeatedDimensionReason`，本轮即使零发现也不得计入有效零发现。
+- `ReviewDimensionDeltaGate` 不要求每轮覆盖更多维度数量；它要求本轮说明“为什么这些维度仍然是本轮最有价值的审查视角”。
+
 ### OmissionOnlyReviewGate（遗漏专审）
 
 用户明确要求“只审查遗漏 / 上次没检查的 / 不要列已吸纳或没必要项”时，audit/analyze/review 必须切换为 omission-only 范围：
@@ -110,6 +125,7 @@ R2 及以后轮次必须把复审从“机械重复已读范围”改为“覆�
 - 先列明用户限定范围、指定轮次、此前已覆盖集合、已吸纳/排除集合和本轮新增覆盖集合。
 - 最终清单只保留“此前未覆盖且仍有吸纳或修复价值”的遗漏项；已吸纳、已关闭、重复项或明确无必要项只能写入排除理由，不进入最终待吸纳清单。
 - 复审仍须满足 `ReviewCoverageDelta`，并在 `NewlyReadThisRound` 中优先覆盖此前未读的 data 台账、消费者链、部署副本、报告和记忆索引。
+- 复审还须满足 `ReviewDimensionDeltaGate`，优先补上此前未覆盖的维度或解释为什么同一维度仍是高风险回归点。
 - 若遗漏审查来源是“data 目录吸纳”，必须同时执行 `WorkspaceDataAbsorptionScopeGate`，扫描 `.devcodex/*/data/` 全部命名空间。
 
 ### ReviewFindingIntakeGate（审查发现 intake 分流）
@@ -131,6 +147,7 @@ R2 及以后轮次必须把复审从“机械重复已读范围”改为“覆�
 | PCV-1 汇总去重 | 汇总所有轮次发现的问题，按严重级别排序（🔴→🟡→💡），去除轮次间重复条目 |
 | PCV-2 实证核查 | 对每条问题，**重新读取**对应文件/代码位置（不得仅凭记忆），确认问题确实存在且描述准确。**若结论依赖运行时数据**（测试通过率、性能数字、API 响应等），**优先本轮实际执行**对应命令取得当前结果；无法执行时标注 ⚠️待验证（须注明来源为历史记录）；禁止将记忆文件历史数据直接标注为 ✅已验证 |
 | PCV-2a 覆盖增量核查 | 核验最近 3 次有效零发现的 `ReviewCoverageDelta`：确认 `ReviewedSet / UnreviewedRelatedSet / NewlyReadThisRound / RepeatReadReason / NoNewSurfaceReason` 完整，且不是机械重复同一批已读内容 |
+| PCV-2b 维度增量核查 | 核验最近 3 次有效零发现的 `ReviewDimensionDeltaGate`：确认 `PreviousDimensionSet / CurrentDimensionFocus / NewDimensionRationale / RepeatedDimensionReason` 完整，且不是机械重复同一组维度 |
 | PCV-3 三列验证 | 为每条已确认问题补充：合理性（依据是什么）+ 可实施性（能否落地、前置条件）+ 收益（改善效果）|
 | PCV-4 分级标注 | 根据核查结果标注：✅已验证 / ⚠️待验证 / ❌排除 |
 | PCV-5 最终清单 | 输出过滤后的最终问题清单；❌排除 项须说明排除原因（如：已修复/有意设计/描述位置错误）|
@@ -189,7 +206,7 @@ R2 及以后轮次必须把复审从“机械重复已读范围”改为“覆�
 - B — 一致性 🔴/💡：RQ-4 需求一致性 · RQ-7 版本追溯
 - C — 影响 🟡：RQ-5 影响分析 · RQ-6 约束条件
 - D — 上下文 🟡：RQ-8 项目上下文一致性
-- 涉及前端页面、组件、控制台、官网、文档站、可视化工具或游戏的需求，还必须按 `FrontendExperienceQualityGate` 检查 UI / 交互体验验收是否覆盖设计来源、还原度、风格主题、响应式状态、视觉验证、用户流、交互反馈、输入方式/可访问性、错误恢复和动效转场；Figma/截图/既有页面还原还需检查 `FigmaHighFidelityRestorationGate`、`ScopedVisualChangeGate`、`ActualPreviewChainAndMockFallbackGate`、`UIStateScopeRegressionGate`、`FigmaProductionAssetBudgetGate` 与 `RuntimeI18nArtifactVerificationGate`；不涉及时写 `N/A + skipReason`
+- 涉及前端页面、组件、控制台、官网、文档站、可视化工具或游戏的需求，还必须按 `FrontendExperienceQualityGate` 检查 UI / 交互体验验收是否覆盖设计来源、还原度、风格主题、响应式状态、视觉验证、用户流、交互反馈、输入方式/可访问性、错误恢复和动效转场；Figma/截图/既有页面还原还需检查 `FigmaHighFidelityRestorationGate`、`ScopedVisualChangeGate`、`ActualPreviewChainAndMockFallbackGate`、`FrontendRuntimeNetworkProbeGate`、`UIStateScopeRegressionGate`、`FigmaProductionAssetBudgetGate` 与 `RuntimeI18nArtifactVerificationGate`；不涉及时写 `N/A + skipReason`
 - 涉及接入状态、人工复核、翻译/正式文档边界、prompt/Hook/MCP 契约、验证范围、真实执行、benchmark 归因、产品需求来源、本机执行配置、人工证据留存、相邻范围扩展、包名/发布名、性能第一、公开模块、提交边界、兼容契约、UI 真相源冲突、公开文档版本边界、集合关系命名、验证产物语言或 DevCodex v2 一期路线的需求，还必须按 `CrossProjectLearnedGuards` 检查 `CodeTruthRequirementGate`、`ManualReviewEvidenceRetention`、`DocumentationTranslationParityGuard`、`FormalDocsDevCodexBoundary`、`LLMPromptContractTriage`、`VerificationScopeBudgetGate`、`LiveVerificationExecutionObligation`、`ExplicitCommitAuthorizationGate`、`CompatibilityAndContractAuthorityGate`、`UIConfirmedSourceConflictTraceGate`、`PublicDocsReleasedVersionGate`、`CollectionRelationIdNamingGate`、`UserFacingVerificationArtifactLanguageGate`、`AdapterBenchmarkAttribution`、`ProductRequirementTraceabilityGate`、`LocalExecutionConfigProbe`、`ManualReviewEvidenceDataRetention`、`AdjacentScopeExpansionGuard`、`PackageNameAuthorityGate`、`PerformanceBenchmarkFirstGate`、`PublicModuleDifferentiationGate`、`V2MCPFirstPlanningGate` 是否有验收口径；不涉及时写 `N/A + skipReason`
 - 需求来源为审查报告、AI review finding 或 audit issue 时，还必须按 `ReviewFindingIntakeGate` 检查 evidence replay、intentional design、user decision、docs drift 与 test gap 分流是否完整。
 
@@ -199,8 +216,8 @@ R2 及以后轮次必须把复审从“机械重复已读范围”改为“覆�
 - C — 接口 🔴/🟡：PE-8 接口一致性 · PE-10 配置管理
 - D — 质量 🟡/💡：PE-6 测试覆盖 · PE-7 依赖健康度
 - E — 可观测 🟡：PE-9 日志 · PE-11 数据层质量
-- 前端项目或包含用户可见 UI 的项目工程审查需叠加 `FrontendExperienceQualityGate`：检查视觉一致性、交互反馈、焦点/输入方式、错误恢复、动效转场和 Browser/截图/E2E 证据；Figma/截图还原、真实 preview、状态回归、生产资产或运行时 i18n 需叠加对应新增 gate；不涉及前端体验时写 `N/A + skipReason`
-- 项目工程、通用文档、README 或控制面审查遇到“已接入/已验证”、人工复核、翻译同步、正式文档边界、LLM 契约、验证范围预算、adapter/provider benchmark、产品需求来源、本机执行配置、证据留存、相邻范围扩展、包名/发布名、性能第一、公开模块、提交授权、兼容契约、UI 真相源冲突、公开文档版本边界、集合关系命名、验证产物语言或 DevCodex v2 一期路线时需叠加 `CrossProjectLearnedGuards`，并在不涉及的维度写 `N/A + skipReason`
+- 前端项目或包含用户可见 UI 的项目工程审查需叠加 `FrontendExperienceQualityGate`：检查视觉一致性、交互反馈、焦点/输入方式、错误恢复、动效转场和 Browser/截图/E2E 证据；Figma/截图还原、真实 preview、状态回归、生产资产或运行时 i18n 需叠加 `FrontendRuntimeNetworkProbeGate` 等对应 gate；不涉及前端体验时写 `N/A + skipReason`
+- 项目工程、通用文档、README 或控制面审查遇到“已接入/已验证”、人工复核、翻译同步、正式文档边界、LLM 契约、验证范围预算、adapter/provider benchmark、产品需求来源、本机执行配置、证据留存、相邻范围扩展、包名/发布名、性能第一、公开模块、提交授权、兼容契约、UI 真相源冲突、公开文档版本边界、集合关系命名、验证产物语言、公开用户文档混入维护者 checklist、最终回复范围漂移或 DevCodex v2 一期路线时需叠加 `CrossProjectLearnedGuards`，并在不涉及的维度写 `N/A + skipReason`
 - 审查报告、AI review finding 或 audit issue 本身作为输入时需叠加 `ReviewFindingIntakeGate`，避免把报告结论直接当证据或把设计/文档/测试缺口误归类为 must-fix runtime bug。
 
 ### 报告审查（RA-1~RA-6）

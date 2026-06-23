@@ -6,6 +6,8 @@
 
 | 日期 | 变更内容 | 影响范围 | 原因 |
 |------|---------|---------|------|
+| 2026-06-23 | 补充公开用户文档维护边界与最终回复 active 范围控制 | `PublicUserDocsMaintainerBoundaryGate`、`ActiveRequirementFinalResponseGate`、V67 探针 | 将最新 data 台账中“公开文档不要混入维护者 checklist”和“最终汇报只能围绕当前 active 需求”纳入可执行门禁 |
+| 2026-06-22 | 补充复审维度增量、使用者文档、文档消费者扫描、产物链接去重和前端运行时网络探针 | `ReviewDimensionDeltaGate`、`UserPerspectiveDocsGate`、`DocsConsumerSweep`、`ArtifactLinkSetDedupeGate`、`FrontendRuntimeNetworkProbeGate`、V66 探针 | 将用户确认的“复审维度不要重复”和“文档从使用者角度写得详细、简单、能看懂”，以及前序产物双份展示和真实预览证据缺口纳入可执行门禁 |
 | 2026-06-17 | 补充高保真 UI / 提交授权 / 兼容契约等 V65 吸纳门禁 | `FigmaHighFidelityRestorationGate`、`ExplicitCommitAuthorizationGate`、`CompatibilityAndContractAuthorityGate`、`PublicDocsReleasedVersionGate`、V65 探针 | 将最新确认的可吸纳项转为 TestRoute、Skill、Prompt、README/website 与 validate 可执行门禁 |
 | 2026-06-17 | 发布 v1.11.21 审查发现 intake 分流门禁 | `ReviewFindingIntakeGate`、`DesignIntentAndDocsConsistencyGate`、V64 探针、release notes | 将 `PF-054 / PI-051` 已吸纳能力归档到正式版本，补齐发布说明与版本口径 |
 | 2026-06-17 | 补充审查发现 intake 分流门禁 | `ReviewFindingIntakeGate`、`DesignIntentAndDocsConsistencyGate`、V64 探针 | 将“审查报告只是线索、设计如此、修改前需用户确认、文档/实现漂移和测试缺口”从待吸纳清单升级为可执行组合门禁 |

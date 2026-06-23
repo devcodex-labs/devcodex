@@ -74,7 +74,7 @@ description: 项目工程审查维度 PE-1~PE-12 — 代码质量/项目结构/�
 **CrossProjectLearnedGuards 跨项目已吸纳守门（条件）**
 - 审查需求、方案、报告或工程实现中“已实现 / 已接入 / 未接入 / 已验证”声明时，检查 `CodeTruthRequirementGate` 与 `LiveVerificationExecutionObligation` 是否有代码真相源和真实执行证据
 - 审查发现来源为外部报告、AI review finding、audit issue 或代码评审时，检查 `ReviewFindingIntakeGate` 是否已补本地证据并分流 must-fix、设计如此、用户决策、文档/实现漂移、测试覆盖缺口和未复现项
-- 前端/Figma/截图/既有页面审查需检查 `FigmaHighFidelityRestorationGate`、`ScopedVisualChangeGate`、`InstalledPluginVisualVerificationGate`、`ActualPreviewChainAndMockFallbackGate`、`UIStateScopeRegressionGate`、`FigmaProductionAssetBudgetGate` 与 `RuntimeI18nArtifactVerificationGate` 是否留有真实视觉、状态、资产和运行时本地化证据
+- 前端/Figma/截图/既有页面审查需检查 `FigmaHighFidelityRestorationGate`、`ScopedVisualChangeGate`、`InstalledPluginVisualVerificationGate`、`ActualPreviewChainAndMockFallbackGate`、`FrontendRuntimeNetworkProbeGate`、`UIStateScopeRegressionGate`、`FigmaProductionAssetBudgetGate` 与 `RuntimeI18nArtifactVerificationGate` 是否留有真实视觉、console/network/resource、状态、资产和运行时本地化证据
 - 提交、兼容契约、UI 主真相源冲突、公开文档版本、集合关系 id 命名或用户可见验证产物语言相关审查需检查 `ExplicitCommitAuthorizationGate`、`CompatibilityAndContractAuthorityGate`、`UIConfirmedSourceConflictTraceGate`、`PublicDocsReleasedVersionGate`、`CollectionRelationIdNamingGate` 与 `UserFacingVerificationArtifactLanguageGate`
 - 人工复核、视觉检查、手工冒烟或外部页面观察需有 `ManualReviewEvidenceRetention`，包含范围、输入、观察结果、截图/日志或等价证据
 - adapter、provider、connector、SDK、benchmark 或性能优化需检查 `AdapterBenchmarkAttribution`，确认基线、环境、版本、负载和归因边界清晰
@@ -82,7 +82,7 @@ description: 项目工程审查维度 PE-1~PE-12 — 代码质量/项目结构/�
 - 产品需求整理需检查 `ProductRequirementTraceabilityGate`；本机/跨环境执行配置需检查 `LocalExecutionConfigProbe`；真实联调或人工证据需检查 `ManualReviewEvidenceDataRetention`
 - 指定模块或相邻范围变更需检查 `AdjacentScopeExpansionGuard`；包名/发布名/安装说明需检查 `PackageNameAuthorityGate`
 - 性能第一、benchmark 或优化声明需检查 `PerformanceBenchmarkFirstGate`；公开模块、SDK、CLI 或插件承诺需检查 `PublicModuleDifferentiationGate`
-- data 吸纳任务需检查 `WorkspaceDataAbsorptionScopeGate`；正式流程图需检查 `FlowchartNodeExplanationGate`；遗漏专审需检查 `OmissionOnlyReviewGate`；审查发现 intake 需检查 `ReviewFindingIntakeGate`；DevCodex v2 正式规划需检查 `V2FormalSolutionPackage`
+- data 吸纳任务需检查 `WorkspaceDataAbsorptionScopeGate`；正式流程图需检查 `FlowchartNodeExplanationGate`；遗漏专审需检查 `OmissionOnlyReviewGate`；审查发现 intake 需检查 `ReviewFindingIntakeGate`；复审收敛需检查 `ReviewDimensionDeltaGate`；用户文档需检查 `UserPerspectiveDocsGate`、`PublicUserDocsMaintainerBoundaryGate` 与 `DocsConsumerSweep`；最终报告需检查 `ActiveRequirementFinalResponseGate`；产物链接需检查 `ArtifactLinkSetDedupeGate`；DevCodex v2 正式规划需检查 `V2FormalSolutionPackage`
 
 ## N/A 规则
 

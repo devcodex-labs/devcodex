@@ -23,8 +23,8 @@ applyTo: .devcodex/**/requirements/**
 > ⚠️ provider / connector / 三方 SDK 接入类方案必须先冻结业务功能接口，再说明底层 provider adapter / model / operation / 配置如何实现该功能；不得把内部 provider 能力直接反向暴露成业务接口。随后冻结字段级合同和统一 operation contract；包 / 库 / adapter / CLI 方案必须同时检查代码实现层与包工程层。
 > ⚠️ CP2 必须承接 CP1 的平台工程判断和 `ImplementationComplexityLevel`（兼容旧字段 `ImplementationComplexityPreference`）：消费者范围、共享契约边界、模块职责、可维护性成本、非目标和最小实现预算要互相一致；没有真实复用者或演进边界时，不得新增 factory / manager / adapter / registry 等预设抽象。
 > ⚠️ package boundary / pack / benchmark / codegen 验证必须写清串行顺序；任何会删除、重建或写入 `dist` 的命令不得和包边界检查并行。
-> ⚠️ 前端页面、组件、控制台、官网、文档站、可视化工具、游戏或用户可见 UI / 交互方案必须填写 `FrontendExperienceQualityGate`：设计来源、UI 还原度、风格主题、响应式状态、视觉验证、用户流、交互反馈、输入方式/可访问性、错误恢复和动效转场；Figma/截图/既有页面还原需追加 `FigmaHighFidelityRestorationGate`、`ScopedVisualChangeGate`、`InstalledPluginVisualVerificationGate`、`ActualPreviewChainAndMockFallbackGate`、`UIStateScopeRegressionGate`、`FigmaProductionAssetBudgetGate` 与 `RuntimeI18nArtifactVerificationGate`；不触发时写 `N/A + skipReason`。
-> ⚠️ 接入状态、人工复核、翻译/正式文档边界、prompt/Hook/MCP 契约、验证范围、真实执行、benchmark 归因、产品需求来源、本机执行配置、人工证据留存、相邻范围扩展、包名/发布名、性能第一、公开模块、提交授权、兼容契约、UI 源冲突、公开文档版本、集合关系命名、验证产物语言、DevCodex v2 一期路线、全工作区 data 吸纳、正式流程图、文档站视觉验收、遗漏专审、审查发现 intake、方法级泄漏压测或 v2 正式方案包必须填写 `CrossProjectLearnedGuards`；未触发项写 `N/A + skipReason`。
+> ⚠️ 前端页面、组件、控制台、官网、文档站、可视化工具、游戏或用户可见 UI / 交互方案必须填写 `FrontendExperienceQualityGate`：设计来源、UI 还原度、风格主题、响应式状态、视觉验证、用户流、交互反馈、输入方式/可访问性、错误恢复和动效转场；Figma/截图/既有页面还原需追加 `FigmaHighFidelityRestorationGate`、`ScopedVisualChangeGate`、`InstalledPluginVisualVerificationGate`、`ActualPreviewChainAndMockFallbackGate`、`FrontendRuntimeNetworkProbeGate`、`UIStateScopeRegressionGate`、`FigmaProductionAssetBudgetGate` 与 `RuntimeI18nArtifactVerificationGate`；不触发时写 `N/A + skipReason`。
+> ⚠️ 接入状态、人工复核、翻译/正式文档边界、prompt/Hook/MCP 契约、验证范围、真实执行、benchmark 归因、产品需求来源、本机执行配置、人工证据留存、相邻范围扩展、包名/发布名、性能第一、公开模块、提交授权、兼容契约、UI 源冲突、公开文档版本、集合关系命名、验证产物语言、DevCodex v2 一期路线、全工作区 data 吸纳、正式流程图、文档站视觉验收、遗漏专审、审查发现 intake、复审维度增量、使用者文档、公开用户文档维护边界、文档消费者扫描、产物链接去重、前端运行时网络探针、最终回复 active 范围、方法级泄漏压测或 v2 正式方案包必须填写 `CrossProjectLearnedGuards`；未触发项写 `N/A + skipReason`。
 
 | 顺序 | 章节 | 必选 | 依赖 | 说明 |
 |:----:|------|:----:|------|------|
@@ -263,7 +263,7 @@ applyTo: .devcodex/**/requirements/**
 
 #### CrossProjectLearnedGuards / AbsorptionDecision / FullV1ScopeGuard / StartupPhaseTrace（条件）
 
-> 调研、审查、复审或方案讨论中出现“值得吸纳”的建议，必须给出吸纳决策；用户表达“第一版 / v1 / 完整首版”且存在真实消费者、发布契约或主功能验收时，必须给出完整首版边界判断；启动性能优化或 dev 日志治理必须先给出阶段化日志追踪。涉及接入状态、人工复核、翻译/正式文档边界、prompt/Hook/MCP 契约、验证范围、真实执行、benchmark 归因、产品需求来源、本机执行配置、证据留存、相邻范围、包名/发布名、性能第一、公开模块、DevCodex v2 一期路线、全工作区 data 吸纳、正式流程图、文档站视觉验收、遗漏专审、审查发现 intake、方法级泄漏压测或 v2 正式方案包时，逐项填写跨项目已吸纳守门；未触发项写 `N/A + skipReason`。
+> 调研、审查、复审或方案讨论中出现“值得吸纳”的建议，必须给出吸纳决策；用户表达“第一版 / v1 / 完整首版”且存在真实消费者、发布契约或主功能验收时，必须给出完整首版边界判断；启动性能优化或 dev 日志治理必须先给出阶段化日志追踪。涉及接入状态、人工复核、翻译/正式文档边界、prompt/Hook/MCP 契约、验证范围、真实执行、benchmark 归因、产品需求来源、本机执行配置、证据留存、相邻范围、包名/发布名、性能第一、公开模块、DevCodex v2 一期路线、全工作区 data 吸纳、正式流程图、文档站视觉验收、遗漏专审、审查发现 intake、复审维度增量、使用者文档、公开用户文档维护边界、文档消费者扫描、产物链接去重、前端运行时网络探针、最终回复 active 范围、方法级泄漏压测或 v2 正式方案包时，逐项填写跨项目已吸纳守门；未触发项写 `N/A + skipReason`。
 
 | 项 | 当前吸纳 / 设计占位 / backlog / 拒收 | 理由 | 后续真相源 |
 |----|--------------------------------------|------|------------|
@@ -298,6 +298,13 @@ applyTo: .devcodex/**/requirements/**
 | DocsSiteVisualAcceptanceGate | 主题 / 点击 / 动效 / reduced-motion / 代码 token / 终端 demo / TOC / 辅助导航 | | |
 | OmissionOnlyReviewGate | 已覆盖集合 / 新增覆盖 / 遗漏候选 / 排除理由 / 收敛口径 | | |
 | ReviewFindingIntakeGate | finding 来源 / 本地证据 / 设计分类 / 用户决策 / 文档实现漂移 / 测试缺口 | | |
+| ReviewDimensionDeltaGate | PreviousDimensionSet / CurrentDimensionFocus / NewDimensionRationale / RepeatedDimensionReason | | |
+| UserPerspectiveDocsGate | 使用者路径 / 详细度 / 字段说明 / 心智负担 / 排错恢复 | | |
+| PublicUserDocsMaintainerBoundaryGate | 公开用户文档 / 维护者 checklist / 内部同步清单 / 台账状态边界 | | |
+| DocsConsumerSweep | README / website / Profile / prompts / templates / examples / nav/sidebar / validate probes / 代码消费点 | | |
+| ArtifactLinkSetDedupeGate | canonical path 去重 / 同名消歧 / 历史镜像或部署副本标识 | | |
+| FrontendRuntimeNetworkProbeGate | 真实 URL / console-network / failed requests / 资源 404 / API target / runtime error | | |
+| ActiveRequirementFinalResponseGate | active requirement/task/bug id / 相邻需求未切换 / 最终回复范围 | | |
 | MethodLevelLeakPressureProbe | 公开方法 / 重复调用或生命周期场景 / 资源指标 / 阈值 / 清理证据 | | |
 | V2FormalSolutionPackage | CP1/CP2 包 / MCP API contract / 验证矩阵 / 回滚 / Registry / 维护站 | | |
 
@@ -388,6 +395,11 @@ applyTo: .devcodex/**/requirements/**
 | frontendExperience | N/A / required / optional；命中 `FrontendExperienceQualityGate` 时写 UI/UX 门禁、Browser/截图/Playwright/E2E/人工复核证据 |
 | highFidelityUi | N/A / required / optional；命中 Figma/截图/既有页面时写 `FigmaHighFidelityRestorationGate`、`ScopedVisualChangeGate`、插件验证链与偏离理由 |
 | actualPreviewChain | N/A / required / optional；写真实 preview URL、API target、路由入口、状态清单和 mock fallback 排除证据 |
+| frontendRuntimeNetwork | N/A / required / optional；写真实页面 console/network、failed requests、资源 404、hydration/runtime error、runtime i18n key 和 API target 证据 |
+| userPerspectiveDocs | N/A / required / optional；写使用者路径、详细度、字段/参数/状态/错误解释、心智负担和排错恢复 |
+| docsConsumerSweep | N/A / required / optional；写 README/website/Profile/prompts/templates/examples/nav/sidebar/validate probes/代码消费点扫描结果 |
+| artifactLinkDedupe | N/A / required / optional；写 canonical path 去重、同名消歧和主 ArtifactLinkSet |
+| reviewDimensionDelta | N/A / required / optional；写 PreviousDimensionSet、CurrentDimensionFocus、NewDimensionRationale、RepeatedDimensionReason |
 | runtimeI18nArtifacts | N/A / required / optional；写源 JSON、构建合并产物和页面 runtime key 残留 |
 | manualReviewEvidence | N/A / required / optional；命中 `ManualReviewEvidenceRetention` 时写复核人/时间/范围/输入/观察结果/截图或日志位置 |
 | verificationScopeBudget | N/A / aligned / under-scoped / over-scoped；写风险匹配依据、降级/减负理由和残余风险 |

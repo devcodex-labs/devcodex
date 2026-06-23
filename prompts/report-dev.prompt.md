@@ -70,7 +70,7 @@ applyTo: .devcodex/**/reports/requirements/**
 | TestRoute | ✅/N/A | ✅/⚠️ | |
 | LeakRiskStabilityPressureTest | ✅/N/A | ✅/⚠️ | leakRiskPressure 判定、基线、压力场景、冷却窗口、资源指标前后对比、skipReason |
 | FrontendExperienceQualityGate | ✅/N/A | ✅/⚠️ | 设计来源、UI 还原度、风格主题、响应式状态、视觉验证、用户流、交互反馈、输入方式/可访问性、错误恢复、动效转场、FigmaHighFidelityRestorationGate、ActualPreviewChainAndMockFallbackGate、RuntimeI18nArtifactVerificationGate、skipReason |
-| CrossProjectLearnedGuards | ✅/N/A | ✅/⚠️ | CodeTruthRequirementGate / ManualReviewEvidenceRetention / DocumentationTranslationParityGuard / FormalDocsDevCodexBoundary / LLMPromptContractTriage / VerificationScopeBudgetGate / LiveVerificationExecutionObligation / ExplicitCommitAuthorizationGate / CompatibilityAndContractAuthorityGate / UIConfirmedSourceConflictTraceGate / PublicDocsReleasedVersionGate / CollectionRelationIdNamingGate / UserFacingVerificationArtifactLanguageGate / AdapterBenchmarkAttribution / ProductRequirementTraceabilityGate / LocalExecutionConfigProbe / ManualReviewEvidenceDataRetention / AdjacentScopeExpansionGuard / PackageNameAuthorityGate / PerformanceBenchmarkFirstGate / PublicModuleDifferentiationGate / V2MCPFirstPlanningGate / WorkspaceDataAbsorptionScopeGate / FlowchartNodeExplanationGate / DocsSiteVisualAcceptanceGate / OmissionOnlyReviewGate / ReviewFindingIntakeGate / MethodLevelLeakPressureProbe / V2FormalSolutionPackage |
+| CrossProjectLearnedGuards | ✅/N/A | ✅/⚠️ | CodeTruthRequirementGate / ManualReviewEvidenceRetention / DocumentationTranslationParityGuard / FormalDocsDevCodexBoundary / LLMPromptContractTriage / VerificationScopeBudgetGate / LiveVerificationExecutionObligation / ExplicitCommitAuthorizationGate / CompatibilityAndContractAuthorityGate / UIConfirmedSourceConflictTraceGate / PublicDocsReleasedVersionGate / CollectionRelationIdNamingGate / UserFacingVerificationArtifactLanguageGate / AdapterBenchmarkAttribution / ProductRequirementTraceabilityGate / LocalExecutionConfigProbe / ManualReviewEvidenceDataRetention / AdjacentScopeExpansionGuard / PackageNameAuthorityGate / PerformanceBenchmarkFirstGate / PublicModuleDifferentiationGate / V2MCPFirstPlanningGate / WorkspaceDataAbsorptionScopeGate / FlowchartNodeExplanationGate / DocsSiteVisualAcceptanceGate / OmissionOnlyReviewGate / ReviewFindingIntakeGate / PublicUserDocsMaintainerBoundaryGate / ActiveRequirementFinalResponseGate / MethodLevelLeakPressureProbe / V2FormalSolutionPackage |
 | ServiceLifecycleCleanup | ✅/N/A | ✅/⚠️ | AI 自启动服务的 command/cwd/PID/job/port/url、关闭验证或 keepAliveReason |
 | ReleaseAudit | ✅/N/A | ✅/⚠️ | |
 | ReleaseVerification | ✅/N/A | ✅/⚠️ | |
@@ -92,7 +92,12 @@ applyTo: .devcodex/**/reports/requirements/**
 |------|:----:|:------:|
 | TestRoute 覆盖 | ✅ 通过 / N/A | — |
 | 泄漏风险稳定性压测 | ✅ 通过 / N/A | baseline/cooldown/resourceMetrics |
-| 前端 UI / 交互体验验证 | ✅ 通过 / N/A | Browser/截图/E2E/人工复核 |
+| 前端 UI / 交互体验验证 | ✅ 通过 / N/A | Browser/截图/E2E/人工复核 / FrontendRuntimeNetworkProbeGate |
+| 文档使用者视角与消费者扫描 | ✅ 通过 / N/A | UserPerspectiveDocsGate / DocsConsumerSweep |
+| 公开用户文档维护边界 | ✅ 通过 / N/A | PublicUserDocsMaintainerBoundaryGate |
+| 产物链接去重 | ✅ 通过 / N/A | ArtifactLinkSetDedupeGate canonical path |
+| 复审维度增量 | ✅ 通过 / N/A | ReviewDimensionDeltaGate |
+| 最终回复 active 范围 | ✅ 通过 / N/A | ActiveRequirementFinalResponseGate |
 | 验证范围预算与真实执行 | ✅ 通过 / N/A | VerificationScopeBudgetGate / LiveVerificationExecutionObligation |
 | AI 自启动服务清理 | ✅ 已关闭 / N/A / 保留运行 | PID/端口/cleanupEvidence/keepAliveReason |
 | HostContract 验证 | ✅ 通过 / N/A | — |
@@ -111,6 +116,7 @@ applyTo: .devcodex/**/reports/requirements/**
 - [ ] FrontendExperienceQualityGate：✅ 完成 / N/A + skipReason
 - [ ] CrossProjectLearnedGuards：✅ 完成 / N/A + skipReason
 - [ ] ReviewFindingIntakeGate：✅ 完成 / N/A + skipReason
+- [ ] ReviewDimensionDeltaGate / UserPerspectiveDocsGate / PublicUserDocsMaintainerBoundaryGate / DocsConsumerSweep / ArtifactLinkSetDedupeGate / FrontendRuntimeNetworkProbeGate / ActiveRequirementFinalResponseGate：✅ 完成 / N/A + skipReason
 - [ ] WorkspaceDataAbsorptionScopeGate / DocsSiteVisualAcceptanceGate / MethodLevelLeakPressureProbe / V2FormalSolutionPackage：✅ 完成 / N/A + skipReason
 - [ ] ServiceLifecycleCleanup：✅ 完成 / N/A（若保留运行，已记录用户要求、PID/端口和关闭方式）
 - [ ] ReleaseAudit：✅ 完成 / N/A

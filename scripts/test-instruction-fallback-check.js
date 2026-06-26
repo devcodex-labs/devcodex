@@ -62,6 +62,16 @@ function main() {
 
   {
     const cwd = setupRepo()
+    const req = path.join(cwd, '.devcodex', 'requirements', '产品完整需求任务')
+    write(path.join(req, '01-产品需求.md'), '# product requirement\n')
+    write(path.join(req, '.memory', 'sessions.md'), '| CP1 | ✅ |\n')
+    const result = runCheck(cwd)
+    assert.strictEqual(result.ok, false, 'product requirement task should block fallback gate when CP3 is missing')
+    assert.match(result.output, /CP3 unconfirmed/i)
+  }
+
+  {
+    const cwd = setupRepo()
     const bug = path.join(cwd, '.devcodex', 'bugs', '活跃Bug任务')
     write(path.join(bug, 'reports', 'claude-code', '20260525', '01--问题确认与CP1.md'), '# cp1\n')
     write(path.join(bug, '.memory', 'sessions.md'), '| CP1 | ✅ |\n')

@@ -75,6 +75,7 @@ const crypto = require('crypto')
 const { execSync, execFileSync } = require('child_process')
 const {
   RECENT_REQUIREMENT_ARTIFACT_DAYS,
+  collectRecentBugArtifactIssues,
   collectRecentRequirementArtifactIssues
 } = require('./lib/requirement-artifact-check')
 const { buildGovernanceTailChecks } = require('./lib/validate-governance-tail')
@@ -540,6 +541,7 @@ const {
   ROOT,
   ACTIVE_DEVCODEX_ROOT,
   RECENT_REQUIREMENT_ARTIFACT_DAYS,
+  collectRecentBugArtifactIssues,
   collectRecentRequirementArtifactIssues,
   fs,
   path,

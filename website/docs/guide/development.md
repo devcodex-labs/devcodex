@@ -174,19 +174,19 @@ dev 模式默认向用户展示完整 Intent Expansion Card；prod、instruction
 
 ### SimpleTaskFastPath
 
-非常明确、预计 ≤2 个源码/文档文件、无公共 API/Schema/依赖/配置/发布/控制面/台账来源/高风险、无需多轮跟踪的简单 dev/fix 任务，可免建需求/bug 目录、`01-需求概述.md` 或 `04-实施计划.md`。AI 必须在报告/记忆写明 `SimpleTaskFastPath: applied`、`N/A + skipReason`、验证证据和升级回退判断；执行中任一条件失效时，立即升级回完整 CP/产物链。
+非常明确、预计 ≤2 个源码/文档文件、无公共 API/Schema/依赖/配置/发布/控制面/台账来源/高风险、无需多轮跟踪的简单 dev/fix 任务，可免建需求/bug 目录、`00-需求概况.md`、`00-需求变更概况.md`、`00-问题概况.md`、`01-需求确认.md`、`01-产品需求.md`、`01-需求变更确认.md`、`01-问题确认.md` 或 `04-实施计划.md`。AI 必须在报告/记忆写明 `SimpleTaskFastPath: applied`、`N/A + skipReason`、验证证据和升级回退判断；执行中任一条件失效时，立即升级回完整 CP/产物链。
 
-若用户是在调整/修改/补充既有需求或问题，且已有需求/bug 真相源，则命中 `ExistingRequirementArtifactOverride`：SimpleTaskFastPath 只允许不新建完整产物，不能跳过文件回写；AI 必须先更新已有文件，再在回复中摘要说明。
+若用户是在调整/修改/补充既有需求或问题，且已有 `00-需求概况.md`、`00-需求变更概况.md`、`01-需求确认.md`、`01-产品需求.md`、`01-需求变更确认.md`、`00-问题概况.md`、`01-问题确认.md` 或其他需求/bug 真相源，则命中 `ExistingRequirementArtifactOverride`：SimpleTaskFastPath 只允许不新建完整产物，不能跳过文件回写；AI 必须先更新已有文件，再在回复中摘要说明。
 
 ### ArtifactDecisionMatrix
 
-CP1 / CP2 / CP3 / ECR 会按任务规模列出关键产物的 `create` / `update` / `skip` / `N/A` 状态，覆盖 `01-需求概述.md`、`02-技术方案.md`、`04-实施计划.md`、`05-实施进度.md`、目标文档、报告和记忆。判定优先级固定为：已有真相源回写 > 任务触发条件 > SimpleTaskFastPath > 子类型豁免。
+CP1 / CP2 / CP3 / ECR 会按任务规模列出关键产物的 `create` / `update` / `skip` / `N/A` 状态，覆盖入口类型、`00-需求概况.md`、`00-需求变更概况.md`、`00-问题概况.md`、`01-需求确认.md`、`01-产品需求.md`、`01-需求变更确认.md`、`01-问题确认.md`、`02-技术方案.md`、`04-实施计划.md`、`05-实施进度.md`、`06-关键决策.md`、目标文档、报告和记忆。判定优先级固定为：已有真相源回写 > 任务触发条件 > SimpleTaskFastPath > 子类型豁免。
 
 这意味着技术方案、实施计划和实施进度不是“所有任务都机械创建”。一旦命中轻路径或 docs/init 等 CP3 豁免，AI 必须写清 `N/A + skipReason` 与升级回退条件；一旦已有需求/问题真相源，则必须先更新文件。
 
 ### ImplementationComplexityLevel
 
-CP1 需求/问题确认必须记录开发程度等级：`简单够用`、`中等` 或 `企业级`（兼容旧字段 `ImplementationComplexityPreference`）。用户未要求复杂化、需求未说明或简单方案可满足验收时，默认选择 `简单够用`，优先局部补丁、既有模式和最少维护成本；AI 可以展示更高级方案，但若判断需要升级到 `中等` / `企业级`，必须先列出 2~3 个方案、开发周期、难度、维护成本、非目标和取舍，等待用户确认后再进入 CP2/CP3。
+CP1 需求/问题确认必须记录开发程度等级：`简单够用`、`中等` 或 `企业级`（兼容旧字段 `ImplementationComplexityPreference`）。用户未要求复杂化、需求未说明或简单方案可满足已确认产品事实源和业务目标时，默认选择 `简单够用`，优先局部补丁、既有模式和最少维护成本；AI 可以展示更高级方案，但若判断需要升级到 `中等` / `企业级`，必须先列出 2~3 个方案、开发周期、难度、维护成本、非目标和取舍，等待用户确认后再进入 CP2/CP3。
 
 ### Hook closure 三态
 

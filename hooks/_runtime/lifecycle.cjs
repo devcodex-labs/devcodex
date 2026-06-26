@@ -34,7 +34,7 @@ const TRANSCRIPT_TAIL_LIMIT = 2 * 1024 * 1024
 const STICKY_PROJECT_TTL_MS = 30 * 60 * 1000
 
 // ─── CP Gate constants ────────────────────────────────────────────────────────
-const CP1_FILE = '01-需求概述.md'
+const CP1_FILES = ['01-需求确认.md', '01-产品需求.md', '01-需求概述.md']
 const CP2_FILE = '02-技术方案.md'
 const CP3_FILE = '04-实施计划.md'
 const CP3_RUNTIME_FILE_THRESHOLD = 5
@@ -464,7 +464,7 @@ function directoryContainsFileMatching(dir, matcher, depth = 4) {
 function hasTaskArtifact(task, phase) {
   const fullPath = task.fullPath
   if (phase === 'CP1') {
-    if (fs.existsSync(path.join(fullPath, CP1_FILE))) return true
+    if (CP1_FILES.some(name => fs.existsSync(path.join(fullPath, name)))) return true
     if (task.kind === 'bugs') {
       return directoryContainsFileMatching(
         path.join(fullPath, 'reports'),

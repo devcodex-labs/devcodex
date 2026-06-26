@@ -310,7 +310,7 @@ dev/fix 修改完成前必须判定是否影响 Profile。命中以下任一触�
 - `CollectionRelationIdNamingGate`：数据库 / Mongo / ORM 关系字段命名应优先使用被关联集合 / 实体语义（如 `userId`、`orderId`），项目既有 convention 或用户确认可覆盖；跨集合写入、迁移或 API 字段暴露前须检查命名不会误导消费者。
 - `UserFacingVerificationArtifactLanguageGate`：`.http`、接口验证脚本、集成测试说明、手工验证步骤和用户可读错误提示默认使用用户当前语言；项目/用户要求英文或双语时按要求执行，机器字段、协议名和代码标识不翻译。
 - `AdapterBenchmarkAttribution`：adapter、provider、connector、SDK 或性能优化 benchmark 必须写清基线、环境、版本、负载、归因边界和不可比较因素；不得把框架、网络、缓存预热、依赖树或测试环境差异误归因给业务代码。
-- `ProductRequirementTraceabilityGate`：从 PRD、Word、原型、截图、会议纪要或用户补充消息整理需求时，必须保留需求来源、条款/页码/截图/消息锚点、结构化提取口径和遗漏/冲突处理；不得把 AI 归纳当成唯一真相源。
+- `ProductRequirementTraceabilityGate`：从需求方原始输入、PRD、Word、原型、截图、会议纪要或用户补充消息整理需求时，必须保留需求来源、条款/页码/截图/消息锚点、AI 结构化提取口径、产品补充口径、遗漏/冲突处理和双方确认状态；不得把 AI 归纳当成唯一真相源。
 - `LocalExecutionConfigProbe`：脚本、本机验证、数据库/SSH/HTTP 连接或跨环境执行需要本地配置时，必须先核对项目指定配置入口、Profile `config.local.json` 模型或既有脚本约定；未指定时按 S02 默认可直写/沿用现状，禁止臆造 env/secret/config.local 层。
 - `ManualReviewEvidenceDataRetention`：人工复核涉及数据、页面、外部系统、发布包或真实联调时，除 `ManualReviewEvidenceRetention` 外还必须记录证据保存位置、可复核输入、样本范围、保留/不可保留原因和敏感信息策略；不得只在聊天里口头确认。
 - `AdjacentScopeExpansionGuard`：用户指定模块、adapter、provider、文档页或目录时，不得顺手扩展相邻模块；若相邻范围确有共同契约、共享缺陷或验证必需，必须先写明扩展理由、影响面和回退边界。
@@ -380,13 +380,13 @@ SCV 结果必须写入报告；控制面任务的 ECR-7 必须引用 SCV 证据�
 CP1（需求确认）→ CP2（方案确认）→ [plan-review] → CP3（实施确认）→ 执行
 ```
 
-- **CP1**：输出完整需求理解（目标/边界/风险）与 `ImplementationComplexityLevel`（开发程度等级，默认 `简单够用`；兼容旧字段 `ImplementationComplexityPreference`）→ 等待用户确认
+- **CP1**：先判定入口类型：纯新需求且无产品角色时使用 `00-需求概况.md → 01-需求确认.md`；有产品角色并由产品直接提供完整需求时使用 `01-产品需求.md`，产品模板正文只给产品填写完整 PRD，AI / 研发缺口 / 冲突检查记录在 CP1 摘要、`02-技术方案.md` 或报告中，不生成或重写产品需求；需求变更使用 `00-需求变更概况.md → 01-需求变更确认.md` 并回写目标需求真相源；Bug 使用 `bugs/<问题>/00-问题概况.md → 01-问题确认.md` 并走 fix。随后输出完整需求理解（目标/边界/风险）与 `ImplementationComplexityLevel`（开发程度等级，默认 `简单够用`；兼容旧字段 `ImplementationComplexityPreference`）→ 等待用户确认
 - **CP2**：输出技术方案（架构/文件清单/依赖）；新增/升级依赖、框架、SDK 或平台 API 时必须附 `OfficialDocsEvidence`，涉及项目事实变化时必须附 `ProfileImpactCheck` → 等待用户确认
 - **plan-review**：评估计划可行性（CP2 后、CP3 前）
 - **CP3**：条件触发。default/refactor/database/optimization/scenario-test 必须执行；docs/init/plan-review 按子类型规则豁免，并记录 `CP3: N/A（<子类型> 子类型豁免）`。
-- **SimpleTaskFastPath**：非常明确、预计 ≤2 个源码/文档文件、无公共 API/Schema/依赖/配置/发布/控制面/台账来源/高风险、无需多轮跟踪的 dev/fix 任务，可不创建需求/bug 目录、`01-需求概述.md` 或 `04-实施计划.md`，改用内联 CP 摘要 + 报告/记忆记录 `N/A + skipReason`；PC0~PC7、Profile、报告、记忆、安全底线、必要验证和 ECR 不可省略，执行中任一条件失效立即升级回完整产物链。
-- **ExistingRequirementArtifactOverride**：当用户表达“调整/修改/补充/变更需求或问题”且已存在 `01-需求概述.md`、bug CP 产物、Profile 声明的正式需求文件或 website requirement 时，SimpleTaskFastPath 只能跳过**新建**完整产物，不能跳过**更新已有真相源**；必须先增量编辑对应文件，用户回复只作为摘要。若无法定位既有产物，先按项目 Profile/当前任务线索定位，仍无法确认时再最小澄清，禁止静默只在回复中变更口径。
-- **ArtifactDecisionMatrix / ArtifactLifecycleState**：CP1/CP2/CP3/ECR 必须按需列出关键产物状态：`create` / `update` / `skip` / `N/A`，并写明 `reason`、`trigger`、`upgradeTrigger`、`targetArtifact`。判定优先级固定为：已有真相源回写 > 任务触发条件 > SimpleTaskFastPath 轻路径豁免 > 子类型豁免。该矩阵覆盖 `01-需求概述.md`、`02-技术方案.md`、`04-实施计划.md`、`05-实施进度.md`、目标文档、报告和记忆；禁止用模板中的“必填/必选”口径压过条件触发或豁免规则。
+- **SimpleTaskFastPath**：非常明确、预计 ≤2 个源码/文档文件、无公共 API/Schema/依赖/配置/发布/控制面/台账来源/高风险、无需多轮跟踪的 dev/fix 任务，可不创建需求/bug 目录、`00-需求概况.md`、`00-需求变更概况.md`、`00-问题概况.md`、`01-需求确认.md`、`01-产品需求.md`、`01-需求变更确认.md`、`01-问题确认.md` 或 `04-实施计划.md`，改用内联 CP 摘要 + 报告/记忆记录 `N/A + skipReason`；PC0~PC7、Profile、报告、记忆、安全底线、必要验证和 ECR 不可省略，执行中任一条件失效立即升级回完整产物链。
+- **ExistingRequirementArtifactOverride**：当用户表达“调整/修改/补充/变更需求或问题”且已存在 `00-需求概况.md`、`00-需求变更概况.md`、`01-需求确认.md`、`01-产品需求.md`、`01-需求变更确认.md`、历史 `01-需求概述.md`、`00-问题概况.md`、`01-问题确认.md`、bug CP 产物、Profile 声明的正式需求文件或 website requirement 时，SimpleTaskFastPath 只能跳过**新建**完整产物，不能跳过**更新已有真相源**；必须先增量编辑对应文件，用户回复只作为摘要。若无法定位既有产物，先按项目 Profile/当前任务线索定位，仍无法确认时再最小澄清，禁止静默只在回复中变更口径。
+- **ArtifactDecisionMatrix / ArtifactLifecycleState**：CP1/CP2/CP3/ECR 必须按需列出关键产物状态：`create` / `update` / `skip` / `N/A`，并写明 `reason`、`trigger`、`upgradeTrigger`、`targetArtifact`。判定优先级固定为：已有真相源回写 > 任务触发条件 > SimpleTaskFastPath 轻路径豁免 > 子类型豁免。该矩阵覆盖入口类型、00/01/02/04/05/06、目标文档、报告和记忆；禁止用模板中的“必填/必选”口径压过条件触发或豁免规则。
 - 若执行过程中新增范围触发 CP3 条件（例如最初判断 <5 文件但实际扩展到 ≥5 文件，或新增高风险操作/控制面联动），必须暂停执行，回补或重开 CP3 后再继续。
 - **ECR**：执行完成后、宣告完成前必须执行 ECR 执行闭环复审，覆盖 CP1/CP2/CP3、报告、daily tasks、SUMMARY、diff/commit、测试/探针、AI 自启动服务清理证据与 dirty 边界。
 
@@ -397,8 +397,8 @@ CP1（需求确认）→ CP2（方案确认）→ [plan-review] → CP3（实施
 ### 代码实现复杂度与通用工程守门
 
 - CP1 需求/问题定义必须前置平台工程判断：谁会复用、哪一层值得抽象、哪一层应保持局部、长期维护成本和明确非目标；不得把“通用性/模块化”写成无消费者的空心抽象。
-- CP1 必须给出 `ImplementationComplexityLevel`（兼容旧字段名 `ImplementationComplexityPreference`），并用用户能理解的三档表达：`简单够用`（默认，需求不详细或简单方案可满足验收时只做局部最小实现）、`中等`（存在明确复用者、演进边界或跨模块协作，但不做平台化 / 企业级预设）、`企业级`（仅用户明确选择，或已有公共契约、多消费者、高风险长期演进且经用户确认）。用户未提出复杂化、需求未说明或任务可用简单方案满足验收时，必须默认选择 `简单够用`；AI 可以展示 `中等` / `企业级` 可选方案、开发周期 / 难度 / 维护成本和取舍，但不得默认按企业级脑补实现。
-- CP2 技术方案必须继承 CP1 的 `ImplementationComplexityLevel` 并给出最小实现与注释策略；实施默认采用满足验收项的最小实现，优先局部补丁和既有本地模式。
+- CP1 必须给出 `ImplementationComplexityLevel`（兼容旧字段名 `ImplementationComplexityPreference`），并用用户能理解的三档表达：`简单够用`（默认，需求不详细或简单方案可满足已确认产品事实源和业务目标时只做局部最小实现）、`中等`（存在明确复用者、演进边界或跨模块协作，但不做平台化 / 企业级预设）、`企业级`（仅用户明确选择，或已有公共契约、多消费者、高风险长期演进且经用户确认）。用户未提出复杂化、需求未说明或任务可用简单方案满足已确认产品事实源和业务目标时，必须默认选择 `简单够用`；AI 可以展示 `中等` / `企业级` 可选方案、开发周期 / 难度 / 维护成本和取舍，但不得默认按企业级脑补实现。
+- CP2 技术方案必须继承 CP1 的 `ImplementationComplexityLevel` 并给出最小实现与注释策略；实施默认采用满足双方确认后的产品事实源和派生技术验证项的最小实现，优先局部补丁和既有本地模式。
 - 禁止为“企业级”“可扩展”预设新增无真实消费者的 service / factory / adapter / manager、策略注册表、通用配置或预留扩展点。
 - 必要注释必须覆盖非显然业务规则、状态转换、不变量、兼容约束、安全边界、外部契约映射和反直觉权衡；JavaScript / Node.js 中命中必要注释的导出函数、核心业务函数、类、复杂对象契约、参数/返回/异常说明必须使用标准 JSDoc。
 - Node.js 项目的 `engines.node`、CI matrix、Profile 与 README 运行时说明默认不得低于 `>=18`；支持更低版本时必须在 CP2 写明业务理由、风险和独立验证证据。
@@ -460,7 +460,7 @@ CP1（需求确认）→ CP2（方案确认）→ [plan-review] → CP3（实施
 CP1（问题确认）→ CP2（方案确认）→ [impact-review] → 执行 → [CP3]
 ```
 
-- **CP1**：输出问题分析（根因 + 影响范围）→ 等待确认
+- **CP1**：先确认这是 Bug / 异常 / 已承诺行为与实际不一致，而不是纯新需求或需求变更；报告方输入优先落 `bugs/<问题>/00-问题概况.md`，AI / 研发据此输出 `01-问题确认.md` 或等价问题分析报告（根因 + 影响范围）→ 等待确认
 - **CP2**：输出修复方案；若修复涉及依赖/框架/SDK/平台 API 变更必须附 `OfficialDocsEvidence`，涉及项目事实变化时必须附 `ProfileImpactCheck` → 等待确认
 - **CP3**：≥5 文件变更 或 含高风险操作时必须
 - 若执行过程中新增范围触发 CP3 条件（例如实际修改文件数扩展到 ≥5，或修复途中引入高风险/控制面联动），必须暂停执行，先补做 CP3，再继续修复。

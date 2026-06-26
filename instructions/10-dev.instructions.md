@@ -2,7 +2,7 @@
 applyTo: "**"
 description: dev 工作流规则，覆盖子类型路由、CP 流程、计划复审、执行期回退与 ECR
 priority: P4
-version: 1.11.23
+version: 1.11.24
 ---
 # 开发工作流规则（10-dev）
 
@@ -57,7 +57,7 @@ CP1（需求确认）→ PR-1 内部自检 → CP2（方案确认）→ plan-rev
 
 ### CP 关注点边界
 
-- **CP1**：重点确认需求目标、用户交互、业务流程、验收结果与范围边界，并前置平台工程判断：消费者范围、共享契约边界、模块职责、维护成本和非目标；不提前展开实现时序、内部节点设计或接口细节，也不得把“通用性/模块化”扩写成无真实消费者的空心抽象。
+- **CP1**：先判定入口类型，区分纯新需求、产品完整需求、需求变更和 Bug 问题；纯新需求先保留 `00-需求概况.md`，再由 AI 生成产品需求草稿，产品补充归一化后完成需求方 + 产品双方确认；若公司已有产品角色且产品直接提供完整需求，使用 `01-产品需求.md` 作为产品事实源，产品模板正文只承载产品完整 PRD，AI / 研发只做缺口检查并记录在 CP1 摘要、`02-技术方案.md` 或报告中，不生成或重写产品需求；需求变更先保留 `00-需求变更概况.md`，再生成 `01-需求变更确认.md` 并回写目标需求真相源；Bug 问题转入 fix 工作流，不用产品需求模板承接。CP1 重点确认需求目标、用户交互、业务流程、业务结果与范围边界，并前置平台工程判断：消费者范围、共享契约边界、模块职责、维护成本和非目标；不提前展开实现时序、内部节点设计或接口细节，也不得把“通用性/模块化”扩写成无真实消费者的空心抽象。
 - **CP2**：重点确认实现流程、节点职责、公共契约、兼容性策略、边界问题与测试策略；已有公共接口、Schema、返回结构或错误码变更时，必须给出“现状契约 → 目标契约”差异说明；新增/升级依赖、框架、SDK、平台 API 或外部模块时必须附 `OfficialDocsEvidence`；涉及项目事实变化时必须附 `ProfileImpactCheck`。
 - **CP3**：只确认实施顺序、里程碑、验证方式、风险与回滚；不得重复需求正文、方案论证或兼容性主说明。
 
@@ -67,8 +67,8 @@ CP1（需求确认）→ PR-1 内部自检 → CP2（方案确认）→ plan-rev
 2. **禁止合并**：不得将 CP1+CP2 合并为一次输出
 3. **每个 CP 独立确认**：输出后必须等待用户明确响应
 4. **CP3 内容边界**：CP3 只确认实施计划，不重复技术方案中的架构决策、接口论证和兼容性主说明；必须显式覆盖任务拆分、顺序、依赖、验证方式与回滚策略
-5. **产物文件前置创建**：默认 CP1 → `01-需求概述.md` + `<需求>/.memory/sessions.md`（需求级记忆）；CP2 → `02-技术方案.md`（有架构/接口/设计决策时，否则跳过）；CP3 → `04-实施计划.md`。若命中 `SimpleTaskFastPath`，可用回复内联 CP1 摘要 + 报告/记忆替代需求目录，并将 `01-需求概述.md` / `04-实施计划.md` 记为 `N/A + skipReason`；但命中 ExistingRequirementArtifactOverride 时必须先更新已有需求真相源。
-6. **ArtifactDecisionMatrix / ArtifactLifecycleState**：CP1/CP2/CP3/ECR 必须按任务规模列出关键产物 `create` / `update` / `skip` / `N/A` 状态，至少覆盖 `01-需求概述.md`、`02-技术方案.md`、`04-实施计划.md`、`05-实施进度.md`、目标文档、报告、记忆；每项写明 `reason`、`trigger`、`upgradeTrigger`、`targetArtifact`。判定优先级：已有真相源回写 > 任务触发条件 > SimpleTaskFastPath > 子类型豁免。
+5. **产物文件前置创建**：默认 CP1 必须先做入口类型分类；纯新需求 → `00-需求概况.md` + `01-需求确认.md` + `<需求>/.memory/sessions.md`；产品完整需求 → `01-产品需求.md` + `<需求>/.memory/sessions.md`，产品模板正文只给产品填写完整 PRD，AI / 研发缺口检查记录在 CP1 摘要、`02-技术方案.md` 或报告中；需求变更 → `00-需求变更概况.md` + `01-需求变更确认.md` + 回写目标 `01-需求确认.md` / `01-产品需求.md` / 正式需求文件 / website requirement；Bug 问题 → 切换 fix 工作流，使用 `bugs/<问题>/00-问题概况.md` 和问题确认产物。历史 `01-需求概述.md` 仅作兼容；CP2 → `02-技术方案.md`（有架构/接口/设计决策时，否则跳过）；CP3 → `04-实施计划.md`。若命中 `SimpleTaskFastPath`，可用回复内联 CP1 摘要 + 报告/记忆替代需求目录，并将未触发的 00/01/04 产物记为 `N/A + skipReason`；但命中 ExistingRequirementArtifactOverride 时必须先更新已有需求真相源。
+6. **ArtifactDecisionMatrix / ArtifactLifecycleState**：CP1/CP2/CP3/ECR 必须按任务规模列出关键产物 `create` / `update` / `skip` / `N/A` 状态，至少覆盖入口类型、`00-需求概况.md`、`00-需求变更概况.md`、`01-需求确认.md`、`01-产品需求.md`、`01-需求变更确认.md`、`02-技术方案.md`、`04-实施计划.md`、`05-实施进度.md`、`06-关键决策.md`、目标文档、报告、记忆；每项写明 `reason`、`trigger`、`upgradeTrigger`、`targetArtifact`。判定优先级：已有真相源回写 > 任务触发条件 > SimpleTaskFastPath > 子类型豁免。
 7. **进度文档触发**：`05-实施进度.md` 不是小任务默认必产物；但当任务跨 2 轮以上会话、存在明确阻塞、用户要求持续跟踪、CP3 计划拆分为多批次、预计修改 ≥10 文件或命中控制面/模板/validate/部署副本联动时，必须在执行前创建并在每批完成后更新。默认前提是已存在 `04-实施计划.md`；docs/init 等 CP3 豁免场景可使用已确认文档大纲、任务切片或 ContextHandoffCard 作为等价计划锚点。
 8. **无 Hooks 宿主软门禁**（v1.9.6+）：当运行宿主为 `jetbrains-copilot`、`cursor` 或其他 `instruction-fallback` 客户端时，`lifecycle.cjs` CP gate 不可执行。AI 必须在每个 CP 输出末尾显式追加 `⏸ 等待用户确认（CP{N}）— 收到"好/继续/ok"前不得进入下一阶段或写源码`，并在用户未明确回复前禁止 source mutation 工具调用。
 9. **CP3 豁免记录**：docs/init/plan-review 子类型被规则明确豁免 CP3 时，须在需求级记忆或报告中记录 `CP3: N/A（<子类型> 子类型豁免）`，供 hook/fallback 区分合法豁免与漏确认。
@@ -86,9 +86,9 @@ CP1（需求确认）→ PR-1 内部自检 → CP2（方案确认）→ plan-rev
 
 ### SimpleTaskFastPath（简单任务轻路径）
 
-当 dev 任务同时满足以下条件时，可直接执行最小实现，不创建需求目录、`01-需求概述.md` 或 `04-实施计划.md`：
+当 dev 任务同时满足以下条件时，可直接执行最小实现，不创建需求目录、`00-需求概况.md`、`00-需求变更概况.md`、`01-需求确认.md`、`01-产品需求.md`、`01-需求变更确认.md` 或 `04-实施计划.md`：
 
-- 用户目标明确，验收结果可在一句话内表达。
+- 用户目标明确，业务结果或产品事实源可在一句话内表达。
 - 预计修改 ≤2 个源码/文档文件，且不涉及公共 API、公开类型、Schema、依赖、配置、发布、控制面、模板/validate/部署副本或跨服务边界。
 - 本轮不是从 `data/*.md` open/partial 台账派生，不需要 Backlog Intake 批次治理。
 - 不含 S01/S06 高风险操作，不需要多轮跟踪、压测、长运行服务或正式需求归档。
@@ -96,7 +96,7 @@ CP1（需求确认）→ PR-1 内部自检 → CP2（方案确认）→ plan-rev
 轻路径约束：
 
 - 仍必须执行 PC0~PC7、Profile/记忆/报告、安全底线、必要测试和 ECR；CP1/CP2 以回复内联摘要或报告字段承载，报告写明 `SimpleTaskFastPath: applied`、`skipReason` 与验证证据。
-- **ExistingRequirementArtifactOverride**：若用户是在调整/修改/补充/变更既有需求，或当前任务已存在 `01-需求概述.md`、Profile 声明的正式需求文件、website requirement 或其他已确认需求真相源，轻路径只允许不新建完整目录，不允许跳过已有文件回写；必须先增量编辑该文件并在回复中说明更新位置。找不到目标文件时，先按 Profile、当前需求目录、sessions、tasks 和用户提及路径定位；仍无法定位才最小澄清，禁止只输出新需求口径。
+- **ExistingRequirementArtifactOverride**：若用户是在调整/修改/补充/变更既有需求，或当前任务已存在 `00-需求变更概况.md`、`01-需求变更确认.md`、`00-需求概况.md`、`01-需求确认.md`、`01-产品需求.md`、历史 `01-需求概述.md`、Profile 声明的正式需求文件、website requirement 或其他已确认需求真相源，轻路径只允许不新建完整目录，不允许跳过已有文件回写；必须先增量编辑该文件并在回复中说明更新位置。找不到目标文件时，先按 Profile、当前需求目录、sessions、tasks 和用户提及路径定位；仍无法定位才最小澄清，禁止只输出新需求口径。
 - 一旦执行中新增第 3 个文件、命中公共契约/配置/控制面/台账来源/高风险，立即升级回完整 CP/产物链，补建对应需求产物后再继续。
 
 ### 目标文档前置（条件触发）
@@ -127,7 +127,7 @@ CP1（需求确认）→ PR-1 内部自检 → CP2（方案确认）→ plan-rev
 
 当 dev 工作流产出或更新以下 Markdown 文档时，必须补 `## 目录导航`：
 
-1. `01-需求概述.md`
+1. `00-需求概况.md` / `00-需求变更概况.md` / `01-需求确认.md` / `01-产品需求.md` / `01-需求变更确认.md`（按入口类型触发；历史目录可用 `01-需求概述.md`）
 2. `02-技术方案.md`
 3. `04-实施计划.md`
 4. `05-实施进度.md`（若存在）
@@ -156,10 +156,10 @@ CP1（需求确认）→ PR-1 内部自检 → CP2（方案确认）→ plan-rev
 
 ### 代码实现复杂度与注释守门
 
-- CP1 需求必须给出 `ImplementationComplexityLevel`（兼容旧字段 `ImplementationComplexityPreference`）：`简单够用`（默认，需求不详细或简单方案可满足验收）、`中等`（已有明确复用 / 演进边界，但不做企业级预设）、`企业级`（仅用户明确选择，或已有公共契约、多消费者、高风险长期演进且经确认）。用户未提出复杂化、需求未说明或简单方案可满足验收时，默认选择 `简单够用`。
+- CP1 需求必须给出 `ImplementationComplexityLevel`（兼容旧字段 `ImplementationComplexityPreference`）：`简单够用`（默认，需求不详细或简单方案可满足已确认产品事实源和业务目标）、`中等`（已有明确复用 / 演进边界，但不做企业级预设）、`企业级`（仅用户明确选择，或已有公共契约、多消费者、高风险长期演进且经确认）。用户未提出复杂化、需求未说明或简单方案可满足已确认产品事实源和业务目标时，默认选择 `简单够用`。
 - 若 AI 认为需要从 `简单够用` 升级到 `中等` / `企业级`，必须在 CP1 或 CP2 列出 2~3 个方案、开发周期、难度、维护成本、非目标与取舍，等待用户确认后再升级；不得为了“完美”“企业级”“通用性”自行加复杂度。
 - CP2 技术方案必须继承 CP1 的 `ImplementationComplexityLevel` 并给出 `§2.7 最小实现与注释策略`；非纯文案或单文件小修时，至少写明复杂度预算、抽象准入、防御分支边界和必要注释触发点。
-- 实施默认采用满足验收项的最小实现，优先局部补丁和既有本地模式；禁止为“企业级”“可扩展”预设新增无真实消费者的 service / factory / adapter / manager、策略注册表、通用配置或预留扩展点。
+- 实施默认采用满足双方确认后的产品事实源和派生技术验证项的最小实现，优先局部补丁和既有本地模式；禁止为“企业级”“可扩展”预设新增无真实消费者的 service / factory / adapter / manager、策略注册表、通用配置或预留扩展点。
 - 新增抽象只在真实消费者、既有本地模式、边界隔离或已确认契约需要时允许；防御性分支只覆盖已确认输入、兼容、安全或错误契约。
 - 必要注释必须覆盖非显然业务规则、状态转换、不变量、兼容约束、安全边界、外部契约映射和反直觉权衡，注释解释“为什么”和“守住什么约束”。
 - JavaScript / Node.js 代码中命中必要注释的导出函数、核心业务函数、类、复杂对象契约、参数/返回/异常说明必须使用标准 JSDoc；普通行注释只允许用于局部短说明，不能替代 JSDoc 契约。
@@ -183,7 +183,7 @@ CP1（需求确认）→ PR-1 内部自检 → CP2（方案确认）→ plan-rev
 - **FrontendExperienceQualityGate**：前端页面、组件、控制台、官网、文档站、可视化工具或游戏任务必须做条件判定；命中后按 UI 视觉组 `FrontendDesignSourceGate` / `UIFidelityGate` / `StyleThemeConsistencyGate` / `ResponsiveStateCoverageGate` / `VisualVerificationGate` 与 UX 交互组 `InteractionFlowGate` / `InteractionFeedbackGate` / `InputModalityAccessibilityGate` / `ErrorPreventionRecoveryGate` / `MotionTransitionUsabilityGate` 规划设计、实现和验证；涉及 Figma/截图/既有页面还原时追加 `FigmaHighFidelityRestorationGate`、`ScopedVisualChangeGate`、`InstalledPluginVisualVerificationGate`、`ActualPreviewChainAndMockFallbackGate`、`FrontendRuntimeNetworkProbeGate`、`UIStateScopeRegressionGate`、`FigmaProductionAssetBudgetGate` 与 `RuntimeI18nArtifactVerificationGate`；不触发时写 `N/A + skipReason`，不得引入未确认的新 UI 库、设计系统或视觉 diff 平台。
 - **CrossProjectLearnedGuards**：跨项目 data、复审和发布验证中已吸纳的泛化经验必须条件判定并落证据：`CodeTruthRequirementGate`（先核代码真相源再写接入状态）、`ManualReviewEvidenceRetention`（手工/视觉复核留范围与证据）、`DocumentationTranslationParityGuard`（多语言/多入口文档等价）、`FormalDocsDevCodexBoundary`（正式文档与运行时台账/报告边界）、`LLMPromptContractTriage`（prompt/Agent/Hook/MCP 契约分层）、`VerificationScopeBudgetGate`（验证强度匹配风险）、`LiveVerificationExecutionObligation`（声明已验证前必须真实执行）、`ExplicitCommitAuthorizationGate`（commit 必须用户明确授权）、`CompatibilityAndContractAuthorityGate`（兼容与上游契约权威）、`UIConfirmedSourceConflictTraceGate`（已确认 UI 真相源覆盖旧 PRD 时保留冲突表）、`PublicDocsReleasedVersionGate`（公开文档只承诺已发布/明确 preview 能力）、`CollectionRelationIdNamingGate`（关系 id 命名按集合/实体语义）、`UserFacingVerificationArtifactLanguageGate`（验证产物使用用户当前语言）、`AdapterBenchmarkAttribution`（adapter/provider/benchmark 归因清晰）、`ProductRequirementTraceabilityGate`（需求来源与条款锚点可追溯）、`LocalExecutionConfigProbe`（本机/跨环境执行配置先核项目约定）、`ManualReviewEvidenceDataRetention`（人工复核证据保存位置与样本范围）、`AdjacentScopeExpansionGuard`（禁止无确认扩相邻范围）、`PackageNameAuthorityGate`（包名/发布名以 package/registry 证据为准）、`PerformanceBenchmarkFirstGate`（性能/最快/第一先冻结基线）、`PublicModuleDifferentiationGate`（公开契约与内部实现区分）、`V2MCPFirstPlanningGate`（v2 一期 MCP-first 路线优先）、`WorkspaceDataAbsorptionScopeGate`（data 吸纳扫 `.devcodex/*/data` 全命名空间）、`FlowchartNodeExplanationGate`（正式流程图配中文节点说明）、`DocsSiteVisualAcceptanceGate`（文档站视觉/交互验收覆盖真实点击和可访问性细节）、`OmissionOnlyReviewGate`（遗漏专审只列未覆盖且仍有价值项）、`ReviewFindingIntakeGate`（审查发现先分流）、`ReviewDimensionDeltaGate`（复审维度不机械重复）、`UserPerspectiveDocsGate`（文档按使用者视角和低心智负担写）、`PublicUserDocsMaintainerBoundaryGate`（公开用户文档不混入维护者 checklist）、`DocsConsumerSweep`（文档消费者和代码消费点同步扫描）、`ArtifactLinkSetDedupeGate`（产物链接按 canonical path 去重）、`FrontendRuntimeNetworkProbeGate`（真实预览检查 console/network/resource/runtime）、`ActiveRequirementFinalResponseGate`（最终回复只围绕当前 active 需求收口）、`MethodLevelLeakPressureProbe`（高风险资源泄漏补方法级压测探针）、`V2FormalSolutionPackage`（v2 一期冻结正式 CP1/CP2 方案包）。未触发项写 `N/A + skipReason`。
 - **ReviewFindingIntakeGate**：开发需求若直接来自外部审查报告、AI review finding、audit issue 或代码评审发现，CP1/CP2 前必须先完成审查发现 intake 分流：报告只是线索、是否设计如此、是否需用户决策、文档/实现漂移归因、是否仅测试覆盖缺口；未完成分流不得直接把 finding 写成必须修代码。
-- **ProductRequirementTraceabilityGate**：从产品需求文档、Word、原型、截图、会议纪要或用户补充消息提炼需求时，CP1 必须列出来源锚点、结构化提取口径、冲突/缺失处理与验收映射；不得仅输出 AI 摘要。
+- **ProductRequirementTraceabilityGate**：从需求方原始输入、产品需求文档、Word、原型、截图、会议纪要或用户补充消息提炼需求时，CP1 必须列出来源锚点、AI 结构化提取口径、产品补充口径、冲突/缺失处理、双方确认状态与技术验证映射；不得仅输出 AI 摘要。
 - **LocalExecutionConfigProbe**：本机脚本、联调、数据库/SSH/HTTP 连接、跨环境数据操作或验证命令依赖配置时，CP2/TestRoute 必须先确认项目指定配置入口、Profile `config.local.json` 模型或既有脚本约定；未指定时按 S02 默认直写或沿用现状，不得主动引入 env/secret/config.local。
 - **ManualReviewEvidenceDataRetention**：人工复核涉及真实数据、页面、外部系统、发布包或联调结果时，TestRoute/报告必须写明证据保存位置、可复核输入、样本范围、保留策略和不能保留的原因。
 - **AdjacentScopeExpansionGuard**：用户点名具体模块、adapter、provider、文档页或目录时，CP2/CP3 默认仅改该范围；确需修改相邻范围时必须说明共同契约、共享缺陷或验证必需性，并写明回退边界。
@@ -215,7 +215,7 @@ CP1（需求确认）→ PR-1 内部自检 → CP2（方案确认）→ plan-rev
 | 2 | 拥有本次需求核心业务对象的服务 | 该服务为入口服务 |
 | 3 | 无法判断 | AI 在 CP1 列出候选服务，等用户指定 |
 
-**产物落点**：`01-需求概述.md` 存入**入口服务**的 `.devcodex/requirements/<需求名>/`，头部填写 `影响服务` 字段。
+**产物落点**：`01-需求确认.md` 或产品直接提供的 `01-产品需求.md` 存入**入口服务**的 `.devcodex/requirements/<需求名>/`，头部填写 `影响服务` 字段；历史目录可继续使用 `01-需求概述.md` 作为兼容真相源。
 
 **services/ 创建时机**：CP2 确认后（技术方案明确各服务边界后）才创建 `services/<服务名>/实施方案.md`，每个文件头部必须包含反向引用链接。
 

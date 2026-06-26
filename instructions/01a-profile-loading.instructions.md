@@ -2,7 +2,7 @@
 applyTo: "**"
 description: Profile 加载、active-root 路径、目标项目识别与项目现实扩展的通用规范
 priority: P5
-version: 1.11.23
+version: 1.11.24
 ---
 # Profile 加载与项目现实扩展
 

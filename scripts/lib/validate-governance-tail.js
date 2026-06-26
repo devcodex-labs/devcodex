@@ -5,6 +5,7 @@ function buildGovernanceTailChecks(ctx) {
     ROOT,
     ACTIVE_DEVCODEX_ROOT,
     RECENT_REQUIREMENT_ARTIFACT_DAYS,
+    collectRecentBugArtifactIssues,
     collectRecentRequirementArtifactIssues,
     fs,
     path,
@@ -187,16 +188,16 @@ function buildGovernanceTailChecks(ctx) {
 
   function checkV41() {
     const probes = [
-      { file: 'instructions.md', needles: ['SimpleTaskFastPath', 'N/A + skipReason', 'ExistingRequirementArtifactOverride', 'ArtifactDecisionMatrix'] },
-      { file: 'instructions/02-output-paths.instructions.md', needles: ['SimpleTaskFastPath', '目标明确、预计 ≤2 个源码/文档文件', 'ExistingRequirementArtifactOverride', 'ArtifactDecisionMatrix'] },
-      { file: 'instructions/10-dev.instructions.md', needles: ['SimpleTaskFastPath（简单任务轻路径）', '立即升级回完整 CP/产物链', 'ExistingRequirementArtifactOverride', 'ArtifactLifecycleState'] },
-      { file: 'instructions/11-fix.instructions.md', needles: ['SimpleTaskFastPath', '内联问题确认 + 报告/记忆', 'ExistingRequirementArtifactOverride', 'ArtifactDecisionMatrix'] },
-      { file: 'skills/cp-gate/SKILL.md', needles: ['SimpleTaskFastPath', 'N/A + skipReason', 'ExistingRequirementArtifactOverride', 'ArtifactDecisionMatrix'] },
+      { file: 'instructions.md', needles: ['SimpleTaskFastPath', '00-需求变更概况.md', '00-问题概况.md', 'ExistingRequirementArtifactOverride', 'ArtifactDecisionMatrix'] },
+      { file: 'instructions/02-output-paths.instructions.md', needles: ['SimpleTaskFastPath', '目标明确、预计 ≤2 个源码/文档文件', '00-需求变更概况.md', '00-问题概况.md', 'ExistingRequirementArtifactOverride', 'ArtifactDecisionMatrix'] },
+      { file: 'instructions/10-dev.instructions.md', needles: ['SimpleTaskFastPath（简单任务轻路径）', '立即升级回完整 CP/产物链', '00-需求变更概况.md', 'ExistingRequirementArtifactOverride', 'ArtifactLifecycleState'] },
+      { file: 'instructions/11-fix.instructions.md', needles: ['SimpleTaskFastPath', '00-问题概况.md: N/A + skipReason', 'ExistingRequirementArtifactOverride', 'ArtifactDecisionMatrix'] },
+      { file: 'skills/cp-gate/SKILL.md', needles: ['SimpleTaskFastPath', '00-需求变更概况.md', '00-问题概况.md', 'ExistingRequirementArtifactOverride', 'ArtifactDecisionMatrix'] },
       { file: 'prompts/implementation-plan.prompt.md', needles: ['SimpleTaskFastPath', 'upgradeTrigger', 'ExistingRequirementArtifactOverride', 'ArtifactDecisionMatrix'] },
-      { file: 'README.md', needles: ['SimpleTaskFastPath', '免建 `01-需求概述.md`', 'ExistingRequirementArtifactOverride', 'ArtifactDecisionMatrix'] },
-      { file: 'website/docs/guide/development.md', needles: ['SimpleTaskFastPath', '免建需求/bug 目录', 'ExistingRequirementArtifactOverride', 'ArtifactDecisionMatrix'] },
-      { file: 'scripts/lib/requirement-artifact-check.js', needles: ['SIMPLE_TASK_FAST_PATH_MARKERS', 'hasSimpleTaskFastPathMarker'] },
-      { file: 'scripts/test-requirement-artifacts.js', needles: ['simple-fast-path', 'SimpleTaskFastPath: applied'] }
+      { file: 'README.md', needles: ['SimpleTaskFastPath', '00-需求概况.md', '00-需求变更概况.md', '00-问题概况.md', 'ExistingRequirementArtifactOverride', 'ArtifactDecisionMatrix'] },
+      { file: 'website/docs/guide/development.md', needles: ['SimpleTaskFastPath', '免建需求/bug 目录', '00-需求概况.md', '00-需求变更概况.md', '00-问题概况.md', 'ExistingRequirementArtifactOverride', 'ArtifactDecisionMatrix'] },
+      { file: 'scripts/lib/requirement-artifact-check.js', needles: ['SIMPLE_TASK_FAST_PATH_MARKERS', 'collectRecentBugArtifactIssues', '00-需求变更概况.md', '00-问题概况.md'] },
+      { file: 'scripts/test-requirement-artifacts.js', needles: ['simple-fast-path', 'simple-fast-path-bug', '00-需求变更概况.md', '00-问题概况.md'] }
     ]
 
     for (const probe of probes) {
@@ -221,9 +222,14 @@ function buildGovernanceTailChecks(ctx) {
       activeRoot: ACTIVE_DEVCODEX_ROOT,
       recentDays: RECENT_REQUIREMENT_ARTIFACT_DAYS
     })
+    const bugResult = collectRecentBugArtifactIssues({
+      activeRoot: ACTIVE_DEVCODEX_ROOT,
+      recentDays: RECENT_REQUIREMENT_ARTIFACT_DAYS
+    })
 
     for (const issue of issues) err(`[V41] ${issue}`)
-    console.log(`[V41] requirement runtime artifact structure checked: ${checkedDirs.length} dirs`)
+    for (const issue of bugResult.issues) err(`[V41] ${issue}`)
+    console.log(`[V41] requirement runtime artifact structure checked: ${checkedDirs.length} requirement dirs, ${bugResult.checkedDirs.length} bug dirs`)
   }
 
   function checkV42() {

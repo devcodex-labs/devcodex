@@ -102,7 +102,7 @@ npx @vextjs/devcodex init --codex  # 仅 Codex adapter
 ├── instructions/   ← Instructions 约束（15 个，含全部工作流规则）
 ├── agents/         ← Copilot 自定义 Agent（v1.9.8 起恢复默认分发）
 ├── skills/         ← Skill 详细检查标准（44 个，按需读取，含 README 专项能力、spec-governance 与 5 个支撑型 Skill）
-├── prompts/        ← Prompt 模板（26 个）
+├── prompts/        ← Prompt 模板（30 个）
 ├── hooks/          ← 宿主生命周期 Hook 配置与运行时
 │   ├── devcodex.lifecycle.json
 │   └── _runtime/
@@ -152,11 +152,12 @@ AGENTS.md                 ← 与 instructions.md / copilot-instructions.md / CL
 
 当前仓库的正式需求信源是 `website/docs/versions/v1/<active-version>/requirements/`，版本内的 `index/design/plan/progress/decisions` 都以这里为准。
 
-`prompts/*.prompt.md` 不是当前项目的正式需求入口，而是 CP1 / CP2 / CP3 的默认执行模板：它们负责约束 AI 如何生成需求概述、技术方案、实施计划与实施进度。若项目已经定义自定义 requirement 规范，则项目规范优先，prompt 只提供通用骨架。
+`prompts/*.prompt.md` 不是当前项目的正式需求入口，而是 CP1 / CP2 / CP3 的默认执行模板：它们负责约束 AI 如何先区分无产品角色的纯新需求、有产品角色直接提供的完整产品需求、需求变更和 Bug 问题，再生成需求概况、产品需求、需求变更概况、问题概况、需求确认、技术方案、实施计划、实施进度与关键决策。若项目已经定义自定义 requirement 规范，则项目规范优先，prompt 只提供通用骨架。
 
 默认职责边界如下：
 
-- CP1：确认需求目标、用户交互、业务流程、验收结果与范围边界
+- CP1：先判定入口类型；无产品角色 / 研发兼产品时，纯新需求把用户/运营/老板/客户/内部使用方的原始诉求独立保留为 `00-需求概况.md`，再由 AI 生成 `01-需求确认.md` 草稿并由产品补充归一化；有产品角色直接提供完整需求时，使用 `01-产品需求.md` / `product-requirement.prompt.md`，该模板正文只给产品填写完整 PRD，AI / 研发缺口 / 冲突检查记录在 CP1 摘要、`02-技术方案.md` 或报告中，不生成或重写产品需求；需求变更使用 `00-需求变更概况.md` / `01-需求变更确认.md` 并回写目标需求真相源；Bug 问题使用 `bugs/<问题>/00-问题概况.md` / `01-问题确认.md` 并进入 fix 工作流
+- 需求方模板可读性：`00-需求概况.md` 面向非产品 / 非研发需求方，必须使用口语化问题收集“希望系统做到什么、现在怎么凑合处理、必须遵守的业务口径、希望出现 / 不能接受的例子和材料”；允许填写“没有 / 不知道 / 暂无 / 需要产品帮忙整理”，不得用抽象字段名替代解释
 - CP2：确认实现流程、节点职责、公共契约、兼容性策略、边界问题与测试策略
 - CP3：确认实施顺序、里程碑、验证方式、风险与回滚
 - 执行后正式阶段：ECR 执行闭环复审（确认实现、关键产物、报告、记忆、SUMMARY、diff/commit、测试与完成结论一致）
@@ -179,8 +180,8 @@ AGENTS.md                 ← 与 instructions.md / copilot-instructions.md / CL
 - **意图扩展摘要**：当扩展后路由变化、命中控制面/宿主差异、风险较高或跨会话恢复时，会在用户面输出 3~5 行摘要，便于确认“为什么这样路由”。
 - **Context Rehydration Contract**：压缩恢复、resume 或用户要求按文件真相重建时，会按“当前用户消息 → 已确认产物 → sessions → tasks → SUMMARY → 摘要 → AI 推断”的优先级恢复上下文，摘要不能覆盖文件真相源。
 - **ContextHandoffCard**：跨会话、跨 Agent、多批次、summary/compact 前或用户要求传递上下文时，会把 source-of-truth、confirmed decisions、open risks、next action、must-not-overwrite、validation state 与 ArtifactLinkSet 写入报告或 daily tasks；恢复时仍按 Context Rehydration Contract 重新核对文件真相源。
-- **SimpleTaskFastPath**：非常明确、预计 ≤2 文件、无公共契约/配置/发布/控制面/台账来源/高风险、无需多轮跟踪的简单 dev/fix 任务，可免建 `01-需求概述.md` / `04-实施计划.md`，改用内联 CP 摘要 + 报告/记忆 `N/A + skipReason`；范围扩大时立即升级回完整产物链。若已有需求/bug 真相源，命中 `ExistingRequirementArtifactOverride`，调整内容必须先回写文件，回复只做摘要。
-- **ArtifactDecisionMatrix**：CP1/CP2/CP3/ECR 会按任务规模列出关键产物的 `create` / `update` / `skip` / `N/A` 状态，覆盖需求、技术方案、实施计划、实施进度、目标文档、报告和记忆；判定优先级为已有真相源回写 > 任务触发条件 > SimpleTaskFastPath > 子类型豁免，避免模板“必填”口径压过轻路径或条件触发。
+- **SimpleTaskFastPath**：非常明确、预计 ≤2 文件、无公共契约/配置/发布/控制面/台账来源/高风险、无需多轮跟踪的简单 dev/fix 任务，可免建 `00-需求概况.md` / `00-需求变更概况.md` / `00-问题概况.md` / `01-需求确认.md` / `01-产品需求.md` / `01-需求变更确认.md` / `01-问题确认.md` / `04-实施计划.md`，改用内联 CP 摘要 + 报告/记忆 `N/A + skipReason`；范围扩大时立即升级回完整产物链。若已有需求/bug 真相源，命中 `ExistingRequirementArtifactOverride`，调整内容必须先回写文件，回复只做摘要。
+- **ArtifactDecisionMatrix**：CP1/CP2/CP3/ECR 会按任务规模列出关键产物的 `create` / `update` / `skip` / `N/A` 状态，覆盖入口类型、需求概况、产品完整需求、需求变更概况、问题概况、需求确认、需求变更确认、问题确认、技术方案、实施计划、实施进度、关键决策、目标文档、报告和记忆；判定优先级为已有真相源回写 > 任务触发条件 > SimpleTaskFastPath > 子类型豁免，避免模板“必填”口径压过轻路径或条件触发。
 - **Hook closure 三态**：Stop/PreCompact 可见回复验证区分 `verified-present`、`verified-missing`、`unverified`；无法解析最终 assistant 内容时只提示无法验证，并给出 payload capture 指引，不再断言“未输出”。
 - **长流程执行契约**：Auto、控制面、多批次、预计修改 ≥10 文件或发布前置任务会触发 ExecutionContract；测试路线不明显时触发 TestRoute；正式发版前触发 ReleaseAudit 与 ReleaseVerification；控制面消费链联动时建立 Concept Sync Map；宿主契约变化时触发 `host-contract-verification`。
 - **执行期 CP3 回退**：若执行过程中实际修改范围扩展到 CP3 门槛（≥5 文件、高风险、控制面联动），必须暂停执行并先补做 CP3，再继续改动。
@@ -304,7 +305,7 @@ devcodex/
 ├── agents/        # Agent 源文件；Copilot 端默认分发，Claude Code 端不分发
 ├── instructions/  # 全局 Instructions（15 个，含工作流规则摘要，自动注入）
 ├── skills/        # Skill 详细检查标准（44 个，按 01-common §按需读取表 路由读取）
-├── prompts/       # Prompt 模板（26 个）
+├── prompts/       # Prompt 模板（30 个）
 ├── hooks/         # Workspace Hooks 配置与分发到 `.github/hooks/_runtime/` 的运行时及 helper 模块
 ├── codex/         # Codex adapter 源模板（分发到 `.codex/hooks.json`，不是工作区部署副本 `.codex/`）
 ├── data/          # 运行时数据模板（分发到目标项目的空骨架）

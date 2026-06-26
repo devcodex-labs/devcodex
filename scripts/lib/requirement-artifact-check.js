@@ -4,7 +4,17 @@ const fs = require('fs')
 const path = require('path')
 
 const RECENT_REQUIREMENT_ARTIFACT_DAYS = 2
-const REQUIREMENT_FILES = ['01-需求概述.md', '04-实施计划.md', '05-实施进度.md']
+const REQUIREMENT_FILES = [
+  '00-需求概况.md',
+  '00-需求变更概况.md',
+  '01-需求确认.md',
+  '01-产品需求.md',
+  '01-需求变更确认.md',
+  '01-需求概述.md',
+  '04-实施计划.md',
+  '05-实施进度.md'
+]
+const BUG_FILES = ['00-问题概况.md', '01-问题确认.md', '04-实施计划.md', '05-实施进度.md']
 const SIMPLE_TASK_FAST_PATH_MARKERS = ['SimpleTaskFastPath', '简单任务轻路径', 'N/A + skipReason']
 
 function hasText(filePath, needle) {
@@ -16,24 +26,17 @@ function hasAnyText(filePath, needles) {
   return needles.some(needle => text.includes(needle))
 }
 
-function hasRecentArtifact(dirPath, nowMs, recentDays) {
+function hasRecentArtifact(dirPath, nowMs, recentDays, files) {
   const cutoff = nowMs - recentDays * 24 * 60 * 60 * 1000
-  return REQUIREMENT_FILES
+  return files
     .map(name => path.join(dirPath, name))
     .filter(filePath => fs.existsSync(filePath))
     .some(filePath => fs.statSync(filePath).mtimeMs >= cutoff)
 }
 
-function checkRequirementDir(dirPath) {
-  const issues = []
-  const relDir = path.basename(dirPath)
-  const requirementFile = path.join(dirPath, '01-需求概述.md')
+function checkPlanAndProgressFiles(dirPath, relDir, issues) {
   const planFile = path.join(dirPath, '04-实施计划.md')
   const progressFile = path.join(dirPath, '05-实施进度.md')
-
-  if (fs.existsSync(requirementFile) && !hasText(requirementFile, '## 目录导航')) {
-    issues.push(`${relDir}/01-需求概述.md missing "## 目录导航"`)
-  }
 
   if (fs.existsSync(planFile)) {
     if (!hasText(planFile, '## 目录导航')) {
@@ -69,6 +72,43 @@ function checkRequirementDir(dirPath) {
       }
     }
   }
+}
+
+function checkRequirementDir(dirPath) {
+  const issues = []
+  const relDir = path.basename(dirPath)
+
+  for (const fileName of ['00-需求概况.md', '00-需求变更概况.md']) {
+    const filePath = path.join(dirPath, fileName)
+    if (fs.existsSync(filePath) && !hasText(filePath, '## 目录导航')) {
+      issues.push(`${relDir}/${fileName} missing "## 目录导航"`)
+    }
+  }
+
+  for (const fileName of ['01-需求确认.md', '01-产品需求.md', '01-需求变更确认.md', '01-需求概述.md']) {
+    const filePath = path.join(dirPath, fileName)
+    if (fs.existsSync(filePath) && !hasText(filePath, '## 目录导航')) {
+      issues.push(`${relDir}/${fileName} missing "## 目录导航"`)
+    }
+  }
+
+  checkPlanAndProgressFiles(dirPath, relDir, issues)
+
+  return issues
+}
+
+function checkBugDir(dirPath) {
+  const issues = []
+  const relDir = path.basename(dirPath)
+
+  for (const fileName of ['00-问题概况.md', '01-问题确认.md']) {
+    const filePath = path.join(dirPath, fileName)
+    if (fs.existsSync(filePath) && !hasText(filePath, '## 目录导航')) {
+      issues.push(`${relDir}/${fileName} missing "## 目录导航"`)
+    }
+  }
+
+  checkPlanAndProgressFiles(dirPath, relDir, issues)
 
   return issues
 }
@@ -98,7 +138,7 @@ function collectRecentRequirementArtifactIssues({
     if (hasSimpleTaskFastPathMarker(dirPath)) continue
     const hasTrackedArtifact = REQUIREMENT_FILES.some(name => fs.existsSync(path.join(dirPath, name)))
     if (!hasTrackedArtifact) continue
-    if (!hasRecentArtifact(dirPath, nowMs, recentDays)) continue
+    if (!hasRecentArtifact(dirPath, nowMs, recentDays, REQUIREMENT_FILES)) continue
     checkedDirs.push(entry.name)
     issues.push(...checkRequirementDir(dirPath))
   }
@@ -106,10 +146,41 @@ function collectRecentRequirementArtifactIssues({
   return { checkedDirs, issues }
 }
 
+function collectRecentBugArtifactIssues({
+  activeRoot,
+  recentDays = RECENT_REQUIREMENT_ARTIFACT_DAYS,
+  nowMs = Date.now()
+}) {
+  const bugsRoot = path.join(activeRoot, 'bugs')
+  const checkedDirs = []
+  const issues = []
+
+  if (!fs.existsSync(bugsRoot)) {
+    return { checkedDirs, issues }
+  }
+
+  for (const entry of fs.readdirSync(bugsRoot, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue
+    const dirPath = path.join(bugsRoot, entry.name)
+    if (hasSimpleTaskFastPathMarker(dirPath)) continue
+    const hasTrackedArtifact = BUG_FILES.some(name => fs.existsSync(path.join(dirPath, name)))
+    if (!hasTrackedArtifact) continue
+    if (!hasRecentArtifact(dirPath, nowMs, recentDays, BUG_FILES)) continue
+    checkedDirs.push(entry.name)
+    issues.push(...checkBugDir(dirPath))
+  }
+
+  return { checkedDirs, issues }
+}
+
 module.exports = {
   RECENT_REQUIREMENT_ARTIFACT_DAYS,
+  BUG_FILES,
+  REQUIREMENT_FILES,
   SIMPLE_TASK_FAST_PATH_MARKERS,
+  checkBugDir,
   checkRequirementDir,
   hasSimpleTaskFastPathMarker,
+  collectRecentBugArtifactIssues,
   collectRecentRequirementArtifactIssues
 }

@@ -2,7 +2,7 @@
 applyTo: "**"
 description: fix 工作流规则，覆盖子类型路由、CP 流程、修复三步扫描、执行期回退与 ECR
 priority: P4
-version: 1.11.23
+version: 1.11.24
 ---
 # 修复工作流规则（11-fix）
 
@@ -40,7 +40,7 @@ version: 1.11.23
 CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → [execution-contract/test-router] → 执行 → 三步扫描 → ECR 执行闭环复审 → 完成
 ```
 
-- **CP1**：AI 输出问题分析（根因 + 影响范围），并前置平台工程判断：消费者范围、共享契约边界、模块职责、维护成本和非目标；模块化只在真实复用者、演进边界或跨模块共享契约存在时成立，用户确认
+- **CP1**：先确认这是 Bug / 异常 / 已承诺行为与实际不一致，而不是纯新需求或需求变更；报告方输入优先落 `bugs/<问题>/00-问题概况.md`，AI / 研发据此输出 `01-问题确认.md` 或等价问题分析报告（根因 + 影响范围），并前置平台工程判断：消费者范围、共享契约边界、模块职责、维护成本和非目标；模块化只在真实复用者、演进边界或跨模块共享契约存在时成立，用户确认
 - **CP2**：AI 输出修复方案，用户确认；若修复涉及依赖/框架/SDK/平台 API 或外部模块变更，必须附 `OfficialDocsEvidence`；涉及项目事实变化时必须附 `ProfileImpactCheck`
 - **impact-review**：涉及跨模块架构依赖变更（PR-5②）时执行
 - **CP3**：≥5 文件变更 或 含高风险操作时**必须**；其他可选
@@ -56,9 +56,9 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → 
 - **FrontendExperienceQualityGate**：修复前端页面、组件、控制台、官网、文档站、可视化工具或游戏体验问题时，必须判定 UI / 交互体验门禁；涉及视觉漂移、主题不一致、响应式/状态缺失、点击无反馈、用户流断点、焦点/目标尺寸/拖拽替代、错误恢复或动效干扰时，TestRoute 必须纳入 Browser/截图/E2E 或项目等价验证；Figma/截图/既有页面还原、资源优化、本地化或状态修复追加 `FigmaHighFidelityRestorationGate`、`ScopedVisualChangeGate`、`InstalledPluginVisualVerificationGate`、`ActualPreviewChainAndMockFallbackGate`、`FrontendRuntimeNetworkProbeGate`、`UIStateScopeRegressionGate`、`FigmaProductionAssetBudgetGate` 与 `RuntimeI18nArtifactVerificationGate`；未触发时写 `N/A + skipReason`。
 - **CrossProjectLearnedGuards**：修复涉及接入状态误判、人工复核、翻译/正式文档边界、prompt/Hook/MCP 契约、验证范围不足或过度、未真实执行验证、adapter/provider benchmark 归因、产品需求来源、本机执行配置、人工证据留存、相邻范围扩展、包名/发布名、性能第一、公开模块、提交边界、兼容契约、UI 真相源冲突、公开文档版本边界、集合关系命名、验证产物语言、复审维度重复、使用者文档心智负担、公开用户文档混入维护者 checklist、文档消费者同步、产物链接重复展示、前端真实预览网络探针、最终回复范围漂移或 DevCodex v2 一期路线时，必须分别执行 `CodeTruthRequirementGate`、`ManualReviewEvidenceRetention`、`DocumentationTranslationParityGuard`、`FormalDocsDevCodexBoundary`、`LLMPromptContractTriage`、`VerificationScopeBudgetGate`、`LiveVerificationExecutionObligation`、`ExplicitCommitAuthorizationGate`、`CompatibilityAndContractAuthorityGate`、`UIConfirmedSourceConflictTraceGate`、`PublicDocsReleasedVersionGate`、`CollectionRelationIdNamingGate`、`UserFacingVerificationArtifactLanguageGate`、`AdapterBenchmarkAttribution`、`ProductRequirementTraceabilityGate`、`LocalExecutionConfigProbe`、`ManualReviewEvidenceDataRetention`、`AdjacentScopeExpansionGuard`、`PackageNameAuthorityGate`、`PerformanceBenchmarkFirstGate`、`PublicModuleDifferentiationGate`、`V2MCPFirstPlanningGate`、`ReviewDimensionDeltaGate`、`UserPerspectiveDocsGate`、`PublicUserDocsMaintainerBoundaryGate`、`DocsConsumerSweep`、`ArtifactLinkSetDedupeGate`、`FrontendRuntimeNetworkProbeGate`、`ActiveRequirementFinalResponseGate`；未触发时写 `N/A + skipReason`。
 - **ReviewFindingIntakeGate**：修复范围来自审查报告、AI review finding、audit issue 或代码评审发现时，CP1 前必须逐条分类为 `must-fix` / `user-decision-required` / `docs-implementation-drift` / `test-coverage-gap` / `already-fixed-or-not-reproduced` / `intentional-design-accepted`；命中 `user-decision-required`、兼容风险或文档/实现二选一时，修改源码前必须先取得用户确认。
-- **SimpleTaskFastPath**：非常明确、预计 ≤2 文件、无公共 API/Schema/依赖/配置/发布/控制面/台账来源/高风险、无需多轮跟踪的简单修复，可用内联问题确认 + 报告/记忆替代 bug 目录与完整 CP 产物；报告必须写 `SimpleTaskFastPath: applied`、`skipReason`、验证证据和升级回退判断。执行中任一条件失效时，立即升级回完整 fix CP/产物链。
-- **ExistingRequirementArtifactOverride**：当用户是在调整/修改/补充既有问题确认、bug CP 产物或需求文件时，SimpleTaskFastPath 只能跳过新建完整 bug 目录，不能跳过更新已有真相源；必须先增量编辑已有问题/需求产物，回复仅作为摘要。找不到目标产物时先按 Profile、bugs/requirements、sessions、tasks 与用户提及路径定位，仍无法确认才最小澄清。
-- **ArtifactDecisionMatrix / ArtifactLifecycleState**：CP1/CP2/[CP3]/ECR 必须按修复规模列出关键产物 `create` / `update` / `skip` / `N/A` 状态，至少覆盖问题确认、技术方案、实施计划、实施进度、报告和记忆；判定优先级为已有真相源回写 > 修复触发条件 > SimpleTaskFastPath > fix CP3 可选/豁免。若后续三步扫描或 ECR 发现范围扩大，必须更新矩阵并回到对应 CP。
+- **SimpleTaskFastPath**：非常明确、预计 ≤2 文件、无公共 API/Schema/依赖/配置/发布/控制面/台账来源/高风险、无需多轮跟踪的简单修复，可用内联问题概况 / 问题确认 + 报告/记忆替代 bug 目录与完整 CP 产物；报告必须写 `SimpleTaskFastPath: applied`、`00-问题概况.md: N/A + skipReason`、`01-问题确认.md: N/A + skipReason`、验证证据和升级回退判断。执行中任一条件失效时，立即升级回完整 fix CP/产物链。
+- **ExistingRequirementArtifactOverride**：当用户是在调整/修改/补充既有 `00-问题概况.md`、`01-问题确认.md`、bug CP 产物或需求文件时，SimpleTaskFastPath 只能跳过新建完整 bug 目录，不能跳过更新已有真相源；必须先增量编辑已有问题/需求产物，回复仅作为摘要。找不到目标产物时先按 Profile、bugs/requirements、sessions、tasks 与用户提及路径定位，仍无法确认才最小澄清。
+- **ArtifactDecisionMatrix / ArtifactLifecycleState**：CP1/CP2/[CP3]/ECR 必须按修复规模列出关键产物 `create` / `update` / `skip` / `N/A` 状态，至少覆盖 `00-问题概况.md`、`01-问题确认.md`、修复方案、实施计划、实施进度、报告和记忆；判定优先级为已有真相源回写 > 修复触发条件 > SimpleTaskFastPath > fix CP3 可选/豁免。若后续三步扫描或 ECR 发现范围扩大，必须更新矩阵并回到对应 CP。
 
 ### 确认后前置轻量复审
 
@@ -212,7 +212,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → 
 ### default（常规 Bug 修复）
 
 **问题诊断三步（CP1 前必做）**：
-1. S1 重现 — 确认问题可稳定重现，记录重现步骤
+1. S1 重现 — 根据 `00-问题概况.md` 或等价报告方输入确认问题可稳定重现，记录重现步骤、期望行为、实际行为和环境条件
 2. S2 定位 — 代码层面定位根因（文件/函数/行号）
 3. S3 影响评估 — 评估受影响范围
 

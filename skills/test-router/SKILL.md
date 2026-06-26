@@ -65,7 +65,7 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 | 发布 / package | `audit-release`、`release-verification`、`npm run test:audit`、package completeness gate、远端 CI 绿色（如存在）、pack dry-run；PackageBoundarySerialCheck：pack / boundary 检查必须在 build / benchmark / codegen 完成后单独串行执行 | pack install smoke、publish dry-run、无关残留文件清理复核 |
 | 消费者验证 / 跨仓库验证 | ConsumerDependencyTreeProbe：先核对 `package.json`、lockfile、`node_modules` 与 `npm ls <关键依赖>`，排除依赖树漂移 | 源码补丁、共享库升级、消费者 lockfile 恢复 |
 | Adapter / provider benchmark | AdapterBenchmarkAttribution：记录基线、环境、版本、负载、归因边界和不可比较因素 | 避免把框架、网络、缓存预热、依赖树或测试环境差异误归因给业务代码 |
-| 产品需求整理 / 需求迁移 | ProductRequirementTraceabilityGate：记录 PRD/Word/原型/截图/消息锚点、提取口径、冲突/遗漏处理和验收映射 | 不得把 AI 摘要当唯一真相源 |
+| 产品需求整理 / 产品完整需求 / 需求迁移 / 需求变更 | ProductRequirementTraceabilityGate：先记录入口类型；无产品角色的纯新需求记录 `00-需求概况.md` / PRD / Word / 原型 / 截图 / 消息锚点、`01-需求确认.md` 的 AI 提取口径、产品补充口径、冲突/遗漏处理、双方确认状态和技术验证映射；有产品角色直接提供完整需求时记录 `01-产品需求.md`、产品原文锚点、AI / 研发缺口 / 冲突检查、澄清状态和技术验证映射，缺口检查记录在 CP1 摘要、`02-技术方案.md` 或报告中，不写入产品模板正文，也不生成或重写产品需求；需求变更记录 `00-需求变更概况.md`、原需求基线、变更前后差异、`01-需求变更确认.md`、目标需求真相源回写和技术验证映射；Bug 问题记录 `00-问题概况.md` / `01-问题确认.md` 并走 fix | 不得把 AI 摘要当唯一真相源；不得混写需求方输入、产品完整需求、需求变更和产品确认；不得把 Bug 当产品需求；需求方和产品不填写验收标准，验证映射由技术方案 / 测试方案派生 |
 | 本机 / 跨环境执行配置 | LocalExecutionConfigProbe：核对项目指定配置入口、Profile `config.local.json` 模型或既有脚本约定；未指定时遵循 S02 | 不得为了安全感臆造 env/secret/config.local |
 | 人工证据留存 / 真实联调 | ManualReviewEvidenceDataRetention：记录证据保存位置、可复核输入、样本范围、保留策略和不可保留原因 | 证据不能进入仓库时写明外部位置或不可保留理由 |
 | 指定范围防扩散 | AdjacentScopeExpansionGuard：核对用户指定模块/目录/adapter/provider 与相邻范围修改理由 | 无共同契约、共享缺陷或验证必需时不得扩相邻范围 |
@@ -110,7 +110,7 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 | actualPreviewChain | N/A / required / optional；若 required，写真实 URL、API target、路由入口、状态清单、mock fallback 排除证据 |
 | runtimeI18nArtifacts | N/A / required / optional；若 required，写源 JSON、构建/合并产物、页面 runtime key 残留与降级证据 |
 | manualReviewEvidence | N/A / required / optional；若 required，写复核人/时间/范围/输入/观察结果/截图或日志位置 |
-| requirementTraceability | N/A / required / optional；若 required，写来源锚点、提取口径、冲突/遗漏处理和验收映射 |
+| requirementTraceability | N/A / required / optional；若 required，写入口类型、`00-需求概况.md` / `01-产品需求.md` / `00-需求变更概况.md` / `00-问题概况.md` / 原始附件锚点、`01-需求确认.md` / `01-需求变更确认.md` / `01-问题确认.md` 的 AI 提取口径、产品补充口径、产品原文锚点、双方确认状态、冲突/遗漏处理、AI / 研发缺口检查记录位置和技术验证映射 |
 | localExecutionConfig | N/A / required / optional；若 required，写配置来源、缺失处理、S02 策略和未引入 ad hoc env 的证据 |
 | manualReviewDataRetention | N/A / required / optional；若 required，写证据保存位置、样本范围、可复核输入和不可保留理由 |
 | adjacentScopeExpansion | N/A / required / optional；若 required，写指定范围、扩展理由、影响面和回退边界 |
@@ -153,7 +153,7 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 - 验证路线必须执行 VerificationScopeBudgetGate：高风险、控制面、发布、资源生命周期或前端体验不能只跑轻量检查；低风险纯文档、纯计算或无状态改动也不得为了形式引入重压测、E2E 或外部依赖。
 - 声明“已验证 / 可运行 / 可点击 / 已发布 / 已安装”前必须执行 LiveVerificationExecutionObligation；未实际执行时只能写阻塞、降级证据和残余风险。
 - 人工复核、视觉检查、手工冒烟或无法自动化验证必须执行 ManualReviewEvidenceRetention，保留范围、输入、观察结果、截图/日志或等价证据。
-- 从 PRD、Word、原型、截图、会议纪要或用户消息提炼需求时必须执行 ProductRequirementTraceabilityGate，保留来源锚点和验收映射；不得只提交 AI 整理稿。
+- 从需求方原始输入、产品直接提供的完整需求、需求变更、PRD、Word、原型、截图、会议纪要、Bug 报告或用户消息提炼需求/问题时必须执行 ProductRequirementTraceabilityGate，先判定入口类型，保留 `00-需求概况.md` / `01-产品需求.md` / `00-需求变更概况.md` / `00-问题概况.md` / 原始附件来源锚点、`01-需求确认.md` / `01-需求变更确认.md` / `01-问题确认.md` 的 AI 提取口径、产品补充口径、产品原文锚点、双方确认状态和技术验证映射；有产品角色直接交完整需求时，AI / 研发只做缺口 / 冲突检查和澄清，缺口检查记录在 CP1 摘要、`02-技术方案.md` 或报告中，不写入产品模板正文，不生成或重写产品需求；不得只提交 AI 整理稿，不得把纯新需求、产品完整需求、需求变更、Bug 问题和产品确认混写，也不得要求需求方或产品额外填写验收标准、测试用例、数据库字段或接口 Schema。
 - 本机脚本、联调、数据库/SSH/HTTP 连接或跨环境执行依赖配置时必须执行 LocalExecutionConfigProbe；未指定配置模型时遵循 S02，不得主动新增 env/secret/config.local。
 - 人工复核涉及真实数据、外部系统、发布包或联调结果时必须执行 ManualReviewEvidenceDataRetention，写明证据保存位置、样本范围和不可保留原因。
 - 用户指定模块、目录、adapter、provider 或文档页时必须执行 AdjacentScopeExpansionGuard；扩相邻范围前要写共同契约、共享缺陷或验证必需性。

@@ -13,7 +13,7 @@ applyTo: .devcodex/**/requirements/**
 > ⚠️ 本模板只在 `02-技术方案.md` 被 ArtifactDecisionMatrix 判定为需要创建或更新时使用；若 CP2 无架构、接口、公共契约、设计决策、依赖/API 或项目事实变化，可在矩阵中将 `02-技术方案.md` 标为 `N/A + skipReason`，不得为凑模板强行生成完整技术方案。
 > ⚠️ 技术方案各章节存在编写依赖关系，应按以下推荐顺序编写；一旦进入本模板，标为 🔴 的章节不得跳过，条件章节无触发时写 `N/A + skipReason`。
 > ⚠️ 本模板优先回答：现状是什么、目标设计是什么、实现流程怎么走、关键节点谁负责、契约与边界如何处理、风险与测试如何覆盖。
-> ⚠️ CP2 技术方案必须把**目标架构/模块边界、数据/状态模型、契约矩阵、技术执行流程、需求验收映射**作为一等或条件章节表达，禁止只散落在说明文字、文件清单或测试备注中。
+> ⚠️ CP2 技术方案必须把**目标架构/模块边界、数据/状态模型、契约矩阵、技术执行流程、产品事实源→技术验证映射（需求验收映射）**作为一等或条件章节表达，禁止只散落在说明文字、文件清单或测试备注中。这里的实现验收由技术方案从 CP1 双方确认后的产品需求派生，不要求需求方或产品在 CP1 填写验收标准；若产品已直接提供 `01-产品需求.md`，技术方案直接承接该产品完整需求，不再要求 AI 生成 `01-需求确认.md`。
 > ⚠️ 生成的 Markdown 技术方案文档必须在头部后补 `## 目录导航`。若需求属于契约驱动型，方案中必须显式引用目标文档路径、文档模式与本方案引用的契约范围。
 > ⚠️ 控制面、Auto、多批次、预计修改 ≥10 文件、模板-示例-校验链或发布前置任务，方案中必须说明是否触发 `execution-contract`、`test-router`、`audit-release`、`release-verification`、`source-consumer-sync`、`host-contract-verification` 与 `05-实施进度.md`。
 > ⚠️ 若本方案触发或豁免任何关键产物，必须在 §1 或 §8 写出 ArtifactDecisionMatrix：`artifact`、`state(create/update/skip/N/A)`、`reason`、`trigger`、`upgradeTrigger`、`targetArtifact`。
@@ -72,7 +72,7 @@ applyTo: .devcodex/**/requirements/**
 - [§5 安全性设计](#5-安全性设计)
 - [§6 性能考量](#6-性能考量)
 - [§7 测试策略](#7-测试策略)
-  - [§7.1 需求验收映射](#71-需求验收映射)
+  - [§7.1 产品事实源→技术验证映射（需求验收映射）](#71-产品事实源技术验证映射需求验收映射)
 - [§8 实施约束](#8-实施约束)
 - [§9 风险与缓解](#9-风险与缓解)
 ```
@@ -285,7 +285,7 @@ applyTo: .devcodex/**/requirements/**
 | UIConfirmedSourceConflictTraceGate / PublicDocsReleasedVersionGate | 旧 PRD 与新 UI 冲突表 / released-unreleased-preview 边界 | | |
 | CollectionRelationIdNamingGate / UserFacingVerificationArtifactLanguageGate | 集合实体命名依据 / 用户当前语言 / 验证产物语言 | | |
 | AdapterBenchmarkAttribution | 基线 / 环境 / 版本 / 负载 / 归因边界 / 不可比较因素 | | |
-| ProductRequirementTraceabilityGate | 来源锚点 / 提取口径 / 冲突遗漏处理 / 验收映射 | | |
+| ProductRequirementTraceabilityGate | 来源锚点 / 提取口径 / 冲突遗漏处理 / 技术验证映射 | | |
 | LocalExecutionConfigProbe | 配置入口 / config.local 或既有脚本约定 / S02 策略 / 缺失处理 | | |
 | ManualReviewEvidenceDataRetention | 证据保存位置 / 可复核输入 / 样本范围 / 保留或不可保留原因 | | |
 | AdjacentScopeExpansionGuard | 指定范围 / 相邻扩展理由 / 影响面 / 回退边界 | | |
@@ -310,11 +310,11 @@ applyTo: .devcodex/**/requirements/**
 
 ### §2.7 最小实现与注释策略
 
-> 必须继承 CP1 的 `ImplementationComplexityLevel`。默认采用 `简单够用`：能满足已确认验收项的最小实现，优先局部补丁和既有模式；复杂度预算超限、新增抽象或新增防御分支必须有证据，否则回 CP2/CP1 收窄范围。
+> 必须继承 CP1 的 `ImplementationComplexityLevel`。默认采用 `简单够用`：能满足已确认产品事实源和派生技术验证项的最小实现，优先局部补丁和既有模式；复杂度预算超限、新增抽象或新增防御分支必须有证据，否则回 CP2/CP1 收窄范围。
 
 | CP1 档位 | CP2 落地要求 |
 |----------|--------------|
-| `简单够用` | 只保留满足验收的局部最小实现；不新增 service / factory / adapter / manager、策略注册表、通用配置或预留扩展点 |
+| `简单够用` | 只保留满足已确认产品事实源和技术验证项的局部最小实现；不新增 service / factory / adapter / manager、策略注册表、通用配置或预留扩展点 |
 | `中等` | 写明真实复用者、演进边界或跨模块共享契约，以及为什么直接实现不足 |
 | `企业级` | 写明用户确认依据、多方案取舍、开发周期 / 难度 / 长期维护成本、迁移/回滚和验证路线 |
 
@@ -417,13 +417,13 @@ applyTo: .devcodex/**/requirements/**
 | 手工 / 现场复核 | 复核记录、截图、日志、页面观察或等价证据 | 仅在 `ManualReviewEvidenceRetention` 命中时执行，保留范围、输入和观察结果 |
 | 包边界验证 | 构建完成后单独执行 `npm pack --dry-run` / package boundary check | 不与 build/benchmark/codegen 并行，files/exports/bin/dist 边界来自稳定包清单 |
 
-### §7.1 需求验收映射
+### §7.1 产品事实源→技术验证映射（需求验收映射）
 
-> 将 CP1 已确认的验收项映射到方案设计、验证路线和 CP3 任务。每个 CP1 验收项都必须有映射；确实不适用时写 `N/A + skipReason`，不得静默遗漏。
+> 将 CP1 中**需求方原始输入锚点**、AI 提炼口径、双方确认后的产品需求原文，或产品直接提供的 `01-产品需求.md` 中的流程节点、字段描述、样例、反例、异常边界和待确认问题映射到方案设计、验证路线和 CP3 任务。本节是技术方案派生实现验收的入口，不是需求方或产品填写验收标准；每个关键产品事实源都必须有映射，确实不适用时写 `N/A + skipReason`，不得静默遗漏。
 
-| CP1验收项 | 对应设计点 | TestRoute/测试类型 | CP3任务锚点 | 通过标准 |
-|-----------|------------|--------------------|-------------|----------|
-| | | | | |
+| 需求方输入锚点 / CP1产品事实源 / 产品完整需求锚点 | 确认状态 | 对应设计点 | TestRoute/测试类型 | CP3任务锚点 | 技术通过标准 |
+|----------------------------------|--------------|------------|--------------------|-------------|--------------|
+| | | | | | |
 
 ## §8 实施约束（条件）
 

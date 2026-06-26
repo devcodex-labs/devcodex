@@ -60,6 +60,8 @@ function directoryContainsFileMatching(dir, matcher, depth = 4) {
 
 function hasTaskArtifact(kind, full, phase) {
   if (phase === 'CP1') {
+    if (fs.existsSync(path.join(full, '01-需求确认.md'))) return true
+    if (fs.existsSync(path.join(full, '01-产品需求.md'))) return true
     if (fs.existsSync(path.join(full, '01-需求概述.md'))) return true
     if (kind === 'bugs') {
       return directoryContainsFileMatching(path.join(full, 'reports'), name => /^01--.*CP1.*\.md$/i.test(name))

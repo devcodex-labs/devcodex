@@ -70,6 +70,7 @@ applyTo: ".devcodex/**/reports/audit/**, .devcodex/**/reports/self-fix/**"
 | UserPerspectiveDocsGate / PublicUserDocsMaintainerBoundaryGate / DocsConsumerSweep | 使用者视角 / 详细度 / 心智负担 / 维护者 checklist 边界 / 字段与示例解释 / 当前消费者与导航同步 |
 | ArtifactLinkSetDedupeGate / FrontendRuntimeNetworkProbeGate | 规范化路径去重 / 主产物消歧 / console-network-resource-runtime 证据 |
 | ActiveRequirementFinalResponseGate | active requirement/task/bug id / 相邻需求未切换 / 最终回复范围 |
+| LatestAbsorptionGuards | DatabaseRecordMigrationExportGate / FrontendBrowserVerificationBudgetGate / UserSelfVerificationOverrideGate / FindingProbeMatrixGate / MultiPhaseClosureGate / GuardPolicyBypassMatrixGate / SideEffectCompatibilityDocsGate / ExecutableExampleTruthProbeGate / VisualDeviationTypeGate / OneOffRequirementScriptPlacementGate / VerificationCommandSideEffectGate / DesignFramePurposeClassificationGate / RequirementPreConfirmGate / PackageAdapterPreConfirmEvidenceGate |
 
 ## §3 问题清单
 

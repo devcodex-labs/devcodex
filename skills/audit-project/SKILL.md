@@ -75,6 +75,10 @@ description: 项目工程审查维度 PE-1~PE-12 — 代码质量/项目结构/�
 - 审查需求、方案、报告或工程实现中“已实现 / 已接入 / 未接入 / 已验证”声明时，检查 `CodeTruthRequirementGate` 与 `LiveVerificationExecutionObligation` 是否有代码真相源和真实执行证据
 - 审查发现来源为外部报告、AI review finding、audit issue 或代码评审时，检查 `ReviewFindingIntakeGate` 是否已补本地证据并分流 must-fix、设计如此、用户决策、文档/实现漂移、测试覆盖缺口和未复现项
 - 前端/Figma/截图/既有页面审查需检查 `FigmaHighFidelityRestorationGate`、`ScopedVisualChangeGate`、`InstalledPluginVisualVerificationGate`、`ActualPreviewChainAndMockFallbackGate`、`FrontendRuntimeNetworkProbeGate`、`UIStateScopeRegressionGate`、`FigmaProductionAssetBudgetGate` 与 `RuntimeI18nArtifactVerificationGate` 是否留有真实视觉、console/network/resource、状态、资产和运行时本地化证据
+- 外部 finding 被分类为 must-fix 时检查 `FindingProbeMatrixGate` 是否逐项映射失败输入、修复前失败形态、修复后通过条件、测试/脚本和发布面证据
+- guard / policy / permission / consistency / 写路径限制类能力检查 `GuardPolicyBypassMatrixGate`，确认 raw/native/legacy/management/admin/client 等绕过面、规则特异性、动作策略和负向 parser/key 组合已覆盖
+- 验证命令、build、codegen、export、tsc 等检查 `VerificationCommandSideEffectGate`，确认执行前读取脚本定义、执行后扫描并处理生成物
+- package、adapter、SDK、CLI 或插件能力检查 `PackageAdapterPreConfirmEvidenceGate`，确认 package/plugin/exports/bin/files/dist/registry/消费者入口证据真实存在
 - 提交、兼容契约、UI 主真相源冲突、公开文档版本、集合关系 id 命名或用户可见验证产物语言相关审查需检查 `ExplicitCommitAuthorizationGate`、`CompatibilityAndContractAuthorityGate`、`UIConfirmedSourceConflictTraceGate`、`PublicDocsReleasedVersionGate`、`CollectionRelationIdNamingGate` 与 `UserFacingVerificationArtifactLanguageGate`
 - 人工复核、视觉检查、手工冒烟或外部页面观察需有 `ManualReviewEvidenceRetention`，包含范围、输入、观察结果、截图/日志或等价证据
 - adapter、provider、connector、SDK、benchmark 或性能优化需检查 `AdapterBenchmarkAttribution`，确认基线、环境、版本、负载和归因边界清晰

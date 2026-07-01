@@ -45,6 +45,10 @@ description: 默认修复子类型规范 — Bug 修复三步扫描 + CP 流程
 - 修复必须附带回归测试，禁止无测试的 hotfix（emergency 除外）
 - 修复范围不得超出问题边界（禁止顺手重构）
 - 若修复来源是外部审查报告、AI review finding、audit issue 或代码评审发现，CP1 前必须执行 `ReviewFindingIntakeGate`：报告只是线索，先补本地证据并分流 must-fix、设计如此、用户决策、文档/实现漂移、测试覆盖缺口和未复现项；命中用户决策或公共契约风险时，源码修改前必须确认。
+- 命中 must-fix 或发布阻断 finding 时，必须执行 `FindingProbeMatrixGate`，逐项列出入口/消费者、最小失败输入、修复前失败形态、修复后通过条件、测试/脚本和发布面证据；复审至少一轮反向运行矩阵。
+- guard / policy / permission / consistency / 写路径限制类修复必须执行 `GuardPolicyBypassMatrixGate`，覆盖 raw/native/legacy/management/admin/client 等绕过面、规则特异性、动作策略和负向 parser/key 组合。
+- 执行任何验证命令前必须执行 `VerificationCommandSideEffectGate`：读取 script 定义，分类 read-only / writes-artifacts / mutates-source；类型校验优先 noEmit，写产物命令执行后扫描/隔离/清理生成物。
+- 前端修复遵循 `FrontendBrowserVerificationBudgetGate` 与 `UserSelfVerificationOverrideGate`；用户明确自验或禁止浏览器/截图时不得主动启动 Browser/CDP/Playwright/截图，只记录代码级替代验证。
 - 最小实现守门：CP1 问题确认必须给出 `ImplementationComplexityLevel`（兼容旧字段 `ImplementationComplexityPreference`），默认 `简单够用`；修复只解决已确认根因和影响范围，禁止无计划新增抽象、通用配置、预留扩展点或未确认防御分支；确需超出范围或升级到 `中等` / `企业级` 时回 CP2/CP3 并等待确认
 - 必要注释守门：非显然根因、兼容约束、安全边界、状态转换或反直觉修复取舍必须有短注释；JavaScript / Node.js 中命中必要注释的导出函数、核心业务函数、类、复杂对象契约、参数/返回/异常说明必须使用标准 JSDoc；禁止逐行解释、重复代码含义、临时 TODO 或调试注释
 - 依赖升级、兼容修复或批量适配类问题先记录问题清单与归因，再统一确认修复范围；auto 执行仍须回写问题清单、证据和台账状态

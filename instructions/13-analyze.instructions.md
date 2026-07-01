@@ -2,7 +2,7 @@
 applyTo: "**"
 description: analyze 工作流规则，覆盖只读分析、代码取证顺序、多轮收敛与推荐结论
 priority: P4
-version: 1.11.24
+version: 1.11.25
 ---
 # 分析工作流规则（13-analyze）
 
@@ -98,6 +98,7 @@ version: 1.11.24
 - 前端/Figma/截图/既有页面分析涉及 UI 还原、视觉漂移、真实 preview、状态回归、生产资产或运行时本地化时，应检查 `FigmaHighFidelityRestorationGate`、`ScopedVisualChangeGate`、`InstalledPluginVisualVerificationGate`、`ActualPreviewChainAndMockFallbackGate`、`UIStateScopeRegressionGate`、`FigmaProductionAssetBudgetGate` 与 `RuntimeI18nArtifactVerificationGate`，并标明证据范围。
 - 分析结论涉及提交边界、兼容修复、上游契约、UI 主真相源冲突、公开文档版本、集合关系命名或验证产物语言时，应分别检查 `ExplicitCommitAuthorizationGate`、`CompatibilityAndContractAuthorityGate`、`UIConfirmedSourceConflictTraceGate`、`PublicDocsReleasedVersionGate`、`CollectionRelationIdNamingGate` 与 `UserFacingVerificationArtifactLanguageGate`；若只是当前问题无关，写 `N/A + skipReason`。
 - 分析结论涉及复审是否收敛、文档是否好用好懂、公开用户文档是否混入维护者 checklist、文档消费者同步、产物路径重复展示、前端真实预览可信度或最终汇报是否漂到相邻需求时，应分别检查 `ReviewDimensionDeltaGate`、`UserPerspectiveDocsGate`、`PublicUserDocsMaintainerBoundaryGate`、`DocsConsumerSweep`、`ArtifactLinkSetDedupeGate`、`FrontendRuntimeNetworkProbeGate` 与 `ActiveRequirementFinalResponseGate`，并标明证据范围；若只是当前问题无关，写 `N/A + skipReason`。
+- 分析结论涉及数据库记录迁移、前端浏览器验证成本、用户自验、外部 finding 反证矩阵、多阶段关闭、guard/policy 绕过、带副作用兼容文档、可执行示例、视觉偏差类型、一次性脚本归属、验证命令副作用、设计帧用途、需求确认前缺口或 package/adapter 确认前证据时，应分别检查 `DatabaseRecordMigrationExportGate`、`FrontendBrowserVerificationBudgetGate`、`UserSelfVerificationOverrideGate`、`FindingProbeMatrixGate`、`MultiPhaseClosureGate`、`GuardPolicyBypassMatrixGate`、`SideEffectCompatibilityDocsGate`、`ExecutableExampleTruthProbeGate`、`VisualDeviationTypeGate`、`OneOffRequirementScriptPlacementGate`、`VerificationCommandSideEffectGate`、`DesignFramePurposeClassificationGate`、`RequirementPreConfirmGate` 与 `PackageAdapterPreConfirmEvidenceGate`，并标明证据范围。
 
 ### 收敛后汇总验证（PCV）
 

@@ -46,6 +46,8 @@ description: README / 用户使用文档专项审查维度 RM-1~RM-6 — 聚焦�
 - 开发方式、贡献流程、协作规范是否没有抢占主叙事
 - README 是否优先服务使用者，而不是维护者
 - 是否执行 `PublicUserDocsMaintainerBoundaryGate`：发布 checklist、维护者验收、内部同步清单、台账状态或复审任务不得作为公开 README / 用户文档的主路径
+- 是否执行 `SideEffectCompatibilityDocsGate`：README / 快速上手不得把带全局副作用、兼容 shim、弃用行为或高心智负担的旧路径放入用户主路径
+- 是否执行 `ExecutableExampleTruthProbeGate`：README 中 DSL、配置、模板或扩展示例需有当前实现的最小执行证据；未来语法必须标注 preview / unreleased
 - 若同时面向用户与贡献者，是否保持单一主叙事中心
 
 **RM-6 消费链一致性 🔴**

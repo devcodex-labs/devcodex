@@ -115,6 +115,9 @@ description: 文档开发子类型规范 — 技术文档/API文档/README 编�
 - `DocsSiteVisualAcceptanceGate`：官网/文档站/技术站视觉或交互调整必须验收主题集成、真实点击、异步动效、减弱动态、代码 token 对比度、终端 demo 范围、TOC inline code 和辅助导航层级；纯内容页写 `N/A + skipReason`。
 - `UserPerspectiveDocsGate`：面向使用者的文档不得只按内部实现、维护者分工或历史治理顺序堆叠；要让首次读者能低心智成本完成“理解 → 安装/进入 → 第一次成功 → 常见任务 → 排错”的路径。
 - `PublicUserDocsMaintainerBoundaryGate`：公开用户文档不得把维护者验收、发布 checklist、内部同步清单、台账状态或实现者复审任务作为用户需要阅读的步骤；此类内容应迁移到 CONTRIBUTING、release checklist、requirements/report 或 maintainer-only 文档。
+- `SideEffectCompatibilityDocsGate`：README、快速上手、框架接入、Model/ORM/adapter 文档只展示当前推荐写法；带全局副作用、兼容 shim、弃用行为或高心智负担的旧路径不得进入公开主路径兼容说明。
+- `ExecutableExampleTruthProbeGate`：DSL、parser、validator、exporter、配置表达式、模板语法或扩展系统示例进入公开文档、CP 或 companion example 前，必须用当前实现跑最小执行探针；新语法须标未发布或进入 CP2 兼容评估。
+- `RequirementPreConfirmGate`：docs/需求类任务推荐确认 `01-需求确认.md` / `01-产品需求.md` 前，必须检查行为可验证、范围/非目标冲突和高风险 fail-safe 语义；缺口先修正文档或列确认问题。
 - `DocsConsumerSweep`：文档即产品入口时，正文、导航、索引、示例、模板、Profile、validate 和部署副本都是当前消费者；同步失败或刻意不同序必须写明原因。
 
 ## 产出物

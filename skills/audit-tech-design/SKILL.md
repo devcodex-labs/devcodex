@@ -37,6 +37,7 @@ description: 技术方案审查维度 TD-1~TD-13 — 架构/技术选型/实施�
 - 覆盖率目标明确
 - 有针对性的负向测试场景
 - 包 / 库 / adapter / CLI 方案同时覆盖代码实现层与包工程层验证（public API / public types / shared tests / benchmark / docs / scripts / package metadata）
+- 包 / adapter / SDK / CLI / 插件方案在推荐确认前已执行 `PackageAdapterPreConfirmEvidenceGate`：核对 package.json、plugin.json、exports/bin/files、dist/pack 边界、registry 或安装入口、adapter 消费者和官方/上游公开契约；缺证据时不能宣称包消费者可用
 
 **TD-12 API/接口设计质量 🟡**
 - 简单 service 只承担业务编排、外部能力调用和必要上游错误映射，不重复 route validate、model/schema、数据导入或框架已承担的校验、归一化和配置兜底

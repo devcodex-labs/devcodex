@@ -73,3 +73,5 @@ README / 用户使用文档场景在本 Skill 基础上，还应叠加 `audit-re
 - 非正式流程图、纯文本内容页或无视觉交互变更：上述流程图/文档站验收守门可标 `N/A + skipReason`
 - 非使用者文档且无字段/命令/导航/消费者变更：`UserPerspectiveDocsGate` / `DocsConsumerSweep` 可标 `N/A + skipReason`
 - 非公开用户文档、README、教程、快速开始、配置/扩展/框架接入指南：`PublicUserDocsMaintainerBoundaryGate` 可标 `N/A + skipReason`
+- README、快速上手、框架接入、Model/ORM/adapter 文档若展示旧兼容路径，必须检查 `SideEffectCompatibilityDocsGate`，避免把带全局副作用、兼容 shim、弃用行为或高心智负担的写法放进公开主路径。
+- DSL、parser、validator、exporter、配置表达式、模板语法或扩展系统示例必须检查 `ExecutableExampleTruthProbeGate`：公开前需有当前实现的最小执行探针或明确标注未发布/未来能力。

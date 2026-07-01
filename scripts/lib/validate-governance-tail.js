@@ -1409,6 +1409,79 @@ function buildGovernanceTailChecks(ctx) {
     console.log('[V67] public user docs / active final response sync checked')
   }
 
+  function checkV68() {
+    const gates = [
+      'DatabaseRecordMigrationExportGate',
+      'FrontendBrowserVerificationBudgetGate',
+      'UserSelfVerificationOverrideGate',
+      'FindingProbeMatrixGate',
+      'MultiPhaseClosureGate',
+      'GuardPolicyBypassMatrixGate',
+      'SideEffectCompatibilityDocsGate',
+      'ExecutableExampleTruthProbeGate',
+      'VisualDeviationTypeGate',
+      'OneOffRequirementScriptPlacementGate',
+      'VerificationCommandSideEffectGate',
+      'DesignFramePurposeClassificationGate',
+      'RequirementPreConfirmGate',
+      'PackageAdapterPreConfirmEvidenceGate'
+    ]
+
+    const probes = [
+      { file: 'instructions.md', needles: gates },
+      { file: 'instructions/02-output-paths.instructions.md', needles: ['OneOffRequirementScriptPlacementGate'] },
+      { file: 'instructions/10-dev.instructions.md', needles: ['RequirementPreConfirmGate', 'PackageAdapterPreConfirmEvidenceGate', 'VerificationCommandSideEffectGate'] },
+      { file: 'instructions/11-fix.instructions.md', needles: ['FindingProbeMatrixGate', 'GuardPolicyBypassMatrixGate', 'VerificationCommandSideEffectGate'] },
+      { file: 'instructions/12-audit.instructions.md', needles: ['DesignFramePurposeClassificationGate', 'PackageAdapterPreConfirmEvidenceGate', 'VerificationCommandSideEffectGate'] },
+      { file: 'instructions/13-analyze.instructions.md', needles: ['DatabaseRecordMigrationExportGate', 'FrontendBrowserVerificationBudgetGate', 'RequirementPreConfirmGate'] },
+      { file: 'skills/test-router/SKILL.md', needles: gates.concat(['browserVerificationBudget', 'findingProbeMatrix', 'verificationCommandSideEffect']) },
+      { file: 'skills/dev-default/SKILL.md', needles: ['DatabaseRecordMigrationExportGate', 'FrontendBrowserVerificationBudgetGate', 'RequirementPreConfirmGate', 'PackageAdapterPreConfirmEvidenceGate'] },
+      { file: 'skills/fix-default/SKILL.md', needles: ['FindingProbeMatrixGate', 'GuardPolicyBypassMatrixGate', 'VerificationCommandSideEffectGate'] },
+      { file: 'skills/dev-testing/SKILL.md', needles: ['FrontendBrowserVerificationBudgetGate', 'UserSelfVerificationOverrideGate', 'VerificationCommandSideEffectGate'] },
+      { file: 'skills/dev-database/SKILL.md', needles: ['DatabaseRecordMigrationExportGate', 'OneOffRequirementScriptPlacementGate'] },
+      { file: 'skills/dev-docs/SKILL.md', needles: ['SideEffectCompatibilityDocsGate', 'ExecutableExampleTruthProbeGate', 'RequirementPreConfirmGate'] },
+      { file: 'skills/dev-plan-review/SKILL.md', needles: ['RequirementPreConfirmGate', 'PackageAdapterPreConfirmEvidenceGate', 'LatestAbsorptionGuards'] },
+      { file: 'skills/audit-requirements/SKILL.md', needles: ['RequirementPreConfirmGate', 'MultiPhaseClosureGate', 'DesignFramePurposeClassificationGate'] },
+      { file: 'skills/audit-project/SKILL.md', needles: ['FindingProbeMatrixGate', 'GuardPolicyBypassMatrixGate', 'VerificationCommandSideEffectGate', 'PackageAdapterPreConfirmEvidenceGate'] },
+      { file: 'skills/audit-document/SKILL.md', needles: ['SideEffectCompatibilityDocsGate', 'ExecutableExampleTruthProbeGate'] },
+      { file: 'skills/audit-readme/SKILL.md', needles: ['SideEffectCompatibilityDocsGate', 'ExecutableExampleTruthProbeGate'] },
+      { file: 'skills/audit-tech-design/SKILL.md', needles: ['PackageAdapterPreConfirmEvidenceGate'] },
+      { file: 'skills/document-sync/SKILL.md', needles: ['DatabaseRecordMigrationExportGate', 'VerificationCommandSideEffectGate', 'PackageAdapterPreConfirmEvidenceGate'] },
+      { file: 'skills/report/SKILL.md', needles: ['LatestAbsorptionGuards', 'DatabaseRecordMigrationExportGate', 'PackageAdapterPreConfirmEvidenceGate'] },
+      { file: 'prompts/requirement.prompt.md', needles: ['RequirementPreConfirmGate', 'MultiPhaseClosureGate', 'PackageAdapterPreConfirmEvidenceGate'] },
+      { file: 'prompts/technical-design.prompt.md', needles: ['LatestAbsorptionGuards', 'VisualDeviationTypeGate', 'PackageAdapterPreConfirmEvidenceGate'] },
+      { file: 'prompts/implementation-plan.prompt.md', needles: ['LatestAbsorptionGuards', 'VerificationCommandSideEffectGate', 'PackageAdapterPreConfirmEvidenceGate'] },
+      { file: 'prompts/report-dev.prompt.md', needles: ['LatestAbsorptionGuards', 'DatabaseRecordMigrationExportGate'] },
+      { file: 'prompts/report-fix.prompt.md', needles: ['LatestAbsorptionGuards', 'GuardPolicyBypassMatrixGate'] },
+      { file: 'prompts/report-audit.prompt.md', needles: ['LatestAbsorptionGuards', 'RequirementPreConfirmGate'] },
+      { file: 'prompts/report-scenario-test.prompt.md', needles: ['LatestAbsorptionGuards', 'FrontendBrowserVerificationBudgetGate'] },
+      { file: 'README.md', needles: ['DatabaseRecordMigrationExportGate', 'FrontendBrowserVerificationBudgetGate', 'PackageAdapterPreConfirmEvidenceGate'] },
+      { file: 'website/docs/guide/development.md', needles: ['DatabaseRecordMigrationExportGate', 'FrontendBrowserVerificationBudgetGate', 'PackageAdapterPreConfirmEvidenceGate'] },
+      { file: 'website/docs/versions/v1/1.0.1/requirements/p1/latest-data-absorption-guards/index.md', needles: ['V68', 'DatabaseRecordMigrationExportGate', 'RequirementPreConfirmGate'] },
+      { file: 'website/docs/versions/v1/1.0.1/CHANGELOG.md', needles: ['V68 探针', 'DatabaseRecordMigrationExportGate', 'PackageAdapterPreConfirmEvidenceGate'] },
+      { file: 'changelogs/releases/v1.11.25.md', needles: ['V68', 'PI-071', 'PF-076', 'DatabaseRecordMigrationExportGate', 'PackageAdapterPreConfirmEvidenceGate'] },
+      { file: 'scripts/test-spec-governance.js', needles: ['checkV68', 'DatabaseRecordMigrationExportGate', 'PackageAdapterPreConfirmEvidenceGate'] },
+      { file: 'scripts/validate.js', needles: ['V68 Latest data absorption', 'checkV68()'] }
+    ]
+
+    for (const probe of probes) {
+      const content = read(path.join(ROOT, probe.file))
+      for (const needle of probe.needles) {
+        if (!content.includes(needle)) {
+          err(`[V68] latest data absorption guards drift in ${probe.file}: missing "${needle}"`)
+        }
+      }
+    }
+
+    for (const needle of gates.concat(['V68', 'PI-071', 'PF-076'])) {
+      if (!hasChangelogEvidence(needle)) {
+        err(`[V68] latest data absorption changelog drift: missing "${needle}" in changelogs/unreleased.md or changelogs/releases/*.md`)
+      }
+    }
+
+    console.log('[V68] latest data absorption guards sync checked')
+  }
+
   return {
     checkV39,
     checkV40,
@@ -1438,7 +1511,8 @@ function buildGovernanceTailChecks(ctx) {
     checkV64,
     checkV65,
     checkV66,
-    checkV67
+    checkV67,
+    checkV68
   }
 }
 

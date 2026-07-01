@@ -406,12 +406,16 @@ flowchart TD
 | 中文类别 | 内部稳定标识 | 来源 |
 |----------|--------------|------|
 | 前端体验与设计来源 | FrontendExperienceQualityGate / FigmaHighFidelityRestorationGate / ScopedVisualChangeGate / ActualPreviewChainAndMockFallbackGate / FrontendRuntimeNetworkProbeGate / UIStateScopeRegressionGate / FigmaProductionAssetBudgetGate / RuntimeI18nArtifactVerificationGate | §2.5、§3、§5、§8 |
+| 前端验证预算与视觉偏差 | FrontendBrowserVerificationBudgetGate / UserSelfVerificationOverrideGate / VisualDeviationTypeGate / DesignFramePurposeClassificationGate | §2.5、§3、§8 |
 | 需求来源追溯 | ProductRequirementTraceabilityGate | §0.1、§0.2、§1、§8.3 |
+| 确认前需求质量 | RequirementPreConfirmGate / MultiPhaseClosureGate | §1、§2、§7、§9 |
 | 公开模块与包边界 | PackageNameAuthorityGate / PublicModuleDifferentiationGate | §2.2、§7 |
 | 验证范围与基准归因 | VerificationScopeBudgetGate / LiveVerificationExecutionObligation / AdapterBenchmarkAttribution | §2.4、§7、§8 |
 | 提交、兼容与用户语言 | ExplicitCommitAuthorizationGate / CompatibilityAndContractAuthorityGate / UserFacingVerificationArtifactLanguageGate | §0.2、§7、§10 |
 | 全工作区吸纳与流程图解释 | WorkspaceDataAbsorptionScopeGate / FlowchartNodeExplanationGate | §3、§7 |
 | 审查发现与复审维度 | ReviewFindingIntakeGate / ReviewDimensionDeltaGate / OmissionOnlyReviewGate / intentional design | §0.2、§8.3、§10 |
+| 数据迁移、finding 与验证命令 | DatabaseRecordMigrationExportGate / FindingProbeMatrixGate / GuardPolicyBypassMatrixGate / OneOffRequirementScriptPlacementGate / VerificationCommandSideEffectGate | 按 CP2 技术方案和 TestRoute 条件派生 |
+| 文档示例与 package/adapter 证据 | SideEffectCompatibilityDocsGate / ExecutableExampleTruthProbeGate / PackageAdapterPreConfirmEvidenceGate | 按 CP2 技术方案和 TestRoute 条件派生 |
 | 文档使用者与消费者同步 | UserPerspectiveDocsGate / PublicUserDocsMaintainerBoundaryGate / DocsConsumerSweep / DocsSiteVisualAcceptanceGate | §1、§5、§7 |
 | 产物链接与最终回复范围 | ArtifactLinkSetDedupeGate / ActiveRequirementFinalResponseGate | §9、§10 |
 | DevCodex v2 路线与方案包 | V2MCPFirstPlanningGate / V2FormalSolutionPackage | §2.4、§7、§9 |

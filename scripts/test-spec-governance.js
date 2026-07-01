@@ -546,7 +546,31 @@ const probes = [
   ['website/docs/versions/v1/1.0.1/requirements/p1/latest-data-absorption-guards/index.md', 'V67'],
   ['website/docs/versions/v1/1.0.1/CHANGELOG.md', 'V67 探针'],
   ['scripts/lib/validate-governance-tail.js', 'checkV67'],
-  ['scripts/validate.js', 'checkV67()']
+  ['scripts/validate.js', 'checkV67()'],
+  ['instructions.md', 'DatabaseRecordMigrationExportGate'],
+  ['instructions.md', 'PackageAdapterPreConfirmEvidenceGate'],
+  ['instructions/10-dev.instructions.md', 'RequirementPreConfirmGate'],
+  ['instructions/11-fix.instructions.md', 'FindingProbeMatrixGate'],
+  ['instructions/12-audit.instructions.md', 'VerificationCommandSideEffectGate'],
+  ['instructions/13-analyze.instructions.md', 'FrontendBrowserVerificationBudgetGate'],
+  ['instructions/02-output-paths.instructions.md', 'OneOffRequirementScriptPlacementGate'],
+  ['skills/test-router/SKILL.md', 'browserVerificationBudget'],
+  ['skills/test-router/SKILL.md', 'findingProbeMatrix'],
+  ['skills/dev-database/SKILL.md', 'DatabaseRecordMigrationExportGate'],
+  ['skills/dev-docs/SKILL.md', 'ExecutableExampleTruthProbeGate'],
+  ['skills/dev-plan-review/SKILL.md', 'PackageAdapterPreConfirmEvidenceGate'],
+  ['skills/audit-requirements/SKILL.md', 'RequirementPreConfirmGate'],
+  ['skills/audit-project/SKILL.md', 'GuardPolicyBypassMatrixGate'],
+  ['skills/report/SKILL.md', 'LatestAbsorptionGuards'],
+  ['prompts/technical-design.prompt.md', 'VisualDeviationTypeGate'],
+  ['prompts/implementation-plan.prompt.md', 'LatestAbsorptionGuards'],
+  ['prompts/report-dev.prompt.md', 'PackageAdapterPreConfirmEvidenceGate'],
+  ['README.md', 'DatabaseRecordMigrationExportGate'],
+  ['website/docs/guide/development.md', 'FrontendBrowserVerificationBudgetGate'],
+  ['website/docs/versions/v1/1.0.1/requirements/p1/latest-data-absorption-guards/index.md', 'V68'],
+  ['website/docs/versions/v1/1.0.1/CHANGELOG.md', 'V68 探针'],
+  ['scripts/lib/validate-governance-tail.js', 'checkV68'],
+  ['scripts/validate.js', 'checkV68()']
 ]
 
 for (const [file, needle] of probes) mustInclude(file, needle)
@@ -589,6 +613,22 @@ mustIncludeInChangelogs('PI-053')
 mustIncludeInChangelogs('PI-054')
 mustIncludeInChangelogs('PF-057')
 mustIncludeInChangelogs('PF-058')
+mustIncludeInChangelogs('DatabaseRecordMigrationExportGate')
+mustIncludeInChangelogs('FrontendBrowserVerificationBudgetGate')
+mustIncludeInChangelogs('UserSelfVerificationOverrideGate')
+mustIncludeInChangelogs('FindingProbeMatrixGate')
+mustIncludeInChangelogs('MultiPhaseClosureGate')
+mustIncludeInChangelogs('GuardPolicyBypassMatrixGate')
+mustIncludeInChangelogs('SideEffectCompatibilityDocsGate')
+mustIncludeInChangelogs('ExecutableExampleTruthProbeGate')
+mustIncludeInChangelogs('VisualDeviationTypeGate')
+mustIncludeInChangelogs('OneOffRequirementScriptPlacementGate')
+mustIncludeInChangelogs('VerificationCommandSideEffectGate')
+mustIncludeInChangelogs('DesignFramePurposeClassificationGate')
+mustIncludeInChangelogs('RequirementPreConfirmGate')
+mustIncludeInChangelogs('PackageAdapterPreConfirmEvidenceGate')
+mustIncludeInChangelogs('PI-071')
+mustIncludeInChangelogs('PF-076')
 
 const activeRuleFiles = [
   'README.md',

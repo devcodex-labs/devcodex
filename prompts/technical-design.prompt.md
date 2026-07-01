@@ -23,8 +23,8 @@ applyTo: .devcodex/**/requirements/**
 > ⚠️ provider / connector / 三方 SDK 接入类方案必须先冻结业务功能接口，再说明底层 provider adapter / model / operation / 配置如何实现该功能；不得把内部 provider 能力直接反向暴露成业务接口。随后冻结字段级合同和统一 operation contract；包 / 库 / adapter / CLI 方案必须同时检查代码实现层与包工程层。
 > ⚠️ CP2 必须承接 CP1 的平台工程判断和 `ImplementationComplexityLevel`（兼容旧字段 `ImplementationComplexityPreference`）：消费者范围、共享契约边界、模块职责、可维护性成本、非目标和最小实现预算要互相一致；没有真实复用者或演进边界时，不得新增 factory / manager / adapter / registry 等预设抽象。
 > ⚠️ package boundary / pack / benchmark / codegen 验证必须写清串行顺序；任何会删除、重建或写入 `dist` 的命令不得和包边界检查并行。
-> ⚠️ 前端页面、组件、控制台、官网、文档站、可视化工具、游戏或用户可见 UI / 交互方案必须填写 `FrontendExperienceQualityGate`：设计来源、UI 还原度、风格主题、响应式状态、视觉验证、用户流、交互反馈、输入方式/可访问性、错误恢复和动效转场；Figma/截图/既有页面还原需追加 `FigmaHighFidelityRestorationGate`、`ScopedVisualChangeGate`、`InstalledPluginVisualVerificationGate`、`ActualPreviewChainAndMockFallbackGate`、`FrontendRuntimeNetworkProbeGate`、`UIStateScopeRegressionGate`、`FigmaProductionAssetBudgetGate` 与 `RuntimeI18nArtifactVerificationGate`；不触发时写 `N/A + skipReason`。
-> ⚠️ 接入状态、人工复核、翻译/正式文档边界、prompt/Hook/MCP 契约、验证范围、真实执行、benchmark 归因、产品需求来源、本机执行配置、人工证据留存、相邻范围扩展、包名/发布名、性能第一、公开模块、提交授权、兼容契约、UI 源冲突、公开文档版本、集合关系命名、验证产物语言、DevCodex v2 一期路线、全工作区 data 吸纳、正式流程图、文档站视觉验收、遗漏专审、审查发现 intake、复审维度增量、使用者文档、公开用户文档维护边界、文档消费者扫描、产物链接去重、前端运行时网络探针、最终回复 active 范围、方法级泄漏压测或 v2 正式方案包必须填写 `CrossProjectLearnedGuards`；未触发项写 `N/A + skipReason`。
+> ⚠️ 前端页面、组件、控制台、官网、文档站、可视化工具、游戏或用户可见 UI / 交互方案必须填写 `FrontendExperienceQualityGate`：设计来源、UI 还原度、风格主题、响应式状态、视觉验证、用户流、交互反馈、输入方式/可访问性、错误恢复和动效转场；Figma/截图/既有页面还原需追加 `FigmaHighFidelityRestorationGate`、`ScopedVisualChangeGate`、`InstalledPluginVisualVerificationGate`、`ActualPreviewChainAndMockFallbackGate`、`FrontendRuntimeNetworkProbeGate`、`UIStateScopeRegressionGate`、`FigmaProductionAssetBudgetGate`、`RuntimeI18nArtifactVerificationGate`、`VisualDeviationTypeGate`、`DesignFramePurposeClassificationGate`、`FrontendBrowserVerificationBudgetGate` 与 `UserSelfVerificationOverrideGate`；不触发时写 `N/A + skipReason`。
+> ⚠️ 接入状态、人工复核、翻译/正式文档边界、prompt/Hook/MCP 契约、验证范围、真实执行、benchmark 归因、产品需求来源、本机执行配置、人工证据留存、相邻范围扩展、包名/发布名、性能第一、公开模块、提交授权、兼容契约、UI 源冲突、公开文档版本、集合关系命名、验证产物语言、DevCodex v2 一期路线、全工作区 data 吸纳、正式流程图、文档站视觉验收、遗漏专审、审查发现 intake、复审维度增量、使用者文档、公开用户文档维护边界、文档消费者扫描、产物链接去重、前端运行时网络探针、最终回复 active 范围、数据库记录迁移、finding 反证矩阵、多阶段关闭、guard/policy 绕过、兼容文档副作用、可执行示例、一次性脚本、验证命令副作用、需求确认前快门、package/adapter 确认前证据、方法级泄漏压测或 v2 正式方案包必须填写 `CrossProjectLearnedGuards`；未触发项写 `N/A + skipReason`。
 
 | 顺序 | 章节 | 必选 | 依赖 | 说明 |
 |:----:|------|:----:|------|------|
@@ -261,7 +261,7 @@ applyTo: .devcodex/**/requirements/**
 
 -
 
-#### CrossProjectLearnedGuards / AbsorptionDecision / FullV1ScopeGuard / StartupPhaseTrace（条件）
+#### CrossProjectLearnedGuards / LatestAbsorptionGuards / AbsorptionDecision / FullV1ScopeGuard / StartupPhaseTrace（条件）
 
 > 调研、审查、复审或方案讨论中出现“值得吸纳”的建议，必须给出吸纳决策；用户表达“第一版 / v1 / 完整首版”且存在真实消费者、发布契约或主功能验收时，必须给出完整首版边界判断；启动性能优化或 dev 日志治理必须先给出阶段化日志追踪。涉及接入状态、人工复核、翻译/正式文档边界、prompt/Hook/MCP 契约、验证范围、真实执行、benchmark 归因、产品需求来源、本机执行配置、证据留存、相邻范围、包名/发布名、性能第一、公开模块、DevCodex v2 一期路线、全工作区 data 吸纳、正式流程图、文档站视觉验收、遗漏专审、审查发现 intake、复审维度增量、使用者文档、公开用户文档维护边界、文档消费者扫描、产物链接去重、前端运行时网络探针、最终回复 active 范围、方法级泄漏压测或 v2 正式方案包时，逐项填写跨项目已吸纳守门；未触发项写 `N/A + skipReason`。
 
@@ -305,6 +305,14 @@ applyTo: .devcodex/**/requirements/**
 | ArtifactLinkSetDedupeGate | canonical path 去重 / 同名消歧 / 历史镜像或部署副本标识 | | |
 | FrontendRuntimeNetworkProbeGate | 真实 URL / console-network / failed requests / 资源 404 / API target / runtime error | | |
 | ActiveRequirementFinalResponseGate | active requirement/task/bug id / 相邻需求未切换 / 最终回复范围 | | |
+| DatabaseRecordMigrationExportGate | 记录链 / JSON / insert-upsert 脚本 / 引用完整性 / dry-run | | |
+| FrontendBrowserVerificationBudgetGate / UserSelfVerificationOverrideGate | browserVerification required/optional/N/A/user-self-verification / 替代证据 / 残余风险 | | |
+| FindingProbeMatrixGate / GuardPolicyBypassMatrixGate | finding 反证矩阵 / guard 绕过面矩阵 / 负向探针 | | |
+| MultiPhaseClosureGate / RequirementPreConfirmGate | Phase 2+ 路线 / 行为可验证 / 范围冲突 / fail-safe | | |
+| SideEffectCompatibilityDocsGate / ExecutableExampleTruthProbeGate | 公开主路径旧兼容说明边界 / 示例最小执行证据 | | |
+| VisualDeviationTypeGate / DesignFramePurposeClassificationGate | 偏差类型 / Figma 参数 / 目标帧 / 排除帧 / 验收入口 | | |
+| OneOffRequirementScriptPlacementGate / VerificationCommandSideEffectGate | 脚本生命周期落点 / script 副作用分类 / 生成物扫描 | | |
+| PackageAdapterPreConfirmEvidenceGate | package/plugin/exports/bin/files/dist/registry/消费者入口证据 | | |
 | MethodLevelLeakPressureProbe | 公开方法 / 重复调用或生命周期场景 / 资源指标 / 阈值 / 清理证据 | | |
 | V2FormalSolutionPackage | CP1/CP2 包 / MCP API contract / 验证矩阵 / 回滚 / Registry / 维护站 | | |
 

@@ -2,7 +2,7 @@
 applyTo: "**"
 description: 任务切换边界、RecordRouter 分流、Improvement Intake 与提交发布边界的通用规范
 priority: P5
-version: 1.11.24
+version: 1.11.25
 ---
 # 任务边界与 RecordRouter
 

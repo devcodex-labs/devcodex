@@ -54,8 +54,9 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 | 文档翻译 / 正式文档边界 | DocumentationTranslationParityGuard、FormalDocsDevCodexBoundary：核对多语言/多入口等价，区分正式用户文档与运行时报告/台账 | website build、链接检查、索引/sidebar 顺序核对；历史镜像写明边界 |
 | 数据补齐 / 迁移 / 跨环境写入 | DataMutationPlan：显式清单或稳定业务键、dry-run、唯一匹配、缺失/重复清单 | 只读数据库真相源查询、最终消费者响应字段验证 |
 | Prompt / Agent / Hook / MCP 契约 | LLMPromptContractTriage：区分人读说明、模型指令、结构化输出字段和宿主能力边界 | validate probe、targeted test、direct/fixture replay |
-| 前端体验 | FrontendExperienceQualityGate：判定设计来源、UI 还原度、风格主题一致性、响应式/状态覆盖、用户流、交互反馈、输入方式/可访问性、错误恢复、动效转场和视觉验证 | lint/typecheck/test、Browser/截图、Playwright/E2E 或人工复核证据；纯后端/CLI/文档写 `N/A + skipReason` |
+| 前端体验 | FrontendExperienceQualityGate：判定设计来源、UI 还原度、风格主题一致性、响应式/状态覆盖、用户流、交互反馈、输入方式/可访问性、错误恢复、动效转场和视觉验证；同步执行 FrontendBrowserVerificationBudgetGate 与 UserSelfVerificationOverrideGate | lint/typecheck/test、Browser/截图、Playwright/E2E 或人工复核证据；低风险可 optional，用户明确自验时只做代码级验证并记录 VisualVerificationGate=user-self-verification；纯后端/CLI/文档写 `N/A + skipReason` |
 | Figma / 高保真 UI 还原 | FigmaHighFidelityRestorationGate、ScopedVisualChangeGate、InstalledPluginVisualVerificationGate：冻结设计来源、allowedScope/frozenScope、元素分类和可用插件验证链 | Browser/Chrome/Figma 插件、截图对比、人工复核；无插件时写降级证据 |
+| 视觉偏差 / 设计帧用途 | VisualDeviationTypeGate、DesignFramePurposeClassificationGate：修复前分类偏差类型，列目标帧/排除帧和验收入口 | Figma 参数、代码参数、修复参数、父级裁剪、相邻状态、截图或人工复核证据 |
 | 真实预览 / mock fallback | ActualPreviewChainAndMockFallbackGate、FrontendRuntimeNetworkProbeGate、UIStateScopeRegressionGate：确认真实 preview URL、API target、路由入口、构建产物、console/network/failed requests、资源 404、hydration/runtime error 与受影响状态清单 | 不得用 mock、错误 target、临时服务、静态截图或构建成功冒充用户页面通过 |
 | Figma 生产资产 / 运行时 i18n | FigmaProductionAssetBudgetGate、RuntimeI18nArtifactVerificationGate：记录资产尺寸/体积/格式/来源/public 路径，核对源 JSON、构建合并产物和页面残留 key | WebP/SVG 内嵌位图检查、runtime page check、fallback 说明 |
 | 资源生命周期 / 泄漏稳定性风险 | LeakRiskStabilityPressureTest：判定是否需要场景/负载/稳定性压测，命中时记录 heap/RSS、active handles、监听器、连接数、缓存规模或项目等价指标的基线、压力过程、冷却后回落与清理证据 | 纯计算、静态文档、一次性脚本或无长生命周期资源变更可写 `N/A + skipReason` |
@@ -78,6 +79,16 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 | 文档站视觉 / 交互验收 | DocsSiteVisualAcceptanceGate：覆盖主题集成、真实点击、异步动效、减弱动态、代码 token 对比度、终端 demo 范围、TOC inline code、辅助导航层级 | 纯内容页可降级为链接/构建/人工证据 |
 | 遗漏专审 / 只列仍需吸纳项 | OmissionOnlyReviewGate：只输出此前未覆盖且仍有价值项，保留已吸纳/排除理由和覆盖增量 | 不得把已吸纳、已关闭或没必要项重新列入最终清单 |
 | 审查发现 intake | ReviewFindingIntakeGate：外部审查报告、AI review finding、audit issue 或代码评审发现进入修复/建议前，先补本地证据并分流 must-fix、用户决策、文档实现漂移、测试缺口、未复现或设计如此 | 不得把报告结论直接当验证证据；公共契约或兼容风险源码修改前先确认 |
+| 审查 finding 反证矩阵 | FindingProbeMatrixGate：每条 must-fix finding 映射入口/消费者、最小失败输入、修复前失败形态、修复后通过条件、测试/脚本和发布面证据 | 至少一轮反向运行矩阵；parser/serializer/exporter 类追加对抗轴 |
+| guard/policy 绕过矩阵 | GuardPolicyBypassMatrixGate：guard、policy、permission、consistency 或写路径限制修复建立 surface × specificity × action × op category × namespace 矩阵 | raw/native/legacy/management/admin/client、default+局部规则、warn/throw、reserved key 等负向探针 |
+| 数据库记录迁移导出 | DatabaseRecordMigrationExportGate：配置/模板/注册/字典/权限等记录跨环境迁移导出完整记录链 | 只读源库、全字段 JSON/Extended JSON、insert/upsert 脚本、执行顺序、引用完整性、目标 dry-run |
+| 兼容文档副作用 | SideEffectCompatibilityDocsGate：公开主路径不展示带全局副作用、弃用行为、兼容 shim 或高心智负担旧写法 | 旧路径迁移到 release/迁移/测试/maintainer-only 文档 |
+| 可执行示例真相 | ExecutableExampleTruthProbeGate：DSL/parser/validator/exporter/配置/模板示例写入公开文档或 CP 前先跑当前实现最小探针 | 新语法标未发布或进入 CP2 兼容评估 |
+| 一次性脚本归属 | OneOffRequirementScriptPlacementGate：新增脚本前判定生命周期 | 一次性需求脚本放任务目录 scripts/.tmp；长期复用/运维入口才进项目 scripts |
+| 验证命令副作用 | VerificationCommandSideEffectGate：执行验证命令前读取 script 定义并分类 read-only / writes-artifacts / mutates-source | 类型校验优先 noEmit；写产物命令执行后扫描 git status/生成物并隔离或清理 |
+| 需求确认前快门 | RequirementPreConfirmGate：推荐确认需求前检查行为可验证验收、范围/非目标冲突和高风险 fail-safe 语义 | 缺口先回写需求或列确认问题，不得直接建议确认 |
+| 多阶段关闭 | MultiPhaseClosureGate：Phase 1/roadmap/分阶段需求列全后续阶段、门禁、确认点、进度真相源和最终关闭规则 | 不得把 Phase 1 完成当整体关闭 |
+| package/adapter 确认前证据 | PackageAdapterPreConfirmEvidenceGate：package、adapter、SDK、CLI 或插件方案确认前核对 package/plugin/exports/bin/files/dist/registry/消费者入口 | 缺证据时不得宣称包消费者可用 |
 | 方法级泄漏压测 | MethodLevelLeakPressureProbe：公开方法、adapter/SDK、连接池、监听器、定时器、worker/cache 风险命中时评估重复调用或生命周期压测 | 低风险纯函数写 `N/A + skipReason` |
 | v2 一期正式方案包 | V2FormalSolutionPackage：冻结 CP1/CP2，覆盖架构、数据模型、MCP API contract、instruction return、可见性、cache/signature/rollback、Codex-only 验证、Registry/Marketplace、维护站和 Mermaid 节点 | 未完成前不得宣告 v2 一期收敛 |
 | 提交授权 / 公开文档版本 | ExplicitCommitAuthorizationGate、PublicDocsReleasedVersionGate：实际 commit 必须有用户明确授权；公开文档不得把未发布能力写成已发布历史或迁移负担 | commit 证据、release/unreleased 边界、preview 标识 |
@@ -106,7 +117,10 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 | serviceLifecycle | N/A / startedByAI / userProvided；cleanupEvidence 或 keepAliveReason |
 | leakRiskPressure | N/A / required / optional；若 required，写触发依据、指标、场景、持续时间、冷却窗口与通过标准 |
 | frontendExperience | N/A / required / optional；若 required，写触发依据、UI/UX门禁、截图/E2E/人工复核证据和跳过理由 |
+| browserVerificationBudget | N/A / required / optional / user-self-verification；写 FrontendBrowserVerificationBudgetGate / UserSelfVerificationOverrideGate 触发依据、替代证据和残余风险 |
 | highFidelityUi | N/A / required / optional；若 required，写设计来源、allowedScope/frozenScope、Figma/截图还原、插件验证链和偏离理由 |
+| visualDeviationType | N/A / required / optional；若 required，写偏差类型、Figma effect/style 参数、代码参数、修复参数、父级裁剪和状态回归 |
+| designFramePurpose | N/A / required / optional；若 required，写目标帧、排除帧、用途分类和验收入口 |
 | actualPreviewChain | N/A / required / optional；若 required，写真实 URL、API target、路由入口、状态清单、mock fallback 排除证据 |
 | runtimeI18nArtifacts | N/A / required / optional；若 required，写源 JSON、构建/合并产物、页面 runtime key 残留与降级证据 |
 | manualReviewEvidence | N/A / required / optional；若 required，写复核人/时间/范围/输入/观察结果/截图或日志位置 |
@@ -133,6 +147,16 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 | artifactLinkDedupe | N/A / required / optional；若 required，写 canonical path 去重、同名消歧、历史镜像/部署副本标识和最终 ArtifactLinkSet |
 | frontendRuntimeNetwork | N/A / required / optional；若 required，写真实 URL、console/network、failed requests、资源 404、API target、hydration/runtime error、runtime i18n key 检查证据 |
 | activeRequirementFinalResponse | N/A / required / optional；若 required，写当前 active requirement/task/bug id、未切换相邻需求和最终回复范围 |
+| databaseRecordMigrationExport | N/A / required / optional；若 required，写记录链、JSON/Extended JSON、insert/upsert、引用完整性和 dry-run |
+| findingProbeMatrix | N/A / required / optional；若 required，写 finding 矩阵、失败输入、修复前失败、修复后通过和发布面证据 |
+| guardPolicyBypassMatrix | N/A / required / optional；若 required，写 surface/specificity/action/op/namespace 矩阵和负向探针 |
+| sideEffectCompatibilityDocs | N/A / required / optional；若 required，写公开主路径、旧路径归档位置和副作用说明 |
+| executableExampleTruthProbe | N/A / required / optional；若 required，写最小 parser/compiler/validator 探针和结果 |
+| oneOffRequirementScriptPlacement | N/A / required / optional；若 required，写脚本生命周期、落点和长期脚本确认依据 |
+| verificationCommandSideEffect | N/A / required / optional；若 required，写 script 定义、read-only/writes-artifacts/mutates-source 分类、生成物扫描和清理证据 |
+| requirementPreConfirm | N/A / required / optional；若 required，写行为可验证、范围冲突和 fail-safe 检查 |
+| multiPhaseClosure | N/A / required / optional；若 required，写 Phase 2+ 路线、门禁、确认点、进度真相源和最终关闭规则 |
+| packageAdapterPreConfirmEvidence | N/A / required / optional；若 required，写 package/plugin/exports/bin/files/dist/registry/消费者入口证据 |
 | collectionRelationIdNaming | N/A / required / optional；若 required，写集合/实体命名依据、项目 convention 和消费者影响 |
 | userFacingVerificationArtifactLanguage | N/A / required / optional；若 required，写用户当前语言、项目例外和 `.http` / 测试说明语言 |
 | verificationScopeBudget | N/A / aligned / under-scoped / over-scoped；写风险匹配依据和降级/减负理由 |
@@ -171,7 +195,9 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 - 新增/升级依赖、框架、SDK、平台 API 或外部模块时，不得只验证“能安装”；必须引用 `OfficialDocsEvidence` 并至少验证一次项目内采用的关键用法。
 - 写测试用例或规划回归验证时必须先做 `LeakRiskStabilityPressureTest` 判定；若变更涉及长运行进程、高并发/高频路径、缓存/队列/连接池、文件/流/socket、事件监听器、定时器、worker、订阅、前端组件生命周期，或来自 `PE-12 资源生命周期与泄漏风险` / 性能稳定性问题，不得只写单元测试，必须把场景/负载/稳定性验证纳入 TestRoute，或写明 `N/A + skipReason`。
 - 涉及前端页面、组件、控制台、官网、文档站、可视化工具、游戏或用户可见 UI / 交互时必须执行 `FrontendExperienceQualityGate` 判定；命中视觉或交互风险时不得只跑构建/单测，必须纳入 Browser/截图、Playwright/E2E 或项目等价视觉/交互验证，无法运行时记录阻塞与降级证据。
+- 前端浏览器验证必须先执行 `FrontendBrowserVerificationBudgetGate`；用户明确“我自己验证 / 不要浏览器 / 不要截图 / 不要模拟交互”时执行 `UserSelfVerificationOverrideGate`，不得再主动启动 Browser/CDP/Playwright/截图，除非用户重新要求恢复。
 - 涉及 Figma/截图/既有页面还原、局部视觉修复、资源优化或 UI 回归时必须执行 `FigmaHighFidelityRestorationGate`、`ScopedVisualChangeGate`、`InstalledPluginVisualVerificationGate`、`ActualPreviewChainAndMockFallbackGate`、`FrontendRuntimeNetworkProbeGate` 与 `UIStateScopeRegressionGate`；不得用 mock 页面、错误 target、静态截图或非授权视觉改动替代真实验收。
+- UI/Figma/截图修复前必须执行 `VisualDeviationTypeGate` 与 `DesignFramePurposeClassificationGate`；不得未分类偏差就重写布局，也不得把邮件模板、banner、素材、示意页或旧稿当作前端页面验收目标。
 - 涉及设计资产进入生产或多语言运行时验证时必须执行 `FigmaProductionAssetBudgetGate` 与 `RuntimeI18nArtifactVerificationGate`；不得只复制大图或只 grep 源 JSON 后宣称通过。
 - 实际执行本地 `git commit` 前必须执行 `ExplicitCommitAuthorizationGate`；没有用户明确授权时只能建议 commit，不能自动提交。
 - 兼容修复、共享库/adapter/SDK 或上游契约判断必须执行 `CompatibilityAndContractAuthorityGate`；不得用影子 allowlist、历史报告或内部 helper 替代官方/public API 证据。
@@ -179,6 +205,11 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 - R2+ 复审、audit 连续零发现、ECR 或遗漏专审必须执行 `ReviewDimensionDeltaGate`；不得把同一组维度和同一批文件重复检查后直接计入有效零发现。
 - README、官网/文档站、接口说明、运行手册、需求/方案等面向使用者的人读文档必须执行 `UserPerspectiveDocsGate`；文档新增/调整命令、配置项、字段、状态、路径、能力承诺或阅读顺序时必须执行 `DocsConsumerSweep`。
 - 公开用户文档、快速上手、教程、配置/扩展/框架接入指南必须执行 `PublicUserDocsMaintainerBoundaryGate`；最终回复或完成报告存在多个相邻任务时必须执行 `ActiveRequirementFinalResponseGate`。
+- 数据库配置、模板、模块注册、权限、字典或推送配置等跨环境迁移必须执行 `DatabaseRecordMigrationExportGate`；不得只交单条记录或截图说明。
+- 外部审查、AI review finding、audit issue 或代码评审的 must-fix 项必须执行 `FindingProbeMatrixGate`；guard/policy/permission/consistency 类修复必须执行 `GuardPolicyBypassMatrixGate`。
+- 公开文档中的旧兼容路径必须执行 `SideEffectCompatibilityDocsGate`；DSL/parser/validator/exporter/配置/模板示例必须执行 `ExecutableExampleTruthProbeGate`。
+- 新增脚本前必须执行 `OneOffRequirementScriptPlacementGate`；验证命令执行前必须执行 `VerificationCommandSideEffectGate`。
+- docs/需求类 CP1 推荐确认前必须执行 `RequirementPreConfirmGate`；分阶段需求必须执行 `MultiPhaseClosureGate`；package/adapter/SDK/CLI 方案确认前必须执行 `PackageAdapterPreConfirmEvidenceGate`。
 - 输出 ArtifactLinkSet 前必须执行 `ArtifactLinkSetDedupeGate`，按 canonical path 去重同一物理文件的相对链接、绝对链接和 copy fallback，避免宿主文件面板展示成双份产物。
 - 消费者验证出现与当前改动无关的依赖、插件、共享库或框架适配失败时，不得直接改源码；必须先执行 ConsumerDependencyTreeProbe，确认 package.json / lockfile / node_modules / `npm ls <关键依赖>` 一致后再进入源码修复。
 - adapter、provider、connector、SDK 或性能 benchmark 变更必须执行 AdapterBenchmarkAttribution，报告基线、环境、版本、负载、归因边界和不可比较因素。

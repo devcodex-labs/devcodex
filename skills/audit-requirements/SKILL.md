@@ -57,6 +57,9 @@ description: 需求文档审查维度 RQ-1~RQ-8 — 需求定义/功能描述/�
 - 涉及本机执行配置、人工证据留存、相邻范围扩展、包名/发布名、性能第一、公开模块或 DevCodex v2 一期路线时，需求应分别列出 `LocalExecutionConfigProbe`、`ManualReviewEvidenceDataRetention`、`AdjacentScopeExpansionGuard`、`PackageNameAuthorityGate`、`PerformanceBenchmarkFirstGate`、`PublicModuleDifferentiationGate`、`V2MCPFirstPlanningGate` 的需求事实源或派生验证口径
 - 涉及 data 吸纳、正式流程图、文档站视觉验证、遗漏专审、审查发现 intake、复审维度增量、使用者文档、文档消费者扫描、产物链接去重、方法级泄漏压测或 DevCodex v2 正式方案包时，需求应分别列出 `WorkspaceDataAbsorptionScopeGate`、`FlowchartNodeExplanationGate`、`DocsSiteVisualAcceptanceGate`、`OmissionOnlyReviewGate`、`ReviewFindingIntakeGate`、`ReviewDimensionDeltaGate`、`UserPerspectiveDocsGate`、`DocsConsumerSweep`、`ArtifactLinkSetDedupeGate`、`MethodLevelLeakPressureProbe`、`V2FormalSolutionPackage` 的需求事实源或派生验证口径
 - 涉及 Figma/截图/既有页面还原、真实 preview、状态回归、生产设计资产或运行时本地化时，需求应分别列出 `FigmaHighFidelityRestorationGate`、`ScopedVisualChangeGate`、`InstalledPluginVisualVerificationGate`、`ActualPreviewChainAndMockFallbackGate`、`FrontendRuntimeNetworkProbeGate`、`UIStateScopeRegressionGate`、`FigmaProductionAssetBudgetGate`、`RuntimeI18nArtifactVerificationGate` 的需求事实源或派生验证口径
+- docs/需求类 CP1 推荐确认前必须执行 `RequirementPreConfirmGate`：检查验收是否行为可验证、范围/非目标是否存在核心概念冲突，以及分布式、调度、缓存、队列或单活类需求是否定义 fail-safe 语义
+- 分阶段需求必须执行 `MultiPhaseClosureGate`：列出 Phase 2+ 路线、每阶段入口/退出门禁、验证证据、用户确认点、进度真相源和最终关闭规则
+- Figma/截图/设计稿作为需求来源时必须执行 `DesignFramePurposeClassificationGate`，列目标帧、排除帧、用途分类和验收入口；邮件模板、banner、素材、示意页或旧稿不得默认为前端页面需求
 - 涉及提交边界、兼容契约、UI 确认源覆盖旧 PRD、公开文档版本、集合关系 id 命名或用户可见验证产物语言时，需求应分别列出 `ExplicitCommitAuthorizationGate`、`CompatibilityAndContractAuthorityGate`、`UIConfirmedSourceConflictTraceGate`、`PublicDocsReleasedVersionGate`、`CollectionRelationIdNamingGate`、`UserFacingVerificationArtifactLanguageGate` 的需求事实源或派生验证口径
 
 ## N/A 规则

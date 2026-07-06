@@ -2,7 +2,7 @@
 applyTo: "**"
 description: audit 工作流规则，覆盖审查目标路由、收敛门禁、元循环与只读边界
 priority: P4
-version: 1.11.25
+version: 1.11.26
 ---
 # 审计工作流规则（12-audit）
 
@@ -118,6 +118,15 @@ R2 及以后轮次必须把复审从“同一维度反复跑一遍”改为“�
 - 若 `CurrentDimensionFocus` 与 `PreviousDimensionSet` 完全相同，且缺少有效 `RepeatedDimensionReason`，本轮即使零发现也不得计入有效零发现。
 - `ReviewDimensionDeltaGate` 不要求每轮覆盖更多维度数量；它要求本轮说明“为什么这些维度仍然是本轮最有价值的审查视角”。
 
+### ReviewChecklistCompletenessGate / EvidenceExecutionGate（审查清单证据化）
+
+长链路修复、风险簇复审、外部 finding 批次、发布前审查或用户要求“按清单逐项复审”时，冻结 Review Checklist 后不得只检查“清单是否存在”：
+
+- 每个清单项必须绑定代码 / 类型 / 测试 / 文档 / 配置证据，至少包含行号、命令输出、测试结果或反向缺席扫描之一。
+- `ReviewedSet` 与 `explicit exclusions` 必须随清单项记录；CRS 命中但不纳入的文件要写 exclusion reason。
+- 语法、parser、serializer、module-format 等风险不得只列已修 case；应按 lexical token class、语法类别或入口类型反向枚举。
+- 若清单项没有可复现证据，本轮不能宣告该项审查通过，只能标 `needs-evidence`。
+
 ### OmissionOnlyReviewGate（遗漏专审）
 
 用户明确要求“只审查遗漏 / 上次没检查的 / 不要列已吸纳或没必要项”时，audit/analyze/review 必须切换为 omission-only 范围：
@@ -127,6 +136,14 @@ R2 及以后轮次必须把复审从“同一维度反复跑一遍”改为“�
 - 复审仍须满足 `ReviewCoverageDelta`，并在 `NewlyReadThisRound` 中优先覆盖此前未读的 data 台账、消费者链、部署副本、报告和记忆索引。
 - 复审还须满足 `ReviewDimensionDeltaGate`，优先补上此前未覆盖的维度或解释为什么同一维度仍是高风险回归点。
 - 若遗漏审查来源是“data 目录吸纳”，必须同时执行 `WorkspaceDataAbsorptionScopeGate`，扫描 `.devcodex/*/data/` 全部命名空间。
+
+### GeneratedSiteGate / ManualTocDuplicationGate / UserPathContractSweep
+
+文档站、官网、公开能力页或 README 专项审查涉及导航、footer、sidebar、语言切换、outline、正文目录、安装命令、quick start、配置契约或首次成功路径时，必须补生成产物和用户路径审查：
+
+- `GeneratedSiteGate`：以当前构建产物或当前可运行预览为准，检查 header、top menu、mobile menu、footer language block、sidebar、outline 和 CSS 可见状态；报告区分“DOM 存在但 CSS 隐藏”和“真实可见重复 / 丢失”。
+- `ManualTocDuplicationGate`：扫描 Markdown 手写 `## 目录` / `## Table of Contents` / `## 目录导航`，并与生成页右侧或移动端 outline 比较，防止正文 TOC 与自动 outline 可见重复。
+- `UserPathContractSweep`：公开能力页必须核对安装版本、构造函数示例、配置字段类型、相邻专题链接、API 索引和 sidebar 章节，证据来源为 `package.json`、public types、runtime wiring、示例源码和当前文档。
 
 ### ReviewFindingIntakeGate（审查发现 intake 分流）
 
@@ -230,7 +247,7 @@ R2 及以后轮次必须把复审从“同一维度反复跑一遍”改为“�
 - B — 引用 🔴/🟡：DA-3 引用有效性 · DA-4 术语一致性
 - C — 受众 💡/🔴：DA-5 受众适配 · DA-6 关联一致性
 
-> README / 用户使用文档不单独开新的审查目标，仍归入“通用文档”；但执行时必须在 `audit-document` 基础上额外叠加 `audit-readme`，补做 `RM-1~RM-6` 用户路径、快速开始、排错与消费链一致性检查。
+> README / 用户使用文档不单独开新的审查目标，仍归入“通用文档”；但执行时必须在 `audit-document` 基础上额外叠加 `audit-readme`，补做 `RM-1~RM-6` 用户路径、快速开始、排错与消费链一致性检查，并额外执行 `UserDocsImmediateComprehensionGate` 与 `UserDocsPrimarySurfaceGate`：抽查首页首屏、quick start、nav/sidebar 前两组、CTA、reference 入口、配置、常见任务和排错，确认主面服务用户使用而不是开发契约。
 
 ### 发布前审查（RL-1~RL-10）
 - A — 发布身份 🔴：RL-1 版本身份 · RL-2 发布说明质量

@@ -40,6 +40,12 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 | `artifactLinkDedupe` | 是否会输出最终回复、报告、记忆、SUMMARY 或宿主文件面板消费的 ArtifactLinkSet |
 | `frontendRuntimeNetwork` | 是否涉及真实前端预览、文档站/官网视觉验收、API target、资源加载、runtime i18n 或 hydration/runtime error 风险 |
 | `activeRequirementFinalResponse` | 是否存在多个相邻需求、backlog、open 任务或未完成候选，需要约束最终回复 active 范围 |
+| `userFacingDeliveryChain` | 是否涉及用户最终使用文档、docs-first 开发、文档站 / README 主面、前端 / API / 外部契约或 ECR 需求 / 用户文档符合性 |
+| `reviewChecklistEvidence` | 是否冻结 Review Checklist、长链路修复 / 复审、外部 finding 批次或风险簇，需要逐项证据化执行 |
+| `builtArtifactFeatureSmoke` | 是否涉及 runtime / adapter / SDK / CLI / module-format / exports / bin / files / dist / tsc 输出，需要构建产物 feature-level smoke |
+| `generatedSiteVerification` | 是否涉及文档站 / 官网生成产物、导航 / footer / sidebar / outline / 手写 TOC / 语言切换真实可见状态 |
+| `userPathContractSweep` | 是否涉及公开能力页首次成功路径、安装版本、配置表、API 索引、sidebar 和 public types / runtime / examples 一致性 |
+| `benchmarkRegression` | 是否涉及性能敏感项目、既有 benchmark 基线或 hot path 修改，需要 benchmark regression guard |
 
 ## 路由矩阵
 
@@ -89,13 +95,22 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 | 需求确认前快门 | RequirementPreConfirmGate：推荐确认需求前检查行为可验证验收、范围/非目标冲突和高风险 fail-safe 语义 | 缺口先回写需求或列确认问题，不得直接建议确认 |
 | 多阶段关闭 | MultiPhaseClosureGate：Phase 1/roadmap/分阶段需求列全后续阶段、门禁、确认点、进度真相源和最终关闭规则 | 不得把 Phase 1 完成当整体关闭 |
 | package/adapter 确认前证据 | PackageAdapterPreConfirmEvidenceGate：package、adapter、SDK、CLI 或插件方案确认前核对 package/plugin/exports/bin/files/dist/registry/消费者入口 | 缺证据时不得宣称包消费者可用 |
+| 用户文档驱动交付链 | UserFacingDeliveryChainGate：从原始需求、需求确认、用户最终使用文档、条件契约文档到技术方案、复杂项目实施方案、实施计划、进度和 ECR 需求 / 用户文档符合性审查建立链路 | FinalUserManualFirstGate、DocsSiteInformationArchitectureGate、UserManualFlowAndFailureGate、QueueDocsRealWorkflowGate |
+| 审查清单证据化 | ReviewChecklistCompletenessGate、EvidenceExecutionGate：冻结清单后每项绑定代码 / 类型 / 测试 / 文档 / 配置证据、命令输出或反向缺席扫描 | Fix-Then-Checklist、lexical token class / 语法类别反向枚举 |
+| 构建产物 feature smoke | BuiltArtifactFeatureSmokeGate、TscOutputImportProbe：dist CJS、dist ESM、`.generated` / tsc 输出或等价产物上真实 import / feature path | dependency load API shape、default/off/injected runtime、active handles |
+| 文档站生成产物验证 | GeneratedSiteGate、ManualTocDuplicationGate：以当前构建产物或真实预览检查 header / top / mobile / footer / sidebar / outline / 正文 TOC 可见状态 | 区分 DOM hidden、visible duplicate、current violation、historical allowed |
+| 公开用户路径契约 | UserPathContractSweep：公开能力页核对安装版本、quick start、构造函数示例、配置字段类型、相邻专题、API 索引和 sidebar | package.json、public types、runtime wiring、examples 作为证据 |
+| 性能回归门禁 | BenchmarkRegressionGuard：已有 benchmark 基线或性能敏感 hot path 变更时执行代表性 benchmark 或写 N/A + skipReason | 超过阈值阻断发布或进入用户确认的性能 / 正确性取舍 |
 | 方法级泄漏压测 | MethodLevelLeakPressureProbe：公开方法、adapter/SDK、连接池、监听器、定时器、worker/cache 风险命中时评估重复调用或生命周期压测 | 低风险纯函数写 `N/A + skipReason` |
 | v2 一期正式方案包 | V2FormalSolutionPackage：冻结 CP1/CP2，覆盖架构、数据模型、MCP API contract、instruction return、可见性、cache/signature/rollback、Codex-only 验证、Registry/Marketplace、维护站和 Mermaid 节点 | 未完成前不得宣告 v2 一期收敛 |
 | 提交授权 / 公开文档版本 | ExplicitCommitAuthorizationGate、PublicDocsReleasedVersionGate：实际 commit 必须有用户明确授权；公开文档不得把未发布能力写成已发布历史或迁移负担 | commit 证据、release/unreleased 边界、preview 标识 |
 | 兼容契约 / 命名 / 产物语言 | CompatibilityAndContractAuthorityGate、CollectionRelationIdNamingGate、UserFacingVerificationArtifactLanguageGate：核对消费者零代码兼容、上游 public API、关系 id 命名和 `.http` / 测试说明语言 | 官方/源码/registry 证据、命名 convention、用户语言证据 |
 | 复审维度增量 | ReviewDimensionDeltaGate：R2+ 复审、audit 连续零发现、ECR 或遗漏专审必须记录 PreviousDimensionSet、CurrentDimensionFocus、NewDimensionRationale、RepeatedDimensionReason | 不得每轮机械重复同一组维度；重复维度须有阻断项回归、高风险锚点、新证据或抽样理由 |
 | 用户视角文档 | UserPerspectiveDocsGate：README、官网/文档站、接口说明、运行手册、需求/方案等人读文档从使用者角度验证详细度、字段解释、首次成功路径、心智负担和排错恢复 | 纯内部临时报告或维护者专用文档写 `N/A + skipReason` |
+| 用户文档即时理解 | UserDocsImmediateComprehensionGate：README、官网/文档站、API/CLI/config 文档、快速开始和运行手册必须输出功能完整性、配置易懂性、首次读者即时理解三轴证据 | 不得只因章节完整或契约完整就判定用户文档可用 |
+| 用户文档主面 | UserDocsPrimarySurfaceGate：用户使用文档、站点文档、文档站、README、quick start 或接入手册必须冻结 targetSurface/documentLocation/primaryAudience，并抽查首页、quick start、nav/sidebar 前两组、CTA、reference、配置、常见任务和排错 | 开发契约、目标 API、数据模型和维护者验收只能后置或标 maintainer/developer-only |
 | 公开用户文档维护边界 | PublicUserDocsMaintainerBoundaryGate：公开用户文档不得把维护者验收、发布 checklist、内部同步清单、台账状态或实现者复审任务放进用户主路径 | 迁移到 CONTRIBUTING、release checklist、requirements/report 或 maintainer-only 文档 |
+| 需求复审状态同步 | RequirementVerdictStateSyncGate：需求修订、再次复审或宣布“可确认/暂不通过”前同步顶部状态、推荐结论、修复清单、audit-state decision、sessions/SUMMARY | 正文已修但状态旧口径时先修状态同步集 |
 | 文档消费者扫描 | DocsConsumerSweep：文档新增/调整命令、配置项、字段、状态、路径、能力承诺或阅读顺序时同步 README / website / Profile / prompts / templates / examples / nav/sidebar / validate probes / 部署副本与代码消费点 | 不得只改一处文档后宣称消费者已同步 |
 | 产物链接去重 | ArtifactLinkSetDedupeGate：输出前按规范化绝对路径去重最终回复、报告、记忆、SUMMARY、相对链接、绝对链接和 copy fallback | 同名不同文件要路径消歧；历史镜像/部署副本需标识身份 |
 | 最终回复 active 范围 | ActiveRequirementFinalResponseGate：同日或同工作区有相邻需求、backlog 或候选时，最终回复先声明当前 active requirement/task/bug id，完成状态和下一步仅围绕当前范围 | 未切换的相邻需求只能列入未执行/观察范围 |
@@ -147,6 +162,12 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 | artifactLinkDedupe | N/A / required / optional；若 required，写 canonical path 去重、同名消歧、历史镜像/部署副本标识和最终 ArtifactLinkSet |
 | frontendRuntimeNetwork | N/A / required / optional；若 required，写真实 URL、console/network、failed requests、资源 404、API target、hydration/runtime error、runtime i18n key 检查证据 |
 | activeRequirementFinalResponse | N/A / required / optional；若 required，写当前 active requirement/task/bug id、未切换相邻需求和最终回复范围 |
+| userFacingDeliveryChain | N/A / required / optional；若 required，写 documentationSurface、用户最终文档、条件契约文档、技术方案输入、实施方案/计划/进度和 ECR 对照 |
+| reviewChecklistEvidence | N/A / required / optional；若 required，写清单编号、证据类型、ReviewedSet、exclusions、命令/行号/反向扫描 |
+| builtArtifactFeatureSmoke | N/A / required / optional；若 required，写 dist CJS/ESM/.generated 或等价产物、feature path、dependency shape 与模式覆盖 |
+| generatedSiteVerification | N/A / required / optional；若 required，写构建产物、导航/footer/sidebar/outline/TOC 可见状态和 DOM/CSS 区分 |
+| userPathContractSweep | N/A / required / optional；若 required，写安装版本、配置契约、public types/runtime/examples/sidebar 证据 |
+| benchmarkRegression | N/A / required / optional；若 required，写基线、当前结果、阈值、不可比较因素、是否阻断发布 |
 | databaseRecordMigrationExport | N/A / required / optional；若 required，写记录链、JSON/Extended JSON、insert/upsert、引用完整性和 dry-run |
 | findingProbeMatrix | N/A / required / optional；若 required，写 finding 矩阵、失败输入、修复前失败、修复后通过和发布面证据 |
 | guardPolicyBypassMatrix | N/A / required / optional；若 required，写 surface/specificity/action/op/namespace 矩阵和负向探针 |
@@ -203,14 +224,20 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 - 兼容修复、共享库/adapter/SDK 或上游契约判断必须执行 `CompatibilityAndContractAuthorityGate`；不得用影子 allowlist、历史报告或内部 helper 替代官方/public API 证据。
 - UI 确认源覆盖旧 PRD、公开文档描述未发布能力、集合关系 id 命名或用户可见验证产物语言变化时，分别执行 `UIConfirmedSourceConflictTraceGate`、`PublicDocsReleasedVersionGate`、`CollectionRelationIdNamingGate` 与 `UserFacingVerificationArtifactLanguageGate`。
 - R2+ 复审、audit 连续零发现、ECR 或遗漏专审必须执行 `ReviewDimensionDeltaGate`；不得把同一组维度和同一批文件重复检查后直接计入有效零发现。
-- README、官网/文档站、接口说明、运行手册、需求/方案等面向使用者的人读文档必须执行 `UserPerspectiveDocsGate`；文档新增/调整命令、配置项、字段、状态、路径、能力承诺或阅读顺序时必须执行 `DocsConsumerSweep`。
+- README、官网/文档站、接口说明、运行手册、需求/方案等面向使用者的人读文档必须执行 `UserPerspectiveDocsGate`；README、站点文档、文档站、quick start、接入手册或配置文档还必须执行 `UserDocsImmediateComprehensionGate` 与 `UserDocsPrimarySurfaceGate`，验证功能完整性、配置易懂性、即时理解路径和用户主面；文档新增/调整命令、配置项、字段、状态、路径、能力承诺或阅读顺序时必须执行 `DocsConsumerSweep`。
 - 公开用户文档、快速上手、教程、配置/扩展/框架接入指南必须执行 `PublicUserDocsMaintainerBoundaryGate`；最终回复或完成报告存在多个相邻任务时必须执行 `ActiveRequirementFinalResponseGate`。
+- 需求修订、再次复审或从修复清单回写真相源时必须执行 `RequirementVerdictStateSyncGate`，将状态元信息和 sessions / SUMMARY 作为验证对象。
 - 数据库配置、模板、模块注册、权限、字典或推送配置等跨环境迁移必须执行 `DatabaseRecordMigrationExportGate`；不得只交单条记录或截图说明。
 - 外部审查、AI review finding、audit issue 或代码评审的 must-fix 项必须执行 `FindingProbeMatrixGate`；guard/policy/permission/consistency 类修复必须执行 `GuardPolicyBypassMatrixGate`。
 - 公开文档中的旧兼容路径必须执行 `SideEffectCompatibilityDocsGate`；DSL/parser/validator/exporter/配置/模板示例必须执行 `ExecutableExampleTruthProbeGate`。
 - 新增脚本前必须执行 `OneOffRequirementScriptPlacementGate`；验证命令执行前必须执行 `VerificationCommandSideEffectGate`。
 - docs/需求类 CP1 推荐确认前必须执行 `RequirementPreConfirmGate`；分阶段需求必须执行 `MultiPhaseClosureGate`；package/adapter/SDK/CLI 方案确认前必须执行 `PackageAdapterPreConfirmEvidenceGate`。
 - 输出 ArtifactLinkSet 前必须执行 `ArtifactLinkSetDedupeGate`，按 canonical path 去重同一物理文件的相对链接、绝对链接和 copy fallback，避免宿主文件面板展示成双份产物。
+- 用户文档站、README、docs-first 最终手册、前端/API 对接契约或公开能力交付必须执行 `UserFacingDeliveryChainGate`；最终用户手册、文档站 IA、流程/失败处理和队列/任务类真实批量工作流分别执行 `FinalUserManualFirstGate`、`DocsSiteInformationArchitectureGate`、`UserManualFlowAndFailureGate`、`QueueDocsRealWorkflowGate`。
+- 长链路 fix/audit、外部 finding 批次或冻结 Review Checklist 后必须执行 `ReviewChecklistCompletenessGate` 与 `EvidenceExecutionGate`；每项没有可复现证据时不得宣告通过。
+- runtime/adapter/SDK/CLI/module-format/exports/bin/files/dist/tsc 输出变化必须执行 `BuiltArtifactFeatureSmokeGate` 与 `TscOutputImportProbe`；不得只用源码测试或 root export smoke 替代构建产物 feature path。
+- 文档站/官网导航、footer、sidebar、outline、手写 TOC、语言切换或公开能力页首次成功路径变化必须执行 `GeneratedSiteGate`、`ManualTocDuplicationGate` 与 `UserPathContractSweep`，以当前构建产物或真实预览为准。
+- 性能敏感项目或已有 benchmark 基线的 hot path 修改必须执行 `BenchmarkRegressionGuard` 判定；跳过代表性 benchmark 需写 `N/A + skipReason`、风险和替代证据。
 - 消费者验证出现与当前改动无关的依赖、插件、共享库或框架适配失败时，不得直接改源码；必须先执行 ConsumerDependencyTreeProbe，确认 package.json / lockfile / node_modules / `npm ls <关键依赖>` 一致后再进入源码修复。
 - adapter、provider、connector、SDK 或性能 benchmark 变更必须执行 AdapterBenchmarkAttribution，报告基线、环境、版本、负载、归因边界和不可比较因素。
 - 项目事实变化时必须执行 `ProfileImpactCheck`；若跳过 Profile 更新，报告需要写 `skipReason`。

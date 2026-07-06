@@ -2,7 +2,7 @@
 
 > **状态**：✅ 已实现  
 > **优先级**：P1  
-> **关联规则**：`WorkspaceDataAbsorptionScopeGate`、`FlowchartNodeExplanationGate`、`DocsSiteVisualAcceptanceGate`、`OmissionOnlyReviewGate`、`ReviewFindingIntakeGate`、`ReviewDimensionDeltaGate`、`UserPerspectiveDocsGate`、`PublicUserDocsMaintainerBoundaryGate`、`DocsConsumerSweep`、`ArtifactLinkSetDedupeGate`、`FigmaHighFidelityRestorationGate`、`ScopedVisualChangeGate`、`InstalledPluginVisualVerificationGate`、`ActualPreviewChainAndMockFallbackGate`、`FrontendRuntimeNetworkProbeGate`、`UIStateScopeRegressionGate`、`FigmaProductionAssetBudgetGate`、`RuntimeI18nArtifactVerificationGate`、`ExplicitCommitAuthorizationGate`、`CompatibilityAndContractAuthorityGate`、`UIConfirmedSourceConflictTraceGate`、`PublicDocsReleasedVersionGate`、`CollectionRelationIdNamingGate`、`UserFacingVerificationArtifactLanguageGate`、`ActiveRequirementFinalResponseGate`、`DatabaseRecordMigrationExportGate`、`FrontendBrowserVerificationBudgetGate`、`UserSelfVerificationOverrideGate`、`FindingProbeMatrixGate`、`MultiPhaseClosureGate`、`GuardPolicyBypassMatrixGate`、`SideEffectCompatibilityDocsGate`、`ExecutableExampleTruthProbeGate`、`VisualDeviationTypeGate`、`OneOffRequirementScriptPlacementGate`、`VerificationCommandSideEffectGate`、`DesignFramePurposeClassificationGate`、`RequirementPreConfirmGate`、`PackageAdapterPreConfirmEvidenceGate`、`MethodLevelLeakPressureProbe`、`V2FormalSolutionPackage`
+> **关联规则**：`WorkspaceDataAbsorptionScopeGate`、`FlowchartNodeExplanationGate`、`DocsSiteVisualAcceptanceGate`、`OmissionOnlyReviewGate`、`ReviewFindingIntakeGate`、`ReviewDimensionDeltaGate`、`UserPerspectiveDocsGate`、`UserDocsImmediateComprehensionGate`、`UserDocsPrimarySurfaceGate`、`PublicUserDocsMaintainerBoundaryGate`、`DocsConsumerSweep`、`RequirementVerdictStateSyncGate`、`ArtifactLinkSetDedupeGate`、`FigmaHighFidelityRestorationGate`、`ScopedVisualChangeGate`、`InstalledPluginVisualVerificationGate`、`ActualPreviewChainAndMockFallbackGate`、`FrontendRuntimeNetworkProbeGate`、`UIStateScopeRegressionGate`、`FigmaProductionAssetBudgetGate`、`RuntimeI18nArtifactVerificationGate`、`ExplicitCommitAuthorizationGate`、`CompatibilityAndContractAuthorityGate`、`UIConfirmedSourceConflictTraceGate`、`PublicDocsReleasedVersionGate`、`CollectionRelationIdNamingGate`、`UserFacingVerificationArtifactLanguageGate`、`ActiveRequirementFinalResponseGate`、`DatabaseRecordMigrationExportGate`、`FrontendBrowserVerificationBudgetGate`、`UserSelfVerificationOverrideGate`、`FindingProbeMatrixGate`、`MultiPhaseClosureGate`、`GuardPolicyBypassMatrixGate`、`SideEffectCompatibilityDocsGate`、`ExecutableExampleTruthProbeGate`、`VisualDeviationTypeGate`、`OneOffRequirementScriptPlacementGate`、`VerificationCommandSideEffectGate`、`DesignFramePurposeClassificationGate`、`RequirementPreConfirmGate`、`PackageAdapterPreConfirmEvidenceGate`、`MethodLevelLeakPressureProbe`、`UserFacingDeliveryChainGate`、`FinalUserManualFirstGate`、`DocsSiteInformationArchitectureGate`、`UserManualFlowAndFailureGate`、`QueueDocsRealWorkflowGate`、`ReviewChecklistCompletenessGate`、`EvidenceExecutionGate`、`BuiltArtifactFeatureSmokeGate`、`TscOutputImportProbe`、`GeneratedSiteGate`、`ManualTocDuplicationGate`、`UserPathContractSweep`、`BenchmarkRegressionGuard`、`V2FormalSolutionPackage`
 
 ## 背景
 
@@ -21,8 +21,17 @@
 | `ReviewFindingIntakeGate` | 外部审查报告、AI review finding、audit issue 或代码评审发现进入修复/建议前 | 报告只是线索，逐条补本地证据并分流 must-fix、用户决策、文档/实现漂移、测试覆盖缺口、未复现或设计如此 |
 | `ReviewDimensionDeltaGate` | R2+ 复审、audit 连续零发现、ECR 或遗漏专审 | 记录 PreviousDimensionSet、CurrentDimensionFocus、NewDimensionRationale、RepeatedDimensionReason，避免每轮机械重复同一组维度 |
 | `UserPerspectiveDocsGate` | README、官网/文档站、接口说明、运行手册、需求/方案等人读文档 | 从使用者角度覆盖第一次成功、常见任务、字段/参数/状态/错误解释、排错恢复、限制和低心智负担 |
+| `UserDocsImmediateComprehensionGate` | README、官网/文档站、API/CLI/config 文档、快速开始和运行手册 | 输出功能完整性、配置简单易懂性、首次读者即时理解三轴结论，避免只因契约完整就判定用户文档可用 |
+| `UserDocsPrimarySurfaceGate` | 用户使用文档、站点文档、文档站、README、quick start 或接入手册 | 先冻结 targetSurface、documentLocation、primaryAudience；抽查首页首屏、quick start、nav/sidebar 前两组、CTA、reference、配置、常见任务和排错，开发契约只能后置 |
+| `UserFacingDeliveryChainGate` / `FinalUserManualFirstGate` | 文档型、站点型或前后端协作需求 | 需求概况后先判断并产出用户最终使用文档（文档站或至少 README），涉及前端/API 时再生成契约文档，技术方案、实施计划和进度必须对照需求与用户文档 |
+| `DocsSiteInformationArchitectureGate` / `UserManualFlowAndFailureGate` / `QueueDocsRealWorkflowGate` | 文档站、README、用户手册、队列/任务/异步场景 | 文档站按用户任务组织首页、快速开始、常见任务、配置、API/契约、排错和参考；用户手册覆盖成功路径、失败恢复和下一步；队列/异步文档必须给出真实入队、执行、查询、失败重试和清理工作流 |
 | `PublicUserDocsMaintainerBoundaryGate` | README、官网教程、快速上手、配置/扩展/框架接入等公开用户文档 | 用户主路径不得混入维护者验收、发布 checklist、内部同步清单、台账状态或实现者复审任务 |
 | `DocsConsumerSweep` | 文档新增/调整命令、配置项、字段、状态、路径、能力承诺或阅读顺序 | 扫描 README、website、Profile、prompts、templates、examples、nav/sidebar、validate probes、部署副本和代码消费点 |
+| `GeneratedSiteGate` / `ManualTocDuplicationGate` / `UserPathContractSweep` | 文档站、静态站、README/website/nav/sidebar 用户路径变更 | 以实际生成产物验证导航、页面、资产、链接和主要用户路径；手写目录、自动 TOC、sidebar/nav 不得重复或漂移；公开用户路径变化后同步 README、website、nav/sidebar、examples、templates、validate、部署副本和代码消费点 |
+| `ReviewChecklistCompletenessGate` / `EvidenceExecutionGate` | 复审、审查报告 intake、冻结清单、收敛验证 | 复审维度不可机械重复；冻结 checklist 必须逐项有实际验证命令、页面、代码落点或产物证据；不得只按审查报告文字验收 |
+| `BuiltArtifactFeatureSmokeGate` / `TscOutputImportProbe` | 构建产物、模块格式、adapter、运行时导出、TypeScript 输出 | 源码测试外必须验证 dist/package 真实导入执行和 TS 输出可导入性，失败阈值和 skipReason 清楚 |
+| `BenchmarkRegressionGuard` | 性能优化、压测、缓存/队列/连接池、高频路径、性能声明 | 给出基线、对照、阈值、运行命令和回归判定；低风险任务写 `N/A + skipReason` |
+| `RequirementVerdictStateSyncGate` | 需求修订、再次复审、宣布“可确认 / 暂不通过”或回写真相源 | 核对需求顶部状态、推荐结论、修复清单、audit-state decision、sessions / SUMMARY 是否一致 |
 | `ArtifactLinkSetDedupeGate` | 最终回复、报告、记忆、SUMMARY 或宿主文件面板消费产物链接 | 按 canonical path 去重同一物理文件，区分同名不同目录、历史镜像和部署副本，避免双份产物展示 |
 | `ActiveRequirementFinalResponseGate` | 同日或同工作区存在多个相邻需求、backlog、open 任务或未完成候选 | 最终回复和完成报告先声明当前 active requirement/task/bug id，完成状态、验证证据、dirty 边界和下一步只围绕当前范围 |
 | `FigmaHighFidelityRestorationGate` / `ScopedVisualChangeGate` | Figma、截图、既有页面还原或局部视觉修复 | 冻结设计来源、allowedScope/frozenScope、元素分类、偏离理由和实际视觉验证证据 |
@@ -45,6 +54,6 @@
 
 ## 验证
 
-- `node scripts/validate.js` 必须包含 V63~V68 探针；其中 V67 保留公开用户文档与最终回复 active 范围守门，V68 覆盖本批最新 data 吸纳守门。
-- `node scripts/test-spec-governance.js` 必须覆盖上述规则在 instructions、skills、prompts、README、website 与 changelog 的同步，包含 `ReviewFindingIntakeGate`、`ReviewDimensionDeltaGate`、`UserPerspectiveDocsGate`、`PublicUserDocsMaintainerBoundaryGate`、`DocsConsumerSweep`、`ArtifactLinkSetDedupeGate`、`FrontendRuntimeNetworkProbeGate`、`ActiveRequirementFinalResponseGate` 与 V68 新增门禁。
+- `node scripts/validate.js` 必须包含 V63~V70 探针；其中 V67 保留公开用户文档与最终回复 active 范围守门，V68 覆盖本批最新 data 吸纳守门，V69 覆盖需求复审状态同步、用户文档即时理解与用户文档主面守门，V70 覆盖用户文档驱动交付链、复审清单证据化、构建产物 smoke、生成站点验证、公开用户路径契约和性能回归门禁。
+- `node scripts/test-spec-governance.js` 必须覆盖上述规则在 instructions、skills、prompts、README、website 与 changelog 的同步，包含 `ReviewFindingIntakeGate`、`ReviewDimensionDeltaGate`、`UserPerspectiveDocsGate`、`UserDocsImmediateComprehensionGate`、`UserDocsPrimarySurfaceGate`、`RequirementVerdictStateSyncGate`、`PublicUserDocsMaintainerBoundaryGate`、`DocsConsumerSweep`、`ArtifactLinkSetDedupeGate`、`FrontendRuntimeNetworkProbeGate`、`ActiveRequirementFinalResponseGate` 与 V70 新增门禁。
 - 文档站 sidebar 与需求索引必须出现本页入口。

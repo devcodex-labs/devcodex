@@ -23,6 +23,9 @@ description: README / 用户使用文档专项审查维度 RM-1~RM-6 — 聚焦�
 - 文档是否给出从理解到第一次成功使用的完整路径
 - 是否存在“只有能力说明，没有怎么开始”的断层
 - 是否执行 `UserPerspectiveDocsGate`：从使用者真实任务出发组织，而不是按维护者内部实现、历史治理或仓库目录顺序堆叠
+- 是否执行 `UserDocsPrimarySurfaceGate`：README、文档站或 quick start 的首页首屏、nav/sidebar 前两组、CTA、reference 入口是否先服务用户使用路径，而不是开发契约、目标 API、数据模型或实现验收
+- 是否执行 `FinalUserManualFirstGate`：需求概况之后应先形成用户最终使用文档（文档站或至少 README），而不是先让开发文档、技术方案或实施计划占据主入口
+- 是否执行 `DocsSiteInformationArchitectureGate` / `UserManualFlowAndFailureGate`：站点、README 或手册是否按真实用户任务、成功路径、失败恢复、限制和下一步组织，而不是把所有章节平铺给用户自己猜
 
 **RM-2 快速开始可执行性 🔴**
 - 安装、启动、接入或运行步骤是否真实、完整、可执行
@@ -36,11 +39,13 @@ description: README / 用户使用文档专项审查维度 RM-1~RM-6 — 聚焦�
 - 示例是否帮助用户完成“第一次成功”
 - 性能表、语法/能力矩阵是否先给用户选择结论，再解释字段含义、支持形式、不支持形式和优先级示例
 - 参数、配置、模式、状态、错误码和限制是否逐项解释到“普通使用者能看懂并知道怎么选”
+- 队列、任务、异步或批处理类 README 是否执行 `QueueDocsRealWorkflowGate`：给出真实入队、执行、状态查询、失败重试、清理和常见失败恢复，而不是只展示单条硬编码样例
 
 **RM-4 配置与排错可发现性 🟡**
 - 用户最常遇到的配置点是否能被找到
 - FAQ、报错、依赖缺失、权限、端口、登录态等排错信息是否易发现
 - 是否存在“问题在文档里，但埋得太深”
+- 是否执行 `UserDocsImmediateComprehensionGate`：配置字段、默认值、选择建议、错误与排错是否简单易懂，并能让首次读者立即判断当前能做什么、不能做什么、怎么第一次成功
 
 **RM-5 开发信息后置性 🟡**
 - 开发方式、贡献流程、协作规范是否没有抢占主叙事
@@ -58,6 +63,7 @@ description: README / 用户使用文档专项审查维度 RM-1~RM-6 — 聚焦�
 - README 若存在翻译页或 website 双入口，是否执行 `DocumentationTranslationParityGuard` 并保持信息等价
 - README 是否遵守 `FormalDocsDevCodexBoundary`，没有混入运行时报告、台账、内部待办或一次性复盘口吻
 - README 是否执行 `DocsConsumerSweep`：新增命令、字段、配置、导航顺序或能力声明后，website、Profile、examples、templates、validate probes 和代码消费点是否同步
+- README 或文档站首页、quick start、公共用户路径变化时，是否执行 `UserPathContractSweep`，确认 README / website / nav/sidebar / examples / templates / validate probes / 部署副本与代码消费点同步
 
 ## 与 audit-document 的边界
 
@@ -82,6 +88,8 @@ description: README / 用户使用文档专项审查维度 RM-1~RM-6 — 聚焦�
 4. README 与其他当前消费者是否一致？
 5. 性能、语法或能力矩阵是否避免内部术语优先，且说明了支持 / 不支持 / 优先级？
 6. 文档是否足够详细、心智负担足够低，首次读者能否看懂每个关键字段、命令、状态和失败恢复路径？
+7. 用户文档主面是否被开发契约替代？首页、quick start、nav/sidebar 和 CTA 是否仍优先回答“怎么使用”？
+8. 若存在文档站或生成站点，是否验证了实际生成产物、TOC/sidebar/nav 去重、真实用户路径和部署副本同步？
 
 ## N/A 规则
 

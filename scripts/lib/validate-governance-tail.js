@@ -1482,6 +1482,146 @@ function buildGovernanceTailChecks(ctx) {
     console.log('[V68] latest data absorption guards sync checked')
   }
 
+  function checkV69() {
+    const gates = [
+      'RequirementVerdictStateSyncGate',
+      'UserDocsImmediateComprehensionGate',
+      'UserDocsPrimarySurfaceGate'
+    ]
+
+    const probes = [
+      { file: 'instructions.md', needles: gates.concat(['targetSurface', 'documentLocation', 'primaryAudience=用户/使用者']) },
+      { file: 'instructions/10-dev.instructions.md', needles: gates.concat(['首页首屏', '修复清单', 'SUMMARY']) },
+      { file: 'instructions/11-fix.instructions.md', needles: gates.concat(['站点文档/README/接入手册不得把开发契约当用户主路径']) },
+      { file: 'instructions/12-audit.instructions.md', needles: ['UserDocsImmediateComprehensionGate', 'UserDocsPrimarySurfaceGate', '首页首屏'] },
+      { file: 'instructions/13-analyze.instructions.md', needles: gates },
+      { file: 'skills/dev-docs/SKILL.md', needles: gates.concat(['public docs site', 'requirement deliverable']) },
+      { file: 'skills/readme-authoring/SKILL.md', needles: ['UserDocsPrimarySurfaceGate', 'UserDocsImmediateComprehensionGate', 'targetSurface'] },
+      { file: 'skills/audit-document/SKILL.md', needles: ['UserDocsImmediateComprehensionGate', 'UserDocsPrimarySurfaceGate', '未发布 runtime'] },
+      { file: 'skills/audit-readme/SKILL.md', needles: ['UserDocsPrimarySurfaceGate', 'UserDocsImmediateComprehensionGate', '开发契约'] },
+      { file: 'skills/audit-requirements/SKILL.md', needles: ['RequirementVerdictStateSyncGate', 'UserDocsImmediateComprehensionGate', 'UserDocsPrimarySurfaceGate'] },
+      { file: 'skills/document-sync/SKILL.md', needles: gates.concat(['sessions / SUMMARY']) },
+      { file: 'skills/test-router/SKILL.md', needles: gates.concat(['用户文档主面', '需求复审状态同步']) },
+      { file: 'skills/report/SKILL.md', needles: gates.concat(['LatestAbsorptionGuards']) },
+      { file: 'skills/memory/SKILL.md', needles: ['RequirementVerdictStateSyncGate', 'sessions', 'SUMMARY'] },
+      { file: 'prompts/requirement.prompt.md', needles: gates },
+      { file: 'prompts/technical-design.prompt.md', needles: gates.concat(['首页首屏']) },
+      { file: 'prompts/implementation-plan.prompt.md', needles: gates.concat(['targetSurface']) },
+      { file: 'prompts/report-dev.prompt.md', needles: gates },
+      { file: 'prompts/report-fix.prompt.md', needles: gates },
+      { file: 'prompts/report-audit.prompt.md', needles: gates },
+      { file: 'prompts/report-scenario-test.prompt.md', needles: gates },
+      { file: 'README.md', needles: gates.concat(['站点文档 / README / quick start']) },
+      { file: 'website/docs/guide/development.md', needles: gates.concat(['首页首屏']) },
+      { file: 'website/docs/versions/v1/1.0.1/requirements/p1/latest-data-absorption-guards/index.md', needles: gates.concat(['V69']) },
+      { file: 'website/docs/versions/v1/1.0.1/CHANGELOG.md', needles: gates.concat(['V69 探针']) },
+      { file: 'scripts/test-spec-governance.js', needles: ['checkV69', 'UserDocsPrimarySurfaceGate', 'RequirementVerdictStateSyncGate'] },
+      { file: 'scripts/validate.js', needles: ['V69 User docs primary surface', 'checkV69()'] }
+    ]
+
+    for (const probe of probes) {
+      const content = read(path.join(ROOT, probe.file))
+      for (const needle of probe.needles) {
+        if (!content.includes(needle)) {
+          err(`[V69] user docs primary surface / verdict-state sync drift in ${probe.file}: missing "${needle}"`)
+        }
+      }
+    }
+
+    for (const needle of gates.concat(['V69', 'PI-072', 'PI-073', 'PI-074', 'PF-077', 'PF-078', 'PF-079', 'GR-015', 'GR-016'])) {
+      if (!hasChangelogEvidence(needle)) {
+        err(`[V69] user docs primary surface changelog drift: missing "${needle}" in changelogs/unreleased.md or changelogs/releases/*.md`)
+      }
+    }
+
+    console.log('[V69] user docs primary surface / verdict-state sync checked')
+  }
+
+  function checkV70() {
+    const gates = [
+      'UserFacingDeliveryChainGate',
+      'FinalUserManualFirstGate',
+      'DocsSiteInformationArchitectureGate',
+      'UserManualFlowAndFailureGate',
+      'QueueDocsRealWorkflowGate',
+      'ReviewChecklistCompletenessGate',
+      'EvidenceExecutionGate',
+      'BuiltArtifactFeatureSmokeGate',
+      'TscOutputImportProbe',
+      'GeneratedSiteGate',
+      'ManualTocDuplicationGate',
+      'UserPathContractSweep',
+      'BenchmarkRegressionGuard'
+    ]
+
+    const probes = [
+      { file: 'instructions.md', needles: gates.concat(['用户最终使用文档', 'TypeScript', 'benchmark regression']) },
+      { file: 'instructions/10-dev.instructions.md', needles: ['UserFacingDeliveryChainGate', 'BuiltArtifactFeatureSmokeGate', 'BenchmarkRegressionGuard'] },
+      { file: 'instructions/11-fix.instructions.md', needles: ['ReviewChecklistCompletenessGate', 'EvidenceExecutionGate', 'BuiltArtifactFeatureSmokeGate', 'TscOutputImportProbe', 'BenchmarkRegressionGuard'] },
+      { file: 'instructions/12-audit.instructions.md', needles: ['ReviewChecklistCompletenessGate', 'EvidenceExecutionGate', 'GeneratedSiteGate', 'ManualTocDuplicationGate', 'UserPathContractSweep'] },
+      { file: 'instructions/13-analyze.instructions.md', needles: gates },
+      { file: 'skills/test-router/SKILL.md', needles: gates.concat(['userFacingDeliveryChain', 'reviewChecklistEvidence', 'builtArtifactFeatureSmoke', 'generatedSiteVerification', 'userPathContractSweep', 'benchmarkRegression']) },
+      { file: 'skills/dev-docs/SKILL.md', needles: ['UserFacingDeliveryChainGate', 'FinalUserManualFirstGate', 'GeneratedSiteGate', 'ManualTocDuplicationGate', 'UserPathContractSweep'] },
+      { file: 'skills/readme-authoring/SKILL.md', needles: ['UserFacingDeliveryChainGate', 'FinalUserManualFirstGate', 'UserPathContractSweep', 'QueueDocsRealWorkflowGate'] },
+      { file: 'skills/audit-document/SKILL.md', needles: ['FinalUserManualFirstGate', 'DocsSiteInformationArchitectureGate', 'UserManualFlowAndFailureGate', 'GeneratedSiteGate', 'ManualTocDuplicationGate', 'UserPathContractSweep'] },
+      { file: 'skills/audit-readme/SKILL.md', needles: ['FinalUserManualFirstGate', 'DocsSiteInformationArchitectureGate', 'UserManualFlowAndFailureGate', 'QueueDocsRealWorkflowGate', 'UserPathContractSweep'] },
+      { file: 'skills/document-sync/SKILL.md', needles: gates.concat(['不能只按审查报告文本验收']) },
+      { file: 'skills/report/SKILL.md', needles: gates.concat(['LatestAbsorptionGuards']) },
+      { file: 'prompts/technical-design.prompt.md', needles: ['userFacingDeliveryChain', 'reviewChecklistEvidence', 'builtArtifactFeatureSmoke', 'generatedSiteVerification', 'userPathContractSweep', 'benchmarkRegression'] },
+      { file: 'prompts/implementation-plan.prompt.md', needles: gates.concat(['生成站点验证', '性能回归']) },
+      { file: 'prompts/requirement.prompt.md', needles: ['UserFacingDeliveryChainGate', 'ReviewChecklistCompletenessGate', 'GeneratedSiteGate', 'BenchmarkRegressionGuard'] },
+      { file: 'prompts/report-dev.prompt.md', needles: ['UserFacingDeliveryChainGate', 'BuiltArtifactFeatureSmokeGate', 'BenchmarkRegressionGuard'] },
+      { file: 'prompts/report-fix.prompt.md', needles: ['UserFacingDeliveryChainGate', 'ReviewChecklistCompletenessGate', 'BenchmarkRegressionGuard'] },
+      { file: 'prompts/report-audit.prompt.md', needles: gates },
+      { file: 'prompts/report-scenario-test.prompt.md', needles: ['UserFacingDeliveryChainGate', 'EvidenceExecutionGate', 'GeneratedSiteGate', 'BenchmarkRegressionGuard'] },
+      { file: 'README.md', needles: gates.concat(['部署副本']) },
+      { file: 'website/docs/guide/development.md', needles: gates.concat(['部署副本']) },
+      { file: 'website/docs/versions/v1/1.0.1/requirements/p1/latest-data-absorption-guards/index.md', needles: gates.concat(['V70']) },
+      { file: 'website/docs/versions/v1/1.0.1/CHANGELOG.md', needles: gates.concat(['V70 探针']) },
+      { file: 'scripts/test-spec-governance.js', needles: ['checkV70', 'UserFacingDeliveryChainGate', 'BenchmarkRegressionGuard'] },
+      { file: 'scripts/validate.js', needles: ['V70 User-facing delivery chain', 'checkV70()'] }
+    ]
+
+    for (const probe of probes) {
+      const content = read(path.join(ROOT, probe.file))
+      for (const needle of probe.needles) {
+        if (!content.includes(needle)) {
+          err(`[V70] user-facing delivery / evidence execution drift in ${probe.file}: missing "${needle}"`)
+        }
+      }
+    }
+
+    const ids = [
+      'V70',
+      'PI-075',
+      'PI-076',
+      'PI-077',
+      'PI-078',
+      'PF-080',
+      'PF-081',
+      'PF-082',
+      'PF-083',
+      'GR-017',
+      'GR-018',
+      'GAP-030',
+      'GAP-031',
+      'GAP-032',
+      'GAP-033',
+      'GAP-034',
+      'GAP-035',
+      'GAP-036',
+      'PI-019',
+      'PF-002'
+    ]
+    for (const needle of gates.concat(ids)) {
+      if (!hasChangelogEvidence(needle)) {
+        err(`[V70] latest data absorption changelog drift: missing "${needle}" in changelogs/unreleased.md or changelogs/releases/*.md`)
+      }
+    }
+
+    console.log('[V70] user-facing delivery / evidence execution guards sync checked')
+  }
+
   return {
     checkV39,
     checkV40,
@@ -1512,7 +1652,9 @@ function buildGovernanceTailChecks(ctx) {
     checkV65,
     checkV66,
     checkV67,
-    checkV68
+    checkV68,
+    checkV69,
+    checkV70
   }
 }
 

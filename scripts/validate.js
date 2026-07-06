@@ -64,6 +64,8 @@
  * V66 Review dimension / user docs / artifact dedupe / runtime network sync（复审维度、使用者文档、产物去重与运行态网络）
  * V67 Public user docs / active final response sync（公开用户文档维护边界与最终回复 active 范围）
  * V68 Latest data absorption guards sync（最新 data 吸纳守门：数据库记录迁移、浏览器验证预算、finding 矩阵、多阶段关闭、验证副作用等）
+ * V69 User docs primary surface and verdict-state sync（用户文档主面与需求复审状态同步）
+ * V70 User-facing delivery chain / evidence execution sync（用户文档驱动交付链、复审证据化、构建产物与生成站点验证）
  *
  * Exit: 0=OK, 1=error, 2=warnings only
  */
@@ -538,7 +540,9 @@ const {
   checkV65,
   checkV66,
   checkV67,
-  checkV68
+  checkV68,
+  checkV69,
+  checkV70
 } = buildGovernanceTailChecks({
   ROOT,
   ACTIVE_DEVCODEX_ROOT,
@@ -930,6 +934,8 @@ checkV65()
 checkV66()
 checkV67()
 checkV68()
+checkV69()
+checkV70()
 
 console.log('')
 if (errors.length) {

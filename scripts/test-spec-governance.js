@@ -570,7 +570,66 @@ const probes = [
   ['website/docs/versions/v1/1.0.1/requirements/p1/latest-data-absorption-guards/index.md', 'V68'],
   ['website/docs/versions/v1/1.0.1/CHANGELOG.md', 'V68 探针'],
   ['scripts/lib/validate-governance-tail.js', 'checkV68'],
-  ['scripts/validate.js', 'checkV68()']
+  ['scripts/validate.js', 'checkV68()'],
+  ['instructions.md', 'UserDocsImmediateComprehensionGate'],
+  ['instructions.md', 'UserDocsPrimarySurfaceGate'],
+  ['instructions.md', 'RequirementVerdictStateSyncGate'],
+  ['instructions/10-dev.instructions.md', 'UserDocsPrimarySurfaceGate'],
+  ['instructions/11-fix.instructions.md', 'RequirementVerdictStateSyncGate'],
+  ['instructions/12-audit.instructions.md', 'UserDocsImmediateComprehensionGate'],
+  ['instructions/13-analyze.instructions.md', 'RequirementVerdictStateSyncGate'],
+  ['skills/dev-docs/SKILL.md', 'UserDocsPrimarySurfaceGate'],
+  ['skills/readme-authoring/SKILL.md', 'UserDocsImmediateComprehensionGate'],
+  ['skills/audit-document/SKILL.md', 'UserDocsPrimarySurfaceGate'],
+  ['skills/audit-readme/SKILL.md', 'UserDocsImmediateComprehensionGate'],
+  ['skills/audit-requirements/SKILL.md', 'RequirementVerdictStateSyncGate'],
+  ['skills/document-sync/SKILL.md', 'RequirementVerdictStateSyncGate'],
+  ['skills/test-router/SKILL.md', '用户文档主面'],
+  ['skills/report/SKILL.md', 'UserDocsPrimarySurfaceGate'],
+  ['skills/memory/SKILL.md', 'RequirementVerdictStateSyncGate'],
+  ['prompts/requirement.prompt.md', 'RequirementVerdictStateSyncGate'],
+  ['prompts/technical-design.prompt.md', 'UserDocsPrimarySurfaceGate'],
+  ['prompts/implementation-plan.prompt.md', 'UserDocsImmediateComprehensionGate'],
+  ['prompts/report-dev.prompt.md', 'UserDocsPrimarySurfaceGate'],
+  ['prompts/report-fix.prompt.md', 'RequirementVerdictStateSyncGate'],
+  ['prompts/report-audit.prompt.md', 'UserDocsImmediateComprehensionGate'],
+  ['prompts/report-scenario-test.prompt.md', 'UserDocsPrimarySurfaceGate'],
+  ['README.md', 'UserDocsPrimarySurfaceGate'],
+  ['website/docs/guide/development.md', 'UserDocsImmediateComprehensionGate'],
+  ['website/docs/versions/v1/1.0.1/requirements/p1/latest-data-absorption-guards/index.md', 'V69'],
+  ['website/docs/versions/v1/1.0.1/CHANGELOG.md', 'V69 探针'],
+  ['scripts/lib/validate-governance-tail.js', 'checkV69'],
+  ['scripts/validate.js', 'checkV69()'],
+  ['instructions.md', 'UserFacingDeliveryChainGate'],
+  ['instructions.md', 'ReviewChecklistCompletenessGate'],
+  ['instructions.md', 'BuiltArtifactFeatureSmokeGate'],
+  ['instructions.md', 'GeneratedSiteGate'],
+  ['instructions.md', 'BenchmarkRegressionGuard'],
+  ['instructions/10-dev.instructions.md', 'UserFacingDeliveryChainGate'],
+  ['instructions/11-fix.instructions.md', 'TscOutputImportProbe'],
+  ['instructions/12-audit.instructions.md', 'GeneratedSiteGate'],
+  ['instructions/13-analyze.instructions.md', 'BenchmarkRegressionGuard'],
+  ['skills/test-router/SKILL.md', 'userFacingDeliveryChain'],
+  ['skills/test-router/SKILL.md', 'builtArtifactFeatureSmoke'],
+  ['skills/dev-docs/SKILL.md', 'GeneratedSiteGate'],
+  ['skills/readme-authoring/SKILL.md', 'QueueDocsRealWorkflowGate'],
+  ['skills/audit-document/SKILL.md', 'ManualTocDuplicationGate'],
+  ['skills/audit-readme/SKILL.md', 'UserPathContractSweep'],
+  ['skills/document-sync/SKILL.md', 'ReviewChecklistCompletenessGate'],
+  ['skills/report/SKILL.md', 'BenchmarkRegressionGuard'],
+  ['prompts/technical-design.prompt.md', 'benchmarkRegression'],
+  ['prompts/implementation-plan.prompt.md', 'EvidenceExecutionGate'],
+  ['prompts/requirement.prompt.md', 'GeneratedSiteGate'],
+  ['prompts/report-dev.prompt.md', 'BuiltArtifactFeatureSmokeGate'],
+  ['prompts/report-fix.prompt.md', 'ReviewChecklistCompletenessGate'],
+  ['prompts/report-audit.prompt.md', 'EvidenceExecutionGate'],
+  ['prompts/report-scenario-test.prompt.md', 'BenchmarkRegressionGuard'],
+  ['README.md', 'GeneratedSiteGate'],
+  ['website/docs/guide/development.md', 'UserPathContractSweep'],
+  ['website/docs/versions/v1/1.0.1/requirements/p1/latest-data-absorption-guards/index.md', 'V70'],
+  ['website/docs/versions/v1/1.0.1/CHANGELOG.md', 'V70 探针'],
+  ['scripts/lib/validate-governance-tail.js', 'checkV70'],
+  ['scripts/validate.js', 'checkV70()']
 ]
 
 for (const [file, needle] of probes) mustInclude(file, needle)
@@ -629,6 +688,51 @@ mustIncludeInChangelogs('RequirementPreConfirmGate')
 mustIncludeInChangelogs('PackageAdapterPreConfirmEvidenceGate')
 mustIncludeInChangelogs('PI-071')
 mustIncludeInChangelogs('PF-076')
+mustIncludeInChangelogs('RequirementVerdictStateSyncGate')
+mustIncludeInChangelogs('UserDocsImmediateComprehensionGate')
+mustIncludeInChangelogs('UserDocsPrimarySurfaceGate')
+mustIncludeInChangelogs('V69')
+mustIncludeInChangelogs('PI-072')
+mustIncludeInChangelogs('PI-073')
+mustIncludeInChangelogs('PI-074')
+mustIncludeInChangelogs('PF-077')
+mustIncludeInChangelogs('PF-078')
+mustIncludeInChangelogs('PF-079')
+mustIncludeInChangelogs('GR-015')
+mustIncludeInChangelogs('GR-016')
+mustIncludeInChangelogs('UserFacingDeliveryChainGate')
+mustIncludeInChangelogs('FinalUserManualFirstGate')
+mustIncludeInChangelogs('DocsSiteInformationArchitectureGate')
+mustIncludeInChangelogs('UserManualFlowAndFailureGate')
+mustIncludeInChangelogs('QueueDocsRealWorkflowGate')
+mustIncludeInChangelogs('ReviewChecklistCompletenessGate')
+mustIncludeInChangelogs('EvidenceExecutionGate')
+mustIncludeInChangelogs('BuiltArtifactFeatureSmokeGate')
+mustIncludeInChangelogs('TscOutputImportProbe')
+mustIncludeInChangelogs('GeneratedSiteGate')
+mustIncludeInChangelogs('ManualTocDuplicationGate')
+mustIncludeInChangelogs('UserPathContractSweep')
+mustIncludeInChangelogs('BenchmarkRegressionGuard')
+mustIncludeInChangelogs('V70')
+mustIncludeInChangelogs('PI-075')
+mustIncludeInChangelogs('PI-076')
+mustIncludeInChangelogs('PI-077')
+mustIncludeInChangelogs('PI-078')
+mustIncludeInChangelogs('PF-080')
+mustIncludeInChangelogs('PF-081')
+mustIncludeInChangelogs('PF-082')
+mustIncludeInChangelogs('PF-083')
+mustIncludeInChangelogs('GR-017')
+mustIncludeInChangelogs('GR-018')
+mustIncludeInChangelogs('GAP-030')
+mustIncludeInChangelogs('GAP-031')
+mustIncludeInChangelogs('GAP-032')
+mustIncludeInChangelogs('GAP-033')
+mustIncludeInChangelogs('GAP-034')
+mustIncludeInChangelogs('GAP-035')
+mustIncludeInChangelogs('GAP-036')
+mustIncludeInChangelogs('PI-019')
+mustIncludeInChangelogs('PF-002')
 
 const activeRuleFiles = [
   'README.md',

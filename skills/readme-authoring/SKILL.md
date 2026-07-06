@@ -39,6 +39,13 @@ README 的默认第一受众必须是**用户 / 使用者**，而不是维护者
 | `secondaryAudience` | 条件 | 可选 `开发者 / 贡献者 / 维护者` |
 | `projectType` | ✅ | `library` / `service` / `application` / `tool` |
 | `userJourney` | ✅ | `理解 -> 安装/接入 -> 启动/运行 -> 使用 -> 配置 -> 排错` |
+| `targetSurface` | ✅ | `public-docs-site` / `project-readme-docs` / `requirement-deliverable` / `maintainer-only`，不得未确认就把需求交付文档挂入项目 README/docs |
+| `primarySurfaceCheck` | ✅ | 首页首屏、quick start、nav/sidebar 前两组、CTA、reference、配置、常见任务和排错是否服务用户使用路径 |
+| `immediateComprehension` | ✅ | 功能完整性、配置易懂性、首次读者即时理解三轴结论 |
+| `deliveryChain` | 条件 | docs-first / 最终用户手册场景填写 `UserFacingDeliveryChainGate`：确认需求事实源、用户最终文档、条件契约文档、技术方案输入和 ECR 用户文档符合性 |
+| `siteInformationArchitecture` | 条件 | 文档站填写 `DocsSiteInformationArchitectureGate`：用户手册、reference、operations、compatibility、implementation、maintainer 面各归其位 |
+| `flowAndFailurePath` | 条件 | 最终用户手册填写 `UserManualFlowAndFailureGate`：整体流程、关键角色、第一次成功、失败分流、排查命令、恢复/降级 |
+| `realWorkflowExample` | 条件 | 队列 / 任务 / 异步 / 批处理类 quick start 填写 `QueueDocsRealWorkflowGate`，不能用单个硬编码 job 代替主路径 |
 | `developerInfoPlacement` | ✅ | 必须晚于快速开始、常见用法、配置与排错 |
 | `consumerMap` | ✅ | README 与 `package.json` / CLI / website / examples / changelog / Profile 的关联事实 |
 
@@ -54,6 +61,8 @@ README 的默认第一受众必须是**用户 / 使用者**，而不是维护者
 6. 常见问题与排错
 7. 进一步文档
 8. 开发 / 贡献 / 维护说明
+
+docs-first 最终用户手册的顺序必须服务目标版本最终可执行路径；未实现、preview 或内部开发状态只能放在发布状态、限制说明或维护者区域，不能成为首屏、quick start 或 reference 主叙事。
 
 禁止把以下内容前置为主叙事：
 
@@ -81,10 +90,14 @@ README 的默认第一受众必须是**用户 / 使用者**，而不是维护者
 
 1. 判断 `projectType`。
 2. 确认真实 `primaryAudience` 是否为外部用户、内部使用者或协作方。
-3. 按 `userJourney` 组织章节，不要从开发命令开始。
-4. 只保留与当前项目类型相关的快速开始与示例块。
-5. 建立 `consumerMap`，核对 README 与 `package.json`、CLI、website、examples、changelog、Profile 是否一致。
-6. 交付后若任务要求 review，再调用 `audit-readme`。
+3. 执行 `UserDocsPrimarySurfaceGate`：冻结 `targetSurface`、`documentLocation`、首页/quick start/nav 主面和开发/维护内容后置策略。
+4. 执行 `UserDocsImmediateComprehensionGate`：写出功能覆盖、配置易懂、首次读者即时理解的三轴检查。
+5. docs-first / 最终用户手册场景执行 `UserFacingDeliveryChainGate` 与 `FinalUserManualFirstGate`，确认 README / 文档站内容来自已确认需求或产品需求，而不是未确认的整理草稿。
+6. 文档站执行 `DocsSiteInformationArchitectureGate`；最终用户手册执行 `UserManualFlowAndFailureGate`；队列/任务/异步/批处理类 quick start 执行 `QueueDocsRealWorkflowGate`。
+7. 按 `userJourney` 组织章节，不要从开发命令开始。
+8. 只保留与当前项目类型相关的快速开始与示例块。
+9. 建立 `consumerMap`，核对 README 与 `package.json`、CLI、website、examples、changelog、Profile 是否一致；公开能力页追加 `UserPathContractSweep`。
+10. 交付后若任务要求 review，再调用 `audit-readme`。
 
 ## 与其他 Skill 的关系
 
@@ -98,4 +111,7 @@ README 的默认第一受众必须是**用户 / 使用者**，而不是维护者
 - 禁止把 README 默认写成“维护者操作手册”。
 - 禁止让开发/贡献章节出现在快速开始之前。
 - 禁止只写架构或目录而不给真实使用路径。
+- 禁止把“站点文档 / 用户使用文档”写成开发契约、目标 API、数据模型或实现验收主叙事；这些内容只能后置或标为 developer/maintainer-only。
+- 禁止把 docs-first 最终用户手册写成当前 preview / 当前不可用说明，也禁止把最终用户手册当成整站全部内容容器。
+- 禁止队列、任务、异步处理、推送、导入导出或批处理类 quick start 只写单个硬编码 job；单 job 只能作为 API micro example，不能替代真实批量工作流。
 - 禁止用内部分类名、benchmark 术语或 provider/adapter 实现名抢占用户主叙事；应先写用户场景与选择建议，再引出 API / 模式名称。

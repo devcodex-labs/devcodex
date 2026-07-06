@@ -81,6 +81,7 @@ description: 管理会话记忆的读取与写入。三层记忆体系：Agent �
 - 追加段落时使用增量编辑，禁止覆盖已有内容（[C06/S04](../../instructions/00-safety.instructions.md)）
 - 禁止使用 `Set-Content` 等命令修改 .md 文件（[C09](../../instructions/01-common.instructions.md)）
 - 写入报告路径、ContextHandoffCard 或 artifact-links 前执行 `ArtifactLinkSetDedupeGate`：同一物理文件按规范化绝对路径只保留一个主引用；记忆/SUMMARY 可作为索引证据，但不得把同一文件的相对链接、绝对链接和 copy fallback 记录成多份主产物。
+- 需求修订、再次复审、宣布“可确认 / 暂不通过 / 已修订待复审”或从修复清单回写真相源时，记忆写入必须配合 `RequirementVerdictStateSyncGate`：daily tasks、需求级 sessions 和 SUMMARY 的状态口径不得与需求真相源顶部状态、推荐结论、修复清单或 audit-state decision 冲突。
 
 ## 新会话 🔄 检测
 

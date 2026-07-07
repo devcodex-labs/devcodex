@@ -418,6 +418,7 @@ flowchart TD
 | 文档示例与 package/adapter 证据 | SideEffectCompatibilityDocsGate / ExecutableExampleTruthProbeGate / PackageAdapterPreConfirmEvidenceGate | 按 CP2 技术方案和 TestRoute 条件派生 |
 | 文档使用者、主面与消费者同步 | UserPerspectiveDocsGate / UserDocsImmediateComprehensionGate / UserDocsPrimarySurfaceGate / PublicUserDocsMaintainerBoundaryGate / DocsConsumerSweep / DocsSiteVisualAcceptanceGate | §1、§5、§7 |
 | 用户最终文档与交付顺序 | UserFacingDeliveryChainGate / FinalUserManualFirstGate / DocsSiteInformationArchitectureGate / UserManualFlowAndFailureGate / QueueDocsRealWorkflowGate | §1、§5、§7、§9 |
+| 完整吸纳补强与需求维度绑定 | ConfirmedAbsorptionCompletenessGates / SampleIssueExpansionGate / RequirementDimensionBindingGate / RequirementPriorityAndPhaseGate / ReviewAnchorMaterializationGate | §1、§2、§7、§9 |
 | 复审、产物、站点与性能证据 | ReviewChecklistCompletenessGate / EvidenceExecutionGate / BuiltArtifactFeatureSmokeGate / TscOutputImportProbe / GeneratedSiteGate / ManualTocDuplicationGate / UserPathContractSweep / BenchmarkRegressionGuard | §7、§8、§9 |
 | 产物链接与最终回复范围 | ArtifactLinkSetDedupeGate / ActiveRequirementFinalResponseGate | §9、§10 |
 | DevCodex v2 路线与方案包 | V2MCPFirstPlanningGate / V2FormalSolutionPackage | §2.4、§7、§9 |

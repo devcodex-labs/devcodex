@@ -2,7 +2,7 @@
 applyTo: "**"
 description: audit 工作流规则，覆盖审查目标路由、收敛门禁、元循环与只读边界
 priority: P4
-version: 1.11.26
+version: 1.11.27
 ---
 # 审计工作流规则（12-audit）
 
@@ -235,6 +235,7 @@ R2 及以后轮次必须把复审从“同一维度反复跑一遍”改为“�
 - E — 可观测 🟡：PE-9 日志 · PE-11 数据层质量
 - 前端项目或包含用户可见 UI 的项目工程审查需叠加 `FrontendExperienceQualityGate`：检查视觉一致性、交互反馈、焦点/输入方式、错误恢复、动效转场、Browser/截图/E2E 证据、浏览器验证预算、用户自验 override、视觉偏差类型和设计帧用途分类；不涉及前端体验时写 `N/A + skipReason`
 - 项目工程、通用文档、README 或控制面审查遇到“已接入/已验证”、人工复核、翻译同步、正式文档边界、LLM 契约（`LLMPromptContractTriage`）、验证范围预算、adapter/provider benchmark、产品需求来源、本机执行配置、证据留存、相邻范围扩展、包名/发布名、性能第一、公开模块、提交授权（`ExplicitCommitAuthorizationGate`）、兼容契约、UI 真相源冲突（`UIConfirmedSourceConflictTraceGate`）、公开文档版本边界（`PublicDocsReleasedVersionGate`）、集合关系命名、验证产物语言、公开用户文档混入维护者 checklist、最终回复范围漂移、数据库记录迁移、guard/policy 绕过、finding 反证矩阵、文档副作用、示例可执行、一次性脚本、验证命令副作用（`VerificationCommandSideEffectGate`）、package/adapter 确认前证据（`PackageAdapterPreConfirmEvidenceGate`）或 DevCodex v2 一期路线时需叠加 `CrossProjectLearnedGuards`，并在不涉及的维度写 `N/A + skipReason`
+- 审查规范吸纳完整性时，若发现只有概念覆盖、缺 Gate 名、缺 Skill、缺 Prompt、缺执行消费者、缺探针或缺部署副本，必须判定为 `ConfirmedAbsorptionCompletenessGates` 未收敛；按需检查 `PublicSurfaceClosureGate`、`UserManualProductizationGate`、`UserManualRenderedFlowAndRealWorkflowProbe`、`SampleIssueExpansionGate`、`RequirementDimensionBindingGate`、`RequirementPriorityAndPhaseGate`、`ReviewAnchorMaterializationGate`、`SemanticLegacyRouteExposureGate`、`ReferenceCodeTruthSamplingGate`、`FrontendAsyncCacheRenderGate`、`StaleWhileRevalidateGate`、`PortableExternalArtifactGate`、`StrongestProfileSourceGate`、`ServiceSpecificResidueSweep`、`ProfileReadChainGate`、`ServiceNormCoverageGate`、`RouteNamespaceResponsibilityGate`、`RemoteCIParityPushGate`、`OfficialApiEvidenceGate`、`AsyncDbTruthSourceVerificationGate`、`DocsPageRoleMatrixGate`、`CompleteUserManualSiteMatrixGate`、`EvolutionCapabilityControlPlaneGate`、`FrameworkCapabilityAutoFirstGate` 与 `DocsThemeRuntimeVisualProbeGate`
 - 审查报告、AI review finding 或 audit issue 本身作为输入时需叠加 `ReviewFindingIntakeGate`，避免把报告结论直接当证据或把设计/文档/测试缺口误归类为 must-fix runtime bug。
 
 ### 报告审查（RA-1~RA-6）

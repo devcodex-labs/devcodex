@@ -12,6 +12,7 @@ description: 发布前审查维度 — 审查 release readiness、发布说明�
 - 不执行真实 `tag` / `push` / `publish`。
 - 可引用 `release-verification` 的 R0~R7 结果作为证据，但不能用执行通过替代审查结论。
 - package completeness gate 是 RL-4 的输入之一，不等于完整发布前审查。
+- 发布前复审、tag/publish 前风险清单或多轮 release readiness 收敛必须触发 `review-checklist`，冻结 RL-1~RL-10 及关联发布风险项，并逐项绑定证据。
 
 ## 输入范围
 
@@ -30,9 +31,9 @@ description: 发布前审查维度 — 审查 release readiness、发布说明�
 | RL-2 发布说明质量 | changelog/release notes 是否覆盖用户可见变化、修复、迁移提示与已知限制 | 🔴 |
 | RL-3 兼容与迁移风险 | breaking changes、配置变更、宿主兼容、迁移路径与回滚影响是否说明 | 🔴 |
 | RL-4 元数据完整性 | `description`、`keywords`、`repository`、`homepage`、`bugs`、`license`、`files/exports/bin`、`publishConfig`、`engines`、`plugin.json` 是否完整准确 | 🔴 |
-| RL-5 包边界与安装面 | pack 内容、安装路径、认证前提、二进制入口、禁发文件与部署副本边界是否清楚 | 🔴 |
+| RL-5 包边界与安装面 | pack 内容、安装路径、认证前提、二进制入口、禁发文件与部署副本边界是否清楚；是否执行 `PublicSurfaceClosureGate`，分类历史 pack 公开内容、README 隐藏链接、public types 兼容 API、examples/sidebar/nav 和搜索索引源文档 | 🔴 |
 | RL-6 消费链同步 | README、website、Profile、release guide、模板、validate 与部署副本是否同步 | 🔴 |
-| RL-7 验证准备度 | `npm test`、`test:audit`、远端 CI 绿色、pack/publish dry-run、install smoke、ReleaseVerification R0~R7 的触发与证据是否充分 | 🟡 |
+| RL-7 验证准备度 | `npm test`、`test:audit`、远端 CI 绿色、pack/publish dry-run、install smoke、ReleaseVerification R0~R7 的触发与证据是否充分；是否执行 `RemoteCIParityPushGate`，不得用普通测试通过替代 coverage、audit、examples、website、pack 或矩阵脚本 | 🟡 |
 | RL-8 回滚与恢复 | 失败恢复、版本回退、tag/registry 冲突、半发布状态处理是否可执行 | 🟡 |
 | RL-9 凭据与 registry 安全 | token 不落盘、不输出；GitHub Packages / npm registry / access 策略与文档一致 | 🔴 |
 | RL-10 发布后验收 | registry/tag 验收、安装包边界复核、逃逸复盘与后续台账回写是否定义 | 🟡 |

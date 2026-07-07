@@ -128,6 +128,9 @@ async function testEndpoint(method, path, body, expected, headers = {}) {
 
 - 🔴 对外接口变更的归档验证禁止只生成 `.http` 不生成 `.cjs`（双产物缺一不可）
 - 归档级脚本必须包含断言（不是只发请求，要验证响应）
+- API / SDK / 平台能力或 public API 设计必须先执行 `OfficialApiEvidenceGate`：读取官方 API 文档、公开契约或源码证据；不可用时记录降级证据、兼容风险和采用依据。
+- 数据库、队列、缓存、详情页、列表页或跨页面返回状态的接口验证必须执行 `AsyncDbTruthSourceVerificationGate`：区分真实数据源、异步请求、缓存替换、失败回退和刷新边界；不得只凭当前 UI 空白、mock 或同步阻塞路径判断接口可用。
+- 前端首页、详情、列表或搜索依赖接口数据时，验证路线要联动 `FrontendAsyncCacheRenderGate` / `StaleWhileRevalidateGate`：有旧缓存先渲染旧数据并异步刷新替换，不能回退为空白或 loading-only。
 - 归档级脚本禁止自启服务；必须通过 `API_BASE_URL` 或同等配置连接用户已启动的目标实例
 - 归档级 `.http` 必须声明标准变量块：`@baseUrl`、`@contentType`，鉴权接口必须声明 `@token`，有语言/区域差异时必须声明 `@language`
 - `UserFacingVerificationArtifactLanguageGate`：`.http` 的标题、说明、人工检查提示、接口验证脚本注释和执行说明默认使用用户当前语言；项目要求英文、双语或特定文档语言时按项目要求；HTTP 方法、Header、变量名、JSON 字段和代码标识保持原样。

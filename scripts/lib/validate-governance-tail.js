@@ -1622,6 +1622,259 @@ function buildGovernanceTailChecks(ctx) {
     console.log('[V70] user-facing delivery / evidence execution guards sync checked')
   }
 
+  function checkV71() {
+    const gates = [
+      'SkillFirstAbsorptionGate',
+      'CapabilityToSkillPromotionGate',
+      'SkillAbsorptionDecision'
+    ]
+
+    const probes = [
+      { file: 'instructions.md', needles: gates.concat(['new-skill-required', 'existing-skill-subgate', 'global-invariant']) },
+      { file: 'instructions/10-dev.instructions.md', needles: gates.concat(['new-skill-required']) },
+      { file: 'skills/spec-governance/SKILL.md', needles: gates.concat(['global-invariant', 'existing-skill-subgate', 'new-skill-required', 'docs-only']) },
+      { file: 'skills/user-manual-authoring/SKILL.md', needles: ['name: user-manual-authoring', 'UserFacingDeliveryChainGate', 'FinalUserManualFirstGate', 'UserPathContractSweep'] },
+      { file: 'skills/review-checklist/SKILL.md', needles: ['name: review-checklist', 'ReviewChecklistPrecreationGate', 'EvidenceExecutionGate', 'ChecklistStateFreshnessGate'] },
+      { file: 'plugin.json', needles: ['user-manual-authoring', 'skills/user-manual-authoring/SKILL.md', 'review-checklist', 'skills/review-checklist/SKILL.md'] },
+      { file: 'skills/dev-default/SKILL.md', needles: gates.concat(['AbsorptionDecision']) },
+      { file: 'skills/dev-docs/SKILL.md', needles: ['user-manual-authoring', '最终用户使用文档'] },
+      { file: 'skills/readme-authoring/SKILL.md', needles: ['user-manual-authoring', 'README 专项分支'] },
+      { file: 'skills/audit-readme/SKILL.md', needles: ['user-manual-authoring', '最终用户使用文档'] },
+      { file: 'skills/routing/SKILL.md', needles: ['user-manual-authoring', 'review-checklist'] },
+      { file: 'skills/test-router/SKILL.md', needles: ['SkillFirstAbsorptionGate', 'SkillAbsorptionDecision', 'user-manual-authoring', 'review-checklist'] },
+      { file: 'skills/document-sync/SKILL.md', needles: ['SkillFirstAbsorptionGate', 'user-manual-authoring', 'review-checklist'] },
+      { file: 'skills/report/SKILL.md', needles: gates },
+      { file: 'skills/audit-common/SKILL.md', needles: ['review-checklist', 'ChecklistStateFreshnessGate'] },
+      { file: 'skills/audit-execution-guide/SKILL.md', needles: ['review-checklist', 'ReviewChecklistPrecreationGate'] },
+      { file: 'skills/audit-release/SKILL.md', needles: ['review-checklist', 'RL-1~RL-10'] },
+      { file: 'prompts/technical-design.prompt.md', needles: ['SkillAbsorptionDecision', 'user-manual-authoring', 'review-checklist'] },
+      { file: 'prompts/implementation-plan.prompt.md', needles: gates.concat(['user-manual-authoring', 'review-checklist']) },
+      { file: 'prompts/report-dev.prompt.md', needles: ['SkillFirstAbsorptionGate'] },
+      { file: 'prompts/report-fix.prompt.md', needles: ['SkillFirstAbsorptionGate'] },
+      { file: 'prompts/report-audit.prompt.md', needles: ['SkillFirstAbsorptionGate'] },
+      { file: 'prompts/report-scenario-test.prompt.md', needles: ['SkillFirstAbsorptionGate'] },
+      { file: 'README.md', needles: ['Skill-first 吸纳架构', 'user-manual-authoring', 'review-checklist'] },
+      { file: 'website/docs/guide/development.md', needles: ['Skill-first 吸纳架构', 'user-manual-authoring', 'review-checklist'] },
+      { file: 'website/docs/index.md', needles: ['47 个 Skills'] },
+      { file: 'website/docs/intro/index.md', needles: ['47 个按需触发的工作流技能', 'user-manual-authoring', 'review-checklist'] },
+      { file: 'website/docs/specs/directory-structure.md', needles: ['扁平一级 Skill（47 个）', 'user-manual-authoring', 'review-checklist'] },
+      { file: 'website/docs/versions/v1/1.0.1/requirements/p1/latest-data-absorption-guards/index.md', needles: gates.concat(['V71', 'user-manual-authoring', 'review-checklist']) },
+      { file: 'website/docs/versions/v1/1.0.1/CHANGELOG.md', needles: ['V71 探针', 'SkillFirstAbsorptionGate', 'user-manual-authoring', 'review-checklist'] },
+      { file: 'changelogs/releases/v1.11.27.md', needles: gates.concat(['V71', 'PI-079', 'PI-080', 'PI-081', 'PF-084', 'PF-085', 'PF-086', 'user-manual-authoring', 'review-checklist']) },
+      { file: 'scripts/test-spec-governance.js', needles: ['checkV71', 'SkillFirstAbsorptionGate', 'user-manual-authoring', 'review-checklist'] },
+      { file: 'scripts/validate.js', needles: ['V71 Skill-first absorption', 'checkV71()'] }
+    ]
+
+    for (const probe of probes) {
+      const content = read(path.join(ROOT, probe.file))
+      for (const needle of probe.needles) {
+        if (!content.includes(needle)) {
+          err(`[V71] skill-first absorption architecture drift in ${probe.file}: missing "${needle}"`)
+        }
+      }
+    }
+
+    for (const needle of gates.concat(['V71', 'PI-079', 'PI-080', 'PI-081', 'PF-084', 'PF-085', 'PF-086', 'user-manual-authoring', 'review-checklist'])) {
+      if (!hasChangelogEvidence(needle)) {
+        err(`[V71] skill-first absorption changelog drift: missing "${needle}" in changelogs/unreleased.md or changelogs/releases/*.md`)
+      }
+    }
+
+    console.log('[V71] skill-first absorption architecture sync checked')
+  }
+
+  function checkV72() {
+    const gates = [
+      'LayeredAbsorptionGate',
+      'LayeredAbsorptionDecision',
+      'ProactiveBetterAlternativeGate'
+    ]
+    const layerTerms = [
+      'commonInstruction',
+      'skill',
+      'promptTemplate',
+      'executionConsumer',
+      'validationProbe',
+      'publicDocs',
+      'deployCopy'
+    ]
+
+    const probes = [
+      { file: 'instructions.md', needles: gates.concat(layerTerms).concat(['SkillAbsorptionDecision']) },
+      { file: 'instructions/10-dev.instructions.md', needles: gates.concat(layerTerms).concat(['SkillFirstAbsorptionGate']) },
+      { file: 'skills/spec-governance/SKILL.md', needles: gates.concat(layerTerms).concat(['skipReason']) },
+      { file: 'skills/dev-default/SKILL.md', needles: gates.concat(layerTerms).concat(['SkillAbsorptionDecision']) },
+      { file: 'skills/test-router/SKILL.md', needles: gates.concat(['layeredAbsorption', 'proactiveBetterAlternative', 'publicDocs', 'deployCopy']) },
+      { file: 'skills/report/SKILL.md', needles: gates.concat(layerTerms).concat(['SkillAbsorptionDecision']) },
+      { file: 'skills/document-sync/SKILL.md', needles: gates.concat(['prompts/templates', 'targeted tests', '部署副本']) },
+      { file: 'prompts/technical-design.prompt.md', needles: gates.concat(layerTerms).concat(['SkillAbsorptionDecision']) },
+      { file: 'prompts/implementation-plan.prompt.md', needles: gates.concat(layerTerms) },
+      { file: 'prompts/report-dev.prompt.md', needles: gates.concat(['LayeredAbsorptionDecision']) },
+      { file: 'prompts/report-fix.prompt.md', needles: gates.concat(['LayeredAbsorptionDecision']) },
+      { file: 'prompts/report-audit.prompt.md', needles: gates.concat(['LayeredAbsorptionDecision']) },
+      { file: 'prompts/report-scenario-test.prompt.md', needles: gates.concat(['LayeredAbsorptionDecision']) },
+      { file: 'README.md', needles: gates.concat(['分层吸纳架构']) },
+      { file: 'website/docs/guide/development.md', needles: gates.concat(['分层吸纳架构', 'prompts/templates']) },
+      { file: 'website/docs/versions/v1/1.0.1/requirements/p1/latest-data-absorption-guards/index.md', needles: gates.concat(['V72', 'layerChecks']) },
+      { file: 'website/docs/versions/v1/1.0.1/CHANGELOG.md', needles: gates.concat(['V72 探针']) },
+      { file: 'changelogs/releases/v1.11.27.md', needles: gates.concat(['V72', 'PI-082', 'PI-083', 'PF-087', 'PF-088']) },
+      { file: 'scripts/test-spec-governance.js', needles: ['checkV72', 'LayeredAbsorptionGate', 'ProactiveBetterAlternativeGate'] },
+      { file: 'scripts/validate.js', needles: ['V72 Layered absorption', 'checkV72()'] }
+    ]
+
+    for (const probe of probes) {
+      const content = read(path.join(ROOT, probe.file))
+      for (const needle of probe.needles) {
+        if (!content.includes(needle)) {
+          err(`[V72] layered absorption architecture drift in ${probe.file}: missing "${needle}"`)
+        }
+      }
+    }
+
+    for (const needle of gates.concat(['V72', 'PI-082', 'PI-083', 'PF-087', 'PF-088'])) {
+      if (!hasChangelogEvidence(needle)) {
+        err(`[V72] layered absorption changelog drift: missing "${needle}" in changelogs/unreleased.md or changelogs/releases/*.md`)
+      }
+    }
+
+    console.log('[V72] layered absorption and proactive alternative sync checked')
+  }
+
+  function checkV73() {
+    const gates = [
+      'ConfirmedAbsorptionCompletenessGates',
+      'PublicSurfaceClosureGate',
+      'UserManualProductizationGate',
+      'UserManualRenderedFlowAndRealWorkflowProbe',
+      'SampleIssueExpansionGate',
+      'RequirementDimensionBindingGate',
+      'RequirementPriorityAndPhaseGate',
+      'ReviewAnchorMaterializationGate',
+      'SemanticLegacyRouteExposureGate',
+      'ReferenceCodeTruthSamplingGate',
+      'FrontendAsyncCacheRenderGate',
+      'StaleWhileRevalidateGate',
+      'PortableExternalArtifactGate',
+      'StrongestProfileSourceGate',
+      'ServiceSpecificResidueSweep',
+      'ProfileReadChainGate',
+      'ServiceNormCoverageGate',
+      'RouteNamespaceResponsibilityGate',
+      'RemoteCIParityPushGate',
+      'OfficialApiEvidenceGate',
+      'AsyncDbTruthSourceVerificationGate',
+      'DocsPageRoleMatrixGate',
+      'CompleteUserManualSiteMatrixGate',
+      'EvolutionCapabilityControlPlaneGate',
+      'FrameworkCapabilityAutoFirstGate',
+      'DocsThemeRuntimeVisualProbeGate'
+    ]
+
+    const probes = [
+      { file: 'instructions.md', needles: gates.concat(['evolution-governance']) },
+      { file: 'skills/spec-governance/SKILL.md', needles: gates.concat(['evolution-governance']) },
+      { file: 'skills/evolution-governance/SKILL.md', needles: ['name: evolution-governance', 'EvolutionCapabilityControlPlaneGate', 'candidate-only', 'modelProviderConfig', 'releaseApproval'] },
+      { file: 'plugin.json', needles: ['evolution-governance', 'skills/evolution-governance/SKILL.md'] },
+      { file: 'skills/routing/SKILL.md', needles: ['evolution-governance', 'EvolutionCapabilityControlPlaneGate'] },
+      { file: 'skills/dev-default/SKILL.md', needles: ['ConfirmedAbsorptionCompletenessGates', 'EvolutionCapabilityControlPlaneGate', 'FrontendAsyncCacheRenderGate', 'RemoteCIParityPushGate'] },
+      { file: 'skills/user-manual-authoring/SKILL.md', needles: ['UserManualProductizationGate', 'UserManualRenderedFlowAndRealWorkflowProbe', 'DocsPageRoleMatrixGate', 'DocsThemeRuntimeVisualProbeGate'] },
+      { file: 'skills/review-checklist/SKILL.md', needles: ['SampleIssueExpansionGate', 'ReviewAnchorMaterializationGate', 'RequirementDimensionBindingGate'] },
+      { file: 'skills/audit-requirements/SKILL.md', needles: ['SampleIssueExpansionGate', 'RequirementDimensionBindingGate', 'RequirementPriorityAndPhaseGate'] },
+      { file: 'skills/audit-tech-design/SKILL.md', needles: ['ReviewAnchorMaterializationGate', 'OfficialApiEvidenceGate', 'FrameworkCapabilityAutoFirstGate'] },
+      { file: 'skills/audit-project/SKILL.md', needles: ['SemanticLegacyRouteExposureGate', 'ReferenceCodeTruthSamplingGate', 'FrontendAsyncCacheRenderGate', 'PortableExternalArtifactGate'] },
+      { file: 'skills/audit-release/SKILL.md', needles: ['PublicSurfaceClosureGate', 'RemoteCIParityPushGate'] },
+      { file: 'skills/release-verification/SKILL.md', needles: ['PublicSurfaceClosureGate', 'RemoteCIParityPushGate'] },
+      { file: 'skills/load-profile/SKILL.md', needles: ['ProfileReadChainGate', 'ServiceNormCoverageGate', 'StrongestProfileSourceGate'] },
+      { file: 'skills/profile-bootstrap/SKILL.md', needles: ['ProfileReadChainGate', 'ServiceNormCoverageGate', 'ServiceSpecificResidueSweep'] },
+      { file: 'skills/api-verification/SKILL.md', needles: ['OfficialApiEvidenceGate', 'AsyncDbTruthSourceVerificationGate', 'StaleWhileRevalidateGate'] },
+      { file: 'skills/dev-docs/SKILL.md', needles: ['UserManualProductizationGate', 'UserManualRenderedFlowAndRealWorkflowProbe', 'CompleteUserManualSiteMatrixGate', 'DocsThemeRuntimeVisualProbeGate'] },
+      { file: 'skills/audit-document/SKILL.md', needles: ['UserManualProductizationGate', 'UserManualRenderedFlowAndRealWorkflowProbe', 'DocsThemeRuntimeVisualProbeGate'] },
+      { file: 'skills/audit-readme/SKILL.md', needles: ['UserManualProductizationGate', 'DocsPageRoleMatrixGate', 'DocsThemeRuntimeVisualProbeGate'] },
+      { file: 'skills/dev-plan-review/SKILL.md', needles: ['RequirementDimensionBindingGate', 'OfficialApiEvidenceGate', 'EvolutionCapabilityControlPlaneGate'] },
+      { file: 'skills/test-router/SKILL.md', needles: ['ConfirmedAbsorptionCompletenessGates', 'FrontendAsyncCacheRenderGate', 'RemoteCIParityPushGate', 'EvolutionCapabilityControlPlaneGate'] },
+      { file: 'skills/report/SKILL.md', needles: gates },
+      { file: 'skills/document-sync/SKILL.md', needles: gates },
+      { file: 'prompts/technical-design.prompt.md', needles: gates },
+      { file: 'prompts/implementation-plan.prompt.md', needles: gates },
+      { file: 'prompts/report-dev.prompt.md', needles: ['ConfirmedAbsorptionCompletenessGates', 'PublicSurfaceClosureGate', 'DocsThemeRuntimeVisualProbeGate'] },
+      { file: 'prompts/report-fix.prompt.md', needles: ['ConfirmedAbsorptionCompletenessGates', 'FrontendAsyncCacheRenderGate', 'RemoteCIParityPushGate'] },
+      { file: 'prompts/report-audit.prompt.md', needles: ['ConfirmedAbsorptionCompletenessGates', 'EvolutionCapabilityControlPlaneGate'] },
+      { file: 'prompts/report-scenario-test.prompt.md', needles: ['ConfirmedAbsorptionCompletenessGates', 'AsyncDbTruthSourceVerificationGate'] },
+      { file: 'README.md', needles: ['ConfirmedAbsorptionCompletenessGates', 'evolution-governance', '47 个'] },
+      { file: 'website/docs/index.md', needles: ['47 个 Skills'] },
+      { file: 'website/docs/intro/index.md', needles: ['47 个按需触发的工作流技能', 'evolution-governance'] },
+      { file: 'website/docs/specs/directory-structure.md', needles: ['扁平一级 Skill（47 个）', 'evolution-governance'] },
+      { file: 'website/docs/guide/development.md', needles: ['ConfirmedAbsorptionCompletenessGates', 'evolution-governance'] },
+      { file: 'website/docs/versions/v1/1.0.1/requirements/p1/latest-data-absorption-guards/index.md', needles: gates.concat(['V73', 'evolution-governance']) },
+      { file: 'website/docs/versions/v1/1.0.1/CHANGELOG.md', needles: ['V73 探针', 'ConfirmedAbsorptionCompletenessGates', 'evolution-governance'] },
+      { file: 'changelogs/releases/v1.11.27.md', needles: gates.concat(['V73', 'evolution-governance']) },
+      { file: 'scripts/test-spec-governance.js', needles: ['checkV73', 'ConfirmedAbsorptionCompletenessGates', 'evolution-governance'] },
+      { file: 'scripts/validate.js', needles: ['V73 confirmed absorption completeness', 'checkV73()'] }
+    ]
+
+    for (const probe of probes) {
+      const content = read(path.join(ROOT, probe.file))
+      for (const needle of probe.needles) {
+        if (!content.includes(needle)) {
+          err(`[V73] confirmed absorption completeness drift in ${probe.file}: missing "${needle}"`)
+        }
+      }
+    }
+
+    for (const needle of gates.concat(['V73', 'evolution-governance'])) {
+      if (!hasChangelogEvidence(needle)) {
+        err(`[V73] confirmed absorption changelog drift: missing "${needle}" in changelogs/unreleased.md or changelogs/releases/*.md`)
+      }
+    }
+
+    console.log('[V73] confirmed absorption completeness and evolution governance sync checked')
+  }
+
+  function checkV74() {
+    const gate = 'HistoricalCommonNormLayeringGate'
+    const coreTerms = [gate, '逐文件审查矩阵', 'legacy-index-retained']
+
+    const probes = [
+      { file: 'instructions.md', needles: coreTerms.concat(['targetLayer']) },
+      { file: 'instructions/10-dev.instructions.md', needles: [gate, 'LayeredAbsorptionDecision', '逐文件审查矩阵'] },
+      { file: 'skills/spec-governance/SKILL.md', needles: coreTerms.concat(['currentRole', 'matchedRules', 'targetOwner', 'semanticStrength']) },
+      { file: 'skills/test-router/SKILL.md', needles: [gate, 'historicalCommonNormLayering', 'V74', 'ProfileImpactCheck'] },
+      { file: 'skills/report/SKILL.md', needles: coreTerms.concat(['V74', 'deploy copy']) },
+      { file: 'skills/document-sync/SKILL.md', needles: coreTerms.concat(['active version requirements']) },
+      { file: 'skills/source-consumer-sync/SKILL.md', needles: [gate, 'V74 历史通用规范分层同步面', 'historicalMirrors', 'checkV74'] },
+      { file: 'prompts/technical-design.prompt.md', needles: [gate, '逐文件审查矩阵', 'Prompt 只写字段和引用'] },
+      { file: 'prompts/implementation-plan.prompt.md', needles: [gate, '逐文件审查矩阵', 'Prompt/Report 只保留字段'] },
+      { file: 'prompts/report-dev.prompt.md', needles: [gate, 'legacy-index-retained', 'V74'] },
+      { file: 'prompts/report-fix.prompt.md', needles: [gate, 'legacy-index-retained', 'V74'] },
+      { file: 'prompts/report-audit.prompt.md', needles: [gate, 'legacy-index-retained', 'V74'] },
+      { file: 'prompts/report-scenario-test.prompt.md', needles: [gate, 'legacy-index-retained', 'V74'] },
+      { file: 'README.md', needles: [gate, '历史通用规范分层迁移', 'V74'] },
+      { file: 'website/docs/guide/development.md', needles: [gate, '历史通用规范分层迁移', 'V74'] },
+      { file: 'website/docs/versions/v1/1.0.1/requirements/p1/latest-data-absorption-guards/index.md', needles: [gate, 'V74', '逐文件审查矩阵'] },
+      { file: 'website/docs/versions/v1/1.0.1/CHANGELOG.md', needles: ['V74 探针', gate] },
+      { file: 'changelogs/releases/v1.11.27.md', needles: [gate, 'V74', '历史通用规范分层迁移'] },
+      { file: 'scripts/test-spec-governance.js', needles: ['checkV74', gate] },
+      { file: 'scripts/validate.js', needles: ['V74 historical common norm layering', 'checkV74()'] }
+    ]
+
+    for (const probe of probes) {
+      const content = read(path.join(ROOT, probe.file))
+      for (const needle of probe.needles) {
+        if (!content.includes(needle)) {
+          err(`[V74] historical common norm layering drift in ${probe.file}: missing "${needle}"`)
+        }
+      }
+    }
+
+    for (const needle of [gate, 'V74', '历史通用规范分层迁移']) {
+      if (!hasChangelogEvidence(needle)) {
+        err(`[V74] historical common norm layering changelog drift: missing "${needle}" in changelogs/unreleased.md or changelogs/releases/*.md`)
+      }
+    }
+
+    console.log('[V74] historical common norm layering sync checked')
+  }
+
   return {
     checkV39,
     checkV40,
@@ -1654,7 +1907,11 @@ function buildGovernanceTailChecks(ctx) {
     checkV67,
     checkV68,
     checkV69,
-    checkV70
+    checkV70,
+    checkV71,
+    checkV72,
+    checkV73,
+    checkV74
   }
 }
 

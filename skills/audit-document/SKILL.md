@@ -55,6 +55,9 @@ README / 用户使用文档场景在本 Skill 基础上，还应叠加 `audit-re
 - `DocsSiteInformationArchitectureGate`：文档站应按使用者任务组织首页、快速开始、常见任务、配置、API/契约、排错和参考入口，避免把所有内容堆进单页手册或让导航顺序与正文承诺漂移
 - `UserManualFlowAndFailureGate`：用户手册必须覆盖真实任务流、成功路径、失败/空状态/权限/网络等恢复路径，以及用户下一步；不能只写功能点罗列
 - `QueueDocsRealWorkflowGate`：队列、任务、异步或批处理类文档必须提供真实入队、执行、查询、失败重试和清理工作流，避免用单条硬编码 job 当完整 quick start
+- `UserManualProductizationGate`：用户文档按最终使用者产品化组织，受众、任务、配置、真实示例、排错、失败恢复和源码 / 示例可点击链路应在主路径可发现，内部字段和实现说明不得抢占主叙事
+- `UserManualRenderedFlowAndRealWorkflowProbe`：Mermaid / 流程图必须验证真实渲染；quick start 示例必须是真实业务工作流，不得用硬编码单例冒充主路径
+- `DocsPageRoleMatrixGate` / `CompleteUserManualSiteMatrixGate`：多页文档站要列出页面 role、audience、sourceOfTruth、nav/sidebar 位置和是否用户主路径；完整用户手册站点覆盖入门、配置、常见任务、reference、排错、限制和下一步
 
 **DocumentationTranslationParityGuard / FormalDocsDevCodexBoundary（条件）**
 - 多语言文档、翻译页、README/website 双入口变更必须核对信息等价、版本号、链接、示例、术语和导航/索引顺序
@@ -64,6 +67,7 @@ README / 用户使用文档场景在本 Skill 基础上，还应叠加 `audit-re
 **FlowchartNodeExplanationGate / DocsSiteVisualAcceptanceGate（条件）**
 - 正式流程图、生命周期图、Nxx 节点图或维护者流程页必须配套中文节点说明，覆盖触发、前置条件、处理动作、成功/失败出口和异常/回退
 - 官网、文档站、技术站或正式说明页涉及视觉/交互验收时，需核对主题集成、真实点击、异步动效绑定、`prefers-reduced-motion`、代码 token 对比度、终端 demo 范围、TOC inline code 和辅助导航层级
+- `DocsThemeRuntimeVisualProbeGate`：文档站主题、导航、搜索、代码高亮、移动端、暗色/亮色变化必须验证真实运行态视觉和交互，不得只看 Markdown 源码
 - `GeneratedSiteGate`：文档站、静态站或生成站点宣称完成时，审查必须基于实际生成产物或预览产物验证导航、页面、资产、链接和主要用户路径，不得只看源码或 Markdown 源文件
 - `ManualTocDuplicationGate`：手写目录、自动 TOC、sidebar/nav 同时存在时，必须检查重复、断链、层级漂移和阅读顺序冲突
 - `UserPathContractSweep`：公开用户路径、quick start、站点首页或 README 调整后，必须扫描 README / website / nav/sidebar / examples / templates / validate probes / 部署副本与代码消费点是否同步

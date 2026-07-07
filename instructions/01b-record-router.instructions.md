@@ -2,7 +2,7 @@
 applyTo: "**"
 description: 任务切换边界、RecordRouter 分流、Improvement Intake 与提交发布边界的通用规范
 priority: P5
-version: 1.11.26
+version: 1.11.27
 ---
 # 任务边界与 RecordRouter
 
@@ -59,6 +59,7 @@ version: 1.11.26
   - 一次性偏好或业务局部诉求 → 不写台账
 - 所有模式命中后都必须显式回执 `已记录 PI-xxx`、`已记录 PF-xxx` 或 `已记录 PI-xxx / PF-xxx`。
 - 支持 Hook 的宿主可把疑似治理输入标记为 `governanceIntakeCandidate` 并在收尾提醒未分流候选；该提醒只防止漏记，不替代语义判断。最终仍必须由 AI 给出 RecordRouter 判定，或明确 `record.none + skipReason`。
+- PI / PF / GAP / ISSUE 或用户确认“值得吸纳 / 未完整吸纳 / 半覆盖 / 仍需吸纳”的策略进入规范源前，必须执行 `LayeredAbsorptionGate`；若是半覆盖补强，追加 `ConfirmedAbsorptionCompletenessGates`，逐项检查 Gate 名、目标 Skill、Prompt、执行消费者、validate 探针、公开文档和部署副本是否闭环。自我进化、自动吸纳或模型辅助治理候选必须进入 `evolution-governance`。
 
 ## Backlog Intake 真相复核
 

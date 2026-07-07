@@ -8,6 +8,8 @@ description: README / 用户使用文档专项审查维度 RM-1~RM-6 — 聚焦�
 
 当审查目标是 `README.md` 或承担主使用入口职责的用户使用文档时，在 `audit-document` 的通用文档维度之上，叠加本 Skill。
 
+若目标是站点文档、最终用户使用文档、最终用户手册、接入手册或公开能力页，先按 `user-manual-authoring` 的文档契约审查主受众、文档落点、用户路径、信息架构、配置/排错、真实工作流和维护者内容后置；落点为 README 或项目主文档时，再叠加本 Skill 的 RM-1~RM-6。
+
 ## 维度总览（RM-1~RM-6）
 
 | 分组 | 维度 | 优先级 |
@@ -26,12 +28,15 @@ description: README / 用户使用文档专项审查维度 RM-1~RM-6 — 聚焦�
 - 是否执行 `UserDocsPrimarySurfaceGate`：README、文档站或 quick start 的首页首屏、nav/sidebar 前两组、CTA、reference 入口是否先服务用户使用路径，而不是开发契约、目标 API、数据模型或实现验收
 - 是否执行 `FinalUserManualFirstGate`：需求概况之后应先形成用户最终使用文档（文档站或至少 README），而不是先让开发文档、技术方案或实施计划占据主入口
 - 是否执行 `DocsSiteInformationArchitectureGate` / `UserManualFlowAndFailureGate`：站点、README 或手册是否按真实用户任务、成功路径、失败恢复、限制和下一步组织，而不是把所有章节平铺给用户自己猜
+- 是否执行 `UserManualProductizationGate`：README / quick start / 用户手册是否按最终使用者产品化组织受众、任务、配置、真实示例、排错、失败恢复和源码 / 示例可点击链路，内部字段和实现说明是否后置
+- 多页文档站或 README 入口是否执行 `DocsPageRoleMatrixGate` / `CompleteUserManualSiteMatrixGate`，标明每页 role、audience、sourceOfTruth、nav/sidebar 位置和用户主路径状态
 
 **RM-2 快速开始可执行性 🔴**
 - 安装、启动、接入或运行步骤是否真实、完整、可执行
 - 示例命令是否缺关键前置条件、环境变量、端口或依赖
 - 最短成功路径是否足够短，避免把维护流程误当快速开始
 - 用户第一次照着做时，是否能少跳转、少猜测、少补前置知识
+- 快速开始含 Mermaid / 流程图 / 队列 / 异步 / 批处理示例时，是否执行 `UserManualRenderedFlowAndRealWorkflowProbe`，验证真实渲染并使用真实业务工作流
 
 **RM-3 示例真实度 🟡**
 - 示例是否代表真实常见用法，而不是理想化伪代码
@@ -64,6 +69,7 @@ description: README / 用户使用文档专项审查维度 RM-1~RM-6 — 聚焦�
 - README 是否遵守 `FormalDocsDevCodexBoundary`，没有混入运行时报告、台账、内部待办或一次性复盘口吻
 - README 是否执行 `DocsConsumerSweep`：新增命令、字段、配置、导航顺序或能力声明后，website、Profile、examples、templates、validate probes 和代码消费点是否同步
 - README 或文档站首页、quick start、公共用户路径变化时，是否执行 `UserPathContractSweep`，确认 README / website / nav/sidebar / examples / templates / validate probes / 部署副本与代码消费点同步
+- 文档站主题、导航、搜索、代码高亮、移动端、暗色/亮色变化时，是否执行 `DocsThemeRuntimeVisualProbeGate`，基于真实运行态验证视觉和交互
 
 ## 与 audit-document 的边界
 
@@ -95,3 +101,4 @@ description: README / 用户使用文档专项审查维度 RM-1~RM-6 — 聚焦�
 
 - 纯内部占位 README、明确只做跳转门户页：RM-2 / RM-3 可按实际场景标注 N/A，但必须明确真实用户文档入口。
 - 非 README 的架构文档、治理说明、贡献指南：本 Skill 不触发。
+- 站点文档、最终用户手册或接入手册但非 README：优先审查 `user-manual-authoring` + `audit-document`，本 Skill 只在其承担 README / 主入口职责时叠加。

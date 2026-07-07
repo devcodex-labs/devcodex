@@ -24,7 +24,7 @@ applyTo: .devcodex/**/requirements/**
 > ⚠️ CP2 必须承接 CP1 的平台工程判断和 `ImplementationComplexityLevel`（兼容旧字段 `ImplementationComplexityPreference`）：消费者范围、共享契约边界、模块职责、可维护性成本、非目标和最小实现预算要互相一致；没有真实复用者或演进边界时，不得新增 factory / manager / adapter / registry 等预设抽象。
 > ⚠️ package boundary / pack / benchmark / codegen 验证必须写清串行顺序；任何会删除、重建或写入 `dist` 的命令不得和包边界检查并行。
 > ⚠️ 前端页面、组件、控制台、官网、文档站、可视化工具、游戏或用户可见 UI / 交互方案必须填写 `FrontendExperienceQualityGate`：设计来源、UI 还原度、风格主题、响应式状态、视觉验证、用户流、交互反馈、输入方式/可访问性、错误恢复和动效转场；Figma/截图/既有页面还原需追加 `FigmaHighFidelityRestorationGate`、`ScopedVisualChangeGate`、`InstalledPluginVisualVerificationGate`、`ActualPreviewChainAndMockFallbackGate`、`FrontendRuntimeNetworkProbeGate`、`UIStateScopeRegressionGate`、`FigmaProductionAssetBudgetGate`、`RuntimeI18nArtifactVerificationGate`、`VisualDeviationTypeGate`、`DesignFramePurposeClassificationGate`、`FrontendBrowserVerificationBudgetGate` 与 `UserSelfVerificationOverrideGate`；不触发时写 `N/A + skipReason`。
-> ⚠️ 接入状态、人工复核、翻译/正式文档边界、prompt/Hook/MCP 契约、验证范围、真实执行、benchmark 归因、产品需求来源、本机执行配置、人工证据留存、相邻范围扩展、包名/发布名、性能第一、公开模块、提交授权、兼容契约、UI 源冲突、公开文档版本、集合关系命名、验证产物语言、DevCodex v2 一期路线、全工作区 data 吸纳、正式流程图、文档站视觉验收、遗漏专审、审查发现 intake、复审维度增量、使用者文档、用户文档即时理解、用户文档主面、公开用户文档维护边界、文档消费者扫描、需求复审状态同步、产物链接去重、前端运行时网络探针、最终回复 active 范围、数据库记录迁移、finding 反证矩阵、多阶段关闭、guard/policy 绕过、兼容文档副作用、可执行示例、一次性脚本、验证命令副作用、需求确认前快门、package/adapter 确认前证据、方法级泄漏压测、用户文档驱动交付链、复审清单证据化、构建产物 feature smoke、生成站点验证、公开用户路径契约、性能回归或 v2 正式方案包必须填写 `CrossProjectLearnedGuards`；未触发项写 `N/A + skipReason`。
+> ⚠️ 接入状态、人工复核、翻译/正式文档边界、prompt/Hook/MCP 契约、验证范围、真实执行、benchmark 归因、产品需求来源、本机执行配置、人工证据留存、相邻范围扩展、包名/发布名、性能第一、公开模块、提交授权、兼容契约、UI 源冲突、公开文档版本、集合关系命名、验证产物语言、DevCodex v2 一期路线、全工作区 data 吸纳、正式流程图、文档站视觉验收、遗漏专审、审查发现 intake、复审维度增量、使用者文档、用户文档即时理解、用户文档主面、公开用户文档维护边界、文档消费者扫描、需求复审状态同步、产物链接去重、前端运行时网络探针、最终回复 active 范围、数据库记录迁移、finding 反证矩阵、多阶段关闭、guard/policy 绕过、兼容文档副作用、可执行示例、一次性脚本、验证命令副作用、需求确认前快门、package/adapter 确认前证据、方法级泄漏压测、用户文档驱动交付链、复审清单证据化、构建产物 feature smoke、生成站点验证、公开用户路径契约、性能回归或 v2 正式方案包必须填写 `CrossProjectLearnedGuards`；若是历史通用规范分层迁移，追加 `HistoricalCommonNormLayeringGate` 和逐文件矩阵。未触发项写 `N/A + skipReason`。
 
 | 顺序 | 章节 | 必选 | 依赖 | 说明 |
 |:----:|------|:----:|------|------|
@@ -261,13 +261,17 @@ applyTo: .devcodex/**/requirements/**
 
 -
 
-#### CrossProjectLearnedGuards / LatestAbsorptionGuards / AbsorptionDecision / FullV1ScopeGuard / StartupPhaseTrace（条件）
+#### CrossProjectLearnedGuards / LatestAbsorptionGuards / AbsorptionDecision / FullV1ScopeGuard / StartupPhaseTrace / LayeredAbsorptionDecision / HistoricalCommonNormLayeringGate / ProactiveBetterAlternativeGate（条件）
 
-> 调研、审查、复审或方案讨论中出现“值得吸纳”的建议，必须给出吸纳决策；用户表达“第一版 / v1 / 完整首版”且存在真实消费者、发布契约或主功能验收时，必须给出完整首版边界判断；启动性能优化或 dev 日志治理必须先给出阶段化日志追踪。涉及接入状态、人工复核、翻译/正式文档边界、prompt/Hook/MCP 契约、验证范围、真实执行、benchmark 归因、产品需求来源、本机执行配置、证据留存、相邻范围、包名/发布名、性能第一、公开模块、DevCodex v2 一期路线、全工作区 data 吸纳、正式流程图、文档站视觉验收、遗漏专审、审查发现 intake、复审维度增量、使用者文档、公开用户文档维护边界、文档消费者扫描、产物链接去重、前端运行时网络探针、最终回复 active 范围、方法级泄漏压测、用户文档驱动交付链、复审清单证据化、构建产物 feature smoke、生成站点验证、公开用户路径契约、性能回归或 v2 正式方案包时，逐项填写跨项目已吸纳守门；未触发项写 `N/A + skipReason`。
+> 调研、审查、复审或方案讨论中出现“值得吸纳”的建议，必须给出吸纳决策和 `LayeredAbsorptionGate` / `SkillFirstAbsorptionGate` 归属判定；用户建议或确认方案前必须执行 `ProactiveBetterAlternativeGate`，若有更优路径先提出取舍，采纳用户原方案时写明独立验证依据。用户表达“第一版 / v1 / 完整首版”且存在真实消费者、发布契约或主功能验收时，必须给出完整首版边界判断；启动性能优化或 dev 日志治理必须先给出阶段化日志追踪。涉及接入状态、人工复核、翻译/正式文档边界、prompt/Hook/MCP 契约、验证范围、真实执行、benchmark 归因、产品需求来源、本机执行配置、证据留存、相邻范围、包名/发布名、性能第一、公开模块、DevCodex v2 一期路线、全工作区 data 吸纳、正式流程图、文档站视觉验收、遗漏专审、审查发现 intake、复审维度增量、使用者文档、公开用户文档维护边界、文档消费者扫描、产物链接去重、前端运行时网络探针、最终回复 active 范围、方法级泄漏压测、用户文档驱动交付链、复审清单证据化、构建产物 feature smoke、生成站点验证、公开用户路径契约、性能回归或 v2 正式方案包时，逐项填写跨项目已吸纳守门；未触发项写 `N/A + skipReason`。
 
 | 项 | 当前吸纳 / 设计占位 / backlog / 拒收 | 理由 | 后续真相源 |
 |----|--------------------------------------|------|------------|
 | AbsorptionDecision | | | |
+| LayeredAbsorptionGate / SkillFirstAbsorptionGate / CapabilityToSkillPromotionGate | LayeredAbsorptionDecision：candidateId / classification / targetSkill / triggerTerms / ownedArtifacts / layerChecks(commonInstruction / skill / promptTemplate / executionConsumer / validationProbe / publicDocs / deployCopy) / validationRoute / consumerSync；兼容 SkillAbsorptionDecision | | |
+| HistoricalCommonNormLayeringGate | 逐文件审查矩阵：file / currentRole / matchedRules / targetLayer / targetOwner / action / semanticStrength / validation / skipReason；Prompt 只写字段和引用，不复制完整 Gate 长清单 | | |
+| ProactiveBetterAlternativeGate | 用户方案 / 备选路径 / 推荐理由 / 取舍影响 / 采纳依据 | | |
+| ConfirmedAbsorptionCompletenessGates | PublicSurfaceClosureGate / UserManualProductizationGate / UserManualRenderedFlowAndRealWorkflowProbe / SampleIssueExpansionGate / RequirementDimensionBindingGate / RequirementPriorityAndPhaseGate / ReviewAnchorMaterializationGate / SemanticLegacyRouteExposureGate / ReferenceCodeTruthSamplingGate / FrontendAsyncCacheRenderGate / StaleWhileRevalidateGate / PortableExternalArtifactGate / StrongestProfileSourceGate / ServiceSpecificResidueSweep / ProfileReadChainGate / ServiceNormCoverageGate / RouteNamespaceResponsibilityGate / RemoteCIParityPushGate / OfficialApiEvidenceGate / AsyncDbTruthSourceVerificationGate / DocsPageRoleMatrixGate / CompleteUserManualSiteMatrixGate / EvolutionCapabilityControlPlaneGate / FrameworkCapabilityAutoFirstGate / DocsThemeRuntimeVisualProbeGate 的触发 / N/A、目标 Skill、证据和探针 | | |
 | FullV1ScopeGuard | | | |
 | StartupPhaseTrace | 阶段命名 / Profile 或 startup summary 同步 / 减噪、lazy loading 或 background warmup 决策 | | |
 | CodeTruthRequirementGate | 代码真相源 / 消费者入口 / 运行证据 | | |
@@ -304,9 +308,9 @@ applyTo: .devcodex/**/requirements/**
 | UserDocsPrimarySurfaceGate | targetSurface / documentLocation / primaryAudience / 首页首屏 / quick start / nav 前两组 / CTA / reference / 开发契约后置 | | |
 | PublicUserDocsMaintainerBoundaryGate | 公开用户文档 / 维护者 checklist / 内部同步清单 / 台账状态边界 | | |
 | DocsConsumerSweep | README / website / Profile / prompts / templates / examples / nav/sidebar / validate probes / 代码消费点 | | |
-| UserFacingDeliveryChainGate / FinalUserManualFirstGate | 需求概况 / 用户最终使用文档 / 前端或 API 契约 / 技术方案对照 / 实施计划顺序 | | |
+| user-manual-authoring / UserFacingDeliveryChainGate / FinalUserManualFirstGate | 需求概况 / 用户最终使用文档 / 前端或 API 契约 / 技术方案对照 / 实施计划顺序 | | |
 | DocsSiteInformationArchitectureGate / UserManualFlowAndFailureGate / QueueDocsRealWorkflowGate | 文档站 IA / 用户任务流 / 成功失败恢复 / 队列或异步真实工作流 | | |
-| ReviewChecklistCompletenessGate / EvidenceExecutionGate | 冻结 checklist / 逐项证据 / 实际验证 / 重复维度规避 | | |
+| review-checklist / ReviewChecklistCompletenessGate / EvidenceExecutionGate | 冻结 checklist / 逐项证据 / 实际验证 / 重复维度规避 / 状态新鲜度 | | |
 | BuiltArtifactFeatureSmokeGate / TscOutputImportProbe | 构建产物导入执行 / feature smoke / TS 输出导入探针 | | |
 | GeneratedSiteGate / ManualTocDuplicationGate / UserPathContractSweep | 生成站点产物 / TOC-sidebar-nav 去重 / 用户路径消费者同步 | | |
 | BenchmarkRegressionGuard | 基线 / 对照 / 阈值 / 回归判定 / skipReason | | |

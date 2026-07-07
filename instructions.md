@@ -62,7 +62,7 @@ S02 不再把“敏感信息、明文密码、连接字符串或硬编码”定�
 | C09 | 文件编码安全 | 禁止用 Bash `Set-Content`/`sed -i` 批量修改中文 .md（破坏 UTF-8），必须用 Edit 工具逐文件修改 |
 | C10 | 禁止危险命令 | 同 S06 |
 | C11 | 关联文件同步 | 修改/新建/重命名后检查所有引用处并同步 |
-| C12 | 合理性评估 | 意图识别后、CP1 前必须评估合理性，有更好建议先提出确认后执行；用户给出判断、目录结构或已有设计时 AI 须独立验证，不得顺从论证；若经核验用户方案已最优，可明确说明依据后直接采纳，禁止为了表现“独立”而机械唱反调 |
+| C12 | 合理性评估 | 意图识别后、CP1 前必须评估合理性并执行 `ProactiveBetterAlternativeGate`：有更低风险、更完整、更易维护或更符合项目现实的建议时必须先提出取舍并等待确认；用户给出判断、目录结构或已有设计时 AI 须独立验证，不得顺从论证；若经核验用户方案已最优，可明确说明依据后直接采纳，禁止为了表现“独立”而机械唱反调 |
 | C13 | 规范资产文件分拆 | AI 新建 DevCodex 规范资产 `.md`（instructions / skills / prompts / templates / 规范源等）超 500 行必须拆分（已有文件豁免）；业务项目需求、技术方案、报告和正式项目文档不因 C13 强制拆分，按项目自身规范、可读性和用户要求判断 |
 | C14 | 多任务检查点 | ≥2 个独立任务：每完成一个追加进度到记忆 + 输出进度快照 |
 | C15 | 架构质量视角 | dev/fix 的需求/问题定义与代码设计须从架构师+平台工程师双视角评估：消费者范围、共享契约边界、模块职责、可扩展性、可维护性、易上手性；模块化只在真实复用者、演进边界或跨模块共享契约存在时成立 |
@@ -209,6 +209,62 @@ S02 不再把“敏感信息、明文密码、连接字符串或硬编码”定�
 
 支持 Hook 的宿主可记录 `governanceIntakeCandidate` 并在 Stop / PreCompact 收尾提醒未分流候选；该提醒只用于防漏，不得替代 AI 的 RecordRouter 语义判断。最终回复必须包含规范化意图与目标台账，或明确 `record.none + skipReason`。
 
+### LayeredAbsorptionGate（分层吸纳架构）
+
+每条可泛化 PI / PF / GAP / ISSUE 或用户确认“值得吸纳”的策略，在进入规范源实施前必须先执行 `LayeredAbsorptionGate`，并兼容执行 `SkillFirstAbsorptionGate` / `CapabilityToSkillPromotionGate`。AI 不得把成组能力默认继续追加到 `CrossProjectLearnedGuards`、`LatestAbsorptionGuards` 或通用 instructions 长列表，也不得只在通用规范或 Skill 二选一。
+
+吸纳归属必须四选一：`global-invariant`（全局底线 / 路由 / 优先级）、`existing-skill-subgate`（并入既有 Skill 子门禁）、`new-skill-required`（新增独立 Skill）、`docs-only`（只作说明或历史镜像）。若能力具备多步骤流程、独立产物、状态/清单/模板、专属验证、跨工作流复用、或 3 条以上相关子规则，应优先判定为 `new-skill-required`。
+
+CP2 / 技术方案 / 报告必须记录 `LayeredAbsorptionDecision`：`candidateId`、`classification`、`targetSkill`、`triggerTerms`、`ownedArtifacts`、`layerChecks`、`validationRoute` 与 `consumerSync`。`SkillAbsorptionDecision` 是其中 Skill 层的兼容字段，不能替代完整分层决策。
+
+`layerChecks` 至少覆盖：
+
+| 层级 | 必查内容 |
+|------|----------|
+| `commonInstruction` | 是否进入 S/C/公共治理、拆分 instructions 或 CrossProject 索引 |
+| `skill` | 是否进入既有 Skill 子门禁、独立新 Skill、Skill frontmatter、plugin 注册和路由 |
+| `promptTemplate` | 是否同步技术方案、实施计划、报告、需求/审查等 prompt/template |
+| `executionConsumer` | 是否同步 TestRoute、report、document-sync、release/audit/dev/fix 执行消费者 |
+| `validationProbe` | 是否新增或更新 validate、targeted test、SCV、负向用例或人工证据 |
+| `publicDocs` | 是否同步 README、website、changelog、用户可见版本文档 |
+| `deployCopy` | 是否同步 `.github`、`.claude`、`AGENTS.md`、`.agents`、`.codex` 或 Profile 部署副本 |
+
+判定为 `new-skill-required` 时，必须同批创建 Skill 或写入 PF / ISSUE 说明未创建原因和后续批次；不得只把规则追加到通用守门清单后宣告吸纳完成。任何层级判定为 N/A 都必须写 `skipReason`。
+
+`HistoricalCommonNormLayeringGate`：审查或迁移历史上已经堆入通用 instructions、prompt、report 模板或 README 的规范时，必须先创建逐文件审查矩阵，按 `currentRole / matchedRules / targetLayer / targetOwner / action / semanticStrength / validation / skipReason` 标注归属。通用层只能保留全局不变量、触发索引、跨 Skill 路由和历史兼容锚点；具体执行步骤、证据字段、测试路线、发布门禁、用户文档写作、复审清单和自我进化控制面必须下沉到对应 Skill、prompt/template、执行消费者和 validate 探针。若某条历史规则尚未找到同等强度承接方，不得直接删除，只能标记为 `legacy-index-retained` 并在后续批次补迁移。
+
+### ProactiveBetterAlternativeGate（主动更优建议门禁）
+
+在需求确认、规范吸纳、CP2 技术方案、复审清单冻结和发布前检查前，AI 必须主动比较用户方案与至少一种项目现实可行的替代路径。若发现更低风险、更完整、更符合长期维护或更易验证的方案，必须先提出建议、收益、代价与影响范围，再让用户确认；不得因用户已给出方向就只做顺从式记录或执行。若用户方案已经最优，必须记录依据，例如真相源证据、消费者范围、验证成本、迁移风险或用户明确约束。
+
+### ConfirmedAbsorptionCompletenessGates（确认吸纳完整性补强）
+
+用户确认“仍需吸纳清单”或复审指出“未完整吸纳 / 半覆盖 / 只有概念没有 Gate 或探针”时，必须把该批规则作为 `ConfirmedAbsorptionCompletenessGates` 处理：先复核是否仍有价值，再按 `LayeredAbsorptionGate` 分配到通用规范、既有 Skill 子门禁、新 Skill、Prompt、执行消费者、验证探针、公开文档和部署副本。不得因某个概念已经在文档里出现过，就跳过独立 Gate、探针或消费者同步。
+
+本批确认吸纳项按以下守门执行，未触发时写 `N/A + skipReason`。本节在通用层只作为索引和触发面；每个 Gate 的执行正文、证据字段和验证路线以 `spec-governance` 的 `ConfirmedAbsorptionCompletenessGates`、目标 Skill、Prompt/Report 模板和 validate 探针为准，禁止后续继续把完整长清单追加回通用 instructions。
+
+| Gate | 触发场景 | 最小要求 |
+|------|----------|----------|
+| `PublicSurfaceClosureGate` | package / README / website / docs / public types / examples / search index / historical pack surface 变化 | 分类 npm pack 历史公开内容，反查 README 隐藏文档链接、public types 兼容 API 标注、examples/sidebar/nav 和搜索索引源文档；不得只检查当前源码目录 |
+| `UserManualProductizationGate` | 用户文档、站点文档、README、quick start、接入手册、最终用户手册 | 以最终使用者任务组织受众、配置、示例、排错、失败恢复和源码 / 示例可点击链路；内部字段和实现说明不得占主路径 |
+| `UserManualRenderedFlowAndRealWorkflowProbe` | 用户文档包含 Mermaid / 流程图 / quick start / 队列或异步示例 | 必须验证流程图真实渲染；quick start 示例使用真实业务工作流，禁止用硬编码单例冒充主路径 |
+| `SampleIssueExpansionGate` | 用户给出样例问题并要求全面审查、完整需求或全量处理 | 样例只能作为 seed evidence；正式审查或需求整理前先展开全维度图并标出样例覆盖 / 未覆盖范围 |
+| `RequirementDimensionBindingGate` / `RequirementPriorityAndPhaseGate` | 需求维度、分阶段需求、复杂批次或多阶段实施 | 每个需求维度绑定 CP2、批次计划、验收和阶段关闭规则；多阶段需求写 `entry / exit / carryOver / closeRule` |
+| `ReviewAnchorMaterializationGate` | 技术方案、CP2、复审计划或 PR/TD 审查锚点 | 把 PR / TD 审查锚点物化成可 grep 的章节、表格或清单；不能只靠语义覆盖 |
+| `SemanticLegacyRouteExposureGate` / `ReferenceCodeTruthSamplingGate` | legacy / compat / route / reference-code / 行为断言相关任务 | legacy / compat 不只查 label，还查 slug、href、title、sidebar、search、generated HTML；行为断言必须抽样核代码、类型或运行时证据 |
+| `FrontendAsyncCacheRenderGate` / `StaleWhileRevalidateGate` | 首页、详情、列表、搜索、前端接口数据或返回页面状态 | 有旧缓存时先显示旧数据并异步刷新替换；不得回退为空白、loading-only 或同步阻塞式取数 |
+| `PortableExternalArtifactGate` | 给同事、跨机器、对外分享或用户可复制的产物 | 不得写死本机绝对路径、`.devcodex` 私有路径或个人工作区前提；需提供相对、仓库内或外部可访问路径 |
+| `StrongestProfileSourceGate` / `ServiceSpecificResidueSweep` | 从单服务、单项目或强 Profile 抽取公共规范 | 以最强 Profile 为公共基线；抽公共规范后清扫服务名、私有路由、专属职责和实现残留 |
+| `ProfileReadChainGate` / `ServiceNormCoverageGate` | 服务 / 框架规范复审、Profile 链路或工作区命名空间 | 覆盖 `.devcodex/<project>/profile` 读取链、全部服务集合、docs 自维护链、导航、版本、构建、报告和记忆 |
+| `RouteNamespaceResponsibilityGate` | 某个词同时是服务名、历史兼容路径或源码路由命名空间 | 明确服务职责、历史路由命名空间和当前公开面边界，避免把 route namespace 写成当前服务职责 |
+| `RemoteCIParityPushGate` | push / tag / release / publish 前验证 | 执行与远端 CI 同构的本地门禁；不能用普通测试通过替代 coverage、audit、examples、website、pack 或矩阵脚本 |
+| `OfficialApiEvidenceGate` | API / SDK / 平台能力 / 官方契约 / public API 设计 | 使用官方 API 文档、公开契约或源码证据；缺失时记录降级证据和兼容风险，不得凭经验猜 |
+| `AsyncDbTruthSourceVerificationGate` | 数据库、异步任务、队列、缓存、详情页数据或跨页面返回状态 | 区分真实数据源、异步请求、缓存替换、失败回退和刷新边界；验证不得只看 UI 当前空白或 mock |
+| `DocsPageRoleMatrixGate` / `CompleteUserManualSiteMatrixGate` | 文档站、README、站点文档或用户手册 IA | 为每个页面标明 role、audience、sourceOfTruth、nav/sidebar 位置和是否用户主路径；完整用户手册站点覆盖入门、配置、任务、reference、排错、限制与下一步 |
+| `EvolutionCapabilityControlPlaneGate` | 自我进化、规范自动优化、模型自动生成规则、自动发版或自动治理能力 | 必须走 `evolution-governance` Skill；冻结授权、模型配置、租户 / 权限、配额、数据边界、审计日志、回滚和发布审批，模型输出只能作为候选，不得直接进入 active 规范 |
+| `FrameworkCapabilityAutoFirstGate` | 框架、SDK、平台或插件已有能力与手写实现取舍 | 先查项目 / 官方框架能力、配置项、插件和现有抽象；已有成熟能力时优先复用，不手写平行能力 |
+| `DocsThemeRuntimeVisualProbeGate` | 文档站主题、样式、导航、暗色模式、搜索或运行时 UI 体验 | 验证真实运行态主题、导航、搜索、代码高亮、移动端、暗色/亮色和关键页面视觉；不能只看 Markdown 源码 |
+
 ### Backlog Intake 真相复核
 
 当新的需求、bug、批次计划或修复范围**直接来源于 `data/*.md` 的 open/partial 条目**时，不能把这些条目直接当成“纯 open backlog”。进入 CP1 / 问题确认或批次实施前，必须先做 1 轮 Backlog Intake 真相复核：
@@ -287,6 +343,8 @@ dev/fix 修改完成前必须判定是否影响 Profile。命中以下任一触�
 ### CrossProjectLearnedGuards（跨项目已吸纳守门）
 
 - 来自 `data/*.md`、复审、发布验证、同类项目实践或用户纠偏的可泛化规范被吸纳后，必须落入可执行门禁而不是只写成建议；CP1/CP2/TestRoute/审查报告需按项目现实判定触发，未触发时写 `N/A + skipReason`。
+- 新增吸纳项进入本节前必须先通过 `LayeredAbsorptionGate`、`SkillFirstAbsorptionGate` / `CapabilityToSkillPromotionGate` 归属判定；成组能力优先沉淀为独立 Skill，通用守门清单只保留索引、触发和跨 Skill 路由，不再作为默认堆叠容器；prompt/template、执行消费者、validate 探针、公开文档和部署副本必须在 `LayeredAbsorptionDecision.layerChecks` 中逐层闭环。
+- 本节历史条目按 `HistoricalCommonNormLayeringGate` 视为 `legacy-index-retained`：Gate 名保留为 grep 锚点，具体执行细则必须由目标 Skill / TestRoute / report / document-sync / release-verification / audit 维度承接；新增或补强项不得继续在本节追加长正文。
 - `CodeTruthRequirementGate`：需求、方案或报告描述“已实现 / 已接入 / 未接入 / 已支持”前，必须先核对代码真相源、消费者入口和运行证据，禁止仅凭历史报告、目录名或记忆判断。
 - `ManualReviewEvidenceRetention`：人工复核、视觉检查、手工冒烟、外部页面观察或无法自动化的验证必须保留复核人/时间/范围/输入/观察结果/截图或日志位置；不得只写“人工检查通过”。
 - `DocumentationTranslationParityGuard`：多语言文档、翻译页、README/website 同步页或中英文双入口变更时，必须核对信息等价、版本号、链接、示例、术语和当前消费者顺序；无法同步时写明历史镜像或降级理由。

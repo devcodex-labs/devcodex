@@ -44,6 +44,15 @@ description: 项目 Profile 加载规范 — 意图识别后独立确定目标�
 - `README.md`、`01-项目信息.md`、`02-架构约束.md`、`03-代码风格.md`：项目命名空间文件优先，缺失回退到 `workspace/profile/`
 - `<project>` 未确定时，禁止猜测项目命名空间
 
+### ProfileReadChainGate / ServiceNormCoverageGate
+
+服务 / 框架规范复审、跨服务需求、workspace-namespace 或 Profile 同步任务必须执行 `ProfileReadChainGate` / `ServiceNormCoverageGate`：
+
+- 明确 base profile、project overlay、config.local overlay、fallback profile 和实际 active-root。
+- 覆盖 `.devcodex/<project>/profile` 读取链、`.devcodex/workspace/profile` 回退链和 sticky activeProject 生效边界。
+- 复审服务 / 框架规范时列出全部服务集合、docs 自维护链、导航、版本、构建、报告和记忆消费者。
+- 从单服务抽公共规范时同步执行 `StrongestProfileSourceGate` / `ServiceSpecificResidueSweep`，以最强 Profile 为基线并清扫服务化残留。
+
 ## 标准文件（按需加载）
 
 | 文件 | 说明 | 必须 |

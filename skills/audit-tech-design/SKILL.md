@@ -38,10 +38,13 @@ description: 技术方案审查维度 TD-1~TD-13 — 架构/技术选型/实施�
 - 有针对性的负向测试场景
 - 包 / 库 / adapter / CLI 方案同时覆盖代码实现层与包工程层验证（public API / public types / shared tests / benchmark / docs / scripts / package metadata）
 - 包 / adapter / SDK / CLI / 插件方案在推荐确认前已执行 `PackageAdapterPreConfirmEvidenceGate`：核对 package.json、plugin.json、exports/bin/files、dist/pack 边界、registry 或安装入口、adapter 消费者和官方/上游公开契约；缺证据时不能宣称包消费者可用
+- 方案含 PR / TD / CP2 审查锚点时必须执行 `ReviewAnchorMaterializationGate`：把审查锚点物化成可 grep 的章节、表格或清单，不能只在叙述中语义覆盖
+- 方案含需求维度、优先级、批次或阶段计划时必须执行 `RequirementDimensionBindingGate` / `RequirementPriorityAndPhaseGate`：每个维度绑定 CP2、批次计划、验收和阶段关闭规则
 
 **TD-12 API/接口设计质量 🟡**
 - 简单 service 只承担业务编排、外部能力调用和必要上游错误映射，不重复 route validate、model/schema、数据导入或框架已承担的校验、归一化和配置兜底
 - JavaScript / Node.js 方案中命中必要注释的导出函数、核心业务函数、类、复杂对象契约、参数/返回/异常说明使用标准 JSDoc
+- API / SDK / 平台能力方案必须执行 `OfficialApiEvidenceGate`，以官方 API 文档、公开契约或源码证据为准；框架、SDK 或插件已有能力需执行 `FrameworkCapabilityAutoFirstGate`，优先复用成熟能力而不是手写平行能力
 
 ## N/A 规则
 

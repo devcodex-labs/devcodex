@@ -2,7 +2,7 @@
 applyTo: "**"
 description: self-fix 工作流规则，覆盖规范资产修复边界、自动级/Pending 级分流与文件数量限制
 priority: P4
-version: 1.11.26
+version: 1.11.27
 ---
 # 规范自修复规则（14-self-fix）
 
@@ -44,6 +44,7 @@ version: 1.11.26
 
 ### 拒绝级
 - 涉及规范语义变更 → 拒绝自动修复，提示用户通过 dev 处理
+- 涉及用户确认“未完整吸纳 / 半覆盖 / 仍需吸纳”的规范体系变更时，必须转入 dev / spec-governance 路径，执行 `LayeredAbsorptionGate`、`ConfirmedAbsorptionCompletenessGates` 与必要的 `evolution-governance`，不能按 A1~A5 自动修复处理
 
 ## 自动级修复后验证（V1~V7，全通过才算完成）
 

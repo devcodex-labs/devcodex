@@ -44,13 +44,18 @@ DevCodex 通过 `.github/`（Copilot）、`CLAUDE.md + .claude/ + .mcp.json`（C
 - **可配置并发策略**: Profile `config.json` 可配置 `extensions.devcodex.concurrency`；默认 `auto` 表示只读准备和隔离验证可并行、共享状态写入保持单写者，保守项目可设为 `serial`
 - **支撑型 Skill**: `execution-contract` / `test-router` / `release-verification` / `host-contract-verification` / `source-consumer-sync` 为控制面、多批次、测试路线、宿主契约验证与真相源-消费者同步提供可审计支撑，不新增工作流分支
 - **发布前审查能力**: `audit-release` 负责 release readiness、发布说明质量、兼容/迁移风险、package/plugin 元数据、文档/Profile/website 同步、回滚策略、registry/tag 风险与发布后验收 review；`release-verification` 仍负责 R0~R7 执行验证链
-- **README 专项能力**: `readme-authoring` 负责 README 用户/使用者优先写作，`audit-readme` 负责 README / 用户使用文档专项 review；`UserPerspectiveDocsGate` 要求文档按使用者第一次成功、常见任务、字段/参数/状态/错误解释、排错恢复和低心智负担组织，`UserDocsImmediateComprehensionGate` 要求用户文档输出功能完整性、配置易懂性和首次读者即时理解三轴结论，`UserDocsPrimarySurfaceGate` 要求站点文档 / README / quick start 先冻结 targetSurface、documentLocation 与 primaryAudience，首页首屏、quick start、nav/sidebar、CTA 和 reference 主路径必须服务用户使用而不是开发契约，`FinalUserManualFirstGate` / `DocsSiteInformationArchitectureGate` / `UserManualFlowAndFailureGate` / `QueueDocsRealWorkflowGate` 要求需求概况后优先产出最终用户使用文档，文档站按任务组织并覆盖成功、失败恢复和队列/异步真实工作流，`PublicUserDocsMaintainerBoundaryGate` 要求公开用户文档不混入维护者 checklist、内部同步清单或台账状态，`DocsConsumerSweep` 与 `UserPathContractSweep` 负责同步 README、website、Profile、示例、模板、导航、validate、部署副本和代码消费点
+- **用户文档与 README 能力**: `user-manual-authoring` 负责站点文档、最终用户使用文档、README、quick start、接入手册和 docs-first 用户手册的用户路径、信息架构、配置/排错和真实工作流；`readme-authoring` 是 README 专项分支，`audit-readme` 负责 README / 用户使用文档专项 review；`UserPerspectiveDocsGate` 要求文档按使用者第一次成功、常见任务、字段/参数/状态/错误解释、排错恢复和低心智负担组织，`UserDocsImmediateComprehensionGate` 要求用户文档输出功能完整性、配置易懂性和首次读者即时理解三轴结论，`UserDocsPrimarySurfaceGate` 要求站点文档 / README / quick start 先冻结 targetSurface、documentLocation 与 primaryAudience，首页首屏、quick start、nav/sidebar、CTA 和 reference 主路径必须服务用户使用而不是开发契约，`FinalUserManualFirstGate` / `DocsSiteInformationArchitectureGate` / `UserManualFlowAndFailureGate` / `QueueDocsRealWorkflowGate` 要求需求概况后优先产出最终用户使用文档，文档站按任务组织并覆盖成功、失败恢复和队列/异步真实工作流，`PublicUserDocsMaintainerBoundaryGate` 要求公开用户文档不混入维护者 checklist、内部同步清单或台账状态，`DocsConsumerSweep` 与 `UserPathContractSweep` 负责同步 README、website、Profile、示例、模板、导航、validate、部署副本和代码消费点
+- **复审清单能力**: `review-checklist` 负责正式复审、ECR、发布前复审、多轮收敛和外部 finding 批次的清单创建、范围冻结、逐项证据执行、遗漏逃逸分析、状态新鲜度和收敛关闭
+- **自我进化治理能力**: `evolution-governance` 负责自我进化、自动吸纳、模型辅助规范优化、自动补 Skill / Prompt / Probe 和自动治理候选的控制面，执行 `EvolutionCapabilityControlPlaneGate`，冻结授权、模型配置、租户 / 权限、配额、数据边界、审计、回滚和发布审批；模型输出只能进入候选态，不能直接写 active 规范或发版
 - **Profile 新鲜度审查**: audit 会先执行 `Profile Freshness Check`，反向核对 Profile 是否仍匹配当前包版本、目录资产、脚本、发布状态、宿主能力和任务现实
 - **项目工程泄漏审查**: 项目工程 / 代码质量审查执行 `PE-12 资源生命周期与泄漏风险`，必须检查内存泄露、资源泄漏、监听器/定时器/连接/流未释放、缓存无界增长和组件卸载清理缺失
 - **泄漏风险稳定性压测**: 写测试用例或回归验证时先执行 `LeakRiskStabilityPressureTest` 条件判定；命中长运行、高并发、缓存/连接/监听器/定时器/流/socket/worker/订阅/组件生命周期或 `PE-12` 风险时，TestRoute 纳入场景/负载/稳定性压测并记录基线、冷却后回落和资源指标前后对比；低风险任务写 `N/A + skipReason`
 - **前端体验质量门禁**: 前端页面、组件、控制台、官网、文档站、可视化工具或游戏任务执行 `FrontendExperienceQualityGate` 条件判定，覆盖设计来源、UI 还原度、风格主题、响应式状态、视觉验证、用户流、交互反馈、输入方式/可访问性、错误恢复和动效转场；Figma/截图/既有页面还原追加 `FigmaHighFidelityRestorationGate`、`ScopedVisualChangeGate`、`InstalledPluginVisualVerificationGate`、`ActualPreviewChainAndMockFallbackGate`、`FrontendRuntimeNetworkProbeGate`、`UIStateScopeRegressionGate`、`FigmaProductionAssetBudgetGate`、`RuntimeI18nArtifactVerificationGate`、`VisualDeviationTypeGate` 与 `DesignFramePurposeClassificationGate`；浏览器验证先执行 `FrontendBrowserVerificationBudgetGate`，用户明确自验或禁止浏览器/截图时执行 `UserSelfVerificationOverrideGate`；命中时 TestRoute 纳入 Browser/截图、Playwright/E2E、console/network/resource/runtime、代码级替代验证或人工复核证据
 - **复审覆盖增量与维度增量**: audit / review / ECR 的连续零发现必须附 `ReviewCoverageDelta`（覆盖面增量）与 `ReviewDimensionDeltaGate`（维度焦点增量），优先阅读此前未审查但相关联的代码、配置、测试、文档、部署副本和消费者链，并避免每轮机械重复同一组维度；无新增覆盖、无新增维度焦点且无证据化理由时，不计入有效零发现
 - **规范治理 Intake**: 所有模式下每条用户消息在合理性评估后都会额外检查是否命中可泛化改进；命中时主动写入 `data/process-improvements.md`（优化清单，PI），必要时联动 `data/pending-fixes.md`（PF），并显式回执 `PI/PF`
+- **分层吸纳架构（兼容 Skill-first 吸纳架构）**: 规范吸纳、data 台账治理、用户确认可泛化建议或新增门禁时，先执行 `LayeredAbsorptionGate`，并兼容 `SkillFirstAbsorptionGate` / `CapabilityToSkillPromotionGate`；输出 `LayeredAbsorptionDecision`（含 `SkillAbsorptionDecision`），逐层覆盖通用指令、Skill、prompts/templates、执行消费者、validate/test 探针、README/website/changelog 和部署副本。采纳用户建议前同步执行 `ProactiveBetterAlternativeGate`，有更优方案必须先提出取舍
+- **历史通用规范分层迁移**: 迁移此前已堆入通用 instructions、prompt、report 模板或 README 的规范时执行 `HistoricalCommonNormLayeringGate`，先冻结逐文件审查矩阵，再按 `targetLayer / targetOwner / semanticStrength / validation / skipReason` 下沉到 Skill、Prompt、执行消费者、V74 validate 探针、公开文档和部署副本；无法立即下沉的旧规则只保留为 `legacy-index-retained`，不再作为新增长清单容器
+- **完整吸纳补强门禁**: 用户确认“未完整吸纳 / 半覆盖 / 仍需吸纳”时执行 `ConfirmedAbsorptionCompletenessGates`，补齐 `PublicSurfaceClosureGate`、`UserManualProductizationGate`、`UserManualRenderedFlowAndRealWorkflowProbe`、`SampleIssueExpansionGate`、`RequirementDimensionBindingGate`、`RequirementPriorityAndPhaseGate`、`ReviewAnchorMaterializationGate`、`SemanticLegacyRouteExposureGate`、`ReferenceCodeTruthSamplingGate`、`FrontendAsyncCacheRenderGate`、`StaleWhileRevalidateGate`、`PortableExternalArtifactGate`、`StrongestProfileSourceGate`、`ServiceSpecificResidueSweep`、`ProfileReadChainGate`、`ServiceNormCoverageGate`、`RouteNamespaceResponsibilityGate`、`RemoteCIParityPushGate`、`OfficialApiEvidenceGate`、`AsyncDbTruthSourceVerificationGate`、`DocsPageRoleMatrixGate`、`CompleteUserManualSiteMatrixGate`、`EvolutionCapabilityControlPlaneGate`、`FrameworkCapabilityAutoFirstGate` 与 `DocsThemeRuntimeVisualProbeGate`，并同步 Skill、Prompt、执行消费者、探针、公开文档和部署副本
 - **Backlog 真相复核与状态回写**: 从 `data/*.md` open/partial 项组织新需求或新批次前，先按 `pure-open / residual-tail / already-fixed / misclassified` 分类；实施后再执行台账状态回写闭环，避免“源码已修但 backlog 仍旧 open”
 - **官方文档证据前置**: 新增或升级依赖、框架、SDK、平台 API、外部模块前，CP2 会要求 `OfficialDocsEvidence`，记录官方文档来源、关键用法、限制与兼容性，避免凭经验猜 API
 - **通用工程守门**: Node.js 项目默认不低于 `>=18`；需求/问题定义前置平台工程判断，并记录 `ImplementationComplexityLevel`，开发程度分为 `简单够用 / 中等 / 企业级`，用户未要求复杂化或需求不详细时默认 `简单够用`；依赖/兼容任务拆分业务源码平滑性与依赖层落地条件；包/库/adapter/CLI 同查代码层与包工程层；JS/Node 必要注释使用标准 JSDoc；简单 service 不重复 route/model/schema 已承担的校验
@@ -101,7 +106,7 @@ npx @vextjs/devcodex init --codex  # 仅 Codex adapter
 ├── copilot-instructions.md  ← 默认 Copilot always-on 总则（新增）
 ├── instructions/   ← Instructions 约束（15 个，含全部工作流规则）
 ├── agents/         ← Copilot 自定义 Agent（v1.9.8 起恢复默认分发）
-├── skills/         ← Skill 详细检查标准（44 个，按需读取，含 README 专项能力、spec-governance 与 5 个支撑型 Skill）
+├── skills/         ← Skill 详细检查标准（47 个，按需读取，含用户文档、复审清单、自我进化治理、README 专项能力、spec-governance 与 5 个支撑型 Skill）
 ├── prompts/        ← Prompt 模板（30 个）
 ├── hooks/          ← 宿主生命周期 Hook 配置与运行时
 │   ├── devcodex.lifecycle.json
@@ -304,7 +309,7 @@ devcodex/
 ├── instructions.md # 单源规范文件；安装时按平台生成 copilot-instructions.md / CLAUDE.md / AGENTS.md
 ├── agents/        # Agent 源文件；Copilot 端默认分发，Claude Code 端不分发
 ├── instructions/  # 全局 Instructions（15 个，含工作流规则摘要，自动注入）
-├── skills/        # Skill 详细检查标准（44 个，按 01-common §按需读取表 路由读取）
+├── skills/        # Skill 详细检查标准（47 个，按 01-common §按需读取表 路由读取）
 ├── prompts/       # Prompt 模板（30 个）
 ├── hooks/         # Workspace Hooks 配置与分发到 `.github/hooks/_runtime/` 的运行时及 helper 模块
 ├── codex/         # Codex adapter 源模板（分发到 `.codex/hooks.json`，不是工作区部署副本 `.codex/`）
@@ -321,7 +326,11 @@ devcodex/
 
 发布前审查由 `audit-release` 承担：它是 audit 专项维度，审查 release readiness、发布说明质量、兼容/迁移风险、package/plugin 元数据、文档/Profile/website 同步、回滚策略、registry/tag 风险与发布后验收；它不替代 `release-verification`，也不执行真实 `tag` / `push` / `publish`。
 
-README / 用户使用文档当前补充两类专项 Skill：`readme-authoring` 负责把 README 默认主视角收口为用户 / 使用者优先，`audit-readme` 负责专项审查用户路径、快速开始、示例真实度、开发信息后置与消费链一致性。正式用户文档还执行 `UserPerspectiveDocsGate`、`UserDocsImmediateComprehensionGate`、`UserDocsPrimarySurfaceGate`、`FinalUserManualFirstGate`、`DocsSiteInformationArchitectureGate`、`UserManualFlowAndFailureGate`、`QueueDocsRealWorkflowGate`、`PublicUserDocsMaintainerBoundaryGate`、`DocsConsumerSweep` 和 `UserPathContractSweep`：检查文档是否足够详细、首次读者是否看得懂、功能覆盖是否完整、配置是否简单易懂、需求概况后是否先形成用户最终使用文档，首页首屏 / quick start / nav/sidebar / CTA / reference 是否优先服务用户使用，队列/异步场景是否覆盖真实工作流，公开用户路径是否排除了维护者 checklist / 内部同步清单 / 台账状态，以及 README / website / Profile / examples / templates / validate / 部署副本 / 代码消费点是否同步。
+README / 用户使用文档当前补充三类专项 Skill：`user-manual-authoring` 负责站点文档、最终用户手册、README、quick start、接入手册和 docs-first 用户手册的用户路径与信息架构；`readme-authoring` 负责把 README 默认主视角收口为用户 / 使用者优先；`audit-readme` 负责专项审查用户路径、快速开始、示例真实度、开发信息后置与消费链一致性。正式用户文档还执行 `UserPerspectiveDocsGate`、`UserDocsImmediateComprehensionGate`、`UserDocsPrimarySurfaceGate`、`FinalUserManualFirstGate`、`DocsSiteInformationArchitectureGate`、`UserManualFlowAndFailureGate`、`QueueDocsRealWorkflowGate`、`PublicUserDocsMaintainerBoundaryGate`、`DocsConsumerSweep` 和 `UserPathContractSweep`：检查文档是否足够详细、首次读者是否看得懂、功能覆盖是否完整、配置是否简单易懂、需求概况后是否先形成用户最终使用文档，首页首屏 / quick start / nav/sidebar / CTA / reference 是否优先服务用户使用，队列/异步场景是否覆盖真实工作流，公开用户路径是否排除了维护者 checklist / 内部同步清单 / 台账状态，以及 README / website / Profile / examples / templates / validate / 部署副本 / 代码消费点是否同步。
+
+正式复审、ECR、发布前复审、多轮收敛和外部 finding 批次由 `review-checklist` 管理清单文件、冻结范围、逐项证据、遗漏逃逸分析、状态新鲜度和关闭结论；报告中的 `ReviewChecklistCompletenessGate` / `EvidenceExecutionGate` 必须引用该清单或说明 N/A。
+
+自我进化、自动吸纳、模型辅助规范优化、自动补 Skill / Prompt / Probe 和自动治理候选由 `evolution-governance` 管理控制面；任何模型生成的规则或发版建议必须先作为候选记录 `EvolutionRun`，再由人工确认、`LayeredAbsorptionGate`、验证探针、部署副本同步和 release-verification 决定是否进入 active 规范。
 
 &gt; ℹ️ 维护者状态文件（本仓库开发过程中累积的 violations/pending-fixes 记录）按 active-root 保存，例如 workspace-namespace 下的 `.devcodex/<project>/data/`，**不分发**给用户。
 

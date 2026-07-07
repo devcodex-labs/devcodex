@@ -61,6 +61,25 @@ description: 真相源-消费者同步规范 — 为规范源、模板、validat
 5. 定义 `yellowDeviationBoundary`，把允许纳入的额外消费者写入进度或报告。
 6. 实施后做双向联查：正向 grep 真相源，反向 grep 旧口径残留。
 
+## V73 完整吸纳同步面
+
+当变更涉及 `ConfirmedAbsorptionCompletenessGates`、`evolution-governance` 或 `EvolutionCapabilityControlPlaneGate` 时，Concept Sync Map 必须至少列出：
+
+- `sourceOfTruth`：`instructions.md`、目标 Skill 或 `skills/evolution-governance/SKILL.md`。
+- `currentConsumers`：`spec-governance`、`dev-default`、`test-router`、`report`、`document-sync`、目标 audit/dev/release Skill、technical-design / implementation-plan / report prompts、README、website guide、requirements page、changelog。
+- `validateProbes`：`checkV73`、`scripts/test-spec-governance.js` 和 `node scripts/validate.js`。
+- `deployCopies`：`AGENTS.md`、`.agents/skills/`、`.github/`、`.claude/`、`.codex/` 中由 `devcodex update` 生成的当前副本。
+
+## V74 历史通用规范分层同步面
+
+当变更涉及 `HistoricalCommonNormLayeringGate`、历史通用规范迁移、prompt/report 长清单收敛或旧吸纳项重新分层时，Concept Sync Map 必须至少列出：
+
+- `sourceOfTruth`：`skills/spec-governance/SKILL.md` 的 `HistoricalCommonNormLayeringGate`、逐文件审查矩阵或当前目标 Skill。
+- `currentConsumers`：`instructions.md`、`instructions/10-dev.instructions.md`、`spec-governance`、`test-router`、`report`、`document-sync`、`source-consumer-sync`、technical-design / implementation-plan / report prompts、README、website guide、active version requirements、changelog、Profile。
+- `historicalMirrors`：`changelogs/releases/**`、历史 version docs、旧 requirement/release 页面；保留旧事实时必须写 `historicalMirror` 或 `legacy-index-retained`。
+- `validateProbes`：`checkV74`、`scripts/test-spec-governance.js`、`node scripts/validate.js` 和必要 targeted tests。
+- `deployCopies`：`AGENTS.md`、`.agents/skills/`、`.github/`、`.claude/`、`.codex/` 中由 `devcodex update` 生成的当前副本。
+
 ## 黄色偏离边界
 
 以下情况可按黄色偏离处理，但必须记录到实施进度或报告：

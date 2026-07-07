@@ -50,6 +50,7 @@ description: 审查公共维度 G0~G5 + Profile Freshness Check — 所有 audit
 - `audit` 天生对应统一联查矩阵的 **L3 强联查**
 - `CRS / G3 / PCV` 继续作为 audit 的主路径，不降级、不被其他轻量联查规则替代
 - 其他工作流升级为 L3 时，应向 audit 的“关联文件全覆盖 + 收敛门禁”靠拢，而不是反过来弱化 audit
+- 正式复审、ECR、发布前复审、多轮收敛、外部 finding 批次或用户要求“复审直至收敛”时，必须触发 `review-checklist`，先创建或复用复审清单文件，冻结范围和维度，再逐项执行证据核验，并通过 `ChecklistStateFreshnessGate` 确认清单状态、最新证据和收敛结论一致。
 
 ## 关联文件发现（CRS — 收敛前必须执行）
 

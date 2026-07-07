@@ -27,7 +27,7 @@ description: 定义意图识别结果到工作流的路由映射。本 Skill 为
 
 > ⚠️ 本表仅供路由参考。执行时按 `01-common` §Skill 按需读取表 读取对应 Skill，禁止全量读取。
 > 子类型标识汇总：`dev.default` / `dev.docs` / `dev.refactor` / `dev.database` / `dev.init` / `dev.optimization` / `dev.scenario-test` / `dev.plan-review` / `fix.default` / `fix.security` / `fix.incident` / `analyze.default` / `analyze.research`
-> 支撑型 Skill 不作为工作流子类型；Profile 缺失、补建 Profile 或恢复 dev 模式时按需触发 `profile-bootstrap`。
+> 支撑型 Skill 不作为工作流子类型；Profile 缺失、补建 Profile 或恢复 dev 模式时按需触发 `profile-bootstrap`。用户文档/最终手册语义优先触发 `user-manual-authoring`，正式复审/清单收敛语义优先触发 `review-checklist`，自我进化/自动吸纳/自动优化规范或模型辅助治理语义优先触发 `evolution-governance`。
 
 | 工作流 | 子类型 | Skill 文件 |
 |--------|--------|-----------|
@@ -51,6 +51,14 @@ description: 定义意图识别结果到工作流的路由映射。本 Skill 为
 | audit | 报告 | `skills/audit-report/SKILL.md` |
 | audit | 通用文档 | `skills/audit-document/SKILL.md`（README / 用户使用文档额外叠加 `skills/audit-readme/SKILL.md`） |
 | audit | 发布前审查 | `skills/audit-release/SKILL.md`（release readiness / publish 或 tag 前风险审查，不替代 `release-verification`） |
+
+## 支撑型能力触发参考
+
+| 语义 | Skill | 说明 |
+|------|-------|------|
+| 站点文档、最终用户使用文档、README、quick start、接入手册、docs-first 用户手册 | `skills/user-manual-authoring/SKILL.md` | 用户文档写作入口；README 继续叠加 `readme-authoring` |
+| 正式复审、ECR、发布前复审、多轮收敛、冻结清单、外部 finding 批次 | `skills/review-checklist/SKILL.md` | 复审清单创建、冻结、逐项证据、状态新鲜度与收敛关闭 |
+| 自我进化、自动吸纳、模型辅助规范优化、自动补 Skill / Prompt / Probe、自动治理候选 | `skills/evolution-governance/SKILL.md` | 自我进化控制面入口；执行 `EvolutionCapabilityControlPlaneGate`，冻结授权、模型配置、权限、配额、数据边界、审计、回滚和发布审批 |
 
 ## 特殊路由规则
 

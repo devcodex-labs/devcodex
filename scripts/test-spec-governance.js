@@ -629,7 +629,102 @@ const probes = [
   ['website/docs/versions/v1/1.0.1/requirements/p1/latest-data-absorption-guards/index.md', 'V70'],
   ['website/docs/versions/v1/1.0.1/CHANGELOG.md', 'V70 探针'],
   ['scripts/lib/validate-governance-tail.js', 'checkV70'],
-  ['scripts/validate.js', 'checkV70()']
+  ['scripts/validate.js', 'checkV70()'],
+  ['instructions.md', 'SkillFirstAbsorptionGate'],
+  ['instructions.md', 'SkillAbsorptionDecision'],
+  ['instructions/10-dev.instructions.md', 'SkillFirstAbsorptionGate'],
+  ['skills/spec-governance/SKILL.md', 'SkillAbsorptionDecision'],
+  ['skills/spec-governance/SKILL.md', 'new-skill-required'],
+  ['skills/user-manual-authoring/SKILL.md', 'FinalUserManualFirstGate'],
+  ['skills/user-manual-authoring/SKILL.md', 'UserPathContractSweep'],
+  ['skills/review-checklist/SKILL.md', 'ReviewChecklistPrecreationGate'],
+  ['skills/review-checklist/SKILL.md', 'ChecklistStateFreshnessGate'],
+  ['plugin.json', 'user-manual-authoring'],
+  ['plugin.json', 'review-checklist'],
+  ['skills/dev-default/SKILL.md', 'SkillFirstAbsorptionGate'],
+  ['skills/dev-docs/SKILL.md', 'user-manual-authoring'],
+  ['skills/readme-authoring/SKILL.md', 'user-manual-authoring'],
+  ['skills/audit-readme/SKILL.md', 'user-manual-authoring'],
+  ['skills/routing/SKILL.md', 'review-checklist'],
+  ['skills/test-router/SKILL.md', 'SkillAbsorptionDecision'],
+  ['skills/document-sync/SKILL.md', 'review-checklist'],
+  ['skills/report/SKILL.md', 'SkillFirstAbsorptionGate'],
+  ['skills/audit-common/SKILL.md', 'review-checklist'],
+  ['skills/audit-execution-guide/SKILL.md', 'ReviewChecklistPrecreationGate'],
+  ['skills/audit-release/SKILL.md', 'review-checklist'],
+  ['prompts/technical-design.prompt.md', 'SkillAbsorptionDecision'],
+  ['prompts/implementation-plan.prompt.md', 'SkillFirstAbsorptionGate'],
+  ['prompts/report-dev.prompt.md', 'SkillFirstAbsorptionGate'],
+  ['prompts/report-fix.prompt.md', 'SkillFirstAbsorptionGate'],
+  ['prompts/report-audit.prompt.md', 'SkillFirstAbsorptionGate'],
+  ['prompts/report-scenario-test.prompt.md', 'SkillFirstAbsorptionGate'],
+  ['README.md', 'Skill-first 吸纳架构'],
+  ['website/docs/guide/development.md', 'Skill-first 吸纳架构'],
+  ['website/docs/versions/v1/1.0.1/requirements/p1/latest-data-absorption-guards/index.md', 'V71'],
+  ['website/docs/versions/v1/1.0.1/CHANGELOG.md', 'V71 探针'],
+  ['scripts/lib/validate-governance-tail.js', 'checkV71'],
+  ['scripts/validate.js', 'checkV71()'],
+  ['instructions.md', 'LayeredAbsorptionGate'],
+  ['instructions.md', 'LayeredAbsorptionDecision'],
+  ['instructions.md', 'ProactiveBetterAlternativeGate'],
+  ['instructions.md', 'commonInstruction'],
+  ['instructions/10-dev.instructions.md', 'LayeredAbsorptionDecision'],
+  ['skills/spec-governance/SKILL.md', 'LayeredAbsorptionGate'],
+  ['skills/spec-governance/SKILL.md', 'promptTemplate'],
+  ['skills/spec-governance/SKILL.md', 'deployCopy'],
+  ['skills/dev-default/SKILL.md', 'ProactiveBetterAlternativeGate'],
+  ['skills/test-router/SKILL.md', 'layeredAbsorption'],
+  ['skills/report/SKILL.md', 'LayeredAbsorptionDecision'],
+  ['skills/document-sync/SKILL.md', 'ProactiveBetterAlternativeGate'],
+  ['prompts/technical-design.prompt.md', 'LayeredAbsorptionDecision'],
+  ['prompts/implementation-plan.prompt.md', 'ProactiveBetterAlternativeGate'],
+  ['prompts/report-dev.prompt.md', 'LayeredAbsorptionDecision'],
+  ['prompts/report-fix.prompt.md', 'LayeredAbsorptionDecision'],
+  ['prompts/report-audit.prompt.md', 'LayeredAbsorptionDecision'],
+  ['prompts/report-scenario-test.prompt.md', 'LayeredAbsorptionDecision'],
+  ['README.md', '分层吸纳架构'],
+  ['website/docs/guide/development.md', 'LayeredAbsorptionGate'],
+  ['website/docs/versions/v1/1.0.1/requirements/p1/latest-data-absorption-guards/index.md', 'V72'],
+  ['website/docs/versions/v1/1.0.1/CHANGELOG.md', 'V72 探针'],
+  ['scripts/lib/validate-governance-tail.js', 'checkV72'],
+  ['scripts/validate.js', 'checkV72()'],
+  ['instructions.md', 'ConfirmedAbsorptionCompletenessGates'],
+  ['instructions.md', 'PublicSurfaceClosureGate'],
+  ['instructions.md', 'EvolutionCapabilityControlPlaneGate'],
+  ['skills/spec-governance/SKILL.md', 'ConfirmedAbsorptionCompletenessGates'],
+  ['skills/evolution-governance/SKILL.md', 'name: evolution-governance'],
+  ['skills/evolution-governance/SKILL.md', 'EvolutionCapabilityControlPlaneGate'],
+  ['plugin.json', 'evolution-governance'],
+  ['skills/routing/SKILL.md', 'evolution-governance'],
+  ['skills/dev-default/SKILL.md', 'ConfirmedAbsorptionCompletenessGates'],
+  ['skills/user-manual-authoring/SKILL.md', 'UserManualProductizationGate'],
+  ['skills/review-checklist/SKILL.md', 'SampleIssueExpansionGate'],
+  ['skills/audit-requirements/SKILL.md', 'RequirementDimensionBindingGate'],
+  ['skills/audit-tech-design/SKILL.md', 'OfficialApiEvidenceGate'],
+  ['skills/audit-project/SKILL.md', 'FrontendAsyncCacheRenderGate'],
+  ['skills/audit-release/SKILL.md', 'RemoteCIParityPushGate'],
+  ['skills/release-verification/SKILL.md', 'PublicSurfaceClosureGate'],
+  ['skills/load-profile/SKILL.md', 'ProfileReadChainGate'],
+  ['skills/api-verification/SKILL.md', 'AsyncDbTruthSourceVerificationGate'],
+  ['skills/dev-docs/SKILL.md', 'DocsThemeRuntimeVisualProbeGate'],
+  ['skills/test-router/SKILL.md', 'ConfirmedAbsorptionCompletenessGates'],
+  ['skills/report/SKILL.md', 'ConfirmedAbsorptionCompletenessGates'],
+  ['skills/document-sync/SKILL.md', 'ConfirmedAbsorptionCompletenessGates'],
+  ['prompts/technical-design.prompt.md', 'ConfirmedAbsorptionCompletenessGates'],
+  ['prompts/implementation-plan.prompt.md', 'ConfirmedAbsorptionCompletenessGates'],
+  ['prompts/report-dev.prompt.md', 'ConfirmedAbsorptionCompletenessGates'],
+  ['prompts/report-fix.prompt.md', 'ConfirmedAbsorptionCompletenessGates'],
+  ['prompts/report-audit.prompt.md', 'ConfirmedAbsorptionCompletenessGates'],
+  ['prompts/report-scenario-test.prompt.md', 'ConfirmedAbsorptionCompletenessGates'],
+  ['README.md', 'evolution-governance'],
+  ['website/docs/index.md', '47 个 Skills'],
+  ['website/docs/intro/index.md', '47 个按需触发的工作流技能'],
+  ['website/docs/specs/directory-structure.md', '扁平一级 Skill（47 个）'],
+  ['website/docs/guide/development.md', 'ConfirmedAbsorptionCompletenessGates'],
+  ['website/docs/versions/v1/1.0.1/requirements/p1/latest-data-absorption-guards/index.md', 'V73'],
+  ['website/docs/versions/v1/1.0.1/CHANGELOG.md', 'V73 探针'],
+  ['scripts/lib/validate-governance-tail.js', 'checkV73'],
+  ['scripts/validate.js', 'checkV73()']
 ]
 
 for (const [file, needle] of probes) mustInclude(file, needle)
@@ -733,6 +828,82 @@ mustIncludeInChangelogs('GAP-035')
 mustIncludeInChangelogs('GAP-036')
 mustIncludeInChangelogs('PI-019')
 mustIncludeInChangelogs('PF-002')
+mustIncludeInChangelogs('SkillFirstAbsorptionGate')
+mustIncludeInChangelogs('CapabilityToSkillPromotionGate')
+mustIncludeInChangelogs('SkillAbsorptionDecision')
+mustIncludeInChangelogs('user-manual-authoring')
+mustIncludeInChangelogs('review-checklist')
+mustIncludeInChangelogs('V71')
+mustIncludeInChangelogs('PI-079')
+mustIncludeInChangelogs('PI-080')
+mustIncludeInChangelogs('PI-081')
+mustIncludeInChangelogs('PF-084')
+mustIncludeInChangelogs('PF-085')
+mustIncludeInChangelogs('PF-086')
+mustIncludeInChangelogs('LayeredAbsorptionGate')
+mustIncludeInChangelogs('LayeredAbsorptionDecision')
+mustIncludeInChangelogs('ProactiveBetterAlternativeGate')
+mustIncludeInChangelogs('V72')
+mustIncludeInChangelogs('PI-082')
+mustIncludeInChangelogs('PI-083')
+mustIncludeInChangelogs('PF-087')
+mustIncludeInChangelogs('PF-088')
+mustIncludeInChangelogs('ConfirmedAbsorptionCompletenessGates')
+mustIncludeInChangelogs('PublicSurfaceClosureGate')
+mustIncludeInChangelogs('UserManualProductizationGate')
+mustIncludeInChangelogs('UserManualRenderedFlowAndRealWorkflowProbe')
+mustIncludeInChangelogs('SampleIssueExpansionGate')
+mustIncludeInChangelogs('RequirementDimensionBindingGate')
+mustIncludeInChangelogs('RequirementPriorityAndPhaseGate')
+mustIncludeInChangelogs('ReviewAnchorMaterializationGate')
+mustIncludeInChangelogs('SemanticLegacyRouteExposureGate')
+mustIncludeInChangelogs('ReferenceCodeTruthSamplingGate')
+mustIncludeInChangelogs('FrontendAsyncCacheRenderGate')
+mustIncludeInChangelogs('StaleWhileRevalidateGate')
+mustIncludeInChangelogs('PortableExternalArtifactGate')
+mustIncludeInChangelogs('StrongestProfileSourceGate')
+mustIncludeInChangelogs('ServiceSpecificResidueSweep')
+mustIncludeInChangelogs('ProfileReadChainGate')
+mustIncludeInChangelogs('ServiceNormCoverageGate')
+mustIncludeInChangelogs('RouteNamespaceResponsibilityGate')
+mustIncludeInChangelogs('RemoteCIParityPushGate')
+mustIncludeInChangelogs('OfficialApiEvidenceGate')
+mustIncludeInChangelogs('AsyncDbTruthSourceVerificationGate')
+mustIncludeInChangelogs('DocsPageRoleMatrixGate')
+mustIncludeInChangelogs('CompleteUserManualSiteMatrixGate')
+mustIncludeInChangelogs('EvolutionCapabilityControlPlaneGate')
+mustIncludeInChangelogs('FrameworkCapabilityAutoFirstGate')
+mustIncludeInChangelogs('DocsThemeRuntimeVisualProbeGate')
+mustIncludeInChangelogs('evolution-governance')
+mustIncludeInChangelogs('V73')
+mustIncludeInChangelogs('HistoricalCommonNormLayeringGate')
+mustIncludeInChangelogs('历史通用规范分层迁移')
+mustIncludeInChangelogs('V74')
+
+for (const [file, needle] of [
+  ['scripts/lib/validate-governance-tail.js', 'checkV74'],
+  ['scripts/validate.js', 'checkV74()'],
+  ['instructions.md', 'HistoricalCommonNormLayeringGate'],
+  ['instructions.md', 'legacy-index-retained'],
+  ['instructions/10-dev.instructions.md', 'HistoricalCommonNormLayeringGate'],
+  ['skills/spec-governance/SKILL.md', 'HistoricalCommonNormLayeringGate'],
+  ['skills/spec-governance/SKILL.md', '逐文件审查矩阵'],
+  ['skills/test-router/SKILL.md', 'historicalCommonNormLayering'],
+  ['skills/report/SKILL.md', 'HistoricalCommonNormLayeringGate'],
+  ['skills/document-sync/SKILL.md', 'HistoricalCommonNormLayeringGate'],
+  ['skills/source-consumer-sync/SKILL.md', 'V74 历史通用规范分层同步面'],
+  ['prompts/technical-design.prompt.md', 'HistoricalCommonNormLayeringGate'],
+  ['prompts/implementation-plan.prompt.md', 'HistoricalCommonNormLayeringGate'],
+  ['prompts/report-dev.prompt.md', 'HistoricalCommonNormLayeringGate'],
+  ['prompts/report-fix.prompt.md', 'HistoricalCommonNormLayeringGate'],
+  ['prompts/report-audit.prompt.md', 'HistoricalCommonNormLayeringGate'],
+  ['prompts/report-scenario-test.prompt.md', 'HistoricalCommonNormLayeringGate'],
+  ['README.md', '历史通用规范分层迁移'],
+  ['website/docs/guide/development.md', '历史通用规范分层迁移'],
+  ['website/docs/versions/v1/1.0.1/requirements/p1/latest-data-absorption-guards/index.md', 'V74']
+]) {
+  mustInclude(file, needle)
+}
 
 const activeRuleFiles = [
   'README.md',

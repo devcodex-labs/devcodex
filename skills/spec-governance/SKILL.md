@@ -65,6 +65,114 @@ description: 规范治理生命周期 — 意图驱动记录、RecordRouter 分�
 
 宿主 runtime 若标记 `governanceIntakeCandidate`，只能作为“可能需要 RecordRouter”的收尾提醒；AI 仍必须输出规范化意图、置信度、依据和目标台账，或明确 `record.none + skipReason`。禁止仅凭关键词由 Hook 自动写台账。
 
+## LayeredAbsorptionGate（分层吸纳归属判定）
+
+`LayeredAbsorptionGate` 是 Improvement Intake 之后、规范源实施之前的强制架构门禁。`SkillFirstAbsorptionGate` / `CapabilityToSkillPromotionGate` 保留为 Skill 层兼容子门禁。任何可泛化 PI / PF / GAP / ISSUE 或用户确认值得吸纳的策略，都不能默认追加到 `CrossProjectLearnedGuards`、`LatestAbsorptionGuards` 或通用 instructions 长列表，也不能只做“通用规范 / Skill”二选一；必须先判断归属并列出所有消费层。
+
+### 归属分类
+
+| 分类 | 含义 | 处理 |
+|------|------|------|
+| `global-invariant` | 安全底线、入口加载、优先级、路由或全模式硬约束 | 写入 instructions / safety / common，Skill 只引用 |
+| `existing-skill-subgate` | 属于既有 Skill 的子门禁或执行步骤 | 并入目标 Skill，并同步 TestRoute / report / validate |
+| `new-skill-required` | 已形成独立能力入口 | 新建或规划独立 Skill，通用规范只保留触发和路由 |
+| `docs-only` | 仅是说明、历史镜像或用户文档补充 | 写 README / website / changelog，不作为执行门禁 |
+
+### 新 Skill 判定条件
+
+满足任一条件应优先判为 `new-skill-required`：
+
+1. 需要 3 条以上相关子门禁或一组稳定执行步骤。
+2. 需要独立产物、状态文件、模板、清单或证据矩阵。
+3. 跨 dev / fix / audit / release / report 多个工作流复用。
+4. 用户会用自然语言直接点名该能力，例如“用户使用文档”“复审清单”“发布前审查”。
+5. 只放在通用规范会导致触发条件模糊、提示词膨胀、职责边界不清或验证只能检查文本存在。
+
+### LayeredAbsorptionDecision 输出
+
+每次吸纳实施前，CP2 / 技术方案 / 报告至少记录：
+
+| 字段 | 说明 |
+|------|------|
+| `candidateId` | PI / PF / GAP / ISSUE / 用户确认项 |
+| `classification` | `global-invariant` / `existing-skill-subgate` / `new-skill-required` / `docs-only` |
+| `targetSkill` | 既有 Skill 或新 Skill 名；N/A 时说明原因 |
+| `triggerTerms` | 用户自然语言触发词或工作流触发场景 |
+| `ownedArtifacts` | 该 Skill 负责的文档、清单、模板、状态或验证产物 |
+| `layerChecks` | 分层同步检查，至少覆盖 `commonInstruction`、`skill`、`promptTemplate`、`executionConsumer`、`validationProbe`、`publicDocs`、`deployCopy` |
+| `validationRoute` | validate 编号、targeted test、SCV 或人工证据 |
+| `consumerSync` | instructions、skills、prompts、README、website、Profile、部署副本同步范围 |
+
+`SkillAbsorptionDecision` 是 `LayeredAbsorptionDecision` 的 Skill 层兼容字段，不能替代完整分层决策。若判定为 `new-skill-required`，不得只把规则追加到通用守门清单后宣告吸纳完成；必须在同批创建 Skill，或把未创建原因写入 PF / ISSUE，并在后续批次优先处理。任何层级判定为 N/A 都必须写 `skipReason`。
+
+## HistoricalCommonNormLayeringGate（历史通用规范分层迁移）
+
+当用户要求“之前吸纳的规范重新分层”“全面逐个文件审查”“不要都堆在通用规范里”，或复审发现通用 instructions / prompt / report 模板持续承载大段执行正文时，必须执行 `HistoricalCommonNormLayeringGate`。
+
+### 逐文件审查矩阵
+
+迁移前先创建并冻结逐文件审查矩阵，至少包含：
+
+| 字段 | 说明 |
+|------|------|
+| `file` | 当前文件或历史镜像范围 |
+| `currentRole` | 当前角色：source、consumer、prompt-template、validate-probe、public-doc、deploy-copy、historical-mirror |
+| `matchedRules` | 命中的 Gate / 规则族 / 用户确认项 |
+| `targetLayer` | `commonInstruction`、`skill`、`promptTemplate`、`executionConsumer`、`validationProbe`、`publicDocs`、`deployCopy`、`historicalMirror` |
+| `targetOwner` | 目标 Skill、prompt、脚本、文档或部署副本 |
+| `action` | `retain-index`、`move-detail-to-skill`、`add-probe`、`sync-docs`、`historical-skip`、`legacy-index-retained` |
+| `semanticStrength` | `same-or-stronger`、`weaker-needs-confirmation` |
+| `validation` | targeted test、validate 编号、SCV、构建、部署同步或人工证据 |
+| `skipReason` | 历史镜像、无当前消费者、N/A 原因 |
+
+### 迁移规则
+
+- 通用 instructions 只保留安全底线、全局不变量、触发索引、跨 Skill 路由和历史兼容锚点；不得继续成为新 Gate 正文的默认容器。
+- 具体执行步骤、证据字段、测试路线、发布门禁、用户文档写作、复审清单、Profile 同步和自我进化控制面必须进入对应 Skill、Prompt/Report 模板、执行消费者和 validate 探针。
+- 已在通用层存在但尚未找到同等强度承接方的历史规则，不得直接删除；标记为 `legacy-index-retained`，保留 Gate 名 grep 锚点，并把补迁移项写入矩阵 / PF / ISSUE。
+- Prompt 和 report 只能承载字段与输出结构，不复制完整 Gate 长清单；需要全量执行的内容由目标 Skill 读取。
+- 历史 release / version / requirement 镜像默认按 `historicalMirror` 处理，不回写当前架构口径；当前 README、website guide、active version、changelog、Profile 和部署副本必须同步。
+- 新增或补强该迁移能力时必须更新 V74 或后续 validate 探针，检查 `HistoricalCommonNormLayeringGate`、逐文件矩阵、目标 Skill、Prompt/Report、public docs 与 deploy copy。
+
+### 分层检查面
+
+| 层级 | 必查内容 |
+|------|----------|
+| `commonInstruction` | S/C/公共治理、拆分 instructions、CrossProject 索引是否需要同步 |
+| `skill` | 既有 Skill 子门禁、新 Skill、Skill frontmatter、plugin 注册和路由是否需要同步 |
+| `promptTemplate` | 技术方案、实施计划、报告、需求/审查等 prompt/template 是否需要同步 |
+| `executionConsumer` | TestRoute、report、document-sync、release/audit/dev/fix 执行消费者是否需要同步 |
+| `validationProbe` | validate、targeted test、SCV、负向用例或人工证据是否需要同步 |
+| `publicDocs` | README、website、changelog、用户可见版本文档是否需要同步 |
+| `deployCopy` | `.github`、`.claude`、`AGENTS.md`、`.agents`、`.codex` 或 Profile 部署副本是否需要同步 |
+
+### ProactiveBetterAlternativeGate
+
+处理用户建议、确认、规范吸纳、CP2 方案或复审清单冻结前，必须主动比较用户方案与至少一种项目现实可行的替代路径。若存在更低风险、更完整、更易维护或更易验证的路径，应先提出建议、收益、代价和影响范围，再进入确认或实施；不得只因用户提出方向就顺从式记录。若用户方案已是当前最优，记录依据，例如真相源证据、消费者范围、验证成本、迁移风险或用户明确约束。
+
+## ConfirmedAbsorptionCompletenessGates
+
+当用户确认“未完整吸纳 / 还要一起吸纳 / 刚才这些都要补上”或复审发现只有概念覆盖、缺独立 Gate、缺 Skill、缺 Prompt、缺探针或缺部署副本时，必须把该批规则作为 `ConfirmedAbsorptionCompletenessGates` 处理。执行路线：
+
+1. 复核候选是否仍有价值，剔除已完整吸纳或不适合泛化的项。
+2. 为每项输出 `LayeredAbsorptionDecision`，标明 `global-invariant / existing-skill-subgate / new-skill-required / docs-only`。
+3. 对每个 `layerChecks` 逐层同步：`commonInstruction / skill / promptTemplate / executionConsumer / validationProbe / publicDocs / deployCopy`。
+4. 若某项已经在正文中出现，但没有 Gate 名、触发条件、报告字段或 validate 探针，不得判定为完整吸纳。
+
+本批确认吸纳项至少覆盖：
+
+| 归属 | Gate |
+|------|------|
+| public surface / release | `PublicSurfaceClosureGate`、`RemoteCIParityPushGate`、`PortableExternalArtifactGate` |
+| user docs | `UserManualProductizationGate`、`UserManualRenderedFlowAndRealWorkflowProbe`、`DocsPageRoleMatrixGate`、`CompleteUserManualSiteMatrixGate`、`DocsThemeRuntimeVisualProbeGate` |
+| review / requirements / anchors | `SampleIssueExpansionGate`、`RequirementDimensionBindingGate`、`RequirementPriorityAndPhaseGate`、`ReviewAnchorMaterializationGate` |
+| truth sampling / legacy / route | `SemanticLegacyRouteExposureGate`、`ReferenceCodeTruthSamplingGate`、`RouteNamespaceResponsibilityGate` |
+| frontend / data | `FrontendAsyncCacheRenderGate`、`StaleWhileRevalidateGate`、`AsyncDbTruthSourceVerificationGate` |
+| profile / service norms | `StrongestProfileSourceGate`、`ServiceSpecificResidueSweep`、`ProfileReadChainGate`、`ServiceNormCoverageGate` |
+| API / framework / evolution | `OfficialApiEvidenceGate`、`FrameworkCapabilityAutoFirstGate`、`EvolutionCapabilityControlPlaneGate` |
+
+`EvolutionCapabilityControlPlaneGate` 必须转入 `evolution-governance`；不得只作为 `spec-governance` 子段落处理。其他项按目标领域进入 `user-manual-authoring`、`review-checklist`、`audit-*`、`test-router`、`release-verification`、`load-profile`、`dev-plan-review` 或 `document-sync`。
+
 ## Backlog Intake 真相复核
 
 当新的需求、bug、批次计划或尾项治理**直接来源于 `data/*.md` 的 open/partial 条目**时，不能把这些编号直接视为本轮真实 open。进入 CP1 / 问题确认或批次实施前，必须先做 Backlog Intake 真相复核：

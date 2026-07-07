@@ -66,6 +66,10 @@
  * V68 Latest data absorption guards sync（最新 data 吸纳守门：数据库记录迁移、浏览器验证预算、finding 矩阵、多阶段关闭、验证副作用等）
  * V69 User docs primary surface and verdict-state sync（用户文档主面与需求复审状态同步）
  * V70 User-facing delivery chain / evidence execution sync（用户文档驱动交付链、复审证据化、构建产物与生成站点验证）
+ * V71 Skill-first absorption / user manual and review checklist skills sync（Skill-first 吸纳架构、最终用户文档与复审清单 Skill）
+ * V72 Layered absorption / proactive better alternative sync（分层吸纳架构与主动更优建议门禁）
+ * V73 confirmed absorption completeness / evolution governance sync（完整吸纳补强与自我进化治理 Skill）
+ * V74 historical common norm layering sync（历史通用规范分层迁移、逐文件矩阵与消费者闭环）
  *
  * Exit: 0=OK, 1=error, 2=warnings only
  */
@@ -542,7 +546,11 @@ const {
   checkV67,
   checkV68,
   checkV69,
-  checkV70
+  checkV70,
+  checkV71,
+  checkV72,
+  checkV73,
+  checkV74
 } = buildGovernanceTailChecks({
   ROOT,
   ACTIVE_DEVCODEX_ROOT,
@@ -803,7 +811,7 @@ function checkV19() {
   const checks = [
     { file: 'README.md', needle: `Instructions 约束（${instructionCount} 个，含全部工作流规则）` },
     { file: 'README.md', needle: `全局 Instructions（${instructionCount} 个，含工作流规则摘要，自动注入）` },
-    { file: 'README.md', needle: `Skill 详细检查标准（${skillCount} 个，按需读取，含 README 专项能力、spec-governance 与 5 个支撑型 Skill）` },
+    { file: 'README.md', needle: `Skill 详细检查标准（${skillCount} 个，按需读取，含用户文档、复审清单、自我进化治理、README 专项能力、spec-governance 与 5 个支撑型 Skill）` },
     { file: 'README.md', needle: `Skill 详细检查标准（${skillCount} 个，按 01-common §按需读取表 路由读取）` },
     { file: 'README.md', needle: `Prompt 模板（${promptCount} 个）` },
     { file: activePath('profile', '01-项目信息.md'), needle: `| **Skill** | ${skillCount} |`, rawPath: false },
@@ -936,6 +944,10 @@ checkV67()
 checkV68()
 checkV69()
 checkV70()
+checkV71()
+checkV72()
+checkV73()
+checkV74()
 
 console.log('')
 if (errors.length) {

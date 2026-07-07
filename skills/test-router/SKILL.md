@@ -46,6 +46,9 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 | `generatedSiteVerification` | 是否涉及文档站 / 官网生成产物、导航 / footer / sidebar / outline / 手写 TOC / 语言切换真实可见状态 |
 | `userPathContractSweep` | 是否涉及公开能力页首次成功路径、安装版本、配置表、API 索引、sidebar 和 public types / runtime / examples 一致性 |
 | `benchmarkRegression` | 是否涉及性能敏感项目、既有 benchmark 基线或 hot path 修改，需要 benchmark regression guard |
+| `layeredAbsorption` | 是否涉及规范吸纳、data 台账治理、用户确认可泛化策略、新增门禁或新增 Skill，需要分层同步和探针覆盖 |
+| `historicalCommonNormLayering` | 是否涉及历史通用规范、prompt/report 长清单、旧吸纳项或跨版本规范资产重新分层，需要逐文件矩阵和 V74 探针 |
+| `proactiveBetterAlternative` | 是否涉及用户建议、方案确认、规范吸纳或复审冻结，需要主动比较更优路径并记录采纳依据 |
 
 ## 路由矩阵
 
@@ -81,6 +84,14 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 | 公开模块 / SDK / CLI / 插件 | PublicModuleDifferentiationGate：区分 public API、内部 helper、示例代码、发布包文件、消费者入口和历史镜像 | 正式文档只承诺真实公开面 |
 | DevCodex v2 一期路线 | V2MCPFirstPlanningGate：核对 Intent-Gated Hosted Spec MCP、Codex-only MVP、私有可追踪 docs 和无本地规则正文缓存边界 | MongoDB/控制台/多租户自定义工作流默认不进一期 |
 | data 吸纳 / 最新问题扫描 | WorkspaceDataAbsorptionScopeGate：扫描 `.devcodex/*/data/` 全命名空间，列出命中台账、候选编号、归属和跳过理由 | 不得只扫当前源码项目、当前 active-root 或 sticky activeProject |
+| 规范吸纳架构归属 | LayeredAbsorptionGate + SkillFirstAbsorptionGate / CapabilityToSkillPromotionGate：每条可泛化 PI/PF/GAP/ISSUE 先输出 LayeredAbsorptionDecision（兼容 SkillAbsorptionDecision） | 判定 `global-invariant` / `existing-skill-subgate` / `new-skill-required` / `docs-only`；逐层覆盖 `commonInstruction / skill / promptTemplate / executionConsumer / validationProbe / publicDocs / deployCopy`；成组能力不得只追加到通用 guard |
+| 历史通用规范分层迁移 | HistoricalCommonNormLayeringGate：迁移旧通用长清单、prompt/report 重复清单或历史吸纳项 | 先冻结逐文件审查矩阵；TestRoute 覆盖 targeted tests、`node scripts/validate.js`、publicDocs、deployCopy、ProfileImpactCheck；无法立即迁移的历史规则标 `legacy-index-retained` |
+| 主动更优建议 | ProactiveBetterAlternativeGate：用户建议、方案确认、规范吸纳或复审冻结前主动比较更优路径 | 若有更低风险、更完整、更易维护或更易验证方案，先提出取舍再确认；采纳用户原方案时记录依据 |
+| 完整吸纳补强 | ConfirmedAbsorptionCompletenessGates：用户确认未完整吸纳、半覆盖或缺探针时 | 按 Gate 分流验证：`PublicSurfaceClosureGate` 查 pack/README/public types/search；`UserManualRenderedFlowAndRealWorkflowProbe` 查 Mermaid 真实渲染和真实 workflow；`FrontendAsyncCacheRenderGate` / `StaleWhileRevalidateGate` 查旧缓存先渲染和异步刷新；`RemoteCIParityPushGate` 查远端 CI 同构门禁；`EvolutionCapabilityControlPlaneGate` 查候选态、授权、模型配置、配额、数据边界、审计、回滚和发布审批 |
+| 需求维度与复审锚点 | SampleIssueExpansionGate / RequirementDimensionBindingGate / RequirementPriorityAndPhaseGate / ReviewAnchorMaterializationGate | 样例 issue 先扩展全维度图；每个需求维度绑定 CP2、批次、验收和阶段关闭；PR/TD 锚点物化为可 grep 章节、表格或清单 |
+| 语义 legacy 与参考代码真相 | SemanticLegacyRouteExposureGate / ReferenceCodeTruthSamplingGate / RouteNamespaceResponsibilityGate | 检查 slug、href、title、sidebar、search、generated HTML 和 route namespace；行为断言抽样核代码、类型或运行时证据 |
+| Profile / 服务规范覆盖 | StrongestProfileSourceGate / ServiceSpecificResidueSweep / ProfileReadChainGate / ServiceNormCoverageGate | 以最强 Profile 为基线，扫服务化残留；覆盖 profile 读取链、全部服务集合、docs 自维护链、导航、版本、构建、报告和记忆 |
+| API / 框架能力证据 | OfficialApiEvidenceGate / FrameworkCapabilityAutoFirstGate / AsyncDbTruthSourceVerificationGate | 查官方 API / public contract / 源码证据；先评估框架或插件既有能力；数据库 / 异步 / 缓存验证区分真实数据源、旧缓存、异步刷新和失败回退 |
 | 正式流程图 / 生命周期图 | FlowchartNodeExplanationGate：Mermaid/Nxx 流程图配套中文节点说明，覆盖触发、前置、动作、出口、异常 | 临时草图写 `N/A + skipReason` |
 | 文档站视觉 / 交互验收 | DocsSiteVisualAcceptanceGate：覆盖主题集成、真实点击、异步动效、减弱动态、代码 token 对比度、终端 demo 范围、TOC inline code、辅助导航层级 | 纯内容页可降级为链接/构建/人工证据 |
 | 遗漏专审 / 只列仍需吸纳项 | OmissionOnlyReviewGate：只输出此前未覆盖且仍有价值项，保留已吸纳/排除理由和覆盖增量 | 不得把已吸纳、已关闭或没必要项重新列入最终清单 |
@@ -168,6 +179,7 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 | generatedSiteVerification | N/A / required / optional；若 required，写构建产物、导航/footer/sidebar/outline/TOC 可见状态和 DOM/CSS 区分 |
 | userPathContractSweep | N/A / required / optional；若 required，写安装版本、配置契约、public types/runtime/examples/sidebar 证据 |
 | benchmarkRegression | N/A / required / optional；若 required，写基线、当前结果、阈值、不可比较因素、是否阻断发布 |
+| historicalCommonNormLayering | N/A / required / optional；若 required，写逐文件审查矩阵、legacy-index-retained、V74、targeted test、public docs 与 deploy copy 证据 |
 | databaseRecordMigrationExport | N/A / required / optional；若 required，写记录链、JSON/Extended JSON、insert/upsert、引用完整性和 dry-run |
 | findingProbeMatrix | N/A / required / optional；若 required，写 finding 矩阵、失败输入、修复前失败、修复后通过和发布面证据 |
 | guardPolicyBypassMatrix | N/A / required / optional；若 required，写 surface/specificity/action/op/namespace 矩阵和负向探针 |
@@ -233,8 +245,10 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 - 新增脚本前必须执行 `OneOffRequirementScriptPlacementGate`；验证命令执行前必须执行 `VerificationCommandSideEffectGate`。
 - docs/需求类 CP1 推荐确认前必须执行 `RequirementPreConfirmGate`；分阶段需求必须执行 `MultiPhaseClosureGate`；package/adapter/SDK/CLI 方案确认前必须执行 `PackageAdapterPreConfirmEvidenceGate`。
 - 输出 ArtifactLinkSet 前必须执行 `ArtifactLinkSetDedupeGate`，按 canonical path 去重同一物理文件的相对链接、绝对链接和 copy fallback，避免宿主文件面板展示成双份产物。
-- 用户文档站、README、docs-first 最终手册、前端/API 对接契约或公开能力交付必须执行 `UserFacingDeliveryChainGate`；最终用户手册、文档站 IA、流程/失败处理和队列/任务类真实批量工作流分别执行 `FinalUserManualFirstGate`、`DocsSiteInformationArchitectureGate`、`UserManualFlowAndFailureGate`、`QueueDocsRealWorkflowGate`。
-- 长链路 fix/audit、外部 finding 批次或冻结 Review Checklist 后必须执行 `ReviewChecklistCompletenessGate` 与 `EvidenceExecutionGate`；每项没有可复现证据时不得宣告通过。
+- 规范吸纳、data 台账治理、用户确认“值得吸纳”的策略或新增门禁时必须执行 `LayeredAbsorptionGate` 和 `SkillFirstAbsorptionGate`，若判定 `new-skill-required`，TestRoute 至少覆盖新 Skill frontmatter、plugin 注册、路由说明、promptTemplate、executionConsumer、validationProbe、publicDocs 和 deployCopy；若采纳用户原方案，必须记录 `ProactiveBetterAlternativeGate` 的独立验证依据。
+- 历史通用规范、prompt/report 长清单、旧吸纳项或跨版本规范资产重新分层时必须执行 `HistoricalCommonNormLayeringGate`；进入实施前先创建逐文件审查矩阵，验证路线至少包含 targeted tests、`node scripts/validate.js`、public docs、deploy copy 和 ProfileImpactCheck。
+- 用户文档站、README、docs-first 最终手册、前端/API 对接契约或公开能力交付必须优先触发 `user-manual-authoring` 并执行 `UserFacingDeliveryChainGate`；最终用户手册、文档站 IA、流程/失败处理和队列/任务类真实批量工作流分别执行 `FinalUserManualFirstGate`、`DocsSiteInformationArchitectureGate`、`UserManualFlowAndFailureGate`、`QueueDocsRealWorkflowGate`。
+- 长链路 fix/audit、外部 finding 批次或冻结 Review Checklist 后必须触发 `review-checklist`，执行 `ReviewChecklistCompletenessGate` 与 `EvidenceExecutionGate`；每项没有可复现证据时不得宣告通过。
 - runtime/adapter/SDK/CLI/module-format/exports/bin/files/dist/tsc 输出变化必须执行 `BuiltArtifactFeatureSmokeGate` 与 `TscOutputImportProbe`；不得只用源码测试或 root export smoke 替代构建产物 feature path。
 - 文档站/官网导航、footer、sidebar、outline、手写 TOC、语言切换或公开能力页首次成功路径变化必须执行 `GeneratedSiteGate`、`ManualTocDuplicationGate` 与 `UserPathContractSweep`，以当前构建产物或真实预览为准。
 - 性能敏感项目或已有 benchmark 基线的 hot path 修改必须执行 `BenchmarkRegressionGuard` 判定；跳过代表性 benchmark 需写 `N/A + skipReason`、风险和替代证据。

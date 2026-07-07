@@ -87,6 +87,9 @@ description: 项目工程审查维度 PE-1~PE-12 — 代码质量/项目结构/�
 - 指定模块或相邻范围变更需检查 `AdjacentScopeExpansionGuard`；包名/发布名/安装说明需检查 `PackageNameAuthorityGate`
 - 性能第一、benchmark 或优化声明需检查 `PerformanceBenchmarkFirstGate`；公开模块、SDK、CLI 或插件承诺需检查 `PublicModuleDifferentiationGate`
 - data 吸纳任务需检查 `WorkspaceDataAbsorptionScopeGate`；正式流程图需检查 `FlowchartNodeExplanationGate`；遗漏专审需检查 `OmissionOnlyReviewGate`；审查发现 intake 需检查 `ReviewFindingIntakeGate`；复审收敛需检查 `ReviewDimensionDeltaGate`；用户文档需检查 `UserPerspectiveDocsGate`、`PublicUserDocsMaintainerBoundaryGate` 与 `DocsConsumerSweep`；最终报告需检查 `ActiveRequirementFinalResponseGate`；产物链接需检查 `ArtifactLinkSetDedupeGate`；DevCodex v2 正式规划需检查 `V2FormalSolutionPackage`
+- legacy / compat / route / reference-code 审查需检查 `SemanticLegacyRouteExposureGate`、`ReferenceCodeTruthSamplingGate` 与 `RouteNamespaceResponsibilityGate`：不只看 label，还要检查 slug、href、title、sidebar、search、generated HTML；行为断言抽样核代码、类型或运行时证据，并区分服务名和历史路由命名空间职责
+- 首页、详情、列表、搜索或接口数据返回空白风险需检查 `FrontendAsyncCacheRenderGate` / `StaleWhileRevalidateGate`：旧缓存先渲染并异步刷新替换，不得 loading-only、空白或同步阻塞取数；涉及数据库 / 队列 / 缓存真实数据源时追加 `AsyncDbTruthSourceVerificationGate`
+- 给同事、跨机器或对外分享的报告、脚本、文档或验证产物需检查 `PortableExternalArtifactGate`：不得写死本机绝对路径、私有 `.devcodex` 路径或个人工作区前提
 
 ## N/A 规则
 

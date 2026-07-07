@@ -2,7 +2,7 @@
 applyTo: "**"
 description: analyze 工作流规则，覆盖只读分析、代码取证顺序、多轮收敛与推荐结论
 priority: P4
-version: 1.11.26
+version: 1.11.27
 ---
 # 分析工作流规则（13-analyze）
 
@@ -94,6 +94,8 @@ version: 1.11.26
 - 文档与实现不一致时，需判断文档是否代表产品目标或历史承诺；测试覆盖不足时，优先建议补测试、复现脚本或验证证据。
 
 ### CrossProjectLearnedGuards 分析侧取证
+
+- 发现用户确认的“未完整吸纳 / 半覆盖 / 缺探针 / 缺 Skill / 缺 Prompt / 缺部署副本”时，分析报告必须列出 `ConfirmedAbsorptionCompletenessGates` 候选，并按 `LayeredAbsorptionGate` 预判 `PublicSurfaceClosureGate`、`UserManualProductizationGate`、`UserManualRenderedFlowAndRealWorkflowProbe`、`SampleIssueExpansionGate`、`RequirementDimensionBindingGate`、`RequirementPriorityAndPhaseGate`、`ReviewAnchorMaterializationGate`、`SemanticLegacyRouteExposureGate`、`ReferenceCodeTruthSamplingGate`、`FrontendAsyncCacheRenderGate`、`StaleWhileRevalidateGate`、`PortableExternalArtifactGate`、`StrongestProfileSourceGate`、`ServiceSpecificResidueSweep`、`ProfileReadChainGate`、`ServiceNormCoverageGate`、`RouteNamespaceResponsibilityGate`、`RemoteCIParityPushGate`、`OfficialApiEvidenceGate`、`AsyncDbTruthSourceVerificationGate`、`DocsPageRoleMatrixGate`、`CompleteUserManualSiteMatrixGate`、`EvolutionCapabilityControlPlaneGate`、`FrameworkCapabilityAutoFirstGate` 与 `DocsThemeRuntimeVisualProbeGate` 的目标 Skill、触发价值和验证路线；分析阶段只读，等待用户确认后实施。
 
 - 前端/Figma/截图/既有页面分析涉及 UI 还原、视觉漂移、真实 preview、状态回归、生产资产或运行时本地化时，应检查 `FigmaHighFidelityRestorationGate`、`ScopedVisualChangeGate`、`InstalledPluginVisualVerificationGate`、`ActualPreviewChainAndMockFallbackGate`、`UIStateScopeRegressionGate`、`FigmaProductionAssetBudgetGate` 与 `RuntimeI18nArtifactVerificationGate`，并标明证据范围。
 - 分析结论涉及提交边界、兼容修复、上游契约、UI 主真相源冲突、公开文档版本、集合关系命名或验证产物语言时，应分别检查 `ExplicitCommitAuthorizationGate`、`CompatibilityAndContractAuthorityGate`、`UIConfirmedSourceConflictTraceGate`、`PublicDocsReleasedVersionGate`、`CollectionRelationIdNamingGate` 与 `UserFacingVerificationArtifactLanguageGate`；若只是当前问题无关，写 `N/A + skipReason`。

@@ -6,7 +6,7 @@ description: 文档开发子类型规范 — 技术文档/API文档/README 编�
 
 ## 触发条件
 
-用户要求编写/更新文档：README、API 文档、架构文档、开发指南、CHANGELOG、迁移指南等。
+用户要求编写/更新文档：README、站点文档、用户使用文档、API 文档、架构文档、开发指南、CHANGELOG、迁移指南等。
 
 ## 豁免项
 
@@ -37,7 +37,9 @@ description: 文档开发子类型规范 — 技术文档/API文档/README 编�
 
 ## README 专项写作分支
 
-当目标文档是 `README.md` 或承担主使用入口职责的用户使用文档时，优先进入 README 专项分支，并调用 `readme-authoring`：
+当目标文档是站点文档、用户使用文档、最终用户使用文档、最终用户手册、README、quick start、接入手册或公开能力页时，优先调用 `user-manual-authoring`，先冻结用户主路径、文档落点和信息架构，再决定是否进入 README 专项分支。
+
+当目标文档是 `README.md` 或承担主使用入口职责的 README / 项目主文档时，在 `user-manual-authoring` 基础上继续调用 `readme-authoring`：
 
 - 默认第一受众是**用户 / 使用者**
 - 快速开始、常见用法、配置与排错必须早于开发/贡献内容
@@ -63,7 +65,11 @@ description: 文档开发子类型规范 — 技术文档/API文档/README 编�
 | 使用者视角 | 正式用户文档、README、官网/文档站、接口说明、运行手册执行 `UserPerspectiveDocsGate`，先回答这是什么、适合谁、如何第一次成功、常见任务、参数/字段/状态/错误、失败恢复、限制和下一步；要求足够详细、术语首次解释、示例真实、心智负担低 |
 | 即时理解 | README、官网/文档站、API/CLI/config 文档、快速开始和运行手册执行 `UserDocsImmediateComprehensionGate`，输出功能完整性、配置易懂性和首次读者即时理解三轴结论 |
 | 用户主面 | 用户使用文档、站点文档、文档站、README、quick start 或接入手册执行 `UserDocsPrimarySurfaceGate`，先冻结 `targetSurface`、`documentLocation` 和 `primaryAudience=用户/使用者`，确认首页首屏、quick start、nav/sidebar 前两组、CTA、reference、配置、常见任务和排错不是开发契约主叙事 |
-| 用户文档交付链 | docs-first、最终用户手册、站点文档、README 或公开能力页执行 `UserFacingDeliveryChainGate` / `FinalUserManualFirstGate`：先基于 `01-需求确认.md` / `01-产品需求.md` 冻结目标用户路径，再决定文档站或 README-minimum、条件契约文档、技术方案输入和 ECR 用户文档符合性 |
+| 用户文档交付链 | docs-first、最终用户手册、站点文档、README 或公开能力页执行 `user-manual-authoring` + `UserFacingDeliveryChainGate` / `FinalUserManualFirstGate`：先基于 `01-需求确认.md` / `01-产品需求.md` 冻结目标用户路径，再决定文档站或 README-minimum、条件契约文档、技术方案输入和 ECR 用户文档符合性 |
+| 用户文档产品化 | 用户文档、站点文档、README、quick start、接入手册和最终用户手册执行 `UserManualProductizationGate`：按最终使用者任务组织受众、配置、示例、排错、失败恢复和源码 / 示例可点击链路，内部字段和实现说明不得占主路径 |
+| 渲染流程与真实工作流 | Mermaid / 流程图 / quick start / 队列 / 异步文档执行 `UserManualRenderedFlowAndRealWorkflowProbe`：验证真实渲染，示例使用真实业务工作流，禁止硬编码单例冒充主路径 |
+| 页面角色矩阵 | 文档站或多页 README 执行 `DocsPageRoleMatrixGate` / `CompleteUserManualSiteMatrixGate`：每页标明 role、audience、sourceOfTruth、nav/sidebar 位置和是否用户主路径，完整手册站点覆盖入门、配置、任务、reference、排错、限制和下一步 |
+| 文档主题运行态 | 文档站主题、导航、搜索、代码高亮、移动端、暗色/亮色变化执行 `DocsThemeRuntimeVisualProbeGate`：验证真实运行态视觉和交互，不只看 Markdown 源码 |
 | 文档站信息架构 | 文档站或最终用户手册执行 `DocsSiteInformationArchitectureGate` 与 `UserManualFlowAndFailureGate`，区分用户手册、reference、operations、compatibility、implementation、maintainer 面，并覆盖整体流程、角色、第一次成功、失败分流、排查命令和恢复/降级 |
 | 真实工作流示例 | 队列、任务、异步处理、推送、导入导出或批处理文档执行 `QueueDocsRealWorkflowGate`：quick start 必须提供真实批量工作流，覆盖数据来源、筛选、批量 enqueue、payload schema、handler 业务动作、配置字段、失败/重试/幂等和观测 |
 | 消费链扫描 | 文档新增/调整命令、配置项、字段、状态、路径、能力承诺或阅读顺序时执行 `DocsConsumerSweep`，同步 README / website / Profile / prompts / templates / examples / nav/sidebar / validate probes / 部署副本与代码消费位置 |
@@ -134,6 +140,7 @@ description: 文档开发子类型规范 — 技术文档/API文档/README 编�
 
 - 文档文件（按项目目录结构放置）
 - 契约驱动型文档优先使用 `prompts/light-api-doc.prompt.md` 统一骨架
-- README / 主用户使用文档优先使用 `readme-authoring` + `prompts/project-readme.prompt.md`
+- 站点文档 / 用户使用文档 / 最终用户手册优先使用 `user-manual-authoring`
+- README / 主用户使用文档中的 README 专项分支使用 `user-manual-authoring` + `readme-authoring` + `prompts/project-readme.prompt.md`
 - 非契约驱动型 Markdown 文档优先使用 `prompts/general-doc.prompt.md`
 - 若更新 README/CHANGELOG：执行 `document-sync` 确认同步状态

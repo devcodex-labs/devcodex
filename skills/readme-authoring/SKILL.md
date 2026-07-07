@@ -8,7 +8,7 @@ description: README 写作规范 — 为 README / 用户使用文档收口用户
 
 当任务目标是 `README.md` 或项目主用户使用文档时，本 Skill 负责把“写什么、先写给谁看、哪些内容必须后置”收口为一套稳定规则。
 
-它不新增 workflow 子类型，仍由 `dev-docs` / `dev-init` 触发。
+它不新增 workflow 子类型，仍由 `dev-docs` / `dev-init` 触发。站点文档、最终用户手册、接入手册和公开能力页的主入口由 `user-manual-authoring` 承担；本 Skill 是其中的 README 专项分支。
 
 ## 触发条件
 
@@ -16,7 +16,8 @@ description: README 写作规范 — 为 README / 用户使用文档收口用户
 |------|:--------:|
 | 新建或改写 `README.md` | 🔴 必须 |
 | 初始化项目时生成 README | 🔴 必须 |
-| 面向真实使用者的主使用文档 | 🔴 必须 |
+| 面向真实使用者且落点为 README / 项目主文档 | 🔴 必须 |
+| 站点文档、最终用户手册、接入手册、公开能力页 | 先触发 `user-manual-authoring`，落点为 README 时再叠加本 Skill |
 | CONTRIBUTING / 架构文档 / 纯开发指南 | N/A |
 
 ## 默认受众模型
@@ -101,7 +102,8 @@ docs-first 最终用户手册的顺序必须服务目标版本最终可执行路
 
 ## 与其他 Skill 的关系
 
-- `dev-docs`：判断当前文档是否需要进入 README 专项分支。
+- `user-manual-authoring`：站点文档、最终用户手册、接入手册和公开能力页的优先入口；README 是其专项分支。
+- `dev-docs`：判断当前文档是否需要进入 `user-manual-authoring` 或 README 专项分支。
 - `dev-init`：初始化项目时默认用本 Skill 生成 README。
 - `document-sync`：代码/规范变更后检查 README 当前消费者与 `consumerMap`。
 - `audit-readme`：实施完成后对 README / 用户使用文档做专项 review。

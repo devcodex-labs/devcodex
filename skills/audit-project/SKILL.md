@@ -47,6 +47,12 @@ description: 项目工程审查维度 PE-1~PE-12 — 代码质量/项目结构/�
 - 缓存、队列、批处理和并发限制有边界，避免把性能优化变成无界内存占用
 - 若性能风险来自资源生命周期或清理缺失，必须同时按 `PE-12` 判定
 
+**PE-6 测试覆盖与验证门禁 🟡**
+- 存在 coverage 脚本、阈值、CI coverage 或发布前覆盖率要求时，审查 `CoverageGateDecision` 是否单独记录命令、工具、阈值、基线、当前值、状态和阻断/降级依据；不得把测试断言通过等同于覆盖率门禁通过
+- 外部 runtime、plugin、registry、adapter、provider、injected runtime 或 owner mutation 变更，检查 `ExternalRuntimePluginLifecycleGate` / `ExternalRegistryLifecycleMatrixGate` 是否覆盖 config 组合、生命周期转换、多实例共享、集合代数、批量部分成功和 reset/replace/dispose/clear
+- function source、hash、toString 或 fingerprint 参与 cache key、registry key、checkpoint、幂等或去重时，检查 `FunctionSourceFingerprintMatrixGate` 是否覆盖 false-positive / false-negative 样本和闭包、默认参数、global shadow、嵌套作用域等代表类别
+- 同一风险簇连续出现 ≥3 个 finding、返修或复审遗漏时，检查 `ClusterEscalationGate` / `RiskBasedValidationLadder` 是否先冻结风险模型、矩阵、替换策略和停止条件，再按 targeted / related suite / full gate 分层验证
+
 **PE-7 依赖健康度 🟡**
 - Node.js 项目默认 `engines.node`、CI matrix、Profile 与 README 不低于 `>=18`；低于 v18 有业务理由、风险和验证证据
 - 依赖升级 / 兼容修复已区分 `业务源码平滑性` 与 `依赖层落地条件`
@@ -83,6 +89,8 @@ description: 项目工程审查维度 PE-1~PE-12 — 代码质量/项目结构/�
 - 人工复核、视觉检查、手工冒烟或外部页面观察需有 `ManualReviewEvidenceRetention`，包含范围、输入、观察结果、截图/日志或等价证据
 - adapter、provider、connector、SDK、benchmark 或性能优化需检查 `AdapterBenchmarkAttribution`，确认基线、环境、版本、负载和归因边界清晰
 - 验证路线需检查 `VerificationScopeBudgetGate`：高风险不低配验证，低风险不为形式扩大压测/E2E/外部依赖
+- 测试覆盖、coverage 阈值、CI coverage 或发布前覆盖率声明需检查 `CoverageGateDecision`，区分断言通过、相关 suite 通过、coverage gate 通过、known-red 与 N/A
+- 外部 runtime / plugin / registry / adapter / provider / injected runtime 能力需检查 `ExternalRuntimePluginLifecycleGate`、`ExternalRegistryLifecycleMatrixGate`、`FunctionSourceFingerprintMatrixGate`、`ClusterEscalationGate` 与 `RiskBasedValidationLadder`，避免只用 happy path 或单例函数对象覆盖公共运行时风险
 - 产品需求整理需检查 `ProductRequirementTraceabilityGate`；本机/跨环境执行配置需检查 `LocalExecutionConfigProbe`；真实联调或人工证据需检查 `ManualReviewEvidenceDataRetention`
 - 指定模块或相邻范围变更需检查 `AdjacentScopeExpansionGuard`；包名/发布名/安装说明需检查 `PackageNameAuthorityGate`
 - 性能第一、benchmark 或优化声明需检查 `PerformanceBenchmarkFirstGate`；公开模块、SDK、CLI 或插件承诺需检查 `PublicModuleDifferentiationGate`

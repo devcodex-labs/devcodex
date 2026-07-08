@@ -62,6 +62,8 @@ applyTo: ".devcodex/**/reports/audit/**, .devcodex/**/reports/self-fix/**"
 | 新增探针 | |
 | 黄色偏离 | |
 | 部署同步证据 | |
+| CoverageGateDecision / RiskBasedValidationLadder | coverage 命令、工具、阈值、基线、当前值、passed/failed/known-red/N/A、targeted/related/full gate 层级和 skipReason |
+| ExternalRuntimePluginLifecycleGate / ExternalRegistryLifecycleMatrixGate / FunctionSourceFingerprintMatrixGate / ClusterEscalationGate | runtime/plugin/registry 生命周期矩阵、fingerprint false-positive/false-negative 样本、clusterId、whyMissed、冻结矩阵、停止条件、rerunEvidence |
 | FrontendExperienceQualityGate | 设计来源 / UI 还原度 / 风格主题 / 响应式状态 / 视觉验证 / 用户流 / 交互反馈 / 输入方式 / 错误恢复 / 动效转场 / FigmaHighFidelityRestorationGate / ActualPreviewChainAndMockFallbackGate / RuntimeI18nArtifactVerificationGate |
 | CrossProjectLearnedGuards | GovernanceGateRegistry gateGroup / ownerSkill / validationRoute / evidence / skipReason；anchors: CodeTruthRequirementGate / ManualReviewEvidenceRetention / ReviewFindingIntakeGate / UserDocsPrimarySurfaceGate / ActiveRequirementFinalResponseGate / V2FormalSolutionPackage |
 | OmissionOnlyReviewGate | 已覆盖集合 / 新增覆盖 / 遗漏候选 / 排除理由 / 收敛状态 |

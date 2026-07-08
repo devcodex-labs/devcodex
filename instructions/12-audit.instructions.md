@@ -2,7 +2,7 @@
 applyTo: "**"
 description: audit 工作流规则，覆盖审查目标路由、收敛门禁、元循环与只读边界
 priority: P4
-version: 1.11.28
+version: 1.11.29
 ---
 # 审计工作流规则（12-audit）
 
@@ -231,7 +231,7 @@ R2 及以后轮次必须把复审从“同一维度反复跑一遍”改为“�
 - A — 结构 🔴/🟡：PE-1 项目结构合理性 · PE-5 可维护性
 - B — 健壮性 🔴/🟡：PE-2 错误处理 · PE-3 安全性 · PE-4 性能隐患 · PE-12 资源生命周期与泄漏风险（内存泄露、资源泄漏、监听器/定时器/连接/流未释放、缓存无界增长）
 - C — 接口 🔴/🟡：PE-8 接口一致性 · PE-10 配置管理
-- D — 质量 🟡/💡：PE-6 测试覆盖 · PE-7 依赖健康度
+- D — 质量 🟡/💡：PE-6 测试覆盖 · PE-7 依赖健康度；存在 coverage 阈值、CI coverage、外部 runtime/plugin/registry/adapter 生命周期或 function source fingerprint 风险时，叠加 `CoverageGateDecision`、`ExternalRuntimePluginLifecycleGate`、`ExternalRegistryLifecycleMatrixGate`、`FunctionSourceFingerprintMatrixGate`、`ClusterEscalationGate` 与 `RiskBasedValidationLadder`
 - E — 可观测 🟡：PE-9 日志 · PE-11 数据层质量
 - 前端项目或包含用户可见 UI 的项目工程审查需叠加 `FrontendExperienceQualityGate`：检查视觉一致性、交互反馈、焦点/输入方式、错误恢复、动效转场、Browser/截图/E2E 证据、浏览器验证预算、用户自验 override、视觉偏差类型和设计帧用途分类；不涉及前端体验时写 `N/A + skipReason`
 - 项目工程、通用文档、README、`user-manual` 或控制面审查遇到已吸纳泛化经验时，叠加 `GovernanceGateRegistry` 分组审查；audit 报告写 `gateGroup / ownerSkill / evidence / skipReason`，完整执行细节由对应 Skill 和 validate 探针承接。

@@ -2,7 +2,7 @@
 applyTo: "**"
 description: fix 工作流规则，覆盖子类型路由、CP 流程、修复三步扫描、执行期回退与 ECR
 priority: P4
-version: 1.11.28
+version: 1.11.29
 ---
 # 修复工作流规则（11-fix）
 
@@ -53,6 +53,8 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → 
 - **连接配置来源按用户 / 项目策略**：凡修复涉及脚本、测试、数据库 / SSH / MongoDB / 数据操作连接信息，默认可直写或沿用项目既有模式；只有用户或项目明确指定 `config.local.json`、env、`secretRef` 或 secret manager 时，修复方案才按该入口读取并在缺失时提醒补齐。
 - **AI 自启动服务清理**：若回归验证需要由 AI 启动 dev server、文档站、本地 API/mock、数据库代理、SSH 隧道、Playwright/Cypress server 或压测 target，TestRoute/报告必须记录启动命令、cwd、PID/job、端口/URL；验证完成、失败或最终回复前必须停止仅由 AI 本轮启动的服务并核验端口释放。用户明确要求保留服务时，报告保留原因、PID/端口和关闭方式；不得杀用户既有进程。
 - **LeakRiskStabilityPressureTest**：修复内存泄露、资源泄漏、稳定性、性能退化、连接/监听器/定时器/流/socket/worker/订阅/缓存增长等问题，或回归测试触及长运行和高并发路径时，TestRoute 必须纳入泄漏风险稳定性压测；未触发时写 `N/A + skipReason`。
+- **CoverageGateDecision / ClusterEscalationGate**：项目存在 coverage 脚本、阈值、CI coverage 或发布覆盖率要求时，必须单独判定 coverage gate；同一风险簇连续出现 ≥3 个 finding、返修或复审遗漏时，先触发 `ClusterEscalationGate` / `RiskBasedValidationLadder`，再补测试或改代码。
+- **ExternalRuntimePluginLifecycleGate / FunctionSourceFingerprintMatrixGate**：修复外部 runtime、plugin、registry、adapter、provider、injected runtime、owner mutation 或 function source/hash/toString/fingerprint 参与 key/checkpoint/去重路径时，TestRoute 必须覆盖生命周期矩阵、registry 矩阵和 fingerprint 误判矩阵。
 - **BenchmarkRegressionGuard**：修复触及已有 benchmark 基线项目的 hot path（runtime / validator / parser / cache / adapter 等）时，即使本轮不是性能优化，也必须判定是否跑代表性 benchmark regression；超过阈值时阻断发布或进入用户确认的性能 / 正确性取舍。
 - **FrontendExperienceQualityGate**：修复前端页面、组件、控制台、官网、文档站、可视化工具或游戏体验问题时，必须判定 `frontend-runtime` gateGroup；TestRoute 按风险选择 Browser/截图/E2E、console/network/resource/runtime、代码级替代证据或 `N/A + skipReason`。Figma/截图/既有页面、资源、本地化、状态回归和浏览器验证预算等子门禁由 `test-router` 与目标 UI/审查 Skill 承接。
 - **CrossProjectLearnedGuards / GovernanceGateRegistry**：修复涉及已吸纳泛化经验、审查清单证据化、用户文档（`user-manual`）、前端运行态、发布/pack、Profile/service、public surface、兼容契约或自我进化控制面时，只在 fix 层记录 `gateGroup / ownerSkill / validationRoute / skipReason`，完整 Gate 正文以 `spec-governance` 的 `GovernanceGateRegistry`、目标 Skill、report 和 validate 探针为准。

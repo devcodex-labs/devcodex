@@ -74,6 +74,7 @@
  * V76 review escape record sync（复审遗漏 escape record、防复发字段与报告/探针闭环）
  * V77 native command exit code sync（发布 / pack / install smoke 原生命令真实退出码防假阳性）
  * V78 review scope drift docs IA sync（确认后复审、开发偏移、验证计划、用户建议根因与文档 IA）
+ * V79 coverage gate and external runtime lifecycle matrix sync（coverage 独立门禁、外部 runtime/plugin/registry 生命周期矩阵、函数源码 fingerprint 与同风险簇分层验证）
  *
  * Exit: 0=OK, 1=error, 2=warnings only
  */
@@ -558,7 +559,8 @@ const {
   checkV75,
   checkV76,
   checkV77,
-  checkV78
+  checkV78,
+  checkV79
 } = buildGovernanceTailChecks({
   ROOT,
   ACTIVE_DEVCODEX_ROOT,
@@ -960,6 +962,7 @@ checkV75()
 checkV76()
 checkV77()
 checkV78()
+checkV79()
 
 console.log('')
 if (errors.length) {

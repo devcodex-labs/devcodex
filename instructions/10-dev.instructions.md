@@ -2,7 +2,7 @@
 applyTo: "**"
 description: dev 工作流规则，覆盖子类型路由、CP 流程、计划复审、执行期回退与 ECR
 priority: P4
-version: 1.11.28
+version: 1.11.29
 ---
 # 开发工作流规则（10-dev）
 
@@ -81,6 +81,7 @@ CP1（需求确认）→ PR-1 内部自检 → CP2（方案确认）→ plan-rev
 16. **连接配置来源按用户 / 项目策略**：凡 CP2/CP3 涉及脚本、测试、数据库 / SSH / MongoDB / 数据操作连接信息，默认可直写或沿用项目既有模式；只有用户或项目明确指定 `config.local.json`、env、`secretRef` 或 secret manager 时，方案才按该入口读取并在缺失时提醒补齐。
 17. **AI 自启动服务清理**：若开发验证需要由 AI 启动 dev server、文档站、本地 API/mock、数据库代理、SSH 隧道、Playwright/Cypress server 或压测 target，CP3/TestRoute 必须记录启动命令、cwd、PID/job、端口/URL；验证完成、失败或最终回复前必须停止仅由 AI 本轮启动的服务并核验端口释放。用户明确要求保留服务时，报告保留原因、PID/端口和关闭方式；不得杀用户既有进程。
 18. **LeakRiskStabilityPressureTest**：写测试用例或规划回归验证时，CP2/CP3/TestRoute 必须按项目情况判定是否需要泄漏风险稳定性压测；涉及长运行服务、高并发路径、缓存/队列/连接池、监听器/定时器、连接/文件/流/socket/worker、订阅、前端组件生命周期或 `PE-12` 发现时，必须纳入场景/负载/稳定性验证；未触发时写 `N/A + skipReason`。
+   - **CoverageGateDecision / ExternalRuntimePluginLifecycleGate**：项目存在 coverage 脚本、阈值、CI coverage 或发布覆盖率要求时，CP2/CP3/TestRoute 必须单独判定 coverage gate；外部 runtime、plugin、registry、adapter、provider、injected runtime、owner mutation 或 function source/hash/toString/fingerprint 参与 key/checkpoint/去重时，TestRoute 必须触发 `ExternalRegistryLifecycleMatrixGate`、`FunctionSourceFingerprintMatrixGate`，同风险簇连续返修时触发 `ClusterEscalationGate` 与 `RiskBasedValidationLadder`。
 19. **FrontendExperienceQualityGate**：前端页面、组件、控制台、官网、文档站、可视化工具或游戏任务，CP1/CP2/TestRoute 必须判定 UI / 交互体验门禁；命中时覆盖设计来源、还原度、风格主题、响应式状态、视觉验证、用户流、交互反馈、输入方式/可访问性、错误恢复和动效转场；Figma/截图/既有页面还原追加 `FigmaHighFidelityRestorationGate`、`ScopedVisualChangeGate`、`InstalledPluginVisualVerificationGate`、`ActualPreviewChainAndMockFallbackGate`、`FrontendRuntimeNetworkProbeGate`、`UIStateScopeRegressionGate`、`FigmaProductionAssetBudgetGate`、`RuntimeI18nArtifactVerificationGate`、`VisualDeviationTypeGate` 与 `DesignFramePurposeClassificationGate`；浏览器验证先执行 `FrontendBrowserVerificationBudgetGate`，用户明确自验或禁止浏览器/截图时执行 `UserSelfVerificationOverrideGate`；纯后端、纯 CLI、纯文档或无界面任务写 `N/A + skipReason`。
 20. **UserPerspectiveDocsGate / UserDocsImmediateComprehensionGate / UserDocsPrimarySurfaceGate / PublicUserDocsMaintainerBoundaryGate / DocsConsumerSweep**：文档开发、README、官网/文档站、接口说明、运行手册、需求/方案或用户可读验证产物必须从使用者角度组织，覆盖第一次成功、常见任务、字段/参数/状态/错误解释、失败恢复、限制与下一步；README、站点文档、文档站、quick start 或接入手册必须先冻结 `targetSurface`、`documentLocation` 与 `primaryAudience=用户/使用者`，抽查首页首屏、quick start、nav/sidebar 前两组、CTA、reference 入口、配置、常见任务和排错，确认主路径不是开发契约/目标设计/维护者验收；用户文档审查需输出功能完整性、配置易懂性和即时理解三轴结论；公开用户文档不得混入维护者验收、发布 checklist、内部同步清单或台账状态；文档新增/调整命令、配置项、字段、状态、路径、能力承诺或阅读顺序时，同步扫描当前消费者和代码消费点。
 21. **RequirementPreConfirmGate / RequirementVerdictStateSyncGate / MultiPhaseClosureGate**：docs/需求类任务推荐确认 `01-需求确认.md` / `01-产品需求.md` 前，必须检查验收是否行为可验证、范围/非目标是否存在核心语义冲突、分布式或调度类高风险路径是否具备 fail-safe 语义；需求修订、再次复审或宣布“可确认 / 暂不通过”前，必须同步需求真相源顶部状态、推荐结论、修复清单、audit-state decision、sessions / SUMMARY 口径；分阶段需求还须列出 Phase 2+ 到最终关闭的入口/退出门禁、验证证据、用户确认点和实施进度真相源。

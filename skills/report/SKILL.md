@@ -78,6 +78,7 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 |----------|----------|----------|
 | ExecutionContract | Auto / 控制面 / 多批次 / 预计修改 ≥10 文件 / release 前置任务 | 列出 scope、allowedPaths、requiredArtifacts、validationRoute、deviationPolicy、rollbackPlan |
 | TestRoute | 跨模块、接口、Hook/CLI、模板-示例-校验链、测试路径不明显的任务 | 列出 changeType、routes、commands、skipReason、blockingLevel |
+| CoverageGateDecision / ExternalRuntimePluginLifecycleGate / ExternalRegistryLifecycleMatrixGate / FunctionSourceFingerprintMatrixGate / ClusterEscalationGate / RiskBasedValidationLadder | coverage 门禁、外部 runtime/plugin/registry/adapter/provider 生命周期、function source fingerprint、同风险簇返修或风险分层验证被触发 | 列出 coverage 命令/工具/阈值/基线/当前值/状态；runtime/plugin/registry 矩阵；fingerprint false-positive/false-negative 样本；clusterId、触发计数、whyMissed、冻结矩阵、停止条件和 targeted/related/full gate 层级；未触发写 `N/A + skipReason` |
 | ReleaseVerification | 用户明确要求正式发版、tag、publish 或已进入发布前验证 | 列出 R0~R7 的验证结果与证据；如存在远端 CI，补 R3c 目标 commit CI 绿色证据或 `N/A + skipReason`；pack/publish/install smoke 证据必须包含 `NativeCommandExitCodeGate` 的 command、shell、cwd、exitCode 与 auth/config 来源 |
 | ReleaseAudit | 用户要求发版前 review、publish/tag 前风险审查或 audit.发布前审查 | 列出 RL-1~RL-10 审查结果、风险、证据与推荐结论 |
 | ConceptSyncMap | 控制面、模板-示例-校验链、README/website/Profile/validate/部署副本联动任务 | 列出 sourceOfTruth、currentConsumers、historicalMirrors、validateProbes、deployCopies、yellowDeviationBoundary |

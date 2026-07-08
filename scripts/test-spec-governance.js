@@ -901,6 +901,13 @@ mustIncludeInChangelogs('VerificationPlanMaterializationProbe')
 mustIncludeInChangelogs('AcceptedSuggestionRootCauseGate')
 mustIncludeInChangelogs('ChinesePrimaryExpressionGate')
 mustIncludeInChangelogs('V78')
+mustIncludeInChangelogs('CoverageGateDecision')
+mustIncludeInChangelogs('ExternalRuntimePluginLifecycleGate')
+mustIncludeInChangelogs('ExternalRegistryLifecycleMatrixGate')
+mustIncludeInChangelogs('FunctionSourceFingerprintMatrixGate')
+mustIncludeInChangelogs('ClusterEscalationGate')
+mustIncludeInChangelogs('RiskBasedValidationLadder')
+mustIncludeInChangelogs('V79')
 
 for (const [file, needle] of [
   ['scripts/lib/validate-governance-tail.js', 'checkV74'],
@@ -1069,6 +1076,31 @@ for (const [file, needle] of [
   ['README.md', 'AcceptedSuggestionRootCauseGate'],
   ['website/docs/guide/development.md', 'DevelopmentDriftGate'],
   ['changelogs/releases/v1.11.28.md', 'V78']
+]) {
+  mustInclude(file, needle)
+}
+
+const checkV79 = 'CoverageGateDecision'
+for (const [file, needle] of [
+  ['scripts/lib/validate-governance-tail.js', 'checkV79'],
+  ['scripts/lib/validate-governance-tail.js', checkV79],
+  ['scripts/lib/validate-governance-tail.js', 'ExternalRuntimePluginLifecycleGate'],
+  ['scripts/lib/validate-governance-tail.js', 'FunctionSourceFingerprintMatrixGate'],
+  ['scripts/lib/validate-governance-tail.js', 'RiskBasedValidationLadder'],
+  ['scripts/validate.js', 'checkV79()'],
+  ['skills/test-router/SKILL.md', 'coverageGateDecision'],
+  ['skills/dev-testing/SKILL.md', '覆盖率门禁与风险分层验证'],
+  ['skills/audit-project/SKILL.md', 'PE-6 测试覆盖与验证门禁'],
+  ['skills/dev-plan-review/SKILL.md', 'PR-2 项目存在 coverage'],
+  ['skills/report/SKILL.md', 'targeted/related/full gate'],
+  ['instructions/10-dev.instructions.md', 'CoverageGateDecision / ExternalRuntimePluginLifecycleGate'],
+  ['instructions/11-fix.instructions.md', 'CoverageGateDecision / ClusterEscalationGate'],
+  ['instructions/12-audit.instructions.md', 'FunctionSourceFingerprintMatrixGate'],
+  ['prompts/report-dev.prompt.md', 'ExternalRuntimePluginLifecycleGate / ExternalRegistryLifecycleMatrixGate'],
+  ['prompts/report-fix.prompt.md', 'FunctionSourceFingerprintMatrixGate / ClusterEscalationGate'],
+  ['prompts/report-audit.prompt.md', 'CoverageGateDecision / RiskBasedValidationLadder'],
+  ['README.md', 'coverage 与外部 runtime 生命周期验证'],
+  ['website/docs/guide/development.md', '存在 coverage 阈值']
 ]) {
   mustInclude(file, needle)
 }

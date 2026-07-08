@@ -60,6 +60,9 @@ PR-7 测试与风险（🟡 标注，不阻断）
 - PR-2 三方 provider / connector / SDK 接入类方案未先区分业务功能接口与底层 provider adapter，缺少 provider metadata、内部 payload、上游 request 映射、标准化 result、错误 detail 字段级合同，或首个 provider 反向定义公共 contract
 - PR-2 包 / 库 / adapter / CLI 方案缺少代码实现层 + 包工程层检查，且未写 `N/A + skipReason`
 - PR-2 缺少 `VerificationPlanMaterializationProbe`：方案只有泛泛“测试策略”，没有可 grep 的验证计划、命令 / 矩阵路线、验收标准、退出条件或 TestRoute 输入；涉及性能、并发、发布、文档站、前端、缓存 / 异步数据时未逐项写 N/A 或证据路线
+- PR-2 项目存在 coverage 脚本、阈值、CI coverage 或发布前覆盖率要求，但方案缺少 `CoverageGateDecision`，未区分测试断言通过、coverage gate 通过、known-red、failed 或 N/A
+- PR-2 涉及外部 runtime、plugin、registry、adapter、provider、injected runtime、owner mutation 或 function source/hash/toString/fingerprint，但缺少 `ExternalRuntimePluginLifecycleGate` / `ExternalRegistryLifecycleMatrixGate` / `FunctionSourceFingerprintMatrixGate` 的验证矩阵或 `N/A + skipReason`
+- PR-2 同一风险簇连续 ≥3 个 finding、返修或复审遗漏，但缺少 `ClusterEscalationGate` / `RiskBasedValidationLadder` 的风险模型、矩阵、替换策略、停止条件和分层验证路线
 - PR-2 文档站、README、用户主路径或新增公开能力缺少 `SidebarPageRoleMaterializationProbe` / `SidebarGroupSemanticModelProbe`：未从当前 sidebar / nav / route 真相源生成页面 role、label、route、相邻页面职责、菜单组任务模型和生成站点验证计划
 - PR-2 触发跨项目已吸纳守门但缺少 `GovernanceGateRegistry` 分组判定、`gateGroup / ownerSkill / validationRoute / skipReason`、代表性 legacy anchors（如 `CodeTruthRequirementGate`、`ManualReviewEvidenceRetention`、`ReviewFindingIntakeGate`、`MethodLevelLeakPressureProbe`、`V2FormalSolutionPackage`）的证据
 - PR-2 前端页面、组件、控制台、官网、文档站、可视化工具或游戏任务缺少 `FrontendExperienceQualityGate` 判定，或命中后未覆盖设计来源、UI 还原度、风格主题、响应式状态、用户流、交互反馈、输入方式/可访问性、错误恢复、动效转场和视觉验证；Figma/截图/既有页面还原还须覆盖 `FigmaHighFidelityRestorationGate`、`ScopedVisualChangeGate`、`InstalledPluginVisualVerificationGate`、`ActualPreviewChainAndMockFallbackGate`、`UIStateScopeRegressionGate`、`FigmaProductionAssetBudgetGate` 与 `RuntimeI18nArtifactVerificationGate`
@@ -103,6 +106,9 @@ PR-7 测试与风险（🟡 标注，不阻断）
 | provider / connector / SDK 接入是否先冻结业务接口与字段级合同？ | 面向前端或业务调用方时先冻结业务功能契约；provider/model/operation 作为内部实现或配置维度；已覆盖 provider metadata、内部 payload、上游 request 映射、标准化 result、错误 detail；首个 provider 不反向定义统一 contract |
 | 包 / 库 / adapter / CLI 方案是否检查包工程层？ | 已覆盖 public API、public types、internal 工具、shared tests、benchmark、docs、scripts、dist/coverage、package metadata 与 changelog |
 | 验证计划是否物化？ | `VerificationPlanMaterializationProbe` 通过：方案有独立验证计划章节，列 static/unit/integration/docs/performance/pack/browser/API 等触发或 N/A、命令或等价证据、验收标准、退出条件和 TestRoute 输入；不能只写“测试策略” |
+| 覆盖率门禁是否独立判定？ | `CoverageGateDecision` 通过：项目有 coverage 脚本、阈值、CI coverage 或发布要求时，列命令、工具、阈值、基线、当前值、passed/failed/known-red/N/A 和 push/release 阻断依据 |
+| 外部 runtime / plugin / registry 生命周期矩阵是否完整？ | `ExternalRuntimePluginLifecycleGate` / `ExternalRegistryLifecycleMatrixGate` 通过：config 组合、生命周期转换、多实例共享、集合代数、批量部分成功、owner mutation reset/replace/dispose/clear 有验证路线；不触发时有 `N/A + skipReason` |
+| 函数源码 fingerprint 风险是否覆盖？ | `FunctionSourceFingerprintMatrixGate` 通过：function source/hash/toString/fingerprint 用作 key/checkpoint/去重时，有 false-positive / false-negative 样本和闭包、默认参数、global shadow、嵌套作用域等代表类别；不触发时有 `N/A + skipReason` |
 | 文档站 / 用户能力是否物化 page role 与 sidebar 任务模型？ | `SidebarPageRoleMaterializationProbe` / `SidebarGroupSemanticModelProbe` 通过：从当前站点配置或 docs inventory 生成 route / label / role / audience / sourceOfTruth / sidebar group，说明相邻页面职责和生成站点验证；不能只写“同步文档” |
 | TypeScript 类型迁移是否按公开契约与消费面推进？ | 不机械复制旧类型缺陷；跨模块业务契约、公开类型与配置类型优先集中到 types 契约层，本地 interface 有保留理由 |
 | 新增接口/函数/配置是否向后兼容现有调用方？（F-23 向后兼容）| 已确认；若有 Breaking Change 已在 §3 列出并提供迁移方案 |
@@ -172,6 +178,7 @@ PR-7 测试与风险（🟡 标注，不阻断）
 | 技术方案 §7.1 产品事实源→技术验证映射是否完整？ | CP1 需求方输入锚点 / 双方确认后的产品事实源 / 产品直接提供的 `01-产品需求.md` 逐项映射到设计点、TestRoute/测试类型、CP3任务锚点和技术通过标准 |
 | 是否有针对性的负向测试场景（异常/边界/失败路径）？ | 至少覆盖主要错误场景 |
 | TestRoute 是否体现验证范围预算与真实执行义务？ | `VerificationScopeBudgetGate` 匹配风险强度，`LiveVerificationExecutionObligation` 对“已验证/可运行/已发布”等声明有实际命令或等价证据 |
+| TestRoute 是否体现 coverage 与外部 runtime 风险？ | 命中时包含 `CoverageGateDecision`、`ExternalRuntimePluginLifecycleGate`、`ExternalRegistryLifecycleMatrixGate`、`FunctionSourceFingerprintMatrixGate`、`ClusterEscalationGate` 与 `RiskBasedValidationLadder` 的状态或 `N/A + skipReason` |
 | 前端体验验证是否纳入 TestRoute？ | 命中 `FrontendExperienceQualityGate` 时包含 Browser/截图/Playwright/E2E/人工复核等项目等价证据；未触发时有 `N/A + skipReason` |
 | 技术方案 §9 风险是否已识别关键风险？ | 至少列出 1 条技术风险 |
 | 每条风险是否有对应缓解措施？ | 无"待定"缓解措施 |

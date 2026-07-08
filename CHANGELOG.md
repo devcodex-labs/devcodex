@@ -9,6 +9,7 @@
 
 | 版本 | 日期 | 变更摘要 | 详细 |
 |------|------|---------|------|
+| [v1.11.29](./changelogs/releases/v1.11.29.md) | 2026-07-08 | 🔧 **coverage 与外部 runtime 生命周期验证收口**：新增 V79，固化 `CoverageGateDecision`、`ExternalRuntimePluginLifecycleGate`、`ExternalRegistryLifecycleMatrixGate`、`FunctionSourceFingerprintMatrixGate`、`ClusterEscalationGate` 与 `RiskBasedValidationLadder` | [查看](./changelogs/releases/v1.11.29.md) |
 | [v1.11.28](./changelogs/releases/v1.11.28.md) | 2026-07-08 | 🔧 **分析默认 Skill、复审收敛与发布退出码门禁收口**：归档 V75~V78，新增 `analyze-default`、`SpecRadarSubgate` / `GovernanceGateRegistry`、`PromptLongGateListDriftProbe`、`ReviewEscapeRecordGate`、`NativeCommandExitCodeGate`、`PostConfirmationReviewScopeGate`、`DevelopmentDriftGate` 与文档 IA / 中文主表达探针 | [查看](./changelogs/releases/v1.11.28.md) |
 | [v1.11.27](./changelogs/releases/v1.11.27.md) | 2026-07-07 | 🔧 **分层吸纳架构与历史通用规范迁移收口**：归档 V71~V74，新增 Skill-first / 分层吸纳架构、最终用户文档与复审清单独立 Skill、自我进化治理 Skill、完整吸纳补强、历史通用规范逐文件矩阵迁移和 V74 探针 | [查看](./changelogs/releases/v1.11.27.md) |
 | [v1.11.26](./changelogs/releases/v1.11.26.md) | 2026-07-06 | 🔧 **用户文档主面与 V70 吸纳门禁收口**：归档 V69/V70，固化需求复审状态同步、用户文档即时理解、用户文档主面、用户文档驱动交付链、复审证据化、构建产物 smoke、生成站点验证、公开用户路径契约和性能回归门禁 | [查看](./changelogs/releases/v1.11.26.md) |

@@ -69,6 +69,8 @@ applyTo: .devcodex/**/reports/requirements/**
 | ExecutionContract | ✅/N/A | ✅/⚠️ | |
 | TestRoute | ✅/N/A | ✅/⚠️ | |
 | LeakRiskStabilityPressureTest | ✅/N/A | ✅/⚠️ | leakRiskPressure 判定、基线、压力场景、冷却窗口、资源指标前后对比、skipReason |
+| CoverageGateDecision / RiskBasedValidationLadder | ✅/N/A | ✅/⚠️ | coverage 命令、工具、阈值、基线、当前值、passed/failed/known-red/N/A、targeted/related/full gate 层级和 skipReason |
+| ExternalRuntimePluginLifecycleGate / ExternalRegistryLifecycleMatrixGate / FunctionSourceFingerprintMatrixGate / ClusterEscalationGate | ✅/N/A | ✅/⚠️ | runtime/plugin/registry 生命周期矩阵、fingerprint false-positive/false-negative 样本、clusterId、whyMissed、冻结矩阵、停止条件、rerunEvidence |
 | FrontendExperienceQualityGate | ✅/N/A | ✅/⚠️ | 设计来源、UI 还原度、风格主题、响应式状态、视觉验证、用户流、交互反馈、输入方式/可访问性、错误恢复、动效转场、FigmaHighFidelityRestorationGate、ActualPreviewChainAndMockFallbackGate、RuntimeI18nArtifactVerificationGate、skipReason |
 | LayeredAbsorptionGate / SkillFirstAbsorptionGate | ✅/N/A | ✅/⚠️ | LayeredAbsorptionDecision：candidateId / classification / targetSkill / triggerTerms / ownedArtifacts / layerChecks(commonInstruction / skill / promptTemplate / executionConsumer / validationProbe / publicDocs / deployCopy) / validationRoute / consumerSync；兼容 SkillAbsorptionDecision |
 | HistoricalCommonNormLayeringGate | ✅/N/A | ✅/⚠️ | 逐文件审查矩阵、currentRole/matchedRules/targetLayer/targetOwner/action/semanticStrength/validation/skipReason、legacy-index-retained 项、V74 探针和部署副本同步 |
@@ -100,6 +102,7 @@ applyTo: .devcodex/**/reports/requirements/**
 |------|:----:|:------:|
 | TestRoute 覆盖 | ✅ 通过 / N/A | — |
 | 泄漏风险稳定性压测 | ✅ 通过 / N/A | baseline/cooldown/resourceMetrics |
+| Coverage / runtime lifecycle / fingerprint 验证 | ✅ 通过 / N/A | CoverageGateDecision / ExternalRuntimePluginLifecycleGate / FunctionSourceFingerprintMatrixGate / ClusterEscalationGate / RiskBasedValidationLadder |
 | 前端 UI / 交互体验验证 | ✅ 通过 / N/A | Browser/截图/E2E/人工复核 / FrontendRuntimeNetworkProbeGate |
 | 文档使用者视角、即时理解、主面与消费者扫描 | ✅ 通过 / N/A | UserPerspectiveDocsGate / UserDocsImmediateComprehensionGate / UserDocsPrimarySurfaceGate / DocsConsumerSweep |
 | 用户最终文档、生成站点与公开用户路径 | ✅ 通过 / N/A | UserFacingDeliveryChainGate / FinalUserManualFirstGate / GeneratedSiteGate / ManualTocDuplicationGate / UserPathContractSweep |

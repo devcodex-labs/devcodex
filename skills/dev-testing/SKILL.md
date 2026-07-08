@@ -24,6 +24,9 @@ description: 测试规范 — 单元测试/集成测试/API测试/E2E测试四�
 - 前端测试路线必须执行 `FrontendBrowserVerificationBudgetGate`：浏览器/交互验证按 required / optional / N/A 分层；用户明确自验或禁止浏览器/截图时执行 `UserSelfVerificationOverrideGate`，只保留代码级验证和残余风险说明。
 - 所有验证命令执行前必须执行 `VerificationCommandSideEffectGate`，优先无产物校验；写产物命令执行后扫描 git status/生成物并隔离或清理。
 - 测试路线必须同步执行 `VerificationScopeBudgetGate` 与 `LiveVerificationExecutionObligation`：验证强度匹配风险和变更面，声明“已验证/可运行/可点击/已安装/已发布”前必须真实执行对应命令、页面、接口、pack/install、registry/tag 查询或项目等价验证。
+- 项目存在 coverage 脚本、阈值、CI coverage 或发布覆盖率要求时必须同步执行 `CoverageGateDecision`：区分测试断言通过、相关 suite 通过与覆盖率门禁通过，报告命令、工具、阈值、基线、当前值和阻断/降级依据。
+- 外部 runtime、plugin、registry、adapter、provider、injected runtime 或 owner mutation 路径变更时必须同步执行 `ExternalRuntimePluginLifecycleGate` / `ExternalRegistryLifecycleMatrixGate`；function source、hash、toString 或 fingerprint 参与 key/checkpoint/去重时执行 `FunctionSourceFingerprintMatrixGate`。
+- 同一风险簇连续出现 ≥3 个 finding、返修或复审遗漏时必须触发 `ClusterEscalationGate` 与 `RiskBasedValidationLadder`，先冻结风险模型和测试矩阵，再按 targeted、related suite、full gate 分层验证。
 - 人工复核、视觉检查、手工冒烟、外部页面观察或无法自动化验证必须执行 `ManualReviewEvidenceRetention`，记录复核人/时间/范围/输入/观察结果/截图或日志位置。
 - 测试来源于产品需求整理、真实联调、本机/跨环境配置、包名/发布名、性能第一、公开模块承诺、兼容契约、集合关系命名或用户可见验证产物时，必须同步判定 `ProductRequirementTraceabilityGate`、`LocalExecutionConfigProbe`、`ManualReviewEvidenceDataRetention`、`PackageNameAuthorityGate`、`PerformanceBenchmarkFirstGate`、`PublicModuleDifferentiationGate`、`CompatibilityAndContractAuthorityGate`、`CollectionRelationIdNamingGate` 与 `UserFacingVerificationArtifactLanguageGate`；未命中时记录 `N/A + skipReason`。
 
@@ -78,6 +81,35 @@ description: 测试规范 — 单元测试/集成测试/API测试/E2E测试四�
 2. 最小证据包含：设计来源或既有风格依据、关键状态清单、桌面/移动或目标断点、核心用户流、反馈/错误恢复检查，以及 Browser/截图/Playwright/E2E/人工复核之一。
 3. 纯后端、纯 CLI、纯文档或无界面变更可标 `N/A + skipReason`。
 4. 若验证需要 AI 启动 dev server、文档站或浏览器自动化 target，必须同时执行 `ServiceLifecycleCleanup`。
+
+## 覆盖率门禁与风险分层验证（条件）
+
+`CoverageGateDecision` 用来防止把“测试断言通过”误写成“覆盖率通过”。项目存在 `test:coverage`、coverage 阈值、CI coverage check、发布前覆盖率要求或报告承诺覆盖率时，必须单独记录 coverage gate。
+
+| 判定项 | 触发条件 | 验证要求 |
+|--------|----------|----------|
+| coverage command | `package.json`、CI、Profile、README 或团队约定存在 coverage 命令 | 执行项目原生命令，或写 `known-red / N/A + skipReason` |
+| coverage threshold | 配置中有 lines / branches / functions / statements 阈值 | 报告阈值、当前值、差距和是否阻断 push/release |
+| coverage baseline | 项目历史存在基线或本轮修复宣称提升/不下降 | 记录基线来源、当前值和不可比较因素 |
+
+`RiskBasedValidationLadder` 用于同一风险簇迭代修复：微补丁优先跑 targeted tests 与相关 suite；当进入 push/release、公共 runtime / adapter / registry、构建/测试基础设施、相关 suite 失败或不稳定、用户明确要求 full test 时，升级到 full gate。未跑 full gate 必须写 `skipReason`、残余风险和下一升级条件。
+
+## 外部 runtime / plugin / registry 注入验证矩阵（条件）
+
+`ExternalRuntimePluginLifecycleGate` / `ExternalRegistryLifecycleMatrixGate` 适用于外部 runtime、plugin、registry、adapter、provider、injected runtime、owner mutation 或批量注册/注销路径。最小矩阵包括：
+
+| 矩阵轴 | 必查内容 |
+|--------|----------|
+| config 组合 | 默认、显式关闭、显式开启、injected runtime、缺省配置和冲突配置 |
+| 生命周期转换 | register、replace、reset、dispose、clear、失败后重试和重复调用 |
+| 多实例共享 | 多 registry / 多 owner / 多 runtime 的隔离与共享边界 |
+| 集合代数 | add/remove/union/intersection/difference 或项目等价集合操作 |
+| 批量部分成功 | 部分成功、部分失败、回滚/保留策略和错误报告 |
+| owner mutation | owner 替换、释放、清空、外部引用残留与资源回收 |
+
+`FunctionSourceFingerprintMatrixGate` 适用于 function source、hash、toString 或 fingerprint 参与 cache key、registry key、checkpoint、幂等或去重。必须覆盖 false-positive 与 false-negative 风险：同源码不同函数对象、同源码不同闭包/默认参数、稳定 global 与 shadowed global、解构、模板字面量、嵌套作用域、class/private/method key 等代表性类别；项目不使用函数源码指纹时写 `N/A + skipReason`。
+
+`ClusterEscalationGate` 触发后不得继续只补单个 case。报告先写明 `whyMissed`、原风险模型缺口、冻结后的矩阵、替换策略、停止条件和 rerunEvidence，再继续迭代。
 
 ## 四类测试规范
 

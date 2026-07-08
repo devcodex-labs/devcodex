@@ -54,6 +54,11 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 | `developmentDrift` | 是否进入编码前或实施中存在范围、验证路线、消费者同步或 dirty 边界偏移风险 |
 | `verificationPlanMaterialization` | CP2 / 技术方案是否需要物化验证计划、验收标准和退出条件 |
 | `docsIaReadability` | 是否涉及中文用户文档、pageRole、sidebar group、菜单命名或文档站 IA |
+| `coverageGateDecision` | 项目是否存在 coverage 脚本、阈值、CI coverage gate 或发布前覆盖率要求，需要区分测试断言通过与覆盖率门禁通过 |
+| `externalRuntimePluginLifecycle` | 是否涉及外部 runtime、plugin、registry、adapter、provider 或 injected runtime 注册/替换/释放生命周期 |
+| `functionSourceFingerprint` | 是否把 function source / hash / toString / fingerprint 用作 cache key、registry key、checkpoint、幂等或去重依据 |
+| `riskClusterEscalation` | 同一风险簇、同类 parser/serializer/runtime/registry 缺陷或同一审查维度是否连续出现 ≥3 个新增 finding / 返修 |
+| `riskBasedValidationLadder` | 是否处于同风险簇迭代修复，需要先做 targeted + related suite，再按发布/公共运行时风险升级 full gate |
 
 ## 路由矩阵
 
@@ -74,6 +79,10 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 | 真实预览 / mock fallback | ActualPreviewChainAndMockFallbackGate、FrontendRuntimeNetworkProbeGate、UIStateScopeRegressionGate：确认真实 preview URL、API target、路由入口、构建产物、console/network/failed requests、资源 404、hydration/runtime error 与受影响状态清单 | 不得用 mock、错误 target、临时服务、静态截图或构建成功冒充用户页面通过 |
 | Figma 生产资产 / 运行时 i18n | FigmaProductionAssetBudgetGate、RuntimeI18nArtifactVerificationGate：记录资产尺寸/体积/格式/来源/public 路径，核对源 JSON、构建合并产物和页面残留 key | WebP/SVG 内嵌位图检查、runtime page check、fallback 说明 |
 | 资源生命周期 / 泄漏稳定性风险 | LeakRiskStabilityPressureTest：判定是否需要场景/负载/稳定性压测，命中时记录 heap/RSS、active handles、监听器、连接数、缓存规模或项目等价指标的基线、压力过程、冷却后回落与清理证据 | 纯计算、静态文档、一次性脚本或无长生命周期资源变更可写 `N/A + skipReason` |
+| 覆盖率门禁 | CoverageGateDecision：项目存在 coverage 脚本、阈值、CI coverage 或发布要求时，单独判定 coverage gate 状态，不得用单测断言通过替代覆盖率通过 | 记录命令、工具、阈值、基线、当前值、known-red / failed / passed / N/A 和是否阻断 push/release |
+| 外部 runtime / plugin / registry 注入 | ExternalRuntimePluginLifecycleGate / ExternalRegistryLifecycleMatrixGate：外部 runtime、plugin、registry、adapter、provider 或 injected runtime 变更必须覆盖 config 组合、生命周期转换、多实例共享、集合代数、批量部分成功和 owner mutation reset/replace/dispose/clear | 低风险内部纯函数写 `N/A + skipReason`；公共 runtime / adapter / registry 变更不得只跑 happy path |
+| 函数源码 fingerprint / checkpoint | FunctionSourceFingerprintMatrixGate：function source、hash、toString 或 fingerprint 参与 cache key、registry key、checkpoint、幂等或去重时，必须覆盖稳定源码与闭包/默认参数/global shadow 等误判矩阵 | 记录 false-positive / false-negative 轴和代表性样本；未触发时写 `N/A + skipReason` |
+| 同风险簇迭代修复 | ClusterEscalationGate / RiskBasedValidationLadder：同一风险簇连续 ≥3 个 finding、返修或复审遗漏时，暂停点状补丁，冻结风险模型、矩阵、替换策略和停止条件；迭代中先跑 targeted + related suite，发布/公共运行时再升级 full gate | 报告写明 clusterId、触发计数、升级理由、当前验证层级和 full gate 触发/跳过依据 |
 | 本地服务验证 | ServiceLifecycleCleanup：记录启动命令、cwd、PID/job、端口/URL，并在验证完成、失败或最终回复前关闭仅由 AI 启动的服务 | 用户明确要求保留服务时，记录保留原因、PID/端口/URL 与关闭方式 |
 | 人工复核 / 手工验证 | ManualReviewEvidenceRetention：记录复核人/时间/范围/输入/观察结果/截图或日志位置 | 不得只写“人工检查通过”；无法留截图时写等价证据 |
 | 验证范围预算 / 真实执行 | VerificationScopeBudgetGate、LiveVerificationExecutionObligation：验证强度匹配风险，声明已验证前实际执行命令、页面、接口、pack/install、registry/tag 查询或等价验证 | 降级必须写阻塞原因、替代证据和残余风险 |
@@ -186,6 +195,11 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 | generatedSiteVerification | N/A / required / optional；若 required，写构建产物、导航/footer/sidebar/outline/TOC 可见状态和 DOM/CSS 区分 |
 | userPathContractSweep | N/A / required / optional；若 required，写安装版本、配置契约、public types/runtime/examples/sidebar 证据 |
 | benchmarkRegression | N/A / required / optional；若 required，写基线、当前结果、阈值、不可比较因素、是否阻断发布 |
+| coverageGateDecision | N/A / passed / failed / known-red；写 coverage 命令、工具、阈值、基线、当前值、阻断或降级依据 |
+| externalRuntimePluginLifecycle | N/A / required / optional；若 required，写 config 组合、生命周期转换、多实例共享、集合代数、批量部分成功和 owner mutation 证据 |
+| functionSourceFingerprint | N/A / required / optional；若 required，写 source/hash/toString/fingerprint 用途、false-positive/false-negative 样本和闭包/默认参数/global shadow 覆盖 |
+| clusterEscalation | N/A / required / optional；若 required，写 clusterId、触发计数、冻结矩阵、替换策略、停止条件和 rerunEvidence |
+| riskBasedValidationLadder | N/A / targeted / related-suite / full-gate；写当前层级、升级触发、未跑 full gate 的 skipReason 或发布前 full gate 证据 |
 | postConfirmationReviewScope | N/A / light / full；写触发依据、review-checklist 路径或 skipReason、PR-2~PR-7 证据 |
 | developmentDrift | N/A / required；写 allowedFirstBatch、blockedScope、driftTriggers、validationRoute、consumerSync、dirty boundary |
 | verificationPlanMaterialization | N/A / required；写验证计划章节、命令/矩阵、验收标准和退出条件 |
@@ -221,6 +235,11 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 - 高风险控制面变更不得只运行单个局部检查；至少执行 validate + targeted tests + SCV。
 - 验证路线必须执行 VerificationScopeBudgetGate：高风险、控制面、发布、资源生命周期或前端体验不能只跑轻量检查；低风险纯文档、纯计算或无状态改动也不得为了形式引入重压测、E2E 或外部依赖。
 - 声明“已验证 / 可运行 / 可点击 / 已发布 / 已安装”前必须执行 LiveVerificationExecutionObligation；未实际执行时只能写阻塞、降级证据和残余风险。
+- 项目存在 coverage 脚本、阈值、CI coverage 或发布覆盖率要求时必须执行 CoverageGateDecision；测试断言通过、相关 suite 通过或 `npm test` 部分通过不能自动等价为 coverage gate 通过。
+- 外部 runtime、plugin、registry、adapter、provider、injected runtime 或 owner mutation 路径变更必须执行 ExternalRuntimePluginLifecycleGate / ExternalRegistryLifecycleMatrixGate；至少覆盖 config 组合、生命周期转换、多实例共享、集合代数、批量部分成功和 reset/replace/dispose/clear 证据。
+- function source、hash、toString 或 fingerprint 参与 cache key、registry key、checkpoint、幂等或去重时必须执行 FunctionSourceFingerprintMatrixGate；不得只用同一个函数对象或硬编码单例证明稳定性。
+- 同一风险簇连续 ≥3 个 finding、返修或复审遗漏时必须执行 ClusterEscalationGate：先分析点状修复为何漏掉风险模型，再冻结矩阵、替换策略和停止条件。
+- 迭代修复可执行 RiskBasedValidationLadder：每个微补丁先跑 targeted + related suite；push/release、公共 runtime、构建/测试基础设施、相关 suite 不稳定或用户明确要求时升级 full gate。
 - 人工复核、视觉检查、手工冒烟或无法自动化验证必须执行 ManualReviewEvidenceRetention，保留范围、输入、观察结果、截图/日志或等价证据。
 - 从需求方原始输入、产品直接提供的完整需求、需求变更、PRD、Word、原型、截图、会议纪要、Bug 报告或用户消息提炼需求/问题时必须执行 ProductRequirementTraceabilityGate，先判定入口类型，保留 `00-需求概况.md` / `01-产品需求.md` / `00-需求变更概况.md` / `00-问题概况.md` / 原始附件来源锚点、`01-需求确认.md` / `01-需求变更确认.md` / `01-问题确认.md` 的 AI 提取口径、产品补充口径、产品原文锚点、双方确认状态和技术验证映射；有产品角色直接交完整需求时，AI / 研发只做缺口 / 冲突检查和澄清，缺口检查记录在 CP1 摘要、`02-技术方案.md` 或报告中，不写入产品模板正文，不生成或重写产品需求；不得只提交 AI 整理稿，不得把纯新需求、产品完整需求、需求变更、Bug 问题和产品确认混写，也不得要求需求方或产品额外填写验收标准、测试用例、数据库字段或接口 Schema。
 - 本机脚本、联调、数据库/SSH/HTTP 连接或跨环境执行依赖配置时必须执行 LocalExecutionConfigProbe；未指定配置模型时遵循 S02，不得主动新增 env/secret/config.local。

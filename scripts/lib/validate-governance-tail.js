@@ -2163,6 +2163,58 @@ function buildGovernanceTailChecks(ctx) {
     console.log('[V78] review scope, development drift and docs IA gates checked')
   }
 
+  function checkV79() {
+    const gates = [
+      'CoverageGateDecision',
+      'ExternalRuntimePluginLifecycleGate',
+      'ExternalRegistryLifecycleMatrixGate',
+      'FunctionSourceFingerprintMatrixGate',
+      'ClusterEscalationGate',
+      'RiskBasedValidationLadder'
+    ]
+
+    const changelogFiles = ['changelogs/unreleased.md']
+    const releasesDir = path.join(ROOT, 'changelogs', 'releases')
+    if (fs.existsSync(releasesDir)) {
+      for (const name of fs.readdirSync(releasesDir)) {
+        if (/^v\d+\.\d+\.\d+\.md$/.test(name)) changelogFiles.push(`changelogs/releases/${name}`)
+      }
+    }
+    const changelogCorpus = changelogFiles
+      .map(file => read(path.join(ROOT, file)))
+      .join('\n')
+
+    const probes = [
+      { file: 'skills/test-router/SKILL.md', needles: ['coverageGateDecision', 'externalRuntimePluginLifecycle', 'functionSourceFingerprint', 'riskBasedValidationLadder'].concat(gates) },
+      { file: 'skills/dev-testing/SKILL.md', needles: ['覆盖率门禁与风险分层验证', '外部 runtime / plugin / registry 注入验证矩阵'].concat(gates) },
+      { file: 'skills/audit-project/SKILL.md', needles: ['PE-6 测试覆盖与验证门禁'].concat(gates) },
+      { file: 'skills/dev-plan-review/SKILL.md', needles: ['PR-2 项目存在 coverage', '函数源码 fingerprint 风险是否覆盖'].concat(gates) },
+      { file: 'skills/report/SKILL.md', needles: ['CoverageGateDecision / ExternalRuntimePluginLifecycleGate', 'targeted/related/full gate'].concat(gates) },
+      { file: 'instructions/10-dev.instructions.md', needles: ['CoverageGateDecision / ExternalRuntimePluginLifecycleGate', 'FunctionSourceFingerprintMatrixGate'] },
+      { file: 'instructions/11-fix.instructions.md', needles: ['CoverageGateDecision / ClusterEscalationGate', 'ExternalRuntimePluginLifecycleGate / FunctionSourceFingerprintMatrixGate'] },
+      { file: 'instructions/12-audit.instructions.md', needles: ['CoverageGateDecision', 'FunctionSourceFingerprintMatrixGate'] },
+      { file: 'prompts/report-dev.prompt.md', needles: ['CoverageGateDecision / RiskBasedValidationLadder', 'ExternalRuntimePluginLifecycleGate / ExternalRegistryLifecycleMatrixGate'] },
+      { file: 'prompts/report-fix.prompt.md', needles: ['CoverageGateDecision / RiskBasedValidationLadder', 'FunctionSourceFingerprintMatrixGate / ClusterEscalationGate'] },
+      { file: 'prompts/report-audit.prompt.md', needles: ['CoverageGateDecision / RiskBasedValidationLadder', 'ExternalRuntimePluginLifecycleGate / ExternalRegistryLifecycleMatrixGate'] },
+      { file: 'README.md', needles: ['coverage 与外部 runtime 生命周期验证'].concat(gates) },
+      { file: 'website/docs/guide/development.md', needles: ['存在 coverage 阈值'].concat(gates) },
+      { file: 'scripts/test-spec-governance.js', needles: ['checkV79'].concat(gates) },
+      { file: 'scripts/validate.js', needles: ['V79 coverage gate and external runtime lifecycle matrix sync', 'checkV79()'] },
+      { file: 'changelog corpus', content: changelogCorpus, needles: ['V79'].concat(gates) }
+    ]
+
+    for (const probe of probes) {
+      const content = probe.content || read(path.join(ROOT, probe.file))
+      for (const needle of probe.needles) {
+        if (!content.includes(needle)) {
+          err(`[V79] coverage gate / external runtime lifecycle sync in ${probe.file}: missing "${needle}"`)
+        }
+      }
+    }
+
+    console.log('[V79] coverage gate and external runtime lifecycle matrix checked')
+  }
+
   return {
     checkV39,
     checkV40,
@@ -2203,7 +2255,8 @@ function buildGovernanceTailChecks(ctx) {
     checkV75,
     checkV76,
     checkV77,
-    checkV78
+    checkV78,
+    checkV79
   }
 }
 

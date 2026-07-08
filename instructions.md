@@ -211,7 +211,7 @@ S02 不再把“敏感信息、明文密码、连接字符串或硬编码”定�
 
 ### LayeredAbsorptionGate（分层吸纳架构）
 
-每条可泛化 PI / PF / GAP / ISSUE 或用户确认“值得吸纳”的策略，在进入规范源实施前必须先执行 `LayeredAbsorptionGate`，并兼容执行 `SkillFirstAbsorptionGate` / `CapabilityToSkillPromotionGate`。AI 不得把成组能力默认继续追加到 `CrossProjectLearnedGuards`、`LatestAbsorptionGuards` 或通用 instructions 长列表，也不得只在通用规范或 Skill 二选一。
+每条可泛化 PI / PF / GAP / ISSUE 或用户确认“值得吸纳”的策略，在进入规范源实施前必须先读取 `spec-absorption`，执行 `CommonNormGeneralizationGate` 与 `AbsorptionCandidateConsumerProofGate`，证明通用规范价值、剔除项目独有残留、绑定 DevCodex 当前消费者和 targetOwner；随后执行 `LayeredAbsorptionGate`，并兼容执行 `SkillFirstAbsorptionGate` / `CapabilityToSkillPromotionGate`。AI 不得把成组能力默认继续追加到 `CrossProjectLearnedGuards`、`LatestAbsorptionGuards` 或通用 instructions 长列表，也不得只在通用规范或 Skill 二选一。
 
 吸纳归属必须四选一：`global-invariant`（全局底线 / 路由 / 优先级）、`existing-skill-subgate`（并入既有 Skill 子门禁）、`new-skill-required`（新增独立 Skill）、`docs-only`（只作说明或历史镜像）。若能力具备多步骤流程、独立产物、状态/清单/模板、专属验证、跨工作流复用、或 3 条以上相关子规则，应优先判定为 `new-skill-required`。
 
@@ -239,14 +239,14 @@ CP2 / 技术方案 / 报告必须记录 `LayeredAbsorptionDecision`：`candidate
 
 ### ConfirmedAbsorptionCompletenessGates（确认吸纳完整性补强）
 
-用户确认“仍需吸纳清单”或复审指出“未完整吸纳 / 半覆盖 / 只有概念没有 Gate 或探针”时，必须把该批规则作为 `ConfirmedAbsorptionCompletenessGates` 处理：先复核是否仍有价值，再按 `LayeredAbsorptionGate` 分配到通用规范、既有 Skill 子门禁、新 Skill、Prompt、执行消费者、验证探针、公开文档和部署副本。不得因某个概念已经在文档里出现过，就跳过独立 Gate、探针或消费者同步。
+用户确认“仍需吸纳清单”或复审指出“未完整吸纳 / 半覆盖 / 只有概念没有 Gate 或探针”时，必须把该批规则作为 `ConfirmedAbsorptionCompletenessGates` 处理：先由 `spec-absorption` 复核是否仍有价值，剔除已完整吸纳、项目独有或仅适合作为 case evidence 的项，再按 `LayeredAbsorptionGate` 分配到通用规范、既有 Skill 子门禁、新 Skill、Prompt、执行消费者、验证探针、公开文档和部署副本。不得因某个概念已经在文档里出现过，就跳过独立 Gate、探针或消费者同步。
 
-本批确认吸纳项按 `GovernanceGateRegistry` 分组执行，未触发时写 `N/A + skipReason`。本节在通用层只保留索引和触发面；每个 Gate 的执行正文、证据字段和验证路线以 `spec-governance`、目标 Skill、Prompt/Report 模板和 validate 探针为准。
+本批确认吸纳项按 `GovernanceGateRegistry` 分组执行，未触发时写 `N/A + skipReason`。本节在通用层只保留索引和触发面；候选扫描、通用性证明和消费者证明以 `spec-absorption` 为准，记录分流与 SCV 以 `spec-governance` 为准，每个 Gate 的执行正文、证据字段和验证路线以目标 Skill、Prompt/Report 模板和 validate 探针为准。
 
 | gateGroup | 目标承接 |
 |------|----------|
 | `public-surface` | `PublicSurfaceClosureGate`、`SemanticLegacyRouteExposureGate`、`ReferenceCodeTruthSamplingGate`、`RemoteCIParityPushGate`、`PortableExternalArtifactGate` → `audit-release` / `release-verification` / `audit-readme` |
-| `user-manual` | `UserManualProductizationGate`、`UserManualRenderedFlowAndRealWorkflowProbe`、`DocsPageRoleMatrixGate`、`CompleteUserManualSiteMatrixGate`、`DocsThemeRuntimeVisualProbeGate` → `user-manual-authoring` |
+| `user-manual` | `UserManualProductizationGate`、`UserManualRenderedFlowAndRealWorkflowProbe`、`DocsPageRoleMatrixGate`、`CompleteUserManualSiteMatrixGate`、`DocsThemeRuntimeVisualProbeGate` → `user-manual-authoring` / `audit-user-manual` |
 | `review-checklist` | `SampleIssueExpansionGate`、`RequirementDimensionBindingGate`、`RequirementPriorityAndPhaseGate`、`ReviewAnchorMaterializationGate` → `review-checklist` / `audit-requirements` |
 | `frontend-runtime` | `FrontendAsyncCacheRenderGate`、`StaleWhileRevalidateGate`、`AsyncDbTruthSourceVerificationGate` → `audit-project` / `test-router` / `api-verification` |
 | `profile-service` | `StrongestProfileSourceGate`、`ServiceSpecificResidueSweep`、`ProfileReadChainGate`、`ServiceNormCoverageGate`、`RouteNamespaceResponsibilityGate` → `load-profile` / `profile-bootstrap` |
@@ -329,7 +329,7 @@ dev/fix 修改完成前必须判定是否影响 Profile。命中以下任一触�
 
 ### CrossProjectLearnedGuards（跨项目已吸纳守门）
 
-来自 `data/*.md`、复审、发布验证、同类项目实践或用户纠偏的可泛化规范被吸纳后，必须先走 `LayeredAbsorptionGate`、`SkillFirstAbsorptionGate` / `CapabilityToSkillPromotionGate` 与 `HistoricalCommonNormLayeringGate`。本节只保留 `legacy-index-retained` 索引、触发面和跨 Skill 路由；执行正文由 `GovernanceGateRegistry`、目标 Skill、TestRoute、report、document-sync、release-verification、audit 维度与 validate 探针承接。
+来自 `data/*.md`、复审、发布验证、同类项目实践或用户纠偏的可泛化规范被吸纳前，必须先走 `spec-absorption` 的通用性证明和消费者证明，再走 `LayeredAbsorptionGate`、`SkillFirstAbsorptionGate` / `CapabilityToSkillPromotionGate` 与 `HistoricalCommonNormLayeringGate`。本节只保留 `legacy-index-retained` 索引、触发面和跨 Skill 路由；执行正文由 `GovernanceGateRegistry`、目标 Skill、TestRoute、report、document-sync、release-verification、audit 维度与 validate 探针承接。
 
 | gateGroup | legacy-index-retained anchors |
 |------|------|
@@ -536,7 +536,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → 执行 →
 | 需求文档/PRD | RQ-1~RQ-8（加载 `audit-common` + `audit-requirements` Skill）|
 | 项目工程/代码质量 | PE-1~PE-12（加载 `audit-common` + `audit-project` Skill；含资源生命周期与泄漏风险审查）|
 | 报告文件 | RA-1~RA-6（加载 `audit-common` + `audit-report` Skill）|
-| 通用文档 | DA-1~DA-6（加载 `audit-common` + `audit-document` Skill）|
+| 通用文档 | DA-1~DA-6（加载 `audit-common` + `audit-document` Skill；用户侧文档 / 文档站 / 项目文档 review 额外叠加 `audit-user-manual`，README / 主入口文档再叠加 `audit-readme`）|
 | 发布前审查 | RL-1~RL-10（加载 `audit-common` + `audit-release` Skill；审查 release readiness，不替代 `release-verification` R0~R7）|
 
 ---

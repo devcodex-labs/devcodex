@@ -2,7 +2,7 @@
 applyTo: "**"
 description: audit 工作流规则，覆盖审查目标路由、收敛门禁、元循环与只读边界
 priority: P4
-version: 1.11.29
+version: 1.11.30
 ---
 # 审计工作流规则（12-audit）
 
@@ -37,7 +37,7 @@ version: 1.11.29
 | 需求文档/PRD | 需求文档 |
 | 项目工程/代码质量 | 项目工程 |
 | 报告文件 | 报告 |
-| 一般文档 | 通用文档（README / 用户使用文档额外叠加 `audit-readme`） |
+| 一般文档 | 通用文档（用户侧文档 / 文档站 / 项目文档 review 额外叠加 `audit-user-manual`；README / 主入口文档再叠加 `audit-readme`） |
 | 发布前审查 / release pre-review / publish 或 tag 前风险 review | 发布前审查（加载 `audit-release`） |
 
 - 基于用户意图智能识别，不依赖关键词
@@ -248,7 +248,7 @@ R2 及以后轮次必须把复审从“同一维度反复跑一遍”改为“�
 - B — 引用 🔴/🟡：DA-3 引用有效性 · DA-4 术语一致性
 - C — 受众 💡/🔴：DA-5 受众适配 · DA-6 关联一致性
 
-> README / 用户使用文档不单独开新的审查目标，仍归入“通用文档”；但执行时必须在 `audit-document` 基础上额外叠加 `audit-readme`，补做 `RM-1~RM-6` 用户路径、快速开始、排错与消费链一致性检查，并额外执行 `UserDocsImmediateComprehensionGate` 与 `UserDocsPrimarySurfaceGate`：抽查首页首屏、quick start、nav/sidebar 前两组、CTA、reference 入口、配置、常见任务和排错，确认主面服务用户使用而不是开发契约。
+> README / 用户使用文档不单独开新的审查目标，仍归入“通用文档”；但执行时必须在 `audit-document` 基础上按目标叠加：用户侧文档 / 文档站 / 项目文档 review / 菜单导航 / 文档 IA 审查先触发 `audit-user-manual`，README / 主入口文档再叠加 `audit-readme`，补做 `RM-1~RM-6` 用户路径、快速开始、排错与消费链一致性检查，并额外执行 `UserDocsImmediateComprehensionGate` 与 `UserDocsPrimarySurfaceGate`：抽查首页首屏、quick start、nav/sidebar 前两组、CTA、reference 入口、配置、常见任务和排错，确认主面服务用户使用而不是开发契约。
 
 ### 发布前审查（RL-1~RL-10）
 - A — 发布身份 🔴：RL-1 版本身份 · RL-2 发布说明质量

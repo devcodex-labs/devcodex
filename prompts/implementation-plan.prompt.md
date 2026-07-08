@@ -151,6 +151,7 @@ applyTo: .devcodex/**/requirements/**
 | TestRoute | 对照变更类型执行对应命令 | 路线覆盖完整，跳过项有依据 |
 | LeakRiskStabilityPressureTest | 对照 TestRoute 的 leakRiskPressure 判定 | 命中资源生命周期风险时有基线、压力过程、冷却后回落、资源指标前后对比和清理证据；未触发有 `N/A + skipReason` |
 | FrontendExperienceQualityGate | 对照 TestRoute 的 frontendExperience 判定 | 命中前端 UI / 交互体验时有设计来源、视觉/状态、用户流、反馈、输入方式、错误恢复、动效转场和 Browser/截图/E2E/人工复核证据；未触发有 `N/A + skipReason` |
+| spec-absorption / CommonNormGeneralizationGate / AbsorptionCandidateConsumerProofGate | 对照规范吸纳执行 Skill | 候选矩阵已列 sourceNamespace、generalizationEvidence、projectSpecificResidue、negativeExamples、commonTrigger、targetConsumer、devcodexConsumerEvidence、targetOwner、validationRoute、decision；项目独有项未进入通用规范 |
 | LayeredAbsorptionGate / SkillFirstAbsorptionGate / CapabilityToSkillPromotionGate | 对照规范吸纳分层归属判定 | LayeredAbsorptionDecision 已列出 candidateId、classification、targetSkill、triggerTerms、ownedArtifacts、layerChecks、validationRoute、consumerSync；兼容 SkillAbsorptionDecision；layerChecks 覆盖 commonInstruction / skill / promptTemplate / executionConsumer / validationProbe / publicDocs / deployCopy；成组能力若未新增 Skill 有明确理由 |
 | HistoricalCommonNormLayeringGate | 对照历史通用规范、prompt/report 长清单或旧吸纳项分层迁移 | 已创建逐文件审查矩阵；每个文件或历史镜像标出 currentRole、matchedRules、targetLayer、targetOwner、action、semanticStrength、validation、skipReason；Prompt/Report 只保留字段和目标 Skill 引用，不复制完整长清单 |
 | ProactiveBetterAlternativeGate | 对照用户建议 / 方案确认 / 规范吸纳前的主动更优路径比较 | 若存在更低风险、更完整、更易维护或更易验证方案已先提出取舍；采纳用户原方案时有独立验证依据 |
@@ -217,6 +218,7 @@ applyTo: .devcodex/**/requirements/**
 - [ ] TestRoute 已建立并覆盖（若触发）
 - [ ] LeakRiskStabilityPressureTest 已完成或记录 `N/A + skipReason`（写测试/回归验证时按项目资源生命周期风险判定）
 - [ ] FrontendExperienceQualityGate 已完成或记录 `N/A + skipReason`（前端 UI / 交互任务需覆盖设计来源、还原度、主题、响应式状态、用户流、反馈、输入方式、错误恢复、动效和视觉验证；Figma/截图还原追加 FigmaHighFidelityRestorationGate / ScopedVisualChangeGate / ActualPreviewChainAndMockFallbackGate / FrontendRuntimeNetworkProbeGate / RuntimeI18nArtifactVerificationGate）
+- [ ] spec-absorption / CommonNormGeneralizationGate / AbsorptionCandidateConsumerProofGate 已完成或记录 `N/A + skipReason`（规范吸纳、data 台账治理、最新可吸纳、仍需吸纳或用户确认可泛化建议时，必须证明通用规范价值、剔除项目独有残留并绑定 DevCodex 当前消费者）
 - [ ] LayeredAbsorptionGate / SkillFirstAbsorptionGate 已完成或记录 `N/A + skipReason`（规范吸纳、data 台账治理、用户确认可泛化建议或新增门禁时，必须输出 LayeredAbsorptionDecision，含 commonInstruction / skill / promptTemplate / executionConsumer / validationProbe / publicDocs / deployCopy）
 - [ ] HistoricalCommonNormLayeringGate 已完成或记录 `N/A + skipReason`（历史通用规范、prompt/report 长清单或旧吸纳项迁移时，必须先冻结逐文件审查矩阵，再分批同步 Skill / Prompt / 执行消费者 / validate / public docs / deploy copy）
 - [ ] ProactiveBetterAlternativeGate 已完成或记录 `N/A + skipReason`（用户建议、方案确认、规范吸纳或复审冻结前，必须主动比较更优路径；采纳用户原方案时记录依据）

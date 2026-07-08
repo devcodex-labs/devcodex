@@ -2,7 +2,7 @@
 applyTo: "**"
 description: 通用规范总则，覆盖优先级、意图路由、Profile/active-root、宿主适配与治理总线
 priority: P5
-version: 1.11.29
+version: 1.11.30
 ---
 # 通用规范
 
@@ -194,7 +194,7 @@ version: 1.11.29
 | audit.需求文档 | `audit-common` · `audit-requirements` · `audit-session` |
 | audit.项目工程 | `audit-common` · `audit-project` · `audit-session` |
 | audit.报告 | `audit-common` · `audit-report` · `audit-session` |
-| audit.通用文档 | `audit-common` · `audit-document` · `audit-session`（README / 用户使用文档额外叠加 `audit-readme`） |
+| audit.通用文档 | `audit-common` · `audit-document` · `audit-session`（用户侧文档 / 文档站 / 项目文档 review 额外叠加 `audit-user-manual`；README / 主入口文档再叠加 `audit-readme`） |
 | audit.发布前审查 | `audit-common` · `audit-release` · `audit-session` |
 | analyze.default | （Instruction 已完整，无需额外 Skill）|
 | analyze.research | `analyze-research` |

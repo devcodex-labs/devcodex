@@ -71,11 +71,13 @@ applyTo: ".devcodex/**/reports/audit/**, .devcodex/**/reports/self-fix/**"
 | ReviewDimensionDeltaGate | PreviousDimensionSet / CurrentDimensionFocus / NewDimensionRationale / RepeatedDimensionReason |
 | UserPerspectiveDocsGate / UserDocsImmediateComprehensionGate / UserDocsPrimarySurfaceGate / PublicUserDocsMaintainerBoundaryGate / DocsConsumerSweep | 使用者视角 / 功能完整性 / 配置易懂 / 即时理解 / targetSurface / documentLocation / 首页首屏 / quick start / nav 主面 / 维护者 checklist 边界 / 字段与示例解释 / 当前消费者与导航同步 |
 | UserFacingDeliveryChainGate / FinalUserManualFirstGate / DocsSiteInformationArchitectureGate / UserManualFlowAndFailureGate / QueueDocsRealWorkflowGate | 用户最终使用文档 / 文档站或 README 判定 / 前端或 API 契约 / 真实用户流 / 失败恢复 / 队列真实工作流 |
+| audit-user-manual / UserManualReviewScope / DocsNavigationReviewMatrix | 用户侧文档 review、项目文档审查、文档设计、菜单导航、sidebar、信息架构、生成站点和文档站运行态验证 |
 | ReviewChecklistCompletenessGate / EvidenceExecutionGate / ReviewEscapeRecordGate | 冻结 checklist / 逐项实际验证 / 重复维度规避 / 不按审查报告文本直接验收；若发现遗漏，写 whyMissed / prevention / checklistPatch / rerunEvidence |
 | BuiltArtifactFeatureSmokeGate / TscOutputImportProbe / BenchmarkRegressionGuard | 构建产物导入执行 / TS 输出导入 / 性能基线对照阈值 |
 | GeneratedSiteGate / ManualTocDuplicationGate / UserPathContractSweep | 生成站点产物 / TOC-sidebar-nav 去重 / 公开用户路径消费者同步 |
 | ArtifactLinkSetDedupeGate / FrontendRuntimeNetworkProbeGate | 规范化路径去重 / 主产物消歧 / console-network-resource-runtime 证据 |
 | ActiveRequirementFinalResponseGate | active requirement/task/bug id / 相邻需求未切换 / 最终回复范围 |
+| spec-absorption / CommonNormGeneralizationGate / AbsorptionCandidateConsumerProofGate | 候选矩阵 / sourceNamespace / generalizationEvidence / projectSpecificResidue / negativeExamples / targetConsumer / devcodexConsumerEvidence / targetOwner / validationRoute / decision |
 | LayeredAbsorptionGate / SkillFirstAbsorptionGate / CapabilityToSkillPromotionGate | LayeredAbsorptionDecision / candidateId / classification / targetSkill / ownedArtifacts / layerChecks / promptTemplate / executionConsumer / validationProbe / publicDocs / deployCopy / validationRoute / consumerSync |
 | HistoricalCommonNormLayeringGate | 逐文件审查矩阵 / targetLayer / targetOwner / semanticStrength / validation / legacy-index-retained / V74 / deployCopy |
 | ProactiveBetterAlternativeGate | 用户方案 / 备选路径 / 推荐理由 / 取舍影响 / 采纳依据 |

@@ -24,6 +24,7 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 | `manualReview` | 是否存在人工复核、视觉检查、手工冒烟、外部页面观察或无法自动化的验证 |
 | `scopeBudget` | 验证强度是否与风险、变更面、发布/控制面/资源生命周期/前端体验匹配 |
 | `workspaceDataAbsorption` | 是否从 `.devcodex/*/data/` 扫描、吸纳或裁剪候选问题 |
+| `specAbsorption` | 是否涉及规范吸纳执行、最新可吸纳清单、仍需吸纳清单、通用规范价值证明或项目独有规则剔除 |
 | `docsSiteVisualAcceptance` | 是否涉及文档站/官网/技术站视觉、导航、点击路径、动效或代码展示验收 |
 | `methodLevelLeakPressure` | 是否涉及公开方法级资源泄漏修复、adapter/SDK/连接/监听/定时器/worker/cache 生命周期风险 |
 | `v2FormalSolutionPackage` | 是否进入 DevCodex v2 一期正式 CP1/CP2 方案包冻结 |
@@ -54,6 +55,7 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 | `developmentDrift` | 是否进入编码前或实施中存在范围、验证路线、消费者同步或 dirty 边界偏移风险 |
 | `verificationPlanMaterialization` | CP2 / 技术方案是否需要物化验证计划、验收标准和退出条件 |
 | `docsIaReadability` | 是否涉及中文用户文档、pageRole、sidebar group、菜单命名或文档站 IA |
+| `userManualReview` | 是否涉及用户侧文档 review、项目文档审查、最终用户手册、文档设计、菜单导航、sidebar 或信息架构聚合审查 |
 | `coverageGateDecision` | 项目是否存在 coverage 脚本、阈值、CI coverage gate 或发布前覆盖率要求，需要区分测试断言通过与覆盖率门禁通过 |
 | `externalRuntimePluginLifecycle` | 是否涉及外部 runtime、plugin、registry、adapter、provider 或 injected runtime 注册/替换/释放生命周期 |
 | `functionSourceFingerprint` | 是否把 function source / hash / toString / fingerprint 用作 cache key、registry key、checkpoint、幂等或去重依据 |
@@ -71,6 +73,7 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 | 对外 HTTP API | `api-verification` 生成 `.http + .cjs` | 项目集成/E2E |
 | 前端/API 文档合同 | ApiDocVerificationSync：检查接口文档、字段映射、错误码、状态枚举与 `.http` / `.cjs` 是否同步 | 不更新验证产物时写 `N/A + skipReason` |
 | 文档翻译 / 正式文档边界 | DocumentationTranslationParityGuard、FormalDocsDevCodexBoundary：核对多语言/多入口等价，区分正式用户文档与运行时报告/台账 | website build、链接检查、索引/sidebar 顺序核对；历史镜像写明边界 |
+| 用户侧文档 review / 项目文档审查 | `audit-user-manual`：聚合用户文档契约、通用文档审查、README 专项、复审清单、文档设计、菜单导航、sidebar、生成站点和消费者同步证据 | `GeneratedSiteGate`、`ManualTocDuplicationGate`、`DocsThemeRuntimeVisualProbeGate`、Browser/截图或人工证据；纯内容审查写 `N/A + skipReason` |
 | 数据补齐 / 迁移 / 跨环境写入 | DataMutationPlan：显式清单或稳定业务键、dry-run、唯一匹配、缺失/重复清单 | 只读数据库真相源查询、最终消费者响应字段验证 |
 | Prompt / Agent / Hook / MCP 契约 | LLMPromptContractTriage：区分人读说明、模型指令、结构化输出字段和宿主能力边界 | validate probe、targeted test、direct/fixture replay |
 | 前端体验 | FrontendExperienceQualityGate：判定设计来源、UI 还原度、风格主题一致性、响应式/状态覆盖、用户流、交互反馈、输入方式/可访问性、错误恢复、动效转场和视觉验证；同步执行 FrontendBrowserVerificationBudgetGate 与 UserSelfVerificationOverrideGate | lint/typecheck/test、Browser/截图、Playwright/E2E 或人工复核证据；低风险可 optional，用户明确自验时只做代码级验证并记录 VisualVerificationGate=user-self-verification；纯后端/CLI/文档写 `N/A + skipReason` |
@@ -98,7 +101,8 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 | 性能第一 / benchmark | PerformanceBenchmarkFirstGate：先冻结基线、环境、版本、指标、负载、比较对象和成功阈值 | 缺少基线不得宣称提升、最快或第一 |
 | 公开模块 / SDK / CLI / 插件 | PublicModuleDifferentiationGate：区分 public API、内部 helper、示例代码、发布包文件、消费者入口和历史镜像 | 正式文档只承诺真实公开面 |
 | DevCodex v2 一期路线 | V2MCPFirstPlanningGate：核对 Intent-Gated Hosted Spec MCP、Codex-only MVP、私有可追踪 docs 和无本地规则正文缓存边界 | MongoDB/控制台/多租户自定义工作流默认不进一期 |
-| data 吸纳 / 最新问题扫描 | WorkspaceDataAbsorptionScopeGate：扫描 `.devcodex/*/data/` 全命名空间，列出命中台账、候选编号、归属和跳过理由 | 不得只扫当前源码项目、当前 active-root 或 sticky activeProject |
+| data 吸纳 / 最新问题扫描 | WorkspaceDataAbsorptionScopeGate：扫描 `.devcodex/*/data/` 全命名空间，列出命中台账、候选编号、归属和跳过理由；命中后读取 `spec-absorption` | 不得只扫当前源码项目、当前 active-root 或 sticky activeProject |
+| 规范吸纳执行 | `spec-absorption`：执行 `CommonNormGeneralizationGate` 与 `AbsorptionCandidateConsumerProofGate` | 必须证明通用规范价值、DevCodex 当前消费者和 targetOwner；项目独有规则写 `project-local / case-evidence-only`，不得吸纳到通用规范 |
 | 规范吸纳架构归属 | LayeredAbsorptionGate + SkillFirstAbsorptionGate / CapabilityToSkillPromotionGate：每条可泛化 PI/PF/GAP/ISSUE 先输出 LayeredAbsorptionDecision（兼容 SkillAbsorptionDecision） | 判定 `global-invariant` / `existing-skill-subgate` / `new-skill-required` / `docs-only`；逐层覆盖 `commonInstruction / skill / promptTemplate / executionConsumer / validationProbe / publicDocs / deployCopy`；成组能力不得只追加到通用 guard |
 | 历史通用规范分层迁移 | HistoricalCommonNormLayeringGate：迁移旧通用长清单、prompt/report 重复清单或历史吸纳项 | 先冻结逐文件审查矩阵；TestRoute 覆盖 targeted tests、`node scripts/validate.js`、publicDocs、deployCopy、ProfileImpactCheck；无法立即迁移的历史规则标 `legacy-index-retained` |
 | 主动更优建议 | ProactiveBetterAlternativeGate：用户建议、方案确认、规范吸纳或复审冻结前主动比较更优路径 | 若有更低风险、更完整、更易维护或更易验证方案，先提出取舍再确认；采纳用户原方案时记录依据 |
@@ -175,6 +179,7 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 | publicModuleDifferentiation | N/A / required / optional；若 required，写 public API、内部实现、示例、发布文件和消费者入口边界 |
 | v2McpFirstPlanning | N/A / required / optional；若 required，写 v2 一期 MCP-first 范围和非一期排除项 |
 | workspaceDataAbsorption | N/A / required / optional；若 required，写 `.devcodex/*/data` 命名空间、台账文件、候选编号、跳过理由和纳入范围 |
+| specAbsorption | N/A / required / optional；若 required，写 `CommonNormGeneralizationGate`、`AbsorptionCandidateConsumerProofGate`、通用性证据、项目独有残留、targetOwner、layerChecks、验证路线和跳过理由 |
 | docsSiteVisualAcceptance | N/A / required / optional；若 required，写主题、点击、动效、reduced-motion、代码 token、终端 demo、TOC 和辅助导航证据 |
 | methodLevelLeakPressure | N/A / required / optional；若 required，写公开方法、重复调用/生命周期场景、资源指标、阈值、冷却和清理证据 |
 | v2FormalSolutionPackage | N/A / required / optional；若 required，写 CP1/CP2 包位置、MCP API contract、验证矩阵、回滚和发布/维护站证据 |
@@ -249,7 +254,7 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 - 涉及“最快 / 第一 / 优于 / 性能提升 / 压测 / benchmark”时必须执行 PerformanceBenchmarkFirstGate；没有基线不能声明提升或第一。
 - 面向公开模块、SDK、CLI、插件、文档站能力或对外 API 时必须执行 PublicModuleDifferentiationGate，区分公开承诺与内部实现。
 - DevCodex v2 一期规划必须执行 V2MCPFirstPlanningGate；无正式 CP1/CP2 方案包时，MongoDB、控制台、多租户自定义工作流和本地规则正文缓存不作为默认范围。
-- 扫描 data 目录、吸纳最新问题或裁剪仍需吸纳清单时必须执行 WorkspaceDataAbsorptionScopeGate，覆盖 `.devcodex/*/data/` 全命名空间。
+- 扫描 data 目录、吸纳最新问题或裁剪仍需吸纳清单时必须执行 WorkspaceDataAbsorptionScopeGate，覆盖 `.devcodex/*/data/` 全命名空间，并触发 `spec-absorption`。
 - 正式流程图、生命周期图、Nxx 节点图或维护者流程页必须执行 FlowchartNodeExplanationGate，图中非终止节点需要中文节点说明。
 - 官网、文档站、技术站或正式说明页涉及视觉/交互验收时必须执行 DocsSiteVisualAcceptanceGate，不能只跑构建后宣称“观感通过”。
 - 用户要求遗漏专审或只列仍需吸纳项时必须执行 OmissionOnlyReviewGate，最终清单排除已吸纳、已关闭、重复和明确无必要项。
@@ -276,9 +281,10 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 - 新增脚本前必须执行 `OneOffRequirementScriptPlacementGate`；验证命令执行前必须执行 `VerificationCommandSideEffectGate`。
 - docs/需求类 CP1 推荐确认前必须执行 `RequirementPreConfirmGate`；分阶段需求必须执行 `MultiPhaseClosureGate`；package/adapter/SDK/CLI 方案确认前必须执行 `PackageAdapterPreConfirmEvidenceGate`。
 - 输出 ArtifactLinkSet 前必须执行 `ArtifactLinkSetDedupeGate`，按 canonical path 去重同一物理文件的相对链接、绝对链接和 copy fallback，避免宿主文件面板展示成双份产物。
-- 规范吸纳、data 台账治理、用户确认“值得吸纳”的策略或新增门禁时必须执行 `LayeredAbsorptionGate` 和 `SkillFirstAbsorptionGate`，若判定 `new-skill-required`，TestRoute 至少覆盖新 Skill frontmatter、plugin 注册、路由说明、promptTemplate、executionConsumer、validationProbe、publicDocs 和 deployCopy；若采纳用户原方案，必须记录 `ProactiveBetterAlternativeGate` 的独立验证依据。
+- 规范吸纳、data 台账治理、用户确认“值得吸纳”的策略或新增门禁时必须先读取 `spec-absorption`，执行 `CommonNormGeneralizationGate` 和 `AbsorptionCandidateConsumerProofGate`，再执行 `LayeredAbsorptionGate` 和 `SkillFirstAbsorptionGate`；若判定 `new-skill-required`，TestRoute 至少覆盖新 Skill frontmatter、plugin 注册、路由说明、promptTemplate、executionConsumer、validationProbe、publicDocs 和 deployCopy；若采纳用户原方案，必须记录 `ProactiveBetterAlternativeGate` 的独立验证依据。
 - 历史通用规范、prompt/report 长清单、旧吸纳项或跨版本规范资产重新分层时必须执行 `HistoricalCommonNormLayeringGate`；进入实施前先创建逐文件审查矩阵，验证路线至少包含 targeted tests、`node scripts/validate.js`、public docs、deploy copy 和 ProfileImpactCheck。
 - 用户文档站、README、docs-first 最终手册、前端/API 对接契约或公开能力交付必须优先触发 `user-manual-authoring` 并执行 `UserFacingDeliveryChainGate`；最终用户手册、文档站 IA、流程/失败处理和队列/任务类真实批量工作流分别执行 `FinalUserManualFirstGate`、`DocsSiteInformationArchitectureGate`、`UserManualFlowAndFailureGate`、`QueueDocsRealWorkflowGate`。
+- 用户要求用户侧文档 review、项目文档审查、菜单导航、sidebar、文档设计或信息架构审查时必须触发 `audit-user-manual`；TestRoute 写明是否需要生成站点、链接/TOC/sidebar 检查、Browser/截图、人工复核或 N/A。
 - 长链路 fix/audit、外部 finding 批次或冻结 Review Checklist 后必须触发 `review-checklist`，执行 `ReviewChecklistCompletenessGate`、`EvidenceExecutionGate` 与 `ReviewEscapeRecordGate`；每项没有可复现证据时不得宣告通过，发现遗漏时不得跳过 `whyMissed / prevention / rerunEvidence`。
 - runtime/adapter/SDK/CLI/module-format/exports/bin/files/dist/tsc 输出变化必须执行 `BuiltArtifactFeatureSmokeGate` 与 `TscOutputImportProbe`；不得只用源码测试或 root export smoke 替代构建产物 feature path。
 - 文档站/官网导航、footer、sidebar、outline、手写 TOC、语言切换或公开能力页首次成功路径变化必须执行 `GeneratedSiteGate`、`ManualTocDuplicationGate` 与 `UserPathContractSweep`，以当前构建产物或真实预览为准。

@@ -44,7 +44,7 @@ description: 文档开发子类型规范 — 技术文档/API文档/README 编�
 - 默认第一受众是**用户 / 使用者**
 - 快速开始、常见用法、配置与排错必须早于开发/贡献内容
 - 章节骨架优先使用 `prompts/project-readme.prompt.md`
-- 完成后若需要专项复审，叠加 `audit-readme`
+- 完成后若需要用户侧文档 review、项目文档审查、菜单导航或信息架构审查，优先叠加 `audit-user-manual`；落点为 README / 主入口文档时再叠加 `audit-readme`
 
 ## 文档质量标准
 
@@ -139,6 +139,7 @@ description: 文档开发子类型规范 — 技术文档/API文档/README 编�
 - `DocsConsumerSweep`：文档即产品入口时，正文、导航、索引、示例、模板、Profile、validate 和部署副本都是当前消费者；同步失败或刻意不同序必须写明原因。
 - `UserPathContractSweep`：公开能力页、SDK/CLI/API 快速开始或专题页必须核对安装版本、构造函数示例、配置字段类型、相邻专题链接、API 索引和 sidebar 章节，证据来自 `package.json`、public types、runtime wiring、示例源码和当前文档；旧内容必须分类为 current violation / historical allowed / compat fixture allowed / unrelated。
 - `SidebarPageRoleMaterializationProbe` / `SidebarGroupSemanticModelProbe`：新增能力页或修菜单时，必须先生成 pageRole/sidebar group 矩阵；只补一个缺项、按 API 名称猜 route、或把内部实现依赖当作一级菜单归属，均不得通过。
+- `audit-user-manual`：当用户要求审查用户侧文档、项目文档、文档设计、菜单导航、sidebar 或信息架构时，作为聚合审查入口，按固定顺序叠加用户文档契约、通用文档审查、README 专项、复审清单和消费者同步证据。
 
 ## 产出物
 
@@ -146,5 +147,6 @@ description: 文档开发子类型规范 — 技术文档/API文档/README 编�
 - 契约驱动型文档优先使用 `prompts/light-api-doc.prompt.md` 统一骨架
 - 站点文档 / 用户使用文档 / 最终用户手册优先使用 `user-manual-authoring`
 - README / 主用户使用文档中的 README 专项分支使用 `user-manual-authoring` + `readme-authoring` + `prompts/project-readme.prompt.md`
+- 用户侧文档 review / 项目文档审查 / 菜单导航审查优先使用 `audit-user-manual`
 - 非契约驱动型 Markdown 文档优先使用 `prompts/general-doc.prompt.md`
 - 若更新 README/CHANGELOG：执行 `document-sync` 确认同步状态

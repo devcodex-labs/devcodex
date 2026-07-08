@@ -9,6 +9,7 @@
 
 | 版本 | 日期 | 变更摘要 | 详细 |
 |------|------|---------|------|
+| [v1.11.30](./changelogs/releases/v1.11.30.md) | 2026-07-08 | 🔧 **用户侧文档 review 与规范吸纳执行入口收口**：新增 `audit-user-manual` 与 `spec-absorption`，固化用户侧文档、项目文档、菜单导航、sidebar、信息架构审查聚合，以及 `.devcodex/*/data` 候选通用性证明、消费者证明和项目独有规则剔除；新增 V80/V81 探针 | [查看](./changelogs/releases/v1.11.30.md) |
 | [v1.11.29](./changelogs/releases/v1.11.29.md) | 2026-07-08 | 🔧 **coverage 与外部 runtime 生命周期验证收口**：新增 V79，固化 `CoverageGateDecision`、`ExternalRuntimePluginLifecycleGate`、`ExternalRegistryLifecycleMatrixGate`、`FunctionSourceFingerprintMatrixGate`、`ClusterEscalationGate` 与 `RiskBasedValidationLadder` | [查看](./changelogs/releases/v1.11.29.md) |
 | [v1.11.28](./changelogs/releases/v1.11.28.md) | 2026-07-08 | 🔧 **分析默认 Skill、复审收敛与发布退出码门禁收口**：归档 V75~V78，新增 `analyze-default`、`SpecRadarSubgate` / `GovernanceGateRegistry`、`PromptLongGateListDriftProbe`、`ReviewEscapeRecordGate`、`NativeCommandExitCodeGate`、`PostConfirmationReviewScopeGate`、`DevelopmentDriftGate` 与文档 IA / 中文主表达探针 | [查看](./changelogs/releases/v1.11.28.md) |
 | [v1.11.27](./changelogs/releases/v1.11.27.md) | 2026-07-07 | 🔧 **分层吸纳架构与历史通用规范迁移收口**：归档 V71~V74，新增 Skill-first / 分层吸纳架构、最终用户文档与复审清单独立 Skill、自我进化治理 Skill、完整吸纳补强、历史通用规范逐文件矩阵迁移和 V74 探针 | [查看](./changelogs/releases/v1.11.27.md) |

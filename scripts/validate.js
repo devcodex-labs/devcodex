@@ -75,6 +75,7 @@
  * V77 native command exit code sync（发布 / pack / install smoke 原生命令真实退出码防假阳性）
  * V78 review scope drift docs IA sync（确认后复审、开发偏移、验证计划、用户建议根因与文档 IA）
  * V79 coverage gate and external runtime lifecycle matrix sync（coverage 独立门禁、外部 runtime/plugin/registry 生命周期矩阵、函数源码 fingerprint 与同风险簇分层验证）
+ * V80 audit-user-manual aggregation skill sync（用户侧文档 review 聚合入口、项目文档、菜单导航、信息架构与报告证据）
  *
  * Exit: 0=OK, 1=error, 2=warnings only
  */
@@ -560,7 +561,9 @@ const {
   checkV76,
   checkV77,
   checkV78,
-  checkV79
+  checkV79,
+  checkV80,
+  checkV81
 } = buildGovernanceTailChecks({
   ROOT,
   ACTIVE_DEVCODEX_ROOT,
@@ -821,7 +824,7 @@ function checkV19() {
   const checks = [
     { file: 'README.md', needle: `Instructions 约束（${instructionCount} 个，含全部工作流规则）` },
     { file: 'README.md', needle: `全局 Instructions（${instructionCount} 个，含工作流规则摘要，自动注入）` },
-    { file: 'README.md', needle: `Skill 详细检查标准（${skillCount} 个，按需读取，含默认分析、用户文档、复审清单、自我进化治理、README 专项能力、spec-governance 与 5 个支撑型 Skill）` },
+    { file: 'README.md', needle: `Skill 详细检查标准（${skillCount} 个，按需读取，含默认分析、用户文档、用户侧文档 review 聚合、复审清单、自我进化治理、README 专项能力、spec-governance、spec-absorption 与 5 个支撑型 Skill）` },
     { file: 'README.md', needle: `Skill 详细检查标准（${skillCount} 个，按 01-common §按需读取表 路由读取）` },
     { file: 'README.md', needle: `Prompt 模板（${promptCount} 个）` },
     { file: activePath('profile', '01-项目信息.md'), needle: `| **Skill** | ${skillCount} |`, rawPath: false },
@@ -963,6 +966,9 @@ checkV76()
 checkV77()
 checkV78()
 checkV79()
+checkV80()
+// V81 spec absorption execution skill sync
+checkV81()
 
 console.log('')
 if (errors.length) {

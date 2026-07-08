@@ -23,7 +23,7 @@ description: 审查执行指南 — 维度优先级分批、定向审查子集�
 | 修改了 RULES.md | D2·D3·D5·D9·D17 |
 | 修改了 01-common.instructions.md | D2·D5·D6·D7·D10 |
 | 修改了 workflow README | D3·D5·D8·D9 |
-| 审查 README / 用户使用文档 | DA-1·DA-2·DA-5·DA-6 + `audit-readme`（RM-1~RM-6） |
+| 审查 README / 用户使用文档 / 项目文档 / 菜单导航 | DA-1·DA-2·DA-5·DA-6 + `audit-user-manual`；README / 主入口文档再叠加 `audit-readme`（RM-1~RM-6） |
 | 审查发布前准备 / release pre-review | RL-1·RL-2·RL-3·RL-4·RL-5·RL-6·RL-9 + `audit-release`（RL-1~RL-10） |
 | 新增 spec 文件 | D1·D5·D9·D15·D17·D18 |
 | 新增子类型 spec | D5(#6)·D9·D15 — 联动 L1/L2/L3 |

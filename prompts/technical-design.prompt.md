@@ -274,13 +274,14 @@ applyTo: .devcodex/**/requirements/**
 
 -
 
-#### CrossProjectLearnedGuards / LatestAbsorptionGuards / AbsorptionDecision / FullV1ScopeGuard / StartupPhaseTrace / LayeredAbsorptionDecision / HistoricalCommonNormLayeringGate / ProactiveBetterAlternativeGate（条件）
+#### CrossProjectLearnedGuards / LatestAbsorptionGuards / AbsorptionDecision / FullV1ScopeGuard / StartupPhaseTrace / spec-absorption / LayeredAbsorptionDecision / HistoricalCommonNormLayeringGate / ProactiveBetterAlternativeGate（条件）
 
-> 调研、审查、复审或方案讨论中出现“值得吸纳”的建议，必须给出吸纳决策和 `LayeredAbsorptionGate` / `SkillFirstAbsorptionGate` 归属判定；用户建议或确认方案前必须执行 `ProactiveBetterAlternativeGate`，若有更优路径先提出取舍，采纳用户原方案时写明独立验证依据。用户表达“第一版 / v1 / 完整首版”且存在真实消费者、发布契约或主功能验收时，必须给出完整首版边界判断；启动性能优化或 dev 日志治理必须先给出阶段化日志追踪。涉及接入状态、人工复核、翻译/正式文档边界、prompt/Hook/MCP 契约、验证范围、真实执行、benchmark 归因、产品需求来源、本机执行配置、证据留存、相邻范围、包名/发布名、性能第一、公开模块、DevCodex v2 一期路线、全工作区 data 吸纳、正式流程图、文档站视觉验收、遗漏专审、审查发现 intake、复审维度增量、使用者文档、公开用户文档维护边界、文档消费者扫描、产物链接去重、前端运行时网络探针、最终回复 active 范围、方法级泄漏压测、用户文档驱动交付链、复审清单证据化、构建产物 feature smoke、生成站点验证、公开用户路径契约、性能回归或 v2 正式方案包时，逐项填写跨项目已吸纳守门；未触发项写 `N/A + skipReason`。
+> 调研、审查、复审或方案讨论中出现“值得吸纳”的建议，必须先触发 `spec-absorption`，给出通用规范价值证明、项目独有残留剔除、DevCodex 当前消费者和 targetOwner，再给出吸纳决策和 `LayeredAbsorptionGate` / `SkillFirstAbsorptionGate` 归属判定；用户建议或确认方案前必须执行 `ProactiveBetterAlternativeGate`，若有更优路径先提出取舍，采纳用户原方案时写明独立验证依据。用户表达“第一版 / v1 / 完整首版”且存在真实消费者、发布契约或主功能验收时，必须给出完整首版边界判断；启动性能优化或 dev 日志治理必须先给出阶段化日志追踪。涉及接入状态、人工复核、翻译/正式文档边界、prompt/Hook/MCP 契约、验证范围、真实执行、benchmark 归因、产品需求来源、本机执行配置、证据留存、相邻范围、包名/发布名、性能第一、公开模块、DevCodex v2 一期路线、全工作区 data 吸纳、正式流程图、文档站视觉验收、遗漏专审、审查发现 intake、复审维度增量、使用者文档、公开用户文档维护边界、文档消费者扫描、产物链接去重、前端运行时网络探针、最终回复 active 范围、方法级泄漏压测、用户文档驱动交付链、复审清单证据化、构建产物 feature smoke、生成站点验证、公开用户路径契约、性能回归或 v2 正式方案包时，逐项填写跨项目已吸纳守门；未触发项写 `N/A + skipReason`。
 
 | 项 | 当前吸纳 / 设计占位 / backlog / 拒收 | 理由 | 后续真相源 |
 |----|--------------------------------------|------|------------|
 | AbsorptionDecision | | | |
+| spec-absorption / CommonNormGeneralizationGate / AbsorptionCandidateConsumerProofGate | 候选矩阵：sourceNamespace / generalizationEvidence / projectSpecificResidue / negativeExamples / commonTrigger / targetConsumer / devcodexConsumerEvidence / targetOwner / validationRoute / decision；项目独有规则必须写 project-local 或 case-evidence-only | | |
 | LayeredAbsorptionGate / SkillFirstAbsorptionGate / CapabilityToSkillPromotionGate | LayeredAbsorptionDecision：candidateId / classification / targetSkill / triggerTerms / ownedArtifacts / layerChecks(commonInstruction / skill / promptTemplate / executionConsumer / validationProbe / publicDocs / deployCopy) / validationRoute / consumerSync；兼容 SkillAbsorptionDecision | | |
 | HistoricalCommonNormLayeringGate | 逐文件审查矩阵：file / currentRole / matchedRules / targetLayer / targetOwner / action / semanticStrength / validation / skipReason；Prompt 只写字段和引用，不复制完整 Gate 长清单 | | |
 | ProactiveBetterAlternativeGate | 用户方案 / 备选路径 / 推荐理由 / 取舍影响 / 采纳依据 | | |

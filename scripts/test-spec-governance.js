@@ -727,9 +727,9 @@ const probes = [
   ['prompts/report-audit.prompt.md', 'ConfirmedAbsorptionCompletenessGates'],
   ['prompts/report-scenario-test.prompt.md', 'ConfirmedAbsorptionCompletenessGates'],
   ['README.md', 'evolution-governance'],
-  ['website/docs/index.md', '48 个 Skills'],
-  ['website/docs/intro/index.md', '48 个按需触发的工作流技能'],
-  ['website/docs/specs/directory-structure.md', '扁平一级 Skill（48 个）'],
+  ['website/docs/index.md', '50 个 Skills'],
+  ['website/docs/intro/index.md', '50 个按需触发的工作流技能'],
+  ['website/docs/specs/directory-structure.md', '扁平一级 Skill（50 个）'],
   ['website/docs/guide/development.md', 'ConfirmedAbsorptionCompletenessGates'],
   ['website/docs/versions/v1/1.0.1/requirements/p1/latest-data-absorption-guards/index.md', 'V73'],
   ['website/docs/versions/v1/1.0.1/CHANGELOG.md', 'V73 探针'],
@@ -1105,6 +1105,96 @@ for (const [file, needle] of [
   mustInclude(file, needle)
 }
 
+const checkV80 = 'UserManualReviewScope'
+for (const [file, needle] of [
+  ['scripts/lib/validate-governance-tail.js', 'checkV80'],
+  ['scripts/lib/validate-governance-tail.js', checkV80],
+  ['scripts/lib/validate-governance-tail.js', 'DocsNavigationReviewMatrix'],
+  ['scripts/lib/validate-governance-tail.js', 'audit-user-manual'],
+  ['scripts/validate.js', 'checkV80()'],
+  ['plugin.json', 'skills/audit-user-manual/SKILL.md'],
+  ['skills/audit-user-manual/SKILL.md', 'UserManualReviewScope'],
+  ['skills/audit-user-manual/SKILL.md', 'DocsNavigationReviewMatrix'],
+  ['skills/audit-user-manual/SKILL.md', 'SidebarPageRoleMaterializationProbe'],
+  ['skills/routing/SKILL.md', 'audit-user-manual'],
+  ['skills/dev-docs/SKILL.md', 'audit-user-manual'],
+  ['skills/audit-document/SKILL.md', 'audit-user-manual'],
+  ['skills/audit-readme/SKILL.md', 'audit-user-manual'],
+  ['skills/user-manual-authoring/SKILL.md', 'audit-user-manual'],
+  ['skills/document-sync/SKILL.md', 'audit-user-manual'],
+  ['skills/test-router/SKILL.md', 'userManualReview'],
+  ['skills/report/SKILL.md', 'DocsNavigationReviewMatrix'],
+  ['instructions.md', 'audit-user-manual'],
+  ['instructions/01-common.instructions.md', 'audit-user-manual'],
+  ['instructions/12-audit.instructions.md', 'audit-user-manual'],
+  ['prompts/report-dev.prompt.md', 'DocsNavigationReviewMatrix'],
+  ['prompts/report-fix.prompt.md', 'DocsNavigationReviewMatrix'],
+  ['prompts/report-audit.prompt.md', 'audit-user-manual / UserManualReviewScope / DocsNavigationReviewMatrix'],
+  ['README.md', '用户侧文档 review 聚合'],
+  ['website/docs/index.md', '50 个 Skills'],
+  ['website/docs/intro/index.md', 'audit-user-manual'],
+  ['website/docs/guide/development.md', 'audit-user-manual'],
+  ['website/docs/specs/directory-structure.md', 'audit-user-manual']
+]) {
+  mustInclude(file, needle)
+}
+mustIncludeInChangelogs('V80')
+
+const checkV81 = 'spec-absorption'
+function classifyAbsorptionSample(sample) {
+  const projectSpecific = /ServiceSpecReadGate|docs\/services\/<name>|单个业务项目|项目私有/.test(sample)
+  const consumerProof = /DevCodex 当前消费者|targetOwner|跨工作流复用|宿主无关/.test(sample)
+  if (projectSpecific && !consumerProof) return 'project-local'
+  if (consumerProof) return 'absorb'
+  return 'case-evidence-only'
+}
+for (const sample of [
+  'ServiceSpecReadGate：服务开发进入编码前必须读取 docs/services/<name>/',
+  '单个业务项目的 route/model/schema 命名规范'
+]) {
+  if (classifyAbsorptionSample(sample) === 'absorb') {
+    failures.push(`spec-absorption negative sample was incorrectly classified as absorb: ${sample}`)
+  }
+}
+if (classifyAbsorptionSample('跨工作流复用且已有 DevCodex 当前消费者和 targetOwner 的吸纳候选') !== 'absorb') {
+  failures.push('spec-absorption positive sample did not classify as absorb')
+}
+for (const [file, needle] of [
+  ['scripts/lib/validate-governance-tail.js', 'checkV81'],
+  ['scripts/lib/validate-governance-tail.js', 'V81 spec absorption execution skill sync'],
+  ['scripts/validate.js', 'checkV81()'],
+  ['skills/spec-absorption/SKILL.md', 'name: spec-absorption'],
+  ['skills/spec-absorption/SKILL.md', 'CommonNormGeneralizationGate'],
+  ['skills/spec-absorption/SKILL.md', 'AbsorptionCandidateConsumerProofGate'],
+  ['skills/spec-absorption/SKILL.md', 'ServiceSpecReadGate'],
+  ['skills/spec-absorption/SKILL.md', 'project-local'],
+  ['skills/spec-absorption/SKILL.md', 'case-evidence-only'],
+  ['plugin.json', 'skills/spec-absorption/SKILL.md'],
+  ['skills/routing/SKILL.md', 'spec-absorption'],
+  ['skills/spec-governance/SKILL.md', 'AbsorptionCandidateConsumerProofGate'],
+  ['skills/test-router/SKILL.md', 'specAbsorption'],
+  ['skills/report/SKILL.md', 'CommonNormGeneralizationGate'],
+  ['skills/document-sync/SKILL.md', checkV81],
+  ['skills/source-consumer-sync/SKILL.md', 'V81 规范吸纳执行同步面'],
+  ['prompts/technical-design.prompt.md', 'projectSpecificResidue'],
+  ['prompts/implementation-plan.prompt.md', 'DevCodex 当前消费者'],
+  ['prompts/report-dev.prompt.md', checkV81],
+  ['prompts/report-fix.prompt.md', 'AbsorptionCandidateConsumerProofGate'],
+  ['prompts/report-audit.prompt.md', 'devcodexConsumerEvidence'],
+  ['prompts/report-scenario-test.prompt.md', 'negativeExamples'],
+  ['README.md', checkV81],
+  ['README.md', 'ServiceSpecReadGate'],
+  ['website/docs/index.md', '50 个 Skills'],
+  ['website/docs/intro/index.md', checkV81],
+  ['website/docs/specs/directory-structure.md', checkV81],
+  ['website/docs/guide/development.md', 'CommonNormGeneralizationGate'],
+  ['website/docs/versions/v1/1.0.1/CHANGELOG.md', 'V81']
+]) {
+  mustInclude(file, needle)
+}
+mustIncludeInChangelogs('V81')
+mustIncludeInChangelogs('CommonNormGeneralizationGate')
+
 const activeRuleFiles = [
   'README.md',
   'instructions.md',
@@ -1149,6 +1239,7 @@ mustNotInclude(
 
 const plugin = JSON.parse(read('plugin.json'))
 for (const [id, file] of [
+  ['spec-absorption', 'skills/spec-absorption/SKILL.md'],
   ['spec-governance', 'skills/spec-governance/SKILL.md'],
   ['source-consumer-sync', 'skills/source-consumer-sync/SKILL.md'],
   ['host-contract-verification', 'skills/host-contract-verification/SKILL.md'],

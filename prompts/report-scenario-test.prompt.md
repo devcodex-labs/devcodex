@@ -94,6 +94,7 @@ applyTo: .devcodex/**/reports/scenario-tests/**
 | LeakRiskStabilityPressureTest | ✅/N/A | ✅/⚠️ | leakRiskPressure / baseline / cooldown / resourceMetrics / skipReason |
 | FrontendExperienceQualityGate | ✅/N/A | ✅/⚠️ | frontendExperience / FigmaHighFidelityRestorationGate / ActualPreviewChainAndMockFallbackGate / RuntimeI18nArtifactVerificationGate / Browser / 截图 / E2E / 人工复核 / skipReason |
 | FrontendRuntimeNetworkProbeGate | ✅/N/A | ✅/⚠️ | console / network / failed requests / resource 404 / API target / runtime error / i18n key / skipReason |
+| spec-absorption / CommonNormGeneralizationGate / AbsorptionCandidateConsumerProofGate | ✅/N/A | ✅/⚠️ | 候选矩阵 / sourceNamespace / generalizationEvidence / projectSpecificResidue / negativeExamples / targetConsumer / devcodexConsumerEvidence / targetOwner / validationRoute / decision |
 | LayeredAbsorptionGate / SkillFirstAbsorptionGate | ✅/N/A | ✅/⚠️ | LayeredAbsorptionDecision / new-skill-required / existing-skill-subgate / layerChecks / promptTemplate / executionConsumer / validationProbe / publicDocs / deployCopy / validationRoute / consumerSync |
 | HistoricalCommonNormLayeringGate | ✅/N/A | ✅/⚠️ | 逐文件审查矩阵 / currentRole / targetLayer / targetOwner / legacy-index-retained / V74 / targeted tests / deployCopy |
 | ReviewEscapeRecordGate | ✅/N/A | ✅/⚠️ | escapedItem / whyMissed / missingDimensionOrProbe / prevention / checklistPatch / rerunEvidence |

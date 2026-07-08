@@ -8,7 +8,7 @@ description: README / 用户使用文档专项审查维度 RM-1~RM-6 — 聚焦�
 
 当审查目标是 `README.md` 或承担主使用入口职责的用户使用文档时，在 `audit-document` 的通用文档维度之上，叠加本 Skill。
 
-若目标是站点文档、最终用户使用文档、最终用户手册、接入手册或公开能力页，先按 `user-manual-authoring` 的文档契约审查主受众、文档落点、用户路径、信息架构、配置/排错、真实工作流和维护者内容后置；落点为 README 或项目主文档时，再叠加本 Skill 的 RM-1~RM-6。
+若目标是站点文档、最终用户使用文档、最终用户手册、接入手册、公开能力页、项目文档设计或菜单导航审查，先使用 `audit-user-manual` 聚合 `user-manual-authoring`、`audit-document`、本 Skill、`review-checklist`、`document-sync` 与 `test-router` 的证据；落点为 README 或项目主文档时，再叠加本 Skill 的 RM-1~RM-6。
 
 ## 维度总览（RM-1~RM-6）
 
@@ -101,4 +101,4 @@ description: README / 用户使用文档专项审查维度 RM-1~RM-6 — 聚焦�
 
 - 纯内部占位 README、明确只做跳转门户页：RM-2 / RM-3 可按实际场景标注 N/A，但必须明确真实用户文档入口。
 - 非 README 的架构文档、治理说明、贡献指南：本 Skill 不触发。
-- 站点文档、最终用户手册或接入手册但非 README：优先审查 `user-manual-authoring` + `audit-document`，本 Skill 只在其承担 README / 主入口职责时叠加。
+- 站点文档、最终用户手册、接入手册、项目文档设计或菜单导航但非 README：优先审查 `audit-user-manual` + `audit-document`，本 Skill 只在其承担 README / 主入口职责时叠加。

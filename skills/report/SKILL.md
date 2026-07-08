@@ -88,6 +88,7 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 | ProfileImpactCheck | dev/fix 改变项目技术栈、目录边界、脚本、测试/发布路线、分发面、配置项、长期连接或本地 overlay schema | 列出是否更新 Profile、目标文件、diff/证据；N/A 时写 `skipReason` |
 | Backlog Intake 真相复核 | 任务或批次直接来源于 `data/*.md` open/partial 项 | 列出 `candidateIds`、`classification`、`evidence`、`scopeDelta` |
 | 台账状态回写闭环 | 本轮会关闭/部分关闭/改分类任何 VL/PF/PI/ISSUE/GAP | 列出 `targetLedgers`、`requiredFields`、`writebackEvidence`、`rescanResult` |
+| spec-absorption / CommonNormGeneralizationGate / AbsorptionCandidateConsumerProofGate | 规范吸纳、最新可吸纳、仍需吸纳、检查 `.devcodex/*/data` 吸纳清单、项目独有规则剔除 | 列出候选矩阵、`sourceNamespace`、`generalizationEvidence`、`projectSpecificResidue`、`negativeExamples`、`commonTrigger`、`targetConsumer`、`devcodexConsumerEvidence`、`targetOwner`、`layerChecks`、`validationRoute`、`decision` 与 `skipReason` |
 | LayeredAbsorptionGate / SkillFirstAbsorptionGate / CapabilityToSkillPromotionGate | 规范吸纳、data 台账治理、用户确认可泛化策略、新增门禁或新增 Skill | 列出 `LayeredAbsorptionDecision`（兼容 `SkillAbsorptionDecision`）：`candidateId`、`classification`、`targetSkill`、`triggerTerms`、`ownedArtifacts`、`layerChecks`、`validationRoute`、`consumerSync`；`layerChecks` 必须覆盖 `commonInstruction / skill / promptTemplate / executionConsumer / validationProbe / publicDocs / deployCopy`；若 `new-skill-required`，说明新 Skill 或未创建原因 |
 | HistoricalCommonNormLayeringGate | 历史通用规范、prompt/report 长清单、旧吸纳项或跨版本规范资产重新分层 | 列出逐文件审查矩阵、`currentRole / matchedRules / targetLayer / targetOwner / action / semanticStrength / validation / skipReason`、`legacy-index-retained` 项、V74 / targeted test / validate / public docs / deploy copy 证据 |
 | ProactiveBetterAlternativeGate | 用户建议、需求/方案确认、规范吸纳、复审清单冻结或报告推荐结论 | 列出用户方案、备选路径、推荐理由、取舍影响；若采纳用户原方案，写明经独立验证后采纳的证据 |
@@ -105,6 +106,7 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 | ArtifactLinkSetDedupeGate / FrontendRuntimeNetworkProbeGate | 产物路径输出、前端真实预览/文档站视觉验收 | 列出 canonical path 去重、同名消歧、历史镜像/部署副本标识、console/network/resource/runtime 证据 |
 | PublicUserDocsMaintainerBoundaryGate / ActiveRequirementFinalResponseGate | 公开用户文档维护边界、最终回复 active 范围 | 列出用户主路径是否移除维护者 checklist / 内部同步清单，以及当前 active requirement/task/bug id、未切换相邻需求和未执行项 |
 | UserFacingDeliveryChainGate / FinalUserManualFirstGate / DocsSiteInformationArchitectureGate / UserManualFlowAndFailureGate / QueueDocsRealWorkflowGate | 文档开发、README/站点、前后端契约、需求驱动交付链 | 列出最终用户文档位置、站点/README 判定、前端/API 契约、技术方案对照依据、真实用户流、失败恢复和队列/异步真实工作流证据 |
+| audit-user-manual / UserManualReviewScope / DocsNavigationReviewMatrix | 用户侧文档 review、项目文档审查、菜单导航、sidebar、信息架构、文档设计 | 列出触发的用户文档审查聚合入口、targetSurface、primaryAudience、sourceOfTruth、reviewMode、pageRole/sidebar group 矩阵、route/label 真相源、生成站点或运行态验证证据、N/A skipReason |
 | ReviewChecklistCompletenessGate / EvidenceExecutionGate / ReviewEscapeRecordGate | 复审、审查报告 intake、冻结清单、收敛验证，或复审发现原清单遗漏 | 列出冻结 checklist、每项执行证据、实际验证命令/脚本/页面/代码落点、重复维度规避、未执行项 skipReason；若发现遗漏，引用 escape record 的 `whyMissed / prevention / checklistPatch / rerunEvidence` |
 | VerificationPlanMaterializationProbe / SidebarPageRoleMaterializationProbe / SidebarGroupSemanticModelProbe / ChinesePrimaryExpressionGate | CP2 验证计划、文档站 IA、中文用户文档 | 列出独立验证计划章节、验收/退出条件、pageRole/sidebar group 矩阵、route/label 真相源、中文主表达抽查和 skipReason |
 | BuiltArtifactFeatureSmokeGate / TscOutputImportProbe | 构建产物、模块格式、adapter、运行时导出、TypeScript 输出 | 列出源码测试之外的构建产物导入/执行、feature smoke、TypeScript 输出导入探针与失败阈值 |
@@ -124,7 +126,7 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 - 跨会话、跨 Agent、多批次、summary/compact 前、用户要求“传递上下文”或未完成任务的报告必须包含 `ContextHandoffCard`；已完成且无需交接时写 `ContextHandoffCard: N/A + skipReason`
 - `dev` / `fix` 报告的 ECR 必须把触发的 ExecutionContract / TestRoute / ReleaseAudit / ReleaseVerification / ConceptSyncMap / HostContractVerification / OfficialDocsEvidence / ProfileImpactCheck / 05-实施进度.md 纳入关键产物核对；未触发时写明 N/A 判定依据
 - 若本轮来源于 backlog open/partial 项，报告必须额外写出 Backlog Intake 真相复核结果；若本轮改变了台账真实状态，报告必须额外写出台账状态回写闭环证据
-- 若本轮涉及规范吸纳、data 台账治理、用户确认可泛化建议或新增门禁，报告必须额外写出 `LayeredAbsorptionGate`、`SkillFirstAbsorptionGate` 与 `LayeredAbsorptionDecision`（兼容 `SkillAbsorptionDecision`）；成组能力若未新增 Skill，必须说明为何仅并入既有 Skill 或仅作 docs-only，并列出 prompt/template、执行消费者、探针、公开文档和部署副本同步证据。
+- 若本轮涉及规范吸纳、data 台账治理、用户确认可泛化建议、最新可吸纳清单或新增门禁，报告必须额外写出 `spec-absorption` 执行证据：`CommonNormGeneralizationGate`、`AbsorptionCandidateConsumerProofGate`、候选矩阵、通用性证据、项目独有残留剔除、DevCodex 当前消费者和 targetOwner；随后写出 `LayeredAbsorptionGate`、`SkillFirstAbsorptionGate` 与 `LayeredAbsorptionDecision`（兼容 `SkillAbsorptionDecision`）。成组能力若未新增 Skill，必须说明为何仅并入既有 Skill 或仅作 docs-only，并列出 prompt/template、执行消费者、探针、公开文档和部署副本同步证据。
 - 若本轮涉及历史通用规范、prompt/report 长清单、旧吸纳项或跨版本规范资产重新分层，报告必须额外写出 `HistoricalCommonNormLayeringGate`：逐文件审查矩阵、无法立即下沉的 `legacy-index-retained` 项、V74 探针、targeted tests、README/website/Profile/changelog 和部署副本同步证据。
 - 若本轮采纳用户建议或用户确认方案，报告必须额外写出 `ProactiveBetterAlternativeGate`：是否存在更优替代、推荐取舍、最终采纳依据；不得只写“按用户确认执行”。
 - 若本轮采纳用户更优建议或用户纠正后修改方案，报告必须额外写出 `AcceptedSuggestionRootCauseGate`：为什么前序检查没发现、采纳依据、关联台账编号和下次预防动作。

@@ -2,7 +2,7 @@
 applyTo: "**"
 description: PC4 规范雷达规则，覆盖规范缺口感知、三轴诊断与治理前置信号
 priority: P4
-version: 1.11.29
+version: 1.11.30
 ---
 # 规范雷达（18-spec-radar）
 
@@ -11,7 +11,7 @@ version: 1.11.29
 > 本文件定义 **PC4 规范原因识别**的完整规则。
 > PC4 是 DevCodex 的规范自我升级机制的感知层——在任务执行前/中持续监测，识别"当前问题是否源于规范本身的缺陷"。  
 > **仅 dev 模式执行完整诊断**；非 dev 模式不执行本文件的三轴诊断，但显式记录意图识别与 Improvement Intake 仍按 `spec-governance` 的全模式规则执行。
-> `SpecRadarSubgate` 的执行字段、gateGroup 分组、ownerSkill 和 validationRoute 由 `skills/compliance/SKILL.md` 与 `skills/spec-governance/SKILL.md` 的 `GovernanceGateRegistry` 承接；本文件不承载完整 Gate 长清单。
+> `SpecRadarSubgate` 的执行字段、gateGroup 分组、ownerSkill 和 validationRoute 由 `skills/compliance/SKILL.md` 与 `skills/spec-governance/SKILL.md` 的 `GovernanceGateRegistry` 承接；规范吸纳候选的扫描、通用性证明和消费者证明由 `skills/spec-absorption/SKILL.md` 承接；本文件不承载完整 Gate 长清单。
 
 ## 定位与职责边界
 
@@ -214,5 +214,6 @@ PC4 入口（仅 dev 模式）
 | `data/violations.md` | 目标项目 / 已部署副本中的 VL / T_RECORD 输出目标；源仓提供 `data/templates/violations.md` 模板 |
 | `data/process-improvements.md` | 目标项目 / 已部署副本中的 PI 输出目标（优化清单）；源仓提供 `data/templates/process-improvements.md` 模板，维护者实录按 active-root 写入 |
 | `skills/spec-governance/SKILL.md` | 记录意图识别、RecordRouter 分流、SCV 规范变更验证的集中规则源 |
+| `skills/spec-absorption/SKILL.md` | 规范吸纳执行、`.devcodex/*/data` 候选扫描、通用性证明、消费者证明和项目独有规则剔除 |
 | `website/docs/specs/spec-radar-flow.md` | PC4 的专属可视化流程图（三轴决策树 + G1~G9 + 多轴优先级 + 置信度 + 延迟执行）|
 | `website/docs/specs/precheck-flow.md` | 预检查主链流程图（含 PC4 概要入口及指向专属页的链接）|

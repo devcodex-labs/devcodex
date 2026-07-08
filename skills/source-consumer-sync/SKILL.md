@@ -81,6 +81,16 @@ description: 真相源-消费者同步规范 — 为规范源、模板、validat
 - `currentConsumers` 中的 README、website guide、拆分 instructions、technical-design / implementation-plan / report prompts 只保留 `GovernanceGateRegistry`、gateGroup、ownerSkill、validationRoute、skipReason 和少量代表锚点；若 SCV 负向样例发现旧 Gate 长清单回流，必须回到源 Skill 或目标 ownerSkill 承接正文。
 - `deployCopies`：`AGENTS.md`、`.agents/skills/`、`.github/`、`.claude/`、`.codex/` 中由 `devcodex update` 生成的当前副本。
 
+## V81 规范吸纳执行同步面
+
+当变更涉及 `spec-absorption`、最新可吸纳、仍需吸纳、`.devcodex/*/data` 候选扫描、`CommonNormGeneralizationGate` 或 `AbsorptionCandidateConsumerProofGate` 时，Concept Sync Map 必须至少列出：
+
+- `sourceOfTruth`：`skills/spec-absorption/SKILL.md`，必要时包含 `skills/spec-governance/SKILL.md` 的 `GovernanceGateRegistry` 索引。
+- `currentConsumers`：`instructions.md`、`instructions/01b-record-router.instructions.md`、`instructions/10-dev.instructions.md`、`instructions/18-spec-radar.instructions.md`、`spec-governance`、`routing`、`test-router`、`report`、`document-sync`、`source-consumer-sync`、technical-design / implementation-plan / report prompts、README、website guide、directory structure、intro、active version changelog、Profile。
+- `validationProbes`：`checkV81`、`scripts/test-spec-governance.js`、`node scripts/validate.js` 和必要 targeted tests。
+- `negativeSamples`：`ServiceSpecReadGate`、`docs/services/<name>`、单项目 route/model/schema 命名、单库配置习惯等必须被判为 `project-local` 或 `case-evidence-only`。
+- `deployCopies`：`AGENTS.md`、`.agents/skills/`、`.github/`、`.claude/`、`.codex/` 中由 `devcodex update` 生成的当前副本。
+
 ## 黄色偏离边界
 
 以下情况可按黄色偏离处理，但必须记录到实施进度或报告：

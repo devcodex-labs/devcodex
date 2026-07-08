@@ -74,13 +74,14 @@ description: 最终用户使用文档写作规范 — 站点文档、README、qu
 5. 建立 `pageRoleMatrix` 与 `sidebarSemanticModel`：确认每页 role、sidebar group、相邻页面职责、route 真相源和非归属说明。
 6. 对真实工作流补示例：避免只有单点 API 或单个硬编码 job。
 7. 建立 `consumerMap`，列出 README、website、Profile、examples、prompts、templates、validate、部署副本和代码消费点。
-8. 完成后按风险调用 `audit-readme` / `audit-document` 做用户视角复审。
+8. 完成后按风险调用 `audit-user-manual` 做用户侧文档聚合 review；落点为 README / 主入口文档时再叠加 `audit-readme`，通用结构与准确性由 `audit-document` 承接。
 
 ## 与其他 Skill 的关系
 
 - `dev-docs`：识别文档任务后，站点文档、README、用户手册优先转入本 Skill；纯技术文档仍由 `dev-docs` 承载。
 - `readme-authoring`：README 是本 Skill 的 README 专项分支，继续负责 README 章节顺序与用户旅程细化。
-- `audit-readme` / `audit-document`：负责实施后的审查，不替代写作入口。
+- `audit-user-manual`：负责用户侧文档、项目文档、菜单导航和文档 IA 的聚合审查，不替代写作入口。
+- `audit-readme` / `audit-document`：负责 README 专项与通用文档维度，通常由 `audit-user-manual` 编排。
 - `test-router`：选择生成站点、链接、用户路径、Browser/截图或代码级替代验证。
 - `document-sync`：按 `consumerMap` 检查当前消费者和部署副本。
 

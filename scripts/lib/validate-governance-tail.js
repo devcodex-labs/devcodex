@@ -279,9 +279,9 @@ function buildGovernanceTailChecks(ctx) {
     const probes = [
       { file: 'README.md', needles: ['devcodex doctor', 'devcodex help', '## 常见问题与排错', 'DEVCODEX_HOOK_ENFORCEMENT', 'MCP 边界'] },
       { file: 'agents/README.md', needles: ['plugin.json', 'DevCodex 内部注册表', '.agent.md'] },
-      { file: 'instructions/01-common.instructions.md', needles: ['audit-readme', 'README / 用户使用文档额外叠加'] },
-      { file: 'instructions/12-audit.instructions.md', needles: ['audit-readme', 'README / 用户使用文档不单独开新的审查目标'] },
-      { file: 'skills/routing/SKILL.md', needles: ['audit-readme', 'README / 用户使用文档额外叠加'] },
+      { file: 'instructions/01-common.instructions.md', needles: ['audit-readme', 'audit-user-manual', '项目文档 review'] },
+      { file: 'instructions/12-audit.instructions.md', needles: ['audit-readme', 'audit-user-manual', 'README / 用户使用文档不单独开新的审查目标'] },
+      { file: 'skills/routing/SKILL.md', needles: ['audit-readme', 'audit-user-manual', '项目文档 review'] },
       { file: 'website/docs/guide/development.md', needles: ['devcodex doctor', 'DEVCODEX_HOOK_ENFORCEMENT', '.mcp.json'] }
     ]
 
@@ -1655,9 +1655,9 @@ function buildGovernanceTailChecks(ctx) {
       { file: 'prompts/report-scenario-test.prompt.md', needles: ['SkillFirstAbsorptionGate'] },
       { file: 'README.md', needles: ['Skill-first 吸纳架构', 'user-manual-authoring', 'review-checklist'] },
       { file: 'website/docs/guide/development.md', needles: ['Skill-first 吸纳架构', 'user-manual-authoring', 'review-checklist'] },
-      { file: 'website/docs/index.md', needles: ['48 个 Skills'] },
-      { file: 'website/docs/intro/index.md', needles: ['48 个按需触发的工作流技能', 'user-manual-authoring', 'review-checklist'] },
-      { file: 'website/docs/specs/directory-structure.md', needles: ['扁平一级 Skill（48 个）', 'user-manual-authoring', 'review-checklist'] },
+      { file: 'website/docs/index.md', needles: ['50 个 Skills'] },
+      { file: 'website/docs/intro/index.md', needles: ['50 个按需触发的工作流技能', 'user-manual-authoring', 'review-checklist'] },
+      { file: 'website/docs/specs/directory-structure.md', needles: ['扁平一级 Skill（50 个）', 'user-manual-authoring', 'review-checklist'] },
       { file: 'website/docs/versions/v1/1.0.1/requirements/p1/latest-data-absorption-guards/index.md', needles: gates.concat(['V71', 'user-manual-authoring', 'review-checklist']) },
       { file: 'website/docs/versions/v1/1.0.1/CHANGELOG.md', needles: ['V71 探针', 'SkillFirstAbsorptionGate', 'user-manual-authoring', 'review-checklist'] },
       { file: 'changelogs/releases/v1.11.27.md', needles: gates.concat(['V71', 'PI-079', 'PI-080', 'PI-081', 'PF-084', 'PF-085', 'PF-086', 'user-manual-authoring', 'review-checklist']) },
@@ -1800,10 +1800,10 @@ function buildGovernanceTailChecks(ctx) {
       { file: 'prompts/report-fix.prompt.md', needles: ['ConfirmedAbsorptionCompletenessGates', 'FrontendAsyncCacheRenderGate', 'RemoteCIParityPushGate'] },
       { file: 'prompts/report-audit.prompt.md', needles: ['ConfirmedAbsorptionCompletenessGates', 'GovernanceGateRegistry', 'evolution-control-plane'] },
       { file: 'prompts/report-scenario-test.prompt.md', needles: ['ConfirmedAbsorptionCompletenessGates', 'GovernanceGateRegistry', 'frontend-runtime'] },
-      { file: 'README.md', needles: ['ConfirmedAbsorptionCompletenessGates', 'evolution-governance', '48 个'] },
-      { file: 'website/docs/index.md', needles: ['48 个 Skills'] },
-      { file: 'website/docs/intro/index.md', needles: ['48 个按需触发的工作流技能', 'evolution-governance'] },
-      { file: 'website/docs/specs/directory-structure.md', needles: ['扁平一级 Skill（48 个）', 'evolution-governance'] },
+      { file: 'README.md', needles: ['ConfirmedAbsorptionCompletenessGates', 'evolution-governance', '50 个'] },
+      { file: 'website/docs/index.md', needles: ['50 个 Skills'] },
+      { file: 'website/docs/intro/index.md', needles: ['50 个按需触发的工作流技能', 'evolution-governance'] },
+      { file: 'website/docs/specs/directory-structure.md', needles: ['扁平一级 Skill（50 个）', 'evolution-governance'] },
       { file: 'website/docs/guide/development.md', needles: ['ConfirmedAbsorptionCompletenessGates', 'evolution-governance'] },
       { file: 'website/docs/versions/v1/1.0.1/requirements/p1/latest-data-absorption-guards/index.md', needles: gates.concat(['V73', 'evolution-governance']) },
       { file: 'website/docs/versions/v1/1.0.1/CHANGELOG.md', needles: ['V73 探针', 'ConfirmedAbsorptionCompletenessGates', 'evolution-governance'] },
@@ -2215,6 +2215,147 @@ function buildGovernanceTailChecks(ctx) {
     console.log('[V79] coverage gate and external runtime lifecycle matrix checked')
   }
 
+  function checkV80() {
+    const gates = [
+      'audit-user-manual',
+      'UserManualReviewScope',
+      'DocsNavigationReviewMatrix'
+    ]
+    const changelogCorpus = collectChangelogSources()
+      .map(source => source.content)
+      .join('\n')
+
+    const profileCorpus = [
+      read(path.join(ACTIVE_DEVCODEX_ROOT, 'profile', '01-项目信息.md')),
+      read(path.join(ACTIVE_DEVCODEX_ROOT, 'profile', '02-架构约束.md'))
+    ].join('\n')
+
+    const probes = [
+      {
+        file: 'skills/audit-user-manual/SKILL.md',
+        needles: [
+          'name: audit-user-manual',
+          '项目文档',
+          '菜单导航',
+          'SidebarPageRoleMaterializationProbe',
+          'DocsThemeRuntimeVisualProbeGate',
+          'GeneratedSiteGate'
+        ].concat(gates)
+      },
+      { file: 'plugin.json', needles: ['audit-user-manual', 'skills/audit-user-manual/SKILL.md'] },
+      { file: 'skills/routing/SKILL.md', needles: ['audit-user-manual', '项目文档审查', '菜单导航'] },
+      { file: 'skills/dev-docs/SKILL.md', needles: ['audit-user-manual', '项目文档', '菜单导航'] },
+      { file: 'skills/audit-document/SKILL.md', needles: ['audit-user-manual', '项目文档', '菜单导航'] },
+      { file: 'skills/audit-readme/SKILL.md', needles: ['audit-user-manual', '项目文档设计', '菜单导航'] },
+      { file: 'skills/user-manual-authoring/SKILL.md', needles: ['audit-user-manual', '聚合审查'] },
+      { file: 'skills/document-sync/SKILL.md', needles: ['audit-user-manual', 'Profile', 'plugin.json', 'validate'] },
+      { file: 'skills/test-router/SKILL.md', needles: ['userManualReview', 'audit-user-manual', '项目文档审查'] },
+      { file: 'skills/report/SKILL.md', needles: gates.concat(['pageRole/sidebar group', '生成站点或运行态验证证据']) },
+      { file: 'instructions.md', needles: ['audit-user-manual', '项目文档 review'] },
+      { file: 'instructions/01-common.instructions.md', needles: ['audit-user-manual', '项目文档 review'] },
+      { file: 'instructions/12-audit.instructions.md', needles: ['audit-user-manual', '项目文档 review', '菜单导航'] },
+      { file: 'prompts/report-dev.prompt.md', needles: gates },
+      { file: 'prompts/report-fix.prompt.md', needles: gates },
+      { file: 'prompts/report-audit.prompt.md', needles: gates.concat(['文档设计', '菜单导航']) },
+      { file: 'README.md', needles: ['50 个', 'audit-user-manual', '用户侧文档 review 聚合'] },
+      { file: 'website/docs/index.md', needles: ['50 个 Skills', '用户侧文档 review 聚合'] },
+      { file: 'website/docs/intro/index.md', needles: ['50 个按需触发', 'audit-user-manual'] },
+      { file: 'website/docs/guide/development.md', needles: ['audit-user-manual', '菜单导航', 'sidebar'] },
+      { file: 'website/docs/specs/directory-structure.md', needles: ['50 个', 'audit-user-manual', '用户侧文档 review'] },
+      { file: 'active profile corpus', content: profileCorpus, needles: ['50', 'audit-user-manual'] },
+      { file: 'scripts/test-spec-governance.js', needles: ['checkV80'].concat(gates) },
+      { file: 'scripts/validate.js', needles: ['V80 audit-user-manual aggregation skill sync', 'checkV80()'] },
+      { file: 'changelog corpus', content: changelogCorpus, needles: ['V80'].concat(gates) }
+    ]
+
+    for (const probe of probes) {
+      const content = probe.content || read(path.join(ROOT, probe.file))
+      for (const needle of probe.needles) {
+        if (!content.includes(needle)) {
+          err(`[V80] audit-user-manual aggregation sync in ${probe.file}: missing "${needle}"`)
+        }
+      }
+    }
+
+    console.log('[V80] audit-user-manual aggregation skill sync checked')
+  }
+
+  function checkV81() {
+    const skill = 'spec-absorption'
+    const gates = [
+      'CommonNormGeneralizationGate',
+      'AbsorptionCandidateConsumerProofGate'
+    ]
+
+    function classifyAbsorptionSample(sample) {
+      const projectSpecific = /ServiceSpecReadGate|docs\/services\/<name>|单个业务项目|项目私有/.test(sample)
+      const consumerProof = /DevCodex 当前消费者|targetOwner|跨工作流复用|宿主无关/.test(sample)
+      if (projectSpecific && !consumerProof) return 'project-local'
+      if (consumerProof) return 'absorb'
+      return 'case-evidence-only'
+    }
+
+    const negativeSamples = [
+      'ServiceSpecReadGate：服务开发进入编码前必须读取 docs/services/<name>/',
+      '单个业务项目的 route/model/schema 命名规范'
+    ]
+    for (const sample of negativeSamples) {
+      if (classifyAbsorptionSample(sample) === 'absorb') {
+        err(`[V81] ${skill} negative sample was incorrectly classified as absorb: ${sample}`)
+      }
+    }
+    const positiveSample = '跨工作流复用且已有 DevCodex 当前消费者和 targetOwner 的吸纳候选'
+    if (classifyAbsorptionSample(positiveSample) !== 'absorb') {
+      err(`[V81] ${skill} positive sample did not classify as absorb`)
+    }
+
+    const profileCorpus = [
+      read(path.join(ACTIVE_DEVCODEX_ROOT, 'profile', '01-项目信息.md')),
+      read(path.join(ACTIVE_DEVCODEX_ROOT, 'profile', '02-架构约束.md'))
+    ].join('\n')
+    const changelogCorpus = collectChangelogSources()
+      .map(source => source.content)
+      .join('\n')
+
+    const probes = [
+      { file: 'skills/spec-absorption/SKILL.md', needles: ['name: spec-absorption', '.devcodex/*/data', 'ServiceSpecReadGate', 'project-local', 'case-evidence-only', 'targetOwner'].concat(gates) },
+      { file: 'plugin.json', needles: ['spec-absorption', 'skills/spec-absorption/SKILL.md'] },
+      { file: 'skills/routing/SKILL.md', needles: ['spec-absorption', '最新可吸纳', '仍需吸纳'] },
+      { file: 'skills/spec-governance/SKILL.md', needles: ['spec-absorption', 'project-local', 'AbsorptionCandidateConsumerProofGate'] },
+      { file: 'skills/test-router/SKILL.md', needles: ['specAbsorption', 'CommonNormGeneralizationGate', 'AbsorptionCandidateConsumerProofGate'] },
+      { file: 'skills/report/SKILL.md', needles: ['spec-absorption', 'CommonNormGeneralizationGate', 'targetOwner'] },
+      { file: 'skills/document-sync/SKILL.md', needles: ['spec-absorption', 'CommonNormGeneralizationGate', 'Concept Sync Map'] },
+      { file: 'skills/source-consumer-sync/SKILL.md', needles: ['V81 规范吸纳执行同步面', 'spec-absorption', 'negativeSamples'] },
+      { file: 'prompts/technical-design.prompt.md', needles: ['spec-absorption', 'CommonNormGeneralizationGate', 'projectSpecificResidue'] },
+      { file: 'prompts/implementation-plan.prompt.md', needles: ['spec-absorption', 'CommonNormGeneralizationGate', 'DevCodex 当前消费者'] },
+      { file: 'prompts/report-dev.prompt.md', needles: ['spec-absorption', 'CommonNormGeneralizationGate', 'targetOwner'] },
+      { file: 'prompts/report-fix.prompt.md', needles: ['spec-absorption', 'AbsorptionCandidateConsumerProofGate', 'targetOwner'] },
+      { file: 'prompts/report-audit.prompt.md', needles: ['spec-absorption', 'projectSpecificResidue', 'devcodexConsumerEvidence'] },
+      { file: 'prompts/report-scenario-test.prompt.md', needles: ['spec-absorption', 'negativeExamples', 'validationRoute'] },
+      { file: 'README.md', needles: ['spec-absorption', 'CommonNormGeneralizationGate', 'ServiceSpecReadGate', '50 个'] },
+      { file: 'website/docs/index.md', needles: ['50 个 Skills', '规范吸纳执行'] },
+      { file: 'website/docs/intro/index.md', needles: ['50 个按需触发的工作流技能', 'spec-absorption'] },
+      { file: 'website/docs/specs/directory-structure.md', needles: ['扁平一级 Skill（50 个）', 'spec-absorption'] },
+      { file: 'website/docs/guide/development.md', needles: ['spec-absorption', 'CommonNormGeneralizationGate', 'ServiceSpecReadGate'] },
+      { file: 'website/docs/versions/v1/1.0.1/CHANGELOG.md', needles: ['spec-absorption', 'V81'] },
+      { file: 'active profile corpus', content: profileCorpus, needles: ['50', 'spec-absorption'] },
+      { file: 'scripts/test-spec-governance.js', needles: ['checkV81', 'spec-absorption', 'CommonNormGeneralizationGate'] },
+      { file: 'scripts/validate.js', needles: ['V81 spec absorption execution skill sync', 'checkV81()'] },
+      { file: 'changelog corpus', content: changelogCorpus, needles: ['spec-absorption', 'CommonNormGeneralizationGate', 'V81'] }
+    ]
+
+    for (const probe of probes) {
+      const content = probe.content || read(path.join(ROOT, probe.file))
+      for (const needle of probe.needles) {
+        if (!content.includes(needle)) {
+          err(`[V81] spec absorption execution sync in ${probe.file}: missing "${needle}"`)
+        }
+      }
+    }
+
+    console.log('[V81] spec-absorption execution skill sync checked')
+  }
+
   return {
     checkV39,
     checkV40,
@@ -2256,7 +2397,9 @@ function buildGovernanceTailChecks(ctx) {
     checkV76,
     checkV77,
     checkV78,
-    checkV79
+    checkV79,
+    checkV80,
+    checkV81
   }
 }
 

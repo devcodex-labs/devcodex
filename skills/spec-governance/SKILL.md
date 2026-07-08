@@ -1,12 +1,12 @@
 ---
 name: spec-governance
-description: 规范治理生命周期 — 意图驱动记录、RecordRouter 分流、SCV 规范变更验证
+description: 规范治理生命周期 — 意图驱动记录、RecordRouter 分流、SCV 规范变更验证；规范吸纳执行细节由 spec-absorption 承接
 ---
 # Spec Governance Skill
 
 ## 定位
 
-本 Skill 是规范治理生命周期的集中规则源，负责把“记录规范问题”和“规范变更验证”收口为统一链路：
+本 Skill 是规范治理生命周期的集中规则源，负责把“记录规范问题”和“规范变更验证”收口为统一链路；规范吸纳的候选扫描、通用性证明、消费者证明和实施执行由 `spec-absorption` 承接：
 
 ```text
 发现 -> Intent Detection -> Ambiguity Guard -> RecordRouter -> Ledger Write -> Upgrade Check -> Verification
@@ -68,6 +68,8 @@ description: 规范治理生命周期 — 意图驱动记录、RecordRouter 分�
 ## LayeredAbsorptionGate（分层吸纳归属判定）
 
 `LayeredAbsorptionGate` 是 Improvement Intake 之后、规范源实施之前的强制架构门禁。`SkillFirstAbsorptionGate` / `CapabilityToSkillPromotionGate` 保留为 Skill 层兼容子门禁。任何可泛化 PI / PF / GAP / ISSUE 或用户确认值得吸纳的策略，都不能默认追加到 `CrossProjectLearnedGuards`、`LatestAbsorptionGuards` 或通用 instructions 长列表，也不能只做“通用规范 / Skill”二选一；必须先判断归属并列出所有消费层。
+
+> 执行归属：本节只定义治理层门禁与输出字段。候选来自 `.devcodex/*/data`、“最新可吸纳 / 仍需吸纳 / 开始吸纳”时，必须读取 `spec-absorption`，先执行 `CommonNormGeneralizationGate` 与 `AbsorptionCandidateConsumerProofGate`，证明通用价值和 DevCodex 当前消费者；项目独有规则只能作为 `project-local` 或 `case-evidence-only`，不得进入通用规范。
 
 ### 归属分类
 
@@ -158,9 +160,9 @@ description: 规范治理生命周期 — 意图驱动记录、RecordRouter 分�
 
 | gateGroup | ownerSkill | 触发语义 | 最小证据 |
 |-----------|------------|----------|----------|
-| `absorption-layering` | `spec-governance` | 可泛化 PI / PF / GAP / ISSUE、用户确认值得吸纳、新增 Gate | `LayeredAbsorptionDecision`、`layerChecks`、consumer sync |
-| `historical-common-layering` | `spec-governance` | 历史通用规范、prompt/report 长清单或旧吸纳项重新分层 | 逐文件审查矩阵、`legacy-index-retained`、`PromptLongGateListDriftProbe`、V74/V75 探针 |
-| `confirmed-completeness` | `spec-governance` + 目标 Skill | 未完整吸纳、半覆盖、缺 Gate / Skill / Prompt / Probe / deployCopy | gateGroup 分流表、目标 Skill 证据、验证探针 |
+| `absorption-layering` | `spec-absorption` + `spec-governance` | 可泛化 PI / PF / GAP / ISSUE、用户确认值得吸纳、新增 Gate | `CommonNormGeneralizationGate`、`AbsorptionCandidateConsumerProofGate`、`LayeredAbsorptionDecision`、`layerChecks`、consumer sync |
+| `historical-common-layering` | `spec-absorption` + `spec-governance` | 历史通用规范、prompt/report 长清单或旧吸纳项重新分层 | 逐文件审查矩阵、`legacy-index-retained`、`PromptLongGateListDriftProbe`、V74/V75 探针 |
+| `confirmed-completeness` | `spec-absorption` + 目标 Skill | 未完整吸纳、半覆盖、缺 Gate / Skill / Prompt / Probe / deployCopy | gateGroup 分流表、通用性证明、消费者证明、目标 Skill 证据、验证探针 |
 | `review-checklist` | `review-checklist` | 正式复审、ECR、发布前复审、多轮收敛、外部 finding 批次 | 复审清单文件、状态、证据、Run ID、收敛结论 |
 | `review-escape` | `review-checklist` + `spec-governance` | 二次复审或实施中发现原清单遗漏、新问题逃逸 | `ReviewEscapeRecordGate`、`escapedItem / whyMissed / missingDimensionOrProbe / prevention / checklistPatch / rerunEvidence`、台账分流 |
 | `post-confirmation-review` | `cp-gate` + `review-checklist` + `dev-plan-review` | CP1/CP2/CP3 确认后进入下一阶段 | `PostConfirmationReviewScopeGate` 风险分级、轻量/全面复审判定、冻结清单或 skipReason、PR-2~PR-7 证据 |
@@ -185,10 +187,11 @@ description: 规范治理生命周期 — 意图驱动记录、RecordRouter 分�
 
 当用户确认“未完整吸纳 / 还要一起吸纳 / 刚才这些都要补上”或复审发现只有概念覆盖、缺独立 Gate、缺 Skill、缺 Prompt、缺探针或缺部署副本时，必须把该批规则作为 `ConfirmedAbsorptionCompletenessGates` 处理。执行路线：
 
-1. 复核候选是否仍有价值，剔除已完整吸纳或不适合泛化的项。
+1. 先读取 `spec-absorption`，复核候选是否仍有价值，并通过 `CommonNormGeneralizationGate` 剔除已完整吸纳、不适合泛化或属于项目独有的项。
 2. 为每项输出 `LayeredAbsorptionDecision`，标明 `global-invariant / existing-skill-subgate / new-skill-required / docs-only`。
-3. 对每个 `layerChecks` 逐层同步：`commonInstruction / skill / promptTemplate / executionConsumer / validationProbe / publicDocs / deployCopy`。
-4. 若某项已经在正文中出现，但没有 Gate 名、触发条件、报告字段或 validate 探针，不得判定为完整吸纳。
+3. 对每项执行 `AbsorptionCandidateConsumerProofGate`，证明 DevCodex 当前消费者和目标 owner。
+4. 对每个 `layerChecks` 逐层同步：`commonInstruction / skill / promptTemplate / executionConsumer / validationProbe / publicDocs / deployCopy`。
+5. 若某项已经在正文中出现，但没有 Gate 名、触发条件、报告字段或 validate 探针，不得判定为完整吸纳。
 
 本批确认吸纳项至少覆盖：
 

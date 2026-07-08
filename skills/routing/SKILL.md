@@ -42,7 +42,7 @@ description: 定义意图识别结果到工作流的路由映射。本 Skill 为
 | fix | default | `skills/fix-default/SKILL.md` |
 | fix | incident | （Instruction 已完整覆盖） |
 | fix | security | `skills/fix-security/SKILL.md` |
-| analyze | default | Instruction 内置默认分析路径 |
+| analyze | default | `skills/analyze-default/SKILL.md` |
 | analyze | research | `skills/analyze-research/SKILL.md` |
 | audit | 规范文件 | `skills/audit-dimensions/SKILL.md` |
 | audit | 技术方案 | `skills/audit-tech-design/SKILL.md` |

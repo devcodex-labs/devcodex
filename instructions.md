@@ -241,29 +241,16 @@ CP2 / 技术方案 / 报告必须记录 `LayeredAbsorptionDecision`：`candidate
 
 用户确认“仍需吸纳清单”或复审指出“未完整吸纳 / 半覆盖 / 只有概念没有 Gate 或探针”时，必须把该批规则作为 `ConfirmedAbsorptionCompletenessGates` 处理：先复核是否仍有价值，再按 `LayeredAbsorptionGate` 分配到通用规范、既有 Skill 子门禁、新 Skill、Prompt、执行消费者、验证探针、公开文档和部署副本。不得因某个概念已经在文档里出现过，就跳过独立 Gate、探针或消费者同步。
 
-本批确认吸纳项按以下守门执行，未触发时写 `N/A + skipReason`。本节在通用层只作为索引和触发面；每个 Gate 的执行正文、证据字段和验证路线以 `spec-governance` 的 `ConfirmedAbsorptionCompletenessGates`、目标 Skill、Prompt/Report 模板和 validate 探针为准，禁止后续继续把完整长清单追加回通用 instructions。
+本批确认吸纳项按 `GovernanceGateRegistry` 分组执行，未触发时写 `N/A + skipReason`。本节在通用层只保留索引和触发面；每个 Gate 的执行正文、证据字段和验证路线以 `spec-governance`、目标 Skill、Prompt/Report 模板和 validate 探针为准。
 
-| Gate | 触发场景 | 最小要求 |
-|------|----------|----------|
-| `PublicSurfaceClosureGate` | package / README / website / docs / public types / examples / search index / historical pack surface 变化 | 分类 npm pack 历史公开内容，反查 README 隐藏文档链接、public types 兼容 API 标注、examples/sidebar/nav 和搜索索引源文档；不得只检查当前源码目录 |
-| `UserManualProductizationGate` | 用户文档、站点文档、README、quick start、接入手册、最终用户手册 | 以最终使用者任务组织受众、配置、示例、排错、失败恢复和源码 / 示例可点击链路；内部字段和实现说明不得占主路径 |
-| `UserManualRenderedFlowAndRealWorkflowProbe` | 用户文档包含 Mermaid / 流程图 / quick start / 队列或异步示例 | 必须验证流程图真实渲染；quick start 示例使用真实业务工作流，禁止用硬编码单例冒充主路径 |
-| `SampleIssueExpansionGate` | 用户给出样例问题并要求全面审查、完整需求或全量处理 | 样例只能作为 seed evidence；正式审查或需求整理前先展开全维度图并标出样例覆盖 / 未覆盖范围 |
-| `RequirementDimensionBindingGate` / `RequirementPriorityAndPhaseGate` | 需求维度、分阶段需求、复杂批次或多阶段实施 | 每个需求维度绑定 CP2、批次计划、验收和阶段关闭规则；多阶段需求写 `entry / exit / carryOver / closeRule` |
-| `ReviewAnchorMaterializationGate` | 技术方案、CP2、复审计划或 PR/TD 审查锚点 | 把 PR / TD 审查锚点物化成可 grep 的章节、表格或清单；不能只靠语义覆盖 |
-| `SemanticLegacyRouteExposureGate` / `ReferenceCodeTruthSamplingGate` | legacy / compat / route / reference-code / 行为断言相关任务 | legacy / compat 不只查 label，还查 slug、href、title、sidebar、search、generated HTML；行为断言必须抽样核代码、类型或运行时证据 |
-| `FrontendAsyncCacheRenderGate` / `StaleWhileRevalidateGate` | 首页、详情、列表、搜索、前端接口数据或返回页面状态 | 有旧缓存时先显示旧数据并异步刷新替换；不得回退为空白、loading-only 或同步阻塞式取数 |
-| `PortableExternalArtifactGate` | 给同事、跨机器、对外分享或用户可复制的产物 | 不得写死本机绝对路径、`.devcodex` 私有路径或个人工作区前提；需提供相对、仓库内或外部可访问路径 |
-| `StrongestProfileSourceGate` / `ServiceSpecificResidueSweep` | 从单服务、单项目或强 Profile 抽取公共规范 | 以最强 Profile 为公共基线；抽公共规范后清扫服务名、私有路由、专属职责和实现残留 |
-| `ProfileReadChainGate` / `ServiceNormCoverageGate` | 服务 / 框架规范复审、Profile 链路或工作区命名空间 | 覆盖 `.devcodex/<project>/profile` 读取链、全部服务集合、docs 自维护链、导航、版本、构建、报告和记忆 |
-| `RouteNamespaceResponsibilityGate` | 某个词同时是服务名、历史兼容路径或源码路由命名空间 | 明确服务职责、历史路由命名空间和当前公开面边界，避免把 route namespace 写成当前服务职责 |
-| `RemoteCIParityPushGate` | push / tag / release / publish 前验证 | 执行与远端 CI 同构的本地门禁；不能用普通测试通过替代 coverage、audit、examples、website、pack 或矩阵脚本 |
-| `OfficialApiEvidenceGate` | API / SDK / 平台能力 / 官方契约 / public API 设计 | 使用官方 API 文档、公开契约或源码证据；缺失时记录降级证据和兼容风险，不得凭经验猜 |
-| `AsyncDbTruthSourceVerificationGate` | 数据库、异步任务、队列、缓存、详情页数据或跨页面返回状态 | 区分真实数据源、异步请求、缓存替换、失败回退和刷新边界；验证不得只看 UI 当前空白或 mock |
-| `DocsPageRoleMatrixGate` / `CompleteUserManualSiteMatrixGate` | 文档站、README、站点文档或用户手册 IA | 为每个页面标明 role、audience、sourceOfTruth、nav/sidebar 位置和是否用户主路径；完整用户手册站点覆盖入门、配置、任务、reference、排错、限制与下一步 |
-| `EvolutionCapabilityControlPlaneGate` | 自我进化、规范自动优化、模型自动生成规则、自动发版或自动治理能力 | 必须走 `evolution-governance` Skill；冻结授权、模型配置、租户 / 权限、配额、数据边界、审计日志、回滚和发布审批，模型输出只能作为候选，不得直接进入 active 规范 |
-| `FrameworkCapabilityAutoFirstGate` | 框架、SDK、平台或插件已有能力与手写实现取舍 | 先查项目 / 官方框架能力、配置项、插件和现有抽象；已有成熟能力时优先复用，不手写平行能力 |
-| `DocsThemeRuntimeVisualProbeGate` | 文档站主题、样式、导航、暗色模式、搜索或运行时 UI 体验 | 验证真实运行态主题、导航、搜索、代码高亮、移动端、暗色/亮色和关键页面视觉；不能只看 Markdown 源码 |
+| gateGroup | 目标承接 |
+|------|----------|
+| `public-surface` | `PublicSurfaceClosureGate`、`SemanticLegacyRouteExposureGate`、`ReferenceCodeTruthSamplingGate`、`RemoteCIParityPushGate`、`PortableExternalArtifactGate` → `audit-release` / `release-verification` / `audit-readme` |
+| `user-manual` | `UserManualProductizationGate`、`UserManualRenderedFlowAndRealWorkflowProbe`、`DocsPageRoleMatrixGate`、`CompleteUserManualSiteMatrixGate`、`DocsThemeRuntimeVisualProbeGate` → `user-manual-authoring` |
+| `review-checklist` | `SampleIssueExpansionGate`、`RequirementDimensionBindingGate`、`RequirementPriorityAndPhaseGate`、`ReviewAnchorMaterializationGate` → `review-checklist` / `audit-requirements` |
+| `frontend-runtime` | `FrontendAsyncCacheRenderGate`、`StaleWhileRevalidateGate`、`AsyncDbTruthSourceVerificationGate` → `audit-project` / `test-router` / `api-verification` |
+| `profile-service` | `StrongestProfileSourceGate`、`ServiceSpecificResidueSweep`、`ProfileReadChainGate`、`ServiceNormCoverageGate`、`RouteNamespaceResponsibilityGate` → `load-profile` / `profile-bootstrap` |
+| `evolution-control-plane` | `EvolutionCapabilityControlPlaneGate`、`FrameworkCapabilityAutoFirstGate`、`OfficialApiEvidenceGate` → `evolution-governance` / `dev-plan-review` |
 
 ### Backlog Intake 真相复核
 
@@ -342,68 +329,21 @@ dev/fix 修改完成前必须判定是否影响 Profile。命中以下任一触�
 
 ### CrossProjectLearnedGuards（跨项目已吸纳守门）
 
-- 来自 `data/*.md`、复审、发布验证、同类项目实践或用户纠偏的可泛化规范被吸纳后，必须落入可执行门禁而不是只写成建议；CP1/CP2/TestRoute/审查报告需按项目现实判定触发，未触发时写 `N/A + skipReason`。
-- 新增吸纳项进入本节前必须先通过 `LayeredAbsorptionGate`、`SkillFirstAbsorptionGate` / `CapabilityToSkillPromotionGate` 归属判定；成组能力优先沉淀为独立 Skill，通用守门清单只保留索引、触发和跨 Skill 路由，不再作为默认堆叠容器；prompt/template、执行消费者、validate 探针、公开文档和部署副本必须在 `LayeredAbsorptionDecision.layerChecks` 中逐层闭环。
-- 本节历史条目按 `HistoricalCommonNormLayeringGate` 视为 `legacy-index-retained`：Gate 名保留为 grep 锚点，具体执行细则必须由目标 Skill / TestRoute / report / document-sync / release-verification / audit 维度承接；新增或补强项不得继续在本节追加长正文。
-- `CodeTruthRequirementGate`：需求、方案或报告描述“已实现 / 已接入 / 未接入 / 已支持”前，必须先核对代码真相源、消费者入口和运行证据，禁止仅凭历史报告、目录名或记忆判断。
-- `ManualReviewEvidenceRetention`：人工复核、视觉检查、手工冒烟、外部页面观察或无法自动化的验证必须保留复核人/时间/范围/输入/观察结果/截图或日志位置；不得只写“人工检查通过”。
-- `DocumentationTranslationParityGuard`：多语言文档、翻译页、README/website 同步页或中英文双入口变更时，必须核对信息等价、版本号、链接、示例、术语和当前消费者顺序；无法同步时写明历史镜像或降级理由。
-- `FormalDocsDevCodexBoundary`：正式用户文档、官网、README、规范页与 DevCodex 运行时报告/台账/临时分析必须区分边界；不得把内部流程噪声、待办台账或一次性报告口吻泄漏到正式文档，也不得把正式需求入口只写在运行时台账。
-- `LLMPromptContractTriage`：变更 prompt、Agent 指令、Hook 输出、MCP 工具描述或面向 LLM 的契约时，必须区分人读说明、模型指令、结构化输出字段和宿主能力边界；字段级契约、示例、失败降级和验证探针需同步。
-- `VerificationScopeBudgetGate`：验证路线必须与风险和变更面匹配；高风险、控制面、发布、资源生命周期或前端体验不能只跑轻量检查，低风险纯文档/纯计算也不得为形式引入重压测、E2E 或外部依赖。
-- `LiveVerificationExecutionObligation`：声明“已验证 / 可运行 / 可点击 / 已发布 / 已安装”前必须真实执行对应命令、页面、接口、pack/install、registry/tag 查询或项目等价验证；无法执行时只能写阻塞/降级证据，不能用预期代替结果。
-- `ReviewFindingIntakeGate` / `DesignIntentAndDocsConsistencyGate`：外部审查报告、AI review finding、audit issue 或代码评审发现进入 analyze/audit/fix 处理前，必须先按 5 个子探针分流：`AuditReportIsSignalNotEvidence`（报告只是线索，需本地代码/文档/测试/运行证据，无法复现标 `not-reproduced` 或 `needs-evidence`）、`IntentionalDesignClassification`（识别 intentional design、兼容设计、性能取舍或产品策略并记录依据）、`UserDecisionBeforeMutation`（公共契约、兼容风险、设计取舍或文档/实现二选一时，修改源码前先用户确认）、`DocsImplementationDriftAttribution`（文档与实现不一致时先判断文档是否代表产品目标或历史承诺，再决定修代码/文档/示例/测试）、`TestCoverageGapOnly`（仅测试浅、回归缺失或证据不足时优先补测试/复现/验证证据，不直接改 runtime）。该门禁是审查发现 intake 场景的组合门禁，不作为 5 个独立顶层守门。
-- `FindingProbeMatrixGate`：外部审查报告、AI review finding、audit issue 或代码评审发现被分类为 must-fix 或发布阻断项时，修复计划必须逐项列出 finding、入口/消费者、最小失败输入、修复前失败形态、修复后通过条件、对应测试/脚本和公开发布面证据；复审至少一轮反向运行矩阵。schema/parser/serializer/exporter 类问题按需追加 falsy、legacy keyword、direct/multi-hop/cycle/encoded ref、组合 applicator、helper 对称性、稳定序列化和 closure identity 等对抗轴。
-- `FigmaHighFidelityRestorationGate` / `ScopedVisualChangeGate` / `InstalledPluginVisualVerificationGate`：前端、官网、文档站或 Figma 还原类任务必须把设计来源、允许修改范围、冻结范围和实际视觉验证工具链落入 TestRoute；不得在优化图片、修复交互或重建页面时顺手改整体风格。
-- `VisualDeviationTypeGate` / `DesignFramePurposeClassificationGate`：UI/Figma/截图修复前必须先判断偏差类型、读取设计 effect/style 参数、识别目标帧与排除帧；不得把邮件模板、banner、素材、示意页或旧稿误当作前端页面验收目标。
-- `ActualPreviewChainAndMockFallbackGate` / `UIStateScopeRegressionGate` / `FigmaProductionAssetBudgetGate` / `RuntimeI18nArtifactVerificationGate`：用户可见 UI 验证必须证明命中真实页面、真实运行态和关键状态；涉及生产资产或本地化时必须保留资产预算、运行时加载产物和残留 key 检查证据。
-- `FrontendBrowserVerificationBudgetGate` / `UserSelfVerificationOverrideGate`：前端验证先判定浏览器验证 required / optional / N/A；用户未明确要求且低风险时不得为形式主动拉起浏览器或 E2E，用户明确自验或禁止浏览器/截图/模拟交互时只做代码级验证并记录降级证据。
-- `ReviewDimensionDeltaGate`：R2+ 复审、audit 连续零发现、ECR 或遗漏专审不得机械重复同一组维度；必须记录 `PreviousDimensionSet`、`CurrentDimensionFocus`、`NewDimensionRationale`、`RepeatedDimensionReason`，重复维度只允许用于阻断项回归、高风险锚点、新证据复核或抽样。若连续轮次维度与文件都无新增焦点且无证据化理由，该轮不得计入有效零发现或“已复审”。
-- `ReviewChecklistCompletenessGate` / `EvidenceExecutionGate`：长链路修复、外部 finding 批次、语法/运行时风险簇或已冻结 Review Checklist 的 R2+ 审查，必须把每个清单项绑定代码 / 类型 / 测试 / 文档 / 配置证据，列出 `ReviewedSet`、显式排除理由和可复现命令 / 行号 / 反向缺席扫描；不得只证明“清单存在”或“主题已看过”。语法扫描类风险须按 lexical token class / 语法类别反向枚举，而不是只列已修 case。
-- `UserPerspectiveDocsGate`：README、用户使用文档、官网/文档站、接口说明、运行手册、需求/方案中面向人读的章节必须从使用者角度组织，先回答“这是什么、适合谁、如何第一次成功、常见任务怎么做、参数/字段/状态/错误怎么理解、失败如何恢复、限制和下一步是什么”；要求足够详细、术语首次解释、示例真实、心智负担低，避免只按维护者内部实现顺序堆叠。纯内部临时报告或只面向维护者的文档可写 `N/A + skipReason`。
-- `UserDocsImmediateComprehensionGate`：README、官网/文档站、API/CLI/config 文档、快速开始或运行手册审查时，必须输出三轴结论：功能覆盖是否完整、配置是否简单易懂（字段/默认值/选择建议/错误与排错）、首次读者是否能在主入口立即理解当前状态、适用人群、第一次成功路径、限制和下一步。不能只因章节完整或契约完整就判定用户文档可用。
-- `UserDocsPrimarySurfaceGate`：当用户目标包含“用户使用文档 / 站点文档 / 文档站 / README / quick start / 接入手册”时，先冻结 `targetSurface`、`documentLocation` 与 `primaryAudience=用户/使用者`；公开用户主面必须抽查首页首屏、quick start、nav/sidebar 前两组、首屏 CTA、reference 入口、配置、常见任务、排错、限制和下一步，确认主路径服务最终使用者。开发契约、目标 API、数据模型、实现验收和维护者 checklist 只能后置或标记为 developer/maintainer-only；未发布 runtime 只能写“当前不可用 + 未来使用路径骨架”，不得用开发文档替代用户手册，也不得未确认就把需求交付文档挂入项目 README/docs。
-- `UserFacingDeliveryChainGate`：纯新需求、需求变更、docs-first SDK/CLI/adapter、用户文档站或公开能力交付时，必须按项目现实判定完整交付链：原始需求 → 整理后的需求概况 / 待确认草稿 → `01-需求确认.md` 或 `01-产品需求.md` → `documentationSurface=docs-site | README-minimum | N/A` → 用户最终使用文档 → 前端 / API / 外部调用契约文档（条件）→ `02-技术方案.md` → `03-实施方案.md`（复杂项目条件）→ `04-实施计划.md` → `05-实施进度.md`（跨轮次条件）→ ECR 需求对照 + 用户使用文档符合性审查。整理后的需求概况不得替代确认事实源，技术方案必须引用已确认需求、用户文档和契约文档。
-- `FinalUserManualFirstGate` / `DocsSiteInformationArchitectureGate` / `UserManualFlowAndFailureGate` / `QueueDocsRealWorkflowGate`：当用户要求“先写文档再开发 / 最终用户使用手册 / 后续按文档实现”时，用户文档应以目标版本最终可执行路径书写，并先划分文档站 IA：用户手册、API/CLI/config reference、operations、compatibility、implementation、maintainer 内容各归其位；最终用户手册至少覆盖整体流程、关键角色、第一次成功、失败分流、排查命令和恢复/降级。队列、任务、异步处理、导入导出、推送或批处理类 quick start 必须提供真实批量工作流，覆盖数据来源、筛选、批量 enqueue、payload schema、handler 业务动作、配置字段、失败/重试/幂等和观测，单个硬编码 job 只能作为 API micro example。
-- `PublicUserDocsMaintainerBoundaryGate`：公开用户文档、README、官网教程、快速上手、配置/扩展/框架接入指南不得把维护者验收、发布前 checklist、内部同步清单、台账状态或实现者复审任务混入用户主路径；确需保留时迁移到 CONTRIBUTING、release checklist、requirements/report 或 maintainer-only 文档，并在公开页只保留用户任务、配置语义、正反示例、能力边界和可运行入口。
-- `DocsConsumerSweep`：文档变更后必须扫描当前消费者和消费位置，至少覆盖 README / website / Profile / prompts / templates / examples / nav/sidebar / validate probes / 部署副本；文档新增字段、配置项、命令、状态、路径或能力承诺时，要核对代码或配置消费点，避免“文档写了但入口、示例、导航或校验仍旧口径”。
-- `ArtifactLinkSetDedupeGate`：最终回复、报告、记忆、SUMMARY 或宿主文件面板会消费的产物清单必须按规范化绝对路径去重；同一物理文件的相对链接、绝对链接和 copy fallback 只能形成一个主 ArtifactLinkSet 条目。不同目录的同名文件需显示足够路径消歧；历史镜像或部署副本要标明身份，不得让用户误以为重复生成了双份产物。
-- `FrontendRuntimeNetworkProbeGate`：前端真实预览或文档站/官网视觉验收命中时，除截图/视觉检查外，还需按项目能力检查 console、network、资源加载、API target、runtime i18n key 和 hydration/runtime error；无法检查时写阻塞、降级证据和残余风险。
-- `ActiveRequirementFinalResponseGate`：同一天或同一工作区存在多个相邻需求、backlog、open 任务或未完成候选时，最终回复和完成报告必须先声明当前 active requirement / task / bug id，并且完成状态、验证证据、dirty 边界和下一步默认只围绕该 active 范围输出；未被用户确认切换的相邻需求只能放入“未切换范围 / 未执行事项 / backlog 观察”并说明未执行，禁止把另一个需求的“可接下一步”写成当前任务默认结尾。
-- `VerificationCommandSideEffectGate`：执行验证命令前必须读取 package/script 定义或项目等价入口，判断命令是 read-only、writes-artifacts 还是 mutates-source；类型校验优先无产物命令（如 `--noEmit`）。必须执行会写产物的 build/codegen/export/tsc 命令时，先说明副作用，执行后扫描 git status/生成物，隔离或清理验证残留，并在报告记录证据。
-- `ExplicitCommitAuthorizationGate`：实际执行本地 `git commit` 必须有用户当前会话明确要求；“需要回滚点”“语义批次已验证”只能作为建议提交或请求确认的理由，不能自动 commit。`push` / `tag` / `publish` 仍按用户明确确认执行。
-- `CompatibilityAndContractAuthorityGate`：兼容修复、共享库/adapter/SDK、上游契约或消费者验证相关任务必须区分零代码消费者兼容性、上游合同权威和官方 public API 证据；禁止用影子 allowlist、历史报告或内部 helper 替代上游公开契约，必要时验证“修共享库 + 消费项目升级”是否优于单项目补丁。
-- `GuardPolicyBypassMatrixGate`：guard / policy / permission / consistency / 写路径限制类修复或审查必须建立 surface × specificity × action × op category × source/target namespace 矩阵，覆盖 raw/native/legacy/management/admin/client 入口、宽松 default + 严格局部规则、warn/throw 策略和 reserved/sentinel/空白/畸形 key 等负向探针。
-- `PackageAdapterPreConfirmEvidenceGate`：涉及 package、adapter、plugin、SDK、CLI 或发布包能力时，在推荐用户确认 CP2 / 方案前必须先核对 package.json、plugin.json、exports/bin/files、dist/pack 边界、registry 或安装入口、adapter 消费者和官方/上游公开契约；缺证据时只能标待确认，不能把“源码里有”直接等同于包消费者可用。
-- `BuiltArtifactFeatureSmokeGate` / `TscOutputImportProbe`：runtime、adapter、SDK、CLI、module-format、`createRequire`、`import.meta`、conditional loading、exports/bin/files 或构建产物边界变化时，不能只测源码或 root export；必须在 dist CJS、dist ESM、`.generated` / tsc 输出或项目等价产物上各跑至少一个真实 import / feature path，并检查 dependency load API shape、默认启用 / 显式关闭 / injected runtime 等关键模式。失败要记录为返修原因，不得归为测试偶发；文档扫描命中旧版本或旧包名时须分类为 current violation / historical allowed / compat fixture allowed / unrelated。
-- `RequirementVerdictStateSyncGate`：需求修订、再次复审、宣布“可确认 / 暂不通过 / 已修订待复审”或从修复清单回写真相源前，必须核对需求真相源顶部状态、推荐结论章节、修复清单状态、最新 audit-state decision、requirement sessions / memory / SUMMARY 口径是否一致；发现漂移先修正状态同步集，再进入下一阶段或给出确认建议。
-- `UIConfirmedSourceConflictTraceGate`：当用户确认的 UI、Figma、截图或当前线上页面成为主真相源并覆盖旧 PRD/文档时，需求或方案必须保留冲突表，写清旧来源、新来源、采纳理由、影响范围和后续文档同步路线。
-- `PublicDocsReleasedVersionGate`：公开 README、官网、迁移指南、版本页或用户文档不得把未发布能力写成已发布历史、迁移负担或正式可用功能；未发布内容只允许出现在 unreleased、草案、需求页或明确标注的 preview 区域。
-- `CollectionRelationIdNamingGate`：数据库 / Mongo / ORM 关系字段命名应优先使用被关联集合 / 实体语义（如 `userId`、`orderId`），项目既有 convention 或用户确认可覆盖；跨集合写入、迁移或 API 字段暴露前须检查命名不会误导消费者。
-- `UserFacingVerificationArtifactLanguageGate`：`.http`、接口验证脚本、集成测试说明、手工验证步骤和用户可读错误提示默认使用用户当前语言；项目/用户要求英文或双语时按要求执行，机器字段、协议名和代码标识不翻译。
-- `AdapterBenchmarkAttribution`：adapter、provider、connector、SDK 或性能优化 benchmark 必须写清基线、环境、版本、负载、归因边界和不可比较因素；不得把框架、网络、缓存预热、依赖树或测试环境差异误归因给业务代码。
-- `ProductRequirementTraceabilityGate`：从需求方原始输入、PRD、Word、原型、截图、会议纪要或用户补充消息整理需求时，必须保留需求来源、条款/页码/截图/消息锚点、AI 结构化提取口径、产品补充口径、遗漏/冲突处理和双方确认状态；不得把 AI 归纳当成唯一真相源。
-- `RequirementPreConfirmGate`：docs/需求类任务在推荐用户确认 `01-需求确认.md`、`01-产品需求.md` 或等价 CP1 产物前，必须至少检查行为是否可验证、范围/非目标是否存在核心概念冲突，以及分布式/单活/调度/缓存/队列等高风险路径是否定义 fail-safe 语义；发现缺口时先修正需求事实源或列为确认问题，不得直接建议“可确认”。
-- `MultiPhaseClosureGate`：需求、方案、实施计划或报告出现 Phase 1 / 第一阶段 / roadmap / 分阶段演进时，必须列全后续阶段、每阶段入口/退出门禁、验证证据、用户确认点、长期实施进度真相源和最终关闭规则；禁止把 Phase 1 完成误报为整体需求关闭。
-- `LocalExecutionConfigProbe`：脚本、本机验证、数据库/SSH/HTTP 连接或跨环境执行需要本地配置时，必须先核对项目指定配置入口、Profile `config.local.json` 模型或既有脚本约定；未指定时按 S02 默认可直写/沿用现状，禁止臆造 env/secret/config.local 层。
-- `ManualReviewEvidenceDataRetention`：人工复核涉及数据、页面、外部系统、发布包或真实联调时，除 `ManualReviewEvidenceRetention` 外还必须记录证据保存位置、可复核输入、样本范围、保留/不可保留原因和敏感信息策略；不得只在聊天里口头确认。
-- `AdjacentScopeExpansionGuard`：用户指定模块、adapter、provider、文档页或目录时，不得顺手扩展相邻模块；若相邻范围确有共同契约、共享缺陷或验证必需，必须先写明扩展理由、影响面和回退边界。
-- `PackageNameAuthorityGate`：涉及 npm/GitHub Packages/插件/发布包名称、scope、bin、exports 或安装说明时，必须以当前 `package.json`、`plugin.json`、registry/包管理器证据和官方命名约束为准；禁止凭历史记忆或目录名推断包名。
-- `PerformanceBenchmarkFirstGate`：用户要求“最快、首个、优于、性能提升、压测、benchmark”时，必须先冻结基线、环境、指标、负载和比较对象，再实施优化；缺少基线时不得宣称提升或第一。
-- `BenchmarkRegressionGuard`：性能敏感项目、已有公开 benchmark 基线、或 runtime / validator / parser / cache / adapter 等热路径发生实质修改时，即使当前任务不是性能优化，也必须判定是否运行代表性 benchmark regression；报告记录基线、同环境结果、阈值、不可比较因素和失败处理。超过阈值时阻断发布，或在用户确认性能 / 正确性取舍后继续；低风险非热路径写 `N/A + skipReason`。
-- `PublicModuleDifferentiationGate`：面向公开模块、SDK、CLI、插件或文档站能力时，必须区分 public API、内部实现、示例代码、发布包文件和消费者入口；不得把内部 helper 或历史镜像描述成公开承诺。
-- `V2MCPFirstPlanningGate`：DevCodex v2 一期规划默认以 Intent-Gated Hosted Spec MCP / Codex-only 验证 MVP 为优先路线；未形成正式 CP1/CP2 方案包前，不得把 MongoDB、控制台、多租户自定义工作流、本地规则正文缓存或安装 `.github` / `CLAUDE.md` / `AGENTS.md` 副本作为一期默认范围。
-- `WorkspaceDataAbsorptionScopeGate`：用户要求“检查/吸纳最新问题、data 目录、仍需吸纳清单”时，必须扫描工作区 `.devcodex/*/data/` 下所有项目命名空间与 workspace data 台账，而不是只扫当前源码项目或 sticky activeProject；扫描结果须列出命中命名空间、台账类型、跳过原因和最终归属。
-- `DatabaseRecordMigrationExportGate`：数据库配置、邮件模板、模块注册、推送配置、权限配置、字典配置等跨环境手动迁移场景，必须只读源环境并导出完整记录链，至少包含主记录、引用记录、全字段 JSON/Extended JSON 备份、可执行 insert/upsert 脚本、执行顺序、稳定业务键或显式 ObjectId 策略、引用完整性校验和目标环境 dry-run 说明；不得只给单条记录或截图说明。
-- `SideEffectCompatibilityDocsGate`：README、快速上手、框架接入、Model/ORM/adapter 文档只展示当前推荐写法；旧路径若绑定全局副作用、兼容 shim、弃用行为、误发布线或高心智负担，只能放入迁移说明、测试、release report 或 maintainer-only 文档，不得进入公开主路径兼容说明。
-- `ExecutableExampleTruthProbeGate`：DSL、parser、validator、exporter、配置表达式、模板语法或扩展系统示例进入 CP/README/官网/companion example 前，必须用当前实现跑最小 parser/compiler/validator 探针；若属于新语法或未来能力，必须在 CP2 作为兼容/迁移成本单独评估并标注未发布。
-- `OneOffRequirementScriptPlacementGate`：新增脚本前必须判定生命周期；一次性需求脚本、验证脚本、入库脚本或迁移辅助脚本默认放入对应 requirement/bug/任务目录的 `scripts/` 或 `.tmp/local-scripts/`，长期复用、发布、维护或运维入口才进入项目通用 `scripts/`；迁入长期脚本前需说明理由、影响范围并获得确认。
-- `FlowchartNodeExplanationGate`：正式流程图、生命周期图、Nxx 节点图、维护者流程页或需求/方案中的 Mermaid 流程图必须配套中文节点说明；每个非终止节点至少说明角色/触发、前置条件、处理动作、成功/失败出口和异常/回退，禁止只给图不解释。
-- `DocsSiteVisualAcceptanceGate`：官网、文档站、技术站或正式说明页的视觉/交互验收需覆盖主题集成、真实点击路径、异步动效绑定、`prefers-reduced-motion`、代码 token 对比度、终端 demo 可读范围、TOC inline code 展示和辅助导航层级；纯内容页可写 `N/A + skipReason`。
-- `GeneratedSiteGate` / `ManualTocDuplicationGate` / `UserPathContractSweep`：文档站、官网或公开能力页审查不能只看源码、配置或旧构建产物；涉及导航、footer、sidebar、语言切换、outline、手写 TOC、安装命令、quick start、配置契约或能力页首次成功路径时，必须构建或读取当前生成产物，检查 header/top menu/mobile menu/footer language block/sidebar/outline/正文目录的实际可见状态，并区分 DOM 中存在但 CSS 隐藏、可见重复、历史允许和当前违规。公开能力页还须用 `package.json`、public types、runtime wiring、示例源码和 sidebar 章节核对安装版本、构造函数示例、配置字段类型、相邻专题链接与 API 索引。
-- `OmissionOnlyReviewGate`：用户明确要求“只审查遗漏、上次没检查的、不要重复已吸纳/没必要项”时，审查范围必须切换为 omission-only；输出需包含用户指定轮次/范围、此前已覆盖集合、本轮新增覆盖集合、遗漏候选、排除理由和收敛状态，禁止把已确认吸纳或明确无必要项重新列入最终清单。
-- `MethodLevelLeakPressureProbe`：高风险资源泄漏修复、公开库/adapter/SDK、连接池/监听器/定时器/worker/cache 或 PE-12 命中项，除常规单测和发布验证外，需按项目现实评估是否追加公开方法级重复调用/生命周期压测探针；未触发时记录 `N/A + skipReason`，不得把所有低风险纯函数机械升级为方法级压测。
-- `V2FormalSolutionPackage`：DevCodex v2 一期进入正式规划、用户要求冻结方案或 ISSUE-027 残余尾项时，必须形成正式 CP1/CP2 方案包，覆盖架构、数据模型、MCP API contract、最小 instruction return、可见性分层、cache/signature/rollback、Codex-only 验证矩阵、Registry/Marketplace、私有维护站和 Mermaid 节点流程；未完成前不得宣告 v2 一期范围已收敛。
+来自 `data/*.md`、复审、发布验证、同类项目实践或用户纠偏的可泛化规范被吸纳后，必须先走 `LayeredAbsorptionGate`、`SkillFirstAbsorptionGate` / `CapabilityToSkillPromotionGate` 与 `HistoricalCommonNormLayeringGate`。本节只保留 `legacy-index-retained` 索引、触发面和跨 Skill 路由；执行正文由 `GovernanceGateRegistry`、目标 Skill、TestRoute、report、document-sync、release-verification、audit 维度与 validate 探针承接。
+
+| gateGroup | legacy-index-retained anchors |
+|------|------|
+| `truth-evidence` | `CodeTruthRequirementGate`、`ManualReviewEvidenceRetention`、`ManualReviewEvidenceDataRetention`、`LiveVerificationExecutionObligation`、`VerificationScopeBudgetGate`、`OfficialApiEvidenceGate`、`FrameworkCapabilityAutoFirstGate` |
+| `docs-boundary` | `DocumentationTranslationParityGuard`、`FormalDocsDevCodexBoundary`、`LLMPromptContractTriage`、`UserPerspectiveDocsGate`、`UserDocsImmediateComprehensionGate`、`UserDocsPrimarySurfaceGate`、`PublicUserDocsMaintainerBoundaryGate`、`ActiveRequirementFinalResponseGate`、`DocsConsumerSweep`、`ArtifactLinkSetDedupeGate`、`PublicDocsReleasedVersionGate`、`SideEffectCompatibilityDocsGate`、`ExecutableExampleTruthProbeGate` |
+| `finding-review` | `ReviewFindingIntakeGate`、`DesignIntentAndDocsConsistencyGate`、`AuditReportIsSignalNotEvidence`、`IntentionalDesignClassification`、`UserDecisionBeforeMutation`、`DocsImplementationDriftAttribution`、`TestCoverageGapOnly`、`FindingProbeMatrixGate`、`ReviewDimensionDeltaGate`、`ReviewChecklistCompletenessGate`、`EvidenceExecutionGate`、`OmissionOnlyReviewGate` |
+| `frontend-runtime` | `FrontendExperienceQualityGate`、`FigmaHighFidelityRestorationGate`、`ScopedVisualChangeGate`、`InstalledPluginVisualVerificationGate`、`VisualDeviationTypeGate`、`DesignFramePurposeClassificationGate`、`ActualPreviewChainAndMockFallbackGate`、`UIStateScopeRegressionGate`、`FigmaProductionAssetBudgetGate`、`RuntimeI18nArtifactVerificationGate`、`FrontendBrowserVerificationBudgetGate`、`UserSelfVerificationOverrideGate`、`FrontendRuntimeNetworkProbeGate`、`UIConfirmedSourceConflictTraceGate` |
+| `user-manual-delivery` | `UserFacingDeliveryChainGate`、`FinalUserManualFirstGate`、`DocsSiteInformationArchitectureGate`、`UserManualFlowAndFailureGate`、`QueueDocsRealWorkflowGate`、`GeneratedSiteGate`、`ManualTocDuplicationGate`、`UserPathContractSweep` |
+| `release-package-contract` | `ExplicitCommitAuthorizationGate`、`CompatibilityAndContractAuthorityGate`、`PackageAdapterPreConfirmEvidenceGate`、`BuiltArtifactFeatureSmokeGate`、`TscOutputImportProbe`、`PackageNameAuthorityGate`、`PublicModuleDifferentiationGate`、`AdapterBenchmarkAttribution`、`BenchmarkRegressionGuard`、`PerformanceBenchmarkFirstGate`、`RemoteCIParityPushGate` |
+| `requirement-profile-service` | `ProductRequirementTraceabilityGate`、`RequirementPreConfirmGate`、`RequirementVerdictStateSyncGate`、`MultiPhaseClosureGate`、`LocalExecutionConfigProbe`、`AdjacentScopeExpansionGuard`、`WorkspaceDataAbsorptionScopeGate`、`ProfileReadChainGate`、`ServiceNormCoverageGate`、`StrongestProfileSourceGate`、`ServiceSpecificResidueSweep`、`RouteNamespaceResponsibilityGate` |
+| `data-security-automation` | `GuardPolicyBypassMatrixGate`、`DatabaseRecordMigrationExportGate`、`CollectionRelationIdNamingGate`、`UserFacingVerificationArtifactLanguageGate`、`VerificationCommandSideEffectGate`、`OneOffRequirementScriptPlacementGate` |
+| `site-v2-leak` | `FlowchartNodeExplanationGate`、`DocsSiteVisualAcceptanceGate`、`MethodLevelLeakPressureProbe`、`V2MCPFirstPlanningGate`、`V2FormalSolutionPackage` |
+
+索引锚点补充：用户文档主面仍需冻结 `targetSurface`、`documentLocation`、`primaryAudience=用户/使用者`；最终报告仍需声明 `active requirement` / `active task`，公开用户文档不得混入维护者验收；涉及用户最终使用文档、`TypeScript` 构建产物或 `benchmark regression` 时按对应 Skill/探针执行。
 
 ### 台账落点与关闭证据
 

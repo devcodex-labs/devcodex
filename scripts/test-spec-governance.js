@@ -48,6 +48,8 @@ const probes = [
   ['skills/spec-governance/SKILL.md', 'Concept Sync Map'],
   ['skills/spec-governance/SKILL.md', 'currentConsumers'],
   ['skills/spec-governance/SKILL.md', 'yellowDeviationBoundary'],
+  ['skills/spec-governance/SKILL.md', 'GovernanceGateRegistry'],
+  ['skills/spec-governance/SKILL.md', 'review-escape'],
   ['skills/spec-governance/SKILL.md', 'Improvement Intake（优化清单）'],
   ['skills/spec-governance/SKILL.md', '在所有模式下'],
   ['skills/spec-governance/SKILL.md', 'PI + PF'],
@@ -168,6 +170,13 @@ const probes = [
   ['instructions/01-common.instructions.md', 'audit.发布前审查'],
   ['instructions/12-audit.instructions.md', '发布前审查（RL-1~RL-10）'],
   ['skills/routing/SKILL.md', 'skills/audit-release/SKILL.md'],
+  ['skills/routing/SKILL.md', 'skills/analyze-default/SKILL.md'],
+  ['skills/analyze-default/SKILL.md', 'analyze.default'],
+  ['skills/analyze-default/SKILL.md', 'PCV-1'],
+  ['skills/analyze-default/SKILL.md', 'AnalyzeLiteCRSGate'],
+  ['skills/analyze-default/SKILL.md', 'GovernanceGateRegistryRef'],
+  ['skills/compliance/SKILL.md', 'SpecRadarSubgate'],
+  ['skills/compliance/SKILL.md', 'GovernanceGateRegistry'],
   ['skills/report/SKILL.md', 'ReleaseAudit'],
   ['prompts/report-audit.prompt.md', '发布前审查(RL-1~RL-10)'],
   ['README.md', 'audit-release'],
@@ -381,9 +390,9 @@ const probes = [
   ['scripts/lib/validate-governance-tail.js', 'checkV60'],
   ['instructions.md', 'FrontendExperienceQualityGate'],
   ['instructions.md', 'CrossProjectLearnedGuards'],
-  ['instructions/10-dev.instructions.md', 'ManualReviewEvidenceRetention'],
-  ['instructions/11-fix.instructions.md', 'AdapterBenchmarkAttribution'],
-  ['instructions/12-audit.instructions.md', 'LLMPromptContractTriage'],
+  ['instructions/10-dev.instructions.md', 'GovernanceGateRegistry'],
+  ['instructions/11-fix.instructions.md', 'GovernanceGateRegistry'],
+  ['instructions/12-audit.instructions.md', 'GovernanceGateRegistry'],
   ['skills/test-router/SKILL.md', 'frontendExperience'],
   ['skills/test-router/SKILL.md', 'verificationScopeBudget'],
   ['skills/dev-testing/SKILL.md', 'LiveVerificationExecutionObligation'],
@@ -396,7 +405,7 @@ const probes = [
   ['prompts/report-dev.prompt.md', 'FrontendExperienceQualityGate'],
   ['prompts/report-audit.prompt.md', 'CrossProjectLearnedGuards'],
   ['README.md', 'FrontendExperienceQualityGate'],
-  ['website/docs/guide/development.md', 'AdapterBenchmarkAttribution'],
+  ['website/docs/guide/development.md', 'GovernanceGateRegistry'],
   ['website/docs/versions/v1/1.0.1/requirements/index.md', 'frontend-experience-quality'],
   ['website/docs/versions/v1/1.0.1/requirements/p1/frontend-experience-quality/index.md', 'CrossProjectLearnedGuards'],
   ['website/rspress.config.ts', '前端体验质量门禁'],
@@ -404,13 +413,13 @@ const probes = [
   ['instructions.md', 'ProductRequirementTraceabilityGate'],
   ['instructions/10-dev.instructions.md', 'LocalExecutionConfigProbe'],
   ['skills/test-router/SKILL.md', 'packageNameAuthority'],
-  ['skills/dev-plan-review/SKILL.md', 'PerformanceBenchmarkFirstGate'],
+  ['skills/dev-plan-review/SKILL.md', 'GovernanceGateRegistry'],
   ['prompts/requirement.prompt.md', 'PublicModuleDifferentiationGate'],
   ['prompts/technical-design.prompt.md', 'ManualReviewEvidenceDataRetention'],
-  ['prompts/implementation-plan.prompt.md', 'V2MCPFirstPlanningGate'],
-  ['prompts/report-dev.prompt.md', 'PackageNameAuthorityGate'],
-  ['README.md', 'ProductRequirementTraceabilityGate'],
-  ['website/docs/guide/development.md', 'V2MCPFirstPlanningGate'],
+  ['prompts/implementation-plan.prompt.md', 'GovernanceGateRegistry'],
+  ['prompts/report-dev.prompt.md', 'GovernanceGateRegistry'],
+  ['README.md', 'GovernanceGateRegistry'],
+  ['website/docs/guide/development.md', 'GovernanceGateRegistry'],
   ['instructions/18-spec-radar.instructions.md', '01a-profile-loading'],
   ['instructions/01-common.instructions.md', 'profile-bootstrap'],
   ['RULES.md', 'audit（7 目标类型）'],
@@ -438,7 +447,7 @@ const probes = [
   ['prompts/report-dev.prompt.md', 'DocsSiteVisualAcceptanceGate'],
   ['prompts/report-audit.prompt.md', 'OmissionOnlyReviewGate'],
   ['prompts/report-scenario-test.prompt.md', 'MethodLevelLeakPressureProbe'],
-  ['README.md', 'WorkspaceDataAbsorptionScopeGate'],
+  ['README.md', 'GovernanceGateRegistry'],
   ['website/docs/guide/development.md', 'V2FormalSolutionPackage'],
   ['website/docs/specs/flowcharts.md', 'FlowchartNodeExplanationGate'],
   ['website/docs/versions/v1/1.0.1/requirements/index.md', 'latest-data-absorption-guards'],
@@ -476,28 +485,28 @@ const probes = [
   ['instructions.md', 'CompatibilityAndContractAuthorityGate'],
   ['instructions/01b-record-router.instructions.md', 'ExplicitCommitAuthorizationGate'],
   ['instructions/10-dev.instructions.md', 'RuntimeI18nArtifactVerificationGate'],
-  ['instructions/11-fix.instructions.md', 'CollectionRelationIdNamingGate'],
-  ['instructions/12-audit.instructions.md', 'PublicDocsReleasedVersionGate'],
-  ['instructions/13-analyze.instructions.md', 'UserFacingVerificationArtifactLanguageGate'],
+  ['instructions/11-fix.instructions.md', 'GovernanceGateRegistry'],
+  ['instructions/12-audit.instructions.md', 'GovernanceGateRegistry'],
+  ['instructions/13-analyze.instructions.md', 'GovernanceGateRegistryRef'],
   ['skills/test-router/SKILL.md', 'highFidelityUi'],
   ['skills/test-router/SKILL.md', 'compatibilityAuthority'],
   ['skills/api-verification/SKILL.md', 'UserFacingVerificationArtifactLanguageGate'],
   ['skills/dev-default/SKILL.md', 'FigmaProductionAssetBudgetGate'],
-  ['skills/dev-plan-review/SKILL.md', 'CompatibilityAndContractAuthorityGate'],
+  ['skills/dev-plan-review/SKILL.md', 'GovernanceGateRegistry'],
   ['skills/dev-testing/SKILL.md', 'CollectionRelationIdNamingGate'],
   ['skills/dev-docs/SKILL.md', 'PublicDocsReleasedVersionGate'],
   ['skills/audit-project/SKILL.md', 'ActualPreviewChainAndMockFallbackGate'],
   ['skills/audit-requirements/SKILL.md', 'UIConfirmedSourceConflictTraceGate'],
-  ['skills/document-sync/SKILL.md', 'InstalledPluginVisualVerificationGate'],
+  ['skills/document-sync/SKILL.md', 'frontend-runtime'],
   ['skills/report/SKILL.md', 'CompatibilityAndContractAuthorityGate'],
   ['prompts/requirement.prompt.md', 'FigmaHighFidelityRestorationGate'],
   ['prompts/technical-design.prompt.md', 'actualPreviewChain'],
-  ['prompts/implementation-plan.prompt.md', 'ExplicitCommitAuthorizationGate'],
-  ['prompts/report-dev.prompt.md', 'PublicDocsReleasedVersionGate'],
-  ['prompts/report-fix.prompt.md', 'UserFacingVerificationArtifactLanguageGate'],
-  ['prompts/report-audit.prompt.md', 'CollectionRelationIdNamingGate'],
+  ['prompts/implementation-plan.prompt.md', 'GovernanceGateRegistry'],
+  ['prompts/report-dev.prompt.md', 'GovernanceGateRegistry'],
+  ['prompts/report-fix.prompt.md', 'GovernanceGateRegistry'],
+  ['prompts/report-audit.prompt.md', 'GovernanceGateRegistry'],
   ['prompts/report-scenario-test.prompt.md', 'ActualPreviewChainAndMockFallbackGate'],
-  ['README.md', 'CompatibilityAndContractAuthorityGate'],
+  ['README.md', 'GovernanceGateRegistry'],
   ['website/docs/guide/development.md', 'RuntimeI18nArtifactVerificationGate'],
   ['website/docs/versions/v1/1.0.1/requirements/p1/latest-data-absorption-guards/index.md', 'ExplicitCommitAuthorizationGate'],
   ['website/docs/versions/v1/1.0.1/CHANGELOG.md', 'V65 探针'],
@@ -551,8 +560,8 @@ const probes = [
   ['instructions.md', 'PackageAdapterPreConfirmEvidenceGate'],
   ['instructions/10-dev.instructions.md', 'RequirementPreConfirmGate'],
   ['instructions/11-fix.instructions.md', 'FindingProbeMatrixGate'],
-  ['instructions/12-audit.instructions.md', 'VerificationCommandSideEffectGate'],
-  ['instructions/13-analyze.instructions.md', 'FrontendBrowserVerificationBudgetGate'],
+  ['instructions/12-audit.instructions.md', 'GovernanceGateRegistry'],
+  ['instructions/13-analyze.instructions.md', 'GovernanceGateRegistryRef'],
   ['instructions/02-output-paths.instructions.md', 'OneOffRequirementScriptPlacementGate'],
   ['skills/test-router/SKILL.md', 'browserVerificationBudget'],
   ['skills/test-router/SKILL.md', 'findingProbeMatrix'],
@@ -564,8 +573,8 @@ const probes = [
   ['skills/report/SKILL.md', 'LatestAbsorptionGuards'],
   ['prompts/technical-design.prompt.md', 'VisualDeviationTypeGate'],
   ['prompts/implementation-plan.prompt.md', 'LatestAbsorptionGuards'],
-  ['prompts/report-dev.prompt.md', 'PackageAdapterPreConfirmEvidenceGate'],
-  ['README.md', 'DatabaseRecordMigrationExportGate'],
+  ['prompts/report-dev.prompt.md', 'GovernanceGateRegistry'],
+  ['README.md', 'GovernanceGateRegistry'],
   ['website/docs/guide/development.md', 'FrontendBrowserVerificationBudgetGate'],
   ['website/docs/versions/v1/1.0.1/requirements/p1/latest-data-absorption-guards/index.md', 'V68'],
   ['website/docs/versions/v1/1.0.1/CHANGELOG.md', 'V68 探针'],
@@ -577,7 +586,7 @@ const probes = [
   ['instructions/10-dev.instructions.md', 'UserDocsPrimarySurfaceGate'],
   ['instructions/11-fix.instructions.md', 'RequirementVerdictStateSyncGate'],
   ['instructions/12-audit.instructions.md', 'UserDocsImmediateComprehensionGate'],
-  ['instructions/13-analyze.instructions.md', 'RequirementVerdictStateSyncGate'],
+  ['instructions/13-analyze.instructions.md', 'GovernanceGateRegistryRef'],
   ['skills/dev-docs/SKILL.md', 'UserDocsPrimarySurfaceGate'],
   ['skills/readme-authoring/SKILL.md', 'UserDocsImmediateComprehensionGate'],
   ['skills/audit-document/SKILL.md', 'UserDocsPrimarySurfaceGate'],
@@ -608,7 +617,7 @@ const probes = [
   ['instructions/10-dev.instructions.md', 'UserFacingDeliveryChainGate'],
   ['instructions/11-fix.instructions.md', 'TscOutputImportProbe'],
   ['instructions/12-audit.instructions.md', 'GeneratedSiteGate'],
-  ['instructions/13-analyze.instructions.md', 'BenchmarkRegressionGuard'],
+  ['instructions/13-analyze.instructions.md', 'GovernanceGateRegistryRef'],
   ['skills/test-router/SKILL.md', 'userFacingDeliveryChain'],
   ['skills/test-router/SKILL.md', 'builtArtifactFeatureSmoke'],
   ['skills/dev-docs/SKILL.md', 'GeneratedSiteGate'],
@@ -621,10 +630,10 @@ const probes = [
   ['prompts/implementation-plan.prompt.md', 'EvidenceExecutionGate'],
   ['prompts/requirement.prompt.md', 'GeneratedSiteGate'],
   ['prompts/report-dev.prompt.md', 'BuiltArtifactFeatureSmokeGate'],
-  ['prompts/report-fix.prompt.md', 'ReviewChecklistCompletenessGate'],
+  ['prompts/report-fix.prompt.md', 'GovernanceGateRegistry'],
   ['prompts/report-audit.prompt.md', 'EvidenceExecutionGate'],
   ['prompts/report-scenario-test.prompt.md', 'BenchmarkRegressionGuard'],
-  ['README.md', 'GeneratedSiteGate'],
+  ['README.md', 'GovernanceGateRegistry'],
   ['website/docs/guide/development.md', 'UserPathContractSweep'],
   ['website/docs/versions/v1/1.0.1/requirements/p1/latest-data-absorption-guards/index.md', 'V70'],
   ['website/docs/versions/v1/1.0.1/CHANGELOG.md', 'V70 探针'],
@@ -641,6 +650,7 @@ const probes = [
   ['skills/review-checklist/SKILL.md', 'ChecklistStateFreshnessGate'],
   ['plugin.json', 'user-manual-authoring'],
   ['plugin.json', 'review-checklist'],
+  ['plugin.json', 'analyze-default'],
   ['skills/dev-default/SKILL.md', 'SkillFirstAbsorptionGate'],
   ['skills/dev-docs/SKILL.md', 'user-manual-authoring'],
   ['skills/readme-authoring/SKILL.md', 'user-manual-authoring'],
@@ -717,9 +727,9 @@ const probes = [
   ['prompts/report-audit.prompt.md', 'ConfirmedAbsorptionCompletenessGates'],
   ['prompts/report-scenario-test.prompt.md', 'ConfirmedAbsorptionCompletenessGates'],
   ['README.md', 'evolution-governance'],
-  ['website/docs/index.md', '47 个 Skills'],
-  ['website/docs/intro/index.md', '47 个按需触发的工作流技能'],
-  ['website/docs/specs/directory-structure.md', '扁平一级 Skill（47 个）'],
+  ['website/docs/index.md', '48 个 Skills'],
+  ['website/docs/intro/index.md', '48 个按需触发的工作流技能'],
+  ['website/docs/specs/directory-structure.md', '扁平一级 Skill（48 个）'],
   ['website/docs/guide/development.md', 'ConfirmedAbsorptionCompletenessGates'],
   ['website/docs/versions/v1/1.0.1/requirements/p1/latest-data-absorption-guards/index.md', 'V73'],
   ['website/docs/versions/v1/1.0.1/CHANGELOG.md', 'V73 探针'],
@@ -879,6 +889,18 @@ mustIncludeInChangelogs('V73')
 mustIncludeInChangelogs('HistoricalCommonNormLayeringGate')
 mustIncludeInChangelogs('历史通用规范分层迁移')
 mustIncludeInChangelogs('V74')
+mustIncludeInChangelogs('PromptLongGateListDriftProbe')
+mustIncludeInChangelogs('V75')
+mustIncludeInChangelogs('ReviewEscapeRecordGate')
+mustIncludeInChangelogs('V76')
+mustIncludeInChangelogs('NativeCommandExitCodeGate')
+mustIncludeInChangelogs('V77')
+mustIncludeInChangelogs('PostConfirmationReviewScopeGate')
+mustIncludeInChangelogs('DevelopmentDriftGate')
+mustIncludeInChangelogs('VerificationPlanMaterializationProbe')
+mustIncludeInChangelogs('AcceptedSuggestionRootCauseGate')
+mustIncludeInChangelogs('ChinesePrimaryExpressionGate')
+mustIncludeInChangelogs('V78')
 
 for (const [file, needle] of [
   ['scripts/lib/validate-governance-tail.js', 'checkV74'],
@@ -901,6 +923,152 @@ for (const [file, needle] of [
   ['README.md', '历史通用规范分层迁移'],
   ['website/docs/guide/development.md', '历史通用规范分层迁移'],
   ['website/docs/versions/v1/1.0.1/requirements/p1/latest-data-absorption-guards/index.md', 'V74']
+]) {
+  mustInclude(file, needle)
+}
+
+const checkV75 = 'PromptLongGateListDriftProbe'
+for (const [file, needle] of [
+  ['scripts/lib/validate-governance-tail.js', 'checkV75'],
+  ['scripts/lib/validate-governance-tail.js', checkV75],
+  ['scripts/lib/validate-governance-tail.js', 'negativeSamples'],
+  ['scripts/lib/validate-governance-tail.js', 'GovernanceGateRegistry/gateGroup'],
+  ['scripts/validate.js', 'checkV75()'],
+  ['skills/spec-governance/SKILL.md', checkV75],
+  ['skills/spec-governance/SKILL.md', 'SCV 负向样例'],
+  ['skills/source-consumer-sync/SKILL.md', checkV75],
+  ['README.md', checkV75],
+  ['website/docs/guide/development.md', checkV75],
+  ['changelogs/releases/v1.11.28.md', 'V75']
+]) {
+  mustInclude(file, needle)
+}
+
+const promptLongGateListDriftConsumerFiles = [
+  'README.md',
+  'website/docs/guide/development.md',
+  'instructions/10-dev.instructions.md',
+  'instructions/11-fix.instructions.md',
+  'instructions/12-audit.instructions.md',
+  'instructions/13-analyze.instructions.md',
+  'prompts/technical-design.prompt.md',
+  'prompts/implementation-plan.prompt.md',
+  'prompts/report-dev.prompt.md',
+  'prompts/report-fix.prompt.md',
+  'prompts/report-audit.prompt.md',
+  'prompts/report-scenario-test.prompt.md'
+]
+
+const promptLongGateListDriftClusters = [
+  ['CodeTruthRequirementGate', 'AdapterBenchmarkAttribution', 'ProductRequirementTraceabilityGate', 'WorkspaceDataAbsorptionScopeGate', 'DatabaseRecordMigrationExportGate', 'GeneratedSiteGate', 'ArtifactLinkSetDedupeGate', 'BenchmarkRegressionGuard', 'V2FormalSolutionPackage'],
+  ['PublicSurfaceClosureGate', 'UserManualRenderedFlowAndRealWorkflowProbe', 'SampleIssueExpansionGate', 'RequirementDimensionBindingGate', 'SemanticLegacyRouteExposureGate', 'ReferenceCodeTruthSamplingGate', 'FrontendAsyncCacheRenderGate', 'StrongestProfileSourceGate', 'RouteNamespaceResponsibilityGate', 'DocsThemeRuntimeVisualProbeGate'],
+  ['DatabaseRecordMigrationExportGate', 'FrontendBrowserVerificationBudgetGate', 'UserSelfVerificationOverrideGate', 'FindingProbeMatrixGate', 'MultiPhaseClosureGate', 'GuardPolicyBypassMatrixGate', 'SideEffectCompatibilityDocsGate', 'ExecutableExampleTruthProbeGate', 'VisualDeviationTypeGate', 'OneOffRequirementScriptPlacementGate', 'VerificationCommandSideEffectGate', 'DesignFramePurposeClassificationGate', 'RequirementPreConfirmGate', 'PackageAdapterPreConfirmEvidenceGate']
+]
+
+function hasLongGateListDrift(line) {
+  return promptLongGateListDriftClusters.some((cluster, index) => {
+    const minHits = index === 2 ? 10 : 8
+    return cluster.filter(needle => line.includes(needle)).length >= minHits
+  })
+}
+
+for (const cluster of promptLongGateListDriftClusters) {
+  if (!hasLongGateListDrift(cluster.join('、'))) {
+    failures.push('PromptLongGateListDriftProbe negative sample did not trigger')
+  }
+}
+const groupedRegistryLine = '按 GovernanceGateRegistry 分组记录 gateGroup / ownerSkill / validationRoute / skipReason，代表锚点包括 PublicSurfaceClosureGate、UserManualProductizationGate、ReviewAnchorMaterializationGate、FrontendAsyncCacheRenderGate、RemoteCIParityPushGate 与 DocsThemeRuntimeVisualProbeGate'
+if (hasLongGateListDrift(groupedRegistryLine)) {
+  failures.push('PromptLongGateListDriftProbe false positive on grouped registry line')
+}
+for (const file of promptLongGateListDriftConsumerFiles) {
+  read(file).split(/\r?\n/).forEach((line, index) => {
+    if (hasLongGateListDrift(line)) failures.push(`${file}:${index + 1} contains historical long gate list drift`)
+  })
+}
+
+const checkV76 = 'ReviewEscapeRecordGate'
+for (const [file, needle] of [
+  ['scripts/lib/validate-governance-tail.js', 'checkV76'],
+  ['scripts/validate.js', 'checkV76()'],
+  ['skills/review-checklist/SKILL.md', checkV76],
+  ['skills/review-checklist/SKILL.md', 'escapeRecords'],
+  ['skills/review-checklist/SKILL.md', 'missingDimensionOrProbe'],
+  ['skills/review-checklist/SKILL.md', 'ledgerRoute'],
+  ['skills/spec-governance/SKILL.md', 'review-escape'],
+  ['skills/spec-governance/SKILL.md', checkV76],
+  ['skills/test-router/SKILL.md', checkV76],
+  ['skills/report/SKILL.md', checkV76],
+  ['prompts/technical-design.prompt.md', checkV76],
+  ['prompts/implementation-plan.prompt.md', checkV76],
+  ['prompts/report-dev.prompt.md', checkV76],
+  ['prompts/report-fix.prompt.md', checkV76],
+  ['prompts/report-audit.prompt.md', checkV76],
+  ['prompts/report-scenario-test.prompt.md', checkV76],
+  ['README.md', checkV76],
+  ['website/docs/guide/development.md', checkV76],
+  ['changelogs/releases/v1.11.28.md', 'V76']
+]) {
+  mustInclude(file, needle)
+}
+
+const checkV77 = 'NativeCommandExitCodeGate'
+for (const [file, needle] of [
+  ['scripts/lib/validate-governance-tail.js', 'checkV77'],
+  ['scripts/lib/validate-governance-tail.js', checkV77],
+  ['scripts/lib/validate-governance-tail.js', 'negativeSamples'],
+  ['scripts/validate.js', 'checkV77()'],
+  ['skills/release-verification/SKILL.md', checkV77],
+  ['skills/release-verification/SKILL.md', '$LASTEXITCODE'],
+  ['skills/audit-release/SKILL.md', checkV77],
+  ['skills/test-router/SKILL.md', 'nativeCommandExitCode'],
+  ['skills/report/SKILL.md', checkV77],
+  ['skills/spec-governance/SKILL.md', checkV77],
+  ['skills/document-sync/SKILL.md', checkV77],
+  ['prompts/technical-design.prompt.md', checkV77],
+  ['prompts/implementation-plan.prompt.md', '真实 exitCode'],
+  ['prompts/report-dev.prompt.md', checkV77],
+  ['prompts/report-fix.prompt.md', checkV77],
+  ['prompts/report-audit.prompt.md', checkV77],
+  ['README.md', checkV77],
+  ['website/docs/guide/development.md', checkV77],
+  ['changelogs/releases/v1.11.28.md', 'V77']
+]) {
+  mustInclude(file, needle)
+}
+
+const checkV78 = 'PostConfirmationReviewScopeGate'
+for (const [file, needle] of [
+  ['scripts/lib/validate-governance-tail.js', 'checkV78'],
+  ['scripts/lib/validate-governance-tail.js', checkV78],
+  ['scripts/lib/validate-governance-tail.js', 'DevelopmentDriftGate'],
+  ['scripts/lib/validate-governance-tail.js', 'VerificationPlanMaterializationProbe'],
+  ['scripts/lib/validate-governance-tail.js', 'AcceptedSuggestionRootCauseGate'],
+  ['scripts/lib/validate-governance-tail.js', 'ChinesePrimaryExpressionGate'],
+  ['scripts/lib/validate-governance-tail.js', 'SidebarPageRoleMaterializationProbe'],
+  ['scripts/lib/validate-governance-tail.js', 'SidebarGroupSemanticModelProbe'],
+  ['scripts/validate.js', 'checkV78()'],
+  ['instructions/01-common.instructions.md', checkV78],
+  ['skills/cp-gate/SKILL.md', checkV78],
+  ['skills/review-checklist/SKILL.md', checkV78],
+  ['skills/dev-default/SKILL.md', 'DevelopmentDriftGate'],
+  ['skills/execution-contract/SKILL.md', 'DevelopmentDriftGate'],
+  ['skills/dev-plan-review/SKILL.md', 'VerificationPlanMaterializationProbe'],
+  ['skills/dev-docs/SKILL.md', 'ChinesePrimaryExpressionGate'],
+  ['skills/user-manual-authoring/SKILL.md', 'SidebarGroupSemanticModelProbe'],
+  ['skills/document-sync/SKILL.md', 'SidebarPageRoleMaterializationProbe'],
+  ['skills/spec-governance/SKILL.md', 'AcceptedSuggestionRootCauseGate'],
+  ['skills/test-router/SKILL.md', 'docsIaReadability'],
+  ['skills/report/SKILL.md', 'AcceptedSuggestionRootCauseGate'],
+  ['prompts/technical-design.prompt.md', 'DevelopmentDriftGate'],
+  ['prompts/implementation-plan.prompt.md', 'VerificationPlanMaterializationProbe'],
+  ['prompts/report-dev.prompt.md', 'AcceptedSuggestionRootCauseGate'],
+  ['prompts/report-fix.prompt.md', 'AcceptedSuggestionRootCauseGate'],
+  ['prompts/report-audit.prompt.md', 'SidebarGroupSemanticModelProbe'],
+  ['prompts/report-scenario-test.prompt.md', 'SidebarGroupSemanticModelProbe'],
+  ['README.md', 'AcceptedSuggestionRootCauseGate'],
+  ['website/docs/guide/development.md', 'DevelopmentDriftGate'],
+  ['changelogs/releases/v1.11.28.md', 'V78']
 ]) {
   mustInclude(file, needle)
 }
@@ -952,7 +1120,8 @@ for (const [id, file] of [
   ['spec-governance', 'skills/spec-governance/SKILL.md'],
   ['source-consumer-sync', 'skills/source-consumer-sync/SKILL.md'],
   ['host-contract-verification', 'skills/host-contract-verification/SKILL.md'],
-  ['audit-release', 'skills/audit-release/SKILL.md']
+  ['audit-release', 'skills/audit-release/SKILL.md'],
+  ['analyze-default', 'skills/analyze-default/SKILL.md']
 ]) {
   if (!plugin.skills.some(skill => skill.id === id && skill.file === file)) {
     failures.push(`plugin.json missing ${id} skill entry`)

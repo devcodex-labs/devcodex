@@ -2,7 +2,7 @@
 applyTo: "**"
 description: PC4 规范雷达规则，覆盖规范缺口感知、三轴诊断与治理前置信号
 priority: P4
-version: 1.11.27
+version: 1.11.28
 ---
 # 规范雷达（18-spec-radar）
 
@@ -11,6 +11,7 @@ version: 1.11.27
 > 本文件定义 **PC4 规范原因识别**的完整规则。
 > PC4 是 DevCodex 的规范自我升级机制的感知层——在任务执行前/中持续监测，识别"当前问题是否源于规范本身的缺陷"。  
 > **仅 dev 模式执行完整诊断**；非 dev 模式不执行本文件的三轴诊断，但显式记录意图识别与 Improvement Intake 仍按 `spec-governance` 的全模式规则执行。
+> `SpecRadarSubgate` 的执行字段、gateGroup 分组、ownerSkill 和 validationRoute 由 `skills/compliance/SKILL.md` 与 `skills/spec-governance/SKILL.md` 的 `GovernanceGateRegistry` 承接；本文件不承载完整 Gate 长清单。
 
 ## 定位与职责边界
 

@@ -8,7 +8,7 @@
 
 ## 当前未发布变更
 
-- 暂无。
+暂无。
 
 ## 记录提示
 
@@ -22,6 +22,9 @@
 - 最新用户文档驱动交付链、复审证据化、生成站点与性能回归守门需显式标明 `UserFacingDeliveryChainGate`、`ReviewChecklistCompletenessGate`、`EvidenceExecutionGate`、`BuiltArtifactFeatureSmokeGate`、`TscOutputImportProbe`、`GeneratedSiteGate`、`UserPathContractSweep` 与 `BenchmarkRegressionGuard`，避免正式发版前遗漏 V70 覆盖链路。
 - 分层吸纳架构变更需显式标明 `LayeredAbsorptionGate`、`LayeredAbsorptionDecision`、`ProactiveBetterAlternativeGate`、`SkillFirstAbsorptionGate`、`CapabilityToSkillPromotionGate`、`SkillAbsorptionDecision`、`user-manual-authoring` 与 `review-checklist`，避免正式发版前遗漏 V72 覆盖链路。
 - 完整吸纳补强变更需显式标明 `ConfirmedAbsorptionCompletenessGates`、`evolution-governance`、`EvolutionCapabilityControlPlaneGate`、`PublicSurfaceClosureGate`、`RemoteCIParityPushGate`、`FrontendAsyncCacheRenderGate`、`StaleWhileRevalidateGate` 与 `DocsThemeRuntimeVisualProbeGate`，避免正式发版前遗漏 V73 覆盖链路。
-- 历史通用规范分层迁移需显式标明 `HistoricalCommonNormLayeringGate`、逐文件审查矩阵、`legacy-index-retained`、V74 探针和部署副本同步，避免旧通用长清单继续回流。
+- 历史通用规范分层迁移需显式标明 `HistoricalCommonNormLayeringGate`、逐文件审查矩阵、`legacy-index-retained`、V74/V75 探针、`PromptLongGateListDriftProbe` 和部署副本同步，避免旧通用长清单继续回流。
+- 复审遗漏闭环需显式标明 `ReviewEscapeRecordGate`、escape record、`whyMissed`、`prevention`、`checklistPatch`、`rerunEvidence` 和 V76 探针，避免二次复审只修问题但不沉淀防复发机制。
+- 发布 / pack / install smoke 验证需显式标明 `NativeCommandExitCodeGate`、真实 `exitCode`、PowerShell `$LASTEXITCODE` 或等价 wrapper、auth/config 来源和 V77 探针，避免命令失败后仍输出成功文案。
+- 确认后复审、开发偏移、验证计划、用户建议采纳和文档 IA 相关变更需显式标明 `PostConfirmationReviewScopeGate`、`DevelopmentDriftGate`、`VerificationPlanMaterializationProbe`、`AcceptedSuggestionRootCauseGate`、`ChinesePrimaryExpressionGate`、`SidebarPageRoleMaterializationProbe`、`SidebarGroupSemanticModelProbe` 和 V78 探针。
 - 宿主输出、Hook 或项目现实扩展相关条目，建议显式写出 `verified-present / verified-missing / unverified`、sticky `activeProject` 与用户可见 `意图扩展摘要` 是否发生变化。
 - 执行闭环、确认机制或发布门禁相关条目，建议补充 `Intent Expansion Card`、`ConfirmationRequest`、`ECR` 与验证证据，方便正式发版时直接归档到版本 changelog。

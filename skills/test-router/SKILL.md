@@ -49,6 +49,11 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 | `layeredAbsorption` | 是否涉及规范吸纳、data 台账治理、用户确认可泛化策略、新增门禁或新增 Skill，需要分层同步和探针覆盖 |
 | `historicalCommonNormLayering` | 是否涉及历史通用规范、prompt/report 长清单、旧吸纳项或跨版本规范资产重新分层，需要逐文件矩阵和 V74 探针 |
 | `proactiveBetterAlternative` | 是否涉及用户建议、方案确认、规范吸纳或复审冻结，需要主动比较更优路径并记录采纳依据 |
+| `nativeCommandExitCode` | 是否涉及 release、pack、install smoke、CLI replay、curl/git/npm/node/PowerShell/Bash 原生命令或 wrapper 脚本，需要记录真实退出码 |
+| `postConfirmationReviewScope` | 是否处于 CP 确认后进入下一阶段，需要判定轻量复审或全面复审 |
+| `developmentDrift` | 是否进入编码前或实施中存在范围、验证路线、消费者同步或 dirty 边界偏移风险 |
+| `verificationPlanMaterialization` | CP2 / 技术方案是否需要物化验证计划、验收标准和退出条件 |
+| `docsIaReadability` | 是否涉及中文用户文档、pageRole、sidebar group、菜单命名或文档站 IA |
 
 ## 路由矩阵
 
@@ -72,10 +77,11 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 | 本地服务验证 | ServiceLifecycleCleanup：记录启动命令、cwd、PID/job、端口/URL，并在验证完成、失败或最终回复前关闭仅由 AI 启动的服务 | 用户明确要求保留服务时，记录保留原因、PID/端口/URL 与关闭方式 |
 | 人工复核 / 手工验证 | ManualReviewEvidenceRetention：记录复核人/时间/范围/输入/观察结果/截图或日志位置 | 不得只写“人工检查通过”；无法留截图时写等价证据 |
 | 验证范围预算 / 真实执行 | VerificationScopeBudgetGate、LiveVerificationExecutionObligation：验证强度匹配风险，声明已验证前实际执行命令、页面、接口、pack/install、registry/tag 查询或等价验证 | 降级必须写阻塞原因、替代证据和残余风险 |
-| 发布 / package | `audit-release`、`release-verification`、`npm run test:audit`、package completeness gate、远端 CI 绿色（如存在）、pack dry-run；PackageBoundarySerialCheck：pack / boundary 检查必须在 build / benchmark / codegen 完成后单独串行执行 | pack install smoke、publish dry-run、无关残留文件清理复核 |
+| 发布 / package | `audit-release`、`release-verification`、`npm run test:audit`、package completeness gate、远端 CI 绿色（如存在）、pack dry-run、`NativeCommandExitCodeGate`；PackageBoundarySerialCheck：pack / boundary 检查必须在 build / benchmark / codegen 完成后单独串行执行 | pack install smoke、publish dry-run、无关残留文件清理复核 |
 | 消费者验证 / 跨仓库验证 | ConsumerDependencyTreeProbe：先核对 `package.json`、lockfile、`node_modules` 与 `npm ls <关键依赖>`，排除依赖树漂移 | 源码补丁、共享库升级、消费者 lockfile 恢复 |
 | Adapter / provider benchmark | AdapterBenchmarkAttribution：记录基线、环境、版本、负载、归因边界和不可比较因素 | 避免把框架、网络、缓存预热、依赖树或测试环境差异误归因给业务代码 |
 | 产品需求整理 / 产品完整需求 / 需求迁移 / 需求变更 | ProductRequirementTraceabilityGate：先记录入口类型；无产品角色的纯新需求记录 `00-需求概况.md` / PRD / Word / 原型 / 截图 / 消息锚点、`01-需求确认.md` 的 AI 提取口径、产品补充口径、冲突/遗漏处理、双方确认状态和技术验证映射；有产品角色直接提供完整需求时记录 `01-产品需求.md`、产品原文锚点、AI / 研发缺口 / 冲突检查、澄清状态和技术验证映射，缺口检查记录在 CP1 摘要、`02-技术方案.md` 或报告中，不写入产品模板正文，也不生成或重写产品需求；需求变更记录 `00-需求变更概况.md`、原需求基线、变更前后差异、`01-需求变更确认.md`、目标需求真相源回写和技术验证映射；Bug 问题记录 `00-问题概况.md` / `01-问题确认.md` 并走 fix | 不得把 AI 摘要当唯一真相源；不得混写需求方输入、产品完整需求、需求变更和产品确认；不得把 Bug 当产品需求；需求方和产品不填写验收标准，验证映射由技术方案 / 测试方案派生 |
+| CP 确认后复审 / 开发偏移 | `PostConfirmationReviewScopeGate`、`DevelopmentDriftGate`：按风险判定轻量或全面复审；全面复审使用 review-checklist 文件、PR-2~PR-7、状态新鲜度；进入编码前核对 allowedFirstBatch、blockedScope、driftTriggers、validationRoute、consumerSync 和 dirty boundary | 低风险降级必须写 `skipReason`；触达 blockedScope 或改变验证路线时回 CP2/CP3 |
 | 本机 / 跨环境执行配置 | LocalExecutionConfigProbe：核对项目指定配置入口、Profile `config.local.json` 模型或既有脚本约定；未指定时遵循 S02 | 不得为了安全感臆造 env/secret/config.local |
 | 人工证据留存 / 真实联调 | ManualReviewEvidenceDataRetention：记录证据保存位置、可复核输入、样本范围、保留策略和不可保留原因 | 证据不能进入仓库时写明外部位置或不可保留理由 |
 | 指定范围防扩散 | AdjacentScopeExpansionGuard：核对用户指定模块/目录/adapter/provider 与相邻范围修改理由 | 无共同契约、共享缺陷或验证必需时不得扩相邻范围 |
@@ -93,6 +99,7 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 | Profile / 服务规范覆盖 | StrongestProfileSourceGate / ServiceSpecificResidueSweep / ProfileReadChainGate / ServiceNormCoverageGate | 以最强 Profile 为基线，扫服务化残留；覆盖 profile 读取链、全部服务集合、docs 自维护链、导航、版本、构建、报告和记忆 |
 | API / 框架能力证据 | OfficialApiEvidenceGate / FrameworkCapabilityAutoFirstGate / AsyncDbTruthSourceVerificationGate | 查官方 API / public contract / 源码证据；先评估框架或插件既有能力；数据库 / 异步 / 缓存验证区分真实数据源、旧缓存、异步刷新和失败回退 |
 | 正式流程图 / 生命周期图 | FlowchartNodeExplanationGate：Mermaid/Nxx 流程图配套中文节点说明，覆盖触发、前置、动作、出口、异常 | 临时草图写 `N/A + skipReason` |
+| 中文主表达 / 文档站 IA | `ChinesePrimaryExpressionGate`、`SidebarPageRoleMaterializationProbe`、`SidebarGroupSemanticModelProbe`：中文正文主干解释任务/配置/错误/流程；新增能力或菜单调整从 current sidebar/docs inventory/generated HTML 反查 pageRole、route、label、group 和相邻职责 | 不得只补单个菜单项、按 API 名猜 route，或把内部依赖当 IA 归属 |
 | 文档站视觉 / 交互验收 | DocsSiteVisualAcceptanceGate：覆盖主题集成、真实点击、异步动效、减弱动态、代码 token 对比度、终端 demo 范围、TOC inline code、辅助导航层级 | 纯内容页可降级为链接/构建/人工证据 |
 | 遗漏专审 / 只列仍需吸纳项 | OmissionOnlyReviewGate：只输出此前未覆盖且仍有价值项，保留已吸纳/排除理由和覆盖增量 | 不得把已吸纳、已关闭或没必要项重新列入最终清单 |
 | 审查发现 intake | ReviewFindingIntakeGate：外部审查报告、AI review finding、audit issue 或代码评审发现进入修复/建议前，先补本地证据并分流 must-fix、用户决策、文档实现漂移、测试缺口、未复现或设计如此 | 不得把报告结论直接当验证证据；公共契约或兼容风险源码修改前先确认 |
@@ -107,7 +114,7 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 | 多阶段关闭 | MultiPhaseClosureGate：Phase 1/roadmap/分阶段需求列全后续阶段、门禁、确认点、进度真相源和最终关闭规则 | 不得把 Phase 1 完成当整体关闭 |
 | package/adapter 确认前证据 | PackageAdapterPreConfirmEvidenceGate：package、adapter、SDK、CLI 或插件方案确认前核对 package/plugin/exports/bin/files/dist/registry/消费者入口 | 缺证据时不得宣称包消费者可用 |
 | 用户文档驱动交付链 | UserFacingDeliveryChainGate：从原始需求、需求确认、用户最终使用文档、条件契约文档到技术方案、复杂项目实施方案、实施计划、进度和 ECR 需求 / 用户文档符合性审查建立链路 | FinalUserManualFirstGate、DocsSiteInformationArchitectureGate、UserManualFlowAndFailureGate、QueueDocsRealWorkflowGate |
-| 审查清单证据化 | ReviewChecklistCompletenessGate、EvidenceExecutionGate：冻结清单后每项绑定代码 / 类型 / 测试 / 文档 / 配置证据、命令输出或反向缺席扫描 | Fix-Then-Checklist、lexical token class / 语法类别反向枚举 |
+| 审查清单证据化 | ReviewChecklistCompletenessGate、EvidenceExecutionGate、ReviewEscapeRecordGate：冻结清单后每项绑定代码 / 类型 / 测试 / 文档 / 配置证据、命令输出或反向缺席扫描；发现原清单遗漏时记录 whyMissed、prevention、checklistPatch 与 rerunEvidence | Fix-Then-Checklist、lexical token class / 语法类别反向枚举、复审逃逸记录 |
 | 构建产物 feature smoke | BuiltArtifactFeatureSmokeGate、TscOutputImportProbe：dist CJS、dist ESM、`.generated` / tsc 输出或等价产物上真实 import / feature path | dependency load API shape、default/off/injected runtime、active handles |
 | 文档站生成产物验证 | GeneratedSiteGate、ManualTocDuplicationGate：以当前构建产物或真实预览检查 header / top / mobile / footer / sidebar / outline / 正文 TOC 可见状态 | 区分 DOM hidden、visible duplicate、current violation、historical allowed |
 | 公开用户路径契约 | UserPathContractSweep：公开能力页核对安装版本、quick start、构造函数示例、配置字段类型、相邻专题、API 索引和 sidebar | package.json、public types、runtime wiring、examples 作为证据 |
@@ -179,6 +186,10 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 | generatedSiteVerification | N/A / required / optional；若 required，写构建产物、导航/footer/sidebar/outline/TOC 可见状态和 DOM/CSS 区分 |
 | userPathContractSweep | N/A / required / optional；若 required，写安装版本、配置契约、public types/runtime/examples/sidebar 证据 |
 | benchmarkRegression | N/A / required / optional；若 required，写基线、当前结果、阈值、不可比较因素、是否阻断发布 |
+| postConfirmationReviewScope | N/A / light / full；写触发依据、review-checklist 路径或 skipReason、PR-2~PR-7 证据 |
+| developmentDrift | N/A / required；写 allowedFirstBatch、blockedScope、driftTriggers、validationRoute、consumerSync、dirty boundary |
+| verificationPlanMaterialization | N/A / required；写验证计划章节、命令/矩阵、验收标准和退出条件 |
+| docsIaReadability | N/A / required；写 ChinesePrimaryExpressionGate、SidebarPageRoleMaterializationProbe、SidebarGroupSemanticModelProbe 证据 |
 | historicalCommonNormLayering | N/A / required / optional；若 required，写逐文件审查矩阵、legacy-index-retained、V74、targeted test、public docs 与 deploy copy 证据 |
 | databaseRecordMigrationExport | N/A / required / optional；若 required，写记录链、JSON/Extended JSON、insert/upsert、引用完整性和 dry-run |
 | findingProbeMatrix | N/A / required / optional；若 required，写 finding 矩阵、失败输入、修复前失败、修复后通过和发布面证据 |
@@ -190,6 +201,7 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 | requirementPreConfirm | N/A / required / optional；若 required，写行为可验证、范围冲突和 fail-safe 检查 |
 | multiPhaseClosure | N/A / required / optional；若 required，写 Phase 2+ 路线、门禁、确认点、进度真相源和最终关闭规则 |
 | packageAdapterPreConfirmEvidence | N/A / required / optional；若 required，写 package/plugin/exports/bin/files/dist/registry/消费者入口证据 |
+| nativeCommandExitCode | N/A / required / optional；若 required，写 command、shell、cwd、exitCode、auth/config 来源、失败证据排除和 wrapper 传播规则 |
 | collectionRelationIdNaming | N/A / required / optional；若 required，写集合/实体命名依据、项目 convention 和消费者影响 |
 | userFacingVerificationArtifactLanguage | N/A / required / optional；若 required，写用户当前语言、项目例外和 `.http` / 测试说明语言 |
 | verificationScopeBudget | N/A / aligned / under-scoped / over-scoped；写风险匹配依据和降级/减负理由 |
@@ -248,7 +260,7 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 - 规范吸纳、data 台账治理、用户确认“值得吸纳”的策略或新增门禁时必须执行 `LayeredAbsorptionGate` 和 `SkillFirstAbsorptionGate`，若判定 `new-skill-required`，TestRoute 至少覆盖新 Skill frontmatter、plugin 注册、路由说明、promptTemplate、executionConsumer、validationProbe、publicDocs 和 deployCopy；若采纳用户原方案，必须记录 `ProactiveBetterAlternativeGate` 的独立验证依据。
 - 历史通用规范、prompt/report 长清单、旧吸纳项或跨版本规范资产重新分层时必须执行 `HistoricalCommonNormLayeringGate`；进入实施前先创建逐文件审查矩阵，验证路线至少包含 targeted tests、`node scripts/validate.js`、public docs、deploy copy 和 ProfileImpactCheck。
 - 用户文档站、README、docs-first 最终手册、前端/API 对接契约或公开能力交付必须优先触发 `user-manual-authoring` 并执行 `UserFacingDeliveryChainGate`；最终用户手册、文档站 IA、流程/失败处理和队列/任务类真实批量工作流分别执行 `FinalUserManualFirstGate`、`DocsSiteInformationArchitectureGate`、`UserManualFlowAndFailureGate`、`QueueDocsRealWorkflowGate`。
-- 长链路 fix/audit、外部 finding 批次或冻结 Review Checklist 后必须触发 `review-checklist`，执行 `ReviewChecklistCompletenessGate` 与 `EvidenceExecutionGate`；每项没有可复现证据时不得宣告通过。
+- 长链路 fix/audit、外部 finding 批次或冻结 Review Checklist 后必须触发 `review-checklist`，执行 `ReviewChecklistCompletenessGate`、`EvidenceExecutionGate` 与 `ReviewEscapeRecordGate`；每项没有可复现证据时不得宣告通过，发现遗漏时不得跳过 `whyMissed / prevention / rerunEvidence`。
 - runtime/adapter/SDK/CLI/module-format/exports/bin/files/dist/tsc 输出变化必须执行 `BuiltArtifactFeatureSmokeGate` 与 `TscOutputImportProbe`；不得只用源码测试或 root export smoke 替代构建产物 feature path。
 - 文档站/官网导航、footer、sidebar、outline、手写 TOC、语言切换或公开能力页首次成功路径变化必须执行 `GeneratedSiteGate`、`ManualTocDuplicationGate` 与 `UserPathContractSweep`，以当前构建产物或真实预览为准。
 - 性能敏感项目或已有 benchmark 基线的 hot path 修改必须执行 `BenchmarkRegressionGuard` 判定；跳过代表性 benchmark 需写 `N/A + skipReason`、风险和替代证据。
@@ -256,6 +268,7 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 - adapter、provider、connector、SDK 或性能 benchmark 变更必须执行 AdapterBenchmarkAttribution，报告基线、环境、版本、负载、归因边界和不可比较因素。
 - 项目事实变化时必须执行 `ProfileImpactCheck`；若跳过 Profile 更新，报告需要写 `skipReason`。
 - 按 `ConcurrencyPolicy`，只读准备和隔离验证可并行；release / pack / package boundary / benchmark / codegen 任务不得并行运行会写入 `dist` 的命令与包边界检查；必须记录 PackageBoundarySerialCheck，并在最终报告说明无关 dirty 文件和验证残留已清理。
+- 发布、pack、install smoke、CLI replay、curl/git/npm/node 或 PowerShell/Bash wrapper 验证必须执行 `NativeCommandExitCodeGate`：PowerShell 需检查 `$LASTEXITCODE` 或等价 wrapper，Bash 需避免管道/子命令吞失败；报告 command、shell、cwd、exitCode 和 auth/config 来源。只打印成功文案但未传播非零退出码的验证无效。
 - 高风险控制面 / 多批次修复必须写出 `regressionChecks`：逐项列出历史能力、必跑验证、对应批次和失败回滚点。
 - 宿主契约、visible reply、sticky project 或 workspace guard 变更，不得只写“`npm test` 已过”；必须写明 direct replay / fixture replay / validate probe 的证据来源。
 - 任何验证路线若由 AI 启动 dev server、文档站、本地 API/mock、数据库代理、SSH 隧道、Playwright/Cypress server 或压测 target，完成前必须执行 `ServiceLifecycleCleanup`：只停止本轮 AI 启动的进程，核验 PID/job 或端口释放，并在 TestRoute/报告记录证据；不得杀用户既有进程。

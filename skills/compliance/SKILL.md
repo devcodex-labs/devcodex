@@ -17,6 +17,22 @@ description: 执行入口检查与 FC/SC/RC/T 合规校验。PC0~PC7 入口检�
 >
 > ℹ️ ENV_MODE 未注入（profile 未加载）时，默认按 `prod`（不执行合规检查）。
 
+## §0.1 SpecRadarSubgate（PC4 规范雷达承接）
+
+`SpecRadarSubgate` 是 PC4 的执行承接层：`instructions/18-spec-radar.instructions.md` 只负责入口提示和用户可见摘要，具体 Gate 分组、触发判断、ownerSkill、验证路线和 N/A 理由必须引用 `spec-governance` 的 `GovernanceGateRegistry`。
+
+dev 模式 PC4 至少输出：
+
+| 字段 | 要求 |
+|------|------|
+| `mode` | `dev` / `prod` / `unknown`；非 dev 时 PC4 可写 `N/A + skipReason` |
+| `triggeredGateGroups` | 命中的 gateGroup 列表，例如 `absorption-layering`、`review-checklist`、`frontend-runtime`、`release-parity` |
+| `ownerSkills` | 每个 gateGroup 的 owner Skill；不得把执行细节继续堆回 PC4 文案 |
+| `requiredArtifacts` | 本轮需要的清单、报告、证据、探针或部署同步 |
+| `validationRoute` | targeted test、validate 编号、SCV、人工证据或 `N/A + skipReason` |
+
+当 PC4 命中新规范吸纳、历史长清单迁移、复审遗漏、用户文档、发布或前端运行态相关 gateGroup 时，后续报告必须引用对应 owner Skill 的证据，而不是只写“已检查规范雷达”。
+
 ### 🔴 强制可见输出（仅 dev 模式合规块，chat 豁免）
 
 每次回复末尾**必须**输出合规检查状态块：

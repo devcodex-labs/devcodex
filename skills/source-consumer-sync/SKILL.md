@@ -77,7 +77,8 @@ description: 真相源-消费者同步规范 — 为规范源、模板、validat
 - `sourceOfTruth`：`skills/spec-governance/SKILL.md` 的 `HistoricalCommonNormLayeringGate`、逐文件审查矩阵或当前目标 Skill。
 - `currentConsumers`：`instructions.md`、`instructions/10-dev.instructions.md`、`spec-governance`、`test-router`、`report`、`document-sync`、`source-consumer-sync`、technical-design / implementation-plan / report prompts、README、website guide、active version requirements、changelog、Profile。
 - `historicalMirrors`：`changelogs/releases/**`、历史 version docs、旧 requirement/release 页面；保留旧事实时必须写 `historicalMirror` 或 `legacy-index-retained`。
-- `validateProbes`：`checkV74`、`scripts/test-spec-governance.js`、`node scripts/validate.js` 和必要 targeted tests。
+- `validateProbes`：`checkV74`、`PromptLongGateListDriftProbe` / `checkV75`、`scripts/test-spec-governance.js`、`node scripts/validate.js` 和必要 targeted tests。
+- `currentConsumers` 中的 README、website guide、拆分 instructions、technical-design / implementation-plan / report prompts 只保留 `GovernanceGateRegistry`、gateGroup、ownerSkill、validationRoute、skipReason 和少量代表锚点；若 SCV 负向样例发现旧 Gate 长清单回流，必须回到源 Skill 或目标 ownerSkill 承接正文。
 - `deployCopies`：`AGENTS.md`、`.agents/skills/`、`.github/`、`.claude/`、`.codex/` 中由 `devcodex update` 生成的当前副本。
 
 ## 黄色偏离边界

@@ -134,6 +134,12 @@ description: 规范治理生命周期 — 意图驱动记录、RecordRouter 分�
 - 历史 release / version / requirement 镜像默认按 `historicalMirror` 处理，不回写当前架构口径；当前 README、website guide、active version、changelog、Profile 和部署副本必须同步。
 - 新增或补强该迁移能力时必须更新 V74 或后续 validate 探针，检查 `HistoricalCommonNormLayeringGate`、逐文件矩阵、目标 Skill、Prompt/Report、public docs 与 deploy copy。
 
+### PromptLongGateListDriftProbe
+
+`PromptLongGateListDriftProbe` 是历史长清单迁移后的防回流探针。当前 README、website guide、拆分 instructions、technical-design / implementation-plan / report prompts 等消费者只能写 `GovernanceGateRegistry`、`gateGroup`、ownerSkill、validationRoute、skipReason 和少量代表锚点；不得重新复制 `CrossProjectLearnedGuards`、`LatestAbsorptionGuards` 或 `ConfirmedAbsorptionCompletenessGates` 的完整 Gate 长清单。
+
+探针必须包含 SCV 负向样例：用旧版跨项目长清单、完整吸纳长清单和最新吸纳长清单构造样例，确认检测逻辑会失败；同时用分组 registry 摘要构造正向样例，确认不会误伤。若复审发现 prompt、report、README 或 website 又出现跨组大清单，应先记录逃逸原因，再补 `GovernanceGateRegistry` / gateGroup 引用和目标 Skill 承接方。
+
 ### 分层检查面
 
 | 层级 | 必查内容 |
@@ -146,9 +152,34 @@ description: 规范治理生命周期 — 意图驱动记录、RecordRouter 分�
 | `publicDocs` | README、website、changelog、用户可见版本文档是否需要同步 |
 | `deployCopy` | `.github`、`.claude`、`AGENTS.md`、`.agents`、`.codex` 或 Profile 部署副本是否需要同步 |
 
+## GovernanceGateRegistry（治理 Gate 分组注册表）
+
+`GovernanceGateRegistry` 是 PC4、技术方案、实施计划、报告模板和 validate 探针共同引用的 Gate 分组索引。通用 instructions 或 prompts 不应复制完整 Gate 长清单；它们只记录 `gateGroup / ownerSkill / trigger / requiredEvidence / validationRoute / skipReason`。
+
+| gateGroup | ownerSkill | 触发语义 | 最小证据 |
+|-----------|------------|----------|----------|
+| `absorption-layering` | `spec-governance` | 可泛化 PI / PF / GAP / ISSUE、用户确认值得吸纳、新增 Gate | `LayeredAbsorptionDecision`、`layerChecks`、consumer sync |
+| `historical-common-layering` | `spec-governance` | 历史通用规范、prompt/report 长清单或旧吸纳项重新分层 | 逐文件审查矩阵、`legacy-index-retained`、`PromptLongGateListDriftProbe`、V74/V75 探针 |
+| `confirmed-completeness` | `spec-governance` + 目标 Skill | 未完整吸纳、半覆盖、缺 Gate / Skill / Prompt / Probe / deployCopy | gateGroup 分流表、目标 Skill 证据、验证探针 |
+| `review-checklist` | `review-checklist` | 正式复审、ECR、发布前复审、多轮收敛、外部 finding 批次 | 复审清单文件、状态、证据、Run ID、收敛结论 |
+| `review-escape` | `review-checklist` + `spec-governance` | 二次复审或实施中发现原清单遗漏、新问题逃逸 | `ReviewEscapeRecordGate`、`escapedItem / whyMissed / missingDimensionOrProbe / prevention / checklistPatch / rerunEvidence`、台账分流 |
+| `post-confirmation-review` | `cp-gate` + `review-checklist` + `dev-plan-review` | CP1/CP2/CP3 确认后进入下一阶段 | `PostConfirmationReviewScopeGate` 风险分级、轻量/全面复审判定、冻结清单或 skipReason、PR-2~PR-7 证据 |
+| `development-drift` | `execution-contract` + `dev-default` | 进入编码前、实施中范围扩张或验证路线变化 | `DevelopmentDriftGate`、allowedFirstBatch、blockedScope、driftTriggers、validationRoute、dirty boundary |
+| `user-manual` | `user-manual-authoring` | 站点文档、README、quick start、接入手册、最终用户手册 | 用户任务路径、配置、示例、排错、真实工作流、渲染验证 |
+| `docs-ia-readability` | `user-manual-authoring` + `dev-docs` + `document-sync` | 中文用户文档、sidebar IA、新增公开能力或菜单纠偏 | `ChinesePrimaryExpressionGate`、`SidebarPageRoleMaterializationProbe`、`SidebarGroupSemanticModelProbe`、pageRole/sidebar group 矩阵 |
+| `frontend-runtime` | `audit-project` + `test-router` | 首页、详情、列表、搜索、前端接口数据、缓存刷新或运行态页面 | 旧缓存先渲染、异步刷新、失败回退、网络/状态验证 |
+| `release-parity` | `audit-release` + `release-verification` | push/tag/release/publish 前验证 | 与远端 CI 同构门禁、pack、coverage/audit/examples/website 矩阵、原生命令真实 exitCode |
+| `profile-service` | `load-profile` + `profile-bootstrap` | Profile 链路、服务集合、公共规范抽取或服务残留 | 读取链、最强 Profile、服务残留清扫、覆盖矩阵 |
+| `public-surface` | `release-verification` + `audit-release` | package、README、website、public types、examples、搜索索引变化 | npm pack 历史公开内容、隐藏链接、public API、search/sidebar 反查 |
+| `evolution-control-plane` | `evolution-governance` | 自我进化、自动吸纳、模型辅助规范优化或自动发版候选 | 候选态、授权、模型配置、权限/配额、审计、回滚和审批 |
+
+新增 Gate 时必须先登记或复用 gateGroup，再同步 owner Skill、prompt/report 字段、TestRoute、validate 探针、README/website/changelog 和部署副本。无法归入现有 gateGroup 时，优先判断是否应新增独立 Skill，而不是把正文追加到通用长清单。
+
 ### ProactiveBetterAlternativeGate
 
 处理用户建议、确认、规范吸纳、CP2 方案或复审清单冻结前，必须主动比较用户方案与至少一种项目现实可行的替代路径。若存在更低风险、更完整、更易维护或更易验证的路径，应先提出建议、收益、代价和影响范围，再进入确认或实施；不得只因用户提出方向就顺从式记录。若用户方案已是当前最优，记录依据，例如真相源证据、消费者范围、验证成本、迁移风险或用户明确约束。
+
+`AcceptedSuggestionRootCauseGate`：当用户提出更优方案、纠正命名 / IA / 验证路线 / 范围边界，且 AI 采纳该方案时，最终回复和报告必须说明为什么前序检查没发现、采纳依据、写入或关闭的 VL / PI / PF / GAP 编号，以及下次防复发动作。若只是一次性偏好或业务局部调整，写 `record.none + skipReason`；若暴露规范缺口，按 RecordRouter 写台账并进入 LayeredAbsorptionGate。
 
 ## ConfirmedAbsorptionCompletenessGates
 
@@ -163,7 +194,7 @@ description: 规范治理生命周期 — 意图驱动记录、RecordRouter 分�
 
 | 归属 | Gate |
 |------|------|
-| public surface / release | `PublicSurfaceClosureGate`、`RemoteCIParityPushGate`、`PortableExternalArtifactGate` |
+| public surface / release | `PublicSurfaceClosureGate`、`RemoteCIParityPushGate`、`NativeCommandExitCodeGate`、`PortableExternalArtifactGate` |
 | user docs | `UserManualProductizationGate`、`UserManualRenderedFlowAndRealWorkflowProbe`、`DocsPageRoleMatrixGate`、`CompleteUserManualSiteMatrixGate`、`DocsThemeRuntimeVisualProbeGate` |
 | review / requirements / anchors | `SampleIssueExpansionGate`、`RequirementDimensionBindingGate`、`RequirementPriorityAndPhaseGate`、`ReviewAnchorMaterializationGate` |
 | truth sampling / legacy / route | `SemanticLegacyRouteExposureGate`、`ReferenceCodeTruthSamplingGate`、`RouteNamespaceResponsibilityGate` |
@@ -221,7 +252,7 @@ RecordRouter 只在记录意图识别后执行。
 2. PF 经用户确认且可排期时，可转 ISSUE。
 3. PI 只有在策略可泛化且不破坏现有规则时才写入。
 4. GAP 必须包含“为什么原检查没有发现”和“建议探针”。
-5. 实施完成复审、ECR 或审计复审发现新问题时，必须记录逃逸原因、缺失检查/探针、补救方案，并判断是否升级 VL/PF/GAP。
+5. 实施完成复审、ECR 或审计复审发现新问题时，必须执行 `ReviewEscapeRecordGate`：在复审清单中记录 `escapedItem`、`previousChecklistGap`、`whyMissed`、`missingDimensionOrProbe`、`prevention`、`checklistPatch`、`rerunEvidence`，再判断是否升级 VL/PF/GAP。
 
 ## SCV 规范变更验证
 

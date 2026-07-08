@@ -26,8 +26,8 @@ description: 发布验证规范 — 覆盖版本、changelog、测试、pack、i
 | R3 | 执行 `npm test`（默认全链）|
 | R3b | 执行 `npm run test:audit`，并完成 package completeness gate（`description`、`keywords`、`repository`、`homepage`、`bugs`、`license`、`files/exports/bin`、`publishConfig`、`engines`、`plugin.json` 元数据）；包边界检查必须在构建/benchmark/codegen 完成后单独串行执行 |
 | R3c | 执行 `RemoteCIParityPushGate`：push / tag / release / publish 前先执行与远端 CI 同构的本地门禁；若项目存在远端 CI（如 GitHub Actions），确认目标 commit 对应 CI run 已完成且 conclusion 为 `success`；无远端 CI 或无权限查询时必须写 `N/A + skipReason`，不得把普通测试通过替代 coverage、audit、examples、website、pack 或矩阵脚本 |
-| R4 | 执行 `npm pack --dry-run` 与 `npm publish --dry-run`（遵循当前 `publishConfig`） |
-| R5 | 条件执行 pack install smoke |
+| R4 | 执行 `npm pack --dry-run` 与 `npm publish --dry-run`（遵循当前 `publishConfig`），并执行 `NativeCommandExitCodeGate` |
+| R5 | 条件执行 pack install smoke，并记录真实命令退出码 |
 | R6 | commit/tag/push/publish 前输出确认，真实发布动作必须等待用户明确确认 |
 | R7 | 发布后验证 git tag、registry 版本、安装包边界和 `node scripts/validate.js` |
 
@@ -44,6 +44,7 @@ description: 发布验证规范 — 覆盖版本、changelog、测试、pack、i
 - 按 `ConcurrencyPolicy`，只读准备和隔离验证可并行；`npm pack --dry-run`、package boundary check、files/exports/bin 检查不得与任何会删除、重建或写入 `dist` 的命令并行；若曾出现并行读写竞争，报告必须以重新单独执行的 pack 结果为准，并记录旧结果作废。
 - ReleaseVerification 完成前必须检查并清理无关 dirty 文件、旧验证残留和本轮生成但不属于交付范围的产物；不得把残留文件留给后续任务。
 - 发布前必须执行 `PublicSurfaceClosureGate`：分类 npm pack 历史公开内容，反查 README 隐藏文档链接、public types 兼容 API 标注、examples/sidebar/nav、搜索索引源文档和 historical pack surface；不得只检查当前源码目录。
+- 发布、pack、install smoke、CLI replay、curl/git/npm/node 等原生命令必须执行 `NativeCommandExitCodeGate`：PowerShell 下不能只依赖 `$ErrorActionPreference` 或后续 `Write-Host OK`，必须检查 `$LASTEXITCODE` 或使用会向外传播非零退出码的 wrapper；Bash/类 Unix shell 必须避免管道或子命令吞掉失败。证据至少记录 command、shell、cwd、exitCode、auth/config 来源（如 `.npmrc` / `--userconfig`）以及失败证据是否已排除；命令失败但脚本继续打印成功文案的结果无效。
 
 ## 输出格式
 
@@ -58,12 +59,12 @@ description: 发布验证规范 — 覆盖版本、changelog、测试、pack、i
 | R3 | ✅/⚠️/N/A | |
 | R3b | ✅/⚠️/N/A | package completeness gate |
 | R3c | ✅/⚠️/N/A | remote CI green |
-| R4 | ✅/⚠️/N/A | |
-| R5 | ✅/⚠️/N/A | |
+| R4 | ✅/⚠️/N/A | command/shell/cwd/exitCode |
+| R5 | ✅/⚠️/N/A | command/shell/cwd/exitCode |
 | R6 | ✅/⚠️/N/A | |
 | R7 | ✅/⚠️/N/A | |
 ```
 
 ## 报告要求
 
-正式发布报告必须包含 ReleaseVerification R0~R7 状态、`R3b` package completeness gate 证据、失败恢复路径、发布后 registry/tag 验收证据和关联 commit/tag。
+正式发布报告必须包含 ReleaseVerification R0~R7 状态、`R3b` package completeness gate 证据、`NativeCommandExitCodeGate` 退出码证据、失败恢复路径、发布后 registry/tag 验收证据和关联 commit/tag。

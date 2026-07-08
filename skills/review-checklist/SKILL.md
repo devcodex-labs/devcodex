@@ -18,6 +18,7 @@ description: 复审清单整理与审查规范 — 创建、冻结、证据执�
 | dev/fix 的 ECR 执行闭环复审涉及控制面、多文件、发布、模板、validate 或部署副本 | 必须 |
 | 外部审查报告、AI review finding、audit issue、代码评审发现进入批量处理 | 必须 |
 | 发布前审查、release readiness、tag/publish 前风险复查 | 必须 |
+| CP 确认后命中高风险、多模块、公开契约、配置、安全、package、docs consumer、控制面或多真相源场景 | 必须 |
 | 低风险单文件 typo 且无正式复审要求 | N/A + skipReason |
 
 ## 清单文件要求
@@ -31,6 +32,7 @@ description: 复审清单整理与审查规范 — 创建、冻结、证据执�
 | `evidence` | 每项绑定命令、代码落点、文档路径、页面、截图、构建产物或反向缺席扫描 |
 | `status` | `todo / running / passed / failed / blocked / N/A` |
 | `skipReason` | N/A 或未执行项必须写明原因、残余风险和替代证据 |
+| `escapeRecords` | 复审或实施中发现原清单遗漏时的追加记录，字段见 `ReviewEscapeRecordGate` |
 | `closure` | 收敛结论、未关闭项、下一步和报告引用 |
 
 ## 必执行门禁
@@ -43,8 +45,10 @@ description: 复审清单整理与审查规范 — 创建、冻结、证据执�
 - `ReviewAnchorMaterializationGate`：PR / TD / CP2 / 发布前审查锚点必须物化为可 grep 的清单项、章节或表格，不能只写“已语义覆盖”。
 - `RequirementDimensionBindingGate` / `RequirementPriorityAndPhaseGate`：需求维度进入复审清单时，必须绑定 CP2、批次计划、验收证据和阶段关闭规则；多阶段项写 entry / exit / carryOver / closeRule。
 - `ChecklistEscapeAnalysisGate`：发现遗漏或返修时，分析为什么上轮清单、维度或探针没覆盖。
+- `ReviewEscapeRecordGate`：二次复审、返修或实施过程中发现新问题逃逸时，必须先追加 escape record，再补清单和重跑证据。
 - `ChecklistStateFreshnessGate`：最终报告前核对清单状态、报告结论、audit-state、sessions、SUMMARY 和 dirty 边界一致。
 - `ReviewDimensionDeltaGate`：R2+ 复审不得机械重复同一维度；重复维度必须有阻断项回归、高风险锚点、新证据或抽样理由。
+- `PostConfirmationReviewScopeGate`：CP1 / CP2 / CP3 确认后先判定轻量复审或全面复审；命中高风险场景时必须创建或复用本清单，低风险降级写 `N/A + skipReason`。
 
 ## 执行步骤
 
@@ -53,9 +57,29 @@ description: 复审清单整理与审查规范 — 创建、冻结、证据执�
 3. 冻结 `frozenChecklist`，标记每项初始状态为 `todo` 或 `N/A`。
 4. 按项执行证据核验：命令、grep、代码落点、生成产物、页面、API、pack/install、registry/tag 或项目等价证据。
 5. 每完成一项立即更新状态；失败项写修复建议和阻断级别。
-6. 返修后执行 `ChecklistEscapeAnalysisGate`，说明遗漏原因和补充探针。
+6. 返修或发现遗漏时先执行 `ReviewEscapeRecordGate`，追加 escape record，再执行 `ChecklistEscapeAnalysisGate`，说明遗漏原因、补充清单和补充探针。
 7. 收敛前执行 `ChecklistStateFreshnessGate`，确认清单、报告、记忆、SUMMARY 和台账状态一致。
 8. 最终报告引用清单文件路径，未关闭项不得被隐藏。
+
+## ReviewEscapeRecordGate
+
+当复审、再次复审、ECR、发布前检查、实施中验证或外部 finding 处理发现“原清单没有覆盖但本轮必须处理”的问题时，必须在同一个复审清单文件追加 escape record，不能只在最终报告里口头说明。
+
+escape record 至少包含：
+
+| 字段 | 说明 |
+|------|------|
+| `escapedItem` | 逃逸问题或遗漏项名称 |
+| `detectedAt` | 发现时间、轮次、Run ID 或触发命令 |
+| `previousChecklistGap` | 原冻结清单缺了哪一项、哪一类维度或哪条证据 |
+| `whyMissed` | 为什么一开始没发现：范围遗漏、消费者漏扫、探针旧口径、只信报告、样例未扩维、历史镜像误判等 |
+| `missingDimensionOrProbe` | 缺失的审查维度、grep 反查、测试、validate、页面验证或人工证据 |
+| `prevention` | 下次如何避免同类问题，包括新增/调整清单项、探针、模板字段或 ownerSkill |
+| `checklistPatch` | 新增到 frozen checklist 的项或追加清单编号 |
+| `rerunEvidence` | 补清单后重新执行的命令、代码落点、页面、构建或报告证据 |
+| `ledgerRoute` | 是否需要写 VL / PF / GAP / PI / ISSUE；不需要时写 `record.none + skipReason` |
+
+发现遗漏后处理顺序固定为：`append escape record -> patch checklist -> 执行补充验证 -> 更新状态 -> 判断是否写台账 -> 再次收敛复审`。若只是修复问题但没有记录逃逸原因和防复发策略，不得宣告“复审直至收敛”。
 
 ## 清单项分类
 
@@ -83,3 +107,4 @@ description: 复审清单整理与审查规范 — 创建、冻结、证据执�
 - 禁止每轮重复同一维度但算作有效零发现。
 - 禁止清单状态未更新、audit-state 仍旧或 SUMMARY 口径漂移时宣告完成。
 - 禁止删除失败项来制造全绿；只能追加修复记录和关闭证据。
+- 禁止发现遗漏后直接修复并跳过 escape record；遗漏原因、防复发策略和重跑证据必须留在清单文件中。

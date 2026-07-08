@@ -2,7 +2,7 @@
 applyTo: "**"
 description: fix 工作流规则，覆盖子类型路由、CP 流程、修复三步扫描、执行期回退与 ECR
 priority: P4
-version: 1.11.27
+version: 1.11.28
 ---
 # 修复工作流规则（11-fix）
 
@@ -54,8 +54,8 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → 
 - **AI 自启动服务清理**：若回归验证需要由 AI 启动 dev server、文档站、本地 API/mock、数据库代理、SSH 隧道、Playwright/Cypress server 或压测 target，TestRoute/报告必须记录启动命令、cwd、PID/job、端口/URL；验证完成、失败或最终回复前必须停止仅由 AI 本轮启动的服务并核验端口释放。用户明确要求保留服务时，报告保留原因、PID/端口和关闭方式；不得杀用户既有进程。
 - **LeakRiskStabilityPressureTest**：修复内存泄露、资源泄漏、稳定性、性能退化、连接/监听器/定时器/流/socket/worker/订阅/缓存增长等问题，或回归测试触及长运行和高并发路径时，TestRoute 必须纳入泄漏风险稳定性压测；未触发时写 `N/A + skipReason`。
 - **BenchmarkRegressionGuard**：修复触及已有 benchmark 基线项目的 hot path（runtime / validator / parser / cache / adapter 等）时，即使本轮不是性能优化，也必须判定是否跑代表性 benchmark regression；超过阈值时阻断发布或进入用户确认的性能 / 正确性取舍。
-- **FrontendExperienceQualityGate**：修复前端页面、组件、控制台、官网、文档站、可视化工具或游戏体验问题时，必须判定 UI / 交互体验门禁；涉及视觉漂移、主题不一致、响应式/状态缺失、点击无反馈、用户流断点、焦点/目标尺寸/拖拽替代、错误恢复或动效干扰时，TestRoute 必须纳入 Browser/截图/E2E 或项目等价验证；Figma/截图/既有页面还原、资源优化、本地化或状态修复追加 `FigmaHighFidelityRestorationGate`、`ScopedVisualChangeGate`、`InstalledPluginVisualVerificationGate`、`ActualPreviewChainAndMockFallbackGate`、`FrontendRuntimeNetworkProbeGate`、`UIStateScopeRegressionGate`、`FigmaProductionAssetBudgetGate`、`RuntimeI18nArtifactVerificationGate`、`VisualDeviationTypeGate` 与 `DesignFramePurposeClassificationGate`；浏览器验证预算执行 `FrontendBrowserVerificationBudgetGate`，用户明确自验或禁止浏览器/截图时执行 `UserSelfVerificationOverrideGate`；未触发时写 `N/A + skipReason`。
-- **CrossProjectLearnedGuards**：修复涉及接入状态误判、人工复核、翻译/正式文档边界、prompt/Hook/MCP 契约、验证范围不足或过度、未真实执行验证、adapter/provider benchmark 归因（`AdapterBenchmarkAttribution`）、产品需求来源、本机执行配置、人工证据留存、相邻范围扩展、包名/发布名、性能第一、公开模块、提交边界、兼容契约（`CompatibilityAndContractAuthorityGate`）、UI 真相源冲突、公开文档版本边界、集合关系命名（`CollectionRelationIdNamingGate`）、验证产物语言、复审维度重复、审查清单证据化（`ReviewChecklistCompletenessGate` / `EvidenceExecutionGate`）、使用者文档心智负担、用户文档即时理解、用户文档主面偏离、用户文档驱动交付链（`UserFacingDeliveryChainGate`）、最终用户手册 / 文档站 IA / 队列真实工作流、公开用户文档混入维护者 checklist、文档消费者同步、生成文档站可见状态、公开用户路径契约、需求复审状态漂移、产物链接重复展示、前端真实预览网络探针、最终回复范围漂移、数据库记录迁移、guard/policy 绕过、审查 finding 反证矩阵、带副作用兼容文档、可执行示例、一次性脚本归属、验证命令副作用、构建产物 feature smoke、TypeScript 生成 CJS 模块面、benchmark 回归、package/adapter 确认前证据、需求确认前缺口或多阶段关闭时，必须分别执行对应 `CrossProjectLearnedGuards`；未触发时写 `N/A + skipReason`。
+- **FrontendExperienceQualityGate**：修复前端页面、组件、控制台、官网、文档站、可视化工具或游戏体验问题时，必须判定 `frontend-runtime` gateGroup；TestRoute 按风险选择 Browser/截图/E2E、console/network/resource/runtime、代码级替代证据或 `N/A + skipReason`。Figma/截图/既有页面、资源、本地化、状态回归和浏览器验证预算等子门禁由 `test-router` 与目标 UI/审查 Skill 承接。
+- **CrossProjectLearnedGuards / GovernanceGateRegistry**：修复涉及已吸纳泛化经验、审查清单证据化、用户文档（`user-manual`）、前端运行态、发布/pack、Profile/service、public surface、兼容契约或自我进化控制面时，只在 fix 层记录 `gateGroup / ownerSkill / validationRoute / skipReason`，完整 Gate 正文以 `spec-governance` 的 `GovernanceGateRegistry`、目标 Skill、report 和 validate 探针为准。
 - **ReviewFindingIntakeGate**：修复范围来自审查报告、AI review finding、audit issue 或代码评审发现时，CP1 前必须逐条分类为 `must-fix` / `user-decision-required` / `docs-implementation-drift` / `test-coverage-gap` / `already-fixed-or-not-reproduced` / `intentional-design-accepted`；命中 `user-decision-required`、兼容风险或文档/实现二选一时，修改源码前必须先取得用户确认。
 - **SimpleTaskFastPath**：非常明确、预计 ≤2 文件、无公共 API/Schema/依赖/配置/发布/控制面/台账来源/高风险、无需多轮跟踪的简单修复，可用内联问题概况 / 问题确认 + 报告/记忆替代 bug 目录与完整 CP 产物；报告必须写 `SimpleTaskFastPath: applied`、`00-问题概况.md: N/A + skipReason`、`01-问题确认.md: N/A + skipReason`、验证证据和升级回退判断。执行中任一条件失效时，立即升级回完整 fix CP/产物链。
 - **ExistingRequirementArtifactOverride**：当用户是在调整/修改/补充既有 `00-问题概况.md`、`01-问题确认.md`、bug CP 产物或需求文件时，SimpleTaskFastPath 只能跳过新建完整 bug 目录，不能跳过更新已有真相源；必须先增量编辑已有问题/需求产物，回复仅作为摘要。找不到目标产物时先按 Profile、bugs/requirements、sessions、tasks 与用户提及路径定位，仍无法确认才最小澄清。

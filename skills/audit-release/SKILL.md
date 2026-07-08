@@ -33,7 +33,7 @@ description: 发布前审查维度 — 审查 release readiness、发布说明�
 | RL-4 元数据完整性 | `description`、`keywords`、`repository`、`homepage`、`bugs`、`license`、`files/exports/bin`、`publishConfig`、`engines`、`plugin.json` 是否完整准确 | 🔴 |
 | RL-5 包边界与安装面 | pack 内容、安装路径、认证前提、二进制入口、禁发文件与部署副本边界是否清楚；是否执行 `PublicSurfaceClosureGate`，分类历史 pack 公开内容、README 隐藏链接、public types 兼容 API、examples/sidebar/nav 和搜索索引源文档 | 🔴 |
 | RL-6 消费链同步 | README、website、Profile、release guide、模板、validate 与部署副本是否同步 | 🔴 |
-| RL-7 验证准备度 | `npm test`、`test:audit`、远端 CI 绿色、pack/publish dry-run、install smoke、ReleaseVerification R0~R7 的触发与证据是否充分；是否执行 `RemoteCIParityPushGate`，不得用普通测试通过替代 coverage、audit、examples、website、pack 或矩阵脚本 | 🟡 |
+| RL-7 验证准备度 | `npm test`、`test:audit`、远端 CI 绿色、pack/publish dry-run、install smoke、ReleaseVerification R0~R7 的触发与证据是否充分；是否执行 `RemoteCIParityPushGate` 与 `NativeCommandExitCodeGate`，不得用普通测试通过替代 coverage、audit、examples、website、pack、矩阵脚本或真实原生命令退出码 | 🟡 |
 | RL-8 回滚与恢复 | 失败恢复、版本回退、tag/registry 冲突、半发布状态处理是否可执行 | 🟡 |
 | RL-9 凭据与 registry 安全 | token 不落盘、不输出；GitHub Packages / npm registry / access 策略与文档一致 | 🔴 |
 | RL-10 发布后验收 | registry/tag 验收、安装包边界复核、逃逸复盘与后续台账回写是否定义 | 🟡 |
@@ -59,7 +59,7 @@ description: 发布前审查维度 — 审查 release readiness、发布说明�
 | RL-4 | ✅/⚠️/❌/N/A | package completeness gate | |
 | RL-5 | ✅/⚠️/❌/N/A | pack/install evidence | |
 | RL-6 | ✅/⚠️/❌/N/A | README/website/Profile | |
-| RL-7 | ✅/⚠️/❌/N/A | ReleaseVerification R0~R7 | |
+| RL-7 | ✅/⚠️/❌/N/A | ReleaseVerification R0~R7 + command/shell/cwd/exitCode | |
 | RL-8 | ✅/⚠️/❌/N/A | rollback plan | |
 | RL-9 | ✅/⚠️/❌/N/A | registry/token boundary | |
 | RL-10 | ✅/⚠️/❌/N/A | post-release acceptance | |

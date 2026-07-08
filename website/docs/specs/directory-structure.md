@@ -55,7 +55,7 @@ dev / fix / audit 等工作流的执行细节，只有在用户或 Agent 实际�
 |------|------|---------|-----------------|
 | 第一层 | **copilot-instructions.md / CLAUDE.md / AGENTS.md** | 始终注入的全局指令 | 核心规则 + 安全底线 + 通用规范 |
 | 第二层 | **Instructions** | 按需加载的规范约束（`description` 语义匹配）| 主流程节点执行规范（预检查/摘要/记忆/合规等）|
-| 第三层 | **Skills** | 按需触发的工作流能力入口 | dev / fix / audit / analyze / self-fix / plan / resume / chat，以及 `user-manual-authoring` 最终用户文档、`review-checklist` 复审清单、`evolution-governance` 自我进化治理、`readme-authoring` / `audit-readme` README 专项能力、`audit-release` 发布前审查和 execution-contract / test-router / release-verification / host-contract-verification / source-consumer-sync 等支撑能力 |
+| 第三层 | **Skills** | 按需触发的工作流能力入口 | dev / fix / audit / analyze / self-fix / plan / resume / chat，含 `analyze-default` 默认分析与 `analyze-research` 技术调研，以及 `user-manual-authoring` 最终用户文档、`review-checklist` 复审清单、`evolution-governance` 自我进化治理、`readme-authoring` / `audit-readme` README 专项能力、`audit-release` 发布前审查和 execution-contract / test-router / release-verification / host-contract-verification / source-consumer-sync 等支撑能力 |
 | 配套 | **Prompts** | 有参数的结构化输出模板 | CP 节点输出模板（CP1/CP2/CP3）|
 | 分发资产 | **Agents** | Copilot 自定义 Agent 入口 | `@devcodex` / `@devcodex-auto`；Auto 别名全局默认 `@rocky`，Profile `extensions.devcodex.autoAliases` 可替换默认别名；Copilot 端默认分发，Claude Code / Codex 端不分发 |
 
@@ -122,7 +122,7 @@ DevCodex 当前默认安装面向目标项目分发以下目录和文件：
 │   │   ├── 17-compliance.instructions.md
 │   │   └── 18-spec-radar.instructions.md
 │   │
-│   ├── skills/                          ← 第三层：扁平一级 Skill（47 个）
+│   ├── skills/                          ← 第三层：扁平一级 Skill（48 个）
 │   │   ├── dev-default/SKILL.md
 │   │   ├── fix-default/SKILL.md
 │   │   ├── audit-common/SKILL.md

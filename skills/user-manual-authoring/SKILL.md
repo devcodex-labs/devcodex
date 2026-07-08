@@ -40,6 +40,7 @@ description: 最终用户使用文档写作规范 — 站点文档、README、qu
 | `userJourney` | 覆盖理解、安装/进入、第一次成功、常见任务、配置、失败处理和下一步 |
 | `informationArchitecture` | 文档站要区分用户手册、reference、operations、compatibility、implementation、maintainer |
 | `pageRoleMatrix` | 多页文档站列出页面 role、受众、sourceOfTruth、nav/sidebar 位置和用户主路径状态 |
+| `sidebarSemanticModel` | 文档站列出每个 sidebar group 的用户任务模型、相邻页面职责、route/label 真相源和非归属说明 |
 | `configurationModel` | 配置字段、默认值、选择建议、错误与排错必须简单易懂 |
 | `realWorkflowExample` | 队列、任务、异步、导入导出、推送或批处理类文档必须给真实批量工作流 |
 | `renderedFlowEvidence` | Mermaid / 流程图 / 文档站主题必须有真实渲染或运行态验证证据 |
@@ -53,6 +54,8 @@ description: 最终用户使用文档写作规范 — 站点文档、README、qu
 - `UserManualProductizationGate`：最终用户文档按使用者产品化组织，主路径必须覆盖受众、任务、配置、真实示例、排错、失败恢复和源码 / 示例可点击链路；内部字段、实现说明和维护者验收不得占主路径。
 - `UserManualRenderedFlowAndRealWorkflowProbe`：文档包含 Mermaid / 流程图时必须验证真实渲染；quick start、队列、任务、异步、导入导出或批处理示例必须是真实业务工作流，不能用硬编码单例冒充主路径。
 - `DocsPageRoleMatrixGate` / `CompleteUserManualSiteMatrixGate`：文档站或多页 README 需要为每个页面标明 role、audience、sourceOfTruth、nav/sidebar 位置和是否用户主路径；完整用户手册站点覆盖入门、配置、常见任务、reference、排错、限制与下一步。
+- `SidebarPageRoleMaterializationProbe` / `SidebarGroupSemanticModelProbe`：新增公开能力、修菜单缺项、调整 sidebar 分组或命名时，先从当前站点配置 / docs inventory / generated HTML 反查 route、label、page role 和整组任务模型；内部实现依赖不得自动成为 IA 归属。
+- `ChinesePrimaryExpressionGate`：中文站点文档和中文用户手册用中文主干解释任务、配置、错误和流程；英文标识符只作为精确补充。
 - `DocsThemeRuntimeVisualProbeGate`：文档站主题、导航、搜索、代码高亮、移动端、暗色/亮色或交互体验变化时，验证真实运行态视觉和交互，不只检查 Markdown 源码。
 - `UserFacingDeliveryChainGate`：文档先于技术方案成为用户路径合同，ECR 对照需求和用户文档审查。
 - `FinalUserManualFirstGate`：docs-first 或最终用户手册场景写目标版本最终可执行路径，而不是当前 preview 状态说明。
@@ -68,9 +71,10 @@ description: 最终用户使用文档写作规范 — 站点文档、README、qu
 2. 核对事实源：确认需求/产品需求、当前版本、发布状态和公开能力边界。
 3. 写出用户主路径：这是什么、适合谁、第一次成功、常见任务、配置、排错、限制、下一步。
 4. 拆分信息架构：用户手册与 API/CLI/config reference、operations、implementation、maintainer 分开。
-5. 对真实工作流补示例：避免只有单点 API 或单个硬编码 job。
-6. 建立 `consumerMap`，列出 README、website、Profile、examples、prompts、templates、validate、部署副本和代码消费点。
-7. 完成后按风险调用 `audit-readme` / `audit-document` 做用户视角复审。
+5. 建立 `pageRoleMatrix` 与 `sidebarSemanticModel`：确认每页 role、sidebar group、相邻页面职责、route 真相源和非归属说明。
+6. 对真实工作流补示例：避免只有单点 API 或单个硬编码 job。
+7. 建立 `consumerMap`，列出 README、website、Profile、examples、prompts、templates、validate、部署副本和代码消费点。
+8. 完成后按风险调用 `audit-readme` / `audit-document` 做用户视角复审。
 
 ## 与其他 Skill 的关系
 

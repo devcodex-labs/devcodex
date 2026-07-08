@@ -1040,9 +1040,9 @@ function buildGovernanceTailChecks(ctx) {
   function checkV61() {
     const probes = [
       { file: 'instructions.md', needles: ['FrontendExperienceQualityGate', 'CrossProjectLearnedGuards', 'CodeTruthRequirementGate', 'ManualReviewEvidenceRetention', 'VerificationScopeBudgetGate'] },
-      { file: 'instructions/10-dev.instructions.md', needles: ['FrontendExperienceQualityGate', 'CrossProjectLearnedGuards', 'LiveVerificationExecutionObligation'] },
-      { file: 'instructions/11-fix.instructions.md', needles: ['CrossProjectLearnedGuards', 'AdapterBenchmarkAttribution'] },
-      { file: 'instructions/12-audit.instructions.md', needles: ['FrontendExperienceQualityGate', 'CrossProjectLearnedGuards', 'LLMPromptContractTriage'] },
+      { file: 'instructions/10-dev.instructions.md', needles: ['FrontendExperienceQualityGate', 'CrossProjectLearnedGuards / GovernanceGateRegistry', 'gateGroup'] },
+      { file: 'instructions/11-fix.instructions.md', needles: ['CrossProjectLearnedGuards / GovernanceGateRegistry', 'gateGroup'] },
+      { file: 'instructions/12-audit.instructions.md', needles: ['FrontendExperienceQualityGate', 'GovernanceGateRegistry', 'gateGroup'] },
       { file: 'skills/dev-default/SKILL.md', needles: ['前端体验质量门禁', 'CodeTruthRequirementGate', 'ManualReviewEvidenceRetention'] },
       { file: 'skills/dev-plan-review/SKILL.md', needles: ['FrontendExperienceQualityGate', 'CrossProjectLearnedGuards', 'VerificationScopeBudgetGate'] },
       { file: 'skills/test-router/SKILL.md', needles: ['frontendExperience', 'manualReviewEvidence', 'verificationScopeBudget', 'DocumentationTranslationParityGuard'] },
@@ -1056,13 +1056,13 @@ function buildGovernanceTailChecks(ctx) {
       { file: 'skills/audit-readme/SKILL.md', needles: ['CodeTruthRequirementGate', 'DocumentationTranslationParityGuard', 'FormalDocsDevCodexBoundary'] },
       { file: 'prompts/requirement.prompt.md', needles: ['FrontendExperienceQualityGate', 'CrossProjectLearnedGuards', 'AdapterBenchmarkAttribution'] },
       { file: 'prompts/technical-design.prompt.md', needles: ['frontendExperience', 'manualReviewEvidence', 'verificationScopeBudget', 'AdapterBenchmarkAttribution'] },
-      { file: 'prompts/implementation-plan.prompt.md', needles: ['FrontendExperienceQualityGate', 'CrossProjectLearnedGuards', 'LiveVerificationExecutionObligation'] },
+      { file: 'prompts/implementation-plan.prompt.md', needles: ['FrontendExperienceQualityGate', 'CrossProjectLearnedGuards', 'GovernanceGateRegistry'] },
       { file: 'prompts/report-dev.prompt.md', needles: ['FrontendExperienceQualityGate', 'CrossProjectLearnedGuards', 'VerificationScopeBudgetGate'] },
-      { file: 'prompts/report-fix.prompt.md', needles: ['FrontendExperienceQualityGate', 'CrossProjectLearnedGuards', 'LiveVerificationExecutionObligation'] },
+      { file: 'prompts/report-fix.prompt.md', needles: ['FrontendExperienceQualityGate', 'CrossProjectLearnedGuards', 'GovernanceGateRegistry'] },
       { file: 'prompts/report-audit.prompt.md', needles: ['FrontendExperienceQualityGate', 'CrossProjectLearnedGuards', 'ManualReviewEvidenceRetention'] },
-      { file: 'prompts/report-scenario-test.prompt.md', needles: ['FrontendExperienceQualityGate', 'CrossProjectLearnedGuards', 'AdapterBenchmarkAttribution'] },
-      { file: 'README.md', needles: ['FrontendExperienceQualityGate', 'CodeTruthRequirementGate', 'AdapterBenchmarkAttribution'] },
-      { file: 'website/docs/guide/development.md', needles: ['FrontendExperienceQualityGate', 'CrossProjectLearnedGuards', 'AdapterBenchmarkAttribution'] },
+      { file: 'prompts/report-scenario-test.prompt.md', needles: ['FrontendExperienceQualityGate', 'CrossProjectLearnedGuards', 'GovernanceGateRegistry'] },
+      { file: 'README.md', needles: ['FrontendExperienceQualityGate', 'GovernanceGateRegistry', 'gateGroup'] },
+      { file: 'website/docs/guide/development.md', needles: ['FrontendExperienceQualityGate', 'GovernanceGateRegistry', 'gateGroup'] },
       { file: 'website/docs/versions/v1/1.0.1/requirements/index.md', needles: ['frontend-experience-quality', '前端体验质量门禁'] },
       { file: 'website/docs/versions/v1/1.0.1/requirements/p1/frontend-experience-quality/index.md', needles: ['FrontendExperienceQualityGate', 'CrossProjectLearnedGuards', 'ManualReviewEvidenceRetention'] },
       { file: 'website/rspress.config.ts', needles: ['frontend-experience-quality', '前端体验质量门禁'] },
@@ -1093,21 +1093,21 @@ function buildGovernanceTailChecks(ctx) {
       { file: 'instructions/10-dev.instructions.md', needles: ['LocalExecutionConfigProbe', 'ManualReviewEvidenceDataRetention', 'AdjacentScopeExpansionGuard', 'PerformanceBenchmarkFirstGate'] },
       { file: 'prompts/requirement.prompt.md', needles: ['ProductRequirementTraceabilityGate', 'PackageNameAuthorityGate', 'PublicModuleDifferentiationGate', 'V2MCPFirstPlanningGate'] },
       { file: 'prompts/technical-design.prompt.md', needles: ['LocalExecutionConfigProbe', 'ManualReviewEvidenceDataRetention', 'AdjacentScopeExpansionGuard', 'V2MCPFirstPlanningGate'] },
-      { file: 'prompts/implementation-plan.prompt.md', needles: ['ProductRequirementTraceabilityGate', 'PerformanceBenchmarkFirstGate', 'V2MCPFirstPlanningGate'] },
-      { file: 'prompts/report-dev.prompt.md', needles: ['ProductRequirementTraceabilityGate', 'PackageNameAuthorityGate', 'V2MCPFirstPlanningGate'] },
-      { file: 'prompts/report-fix.prompt.md', needles: ['LocalExecutionConfigProbe', 'PerformanceBenchmarkFirstGate', 'PublicModuleDifferentiationGate'] },
-      { file: 'prompts/report-audit.prompt.md', needles: ['ManualReviewEvidenceDataRetention', 'AdjacentScopeExpansionGuard', 'PackageNameAuthorityGate'] },
-      { file: 'prompts/report-scenario-test.prompt.md', needles: ['PerformanceBenchmarkFirstGate', 'PackageNameAuthorityGate', 'V2MCPFirstPlanningGate'] },
-      { file: 'skills/dev-default/SKILL.md', needles: ['ProductRequirementTraceabilityGate', 'LocalExecutionConfigProbe', 'V2MCPFirstPlanningGate'] },
-      { file: 'skills/dev-plan-review/SKILL.md', needles: ['ProductRequirementTraceabilityGate', 'PackageNameAuthorityGate', 'PerformanceBenchmarkFirstGate'] },
+      { file: 'prompts/implementation-plan.prompt.md', needles: ['GovernanceGateRegistry', 'gateGroup', 'legacy anchors'] },
+      { file: 'prompts/report-dev.prompt.md', needles: ['GovernanceGateRegistry', 'gateGroup', 'anchors'] },
+      { file: 'prompts/report-fix.prompt.md', needles: ['GovernanceGateRegistry', 'gateGroup', 'anchors'] },
+      { file: 'prompts/report-audit.prompt.md', needles: ['GovernanceGateRegistry', 'gateGroup', 'anchors'] },
+      { file: 'prompts/report-scenario-test.prompt.md', needles: ['GovernanceGateRegistry', 'gateGroup', 'anchors'] },
+      { file: 'skills/dev-default/SKILL.md', needles: ['GovernanceGateRegistry', 'gateGroup', 'legacy anchors'] },
+      { file: 'skills/dev-plan-review/SKILL.md', needles: ['GovernanceGateRegistry', 'gateGroup', 'legacy anchors'] },
       { file: 'skills/test-router/SKILL.md', needles: ['LocalExecutionConfigProbe', 'ManualReviewEvidenceDataRetention', 'packageNameAuthority', 'performanceBenchmarkFirst'] },
       { file: 'skills/dev-testing/SKILL.md', needles: ['ProductRequirementTraceabilityGate', 'LocalExecutionConfigProbe', 'PerformanceBenchmarkFirstGate'] },
       { file: 'skills/dev-docs/SKILL.md', needles: ['PackageNameAuthorityGate', 'PublicModuleDifferentiationGate', 'ProductRequirementTraceabilityGate'] },
-      { file: 'skills/document-sync/SKILL.md', needles: ['ManualReviewEvidenceDataRetention', 'AdjacentScopeExpansionGuard', 'V2MCPFirstPlanningGate'] },
+      { file: 'skills/document-sync/SKILL.md', needles: ['GovernanceGateRegistry', 'gateGroup', 'legacy anchors'] },
       { file: 'skills/audit-project/SKILL.md', needles: ['ProductRequirementTraceabilityGate', 'PackageNameAuthorityGate', 'PublicModuleDifferentiationGate'] },
       { file: 'skills/audit-requirements/SKILL.md', needles: ['LocalExecutionConfigProbe', 'ManualReviewEvidenceDataRetention', 'V2MCPFirstPlanningGate'] },
-      { file: 'README.md', needles: ['ProductRequirementTraceabilityGate', 'PerformanceBenchmarkFirstGate', 'PublicModuleDifferentiationGate'] },
-      { file: 'website/docs/guide/development.md', needles: ['ProductRequirementTraceabilityGate', 'PackageNameAuthorityGate', 'V2MCPFirstPlanningGate'] },
+      { file: 'README.md', needles: ['GovernanceGateRegistry', 'gateGroup', 'V2FormalSolutionPackage'] },
+      { file: 'website/docs/guide/development.md', needles: ['GovernanceGateRegistry', 'gateGroup', 'V2FormalSolutionPackage'] },
       { file: 'instructions/18-spec-radar.instructions.md', needles: ['01a-profile-loading', '§确定目标项目'] },
       { file: 'instructions/01-common.instructions.md', needles: ['profile-bootstrap', 'Profile 缺失'] },
       { file: 'instructions/01a-profile-loading.instructions.md', needles: ['profile-bootstrap', 'devcodex profile init'] },
@@ -1160,26 +1160,26 @@ function buildGovernanceTailChecks(ctx) {
       { file: 'instructions/10-dev.instructions.md', needles: ['WorkspaceDataAbsorptionScopeGate', 'DocsSiteVisualAcceptanceGate', 'MethodLevelLeakPressureProbe', 'V2FormalSolutionPackage'] },
       { file: 'instructions/12-audit.instructions.md', needles: ['OmissionOnlyReviewGate', 'WorkspaceDataAbsorptionScopeGate', 'ReviewCoverageDelta'] },
       { file: 'skills/spec-governance/SKILL.md', needles: ['WorkspaceDataAbsorptionScopeGate', '.devcodex/*/data/'] },
-      { file: 'skills/dev-default/SKILL.md', needles: ['WorkspaceDataAbsorptionScopeGate', 'FlowchartNodeExplanationGate', 'MethodLevelLeakPressureProbe', 'V2FormalSolutionPackage'] },
-      { file: 'skills/dev-plan-review/SKILL.md', needles: ['WorkspaceDataAbsorptionScopeGate', 'DocsSiteVisualAcceptanceGate', 'V2FormalSolutionPackage'] },
+      { file: 'skills/dev-default/SKILL.md', needles: ['GovernanceGateRegistry', 'gateGroup', 'V2FormalSolutionPackage'] },
+      { file: 'skills/dev-plan-review/SKILL.md', needles: ['GovernanceGateRegistry', 'gateGroup', 'V2FormalSolutionPackage'] },
       { file: 'skills/test-router/SKILL.md', needles: ['workspaceDataAbsorption', 'docsSiteVisualAcceptance', 'methodLevelLeakPressure', 'v2FormalSolutionPackage'] },
       { file: 'skills/dev-testing/SKILL.md', needles: ['MethodLevelLeakPressureProbe', '公开方法', '生命周期'] },
       { file: 'skills/dev-scenario-test/SKILL.md', needles: ['MethodLevelLeakPressureProbe', 'methodLevelLeakPressure'] },
       { file: 'skills/dev-docs/SKILL.md', needles: ['FlowchartNodeExplanationGate', 'DocsSiteVisualAcceptanceGate'] },
-      { file: 'skills/document-sync/SKILL.md', needles: ['WorkspaceDataAbsorptionScopeGate', 'FlowchartNodeExplanationGate', 'DocsSiteVisualAcceptanceGate'] },
+      { file: 'skills/document-sync/SKILL.md', needles: ['GovernanceGateRegistry', 'gateGroup', 'site-v2-leak'] },
       { file: 'skills/audit-common/SKILL.md', needles: ['OmissionOnlyReviewGate', 'WorkspaceDataAbsorptionScopeGate'] },
       { file: 'skills/audit-project/SKILL.md', needles: ['DocsSiteVisualAcceptanceGate', 'MethodLevelLeakPressureProbe', 'V2FormalSolutionPackage'] },
       { file: 'skills/audit-document/SKILL.md', needles: ['FlowchartNodeExplanationGate', 'DocsSiteVisualAcceptanceGate'] },
       { file: 'skills/audit-requirements/SKILL.md', needles: ['WorkspaceDataAbsorptionScopeGate', 'MethodLevelLeakPressureProbe', 'V2FormalSolutionPackage'] },
       { file: 'prompts/requirement.prompt.md', needles: ['WorkspaceDataAbsorptionScopeGate', 'DocsSiteVisualAcceptanceGate', 'V2FormalSolutionPackage'] },
       { file: 'prompts/technical-design.prompt.md', needles: ['FlowchartNodeExplanationGate', 'MethodLevelLeakPressureProbe', 'V2FormalSolutionPackage'] },
-      { file: 'prompts/implementation-plan.prompt.md', needles: ['WorkspaceDataAbsorptionScopeGate', 'OmissionOnlyReviewGate', 'MethodLevelLeakPressureProbe'] },
-      { file: 'prompts/report-dev.prompt.md', needles: ['WorkspaceDataAbsorptionScopeGate', 'DocsSiteVisualAcceptanceGate', 'V2FormalSolutionPackage'] },
-      { file: 'prompts/report-fix.prompt.md', needles: ['MethodLevelLeakPressureProbe', 'V2FormalSolutionPackage'] },
-      { file: 'prompts/report-audit.prompt.md', needles: ['OmissionOnlyReviewGate', 'WorkspaceDataAbsorptionScopeGate'] },
-      { file: 'prompts/report-scenario-test.prompt.md', needles: ['MethodLevelLeakPressureProbe', 'methodLevelLeakPressure'] },
-      { file: 'README.md', needles: ['WorkspaceDataAbsorptionScopeGate', 'DocsSiteVisualAcceptanceGate', 'V2FormalSolutionPackage'] },
-      { file: 'website/docs/guide/development.md', needles: ['WorkspaceDataAbsorptionScopeGate', 'MethodLevelLeakPressureProbe', 'V2FormalSolutionPackage'] },
+      { file: 'prompts/implementation-plan.prompt.md', needles: ['GovernanceGateRegistry', 'gateGroup', 'V2FormalSolutionPackage'] },
+      { file: 'prompts/report-dev.prompt.md', needles: ['GovernanceGateRegistry', 'gateGroup', 'V2FormalSolutionPackage'] },
+      { file: 'prompts/report-fix.prompt.md', needles: ['GovernanceGateRegistry', 'gateGroup', 'V2FormalSolutionPackage'] },
+      { file: 'prompts/report-audit.prompt.md', needles: ['GovernanceGateRegistry', 'gateGroup', 'V2FormalSolutionPackage'] },
+      { file: 'prompts/report-scenario-test.prompt.md', needles: ['GovernanceGateRegistry', 'gateGroup', 'V2FormalSolutionPackage'] },
+      { file: 'README.md', needles: ['GovernanceGateRegistry', 'gateGroup', 'V2FormalSolutionPackage'] },
+      { file: 'website/docs/guide/development.md', needles: ['GovernanceGateRegistry', 'gateGroup', 'V2FormalSolutionPackage'] },
       { file: 'website/docs/specs/flowcharts.md', needles: ['FlowchartNodeExplanationGate', '中文说明'] },
       { file: 'website/docs/versions/v1/1.0.1/requirements/index.md', needles: ['latest-data-absorption-guards', '最新 data 吸纳守门补强'] },
       { file: 'website/docs/versions/v1/1.0.1/requirements/p1/latest-data-absorption-guards/index.md', needles: ['WorkspaceDataAbsorptionScopeGate', 'DocsSiteVisualAcceptanceGate', 'V2FormalSolutionPackage'] },
@@ -1263,29 +1263,29 @@ function buildGovernanceTailChecks(ctx) {
     const probes = [
       { file: 'instructions.md', needles: ['FigmaHighFidelityRestorationGate', 'ScopedVisualChangeGate', 'InstalledPluginVisualVerificationGate', 'ActualPreviewChainAndMockFallbackGate', 'UIStateScopeRegressionGate', 'FigmaProductionAssetBudgetGate', 'RuntimeI18nArtifactVerificationGate', 'ExplicitCommitAuthorizationGate', 'CompatibilityAndContractAuthorityGate', 'UIConfirmedSourceConflictTraceGate', 'PublicDocsReleasedVersionGate', 'CollectionRelationIdNamingGate', 'UserFacingVerificationArtifactLanguageGate'] },
       { file: 'instructions/01b-record-router.instructions.md', needles: ['ExplicitCommitAuthorizationGate', '只有用户当前会话明确要求'] },
-      { file: 'instructions/10-dev.instructions.md', needles: ['FigmaHighFidelityRestorationGate', 'ActualPreviewChainAndMockFallbackGate', 'ExplicitCommitAuthorizationGate', 'CompatibilityAndContractAuthorityGate', 'PublicDocsReleasedVersionGate', 'UserFacingVerificationArtifactLanguageGate'] },
-      { file: 'instructions/11-fix.instructions.md', needles: ['FigmaHighFidelityRestorationGate', 'RuntimeI18nArtifactVerificationGate', 'CompatibilityAndContractAuthorityGate', 'CollectionRelationIdNamingGate'] },
-      { file: 'instructions/12-audit.instructions.md', needles: ['ActualPreviewChainAndMockFallbackGate', 'ExplicitCommitAuthorizationGate', 'UIConfirmedSourceConflictTraceGate', 'PublicDocsReleasedVersionGate'] },
-      { file: 'instructions/13-analyze.instructions.md', needles: ['CrossProjectLearnedGuards 分析侧取证', 'CompatibilityAndContractAuthorityGate', 'UserFacingVerificationArtifactLanguageGate'] },
+      { file: 'instructions/10-dev.instructions.md', needles: ['FigmaHighFidelityRestorationGate', 'ActualPreviewChainAndMockFallbackGate', 'GovernanceGateRegistry', 'gateGroup'] },
+      { file: 'instructions/11-fix.instructions.md', needles: ['GovernanceGateRegistry', 'gateGroup'] },
+      { file: 'instructions/12-audit.instructions.md', needles: ['GovernanceGateRegistry', 'gateGroup'] },
+      { file: 'instructions/13-analyze.instructions.md', needles: ['GovernanceGateRegistryRef', 'gateGroup', 'validationRoute'] },
       { file: 'skills/test-router/SKILL.md', needles: ['highFidelityUi', 'actualPreviewChain', 'runtimeI18nArtifacts', 'commitAuthorization', 'compatibilityAuthority', 'publicDocsVersionBoundary'] },
-      { file: 'skills/dev-default/SKILL.md', needles: ['FigmaHighFidelityRestorationGate', 'ExplicitCommitAuthorizationGate', 'PublicDocsReleasedVersionGate'] },
-      { file: 'skills/dev-plan-review/SKILL.md', needles: ['CompatibilityAndContractAuthorityGate', 'RuntimeI18nArtifactVerificationGate'] },
+      { file: 'skills/dev-default/SKILL.md', needles: ['FigmaHighFidelityRestorationGate', 'GovernanceGateRegistry', 'gateGroup'] },
+      { file: 'skills/dev-plan-review/SKILL.md', needles: ['GovernanceGateRegistry', 'gateGroup', 'legacy anchors'] },
       { file: 'skills/dev-testing/SKILL.md', needles: ['CollectionRelationIdNamingGate', 'UserFacingVerificationArtifactLanguageGate'] },
       { file: 'skills/api-verification/SKILL.md', needles: ['UserFacingVerificationArtifactLanguageGate', '用户当前语言'] },
       { file: 'skills/dev-docs/SKILL.md', needles: ['PublicDocsReleasedVersionGate', 'UIConfirmedSourceConflictTraceGate'] },
-      { file: 'skills/document-sync/SKILL.md', needles: ['InstalledPluginVisualVerificationGate', 'CompatibilityAndContractAuthorityGate'] },
+      { file: 'skills/document-sync/SKILL.md', needles: ['frontend-runtime', 'GovernanceGateRegistry'] },
       { file: 'skills/audit-project/SKILL.md', needles: ['FigmaProductionAssetBudgetGate', 'ExplicitCommitAuthorizationGate'] },
       { file: 'skills/audit-requirements/SKILL.md', needles: ['ActualPreviewChainAndMockFallbackGate', 'PublicDocsReleasedVersionGate'] },
       { file: 'skills/report/SKILL.md', needles: ['FigmaHighFidelityRestorationGate', 'CompatibilityAndContractAuthorityGate', 'CollectionRelationIdNamingGate'] },
       { file: 'prompts/requirement.prompt.md', needles: ['FigmaHighFidelityRestorationGate', 'ExplicitCommitAuthorizationGate', 'UserFacingVerificationArtifactLanguageGate'] },
       { file: 'prompts/technical-design.prompt.md', needles: ['actualPreviewChain', 'RuntimeI18nArtifactVerificationGate', 'CompatibilityAndContractAuthorityGate'] },
-      { file: 'prompts/implementation-plan.prompt.md', needles: ['FigmaHighFidelityRestorationGate', 'ExplicitCommitAuthorizationGate', 'PublicDocsReleasedVersionGate'] },
-      { file: 'prompts/report-dev.prompt.md', needles: ['FigmaHighFidelityRestorationGate', 'CompatibilityAndContractAuthorityGate'] },
-      { file: 'prompts/report-fix.prompt.md', needles: ['RuntimeI18nArtifactVerificationGate', 'UserFacingVerificationArtifactLanguageGate'] },
-      { file: 'prompts/report-audit.prompt.md', needles: ['ExplicitCommitAuthorizationGate', 'CollectionRelationIdNamingGate'] },
-      { file: 'prompts/report-scenario-test.prompt.md', needles: ['ActualPreviewChainAndMockFallbackGate', 'PublicDocsReleasedVersionGate'] },
-      { file: 'README.md', needles: ['FigmaHighFidelityRestorationGate', 'ExplicitCommitAuthorizationGate', 'PublicDocsReleasedVersionGate'] },
-      { file: 'website/docs/guide/development.md', needles: ['FigmaProductionAssetBudgetGate', 'CompatibilityAndContractAuthorityGate', 'UserFacingVerificationArtifactLanguageGate'] },
+      { file: 'prompts/implementation-plan.prompt.md', needles: ['FigmaHighFidelityRestorationGate', 'GovernanceGateRegistry', 'gateGroup'] },
+      { file: 'prompts/report-dev.prompt.md', needles: ['FigmaHighFidelityRestorationGate', 'GovernanceGateRegistry'] },
+      { file: 'prompts/report-fix.prompt.md', needles: ['RuntimeI18nArtifactVerificationGate', 'GovernanceGateRegistry'] },
+      { file: 'prompts/report-audit.prompt.md', needles: ['GovernanceGateRegistry', 'gateGroup'] },
+      { file: 'prompts/report-scenario-test.prompt.md', needles: ['ActualPreviewChainAndMockFallbackGate', 'GovernanceGateRegistry'] },
+      { file: 'README.md', needles: ['GovernanceGateRegistry', 'gateGroup', 'frontend-runtime'] },
+      { file: 'website/docs/guide/development.md', needles: ['GovernanceGateRegistry', 'gateGroup', 'frontend-runtime'] },
       { file: 'website/docs/versions/v1/1.0.1/requirements/p1/latest-data-absorption-guards/index.md', needles: ['FigmaHighFidelityRestorationGate', 'ExplicitCommitAuthorizationGate', 'CompatibilityAndContractAuthorityGate'] },
       { file: 'website/docs/versions/v1/1.0.1/CHANGELOG.md', needles: ['V65 探针', 'PublicDocsReleasedVersionGate'] },
       { file: 'changelogs/unreleased.md', needles: ['V65', 'FigmaHighFidelityRestorationGate', 'CompatibilityAndContractAuthorityGate', 'PublicDocsReleasedVersionGate'] },
@@ -1314,10 +1314,10 @@ function buildGovernanceTailChecks(ctx) {
     const probes = [
       { file: 'instructions.md', needles: ['ReviewDimensionDeltaGate', 'UserPerspectiveDocsGate', 'DocsConsumerSweep', 'ArtifactLinkSetDedupeGate', 'FrontendRuntimeNetworkProbeGate'] },
       { file: 'instructions/02-output-paths.instructions.md', needles: ['ArtifactLinkSetDedupeGate', '规范化绝对路径去重', '同一物理文件'] },
-      { file: 'instructions/10-dev.instructions.md', needles: ['UserPerspectiveDocsGate', 'DocsConsumerSweep', 'ArtifactLinkSetDedupeGate', 'FrontendRuntimeNetworkProbeGate'] },
-      { file: 'instructions/11-fix.instructions.md', needles: ['UserPerspectiveDocsGate', 'DocsConsumerSweep', 'ArtifactLinkSetDedupeGate', 'FrontendRuntimeNetworkProbeGate'] },
+      { file: 'instructions/10-dev.instructions.md', needles: ['GovernanceGateRegistry', 'gateGroup', 'user-manual'] },
+      { file: 'instructions/11-fix.instructions.md', needles: ['GovernanceGateRegistry', 'gateGroup', 'user-manual'] },
       { file: 'instructions/12-audit.instructions.md', needles: ['ReviewDimensionDeltaGate', 'PreviousDimensionSet', 'CurrentDimensionFocus', 'RepeatedDimensionReason'] },
-      { file: 'instructions/13-analyze.instructions.md', needles: ['ReviewDimensionDeltaGate', 'UserPerspectiveDocsGate', 'ArtifactLinkSetDedupeGate'] },
+      { file: 'instructions/13-analyze.instructions.md', needles: ['GovernanceGateRegistryRef', 'gateGroup', 'validationRoute'] },
       { file: 'skills/audit-common/SKILL.md', needles: ['ReviewDimensionDeltaGate', 'PreviousDimensionSet', 'CurrentDimensionFocus', 'RepeatedDimensionReason'] },
       { file: 'skills/audit-execution-guide/SKILL.md', needles: ['ReviewDimensionDeltaGate', '维度焦点'] },
       { file: 'skills/test-router/SKILL.md', needles: ['reviewDimensionDelta', 'userPerspectiveDocs', 'docsConsumerSweep', 'artifactLinkDedupe', 'frontendRuntimeNetwork'] },
@@ -1333,9 +1333,9 @@ function buildGovernanceTailChecks(ctx) {
       { file: 'prompts/report-dev.prompt.md', needles: ['UserPerspectiveDocsGate', 'DocsConsumerSweep', 'ArtifactLinkSetDedupeGate', 'ReviewDimensionDeltaGate'] },
       { file: 'prompts/report-fix.prompt.md', needles: ['UserPerspectiveDocsGate', 'DocsConsumerSweep', 'ArtifactLinkSetDedupeGate', 'FrontendRuntimeNetworkProbeGate'] },
       { file: 'prompts/report-audit.prompt.md', needles: ['ReviewDimensionDeltaGate', 'UserPerspectiveDocsGate', 'DocsConsumerSweep', 'ArtifactLinkSetDedupeGate', 'FrontendRuntimeNetworkProbeGate'] },
-      { file: 'prompts/report-scenario-test.prompt.md', needles: ['FrontendRuntimeNetworkProbeGate', 'ReviewDimensionDeltaGate'] },
-      { file: 'README.md', needles: ['ReviewDimensionDeltaGate', 'UserPerspectiveDocsGate', 'DocsConsumerSweep', 'ArtifactLinkSetDedupeGate', 'FrontendRuntimeNetworkProbeGate'] },
-      { file: 'website/docs/guide/development.md', needles: ['ReviewDimensionDeltaGate', 'UserPerspectiveDocsGate', 'DocsConsumerSweep', 'ArtifactLinkSetDedupeGate', 'FrontendRuntimeNetworkProbeGate'] },
+      { file: 'prompts/report-scenario-test.prompt.md', needles: ['FrontendRuntimeNetworkProbeGate', 'GovernanceGateRegistry'] },
+      { file: 'README.md', needles: ['GovernanceGateRegistry', 'gateGroup', 'UserDocsPrimarySurfaceGate'] },
+      { file: 'website/docs/guide/development.md', needles: ['GovernanceGateRegistry', 'gateGroup', 'UserDocsPrimarySurfaceGate'] },
       { file: 'website/docs/versions/v1/1.0.1/requirements/p1/latest-data-absorption-guards/index.md', needles: ['ReviewDimensionDeltaGate', 'UserPerspectiveDocsGate', 'DocsConsumerSweep', 'ArtifactLinkSetDedupeGate', 'FrontendRuntimeNetworkProbeGate'] },
       { file: 'website/docs/versions/v1/1.0.1/CHANGELOG.md', needles: ['V66 探针', 'ReviewDimensionDeltaGate', 'UserPerspectiveDocsGate'] },
       { file: 'changelogs/unreleased.md', needles: ['V66', 'ReviewDimensionDeltaGate', 'UserPerspectiveDocsGate', 'DocsConsumerSweep', 'ArtifactLinkSetDedupeGate', 'FrontendRuntimeNetworkProbeGate', 'PI-052', 'PF-056'] },
@@ -1364,10 +1364,10 @@ function buildGovernanceTailChecks(ctx) {
   function checkV67() {
     const probes = [
       { file: 'instructions.md', needles: ['PublicUserDocsMaintainerBoundaryGate', 'ActiveRequirementFinalResponseGate', '维护者验收', 'active requirement'] },
-      { file: 'instructions/10-dev.instructions.md', needles: ['PublicUserDocsMaintainerBoundaryGate', 'ActiveRequirementFinalResponseGate', '公开用户文档', '当前 active'] },
-      { file: 'instructions/11-fix.instructions.md', needles: ['PublicUserDocsMaintainerBoundaryGate', 'ActiveRequirementFinalResponseGate', '最终回复范围漂移'] },
-      { file: 'instructions/12-audit.instructions.md', needles: ['公开用户文档混入维护者 checklist', '最终回复范围漂移'] },
-      { file: 'instructions/13-analyze.instructions.md', needles: ['PublicUserDocsMaintainerBoundaryGate', 'ActiveRequirementFinalResponseGate'] },
+      { file: 'instructions/10-dev.instructions.md', needles: ['GovernanceGateRegistry', 'gateGroup', 'user-manual'] },
+      { file: 'instructions/11-fix.instructions.md', needles: ['GovernanceGateRegistry', 'gateGroup', 'user-manual'] },
+      { file: 'instructions/12-audit.instructions.md', needles: ['GovernanceGateRegistry', 'gateGroup', 'user-manual'] },
+      { file: 'instructions/13-analyze.instructions.md', needles: ['GovernanceGateRegistryRef', 'gateGroup', 'validationRoute'] },
       { file: 'skills/test-router/SKILL.md', needles: ['publicDocsMaintainerBoundary', 'activeRequirementFinalResponse', 'PublicUserDocsMaintainerBoundaryGate', 'ActiveRequirementFinalResponseGate'] },
       { file: 'skills/dev-docs/SKILL.md', needles: ['PublicUserDocsMaintainerBoundaryGate', '维护者验收'] },
       { file: 'skills/document-sync/SKILL.md', needles: ['PublicUserDocsMaintainerBoundaryGate', 'ActiveRequirementFinalResponseGate'] },
@@ -1381,7 +1381,7 @@ function buildGovernanceTailChecks(ctx) {
       { file: 'prompts/report-dev.prompt.md', needles: ['PublicUserDocsMaintainerBoundaryGate', 'ActiveRequirementFinalResponseGate'] },
       { file: 'prompts/report-fix.prompt.md', needles: ['PublicUserDocsMaintainerBoundaryGate', 'ActiveRequirementFinalResponseGate'] },
       { file: 'prompts/report-audit.prompt.md', needles: ['PublicUserDocsMaintainerBoundaryGate', 'ActiveRequirementFinalResponseGate'] },
-      { file: 'prompts/report-scenario-test.prompt.md', needles: ['PublicUserDocsMaintainerBoundaryGate', 'ActiveRequirementFinalResponseGate'] },
+      { file: 'prompts/report-scenario-test.prompt.md', needles: ['GovernanceGateRegistry', 'gateGroup', 'ActiveRequirementFinalResponseGate'] },
       { file: 'README.md', needles: ['PublicUserDocsMaintainerBoundaryGate', 'ActiveRequirementFinalResponseGate'] },
       { file: 'website/docs/guide/development.md', needles: ['PublicUserDocsMaintainerBoundaryGate', 'ActiveRequirementFinalResponseGate'] },
       { file: 'website/docs/versions/v1/1.0.1/requirements/p1/latest-data-absorption-guards/index.md', needles: ['PublicUserDocsMaintainerBoundaryGate', 'ActiveRequirementFinalResponseGate', 'V67'] },
@@ -1432,8 +1432,8 @@ function buildGovernanceTailChecks(ctx) {
       { file: 'instructions/02-output-paths.instructions.md', needles: ['OneOffRequirementScriptPlacementGate'] },
       { file: 'instructions/10-dev.instructions.md', needles: ['RequirementPreConfirmGate', 'PackageAdapterPreConfirmEvidenceGate', 'VerificationCommandSideEffectGate'] },
       { file: 'instructions/11-fix.instructions.md', needles: ['FindingProbeMatrixGate', 'GuardPolicyBypassMatrixGate', 'VerificationCommandSideEffectGate'] },
-      { file: 'instructions/12-audit.instructions.md', needles: ['DesignFramePurposeClassificationGate', 'PackageAdapterPreConfirmEvidenceGate', 'VerificationCommandSideEffectGate'] },
-      { file: 'instructions/13-analyze.instructions.md', needles: ['DatabaseRecordMigrationExportGate', 'FrontendBrowserVerificationBudgetGate', 'RequirementPreConfirmGate'] },
+      { file: 'instructions/12-audit.instructions.md', needles: ['GovernanceGateRegistry', 'gateGroup'] },
+      { file: 'instructions/13-analyze.instructions.md', needles: ['GovernanceGateRegistryRef', 'gateGroup', 'validationRoute'] },
       { file: 'skills/test-router/SKILL.md', needles: gates.concat(['browserVerificationBudget', 'findingProbeMatrix', 'verificationCommandSideEffect']) },
       { file: 'skills/dev-default/SKILL.md', needles: ['DatabaseRecordMigrationExportGate', 'FrontendBrowserVerificationBudgetGate', 'RequirementPreConfirmGate', 'PackageAdapterPreConfirmEvidenceGate'] },
       { file: 'skills/fix-default/SKILL.md', needles: ['FindingProbeMatrixGate', 'GuardPolicyBypassMatrixGate', 'VerificationCommandSideEffectGate'] },
@@ -1446,17 +1446,17 @@ function buildGovernanceTailChecks(ctx) {
       { file: 'skills/audit-document/SKILL.md', needles: ['SideEffectCompatibilityDocsGate', 'ExecutableExampleTruthProbeGate'] },
       { file: 'skills/audit-readme/SKILL.md', needles: ['SideEffectCompatibilityDocsGate', 'ExecutableExampleTruthProbeGate'] },
       { file: 'skills/audit-tech-design/SKILL.md', needles: ['PackageAdapterPreConfirmEvidenceGate'] },
-      { file: 'skills/document-sync/SKILL.md', needles: ['DatabaseRecordMigrationExportGate', 'VerificationCommandSideEffectGate', 'PackageAdapterPreConfirmEvidenceGate'] },
+      { file: 'skills/document-sync/SKILL.md', needles: ['DatabaseRecordMigrationExportGate', 'data-security-automation', 'release-package-contract'] },
       { file: 'skills/report/SKILL.md', needles: ['LatestAbsorptionGuards', 'DatabaseRecordMigrationExportGate', 'PackageAdapterPreConfirmEvidenceGate'] },
       { file: 'prompts/requirement.prompt.md', needles: ['RequirementPreConfirmGate', 'MultiPhaseClosureGate', 'PackageAdapterPreConfirmEvidenceGate'] },
       { file: 'prompts/technical-design.prompt.md', needles: ['LatestAbsorptionGuards', 'VisualDeviationTypeGate', 'PackageAdapterPreConfirmEvidenceGate'] },
       { file: 'prompts/implementation-plan.prompt.md', needles: ['LatestAbsorptionGuards', 'VerificationCommandSideEffectGate', 'PackageAdapterPreConfirmEvidenceGate'] },
       { file: 'prompts/report-dev.prompt.md', needles: ['LatestAbsorptionGuards', 'DatabaseRecordMigrationExportGate'] },
-      { file: 'prompts/report-fix.prompt.md', needles: ['LatestAbsorptionGuards', 'GuardPolicyBypassMatrixGate'] },
+      { file: 'prompts/report-fix.prompt.md', needles: ['LatestAbsorptionGuards', 'GovernanceGateRegistry'] },
       { file: 'prompts/report-audit.prompt.md', needles: ['LatestAbsorptionGuards', 'RequirementPreConfirmGate'] },
       { file: 'prompts/report-scenario-test.prompt.md', needles: ['LatestAbsorptionGuards', 'FrontendBrowserVerificationBudgetGate'] },
-      { file: 'README.md', needles: ['DatabaseRecordMigrationExportGate', 'FrontendBrowserVerificationBudgetGate', 'PackageAdapterPreConfirmEvidenceGate'] },
-      { file: 'website/docs/guide/development.md', needles: ['DatabaseRecordMigrationExportGate', 'FrontendBrowserVerificationBudgetGate', 'PackageAdapterPreConfirmEvidenceGate'] },
+      { file: 'README.md', needles: ['GovernanceGateRegistry', 'gateGroup', 'V2FormalSolutionPackage'] },
+      { file: 'website/docs/guide/development.md', needles: ['GovernanceGateRegistry', 'gateGroup', 'V2FormalSolutionPackage'] },
       { file: 'website/docs/versions/v1/1.0.1/requirements/p1/latest-data-absorption-guards/index.md', needles: ['V68', 'DatabaseRecordMigrationExportGate', 'RequirementPreConfirmGate'] },
       { file: 'website/docs/versions/v1/1.0.1/CHANGELOG.md', needles: ['V68 探针', 'DatabaseRecordMigrationExportGate', 'PackageAdapterPreConfirmEvidenceGate'] },
       { file: 'changelogs/releases/v1.11.25.md', needles: ['V68', 'PI-071', 'PF-076', 'DatabaseRecordMigrationExportGate', 'PackageAdapterPreConfirmEvidenceGate'] },
@@ -1494,7 +1494,7 @@ function buildGovernanceTailChecks(ctx) {
       { file: 'instructions/10-dev.instructions.md', needles: gates.concat(['首页首屏', '修复清单', 'SUMMARY']) },
       { file: 'instructions/11-fix.instructions.md', needles: gates.concat(['站点文档/README/接入手册不得把开发契约当用户主路径']) },
       { file: 'instructions/12-audit.instructions.md', needles: ['UserDocsImmediateComprehensionGate', 'UserDocsPrimarySurfaceGate', '首页首屏'] },
-      { file: 'instructions/13-analyze.instructions.md', needles: gates },
+      { file: 'instructions/13-analyze.instructions.md', needles: ['GovernanceGateRegistryRef', 'gateGroup', 'validationRoute'] },
       { file: 'skills/dev-docs/SKILL.md', needles: gates.concat(['public docs site', 'requirement deliverable']) },
       { file: 'skills/readme-authoring/SKILL.md', needles: ['UserDocsPrimarySurfaceGate', 'UserDocsImmediateComprehensionGate', 'targetSurface'] },
       { file: 'skills/audit-document/SKILL.md', needles: ['UserDocsImmediateComprehensionGate', 'UserDocsPrimarySurfaceGate', '未发布 runtime'] },
@@ -1507,12 +1507,12 @@ function buildGovernanceTailChecks(ctx) {
       { file: 'prompts/requirement.prompt.md', needles: gates },
       { file: 'prompts/technical-design.prompt.md', needles: gates.concat(['首页首屏']) },
       { file: 'prompts/implementation-plan.prompt.md', needles: gates.concat(['targetSurface']) },
-      { file: 'prompts/report-dev.prompt.md', needles: gates },
-      { file: 'prompts/report-fix.prompt.md', needles: gates },
-      { file: 'prompts/report-audit.prompt.md', needles: gates },
-      { file: 'prompts/report-scenario-test.prompt.md', needles: gates },
-      { file: 'README.md', needles: gates.concat(['站点文档 / README / quick start']) },
-      { file: 'website/docs/guide/development.md', needles: gates.concat(['首页首屏']) },
+      { file: 'prompts/report-dev.prompt.md', needles: ['GovernanceGateRegistry', 'gateGroup', 'UserDocsPrimarySurfaceGate'] },
+      { file: 'prompts/report-fix.prompt.md', needles: ['GovernanceGateRegistry', 'gateGroup', 'UserDocsPrimarySurfaceGate'] },
+      { file: 'prompts/report-audit.prompt.md', needles: ['GovernanceGateRegistry', 'gateGroup', 'UserDocsPrimarySurfaceGate'] },
+      { file: 'prompts/report-scenario-test.prompt.md', needles: ['GovernanceGateRegistry', 'gateGroup', 'UserDocsPrimarySurfaceGate'] },
+      { file: 'README.md', needles: ['GovernanceGateRegistry', 'gateGroup', 'UserDocsPrimarySurfaceGate', '站点文档 / README / quick start'] },
+      { file: 'website/docs/guide/development.md', needles: ['GovernanceGateRegistry', 'gateGroup', 'UserDocsPrimarySurfaceGate', '首页首屏'] },
       { file: 'website/docs/versions/v1/1.0.1/requirements/p1/latest-data-absorption-guards/index.md', needles: gates.concat(['V69']) },
       { file: 'website/docs/versions/v1/1.0.1/CHANGELOG.md', needles: gates.concat(['V69 探针']) },
       { file: 'scripts/test-spec-governance.js', needles: ['checkV69', 'UserDocsPrimarySurfaceGate', 'RequirementVerdictStateSyncGate'] },
@@ -1559,7 +1559,7 @@ function buildGovernanceTailChecks(ctx) {
       { file: 'instructions/10-dev.instructions.md', needles: ['UserFacingDeliveryChainGate', 'BuiltArtifactFeatureSmokeGate', 'BenchmarkRegressionGuard'] },
       { file: 'instructions/11-fix.instructions.md', needles: ['ReviewChecklistCompletenessGate', 'EvidenceExecutionGate', 'BuiltArtifactFeatureSmokeGate', 'TscOutputImportProbe', 'BenchmarkRegressionGuard'] },
       { file: 'instructions/12-audit.instructions.md', needles: ['ReviewChecklistCompletenessGate', 'EvidenceExecutionGate', 'GeneratedSiteGate', 'ManualTocDuplicationGate', 'UserPathContractSweep'] },
-      { file: 'instructions/13-analyze.instructions.md', needles: gates },
+      { file: 'instructions/13-analyze.instructions.md', needles: ['GovernanceGateRegistryRef', 'gateGroup', 'validationRoute'] },
       { file: 'skills/test-router/SKILL.md', needles: gates.concat(['userFacingDeliveryChain', 'reviewChecklistEvidence', 'builtArtifactFeatureSmoke', 'generatedSiteVerification', 'userPathContractSweep', 'benchmarkRegression']) },
       { file: 'skills/dev-docs/SKILL.md', needles: ['UserFacingDeliveryChainGate', 'FinalUserManualFirstGate', 'GeneratedSiteGate', 'ManualTocDuplicationGate', 'UserPathContractSweep'] },
       { file: 'skills/readme-authoring/SKILL.md', needles: ['UserFacingDeliveryChainGate', 'FinalUserManualFirstGate', 'UserPathContractSweep', 'QueueDocsRealWorkflowGate'] },
@@ -1568,14 +1568,14 @@ function buildGovernanceTailChecks(ctx) {
       { file: 'skills/document-sync/SKILL.md', needles: gates.concat(['不能只按审查报告文本验收']) },
       { file: 'skills/report/SKILL.md', needles: gates.concat(['LatestAbsorptionGuards']) },
       { file: 'prompts/technical-design.prompt.md', needles: ['userFacingDeliveryChain', 'reviewChecklistEvidence', 'builtArtifactFeatureSmoke', 'generatedSiteVerification', 'userPathContractSweep', 'benchmarkRegression'] },
-      { file: 'prompts/implementation-plan.prompt.md', needles: gates.concat(['生成站点验证', '性能回归']) },
+      { file: 'prompts/implementation-plan.prompt.md', needles: ['GovernanceGateRegistry', 'gateGroup', 'GeneratedSiteGate', 'BenchmarkRegressionGuard'] },
       { file: 'prompts/requirement.prompt.md', needles: ['UserFacingDeliveryChainGate', 'ReviewChecklistCompletenessGate', 'GeneratedSiteGate', 'BenchmarkRegressionGuard'] },
       { file: 'prompts/report-dev.prompt.md', needles: ['UserFacingDeliveryChainGate', 'BuiltArtifactFeatureSmokeGate', 'BenchmarkRegressionGuard'] },
-      { file: 'prompts/report-fix.prompt.md', needles: ['UserFacingDeliveryChainGate', 'ReviewChecklistCompletenessGate', 'BenchmarkRegressionGuard'] },
+      { file: 'prompts/report-fix.prompt.md', needles: ['GovernanceGateRegistry', 'gateGroup', 'BenchmarkRegressionGuard'] },
       { file: 'prompts/report-audit.prompt.md', needles: gates },
-      { file: 'prompts/report-scenario-test.prompt.md', needles: ['UserFacingDeliveryChainGate', 'EvidenceExecutionGate', 'GeneratedSiteGate', 'BenchmarkRegressionGuard'] },
-      { file: 'README.md', needles: gates.concat(['部署副本']) },
-      { file: 'website/docs/guide/development.md', needles: gates.concat(['部署副本']) },
+      { file: 'prompts/report-scenario-test.prompt.md', needles: ['GovernanceGateRegistry', 'gateGroup', 'BenchmarkRegressionGuard'] },
+      { file: 'README.md', needles: ['GovernanceGateRegistry', 'gateGroup', 'BenchmarkRegressionGuard', '部署副本'] },
+      { file: 'website/docs/guide/development.md', needles: ['GovernanceGateRegistry', 'gateGroup', 'BenchmarkRegressionGuard', '部署副本'] },
       { file: 'website/docs/versions/v1/1.0.1/requirements/p1/latest-data-absorption-guards/index.md', needles: gates.concat(['V70']) },
       { file: 'website/docs/versions/v1/1.0.1/CHANGELOG.md', needles: gates.concat(['V70 探针']) },
       { file: 'scripts/test-spec-governance.js', needles: ['checkV70', 'UserFacingDeliveryChainGate', 'BenchmarkRegressionGuard'] },
@@ -1655,9 +1655,9 @@ function buildGovernanceTailChecks(ctx) {
       { file: 'prompts/report-scenario-test.prompt.md', needles: ['SkillFirstAbsorptionGate'] },
       { file: 'README.md', needles: ['Skill-first 吸纳架构', 'user-manual-authoring', 'review-checklist'] },
       { file: 'website/docs/guide/development.md', needles: ['Skill-first 吸纳架构', 'user-manual-authoring', 'review-checklist'] },
-      { file: 'website/docs/index.md', needles: ['47 个 Skills'] },
-      { file: 'website/docs/intro/index.md', needles: ['47 个按需触发的工作流技能', 'user-manual-authoring', 'review-checklist'] },
-      { file: 'website/docs/specs/directory-structure.md', needles: ['扁平一级 Skill（47 个）', 'user-manual-authoring', 'review-checklist'] },
+      { file: 'website/docs/index.md', needles: ['48 个 Skills'] },
+      { file: 'website/docs/intro/index.md', needles: ['48 个按需触发的工作流技能', 'user-manual-authoring', 'review-checklist'] },
+      { file: 'website/docs/specs/directory-structure.md', needles: ['扁平一级 Skill（48 个）', 'user-manual-authoring', 'review-checklist'] },
       { file: 'website/docs/versions/v1/1.0.1/requirements/p1/latest-data-absorption-guards/index.md', needles: gates.concat(['V71', 'user-manual-authoring', 'review-checklist']) },
       { file: 'website/docs/versions/v1/1.0.1/CHANGELOG.md', needles: ['V71 探针', 'SkillFirstAbsorptionGate', 'user-manual-authoring', 'review-checklist'] },
       { file: 'changelogs/releases/v1.11.27.md', needles: gates.concat(['V71', 'PI-079', 'PI-080', 'PI-081', 'PF-084', 'PF-085', 'PF-086', 'user-manual-authoring', 'review-checklist']) },
@@ -1792,18 +1792,18 @@ function buildGovernanceTailChecks(ctx) {
       { file: 'skills/audit-readme/SKILL.md', needles: ['UserManualProductizationGate', 'DocsPageRoleMatrixGate', 'DocsThemeRuntimeVisualProbeGate'] },
       { file: 'skills/dev-plan-review/SKILL.md', needles: ['RequirementDimensionBindingGate', 'OfficialApiEvidenceGate', 'EvolutionCapabilityControlPlaneGate'] },
       { file: 'skills/test-router/SKILL.md', needles: ['ConfirmedAbsorptionCompletenessGates', 'FrontendAsyncCacheRenderGate', 'RemoteCIParityPushGate', 'EvolutionCapabilityControlPlaneGate'] },
-      { file: 'skills/report/SKILL.md', needles: gates },
-      { file: 'skills/document-sync/SKILL.md', needles: gates },
-      { file: 'prompts/technical-design.prompt.md', needles: gates },
-      { file: 'prompts/implementation-plan.prompt.md', needles: gates },
+      { file: 'skills/report/SKILL.md', needles: ['ConfirmedAbsorptionCompletenessGates', 'public-surface', 'user-manual', 'review-checklist', 'frontend-runtime', 'profile-service', 'evolution-control-plane', 'PublicSurfaceClosureGate', 'DocsThemeRuntimeVisualProbeGate'] },
+      { file: 'skills/document-sync/SKILL.md', needles: ['ConfirmedAbsorptionCompletenessGates', 'public-surface', 'user-manual', 'review-checklist', 'frontend-runtime', 'profile-service', 'evolution-control-plane', 'PublicSurfaceClosureGate', 'DocsThemeRuntimeVisualProbeGate'] },
+      { file: 'prompts/technical-design.prompt.md', needles: ['ConfirmedAbsorptionCompletenessGates', 'public-surface', 'user-manual', 'review-checklist', 'frontend-runtime', 'profile-service', 'evolution-control-plane', 'PublicSurfaceClosureGate', 'DocsThemeRuntimeVisualProbeGate'] },
+      { file: 'prompts/implementation-plan.prompt.md', needles: ['ConfirmedAbsorptionCompletenessGates', 'public-surface', 'user-manual', 'review-checklist', 'frontend-runtime', 'profile-service', 'evolution-control-plane', 'PublicSurfaceClosureGate', 'DocsThemeRuntimeVisualProbeGate'] },
       { file: 'prompts/report-dev.prompt.md', needles: ['ConfirmedAbsorptionCompletenessGates', 'PublicSurfaceClosureGate', 'DocsThemeRuntimeVisualProbeGate'] },
       { file: 'prompts/report-fix.prompt.md', needles: ['ConfirmedAbsorptionCompletenessGates', 'FrontendAsyncCacheRenderGate', 'RemoteCIParityPushGate'] },
-      { file: 'prompts/report-audit.prompt.md', needles: ['ConfirmedAbsorptionCompletenessGates', 'EvolutionCapabilityControlPlaneGate'] },
-      { file: 'prompts/report-scenario-test.prompt.md', needles: ['ConfirmedAbsorptionCompletenessGates', 'AsyncDbTruthSourceVerificationGate'] },
-      { file: 'README.md', needles: ['ConfirmedAbsorptionCompletenessGates', 'evolution-governance', '47 个'] },
-      { file: 'website/docs/index.md', needles: ['47 个 Skills'] },
-      { file: 'website/docs/intro/index.md', needles: ['47 个按需触发的工作流技能', 'evolution-governance'] },
-      { file: 'website/docs/specs/directory-structure.md', needles: ['扁平一级 Skill（47 个）', 'evolution-governance'] },
+      { file: 'prompts/report-audit.prompt.md', needles: ['ConfirmedAbsorptionCompletenessGates', 'GovernanceGateRegistry', 'evolution-control-plane'] },
+      { file: 'prompts/report-scenario-test.prompt.md', needles: ['ConfirmedAbsorptionCompletenessGates', 'GovernanceGateRegistry', 'frontend-runtime'] },
+      { file: 'README.md', needles: ['ConfirmedAbsorptionCompletenessGates', 'evolution-governance', '48 个'] },
+      { file: 'website/docs/index.md', needles: ['48 个 Skills'] },
+      { file: 'website/docs/intro/index.md', needles: ['48 个按需触发的工作流技能', 'evolution-governance'] },
+      { file: 'website/docs/specs/directory-structure.md', needles: ['扁平一级 Skill（48 个）', 'evolution-governance'] },
       { file: 'website/docs/guide/development.md', needles: ['ConfirmedAbsorptionCompletenessGates', 'evolution-governance'] },
       { file: 'website/docs/versions/v1/1.0.1/requirements/p1/latest-data-absorption-guards/index.md', needles: gates.concat(['V73', 'evolution-governance']) },
       { file: 'website/docs/versions/v1/1.0.1/CHANGELOG.md', needles: ['V73 探针', 'ConfirmedAbsorptionCompletenessGates', 'evolution-governance'] },
@@ -1875,6 +1875,294 @@ function buildGovernanceTailChecks(ctx) {
     console.log('[V74] historical common norm layering sync checked')
   }
 
+  function checkV75() {
+    const probeName = 'PromptLongGateListDriftProbe'
+    const consumerFiles = [
+      'README.md',
+      'website/docs/guide/development.md',
+      'instructions/10-dev.instructions.md',
+      'instructions/11-fix.instructions.md',
+      'instructions/12-audit.instructions.md',
+      'instructions/13-analyze.instructions.md',
+      'prompts/technical-design.prompt.md',
+      'prompts/implementation-plan.prompt.md',
+      'prompts/report-dev.prompt.md',
+      'prompts/report-fix.prompt.md',
+      'prompts/report-audit.prompt.md',
+      'prompts/report-scenario-test.prompt.md'
+    ]
+
+    const driftClusters = [
+      {
+        label: 'cross-project learned guards long list',
+        minHits: 8,
+        needles: [
+          'CodeTruthRequirementGate',
+          'AdapterBenchmarkAttribution',
+          'ProductRequirementTraceabilityGate',
+          'WorkspaceDataAbsorptionScopeGate',
+          'DatabaseRecordMigrationExportGate',
+          'GeneratedSiteGate',
+          'ArtifactLinkSetDedupeGate',
+          'BenchmarkRegressionGuard',
+          'V2FormalSolutionPackage'
+        ]
+      },
+      {
+        label: 'confirmed absorption full gate list',
+        minHits: 8,
+        needles: [
+          'PublicSurfaceClosureGate',
+          'UserManualRenderedFlowAndRealWorkflowProbe',
+          'SampleIssueExpansionGate',
+          'RequirementDimensionBindingGate',
+          'SemanticLegacyRouteExposureGate',
+          'ReferenceCodeTruthSamplingGate',
+          'FrontendAsyncCacheRenderGate',
+          'StrongestProfileSourceGate',
+          'RouteNamespaceResponsibilityGate',
+          'DocsThemeRuntimeVisualProbeGate'
+        ]
+      },
+      {
+        label: 'latest absorption full gate list',
+        minHits: 10,
+        needles: [
+          'DatabaseRecordMigrationExportGate',
+          'FrontendBrowserVerificationBudgetGate',
+          'UserSelfVerificationOverrideGate',
+          'FindingProbeMatrixGate',
+          'MultiPhaseClosureGate',
+          'GuardPolicyBypassMatrixGate',
+          'SideEffectCompatibilityDocsGate',
+          'ExecutableExampleTruthProbeGate',
+          'VisualDeviationTypeGate',
+          'OneOffRequirementScriptPlacementGate',
+          'VerificationCommandSideEffectGate',
+          'DesignFramePurposeClassificationGate',
+          'RequirementPreConfirmGate',
+          'PackageAdapterPreConfirmEvidenceGate'
+        ]
+      }
+    ]
+
+    function findDrift(line) {
+      for (const cluster of driftClusters) {
+        const hits = cluster.needles.filter(needle => line.includes(needle))
+        if (hits.length >= cluster.minHits) return { cluster, hits }
+      }
+      return null
+    }
+
+    const negativeSamples = [
+      driftClusters[0].needles.join('、'),
+      driftClusters[1].needles.join('、'),
+      driftClusters[2].needles.join('、')
+    ]
+    for (const sample of negativeSamples) {
+      if (!findDrift(sample)) {
+        err(`[V75] ${probeName} negative sample did not trigger drift detection`)
+      }
+    }
+    const groupedSample = '按 GovernanceGateRegistry 分组记录 gateGroup / ownerSkill / validationRoute / skipReason，代表锚点包括 PublicSurfaceClosureGate、UserManualProductizationGate、ReviewAnchorMaterializationGate、FrontendAsyncCacheRenderGate、RemoteCIParityPushGate 与 DocsThemeRuntimeVisualProbeGate'
+    if (findDrift(groupedSample)) {
+      err(`[V75] ${probeName} incorrectly rejects grouped registry summary`)
+    }
+
+    for (const file of consumerFiles) {
+      const lines = read(path.join(ROOT, file)).split(/\r?\n/)
+      lines.forEach((line, index) => {
+        const drift = findDrift(line)
+        if (drift) {
+          err(`[V75] ${probeName} detected ${drift.cluster.label} drift in ${file}:${index + 1} (${drift.hits.length} hits); use GovernanceGateRegistry/gateGroup instead`)
+        }
+      })
+    }
+
+    const probes = [
+      { file: 'skills/spec-governance/SKILL.md', needles: [probeName, 'SCV 负向样例', 'GovernanceGateRegistry'] },
+      { file: 'skills/source-consumer-sync/SKILL.md', needles: [probeName, 'V75', 'currentConsumers'] },
+      { file: 'README.md', needles: [probeName, 'GovernanceGateRegistry'] },
+      { file: 'website/docs/guide/development.md', needles: [probeName, 'GovernanceGateRegistry'] },
+      { file: 'changelogs/releases/v1.11.28.md', needles: ['V75', probeName] },
+      { file: 'scripts/test-spec-governance.js', needles: ['checkV75', probeName] },
+      { file: 'scripts/validate.js', needles: ['V75 prompt long gate list drift', 'checkV75()'] }
+    ]
+    for (const probe of probes) {
+      const content = read(path.join(ROOT, probe.file))
+      for (const needle of probe.needles) {
+        if (!content.includes(needle)) {
+          err(`[V75] ${probeName} sync drift in ${probe.file}: missing "${needle}"`)
+        }
+      }
+    }
+
+    console.log('[V75] prompt long gate list drift probe checked')
+  }
+
+  function checkV76() {
+    const gate = 'ReviewEscapeRecordGate'
+    const recordFields = [
+      'escapedItem',
+      'whyMissed',
+      'missingDimensionOrProbe',
+      'prevention',
+      'checklistPatch',
+      'rerunEvidence'
+    ]
+    const probes = [
+      { file: 'skills/review-checklist/SKILL.md', needles: [gate, 'escapeRecords'].concat(recordFields).concat(['ledgerRoute']) },
+      { file: 'skills/spec-governance/SKILL.md', needles: [gate, 'review-escape'].concat(recordFields) },
+      { file: 'skills/test-router/SKILL.md', needles: [gate, 'whyMissed', 'prevention', 'rerunEvidence'] },
+      { file: 'skills/report/SKILL.md', needles: [gate, 'whyMissed', 'prevention', 'checklistPatch', 'rerunEvidence'] },
+      { file: 'prompts/technical-design.prompt.md', needles: [gate, 'whyMissed', 'rerunEvidence'] },
+      { file: 'prompts/implementation-plan.prompt.md', needles: [gate, 'whyMissed', 'rerunEvidence'] },
+      { file: 'prompts/report-dev.prompt.md', needles: [gate, 'whyMissed', 'rerunEvidence'] },
+      { file: 'prompts/report-fix.prompt.md', needles: [gate, 'whyMissed', 'rerunEvidence'] },
+      { file: 'prompts/report-audit.prompt.md', needles: [gate, 'whyMissed', 'rerunEvidence'] },
+      { file: 'prompts/report-scenario-test.prompt.md', needles: [gate, 'escapedItem', 'rerunEvidence'] },
+      { file: 'README.md', needles: [gate, 'whyMissed', 'rerunEvidence'] },
+      { file: 'website/docs/guide/development.md', needles: [gate, 'whyMissed', 'rerunEvidence'] },
+      { file: 'changelogs/releases/v1.11.28.md', needles: ['V76', gate, 'whyMissed'] },
+      { file: 'scripts/test-spec-governance.js', needles: ['checkV76', gate] },
+      { file: 'scripts/validate.js', needles: ['V76 review escape record', 'checkV76()'] }
+    ]
+
+    for (const probe of probes) {
+      const content = read(path.join(ROOT, probe.file))
+      for (const needle of probe.needles) {
+        if (!content.includes(needle)) {
+          err(`[V76] review escape record drift in ${probe.file}: missing "${needle}"`)
+        }
+      }
+    }
+
+    console.log('[V76] review escape record gate sync checked')
+  }
+
+  function checkV77() {
+    const gate = 'NativeCommandExitCodeGate'
+
+    function hasExitCodePropagation(script) {
+      return [
+        /\$LASTEXITCODE\b/,
+        /\bprocess\.exit\s*\(/,
+        /\bprocess\.exitCode\b/,
+        /\bset\s+-e\b/,
+        /\bpipefail\b/,
+        /\|\|\s*exit\b/,
+        /\bif\s*\[\s*\$[?]\s*-ne\s*0\s*\]/,
+        /\bif\s*\(\s*\$LASTEXITCODE\s+-ne\s+0\s*\)/
+      ].some(pattern => pattern.test(script))
+    }
+
+    function isFalseGreenNativeCommand(script) {
+      return /\b(npm|git|node|curl)\b/.test(script) &&
+        /\b(OK|success|passed)\b/i.test(script) &&
+        !hasExitCodePropagation(script)
+    }
+
+    const negativeSamples = [
+      'npm install ../pkg.tgz; Write-Host "OK"',
+      'git push origin main; echo success'
+    ]
+    for (const sample of negativeSamples) {
+      if (!isFalseGreenNativeCommand(sample)) {
+        err(`[V77] ${gate} negative sample did not detect false-green native command: ${sample}`)
+      }
+    }
+
+    const positiveSamples = [
+      'npm install ../pkg.tgz; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; Write-Host "OK"',
+      'set -euo pipefail; git push origin main; echo success'
+    ]
+    for (const sample of positiveSamples) {
+      if (isFalseGreenNativeCommand(sample)) {
+        err(`[V77] ${gate} incorrectly rejected exit-code guarded command: ${sample}`)
+      }
+    }
+
+    const probes = [
+      { file: 'skills/release-verification/SKILL.md', needles: [gate, 'command、shell、cwd、exitCode', '$LASTEXITCODE', 'auth/config 来源'] },
+      { file: 'skills/audit-release/SKILL.md', needles: [gate, 'command/shell/cwd/exitCode'] },
+      { file: 'skills/test-router/SKILL.md', needles: [gate, 'nativeCommandExitCode', 'command、shell、cwd、exitCode'] },
+      { file: 'skills/report/SKILL.md', needles: [gate, 'command、shell、cwd、exitCode'] },
+      { file: 'skills/spec-governance/SKILL.md', needles: [gate, '原生命令真实 exitCode'] },
+      { file: 'skills/document-sync/SKILL.md', needles: [gate] },
+      { file: 'prompts/technical-design.prompt.md', needles: [gate, '退出码证据设计'] },
+      { file: 'prompts/implementation-plan.prompt.md', needles: [gate, '真实 exitCode'] },
+      { file: 'prompts/report-dev.prompt.md', needles: [gate, 'command/shell/cwd/exitCode'] },
+      { file: 'prompts/report-fix.prompt.md', needles: [gate, 'command/shell/cwd/exitCode'] },
+      { file: 'prompts/report-audit.prompt.md', needles: [gate, 'failed evidence exclusion'] },
+      { file: 'prompts/report-scenario-test.prompt.md', needles: [gate] },
+      { file: 'README.md', needles: [gate, '真实 command/shell/cwd/exitCode'] },
+      { file: 'website/docs/guide/development.md', needles: [gate, '真实 command/shell/cwd/exitCode'] },
+      { file: 'changelogs/releases/v1.11.28.md', needles: ['V77', gate, 'exitCode'] },
+      { file: 'scripts/test-spec-governance.js', needles: ['checkV77', gate] },
+      { file: 'scripts/validate.js', needles: ['V77 native command exit code', 'checkV77()'] }
+    ]
+
+    for (const probe of probes) {
+      const content = read(path.join(ROOT, probe.file))
+      for (const needle of probe.needles) {
+        if (!content.includes(needle)) {
+          err(`[V77] native command exit-code drift in ${probe.file}: missing "${needle}"`)
+        }
+      }
+    }
+
+    console.log('[V77] native command exit-code gate sync checked')
+  }
+
+  function checkV78() {
+    const gates = [
+      'PostConfirmationReviewScopeGate',
+      'DevelopmentDriftGate',
+      'VerificationPlanMaterializationProbe',
+      'AcceptedSuggestionRootCauseGate',
+      'ChinesePrimaryExpressionGate',
+      'SidebarPageRoleMaterializationProbe',
+      'SidebarGroupSemanticModelProbe'
+    ]
+
+    const probes = [
+      { file: 'instructions/01-common.instructions.md', needles: ['PostConfirmationReviewScopeGate', '轻量', '全面复审'] },
+      { file: 'skills/cp-gate/SKILL.md', needles: ['PostConfirmationReviewScopeGate', 'PR-2~PR-7', 'review-checklist'] },
+      { file: 'skills/review-checklist/SKILL.md', needles: ['PostConfirmationReviewScopeGate', '高风险', 'skipReason'] },
+      { file: 'skills/dev-default/SKILL.md', needles: ['DevelopmentDriftGate', 'allowedFirstBatch', 'blockedScope', 'driftTriggers'] },
+      { file: 'skills/execution-contract/SKILL.md', needles: ['DevelopmentDriftGate', 'allowedFirstBatch', 'blockedScope', 'driftTriggers'] },
+      { file: 'skills/dev-plan-review/SKILL.md', needles: ['VerificationPlanMaterializationProbe', 'SidebarPageRoleMaterializationProbe', 'SidebarGroupSemanticModelProbe'] },
+      { file: 'skills/dev-docs/SKILL.md', needles: ['ChinesePrimaryExpressionGate', 'SidebarPageRoleMaterializationProbe', 'SidebarGroupSemanticModelProbe'] },
+      { file: 'skills/user-manual-authoring/SKILL.md', needles: ['ChinesePrimaryExpressionGate', 'SidebarPageRoleMaterializationProbe', 'SidebarGroupSemanticModelProbe', 'sidebarSemanticModel'] },
+      { file: 'skills/document-sync/SKILL.md', needles: ['ChinesePrimaryExpressionGate', 'SidebarPageRoleMaterializationProbe', 'SidebarGroupSemanticModelProbe'] },
+      { file: 'skills/spec-governance/SKILL.md', needles: ['post-confirmation-review', 'development-drift', 'docs-ia-readability', 'AcceptedSuggestionRootCauseGate'] },
+      { file: 'skills/test-router/SKILL.md', needles: ['postConfirmationReviewScope', 'developmentDrift', 'verificationPlanMaterialization', 'docsIaReadability'] },
+      { file: 'skills/report/SKILL.md', needles: ['AcceptedSuggestionRootCauseGate', 'PostConfirmationReviewScopeGate', 'DevelopmentDriftGate', 'VerificationPlanMaterializationProbe'] },
+      { file: 'prompts/technical-design.prompt.md', needles: ['DevelopmentDriftGate', 'VerificationPlanMaterializationProbe', 'SidebarPageRoleMaterializationProbe'] },
+      { file: 'prompts/implementation-plan.prompt.md', needles: ['PostConfirmationReviewScopeGate', 'DevelopmentDriftGate', 'ChinesePrimaryExpressionGate'] },
+      { file: 'prompts/report-dev.prompt.md', needles: ['AcceptedSuggestionRootCauseGate', 'PostConfirmationReviewScopeGate', 'VerificationPlanMaterializationProbe'] },
+      { file: 'prompts/report-fix.prompt.md', needles: ['AcceptedSuggestionRootCauseGate', 'PostConfirmationReviewScopeGate', 'VerificationPlanMaterializationProbe'] },
+      { file: 'prompts/report-audit.prompt.md', needles: ['AcceptedSuggestionRootCauseGate', 'DevelopmentDriftGate', 'SidebarGroupSemanticModelProbe'] },
+      { file: 'prompts/report-scenario-test.prompt.md', needles: ['AcceptedSuggestionRootCauseGate', 'DevelopmentDriftGate', 'SidebarGroupSemanticModelProbe'] },
+      { file: 'README.md', needles: ['AcceptedSuggestionRootCauseGate', 'PostConfirmationReviewScopeGate', 'DevelopmentDriftGate', 'ChinesePrimaryExpressionGate'] },
+      { file: 'website/docs/guide/development.md', needles: ['AcceptedSuggestionRootCauseGate', 'PostConfirmationReviewScopeGate', 'DevelopmentDriftGate', 'ChinesePrimaryExpressionGate'] },
+      { file: 'changelogs/releases/v1.11.28.md', needles: ['V78'].concat(gates) },
+      { file: 'scripts/test-spec-governance.js', needles: ['checkV78'].concat(gates) },
+      { file: 'scripts/validate.js', needles: ['V78 review scope drift docs IA', 'checkV78()'] }
+    ]
+
+    for (const probe of probes) {
+      const content = read(path.join(ROOT, probe.file))
+      for (const needle of probe.needles) {
+        if (!content.includes(needle)) {
+          err(`[V78] review scope / drift / docs IA sync in ${probe.file}: missing "${needle}"`)
+        }
+      }
+    }
+
+    console.log('[V78] review scope, development drift and docs IA gates checked')
+  }
+
   return {
     checkV39,
     checkV40,
@@ -1911,7 +2199,11 @@ function buildGovernanceTailChecks(ctx) {
     checkV71,
     checkV72,
     checkV73,
-    checkV74
+    checkV74,
+    checkV75,
+    checkV76,
+    checkV77,
+    checkV78
   }
 }
 

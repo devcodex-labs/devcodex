@@ -6,6 +6,7 @@
 
 | 日期 | 变更内容 | 影响范围 | 原因 |
 |------|---------|---------|------|
+| 2026-07-08 | 发布 v1.11.28 分析默认 Skill、复审收敛与发布退出码门禁收口 | V75~V78、`analyze-default`、`SpecRadarSubgate`、`GovernanceGateRegistry`、`PromptLongGateListDriftProbe`、`ReviewEscapeRecordGate`、`NativeCommandExitCodeGate`、`PostConfirmationReviewScopeGate`、`DevelopmentDriftGate` | 将 2026-07-08 的分析默认路径下沉、prompt/report 长清单防回流、复审逃逸记录、release native command 退出码假阳性防护、确认后复审分级、开发偏移防护、验证计划物化和文档 IA / 中文主表达探针归档为正式 patch 版本 |
 | 2026-07-07 | 发布 v1.11.27 分层吸纳架构与历史通用规范迁移收口 | V71~V74、`user-manual-authoring`、`review-checklist`、`evolution-governance`、`HistoricalCommonNormLayeringGate`、release notes | 将 2026-07-07 的 Skill-first、分层吸纳、完整吸纳补强、自我进化治理和历史通用规范分层迁移归档为正式 patch 版本 |
 | 2026-07-07 | 新增历史通用规范分层迁移门禁 | `HistoricalCommonNormLayeringGate`、逐文件审查矩阵、`legacy-index-retained`、V74 探针 | 将此前堆入通用 instructions、prompt、report 模板或 README 的旧吸纳项重新按 Skill、Prompt、执行消费者、validate、公开文档和部署副本分层，避免新 Gate 正文继续回流到通用长清单 |
 | 2026-07-07 | 补齐完整吸纳清单与自我进化治理 Skill | `ConfirmedAbsorptionCompletenessGates`、`evolution-governance`、`EvolutionCapabilityControlPlaneGate`、V73 探针 | 将用户确认的半覆盖 / 未完整吸纳项补齐到通用规范、目标 Skill、Prompt、执行消费者、验证探针、公开文档和部署副本；新增自我进化控制面入口 |

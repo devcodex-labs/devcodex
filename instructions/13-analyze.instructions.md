@@ -2,7 +2,7 @@
 applyTo: "**"
 description: analyze 工作流规则，覆盖只读分析、代码取证顺序、多轮收敛与推荐结论
 priority: P4
-version: 1.11.27
+version: 1.11.28
 ---
 # 分析工作流规则（13-analyze）
 
@@ -93,15 +93,11 @@ version: 1.11.27
 - 命中 intentional design、兼容设计、性能取舍或产品策略时，应记录设计依据、消费者影响和文档/测试承托；命中用户决策项时，最终结论只能给确认问题，不得建议直接改源码。
 - 文档与实现不一致时，需判断文档是否代表产品目标或历史承诺；测试覆盖不足时，优先建议补测试、复现脚本或验证证据。
 
-### CrossProjectLearnedGuards 分析侧取证
+### GovernanceGateRegistryRef 分析侧取证
 
-- 发现用户确认的“未完整吸纳 / 半覆盖 / 缺探针 / 缺 Skill / 缺 Prompt / 缺部署副本”时，分析报告必须列出 `ConfirmedAbsorptionCompletenessGates` 候选，并按 `LayeredAbsorptionGate` 预判 `PublicSurfaceClosureGate`、`UserManualProductizationGate`、`UserManualRenderedFlowAndRealWorkflowProbe`、`SampleIssueExpansionGate`、`RequirementDimensionBindingGate`、`RequirementPriorityAndPhaseGate`、`ReviewAnchorMaterializationGate`、`SemanticLegacyRouteExposureGate`、`ReferenceCodeTruthSamplingGate`、`FrontendAsyncCacheRenderGate`、`StaleWhileRevalidateGate`、`PortableExternalArtifactGate`、`StrongestProfileSourceGate`、`ServiceSpecificResidueSweep`、`ProfileReadChainGate`、`ServiceNormCoverageGate`、`RouteNamespaceResponsibilityGate`、`RemoteCIParityPushGate`、`OfficialApiEvidenceGate`、`AsyncDbTruthSourceVerificationGate`、`DocsPageRoleMatrixGate`、`CompleteUserManualSiteMatrixGate`、`EvolutionCapabilityControlPlaneGate`、`FrameworkCapabilityAutoFirstGate` 与 `DocsThemeRuntimeVisualProbeGate` 的目标 Skill、触发价值和验证路线；分析阶段只读，等待用户确认后实施。
-
-- 前端/Figma/截图/既有页面分析涉及 UI 还原、视觉漂移、真实 preview、状态回归、生产资产或运行时本地化时，应检查 `FigmaHighFidelityRestorationGate`、`ScopedVisualChangeGate`、`InstalledPluginVisualVerificationGate`、`ActualPreviewChainAndMockFallbackGate`、`UIStateScopeRegressionGate`、`FigmaProductionAssetBudgetGate` 与 `RuntimeI18nArtifactVerificationGate`，并标明证据范围。
-- 分析结论涉及提交边界、兼容修复、上游契约、UI 主真相源冲突、公开文档版本、集合关系命名或验证产物语言时，应分别检查 `ExplicitCommitAuthorizationGate`、`CompatibilityAndContractAuthorityGate`、`UIConfirmedSourceConflictTraceGate`、`PublicDocsReleasedVersionGate`、`CollectionRelationIdNamingGate` 与 `UserFacingVerificationArtifactLanguageGate`；若只是当前问题无关，写 `N/A + skipReason`。
-- 分析结论涉及复审是否收敛、文档是否好用好懂、用户文档即时理解、用户文档主面是否被开发契约替代、公开用户文档是否混入维护者 checklist、文档消费者同步、需求复审状态漂移、产物路径重复展示、前端真实预览可信度或最终汇报是否漂到相邻需求时，应分别检查 `ReviewDimensionDeltaGate`、`UserPerspectiveDocsGate`、`UserDocsImmediateComprehensionGate`、`UserDocsPrimarySurfaceGate`、`PublicUserDocsMaintainerBoundaryGate`、`DocsConsumerSweep`、`RequirementVerdictStateSyncGate`、`ArtifactLinkSetDedupeGate`、`FrontendRuntimeNetworkProbeGate` 与 `ActiveRequirementFinalResponseGate`，并标明证据范围；若只是当前问题无关，写 `N/A + skipReason`。
-- 分析结论涉及数据库记录迁移、前端浏览器验证成本、用户自验、外部 finding 反证矩阵、多阶段关闭、guard/policy 绕过、带副作用兼容文档、可执行示例、视觉偏差类型、一次性脚本归属、验证命令副作用、设计帧用途、需求确认前缺口或 package/adapter 确认前证据时，应分别检查 `DatabaseRecordMigrationExportGate`、`FrontendBrowserVerificationBudgetGate`、`UserSelfVerificationOverrideGate`、`FindingProbeMatrixGate`、`MultiPhaseClosureGate`、`GuardPolicyBypassMatrixGate`、`SideEffectCompatibilityDocsGate`、`ExecutableExampleTruthProbeGate`、`VisualDeviationTypeGate`、`OneOffRequirementScriptPlacementGate`、`VerificationCommandSideEffectGate`、`DesignFramePurposeClassificationGate`、`RequirementPreConfirmGate` 与 `PackageAdapterPreConfirmEvidenceGate`，并标明证据范围。
-- 分析结论涉及用户文档驱动交付链、最终用户手册、文档站信息架构、队列/任务 quick start、长链路审查清单、构建产物可消费性、文档站生成页可见状态、公开能力页首次成功路径或性能回归时，应分别检查 `UserFacingDeliveryChainGate`、`FinalUserManualFirstGate`、`DocsSiteInformationArchitectureGate`、`UserManualFlowAndFailureGate`、`QueueDocsRealWorkflowGate`、`ReviewChecklistCompletenessGate`、`EvidenceExecutionGate`、`BuiltArtifactFeatureSmokeGate`、`TscOutputImportProbe`、`GeneratedSiteGate`、`ManualTocDuplicationGate`、`UserPathContractSweep` 与 `BenchmarkRegressionGuard`，并标明证据范围；若只是当前问题无关，写 `N/A + skipReason`。
+- analyze.default 的执行细节由 `skills/analyze-default/SKILL.md` 承接；本文件只保留只读边界和工作流索引。
+- 分析发现规范吸纳、完整吸纳补强、历史长清单迁移、复审遗漏、用户文档、前端运行态、发布门禁、Profile/service 规范或自我进化控制面问题时，不在 instructions 展开 Gate 长清单；必须引用 `skills/spec-governance/SKILL.md` 的 `GovernanceGateRegistry`。
+- 分析报告只写 `gateGroup / ownerSkill / trigger / evidence / validationRoute / skipReason`。分析阶段保持只读，等待用户确认后再切换 dev/fix/self-fix 实施。
 
 ### 收敛后汇总验证（PCV）
 

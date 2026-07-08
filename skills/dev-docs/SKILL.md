@@ -63,12 +63,14 @@ description: 文档开发子类型规范 — 技术文档/API文档/README 编�
 | 验证产物语言 | `.http`、集成测试说明、手工验证步骤等用户可读验证产物执行 `UserFacingVerificationArtifactLanguageGate`，默认使用用户当前语言 |
 | 需求来源 | 从 PRD、Word、原型、截图或用户消息整理文档需求时执行 `ProductRequirementTraceabilityGate`，保留来源锚点、提取口径和验收映射 |
 | 使用者视角 | 正式用户文档、README、官网/文档站、接口说明、运行手册执行 `UserPerspectiveDocsGate`，先回答这是什么、适合谁、如何第一次成功、常见任务、参数/字段/状态/错误、失败恢复、限制和下一步；要求足够详细、术语首次解释、示例真实、心智负担低 |
+| 中文主表达 | 中文用户、中文文档、双语中文入口或维护者要求中文可读时执行 `ChinesePrimaryExpressionGate`：正文句子必须用中文主干表达，英文代码标识符、API、文件名、参数名只作为反引号或括号补充；表格字段优先中文名 + 英文标识；流程图节点用中文命名；代码块、路径、命令和 public API 名保持原文 |
 | 即时理解 | README、官网/文档站、API/CLI/config 文档、快速开始和运行手册执行 `UserDocsImmediateComprehensionGate`，输出功能完整性、配置易懂性和首次读者即时理解三轴结论 |
 | 用户主面 | 用户使用文档、站点文档、文档站、README、quick start 或接入手册执行 `UserDocsPrimarySurfaceGate`，先冻结 `targetSurface`、`documentLocation` 和 `primaryAudience=用户/使用者`，确认首页首屏、quick start、nav/sidebar 前两组、CTA、reference、配置、常见任务和排错不是开发契约主叙事 |
 | 用户文档交付链 | docs-first、最终用户手册、站点文档、README 或公开能力页执行 `user-manual-authoring` + `UserFacingDeliveryChainGate` / `FinalUserManualFirstGate`：先基于 `01-需求确认.md` / `01-产品需求.md` 冻结目标用户路径，再决定文档站或 README-minimum、条件契约文档、技术方案输入和 ECR 用户文档符合性 |
 | 用户文档产品化 | 用户文档、站点文档、README、quick start、接入手册和最终用户手册执行 `UserManualProductizationGate`：按最终使用者任务组织受众、配置、示例、排错、失败恢复和源码 / 示例可点击链路，内部字段和实现说明不得占主路径 |
 | 渲染流程与真实工作流 | Mermaid / 流程图 / quick start / 队列 / 异步文档执行 `UserManualRenderedFlowAndRealWorkflowProbe`：验证真实渲染，示例使用真实业务工作流，禁止硬编码单例冒充主路径 |
 | 页面角色矩阵 | 文档站或多页 README 执行 `DocsPageRoleMatrixGate` / `CompleteUserManualSiteMatrixGate`：每页标明 role、audience、sourceOfTruth、nav/sidebar 位置和是否用户主路径，完整手册站点覆盖入门、配置、任务、reference、排错、限制和下一步 |
+| Sidebar 任务模型 | 新增或重塑用户主路径能力、菜单缺项、菜单命名、sidebar 分组或 route 表时执行 `SidebarPageRoleMaterializationProbe` / `SidebarGroupSemanticModelProbe`：从当前站点配置、docs inventory 或生成站点反查 route / label / role / group；复核整组任务模型、相邻页面职责和内部依赖是否误作 IA 归属 |
 | 文档主题运行态 | 文档站主题、导航、搜索、代码高亮、移动端、暗色/亮色变化执行 `DocsThemeRuntimeVisualProbeGate`：验证真实运行态视觉和交互，不只看 Markdown 源码 |
 | 文档站信息架构 | 文档站或最终用户手册执行 `DocsSiteInformationArchitectureGate` 与 `UserManualFlowAndFailureGate`，区分用户手册、reference、operations、compatibility、implementation、maintainer 面，并覆盖整体流程、角色、第一次成功、失败分流、排查命令和恢复/降级 |
 | 真实工作流示例 | 队列、任务、异步处理、推送、导入导出或批处理文档执行 `QueueDocsRealWorkflowGate`：quick start 必须提供真实批量工作流，覆盖数据来源、筛选、批量 enqueue、payload schema、handler 业务动作、配置字段、失败/重试/幂等和观测 |
@@ -123,6 +125,7 @@ description: 文档开发子类型规范 — 技术文档/API文档/README 编�
 - `FormalDocsDevCodexBoundary`：正式用户文档只呈现稳定使用信息；运行时台账、审查报告、临时分析和内部治理噪声保留在 `.devcodex/**`。
 - `ManualReviewEvidenceRetention`：人工文档复核或链接/视觉抽查要留范围、输入和证据；不得只写“已人工检查”。
 - `FlowchartNodeExplanationGate`：正式流程图、生命周期图、Nxx 节点图或维护者流程页必须给每个非终止节点配中文解释，说明触发、前置、动作、出口和异常/回退。
+- `ChinesePrimaryExpressionGate`：中文文档不得把英文术语和内部标识串成正文主干；英文只承担精确标识，中文负责解释“是什么、做什么、何时用、失败怎么办”。
 - `DocsSiteVisualAcceptanceGate`：官网/文档站/技术站视觉或交互调整必须验收主题集成、真实点击、异步动效、减弱动态、代码 token 对比度、终端 demo 范围、TOC inline code 和辅助导航层级；纯内容页写 `N/A + skipReason`。
 - `GeneratedSiteGate` / `ManualTocDuplicationGate`：文档站、官网或技术站涉及导航、footer、sidebar、outline、语言切换或手写 TOC 时，必须以当前构建产物或真实预览为准，区分 DOM 中存在但 CSS 隐藏与真实可见重复 / 丢失；手写 `## 目录` / `## Table of Contents` / `## 目录导航` 需要与自动 outline 做重复检查。
 - `UserPerspectiveDocsGate`：面向使用者的文档不得只按内部实现、维护者分工或历史治理顺序堆叠；要让首次读者能低心智成本完成“理解 → 安装/进入 → 第一次成功 → 常见任务 → 排错”的路径。
@@ -135,6 +138,7 @@ description: 文档开发子类型规范 — 技术文档/API文档/README 编�
 - `RequirementVerdictStateSyncGate`：docs/需求类任务在修订、再次复审、宣布“可确认 / 暂不通过 / 已修订待复审”前，必须同步真相源顶部状态、推荐结论章节、修复清单、audit-state decision、sessions / SUMMARY 口径。
 - `DocsConsumerSweep`：文档即产品入口时，正文、导航、索引、示例、模板、Profile、validate 和部署副本都是当前消费者；同步失败或刻意不同序必须写明原因。
 - `UserPathContractSweep`：公开能力页、SDK/CLI/API 快速开始或专题页必须核对安装版本、构造函数示例、配置字段类型、相邻专题链接、API 索引和 sidebar 章节，证据来自 `package.json`、public types、runtime wiring、示例源码和当前文档；旧内容必须分类为 current violation / historical allowed / compat fixture allowed / unrelated。
+- `SidebarPageRoleMaterializationProbe` / `SidebarGroupSemanticModelProbe`：新增能力页或修菜单时，必须先生成 pageRole/sidebar group 矩阵；只补一个缺项、按 API 名称猜 route、或把内部实现依赖当作一级菜单归属，均不得通过。
 
 ## 产出物
 

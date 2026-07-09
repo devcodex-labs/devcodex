@@ -286,6 +286,7 @@ applyTo: .devcodex/**/requirements/**
 | HistoricalCommonNormLayeringGate | 逐文件审查矩阵：file / currentRole / matchedRules / targetLayer / targetOwner / action / semanticStrength / validation / skipReason；Prompt 只写字段和引用，不复制完整 Gate 长清单 | | |
 | ProactiveBetterAlternativeGate | 用户方案 / 备选路径 / 推荐理由 / 取舍影响 / 采纳依据 | | |
 | ConfirmedAbsorptionCompletenessGates | 按 `public-surface / user-manual / review-checklist / frontend-runtime / profile-service / release-parity / evolution-control-plane` 填写触发 / N/A、目标 Skill、证据和探针；代表性 anchors：PublicSurfaceClosureGate / UserManualProductizationGate / ReviewAnchorMaterializationGate / FrontendAsyncCacheRenderGate / RemoteCIParityPushGate / NativeCommandExitCodeGate / DocsThemeRuntimeVisualProbeGate | | |
+| LatestAbsorptionExecutionPack A1~A10 | 按 `GovernanceGateRegistry` 分组填写触发 / N/A、ownerSkill、validationRoute、skipReason；anchors：ConfigCanonicalNamespaceGate / ProfileRuntimeContractSyncGate / BehaviorSemanticDocsParityGate / NegativeTranslationParityProbe / DocsExampleTruthSurfaceGate / CallbackExampleScopeProbe / DerivedMetricConsumerProbe / DerivedConsumerFailureInjectionProbe / FeatureInventoryProfileGate / FeatureChecklistEvidenceMatrixGate / BatchEvidenceLedgerStateGate / BatchProgressCardGate | | |
 | FullV1ScopeGuard | | | |
 | StartupPhaseTrace | 阶段命名 / Profile 或 startup summary 同步 / 减噪、lazy loading 或 background warmup 决策 | | |
 | CodeTruthRequirementGate | 代码真相源 / 消费者入口 / 运行证据 | | |

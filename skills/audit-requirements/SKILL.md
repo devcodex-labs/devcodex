@@ -61,6 +61,8 @@ description: 需求文档审查维度 RQ-1~RQ-8 — 需求定义/功能描述/�
 - 用户只给样例问题但要求全面审查、完整需求或全量处理时，必须执行 `SampleIssueExpansionGate`：样例仅作为 seed evidence，需求审查前展开全维度图，标出样例覆盖 / 未覆盖维度。
 - 每个需求维度必须执行 `RequirementDimensionBindingGate`：绑定 CP2、批次计划、验收证据和阶段关闭规则；多阶段需求追加 `RequirementPriorityAndPhaseGate`，写明 entry / exit / carryOver / closeRule，不得只写 Phase 1 通过。
 - 需求修订、再次复审或宣布“可确认 / 暂不通过 / 已修订待复审”前必须执行 `RequirementVerdictStateSyncGate`：核对需求真相源顶部状态、推荐结论、修复清单状态、audit-state decision、requirement sessions / SUMMARY 口径一致
+- 多功能、多阶段、公开包/SDK/CLI、多模块或文档站能力需求必须执行 `FeatureChecklistEvidenceMatrixGate`：每个 capability group 绑定 CP2 设计点、批次计划、验收证据、用户文档或公开面、阶段关闭规则；只给样例问题时先用 `SampleIssueExpansionGate` 扩展全维度图。
+- 多批次需求、长链路治理或分阶段交付必须执行 `BatchEvidenceLedgerStateGate` / `BatchProgressCardGate`：需求审查报告区分 baseline-confirmed、executed-passed、partial、failed、not-started，不能把“已列计划”写成“已执行通过”。
 - 分阶段需求必须执行 `MultiPhaseClosureGate`：列出 Phase 2+ 路线、每阶段入口/退出门禁、验证证据、用户确认点、进度真相源和最终关闭规则
 - Figma/截图/设计稿作为需求来源时必须执行 `DesignFramePurposeClassificationGate`，列目标帧、排除帧、用途分类和验收入口；邮件模板、banner、素材、示意页或旧稿不得默认为前端页面需求
 - 涉及提交边界、兼容契约、UI 确认源覆盖旧 PRD、公开文档版本、集合关系 id 命名或用户可见验证产物语言时，需求应分别列出 `ExplicitCommitAuthorizationGate`、`CompatibilityAndContractAuthorityGate`、`UIConfirmedSourceConflictTraceGate`、`PublicDocsReleasedVersionGate`、`CollectionRelationIdNamingGate`、`UserFacingVerificationArtifactLanguageGate` 的需求事实源或派生验证口径

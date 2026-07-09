@@ -71,6 +71,10 @@ description: 通用文档审查维度 DA-1~DA-6 — README/架构文档/开发�
 - `GeneratedSiteGate`：文档站、静态站或生成站点宣称完成时，审查必须基于实际生成产物或预览产物验证导航、页面、资产、链接和主要用户路径，不得只看源码或 Markdown 源文件
 - `ManualTocDuplicationGate`：手写目录、自动 TOC、sidebar/nav 同时存在时，必须检查重复、断链、层级漂移和阅读顺序冲突
 - `UserPathContractSweep`：公开用户路径、quick start、站点首页或 README 调整后，必须扫描 README / website / nav/sidebar / examples / templates / validate probes / 部署副本与代码消费点是否同步
+- `BehaviorSemanticDocsParityGate`：行为语义、默认行为、兼容路径、comparison/scenario/README/index/search 文档变化时，必须用语义承诺矩阵反查代码、public types、runtime wiring 和生成搜索索引，不得只看 Markdown 源码
+- `NegativeTranslationParityProbe`：多语言或双语文档涉及禁用/启用、支持/不支持、必须/不得、同步/异步、缓存/刷新等否定或反义语义时，逐项核对另一语言与 public API / runtime 事实
+- `DocsExampleTruthSurfaceGate`：文档示例中的 option/config/method/field、导入路径、CLI 参数、模板字段和配置项必须有 public types、schema、runtime dispatcher、导出入口或最小执行探针证据
+- `CallbackExampleScopeProbe`：callback / hook / event / transaction / handler / ctx 示例必须匹配 public type signature、runtime dispatcher、参数/ctx 作用域和异常/取消语义
 - 纯文本内容、历史镜像或临时草图可标 `N/A + skipReason`
 
 ## README 叠加规则

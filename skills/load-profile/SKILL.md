@@ -53,18 +53,52 @@ description: 项目 Profile 加载规范 — 意图识别后独立确定目标�
 - 复审服务 / 框架规范时列出全部服务集合、docs 自维护链、导航、版本、构建、报告和记忆消费者。
 - 从单服务抽公共规范时同步执行 `StrongestProfileSourceGate` / `ServiceSpecificResidueSweep`，以最强 Profile 为基线并清扫服务化残留。
 
+### FeatureInventoryProfileGate
+
+公开包、SDK、CLI、多模块仓库、文档站、public API、可配置 runtime 或跨项目规范维护任务需要稳定功能清单时，必须执行 `FeatureInventoryProfileGate`：
+
+- Profile 中应有可追踪 feature inventory 或说明其当前来源，至少覆盖能力组、公开面、配置入口、主要消费者、文档入口和验证路线。
+- feature inventory 不能由复审清单临时拼接；复审清单只记录本轮验证状态，Profile 或正式文档记录稳定能力面。
+- 功能增删、默认行为变化、公开 API 或文档站能力变化时，报告需写 `ProfileRuntimeContractSyncGate` 与 `ProfileImpactCheck` 是否同步。
+
+## ProfileTierStandardGate / ProfileLifecycleClassificationGate
+
+Profile 标准分三档，`conditional-required` 只表示文件级条件触发，不是项目档位。加载 Profile 时必须先判断档位，再决定缺失项是阻断、警告还是 N/A：
+
+| 档位 | 适用项目 | 必需文件 |
+|------|----------|----------|
+| `profile-lite` | 小型项目、工具脚本、单一后端服务、早期草稿 | `README.md`、`01-项目信息.md`、`02-架构约束.md`、`03-代码风格.md`，`config.json` 按需 |
+| `profile-standard` | 有稳定测试/发布要求、多人协作或公开包的项目 | `profile-lite` 全部文件 + `04-测试规范.md` + `05-交付发布规范.md` 或 `05-发布规范.md` + feature inventory 来源说明 |
+| `profile-closed-loop` | DevCodex 规范维护、SDK/CLI/文档站/public API、多模块或需要完整开发闭环的项目 | `profile-standard` 全部文件 + `06-功能清单.md` + `07-用户文档与契约规范.md`，必要时按条件补 `08-*` / `09-*` |
+
+文件生命周期必须写清：
+
+| 生命周期 | 含义 | 例子 |
+|----------|------|------|
+| 稳定基线 | 项目事实变化才更新 | `01-项目信息.md`、`02-架构约束.md`、`03-代码风格.md` |
+| 活文档 | 功能、API、CLI、Hook、测试、发布、文档站变化时持续更新 | `04-测试规范.md`、`05-交付发布规范.md`、`06-功能清单.md`、`07-用户文档与契约规范.md` |
+| 条件 / 本地文档 | 命中连接、服务、数据、外部系统或本地 overlay 才维护 | `config.local.json`、`08-*`、`09-*` |
+
+`AllDevCodexProfileValidationGate`：当任务涉及 Profile 标准、workspace-namespace、规范维护项目、发布前检查或用户要求“校验 `.devcodex` 所有项目”时，必须执行全项目 Profile 校验，至少覆盖 `.devcodex/workspace/profile` 与 `.devcodex/<project>/profile` 的读取链。推荐命令：
+
+```bash
+node scripts/validate-all-profiles.js --workspace <workspace-root>
+```
+
 ## 标准文件（按需加载）
 
 | 文件 | 说明 | 必须 |
 |------|------|:----:|
-| `README.md` | profile 索引 | 是 |
+| `README.md` | profile 索引，声明 `profile-lite` / `profile-standard` / `profile-closed-loop` 档位 | 是 |
 | `01-项目信息.md` | 技术栈/仓库地址 | 是 |
 | `02-架构约束.md` | 目录结构/模块边界 | 是 |
 | `03-代码风格.md` | 编码规范 | 是 |
-| `04-测试规范.md` | 测试框架/覆盖率 | 按需 |
-| `05-发布规范.md` | 版本号/发布流程 | 按需 |
+| `04-测试规范.md` | 测试框架/覆盖率 | `profile-standard` 起必需 |
+| `05-交付发布规范.md` / `05-发布规范.md` | 版本号/发布流程 | `profile-standard` 起必需 |
+| `06-功能清单.md` | 功能清单、公开面、消费者和验证路线 | `profile-closed-loop` 必需 |
+| `07-用户文档与契约规范.md` | README、站点文档、quick start、API/CLI/Hook/宿主契约维护规则 | `profile-closed-loop` 必需 |
 | `config.json` | 运行模式配置（ENV_MODE）+ agent 兜底标识；Auto 别名全局默认 `@rocky`，可配置 `extensions.devcodex.autoAliases` 替换默认别名；也可配置 `extensions.devcodex.concurrency` 并发策略 | 按需 |
-| `config.local.json` | 用户 / 项目指定时使用的本地 overlay：长期连接、本地明文连接信息、env / secretRef 引用、`extensions.<namespace>` | 按需 |
+| `config.local.json` | 用户 / 项目指定时使用的本地 overlay：长期连接、本地明文连接信息、env / secretRef 引用、`extensions.<namespace>` | 条件 / 本地 |
 
 > ⚠️ `config.json.agent` 只用于当前实际宿主无法可靠判断时的 fallback hint。产物路径中的 `<agent>` 必须优先使用当前会话/工具链可验证的实际宿主；profile agent 不得覆盖当前会话事实。
 >

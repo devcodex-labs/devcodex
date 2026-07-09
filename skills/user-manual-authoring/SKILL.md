@@ -44,6 +44,8 @@ description: 最终用户使用文档写作规范 — 站点文档、README、qu
 | `configurationModel` | 配置字段、默认值、选择建议、错误与排错必须简单易懂 |
 | `realWorkflowExample` | 队列、任务、异步、导入导出、推送或批处理类文档必须给真实批量工作流 |
 | `renderedFlowEvidence` | Mermaid / 流程图 / 文档站主题必须有真实渲染或运行态验证证据 |
+| `semanticParityEvidence` | 行为语义、默认值、兼容路径、支持/不支持承诺必须有 `BehaviorSemanticDocsParityGate` / `NegativeTranslationParityProbe` 证据 |
+| `exampleTruthEvidence` | option/config/method/callback 示例必须有 `DocsExampleTruthSurfaceGate` / `CallbackExampleScopeProbe` 证据 |
 | `developerInfoPlacement` | 开发契约、技术方案、数据模型、维护者 checklist 后置或单独标记 |
 | `consumerMap` | 同步 README、website、Profile、examples、prompts、templates、validate 和部署副本 |
 
@@ -64,6 +66,8 @@ description: 最终用户使用文档写作规范 — 站点文档、README、qu
 - `QueueDocsRealWorkflowGate`：队列、任务和异步类 quick start 必须说明数据来源、批量入队、payload、handler 业务动作、失败/重试/幂等和观测。
 - `PublicUserDocsMaintainerBoundaryGate`：公开用户文档不得混入维护者验收、内部同步清单、台账状态或发布 checklist。
 - `DocsConsumerSweep` / `UserPathContractSweep`：文档新增能力、命令、配置、导航或用户路径时，同步当前消费者。
+- `BehaviorSemanticDocsParityGate` / `NegativeTranslationParityProbe`：最终用户手册中的行为承诺、默认值、兼容路径、限制、支持/不支持、启用/禁用、同步/异步和缓存/刷新语义必须与 public API、runtime wiring、README/website、generated search 与多语言版本一致。
+- `DocsExampleTruthSurfaceGate` / `CallbackExampleScopeProbe`：用户主路径中的示例不能只凭伪代码表达；option/config/method/field/callback/handler/ctx 必须能追到 public types、schema、runtime dispatcher、导出入口或最小执行探针。
 
 ## 执行步骤
 

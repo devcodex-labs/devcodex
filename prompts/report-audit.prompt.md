@@ -80,6 +80,7 @@ applyTo: ".devcodex/**/reports/audit/**, .devcodex/**/reports/self-fix/**"
 | spec-absorption / CommonNormGeneralizationGate / AbsorptionCandidateConsumerProofGate | 候选矩阵 / sourceNamespace / generalizationEvidence / projectSpecificResidue / negativeExamples / targetConsumer / devcodexConsumerEvidence / targetOwner / validationRoute / decision |
 | LayeredAbsorptionGate / SkillFirstAbsorptionGate / CapabilityToSkillPromotionGate | LayeredAbsorptionDecision / candidateId / classification / targetSkill / ownedArtifacts / layerChecks / promptTemplate / executionConsumer / validationProbe / publicDocs / deployCopy / validationRoute / consumerSync |
 | HistoricalCommonNormLayeringGate | 逐文件审查矩阵 / targetLayer / targetOwner / semanticStrength / validation / legacy-index-retained / V74 / deployCopy |
+| LatestAbsorptionExecutionPack A1~A10 | gateGroup / ownerSkill / validationRoute / V82 / ConfigCanonicalNamespaceGate / ProfileRuntimeContractSyncGate / BehaviorSemanticDocsParityGate / DocsExampleTruthSurfaceGate / DerivedMetricConsumerProbe / FeatureInventoryProfileGate / BatchEvidenceLedgerStateGate / BatchProgressCardGate |
 | ProactiveBetterAlternativeGate | 用户方案 / 备选路径 / 推荐理由 / 取舍影响 / 采纳依据 |
 | AcceptedSuggestionRootCauseGate | 采纳的用户纠正 / whyMissed / 采纳依据 / VL-PI-PF-GAP 编号 / prevention |
 | PostConfirmationReviewScopeGate / DevelopmentDriftGate | CP 确认后轻量或全面复审判定 / review-checklist 路径或 skipReason / allowedFirstBatch / blockedScope / driftTriggers / validationRoute |

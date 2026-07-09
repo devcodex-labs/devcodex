@@ -74,6 +74,7 @@ applyTo: .devcodex/**/requirements/**
 | PackageBoundarySerialCheck | release / pack / package boundary / benchmark / codegen | ✅/🔄/N/A | build 完成点 / 单独 pack 命令 / dist 写入竞争排除 / dirty 残留清理 |
 | Backlog Intake 真相复核 | `data/*.md` open/partial 项来源的需求/批次 | ✅/🔄/N/A | candidateIds / classification / scopeDelta |
 | 台账状态回写闭环 | 本轮改变了 VL/PF/PI/ISSUE/GAP 状态 | ✅/🔄/N/A | targetLedgers / writebackEvidence / rescanResult |
+| LatestAbsorptionExecutionPack A1~A10 | 最新可吸纳确认实施、文档语义/示例/派生消费者/Profile feature/批次证据补强 | ✅/🔄/N/A | ownerSkill / validationRoute / V82 / EvidenceLedger / Progress Card / skipReason |
 | document-sync | 代码/规范/模板/部署副本联动 | ✅/🔄/N/A | |
 
 ## 当前轮次工作

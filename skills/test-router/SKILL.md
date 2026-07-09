@@ -61,6 +61,21 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 | `functionSourceFingerprint` | 是否把 function source / hash / toString / fingerprint 用作 cache key、registry key、checkpoint、幂等或去重依据 |
 | `riskClusterEscalation` | 同一风险簇、同类 parser/serializer/runtime/registry 缺陷或同一审查维度是否连续出现 ≥3 个新增 finding / 返修 |
 | `riskBasedValidationLadder` | 是否处于同风险簇迭代修复，需要先做 targeted + related suite，再按发布/公共运行时风险升级 full gate |
+| `latestAbsorptionExecutionPack` | 是否命中 A1~A10 最新吸纳执行包：配置 canonical namespace、Profile/runtime contract、行为语义/翻译、示例/callback、派生消费者、功能清单或多批次证据 |
+| `configCanonicalNamespace` | 是否新增或调整配置 schema、provider 选项、runtime 开关、legacy alias、公开配置路径，需要 `ConfigCanonicalNamespaceGate` |
+| `profileRuntimeContractSync` | 是否改变默认行为、runtime contract、transaction/cache/sync promise、用户可见配置语义或 Profile/文档/进度状态，需要 `ProfileRuntimeContractSyncGate` |
+| `behaviorSemanticDocsParity` | 是否改变行为语义、CLI/Hook/public API 语义、同义词承诺、comparison/scenario/README/index/search 文档，需要 `BehaviorSemanticDocsParityGate` |
+| `negativeTranslationParity` | 是否涉及否定/反义/支持与不支持类多语言表达，需要 `NegativeTranslationParityProbe` |
+| `docsExampleTruthSurface` | 是否新增或调整 README/website/quick start/示例中的 option/config/method，需要 `DocsExampleTruthSurfaceGate` |
+| `callbackExampleScope` | 是否存在 callback / hook / event / transaction / handler / ctx 示例，需要 `CallbackExampleScopeProbe` |
+| `derivedConsumerRuntime` | 是否有 metrics/info/logs/events/warnings/admin bridge/public types 等派生消费者，需要 `DerivedMetricConsumerProbe` |
+| `derivedConsumerFailureInjection` | 是否需要证明副通道失败不污染主结果，需要 `DerivedConsumerFailureInjectionProbe` |
+| `featureInventoryProfile` | 是否涉及公开包、SDK、CLI、多模块、文档站或 public API 功能清单，需要 `FeatureInventoryProfileGate` |
+| `profileTierValidation` | 是否涉及 Profile 三档标准、Profile 必需文件、生命周期分类或 `ProfileTierStandardGate` / `ProfileLifecycleClassificationGate` |
+| `allDevCodexProfileValidation` | 是否需要校验 `.devcodex` 下所有项目 Profile，执行 `AllDevCodexProfileValidationGate` |
+| `featureChecklistEvidenceMatrix` | 是否需要 capability group × evidence surface 矩阵，需要 `FeatureChecklistEvidenceMatrixGate` |
+| `batchEvidenceLedgerState` | 是否为多批次、矩阵验证、长链路吸纳或复审，需要 `BatchEvidenceLedgerStateGate` |
+| `batchProgressCard` | 是否需要最终进度卡同步总范围、已完成、当前批、下一步、剩余项和证据链接，需要 `BatchProgressCardGate` |
 
 ## 路由矩阵
 
@@ -95,6 +110,7 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 | 产品需求整理 / 产品完整需求 / 需求迁移 / 需求变更 | ProductRequirementTraceabilityGate：先记录入口类型；无产品角色的纯新需求记录 `00-需求概况.md` / PRD / Word / 原型 / 截图 / 消息锚点、`01-需求确认.md` 的 AI 提取口径、产品补充口径、冲突/遗漏处理、双方确认状态和技术验证映射；有产品角色直接提供完整需求时记录 `01-产品需求.md`、产品原文锚点、AI / 研发缺口 / 冲突检查、澄清状态和技术验证映射，缺口检查记录在 CP1 摘要、`02-技术方案.md` 或报告中，不写入产品模板正文，也不生成或重写产品需求；需求变更记录 `00-需求变更概况.md`、原需求基线、变更前后差异、`01-需求变更确认.md`、目标需求真相源回写和技术验证映射；Bug 问题记录 `00-问题概况.md` / `01-问题确认.md` 并走 fix | 不得把 AI 摘要当唯一真相源；不得混写需求方输入、产品完整需求、需求变更和产品确认；不得把 Bug 当产品需求；需求方和产品不填写验收标准，验证映射由技术方案 / 测试方案派生 |
 | CP 确认后复审 / 开发偏移 | `PostConfirmationReviewScopeGate`、`DevelopmentDriftGate`：按风险判定轻量或全面复审；全面复审使用 review-checklist 文件、PR-2~PR-7、状态新鲜度；进入编码前核对 allowedFirstBatch、blockedScope、driftTriggers、validationRoute、consumerSync 和 dirty boundary | 低风险降级必须写 `skipReason`；触达 blockedScope 或改变验证路线时回 CP2/CP3 |
 | 本机 / 跨环境执行配置 | LocalExecutionConfigProbe：核对项目指定配置入口、Profile `config.local.json` 模型或既有脚本约定；未指定时遵循 S02 | 不得为了安全感臆造 env/secret/config.local |
+| Profile 三档 / 全工作区 Profile 校验 | ProfileTierStandardGate / ProfileLifecycleClassificationGate / AllDevCodexProfileValidationGate：涉及 Profile 标准、workspace-namespace、规范维护项目或用户要求校验 `.devcodex` 所有项目时，执行 `node scripts/test-validate-profile.js` 与 `node scripts/validate-all-profiles.js --workspace <workspace-root>`；警告和错误分开记录 | 兼容历史项目时可允许 warning，但 release / 规范发布前需说明是否使用 `--strict-warnings` |
 | 人工证据留存 / 真实联调 | ManualReviewEvidenceDataRetention：记录证据保存位置、可复核输入、样本范围、保留策略和不可保留原因 | 证据不能进入仓库时写明外部位置或不可保留理由 |
 | 指定范围防扩散 | AdjacentScopeExpansionGuard：核对用户指定模块/目录/adapter/provider 与相邻范围修改理由 | 无共同契约、共享缺陷或验证必需时不得扩相邻范围 |
 | 包名 / 发布名 / 安装说明 | PackageNameAuthorityGate：核对 `package.json`、`plugin.json`、registry/包管理器证据、bin/exports/scope | 禁止凭历史记忆或目录名判断包名 |
@@ -104,6 +120,7 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 | data 吸纳 / 最新问题扫描 | WorkspaceDataAbsorptionScopeGate：扫描 `.devcodex/*/data/` 全命名空间，列出命中台账、候选编号、归属和跳过理由；命中后读取 `spec-absorption` | 不得只扫当前源码项目、当前 active-root 或 sticky activeProject |
 | 规范吸纳执行 | `spec-absorption`：执行 `CommonNormGeneralizationGate` 与 `AbsorptionCandidateConsumerProofGate` | 必须证明通用规范价值、DevCodex 当前消费者和 targetOwner；项目独有规则写 `project-local / case-evidence-only`，不得吸纳到通用规范 |
 | 规范吸纳架构归属 | LayeredAbsorptionGate + SkillFirstAbsorptionGate / CapabilityToSkillPromotionGate：每条可泛化 PI/PF/GAP/ISSUE 先输出 LayeredAbsorptionDecision（兼容 SkillAbsorptionDecision） | 判定 `global-invariant` / `existing-skill-subgate` / `new-skill-required` / `docs-only`；逐层覆盖 `commonInstruction / skill / promptTemplate / executionConsumer / validationProbe / publicDocs / deployCopy`；成组能力不得只追加到通用 guard |
+| A1~A10 最新吸纳执行包 | LatestAbsorptionExecutionPack：`ConfigCanonicalNamespaceGate`、`ProfileRuntimeContractSyncGate`、`BehaviorSemanticDocsParityGate`、`NegativeTranslationParityProbe`、`DocsExampleTruthSurfaceGate`、`CallbackExampleScopeProbe`、`DerivedMetricConsumerProbe`、`DerivedConsumerFailureInjectionProbe`、`FeatureInventoryProfileGate`、`FeatureChecklistEvidenceMatrixGate`、`BatchEvidenceLedgerStateGate`、`BatchProgressCardGate` | 按 `GovernanceGateRegistry` 分组写 ownerSkill、validationRoute、skipReason；至少覆盖 canonical namespace / ProfileImpactCheck、public types/runtime/generated search、失败注入、feature inventory、EvidenceLedger 和 Progress Card；未触发项写 `N/A + skipReason` |
 | 历史通用规范分层迁移 | HistoricalCommonNormLayeringGate：迁移旧通用长清单、prompt/report 重复清单或历史吸纳项 | 先冻结逐文件审查矩阵；TestRoute 覆盖 targeted tests、`node scripts/validate.js`、publicDocs、deployCopy、ProfileImpactCheck；无法立即迁移的历史规则标 `legacy-index-retained` |
 | 主动更优建议 | ProactiveBetterAlternativeGate：用户建议、方案确认、规范吸纳或复审冻结前主动比较更优路径 | 若有更低风险、更完整、更易维护或更易验证方案，先提出取舍再确认；采纳用户原方案时记录依据 |
 | 完整吸纳补强 | ConfirmedAbsorptionCompletenessGates：用户确认未完整吸纳、半覆盖或缺探针时 | 按 Gate 分流验证：`PublicSurfaceClosureGate` 查 pack/README/public types/search；`UserManualRenderedFlowAndRealWorkflowProbe` 查 Mermaid 真实渲染和真实 workflow；`FrontendAsyncCacheRenderGate` / `StaleWhileRevalidateGate` 查旧缓存先渲染和异步刷新；`RemoteCIParityPushGate` 查远端 CI 同构门禁；`EvolutionCapabilityControlPlaneGate` 查候选态、授权、模型配置、配额、数据边界、审计、回滚和发布审批 |
@@ -205,6 +222,14 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 | functionSourceFingerprint | N/A / required / optional；若 required，写 source/hash/toString/fingerprint 用途、false-positive/false-negative 样本和闭包/默认参数/global shadow 覆盖 |
 | clusterEscalation | N/A / required / optional；若 required，写 clusterId、触发计数、冻结矩阵、替换策略、停止条件和 rerunEvidence |
 | riskBasedValidationLadder | N/A / targeted / related-suite / full-gate；写当前层级、升级触发、未跑 full gate 的 skipReason 或发布前 full gate 证据 |
+| latestAbsorptionExecutionPack | N/A / required / optional；若 required，写 A1~A10 命中项、ownerSkill、validationRoute、skipReason、V82/targeted test 证据 |
+| configCanonicalNamespace | N/A / required / optional；若 required，写 canonical namespace、legacy alias、顶层配置例外、迁移/兼容窗口和文档主路径 |
+| profileRuntimeContractSync | N/A / required / optional；若 required，写 ProfileImpactCheck、runtime contract、默认行为、README/website/Profile/进度同步证据 |
+| behaviorSemanticDocsParity | N/A / required / optional；若 required，写同义/反义承诺矩阵、README/website/API/comparison/scenario/index/search 反查和代码真相源 |
+| docsExampleTruthSurface | N/A / required / optional；若 required，写 option/config/method 示例对应 public types、runtime wiring、最小执行探针或 skipReason |
+| derivedConsumerRuntime | N/A / required / optional；若 required，写 metrics/info/logs/events/warnings/admin bridge/public types 消费者和失败注入隔离证据 |
+| featureInventoryProfile | N/A / required / optional；若 required，写 feature inventory、capability group、Profile/README/website/public API/复审清单同步 |
+| batchEvidenceLedgerState | N/A / required / optional；若 required，写 EvidenceLedger baseline、actualSources、commands、status、finding/skipReason、Progress Card |
 | postConfirmationReviewScope | N/A / light / full；写触发依据、review-checklist 路径或 skipReason、PR-2~PR-7 证据 |
 | developmentDrift | N/A / required；写 allowedFirstBatch、blockedScope、driftTriggers、validationRoute、consumerSync、dirty boundary |
 | verificationPlanMaterialization | N/A / required；写验证计划章节、命令/矩阵、验收标准和退出条件 |

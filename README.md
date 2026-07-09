@@ -49,6 +49,7 @@ DevCodex 通过 `.github/`（Copilot）、`CLAUDE.md + .claude/ + .mcp.json`（C
 - **实施偏移与文档 IA 守门**: `DevelopmentDriftGate` 在编码前和实施中核对 `allowedFirstBatch / blockedScope / driftTriggers / validationRoute`；`VerificationPlanMaterializationProbe` 要求技术方案物化验证计划、验收标准和退出条件；`ChinesePrimaryExpressionGate`、`SidebarPageRoleMaterializationProbe` 与 `SidebarGroupSemanticModelProbe` 要求用户文档中文主表达、页面角色和 sidebar 分组语义可验证
 - **自我进化治理能力**: `evolution-governance` 负责自我进化、自动吸纳、模型辅助规范优化、自动补 Skill / Prompt / Probe 和自动治理候选的控制面，执行 `EvolutionCapabilityControlPlaneGate`，冻结授权、模型配置、租户 / 权限、配额、数据边界、审计、回滚和发布审批；模型输出只能进入候选态，不能直接写 active 规范或发版
 - **Profile 新鲜度审查**: audit 会先执行 `Profile Freshness Check`，反向核对 Profile 是否仍匹配当前包版本、目录资产、脚本、发布状态、宿主能力和任务现实
+- **Profile 三档闭环校验**: Profile 按 `profile-lite` / `profile-standard` / `profile-closed-loop` 三档维护，执行 `ProfileTierStandardGate` 与 `ProfileLifecycleClassificationGate` 区分稳定基线、活文档和条件 / 本地文档；规范维护、SDK/CLI、文档站、public API 或用户要求全工作区校验时执行 `AllDevCodexProfileValidationGate`，通过 `node scripts/validate-all-profiles.js --workspace <workspace-root>` 扫描 `.devcodex/workspace/profile` 与 `.devcodex/<project>/profile`
 - **项目工程泄漏审查**: 项目工程 / 代码质量审查执行 `PE-12 资源生命周期与泄漏风险`，必须检查内存泄露、资源泄漏、监听器/定时器/连接/流未释放、缓存无界增长和组件卸载清理缺失
 - **泄漏风险稳定性压测**: 写测试用例或回归验证时先执行 `LeakRiskStabilityPressureTest` 条件判定；命中长运行、高并发、缓存/连接/监听器/定时器/流/socket/worker/订阅/组件生命周期或 `PE-12` 风险时，TestRoute 纳入场景/负载/稳定性压测并记录基线、冷却后回落和资源指标前后对比；低风险任务写 `N/A + skipReason`
 - **coverage 与外部 runtime 生命周期验证**: 项目存在 coverage 阈值、CI coverage 或发布覆盖率要求时执行 `CoverageGateDecision`，区分断言通过与覆盖率门禁通过；外部 runtime/plugin/registry/adapter/provider、injected runtime、owner mutation 或 function source fingerprint 风险执行 `ExternalRuntimePluginLifecycleGate`、`ExternalRegistryLifecycleMatrixGate`、`FunctionSourceFingerprintMatrixGate`、`ClusterEscalationGate` 与 `RiskBasedValidationLadder`
@@ -56,6 +57,7 @@ DevCodex 通过 `.github/`（Copilot）、`CLAUDE.md + .claude/ + .mcp.json`（C
 - **复审覆盖增量与维度增量**: audit / review / ECR 的连续零发现必须附 `ReviewCoverageDelta`（覆盖面增量）与 `ReviewDimensionDeltaGate`（维度焦点增量），优先阅读此前未审查但相关联的代码、配置、测试、文档、部署副本和消费者链，并避免每轮机械重复同一组维度；无新增覆盖、无新增维度焦点且无证据化理由时，不计入有效零发现
 - **规范治理 Intake**: 所有模式下每条用户消息在合理性评估后都会额外检查是否命中可泛化改进；命中时主动写入 `data/process-improvements.md`（优化清单，PI），必要时联动 `data/pending-fixes.md`（PF），并显式回执 `PI/PF`
 - **规范吸纳执行能力**: `spec-absorption` 负责最新可吸纳、仍需吸纳和 `.devcodex/*/data` 候选扫描，先执行 `CommonNormGeneralizationGate` 与 `AbsorptionCandidateConsumerProofGate`，证明通用规范价值、剔除项目独有残留、绑定 DevCodex 当前消费者和 targetOwner，再进入分层实现与验证；`ServiceSpecReadGate` 等项目私有规则只作负向样例，不吸纳为通用规范
+- **最新吸纳执行包 A1~A10**: 最新可吸纳清单确认实施时，`LatestAbsorptionExecutionPack` 按 `GovernanceGateRegistry` 分组同步配置 canonical namespace、Profile/runtime contract、行为语义与负向翻译、示例与 callback 真相面、派生消费者与失败注入、FeatureInventoryProfileGate / FeatureChecklistEvidenceMatrixGate、BatchEvidenceLedgerStateGate / BatchProgressCardGate，并用 V82 探针核对 Skill、Prompt、TestRoute、report、README/website/changelog、Profile、部署副本和来源台账回写
 - **分层吸纳架构（兼容 Skill-first 吸纳架构）**: 规范吸纳、data 台账治理、用户确认可泛化建议或新增门禁时，先执行 `LayeredAbsorptionGate`，并兼容 `SkillFirstAbsorptionGate` / `CapabilityToSkillPromotionGate`；输出 `LayeredAbsorptionDecision`（含 `SkillAbsorptionDecision`），逐层覆盖通用指令、Skill、prompts/templates、执行消费者、validate/test 探针、README/website/changelog 和部署副本。采纳用户建议前同步执行 `ProactiveBetterAlternativeGate`，有更优方案必须先提出取舍；采纳用户纠正时执行 `AcceptedSuggestionRootCauseGate`，报告 whyMissed、采纳依据、台账编号和防复发动作
 - **历史通用规范分层迁移**: 迁移此前已堆入通用 instructions、prompt、report 模板或 README 的规范时执行 `HistoricalCommonNormLayeringGate`，先冻结逐文件审查矩阵，再按 `targetLayer / targetOwner / semanticStrength / validation / skipReason` 下沉到 Skill、Prompt、执行消费者、V74/V75 validate 探针、公开文档和部署副本；`PromptLongGateListDriftProbe` 会用 SCV 负向样例防止旧 Gate 长清单回流，当前 README、website 和 prompts 只写 `GovernanceGateRegistry` 分组与代表锚点；无法立即下沉的旧规则只保留为 `legacy-index-retained`，不再作为新增长清单容器
 - **完整吸纳补强门禁**: 用户确认“未完整吸纳 / 半覆盖 / 仍需吸纳”时执行 `ConfirmedAbsorptionCompletenessGates`，按 `public-surface / user-manual / review-checklist / frontend-runtime / profile-service / release-parity / evolution-control-plane` 分组补齐 Skill、Prompt、执行消费者、探针、公开文档和部署副本；代表锚点包括 `PublicSurfaceClosureGate`、`UserManualProductizationGate`、`ReviewAnchorMaterializationGate`、`FrontendAsyncCacheRenderGate`、`RemoteCIParityPushGate`、`NativeCommandExitCodeGate` 与 `DocsThemeRuntimeVisualProbeGate`
@@ -396,6 +398,7 @@ DevCodex Hook runtime 不再把所有拦截都等同为“停止”。拦截会�
 2. **Profile 没加载或 workspace-namespace 路径不对**
    - 先运行 `devcodex doctor`
    - 再用 `devcodex help` 查看 `profile init` 和 `migrate-layout` 子命令，核对 `.devcodex/workspace/profile/` 与项目命名空间路径
+   - 维护 DevCodex 源仓或 workspace-namespace 时，运行 `node scripts/validate-all-profiles.js --workspace <workspace-root>` 校验所有 Profile；发布前需要严格处理 warning 时追加 `--strict-warnings`
 3. **Codex / Copilot 想用 MCP**
    - 先确认宿主本身是否支持本地 MCP
    - DevCodex 当前只会自动写 Claude Code 的 `.mcp.json`；Codex / Copilot 需要手工配置

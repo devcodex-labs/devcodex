@@ -11,8 +11,25 @@ description: Profile 自动生成 — 扫描 package.json / CHANGELOG.md / 顶�
 - 不触发：`devcodex init` / `devcodex init --claude` 完成后仅 **提示** "下一步运行 devcodex profile init"，不自动生成（避免覆盖用户已有 Profile）
 - workspace-namespace：当 `<workspace>/.devcodex/layout.json` 启用后，在工作区根执行 `devcodex profile init` 应治理 `.devcodex/workspace/profile/`；在明确项目上下文执行时治理 `.devcodex/<project>/profile/`。运行时多项目 warning 必须提示 `.devcodex/workspace/profile/`，不得继续指向 legacy `.devcodex/profile/`。
 - Profile 初稿或复审必须考虑 `ProfileReadChainGate` / `ServiceNormCoverageGate`：记录 workspace base、project overlay、config.local overlay、fallback、全部服务集合、docs 自维护链、导航、版本、构建、报告和记忆消费者；从单服务抽公共 Profile 规则时执行 `StrongestProfileSourceGate` / `ServiceSpecificResidueSweep`。
+- 公开包、SDK、CLI、多模块、文档站、public API 或 runtime 配置明显的项目，Profile 初稿/复审必须考虑 `FeatureInventoryProfileGate`：生成或标注 feature inventory 的来源、能力组、公开面、配置入口、文档入口、验证路线和维护责任；缺少时写待人工确认，而不是把临时复审清单当稳定 Profile。
+- 执行 `ProfileTierStandardGate` / `ProfileLifecycleClassificationGate`：`devcodex profile init` 默认只生成 `profile-lite` 的最小稳定基线；当项目存在稳定测试/发布要求、公开包、SDK、CLI、文档站、public API、多模块或规范维护职责时，提示升级为 `profile-standard` 或 `profile-closed-loop`，并列出缺失文件。
+- 执行 `AllDevCodexProfileValidationGate`：workspace-namespace、规范维护项目或用户要求全项目校验时，生成/复审后运行 `node scripts/validate-all-profiles.js --workspace <workspace-root>` 或记录不可执行原因。
 
-## 产出三件套
+## 三档生成策略
+
+| 档位 | Bootstrap 行为 | 后续补齐 |
+|------|----------------|----------|
+| `profile-lite` | 默认生成 `README.md`、`01-项目信息.md`、`02-架构约束.md`、`03-代码风格.md`、`config.json` | 人工复核后定稿 |
+| `profile-standard` | 不自动臆造测试/发布事实；提示补 `04-测试规范.md` 与 `05-交付发布规范.md` / `05-发布规范.md` | 由项目真实脚本、CI、发布流程和 FeatureInventoryProfileGate 来源补齐 |
+| `profile-closed-loop` | 不自动生成完整闭环正文；仅在规范维护、SDK/CLI/文档站/public API 等项目中建议升级 | 补 `06-功能清单.md`、`07-用户文档与契约规范.md`，必要时补条件 / 本地文档 |
+
+生命周期分类：
+
+- 稳定基线：项目事实变化才更新。
+- 活文档：功能、API/CLI/Hook、测试、发布、文档站、配置或用户文档变化时同步更新。
+- 条件 / 本地文档：命中本地连接、数据、服务、外部系统或 overlay 时维护；`conditional-required` 不作为项目档位。
+
+## 产出 profile-lite 初稿
 
 ### `01-项目信息.md`
 

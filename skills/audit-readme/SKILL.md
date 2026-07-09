@@ -42,6 +42,8 @@ description: README / 用户使用文档专项审查维度 RM-1~RM-6 — 聚焦�
 - 示例是否代表真实常见用法，而不是理想化伪代码
 - 示例命名、参数、返回值是否与当前实现一致
 - 示例是否帮助用户完成“第一次成功”
+- 是否执行 `DocsExampleTruthSurfaceGate`：README / quick start 中的 option、config、method、field、导入路径或 CLI 参数必须能在 public types、runtime wiring、配置 schema、导出入口或最小执行探针里找到证据
+- 是否执行 `CallbackExampleScopeProbe`：callback / hook / event / transaction / handler / ctx 示例的参数签名、ctx 字段、闭包变量、返回值和异常语义是否匹配当前实现
 - 性能表、语法/能力矩阵是否先给用户选择结论，再解释字段含义、支持形式、不支持形式和优先级示例
 - 参数、配置、模式、状态、错误码和限制是否逐项解释到“普通使用者能看懂并知道怎么选”
 - 队列、任务、异步或批处理类 README 是否执行 `QueueDocsRealWorkflowGate`：给出真实入队、执行、状态查询、失败重试、清理和常见失败恢复，而不是只展示单条硬编码样例
@@ -65,6 +67,8 @@ description: README / 用户使用文档专项审查维度 RM-1~RM-6 — 聚焦�
 - 版本号、命令、路径、配置项、能力声明是否同步
 - 是否出现“README 说能做，其他入口说法不同”的漂移
 - README 中“已支持 / 已接入 / 已验证 / 可运行”类声明是否有 `CodeTruthRequirementGate` 与 `LiveVerificationExecutionObligation` 证据
+- README、comparison、scenario、index 或 generated search 发生行为语义变化时，是否执行 `BehaviorSemanticDocsParityGate`，用同义/历史术语矩阵反查 public API、runtime wiring、文档索引和生成搜索
+- 多语言 README 或双语入口的支持/不支持、启用/禁用、同步/异步、缓存/刷新等负向语义是否执行 `NegativeTranslationParityProbe`
 - README 若存在翻译页或 website 双入口，是否执行 `DocumentationTranslationParityGuard` 并保持信息等价
 - README 是否遵守 `FormalDocsDevCodexBoundary`，没有混入运行时报告、台账、内部待办或一次性复盘口吻
 - README 是否执行 `DocsConsumerSweep`：新增命令、字段、配置、导航顺序或能力声明后，website、Profile、examples、templates、validate probes 和代码消费点是否同步

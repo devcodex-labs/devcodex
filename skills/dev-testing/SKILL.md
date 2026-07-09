@@ -27,6 +27,7 @@ description: 测试规范 — 单元测试/集成测试/API测试/E2E测试四�
 - 项目存在 coverage 脚本、阈值、CI coverage 或发布覆盖率要求时必须同步执行 `CoverageGateDecision`：区分测试断言通过、相关 suite 通过与覆盖率门禁通过，报告命令、工具、阈值、基线、当前值和阻断/降级依据。
 - 外部 runtime、plugin、registry、adapter、provider、injected runtime 或 owner mutation 路径变更时必须同步执行 `ExternalRuntimePluginLifecycleGate` / `ExternalRegistryLifecycleMatrixGate`；function source、hash、toString 或 fingerprint 参与 key/checkpoint/去重时执行 `FunctionSourceFingerprintMatrixGate`。
 - 同一风险簇连续出现 ≥3 个 finding、返修或复审遗漏时必须触发 `ClusterEscalationGate` 与 `RiskBasedValidationLadder`，先冻结风险模型和测试矩阵，再按 targeted、related suite、full gate 分层验证。
+- 默认行为、控制流、能力触发、metrics/info/logs/events/warnings/admin bridge/public types 或副通道失败策略变化时必须判定 `DerivedMetricConsumerProbe` / `DerivedConsumerFailureInjectionProbe`：测试应覆盖派生消费者、失败注入、主结果隔离和 warn / ignore / propagate 语义；未命中时记录 `N/A + skipReason`。
 - 人工复核、视觉检查、手工冒烟、外部页面观察或无法自动化验证必须执行 `ManualReviewEvidenceRetention`，记录复核人/时间/范围/输入/观察结果/截图或日志位置。
 - 测试来源于产品需求整理、真实联调、本机/跨环境配置、包名/发布名、性能第一、公开模块承诺、兼容契约、集合关系命名或用户可见验证产物时，必须同步判定 `ProductRequirementTraceabilityGate`、`LocalExecutionConfigProbe`、`ManualReviewEvidenceDataRetention`、`PackageNameAuthorityGate`、`PerformanceBenchmarkFirstGate`、`PublicModuleDifferentiationGate`、`CompatibilityAndContractAuthorityGate`、`CollectionRelationIdNamingGate` 与 `UserFacingVerificationArtifactLanguageGate`；未命中时记录 `N/A + skipReason`。
 
@@ -110,6 +111,18 @@ description: 测试规范 — 单元测试/集成测试/API测试/E2E测试四�
 `FunctionSourceFingerprintMatrixGate` 适用于 function source、hash、toString 或 fingerprint 参与 cache key、registry key、checkpoint、幂等或去重。必须覆盖 false-positive 与 false-negative 风险：同源码不同函数对象、同源码不同闭包/默认参数、稳定 global 与 shadowed global、解构、模板字面量、嵌套作用域、class/private/method key 等代表性类别；项目不使用函数源码指纹时写 `N/A + skipReason`。
 
 `ClusterEscalationGate` 触发后不得继续只补单个 case。报告先写明 `whyMissed`、原风险模型缺口、冻结后的矩阵、替换策略、停止条件和 rerunEvidence，再继续迭代。
+
+## 派生消费者与失败注入验证（条件）
+
+`DerivedMetricConsumerProbe` / `DerivedConsumerFailureInjectionProbe` 适用于默认行为、控制流、能力触发、统计、日志、事件、warning、admin bridge、public types 或副通道输出变化。最小矩阵：
+
+| 判定项 | 触发条件 | 验证要求 |
+|--------|----------|----------|
+| 派生消费者 | metrics、info、logs、events、warnings、admin bridge、public types、debug output 或 docs-generated index 消费主流程状态 | 逐项确认消费者输入来源、字段语义、默认值和变更后输出 |
+| 失败注入 | 统计写入失败、日志/事件分发失败、warning sink 失败、admin bridge 不可用或 public type 映射缺失 | 证明主结果仍按设计返回，副通道策略为 warn / ignore / propagate 之一 |
+| 主结果隔离 | 副通道失败不应污染业务结果、状态码、事务提交、cache refresh 或用户可见路径 | 记录失败注入命令、fixture、断言和残余风险 |
+
+低风险纯文档、无派生消费者或只改静态说明时写 `N/A + skipReason`。
 
 ## 四类测试规范
 

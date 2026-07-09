@@ -1,6 +1,6 @@
 {
   "name": "@vextjs/devcodex",
-  "version": "1.11.30",
+  "version": "1.11.31",
   "description": "DevCodex — AI-powered development workflow rules for Copilot, Claude Code and Codex",
   "main": "index.js",
   "bin": {
@@ -20,6 +20,7 @@
     "test:version": "node scripts/validate-versions.js",
     "test:pack-clean": "node scripts/test-pack-clean.js",
     "test:profile-governance": "node scripts/test-validate-profile.js",
+    "test:profile-all": "node scripts/validate-all-profiles.js",
     "test:readme-governance": "node scripts/test-readme-governance.js",
     "test:requirement-artifacts": "node scripts/test-requirement-artifacts.js",
     "test:release-metadata": "node scripts/test-release-metadata.js",
@@ -71,6 +72,7 @@
     "mcp/",
     "scripts/migrate-layout.js",
     "scripts/instruction-fallback-check.js",
+    "scripts/validate-all-profiles.js",
     "scripts/lib/cli-host-utils.js",
     "scripts/lib/cli-runtime-utils.js",
     "scripts/lib/profile-bootstrap-utils.js",

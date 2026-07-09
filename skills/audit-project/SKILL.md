@@ -52,6 +52,7 @@ description: 项目工程审查维度 PE-1~PE-12 — 代码质量/项目结构/�
 - 外部 runtime、plugin、registry、adapter、provider、injected runtime 或 owner mutation 变更，检查 `ExternalRuntimePluginLifecycleGate` / `ExternalRegistryLifecycleMatrixGate` 是否覆盖 config 组合、生命周期转换、多实例共享、集合代数、批量部分成功和 reset/replace/dispose/clear
 - function source、hash、toString 或 fingerprint 参与 cache key、registry key、checkpoint、幂等或去重时，检查 `FunctionSourceFingerprintMatrixGate` 是否覆盖 false-positive / false-negative 样本和闭包、默认参数、global shadow、嵌套作用域等代表类别
 - 同一风险簇连续出现 ≥3 个 finding、返修或复审遗漏时，检查 `ClusterEscalationGate` / `RiskBasedValidationLadder` 是否先冻结风险模型、矩阵、替换策略和停止条件，再按 targeted / related suite / full gate 分层验证
+- 默认行为、控制流、能力触发、warning / logs / events / metrics / info 输出、admin bridge 或 public types 变化时，检查 `DerivedMetricConsumerProbe` 是否覆盖派生消费者；副通道失败、统计写入失败、日志事件失败或 admin bridge 失败时，检查 `DerivedConsumerFailureInjectionProbe` 是否证明 warn/ignore/propagate 策略不会污染主结果
 
 **PE-7 依赖健康度 🟡**
 - Node.js 项目默认 `engines.node`、CI matrix、Profile 与 README 不低于 `>=18`；低于 v18 有业务理由、风险和验证证据
@@ -98,6 +99,7 @@ description: 项目工程审查维度 PE-1~PE-12 — 代码质量/项目结构/�
 - legacy / compat / route / reference-code 审查需检查 `SemanticLegacyRouteExposureGate`、`ReferenceCodeTruthSamplingGate` 与 `RouteNamespaceResponsibilityGate`：不只看 label，还要检查 slug、href、title、sidebar、search、generated HTML；行为断言抽样核代码、类型或运行时证据，并区分服务名和历史路由命名空间职责
 - 首页、详情、列表、搜索或接口数据返回空白风险需检查 `FrontendAsyncCacheRenderGate` / `StaleWhileRevalidateGate`：旧缓存先渲染并异步刷新替换，不得 loading-only、空白或同步阻塞取数；涉及数据库 / 队列 / 缓存真实数据源时追加 `AsyncDbTruthSourceVerificationGate`
 - 给同事、跨机器或对外分享的报告、脚本、文档或验证产物需检查 `PortableExternalArtifactGate`：不得写死本机绝对路径、私有 `.devcodex` 路径或个人工作区前提
+- 默认行为、控制流、能力触发或 public runtime 变化需检查 `DerivedMetricConsumerProbe` / `DerivedConsumerFailureInjectionProbe`：覆盖 metrics/info/logs/events/warnings/admin bridge/public types 消费者和失败注入隔离，明确 warn / ignore / propagate 口径
 
 ## N/A 规则
 

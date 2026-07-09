@@ -174,8 +174,13 @@ description: 规范治理生命周期 — 意图驱动记录、RecordRouter 分�
 | `profile-service` | `load-profile` + `profile-bootstrap` | Profile 链路、服务集合、公共规范抽取或服务残留 | 读取链、最强 Profile、服务残留清扫、覆盖矩阵 |
 | `public-surface` | `release-verification` + `audit-release` | package、README、website、public types、examples、搜索索引变化 | npm pack 历史公开内容、隐藏链接、public API、search/sidebar 反查 |
 | `evolution-control-plane` | `evolution-governance` | 自我进化、自动吸纳、模型辅助规范优化或自动发版候选 | 候选态、授权、模型配置、权限/配额、审计、回滚和审批 |
+| `docs-semantics-examples` | `dev-docs` + `audit-document` + `audit-readme` + `user-manual-authoring` | 行为语义、翻译、示例、quick start、callback / hook / event 文档与代码真相源可能漂移 | `BehaviorSemanticDocsParityGate`、`NegativeTranslationParityProbe`、`DocsExampleTruthSurfaceGate`、`CallbackExampleScopeProbe`、public types / runtime / generated search 证据 |
+| `derived-consumer-runtime` | `audit-project` + `dev-testing` + `test-router` | 默认行为、控制流、能力触发或副通道输出影响派生消费者 | `DerivedMetricConsumerProbe`、`DerivedConsumerFailureInjectionProbe`、metrics/info/logs/events/warnings/admin bridge/public types 和失败注入隔离证据 |
+| `feature-inventory-batch-evidence` | `profile-bootstrap` + `load-profile` + `review-checklist` + `report` | 公开功能清单、Profile inventory、需求维度、批次验证或 EvidenceLedger 需要一致 | `FeatureInventoryProfileGate`、`FeatureChecklistEvidenceMatrixGate`、`BatchEvidenceLedgerStateGate`、`BatchProgressCardGate`、feature × evidence matrix 与 Progress Card |
 
 新增 Gate 时必须先登记或复用 gateGroup，再同步 owner Skill、prompt/report 字段、TestRoute、validate 探针、README/website/changelog 和部署副本。无法归入现有 gateGroup 时，优先判断是否应新增独立 Skill，而不是把正文追加到通用长清单。
+
+A1~A10 最新吸纳执行包默认复用上述 `docs-semantics-examples`、`derived-consumer-runtime`、`feature-inventory-batch-evidence`、`profile-service` 与 `absorption-layering` 分组；报告只写分组、ownerSkill、validationRoute 和代表锚点，不复制完整长清单。
 
 ### ProactiveBetterAlternativeGate
 

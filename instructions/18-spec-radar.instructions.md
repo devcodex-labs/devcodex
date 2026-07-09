@@ -2,7 +2,7 @@
 applyTo: "**"
 description: PC4 规范雷达规则，覆盖规范缺口感知、三轴诊断与治理前置信号
 priority: P4
-version: 1.11.30
+version: 1.11.31
 ---
 # 规范雷达（18-spec-radar）
 

@@ -9,6 +9,7 @@ const { spawnSync } = require('child_process')
 
 const ROOT = path.resolve(__dirname, '..')
 const SCRIPT = path.join(ROOT, 'scripts', 'validate-profile.js')
+const ALL_SCRIPT = path.join(ROOT, 'scripts', 'validate-all-profiles.js')
 const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
 const VERSION = pkg.version
 const PACKAGE_NAME = pkg.name
@@ -25,7 +26,7 @@ function createWorkspace(projectInfo) {
     TEMP_ROOTS.push(root)
 
     writeFile(root, 'package.json', JSON.stringify({ name: PACKAGE_NAME }, null, 2))
-    writeFile(root, '.devcodex/profile/README.md', '# README\n\n- `config.local.json`：本地私有 overlay。\n- `extensions.<namespace>`：扩展位需在 Profile 中说明。\n')
+    writeFile(root, '.devcodex/profile/README.md', '# README\n\n- Profile 档位：profile-lite。\n- `config.local.json`：本地私有 overlay。\n- `extensions.<namespace>`：扩展位需在 Profile 中说明。\n')
     writeFile(root, '.devcodex/profile/02-架构约束.md', '# 02\n')
     writeFile(root, '.devcodex/profile/03-代码风格.md', '# 03\n')
     writeFile(root, '.devcodex/profile/config.json', JSON.stringify({
@@ -45,13 +46,27 @@ function runValidate(workspaceRoot) {
     })
 }
 
+function runValidateWithArgs(workspaceRoot, extraArgs) {
+    return spawnSync(process.execPath, [SCRIPT].concat(extraArgs), {
+        cwd: workspaceRoot,
+        encoding: 'utf8'
+    })
+}
+
+function runValidateAll(workspaceRoot) {
+    return spawnSync(process.execPath, [ALL_SCRIPT, '--workspace', workspaceRoot], {
+        cwd: workspaceRoot,
+        encoding: 'utf8'
+    })
+}
+
 function createWorkspaceNamespaceWorkspace(projectInfo) {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-validate-profile-ws-'))
     TEMP_ROOTS.push(root)
 
     writeFile(root, 'package.json', JSON.stringify({ name: PACKAGE_NAME }, null, 2))
     writeFile(root, '.devcodex/layout.json', JSON.stringify({ version: 1, mode: 'workspace-namespace' }, null, 2))
-    writeFile(root, '.devcodex/workspace/profile/README.md', '# README\n')
+    writeFile(root, '.devcodex/workspace/profile/README.md', '# README\n\n- Profile 档位：profile-lite。\n')
     writeFile(root, '.devcodex/workspace/profile/02-架构约束.md', '# 02\n')
     writeFile(root, '.devcodex/workspace/profile/03-代码风格.md', '# 03\n')
     writeFile(root, '.devcodex/workspace/profile/config.json', JSON.stringify({
@@ -233,6 +248,55 @@ function main() {
 
         assert.strictEqual(currentResult.status, 0, currentOutput)
 
+        const standardRoot = createWorkspace(currentProjectInfo())
+        writeFile(standardRoot, '.devcodex/profile/README.md', [
+            '# README',
+            '',
+            '- Profile 档位：profile-standard。',
+            '- FeatureInventoryProfileGate 来源：`01-项目信息.md` 中的功能清单摘要。',
+            '- `config.local.json`：本地私有 overlay。',
+            '- `extensions.<namespace>`：扩展位需在 Profile 中说明。'
+        ].join('\n'))
+        writeFile(standardRoot, '.devcodex/profile/04-测试规范.md', '# 04 — 测试规范\n')
+        writeFile(standardRoot, '.devcodex/profile/05-发布规范.md', '# 05 — 发布规范\n')
+        const standardResult = runValidate(standardRoot)
+        const standardOutput = `${standardResult.stdout}\n${standardResult.stderr}`
+
+        assert.strictEqual(standardResult.status, 0, standardOutput)
+
+        const closedLoopMissingRoot = createWorkspace(currentProjectInfo())
+        writeFile(closedLoopMissingRoot, '.devcodex/profile/README.md', [
+            '# README',
+            '',
+            '- Profile 档位：profile-closed-loop。',
+            '- 生命周期：stable baseline / living document / conditional-required local docs。',
+            '- FeatureInventoryProfileGate 来源：待补 `06-功能清单.md`。'
+        ].join('\n'))
+        writeFile(closedLoopMissingRoot, '.devcodex/profile/04-测试规范.md', '# 04 — 测试规范\n')
+        writeFile(closedLoopMissingRoot, '.devcodex/profile/05-交付发布规范.md', '# 05 — 交付发布规范\n')
+        const closedLoopMissingResult = runValidate(closedLoopMissingRoot)
+        const closedLoopMissingOutput = `${closedLoopMissingResult.stdout}\n${closedLoopMissingResult.stderr}`
+
+        assert.strictEqual(closedLoopMissingResult.status, 1, closedLoopMissingOutput)
+        assert.match(closedLoopMissingOutput, /profile-closed-loop requires 06-功能清单\.md/)
+        assert.match(closedLoopMissingOutput, /profile-closed-loop requires 07-用户文档与契约规范\.md/)
+
+        const closedLoopRoot = createWorkspace(currentProjectInfo())
+        writeFile(closedLoopRoot, '.devcodex/profile/README.md', [
+            '# README',
+            '',
+            '- Profile 档位：profile-closed-loop。',
+            '- 生命周期：stable baseline / living document / conditional-required local docs。'
+        ].join('\n'))
+        writeFile(closedLoopRoot, '.devcodex/profile/04-测试规范.md', '# 04 — 测试规范\n')
+        writeFile(closedLoopRoot, '.devcodex/profile/05-交付发布规范.md', '# 05 — 交付发布规范\n')
+        writeFile(closedLoopRoot, '.devcodex/profile/06-功能清单.md', '# 06 — 功能清单\n\n- CLI\n- Hooks\n')
+        writeFile(closedLoopRoot, '.devcodex/profile/07-用户文档与契约规范.md', '# 07 — 用户文档与契约规范\n')
+        const closedLoopResult = runValidate(closedLoopRoot)
+        const closedLoopOutput = `${closedLoopResult.stdout}\n${closedLoopResult.stderr}`
+
+        assert.strictEqual(closedLoopResult.status, 0, closedLoopOutput)
+
         const validAutoAliasRoot = createWorkspace(currentProjectInfo())
         writeFile(validAutoAliasRoot, '.devcodex/profile/config.json', JSON.stringify({
             mode: 'dev',
@@ -395,6 +459,31 @@ function main() {
         assert.strictEqual(workspaceResult.status, 0, workspaceOutput)
         assert.doesNotMatch(workspaceOutput, /no \.devcodex\/profile\//)
         assert.doesNotMatch(workspaceOutput, /no profile dir at .*chat[\\/]?.*\.devcodex[\\/]profile/)
+
+        const explicitFallbackRoot = createWorkspaceNamespaceWorkspace(currentProjectInfo())
+        const chatProfileDir = path.join(explicitFallbackRoot, '.devcodex', 'chat', 'profile')
+        writeFile(explicitFallbackRoot, '.devcodex/chat/profile/01-项目信息.md', currentProjectInfo())
+        const explicitFallbackResult = runValidateWithArgs(
+            path.join(explicitFallbackRoot, 'chat'),
+            [
+                '--profile-dir',
+                chatProfileDir,
+                '--workspace-profile',
+                path.join(explicitFallbackRoot, '.devcodex', 'workspace', 'profile')
+            ]
+        )
+        const explicitFallbackOutput = `${explicitFallbackResult.stdout}\n${explicitFallbackResult.stderr}`
+
+        assert.strictEqual(explicitFallbackResult.status, 0, explicitFallbackOutput)
+        assert.doesNotMatch(explicitFallbackOutput, /missing required/)
+
+        const allProfilesRoot = createWorkspaceNamespaceWorkspace(currentProjectInfo())
+        writeFile(allProfilesRoot, '.devcodex/chat/profile/01-项目信息.md', currentProjectInfo())
+        const allProfilesResult = runValidateAll(allProfilesRoot)
+        const allProfilesOutput = `${allProfilesResult.stdout}\n${allProfilesResult.stderr}`
+
+        assert.strictEqual(allProfilesResult.status, 0, allProfilesOutput)
+        assert.match(allProfilesOutput, /checked=2/)
         console.log('\x1b[32m✓ validate-profile regression tests passed\x1b[0m')
     } finally {
         TEMP_ROOTS.forEach(root => fs.rmSync(root, { recursive: true, force: true }))

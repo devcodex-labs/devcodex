@@ -97,6 +97,7 @@ applyTo: .devcodex/**/reports/scenario-tests/**
 | spec-absorption / CommonNormGeneralizationGate / AbsorptionCandidateConsumerProofGate | ✅/N/A | ✅/⚠️ | 候选矩阵 / sourceNamespace / generalizationEvidence / projectSpecificResidue / negativeExamples / targetConsumer / devcodexConsumerEvidence / targetOwner / validationRoute / decision |
 | LayeredAbsorptionGate / SkillFirstAbsorptionGate | ✅/N/A | ✅/⚠️ | LayeredAbsorptionDecision / new-skill-required / existing-skill-subgate / layerChecks / promptTemplate / executionConsumer / validationProbe / publicDocs / deployCopy / validationRoute / consumerSync |
 | HistoricalCommonNormLayeringGate | ✅/N/A | ✅/⚠️ | 逐文件审查矩阵 / currentRole / targetLayer / targetOwner / legacy-index-retained / V74 / targeted tests / deployCopy |
+| LatestAbsorptionExecutionPack A1~A10 | ✅/N/A | ✅/⚠️ | gateGroup / ownerSkill / validationRoute / V82 / DerivedMetricConsumerProbe / DerivedConsumerFailureInjectionProbe / BatchEvidenceLedgerStateGate / BatchProgressCardGate |
 | ReviewEscapeRecordGate | ✅/N/A | ✅/⚠️ | escapedItem / whyMissed / missingDimensionOrProbe / prevention / checklistPatch / rerunEvidence |
 | ProactiveBetterAlternativeGate | ✅/N/A | ✅/⚠️ | 用户方案 / 备选路径 / 推荐理由 / 取舍影响 / 采纳依据 |
 | AcceptedSuggestionRootCauseGate | ✅/N/A | ✅/⚠️ | 采纳的用户纠正 / whyMissed / 采纳依据 / VL-PI-PF-GAP 编号 / prevention |

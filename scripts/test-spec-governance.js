@@ -1195,6 +1195,89 @@ for (const [file, needle] of [
 mustIncludeInChangelogs('V81')
 mustIncludeInChangelogs('CommonNormGeneralizationGate')
 
+const checkV82 = 'LatestAbsorptionExecutionPack'
+function classifyConfigNamespaceSample(sample) {
+  const canonical = /canonical namespace|既有 namespace|extensions\.[a-z0-9_-]+|历史契约/.test(sample)
+  const legacyRationale = /legacy alias|兼容窗口|迁移理由|例外理由/.test(sample)
+  const topLevel = /top-level|顶层配置|顶层 config/.test(sample)
+  if (topLevel && !legacyRationale) return 'missing-rationale'
+  if (canonical || legacyRationale) return 'acceptable'
+  return 'needs-review'
+}
+if (classifyConfigNamespaceSample('新增顶层 config.cache，未说明 namespace 或迁移依据') !== 'missing-rationale') {
+  failures.push('ConfigCanonicalNamespaceGate negative sample was not rejected')
+}
+if (classifyConfigNamespaceSample('extensions.runtime.cache 使用 canonical namespace，并记录 legacy alias 兼容窗口') !== 'acceptable') {
+  failures.push('ConfigCanonicalNamespaceGate positive sample was not accepted')
+}
+for (const [file, needle] of [
+  ['scripts/lib/validate-governance-tail.js', 'checkV82'],
+  ['scripts/lib/validate-governance-tail.js', 'V82 latest absorption execution pack sync'],
+  ['scripts/validate.js', 'checkV82()'],
+  ['skills/spec-absorption/SKILL.md', checkV82],
+  ['skills/spec-absorption/SKILL.md', 'ConfigCanonicalNamespaceGate'],
+  ['skills/spec-governance/SKILL.md', 'docs-semantics-examples'],
+  ['skills/spec-governance/SKILL.md', 'derived-consumer-runtime'],
+  ['skills/spec-governance/SKILL.md', 'feature-inventory-batch-evidence'],
+  ['skills/dev-plan-review/SKILL.md', 'ProfileRuntimeContractSyncGate'],
+  ['skills/test-router/SKILL.md', 'latestAbsorptionExecutionPack'],
+  ['skills/dev-docs/SKILL.md', 'NegativeTranslationParityProbe'],
+  ['skills/audit-document/SKILL.md', 'CallbackExampleScopeProbe'],
+  ['skills/audit-readme/SKILL.md', 'DocsExampleTruthSurfaceGate'],
+  ['skills/user-manual-authoring/SKILL.md', 'BehaviorSemanticDocsParityGate'],
+  ['skills/audit-project/SKILL.md', 'DerivedMetricConsumerProbe'],
+  ['skills/dev-testing/SKILL.md', 'DerivedConsumerFailureInjectionProbe'],
+  ['skills/load-profile/SKILL.md', 'FeatureInventoryProfileGate'],
+  ['skills/profile-bootstrap/SKILL.md', 'FeatureInventoryProfileGate'],
+  ['skills/review-checklist/SKILL.md', 'BatchProgressCardGate'],
+  ['skills/audit-requirements/SKILL.md', 'FeatureChecklistEvidenceMatrixGate'],
+  ['skills/document-sync/SKILL.md', 'BatchEvidenceLedgerStateGate'],
+  ['skills/report/SKILL.md', checkV82],
+  ['prompts/technical-design.prompt.md', 'ConfigCanonicalNamespaceGate'],
+  ['prompts/implementation-plan.prompt.md', 'V82'],
+  ['prompts/implementation-progress.prompt.md', 'Progress Card'],
+  ['prompts/report-dev.prompt.md', checkV82],
+  ['prompts/report-fix.prompt.md', checkV82],
+  ['prompts/report-audit.prompt.md', checkV82],
+  ['prompts/report-scenario-test.prompt.md', checkV82],
+  ['README.md', checkV82],
+  ['website/docs/guide/development.md', checkV82],
+  ['website/docs/versions/v1/1.0.1/CHANGELOG.md', 'V82']
+]) {
+  mustInclude(file, needle)
+}
+mustIncludeInChangelogs('V82')
+mustIncludeInChangelogs('LatestAbsorptionExecutionPack')
+
+const checkV83 = 'ProfileTierStandardGate'
+for (const [file, needle] of [
+  ['scripts/lib/validate-governance-tail.js', 'checkV83'],
+  ['scripts/lib/validate-governance-tail.js', checkV83],
+  ['scripts/lib/validate-governance-tail.js', 'ProfileLifecycleClassificationGate'],
+  ['scripts/lib/validate-governance-tail.js', 'AllDevCodexProfileValidationGate'],
+  ['scripts/validate.js', 'checkV83()'],
+  ['scripts/validate-profile.js', '--profile-dir'],
+  ['scripts/validate-profile.js', '--workspace-profile'],
+  ['scripts/validate-profile.js', 'profile-lite'],
+  ['scripts/validate-profile.js', 'profile-standard'],
+  ['scripts/validate-profile.js', 'profile-closed-loop'],
+  ['scripts/validate-all-profiles.js', '--workspace'],
+  ['scripts/validate-all-profiles.js', '--strict-warnings'],
+  ['scripts/test-validate-profile.js', 'runValidateAll'],
+  ['package.json', 'test:profile-all'],
+  ['skills/load-profile/SKILL.md', checkV83],
+  ['skills/load-profile/SKILL.md', 'profile-closed-loop'],
+  ['skills/profile-bootstrap/SKILL.md', 'profile-standard'],
+  ['skills/test-router/SKILL.md', 'profileTierValidation'],
+  ['skills/report/SKILL.md', 'AllDevCodexProfileValidation'],
+  ['README.md', 'AllDevCodexProfileValidationGate'],
+  ['website/docs/guide/development.md', 'profile-closed-loop']
+]) {
+  mustInclude(file, needle)
+}
+mustIncludeInChangelogs('V83')
+mustIncludeInChangelogs('ProfileTierStandardGate')
+
 const activeRuleFiles = [
   'README.md',
   'instructions.md',

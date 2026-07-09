@@ -34,6 +34,8 @@ description: 复审清单整理与审查规范 — 创建、冻结、证据执�
 | `skipReason` | N/A 或未执行项必须写明原因、残余风险和替代证据 |
 | `escapeRecords` | 复审或实施中发现原清单遗漏时的追加记录，字段见 `ReviewEscapeRecordGate` |
 | `closure` | 收敛结论、未关闭项、下一步和报告引用 |
+| `evidenceLedger` | 多批次或矩阵验证命中 `BatchEvidenceLedgerStateGate` 时，冻结 baseline、actualSources、commands、status、finding / skipReason |
+| `progressCard` | 多批次命中 `BatchProgressCardGate` 时，记录 totalScope、completed、currentBatch、nextBatch、remaining、blockers、evidenceLinks |
 
 ## 必执行门禁
 
@@ -49,6 +51,9 @@ description: 复审清单整理与审查规范 — 创建、冻结、证据执�
 - `ChecklistStateFreshnessGate`：最终报告前核对清单状态、报告结论、audit-state、sessions、SUMMARY 和 dirty 边界一致。
 - `ReviewDimensionDeltaGate`：R2+ 复审不得机械重复同一维度；重复维度必须有阻断项回归、高风险锚点、新证据或抽样理由。
 - `PostConfirmationReviewScopeGate`：CP1 / CP2 / CP3 确认后先判定轻量复审或全面复审；命中高风险场景时必须创建或复用本清单，低风险降级写 `N/A + skipReason`。
+- `FeatureChecklistEvidenceMatrixGate`：需求维度、功能清单或公开能力进入复审时，必须把 capability group × evidence surface 绑定到当前证据；复审清单记录验证状态，不替代稳定 Profile feature inventory。
+- `BatchEvidenceLedgerStateGate`：多批次、矩阵验证、长链路吸纳或发布前检查必须冻结 EvidenceLedger，区分 baseline-confirmed、executed-passed、partial、failed、not-started，且每项有 actualSources、commands、status、finding 或 skipReason。
+- `BatchProgressCardGate`：多批次最终报告、记忆和回复必须同步 Progress Card，覆盖总范围、已完成、当前批、下一批、剩余项、阻塞/风险和证据链接。
 
 ## 执行步骤
 
@@ -91,6 +96,8 @@ escape record 至少包含：
 | docs-consumer | README、website、Profile、prompts、templates、部署副本 |
 | release-readiness | changelog、version、tag、registry、回滚、发布说明 |
 | governance-ledger | PI/PF/VL/GAP/ISSUE 台账状态和关闭证据 |
+| feature-inventory | Profile feature inventory、capability group、公开面、文档入口和验证路线 |
+| batch-evidence | EvidenceLedger、批次矩阵、Progress Card、baseline / executed / partial / failed / not-started 状态 |
 
 ## 与其他 Skill 的关系
 

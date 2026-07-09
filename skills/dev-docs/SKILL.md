@@ -74,6 +74,10 @@ description: 文档开发子类型规范 — 技术文档/API文档/README 编�
 | 文档主题运行态 | 文档站主题、导航、搜索、代码高亮、移动端、暗色/亮色变化执行 `DocsThemeRuntimeVisualProbeGate`：验证真实运行态视觉和交互，不只看 Markdown 源码 |
 | 文档站信息架构 | 文档站或最终用户手册执行 `DocsSiteInformationArchitectureGate` 与 `UserManualFlowAndFailureGate`，区分用户手册、reference、operations、compatibility、implementation、maintainer 面，并覆盖整体流程、角色、第一次成功、失败分流、排查命令和恢复/降级 |
 | 真实工作流示例 | 队列、任务、异步处理、推送、导入导出或批处理文档执行 `QueueDocsRealWorkflowGate`：quick start 必须提供真实批量工作流，覆盖数据来源、筛选、批量 enqueue、payload schema、handler 业务动作、配置字段、失败/重试/幂等和观测 |
+| 行为语义一致 | 行为、默认值、CLI/Hook/public API 语义、comparison、scenario、README、索引或 generated search 变化执行 `BehaviorSemanticDocsParityGate`：建立同义词/历史词/用户可见承诺矩阵，反查代码、public types、runtime wiring 和生成索引 |
+| 负向翻译一致 | 中英文、双语或翻译页涉及禁用/启用、支持/不支持、必须/不得、同步/异步、缓存/刷新等反义或否定词时执行 `NegativeTranslationParityProbe`：逐项核对另一语言、当前 public API 和示例 |
+| 示例真相面 | README/website/quick start、配置、模板、DSL、parser、SDK、CLI 示例执行 `DocsExampleTruthSurfaceGate`：示例中的 option/config/method/field 必须能在 public types、runtime dispatcher、配置 schema、导出入口或最小执行探针中找到证据 |
+| 回调示例作用域 | callback / hook / event / transaction / handler / ctx 示例执行 `CallbackExampleScopeProbe`：参数、ctx 字段、闭包变量、返回值、异常/取消语义要匹配 public type signature 与 runtime dispatcher |
 | 消费链扫描 | 文档新增/调整命令、配置项、字段、状态、路径、能力承诺或阅读顺序时执行 `DocsConsumerSweep`，同步 README / website / Profile / prompts / templates / examples / nav/sidebar / validate probes / 部署副本与代码消费位置 |
 
 ## API 文档规范
@@ -134,6 +138,10 @@ description: 文档开发子类型规范 — 技术文档/API文档/README 编�
 - `PublicUserDocsMaintainerBoundaryGate`：公开用户文档不得把维护者验收、发布 checklist、内部同步清单、台账状态或实现者复审任务作为用户需要阅读的步骤；此类内容应迁移到 CONTRIBUTING、release checklist、requirements/report 或 maintainer-only 文档。
 - `SideEffectCompatibilityDocsGate`：README、快速上手、框架接入、Model/ORM/adapter 文档只展示当前推荐写法；带全局副作用、兼容 shim、弃用行为或高心智负担的旧路径不得进入公开主路径兼容说明。
 - `ExecutableExampleTruthProbeGate`：DSL、parser、validator、exporter、配置表达式、模板语法或扩展系统示例进入公开文档、CP 或 companion example 前，必须用当前实现跑最小执行探针；新语法须标未发布或进入 CP2 兼容评估。
+- `BehaviorSemanticDocsParityGate`：行为语义、默认行为、兼容路径、comparison/scenario/README/index/search 文档变化时，必须建立语义承诺矩阵，并用代码、public types、runtime wiring 或 generated search 反查证据闭环。
+- `NegativeTranslationParityProbe`：多语言或双语文档里的否定词、反义词和限制语义必须双向核对，避免一端说“不支持”而另一端说“支持”。
+- `DocsExampleTruthSurfaceGate`：示例 option/config/method/field 不得凭记忆编写；进入公开主路径前要有 public type、schema、runtime dispatcher、导出入口或最小执行探针证据。
+- `CallbackExampleScopeProbe`：回调/事件/hook/transaction 示例要核对参数签名、ctx 字段、闭包来源、返回/异常处理和运行时分发，不得把未定义变量或伪造 ctx 当成主路径。
 - `RequirementPreConfirmGate`：docs/需求类任务推荐确认 `01-需求确认.md` / `01-产品需求.md` 前，必须检查行为可验证、范围/非目标冲突和高风险 fail-safe 语义；缺口先修正文档或列确认问题。
 - `RequirementVerdictStateSyncGate`：docs/需求类任务在修订、再次复审、宣布“可确认 / 暂不通过 / 已修订待复审”前，必须同步真相源顶部状态、推荐结论章节、修复清单、audit-state decision、sessions / SUMMARY 口径。
 - `DocsConsumerSweep`：文档即产品入口时，正文、导航、索引、示例、模板、Profile、validate 和部署副本都是当前消费者；同步失败或刻意不同序必须写明原因。

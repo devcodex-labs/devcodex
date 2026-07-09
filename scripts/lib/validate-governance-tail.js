@@ -2356,6 +2356,149 @@ function buildGovernanceTailChecks(ctx) {
     console.log('[V81] spec-absorption execution skill sync checked')
   }
 
+  function checkV82() {
+    const gates = [
+      'ConfigCanonicalNamespaceGate',
+      'ProfileRuntimeContractSyncGate',
+      'BehaviorSemanticDocsParityGate',
+      'NegativeTranslationParityProbe',
+      'DocsExampleTruthSurfaceGate',
+      'CallbackExampleScopeProbe',
+      'DerivedMetricConsumerProbe',
+      'DerivedConsumerFailureInjectionProbe',
+      'FeatureInventoryProfileGate',
+      'FeatureChecklistEvidenceMatrixGate',
+      'BatchEvidenceLedgerStateGate',
+      'BatchProgressCardGate'
+    ]
+
+    function classifyConfigNamespaceSample(sample) {
+      const canonical = /canonical namespace|既有 namespace|extensions\.[a-z0-9_-]+|历史契约/.test(sample)
+      const legacyRationale = /legacy alias|兼容窗口|迁移理由|例外理由/.test(sample)
+      const topLevel = /top-level|顶层配置|顶层 config/.test(sample)
+      if (topLevel && !legacyRationale) return 'missing-rationale'
+      if (canonical || legacyRationale) return 'acceptable'
+      return 'needs-review'
+    }
+
+    if (classifyConfigNamespaceSample('新增顶层 config.cache，未说明 namespace 或迁移依据') !== 'missing-rationale') {
+      err('[V82] ConfigCanonicalNamespaceGate negative sample was not rejected')
+    }
+    if (classifyConfigNamespaceSample('extensions.runtime.cache 使用 canonical namespace，并记录 legacy alias 兼容窗口') !== 'acceptable') {
+      err('[V82] ConfigCanonicalNamespaceGate positive sample was not accepted')
+    }
+
+    const profileCorpus = [
+      read(path.join(ACTIVE_DEVCODEX_ROOT, 'profile', '01-项目信息.md')),
+      read(path.join(ACTIVE_DEVCODEX_ROOT, 'profile', '02-架构约束.md'))
+    ].join('\n')
+    const changelogCorpus = collectChangelogSources()
+      .map(source => source.content)
+      .join('\n')
+
+    const probes = [
+      { file: 'skills/spec-absorption/SKILL.md', needles: ['A1~A10 最新吸纳执行包', 'LatestAbsorptionExecutionPack'].concat(gates) },
+      { file: 'skills/spec-governance/SKILL.md', needles: ['docs-semantics-examples', 'derived-consumer-runtime', 'feature-inventory-batch-evidence', 'A1~A10 最新吸纳执行包'] },
+      { file: 'skills/dev-plan-review/SKILL.md', needles: ['ConfigCanonicalNamespaceGate', 'ProfileRuntimeContractSyncGate', 'LatestAbsorptionExecutionPack'] },
+      { file: 'skills/test-router/SKILL.md', needles: ['latestAbsorptionExecutionPack'].concat(gates) },
+      { file: 'skills/dev-docs/SKILL.md', needles: ['BehaviorSemanticDocsParityGate', 'NegativeTranslationParityProbe', 'DocsExampleTruthSurfaceGate', 'CallbackExampleScopeProbe'] },
+      { file: 'skills/audit-document/SKILL.md', needles: ['BehaviorSemanticDocsParityGate', 'NegativeTranslationParityProbe', 'DocsExampleTruthSurfaceGate', 'CallbackExampleScopeProbe'] },
+      { file: 'skills/audit-readme/SKILL.md', needles: ['BehaviorSemanticDocsParityGate', 'NegativeTranslationParityProbe', 'DocsExampleTruthSurfaceGate', 'CallbackExampleScopeProbe'] },
+      { file: 'skills/user-manual-authoring/SKILL.md', needles: ['BehaviorSemanticDocsParityGate', 'NegativeTranslationParityProbe', 'DocsExampleTruthSurfaceGate', 'CallbackExampleScopeProbe'] },
+      { file: 'skills/audit-project/SKILL.md', needles: ['DerivedMetricConsumerProbe', 'DerivedConsumerFailureInjectionProbe'] },
+      { file: 'skills/dev-testing/SKILL.md', needles: ['DerivedMetricConsumerProbe', 'DerivedConsumerFailureInjectionProbe'] },
+      { file: 'skills/load-profile/SKILL.md', needles: ['FeatureInventoryProfileGate', 'ProfileRuntimeContractSyncGate'] },
+      { file: 'skills/profile-bootstrap/SKILL.md', needles: ['FeatureInventoryProfileGate'] },
+      { file: 'skills/review-checklist/SKILL.md', needles: ['FeatureChecklistEvidenceMatrixGate', 'BatchEvidenceLedgerStateGate', 'BatchProgressCardGate', 'EvidenceLedger', 'Progress Card'] },
+      { file: 'skills/audit-requirements/SKILL.md', needles: ['FeatureChecklistEvidenceMatrixGate', 'BatchEvidenceLedgerStateGate', 'BatchProgressCardGate'] },
+      { file: 'skills/document-sync/SKILL.md', needles: ['A1~A10 最新吸纳执行包'].concat(gates) },
+      { file: 'skills/report/SKILL.md', needles: ['LatestAbsorptionExecutionPack', 'DerivedMetricConsumerProbe', 'FeatureInventoryProfileGate', 'BatchEvidenceLedgerStateGate'] },
+      { file: 'prompts/technical-design.prompt.md', needles: ['LatestAbsorptionExecutionPack A1~A10', 'ConfigCanonicalNamespaceGate', 'BatchProgressCardGate'] },
+      { file: 'prompts/implementation-plan.prompt.md', needles: ['LatestAbsorptionExecutionPack A1~A10', 'V82', 'BatchEvidenceLedgerStateGate'] },
+      { file: 'prompts/implementation-progress.prompt.md', needles: ['LatestAbsorptionExecutionPack A1~A10', 'EvidenceLedger', 'Progress Card'] },
+      { file: 'prompts/report-dev.prompt.md', needles: ['LatestAbsorptionExecutionPack A1~A10', 'V82', 'DerivedMetricConsumerProbe'] },
+      { file: 'prompts/report-fix.prompt.md', needles: ['LatestAbsorptionExecutionPack A1~A10', 'V82', 'FeatureInventoryProfileGate'] },
+      { file: 'prompts/report-audit.prompt.md', needles: ['LatestAbsorptionExecutionPack A1~A10', 'V82', 'BatchEvidenceLedgerStateGate'] },
+      { file: 'prompts/report-scenario-test.prompt.md', needles: ['LatestAbsorptionExecutionPack A1~A10', 'DerivedConsumerFailureInjectionProbe', 'BatchProgressCardGate'] },
+      { file: 'README.md', needles: ['LatestAbsorptionExecutionPack', 'A1~A10', 'V82'] },
+      { file: 'website/docs/guide/development.md', needles: ['LatestAbsorptionExecutionPack', 'A1~A10', 'V82'] },
+      { file: 'website/docs/versions/v1/1.0.1/CHANGELOG.md', needles: ['A1~A10', 'LatestAbsorptionExecutionPack', 'V82'] },
+      { file: 'active profile corpus', content: profileCorpus, needles: ['LatestAbsorptionExecutionPack', 'A1~A10', 'V82'] },
+      { file: 'scripts/test-spec-governance.js', needles: ['checkV82', 'LatestAbsorptionExecutionPack', 'ConfigCanonicalNamespaceGate'] },
+      { file: 'scripts/validate.js', needles: ['V82 latest absorption execution pack sync', 'checkV82()'] },
+      { file: 'changelog corpus', content: changelogCorpus, needles: ['LatestAbsorptionExecutionPack', 'ConfigCanonicalNamespaceGate', 'V82'] }
+    ]
+
+    for (const probe of probes) {
+      const content = probe.content || read(path.join(ROOT, probe.file))
+      for (const needle of probe.needles) {
+        if (!content.includes(needle)) {
+          err(`[V82] latest absorption execution pack sync in ${probe.file}: missing "${needle}"`)
+        }
+      }
+    }
+
+    console.log('[V82] latest absorption execution pack sync checked')
+  }
+
+  function checkV83() {
+    const gates = [
+      'ProfileTierStandardGate',
+      'ProfileLifecycleClassificationGate',
+      'AllDevCodexProfileValidationGate'
+    ]
+
+    const profileCorpus = [
+      'README.md',
+      '01-项目信息.md',
+      '06-功能清单.md',
+      '07-用户文档与契约规范.md'
+    ]
+      .map(name => {
+        const file = path.join(ACTIVE_DEVCODEX_ROOT, 'profile', name)
+        return fs.existsSync(file) ? read(file) : ''
+      })
+      .join('\n')
+    const changelogCorpus = collectChangelogSources()
+      .map(source => source.content)
+      .join('\n')
+
+    const probes = [
+      { file: 'scripts/validate-profile.js', needles: ['--profile-dir', '--workspace-profile', 'profile-lite', 'profile-standard', 'profile-closed-loop', 'profile tier missing', 'workspace fallback', 'conditional-required'].concat(gates) },
+      { file: 'scripts/validate-all-profiles.js', needles: ['--workspace', '.devcodex', '--profile-dir', '--strict-warnings', 'checked=', 'warnings='] },
+      { file: 'scripts/test-validate-profile.js', needles: ['profile-standard', 'profile-closed-loop', 'runValidateAll', 'checked=2'] },
+      { file: 'scripts/test-spec-governance.js', needles: ['checkV83'].concat(gates) },
+      { file: 'scripts/validate.js', needles: ['V83 profile tier and workspace validation sync', 'checkV83()'] },
+      { file: 'package.json', needles: ['test:profile-all', 'node scripts/validate-all-profiles.js', 'scripts/validate-all-profiles.js'] },
+      { file: 'skills/load-profile/SKILL.md', needles: ['profile-lite', 'profile-standard', 'profile-closed-loop', 'conditional-required'].concat(gates) },
+      { file: 'skills/profile-bootstrap/SKILL.md', needles: ['profile-lite', 'profile-standard', 'profile-closed-loop', 'FeatureInventoryProfileGate'].concat(gates) },
+      { file: 'skills/test-router/SKILL.md', needles: ['profileTierValidation', 'allDevCodexProfileValidation'].concat(gates) },
+      { file: 'skills/report/SKILL.md', needles: ['ProfileTierValidation', 'AllDevCodexProfileValidation'].concat(gates) },
+      { file: 'README.md', needles: ['profile-lite', 'profile-standard', 'profile-closed-loop', 'AllDevCodexProfileValidationGate'].concat(gates) },
+      { file: 'website/docs/guide/development.md', needles: ['profile-lite', 'profile-standard', 'profile-closed-loop', 'AllDevCodexProfileValidationGate'].concat(gates) },
+      { file: 'active profile corpus', content: profileCorpus, needles: ['profile-closed-loop', '06-功能清单', '07-用户文档与契约规范', '稳定基线', '活文档'].concat(gates) },
+      { file: 'changelog corpus', content: changelogCorpus, needles: ['V83'].concat(gates) }
+    ]
+
+    for (const probe of probes) {
+      const content = probe.content || read(path.join(ROOT, probe.file))
+      for (const needle of probe.needles) {
+        if (!content.includes(needle)) {
+          err(`[V83] profile tier / all workspace profile validation sync in ${probe.file}: missing "${needle}"`)
+        }
+      }
+    }
+
+    try {
+      execSync('node scripts/test-validate-profile.js', { cwd: ROOT, stdio: 'pipe', encoding: 'utf8' })
+    } catch (e) {
+      const detail = String((e.stderr || e.stdout || e.message || '')).trim().split('\n').slice(0, 8).join(' | ')
+      err(`[V83] test-validate-profile failed${detail ? `: ${detail}` : ''}`)
+    }
+
+    console.log('[V83] profile tier and workspace validation sync checked')
+  }
+
   return {
     checkV39,
     checkV40,
@@ -2399,7 +2542,9 @@ function buildGovernanceTailChecks(ctx) {
     checkV78,
     checkV79,
     checkV80,
-    checkV81
+    checkV81,
+    checkV82,
+    checkV83
   }
 }
 

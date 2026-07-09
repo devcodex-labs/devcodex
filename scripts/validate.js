@@ -76,6 +76,7 @@
  * V78 review scope drift docs IA sync（确认后复审、开发偏移、验证计划、用户建议根因与文档 IA）
  * V79 coverage gate and external runtime lifecycle matrix sync（coverage 独立门禁、外部 runtime/plugin/registry 生命周期矩阵、函数源码 fingerprint 与同风险簇分层验证）
  * V80 audit-user-manual aggregation skill sync（用户侧文档 review 聚合入口、项目文档、菜单导航、信息架构与报告证据）
+ * V81~V83 规范吸纳执行、最新吸纳执行包与 Profile 三档 / 全工作区校验同步
  *
  * Exit: 0=OK, 1=error, 2=warnings only
  */
@@ -563,7 +564,9 @@ const {
   checkV78,
   checkV79,
   checkV80,
-  checkV81
+  checkV81,
+  checkV82,
+  checkV83
 } = buildGovernanceTailChecks({
   ROOT,
   ACTIVE_DEVCODEX_ROOT,
@@ -969,6 +972,10 @@ checkV79()
 checkV80()
 // V81 spec absorption execution skill sync
 checkV81()
+// V82 latest absorption execution pack sync
+checkV82()
+// V83 profile tier and workspace validation sync
+checkV83()
 
 console.log('')
 if (errors.length) {

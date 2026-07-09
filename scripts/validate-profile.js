@@ -16,7 +16,19 @@ const path = require('path')
 const { resolveProfileDir } = require('../hooks/_runtime/workspace-layout.cjs')
 
 const PLUGIN_ROOT = path.resolve(__dirname, '..')
-const cwd = process.cwd()
+const args = process.argv.slice(2)
+
+function argValue(name) {
+  const index = args.indexOf(name)
+  if (index === -1 || index + 1 >= args.length) return ''
+  return args[index + 1]
+}
+
+const explicitProfileDir = argValue('--profile-dir')
+const explicitWorkspaceProfileDir = argValue('--workspace-profile')
+const explicitProjectRoot = argValue('--project-root')
+const sourceRepoProfileFlag = args.includes('--source-repo-profile')
+const cwd = explicitProjectRoot ? path.resolve(explicitProjectRoot) : process.cwd()
 
 function readJsonIfExists(filePath) {
   try {
@@ -26,7 +38,27 @@ function readJsonIfExists(filePath) {
   }
 }
 
-const profileDir = resolveProfileDir(cwd)
+function samePath(a, b) {
+  if (!a || !b) return false
+  return path.resolve(a).toLowerCase() === path.resolve(b).toLowerCase()
+}
+
+function deriveWorkspaceProfileDir(fromProfileDir) {
+  let current = path.resolve(fromProfileDir)
+  while (true) {
+    if (path.basename(current).toLowerCase() === '.devcodex') {
+      return path.join(current, 'workspace', 'profile')
+    }
+    const parent = path.dirname(current)
+    if (parent === current) return ''
+    current = parent
+  }
+}
+
+const profileDir = explicitProfileDir ? path.resolve(explicitProfileDir) : resolveProfileDir(cwd)
+const workspaceProfileDir = explicitWorkspaceProfileDir
+  ? path.resolve(explicitWorkspaceProfileDir)
+  : deriveWorkspaceProfileDir(profileDir)
 
 const errors = []
 const warnings = []
@@ -72,9 +104,42 @@ function hasLegacyStageDraft(text) {
 }
 
 function isSourceRepoProfileTarget() {
+  if (sourceRepoProfileFlag) return true
   if (path.resolve(cwd) === PLUGIN_ROOT) return true
   const cwdPackage = readJsonIfExists(path.join(cwd, 'package.json'))
   return !!(pluginPackageName && cwdPackage && cwdPackage.name === pluginPackageName)
+}
+
+function profileFileInfo(fileName) {
+  const directPath = path.join(profileDir, fileName)
+  if (fs.existsSync(directPath)) {
+    return { path: directPath, source: 'project' }
+  }
+  const fallbackPath = workspaceProfileDir ? path.join(workspaceProfileDir, fileName) : ''
+  if (fallbackPath && !samePath(profileDir, workspaceProfileDir) && fs.existsSync(fallbackPath)) {
+    return { path: fallbackPath, source: 'workspace fallback' }
+  }
+  return { path: directPath, source: 'missing' }
+}
+
+function hasProfileFile(fileName) {
+  return profileFileInfo(fileName).source !== 'missing'
+}
+
+function hasAnyProfileFile(fileNames) {
+  return fileNames.some(fileName => hasProfileFile(fileName))
+}
+
+function readProfileFile(fileName) {
+  const info = profileFileInfo(fileName)
+  if (info.source === 'missing') return ''
+  return fs.readFileSync(info.path, 'utf8')
+}
+
+function profileCorpus(fileNames) {
+  return fileNames
+    .map(fileName => `\n--- ${fileName} ---\n${readProfileFile(fileName)}`)
+    .join('\n')
 }
 
 function hasCurrentAgentsDistribution(text) {
@@ -477,23 +542,22 @@ if (!fs.existsSync(profileDir)) {
   process.exit(0)
 }
 
-// Required files
+// Required files for profile-lite, with workspace fallback under workspace-namespace.
 const REQUIRED = ['README.md', '01-项目信息.md', '02-架构约束.md', '03-代码风格.md']
 for (const f of REQUIRED) {
-  if (!fs.existsSync(path.join(profileDir, f))) {
+  if (!hasProfileFile(f)) {
     err(`[profile] missing required: ${f}`)
   }
 }
 
-const projectInfoPath = path.join(profileDir, '01-项目信息.md')
-const readmePath = path.join(profileDir, 'README.md')
-const architecturePath = path.join(profileDir, '02-架构约束.md')
-const stylePath = path.join(profileDir, '03-代码风格.md')
-const readmeText = fs.existsSync(readmePath) ? fs.readFileSync(readmePath, 'utf8') : ''
-const architectureText = fs.existsSync(architecturePath) ? fs.readFileSync(architecturePath, 'utf8') : ''
-const styleText = fs.existsSync(stylePath) ? fs.readFileSync(stylePath, 'utf8') : ''
-if (pluginVersion && fs.existsSync(projectInfoPath)) {
-  const projectInfo = fs.readFileSync(projectInfoPath, 'utf8')
+const projectInfoPath = profileFileInfo('01-项目信息.md').path
+const readmePath = profileFileInfo('README.md').path
+const readmeText = readProfileFile('README.md')
+const architectureText = readProfileFile('02-架构约束.md')
+const styleText = readProfileFile('03-代码风格.md')
+const projectInfoText = readProfileFile('01-项目信息.md')
+if (pluginVersion && projectInfoText) {
+  const projectInfo = projectInfoText
   const currentVersion = extractVersion('当前版本', projectInfo)
   const currentStageVersion = extractVersion('当前阶段', projectInfo)
 
@@ -522,9 +586,90 @@ checkS02ProfileFreshness({
   '03-代码风格.md': styleText
 })
 
+const PROFILE_TIERS = new Set(['profile-lite', 'profile-standard', 'profile-closed-loop'])
+const PROFILE_TIER_GATES = [
+  'ProfileTierStandardGate',
+  'ProfileLifecycleClassificationGate',
+  'AllDevCodexProfileValidationGate'
+]
+
+function detectProfileTier() {
+  const combined = profileCorpus([
+    'README.md',
+    '01-项目信息.md',
+    '02-架构约束.md',
+    '03-代码风格.md',
+    '04-测试规范.md',
+    '05-交付发布规范.md',
+    '05-发布规范.md',
+    '06-功能清单.md',
+    '07-用户文档与契约规范.md'
+  ])
+  const explicitTier = combined.match(/Profile\s*档位[：:]\s*`?(profile-(?:lite|standard|closed-loop))`?/i)
+  if (explicitTier) {
+    return { tier: explicitTier[1], combined }
+  }
+  const matches = [...combined.matchAll(/\bprofile-(?:lite|standard|closed-loop)\b/g)].map(match => match[0])
+  const unique = [...new Set(matches)]
+  if (unique.length > 1) {
+    warn(`[profile] multiple profile tiers declared: ${unique.join(', ')}`)
+  }
+  const tier = unique[0] || ''
+  if (!tier) {
+    warn('[profile] profile tier missing — defaulting to profile-lite for backward compatibility')
+    return { tier: 'profile-lite', combined }
+  }
+  if (!PROFILE_TIERS.has(tier)) {
+    err(`[profile] invalid profile tier: ${tier}`)
+    return { tier: 'profile-lite', combined }
+  }
+  return { tier, combined }
+}
+
+function hasFeatureInventorySource(combined) {
+  return hasProfileFile('06-功能清单.md') ||
+    /FeatureInventoryProfileGate|Feature Inventory|feature inventory|功能清单|能力清单/i.test(combined)
+}
+
+function hasProfileLifecycle(combined) {
+  return /stable baseline|稳定基线/i.test(combined) &&
+    /living document|活文档/i.test(combined) &&
+    /conditional|required|conditional-required|条件必需|条件\/本地|本地/i.test(combined)
+}
+
+function validateProfileTier(tier, combined) {
+  if (tier === 'profile-lite') return
+
+  if (!hasProfileFile('04-测试规范.md')) {
+    err(`[profile] ${tier} requires 04-测试规范.md`)
+  }
+  if (!hasAnyProfileFile(['05-交付发布规范.md', '05-发布规范.md'])) {
+    err(`[profile] ${tier} requires 05-交付发布规范.md or 05-发布规范.md`)
+  }
+  if (!hasFeatureInventorySource(combined)) {
+    err(`[profile] ${tier} requires a feature inventory source (06-功能清单.md or documented FeatureInventoryProfileGate source)`)
+  }
+
+  if (tier === 'profile-closed-loop') {
+    if (!hasProfileFile('06-功能清单.md')) {
+      err('[profile] profile-closed-loop requires 06-功能清单.md')
+    }
+    if (!hasProfileFile('07-用户文档与契约规范.md')) {
+      err('[profile] profile-closed-loop requires 07-用户文档与契约规范.md')
+    }
+    if (!hasProfileLifecycle(combined)) {
+      err('[profile] profile-closed-loop requires lifecycle wording for stable baseline, living document and conditional-required/local docs')
+    }
+  }
+}
+
+const { tier: profileTier, combined: profileTierCorpus } = detectProfileTier()
+validateProfileTier(profileTier, profileTierCorpus)
+
 // config.json checks
-const cfgPath = path.join(profileDir, 'config.json')
-if (fs.existsSync(cfgPath)) {
+const cfgInfo = profileFileInfo('config.json')
+const cfgPath = cfgInfo.path
+if (cfgInfo.source !== 'missing') {
   let cfg
   try { cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8')) } catch (e) {
     err(`[profile] config.json invalid JSON: ${e.message}`)
@@ -543,23 +688,28 @@ if (fs.existsSync(cfgPath)) {
       warn(`[profile] pluginVersion drift: profile says ${cfg.pluginVersion}, plugin is ${pluginVersion} (run \`devcodex update\`)`)
     }
   }
-  const projectInfoText = fs.existsSync(projectInfoPath) ? fs.readFileSync(projectInfoPath, 'utf8') : ''
   validateProfileConfigExtensions(cfg, 'config.json', projectInfoText, readmeText)
 } else {
   warn('[profile] config.json missing — defaults applied (mode=prod, agent inferred)')
 }
 
-const localCfgPath = path.join(profileDir, 'config.local.json')
-if (fs.existsSync(localCfgPath)) {
+const localConfigPaths = []
+if (workspaceProfileDir && !samePath(profileDir, workspaceProfileDir)) {
+  const workspaceLocal = path.join(workspaceProfileDir, 'config.local.json')
+  if (fs.existsSync(workspaceLocal)) localConfigPaths.push({ path: workspaceLocal, sourceName: 'workspace config.local.json' })
+}
+const projectLocal = path.join(profileDir, 'config.local.json')
+if (fs.existsSync(projectLocal)) localConfigPaths.push({ path: projectLocal, sourceName: 'config.local.json' })
+
+for (const localConfig of localConfigPaths) {
   let localCfg
   try {
-    localCfg = JSON.parse(fs.readFileSync(localCfgPath, 'utf8'))
+    localCfg = JSON.parse(fs.readFileSync(localConfig.path, 'utf8'))
   } catch (e) {
-    err(`[profile] config.local.json invalid JSON: ${e.message}`)
+    err(`[profile] ${localConfig.sourceName} invalid JSON: ${e.message}`)
     localCfg = null
   }
   if (localCfg !== null) {
-    const projectInfoText = fs.existsSync(projectInfoPath) ? fs.readFileSync(projectInfoPath, 'utf8') : ''
     validateLocalConfig(localCfg, projectInfoText, readmeText)
   }
 }

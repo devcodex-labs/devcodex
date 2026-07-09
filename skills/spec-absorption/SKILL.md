@@ -104,12 +104,29 @@ description: 规范吸纳执行 Skill — 用于检查 data 最新可吸纳项�
 
 | Gate | 通用触发 | 默认承接 |
 |------|----------|----------|
+| `ConfigCanonicalNamespaceGate` | 新增或迁移配置 schema、provider 选项、runtime 开关、legacy alias 或文档公开配置路径 | `dev-plan-review`、`test-router`、`technical-design.prompt`、validate |
 | `ProfileRuntimeContractSyncGate` | Profile、runtime、部署副本或宿主适配契约变化 | `load-profile`、`document-sync`、`source-consumer-sync`、validate |
 | `BehaviorSemanticDocsParityGate` | 文档语义承诺与运行时行为、CLI、Hook 或 public API 可能漂移 | `audit-document`、`audit-readme`、`report`、validate |
+| `NegativeTranslationParityProbe` | 多语言、双语文档或术语翻译涉及否定词、反义词、禁用/启用、支持/不支持语义 | `dev-docs`、`audit-document`、`audit-readme`、validate |
 | `DocsExampleTruthSurfaceGate` | README/website/示例/quick start 展示可执行路径或配置样例 | `user-manual-authoring`、`audit-readme`、`test-router`、validate |
+| `CallbackExampleScopeProbe` | 示例包含 callback / hook / event / transaction / handler / ctx 等运行时回调 | `dev-docs`、`audit-readme`、`user-manual-authoring`、validate |
 | `DerivedConsumerIsolationGate` | 生成物、部署副本、历史镜像或派生产物可能被误当真相源 | `source-consumer-sync`、`document-sync`、`release-verification` |
+| `DerivedMetricConsumerProbe` / `DerivedConsumerFailureInjectionProbe` | 默认行为、控制流、能力触发或副通道输出可能影响统计、日志、事件、warning、admin bridge、public types 或主结果隔离 | `audit-project`、`dev-testing`、`test-router`、`report` |
 | `FeatureInventoryProfileGate` / `FeatureChecklistEvidenceMatrixGate` | 功能清单、Profile、需求维度、复审清单或验收矩阵需互相闭环 | `review-checklist`、`audit-requirements`、`report` |
+| `BatchEvidenceLedgerStateGate` / `BatchProgressCardGate` | 多批次、矩阵验证、长链路吸纳、复审或发布前检查需要冻结证据台账和进度卡 | `review-checklist`、`implementation-progress.prompt`、`report`、memory |
 | `DependencyAuditScopeClassificationGate` | 依赖、包工程、coverage/audit/CI 门禁或发布前依赖风险需分类 | `test-router`、`audit-release`、`release-verification` |
+
+### A1~A10 最新吸纳执行包（LatestAbsorptionExecutionPack）
+
+当扫描报告或用户确认清单把 A1~A10 作为同批吸纳范围时，必须按以下分层同步，不得停留在本表：
+
+- `A1 ConfigCanonicalNamespaceGate`：配置路径优先使用既有 namespace / canonical contract；顶层配置或 legacy alias 只能带兼容说明、迁移理由和验证探针。
+- `A2 ProfileRuntimeContractSyncGate`：默认行为、runtime contract、transaction/cache/sync promise 或用户可见配置语义变化时，同步 Profile、README/website、进度和 `ProfileImpactCheck`。
+- `A3/A4 BehaviorSemanticDocsParityGate` + `NegativeTranslationParityProbe`：行为语义变化后建立同义/反义/否定词承诺矩阵，覆盖中英文、历史 API、comparison、scenario、README、index 与 generated search。
+- `A5/A6 DocsExampleTruthSurfaceGate` + `CallbackExampleScopeProbe`：示例中的 option/config/method/callback 必须能在 public types、runtime dispatcher 或最小执行探针中找到证据。
+- `A7 DerivedMetricConsumerProbe` + `DerivedConsumerFailureInjectionProbe`：派生消费者和副通道失败必须验证，不得让统计、日志、events、warnings、admin bridge 或 public types 污染主结果。
+- `A8 FeatureInventoryProfileGate` + `FeatureChecklistEvidenceMatrixGate`：公开包、SDK、CLI、多模块、文档站或 public API 需要稳定功能清单，并把 capability group 绑定到证据面。
+- `A9/A10 BatchEvidenceLedgerStateGate` + `BatchProgressCardGate`：多批次验证冻结 EvidenceLedger，报告和最终回复区分 baseline-confirmed、executed-passed、partial、failed、not-started，并输出总范围、已完成、当前批、下一步、剩余项、阻塞和证据链接。
 
 ## 输出产物
 

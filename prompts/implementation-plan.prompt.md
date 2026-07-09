@@ -15,6 +15,7 @@ applyTo: .devcodex/**/requirements/**
 > ⚠️ 若 CP1 真相源是产品直接提供的 `01-产品需求.md`，实施计划只能承接产品原文、流程节点、前端交互、字段描述和 AI / 研发缺口检查结果；不得把计划写成新的产品需求稿。
 > ⚠️ 发布、pack、benchmark、codegen 或包边界任务必须写明串行验证顺序：构建/生成完成后再单独执行 package boundary check，不得与会写入 `dist` 的命令并行。
 > ⚠️ 文档阅读顺序、站点入口、使用者路径、命令、字段、配置、状态或能力承诺变更必须写明 `UserPerspectiveDocsGate`、`UserDocsImmediateComprehensionGate`、`UserDocsPrimarySurfaceGate`、`PublicUserDocsMaintainerBoundaryGate` 与 `DocsConsumerSweep`：正文顺序、导航/sidebar 顺序与索引顺序、targetSurface / documentLocation / primaryAudience、首页首屏 / quick start / nav 前两组 / CTA / reference 是否服务用户使用、公开用户路径是否排除维护者 checklist、示例、模板、Profile、validate probes、部署副本和代码消费点的校验方式；若故意不同序，计划中说明信息架构理由。
+> ⚠️ 代码、文档、示例、fixture、mock、demo、quick start、技术方案或报告会被用户 / 维护者长期消费，或用户指出“不专业 / 像初级 / 示例误导”时，计划必须写明 `ExpertOutputQualityGate`：生产推荐路径、框架原生能力、fixture/mock/demo 边界、反模式对照、证据矩阵和 V84/targeted probe。
 > ⚠️ 文档型、站点型或前后端协作需求必须写明 `UserFacingDeliveryChainGate`：原始需求 → 整理后的需求概况 → 用户最终使用文档（文档站或至少 README）→ 前端/API 契约（若触发）→ 技术方案 → 复杂项目实施方案 → 实施计划 → 实施进度 → 对照需求和用户文档的审查报告；若某环节跳过，必须写 `skipReason`。
 > ⚠️ 复审、构建产物、文档站或性能相关计划必须写明 `ReviewChecklistCompletenessGate`、`EvidenceExecutionGate`、`ReviewEscapeRecordGate`、`PostConfirmationReviewScopeGate`、`DevelopmentDriftGate`、`VerificationPlanMaterializationProbe`、`BuiltArtifactFeatureSmokeGate`、`TscOutputImportProbe`、`GeneratedSiteGate`、`ManualTocDuplicationGate`、`UserPathContractSweep`、`BenchmarkRegressionGuard` 的触发状态；未触发必须写 `N/A + skipReason`。
 
@@ -119,6 +120,7 @@ applyTo: .devcodex/**/requirements/**
 | Backlog Intake 真相复核 | 是 / 否 | 任务/批次直接来源于 `data/*.md` open/partial 项 | candidateIds / classification / evidence / scopeDelta |
 | 台账状态回写闭环 | 是 / 否 | 本轮会关闭/部分关闭/改分类任何 VL/PF/PI/ISSUE/GAP | targetLedgers / requiredFields / writebackEvidence / rescanResult |
 | ImplementationComplexityLevel | 简单够用 / 中等 / 企业级 | CP1/CP2 已确认的开发程度等级；未说明时默认简单够用，兼容旧字段 `ImplementationComplexityPreference` | inheritedPreference / optionTradeoff / upgradeConfirmation / noOverengineeringBoundary |
+| ExpertOutputQualityGate | 是 / 否 | 代码、文档、示例、fixture、quick start、技术方案或报告需要专家型输出质量，或用户指出“不专业 / 像初级 / 示例误导” | roleBaseline / productionRecommendedPath / frameworkNativeCapability / fixtureBoundary / antiPatternContrast / evidenceMatrix |
 | CrossProjectLearnedGuards | 是 / 否 | 命中跨项目已吸纳守门、历史通用规范分层或新增可泛化策略 | 按 `GovernanceGateRegistry` 填写 `gateGroup / ownerSkill / validationRoute / skipReason`；代表性 anchors：CodeTruthRequirementGate / ManualReviewEvidenceRetention / ReviewFindingIntakeGate / UserDocsPrimarySurfaceGate / ActiveRequirementFinalResponseGate / MethodLevelLeakPressureProbe / V2FormalSolutionPackage |
 
 ### §4.2 最小实现与注释守门
@@ -157,6 +159,7 @@ applyTo: .devcodex/**/requirements/**
 | ProactiveBetterAlternativeGate | 对照用户建议 / 方案确认 / 规范吸纳前的主动更优路径比较 | 若存在更低风险、更完整、更易维护或更易验证方案已先提出取舍；采纳用户原方案时有独立验证依据 |
 | ConfirmedAbsorptionCompletenessGates | 对照未完整吸纳 / 半覆盖 / 用户确认仍需吸纳清单 | 按 `public-surface / user-manual / review-checklist / frontend-runtime / profile-service / release-parity / evolution-control-plane` 分组写目标 Skill、Prompt、执行消费者、探针、公开文档和部署副本同步；代表性 anchors：PublicSurfaceClosureGate / UserManualProductizationGate / ReviewAnchorMaterializationGate / FrontendAsyncCacheRenderGate / RemoteCIParityPushGate / NativeCommandExitCodeGate / DocsThemeRuntimeVisualProbeGate |
 | LatestAbsorptionExecutionPack A1~A10 | 对照最新可吸纳确认实施包 | 按 `docs-semantics-examples / derived-consumer-runtime / feature-inventory-batch-evidence / profile-service / absorption-layering` 分组写 ownerSkill、validationRoute、skipReason；覆盖 ConfigCanonicalNamespaceGate、ProfileRuntimeContractSyncGate、BehaviorSemanticDocsParityGate、DocsExampleTruthSurfaceGate、DerivedMetricConsumerProbe、FeatureInventoryProfileGate、BatchEvidenceLedgerStateGate、BatchProgressCardGate 与 V82 |
+| ExpertOutputQualityGate | 对照专家型产物质量门禁 | 生产推荐路径、框架原生能力、fixture/mock/demo 边界、反模式对照和证据矩阵完整；不得把测试夹具、硬编码单例或每个 route 重复声明作为生产推荐路径；V84/targeted probe 覆盖正反样例 |
 | UserPerspectiveDocsGate / UserDocsImmediateComprehensionGate / UserDocsPrimarySurfaceGate / PublicUserDocsMaintainerBoundaryGate / DocsConsumerSweep | 对照文档使用者路径、即时理解、用户主面、维护者边界和消费者扫描 | 面向使用者文档有第一次成功、常见任务、字段/参数/状态/错误解释、排错恢复和低心智负担证据；用户文档有功能完整性、配置易懂性、即时理解三轴和 targetSurface/documentLocation/primaryAudience；首页/quick start/nav/sidebar/CTA/reference 主路径不被开发契约替代；公开用户路径不混入维护者 checklist、内部同步清单或台账状态；命令/字段/导航/能力承诺同步 README/website/Profile/templates/examples/validate/代码消费点 |
 | user-manual-authoring / UserFacingDeliveryChainGate / FinalUserManualFirstGate | 对照需求概况、用户最终使用文档、前端/API 契约、技术方案和实施计划顺序 | 用户文档先于技术方案落位；文档站或 README 判定清楚；涉及前端/API 时契约明确；技术方案和实施计划可回溯到需求与用户文档 |
 | review-checklist / ReviewChecklistCompletenessGate / EvidenceExecutionGate / ReviewEscapeRecordGate | 对照冻结 checklist、逐项执行证据、复审维度增量和 escape record | 复审维度不机械重复；不能只按审查报告文本验证；每项结论有实际命令、代码落点、页面或产物证据；发现遗漏时写 whyMissed、prevention、checklistPatch、rerunEvidence；最终状态新鲜 |
@@ -223,6 +226,7 @@ applyTo: .devcodex/**/requirements/**
 - [ ] LayeredAbsorptionGate / SkillFirstAbsorptionGate 已完成或记录 `N/A + skipReason`（规范吸纳、data 台账治理、用户确认可泛化建议或新增门禁时，必须输出 LayeredAbsorptionDecision，含 commonInstruction / skill / promptTemplate / executionConsumer / validationProbe / publicDocs / deployCopy）
 - [ ] HistoricalCommonNormLayeringGate 已完成或记录 `N/A + skipReason`（历史通用规范、prompt/report 长清单或旧吸纳项迁移时，必须先冻结逐文件审查矩阵，再分批同步 Skill / Prompt / 执行消费者 / validate / public docs / deploy copy）
 - [ ] LatestAbsorptionExecutionPack A1~A10 已完成或记录 `N/A + skipReason`（命中最新吸纳执行包时，按 ownerSkill 和 V82 同步配置/Profile/文档语义/示例/派生消费者/功能清单/批次证据）
+- [ ] ExpertOutputQualityGate 已完成或记录 `N/A + skipReason`（命中代码、文档、示例、fixture、quick start、技术方案或报告专家型质量时，必须给出生产推荐路径、框架原生能力、fixture 边界、反模式和证据矩阵）
 - [ ] ProactiveBetterAlternativeGate 已完成或记录 `N/A + skipReason`（用户建议、方案确认、规范吸纳或复审冻结前，必须主动比较更优路径；采纳用户原方案时记录依据）
 - [ ] CrossProjectLearnedGuards 已完成或记录 `N/A + skipReason`（按 `GovernanceGateRegistry` 写 `gateGroup / ownerSkill / validationRoute`，必要时列代表性 anchors）
 - [ ] LatestAbsorptionGuards 已完成或记录 `N/A + skipReason`（按 `GovernanceGateRegistry` 分组写触发状态和证据）

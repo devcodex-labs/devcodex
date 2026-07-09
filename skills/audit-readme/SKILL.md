@@ -37,6 +37,7 @@ description: README / 用户使用文档专项审查维度 RM-1~RM-6 — 聚焦�
 - 最短成功路径是否足够短，避免把维护流程误当快速开始
 - 用户第一次照着做时，是否能少跳转、少猜测、少补前置知识
 - 快速开始含 Mermaid / 流程图 / 队列 / 异步 / 批处理示例时，是否执行 `UserManualRenderedFlowAndRealWorkflowProbe`，验证真实渲染并使用真实业务工作流
+- 快速开始、fixture、mock 或 demo 是否执行 `ExpertOutputQualityGate`，先说明生产推荐路径、框架原生能力和真实接入方式，再标明样例的验证边界
 
 **RM-3 示例真实度 🟡**
 - 示例是否代表真实常见用法，而不是理想化伪代码
@@ -44,6 +45,7 @@ description: README / 用户使用文档专项审查维度 RM-1~RM-6 — 聚焦�
 - 示例是否帮助用户完成“第一次成功”
 - 是否执行 `DocsExampleTruthSurfaceGate`：README / quick start 中的 option、config、method、field、导入路径或 CLI 参数必须能在 public types、runtime wiring、配置 schema、导出入口或最小执行探针里找到证据
 - 是否执行 `CallbackExampleScopeProbe`：callback / hook / event / transaction / handler / ctx 示例的参数签名、ctx 字段、闭包变量、返回值和异常语义是否匹配当前实现
+- 是否执行 `ExpertOutputQualityGate`：示例是否体现资深技术视角，明确区分推荐实践、框架已有能力、测试 fixture/mock/demo 边界和反模式；不得把硬编码单例、每个 route 重复声明或仅证明底层能力存在的夹具当成用户主路径
 - 性能表、语法/能力矩阵是否先给用户选择结论，再解释字段含义、支持形式、不支持形式和优先级示例
 - 参数、配置、模式、状态、错误码和限制是否逐项解释到“普通使用者能看懂并知道怎么选”
 - 队列、任务、异步或批处理类 README 是否执行 `QueueDocsRealWorkflowGate`：给出真实入队、执行、状态查询、失败重试、清理和常见失败恢复，而不是只展示单条硬编码样例
@@ -100,6 +102,7 @@ description: README / 用户使用文档专项审查维度 RM-1~RM-6 — 聚焦�
 6. 文档是否足够详细、心智负担足够低，首次读者能否看懂每个关键字段、命令、状态和失败恢复路径？
 7. 用户文档主面是否被开发契约替代？首页、quick start、nav/sidebar 和 CTA 是否仍优先回答“怎么使用”？
 8. 若存在文档站或生成站点，是否验证了实际生成产物、TOC/sidebar/nav 去重、真实用户路径和部署副本同步？
+9. README 是否区分生产推荐路径、fixture/mock/demo 边界和反模式，并给出框架原生能力或项目既有能力的专家级推荐？
 
 ## N/A 规则
 

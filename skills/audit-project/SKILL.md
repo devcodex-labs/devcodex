@@ -100,6 +100,7 @@ description: 项目工程审查维度 PE-1~PE-12 — 代码质量/项目结构/�
 - 首页、详情、列表、搜索或接口数据返回空白风险需检查 `FrontendAsyncCacheRenderGate` / `StaleWhileRevalidateGate`：旧缓存先渲染并异步刷新替换，不得 loading-only、空白或同步阻塞取数；涉及数据库 / 队列 / 缓存真实数据源时追加 `AsyncDbTruthSourceVerificationGate`
 - 给同事、跨机器或对外分享的报告、脚本、文档或验证产物需检查 `PortableExternalArtifactGate`：不得写死本机绝对路径、私有 `.devcodex` 路径或个人工作区前提
 - 默认行为、控制流、能力触发或 public runtime 变化需检查 `DerivedMetricConsumerProbe` / `DerivedConsumerFailureInjectionProbe`：覆盖 metrics/info/logs/events/warnings/admin bridge/public types 消费者和失败注入隔离，明确 warn / ignore / propagate 口径
+- 代码、文档、示例、fixture、quick start、技术方案或报告质量被用户指出“不专业 / 像初级 / 示例误导”，或面向用户 / 维护者长期消费时，需检查 `ExpertOutputQualityGate`：冻结 `roleBaseline`、`productionRecommendedPath`、`frameworkNativeCapability`、`fixtureBoundary`、`antiPatternContrast` 和 `evidenceMatrix`，避免把测试夹具、硬编码单例或每个 route 重复声明当作生产推荐路径
 
 ## N/A 规则
 
@@ -108,5 +109,6 @@ description: 项目工程审查维度 PE-1~PE-12 — 代码质量/项目结构/�
 - 无长生命周期资源、订阅、连接、定时器、缓存或 UI 生命周期的纯静态内容变更：PE-12 可标 `N/A + skipReason`
 - 无用户可见 UI、交互流或视觉呈现的后端 / CLI / 文档变更：`FrontendExperienceQualityGate` 可标 `N/A + skipReason`
 - 未触发跨项目已吸纳守门时，`CrossProjectLearnedGuards` 可标 `N/A + skipReason`
+- 未涉及代码/文档/示例/fixture/quick start/技术方案/报告产物，且用户未指出“不专业 / 像初级 / 示例误导”时，`ExpertOutputQualityGate` 可标 `N/A + skipReason`
 - 未触发审查发现 intake 时，`ReviewFindingIntakeGate` 可标 `N/A + skipReason`
 - 未触发资源生命周期或公开方法泄漏风险时，`MethodLevelLeakPressureProbe` 可标 `N/A + skipReason`

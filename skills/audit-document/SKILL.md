@@ -75,6 +75,7 @@ description: 通用文档审查维度 DA-1~DA-6 — README/架构文档/开发�
 - `NegativeTranslationParityProbe`：多语言或双语文档涉及禁用/启用、支持/不支持、必须/不得、同步/异步、缓存/刷新等否定或反义语义时，逐项核对另一语言与 public API / runtime 事实
 - `DocsExampleTruthSurfaceGate`：文档示例中的 option/config/method/field、导入路径、CLI 参数、模板字段和配置项必须有 public types、schema、runtime dispatcher、导出入口或最小执行探针证据
 - `CallbackExampleScopeProbe`：callback / hook / event / transaction / handler / ctx 示例必须匹配 public type signature、runtime dispatcher、参数/ctx 作用域和异常/取消语义
+- `ExpertOutputQualityGate`：文档解释代码、示例、fixture、mock、demo、quick start、技术方案或报告产物时，必须区分生产推荐路径、框架原生能力、fixture/mock/demo 边界和反模式；不得把测试夹具、硬编码单例、每个 route 重复声明等验证写法描述成资深架构推荐实践
 - 纯文本内容、历史镜像或临时草图可标 `N/A + skipReason`
 
 ## README 叠加规则
@@ -95,5 +96,6 @@ description: 通用文档审查维度 DA-1~DA-6 — README/架构文档/开发�
 - 非正式流程图、纯文本内容页或无视觉交互变更：上述流程图/文档站验收守门与 `GeneratedSiteGate` / `ManualTocDuplicationGate` 可标 `N/A + skipReason`
 - 非使用者文档且无字段/命令/导航/消费者变更：`UserPerspectiveDocsGate` / `UserDocsImmediateComprehensionGate` / `UserDocsPrimarySurfaceGate` / `DocsConsumerSweep` / `FinalUserManualFirstGate` / `DocsSiteInformationArchitectureGate` / `UserManualFlowAndFailureGate` / `UserPathContractSweep` 可标 `N/A + skipReason`
 - 非公开用户文档、README、教程、快速开始、配置/扩展/框架接入指南：`PublicUserDocsMaintainerBoundaryGate` 可标 `N/A + skipReason`
+- 无代码示例、fixture、mock、demo、quick start、技术方案或报告产物解读时，`ExpertOutputQualityGate` 可标 `N/A + skipReason`
 - README、快速上手、框架接入、Model/ORM/adapter 文档若展示旧兼容路径，必须检查 `SideEffectCompatibilityDocsGate`，避免把带全局副作用、兼容 shim、弃用行为或高心智负担的写法放进公开主路径。
 - DSL、parser、validator、exporter、配置表达式、模板语法或扩展系统示例必须检查 `ExecutableExampleTruthProbeGate`：公开前需有当前实现的最小执行探针或明确标注未发布/未来能力。

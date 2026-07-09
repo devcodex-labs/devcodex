@@ -56,6 +56,7 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 | `verificationPlanMaterialization` | CP2 / 技术方案是否需要物化验证计划、验收标准和退出条件 |
 | `docsIaReadability` | 是否涉及中文用户文档、pageRole、sidebar group、菜单命名或文档站 IA |
 | `userManualReview` | 是否涉及用户侧文档 review、项目文档审查、最终用户手册、文档设计、菜单导航、sidebar 或信息架构聚合审查 |
+| `expertOutputQuality` | 是否涉及代码、文档、示例、fixture、mock、demo、quick start、技术方案或报告的专家型质量，或用户指出“不专业 / 像初级 / 示例误导” |
 | `coverageGateDecision` | 项目是否存在 coverage 脚本、阈值、CI coverage gate 或发布前覆盖率要求，需要区分测试断言通过与覆盖率门禁通过 |
 | `externalRuntimePluginLifecycle` | 是否涉及外部 runtime、plugin、registry、adapter、provider 或 injected runtime 注册/替换/释放生命周期 |
 | `functionSourceFingerprint` | 是否把 function source / hash / toString / fingerprint 用作 cache key、registry key、checkpoint、幂等或去重依据 |
@@ -91,6 +92,7 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 | 用户侧文档 review / 项目文档审查 | `audit-user-manual`：聚合用户文档契约、通用文档审查、README 专项、复审清单、文档设计、菜单导航、sidebar、生成站点和消费者同步证据 | `GeneratedSiteGate`、`ManualTocDuplicationGate`、`DocsThemeRuntimeVisualProbeGate`、Browser/截图或人工证据；纯内容审查写 `N/A + skipReason` |
 | 数据补齐 / 迁移 / 跨环境写入 | DataMutationPlan：显式清单或稳定业务键、dry-run、唯一匹配、缺失/重复清单 | 只读数据库真相源查询、最终消费者响应字段验证 |
 | Prompt / Agent / Hook / MCP 契约 | LLMPromptContractTriage：区分人读说明、模型指令、结构化输出字段和宿主能力边界 | validate probe、targeted test、direct/fixture replay |
+| 专家型产物质量 | `expert-output-quality`：执行 `ExpertOutputQualityGate`、`ProductionRecommendedPathGate`、`FrameworkNativeCapabilityFirstGate`、`FixtureBoundaryDisclosureGate`、`AntiPatternContrastGate`、`ExpertEvidenceMatrixGate` | 源码 / public types / official docs / runtime probe / fixture 边界说明 / 人工证据；无示例或用户可消费产物写 `N/A + skipReason` |
 | 前端体验 | FrontendExperienceQualityGate：判定设计来源、UI 还原度、风格主题一致性、响应式/状态覆盖、用户流、交互反馈、输入方式/可访问性、错误恢复、动效转场和视觉验证；同步执行 FrontendBrowserVerificationBudgetGate 与 UserSelfVerificationOverrideGate | lint/typecheck/test、Browser/截图、Playwright/E2E 或人工复核证据；低风险可 optional，用户明确自验时只做代码级验证并记录 VisualVerificationGate=user-self-verification；纯后端/CLI/文档写 `N/A + skipReason` |
 | Figma / 高保真 UI 还原 | FigmaHighFidelityRestorationGate、ScopedVisualChangeGate、InstalledPluginVisualVerificationGate：冻结设计来源、allowedScope/frozenScope、元素分类和可用插件验证链 | Browser/Chrome/Figma 插件、截图对比、人工复核；无插件时写降级证据 |
 | 视觉偏差 / 设计帧用途 | VisualDeviationTypeGate、DesignFramePurposeClassificationGate：修复前分类偏差类型，列目标帧/排除帧和验收入口 | Figma 参数、代码参数、修复参数、父级裁剪、相邻状态、截图或人工复核证据 |
@@ -155,6 +157,7 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 | 兼容契约 / 命名 / 产物语言 | CompatibilityAndContractAuthorityGate、CollectionRelationIdNamingGate、UserFacingVerificationArtifactLanguageGate：核对消费者零代码兼容、上游 public API、关系 id 命名和 `.http` / 测试说明语言 | 官方/源码/registry 证据、命名 convention、用户语言证据 |
 | 复审维度增量 | ReviewDimensionDeltaGate：R2+ 复审、audit 连续零发现、ECR 或遗漏专审必须记录 PreviousDimensionSet、CurrentDimensionFocus、NewDimensionRationale、RepeatedDimensionReason | 不得每轮机械重复同一组维度；重复维度须有阻断项回归、高风险锚点、新证据或抽样理由 |
 | 用户视角文档 | UserPerspectiveDocsGate：README、官网/文档站、接口说明、运行手册、需求/方案等人读文档从使用者角度验证详细度、字段解释、首次成功路径、心智负担和排错恢复 | 纯内部临时报告或维护者专用文档写 `N/A + skipReason` |
+| 专家型输出质量 | ExpertOutputQualityGate：代码、文档、示例、fixture、quick start、技术方案和报告需要体现技术专家 / 资深架构 / 领域专家口径 | 区分生产推荐路径、框架原生能力、fixture/mock/demo 边界、反模式和证据矩阵 |
 | 用户文档即时理解 | UserDocsImmediateComprehensionGate：README、官网/文档站、API/CLI/config 文档、快速开始和运行手册必须输出功能完整性、配置易懂性、首次读者即时理解三轴证据 | 不得只因章节完整或契约完整就判定用户文档可用 |
 | 用户文档主面 | UserDocsPrimarySurfaceGate：用户使用文档、站点文档、文档站、README、quick start 或接入手册必须冻结 targetSurface/documentLocation/primaryAudience，并抽查首页、quick start、nav/sidebar 前两组、CTA、reference、配置、常见任务和排错 | 开发契约、目标 API、数据模型和维护者验收只能后置或标 maintainer/developer-only |
 | 公开用户文档维护边界 | PublicUserDocsMaintainerBoundaryGate：公开用户文档不得把维护者验收、发布 checklist、内部同步清单、台账状态或实现者复审任务放进用户主路径 | 迁移到 CONTRIBUTING、release checklist、requirements/report 或 maintainer-only 文档 |
@@ -234,6 +237,7 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 | developmentDrift | N/A / required；写 allowedFirstBatch、blockedScope、driftTriggers、validationRoute、consumerSync、dirty boundary |
 | verificationPlanMaterialization | N/A / required；写验证计划章节、命令/矩阵、验收标准和退出条件 |
 | docsIaReadability | N/A / required；写 ChinesePrimaryExpressionGate、SidebarPageRoleMaterializationProbe、SidebarGroupSemanticModelProbe 证据 |
+| expertOutputQuality | N/A / required / optional；若 required，写 `roleBaseline`、`productionRecommendedPath`、`frameworkNativeCapability`、`fixtureBoundary`、`antiPatternContrast`、`evidenceMatrix` 与 V84/targeted probe 证据 |
 | historicalCommonNormLayering | N/A / required / optional；若 required，写逐文件审查矩阵、legacy-index-retained、V74、targeted test、public docs 与 deploy copy 证据 |
 | databaseRecordMigrationExport | N/A / required / optional；若 required，写记录链、JSON/Extended JSON、insert/upsert、引用完整性和 dry-run |
 | findingProbeMatrix | N/A / required / optional；若 required，写 finding 矩阵、失败输入、修复前失败、修复后通过和发布面证据 |
@@ -261,6 +265,7 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 - 前端/API 文档合同变更不得只更新 Markdown；必须执行 ApiDocVerificationSync，决定是否同步 `.http` / `.cjs` 或记录跳过理由。
 - 多语言文档、翻译页、README/website 同步页或正式文档入口变更必须执行 DocumentationTranslationParityGuard 与 FormalDocsDevCodexBoundary；不得把运行时报告、台账口吻或内部待办泄漏到正式文档。
 - Prompt、Agent 指令、Hook 输出、MCP 工具描述或 LLM 契约变更必须执行 LLMPromptContractTriage；不得只改文案而漏掉结构化字段、示例、宿主能力边界或 validate/targeted test。
+- 代码、文档、示例、fixture、mock、demo、quick start、技术方案或报告面向用户 / 维护者长期消费，或用户指出“不专业 / 像初级 / 示例误导”时，必须执行 `ExpertOutputQualityGate`；不得把测试夹具、硬编码单例、每个 route 重复声明或仅证明底层能力存在的 fixture 当作生产推荐路径，未触发时写 `N/A + skipReason`。
 - 数据补齐、迁移或跨环境写入不得直接依赖源环境 `_id` 写目标环境；必须执行 DataMutationPlan，使用目标环境稳定业务键或显式清单唯一匹配，并在 dry-run 证据中列出 `source_id` / `target_id` / 缺失或重复记录。
 - 高风险控制面变更不得只运行单个局部检查；至少执行 validate + targeted tests + SCV。
 - 验证路线必须执行 VerificationScopeBudgetGate：高风险、控制面、发布、资源生命周期或前端体验不能只跑轻量检查；低风险纯文档、纯计算或无状态改动也不得为了形式引入重压测、E2E 或外部依赖。

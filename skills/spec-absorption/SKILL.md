@@ -110,6 +110,7 @@ description: 规范吸纳执行 Skill — 用于检查 data 最新可吸纳项�
 | `NegativeTranslationParityProbe` | 多语言、双语文档或术语翻译涉及否定词、反义词、禁用/启用、支持/不支持语义 | `dev-docs`、`audit-document`、`audit-readme`、validate |
 | `DocsExampleTruthSurfaceGate` | README/website/示例/quick start 展示可执行路径或配置样例 | `user-manual-authoring`、`audit-readme`、`test-router`、validate |
 | `CallbackExampleScopeProbe` | 示例包含 callback / hook / event / transaction / handler / ctx 等运行时回调 | `dev-docs`、`audit-readme`、`user-manual-authoring`、validate |
+| `ExpertOutputQualityGate` / `ProductionRecommendedPathGate` / `FrameworkNativeCapabilityFirstGate` | 代码、文档、示例、fixture、技术方案或报告被用户指出“不专业 / 像初级 / 示例误导”，或需要区分生产推荐路径、框架原生能力和反模式 | `expert-output-quality`、`dev-plan-review`、`dev-docs`、`audit-*`、`test-router`、`report`、validate |
 | `DerivedConsumerIsolationGate` | 生成物、部署副本、历史镜像或派生产物可能被误当真相源 | `source-consumer-sync`、`document-sync`、`release-verification` |
 | `DerivedMetricConsumerProbe` / `DerivedConsumerFailureInjectionProbe` | 默认行为、控制流、能力触发或副通道输出可能影响统计、日志、事件、warning、admin bridge、public types 或主结果隔离 | `audit-project`、`dev-testing`、`test-router`、`report` |
 | `FeatureInventoryProfileGate` / `FeatureChecklistEvidenceMatrixGate` | 功能清单、Profile、需求维度、复审清单或验收矩阵需互相闭环 | `review-checklist`、`audit-requirements`、`report` |

@@ -46,6 +46,7 @@ description: 最终用户使用文档写作规范 — 站点文档、README、qu
 | `renderedFlowEvidence` | Mermaid / 流程图 / 文档站主题必须有真实渲染或运行态验证证据 |
 | `semanticParityEvidence` | 行为语义、默认值、兼容路径、支持/不支持承诺必须有 `BehaviorSemanticDocsParityGate` / `NegativeTranslationParityProbe` 证据 |
 | `exampleTruthEvidence` | option/config/method/callback 示例必须有 `DocsExampleTruthSurfaceGate` / `CallbackExampleScopeProbe` 证据 |
+| `expertOutputQualityEvidence` | 示例、fixture、quick start 或接入手册必须有 `expert-output-quality` / `ExpertOutputQualityGate` 证据，区分生产推荐路径、框架原生能力、fixture/mock/demo 边界和反模式 |
 | `developerInfoPlacement` | 开发契约、技术方案、数据模型、维护者 checklist 后置或单独标记 |
 | `consumerMap` | 同步 README、website、Profile、examples、prompts、templates、validate 和部署副本 |
 
@@ -68,6 +69,7 @@ description: 最终用户使用文档写作规范 — 站点文档、README、qu
 - `DocsConsumerSweep` / `UserPathContractSweep`：文档新增能力、命令、配置、导航或用户路径时，同步当前消费者。
 - `BehaviorSemanticDocsParityGate` / `NegativeTranslationParityProbe`：最终用户手册中的行为承诺、默认值、兼容路径、限制、支持/不支持、启用/禁用、同步/异步和缓存/刷新语义必须与 public API、runtime wiring、README/website、generated search 与多语言版本一致。
 - `DocsExampleTruthSurfaceGate` / `CallbackExampleScopeProbe`：用户主路径中的示例不能只凭伪代码表达；option/config/method/field/callback/handler/ctx 必须能追到 public types、schema、runtime dispatcher、导出入口或最小执行探针。
+- `ExpertOutputQualityGate`：代码、文档、示例、fixture、quick start、技术方案或报告面向用户 / 维护者消费时，先给生产推荐路径和框架原生能力，再说明 fixture/mock/demo 的验证边界；不得把测试夹具、硬编码单例或每个 route 重复声明当成主推实践。命中时调用 `expert-output-quality`，执行 `ProductionRecommendedPathGate`、`FrameworkNativeCapabilityFirstGate`、`FixtureBoundaryDisclosureGate`、`AntiPatternContrastGate` 与 `ExpertEvidenceMatrixGate`。
 
 ## 执行步骤
 
@@ -77,8 +79,9 @@ description: 最终用户使用文档写作规范 — 站点文档、README、qu
 4. 拆分信息架构：用户手册与 API/CLI/config reference、operations、implementation、maintainer 分开。
 5. 建立 `pageRoleMatrix` 与 `sidebarSemanticModel`：确认每页 role、sidebar group、相邻页面职责、route 真相源和非归属说明。
 6. 对真实工作流补示例：避免只有单点 API 或单个硬编码 job。
-7. 建立 `consumerMap`，列出 README、website、Profile、examples、prompts、templates、validate、部署副本和代码消费点。
-8. 完成后按风险调用 `audit-user-manual` 做用户侧文档聚合 review；落点为 README / 主入口文档时再叠加 `audit-readme`，通用结构与准确性由 `audit-document` 承接。
+7. 对示例 / fixture / quick start 执行 `expert-output-quality`：冻结 `roleBaseline`、`productionRecommendedPath`、`frameworkNativeCapability`、`fixtureBoundary`、`antiPatternContrast` 与 `evidenceMatrix`。
+8. 建立 `consumerMap`，列出 README、website、Profile、examples、prompts、templates、validate、部署副本和代码消费点。
+9. 完成后按风险调用 `audit-user-manual` 做用户侧文档聚合 review；落点为 README / 主入口文档时再叠加 `audit-readme`，通用结构与准确性由 `audit-document` 承接。
 
 ## 与其他 Skill 的关系
 
@@ -86,6 +89,7 @@ description: 最终用户使用文档写作规范 — 站点文档、README、qu
 - `readme-authoring`：README 是本 Skill 的 README 专项分支，继续负责 README 章节顺序与用户旅程细化。
 - `audit-user-manual`：负责用户侧文档、项目文档、菜单导航和文档 IA 的聚合审查，不替代写作入口。
 - `audit-readme` / `audit-document`：负责 README 专项与通用文档维度，通常由 `audit-user-manual` 编排。
+- `expert-output-quality`：负责专家型产物质量，避免文档把 fixture/mock/demo 或低阶重复写法包装成生产推荐路径。
 - `test-router`：选择生成站点、链接、用户路径、Browser/截图或代码级替代验证。
 - `document-sync`：按 `consumerMap` 检查当前消费者和部署副本。
 
@@ -96,3 +100,4 @@ description: 最终用户使用文档写作规范 — 站点文档、README、qu
 - 禁止把未确认的 `00-需求概况.md` 当成最终用户承诺。
 - 禁止把最终用户手册写成整站全部内容容器。
 - 禁止把当前不可用状态说明冒充目标版本最终用户手册。
+- 禁止把 fixture、mock、demo、硬编码单例或重复 route/middleware/resource 声明写成用户主路径的生产推荐实践；必须标明验证用途和推荐替代。

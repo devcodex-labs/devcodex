@@ -266,6 +266,11 @@
       "tier": "free"
     },
     {
+      "id": "expert-output-quality",
+      "file": "skills/expert-output-quality/SKILL.md",
+      "tier": "free"
+    },
+    {
       "id": "spec-absorption",
       "file": "skills/spec-absorption/SKILL.md",
       "tier": "free"

@@ -27,6 +27,7 @@ applyTo: .devcodex/**/requirements/**
 > ⚠️ package boundary / pack / benchmark / codegen 验证必须写清串行顺序；任何会删除、重建或写入 `dist` 的命令不得和包边界检查并行。
 > ⚠️ 前端页面、组件、控制台、官网、文档站、可视化工具、游戏或用户可见 UI / 交互方案必须填写 `FrontendExperienceQualityGate`：设计来源、UI 还原度、风格主题、响应式状态、视觉验证、用户流、交互反馈、输入方式/可访问性、错误恢复和动效转场；Figma/截图/既有页面还原需追加 `FigmaHighFidelityRestorationGate`、`ScopedVisualChangeGate`、`InstalledPluginVisualVerificationGate`、`ActualPreviewChainAndMockFallbackGate`、`FrontendRuntimeNetworkProbeGate`、`UIStateScopeRegressionGate`、`FigmaProductionAssetBudgetGate`、`RuntimeI18nArtifactVerificationGate`、`VisualDeviationTypeGate`、`DesignFramePurposeClassificationGate`、`FrontendBrowserVerificationBudgetGate` 与 `UserSelfVerificationOverrideGate`；不触发时写 `N/A + skipReason`。
 > ⚠️ 命中跨项目已吸纳守门、最新吸纳项、用户确认“仍需吸纳”、历史通用规范分层迁移或新增可泛化策略时，必须填写 `CrossProjectLearnedGuards` / `LatestAbsorptionGuards` / `ConfirmedAbsorptionCompletenessGates`，并按 `GovernanceGateRegistry` 输出 `gateGroup / ownerSkill / validationRoute / skipReason`；若是历史通用规范分层迁移，追加 `HistoricalCommonNormLayeringGate` 和逐文件矩阵。未触发项写 `N/A + skipReason`。
+> ⚠️ 技术方案、示例、fixture、quick start、报告或文档会被用户 / 维护者长期消费，或用户指出“不专业 / 像初级 / 示例误导”时，必须填写 `ExpertOutputQualityGate`：生产推荐路径、框架原生能力、fixture/mock/demo 边界、反模式对照和证据矩阵；不得把测试夹具或每个 route 重复声明写成生产推荐实践。
 
 | 顺序 | 章节 | 必选 | 依赖 | 说明 |
 |:----:|------|:----:|------|------|
@@ -318,6 +319,7 @@ applyTo: .devcodex/**/requirements/**
 | OmissionOnlyReviewGate | 已覆盖集合 / 新增覆盖 / 遗漏候选 / 排除理由 / 收敛口径 | | |
 | ReviewFindingIntakeGate | finding 来源 / 本地证据 / 设计分类 / 用户决策 / 文档实现漂移 / 测试缺口 | | |
 | ReviewDimensionDeltaGate | PreviousDimensionSet / CurrentDimensionFocus / NewDimensionRationale / RepeatedDimensionReason | | |
+| ExpertOutputQualityGate | roleBaseline / productionRecommendedPath / frameworkNativeCapability / fixtureBoundary / antiPatternContrast / evidenceMatrix | | |
 | UserPerspectiveDocsGate | 使用者路径 / 详细度 / 字段说明 / 心智负担 / 排错恢复 | | |
 | UserDocsImmediateComprehensionGate | 功能完整性 / 配置易懂性 / 首次读者即时理解 | | |
 | UserDocsPrimarySurfaceGate | targetSurface / documentLocation / primaryAudience / 首页首屏 / quick start / nav 前两组 / CTA / reference / 开发契约后置 | | |

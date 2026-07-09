@@ -81,6 +81,7 @@ applyTo: .devcodex/**/reports/scenario-tests/**
 | LeakRiskStabilityPressureTest | ✅ 通过 / N/A | baseline / pressureScenario / cooldown / resourceMetrics / skipReason |
 | MethodLevelLeakPressureProbe | ✅ 通过 / N/A | publicMethod / lifecycleScenario / iterations / resourceMetrics / cleanupEvidence / skipReason |
 | methodLevelLeakPressure | required / optional / N/A | publicMethod / lifecycleScenario / iterations / resourceMetrics / cleanupEvidence / skipReason |
+| 专家型产物质量 | ✅ 通过 / N/A | ExpertOutputQualityGate / fixtureBoundary / antiPatternContrast / evidenceMatrix |
 | HostContract 验证 | ✅ 通过 / N/A | — |
 | 负载测试 (artillery) | ✅ 通过 | — |
 | 场景回放 | ✅ 通过 | direct replay / fixture replay / N/A |
@@ -104,6 +105,7 @@ applyTo: .devcodex/**/reports/scenario-tests/**
 | PostConfirmationReviewScopeGate / DevelopmentDriftGate | ✅/N/A | ✅/⚠️ | 轻量或全面复审判定 / review-checklist 路径或 skipReason / allowedFirstBatch / blockedScope / driftTriggers / validationRoute |
 | VerificationPlanMaterializationProbe / docsIaReadability | ✅/N/A | ✅/⚠️ | 验证计划物化 / 验收标准 / 退出条件 / ChinesePrimaryExpressionGate / SidebarPageRoleMaterializationProbe / SidebarGroupSemanticModelProbe |
 | ConfirmedAbsorptionCompletenessGates | ✅/N/A | ✅/⚠️ | gateGroup / ownerSkill / layerChecks / validationRoute；gateGroup anchors: public-surface / user-manual / review-checklist / frontend-runtime / profile-service / release-parity / evolution-control-plane；anchors: PublicSurfaceClosureGate / UserManualProductizationGate / ReviewAnchorMaterializationGate / FrontendAsyncCacheRenderGate / RemoteCIParityPushGate / NativeCommandExitCodeGate / DocsThemeRuntimeVisualProbeGate |
+| ExpertOutputQualityGate | ✅/N/A | ✅/⚠️ | roleBaseline / productionRecommendedPath / frameworkNativeCapability / fixtureBoundary / antiPatternContrast / evidenceMatrix / V84 |
 | CrossProjectLearnedGuards | ✅/N/A | ✅/⚠️ | GovernanceGateRegistry gateGroup / ownerSkill / validationRoute / skipReason；anchors: ManualReviewEvidenceRetention / ReviewFindingIntakeGate / UserDocsPrimarySurfaceGate / ActiveRequirementFinalResponseGate / V2FormalSolutionPackage |
 | LatestAbsorptionGuards | ✅/N/A | ✅/⚠️ | GovernanceGateRegistry gateGroup / evidence / N/A；anchors: DatabaseRecordMigrationExportGate / FrontendBrowserVerificationBudgetGate / FindingProbeMatrixGate / VerificationCommandSideEffectGate / RequirementPreConfirmGate / BenchmarkRegressionGuard |
 | ReleaseAudit | ✅/N/A | ✅/⚠️ | |

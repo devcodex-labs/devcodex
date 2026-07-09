@@ -8,6 +8,7 @@
 
 ## 当前未发布变更
 
+- 2026-07-09：新增 `expert-output-quality` 专家型产物质量 Skill 与 `ExpertOutputQualityGate` / `ProductionRecommendedPathGate` / `FrameworkNativeCapabilityFirstGate` / `FixtureBoundaryDisclosureGate` / `AntiPatternContrastGate` / `ExpertEvidenceMatrixGate`，同步 dev-plan-review、dev-docs、audit-document/readme/user-manual/project/tech-design、test-router、report、Prompt、README/website/Profile 和 V84 探针，防止把 fixture/mock/demo、硬编码单例或每个 route 重复声明误写成生产推荐实践。
 - 2026-07-09：修复 `validate-profile` 档位检测在 workspace fallback 与项目本地 Profile 混合时可能被 fallback `profile-lite` 误导的问题；项目本地显式 `Profile 档位` 现在优先，新增回归测试覆盖 standard 项缺少 04/05 时必须失败，支撑 `ProfileTierStandardGate` / `AllDevCodexProfileValidationGate` 的真实退出码验证。
 
 ## 记录提示
@@ -31,5 +32,6 @@
 - 规范吸纳执行入口变更需显式标明 `spec-absorption`、`CommonNormGeneralizationGate`、`AbsorptionCandidateConsumerProofGate`、`project-local`、`case-evidence-only`、`targetOwner` 和 V81 探针，避免把项目独有规则误吸纳为通用规范。
 - A1~A10 最新吸纳执行包需显式标明 `LatestAbsorptionExecutionPack`、`ConfigCanonicalNamespaceGate`、`ProfileRuntimeContractSyncGate`、`BehaviorSemanticDocsParityGate`、`NegativeTranslationParityProbe`、`DocsExampleTruthSurfaceGate`、`CallbackExampleScopeProbe`、`DerivedMetricConsumerProbe`、`DerivedConsumerFailureInjectionProbe`、`FeatureInventoryProfileGate`、`FeatureChecklistEvidenceMatrixGate`、`BatchEvidenceLedgerStateGate`、`BatchProgressCardGate` 和 V82 探针，避免名称只停留在扫描报告或候选表。
 - Profile 三档与全项目校验变更需显式标明 `ProfileTierStandardGate`、`ProfileLifecycleClassificationGate`、`AllDevCodexProfileValidationGate`、`profile-lite`、`profile-standard`、`profile-closed-loop`、`validate-all-profiles` 和 V83 探针，避免只更新单项目 Profile 而遗漏 `.devcodex` 下其他项目。
+- 专家型产物质量变更需显式标明 `expert-output-quality`、`ExpertOutputQualityGate`、`ProductionRecommendedPathGate`、`FrameworkNativeCapabilityFirstGate`、`FixtureBoundaryDisclosureGate`、`AntiPatternContrastGate`、`ExpertEvidenceMatrixGate` 和 V84 探针，避免只优化文案但继续把测试夹具或低阶重复写法误导成生产推荐路径。
 - 宿主输出、Hook 或项目现实扩展相关条目，建议显式写出 `verified-present / verified-missing / unverified`、sticky `activeProject` 与用户可见 `意图扩展摘要` 是否发生变化。
 - 执行闭环、确认机制或发布门禁相关条目，建议补充 `Intent Expansion Card`、`ConfirmationRequest`、`ECR` 与验证证据，方便正式发版时直接归档到版本 changelog。

@@ -78,6 +78,7 @@ description: 文档开发子类型规范 — 技术文档/API文档/README 编�
 | 负向翻译一致 | 中英文、双语或翻译页涉及禁用/启用、支持/不支持、必须/不得、同步/异步、缓存/刷新等反义或否定词时执行 `NegativeTranslationParityProbe`：逐项核对另一语言、当前 public API 和示例 |
 | 示例真相面 | README/website/quick start、配置、模板、DSL、parser、SDK、CLI 示例执行 `DocsExampleTruthSurfaceGate`：示例中的 option/config/method/field 必须能在 public types、runtime dispatcher、配置 schema、导出入口或最小执行探针中找到证据 |
 | 回调示例作用域 | callback / hook / event / transaction / handler / ctx 示例执行 `CallbackExampleScopeProbe`：参数、ctx 字段、闭包变量、返回值、异常/取消语义要匹配 public type signature 与 runtime dispatcher |
+| 专家型产物质量 | 代码、文档、示例、fixture、quick start、技术方案或报告执行 `expert-output-quality` / `ExpertOutputQualityGate` / `ProductionRecommendedPathGate` / `FrameworkNativeCapabilityFirstGate`：先写生产推荐路径、框架原生能力和项目既有 helper，再解释 fixture/mock/demo/legacy 边界与反模式，不得把测试夹具或硬编码单例当主路径 |
 | 消费链扫描 | 文档新增/调整命令、配置项、字段、状态、路径、能力承诺或阅读顺序时执行 `DocsConsumerSweep`，同步 README / website / Profile / prompts / templates / examples / nav/sidebar / validate probes / 部署副本与代码消费位置 |
 
 ## API 文档规范
@@ -142,6 +143,7 @@ description: 文档开发子类型规范 — 技术文档/API文档/README 编�
 - `NegativeTranslationParityProbe`：多语言或双语文档里的否定词、反义词和限制语义必须双向核对，避免一端说“不支持”而另一端说“支持”。
 - `DocsExampleTruthSurfaceGate`：示例 option/config/method/field 不得凭记忆编写；进入公开主路径前要有 public type、schema、runtime dispatcher、导出入口或最小执行探针证据。
 - `CallbackExampleScopeProbe`：回调/事件/hook/transaction 示例要核对参数签名、ctx 字段、闭包来源、返回/异常处理和运行时分发，不得把未定义变量或伪造 ctx 当成主路径。
+- `ExpertOutputQualityGate`：面向用户或维护者的文档、示例、fixture 解读、quick start、技术方案和报告必须先给生产推荐路径、框架原生能力、项目既有能力和证据矩阵；fixture、mock、demo、兼容路径和反模式只能作为边界说明或迁移说明。
 - `RequirementPreConfirmGate`：docs/需求类任务推荐确认 `01-需求确认.md` / `01-产品需求.md` 前，必须检查行为可验证、范围/非目标冲突和高风险 fail-safe 语义；缺口先修正文档或列确认问题。
 - `RequirementVerdictStateSyncGate`：docs/需求类任务在修订、再次复审、宣布“可确认 / 暂不通过 / 已修订待复审”前，必须同步真相源顶部状态、推荐结论章节、修复清单、audit-state decision、sessions / SUMMARY 口径。
 - `DocsConsumerSweep`：文档即产品入口时，正文、导航、索引、示例、模板、Profile、validate 和部署副本都是当前消费者；同步失败或刻意不同序必须写明原因。

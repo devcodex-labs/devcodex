@@ -27,7 +27,7 @@ description: 定义意图识别结果到工作流的路由映射。本 Skill 为
 
 > ⚠️ 本表仅供路由参考。执行时按 `01-common` §Skill 按需读取表 读取对应 Skill，禁止全量读取。
 > 子类型标识汇总：`dev.default` / `dev.docs` / `dev.refactor` / `dev.database` / `dev.init` / `dev.optimization` / `dev.scenario-test` / `dev.plan-review` / `fix.default` / `fix.security` / `fix.incident` / `analyze.default` / `analyze.research`
-> 支撑型 Skill 不作为工作流子类型；Profile 缺失、补建 Profile 或恢复 dev 模式时按需触发 `profile-bootstrap`。用户文档/最终手册写作语义优先触发 `user-manual-authoring`；用户侧文档 review、项目文档审查、菜单导航或文档 IA 审查语义优先触发 `audit-user-manual`；正式复审/清单收敛语义优先触发 `review-checklist`；规范吸纳、最新可吸纳、data 吸纳清单或仍需吸纳语义优先触发 `spec-absorption`；自我进化/自动吸纳/自动优化规范或模型辅助治理语义优先触发 `evolution-governance`。
+> 支撑型 Skill 不作为工作流子类型；Profile 缺失、补建 Profile 或恢复 dev 模式时按需触发 `profile-bootstrap`。用户文档/最终手册写作语义优先触发 `user-manual-authoring`；用户侧文档 review、项目文档审查、菜单导航或文档 IA 审查语义优先触发 `audit-user-manual`；正式复审/清单收敛语义优先触发 `review-checklist`；代码、文档、示例、fixture、技术方案或报告被要求具备技术专家 / 资深架构 / 领域专家质量，或用户指出“不专业 / 像初级 / 示例误导”时优先触发 `expert-output-quality`；规范吸纳、最新可吸纳、data 吸纳清单或仍需吸纳语义优先触发 `spec-absorption`；自我进化/自动吸纳/自动优化规范或模型辅助治理语义优先触发 `evolution-governance`。
 
 | 工作流 | 子类型 | Skill 文件 |
 |--------|--------|-----------|
@@ -59,6 +59,7 @@ description: 定义意图识别结果到工作流的路由映射。本 Skill 为
 | 站点文档、最终用户使用文档、README、quick start、接入手册、docs-first 用户手册 | `skills/user-manual-authoring/SKILL.md` | 用户文档写作入口；README 继续叠加 `readme-authoring` |
 | 用户侧文档 review、项目文档审查、文档设计、菜单导航、sidebar、信息架构 | `skills/audit-user-manual/SKILL.md` | 用户文档审查聚合入口；按顺序叠加 `user-manual-authoring`、`audit-document`、条件 `audit-readme`、`review-checklist` |
 | 正式复审、ECR、发布前复审、多轮收敛、冻结清单、外部 finding 批次 | `skills/review-checklist/SKILL.md` | 复审清单创建、冻结、逐项证据、状态新鲜度与收敛关闭 |
+| 专家型代码/文档/示例/fixture/方案/报告质量、不专业纠正、生产推荐路径与反模式边界 | `skills/expert-output-quality/SKILL.md` | 执行 `ExpertOutputQualityGate`，区分生产推荐路径、框架原生能力、fixture/mock/demo 边界、反模式和证据矩阵 |
 | 规范吸纳、最新可吸纳、仍需吸纳、检查 `.devcodex/*/data` 吸纳清单、开始吸纳 | `skills/spec-absorption/SKILL.md` | 规范吸纳执行入口；证明通用规范价值、剔除项目独有规则、输出最终清单、分层落点、消费者证明、验证探针和台账回写 |
 | 自我进化、自动吸纳、模型辅助规范优化、自动补 Skill / Prompt / Probe、自动治理候选 | `skills/evolution-governance/SKILL.md` | 自我进化控制面入口；执行 `EvolutionCapabilityControlPlaneGate`，冻结授权、模型配置、权限、配额、数据边界、审计、回滚和发布审批 |
 

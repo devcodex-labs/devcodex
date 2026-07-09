@@ -727,9 +727,9 @@ const probes = [
   ['prompts/report-audit.prompt.md', 'ConfirmedAbsorptionCompletenessGates'],
   ['prompts/report-scenario-test.prompt.md', 'ConfirmedAbsorptionCompletenessGates'],
   ['README.md', 'evolution-governance'],
-  ['website/docs/index.md', '50 个 Skills'],
-  ['website/docs/intro/index.md', '50 个按需触发的工作流技能'],
-  ['website/docs/specs/directory-structure.md', '扁平一级 Skill（50 个）'],
+  ['website/docs/index.md', '51 个 Skills'],
+  ['website/docs/intro/index.md', '51 个按需触发的工作流技能'],
+  ['website/docs/specs/directory-structure.md', '扁平一级 Skill（51 个）'],
   ['website/docs/guide/development.md', 'ConfirmedAbsorptionCompletenessGates'],
   ['website/docs/versions/v1/1.0.1/requirements/p1/latest-data-absorption-guards/index.md', 'V73'],
   ['website/docs/versions/v1/1.0.1/CHANGELOG.md', 'V73 探针'],
@@ -1131,7 +1131,7 @@ for (const [file, needle] of [
   ['prompts/report-fix.prompt.md', 'DocsNavigationReviewMatrix'],
   ['prompts/report-audit.prompt.md', 'audit-user-manual / UserManualReviewScope / DocsNavigationReviewMatrix'],
   ['README.md', '用户侧文档 review 聚合'],
-  ['website/docs/index.md', '50 个 Skills'],
+  ['website/docs/index.md', '51 个 Skills'],
   ['website/docs/intro/index.md', 'audit-user-manual'],
   ['website/docs/guide/development.md', 'audit-user-manual'],
   ['website/docs/specs/directory-structure.md', 'audit-user-manual']
@@ -1184,7 +1184,7 @@ for (const [file, needle] of [
   ['prompts/report-scenario-test.prompt.md', 'negativeExamples'],
   ['README.md', checkV81],
   ['README.md', 'ServiceSpecReadGate'],
-  ['website/docs/index.md', '50 个 Skills'],
+  ['website/docs/index.md', '51 个 Skills'],
   ['website/docs/intro/index.md', checkV81],
   ['website/docs/specs/directory-structure.md', checkV81],
   ['website/docs/guide/development.md', 'CommonNormGeneralizationGate'],
@@ -1277,6 +1277,69 @@ for (const [file, needle] of [
 }
 mustIncludeInChangelogs('V83')
 mustIncludeInChangelogs('ProfileTierStandardGate')
+
+const checkV84 = 'ExpertOutputQualityGate'
+function classifyExpertOutputSample(sample) {
+  const fixtureOnly = /fixture|mock|demo|硬编码单例|每个 route 都重复|重复声明/.test(sample)
+  const production = /生产推荐路径|框架原生能力|项目既有能力|推荐写法|public API|official docs/.test(sample)
+  const boundary = /fixtureBoundary|mock.*边界|demo.*边界|反模式|evidenceMatrix|AntiPattern/.test(sample)
+  if (fixtureOnly && !production && !boundary) return 'misleading-fixture'
+  if (production && boundary) return 'expert-quality'
+  return 'needs-review'
+}
+
+if (classifyExpertOutputSample('permission-core-auth fixture 通过在每个 route 都重复 middlewares 和 auth 资源配置证明底层能力可用。') !== 'misleading-fixture') {
+  failures.push('checkV84 negative fixture sample must be misleading-fixture')
+}
+if (classifyExpertOutputSample('生产推荐路径应优先使用框架原生能力和项目既有 helper；fixtureBoundary 只说明 mock/demo 验证边界，antiPattern/evidenceMatrix 标出每个 route 重复声明不是推荐写法。') !== 'expert-quality') {
+  failures.push('checkV84 positive expert sample must be expert-quality')
+}
+
+for (const [file, needle] of [
+  ['scripts/lib/validate-governance-tail.js', 'checkV84'],
+  ['scripts/lib/validate-governance-tail.js', 'classifyExpertOutputSample'],
+  ['scripts/lib/validate-governance-tail.js', checkV84],
+  ['scripts/validate.js', 'V84 expert output quality skill sync'],
+  ['scripts/validate.js', 'checkV84()'],
+  ['skills/expert-output-quality/SKILL.md', 'name: expert-output-quality'],
+  ['skills/expert-output-quality/SKILL.md', checkV84],
+  ['skills/expert-output-quality/SKILL.md', 'ProductionRecommendedPathGate'],
+  ['skills/expert-output-quality/SKILL.md', 'FrameworkNativeCapabilityFirstGate'],
+  ['skills/expert-output-quality/SKILL.md', 'FixtureBoundaryDisclosureGate'],
+  ['skills/expert-output-quality/SKILL.md', 'AntiPatternContrastGate'],
+  ['skills/expert-output-quality/SKILL.md', 'ExpertEvidenceMatrixGate'],
+  ['plugin.json', 'expert-output-quality'],
+  ['skills/routing/SKILL.md', 'expert-output-quality'],
+  ['skills/spec-governance/SKILL.md', 'expert-output-quality'],
+  ['skills/spec-absorption/SKILL.md', checkV84],
+  ['skills/dev-plan-review/SKILL.md', checkV84],
+  ['skills/dev-docs/SKILL.md', checkV84],
+  ['skills/user-manual-authoring/SKILL.md', 'expertOutputQualityEvidence'],
+  ['skills/audit-document/SKILL.md', checkV84],
+  ['skills/audit-readme/SKILL.md', checkV84],
+  ['skills/audit-user-manual/SKILL.md', '专家型产物质量'],
+  ['skills/audit-project/SKILL.md', checkV84],
+  ['skills/audit-tech-design/SKILL.md', checkV84],
+  ['skills/test-router/SKILL.md', 'expertOutputQuality'],
+  ['skills/report/SKILL.md', checkV84],
+  ['prompts/technical-design.prompt.md', checkV84],
+  ['prompts/implementation-plan.prompt.md', checkV84],
+  ['prompts/report-dev.prompt.md', checkV84],
+  ['prompts/report-fix.prompt.md', checkV84],
+  ['prompts/report-audit.prompt.md', checkV84],
+  ['prompts/report-scenario-test.prompt.md', checkV84],
+  ['README.md', 'expert-output-quality'],
+  ['website/docs/index.md', '51 个 Skills'],
+  ['website/docs/intro/index.md', '51 个按需触发'],
+  ['website/docs/specs/directory-structure.md', '扁平一级 Skill（51 个）'],
+  ['website/docs/guide/development.md', checkV84],
+  ['website/docs/versions/v1/1.0.1/CHANGELOG.md', 'V84']
+]) {
+  mustInclude(file, needle)
+}
+mustIncludeInChangelogs('V84')
+mustIncludeInChangelogs('expert-output-quality')
+mustIncludeInChangelogs('ExpertOutputQualityGate')
 
 const activeRuleFiles = [
   'README.md',

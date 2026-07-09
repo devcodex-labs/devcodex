@@ -8,7 +8,7 @@
 
 ## 当前未发布变更
 
-暂无。
+- 2026-07-09：修复 `validate-profile` 档位检测在 workspace fallback 与项目本地 Profile 混合时可能被 fallback `profile-lite` 误导的问题；项目本地显式 `Profile 档位` 现在优先，新增回归测试覆盖 standard 项缺少 04/05 时必须失败，支撑 `ProfileTierStandardGate` / `AllDevCodexProfileValidationGate` 的真实退出码验证。
 
 ## 记录提示
 

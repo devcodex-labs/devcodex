@@ -142,6 +142,19 @@ function profileCorpus(fileNames) {
     .join('\n')
 }
 
+function profileCorpusEntries(fileNames) {
+  return fileNames.map(fileName => {
+    const info = profileFileInfo(fileName)
+    const text = info.source === 'missing' ? '' : fs.readFileSync(info.path, 'utf8')
+    return { fileName, info, text }
+  })
+}
+
+function extractExplicitProfileTiers(text) {
+  return [...String(text || '').matchAll(/Profile\s*档位[：:]\s*`?(profile-(?:lite|standard|closed-loop))`?/gi)]
+    .map(match => match[1])
+}
+
 function hasCurrentAgentsDistribution(text) {
   return /devcodex\/agents\/\s*→\s*\.github\/agents\//.test(text) &&
     /(Copilot[^\n。]*默认分发|默认分发[^\n。]*Copilot)/.test(text) &&
@@ -594,7 +607,7 @@ const PROFILE_TIER_GATES = [
 ]
 
 function detectProfileTier() {
-  const combined = profileCorpus([
+  const tierFiles = [
     'README.md',
     '01-项目信息.md',
     '02-架构约束.md',
@@ -604,11 +617,34 @@ function detectProfileTier() {
     '05-发布规范.md',
     '06-功能清单.md',
     '07-用户文档与契约规范.md'
-  ])
-  const explicitTier = combined.match(/Profile\s*档位[：:]\s*`?(profile-(?:lite|standard|closed-loop))`?/i)
-  if (explicitTier) {
-    return { tier: explicitTier[1], combined }
+  ]
+  const entries = profileCorpusEntries(tierFiles)
+  const combined = entries
+    .map(entry => `\n--- ${entry.fileName} (${entry.info.source}) ---\n${entry.text}`)
+    .join('\n')
+
+  const projectTiers = entries
+    .filter(entry => entry.info.source === 'project')
+    .flatMap(entry => extractExplicitProfileTiers(entry.text))
+  const uniqueProjectTiers = [...new Set(projectTiers)]
+  if (uniqueProjectTiers.length > 1) {
+    warn(`[profile] multiple project-local profile tiers declared: ${uniqueProjectTiers.join(', ')}`)
   }
+  if (uniqueProjectTiers.length >= 1) {
+    return { tier: uniqueProjectTiers[0], combined }
+  }
+
+  const fallbackTiers = entries
+    .filter(entry => entry.info.source !== 'missing')
+    .flatMap(entry => extractExplicitProfileTiers(entry.text))
+  const uniqueFallbackTiers = [...new Set(fallbackTiers)]
+  if (uniqueFallbackTiers.length > 1) {
+    warn(`[profile] multiple fallback profile tiers declared: ${uniqueFallbackTiers.join(', ')}`)
+  }
+  if (uniqueFallbackTiers.length >= 1) {
+    return { tier: uniqueFallbackTiers[0], combined }
+  }
+
   const matches = [...combined.matchAll(/\bprofile-(?:lite|standard|closed-loop)\b/g)].map(match => match[0])
   const unique = [...new Set(matches)]
   if (unique.length > 1) {

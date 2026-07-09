@@ -477,6 +477,36 @@ function main() {
         assert.strictEqual(explicitFallbackResult.status, 0, explicitFallbackOutput)
         assert.doesNotMatch(explicitFallbackOutput, /missing required/)
 
+        const localTierOverridesFallbackRoot = createWorkspaceNamespaceWorkspace(currentProjectInfo())
+        const localStandardProfileDir = path.join(localTierOverridesFallbackRoot, '.devcodex', 'sample', 'profile')
+        writeFile(localTierOverridesFallbackRoot, '.devcodex/sample/profile/01-项目信息.md', [
+            currentProjectInfo(),
+            '',
+            '- Profile 档位：profile-standard。'
+        ].join('\n'))
+        fs.mkdirSync(path.join(localTierOverridesFallbackRoot, 'sample'), { recursive: true })
+        writeFile(localTierOverridesFallbackRoot, 'sample/package.json', JSON.stringify({
+            name: 'sample',
+            version: '0.0.1',
+            scripts: { test: 'node -e "1"' }
+        }, null, 2))
+        const localTierOverridesFallbackResult = runValidateWithArgs(
+            path.join(localTierOverridesFallbackRoot, 'sample'),
+            [
+                '--profile-dir',
+                localStandardProfileDir,
+                '--workspace-profile',
+                path.join(localTierOverridesFallbackRoot, '.devcodex', 'workspace', 'profile'),
+                '--project-root',
+                path.join(localTierOverridesFallbackRoot, 'sample')
+            ]
+        )
+        const localTierOverridesFallbackOutput = `${localTierOverridesFallbackResult.stdout}\n${localTierOverridesFallbackResult.stderr}`
+
+        assert.strictEqual(localTierOverridesFallbackResult.status, 1, localTierOverridesFallbackOutput)
+        assert.match(localTierOverridesFallbackOutput, /profile-standard requires 04-测试规范\.md/)
+        assert.match(localTierOverridesFallbackOutput, /profile-standard requires 05-交付发布规范\.md or 05-发布规范\.md/)
+
         const allProfilesRoot = createWorkspaceNamespaceWorkspace(currentProjectInfo())
         writeFile(allProfilesRoot, '.devcodex/chat/profile/01-项目信息.md', currentProjectInfo())
         const allProfilesResult = runValidateAll(allProfilesRoot)

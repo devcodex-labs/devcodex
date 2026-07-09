@@ -24,7 +24,7 @@ description: 发布验证规范 — 覆盖版本、changelog、测试、pack、i
 | R1 | 将 `changelogs/unreleased.md` 归档到 `changelogs/releases/vX.Y.Z.md`，并更新根 `CHANGELOG.md` |
 | R2 | 同步 `package.json`、`package-lock.json`、`plugin.json`、Profile/README/website 版本口径；发布型 Profile 必须补齐 CI workflow/job 矩阵、tag/publish 触发链、失败恢复路径、外部消费者验证矩阵、dist 产物边界、registry/tag 验收与常见故障诊断 |
 | R3 | 执行 `npm test`（默认全链）|
-| R3b | 执行 `npm run test:audit`，并完成 package completeness gate（`description`、`keywords`、`repository`、`homepage`、`bugs`、`license`、`files/exports/bin`、`publishConfig`、`engines`、`plugin.json` 元数据）；包边界检查必须在构建/benchmark/codegen 完成后单独串行执行 |
+| R3b | 执行 `npm run test:audit`，并完成 package completeness gate（`description`、`keywords`、`repository`、`homepage`、`bugs`、`license`、`files/exports/bin`、`publishConfig`、`engines`、`plugin.json` 元数据）；包边界检查必须在构建/benchmark/codegen 完成后单独串行执行；公开打包脚本必须执行 `PackagedScriptDependencyClosureGate`，递归核对本地 `require()`、`path.join(ROOT,'scripts',...)` 或等价运行时脚本依赖都进入 tarball |
 | R3c | 执行 `RemoteCIParityPushGate`：push / tag / release / publish 前先执行与远端 CI 同构的本地门禁；若项目存在远端 CI（如 GitHub Actions），确认目标 commit 对应 CI run 已完成且 conclusion 为 `success`；无远端 CI 或无权限查询时必须写 `N/A + skipReason`，不得把普通测试通过替代 coverage、audit、examples、website、pack 或矩阵脚本 |
 | R4 | 执行 `npm pack --dry-run` 与 `npm publish --dry-run`（遵循当前 `publishConfig`），并执行 `NativeCommandExitCodeGate` |
 | R5 | 条件执行 pack install smoke，并记录真实命令退出码 |
@@ -44,6 +44,7 @@ description: 发布验证规范 — 覆盖版本、changelog、测试、pack、i
 - 按 `ConcurrencyPolicy`，只读准备和隔离验证可并行；`npm pack --dry-run`、package boundary check、files/exports/bin 检查不得与任何会删除、重建或写入 `dist` 的命令并行；若曾出现并行读写竞争，报告必须以重新单独执行的 pack 结果为准，并记录旧结果作废。
 - ReleaseVerification 完成前必须检查并清理无关 dirty 文件、旧验证残留和本轮生成但不属于交付范围的产物；不得把残留文件留给后续任务。
 - 发布前必须执行 `PublicSurfaceClosureGate`：分类 npm pack 历史公开内容，反查 README 隐藏文档链接、public types 兼容 API 标注、examples/sidebar/nav、搜索索引源文档和 historical pack surface；不得只检查当前源码目录。
+- 发布包若包含 `scripts/*.js`、CLI helper、profile validator、migration tool 或公开验证脚本，必须执行 `PackagedScriptDependencyClosureGate`：用 tarball / 临时安装后的真实路径验证公开脚本可执行，缺少本地 helper、spawn 目标脚本或运行时依赖时阻断发布；不得只因源码目录 `npm test` 通过就认定包消费者可用。
 - 发布、pack、install smoke、CLI replay、curl/git/npm/node 等原生命令必须执行 `NativeCommandExitCodeGate`：PowerShell 下不能只依赖 `$ErrorActionPreference` 或后续 `Write-Host OK`，必须检查 `$LASTEXITCODE` 或使用会向外传播非零退出码的 wrapper；Bash/类 Unix shell 必须避免管道或子命令吞掉失败。证据至少记录 command、shell、cwd、exitCode、auth/config 来源（如 `.npmrc` / `--userconfig`）以及失败证据是否已排除；命令失败但脚本继续打印成功文案的结果无效。
 
 ## 输出格式

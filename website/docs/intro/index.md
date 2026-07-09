@@ -23,6 +23,7 @@ DevCodex 当前处于**本地文件版持续迭代阶段**。
 | 规范随代码版本化 | 用版本文档管理规范演进与实现边界 |
 | 跨项目零配置复用 | 目标是后续通过 `devcodex init` 安装到任意项目 |
 | 多宿主一致入口 | Copilot、Claude Code 与 Codex 共用同一规范源，分别落到 `.github/`、`CLAUDE.md + .claude/`、`AGENTS.md + .agents/ + .codex/`；Hook 能力按宿主/事件降级，并按官方输出契约区分顶层 block、`continue:false` 与工具级 deny |
+| 文件真相源优先 | `MemoryCannotSatisfyBootstrapGate` 要求宿主 Memories、模型长期偏好或交接卡只作为 `navigation-hint`，新线程 / resume / summary 恢复仍读取 Profile、tasks、reports 和源码 / 文档真相源 |
 | 平台升级免维护 | 提前对齐官方目录规范，降低后续实现风险 |
 | 灵活的执行模式 | 提供确认模式与 Auto v1.1；Auto 通过显式 `@devcodex-auto`、全局默认 `@rocky`、Profile `extensions.devcodex.autoAliases` 替换别名或明确自然语言 auto 授权进入，仅对白名单路径提供自动推进保证，控制面/多批次任务仍受 ExecutionContract 约束 |
 | AI 对自身行为自检 | 把合规检查作为核心设计原则保留下来 |
@@ -67,7 +68,7 @@ DevCodex 提供两个 Agent 入口：
 |------|------|
 | Agent | `devcodex.agent.md`（确认模式）+ `devcodex-auto.agent.md`（全自动模式）|
 | Instructions | 全局规范与工作流主规则，按 `applyTo` 全局注入 |
-| Skills | 51 个按需触发的工作流技能，覆盖完整开发生命周期、`analyze-default` 默认分析、规范治理、`spec-absorption` 规范吸纳执行、`user-manual-authoring` 最终用户文档、`audit-user-manual` 用户侧文档 review 聚合、`expert-output-quality` 专家型产物质量、`review-checklist` 复审清单、`evolution-governance` 自我进化治理、`readme-authoring` / `audit-readme` README 专项能力、`audit-release` 发布前审查，以及 `execution-contract` / `test-router` / `release-verification` / `host-contract-verification` / `source-consumer-sync` 支撑能力 |
+| Skills | 68 个按需触发的工作流技能，覆盖完整开发生命周期、`analyze-default` 默认分析、规范治理、`spec-absorption` 规范吸纳执行、`user-manual-authoring` 最终用户文档、`audit-user-manual` 用户侧文档 review 聚合、`expert-output-quality` 专家型产物质量、产品策略/DX/UX/前端/后端/SRE/API 契约/外部集成/平台生态/AI Agent/数据/安全/质量/设计系统/无障碍国际化/增长分析/商业模型专家 Owner Skill、`review-checklist` 复审清单、`evolution-governance` 自我进化治理、`readme-authoring` / `audit-readme` README 专项能力、`audit-release` 发布前审查，以及 `execution-contract` / `test-router` / `release-verification` / `host-contract-verification` / `source-consumer-sync` 支撑能力 |
 | Prompts | CP 节点输出模板 |
 | Hooks | `UserPromptSubmit` / `PreToolUse` / `Stop` 等生命周期钩子 |
 | Codex adapter | `AGENTS.md` + `.agents/skills/` + `.codex/hooks.json` |

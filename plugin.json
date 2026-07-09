@@ -2,7 +2,7 @@
   "_format": "DevCodex internal metadata — NOT a GitHub Copilot official format. Copilot reads .github/agents|skills|instructions|prompts directly.",
   "_note_skills": "Adding a new sub-type Skill (e.g. dev-<name> / fix-<name>) requires L1~L3 sync per audit-dimensions D5: (L1) routing/SKILL.md 路由表 (L2) 02-output-paths.instructions.md 产物目录 (L3) 对应 report 模板子类型字段. Skill name field must match directory name. See audit-dimensions D5 关键检查 for full rules.",
   "id": "devcodex",
-  "version": "1.11.31",
+  "version": "1.11.32",
   "name": "DevCodex",
   "publisher": "Rocky",
   "displayName": "DevCodex — AI Development Workflow Assistant",
@@ -268,6 +268,91 @@
     {
       "id": "expert-output-quality",
       "file": "skills/expert-output-quality/SKILL.md",
+      "tier": "free"
+    },
+    {
+      "id": "product-strategy",
+      "file": "skills/product-strategy/SKILL.md",
+      "tier": "free"
+    },
+    {
+      "id": "developer-experience-architecture",
+      "file": "skills/developer-experience-architecture/SKILL.md",
+      "tier": "free"
+    },
+    {
+      "id": "ux-interaction-architecture",
+      "file": "skills/ux-interaction-architecture/SKILL.md",
+      "tier": "free"
+    },
+    {
+      "id": "frontend-architecture",
+      "file": "skills/frontend-architecture/SKILL.md",
+      "tier": "free"
+    },
+    {
+      "id": "backend-domain-architecture",
+      "file": "skills/backend-domain-architecture/SKILL.md",
+      "tier": "free"
+    },
+    {
+      "id": "production-readiness-sre",
+      "file": "skills/production-readiness-sre/SKILL.md",
+      "tier": "free"
+    },
+    {
+      "id": "api-contract-architecture",
+      "file": "skills/api-contract-architecture/SKILL.md",
+      "tier": "free"
+    },
+    {
+      "id": "external-integration-architecture",
+      "file": "skills/external-integration-architecture/SKILL.md",
+      "tier": "free"
+    },
+    {
+      "id": "platform-ecosystem-architecture",
+      "file": "skills/platform-ecosystem-architecture/SKILL.md",
+      "tier": "free"
+    },
+    {
+      "id": "ai-agent-system-architecture",
+      "file": "skills/ai-agent-system-architecture/SKILL.md",
+      "tier": "free"
+    },
+    {
+      "id": "data-architecture",
+      "file": "skills/data-architecture/SKILL.md",
+      "tier": "free"
+    },
+    {
+      "id": "security-threat-modeling",
+      "file": "skills/security-threat-modeling/SKILL.md",
+      "tier": "free"
+    },
+    {
+      "id": "quality-strategy",
+      "file": "skills/quality-strategy/SKILL.md",
+      "tier": "free"
+    },
+    {
+      "id": "design-system-architecture",
+      "file": "skills/design-system-architecture/SKILL.md",
+      "tier": "free"
+    },
+    {
+      "id": "accessibility-i18n",
+      "file": "skills/accessibility-i18n/SKILL.md",
+      "tier": "free"
+    },
+    {
+      "id": "growth-analytics",
+      "file": "skills/growth-analytics/SKILL.md",
+      "tier": "free"
+    },
+    {
+      "id": "business-model-review",
+      "file": "skills/business-model-review/SKILL.md",
       "tier": "free"
     },
     {

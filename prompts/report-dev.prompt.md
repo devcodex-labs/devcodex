@@ -82,6 +82,7 @@ applyTo: .devcodex/**/reports/requirements/**
 | ConfirmedAbsorptionCompletenessGates | ✅/N/A | ✅/⚠️ | gateGroup / ownerSkill / layerChecks / validationRoute；anchors: PublicSurfaceClosureGate / UserManualProductizationGate / ReviewAnchorMaterializationGate / FrontendAsyncCacheRenderGate / RemoteCIParityPushGate / NativeCommandExitCodeGate / DocsThemeRuntimeVisualProbeGate |
 | LatestAbsorptionExecutionPack A1~A10 | ✅/N/A | ✅/⚠️ | gateGroup / ownerSkill / validationRoute / V82；anchors: ConfigCanonicalNamespaceGate / ProfileRuntimeContractSyncGate / BehaviorSemanticDocsParityGate / DocsExampleTruthSurfaceGate / DerivedMetricConsumerProbe / FeatureInventoryProfileGate / BatchEvidenceLedgerStateGate / BatchProgressCardGate |
 | ExpertOutputQualityGate | ✅/N/A | ✅/⚠️ | roleBaseline / productionRecommendedPath / frameworkNativeCapability / fixtureBoundary / antiPatternContrast / evidenceMatrix / V84 |
+| ExpertOwnerSkillGate | ✅/N/A | ✅/⚠️ | ownerSkill / triggerReason / requiredFields / validationRoute / skipReason / V85；ProductStrategyOwnerGate / DeveloperExperienceArchitectureGate / UxInteractionArchitectureGate / FrontendArchitectureOwnerGate / BackendDomainArchitectureGate / ProductionReadinessSreGate / ApiContractArchitectureGate / ExternalIntegrationArchitectureGate / PlatformEcosystemArchitectureGate / AiAgentSystemArchitectureGate / DataArchitectureGate / SecurityThreatModelingGate / QualityStrategyGate / DesignSystemArchitectureGate / AccessibilityI18nGate / GrowthAnalyticsGate / BusinessModelReviewGate |
 | CrossProjectLearnedGuards | ✅/N/A | ✅/⚠️ | GovernanceGateRegistry gateGroup / ownerSkill / validationRoute / skipReason；anchors: CodeTruthRequirementGate / ManualReviewEvidenceRetention / ReviewFindingIntakeGate / UserDocsPrimarySurfaceGate / ActiveRequirementFinalResponseGate / V2FormalSolutionPackage |
 | LatestAbsorptionGuards | ✅/N/A | ✅/⚠️ | GovernanceGateRegistry gateGroup / evidence / N/A；anchors: DatabaseRecordMigrationExportGate / FrontendBrowserVerificationBudgetGate / FindingProbeMatrixGate / VerificationCommandSideEffectGate / RequirementPreConfirmGate / BenchmarkRegressionGuard |
 | ServiceLifecycleCleanup | ✅/N/A | ✅/⚠️ | AI 自启动服务的 command/cwd/PID/job/port/url、关闭验证或 keepAliveReason |
@@ -110,6 +111,7 @@ applyTo: .devcodex/**/reports/requirements/**
 | 文档使用者视角、即时理解、主面与消费者扫描 | ✅ 通过 / N/A | UserPerspectiveDocsGate / UserDocsImmediateComprehensionGate / UserDocsPrimarySurfaceGate / DocsConsumerSweep |
 | 用户最终文档、生成站点与公开用户路径 | ✅ 通过 / N/A | UserFacingDeliveryChainGate / FinalUserManualFirstGate / audit-user-manual / UserManualReviewScope / DocsNavigationReviewMatrix / GeneratedSiteGate / ManualTocDuplicationGate / UserPathContractSweep |
 | 专家型产物质量 | ✅ 通过 / N/A | ExpertOutputQualityGate / ProductionRecommendedPathGate / FrameworkNativeCapabilityFirstGate / FixtureBoundaryDisclosureGate / AntiPatternContrastGate / ExpertEvidenceMatrixGate |
+| 专家 Owner Skill | ✅ 通过 / N/A | ExpertOwnerSkillGate / product-strategy / developer-experience-architecture / ux-interaction-architecture / frontend-architecture / backend-domain-architecture / production-readiness-sre / api-contract-architecture / external-integration-architecture / platform-ecosystem-architecture / ai-agent-system-architecture / data-architecture / security-threat-modeling / quality-strategy / design-system-architecture / accessibility-i18n / growth-analytics / business-model-review / V85 |
 | 复审清单证据化、逃逸记录、构建产物与性能回归 | ✅ 通过 / N/A | ReviewChecklistCompletenessGate / EvidenceExecutionGate / ReviewEscapeRecordGate / whyMissed / prevention / rerunEvidence / BuiltArtifactFeatureSmokeGate / TscOutputImportProbe / BenchmarkRegressionGuard |
 | 公开用户文档维护边界 | ✅ 通过 / N/A | PublicUserDocsMaintainerBoundaryGate |
 | 产物链接去重 | ✅ 通过 / N/A | ArtifactLinkSetDedupeGate canonical path |
@@ -134,6 +136,7 @@ applyTo: .devcodex/**/reports/requirements/**
 - [ ] HistoricalCommonNormLayeringGate：✅ 完成 / N/A + skipReason
 - [ ] CrossProjectLearnedGuards：✅ 完成 / N/A + skipReason
 - [ ] ExpertOutputQualityGate：✅ 完成 / N/A + skipReason
+- [ ] ExpertOwnerSkillGate：✅ 完成 / N/A + skipReason
 - [ ] ReviewFindingIntakeGate：✅ 完成 / N/A + skipReason
 - [ ] ReviewDimensionDeltaGate / UserPerspectiveDocsGate / UserDocsImmediateComprehensionGate / UserDocsPrimarySurfaceGate / PublicUserDocsMaintainerBoundaryGate / DocsConsumerSweep / RequirementVerdictStateSyncGate / ArtifactLinkSetDedupeGate / FrontendRuntimeNetworkProbeGate / ActiveRequirementFinalResponseGate：✅ 完成 / N/A + skipReason
 - [ ] WorkspaceDataAbsorptionScopeGate / DocsSiteVisualAcceptanceGate / MethodLevelLeakPressureProbe / V2FormalSolutionPackage：✅ 完成 / N/A + skipReason

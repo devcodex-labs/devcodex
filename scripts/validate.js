@@ -76,7 +76,7 @@
  * V78 review scope drift docs IA sync（确认后复审、开发偏移、验证计划、用户建议根因与文档 IA）
  * V79 coverage gate and external runtime lifecycle matrix sync（coverage 独立门禁、外部 runtime/plugin/registry 生命周期矩阵、函数源码 fingerprint 与同风险簇分层验证）
  * V80 audit-user-manual aggregation skill sync（用户侧文档 review 聚合入口、项目文档、菜单导航、信息架构与报告证据）
- * V81~V84 规范吸纳执行、最新吸纳执行包、Profile 三档 / 全工作区校验与专家型产物质量同步
+ * V81~V86 规范吸纳执行、最新吸纳执行包、Profile 三档 / 全工作区校验、专家型产物质量、专家 Owner Skill 与记忆启动链真相源同步
  *
  * Exit: 0=OK, 1=error, 2=warnings only
  */
@@ -567,7 +567,9 @@ const {
   checkV81,
   checkV82,
   checkV83,
-  checkV84
+  checkV84,
+  checkV85,
+  checkV86
 } = buildGovernanceTailChecks({
   ROOT,
   ACTIVE_DEVCODEX_ROOT,
@@ -828,7 +830,7 @@ function checkV19() {
   const checks = [
     { file: 'README.md', needle: `Instructions 约束（${instructionCount} 个，含全部工作流规则）` },
     { file: 'README.md', needle: `全局 Instructions（${instructionCount} 个，含工作流规则摘要，自动注入）` },
-    { file: 'README.md', needle: `Skill 详细检查标准（${skillCount} 个，按需读取，含默认分析、用户文档、用户侧文档 review 聚合、专家型产物质量、复审清单、自我进化治理、README 专项能力、spec-governance、spec-absorption 与 5 个支撑型 Skill）` },
+    { file: 'README.md', needle: `Skill 详细检查标准（${skillCount} 个，按需读取，含默认分析、用户文档、用户侧文档 review 聚合、专家型产物质量、17 个专家 Owner Skill、复审清单、自我进化治理、README 专项能力、spec-governance、spec-absorption 与 5 个支撑型 Skill）` },
     { file: 'README.md', needle: `Skill 详细检查标准（${skillCount} 个，按 01-common §按需读取表 路由读取）` },
     { file: 'README.md', needle: `Prompt 模板（${promptCount} 个）` },
     { file: activePath('profile', '01-项目信息.md'), needle: `| **Skill** | ${skillCount} |`, rawPath: false },
@@ -979,6 +981,10 @@ checkV82()
 checkV83()
 // V84 expert output quality skill sync
 checkV84()
+// V85 expert owner skill sync
+checkV85()
+// V86 memory bootstrap truth source sync
+checkV86()
 
 console.log('')
 if (errors.length) {

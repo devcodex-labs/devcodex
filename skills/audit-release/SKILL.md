@@ -31,7 +31,7 @@ description: 发布前审查维度 — 审查 release readiness、发布说明�
 | RL-2 发布说明质量 | changelog/release notes 是否覆盖用户可见变化、修复、迁移提示与已知限制 | 🔴 |
 | RL-3 兼容与迁移风险 | breaking changes、配置变更、宿主兼容、迁移路径与回滚影响是否说明 | 🔴 |
 | RL-4 元数据完整性 | `description`、`keywords`、`repository`、`homepage`、`bugs`、`license`、`files/exports/bin`、`publishConfig`、`engines`、`plugin.json` 是否完整准确 | 🔴 |
-| RL-5 包边界与安装面 | pack 内容、安装路径、认证前提、二进制入口、禁发文件与部署副本边界是否清楚；是否执行 `PublicSurfaceClosureGate`，分类历史 pack 公开内容、README 隐藏链接、public types 兼容 API、examples/sidebar/nav 和搜索索引源文档 | 🔴 |
+| RL-5 包边界与安装面 | pack 内容、安装路径、认证前提、二进制入口、禁发文件与部署副本边界是否清楚；是否执行 `PublicSurfaceClosureGate`，分类历史 pack 公开内容、README 隐藏链接、public types 兼容 API、examples/sidebar/nav 和搜索索引源文档；公开打包脚本是否执行 `PackagedScriptDependencyClosureGate`，递归核对本地 helper、spawn 目标脚本和运行时依赖进入 tarball | 🔴 |
 | RL-6 消费链同步 | README、website、Profile、release guide、模板、validate 与部署副本是否同步 | 🔴 |
 | RL-7 验证准备度 | `npm test`、`test:audit`、远端 CI 绿色、pack/publish dry-run、install smoke、ReleaseVerification R0~R7 的触发与证据是否充分；是否执行 `RemoteCIParityPushGate` 与 `NativeCommandExitCodeGate`，不得用普通测试通过替代 coverage、audit、examples、website、pack、矩阵脚本或真实原生命令退出码 | 🟡 |
 | RL-8 回滚与恢复 | 失败恢复、版本回退、tag/registry 冲突、半发布状态处理是否可执行 | 🟡 |

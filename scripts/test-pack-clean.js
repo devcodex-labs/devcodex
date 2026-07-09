@@ -9,10 +9,38 @@ const out = execSync('npm pack --dry-run --json', { cwd: ROOT, encoding: 'utf8' 
 const pack = JSON.parse(out)[0] || {}
 const files = (pack.files || []).map(file => file.path)
 
-function collectLocalRequires(file) {
-  const content = fs.readFileSync(path.join(ROOT, file), 'utf8')
-  const matches = content.matchAll(/require\(['"]\.\/([^'"]+)['"]\)/g)
-  return Array.from(matches, match => match[1].replace(/\\/g, '/'))
+function resolveLocalDependency(fromFile, request) {
+  const resolved = path.normalize(path.join(path.dirname(fromFile), request)).replace(/\\/g, '/')
+  if (path.extname(resolved)) return resolved
+  if (fs.existsSync(path.join(ROOT, `${resolved}.js`))) return `${resolved}.js`
+  if (fs.existsSync(path.join(ROOT, resolved, 'index.js'))) return `${resolved}/index.js`
+  return `${resolved}.js`
+}
+
+function collectRuntimeDependencies(file, seen = new Set()) {
+  if (seen.has(file)) return []
+  seen.add(file)
+
+  const fullPath = path.join(ROOT, file)
+  if (!fs.existsSync(fullPath)) return [file]
+
+  const content = fs.readFileSync(fullPath, 'utf8')
+  const deps = []
+
+  for (const match of content.matchAll(/require\(['"](\.{1,2}\/[^'"]+)['"]\)/g)) {
+    deps.push(resolveLocalDependency(file, match[1]))
+  }
+
+  for (const match of content.matchAll(/path\.join\(\s*ROOT\s*,\s*((?:['"][^'"]+['"]\s*,?\s*)+)\)/g)) {
+    const parts = Array.from(match[1].matchAll(/['"]([^'"]+)['"]/g)).map(item => item[1])
+    if (parts[0] === 'scripts' && /\.js$/.test(parts[parts.length - 1] || '')) {
+      deps.push(parts.join('/'))
+    }
+  }
+
+  return Array.from(new Set(
+    deps.flatMap(dep => [dep].concat(collectRuntimeDependencies(dep, seen)))
+  ))
 }
 
 const forbidden = [
@@ -41,13 +69,15 @@ const plugin = JSON.parse(fs.readFileSync(path.join(ROOT, 'plugin.json'), 'utf8'
 const npmignore = fs.readFileSync(path.join(ROOT, '.npmignore'), 'utf8')
 const packageFiles = (pkg.files || []).filter(item => !item.endsWith('/'))
 const pluginFiles = (plugin.skills || []).map(item => item.file).filter(Boolean)
+const packagedScripts = packageFiles.filter(file => file.startsWith('scripts/') && file.endsWith('.js'))
+const packagedScriptDeps = packagedScripts.flatMap(file => collectRuntimeDependencies(file))
 const promptFiles = walk(path.join(ROOT, 'prompts'))
   .filter(file => file.endsWith('.prompt.md'))
   .map(file => path.relative(ROOT, file).replace(/\\/g, '/'))
 const dataTemplateFiles = walk(path.join(ROOT, 'data', 'templates'))
   .filter(file => file.endsWith('.md'))
   .map(file => path.relative(ROOT, file).replace(/\\/g, '/'))
-const indexRuntimeRequires = collectLocalRequires('index.js')
+const indexRuntimeRequires = collectRuntimeDependencies('index.js')
 
 const required = [
   'instructions.md',
@@ -61,7 +91,7 @@ const required = [
   'scripts/instruction-fallback-check.js',
   'scripts/migrate-layout.js',
   'assets/icon-512.png',
-].concat(packageFiles, pluginFiles, promptFiles, dataTemplateFiles, indexRuntimeRequires)
+].concat(packageFiles, pluginFiles, promptFiles, dataTemplateFiles, indexRuntimeRequires, packagedScriptDeps)
   .filter(Boolean)
   .filter(file => !file.endsWith('/'))
 

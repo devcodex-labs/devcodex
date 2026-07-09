@@ -60,6 +60,15 @@ description: 管理会话记忆的读取与写入。三层记忆体系：Agent �
 
 `ConcurrencyPolicy`：记忆读取可作为只读通道并发执行；记忆写入、SUMMARY 更新、ContextHandoffCard 和会话状态提交必须按 `memory` 单写者锁串行完成。
 
+### MemoryCannotSatisfyBootstrapGate
+
+宿主或产品内置的 Memories、模型长期偏好、对话摘要、ContextHandoffCard 或 SUMMARY 都不能替代当前文件真相源读取：
+
+- Memories 只能提示“可能要看哪里”，不得替代 Profile、daily tasks、Agent SUMMARY、需求级 sessions、报告、review checklist、源码或文档的实际读取结果。
+- 新线程、resume、summary 恢复、compact 后继续或跨项目切换时，必须重新读取当前 active-root 下的 Profile 与记忆文件；不能因为模型“记得上次任务”就跳过本节读取策略。
+- SUMMARY 是索引，ContextHandoffCard 是交接卡；二者都不能覆盖 daily tasks、已确认需求/问题产物、报告和当前源码真相。
+- 报告或最终回复若引用 Memories 辅助判断，必须标记为 `navigation-hint`，并列出完成真实读取的文件证据；无法读取时写阻塞 / 降级，不写通过。
+
 > ⛔ 禁止默认读取超过昨日以前的文件
 > ⛔ **禁止静默回退**：resume 意图检测到当前项目无 🔄 任务时，禁止静默选取历史旧任务继续；必须明确告知用户当前状态并询问意图。
 > ⚠️ **跨项目 resume**：记忆文件是项目级独立管理的。当用户在不同项目间切换后说"继续"，AI 只能读取当前项目的记忆；若当前项目无 🔄，须主动询问是否需要恢复其他项目的工作，而非猜测。

@@ -53,6 +53,15 @@ description: 项目 Profile 加载规范 — 意图识别后独立确定目标�
 - 复审服务 / 框架规范时列出全部服务集合、docs 自维护链、导航、版本、构建、报告和记忆消费者。
 - 从单服务抽公共规范时同步执行 `StrongestProfileSourceGate` / `ServiceSpecificResidueSweep`，以最强 Profile 为基线并清扫服务化残留。
 
+### MemoryCannotSatisfyBootstrapGate
+
+Codex / 宿主内置 Memories、模型长期偏好、上一轮摘要或用户口头记忆只能作为导航提示，不能满足 DevCodex bootstrap、Profile 加载、Context Rehydration、CP 确认、报告结论或验证证据。
+
+- 新线程、resume、summary 恢复、compact 后继续、跨项目切换或用户提到“你应该记得”时，仍必须读取当前 active namespace 的 Profile、Agent SUMMARY、今日 tasks、必要的昨日 tasks、相关 report / review checklist 和当前源码 / 文档真相源。
+- 若内置 Memories 与文件真相源冲突，以文件真相源为准；报告或 PC 块说明冲突和采用依据。
+- 若无法完成文件真相源读取，只能标记阻塞或降级，不能把 Memories / 模型回忆写成 `verified`、`loaded`、`passed` 或 CP / release 证据。
+- 当用户询问是否启用宿主 Memories 时，结论必须同时说明本门禁：开启也不降低文件读取门槛；无法保证该门禁时默认不建议作为正式 DevCodex 运行模式。
+
 ### FeatureInventoryProfileGate
 
 公开包、SDK、CLI、多模块仓库、文档站、public API、可配置 runtime 或跨项目规范维护任务需要稳定功能清单时，必须执行 `FeatureInventoryProfileGate`：

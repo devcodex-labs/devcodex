@@ -57,6 +57,7 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 | `docsIaReadability` | 是否涉及中文用户文档、pageRole、sidebar group、菜单命名或文档站 IA |
 | `userManualReview` | 是否涉及用户侧文档 review、项目文档审查、最终用户手册、文档设计、菜单导航、sidebar 或信息架构聚合审查 |
 | `expertOutputQuality` | 是否涉及代码、文档、示例、fixture、mock、demo、quick start、技术方案或报告的专家型质量，或用户指出“不专业 / 像初级 / 示例误导” |
+| `expertOwnerSkills` | 是否命中产品策略、开发者体验、UX 交互、前端架构、后端领域架构、生产可用性 / SRE、API 契约、外部集成、平台生态、AI Agent 系统、数据架构、安全威胁建模、质量策略、设计系统、无障碍/国际化、增长分析或商业模型专家 Owner Skill |
 | `coverageGateDecision` | 项目是否存在 coverage 脚本、阈值、CI coverage gate 或发布前覆盖率要求，需要区分测试断言通过与覆盖率门禁通过 |
 | `externalRuntimePluginLifecycle` | 是否涉及外部 runtime、plugin、registry、adapter、provider 或 injected runtime 注册/替换/释放生命周期 |
 | `functionSourceFingerprint` | 是否把 function source / hash / toString / fingerprint 用作 cache key、registry key、checkpoint、幂等或去重依据 |
@@ -74,6 +75,7 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 | `featureInventoryProfile` | 是否涉及公开包、SDK、CLI、多模块、文档站或 public API 功能清单，需要 `FeatureInventoryProfileGate` |
 | `profileTierValidation` | 是否涉及 Profile 三档标准、Profile 必需文件、生命周期分类或 `ProfileTierStandardGate` / `ProfileLifecycleClassificationGate` |
 | `allDevCodexProfileValidation` | 是否需要校验 `.devcodex` 下所有项目 Profile，执行 `AllDevCodexProfileValidationGate` |
+| `memoryCannotSatisfyBootstrap` | 是否涉及宿主 Memories、模型长期偏好、resume / summary 恢复、Profile / memory bootstrap 或用户询问是否可用记忆替代文件读取 |
 | `featureChecklistEvidenceMatrix` | 是否需要 capability group × evidence surface 矩阵，需要 `FeatureChecklistEvidenceMatrixGate` |
 | `batchEvidenceLedgerState` | 是否为多批次、矩阵验证、长链路吸纳或复审，需要 `BatchEvidenceLedgerStateGate` |
 | `batchProgressCard` | 是否需要最终进度卡同步总范围、已完成、当前批、下一步、剩余项和证据链接，需要 `BatchProgressCardGate` |
@@ -93,6 +95,7 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 | 数据补齐 / 迁移 / 跨环境写入 | DataMutationPlan：显式清单或稳定业务键、dry-run、唯一匹配、缺失/重复清单 | 只读数据库真相源查询、最终消费者响应字段验证 |
 | Prompt / Agent / Hook / MCP 契约 | LLMPromptContractTriage：区分人读说明、模型指令、结构化输出字段和宿主能力边界 | validate probe、targeted test、direct/fixture replay |
 | 专家型产物质量 | `expert-output-quality`：执行 `ExpertOutputQualityGate`、`ProductionRecommendedPathGate`、`FrameworkNativeCapabilityFirstGate`、`FixtureBoundaryDisclosureGate`、`AntiPatternContrastGate`、`ExpertEvidenceMatrixGate` | 源码 / public types / official docs / runtime probe / fixture 边界说明 / 人工证据；无示例或用户可消费产物写 `N/A + skipReason` |
+| 专家 Owner Skill | 17 个专家 Owner Skill：执行 `ExpertOwnerSkillGate` | 按 ownerSkill 选择需求事实源、文档/示例、UI 状态、前端缓存、领域模型、SRE、API 契约、外部集成、平台生态、Agent、数据、安全、质量、设计系统、无障碍/国际化、增长或商业证据；增长 / 商业为 P3 条件触发，未触发写 `N/A + skipReason`；V85/targeted probe 覆盖同步 |
 | 前端体验 | FrontendExperienceQualityGate：判定设计来源、UI 还原度、风格主题一致性、响应式/状态覆盖、用户流、交互反馈、输入方式/可访问性、错误恢复、动效转场和视觉验证；同步执行 FrontendBrowserVerificationBudgetGate 与 UserSelfVerificationOverrideGate | lint/typecheck/test、Browser/截图、Playwright/E2E 或人工复核证据；低风险可 optional，用户明确自验时只做代码级验证并记录 VisualVerificationGate=user-self-verification；纯后端/CLI/文档写 `N/A + skipReason` |
 | Figma / 高保真 UI 还原 | FigmaHighFidelityRestorationGate、ScopedVisualChangeGate、InstalledPluginVisualVerificationGate：冻结设计来源、allowedScope/frozenScope、元素分类和可用插件验证链 | Browser/Chrome/Figma 插件、截图对比、人工复核；无插件时写降级证据 |
 | 视觉偏差 / 设计帧用途 | VisualDeviationTypeGate、DesignFramePurposeClassificationGate：修复前分类偏差类型，列目标帧/排除帧和验收入口 | Figma 参数、代码参数、修复参数、父级裁剪、相邻状态、截图或人工复核证据 |
@@ -123,6 +126,7 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 | 规范吸纳执行 | `spec-absorption`：执行 `CommonNormGeneralizationGate` 与 `AbsorptionCandidateConsumerProofGate` | 必须证明通用规范价值、DevCodex 当前消费者和 targetOwner；项目独有规则写 `project-local / case-evidence-only`，不得吸纳到通用规范 |
 | 规范吸纳架构归属 | LayeredAbsorptionGate + SkillFirstAbsorptionGate / CapabilityToSkillPromotionGate：每条可泛化 PI/PF/GAP/ISSUE 先输出 LayeredAbsorptionDecision（兼容 SkillAbsorptionDecision） | 判定 `global-invariant` / `existing-skill-subgate` / `new-skill-required` / `docs-only`；逐层覆盖 `commonInstruction / skill / promptTemplate / executionConsumer / validationProbe / publicDocs / deployCopy`；成组能力不得只追加到通用 guard |
 | A1~A10 最新吸纳执行包 | LatestAbsorptionExecutionPack：`ConfigCanonicalNamespaceGate`、`ProfileRuntimeContractSyncGate`、`BehaviorSemanticDocsParityGate`、`NegativeTranslationParityProbe`、`DocsExampleTruthSurfaceGate`、`CallbackExampleScopeProbe`、`DerivedMetricConsumerProbe`、`DerivedConsumerFailureInjectionProbe`、`FeatureInventoryProfileGate`、`FeatureChecklistEvidenceMatrixGate`、`BatchEvidenceLedgerStateGate`、`BatchProgressCardGate` | 按 `GovernanceGateRegistry` 分组写 ownerSkill、validationRoute、skipReason；至少覆盖 canonical namespace / ProfileImpactCheck、public types/runtime/generated search、失败注入、feature inventory、EvidenceLedger 和 Progress Card；未触发项写 `N/A + skipReason` |
+| Profile / memory bootstrap | `MemoryCannotSatisfyBootstrapGate`：宿主 Memories、模型长期偏好、SUMMARY 或 ContextHandoffCard 只能作为导航提示 | 真实读取当前 active namespace 的 Profile、Agent SUMMARY、today/yesterday tasks、相关 reports / review checklist 和源码 / 文档真相源；无法读取写阻塞 / 降级，不得写 passed；V86/targeted probe |
 | 历史通用规范分层迁移 | HistoricalCommonNormLayeringGate：迁移旧通用长清单、prompt/report 重复清单或历史吸纳项 | 先冻结逐文件审查矩阵；TestRoute 覆盖 targeted tests、`node scripts/validate.js`、publicDocs、deployCopy、ProfileImpactCheck；无法立即迁移的历史规则标 `legacy-index-retained` |
 | 主动更优建议 | ProactiveBetterAlternativeGate：用户建议、方案确认、规范吸纳或复审冻结前主动比较更优路径 | 若有更低风险、更完整、更易维护或更易验证方案，先提出取舍再确认；采纳用户原方案时记录依据 |
 | 完整吸纳补强 | ConfirmedAbsorptionCompletenessGates：用户确认未完整吸纳、半覆盖或缺探针时 | 按 Gate 分流验证：`PublicSurfaceClosureGate` 查 pack/README/public types/search；`UserManualRenderedFlowAndRealWorkflowProbe` 查 Mermaid 真实渲染和真实 workflow；`FrontendAsyncCacheRenderGate` / `StaleWhileRevalidateGate` 查旧缓存先渲染和异步刷新；`RemoteCIParityPushGate` 查远端 CI 同构门禁；`EvolutionCapabilityControlPlaneGate` 查候选态、授权、模型配置、配额、数据边界、审计、回滚和发布审批 |
@@ -232,12 +236,14 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 | docsExampleTruthSurface | N/A / required / optional；若 required，写 option/config/method 示例对应 public types、runtime wiring、最小执行探针或 skipReason |
 | derivedConsumerRuntime | N/A / required / optional；若 required，写 metrics/info/logs/events/warnings/admin bridge/public types 消费者和失败注入隔离证据 |
 | featureInventoryProfile | N/A / required / optional；若 required，写 feature inventory、capability group、Profile/README/website/public API/复审清单同步 |
+| memoryCannotSatisfyBootstrap | N/A / required / optional；若 required，写 `MemoryCannotSatisfyBootstrapGate`、navigation-hint 来源、已读取文件真相源、冲突处理、V86/targeted probe 证据 |
 | batchEvidenceLedgerState | N/A / required / optional；若 required，写 EvidenceLedger baseline、actualSources、commands、status、finding/skipReason、Progress Card |
 | postConfirmationReviewScope | N/A / light / full；写触发依据、review-checklist 路径或 skipReason、PR-2~PR-7 证据 |
 | developmentDrift | N/A / required；写 allowedFirstBatch、blockedScope、driftTriggers、validationRoute、consumerSync、dirty boundary |
 | verificationPlanMaterialization | N/A / required；写验证计划章节、命令/矩阵、验收标准和退出条件 |
 | docsIaReadability | N/A / required；写 ChinesePrimaryExpressionGate、SidebarPageRoleMaterializationProbe、SidebarGroupSemanticModelProbe 证据 |
 | expertOutputQuality | N/A / required / optional；若 required，写 `roleBaseline`、`productionRecommendedPath`、`frameworkNativeCapability`、`fixtureBoundary`、`antiPatternContrast`、`evidenceMatrix` 与 V84/targeted probe 证据 |
+| expertOwnerSkills | N/A / required / optional；若 required，写 `ownerSkill`、`triggerReason`、`requiredFields`、`validationRoute`、`skipReason`、`V85/targeted probe`，覆盖 ProductStrategyOwnerGate / DeveloperExperienceArchitectureGate / UxInteractionArchitectureGate / FrontendArchitectureOwnerGate / BackendDomainArchitectureGate / ProductionReadinessSreGate / ApiContractArchitectureGate / ExternalIntegrationArchitectureGate / PlatformEcosystemArchitectureGate / AiAgentSystemArchitectureGate / DataArchitectureGate / SecurityThreatModelingGate / QualityStrategyGate / DesignSystemArchitectureGate / AccessibilityI18nGate / GrowthAnalyticsGate / BusinessModelReviewGate |
 | historicalCommonNormLayering | N/A / required / optional；若 required，写逐文件审查矩阵、legacy-index-retained、V74、targeted test、public docs 与 deploy copy 证据 |
 | databaseRecordMigrationExport | N/A / required / optional；若 required，写记录链、JSON/Extended JSON、insert/upsert、引用完整性和 dry-run |
 | findingProbeMatrix | N/A / required / optional；若 required，写 finding 矩阵、失败输入、修复前失败、修复后通过和发布面证据 |
@@ -281,6 +287,7 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 - 人工复核涉及真实数据、外部系统、发布包或联调结果时必须执行 ManualReviewEvidenceDataRetention，写明证据保存位置、样本范围和不可保留原因。
 - 用户指定模块、目录、adapter、provider 或文档页时必须执行 AdjacentScopeExpansionGuard；扩相邻范围前要写共同契约、共享缺陷或验证必需性。
 - 涉及 npm/GitHub Packages、插件、bin、exports、scope、安装说明或发布名时必须执行 PackageNameAuthorityGate，并以 package/plugin/registry 证据为准。
+- 涉及宿主 Memories、模型长期偏好、resume / summary 恢复、Profile / memory bootstrap 或用户询问是否可以靠记忆少读文件时，必须执行 `MemoryCannotSatisfyBootstrapGate`：Memories 只能作为 `navigation-hint`，Profile、daily tasks、SUMMARY、reports、review checklist、源码和文档真相源仍需实际读取；未读取不得写 `loaded/passed/verified`。
 - 涉及“最快 / 第一 / 优于 / 性能提升 / 压测 / benchmark”时必须执行 PerformanceBenchmarkFirstGate；没有基线不能声明提升或第一。
 - 面向公开模块、SDK、CLI、插件、文档站能力或对外 API 时必须执行 PublicModuleDifferentiationGate，区分公开承诺与内部实现。
 - DevCodex v2 一期规划必须执行 V2MCPFirstPlanningGate；无正式 CP1/CP2 方案包时，MongoDB、控制台、多租户自定义工作流和本地规则正文缓存不作为默认范围。

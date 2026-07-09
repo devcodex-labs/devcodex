@@ -9,6 +9,7 @@
 
 | 版本 | 日期 | 变更摘要 | 详细 |
 |------|------|---------|------|
+| [v1.11.32](./changelogs/releases/v1.11.32.md) | 2026-07-09 | 🔧 **专家能力、记忆启动链与发布包依赖闭包**：新增 `expert-output-quality`、17 个专家 Owner Skill、`ExpertOutputQualityGate`、`ExpertOwnerSkillGate`、`MemoryCannotSatisfyBootstrapGate` 与 `PackagedScriptDependencyClosureGate`，补齐 V84/V85/V86 探针，防止专家口径泛化、宿主 Memories 替代文件真相源，以及源码测试通过但 tarball 公开脚本缺运行时依赖 | [查看](./changelogs/releases/v1.11.32.md) |
 | [v1.11.31](./changelogs/releases/v1.11.31.md) | 2026-07-09 | 🔧 **最新吸纳执行包与 Profile 三档闭环**：归档 A1~A10 `LatestAbsorptionExecutionPack`、新增 V82/V83，固化配置 canonical namespace、Profile runtime contract、文档/示例真相、派生消费者、功能清单证据矩阵、多批次状态进度、Profile 三档标准与全 `.devcodex` 校验 | [查看](./changelogs/releases/v1.11.31.md) |
 | [v1.11.30](./changelogs/releases/v1.11.30.md) | 2026-07-08 | 🔧 **用户侧文档 review 与规范吸纳执行入口收口**：新增 `audit-user-manual` 与 `spec-absorption`，固化用户侧文档、项目文档、菜单导航、sidebar、信息架构审查聚合，以及 `.devcodex/*/data` 候选通用性证明、消费者证明和项目独有规则剔除；新增 V80/V81 探针 | [查看](./changelogs/releases/v1.11.30.md) |
 | [v1.11.29](./changelogs/releases/v1.11.29.md) | 2026-07-08 | 🔧 **coverage 与外部 runtime 生命周期验证收口**：新增 V79，固化 `CoverageGateDecision`、`ExternalRuntimePluginLifecycleGate`、`ExternalRegistryLifecycleMatrixGate`、`FunctionSourceFingerprintMatrixGate`、`ClusterEscalationGate` 与 `RiskBasedValidationLadder` | [查看](./changelogs/releases/v1.11.29.md) |

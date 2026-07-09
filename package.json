@@ -1,6 +1,6 @@
 {
   "name": "@vextjs/devcodex",
-  "version": "1.11.31",
+  "version": "1.11.32",
   "description": "DevCodex — AI-powered development workflow rules for Copilot, Claude Code and Codex",
   "main": "index.js",
   "bin": {
@@ -73,6 +73,7 @@
     "scripts/migrate-layout.js",
     "scripts/instruction-fallback-check.js",
     "scripts/validate-all-profiles.js",
+    "scripts/validate-profile.js",
     "scripts/lib/cli-host-utils.js",
     "scripts/lib/cli-runtime-utils.js",
     "scripts/lib/profile-bootstrap-utils.js",

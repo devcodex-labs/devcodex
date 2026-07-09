@@ -65,6 +65,7 @@ PR-7 测试与风险（🟡 标注，不阻断）
 - PR-2 同一风险簇连续 ≥3 个 finding、返修或复审遗漏，但缺少 `ClusterEscalationGate` / `RiskBasedValidationLadder` 的风险模型、矩阵、替换策略、停止条件和分层验证路线
 - PR-2 文档站、README、用户主路径或新增公开能力缺少 `SidebarPageRoleMaterializationProbe` / `SidebarGroupSemanticModelProbe`：未从当前 sidebar / nav / route 真相源生成页面 role、label、route、相邻页面职责、菜单组任务模型和生成站点验证计划
 - PR-2 代码、文档、示例、fixture、quick start、技术方案或报告需要对外或供维护者长期消费，但缺少 `ExpertOutputQualityGate`：未区分生产推荐路径、框架原生能力、fixture/mock/demo 边界、反模式和证据矩阵
+- PR-2 命中产品策略、开发者体验、UX 交互、前端架构、后端领域架构、生产可用性 / SRE、API 契约、外部集成、平台生态、AI Agent 系统、数据架构、安全威胁建模、质量策略、设计系统、无障碍/国际化、增长分析或商业模型，但缺少 `ExpertOwnerSkillGate`：未列出 ownerSkill、triggerReason、requiredFields、validationRoute、skipReason 和 V85/targeted probe 证据；增长分析和商业模型为 P3 条件触发，未命中时必须写 `N/A + skipReason`
 - PR-2 触发跨项目已吸纳守门但缺少 `GovernanceGateRegistry` 分组判定、`gateGroup / ownerSkill / validationRoute / skipReason`、代表性 legacy anchors（如 `CodeTruthRequirementGate`、`ManualReviewEvidenceRetention`、`ReviewFindingIntakeGate`、`MethodLevelLeakPressureProbe`、`V2FormalSolutionPackage`）的证据
 - PR-2 涉及配置 schema、provider 选项、runtime 开关、legacy alias 或公开配置文档，但缺少 `ConfigCanonicalNamespaceGate`：未说明 canonical namespace、既有历史契约、顶层配置例外理由、legacy alias 兼容窗口和验证探针
 - PR-2 涉及默认行为、runtime contract、transaction/cache/sync promise、用户可见配置语义或 Profile 读取/发布状态变化，但缺少 `ProfileRuntimeContractSyncGate`：未同步 Profile、README/website、进度/报告或 `ProfileImpactCheck`
@@ -114,6 +115,7 @@ PR-7 测试与风险（🟡 标注，不阻断）
 | 函数源码 fingerprint 风险是否覆盖？ | `FunctionSourceFingerprintMatrixGate` 通过：function source/hash/toString/fingerprint 用作 key/checkpoint/去重时，有 false-positive / false-negative 样本和闭包、默认参数、global shadow、嵌套作用域等代表类别；不触发时有 `N/A + skipReason` |
 | 文档站 / 用户能力是否物化 page role 与 sidebar 任务模型？ | `SidebarPageRoleMaterializationProbe` / `SidebarGroupSemanticModelProbe` 通过：从当前站点配置或 docs inventory 生成 route / label / role / audience / sourceOfTruth / sidebar group，说明相邻页面职责和生成站点验证；不能只写“同步文档” |
 | 专家型产物质量是否达标？ | `ExpertOutputQualityGate` 通过：代码、文档、示例、fixture、技术方案或报告已写明 roleBaseline、productionRecommendedPath、frameworkNativeCapability、fixtureBoundary、antiPatternContrast 和 evidenceMatrix；不能把 fixture、mock、单例 smoke 或重复声明当生产推荐路径 |
+| 专家 Owner Skill 是否按语义触发？ | `ExpertOwnerSkillGate` 通过：命中产品策略 / 开发者体验 / UX 交互 / 前端架构 / 后端领域架构 / 生产可用性 / API 契约 / 外部集成 / 平台生态 / AI Agent 系统 / 数据架构 / 安全威胁建模 / 质量策略 / 设计系统 / 无障碍国际化 / 增长分析 / 商业模型时，按需调用对应专家 Owner Skill，并记录 ownerSkill、triggerReason、requiredFields、validationRoute、skipReason 与 V85/targeted probe；增长 / 商业未触发时写 N/A |
 | TypeScript 类型迁移是否按公开契约与消费面推进？ | 不机械复制旧类型缺陷；跨模块业务契约、公开类型与配置类型优先集中到 types 契约层，本地 interface 有保留理由 |
 | 新增接口/函数/配置是否向后兼容现有调用方？（F-23 向后兼容）| 已确认；若有 Breaking Change 已在 §3 列出并提供迁移方案 |
 | 方案是否单独列出兼容性策略（调用方/文档/版本/宿主兼容）？ | 已单独列出，不是散落在风险段 |

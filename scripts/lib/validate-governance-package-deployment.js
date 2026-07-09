@@ -29,6 +29,35 @@ function buildGovernancePackageDeploymentChecks(ctx) {
       const plugin = JSON.parse(read(path.join(ROOT, 'plugin.json')))
       const packageFiles = new Set((pkg.files || []).filter(item => !item.endsWith('/')))
       const pluginFiles = new Set((plugin.skills || []).map(item => item.file).filter(Boolean))
+      function resolveLocalDependency(fromFile, request) {
+        const resolved = path.normalize(path.join(path.dirname(fromFile), request)).replace(/\\/g, '/')
+        if (path.extname(resolved)) return resolved
+        if (fs.existsSync(path.join(ROOT, `${resolved}.js`))) return `${resolved}.js`
+        if (fs.existsSync(path.join(ROOT, resolved, 'index.js'))) return `${resolved}/index.js`
+        return `${resolved}.js`
+      }
+      function collectRuntimeDependencies(file, seen = new Set()) {
+        if (seen.has(file)) return []
+        seen.add(file)
+        const fullPath = path.join(ROOT, file)
+        if (!fs.existsSync(fullPath)) return [file]
+        const content = read(fullPath)
+        const deps = []
+        for (const match of content.matchAll(/require\(['"](\.{1,2}\/[^'"]+)['"]\)/g)) {
+          deps.push(resolveLocalDependency(file, match[1]))
+        }
+        for (const match of content.matchAll(/path\.join\(\s*ROOT\s*,\s*((?:['"][^'"]+['"]\s*,?\s*)+)\)/g)) {
+          const parts = Array.from(match[1].matchAll(/['"]([^'"]+)['"]/g)).map(item => item[1])
+          if (parts[0] === 'scripts' && /\.js$/.test(parts[parts.length - 1] || '')) {
+            deps.push(parts.join('/'))
+          }
+        }
+        return Array.from(new Set(
+          deps.flatMap(dep => [dep].concat(collectRuntimeDependencies(dep, seen)))
+        ))
+      }
+      const packagedScripts = [...packageFiles].filter(file => file.startsWith('scripts/') && file.endsWith('.js'))
+      const packagedScriptDeps = packagedScripts.flatMap(file => collectRuntimeDependencies(file))
       const promptFiles = walk(path.join(ROOT, 'prompts'))
         .filter(file => file.endsWith('.prompt.md'))
         .map(file => path.relative(ROOT, file).replace(/\\/g, '/'))
@@ -48,7 +77,7 @@ function buildGovernancePackageDeploymentChecks(ctx) {
         'scripts/migrate-layout.js',
         'assets/icon-512.png'
       ]
-        .concat([...packageFiles], [...pluginFiles], promptFiles, dataTemplateFiles)
+        .concat([...packageFiles], [...pluginFiles], promptFiles, dataTemplateFiles, collectRuntimeDependencies('index.js'), packagedScriptDeps)
         .filter(file => file && !file.endsWith('/'))
       const forbidden = files.filter(file =>
         ((/^assets\/hooks\//i.test(file) && file !== 'assets/hooks/README.md') ||

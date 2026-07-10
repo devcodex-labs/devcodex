@@ -8,7 +8,7 @@ description: 审计工作流的跨会话状态机 — 在 <audit-root>/.audit-st
 ## 适用范围
 
 - 触发：意图为 `audit` 且预期轮次 ≥3（即所有非 chat 审计场景）
-- 不适用：analyze（仅 ≥3 轮收敛但无即发即修元循环）、chat（无审计语义）
+- 不适用：analyze（仅 ≥3 轮收敛但无 audit finding 交接状态机）、chat（无审计语义）
 
 ## 状态文件路径
 
@@ -112,7 +112,7 @@ converged ──> closed
 |------|:----:|------|
 | `findings[].category` | v1.9.4 | 分类标识：`spec-defect`（规范缺陷）/ `release-pending`（仅发版动作未启动导致）/ `v{X.Y.Z}-candidate`（推迟到下版本同源合并）|
 | `findings[].fixPlan` | v1.9.4 | 修复方案概述，留作 release/dev 工作流参考 |
-| `findings[].fixCommit` | v1.9.4 | 修复 commit hash，与 `status=fixed` 配对 |
+| `findings[].fixCommit` | v1.9.4 | 独立 fix/self-fix 工作流产生的修复 commit hash；audit 只读取并验证，不自行提交 |
 | `regressionProbes[]` | v1.9.5+ | 已修复 finding 的回归扫描定义；audit-common §收敛门禁第 7 步触发；任一回归 → status 切回 open，streak 归零 |
 | `r{N}Probes[]` | v1.9.4 | 第 N 轮的探针清单与状态，便于跨会话 resume 时审计深度可追溯 |
 | `remoteReleased` | v1.9.4 | 远端发版动作状态（git push + npm publish），消除 release-pending findings 的依据 |
@@ -137,6 +137,8 @@ converged ──> closed
 
 ## 写入时机
 
+`AuditMutationBoundaryGate`：audit session 只记录 finding/交接/外部修复证据；`sourceMutationAuthorized` 在 audit 中恒为 `false`，用户修复授权由独立 fix/self-fix 的 CP/ExecutionContract 持有。
+
 | 时机 | 动作 | 字段更新 |
 |------|------|---------|
 | 首轮启动 | 创建文件，state=active | sessionId / startedAt / target / dimensions |
@@ -154,7 +156,7 @@ converged ──> closed
 | `instructions/12-audit.instructions.md` | 审计工作流入口须读取/创建本文件；收敛门禁须校验 `crsPassed && pcvPassed && zeroFindingStreak>=3` |
 | `instructions/15-memory.instructions.md` | tasks/YYYYMMDD.md 段落须追加 `🔗 审计会话：<session-id>` 字段，建立双向链 |
 | `intent/SKILL.md` | resume 意图识别后须在三层记忆读取之前优先扫描 `<audit-root>/.audit-state/*.json` 查找未 closed 的会话 |
-| `skills/audit-execution-guide/SKILL.md` | 即发即修元循环（self-fix 后重启新轮）须将旧 round 标 `fixed-restart`，新 round 继续累计 |
+| `skills/audit-execution-guide/SKILL.md` | finding 先记录/交接；用户显式授权的独立 fix/self-fix 完成后，audit 读取新证据并重启新轮，旧轮不得在 audit 内伪造 fixed |
 
 ## 跨会话 resume 流程
 
@@ -170,3 +172,4 @@ converged ──> closed
 - ⛔ 状态文件不得提交到 git（同 `.devcodex/.memory/`）
 - ⛔ 同一 sessionId 不得并行写入；这是 C07 `ConcurrencyPolicy` 中不可变 `audit-session` 单写者锁，不受项目 concurrency 配置放开
 - ⛔ converged 状态不得自动转 closed —— 须用户明确确认（避免静默关闭）
+- ⛔ audit 不得因 finding 严重度或对象是 plugin 文件而自动获得 fix/self-fix、`git add`、commit 或 source mutation 权限

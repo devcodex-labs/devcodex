@@ -52,18 +52,64 @@ function buildProfileBootstrapUtils(context) {
     return { eslint, prettier, tsconfig, editorconfig }
   }
 
-  function genProfileReadme() {
+  function genProfileReadme(tier = 'profile-lite') {
     return `# Profile Index
 
 > 项目规范文件目录。由 \`devcodex profile init\` 于 ${new Date().toISOString().slice(0, 10)} 自动生成。
+> Profile 档位：\`${tier}\`。
+> 生命周期：01~03 为稳定基线；04~07 为活文档；\`config.local.json\` 与 08+ 为条件 / 本地文档。
 
 | 文件 | 说明 |
 |------|------|
 | 01-项目信息.md | 技术栈 / 仓库 / 版本 |
 | 02-架构约束.md | 目录结构 / 模块边界 |
 | 03-代码风格.md | 编码规范 / lint / 格式化 |
-| config.json | ENV_MODE + agent 兜底标识 |
+${tier !== 'profile-lite' ? '| 04-测试规范.md | 测试与验证路线 |\n| 05-发布规范.md | 交付与发布边界 |\n| 06-功能清单.md | 公开能力与消费者 |\n' : ''}${tier === 'profile-closed-loop' ? '| 07-用户文档与契约规范.md | 用户文档与公开契约 |\n' : ''}| config.json | ENV_MODE + agent 兜底标识 |
 | config.local.json | 可选，用户 / 项目指定时使用的本地 overlay：长期连接、本地明文连接信息、env / secretRef 引用、\`extensions.<namespace>\` |
+`
+  }
+
+  function genTestSpec(ctx) {
+    return `# 04 — 测试规范
+
+> 由 \`devcodex profile init\` 自动生成，生命周期：活文档。
+
+## 项目命令
+
+- test: \`${ctx.pkg?.scripts?.test || '未定义'}\`
+- lint: \`${ctx.pkg?.scripts?.lint || '未定义'}\`
+- build: \`${ctx.pkg?.scripts?.build || '未定义'}\`
+`
+  }
+
+  function genReleaseSpec(ctx) {
+    return `# 05 — 发布规范
+
+> 由 \`devcodex profile init\` 自动生成，生命周期：活文档。
+
+- 当前版本：${ctx.pkg?.version || '0.0.0'}
+- 发布动作必须由用户明确确认，并在发布前执行项目测试、打包和回滚检查。
+`
+  }
+
+  function genFeatureInventory(ctx) {
+    return `# 06 — 功能清单
+
+> FeatureInventoryProfileGate；生命周期：活文档。
+
+| 能力 | 公开面 | 消费者 | 验证路线 |
+|------|--------|--------|----------|
+| ${ctx.pkg?.name || '项目核心能力'} | 待维护者补充 | 待维护者补充 | ${ctx.pkg?.scripts?.test ? `\`${ctx.pkg.scripts.test}\`` : '待补充'} |
+`
+  }
+
+  function genUserContractSpec() {
+    return `# 07 — 用户文档与契约规范
+
+> ProfileLifecycleClassificationGate；生命周期：活文档。
+
+- README、用户指南、公开 API / CLI / 配置和示例必须与当前实现同步。
+- 条件 / 本地文档仅在项目真实使用对应能力时维护，并说明用途与验证方式。
 `
   }
 
@@ -169,6 +215,10 @@ ${tree || '(empty)'}
     genProjectInfo,
     genArchitecture,
     genStyle,
+    genTestSpec,
+    genReleaseSpec,
+    genFeatureInventory,
+    genUserContractSpec,
     genConfigJson,
     detectAgent
   }

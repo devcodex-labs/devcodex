@@ -2,7 +2,7 @@
 applyTo: "**"
 description: analyze 工作流规则，覆盖只读分析、代码取证顺序、多轮收敛与推荐结论
 priority: P4
-version: 1.11.32
+version: 1.11.33
 ---
 # 分析工作流规则（13-analyze）
 
@@ -96,6 +96,7 @@ version: 1.11.32
 ### GovernanceGateRegistryRef 分析侧取证
 
 - analyze.default 的执行细节由 `skills/analyze-default/SKILL.md` 承接；本文件只保留只读边界和工作流索引。
+- 项目级 analyze 在形成结论前必须引用 `load-profile` 的 `ProfileTruthReconciliationGate` targeted 模式；低风险文件级分析可 `N/A + skipReason`。发现 Profile 漂移时只矫正当前结论，Profile 源修改必须切换独立 dev/fix/self-fix。
 - 分析发现规范吸纳、完整吸纳补强、历史长清单迁移、复审遗漏、用户文档、前端运行态、发布门禁、Profile/service 规范或自我进化控制面问题时，不在 instructions 展开 Gate 长清单；必须引用 `skills/spec-governance/SKILL.md` 的 `GovernanceGateRegistry`。
 - 分析报告只写 `gateGroup / ownerSkill / trigger / evidence / validationRoute / skipReason`。分析阶段保持只读，等待用户确认后再切换 dev/fix/self-fix 实施。
 

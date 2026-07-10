@@ -98,12 +98,13 @@ applyTo: .devcodex/**/requirements/**
 | 产物 | 是否触发 | 触发依据 | 计划落点 |
 |------|:--------:|----------|----------|
 | ExecutionContract | 是 / 否 | Auto / 控制面 / 多批次 / 预计修改 ≥10 文件 / release 前置任务 | scope / allowedPaths / requiredArtifacts / validationRoute / deviationPolicy / rollbackPlan |
+| RepairCollaborationContract | N/A / lightweight / full | AI 判断任务目标为 repair task；模型名称不触发 | contractState / authorizationEvidence / 双层字段；full 的 findingToPatchMap / handoffIntegrity / independentReReview / acceptanceMatrix |
 | TestRoute | 是 / 否 | 跨模块 / API / Hook / CLI / 模板-示例-校验链 / 测试路线不明显 | changeType / routes / commands / skipReason / blockingLevel |
 | LeakRiskStabilityPressureTest | 是 / 否 | 写测试用例或回归验证命中长运行、并发、缓存/连接/监听器/定时器/流/socket/worker/订阅/组件生命周期或 PE-12 风险 | leakRiskPressure / baseline / pressureScenario / cooldown / resourceMetrics / passThreshold / skipReason |
 | FrontendExperienceQualityGate | 是 / 否 | 前端页面、组件、控制台、官网、文档站、可视化工具、游戏或用户可见 UI / 交互 | FrontendDesignSourceGate / UIFidelityGate / StyleThemeConsistencyGate / ResponsiveStateCoverageGate / VisualVerificationGate / InteractionFlowGate / InteractionFeedbackGate / InputModalityAccessibilityGate / ErrorPreventionRecoveryGate / MotionTransitionUsabilityGate / FigmaHighFidelityRestorationGate / ScopedVisualChangeGate / InstalledPluginVisualVerificationGate / ActualPreviewChainAndMockFallbackGate / FrontendRuntimeNetworkProbeGate / UIStateScopeRegressionGate / FigmaProductionAssetBudgetGate / RuntimeI18nArtifactVerificationGate |
 | ServiceLifecycleCleanup | 是 / 否 | AI 需要启动 dev server、文档站、本地 API/mock、数据库代理、SSH 隧道、Playwright/Cypress server 或压测 target | command / cwd / PID-job / port-url / cleanupEvidence / keepAliveReason |
 | ReleaseAudit | 是 / 否 | 发版前 review / publish 或 tag 前风险审查 / release readiness | RL-1~RL-10 / risks / recommendation |
-| ReleaseVerification | 是 / 否 | 用户要求 tag / release / publish 或进入正式发版 | R0~R7；如存在远端 CI，补 R3c 目标 commit CI 绿色证据；pack/publish/install smoke 记录 NativeCommandExitCodeGate 的 command/shell/cwd/exitCode |
+| ReleaseVerification | 是 / 否 | 用户要求 tag / release / publish 或进入正式发版 | R0~R7；如存在远端 CI，补 R3c 目标 commit CI 绿色证据；pack/publish/install smoke 记录 NativeCommandExitCodeGate；首次发布或身份拓扑变化追加 PublisherCredentialTopologyGate（不含 secret value） |
 | ConceptSyncMap | 是 / 否 | 控制面 / 模板-示例-校验链 / README / website / Profile / validate / 部署副本联动 | sourceOfTruth / currentConsumers / historicalMirrors / validateProbes / deployCopies / yellowDeviationBoundary |
 | HostContractVerification | 是 / 否 | Hook / CLI / visible reply / sticky project / workspace guard / bootstrap / ArtifactLinkSet / MCP fallback | hostSurface / eventScope / evidenceMode / visibleReplyEvidence / workspaceGuard / bootstrapScope / artifactLinkMatrix / mcpFallback |
 | ArtifactDecisionMatrix | 是 / 否 | CP1/CP2/CP3/ECR 的关键产物创建、更新、跳过或 N/A 判定 | artifact / state(create-update-skip-N/A) / reason / trigger / upgradeTrigger / targetArtifact |
@@ -113,6 +114,7 @@ applyTo: .devcodex/**/requirements/**
 | PackageBoundarySerialCheck | 是 / 否 | release / pack / package boundary / benchmark / codegen 任务 | build 完成点 / 单独 pack 命令 / dist 写入竞争排除 / dirty 残留清理 |
 | InternalSharedLibraryReview | 是 / 否 | 根因位于内部共享库、中间件、SDK 或 adapter 抽象层 | 修共享库 + 消费项目升级 / 单项目补丁理由 / 风险 |
 | ProfileImpactCheck | 是 / 否 | 技术栈、目录边界、脚本、测试/发布路线、分发面、配置项、长期连接或本地 overlay schema 变化 | targetProfileFiles / updateOrSkip / skipReason / evidence |
+| ProfileTruthReconciliationGate / AuthorizedLocalSecurityAuditPresentationGate | 是 / 否 | 项目级 analyze/audit，或授权本地安全审查/宿主安全提示恢复 | profileTrustState/ProfileTruthMatrix；authorizationContext/visibleEvidenceBudget/SafetyInterruptionCard；只读与禁止绕过边界 |
 | ConfigLocalConnectionSource | 是 / 否 | 脚本、测试、数据库 / SSH / MongoDB / 数据操作需要连接信息 | configLocalPath / requiredFields / missingFieldAction / noAdHocEnvEvidence / noEnvUnlessUserSpecified |
 | 05-实施进度.md | 是 / 否 | 跨多轮/多阶段、阻塞、用户要求持续跟踪、多批次、预计修改 ≥10 文件、控制面或模板-校验链任务 | CP 状态 / 批次状态 / 阻塞 / 验证证据 |
 | SimpleTaskFastPath | 是 / 否 | 非常明确、预计 ≤2 文件、无公共契约/配置/发布/控制面/台账来源/高风险、无需多轮跟踪 | inline CP summary / N/A + skipReason / upgradeTrigger |
@@ -236,7 +238,7 @@ applyTo: .devcodex/**/requirements/**
 - [ ] LatestAbsorptionGuards 已完成或记录 `N/A + skipReason`（按 `GovernanceGateRegistry` 分组写触发状态和证据）
 - [ ] ServiceLifecycleCleanup 已完成（若 AI 自启动服务；保留运行需记录用户要求、PID/端口和关闭方式）
 - [ ] ReleaseAudit RL-1~RL-10 已完成（若触发布前审查）
-- [ ] ReleaseVerification R0~R7 已完成（若进入正式发版；如存在远端 CI，R3c 已记录目标 commit CI 绿色证据或 `N/A + skipReason`；pack/publish/install smoke 已记录真实 exitCode）
+- [ ] ReleaseVerification R0~R7 已完成（若进入正式发版；如存在远端 CI，R3c 已记录目标 commit CI 绿色证据或 `N/A + skipReason`；pack/publish/install smoke 已记录真实 exitCode；PublisherCredentialTopologyGate 触发时已记录拓扑且不含 secret value）
 - [ ] ConceptSyncMap 已建立并核对当前消费者/探针/部署副本（若触发）
 - [ ] HostContractVerification 已建立并核对宿主证据/guard/visible reply/ArtifactLinkSet/MCP fallback（若触发）
 - [ ] OfficialDocsEvidence 已建立并核对官方用法证据（若触发）

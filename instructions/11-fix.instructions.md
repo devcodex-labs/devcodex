@@ -2,7 +2,7 @@
 applyTo: "**"
 description: fix 工作流规则，覆盖子类型路由、CP 流程、修复三步扫描、执行期回退与 ECR
 priority: P4
-version: 1.11.32
+version: 1.11.33
 ---
 # 修复工作流规则（11-fix）
 
@@ -231,6 +231,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → 
 5. document-sync（若涉及文档）
 
 **关键规则**：
+- 所有 fix 均触发 `repair-collaboration`：低风险修复至少记录问题/预期/验收证据与允许路径/验证/回滚触发；P0/P1、安全、控制面、公共契约、≥5 文件、多批次、角色交接或发布风险必须使用 `execution-contract` 的完整双层契约，并在 accepted 前取得独立复证。模型或 Agent 是否切换不影响该判定
 - 修复必须附带回归测试，禁止无测试的 hotfix（emergency 除外）
 - 修复范围不得超出问题边界（禁止顺手重构）
 - CP1 问题确认必须给出 `ImplementationComplexityLevel`（兼容旧字段 `ImplementationComplexityPreference`），默认 `简单够用`：只修确认根因和影响范围；若 AI 判断需要升级到 `中等` / `企业级`，先列备选、开发周期、难度、维护成本和取舍并等待用户确认

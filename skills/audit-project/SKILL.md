@@ -41,6 +41,7 @@ description: 项目工程审查维度 PE-1~PE-12 — 代码质量/项目结构/�
 - 敏感信息、密钥、密码和硬编码处理符合用户 / 项目显式策略；未指定禁止时不把直写本身列为问题
 - 输入验证覆盖边界条件
 - SQL/NoSQL 查询无注入风险
+- 用户自有/明确授权的本地安全审查执行 `security-threat-modeling` 的 `AuthorizedLocalSecurityAuditPresentationGate`：核对 authorizationContext、defensiveObjective、用户可见最小证据、隔离探针、SafetyInterruptionCard 与恢复路线；禁止把“优化表达”写成绕过宿主安全控制
 
 **PE-4 性能隐患 🟡**
 - 算法复杂度、查询次数、同步阻塞、重复序列化或大对象复制不会在目标数据规模下造成明显退化

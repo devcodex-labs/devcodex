@@ -13,7 +13,16 @@
 
 const fs = require('fs')
 const path = require('path')
+const {
+  PROFILE_DEFAULT_FILES,
+  PROFILE_TIERS,
+  extractProfileTierDeclarations,
+  hasFeatureInventorySource: contractHasFeatureInventorySource,
+  hasProfileLifecycle: contractHasProfileLifecycle
+} = require('../mcp/profile-contract')
 const { resolveProfileDir } = require('../hooks/_runtime/workspace-layout.cjs')
+
+// Shared tier vocabulary: profile-lite | profile-standard | profile-closed-loop.
 
 const PLUGIN_ROOT = path.resolve(__dirname, '..')
 const args = process.argv.slice(2)
@@ -69,14 +78,6 @@ const pluginVersion = (() => {
     return ''
   }
 })()
-const pluginPackageName = (() => {
-  try {
-    return JSON.parse(fs.readFileSync(path.join(PLUGIN_ROOT, 'package.json'), 'utf8')).name || ''
-  } catch {
-    return ''
-  }
-})()
-
 function err(msg) { errors.push(msg) }
 function warn(msg) { warnings.push(msg) }
 
@@ -105,9 +106,7 @@ function hasLegacyStageDraft(text) {
 
 function isSourceRepoProfileTarget() {
   if (sourceRepoProfileFlag) return true
-  if (path.resolve(cwd) === PLUGIN_ROOT) return true
-  const cwdPackage = readJsonIfExists(path.join(cwd, 'package.json'))
-  return !!(pluginPackageName && cwdPackage && cwdPackage.name === pluginPackageName)
+  return path.resolve(cwd) === PLUGIN_ROOT
 }
 
 function profileFileInfo(fileName) {
@@ -151,8 +150,7 @@ function profileCorpusEntries(fileNames) {
 }
 
 function extractExplicitProfileTiers(text) {
-  return [...String(text || '').matchAll(/Profile\s*档位[：:]\s*`?(profile-(?:lite|standard|closed-loop))`?/gi)]
-    .map(match => match[1])
+  return extractProfileTierDeclarations(text)
 }
 
 function hasCurrentAgentsDistribution(text) {
@@ -569,7 +567,8 @@ const readmeText = readProfileFile('README.md')
 const architectureText = readProfileFile('02-架构约束.md')
 const styleText = readProfileFile('03-代码风格.md')
 const projectInfoText = readProfileFile('01-项目信息.md')
-if (pluginVersion && projectInfoText) {
+// DevCodex package version is authoritative only for the DevCodex source profile.
+if (pluginVersion && projectInfoText && isSourceRepoProfileTarget()) {
   const projectInfo = projectInfoText
   const currentVersion = extractVersion('当前版本', projectInfo)
   const currentStageVersion = extractVersion('当前阶段', projectInfo)
@@ -588,9 +587,7 @@ if (pluginVersion && projectInfoText) {
     warn(`[profile] 01-项目信息.md 当前阶段漂移: ${currentStageVersion} → ${pluginVersion}`)
   }
 
-  if (isSourceRepoProfileTarget()) {
-    checkProjectInfoSemantics(projectInfo)
-  }
+  checkProjectInfoSemantics(projectInfo)
 }
 
 checkS02ProfileFreshness({
@@ -599,7 +596,6 @@ checkS02ProfileFreshness({
   '03-代码风格.md': styleText
 })
 
-const PROFILE_TIERS = new Set(['profile-lite', 'profile-standard', 'profile-closed-loop'])
 const PROFILE_TIER_GATES = [
   'ProfileTierStandardGate',
   'ProfileLifecycleClassificationGate',
@@ -607,17 +603,7 @@ const PROFILE_TIER_GATES = [
 ]
 
 function detectProfileTier() {
-  const tierFiles = [
-    'README.md',
-    '01-项目信息.md',
-    '02-架构约束.md',
-    '03-代码风格.md',
-    '04-测试规范.md',
-    '05-交付发布规范.md',
-    '05-发布规范.md',
-    '06-功能清单.md',
-    '07-用户文档与契约规范.md'
-  ]
+  const tierFiles = [...PROFILE_DEFAULT_FILES.filter(file => file.endsWith('.md')), '05-交付发布规范.md']
   const entries = profileCorpusEntries(tierFiles)
   const combined = entries
     .map(entry => `\n--- ${entry.fileName} (${entry.info.source}) ---\n${entry.text}`)
@@ -628,7 +614,7 @@ function detectProfileTier() {
     .flatMap(entry => extractExplicitProfileTiers(entry.text))
   const uniqueProjectTiers = [...new Set(projectTiers)]
   if (uniqueProjectTiers.length > 1) {
-    warn(`[profile] multiple project-local profile tiers declared: ${uniqueProjectTiers.join(', ')}`)
+    err(`[profile] multiple project-local profile tiers declared: ${uniqueProjectTiers.join(', ')}`)
   }
   if (uniqueProjectTiers.length >= 1) {
     return { tier: uniqueProjectTiers[0], combined }
@@ -639,7 +625,7 @@ function detectProfileTier() {
     .flatMap(entry => extractExplicitProfileTiers(entry.text))
   const uniqueFallbackTiers = [...new Set(fallbackTiers)]
   if (uniqueFallbackTiers.length > 1) {
-    warn(`[profile] multiple fallback profile tiers declared: ${uniqueFallbackTiers.join(', ')}`)
+    err(`[profile] multiple fallback profile tiers declared: ${uniqueFallbackTiers.join(', ')}`)
   }
   if (uniqueFallbackTiers.length >= 1) {
     return { tier: uniqueFallbackTiers[0], combined }
@@ -648,7 +634,7 @@ function detectProfileTier() {
   const matches = [...combined.matchAll(/\bprofile-(?:lite|standard|closed-loop)\b/g)].map(match => match[0])
   const unique = [...new Set(matches)]
   if (unique.length > 1) {
-    warn(`[profile] multiple profile tiers declared: ${unique.join(', ')}`)
+    err(`[profile] multiple profile tiers declared: ${unique.join(', ')}`)
   }
   const tier = unique[0] || ''
   if (!tier) {
@@ -663,14 +649,12 @@ function detectProfileTier() {
 }
 
 function hasFeatureInventorySource(combined) {
-  return hasProfileFile('06-功能清单.md') ||
-    /FeatureInventoryProfileGate|Feature Inventory|feature inventory|功能清单|能力清单/i.test(combined)
+  const available = new Set(PROFILE_DEFAULT_FILES.filter(file => hasProfileFile(file)))
+  return contractHasFeatureInventorySource(available, combined)
 }
 
 function hasProfileLifecycle(combined) {
-  return /stable baseline|稳定基线/i.test(combined) &&
-    /living document|活文档/i.test(combined) &&
-    /conditional|required|conditional-required|条件必需|条件\/本地|本地/i.test(combined)
+  return contractHasProfileLifecycle(combined)
 }
 
 function validateProfileTier(tier, combined) {

@@ -66,6 +66,14 @@ applyTo: .devcodex/**/reports/analysis/**
 | 结论 | 证据 | 来源 |
 |------|------|------|
 
+### §4.1 ProfileTruthReconciliationGate
+
+> 项目级 analyze 必填；低风险文件级分析可写 `N/A + skipReason`。analyze 只能矫正结论，不能直接修改 Profile。
+
+| mode | profileTrustState | profileClaim | actualSources | status | conclusionAuthority | correctionRoute |
+|------|-------------------|--------------|---------------|--------|---------------------|-----------------|
+| targeted / N/A | | | | aligned / stale-profile / stale-code-or-doc / intentional-exception / unverifiable | | |
+
 ## §5 对比矩阵（技术选型 / ComparativeResearchGate 触发时）
 
 | 维度 | 方案A | 方案B | 方案C |

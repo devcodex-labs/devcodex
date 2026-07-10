@@ -2,7 +2,7 @@
 applyTo: "**"
 description: self-fix 工作流规则，覆盖规范资产修复边界、自动级/Pending 级分流与文件数量限制
 priority: P4
-version: 1.11.32
+version: 1.11.33
 ---
 # 规范自修复规则（14-self-fix）
 
@@ -47,6 +47,8 @@ version: 1.11.32
 - 涉及用户确认“未完整吸纳 / 半覆盖 / 仍需吸纳”的规范体系变更时，必须转入 dev / spec-governance 路径，执行 `LayeredAbsorptionGate`、`ConfirmedAbsorptionCompletenessGates` 与必要的 `evolution-governance`，不能按 A1~A5 自动修复处理
 
 ## 自动级修复后验证（V1~V7，全通过才算完成）
+
+自动级与 Pending 级只要进入实际修复，都必须触发 `repair-collaboration`。A1~A5 且不超过 2 文件、无公共契约/控制面/多批次风险时可在报告或记忆中内联轻量双层契约；控制面、规范体系、多文件或角色交接场景必须转 dev，并使用 `execution-contract` 完整契约与独立复证。模型名称不参与风险判定。
 
 | 编号 | 验证项 |
 |------|--------|

@@ -17,6 +17,7 @@ const { buildCliHostUtils } = require('./scripts/lib/cli-host-utils.js')
 const { buildCliRuntimeUtils } = require('./scripts/lib/cli-runtime-utils.js')
 const { buildProfileBootstrapUtils } = require('./scripts/lib/profile-bootstrap-utils.js')
 const { runCli: runMigrateLayout } = require('./scripts/migrate-layout.js')
+const { detectProfileTier, filesForProfileTier, inspectProfileContract, normalizeProfileTier } = require('./mcp/profile-contract.js')
 const {
   findLayoutInfo: sharedFindLayoutInfo,
   inferProjectFromCwd: sharedInferProjectFromCwd,
@@ -312,11 +313,12 @@ function cmdStatus() {
 
   // Check profile state (legacy project root or workspace-namespace active root)
   const profileDir = resolveProfileDir(cwd)
-  const profilePresent = PROFILE_FILES.filter(f => fs.existsSync(path.join(profileDir, f))).length
+  const profileState = inspectProfileState(profileDir)
   let profileLabel
-  if (profilePresent === PROFILE_FILES.length) profileLabel = c.green(`complete  (${profilePresent}/${PROFILE_FILES.length} files)`)
-  else if (profilePresent > 0) profileLabel = c.yellow(`partial   (${profilePresent}/${PROFILE_FILES.length} files)`)
-  else profileLabel = c.red(`missing   (0/${PROFILE_FILES.length} files — run: devcodex profile init)`)
+  if (profileState.error) profileLabel = c.red(`invalid   (${profileState.error})`)
+  else if (profileState.complete) profileLabel = c.green(`complete  (${profileState.tier}; ${profileState.present}/${profileState.total} required files)`)
+  else if (profileState.present > 0) profileLabel = c.yellow(`partial   (${profileState.tier}; ${profileState.present}/${profileState.total} required files)`)
+  else profileLabel = c.red(`missing   (0/${profileState.total} required files — run: devcodex profile init)`)
   console.log(`  ${c.cyan('profile'.padEnd(14))} ${profileLabel}`)
 
   const legacyCounts = getLegacyCounts(ghDir)
@@ -531,6 +533,10 @@ const {
   genProjectInfo,
   genArchitecture,
   genStyle,
+  genTestSpec,
+  genReleaseSpec,
+  genFeatureInventory,
+  genUserContractSpec,
   genConfigJson,
   detectAgent
 } = buildProfileBootstrapUtils({
@@ -820,16 +826,33 @@ function cmdInitCodex(argv, { internal = false } = {}) {
 
 // ─── Profile bootstrap (v1.9.2+) ──────────────────────────────────────────────
 
-const PROFILE_FILES = ['README.md', '01-项目信息.md', '02-架构约束.md', '03-代码风格.md', 'config.json']
+function inspectProfileState(profileDir) {
+  let availableFiles = []
+  try { availableFiles = fs.readdirSync(profileDir).filter(file => fs.statSync(path.join(profileDir, file)).isFile()) } catch { }
+  const corpus = availableFiles.filter(file => file.endsWith('.md'))
+    .map(file => {
+      try { return fs.readFileSync(path.join(profileDir, file), 'utf8') } catch { return '' }
+    }).join('\n')
+  let tier = 'profile-lite'
+  let error = null
+  try { tier = detectProfileTier(corpus) } catch (err) { error = err.message }
+  const state = inspectProfileContract(tier, availableFiles, corpus)
+  const configExists = fs.existsSync(path.join(profileDir, 'config.json'))
+  return { ...state, complete: !error && state.complete, configExists, error }
+}
 
 function cmdProfileInit(argv) {
   const force = argv.includes('--force') || argv.includes('-f')
   const prod = argv.includes('--prod')
+  const tierFlag = argv.find(arg => arg.startsWith('--tier='))
+  const tierIndex = argv.indexOf('--tier')
+  const tierValue = tierFlag ? tierFlag.slice('--tier='.length) : (tierIndex >= 0 ? argv[tierIndex + 1] : 'profile-lite')
+  const tier = normalizeProfileTier(tierValue, '')
   const mode = prod ? 'prod' : 'dev'
   const cwd = process.cwd()
   const dir = path.join(resolveActiveRuntimeRoot(cwd), 'profile')
   console.log()
-  console.log(c.bold('  DevCodex profile init') + c.dim(` in ${cwd}`))
+  console.log(c.bold('  DevCodex profile init') + c.dim(` (${tier}) in ${cwd}`))
   console.log(c.dim('  ──────────────────────────────────────'))
 
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
@@ -853,15 +876,19 @@ function cmdProfileInit(argv) {
   const ctx = { pkg, branch, changelogTop, arch, tree, style, hasServices }
 
   const generators = {
-    'README.md': () => genProfileReadme(ctx),
+    'README.md': () => genProfileReadme(tier),
     '01-项目信息.md': () => genProjectInfo(ctx),
     '02-架构约束.md': () => genArchitecture(ctx),
     '03-代码风格.md': () => genStyle(ctx),
+    '04-测试规范.md': () => genTestSpec(ctx),
+    '05-发布规范.md': () => genReleaseSpec(ctx),
+    '06-功能清单.md': () => genFeatureInventory(ctx),
+    '07-用户文档与契约规范.md': () => genUserContractSpec(ctx),
     'config.json': () => genConfigJson(agent, mode),
   }
 
   let generated = 0, skipped = 0, backedUp = 0
-  for (const file of PROFILE_FILES) {
+  for (const file of filesForProfileTier(tier)) {
     const dest = path.join(dir, file)
     const exists = fs.existsSync(dest)
     if (exists && !force) {
@@ -907,7 +934,8 @@ function cmdDoctor() {
   const hasAgentsSkills = fs.existsSync(path.join(cwd, '.agents', 'skills'))
   const hasInstructions = fs.existsSync(path.join(cwd, '.github', 'instructions'))
   const profileDir = resolveProfileDir(cwd)
-  const hasProfile = PROFILE_FILES.every(file => fs.existsSync(path.join(profileDir, file)))
+  const profileState = inspectProfileState(profileDir)
+  const hasProfile = profileState.complete
 
   let mode = 'instruction-fallback'
   if (platform === 'claude' && hasClaudeHooks) mode = 'hook-enforced (Claude Code)'
@@ -938,7 +966,12 @@ function cmdDoctor() {
   console.log(`    .github/copilot-instructions.md      ${hasCopilotMd ? c.green('✅') : c.dim('—')}`)
   console.log(`    .github/instructions/                ${hasInstructions ? c.green('✅') : c.dim('—')}`)
   console.log(`    .github/hooks/_runtime/lifecycle.cjs ${hasGithubHooks ? c.green('✅') : c.dim('—')}`)
-  console.log(`    profile (${path.relative(cwd, profileDir) || '.devcodex/profile'}) ${hasProfile ? c.green('✅') : c.yellow('⚠️  missing — run `devcodex profile init`')}`)
+  const profileDiagnostic = profileState.error
+    ? c.red(`❌ invalid — ${profileState.error}`)
+    : (hasProfile
+        ? c.green(`✅ ${profileState.tier}`)
+        : c.yellow(`⚠️  incomplete ${profileState.tier} — run \`devcodex profile init --tier ${profileState.tier}\``))
+  console.log(`    profile (${path.relative(cwd, profileDir) || '.devcodex/profile'}) ${profileDiagnostic}`)
   console.log()
 
   if (agent !== 'unknown-agent' && profileDir) {
@@ -1009,7 +1042,7 @@ function cmdHelp() {
     ${c.cyan('update --claude')}   Overwrite Claude Code adapter only
     ${c.cyan('update --codex')}    Overwrite Codex adapter only
     ${c.cyan('migrate-layout')}    Plan/apply/rollback centralized .devcodex workspace layout
-    ${c.cyan('profile init')}      Auto-generate .devcodex/profile/ drafts (v1.9.2+)
+    ${c.cyan('profile init')}      Auto-generate tiered .devcodex/profile/ drafts
     ${c.cyan('status')}            Show what DevCodex files are installed
     ${c.cyan('doctor')}            Diagnose host platform / agent / mode (v1.9.7+)
 
@@ -1019,13 +1052,14 @@ function cmdHelp() {
     ${c.dim('--claude')}           Only target Claude Code adapter (skip Copilot .github/)
     ${c.dim('--codex')}            Only target Codex adapter (skip Copilot .github/ and Claude Code)
     ${c.dim('--prod')}             (profile init only) Set mode=prod instead of dev
+    ${c.dim('--tier <tier>')}      (profile init only) profile-lite | profile-standard | profile-closed-loop
 
   ${c.bold('Examples:')}
     devcodex init                 # First-time three-host install
     devcodex init --claude        # Claude Code adapter only
     devcodex init --codex         # Codex adapter only
     devcodex migrate-layout plan  # Generate centralized layout migration manifest
-    devcodex profile init         # Generate Profile drafts from package.json + scan
+    devcodex profile init --tier profile-standard  # Generate tiered Profile drafts
     devcodex update               # Refresh Copilot + Claude Code + Codex adapters
     devcodex update --claude      # Refresh Claude Code adapter only
     devcodex update --codex       # Refresh Codex adapter only
@@ -1061,7 +1095,7 @@ if (require.main === module) {
         cmdProfileInit(argv.slice(1))
       } else {
         console.log(c.red(`  Unknown profile subcommand: ${argv[0] || '(none)'}`))
-        console.log(c.dim('  Available: devcodex profile init [--force] [--prod]'))
+        console.log(c.dim('  Available: devcodex profile init [--force] [--prod] [--tier <profile-lite|profile-standard|profile-closed-loop>]'))
         process.exit(1)
       }
       break

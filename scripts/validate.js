@@ -569,7 +569,11 @@ const {
   checkV83,
   checkV84,
   checkV85,
-  checkV86
+  checkV86,
+  checkV87,
+  checkV88,
+  checkV89,
+  checkV90
 } = buildGovernanceTailChecks({
   ROOT,
   ACTIVE_DEVCODEX_ROOT,
@@ -985,6 +989,14 @@ checkV84()
 checkV85()
 // V86 memory bootstrap truth source sync
 checkV86()
+// V87 repair collaboration contract sync
+checkV87()
+// V88 profile truth reconciliation sync
+checkV88()
+// V89 authorized local security audit presentation sync
+checkV89()
+// V90 publisher credential topology sync
+checkV90()
 
 console.log('')
 if (errors.length) {

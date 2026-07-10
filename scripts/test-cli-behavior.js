@@ -304,6 +304,33 @@ function testProfileInitUsesNestedNamespaceRoot() {
   fs.rmSync(root, { recursive: true, force: true })
 }
 
+function testProfileInitAndStatusShareTierContract() {
+  const root = createTempRoot('devcodex-cli-profile-tier-')
+  writeFile(root, 'package.json', '{ "name": "tier-project", "version": "1.0.0", "scripts": { "test": "node test.js" } }\n')
+
+  runCli(['profile', 'init', '--tier', 'profile-closed-loop'], root)
+  const profileDir = path.join(root, '.devcodex', 'profile')
+  for (const file of ['README.md', '01-项目信息.md', '02-架构约束.md', '03-代码风格.md', '04-测试规范.md', '05-发布规范.md', '06-功能清单.md', '07-用户文档与契约规范.md']) {
+    assert.ok(fs.existsSync(path.join(profileDir, file)), `missing closed-loop profile file: ${file}`)
+  }
+  assert.match(fs.readFileSync(path.join(profileDir, 'README.md'), 'utf8'), /profile-closed-loop/)
+  assert.match(runCli(['status'], root), /profile-closed-loop; 9\/9 required files/)
+  assert.match(runCli(['doctor'], root), /profile.*✅ profile-closed-loop/)
+
+  fs.appendFileSync(
+    path.join(profileDir, 'README.md'),
+    '\n## 档位说明\n\n- profile-lite\n- profile-standard\n- profile-closed-loop\n',
+    'utf8'
+  )
+  assert.match(runCli(['status'], root), /profile-closed-loop; 9\/9 required files/)
+
+  fs.appendFileSync(path.join(profileDir, 'README.md'), '\nProfile 档位：profile-lite。\n', 'utf8')
+  assert.match(runCli(['status'], root), /invalid.*multiple profile tiers declared/)
+  assert.match(runCli(['doctor'], root), /invalid.*multiple profile tiers declared/)
+
+  fs.rmSync(root, { recursive: true, force: true })
+}
+
 function main() {
   testClaudeInitPreservesCustomConfig()
   testClaudeUpdateBacksUpAndPreservesCustomConfig()
@@ -313,6 +340,7 @@ function main() {
   testCodexInitBacksUpManagedFiles()
   testCodexUpdateRefreshesAdapterInWorkspaceNamespace()
   testProfileInitUsesNestedNamespaceRoot()
+  testProfileInitAndStatusShareTierContract()
   process.stdout.write('cli behavior test passed\n')
 }
 

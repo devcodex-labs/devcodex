@@ -35,7 +35,7 @@ description: 发布前审查维度 — 审查 release readiness、发布说明�
 | RL-6 消费链同步 | README、website、Profile、release guide、模板、validate 与部署副本是否同步 | 🔴 |
 | RL-7 验证准备度 | `npm test`、`test:audit`、远端 CI 绿色、pack/publish dry-run、install smoke、ReleaseVerification R0~R7 的触发与证据是否充分；是否执行 `RemoteCIParityPushGate` 与 `NativeCommandExitCodeGate`，不得用普通测试通过替代 coverage、audit、examples、website、pack、矩阵脚本或真实原生命令退出码 | 🟡 |
 | RL-8 回滚与恢复 | 失败恢复、版本回退、tag/registry 冲突、半发布状态处理是否可执行 | 🟡 |
-| RL-9 凭据与 registry 安全 | token 不落盘、不输出；GitHub Packages / npm registry / access 策略与文档一致 | 🔴 |
+| RL-9 凭据与 registry 安全 | token 不落盘、不输出；GitHub Packages / npm registry / access 策略与文档一致；首次发布或 publisher/repository/package/registry/auth topology 变化时执行 `PublisherCredentialTopologyGate`，核对发布身份、secret scope/access/inheritance、workflow permission、package ownership 与最近成功 run，不读取 secret value | 🔴 |
 | RL-10 发布后验收 | registry/tag 验收、安装包边界复核、逃逸复盘与后续台账回写是否定义 | 🟡 |
 
 ## 执行步骤
@@ -43,7 +43,7 @@ description: 发布前审查维度 — 审查 release readiness、发布说明�
 1. 先执行 `audit-common` 的 G0~G5，确认审查范围、文件完整性、一致性与链接基础质量。
 2. 冻结发布审查范围：目标版本、发布包、registry、关联 changelog、关联需求/bug。
 3. 逐项执行 RL-1~RL-10；缺证据时标为 `⚠️待验证`，不得写成通过。
-4. 对照 `release-verification`：执行链缺失写 RL-7；审查风险缺失写 RL-1~RL-6/RL-8~RL-10。
+4. 对照 `release-verification`：执行链缺失写 RL-7；审查风险缺失写 RL-1~RL-6/RL-8~RL-10；RL-9 触发 `PublisherCredentialTopologyGate` 时，复制 workflow 或普通 dry-run 不能替代 topology evidence。
 5. 输出 findings-first 报告；无问题时仍列出通过证据和残余风险。
 
 ## 输出要求
@@ -61,7 +61,7 @@ description: 发布前审查维度 — 审查 release readiness、发布说明�
 | RL-6 | ✅/⚠️/❌/N/A | README/website/Profile | |
 | RL-7 | ✅/⚠️/❌/N/A | ReleaseVerification R0~R7 + command/shell/cwd/exitCode | |
 | RL-8 | ✅/⚠️/❌/N/A | rollback plan | |
-| RL-9 | ✅/⚠️/❌/N/A | registry/token boundary | |
+| RL-9 | ✅/⚠️/❌/N/A | registry/token boundary + PublisherCredentialTopologyGate（无 secret value） | |
 | RL-10 | ✅/⚠️/❌/N/A | post-release acceptance | |
 ```
 

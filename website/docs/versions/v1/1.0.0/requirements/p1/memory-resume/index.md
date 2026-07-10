@@ -102,7 +102,7 @@ flowchart TD
 
 | 关联 | 关系 |
 |------|------|
-| [P1 — 存储规范](../storage-spec/) | 前置依赖：记忆文件路径与读写规则由存储规范定义 |
+| [P1 — 存储规范](../storage-spec/index) | 前置依赖：记忆文件路径与读写规则由存储规范定义 |
 | [P2 — skills-core](../../p2/skills-core) | `memory` Skill 实现记忆读写；`intent` Skill 识别 resume 意图 |
 
 ---

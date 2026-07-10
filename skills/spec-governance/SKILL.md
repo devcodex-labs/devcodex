@@ -160,6 +160,7 @@ description: 规范治理生命周期 — 意图驱动记录、RecordRouter 分�
 
 | gateGroup | ownerSkill | 触发语义 | 最小证据 |
 |-----------|------------|----------|----------|
+| `repair-collaboration` | `execution-contract` | AI 判断任务目标是修复 Bug/缺陷/回归/安全问题/规范缺口/审查 finding/已确认不正确行为；模型名称与是否切换 Agent 不作为触发条件 | lightweight/full 风险分类、authorizationEvidence、双层字段；full 追加 findingToPatchMap、handoffIntegrity、independentReReview 与 accepted 证据 |
 | `absorption-layering` | `spec-absorption` + `spec-governance` | 可泛化 PI / PF / GAP / ISSUE、用户确认值得吸纳、新增 Gate | `CommonNormGeneralizationGate`、`AbsorptionCandidateConsumerProofGate`、`LayeredAbsorptionDecision`、`layerChecks`、consumer sync |
 | `historical-common-layering` | `spec-absorption` + `spec-governance` | 历史通用规范、prompt/report 长清单或旧吸纳项重新分层 | 逐文件审查矩阵、`legacy-index-retained`、`PromptLongGateListDriftProbe`、V74/V75 探针 |
 | `confirmed-completeness` | `spec-absorption` + 目标 Skill | 未完整吸纳、半覆盖、缺 Gate / Skill / Prompt / Probe / deployCopy | gateGroup 分流表、通用性证明、消费者证明、目标 Skill 证据、验证探针 |
@@ -170,8 +171,9 @@ description: 规范治理生命周期 — 意图驱动记录、RecordRouter 分�
 | `user-manual` | `user-manual-authoring` | 站点文档、README、quick start、接入手册、最终用户手册 | 用户任务路径、配置、示例、排错、真实工作流、渲染验证 |
 | `docs-ia-readability` | `user-manual-authoring` + `dev-docs` + `document-sync` | 中文用户文档、sidebar IA、新增公开能力或菜单纠偏 | `ChinesePrimaryExpressionGate`、`SidebarPageRoleMaterializationProbe`、`SidebarGroupSemanticModelProbe`、pageRole/sidebar group 矩阵 |
 | `frontend-runtime` | `audit-project` + `test-router` | 首页、详情、列表、搜索、前端接口数据、缓存刷新或运行态页面 | 旧缓存先渲染、异步刷新、失败回退、网络/状态验证 |
-| `release-parity` | `audit-release` + `release-verification` | push/tag/release/publish 前验证 | 与远端 CI 同构门禁、pack、coverage/audit/examples/website 矩阵、原生命令真实 exitCode |
-| `profile-service` | `load-profile` + `profile-bootstrap` + `memory` | Profile 链路、服务集合、公共规范抽取、服务残留、宿主 Memories / 模型回忆可能替代文件真相源 | 读取链、最强 Profile、服务残留清扫、覆盖矩阵、`MemoryCannotSatisfyBootstrapGate` 的 navigation-hint 与真实文件读取证据 |
+| `release-parity` | `audit-release` + `release-verification` | push/tag/release/publish 前验证；首次发布或 publisher/repository/package/registry/auth topology 变化 | 与远端 CI 同构门禁、pack、coverage/audit/examples/website 矩阵、原生命令真实 exitCode；`PublisherCredentialTopologyGate` 的身份/scope/access/permission/ownership/reference run 证据且不含 secret value |
+| `profile-service` | `load-profile` + `profile-bootstrap` + `memory` | Profile 链路、服务集合、公共规范抽取、服务残留、项目级 analyze/audit 真相对账、宿主 Memories / 模型回忆可能替代文件真相源 | 读取链、最强 Profile、服务残留清扫；`ProfileTruthReconciliationGate` 的 mode/profileTrustState/ProfileTruthMatrix/结论矫正；`MemoryCannotSatisfyBootstrapGate` 的 navigation-hint 与文件读取证据 |
+| `security-audit-presentation` | `security-threat-modeling` | 用户自有/明确授权的本地安全审查，或宿主额外安全检查导致内容不可见/流程中断 | `AuthorizedLocalSecurityAuditPresentationGate`、authorizationContext、defensiveObjective、visibleEvidenceBudget、isolatedProbeBoundary、SafetyInterruptionCard、恢复/反馈路线与禁止绕过声明 |
 | `memory-bootstrap` | `load-profile` + `memory` + `report` | 新线程、resume、summary 恢复、compact 后继续、跨项目切换或用户询问是否启用 / 依赖宿主 Memories | `MemoryCannotSatisfyBootstrapGate`、当前 active namespace Profile / SUMMARY / tasks / reports / review checklist / 源码或文档读取证据、V86/targeted probe |
 | `public-surface` | `release-verification` + `audit-release` | package、README、website、public types、examples、搜索索引变化 | npm pack 历史公开内容、隐藏链接、public API、search/sidebar 反查 |
 | `evolution-control-plane` | `evolution-governance` | 自我进化、自动吸纳、模型辅助规范优化或自动发版候选 | 候选态、授权、模型配置、权限/配额、审计、回滚和审批 |

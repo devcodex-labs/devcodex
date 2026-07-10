@@ -53,9 +53,9 @@
 
 | 关联 | 关系 |
 |------|------|
-| [⑤ 前置状态汇总](../pre-state-summary/) | 直接上游 |
-| [宿主生命周期硬门禁（Hooks 优先）](../host-lifecycle-gates/) | 定义开发前闸门在宿主 Hook 模式与 fallback 模式下的硬/软边界 |
-| [⑦ 路由到工作流](../routing/) | 直接下游 |
+| [⑤ 前置状态汇总](../pre-state-summary/index) | 直接上游 |
+| [宿主生命周期硬门禁（Hooks 优先）](../host-lifecycle-gates/index) | 定义开发前闸门在宿主 Hook 模式与 fallback 模式下的硬/软边界 |
+| [⑦ 路由到工作流](../routing/index) | 直接下游 |
 
 ---
 

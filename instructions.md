@@ -245,6 +245,7 @@ CP2 / 技术方案 / 报告必须记录 `LayeredAbsorptionDecision`：`candidate
 
 | gateGroup | 目标承接 |
 |------|----------|
+| `repair-collaboration` | 所有 repair task 至少形成轻量双层修复协作契约；P0/P1、安全、控制面、公共契约、多批次、角色交接或发布风险升级完整契约并要求独立复证 → `execution-contract` |
 | `public-surface` | `PublicSurfaceClosureGate`、`SemanticLegacyRouteExposureGate`、`ReferenceCodeTruthSamplingGate`、`RemoteCIParityPushGate`、`PortableExternalArtifactGate` → `audit-release` / `release-verification` / `audit-readme` |
 | `user-manual` | `UserManualProductizationGate`、`UserManualRenderedFlowAndRealWorkflowProbe`、`DocsPageRoleMatrixGate`、`CompleteUserManualSiteMatrixGate`、`DocsThemeRuntimeVisualProbeGate` → `user-manual-authoring` / `audit-user-manual` |
 | `review-checklist` | `SampleIssueExpansionGate`、`RequirementDimensionBindingGate`、`RequirementPriorityAndPhaseGate`、`ReviewAnchorMaterializationGate` → `review-checklist` / `audit-requirements` |

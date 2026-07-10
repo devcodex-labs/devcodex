@@ -1,15 +1,35 @@
-# 项目介绍
+# DevCodex 使用介绍
 
-> ⚠️ **本站为 DevCodex 内部开发文档**，面向核心开发团队。商业化产品介绍和用户文档将单独建站。
+> 本站是 DevCodex 官方文档入口，面向需要在 Copilot / Claude Code / Codex 中统一 AI 开发工作流的使用者和集成开发者。需求、实现和发布材料保留在“维护者指南”与“版本”分区，不占用第一次成功路径。
 
 ---
 
 ## DevCodex 是什么
 
-DevCodex 当前处于**本地文件版持续迭代阶段**。  
-这个站点的作用，是持续同步 DevCodex 作为 Copilot / Claude Code 双主支持并升级到 Codex 三宿主支持的规范注入器目标形态、当前实现边界、目录结构、执行骨架、版本边界和后续路线。
+DevCodex 是通过 npm 包和 CLI 分发的 AI 开发规范注入器。它把同一套工作流、Skills、Hooks、记忆和报告契约安装到目标项目，并分别适配 Copilot、Claude Code 与 Codex。
 
-因此，你现在看到的内容同时包含**需求、规范、设计决策与当前实现说明**；历史版本目录中的旧需求页只代表当时基线，不等同于当前实现。
+站点同时保留稳定规范和版本化维护资料；历史版本目录中的旧需求页只代表当时基线，不等同于当前实现。当前安装、命令和宿主支持以仓库 [README](https://github.com/vextjs/devcodex#安装) 与当前发布版本为准。
+
+---
+
+## 快速开始
+
+1. 按 [安装说明](https://github.com/vextjs/devcodex#安装) 配置 GitHub Packages registry 与 `NODE_AUTH_TOKEN`。
+2. 安装并在目标项目初始化三宿主规范：
+
+```bash
+npm install @vextjs/devcodex
+npx @vextjs/devcodex init
+```
+
+只部署单一宿主 adapter 时使用：
+
+```bash
+npx @vextjs/devcodex init --claude
+npx @vextjs/devcodex init --codex
+```
+
+执行完成后，目标项目会出现对应的 `.github/`、`CLAUDE.md + .claude/` 或 `AGENTS.md + .agents/ + .codex/` 受管文件。新开 AI 会话并发送开发、修复或审查任务，即可验证入口检查、工作流路由、报告与记忆是否生效。完整命令、更新方式和排错步骤见 [README](https://github.com/vextjs/devcodex)。
 
 ---
 
@@ -21,9 +41,13 @@ DevCodex 当前处于**本地文件版持续迭代阶段**。
 | 跨会话上下文保持 | 通过 `.devcodex/.memory/` 写入 Agent 日记、需求记忆与项目总记忆 |
 | 工作流行为可审计 | 通过报告、audit-state 与合规检查形成可追溯闭环 |
 | 规范随代码版本化 | 用版本文档管理规范演进与实现边界 |
-| 跨项目零配置复用 | 目标是后续通过 `devcodex init` 安装到任意项目 |
+| 跨项目复用 | 通过 `devcodex init` 安装到目标项目，并用 `update` 同步受管规范 |
 | 多宿主一致入口 | Copilot、Claude Code 与 Codex 共用同一规范源，分别落到 `.github/`、`CLAUDE.md + .claude/`、`AGENTS.md + .agents/ + .codex/`；Hook 能力按宿主/事件降级，并按官方输出契约区分顶层 block、`continue:false` 与工具级 deny |
 | 文件真相源优先 | `MemoryCannotSatisfyBootstrapGate` 要求宿主 Memories、模型长期偏好或交接卡只作为 `navigation-hint`，新线程 / resume / summary 恢复仍读取 Profile、tasks、reports 和源码 / 文档真相源 |
+| Profile 真相对账 | 项目级 analyze/audit 用 `ProfileTruthMatrix` 对照 Profile 声明与当前代码、配置、运行和发布事实；过期 Profile 不覆盖现实，只读工作流不直接改 Profile |
+| 双层修复协作契约 | 所有 repair task 至少形成轻量决策/验收层与执行/验证层；高风险升级完整契约和独立复证。模型名称、是否切换模型或 Agent 都不是触发条件 |
+| 授权本地安全审查 | 可见回复保留防御结论和最小必要证据，隔离本地探针保存复现；内容不可见时用 `SafetyInterruptionCard` 恢复，不尝试绕过平台控制 |
+| 发布凭据拓扑 | 首次发布或身份拓扑变化时核对 publisher、repository、package、auth/secret scope、permission 与成功运行；不读取或输出 secret value |
 | 平台升级免维护 | 提前对齐官方目录规范，降低后续实现风险 |
 | 灵活的执行模式 | 提供确认模式与 Auto v1.1；Auto 通过显式 `@devcodex-auto`、全局默认 `@rocky`、Profile `extensions.devcodex.autoAliases` 替换别名或明确自然语言 auto 授权进入，仅对白名单路径提供自动推进保证，控制面/多批次任务仍受 ExecutionContract 约束 |
 | AI 对自身行为自检 | 把合规检查作为核心设计原则保留下来 |

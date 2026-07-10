@@ -1,13 +1,13 @@
 {
   "name": "@vextjs/devcodex",
-  "version": "1.11.32",
+  "version": "1.11.33",
   "description": "DevCodex — AI-powered development workflow rules for Copilot, Claude Code and Codex",
   "main": "index.js",
   "bin": {
     "devcodex": "index.js"
   },
   "scripts": {
-    "test": "npm run test:core && node scripts/test-spec-governance.js && node scripts/test-governance-intake.js && node scripts/test-validate-profile.js && node scripts/test-readme-governance.js && node scripts/test-requirement-artifacts.js && node scripts/test-hooks-runtime.js && node scripts/test-instruction-fallback-check.js && node scripts/test-mcp-servers.js && node scripts/test-client-contracts.js && node scripts/test-migrate-layout.js && node scripts/test-cli-behavior.js && node scripts/test-release-metadata.js && node scripts/test-pack-clean.js && npm --prefix website run build && node scripts/check-syntax.js",
+    "test": "npm run test:core && node scripts/test-spec-governance.js && node scripts/test-governance-intake.js && node scripts/test-validate-profile.js && node scripts/test-readme-governance.js && node scripts/test-requirement-artifacts.js && node scripts/test-hooks-runtime.js && node scripts/test-instruction-fallback-check.js && node scripts/test-mcp-servers.js && node scripts/test-client-contracts.js && node scripts/test-migrate-layout.js && node scripts/test-cli-behavior.js && node scripts/test-release-metadata.js && node scripts/test-pack-clean.js && node scripts/test-generated-site-links.js && npm --prefix website run build && node scripts/check-generated-site-links.js && node scripts/check-syntax.js",
     "test:all": "npm test",
     "test:core": "node scripts/validate-versions.js && node scripts/validate.js",
     "test:all:with-audit": "npm run test:all && npm run test:audit",

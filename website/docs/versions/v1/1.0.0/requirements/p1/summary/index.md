@@ -57,8 +57,8 @@
 
 | 关联 | 关系 |
 |------|------|
-| [② 安全检查](../safety-check/) | 直接上游 |
-| [④ 检索记忆](../memory-retrieval/) | 直接下游，消费摘要内容 |
+| [② 安全检查](../safety-check/index) | 直接上游 |
+| [④ 检索记忆](../memory-retrieval/index) | 直接下游，消费摘要内容 |
 
 ---
 

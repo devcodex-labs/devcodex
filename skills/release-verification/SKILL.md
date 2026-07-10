@@ -31,9 +31,29 @@ description: 发布验证规范 — 覆盖版本、changelog、测试、pack、i
 | R6 | commit/tag/push/publish 前输出确认，真实发布动作必须等待用户明确确认 |
 | R7 | 发布后验证 git tag、registry 版本、安装包边界和 `node scripts/validate.js` |
 
+## PublisherCredentialTopologyGate
+
+首次 publish、repository/owner/package name/registry/publisher/auth mode 变化、迁移发布 workflow，或用户要求“参考成功项目发布”时，必须在 R0~R3c 之间冻结发布凭据拓扑；普通 patch 且拓扑明确未变时可记录 `unchanged + evidence`，不得静默跳过。
+
+| 字段 | 要求 |
+|------|------|
+| `publisherIdentity` | 实际发布主体/组织；不得包含 token 或 secret value |
+| `repositoryIdentity` | owner/repository、workflow 所在仓库与可访问边界 |
+| `packageIdentity` | package name、registry、package owner/access 与现存版本 |
+| `authMode` | `trusted-publishing / workflow-secret / local-token / other` |
+| `secretTopology` | 只记录 org/repo/environment/local scope、access policy 和传递/继承方式；禁止读取或复制 value |
+| `workflowPermissions` | OIDC/trusted publishing 所需最小权限；无 workflow 时 `N/A + skipReason` |
+| `referenceEvidence` | 参考成功仓库或最近成功 publish run 的身份、拓扑和结论；复制 YAML 不等于凭据等价 |
+| `topologyParity` | `aligned / mismatch / unverifiable`、阻断原因与恢复动作 |
+
+GitHub Actions secrets 的 org/repo/environment scope、access policy 与 precedence 必须作为拓扑事实；reusable workflow 的显式 secret 传递或 `secrets: inherit` 只在平台允许的边界内成立。npm registry 采用 trusted publishing 时，按官方条件验证 OIDC、runner、Node/npm 与 `id-token: write`；其他 registry 不得机械套用 npm trusted publisher 结论。
+
+`mismatch` 或首次发布的 `unverifiable` 阻断 R6；不得通过读取 secret value 来证明等价。本地 token 路线只核对 auth/config 来源、发布身份与真实 dry-run/publish exitCode，不回显认证值。
+
 ## 安全边界
 
 - 不主动索取 npm token、GitHub token 或私钥；若用户、registry、CI 或发布平台明确要求提供、写入或输出，按该显式策略处理并记录来源。
+- `PublisherCredentialTopologyGate` 只检查身份、scope、access、inheritance、permission 与成功证据；禁止读取或复制 secret value，也禁止把“workflow 相同”当作凭据等价。
 - 不把 `publish`、`push`、`tag` 设计为无确认自动动作。
 - tag 或 registry 已存在时必须阻断发布动作。
 - 有远端 CI 的项目，tag / release / publish 前必须确认目标 commit 远端 CI 绿色；若无法查询，应阻断正式发布或由用户基于风险另行确认，报告中不得标为 ✅。
@@ -60,6 +80,7 @@ description: 发布验证规范 — 覆盖版本、changelog、测试、pack、i
 | R3 | ✅/⚠️/N/A | |
 | R3b | ✅/⚠️/N/A | package completeness gate |
 | R3c | ✅/⚠️/N/A | remote CI green |
+| PublisherCredentialTopologyGate | ✅/⚠️/N/A | publisher/repository/package/auth/secret scope/workflow permission/reference run；不含 secret value |
 | R4 | ✅/⚠️/N/A | command/shell/cwd/exitCode |
 | R5 | ✅/⚠️/N/A | command/shell/cwd/exitCode |
 | R6 | ✅/⚠️/N/A | |

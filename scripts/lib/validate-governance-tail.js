@@ -2781,6 +2781,183 @@ function buildGovernanceTailChecks(ctx) {
     console.log('[V86] memory bootstrap truth source sync checked')
   }
 
+  function checkV87() {
+    const classifyRepairContractSample = sample => {
+      if (/没有修复目标|仅讨论模型|只讨论模型/.test(sample)) return 'not-repair'
+      const repairIntent = /repair task|修复|Bug|缺陷|回归|安全问题|规范缺口|审查 finding|不正确行为/i.test(sample)
+      if (!repairIntent) return 'not-repair'
+
+      const fullRisk = /P0|P1|安全问题|控制面|公共 API|Schema|config|≥5|多批次|角色交接|发布|high-risk/i.test(sample)
+      const lightFields = ['problemAnchor', 'expectedBehavior', 'acceptanceEvidence', 'decisionAcceptanceOwner', 'allowedPaths', 'validationRoute', 'rollbackTrigger', 'executionVerificationOwner']
+      const fullFields = ['auditSnapshot', 'approvedFindingIds', 'evidencePacket', 'roleAssignments', 'acceptanceMatrix', 'authorizationEvidence', 'allowedPaths', 'blockedScope', 'batchPlan', 'findingToPatchMap', 'regressionMatrix', 'handoffIntegrity', 'independentReReview', 'rollbackPlan']
+      const hasAll = fields => fields.every(field => sample.includes(field))
+
+      if (fullRisk) return hasAll(fullFields) ? 'full-contract-ready' : 'invalid-full-contract'
+      return hasAll(lightFields) ? 'light-contract-ready' : 'invalid-light-contract'
+    }
+
+    const light = '低风险 Bug problemAnchor expectedBehavior acceptanceEvidence decisionAcceptanceOwner allowedPaths validationRoute rollbackTrigger executionVerificationOwner'
+    const full = 'P0 控制面修复 auditSnapshot approvedFindingIds evidencePacket roleAssignments acceptanceMatrix authorizationEvidence allowedPaths blockedScope batchPlan findingToPatchMap regressionMatrix handoffIntegrity independentReReview rollbackPlan'
+    if (classifyRepairContractSample(light) !== 'light-contract-ready') err('[V87] complete lightweight repair contract sample must pass')
+    if (classifyRepairContractSample('低风险 Bug 只有问题描述') !== 'invalid-light-contract') err('[V87] incomplete lightweight repair contract sample must fail')
+    if (classifyRepairContractSample(full) !== 'full-contract-ready') err('[V87] complete full repair contract sample must pass')
+    if (classifyRepairContractSample('P1 安全问题 allowedPaths validationRoute') !== 'invalid-full-contract') err('[V87] incomplete full repair contract sample must fail')
+    if (classifyRepairContractSample('讨论 Sol Ultra 跨模型协作，没有修复目标') !== 'not-repair') err('[V87] model-only sample must not trigger repair contract')
+
+    const probes = [
+      { file: 'skills/execution-contract/SKILL.md', needles: ['DualLayerRepairCollaborationContract', 'lightweight', 'findingToPatchMap', 'handoffIntegrity', 'independentReReview', '禁止 `executing→accepted`'] },
+      { file: 'skills/spec-governance/SKILL.md', needles: ['repair-collaboration', 'execution-contract', '模型名称'] },
+      { file: 'skills/test-router/SKILL.md', needles: ['repairCollaboration', 'not-repair', 'independent re-review'] },
+      { file: 'skills/report/SKILL.md', needles: ['RepairCollaborationContract', 'authorizationEvidence', '模型名称'] },
+      { file: 'prompts/technical-design.prompt.md', needles: ['repair-collaboration', 'repairCollaboration', 'findingToPatchMap'] },
+      { file: 'prompts/implementation-plan.prompt.md', needles: ['RepairCollaborationContract', 'independentReReview'] },
+      { file: 'prompts/implementation-progress.prompt.md', needles: ['RepairCollaborationContract', 'contractState'] },
+      { file: 'prompts/report-dev.prompt.md', needles: ['RepairCollaborationContract', 'authorizationEvidence'] },
+      { file: 'prompts/report-fix.prompt.md', needles: ['RepairCollaborationContract', '模型名称'] },
+      { file: 'README.md', needles: ['模型无关双层修复协作契约', 'lightweight', 'independentReReview'] },
+      { file: 'website/docs/guide/development.md', needles: ['repair-collaboration', 'findingToPatchMap', 'independentReReview'] },
+      { file: 'website/docs/intro/index.md', needles: ['双层修复协作契约', '模型名称'] },
+      { file: 'scripts/test-spec-governance.js', needles: ['checkV87', 'classifyRepairContractSample', 'not-repair'] },
+      { file: 'scripts/validate.js', needles: ['V87 repair collaboration contract sync', 'checkV87()'] }
+    ]
+
+    for (const probe of probes) {
+      const content = read(path.join(ROOT, probe.file))
+      for (const needle of probe.needles) {
+        if (!content.includes(needle)) err(`[V87] repair collaboration contract sync in ${probe.file}: missing "${needle}"`)
+      }
+    }
+
+    console.log('[V87] repair collaboration contract sync checked')
+  }
+
+  function checkV88() {
+    const classifyProfileTruthSample = sample => {
+      if (/低风险单文件/.test(sample) && /N\/A/.test(sample) && /skipReason/.test(sample)) return 'n-a-ready'
+      const isAudit = /\baudit\b|审查/.test(sample)
+      const triggered = isAudit || /项目级 analyze|ProfileTruthReconciliationGate/.test(sample)
+      if (!triggered) return 'not-triggered'
+      const fields = ['profileTrustState', 'profileClaim', 'actualSources', 'status', 'conclusionAuthority', 'correctionRoute']
+      if (!fields.every(field => sample.includes(field))) return 'invalid-matrix'
+      if (/stale-profile/.test(sample) && /conclusionAuthority=profile|Profile覆盖代码|以Profile为准/.test(sample)) return 'invalid-authority'
+      if (/直接修改Profile|sourceMutation=true/.test(sample)) return 'invalid-readonly'
+      if (isAudit && !/full/.test(sample)) return 'invalid-audit-mode'
+      return isAudit ? 'full-ready' : 'targeted-ready'
+    }
+
+    const targeted = '项目级 analyze ProfileTruthReconciliationGate targeted profileTrustState=drift-detected profileClaim actualSources status=stale-profile conclusionAuthority=code-config-runtime correctionRoute=separate-dev-fix'
+    const full = 'audit 审查 full PFresh-1~PFresh-6 profileTrustState=aligned profileClaim actualSources status=aligned conclusionAuthority=actualSources correctionRoute=none'
+    if (classifyProfileTruthSample(targeted) !== 'targeted-ready') err('[V88] targeted profile truth sample must pass')
+    if (classifyProfileTruthSample(full) !== 'full-ready') err('[V88] full audit profile truth sample must pass')
+    if (classifyProfileTruthSample('项目级 analyze profileTrustState profileClaim actualSources status=stale-profile conclusionAuthority=profile correctionRoute=none') !== 'invalid-authority') err('[V88] stale Profile must not override code truth')
+    if (classifyProfileTruthSample('audit full profileTrustState profileClaim actualSources status conclusionAuthority correctionRoute 直接修改Profile') !== 'invalid-readonly') err('[V88] audit must not mutate Profile')
+    if (classifyProfileTruthSample('低风险单文件 N/A skipReason=与项目事实无关') !== 'n-a-ready') err('[V88] low-risk file-local N/A must pass')
+
+    const probes = [
+      { file: 'skills/load-profile/SKILL.md', needles: ['ProfileTruthReconciliationGate', 'profileTrustState', 'ProfileTruthMatrix', 'stale-profile', '不得直接修改 Profile'] },
+      { file: 'skills/analyze-default/SKILL.md', needles: ['ProfileTruthReconciliationGate', 'targeted', 'profileTruth'] },
+      { file: 'skills/audit-common/SKILL.md', needles: ['ProfileTruthReconciliationGate', 'full', 'PFresh-1~PFresh-6', 'ProfileTruthMatrix'] },
+      { file: 'skills/report/SKILL.md', needles: ['ProfileTruthReconciliationGate', 'conclusionAuthority', '独立 dev/fix/self-fix'] },
+      { file: 'prompts/report-analysis.prompt.md', needles: ['ProfileTruthReconciliationGate', 'profileTrustState', 'correctionRoute'] },
+      { file: 'prompts/report-audit.prompt.md', needles: ['ProfileTruthReconciliationGate', 'audit 不修改 Profile'] },
+      { file: 'instructions/13-analyze.instructions.md', needles: ['ProfileTruthReconciliationGate', 'targeted', '独立 dev/fix/self-fix'] },
+      { file: 'skills/test-router/SKILL.md', needles: ['Profile 真相对账', 'V88/targeted probe'] },
+      { file: 'skills/source-consumer-sync/SKILL.md', needles: ['V88~V90', 'ProfileTruthReconciliationGate'] },
+      { file: 'README.md', needles: ['ProfileTruthReconciliationGate', 'V88'] },
+      { file: 'website/docs/guide/development.md', needles: ['ProfileTruthReconciliationGate', 'V88'] },
+      { file: 'website/docs/intro/index.md', needles: ['Profile 真相对账', 'ProfileTruthMatrix'] },
+      { file: 'scripts/test-spec-governance.js', needles: ['checkV88', 'classifyProfileTruthSample'] },
+      { file: 'scripts/validate.js', needles: ['V88 profile truth reconciliation sync', 'checkV88()'] }
+    ]
+    for (const probe of probes) {
+      const content = read(path.join(ROOT, probe.file))
+      for (const needle of probe.needles) if (!content.includes(needle)) err(`[V88] profile truth sync in ${probe.file}: missing "${needle}"`)
+    }
+    console.log('[V88] profile truth reconciliation sync checked')
+  }
+
+  function checkV89() {
+    const classifySecurityPresentationSample = sample => {
+      const triggered = /授权本地安全审查|安全提示|内容不可见|AuthorizedLocalSecurityAuditPresentationGate/.test(sample)
+      if (!triggered) return 'not-triggered'
+      if (/绕过平台|规避安全控制|保证不触发/.test(sample)) return 'invalid-bypass'
+      if (/用户可见完整载荷|公开完整利用载荷/.test(sample)) return 'invalid-visible-budget'
+      const base = ['authorizationContext', 'defensiveObjective', 'visibleEvidenceBudget', 'isolatedProbeBoundary']
+      if (!base.every(field => sample.includes(field))) return 'invalid-base'
+      if (/安全提示|内容不可见/.test(sample)) {
+        const interruption = ['SafetyInterruptionCard', 'exactMessage', 'surfaceModel', 'dateTimeTimezone', 'redactedTaskSummary', 'lastAcceptedCheckpoint', 'recoveryRoute']
+        if (!interruption.every(field => sample.includes(field))) return 'invalid-interruption-card'
+      }
+      return 'presentation-ready'
+    }
+
+    const ready = '授权本地安全审查 安全提示 authorizationContext defensiveObjective visibleEvidenceBudget isolatedProbeBoundary SafetyInterruptionCard exactMessage surfaceModel dateTimeTimezone redactedTaskSummary lastAcceptedCheckpoint recoveryRoute'
+    if (classifySecurityPresentationSample(ready) !== 'presentation-ready') err('[V89] complete authorized local security audit sample must pass')
+    if (classifySecurityPresentationSample('授权本地安全审查 authorizationContext defensiveObjective visibleEvidenceBudget isolatedProbeBoundary 绕过平台') !== 'invalid-bypass') err('[V89] bypass claim must fail')
+    if (classifySecurityPresentationSample('授权本地安全审查 authorizationContext defensiveObjective visibleEvidenceBudget isolatedProbeBoundary 用户可见完整载荷') !== 'invalid-visible-budget') err('[V89] complete visible payload must fail')
+    if (classifySecurityPresentationSample('安全提示 authorizationContext defensiveObjective visibleEvidenceBudget isolatedProbeBoundary') !== 'invalid-interruption-card') err('[V89] missing interruption card must fail')
+
+    const probes = [
+      { file: 'skills/security-threat-modeling/SKILL.md', needles: ['AuthorizedLocalSecurityAuditPresentationGate', 'authorizationContext', 'SafetyInterruptionCard', '不得保证以后不会触发检查'] },
+      { file: 'skills/audit-project/SKILL.md', needles: ['AuthorizedLocalSecurityAuditPresentationGate', '禁止把“优化表达”写成绕过'] },
+      { file: 'skills/audit-execution-guide/SKILL.md', needles: ['SafetyInterruptionCard', '禁止绕过表述'] },
+      { file: 'skills/execution-contract/SKILL.md', needles: ['safetyInterruptionRecovery', 'AuthorizedLocalSecurityAuditPresentationGate'] },
+      { file: 'skills/test-router/SKILL.md', needles: ['授权本地安全审查呈现', 'V89'] },
+      { file: 'skills/report/SKILL.md', needles: ['AuthorizedLocalSecurityAuditPresentationGate', 'SafetyInterruptionCard', '不得声称'] },
+      { file: 'prompts/report-audit.prompt.md', needles: ['AuthorizedLocalSecurityAuditPresentationGate', 'SafetyInterruptionCard', '禁止绕过表述'] },
+      { file: 'skills/spec-governance/SKILL.md', needles: ['security-audit-presentation', 'AuthorizedLocalSecurityAuditPresentationGate'] },
+      { file: 'README.md', needles: ['AuthorizedLocalSecurityAuditPresentationGate', 'V89'] },
+      { file: 'website/docs/guide/development.md', needles: ['AuthorizedLocalSecurityAuditPresentationGate', 'V89'] },
+      { file: 'website/docs/intro/index.md', needles: ['授权本地安全审查', 'SafetyInterruptionCard'] },
+      { file: 'scripts/test-spec-governance.js', needles: ['checkV89', 'classifySecurityPresentationSample'] },
+      { file: 'scripts/validate.js', needles: ['V89 authorized local security audit presentation sync', 'checkV89()'] }
+    ]
+    for (const probe of probes) {
+      const content = read(path.join(ROOT, probe.file))
+      for (const needle of probe.needles) if (!content.includes(needle)) err(`[V89] security presentation sync in ${probe.file}: missing "${needle}"`)
+    }
+    console.log('[V89] authorized local security audit presentation sync checked')
+  }
+
+  function checkV90() {
+    const classifyPublisherTopologySample = sample => {
+      if (/普通 patch/.test(sample) && /unchanged/.test(sample) && /evidence/.test(sample)) return 'unchanged-ready'
+      const triggered = /首次发布|owner迁移|package变化|registry变化|auth topology|PublisherCredentialTopologyGate/.test(sample)
+      if (!triggered) return 'not-triggered'
+      if (/secretValue=|token=ghp_|_authToken=明文/.test(sample)) return 'invalid-secret-value'
+      if (/只复制workflow|workflow相同即可/.test(sample)) return 'invalid-workflow-only'
+      const fields = ['publisherIdentity', 'repositoryIdentity', 'packageIdentity', 'authMode', 'secretTopology', 'workflowPermissions', 'referenceEvidence', 'topologyParity']
+      return fields.every(field => sample.includes(field)) ? 'topology-ready' : 'invalid-topology'
+    }
+
+    const ready = '首次发布 PublisherCredentialTopologyGate publisherIdentity repositoryIdentity packageIdentity authMode secretTopology workflowPermissions referenceEvidence topologyParity'
+    if (classifyPublisherTopologySample(ready) !== 'topology-ready') err('[V90] complete publisher topology sample must pass')
+    if (classifyPublisherTopologySample('首次发布 只复制workflow') !== 'invalid-workflow-only') err('[V90] workflow-only evidence must fail')
+    if (classifyPublisherTopologySample(`${ready} token=ghp_example`) !== 'invalid-secret-value') err('[V90] secret value evidence must fail')
+    if (classifyPublisherTopologySample('普通 patch topology unchanged evidence=prior-release') !== 'unchanged-ready') err('[V90] unchanged patch evidence must pass')
+
+    const probes = [
+      { file: 'skills/release-verification/SKILL.md', needles: ['PublisherCredentialTopologyGate', 'publisherIdentity', 'secretTopology', '禁止读取或复制 value'] },
+      { file: 'skills/audit-release/SKILL.md', needles: ['PublisherCredentialTopologyGate', 'package ownership', '不读取 secret value'] },
+      { file: 'skills/execution-contract/SKILL.md', needles: ['publisherCredentialTopology', 'PublisherCredentialTopologyGate'] },
+      { file: 'skills/test-router/SKILL.md', needles: ['发布凭据拓扑', 'V90 + R0~R7'] },
+      { file: 'skills/report/SKILL.md', needles: ['PublisherCredentialTopologyGate', '不得包含 secret value'] },
+      { file: 'prompts/implementation-plan.prompt.md', needles: ['PublisherCredentialTopologyGate', '不含 secret value'] },
+      { file: 'prompts/report-dev.prompt.md', needles: ['PublisherCredentialTopologyGate', '不含 secret value'] },
+      { file: 'prompts/report-fix.prompt.md', needles: ['PublisherCredentialTopologyGate', '不含 secret value'] },
+      { file: 'README.md', needles: ['PublisherCredentialTopologyGate', 'V90'] },
+      { file: 'website/docs/guide/development.md', needles: ['PublisherCredentialTopologyGate', 'V90'] },
+      { file: 'website/docs/intro/index.md', needles: ['发布凭据拓扑', 'secret value'] },
+      { file: 'scripts/test-spec-governance.js', needles: ['checkV90', 'classifyPublisherTopologySample'] },
+      { file: 'scripts/validate.js', needles: ['V90 publisher credential topology sync', 'checkV90()'] }
+    ]
+    for (const probe of probes) {
+      const content = read(path.join(ROOT, probe.file))
+      for (const needle of probe.needles) if (!content.includes(needle)) err(`[V90] publisher topology sync in ${probe.file}: missing "${needle}"`)
+    }
+    console.log('[V90] publisher credential topology sync checked')
+  }
+
   return {
     checkV39,
     checkV40,
@@ -2829,7 +3006,11 @@ function buildGovernanceTailChecks(ctx) {
     checkV83,
     checkV84,
     checkV85,
-    checkV86
+    checkV86,
+    checkV87,
+    checkV88,
+    checkV89,
+    checkV90
   }
 }
 

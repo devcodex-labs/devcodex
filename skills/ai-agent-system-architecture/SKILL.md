@@ -27,6 +27,7 @@ description: AI Agent 系统架构专家 Owner — 当任务涉及 Agent 路由�
 | `ToolPermissionBoundaryGate` | 工具权限、危险操作、确认和 fallback 必须明确 | toolPermissionBoundary |
 | `ContextMemoryStateGate` | 上下文恢复、记忆、handoff 和状态新鲜度必须设计 | contextMemoryModel |
 | `ReplayObservabilityGate` | 行为验证不能只靠文字说明，需 replay、fixture 或日志证据 | observabilityReplay |
+| `RepairCollaborationRoleBoundaryGate` | repair task 必须把决策/验收与执行/验证角色、授权证据、状态与独立复证设计清楚；模型或 Agent 名称不构成风险分类 | roleAssignments、authorizationEvidence、independentReReview |
 
 ## 执行步骤
 

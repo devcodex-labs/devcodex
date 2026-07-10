@@ -2,7 +2,7 @@
 applyTo: "**"
 description: dev 工作流规则，覆盖子类型路由、CP 流程、计划复审、执行期回退与 ECR
 priority: P4
-version: 1.11.32
+version: 1.11.33
 ---
 # 开发工作流规则（10-dev）
 
@@ -358,6 +358,7 @@ CP1（需求确认）→ PR-1 内部自检 → CP2（方案确认）→ plan-rev
 - 涉及依赖/框架/SDK/平台 API 变更 → 验证 `OfficialDocsEvidence` 与实际实现一致；不得只以安装成功替代官方用法验证
 - 涉及项目事实变化 → 执行 `ProfileImpactCheck` 并通过 `document-sync` 更新 Profile 或记录跳过理由
 - Auto、控制面、多批次、预计 ≥10 文件或发布类任务 → 执行前必须有 ExecutionContract；执行中按 `allowedPaths`、`requiredArtifacts`、`validationRoute` 对照推进
+- dev 中若 AI 判断目标包含修复规范缺口、审查 finding、回归或其他已确认不正确行为，必须触发 `repair-collaboration`：低风险至少内联轻量双层契约，高风险使用完整契约与独立复证；纯新增能力不触发，模型/Agent 名称不得作为触发条件。详细字段与状态机只引用 `execution-contract`
 - 未明确发版时不得执行真实 `tag` / `push` / `publish`；用户明确要求 release 时先走 `audit-release` 与 `release-verification`
 
 ## ECR 执行闭环复审（执行后强制）

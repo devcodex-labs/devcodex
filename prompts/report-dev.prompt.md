@@ -67,6 +67,7 @@ applyTo: .devcodex/**/reports/requirements/**
 | 产物 | 触发状态 | 结果 | 证据 |
 |------|----------|:----:|------|
 | ExecutionContract | ✅/N/A | ✅/⚠️ | |
+| RepairCollaborationContract | ✅/N/A | ✅/⚠️ | lightweight/full、contractState、authorizationEvidence、双层证据；full 的 findingToPatchMap / handoffIntegrity / independentReReview / acceptanceMatrix |
 | TestRoute | ✅/N/A | ✅/⚠️ | |
 | LeakRiskStabilityPressureTest | ✅/N/A | ✅/⚠️ | leakRiskPressure 判定、基线、压力场景、冷却窗口、资源指标前后对比、skipReason |
 | CoverageGateDecision / RiskBasedValidationLadder | ✅/N/A | ✅/⚠️ | coverage 命令、工具、阈值、基线、当前值、passed/failed/known-red/N/A、targeted/related/full gate 层级和 skipReason |
@@ -87,7 +88,7 @@ applyTo: .devcodex/**/reports/requirements/**
 | LatestAbsorptionGuards | ✅/N/A | ✅/⚠️ | GovernanceGateRegistry gateGroup / evidence / N/A；anchors: DatabaseRecordMigrationExportGate / FrontendBrowserVerificationBudgetGate / FindingProbeMatrixGate / VerificationCommandSideEffectGate / RequirementPreConfirmGate / BenchmarkRegressionGuard |
 | ServiceLifecycleCleanup | ✅/N/A | ✅/⚠️ | AI 自启动服务的 command/cwd/PID/job/port/url、关闭验证或 keepAliveReason |
 | ReleaseAudit | ✅/N/A | ✅/⚠️ | |
-| ReleaseVerification | ✅/N/A | ✅/⚠️ | R0~R7、NativeCommandExitCodeGate command/shell/cwd/exitCode |
+| ReleaseVerification | ✅/N/A | ✅/⚠️ | R0~R7、NativeCommandExitCodeGate command/shell/cwd/exitCode；触发时追加 PublisherCredentialTopologyGate 且不含 secret value |
 | ConceptSyncMap | ✅/N/A | ✅/⚠️ | sourceOfTruth / currentConsumers / historicalMirrors / validateProbes / deployCopies / yellowDeviationBoundary |
 | HostContractVerification | ✅/N/A | ✅/⚠️ | hostSurface / eventScope / evidenceMode / visibleReplyEvidence / workspaceGuard / bootstrapScope / artifactLinkMatrix / mcpFallback |
 | OfficialDocsEvidence | ✅/N/A | ✅/⚠️ | 官方文档来源 / 版本日期 / 关键用法 / 限制 / 兼容性 / skipReason |

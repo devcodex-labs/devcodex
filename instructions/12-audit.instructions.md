@@ -1,8 +1,8 @@
 ---
 applyTo: "**"
-description: audit 工作流规则，覆盖审查目标路由、收敛门禁、元循环与只读边界
+description: audit 工作流规则，覆盖审查目标路由、收敛门禁、发现交接与只读授权边界
 priority: P4
-version: 1.11.32
+version: 1.11.33
 ---
 # 审计工作流规则（12-audit）
 
@@ -21,12 +21,18 @@ version: 1.11.32
 - 收敛门禁强制校验：`crsPassed && pcvPassed && zeroFindingStreak >= 3`
 
 ### 只读约束（绝对）
-- **audit 是只读工作流**：执行中禁止修改任何文件
-- 发现问题只输出清单和变更建议
-- **需要修复时**：DevCodex plugin 文件（`instructions/` · `skills/` · `prompts/` · `agents/` · `RULES.md`）→ 先做阻断/非阻断分流：阻断项进入元循环自动 self-fix，非阻断项写入 `data/pending-issues.md`（见 §审查元循环）；其他文件/代码 → 记录 PF/VL，由用户决定时机启动 fix 或 self-fix
+- **audit 是只读工作流**：只允许写审计报告、audit-state、记忆和经 RecordRouter 分流的运行态台账；禁止修改或暂存被审查源码、规范、配置、测试、文档和部署副本
+- 发现问题只输出清单、证据、风险、建议与修复交接状态
+- **需要修复时**：无论审查对象是否为 DevCodex plugin 文件，都必须先完成阻断/非阻断分流和 finding/ledger 记录；非阻断治理项可按 RecordRouter 写入 `data/pending-issues.md` 等适当台账。修复须提出显式用户确认，授权后由独立 fix/self-fix 工作流执行；audit 不自动切换工作流、不写源、不 `git add`
 - 用户已给出结论、分类或目录方案时，audit 仍须按证据独立验证；若核验后用户判断成立，可直接写明“已验证成立”，不得为了显得客观而反向挑错
 
-> **设计原则：记录在使用，修复在维护** — 正常开发工作流（dev/fix/analyze）中 PC4 发现规范缺口，先经 `spec-governance` 的记录意图识别与 RecordRouter 分流，再写入运行时 Pending 台账（如 `data/pending-fixes.md`），不触发任何修复；源仓内该台账由 `data/templates/` 提供模板，维护者实录按 active-root 写入（workspace-namespace 单项目如 `.devcodex/<project>/data/`）。只有 audit 明确针对 DevCodex plugin 文件本身时，才进入立即修复的元循环。
+> **设计原则：记录在使用，修复在维护** — audit 与 dev/fix/analyze 中发现的规范缺口都先经 `spec-governance` 的 RecordRouter 分流；audit 只维护审计产物与交接状态。源仓内台账由 `data/templates/` 提供模板，维护者实录按 active-root 写入（workspace-namespace 单项目如 `.devcodex/<project>/data/`）。
+
+### AuditMutationBoundaryGate
+
+- audit 可写面仅限审计报告、audit-state、记忆与运行态台账；不得写被审查源或部署副本。
+- finding 严重度、plugin 文件身份、Auto/@rocky、模型切换或历史修复上下文都不能把 audit 授权升级为修复授权。
+- 修复必须经过显式用户确认并进入独立 fix/self-fix；恢复 audit 后按新证据复审，才可更新 finding 状态。
 
 ### 审查目标类型
 
@@ -52,24 +58,19 @@ version: 1.11.32
 | G4 格式规范性 | 标题层级正确，代码块有语言标记 | 🟡 |
 | G5 链接有效性 | 内部/外部链接可访问 | 🟡 |
 
-## 审查元循环（阻断即修 / 非阻断入池）
+## 审查发现交接循环（阻断暂停 / 非阻断入池）
 
-> 🔴 **触发前置条件**：元循环只在审查 **DevCodex plugin 文件**（`instructions/` · `skills/` · `prompts/` · `agents/` · `RULES.md`）时启动。审查其他类型文件时，发现问题 → 记录 PF/VL → 继续下一轮，**不触发 self-fix**。
+> 🔴 **触发条件**：任何 audit finding 都进入交接循环，与文件类型无关。阻断项停止受影响范围的通过结论并请求显式用户授权；非阻断项进入适当台账/问题池。两类 finding 都不得在 audit 内触发 source mutation。
 >
-> 🔴 audit 是只读工作流，但**元循环不是**：每发现一批 DevCodex plugin 问题后，先做阻断/非阻断分流；阻断项立即自我审视 + self-fix 修复，并在修复后重新启动新一轮 audit；非阻断项写入 `data/pending-issues.md`，继续当前 audit。禁止把阻断项拖到所有轮次结束后再批量修复。
-
-> 🔴 **累计文件上限**：单次 audit 会话内，元循环累计通过 self-fix 修改的 DevCodex plugin 文件总数不得超过 10 个。达到上限后必须输出 `⛔ AUDIT-LOOP-LIMIT`，建议用户拆分为新会话继续，禁止在当前 audit 会话内继续扩大修改面。
+> 🔴 **授权边界**：用户确认修复后，必须新建或切换到独立 fix/self-fix 工作流并执行对应 CP/ExecutionContract；修复完成后，audit 只能基于新证据恢复复审，不能把“已提出修复建议”写成 fixed。
 
 ```text
-【非 plugin 文件审查】
-发现问题 → Intent Detection → RecordRouter → 记录 PF/VL/ISSUE/GAP → 继续下一轮（不触发 self-fix）
-
-【DevCodex plugin 文件审查】
-发现问题 → 阻断/非阻断分流
-         → 阻断项：自我审视五步（实证→验证→感知→修复→盲点，见 `audit-common §自我审视机制`）
-         →        self-fix 修复 → 重启新一轮 audit → 再次发现？→ 再次分流...
-         → 非阻断项：写入 `data/pending-issues.md` → 继续当前/下一轮 audit
-         → 连续 3 轮有效零发现 → CRS 门禁 → PCV → 收敛
+发现问题 → 实证/三列验证/盲点分析 → Intent Detection → RecordRouter
+         → 阻断项：标记 open/pending，停止受影响范围通过结论，提出 ConfirmationRequest
+         → 非阻断项：写入适当台账/问题池（如 data/pending-issues.md），状态 recorded/transferred
+         → 用户显式授权？否 → audit 保持只读并完成可完成的审查范围
+         → 用户显式授权？是 → 独立 fix/self-fix + CP/ExecutionContract → 产出新证据
+         → audit 恢复复审 → 连续 3 轮有效零发现 → CRS 门禁 → PCV → 收敛
 ```
 
 ## 多轮收敛规则
@@ -77,14 +78,14 @@ version: 1.11.32
 | 轮次 | 规则 |
 |------|------|
 | R1 | **先执行初始 CRS**（见 `audit-common §关联文件发现`）确定关联文件范围，再输出维度清单供用户确认（可增删维度）|
-| Rn | 每轮先输出 `ReviewCoverageDelta` 与 `ReviewDimensionDeltaGate`，优先阅读此前未审查但相关联的代码、配置、测试、文档、部署副本和消费者链，并调整本轮维度焦点；重复审查已读范围或同一维度组合只能作为高风险锚点、修复点回归、抽样或新证据复核；**plugin 文件发现问题先做阻断/非阻断分流：阻断项触发自我审视 + self-fix 修复并重启新轮，非阻断项写入 `data/pending-issues.md` 后继续**（见 `audit-common §审查元循环`）；**非 plugin 文件发现问题则记录 PF/VL，继续下一轮** |
+| Rn | 每轮先输出 `ReviewCoverageDelta` 与 `ReviewDimensionDeltaGate`，优先阅读此前未审查但相关联的代码、配置、测试、文档、部署副本和消费者链，并调整本轮维度焦点；重复审查已读范围或同一维度组合只能作为高风险锚点、外部修复回归、抽样或新证据复核；**发现问题统一执行交接循环，阻断项暂停受影响结论并请求授权，非阻断项记录/转交；audit 全程不写被审查源** |
 | 收敛前门禁 | **CRS ✅**（见下方说明）|
 | 收敛条件 | **连续 3 轮有效零发现**（仍须满足连续 3 轮零发现；所有子类型统一，不区分定向/全面），同时所有 🔴 已解决 + 🟡 已处理或标注 N/A |
 
 - 未收敛时自动进入下一轮，**不询问用户**
 - 🔴 **CRS 收敛门禁**：宣告收敛前，必须在 `instructions/` 和 `skills/` 全库 grep 本次审查涉及的核心关键词，确认所有引用相同概念的文件均已纳入审查范围并完成 G3 检查；CRS 发现未审查文件时，**零发现计数重置为 0**
-- 🔴 **连续 3 轮有效零发现**：必须是**修复后重启的新轮次**均零发现，且每轮 `ReviewCoverageDelta` 与 `ReviewDimensionDeltaGate` 合格；不得用同一轮、同一批文件、同一组维度或无新增覆盖证据的重复检查凑数
-- 🔴 **零发现精确定义**：当轮全维度检查完成后，无任何新增 PF/VL 记录，且无待修复的 plugin 文件问题；PCV 阶段被标记为 `❌排除` 的条目不重置零发现计数，self-fix 执行失败则该轮不得计入零发现，且必须在修复后重启新轮重新计算
+- 🔴 **连续 3 轮有效零发现**：必须是新证据或外部修复后恢复的独立新轮次均零发现，且每轮 `ReviewCoverageDelta` 与 `ReviewDimensionDeltaGate` 合格；不得用同一轮、同一批文件、同一组维度或无新增覆盖证据的重复检查凑数
+- 🔴 **零发现精确定义**：当轮全维度检查完成后，无任何新增 PF/VL 记录，且无会阻断收敛的 open/pending finding；PCV 阶段被标记为 `❌排除`、`recorded` 或 `transferred` 的条目不重置零发现计数；外部修复验证失败时该轮不得计入零发现
 - 禁止提前收敛：CRS 未完成、未达到 3 轮零发现，或最近 3 次零发现缺少有效 `ReviewCoverageDelta` 时不得输出"已收敛"结论
 
 ### ReviewCoverageDelta（复审覆盖增量）
@@ -187,7 +188,7 @@ R2 及以后轮次必须把复审从“同一维度反复跑一遍”改为“�
 - 三列验证（合理性 + 可实施性 + 收益）通过 **PCV-3** 统一完成，报告直接使用 PCV 输出结果，**不在每轮重复完整三列验证**（每轮可简记发现，PCV 阶段统一验证）
 - 用户面输出的问题清单与建议也必须附五项验证（合理性 + 可实施性 + 收益 + 验证状态 + 影响范围；与 [`17-compliance.instructions.md`](./17-compliance.instructions.md) §1 输出验证一致），不得仅在报告文件中满足
 - 报告头部必须包含：审查目标类型 / 审查范围 / 收敛状态 / PCV状态
-- 含 🔴 问题时：三列验证**全部通过** → 按审查目标类型路由修复（规范文件 → **self-fix**；项目工程/其他 → **fix**）；存在 ⚠️ 待验证项 → 建议用户确认
+- 含 🔴 问题时：三列验证**全部通过** → 提出按审查目标类型路由修复的确认请求（规范文件 → **self-fix**；项目工程/其他 → **fix**）；只有用户显式授权后才启动独立修复工作流。存在 ⚠️ 待验证项时只保留条件建议
 
 ## 专属维度规则
 
@@ -235,6 +236,7 @@ R2 及以后轮次必须把复审从“同一维度反复跑一遍”改为“�
 - E — 可观测 🟡：PE-9 日志 · PE-11 数据层质量
 - 前端项目或包含用户可见 UI 的项目工程审查需叠加 `FrontendExperienceQualityGate`：检查视觉一致性、交互反馈、焦点/输入方式、错误恢复、动效转场、Browser/截图/E2E 证据、浏览器验证预算、用户自验 override、视觉偏差类型和设计帧用途分类；不涉及前端体验时写 `N/A + skipReason`
 - 项目工程、通用文档、README、`user-manual` 或控制面审查遇到已吸纳泛化经验时，叠加 `GovernanceGateRegistry` 分组审查；audit 报告写 `gateGroup / ownerSkill / evidence / skipReason`，完整执行细节由对应 Skill 和 validate 探针承接。
+- 所有 audit 在使用 Profile 前执行 `ProfileTruthReconciliationGate` full/PFresh；授权本地安全审查叠加 `security-audit-presentation`；发布首次/身份拓扑变化叠加 `release-parity` 的 `PublisherCredentialTopologyGate`。详细字段由 owner Skill 承接，audit 保持只读。
 - 审查规范吸纳完整性时，若发现只有概念覆盖、缺 Gate 名、缺 Skill、缺 Prompt、缺执行消费者、缺探针或缺部署副本，必须判定为 `ConfirmedAbsorptionCompletenessGates` 未收敛；按 `confirmed-completeness` gateGroup 分流到 `spec-governance` 与目标 Skill，不在本文件复制完整 Gate 清单。
 - 审查报告、AI review finding 或 audit issue 本身作为输入时需叠加 `ReviewFindingIntakeGate`，避免把报告结论直接当证据或把设计/文档/测试缺口误归类为 must-fix runtime bug。
 

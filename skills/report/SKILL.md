@@ -77,6 +77,7 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 | 支撑产物 | 触发场景 | 报告要求 |
 |----------|----------|----------|
 | ExecutionContract | Auto / 控制面 / 多批次 / 预计修改 ≥10 文件 / release 前置任务 | 列出 scope、allowedPaths、requiredArtifacts、validationRoute、deviationPolicy、rollbackPlan |
+| RepairCollaborationContract | AI 判断任务目标为 repair task | 列出 lightweight/full、contractState、authorizationEvidence 与双层证据；full 追加 findingToPatchMap、handoffIntegrity、independentReReview、acceptanceMatrix；模型名称不作为触发证据 |
 | TestRoute | 跨模块、接口、Hook/CLI、模板-示例-校验链、测试路径不明显的任务 | 列出 changeType、routes、commands、skipReason、blockingLevel |
 | CoverageGateDecision / ExternalRuntimePluginLifecycleGate / ExternalRegistryLifecycleMatrixGate / FunctionSourceFingerprintMatrixGate / ClusterEscalationGate / RiskBasedValidationLadder | coverage 门禁、外部 runtime/plugin/registry/adapter/provider 生命周期、function source fingerprint、同风险簇返修或风险分层验证被触发 | 列出 coverage 命令/工具/阈值/基线/当前值/状态；runtime/plugin/registry 矩阵；fingerprint false-positive/false-negative 样本；clusterId、触发计数、whyMissed、冻结矩阵、停止条件和 targeted/related/full gate 层级；未触发写 `N/A + skipReason` |
 | ReleaseVerification | 用户明确要求正式发版、tag、publish 或已进入发布前验证 | 列出 R0~R7 的验证结果与证据；如存在远端 CI，补 R3c 目标 commit CI 绿色证据或 `N/A + skipReason`；pack/publish/install smoke 证据必须包含 `NativeCommandExitCodeGate` 的 command、shell、cwd、exitCode 与 auth/config 来源 |
@@ -86,6 +87,9 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 | 05-实施进度.md | 跨多轮/多阶段、阻塞、用户要求持续跟踪、多批次、预计修改 ≥10 文件、控制面或模板-校验链任务 | 报告引用进度路径，并核对 CP/批次/阻塞/验证状态 |
 | OfficialDocsEvidence | 新增/升级依赖、框架、SDK、平台 API、外部模块或外部平台能力判断 | 列出官方文档来源、版本/日期、关键用法、限制、兼容性 / 弃用 / Breaking Change 判断；N/A 时写 `skipReason` |
 | ProfileImpactCheck | dev/fix 改变项目技术栈、目录边界、脚本、测试/发布路线、分发面、配置项、长期连接或本地 overlay schema | 列出是否更新 Profile、目标文件、diff/证据；N/A 时写 `skipReason` |
+| ProfileTruthReconciliationGate | 项目级 analyze / 任意 audit | 列出 mode、profileTrustState 与 `ProfileTruthMatrix(profileClaim / actualSources / status / conclusionAuthority / correctionRoute)`；只读工作流只能矫正结论，不能直接修改 Profile |
+| AuthorizedLocalSecurityAuditPresentationGate | 用户自有/明确授权的本地安全审查，或宿主安全提示导致内容不可见 | 列出 authorizationContext、defensiveObjective、visibleEvidenceBudget、isolatedProbeBoundary；提示发生时追加 SafetyInterruptionCard 与恢复/反馈路线，禁止绕过表述 |
+| PublisherCredentialTopologyGate | 首次发布或 publisher/repository/package/registry/auth topology 变化；普通 patch 记录 unchanged evidence | 列出 publisher/repository/package identity、authMode、secret scope/access/inheritance、workflowPermissions、reference run、topologyParity；不得包含 secret value |
 | ProfileTierValidation / AllDevCodexProfileValidation | 涉及 Profile 三档标准、Profile 必需文件、workspace-namespace、规范维护项目或用户要求校验 `.devcodex` 所有项目 | 列出 `ProfileTierStandardGate`、`ProfileLifecycleClassificationGate`、`AllDevCodexProfileValidationGate` 的判定、执行命令、检查项目数、错误数、警告数、是否启用 `--strict-warnings`、active Profile 更新证据和残余风险 |
 | MemoryCannotSatisfyBootstrapGate | 涉及宿主 Memories、模型长期偏好、resume / summary 恢复、Profile / memory bootstrap、Context Rehydration 或用户询问是否可用记忆替代文件读取 | 列出 Memories / 模型回忆的 `navigation-hint` 边界、真实读取的 Profile / SUMMARY / tasks / reports / review checklist / 源码或文档证据、冲突处理、V86/targeted probe；无法读取时写阻塞 / 降级，不得写通过 |
 | Backlog Intake 真相复核 | 任务或批次直接来源于 `data/*.md` open/partial 项 | 列出 `candidateIds`、`classification`、`evidence`、`scopeDelta` |
@@ -141,6 +145,9 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 - 若本轮来自用户确认的“仍需吸纳 / 未完整吸纳 / 半覆盖”清单，报告必须额外写出 `ConfirmedAbsorptionCompletenessGates`：每项是否完整落到 commonInstruction、skill、promptTemplate、executionConsumer、validationProbe、publicDocs、deployCopy；缺任一层必须写 `skipReason`、风险和后续 PF/ISSUE。
 - 若本轮来自 A1~A10 最新吸纳执行包，报告必须额外写出 `LatestAbsorptionExecutionPack`：按 `docs-semantics-examples / derived-consumer-runtime / feature-inventory-batch-evidence / profile-service / absorption-layering` 分组列 ownerSkill、target files、V82/targeted test、ProfileImpactCheck、publicDocs、deployCopy、来源台账回写和未触发项 skipReason。
 - 若本轮涉及宿主 Memories、模型长期偏好、resume / summary 恢复、Profile / memory bootstrap 或用户试图用“模型记得”替代文件读取，报告必须额外写出 `MemoryCannotSatisfyBootstrapGate`：Memories 只能作为 `navigation-hint`，并列出实际读取的 Profile、SUMMARY、tasks、reports、review checklist、源码 / 文档真相源和 V86/targeted probe 证据；未读取时只能写阻塞 / 降级。
+- analyze/audit 报告使用 Profile 形成项目事实、范围、测试/发布或能力结论时，必须输出 `ProfileTruthReconciliationGate`；`stale-profile` 时以已验证现实矫正结论，并把 Profile 源修改交给独立 dev/fix/self-fix。
+- 授权本地安全审查报告不得复制非必要可执行载荷；出现宿主安全提示时必须引用 SafetyInterruptionCard 与最近有效检查点，不得声称可通过改写绕过平台检查。
+- 发布报告命中 `PublisherCredentialTopologyGate` 时必须把 topology evidence 与 NativeCommandExitCodeGate 分开记录；命令成功不能证明 secret scope/access/identity 等价，报告中不得出现 secret value。
 - 若本轮涉及代码、文档、示例、fixture、mock、demo、quick start、技术方案或报告的专家型质量，或用户指出“不专业 / 像初级 / 示例误导”，报告必须额外写出 `ExpertOutputQualityGate`：说明生产推荐路径、框架原生能力、fixture/mock/demo 边界、反模式对照、证据矩阵和 V84/targeted probe 结果；不得只写“已优化表述”。
 - 若本轮命中产品策略、开发者体验、UX 交互、前端架构、后端领域架构、生产可用性 / SRE、API 契约、外部集成、平台生态、AI Agent 系统、数据架构、安全威胁建模、质量策略、设计系统、无障碍/国际化、增长分析或商业模型专业语义，报告必须额外写出 `ExpertOwnerSkillGate`：说明触发的 ownerSkill、triggerReason、requiredFields、validationRoute、skipReason 和 V85/targeted probe 结果；增长 / 商业为 P3 条件触发，未触发时写 `N/A + skipReason`；不得只写“已用专家视角审查”。
 - 报告涉及记录规范问题时，必须列出规范化意图、置信度、依据、目标台账；涉及规范源、Skill、Hook、CLI、MCP、模板、部署副本、路径规则或 validate 语义变更时，必须列出 SCV-0~SCV-7 证据

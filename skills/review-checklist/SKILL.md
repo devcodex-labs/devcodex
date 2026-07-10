@@ -54,6 +54,7 @@ description: 复审清单整理与审查规范 — 创建、冻结、证据执�
 - `FeatureChecklistEvidenceMatrixGate`：需求维度、功能清单或公开能力进入复审时，必须把 capability group × evidence surface 绑定到当前证据；复审清单记录验证状态，不替代稳定 Profile feature inventory。
 - `BatchEvidenceLedgerStateGate`：多批次、矩阵验证、长链路吸纳或发布前检查必须冻结 EvidenceLedger，区分 baseline-confirmed、executed-passed、partial、failed、not-started，且每项有 actualSources、commands、status、finding 或 skipReason。
 - `BatchProgressCardGate`：多批次最终报告、记忆和回复必须同步 Progress Card，覆盖总范围、已完成、当前批、下一批、剩余项、阻塞/风险和证据链接。
+- `RepairCollaborationAcceptanceGate`：repair task 的清单必须绑定 `repairClass / contractState / authorizationEvidence`；full 合同逐项核对 findingToPatchMap、handoffIntegrity、independentReReview 和 acceptanceMatrix，禁止补丁产出者以唯一证据关闭高风险项。
 
 ## 执行步骤
 

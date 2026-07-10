@@ -53,9 +53,9 @@ Agent 收到用户消息后，不能直接路由到工作流，必须先完成�
 
 | 关联 | 关系 |
 |------|------|
-| [② 安全检查](../safety-check/) | 预检查的直接下游 |
-| [⑤ 前置状态汇总](../pre-state-summary/) | 消费预检查的输出结果 |
-| [宿主生命周期硬门禁（Hooks 优先）](../host-lifecycle-gates/) | 定义预检查在 `hook-enforced` / `instruction-fallback` 两种宿主模式下的可见状态契约 |
+| [② 安全检查](../safety-check/index) | 预检查的直接下游 |
+| [⑤ 前置状态汇总](../pre-state-summary/index) | 消费预检查的输出结果 |
+| [宿主生命周期硬门禁（Hooks 优先）](../host-lifecycle-gates/index) | 定义预检查在 `hook-enforced` / `instruction-fallback` 两种宿主模式下的可见状态契约 |
 | [P0 — 执行流程骨架](/versions/v1/1.0.0/requirements/p0/execution-flow) | 预检查在主流程中的位置定义 |
 
 ---

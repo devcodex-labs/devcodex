@@ -1522,6 +1522,27 @@ for (const [file, needle] of [
 mustIncludeInChangelogs('V86')
 mustIncludeInChangelogs('MemoryCannotSatisfyBootstrapGate')
 
+for (const file of [
+  'instructions/12-audit.instructions.md',
+  'skills/audit-common/SKILL.md',
+  'skills/audit-execution-guide/SKILL.md',
+  'skills/audit-session/SKILL.md'
+]) {
+  mustInclude(file, 'AuditMutationBoundaryGate')
+}
+for (const file of [
+  'instructions/12-audit.instructions.md',
+  'skills/audit-common/SKILL.md',
+  'skills/audit-execution-guide/SKILL.md'
+]) {
+  mustInclude(file, '显式用户授权')
+  mustNotInclude(file, '即发即修', 'audit must hand findings to an independently authorized repair workflow')
+  mustNotInclude(file, '自动 self-fix', 'audit must not auto-escalate read-only permission')
+  mustNotInclude(file, '直接执行修复，无需用户确认', 'repair requires explicit user authorization')
+}
+mustInclude('README.md', 'AuditMutationBoundaryGate')
+mustInclude('website/docs/guide/development.md', 'AuditMutationBoundaryGate')
+
 const activeRuleFiles = [
   'README.md',
   'instructions.md',
@@ -1540,6 +1561,141 @@ const activeRuleFiles = [
 for (const file of activeRuleFiles) {
   mustNotInclude(file, '.devcodex/.maintainer-state', 'current governance ledgers must use active-root')
 }
+
+const checkV87 = 'DualLayerRepairCollaborationContract'
+function classifyRepairContractSample(sample) {
+  if (/没有修复目标|仅讨论模型|只讨论模型/.test(sample)) return 'not-repair'
+  const repairIntent = /repair task|修复|Bug|缺陷|回归|安全问题|规范缺口|审查 finding|不正确行为/i.test(sample)
+  if (!repairIntent) return 'not-repair'
+  const fullRisk = /P0|P1|安全问题|控制面|公共 API|Schema|config|≥5|多批次|角色交接|发布|high-risk/i.test(sample)
+  const lightFields = ['problemAnchor', 'expectedBehavior', 'acceptanceEvidence', 'decisionAcceptanceOwner', 'allowedPaths', 'validationRoute', 'rollbackTrigger', 'executionVerificationOwner']
+  const fullFields = ['auditSnapshot', 'approvedFindingIds', 'evidencePacket', 'roleAssignments', 'acceptanceMatrix', 'authorizationEvidence', 'allowedPaths', 'blockedScope', 'batchPlan', 'findingToPatchMap', 'regressionMatrix', 'handoffIntegrity', 'independentReReview', 'rollbackPlan']
+  const hasAll = fields => fields.every(field => sample.includes(field))
+  if (fullRisk) return hasAll(fullFields) ? 'full-contract-ready' : 'invalid-full-contract'
+  return hasAll(lightFields) ? 'light-contract-ready' : 'invalid-light-contract'
+}
+
+for (const [sample, expected] of [
+  ['低风险 Bug problemAnchor expectedBehavior acceptanceEvidence decisionAcceptanceOwner allowedPaths validationRoute rollbackTrigger executionVerificationOwner', 'light-contract-ready'],
+  ['低风险 Bug 只有问题描述', 'invalid-light-contract'],
+  ['P0 控制面修复 auditSnapshot approvedFindingIds evidencePacket roleAssignments acceptanceMatrix authorizationEvidence allowedPaths blockedScope batchPlan findingToPatchMap regressionMatrix handoffIntegrity independentReReview rollbackPlan', 'full-contract-ready'],
+  ['P1 安全问题 allowedPaths validationRoute', 'invalid-full-contract'],
+  ['讨论 Sol Ultra 跨模型协作，没有修复目标', 'not-repair']
+]) {
+  const actual = classifyRepairContractSample(sample)
+  if (actual !== expected) failures.push(`checkV87 expected ${expected} but got ${actual}: ${sample}`)
+}
+
+for (const [file, needle] of [
+  ['scripts/lib/validate-governance-tail.js', 'checkV87'],
+  ['scripts/lib/validate-governance-tail.js', 'classifyRepairContractSample'],
+  ['scripts/validate.js', 'V87 repair collaboration contract sync'],
+  ['scripts/validate.js', 'checkV87()'],
+  ['skills/execution-contract/SKILL.md', checkV87],
+  ['skills/spec-governance/SKILL.md', 'repair-collaboration'],
+  ['skills/test-router/SKILL.md', 'repairCollaboration'],
+  ['skills/report/SKILL.md', 'RepairCollaborationContract'],
+  ['README.md', '模型无关双层修复协作契约'],
+  ['website/docs/guide/development.md', 'repair-collaboration'],
+  ['website/docs/intro/index.md', '双层修复协作契约'],
+  ['website/docs/versions/v1/1.0.1/CHANGELOG.md', 'V87']
+]) {
+  mustInclude(file, needle)
+}
+mustIncludeInChangelogs('V87')
+mustIncludeInChangelogs('DualLayerRepairCollaborationContract')
+
+const checkV88 = 'ProfileTruthReconciliationGate'
+function classifyProfileTruthSample(sample) {
+  if (/低风险单文件/.test(sample) && /N\/A/.test(sample) && /skipReason/.test(sample)) return 'n-a-ready'
+  const isAudit = /\baudit\b|审查/.test(sample)
+  const triggered = isAudit || /项目级 analyze|ProfileTruthReconciliationGate/.test(sample)
+  if (!triggered) return 'not-triggered'
+  const fields = ['profileTrustState', 'profileClaim', 'actualSources', 'status', 'conclusionAuthority', 'correctionRoute']
+  if (!fields.every(field => sample.includes(field))) return 'invalid-matrix'
+  if (/stale-profile/.test(sample) && /conclusionAuthority=profile|Profile覆盖代码|以Profile为准/.test(sample)) return 'invalid-authority'
+  if (/直接修改Profile|sourceMutation=true/.test(sample)) return 'invalid-readonly'
+  if (isAudit && !/full/.test(sample)) return 'invalid-audit-mode'
+  return isAudit ? 'full-ready' : 'targeted-ready'
+}
+for (const [sample, expected] of [
+  ['项目级 analyze ProfileTruthReconciliationGate targeted profileTrustState profileClaim actualSources status=stale-profile conclusionAuthority=code correctionRoute=fix', 'targeted-ready'],
+  ['audit full PFresh profileTrustState profileClaim actualSources status=aligned conclusionAuthority=actualSources correctionRoute=none', 'full-ready'],
+  ['项目级 analyze profileTrustState profileClaim actualSources status=stale-profile conclusionAuthority=profile correctionRoute=none', 'invalid-authority'],
+  ['audit full profileTrustState profileClaim actualSources status conclusionAuthority correctionRoute 直接修改Profile', 'invalid-readonly'],
+  ['低风险单文件 N/A skipReason=与项目事实无关', 'n-a-ready']
+]) {
+  const actual = classifyProfileTruthSample(sample)
+  if (actual !== expected) failures.push(`checkV88 expected ${expected} but got ${actual}: ${sample}`)
+}
+
+const checkV89 = 'AuthorizedLocalSecurityAuditPresentationGate'
+function classifySecurityPresentationSample(sample) {
+  const triggered = /授权本地安全审查|安全提示|内容不可见|AuthorizedLocalSecurityAuditPresentationGate/.test(sample)
+  if (!triggered) return 'not-triggered'
+  if (/绕过平台|规避安全控制|保证不触发/.test(sample)) return 'invalid-bypass'
+  if (/用户可见完整载荷|公开完整利用载荷/.test(sample)) return 'invalid-visible-budget'
+  const base = ['authorizationContext', 'defensiveObjective', 'visibleEvidenceBudget', 'isolatedProbeBoundary']
+  if (!base.every(field => sample.includes(field))) return 'invalid-base'
+  if (/安全提示|内容不可见/.test(sample)) {
+    const card = ['SafetyInterruptionCard', 'exactMessage', 'surfaceModel', 'dateTimeTimezone', 'redactedTaskSummary', 'lastAcceptedCheckpoint', 'recoveryRoute']
+    if (!card.every(field => sample.includes(field))) return 'invalid-interruption-card'
+  }
+  return 'presentation-ready'
+}
+for (const [sample, expected] of [
+  ['授权本地安全审查 安全提示 authorizationContext defensiveObjective visibleEvidenceBudget isolatedProbeBoundary SafetyInterruptionCard exactMessage surfaceModel dateTimeTimezone redactedTaskSummary lastAcceptedCheckpoint recoveryRoute', 'presentation-ready'],
+  ['授权本地安全审查 authorizationContext defensiveObjective visibleEvidenceBudget isolatedProbeBoundary 绕过平台', 'invalid-bypass'],
+  ['授权本地安全审查 authorizationContext defensiveObjective visibleEvidenceBudget isolatedProbeBoundary 用户可见完整载荷', 'invalid-visible-budget'],
+  ['安全提示 authorizationContext defensiveObjective visibleEvidenceBudget isolatedProbeBoundary', 'invalid-interruption-card']
+]) {
+  const actual = classifySecurityPresentationSample(sample)
+  if (actual !== expected) failures.push(`checkV89 expected ${expected} but got ${actual}: ${sample}`)
+}
+
+const checkV90 = 'PublisherCredentialTopologyGate'
+function classifyPublisherTopologySample(sample) {
+  if (/普通 patch/.test(sample) && /unchanged/.test(sample) && /evidence/.test(sample)) return 'unchanged-ready'
+  const triggered = /首次发布|owner迁移|package变化|registry变化|auth topology|PublisherCredentialTopologyGate/.test(sample)
+  if (!triggered) return 'not-triggered'
+  if (/secretValue=|token=ghp_|_authToken=明文/.test(sample)) return 'invalid-secret-value'
+  if (/只复制workflow|workflow相同即可/.test(sample)) return 'invalid-workflow-only'
+  const fields = ['publisherIdentity', 'repositoryIdentity', 'packageIdentity', 'authMode', 'secretTopology', 'workflowPermissions', 'referenceEvidence', 'topologyParity']
+  return fields.every(field => sample.includes(field)) ? 'topology-ready' : 'invalid-topology'
+}
+for (const [sample, expected] of [
+  ['首次发布 PublisherCredentialTopologyGate publisherIdentity repositoryIdentity packageIdentity authMode secretTopology workflowPermissions referenceEvidence topologyParity', 'topology-ready'],
+  ['首次发布 只复制workflow', 'invalid-workflow-only'],
+  ['首次发布 PublisherCredentialTopologyGate publisherIdentity repositoryIdentity packageIdentity authMode secretTopology workflowPermissions referenceEvidence topologyParity token=ghp_example', 'invalid-secret-value'],
+  ['普通 patch topology unchanged evidence=prior-release', 'unchanged-ready']
+]) {
+  const actual = classifyPublisherTopologySample(sample)
+  if (actual !== expected) failures.push(`checkV90 expected ${expected} but got ${actual}: ${sample}`)
+}
+
+for (const [file, needle] of [
+  ['scripts/lib/validate-governance-tail.js', 'checkV88'],
+  ['scripts/lib/validate-governance-tail.js', 'checkV89'],
+  ['scripts/lib/validate-governance-tail.js', 'checkV90'],
+  ['scripts/validate.js', 'V88 profile truth reconciliation sync'],
+  ['scripts/validate.js', 'V89 authorized local security audit presentation sync'],
+  ['scripts/validate.js', 'V90 publisher credential topology sync'],
+  ['skills/load-profile/SKILL.md', checkV88],
+  ['skills/security-threat-modeling/SKILL.md', checkV89],
+  ['skills/release-verification/SKILL.md', checkV90],
+  ['README.md', 'V88'],
+  ['README.md', 'V89'],
+  ['README.md', 'V90'],
+  ['website/docs/guide/development.md', checkV88],
+  ['website/docs/guide/development.md', checkV89],
+  ['website/docs/guide/development.md', checkV90]
+]) mustInclude(file, needle)
+mustIncludeInChangelogs('V88')
+mustIncludeInChangelogs('V89')
+mustIncludeInChangelogs('V90')
+mustIncludeInChangelogs(checkV88)
+mustIncludeInChangelogs(checkV89)
+mustIncludeInChangelogs(checkV90)
 
 const genericDistributedFiles = [
   'instructions.md',

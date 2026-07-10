@@ -86,6 +86,7 @@ dev 工作流未匹配其他子类型时的默认路径，适用于：新功能�
 - PR-1 在 CP2 前做 AI 内部自检，PR-2~PR-7 在 CP2→CP3 之间做详细验证（`dev-plan-review` 两阶段流程）
 - 执行阶段结束后触发：`api-verification`（若涉及接口）→ `document-sync` → **ECR 执行闭环复审**（N6，内部包含方案一致性验证和 ECR-1~ECR-7）
 - Auto、控制面、多批次、预计 ≥10 文件或发布类任务，执行前必须调用 `execution-contract`；测试路线复杂或跨模块时调用 `test-router`
+- dev 任务包含规范缺口、审查 finding、回归或其他修复目标时，调用 `execution-contract` 的 `repair-collaboration`：低风险可内联 lightweight，高风险必须 full + independent re-review；纯新增功能不触发，模型名称不参与分类
 - 高联动场景不得只做单文件修改；至少要同步直接真相源与同层联动文件
 - `impact-review` 仅由 PR-5②（跨模块架构依赖变更）触发，position：plan-review 之后、CP3 之前
 - N4 只确认实施计划，不重复技术方案中的架构决策、接口论证和兼容性主说明；`05-实施进度.md` 对小任务不是默认文书，但多批次、预计 ≥10 文件、跨轮次、阻塞、控制面联动或用户要求持续跟踪时必须启用

@@ -43,6 +43,12 @@ description: 默认分析工作流规范 — 只读多轮分析、代码事实�
 
 禁止只对计划文档里的路径执行存在性检查后直接判定未实现。
 
+### ProfileTruthReconciliationGate（targeted）
+
+项目级 analyze 在 A2 事实取证时必须调用 `load-profile` 的 `ProfileTruthReconciliationGate` targeted 模式：先把 Profile 声明当作待核对输入，再用当前代码、配置、package、运行证据和正式需求建立 `ProfileTruthMatrix`。若出现 `stale-profile` 或 `unverifiable`，本轮结论必须采用可验证事实并明确可信度；若出现 `stale-code-or-doc` 或 `intentional-exception`，必须说明目标态/政策依据和消费者影响。
+
+analyze 只矫正结论，不修改 Profile。需要修订 Profile 时在 `upgradeAdvice` 指向独立 dev/fix/self-fix。低风险单文件且结论与项目事实无关时可写 `N/A + skipReason`，不得把普通项目级根因分析降级为 N/A。
+
 ### AnalyzeLiteCRSGate
 
 每轮分析需要维护关联文件集合：
@@ -96,7 +102,7 @@ description: 默认分析工作流规范 — 只读多轮分析、代码事实�
 | `analysisTarget` | 一句话问题定义 |
 | `rounds` | 至少 3 轮，记录每轮新增发现数 |
 | `evidenceMap` | 结论到文件、命令或事实源的映射 |
+| `profileTruth` | mode、profileTrustState、ProfileTruthMatrix；N/A 时写 skipReason |
 | `pcv` | PCV-1~PCV-6 结果 |
 | `recommendation` | 推荐结论、推荐理由或无后续动作 |
 | `upgradeAdvice` | 是否建议切换 audit/dev/fix/research，含理由 |
-

@@ -2,7 +2,7 @@
 applyTo: "**"
 description: 通用规范总则，覆盖优先级、意图路由、Profile/active-root、宿主适配与治理总线
 priority: P5
-version: 1.11.32
+version: 1.11.33
 ---
 # 通用规范
 
@@ -205,6 +205,7 @@ version: 1.11.32
 
 **按需触发 Skills**（不预读，仅在执行中满足条件时读取）：
 - `execution-contract`：Auto、控制面、预计 ≥10 文件、多批次、发布或需要强边界任务触发
+- `repair-collaboration`：AI 判断任务目标是修复 Bug、缺陷、回归、安全问题、规范缺口或已确认 finding 时，至少形成轻量双层修复协作契约；高风险场景由 `execution-contract` 升级完整契约与独立复证。模型名称、宿主或是否切换 Agent 不是触发条件
 - `test-router`：dev/fix 执行前选择验证路线时触发
 - `audit-release` / `ReleaseAudit`：发版前 review、release pre-review、publish/tag 前风险审查或 audit 识别为发布准备审查时触发
 - `release-verification`：用户明确要求 release / tag / publish 或版本发布验证时触发

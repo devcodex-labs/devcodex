@@ -234,7 +234,7 @@ function staleS02ProfileText() {
 function main() {
     try {
         const legacyRoot = createWorkspace(legacyProjectInfo())
-        const legacyResult = runValidate(legacyRoot)
+        const legacyResult = runValidateWithArgs(legacyRoot, ['--source-repo-profile'])
         const legacyOutput = `${legacyResult.stdout}\n${legacyResult.stderr}`
 
         assert.strictEqual(legacyResult.status, 2, legacyOutput)
@@ -243,10 +243,40 @@ function main() {
         assert.match(legacyOutput, /current formal requirement entry/)
 
         const currentRoot = createWorkspace(currentProjectInfo())
-        const currentResult = runValidate(currentRoot)
+        const currentResult = runValidateWithArgs(currentRoot, ['--source-repo-profile'])
         const currentOutput = `${currentResult.stdout}\n${currentResult.stderr}`
 
         assert.strictEqual(currentResult.status, 0, currentOutput)
+
+        const nonSourceRoot = createWorkspace(currentProjectInfo().replaceAll(VERSION, '3.0.0'))
+        writeFile(nonSourceRoot, 'package.json', JSON.stringify({
+            name: 'sample-non-source-project',
+            version: '3.0.0'
+        }, null, 2))
+        const nonSourceResult = runValidateWithArgs(nonSourceRoot, ['--project-root', nonSourceRoot])
+        const nonSourceOutput = `${nonSourceResult.stdout}\n${nonSourceResult.stderr}`
+
+        assert.strictEqual(nonSourceResult.status, 0, nonSourceOutput)
+        assert.doesNotMatch(nonSourceOutput, /当前版本漂移|当前阶段漂移/)
+
+        const samePackageNonSourceRoot = createWorkspace(currentProjectInfo().replaceAll(VERSION, '2.0.0'))
+        writeFile(samePackageNonSourceRoot, 'package.json', JSON.stringify({
+            name: '@vextjs/devcodex',
+            version: '1.7.0'
+        }, null, 2))
+        const samePackageNonSourceResult = runValidateWithArgs(samePackageNonSourceRoot, ['--project-root', samePackageNonSourceRoot])
+        const samePackageNonSourceOutput = `${samePackageNonSourceResult.stdout}\n${samePackageNonSourceResult.stderr}`
+
+        assert.strictEqual(samePackageNonSourceResult.status, 0, samePackageNonSourceOutput)
+        assert.doesNotMatch(samePackageNonSourceOutput, /当前版本漂移|当前阶段漂移/)
+
+        const sourceVersionDriftRoot = createWorkspace(currentProjectInfo().replaceAll(VERSION, '0.0.0'))
+        const sourceVersionDriftResult = runValidateWithArgs(sourceVersionDriftRoot, ['--source-repo-profile'])
+        const sourceVersionDriftOutput = `${sourceVersionDriftResult.stdout}\n${sourceVersionDriftResult.stderr}`
+
+        assert.strictEqual(sourceVersionDriftResult.status, 2, sourceVersionDriftOutput)
+        assert.match(sourceVersionDriftOutput, /当前版本漂移: 0\.0\.0/)
+        assert.match(sourceVersionDriftOutput, /当前阶段漂移: 0\.0\.0/)
 
         const standardRoot = createWorkspace(currentProjectInfo())
         writeFile(standardRoot, '.devcodex/profile/README.md', [
@@ -263,6 +293,19 @@ function main() {
         const standardOutput = `${standardResult.stdout}\n${standardResult.stderr}`
 
         assert.strictEqual(standardResult.status, 0, standardOutput)
+
+        const conflictingTierRoot = createWorkspace(currentProjectInfo())
+        writeFile(conflictingTierRoot, '.devcodex/profile/README.md', [
+            '# README',
+            '',
+            '- Profile 档位：profile-lite。',
+            '- Profile tier: profile-standard.'
+        ].join('\n'))
+        const conflictingTierResult = runValidate(conflictingTierRoot)
+        const conflictingTierOutput = `${conflictingTierResult.stdout}\n${conflictingTierResult.stderr}`
+
+        assert.strictEqual(conflictingTierResult.status, 1, conflictingTierOutput)
+        assert.match(conflictingTierOutput, /multiple project-local profile tiers declared/)
 
         const closedLoopMissingRoot = createWorkspace(currentProjectInfo())
         writeFile(closedLoopMissingRoot, '.devcodex/profile/README.md', [

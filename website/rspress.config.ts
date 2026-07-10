@@ -27,8 +27,8 @@ export default defineConfig({
     plugins: [pluginMermaid()],
     themeConfig: {
         nav: [
-            { text: '介绍', link: '/intro/', activeMatch: '/intro/' },
-            { text: '工作指南', link: '/guide/', activeMatch: '/guide/' },
+            { text: '使用介绍', link: '/intro/', activeMatch: '/intro/' },
+            { text: '维护者指南', link: '/guide/', activeMatch: '/guide/' },
             { text: '规范与流程', link: '/specs/directory-structure', activeMatch: '/specs/' },
             {
                 text: currentVersionLabel,
@@ -42,7 +42,7 @@ export default defineConfig({
         sidebar: {
             '/guide/': [
                 {
-                    text: '工作指南',
+                    text: '维护者指南',
                     items: [
                         { text: '概述', link: '/guide/' },
                         { text: '需求管理', link: '/guide/requirements' },
@@ -373,7 +373,7 @@ export default defineConfig({
             { icon: 'github', mode: 'link', content: 'https://github.com/vextjs/devcodex' },
         ],
         footer: {
-            message: 'Private Project — DevCodex pre-development documentation',
+            message: 'DevCodex official documentation — user guides, specifications, and maintainer references',
             copyright: 'Copyright © 2024-present VextJS',
         },
     },

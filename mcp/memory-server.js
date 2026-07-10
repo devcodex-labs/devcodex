@@ -16,6 +16,7 @@
 
 const fs = require('fs')
 const path = require('path')
+const { assertSingleSegment, resolveInside } = require('./path-guard')
 const {
   findLayoutInfo,
   inferProjectFromCwd,
@@ -212,17 +213,21 @@ function getActiveRoot(args = {}) {
 }
 
 function sessionFilePath(agent, date, args = {}) {
-  return path.join(
-    getActiveRoot(args), '.memory', 'clients',
-    agent || DEFAULT_AGENT, 'tasks', `${date || today()}.md`
-  )
+  const candidate = agent === undefined || agent === null || agent === ''
+    ? DEFAULT_AGENT
+    : assertSingleSegment(agent, 'agent')
+  const safeAgent = normalizeAgent(candidate)
+  if (!safeAgent) throw new Error('invalid agent')
+  return resolveInside(getActiveRoot(args), '.memory', 'clients', safeAgent, 'tasks', `${date || today()}.md`)
 }
 
 function summaryFilePath(agent, args = {}) {
-  return path.join(
-    getActiveRoot(args), '.memory', 'clients',
-    agent || DEFAULT_AGENT, 'SUMMARY.md'
-  )
+  const candidate = agent === undefined || agent === null || agent === ''
+    ? DEFAULT_AGENT
+    : assertSingleSegment(agent, 'agent')
+  const safeAgent = normalizeAgent(candidate)
+  if (!safeAgent) throw new Error('invalid agent')
+  return resolveInside(getActiveRoot(args), '.memory', 'clients', safeAgent, 'SUMMARY.md')
 }
 
 function summaryProjectLabel(args = {}) {
@@ -246,10 +251,7 @@ function summaryHeader(agent, args = {}) {
 }
 
 function taskSessionsPath(kind, requirement, args = {}) {
-  return path.join(
-    getActiveRoot(args), kind,
-    requirement, '.memory', 'sessions.md'
-  )
+  return resolveInside(getActiveRoot(args), kind, assertSingleSegment(requirement, 'requirement'), '.memory', 'sessions.md')
 }
 
 function appendFile(filePath, content) {

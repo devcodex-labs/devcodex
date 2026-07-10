@@ -52,9 +52,9 @@
 
 | 关联 | 关系 |
 |------|------|
-| [⑧ 工作流执行](../workflow-execution/) | 直接上游 |
-| [宿主生命周期硬门禁（Hooks 优先）](../host-lifecycle-gates/) | 定义执行后合规与完成前闭环在 Hook 模式下的宿主承担责任 |
-| [⑩ 输出报告](../report-output/) | 直接下游 |
+| [⑧ 工作流执行](../workflow-execution/index) | 直接上游 |
+| [宿主生命周期硬门禁（Hooks 优先）](../host-lifecycle-gates/index) | 定义执行后合规与完成前闭环在 Hook 模式下的宿主承担责任 |
+| [⑩ 输出报告](../report-output/index) | 直接下游 |
 
 ---
 

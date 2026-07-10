@@ -89,6 +89,9 @@ applyTo: ".devcodex/**/reports/audit/**, .devcodex/**/reports/self-fix/**"
 | VerificationPlanMaterializationProbe / docsIaReadability | 验证计划物化 / 验收标准 / 退出条件 / ChinesePrimaryExpressionGate / SidebarPageRoleMaterializationProbe / SidebarGroupSemanticModelProbe |
 | ConfirmedAbsorptionCompletenessGates | gateGroup / ownerSkill / layerChecks / validationRoute；gateGroup anchors: public-surface / user-manual / review-checklist / frontend-runtime / profile-service / release-parity / evolution-control-plane；anchors: PublicSurfaceClosureGate / UserManualProductizationGate / ReviewAnchorMaterializationGate / FrontendAsyncCacheRenderGate / RemoteCIParityPushGate / NativeCommandExitCodeGate / DocsThemeRuntimeVisualProbeGate |
 | NativeCommandExitCodeGate | release / pack / publish / install smoke / CLI replay 的 command / shell / cwd / exitCode / auth-config source / failed evidence exclusion |
+| ProfileTruthReconciliationGate | full / profileTrustState / ProfileTruthMatrix(profileClaim / actualSources / status / conclusionAuthority / correctionRoute)；audit 不修改 Profile |
+| AuthorizedLocalSecurityAuditPresentationGate | authorizationContext / defensiveObjective / visibleEvidenceBudget / isolatedProbeBoundary / SafetyInterruptionCard / recoveryRoute；禁止绕过表述 |
+| PublisherCredentialTopologyGate | publisher/repository/package identity / authMode / secret scope-access-inheritance / workflowPermissions / reference run / topologyParity；不含 secret value |
 | LatestAbsorptionGuards | GovernanceGateRegistry gateGroup / evidence / N/A；anchors: DatabaseRecordMigrationExportGate / FrontendBrowserVerificationBudgetGate / FindingProbeMatrixGate / VerificationCommandSideEffectGate / RequirementPreConfirmGate / BenchmarkRegressionGuard |
 
 ## §3 问题清单

@@ -13,6 +13,13 @@
 
 const fs = require('fs')
 const path = require('path')
+const { assertSingleSegment, resolveInside } = require('./path-guard')
+const {
+  PROFILE_BASE_FILES,
+  PROFILE_RELEASE_FILES,
+  detectProfileTier,
+  filesForProfileTier
+} = require('./profile-contract')
 const {
   findLayoutInfo,
   inferProjectFromCwd,
@@ -96,24 +103,19 @@ const PROMPTS = [
   {
     name: 'devcodex-init',
     description: '一键加载 DevCodex 工作流规范与当前项目 Profile。在新建会话时使用，实现免手敲挂载规范。',
-    arguments: []
+    arguments: [
+      {
+        name: 'project',
+        description: 'workspace-namespace 下的目标项目命名空间；从工作区根启动 MCP 时必填。',
+        required: false
+      }
+    ]
   }
 ]
 
 // ─── Standard profile files ───────────────────────────────────────────────────
 
-const STANDARD_FILES = [
-  'README.md',
-  '01-项目信息.md',
-  '02-架构约束.md',
-  '03-代码风格.md',
-  '04-测试规范.md',
-  '05-发布规范.md',
-  'config.json',
-  'config.local.json'
-]
-
-const REQUIRED_FILES = new Set(['01-项目信息.md', '02-架构约束.md', '03-代码风格.md'])
+const REQUIRED_FILES = new Set(PROFILE_BASE_FILES)
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -198,11 +200,15 @@ function getLegacySourceLabel(dir, projectName) {
 }
 
 function resolveProfileFile(name, projectName) {
-  if (name === 'config.json') return resolveConfigFile(projectName)
+  const safeName = assertSingleSegment(name, 'profile file')
+  if (!/\.md$/i.test(safeName) && safeName !== 'config.json' && safeName !== 'config.local.json') {
+    throw new Error('invalid profile file')
+  }
+  if (safeName === 'config.json') return resolveConfigFile(projectName)
 
   if (!LAYOUT.enabled) {
     for (const dir of getLegacyProfileDirs(projectName)) {
-      const fullPath = path.join(dir, name)
+      const fullPath = resolveInside(dir, safeName)
       const content = readFileText(fullPath)
       if (content !== null) {
         return {
@@ -219,8 +225,8 @@ function resolveProfileFile(name, projectName) {
 
   const projectDir = getProjectNamespaceProfileDir(projectName)
   const workspaceDir = getWorkspaceProfileDir()
-  const projectPath = projectDir ? path.join(projectDir, name) : null
-  const workspacePath = path.join(workspaceDir, name)
+  const projectPath = projectDir ? resolveInside(projectDir, safeName) : null
+  const workspacePath = resolveInside(workspaceDir, safeName)
 
   if (projectPath) {
     const projectContent = readFileText(projectPath)
@@ -291,10 +297,24 @@ function resolveConfigFile(projectName) {
   }
 }
 
+function resolveDefaultProfileFiles(projectName) {
+  const tierCorpus = ['README.md', '01-项目信息.md', '06-功能清单.md', '07-用户文档与契约规范.md']
+    .map(name => resolveProfileFile(name, projectName)?.content || '')
+    .join('\n')
+  const tier = detectProfileTier(tierCorpus)
+  const names = filesForProfileTier(tier, { includeConfig: false })
+  const releaseIndex = names.indexOf('05-发布规范.md')
+  if (releaseIndex >= 0 && !resolveProfileFile('05-发布规范.md', projectName)) {
+    const alternative = PROFILE_RELEASE_FILES.find(name => resolveProfileFile(name, projectName))
+    if (alternative) names[releaseIndex] = alternative
+  }
+  return [...names, 'config.json', 'config.local.json']
+}
+
 // ─── Tool handlers ────────────────────────────────────────────────────────────
 
 function handleProfileLoad(args) {
-  const names = (args.files && args.files.length > 0) ? args.files : STANDARD_FILES
+  const names = (args.files && args.files.length > 0) ? args.files : resolveDefaultProfileFiles(args.project)
   const parts = []
   const missing = []
 
@@ -382,8 +402,13 @@ function handlePromptsGet(args) {
     claudeContent = '（⚠️ 工作区根目录未找到 CLAUDE.md）'
   }
 
-  // 复用 handleProfileLoad 获取 Profile 内容
-  const profileResponse = handleProfileLoad({})
+  const project = args.arguments?.project
+  if (LAYOUT.enabled && !project && !CONTEXT_PROJECT) {
+    throw new Error('project is required for devcodex-init when MCP runs from workspace root')
+  }
+
+  // 复用 handleProfileLoad 获取已明确项目的 Profile 内容
+  const profileResponse = handleProfileLoad({ project })
   const profileText = profileResponse.content[0].text
 
   const promptText = `请严格遵循以下工作流规范与项目配置执行后续任务：\n\n## 1. 核心规范 (CLAUDE.md)\n\n${claudeContent}\n\n## 2. 项目专属配置 (Profile)\n\n${profileText}\n\n请在充分理解上述规范后，输出预检查块 (PC0~PC7) 并等待我的进一步指示。`

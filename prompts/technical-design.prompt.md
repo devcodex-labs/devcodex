@@ -20,10 +20,12 @@ applyTo: .devcodex/**/requirements/**
 > ⚠️ 若本方案承接了用户可见“意图扩展摘要”，必须在 §0 或 §1 说明语义初判、项目现实扩展后路由、关键风险、验证路线与备选路径如何落到方案中。
 > ⚠️ 新增/升级依赖、框架、SDK、平台 API 或外部模块时，§4 必须填写 `OfficialDocsEvidence`：官方文档来源、版本/日期、关键用法、限制、兼容性与降级来源。
 > ⚠️ dev/fix 项目事实变化时，必须填写 `ProfileImpactCheck`：是否更新 Profile、目标文件与 `skipReason`。
+> ⚠️ 项目级 analyze/audit、授权本地安全审查、首次发布或发布身份拓扑变化分别引用 `ProfileTruthReconciliationGate`、`AuthorizedLocalSecurityAuditPresentationGate`、`PublisherCredentialTopologyGate`；技术方案只写触发、owner、字段和验证路线，不复制 owner Skill 正文，也不得包含 secret value 或绕过平台控制的承诺。
 > ⚠️ provider / connector / 三方 SDK 接入类方案必须先冻结业务功能接口，再说明底层 provider adapter / model / operation / 配置如何实现该功能；不得把内部 provider 能力直接反向暴露成业务接口。随后冻结字段级合同和统一 operation contract；包 / 库 / adapter / CLI 方案必须同时检查代码实现层与包工程层。
 > ⚠️ CP2 必须承接 CP1 的平台工程判断和 `ImplementationComplexityLevel`（兼容旧字段 `ImplementationComplexityPreference`）：消费者范围、共享契约边界、模块职责、可维护性成本、非目标和最小实现预算要互相一致；没有真实复用者或演进边界时，不得新增 factory / manager / adapter / registry 等预设抽象。
 > ⚠️ CP2 必须通过 `VerificationPlanMaterializationProbe`：§7 不能只写泛泛“测试策略”，必须物化验证计划、命令/矩阵路线、验收标准和退出条件；新增公开文档能力、菜单或文档站 IA 时，必须填写 `SidebarPageRoleMaterializationProbe` / `SidebarGroupSemanticModelProbe`。
 > ⚠️ 进入编码前必须预置 `DevelopmentDriftGate`：§2.6 写清 `allowedFirstBatch`、`blockedScope`、`noGoItems`、`driftTriggers`、`validationRoute` 和 `consumerSync`。
+> ⚠️ 当 AI 判断目标包含修复 Bug/缺陷/回归/安全问题/规范缺口/审查 finding 时，技术方案必须引用 `repair-collaboration`：低风险填写 lightweight 双层字段，高风险填写 full + findingToPatchMap + handoffIntegrity + independentReReview；模型名称不是触发条件。
 > ⚠️ package boundary / pack / benchmark / codegen 验证必须写清串行顺序；任何会删除、重建或写入 `dist` 的命令不得和包边界检查并行。
 > ⚠️ 前端页面、组件、控制台、官网、文档站、可视化工具、游戏或用户可见 UI / 交互方案必须填写 `FrontendExperienceQualityGate`：设计来源、UI 还原度、风格主题、响应式状态、视觉验证、用户流、交互反馈、输入方式/可访问性、错误恢复和动效转场；Figma/截图/既有页面还原需追加 `FigmaHighFidelityRestorationGate`、`ScopedVisualChangeGate`、`InstalledPluginVisualVerificationGate`、`ActualPreviewChainAndMockFallbackGate`、`FrontendRuntimeNetworkProbeGate`、`UIStateScopeRegressionGate`、`FigmaProductionAssetBudgetGate`、`RuntimeI18nArtifactVerificationGate`、`VisualDeviationTypeGate`、`DesignFramePurposeClassificationGate`、`FrontendBrowserVerificationBudgetGate` 与 `UserSelfVerificationOverrideGate`；不触发时写 `N/A + skipReason`。
 > ⚠️ 命中跨项目已吸纳守门、最新吸纳项、用户确认“仍需吸纳”、历史通用规范分层迁移或新增可泛化策略时，必须填写 `CrossProjectLearnedGuards` / `LatestAbsorptionGuards` / `ConfirmedAbsorptionCompletenessGates`，并按 `GovernanceGateRegistry` 输出 `gateGroup / ownerSkill / validationRoute / skipReason`；若是历史通用规范分层迁移，追加 `HistoricalCommonNormLayeringGate` 和逐文件矩阵。未触发项写 `N/A + skipReason`。
@@ -448,6 +450,7 @@ applyTo: .devcodex/**/requirements/**
 | artifactLinkDedupe | N/A / required / optional；写 canonical path 去重、同名消歧和主 ArtifactLinkSet |
 | reviewDimensionDelta | N/A / required / optional；写 PreviousDimensionSet、CurrentDimensionFocus、NewDimensionRationale、RepeatedDimensionReason |
 | postConfirmationReviewScope | N/A / light / full；写 CP 确认后轻量/全面复审判定、review-checklist 路径或 skipReason |
+| repairCollaboration | N/A / lightweight / full；写 contractState、authorizationEvidence、角色与双层字段；full 追加 finding map / handoff / independent re-review / acceptance matrix |
 | developmentDrift | N/A / required；写 allowedFirstBatch、blockedScope、driftTriggers、validationRoute、consumerSync、dirty boundary |
 | verificationPlanMaterialization | N/A / required；写验证计划章节、命令/矩阵、验收标准和退出条件 |
 | docsIaReadability | N/A / required；写 ChinesePrimaryExpressionGate、SidebarPageRoleMaterializationProbe、SidebarGroupSemanticModelProbe |

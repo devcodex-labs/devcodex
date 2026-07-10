@@ -55,8 +55,8 @@ DevCodex 支持多种工作流（chat/resume/dev/fix/audit/analyze/self-fix/plan
 
 | 关联 | 关系 |
 |------|------|
-| [⑥ 开发阶段合规检查](../dev-compliance/) | 直接上游 |
-| [⑧ 工作流执行](../workflow-execution/) | 直接下游 |
+| [⑥ 开发阶段合规检查](../dev-compliance/index) | 直接上游 |
+| [⑧ 工作流执行](../workflow-execution/index) | 直接下游 |
 
 ---
 

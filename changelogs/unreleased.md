@@ -8,7 +8,7 @@
 
 ## 当前未发布变更
 
-- 暂无。
+> 暂无。上一批变更已归档到 `changelogs/releases/v1.11.33.md`；后续未发布实现继续按日期倒序追加。
 
 ## 记录提示
 
@@ -34,5 +34,7 @@
 - 专家型产物质量变更需显式标明 `expert-output-quality`、`ExpertOutputQualityGate`、`ProductionRecommendedPathGate`、`FrameworkNativeCapabilityFirstGate`、`FixtureBoundaryDisclosureGate`、`AntiPatternContrastGate`、`ExpertEvidenceMatrixGate` 和 V84 探针，避免只优化文案但继续把测试夹具或低阶重复写法误导成生产推荐路径。
 - 专家 Owner Skill 变更需显式标明 `ExpertOwnerSkillGate`、`product-strategy`、`developer-experience-architecture`、`ux-interaction-architecture`、`frontend-architecture`、`backend-domain-architecture`、`production-readiness-sre`、`api-contract-architecture`、`external-integration-architecture`、`platform-ecosystem-architecture`、`ai-agent-system-architecture`、`data-architecture`、`security-threat-modeling`、`quality-strategy`、`design-system-architecture`、`accessibility-i18n`、`growth-analytics`、`business-model-review` 和 V85 探针，避免只写“专家视角”但没有 ownerSkill、字段、消费者和验证证据；增长 / 商业需保留 P3 条件触发与 `N/A + skipReason`。
 - 记忆启动链真相源变更需显式标明 `MemoryCannotSatisfyBootstrapGate`、`navigation-hint`、`load-profile`、`memory`、test-router、report、README/website/Profile、V86 探针和来源台账回写，避免内置 Memories 被误当 bootstrap / CP / 报告 / 验证证据。
+- 修复协作契约变更需显式标明 `DualLayerRepairCollaborationContract`、`repair-collaboration`、lightweight/full、`authorizationEvidence`、`findingToPatchMap`、`handoffIntegrity`、`independentReReview` 和 V87 探针；模型名称不得成为触发条件。
+- Profile 真相、安全审查呈现与发布凭据拓扑变更需显式标明 `ProfileTruthReconciliationGate` / V88、`AuthorizedLocalSecurityAuditPresentationGate` / V89、`PublisherCredentialTopologyGate` / V90；报告/文档不得让过期 Profile 覆盖代码事实、不得承诺绕过平台安全控制、不得包含 secret value。
 - 宿主输出、Hook 或项目现实扩展相关条目，建议显式写出 `verified-present / verified-missing / unverified`、sticky `activeProject` 与用户可见 `意图扩展摘要` 是否发生变化。
 - 执行闭环、确认机制或发布门禁相关条目，建议补充 `Intent Expansion Card`、`ConfirmationRequest`、`ECR` 与验证证据，方便正式发版时直接归档到版本 changelog。

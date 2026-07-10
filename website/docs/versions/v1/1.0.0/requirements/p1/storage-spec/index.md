@@ -123,7 +123,7 @@ flowchart LR
 
 | 关联 | 关系 |
 |------|------|
-| [P1 — 记忆恢复 & Resume](../memory-resume/) | 依赖本规范的记忆文件路径和读取规则 |
+| [P1 — 记忆恢复 & Resume](../memory-resume/index) | 依赖本规范的记忆文件路径和读取规则 |
 | [P2 — skills-core](../../p2/skills-core) | `memory` / `report` Skill 实现本规范的统一接口 |
 
 ---

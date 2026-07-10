@@ -54,6 +54,8 @@ function setupConfiguredMcpTarget() {
   fs.copyFileSync(path.join(ROOT, '.mcp.json'), path.join(targetRoot, '.mcp.json'))
   fs.copyFileSync(path.join(ROOT, 'mcp', 'memory-server.js'), path.join(targetRoot, '.claude', 'mcp', 'memory-server.js'))
   fs.copyFileSync(path.join(ROOT, 'mcp', 'profile-server.js'), path.join(targetRoot, '.claude', 'mcp', 'profile-server.js'))
+  fs.copyFileSync(path.join(ROOT, 'mcp', 'path-guard.js'), path.join(targetRoot, '.claude', 'mcp', 'path-guard.js'))
+  fs.copyFileSync(path.join(ROOT, 'mcp', 'profile-contract.js'), path.join(targetRoot, '.claude', 'mcp', 'profile-contract.js'))
   fs.copyFileSync(
     path.join(ROOT, 'hooks', '_runtime', 'workspace-layout.cjs'),
     path.join(targetRoot, '.claude', 'hooks', '_runtime', 'workspace-layout.cjs')
@@ -72,9 +74,14 @@ function setupLegacyWorkspace() {
   fs.rmSync(TEMP_ROOT, { recursive: true, force: true })
   fs.mkdirSync(path.join(TEMP_ROOT, '.devcodex', 'profile'), { recursive: true })
   fs.writeFileSync(path.join(TEMP_ROOT, 'CLAUDE.md'), '# CLAUDE.md\n\nDevCodex rules\n')
+  fs.writeFileSync(path.join(TEMP_ROOT, '.devcodex', 'profile', 'README.md'), '# Profile\n\n> Profile 档位：`profile-closed-loop`。\n')
   fs.writeFileSync(path.join(TEMP_ROOT, '.devcodex', 'profile', '01-项目信息.md'), '# 01-项目信息\n')
   fs.writeFileSync(path.join(TEMP_ROOT, '.devcodex', 'profile', '02-架构约束.md'), '# 02-架构约束\n')
   fs.writeFileSync(path.join(TEMP_ROOT, '.devcodex', 'profile', '03-代码风格.md'), '# 03-代码风格\n')
+  fs.writeFileSync(path.join(TEMP_ROOT, '.devcodex', 'profile', '04-测试规范.md'), '# 04-测试规范\n')
+  fs.writeFileSync(path.join(TEMP_ROOT, '.devcodex', 'profile', '05-发布规范.md'), '# 05-发布规范\n')
+  fs.writeFileSync(path.join(TEMP_ROOT, '.devcodex', 'profile', '06-功能清单.md'), '# 06-功能清单\n')
+  fs.writeFileSync(path.join(TEMP_ROOT, '.devcodex', 'profile', '07-用户文档与契约规范.md'), '# 07-用户文档与契约规范\n')
   fs.writeFileSync(
     path.join(TEMP_ROOT, '.devcodex', 'profile', 'config.json'),
     JSON.stringify({ mode: 'dev', agent: 'claude-code' })
@@ -154,7 +161,9 @@ function testProfilePrompts() {
   assert.ok(init.capabilities.prompts)
 
   const list = resultById(responses, 2)
-  assert.ok(list.prompts.some(prompt => prompt.name === 'devcodex-init'))
+  const initPrompt = list.prompts.find(prompt => prompt.name === 'devcodex-init')
+  assert.ok(initPrompt)
+  assert.ok(initPrompt.arguments.some(argument => argument.name === 'project'))
 
   const prompt = resultById(responses, 3)
   const text = prompt.messages?.[0]?.content?.text || ''
@@ -162,6 +171,33 @@ function testProfilePrompts() {
   assert.match(text, /01-项目信息/)
   assert.match(text, /config\.local\.json/)
   assert.match(text, /PC0~PC7/)
+}
+
+function testProfilePromptRequiresProjectAtWorkspaceRoot() {
+  setupLayoutWorkspace()
+  const responses = runServer('mcp/profile-server.js', [
+    rpcRequest(1, 'prompts/get', { name: 'devcodex-init' }),
+    rpcRequest(2, 'prompts/get', { name: 'devcodex-init', arguments: { project: 'chat' } })
+  ], TEMP_ROOT)
+
+  const ambiguous = resultById(responses, 1)
+  assert.strictEqual(ambiguous.isError, true)
+  assert.match(ambiguous.content?.[0]?.text || '', /project is required|workspace root/i)
+
+  const explicit = resultById(responses, 2)
+  assert.notStrictEqual(explicit.isError, true)
+  assert.match(explicit.messages?.[0]?.content?.text || '', /项目命名空间（chat）/)
+}
+
+function testProfileTierConflictRejected() {
+  setupLegacyWorkspace()
+  fs.appendFileSync(path.join(TEMP_ROOT, '.devcodex', 'profile', 'README.md'), '\nProfile 档位：profile-lite。\n', 'utf8')
+  const responses = runServer('mcp/profile-server.js', [
+    rpcRequest(1, 'tools/call', { name: 'profile_load', arguments: {} })
+  ], TEMP_ROOT)
+  const conflict = resultById(responses, 1)
+  assert.strictEqual(conflict.isError, true)
+  assert.match(conflict.content?.[0]?.text || '', /multiple profile tiers declared/i)
 }
 
 function testProfileModeFallbackAgent() {
@@ -330,6 +366,8 @@ function testProfileLoadWithoutArguments() {
     assert.notStrictEqual(result.isError, true)
     const text = result.content?.[0]?.text || ''
     assert.match(text, /01-项目信息/)
+    assert.match(text, /06-功能清单/)
+    assert.match(text, /07-用户文档与契约规范/)
     assert.doesNotMatch(text, /invoke|TypeError/i)
   }
 }
@@ -453,6 +491,54 @@ function testWorkspaceNamespaceTraversalRejected() {
   assert.match(resultById(memoryResponses, 3).content?.[0]?.text || '', /traversal|workspace-relative|reserved|namespace/i)
 }
 
+function testAdjacentMcpPathArgumentsRejected() {
+  setupLegacyWorkspace()
+  const memoryCases = [
+    { name: 'memory_session_write', arguments: { agent: '../escape', date: '20260524', content: '# blocked\n' } },
+    { name: 'memory_session_write', arguments: { agent: '..\\escape', date: '20260524', content: '# blocked\n' } },
+    { name: 'memory_session_write', arguments: { agent: 'C:\\escape', date: '20260524', content: '# blocked\n' } },
+    { name: 'memory_session_write', arguments: { agent: 'codex ', date: '20260524', content: '# blocked\n' } },
+    { name: 'memory_session_write', arguments: { agent: 'codex\nother', date: '20260524', content: '# blocked\n' } },
+    { name: 'memory_session_write', arguments: { agent: 'codex', date: '../escape', content: '# blocked\n' } },
+    { name: 'memory_cp_confirm', arguments: { requirement: '../escape', kind: 'bugs', phase: 'CP1' } },
+    { name: 'memory_cp_confirm', arguments: { requirement: '..\\escape', kind: 'bugs', phase: 'CP1' } },
+    { name: 'memory_cp_confirm', arguments: { requirement: 'C:\\escape', kind: 'bugs', phase: 'CP1' } },
+    { name: 'memory_cp_confirm', arguments: { requirement: 'escape/nested', kind: 'bugs', phase: 'CP1' } },
+    { name: 'memory_cp_confirm', arguments: { requirement: 'escape ', kind: 'bugs', phase: 'CP1' } },
+    { name: 'memory_cp_confirm', arguments: { requirement: 'escape\nother', kind: 'bugs', phase: 'CP1' } },
+    { name: 'memory_summary_append', arguments: { agent: 'codex\\other', row: '| blocked |' } }
+  ]
+  const memoryResponses = runServer('mcp/memory-server.js', memoryCases.map((item, index) =>
+    rpcRequest(index + 1, 'tools/call', item)
+  ), TEMP_ROOT)
+  for (let id = 1; id <= memoryCases.length; id += 1) {
+    const result = resultById(memoryResponses, id)
+    assert.strictEqual(result.isError, true)
+    assert.match(result.content?.[0]?.text || '', /invalid|allowed root|YYYYMMDD/i)
+  }
+  assert.ok(!fs.existsSync(path.join(TEMP_ROOT, '.devcodex', 'escape')))
+
+  const profileCases = [
+    '../outside.md',
+    '..\\outside.md',
+    'C:\\outside.md',
+    'nested/outside.md',
+    'outside.md ',
+    'outside\nother.md'
+  ]
+  const profileResponses = runServer('mcp/profile-server.js', profileCases.map((file, index) =>
+    rpcRequest(100 + index, 'tools/call', {
+      name: 'profile_load',
+      arguments: { files: [file] }
+    })
+  ), TEMP_ROOT)
+  for (let index = 0; index < profileCases.length; index += 1) {
+    const result = resultById(profileResponses, 100 + index)
+    assert.strictEqual(result.isError, true)
+    assert.match(result.content?.[0]?.text || '', /invalid|allowed root/i)
+  }
+}
+
 function testMcpJsonLaunchContract() {
   const config = JSON.parse(fs.readFileSync(path.join(ROOT, '.mcp.json'), 'utf8'))
   const servers = config.mcpServers || {}
@@ -475,6 +561,8 @@ function testMcpJsonLaunchContract() {
 }
 
 testProfilePrompts()
+testProfilePromptRequiresProjectAtWorkspaceRoot()
+testProfileTierConflictRejected()
 testProfileModeFallbackAgent()
 testProfileAgentUsesRuntimeBeforeProfileFallback()
 testMemoryDefaultAgent()
@@ -487,6 +575,7 @@ testWorkspaceNamespaceMemoryScope()
 testWorkspaceRootMemoryScopeRequiresExplicitTarget()
 testWorkspaceNamespaceNestedProjectInference()
 testWorkspaceNamespaceTraversalRejected()
+testAdjacentMcpPathArgumentsRejected()
 testMcpJsonLaunchContract()
 fs.rmSync(TEMP_ROOT, { recursive: true, force: true })
 process.stdout.write('mcp servers smoke test passed\n')

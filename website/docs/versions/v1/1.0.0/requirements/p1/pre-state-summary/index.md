@@ -59,8 +59,8 @@
 
 | 关联 | 关系 |
 |------|------|
-| [④ 检索记忆](../memory-retrieval/) | 直接上游 |
-| [⑥ 开发阶段合规检查](../dev-compliance/) | 直接下游，消费状态视图 |
+| [④ 检索记忆](../memory-retrieval/index) | 直接上游 |
+| [⑥ 开发阶段合规检查](../dev-compliance/index) | 直接下游，消费状态视图 |
 
 ---
 

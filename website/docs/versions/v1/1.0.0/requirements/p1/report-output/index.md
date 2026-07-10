@@ -70,8 +70,8 @@
 
 | 关联 | 关系 |
 |------|------|
-| [⑨ 执行阶段合规检查](../exec-compliance/) | 直接上游 |
-| [⑪ 更新记忆](../memory-update/) | 直接下游 |
+| [⑨ 执行阶段合规检查](../exec-compliance/index) | 直接上游 |
+| [⑪ 更新记忆](../memory-update/index) | 直接下游 |
 
 ---
 

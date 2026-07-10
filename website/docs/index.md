@@ -3,15 +3,15 @@ pageType: home
 
 hero:
   name: DevCodex
-  text: AI 开发规范文档
-  tagline: Copilot / Claude Code 双主支持升级到 Codex 三宿主支持 — 内部开发规范与版本演进文档
+  text: AI 开发工作流规范注入器
+  tagline: 为 Copilot / Claude Code / Codex 提供可安装、可审计、可恢复的统一开发工作流
   actions:
     - theme: brand
-      text: v1 系列概览
-      link: /versions/v1/
+      text: 开始使用
+      link: /intro/#快速开始
     - theme: alt
-      text: 当前需求文档
-      link: /versions/v1/1.0.1/requirements/
+      text: GitHub 与安装说明
+      link: https://github.com/vextjs/devcodex#安装
 
 features:
   - title: 🎯 结构化工作流

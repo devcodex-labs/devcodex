@@ -79,6 +79,7 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 | `featureChecklistEvidenceMatrix` | 是否需要 capability group × evidence surface 矩阵，需要 `FeatureChecklistEvidenceMatrixGate` |
 | `batchEvidenceLedgerState` | 是否为多批次、矩阵验证、长链路吸纳或复审，需要 `BatchEvidenceLedgerStateGate` |
 | `batchProgressCard` | 是否需要最终进度卡同步总范围、已完成、当前批、下一步、剩余项和证据链接，需要 `BatchProgressCardGate` |
+| `repairCollaboration` | 是否为 repair task；若是，记录 lightweight/full 风险分类、双层字段、状态转换和独立复证路线；模型名称不作为触发条件 |
 
 ## 路由矩阵
 
@@ -110,10 +111,14 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 | 人工复核 / 手工验证 | ManualReviewEvidenceRetention：记录复核人/时间/范围/输入/观察结果/截图或日志位置 | 不得只写“人工检查通过”；无法留截图时写等价证据 |
 | 验证范围预算 / 真实执行 | VerificationScopeBudgetGate、LiveVerificationExecutionObligation：验证强度匹配风险，声明已验证前实际执行命令、页面、接口、pack/install、registry/tag 查询或等价验证 | 降级必须写阻塞原因、替代证据和残余风险 |
 | 发布 / package | `audit-release`、`release-verification`、`npm run test:audit`、package completeness gate、远端 CI 绿色（如存在）、pack dry-run、`NativeCommandExitCodeGate`；PackageBoundarySerialCheck：pack / boundary 检查必须在 build / benchmark / codegen 完成后单独串行执行 | pack install smoke、publish dry-run、无关残留文件清理复核 |
+| Profile 真相对账 | `ProfileTruthReconciliationGate`：project analyze 用 targeted、audit 用 full/PFresh；构造 aligned、stale-profile、stale-code-or-doc、intentional-exception、unverifiable 与低风险 N/A 样例 | V88/targeted probe；stale Profile 不得覆盖代码事实，analyze/audit 不得直接修改 Profile |
+| 授权本地安全审查呈现 | `AuthorizedLocalSecurityAuditPresentationGate`：authorization/defensive objective、visible evidence budget、isolated probe、SafetyInterruptionCard 与恢复路线 | V89 正负向；完整载荷公开、缺恢复卡、声称绕过/保证不触发均失败 |
+| 发布凭据拓扑 | `PublisherCredentialTopologyGate`：首次发布/owner/package/registry/auth 变化核对 identity、scope/access/inheritance、permission、ownership、reference run | V90 + R0~R7；复制 workflow、读取 secret value 或缺 topology evidence 均失败 |
 | 消费者验证 / 跨仓库验证 | ConsumerDependencyTreeProbe：先核对 `package.json`、lockfile、`node_modules` 与 `npm ls <关键依赖>`，排除依赖树漂移 | 源码补丁、共享库升级、消费者 lockfile 恢复 |
 | Adapter / provider benchmark | AdapterBenchmarkAttribution：记录基线、环境、版本、负载、归因边界和不可比较因素 | 避免把框架、网络、缓存预热、依赖树或测试环境差异误归因给业务代码 |
 | 产品需求整理 / 产品完整需求 / 需求迁移 / 需求变更 | ProductRequirementTraceabilityGate：先记录入口类型；无产品角色的纯新需求记录 `00-需求概况.md` / PRD / Word / 原型 / 截图 / 消息锚点、`01-需求确认.md` 的 AI 提取口径、产品补充口径、冲突/遗漏处理、双方确认状态和技术验证映射；有产品角色直接提供完整需求时记录 `01-产品需求.md`、产品原文锚点、AI / 研发缺口 / 冲突检查、澄清状态和技术验证映射，缺口检查记录在 CP1 摘要、`02-技术方案.md` 或报告中，不写入产品模板正文，也不生成或重写产品需求；需求变更记录 `00-需求变更概况.md`、原需求基线、变更前后差异、`01-需求变更确认.md`、目标需求真相源回写和技术验证映射；Bug 问题记录 `00-问题概况.md` / `01-问题确认.md` 并走 fix | 不得把 AI 摘要当唯一真相源；不得混写需求方输入、产品完整需求、需求变更和产品确认；不得把 Bug 当产品需求；需求方和产品不填写验收标准，验证映射由技术方案 / 测试方案派生 |
 | CP 确认后复审 / 开发偏移 | `PostConfirmationReviewScopeGate`、`DevelopmentDriftGate`：按风险判定轻量或全面复审；全面复审使用 review-checklist 文件、PR-2~PR-7、状态新鲜度；进入编码前核对 allowedFirstBatch、blockedScope、driftTriggers、validationRoute、consumerSync 和 dirty boundary | 低风险降级必须写 `skipReason`；触达 blockedScope 或改变验证路线时回 CP2/CP3 |
+| 修复协作契约 | `repair-collaboration`：lightweight 至少验证问题/预期/验收证据与允许路径/验证/回滚；full 追加 finding map、handoff、状态跳转和 independent re-review | 只出现模型/Agent 名称预期 `not-repair`；高风险缺完整字段或只有补丁作者自证必须失败 |
 | 本机 / 跨环境执行配置 | LocalExecutionConfigProbe：核对项目指定配置入口、Profile `config.local.json` 模型或既有脚本约定；未指定时遵循 S02 | 不得为了安全感臆造 env/secret/config.local |
 | Profile 三档 / 全工作区 Profile 校验 | ProfileTierStandardGate / ProfileLifecycleClassificationGate / AllDevCodexProfileValidationGate：涉及 Profile 标准、workspace-namespace、规范维护项目或用户要求校验 `.devcodex` 所有项目时，执行 `node scripts/test-validate-profile.js` 与 `node scripts/validate-all-profiles.js --workspace <workspace-root>`；警告和错误分开记录 | 兼容历史项目时可允许 warning，但 release / 规范发布前需说明是否使用 `--strict-warnings` |
 | 人工证据留存 / 真实联调 | ManualReviewEvidenceDataRetention：记录证据保存位置、可复核输入、样本范围、保留策略和不可保留原因 | 证据不能进入仓库时写明外部位置或不可保留理由 |
@@ -238,6 +243,7 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 | featureInventoryProfile | N/A / required / optional；若 required，写 feature inventory、capability group、Profile/README/website/public API/复审清单同步 |
 | memoryCannotSatisfyBootstrap | N/A / required / optional；若 required，写 `MemoryCannotSatisfyBootstrapGate`、navigation-hint 来源、已读取文件真相源、冲突处理、V86/targeted probe 证据 |
 | batchEvidenceLedgerState | N/A / required / optional；若 required，写 EvidenceLedger baseline、actualSources、commands、status、finding/skipReason、Progress Card |
+| repairCollaboration | N/A / lightweight / full；写 authorizationEvidence、双层字段、contractState、负向样例；full 写 findingToPatchMap / handoffIntegrity / independentReReview |
 | postConfirmationReviewScope | N/A / light / full；写触发依据、review-checklist 路径或 skipReason、PR-2~PR-7 证据 |
 | developmentDrift | N/A / required；写 allowedFirstBatch、blockedScope、driftTriggers、validationRoute、consumerSync、dirty boundary |
 | verificationPlanMaterialization | N/A / required；写验证计划章节、命令/矩阵、验收标准和退出条件 |
@@ -331,6 +337,7 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 - 项目事实变化时必须执行 `ProfileImpactCheck`；若跳过 Profile 更新，报告需要写 `skipReason`。
 - 按 `ConcurrencyPolicy`，只读准备和隔离验证可并行；release / pack / package boundary / benchmark / codegen 任务不得并行运行会写入 `dist` 的命令与包边界检查；必须记录 PackageBoundarySerialCheck，并在最终报告说明无关 dirty 文件和验证残留已清理。
 - 发布、pack、install smoke、CLI replay、curl/git/npm/node 或 PowerShell/Bash wrapper 验证必须执行 `NativeCommandExitCodeGate`：PowerShell 需检查 `$LASTEXITCODE` 或等价 wrapper，Bash 需避免管道/子命令吞失败；报告 command、shell、cwd、exitCode 和 auth/config 来源。只打印成功文案但未传播非零退出码的验证无效。
+- `PublisherCredentialTopologyGate` 与命令退出码是两个独立证据面：前者证明 publisher/auth/secret scope/package ownership 拓扑，后者证明真实命令执行；任一缺失都不能替代另一项。
 - 高风险控制面 / 多批次修复必须写出 `regressionChecks`：逐项列出历史能力、必跑验证、对应批次和失败回滚点。
 - 宿主契约、visible reply、sticky project 或 workspace guard 变更，不得只写“`npm test` 已过”；必须写明 direct replay / fixture replay / validate probe 的证据来源。
 - 任何验证路线若由 AI 启动 dev server、文档站、本地 API/mock、数据库代理、SSH 隧道、Playwright/Cypress server 或压测 target，完成前必须执行 `ServiceLifecycleCleanup`：只停止本轮 AI 启动的进程，核验 PID/job 或端口释放，并在 TestRoute/报告记录证据；不得杀用户既有进程。

@@ -25,11 +25,13 @@ description: 审查执行指南 — 维度优先级分批、定向审查子集�
 | 修改了 workflow README | D3·D5·D8·D9 |
 | 审查 README / 用户使用文档 / 项目文档 / 菜单导航 | DA-1·DA-2·DA-5·DA-6 + `audit-user-manual`；README / 主入口文档再叠加 `audit-readme`（RM-1~RM-6） |
 | 审查发布前准备 / release pre-review | RL-1·RL-2·RL-3·RL-4·RL-5·RL-6·RL-9 + `audit-release`（RL-1~RL-10） |
+| 用户自有/已授权的本地安全审查，或出现“无法显示此内容/额外安全检查” | PE-3 + `security-threat-modeling` 的 `AuthorizedLocalSecurityAuditPresentationGate`；可见层最小证据、隔离探针和 SafetyInterruptionCard，禁止绕过表述 |
 | 新增 spec 文件 | D1·D5·D9·D15·D17·D18 |
 | 新增子类型 spec | D5(#6)·D9·D15 — 联动 L1/L2/L3 |
 | 新增维度/约束编号 | D5·D15·D18 + 数值引用联动 |
 | 修改了 ENV_MODE/模式行为定义 | D5·D22 — 跨文件语义传播核查 |
 | 修改了规则定义文件（字段/术语/路径等） | D5 · **CRS 全库关键词扫描**（见 `audit-common §关联文件发现`）|
+| audit finding 需要修复 | `AuditMutationBoundaryGate`：记录/交接 → 显式用户授权 → 独立 fix/self-fix；audit 内禁止 source mutation / `git add` |
 | 正式复审 / ECR / 多轮收敛 / 冻结清单 / 外部 finding 批次 | `review-checklist` + ReviewChecklistPrecreationGate / EvidenceExecutionGate / ChecklistStateFreshnessGate |
 | R2+ 发现新问题（持续审查中） | **自我审视四轴分析**（见 `audit-common §自我审视机制`）· D5 三层覆盖补查 · `ReviewDimensionDeltaGate` 维度焦点补强 |
 
@@ -65,11 +67,11 @@ description: 审查执行指南 — 维度优先级分批、定向审查子集�
 ### 分批执行模板
 
 ```
-批次 1（🔴 核心维度A）：D1·D2·D3·D4·D5 → 输出发现 → 即发即修（有发现则立即 self-fix）→ 写入记忆
-批次 2（🔴 核心维度B）：D7·D9·D10·D11·D12 → 输出发现 → 即发即修 → 更新记忆
-批次 3（🔴 格式/语义/跨客户端）：D16·D17·D21·D22·D23·D24·D25 → 输出发现 → 即发即修 → 更新记忆
-批次 4（🟡 建议维度）：D6·D8·D18·D19·D20 → 输出发现 → 即发即修 → 更新记忆
-批次 5（💡 改进维度）：D13·D14·D15 → 输出发现 → 即发即修 → 更新记忆
+批次 1（🔴 核心维度A）：D1·D2·D3·D4·D5 → 输出发现 → 记录/交接（阻断项暂停结论）→ 写入记忆
+批次 2（🔴 核心维度B）：D7·D9·D10·D11·D12 → 输出发现 → 记录/交接 → 更新记忆
+批次 3（🔴 格式/语义/跨客户端）：D16·D17·D21·D22·D23·D24·D25 → 输出发现 → 记录/交接 → 更新记忆
+批次 4（🟡 建议维度）：D6·D8·D18·D19·D20 → 输出发现 → 记录/交接 → 更新记忆
+批次 5（💡 改进维度）：D13·D14·D15 → 输出发现 → 记录/交接 → 更新记忆
 ReviewCoverageDelta：R2+ 先列 ReviewedSet / UnreviewedRelatedSet / NewlyReadThisRound / RepeatReadReason / NoNewSurfaceReason，优先补读此前未审查但相关的代码、配置、测试、文档、部署副本和消费者链
 ReviewDimensionDeltaGate：R2+ 同步列 PreviousDimensionSet / CurrentDimensionFocus / NewDimensionRationale / RepeatedDimensionReason，避免每轮机械重复同一组维度；重复维度只允许阻断项回归、高风险锚点、新证据或抽样
 重启轮次：所有批次完成、本轮无新发现，且 ReviewCoverageDelta + ReviewDimensionDeltaGate 合格 → 有效零发现计数 +1 → 连续 3 轮有效零发现则进入 CRS 门禁（仍须满足连续 3 轮零发现）
@@ -79,7 +81,9 @@ PCV：CRS ✅ 后执行 PCV（见 audit-common §收敛后汇总验证）→ 最
 
 > ℹ️ 批次1~3 均为 🔴 强制维度（与 §维度优先级分批 第一批 D1~D25 一致）；批次3 专门集中格式与语义类 🔴 维度（D16/D17/D21/D22/D23/D24/D25）。
 
-> ℹ️ **即发即修的含义**：每批次发现问题后，在开始下一批次前先完成 self-fix 修复；下一批次审查的是修复后的最新状态，而非原始状态。修复后执行 `git add` 暂存，**不自动 commit**（见 `audit-common §提交协议`）。
+> ℹ️ **发现交接的含义**：每批次发现问题后先完成实证、分流和状态记录；阻断项停止受影响范围的通过结论并请求显式用户授权，非阻断项进入适当台账。audit 不修改或暂存被审查源；用户授权后的独立 fix/self-fix 完成后，audit 才读取新证据并启动回归轮次。
+
+批次报告必须为 `AuditMutationBoundaryGate` 写明 `sourceMutationAuthorized=false`；若用户已授权修复，只能记录目标 `repairWorkflow` 与授权证据，不能在当前 audit 批次执行补丁。
 
 ### 跨批记忆格式
 

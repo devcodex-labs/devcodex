@@ -91,6 +91,23 @@ description: 真相源-消费者同步规范 — 为规范源、模板、validat
 - `negativeSamples`：`ServiceSpecReadGate`、`docs/services/<name>`、单项目 route/model/schema 命名、单库配置习惯等必须被判为 `project-local` 或 `case-evidence-only`。
 - `deployCopies`：`AGENTS.md`、`.agents/skills/`、`.github/`、`.claude/`、`.codex/` 中由 `devcodex update` 生成的当前副本。
 
+## V87 修复协作契约同步面
+
+当变更涉及 `repair-collaboration` 或 `DualLayerRepairCollaborationContract` 时：
+
+- `sourceOfTruth`：`skills/execution-contract/SKILL.md`；`skills/spec-governance/SKILL.md` 只登记 gateGroup。
+- `currentConsumers`：dev/fix/self-fix、AI Agent/review/test/report Skills、technical-design / implementation-plan / implementation-progress / report-dev / report-fix prompts、README、website guide/intro、active changelog、Profile 06/07。
+- `validateProbes`：V87、`scripts/test-spec-governance.js`、`node scripts/validate.js`；负向样例必须覆盖模型词误触发、高风险缺 finding map/handoff/独立复证与非法状态跳转。
+- `deployCopies`：由 update 同步的 `AGENTS.md`、`.agents/`、`.github/`、`.claude/`、`.codex/` 当前副本；历史 version/release 镜像不回写。
+
+## V88~V90 Profile、安全审查呈现与发布凭据拓扑同步面
+
+- `ProfileTruthReconciliationGate` sourceOfTruth=`load-profile`；currentConsumers=`analyze-default/audit-common/report/report-analysis/report-audit/instructions/13-analyze`；validate=V88。
+- `AuthorizedLocalSecurityAuditPresentationGate` sourceOfTruth=`security-threat-modeling`；currentConsumers=`audit-project/audit-execution-guide/execution-contract/test-router/report/report-audit`；validate=V89。
+- `PublisherCredentialTopologyGate` sourceOfTruth=`release-verification`；currentConsumers=`audit-release/execution-contract/test-router/report/report-dev/report-fix/technical-design/implementation-plan`；validate=V90 + R0~R7。
+- 三项 publicDocs=`README/website guide/intro/active changelog`，Profile=`05/06/07` 按触发同步，deployCopies 由 workspace-root update 生成；历史 version/release 镜像不回写。
+- V88~V90 的 prompt/report/instruction 只保留字段、触发与 owner 引用，不复制 owner Skill 详细正文；SCV 必须反向检查 secret value、绕过声明和 audit source mutation 等负向残留。
+
 ## 黄色偏离边界
 
 以下情况可按黄色偏离处理，但必须记录到实施进度或报告：

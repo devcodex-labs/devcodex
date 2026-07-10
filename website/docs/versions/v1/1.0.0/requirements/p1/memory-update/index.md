@@ -60,7 +60,7 @@
 
 | 关联 | 关系 |
 |------|------|
-| [⑩ 输出报告](../report-output/) | 直接上游 |
+| [⑩ 输出报告](../report-output/index) | 直接上游 |
 | [⑫ 完成前合规检查](/specs/completion-compliance-flow) | 直接下游（永久规范层）|
 
 ---

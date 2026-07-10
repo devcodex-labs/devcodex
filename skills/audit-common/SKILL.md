@@ -23,6 +23,7 @@ description: 审查公共维度 G0~G5 + Profile Freshness Check — 所有 audit
 ## Profile Freshness Check（PFresh）
 
 > 🔴 audit 不得默认 Profile 永远可信；在使用 Profile 做 G3 外部一致性之前，必须先反向核对 Profile 是否仍匹配当前项目事实。
+> audit 统一使用 `load-profile` 的 `ProfileTruthReconciliationGate` full 模式；PFresh-1~PFresh-6 是 full 模式的强制检查集合，不得被 targeted 或 N/A 路径削弱。
 
 | 编号 | 检查项 | 说明 |
 |------|--------|------|
@@ -33,7 +34,9 @@ description: 审查公共维度 G0~G5 + Profile Freshness Check — 所有 audit
 | PFresh-5 | 当前任务现实 | 对照 active-root 下当前 `requirements/`、`bugs/`、报告、SUMMARY 与 open ledger，检查 Profile 是否漏记新增边界、风险或治理能力 |
 | PFresh-6 | 发布关键 Profile 字段 | 对自动发包、npm package、CLI/plugin 或 release-heavy 项目，检查 Profile 是否覆盖 CI workflow/job 矩阵、tag/publish 触发链、失败恢复路径、外部消费者验证矩阵、dist 产物边界、registry/tag 验收与常见故障诊断 |
 
-若任一 PFresh 项无法验证，审查结论中必须标注 `⚠️ Profile freshness 待验证`；若确认过期，应先记录为审查发现或治理台账项，再继续后续 G1~G5，不得基于过期 Profile 宣告收敛。
+full 模式还必须执行 repo-shape 反查：当仓库已具备 SDK/CLI、文档站、public API、CI、发布、多模块或规范控制面特征时，核对 Profile 自报档位与 `04~07` 活文档是否完整。审查报告必须输出 `profileTrustState` 和 `ProfileTruthMatrix(profileClaim / actualSources / status / conclusionAuthority / correctionRoute)`。
+
+若任一 PFresh 项无法验证，`profileTrustState=partially-unverifiable` 且审查结论必须标注 `⚠️ Profile freshness 待验证`；若确认过期，`profileTrustState=drift-detected`，先记录审查 finding / 治理台账并以当前事实矫正本轮结论，再继续后续 G1~G5。audit 不得直接修改 Profile，也不得基于过期 Profile 宣告收敛。
 
 ## 公共维度（G1~G5）
 
@@ -97,15 +100,18 @@ grep "02-技术方案" instructions/ skills/
 → 这两个文件不在审查范围 → 加入范围 → 执行 G3 → 发现冲突 → 🔴 问题
 ```
 
-## 审查元循环（阻断项即修 / 非阻断项入池）
+## 审查发现交接循环（阻断暂停 / 非阻断入池）
 
-> 🔴 **触发前置条件**：元循环只在审查 **DevCodex plugin 文件**（`instructions/` · `skills/` · `prompts/` · `agents/` · `RULES.md`）时启动。审查其他类型文件时，发现问题 → 记录 PF/VL → 继续下一轮，**不触发 self-fix**（设计原则：**记录在使用，修复在维护**）。
+> 🔴 **触发条件**：任何 audit finding 都进入交接循环，与审查对象类型无关。audit 只允许写审计报告、audit-state、记忆和 RecordRouter 台账；禁止修改或暂存被审查源码、规范、配置、测试、文档和部署副本。
 >
-> 🔴 **核心原则**：audit 仍是只读工作流，但对 DevCodex plugin 文件的发现项需要**先分流**：
-> - **阻断项**：会直接影响当前控制面正确性、造成假绿、导致规则执行失真或形成明显错误指引 → 立即进入 self-fix
-> - **非阻断项**：属于流程优化、模板体验、治理补强、可择期处理的问题 → 写入 `data/pending-issues.md`，按批次进入后续需求/bug 修复
+> 🔴 **核心原则**：先分流，再交接，最后由用户决定是否启动独立修复：
+> - **阻断项**：会直接影响当前控制面正确性、造成假绿、导致规则执行失真或形成明显错误指引 → 保持 open/pending，停止受影响范围的通过结论并提出显式确认请求
+> - **非阻断项**：属于流程优化、模板体验、治理补强、可择期处理的问题 → 写入适当台账/问题池，状态 recorded/transferred
+> - **修复动作**：仅在用户显式授权后由独立 fix/self-fix 工作流执行；audit 不自动切换、不 source mutation、不 `git add`
 
-### 元循环流程
+上述边界统一称为 `AuditMutationBoundaryGate`；每轮 finding 分流和最终报告必须记录 `auditWritableArtifacts`、`sourceMutationAuthorized=false`、`repairWorkflow` 与 `repairAuthorizationEvidence`。
+
+### 交接循环流程
 
 ```
 开始审查
@@ -113,9 +119,11 @@ grep "02-技术方案" instructions/ skills/
 R1：CRS + 输出发现的问题清单（只读）
   ↓
 有问题？
-  ├── 是 → 自我审视（五步：实证→三列验证→对话感知→阻断/非阻断分流→盲点分析，见 §自我审视机制）
-  │         ├── 阻断项 → self-fix 修复 → 修复完成后 → 重启新一轮 audit（**收敛计数归零**，重新从 0 开始）
-  │         └── 非阻断项 → 写入 `data/pending-issues.md` → 继续下一轮 audit
+  ├── 是 → 自我审视（实证→三列验证→对话感知→阻断/非阻断分流→盲点分析，见 §自我审视机制）
+  │         ├── 阻断项 → open/pending + ConfirmationRequest → 等待用户决定是否启动独立 fix/self-fix
+  │         └── 非阻断项 → 记录/转交到适当台账 → 继续可完成的审查范围
+  │
+  │   用户授权并完成独立修复 → audit 读取新证据 → 重启新一轮（**收敛计数归零**）
   │
   └── 否（零发现）→ 收敛计数 +1
         ├── 计数 < 3 → 继续下一轮 audit
@@ -127,23 +135,24 @@ R1：CRS + 输出发现的问题清单（只读）
 | 规则 | 说明 |
 |------|------|
 | 🔴 **先分流再处理** | 本轮发现问题后，先完成自我审视与阻断/非阻断判定 |
-| 🔴 **阻断项即修** | 本轮发现的阻断项 → 同轮进入 self-fix 修复，不等下轮 |
-| 🟡 **非阻断项入池** | 非阻断项写入 `data/pending-issues.md`，不在当前主任务穿插修复 |
-| 🔴 **修复后重启** | 每次 self-fix 修复完成后，重新启动一轮完整 audit（不是"继续"当前轮）|
+| 🔴 **阻断项暂停** | 本轮阻断项保持 open/pending，停止受影响范围的通过结论并请求显式用户授权 |
+| 🟡 **非阻断项入池** | 非阻断项写入适当台账/问题池，不在 audit 内穿插修复 |
+| 🔴 **授权后独立修复** | 用户确认后新建/切换 fix 或 self-fix，执行其 CP/ExecutionContract；audit 不继承修复权限 |
+| 🔴 **外部修复后重启** | 独立修复完成后，audit 基于新证据重新启动完整轮次（不是在旧轮次中写 fixed）|
 | 🔴 **收敛计数规则** | 只有"有效零发现"的轮次才累加计数；发现问题的轮次不计入（修复后归零）|
 | 🔴 **至少 3 轮有效零发现** | 收敛条件：连续 **3 轮** 均零发现，且每轮满足 `ReviewCoverageDelta` 与 `ReviewDimensionDeltaGate`（所有 audit 子类型统一标准）|
 | 🔴 **CRS 门禁不变** | 声明收敛前仍须完成 CRS 全库关键词扫描 |
-| ⚠️ **audit 只读不变** | audit 本身仍是只读工作流；修复动作发生在 self-fix 子工作流，不在 audit 轮次内 |
-| 🔴 **禁止自动提交** | 每次修复后**不得自动 git commit**；修复变更仅在整批验证闭环后按语义批次提交（见 §提交协议）|
+| ⚠️ **audit 只读不变** | audit 只维护审计产物/状态/台账；被审查源的 mutation、stage、commit 全部属于独立修复工作流 |
+| 🔴 **禁止继承授权** | 用户授权 audit 不等于授权 fix/self-fix；已有 audit 上下文、模型切换或阻断严重度都不能替代显式修复确认 |
 | 🔴 **判断独立性** | 用户若先给出分类/方案/目录结构，审查仍须独立比对证据；若用户判断已最优，可明确写“已验证成立”，不得为了显得客观而机械唱反调 |
 
-### 元循环状态追踪输出格式
+### 交接循环状态追踪输出格式
 
 每轮结束时输出当前状态（**dev 模式下在每条回复末尾必须输出，不得因元循环工作流类型而跳过**）：
 
 ```
 ---
-🔄 审查元循环状态
+🔄 审查发现交接状态
 - 当前轮次：R{N}（本大轮审查第 N 次 audit）
 - 本轮发现：🔴 X 个 / 🟡 Y 个 / 💡 Z 个
 - ReviewCoverageDelta：
@@ -158,7 +167,7 @@ R1：CRS + 输出发现的问题清单（只读）
   - NewDimensionRationale：本轮维度焦点的证据化理由
   - RepeatedDimensionReason：重复维度的理由（阻断项回归 / 高风险锚点 / 新证据 / 抽样）
 - 自我审视：[M1/M2/M3/M4 盲点类型，或"N/A（零发现）"]
-- 修复状态：[暂存 N 项待确认 / 零发现无需修复]
+- 修复交接状态：[等待用户授权 / 已转独立 fix/self-fix / 已获外部修复证据 / 零发现无需交接]
 - 有效零发现计数：{n}/3（达到 3 次则收敛）
 
 🛡️ DEV 模式 | 合规检查
@@ -172,7 +181,7 @@ SC: SC4 [✅/❌] SC6 [✅/❌] ...（仅列适用项，逐项实际验证后填
 ---
 ```
 
-> ℹ️ 合规检查块是 dev 模式下的强制输出，审查元循环不例外。FC2（报告文件）在 PCV 完成后输出最终报告时满足；中间轮次标注 N/A（进行中，未到输出节点）。
+> ℹ️ 合规检查块是 dev 模式下的强制输出，审查发现交接循环不例外。FC2（报告文件）在 PCV 完成后输出最终报告时满足；中间轮次标注 N/A（进行中，未到输出节点）。
 > ⚠️ **FC5 填写规则**：必须在回复末尾的 `📂 本次会话产物` 区块内列出 `ArtifactLinkSet`（格式见 `02-output-paths.instructions.md` §产物路径输出格式）；主链接必须是 Markdown 链接，链接路径用正斜杠；当前宿主为 Codex Desktop/App、Copilot、未知宿主，或用户反馈无法点击时，必须追加 `绝对路径：` copy fallback。本轮无文件变更时填 N/A，有变更时不得填 ✅ 而不列出路径。
 
 ## 审查收敛规则
@@ -180,7 +189,7 @@ SC: SC4 [✅/❌] SC6 [✅/❌] ...（仅列适用项，逐项实际验证后填
 | 轮次 | 规则 |
 |------|------|
 | R1 | **先执行初始 CRS**（见 §关联文件发现）确定关联文件范围，再输出维度清单供用户确认（可增删维度）|
-| Rn | 每轮 audit 必须先输出 `ReviewCoverageDelta` 与 `ReviewDimensionDeltaGate`：优先阅读此前未审查但相关联的代码、配置、测试、文档、部署副本与消费者链，并说明本轮新增、轮换、补强或回归的维度焦点；已审查锚点和已跑维度只做高风险回归、修复点回归、抽样或新证据复核；发现问题则触发自我审视 + 修复（见 §审查元循环）|
+| Rn | 每轮 audit 必须先输出 `ReviewCoverageDelta` 与 `ReviewDimensionDeltaGate`：优先阅读此前未审查但相关联的代码、配置、测试、文档、部署副本与消费者链，并说明本轮新增、轮换、补强或回归的维度焦点；已审查锚点和已跑维度只做高风险回归、外部修复回归、抽样或新证据复核；发现问题则触发自我审视 + 交接，不在 audit 内修复 |
 | 收敛条件 | **CRS ✅** + **连续 3 轮有效零发现**（仍须满足连续 3 轮零发现；所有子类型统一标准，不区分定向/全面）+ 所有 🔴 已解决 + 🟡 已处理或标注 N/A |
 
 - 🔴 **CRS 是收敛门禁**：必须先完成 CRS（§关联文件发现），扩展范围内的文件 G3 全通过，才允许进入收敛倒计时
@@ -278,12 +287,12 @@ R2+ 发现新问题
   - 在对话中输出上述验证结果，让用户可见
   - ⚠️ 禁止跳过此步骤直接修复
   ↓
-步骤四：决定是否修复
-  - 规范文件问题（instructions/skills/prompts）→ 先判定是否阻断当前任务
-    - 阻断项 → 验证通过后**直接执行修复，无需用户确认**
-    - 非阻断项 → 写入 `data/pending-issues.md`，不在当前主任务穿插修复
-  - 代码/配置问题 → 建议用户确认后再执行
-  - 影响范围跨多项目 / 含语义变更 → 必须等待用户明确确认
+步骤四：决定交接状态
+  - 所有文件类型先判定是否阻断当前审查结论
+    - 阻断项 → 保持 open/pending，停止受影响结论并提出显式用户确认
+    - 非阻断项 → 写入适当台账/问题池，标记 recorded/transferred
+  - 用户显式授权后才可启动独立 fix/self-fix；独立工作流必须自行执行 CP/ExecutionContract
+  - audit 内禁止 source mutation、`git add`、commit 或把修复建议直接标为 fixed
   ↓
 步骤五：M1~M4 盲点分析
   - 对每个新问题逐轴过一遍 M1~M4，确定盲点类型（可多轴）
@@ -306,12 +315,12 @@ R2+ 发现新问题
   - 可实施性：[修复方案简述，前置条件]
   - 收益：[改善效果]
 - 【盲点分析】M{X} [盲点类型]：[上一轮漏掉的原因] → 已记录 GAP-NNN
-- 【修复决定】阻断项立即修复 / 非阻断项入池 / 等待用户确认（原因：[影响范围/歧义说明]）
+- 【交接决定】阻断项等待用户授权 / 非阻断项入池 / 已转独立 fix/self-fix（原因：[影响范围/歧义说明]）
 - 下一轮定向补查：[文件/层次/关键词]
 ---
 ```
 
-> ℹ️ 自我审视输出在问题清单之后立即输出；规范文件问题在对话感知同时直接修复（无需等待用户二次确认）。
+> ℹ️ 自我审视输出在问题清单之后立即输出；任何文件类型的修复都必须等待显式用户授权并进入独立 fix/self-fix，audit 不继承写入权限。
 
 ## 收敛后汇总验证（PCV）
 
@@ -352,36 +361,21 @@ R2+ 发现新问题
 - 分会话模式：每轮只审查指定维度批次，结果通过 [`memory/SKILL.md`](../memory/SKILL.md) 写入 `.devcodex/.memory/`
 - 下次会话通过 `memory/SKILL.md` 恢复进度
 
-## 提交协议（修复变更管理）
+## Git 边界（audit 不暂存、不提交）
 
-> 🔴 **即发即修 ≠ 即发即提交**：修复变更必须暂存，由用户确认后统一提交，避免产生过多碎片化 commit。
+> 🔴 audit 不执行 `git add`、commit、push，也不管理修复变更的暂存区。用户授权后的独立 fix/self-fix 按自身 ExecutionContract 和提交授权管理 Git。
 
 ### 流程
 
 ```
-每次修复完成 → git add（暂存，不 commit）
-               ↓
-           继续下一轮审查
-               ↓
-    会话结束 or 用户主动要求提交
-               ↓
-        输出本次所有变更摘要（diff 级别）
-               ↓
-         等待用户确认
-               ↓
-      用户确认 → 单次 commit（或按逻辑分组提交）
+audit finding → 记录/交接 → 用户显式授权独立 fix/self-fix
+                              ↓
+                    修复工作流自行管理 diff/Git
+                              ↓
+                    audit 只读取新证据并复审
 ```
 
-### 提交信息规范
-
-- **Subject**：一句话描述本次审查修复的核心内容（不堆砌每条修复明细）
-- **Body**（可选）：列举本次修复的各条问题（`R{N}: 描述`）
-- 避免每修复一条就产生一个 commit，目标是**每次审查会话 ≤ 3 个语义清晰的 commit**
-
-### 例外
-
-- 用户明确要求"立即提交"→ 执行当前暂存内容的 commit（subject 保持简洁）
-- 修复文件数 ≥ 10 → 建议分组提交（按文件类型：instructions/skills/prompts 各一组）
+即使用户在 audit 中要求提交，也必须先重新识别为 fix/self-fix/release 类显式动作并执行对应授权门禁；不能把 audit 的只读权限静默升级为 Git 写权限。
 
 ## 输出规范
 

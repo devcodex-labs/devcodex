@@ -53,6 +53,28 @@ description: 项目 Profile 加载规范 — 意图识别后独立确定目标�
 - 复审服务 / 框架规范时列出全部服务集合、docs 自维护链、导航、版本、构建、报告和记忆消费者。
 - 从单服务抽公共规范时同步执行 `StrongestProfileSourceGate` / `ServiceSpecificResidueSweep`，以最强 Profile 为基线并清扫服务化残留。
 
+### ProfileTruthReconciliationGate
+
+Profile 加载只证明“声明已读取”，不能证明声明仍为当前真相。项目级 analyze / audit 在形成结论前必须执行分级真相对账：
+
+| mode | 触发 | 最小范围 |
+|------|------|----------|
+| `targeted` | 项目级 analyze、根因/合理性/方案分析 | 只核对与当前问题相关的版本、目录、脚本、能力、宿主、测试/发布或配置声明 |
+| `full` | 任意 audit | 复用 `audit-common` PFresh-1~PFresh-6，并反查 repo shape 与声明档位、生命周期文件完整性 |
+| `N/A` | 低风险、单文件、与项目事实无关的局部分析 | 必须写 `skipReason`；不得用 N/A 规避项目级分析 |
+
+加载后先把 `profileTrustState` 标为 `unreconciled`；对账完成后只能进入 `aligned`、`drift-detected` 或 `partially-unverifiable`。每条相关声明写入 `ProfileTruthMatrix`：
+
+| 字段 | 要求 |
+|------|------|
+| `profileClaim` | Profile 原声明与来源文件 |
+| `actualSources` | 当前代码、配置、package、运行证据、正式需求/发布事实 |
+| `status` | `aligned / stale-profile / stale-code-or-doc / intentional-exception / unverifiable` |
+| `conclusionAuthority` | 当前结论采用的事实源及理由；当前状态默认以已验证代码/配置/运行证据为准 |
+| `correctionRoute` | 当前结论如何矫正、需要哪个 dev/fix/self-fix 更新 Profile、或为何保持例外 |
+
+Profile 可以约束目标态和项目政策，但不得覆盖已验证的当前实现事实。analyze/audit 保持只读：发现漂移时立即矫正本轮结论并记录交接，不得直接修改 Profile 源文件；后续源文件修订必须进入独立 dev/fix/self-fix 与 `ProfileImpactCheck`。
+
 ### MemoryCannotSatisfyBootstrapGate
 
 Codex / 宿主内置 Memories、模型长期偏好、上一轮摘要或用户口头记忆只能作为导航提示，不能满足 DevCodex bootstrap、Profile 加载、Context Rehydration、CP 确认、报告结论或验证证据。

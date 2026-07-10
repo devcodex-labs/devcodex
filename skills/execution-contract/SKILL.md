@@ -38,6 +38,8 @@ description: 执行契约规范 — 为长流程、多文件、Auto 或控制面
 | `deviationLog` | 条件 | 多批次或发生绿色/黄色偏离时，记录实际新增消费者、探针、同步副本与理由 |
 | `rollbackPlan` | ✅ | 失败恢复路径、回滚锚点或重新确认条件 |
 | `progressArtifact` | 条件 | 多批次、预计 ≥10 文件、跨轮次或用户要求持续跟踪时必须写 `05-实施进度.md` |
+| `safetyInterruptionRecovery` | 条件 | 授权本地安全审查出现宿主安全提示/内容不可见时，引用 `AuthorizedLocalSecurityAuditPresentationGate` 的 SafetyInterruptionCard、last checkpoint 与 resume evidence |
+| `publisherCredentialTopology` | 条件 | 首次发布或发布身份/仓库/package/registry/auth topology 变化时，引用 `PublisherCredentialTopologyGate`；只记录身份、scope/access/permission/ownership/成功证据，不含 secret value |
 
 ## 偏离分级
 
@@ -53,6 +55,49 @@ description: 执行契约规范 — 为长流程、多文件、Auto 或控制面
 - `execution-contract` 只提供可复审契约，不豁免 S01~S07、C01、C10、C18。
 - Auto 修改路径必须同时满足静态白名单和当前 Contract 的 `allowedPaths`。
 - Contract 缺少 `allowedPaths`、`requiredArtifacts` 或 `validationRoute` 时，不得进入无人值守执行。
+
+## DualLayerRepairCollaborationContract
+
+当 AI 根据问题锚点和预期行为判断任务目标是修复 Bug、缺陷、回归、安全问题、规范缺口、审查 finding 或其他已确认不正确行为时，必须建立双层修复协作契约。该触发与模型名称、是否切换模型/Agent、宿主 UI 或工作流标签无关；纯新增能力、纯分析/审计发现阶段或只讨论模型选择不触发。
+
+### 公共字段与状态
+
+| 字段 | 要求 |
+|------|------|
+| `repairClass` | `lightweight` / `full` |
+| `contractState` | `draft / approved / executing / verification-pending / accepted / rejected / blocked` |
+| `authorizationEvidence` | CP、合法 Auto、危险操作独立确认或其他可审计授权；Auto 使用 `mode=auto`，不得伪造人工确认 |
+| `roleAssignments` | 显式记录决策/验收与执行/验证逻辑角色；允许同一主体，但高风险通过结论不能只有补丁产出者自证 |
+
+允许状态转换为 `draft→approved/blocked`、`approved→executing/blocked`、`executing→verification-pending/blocked`、`verification-pending→accepted/rejected/blocked`、`rejected→executing/blocked`。禁止 `executing→accepted`；单个测试通过、代码写完或开始验证不能替代 accepted。
+
+### lightweight
+
+适用于低风险、预计不超过 2 文件，且无公共 API/Schema/config、控制面、发布、多批次或角色交接的 repair task。允许在问题确认、报告或记忆中内联，不强制完整任务目录。
+
+| 层 | 必填字段 |
+|----|----------|
+| 决策/验收层 | `problemAnchor`、`expectedBehavior`、`acceptanceEvidence`、`decisionAcceptanceOwner` |
+| 执行/验证层 | `allowedPaths`、`validationRoute`、`rollbackTrigger`、`executionVerificationOwner` |
+
+### full
+
+P0/P1、安全、控制面、公共 API/Schema/config、预计 ≥5 文件、多批次、角色交接、发布或其他高风险场景必须升级完整契约。
+
+| 层 | 必填字段 |
+|----|----------|
+| 决策/验收层 | `auditSnapshot`、`approvedFindingIds`、`evidencePacket`、`roleAssignments`、`acceptanceMatrix`、`authorizationEvidence`、条件 `humanApproval` |
+| 执行/验证层 | `allowedPaths`、`blockedScope`、`batchPlan`、`findingToPatchMap`、`regressionMatrix`、`handoffIntegrity`、`independentReReview`、`rollbackPlan` |
+
+`findingToPatchMap` 必须形成 `problemAnchor/findingId → patchPaths → verificationEvidence → acceptanceStatus`；每个 finding 至少映射一个 patch 或 `no-code-change + evidence`，每个 patch 必须反向对应已批准问题。
+
+`handoffIntegrity` 复用 ContextHandoffCard，并追加 `status / missingFields / checkedBy / checkedAt`。`independentReReview` 至少记录 `owner / independenceMode / evidence / result / runId`；`independenceMode` 可为 `isolated-session / different-agent / different-model / human / black-box-evidence`，不强制第二模型或第二 Agent。
+
+### accepted 条件
+
+- authorization、allowed paths、acceptance matrix 与 required evidence 均有效；full 合同还必须具备完整 finding map、handoff 与 independent re-review。
+- 补丁产出者可以参与验证，但不能成为高风险任务唯一通过证据源；角色独立或黑盒证据独立均可。
+- 证据失败进入 rejected；触达 blockedScope、缺真相源或需要重开 CP 时进入 blocked。
 
 ## 输出格式
 
@@ -76,10 +121,13 @@ description: 执行契约规范 — 为长流程、多文件、Auto 或控制面
 | deviationLog | |
 | rollbackPlan | |
 | progressArtifact | |
+| safetyInterruptionRecovery | |
+| publisherCredentialTopology | |
 ```
 
 ## 验证
 
 - 执行前：CP2/CP3 或修复方案中存在 Contract 字段，并通过 `DevelopmentDriftGate` 核对 `allowedFirstBatch / blockedScope / driftTriggers / validationRoute / consumerSync / dirty boundary`。
+- repair task：轻量契约字段完整；高风险 full 契约的 finding map、handoff、独立复证和状态转换完整；只出现模型名称不得误触发。
 - 执行中：每个 Batch 对照 `allowedPaths`、`requiredArtifacts`、`consumerScope`、`backlogTruthReview`、`regressionMatrix`、`ledgerWriteback` 与 `deviationLog`。
 - 执行后：ECR-2/ECR-3/ECR-7 引用 Contract、`verificationEvidence`、历史能力回归结果、backlog 真相复核结果与最终偏离记录。

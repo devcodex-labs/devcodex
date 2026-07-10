@@ -62,6 +62,7 @@ applyTo: .devcodex/**/requirements/**
 | 产物 | 触发依据 | 当前状态 | 证据 |
 |------|----------|:--------:|------|
 | ExecutionContract | Auto / 控制面 / 多批次 / 预计修改 ≥10 文件 / release 前置任务 | ✅/🔄/N/A | |
+| RepairCollaborationContract | repair task；lightweight/full 由风险决定，模型名称不触发 | ✅/🔄/N/A | contractState / authorizationEvidence / acceptance evidence；full 的 finding map / handoff / independent re-review |
 | TestRoute | 跨模块 / API / Hook / CLI / 模板-示例-校验链 / 测试路线不明显 | ✅/🔄/N/A | |
 | LeakRiskStabilityPressureTest | 写测试/回归验证命中长运行、并发、资源生命周期或 PE-12 风险 | ✅/🔄/N/A | baseline / pressureScenario / cooldown / resourceMetrics / skipReason |
 | ReleaseAudit | 发版前 review / publish 或 tag 前风险审查 | ✅/🔄/N/A | RL-1~RL-10 / risks / recommendation |

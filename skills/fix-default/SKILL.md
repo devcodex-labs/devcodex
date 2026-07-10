@@ -26,17 +26,18 @@ description: 默认修复子类型规范 — Bug 修复三步扫描 + CP 流程
 
 ## 执行阶段
 
-1. 实现修复（最小化变更范围）
-2. 编写/更新回归测试
-3. **修复三步必做**（[SC3](../compliance/SKILL.md) 强制，执行后立即扫描）：
+1. 建立 `repair-collaboration` 双层契约：低风险使用 lightweight；P0/P1、安全、控制面、公共契约、≥5 文件、多批次、角色交接或发布风险使用 full，accepted 前必须有独立复证；模型/Agent 名称不参与触发
+2. 实现修复（最小化变更范围）
+3. 编写/更新回归测试
+4. **修复三步必做**（[SC3](../compliance/SKILL.md) 强制，执行后立即扫描）：
    - 同类全局扫描 — 同一模式错误是否存在于其他位置
    - 数据联动扫描 — 上下游数据流是否受影响
    - grep 零残留复核 — 确认无残留引用
-4. `api-verification`（若涉及接口）
-5. `impact-review`（若 PR-5② 跨模块架构依赖变更）
-6. `execution-contract` / `test-router`（≥5 文件、高风险、控制面或多批次修复时）
-7. `document-sync`（若修复涉及文档说明）
-8. **ECR 执行闭环复审** — 对照 CP1/CP2/CP3、实施进度（触发时）、报告、daily tasks、SUMMARY、diff/commit、测试/扫描证据和 dirty 边界，确认无假完成、无状态错配、无用户另案变更混入；涉及规范源、Skill、Hook、CLI、MCP、模板、部署副本、路径规则或 validate 语义时必须执行 SCV（`spec-governance`）
+5. `api-verification`（若涉及接口）
+6. `impact-review`（若 PR-5② 跨模块架构依赖变更）
+7. `execution-contract` / `test-router`（full、≥5 文件、高风险、控制面或多批次修复时）
+8. `document-sync`（若修复涉及文档说明）
+9. **ECR 执行闭环复审** — 对照 CP1/CP2/CP3、实施进度（触发时）、报告、daily tasks、SUMMARY、diff/commit、测试/扫描证据和 dirty 边界，确认无假完成、无状态错配、无用户另案变更混入；涉及规范源、Skill、Hook、CLI、MCP、模板、部署副本、路径规则或 validate 语义时必须执行 SCV（`spec-governance`）
 
 ## 关键规则
 

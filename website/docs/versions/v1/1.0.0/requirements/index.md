@@ -7,7 +7,7 @@
 
 > **导航提示**：  
 > - P0 核心骨架 / P1 功能需求 / P2 实现规范  
-> - `implementation/` 记录"怎么做、做到哪"（[实施总览](./implementation/)）
+> - `implementation/` 记录"怎么做、做到哪"（[实施总览](./implementation/index)）
 
 ## P0 核心需求（骨架已建立）
 
@@ -26,28 +26,28 @@
 
 | # | 需求 | 技术方案 | 进度 | 状态 |
 |:-:|------|---------|------|------|
-| ① | [预检查](./p1/precheck/) | [设计](./p1/precheck/design) | [进度](./p1/precheck/progress) | ✅ 已实现 |
-| ② | [安全检查](./p1/safety-check/) | [设计](./p1/safety-check/design) | [进度](./p1/safety-check/progress) | ✅ 已实现 |
-| ②' | [阻断并给出合规替代](./p1/block-op/) | [设计](./p1/block-op/design) | [进度](./p1/block-op/progress) | ✅ 已实现 |
-| ③ | [写入摘要](./p1/summary/) | [设计](./p1/summary/design) | [进度](./p1/summary/progress) | ✅ 已实现 |
-| ④ | [检索记忆](./p1/memory-retrieval/) | [设计](./p1/memory-retrieval/design) | [进度](./p1/memory-retrieval/progress) | ✅ 已实现 |
-| ⑤ | [前置状态汇总](./p1/pre-state-summary/) | [设计](./p1/pre-state-summary/design) | [进度](./p1/pre-state-summary/progress) | ✅ 已实现 |
-| ⑥ | [开发阶段合规检查](./p1/dev-compliance/) | [设计](./p1/dev-compliance/design) | [进度](./p1/dev-compliance/progress) | ✅ 已实现 |
-| ⑦ | [路由到工作流](./p1/routing/) | [设计](./p1/routing/design) | [进度](./p1/routing/progress) | ✅ 已实现 |
-| ⑧ | [工作流执行](./p1/workflow-execution/) | [设计](./p1/workflow-execution/design) | [进度](./p1/workflow-execution/progress) | ✅ 已实现 |
-| ⑨ | [执行阶段合规检查](./p1/exec-compliance/) | [设计](./p1/exec-compliance/design) | [进度](./p1/exec-compliance/progress) | ✅ 已实现 |
-| ⑩ | [输出报告](./p1/report-output/) | [设计](./p1/report-output/design) | [进度](./p1/report-output/progress) | ✅ 已实现 |
-| ⑪ | [更新记忆](./p1/memory-update/) | [设计](./p1/memory-update/design) | [进度](./p1/memory-update/progress) | ✅ 已实现 |
+| ① | [预检查](./p1/precheck/index) | [设计](./p1/precheck/design) | [进度](./p1/precheck/progress) | ✅ 已实现 |
+| ② | [安全检查](./p1/safety-check/index) | [设计](./p1/safety-check/design) | [进度](./p1/safety-check/progress) | ✅ 已实现 |
+| ②' | [阻断并给出合规替代](./p1/block-op/index) | [设计](./p1/block-op/design) | [进度](./p1/block-op/progress) | ✅ 已实现 |
+| ③ | [写入摘要](./p1/summary/index) | [设计](./p1/summary/design) | [进度](./p1/summary/progress) | ✅ 已实现 |
+| ④ | [检索记忆](./p1/memory-retrieval/index) | [设计](./p1/memory-retrieval/design) | [进度](./p1/memory-retrieval/progress) | ✅ 已实现 |
+| ⑤ | [前置状态汇总](./p1/pre-state-summary/index) | [设计](./p1/pre-state-summary/design) | [进度](./p1/pre-state-summary/progress) | ✅ 已实现 |
+| ⑥ | [开发阶段合规检查](./p1/dev-compliance/index) | [设计](./p1/dev-compliance/design) | [进度](./p1/dev-compliance/progress) | ✅ 已实现 |
+| ⑦ | [路由到工作流](./p1/routing/index) | [设计](./p1/routing/design) | [进度](./p1/routing/progress) | ✅ 已实现 |
+| ⑧ | [工作流执行](./p1/workflow-execution/index) | [设计](./p1/workflow-execution/design) | [进度](./p1/workflow-execution/progress) | ✅ 已实现 |
+| ⑨ | [执行阶段合规检查](./p1/exec-compliance/index) | [设计](./p1/exec-compliance/design) | [进度](./p1/exec-compliance/progress) | ✅ 已实现 |
+| ⑩ | [输出报告](./p1/report-output/index) | [设计](./p1/report-output/design) | [进度](./p1/report-output/progress) | ✅ 已实现 |
+| ⑪ | [更新记忆](./p1/memory-update/index) | [设计](./p1/memory-update/design) | [进度](./p1/memory-update/progress) | ✅ 已实现 |
 
 ### 前置基础规范
 
 | 需求 | 技术方案 | 进度 | 状态 |
 |------|---------|------|------|
-| [Agent 双模式（确认 vs 全自动）](./p1/agent-modes/) | [设计](./p1/agent-modes/design) | [进度](./p1/agent-modes/progress) | ✅ 已实现 |
-| [变更护栏（提交边界 / 官方文档 / Commit 摘要）](./p1/change-guardrails/) | [设计](./p1/change-guardrails/design) | [进度](./p1/change-guardrails/progress) | ✅ 已实现 |
-| [存储规范（位置 / 产物 / gitignore）](./p1/storage-spec/) | [设计](./p1/storage-spec/design) | [进度](./p1/storage-spec/progress) | ✅ 已实现 |
-| [记忆恢复与 Resume 工作流](./p1/memory-resume/) | [设计](./p1/memory-resume/design) | [进度](./p1/memory-resume/progress) | ✅ 已实现 |
-| [宿主生命周期硬门禁（Hooks 优先）](./p1/host-lifecycle-gates/) | [设计](./p1/host-lifecycle-gates/design) | [进度](./p1/host-lifecycle-gates/progress) | 🟡 实施中 |
+| [Agent 双模式（确认 vs 全自动）](./p1/agent-modes/index) | [设计](./p1/agent-modes/design) | [进度](./p1/agent-modes/progress) | ✅ 已实现 |
+| [变更护栏（提交边界 / 官方文档 / Commit 摘要）](./p1/change-guardrails/index) | [设计](./p1/change-guardrails/design) | [进度](./p1/change-guardrails/progress) | ✅ 已实现 |
+| [存储规范（位置 / 产物 / gitignore）](./p1/storage-spec/index) | [设计](./p1/storage-spec/design) | [进度](./p1/storage-spec/progress) | ✅ 已实现 |
+| [记忆恢复与 Resume 工作流](./p1/memory-resume/index) | [设计](./p1/memory-resume/design) | [进度](./p1/memory-resume/progress) | ✅ 已实现 |
+| [宿主生命周期硬门禁（Hooks 优先）](./p1/host-lifecycle-gates/index) | [设计](./p1/host-lifecycle-gates/design) | [进度](./p1/host-lifecycle-gates/progress) | 🟡 实施中 |
 
 ## P2 实现规范
 

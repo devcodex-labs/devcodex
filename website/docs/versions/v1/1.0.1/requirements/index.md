@@ -14,13 +14,13 @@
 
 | 优先级 | 主题 | 状态 | 说明 |
 |--------|------|------|------|
-| P1 | [模板边界与开发流程收口](./p1/template-flow-alignment/) | ✅ 已收口 | 正式需求入口、执行模板职责、CP1/CP2/CP3 关注点与 `03/04/05` 产物边界已同步 |
-| P1 | [可配置并发执行策略](./p1/concurrency-policy/) | ✅ 已实现 | `extensions.devcodex.concurrency`、`ConcurrencyPolicy`、只读/验证并发与不可变单写者锁 |
-| P1 | [全局默认 Auto 别名](./p1/global-auto-alias/) | ✅ 已实现 | `@rocky` 全局默认；`extensions.devcodex.autoAliases` 替换默认别名，空数组关闭默认 |
-| P1 | [泄漏风险稳定性压测](./p1/leak-risk-stability-pressure/) | ✅ 已实现 | `LeakRiskStabilityPressureTest`、`leakRiskPressure`、按资源生命周期风险条件触发场景/负载/稳定性压测 |
-| P1 | [前端体验质量门禁](./p1/frontend-experience-quality/) | ✅ 已实现 | `FrontendExperienceQualityGate`、UI/UX 体验门禁、跨项目已吸纳守门、Browser/截图/E2E/人工复核证据 |
-| P1 | [剩余 data 吸纳守门扩展](./p1/data-absorption-guard-extensions/) | ✅ 已实现 | `ProductRequirementTraceabilityGate`、`PackageNameAuthorityGate`、`PerformanceBenchmarkFirstGate`、`PublicModuleDifferentiationGate`、`V2MCPFirstPlanningGate` 与 V62 探针 |
-| P1 | [最新 data 吸纳守门补强](./p1/latest-data-absorption-guards/) | ✅ 已实现 | `WorkspaceDataAbsorptionScopeGate`、`DocsSiteVisualAcceptanceGate`、`OmissionOnlyReviewGate`、`MethodLevelLeakPressureProbe`、`V2FormalSolutionPackage` 与 V63 探针 |
+| P1 | [模板边界与开发流程收口](./p1/template-flow-alignment/index) | ✅ 已收口 | 正式需求入口、执行模板职责、CP1/CP2/CP3 关注点与 `03/04/05` 产物边界已同步 |
+| P1 | [可配置并发执行策略](./p1/concurrency-policy/index) | ✅ 已实现 | `extensions.devcodex.concurrency`、`ConcurrencyPolicy`、只读/验证并发与不可变单写者锁 |
+| P1 | [全局默认 Auto 别名](./p1/global-auto-alias/index) | ✅ 已实现 | `@rocky` 全局默认；`extensions.devcodex.autoAliases` 替换默认别名，空数组关闭默认 |
+| P1 | [泄漏风险稳定性压测](./p1/leak-risk-stability-pressure/index) | ✅ 已实现 | `LeakRiskStabilityPressureTest`、`leakRiskPressure`、按资源生命周期风险条件触发场景/负载/稳定性压测 |
+| P1 | [前端体验质量门禁](./p1/frontend-experience-quality/index) | ✅ 已实现 | `FrontendExperienceQualityGate`、UI/UX 体验门禁、跨项目已吸纳守门、Browser/截图/E2E/人工复核证据 |
+| P1 | [剩余 data 吸纳守门扩展](./p1/data-absorption-guard-extensions/index) | ✅ 已实现 | `ProductRequirementTraceabilityGate`、`PackageNameAuthorityGate`、`PerformanceBenchmarkFirstGate`、`PublicModuleDifferentiationGate`、`V2MCPFirstPlanningGate` 与 V62 探针 |
+| P1 | [最新 data 吸纳守门补强](./p1/latest-data-absorption-guards/index) | ✅ 已实现 | `WorkspaceDataAbsorptionScopeGate`、`DocsSiteVisualAcceptanceGate`、`OmissionOnlyReviewGate`、`MethodLevelLeakPressureProbe`、`V2FormalSolutionPackage` 与 V63 探针 |
 
 ## 版本内开发规则
 

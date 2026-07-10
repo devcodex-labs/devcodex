@@ -6,6 +6,8 @@
 
 | 日期 | 变更内容 | 影响范围 | 原因 |
 |------|---------|---------|------|
+| 2026-07-10 | 新增 Profile 真相、安全审查呈现与发布凭据拓扑门禁 | `ProfileTruthReconciliationGate` / V88、`AuthorizedLocalSecurityAuditPresentationGate` / V89、`PublisherCredentialTopologyGate` / V90、analyze/audit/release consumers、README/website/Profile/部署副本 | 防止过期 Profile 污染结论、授权安全审查因呈现和中断恢复缺口丢失证据，以及首次发布只复制 workflow 却遗漏 publisher/auth/secret scope/package ownership 拓扑 |
+| 2026-07-10 | 新增模型无关双层修复协作契约 | `DualLayerRepairCollaborationContract`、`repair-collaboration`、lightweight/full、`authorizationEvidence`、`findingToPatchMap`、`handoffIntegrity`、`independentReReview`、V87、README/website/Profile/部署副本 | 让所有 repair task 都具备最低决策/验收与执行/验证契约，高风险修复增加独立复证，同时避免把具体模型或切换模型误写成触发条件 |
 | 2026-07-09 | 新增发布包公开脚本依赖闭包门禁 | `PackagedScriptDependencyClosureGate`、`release-verification`、`audit-release`、`test-pack-clean`、V6 包边界检查、`package.json files`、README/website 发布指南 | 防止源码目录测试通过但 npm tarball 内公开脚本缺少本地 helper、spawn 目标脚本或运行时依赖，发布前必须用包边界和临时安装路径验证真实消费者可执行 |
 | 2026-07-09 | 新增记忆启动链真相源门禁 | `MemoryCannotSatisfyBootstrapGate`、`load-profile`、`memory`、test-router、report、`spec-governance`、`spec-absorption`、README/website/Profile、V86 探针 | 将 Codex / 宿主 Memories 只能作为 navigation-hint 的规则纳入可执行链，防止模型凭“记得”跳过 Profile、tasks、reports、review checklist 或源码 / 文档真相源读取 |
 | 2026-07-09 | 扩展 B3 三个专家广度 Skill | `accessibility-i18n`、`growth-analytics`、`business-model-review`、`AccessibilityI18nGate`、`GrowthAnalyticsGate`、`BusinessModelReviewGate`、`ExpertOwnerSkillGate`、V85 探针 | 将无障碍/国际化、增长分析和商业模型从条件候选沉淀为可触发、可验证、可报告的专业 Owner 能力；增长与商业保持 P3 条件触发，避免污染普通开发主路径 |

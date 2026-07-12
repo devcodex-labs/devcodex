@@ -77,6 +77,12 @@ description: 定义意图识别结果到工作流的路由映射。本 Skill 为
 | 无障碍、键盘、焦点、屏幕阅读器、ARIA、国际化、本地化、RTL、多语言文档 | `skills/accessibility-i18n/SKILL.md` | 执行 `AccessibilityI18nGate`，绑定 userNeedsMatrix、keyboardFocusModel、screenReaderSemantics、localeContentModel、rtlFormatting、runtimeVerification、fallbackRecovery |
 | 增长分析、埋点、漏斗、转化、留存、实验、产品数据决策 | `skills/growth-analytics/SKILL.md` | P3 条件触发；执行 `GrowthAnalyticsGate`，绑定 growthQuestion、metricTaxonomy、eventInstrumentation、funnelRetentionModel、experimentDesign、privacyConsentBoundary、decisionLoop |
 | 商业模型、商业化、定价、套餐、成本收益、付费路径、运营风险、长期可持续性 | `skills/business-model-review/SKILL.md` | P3 条件触发；执行 `BusinessModelReviewGate`，绑定 valueExchange、revenueCostModel、pricingPackaging、marketSegmentChannel、operationalRisk、sustainabilityTco、decisionBoundary |
+| 全工作区/项目产物扫描、能力盘点、缺少哪些 Skill、大目录分批、扫描恢复 | `skills/skill-gap-analysis/SKILL.md` | 先执行 `ProjectArtifactScaleRoutingGate` 和 ScaleDecisionRecord，再做 corpus/gap/convergence |
+| Skill 生命周期、组合冲突、依赖、误触发/漏触发、灰度、废弃与退役 | `skills/skill-lifecycle-governance/SKILL.md` | 执行 SkillPortfolioLifecycleGate，active 变化仍需 evolution-governance 授权 |
+| 分布式系统、消息队列、RPC、交付/顺序、幂等、重试、补偿、分区、背压 | `skills/distributed-systems-architecture/SKILL.md` | 执行 DistributedSystemsArchitectureGate，绑定 consistency/delivery/ordering/failure matrix |
+| 性能工程、性能预算、benchmark、profiling、p95/p99、容量和性能回归 | `skills/performance-engineering/SKILL.md` | 执行 PerformanceEngineeringGate，先基线再归因与回归决策 |
+| PII/个人信息、同意、保留删除、驻留、主体权利和隐私审计 | `skills/privacy-compliance-architecture/SKILL.md` | 执行 PrivacyComplianceArchitectureGate，绑定数据生命周期和权利流程 |
+| 模型/Prompt 评测、黄金集、LLM Judge、校准、方差、成本延迟质量和模型回归 | `skills/ai-evaluation-engineering/SKILL.md` | 执行 AiEvaluationEngineeringGate，绑定 dataset/rubric/calibration/variance/regression |
 | 规范吸纳、最新可吸纳、仍需吸纳、检查 `.devcodex/*/data` 吸纳清单、开始吸纳 | `skills/spec-absorption/SKILL.md` | 规范吸纳执行入口；证明通用规范价值、剔除项目独有规则、输出最终清单、分层落点、消费者证明、验证探针和台账回写 |
 | 自我进化、自动吸纳、模型辅助规范优化、自动补 Skill / Prompt / Probe、自动治理候选 | `skills/evolution-governance/SKILL.md` | 自我进化控制面入口；执行 `EvolutionCapabilityControlPlaneGate`，冻结授权、模型配置、权限、配额、数据边界、审计、回滚和发布审批 |
 

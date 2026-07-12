@@ -1,0 +1,4 @@
+interface:
+  display_name: "Privacy Compliance Architecture"
+  short_description: "Design privacy consent, retention, residency, and rights"
+  default_prompt: "Use $privacy-compliance-architecture to define privacy classification, consent, retention, residency, rights, and audit evidence."

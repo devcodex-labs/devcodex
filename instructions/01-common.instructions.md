@@ -2,7 +2,7 @@
 applyTo: "**"
 description: 通用规范总则，覆盖优先级、意图路由、Profile/active-root、宿主适配与治理总线
 priority: P5
-version: 1.11.33
+version: 1.12.0
 ---
 # 通用规范
 
@@ -69,7 +69,7 @@ version: 1.11.33
 | C13 | 规范资产文件过大必须拆分 | AI 新建 DevCodex 规范资产 `.md`（instructions / skills / prompts / templates / 规范源等）超 500 行必须拆分为多个文件（已有文件豁免）；业务项目需求、技术方案、报告和正式项目文档不因 C13 强制拆分，按项目自身规范、可读性和用户要求判断 |
 | C14 | 多任务进度检查点 | 会话包含 ≥2 个独立任务时，每完成一个子任务必须：① 在记忆文件追加该任务进度状态 ② 在对话中输出进度快照（格式严格遵循 `prompts/reply-summary.prompt.md` §6） |
 | C15 | 架构质量视角 | dev/fix 的需求/问题定义、代码设计或架构决策须以**架构师与平台工程师**双重视角评估：消费者范围、共享契约边界、模块职责、可扩展性、可维护性、易上手性。模块化只在真实复用者、演进边界或跨模块共享契约存在时成立；任意维度未达标须说明原因并记录改善方向 |
-| C16 | 批量操作分批 | 执行涉及 ≥10 个文件的批量操作（如测试迁移、批量重命名、批量改写）时，必须主动提出分批方案，推荐每批 10 个，并输出分批计划后等待用户确认再开始执行 |
+| C16 | 规模判断与批量分批 | 分析、审查、扫描或批量操作前必须先识别唯一项目/root，并调用 `skill-gap-analysis` 的 `ProjectArtifactScaleRoutingGate` 做 bounded inventory；根据文件数、可解析字节、最大文件、目录集中度、派生产物比例和消费者扩散面决定 `single-pass / batched / sampled+deep-read / blocked`。≥10 文件 mutation 或非 small corpus 必须分批并写 checkpoint；禁止先无界扫描超时后再补分批 |
 | C17 | 过程改进记录 | 用户建议的执行策略经 AI 确认更优，或揭示规范未定义/不完整且可泛化时，必须立即走 Improvement Intake：写入 `data/process-improvements.md`（优化清单，PI）；若同时暴露规范缺口，再联动 `data/pending-fixes.md`（PF）。不得询问是否记录；所有模式命中后都必须回执 `已记录 PI-xxx / PF-xxx` |
 | C19 | 确认后前置复审 | 每次用户明确确认后、进入下一阶段前，必须执行 `PostConfirmationReviewScopeGate`：低风险单文件或纯文案可做轻量复审；高风险、多模块、公共 API/配置、安全能力、package/adapter、文档消费者、控制面或多真相源同步任务必须升级为冻结清单驱动的全面复审，命中控制面 / 多文件联动 / 真相源同步 / 模板-示例-校验链场景必须追加交叉验证，并显式输出结果；若发现阻断性问题，先修正并告知用户，再重新确认；无阻断问题方可推进 |
 | C20 | 官方文档证据前置 | 新增/升级依赖、框架、SDK、平台 API 或外部模块前必须形成 `OfficialDocsEvidence`；缺失证据不得进入编码 |

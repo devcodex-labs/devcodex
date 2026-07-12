@@ -10,13 +10,15 @@ description: 审查公共维度 G0~G5 + Profile Freshness Check — 所有 audit
 
 ## G0 体量评估（前置，G1 之前执行）
 
+G0 必须先调用 `skill-gap-analysis` 的 `ProjectArtifactScaleRoutingGate`：识别唯一项目/root，使用 bounded inventory 统计文件数、可解析字节、最大文件、目录集中度、派生产物比例和消费者扩散面，形成 `ScaleDecisionRecord` 后才允许 CRS 或内容审查。用户提示目录很大时不得降为 single-pass；项目/root 不明确时必须 blocked。
+
 审查开始前统计待审查文件/目录总数，决定执行策略：
 
 | 文件总数 | 策略 | 说明 |
 |:--------:|------|------|
-| 1~30 | 直接执行全量 audit | 无需分批 |
-| 31~60 | 建议定向审查 | 输出分批建议，等待用户确认后执行 |
-| > 60 | 强制分批 | 输出分批计划后自动开始第一批 |
+| 1~30 | 默认 single-pass 候选 | 仍需同时满足字节、最大文件、派生比例和 fan-out 预算 |
+| 31~60 | 默认 batched | 输出 batch budget/checkpoint 后执行 |
+| > 60 | 强制 batched 或 sampled+deep-read | 全量 inventory，不等于逐字全读 |
 
 > 分批策略详见 [`audit-execution-guide/SKILL.md`](../audit-execution-guide/SKILL.md) §体量分批策略。
 

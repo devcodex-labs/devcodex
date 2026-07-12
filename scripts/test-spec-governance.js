@@ -727,9 +727,9 @@ const probes = [
   ['prompts/report-audit.prompt.md', 'ConfirmedAbsorptionCompletenessGates'],
   ['prompts/report-scenario-test.prompt.md', 'ConfirmedAbsorptionCompletenessGates'],
   ['README.md', 'evolution-governance'],
-  ['website/docs/index.md', '68 个 Skills'],
-  ['website/docs/intro/index.md', '68 个按需触发的工作流技能'],
-  ['website/docs/specs/directory-structure.md', '扁平一级 Skill（68 个）'],
+  ['website/docs/index.md', '74 个 Skills'],
+  ['website/docs/intro/index.md', '74 个按需触发的工作流技能'],
+  ['website/docs/specs/directory-structure.md', '扁平一级 Skill（74 个）'],
   ['website/docs/guide/development.md', 'ConfirmedAbsorptionCompletenessGates'],
   ['website/docs/versions/v1/1.0.1/requirements/p1/latest-data-absorption-guards/index.md', 'V73'],
   ['website/docs/versions/v1/1.0.1/CHANGELOG.md', 'V73 探针'],
@@ -1131,7 +1131,7 @@ for (const [file, needle] of [
   ['prompts/report-fix.prompt.md', 'DocsNavigationReviewMatrix'],
   ['prompts/report-audit.prompt.md', 'audit-user-manual / UserManualReviewScope / DocsNavigationReviewMatrix'],
   ['README.md', '用户侧文档 review 聚合'],
-  ['website/docs/index.md', '68 个 Skills'],
+  ['website/docs/index.md', '74 个 Skills'],
   ['website/docs/intro/index.md', 'audit-user-manual'],
   ['website/docs/guide/development.md', 'audit-user-manual'],
   ['website/docs/specs/directory-structure.md', 'audit-user-manual']
@@ -1184,7 +1184,7 @@ for (const [file, needle] of [
   ['prompts/report-scenario-test.prompt.md', 'negativeExamples'],
   ['README.md', checkV81],
   ['README.md', 'ServiceSpecReadGate'],
-  ['website/docs/index.md', '68 个 Skills'],
+  ['website/docs/index.md', '74 个 Skills'],
   ['website/docs/intro/index.md', checkV81],
   ['website/docs/specs/directory-structure.md', checkV81],
   ['website/docs/guide/development.md', 'CommonNormGeneralizationGate'],
@@ -1329,9 +1329,9 @@ for (const [file, needle] of [
   ['prompts/report-audit.prompt.md', checkV84],
   ['prompts/report-scenario-test.prompt.md', checkV84],
   ['README.md', 'expert-output-quality'],
-  ['website/docs/index.md', '68 个 Skills'],
-  ['website/docs/intro/index.md', '68 个按需触发'],
-  ['website/docs/specs/directory-structure.md', '扁平一级 Skill（68 个）'],
+  ['website/docs/index.md', '74 个 Skills'],
+  ['website/docs/intro/index.md', '74 个按需触发'],
+  ['website/docs/specs/directory-structure.md', '扁平一级 Skill（74 个）'],
   ['website/docs/guide/development.md', checkV84],
   ['website/docs/versions/v1/1.0.1/CHANGELOG.md', 'V84']
 ]) {
@@ -1343,6 +1343,10 @@ mustIncludeInChangelogs('ExpertOutputQualityGate')
 
 const checkV85 = 'ExpertOwnerSkillGate'
 function classifyExpertOwnerSample(sample) {
+  if (/交付语义|消息顺序|分区故障|背压|partitionFailureMatrix/.test(sample)) return 'distributed-systems-architecture'
+  if (/性能预算|可信基准|profiling|瓶颈归因|regressionThresholds/.test(sample)) return 'performance-engineering'
+  if (/数据驻留|主体权利|保留删除|purposeConsentMatrix|dataSubjectRightsFlow/.test(sample)) return 'privacy-compliance-architecture'
+  if (/模型评测|黄金集|Judge 校准|方差报告|judgeCalibration/.test(sample)) return 'ai-evaluation-engineering'
   if (/目标用户|用户价值|优先级|成功指标|scopeBoundary/.test(sample)) return 'product-strategy'
   if (/第一次成功|quick start|接入体验|错误信息|迁移路径|developerPersona/.test(sample)) return 'developer-experience-architecture'
   if (/任务流|信息架构|状态反馈|空态|错误恢复|interactionCost/.test(sample)) return 'ux-interaction-architecture'
@@ -1381,6 +1385,10 @@ for (const [sample, expected] of [
   ['文档站和表单要覆盖无障碍、键盘焦点、屏幕阅读器、国际化和 RTL 验证', 'accessibility-i18n'],
   ['增长漏斗需要定义埋点、留存、实验、转化指标和 metricTaxonomy', 'growth-analytics'],
   ['商业模式审查要覆盖定价、套餐、付费路径、成本收益和 sustainabilityTco', 'business-model-review']
+  ,['消息队列要冻结交付语义、消息顺序、分区故障和 partitionFailureMatrix', 'distributed-systems-architecture']
+  ,['性能预算必须有可信基准、profiling、瓶颈归因和 regressionThresholds', 'performance-engineering']
+  ,['个人信息要定义数据驻留、保留删除、主体权利和 dataSubjectRightsFlow', 'privacy-compliance-architecture']
+  ,['模型评测需要黄金集、Judge 校准、方差报告和 judgeCalibration', 'ai-evaluation-engineering']
 ]) {
   const actual = classifyExpertOwnerSample(sample)
   if (actual !== expected) failures.push(`checkV85 expected ${expected} but got ${actual}: ${sample}`)
@@ -1404,6 +1412,10 @@ const expertOwnerSkills = [
   'accessibility-i18n',
   'growth-analytics',
   'business-model-review'
+  ,'distributed-systems-architecture'
+  ,'performance-engineering'
+  ,'privacy-compliance-architecture'
+  ,'ai-evaluation-engineering'
 ]
 const expertOwnerGates = [
   'ProductStrategyOwnerGate',
@@ -1423,6 +1435,10 @@ const expertOwnerGates = [
   'AccessibilityI18nGate',
   'GrowthAnalyticsGate',
   'BusinessModelReviewGate'
+  ,'DistributedSystemsArchitectureGate'
+  ,'PerformanceEngineeringGate'
+  ,'PrivacyComplianceArchitectureGate'
+  ,'AiEvaluationEngineeringGate'
 ]
 for (const [file, needle] of [
   ['scripts/lib/validate-governance-tail.js', 'checkV85'],
@@ -1452,7 +1468,7 @@ for (const [file, needle] of [
   ['skills/spec-absorption/SKILL.md', checkV85],
   ['skills/dev-plan-review/SKILL.md', checkV85],
   ['skills/test-router/SKILL.md', 'expertOwnerSkills'],
-  ['skills/report/SKILL.md', '17 个专家 Owner Skill'],
+  ['skills/report/SKILL.md', '21 个专家 Owner Skill'],
   ['prompts/technical-design.prompt.md', checkV85],
   ['prompts/implementation-plan.prompt.md', checkV85],
   ['prompts/report-dev.prompt.md', checkV85],
@@ -1460,9 +1476,9 @@ for (const [file, needle] of [
   ['prompts/report-audit.prompt.md', checkV85],
   ['prompts/report-scenario-test.prompt.md', checkV85],
   ['README.md', '专家 Owner Skill'],
-  ['website/docs/index.md', '68 个 Skills'],
+  ['website/docs/index.md', '74 个 Skills'],
   ['website/docs/intro/index.md', '专家 Owner Skill'],
-  ['website/docs/specs/directory-structure.md', '扁平一级 Skill（68 个）'],
+  ['website/docs/specs/directory-structure.md', '扁平一级 Skill（74 个）'],
   ['website/docs/guide/development.md', checkV85],
   ['website/docs/versions/v1/1.0.1/CHANGELOG.md', 'V85']
 ]) {
@@ -1719,6 +1735,19 @@ mustNotInclude(
   '## §10 AI / 研发缺口检查',
   'product requirement template must remain product-only'
 )
+
+const checkV91 = 'ProjectArtifactScaleRoutingGate'
+for (const [file, needle] of [
+  ['scripts/lib/validate-governance-tail.js', 'checkV91'],
+  ['scripts/lib/validate-governance-tail.js', 'classifyArtifactScaleSample'],
+  ['scripts/validate.js', 'checkV91()'],
+  ['skills/skill-gap-analysis/SKILL.md', checkV91],
+  ['skills/skill-lifecycle-governance/SKILL.md', 'SkillPortfolioLifecycleGate'],
+  ['skills/distributed-systems-architecture/SKILL.md', 'DistributedSystemsArchitectureGate'],
+  ['skills/performance-engineering/SKILL.md', 'PerformanceEngineeringGate'],
+  ['skills/privacy-compliance-architecture/SKILL.md', 'PrivacyComplianceArchitectureGate'],
+  ['skills/ai-evaluation-engineering/SKILL.md', 'AiEvaluationEngineeringGate']
+]) mustInclude(file, needle)
 
 const plugin = JSON.parse(read('plugin.json'))
 for (const [id, file] of [

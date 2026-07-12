@@ -1,0 +1,4 @@
+interface:
+  display_name: "Skill Lifecycle Governance"
+  short_description: "Govern skill triggers, dependencies, deprecation, and retirement"
+  default_prompt: "Use $skill-lifecycle-governance to review skill portfolio health, conflicts, lifecycle states, and retirement evidence."

@@ -1,5 +1,13 @@
 # v1.0.1 需求变更日志
 
+> 当前能力索引：专家 Owner 集合已扩展 `distributed-systems-architecture`、`performance-engineering`、`privacy-compliance-architecture`、`ai-evaluation-engineering`；项目规模路由由 `skill-gap-analysis`、`skill-lifecycle-governance` 与 V91 验证。
+
+## 2026-07-13 · DevCodex v1.12.0
+
+- 新增 `skill-gap-analysis` 与 `skill-lifecycle-governance`，在 broad scan 前执行 `ProjectArtifactScaleRoutingGate`，按规模选择一次性、分批、采样深读或阻断。
+- 新增分布式系统、性能工程、隐私合规、AI 评测 4 个专家 Owner，Skill 总数更新为 74，专家 Owner 更新为 21。
+- V91 覆盖项目/root 未解析、超大语料、无 checkpoint、错误 glob 与派生产物污染；V85 同步扩展专家 Owner 消费链。
+
 > 记录 `v1.0.1` 需求文档范围变化。代码与规范文件的实现变更仍以仓库根目录 `CHANGELOG.md` 为准。
 
 ---

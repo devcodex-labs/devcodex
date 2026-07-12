@@ -49,9 +49,10 @@ DevCodex 通过 `.github/`（Copilot）、`CLAUDE.md + .claude/ + .mcp.json`（C
 - **审计与修复授权分离**: `AuditMutationBoundaryGate` 规定 audit 只写报告、audit-state、记忆和运行态台账；任何源码/规范/配置/测试/文档/部署副本修复都需用户显式授权后进入独立 fix/self-fix，audit 不自动改源、`git add` 或继承修复权限
 - **分析与用户文档能力**: `analyze-default` 承接默认只读多轮分析、代码事实优先、analyze-lite CRS 与 PCV 收敛验证；`analyze-research` 承接技术调研/选型。`user-manual-authoring` 负责站点文档、最终用户使用文档、README、quick start、接入手册和 docs-first 用户手册的用户路径、信息架构、配置/排错和真实工作流；`readme-authoring` 是 README 专项分支，`audit-user-manual` 是用户侧文档 / 项目文档 / 菜单导航 / 信息架构专项 review 聚合入口，`audit-readme` 负责 README / 用户使用文档专项 review；`UserPerspectiveDocsGate` 要求文档按使用者第一次成功、常见任务、字段/参数/状态/错误解释、排错恢复和低心智负担组织，`UserDocsImmediateComprehensionGate` 要求用户文档输出功能完整性、配置易懂性和首次读者即时理解三轴结论，`UserDocsPrimarySurfaceGate` 要求站点文档 / README / quick start 先冻结 targetSurface、documentLocation 与 primaryAudience，首页首屏、quick start、nav/sidebar、CTA 和 reference 主路径必须服务用户使用而不是开发契约，`FinalUserManualFirstGate` / `DocsSiteInformationArchitectureGate` / `UserManualFlowAndFailureGate` / `QueueDocsRealWorkflowGate` 要求需求概况后优先产出最终用户使用文档，文档站按任务组织并覆盖成功、失败恢复和队列/异步真实工作流，`PublicUserDocsMaintainerBoundaryGate` 要求公开用户文档不混入维护者 checklist、内部同步清单或台账状态，`DocsConsumerSweep` 与 `UserPathContractSweep` 负责同步 README、website、Profile、示例、模板、导航、validate、部署副本和代码消费点
 - **专家型产物质量能力**: `expert-output-quality` 负责代码、文档、示例、fixture、quick start、技术方案和报告的专家型输出质量；`ExpertOutputQualityGate` 要求先给生产推荐路径、框架原生能力和项目既有能力，再说明 fixture/mock/demo 边界、反模式和证据矩阵。V84 探针会阻止把测试夹具、硬编码单例或每个 route 重复声明包装成生产推荐实践。
-- **专家 Owner Skill 能力**: 17 个专家 Owner Skill 分别承接产品策略、开发者体验、UX 交互、前端架构、后端领域架构、生产可用性 / SRE、API 契约、外部集成、平台生态、AI Agent 系统、数据架构、安全威胁建模、质量策略、设计系统、无障碍/国际化、增长分析和商业模型；`growth-analytics` 与 `business-model-review` 为 P3 条件触发，未命中时写 `N/A + skipReason`；`ExpertOwnerSkillGate` 要求报告 ownerSkill、triggerReason、requiredFields、validationRoute、skipReason 和 V85/targeted probe 证据，避免“专家视角”只停留在泛泛口号。
+- **专家 Owner Skill 能力**: 21 个专家 Owner Skill 分别承接产品策略、开发者体验、UX 交互、前端架构、后端领域架构、生产可用性 / SRE、API 契约、外部集成、平台生态、AI Agent 系统、数据架构、安全威胁建模、质量策略、设计系统、无障碍/国际化、增长分析和商业模型；`growth-analytics` 与 `business-model-review` 为 P3 条件触发，未命中时写 `N/A + skipReason`；`ExpertOwnerSkillGate` 要求报告 ownerSkill、triggerReason、requiredFields、validationRoute、skipReason 和 V85/targeted probe 证据，避免“专家视角”只停留在泛泛口号。
 - **复审清单能力**: `review-checklist` 负责正式复审、ECR、发布前复审、多轮收敛和外部 finding 批次的清单创建、范围冻结、逐项证据执行、遗漏逃逸分析、状态新鲜度和收敛关闭；`PostConfirmationReviewScopeGate` 要求 CP 确认后按风险选择轻量或全面复审；`ReviewEscapeRecordGate` 要求发现遗漏时先在清单写入 `whyMissed / prevention / checklistPatch / rerunEvidence`，再补清单和重跑验证
 - **实施偏移与文档 IA 守门**: `DevelopmentDriftGate` 在编码前和实施中核对 `allowedFirstBatch / blockedScope / driftTriggers / validationRoute`；`VerificationPlanMaterializationProbe` 要求技术方案物化验证计划、验收标准和退出条件；`ChinesePrimaryExpressionGate`、`SidebarPageRoleMaterializationProbe` 与 `SidebarGroupSemanticModelProbe` 要求用户文档中文主表达、页面角色和 sidebar 分组语义可验证
+- **Skill 缺口与生命周期能力**: `skill-gap-analysis` 负责 `ProjectArtifactScaleRoutingGate`，`skill-lifecycle-governance` 负责 portfolio 生命周期；`distributed-systems-architecture`、`performance-engineering`、`privacy-compliance-architecture`、`ai-evaluation-engineering` 为新增专业 Owner，V85/V91 守门。
 - **自我进化治理能力**: `evolution-governance` 负责自我进化、自动吸纳、模型辅助规范优化、自动补 Skill / Prompt / Probe 和自动治理候选的控制面，执行 `EvolutionCapabilityControlPlaneGate`，冻结授权、模型配置、租户 / 权限、配额、数据边界、审计、回滚和发布审批；模型输出只能进入候选态，不能直接写 active 规范或发版
 - **Profile 新鲜度审查**: audit 会先执行 `Profile Freshness Check`，反向核对 Profile 是否仍匹配当前包版本、目录资产、脚本、发布状态、宿主能力和任务现实
 - **Profile 真相对账**: `ProfileTruthReconciliationGate` 由 `load-profile` 统一承接；项目级 analyze 使用 targeted 模式，audit 使用 full/PFresh 模式并反查 repo shape 与 Profile 档位/生命周期文件。`ProfileTruthMatrix` 记录声明、实际来源、漂移分类、结论权威和修订路线；只读工作流只矫正结论，不直接修改 Profile。V88 提供正负向同步探针。
@@ -119,7 +120,7 @@ npx @vextjs/devcodex init --codex  # 仅 Codex adapter
 ├── copilot-instructions.md  ← 默认 Copilot always-on 总则（新增）
 ├── instructions/   ← Instructions 约束（15 个，含全部工作流规则）
 ├── agents/         ← Copilot 自定义 Agent（v1.9.8 起恢复默认分发）
-├── skills/         ← Skill 详细检查标准（68 个，按需读取，含默认分析、用户文档、用户侧文档 review 聚合、专家型产物质量、17 个专家 Owner Skill、复审清单、自我进化治理、README 专项能力、spec-governance、spec-absorption 与 5 个支撑型 Skill）
+├── skills/         ← Skill 详细检查标准（74 个，按需读取，含默认分析、用户文档、用户侧文档 review 聚合、专家型产物质量、21 个专家 Owner Skill、复审清单、自我进化治理、README 专项能力、spec-governance、spec-absorption 与 5 个支撑型 Skill）
 ├── prompts/        ← Prompt 模板（30 个）
 ├── hooks/          ← 宿主生命周期 Hook 配置与运行时
 │   ├── devcodex.lifecycle.json
@@ -323,7 +324,7 @@ devcodex/
 ├── instructions.md # 单源规范文件；安装时按平台生成 copilot-instructions.md / CLAUDE.md / AGENTS.md
 ├── agents/        # Agent 源文件；Copilot 端默认分发，Claude Code 端不分发
 ├── instructions/  # 全局 Instructions（15 个，含工作流规则摘要，自动注入）
-├── skills/        # Skill 详细检查标准（68 个，按 01-common §按需读取表 路由读取）
+├── skills/        # Skill 详细检查标准（74 个，按 01-common §按需读取表 路由读取）
 ├── prompts/       # Prompt 模板（30 个）
 ├── hooks/         # Workspace Hooks 配置与分发到 `.github/hooks/_runtime/` 的运行时及 helper 模块
 ├── codex/         # Codex adapter 源模板（分发到 `.codex/hooks.json`，不是工作区部署副本 `.codex/`）
@@ -344,7 +345,7 @@ README / 用户使用文档当前补充四类专项 Skill：`user-manual-authori
 
 代码、文档、示例、fixture、quick start、技术方案和报告的专家型输出由 `expert-output-quality` 承接。`ExpertOutputQualityGate` 要求报告或文档不能只解释“fixture 能跑通”，还要给出生产推荐路径、框架原生能力、项目既有 helper、fixture/mock/demo 边界、反模式对照和证据矩阵；V84 负责同步 Skill、Prompt、执行消费者、README/website/Profile/changelog 和部署副本。
 
-产品策略、开发者体验、UX 交互、前端架构、后端领域架构、生产可用性 / SRE、API 契约、外部集成、平台生态、AI Agent 系统、数据架构、安全威胁建模、质量策略、设计系统、无障碍/国际化、增长分析和商业模型由 17 个专家 Owner Skill 承接：`product-strategy`、`developer-experience-architecture`、`ux-interaction-architecture`、`frontend-architecture`、`backend-domain-architecture`、`production-readiness-sre`、`api-contract-architecture`、`external-integration-architecture`、`platform-ecosystem-architecture`、`ai-agent-system-architecture`、`data-architecture`、`security-threat-modeling`、`quality-strategy`、`design-system-architecture`、`accessibility-i18n`、`growth-analytics`、`business-model-review`。`growth-analytics` 与 `business-model-review` 为 P3 条件触发，不污染普通开发主路径；`ExpertOwnerSkillGate` 要求在技术方案、实施计划、TestRoute 和报告中记录 ownerSkill、triggerReason、requiredFields、validationRoute、skipReason 与 V85/targeted probe 证据，避免把专业判断只写成笼统的“从专家角度考虑”。
+产品策略、开发者体验、UX 交互、前端架构、后端领域架构、生产可用性 / SRE、API 契约、外部集成、平台生态、AI Agent 系统、数据架构、安全威胁建模、质量策略、设计系统、无障碍/国际化、增长分析和商业模型由 21 个专家 Owner Skill 承接：`product-strategy`、`developer-experience-architecture`、`ux-interaction-architecture`、`frontend-architecture`、`backend-domain-architecture`、`production-readiness-sre`、`api-contract-architecture`、`external-integration-architecture`、`platform-ecosystem-architecture`、`ai-agent-system-architecture`、`data-architecture`、`security-threat-modeling`、`quality-strategy`、`design-system-architecture`、`accessibility-i18n`、`growth-analytics`、`business-model-review`、`distributed-systems-architecture`、`performance-engineering`、`privacy-compliance-architecture`、`ai-evaluation-engineering`。`growth-analytics` 与 `business-model-review` 为 P3 条件触发，不污染普通开发主路径；`ExpertOwnerSkillGate` 要求在技术方案、实施计划、TestRoute 和报告中记录 ownerSkill、triggerReason、requiredFields、validationRoute、skipReason 与 V85/targeted probe 证据，避免把专业判断只写成笼统的“从专家角度考虑”。
 
 正式复审、ECR、发布前复审、多轮收敛和外部 finding 批次由 `review-checklist` 管理清单文件、冻结范围、逐项证据、遗漏逃逸分析、状态新鲜度和关闭结论；CP 确认后由 `PostConfirmationReviewScopeGate` 判定轻量或全面复审。报告中的 `ReviewChecklistCompletenessGate` / `EvidenceExecutionGate` / `ReviewEscapeRecordGate` 必须引用该清单或说明 N/A。复审发现新遗漏时，先写 escape record 的 `escapedItem / whyMissed / prevention / checklistPatch / rerunEvidence`，再补清单、重跑验证并判断是否写 VL/PF/GAP。
 

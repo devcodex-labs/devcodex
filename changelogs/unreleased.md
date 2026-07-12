@@ -8,7 +8,7 @@
 
 ## 当前未发布变更
 
-> 暂无。上一批变更已归档到 `changelogs/releases/v1.11.33.md`；后续未发布实现继续按日期倒序追加。
+> 暂无。上一批变更已归档到 `changelogs/releases/v1.12.0.md`；后续未发布实现继续按日期倒序追加。
 
 ## 记录提示
 
@@ -32,7 +32,8 @@
 - A1~A10 最新吸纳执行包需显式标明 `LatestAbsorptionExecutionPack`、`ConfigCanonicalNamespaceGate`、`ProfileRuntimeContractSyncGate`、`BehaviorSemanticDocsParityGate`、`NegativeTranslationParityProbe`、`DocsExampleTruthSurfaceGate`、`CallbackExampleScopeProbe`、`DerivedMetricConsumerProbe`、`DerivedConsumerFailureInjectionProbe`、`FeatureInventoryProfileGate`、`FeatureChecklistEvidenceMatrixGate`、`BatchEvidenceLedgerStateGate`、`BatchProgressCardGate` 和 V82 探针，避免名称只停留在扫描报告或候选表。
 - Profile 三档与全项目校验变更需显式标明 `ProfileTierStandardGate`、`ProfileLifecycleClassificationGate`、`AllDevCodexProfileValidationGate`、`profile-lite`、`profile-standard`、`profile-closed-loop`、`validate-all-profiles` 和 V83 探针，避免只更新单项目 Profile 而遗漏 `.devcodex` 下其他项目。
 - 专家型产物质量变更需显式标明 `expert-output-quality`、`ExpertOutputQualityGate`、`ProductionRecommendedPathGate`、`FrameworkNativeCapabilityFirstGate`、`FixtureBoundaryDisclosureGate`、`AntiPatternContrastGate`、`ExpertEvidenceMatrixGate` 和 V84 探针，避免只优化文案但继续把测试夹具或低阶重复写法误导成生产推荐路径。
-- 专家 Owner Skill 变更需显式标明 `ExpertOwnerSkillGate`、`product-strategy`、`developer-experience-architecture`、`ux-interaction-architecture`、`frontend-architecture`、`backend-domain-architecture`、`production-readiness-sre`、`api-contract-architecture`、`external-integration-architecture`、`platform-ecosystem-architecture`、`ai-agent-system-architecture`、`data-architecture`、`security-threat-modeling`、`quality-strategy`、`design-system-architecture`、`accessibility-i18n`、`growth-analytics`、`business-model-review` 和 V85 探针，避免只写“专家视角”但没有 ownerSkill、字段、消费者和验证证据；增长 / 商业需保留 P3 条件触发与 `N/A + skipReason`。
+- 专家 Owner Skill 变更需显式标明 `ExpertOwnerSkillGate`、`product-strategy`、`developer-experience-architecture`、`ux-interaction-architecture`、`frontend-architecture`、`backend-domain-architecture`、`production-readiness-sre`、`api-contract-architecture`、`external-integration-architecture`、`platform-ecosystem-architecture`、`ai-agent-system-architecture`、`data-architecture`、`security-threat-modeling`、`quality-strategy`、`design-system-architecture`、`accessibility-i18n`、`growth-analytics`、`business-model-review`、`distributed-systems-architecture`、`performance-engineering`、`privacy-compliance-architecture`、`ai-evaluation-engineering` 和 V85 探针，避免只写“专家视角”但没有 ownerSkill、字段、消费者和验证证据；增长 / 商业需保留 P3 条件触发与 `N/A + skipReason`。
+- 项目/目录分析、审查和扫描必须先执行 `ProjectArtifactScaleRoutingGate`：识别项目与 root，采集文件数、可解析字节、最大文件、目录集中度、派生产物比和消费者扇出，再选择 single-pass / batched / sampled+deep-read / blocked；`skill-gap-analysis`、`skill-lifecycle-governance` 与 V91 防止大目录无界扫描和 Skill 组合无治理增长。
 - 记忆启动链真相源变更需显式标明 `MemoryCannotSatisfyBootstrapGate`、`navigation-hint`、`load-profile`、`memory`、test-router、report、README/website/Profile、V86 探针和来源台账回写，避免内置 Memories 被误当 bootstrap / CP / 报告 / 验证证据。
 - 修复协作契约变更需显式标明 `DualLayerRepairCollaborationContract`、`repair-collaboration`、lightweight/full、`authorizationEvidence`、`findingToPatchMap`、`handoffIntegrity`、`independentReReview` 和 V87 探针；模型名称不得成为触发条件。
 - Profile 真相、安全审查呈现与发布凭据拓扑变更需显式标明 `ProfileTruthReconciliationGate` / V88、`AuthorizedLocalSecurityAuditPresentationGate` / V89、`PublisherCredentialTopologyGate` / V90；报告/文档不得让过期 Profile 覆盖代码事实、不得承诺绕过平台安全控制、不得包含 secret value。

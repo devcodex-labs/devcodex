@@ -1655,9 +1655,9 @@ function buildGovernanceTailChecks(ctx) {
       { file: 'prompts/report-scenario-test.prompt.md', needles: ['SkillFirstAbsorptionGate'] },
       { file: 'README.md', needles: ['Skill-first 吸纳架构', 'user-manual-authoring', 'review-checklist'] },
       { file: 'website/docs/guide/development.md', needles: ['Skill-first 吸纳架构', 'user-manual-authoring', 'review-checklist'] },
-      { file: 'website/docs/index.md', needles: ['68 个 Skills'] },
-      { file: 'website/docs/intro/index.md', needles: ['68 个按需触发的工作流技能', 'user-manual-authoring', 'review-checklist'] },
-      { file: 'website/docs/specs/directory-structure.md', needles: ['扁平一级 Skill（68 个）', 'user-manual-authoring', 'review-checklist'] },
+      { file: 'website/docs/index.md', needles: ['74 个 Skills'] },
+      { file: 'website/docs/intro/index.md', needles: ['74 个按需触发的工作流技能', 'user-manual-authoring', 'review-checklist'] },
+      { file: 'website/docs/specs/directory-structure.md', needles: ['扁平一级 Skill（74 个）', 'user-manual-authoring', 'review-checklist'] },
       { file: 'website/docs/versions/v1/1.0.1/requirements/p1/latest-data-absorption-guards/index.md', needles: gates.concat(['V71', 'user-manual-authoring', 'review-checklist']) },
       { file: 'website/docs/versions/v1/1.0.1/CHANGELOG.md', needles: ['V71 探针', 'SkillFirstAbsorptionGate', 'user-manual-authoring', 'review-checklist'] },
       { file: 'changelogs/releases/v1.11.27.md', needles: gates.concat(['V71', 'PI-079', 'PI-080', 'PI-081', 'PF-084', 'PF-085', 'PF-086', 'user-manual-authoring', 'review-checklist']) },
@@ -1800,10 +1800,10 @@ function buildGovernanceTailChecks(ctx) {
       { file: 'prompts/report-fix.prompt.md', needles: ['ConfirmedAbsorptionCompletenessGates', 'FrontendAsyncCacheRenderGate', 'RemoteCIParityPushGate'] },
       { file: 'prompts/report-audit.prompt.md', needles: ['ConfirmedAbsorptionCompletenessGates', 'GovernanceGateRegistry', 'evolution-control-plane'] },
       { file: 'prompts/report-scenario-test.prompt.md', needles: ['ConfirmedAbsorptionCompletenessGates', 'GovernanceGateRegistry', 'frontend-runtime'] },
-      { file: 'README.md', needles: ['ConfirmedAbsorptionCompletenessGates', 'evolution-governance', '68 个'] },
-      { file: 'website/docs/index.md', needles: ['68 个 Skills'] },
-      { file: 'website/docs/intro/index.md', needles: ['68 个按需触发的工作流技能', 'evolution-governance'] },
-      { file: 'website/docs/specs/directory-structure.md', needles: ['扁平一级 Skill（68 个）', 'evolution-governance'] },
+      { file: 'README.md', needles: ['ConfirmedAbsorptionCompletenessGates', 'evolution-governance', '74 个'] },
+      { file: 'website/docs/index.md', needles: ['74 个 Skills'] },
+      { file: 'website/docs/intro/index.md', needles: ['74 个按需触发的工作流技能', 'evolution-governance'] },
+      { file: 'website/docs/specs/directory-structure.md', needles: ['扁平一级 Skill（74 个）', 'evolution-governance'] },
       { file: 'website/docs/guide/development.md', needles: ['ConfirmedAbsorptionCompletenessGates', 'evolution-governance'] },
       { file: 'website/docs/versions/v1/1.0.1/requirements/p1/latest-data-absorption-guards/index.md', needles: gates.concat(['V73', 'evolution-governance']) },
       { file: 'website/docs/versions/v1/1.0.1/CHANGELOG.md', needles: ['V73 探针', 'ConfirmedAbsorptionCompletenessGates', 'evolution-governance'] },
@@ -2257,11 +2257,11 @@ function buildGovernanceTailChecks(ctx) {
       { file: 'prompts/report-dev.prompt.md', needles: gates },
       { file: 'prompts/report-fix.prompt.md', needles: gates },
       { file: 'prompts/report-audit.prompt.md', needles: gates.concat(['文档设计', '菜单导航']) },
-      { file: 'README.md', needles: ['68 个', 'audit-user-manual', '用户侧文档 review 聚合'] },
-      { file: 'website/docs/index.md', needles: ['68 个 Skills', '用户侧文档 review 聚合'] },
-      { file: 'website/docs/intro/index.md', needles: ['68 个按需触发', 'audit-user-manual'] },
+      { file: 'README.md', needles: ['74 个', 'audit-user-manual', '用户侧文档 review 聚合'] },
+      { file: 'website/docs/index.md', needles: ['74 个 Skills', '用户侧文档 review 聚合'] },
+      { file: 'website/docs/intro/index.md', needles: ['74 个按需触发', 'audit-user-manual'] },
       { file: 'website/docs/guide/development.md', needles: ['audit-user-manual', '菜单导航', 'sidebar'] },
-      { file: 'website/docs/specs/directory-structure.md', needles: ['68 个', 'audit-user-manual', '用户侧文档 review'] },
+      { file: 'website/docs/specs/directory-structure.md', needles: ['74 个', 'audit-user-manual', '用户侧文档 review'] },
       { file: 'active profile corpus', content: profileCorpus, needles: ['68', 'audit-user-manual'] },
       { file: 'scripts/test-spec-governance.js', needles: ['checkV80'].concat(gates) },
       { file: 'scripts/validate.js', needles: ['V80 audit-user-manual aggregation skill sync', 'checkV80()'] },
@@ -2332,10 +2332,10 @@ function buildGovernanceTailChecks(ctx) {
       { file: 'prompts/report-fix.prompt.md', needles: ['spec-absorption', 'AbsorptionCandidateConsumerProofGate', 'targetOwner'] },
       { file: 'prompts/report-audit.prompt.md', needles: ['spec-absorption', 'projectSpecificResidue', 'devcodexConsumerEvidence'] },
       { file: 'prompts/report-scenario-test.prompt.md', needles: ['spec-absorption', 'negativeExamples', 'validationRoute'] },
-      { file: 'README.md', needles: ['spec-absorption', 'CommonNormGeneralizationGate', 'ServiceSpecReadGate', '68 个'] },
-      { file: 'website/docs/index.md', needles: ['68 个 Skills', '规范吸纳执行'] },
-      { file: 'website/docs/intro/index.md', needles: ['68 个按需触发的工作流技能', 'spec-absorption'] },
-      { file: 'website/docs/specs/directory-structure.md', needles: ['扁平一级 Skill（68 个）', 'spec-absorption'] },
+      { file: 'README.md', needles: ['spec-absorption', 'CommonNormGeneralizationGate', 'ServiceSpecReadGate', '74 个'] },
+      { file: 'website/docs/index.md', needles: ['74 个 Skills', '规范吸纳执行'] },
+      { file: 'website/docs/intro/index.md', needles: ['74 个按需触发的工作流技能', 'spec-absorption'] },
+      { file: 'website/docs/specs/directory-structure.md', needles: ['扁平一级 Skill（74 个）', 'spec-absorption'] },
       { file: 'website/docs/guide/development.md', needles: ['spec-absorption', 'CommonNormGeneralizationGate', 'ServiceSpecReadGate'] },
       { file: 'website/docs/versions/v1/1.0.1/CHANGELOG.md', needles: ['spec-absorption', 'V81'] },
       { file: 'active profile corpus', content: profileCorpus, needles: ['68', 'spec-absorption'] },
@@ -2563,10 +2563,10 @@ function buildGovernanceTailChecks(ctx) {
       { file: 'prompts/report-fix.prompt.md', needles: ['ExpertOutputQualityGate', 'V84'] },
       { file: 'prompts/report-audit.prompt.md', needles: ['ExpertOutputQualityGate', 'V84'] },
       { file: 'prompts/report-scenario-test.prompt.md', needles: ['ExpertOutputQualityGate', 'V84'] },
-      { file: 'README.md', needles: ['68 个', 'expert-output-quality', 'V84', 'ExpertOutputQualityGate'] },
-      { file: 'website/docs/index.md', needles: ['68 个 Skills', 'expert-output-quality'] },
-      { file: 'website/docs/intro/index.md', needles: ['68 个按需触发', 'expert-output-quality'] },
-      { file: 'website/docs/specs/directory-structure.md', needles: ['扁平一级 Skill（68 个）', 'expert-output-quality'] },
+      { file: 'README.md', needles: ['74 个', 'expert-output-quality', 'V84', 'ExpertOutputQualityGate'] },
+      { file: 'website/docs/index.md', needles: ['74 个 Skills', 'expert-output-quality'] },
+      { file: 'website/docs/intro/index.md', needles: ['74 个按需触发', 'expert-output-quality'] },
+      { file: 'website/docs/specs/directory-structure.md', needles: ['扁平一级 Skill（74 个）', 'expert-output-quality'] },
       { file: 'website/docs/guide/development.md', needles: ['expert-output-quality', 'ExpertOutputQualityGate', 'V84'] },
       { file: 'website/docs/versions/v1/1.0.1/CHANGELOG.md', needles: ['V84', 'expert-output-quality', 'ExpertOutputQualityGate'] },
       { file: 'scripts/test-spec-governance.js', needles: ['checkV84', 'classifyExpertOutputSample', 'ExpertOutputQualityGate'] },
@@ -2588,6 +2588,10 @@ function buildGovernanceTailChecks(ctx) {
   }
 
   function classifyExpertOwnerSample(sample) {
+    if (/交付语义|消息顺序|分区故障|背压|partitionFailureMatrix/.test(sample)) return 'distributed-systems-architecture'
+    if (/性能预算|可信基准|profiling|瓶颈归因|regressionThresholds/.test(sample)) return 'performance-engineering'
+    if (/数据驻留|主体权利|保留删除|purposeConsentMatrix|dataSubjectRightsFlow/.test(sample)) return 'privacy-compliance-architecture'
+    if (/模型评测|黄金集|Judge 校准|方差报告|judgeCalibration/.test(sample)) return 'ai-evaluation-engineering'
     if (/目标用户|用户价值|优先级|成功指标|scopeBoundary/.test(sample)) return 'product-strategy'
     if (/第一次成功|quick start|接入体验|错误信息|迁移路径|developerPersona/.test(sample)) return 'developer-experience-architecture'
     if (/任务流|信息架构|状态反馈|空态|错误恢复|interactionCost/.test(sample)) return 'ux-interaction-architecture'
@@ -2627,6 +2631,10 @@ function buildGovernanceTailChecks(ctx) {
       ['accessibility-i18n', 'AccessibilityI18nGate', ['userNeedsMatrix', 'keyboardFocusModel', 'screenReaderSemantics', 'localeContentModel', 'rtlFormatting', 'runtimeVerification', 'fallbackRecovery', 'evidenceMatrix']],
       ['growth-analytics', 'GrowthAnalyticsGate', ['growthQuestion', 'metricTaxonomy', 'eventInstrumentation', 'funnelRetentionModel', 'experimentDesign', 'privacyConsentBoundary', 'decisionLoop', 'evidenceMatrix']],
       ['business-model-review', 'BusinessModelReviewGate', ['valueExchange', 'revenueCostModel', 'pricingPackaging', 'marketSegmentChannel', 'operationalRisk', 'sustainabilityTco', 'decisionBoundary', 'evidenceMatrix']]
+      ,['distributed-systems-architecture', 'DistributedSystemsArchitectureGate', ['consistencyModel', 'deliverySemantics', 'orderingPolicy', 'idempotencyModel', 'retryBudget', 'compensationPlan', 'partitionFailureMatrix', 'backpressurePlan']]
+      ,['performance-engineering', 'PerformanceEngineeringGate', ['workloadModel', 'performanceBudget', 'benchmarkProtocol', 'profilingEvidence', 'bottleneckAttribution', 'capacityModel', 'regressionThresholds']]
+      ,['privacy-compliance-architecture', 'PrivacyComplianceArchitectureGate', ['dataClassificationMap', 'purposeConsentMatrix', 'retentionDeletionPolicy', 'residencyBoundary', 'dataSubjectRightsFlow', 'privacyAuditEvidence']]
+      ,['ai-evaluation-engineering', 'AiEvaluationEngineeringGate', ['evaluationDatasetManifest', 'goldenCaseSet', 'metricRubric', 'judgeCalibration', 'varianceReport', 'costLatencyQualityFrontier', 'regressionDecision']]
     ]
     const skillNames = skillMap.map(([name]) => name)
     const gates = skillMap.map(([, gate]) => gate)
@@ -2649,6 +2657,10 @@ function buildGovernanceTailChecks(ctx) {
       ['文档站和表单要覆盖无障碍、键盘焦点、屏幕阅读器、国际化和 RTL 验证', 'accessibility-i18n'],
       ['增长漏斗需要定义埋点、留存、实验、转化指标和 metricTaxonomy', 'growth-analytics'],
       ['商业模式审查要覆盖定价、套餐、付费路径、成本收益和 sustainabilityTco', 'business-model-review']
+      ,['消息队列要冻结交付语义、消息顺序、分区故障和 partitionFailureMatrix', 'distributed-systems-architecture']
+      ,['性能预算必须有可信基准、profiling、瓶颈归因和 regressionThresholds', 'performance-engineering']
+      ,['个人信息要定义数据驻留、保留删除、主体权利和 dataSubjectRightsFlow', 'privacy-compliance-architecture']
+      ,['模型评测需要黄金集、Judge 校准、方差报告和 judgeCalibration', 'ai-evaluation-engineering']
     ]
     for (const [sample, expected] of sampleExpectations) {
       const actual = classifyExpertOwnerSample(sample)
@@ -2678,22 +2690,22 @@ function buildGovernanceTailChecks(ctx) {
       { file: 'skills/spec-absorption/SKILL.md', needles: ['ExpertOwnerSkillGate'].concat(skillNames) },
       { file: 'skills/dev-plan-review/SKILL.md', needles: ['ExpertOwnerSkillGate', 'ownerSkill', 'triggerReason', 'requiredFields', 'V85'] },
       { file: 'skills/test-router/SKILL.md', needles: ['expertOwnerSkills', 'ExpertOwnerSkillGate', 'V85'].concat(gates) },
-      { file: 'skills/report/SKILL.md', needles: ['ExpertOwnerSkillGate', '17 个专家 Owner Skill', 'V85'].concat(gates) },
+      { file: 'skills/report/SKILL.md', needles: ['ExpertOwnerSkillGate', '21 个专家 Owner Skill', 'V85'].concat(gates) },
       { file: 'prompts/technical-design.prompt.md', needles: ['ExpertOwnerSkillGate', 'V85/targeted probe'].concat(skillNames) },
       { file: 'prompts/implementation-plan.prompt.md', needles: ['ExpertOwnerSkillGate', 'V85-targeted probe'].concat(skillNames) },
       { file: 'prompts/report-dev.prompt.md', needles: ['ExpertOwnerSkillGate', 'V85'].concat(skillNames) },
       { file: 'prompts/report-fix.prompt.md', needles: ['ExpertOwnerSkillGate', 'V85'].concat(skillNames) },
       { file: 'prompts/report-audit.prompt.md', needles: ['ExpertOwnerSkillGate', 'V85'].concat(skillNames) },
       { file: 'prompts/report-scenario-test.prompt.md', needles: ['ExpertOwnerSkillGate', 'V85'].concat(gates) },
-      { file: 'README.md', needles: ['68 个', '专家 Owner Skill', 'ExpertOwnerSkillGate', 'V85'].concat(skillNames) },
-      { file: 'website/docs/index.md', needles: ['68 个 Skills', '专家 Owner Skill'] },
-      { file: 'website/docs/intro/index.md', needles: ['68 个按需触发', '专家 Owner Skill'] },
-      { file: 'website/docs/specs/directory-structure.md', needles: ['扁平一级 Skill（68 个）', 'ExpertOwnerSkillGate'].concat(skillNames) },
+      { file: 'README.md', needles: ['74 个', '21 个专家 Owner Skill', 'ExpertOwnerSkillGate', 'V85'].concat(skillNames) },
+      { file: 'website/docs/index.md', needles: ['74 个 Skills', '专家 Owner Skill'] },
+      { file: 'website/docs/intro/index.md', needles: ['74 个按需触发', '专家 Owner Skill'] },
+      { file: 'website/docs/specs/directory-structure.md', needles: ['扁平一级 Skill（74 个）', 'ExpertOwnerSkillGate'].concat(skillNames) },
       { file: 'website/docs/guide/development.md', needles: ['ExpertOwnerSkillGate', 'V85'].concat(skillNames) },
       { file: 'website/docs/versions/v1/1.0.1/CHANGELOG.md', needles: ['V85', 'ExpertOwnerSkillGate'].concat(skillNames) },
       { file: 'scripts/test-spec-governance.js', needles: ['checkV85', 'classifyExpertOwnerSample', 'ExpertOwnerSkillGate'] },
       { file: 'scripts/validate.js', needles: ['V85 expert owner skill sync', 'checkV85()'] },
-      { file: 'active profile corpus', content: profileCorpus, needles: ['68', '专家 Owner Skill', 'ExpertOwnerSkillGate', 'V85'].concat(skillNames) },
+      { file: 'active profile corpus', content: profileCorpus, needles: ['74', '21 个专家 Owner Skill', 'ExpertOwnerSkillGate', 'V85'].concat(skillNames) },
       { file: 'changelog corpus', content: changelogCorpus, needles: ['V85', 'ExpertOwnerSkillGate'].concat(skillNames) }
     ]
 
@@ -2958,6 +2970,55 @@ function buildGovernanceTailChecks(ctx) {
     console.log('[V90] publisher credential topology sync checked')
   }
 
+  function classifyArtifactScaleSample(sample) {
+    if (/project=(null|unknown)|root=(null|unknown)|unresolved/.test(sample)) return 'blocked'
+    if (/invalid-glob|derived-pollution|timeout-no-checkpoint/.test(sample)) return 'invalid'
+    if (/files=([5-9]\d\d|\d{4,})|bytes=(2[1-9]|[3-9]\d)MiB|derived=([3-9]\d|100)%/.test(sample)) return 'sampled+deep-read'
+    if (/user-large|fanout=([1-9]\d|\d{3,})|files=([5-9]\d|[1-4]\d\d)/.test(sample)) return /checkpoint=/.test(sample) ? 'batched' : 'invalid'
+    if (/files=([0-4]?\d|50)\b/.test(sample) && /bytes=([01](\.\d+)?|2)MiB/.test(sample)) return 'single-pass'
+    return 'needs-review'
+  }
+
+  function checkV91() {
+    const samples = [
+      ['project=dev root=repo files=20 bytes=1MiB largest=10KiB fanout=4', 'single-pass'],
+      ['project=dev root=repo user-large files=40 bytes=1MiB checkpoint=memory/b1', 'batched'],
+      ['project=dev root=repo files=600 bytes=8MiB derived=10%', 'sampled+deep-read'],
+      ['project=unknown root=unknown unresolved', 'blocked'],
+      ['project=dev root=repo files=80 bytes=3MiB fanout=20', 'invalid'],
+      ['project=dev root=repo invalid-glob derived-pollution', 'invalid']
+    ]
+    for (const [sample, expected] of samples) {
+      const actual = classifyArtifactScaleSample(sample)
+      if (actual !== expected) err(`[V91] scale classifier expected ${expected} but got ${actual}: ${sample}`)
+    }
+    const skillNames = ['skill-gap-analysis', 'skill-lifecycle-governance', 'distributed-systems-architecture', 'performance-engineering', 'privacy-compliance-architecture', 'ai-evaluation-engineering']
+    const probes = [
+      { file: 'plugin.json', needles: skillNames.map(name => `skills/${name}/SKILL.md`) },
+      { file: 'skills/routing/SKILL.md', needles: skillNames },
+      { file: 'skills/skill-gap-analysis/SKILL.md', needles: ['ProjectArtifactScaleRoutingGate', 'ScaleDecisionRecord', 'single-pass', 'batched', 'sampled+deep-read', 'blocked'] },
+      { file: 'skills/skill-lifecycle-governance/SKILL.md', needles: ['SkillPortfolioLifecycleGate', 'NoOrphanActiveSkill', 'TriggerQualityScorecard'] },
+      { file: 'skills/distributed-systems-architecture/SKILL.md', needles: ['DistributedSystemsArchitectureGate', 'consistencyModel', 'partitionFailureMatrix'] },
+      { file: 'skills/performance-engineering/SKILL.md', needles: ['PerformanceEngineeringGate', 'benchmarkProtocol', 'regressionThresholds'] },
+      { file: 'skills/privacy-compliance-architecture/SKILL.md', needles: ['PrivacyComplianceArchitectureGate', 'retentionDeletionPolicy', 'dataSubjectRightsFlow'] },
+      { file: 'skills/ai-evaluation-engineering/SKILL.md', needles: ['AiEvaluationEngineeringGate', 'judgeCalibration', 'varianceReport'] },
+      { file: 'instructions/01-common.instructions.md', needles: ['ProjectArtifactScaleRoutingGate', 'sampled+deep-read'] },
+      { file: 'skills/analyze-default/SKILL.md', needles: ['ProjectArtifactScaleRoutingGate', 'ScaleDecisionRecord'] },
+      { file: 'skills/audit-common/SKILL.md', needles: ['ProjectArtifactScaleRoutingGate', 'ScaleDecisionRecord'] },
+      { file: 'skills/spec-governance/SKILL.md', needles: ['artifact-scale-skill-gap', 'skill-lifecycle'] },
+      { file: 'skills/spec-absorption/SKILL.md', needles: ['ProjectArtifactScaleRoutingGate', 'invalid/discarded'] },
+      { file: 'skills/test-router/SKILL.md', needles: ['artifactScaleRouting', 'V91'] },
+      { file: 'skills/report/SKILL.md', needles: ['ProjectArtifactScaleRoutingGate', 'V91'] },
+      { file: 'README.md', needles: ['74 个', 'ProjectArtifactScaleRoutingGate', 'skill-gap-analysis'] },
+      { file: 'website/docs/intro/index.md', needles: ['74 个按需触发', 'skill-gap-analysis'] }
+    ]
+    for (const probe of probes) {
+      const content = read(path.join(ROOT, probe.file))
+      for (const needle of probe.needles) if (!content.includes(needle)) err(`[V91] skill gap/lifecycle sync in ${probe.file}: missing "${needle}"`)
+    }
+    console.log('[V91] skill gap, scale routing and specialist skills sync checked')
+  }
+
   return {
     checkV39,
     checkV40,
@@ -3010,7 +3071,8 @@ function buildGovernanceTailChecks(ctx) {
     checkV87,
     checkV88,
     checkV89,
-    checkV90
+    checkV90,
+    checkV91
   }
 }
 

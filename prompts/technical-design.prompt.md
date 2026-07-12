@@ -16,6 +16,7 @@ applyTo: .devcodex/**/requirements/**
 > ⚠️ CP2 技术方案必须把**目标架构/模块边界、数据/状态模型、契约矩阵、技术执行流程、产品事实源→技术验证映射（需求验收映射）**作为一等或条件章节表达，禁止只散落在说明文字、文件清单或测试备注中。这里的实现验收由技术方案从 CP1 双方确认后的产品需求派生，不要求需求方或产品在 CP1 填写验收标准；若产品已直接提供 `01-产品需求.md`，技术方案直接承接该产品完整需求，不再要求 AI 生成 `01-需求确认.md`。
 > ⚠️ 生成的 Markdown 技术方案文档必须在头部后补 `## 目录导航`。若需求属于契约驱动型，方案中必须显式引用目标文档路径、文档模式与本方案引用的契约范围。
 > ⚠️ 控制面、Auto、多批次、预计修改 ≥10 文件、模板-示例-校验链或发布前置任务，方案中必须说明是否触发 `execution-contract`、`test-router`、`audit-release`、`release-verification`、`source-consumer-sync`、`host-contract-verification` 与 `05-实施进度.md`。
+> ⚠️ 项目/目录分析、审查或扫描必须在 broad scan 前填写 `ProjectArtifactScaleRoutingGate` / `ScaleDecisionRecord`：项目/root、六项规模指标、single-pass/batched/sampled+deep-read/blocked、排除策略、batch/checkpoint、invalid-run 与 V91。
 > ⚠️ 若本方案触发或豁免任何关键产物，必须在 §1 或 §8 写出 ArtifactDecisionMatrix：`artifact`、`state(create/update/skip/N/A)`、`reason`、`trigger`、`upgradeTrigger`、`targetArtifact`。
 > ⚠️ 若本方案承接了用户可见“意图扩展摘要”，必须在 §0 或 §1 说明语义初判、项目现实扩展后路由、关键风险、验证路线与备选路径如何落到方案中。
 > ⚠️ 新增/升级依赖、框架、SDK、平台 API 或外部模块时，§4 必须填写 `OfficialDocsEvidence`：官方文档来源、版本/日期、关键用法、限制、兼容性与降级来源。
@@ -31,6 +32,7 @@ applyTo: .devcodex/**/requirements/**
 > ⚠️ 命中跨项目已吸纳守门、最新吸纳项、用户确认“仍需吸纳”、历史通用规范分层迁移或新增可泛化策略时，必须填写 `CrossProjectLearnedGuards` / `LatestAbsorptionGuards` / `ConfirmedAbsorptionCompletenessGates`，并按 `GovernanceGateRegistry` 输出 `gateGroup / ownerSkill / validationRoute / skipReason`；若是历史通用规范分层迁移，追加 `HistoricalCommonNormLayeringGate` 和逐文件矩阵。未触发项写 `N/A + skipReason`。
 > ⚠️ 技术方案、示例、fixture、quick start、报告或文档会被用户 / 维护者长期消费，或用户指出“不专业 / 像初级 / 示例误导”时，必须填写 `ExpertOutputQualityGate`：生产推荐路径、框架原生能力、fixture/mock/demo 边界、反模式对照和证据矩阵；不得把测试夹具或每个 route 重复声明写成生产推荐实践。
 > ⚠️ 技术方案命中产品策略、开发者体验、UX 交互、前端架构、后端领域架构、生产可用性 / SRE、API 契约、外部集成、平台生态、AI Agent 系统、数据架构、安全威胁建模、质量策略、设计系统、无障碍/国际化、增长分析或商业模型时，必须填写 `ExpertOwnerSkillGate`：ownerSkill、triggerReason、requiredFields、validationRoute、skipReason 与 V85/targeted probe；按需触发 `product-strategy`、`developer-experience-architecture`、`ux-interaction-architecture`、`frontend-architecture`、`backend-domain-architecture`、`production-readiness-sre`、`api-contract-architecture`、`external-integration-architecture`、`platform-ecosystem-architecture`、`ai-agent-system-architecture`、`data-architecture`、`security-threat-modeling`、`quality-strategy`、`design-system-architecture`、`accessibility-i18n`、`growth-analytics`、`business-model-review`；增长 / 商业为 P3 条件触发，未命中写 `N/A + skipReason`。
+> ⚠️ 分布式系统、性能工程、隐私合规或 AI 评测语义分别触发 `distributed-systems-architecture`、`performance-engineering`、`privacy-compliance-architecture`、`ai-evaluation-engineering`，同样纳入 `ExpertOwnerSkillGate` 和 V85/targeted probe。
 
 | 顺序 | 章节 | 必选 | 依赖 | 说明 |
 |:----:|------|:----:|------|------|

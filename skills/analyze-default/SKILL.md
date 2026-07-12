@@ -25,6 +25,7 @@ description: 默认分析工作流规范 — 只读多轮分析、代码事实�
 | 步骤 | 要求 |
 |---|---|
 | A1 问题界定 | 写一句话分析目标、边界、输入证据和不分析范围 |
+| A1a 规模路由 | broad scan 前调用 `skill-gap-analysis` 的 `ProjectArtifactScaleRoutingGate`；先识别项目并形成 `ScaleDecisionRecord`，再决定 single-pass / batched / sampled+deep-read / blocked |
 | A2 事实取证 | 先查真实代码、文档、配置或运行证据，再对照计划或用户说法 |
 | A3 多轮分析 | 至少 3 轮；连续 2 轮无新发现后才可收敛 |
 | A4 analyze-lite CRS | 建立关联文件集合，收敛前反向联查是否遗漏关键消费者 |
@@ -59,6 +60,10 @@ analyze 只矫正结论，不修改 Profile。需要修订 Profile 时在 `upgra
 - `missingSurface`：尚未读取但可能影响结论的关联面。
 
 收敛前必须复查 `missingSurface`，并说明未继续读取的 `skipReason`。
+
+### ProjectArtifactScaleRoutingGate
+
+项目级 analyze、全库关联联查或用户提示“大目录/文件很多”时必须触发。未形成 `ScaleDecisionRecord` 前，只允许带排除边界的 bounded inventory；非 single-pass 必须记录 batch budget、checkpoint、timeout/retry 和 invalid-run 排除。抽样深读只能声明“全量 inventory + 代表性深读”，不得宣称逐字全读。
 
 ### QuestionEvidenceGate
 
@@ -100,6 +105,7 @@ analyze 只矫正结论，不修改 Profile。需要修订 Profile 时在 `upgra
 | 字段 | 要求 |
 |---|---|
 | `analysisTarget` | 一句话问题定义 |
+| `scaleDecision` | ProjectArtifactScaleRoutingGate、六项规模指标、四态决策、预算/checkpoint；N/A 仅限明确单文件且说明理由 |
 | `rounds` | 至少 3 轮，记录每轮新增发现数 |
 | `evidenceMap` | 结论到文件、命令或事实源的映射 |
 | `profileTruth` | mode、profileTrustState、ProfileTruthMatrix；N/A 时写 skipReason |

@@ -31,6 +31,7 @@ description: 审查执行指南 — 维度优先级分批、定向审查子集�
 | 新增维度/约束编号 | D5·D15·D18 + 数值引用联动 |
 | 修改了 ENV_MODE/模式行为定义 | D5·D22 — 跨文件语义传播核查 |
 | 修改了规则定义文件（字段/术语/路径等） | D5 · **CRS 全库关键词扫描**（见 `audit-common §关联文件发现`）|
+| 审查目录、全项目或用户提示文件很多 | 先执行 `ProjectArtifactScaleRoutingGate`；缺 `ScaleDecisionRecord` 时不得启动 CRS/broad scan |
 | audit finding 需要修复 | `AuditMutationBoundaryGate`：记录/交接 → 显式用户授权 → 独立 fix/self-fix；audit 内禁止 source mutation / `git add` |
 | 正式复审 / ECR / 多轮收敛 / 冻结清单 / 外部 finding 批次 | `review-checklist` + ReviewChecklistPrecreationGate / EvidenceExecutionGate / ChecklistStateFreshnessGate |
 | R2+ 发现新问题（持续审查中） | **自我审视四轴分析**（见 `audit-common §自我审视机制`）· D5 三层覆盖补查 · `ReviewDimensionDeltaGate` 维度焦点补强 |

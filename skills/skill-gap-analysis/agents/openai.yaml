@@ -1,0 +1,4 @@
+interface:
+  display_name: "Skill Gap Analysis"
+  short_description: "Assess project scale and find evidence-backed skill gaps"
+  default_prompt: "Use $skill-gap-analysis to assess project scale, scan artifacts in bounded batches, and identify missing skills."

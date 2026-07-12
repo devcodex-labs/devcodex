@@ -67,6 +67,8 @@ description: 自我进化治理能力 — 规范、Skill、Prompt、探针和发
 
 ## 与其他 Skill 的关系
 
+- `skill-gap-analysis`：负责候选发现前的项目/规模路由、语料完整性、现有 Owner 去重和缺口收敛；本 Skill 仍负责候选授权。
+- `skill-lifecycle-governance`：负责 Skill portfolio 的依赖、冲突、触发质量、gray/deprecated/retired 与退役证据；任何 active 状态变化仍需本 Skill 的授权和发布审批。
 - `spec-governance`：负责 PI/PF/GAP 分流与规范变更验证；本 Skill 只负责自我进化控制面。
 - `source-consumer-sync`：负责真相源、消费者、历史镜像、部署副本和黄色偏离边界。
 - `test-router`：选择负向用例、validate、targeted test、release parity 或人工证据。

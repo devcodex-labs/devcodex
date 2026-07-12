@@ -8,6 +8,7 @@ applyTo: ".devcodex/**/reports/audit/**, .devcodex/**/reports/self-fix/**"
 > **路径**: 优先 `<任务目录>/reports/<agent>/YYYYMMDD/NN--<name>.md`；无任务上下文时回退到 `.devcodex/reports/audit/<agent>/YYYYMMDD/NN--<name>.md`
 > **触发**: audit 工作流完成后，由 `report/SKILL.md` 驱动生成
 > **字段约束**: 每条问题/建议必须附五项验证（合理性 + 可实施性 + 收益 + 验证状态 + 影响范围），详见 [`17-compliance.instructions.md`](../instructions/17-compliance.instructions.md) §1 输出验证（本模板 §3 问题清单已含五列示例表头）
+> **新增专家 Owner**: `distributed-systems-architecture` / `performance-engineering` / `privacy-compliance-architecture` / `ai-evaluation-engineering`，对应 Gate 纳入 V85。
 
 ---
 
@@ -80,6 +81,7 @@ applyTo: ".devcodex/**/reports/audit/**, .devcodex/**/reports/self-fix/**"
 | ArtifactLinkSetDedupeGate / FrontendRuntimeNetworkProbeGate | 规范化路径去重 / 主产物消歧 / console-network-resource-runtime 证据 |
 | ActiveRequirementFinalResponseGate | active requirement/task/bug id / 相邻需求未切换 / 最终回复范围 |
 | spec-absorption / CommonNormGeneralizationGate / AbsorptionCandidateConsumerProofGate | 候选矩阵 / sourceNamespace / generalizationEvidence / projectSpecificResidue / negativeExamples / targetConsumer / devcodexConsumerEvidence / targetOwner / validationRoute / decision |
+| ProjectArtifactScaleRoutingGate / SkillPortfolioLifecycleGate | broad scan 前规模指标、四态决策、exclusion、batch/checkpoint、invalid-run、V91 / N/A+skipReason |
 | LayeredAbsorptionGate / SkillFirstAbsorptionGate / CapabilityToSkillPromotionGate | LayeredAbsorptionDecision / candidateId / classification / targetSkill / ownedArtifacts / layerChecks / promptTemplate / executionConsumer / validationProbe / publicDocs / deployCopy / validationRoute / consumerSync |
 | HistoricalCommonNormLayeringGate | 逐文件审查矩阵 / targetLayer / targetOwner / semanticStrength / validation / legacy-index-retained / V74 / deployCopy |
 | LatestAbsorptionExecutionPack A1~A10 | gateGroup / ownerSkill / validationRoute / V82 / ConfigCanonicalNamespaceGate / ProfileRuntimeContractSyncGate / BehaviorSemanticDocsParityGate / DocsExampleTruthSurfaceGate / DerivedMetricConsumerProbe / FeatureInventoryProfileGate / BatchEvidenceLedgerStateGate / BatchProgressCardGate |

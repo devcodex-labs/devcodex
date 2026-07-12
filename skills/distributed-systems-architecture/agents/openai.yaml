@@ -1,0 +1,4 @@
+interface:
+  display_name: "Distributed Systems Architecture"
+  short_description: "Design consistency, delivery, idempotency, and recovery"
+  default_prompt: "Use $distributed-systems-architecture to define consistency, delivery, retry, compensation, partition, and backpressure contracts."

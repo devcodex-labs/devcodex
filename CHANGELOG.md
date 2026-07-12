@@ -1,7 +1,7 @@
 # 变更日志 (CHANGELOG)
 
 > **说明**: 版本概览摘要。最新版本的详细变更见下方表格首行的 `changelogs/releases/vX.Y.Z.md` 链接；历史版本见对应详细变更文件
-> **最后更新**: 2026-07-10
+> **最后更新**: 2026-07-13
 
 ---
 
@@ -9,6 +9,7 @@
 
 | 版本 | 日期 | 变更摘要 | 详细 |
 |------|------|---------|------|
+| [v1.12.0](./changelogs/releases/v1.12.0.md) | 2026-07-13 | ✨ **Skill 缺口、规模路由与专业 Owner 扩展**：新增 `skill-gap-analysis`、`skill-lifecycle-governance` 及分布式系统、性能工程、隐私合规、AI 评测 4 个专家 Owner；Skill 68→74、专家 Owner 17→21，并新增 `ProjectArtifactScaleRoutingGate` 与 V91 | [查看](./changelogs/releases/v1.12.0.md) |
 | [v1.11.33](./changelogs/releases/v1.11.33.md) | 2026-07-10 | 🔧 **修复协作、Profile 真相与发布闭环**：归档模型无关双层修复契约、MCP/Profile/audit/生成站点阻断修复，并新增 `ProfileTruthReconciliationGate`、`AuthorizedLocalSecurityAuditPresentationGate`、`PublisherCredentialTopologyGate` 与 V87~V90 | [查看](./changelogs/releases/v1.11.33.md) |
 | [v1.11.32](./changelogs/releases/v1.11.32.md) | 2026-07-09 | 🔧 **专家能力、记忆启动链与发布包依赖闭包**：新增 `expert-output-quality`、17 个专家 Owner Skill、`ExpertOutputQualityGate`、`ExpertOwnerSkillGate`、`MemoryCannotSatisfyBootstrapGate` 与 `PackagedScriptDependencyClosureGate`，补齐 V84/V85/V86 探针，防止专家口径泛化、宿主 Memories 替代文件真相源，以及源码测试通过但 tarball 公开脚本缺运行时依赖 | [查看](./changelogs/releases/v1.11.32.md) |
 | [v1.11.31](./changelogs/releases/v1.11.31.md) | 2026-07-09 | 🔧 **最新吸纳执行包与 Profile 三档闭环**：归档 A1~A10 `LatestAbsorptionExecutionPack`、新增 V82/V83，固化配置 canonical namespace、Profile runtime contract、文档/示例真相、派生消费者、功能清单证据矩阵、多批次状态进度、Profile 三档标准与全 `.devcodex` 校验 | [查看](./changelogs/releases/v1.11.31.md) |

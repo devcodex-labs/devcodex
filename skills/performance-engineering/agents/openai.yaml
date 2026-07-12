@@ -1,0 +1,4 @@
+interface:
+  display_name: "Performance Engineering"
+  short_description: "Build performance budgets, benchmarks, and capacity evidence"
+  default_prompt: "Use $performance-engineering to build a trustworthy performance budget, benchmark protocol, profiling plan, and regression decision."

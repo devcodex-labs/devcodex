@@ -1,0 +1,4 @@
+interface:
+  display_name: "AI Evaluation Engineering"
+  short_description: "Build calibrated AI evaluations, variance, and regressions"
+  default_prompt: "Use $ai-evaluation-engineering to design evaluation datasets, calibrated judges, variance analysis, and AI regression gates."

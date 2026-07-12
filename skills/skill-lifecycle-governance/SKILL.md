@@ -1,0 +1,71 @@
+---
+name: skill-lifecycle-governance
+description: Skill 生命周期治理 Owner — 当任务涉及 Skill 组合、重叠冲突、依赖关系、误触发/漏触发、active/gray/deprecated/retired 状态、合并拆分、废弃退役、质量指标或自我进化后的 Skill portfolio 健康度时使用。
+---
+
+# Skill Lifecycle Governance
+
+## 职责
+
+维护 Skill portfolio 的可发现性、组合质量、状态演进与退役证据。授权、候选生成和 active 发布仍由 `evolution-governance` 负责；本 Skill 不允许绕过人工采纳或发布审批。
+
+## SkillPortfolioLifecycleGate
+
+每个 Skill 在 `SkillPortfolioIndex` 中记录：`name / owner / triggers / ownedArtifacts / consumers / dependencies / conflicts / validationProfile / lifecycleState / version / lastEvidenceAt`。
+
+合法状态：`draft → gray → active → deprecated → retired`，另允许 `gray→draft`、`active→gray` 和任意非 retired 状态进入 `blocked`。禁止 `draft→active`、`active→retired` 或 retired 静默恢复。
+
+### 激活条件
+
+- 有明确自然语言触发和独立 Owner。
+- 至少一个 current consumer、正向 fixture、负向 fixture 和回滚计划。
+- 依赖图无循环，冲突/优先级决策可解释。
+- 已通过 `evolution-governance` 授权与 LayeredAbsorptionDecision。
+
+### 退役条件
+
+- deprecated 已给迁移窗口、替代 Skill 和消费者清单。
+- 当前消费者为 0，部署副本、routing、plugin、Prompt 和文档引用已清扫。
+- 保留 `RetirementEvidence`，不得删除历史审计证据。
+
+## 核心门禁
+
+| Gate | 要求 |
+|---|---|
+| NoOrphanActiveSkill | active Skill 必须有 owner、consumer、fixture、source path 和 hash/version |
+| NoUnboundedSkillGrowth | 长期未命中、误触发高、重复 Owner 或无消费者项进入 merge/deprecate review |
+| SkillDependencyGraphGate | 依赖方向、循环、互斥、组合顺序和预算可验证 |
+| TriggerQualityGate | 记录 precision、falsePositiveRate、falseNegativeRate、manualCorrectionRate |
+| SkillConflictDecisionGate | 冲突时记录 selected/ignored、priority、budget、理由和 fallback |
+| SkillDeprecationMigrationGate | 替代项、迁移消费者、观察窗、rollback、retire 条件完整 |
+
+## 执行流程
+
+1. 建立或刷新 `SkillPortfolioIndex` 与 `SkillDependencyGraph`。
+2. 按触发样本统计命中、误触发、漏触发和人工纠偏。
+3. 将问题分类为 `keep / tune-trigger / split / merge / gray / deprecate / retire / blocked`。
+4. 形成 `LifecycleChangeSet`，列 affectedUnits、consumer delta、dependency delta、risk、validation、rollout、rollback。
+5. 由 `evolution-governance` 校验授权；active/release 前执行 full validation 和人工审批。
+6. 更新 `TriggerQualityScorecard`、`ConflictDecision`、`DeprecationPlan` 或 `RetirementEvidence`。
+
+## 健康指标
+
+至少跟踪：`skillTriggerPrecision`、`falsePositiveRate`、`falseNegativeRate`、`ruleReuseCount`、`orphanUnitCount`、`deprecatedAge`、`rollbackRate`、`instructionBudgetP95`、`manualCorrectionRate`、`repeatedIssueRate`。
+
+指标只用于发现候选，不得单独触发 active mutation；低样本量必须标记 `insufficient-evidence`。
+
+## 输出字段
+
+`portfolioIndex`、`dependencyGraph`、`lifecycleChangeSet`、`triggerQualityScorecard`、`conflictDecision`、`deprecationPlan`、`retirementEvidence`、`authorizationEvidence`、`validationRoute`、`rollbackPlan`。
+
+## 反模式
+
+- 以 Skill 数量增长作为自我进化成功指标。
+- 有相似 Skill 就直接合并，不核对触发、产物和消费者。
+- active Skill 无 owner/fixture/consumer，或 deprecated 永不退役。
+- 用模型建议、单次命中或文本 grep 直接改变 lifecycle state。
+- 删除 retired Skill 的审计、迁移和回滚证据。
+
+## 验证
+
+至少覆盖：完整 active、orphan active、循环依赖、draft 直跳 active、active 直退役、误触发超阈值、deprecated 无迁移、gray rollback、retired 引用残留和低样本指标不得自动决策。

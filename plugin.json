@@ -2,7 +2,7 @@
   "_format": "DevCodex internal metadata — NOT a GitHub Copilot official format. Copilot reads .github/agents|skills|instructions|prompts directly.",
   "_note_skills": "Adding a new sub-type Skill (e.g. dev-<name> / fix-<name>) requires L1~L3 sync per audit-dimensions D5: (L1) routing/SKILL.md 路由表 (L2) 02-output-paths.instructions.md 产物目录 (L3) 对应 report 模板子类型字段. Skill name field must match directory name. See audit-dimensions D5 关键检查 for full rules.",
   "id": "devcodex",
-  "version": "1.11.33",
+  "version": "1.12.0",
   "name": "DevCodex",
   "publisher": "Rocky",
   "displayName": "DevCodex — AI Development Workflow Assistant",
@@ -353,6 +353,36 @@
     {
       "id": "business-model-review",
       "file": "skills/business-model-review/SKILL.md",
+      "tier": "free"
+    },
+    {
+      "id": "skill-gap-analysis",
+      "file": "skills/skill-gap-analysis/SKILL.md",
+      "tier": "free"
+    },
+    {
+      "id": "skill-lifecycle-governance",
+      "file": "skills/skill-lifecycle-governance/SKILL.md",
+      "tier": "free"
+    },
+    {
+      "id": "distributed-systems-architecture",
+      "file": "skills/distributed-systems-architecture/SKILL.md",
+      "tier": "free"
+    },
+    {
+      "id": "performance-engineering",
+      "file": "skills/performance-engineering/SKILL.md",
+      "tier": "free"
+    },
+    {
+      "id": "privacy-compliance-architecture",
+      "file": "skills/privacy-compliance-architecture/SKILL.md",
+      "tier": "free"
+    },
+    {
+      "id": "ai-evaluation-engineering",
+      "file": "skills/ai-evaluation-engineering/SKILL.md",
       "tier": "free"
     },
     {

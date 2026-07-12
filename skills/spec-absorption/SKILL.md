@@ -28,7 +28,7 @@ description: 规范吸纳执行 Skill — 用于检查 data 最新可吸纳项�
 ## 执行流程
 
 1. **输入归集**：读取用户消息、相关报告、运行态台账、最新记忆和源码现状。
-2. **全命名空间扫描**：执行 `WorkspaceDataAbsorptionScopeGate`，覆盖 `.devcodex/*/data/`，列命名空间、台账文件、编号、原文摘要和状态。
+2. **规模路由与全命名空间扫描**：先调用 `skill-gap-analysis` 的 `ProjectArtifactScaleRoutingGate` 形成 `ScaleDecisionRecord`，再执行 `WorkspaceDataAbsorptionScopeGate` 覆盖 `.devcodex/*/data/`；大语料必须分批/checkpoint，错误 glob、超时和派生产物污染结果标 invalid/discarded。
 3. **Backlog Intake 真相复核**：把候选分类为 `pure-open / residual-tail / already-fixed / misclassified`，非 `pure-open` 不得原样进入吸纳范围。
 4. **通用性证明**：对每项执行 `CommonNormGeneralizationGate`。
 5. **消费者证明**：对通过通用性证明的项执行 `AbsorptionCandidateConsumerProofGate`。
@@ -111,9 +111,11 @@ description: 规范吸纳执行 Skill — 用于检查 data 最新可吸纳项�
 | `DocsExampleTruthSurfaceGate` | README/website/示例/quick start 展示可执行路径或配置样例 | `user-manual-authoring`、`audit-readme`、`test-router`、validate |
 | `CallbackExampleScopeProbe` | 示例包含 callback / hook / event / transaction / handler / ctx 等运行时回调 | `dev-docs`、`audit-readme`、`user-manual-authoring`、validate |
 | `ExpertOutputQualityGate` / `ProductionRecommendedPathGate` / `FrameworkNativeCapabilityFirstGate` | 代码、文档、示例、fixture、技术方案或报告被用户指出“不专业 / 像初级 / 示例误导”，或需要区分生产推荐路径、框架原生能力和反模式 | `expert-output-quality`、`dev-plan-review`、`dev-docs`、`audit-*`、`test-router`、`report`、validate |
-| `ExpertOwnerSkillGate` | 可泛化策略需要产品策略、开发者体验、UX 交互、前端架构、后端领域架构、生产可用性 / SRE、API 契约、外部集成、平台生态、AI Agent 系统、数据架构、安全威胁建模、质量策略、设计系统、无障碍/国际化、增长分析或商业模型专业 Owner 承接 | 17 个专家 Owner Skill：`product-strategy`、`developer-experience-architecture`、`ux-interaction-architecture`、`frontend-architecture`、`backend-domain-architecture`、`production-readiness-sre`、`api-contract-architecture`、`external-integration-architecture`、`platform-ecosystem-architecture`、`ai-agent-system-architecture`、`data-architecture`、`security-threat-modeling`、`quality-strategy`、`design-system-architecture`、`accessibility-i18n`、`growth-analytics`、`business-model-review`；增长 / 商业为 P3 条件触发；同步 `dev-plan-review`、`test-router`、`report`、validate |
+| `ExpertOwnerSkillGate` | 可泛化策略需要产品、体验、架构、运行、安全质量、增长商业、分布式系统、性能、隐私合规或 AI 评测专业 Owner 承接 | 21 个专家 Owner Skill；新增 `distributed-systems-architecture`、`performance-engineering`、`privacy-compliance-architecture`、`ai-evaluation-engineering`，分别承接 `DistributedSystemsArchitectureGate`、`PerformanceEngineeringGate`、`PrivacyComplianceArchitectureGate`、`AiEvaluationEngineeringGate`；增长 / 商业为 P3 条件触发；同步 `dev-plan-review`、`test-router`、`report`、validate |
 | `MemoryCannotSatisfyBootstrapGate` | 宿主 Memories、模型长期偏好、resume / summary 恢复、compact 后继续、跨项目切换或用户询问是否可用记忆替代文件读取 | `load-profile`、`memory`、`test-router`、`report`、`spec-governance`、README / website / Profile、validate V86 |
 | `DerivedConsumerIsolationGate` | 生成物、部署副本、历史镜像或派生产物可能被误当真相源 | `source-consumer-sync`、`document-sync`、`release-verification` |
+
+V85 兼容锚点：21 个 Owner 的既有集合必须继续包含 `product-strategy`、`developer-experience-architecture`、`ux-interaction-architecture`、`frontend-architecture`、`backend-domain-architecture`、`production-readiness-sre`、`api-contract-architecture`、`external-integration-architecture`、`platform-ecosystem-architecture`、`ai-agent-system-architecture`、`data-architecture`、`security-threat-modeling`、`quality-strategy`、`design-system-architecture`、`accessibility-i18n`、`growth-analytics`、`business-model-review`；新增四个专业 Owner 是增量承接，不替换既有 Owner。
 | `DerivedMetricConsumerProbe` / `DerivedConsumerFailureInjectionProbe` | 默认行为、控制流、能力触发或副通道输出可能影响统计、日志、事件、warning、admin bridge、public types 或主结果隔离 | `audit-project`、`dev-testing`、`test-router`、`report` |
 | `FeatureInventoryProfileGate` / `FeatureChecklistEvidenceMatrixGate` | 功能清单、Profile、需求维度、复审清单或验收矩阵需互相闭环 | `review-checklist`、`audit-requirements`、`report` |
 | `BatchEvidenceLedgerStateGate` / `BatchProgressCardGate` | 多批次、矩阵验证、长链路吸纳、复审或发布前检查需要冻结证据台账和进度卡 | `review-checklist`、`implementation-progress.prompt`、`report`、memory |
@@ -154,6 +156,7 @@ description: 规范吸纳执行 Skill — 用于检查 data 最新可吸纳项�
 报告至少包含：
 
 - `WorkspaceDataAbsorptionScopeGate` 扫描范围。
+- `ProjectArtifactScaleRoutingGate` 的项目/root、六项规模指标、决策、排除策略、batch/checkpoint 与 invalid-run 证据。
 - `Backlog Intake` 分类与范围缩减。
 - `CommonNormGeneralizationGate` 与 `AbsorptionCandidateConsumerProofGate` 证据。
 - `LayeredAbsorptionDecision` 与 `SkillAbsorptionDecision`。

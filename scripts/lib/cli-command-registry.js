@@ -35,8 +35,12 @@ function runCliCommand({ cmd, argv, registry, runMigrateLayout, process, c, cons
       registry.cmdProfileInit(argv.slice(1))
       return 'profile-init'
     }
+    if (argv[0] === 'plan') {
+      registry.cmdProfileInit([...argv.slice(1).filter(item => item !== '--dry-run'), '--dry-run'])
+      return 'profile-plan'
+    }
     console.log(c.red(`  Unknown profile subcommand: ${argv[0] || '(none)'}`))
-    console.log(c.dim('  Available: devcodex profile init [--force] [--prod] [--tier <profile-lite|profile-standard|profile-closed-loop>]'))
+    console.log(c.dim('  Available: devcodex profile plan|init [--dry-run] [--force] [--prod] [--tier <profile-lite|profile-standard|profile-closed-loop>] [--allow-downgrade]'))
     process.exitCode = 1
     return 'invalid-profile-subcommand'
   }

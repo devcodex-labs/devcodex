@@ -30,6 +30,12 @@ version: 1.13.0
 - `README.md`、`01-项目信息.md`、`02-架构约束.md`、`03-代码风格.md` 采用 `project file first + workspace fallback`
 - Profile 缺失时仍按 `prod` 保守降级；若用户要求补建 Profile、恢复 dev 模式、初始化 `.devcodex/profile/` 或修复 Profile 缺失，应读取 `profile-bootstrap` 并优先建议/执行 `devcodex profile init`，不得用 AI 推测内容静默替代 Profile 文件真相源。
 
+### ProfileGenerationContractGate
+
+- Profile 生成、加载、状态和校验统一使用 `profile-lite` / `profile-standard` / `profile-closed-loop` 契约；首次创建默认 lite，但先由 `devcodex profile plan` 展示推荐档位、目标根和逐文件动作。
+- `profile plan` / `--dry-run` 必须零写入；已有 Profile 默认继承档位。升级仅补缺失文件并保留正文，降档必须显式 `--allow-downgrade` 且保留高档文件，执行 `ProfileTierMigrationSafetyGate`。
+- `FeatureInventorySchemaGate`：standard/closed-loop 的功能清单来源必须是可定位 Markdown 文件；closed-loop 的 `06-功能清单.md` 必须使用 `FeatureInventorySchemaV1` 十字段表。`01-项目信息.md` 仅保留摘要和链接，不复制规范表。
+
 ### 运行态目录写入
 
 - 单项目任务：写入 `<工作区根>/.devcodex/<project>/...`
@@ -76,8 +82,10 @@ version: 1.13.0
 | `01-项目信息.md` | 技术栈/仓库地址 | 是 |
 | `02-架构约束.md` | 目录结构/模块边界 | 是 |
 | `03-代码风格.md` | 编码规范 | 是 |
-| `04-测试规范.md` | 测试框架/覆盖率 | 按需 |
-| `05-发布规范.md` | 版本号/发布流程 | 按需 |
+| `04-测试规范.md` | 测试框架/覆盖率 | `profile-standard` 起必需 |
+| `05-交付发布规范.md` / `05-发布规范.md` | 版本号/发布流程 | `profile-standard` 起必需 |
+| `06-功能清单.md` | `FeatureInventorySchemaV1` 规范功能清单 | standard 默认生成；closed-loop 必需 |
+| `07-用户文档与契约规范.md` | 用户文档与公开契约维护规则 | `profile-closed-loop` 必需 |
 | `config.json` | 运行模式配置（ENV_MODE）+ agent 兜底标识；Auto 别名全局默认 `@rocky`，可配置 `extensions.devcodex.autoAliases` 替换默认别名；也可配置 `extensions.devcodex.concurrency` 并发策略 | 按需 |
 | `config.local.json` | 用户 / 项目指定时使用的本地 overlay：长期连接、本地明文连接信息、env / secretRef 引用、`extensions.<namespace>` 扩展位 | 可选 |
 

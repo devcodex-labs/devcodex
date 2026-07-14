@@ -1,7 +1,11 @@
 'use strict'
 
 function buildProfileBootstrapUtils(context) {
-  const { fs, path, detectHostPlatform, detectInstalledHostAssets, processEnv } = context
+  const {
+    fs, path, detectHostPlatform, detectInstalledHostAssets, processEnv,
+    featureInventorySchemaVersion = 'FeatureInventorySchemaV1',
+    featureInventoryColumnLabels = {}
+  } = context
 
   function readJsonSafe(file) {
     try { return JSON.parse(fs.readFileSync(file, 'utf-8')) } catch { return null }
@@ -93,14 +97,76 @@ ${tier !== 'profile-lite' ? '| 04-测试规范.md | 测试与验证路线 |\n| 0
   }
 
   function genFeatureInventory(ctx) {
+    const labels = {
+      featureId: '能力 ID', capabilityGroup: '能力组', publicSurface: '公开面',
+      configEntrypoint: '配置入口', primaryConsumers: '主要消费者', docsEntrypoint: '文档入口',
+      validationRoute: '验证路线', sourceEvidence: '事实来源', maintenanceOwner: '维护责任',
+      releaseState: '发布状态', ...featureInventoryColumnLabels
+    }
+    const pkg = ctx.pkg || {}
+    const candidates = []
+    const testRoute = pkg.scripts?.test ? `\`${pkg.scripts.test}\`` : 'unverified: package.json#scripts.test 缺失'
+    const docs = fs.existsSync(path.join(ctx.cwd, 'README.md')) ? '`README.md`' : 'unverified: README.md 不存在'
+    const owner = fs.existsSync(path.join(ctx.cwd, 'CODEOWNERS')) || fs.existsSync(path.join(ctx.cwd, '.github', 'CODEOWNERS'))
+      ? 'CODEOWNERS'
+      : 'unverified: 项目维护者'
+    const releaseState = pkg.version ? `unverified: package.json#version=${pkg.version}` : 'unverified: package.json#version 缺失'
+    const exportsEvidence = pkg.exports ? 'package.json#exports' : (pkg.main ? 'package.json#main' : 'package.json#name')
+    candidates.push({
+      featureId: 'package-root',
+      capabilityGroup: pkg.name || '项目核心能力',
+      publicSurface: pkg.exports ? '`package.json#exports`' : (pkg.main ? `\`${pkg.main}\`` : 'unverified: 公开入口待人工确认'),
+      configEntrypoint: 'N/A：包根能力无独立配置证据',
+      primaryConsumers: 'unverified: 包消费者待人工确认',
+      docsEntrypoint: docs,
+      validationRoute: testRoute,
+      sourceEvidence: exportsEvidence,
+      maintenanceOwner: owner,
+      releaseState
+    })
+    for (const [name, target] of Object.entries(pkg.bin || {})) {
+      candidates.push({
+        featureId: `cli-${name}`,
+        capabilityGroup: 'CLI',
+        publicSurface: `\`${name}\` → \`${target}\``,
+        configEntrypoint: '命令行参数；具体选项待人工确认',
+        primaryConsumers: 'CLI 用户',
+        docsEntrypoint: docs,
+        validationRoute: testRoute,
+        sourceEvidence: `package.json#bin.${name}`,
+        maintenanceOwner: owner,
+        releaseState
+      })
+    }
+    const escapeCell = value => String(value).replace(/\|/g, '\\|').replace(/\r?\n/g, ' ')
+    const headers = Object.keys(labels)
+    const header = `| ${headers.map(key => labels[key]).join(' | ')} |`
+    const divider = `|${headers.map(() => '---').join('|')}|`
+    const rows = candidates.map(candidate => `| ${headers.map(key => escapeCell(candidate[key])).join(' | ')} |`).join('\n')
     return `# 06 — 功能清单
 
-> FeatureInventoryProfileGate；生命周期：活文档。
+> FeatureInventoryProfileGate；schema：\`${featureInventorySchemaVersion}\`；生命周期：活文档。
+> 本文件是完整功能清单的 canonical source；自动生成内容均为证据候选，\`unverified\` 项必须人工确认。
 
-| 能力 | 公开面 | 消费者 | 验证路线 |
-|------|--------|--------|----------|
-| ${ctx.pkg?.name || '项目核心能力'} | 待维护者补充 | 待维护者补充 | ${ctx.pkg?.scripts?.test ? `\`${ctx.pkg.scripts.test}\`` : '待补充'} |
+${header}
+${divider}
+${rows}
 `
+  }
+
+  function recommendProfileTier(ctx) {
+    const reasons = []
+    const pkg = ctx.pkg || {}
+    if (pkg.bin && Object.keys(pkg.bin).length) reasons.push('package.json#bin 表明项目提供 CLI')
+    if (pkg.exports) reasons.push('package.json#exports 表明项目提供公开包接口')
+    if (pkg.workspaces || ctx.arch.startsWith('monorepo:')) reasons.push('workspace/monorepo 需要跨模块闭环')
+    if (fs.existsSync(path.join(ctx.cwd, 'website'))) reasons.push('website/ 表明项目维护文档站')
+    if (fs.existsSync(path.join(ctx.cwd, 'skills')) || fs.existsSync(path.join(ctx.cwd, 'instructions.md'))) reasons.push('项目维护规范/Skill 控制面')
+    if (reasons.length) return { tier: 'profile-closed-loop', reasons }
+    if (pkg.scripts?.test || pkg.scripts?.build || pkg.scripts?.release) {
+      return { tier: 'profile-standard', reasons: ['package.json scripts 表明项目有稳定测试/构建/发布要求'] }
+    }
+    return { tier: 'profile-lite', reasons: ['未检测到公开包、CLI、多模块、文档站或稳定交付信号'] }
   }
 
   function genUserContractSpec() {
@@ -218,6 +284,7 @@ ${tree || '(empty)'}
     genTestSpec,
     genReleaseSpec,
     genFeatureInventory,
+    recommendProfileTier,
     genUserContractSpec,
     genConfigJson,
     detectAgent

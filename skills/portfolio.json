@@ -5,7 +5,7 @@
   "generatedFrom": {
     "skillsPattern": "skills/*/SKILL.md",
     "registry": "plugin.json",
-    "sourceDigest": "cbb4f6dfd6f7d26321bb6b1a235b14fb734ae7c41395a3dab64b03a202535a68",
+    "sourceDigest": "eea8a40a77ea1e69cd04c025e79c3e88a1e1edfe1d4b55850c9b884041da2557",
     "pluginDigest": "8542e8286a780eb4ab52ae610e3318e7a6be82d78c8e79bcabdb156aa2ec0d58"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
@@ -3919,7 +3919,7 @@
         "skills/dev-init/SKILL.md"
       ],
       "source": "skills/dev-init/SKILL.md",
-      "hash": "d347f00bfcbe40a5d11ca31ab254dcb8f34ecc44681550f3bdf67ee85336a06d",
+      "hash": "9a6e598b21f1a0da82f167e39467ff5c11ee197f83a85af43f8c98e446235b9b",
       "version": "1.13.0",
       "lifecycleState": "active",
       "dependencies": [],
@@ -3929,6 +3929,10 @@
         {
           "path": "changelogs/releases/v1.4.0.md",
           "role": "historical"
+        },
+        {
+          "path": "changelogs/unreleased.md",
+          "role": "current"
         },
         {
           "path": "instructions.md",
@@ -3952,6 +3956,10 @@
         },
         {
           "path": "prompts/project-readme.prompt.md",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/validate-governance-expert.js",
           "role": "current"
         },
         {
@@ -6072,7 +6080,7 @@
         "skills/load-profile/SKILL.md"
       ],
       "source": "skills/load-profile/SKILL.md",
-      "hash": "25bfdaf60a682d52ee7824909ffd5a0976fd1443032ef306617f78280d8f98d9",
+      "hash": "931845b2c6627f85dd304d3de601b7e1e26fd767269acb128cecc575be789ba2",
       "version": "1.13.0",
       "lifecycleState": "active",
       "dependencies": [],
@@ -7017,6 +7025,10 @@
           "role": "historical"
         },
         {
+          "path": "changelogs/unreleased.md",
+          "role": "current"
+        },
+        {
           "path": "hooks/_runtime/lifecycle-governance-intake.cjs",
           "role": "current"
         },
@@ -7026,6 +7038,10 @@
         },
         {
           "path": "instructions/01-common.instructions.md",
+          "role": "current"
+        },
+        {
+          "path": "instructions/01a-profile-loading.instructions.md",
           "role": "current"
         },
         {
@@ -7065,6 +7081,10 @@
           "role": "current"
         },
         {
+          "path": "prompts/project-profile.prompt.md",
+          "role": "current"
+        },
+        {
           "path": "prompts/report-audit.prompt.md",
           "role": "current"
         },
@@ -7094,6 +7114,10 @@
         },
         {
           "path": "scripts/instruction-fallback-check.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/cli-command-registry.js",
           "role": "current"
         },
         {
@@ -7177,6 +7201,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-cli-behavior.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-cli-command-registry.js",
           "role": "current"
         },
@@ -7210,6 +7238,10 @@
         },
         {
           "path": "website/docs/guide/development.md",
+          "role": "current"
+        },
+        {
+          "path": "website/docs/guide/profile.md",
           "role": "current"
         },
         {
@@ -7410,6 +7442,7 @@
         }
       ],
       "validationProfile": [
+        "scripts/test-cli-behavior.js",
         "scripts/test-cli-command-registry.js",
         "scripts/test-client-contracts.js",
         "scripts/test-control-plane-module-contracts.js",
@@ -7764,16 +7797,16 @@
     {
       "id": "profile-bootstrap",
       "name": "profile-bootstrap",
-      "description": "Profile 自动生成 — 扫描 package.json / CHANGELOG.md / 顶层目录 / 配置文件，产出 .devcodex/profile/ 三件套初稿，避免 ENV_MODE 静默降级到 prod",
+      "description": "Profile 计划与分档生成 — 先预览目标根、推荐档位和文件动作，再按统一契约生成可追踪的 .devcodex/profile/ 草稿",
       "owner": "profile-bootstrap",
       "triggers": [
-        "Profile 自动生成 — 扫描 package.json / CHANGELOG.md / 顶层目录 / 配置文件，产出 .devcodex/profile/ 三件套初稿，避免 ENV_MODE 静默降级到 prod"
+        "Profile 计划与分档生成 — 先预览目标根、推荐档位和文件动作，再按统一契约生成可追踪的 .devcodex/profile/ 草稿"
       ],
       "ownedArtifacts": [
         "skills/profile-bootstrap/SKILL.md"
       ],
       "source": "skills/profile-bootstrap/SKILL.md",
-      "hash": "e089fb65fd896660fcbc12c941ce9fa9f6acf9951218ef6394b9e14e208bb466",
+      "hash": "e206d97b00a7c9a28a48639b26bd5f2bb65fdb0188bd25b3a6345edc11e9375f",
       "version": "1.13.0",
       "lifecycleState": "active",
       "dependencies": [],
@@ -7807,6 +7840,10 @@
         {
           "path": "changelogs/releases/v1.9.4.md",
           "role": "historical"
+        },
+        {
+          "path": "changelogs/unreleased.md",
+          "role": "current"
         },
         {
           "path": "index.js",
@@ -8223,7 +8260,7 @@
         "skills/report/SKILL.md"
       ],
       "source": "skills/report/SKILL.md",
-      "hash": "d8fa56d62c88eb9fe3ab1650a81b4a3e10964792ae33f4187ca5ab98e22e91dc",
+      "hash": "cd4b287360d55b1df45fc04ccd30fa172b20774ee95e2e308a78e0bf94b41dd5",
       "version": "1.13.0",
       "lifecycleState": "active",
       "dependencies": [],
@@ -10182,6 +10219,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/validate-profile.js",
+          "role": "current"
+        },
+        {
           "path": "website/docs/guide/development.md",
           "role": "current"
         },
@@ -10323,7 +10364,8 @@
         "scripts/test-mcp-servers.js",
         "scripts/test-migrate-layout.js",
         "scripts/test-runtime-state-index.js",
-        "scripts/test-skill-portfolio.js"
+        "scripts/test-skill-portfolio.js",
+        "scripts/validate-profile.js"
       ],
       "evidence": {
         "registration": "plugin.json",
@@ -10343,7 +10385,7 @@
         "skills/test-router/SKILL.md"
       ],
       "source": "skills/test-router/SKILL.md",
-      "hash": "fc67feb589b5f4e8bb42ca8413b0303deccb19746c602cd849c228bfd565be19",
+      "hash": "28e4dc035b1ee891808905b210cd69cd7aac6d78444cb68b59a6f145d6329d3c",
       "version": "1.13.0",
       "lifecycleState": "active",
       "dependencies": [],

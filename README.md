@@ -62,7 +62,7 @@ DevCodex 通过 `.github/`（Copilot）、`CLAUDE.md + .claude/ + .mcp.json`（C
 - **授权本地安全审查呈现**: `AuthorizedLocalSecurityAuditPresentationGate` 由 `security-threat-modeling` 承接，分离用户可见最小证据和隔离本地探针；内容不可见或额外安全检查发生时保存 `SafetyInterruptionCard` 并从文件真相/审查状态恢复，不把表达调整描述成绕过平台控制。V89 验证授权、证据预算与恢复链。
 - **发布凭据拓扑**: `PublisherCredentialTopologyGate` 由 `release-verification` 承接；首次发布或 publisher/repository/package/registry/auth topology 变化时核对发布身份、secret scope/access/inheritance、workflow permission、package ownership 和最近成功 run。只验证拓扑，不读取或输出 secret value；普通 patch 可记录 unchanged evidence。V90 与 R0~R7 共同守门。
 - **scoped registry 目标解析**: `ScopedRegistryResolutionGate` 由 `release-verification` 承接；scoped package 双仓发布必须同时冻结 global registry、`@scope:registry`、userconfig 与命令级 override，用隔离配置或显式 scope override 证明两通道独立解析。V92 与 targeted fixture 防止相同 scope 路由制造双仓假阳性。
-- **Profile 三档闭环校验**: Profile 按 `profile-lite` / `profile-standard` / `profile-closed-loop` 三档维护，执行 `ProfileTierStandardGate` 与 `ProfileLifecycleClassificationGate` 区分稳定基线、活文档和条件 / 本地文档；规范维护、SDK/CLI、文档站、public API 或用户要求全工作区校验时执行 `AllDevCodexProfileValidationGate`，通过 `node scripts/validate-all-profiles.js --workspace <workspace-root>` 扫描 `.devcodex/workspace/profile` 与 `.devcodex/<project>/profile`
+- **Profile 生成与三档闭环校验**: `ProfileGenerationContractGate` 统一 `profile-lite` / `profile-standard` / `profile-closed-loop` 的生成、加载、状态和校验契约；`FeatureInventorySchemaGate` 要求规范功能清单使用 `FeatureInventorySchemaV1`，`ProfileTierMigrationSafetyGate` 保证 plan/dry-run 零写入、升级保留正文、降档显式授权；`ProfileTierStandardGate`、`ProfileLifecycleClassificationGate` 与 `AllDevCodexProfileValidationGate` 继续负责档位、生命周期和全工作区校验
 - **项目工程泄漏审查**: 项目工程 / 代码质量审查执行 `PE-12 资源生命周期与泄漏风险`，必须检查内存泄露、资源泄漏、监听器/定时器/连接/流未释放、缓存无界增长和组件卸载清理缺失
 - **泄漏风险稳定性压测**: 写测试用例或回归验证时先执行 `LeakRiskStabilityPressureTest` 条件判定；命中长运行、高并发、缓存/连接/监听器/定时器/流/socket/worker/订阅/组件生命周期或 `PE-12` 风险时，TestRoute 纳入场景/负载/稳定性压测并记录基线、冷却后回落和资源指标前后对比；低风险任务写 `N/A + skipReason`
 - **coverage 与外部 runtime 生命周期验证**: 项目存在 coverage 阈值、CI coverage 或发布覆盖率要求时执行 `CoverageGateDecision`，区分断言通过与覆盖率门禁通过；外部 runtime/plugin/registry/adapter/provider、injected runtime、owner mutation 或 function source fingerprint 风险执行 `ExternalRuntimePluginLifecycleGate`、`ExternalRegistryLifecycleMatrixGate`、`FunctionSourceFingerprintMatrixGate`、`ClusterEscalationGate` 与 `RiskBasedValidationLadder`
@@ -303,6 +303,26 @@ devcodex migrate-layout rollback --manifest <manifest-path>
 ```
 
 > 真相源说明：只有在 `layout.json` 已创建后，runtime / MCP / profile init 才会按 `.devcodex/workspace` 和 `.devcodex/<project>` 解析；未启用时继续兼容旧的 `<project>/.devcodex/`。启用后不得再向 `<project>/.devcodex/.tmp` 等旧项目内运行态目录写入产物。
+
+## Profile 计划、生成与升级
+
+> 发布状态：以下 `profile plan`、统一分档生成和安全迁移行为属于当前仓库的 **unreleased** 变更；正式包发布前，已安装的 v1.13.0 仍以其内置 CLI 为准。
+
+先预览，再写入：
+
+```bash
+devcodex profile plan
+devcodex profile plan --tier profile-standard
+devcodex profile init --tier profile-standard
+devcodex status
+```
+
+- 首次创建默认目标是 `profile-lite`，命令会另外显示基于 package、脚本和目录证据得出的推荐档位；只有显式 `--tier` 才升级。
+- 已有 Profile 默认继承当前档位；升级只补缺失文件并保留原正文。显式降档必须追加 `--allow-downgrade`，高档文件仍会保留。
+- `profile plan` 等价于安全预览，和 `profile init --dry-run` 一样不会创建目录、文件或备份；`--force` 会在覆盖前备份。
+- 三档默认生成矩阵为 **5 / 8 / 9**：lite 生成 README、01~03、config；standard 再生成 04/05/06；closed-loop 再生成 07。规范清单采用 `FeatureInventorySchemaV1` 十字段表，扫描无法证明的事实保持 `unverified`，不会伪装成已发布能力。
+
+完整命令、三档文件矩阵、迁移和排错见 [Profile 使用指南](./website/docs/guide/profile.md)。
 
 ## 本地开发
 

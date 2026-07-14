@@ -6,6 +6,7 @@ const fs = require('fs')
 const os = require('os')
 const path = require('path')
 const { spawnSync } = require('child_process')
+const { PROFILE_GENERATION_CONTRACT } = require('../mcp/profile-contract.js')
 
 const ROOT = path.resolve(__dirname, '..')
 const CLI = path.join(ROOT, 'index.js')
@@ -36,6 +37,16 @@ function runCli(args, cwd, envOverrides = {}) {
   if (result.status !== 0) {
     throw new Error(stripAnsi((result.stderr || result.stdout || 'CLI exited with failure').trim()))
   }
+  return stripAnsi(`${result.stdout || ''}${result.stderr || ''}`)
+}
+
+function runCliFailure(args, cwd, envOverrides = {}) {
+  const result = spawnSync(process.execPath, [CLI, ...args], {
+    cwd,
+    encoding: 'utf8',
+    env: { ...process.env, ...HOST_ENV_SCRUB, ...envOverrides }
+  })
+  assert.notStrictEqual(result.status, 0, `expected CLI failure: ${args.join(' ')}`)
   return stripAnsi(`${result.stdout || ''}${result.stderr || ''}`)
 }
 
@@ -332,7 +343,8 @@ function testProfileInitAndStatusShareTierContract() {
     assert.ok(fs.existsSync(path.join(profileDir, file)), `missing closed-loop profile file: ${file}`)
   }
   assert.match(fs.readFileSync(path.join(profileDir, 'README.md'), 'utf8'), /profile-closed-loop/)
-  assert.match(runCli(['status'], root), /profile-closed-loop; 9\/9 required files/)
+  assert.match(fs.readFileSync(path.join(profileDir, '06-功能清单.md'), 'utf8'), /FeatureInventorySchemaV1/)
+  assert.match(runCli(['status'], root), /profile-closed-loop; files 8\/8; semantic 4\/4; config present/)
   assert.match(runCli(['doctor'], root), /profile.*✅ profile-closed-loop/)
 
   fs.appendFileSync(
@@ -340,11 +352,70 @@ function testProfileInitAndStatusShareTierContract() {
     '\n## 档位说明\n\n- profile-lite\n- profile-standard\n- profile-closed-loop\n',
     'utf8'
   )
-  assert.match(runCli(['status'], root), /profile-closed-loop; 9\/9 required files/)
+  assert.match(runCli(['status'], root), /profile-closed-loop; files 8\/8; semantic 4\/4; config present/)
 
   fs.appendFileSync(path.join(profileDir, 'README.md'), '\nProfile 档位：profile-lite。\n', 'utf8')
   assert.match(runCli(['status'], root), /invalid.*multiple profile tiers declared/)
   assert.match(runCli(['doctor'], root), /invalid.*multiple profile tiers declared/)
+  const conflictingReadme = fs.readFileSync(path.join(profileDir, 'README.md'), 'utf8')
+  assert.match(runCliFailure(['profile', 'init'], root), /invalid existing Profile tier.*multiple profile tiers declared/)
+  assert.strictEqual(fs.readFileSync(path.join(profileDir, 'README.md'), 'utf8'), conflictingReadme, 'invalid existing tier must fail without writing')
+
+  fs.rmSync(root, { recursive: true, force: true })
+}
+
+function testProfilePlanAndTierTransitionsAreSafe() {
+  assert.deepStrictEqual(
+    Object.fromEntries(Object.entries(PROFILE_GENERATION_CONTRACT.tiers).map(([tier, contract]) => [tier, contract.defaultGeneratedFiles.length])),
+    { 'profile-lite': 5, 'profile-standard': 8, 'profile-closed-loop': 9 },
+    'Profile default generation matrix must remain 5/8/9'
+  )
+  const root = createTempRoot('devcodex-cli-profile-plan-')
+  writeFile(root, 'package.json', JSON.stringify({
+    name: 'profile-cli-project',
+    version: '2.0.0',
+    bin: { profilecli: 'index.js' },
+    scripts: { test: 'node test.js' }
+  }, null, 2) + '\n')
+
+  const plan = runCli(['profile', 'plan', '--tier', 'profile-closed-loop'], root)
+  assert.match(plan, /dry-run:\s+no directories, files or backups will be written/)
+  assert.match(plan, /recommended tier: profile-closed-loop/)
+  assert.ok(!fs.existsSync(path.join(root, '.devcodex')), 'profile plan must not create runtime directories')
+
+  runCli(['profile', 'init'], root)
+  const profileDir = path.join(root, '.devcodex', 'profile')
+  const readme = path.join(profileDir, 'README.md')
+  fs.appendFileSync(readme, '\n## Manual content\n\nKEEP-ME\n', 'utf8')
+  runCli(['profile', 'init', '--tier', 'profile-standard'], root)
+  assert.match(fs.readFileSync(readme, 'utf8'), /Profile 档位：`profile-standard`/)
+  assert.match(fs.readFileSync(readme, 'utf8'), /KEEP-ME/)
+  assert.ok(fs.existsSync(path.join(profileDir, '06-功能清单.md')))
+
+  runCli(['profile', 'init', '--tier', 'profile-closed-loop'], root)
+  const forceOutput = runCli(['profile', 'init', '--force'], root)
+  assert.match(forceOutput, /detected tier:\s+profile-closed-loop/)
+  assert.match(forceOutput, /target tier:\s+profile-closed-loop/)
+  assert.match(fs.readFileSync(readme, 'utf8'), /profile-closed-loop/)
+
+  assert.match(runCliFailure(['profile', 'init', '--tier', 'profile-lite'], root), /refusing profile downgrade/)
+  runCli(['profile', 'init', '--tier', 'profile-lite', '--allow-downgrade'], root)
+  assert.match(fs.readFileSync(readme, 'utf8'), /profile-lite/)
+  assert.ok(fs.existsSync(path.join(profileDir, '07-用户文档与契约规范.md')), 'safe downgrade retains higher-tier files')
+
+  fs.rmSync(root, { recursive: true, force: true })
+}
+
+function testProfileInitRejectsInvalidArguments() {
+  const root = createTempRoot('devcodex-cli-profile-invalid-')
+  writeFile(root, 'package.json', '{ "name": "invalid-profile-project" }\n')
+
+  assert.match(runCliFailure(['profile', 'init', '--dry-run', '--unknown'], root), /unknown profile init option/)
+  assert.match(runCliFailure(['profile', 'init', '--tier'], root), /missing value for --tier/)
+  const invalidTier = runCliFailure(['profile', 'init', '--tier', 'not-a-tier'], root)
+  assert.match(invalidTier, /invalid --tier value/)
+  assert.doesNotMatch(invalidTier, /at cmdProfileInit|node:internal/)
+  assert.ok(!fs.existsSync(path.join(root, '.devcodex')), 'invalid arguments must not write Profile files')
 
   fs.rmSync(root, { recursive: true, force: true })
 }
@@ -359,6 +430,8 @@ function main() {
   testCodexUpdateRefreshesAdapterInWorkspaceNamespace()
   testProfileInitUsesNestedNamespaceRoot()
   testProfileInitAndStatusShareTierContract()
+  testProfilePlanAndTierTransitionsAreSafe()
+  testProfileInitRejectsInvalidArguments()
   process.stdout.write('cli behavior test passed\n')
 }
 

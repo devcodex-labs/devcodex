@@ -7,6 +7,7 @@ applyTo: .devcodex/**/profile/**
 
 > **路径**: `.devcodex/**/profile/README.md`
 > **触发**: `dev-init/SKILL.md` 或用户要求创建 Profile 时
+> **门禁**: `ProfileGenerationContractGate` / `FeatureInventorySchemaGate` / `ProfileTierMigrationSafetyGate`
 
 ---
 
@@ -21,6 +22,12 @@ applyTo: .devcodex/**/profile/**
 
 > 一段话描述项目的核心功能和定位。
 
+## Profile 档位
+
+- 当前档位：`profile-lite | profile-standard | profile-closed-loop`
+- 生命周期：稳定基线 / 活文档 / 条件或本地文档
+- 生成前先运行：`devcodex profile plan --tier <tier>`
+
 ## Profile 文件索引
 
 | 文件 | 内容 | 状态 |
@@ -32,6 +39,12 @@ applyTo: .devcodex/**/profile/**
 | `config.local.json` | 用户 / 项目指定时使用的本地 overlay：长期连接、本地明文连接信息、env / secretRef 引用、`extensions.<namespace>` | ⏳ 可选 |
 | `04-测试规范.md` | 测试框架、覆盖率要求 | ✅ / ⏳ 待创建 |
 | `05-发布规范.md` | 版本号规则、发布流程 | ✅ / ⏳ 待创建 |
+| `06-功能清单.md` | `FeatureInventorySchemaV1` 规范功能清单 | ✅ / ⏳ standard 默认生成 |
+| `07-用户文档与契约规范.md` | 用户文档与 API/CLI/Hook 契约维护 | ✅ / ⏳ closed-loop 必需 |
+
+## 功能清单契约
+
+`06-功能清单.md` 是默认唯一规范真相源，表头固定为：`能力 ID | 能力组 | 公开面 | 配置入口 | 主要消费者 | 文档入口 | 验证路线 | 事实来源 | 维护责任 | 发布状态`。扫描无法证明的字段写 `unverified` / 待人工确认；本 README 和 `01-项目信息.md` 只链接清单，不复制完整表。
 
 ## 快速参考
 

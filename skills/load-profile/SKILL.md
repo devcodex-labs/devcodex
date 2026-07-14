@@ -88,9 +88,17 @@ Codex / 宿主内置 Memories、模型长期偏好、上一轮摘要或用户口
 
 公开包、SDK、CLI、多模块仓库、文档站、public API、可配置 runtime 或跨项目规范维护任务需要稳定功能清单时，必须执行 `FeatureInventoryProfileGate`：
 
-- Profile 中应有可追踪 feature inventory 或说明其当前来源，至少覆盖能力组、公开面、配置入口、主要消费者、文档入口和验证路线。
+- Profile 中应有可追踪 feature inventory 或精确说明其当前 Markdown 来源；关键词命中、临时清单或不存在的路径不能证明来源有效。
+- `profile-closed-loop` 使用 `06-功能清单.md` 作为规范真相源，并符合 `FeatureInventorySchemaV1`：能力 ID、能力组、公开面、配置入口、主要消费者、文档入口、验证路线、事实来源、维护责任、发布状态。`01-项目信息.md` 只能保留摘要和链接，不得复制完整规范表。
 - feature inventory 不能由复审清单临时拼接；复审清单只记录本轮验证状态，Profile 或正式文档记录稳定能力面。
 - 功能增删、默认行为变化、公开 API 或文档站能力变化时，报告需写 `ProfileRuntimeContractSyncGate` 与 `ProfileImpactCheck` 是否同步。
+
+### ProfileGenerationContractGate / ProfileTierMigrationSafetyGate / FeatureInventorySchemaGate
+
+- Profile 生成、加载、状态展示和校验必须消费同一三档契约；不得由 Skill、CLI、Prompt 或 validator 各自维护不一致的文件集合。
+- `devcodex profile plan` / `profile init --dry-run` 先显示目标根、现有档位、推荐档位、目标档位和逐文件动作，且必须零写入。
+- 未显式指定 `--tier` 时继承现有档位；首次创建默认 lite 并单独给出推荐档位。升级只补缺失文件并保留已有正文；降档必须有 `--allow-downgrade`，且保留高档文件。
+- `devcodex status` 分开报告 `files`、`semantic` 与 `config`，避免把 config 的条件状态混入必需文件计数。
 
 ## ProfileTierStandardGate / ProfileLifecycleClassificationGate
 
@@ -126,7 +134,7 @@ node scripts/validate-all-profiles.js --workspace <workspace-root>
 | `03-代码风格.md` | 编码规范 | 是 |
 | `04-测试规范.md` | 测试框架/覆盖率 | `profile-standard` 起必需 |
 | `05-交付发布规范.md` / `05-发布规范.md` | 版本号/发布流程 | `profile-standard` 起必需 |
-| `06-功能清单.md` | 功能清单、公开面、消费者和验证路线 | `profile-closed-loop` 必需 |
+| `06-功能清单.md` | `FeatureInventorySchemaV1` 功能清单规范源；standard 默认生成，closed-loop 必需 | `profile-standard` 生成；`profile-closed-loop` 必需 |
 | `07-用户文档与契约规范.md` | README、站点文档、quick start、API/CLI/Hook/宿主契约维护规则 | `profile-closed-loop` 必需 |
 | `config.json` | 运行模式配置（ENV_MODE）+ agent 兜底标识；Auto 别名全局默认 `@rocky`，可配置 `extensions.devcodex.autoAliases` 替换默认别名；也可配置 `extensions.devcodex.concurrency` 并发策略 | 按需 |
 | `config.local.json` | 用户 / 项目指定时使用的本地 overlay：长期连接、本地明文连接信息、env / secretRef 引用、`extensions.<namespace>` | 条件 / 本地 |

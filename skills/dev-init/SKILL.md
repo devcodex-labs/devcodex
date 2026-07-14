@@ -21,11 +21,15 @@ description: 项目初始化子类型规范 — 新项目/模块脚手架 + Prof
 
 ## Profile 自动生成
 
-init 完成后**必须**在 `.devcodex/profile/` 创建：
-- `README.md` — 项目概述
-- `01-项目信息.md` — 技术栈/仓库地址
-- `02-架构约束.md` — 目录结构/模块边界
-- `03-代码风格.md` — 编码规范
+init 完成后必须执行 `ProfileGenerationContractGate`，先运行 `devcodex profile plan`，再按确认档位运行 `devcodex profile init --tier <tier>`：
+
+| 档位 | 默认生成 |
+|------|----------|
+| `profile-lite` | README、01~03、`config.json` |
+| `profile-standard` | lite + 04、05、`06-功能清单.md` |
+| `profile-closed-loop` | standard + `07-用户文档与契约规范.md` |
+
+公开包、CLI、SDK、多模块、文档站或 public API 项目应根据证据选择 standard/closed-loop。`06-功能清单.md` 使用 `FeatureInventorySchemaV1`，事实来源与发布状态不明确时保留 `unverified`，不得编造。已有 Profile 升级只补缺失文件；降档必须显式 `--allow-downgrade` 并保留高档文件，执行 `ProfileTierMigrationSafetyGate`。
 
 ## 关键规则
 

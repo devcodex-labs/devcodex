@@ -9,7 +9,8 @@ function buildCliMaintenanceCommands(ctx) {
     filesForProfileTier, readJsonSafe, safeFirstLine, detectArch, listTopDirs,
     detectStyle, genProfileReadme, genProjectInfo, genArchitecture, genStyle,
     genTestSpec, genReleaseSpec, genFeatureInventory, genUserContractSpec,
-    genConfigJson, detectAgent, detectHostPlatform, detectInstalledHostAssets
+    genConfigJson, detectAgent, detectHostPlatform, detectInstalledHostAssets,
+    recommendProfileTier, compareProfileTiers, updateProfileTierDeclaration
   } = ctx
 
   function cmdStatus() {
@@ -66,10 +67,13 @@ function buildCliMaintenanceCommands(ctx) {
     const profileDir = resolveProfileDir(cwd)
     const profileState = inspectProfileState(profileDir)
     let profileLabel
+    const profileDetails = profileState.required
+      ? `files ${profileState.required.present}/${profileState.required.total}; semantic ${profileState.semantic.present}/${profileState.semantic.total}; config ${profileState.configExists ? 'present' : 'missing'}`
+      : `${profileState.present}/${profileState.total} checks`
     if (profileState.error) profileLabel = c.red(`invalid   (${profileState.error})`)
-    else if (profileState.complete) profileLabel = c.green(`complete  (${profileState.tier}; ${profileState.present}/${profileState.total} required files)`)
-    else if (profileState.present > 0) profileLabel = c.yellow(`partial   (${profileState.tier}; ${profileState.present}/${profileState.total} required files)`)
-    else profileLabel = c.red(`missing   (0/${profileState.total} required files — run: devcodex profile init)`)
+    else if (profileState.complete) profileLabel = c.green(`complete  (${profileState.tier}; ${profileDetails})`)
+    else if (profileState.present > 0) profileLabel = c.yellow(`partial   (${profileState.tier}; ${profileDetails})`)
+    else profileLabel = c.red(`missing   (${profileDetails} — run: devcodex profile plan)`)
     console.log(`  ${c.cyan('profile'.padEnd(14))} ${profileLabel}`)
 
     const legacyCounts = getLegacyCounts(ghDir)
@@ -98,23 +102,54 @@ function buildCliMaintenanceCommands(ctx) {
     console.log()
   }
 
-  function cmdProfileInit(argv) {
-    const force = argv.includes('--force') || argv.includes('-f')
-    const prod = argv.includes('--prod')
-    const tierFlag = argv.find(arg => arg.startsWith('--tier='))
-    const tierIndex = argv.indexOf('--tier')
-    const tierValue = tierFlag ? tierFlag.slice('--tier='.length) : (tierIndex >= 0 ? argv[tierIndex + 1] : 'profile-lite')
-    const tier = normalizeProfileTier(tierValue, '')
-    const mode = prod ? 'prod' : 'dev'
-    const cwd = process.cwd()
-    const dir = path.join(resolveActiveRuntimeRoot(cwd), 'profile')
-    console.log()
-    console.log(c.bold('  DevCodex profile init') + c.dim(` (${tier}) in ${cwd}`))
-    console.log(c.dim('  ──────────────────────────────────────'))
+  function parseProfileInitArgs(argv) {
+    const result = { force: false, prod: false, dryRun: false, allowDowngrade: false, requestedTier: null, tierExplicit: false, errors: [] }
+    for (let index = 0; index < argv.length; index++) {
+      const arg = argv[index]
+      if (arg === '--force' || arg === '-f') result.force = true
+      else if (arg === '--prod') result.prod = true
+      else if (arg === '--dry-run') result.dryRun = true
+      else if (arg === '--allow-downgrade') result.allowDowngrade = true
+      else if (arg === '--tier') {
+        const value = argv[index + 1]
+        if (!value || value.startsWith('-')) result.errors.push('missing value for --tier')
+        else {
+          result.requestedTier = value
+          result.tierExplicit = true
+          index++
+        }
+      } else if (arg.startsWith('--tier=')) {
+        result.requestedTier = arg.slice('--tier='.length)
+        result.tierExplicit = true
+        if (!result.requestedTier) result.errors.push('missing value for --tier')
+      } else result.errors.push(`unknown profile init option: ${arg}`)
+    }
+    if (result.requestedTier) {
+      try { result.requestedTier = normalizeProfileTier(result.requestedTier, '') } catch {
+        result.errors.push(`invalid --tier value: ${result.requestedTier}`)
+      }
+    }
+    return result
+  }
 
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+  function readDetectedTier(dir) {
+    if (!fs.existsSync(dir)) return null
+    const markdown = []
+    try {
+      for (const file of fs.readdirSync(dir).filter(file => file.endsWith('.md'))) {
+        try { markdown.push(fs.readFileSync(path.join(dir, file), 'utf8')) } catch { }
+      }
+    } catch { }
+    if (!markdown.length) return null
+    try {
+      return detectProfileTier(markdown.join('\n'), '')
+    } catch (error) {
+      if (/^invalid profile tier:\s*(?:undefined)?$/.test(String(error?.message || ''))) return null
+      throw error
+    }
+  }
 
-    // Build context once
+  function buildProfileContext(cwd) {
     const pkg = readJsonSafe(path.join(cwd, 'package.json'))
     let branch = '(unknown)'
     try {
@@ -129,8 +164,51 @@ function buildCliMaintenanceCommands(ctx) {
     const tree = listTopDirs(cwd, 2)
     const style = detectStyle(cwd)
     const hasServices = fs.existsSync(path.join(cwd, 'services'))
+    return { cwd, pkg, branch, changelogTop, arch, tree, style, hasServices }
+  }
+
+  function printProfileArgErrors(errors) {
+    for (const error of errors) console.log(c.red(`  ${error}`))
+    console.log(c.dim('  Usage: devcodex profile init [--dry-run] [--force] [--prod] [--tier <profile-lite|profile-standard|profile-closed-loop>] [--allow-downgrade]'))
+    process.exitCode = 1
+  }
+
+  function cmdProfileInit(argv) {
+    const options = parseProfileInitArgs(argv)
+    if (options.errors.length) {
+      printProfileArgErrors(options.errors)
+      return { ok: false, reason: 'invalid-arguments' }
+    }
+    const cwd = process.cwd()
+    const dir = path.join(resolveActiveRuntimeRoot(cwd), 'profile')
+    const ctx = buildProfileContext(cwd)
+    let detectedTier
+    try {
+      detectedTier = readDetectedTier(dir)
+    } catch (error) {
+      printProfileArgErrors([`invalid existing Profile tier: ${error.message}`])
+      return { ok: false, reason: 'invalid-existing-tier' }
+    }
+    const recommendation = recommendProfileTier(ctx)
+    const tier = options.requestedTier || detectedTier || 'profile-lite'
+    if (detectedTier && compareProfileTiers(tier, detectedTier) < 0 && !options.allowDowngrade) {
+      printProfileArgErrors([`refusing profile downgrade: ${detectedTier} → ${tier}; add --allow-downgrade to confirm`])
+      return { ok: false, reason: 'downgrade-not-authorized' }
+    }
+    const mode = options.prod ? 'prod' : 'dev'
+    console.log()
+    console.log(c.bold(`  DevCodex profile ${options.dryRun ? 'plan' : 'init'}`) + c.dim(` (${tier}) in ${cwd}`))
+    console.log(c.dim('  ──────────────────────────────────────'))
     const agent = detectAgent(cwd)
-    const ctx = { pkg, branch, changelogTop, arch, tree, style, hasServices }
+    console.log(`  target root:      ${dir}`)
+    console.log(`  detected tier:    ${detectedTier || '(none)'}`)
+    console.log(`  requested tier:   ${options.tierExplicit ? tier : '(not explicit)'}`)
+    console.log(`  recommended tier: ${recommendation.tier}`)
+    for (const reason of recommendation.reasons) console.log(c.dim(`    - ${reason}`))
+    console.log(`  target tier:      ${tier}`)
+    console.log(`  mode:             ${mode}`)
+    if (options.dryRun) console.log(c.yellow('  dry-run:          no directories, files or backups will be written'))
+    console.log()
 
     const generators = {
       'README.md': () => genProfileReadme(tier),
@@ -141,33 +219,59 @@ function buildCliMaintenanceCommands(ctx) {
       '05-发布规范.md': () => genReleaseSpec(ctx),
       '06-功能清单.md': () => genFeatureInventory(ctx),
       '07-用户文档与契约规范.md': () => genUserContractSpec(ctx),
-      'config.json': () => genConfigJson(agent, mode),
+      'config.json': () => genConfigJson(agent, mode)
     }
 
     let generated = 0, skipped = 0, backedUp = 0
+    const actions = []
     for (const file of filesForProfileTier(tier)) {
       const dest = path.join(dir, file)
       const exists = fs.existsSync(dest)
-      if (exists && !force) {
+      const shouldUpdateTier = file === 'README.md' && exists && detectedTier && tier !== detectedTier && !options.force
+      if (shouldUpdateTier) {
+        actions.push({ file, action: 'update-tier', dest })
+        console.log(`  ${c.cyan('[tier]')} ${file} ${c.dim(`(${detectedTier} → ${tier}; preserve body)`)}`)
+        continue
+      }
+      if (exists && !options.force) {
+        actions.push({ file, action: 'skip', dest })
         console.log(`  ${c.dim('[skip]')}  ${file} ${c.dim('(existing)')}`)
         skipped++
         continue
       }
-      if (exists && force) {
-        const ts = new Date().toISOString().replace(/[-:T.]/g, '').slice(0, 14)
-        const bak = `${dest}.bak.${ts}`
-        fs.copyFileSync(dest, bak)
-        backedUp++
-      }
-      fs.writeFileSync(dest, generators[file](), 'utf-8')
-      console.log(`  ${c.green('[gen]')}   ${file}`)
+      actions.push({ file, action: exists ? 'backup-and-generate' : 'generate', dest })
+      console.log(`  ${exists ? c.yellow('[force]') : c.green('[gen]')} ${file}${exists ? c.dim(' (backup first)') : ''}`)
       generated++
     }
 
+    if (!options.dryRun) {
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+      const backupId = new Date().toISOString().replace(/[-:TZ.]/g, '')
+      for (const item of actions) {
+        if (item.action === 'skip') continue
+        if (item.action === 'update-tier') {
+          const current = fs.readFileSync(item.dest, 'utf8')
+          fs.writeFileSync(item.dest, updateProfileTierDeclaration(current, tier), 'utf8')
+          continue
+        }
+        if (item.action === 'backup-and-generate') {
+          const bak = `${item.dest}.bak.${backupId}`
+          fs.copyFileSync(item.dest, bak)
+          backedUp++
+        }
+        fs.writeFileSync(item.dest, generators[item.file](), 'utf-8')
+      }
+    }
+
     console.log()
-    console.log(`  ${c.green(`Generated: ${generated}`)}  ${c.dim(`Skipped: ${skipped}`)}  ${c.dim(`Backed up: ${backedUp}`)}`)
-    if (generated > 0) console.log(c.yellow('  ⚠️  These are AUTO-GENERATED DRAFTS — review and refine before relying on them.'))
+    const plannedTierUpdates = actions.filter(item => item.action === 'update-tier').length
+    console.log(`  ${options.dryRun ? 'Planned generate' : 'Generated'}: ${generated}  Skipped: ${skipped}  Tier updates: ${plannedTierUpdates}  Backed up: ${backedUp}`)
+    if (generated > 0 || plannedTierUpdates > 0) console.log(c.yellow('  ⚠️  Generated content is an evidence-backed draft; review every unverified field before relying on it.'))
+    if (!options.tierExplicit && recommendation.tier !== tier) {
+      console.log(c.yellow(`  Recommendation: run \`devcodex profile plan --tier ${recommendation.tier}\` before upgrading.`))
+    }
     console.log()
+    return { ok: true, dryRun: options.dryRun, detectedTier, recommendedTier: recommendation.tier, targetTier: tier, actions }
   }
 
   function cmdDoctor() {
@@ -300,6 +404,7 @@ function buildCliMaintenanceCommands(ctx) {
       ${c.cyan('update --codex')}    Overwrite Codex adapter only
       ${c.cyan('migrate-layout')}    Plan/apply/rollback centralized .devcodex workspace layout
       ${c.cyan('profile init')}      Auto-generate tiered .devcodex/profile/ drafts
+      ${c.cyan('profile plan')}      Preview Profile root/tier/file actions without writing
       ${c.cyan('status')}            Show what DevCodex files are installed
       ${c.cyan('doctor')}            Diagnose host platform / agent / mode (v1.9.7+)
 
@@ -310,6 +415,7 @@ function buildCliMaintenanceCommands(ctx) {
       ${c.dim('--codex')}            Only target Codex adapter (skip Copilot .github/ and Claude Code)
       ${c.dim('--prod')}             (profile init only) Set mode=prod instead of dev
       ${c.dim('--tier <tier>')}      (profile init only) profile-lite | profile-standard | profile-closed-loop
+      ${c.dim('--allow-downgrade')}  (profile init only) Explicitly allow a lower tier; files are retained
 
     ${c.bold('Examples:')}
       devcodex init                 # First-time three-host install
@@ -317,6 +423,7 @@ function buildCliMaintenanceCommands(ctx) {
       devcodex init --codex         # Codex adapter only
       devcodex migrate-layout plan  # Generate centralized layout migration manifest
       devcodex profile init --tier profile-standard  # Generate tiered Profile drafts
+      devcodex profile plan --tier profile-closed-loop # Preview a safe upgrade
       devcodex update               # Refresh Copilot + Claude Code + Codex adapters
       devcodex update --claude      # Refresh Claude Code adapter only
       devcodex update --codex       # Refresh Codex adapter only

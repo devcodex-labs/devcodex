@@ -24,7 +24,11 @@ const {
   writeManifestAtomic
 } = require('./scripts/lib/deployment-manifest-utils.js')
 const { runCli: runMigrateLayout } = require('./scripts/migrate-layout.js')
-const { detectProfileTier, filesForProfileTier, inspectProfileContract, normalizeProfileTier } = require('./mcp/profile-contract.js')
+const {
+  detectProfileTier, filesForProfileTier, inspectProfileContract, normalizeProfileTier,
+  compareProfileTiers, updateProfileTierDeclaration, FEATURE_INVENTORY_SCHEMA_VERSION,
+  FEATURE_INVENTORY_COLUMN_LABELS
+} = require('./mcp/profile-contract.js')
 const {
   findLayoutInfo: sharedFindLayoutInfo,
   inferProjectFromCwd: sharedInferProjectFromCwd,
@@ -344,6 +348,7 @@ const {
   genTestSpec,
   genReleaseSpec,
   genFeatureInventory,
+  recommendProfileTier,
   genUserContractSpec,
   genConfigJson,
   detectAgent
@@ -352,7 +357,9 @@ const {
   path,
   detectHostPlatform,
   detectInstalledHostAssets,
-  processEnv: process.env
+  processEnv: process.env,
+  featureInventorySchemaVersion: FEATURE_INVENTORY_SCHEMA_VERSION,
+  featureInventoryColumnLabels: FEATURE_INVENTORY_COLUMN_LABELS
 })
 
 const { cmdInit, cmdInitClaude, cmdInitCodex } = buildCliInstallCommands({
@@ -373,14 +380,14 @@ const { cmdInit, cmdInitClaude, cmdInitCodex } = buildCliInstallCommands({
 function inspectProfileState(profileDir) {
   let availableFiles = []
   try { availableFiles = fs.readdirSync(profileDir).filter(file => fs.statSync(path.join(profileDir, file)).isFile()) } catch { }
-  const corpus = availableFiles.filter(file => file.endsWith('.md'))
-    .map(file => {
-      try { return fs.readFileSync(path.join(profileDir, file), 'utf8') } catch { return '' }
-    }).join('\n')
+  const documents = Object.fromEntries(availableFiles.filter(file => file.endsWith('.md')).map(file => {
+    try { return [file, fs.readFileSync(path.join(profileDir, file), 'utf8')] } catch { return [file, ''] }
+  }))
+  const corpus = Object.values(documents).join('\n')
   let tier = 'profile-lite'
   let error = null
   try { tier = detectProfileTier(corpus) } catch (err) { error = err.message }
-  const state = inspectProfileContract(tier, availableFiles, corpus)
+  const state = inspectProfileContract(tier, availableFiles, corpus, documents)
   const configExists = fs.existsSync(path.join(profileDir, 'config.json'))
   return { ...state, complete: !error && state.complete, configExists, error }
 }
@@ -390,9 +397,11 @@ const { cmdStatus, cmdProfileInit, cmdDoctor, cmdHelp } = buildCliMaintenanceCom
   walkDir, isSourceRepo, resolveActiveRuntimeRoot, resolveProfileDir, getLegacyCounts,
   getCodexConfigState, inspectProfileState, detectProfileTier,
   inspectProfileContract, normalizeProfileTier, filesForProfileTier,
+  compareProfileTiers, updateProfileTierDeclaration,
   readJsonSafe, safeFirstLine, detectArch, listTopDirs, detectStyle,
   genProfileReadme, genProjectInfo, genArchitecture, genStyle, genTestSpec,
   genReleaseSpec, genFeatureInventory, genUserContractSpec, genConfigJson,
+  recommendProfileTier,
   detectAgent, detectHostPlatform, detectInstalledHostAssets
 })
 

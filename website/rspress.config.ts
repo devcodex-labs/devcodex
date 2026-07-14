@@ -45,6 +45,7 @@ export default defineConfig({
                     text: '维护者指南',
                     items: [
                         { text: '概述', link: '/guide/' },
+                        { text: 'Profile 使用指南', link: '/guide/profile' },
                         { text: '需求管理', link: '/guide/requirements' },
                         { text: '开发规范', link: '/guide/development' },
                         { text: '版本与发布', link: '/guide/release' },

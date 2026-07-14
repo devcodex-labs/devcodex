@@ -21,6 +21,8 @@ assert.strictEqual(runCliCommand({ cmd: 'update', argv: ['--claude'], registry, 
 assert.deepStrictEqual(calls.pop(), ['cmdInitClaude', ['--force']])
 assert.strictEqual(runCliCommand({ cmd: 'profile', argv: ['init', '--prod'], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger }), 'profile-init')
 assert.deepStrictEqual(calls.pop(), ['cmdProfileInit', ['--prod']])
+assert.strictEqual(runCliCommand({ cmd: 'profile', argv: ['plan', '--tier', 'profile-standard'], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger }), 'profile-plan')
+assert.deepStrictEqual(calls.pop(), ['cmdProfileInit', ['--tier', 'profile-standard', '--dry-run']])
 assert.strictEqual(runCliCommand({ cmd: 'migrate-layout', argv: ['plan'], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger }), 'migrate-layout')
 assert.deepStrictEqual(calls.pop(), ['migrate', ['plan']])
 assert.strictEqual(runCliCommand({ cmd: 'unknown', argv: [], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger }), 'help')

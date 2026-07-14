@@ -46,6 +46,32 @@ function runValidate(workspaceRoot) {
     })
 }
 
+function featureInventoryDocument(overrides = {}) {
+    const row = {
+        featureId: 'cli-main',
+        capabilityGroup: 'CLI',
+        publicSurface: '`devcodex`',
+        configEntrypoint: '命令参数',
+        primaryConsumers: 'CLI 用户',
+        docsEntrypoint: '`README.md`',
+        validationRoute: '`node test.js`',
+        sourceEvidence: 'package.json#bin.devcodex',
+        maintenanceOwner: '项目维护者',
+        releaseState: 'unverified',
+        ...overrides
+    }
+    return [
+        '# 06 — 功能清单',
+        '',
+        '> FeatureInventorySchemaV1',
+        '',
+        '| 能力 ID | 能力组 | 公开面 | 配置入口 | 主要消费者 | 文档入口 | 验证路线 | 事实来源 | 维护责任 | 发布状态 |',
+        '|---|---|---|---|---|---|---|---|---|---|',
+        `| ${row.featureId} | ${row.capabilityGroup} | ${row.publicSurface} | ${row.configEntrypoint} | ${row.primaryConsumers} | ${row.docsEntrypoint} | ${row.validationRoute} | ${row.sourceEvidence} | ${row.maintenanceOwner} | ${row.releaseState} |`,
+        ''
+    ].join('\n')
+}
+
 function runValidateWithArgs(workspaceRoot, extraArgs) {
     return spawnSync(process.execPath, [SCRIPT].concat(extraArgs), {
         cwd: workspaceRoot,
@@ -283,16 +309,35 @@ function main() {
             '# README',
             '',
             '- Profile 档位：profile-standard。',
-            '- FeatureInventoryProfileGate 来源：`01-项目信息.md` 中的功能清单摘要。',
             '- `config.local.json`：本地私有 overlay。',
             '- `extensions.<namespace>`：扩展位需在 Profile 中说明。'
         ].join('\n'))
         writeFile(standardRoot, '.devcodex/profile/04-测试规范.md', '# 04 — 测试规范\n')
         writeFile(standardRoot, '.devcodex/profile/05-发布规范.md', '# 05 — 发布规范\n')
+        writeFile(standardRoot, '.devcodex/profile/06-功能清单.md', featureInventoryDocument())
         const standardResult = runValidate(standardRoot)
         const standardOutput = `${standardResult.stdout}\n${standardResult.stderr}`
 
         assert.strictEqual(standardResult.status, 0, standardOutput)
+
+        const standardLegacyRoot = createWorkspace(currentProjectInfo())
+        writeFile(standardLegacyRoot, '.devcodex/profile/README.md', '# README\n\n- Profile 档位：profile-standard。\n')
+        writeFile(standardLegacyRoot, '.devcodex/profile/04-测试规范.md', '# 04 — 测试规范\n')
+        writeFile(standardLegacyRoot, '.devcodex/profile/05-发布规范.md', '# 05 — 发布规范\n')
+        writeFile(standardLegacyRoot, '.devcodex/profile/06-功能清单.md', '# 06\n\n| 能力组 | 当前口径 | 主要证据 | 验证路线 |\n|---|---|---|---|\n| CLI | 已发布命令 | package.json#bin | npm test |\n')
+        const standardLegacyResult = runValidate(standardLegacyRoot)
+        assert.strictEqual(standardLegacyResult.status, 0, `${standardLegacyResult.stdout}\n${standardLegacyResult.stderr}`)
+
+        const standardBulletsRoot = createWorkspace(currentProjectInfo())
+        writeFile(standardBulletsRoot, '.devcodex/profile/README.md', '# README\n\n- Profile 档位：profile-standard。\n')
+        writeFile(standardBulletsRoot, '.devcodex/profile/04-测试规范.md', '# 04 — 测试规范\n')
+        writeFile(standardBulletsRoot, '.devcodex/profile/05-发布规范.md', '# 05 — 发布规范\n')
+        writeFile(standardBulletsRoot, '.devcodex/profile/06-功能清单.md', '# 06 — 功能清单\n\n- CLI\n- Profile\n')
+        const standardBulletsResult = runValidate(standardBulletsRoot)
+        const standardBulletsOutput = `${standardBulletsResult.stdout}\n${standardBulletsResult.stderr}`
+
+        assert.strictEqual(standardBulletsResult.status, 1, standardBulletsOutput)
+        assert.match(standardBulletsOutput, /requires a structured Markdown table/)
 
         const conflictingTierRoot = createWorkspace(currentProjectInfo())
         writeFile(conflictingTierRoot, '.devcodex/profile/README.md', [
@@ -333,12 +378,85 @@ function main() {
         ].join('\n'))
         writeFile(closedLoopRoot, '.devcodex/profile/04-测试规范.md', '# 04 — 测试规范\n')
         writeFile(closedLoopRoot, '.devcodex/profile/05-交付发布规范.md', '# 05 — 交付发布规范\n')
-        writeFile(closedLoopRoot, '.devcodex/profile/06-功能清单.md', '# 06 — 功能清单\n\n- CLI\n- Hooks\n')
+        writeFile(closedLoopRoot, '.devcodex/profile/06-功能清单.md', featureInventoryDocument())
         writeFile(closedLoopRoot, '.devcodex/profile/07-用户文档与契约规范.md', '# 07 — 用户文档与契约规范\n')
         const closedLoopResult = runValidate(closedLoopRoot)
         const closedLoopOutput = `${closedLoopResult.stdout}\n${closedLoopResult.stderr}`
 
         assert.strictEqual(closedLoopResult.status, 0, closedLoopOutput)
+
+        const missingColumnsRoot = createWorkspace(currentProjectInfo())
+        writeFile(missingColumnsRoot, '.devcodex/profile/README.md', '# README\n\n- Profile 档位：profile-closed-loop。\n- 生命周期：stable baseline / living document / conditional-required local docs。\n')
+        writeFile(missingColumnsRoot, '.devcodex/profile/04-测试规范.md', '# 04\n')
+        writeFile(missingColumnsRoot, '.devcodex/profile/05-发布规范.md', '# 05\n')
+        writeFile(missingColumnsRoot, '.devcodex/profile/06-功能清单.md', '# 06\n\n> FeatureInventorySchemaV1\n\n| 能力 | 公开面 | 消费者 | 验证路线 |\n|---|---|---|---|\n| CLI | devcodex | users | test |\n')
+        writeFile(missingColumnsRoot, '.devcodex/profile/07-用户文档与契约规范.md', '# 07\n')
+        const missingColumnsResult = runValidate(missingColumnsRoot)
+        const missingColumnsOutput = `${missingColumnsResult.stdout}\n${missingColumnsResult.stderr}`
+        assert.strictEqual(missingColumnsResult.status, 1, missingColumnsOutput)
+        assert.match(missingColumnsOutput, /must contain columns/)
+
+        const emptyInventoryRoot = createWorkspace(currentProjectInfo())
+        writeFile(emptyInventoryRoot, '.devcodex/profile/README.md', '# README\n\n- Profile 档位：profile-closed-loop。\n- 生命周期：stable baseline / living document / conditional-required local docs。\n')
+        writeFile(emptyInventoryRoot, '.devcodex/profile/04-测试规范.md', '# 04\n')
+        writeFile(emptyInventoryRoot, '.devcodex/profile/05-发布规范.md', '# 05\n')
+        writeFile(emptyInventoryRoot, '.devcodex/profile/06-功能清单.md', '# 06\n\n> FeatureInventorySchemaV1\n\n| 能力 ID | 能力组 | 公开面 | 配置入口 | 主要消费者 | 文档入口 | 验证路线 | 事实来源 | 维护责任 | 发布状态 |\n|---|---|---|---|---|---|---|---|---|---|\n')
+        writeFile(emptyInventoryRoot, '.devcodex/profile/07-用户文档与契约规范.md', '# 07\n')
+        const emptyInventoryResult = runValidate(emptyInventoryRoot)
+        const emptyInventoryOutput = `${emptyInventoryResult.stdout}\n${emptyInventoryResult.stderr}`
+        assert.strictEqual(emptyInventoryResult.status, 1, emptyInventoryOutput)
+        assert.match(emptyInventoryOutput, /at least one non-placeholder row with source evidence/)
+
+        const placeholderOnlyRoot = createWorkspace(currentProjectInfo())
+        writeFile(placeholderOnlyRoot, '.devcodex/profile/README.md', '# README\n\n- Profile 档位：profile-closed-loop。\n- 生命周期：stable baseline / living document / conditional-required local docs。\n')
+        writeFile(placeholderOnlyRoot, '.devcodex/profile/04-测试规范.md', '# 04\n')
+        writeFile(placeholderOnlyRoot, '.devcodex/profile/05-发布规范.md', '# 05\n')
+        writeFile(placeholderOnlyRoot, '.devcodex/profile/06-功能清单.md', featureInventoryDocument({ featureId: '待补充', sourceEvidence: '待补充' }))
+        writeFile(placeholderOnlyRoot, '.devcodex/profile/07-用户文档与契约规范.md', '# 07\n')
+        const placeholderOnlyResult = runValidate(placeholderOnlyRoot)
+        const placeholderOnlyOutput = `${placeholderOnlyResult.stdout}\n${placeholderOnlyResult.stderr}`
+        assert.strictEqual(placeholderOnlyResult.status, 1, placeholderOnlyOutput)
+        assert.match(placeholderOnlyOutput, /at least one non-placeholder row with source evidence/)
+
+        const fakeSourceRoot = createWorkspace(currentProjectInfo())
+        writeFile(fakeSourceRoot, '.devcodex/profile/README.md', '# README\n\n- Profile 档位：profile-standard。\n- Feature inventory source: `missing/features.md`\n')
+        writeFile(fakeSourceRoot, '.devcodex/profile/04-测试规范.md', '# 04\n')
+        writeFile(fakeSourceRoot, '.devcodex/profile/05-发布规范.md', '# 05\n')
+        const fakeSourceResult = runValidate(fakeSourceRoot)
+        const fakeSourceOutput = `${fakeSourceResult.stdout}\n${fakeSourceResult.stderr}`
+        assert.strictEqual(fakeSourceResult.status, 1, fakeSourceOutput)
+        assert.match(fakeSourceOutput, /feature inventory source not found/)
+
+        const externalLegacyRoot = createWorkspace(currentProjectInfo())
+        writeFile(externalLegacyRoot, '.devcodex/profile/README.md', '# README\n\n- Profile 档位：profile-standard。\n- Feature inventory source: `inventory/features.md`\n')
+        writeFile(externalLegacyRoot, '.devcodex/profile/04-测试规范.md', '# 04\n')
+        writeFile(externalLegacyRoot, '.devcodex/profile/05-发布规范.md', '# 05\n')
+        writeFile(externalLegacyRoot, '.devcodex/profile/inventory/features.md', '| 能力组 | 当前口径 | 主要证据 | 验证路线 |\n|---|---|---|---|\n| CLI | 已发布命令 | package.json#bin | npm test |\n')
+        const externalLegacyResult = runValidate(externalLegacyRoot)
+        assert.strictEqual(externalLegacyResult.status, 0, `${externalLegacyResult.stdout}\n${externalLegacyResult.stderr}`)
+
+        const duplicateCanonicalRoot = createWorkspace(currentProjectInfo() + '\n' + featureInventoryDocument({ releaseState: 'unreleased' }))
+        writeFile(duplicateCanonicalRoot, '.devcodex/profile/README.md', '# README\n\n- Profile 档位：profile-closed-loop。\n- 生命周期：stable baseline / living document / conditional-required local docs。\n')
+        writeFile(duplicateCanonicalRoot, '.devcodex/profile/04-测试规范.md', '# 04\n')
+        writeFile(duplicateCanonicalRoot, '.devcodex/profile/05-发布规范.md', '# 05\n')
+        writeFile(duplicateCanonicalRoot, '.devcodex/profile/06-功能清单.md', featureInventoryDocument({ releaseState: 'v1.0.0' }))
+        writeFile(duplicateCanonicalRoot, '.devcodex/profile/07-用户文档与契约规范.md', '# 07\n')
+        const duplicateCanonicalResult = runValidate(duplicateCanonicalRoot)
+        const duplicateCanonicalOutput = `${duplicateCanonicalResult.stdout}\n${duplicateCanonicalResult.stderr}`
+        assert.strictEqual(duplicateCanonicalResult.status, 1, duplicateCanonicalOutput)
+        assert.match(duplicateCanonicalOutput, /01-项目信息\.md must not duplicate/)
+
+        const releaseStateConflictRoot = createWorkspace(currentProjectInfo())
+        writeFile(releaseStateConflictRoot, '.devcodex/profile/README.md', '# README\n\n- Profile 档位：profile-closed-loop。\n- 生命周期：stable baseline / living document / conditional-required local docs。\n')
+        writeFile(releaseStateConflictRoot, '.devcodex/profile/01-项目信息.md', '# 01\n\n- cli-main: unreleased\n')
+        writeFile(releaseStateConflictRoot, '.devcodex/profile/04-测试规范.md', '# 04\n')
+        writeFile(releaseStateConflictRoot, '.devcodex/profile/05-发布规范.md', '# 05\n')
+        writeFile(releaseStateConflictRoot, '.devcodex/profile/06-功能清单.md', featureInventoryDocument({ releaseState: 'v1.0.0' }))
+        writeFile(releaseStateConflictRoot, '.devcodex/profile/07-用户文档与契约规范.md', '# 07\n')
+        const releaseStateConflictResult = runValidate(releaseStateConflictRoot)
+        const releaseStateConflictOutput = `${releaseStateConflictResult.stdout}\n${releaseStateConflictResult.stderr}`
+        assert.strictEqual(releaseStateConflictResult.status, 1, releaseStateConflictOutput)
+        assert.match(releaseStateConflictOutput, /release state conflicts/)
 
         const validAutoAliasRoot = createWorkspace(currentProjectInfo())
         writeFile(validAutoAliasRoot, '.devcodex/profile/config.json', JSON.stringify({

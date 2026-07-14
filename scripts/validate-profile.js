@@ -18,11 +18,15 @@ const {
   PROFILE_TIERS,
   extractProfileTierDeclarations,
   hasFeatureInventorySource: contractHasFeatureInventorySource,
-  hasProfileLifecycle: contractHasProfileLifecycle
+  hasProfileLifecycle: contractHasProfileLifecycle,
+  inspectFeatureInventoryDocument,
+  parseMarkdownTables,
+  FEATURE_INVENTORY_COLUMN_LABELS
 } = require('../mcp/profile-contract')
 const { resolveProfileDir } = require('../hooks/_runtime/workspace-layout.cjs')
 
-// Shared tier vocabulary: profile-lite | profile-standard | profile-closed-loop.
+// ProfileGenerationContractGate / FeatureInventorySchemaGate / ProfileTierMigrationSafetyGate
+// share the tier vocabulary: profile-lite | profile-standard | profile-closed-loop.
 
 const PLUGIN_ROOT = path.resolve(__dirname, '..')
 const args = process.argv.slice(2)
@@ -653,6 +657,61 @@ function hasFeatureInventorySource(combined) {
   return contractHasFeatureInventorySource(available, combined)
 }
 
+function featureInventorySourceDeclaration(combined) {
+  const match = String(combined || '').match(/(?:Feature inventory source|功能清单来源)\s*[：:]\s*`?([^`\r\n]+\.md)`?/i)
+  return match ? match[1].trim() : ''
+}
+
+function validateFeatureInventoryText(text, label, requireV1) {
+  const result = inspectFeatureInventoryDocument(text, { requireV1 })
+  for (const message of result.errors) err(`[profile] ${label}: ${message}`)
+  return result
+}
+
+function validateFeatureInventorySource(combined, requireV1) {
+  if (hasProfileFile('06-功能清单.md')) {
+    return validateFeatureInventoryText(readProfileFile('06-功能清单.md'), '06-功能清单.md', requireV1)
+  }
+  const declaration = featureInventorySourceDeclaration(combined)
+  if (!declaration) {
+    err('[profile] feature inventory source must be 06-功能清单.md or an explicit `Feature inventory source: <path>.md` declaration')
+    return null
+  }
+  const sourcePath = path.resolve(profileDir, declaration)
+  if (!fs.existsSync(sourcePath) || !fs.statSync(sourcePath).isFile()) {
+    err(`[profile] feature inventory source not found: ${declaration}`)
+    return null
+  }
+  return validateFeatureInventoryText(fs.readFileSync(sourcePath, 'utf8'), `feature inventory source ${declaration}`, requireV1)
+}
+
+function validateCanonicalFeatureInventory(projectInfo, inventoryResult) {
+  if (!inventoryResult || !inventoryResult.valid || !hasProfileFile('06-功能清单.md')) return
+  const labels = Object.values(FEATURE_INVENTORY_COLUMN_LABELS)
+  const duplicateTable = parseMarkdownTables(projectInfo).find(table => labels.every(label => table.headers.includes(label)))
+  if (duplicateTable) {
+    err('[profile] 01-项目信息.md must not duplicate the complete FeatureInventorySchemaV1 table; 06-功能清单.md is canonical')
+  }
+  const stateFamily = value => {
+    const text = String(value || '').toLowerCase()
+    if (/\bunreleased\b|\bpreview\b/.test(text)) return 'unreleased'
+    if (/\breleased(?:-[a-z0-9._-]+)?\b|\bv?\d+\.\d+\.\d+(?:-[a-z0-9._-]+)?\b/.test(text)) return 'released'
+    return ''
+  }
+  const projectLines = String(projectInfo || '').split(/\r?\n/)
+  for (const row of inventoryResult.validRows || []) {
+    const canonicalFamily = stateFamily(row.releaseState)
+    if (!canonicalFamily) continue
+    for (const line of projectLines) {
+      if (!line.includes(row.featureId) && !line.includes(row.capabilityGroup)) continue
+      const summaryFamily = stateFamily(line)
+      if (summaryFamily && summaryFamily !== canonicalFamily) {
+        err(`[profile] 01-项目信息.md release state conflicts with 06-功能清单.md for ${row.featureId}: ${summaryFamily} vs ${canonicalFamily}`)
+      }
+    }
+  }
+}
+
 function hasProfileLifecycle(combined) {
   return contractHasProfileLifecycle(combined)
 }
@@ -666,8 +725,11 @@ function validateProfileTier(tier, combined) {
   if (!hasAnyProfileFile(['05-交付发布规范.md', '05-发布规范.md'])) {
     err(`[profile] ${tier} requires 05-交付发布规范.md or 05-发布规范.md`)
   }
+  let inventoryResult = null
   if (!hasFeatureInventorySource(combined)) {
-    err(`[profile] ${tier} requires a feature inventory source (06-功能清单.md or documented FeatureInventoryProfileGate source)`)
+    err(`[profile] ${tier} requires a structured feature inventory source`)
+  } else {
+    inventoryResult = validateFeatureInventorySource(combined, tier === 'profile-closed-loop')
   }
 
   if (tier === 'profile-closed-loop') {
@@ -681,6 +743,7 @@ function validateProfileTier(tier, combined) {
       err('[profile] profile-closed-loop requires lifecycle wording for stable baseline, living document and conditional-required/local docs')
     }
   }
+  validateCanonicalFeatureInventory(projectInfoText, inventoryResult)
 }
 
 const { tier: profileTier, combined: profileTierCorpus } = detectProfileTier()

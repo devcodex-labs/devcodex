@@ -1,18 +1,19 @@
 ---
 name: profile-bootstrap
-description: Profile 自动生成 — 扫描 package.json / CHANGELOG.md / 顶层目录 / 配置文件，产出 .devcodex/profile/ 三件套初稿，避免 ENV_MODE 静默降级到 prod
+description: Profile 计划与分档生成 — 先预览目标根、推荐档位和文件动作，再按统一契约生成可追踪的 .devcodex/profile/ 草稿
 ---
 
 # Profile Bootstrap Skill
 
 ## 适用范围
 
-- 触发：`devcodex profile init` CLI 调用
+- 触发：`devcodex profile plan` / `devcodex profile init` CLI 调用，或用户要求创建、升级、降档、修复 Profile
 - 不触发：`devcodex init` / `devcodex init --claude` 完成后仅 **提示** "下一步运行 devcodex profile init"，不自动生成（避免覆盖用户已有 Profile）
 - workspace-namespace：当 `<workspace>/.devcodex/layout.json` 启用后，在工作区根执行 `devcodex profile init` 应治理 `.devcodex/workspace/profile/`；在明确项目上下文执行时治理 `.devcodex/<project>/profile/`。运行时多项目 warning 必须提示 `.devcodex/workspace/profile/`，不得继续指向 legacy `.devcodex/profile/`。
 - Profile 初稿或复审必须考虑 `ProfileReadChainGate` / `ServiceNormCoverageGate`：记录 workspace base、project overlay、config.local overlay、fallback、全部服务集合、docs 自维护链、导航、版本、构建、报告和记忆消费者；从单服务抽公共 Profile 规则时执行 `StrongestProfileSourceGate` / `ServiceSpecificResidueSweep`。
-- 公开包、SDK、CLI、多模块、文档站、public API 或 runtime 配置明显的项目，Profile 初稿/复审必须考虑 `FeatureInventoryProfileGate`：生成或标注 feature inventory 的来源、能力组、公开面、配置入口、文档入口、验证路线和维护责任；缺少时写待人工确认，而不是把临时复审清单当稳定 Profile。
-- 执行 `ProfileTierStandardGate` / `ProfileLifecycleClassificationGate`：`devcodex profile init` 默认只生成 `profile-lite` 的最小稳定基线；当项目存在稳定测试/发布要求、公开包、SDK、CLI、文档站、public API、多模块或规范维护职责时，提示升级为 `profile-standard` 或 `profile-closed-loop`，并列出缺失文件。
+- 公开包、SDK、CLI、多模块、文档站、public API 或 runtime 配置明显的项目，Profile 初稿/复审必须执行 `FeatureInventoryProfileGate` / `FeatureInventorySchemaGate`：`06-功能清单.md` 是默认唯一规范清单，使用 `FeatureInventorySchemaV1`，覆盖能力 ID、能力组、公开面、配置入口、主要消费者、文档入口、验证路线、事实来源、维护责任和发布状态；扫描不能证明的字段写 `unverified` / 待人工确认，不得编造成已发布事实。
+- 执行 `ProfileGenerationContractGate` / `ProfileTierStandardGate` / `ProfileLifecycleClassificationGate`：生成器、CLI、加载器、validator、Prompt 和公开文档必须消费同一档位契约。首次创建默认仍以 `profile-lite` 为目标，但必须展示基于 package/目录/脚本证据的推荐档位；用户通过 `--tier` 明确选择后才升级。
+- 执行 `ProfileTierMigrationSafetyGate`：默认继承已检测档位；升级只补缺失文件并保留已有正文；未带 `--allow-downgrade` 时拒绝降档；显式降档只改档位声明并保留高档文件；`--dry-run` / `profile plan` 对目录、文件和备份必须零写入。
 - 执行 `AllDevCodexProfileValidationGate`：workspace-namespace、规范维护项目或用户要求全项目校验时，生成/复审后运行 `node scripts/validate-all-profiles.js --workspace <workspace-root>` 或记录不可执行原因。
 
 ## 三档生成策略
@@ -20,8 +21,8 @@ description: Profile 自动生成 — 扫描 package.json / CHANGELOG.md / 顶�
 | 档位 | Bootstrap 行为 | 后续补齐 |
 |------|----------------|----------|
 | `profile-lite` | 默认生成 `README.md`、`01-项目信息.md`、`02-架构约束.md`、`03-代码风格.md`、`config.json` | 人工复核后定稿 |
-| `profile-standard` | 不自动臆造测试/发布事实；提示补 `04-测试规范.md` 与 `05-交付发布规范.md` / `05-发布规范.md` | 由项目真实脚本、CI、发布流程和 FeatureInventoryProfileGate 来源补齐 |
-| `profile-closed-loop` | 不自动生成完整闭环正文；仅在规范维护、SDK/CLI/文档站/public API 等项目中建议升级 | 补 `06-功能清单.md`、`07-用户文档与契约规范.md`，必要时补条件 / 本地文档 |
+| `profile-standard` | 生成 lite 全部文件 + `04-测试规范.md` + `05-发布规范.md` + `06-功能清单.md`；未验证事实保持显式未确认 | 由真实脚本、CI、发布流程和源码证据复核 `FeatureInventorySchemaV1` |
+| `profile-closed-loop` | 生成 standard 全部文件 + `07-用户文档与契约规范.md`；适用于规范维护、SDK/CLI/文档站/public API 等完整闭环项目 | 持续维护活文档，必要时补条件 / 本地文档 |
 
 生命周期分类：
 
@@ -129,12 +130,12 @@ description: Profile 自动生成 — 扫描 package.json / CHANGELOG.md / 顶�
 ```json
 {
   "mode": "dev",
-  "agent": "copilot | claude-code"
+  "agent": "copilot | claude-code | codex"
 }
 ```
 
 - `mode` 默认 `dev`（仅 `devcodex profile init --prod` 时设为 prod）
-- `agent` 从调用方上下文推断：`devcodex init --claude` 后续调用 → `claude-code`，否则 `copilot`
+- `agent` 从当前宿主证据推断；无法识别时才回退为 `copilot`
 
 ## CLI 行为
 
@@ -144,29 +145,40 @@ description: Profile 自动生成 — 扫描 package.json / CHANGELOG.md / 顶�
 - 新项目或新包默认建议 `Node 版本：>=18`；低于 v18 只能作为项目例外，并须在 `01-项目信息.md` 写明业务理由、兼容风险和验证证据。
 - CI matrix、README 运行时说明和 Profile 的 Node 基线应保持一致。
 
+### `devcodex profile plan` / `devcodex profile init --dry-run`
+
+先输出目标 Profile 根、已检测档位、请求档位、推荐档位、目标档位、mode 和逐文件动作；不得创建目录、写文件或创建备份。推荐路径是先运行 plan，再运行相同参数的 init。
+
 ### `devcodex profile init`
 
 | 步骤 | 动作 |
 |------|------|
 | 1 | 检查目标 Profile 根是否存在 → legacy 为 `.devcodex/profile/`，workspace-namespace 工作区根为 `.devcodex/workspace/profile/`，明确项目为 `.devcodex/<project>/profile/`；不存在则创建 |
-| 2 | 对四个产出文件逐一检查：已存在 → 跳过并提示 `[skip] 01-项目信息.md (existing)`；不存在 → 生成 |
-| 3 | 输出生成清单 + 提示"已生成 N 个 Profile 草稿，请人工复核后定稿" |
-| 4 | 退出码 0（即使全部 skip） |
+| 2 | 检测现有档位；未显式指定 `--tier` 时继承现有档位，首次创建默认 `profile-lite`，同时输出证据驱动的推荐档位 |
+| 3 | 按统一生成契约逐文件检查：已存在 → 跳过；缺失 → 生成；升级时只更新 README 档位声明并保留正文 |
+| 4 | 输出生成/跳过/档位更新/备份计数，并提示人工复核所有 `unverified` 字段 |
+| 5 | 退出码 0（即使全部 skip） |
 
 ### `devcodex profile init --force`
 
 | 步骤 | 行为差异 |
 |------|---------|
-| 2 | 已存在文件强制覆盖（先备份为 `<file>.bak.{YYYYMMDD-HHmmss}`）|
+| 2 | 继承当前档位并覆盖该档位的已有文件；每个文件先备份为 `<file>.bak.{timestamp}` |
+
+### 档位迁移
+
+- 升级：`devcodex profile plan --tier profile-standard` 预览，确认后以 `profile init` 执行；只补目标档位缺失文件，README 仅更新档位声明。
+- 降档：必须显式同时传 `--tier <lower-tier> --allow-downgrade`；高档文件保留，避免不可逆信息损失。
+- 未知参数、缺少 `--tier` 值或非法档位必须友好失败，退出码为 1，不输出内部堆栈。
 
 ### `devcodex status` 扩展
 
 输出新增一行：
 
 ```
-profile        complete  (4/4 files)
-profile        partial   (2/4 files: missing 02, 03)
-profile        missing   (0/4 files — run: devcodex profile init)
+profile        complete  (profile-standard; files 6/6; semantic 2/2; config present)
+profile        partial   (profile-standard; files 5/6; semantic 1/2; config missing)
+profile        missing   (files 0/4; semantic 0/1; config missing — run: devcodex profile plan)
 ```
 
 ## 与其他规范的对齐
@@ -180,5 +192,7 @@ profile        missing   (0/4 files — run: devcodex profile init)
 ## ⛔ 禁止
 
 - ⛔ 已有 Profile 文件存在时禁止默认覆盖（须 `--force` 才覆盖且必须先备份）
+- ⛔ `profile plan` / `--dry-run` 禁止写目录、文件或备份；未显式授权禁止降档
+- ⛔ 功能清单禁止用关键词命中或无事实来源的占位行冒充完成；`01-项目信息.md` 不得复制 `06-功能清单.md` 的完整规范表
 - ⛔ 自动扫描默认不主动读取 `.env` / `.env.local` 等文件；用户或项目明确要求读取时可按指定范围读取并写入 Profile 说明
 - ⛔ 生成内容须明确标注"由 `devcodex profile init` 自动生成，需人工复核"

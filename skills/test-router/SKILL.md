@@ -77,7 +77,7 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 | `derivedConsumerRuntime` | 是否有 metrics/info/logs/events/warnings/admin bridge/public types 等派生消费者，需要 `DerivedMetricConsumerProbe` |
 | `derivedConsumerFailureInjection` | 是否需要证明副通道失败不污染主结果，需要 `DerivedConsumerFailureInjectionProbe` |
 | `featureInventoryProfile` | 是否涉及公开包、SDK、CLI、多模块、文档站或 public API 功能清单，需要 `FeatureInventoryProfileGate` |
-| `profileTierValidation` | 是否涉及 Profile 三档标准、Profile 必需文件、生命周期分类或 `ProfileTierStandardGate` / `ProfileLifecycleClassificationGate` |
+| `profileTierValidation` | 是否涉及 Profile 三档标准、生成/迁移、功能清单 schema、必需文件或生命周期分类，需要 `ProfileGenerationContractGate` / `FeatureInventorySchemaGate` / `ProfileTierMigrationSafetyGate` / `ProfileTierStandardGate` / `ProfileLifecycleClassificationGate` |
 | `allDevCodexProfileValidation` | 是否需要校验 `.devcodex` 下所有项目 Profile，执行 `AllDevCodexProfileValidationGate` |
 | `memoryCannotSatisfyBootstrap` | 是否涉及宿主 Memories、模型长期偏好、resume / summary 恢复、Profile / memory bootstrap 或用户询问是否可用记忆替代文件读取 |
 | `featureChecklistEvidenceMatrix` | 是否需要 capability group × evidence surface 矩阵，需要 `FeatureChecklistEvidenceMatrixGate` |
@@ -136,7 +136,7 @@ description: 测试路由规范 — 根据变更类型、影响范围与风险�
 | CP 确认后复审 / 开发偏移 | `PostConfirmationReviewScopeGate`、`DevelopmentDriftGate`：按风险判定轻量或全面复审；全面复审使用 review-checklist 文件、PR-2~PR-7、状态新鲜度；进入编码前核对 allowedFirstBatch、blockedScope、driftTriggers、validationRoute、consumerSync 和 dirty boundary | 低风险降级必须写 `skipReason`；触达 blockedScope 或改变验证路线时回 CP2/CP3 |
 | 修复协作契约 | `repair-collaboration`：lightweight 至少验证问题/预期/验收证据与允许路径/验证/回滚；full 追加 finding map、handoff、状态跳转和 independent re-review | 只出现模型/Agent 名称预期 `not-repair`；高风险缺完整字段或只有补丁作者自证必须失败 |
 | 本机 / 跨环境执行配置 | LocalExecutionConfigProbe：核对项目指定配置入口、Profile `config.local.json` 模型或既有脚本约定；未指定时遵循 S02 | 不得为了安全感臆造 env/secret/config.local |
-| Profile 三档 / 全工作区 Profile 校验 | ProfileTierStandardGate / ProfileLifecycleClassificationGate / AllDevCodexProfileValidationGate：涉及 Profile 标准、workspace-namespace、规范维护项目或用户要求校验 `.devcodex` 所有项目时，执行 `node scripts/test-validate-profile.js` 与 `node scripts/validate-all-profiles.js --workspace <workspace-root>`；警告和错误分开记录 | 兼容历史项目时可允许 warning，但 release / 规范发布前需说明是否使用 `--strict-warnings` |
+| Profile 生成迁移 / 三档 / 全工作区校验 | ProfileGenerationContractGate / FeatureInventorySchemaGate / ProfileTierMigrationSafetyGate / ProfileTierStandardGate / ProfileLifecycleClassificationGate / AllDevCodexProfileValidationGate：执行 CLI 行为回归、Profile validator 正负样本与 `node scripts/validate-all-profiles.js --workspace <workspace-root>`；必须覆盖 dry-run 零写入、升级保留、未授权降档拒绝、结构化清单和警告/错误分离 | 兼容历史项目时可允许 warning，但 release / 规范发布前需说明是否使用 `--strict-warnings` |
 | 人工证据留存 / 真实联调 | ManualReviewEvidenceDataRetention：记录证据保存位置、可复核输入、样本范围、保留策略和不可保留原因 | 证据不能进入仓库时写明外部位置或不可保留理由 |
 | 指定范围防扩散 | AdjacentScopeExpansionGuard：核对用户指定模块/目录/adapter/provider 与相邻范围修改理由 | 无共同契约、共享缺陷或验证必需时不得扩相邻范围 |
 | 包名 / 发布名 / 安装说明 | PackageNameAuthorityGate：核对 `package.json`、`plugin.json`、registry/包管理器证据、bin/exports/scope | 禁止凭历史记忆或目录名判断包名 |

@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "ownerSkill": "report",
+  "gateRegistryRef": "skills/spec-governance/gate-registry.json",
+  "baseFields": ["identity", "scope", "recommendedConclusion", "summary", "verificationEvidence", "unverifiedAndResidualRisk", "artifactManifest", "governanceIntakeDecision"],
+  "conditionalSections": {
+    "ContextHandoffCard": "cross-session, multi-batch, interruption or unresolved risk",
+    "GovernanceGates": "record gateGroup, result, evidence and skipReason only",
+    "ProfileImpactCheck": "dev or fix changes project reality",
+    "ReleaseAudit": "release readiness review only",
+    "ReleaseVerification": "release workflow only",
+    "ConceptSyncMap": "control-plane or source-consumer change",
+    "HostContractVerification": "host, hook, CLI or visible-reply contract change",
+    "BacklogIntakeAndLedgerWriteback": "task is sourced from a runtime ledger or changes ledger state",
+    "RepairCollaborationContract": "repair task only",
+    "DocsNavigationReviewMatrix": "user-manual navigation or rendered sequence changes",
+    "AllDevCodexProfileValidation": "profile generation, migration or workspace-wide profile validation",
+    "ReleaseEfficiencyControl": "release candidate freeze, critical path budget, evidence reuse, isolated consumer cwd or release rework incident",
+    "ConsumerValidationEngineering": "independent consumer repository, design fitness or validation finding repair loop"
+  },
+  "overlays": {
+    "dev": ["requirementTrace", "implementationSummary", "testRoute", "documentSync"],
+    "fix": ["problemRootCause", "findingToPatchMap", "repairCollaboration", "zeroResidualScan"],
+    "audit": ["coverageClaim", "ReviewCoverageDelta", "rounds", "findings", "crs", "pcv"],
+    "analyze": ["rounds", "zeroFindingStreak", "crs", "pcv", "inferenceBoundary"],
+    "optimization": ["baseline", "candidate", "attribution", "regressionBudget"],
+    "scenario-test": ["scenarioMatrix", "environment", "serviceLifecycleCleanup", "results"]
+  }
+}

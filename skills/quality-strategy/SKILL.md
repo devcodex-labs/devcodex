@@ -28,13 +28,14 @@ description: 质量策略专家 Owner — 当任务涉及测试策略、验收�
 | `RegressionScopeGate` | 回归范围、相关 suite 和 full gate 升级条件必须清楚 | regressionScope |
 | `CoverageReleaseConfidenceGate` | coverage、known-red、发布信心和残余风险必须单独判断 | coverageGate、releaseConfidence |
 | `ExternalConsumerValidationConfidenceGate` | 公共包存在独立消费者仓或跨仓完整声明时，发布信心必须消费身份链、多分母和新鲜度状态 | consumerValidationConfidence |
+| `ContractMutationCoverageGate` | discriminated contract 与条件状态必须有 sibling-field injection、required-evidence deletion/reversal 和 schema/semantic 双层结果 | contractMutationCoverage |
 
 ## 执行步骤
 
 1. 建立风险模型：变更面、消费者、失败代价、可回滚性。
 2. 选择测试组合：静态、单元、集成、API、E2E、场景、负载、pack、发布验证。
 3. 建立验收矩阵：需求/契约/文档/代码/验证证据。
-4. 设定回归范围和升级条件：targeted、related、full gate。
+4. 设定回归范围和升级条件：targeted、related、full gate；discriminator/条件状态命中时把 mutation matrix 纳入 acceptanceMatrix。
 5. 输出 coverage、known-red、发布信心和残余风险。
 6. 命中独立消费者仓时调用 `consumer-validation-engineering`，将各适用分母独立纳入 acceptanceMatrix；任一分母 partial/stale 不得汇总为完整或 release-ready。
 
@@ -52,6 +53,7 @@ description: 质量策略专家 Owner — 当任务涉及测试策略、验收�
 | coverageGate | coverage 脚本、阈值、状态、skipReason |
 | releaseConfidence | 发布信心、残余风险、阻断条件 |
 | consumerValidationConfidence | repository binding、identity freshness、denominator states、cross-repo CI、release decision |
+| contractMutationCoverage | variant/state matrix、mutations executed/blocked/escaped、schema-semantic parity |
 | evidenceMatrix | 判断 -> 命令 / 测试 / 覆盖率 / 构建 / pack / CI |
 ```
 

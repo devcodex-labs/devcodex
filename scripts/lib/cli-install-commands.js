@@ -9,15 +9,34 @@ function buildCliInstallCommands(ctx) {
     copyManagedTextFile, readJsonFileWithStatus,
     writeManagedJsonFile, normalizeStringArray, mergeUniqueStringArrays,
     mergeClaudeHooks, mergeClaudeMcpConfig,
-    ensureRuntimeDirs, ensureDevCodexGitignore, getLegacyCounts, isPlainObject
+    ensureRuntimeDirs, ensureDevCodexGitignore, getLegacyCounts, isPlainObject,
+    resolveTenantSelection, shouldIncludeInstructionFile
   } = ctx
+
+  function readTenantSelection(argv) {
+    try {
+      return resolveTenantSelection(argv, PKG_ROOT).tenantId
+    } catch (error) {
+      console.log(c.red(`  ${error.message}`))
+      process.exitCode = 1
+      return undefined
+    }
+  }
+
+  function sourceFiles(srcDir, from, tenantId) {
+    return walkDir(srcDir).filter(srcFile => (
+      from !== 'instructions' || shouldIncludeInstructionFile(path.relative(srcDir, srcFile), tenantId)
+    ))
+  }
 
   function cmdInit(argv) {
     const force = argv.includes('--force') || argv.includes('-f')
     const dryRun = argv.includes('--dry-run')
+    const tenantId = readTenantSelection(argv)
+    if (tenantId === undefined) return
     const cwd = process.cwd()
     const ghDir = path.join(cwd, '.github')
-    const managedSession = beginManagedDeployment(cwd, ['copilot', 'claude', 'codex'])
+    const managedSession = beginManagedDeployment(cwd, ['copilot', 'claude', 'codex'], { tenantId })
 
     // Warn if running inside the DevCodex source repo
     if (isSourceRepo(cwd)) {
@@ -34,6 +53,7 @@ function buildCliInstallCommands(ctx) {
     console.log(c.dim('  ──────────────────────────────────────'))
     console.log(`  ${c.cyan('Source:')} ${c.dim(PKG_ROOT)}`)
     console.log(`  ${c.cyan('Target:')} ${c.dim(ghDir)}`)
+    if (tenantId) console.log(`  ${c.cyan('Tenant:')} ${c.dim(tenantId)} (explicit selection)`)
     console.log()
 
     if (dryRun) console.log(c.yellow('  [DRY RUN] No files will be written.\n'))
@@ -49,7 +69,7 @@ function buildCliInstallCommands(ctx) {
 
       if (!fs.existsSync(srcDir)) continue
 
-      for (const srcFile of walkDir(srcDir)) {
+      for (const srcFile of sourceFiles(srcDir, from, tenantId)) {
         const rel = path.relative(srcDir, srcFile)
         const destFile = path.join(destDir, rel)
         const existed = fs.existsSync(destFile)
@@ -150,9 +170,11 @@ function buildCliInstallCommands(ctx) {
   function cmdInitClaude(argv, { internal = false } = {}) {
     const force = argv.includes('--force') || argv.includes('-f')
     const dryRun = argv.includes('--dry-run')
+    const tenantId = readTenantSelection(argv)
+    if (tenantId === undefined) return
     const cwd = process.cwd()
     const clDir = path.join(cwd, '.claude')
-    const managedSession = internal ? null : beginManagedDeployment(cwd, ['claude'])
+    const managedSession = internal ? null : beginManagedDeployment(cwd, ['claude'], { tenantId })
 
     if (!internal && isSourceRepo(cwd)) {
       console.log()
@@ -167,6 +189,7 @@ function buildCliInstallCommands(ctx) {
       console.log(c.dim('  ──────────────────────────────────────'))
       console.log(`  ${c.cyan('Source:')} ${c.dim(PKG_ROOT)}`)
       console.log(`  ${c.cyan('Target:')} ${c.dim(clDir)}`)
+      if (tenantId) console.log(`  ${c.cyan('Tenant:')} ${c.dim(tenantId)} (explicit selection)`)
       console.log()
       if (dryRun) console.log(c.yellow('  [DRY RUN] No files will be written.\n'))
     }
@@ -202,7 +225,7 @@ function buildCliInstallCommands(ctx) {
       const destDir = path.join(clDir, to)
       if (!fs.existsSync(srcDir)) continue
 
-      for (const srcFile of walkDir(srcDir)) {
+      for (const srcFile of sourceFiles(srcDir, from, tenantId)) {
         const rel = path.relative(srcDir, srcFile)
         const destFile = path.join(destDir, rel)
         const existed = fs.existsSync(destFile)
@@ -331,8 +354,10 @@ function buildCliInstallCommands(ctx) {
 
   function cmdInitCodex(argv, { internal = false } = {}) {
     const dryRun = argv.includes('--dry-run')
+    const tenantId = readTenantSelection(argv)
+    if (tenantId === undefined) return
     const cwd = process.cwd()
-    const managedSession = internal ? null : beginManagedDeployment(cwd, ['codex'])
+    const managedSession = internal ? null : beginManagedDeployment(cwd, ['codex'], { tenantId })
 
     if (!internal && isSourceRepo(cwd)) {
       console.log()

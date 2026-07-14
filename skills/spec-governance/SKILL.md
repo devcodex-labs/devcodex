@@ -182,42 +182,20 @@ description: 规范治理生命周期 — 意图驱动记录、RecordRouter 分�
 
 `GovernanceGateRegistry` 是 PC4、技术方案、实施计划、报告模板和 validate 探针共同引用的 Gate 分组索引。通用 instructions 或 prompts 不应复制完整 Gate 长清单；它们只记录 `gateGroup / ownerSkill / trigger / requiredEvidence / validationRoute / skipReason`。
 
-| gateGroup | ownerSkill | 触发语义 | 最小证据 |
-|-----------|------------|----------|----------|
-| `repair-collaboration` | `execution-contract` | AI 判断任务目标是修复 Bug/缺陷/回归/安全问题/规范缺口/审查 finding/已确认不正确行为；模型名称与是否切换 Agent 不作为触发条件 | lightweight/full 风险分类、authorizationEvidence、双层字段；full 追加 findingToPatchMap、handoffIntegrity、independentReReview 与 accepted 证据 |
-| `absorption-layering` | `spec-absorption` + `spec-governance` | 可泛化 PI / PF / GAP / ISSUE、用户确认值得吸纳、新增 Gate | `CommonNormGeneralizationGate`、`AbsorptionCandidateConsumerProofGate`、`LayeredAbsorptionDecision`、`layerChecks`、consumer sync |
-| `historical-common-layering` | `spec-absorption` + `spec-governance` | 历史通用规范、prompt/report 长清单或旧吸纳项重新分层 | 逐文件审查矩阵、`legacy-index-retained`、`PromptLongGateListDriftProbe`、V74/V75 探针 |
-| `confirmed-completeness` | `spec-absorption` + 目标 Skill | 未完整吸纳、半覆盖、缺 Gate / Skill / Prompt / Probe / deployCopy | gateGroup 分流表、通用性证明、消费者证明、目标 Skill 证据、验证探针 |
-| `review-checklist` | `review-checklist` | 正式复审、ECR、发布前复审、多轮收敛、外部 finding 批次 | 复审清单文件、状态、证据、Run ID、收敛结论；`ChecklistStateMaterializationGate` 六区块一致快照 |
-| `review-escape` | `review-checklist` + `spec-governance` | 二次复审或实施中发现原清单遗漏、新问题逃逸 | `ReviewEscapeRecordGate`、`escapedItem / whyMissed / missingDimensionOrProbe / prevention / checklistPatch / rerunEvidence`、台账分流 |
-| `post-confirmation-review` | `cp-gate` + `review-checklist` + `dev-plan-review` | CP1/CP2/CP3 确认后进入下一阶段 | `PostConfirmationReviewScopeGate` 风险分级、轻量/全面复审判定、冻结清单或 skipReason、PR-2~PR-7 证据 |
-| `development-drift` | `execution-contract` + `dev-default` | 进入编码前、实施中范围扩张或验证路线变化 | `DevelopmentDriftGate`、allowedFirstBatch、blockedScope、driftTriggers、validationRoute、dirty boundary |
-| `user-manual` | `user-manual-authoring` | 站点文档、README、quick start、接入手册、最终用户手册 | 用户任务路径、配置、示例、排错、真实工作流、渲染验证 |
-| `docs-ia-readability` | `user-manual-authoring` + `dev-docs` + `document-sync` | 中文用户文档、sidebar IA、新增公开能力或菜单纠偏 | `ChinesePrimaryExpressionGate`、`SidebarPageRoleMaterializationProbe`、`SidebarGroupSemanticModelProbe`、pageRole/sidebar group 矩阵 |
-| `frontend-runtime` | `audit-project` + `test-router` | 首页、详情、列表、搜索、前端接口数据、缓存刷新或运行态页面 | 旧缓存先渲染、异步刷新、失败回退、网络/状态验证 |
-| `release-parity` | `audit-release` + `release-verification` | push/tag/release/publish 前验证；首次发布或 publisher/repository/package/registry/auth topology 变化；scoped package 双 registry | 与远端 CI 同构门禁、pack、coverage/audit/examples/website 矩阵、原生命令真实 exitCode；`PublisherCredentialTopologyGate` 的身份/scope/access/permission/ownership/reference run 证据且不含 secret value；`ScopedRegistryResolutionGate` 的 scope/global/userconfig/override/独立通道解析证据 |
-| `profile-service` | `load-profile` + `profile-bootstrap` + `memory` | Profile 链路、服务集合、公共规范抽取、服务残留、项目级 analyze/audit 真相对账、宿主 Memories / 模型回忆可能替代文件真相源 | 读取链、最强 Profile、服务残留清扫；`ProfileTruthReconciliationGate` 的 mode/profileTrustState/ProfileTruthMatrix/结论矫正；`MemoryCannotSatisfyBootstrapGate` 的 navigation-hint 与文件读取证据 |
-| `security-audit-presentation` | `security-threat-modeling` | 用户自有/明确授权的本地安全审查，或宿主额外安全检查导致内容不可见/流程中断 | `AuthorizedLocalSecurityAuditPresentationGate`、authorizationContext、defensiveObjective、visibleEvidenceBudget、isolatedProbeBoundary、SafetyInterruptionCard、恢复/反馈路线与禁止绕过声明 |
-| `memory-bootstrap` | `load-profile` + `memory` + `report` | 新线程、resume、summary 恢复、compact 后继续、跨项目切换或用户询问是否启用 / 依赖宿主 Memories | `MemoryCannotSatisfyBootstrapGate`、当前 active namespace Profile / SUMMARY / tasks / reports / review checklist / 源码或文档读取证据、V86/targeted probe |
-| `artifact-scale-skill-gap` | `skill-gap-analysis` | 项目/工作区产物扫描、能力盘点、缺 Skill、全量审查、目录很大、扫描超时或需分批恢复 | `ProjectArtifactScaleRoutingGate`、WorkspaceCorpusManifest、ScaleDecisionRecord、ExclusionPolicy、BatchEvidenceLedger、ExistingSkillCoverageMatrix、ConvergenceRecord、V91 |
-| `skill-lifecycle` | `skill-lifecycle-governance` + `evolution-governance` | Skill 组合冲突、依赖、误触发/漏触发、gray/deprecated/retired、合并拆分或 portfolio 健康度 | SkillPortfolioIndex、DependencyGraph、LifecycleChangeSet、TriggerQualityScorecard、RetirementEvidence、授权与回滚、V91 |
-| `public-surface` | `release-verification` + `audit-release` | package、README、website、public types、examples、搜索索引变化 | npm pack 历史公开内容、隐藏链接、public API、search/sidebar 反查 |
-| `evolution-control-plane` | `evolution-governance` | 自我进化、自动吸纳、模型辅助规范优化或自动发版候选 | 候选态、授权、模型配置、权限/配额、审计、回滚和审批 |
-| `agent-capability-completeness` | `ai-agent-system-architecture` | 声称完整/最终 Agent 架构、平台或 enterprise 产品能力 | completenessObject、请求/反馈/横切/产品企业链、domain owner/boundary/runtime/validation、V95 |
-| `docs-audience-render-sequence` | `audit-user-manual` | 用户文档 pageRole、首屏/导航优先级、quick start 距离、TOC/outline 运行态顺序 | `DocsAudienceRoleAndRenderedSequenceProbe`、fresh generated/Browser evidence、V95 |
-| `consumer-validation` | `consumer-validation-engineering` | 独立 consumer/verification repo、跨仓完整验证、packed artifact、多分母 100%、跨仓 CI/漂移 | repository binding、identity/artifact/lock/pack、denominator states、CI run、freshness、gray lifecycle、V95 |
-| `module-performance-maintenance` | `performance-engineering` | 框架/SDK/CLI 逐模块完整性能覆盖或长期维护 | applicability、module protocol、capacity/resource/recovery、PR/main/schedule/RC/post-release、retention/drift/skip/N/A/flake、V95 |
-| `rework-prevention` | `rework-prevention-engineering` + `evolution-governance` + `spec-absorption` | 降低返工率、提升首次通过率、复审反复发现新问题、审查逃逸或自我进化效果评估 | WorkUnit 分类、双重根因、ReworkRiskProfile、`ReworkReductionValueGate`、`ReworkEffectivenessLoop`、基线与前瞻试运行、成本、rollback/sunset、V94 |
-| `contract-release-authority` | `api-contract-architecture` + `audit-release` + `release-verification` | 兼容、迁移、alias/fallback、历史行为保留或发布边界判断 | `ReleaseAuthorityBeforeCompatibilityGate`、publishedState、consumerEvidence、authoritySources、decision、V94 |
-| `configuration-ergonomics` | `developer-experience-architecture` + `api-contract-architecture` | 新增/调整公开配置、嵌套字段、默认值、首次成功路径或高级能力边界 | `ConfigurationErgonomicsGate`、MinimalTaskConfig、FieldNecessityMatrix、ComplexityBudget、AdvancedCapabilityBoundary、OptionalFieldOmissionProbe、V94 |
-| `interactive-semantics` | `accessibility-i18n` + `audit-user-manual` + `test-router` | 链接、按钮、菜单、对话框、可展开控件、自定义交互或文档站运行态验收 | `InteractiveSemanticProbe`、role、accessible name、focusability、Enter/Space/Escape、focus recovery、V94 |
-| `expert-output-quality` | `expert-output-quality` + `dev-plan-review` + `dev-docs` + `audit-*` | 代码、文档、示例、fixture、quick start、技术方案或报告需要体现技术专家 / 资深架构 / 领域专家质量，或用户指出“不专业 / 像初级 / 示例误导” | `ExpertOutputQualityGate`、`ProductionRecommendedPathGate`、`FrameworkNativeCapabilityFirstGate`、`FixtureBoundaryDisclosureGate`、`AntiPatternContrastGate`、`ExpertEvidenceMatrixGate` |
-| `expert-owner-skills` | 21 个专家 Owner Skill：原 17 个 Owner 加 `distributed-systems-architecture`、`performance-engineering`、`privacy-compliance-architecture`、`ai-evaluation-engineering` | 需求、方案、代码、文档或报告命中产品策略、开发者体验、UX、前后端、SRE、API/外部集成、平台/Agent、数据安全质量、设计与无障碍、增长商业、分布式系统、性能、隐私合规或 AI 评测专业语义；增长 / 商业为 P3 条件触发 | `ExpertOwnerSkillGate` 及各 Owner Gate；新增 `DistributedSystemsArchitectureGate`、`PerformanceEngineeringGate`、`PrivacyComplianceArchitectureGate`、`AiEvaluationEngineeringGate`；记录 ownerSkill、triggerReason、requiredFields、validationRoute、skipReason、V85/targeted probe |
-| `docs-semantics-examples` | `dev-docs` + `audit-document` + `audit-readme` + `user-manual-authoring` | 行为语义、翻译、示例、quick start、callback / hook / event 文档与代码真相源可能漂移 | `BehaviorSemanticDocsParityGate`、`NegativeTranslationParityProbe`、`DocsExampleTruthSurfaceGate`、`CallbackExampleScopeProbe`、public types / runtime / generated search 证据 |
-| `derived-consumer-runtime` | `audit-project` + `dev-testing` + `test-router` | 默认行为、控制流、能力触发或副通道输出影响派生消费者 | `DerivedMetricConsumerProbe`、`DerivedConsumerFailureInjectionProbe`、metrics/info/logs/events/warnings/admin bridge/public types 和失败注入隔离证据 |
+机器可读唯一索引为同目录 `gate-registry.json`。本节保留 Owner 执行语义和少量人读说明；group ID、Owner、证据字段和验证路线的完整性由 `scripts/lib/control-plane-contracts.js` 校验，新增或修改分组必须先更新 JSON，再同步 Owner Skill。
 
-V85 兼容锚点：原 17 个 Owner 为 `product-strategy`、`developer-experience-architecture`、`ux-interaction-architecture`、`frontend-architecture`、`backend-domain-architecture`、`production-readiness-sre`、`api-contract-architecture`、`external-integration-architecture`、`platform-ecosystem-architecture`、`ai-agent-system-architecture`、`data-architecture`、`security-threat-modeling`、`quality-strategy`、`design-system-architecture`、`accessibility-i18n`、`growth-analytics`、`business-model-review`；对应 Gate 为 `ProductStrategyOwnerGate`、`DeveloperExperienceArchitectureGate`、`UxInteractionArchitectureGate`、`FrontendArchitectureOwnerGate`、`BackendDomainArchitectureGate`、`ProductionReadinessSreGate`、`ApiContractArchitectureGate`、`ExternalIntegrationArchitectureGate`、`PlatformEcosystemArchitectureGate`、`AiAgentSystemArchitectureGate`、`DataArchitectureGate`、`SecurityThreatModelingGate`、`QualityStrategyGate`、`DesignSystemArchitectureGate`、`AccessibilityI18nGate`、`GrowthAnalyticsGate`、`BusinessModelReviewGate`。新增 Owner 只能扩展该集合，不得削弱既有触发语义。
-| `feature-inventory-batch-evidence` | `profile-bootstrap` + `load-profile` + `review-checklist` + `report` | 公开功能清单、Profile inventory、需求维度、批次验证或 EvidenceLedger 需要一致 | `FeatureInventoryProfileGate`、`FeatureChecklistEvidenceMatrixGate`、`BatchEvidenceLedgerStateGate`、`BatchProgressCardGate`、feature × evidence matrix 与 Progress Card |
+完整的 group ID、Owner、触发、证据字段、验证路线和 legacy anchors 只维护在 `gate-registry.json`。下表不再作为事实源；本节仅保留职责域摘要。
+
+| 稳定职责域 | 代表 gateGroup | Owner 入口 |
+|---|---|---|
+| 修复与复审 | `repair-collaboration`、`review-checklist`、`review-escape`、`rework-prevention` | execution-contract / review-checklist / rework-prevention-engineering |
+| 规范吸纳 | `absorption-layering`、`historical-common-layering`、`confirmed-completeness` | spec-absorption / spec-governance |
+| 交付与运行态 | `frontend-runtime`、`public-surface`、`release-parity`、`interactive-semantics` | 对应领域 Owner + test-router |
+| Profile 与规模 | `profile-service`、`memory-bootstrap`、`artifact-scale-skill-gap`、`skill-lifecycle` | load-profile / memory / skill-gap-analysis / skill-lifecycle-governance |
+| 演进与跨仓 | `evolution-control-plane`、`consumer-validation`、`module-performance-maintenance` | evolution-governance / consumer-validation-engineering / performance-engineering |
+| 文档与专家质量 | `user-manual`、`docs-ia-readability`、`expert-output-quality`、`expert-owner-skills` | user-manual-authoring / expert-output-quality / 各专家 Owner |
+
+V85 的专家 Owner 集合、A1~A10 对应分组以及 `feature-inventory-batch-evidence` 已作为 registry entry 和 legacyAnchors 登记；不得在本文件继续追加版本批次表。
 
 新增 Gate 时必须先登记或复用 gateGroup，再同步 owner Skill、prompt/report 字段、TestRoute、validate 探针、README/website/changelog 和部署副本。无法归入现有 gateGroup 时，优先判断是否应新增独立 Skill，而不是把正文追加到通用长清单。
 
@@ -239,19 +217,7 @@ A1~A10 最新吸纳执行包默认复用上述 `docs-semantics-examples`、`deri
 4. 对每个 `layerChecks` 逐层同步：`commonInstruction / skill / promptTemplate / executionConsumer / validationProbe / publicDocs / deployCopy`。
 5. 若某项已经在正文中出现，但没有 Gate 名、触发条件、报告字段或 validate 探针，不得判定为完整吸纳。
 
-本批确认吸纳项至少覆盖：
-
-| 归属 | Gate |
-|------|------|
-| public surface / release | `PublicSurfaceClosureGate`、`RemoteCIParityPushGate`、`NativeCommandExitCodeGate`、`PortableExternalArtifactGate` |
-| user docs | `UserManualProductizationGate`、`UserManualRenderedFlowAndRealWorkflowProbe`、`DocsPageRoleMatrixGate`、`CompleteUserManualSiteMatrixGate`、`DocsThemeRuntimeVisualProbeGate` |
-| review / requirements / anchors | `SampleIssueExpansionGate`、`RequirementDimensionBindingGate`、`RequirementPriorityAndPhaseGate`、`ReviewAnchorMaterializationGate` |
-| truth sampling / legacy / route | `SemanticLegacyRouteExposureGate`、`ReferenceCodeTruthSamplingGate`、`RouteNamespaceResponsibilityGate` |
-| frontend / data | `FrontendAsyncCacheRenderGate`、`StaleWhileRevalidateGate`、`AsyncDbTruthSourceVerificationGate` |
-| profile / service norms | `StrongestProfileSourceGate`、`ServiceSpecificResidueSweep`、`ProfileReadChainGate`、`ServiceNormCoverageGate` |
-| API / framework / evolution | `OfficialApiEvidenceGate`、`FrameworkCapabilityAutoFirstGate`、`EvolutionCapabilityControlPlaneGate` |
-
-`EvolutionCapabilityControlPlaneGate` 必须转入 `evolution-governance`；不得只作为 `spec-governance` 子段落处理。其他项按目标领域进入 `user-manual-authoring`、`review-checklist`、`audit-*`、`test-router`、`release-verification`、`load-profile`、`dev-plan-review` 或 `document-sync`。
+本批能力域与 legacy 名称统一从 `gate-registry.json` 查询：按触发事实选择 `gateGroup`，再根据 `ownerSkills / requiredEvidence / route / legacyAnchors` 完成分层同步。控制面能力必须交给 registry 指定的独立 Owner，不能因为本节负责 intake 就留在 `spec-governance` 内实现。
 
 ## Backlog Intake 真相复核
 

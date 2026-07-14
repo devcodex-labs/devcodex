@@ -61,62 +61,22 @@ description: 真相源-消费者同步规范 — 为规范源、模板、validat
 5. 定义 `yellowDeviationBoundary`，把允许纳入的额外消费者写入进度或报告。
 6. 实施后做双向联查：正向 grep 真相源，反向 grep 旧口径残留。
 
-## V73 完整吸纳同步面
+## Registry 驱动的同步面
 
-当变更涉及 `ConfirmedAbsorptionCompletenessGates`、`evolution-governance` 或 `EvolutionCapabilityControlPlaneGate` 时，Concept Sync Map 必须至少列出：
+规范吸纳、控制面或历史规则分层时，不在本 Skill 维护版本号清单。执行方必须读取 `../spec-governance/gate-registry.json`，用 `gateGroup` 找到 `ownerSkills / requiredEvidence / route / legacyAnchors`，再建立本轮 Concept Sync Map。
 
-- `sourceOfTruth`：`instructions.md`、目标 Skill 或 `skills/evolution-governance/SKILL.md`。
-- `currentConsumers`：`spec-governance`、`dev-default`、`test-router`、`report`、`document-sync`、目标 audit/dev/release Skill、technical-design / implementation-plan / report prompts、README、website guide、requirements page、changelog。
-- `validateProbes`：`checkV73`、`scripts/test-spec-governance.js` 和 `node scripts/validate.js`。
-- `deployCopies`：`AGENTS.md`、`.agents/skills/`、`.github/`、`.claude/`、`.codex/` 中由 `devcodex update` 生成的当前副本。
+每个适用分组至少核对：
 
-## V74 历史通用规范分层同步面
+1. 规范真相源与目标 Owner Skill。
+2. Prompt/template、TestRoute、report schema 等当前执行消费者。
+3. validate/targeted/negative fixture 等验证探针。
+4. README、website、Profile 和 changelog 等公开消费者。
+5. AGENTS、CLAUDE、Copilot、Codex、plugin package 等部署副本。
+6. 历史镜像及其失效、保留或兼容边界。
 
-当变更涉及 `HistoricalCommonNormLayeringGate`、历史通用规范迁移、prompt/report 长清单收敛或旧吸纳项重新分层时，Concept Sync Map 必须至少列出：
+跨仓消费者验证、Profile/宿主能力、修复协作、发布凭据、用户文档、派生消费者与返工闭环等专属字段由 registry 指向的 Owner Skill 定义。本 Skill 只保存关系、同步状态和偏离原因，不复制 Owner 的完整门禁正文。
 
-- `sourceOfTruth`：`skills/spec-governance/SKILL.md` 的 `HistoricalCommonNormLayeringGate`、逐文件审查矩阵或当前目标 Skill。
-- `currentConsumers`：`instructions.md`、`instructions/10-dev.instructions.md`、`spec-governance`、`test-router`、`report`、`document-sync`、`source-consumer-sync`、technical-design / implementation-plan / report prompts、README、website guide、active version requirements、changelog、Profile。
-- `historicalMirrors`：`changelogs/releases/**`、历史 version docs、旧 requirement/release 页面；保留旧事实时必须写 `historicalMirror` 或 `legacy-index-retained`。
-- `validateProbes`：`checkV74`、`PromptLongGateListDriftProbe` / `checkV75`、`scripts/test-spec-governance.js`、`node scripts/validate.js` 和必要 targeted tests。
-- `currentConsumers` 中的 README、website guide、拆分 instructions、technical-design / implementation-plan / report prompts 只保留 `GovernanceGateRegistry`、gateGroup、ownerSkill、validationRoute、skipReason 和少量代表锚点；若 SCV 负向样例发现旧 Gate 长清单回流，必须回到源 Skill 或目标 ownerSkill 承接正文。
-- `deployCopies`：`AGENTS.md`、`.agents/skills/`、`.github/`、`.claude/`、`.codex/` 中由 `devcodex update` 生成的当前副本。
-
-## V81 规范吸纳执行同步面
-
-当变更涉及 `spec-absorption`、最新可吸纳、仍需吸纳、`.devcodex/*/data` 候选扫描、`CommonNormGeneralizationGate` 或 `AbsorptionCandidateConsumerProofGate` 时，Concept Sync Map 必须至少列出：
-
-- `sourceOfTruth`：`skills/spec-absorption/SKILL.md`，必要时包含 `skills/spec-governance/SKILL.md` 的 `GovernanceGateRegistry` 索引。
-- `currentConsumers`：`instructions.md`、`instructions/01b-record-router.instructions.md`、`instructions/10-dev.instructions.md`、`instructions/18-spec-radar.instructions.md`、`spec-governance`、`routing`、`test-router`、`report`、`document-sync`、`source-consumer-sync`、technical-design / implementation-plan / report prompts、README、website guide、directory structure、intro、active version changelog、Profile。
-- `validationProbes`：`checkV81`、`scripts/test-spec-governance.js`、`node scripts/validate.js` 和必要 targeted tests。
-- `negativeSamples`：`ServiceSpecReadGate`、`docs/services/<name>`、单项目 route/model/schema 命名、单库配置习惯等必须被判为 `project-local` 或 `case-evidence-only`。
-- `deployCopies`：`AGENTS.md`、`.agents/skills/`、`.github/`、`.claude/`、`.codex/` 中由 `devcodex update` 生成的当前副本。
-
-## V87 修复协作契约同步面
-
-当变更涉及 `repair-collaboration` 或 `DualLayerRepairCollaborationContract` 时：
-
-- `sourceOfTruth`：`skills/execution-contract/SKILL.md`；`skills/spec-governance/SKILL.md` 只登记 gateGroup。
-- `currentConsumers`：dev/fix/self-fix、AI Agent/review/test/report Skills、technical-design / implementation-plan / implementation-progress / report-dev / report-fix prompts、README、website guide/intro、active changelog、Profile 06/07。
-- `validateProbes`：V87、`scripts/test-spec-governance.js`、`node scripts/validate.js`；负向样例必须覆盖模型词误触发、高风险缺 finding map/handoff/独立复证与非法状态跳转。
-- `deployCopies`：由 update 同步的 `AGENTS.md`、`.agents/`、`.github/`、`.claude/`、`.codex/` 当前副本；历史 version/release 镜像不回写。
-
-## V88~V90 Profile、安全审查呈现与发布凭据拓扑同步面
-
-- `ProfileTruthReconciliationGate` sourceOfTruth=`load-profile`；currentConsumers=`analyze-default/audit-common/report/report-analysis/report-audit/instructions/13-analyze`；validate=V88。
-- `AuthorizedLocalSecurityAuditPresentationGate` sourceOfTruth=`security-threat-modeling`；currentConsumers=`audit-project/audit-execution-guide/execution-contract/test-router/report/report-audit`；validate=V89。
-- `PublisherCredentialTopologyGate` sourceOfTruth=`release-verification`；currentConsumers=`audit-release/execution-contract/test-router/report/report-dev/report-fix/technical-design/implementation-plan`；validate=V90 + R0~R7。
-- `ScopedRegistryResolutionGate` sourceOfTruth=`release-verification`；currentConsumers=`audit-release/test-router/report/report-audit/implementation-plan/website-release/Profile-05/release-note`；validate=V92 + scoped registry targeted fixtures + R0~R7。
-- `ChecklistStateMaterializationGate` sourceOfTruth=`review-checklist`；currentConsumers=`test-router/report/spec-governance/report-audit/technical-design/README/website/release-note`；validate=V94 stale/consistent snapshot fixtures + current checklist reopen evidence。
-- 三项 publicDocs=`README/website guide/intro/active changelog`，Profile=`05/06/07` 按触发同步，deployCopies 由 workspace-root update 生成；历史 version/release 镜像不回写。
-- V88~V90 的 prompt/report/instruction 只保留字段、触发与 owner 引用，不复制 owner Skill 详细正文；SCV 必须反向检查 secret value、绕过声明和 audit source mutation 等负向残留。
-
-## V95 跨仓消费者与能力完整性同步面
-
-- `AgentCapabilityDomainCompletenessGate` sourceOfTruth=`ai-agent-system-architecture`；currentConsumers=`dev-plan-review/test-router/report/technical-design/report-audit`。
-- `DocsAudienceRoleAndRenderedSequenceProbe` sourceOfTruth=`audit-user-manual`；currentConsumers=`user-manual-authoring/document-sync/test-router/report/report-audit`。
-- `ConsumerValidationEngineeringGate` sourceOfTruth=`consumer-validation-engineering`；currentConsumers=`quality-strategy/test-router/release-verification/report/technical-design/implementation-plan/reports/plugin/portfolio`。
-- `ModulePerformanceCoverageAndMaintenanceGate` sourceOfTruth=`performance-engineering`；currentConsumers=`quality-strategy/test-router/release-verification/report/implementation-plan`。
-- 四项 validate=`V95 + targeted test`；publicDocs=`README/website guide/intro/active changelog`，Profile=`01/02/04/06/07`；deployCopies 由 workspace-root update 生成。公共 instructions 和 prompts 只保留 gateGroup/owner/字段索引，不复制 Owner 正文。
+历史 V73~V95 名称只作为 registry `legacyAnchors` 的检索入口；新增版本不得继续扩展本文件的版本专属长列表。
 
 ## 黄色偏离边界
 

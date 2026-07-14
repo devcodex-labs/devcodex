@@ -513,6 +513,19 @@ function buildValidateCoreChecks(ctx) {
       }
     }
 
+    if (activeProfileDirAvailable) {
+      const featureInventoryPath = activePath('profile', '06-功能清单.md')
+      if (fs.existsSync(featureInventoryPath)) {
+        const featureInventory = read(featureInventoryPath)
+        const sourcePathPattern = /`((?:(?:scripts|skills|instructions|prompts|hooks|mcp|website)\/[^`*<>]+\.(?:js|cjs|md|json|ts))|(?:(?:README|package|plugin|index)\.(?:md|json|js)))`/g
+        for (const match of featureInventory.matchAll(sourcePathPattern)) {
+          if (!fs.existsSync(path.join(ROOT, match[1]))) {
+            err(`[V19] Profile feature inventory references missing source fact: ${match[1]}`)
+          }
+        }
+      }
+    }
+
     const activeRequirementsIndex = read(path.join(ROOT, 'website/docs/versions/v1/1.0.1/requirements/index.md'))
     const activeRequirementsChangelog = read(path.join(ROOT, 'website/docs/versions/v1/1.0.1/CHANGELOG.md'))
     for (const stale of ['light-api', 'frontend-api', 'Claude MCP/合规漂移修复']) {

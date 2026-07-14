@@ -40,6 +40,8 @@ description: 执行契约规范 — 为长流程、多文件、Auto 或控制面
 | `progressArtifact` | 条件 | 多批次、预计 ≥10 文件、跨轮次或用户要求持续跟踪时必须写 `05-实施进度.md` |
 | `safetyInterruptionRecovery` | 条件 | 授权本地安全审查出现宿主安全提示/内容不可见时，引用 `AuthorizedLocalSecurityAuditPresentationGate` 的 SafetyInterruptionCard、last checkpoint 与 resume evidence |
 | `publisherCredentialTopology` | 条件 | 首次发布或发布身份/仓库/package/registry/auth topology 变化时，引用 `PublisherCredentialTopologyGate`；只记录身份、scope/access/permission/ownership/成功证据，不含 secret value |
+| `currentBatchScopeDiff` | 条件 | 多阶段/多批次 dev/fix 必填；比较 total phase scope、allowedFirstBatch、当前 batch、blockedScope 与本次 diff |
+| `validationConsumerRebind` | 条件 | 新增 root script、CI job、validator、deploy copy 或 consumer 时必填；把 allowedPaths、TestRoute、rollback 与 consumerScope 重新绑定 |
 
 ## 偏离分级
 
@@ -48,6 +50,12 @@ description: 执行契约规范 — 为长流程、多文件、Auto 或控制面
 | 🟢 绿色 | 不改变目标、范围、接口、路径边界的局部实现微调 | 记录原因后继续 |
 | 🟡 黄色 | 新增当前消费者、验证动作或部署副本，但不改变需求范围，且仍在 `yellowDeviationBoundary` 内 | 更新计划/进度/报告与 `deviationLog` 后继续 |
 | 🔴 红色 | 新增依赖、改 Hook runtime 权限模型、改 CLI 语义、改发布动作、扩大需求边界、触达 `blockedScope` 或改变验证路线 | 停止执行，回 CP2 或 CP1 |
+
+## CurrentBatchScopeDiffProbe / NewValidationConsumerRebindProbe
+
+进入每个实施批次前必须反向比较 `phaseTotalScope / allowedFirstBatch / actualTargetSet / blockedScope / dirtyBoundary`。`allowedFirstBatch` 只允许当前批次，不得因总路线图已确认而一次放开后续模块。
+
+当计划或实现新增 root package script、CI job、validator、fixture runner、部署副本或外部 consumer 时，执行 `ValidationConsumerRebindMatrix`，同步 `allowedPaths / consumerScope / TestRoute / regressionMatrix / rollbackAuthorization / deployCopies`。合同禁止修改某消费者但验收又依赖该消费者时必须在编码前阻断；回滚包含删除、清空或其他未授权动作时不得通过。
 
 ## Auto 消费规则
 

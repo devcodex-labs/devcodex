@@ -14,12 +14,11 @@ description: 影响评估规范 — 代码变更六维影响框架 + 回归风�
 |--------|----------|
 | dev | 仅当 dev-plan-review PR-5② 标记"跨模块架构依赖变更"时 |
 | fix | 仅当修复方案涉及跨模块架构依赖变更（PR-5②）时 |
-| analyze | 分析结论涉及架构/方案影响时 |
 
 > 🔴 PR-5① 对外接口变更 → EXEC 后走 `api-verification`，**不进 impact-review**。  
 > 🔴 PR-5③ 数据库 Schema 变更 → 走 `dev-database` Skill，**不进 impact-review**。
 
-**豁免**：`dev-docs`、`dev-plan-review`、`audit`、`chat`
+**豁免**：`dev-docs`、`dev-plan-review`、`analyze`、`audit`、`chat`。analyze 可在只读报告内讨论影响，但不得进入 CP2 后/EXEC 前的本 Skill 状态机。
 
 ## 六维评估框架
 

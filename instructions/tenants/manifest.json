@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "selectionOption": "--tenant <id>",
+  "defaultSelection": null,
+  "tenants": [
+    {
+      "id": "example-tenant",
+      "directory": "example-tenant",
+      "template": true,
+      "selectable": true
+    }
+  ]
+}

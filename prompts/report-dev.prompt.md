@@ -7,9 +7,8 @@ applyTo: .devcodex/**/reports/requirements/**
 
 > **路径**: 优先 `.devcodex/**/requirements/<需求>/reports/<agent>/YYYYMMDD/NN--<name>.md`；无任务上下文时回退到 `.devcodex/**/reports/requirements/<agent>/YYYYMMDD/NN--<name>.md`
 > **触发**: dev 工作流完成后，由 `report/SKILL.md` 驱动生成
+> **共享基模**: `skills/report/report-schema.json` 的 baseFields + dev overlay；治理结果按 `gateGroup / result / evidence / skipReason` 记录
 > **字段约束**: 每条遗留问题/建议必须附五项验证（合理性 + 可实施性 + 收益 + 验证状态 + 影响范围），详见 [`17-compliance.instructions.md`](../instructions/17-compliance.instructions.md) §1 输出验证
-> **新增专家 Owner**: `distributed-systems-architecture` / `performance-engineering` / `privacy-compliance-architecture` / `ai-evaluation-engineering`，对应 Gate 纳入 V85。
-
 ---
 
 ```markdown
@@ -41,7 +40,7 @@ applyTo: .devcodex/**/reports/requirements/**
 
 ## §3 文件变更清单
 
-```
+```text
 新增：
   src/xxx.ts
 
@@ -63,96 +62,36 @@ applyTo: .devcodex/**/reports/requirements/**
 
 > 无 BC 时填"无"。
 
-## §5.5 支撑产物状态
+## §5.5 工作流 overlay 与治理证据（条件）
 
-| 产物 | 触发状态 | 结果 | 证据 |
-|------|----------|:----:|------|
-| ExecutionContract | ✅/N/A | ✅/⚠️ | |
-| RepairCollaborationContract | ✅/N/A | ✅/⚠️ | lightweight/full、contractState、authorizationEvidence、双层证据；full 的 findingToPatchMap / handoffIntegrity / independentReReview / acceptanceMatrix |
-| TestRoute | ✅/N/A | ✅/⚠️ | |
-| LeakRiskStabilityPressureTest | ✅/N/A | ✅/⚠️ | leakRiskPressure 判定、基线、压力场景、冷却窗口、资源指标前后对比、skipReason |
-| CoverageGateDecision / RiskBasedValidationLadder | ✅/N/A | ✅/⚠️ | coverage 命令、工具、阈值、基线、当前值、passed/failed/known-red/N/A、targeted/related/full gate 层级和 skipReason |
-| ExternalRuntimePluginLifecycleGate / ExternalRegistryLifecycleMatrixGate / FunctionSourceFingerprintMatrixGate / ClusterEscalationGate | ✅/N/A | ✅/⚠️ | runtime/plugin/registry 生命周期矩阵、fingerprint false-positive/false-negative 样本、clusterId、whyMissed、冻结矩阵、停止条件、rerunEvidence |
-| FrontendExperienceQualityGate | ✅/N/A | ✅/⚠️ | 设计来源、UI 还原度、风格主题、响应式状态、视觉验证、用户流、交互反馈、输入方式/可访问性、错误恢复、动效转场、FigmaHighFidelityRestorationGate、ActualPreviewChainAndMockFallbackGate、RuntimeI18nArtifactVerificationGate、skipReason |
-| spec-absorption / CommonNormGeneralizationGate / AbsorptionCandidateConsumerProofGate | ✅/N/A | ✅/⚠️ | 候选矩阵 / sourceNamespace / generalizationEvidence / projectSpecificResidue / negativeExamples / targetConsumer / devcodexConsumerEvidence / targetOwner / validationRoute / decision |
-| ProjectArtifactScaleRoutingGate / SkillPortfolioLifecycleGate | ✅/N/A | ✅/⚠️ | ScaleDecisionRecord / exclusion / batch checkpoint / invalid-run / portfolio lifecycle / V91 |
-| LayeredAbsorptionGate / SkillFirstAbsorptionGate | ✅/N/A | ✅/⚠️ | LayeredAbsorptionDecision：candidateId / classification / targetSkill / triggerTerms / ownedArtifacts / layerChecks(commonInstruction / skill / promptTemplate / executionConsumer / validationProbe / publicDocs / deployCopy) / validationRoute / consumerSync；兼容 SkillAbsorptionDecision |
-| HistoricalCommonNormLayeringGate | ✅/N/A | ✅/⚠️ | 逐文件审查矩阵、currentRole/matchedRules/targetLayer/targetOwner/action/semanticStrength/validation/skipReason、legacy-index-retained 项、V74 探针和部署副本同步 |
-| ProactiveBetterAlternativeGate | ✅/N/A | ✅/⚠️ | 用户方案 / 备选路径 / 推荐理由 / 取舍影响 / 采纳依据 |
-| AcceptedSuggestionRootCauseGate | ✅/N/A | ✅/⚠️ | whyMissed / 采纳依据 / VL-PI-PF-GAP 编号 / prevention |
-| PostConfirmationReviewScopeGate / DevelopmentDriftGate | ✅/N/A | ✅/⚠️ | light/full 判定、review-checklist 路径或 skipReason、allowedFirstBatch、blockedScope、driftTriggers、validationRoute |
-| VerificationPlanMaterializationProbe / docsIaReadability | ✅/N/A | ✅/⚠️ | 验证计划、验收/退出条件、ChinesePrimaryExpressionGate、SidebarPageRoleMaterializationProbe、SidebarGroupSemanticModelProbe |
-| ConfirmedAbsorptionCompletenessGates | ✅/N/A | ✅/⚠️ | gateGroup / ownerSkill / layerChecks / validationRoute；anchors: PublicSurfaceClosureGate / UserManualProductizationGate / ReviewAnchorMaterializationGate / FrontendAsyncCacheRenderGate / RemoteCIParityPushGate / NativeCommandExitCodeGate / DocsThemeRuntimeVisualProbeGate |
-| LatestAbsorptionExecutionPack A1~A10 | ✅/N/A | ✅/⚠️ | gateGroup / ownerSkill / validationRoute / V82；anchors: ConfigCanonicalNamespaceGate / ProfileRuntimeContractSyncGate / BehaviorSemanticDocsParityGate / DocsExampleTruthSurfaceGate / DerivedMetricConsumerProbe / FeatureInventoryProfileGate / BatchEvidenceLedgerStateGate / BatchProgressCardGate |
-| ExpertOutputQualityGate | ✅/N/A | ✅/⚠️ | roleBaseline / productionRecommendedPath / frameworkNativeCapability / fixtureBoundary / antiPatternContrast / evidenceMatrix / V84 |
-| ExpertOwnerSkillGate | ✅/N/A | ✅/⚠️ | ownerSkill / triggerReason / requiredFields / validationRoute / skipReason / V85；ProductStrategyOwnerGate / DeveloperExperienceArchitectureGate / UxInteractionArchitectureGate / FrontendArchitectureOwnerGate / BackendDomainArchitectureGate / ProductionReadinessSreGate / ApiContractArchitectureGate / ExternalIntegrationArchitectureGate / PlatformEcosystemArchitectureGate / AiAgentSystemArchitectureGate / DataArchitectureGate / SecurityThreatModelingGate / QualityStrategyGate / DesignSystemArchitectureGate / AccessibilityI18nGate / GrowthAnalyticsGate / BusinessModelReviewGate |
-| ReworkPrevention / ReleaseAuthority / ConfigurationErgonomics / InteractiveSemantic | ✅/N/A | ✅/⚠️ | WorkUnit/双根因/baseline/prospective trials/effectiveness；publishedState/consumerEvidence/decision；MinimalTaskConfig/FieldNecessityMatrix/OptionalFieldOmissionProbe；role/name/focus/keyboard/focus recovery；V94 |
-| Agent/Docs/Consumer/ModulePerformance completeness | ✅/N/A | ✅/⚠️ | completenessObject/domain；pageRole/generated sequence；repository identity/denominators/pack/cross-repo CI/freshness；module applicability/protocol/maintenance；V95 |
-| CrossProjectLearnedGuards | ✅/N/A | ✅/⚠️ | GovernanceGateRegistry gateGroup / ownerSkill / validationRoute / skipReason；anchors: CodeTruthRequirementGate / ManualReviewEvidenceRetention / ReviewFindingIntakeGate / UserDocsPrimarySurfaceGate / ActiveRequirementFinalResponseGate / V2FormalSolutionPackage |
-| LatestAbsorptionGuards | ✅/N/A | ✅/⚠️ | GovernanceGateRegistry gateGroup / evidence / N/A；anchors: DatabaseRecordMigrationExportGate / FrontendBrowserVerificationBudgetGate / FindingProbeMatrixGate / VerificationCommandSideEffectGate / RequirementPreConfirmGate / BenchmarkRegressionGuard |
-| ServiceLifecycleCleanup | ✅/N/A | ✅/⚠️ | AI 自启动服务的 command/cwd/PID/job/port/url、关闭验证或 keepAliveReason |
-| ReleaseAudit | ✅/N/A | ✅/⚠️ | |
-| ReleaseVerification | ✅/N/A | ✅/⚠️ | R0~R7、NativeCommandExitCodeGate command/shell/cwd/exitCode；触发时追加 PublisherCredentialTopologyGate 且不含 secret value |
-| ConceptSyncMap | ✅/N/A | ✅/⚠️ | sourceOfTruth / currentConsumers / historicalMirrors / validateProbes / deployCopies / yellowDeviationBoundary |
-| HostContractVerification | ✅/N/A | ✅/⚠️ | hostSurface / eventScope / evidenceMode / visibleReplyEvidence / workspaceGuard / bootstrapScope / artifactLinkMatrix / mcpFallback |
-| OfficialDocsEvidence | ✅/N/A | ✅/⚠️ | 官方文档来源 / 版本日期 / 关键用法 / 限制 / 兼容性 / skipReason |
-| ProfileImpactCheck | ✅/N/A | ✅/⚠️ | targetProfileFiles / updateOrSkip / skipReason / evidence |
-| ConsumerDependencyTreeProbe | ✅/N/A | ✅/⚠️ | package.json / lockfile / node_modules / npm ls <关键依赖> / sourcePatchDecision |
-| PackageBoundarySerialCheck | ✅/N/A | ✅/⚠️ | build 完成点 / 单独 pack 命令 / dist 写入竞争排除 / dirty 残留清理 |
-| 05-实施进度.md | ✅/N/A | ✅/⚠️ | |
-| ContextHandoffCard | ✅/N/A | ✅/⚠️ | source-of-truth / confirmed-decisions / open-risks / next-action / must-not-overwrite / validation-state / artifact-links |
-| Backlog Intake 真相复核 | ✅/N/A | ✅/⚠️ | candidateIds / classification / evidence / scopeDelta |
-| 台账状态回写闭环 | ✅/N/A | ✅/⚠️ | targetLedgers / requiredFields / writebackEvidence / rescanResult |
-| Hook closure 三态证据 | ✅/N/A | ✅/⚠️ | verified-present / verified-missing / unverified；控制面或 Hook 任务必填 |
+> 共享基模读取 `skills/report/report-schema.json`，治理分组读取 `skills/spec-governance/gate-registry.json`。本模板只记录实际触发结果，不复制 Gate 目录或 Owner 专属字段。
+
+| gateGroup / 条件产物 | result | ownerSkill / schemaRef | evidence | skipReason |
+|----------------------|--------|------------------------|----------|------------|
+| | passed / failed / partial / N/A | | | |
+
+跨会话、多批次、中断或残余风险未关闭时追加 `ContextHandoffCard`；Profile、release、service lifecycle 等条件段按 schema 与 Owner Skill 生成。
 
 ## §6 测试验证
 
-| 类型 | 结果 | 覆盖率 |
-|------|:----:|:------:|
-| TestRoute 覆盖 | ✅ 通过 / N/A | — |
-| 泄漏风险稳定性压测 | ✅ 通过 / N/A | baseline/cooldown/resourceMetrics |
-| Coverage / runtime lifecycle / fingerprint 验证 | ✅ 通过 / N/A | CoverageGateDecision / ExternalRuntimePluginLifecycleGate / FunctionSourceFingerprintMatrixGate / ClusterEscalationGate / RiskBasedValidationLadder |
-| 前端 UI / 交互体验验证 | ✅ 通过 / N/A | Browser/截图/E2E/人工复核 / FrontendRuntimeNetworkProbeGate |
-| 文档使用者视角、即时理解、主面与消费者扫描 | ✅ 通过 / N/A | UserPerspectiveDocsGate / UserDocsImmediateComprehensionGate / UserDocsPrimarySurfaceGate / DocsConsumerSweep |
-| 用户最终文档、生成站点与公开用户路径 | ✅ 通过 / N/A | UserFacingDeliveryChainGate / FinalUserManualFirstGate / audit-user-manual / UserManualReviewScope / DocsNavigationReviewMatrix / GeneratedSiteGate / ManualTocDuplicationGate / UserPathContractSweep |
-| 专家型产物质量 | ✅ 通过 / N/A | ExpertOutputQualityGate / ProductionRecommendedPathGate / FrameworkNativeCapabilityFirstGate / FixtureBoundaryDisclosureGate / AntiPatternContrastGate / ExpertEvidenceMatrixGate |
-| 专家 Owner Skill | ✅ 通过 / N/A | ExpertOwnerSkillGate / product-strategy / developer-experience-architecture / ux-interaction-architecture / frontend-architecture / backend-domain-architecture / production-readiness-sre / api-contract-architecture / external-integration-architecture / platform-ecosystem-architecture / ai-agent-system-architecture / data-architecture / security-threat-modeling / quality-strategy / design-system-architecture / accessibility-i18n / growth-analytics / business-model-review / V85 |
-| 复审清单证据化、逃逸记录、构建产物与性能回归 | ✅ 通过 / N/A | ReviewChecklistCompletenessGate / EvidenceExecutionGate / ReviewEscapeRecordGate / whyMissed / prevention / rerunEvidence / BuiltArtifactFeatureSmokeGate / TscOutputImportProbe / BenchmarkRegressionGuard |
-| 公开用户文档维护边界 | ✅ 通过 / N/A | PublicUserDocsMaintainerBoundaryGate |
-| 产物链接去重 | ✅ 通过 / N/A | ArtifactLinkSetDedupeGate canonical path |
-| 复审维度增量 | ✅ 通过 / N/A | ReviewDimensionDeltaGate |
-| 最终回复 active 范围 | ✅ 通过 / N/A | ActiveRequirementFinalResponseGate |
-| 验证范围预算与真实执行 | ✅ 通过 / N/A | VerificationScopeBudgetGate / LiveVerificationExecutionObligation |
-| AI 自启动服务清理 | ✅ 已关闭 / N/A / 保留运行 | PID/端口/cleanupEvidence/keepAliveReason |
-| HostContract 验证 | ✅ 通过 / N/A | — |
-| 静态/类型检查 | ✅ 通过 / N/A | — |
-| 单元测试 | ✅ 通过 | X% |
-| api-verification | ✅ 通过 / N/A | — |
+| selector / gateGroup | 结果 | 命令与 exitCode | 证据 / skipReason |
+|----------------------|:----:|-----------------|---------------------|
+| static / unit-integration | | | |
+| api / runtime-e2e | | | |
+| package-release / profile-deploy | | | |
+| 实际触发的 Owner gateGroup | | | |
+
+TestRoute 选中的路线必须全部出现；覆盖率、视觉、文档、构建产物、资源生命周期等专属结果通过 Owner 证据链接引用，不在本模板逐 Gate 展开。
+
 
 ## §7 后置处理
 
-- [ ] api-verification：✅ 通过 / N/A
-- [ ] impact-review：✅ 完成 / N/A
-- [ ] document-sync：✅ 完成
-- [ ] ExecutionContract：✅ 完成 / N/A
-- [ ] TestRoute：✅ 完成 / N/A
-- [ ] LeakRiskStabilityPressureTest：✅ 完成 / N/A + skipReason
-- [ ] FrontendExperienceQualityGate：✅ 完成 / N/A + skipReason
-- [ ] HistoricalCommonNormLayeringGate：✅ 完成 / N/A + skipReason
-- [ ] CrossProjectLearnedGuards：✅ 完成 / N/A + skipReason
-- [ ] ExpertOutputQualityGate：✅ 完成 / N/A + skipReason
-- [ ] ExpertOwnerSkillGate：✅ 完成 / N/A + skipReason
-- [ ] ReviewFindingIntakeGate：✅ 完成 / N/A + skipReason
-- [ ] ReviewDimensionDeltaGate / UserPerspectiveDocsGate / UserDocsImmediateComprehensionGate / UserDocsPrimarySurfaceGate / PublicUserDocsMaintainerBoundaryGate / DocsConsumerSweep / RequirementVerdictStateSyncGate / ArtifactLinkSetDedupeGate / FrontendRuntimeNetworkProbeGate / ActiveRequirementFinalResponseGate：✅ 完成 / N/A + skipReason
-- [ ] WorkspaceDataAbsorptionScopeGate / DocsSiteVisualAcceptanceGate / MethodLevelLeakPressureProbe / V2FormalSolutionPackage：✅ 完成 / N/A + skipReason
-- [ ] ServiceLifecycleCleanup：✅ 完成 / N/A（若保留运行，已记录用户要求、PID/端口和关闭方式）
-- [ ] ReleaseAudit：✅ 完成 / N/A
-- [ ] ReleaseVerification：✅ 完成 / N/A
-- [ ] ConceptSyncMap：✅ 完成 / N/A
-- [ ] HostContractVerification：✅ 完成 / N/A
-- [ ] 05-实施进度.md：✅ 已同步 / N/A
-- [ ] ContextHandoffCard：✅ 已写入 / N/A + skipReason
+- [ ] impact-review、document-sync 与 ProfileImpactCheck 已完成或有 skipReason
+- [ ] 条件产物和适用 gateGroup 已按共享 schema 收口
+- [ ] AI 自启动服务已清理或按用户要求记录保留方式
+- [ ] active task 的进度、记忆、报告、台账和最终交付面一致
 - [ ] release-status：未进入 / 待用户确认 / 已执行
+
 
 ## §7.5 ECR 执行闭环复审
 

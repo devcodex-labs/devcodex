@@ -7,9 +7,8 @@ applyTo: .devcodex/**/reports/scenario-tests/**
 
 > **路径**: 优先 `.devcodex/scenario-tests/<场景>/reports/<agent>/YYYYMMDD/NN--<name>.md`；无任务上下文时回退到 `.devcodex/reports/scenario-tests/<agent>/YYYYMMDD/NN--<name>.md`
 > **触发**: dev.scenario-test 工作流完成后，由 `report/SKILL.md` 驱动生成
+> **共享基模**: `skills/report/report-schema.json` 的 baseFields + scenario-test overlay；治理结果按 `gateGroup / result / evidence / skipReason` 记录
 > **字段约束**: 每条问题/建议必须附五项验证（合理性 + 可实施性 + 收益 + 验证状态 + 影响范围），详见 [`17-compliance.instructions.md`](../instructions/17-compliance.instructions.md) §1 输出验证
-> **新增专家 Gate**: `DistributedSystemsArchitectureGate` / `PerformanceEngineeringGate` / `PrivacyComplianceArchitectureGate` / `AiEvaluationEngineeringGate`，按命中场景纳入 V85。
-
 ---
 
 ```markdown
@@ -88,34 +87,15 @@ applyTo: .devcodex/**/reports/scenario-tests/**
 | 负载测试 (artillery) | ✅ 通过 | — |
 | 场景回放 | ✅ 通过 | direct replay / fixture replay / N/A |
 
-## §6.2 支撑产物状态
+## §6.2 工作流 overlay 与治理证据（条件）
 
-| 产物 | 触发状态 | 结果 | 证据 |
-|------|----------|:----:|------|
-| ExecutionContract | ✅/N/A | ✅/⚠️ | |
-| TestRoute | ✅/N/A | ✅/⚠️ | |
-| LeakRiskStabilityPressureTest | ✅/N/A | ✅/⚠️ | leakRiskPressure / baseline / cooldown / resourceMetrics / skipReason |
-| FrontendExperienceQualityGate | ✅/N/A | ✅/⚠️ | frontendExperience / FigmaHighFidelityRestorationGate / ActualPreviewChainAndMockFallbackGate / RuntimeI18nArtifactVerificationGate / Browser / 截图 / E2E / 人工复核 / skipReason |
-| FrontendRuntimeNetworkProbeGate | ✅/N/A | ✅/⚠️ | console / network / failed requests / resource 404 / API target / runtime error / i18n key / skipReason |
-| spec-absorption / CommonNormGeneralizationGate / AbsorptionCandidateConsumerProofGate | ✅/N/A | ✅/⚠️ | 候选矩阵 / sourceNamespace / generalizationEvidence / projectSpecificResidue / negativeExamples / targetConsumer / devcodexConsumerEvidence / targetOwner / validationRoute / decision |
-| LayeredAbsorptionGate / SkillFirstAbsorptionGate | ✅/N/A | ✅/⚠️ | LayeredAbsorptionDecision / new-skill-required / existing-skill-subgate / layerChecks / promptTemplate / executionConsumer / validationProbe / publicDocs / deployCopy / validationRoute / consumerSync |
-| HistoricalCommonNormLayeringGate | ✅/N/A | ✅/⚠️ | 逐文件审查矩阵 / currentRole / targetLayer / targetOwner / legacy-index-retained / V74 / targeted tests / deployCopy |
-| LatestAbsorptionExecutionPack A1~A10 | ✅/N/A | ✅/⚠️ | gateGroup / ownerSkill / validationRoute / V82 / DerivedMetricConsumerProbe / DerivedConsumerFailureInjectionProbe / BatchEvidenceLedgerStateGate / BatchProgressCardGate |
-| ReviewEscapeRecordGate | ✅/N/A | ✅/⚠️ | escapedItem / whyMissed / missingDimensionOrProbe / prevention / checklistPatch / rerunEvidence |
-| ProactiveBetterAlternativeGate | ✅/N/A | ✅/⚠️ | 用户方案 / 备选路径 / 推荐理由 / 取舍影响 / 采纳依据 |
-| AcceptedSuggestionRootCauseGate | ✅/N/A | ✅/⚠️ | 采纳的用户纠正 / whyMissed / 采纳依据 / VL-PI-PF-GAP 编号 / prevention |
-| PostConfirmationReviewScopeGate / DevelopmentDriftGate | ✅/N/A | ✅/⚠️ | 轻量或全面复审判定 / review-checklist 路径或 skipReason / allowedFirstBatch / blockedScope / driftTriggers / validationRoute |
-| VerificationPlanMaterializationProbe / docsIaReadability | ✅/N/A | ✅/⚠️ | 验证计划物化 / 验收标准 / 退出条件 / ChinesePrimaryExpressionGate / SidebarPageRoleMaterializationProbe / SidebarGroupSemanticModelProbe |
-| ConfirmedAbsorptionCompletenessGates | ✅/N/A | ✅/⚠️ | gateGroup / ownerSkill / layerChecks / validationRoute；gateGroup anchors: public-surface / user-manual / review-checklist / frontend-runtime / profile-service / release-parity / evolution-control-plane；anchors: PublicSurfaceClosureGate / UserManualProductizationGate / ReviewAnchorMaterializationGate / FrontendAsyncCacheRenderGate / RemoteCIParityPushGate / NativeCommandExitCodeGate / DocsThemeRuntimeVisualProbeGate |
-| ExpertOutputQualityGate | ✅/N/A | ✅/⚠️ | roleBaseline / productionRecommendedPath / frameworkNativeCapability / fixtureBoundary / antiPatternContrast / evidenceMatrix / V84 |
-| ExpertOwnerSkillGate | ✅/N/A | ✅/⚠️ | ownerSkill / triggerReason / requiredFields / validationRoute / skipReason / V85；ProductStrategyOwnerGate / DeveloperExperienceArchitectureGate / UxInteractionArchitectureGate / FrontendArchitectureOwnerGate / BackendDomainArchitectureGate / ProductionReadinessSreGate / ApiContractArchitectureGate / ExternalIntegrationArchitectureGate / PlatformEcosystemArchitectureGate / AiAgentSystemArchitectureGate / DataArchitectureGate / SecurityThreatModelingGate / QualityStrategyGate / DesignSystemArchitectureGate / AccessibilityI18nGate / GrowthAnalyticsGate / BusinessModelReviewGate |
-| CrossProjectLearnedGuards | ✅/N/A | ✅/⚠️ | GovernanceGateRegistry gateGroup / ownerSkill / validationRoute / skipReason；anchors: ManualReviewEvidenceRetention / ReviewFindingIntakeGate / UserDocsPrimarySurfaceGate / ActiveRequirementFinalResponseGate / V2FormalSolutionPackage |
-| LatestAbsorptionGuards | ✅/N/A | ✅/⚠️ | GovernanceGateRegistry gateGroup / evidence / N/A；anchors: DatabaseRecordMigrationExportGate / FrontendBrowserVerificationBudgetGate / FindingProbeMatrixGate / VerificationCommandSideEffectGate / RequirementPreConfirmGate / BenchmarkRegressionGuard |
-| ReleaseAudit | ✅/N/A | ✅/⚠️ | |
-| ReleaseVerification | ✅/N/A | ✅/⚠️ | |
-| ConceptSyncMap | ✅/N/A | ✅/⚠️ | sourceOfTruth / currentConsumers / historicalMirrors / validateProbes / deployCopies / yellowDeviationBoundary |
-| HostContractVerification | ✅/N/A | ✅/⚠️ | hostSurface / eventScope / evidenceMode / visibleReplyEvidence / workspaceGuard / bootstrapScope |
-| 05-实施进度.md | ✅/N/A | ✅/⚠️ | |
+> 共享基模读取 `skills/report/report-schema.json`，治理分组读取 `skills/spec-governance/gate-registry.json`。本模板只记录实际触发结果，不复制 Gate 目录或 Owner 专属字段。
+
+| gateGroup / 条件产物 | result | ownerSkill / schemaRef | evidence | skipReason |
+|----------------------|--------|------------------------|----------|------------|
+| | passed / failed / partial / N/A | | | |
+
+跨会话、多批次、中断或残余风险未关闭时追加 `ContextHandoffCard`；Profile、release、service lifecycle 等条件段按 schema 与 Owner Skill 生成。
 
 ## §6.5 ECR 执行闭环复审
 

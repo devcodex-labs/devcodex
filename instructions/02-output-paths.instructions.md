@@ -2,7 +2,7 @@
 applyTo: "**"
 description: 产物输出路径与命名规范，定义 active-root 下的 requirements、bugs、reports 与记忆落点
 priority: P5
-version: 1.13.0
+version: 1.14.0
 ---
 # 产物输出路径规范
 
@@ -130,7 +130,7 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 
 每轮回复中涉及文件新建或修改时，在回复末尾输出：
 
-```
+```markdown
 📂 本次会话产物：
 - [文件名（类型）](workspace相对路径/file.md)
 ```

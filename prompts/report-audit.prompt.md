@@ -7,9 +7,8 @@ applyTo: ".devcodex/**/reports/audit/**, .devcodex/**/reports/self-fix/**"
 
 > **路径**: 优先 `<任务目录>/reports/<agent>/YYYYMMDD/NN--<name>.md`；无任务上下文时回退到 `.devcodex/reports/audit/<agent>/YYYYMMDD/NN--<name>.md`
 > **触发**: audit 工作流完成后，由 `report/SKILL.md` 驱动生成
+> **共享基模**: `skills/report/report-schema.json` 的 baseFields + audit overlay；治理结果按 `gateGroup / result / evidence / skipReason` 记录
 > **字段约束**: 每条问题/建议必须附五项验证（合理性 + 可实施性 + 收益 + 验证状态 + 影响范围），详见 [`17-compliance.instructions.md`](../instructions/17-compliance.instructions.md) §1 输出验证（本模板 §3 问题清单已含五列示例表头）
-> **新增专家 Owner**: `distributed-systems-architecture` / `performance-engineering` / `privacy-compliance-architecture` / `ai-evaluation-engineering`，对应 Gate 纳入 V85。
-
 ---
 
 ```markdown
@@ -52,52 +51,15 @@ applyTo: ".devcodex/**/reports/audit/**, .devcodex/**/reports/self-fix/**"
 | R1 | 初始 CRS 范围 | | | N/A | N/A | N/A | 初始维度集合 | N/A | N/A | N/A |
 | R2 | | | | | | | | | | ✅/❌ |
 
-## §2.5 控制面同步证据（条件）
+## §2.5 工作流 overlay 与治理证据（条件）
 
-> 审查对象涉及规范源、Skill、Hook、CLI、模板、validate、README/website/Profile 或部署副本时填写；其他场景标 `N/A`。
+> 共享基模读取 `skills/report/report-schema.json`，治理分组读取 `skills/spec-governance/gate-registry.json`。本模板只记录实际触发结果，不复制 Gate 目录或 Owner 专属字段。
 
-| 项 | 内容 |
-|----|------|
-| Concept Sync Map | sourceOfTruth / currentConsumers / historicalMirrors / validateProbes / deployCopies / yellowDeviationBoundary |
-| HostContractVerification | hostSurface / eventScope / evidenceMode / visibleReplyEvidence / workspaceGuard / bootstrapScope |
-| 新增探针 | |
-| 黄色偏离 | |
-| 部署同步证据 | |
-| CoverageGateDecision / RiskBasedValidationLadder | coverage 命令、工具、阈值、基线、当前值、passed/failed/known-red/N/A、targeted/related/full gate 层级和 skipReason |
-| ExternalRuntimePluginLifecycleGate / ExternalRegistryLifecycleMatrixGate / FunctionSourceFingerprintMatrixGate / ClusterEscalationGate | runtime/plugin/registry 生命周期矩阵、fingerprint false-positive/false-negative 样本、clusterId、whyMissed、冻结矩阵、停止条件、rerunEvidence |
-| FrontendExperienceQualityGate | 设计来源 / UI 还原度 / 风格主题 / 响应式状态 / 视觉验证 / 用户流 / 交互反馈 / 输入方式 / 错误恢复 / 动效转场 / FigmaHighFidelityRestorationGate / ActualPreviewChainAndMockFallbackGate / RuntimeI18nArtifactVerificationGate |
-| CrossProjectLearnedGuards | GovernanceGateRegistry gateGroup / ownerSkill / validationRoute / evidence / skipReason；anchors: CodeTruthRequirementGate / ManualReviewEvidenceRetention / ReviewFindingIntakeGate / UserDocsPrimarySurfaceGate / ActiveRequirementFinalResponseGate / V2FormalSolutionPackage |
-| ExpertOutputQualityGate | roleBaseline / productionRecommendedPath / frameworkNativeCapability / fixtureBoundary / antiPatternContrast / evidenceMatrix / V84；代码、文档、示例、fixture、quick start、技术方案和报告不得把测试夹具或低阶重复写法包装成生产推荐路径 |
-| ExpertOwnerSkillGate | ownerSkill / triggerReason / requiredFields / validationRoute / skipReason / V85；按需覆盖 product-strategy / developer-experience-architecture / ux-interaction-architecture / frontend-architecture / backend-domain-architecture / production-readiness-sre / api-contract-architecture / external-integration-architecture / platform-ecosystem-architecture / ai-agent-system-architecture / data-architecture / security-threat-modeling / quality-strategy / design-system-architecture / accessibility-i18n / growth-analytics / business-model-review |
-| ReworkPrevention / ReleaseAuthority / ConfigurationErgonomics / InteractiveSemantic | WorkUnit/双根因/baseline/prospective trials/effectiveness；publishedState/consumerEvidence/decision；MinimalTaskConfig/FieldNecessityMatrix/OptionalFieldOmissionProbe；role/name/focus/keyboard/focus recovery；V94 |
-| Agent/Docs/Consumer/ModulePerformance completeness | completenessObject/domain owner-boundary-runtime-validation；pageRole/首屏/sidebar/quickstart/TOC-outline/generated evidence；repository identity/denominators/pack/cross-repo CI/freshness；module applicability/protocol/maintenance；V95 |
-| OmissionOnlyReviewGate | 已覆盖集合 / 新增覆盖 / 遗漏候选 / 排除理由 / 收敛状态 |
-| ReviewFindingIntakeGate | finding 来源 / 本地证据 / must-fix-user-decision-docs-drift-test-gap-intentional-design-not-reproduced 分类 / 用户确认点 |
-| ReviewDimensionDeltaGate | PreviousDimensionSet / CurrentDimensionFocus / NewDimensionRationale / RepeatedDimensionReason |
-| UserPerspectiveDocsGate / UserDocsImmediateComprehensionGate / UserDocsPrimarySurfaceGate / PublicUserDocsMaintainerBoundaryGate / DocsConsumerSweep | 使用者视角 / 功能完整性 / 配置易懂 / 即时理解 / targetSurface / documentLocation / 首页首屏 / quick start / nav 主面 / 维护者 checklist 边界 / 字段与示例解释 / 当前消费者与导航同步 |
-| UserFacingDeliveryChainGate / FinalUserManualFirstGate / DocsSiteInformationArchitectureGate / UserManualFlowAndFailureGate / QueueDocsRealWorkflowGate | 用户最终使用文档 / 文档站或 README 判定 / 前端或 API 契约 / 真实用户流 / 失败恢复 / 队列真实工作流 |
-| audit-user-manual / UserManualReviewScope / DocsNavigationReviewMatrix | 用户侧文档 review、项目文档审查、文档设计、菜单导航、sidebar、信息架构、生成站点和文档站运行态验证 |
-| ReviewChecklistCompletenessGate / EvidenceExecutionGate / ReviewEscapeRecordGate / ChecklistStateMaterializationGate | 冻结 checklist / 逐项实际验证 / 重复维度规避 / 不按审查报告文本直接验收；若发现遗漏，写 whyMissed / prevention / checklistPatch / rerunEvidence；clean/closed 前列六区块 ChecklistStateSnapshot 与重开证据 |
-| BuiltArtifactFeatureSmokeGate / TscOutputImportProbe / BenchmarkRegressionGuard | 构建产物导入执行 / TS 输出导入 / 性能基线对照阈值 |
-| GeneratedSiteGate / ManualTocDuplicationGate / UserPathContractSweep | 生成站点产物 / TOC-sidebar-nav 去重 / 公开用户路径消费者同步 |
-| ArtifactLinkSetDedupeGate / FrontendRuntimeNetworkProbeGate | 规范化路径去重 / 主产物消歧 / console-network-resource-runtime 证据 |
-| ActiveRequirementFinalResponseGate | active requirement/task/bug id / 相邻需求未切换 / 最终回复范围 |
-| spec-absorption / CommonNormGeneralizationGate / AbsorptionCandidateConsumerProofGate | 候选矩阵 / sourceNamespace / generalizationEvidence / projectSpecificResidue / negativeExamples / targetConsumer / devcodexConsumerEvidence / targetOwner / validationRoute / decision |
-| ProjectArtifactScaleRoutingGate / SkillPortfolioLifecycleGate | broad scan 前规模指标、四态决策、exclusion、batch/checkpoint、invalid-run、V91 / N/A+skipReason |
-| LayeredAbsorptionGate / SkillFirstAbsorptionGate / CapabilityToSkillPromotionGate | LayeredAbsorptionDecision / candidateId / classification / targetSkill / ownedArtifacts / layerChecks / promptTemplate / executionConsumer / validationProbe / publicDocs / deployCopy / validationRoute / consumerSync |
-| HistoricalCommonNormLayeringGate | 逐文件审查矩阵 / targetLayer / targetOwner / semanticStrength / validation / legacy-index-retained / V74 / deployCopy |
-| LatestAbsorptionExecutionPack A1~A10 | gateGroup / ownerSkill / validationRoute / V82 / ConfigCanonicalNamespaceGate / ProfileRuntimeContractSyncGate / BehaviorSemanticDocsParityGate / DocsExampleTruthSurfaceGate / DerivedMetricConsumerProbe / FeatureInventoryProfileGate / BatchEvidenceLedgerStateGate / BatchProgressCardGate |
-| ProactiveBetterAlternativeGate | 用户方案 / 备选路径 / 推荐理由 / 取舍影响 / 采纳依据 |
-| AcceptedSuggestionRootCauseGate | 采纳的用户纠正 / whyMissed / 采纳依据 / VL-PI-PF-GAP 编号 / prevention |
-| PostConfirmationReviewScopeGate / DevelopmentDriftGate | CP 确认后轻量或全面复审判定 / review-checklist 路径或 skipReason / allowedFirstBatch / blockedScope / driftTriggers / validationRoute |
-| VerificationPlanMaterializationProbe / docsIaReadability | 验证计划物化 / 验收标准 / 退出条件 / ChinesePrimaryExpressionGate / SidebarPageRoleMaterializationProbe / SidebarGroupSemanticModelProbe |
-| ConfirmedAbsorptionCompletenessGates | gateGroup / ownerSkill / layerChecks / validationRoute；gateGroup anchors: public-surface / user-manual / review-checklist / frontend-runtime / profile-service / release-parity / evolution-control-plane；anchors: PublicSurfaceClosureGate / UserManualProductizationGate / ReviewAnchorMaterializationGate / FrontendAsyncCacheRenderGate / RemoteCIParityPushGate / NativeCommandExitCodeGate / DocsThemeRuntimeVisualProbeGate |
-| NativeCommandExitCodeGate | release / pack / publish / install smoke / CLI replay 的 command / shell / cwd / exitCode / auth-config source / failed evidence exclusion |
-| ProfileTruthReconciliationGate | full / profileTrustState / ProfileTruthMatrix(profileClaim / actualSources / status / conclusionAuthority / correctionRoute)；audit 不修改 Profile |
-| AuthorizedLocalSecurityAuditPresentationGate | authorizationContext / defensiveObjective / visibleEvidenceBudget / isolatedProbeBoundary / SafetyInterruptionCard / recoveryRoute；禁止绕过表述 |
-| PublisherCredentialTopologyGate | publisher/repository/package identity / authMode / secret scope-access-inheritance / workflowPermissions / reference run / topologyParity；不含 secret value |
-| ScopedRegistryResolutionGate | packageScope / globalRegistry / scopeRegistry / userconfigSource / commandOverride / resolvedTarget / pollutionReproduction / independentChannelEvidence / primaryAuthState |
-| LatestAbsorptionGuards | GovernanceGateRegistry gateGroup / evidence / N/A；anchors: DatabaseRecordMigrationExportGate / FrontendBrowserVerificationBudgetGate / FindingProbeMatrixGate / VerificationCommandSideEffectGate / RequirementPreConfirmGate / BenchmarkRegressionGuard |
+| gateGroup / 条件产物 | result | ownerSkill / schemaRef | evidence | skipReason |
+|----------------------|--------|------------------------|----------|------------|
+| | passed / failed / partial / N/A | | | |
+
+跨会话、多批次、中断或残余风险未关闭时追加 `ContextHandoffCard`；Profile、release、service lifecycle 等条件段按 schema 与 Owner Skill 生成。
 
 ## §3 问题清单
 

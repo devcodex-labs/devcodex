@@ -29,7 +29,8 @@ function expandDescriptors(packageRoot, targetRoot, descriptors) {
     const sourcePath = path.join(packageRoot, descriptor.source)
     if (!fs.existsSync(sourcePath)) continue
     const stat = fs.statSync(sourcePath)
-    const files = stat.isDirectory() ? walk(sourcePath) : [sourcePath]
+    const files = (stat.isDirectory() ? walk(sourcePath) : [sourcePath])
+      .filter(file => !descriptor.fileFilter || descriptor.fileFilter(portable(path.relative(sourcePath, file))))
     for (const file of files) {
       const suffix = stat.isDirectory() ? path.relative(sourcePath, file) : ''
       const destination = suffix ? path.join(descriptor.destination, suffix) : descriptor.destination

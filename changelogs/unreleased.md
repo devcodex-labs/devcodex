@@ -8,14 +8,7 @@
 
 ## 当前未发布变更
 
-### 2026-07-14 — Profile 生成契约与功能清单闭环
-
-- 新增 `ProfileGenerationContractGate`：`mcp/profile-contract.js` 成为三档文件集合、语义检查和功能清单 schema 的共享契约；CLI、加载器、状态和 validator 统一消费，默认生成矩阵固定为 5 / 8 / 9。
-- 新增 `devcodex profile plan` 与真实 `--dry-run` 零写入预览，展示目标根、已检测/请求/推荐/目标档位和逐文件动作；未知参数与非法档位友好失败。
-- 新增 `ProfileTierMigrationSafetyGate`：默认继承已有档位，升级只补缺失文件并保留正文，未授权降档拒绝，`--allow-downgrade` 仅调整声明并保留高档文件，`--force` 先备份。
-- 新增 `FeatureInventorySchemaGate` / `FeatureInventorySchemaV1` 十字段规范表；校验器拒绝空表、纯项目符号、占位行、伪来源、01/06 重复规范真相源及裸版本号发布状态冲突。
-- 强化 V83：除消费者术语同步外，执行 Profile validator 与 CLI 行为负向探针，覆盖 dry-run 写入、隐式降档、冲突档位、非结构化/空清单和重复 canonical source 假阳性。
-- 同步 `profile-bootstrap`、`load-profile`、`dev-init`、Profile Prompt、TestRoute、report、README、website Profile 使用指南、active Profile 与部署副本；全工作区校验由 `AllDevCodexProfileValidationGate` 收口。
+暂无未发布变更。
 
 ## 记录提示
 

@@ -253,7 +253,27 @@ function testDefaultInitBootstrapsActiveRootData() {
 
   assertRuntimeDataBootstrap(path.join(root, '.devcodex'))
   assertDeploymentManifest(path.join(root, '.devcodex'), 'copilot')
+  assert.ok(!fs.existsSync(path.join(root, '.github', 'instructions', 'tenants')), 'default init must not deploy tenant instructions')
+  assert.ok(!fs.existsSync(path.join(root, '.claude', 'instructions', 'tenants')), 'default Claude adapter must not deploy tenant instructions')
   fs.rmSync(root, { recursive: true, force: true })
+}
+
+function testTenantSelectionIsExplicit() {
+  const root = createTempRoot('devcodex-cli-tenant-')
+  writeFile(root, 'package.json', '{ "name": "tmp-tenant-project" }\n')
+
+  runCli(['init', '--tenant', 'example-tenant'], root)
+  assert.ok(fs.existsSync(path.join(root, '.github', 'instructions', 'tenants', 'example-tenant', '10-dev.instructions.md')))
+  assert.ok(fs.existsSync(path.join(root, '.claude', 'instructions', 'tenants', 'example-tenant', '10-dev.instructions.md')))
+  assert.ok(!fs.existsSync(path.join(root, '.github', 'instructions', 'tenants', 'README.md')))
+
+  const invalidRoot = createTempRoot('devcodex-cli-tenant-invalid-')
+  writeFile(invalidRoot, 'package.json', '{ "name": "tmp-invalid-tenant" }\n')
+  assert.match(runCliFailure(['init', '--tenant', 'missing'], invalidRoot), /unknown or non-selectable tenant/)
+  assert.ok(!fs.existsSync(path.join(invalidRoot, '.github')), 'invalid tenant must fail before deployment')
+
+  fs.rmSync(root, { recursive: true, force: true })
+  fs.rmSync(invalidRoot, { recursive: true, force: true })
 }
 
 function testCodexInitBootstrapsWorkspaceNamespaceData() {
@@ -425,6 +445,7 @@ function main() {
   testClaudeUpdateBacksUpAndPreservesCustomConfig()
   testDoctorAvoidsCodexBiasInMixedHostRepo()
   testDefaultInitBootstrapsActiveRootData()
+  testTenantSelectionIsExplicit()
   testCodexInitBootstrapsWorkspaceNamespaceData()
   testCodexInitBacksUpManagedFiles()
   testCodexUpdateRefreshesAdapterInWorkspaceNamespace()

@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "ownerSkill": "test-router",
+  "gateRegistryRef": "skills/spec-governance/gate-registry.json",
+  "stableInputs": ["workflow", "changeTypes", "risk", "publicSurface", "runtimeBoundary", "profileConstraints", "candidateState", "requestedClaims"],
+  "selectors": [
+    { "id": "static", "when": "source or contract changes", "evidence": ["command", "exitCode"] },
+    { "id": "unit-integration", "when": "behavior or cross-module changes", "evidence": ["suite", "result", "coverageDecision"] },
+    { "id": "api", "when": "HTTP or public API boundary", "evidence": ["endpointMatrix", "httpArtifact", "cjsArtifact", "result"] },
+    { "id": "runtime-e2e", "when": "user path or runtime state changes", "evidence": ["target", "stateMatrix", "result"] },
+    { "id": "package-release", "when": "package candidate or release claim", "evidence": ["candidateDiff", "pack", "install", "registry"] },
+    { "id": "profile-deploy", "when": "Profile, host or distribution changes", "evidence": ["profileValidation", "deploymentParity"] }
+  ],
+  "outputs": ["selectedRoutes", "commands", "evidence", "skipped", "residualRisk", "coverageClaim"],
+  "skipRequiredFields": ["route", "reason", "authority", "residualRisk", "upgradeCondition"]
+}

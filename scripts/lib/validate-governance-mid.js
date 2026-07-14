@@ -200,7 +200,7 @@ function buildGovernanceMidChecks(ctx) {
       if (!content.includes('连续 3 轮零发现')) {
         err(`[V33] audit convergence wording drift in ${file}: missing "连续 3 轮零发现"`)
       }
-      if (content.includes('R{N}+R{N+1}')) {
+      if (String(content).includes('R{N}+R{N+1}')) {
         err(`[V33] legacy audit convergence wording remains in ${file}`)
       }
     }

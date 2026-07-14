@@ -47,14 +47,14 @@ DevCodex 通过 `.github/`（Copilot）、`CLAUDE.md + .claude/ + .mcp.json`（C
 - **支撑型 Skill**: `execution-contract` / `test-router` / `release-verification` / `host-contract-verification` / `source-consumer-sync` 为控制面、多批次、测试路线、宿主契约验证与真相源-消费者同步提供可审计支撑，不新增工作流分支
 - **模型无关双层修复协作契约**: AI 判断任务目标为 repair task 时至少建立 `lightweight` 决策/验收层 + 执行/验证层契约；P0/P1、安全、控制面、公共契约、多批次、角色交接或发布风险升级 `full`，用 `findingToPatchMap`、`handoffIntegrity` 与 `independentReReview` 防止范围漂移和补丁作者唯一自证。模型名称或是否切换 Agent 不是触发条件
 - **返工预防与信任链**: `rework-prevention-engineering` 以 WorkUnit/ReworkEvent、双重根因、FirstPassYield 和前瞻 trial 把“复审又发现问题”前移为可度量预防；新 Skill 当前保持 `gray`，只有跨任务前瞻证据证明有效才可升级。`CandidateDiffCompletenessGate` 在 commit/tag/publish 前用 staged candidate snapshot 覆盖 tracked/untracked，并执行 cached diff、name-status、secret-shape 与 intended scope 对账；普通 working diff 不能替代。`ReviewCoverageClaimIntegrityGate`、`ArtifactDeliveryCompletenessGate`、`ReleaseAuthorityBeforeCompatibilityGate`、`ConfigurationErgonomicsGate` 与 `InteractiveSemanticProbe` 分别约束审查真实性、产物交付、兼容判断、配置易用性和交互语义
-- **跨仓消费者验证**: `consumer-validation-engineering` 以 RepositoryBinding、SourceConsumerIdentity、ValidationDenominatorMatrix、packed artifact、跨仓 CI 与 freshness drift 约束 SDK/CLI/框架/公共包的独立消费者仓；realpath、link smoke 或单一 100% 分母不能冒充完整验证。该 Skill 当前保持 `gray`，并由 V95 正负向探针守门
-- **发布前审查能力**: `audit-release` 负责 release readiness、发布说明质量、兼容/迁移风险、package/plugin 元数据、文档/Profile/website 同步、回滚策略、registry/tag 风险与发布后验收 review；`release-verification` 仍负责 R0~R7 执行验证链
+- **跨仓消费者验证**: `consumer-validation-engineering` 以 RepositoryBinding、SourceConsumerIdentity、ValidationDenominatorMatrix、packed artifact、跨仓 CI 与 freshness drift 约束 SDK/CLI/框架/公共包的独立消费者仓；`DesignFitnessGate` 额外判断主路径、默认值、配置层级、框架约定和维护成本，`ValidationFindingRepairLoop` 在 source mutation 后使旧 identity/证据 stale 并按影响矩阵重跑。realpath、行为全绿或单一 100% 分母不能冒充完整验证。该 Skill 保持 `gray`，由 V95 正负探针守门
+- **发布前审查与关键路径治理**: `audit-release` 负责 release readiness、说明、兼容、包与发布风险；`release-verification` 执行 R0~R7，并以 `ReleaseEfficiencyControlGate` 的 `CandidateFreezeGate`、`ReleaseCriticalPathBudgetGate`、`ValidationEvidenceReuseGate` 管理候选 generation、预算和证据失效。pack/install smoke 额外执行 `IsolatedConsumerCwdGate`：显式 consumer manifest、真实 consumer cwd、source identity 前后对账；禁止用 `npm init --prefix` 冒充 cwd 隔离。无可比较基线时预算只能 advisory，不能削弱 version/pack/registry/R7
 - **审计与修复授权分离**: `AuditMutationBoundaryGate` 规定 audit 只写报告、audit-state、记忆和运行态台账；任何源码/规范/配置/测试/文档/部署副本修复都需用户显式授权后进入独立 fix/self-fix，audit 不自动改源、`git add` 或继承修复权限
-- **分析与用户文档能力**: `analyze-default` 承接默认只读多轮分析、代码事实优先、analyze-lite CRS 与 PCV 收敛验证；`analyze-research` 承接技术调研/选型。`user-manual-authoring` 负责站点文档、最终用户使用文档、README、quick start、接入手册和 docs-first 用户手册的用户路径、信息架构、配置/排错和真实工作流；`readme-authoring` 是 README 专项分支，`audit-user-manual` 是用户侧文档 / 项目文档 / 菜单导航 / 信息架构专项 review 聚合入口，`audit-readme` 负责 README / 用户使用文档专项 review；`UserPerspectiveDocsGate` 要求文档按使用者第一次成功、常见任务、字段/参数/状态/错误解释、排错恢复和低心智负担组织，`UserDocsImmediateComprehensionGate` 要求用户文档输出功能完整性、配置易懂性和首次读者即时理解三轴结论，`UserDocsPrimarySurfaceGate` 要求站点文档 / README / quick start 先冻结 targetSurface、documentLocation 与 primaryAudience，首页首屏、quick start、nav/sidebar、CTA 和 reference 主路径必须服务用户使用而不是开发契约，`FinalUserManualFirstGate` / `DocsSiteInformationArchitectureGate` / `UserManualFlowAndFailureGate` / `QueueDocsRealWorkflowGate` 要求需求概况后优先产出最终用户使用文档，文档站按任务组织并覆盖成功、失败恢复和队列/异步真实工作流，`PublicUserDocsMaintainerBoundaryGate` 要求公开用户文档不混入维护者 checklist、内部同步清单或台账状态，`DocsConsumerSweep` 与 `UserPathContractSweep` 负责同步 README、website、Profile、示例、模板、导航、validate、部署副本和代码消费点
+- **分析与用户文档能力**: `analyze-default` / `analyze-research` 承接分析与调研；`user-manual-authoring`、`audit-user-manual`、`readme-authoring` 和 `audit-readme` 收口站点文档 / README / quick start 的用户路径、信息架构、配置排错和真实工作流。声称场景完整时必须执行 `ScenarioCoverageMatrixProbe`；队列/批处理还要执行 `DurableBatchOrchestrationProbe`，页面或关键词存在、一次 `addBulk`、进程内 callback 都不能替代持久 run、故障恢复与 executable evidence
 - **专家型产物质量能力**: `expert-output-quality` 负责代码、文档、示例、fixture、quick start、技术方案和报告的专家型输出质量；`ExpertOutputQualityGate` 要求先给生产推荐路径、框架原生能力和项目既有能力，再说明 fixture/mock/demo 边界、反模式和证据矩阵。V84 探针会阻止把测试夹具、硬编码单例或每个 route 重复声明包装成生产推荐实践。
 - **专家 Owner Skill 能力**: 21 个专家 Owner Skill 分别承接产品策略、开发者体验、UX 交互、前端架构、后端领域架构、生产可用性 / SRE、API 契约、外部集成、平台生态、AI Agent 系统、数据架构、安全威胁建模、质量策略、设计系统、无障碍/国际化、增长分析和商业模型；`growth-analytics` 与 `business-model-review` 为 P3 条件触发，未命中时写 `N/A + skipReason`；`ExpertOwnerSkillGate` 要求报告 ownerSkill、triggerReason、requiredFields、validationRoute、skipReason 和 V85/targeted probe 证据，避免“专家视角”只停留在泛泛口号。
 - **复审清单能力**: `review-checklist` 负责正式复审、ECR、发布前复审、多轮收敛和外部 finding 批次的清单创建、范围冻结、逐项证据执行、遗漏逃逸分析、状态新鲜度和收敛关闭；`PostConfirmationReviewScopeGate` 要求 CP 确认后按风险选择轻量或全面复审；`ReviewEscapeRecordGate` 要求发现遗漏时先在清单写入 `whyMissed / prevention / checklistPatch / rerunEvidence`，再补清单和重跑验证；`ChecklistStateMaterializationGate` 在 clean/closed 前核对 header、items、round、ledger、progress、closure 六区块一致快照
-- **实施偏移与文档 IA 守门**: `DevelopmentDriftGate` 在编码前和实施中核对 `allowedFirstBatch / blockedScope / driftTriggers / validationRoute`；`VerificationPlanMaterializationProbe` 要求技术方案物化验证计划、验收标准和退出条件；`ChinesePrimaryExpressionGate`、`SidebarPageRoleMaterializationProbe` 与 `SidebarGroupSemanticModelProbe` 要求用户文档中文主表达、页面角色和 sidebar 分组语义可验证
+- **范围、契约与阶段语义守门**: `DevelopmentDriftGate`、`CurrentBatchScopeDiffProbe` 与 `NewValidationConsumerRebindProbe` 约束当前批次及新增 CI/validator/deploy 消费者；`ContractVariantIsolationMutationGate` 以 sibling-field injection 和 completion-evidence deletion 防止合同假绿；`PhaseDeliverySemanticGate` 区分 planning coverage 与 source delivery；文档 IA 仍由 `ChinesePrimaryExpressionGate`、页面角色与 sidebar 语义探针约束。上述剩余吸纳控制由 V96 正负探针守门
 - **Skill 缺口与生命周期能力**: `skill-gap-analysis` 负责 `ProjectArtifactScaleRoutingGate`，`skill-lifecycle-governance` 负责 portfolio 生命周期；`distributed-systems-architecture`、`performance-engineering`、`privacy-compliance-architecture`、`ai-evaluation-engineering` 为新增专业 Owner，V85/V91 守门。
 - **自我进化治理能力**: `evolution-governance` 负责自我进化、自动吸纳、模型辅助规范优化、自动补 Skill / Prompt / Probe 和自动治理候选的控制面，执行 `EvolutionCapabilityControlPlaneGate`，冻结授权、模型配置、租户 / 权限、配额、数据边界、审计、回滚和发布审批；模型输出只能进入候选态，不能直接写 active 规范或发版
 - **Profile 新鲜度审查**: audit 会先执行 `Profile Freshness Check`，反向核对 Profile 是否仍匹配当前包版本、目录资产、脚本、发布状态、宿主能力和任务现实
@@ -91,11 +91,11 @@ DevCodex 通过 `.github/`（Copilot）、`CLAUDE.md + .claude/ + .mcp.json`（C
 
 ## 5 分钟快速开始
 
-先区分两个版本概念：npm package 的当前已发布版本是 **v1.13.0**；文档站的 **1.0.1** 是活动需求文档版本，不是可安装包版本。
+先区分两个版本概念：npm package 的当前已发布版本是 **v1.14.0**；文档站的 **1.0.1** 是活动需求文档版本，不是可安装包版本。
 
 | 通道 | 当前状态 | 用途 |
 |---|---|---|
-| GitHub Packages | ✅ v1.13.0 已发布 | 当前唯一发布通道；安装需要 GitHub Packages `read:packages` 认证 |
+| GitHub Packages | ✅ v1.14.0 已发布 | 当前唯一发布通道；安装需要 GitHub Packages `read:packages` 认证 |
 
 1. 确认 CLI 运行时（文档站维护另需 Node `^20.19.0 || >=22.12.0`）：
 
@@ -112,7 +112,7 @@ node --version # CLI 需要 Node.js >=18
 
 当前 shell 的 `NODE_AUTH_TOKEN` 需使用具备 `read:packages` 的 GitHub PAT。
 
-3. 安装当前 v1.13.0：
+3. 安装当前 v1.14.0：
 
 ```bash
 npm install @vextjs/devcodex
@@ -129,7 +129,7 @@ npx @vextjs/devcodex status
 
 ## 安装
 
-以下是当前已发布 v1.13.0 的完整安装说明。当前版本仅发布到 GitHub Packages，安装需要读取认证。
+以下是当前已发布 v1.14.0 的完整安装说明。当前版本仅发布到 GitHub Packages，安装需要读取认证。
 
 ### 1. 配置 GitHub Packages
 
@@ -146,12 +146,12 @@ export NODE_AUTH_TOKEN=YOUR_GITHUB_PAT
 
 这里的环境变量仅用于 GitHub Packages 认证流程，不代表项目里的普通配置默认都应 env 化；未明确要求 env 时，AI 不得主动把明文或硬编码改成 env、`secretRef`、secret manager 或 `config.local.json`。
 
-> v1.13.0 未发布到 npmjs；缺少上述 registry 或读取认证时，安装不会自动回退到其他通道。
+> v1.14.0 未发布到 npmjs；缺少上述 registry 或读取认证时，安装不会自动回退到其他通道。
 
 ### 2. 安装并初始化
 
 ```bash
-npm install @vextjs/devcodex@1.13.0
+npm install @vextjs/devcodex@1.14.0
 npx @vextjs/devcodex init          # 默认三宿主部署：Copilot + Claude Code adapter + Codex adapter
 npx @vextjs/devcodex init --claude # 仅 Claude Code adapter
 npx @vextjs/devcodex init --codex  # 仅 Codex adapter
@@ -306,7 +306,7 @@ devcodex migrate-layout rollback --manifest <manifest-path>
 
 ## Profile 计划、生成与升级
 
-> 发布状态：以下 `profile plan`、统一分档生成和安全迁移行为属于当前仓库的 **unreleased** 变更；正式包发布前，已安装的 v1.13.0 仍以其内置 CLI 为准。
+> 发布状态：以下 `profile plan`、统一分档生成和安全迁移行为已随 **v1.14.0** 发布；安装当前包即可使用。
 
 先预览，再写入：
 
@@ -541,7 +541,7 @@ DevCodex Hook runtime 不再把所有拦截都等同为“停止”。拦截会�
 
 DevCodex 的 `plugin.json` 声明 `tier: "free"`，所有 Skill 均标注 `tier: "free"`。这些 tier 字段是**面向未来的 prompt-level 声明**（供 `token-check` Skill 在 Agent 侧做软门控），**CLI 不做任何授权校验**：
 
-- CLI 本身不做额外 license/tier 授权校验；当前 v1.13.0 通过 GitHub Packages 分发，registry 读取认证仍按平台规则执行
+- CLI 本身不做额外 license/tier 授权校验；当前 v1.14.0 通过 GitHub Packages 分发，registry 读取认证仍按平台规则执行
 - 未来接入服务端 token 校验时，tier 字段才会生效
 - 当前阶段 tier 仅作为规划信息，不影响功能使用
 

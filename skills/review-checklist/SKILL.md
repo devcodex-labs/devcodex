@@ -44,9 +44,11 @@ description: 复审清单整理与审查规范 — 创建、冻结、证据执�
 - `ChecklistFreezeFileGate`：开始执行前冻结清单范围、维度和来源锚点；新增项只能追加，不得静默改写已冻结项。
 - `ReviewChecklistCompletenessGate`：每个清单项都要有状态、证据或 skipReason。
 - `EvidenceExecutionGate`：不能只按审查报告文字验收；关键结论必须做本地代码、测试、构建、页面、文档或配置证据核验。
+- `BlockerSnapshotCompletenessGate`：同一复审阶段存在多个安全独立检查时，先完成该阶段并冻结完整 blocker 快照，再统一修正；若因 invalid premise、破坏性副作用或证据污染提前停止，必须记录 stopReason、skippedChecks 和恢复入口。
 - `SampleIssueExpansionGate`：用户给出样例问题时，样例只能作为 seed evidence；正式复审必须先展开全维度图，标明样例覆盖 / 未覆盖维度，再冻结清单。
 - `ReviewAnchorMaterializationGate`：PR / TD / CP2 / 发布前审查锚点必须物化为可 grep 的清单项、章节或表格，不能只写“已语义覆盖”。
 - `RequirementDimensionBindingGate` / `RequirementPriorityAndPhaseGate`：需求维度进入复审清单时，必须绑定 CP2、批次计划、验收证据和阶段关闭规则；多阶段项写 entry / exit / carryOver / closeRule。
+- `PhaseDeliverySemanticGate`：多阶段/路线图复审冻结 `phaseKind`、planningCoverage、sourceDelivery 与 `OriginalIntentReverseTrace`；不得把规划覆盖误报为源码交付。
 - `ChecklistEscapeAnalysisGate`：发现遗漏或返修时，分析为什么上轮清单、维度或探针没覆盖。
 - `ReviewEscapeRecordGate`：二次复审、返修或实施过程中发现新问题逃逸时，必须先追加 escape record，再补清单和重跑证据。
 - `ChecklistStateFreshnessGate`：最终报告前核对清单状态、报告结论、audit-state、sessions、SUMMARY 和 dirty 边界一致。
@@ -60,6 +62,8 @@ description: 复审清单整理与审查规范 — 创建、冻结、证据执�
 - `ReviewCoverageClaimIntegrityGate`：逐文件/逐服务/全量深读声明必须有 FileEvidenceLedger；抽样必须公开 sampledSet、unreadSet、sampleMethod 与 inferenceBoundary。
 - `ReworkPreventionHandoffGate`：escape 属于原确认范围且已越过目标门禁时，交给 `rework-prevention-engineering` 分类 ReworkEvent/cluster，并把 prevention 注册到后续可比较任务；本任务重跑通过不能单独证明预防有效。
 - `CandidateDiffCompletenessGate`：commit/tag/publish 前，复审清单必须把授权范围物化为 staged candidate snapshot，并记录 cached diff check、name-status、secret-shape scan 与 intended scope 对账；普通 working diff 不得作为未跟踪文件已覆盖的证据。
+- `ReleaseEfficiencyControlGate`：发布清单记录 candidate generation/freeze、关键路径预算模式、evidence reuse/invalidations 与 release rework incident；无基线预算只能 advisory。
+- `ConsumerDesignFitnessRepairGate`：独立消费者验证命中时，清单同时核对 DesignFitnessMatrix 和 ValidationFindingRepairLoop；source mutation 后旧 evidence 必须 stale。
 
 ## 执行步骤
 

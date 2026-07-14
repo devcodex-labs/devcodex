@@ -158,7 +158,7 @@ function buildGovernanceSupportChecks(ctx) {
     ]
     for (const file of activeRuleFiles) {
       const content = read(path.join(ROOT, file))
-      if (content.includes('.devcodex/.maintainer-state')) {
+      if (String(content).includes('.devcodex/.maintainer-state')) {
         err(`[V26] current governance rule file must use active-root, not .devcodex/.maintainer-state: ${file}`)
       }
     }
@@ -178,7 +178,7 @@ function buildGovernanceSupportChecks(ctx) {
     for (const file of genericDistributedFiles) {
       const content = read(path.join(ROOT, file))
       const sourceProjectName = ['devcodex', 'v1'].join('-')
-      if (content.includes(sourceProjectName)) {
+      if (String(content).includes(sourceProjectName)) {
         err(`[V26] generic distributed governance asset must not hard-code source project name: ${file}`)
       }
     }
@@ -445,7 +445,7 @@ function buildGovernanceSupportChecks(ctx) {
     ]
     for (const [file, needle] of legacyProgressNeedles) {
       const content = read(path.join(ROOT, file))
-      if (content.includes(needle)) {
+      if (String(content).includes(needle)) {
         err(`[V28] legacy progress/release wording remains in ${file}: "${needle}"`)
       }
     }

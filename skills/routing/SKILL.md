@@ -8,20 +8,20 @@ description: 定义意图识别结果到工作流的路由映射。本 Skill 为
 
 定义意图识别结果到工作流的路由映射。用户通常经 Agent 入口进入，但**实际路由判定**由 `01-common.instructions.md` §意图路由表 + `intent/SKILL.md` 三问法 + `load-profile/SKILL.md` 项目现实扩展共同完成。
 
-> ⚠️ 本 Skill 为**人类可读参考**。Agent 文件只负责入口包装，不再承载完整路由表或工作流主逻辑；执行中无需显式调用本文件。
+> ⚠️ 本 Skill 为**人类可读参考**。工作流 mutation / CP / artifact 的机器可验证合同见同目录 `workflow-capabilities.json`；Agent 文件只负责入口包装，不再承载完整路由表或工作流主逻辑。
 
 ## 路由映射表
 
 | 意图 | 工作流 | 说明 |
 |------|--------|------|
-| `dev` | 开发工作流 | CP1→CP2→CP3，8 子类型（见 `10-dev.instructions.md`） |
+| `dev` | 开发工作流 | CP1→CP2 严格按序；CP3 条件触发并按子类型记录 required/N/A（见 `workflow-capabilities.json` 与 `10-dev.instructions.md`） |
 | `fix` | 修复工作流 | Bug 修复三步扫描（见 `11-fix.instructions.md`） |
 | `analyze` | 分析工作流 | 多轮收敛分析，≥3 轮，连续 2 轮无新发现后收敛（见 `13-analyze.instructions.md`），只读 |
 | `audit` | 审计工作流 | 多轮深度审查，≥3 轮（见 `12-audit.instructions.md`） |
-| `self-fix` | 自修复工作流 | 规范文件自修复（见 `14-self-fix.instructions.md`） |
+| `self-fix` | 自修复工作流 | 机械修复可简化；规范语义/控制面变化转完整 dev 路径（见 `14-self-fix.instructions.md`） |
 | `chat` | 问答工作流 | 纯问答，快速路径 |
 | `resume` | 上下文恢复 | 恢复记忆后重路由到原始工作流 |
-| `other` | 规划工作流 | 兜底路由，制定执行计划（`plan/SKILL.md`） |
+| `other` | 规划工作流 | 只读兜底规划；明确 source mutation 必须重路由到 dev/fix/self-fix（`plan/SKILL.md`） |
 
 ## 子类型路由表
 
@@ -101,7 +101,7 @@ description: 定义意图识别结果到工作流的路由映射。本 Skill 为
 
 ### resume 路径
 
-```
+```text
 RESTORE → 先读今日 tasks/YYYYMMDD.md → 再读 Agent SUMMARY.md → 读取相关记忆（resume 时最近 14 天）→ 还原上下文 → 提取原始意图 → 重路由到原始工作流
 ```
 
@@ -117,7 +117,7 @@ RESTORE → 先读今日 tasks/YYYYMMDD.md → 再读 Agent SUMMARY.md → 读�
 
 ### 项目现实扩展后的路由修正
 
-```
+```text
 语义初判 → 目标项目/Profile 加载 → 项目现实扩展 → 最终工作流/子类型
 ```
 

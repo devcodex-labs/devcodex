@@ -29,6 +29,7 @@ description: 跨仓消费者验证工程 Owner — 当任务涉及独立 consume
 | dependencyResolution | dependency spec、realpath、lockfile hash/hygiene 与 CI checkout 目录拓扑一致 |
 | packedArtifactIdentity | tarball checksum、pack list、安装路径、公开 API/CLI/Skill/adapter smoke |
 | validationDenominators | 功能、场景、adapter/环境、影响变更、性能适用项、发布门禁分别计算 |
+| designFitness | 每个适用功能的用户主路径、默认值、配置层级、框架约定、公共面、生命周期、组合、兼容与维护成本 |
 | crossRepositoryCI | `CrossRepoCI`：source push/PR/release dispatch、consumer workflow/run、目标 SHA 和结果可关联 |
 | freshnessDrift | before/after identity 复核、定时漂移、证据保留、过期阈值和失效处理 |
 | evidenceState | `not-started / partial / accepted / rejected / stale`，每个分母独立记录 |
@@ -69,6 +70,22 @@ description: 跨仓消费者验证工程 Owner — 当任务涉及独立 consume
 7. 执行 before/after drift 复核，更新 evidenceState 和 releaseDecision。
 8. 将主仓、消费者仓、报告、CI、制品和 registry 证据写入可追踪矩阵。
 
+## DesignFitnessGate
+
+行为测试通过只能证明“现有契约按定义运行”，不能证明契约设计合理。对 SDK、框架、CLI 或公共包的每个适用功能建立 `DesignFitnessMatrix`，至少覆盖：
+
+`feature / userTask / recommendedPath / defaults / configurationLayering / frameworkConvention / publicSurface / lifecycle / composition / compatibilityAuthority / maintenanceCost / evidence / decision`。
+
+发现重复配置、手动装配、内部 API 泄漏、多 runtime 不一致、与框架约定冲突或维护成本无依据时，该功能不得仅凭行为测试标 accepted。设计取舍需由 DX/API/domain/quality Owner 给出证据，消费者仓不能反向独占定义主仓公共契约。
+
+## ValidationFindingRepairLoop
+
+1. finding 先绑定 source identity、受影响 denominator、严重度和 authority；validation/audit 本身不越权直接修改 source。
+2. 进入获授权的 dev/fix/self-fix 与双层修复合同，建立 findingToPatchMap。
+3. 任一 source mutation 立即使旧 source identity、artifact 和受影响 evidence 标 `stale`。
+4. 冻结新 identity，重跑原失败探针、同类边界、关联功能、适用性能和风险要求的全量消费者回归。
+5. before/after identity、freshness 与 denominator 均重新 accepted 后才关闭 finding；只重跑原单点不得恢复完整/100% 声明。
+
 ## 输出契约
 
 ```markdown
@@ -81,6 +98,8 @@ description: 跨仓消费者验证工程 Owner — 当任务涉及独立 consume
 | artifactFreshness | source/dist/tarball/registry hashes |
 | dependencyResolution | spec, realpath, lock hygiene, checkout topology |
 | validationDenominators | denominator -> total/applicable/accepted/failed/skipped/stale |
+| designFitness | feature -> task/default/config/framework/public/lifecycle/composition/compatibility/maintenance decision |
+| validationFindingRepair | finding -> authorized patch -> stale evidence -> new identity -> rerun matrix -> result |
 | crossRepositoryCI | source event -> consumer run -> target SHA -> conclusion |
 | evidenceFreshness | capturedAt, expiresAt, before/after drift |
 | releaseDecision | not-started/partial/accepted/rejected/stale |
@@ -101,6 +120,8 @@ description: 跨仓消费者验证工程 Owner — 当任务涉及独立 consume
 | CI 名称存在就声称持续验证 | 证明 source event 实际触发 consumer run 且目标 SHA 一致 |
 | 把 skip/N/A/flake 从分母删除 | 记录适用性、原因、owner、期限与重试/阻断状态 |
 | 运行中 source 或 dist 改变仍沿用结果 | 标 stale，冻结新 identity 后重跑 |
+| 行为测试全绿就认定设计合理 | 执行 DesignFitnessGate，分别判断契约设计和行为实现 |
+| 修源码后只重跑原失败单点 | 执行 ValidationFindingRepairLoop，旧 identity 证据 stale 并按影响矩阵重跑 |
 
 ## 与其他 Skill 的关系
 

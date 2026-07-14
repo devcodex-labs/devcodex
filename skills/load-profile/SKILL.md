@@ -32,7 +32,7 @@ description: 项目 Profile 加载规范 — 意图识别后独立确定目标�
 
 默认兼容路径：
 
-```
+```text
 <项目根>/.devcodex/profile/
 ```
 

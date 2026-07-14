@@ -28,6 +28,7 @@ description: API 契约架构专家 Owner — 当任务涉及 public API、HTTP/
 | `VersionCompatibilityGate` | 兼容、弃用、迁移和 breaking change 必须明确 | versionCompatibility |
 | `ReleaseAuthorityBeforeCompatibilityGate` | 先证明契约是否已发布并形成稳定消费者，再决定兼容、迁移或直接收敛 | publishedState、consumerEvidence、authoritySources、decision |
 | `ConfigurationErgonomicsGate` | 公开配置 Schema 必须证明最小任务、字段必要性、复杂度预算和可选字段省略行为 | MinimalTaskConfig、FieldNecessityMatrix、OptionalFieldOmissionProbe |
+| `ContractVariantIsolationMutationGate` | discriminated union/tool/event/state 合同必须拒绝 sibling variant 字段，并验证完成态必需证据不能被删除或反转 | ContractVariantIsolationMatrix、CompletionEvidenceDeletionMatrix |
 | `IdempotencyPaginationGate` | 写操作、分页、过滤、排序和重试场景必须定义语义 | idempotencyPagination |
 
 ## 执行步骤
@@ -37,7 +38,8 @@ description: API 契约架构专家 Owner — 当任务涉及 public API、HTTP/
 3. 执行 `ReleaseAuthorityBeforeCompatibilityGate`：核对 tag/registry/release note/public docs/实际消费者；已发布才进入兼容评估，未发布且无稳定消费者默认直接收敛，未发布但存在产品取舍则交用户决策，事实不明时不得编造兼容义务。
 4. 定义目标契约与兼容策略：新增、保留、弃用、迁移、拒绝。
 5. 为错误模型、分页过滤、幂等和重试写稳定语义。
-6. 把契约映射到文档、示例、`.http` / `.cjs`、types、runtime probe。
+6. 若合同存在 discriminator 或条件完成态，执行 cross-variant 字段注入与完成证据删除/反转 mutation；Schema、semantic validator、docs field set 与 runtime 必须给出同一结论。
+7. 把契约映射到文档、示例、`.http` / `.cjs`、types、runtime probe。
 
 ## 输出字段
 
@@ -54,6 +56,7 @@ description: API 契约架构专家 Owner — 当任务涉及 public API、HTTP/
 | idempotencyPagination | 幂等、分页、过滤、排序、重试语义 |
 | sdkDocsImpact | SDK、README、examples、public types、文档影响 |
 | evidenceMatrix | 判断 -> 代码 / 类型 / 文档 / 测试 / 运行时证据 |
+| contractMutationMatrix | variant isolation、completion evidence deletion/reversal、schema/semantic/docs/runtime 结论 |
 ```
 
 ## 反模式

@@ -41,31 +41,23 @@ description: 需求文档审查维度 RQ-1~RQ-8 — 需求定义/功能描述/�
 - 需求应包含足够的正例、反例、边界例、异常与回退口径；缺失项应进入待确认问题
 - 技术验收 / 测试方案类文档才要求可执行验证用例、正向/负向场景和通过标准
 
+**PhaseDeliverySemanticGate（条件）**
+- 多阶段需求、路线图或“全部纳入某阶段”必须为每阶段标记 `phaseKind=planning-only / design-ready / implementation / release`，分别说明 planning coverage 与 source delivery。
+- 建立 `PhaseDeliverySemanticMatrix`：originalIntent、phaseKind、inScope、sourceDelivery、entry、exit、carryOver、closeRule、confirmationText 必须一致。
+- 执行 `OriginalIntentReverseTraceProbe`：从用户原始消息、已确认需求和当前阶段反向证明“纳入”指规划、设计、编码还是发布；事实不明时不得默认把全部源码债务锁入当前阶段。
+- CP、技术方案、批次、验收、进度和最终结论出现不同 phaseKind 时为阻断性不一致。
+
 **FrontendExperienceQualityGate 前端 UI / 交互需求（条件）**
 - 需求涉及前端页面、组件、控制台、官网、文档站、可视化工具或游戏时，必须说明设计来源或既有风格依据
 - UI 事实源至少覆盖还原度、风格主题一致性、响应式/状态覆盖与视觉验证依据
 - 交互事实源至少覆盖核心用户流、交互反馈、输入方式/可访问性、错误预防/恢复与动效/转场边界
 - 不涉及用户可见 UI / 交互时写 `N/A + skipReason`
 
-**CrossProjectLearnedGuards 跨项目已吸纳需求（条件）**
-- 涉及“已接入 / 已支持 / 已实现 / 未接入”等状态判断时，需求应要求 `CodeTruthRequirementGate` 核对代码真相源和消费者入口
-- 需求来源于审查报告、AI review finding、audit issue 或代码评审发现时，应要求 `ReviewFindingIntakeGate`：报告只是线索、补本地证据、区分 must-fix / user-decision / docs drift / test gap / intentional design / not-reproduced
-- 涉及人工复核、视觉验证或手工冒烟时，需求应要求 `ManualReviewEvidenceRetention`
-- 涉及多语言文档、正式文档、prompt/Agent/Hook/MCP 契约、验证范围、真实执行或 benchmark 归因时，需求应分别列出 `DocumentationTranslationParityGuard`、`FormalDocsDevCodexBoundary`、`LLMPromptContractTriage`、`VerificationScopeBudgetGate`、`LiveVerificationExecutionObligation`、`AdapterBenchmarkAttribution` 的需求事实源或派生验证口径
-- 涉及 PRD/Word/原型/截图/用户消息提炼需求时，需求应要求 `ProductRequirementTraceabilityGate`
-- AI 根据需求方输入生成产品需求时，必须保留原始输入锚点、直接提取内容、合理推导内容、冲突/遗漏和双方确认状态；产品直接提供 `01-产品需求.md` 时，AI / 研发必须保留产品原文锚点，只做缺口 / 冲突检查和澄清，检查记录落在 CP1 摘要、`02-技术方案.md` 或报告中，不写入产品模板正文，不生成或重写产品需求
-- 涉及本机执行配置、人工证据留存、相邻范围扩展、包名/发布名、性能第一、公开模块或 DevCodex v2 一期路线时，需求应分别列出 `LocalExecutionConfigProbe`、`ManualReviewEvidenceDataRetention`、`AdjacentScopeExpansionGuard`、`PackageNameAuthorityGate`、`PerformanceBenchmarkFirstGate`、`PublicModuleDifferentiationGate`、`V2MCPFirstPlanningGate` 的需求事实源或派生验证口径
-- 涉及 data 吸纳、正式流程图、文档站视觉验证、遗漏专审、审查发现 intake、复审维度增量、使用者文档、用户文档即时理解、用户文档主面、文档消费者扫描、产物链接去重、方法级泄漏压测或 DevCodex v2 正式方案包时，需求应分别列出 `WorkspaceDataAbsorptionScopeGate`、`FlowchartNodeExplanationGate`、`DocsSiteVisualAcceptanceGate`、`OmissionOnlyReviewGate`、`ReviewFindingIntakeGate`、`ReviewDimensionDeltaGate`、`UserPerspectiveDocsGate`、`UserDocsImmediateComprehensionGate`、`UserDocsPrimarySurfaceGate`、`DocsConsumerSweep`、`ArtifactLinkSetDedupeGate`、`MethodLevelLeakPressureProbe`、`V2FormalSolutionPackage` 的需求事实源或派生验证口径
-- 涉及 Figma/截图/既有页面还原、真实 preview、状态回归、生产设计资产或运行时本地化时，需求应分别列出 `FigmaHighFidelityRestorationGate`、`ScopedVisualChangeGate`、`InstalledPluginVisualVerificationGate`、`ActualPreviewChainAndMockFallbackGate`、`FrontendRuntimeNetworkProbeGate`、`UIStateScopeRegressionGate`、`FigmaProductionAssetBudgetGate`、`RuntimeI18nArtifactVerificationGate` 的需求事实源或派生验证口径
-- docs/需求类 CP1 推荐确认前必须执行 `RequirementPreConfirmGate`：检查验收是否行为可验证、范围/非目标是否存在核心概念冲突，以及分布式、调度、缓存、队列或单活类需求是否定义 fail-safe 语义
-- 用户只给样例问题但要求全面审查、完整需求或全量处理时，必须执行 `SampleIssueExpansionGate`：样例仅作为 seed evidence，需求审查前展开全维度图，标出样例覆盖 / 未覆盖维度。
-- 每个需求维度必须执行 `RequirementDimensionBindingGate`：绑定 CP2、批次计划、验收证据和阶段关闭规则；多阶段需求追加 `RequirementPriorityAndPhaseGate`，写明 entry / exit / carryOver / closeRule，不得只写 Phase 1 通过。
-- 需求修订、再次复审或宣布“可确认 / 暂不通过 / 已修订待复审”前必须执行 `RequirementVerdictStateSyncGate`：核对需求真相源顶部状态、推荐结论、修复清单状态、audit-state decision、requirement sessions / SUMMARY 口径一致
-- 多功能、多阶段、公开包/SDK/CLI、多模块或文档站能力需求必须执行 `FeatureChecklistEvidenceMatrixGate`：每个 capability group 绑定 CP2 设计点、批次计划、验收证据、用户文档或公开面、阶段关闭规则；只给样例问题时先用 `SampleIssueExpansionGate` 扩展全维度图。
-- 多批次需求、长链路治理或分阶段交付必须执行 `BatchEvidenceLedgerStateGate` / `BatchProgressCardGate`：需求审查报告区分 baseline-confirmed、executed-passed、partial、failed、not-started，不能把“已列计划”写成“已执行通过”。
-- 分阶段需求必须执行 `MultiPhaseClosureGate`：列出 Phase 2+ 路线、每阶段入口/退出门禁、验证证据、用户确认点、进度真相源和最终关闭规则
-- Figma/截图/设计稿作为需求来源时必须执行 `DesignFramePurposeClassificationGate`，列目标帧、排除帧、用途分类和验收入口；邮件模板、banner、素材、示意页或旧稿不得默认为前端页面需求
-- 涉及提交边界、兼容契约、UI 确认源覆盖旧 PRD、公开文档版本、集合关系 id 命名或用户可见验证产物语言时，需求应分别列出 `ExplicitCommitAuthorizationGate`、`CompatibilityAndContractAuthorityGate`、`UIConfirmedSourceConflictTraceGate`、`PublicDocsReleasedVersionGate`、`CollectionRelationIdNamingGate`、`UserFacingVerificationArtifactLanguageGate` 的需求事实源或派生验证口径
+**条件治理需求索引**
+- 产品/需求事实源不得复制 AI 内部门禁总表。涉及 UI、文档、发布、数据、安全、性能、外部消费者、多批次或治理控制面时，从 `../spec-governance/gate-registry.json` 选择 `gateGroup`，把 Owner、触发原因和派生验证路线交给 CP2/TestRoute
+- 本审查层只判断：需求事实是否充分、产品原文/双方确认是否可追溯、适用 Owner 是否遗漏、阶段关闭条件是否可验证
+- 样例扩展、维度绑定、阶段优先级和功能清单等需求专属规则继续由本 Skill 承接；跨域执行字段归 registry 指向的 Owner Skill
+- 未触发的分组写 `N/A + skipReason`；不得把 Gate 名录写回产品正文来冒充需求完整性
 
 ## N/A 规则
 

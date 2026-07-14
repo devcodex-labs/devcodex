@@ -125,7 +125,7 @@ function buildGovernanceIntakeChecks(ctx) {
 
     for (const [file, needle] of forbidden) {
       const content = read(path.join(ROOT, file))
-      if (content.includes(needle)) {
+      if (String(content).includes(needle)) {
         err(`[V39] governance intake drift in ${file}: legacy mode split remains "${needle}"`)
       }
     }
@@ -230,7 +230,7 @@ function buildGovernanceIntakeChecks(ctx) {
     ]
     for (const item of forbiddenPromptPhrases) {
       const content = read(path.join(ROOT, item.file))
-      if (content.includes(item.phrase)) {
+      if (String(content).includes(item.phrase)) {
         err(`[V41] ArtifactDecisionMatrix drift in ${item.file}: forbidden phrase "${item.phrase}"`)
       }
     }

@@ -55,6 +55,7 @@ description: 文档同步规范 — 代码变更后同步必查与条件文档
 - 当前消费者：仍以“当前行为”口吻描述现状，或会被 validate / 部署副本 / 模板继续消费；本轮必须同步。
 - 历史镜像：只保留基线、归档或历史阶段事实；只有明确标注历史性质时，才允许暂不改动。
 - 控制面任务建议先调用 `source-consumer-sync`，把 Concept Sync Map 写清后再执行文档同步。
+- README 作为当前用户入口发生变化时，由 `readme-authoring` 收口写作路径；需要专项复审时联动 `audit-readme`，不得用通用文档同步检查替代其用户路径与消费链证据。
 
 ## 同步规则
 
@@ -91,46 +92,14 @@ description: 文档同步规范 — 代码变更后同步必查与条件文档
 - 开发 / 贡献信息是否仍后置，没有抢占主叙事
 
 **DevCodex 类仓库检查点**：
-- 分发面说明是否仍与当前 `agents / instructions.md / hooks` 事实一致
-- `token-check` 是否仍被描述为授权占位，而非当前 tier 门控
-- `ENV_MODE` 是否仍按当前 `dev / prod` 规则说明，而不是 Draft
-- 正式需求入口是否仍指向 `website/docs/versions/v1/<active-version>/requirements/`
-- 支撑型 Skill（`execution-contract` / `test-router` / `release-verification` / `host-contract-verification` / `source-consumer-sync`）以及发布前审查 Skill（`audit-release`）的注册、触发说明、报告模板、validate 探针和用户文档是否一致
-- `readme-authoring` / `audit-readme` 的注册、README prompt、README / Profile / website 当前消费者、validate 与 targeted tests 是否一致
-- `UserPerspectiveDocsGate` 是否同步到 README、官网/文档站、接口说明、运行手册、dev-docs、audit-document、audit-readme 和报告模板；正式用户文档是否从使用者角度说明第一次成功、常见任务、字段/参数/状态/错误、失败恢复、限制和下一步，避免只按维护者内部实现顺序堆叠
-- `UserDocsImmediateComprehensionGate` 与 `UserDocsPrimarySurfaceGate` 是否同步到 README、官网/文档站、quick start、nav/sidebar、索引页、配置/参考入口、dev-docs、audit-document、audit-readme 和报告模板；站点文档是否先冻结 `targetSurface` / `documentLocation` / `primaryAudience=用户/使用者`，首页首屏、前两组导航、CTA、reference、配置、常见任务和排错是否服务用户使用路径，开发契约是否后置
-- `UserFacingDeliveryChainGate` / `FinalUserManualFirstGate` / `DocsSiteInformationArchitectureGate` / `UserManualFlowAndFailureGate` / `QueueDocsRealWorkflowGate` 是否同步到 dev-docs、readme-authoring、audit-document、audit-readme、TestRoute、报告模板、README/website 和 validate；需求概况后应优先产出用户最终使用文档，涉及前端/API 时再产出前后端契约，技术方案、实施计划和进度应对照需求与用户文档生成
-- `user-manual-authoring` 是否作为站点文档、最终用户使用文档、README、quick start、接入手册和 docs-first 用户手册的优先写作入口同步到 dev-docs、readme-authoring、audit-user-manual、audit-readme、routing、TestRoute、报告模板、README/website、Profile、plugin.json 和 validate；`audit-user-manual` 是否作为用户侧文档 review、项目文档审查、文档设计、菜单导航、sidebar 和信息架构审查的聚合入口同步到同一消费者链
-- `PublicUserDocsMaintainerBoundaryGate` 是否同步到 README、官网/文档站、配置/扩展/框架接入指南、CONTRIBUTING、release checklist 或 maintainer-only 文档；公开用户路径不得夹带维护者验收、发布 checklist、内部同步清单、台账状态或实现者复审任务
-- `RequirementVerdictStateSyncGate` 是否在需求修订、再次复审、宣布“可确认 / 暂不通过”或回写真相源时同步 `01-需求确认.md` 顶部状态、推荐结论、修复清单、audit-state decision、sessions / SUMMARY，避免正文与状态口径漂移
-- `DocsConsumerSweep` 是否执行：正文、导航/sidebar、README/索引、examples、templates、Profile、validate probes、部署副本和代码消费位置是否一致；信息架构故意不同序时报告是否解释差异
-- `ChinesePrimaryExpressionGate` 是否执行：中文 README、中文站点文档、中文用户手册或双语中文入口是否以中文主干表达任务、配置、错误和流程；英文标识符、路径、命令和 API 名是否只作为精确补充
-- `SidebarPageRoleMaterializationProbe` / `SidebarGroupSemanticModelProbe` 是否执行：新增公开能力、菜单缺项、sidebar 分组或 route 表变化时，是否从当前配置 / docs inventory / generated HTML 反查 page role、route、label、sidebar group、相邻页面职责和整组任务模型
-- `ReviewChecklistCompletenessGate` / `EvidenceExecutionGate` 是否同步到 audit、TestRoute、报告模板和 validate；复审不得重复同一维度凑轮次，冻结 checklist 必须有逐项证据，不能只按审查报告文本验收，关键结论要做实际验证
-- `review-checklist` 是否作为正式复审、ECR、发布前复审、多轮收敛、外部 finding 批次和冻结清单的独立 Skill 入口同步到 audit-common、audit-execution-guide、audit-release、TestRoute、报告模板、README/website、Profile、plugin.json 和 validate
-- `BuiltArtifactFeatureSmokeGate` / `TscOutputImportProbe` 是否同步到 TestRoute、dev/fix/analyze、报告模板和 validate；涉及构建产物、模块格式、adapter 或运行时导出时，必须验证产物真实导入/执行和 TypeScript 输出可导入性，而不是只跑源码测试
-- `GeneratedSiteGate` / `ManualTocDuplicationGate` / `UserPathContractSweep` 是否同步到 dev-docs、readme-authoring、audit-document、audit-readme、TestRoute、README/website 和 validate；文档站必须基于生成产物验证导航、TOC、资产、链接和主要用户路径
-- `BenchmarkRegressionGuard` 是否同步到 TestRoute、dev/fix/analyze、报告模板和 validate；涉及性能基准、缓存、队列、连接池、高频路径或优化声明时，必须有基线、对照、阈值和回归判定
-- 前端 UI / 交互体验规范是否同步到 `FrontendExperienceQualityGate`、`frontend-runtime` gateGroup、TestRoute、报告模板、README/website 与 validate；代表性 anchors 包括 `FigmaHighFidelityRestorationGate`、`ActualPreviewChainAndMockFallbackGate`、`FigmaProductionAssetBudgetGate`、`RuntimeI18nArtifactVerificationGate`、`FrontendBrowserVerificationBudgetGate` 与 `UserSelfVerificationOverrideGate`；视觉或交互证据不得只停留在口头说明
-- `CrossProjectLearnedGuards` 跨项目已吸纳守门是否同步到当前消费者：按 `GovernanceGateRegistry` 检查 `truth-evidence / docs-boundary / finding-review / frontend-runtime / user-manual-delivery / release-package-contract / requirement-profile-service / data-security-automation / site-v2-leak` 等 gateGroup；报告或模板只记录 `gateGroup / ownerSkill / validationRoute / skipReason`，legacy anchors 如 `CodeTruthRequirementGate`、`ManualReviewEvidenceRetention`、`ReviewFindingIntakeGate`、`UserDocsPrimarySurfaceGate`、`RequirementVerdictStateSyncGate`、`ActiveRequirementFinalResponseGate`、`MethodLevelLeakPressureProbe`、`V2FormalSolutionPackage`、`DatabaseRecordMigrationExportGate`、`FindingProbeMatrixGate`、`UserFacingDeliveryChainGate`、`ReviewChecklistCompletenessGate`、`BuiltArtifactFeatureSmokeGate`、`GeneratedSiteGate`、`UserPathContractSweep` 与 `BenchmarkRegressionGuard` 只作为 grep 锚点保留
-- `spec-absorption` 是否同步到规范吸纳消费者：`CommonNormGeneralizationGate`、`AbsorptionCandidateConsumerProofGate`、候选矩阵、项目独有规则负向样例、targetOwner、TestRoute、report、prompts、README/website/changelog、Profile、validate/test 与部署副本必须形成同一 Concept Sync Map；不得只在 `spec-governance` 或通用 instructions 中保留概念描述。
-- `LayeredAbsorptionGate`、`SkillFirstAbsorptionGate` / `CapabilityToSkillPromotionGate` 是否同步到 spec-governance、dev-default、TestRoute、报告模板、README/website/changelog、validate、targeted tests、prompts/templates、执行消费者和部署副本；新增可泛化规范不得只进入 `CrossProjectLearnedGuards` 或 `LatestAbsorptionGuards`，必须有 `LayeredAbsorptionDecision`（兼容 `SkillAbsorptionDecision`）和逐层 `layerChecks`
-- `ProfileTruthReconciliationGate`、`AuthorizedLocalSecurityAuditPresentationGate`、`PublisherCredentialTopologyGate` 是否分别保持 `load-profile`、`security-threat-modeling`、`release-verification` 唯一 owner，并同步 analyze/audit/release 消费者、report prompts、V88~V90、README/website、Profile、changelog 与部署副本；不得把详细正文复制回 instructions/prompt，也不得在文档或报告中出现 secret value 或绕过平台控制的承诺
-- `ScopedRegistryResolutionGate` 是否保持 `release-verification` 唯一 owner，并同步 `audit-release`、TestRoute、report、release prompts、V92、README/website、发布 Profile、release note 与部署副本；scoped package 的双 registry 文档和命令必须同时写明 scope override 或隔离 userconfig，禁止只记录全局 `--registry`
-- `ChecklistStateMaterializationGate` 是否保持 `review-checklist` 唯一 owner，并同步 TestRoute、report、spec-governance、review prompts、V94、README/website、release note 与部署副本；六区块 snapshot 任一 stale 时，文档和报告都不得保留 clean/closed 声明
-- A1~A10 最新吸纳执行包是否同步到当前消费者：`ConfigCanonicalNamespaceGate`、`ProfileRuntimeContractSyncGate`、`BehaviorSemanticDocsParityGate`、`NegativeTranslationParityProbe`、`DocsExampleTruthSurfaceGate`、`CallbackExampleScopeProbe`、`DerivedMetricConsumerProbe`、`DerivedConsumerFailureInjectionProbe`、`FeatureInventoryProfileGate`、`FeatureChecklistEvidenceMatrixGate`、`BatchEvidenceLedgerStateGate` 与 `BatchProgressCardGate` 必须形成 Concept Sync Map，覆盖 Skills、Prompt、TestRoute、report、README/website/changelog、Profile、validate/test、部署副本和来源台账回写。
-- `HistoricalCommonNormLayeringGate` 是否同步到 spec-governance、TestRoute、report、technical-design / implementation-plan / report prompts、README、website guide、active version requirements、changelog、Profile 与部署副本；历史通用规范、prompt/report 长清单或旧吸纳项迁移前必须有逐文件审查矩阵，无法立即下沉的历史规则标 `legacy-index-retained`，不得继续把新 Gate 长正文追加回通用 instructions
-- `ProactiveBetterAlternativeGate` 是否同步到 C12、dev-default、spec-governance、TestRoute、报告模板、技术方案 / 实施计划 prompt、README/website/changelog 和 validate；用户给出建议或确认方案时，文档和报告必须保留主动比较更优路径的证据
-- `ConfirmedAbsorptionCompletenessGates` 是否同步到通用规范、目标 Skill、Prompt、TestRoute、report、document-sync、validate、README/website/changelog 和部署副本；必须按 `public-surface / user-manual / review-checklist / frontend-runtime / profile-service / release-parity / evolution-control-plane` 分组核对，代表性 anchors 包括 `PublicSurfaceClosureGate`、`UserManualProductizationGate`、`ReviewAnchorMaterializationGate`、`SemanticLegacyRouteExposureGate`、`ReferenceCodeTruthSamplingGate`、`FrontendAsyncCacheRenderGate`、`StaleWhileRevalidateGate`、`RemoteCIParityPushGate`、`NativeCommandExitCodeGate`、`OfficialApiEvidenceGate`、`EvolutionCapabilityControlPlaneGate`、`FrameworkCapabilityAutoFirstGate` 与 `DocsThemeRuntimeVisualProbeGate`；不能因概念已有描述就跳过 Gate 名、触发条件、报告字段或探针
-- `WorkspaceDataAbsorptionScopeGate` 是否同步到 spec-governance、dev-default、TestRoute、报告模板、README/website 和 validate；data 吸纳任务不得只校验当前项目台账。
-- V95 新增吸纳能力是否按 owner 与消费者闭环同步：`AgentCapabilityDomainCompletenessGate` 由 `ai-agent-system-architecture` 承接，`DocsAudienceRoleAndRenderedSequenceProbe` 由 `audit-user-manual` 承接，`consumer-validation-engineering` 承接跨仓消费者置信度，`ModulePerformanceCoverageAndMaintenanceGate` 由 `performance-engineering` 承接；同时核对 Prompt、TestRoute、report、release-verification、quality-strategy、README/website/changelog、Profile、plugin/portfolio、validate/test 与部署副本，不得只在 owner Skill 内出现。
-- 涉及外部消费者或跨仓验证时，文档同步记录必须区分本仓事实与外部仓证据，并绑定 `repository / ref / commitSha / artifact / digest / runId`；缺少当前、可复验的外部证据时只能降级发布置信度，不能把“未观测到失败”写成兼容性已通过。
-- `FlowchartNodeExplanationGate` 与 `DocsSiteVisualAcceptanceGate` 是否同步到 dev-docs、audit-document、website specs/sidebar、需求页和 visual/manual evidence；正式流程图不能只有 Mermaid 图。
-- 多语言、翻译页或正式用户文档变更是否执行 `DocumentationTranslationParityGuard` 与 `FormalDocsDevCodexBoundary`，避免 README/website/Profile/changelog 之间语义漂移或把运行时台账口吻混进正式文档
-- 控制面任务是否已建立 Concept Sync Map，并把当前消费者、历史镜像、validate 探针、部署副本与黄色偏离边界说明清楚
-- 文档正文若定义阅读顺序、审查顺序、实施顺序或“先看什么”，Concept Sync Map 必须列出“正文顺序 → 导航/sidebar 顺序 → README/索引顺序”；若信息架构故意不同，报告必须解释差异而不是让用户猜
-- 宿主契约相关变更是否补了 HostContractRoute 证据，而不是只改文档叙述
-- 多批次任务的 `05-实施进度.md` 是否随批次完成更新
+
+- 读取 `../spec-governance/gate-registry.json`，按本次适用 `gateGroup` 建立 Concept Sync Map；具体 Gate 字段和验证路线由 registry 指向的 Owner Skill 定义。
+- 核对规范真相源、Owner Skill、Prompt/template、TestRoute/report schema、validate/targeted tests、README/website/Profile/changelog、plugin/portfolio 与部署副本。
+- README、用户手册和站点文档继续验证首次成功路径、受众、导航/正文顺序、配置/错误/恢复以及维护者内容边界。
+- Profile、runtime、宿主、package/release、用户文档、外部消费者、派生消费者或多批次证据发生变化时，按适用 Owner 追加专属证据，不在本文件复制版本专属 Gate 总表。
+- 历史 Vxx、CrossProject 与 A1~A10 名称只通过 registry `legacyAnchors` 检索；找不到等强度承接方时标记 `legacy-index-retained`，不得直接删除或继续扩展长清单。
+- 文档定义阅读/审查/实施顺序时，Concept Sync Map 必须对账正文、导航/sidebar 与 README/索引顺序；故意不同须说明理由。
+- 宿主契约和多批次任务分别保留 HostContractRoute 证据与最新 `05-实施进度.md`。
 
 ### ProfileImpactCheck
 

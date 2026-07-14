@@ -49,11 +49,8 @@ description: 项目工程审查维度 PE-1~PE-12 — 代码质量/项目结构/�
 - 若性能风险来自资源生命周期或清理缺失，必须同时按 `PE-12` 判定
 
 **PE-6 测试覆盖与验证门禁 🟡**
-- 存在 coverage 脚本、阈值、CI coverage 或发布前覆盖率要求时，审查 `CoverageGateDecision` 是否单独记录命令、工具、阈值、基线、当前值、状态和阻断/降级依据；不得把测试断言通过等同于覆盖率门禁通过
-- 外部 runtime、plugin、registry、adapter、provider、injected runtime 或 owner mutation 变更，检查 `ExternalRuntimePluginLifecycleGate` / `ExternalRegistryLifecycleMatrixGate` 是否覆盖 config 组合、生命周期转换、多实例共享、集合代数、批量部分成功和 reset/replace/dispose/clear
-- function source、hash、toString 或 fingerprint 参与 cache key、registry key、checkpoint、幂等或去重时，检查 `FunctionSourceFingerprintMatrixGate` 是否覆盖 false-positive / false-negative 样本和闭包、默认参数、global shadow、嵌套作用域等代表类别
-- 同一风险簇连续出现 ≥3 个 finding、返修或复审遗漏时，检查 `ClusterEscalationGate` / `RiskBasedValidationLadder` 是否先冻结风险模型、矩阵、替换策略和停止条件，再按 targeted / related suite / full gate 分层验证
-- 默认行为、控制流、能力触发、warning / logs / events / metrics / info 输出、admin bridge 或 public types 变化时，检查 `DerivedMetricConsumerProbe` 是否覆盖派生消费者；副通道失败、统计写入失败、日志事件失败或 admin bridge 失败时，检查 `DerivedConsumerFailureInjectionProbe` 是否证明 warn/ignore/propagate 策略不会污染主结果
+- 从 `../spec-governance/gate-registry.json` 选择与变更事实匹配的 `gateGroup`，核对 Owner Skill 的必需证据和 `test-router` 生成的路线；本维度不复制 coverage、runtime/plugin、fingerprint、风险簇或派生消费者的完整门禁正文
+- 审查必须区分“测试断言通过”“覆盖率/跨边界路线通过”“跳过但有权威替代证据”；不满足时按实际状态降级
 
 **PE-7 依赖健康度 🟡**
 - Node.js 项目默认 `engines.node`、CI matrix、Profile 与 README 不低于 `>=18`；低于 v18 有业务理由、风险和验证证据
@@ -72,36 +69,11 @@ description: 项目工程审查维度 PE-1~PE-12 — 代码质量/项目结构/�
 - 若项目语言或框架提供专用工具（heap snapshot、profiler、leak detector、lint rule、test teardown hook 等），审查报告应说明是否执行或标注 `N/A + skipReason`
 - 高风险资源泄漏修复、公开库/adapter/SDK、连接池、监听器、定时器、worker、cache 或公开方法生命周期风险命中时，应检查 `MethodLevelLeakPressureProbe` 是否有重复调用/生命周期压测证据；低风险纯函数可写 `N/A + skipReason`
 
-**FrontendExperienceQualityGate 前端 UI / 交互体验质量（条件）**
-- 涉及前端页面、组件、控制台、官网、文档站、可视化工具或游戏时，必须检查 UI 视觉组：`FrontendDesignSourceGate`、`UIFidelityGate`、`StyleThemeConsistencyGate`、`ResponsiveStateCoverageGate`、`VisualVerificationGate`
-- 必须检查 UX 交互组：`InteractionFlowGate`、`InteractionFeedbackGate`、`InputModalityAccessibilityGate`、`ErrorPreventionRecoveryGate`、`MotionTransitionUsabilityGate`
-- 审查报告应核对 Browser/截图/Playwright/E2E 或项目等价视觉/交互证据；无法运行时需记录阻塞和降级证据
-- 官网、文档站或技术站改动还应检查 `DocsSiteVisualAcceptanceGate`：主题集成、真实点击、异步动效、减弱动态、代码 token 对比度、终端 demo 范围、TOC inline code 和辅助导航层级
-- 无用户可见 UI / 交互的工程审查可标 `N/A + skipReason`
+**条件 Owner 审查索引**
+- 涉及前端/UI、发布、数据、安全、文档、外部消费者、性能、资源生命周期或治理控制面时，读取 `../spec-governance/gate-registry.json`，按 `gateGroup` 触发对应 Owner Skill
+- 本 Skill 只核对项目工程事实、Owner 是否正确触发、证据是否存在、TestRoute 是否充分以及报告结果是否与证据一致；专属字段和执行语义归 Owner
+- 未命中的分组写 `N/A + skipReason`；命中却缺少 Owner 证据时不得用通用审查表述代替
 
-**CrossProjectLearnedGuards 跨项目已吸纳守门（条件）**
-- 审查需求、方案、报告或工程实现中“已实现 / 已接入 / 未接入 / 已验证”声明时，检查 `CodeTruthRequirementGate` 与 `LiveVerificationExecutionObligation` 是否有代码真相源和真实执行证据
-- 审查发现来源为外部报告、AI review finding、audit issue 或代码评审时，检查 `ReviewFindingIntakeGate` 是否已补本地证据并分流 must-fix、设计如此、用户决策、文档/实现漂移、测试覆盖缺口和未复现项
-- 前端/Figma/截图/既有页面审查需检查 `FigmaHighFidelityRestorationGate`、`ScopedVisualChangeGate`、`InstalledPluginVisualVerificationGate`、`ActualPreviewChainAndMockFallbackGate`、`FrontendRuntimeNetworkProbeGate`、`UIStateScopeRegressionGate`、`FigmaProductionAssetBudgetGate` 与 `RuntimeI18nArtifactVerificationGate` 是否留有真实视觉、console/network/resource、状态、资产和运行时本地化证据
-- 外部 finding 被分类为 must-fix 时检查 `FindingProbeMatrixGate` 是否逐项映射失败输入、修复前失败形态、修复后通过条件、测试/脚本和发布面证据
-- guard / policy / permission / consistency / 写路径限制类能力检查 `GuardPolicyBypassMatrixGate`，确认 raw/native/legacy/management/admin/client 等绕过面、规则特异性、动作策略和负向 parser/key 组合已覆盖
-- 验证命令、build、codegen、export、tsc 等检查 `VerificationCommandSideEffectGate`，确认执行前读取脚本定义、执行后扫描并处理生成物
-- package、adapter、SDK、CLI 或插件能力检查 `PackageAdapterPreConfirmEvidenceGate`，确认 package/plugin/exports/bin/files/dist/registry/消费者入口证据真实存在
-- 提交、兼容契约、UI 主真相源冲突、公开文档版本、集合关系 id 命名或用户可见验证产物语言相关审查需检查 `ExplicitCommitAuthorizationGate`、`CompatibilityAndContractAuthorityGate`、`UIConfirmedSourceConflictTraceGate`、`PublicDocsReleasedVersionGate`、`CollectionRelationIdNamingGate` 与 `UserFacingVerificationArtifactLanguageGate`
-- 人工复核、视觉检查、手工冒烟或外部页面观察需有 `ManualReviewEvidenceRetention`，包含范围、输入、观察结果、截图/日志或等价证据
-- adapter、provider、connector、SDK、benchmark 或性能优化需检查 `AdapterBenchmarkAttribution`，确认基线、环境、版本、负载和归因边界清晰
-- 验证路线需检查 `VerificationScopeBudgetGate`：高风险不低配验证，低风险不为形式扩大压测/E2E/外部依赖
-- 测试覆盖、coverage 阈值、CI coverage 或发布前覆盖率声明需检查 `CoverageGateDecision`，区分断言通过、相关 suite 通过、coverage gate 通过、known-red 与 N/A
-- 外部 runtime / plugin / registry / adapter / provider / injected runtime 能力需检查 `ExternalRuntimePluginLifecycleGate`、`ExternalRegistryLifecycleMatrixGate`、`FunctionSourceFingerprintMatrixGate`、`ClusterEscalationGate` 与 `RiskBasedValidationLadder`，避免只用 happy path 或单例函数对象覆盖公共运行时风险
-- 产品需求整理需检查 `ProductRequirementTraceabilityGate`；本机/跨环境执行配置需检查 `LocalExecutionConfigProbe`；真实联调或人工证据需检查 `ManualReviewEvidenceDataRetention`
-- 指定模块或相邻范围变更需检查 `AdjacentScopeExpansionGuard`；包名/发布名/安装说明需检查 `PackageNameAuthorityGate`
-- 性能第一、benchmark 或优化声明需检查 `PerformanceBenchmarkFirstGate`；公开模块、SDK、CLI 或插件承诺需检查 `PublicModuleDifferentiationGate`
-- data 吸纳任务需检查 `WorkspaceDataAbsorptionScopeGate`；正式流程图需检查 `FlowchartNodeExplanationGate`；遗漏专审需检查 `OmissionOnlyReviewGate`；审查发现 intake 需检查 `ReviewFindingIntakeGate`；复审收敛需检查 `ReviewDimensionDeltaGate`；用户文档需检查 `UserPerspectiveDocsGate`、`PublicUserDocsMaintainerBoundaryGate` 与 `DocsConsumerSweep`；最终报告需检查 `ActiveRequirementFinalResponseGate`；产物链接需检查 `ArtifactLinkSetDedupeGate`；DevCodex v2 正式规划需检查 `V2FormalSolutionPackage`
-- legacy / compat / route / reference-code 审查需检查 `SemanticLegacyRouteExposureGate`、`ReferenceCodeTruthSamplingGate` 与 `RouteNamespaceResponsibilityGate`：不只看 label，还要检查 slug、href、title、sidebar、search、generated HTML；行为断言抽样核代码、类型或运行时证据，并区分服务名和历史路由命名空间职责
-- 首页、详情、列表、搜索或接口数据返回空白风险需检查 `FrontendAsyncCacheRenderGate` / `StaleWhileRevalidateGate`：旧缓存先渲染并异步刷新替换，不得 loading-only、空白或同步阻塞取数；涉及数据库 / 队列 / 缓存真实数据源时追加 `AsyncDbTruthSourceVerificationGate`
-- 给同事、跨机器或对外分享的报告、脚本、文档或验证产物需检查 `PortableExternalArtifactGate`：不得写死本机绝对路径、私有 `.devcodex` 路径或个人工作区前提
-- 默认行为、控制流、能力触发或 public runtime 变化需检查 `DerivedMetricConsumerProbe` / `DerivedConsumerFailureInjectionProbe`：覆盖 metrics/info/logs/events/warnings/admin bridge/public types 消费者和失败注入隔离，明确 warn / ignore / propagate 口径
-- 代码、文档、示例、fixture、quick start、技术方案或报告质量被用户指出“不专业 / 像初级 / 示例误导”，或面向用户 / 维护者长期消费时，需检查 `ExpertOutputQualityGate`：冻结 `roleBaseline`、`productionRecommendedPath`、`frameworkNativeCapability`、`fixtureBoundary`、`antiPatternContrast` 和 `evidenceMatrix`，避免把测试夹具、硬编码单例或每个 route 重复声明当作生产推荐路径
 
 ## N/A 规则
 

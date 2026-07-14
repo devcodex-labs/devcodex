@@ -1,7 +1,7 @@
 # 变更日志 (CHANGELOG)
 
 > **说明**: 版本概览摘要。最新版本的详细变更见下方表格首行的 `changelogs/releases/vX.Y.Z.md` 链接；历史版本见对应详细变更文件
-> **最后更新**: 2026-07-13
+> **最后更新**: 2026-07-14
 
 ---
 
@@ -9,6 +9,7 @@
 
 | 版本 | 日期 | 变更摘要 | 详细 |
 |------|------|---------|------|
+| [v1.14.0](./changelogs/releases/v1.14.0.md) | 2026-07-14 | ✨ **Profile 生成、控制面契约与发布效率治理**：发布 Profile plan/分档安全迁移、canonical workflow/tenant/gate/report/TestRoute 契约、返工预防补强、六组剩余规范吸纳门禁与 V96 | [查看](./changelogs/releases/v1.14.0.md) |
 | [v1.13.0](./changelogs/releases/v1.13.0.md) | 2026-07-14 | ✨ **控制面模块化、返工预防与消费者验证**：新增 2 个 gray Skill、V92~V95、确定性 Skill portfolio、运行态/部署 manifest、受检命令、控制面模块拆分并以 GitHub Packages 发布 | [查看](./changelogs/releases/v1.13.0.md) |
 | [v1.12.0](./changelogs/releases/v1.12.0.md) | 2026-07-13 | ✨ **Skill 缺口、规模路由与专业 Owner 扩展**：新增 `skill-gap-analysis`、`skill-lifecycle-governance` 及分布式系统、性能工程、隐私合规、AI 评测 4 个专家 Owner；Skill 68→74、专家 Owner 17→21，并新增 `ProjectArtifactScaleRoutingGate` 与 V91 | [查看](./changelogs/releases/v1.12.0.md) |
 | [v1.11.33](./changelogs/releases/v1.11.33.md) | 2026-07-10 | 🔧 **修复协作、Profile 真相与发布闭环**：归档模型无关双层修复契约、MCP/Profile/audit/生成站点阻断修复，并新增 `ProfileTruthReconciliationGate`、`AuthorizedLocalSecurityAuditPresentationGate`、`PublisherCredentialTopologyGate` 与 V87~V90 | [查看](./changelogs/releases/v1.11.33.md) |

@@ -175,7 +175,7 @@ description: Profile 计划与分档生成 — 先预览目标根、推荐档位
 
 输出新增一行：
 
-```
+```text
 profile        complete  (profile-standard; files 6/6; semantic 2/2; config present)
 profile        partial   (profile-standard; files 5/6; semantic 1/2; config missing)
 profile        missing   (files 0/4; semantic 0/1; config missing — run: devcodex profile plan)

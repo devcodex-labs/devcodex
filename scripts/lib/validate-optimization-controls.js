@@ -1,6 +1,6 @@
 'use strict'
 
-const { buildPortfolio, validatePortfolio } = require('./skill-portfolio-utils')
+const { buildPortfolio, serializePortfolio, validatePortfolio } = require('./skill-portfolio-utils')
 const { buildRuntimeStateIndex } = require('./runtime-state-index')
 
 function buildOptimizationControlChecks(ctx) {
@@ -17,6 +17,7 @@ function buildOptimizationControlChecks(ctx) {
       'scripts/publish-dry-run.js',
       'scripts/lib/skill-portfolio-utils.js',
       'scripts/generate-skill-portfolio.js',
+      'skills/portfolio-evidence.json',
       'skills/portfolio.json',
       'scripts/lib/runtime-state-index.js',
       'scripts/check-runtime-state.js',
@@ -67,11 +68,12 @@ function buildOptimizationControlChecks(ctx) {
     const portfolioErrors = validatePortfolio(portfolio)
     if (portfolio.summary.skillCount !== 76) err(`[V92] expected 76 skills, got ${portfolio.summary.skillCount}`)
     if (portfolio.summary.graySkillCount !== 2) err(`[V92] expected two gray skills, got ${portfolio.summary.graySkillCount}`)
+    if (portfolio.summary.dependencyEdgeCount < 1) err('[V92] explicit Skill dependency graph has no edges')
+    if (portfolio.summary.operationalEvidenceCompleteCount !== 76) err('[V92] operational lifecycle evidence is incomplete')
+    if (portfolio.summary.triggerQuality !== 'structural-only') err('[V92] trigger precision must remain structural-only without real samples')
     portfolioErrors.forEach(error => err(`[V92] portfolio: ${error}`))
-    const committed = JSON.parse(read(path.join(ROOT, 'skills/portfolio.json')))
-    if (committed.generatedFrom?.sourceDigest !== portfolio.generatedFrom.sourceDigest) {
-      err('[V92] committed Skill portfolio sourceDigest is stale')
-    }
+    const committedText = String(read(path.join(ROOT, 'skills/portfolio.json')))
+    if (committedText !== serializePortfolio(portfolio)) err('[V92] committed Skill portfolio is stale')
 
     const runtimeState = buildRuntimeStateIndex(ACTIVE_DEVCODEX_ROOT)
     if (!runtimeState.readOnlySourcePolicy || runtimeState.schemaVersion !== 1) {

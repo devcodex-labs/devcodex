@@ -1,18 +1,20 @@
 ---
 name: cp-gate
-description: 执行 CP1（需求确认）/ CP2（方案确认）/ CP3（实施计划确认）三阶段确认机制。dev/fix 工作流强制按序执行，不可跳过或合并。
+description: 执行 CP1（需求确认）/ CP2（方案确认）与条件 CP3（实施计划确认）。CP1→CP2 强制按序，CP3 按工作流能力矩阵判定。
 ---
 ## 模式判断
 
-CP 门控**不受 ENV_MODE 影响**，dev/prod 均为 🔴 强制等待用户确认：
+CP 门控**不受 ENV_MODE 影响**。dev/prod 均强制保持 CP1→CP2 顺序；CP3 是否 required 由工作流/子类型/风险决定：
 
 | ENV_MODE | CP 行为 |
 |----------|--------|
-| `prod`（默认）| CP1→CP2→CP3 强制按序，每步必须等待用户明确确认后方可继续 |
-| `dev` | 同 prod：CP1→CP2→CP3 强制按序，每步必须等待用户明确确认 |
+| `prod`（默认）| CP1→CP2 强制按序；命中 CP3 条件时再确认实施计划 |
+| `dev` | 同 prod；额外执行完整规范与方案验证，不扩大 CP3 触发面 |
 
-> ⛔ CP 是用户交互机制（确认需求/方案/计划），与规范验证无关，始终需要确认。
+> ⛔ CP 是用户交互机制（确认需求/方案/计划），与规范验证无关。CP1/CP2 必须确认；CP3 未触发时必须记录 `N/A + subtype/risk evidence`，不得伪装成已确认。
 > **CP 跳过路径**：显式 `@devcodex-auto`、全局默认 `@rocky`、Profile `config.json` 的 `extensions.devcodex.autoAliases` 替换别名或明确自然语言 auto 授权（如“进入 auto 模式执行”）；这是 Agent 级行为，与 ENV_MODE 无关。
+
+工作流能力的唯一结构化事实源为 `../routing/workflow-capabilities.json`；本文件只拥有确认交互和 CP3 细化条件。
 
 ## 全自动模式
 

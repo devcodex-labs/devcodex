@@ -6,7 +6,7 @@ applyTo: "**"
 # 问题分析报告模板
 
 > **路径**: 优先 `.devcodex/bugs/<问题>/reports/<agent>/YYYYMMDD/NN--<name>-analysis.md`；无任务上下文时回退到 `.devcodex/reports/bugs/<agent>/YYYYMMDD/NN--<name>-analysis.md`
-> **触发**: fix 工作流三步扫描（S1~S3）完成后
+> **触发**: fix CP1 前问题诊断 S1~S3（重现、定位、范围）完成后；不等同于执行后的同类/联动/零残留修复三步扫描
 
 ---
 

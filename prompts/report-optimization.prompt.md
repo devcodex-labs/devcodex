@@ -7,6 +7,7 @@ applyTo: .devcodex/**/reports/optimizations/**
 
 > **路径**: 优先 `.devcodex/optimizations/<目标>/reports/<agent>/YYYYMMDD/NN--<name>.md`；无任务上下文时回退到 `.devcodex/reports/optimizations/<agent>/YYYYMMDD/NN--<name>.md`
 > **触发**: dev.optimization 工作流完成后，由 `report/SKILL.md` 驱动生成
+> **共享基模**: `skills/report/report-schema.json` 的 baseFields + optimization overlay；治理结果按 `gateGroup / result / evidence / skipReason` 记录
 > **字段约束**: 每条优化建议必须附五项验证（合理性 + 可实施性 + 收益 + 验证状态 + 影响范围），详见 [`17-compliance.instructions.md`](../instructions/17-compliance.instructions.md) §1 输出验证
 
 ---
@@ -68,17 +69,15 @@ applyTo: .devcodex/**/reports/optimizations/**
 | 负载测试 (autocannon) | ✅ 通过 | — |
 | 单元测试 | ✅ 通过 | — |
 
-## §6.2 支撑产物状态
+## §6.2 工作流 overlay 与治理证据（条件）
 
-| 产物 | 触发状态 | 结果 | 证据 |
-|------|----------|:----:|------|
-| ExecutionContract | ✅/N/A | ✅/⚠️ | |
-| TestRoute | ✅/N/A | ✅/⚠️ | |
-| ReleaseAudit | ✅/N/A | ✅/⚠️ | |
-| ReleaseVerification | ✅/N/A | ✅/⚠️ | |
-| ConceptSyncMap | ✅/N/A | ✅/⚠️ | sourceOfTruth / currentConsumers / historicalMirrors / validateProbes / deployCopies / yellowDeviationBoundary |
-| HostContractVerification | ✅/N/A | ✅/⚠️ | hostSurface / eventScope / evidenceMode / visibleReplyEvidence / workspaceGuard / bootstrapScope |
-| 05-实施进度.md | ✅/N/A | ✅/⚠️ | |
+> 共享基模读取 `skills/report/report-schema.json`，治理分组读取 `skills/spec-governance/gate-registry.json`。本模板只记录实际触发结果，不复制 Gate 目录或 Owner 专属字段。
+
+| gateGroup / 条件产物 | result | ownerSkill / schemaRef | evidence | skipReason |
+|----------------------|--------|------------------------|----------|------------|
+| | passed / failed / partial / N/A | | | |
+
+跨会话、多批次、中断或残余风险未关闭时追加 `ContextHandoffCard`；Profile、release、service lifecycle 等条件段按 schema 与 Owner Skill 生成。
 
 ## §6.5 ECR 执行闭环复审
 

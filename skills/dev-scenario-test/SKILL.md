@@ -14,7 +14,7 @@ description: 场景测试子类型规范 — 端到端/集成测试 + artillery 
 
 | 项 | 要求 |
 |----|------|
-| api-verification 已通过 | 场景测试基于已验证的接口规范（`.http` 产物存在） |
+| api-verification（条件） | 仅场景存在对外 HTTP/API 边界时，要求 `.http + .cjs` 已验证；纯 UI、CLI、worker、消息消费或方法级生命周期场景写 `N/A + boundary evidence` |
 | TestRoute 已确认（条件） | 由 `test-router` 触发时，先确认场景/负载/E2E 路线与范围 |
 | 测试环境就绪 | 数据库/依赖服务可在测试环境访问 |
 | ServiceLifecycleCleanup | 若 AI 启动 dev server、文档站、本地 API/mock、数据库代理、SSH 隧道、Playwright/Cypress server 或压测 target，必须记录 PID/job/端口并在验证完成后主动关闭 |

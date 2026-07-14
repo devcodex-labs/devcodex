@@ -37,6 +37,8 @@ description: 返工预防工程 Owner — 当任务涉及返工率、一次通�
 
 选择能在更早阶段阻断且总成本最低的控制层：`prompt / contract / checklist / static probe / unit fixture / integration replay / hook / tool`。已有规则仍复发时，单纯再加说明文字不是有效 prevention；必须评估能否物化为可执行消费者或确定性探针。
 
+方案审查存在多个相互独立的潜在 blocker 时，优先采用 `BlockerAggregationGate`：同阶段继续安全独立检查、冻结完整 `BlockerSnapshot`、统一修正并全阶段重跑。首个红项即停止会把同批问题推迟到下一轮，属于返工放大控制；仅 `invalid-premise / destructive-side-effect / evidence-contamination` 可 fail-fast。
+
 ## 度量合同
 
 - `FirstPassYield = 无 ReworkEvent 即 accepted 的可比较 WorkUnit / 全部可比较完成 WorkUnit`

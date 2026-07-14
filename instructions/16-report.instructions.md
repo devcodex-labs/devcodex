@@ -2,7 +2,7 @@
 applyTo: "**"
 description: 报告输出规则，覆盖路径、命名、结构、ECR 引用与用户面产物路径要求
 priority: P5
-version: 1.13.0
+version: 1.14.0
 ---
 # 报告输出规则（16-report）
 
@@ -22,14 +22,14 @@ version: 1.13.0
 
 ### 需求级（优先）
 关联到 `requirements/` · `bugs/` · `optimizations/` 目录时：
-```
+```text
 <任务目录>/reports/<agent>/YYYYMMDD/NN--<简述>.md
 ```
 
 > ⚠️ **跨服务需求**：报告路径以**入口服务**的 `.devcodex/` 为根，与 `01-需求确认.md`（历史 `01-需求概述.md` 兼容）同目录树；不拆分到各关联服务目录。
 
 ### 项目级（兜底）
-```
+```text
 reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 ```
 
@@ -99,7 +99,7 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 - 报告写入后必须执行二次验证（V1~V6，见 `17-compliance.instructions.md`）
 - 跨会话/未完成/多批次任务不得缺少 `ContextHandoffCard`；SUMMARY 只能作为索引，不得替代交接卡
 - 回复末尾必须输出报告路径（按 `ArtifactLinkSet` 输出主 Markdown 链接与必要 copy fallback，详见 [`02-output-paths.instructions.md`](./02-output-paths.instructions.md) §产物路径输出格式）：
-  ```
+  ```markdown
   - [NN--简述.md](workspace相对路径/.devcodex/reports/.../NN--简述.md)
   绝对路径：E:\...\NN--简述.md
   ```

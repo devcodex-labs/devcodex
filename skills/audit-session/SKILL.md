@@ -12,7 +12,7 @@ description: 审计工作流的跨会话状态机 — 在 <audit-root>/.audit-st
 
 ## 状态文件路径
 
-```
+```text
 <audit-root>/.audit-state/<session-id>.json
 ```
 
@@ -27,7 +27,7 @@ description: 审计工作流的跨会话状态机 — 在 <audit-root>/.audit-st
 
 ## 状态机
 
-```
+```text
 active ──┬─> paused (Token 防护触发 / 用户中断)
          ├─> resumed (跨会话 resume 重新进入)
          ├─> converged (CRS + PCV 通过 + 连续3轮零发现)

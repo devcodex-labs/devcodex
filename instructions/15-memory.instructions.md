@@ -2,7 +2,7 @@
 applyTo: "**"
 description: 记忆规则，覆盖 tasks、SUMMARY、需求记忆的读取顺序、写入时机与格式约束
 priority: P5
-version: 1.13.0
+version: 1.14.0
 ---
 # 记忆写入规则（15-memory）
 
@@ -10,7 +10,7 @@ version: 1.13.0
 
 ## 文件路径
 
-```
+```text
 <active-root>/.memory/clients/<agent>/tasks/YYYYMMDD.md
 ```
 
@@ -182,7 +182,7 @@ version: 1.13.0
 ## SUMMARY 文件
 
 ### Agent SUMMARY（每 Agent 独立）
-```
+```text
 <active-root>/.memory/clients/<agent>/SUMMARY.md
 ```
 - 每次会话结束前追加一行索引（SC6 检查）
@@ -191,7 +191,7 @@ version: 1.13.0
 - 🔴 **纯索引约束**：SUMMARY 仅含表头 + 会话索引行，禁止添加自由文本段落（如"当前状态""关键决策"等非索引内容）；🔄 状态标记仅出现在索引表「状态」列；已有旧格式 SUMMARY 应在下次写入时迁移
 
 ### 全局 SUMMARY（项目共用）
-```
+```text
 <active-root>/.memory/SUMMARY.md
 ```
 - 仅记录关键决策（规范变更/架构决策/P0修复）

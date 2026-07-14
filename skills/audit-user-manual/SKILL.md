@@ -37,7 +37,7 @@ description: 用户侧文档专项审查聚合入口 — 用于审查最终用�
 | 受众与渲染顺序 | `DocsAudienceRoleAndRenderedSequenceProbe`：pageRole 分布、首屏前三信息块、前两组 sidebar、current quick start 距离、manual TOC 与 generated outline 重复数 |
 | 内容可懂 | 功能完整性、配置易懂性、术语首次解释、字段/参数/状态/错误解释、示例真实度 |
 | 专家型产物质量 | `ExpertOutputQualityGate`、`ProductionRecommendedPathGate`、`FrameworkNativeCapabilityFirstGate`、`FixtureBoundaryDisclosureGate`、`AntiPatternContrastGate`、`ExpertEvidenceMatrixGate`，区分生产推荐路径、fixture/mock/demo 边界和反模式 |
-| 真实工作流 | quick start、队列/异步/批处理、导入导出、失败重试、幂等和观测是否是业务主路径 |
+| 真实工作流 | quick start、队列/异步/批处理、导入导出、失败重试、幂等和观测是否是业务主路径；完整声明必须有 `ScenarioCoverageMatrixProbe`，持久化批处理追加 `DurableBatchOrchestrationProbe` |
 | 生成与运行态 | `GeneratedSiteGate`；命中文档站主题、搜索、代码高亮、移动端、暗色/亮色或交互变化时执行 `DocsThemeRuntimeVisualProbeGate` |
 | 交互语义 | 命中链接、按钮、菜单、对话框、可展开控件或自定义交互时执行 `InteractiveSemanticProbe`：role、accessible name、focusability、Enter/Space/Escape、focus recovery；截图不能替代 |
 | 维护者边界 | release checklist、内部同步清单、台账状态、实现验收是否后置或移出公开用户主路径 |
@@ -53,7 +53,8 @@ description: 用户侧文档专项审查聚合入口 — 用于审查最终用�
 6. 对菜单、sidebar、站点生成、主题视觉或真实用户路径声明，选择源码反查、生成产物、Browser/截图或人工证据；有交互对象时叠加 `InteractiveSemanticProbe`，不得用截图证明键盘/辅助技术语义；未触发写 `N/A + skipReason`。
 7. 命中站点文档时执行 `DocsAudienceRoleAndRenderedSequenceProbe`：从源码路由/导航生成 pageRole matrix，并从 fresh generated HTML 或 Browser/Playwright 读取渲染后的首屏、outline 与 CTA 顺序；仅证明 route/label/构建存在不得判用户主面通过。
 8. 输出建议时按“用户立即能否看懂并完成第一次成功”排序，技术实现和维护者改动放在次级。
-9. 报告必须引用触发的 Skill、关键 Gate、执行证据、未验证项和剩余风险。
+9. 声称场景完整时核对每个 in-scope 场景的触发、状态、失败、恢复、观测和 executable evidence；队列/批处理不能用一次 API 调用替代 durable run。
+10. 报告必须引用触发的 Skill、关键 Gate、执行证据、未验证项和剩余风险。
 
 ### DocsAudienceRoleAndRenderedSequenceProbe
 

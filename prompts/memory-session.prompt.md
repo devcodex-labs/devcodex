@@ -58,6 +58,21 @@ applyTo: .devcodex/**/.memory/**
 | 文件 | 变更类型 |
 |------|---------|
 | `path/to/file` | 新建/修改/删除 |
+
+### 🔁 ContextHandoffCard
+
+> 跨会话、跨 Agent、多批次、summary/compact 前或任务即将中断时必填；不触发写 `N/A + skipReason`。
+
+| 字段 | 内容 |
+|------|------|
+| `source-of-truth` | [当前权威文件/状态源] |
+| `confirmed-decisions` | [已确认决策] |
+| `open-risks` | [未关闭风险] |
+| `next-action` | [唯一下一动作] |
+| `blocked-reason` | [阻塞原因或 N/A] |
+| `must-not-overwrite` | [不得覆盖的用户变更/真相源] |
+| `validation-state` | [已执行、未执行、失败的证据] |
+| `artifact-links` | [需求/计划/进度/报告/清单路径] |
 ```
 
 ## 格式选择

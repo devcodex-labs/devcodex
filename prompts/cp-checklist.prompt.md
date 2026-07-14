@@ -5,7 +5,7 @@ applyTo: "**"
 ---
 # CP 确认关卡检查清单
 
-> **触发**: CP1 / CP2 / CP3 确认点，规则见 `instructions/10-dev.instructions.md` §CP门控
+> **触发**: dev/fix/self-fix 的 CP1 / CP2，以及 `skills/routing/workflow-capabilities.json` 判定为 required 的 CP3；交互规则见 `skills/cp-gate/SKILL.md`
 
 ---
 
@@ -69,4 +69,4 @@ applyTo: "**"
 1. 记录修改点
 2. 修订对应文档
 3. 重新展示修订内容
-4. 再次请求确认（最多 3 轮修订）
+4. 再次请求确认；按完整 blocker snapshot 收敛，不设置固定修订轮数上限。若范围或前提失效，回到对应 CP 重建产物

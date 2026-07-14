@@ -33,7 +33,15 @@ function buildGovernanceReviewChecks(ctx) {
       'prompts/report-dev.prompt.md',
       'prompts/report-fix.prompt.md',
       'prompts/report-audit.prompt.md',
-      'prompts/report-scenario-test.prompt.md'
+      'prompts/report-scenario-test.prompt.md',
+      'prompts/requirement.prompt.md',
+      'skills/audit-project/SKILL.md',
+      'skills/audit-requirements/SKILL.md',
+      'skills/report/SKILL.md',
+      'skills/test-router/SKILL.md',
+      'skills/spec-absorption/SKILL.md',
+      'skills/source-consumer-sync/SKILL.md',
+      'skills/document-sync/SKILL.md'
     ]
 
     const driftClusters = [
@@ -113,19 +121,69 @@ function buildGovernanceReviewChecks(ctx) {
       err(`[V75] ${probeName} incorrectly rejects grouped registry summary`)
     }
 
+    const anchorBudgetFiles = new Map([
+      ['prompts/technical-design.prompt.md', 12],
+      ['prompts/implementation-plan.prompt.md', 12],
+      ['prompts/requirement.prompt.md', 8],
+      ['prompts/report-dev.prompt.md', 8],
+      ['prompts/report-fix.prompt.md', 8],
+      ['prompts/report-audit.prompt.md', 8],
+      ['prompts/report-scenario-test.prompt.md', 8],
+      ['skills/audit-project/SKILL.md', 12],
+      ['skills/audit-requirements/SKILL.md', 8],
+      ['skills/report/SKILL.md', 8],
+      ['skills/test-router/SKILL.md', 8],
+      ['skills/spec-absorption/SKILL.md', 15],
+      ['skills/source-consumer-sync/SKILL.md', 8],
+      ['skills/document-sync/SKILL.md', 8]
+    ])
+    const collectGateAnchors = content => new Set(content.match(/\b[A-Za-z][A-Za-z0-9]+(?:Gate|Probe)\b/g) || [])
+    const negativeBudgetSample = Array.from({ length: 13 }, (_, index) => `Synthetic${index}Gate`).join(' ')
+    if (collectGateAnchors(negativeBudgetSample).size !== 13) {
+      err(`[V75] ${probeName} distinct-anchor negative sample did not trigger`)
+    }
+    if (collectGateAnchors(groupedSample).size > 12) {
+      err(`[V75] ${probeName} grouped registry summary exceeded anchor budget`)
+    }
+
     for (const file of consumerFiles) {
-      const lines = read(path.join(ROOT, file)).split(/\r?\n/)
+      const content = fs.readFileSync(path.join(ROOT, file), 'utf8')
+      const lines = content.split(/\r?\n/)
       lines.forEach((line, index) => {
         const drift = findDrift(line)
         if (drift) {
           err(`[V75] ${probeName} detected ${drift.cluster.label} drift in ${file}:${index + 1} (${drift.hits.length} hits); use GovernanceGateRegistry/gateGroup instead`)
         }
       })
+      if (anchorBudgetFiles.has(file)) {
+        const anchors = collectGateAnchors(content)
+        const budget = anchorBudgetFiles.get(file)
+        if (anchors.size > budget) {
+          err(`[V75] ${probeName} detected ${anchors.size} distinct Gate/Probe anchors in ${file}; budget=${budget}, use gate-registry.json and Owner links`)
+        }
+      }
+    }
+
+    const canonicalConsumers = [
+      { file: 'prompts/technical-design.prompt.md', needles: ['gate-registry.json', 'test-route-schema.json'] },
+      { file: 'prompts/implementation-plan.prompt.md', needles: ['gate-registry.json', 'test-route-schema.json'] },
+      { file: 'prompts/requirement.prompt.md', needles: ['gate-registry.json'] },
+      { file: 'skills/report/SKILL.md', needles: ['report-schema.json', 'gate-registry.json'] },
+      { file: 'skills/test-router/SKILL.md', needles: ['test-route-schema.json', 'gate-registry.json'] },
+      { file: 'skills/spec-absorption/SKILL.md', needles: ['gate-registry.json', 'legacyAnchors'] },
+      { file: 'skills/source-consumer-sync/SKILL.md', needles: ['gate-registry.json', 'legacyAnchors'] },
+      { file: 'skills/document-sync/SKILL.md', needles: ['gate-registry.json', 'Concept Sync Map'] }
+    ]
+    for (const consumer of canonicalConsumers) {
+      const content = fs.readFileSync(path.join(ROOT, consumer.file), 'utf8')
+      for (const needle of consumer.needles) {
+        if (!content.includes(needle)) err(`[V75] ${probeName} canonical consumer drift in ${consumer.file}: missing "${needle}"`)
+      }
     }
 
     const probes = [
       { file: 'skills/spec-governance/SKILL.md', needles: [probeName, 'SCV 负向样例', 'GovernanceGateRegistry'] },
-      { file: 'skills/source-consumer-sync/SKILL.md', needles: [probeName, 'V75', 'currentConsumers'] },
+      { file: 'skills/source-consumer-sync/SKILL.md', needles: ['gate-registry.json', 'Concept Sync Map', 'legacyAnchors'] },
       { file: 'README.md', needles: [probeName, 'GovernanceGateRegistry'] },
       { file: 'website/docs/guide/development.md', needles: [probeName, 'GovernanceGateRegistry'] },
       { file: 'changelogs/releases/v1.11.28.md', needles: ['V75', probeName] },
@@ -133,7 +191,7 @@ function buildGovernanceReviewChecks(ctx) {
       { file: 'scripts/validate.js', needles: ['createProbeRegistry', 'expectedProbeIds', 'runProbeRegistry'] }
     ]
     for (const probe of probes) {
-      const content = read(path.join(ROOT, probe.file))
+      const content = fs.readFileSync(path.join(ROOT, probe.file), 'utf8')
       for (const needle of probe.needles) {
         if (!content.includes(needle)) {
           err(`[V75] ${probeName} sync drift in ${probe.file}: missing "${needle}"`)

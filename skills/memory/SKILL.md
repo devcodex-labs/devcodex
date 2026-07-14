@@ -4,7 +4,7 @@ description: 管理会话记忆的读取与写入。三层记忆体系：Agent �
 ---
 ## 文件路径
 
-```
+```text
 <active-root>/.memory/clients/<agent>/tasks/YYYYMMDD.md
 ```
 
@@ -134,7 +134,7 @@ description: 管理会话记忆的读取与写入。三层记忆体系：Agent �
 ## SUMMARY 文件
 
 ### Agent SUMMARY（每 Agent 独立）
-```
+```text
 <active-root>/.memory/clients/<agent>/SUMMARY.md
 ```
 - 每次会话结束前（[SC6](../compliance/SKILL.md) 检查）追加一行索引
@@ -167,7 +167,7 @@ description: 管理会话记忆的读取与写入。三层记忆体系：Agent �
 跨会话、跨 Agent、多批次、summary/compact 前、用户要求“传递上下文”或即将中断时，daily tasks 或报告必须写入 `ContextHandoffCard`，字段至少包含：`source-of-truth`、`confirmed-decisions`、`open-risks`、`next-action`、`blocked-reason`、`must-not-overwrite`、`validation-state`、`artifact-links`。`ContextHandoffCard` 是交接卡，恢复方仍须按 `Context Rehydration Contract` 重新核对文件真相源；禁止把交接卡写成 SUMMARY 自由文本段落。
 
 ### 全局 SUMMARY（项目共用）
-```
+```text
 <active-root>/.memory/SUMMARY.md
 ```
 - 仅记录关键决策（规范变更/架构决策/P0修复）
@@ -183,7 +183,7 @@ description: 管理会话记忆的读取与写入。三层记忆体系：Agent �
 
 ### 需求级记忆路径构建
 
-```
+```text
 <active-root>/requirements/<描述>/.memory/sessions.md   # dev 需求
 <active-root>/bugs/<描述>/.memory/sessions.md           # fix Bug
 <active-root>/optimizations/<描述>/.memory/sessions.md  # dev 优化

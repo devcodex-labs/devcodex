@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "ownerSkill": "routing",
+  "workflows": [
+    {
+      "id": "dev",
+      "mutation": "allowed-after-confirmation",
+      "cp1": "required",
+      "cp2": "required",
+      "cp3": "conditional",
+      "cp3Rule": "required when an implementation plan is material; docs, init, plan-review and low-risk bounded changes may record N/A with subtype evidence",
+      "primaryArtifacts": ["requirements", "technical-design", "implementation-plan", "report"]
+    },
+    {
+      "id": "fix",
+      "mutation": "allowed-after-confirmation",
+      "cp1": "required",
+      "cp2": "required",
+      "cp3": "conditional",
+      "cp3Rule": "required for multi-file, high-risk or planned repairs; bounded low-risk fixes may record N/A with evidence",
+      "primaryArtifacts": ["bug-overview", "problem-analysis", "repair-plan", "report"]
+    },
+    {
+      "id": "self-fix",
+      "mutation": "allowed-after-confirmation",
+      "cp1": "required",
+      "cp2": "required",
+      "cp3": "conditional",
+      "cp3Rule": "mechanical A1-A5 repairs may simplify; semantic control-plane changes route to the full dev plan",
+      "primaryArtifacts": ["problem-confirmation", "technical-design", "report"]
+    },
+    {
+      "id": "analyze",
+      "mutation": "forbidden",
+      "cp1": "not-applicable",
+      "cp2": "not-applicable",
+      "cp3": "not-applicable",
+      "cp3Rule": "read-only convergence workflow; requested mutation requires rerouting",
+      "primaryArtifacts": ["analysis-report", "convergence-evidence"]
+    },
+    {
+      "id": "audit",
+      "mutation": "forbidden",
+      "cp1": "not-applicable",
+      "cp2": "not-applicable",
+      "cp3": "not-applicable",
+      "cp3Rule": "read-only review; findings are recorded and handed to an independently authorized repair workflow",
+      "primaryArtifacts": ["audit-state", "review-checklist", "audit-report"]
+    },
+    {
+      "id": "other",
+      "mutation": "forbidden",
+      "cp1": "not-applicable",
+      "cp2": "not-applicable",
+      "cp3": "not-applicable",
+      "cp3Rule": "planning fallback only; explicit file mutation belongs to dev, fix or self-fix",
+      "primaryArtifacts": ["plan"]
+    },
+    {
+      "id": "chat",
+      "mutation": "forbidden",
+      "cp1": "not-applicable",
+      "cp2": "not-applicable",
+      "cp3": "not-applicable",
+      "cp3Rule": "question-answer fast path",
+      "primaryArtifacts": []
+    },
+    {
+      "id": "resume",
+      "mutation": "inherited",
+      "cp1": "inherited",
+      "cp2": "inherited",
+      "cp3": "inherited",
+      "cp3Rule": "rehydrate file truth, then return to the original workflow and stage",
+      "primaryArtifacts": ["context-handoff"]
+    }
+  ]
+}

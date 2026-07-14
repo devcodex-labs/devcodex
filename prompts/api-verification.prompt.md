@@ -71,7 +71,18 @@ const http = require('http')
 const https = require('https')
 const assert = require('assert')
 
-const BASE_URL = 'http://localhost:3000'
+const BASE_URL = process.env.API_BASE_URL
+if (!BASE_URL) throw new Error('API_BASE_URL is required; point it at an already running target')
+
+// 必须由代码、已确认接口文档或 Profile/TestRoute 填充；不要猜测根对象、data 或 result 包装层。
+const CONTRACT = {
+  listItemsPath: 'data.items',
+  createdIdPath: 'data.id'
+}
+
+function getPath(value, dottedPath) {
+  return dottedPath.split('.').reduce((current, key) => current == null ? undefined : current[key], value)
+}
 
 async function request(method, path, body, headers = {}) {
   const url = new URL(path, BASE_URL)
@@ -114,22 +125,36 @@ async function request(method, path, body, headers = {}) {
   })
 }
 
+const ENDPOINTS = [
+  {
+    name: 'list',
+    method: 'GET',
+    path: '/api/<resource>',
+    expectedStatus: 200,
+    assertResponse: response => assert(Array.isArray(getPath(response.data, CONTRACT.listItemsPath)), `List: expected array at ${CONTRACT.listItemsPath}`)
+  },
+  {
+    name: 'create',
+    method: 'POST',
+    path: '/api/<resource>',
+    body: { field1: 'test' },
+    expectedStatus: 201,
+    assertResponse: response => assert(getPath(response.data, CONTRACT.createdIdPath), `Create: expected value at ${CONTRACT.createdIdPath}`)
+  }
+]
+
 async function runTests() {
   console.log('🧪 Running API verification: <module>')
-  
-  // ① 列表接口
-  const list = await request('GET', '/api/<resource>')
-  assert.strictEqual(list.status, 200, 'List: expected 200')
-  assert(Array.isArray(list.data.items), 'List: expected items array')
-  console.log('  ✅ GET /api/<resource>')
 
-  // ② 创建接口
-  const created = await request('POST', '/api/<resource>', { field1: 'test' })
-  assert.strictEqual(created.status, 201, 'Create: expected 201')
-  assert(created.data.id, 'Create: expected id in response')
-  console.log('  ✅ POST /api/<resource>')
+  if (ENDPOINTS.length === 0) throw new Error('Endpoint matrix is empty; refusing a false-green API verification')
+  for (const endpoint of ENDPOINTS) {
+    const response = await request(endpoint.method, endpoint.path, endpoint.body, endpoint.headers)
+    assert.strictEqual(response.status, endpoint.expectedStatus, `${endpoint.name}: unexpected status`)
+    endpoint.assertResponse(response)
+    console.log(`  ✅ ${endpoint.method} ${endpoint.path}`)
+  }
 
-  console.log('✅ All tests passed')
+  console.log(`✅ All tests passed: ${ENDPOINTS.length}/${ENDPOINTS.length}`)
 }
 
 runTests().catch(e => { console.error('❌', e.message); process.exit(1) })
@@ -139,7 +164,7 @@ runTests().catch(e => { console.error('❌', e.message); process.exit(1) })
 
 ```bash
 # 先在独立终端手动启动目标服务，再执行 API 验证
-node .devcodex/<project>/requirements/<需求名>/<module>-接口验证.cjs
+$env:API_BASE_URL='http://localhost:3000'; node .devcodex/<project>/requirements/<需求名>/<module>-接口验证.cjs
 
 # 预期输出
 # 🧪 Running API verification: <module>

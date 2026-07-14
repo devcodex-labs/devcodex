@@ -21,18 +21,13 @@ applyTo: .devcodex/**/requirements/**
 > ⚠️ 若本方案承接了用户可见“意图扩展摘要”，必须在 §0 或 §1 说明语义初判、项目现实扩展后路由、关键风险、验证路线与备选路径如何落到方案中。
 > ⚠️ 新增/升级依赖、框架、SDK、平台 API 或外部模块时，§4 必须填写 `OfficialDocsEvidence`：官方文档来源、版本/日期、关键用法、限制、兼容性与降级来源。
 > ⚠️ dev/fix 项目事实变化时，必须填写 `ProfileImpactCheck`：是否更新 Profile、目标文件与 `skipReason`。
-> ⚠️ 项目级 analyze/audit、授权本地安全审查、首次发布或发布身份拓扑变化分别引用 `ProfileTruthReconciliationGate`、`AuthorizedLocalSecurityAuditPresentationGate`、`PublisherCredentialTopologyGate`；技术方案只写触发、owner、字段和验证路线，不复制 owner Skill 正文，也不得包含 secret value 或绕过平台控制的承诺。
+> ⚠️ 条件治理能力统一从 `skills/spec-governance/gate-registry.json` 选择 `gateGroup` 与 Owner Skill；技术方案只写触发事实、owner、产物链接、验证路线和 skipReason，不复制 Owner 正文。
 > ⚠️ provider / connector / 三方 SDK 接入类方案必须先冻结业务功能接口，再说明底层 provider adapter / model / operation / 配置如何实现该功能；不得把内部 provider 能力直接反向暴露成业务接口。随后冻结字段级合同和统一 operation contract；包 / 库 / adapter / CLI 方案必须同时检查代码实现层与包工程层。
 > ⚠️ CP2 必须承接 CP1 的平台工程判断和 `ImplementationComplexityLevel`（兼容旧字段 `ImplementationComplexityPreference`）：消费者范围、共享契约边界、模块职责、可维护性成本、非目标和最小实现预算要互相一致；没有真实复用者或演进边界时，不得新增 factory / manager / adapter / registry 等预设抽象。
-> ⚠️ CP2 必须通过 `VerificationPlanMaterializationProbe`：§7 不能只写泛泛“测试策略”，必须物化验证计划、命令/矩阵路线、验收标准和退出条件；新增公开文档能力、菜单或文档站 IA 时，必须填写 `SidebarPageRoleMaterializationProbe` / `SidebarGroupSemanticModelProbe`。
-> ⚠️ 进入编码前必须预置 `DevelopmentDriftGate`：§2.6 写清 `allowedFirstBatch`、`blockedScope`、`noGoItems`、`driftTriggers`、`validationRoute` 和 `consumerSync`。
+> ⚠️ §7 必须物化验证计划、命令/矩阵路线、验收标准和退出条件；进入编码前，§2.6 写清允许首批、阻断范围、偏移触发、验证路线和消费者同步。
 > ⚠️ 当 AI 判断目标包含修复 Bug/缺陷/回归/安全问题/规范缺口/审查 finding 时，技术方案必须引用 `repair-collaboration`：低风险填写 lightweight 双层字段，高风险填写 full + findingToPatchMap + handoffIntegrity + independentReReview；模型名称不是触发条件。
 > ⚠️ package boundary / pack / benchmark / codegen 验证必须写清串行顺序；任何会删除、重建或写入 `dist` 的命令不得和包边界检查并行。
-> ⚠️ 前端页面、组件、控制台、官网、文档站、可视化工具、游戏或用户可见 UI / 交互方案必须填写 `FrontendExperienceQualityGate`：设计来源、UI 还原度、风格主题、响应式状态、视觉验证、用户流、交互反馈、输入方式/可访问性、错误恢复和动效转场；Figma/截图/既有页面还原需追加 `FigmaHighFidelityRestorationGate`、`ScopedVisualChangeGate`、`InstalledPluginVisualVerificationGate`、`ActualPreviewChainAndMockFallbackGate`、`FrontendRuntimeNetworkProbeGate`、`UIStateScopeRegressionGate`、`FigmaProductionAssetBudgetGate`、`RuntimeI18nArtifactVerificationGate`、`VisualDeviationTypeGate`、`DesignFramePurposeClassificationGate`、`FrontendBrowserVerificationBudgetGate` 与 `UserSelfVerificationOverrideGate`；不触发时写 `N/A + skipReason`。
-> ⚠️ 命中跨项目已吸纳守门、最新吸纳项、用户确认“仍需吸纳”、历史通用规范分层迁移或新增可泛化策略时，必须填写 `CrossProjectLearnedGuards` / `LatestAbsorptionGuards` / `ConfirmedAbsorptionCompletenessGates`，并按 `GovernanceGateRegistry` 输出 `gateGroup / ownerSkill / validationRoute / skipReason`；若是历史通用规范分层迁移，追加 `HistoricalCommonNormLayeringGate` 和逐文件矩阵。未触发项写 `N/A + skipReason`。
-> ⚠️ 技术方案、示例、fixture、quick start、报告或文档会被用户 / 维护者长期消费，或用户指出“不专业 / 像初级 / 示例误导”时，必须填写 `ExpertOutputQualityGate`：生产推荐路径、框架原生能力、fixture/mock/demo 边界、反模式对照和证据矩阵；不得把测试夹具或每个 route 重复声明写成生产推荐实践。
-> ⚠️ 技术方案命中产品策略、开发者体验、UX 交互、前端架构、后端领域架构、生产可用性 / SRE、API 契约、外部集成、平台生态、AI Agent 系统、数据架构、安全威胁建模、质量策略、设计系统、无障碍/国际化、增长分析或商业模型时，必须填写 `ExpertOwnerSkillGate`：ownerSkill、triggerReason、requiredFields、validationRoute、skipReason 与 V85/targeted probe；按需触发 `product-strategy`、`developer-experience-architecture`、`ux-interaction-architecture`、`frontend-architecture`、`backend-domain-architecture`、`production-readiness-sre`、`api-contract-architecture`、`external-integration-architecture`、`platform-ecosystem-architecture`、`ai-agent-system-architecture`、`data-architecture`、`security-threat-modeling`、`quality-strategy`、`design-system-architecture`、`accessibility-i18n`、`growth-analytics`、`business-model-review`；增长 / 商业为 P3 条件触发，未命中写 `N/A + skipReason`。
-> ⚠️ 分布式系统、性能工程、隐私合规或 AI 评测语义分别触发 `distributed-systems-architecture`、`performance-engineering`、`privacy-compliance-architecture`、`ai-evaluation-engineering`，同样纳入 `ExpertOwnerSkillGate` 和 V85/targeted probe。
+> ⚠️ 前端、文档、发布、数据、安全、性能、外部消费者、专家输出、规范吸纳或历史分层等跨域语义，均按 registry 触发对应 Owner；本模板不得维护版本化 Owner/Gate 名录。未触发的分组写聚合 `N/A + skipReason`。
 
 | 顺序 | 章节 | 必选 | 依赖 | 说明 |
 |:----:|------|:----:|------|------|
@@ -280,80 +275,21 @@ applyTo: .devcodex/**/requirements/**
 
 -
 
-#### CrossProjectLearnedGuards / LatestAbsorptionGuards / AbsorptionDecision / FullV1ScopeGuard / StartupPhaseTrace / spec-absorption / LayeredAbsorptionDecision / HistoricalCommonNormLayeringGate / ProactiveBetterAlternativeGate（条件）
+#### 治理 registry 与分层吸纳决策（条件）
 
-> 调研、审查、复审或方案讨论中出现“值得吸纳”的建议，必须先触发 `spec-absorption`，给出通用规范价值证明、项目独有残留剔除、DevCodex 当前消费者和 targetOwner，再给出吸纳决策和 `LayeredAbsorptionGate` / `SkillFirstAbsorptionGate` 归属判定；用户建议或确认方案前必须执行 `ProactiveBetterAlternativeGate`，若有更优路径先提出取舍，采纳用户原方案时写明独立验证依据。用户表达“第一版 / v1 / 完整首版”且存在真实消费者、发布契约或主功能验收时，必须给出完整首版边界判断；启动性能优化或 dev 日志治理必须先给出阶段化日志追踪。涉及接入状态、人工复核、翻译/正式文档边界、prompt/Hook/MCP 契约、验证范围、真实执行、benchmark 归因、产品需求来源、本机执行配置、证据留存、相邻范围、包名/发布名、性能第一、公开模块、DevCodex v2 一期路线、全工作区 data 吸纳、正式流程图、文档站视觉验收、遗漏专审、审查发现 intake、复审维度增量、使用者文档、公开用户文档维护边界、文档消费者扫描、产物链接去重、前端运行时网络探针、最终回复 active 范围、方法级泄漏压测、用户文档驱动交付链、复审清单证据化、构建产物 feature smoke、生成站点验证、公开用户路径契约、性能回归或 v2 正式方案包时，逐项填写跨项目已吸纳守门；未触发项写 `N/A + skipReason`。
+> 只有命中治理、吸纳、跨消费者或控制面语义时填写。先读取 `skills/spec-governance/gate-registry.json`，按 `gateGroup` 选择 Owner Skill；本模板不得复制 Gate 目录或 Owner 专属字段。
 
-| 项 | 当前吸纳 / 设计占位 / backlog / 拒收 | 理由 | 后续真相源 |
-|----|--------------------------------------|------|------------|
-| AbsorptionDecision | | | |
-| spec-absorption / CommonNormGeneralizationGate / AbsorptionCandidateConsumerProofGate | 候选矩阵：sourceNamespace / generalizationEvidence / projectSpecificResidue / negativeExamples / commonTrigger / targetConsumer / devcodexConsumerEvidence / targetOwner / validationRoute / decision；项目独有规则必须写 project-local 或 case-evidence-only | | |
-| LayeredAbsorptionGate / SkillFirstAbsorptionGate / CapabilityToSkillPromotionGate | LayeredAbsorptionDecision：candidateId / classification / targetSkill / triggerTerms / ownedArtifacts / layerChecks(commonInstruction / skill / promptTemplate / executionConsumer / validationProbe / publicDocs / deployCopy) / validationRoute / consumerSync；兼容 SkillAbsorptionDecision | | |
-| HistoricalCommonNormLayeringGate | 逐文件审查矩阵：file / currentRole / matchedRules / targetLayer / targetOwner / action / semanticStrength / validation / skipReason；Prompt 只写字段和引用，不复制完整 Gate 长清单 | | |
-| ProactiveBetterAlternativeGate | 用户方案 / 备选路径 / 推荐理由 / 取舍影响 / 采纳依据 | | |
-| ConfirmedAbsorptionCompletenessGates | 按 `public-surface / user-manual / review-checklist / frontend-runtime / profile-service / release-parity / evolution-control-plane` 填写触发 / N/A、目标 Skill、证据和探针；代表性 anchors：PublicSurfaceClosureGate / UserManualProductizationGate / ReviewAnchorMaterializationGate / FrontendAsyncCacheRenderGate / RemoteCIParityPushGate / NativeCommandExitCodeGate / DocsThemeRuntimeVisualProbeGate | | |
-| LatestAbsorptionExecutionPack A1~A10 | 按 `GovernanceGateRegistry` 分组填写触发 / N/A、ownerSkill、validationRoute、skipReason；anchors：ConfigCanonicalNamespaceGate / ProfileRuntimeContractSyncGate / BehaviorSemanticDocsParityGate / NegativeTranslationParityProbe / DocsExampleTruthSurfaceGate / CallbackExampleScopeProbe / DerivedMetricConsumerProbe / DerivedConsumerFailureInjectionProbe / FeatureInventoryProfileGate / FeatureChecklistEvidenceMatrixGate / BatchEvidenceLedgerStateGate / BatchProgressCardGate | | |
-| rework-prevention / contract-release-authority / configuration-ergonomics / interactive-semantics | 按 `GovernanceGateRegistry` 填写 WorkUnit/双重根因/baseline/prospective evidence；publishedState/consumerEvidence/authoritySources/decision；MinimalTaskConfig/FieldNecessityMatrix/ComplexityBudget/AdvancedCapabilityBoundary/OptionalFieldOmissionProbe；role/name/focusability/Enter-Space-Escape/focus recovery | | |
-| agent-capability-completeness / docs-audience-render-sequence / consumer-validation / module-performance-maintenance | 按 `GovernanceGateRegistry` 填写 completenessObject/domain matrix；pageRole/rendered sequence；repository binding/identity/denominators/pack/cross-repo CI/freshness；module applicability/protocol/maintenance triggers；V95 | | |
-| FullV1ScopeGuard | | | |
-| StartupPhaseTrace | 阶段命名 / Profile 或 startup summary 同步 / 减噪、lazy loading 或 background warmup 决策 | | |
-| CodeTruthRequirementGate | 代码真相源 / 消费者入口 / 运行证据 | | |
-| ManualReviewEvidenceRetention | 复核人 / 时间 / 范围 / 输入 / 观察结果 / 截图或日志位置 | | |
-| DocumentationTranslationParityGuard | 多语言 / 翻译页 / README/website 等价与顺序核对 | | |
-| FormalDocsDevCodexBoundary | 正式文档与运行时报告 / 台账 / 临时分析边界 | | |
-| LLMPromptContractTriage | 人读说明 / 模型指令 / 结构化字段 / 宿主能力边界 | | |
-| VerificationScopeBudgetGate | 风险等级 / 验证强度 / 降级或减负理由 | | |
-| LiveVerificationExecutionObligation | 已执行命令 / 页面 / 接口 / pack-install / registry-tag 查询或阻塞证据 | | |
-| FigmaHighFidelityRestorationGate / ScopedVisualChangeGate | 设计来源 / allowedScope / frozenScope / 元素分类 / 偏离理由 | | |
-| ActualPreviewChainAndMockFallbackGate / UIStateScopeRegressionGate | 真实 preview URL / API target / 路由入口 / 状态清单 / mock 排除 | | |
-| FigmaProductionAssetBudgetGate / RuntimeI18nArtifactVerificationGate | 资产尺寸体积格式 / public 路径 / 源 JSON / 构建合并产物 / runtime key 残留 | | |
-| ExplicitCommitAuthorizationGate | 用户明确授权 / 语义批次 / commit 边界 | | |
-| CompatibilityAndContractAuthorityGate | 零代码消费者兼容 / 上游合同权威 / 官方 public API 证据 / 共享库优先判断 | | |
-| UIConfirmedSourceConflictTraceGate / PublicDocsReleasedVersionGate | 旧 PRD 与新 UI 冲突表 / released-unreleased-preview 边界 | | |
-| CollectionRelationIdNamingGate / UserFacingVerificationArtifactLanguageGate | 集合实体命名依据 / 用户当前语言 / 验证产物语言 | | |
-| AdapterBenchmarkAttribution | 基线 / 环境 / 版本 / 负载 / 归因边界 / 不可比较因素 | | |
-| ProductRequirementTraceabilityGate | 来源锚点 / 提取口径 / 冲突遗漏处理 / 技术验证映射 | | |
-| LocalExecutionConfigProbe | 配置入口 / config.local 或既有脚本约定 / S02 策略 / 缺失处理 | | |
-| ManualReviewEvidenceDataRetention | 证据保存位置 / 可复核输入 / 样本范围 / 保留或不可保留原因 | | |
-| AdjacentScopeExpansionGuard | 指定范围 / 相邻扩展理由 / 影响面 / 回退边界 | | |
-| PackageNameAuthorityGate | package.json / plugin.json / registry / bin / exports / scope 证据 | | |
-| PerformanceBenchmarkFirstGate | 基线 / 环境 / 指标 / 负载 / 比较对象 / 成功阈值 | | |
-| PublicModuleDifferentiationGate | public API / 内部实现 / 示例 / 发布文件 / 消费者入口 / 历史镜像 | | |
-| V2MCPFirstPlanningGate | Intent-Gated Hosted Spec MCP / Codex-only MVP / 无本地规则正文缓存 / 非一期范围 | | |
-| WorkspaceDataAbsorptionScopeGate | `.devcodex/*/data` 命名空间 / 台账文件 / 候选编号 / 归属 / 跳过理由 | | |
-| FlowchartNodeExplanationGate | Mermaid/Nxx 节点说明 / 成功失败出口 / 异常回退 | | |
-| DocsSiteVisualAcceptanceGate | 主题 / 点击 / 动效 / reduced-motion / 代码 token / 终端 demo / TOC / 辅助导航 | | |
-| OmissionOnlyReviewGate | 已覆盖集合 / 新增覆盖 / 遗漏候选 / 排除理由 / 收敛口径 | | |
-| ReviewFindingIntakeGate | finding 来源 / 本地证据 / 设计分类 / 用户决策 / 文档实现漂移 / 测试缺口 | | |
-| ReviewDimensionDeltaGate | PreviousDimensionSet / CurrentDimensionFocus / NewDimensionRationale / RepeatedDimensionReason | | |
-| ExpertOutputQualityGate | roleBaseline / productionRecommendedPath / frameworkNativeCapability / fixtureBoundary / antiPatternContrast / evidenceMatrix | | |
-| UserPerspectiveDocsGate | 使用者路径 / 详细度 / 字段说明 / 心智负担 / 排错恢复 | | |
-| UserDocsImmediateComprehensionGate | 功能完整性 / 配置易懂性 / 首次读者即时理解 | | |
-| UserDocsPrimarySurfaceGate | targetSurface / documentLocation / primaryAudience / 首页首屏 / quick start / nav 前两组 / CTA / reference / 开发契约后置 | | |
-| PublicUserDocsMaintainerBoundaryGate | 公开用户文档 / 维护者 checklist / 内部同步清单 / 台账状态边界 | | |
-| DocsConsumerSweep | README / website / Profile / prompts / templates / examples / nav/sidebar / validate probes / 代码消费点 | | |
-| user-manual-authoring / UserFacingDeliveryChainGate / FinalUserManualFirstGate | 需求概况 / 用户最终使用文档 / 前端或 API 契约 / 技术方案对照 / 实施计划顺序 | | |
-| DocsSiteInformationArchitectureGate / UserManualFlowAndFailureGate / QueueDocsRealWorkflowGate | 文档站 IA / 用户任务流 / 成功失败恢复 / 队列或异步真实工作流 | | |
-| VerificationPlanMaterializationProbe | 验证计划章节 / 命令矩阵 / 验收标准 / 退出条件 | | |
-| SidebarPageRoleMaterializationProbe / SidebarGroupSemanticModelProbe | pageRole / sidebar group / route-label 真相源 / 相邻职责 | | |
-| ChinesePrimaryExpressionGate | 中文主干表达 / 英文标识符补充 / 流程节点中文命名 | | |
-| review-checklist / ReviewChecklistCompletenessGate / EvidenceExecutionGate / ReviewEscapeRecordGate / ChecklistStateMaterializationGate | 冻结 checklist / 逐项证据 / 实际验证 / 重复维度规避 / 状态新鲜度；若复审发现遗漏，写 escape record 的 whyMissed / prevention / checklistPatch / rerunEvidence；clean/closed 前物化 header/items/round/ledger/progress/closure 一致 snapshot | | |
-| BuiltArtifactFeatureSmokeGate / TscOutputImportProbe | 构建产物导入执行 / feature smoke / TS 输出导入探针 | | |
-| GeneratedSiteGate / ManualTocDuplicationGate / UserPathContractSweep | 生成站点产物 / TOC-sidebar-nav 去重 / 用户路径消费者同步 | | |
-| BenchmarkRegressionGuard | 基线 / 对照 / 阈值 / 回归判定 / skipReason | | |
-| ArtifactLinkSetDedupeGate | canonical path 去重 / 同名消歧 / 历史镜像或部署副本标识 | | |
-| FrontendRuntimeNetworkProbeGate | 真实 URL / console-network / failed requests / 资源 404 / API target / runtime error | | |
-| ActiveRequirementFinalResponseGate | active requirement/task/bug id / 相邻需求未切换 / 最终回复范围 | | |
-| DatabaseRecordMigrationExportGate | 记录链 / JSON / insert-upsert 脚本 / 引用完整性 / dry-run | | |
-| FrontendBrowserVerificationBudgetGate / UserSelfVerificationOverrideGate | browserVerification required/optional/N/A/user-self-verification / 替代证据 / 残余风险 | | |
-| FindingProbeMatrixGate / GuardPolicyBypassMatrixGate | finding 反证矩阵 / guard 绕过面矩阵 / 负向探针 | | |
-| MultiPhaseClosureGate / RequirementPreConfirmGate / RequirementVerdictStateSyncGate | Phase 2+ 路线 / 行为可验证 / 范围冲突 / fail-safe / 顶部状态 / 推荐结论 / 修复清单 / audit-state / sessions / SUMMARY | | |
-| SideEffectCompatibilityDocsGate / ExecutableExampleTruthProbeGate | 公开主路径旧兼容说明边界 / 示例最小执行证据 | | |
-| VisualDeviationTypeGate / DesignFramePurposeClassificationGate | 偏差类型 / Figma 参数 / 目标帧 / 排除帧 / 验收入口 | | |
-| OneOffRequirementScriptPlacementGate / VerificationCommandSideEffectGate | 脚本生命周期落点 / script 副作用分类 / 生成物扫描 | | |
-| PackageAdapterPreConfirmEvidenceGate | package/plugin/exports/bin/files/dist/registry/消费者入口证据 | | |
-| MethodLevelLeakPressureProbe | 公开方法 / 重复调用或生命周期场景 / 资源指标 / 阈值 / 清理证据 | | |
-| V2FormalSolutionPackage | CP1/CP2 包 / MCP API contract / 验证矩阵 / 回滚 / Registry / 维护站 | | |
+| gateGroup / candidateId | 触发事实 | ownerSkill | classification | ownedArtifacts | validationRoute | consumerSync | skipReason |
+|-------------------------|----------|------------|----------------|----------------|-----------------|--------------|------------|
+| | | | global-invariant / existing-skill-subgate / new-skill-required / docs-only / N/A | | | | |
+
+规范吸纳时追加 `LayeredAbsorptionDecision`，其字段以 `spec-absorption` 为准；历史规则重分层追加逐文件矩阵链接。用户已给出方向时，记录更优替代路径比较和最终采纳依据。未触发项只写一条 `N/A + skipReason`，不得逐 Gate 占位。
+
+#### StartupPhaseTrace（条件）
+
+| StartupPhaseTrace | 阶段命名 / Profile 或 startup summary 同步 / 减噪、lazy loading 或 background warmup 决策 |
+|-------------------|------------------------------------------------------------------------------------------|
+
 
 ### §2.7 最小实现与注释策略
 
@@ -430,50 +366,14 @@ applyTo: .devcodex/**/requirements/**
 
 ### §7.0 TestRoute（条件）
 
-| 字段 | 内容 |
-|------|------|
-| changeType | docs / spec / runtime / api / hook / cli / release / package / website / mixed |
-| routes | static / unit / integration / api-verification / e2e / scenario / release-dry-run / deploy-sync / validate |
-| hostVerificationMode | direct replay / fixture replay / targeted test / validate probe / N/A |
-| workspaceGuard | 单项目 / 多项目 / sticky project / workspace profile / N/A |
-| evidenceSource | validate / targeted test / fixture / direct replay / doc-only |
-| serviceLifecycle | N/A / startedByAI / userProvided；若 `startedByAI`，写 command/cwd/PID/job/port/url 与 cleanupEvidence；若保留运行，写 keepAliveReason |
-| leakRiskPressure | N/A / required / optional；命中长运行、并发、缓存/连接/监听器/定时器/流/socket/worker/订阅/组件生命周期或 PE-12 风险时必填触发依据、指标、场景、冷却窗口和通过标准 |
-| frontendExperience | N/A / required / optional；命中 `FrontendExperienceQualityGate` 时写 UI/UX 门禁、Browser/截图/Playwright/E2E/人工复核证据 |
-| highFidelityUi | N/A / required / optional；命中 Figma/截图/既有页面时写 `FigmaHighFidelityRestorationGate`、`ScopedVisualChangeGate`、插件验证链与偏离理由 |
-| actualPreviewChain | N/A / required / optional；写真实 preview URL、API target、路由入口、状态清单和 mock fallback 排除证据 |
-| frontendRuntimeNetwork | N/A / required / optional；写真实页面 console/network、failed requests、资源 404、hydration/runtime error、runtime i18n key 和 API target 证据 |
-| userPerspectiveDocs | N/A / required / optional；写使用者路径、详细度、字段/参数/状态/错误解释、心智负担和排错恢复 |
-| userFacingDeliveryChain | N/A / required / optional；写最终用户文档、前端/API 契约、技术方案对照、实施计划顺序和跳过理由 |
-| docsConsumerSweep | N/A / required / optional；写 README/website/Profile/prompts/templates/examples/nav/sidebar/validate probes/代码消费点扫描结果 |
-| reviewChecklistEvidence | N/A / required / optional；写冻结 checklist、逐项实际验证证据和重复维度规避 |
-| builtArtifactFeatureSmoke | N/A / required / optional；写构建产物导入执行、feature smoke 和 TypeScript 输出导入探针 |
-| generatedSiteVerification | N/A / required / optional；写生成站点产物、TOC/sidebar/nav 去重、链接/资产/用户路径验证 |
-| userPathContractSweep | N/A / required / optional；写 README/website/nav/sidebar/examples/templates/validate/部署副本/代码消费点同步 |
-| benchmarkRegression | N/A / required / optional；写基线、对照、阈值、运行命令和回归判定 |
-| artifactLinkDedupe | N/A / required / optional；写 canonical path 去重、同名消歧和主 ArtifactLinkSet |
-| reviewDimensionDelta | N/A / required / optional；写 PreviousDimensionSet、CurrentDimensionFocus、NewDimensionRationale、RepeatedDimensionReason |
-| postConfirmationReviewScope | N/A / light / full；写 CP 确认后轻量/全面复审判定、review-checklist 路径或 skipReason |
-| repairCollaboration | N/A / lightweight / full；写 contractState、authorizationEvidence、角色与双层字段；full 追加 finding map / handoff / independent re-review / acceptance matrix |
-| developmentDrift | N/A / required；写 allowedFirstBatch、blockedScope、driftTriggers、validationRoute、consumerSync、dirty boundary |
-| verificationPlanMaterialization | N/A / required；写验证计划章节、命令/矩阵、验收标准和退出条件 |
-| docsIaReadability | N/A / required；写 ChinesePrimaryExpressionGate、SidebarPageRoleMaterializationProbe、SidebarGroupSemanticModelProbe |
-| runtimeI18nArtifacts | N/A / required / optional；写源 JSON、构建合并产物和页面 runtime key 残留 |
-| manualReviewEvidence | N/A / required / optional；命中 `ManualReviewEvidenceRetention` 时写复核人/时间/范围/输入/观察结果/截图或日志位置 |
-| verificationScopeBudget | N/A / aligned / under-scoped / over-scoped；写风险匹配依据、降级/减负理由和残余风险 |
-| blockingLevel | 阻断 / 警告 / N/A |
-| skipReason | 未选择某验证路线时填写 |
+> TestRoute 的机器可读输入、selectors、输出和跳过字段以 `skills/test-router/test-route-schema.json` 为唯一事实源。本节只记录本方案选择结果，不复制 schema。
 
-| 类型 | 工具 | 覆盖目标 |
-|------|------|---------|
-| 静态/类型检查 | 项目自有检查命令；TS 项目无脚本时 `tsc --noEmit` | 新增或修改的定义与静态规则无错误，且不通过临时参数文件/构建产物污染仓库 |
-| 单元测试 | | |
-| 集成测试 | | |
-| 回归 | | |
-| 泄漏风险稳定性压测 | 项目既有压测/监控/测试脚本；可选 artillery/k6/autocannon/轻量采样脚本 | 仅在 `LeakRiskStabilityPressureTest` 命中时执行，验证 heap/RSS/active handles/监听器/连接数/缓存规模等指标前后对比和冷却后回落 |
-| 前端 UI / 交互体验 | Browser/截图、Playwright/E2E、人工复核或项目等价工具 | 仅在 `FrontendExperienceQualityGate` 命中时执行，验证设计来源、还原度、主题、响应式状态、用户流、反馈、输入方式、错误恢复和动效转场；Figma/截图/既有页面还原追加高保真、范围、真实 preview、状态、资产与 runtime i18n 证据 |
-| 手工 / 现场复核 | 复核记录、截图、日志、页面观察或等价证据 | 仅在 `ManualReviewEvidenceRetention` 命中时执行，保留范围、输入和观察结果 |
-| 包边界验证 | 构建完成后单独执行 `npm pack --dry-run` / package boundary check | 不与 build/benchmark/codegen 并行，files/exports/bin/dist 边界来自稳定包清单 |
+| selector | 选择理由 | 命令/目标 | 证据 | 跳过记录 |
+|----------|----------|-----------|------|----------|
+| static / unit-integration / api / runtime-e2e / package-release / profile-deploy | | | | |
+
+必须输出 `selectedRoutes / commands / evidence / skipped / residualRisk / coverageClaim`；每条跳过记录包含 `route / reason / authority / residualRisk / upgradeCondition`。领域专属证据由 registry 指向的 Owner Skill提供。
+
 
 ### §7.1 产品事实源→技术验证映射（需求验收映射）
 

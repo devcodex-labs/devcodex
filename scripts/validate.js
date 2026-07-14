@@ -80,7 +80,7 @@
  * V92 项目工程与治理闭环优化（CI/coverage/checked-command/portfolio/runtime-state/manifest/docs）
  * V93 控制面模块化边界与探针注册表
  * V94 返工预防、审查/产物信任链与发布/配置/交互 Owner 子门禁
- * V95 Agent/用户文档/跨仓消费者/模块性能完整性门禁
+ * V95~V96 完整性与剩余吸纳门禁（Agent/文档/消费者/性能/发布/批次/契约/阶段/场景）
  *
  * Exit: 0=OK, 1=error, 2=warnings only
  */
@@ -89,6 +89,7 @@
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
+const { createCanonicalAwareReader, hasValidCanonicalContract } = require('./lib/canonical-consumer-contracts')
 const crypto = require('crypto')
 const { execSync, execFileSync } = require('child_process')
 const {
@@ -107,6 +108,7 @@ const { buildGovernancePackageDeploymentChecks } = require('./lib/validate-gover
 const { buildOptimizationControlChecks } = require('./lib/validate-optimization-controls')
 const { buildReworkTrustControlChecks } = require('./lib/validate-rework-trust-controls')
 const { buildConsumerEvolutionControlChecks } = require('./lib/validate-consumer-evolution-controls')
+const { buildResidualAbsorptionControlChecks } = require('./lib/validate-residual-absorption-controls')
 const { buildGovernanceSupportChecks } = require('./lib/validate-governance-support')
 const { resolveActiveRuntimeRoot } = require('../hooks/_runtime/workspace-layout.cjs')
 
@@ -128,7 +130,7 @@ function walk(dir) {
   }
   return out
 }
-function read(p) { return fs.readFileSync(p, 'utf8') }
+const read = createCanonicalAwareReader(ROOT, p => fs.readFileSync(p, 'utf8'))
 
 function fileHash(filePath) {
   return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex')
@@ -180,12 +182,12 @@ function activePath(...segments) {
 // ── V13: template semantic probes ───────────────────────────────────────────
 function mustInclude(file, needle, label) {
   const content = read(path.join(ROOT, file))
-  if (!content.includes(needle)) err(`[V13] ${label || file} missing required text: ${needle}`)
+  if (!content.includes(needle) && !hasValidCanonicalContract(ROOT, file, content, needle)) err(`[V13] ${label || file} missing required text: ${needle}`)
 }
 
 function mustNotInclude(file, needle, label) {
   const content = read(path.join(ROOT, file))
-  if (content.includes(needle)) err(`[V13] ${label || file} contains forbidden legacy text: ${needle}`)
+  if (String(content).includes(needle)) err(`[V13] ${label || file} contains forbidden legacy text: ${needle}`)
 }
 
 const coreChecks = buildValidateCoreChecks({
@@ -291,6 +293,7 @@ const optimizationChecks = buildOptimizationControlChecks({
 const modularityChecks = buildModularityControlChecks({ ROOT, fs, path, read, err, console })
 const reworkTrustChecks = buildReworkTrustControlChecks({ ROOT, fs, path, read, err, console })
 const consumerEvolutionChecks = buildConsumerEvolutionControlChecks({ ROOT, fs, path, read, err, console })
+const residualAbsorptionChecks = buildResidualAbsorptionControlChecks({ ROOT, fs, path, read, err, console })
 
 // V29~V38 moved to scripts/lib/validate-governance-mid.js
 // V39~V57 moved to scripts/lib/validate-governance-tail.js
@@ -305,7 +308,7 @@ function checkV7b() {
   }
 }
 
-const expectedProbeIds = Array.from({ length: 95 }, (_, index) => `V${index + 1}`)
+const expectedProbeIds = Array.from({ length: 96 }, (_, index) => `V${index + 1}`)
 const probeRegistry = createProbeRegistry([
   { owner: 'core-contract', checks: Object.values(coreChecks) },
   { owner: 'package-deployment', checks: Object.values(packageChecks) },
@@ -321,7 +324,8 @@ const probeRegistry = createProbeRegistry([
   },
   { owner: 'modularity-controls', checks: Object.values(modularityChecks), dependencies: { V93: ['V19', 'V26', 'V92'] } },
   { owner: 'rework-trust-controls', checks: Object.values(reworkTrustChecks), dependencies: { V94: ['V29', 'V39', 'V73', 'V91', 'V93'] } },
-  { owner: 'consumer-evolution-controls', checks: Object.values(consumerEvolutionChecks), dependencies: { V95: ['V73', 'V85', 'V91', 'V93', 'V94'] } }
+  { owner: 'consumer-evolution-controls', checks: Object.values(consumerEvolutionChecks), dependencies: { V95: ['V73', 'V85', 'V91', 'V93', 'V94'] } },
+  { owner: 'residual-absorption-controls', checks: Object.values(residualAbsorptionChecks), dependencies: { V96: ['V73', 'V91', 'V93', 'V94', 'V95'] } }
 ], { expectedIds: expectedProbeIds })
 
 runProbeRegistry(probeRegistry, {

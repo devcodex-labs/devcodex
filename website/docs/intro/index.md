@@ -14,7 +14,7 @@ DevCodex 是通过 npm 包和 CLI 分发的 AI 开发规范注入器。它把同
 
 ## 快速开始
 
-> 版本语义：npm package 当前已发布版本是 **v1.13.0**；站内 **1.0.1** 是活动需求文档版本。当前版本仅发布到 GitHub Packages，安装需要 `read:packages` 认证。
+> 版本语义：npm package 当前已发布版本是 **v1.14.0**；站内 **1.0.1** 是活动需求文档版本。当前版本仅发布到 GitHub Packages，安装需要 `read:packages` 认证。
 
 1. 确认 Node.js >=18；按 [安装说明](https://github.com/vextjs/devcodex#5-分钟快速开始) 配置 `@vextjs:registry=https://npm.pkg.github.com` 与当前 shell 的 `NODE_AUTH_TOKEN`。
 2. 安装并在目标项目初始化三宿主规范，然后执行 status：

@@ -7,6 +7,7 @@ applyTo: .devcodex/**/reports/analysis/**
 
 > **路径**: 优先 `<任务目录>/reports/<agent>/YYYYMMDD/NN--<name>.md`；无任务上下文时回退到 `.devcodex/reports/analysis/<agent>/YYYYMMDD/NN--<name>.md`
 > **触发**: analyze 工作流完成后，由 `report/SKILL.md` 驱动生成
+> **共享基模**: `skills/report/report-schema.json` 的 baseFields + analyze overlay；治理结果按 `gateGroup / result / evidence / skipReason` 记录
 > **字段约束**: 每条建议/结论必须附五项验证（合理性 + 可实施性 + 收益 + 验证状态 + 影响范围），详见 [`17-compliance.instructions.md`](../instructions/17-compliance.instructions.md) §1 输出验证
 
 ---
@@ -46,7 +47,7 @@ applyTo: .devcodex/**/reports/analysis/**
 
 ### §3.2 技术选型
 
-```
+```text
 推荐：[方案名]
 理由：[2~3句话，聚焦关键差异]
 注意事项：[风险/限制]
@@ -54,7 +55,7 @@ applyTo: .devcodex/**/reports/analysis/**
 
 ### §3.3 可行性评估 / 根因调查
 
-```
+```text
 结论：[可行/有条件可行/不可行 | 根因链路]
 前置条件：
 风险点：
@@ -83,6 +84,24 @@ applyTo: .devcodex/**/reports/analysis/**
 | candidateId | assessmentVerdict | generalizationScope | existingRuleState | recordIntents | targetLedgers | writeRequirement | writeEvidence | verificationState | skipEvidence |
 |-------------|-------------------|---------------------|-------------------|---------------|---------------|------------------|---------------|-------------------|--------------|
 | | | | | | | | | | |
+
+### §4.3 收敛证据（CRS / PCV）
+
+> analyze 必须至少执行 3 轮；只有连续 2 轮零新增有效 finding 才可收敛。每轮先写 `CRS`，最终结论前执行 `PCV`，不得用重复同一维度制造零发现。
+
+| round | dimensionDelta | evidenceSources | newFindings | openFindings | CRS | correction |
+|------:|----------------|-----------------|------------:|-------------:|-----|------------|
+| R1 | | | | | valid / invalid | |
+| R2 | | | | | valid / invalid | |
+| R3 | | | | | valid / invalid | |
+
+| PCV 字段 | 结果 |
+|----------|------|
+| `minimumRounds` | >= 3 / failed |
+| `consecutiveZeroFindingRounds` | >= 2 / failed |
+| `claimEvidenceMatch` | passed / failed |
+| `profileTruthReconciled` | passed / N/A + skipReason |
+| `finalVerdict` | converged / not-converged |
 
 ## §5 对比矩阵（技术选型 / ComparativeResearchGate 触发时）
 

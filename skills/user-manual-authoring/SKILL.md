@@ -65,6 +65,8 @@ description: 最终用户使用文档写作规范 — 站点文档、README、qu
 - `DocsSiteInformationArchitectureGate`：文档站按受众、任务和信息类型分区，不把所有内容塞进用户手册。
 - `UserManualFlowAndFailureGate`：用户手册覆盖整体流程、关键角色、第一次成功、失败分流、排查命令和恢复/降级。
 - `QueueDocsRealWorkflowGate`：队列、任务和异步类 quick start 必须说明数据来源、批量入队、payload、handler 业务动作、失败/重试/幂等和观测。
+- `ScenarioCoverageMatrixProbe`：声称用户手册/站点“场景完整”时，为每个 in-scope 场景记录 `scenarioId / audienceGoal / topology / trigger / config / execute / expectedState / failure / recovery / observe / executableEvidence / status`；页面、关键词或作者自报 covered 不能替代逐场景证据，runtime-required 但未执行只能 partial。
+- `DurableBatchOrchestrationProbe`：队列/批处理主路径若声称持续分页、分批、多 Worker、聚合完成或崩溃恢复，必须引用 `distributed-systems-architecture` 的持久化 run 语义；一次 `addBulk`、进程内 callback 或循环伪代码不得标为完整批处理。
 - `PublicUserDocsMaintainerBoundaryGate`：公开用户文档不得混入维护者验收、内部同步清单、台账状态或发布 checklist。
 - `DocsConsumerSweep` / `UserPathContractSweep`：文档新增能力、命令、配置、导航或用户路径时，同步当前消费者。
 - `BehaviorSemanticDocsParityGate` / `NegativeTranslationParityProbe`：最终用户手册中的行为承诺、默认值、兼容路径、限制、支持/不支持、启用/禁用、同步/异步和缓存/刷新语义必须与 public API、runtime wiring、README/website、generated search 与多语言版本一致。

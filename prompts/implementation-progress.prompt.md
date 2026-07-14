@@ -1,11 +1,11 @@
 ---
 agent: agent
 description: 实施进度报告模板，用于记录多阶段实施的当前进度
-applyTo: .devcodex/**/requirements/**
+applyTo: .devcodex/**/{requirements,bugs}/**; .devcodex/**/fix/**
 ---
 # 实施进度模板
 
-> **路径**: `.devcodex/**/requirements/<中文描述>/05-实施进度.md`
+> **路径**: dev 使用 `.devcodex/**/requirements/<中文描述>/05-实施进度.md`；fix 使用当前 bug/fix 任务目录下的 `05-实施进度.md`
 > **触发**: 实施阶段中间检查点
 > ⚠️ 条件触发：任务跨多轮/多阶段、存在明确阻塞、用户要求持续跟踪、多批次执行、预计修改 ≥10 文件、控制面任务、模板-示例-校验链或部署同步联动时启用；默认前提是已存在 `04-实施计划.md`，docs/init/plan-review 等 CP3 豁免场景可使用已确认文档大纲、任务切片或 ContextHandoffCard 作为等价计划锚点。
 > ⚠️ 进度文档必须引用 ArtifactDecisionMatrix 的当前状态，说明 `05-实施进度.md` 本身为何是 `create` / `update`，以及其他关键产物的 `skip` / `N/A` 是否仍成立。

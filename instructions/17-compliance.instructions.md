@@ -2,7 +2,7 @@
 applyTo: "**"
 description: dev 模式合规检查规则，覆盖 FC/SC/RC/T、入口检查与完成验证
 priority: P4
-version: 1.13.0
+version: 1.14.0
 ---
 # 合规检查规则（17-compliance）
 
@@ -88,7 +88,7 @@ version: 1.13.0
 > 检测条件：本次为会话首条用户消息（不是后续轮次）。
 >
 > 触发动作（hook 强制 + AI 兜底，AI 不可跳过）：
-> 1. Read `.devcodex/.memory/clients/<agent>/tasks/YYYYMMDD.md`（今日）+ 昨日（如今日不存在）
+> 1. 先按 workspace layout 解析 `<active-root>`，再读取 `<active-root>/.memory/clients/<agent>/tasks/YYYYMMDD.md`（今日）+ 昨日（如今日不存在）
 > 2. 检测最末 `## 会话 NN` 的状态字段：
 >    - 显式 `状态: ✅` → 上一会话完成，正常推进
 >    - 显式 `状态: 🔄` 或状态字段缺失 → ⚠️ 触发 resume 提示
@@ -198,7 +198,8 @@ version: 1.13.0
 3. 不修复的风险是否**可接受**？→ 可接受 → 降级为 🟡 或 💡
 
 ### 🟡 改进性验证
-| V6 | 🔴 级占总问题数超 1/3 时，触发"分级标准是否过严"自检 |
+
+- **V6**：🔴 级占总问题数超 1/3 时，触发“分级标准是否过严”自检。
 
 ## 任务完成验证（T1~T9）
 

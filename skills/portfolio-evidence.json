@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "ownerSkill": "skill-lifecycle-governance",
+  "evidenceDate": "2026-07-14",
+  "defaults": {
+    "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
+    "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
+    "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
+    "conflictReviewEvidence": "scripts/test-skill-portfolio.js#explicit-conflict-review",
+    "validationProfile": [
+      "scripts/test-skill-portfolio.js",
+      "scripts/validate.js"
+    ],
+    "stateRationale": "registered source, current consumer and operational fixtures are present",
+    "promotionCriteria": "trigger precision requires real comparable work units; structural evidence alone cannot promote lifecycle state"
+  },
+  "skills": {
+    "consumer-validation-engineering": {
+      "stateRationale": "gray until independent cross-repository consumer evidence covers at least two contexts",
+      "promotionCriteria": "two independent repositories with fresh identity, artifact and CI evidence plus acceptable correction rate"
+    },
+    "rework-prevention-engineering": {
+      "stateRationale": "gray until prospective ReworkEffectivenessLoop evidence reaches its sample threshold",
+      "promotionCriteria": "prospective comparable work units demonstrate benefit, bounded false positives and a tested rollback path"
+    }
+  }
+}

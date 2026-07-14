@@ -20,6 +20,10 @@ const { buildCliInstallCommands } = require('./scripts/lib/cli-install-commands.
 const { buildCliMaintenanceCommands } = require('./scripts/lib/cli-maintenance-commands.js')
 const { createCliCommandRegistry, runCliCommand } = require('./scripts/lib/cli-command-registry.js')
 const {
+  resolveTenantSelection,
+  shouldIncludeInstructionFile
+} = require('./scripts/lib/tenant-selection.js')
+const {
   createDeploymentSession,
   writeManifestAtomic
 } = require('./scripts/lib/deployment-manifest-utils.js')
@@ -91,26 +95,26 @@ const CODEX_SOURCES = [
   { from: 'codex', to: '.codex' },
 ]
 
-function buildDeploymentDescriptors(surfaces) {
+function buildDeploymentDescriptors(surfaces, { tenantId = null } = {}) {
   const selected = new Set(surfaces)
   const descriptors = []
+  const descriptor = (surface, source, destination) => ({
+    surface,
+    source,
+    destination,
+    ...(source === 'instructions'
+      ? { fileFilter: relative => shouldIncludeInstructionFile(relative, tenantId) }
+      : {})
+  })
   if (selected.has('copilot')) {
-    descriptors.push(...SOURCES.map(item => ({
-      surface: 'copilot',
-      source: item.from,
-      destination: path.join('.github', item.to)
-    })))
+    descriptors.push(...SOURCES.map(item => descriptor('copilot', item.from, path.join('.github', item.to))))
     descriptors.push(
       { surface: 'copilot', source: 'RULES.md', destination: path.join('.github', 'RULES.md') },
       { surface: 'copilot', source: 'instructions.md', destination: path.join('.github', 'copilot-instructions.md') }
     )
   }
   if (selected.has('claude')) {
-    descriptors.push(...CLAUDE_SOURCES.map(item => ({
-      surface: 'claude',
-      source: item.from,
-      destination: path.join('.claude', item.to)
-    })))
+    descriptors.push(...CLAUDE_SOURCES.map(item => descriptor('claude', item.from, path.join('.claude', item.to))))
     descriptors.push({ surface: 'claude', source: 'instructions.md', destination: 'CLAUDE.md' })
   }
   if (selected.has('codex')) {
@@ -124,7 +128,7 @@ function buildDeploymentDescriptors(surfaces) {
   return descriptors
 }
 
-function beginManagedDeployment(cwd, surfaces) {
+function beginManagedDeployment(cwd, surfaces, { tenantId = null } = {}) {
   const runtimeRoot = resolveActiveRuntimeRoot(cwd)
   const manifestFile = path.join(runtimeRoot, 'managed', 'deployment-manifest.json')
   const packageJson = readJsonFile(path.join(PKG_ROOT, 'package.json')) || {}
@@ -132,7 +136,7 @@ function beginManagedDeployment(cwd, surfaces) {
     packageRoot: PKG_ROOT,
     targetRoot: cwd,
     manifestFile,
-    descriptors: buildDeploymentDescriptors(surfaces),
+    descriptors: buildDeploymentDescriptors(surfaces, { tenantId }),
     packageName: packageJson.name || '@vextjs/devcodex',
     packageVersion: packageJson.version || 'unknown'
   })
@@ -370,7 +374,8 @@ const { cmdInit, cmdInitClaude, cmdInitCodex } = buildCliInstallCommands({
   writeManagedJsonFile, normalizeStringArray, mergeUniqueStringArrays,
   mergeClaudeHooks, mergeClaudeMcpConfig,
   ensureRuntimeDirs, ensureDevCodexGitignore, walkDir,
-  resolveActiveRuntimeRoot, resolveGitignoreRoot, getLegacyCounts, isPlainObject
+  resolveActiveRuntimeRoot, resolveGitignoreRoot, getLegacyCounts, isPlainObject,
+  resolveTenantSelection, shouldIncludeInstructionFile
 })
 
 // ─── Codex init ───────────────────────────────────────────────────────────────

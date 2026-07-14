@@ -2,6 +2,10 @@
 
 const { readManifest, verifyManifest } = require('./deployment-manifest-utils')
 
+function shouldCheckBaseDeploymentSource(relativePath) {
+  return !String(relativePath).replace(/\\/g, '/').startsWith('instructions/tenants/')
+}
+
 function findSourceRootHostDeployments(root, fsImpl, pathImpl, walkFn) {
   const candidates = [
     { label: 'source-root CLAUDE.md', target: pathImpl.join(root, 'CLAUDE.md') },
@@ -252,6 +256,7 @@ function buildGovernancePackageDeploymentChecks(ctx) {
     for (const dir of ['instructions', 'skills', 'prompts']) {
       for (const file of walk(path.join(ROOT, dir)).filter(file => file.endsWith('.md'))) {
         const rel = path.relative(ROOT, file).replace(/\\/g, '/')
+        if (!shouldCheckBaseDeploymentSource(rel)) continue
         addPair(rel)
       }
     }
@@ -414,4 +419,8 @@ function buildGovernancePackageDeploymentChecks(ctx) {
   }
 }
 
-module.exports = { buildGovernancePackageDeploymentChecks, findSourceRootHostDeployments }
+module.exports = {
+  buildGovernancePackageDeploymentChecks,
+  findSourceRootHostDeployments,
+  shouldCheckBaseDeploymentSource
+}

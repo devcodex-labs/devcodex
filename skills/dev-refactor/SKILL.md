@@ -18,7 +18,7 @@ description: 重构子类型规范 — 测试覆盖前置确认 + 三段式重�
 
 ## 执行流程
 
-```
+```text
 CP1（范围确认）→ CP2（方案确认）→ [plan-review] → [impact-review] → CP3（计划确认）→ 执行
 ```
 

@@ -138,7 +138,7 @@ function buildGovernanceQualityChecks(ctx) {
       'prompts/report-audit.prompt.md',
       'README.md'
     ]) {
-      if (read(path.join(ROOT, file)).includes(stalePhrase)) {
+      if (String(read(path.join(ROOT, file))).includes(stalePhrase)) {
         err(`[V57] review coverage delta stale wording in ${file}: "${stalePhrase}"`)
       }
     }

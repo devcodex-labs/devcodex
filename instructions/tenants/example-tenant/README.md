@@ -12,7 +12,9 @@ applyTo: "**"
 ## 使用方式
 
 1. 复制 `example-tenant/` 为你自己的租户目录名
-2. 按需修改其中的 `*.instructions.md`
-3. 保留 frontmatter，并让 `applyTo` 与你的宿主加载规则保持一致
+2. 将新 ID 和目录登记到 `../manifest.json`
+3. 按需修改其中的 `*.instructions.md`
+4. 保留 frontmatter，并让 `applyTo` 与你的宿主加载规则保持一致
+5. 使用 `devcodex init|update --tenant <tenant-id>` 显式部署
 
 > ⚠️ 本目录默认不会自动生效，只有当宿主/项目明确选择对应 tenant-id 时才会进入 P3 租户覆盖层。

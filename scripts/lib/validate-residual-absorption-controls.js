@@ -1,0 +1,153 @@
+'use strict'
+
+function classifyReleaseEfficiencySample(sample) {
+  if (!sample.candidateFrozen || !sample.candidateIdentity || !sample.evidenceDependencyGraph) return 'unfrozen'
+  if (sample.budgetMode === 'blocking' && (!sample.budgetAuthority || !sample.baselineComparable)) return 'invalid-budget'
+  if (sample.mutationAfterFreeze && (!sample.generationAdvanced || !sample.dependentEvidenceStale)) return 'stale'
+  if (sample.reuseRequested && (!sample.identityMatch || !sample.commandMatch || !sample.environmentMatch ||
+      !sample.artifactMatch || !sample.fresh || !sample.dependencyCovered)) return 'invalid-reuse'
+  const threshold = Number.isInteger(sample.resetThreshold) ? sample.resetThreshold : 3
+  if (sample.overBudget || (sample.resetCount || 0) >= threshold) {
+    return sample.incidentCreated ? 'accepted-with-incident' : 'incident-required'
+  }
+  return 'accepted'
+}
+
+function classifyIsolatedConsumerCwdSample(sample) {
+  if (!sample.explicitConsumerManifest || !sample.consumerCwdBound ||
+      !sample.sourceIdentityBefore || !sample.sourceIdentityAfter) return 'incomplete'
+  if (sample.usedNpmInitPrefix || !sample.commandCwdMatchesConsumer) return 'unsafe'
+  if (sample.sourceMutationObserved || sample.sourceIdentityBefore !== sample.sourceIdentityAfter) return 'contaminated'
+  return 'accepted'
+}
+
+function classifyBatchScopeRebindSample(sample) {
+  if (!sample.phaseTotalScope || !sample.allowedFirstBatch || !sample.actualTargetSet ||
+      !sample.blockedScope || !sample.dirtyBoundary) return 'incomplete'
+  if (!sample.currentBatchOnly || sample.blockedScopeTouched || !sample.rollbackAuthorized) return 'blocked'
+  if (sample.validationConsumerAdded && (!sample.allowedPathsRebound || !sample.testRouteRebound ||
+      !sample.consumerScopeRebound || !sample.regressionMatrixRebound || !sample.deployCopiesRebound)) return 'blocked'
+  return 'pass'
+}
+
+function classifyContractMutationSample(sample) {
+  if (!sample.applicable) return 'not-applicable'
+  if (!sample.variantIsolationExecuted || !sample.completionDeletionExecuted ||
+      !sample.schemaSemanticParity || !sample.docsRuntimeParity) return 'partial'
+  if (sample.siblingFieldAccepted || sample.missingCompletionEvidenceAccepted) return 'escaped'
+  return 'pass'
+}
+
+function classifyPhaseDeliverySample(sample) {
+  const kinds = ['planning-only', 'design-ready', 'implementation', 'release']
+  if (!kinds.includes(sample.phaseKind) || !sample.originalIntentTraced ||
+      !sample.planningCoverageExplicit || !sample.sourceDeliveryExplicit ||
+      !sample.entryExitAligned || !sample.confirmationAligned || !sample.closeRule) return 'inconsistent'
+  if (sample.phaseKind === 'planning-only' && sample.sourceDeliveryClaimed) return 'inconsistent'
+  return 'pass'
+}
+
+const scenarioFields = ['scenarioId', 'audienceGoal', 'topology', 'trigger', 'config', 'execute',
+  'expectedState', 'failure', 'recovery', 'observe', 'executableEvidence', 'status']
+
+function classifyScenarioCoverageSample(sample) {
+  if (!Array.isArray(sample.scenarios)) return 'partial'
+  const applicable = sample.scenarios.filter(item => item.inScope)
+  if (!applicable.length) return 'not-applicable'
+  for (const item of applicable) {
+    if (scenarioFields.some(field => !item[field])) return 'partial'
+    if (item.runtimeRequired && item.status === 'complete' && !item.runtimeExecuted) return 'false-complete'
+  }
+  return applicable.every(item => item.status === 'complete') ? 'complete' : 'partial'
+}
+
+function classifyDurableBatchSample(sample) {
+  if (!sample.applicable) return 'not-applicable'
+  const fields = ['sourceExhaustion', 'persistentCheckpoint', 'boundedPacing', 'atomicAggregation',
+    'durableCompletion', 'coordinatorRecovery', 'workerRecovery', 'backpressure', 'replayEvidence']
+  return fields.every(field => sample[field] === true) ? 'accepted' : 'partial'
+}
+
+function buildResidualAbsorptionControlChecks(ctx) {
+  const { ROOT, fs, path, read, err, console } = ctx
+
+  function expect(actual, expected, label) {
+    if (actual !== expected) err(`[V96] ${label}: expected ${expected}, got ${actual}`)
+  }
+
+  function checkFile(file, needles) {
+    const absolute = path.join(ROOT, file)
+    if (!fs.existsSync(absolute)) {
+      err(`[V96] missing required artifact: ${file}`)
+      return
+    }
+    const content = read(absolute)
+    for (const needle of needles) if (!content.includes(needle)) err(`[V96] ${file} missing "${needle}"`)
+  }
+
+  function checkV96() {
+    expect(classifyReleaseEfficiencySample({ candidateFrozen: true, candidateIdentity: 'sha', evidenceDependencyGraph: true, budgetMode: 'blocking', budgetAuthority: false, baselineComparable: false }), 'invalid-budget', 'release invented budget negative')
+    expect(classifyReleaseEfficiencySample({ candidateFrozen: true, candidateIdentity: 'sha', evidenceDependencyGraph: true, budgetMode: 'advisory', reuseRequested: true, identityMatch: true, commandMatch: true, environmentMatch: true, artifactMatch: true, fresh: true, dependencyCovered: true }), 'accepted', 'release reuse positive')
+    expect(classifyReleaseEfficiencySample({ candidateFrozen: true, candidateIdentity: 'sha', evidenceDependencyGraph: true, budgetMode: 'advisory', mutationAfterFreeze: true, generationAdvanced: false, dependentEvidenceStale: false }), 'stale', 'release generation negative')
+    const isolatedConsumer = { explicitConsumerManifest: true, consumerCwdBound: true, sourceIdentityBefore: 'tree', sourceIdentityAfter: 'tree', usedNpmInitPrefix: false, commandCwdMatchesConsumer: true, sourceMutationObserved: false }
+    expect(classifyIsolatedConsumerCwdSample(isolatedConsumer), 'accepted', 'isolated consumer cwd positive')
+    expect(classifyIsolatedConsumerCwdSample({ ...isolatedConsumer, usedNpmInitPrefix: true }), 'unsafe', 'npm init prefix negative')
+    expect(classifyIsolatedConsumerCwdSample({ ...isolatedConsumer, sourceIdentityAfter: 'changed', sourceMutationObserved: true }), 'contaminated', 'consumer source mutation negative')
+
+    const batch = { phaseTotalScope: true, allowedFirstBatch: true, actualTargetSet: true, blockedScope: true, dirtyBoundary: true, currentBatchOnly: true, blockedScopeTouched: false, rollbackAuthorized: true }
+    expect(classifyBatchScopeRebindSample(batch), 'pass', 'batch positive')
+    expect(classifyBatchScopeRebindSample({ ...batch, validationConsumerAdded: true, allowedPathsRebound: true, testRouteRebound: false }), 'blocked', 'consumer rebind negative')
+
+    expect(classifyContractMutationSample({ applicable: true, variantIsolationExecuted: true, completionDeletionExecuted: true, schemaSemanticParity: true, docsRuntimeParity: true, siblingFieldAccepted: true, missingCompletionEvidenceAccepted: false }), 'escaped', 'variant injection negative')
+    expect(classifyContractMutationSample({ applicable: true, variantIsolationExecuted: true, completionDeletionExecuted: true, schemaSemanticParity: true, docsRuntimeParity: true, siblingFieldAccepted: false, missingCompletionEvidenceAccepted: false }), 'pass', 'contract mutation positive')
+
+    expect(classifyPhaseDeliverySample({ phaseKind: 'planning-only', originalIntentTraced: true, planningCoverageExplicit: true, sourceDeliveryExplicit: true, entryExitAligned: true, confirmationAligned: true, closeRule: true, sourceDeliveryClaimed: true }), 'inconsistent', 'phase planning delivery negative')
+    expect(classifyPhaseDeliverySample({ phaseKind: 'implementation', originalIntentTraced: true, planningCoverageExplicit: true, sourceDeliveryExplicit: true, entryExitAligned: true, confirmationAligned: true, closeRule: true, sourceDeliveryClaimed: true }), 'pass', 'phase positive')
+
+    const scenario = { inScope: true, scenarioId: 'S1', audienceGoal: 'ship', topology: 'worker', trigger: 'input', config: 'cfg', execute: 'run', expectedState: 'done', failure: 'crash', recovery: 'resume', observe: 'trace', executableEvidence: 'test', status: 'complete', runtimeRequired: true, runtimeExecuted: true }
+    expect(classifyScenarioCoverageSample({ scenarios: [scenario] }), 'complete', 'scenario positive')
+    expect(classifyScenarioCoverageSample({ scenarios: [{ ...scenario, runtimeExecuted: false }] }), 'false-complete', 'scenario runtime false complete')
+    expect(classifyDurableBatchSample({ applicable: true, sourceExhaustion: true, persistentCheckpoint: true, boundedPacing: true, atomicAggregation: true, durableCompletion: true, coordinatorRecovery: true, workerRecovery: true, backpressure: true, replayEvidence: false }), 'partial', 'durable replay negative')
+    expect(classifyDurableBatchSample({ applicable: true, sourceExhaustion: true, persistentCheckpoint: true, boundedPacing: true, atomicAggregation: true, durableCompletion: true, coordinatorRecovery: true, workerRecovery: true, backpressure: true, replayEvidence: true }), 'accepted', 'durable positive')
+
+    const required = [
+      ['skills/release-verification/SKILL.md', ['CandidateFreezeGate', 'ReleaseCriticalPathBudgetGate', 'ValidationEvidenceReuseGate', 'ReleaseReworkIncidentGate', 'IsolatedConsumerCwdGate', 'npm init --prefix']],
+      ['skills/audit-release/SKILL.md', ['CandidateFreezeGate', 'ValidationEvidenceReuseGate']],
+      ['skills/execution-contract/SKILL.md', ['CurrentBatchScopeDiffProbe', 'NewValidationConsumerRebindProbe', 'ValidationConsumerRebindMatrix']],
+      ['skills/api-contract-architecture/SKILL.md', ['ContractVariantIsolationMutationGate', 'CompletionEvidenceDeletionMatrix']],
+      ['skills/quality-strategy/SKILL.md', ['ContractMutationCoverageGate', 'schema-semantic parity']],
+      ['skills/audit-requirements/SKILL.md', ['PhaseDeliverySemanticGate', 'OriginalIntentReverseTraceProbe']],
+      ['skills/review-checklist/SKILL.md', ['PhaseDeliverySemanticGate', 'ReleaseEfficiencyControlGate']],
+      ['skills/user-manual-authoring/SKILL.md', ['ScenarioCoverageMatrixProbe', 'DurableBatchOrchestrationProbe']],
+      ['skills/audit-user-manual/SKILL.md', ['ScenarioCoverageMatrixProbe', 'DurableBatchOrchestrationProbe']],
+      ['skills/distributed-systems-architecture/SKILL.md', ['DurableBatchOrchestrationProbe', '持久化 cursor/checkpoint']],
+      ['skills/spec-governance/gate-registry.json', ['release-efficiency', 'batch-scope-rebinding', 'contract-mutation-isolation', 'phase-delivery-semantics', 'scenario-durable-workflow']],
+      ['skills/report/report-schema.json', ['ReleaseEfficiencyControl', 'ConsumerValidationEngineering']],
+      ['README.md', ['ReleaseEfficiencyControlGate', 'IsolatedConsumerCwdGate', 'ScenarioCoverageMatrixProbe', 'DesignFitnessGate', 'V96']],
+      ['website/docs/guide/development.md', ['CurrentBatchScopeDiffProbe', 'ContractVariantIsolationMutationGate', 'PhaseDeliverySemanticGate', 'ScenarioCoverageMatrixProbe', 'DesignFitnessGate', 'V96']],
+      ['website/docs/guide/release.md', ['CandidateFreezeGate', 'ReleaseCriticalPathBudgetGate', 'ValidationEvidenceReuseGate', 'IsolatedConsumerCwdGate']]
+    ]
+    for (const [file, needles] of required) checkFile(file, needles)
+
+    const pkg = JSON.parse(read(path.join(ROOT, 'package.json')))
+    const changelogFiles = ['changelogs/unreleased.md', `changelogs/releases/v${pkg.version}.md`]
+    const changelog = changelogFiles.filter(file => fs.existsSync(path.join(ROOT, file))).map(file => read(path.join(ROOT, file))).join('\n')
+    for (const needle of ['CandidateFreezeGate', 'IsolatedConsumerCwdGate', 'DesignFitnessGate', 'V96']) {
+      if (!changelog.includes(needle)) err(`[V96] current changelog corpus missing "${needle}"`)
+    }
+    console.log('[V96] residual absorption release/batch/contract/phase/scenario controls checked')
+  }
+
+  return { checkV96 }
+}
+
+module.exports = {
+  buildResidualAbsorptionControlChecks,
+  classifyBatchScopeRebindSample,
+  classifyContractMutationSample,
+  classifyDurableBatchSample,
+  classifyIsolatedConsumerCwdSample,
+  classifyPhaseDeliverySample,
+  classifyReleaseEfficiencySample,
+  classifyScenarioCoverageSample
+}

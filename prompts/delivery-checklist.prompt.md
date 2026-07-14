@@ -32,7 +32,9 @@ applyTo: .devcodex/**/requirements/**
 | 3 | 关键决策 | 多轮确认、范围变更、方案取舍、用户明确决策或与技术方案存在约束传递时，创建/更新 `06-关键决策.md` | ☐/N/A |
 | 4 | Impact Review 报告 | PR-5② 跨模块架构依赖变更 | ☐/N/A |
 | 5 | 数据库 Migration 文件 | 有 Schema 变更 | ☐/N/A |
-| 6 | CHANGELOG 更新 | 任何源码/配置文件变更 | ☐ |
+| 6 | 未发布变更日志 | 用户可见行为、公开契约、CLI/Hook/API/config schema、维护者工作流或已确认的未发布实现发生变化时更新 `changelogs/unreleased.md`；纯内部重构、测试补强或无可见语义变化可 `N/A + skipReason` | ☐/N/A |
+| 6a | 活跃需求版本日志 | 需求/规格或活动版本产品事实变化时更新 `website/docs/versions/v1/<active-version>/CHANGELOG.md`；仅实现既有需求可 N/A | ☐/N/A |
+| 6b | 正式发布日志 | 仅用户明确授权 release 时更新根 `CHANGELOG.md` 与 `changelogs/releases/vX.Y.Z.md`；未授权发布必须 N/A | ☐/N/A |
 | 7 | README 更新 | 有安装步骤/API/配置变更 | ☐/N/A |
 | 8 | .env.example 更新 | 有新增/修改/删除环境变量 | ☐/N/A |
 | 9 | ExecutionContract | Auto / 控制面 / 多批次 / 预计修改 ≥10 文件 / release 前置任务 | ☐/N/A |

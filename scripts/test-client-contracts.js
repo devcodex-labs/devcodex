@@ -3,6 +3,7 @@
 
 const fs = require('fs')
 const path = require('path')
+const { hasValidCanonicalContract } = require('./lib/canonical-consumer-contracts')
 
 const ROOT = path.resolve(__dirname, '..')
 const failures = []
@@ -12,7 +13,8 @@ function read(file) {
 }
 
 function mustInclude(file, needle) {
-  if (!read(file).includes(needle)) failures.push(`${file} missing "${needle}"`)
+  const content = read(file)
+  if (!content.includes(needle) && !hasValidCanonicalContract(ROOT, file, content, needle)) failures.push(`${file} missing "${needle}"`)
 }
 
 function mustMatch(file, pattern, label) {

@@ -24,7 +24,26 @@ function classifyConsumerValidationSample(sample) {
   if (sample.driftDetected) return 'stale'
   const denominators = Array.isArray(sample.denominators) ? sample.denominators.filter(item => item.applicable) : []
   if (!denominators.length || denominators.some(item => item.state !== 'accepted')) return 'partial'
+  if (sample.designFitnessApplicable && classifyDesignFitnessSample(sample.designFitness) !== 'accepted') return 'partial'
   return 'accepted'
+}
+
+function classifyDesignFitnessSample(sample) {
+  if (!sample || !Array.isArray(sample.features)) return 'partial'
+  const applicable = sample.features.filter(item => item.applicable)
+  if (!applicable.length) return 'not-applicable'
+  const required = ['userTask', 'recommendedPath', 'defaults', 'configurationLayering', 'frameworkConvention',
+    'publicSurface', 'lifecycle', 'composition', 'compatibilityAuthority', 'maintenanceCost', 'evidence']
+  return applicable.every(item => required.every(field => item[field] === true) && item.decision === 'accepted')
+    ? 'accepted' : 'partial'
+}
+
+function classifyValidationFindingRepairSample(sample) {
+  if (!sample || !sample.findingBound || !sample.authorizedRepair || !sample.oldEvidenceStale ||
+      !sample.newIdentityFrozen || !sample.failedProbeRerun || !sample.peerBoundaryRerun ||
+      !sample.impactRegressionRerun || !sample.beforeAfterFresh) return 'incomplete'
+  if (sample.fullConsumerRequired && !sample.fullConsumerRerun) return 'incomplete'
+  return 'closed'
 }
 
 function classifyModulePerformanceSample(sample) {
@@ -66,11 +85,15 @@ function buildConsumerEvolutionControlChecks(ctx) {
     expect(classifyDocsAudienceSequenceSample({ generatedEvidence: true, pageRolesComplete: true, firstScreenCurrentUser: true, firstTwoSidebarCurrentUser: true, quickStartDistance: 1, quickStartBudget: 2, manualTocOutlineDuplicates: 0 }), 'pass', 'docs rendered positive')
     expect(classifyConsumerValidationSample({ repositoryBinding: true, identityFresh: true, artifactFresh: true, dependencyResolution: true, packedArtifact: false, crossRepositoryCI: true, denominators: [] }), 'partial', 'realpath-only negative')
     expect(classifyConsumerValidationSample({ repositoryBinding: true, identityFresh: true, artifactFresh: true, dependencyResolution: true, packedArtifact: true, crossRepositoryCI: true, denominators: ['feature', 'scenario', 'adapter', 'impact', 'performance', 'release'].map(id => ({ id, applicable: true, state: 'accepted' })) }), 'accepted', 'consumer positive')
+    expect(classifyDesignFitnessSample({ features: [{ applicable: true, userTask: true, recommendedPath: true, defaults: true, configurationLayering: true, frameworkConvention: true, publicSurface: true, lifecycle: true, composition: true, compatibilityAuthority: true, maintenanceCost: false, evidence: true, decision: 'accepted' }] }), 'partial', 'design fitness maintenance negative')
+    expect(classifyDesignFitnessSample({ features: [{ applicable: true, userTask: true, recommendedPath: true, defaults: true, configurationLayering: true, frameworkConvention: true, publicSurface: true, lifecycle: true, composition: true, compatibilityAuthority: true, maintenanceCost: true, evidence: true, decision: 'accepted' }] }), 'accepted', 'design fitness positive')
+    expect(classifyValidationFindingRepairSample({ findingBound: true, authorizedRepair: true, oldEvidenceStale: false, newIdentityFrozen: true, failedProbeRerun: true, peerBoundaryRerun: true, impactRegressionRerun: true, beforeAfterFresh: true }), 'incomplete', 'repair loop stale negative')
+    expect(classifyValidationFindingRepairSample({ findingBound: true, authorizedRepair: true, oldEvidenceStale: true, newIdentityFrozen: true, failedProbeRerun: true, peerBoundaryRerun: true, impactRegressionRerun: true, beforeAfterFresh: true }), 'closed', 'repair loop positive')
     expect(classifyModulePerformanceSample({ features: [{ applicable: true, workload: true, budget: true, immutableBaseline: true, candidateComparison: true, capacity: false, resource: true, recovery: true, state: 'accepted' }], maintenanceTriggers: true, evidenceGovernance: true }), 'partial', 'single benchmark negative')
     expect(classifyModulePerformanceSample({ features: [{ applicable: true, workload: true, budget: true, immutableBaseline: true, candidateComparison: true, capacity: true, resource: true, recovery: true, state: 'accepted' }], maintenanceTriggers: true, evidenceGovernance: true }), 'accepted', 'module performance positive')
 
     const required = [
-      ['skills/consumer-validation-engineering/SKILL.md', ['ConsumerValidationEngineeringGate', 'ValidationDenominatorMatrix', 'CrossRepoCI', 'gray']],
+      ['skills/consumer-validation-engineering/SKILL.md', ['ConsumerValidationEngineeringGate', 'ValidationDenominatorMatrix', 'CrossRepoCI', 'DesignFitnessGate', 'ValidationFindingRepairLoop', 'gray']],
       ['skills/consumer-validation-engineering/agents/openai.yaml', ['$consumer-validation-engineering', 'Cross-repository consumer validation']],
       ['skills/ai-agent-system-architecture/SKILL.md', ['AgentCapabilityDomainCompletenessGate', 'enterprise-saas']],
       ['skills/audit-user-manual/SKILL.md', ['DocsAudienceRoleAndRenderedSequenceProbe', 'quick start']],
@@ -79,6 +102,8 @@ function buildConsumerEvolutionControlChecks(ctx) {
       ['skills/quality-strategy/SKILL.md', ['ExternalConsumerValidationConfidenceGate', 'consumerValidationConfidence']],
       ['skills/test-router/SKILL.md', ['externalConsumerValidation', 'agentCapabilityCompleteness', 'modulePerformanceMaintenance']],
       ['skills/release-verification/SKILL.md', ['ConsumerValidationEngineeringGate', 'cross-repo']],
+      ['skills/review-checklist/SKILL.md', ['ConsumerDesignFitnessRepairGate', 'ValidationFindingRepairLoop']],
+      ['skills/report/report-schema.json', ['ConsumerValidationEngineering', 'design fitness']],
       ['skills/report/SKILL.md', ['AgentCapabilityDomainCompletenessGate', 'ConsumerValidationEngineeringGate']],
       ['skills/spec-governance/SKILL.md', ['agent-capability-completeness', 'docs-audience-render-sequence', 'consumer-validation', 'module-performance-maintenance']],
       ['skills/dev-plan-review/SKILL.md', ['AgentCapabilityDomainCompletenessGate', 'ConsumerValidationEngineeringGate', 'V95']],
@@ -113,6 +138,8 @@ module.exports = {
   buildConsumerEvolutionControlChecks,
   classifyAgentCompletenessSample,
   classifyConsumerValidationSample,
+  classifyDesignFitnessSample,
   classifyDocsAudienceSequenceSample,
-  classifyModulePerformanceSample
+  classifyModulePerformanceSample,
+  classifyValidationFindingRepairSample
 }

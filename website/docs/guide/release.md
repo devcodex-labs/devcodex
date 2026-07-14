@@ -84,7 +84,7 @@ DevCodex 采用“双阶段发布 + 三层日志”：
   3. 更新根 `CHANGELOG.md`
   4. 更新 `package.json` / `plugin.json`
   5. 执行 `audit-release` 发布前审查（RL-1~RL-10），确认 release readiness、兼容/迁移风险、包元数据、文档/Profile/website 同步、回滚与 registry/tag 风险
-  6. 执行 ReleaseVerification R0~R7（含 R3c：如存在远端 CI，确认目标 commit 对应远端 CI 绿色）
+  6. 执行 ReleaseVerification R0~R7；qualification 前执行 `CandidateFreezeGate`，远端 CI 前后执行 `ReleaseCriticalPathBudgetGate` 与 `ValidationEvidenceReuseGate`
   7. commit / tag / publish
 
 > 旧日志不要求迁移；本规则只约束新变更。
@@ -108,15 +108,19 @@ DevCodex 采用“双阶段发布 + 三层日志”：
    - `RL-4~RL-6`：package/plugin 元数据完整性、包边界与安装面、README/website/Profile 消费链同步
    - `RL-7~RL-10`：验证准备度、回滚恢复、registry/token 安全与发布后验收
 7. 按 `release-verification` Skill 执行 R0~R7：
+   - `R2a`：执行 `CandidateFreezeGate`，冻结 candidate identity/generation、授权 scope、允许 mutation class 与 evidence dependency graph；冻结后非 P0/P1、非发布阻断治理项进入下一版本
    - `R3`：执行 `npm test`（默认全链）
    - `R3a`：执行 `CandidateDiffCompletenessGate`；清点 tracked/untracked 后物化 staged candidate snapshot，再执行 `git diff --cached --check`、name-status 复核、按项目策略的 secret-shape scan 与 intended scope 对账。普通 `git diff --check` 不覆盖未跟踪文件，不能替代本门禁
    - `R3b`：执行 `npm run test:audit` + package completeness gate（`description`、`keywords`、`repository`、`homepage`、`bugs`、`license`、`files/exports/bin`、`publishConfig`、`engines`、`plugin.json`）；package boundary check 必须在 build / benchmark / codegen 完成后单独串行执行；公开打包脚本必须执行 `PackagedScriptDependencyClosureGate`，递归核对本地 helper、spawn 目标脚本和运行时依赖进入 tarball
+   - `R5`：pack/install smoke 执行 `IsolatedConsumerCwdGate`；先创建或核验显式 consumer `package.json`，再把每个 npm 命令的真实 cwd 切到 consumer，并比较 source candidate identity/dirty/staged 前后状态。`npm init --prefix` 或仅传 `--prefix` 不算 cwd 隔离
    - GitHub Packages 发布链中，`test:audit` 必须显式使用 `https://registry.npmjs.org` 作为 audit registry，避免 publish dry-run / prepublishOnly 继承 GitHub Packages 的非审计端点；这不等于跳过审计
    - `R3c`：若项目存在远端 CI，确认目标 commit 对应远端 CI 绿色；无 CI 或无权限查询时必须写 `N/A + skipReason`，不得把本地测试冒充远端 CI
+   - `R3d`：执行 `ReleaseCriticalPathBudgetGate` 与 `ValidationEvidenceReuseGate`。预算来自 Profile 或可比较历史；无基线时只能 advisory。证据复用必须保持 immutable SHA、命令/环境、artifact digest、freshness 和 dependency graph 等价；version、pack、registry、publish exitCode、R7 永不复用省略
+   - 超预算、candidate generation 多次重置或同一 blocker 重复逃逸时创建 `ReleaseReworkIncident`，冻结 scope 后按失效依赖重跑；本次修复通过不代表长期返工率已改善
    - `R4`：执行 `npm pack --dry-run` 与 `npm publish --dry-run`
    - `R5~R7`：按需做 install smoke、tag/publish 前确认与发布后验收
 
-> v1.13.0 的 `publishConfig` 指向 GitHub Packages restricted 通道；`release:dry-run:npmjs` / `release:dry-run:github` 继续保留为多目标发布前诊断工具，但当前版本只授权和验收 GitHub Packages。真实发布仍必须完成 package ownership / publisher / auth topology、目标提交远端 CI 与目标 registry 后验收；dry-run 通过不能替代真实发布证据。
+> v1.14.0 的 `publishConfig` 指向 GitHub Packages restricted 通道；`release:dry-run:npmjs` / `release:dry-run:github` 继续保留为多目标发布前诊断工具，但当前版本只授权和验收 GitHub Packages。真实发布仍必须完成 package ownership / publisher / auth topology、目标提交远端 CI 与目标 registry 后验收；dry-run 通过不能替代真实发布证据。
 
 > 对 scoped package，`.npmrc` 的 `@scope:registry` 会优先影响目标解析；每个实际目标的 view、whoami、dry-run、publish 与发布后查询都必须执行 `ScopedRegistryResolutionGate`，用隔离 userconfig 或显式 `--@scope:registry=<target>` 绑定目标。存在多个目标时必须独立取证；未列入本次发布范围的 registry 记录为 `N/A + scopeDecision`，不得伪报已发布。
 

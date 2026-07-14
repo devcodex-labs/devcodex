@@ -2,7 +2,7 @@
 applyTo: "**"
 description: PC4 规范雷达规则，覆盖规范缺口感知、三轴诊断与治理前置信号
 priority: P4
-version: 1.13.0
+version: 1.14.0
 ---
 # 规范雷达（18-spec-radar）
 
@@ -22,7 +22,7 @@ version: 1.13.0
 
 > ⛔ PC4 不是"验证 AI 是否遵守规范"，而是"检测规范本身是否存在缺陷"。两者的诊断对象完全不同。
 
-> **设计原则：记录在使用，修复在维护** — PC4 在所有项目/所有工作流中只负责感知并记录；具体写入前必须先走 `spec-governance` 的记录意图识别与 RecordRouter（PF → `pending-fixes.md`，VL → `violations.md`，PI/ISSUE/GAP 按意图分流），**不触发任何修复动作**。修复动作只在 audit 工作流 + DevCodex plugin 文件两个条件同时满足时才由元循环驱动（见 `12-audit §审查元循环`）。`data/process-improvements.md` 在本页也可称“优化清单（PI）”。
+> **设计原则：记录在使用，修复在维护** — PC4 在所有项目/所有工作流中只负责感知并记录；具体写入前必须先走 `spec-governance` 的记录意图识别与 RecordRouter（PF → `pending-fixes.md`，VL → `violations.md`，PI/ISSUE/GAP 按意图分流），**不触发任何修复动作**。audit 始终只读并交接 finding；只有用户独立授权的 dev/fix/self-fix repair workflow 才能修改规范或 plugin 文件。`data/process-improvements.md` 在本页也可称“优化清单（PI）”。
 
 ## 核心原则 — 意图模式驱动，非关键词匹配
 
@@ -118,7 +118,7 @@ PC4 通过三个轴评估交互的底层状态，任意一轴出现异常即进�
 2. **排列顺序**：PF 条目按 Axis A → B → C 顺序列出（认知锚点问题优先，用户感知问题在后）
 3. **根因优先**：若 Axis A 已出现 PF（规范缺失/冲突），Axis B/C 的异常通常是其下游表现，根因分析应聚焦 Axis A
 
-```
+```text
 示例：同一任务 Axis A 和 C 均异常
 - PF（Axis A, G1）：AI 输出缺乏规范依据 → 延迟追加
 - PF（Axis C, G4）：用户被迫微操指导 AI 执行 → 延迟追加（根因可能同 G1）
@@ -138,7 +138,7 @@ PC4 通过三个轴评估交互的底层状态，任意一轴出现异常即进�
 
 ## PC4 决策流程
 
-```
+```text
 PC4 入口（仅 dev 模式）
 ├── 检查点 1：收到新消息时（每轮必执行）
 └── 检查点 2：任务执行中检测到异常（当前回复内立即输出诊断）
@@ -194,7 +194,7 @@ PC4 入口（仅 dev 模式）
 
 ## 输出格式（入口检查块内）
 
-```
+```text
 - PC4 规范雷达：[Axis A ✅/⚠️] [Axis B ✅/⚠️] [Axis C ✅/⚠️]
   → ✅ 三轴正常，无规范问题
   → ⚠️ PF 标记（G1）：[简述规范缺陷] · 延迟追加 pending-fixes.md

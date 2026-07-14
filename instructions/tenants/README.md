@@ -12,7 +12,8 @@
 
 ```text
 instructions/tenants/
-├── README.md                          ← 本文件（说明文档）
+├── README.md                          ← 本文件（说明文档，不部署）
+├── manifest.json                     ← 可选择 tenant-id 的唯一清单
 ├── example-tenant/                    ← 示例租户（可直接对照修改）
 │   ├── README.md                      ← 示例说明
 │   └── 10-dev.instructions.md         ← 局部覆盖示例
@@ -38,7 +39,18 @@ applyTo: "**"
 # 租户名称 — 工作流定制
 ```
 
-> ⚠️ 租户 Instructions 通过 `applyTo` 全局注入，AI 会自动读取并以 P3 优先级应用，无需手动激活。
+> ⚠️ 源包中的 tenant 默认全部不部署。只有运行 `devcodex init|update --tenant <tenant-id>`，且 ID 存在于 `manifest.json`，CLI 才会把该目录复制到支持 instructions 的宿主面；未知 ID 或缺值会 fail closed。`applyTo` 只在显式选择并完成部署后生效。
+
+## 激活与部署
+
+```powershell
+devcodex init --tenant example-tenant
+devcodex update --claude --tenant example-tenant
+```
+
+- 不传 `--tenant`：Copilot/Claude managed set 排除整个 `instructions/tenants/`。
+- 传入已登记 ID：只复制对应子目录，不复制 tenant 总 README 或其他租户。
+- Codex 当前不消费 `instructions/` 子目录；选择 tenant 不得被表述为 Codex runtime 已注入。
 
 ## 示例租户
 

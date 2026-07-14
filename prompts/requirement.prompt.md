@@ -401,31 +401,17 @@ flowchart TD
 - 不得把技术便利性改写为产品需求。
 - 不得把示例、反例或异常边界缺失静默补成实现假设；必须写入待确认问题或技术方案假设。
 
-### §9.3 AI 内部派生守门索引（非需求方 / 产品填写）
+### §9.3 研发 / AI 派生交接（非需求方 / 产品填写）
 
-> 本节只给 AI、研发和校验链使用。需求方和产品不需要理解或填写英文标识；产品只需保证 §0~§8 的中文业务事实足够清楚。
+> 产品事实源到此为止。AI/研发只记录“哪些业务事实需要在 CP2/TestRoute 派生验证”，不得在正式需求正文复制内部 Gate 名录。
 
-| 中文类别 | 内部稳定标识 | 来源 |
-|----------|--------------|------|
-| 前端体验与设计来源 | FrontendExperienceQualityGate / FigmaHighFidelityRestorationGate / ScopedVisualChangeGate / ActualPreviewChainAndMockFallbackGate / FrontendRuntimeNetworkProbeGate / UIStateScopeRegressionGate / FigmaProductionAssetBudgetGate / RuntimeI18nArtifactVerificationGate | §2.5、§3、§5、§8 |
-| 前端验证预算与视觉偏差 | FrontendBrowserVerificationBudgetGate / UserSelfVerificationOverrideGate / VisualDeviationTypeGate / DesignFramePurposeClassificationGate | §2.5、§3、§8 |
-| 需求来源追溯 | ProductRequirementTraceabilityGate | §0.1、§0.2、§1、§8.3 |
-| 确认前与复审后需求质量 | RequirementPreConfirmGate / RequirementVerdictStateSyncGate / MultiPhaseClosureGate | §1、§2、§7、§9 |
-| 公开模块与包边界 | PackageNameAuthorityGate / PublicModuleDifferentiationGate | §2.2、§7 |
-| 验证范围与基准归因 | VerificationScopeBudgetGate / LiveVerificationExecutionObligation / AdapterBenchmarkAttribution | §2.4、§7、§8 |
-| 提交、兼容与用户语言 | ExplicitCommitAuthorizationGate / CompatibilityAndContractAuthorityGate / UserFacingVerificationArtifactLanguageGate | §0.2、§7、§10 |
-| 全工作区吸纳与流程图解释 | WorkspaceDataAbsorptionScopeGate / FlowchartNodeExplanationGate | §3、§7 |
-| 审查发现与复审维度 | ReviewFindingIntakeGate / ReviewDimensionDeltaGate / OmissionOnlyReviewGate / intentional design | §0.2、§8.3、§10 |
-| 数据迁移、finding 与验证命令 | DatabaseRecordMigrationExportGate / FindingProbeMatrixGate / GuardPolicyBypassMatrixGate / OneOffRequirementScriptPlacementGate / VerificationCommandSideEffectGate | 按 CP2 技术方案和 TestRoute 条件派生 |
-| 文档示例与 package/adapter 证据 | SideEffectCompatibilityDocsGate / ExecutableExampleTruthProbeGate / PackageAdapterPreConfirmEvidenceGate | 按 CP2 技术方案和 TestRoute 条件派生 |
-| 文档使用者、主面与消费者同步 | UserPerspectiveDocsGate / UserDocsImmediateComprehensionGate / UserDocsPrimarySurfaceGate / PublicUserDocsMaintainerBoundaryGate / DocsConsumerSweep / DocsSiteVisualAcceptanceGate | §1、§5、§7 |
-| 用户最终文档与交付顺序 | UserFacingDeliveryChainGate / FinalUserManualFirstGate / DocsSiteInformationArchitectureGate / UserManualFlowAndFailureGate / QueueDocsRealWorkflowGate | §1、§5、§7、§9 |
-| 完整吸纳补强与需求维度绑定 | ConfirmedAbsorptionCompletenessGates / SampleIssueExpansionGate / RequirementDimensionBindingGate / RequirementPriorityAndPhaseGate / ReviewAnchorMaterializationGate | §1、§2、§7、§9 |
-| 复审、产物、站点与性能证据 | ReviewChecklistCompletenessGate / EvidenceExecutionGate / BuiltArtifactFeatureSmokeGate / TscOutputImportProbe / GeneratedSiteGate / ManualTocDuplicationGate / UserPathContractSweep / BenchmarkRegressionGuard | §7、§8、§9 |
-| 产物链接与最终回复范围 | ArtifactLinkSetDedupeGate / ActiveRequirementFinalResponseGate | §9、§10 |
-| 返工预防、发布权威、配置易用性与交互语义 | ReworkPreventionGate / ReworkReductionValueGate / ReleaseAuthorityBeforeCompatibilityGate / ConfigurationErgonomicsGate / InteractiveSemanticProbe | 按 CP2、TestRoute 与 `GovernanceGateRegistry` 条件派生 |
-| DevCodex v2 路线与方案包 | V2MCPFirstPlanningGate / V2FormalSolutionPackage | §2.4、§7、§9 |
-| 其他跨项目经验吸纳 | CrossProjectLearnedGuards | 按 CP2 技术方案和 TestRoute 条件派生 |
+| 业务事实域 | 交给后续产物 | 需求侧锚点 |
+|------------|--------------|------------|
+| 用户路径、交互、文档或公开能力 | CP2 Owner 选择 + TestRoute | 引用 §1~§8 的具体条目 |
+| 数据、性能、安全、发布或外部依赖 | CP2 风险/边界 + TestRoute | 引用 §2、§7、§8 |
+| 多阶段、样例扩展或功能清单 | 需求审查 Owner + 阶段验收矩阵 | 引用 §2、§4、§9 |
+
+内部执行方从 `skills/spec-governance/gate-registry.json` 选择适用 `gateGroup`，结果写入技术方案和验证产物，不回填 Gate 目录到产品正文。
 
 ## §10 变更历史 / 决策记录
 

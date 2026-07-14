@@ -16,7 +16,7 @@ description: 项目初始化子类型规范 — 新项目/模块脚手架 + Prof
 | 2 | CP1：确认技术栈选型和目录结构 |
 | 3 | CP2：确认依赖清单和配置文件方案 |
 | 4 | 生成脚手架：目录结构 + 配置文件 + 基础文件 |
-| 5 | 自动生成 Profile：`.devcodex/profile/` |
+| 5 | 自动生成 Profile：由 workspace layout 解析的 `<active-profile-dir>` |
 | 6 | 初始化 Git + CHANGELOG + README（README 默认通过 `readme-authoring` 生成） |
 
 ## Profile 自动生成
@@ -34,7 +34,7 @@ init 完成后必须执行 `ProfileGenerationContractGate`，先运行 `devcodex
 ## 关键规则
 
 - 跳过 CP3（init 无需实施计划阶段）；同时豁免 `dev-plan-review`（CP3 已跳过，质量门禁不适用）；必须记录 `CP3: N/A（init 子类型豁免）`，供 hook/fallback 区分合法豁免与漏确认
-- 生成的 .gitignore 必须包含 `.devcodex/.memory/`（记忆文件不入版本库）
+- 生成的 .gitignore 必须覆盖当前 layout 对应的 `<active-root>/.memory/`；legacy 单项目模式才使用 `.devcodex/.memory/`
 - 依赖选型遵循项目 profile 中的技术栈约束（若已有 profile）
 - 初始化 README 时默认先写给真实使用者；开发/贡献信息后置，后续专项复审走 `audit-readme`
 - Node.js 项目默认生成 `engines.node >=18`，并同步 README、Profile 与 CI matrix；低于 v18 必须在 CP2 写明业务理由、风险和验证证据

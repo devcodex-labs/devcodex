@@ -1,6 +1,8 @@
 # Root .gitignore — DevCodex refactor workspace
 node_modules/
-.github/
+.github/*
+!.github/workflows/
+!.github/workflows/**
 # DevCodex Claude Code adapter output (devcodex init --claude target; do not commit in source repo)
 .claude/
 # DevCodex Codex adapter output (devcodex init --codex target; do not commit in source repo)
@@ -10,6 +12,7 @@ AGENTS.md
 CLAUDE.md
 .vscode/
 dist/
+coverage/
 *.log
 .env
 .env.local

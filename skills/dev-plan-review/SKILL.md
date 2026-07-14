@@ -66,8 +66,11 @@ PR-7 测试与风险（🟡 标注，不阻断）
 - PR-2 文档站、README、用户主路径或新增公开能力缺少 `SidebarPageRoleMaterializationProbe` / `SidebarGroupSemanticModelProbe`：未从当前 sidebar / nav / route 真相源生成页面 role、label、route、相邻页面职责、菜单组任务模型和生成站点验证计划
 - PR-2 代码、文档、示例、fixture、quick start、技术方案或报告需要对外或供维护者长期消费，但缺少 `ExpertOutputQualityGate`：未区分生产推荐路径、框架原生能力、fixture/mock/demo 边界、反模式和证据矩阵
 - PR-2 命中产品策略、开发者体验、UX 交互、前端架构、后端领域架构、生产可用性 / SRE、API 契约、外部集成、平台生态、AI Agent 系统、数据架构、安全威胁建模、质量策略、设计系统、无障碍/国际化、增长分析或商业模型，但缺少 `ExpertOwnerSkillGate`：未列出 ownerSkill、triggerReason、requiredFields、validationRoute、skipReason 和 V85/targeted probe 证据；增长分析和商业模型为 P3 条件触发，未命中时必须写 `N/A + skipReason`
+- PR-2 声称完整/最终 Agent 架构或平台却缺 `AgentCapabilityDomainCompletenessGate` 的 completenessObject 与 domain owner/boundary/runtime/validation；涉及独立消费者仓/跨仓 100% 却缺 `ConsumerValidationEngineeringGate`；声称逐模块完整性能却缺 `ModulePerformanceCoverageAndMaintenanceGate`
 - PR-2 触发跨项目已吸纳守门但缺少 `GovernanceGateRegistry` 分组判定、`gateGroup / ownerSkill / validationRoute / skipReason`、代表性 legacy anchors（如 `CodeTruthRequirementGate`、`ManualReviewEvidenceRetention`、`ReviewFindingIntakeGate`、`MethodLevelLeakPressureProbe`、`V2FormalSolutionPackage`）的证据
 - PR-2 涉及配置 schema、provider 选项、runtime 开关、legacy alias 或公开配置文档，但缺少 `ConfigCanonicalNamespaceGate`：未说明 canonical namespace、既有历史契约、顶层配置例外理由、legacy alias 兼容窗口和验证探针
+- PR-2 涉及公开配置字段、嵌套配置、默认值或首次接入路径，但缺少 `ConfigurationErgonomicsGate`：没有 MinimalTaskConfig、FieldNecessityMatrix、ComplexityBudget、AdvancedCapabilityBoundary 或 OptionalFieldOmissionProbe
+- PR-2 涉及兼容、迁移、alias/fallback 或历史行为保留，但缺少 `ReleaseAuthorityBeforeCompatibilityGate`：没有 publishedState、consumerEvidence、authoritySources 与 decision
 - PR-2 涉及默认行为、runtime contract、transaction/cache/sync promise、用户可见配置语义或 Profile 读取/发布状态变化，但缺少 `ProfileRuntimeContractSyncGate`：未同步 Profile、README/website、进度/报告或 `ProfileImpactCheck`
 - PR-2 前端页面、组件、控制台、官网、文档站、可视化工具或游戏任务缺少 `FrontendExperienceQualityGate` 判定，或命中后未覆盖设计来源、UI 还原度、风格主题、响应式状态、用户流、交互反馈、输入方式/可访问性、错误恢复、动效转场和视觉验证；Figma/截图/既有页面还原还须覆盖 `FigmaHighFidelityRestorationGate`、`ScopedVisualChangeGate`、`InstalledPluginVisualVerificationGate`、`ActualPreviewChainAndMockFallbackGate`、`UIStateScopeRegressionGate`、`FigmaProductionAssetBudgetGate` 与 `RuntimeI18nArtifactVerificationGate`
 - PR-2 触发 `LatestAbsorptionGuards` 最新吸纳守门但缺少 `GovernanceGateRegistry` 分组触发判定、证据或 `N/A + skipReason`；代表性 anchors 包括 `DatabaseRecordMigrationExportGate`、`FrontendBrowserVerificationBudgetGate`、`UserSelfVerificationOverrideGate`、`FindingProbeMatrixGate`、`MultiPhaseClosureGate`、`GuardPolicyBypassMatrixGate`、`VerificationCommandSideEffectGate`、`DesignFramePurposeClassificationGate`、`RequirementPreConfirmGate` 与 `PackageAdapterPreConfirmEvidenceGate`
@@ -116,6 +119,7 @@ PR-7 测试与风险（🟡 标注，不阻断）
 | 文档站 / 用户能力是否物化 page role 与 sidebar 任务模型？ | `SidebarPageRoleMaterializationProbe` / `SidebarGroupSemanticModelProbe` 通过：从当前站点配置或 docs inventory 生成 route / label / role / audience / sourceOfTruth / sidebar group，说明相邻页面职责和生成站点验证；不能只写“同步文档” |
 | 专家型产物质量是否达标？ | `ExpertOutputQualityGate` 通过：代码、文档、示例、fixture、技术方案或报告已写明 roleBaseline、productionRecommendedPath、frameworkNativeCapability、fixtureBoundary、antiPatternContrast 和 evidenceMatrix；不能把 fixture、mock、单例 smoke 或重复声明当生产推荐路径 |
 | 专家 Owner Skill 是否按语义触发？ | `ExpertOwnerSkillGate` 通过：命中产品策略 / 开发者体验 / UX 交互 / 前端架构 / 后端领域架构 / 生产可用性 / API 契约 / 外部集成 / 平台生态 / AI Agent 系统 / 数据架构 / 安全威胁建模 / 质量策略 / 设计系统 / 无障碍国际化 / 增长分析 / 商业模型时，按需调用对应专家 Owner Skill，并记录 ownerSkill、triggerReason、requiredFields、validationRoute、skipReason 与 V85/targeted probe；增长 / 商业未触发时写 N/A |
+| Agent/跨仓消费者/模块性能完整性是否避免假全量？ | 命中时分别完成 `AgentCapabilityDomainCompletenessGate`、`ConsumerValidationEngineeringGate`、`ModulePerformanceCoverageAndMaintenanceGate`；完整性对象、身份链、全部适用分母和 V95 正负向证据齐全，未触发写 `N/A + skipReason` |
 | TypeScript 类型迁移是否按公开契约与消费面推进？ | 不机械复制旧类型缺陷；跨模块业务契约、公开类型与配置类型优先集中到 types 契约层，本地 interface 有保留理由 |
 | 新增接口/函数/配置是否向后兼容现有调用方？（F-23 向后兼容）| 已确认；若有 Breaking Change 已在 §3 列出并提供迁移方案 |
 | 方案是否单独列出兼容性策略（调用方/文档/版本/宿主兼容）？ | 已单独列出，不是散落在风险段 |
@@ -128,6 +132,8 @@ PR-7 测试与风险（🟡 标注，不阻断）
 | 新增字段/配置/本地化容器/状态枚举是否完成 ExistingDomainContractAudit？ | 已检索既有模型、类型、validator、service、controller、脚本、历史数据样本和消费者接口；新增平行字段/容器/回退读取有理由和用户确认 |
 | 业务策略常量、provider 选项、阈值或开关是否完成 ConfigOwnershipMatrix？ | 已逐项标明 `DB feature config` / `provider runtime` / `服务运行配置` / `代码契约`；可运营调整项未默认硬编码为发版改代码 |
 | 配置命名空间是否完成 `ConfigCanonicalNamespaceGate`？ | 新增或迁移配置 schema、provider 选项、runtime 开关、legacy alias 时，优先使用既有 namespace / canonical contract；必须写明顶层配置例外、历史 alias、兼容窗口、文档主路径和验证探针 |
+| 配置易用性是否完成 `ConfigurationErgonomicsGate`？ | 已给出 MinimalTaskConfig、FieldNecessityMatrix、ComplexityBudget、AdvancedCapabilityBoundary，并实际验证 OptionalFieldOmissionProbe；字段仅有实现用途但无用户任务价值时不得默认公开必填 |
+| 兼容性是否先核对发布权威？ | `ReleaseAuthorityBeforeCompatibilityGate` 已用 tag/registry/release note/public docs/实际消费者确定 publishedState；未发布且无稳定消费者默认直接收敛，事实未知时不编造兼容义务 |
 | Profile 与 runtime contract 是否完成 `ProfileRuntimeContractSyncGate`？ | 默认行为、runtime contract、transaction/cache/sync promise、用户可见配置语义或发布状态变化时，已同步 Profile、README/website、进度、报告和 `ProfileImpactCheck`；不触发时有 `N/A + skipReason` |
 | 前端/API 文档变更是否完成 ApiDocVerificationSync？ | 已同步检查 `.http` / `.cjs`，异步或落库型接口包含持久化真相源与最终消费者响应字段验证；跳过有 `N/A + skipReason` |
 | 数据补齐/迁移脚本是否完成 DataMutationPlan？ | 范围来自显式清单、需求目录数据源或稳定业务键；跨环境写入使用目标环境唯一匹配，dry-run 输出 `source_id`、`target_id`、缺失/重复清单 |
@@ -137,6 +143,7 @@ PR-7 测试与风险（🟡 标注，不阻断）
 | 最新吸纳守门是否完成条件判定？ | 按 `GovernanceGateRegistry` 分组填写证据；legacy anchors 包括 `DatabaseRecordMigrationExportGate`、`FrontendBrowserVerificationBudgetGate`、`UserSelfVerificationOverrideGate`、`FindingProbeMatrixGate`、`MultiPhaseClosureGate`、`GuardPolicyBypassMatrixGate`、`VerificationCommandSideEffectGate`、`DesignFramePurposeClassificationGate`、`RequirementPreConfirmGate`、`PackageAdapterPreConfirmEvidenceGate`；未触发时有 `N/A + skipReason` |
 | `LatestAbsorptionExecutionPack` A1~A10 最新吸纳执行包是否完成条件判定？ | 配置 / Profile / 行为语义 / 翻译 / 示例 / callback / 派生消费者 / 功能清单 / 批次证据命中时，按 `ConfigCanonicalNamespaceGate`、`ProfileRuntimeContractSyncGate`、`BehaviorSemanticDocsParityGate`、`NegativeTranslationParityProbe`、`DocsExampleTruthSurfaceGate`、`CallbackExampleScopeProbe`、`DerivedMetricConsumerProbe`、`DerivedConsumerFailureInjectionProbe`、`FeatureInventoryProfileGate`、`FeatureChecklistEvidenceMatrixGate`、`BatchEvidenceLedgerStateGate`、`BatchProgressCardGate` 填写 ownerSkill、validationRoute、skipReason 和探针 |
 | 前端 UI / 交互体验是否完成质量门禁？ | `FrontendExperienceQualityGate` 已判定；命中时覆盖 `FrontendDesignSourceGate`、`UIFidelityGate`、`StyleThemeConsistencyGate`、`ResponsiveStateCoverageGate`、`VisualVerificationGate`、`InteractionFlowGate`、`InteractionFeedbackGate`、`InputModalityAccessibilityGate`、`ErrorPreventionRecoveryGate`、`MotionTransitionUsabilityGate`，Figma/截图/既有页面场景追加 `FigmaHighFidelityRestorationGate`、`ScopedVisualChangeGate`、`InstalledPluginVisualVerificationGate`、`ActualPreviewChainAndMockFallbackGate`、`UIStateScopeRegressionGate`、`FigmaProductionAssetBudgetGate`、`RuntimeI18nArtifactVerificationGate` |
+| 交互对象是否完成语义探针？ | `InteractiveSemanticProbe` 覆盖 role、accessible name、focusability、Enter/Space/Escape 与 focus recovery；截图或元素存在不能替代运行态键盘/辅助技术证据；不触发写 `N/A + skipReason` |
 
 ### PR-3 约束合规性
 
@@ -188,6 +195,7 @@ PR-7 测试与风险（🟡 标注，不阻断）
 | 是否有针对性的负向测试场景（异常/边界/失败路径）？ | 至少覆盖主要错误场景 |
 | TestRoute 是否体现验证范围预算与真实执行义务？ | `VerificationScopeBudgetGate` 匹配风险强度，`LiveVerificationExecutionObligation` 对“已验证/可运行/已发布”等声明有实际命令或等价证据 |
 | TestRoute 是否体现 coverage 与外部 runtime 风险？ | 命中时包含 `CoverageGateDecision`、`ExternalRuntimePluginLifecycleGate`、`ExternalRegistryLifecycleMatrixGate`、`FunctionSourceFingerprintMatrixGate`、`ClusterEscalationGate` 与 `RiskBasedValidationLadder` 的状态或 `N/A + skipReason` |
+| TestRoute 是否体现 V95 完整性风险？ | 命中时包含 agentCapabilityCompleteness、docsAudienceRenderedSequence、externalConsumerValidation、modulePerformanceMaintenance 的路线、分母、运行态/跨仓证据或 `N/A + skipReason` |
 | 前端体验验证是否纳入 TestRoute？ | 命中 `FrontendExperienceQualityGate` 时包含 Browser/截图/Playwright/E2E/人工复核等项目等价证据；未触发时有 `N/A + skipReason` |
 | 技术方案 §9 风险是否已识别关键风险？ | 至少列出 1 条技术风险 |
 | 每条风险是否有对应缓解措施？ | 无"待定"缓解措施 |

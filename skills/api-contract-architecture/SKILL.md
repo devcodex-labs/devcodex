@@ -26,15 +26,18 @@ description: API 契约架构专家 Owner — 当任务涉及 public API、HTTP/
 | `ConsumerSurfaceGate` | 先列真实消费者，避免首个实现反向定义公共契约 | README、types、examples、route、SDK |
 | `ErrorModelGate` | 错误结构、错误码、detail 和恢复路径必须稳定 | errorModel、docs |
 | `VersionCompatibilityGate` | 兼容、弃用、迁移和 breaking change 必须明确 | versionCompatibility |
+| `ReleaseAuthorityBeforeCompatibilityGate` | 先证明契约是否已发布并形成稳定消费者，再决定兼容、迁移或直接收敛 | publishedState、consumerEvidence、authoritySources、decision |
+| `ConfigurationErgonomicsGate` | 公开配置 Schema 必须证明最小任务、字段必要性、复杂度预算和可选字段省略行为 | MinimalTaskConfig、FieldNecessityMatrix、OptionalFieldOmissionProbe |
 | `IdempotencyPaginationGate` | 写操作、分页、过滤、排序和重试场景必须定义语义 | idempotencyPagination |
 
 ## 执行步骤
 
 1. 列出所有消费者：前端、SDK、CLI、Hook、文档示例、测试、外部系统。
 2. 冻结现状契约：字段、类型、错误、版本、默认值、边界条件。
-3. 定义目标契约与兼容策略：新增、保留、弃用、迁移、拒绝。
-4. 为错误模型、分页过滤、幂等和重试写稳定语义。
-5. 把契约映射到文档、示例、`.http` / `.cjs`、types、runtime probe。
+3. 执行 `ReleaseAuthorityBeforeCompatibilityGate`：核对 tag/registry/release note/public docs/实际消费者；已发布才进入兼容评估，未发布且无稳定消费者默认直接收敛，未发布但存在产品取舍则交用户决策，事实不明时不得编造兼容义务。
+4. 定义目标契约与兼容策略：新增、保留、弃用、迁移、拒绝。
+5. 为错误模型、分页过滤、幂等和重试写稳定语义。
+6. 把契约映射到文档、示例、`.http` / `.cjs`、types、runtime probe。
 
 ## 输出字段
 
@@ -46,6 +49,7 @@ description: API 契约架构专家 Owner — 当任务涉及 public API、HTTP/
 | consumerSurface | 消费者列表和调用入口 |
 | contractInventory | 当前/目标输入、输出、错误、类型、配置 |
 | versionCompatibility | 兼容、弃用、迁移、breaking change |
+| releaseAuthority | publishedState、consumerEvidence、authoritySources 与兼容决策 |
 | errorModel | 错误码、detail、恢复路径 |
 | idempotencyPagination | 幂等、分页、过滤、排序、重试语义 |
 | sdkDocsImpact | SDK、README、examples、public types、文档影响 |
@@ -60,6 +64,7 @@ description: API 契约架构专家 Owner — 当任务涉及 public API、HTTP/
 | 只写 happy path，没有错误模型 | 补 errorModel 和失败恢复 |
 | 首个 provider 字段反向定义公共 API | 区分业务契约与 provider payload |
 | 用单个示例证明兼容 | 抽样 public types、README、tests 和 runtime |
+| 未发布候选也默认背负历史兼容层 | 先做 ReleaseAuthorityBeforeCompatibilityGate；无稳定消费者时直接收敛 canonical contract |
 
 ## 与其他 Skill 的关系
 

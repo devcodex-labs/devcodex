@@ -1,0 +1,4 @@
+interface:
+  display_name: "Consumer Validation Engineering"
+  short_description: "Cross-repository consumer validation and release evidence"
+  default_prompt: "Use $consumer-validation-engineering to design a reproducible cross-repository consumer validation contract."

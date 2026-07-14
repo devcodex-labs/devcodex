@@ -77,7 +77,8 @@ function buildGovernanceSupportChecks(ctx) {
           'record.violation',
           'record.ambiguous',
           'AI 与确定性边界',
-          '你刚才漏了/错了/违反流程了',
+          'PostAssessmentGovernanceIntakeGate',
+          'LedgerWriteEvidenceGate',
           'VL/PF 关闭前必须具备修复方案',
           '当前 DevCodex 源仓或规范维护项目的 active-root'
         ]
@@ -88,7 +89,8 @@ function buildGovernanceSupportChecks(ctx) {
           '规范治理生命周期（RecordRouter + SCV）',
           'record.spec-defect',
           'SCV（Spec Change Verification）',
-          '你刚才漏了/错了/违反流程了',
+          'PostAssessmentGovernanceIntakeGate',
+          'RecordNoneChallengeGate',
           'VL/PF 关闭前必须具备修复方案'
         ]
       },
@@ -229,10 +231,13 @@ function buildGovernanceSupportChecks(ctx) {
       }
     }
 
-    const indexSrc = read(path.join(ROOT, 'index.js'))
+    const indexSrc = [
+      read(path.join(ROOT, 'index.js')),
+      read(path.join(ROOT, 'scripts/lib/cli-install-commands.js'))
+    ].join('\n')
     for (const needle of ['resolveActiveRuntimeRoot', 'ensureRuntimeDirs', 'resolveGitignoreRoot', 'backupDir', '.devcodex/*/.tmp/']) {
       if (!indexSrc.includes(needle)) {
-        err(`[V27] index.js active-root resolver missing "${needle}"`)
+        err(`[V27] CLI composition active-root resolver missing "${needle}"`)
       }
     }
 

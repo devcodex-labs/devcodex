@@ -16,8 +16,8 @@ hero:
 features:
   - title: 🎯 结构化工作流
     details: 8 种工作流（dev/fix/audit/analyze/self-fix/resume/plan/chat），执行流程骨架已冻结
-  - title: 🛠️ 74 个 Skills
-    details: 扁平化 Skill 体系，覆盖开发、修复、审计、默认分析、技术调研、自修复、规范治理、规范吸纳执行、最终用户文档、用户侧文档 review 聚合、专家型产物质量 expert-output-quality、产品策略/DX/UX/前端/后端/SRE/API 契约/外部集成/平台生态/AI Agent/数据/安全/质量/设计系统专家 Owner Skill、复审清单、README 用户视角写作与专项 review、发布前审查，以及执行契约、测试路由、发布验证、宿主契约验证、真相源-消费者同步等支撑能力
+  - title: 🛠️ 76 个 Skills
+    details: 74 active + 2 gray，覆盖开发、修复、审计、规范吸纳执行、`consumer-validation-engineering` 跨仓消费者验证、用户侧文档 review 聚合、`expert-output-quality` 专家型产物质量与 21 个专家 Owner Skill，以及执行契约、测试路由、发布验证、宿主契约验证和真相源-消费者同步
   - title: 🧩 三宿主分发
     details: Copilot、Claude Code 与 Codex 共用同一规范源；Hook 能力按宿主/事件降级，Codex 按事件契约使用顶层 decision、continue:false 或工具级 permissionDecision
   - title: 🔒 四层合规检查

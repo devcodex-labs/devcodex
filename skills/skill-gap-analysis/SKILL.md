@@ -56,6 +56,8 @@ description: Skill 缺口与大语料分析 Owner — 当任务涉及项目/工�
 | CapabilityGapDecision | new-skill / existing-subgate / docs-only / reject |
 | ConvergenceRecord | 每轮维度增量、新增数、连续零新增 |
 
+所有覆盖结论同时执行 `audit-common` 的 `ReviewCoverageClaimIntegrityGate`。`WorkspaceCorpusManifest` 只能证明 inventory-covered；关键词检索只能证明 machine-scanned；代表文件深读必须明确 sampledSet/unreadSet/inferenceBoundary。只有逐文件 FileEvidenceLedger 才能声明逐字全读。
+
 ## 反模式
 
 - 未识别项目就从 workspace root 递归扫描。

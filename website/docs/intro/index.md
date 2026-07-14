@@ -14,12 +14,15 @@ DevCodex 是通过 npm 包和 CLI 分发的 AI 开发规范注入器。它把同
 
 ## 快速开始
 
-1. 按 [安装说明](https://github.com/vextjs/devcodex#安装) 配置 GitHub Packages registry 与 `NODE_AUTH_TOKEN`。
-2. 安装并在目标项目初始化三宿主规范：
+> 版本语义：npm package 当前已发布版本是 **v1.13.0**；站内 **1.0.1** 是活动需求文档版本。当前版本仅发布到 GitHub Packages，安装需要 `read:packages` 认证。
+
+1. 确认 Node.js >=18；按 [安装说明](https://github.com/vextjs/devcodex#5-分钟快速开始) 配置 `@vextjs:registry=https://npm.pkg.github.com` 与当前 shell 的 `NODE_AUTH_TOKEN`。
+2. 安装并在目标项目初始化三宿主规范，然后执行 status：
 
 ```bash
 npm install @vextjs/devcodex
 npx @vextjs/devcodex init
+npx @vextjs/devcodex status
 ```
 
 只部署单一宿主 adapter 时使用：
@@ -29,7 +32,9 @@ npx @vextjs/devcodex init --claude
 npx @vextjs/devcodex init --codex
 ```
 
-执行完成后，目标项目会出现对应的 `.github/`、`CLAUDE.md + .claude/` 或 `AGENTS.md + .agents/ + .codex/` 受管文件。新开 AI 会话并发送开发、修复或审查任务，即可验证入口检查、工作流路由、报告与记忆是否生效。完整命令、更新方式和排错步骤见 [README](https://github.com/vextjs/devcodex)。
+执行完成后，目标项目会出现对应的 `.github/`、`CLAUDE.md + .claude/` 或 `AGENTS.md + .agents/ + .codex/` 受管文件。新开 AI 会话并发送开发、修复或审查任务，即可验证入口检查、工作流路由、报告与记忆是否生效。安装出现 401/403 时检查 scope registry、`read:packages` 与当前 shell 的 `NODE_AUTH_TOKEN`。完整命令、更新方式和排错步骤见 [README](https://github.com/vextjs/devcodex)。
+
+每次 `init/update` 都会在 active runtime root 更新 managed deployment manifest，并预览新增、更新、陈旧和未受管文件。陈旧文件只报告、不自动删除；未受管文件不会被 DevCodex 接管。
 
 ---
 
@@ -92,7 +97,7 @@ DevCodex 提供两个 Agent 入口：
 |------|------|
 | Agent | `devcodex.agent.md`（确认模式）+ `devcodex-auto.agent.md`（全自动模式）|
 | Instructions | 全局规范与工作流主规则，按 `applyTo` 全局注入 |
-| Skills | 74 个按需触发的工作流技能，覆盖完整开发生命周期、`analyze-default` 默认分析、`skill-gap-analysis` 规模路由与缺口分析、`skill-lifecycle-governance` 生命周期治理、规范治理、`spec-absorption` 规范吸纳执行、`user-manual-authoring` 最终用户文档、`audit-user-manual` 用户侧文档 review 聚合、`expert-output-quality` 专家型产物质量、产品策略/DX/UX/前端/后端/SRE/API 契约/外部集成/平台生态/AI Agent/数据/安全/质量/设计系统/无障碍国际化/增长分析/商业模型专家 Owner Skill、`review-checklist` 复审清单、`evolution-governance` 自我进化治理、`readme-authoring` / `audit-readme` README 专项能力、`audit-release` 发布前审查，以及 `execution-contract` / `test-router` / `release-verification` / `host-contract-verification` / `source-consumer-sync` 支撑能力 |
+| Skills | 76 个按需触发的工作流技能（74 active + 2 gray），覆盖 `rework-prevention-engineering`、`consumer-validation-engineering`、`analyze-default`、`skill-gap-analysis`、`skill-lifecycle-governance`、`spec-absorption`、`user-manual-authoring`、`audit-user-manual`、`expert-output-quality`、`review-checklist`、`evolution-governance`、`readme-authoring`、`audit-readme`、`audit-release`，以及 `execution-contract` / `test-router` / `release-verification` / `host-contract-verification` / `source-consumer-sync`；专家能力保持 21 个专家 Owner Skill |
 | Prompts | CP 节点输出模板 |
 | Hooks | `UserPromptSubmit` / `PreToolUse` / `Stop` 等生命周期钩子 |
 | Codex adapter | `AGENTS.md` + `.agents/skills/` + `.codex/hooks.json` |

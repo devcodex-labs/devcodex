@@ -4,6 +4,7 @@
 
 ## 2026-07-13 · DevCodex v1.12.0
 
+- 启动 O-01~O-07 下一版本候选：npmjs public + GitHub mirror dry-run、CI/Node/coverage、74-Skill portfolio、只读运行态 index、用户首次成功路径与 managed deployment ownership；真实发布与 stale 删除保持延后。
 - 新增 `skill-gap-analysis` 与 `skill-lifecycle-governance`，在 broad scan 前执行 `ProjectArtifactScaleRoutingGate`，按规模选择一次性、分批、采样深读或阻断。
 - 新增分布式系统、性能工程、隐私合规、AI 评测 4 个专家 Owner，Skill 总数更新为 74，专家 Owner 更新为 21。
 - V91 覆盖项目/root 未解析、超大语料、无 checkpoint、错误 glob 与派生产物污染；V85 同步扩展专家 Owner 消费链。

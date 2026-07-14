@@ -2,7 +2,7 @@
 applyTo: "**"
 description: audit 工作流规则，覆盖审查目标路由、收敛门禁、发现交接与只读授权边界
 priority: P4
-version: 1.12.0
+version: 1.13.0
 ---
 # 审计工作流规则（12-audit）
 
@@ -236,6 +236,8 @@ R2 及以后轮次必须把复审从“同一维度反复跑一遍”改为“�
 - E — 可观测 🟡：PE-9 日志 · PE-11 数据层质量
 - 前端项目或包含用户可见 UI 的项目工程审查需叠加 `FrontendExperienceQualityGate`：检查视觉一致性、交互反馈、焦点/输入方式、错误恢复、动效转场、Browser/截图/E2E 证据、浏览器验证预算、用户自验 override、视觉偏差类型和设计帧用途分类；不涉及前端体验时写 `N/A + skipReason`
 - 项目工程、通用文档、README、`user-manual` 或控制面审查遇到已吸纳泛化经验时，叠加 `GovernanceGateRegistry` 分组审查；audit 报告写 `gateGroup / ownerSkill / evidence / skipReason`，完整执行细节由对应 Skill 和 validate 探针承接。
+- 审查声明逐文件/全量、发现重复返工、判断兼容义务、评估配置易用性或验证交互对象时，追加 `ReviewCoverageClaimIntegrityGate` 及 `rework-prevention / contract-release-authority / configuration-ergonomics / interactive-semantics` 分组证据；缺证据时必须降级结论。
+- 审查完整/最终 Agent 架构、用户文档受众与渲染顺序、独立消费者仓/跨仓 100% 或逐模块性能维护时，追加 `agent-capability-completeness / docs-audience-render-sequence / consumer-validation / module-performance-maintenance` 分组与 V95 证据；较窄对象、结构存在、realpath 或单 benchmark 不得替代完整性证明。
 - 所有 audit 在使用 Profile 前执行 `ProfileTruthReconciliationGate` full/PFresh；授权本地安全审查叠加 `security-audit-presentation`；发布首次/身份拓扑变化叠加 `release-parity` 的 `PublisherCredentialTopologyGate`。详细字段由 owner Skill 承接，audit 保持只读。
 - 审查规范吸纳完整性时，若发现只有概念覆盖、缺 Gate 名、缺 Skill、缺 Prompt、缺执行消费者、缺探针或缺部署副本，必须判定为 `ConfirmedAbsorptionCompletenessGates` 未收敛；按 `confirmed-completeness` gateGroup 分流到 `spec-governance` 与目标 Skill，不在本文件复制完整 Gate 清单。
 - 审查报告、AI review finding 或 audit issue 本身作为输入时需叠加 `ReviewFindingIntakeGate`，避免把报告结论直接当证据或把设计/文档/测试缺口误归类为 must-fix runtime bug。

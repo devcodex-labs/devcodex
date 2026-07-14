@@ -67,7 +67,7 @@ S02 不再把“敏感信息、明文密码、连接字符串或硬编码”定�
 | C14 | 多任务检查点 | ≥2 个独立任务：每完成一个追加进度到记忆 + 输出进度快照 |
 | C15 | 架构质量视角 | dev/fix 的需求/问题定义与代码设计须从架构师+平台工程师双视角评估：消费者范围、共享契约边界、模块职责、可扩展性、可维护性、易上手性；模块化只在真实复用者、演进边界或跨模块共享契约存在时成立 |
 | C16 | 规模判断与批量分批 | 分析、审查、扫描或批量操作前必须先识别唯一项目/root，并执行 `ProjectArtifactScaleRoutingGate` 的 bounded inventory，按文件数、可解析字节、最大文件、目录集中度、派生产物比例和消费者扩散面决定 `single-pass / batched / sampled+deep-read / blocked`；≥10 文件 mutation 或非 small corpus 必须分批并写 checkpoint，禁止先无界扫描超时后再补分批 |
-| C17 | 过程改进记录 | 用户建议的策略经确认更优，或揭示规范未定义/不完整且可泛化时，必须走 Improvement Intake：将策略写入 `data/process-improvements.md`（优化清单，PI）；若同时暴露规范缺口，再联动 `data/pending-fixes.md`（PF）。不得询问是否记录；所有模式命中后都必须显式回执已记录的 `PI-xxx / PF-xxx` |
+| C17 | 过程改进记录 | 每条非空用户消息先登记中性治理候选，完成合理性评估和上下文归因后再按语义形成 `GovernanceIntakeDecision`；关键词不得作为权威触发/分类依据。用户建议的策略经确认更优，或揭示规范未定义/不完整且可泛化时，必须走 Improvement Intake：将策略写入 `data/process-improvements.md`（优化清单，PI）；若同时暴露规范缺口，再联动 `data/pending-fixes.md`（PF）。复合意图逐项 all-of 验证；不得询问是否记录；所有模式命中后都必须显式回执已记录的 `PI-xxx / PF-xxx` |
 | C18 | 全模式入口检查不可跳过 | 同 S07 |
 | C19 | 确认后前置复审 | 每次用户明确确认后、进入下一阶段前，必须先对当前已确认产物做 1 轮轻量前置复审，并显式输出结果；控制面 / 多文件联动 / 真相源同步 / 模板-示例-校验链场景必须追加交叉验证；若发现阻断性问题，先修正并告知用户，再重新确认；无阻断问题方可推进 |
 | C20 | 官方文档证据前置 | 新增/升级第三方依赖、框架、SDK、平台 API 或外部模块前，必须先读取官方使用文档/官方参考资料并形成 `OfficialDocsEvidence`；缺失证据时不得进入编码 |
@@ -179,7 +179,7 @@ S02 不再把“敏感信息、明文密码、连接字符串或硬编码”定�
 
 ### 记录意图驱动
 
-“记录一下”“这个规范要优化”“以后应该这样做”“你刚才漏了/错了/违反流程了”等表达不得按关键词直接写台账，必须先识别规范化意图：
+`PostAssessmentGovernanceIntakeGate`：每条非空用户消息都登记中性候选，完成合理性评估、项目现实扩展和上下文归因后才识别规范化意图；关键词只能作检索线索，不得决定是否命中、归类或写台账。Hook 只维护 `ContextualCandidateSet` 与最小 candidate anchor，不替代 AI 语义判断；复合 `record.*` 意图必须逐项 all-of 验证。
 
 | 意图 | 目标 |
 |------|------|
@@ -191,7 +191,7 @@ S02 不再把“敏感信息、明文密码、连接字符串或硬编码”定�
 | `record.none` | 普通需求/报告整理 → 不写台账 |
 | `record.ambiguous` | 指代不清 → 先澄清 |
 
-每次记录分流必须输出 `规范化意图`、`置信度`、`依据`、`目标台账`。低置信度不得静默写台账。重复 VL 必须判断是否升级 PF/GAP，不能只追加重复违规。
+每次候选评估必须输出 `候选锚点`、`评估结论`、`泛化范围`、`现有规范状态`、`规范化意图`、`置信度`、`依据`、`目标台账`、`写入要求`、`写入证据`、`skipEvidence`。低置信度不得静默写台账。重复 VL 必须判断是否升级 PF/GAP，不能只追加重复违规。
 
 ### Improvement Intake（优化清单）
 
@@ -207,7 +207,9 @@ S02 不再把“敏感信息、明文密码、连接字符串或硬编码”定�
 
 所有模式下，主动 Intake 完成后必须显式回执：`已记录 PI-xxx`、`已记录 PF-xxx` 或 `已记录 PI-xxx / PF-xxx`。`data/process-improvements.md` 在本轮也可称“优化清单（PI）”，但它仍是当前 active-root 的运行时台账；若建议针对 DevCodex 规范自身，则必须归属 DevCodex 规范维护项目的 active-root，而不是业务项目台账。
 
-支持 Hook 的宿主可记录 `governanceIntakeCandidate` 并在 Stop / PreCompact 收尾提醒未分流候选；该提醒只用于防漏，不得替代 AI 的 RecordRouter 语义判断。最终回复必须包含规范化意图与目标台账，或明确 `record.none + skipReason`。
+支持 Hook 的宿主维护中性候选集合并在 Stop / PreCompact 收尾提醒未完成语义评估、分流或落账验证的候选；新消息不得覆盖旧的未终结候选，多个候选必须引用精确 ID。Hook 不按关键词分类且不自动写台账；最终回复必须给出结构化 `GovernanceIntakeDecision`。
+
+`LedgerWriteEvidenceGate`：required 记录只有在成功 PostToolUse 精确写入当前 active-root 对应台账，且工具输入与落盘文件包含相同正确前缀 ID 时才 verified；wrong-root、失败、不可观察或回复自报编号均不能关闭。候选保留 `detected → assessed → generalized → routed → write-observed → acknowledged` 阶段历史与 per-intent 写入证据；`uncertain/record.ambiguous` 停在 assessed。`RecordNoneChallengeGate` 要求 `record.none` 独占，并证明 `no-governance-impact + project-local/none（或 exists-complete 精确覆盖）+ 具体独立 skipEvidence`。
 
 ### LayeredAbsorptionGate（分层吸纳架构）
 
@@ -252,6 +254,10 @@ CP2 / 技术方案 / 报告必须记录 `LayeredAbsorptionDecision`：`candidate
 | `frontend-runtime` | `FrontendAsyncCacheRenderGate`、`StaleWhileRevalidateGate`、`AsyncDbTruthSourceVerificationGate` → `audit-project` / `test-router` / `api-verification` |
 | `profile-service` | `StrongestProfileSourceGate`、`ServiceSpecificResidueSweep`、`ProfileReadChainGate`、`ServiceNormCoverageGate`、`RouteNamespaceResponsibilityGate` → `load-profile` / `profile-bootstrap` |
 | `evolution-control-plane` | `EvolutionCapabilityControlPlaneGate`、`FrameworkCapabilityAutoFirstGate`、`OfficialApiEvidenceGate` → `evolution-governance` / `dev-plan-review` |
+| `agent-capability` | `AgentCapabilityDomainCompletenessGate` → `ai-agent-system-architecture`；Agent 能力清单须覆盖状态、恢复、权限、观测、评测、成本和生命周期等完整域 |
+| `docs-audience-render` | `DocsAudienceRoleAndRenderedSequenceProbe` → `audit-user-manual`；用户文档须同时验证受众角色、正文顺序、导航顺序与生成页面顺序 |
+| `consumer-validation` | 跨仓/外部消费者验证、身份绑定、证据新鲜度、artifact/digest/runId 与置信度降级 → `consumer-validation-engineering` |
+| `module-performance` | `ModulePerformanceCoverageAndMaintenanceGate` → `performance-engineering`；性能声明须覆盖模块边界、维护成本、基线、预算与回归证据 |
 
 ### Backlog Intake 真相复核
 

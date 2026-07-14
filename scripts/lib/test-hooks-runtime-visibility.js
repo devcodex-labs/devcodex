@@ -14,11 +14,30 @@ function runHooksRuntimeVisibilityScenarios(context) {
     getMemoryFilePath,
     runBootstrapReads,
     cleanState,
-    run,
+    run: runHook,
     readInterceptionEntries,
     writeTranscript,
     writeTranscriptEntries
   } = context
+
+  function run(payload, ...args) {
+    const output = runHook(payload, ...args)
+    if (payload?.hookEventName === 'UserPromptSubmit' && fs.existsSync(STATE_FILE)) {
+      const state = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+      state.governanceIntake = {
+        ...(state.governanceIntake || {}),
+        version: 2,
+        candidates: [],
+        activeCandidateId: '',
+        governanceIntakeCandidate: false,
+        pending: false,
+        handled: false,
+        lastDecisionError: ''
+      }
+      fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2))
+    }
+    return output
+  }
 
   cleanState()
   run({
@@ -233,7 +252,8 @@ function runHooksRuntimeVisibilityScenarios(context) {
     assistantMessage: 'Final answer without compliance block or artifact paths.'
   })
   assert.match(missingComplianceAndPathsReminder.systemMessage || '', /合规检查状态块未输出/)
-  assert.match(missingComplianceAndPathsReminder.systemMessage || '', /产物路径未输出/)
+  assert.match(missingComplianceAndPathsReminder.systemMessage || '', /产物交付不完整/)
+  assert.match(missingComplianceAndPathsReminder.systemMessage || '', /missingItems=.*artifact-section/)
 
   cleanState()
   run({
@@ -278,7 +298,7 @@ function runHooksRuntimeVisibilityScenarios(context) {
     assistantMessage: 'Final answer still missed the artifact section.'
   })
   assert.ok(!/合规检查状态块未输出/.test(artifactSectionRequiredReminder.systemMessage || ''))
-  assert.match(artifactSectionRequiredReminder.systemMessage || '', /产物路径未输出/)
+  assert.match(artifactSectionRequiredReminder.systemMessage || '', /产物交付不完整/)
 
   cleanState()
   run({
@@ -314,13 +334,21 @@ function runHooksRuntimeVisibilityScenarios(context) {
       '整体：✅ 全通过',
       '',
       '📂 本次会话产物：',
-      '- [01--sample.md](devcodex-v1/.devcodex/reports/analysis/claude-code/20260525/01--sample.md)',
+      '主要产物：',
+      '- [01--sample.md](/E:/Worker/devcodex-v1/.devcodex/reports/analysis/claude-code/20260525/01--sample.md)',
       '  `E:\\Worker\\devcodex-v1\\.devcodex\\reports\\analysis\\claude-code\\20260525\\01--sample.md`'
     ].join('\n')
   })
   const completeClosureReply = run({
     hookEventName: 'Stop',
-    assistantMessage: 'Completed with compliant final reply.'
+    assistantMessage: [
+      '🛡️ DEV 模式 | 合规检查',
+      'FC: FC1 [✅] FC2 [✅] FC3 [✅] FC4 [✅] FC5 [✅] FC6 [✅]',
+      '📂 本次会话产物：',
+      '主要产物：',
+      '- [01--sample.md](/E:/Worker/devcodex-v1/.devcodex/reports/analysis/claude-code/20260525/01--sample.md)',
+      '  `E:\\Worker\\devcodex-v1\\.devcodex\\reports\\analysis\\claude-code\\20260525\\01--sample.md`'
+    ].join('\n')
   })
   assert.ok(!completeClosureReply.systemMessage)
 
@@ -358,12 +386,19 @@ function runHooksRuntimeVisibilityScenarios(context) {
       '整体：✅ 全通过',
       '',
       '📂 本次会话产物：',
-      '- [01--sample.md](devcodex-v1/.devcodex/reports/analysis/claude-code/20260525/01--sample.md)'
+      '主要产物：',
+      '- [01--sample.md](/E:/Worker/devcodex-v1/.devcodex/reports/analysis/claude-code/20260525/01--sample.md)'
     ].join('\n')
   })
   const singleLineArtifactClosureReply = run({
     hookEventName: 'Stop',
-    assistantMessage: 'Completed with single-line artifact path.'
+    assistantMessage: [
+      '🛡️ DEV 模式 | 合规检查',
+      'FC: FC1 [✅] FC2 [✅] FC3 [✅] FC4 [✅] FC5 [✅] FC6 [✅]',
+      '📂 本次会话产物：',
+      '主要产物：',
+      '- [01--sample.md](/E:/Worker/devcodex-v1/.devcodex/reports/analysis/claude-code/20260525/01--sample.md)'
+    ].join('\n')
   })
   assert.ok(!singleLineArtifactClosureReply.systemMessage)
 
@@ -399,7 +434,8 @@ function runHooksRuntimeVisibilityScenarios(context) {
     '整体：✅ 全通过',
     '',
     '📂 本次会话产物：',
-    '- [01--sample.md](devcodex-v1/.devcodex/reports/analysis/claude-code/20260525/01--sample.md)'
+    '主要产物：',
+    '- [01--sample.md](/E:/Worker/devcodex-v1/.devcodex/reports/analysis/claude-code/20260525/01--sample.md)'
   ].join('\n'))
   const transcriptBackedClosureReply = run({
     hook_event_name: 'Stop',
@@ -413,6 +449,8 @@ function runHooksRuntimeVisibilityScenarios(context) {
   assert.strictEqual(transcriptBackedState.visible.precheck, true)
   assert.strictEqual(transcriptBackedState.visible.compliance, true)
   assert.strictEqual(transcriptBackedState.visible.artifactPaths, true)
+  assert.strictEqual(transcriptBackedState.visible.artifactStatus, 'verified-present')
+  assert.strictEqual(transcriptBackedState.visible.artifactEvidenceSource, 'transcript_path')
 
   cleanState()
   run({

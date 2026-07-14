@@ -9,6 +9,7 @@
 
 | 版本 | 日期 | 变更摘要 | 详细 |
 |------|------|---------|------|
+| [v1.13.0](./changelogs/releases/v1.13.0.md) | 2026-07-14 | ✨ **控制面模块化、返工预防与消费者验证**：新增 2 个 gray Skill、V92~V95、确定性 Skill portfolio、运行态/部署 manifest、受检命令、控制面模块拆分并以 GitHub Packages 发布 | [查看](./changelogs/releases/v1.13.0.md) |
 | [v1.12.0](./changelogs/releases/v1.12.0.md) | 2026-07-13 | ✨ **Skill 缺口、规模路由与专业 Owner 扩展**：新增 `skill-gap-analysis`、`skill-lifecycle-governance` 及分布式系统、性能工程、隐私合规、AI 评测 4 个专家 Owner；Skill 68→74、专家 Owner 17→21，并新增 `ProjectArtifactScaleRoutingGate` 与 V91 | [查看](./changelogs/releases/v1.12.0.md) |
 | [v1.11.33](./changelogs/releases/v1.11.33.md) | 2026-07-10 | 🔧 **修复协作、Profile 真相与发布闭环**：归档模型无关双层修复契约、MCP/Profile/audit/生成站点阻断修复，并新增 `ProfileTruthReconciliationGate`、`AuthorizedLocalSecurityAuditPresentationGate`、`PublisherCredentialTopologyGate` 与 V87~V90 | [查看](./changelogs/releases/v1.11.33.md) |
 | [v1.11.32](./changelogs/releases/v1.11.32.md) | 2026-07-09 | 🔧 **专家能力、记忆启动链与发布包依赖闭包**：新增 `expert-output-quality`、17 个专家 Owner Skill、`ExpertOutputQualityGate`、`ExpertOwnerSkillGate`、`MemoryCannotSatisfyBootstrapGate` 与 `PackagedScriptDependencyClosureGate`，补齐 V84/V85/V86 探针，防止专家口径泛化、宿主 Memories 替代文件真相源，以及源码测试通过但 tarball 公开脚本缺运行时依赖 | [查看](./changelogs/releases/v1.11.32.md) |
@@ -120,9 +121,9 @@
 
 ## 相关文档
 
-- [`changelogs/releases/v1.11.24.md`](./changelogs/releases/v1.11.24.md) — 最新版本详细变更文档
-- [`changelogs/releases/v1.11.23.md`](./changelogs/releases/v1.11.23.md) — 上一版本详细变更文档
-- [`changelogs/releases/v1.11.22.md`](./changelogs/releases/v1.11.22.md) — 历史版本详细变更文档
+- [`changelogs/releases/v1.13.0.md`](./changelogs/releases/v1.13.0.md) — 最新版本详细变更文档
+- [`changelogs/releases/v1.12.0.md`](./changelogs/releases/v1.12.0.md) — 上一版本详细变更文档
+- [`changelogs/releases/v1.11.33.md`](./changelogs/releases/v1.11.33.md) — 历史版本详细变更文档
 - [`changelogs/releases/v1.11.21.md`](./changelogs/releases/v1.11.21.md) — 历史版本详细变更文档
 - [`changelogs/releases/v1.11.18.md`](./changelogs/releases/v1.11.18.md) — 历史版本详细变更文档
 - [`changelogs/releases/v1.11.17.md`](./changelogs/releases/v1.11.17.md) — 历史版本详细变更文档

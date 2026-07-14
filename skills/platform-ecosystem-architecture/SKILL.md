@@ -28,6 +28,12 @@ description: 平台生态架构专家 Owner — 当任务涉及 CLI、Hook、多
 | `HostCompatibilityGate` | Copilot / Claude Code / Codex / fallback 差异必须明确 | hostSurfaceMatrix |
 | `DistributionMigrationGate` | 发布、部署副本和迁移路径必须可验证 | releaseDistributionImpact |
 
+### DevCodex managed deployment manifest
+
+- `init/update` 的 copy map 是源事实；目标所有权索引写入 `resolveActiveRuntimeRoot(cwd)/managed/deployment-manifest.json`。workspace-namespace 必须落到 workspace/project active-root，禁止另建平行 `.devcodex/managed` 根。
+- preview 分类 `add/update/unchanged/stale/unowned`；`stale` 只代表上一 manifest 管理、当前源已不再声明且文件仍存在，CLI 不自动删除。`unowned` 只提示目标 managed subtree 中从未进入 manifest 的文件。
+- V8 对 current entry 做 source→destination/hash 验证，对 stale existing 做阻断；首次 manifest 只能建立之后的 ownership 基线，不能把 pre-manifest extras 伪装成 stale。
+
 ## 执行步骤
 
 1. 列出宿主面和能力面：CLI、Hook、MCP、Skill、Profile、docs、plugin。

@@ -2,7 +2,7 @@
 applyTo: "**"
 description: dev 模式合规检查规则，覆盖 FC/SC/RC/T、入口检查与完成验证
 priority: P4
-version: 1.12.0
+version: 1.13.0
 ---
 # 合规检查规则（17-compliance）
 
@@ -107,6 +107,10 @@ version: 1.12.0
 - 检查不通过时修正后重检（FC+SC 累计修正 ≥5 次仍未全通过 → 停止循环，输出剩余失败项摘要标 ⚠️）
 - **chat 豁免** — 不执行合规检查（FC/SC/RC/T）；⚠️ PC0~PC7 入口检查对 chat 仍强制，见 §入口检查
 
+### GovernanceIntakeClosureGate（全模式，不依赖 FC/SC 开关）
+
+每条非空消息都先登记中性 candidate，完成合理性评估后按语义形成 `GovernanceIntakeDecision`。回复/任务收尾前检查 candidate ID、评估结论、泛化范围、现有规范状态、复合 record intents、目标台账、写入要求与证据；required 写入必须通过当前 active-root 的成功 PostToolUse/落盘 ID 复证，`record.none` 必须通过 challenge，`record.ambiguous` 保持未终结。关键词不得作为触发或分类权威；instruction-fallback 无 Hook 证据时在报告/记忆标 `unverified` 与人工复证路线。
+
 ## 执行顺序
 
 ```text
@@ -139,7 +143,7 @@ version: 1.12.0
 | FC2 | 报告文件已写入（chat 豁免） |
 | FC3 | CP 按序执行（dev/fix；其他 N/A） |
 | FC4 | 文件名/路径合规（`NN--` 双横杠开头；本轮无报告产物时标 N/A） |
-| FC5 | 产物路径已输出（回复末尾在 `📂 本次会话产物` 区块内列出 `ArtifactLinkSet`：Markdown 链接 + 必要 `绝对路径：` copy fallback，见 `02-output-paths.instructions.md` §产物路径输出格式）|
+| FC5 | 产物交付完整（`ArtifactDeliveryCompletenessGate`：主要产物自包含、manifest/计数、`ArtifactLinkSet`、surface-local dedupe、Markdown 链接与必要 copy fallback；可见证据三态）|
 | FC6 | 新增 DevCodex 规范资产 `.md` 行数检查（instructions / skills / prompts / templates / 规范源等超 500 行须按 C13 拆分；业务项目需求、技术方案、报告和正式项目文档不因 C13 强制拆分） |
 | FC7 | 用户决策选项与报告决策点必带推荐 + 理由：所有 AskUserQuestion / 多选项呈现 / CP 范围选择 / 方案对比 / analyze-audit 报告决策点必须有且仅有 1 个 🟢 推荐项（首位置 + 标签含"(推荐)"或表格标 ⭐），并附一句话推荐理由；没有可推荐动作时必须显式写 `推荐：无后续动作` 与原因 |
 
@@ -205,7 +209,7 @@ version: 1.12.0
 | T3 | ✅ 记忆完整 |
 | T4 | ✅ CP 完整（dev/fix；其他 N/A） |
 | T5 | ✅ 合规通过 |
-| T6 | ✅ 约束遵守（C01~C22） |
+| T6 | ✅ 约束遵守（C01~C22 + GovernanceIntakeClosureGate 已终结或明确 unverified/ambiguous） |
 | T7 | ✅ 工作流验证（dev/fix: 适用门禁已执行，且“执行 → 扫描/验证 → ECR → 完成”正式阶段已走完；其中 fix 的三步扫描与 ECR 已完成；audit/analyze: PCV 与推荐结论已执行）|
 | T8 | ✅ SUMMARY 已更新；若触发上下文交接，daily tasks 或报告已写 `ContextHandoffCard` |
 | T9 | ✅ 产物路径已输出 |
@@ -229,7 +233,7 @@ SC: SC2 [✅/❌] SC4 [✅/❌] SC6 [✅/❌] ...（仅列适用项，逐项实�
 ---
 ```
 
-> ⚠️ **FC5 填写规则**：必须在回复末尾的 `📂 本次会话产物` 区块内列出 `ArtifactLinkSet`（详见 [`02-output-paths.instructions.md`](./02-output-paths.instructions.md) §产物路径输出格式）；主链接必须是 Markdown 链接，当前宿主为 Codex Desktop/App、Copilot、未知宿主，或用户反馈无法点击时，必须追加 `绝对路径：` copy fallback；禁止只输出裸文件名，本轮无文件变更时填 N/A，有变更时不得填 ✅ 而不列出路径。
+> ⚠️ **FC5 填写规则**：最终回复必须在 `📂 本次会话产物` 区块标注“主要产物”并列出 active task primary artifacts；大集合提供完整 manifest 入口和 supporting/runtime/excluded-generated 计数。去重仅限同一 surface；Hook 未观察到 assistant payload 时状态只能为 `unverified`，不得断言缺失。
 
 ## 自修复触发（不进入 self-fix 工作流）
 

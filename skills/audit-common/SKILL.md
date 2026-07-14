@@ -22,6 +22,16 @@ G0 必须先调用 `skill-gap-analysis` 的 `ProjectArtifactScaleRoutingGate`：
 
 > 分批策略详见 [`audit-execution-guide/SKILL.md`](../audit-execution-guide/SKILL.md) §体量分批策略。
 
+## ReviewCoverageClaimIntegrityGate
+
+审查报告、清单和最终回复必须区分 `inventory-covered / machine-scanned / manually-read / sampled-deep-read / executed-verified`。目录枚举、grep 命中、抽样深读和运行探针不得相互冒充。
+
+- 声明“逐文件 / 逐服务 / 全量深读”时必须提供 `FileEvidenceLedger`，逐项记录 path、coverageLevel、evidence、status 和 unread reason。
+- sampled 路线必须记录 `sampleMethod / sampledSet / unreadSet / inferenceBoundary`，不得把样本结论无条件外推到未读集合。
+- executed-verified 只证明对应命令或路径，不自动证明人工阅读或全部消费者覆盖。
+- 无法取得逐文件证据时必须降级声明，禁止用更强措辞包装较弱证据。
+- `coverageClaims` 必须记录 claim type、evidence mode、FileEvidenceLedger 或 sampled/unread/inference boundary，供 review checklist、TestRoute、report 与 V94 复证。
+
 ## Profile Freshness Check（PFresh）
 
 > 🔴 audit 不得默认 Profile 永远可信；在使用 Profile 做 G3 外部一致性之前，必须先反向核对 Profile 是否仍匹配当前项目事实。

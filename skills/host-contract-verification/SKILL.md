@@ -45,11 +45,18 @@ description: 宿主契约验证规范 — 为 Hook / CLI / bootstrap / visible r
 | 可见回复三态 | fixture replay 或 direct replay，报告中写明 `visibleReplyEvidence` |
 | sticky project / workspace guard | multi-project fixture + follow-up replay |
 | bootstrap / 部署副本 | `node scripts/validate.js` + 部署同步后的落点复核 |
+| managed deployment manifest | legacy + workspace-namespace fixture、update preview、manifest schema/hash、stale 保留、V8 direct replay |
 | ArtifactLinkSet / 产物点击 | static matrix probe + visible reply fixture；若声称某客户端可点，需 direct replay 或用户实测证据 |
 | MCP bridge fallback | MCP server no-args direct replay + 非 Full 宿主 fallback 文案探针；若错误来自宿主桥接层，只能声明 fallback 已覆盖，不能声明宿主 bug 已修复 |
 | 仅文档声明变更 | `source-consumer-sync` + validate probe；若声称宿主行为改变则不得只改文档 |
 
 ## 证据要求
+
+### ArtifactDeliveryCompletenessGate
+
+Stop/PreCompact 对最终回复产物证据必须使用 `verified-present / verified-missing / unverified`：只有观察到可解析 assistant 内容才能判定 present/missing；未观察到只能 unverified。记录 `evidenceSource / missingItems`，不得用任意一个链接替代 active task 的 primary artifacts，也不得保存不必要的完整回复正文。
+
+最终回复在单一 surface 内列出“主要产物”；小集合全列，大集合列 primary + 完整 manifest 入口 + supporting/runtime/excluded-generated 计数。报告、记忆或 SUMMARY 已有链接不能成为最终回复省略 primary artifacts 的理由。
 
 1. 报告必须说明证据来自 direct replay、fixture replay、现有 targeted test，还是 validate probe 推断。
 2. 无法直接读取最终 assistant 内容时，只能落为 `unverified`，不能伪造 `verified-present`。
@@ -57,6 +64,12 @@ description: 宿主契约验证规范 — 为 Hook / CLI / bootstrap / visible r
 4. 若宿主不支持某类硬拦，只能记录为能力差异或 fallback，不得把缺失能力写成已验证通过。
 5. 产物链接必须区分“Markdown 主链接已生成”“当前宿主可点击已实测”“绝对路径 copy fallback 已提供”三种证据；不得把第一项等同于后两项。
 6. `profile_load` / MCP 工具出现 `Cannot read properties of undefined (reading 'invoke')` 时，若 DevCodex MCP server direct replay 通过，应记录为宿主 MCP bridge 失败并启用 `mcpFallback=used`，禁止反复重试同一 MCP 调用。
+
+### NativeCommandExitCodeGate 可执行适配
+
+- 仓库内需要串行执行原生命令并保留证据的维护脚本优先复用 `scripts/lib/checked-command.js` 的 `runChecked` / `runSequenceChecked`，统一记录 command、cwd、exitCode、signal、duration 与 stdout/stderr 摘要。
+- 默认 `shell:false`；只有调用方记录 `allowShellReason` 时才允许 shell。positional path 中的字面 glob 必须在 spawn 前拒绝，显式 `--glob/-g` 等 option value 除外。
+- 适配器只是实现路径，不替代 direct replay / fixture replay；必须用 nonzero、ENOENT、失败短路和 literal-glob 负向 fixture 证明不会假绿。
 
 ## 与其他 Skill 的关系
 

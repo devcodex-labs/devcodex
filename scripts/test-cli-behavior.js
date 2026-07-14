@@ -111,6 +111,16 @@ function assertRuntimeDataBootstrap(runtimeRoot) {
   }
 }
 
+function assertDeploymentManifest(runtimeRoot, expectedSurface) {
+  const file = path.join(runtimeRoot, 'managed', 'deployment-manifest.json')
+  assert.ok(fs.existsSync(file), `missing deployment manifest: ${file}`)
+  const manifest = JSON.parse(fs.readFileSync(file, 'utf8'))
+  assert.strictEqual(manifest.schemaVersion, 1)
+  assert.ok(manifest.entries.length > 0)
+  assert.ok(manifest.entries.some(entry => entry.surface === expectedSurface))
+  assert.deepStrictEqual(manifest.staleEntries, [])
+}
+
 function assertCodexAdapterState(root) {
   const sourceInstructions = fs.readFileSync(path.join(ROOT, 'instructions.md'), 'utf8')
   const agentsMd = fs.readFileSync(path.join(root, 'AGENTS.md'), 'utf8')
@@ -174,6 +184,7 @@ function testClaudeInitPreservesCustomConfig() {
   runCli(['init', '--claude'], root)
   assertClaudeMergeState(root, { claudeMdManaged: false })
   assertRuntimeDataBootstrap(path.join(root, '.devcodex'))
+  assertDeploymentManifest(path.join(root, '.devcodex'), 'claude')
 
   const backupRoot = path.join(root, '.devcodex', '.tmp', 'backups')
   assert.strictEqual(findBackups(backupRoot, 'CLAUDE.md').length, 0)
@@ -190,6 +201,7 @@ function testClaudeUpdateBacksUpAndPreservesCustomConfig() {
   runCli(['update', '--claude'], root)
   assertClaudeMergeState(root, { claudeMdManaged: true })
   assertRuntimeDataBootstrap(path.join(root, '.devcodex'))
+  assertDeploymentManifest(path.join(root, '.devcodex'), 'claude')
 
   const backupRoot = path.join(root, '.devcodex', '.tmp', 'backups')
   assert.ok(findBackups(backupRoot, 'CLAUDE.md').length >= 1)
@@ -229,6 +241,7 @@ function testDefaultInitBootstrapsActiveRootData() {
   runCli(['init'], root)
 
   assertRuntimeDataBootstrap(path.join(root, '.devcodex'))
+  assertDeploymentManifest(path.join(root, '.devcodex'), 'copilot')
   fs.rmSync(root, { recursive: true, force: true })
 }
 
@@ -240,6 +253,8 @@ function testCodexInitBootstrapsWorkspaceNamespaceData() {
   runCli(['init', '--codex'], path.join(root, 'packages', 'app-a'))
 
   assertRuntimeDataBootstrap(path.join(root, '.devcodex', 'packages', 'app-a'))
+  assertDeploymentManifest(path.join(root, '.devcodex', 'packages', 'app-a'), 'codex')
+  assert.ok(!fs.existsSync(path.join(root, '.devcodex', 'managed')), 'workspace namespace must not create a parallel root manifest')
   fs.rmSync(root, { recursive: true, force: true })
 }
 
@@ -257,6 +272,7 @@ function testCodexInitBacksUpManagedFiles() {
 
   assertCodexAdapterState(root)
   assertRuntimeDataBootstrap(path.join(root, '.devcodex'))
+  assertDeploymentManifest(path.join(root, '.devcodex'), 'codex')
 
   const backupRoot = path.join(root, '.devcodex', '.tmp', 'backups')
   assert.ok(findBackups(backupRoot, 'AGENTS.md').length >= 1)
@@ -280,6 +296,8 @@ function testCodexUpdateRefreshesAdapterInWorkspaceNamespace() {
 
   assertCodexAdapterState(path.join(root, 'packages', 'app-a'))
   assertRuntimeDataBootstrap(path.join(root, '.devcodex', 'packages', 'app-a'))
+  assertDeploymentManifest(path.join(root, '.devcodex', 'packages', 'app-a'), 'codex')
+  assert.ok(!fs.existsSync(path.join(root, '.devcodex', 'managed')), 'workspace namespace must keep manifest under the project active-root')
 
   const backupRoot = path.join(root, '.devcodex', 'packages', 'app-a', '.tmp', 'backups')
   assert.ok(findBackups(backupRoot, 'AGENTS.md').length >= 1)

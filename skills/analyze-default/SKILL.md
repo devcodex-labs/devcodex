@@ -16,7 +16,7 @@ description: 默认分析工作流规范 — 只读多轮分析、代码事实�
 
 ## 只读边界
 
-- analyze 是只读工作流，禁止修改源码、规范、台账或报告以外的执行产物。
+- analyze 是项目内容只读工作流，禁止修改源码、规范与配置；只允许写分析报告、记忆，以及经 `spec-governance` 语义分流后必须写入的 active-root 运行态台账。
 - 发现必须修改的问题时，只能在结论里建议切换 `dev` 或 `fix`，不得在 analyze 内直接实施。
 - 用户先给结论、根因或方案假设时，必须独立取证；核验成立才采纳，并说明证据。
 
@@ -30,6 +30,7 @@ description: 默认分析工作流规范 — 只读多轮分析、代码事实�
 | A3 多轮分析 | 至少 3 轮；连续 2 轮无新发现后才可收敛 |
 | A4 analyze-lite CRS | 建立关联文件集合，收敛前反向联查是否遗漏关键消费者 |
 | A5 PCV 汇总验证 | 对每条结论执行去重、实证核查、三列验证、分级和推荐结论 |
+| A5a 治理评估 | 完成结论合理性评估后，对当前中性候选执行 `PostAssessmentGovernanceIntakeGate`；复合意图逐项落账，`record.none` 提供 challenge evidence |
 | A6 报告输出 | 结论必须包含合理性、可实施性、收益、验证状态和影响范围 |
 
 ## 证据门禁
@@ -112,3 +113,4 @@ analyze 只矫正结论，不修改 Profile。需要修订 Profile 时在 `upgra
 | `pcv` | PCV-1~PCV-6 结果 |
 | `recommendation` | 推荐结论、推荐理由或无后续动作 |
 | `upgradeAdvice` | 是否建议切换 audit/dev/fix/research，含理由 |
+| `governanceIntake` | candidate ID、评估结论、泛化范围、现有规范状态、复合 record intents、target ledgers、write requirement/evidence、verification state 或 none challenge |

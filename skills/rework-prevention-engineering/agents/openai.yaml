@@ -1,0 +1,4 @@
+interface:
+  display_name: "Rework Prevention Engineering"
+  short_description: "Reduce rework through measurable prevention and forward evidence"
+  default_prompt: "Use $rework-prevention-engineering to classify rework, move controls earlier, and verify prevention effectiveness."

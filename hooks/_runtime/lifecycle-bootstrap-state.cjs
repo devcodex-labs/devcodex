@@ -27,7 +27,8 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     buildInterceptionOutput,
     INTERCEPTION_ACTION,
     noopOutput,
-    emptyGovernanceIntakeState
+    emptyGovernanceIntakeState,
+    normalizeGovernanceIntakeState
   } = ctx
 
   function buildScopedNeedles(scopeRoot, segments) {
@@ -88,7 +89,10 @@ function buildLifecycleBootstrapStateUtils(ctx) {
         precheckStatus: 'unverified',
         precheck: false,
         compliance: false,
-        artifactPaths: false
+        artifactPaths: false,
+        artifactStatus: 'unverified',
+        artifactEvidenceSource: '',
+        artifactMissingItems: []
       },
       stickyProject: {
         project: CONTEXT_PROJECT || '',
@@ -133,7 +137,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       visible: { ...current.visible, ...(saved.visible || {}) },
       stickyProject: { ...current.stickyProject, ...(saved.stickyProject || {}), ...(metaState?.stickyProject || {}) },
       cp3Runtime: { ...current.cp3Runtime, ...(saved.cp3Runtime || {}) },
-      governanceIntake: { ...current.governanceIntake, ...(saved.governanceIntake || {}) },
+      governanceIntake: normalizeGovernanceIntakeState(saved.governanceIntake),
       dangerousApprovals: { ...current.dangerousApprovals, ...(saved.dangerousApprovals || {}) }
     }
   }
@@ -165,6 +169,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     state.lastMultiProjectWarningKey = previousState?.lastMultiProjectWarningKey || ''
     state.stickyProject = { ...state.stickyProject, ...(previousState?.stickyProject || {}) }
     state.cp3Runtime = { ...(previousState?.cp3Runtime || {}) }
+    state.governanceIntake = normalizeGovernanceIntakeState(previousState?.governanceIntake)
     state.dangerousApprovals = { ...(previousState?.dangerousApprovals || {}) }
     saveState(state)
     return state

@@ -36,6 +36,7 @@ description: 复审清单整理与审查规范 — 创建、冻结、证据执�
 | `closure` | 收敛结论、未关闭项、下一步和报告引用 |
 | `evidenceLedger` | 多批次或矩阵验证命中 `BatchEvidenceLedgerStateGate` 时，冻结 baseline、actualSources、commands、status、finding / skipReason |
 | `progressCard` | 多批次命中 `BatchProgressCardGate` 时，记录 totalScope、completed、currentBatch、nextBatch、remaining、blockers、evidenceLinks |
+| `coverageClaims` | 按 inventory/machine/manual/sample/executed 分级；强覆盖声明绑定 FileEvidenceLedger |
 
 ## 必执行门禁
 
@@ -54,7 +55,11 @@ description: 复审清单整理与审查规范 — 创建、冻结、证据执�
 - `FeatureChecklistEvidenceMatrixGate`：需求维度、功能清单或公开能力进入复审时，必须把 capability group × evidence surface 绑定到当前证据；复审清单记录验证状态，不替代稳定 Profile feature inventory。
 - `BatchEvidenceLedgerStateGate`：多批次、矩阵验证、长链路吸纳或发布前检查必须冻结 EvidenceLedger，区分 baseline-confirmed、executed-passed、partial、failed、not-started，且每项有 actualSources、commands、status、finding 或 skipReason。
 - `BatchProgressCardGate`：多批次最终报告、记忆和回复必须同步 Progress Card，覆盖总范围、已完成、当前批、下一批、剩余项、阻塞/风险和证据链接。
+- `ChecklistStateMaterializationGate`：每轮 clean、streak 增加或 closed 声明前，必须重开当前清单，以同一个 `ChecklistStateSnapshot` 原子核对 header、冻结项、轮次表、Evidence Ledger、Progress Card、Closure 六区块的 `currentRound / zeroFindingStreak / currentBatch / remaining / blockers / openFindings / closureState`。任一区块 stale、缺字段或互相冲突时，本轮无效且 streak 不增加；修正后必须从受影响轮次重新执行，不能只改文案。
 - `RepairCollaborationAcceptanceGate`：repair task 的清单必须绑定 `repairClass / contractState / authorizationEvidence`；full 合同逐项核对 findingToPatchMap、handoffIntegrity、independentReReview 和 acceptanceMatrix，禁止补丁产出者以唯一证据关闭高风险项。
+- `ReviewCoverageClaimIntegrityGate`：逐文件/逐服务/全量深读声明必须有 FileEvidenceLedger；抽样必须公开 sampledSet、unreadSet、sampleMethod 与 inferenceBoundary。
+- `ReworkPreventionHandoffGate`：escape 属于原确认范围且已越过目标门禁时，交给 `rework-prevention-engineering` 分类 ReworkEvent/cluster，并把 prevention 注册到后续可比较任务；本任务重跑通过不能单独证明预防有效。
+- `CandidateDiffCompletenessGate`：commit/tag/publish 前，复审清单必须把授权范围物化为 staged candidate snapshot，并记录 cached diff check、name-status、secret-shape scan 与 intended scope 对账；普通 working diff 不得作为未跟踪文件已覆盖的证据。
 
 ## 执行步骤
 
@@ -95,7 +100,7 @@ escape record 至少包含：
 | code-truth | 代码、配置、package、runtime、public API 或消费者入口真相 |
 | validation | 测试、validate、build、pack、install、Browser、API、benchmark |
 | docs-consumer | README、website、Profile、prompts、templates、部署副本 |
-| release-readiness | changelog、version、tag、registry、回滚、发布说明 |
+| release-readiness | changelog、version、staged candidate snapshot、tag、registry、回滚、发布说明 |
 | governance-ledger | PI/PF/VL/GAP/ISSUE 台账状态和关闭证据 |
 | feature-inventory | Profile feature inventory、capability group、公开面、文档入口和验证路线 |
 | batch-evidence | EvidenceLedger、批次矩阵、Progress Card、baseline / executed / partial / failed / not-started 状态 |

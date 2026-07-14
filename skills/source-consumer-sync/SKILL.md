@@ -105,8 +105,18 @@ description: 真相源-消费者同步规范 — 为规范源、模板、validat
 - `ProfileTruthReconciliationGate` sourceOfTruth=`load-profile`；currentConsumers=`analyze-default/audit-common/report/report-analysis/report-audit/instructions/13-analyze`；validate=V88。
 - `AuthorizedLocalSecurityAuditPresentationGate` sourceOfTruth=`security-threat-modeling`；currentConsumers=`audit-project/audit-execution-guide/execution-contract/test-router/report/report-audit`；validate=V89。
 - `PublisherCredentialTopologyGate` sourceOfTruth=`release-verification`；currentConsumers=`audit-release/execution-contract/test-router/report/report-dev/report-fix/technical-design/implementation-plan`；validate=V90 + R0~R7。
+- `ScopedRegistryResolutionGate` sourceOfTruth=`release-verification`；currentConsumers=`audit-release/test-router/report/report-audit/implementation-plan/website-release/Profile-05/release-note`；validate=V92 + scoped registry targeted fixtures + R0~R7。
+- `ChecklistStateMaterializationGate` sourceOfTruth=`review-checklist`；currentConsumers=`test-router/report/spec-governance/report-audit/technical-design/README/website/release-note`；validate=V94 stale/consistent snapshot fixtures + current checklist reopen evidence。
 - 三项 publicDocs=`README/website guide/intro/active changelog`，Profile=`05/06/07` 按触发同步，deployCopies 由 workspace-root update 生成；历史 version/release 镜像不回写。
 - V88~V90 的 prompt/report/instruction 只保留字段、触发与 owner 引用，不复制 owner Skill 详细正文；SCV 必须反向检查 secret value、绕过声明和 audit source mutation 等负向残留。
+
+## V95 跨仓消费者与能力完整性同步面
+
+- `AgentCapabilityDomainCompletenessGate` sourceOfTruth=`ai-agent-system-architecture`；currentConsumers=`dev-plan-review/test-router/report/technical-design/report-audit`。
+- `DocsAudienceRoleAndRenderedSequenceProbe` sourceOfTruth=`audit-user-manual`；currentConsumers=`user-manual-authoring/document-sync/test-router/report/report-audit`。
+- `ConsumerValidationEngineeringGate` sourceOfTruth=`consumer-validation-engineering`；currentConsumers=`quality-strategy/test-router/release-verification/report/technical-design/implementation-plan/reports/plugin/portfolio`。
+- `ModulePerformanceCoverageAndMaintenanceGate` sourceOfTruth=`performance-engineering`；currentConsumers=`quality-strategy/test-router/release-verification/report/implementation-plan`。
+- 四项 validate=`V95 + targeted test`；publicDocs=`README/website guide/intro/active changelog`，Profile=`01/02/04/06/07`；deployCopies 由 workspace-root update 生成。公共 instructions 和 prompts 只保留 gateGroup/owner/字段索引，不复制 Owner 正文。
 
 ## 黄色偏离边界
 

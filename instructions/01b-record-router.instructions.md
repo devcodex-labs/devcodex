@@ -2,7 +2,7 @@
 applyTo: "**"
 description: 任务切换边界、RecordRouter 分流、Improvement Intake 与提交发布边界的通用规范
 priority: P5
-version: 1.12.0
+version: 1.13.0
 ---
 # 任务边界与 RecordRouter
 
@@ -50,6 +50,7 @@ version: 1.12.0
 
 ## Improvement Intake（优化清单）
 
+- `PostAssessmentGovernanceIntakeGate`：每条非空用户消息都登记中性候选，完成合理性评估和上下文归因后再形成 `GovernanceIntakeDecision`；关键词仅可作检索线索，不得触发、分类或免除评估。多个未终结候选必须保留并通过精确 candidate ID 分别决策，不能被新消息覆盖。
 - 所有模式下，每条用户消息完成合理性评估后，都要额外检查是否命中“可泛化更优策略”或“规范缺口暴露”。
 - 命中后即使用户没有显式说“记录一下”，也要主动分流：
   - 仅更优策略 → PI
@@ -58,7 +59,10 @@ version: 1.12.0
   - 已有规则未执行 → VL
   - 一次性偏好或业务局部诉求 → 不写台账
 - 所有模式命中后都必须显式回执 `已记录 PI-xxx`、`已记录 PF-xxx` 或 `已记录 PI-xxx / PF-xxx`。
-- 支持 Hook 的宿主可把疑似治理输入标记为 `governanceIntakeCandidate` 并在收尾提醒未分流候选；该提醒只防止漏记，不替代语义判断。最终仍必须由 AI 给出 RecordRouter 判定，或明确 `record.none + skipReason`。
+- 支持 Hook 的宿主只维护中性 `ContextualCandidateSet`、最小锚点和验证状态，不负责语义分类或自动写台账。最终必须由 AI 输出包含候选锚点、评估结论、泛化范围、现有规范状态、规范化意图、置信度、依据、目标台账、写入要求、写入证据与 `skipEvidence` 的结构化决策；复合意图逐项 all-of 验证。
+- 候选状态必须保留 `detected → assessed → generalized → routed → write-observed → acknowledged` 的阶段历史和每个 intent 的 `targetLedger/claimedIds/observationIds/status`；`uncertain/record.ambiguous` 停在 assessed，写入缺证据停在 routed，禁止直接跳到终态。
+- `LedgerWriteEvidenceGate`：required 写入只接受成功 PostToolUse 对当前 active-root 精确台账的观察，并要求工具输入 ID 与落盘文件 ID 一致；错误 root、失败/不可观察结果、只在回复声称编号均为 unverified。already-recorded 必须重新读取当前 active-root 正确台账找到精确 ID。
+- `RecordNoneChallengeGate`：`record.none` 必须独占意图，证明 no-governance-impact；`project-local|none` 需证明局部性/不可泛化，更广范围只允许由 `exists-complete` 与精确既有规则证据关闭；同时给出独立具体依据与 skipEvidence。缺项或与实质写入意图混合时不得终结；`uncertain/record.ambiguous` 始终先澄清。
 - PI / PF / GAP / ISSUE 或用户确认“值得吸纳 / 未完整吸纳 / 半覆盖 / 仍需吸纳”的策略进入规范源前，必须先读取 `spec-absorption`，执行 `CommonNormGeneralizationGate` 与 `AbsorptionCandidateConsumerProofGate`，证明通用规范价值、剔除项目独有残留并绑定 DevCodex 当前消费者；随后执行 `LayeredAbsorptionGate`。若是半覆盖补强，追加 `ConfirmedAbsorptionCompletenessGates`，逐项检查 Gate 名、目标 Skill、Prompt、执行消费者、validate 探针、公开文档和部署副本是否闭环。自我进化、自动吸纳或模型辅助治理候选必须进入 `evolution-governance`。
 
 ## Backlog Intake 真相复核

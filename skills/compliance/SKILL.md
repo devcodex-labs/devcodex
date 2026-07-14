@@ -50,9 +50,13 @@ SC: SC2 [✅/❌] SC4 [✅/❌] SC6 [✅/❌] ...（仅列适用项，逐项实�
 ```
 
 > ⛔ dev 模式下不输出状态块视为未执行合规检查。
-> ⚠️ **FC5 填写规则**：必须在回复末尾的 `📂 本次会话产物` 区块内列出 `ArtifactLinkSet`（详见 [`02-output-paths`](../../instructions/02-output-paths.instructions.md) §产物路径输出格式）；主链接必须是 Markdown 链接，当前宿主为 Codex Desktop/App、Copilot、未知宿主，或用户反馈无法点击时，必须追加 `绝对路径：` copy fallback；禁止只输出裸文件名。本轮无文件变更时填 N/A，有变更时不得填 ✅ 而不列出路径。
+> ⚠️ **FC5 填写规则**：执行 `ArtifactDeliveryCompletenessGate`。必须在回复末尾的 `📂 本次会话产物` 区块标注“主要产物”并列出 active task primary artifacts；大集合提供完整 manifest 入口和 supporting/runtime/excluded-generated 计数。主链接必须是 Markdown 链接，必要时追加绝对路径 fallback；跨 surface 不得去重省略。Hook 证据为 `verified-present / verified-missing / unverified`，未观察 payload 时禁止断言缺失。
 > ℹ️ prod 模式不执行合规检查，不输出状态块。
 > ℹ️ chat 工作流豁免此输出。
+
+### GovernanceIntakeClosureGate（全模式语义项）
+
+本项不受 dev/prod 后置合规块开关影响：每条非空用户消息都必须有中性 candidate，并在合理性评估后形成 `GovernanceIntakeDecision`。收尾前检查 candidate ID、评估结论、泛化范围、现有规范状态、复合意图、目标台账、写入要求与证据；required 写入必须满足 `LedgerWriteEvidenceGate`，`record.none` 必须满足 `RecordNoneChallengeGate`，`record.ambiguous` 保持未终结。Hook 证据不可观察时只能标 `unverified`，不能把回复中的自报编号当作落账成功；instruction-fallback 必须在报告/记忆保留相同字段与人工复证路线。
 
 ### 全自动模式差异
 
@@ -87,7 +91,7 @@ SC: SC2 [✅/❌] SC4 [✅/❌] SC6 [✅/❌] ...（仅列适用项，逐项实�
 | FC2 | 报告文件已写入（chat 豁免） |
 | FC3 | CP 按序执行（dev/fix；其他 N/A） |
 | FC4 | 文件名/路径合规（`NN--` 双横杠开头） |
-| FC5 | 产物路径已输出（回复末尾在 `📂 本次会话产物` 区块内列出 `ArtifactLinkSet`：Markdown 链接 + 必要 `绝对路径：` copy fallback，见 `02-output-paths.instructions.md` §产物路径输出格式）|
+| FC5 | 产物交付完整（`ArtifactDeliveryCompletenessGate`：主要产物自包含、manifest/计数、`ArtifactLinkSet`、surface-local dedupe、Markdown 链接与必要 copy fallback；可见证据三态）|
 | FC6 | 新增 DevCodex 规范资产 `.md` 行数检查（instructions / skills / prompts / templates / 规范源等超 500 行须按 [C13](../../instructions/01-common.instructions.md) 拆分；业务项目需求、技术方案、报告和正式项目文档不因 C13 强制拆分） |
 | FC7 | 用户决策选项与报告决策点必带推荐 + 理由：所有 AskUserQuestion / 多选项呈现 / CP 选项 / 方案对比 / analyze-audit 报告决策点必须有且仅有 1 个推荐项，推荐项置首且说明推荐理由；无后续动作时写明 `推荐：无后续动作` |
 
@@ -156,7 +160,7 @@ SC: SC2 [✅/❌] SC4 [✅/❌] SC6 [✅/❌] ...（仅列适用项，逐项实�
 | T3 | ✅ 记忆完整（任务摘要+对话记录+关联报告） |
 | T4 | ✅ CP 完整（dev/fix；其他 N/A） |
 | T5 | ✅ 合规通过（FC+SC 全通过） |
-| T6 | ✅ 约束遵守（C01~C22 + 关联文件已同步） |
+| T6 | ✅ 约束遵守（C01~C22 + 关联文件已同步 + GovernanceIntakeClosureGate 已终结或明确 unverified/ambiguous） |
 | T7 | ✅ 工作流验证（dev/fix: 扫描/验证 + ECR 已执行；audit/analyze: PCV 与推荐结论已执行）|
 | T8 | ✅ SUMMARY 已更新；若触发上下文交接，daily tasks 或报告已写 `ContextHandoffCard` |
 | T9 | ✅ 产物路径已输出 |

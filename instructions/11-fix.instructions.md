@@ -2,7 +2,7 @@
 applyTo: "**"
 description: fix 工作流规则，覆盖子类型路由、CP 流程、修复三步扫描、执行期回退与 ECR
 priority: P4
-version: 1.12.0
+version: 1.13.0
 ---
 # 修复工作流规则（11-fix）
 
@@ -58,6 +58,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → 
 - **BenchmarkRegressionGuard**：修复触及已有 benchmark 基线项目的 hot path（runtime / validator / parser / cache / adapter 等）时，即使本轮不是性能优化，也必须判定是否跑代表性 benchmark regression；超过阈值时阻断发布或进入用户确认的性能 / 正确性取舍。
 - **FrontendExperienceQualityGate**：修复前端页面、组件、控制台、官网、文档站、可视化工具或游戏体验问题时，必须判定 `frontend-runtime` gateGroup；TestRoute 按风险选择 Browser/截图/E2E、console/network/resource/runtime、代码级替代证据或 `N/A + skipReason`。Figma/截图/既有页面、资源、本地化、状态回归和浏览器验证预算等子门禁由 `test-router` 与目标 UI/审查 Skill 承接。
 - **CrossProjectLearnedGuards / GovernanceGateRegistry**：修复涉及已吸纳泛化经验、审查清单证据化、用户文档（`user-manual`）、前端运行态、发布/pack、Profile/service、public surface、兼容契约或自我进化控制面时，只在 fix 层记录 `gateGroup / ownerSkill / validationRoute / skipReason`，完整 Gate 正文以 `spec-governance` 的 `GovernanceGateRegistry`、目标 Skill、report 和 validate 探针为准。
+- 修复涉及重复返工、兼容/迁移、公开配置或交互对象时，分别路由 `rework-prevention`、`contract-release-authority`、`configuration-ergonomics`、`interactive-semantics`；不得用历史问题数量、未发布草稿、字段实现用途或截图替代对应证据。
 - **ReviewFindingIntakeGate**：修复范围来自审查报告、AI review finding、audit issue 或代码评审发现时，CP1 前必须逐条分类为 `must-fix` / `user-decision-required` / `docs-implementation-drift` / `test-coverage-gap` / `already-fixed-or-not-reproduced` / `intentional-design-accepted`；命中 `user-decision-required`、兼容风险或文档/实现二选一时，修改源码前必须先取得用户确认。
 - **SimpleTaskFastPath**：非常明确、预计 ≤2 文件、无公共 API/Schema/依赖/配置/发布/控制面/台账来源/高风险、无需多轮跟踪的简单修复，可用内联问题概况 / 问题确认 + 报告/记忆替代 bug 目录与完整 CP 产物；报告必须写 `SimpleTaskFastPath: applied`、`00-问题概况.md: N/A + skipReason`、`01-问题确认.md: N/A + skipReason`、验证证据和升级回退判断。执行中任一条件失效时，立即升级回完整 fix CP/产物链。
 - **ExistingRequirementArtifactOverride**：当用户是在调整/修改/补充既有 `00-问题概况.md`、`01-问题确认.md`、bug CP 产物或需求文件时，SimpleTaskFastPath 只能跳过新建完整 bug 目录，不能跳过更新已有真相源；必须先增量编辑已有问题/需求产物，回复仅作为摘要。找不到目标产物时先按 Profile、bugs/requirements、sessions、tasks 与用户提及路径定位，仍无法确认才最小澄清。

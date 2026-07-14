@@ -28,6 +28,19 @@ description: AI Agent 系统架构专家 Owner — 当任务涉及 Agent 路由�
 | `ContextMemoryStateGate` | 上下文恢复、记忆、handoff 和状态新鲜度必须设计 | contextMemoryModel |
 | `ReplayObservabilityGate` | 行为验证不能只靠文字说明，需 replay、fixture 或日志证据 | observabilityReplay |
 | `RepairCollaborationRoleBoundaryGate` | repair task 必须把决策/验收与执行/验证角色、授权证据、状态与独立复证设计清楚；模型或 Agent 名称不构成风险分类 | roleAssignments、authorizationEvidence、independentReReview |
+| `AgentCapabilityDomainCompletenessGate` | 声称完整/最终 Agent 架构或平台前先声明 completenessObject，并验证请求链、反馈链、横切面及适用产品/企业链 | agentCapabilityDomainMatrix |
+
+### AgentCapabilityDomainCompletenessGate
+
+| completenessObject | 必查覆盖 |
+|---|---|
+| kernel | ingress→cognition→context/knowledge→planning→execution/tools→response；observe→evaluate→evolve；governance/model/infrastructure |
+| runtime | kernel + local/hosted composition、state、tool registry、security、observability、replay |
+| developer-product | runtime + build→version→publish→deploy→invoke、SDK/CLI/API、local developer runtime、Agent Studio |
+| hosted-platform | developer-product + run API、provider/connector/credential、deployment/fleet、tenant/workspace |
+| enterprise-saas | hosted-platform + organization、entitlement、usage/metering/billing、admin/ops、audit/compliance |
+
+每个适用能力域必须记录 `owner`、`publicPrivateBoundary`、`runtimeStatus`、`validationRoute`。较窄对象通过不能升级解释为较宽对象完整；报告使用“完整/最终/无需新增域”时，缺少 `completenessObject` 或任一适用域即判 incomplete。
 
 ## 执行步骤
 
@@ -51,6 +64,7 @@ description: AI Agent 系统架构专家 Owner — 当任务涉及 Agent 路由�
 | observabilityReplay | replay、fixture、日志、validate 证据 |
 | humanInLoopBoundary | 用户确认、auto、人工复核和最终责任边界 |
 | evidenceMatrix | 判断 -> hook / runtime / report / memory / replay / tests |
+| agentCapabilityDomainMatrix | completenessObject -> domain -> owner / boundary / runtime / validation |
 ```
 
 ## 反模式

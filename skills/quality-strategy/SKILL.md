@@ -27,6 +27,7 @@ description: 质量策略专家 Owner — 当任务涉及测试策略、验收�
 | `AcceptanceMatrixGate` | 需求、契约、用户文档和技术验证必须可追踪 | acceptanceMatrix |
 | `RegressionScopeGate` | 回归范围、相关 suite 和 full gate 升级条件必须清楚 | regressionScope |
 | `CoverageReleaseConfidenceGate` | coverage、known-red、发布信心和残余风险必须单独判断 | coverageGate、releaseConfidence |
+| `ExternalConsumerValidationConfidenceGate` | 公共包存在独立消费者仓或跨仓完整声明时，发布信心必须消费身份链、多分母和新鲜度状态 | consumerValidationConfidence |
 
 ## 执行步骤
 
@@ -35,6 +36,7 @@ description: 质量策略专家 Owner — 当任务涉及测试策略、验收�
 3. 建立验收矩阵：需求/契约/文档/代码/验证证据。
 4. 设定回归范围和升级条件：targeted、related、full gate。
 5. 输出 coverage、known-red、发布信心和残余风险。
+6. 命中独立消费者仓时调用 `consumer-validation-engineering`，将各适用分母独立纳入 acceptanceMatrix；任一分母 partial/stale 不得汇总为完整或 release-ready。
 
 ## 输出字段
 
@@ -49,6 +51,7 @@ description: 质量策略专家 Owner — 当任务涉及测试策略、验收�
 | regressionScope | targeted/related/full gate 范围 |
 | coverageGate | coverage 脚本、阈值、状态、skipReason |
 | releaseConfidence | 发布信心、残余风险、阻断条件 |
+| consumerValidationConfidence | repository binding、identity freshness、denominator states、cross-repo CI、release decision |
 | evidenceMatrix | 判断 -> 命令 / 测试 / 覆盖率 / 构建 / pack / CI |
 ```
 
@@ -66,3 +69,4 @@ description: 质量策略专家 Owner — 当任务涉及测试策略、验收�
 - `test-router`：质量策略为 TestRoute 提供风险和验证组合。
 - `release-verification`：发布前质量信心进入 R0~R7。
 - `review-checklist`：复审清单要绑定 acceptanceMatrix 和证据。
+- `consumer-validation-engineering`：提供跨仓身份、多分母和新鲜度证据；质量策略不得把缺失分母静默降级。

@@ -111,11 +111,11 @@ description: 识别用户意图类型（dev/fix/analyze/audit/self-fix/chat/resu
 | 修改对象 | DevCodex 插件目录下的规范文件（`instructions/` · `skills/` · `prompts/` · `agents/` · `RULES.md`）|
 | 修改动机 | 修复规范内部不一致、错误、缺失（非功能迭代、非新增）|
 
-**特殊场景——记录违规**（T_RECORD 分支）：
-- 典型表述："记录这次违规"/"登记一下刚才的问题"/"这个规范要优化"/"以后应该这样做"
-- 不再按关键词直写 VL；必须先归一为记录意图族：`record.violation`、`record.spec-defect`、`record.process-improvement`、`record.pending-issue`、`record.audit-gap`、`record.none`、`record.ambiguous`
-- 写入目标由 `skills/spec-governance/SKILL.md` 的 RecordRouter 决定：VL/PF/PI（优化清单）/ISSUE/GAP 或不写台账；所有模式下还要执行主动 Improvement Intake
-- 每次分流必须输出规范化意图、置信度、依据、目标台账；`record.ambiguous` 低置信度时先澄清，不写台账
+**特殊场景——治理记录评估**（T_RECORD 分支）：
+- 每条非空用户消息都先登记中性 candidate；是否进入 T_RECORD 必须在合理性评估、项目现实扩展和上下文归因后按语义决定。固定措辞或关键词只能帮助检索，不能触发、分类或免除评估。
+- 决策归一为：`record.violation`、`record.spec-defect`、`record.process-improvement`、`record.pending-issue`、`record.audit-gap`、`record.none`、`record.ambiguous`；同一消息允许多个实质意图并存。
+- 写入目标由 `skills/spec-governance/SKILL.md` 的 RecordRouter 决定：VL/PF/PI（优化清单）/ISSUE/GAP 或不写台账；复合意图必须逐项 all-of 验证。
+- 每次评估输出完整 `GovernanceIntakeDecision`；`record.none` 执行 `RecordNoneChallengeGate`，`record.ambiguous` 保持未终结并先澄清。
 
 ## 多任务检测（强制）
 

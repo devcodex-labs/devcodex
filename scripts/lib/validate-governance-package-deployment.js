@@ -1,5 +1,27 @@
 'use strict'
 
+const { readManifest, verifyManifest } = require('./deployment-manifest-utils')
+
+function findSourceRootHostDeployments(root, fsImpl, pathImpl, walkFn) {
+  const candidates = [
+    { label: 'source-root CLAUDE.md', target: pathImpl.join(root, 'CLAUDE.md') },
+    { label: 'source-root AGENTS.md', target: pathImpl.join(root, 'AGENTS.md') },
+    { label: 'source-root .claude/', target: pathImpl.join(root, '.claude') },
+    { label: 'source-root .agents/', target: pathImpl.join(root, '.agents') },
+    { label: 'source-root .codex/', target: pathImpl.join(root, '.codex') }
+  ]
+  const deployments = candidates.filter(entry => fsImpl.existsSync(entry.target))
+  const githubRoot = pathImpl.join(root, '.github')
+  if (fsImpl.existsSync(githubRoot)) {
+    const nonWorkflowFiles = walkFn(githubRoot).filter(file => {
+      const relative = pathImpl.relative(githubRoot, file).replace(/\\/g, '/')
+      return !relative.startsWith('workflows/')
+    })
+    if (nonWorkflowFiles.length) deployments.push({ label: 'source-root .github/ host deployment', target: githubRoot })
+  }
+  return deployments
+}
+
 function buildGovernancePackageDeploymentChecks(ctx) {
   const {
     ROOT,
@@ -11,7 +33,9 @@ function buildGovernancePackageDeploymentChecks(ctx) {
     fileHash,
     err,
     warn,
-    console
+    console,
+    ACTIVE_DEVCODEX_ROOT,
+    TARGET_DEPLOYMENT_RUNTIME_ROOT
   } = ctx
 
   function checkV6() {
@@ -104,7 +128,12 @@ function buildGovernancePackageDeploymentChecks(ctx) {
         err(`[V6] Copilot hook commands must use workspace runtime path: ${invalidCommands.join(', ')}`)
       }
 
-      const indexSrc = read(path.join(ROOT, 'index.js'))
+      const indexSrc = [
+        'index.js',
+        'scripts/lib/cli-install-commands.js',
+        'scripts/lib/cli-maintenance-commands.js',
+        'scripts/lib/cli-command-registry.js'
+      ].map(file => read(path.join(ROOT, file))).join('\n')
       if (!/const\s+CLAUDE_HOOK_COMMAND\s*=/.test(indexSrc)) {
         err('[V6] Claude Code adapter missing CLAUDE_HOOK_COMMAND constant in index.js (required for hooks settings.json injection)')
       } else {
@@ -134,7 +163,7 @@ function buildGovernancePackageDeploymentChecks(ctx) {
       }
       for (const probe of ['CODEX_SOURCES', 'CODEX_HOOK_COMMAND', 'cmdInitCodex', '--codex']) {
         if (!indexSrc.includes(probe)) {
-          err(`[V6] Codex adapter missing index.js probe: ${probe}`)
+          err(`[V6] Codex adapter missing CLI composition probe: ${probe}`)
         }
       }
 
@@ -162,15 +191,7 @@ function buildGovernancePackageDeploymentChecks(ctx) {
     const claudeExists = fs.existsSync(claudeDir)
     const githubExists = fs.existsSync(githubDir)
     const codexExists = fs.existsSync(path.join(parentRoot, 'AGENTS.md')) || fs.existsSync(agentsDir) || fs.existsSync(codexDir)
-    const sourceRootDeploymentEntries = [
-      { label: 'source-root CLAUDE.md', target: path.join(ROOT, 'CLAUDE.md') },
-      { label: 'source-root AGENTS.md', target: path.join(ROOT, 'AGENTS.md') },
-      { label: 'source-root .claude/', target: path.join(ROOT, '.claude') },
-      { label: 'source-root .github/', target: path.join(ROOT, '.github') },
-      { label: 'source-root .agents/', target: path.join(ROOT, '.agents') },
-      { label: 'source-root .codex/', target: path.join(ROOT, '.codex') }
-    ]
-    const sourceRootDeployments = sourceRootDeploymentEntries.filter(entry => fs.existsSync(entry.target))
+    const sourceRootDeployments = findSourceRootHostDeployments(ROOT, fs, path, walk)
 
     if (sourceRootDeployments.length) {
       err(
@@ -350,6 +371,36 @@ function buildGovernancePackageDeploymentChecks(ctx) {
       }
     }
 
+    const manifestFile = path.join(TARGET_DEPLOYMENT_RUNTIME_ROOT || ACTIVE_DEVCODEX_ROOT, 'managed', 'deployment-manifest.json')
+    if (fs.existsSync(manifestFile)) {
+      try {
+        const manifest = readManifest(manifestFile)
+        if (path.resolve(manifest.targetRoot) !== path.resolve(parentRoot)) {
+          err(`[V8] managed manifest targetRoot mismatch: ${manifest.targetRoot} != ${parentRoot}`)
+          stale++
+        }
+        const result = verifyManifest({ packageRoot: ROOT, targetRoot: parentRoot, manifest })
+        for (const destination of result.missing) {
+          err(`[V8] managed manifest missing source/destination: ${destination}`)
+          stale++
+        }
+        for (const destination of result.mismatched) {
+          err(`[V8] managed manifest hash mismatch: ${destination}`)
+          stale++
+        }
+        for (const destination of result.staleExisting) {
+          err(`[V8] stale managed entry still exists (preview only; do not auto-delete): ${destination}`)
+          stale++
+        }
+      } catch (error) {
+        err(`[V8] managed manifest invalid: ${String(error.message || error)}`)
+        stale++
+      }
+    } else {
+      warn(`[V8] managed manifest missing at active-root: ${manifestFile} (run update from target workspace root)`)
+      stale++
+    }
+
     if (stale === 0) {
       console.log('[V8] parent deployment (.claude/ / .github/ / Codex adapter) in sync with source repo')
     } else {
@@ -363,4 +414,4 @@ function buildGovernancePackageDeploymentChecks(ctx) {
   }
 }
 
-module.exports = { buildGovernancePackageDeploymentChecks }
+module.exports = { buildGovernancePackageDeploymentChecks, findSourceRootHostDeployments }

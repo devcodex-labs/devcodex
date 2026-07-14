@@ -66,6 +66,8 @@ applyTo: .devcodex/**/reports/analysis/**
 | 结论 | 证据 | 来源 |
 |------|------|------|
 
+> 命中完整/最终 Agent 架构、用户文档受众与渲染顺序、独立消费者仓/跨仓 100%、逐模块性能维护时，分别追加 V95 的 completenessObject/domain matrix、pageRole/generated sequence、repository identity/denominators/CI/freshness、module applicability/protocol/maintenance 证据；未触发写 `N/A + skipReason`。
+
 ### §4.1 ProfileTruthReconciliationGate
 
 > 项目级 analyze 必填；低风险文件级分析可写 `N/A + skipReason`。analyze 只能矫正结论，不能直接修改 Profile。
@@ -73,6 +75,14 @@ applyTo: .devcodex/**/reports/analysis/**
 | mode | profileTrustState | profileClaim | actualSources | status | conclusionAuthority | correctionRoute |
 |------|-------------------|--------------|---------------|--------|---------------------|-----------------|
 | targeted / N/A | | | | aligned / stale-profile / stale-code-or-doc / intentional-exception / unverifiable | | |
+
+### §4.2 GovernanceIntakeDecision
+
+> 对本次非空用户消息完成合理性评估后必填；关键词不得作为触发或分类依据。复合意图逐项列出 ledger/evidence；`record.none` 提供独立 challenge evidence；Hook 不可观察时写 `unverified + manualVerificationRoute`。
+
+| candidateId | assessmentVerdict | generalizationScope | existingRuleState | recordIntents | targetLedgers | writeRequirement | writeEvidence | verificationState | skipEvidence |
+|-------------|-------------------|---------------------|-------------------|---------------|---------------|------------------|---------------|-------------------|--------------|
+| | | | | | | | | | |
 
 ## §5 对比矩阵（技术选型 / ComparativeResearchGate 触发时）
 

@@ -14,30 +14,62 @@ function buildLifecycleVisibleReplyUtils(ctx) {
   }
 
   function hasArtifactPathOutput(text) {
+    return analyzeArtifactDelivery(text).status === 'verified-present'
+  }
+
+  /**
+   * Classify final-surface artifact evidence without inferring content that the host did not expose.
+   * @param {string} text visible assistant reply
+   * @returns {{status: string, missingItems: string[], linkCount: number}}
+   */
+  function analyzeArtifactDelivery(text) {
     const lines = String(text || '').split(/\r?\n/)
     let inArtifactSection = false
+    let sectionFound = false
+    let primaryLabel = false
+    let linkCount = 0
+    let absolutePathEvidence = false
     for (let index = 0; index < lines.length; index++) {
       const line = lines[index]
       if (/^\s*📂\s*本次会话产物[:：]?\s*$/.test(line)) {
         inArtifactSection = true
+        sectionFound = true
         continue
       }
       if (!inArtifactSection) continue
+      if (/^#{1,6}\s+/.test(line)) break
+      if (/主要产物|primary artifacts?/i.test(line)) primaryLabel = true
       if (!/^\s*-\s*\[[^\]]+\]\([^\)]+\)\s*$/.test(line)) continue
+      linkCount += 1
+      const target = line.match(/\]\((?:<)?([^\)>]+)(?:>)?\)/)?.[1] || ''
+      if (/^(?:\/[A-Za-z]:\/|[A-Za-z]:\\)/.test(target)) absolutePathEvidence = true
       const nextLine = String(lines[index + 1] || '').trim()
-      if (/^`?[A-Za-z]:\\.+`?$/.test(nextLine)) return true
-      if (/^(?:绝对路径|Absolute path)[:：]\s*`?[A-Za-z]:\\.+`?$/.test(nextLine)) return true
-      return true
+      if (/^`?[A-Za-z]:\\.+`?$/.test(nextLine)) absolutePathEvidence = true
+      if (/^(?:绝对路径|Absolute path)[:：]\s*`?[A-Za-z]:\\.+`?$/.test(nextLine)) absolutePathEvidence = true
     }
-    return false
+    const missingItems = []
+    if (!sectionFound) missingItems.push('artifact-section')
+    if (!primaryLabel) missingItems.push('primary-artifacts-label')
+    if (!linkCount) missingItems.push('artifact-links')
+    if (linkCount && !absolutePathEvidence) missingItems.push('absolute-path-evidence')
+    return {
+      status: missingItems.length ? 'verified-missing' : 'verified-present',
+      missingItems,
+      linkCount
+    }
   }
 
   function updateVisibleReplyState(state, payload, eventName) {
     if (eventName !== 'PreCompact' && eventName !== 'Stop') return
     const evidence = getVisibleReplyEvidence(payload)
-    state.visible.replyEvidence = evidence.observed ? 'verified' : 'unverified'
+    state.visible.replyEvidence = evidence.observed ? 'verified-present' : 'unverified'
     state.visible.replySource = evidence.source || ''
-    if (!evidence.observed) return
+    state.visible.artifactEvidenceSource = evidence.source || ''
+    if (!evidence.observed) {
+      state.visible.artifactStatus = 'unverified'
+      state.visible.artifactMissingItems = []
+      return
+    }
     const text = evidence.text
     state.visible.payloadObserved = true
     if (/入口检查（|预检查（DEV 模式）|PC0 上下文/.test(text)) {
@@ -47,7 +79,10 @@ function buildLifecycleVisibleReplyUtils(ctx) {
       state.visible.precheckStatus = 'verified-missing'
     }
     if (/🛡️ DEV 模式 \| 合规检查|FC:\s*FC1/.test(text)) state.visible.compliance = true
-    if (hasArtifactPathOutput(text)) state.visible.artifactPaths = true
+    const artifactEvidence = analyzeArtifactDelivery(text)
+    state.visible.artifactStatus = artifactEvidence.status
+    state.visible.artifactMissingItems = artifactEvidence.missingItems
+    state.visible.artifactPaths = artifactEvidence.status === 'verified-present'
   }
 
   function captureFinalPayloadSample(payload, eventName, state) {
@@ -84,8 +119,12 @@ function buildLifecycleVisibleReplyUtils(ctx) {
     if (eventName === 'Stop' && state.mode === 'dev' && state.reportTouched && state.visible && !state.visible.compliance) {
       items.push('合规检查状态块未输出（17-compliance：dev 模式非 chat 回复末尾必须含 🛡️ DEV 模式 | 合规检查 状态块）')
     }
-    if (eventName === 'Stop' && state.mode === 'dev' && state.reportTouched && state.visible && !state.visible.artifactPaths) {
-      items.push('产物路径未输出（FC5/T9：回复末尾必须在 📂 本次会话产物 区块列出 Markdown 链接）')
+    const artifactStatus = state.visible?.artifactStatus || (state.visible?.artifactPaths ? 'verified-present' : 'unverified')
+    if (eventName === 'Stop' && state.mode === 'dev' && state.reportTouched && artifactStatus === 'verified-missing') {
+      const missing = (state.visible.artifactMissingItems || []).join(', ') || 'artifact-delivery-manifest'
+      items.push(`产物交付不完整（ArtifactDeliveryCompletenessGate：missingItems=${missing}；evidenceSource=${state.visible.artifactEvidenceSource || 'unknown'}）`)
+    } else if (eventName === 'Stop' && state.mode === 'dev' && state.reportTouched && artifactStatus === 'unverified') {
+      items.push('无法验证最终用户可见回复的产物交付（Stop/PreCompact 未提供可解析 assistant 内容；状态只能为 unverified）')
     }
     if (state.mutated && !state.memoryTouched) items.push('记忆文件尚未写入（S05：会话结束前必须写入）')
     if (state.mutated && !state.reportTouched) items.push('报告文件尚未写入（chat 工作流豁免）')
@@ -106,6 +145,7 @@ function buildLifecycleVisibleReplyUtils(ctx) {
 
   return {
     hasVisibleReplyPayload,
+    analyzeArtifactDelivery,
     updateVisibleReplyState,
     captureFinalPayloadSample,
     getPrecheckEvidenceStatus,

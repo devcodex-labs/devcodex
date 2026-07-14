@@ -10,6 +10,8 @@ description: 自我进化治理能力 — 规范、Skill、Prompt、探针和发
 
 本 Skill 负责把 AI 生成的“改进建议”限制在候选态，明确授权、模型配置、租户 / 权限、配额、数据边界、审计日志、回滚和发布审批。任何模型输出不得直接写入 active 规范、部署副本、tag、release 或 publish 流程。
 
+运行态 canonical 化的迁移第一阶段可使用 `scripts/check-runtime-state.js`：它只读解析台账、Agent/daily/global SUMMARY，输出稳定 record/claim/conflict；只有显式 `--write-index` 才写 active-root 的派生 `.runtime-state/runtime-state-index.json`。该索引不覆盖历史 Markdown、不切换现有写入者，也不授权自动修复或 active mutation。
+
 ## 触发条件
 
 | 场景 | 是否触发 |
@@ -32,6 +34,12 @@ description: 自我进化治理能力 — 规范、Skill、Prompt、探针和发
 | `quotaAndCostBudget` | token、调用次数、并发、重试、费用和超限策略 |
 | `dataPolicy` | 可读数据、不可读数据、敏感信息策略、跨项目 / 跨租户隔离 |
 | `EvolutionRun` | 每次候选生成的 runId、输入、输出、diff、证据、操作者、时间 |
+| `qualityObjective` | 本轮要降低的返工簇、目标发现阶段和不可牺牲的质量边界 |
+| `baselineWindow` | 变更前可比 WorkUnit、返工事件、首次通过率和晚发现成本基线 |
+| `prospectiveTrials` | 变更后前瞻试运行的 WorkUnit、上下文、执行证据与观察窗口 |
+| `effectivenessVerdict` | `effective / ineffective / harmful / insufficient-evidence`，不得用实现完成替代效果结论 |
+| `overheadAndFalsePositiveCost` | 新 Gate / Skill / Probe 引入的执行耗时、认知成本、误报和绕行成本 |
+| `rollbackOrSunset` | 无效、有害或长期未命中时的回滚、降级、合并或退役条件 |
 | `auditLog` | 记录建议生成、人工采纳、拒绝、回滚、发布审批和验证结果 |
 | `rollbackPlan` | 如何撤销候选、恢复 active 规范、回退部署副本、撤回发布 |
 | `releaseApproval` | tag / release / publish 前必须有人类确认和 release-verification 证据 |
@@ -44,6 +52,19 @@ description: 自我进化治理能力 — 规范、Skill、Prompt、探针和发
 - `RemoteCIParityPushGate`：任何由自我进化候选引发的 push / release 前必须执行远端 CI 同构本地门禁。
 - `PortableExternalArtifactGate`：模型生成报告或共享包不得写死本机绝对路径、私有 `.devcodex` 路径或个人工作区前提。
 
+## ReworkEffectivenessLoop
+
+自我进化候选声称“降低返工率、提升首次通过率或减少复审逃逸”时，必须执行 `ReworkEffectivenessLoop`：
+
+1. 用 `rework-prevention-engineering` 的 WorkUnit 口径冻结返工簇，区分 `rework`、`scope-change`、`external-change`、`planned-iteration` 与 `same-phase-catch`。
+2. 按 `frequency × severity × lateDiscoveryCost × preventability` 排序，只治理高价值、可前移的根因；单次偶发问题最多作为候选证据。
+3. 记录 `baselineWindow / reworkCluster / currentDetectionPhase / targetDetectionPhase / candidateControl`，历史审查记录只能证明基线，不能证明新控制有效。
+4. 用变更后的可比 WorkUnit 做前瞻验证；普通晋级至少需要 3 个可比 WorkUnit，或 2 个相互独立的项目 / 工作流上下文。样本不足保持 `insufficient-evidence`。
+5. 比较 FirstPassYield、WorkUnitReworkRate、RepeatEscapeRate、PreventionHitRate、晚发现成本、误报与执行开销；质量下降、成本失控或无改善时判 `ineffective / harmful`。
+6. P0/P1、安全或发布阻断可紧急启用候选控制，但必须限定范围、保留回滚并在后续观察窗补齐前瞻证据；不得因此直接宣告 active 有效。
+
+`EvolutionRun` 的有效性字段至少包括：`qualityObjective / baselineWindow / reworkCluster / targetPhaseShift / candidateControl / prospectiveTrials / falsePositiveCost / overheadCost / effectivenessVerdict / rollbackOrSunset`。
+
 ## 负向用例
 
 自我进化控制面至少覆盖以下拒绝 / 降级探针：
@@ -54,6 +75,8 @@ description: 自我进化治理能力 — 规范、Skill、Prompt、探针和发
 4. `quota-exceeded`：超预算时停止候选生成并记录未完成范围。
 5. `cross-tenant-data-policy`：跨项目 / 跨租户数据不可混读或写错 active-root。
 6. `direct-publish-blocked`：模型建议不得直接 tag、release、publish 或覆盖部署副本。
+7. `retrospective-only-proof`：只有历史问题和文本规则时必须保持 `insufficient-evidence`。
+8. `metric-gaming`：通过缩小 WorkUnit、把返工改标计划迭代或降低验收标准制造的指标改善必须判无效。
 
 ## 交付证据
 
@@ -63,6 +86,7 @@ description: 自我进化治理能力 — 规范、Skill、Prompt、探针和发
 - 控制面字段冻结结果
 - 候选 diff 与人工采纳 / 拒绝结论
 - 分层吸纳决策与验证路线
+- `ReworkEffectivenessLoop` 基线、前瞻证据、效果结论、成本和回滚 / 退役判断，未触发写 `N/A + skipReason`
 - 回滚计划与发布审批状态
 
 ## 与其他 Skill 的关系

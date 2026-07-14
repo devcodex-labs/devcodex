@@ -106,7 +106,7 @@ applyTo: .devcodex/**/requirements/**
 | FrontendExperienceQualityGate | 是 / 否 | 前端页面、组件、控制台、官网、文档站、可视化工具、游戏或用户可见 UI / 交互 | FrontendDesignSourceGate / UIFidelityGate / StyleThemeConsistencyGate / ResponsiveStateCoverageGate / VisualVerificationGate / InteractionFlowGate / InteractionFeedbackGate / InputModalityAccessibilityGate / ErrorPreventionRecoveryGate / MotionTransitionUsabilityGate / FigmaHighFidelityRestorationGate / ScopedVisualChangeGate / InstalledPluginVisualVerificationGate / ActualPreviewChainAndMockFallbackGate / FrontendRuntimeNetworkProbeGate / UIStateScopeRegressionGate / FigmaProductionAssetBudgetGate / RuntimeI18nArtifactVerificationGate |
 | ServiceLifecycleCleanup | 是 / 否 | AI 需要启动 dev server、文档站、本地 API/mock、数据库代理、SSH 隧道、Playwright/Cypress server 或压测 target | command / cwd / PID-job / port-url / cleanupEvidence / keepAliveReason |
 | ReleaseAudit | 是 / 否 | 发版前 review / publish 或 tag 前风险审查 / release readiness | RL-1~RL-10 / risks / recommendation |
-| ReleaseVerification | 是 / 否 | 用户要求 tag / release / publish 或进入正式发版 | R0~R7；如存在远端 CI，补 R3c 目标 commit CI 绿色证据；pack/publish/install smoke 记录 NativeCommandExitCodeGate；首次发布或身份拓扑变化追加 PublisherCredentialTopologyGate（不含 secret value） |
+| ReleaseVerification | 是 / 否 | 用户要求 tag / release / publish 或进入正式发版 | R0~R7；如存在远端 CI，补 R3c 目标 commit CI 绿色证据；pack/publish/install smoke 记录 NativeCommandExitCodeGate；首次发布或身份拓扑变化追加 PublisherCredentialTopologyGate（不含 secret value）；scoped package 双 registry 追加 ScopedRegistryResolutionGate |
 | ConceptSyncMap | 是 / 否 | 控制面 / 模板-示例-校验链 / README / website / Profile / validate / 部署副本联动 | sourceOfTruth / currentConsumers / historicalMirrors / validateProbes / deployCopies / yellowDeviationBoundary |
 | HostContractVerification | 是 / 否 | Hook / CLI / visible reply / sticky project / workspace guard / bootstrap / ArtifactLinkSet / MCP fallback | hostSurface / eventScope / evidenceMode / visibleReplyEvidence / workspaceGuard / bootstrapScope / artifactLinkMatrix / mcpFallback |
 | ArtifactDecisionMatrix | 是 / 否 | CP1/CP2/CP3/ECR 的关键产物创建、更新、跳过或 N/A 判定 | artifact / state(create-update-skip-N/A) / reason / trigger / upgradeTrigger / targetArtifact |
@@ -128,6 +128,8 @@ applyTo: .devcodex/**/requirements/**
 | ExpertOutputQualityGate | 是 / 否 | 代码、文档、示例、fixture、quick start、技术方案或报告需要专家型输出质量，或用户指出“不专业 / 像初级 / 示例误导” | roleBaseline / productionRecommendedPath / frameworkNativeCapability / fixtureBoundary / antiPatternContrast / evidenceMatrix |
 | ExpertOwnerSkillGate | 是 / 否 | 产品策略 / 开发者体验 / UX 交互 / 前端架构 / 后端领域架构 / 生产可用性 / SRE / API 契约 / 外部集成 / 平台生态 / AI Agent / 数据架构 / 安全威胁建模 / 质量策略 / 设计系统 / 无障碍国际化 / 增长分析 / 商业模型任一语义触发 | ownerSkill / triggerReason / requiredFields / validationRoute / skipReason / V85-targeted probe |
 | CrossProjectLearnedGuards | 是 / 否 | 命中跨项目已吸纳守门、历史通用规范分层或新增可泛化策略 | 按 `GovernanceGateRegistry` 填写 `gateGroup / ownerSkill / validationRoute / skipReason`；代表性 anchors：CodeTruthRequirementGate / ManualReviewEvidenceRetention / ReviewFindingIntakeGate / UserDocsPrimarySurfaceGate / ActiveRequirementFinalResponseGate / MethodLevelLeakPressureProbe / V2FormalSolutionPackage |
+| Rework/ReleaseAuthority/ConfigErgonomics/InteractiveSemantics | 是 / 否 | 降低返工、兼容迁移、公开配置或交互对象任一语义触发 | 按 `GovernanceGateRegistry` 的 rework-prevention / contract-release-authority / configuration-ergonomics / interactive-semantics 填 ownerSkill、validationRoute、证据与 V94 |
+| Agent/Docs/Consumer/ModulePerformance completeness | 是 / 否 | 完整 Agent、文档受众渲染顺序、独立消费者仓/跨仓 100%、逐模块性能维护任一语义触发 | 按 `GovernanceGateRegistry` 的四个 V95 gateGroup 填 ownerSkill、分母/运行态/身份证据、validationRoute、skipReason |
 
 ### §4.2 最小实现与注释守门
 
@@ -167,6 +169,8 @@ applyTo: .devcodex/**/requirements/**
 | LatestAbsorptionExecutionPack A1~A10 | 对照最新可吸纳确认实施包 | 按 `docs-semantics-examples / derived-consumer-runtime / feature-inventory-batch-evidence / profile-service / absorption-layering` 分组写 ownerSkill、validationRoute、skipReason；覆盖 ConfigCanonicalNamespaceGate、ProfileRuntimeContractSyncGate、BehaviorSemanticDocsParityGate、DocsExampleTruthSurfaceGate、DerivedMetricConsumerProbe、FeatureInventoryProfileGate、BatchEvidenceLedgerStateGate、BatchProgressCardGate 与 V82 |
 | ExpertOutputQualityGate | 对照专家型产物质量门禁 | 生产推荐路径、框架原生能力、fixture/mock/demo 边界、反模式对照和证据矩阵完整；不得把测试夹具、硬编码单例或每个 route 重复声明作为生产推荐路径；V84/targeted probe 覆盖正反样例 |
 | ExpertOwnerSkillGate | 对照专家 Owner Skill 门禁 | 命中专业语义时 ownerSkill、triggerReason、requiredFields、validationRoute、skipReason 完整；21 个 Skill 的关键字段与 V85/targeted probe 覆盖正反样例；增长 / 商业未触发写 N/A |
+| ReworkPrevention / ReleaseAuthority / ConfigurationErgonomics / InteractiveSemantic | 对照四个治理分组 | 返工分类、双根因、baseline/prospective evidence；发布权威与兼容 decision；最小配置和省略探针；交互 role/name/focus/keyboard/focus recovery 均有执行证据或 `N/A + skipReason`；V94 覆盖正反样例 |
+| V95 completeness groups | 对照 agent-capability-completeness / docs-audience-render-sequence / consumer-validation / module-performance-maintenance | completenessObject/domain、pageRole/generated sequence、cross-repo identity/denominators/CI/freshness、module performance/maintenance 均有执行证据或 `N/A + skipReason` |
 | UserPerspectiveDocsGate / UserDocsImmediateComprehensionGate / UserDocsPrimarySurfaceGate / PublicUserDocsMaintainerBoundaryGate / DocsConsumerSweep | 对照文档使用者路径、即时理解、用户主面、维护者边界和消费者扫描 | 面向使用者文档有第一次成功、常见任务、字段/参数/状态/错误解释、排错恢复和低心智负担证据；用户文档有功能完整性、配置易懂性、即时理解三轴和 targetSurface/documentLocation/primaryAudience；首页/quick start/nav/sidebar/CTA/reference 主路径不被开发契约替代；公开用户路径不混入维护者 checklist、内部同步清单或台账状态；命令/字段/导航/能力承诺同步 README/website/Profile/templates/examples/validate/代码消费点 |
 | user-manual-authoring / UserFacingDeliveryChainGate / FinalUserManualFirstGate | 对照需求概况、用户最终使用文档、前端/API 契约、技术方案和实施计划顺序 | 用户文档先于技术方案落位；文档站或 README 判定清楚；涉及前端/API 时契约明确；技术方案和实施计划可回溯到需求与用户文档 |
 | review-checklist / ReviewChecklistCompletenessGate / EvidenceExecutionGate / ReviewEscapeRecordGate | 对照冻结 checklist、逐项执行证据、复审维度增量和 escape record | 复审维度不机械重复；不能只按审查报告文本验证；每项结论有实际命令、代码落点、页面或产物证据；发现遗漏时写 whyMissed、prevention、checklistPatch、rerunEvidence；最终状态新鲜 |
@@ -240,7 +244,7 @@ applyTo: .devcodex/**/requirements/**
 - [ ] LatestAbsorptionGuards 已完成或记录 `N/A + skipReason`（按 `GovernanceGateRegistry` 分组写触发状态和证据）
 - [ ] ServiceLifecycleCleanup 已完成（若 AI 自启动服务；保留运行需记录用户要求、PID/端口和关闭方式）
 - [ ] ReleaseAudit RL-1~RL-10 已完成（若触发布前审查）
-- [ ] ReleaseVerification R0~R7 已完成（若进入正式发版；如存在远端 CI，R3c 已记录目标 commit CI 绿色证据或 `N/A + skipReason`；pack/publish/install smoke 已记录真实 exitCode；PublisherCredentialTopologyGate 触发时已记录拓扑且不含 secret value）
+- [ ] ReleaseVerification R0~R7 已完成（若进入正式发版；如存在远端 CI，R3c 已记录目标 commit CI 绿色证据或 `N/A + skipReason`；pack/publish/install smoke 已记录真实 exitCode；PublisherCredentialTopologyGate 触发时已记录拓扑且不含 secret value；ScopedRegistryResolutionGate 触发时已证明 scope 级目标解析）
 - [ ] ConceptSyncMap 已建立并核对当前消费者/探针/部署副本（若触发）
 - [ ] HostContractVerification 已建立并核对宿主证据/guard/visible reply/ArtifactLinkSet/MCP fallback（若触发）
 - [ ] OfficialDocsEvidence 已建立并核对官方用法证据（若触发）

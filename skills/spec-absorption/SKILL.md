@@ -32,11 +32,12 @@ description: 规范吸纳执行 Skill — 用于检查 data 最新可吸纳项�
 3. **Backlog Intake 真相复核**：把候选分类为 `pure-open / residual-tail / already-fixed / misclassified`，非 `pure-open` 不得原样进入吸纳范围。
 4. **通用性证明**：对每项执行 `CommonNormGeneralizationGate`。
 5. **消费者证明**：对通过通用性证明的项执行 `AbsorptionCandidateConsumerProofGate`。
-6. **分层归属**：执行 `LayeredAbsorptionGate`，判定 `global-invariant / existing-skill-subgate / new-skill-required / docs-only / case-evidence-only / project-local / already-covered`。
-7. **确认清单**：仅输出仍需吸纳项，列出目标 Skill、层级、验证路线和跳过理由，等待用户确认。
-8. **实施同步**：确认后同步 commonInstruction、Skill、promptTemplate、executionConsumer、validationProbe、publicDocs、deployCopy。
-9. **验证回写**：执行 targeted test、`node scripts/validate.js`、必要的 `npm test` / website / release 验证；回写 PI / PF / GAP / VL / ISSUE 状态。
-10. **报告记忆**：报告必须引用候选矩阵、LayeredAbsorptionDecision、验证证据、台账状态和部署副本同步。
+6. **返工价值复核**：候选声称降低返工、补复审遗漏或提升首次通过率时，执行 `ReworkReductionValueGate`；文本出现次数不能替代可执行 owner 和效果证据。
+7. **分层归属**：执行 `LayeredAbsorptionGate`，判定 `global-invariant / existing-skill-subgate / new-skill-required / docs-only / case-evidence-only / project-local / already-covered`。
+8. **确认清单**：仅输出仍需吸纳项，列出目标 Skill、层级、验证路线和跳过理由，等待用户确认。
+9. **实施同步**：确认后同步 commonInstruction、Skill、promptTemplate、executionConsumer、validationProbe、publicDocs、deployCopy。
+10. **验证回写**：执行 targeted test、`node scripts/validate.js`、必要的 `npm test` / website / release 验证；回写 PI / PF / GAP / VL / ISSUE 状态。
+11. **报告记忆**：报告必须引用候选矩阵、LayeredAbsorptionDecision、验证证据、台账状态和部署副本同步。
 
 ## CommonNormGeneralizationGate
 
@@ -84,6 +85,23 @@ description: 规范吸纳执行 Skill — 用于检查 data 最新可吸纳项�
 
 消费者证明失败时，不得实施为 active 规范；最多进入 PF / ISSUE，或作为 case evidence 保留。
 
+## ReworkReductionValueGate
+
+涉及“减少返工、避免复审再发现、提升一次通过率”的吸纳候选必须填写：
+
+| 字段 | 说明 |
+|------|------|
+| `reworkCluster` | 可重复问题簇及 WorkUnit 边界，不得只写单个案例 |
+| `currentDetectionPhase` / `targetDetectionPhase` | 当前发现阶段与希望前移到的阶段 |
+| `frequencySeverityLateCost` | 频率、严重度、晚发现成本和可预防性证据 |
+| `executableOwnerLayer` | 能真正执行该预防动作的 Skill / prompt / runtime / probe / checklist owner |
+| `successMetric` | FirstPassYield、WorkUnitReworkRate、RepeatEscapeRate、PreventionHitRate 或等价指标 |
+| `trialWindow` | 前瞻验证的可比 WorkUnit / 独立上下文、观察周期和退出条件 |
+| `overheadAndFalsePositiveCost` | 新规则的执行成本、误报、重复检查和认知负担 |
+| `rollbackOrSunset` | 无效、有害、长期未命中或被更强 owner 替代时的处置 |
+
+判定规则：已有规则反复出现但只有文档表述、没有执行消费者、负向探针或前瞻验证，属于 `text-only recurrence`，不得判定已吸纳有效。候选可以先进入 gray，但 ordinary active / 宣告 closed 前必须由 `ReworkEffectivenessLoop` 给出前瞻证据；不足时保持 `insufficient-evidence`。
+
 ## 分层决策
 
 `LayeredAbsorptionDecision` 必须包含 `candidateId / classification / targetSkill / triggerTerms / ownedArtifacts / layerChecks / validationRoute / consumerSync`。本 Skill 在 Skill 层还要写 `SkillAbsorptionDecision` 兼容字段。
@@ -120,6 +138,7 @@ V85 兼容锚点：21 个 Owner 的既有集合必须继续包含 `product-strat
 | `FeatureInventoryProfileGate` / `FeatureChecklistEvidenceMatrixGate` | 功能清单、Profile、需求维度、复审清单或验收矩阵需互相闭环 | `review-checklist`、`audit-requirements`、`report` |
 | `BatchEvidenceLedgerStateGate` / `BatchProgressCardGate` | 多批次、矩阵验证、长链路吸纳、复审或发布前检查需要冻结证据台账和进度卡 | `review-checklist`、`implementation-progress.prompt`、`report`、memory |
 | `DependencyAuditScopeClassificationGate` | 依赖、包工程、coverage/audit/CI 门禁或发布前依赖风险需分类 | `test-router`、`audit-release`、`release-verification` |
+| `ReworkReductionValueGate` / `ReworkEffectivenessLoop` | 规范、Skill、Prompt 或 Probe 候选声称降低返工、减少复审逃逸或提升首次通过率 | `rework-prevention-engineering`、`evolution-governance`、`skill-lifecycle-governance`、`test-router`、`report` |
 
 ### A1~A10 最新吸纳执行包（LatestAbsorptionExecutionPack）
 
@@ -160,6 +179,7 @@ V85 兼容锚点：21 个 Owner 的既有集合必须继续包含 `product-strat
 - `Backlog Intake` 分类与范围缩减。
 - `CommonNormGeneralizationGate` 与 `AbsorptionCandidateConsumerProofGate` 证据。
 - `LayeredAbsorptionDecision` 与 `SkillAbsorptionDecision`。
+- `ReworkReductionValueGate` 的问题簇、阶段前移、owner、成功指标、试运行、成本和 rollback/sunset；未触发写 `N/A + skipReason`。
 - `ConceptSyncMap` 或同步消费者清单。
 - targeted test / `node scripts/validate.js` / `npm test` 结果。
 - 台账状态回写与 active-root 归属。

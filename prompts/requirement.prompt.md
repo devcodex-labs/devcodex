@@ -194,6 +194,8 @@ applyTo: .devcodex/**/requirements/**
 | 响应式和状态覆盖 | 桌面 / 移动 / loading / empty / error / disabled / hover / focus |
 | 交互反馈 | toast、弹窗、inline message、状态变更、跳转、刷新 |
 | 错误恢复 | 用户如何理解错误、重试、撤销、返回或恢复 |
+| 最小配置与高级边界 | 用户完成最高频任务最少要填什么；哪些字段可默认/推导；低频高级能力是否与主路径分离 |
+| 键盘与辅助技术操作 | 主要交互是否可聚焦、可用键盘触发/退出，并在关闭后恢复到合理焦点 |
 
 ## §3 业务流程
 
@@ -421,6 +423,7 @@ flowchart TD
 | 完整吸纳补强与需求维度绑定 | ConfirmedAbsorptionCompletenessGates / SampleIssueExpansionGate / RequirementDimensionBindingGate / RequirementPriorityAndPhaseGate / ReviewAnchorMaterializationGate | §1、§2、§7、§9 |
 | 复审、产物、站点与性能证据 | ReviewChecklistCompletenessGate / EvidenceExecutionGate / BuiltArtifactFeatureSmokeGate / TscOutputImportProbe / GeneratedSiteGate / ManualTocDuplicationGate / UserPathContractSweep / BenchmarkRegressionGuard | §7、§8、§9 |
 | 产物链接与最终回复范围 | ArtifactLinkSetDedupeGate / ActiveRequirementFinalResponseGate | §9、§10 |
+| 返工预防、发布权威、配置易用性与交互语义 | ReworkPreventionGate / ReworkReductionValueGate / ReleaseAuthorityBeforeCompatibilityGate / ConfigurationErgonomicsGate / InteractiveSemanticProbe | 按 CP2、TestRoute 与 `GovernanceGateRegistry` 条件派生 |
 | DevCodex v2 路线与方案包 | V2MCPFirstPlanningGate / V2FormalSolutionPackage | §2.4、§7、§9 |
 | 其他跨项目经验吸纳 | CrossProjectLearnedGuards | 按 CP2 技术方案和 TestRoute 条件派生 |
 

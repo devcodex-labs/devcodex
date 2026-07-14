@@ -9,6 +9,7 @@ const { spawnSync } = require('child_process')
 const { buildTestHooksRuntimeFixtures } = require('./lib/test-hooks-runtime-fixtures')
 const { runHooksRuntimeBootstrapLayoutScenarios } = require('./lib/test-hooks-runtime-bootstrap-layout')
 const { runHooksRuntimeVisibilityScenarios } = require('./lib/test-hooks-runtime-visibility')
+const { runHooksRuntimeGovernanceIntakeScenarios } = require('./lib/test-hooks-runtime-governance-intake')
 
 const ROOT = path.resolve(__dirname, '..')
 const RUNTIME = path.join(ROOT, 'hooks', '_runtime', 'lifecycle.cjs')
@@ -88,6 +89,7 @@ const runtimeScenarioContext = {
 
 function main() {
   runHooksRuntimeBootstrapLayoutScenarios(runtimeScenarioContext)
+  runHooksRuntimeGovernanceIntakeScenarios(runtimeScenarioContext)
   runHooksRuntimeVisibilityScenarios(runtimeScenarioContext)
 
   // Auto v1.1: explicit @devcodex-auto or explicit natural-language auto authorization

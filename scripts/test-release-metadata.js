@@ -67,9 +67,17 @@ expect(pluginKeywords.length >= 3, 'plugin.json keywords 至少需要 3 个非�
 expect(pluginCategories.length > 0, 'plugin.json categories 不能为空')
 
 if ((pkg.publishConfig.registry || '').includes('npm.pkg.github.com') || pkg.publishConfig.access === 'restricted') {
-  for (const needle of ['GitHub Packages', 'npm.pkg.github.com', 'NODE_AUTH_TOKEN']) {
+  for (const needle of ['GitHub Packages', 'npm.pkg.github.com', 'NODE_AUTH_TOKEN', `v${pkg.version}`, '当前唯一发布通道']) {
     expect(readme.includes(needle), `README 必须显式说明 GitHub Packages 安装边界：${needle}`)
   }
+  expect(!readme.includes(`npmjs public | ✅ v${pkg.version} 已发布`), 'README 不得把 GitHub-only 版本伪报为 npmjs 已发布')
+}
+
+if ((pkg.publishConfig.registry || '').includes('registry.npmjs.org') || pkg.publishConfig.access === 'public') {
+  for (const needle of ['npmjs public', `v${pkg.version}`, '默认公开安装通道', 'GitHub Packages', '镜像通道']) {
+    expect(readme.includes(needle), `README 必须说明 npmjs public 主通道与 GitHub Packages 镜像：${needle}`)
+  }
+  expect(!readme.includes('npmjs public 尚处于下一版本候选'), 'README 不得把已发布 npmjs public 通道继续描述为下一版本候选')
 }
 
 if (errors.length) {

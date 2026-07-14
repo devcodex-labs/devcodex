@@ -2,7 +2,7 @@
 applyTo: "**"
 description: 通用规范总则，覆盖优先级、意图路由、Profile/active-root、宿主适配与治理总线
 priority: P5
-version: 1.12.0
+version: 1.13.0
 ---
 # 通用规范
 
@@ -70,7 +70,7 @@ version: 1.12.0
 | C14 | 多任务进度检查点 | 会话包含 ≥2 个独立任务时，每完成一个子任务必须：① 在记忆文件追加该任务进度状态 ② 在对话中输出进度快照（格式严格遵循 `prompts/reply-summary.prompt.md` §6） |
 | C15 | 架构质量视角 | dev/fix 的需求/问题定义、代码设计或架构决策须以**架构师与平台工程师**双重视角评估：消费者范围、共享契约边界、模块职责、可扩展性、可维护性、易上手性。模块化只在真实复用者、演进边界或跨模块共享契约存在时成立；任意维度未达标须说明原因并记录改善方向 |
 | C16 | 规模判断与批量分批 | 分析、审查、扫描或批量操作前必须先识别唯一项目/root，并调用 `skill-gap-analysis` 的 `ProjectArtifactScaleRoutingGate` 做 bounded inventory；根据文件数、可解析字节、最大文件、目录集中度、派生产物比例和消费者扩散面决定 `single-pass / batched / sampled+deep-read / blocked`。≥10 文件 mutation 或非 small corpus 必须分批并写 checkpoint；禁止先无界扫描超时后再补分批 |
-| C17 | 过程改进记录 | 用户建议的执行策略经 AI 确认更优，或揭示规范未定义/不完整且可泛化时，必须立即走 Improvement Intake：写入 `data/process-improvements.md`（优化清单，PI）；若同时暴露规范缺口，再联动 `data/pending-fixes.md`（PF）。不得询问是否记录；所有模式命中后都必须回执 `已记录 PI-xxx / PF-xxx` |
+| C17 | 过程改进记录 | 每条非空用户消息先登记中性治理候选，完成合理性评估和上下文归因后再按语义形成 `GovernanceIntakeDecision`；关键词不得作为权威触发/分类依据。用户建议的执行策略经 AI 确认更优，或揭示规范未定义/不完整且可泛化时，必须立即走 Improvement Intake：写入 `data/process-improvements.md`（优化清单，PI）；若同时暴露规范缺口，再联动 `data/pending-fixes.md`（PF）。复合意图逐项 all-of 验证；不得询问是否记录；所有模式命中后都必须回执 `已记录 PI-xxx / PF-xxx` |
 | C19 | 确认后前置复审 | 每次用户明确确认后、进入下一阶段前，必须执行 `PostConfirmationReviewScopeGate`：低风险单文件或纯文案可做轻量复审；高风险、多模块、公共 API/配置、安全能力、package/adapter、文档消费者、控制面或多真相源同步任务必须升级为冻结清单驱动的全面复审，命中控制面 / 多文件联动 / 真相源同步 / 模板-示例-校验链场景必须追加交叉验证，并显式输出结果；若发现阻断性问题，先修正并告知用户，再重新确认；无阻断问题方可推进 |
 | C20 | 官方文档证据前置 | 新增/升级依赖、框架、SDK、平台 API 或外部模块前必须形成 `OfficialDocsEvidence`；缺失证据不得进入编码 |
 | C21 | Profile 联动判定 | dev/fix 项目事实变化后必须执行 `ProfileImpactCheck`：更新 Profile 或写明跳过理由 |
@@ -269,7 +269,7 @@ version: 1.12.0
 - 新需求切换、Commit Subject 简洁化、未发布变更与提交边界、自我进化与问题池、官方文档优先级、`OfficialDocsEvidence` 与 `ProfileImpactCheck` 的完整规则已移动到 [`01b-record-router.instructions.md`](./01b-record-router.instructions.md)。
 - 当本次开发/修复形成已验证批次且未明确要求 release / publish 时，默认更新 `changelogs/unreleased.md`。
 - `commit` 默认**不自动执行**，但一旦执行必须按**语义批次**提交。
-- 所有模式下，每条用户消息完成合理性评估后，都必须执行 `Improvement Intake（优化清单）` 判定。
+- 所有模式下，每条非空用户消息都先登记中性 `ContextualCandidateSet` 候选；完成合理性评估后执行 `Improvement Intake（优化清单）` 语义判定，关键词只作检索线索。
 - 仅业务局部诉求、一次性偏好或不可泛化想法，不写 PI/PF；命中后必须显式回执 `已记录 PI-xxx`、`已记录 PF-xxx` 或 `已记录 PI-xxx / PF-xxx`。
 
 ### Intent Expansion / Rehydration 锚点

@@ -27,6 +27,7 @@ description: 开发者体验架构专家 Owner — 当任务涉及 CLI、SDK、A
 | `ExampleTruthGate` | 示例必须是真实业务工作流，不用硬编码单例冒充主路径 | 源码、测试、运行结果、fixtureBoundary |
 | `ErrorExperienceGate` | 错误信息必须能指向原因、修复动作和相关文档 | stderr、日志、排错章节 |
 | `MigrationPathGate` | Breaking 或行为变化必须提供迁移步骤和兼容边界 | changelog、migration、compat notes |
+| `ConfigurationErgonomicsGate` | 配置设计必须让常见任务保持最小、可理解、可省略，复杂度只留在高级能力边界 | MinimalTaskConfig、FieldNecessityMatrix、ComplexityBudget、AdvancedCapabilityBoundary、OptionalFieldOmissionProbe |
 
 ## 执行步骤
 
@@ -35,7 +36,20 @@ description: 开发者体验架构专家 Owner — 当任务涉及 CLI、SDK、A
 3. 检查集成步骤是否依赖本机绝对路径、私有工作区、隐藏文档或未声明前置条件。
 4. 审查示例：是否符合生产推荐路径、是否说明 fixture/mock/demo 边界。
 5. 审查错误体验：失败时是否可定位、可恢复、可继续验证。
-6. 对版本或契约变化补迁移路径、兼容策略和文档入口。
+6. 执行 `ConfigurationErgonomicsGate`：为最高频任务给出最小配置，逐字段证明必要性，冻结复杂度预算，分离高级能力，并验证可选字段真实省略后仍能完成任务。
+7. 对版本或契约变化补迁移路径、兼容策略和文档入口。
+
+## ConfigurationErgonomicsGate
+
+| 产物 | 要求 |
+|------|------|
+| `MinimalTaskConfig` | 从空状态完成最高频任务所需的最小字段、默认值和成功结果 |
+| `FieldNecessityMatrix` | 每个公开字段的用户任务、必填理由、默认/推导来源、错误语义和移除影响 |
+| `ComplexityBudget` | 首次成功所需字段数、嵌套深度、概念数和额外步骤预算；超预算必须有真实消费者证据 |
+| `AdvancedCapabilityBoundary` | 高级、安全、性能、企业或 provider 特有能力与主路径分离，不污染最小配置 |
+| `OptionalFieldOmissionProbe` | 删除所有可选字段后运行等价命令 / API / 示例，验证默认路径、错误和文档承诺一致 |
+
+可推导、可默认、只服务内部实现或只为未来扩展预留的字段不得默认公开为必填。字段数量本身不是唯一指标，但“每个字段都有实现用途”也不能替代用户任务价值证明。
 
 ## 输出字段
 
@@ -50,6 +64,7 @@ description: 开发者体验架构专家 Owner — 当任务涉及 CLI、SDK、A
 | exampleTruth | 示例是否真实业务工作流；fixture/mock/demo 边界 |
 | errorExperience | 常见失败、错误信息、排错入口和恢复动作 |
 | migrationPath | 版本变化、兼容策略、迁移步骤 |
+| configurationErgonomics | 最小配置、字段必要性、复杂度预算、高级边界和省略探针 |
 | docsEntryPoints | README / 文档站 / API / changelog / examples 可点击入口 |
 ```
 
@@ -61,6 +76,7 @@ description: 开发者体验架构专家 Owner — 当任务涉及 CLI、SDK、A
 | 示例文件能跑但不是推荐接入方式 | 标注 exampleTruth / fixtureBoundary，并给生产主路径 |
 | 错误信息只说 failed | 输出原因、下一步和文档入口 |
 | 文档链接写死本机路径或 `.devcodex` 私有路径 | 改为仓库相对路径、公开 URL 或说明不可分享边界 |
+| 把所有底层能力都暴露为配置 | 保留 MinimalTaskConfig，把低频/高级能力放入显式 advanced boundary |
 
 ## 与其他 Skill 的关系
 

@@ -31,9 +31,24 @@ description: 性能工程专家 Owner — 当任务涉及性能优化、性能�
 6. 输出 capacity/headroom 与成本权衡；优化不能靠隐藏限流或丢请求。
 7. 用同协议重跑对照，达到阈值才判 accepted。
 
+## ModulePerformanceCoverageAndMaintenanceGate
+
+当框架、SDK、CLI、runtime 或公共包声称“完整性能覆盖”时，单一 benchmark、全局 DIM 或一个 release gate 不足以通过。必须先为每个功能判定 performance applicability，再为每个适用模块建立：
+
+| 维度 | 必填证据 |
+|---|---|
+| moduleProtocol | workload、budget、immutable baseline、candidate comparison |
+| capacityResource | capacity/headroom、CPU/memory/I/O/GC、饱和点和成本 |
+| stabilityRecovery | leak/pressure（适用时）、故障/冷却/恢复、正确性守恒 |
+| maintenanceTriggers | PR、main、scheduled、RC、post-release 的触发与升级关系 |
+| evidenceGovernance | retention、freshness、drift、owner、skip/N/A/flake 处理 |
+| coverageState | total/applicable/executed/accepted/failed/skipped/stale，清单完成与执行完成分开 |
+
+全部适用模块 accepted 前只能报告 `partial`；不可变基线变更必须有授权和迁移证据，不能通过减少适用模块、删除 flake 或重写基线制造通过率。
+
 ## 输出字段
 
-`workloadModel`、`performanceBudget`、`benchmarkProtocol`、`baselineEvidence`、`profilingEvidence`、`bottleneckAttribution`、`capacityModel`、`regressionThresholds`、`comparisonLimits`、`decision`、`evidenceMatrix`。
+`workloadModel`、`performanceBudget`、`benchmarkProtocol`、`baselineEvidence`、`profilingEvidence`、`bottleneckAttribution`、`capacityModel`、`regressionThresholds`、`comparisonLimits`、`modulePerformanceCoverage`、`maintenanceTriggers`、`decision`、`evidenceMatrix`。
 
 ## 反模式
 

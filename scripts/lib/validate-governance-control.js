@@ -372,7 +372,7 @@ function buildGovernanceControlChecks(ctx) {
       { file: 'instructions/15-memory.instructions.md', needle: 'jetbrains-copilot' },
       { file: 'skills/memory/SKILL.md', needle: 'jetbrains-copilot' },
       { file: 'scripts/validate-profile.js', needle: 'jetbrains-copilot' },
-      { file: 'index.js', needle: 'jetbrains-copilot' }
+      { file: 'scripts/lib/cli-maintenance-commands.js', needle: 'jetbrains-copilot' }
     ]
 
     for (const probe of musts) {

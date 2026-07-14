@@ -370,7 +370,11 @@ function buildGovernanceMidChecks(ctx) {
       },
       {
         file: 'index.js',
-        needles: ['writeManagedJsonFile', 'mergeClaudeHooks', 'mergeClaudeMcpConfig', 'detectHostPlatform', 'installed hosts:']
+        needles: ['writeManagedJsonFile', 'mergeClaudeHooks', 'mergeClaudeMcpConfig', 'detectHostPlatform']
+      },
+      {
+        file: 'scripts/lib/cli-maintenance-commands.js',
+        needles: ['installed hosts:']
       },
       {
         file: 'scripts/test-cli-behavior.js',

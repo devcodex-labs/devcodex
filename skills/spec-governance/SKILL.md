@@ -20,7 +20,7 @@ description: 规范治理生命周期 — 意图驱动记录、RecordRouter 分�
 
 ## 记录意图识别
 
-任何“记录一下”“这个不合理”“这个规范要优化”“以后应该这样做”“你刚才漏了/错了/违反流程了”类输入，都必须先识别规范化意图，不得按关键词直接写台账。
+`PostAssessmentGovernanceIntakeGate`：每条非空用户消息都先登记一个**中性的待评估候选**，但候选不等于治理命中。AI 必须在完成合理性评估、项目现实扩展和上下文归因后，才判断是否存在治理记录意图；关键词、固定短语或正则只能帮助定位证据，不能作为候选分类、写台账或跳过评估的权威依据。普通问答也必须形成 `record.none` 的受控评估结果，而不是靠“未命中关键词”静默绕过。
 
 | 规范化意图 | 触发含义 | 默认目标 |
 |------------|----------|----------|
@@ -40,7 +40,31 @@ description: 规范治理生命周期 — 意图驱动记录、RecordRouter 分�
 | 中 | 主意图明确，但存在副意图或升级可能 | 先处理主意图，列出副意图 |
 | 低 | “记录这个”等指代不清，或目标台账不唯一 | 不写台账，先澄清 |
 
-每次记录分流必须输出：`规范化意图`、`置信度`、`依据`、`目标台账`。
+每次候选评估必须输出结构化 `GovernanceIntakeDecision`：`候选锚点`、`评估结论`、`泛化范围`、`现有规范状态`、`规范化意图`、`置信度`、`依据`、`目标台账`、`写入要求`、`写入证据`、`skipEvidence`。未适用字段必须显式写 `N/A + reason`，不能省略后让 Hook 猜测。
+
+### ContextualCandidateSet
+
+- 候选集合按消息锚点持久化，至少保存 `id/sourceDigest/phase/verificationState`；新一轮消息不得覆盖上一轮未终结候选。
+- 主阶段必须保留 `detected → assessed → generalized → routed → write-observed → acknowledged` 的有序历史；`record.none` 可在 challenge 通过后由 routed 进入 acknowledged，`uncertain/record.ambiguous` 必须停在 assessed，缺写入证据的实质意图必须停在 routed。禁止省略中间语义/证据阶段直接终结。
+- 每个实质 intent state 必须保存 `targetLedger/claimedIds/observationIds/status`；复合候选逐项验证，不能只在 candidate 顶层保留一个总状态。
+- 同一未终结消息重复送达时按 digest 去重并增加 `seenCount`；已终结消息再次出现时允许创建新候选，避免历史结论覆盖新上下文。
+- Hook 只向 AI 暴露候选 ID、阶段、次数和最小消息锚点，不回显完整 prompt；多个未终结候选并存时，决策必须引用精确候选 ID。
+- 旧版单候选状态必须迁移为 v2 candidate set；reset、项目目标切换和压缩恢复都不得丢失未终结候选。
+
+### CompoundRecordRouterGate
+
+同一候选可同时命中多个 `record.*` 意图，例如“更优策略 + 规范缺口 + 原有探针漏检”可形成 `record.process-improvement + record.spec-defect + record.audit-gap`。复合意图必须逐项给出目标台账、写入要求、证据 ID 与验证状态；全部必需意图都完成后候选才可终结。禁止只记录第一个命中项、用一个台账 ID 代替其余意图，或把 `record.none` / `record.ambiguous` 与实质写入意图混合。
+
+### LedgerWriteEvidenceGate
+
+- `写入要求=required` 时，只有成功的 `PostToolUse` 对**当前 active-root 的精确目标台账路径**形成观察，且本次工具输入和工具完成后的真实文件都包含相同、前缀正确的 ledger ID，才算 `verified`。PreToolUse、失败结果、只在回复中声称编号、只写错误项目/root、只在 patch 内容提到路径、目标文件不存在或宿主未暴露结果，都保持 `unverified`。
+- `写入要求=already-recorded` 只适用于当前候选复用已存在记录的情况；必须在当前 active-root 的正确台账文件中重新读取并找到精确 ID，不能引用历史报告、错误 root 或仅凭记忆通过。
+- 意图—台账—前缀固定映射：violation→`violations.md/VL-`、spec-defect→`pending-fixes.md/PF-`、process-improvement→`process-improvements.md/PI-`、pending-issue→`pending-issues.md/ISSUE-`、audit-gap→`gap-registry.md/GR-`。复合意图对每一项执行 all-of；任何一项未验证，候选都不能进入 `acknowledged`。
+- Hook 只观察和验证写入证据，不自动创建台账条目；无法观察时明确保留 `unverified`，由 instruction-fallback 的报告/会话产物记录人工复证证据。
+
+### RecordNoneChallengeGate
+
+`record.none` 是需要证明的终结决策，不是默认兜底。它必须独占规范化意图，并同时提供 `评估结论=no-governance-impact`、合法泛化范围、`现有规范状态=exists-complete|not-applicable`、置信度、独立的具体依据、`写入要求=none` 与具体 `skipEvidence`；不得携带台账路径或 ID。范围为 `project-local|none` 时必须证明局部性/不可泛化；范围更广时只能由 `exists-complete` 及精确既有规则证据关闭。缺字段、可泛化改进仍未被完整规则覆盖、规范状态为 missing/partial/conflicting、与写入意图混合、依据和 skipEvidence 空泛或相互复制时，候选保持 `pending-none-challenge`。`record.ambiguous` 或 `评估结论=uncertain` 始终停在 assessed、保持未终结并先澄清。
 
 ## Improvement Intake（优化清单）
 
@@ -164,14 +188,14 @@ description: 规范治理生命周期 — 意图驱动记录、RecordRouter 分�
 | `absorption-layering` | `spec-absorption` + `spec-governance` | 可泛化 PI / PF / GAP / ISSUE、用户确认值得吸纳、新增 Gate | `CommonNormGeneralizationGate`、`AbsorptionCandidateConsumerProofGate`、`LayeredAbsorptionDecision`、`layerChecks`、consumer sync |
 | `historical-common-layering` | `spec-absorption` + `spec-governance` | 历史通用规范、prompt/report 长清单或旧吸纳项重新分层 | 逐文件审查矩阵、`legacy-index-retained`、`PromptLongGateListDriftProbe`、V74/V75 探针 |
 | `confirmed-completeness` | `spec-absorption` + 目标 Skill | 未完整吸纳、半覆盖、缺 Gate / Skill / Prompt / Probe / deployCopy | gateGroup 分流表、通用性证明、消费者证明、目标 Skill 证据、验证探针 |
-| `review-checklist` | `review-checklist` | 正式复审、ECR、发布前复审、多轮收敛、外部 finding 批次 | 复审清单文件、状态、证据、Run ID、收敛结论 |
+| `review-checklist` | `review-checklist` | 正式复审、ECR、发布前复审、多轮收敛、外部 finding 批次 | 复审清单文件、状态、证据、Run ID、收敛结论；`ChecklistStateMaterializationGate` 六区块一致快照 |
 | `review-escape` | `review-checklist` + `spec-governance` | 二次复审或实施中发现原清单遗漏、新问题逃逸 | `ReviewEscapeRecordGate`、`escapedItem / whyMissed / missingDimensionOrProbe / prevention / checklistPatch / rerunEvidence`、台账分流 |
 | `post-confirmation-review` | `cp-gate` + `review-checklist` + `dev-plan-review` | CP1/CP2/CP3 确认后进入下一阶段 | `PostConfirmationReviewScopeGate` 风险分级、轻量/全面复审判定、冻结清单或 skipReason、PR-2~PR-7 证据 |
 | `development-drift` | `execution-contract` + `dev-default` | 进入编码前、实施中范围扩张或验证路线变化 | `DevelopmentDriftGate`、allowedFirstBatch、blockedScope、driftTriggers、validationRoute、dirty boundary |
 | `user-manual` | `user-manual-authoring` | 站点文档、README、quick start、接入手册、最终用户手册 | 用户任务路径、配置、示例、排错、真实工作流、渲染验证 |
 | `docs-ia-readability` | `user-manual-authoring` + `dev-docs` + `document-sync` | 中文用户文档、sidebar IA、新增公开能力或菜单纠偏 | `ChinesePrimaryExpressionGate`、`SidebarPageRoleMaterializationProbe`、`SidebarGroupSemanticModelProbe`、pageRole/sidebar group 矩阵 |
 | `frontend-runtime` | `audit-project` + `test-router` | 首页、详情、列表、搜索、前端接口数据、缓存刷新或运行态页面 | 旧缓存先渲染、异步刷新、失败回退、网络/状态验证 |
-| `release-parity` | `audit-release` + `release-verification` | push/tag/release/publish 前验证；首次发布或 publisher/repository/package/registry/auth topology 变化 | 与远端 CI 同构门禁、pack、coverage/audit/examples/website 矩阵、原生命令真实 exitCode；`PublisherCredentialTopologyGate` 的身份/scope/access/permission/ownership/reference run 证据且不含 secret value |
+| `release-parity` | `audit-release` + `release-verification` | push/tag/release/publish 前验证；首次发布或 publisher/repository/package/registry/auth topology 变化；scoped package 双 registry | 与远端 CI 同构门禁、pack、coverage/audit/examples/website 矩阵、原生命令真实 exitCode；`PublisherCredentialTopologyGate` 的身份/scope/access/permission/ownership/reference run 证据且不含 secret value；`ScopedRegistryResolutionGate` 的 scope/global/userconfig/override/独立通道解析证据 |
 | `profile-service` | `load-profile` + `profile-bootstrap` + `memory` | Profile 链路、服务集合、公共规范抽取、服务残留、项目级 analyze/audit 真相对账、宿主 Memories / 模型回忆可能替代文件真相源 | 读取链、最强 Profile、服务残留清扫；`ProfileTruthReconciliationGate` 的 mode/profileTrustState/ProfileTruthMatrix/结论矫正；`MemoryCannotSatisfyBootstrapGate` 的 navigation-hint 与文件读取证据 |
 | `security-audit-presentation` | `security-threat-modeling` | 用户自有/明确授权的本地安全审查，或宿主额外安全检查导致内容不可见/流程中断 | `AuthorizedLocalSecurityAuditPresentationGate`、authorizationContext、defensiveObjective、visibleEvidenceBudget、isolatedProbeBoundary、SafetyInterruptionCard、恢复/反馈路线与禁止绕过声明 |
 | `memory-bootstrap` | `load-profile` + `memory` + `report` | 新线程、resume、summary 恢复、compact 后继续、跨项目切换或用户询问是否启用 / 依赖宿主 Memories | `MemoryCannotSatisfyBootstrapGate`、当前 active namespace Profile / SUMMARY / tasks / reports / review checklist / 源码或文档读取证据、V86/targeted probe |
@@ -179,6 +203,14 @@ description: 规范治理生命周期 — 意图驱动记录、RecordRouter 分�
 | `skill-lifecycle` | `skill-lifecycle-governance` + `evolution-governance` | Skill 组合冲突、依赖、误触发/漏触发、gray/deprecated/retired、合并拆分或 portfolio 健康度 | SkillPortfolioIndex、DependencyGraph、LifecycleChangeSet、TriggerQualityScorecard、RetirementEvidence、授权与回滚、V91 |
 | `public-surface` | `release-verification` + `audit-release` | package、README、website、public types、examples、搜索索引变化 | npm pack 历史公开内容、隐藏链接、public API、search/sidebar 反查 |
 | `evolution-control-plane` | `evolution-governance` | 自我进化、自动吸纳、模型辅助规范优化或自动发版候选 | 候选态、授权、模型配置、权限/配额、审计、回滚和审批 |
+| `agent-capability-completeness` | `ai-agent-system-architecture` | 声称完整/最终 Agent 架构、平台或 enterprise 产品能力 | completenessObject、请求/反馈/横切/产品企业链、domain owner/boundary/runtime/validation、V95 |
+| `docs-audience-render-sequence` | `audit-user-manual` | 用户文档 pageRole、首屏/导航优先级、quick start 距离、TOC/outline 运行态顺序 | `DocsAudienceRoleAndRenderedSequenceProbe`、fresh generated/Browser evidence、V95 |
+| `consumer-validation` | `consumer-validation-engineering` | 独立 consumer/verification repo、跨仓完整验证、packed artifact、多分母 100%、跨仓 CI/漂移 | repository binding、identity/artifact/lock/pack、denominator states、CI run、freshness、gray lifecycle、V95 |
+| `module-performance-maintenance` | `performance-engineering` | 框架/SDK/CLI 逐模块完整性能覆盖或长期维护 | applicability、module protocol、capacity/resource/recovery、PR/main/schedule/RC/post-release、retention/drift/skip/N/A/flake、V95 |
+| `rework-prevention` | `rework-prevention-engineering` + `evolution-governance` + `spec-absorption` | 降低返工率、提升首次通过率、复审反复发现新问题、审查逃逸或自我进化效果评估 | WorkUnit 分类、双重根因、ReworkRiskProfile、`ReworkReductionValueGate`、`ReworkEffectivenessLoop`、基线与前瞻试运行、成本、rollback/sunset、V94 |
+| `contract-release-authority` | `api-contract-architecture` + `audit-release` + `release-verification` | 兼容、迁移、alias/fallback、历史行为保留或发布边界判断 | `ReleaseAuthorityBeforeCompatibilityGate`、publishedState、consumerEvidence、authoritySources、decision、V94 |
+| `configuration-ergonomics` | `developer-experience-architecture` + `api-contract-architecture` | 新增/调整公开配置、嵌套字段、默认值、首次成功路径或高级能力边界 | `ConfigurationErgonomicsGate`、MinimalTaskConfig、FieldNecessityMatrix、ComplexityBudget、AdvancedCapabilityBoundary、OptionalFieldOmissionProbe、V94 |
+| `interactive-semantics` | `accessibility-i18n` + `audit-user-manual` + `test-router` | 链接、按钮、菜单、对话框、可展开控件、自定义交互或文档站运行态验收 | `InteractiveSemanticProbe`、role、accessible name、focusability、Enter/Space/Escape、focus recovery、V94 |
 | `expert-output-quality` | `expert-output-quality` + `dev-plan-review` + `dev-docs` + `audit-*` | 代码、文档、示例、fixture、quick start、技术方案或报告需要体现技术专家 / 资深架构 / 领域专家质量，或用户指出“不专业 / 像初级 / 示例误导” | `ExpertOutputQualityGate`、`ProductionRecommendedPathGate`、`FrameworkNativeCapabilityFirstGate`、`FixtureBoundaryDisclosureGate`、`AntiPatternContrastGate`、`ExpertEvidenceMatrixGate` |
 | `expert-owner-skills` | 21 个专家 Owner Skill：原 17 个 Owner 加 `distributed-systems-architecture`、`performance-engineering`、`privacy-compliance-architecture`、`ai-evaluation-engineering` | 需求、方案、代码、文档或报告命中产品策略、开发者体验、UX、前后端、SRE、API/外部集成、平台/Agent、数据安全质量、设计与无障碍、增长商业、分布式系统、性能、隐私合规或 AI 评测专业语义；增长 / 商业为 P3 条件触发 | `ExpertOwnerSkillGate` 及各 Owner Gate；新增 `DistributedSystemsArchitectureGate`、`PerformanceEngineeringGate`、`PrivacyComplianceArchitectureGate`、`AiEvaluationEngineeringGate`；记录 ownerSkill、triggerReason、requiredFields、validationRoute、skipReason、V85/targeted probe |
 | `docs-semantics-examples` | `dev-docs` + `audit-document` + `audit-readme` + `user-manual-authoring` | 行为语义、翻译、示例、quick start、callback / hook / event 文档与代码真相源可能漂移 | `BehaviorSemanticDocsParityGate`、`NegativeTranslationParityProbe`、`DocsExampleTruthSurfaceGate`、`CallbackExampleScopeProbe`、public types / runtime / generated search 证据 |

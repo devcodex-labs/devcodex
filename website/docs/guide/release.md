@@ -109,12 +109,15 @@ DevCodex 采用“双阶段发布 + 三层日志”：
    - `RL-7~RL-10`：验证准备度、回滚恢复、registry/token 安全与发布后验收
 7. 按 `release-verification` Skill 执行 R0~R7：
    - `R3`：执行 `npm test`（默认全链）
+   - `R3a`：执行 `CandidateDiffCompletenessGate`；清点 tracked/untracked 后物化 staged candidate snapshot，再执行 `git diff --cached --check`、name-status 复核、按项目策略的 secret-shape scan 与 intended scope 对账。普通 `git diff --check` 不覆盖未跟踪文件，不能替代本门禁
    - `R3b`：执行 `npm run test:audit` + package completeness gate（`description`、`keywords`、`repository`、`homepage`、`bugs`、`license`、`files/exports/bin`、`publishConfig`、`engines`、`plugin.json`）；package boundary check 必须在 build / benchmark / codegen 完成后单独串行执行；公开打包脚本必须执行 `PackagedScriptDependencyClosureGate`，递归核对本地 helper、spawn 目标脚本和运行时依赖进入 tarball
    - GitHub Packages 发布链中，`test:audit` 必须显式使用 `https://registry.npmjs.org` 作为 audit registry，避免 publish dry-run / prepublishOnly 继承 GitHub Packages 的非审计端点；这不等于跳过审计
    - `R3c`：若项目存在远端 CI，确认目标 commit 对应远端 CI 绿色；无 CI 或无权限查询时必须写 `N/A + skipReason`，不得把本地测试冒充远端 CI
    - `R4`：执行 `npm pack --dry-run` 与 `npm publish --dry-run`
    - `R5~R7`：按需做 install smoke、tag/publish 前确认与发布后验收
 
-> 当前 `publishConfig` 指向 GitHub Packages；发布相关文档必须保留 `.npmrc` / `NODE_AUTH_TOKEN` 认证说明，除非后续明确切换到公共 registry。
+> v1.13.0 的 `publishConfig` 指向 GitHub Packages restricted 通道；`release:dry-run:npmjs` / `release:dry-run:github` 继续保留为多目标发布前诊断工具，但当前版本只授权和验收 GitHub Packages。真实发布仍必须完成 package ownership / publisher / auth topology、目标提交远端 CI 与目标 registry 后验收；dry-run 通过不能替代真实发布证据。
+
+> 对 scoped package，`.npmrc` 的 `@scope:registry` 会优先影响目标解析；每个实际目标的 view、whoami、dry-run、publish 与发布后查询都必须执行 `ScopedRegistryResolutionGate`，用隔离 userconfig 或显式 `--@scope:registry=<target>` 绑定目标。存在多个目标时必须独立取证；未列入本次发布范围的 registry 记录为 `N/A + scopeDecision`，不得伪报已发布。
 
 > 发布型 Profile 不能只写基础项目介绍；还应覆盖 CI workflow/job 矩阵、tag/publish 触发链、失败恢复路径、外部消费者验证矩阵、dist 产物边界、registry/tag 验收与常见故障诊断。ReleaseVerification 收尾前必须清理无关 dirty 文件和旧验证残留。

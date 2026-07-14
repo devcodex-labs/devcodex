@@ -69,13 +69,15 @@ applyTo: ".devcodex/**/reports/audit/**, .devcodex/**/reports/self-fix/**"
 | CrossProjectLearnedGuards | GovernanceGateRegistry gateGroup / ownerSkill / validationRoute / evidence / skipReason；anchors: CodeTruthRequirementGate / ManualReviewEvidenceRetention / ReviewFindingIntakeGate / UserDocsPrimarySurfaceGate / ActiveRequirementFinalResponseGate / V2FormalSolutionPackage |
 | ExpertOutputQualityGate | roleBaseline / productionRecommendedPath / frameworkNativeCapability / fixtureBoundary / antiPatternContrast / evidenceMatrix / V84；代码、文档、示例、fixture、quick start、技术方案和报告不得把测试夹具或低阶重复写法包装成生产推荐路径 |
 | ExpertOwnerSkillGate | ownerSkill / triggerReason / requiredFields / validationRoute / skipReason / V85；按需覆盖 product-strategy / developer-experience-architecture / ux-interaction-architecture / frontend-architecture / backend-domain-architecture / production-readiness-sre / api-contract-architecture / external-integration-architecture / platform-ecosystem-architecture / ai-agent-system-architecture / data-architecture / security-threat-modeling / quality-strategy / design-system-architecture / accessibility-i18n / growth-analytics / business-model-review |
+| ReworkPrevention / ReleaseAuthority / ConfigurationErgonomics / InteractiveSemantic | WorkUnit/双根因/baseline/prospective trials/effectiveness；publishedState/consumerEvidence/decision；MinimalTaskConfig/FieldNecessityMatrix/OptionalFieldOmissionProbe；role/name/focus/keyboard/focus recovery；V94 |
+| Agent/Docs/Consumer/ModulePerformance completeness | completenessObject/domain owner-boundary-runtime-validation；pageRole/首屏/sidebar/quickstart/TOC-outline/generated evidence；repository identity/denominators/pack/cross-repo CI/freshness；module applicability/protocol/maintenance；V95 |
 | OmissionOnlyReviewGate | 已覆盖集合 / 新增覆盖 / 遗漏候选 / 排除理由 / 收敛状态 |
 | ReviewFindingIntakeGate | finding 来源 / 本地证据 / must-fix-user-decision-docs-drift-test-gap-intentional-design-not-reproduced 分类 / 用户确认点 |
 | ReviewDimensionDeltaGate | PreviousDimensionSet / CurrentDimensionFocus / NewDimensionRationale / RepeatedDimensionReason |
 | UserPerspectiveDocsGate / UserDocsImmediateComprehensionGate / UserDocsPrimarySurfaceGate / PublicUserDocsMaintainerBoundaryGate / DocsConsumerSweep | 使用者视角 / 功能完整性 / 配置易懂 / 即时理解 / targetSurface / documentLocation / 首页首屏 / quick start / nav 主面 / 维护者 checklist 边界 / 字段与示例解释 / 当前消费者与导航同步 |
 | UserFacingDeliveryChainGate / FinalUserManualFirstGate / DocsSiteInformationArchitectureGate / UserManualFlowAndFailureGate / QueueDocsRealWorkflowGate | 用户最终使用文档 / 文档站或 README 判定 / 前端或 API 契约 / 真实用户流 / 失败恢复 / 队列真实工作流 |
 | audit-user-manual / UserManualReviewScope / DocsNavigationReviewMatrix | 用户侧文档 review、项目文档审查、文档设计、菜单导航、sidebar、信息架构、生成站点和文档站运行态验证 |
-| ReviewChecklistCompletenessGate / EvidenceExecutionGate / ReviewEscapeRecordGate | 冻结 checklist / 逐项实际验证 / 重复维度规避 / 不按审查报告文本直接验收；若发现遗漏，写 whyMissed / prevention / checklistPatch / rerunEvidence |
+| ReviewChecklistCompletenessGate / EvidenceExecutionGate / ReviewEscapeRecordGate / ChecklistStateMaterializationGate | 冻结 checklist / 逐项实际验证 / 重复维度规避 / 不按审查报告文本直接验收；若发现遗漏，写 whyMissed / prevention / checklistPatch / rerunEvidence；clean/closed 前列六区块 ChecklistStateSnapshot 与重开证据 |
 | BuiltArtifactFeatureSmokeGate / TscOutputImportProbe / BenchmarkRegressionGuard | 构建产物导入执行 / TS 输出导入 / 性能基线对照阈值 |
 | GeneratedSiteGate / ManualTocDuplicationGate / UserPathContractSweep | 生成站点产物 / TOC-sidebar-nav 去重 / 公开用户路径消费者同步 |
 | ArtifactLinkSetDedupeGate / FrontendRuntimeNetworkProbeGate | 规范化路径去重 / 主产物消歧 / console-network-resource-runtime 证据 |
@@ -94,6 +96,7 @@ applyTo: ".devcodex/**/reports/audit/**, .devcodex/**/reports/self-fix/**"
 | ProfileTruthReconciliationGate | full / profileTrustState / ProfileTruthMatrix(profileClaim / actualSources / status / conclusionAuthority / correctionRoute)；audit 不修改 Profile |
 | AuthorizedLocalSecurityAuditPresentationGate | authorizationContext / defensiveObjective / visibleEvidenceBudget / isolatedProbeBoundary / SafetyInterruptionCard / recoveryRoute；禁止绕过表述 |
 | PublisherCredentialTopologyGate | publisher/repository/package identity / authMode / secret scope-access-inheritance / workflowPermissions / reference run / topologyParity；不含 secret value |
+| ScopedRegistryResolutionGate | packageScope / globalRegistry / scopeRegistry / userconfigSource / commandOverride / resolvedTarget / pollutionReproduction / independentChannelEvidence / primaryAuthState |
 | LatestAbsorptionGuards | GovernanceGateRegistry gateGroup / evidence / N/A；anchors: DatabaseRecordMigrationExportGate / FrontendBrowserVerificationBudgetGate / FindingProbeMatrixGate / VerificationCommandSideEffectGate / RequirementPreConfirmGate / BenchmarkRegressionGuard |
 
 ## §3 问题清单

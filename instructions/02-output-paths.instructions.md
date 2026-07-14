@@ -2,7 +2,7 @@
 applyTo: "**"
 description: 产物输出路径与命名规范，定义 active-root 下的 requirements、bugs、reports 与记忆落点
 priority: P5
-version: 1.12.0
+version: 1.13.0
 ---
 # 产物输出路径规范
 
@@ -125,6 +125,8 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 每天一个文件，文件内以 `## 会话 NN` 分段。
 
 ## 产物路径输出格式
+
+`ArtifactDeliveryCompletenessGate`：最终回复属于独立 surface，必须在 `📂 本次会话产物` 区块明确写“主要产物”并列出 active task primary artifacts。小集合直接全列；大集合列 primary + 完整 manifest 入口，并说明 supporting/runtime/excluded-generated 数量。去重仅限同一 surface，不得因为报告、记忆或 SUMMARY 已列出而从最终回复省略。
 
 每轮回复中涉及文件新建或修改时，在回复末尾输出：
 

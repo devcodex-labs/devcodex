@@ -293,6 +293,8 @@ applyTo: .devcodex/**/requirements/**
 | ProactiveBetterAlternativeGate | 用户方案 / 备选路径 / 推荐理由 / 取舍影响 / 采纳依据 | | |
 | ConfirmedAbsorptionCompletenessGates | 按 `public-surface / user-manual / review-checklist / frontend-runtime / profile-service / release-parity / evolution-control-plane` 填写触发 / N/A、目标 Skill、证据和探针；代表性 anchors：PublicSurfaceClosureGate / UserManualProductizationGate / ReviewAnchorMaterializationGate / FrontendAsyncCacheRenderGate / RemoteCIParityPushGate / NativeCommandExitCodeGate / DocsThemeRuntimeVisualProbeGate | | |
 | LatestAbsorptionExecutionPack A1~A10 | 按 `GovernanceGateRegistry` 分组填写触发 / N/A、ownerSkill、validationRoute、skipReason；anchors：ConfigCanonicalNamespaceGate / ProfileRuntimeContractSyncGate / BehaviorSemanticDocsParityGate / NegativeTranslationParityProbe / DocsExampleTruthSurfaceGate / CallbackExampleScopeProbe / DerivedMetricConsumerProbe / DerivedConsumerFailureInjectionProbe / FeatureInventoryProfileGate / FeatureChecklistEvidenceMatrixGate / BatchEvidenceLedgerStateGate / BatchProgressCardGate | | |
+| rework-prevention / contract-release-authority / configuration-ergonomics / interactive-semantics | 按 `GovernanceGateRegistry` 填写 WorkUnit/双重根因/baseline/prospective evidence；publishedState/consumerEvidence/authoritySources/decision；MinimalTaskConfig/FieldNecessityMatrix/ComplexityBudget/AdvancedCapabilityBoundary/OptionalFieldOmissionProbe；role/name/focusability/Enter-Space-Escape/focus recovery | | |
+| agent-capability-completeness / docs-audience-render-sequence / consumer-validation / module-performance-maintenance | 按 `GovernanceGateRegistry` 填写 completenessObject/domain matrix；pageRole/rendered sequence；repository binding/identity/denominators/pack/cross-repo CI/freshness；module applicability/protocol/maintenance triggers；V95 | | |
 | FullV1ScopeGuard | | | |
 | StartupPhaseTrace | 阶段命名 / Profile 或 startup summary 同步 / 减噪、lazy loading 或 background warmup 决策 | | |
 | CodeTruthRequirementGate | 代码真相源 / 消费者入口 / 运行证据 | | |
@@ -335,7 +337,7 @@ applyTo: .devcodex/**/requirements/**
 | VerificationPlanMaterializationProbe | 验证计划章节 / 命令矩阵 / 验收标准 / 退出条件 | | |
 | SidebarPageRoleMaterializationProbe / SidebarGroupSemanticModelProbe | pageRole / sidebar group / route-label 真相源 / 相邻职责 | | |
 | ChinesePrimaryExpressionGate | 中文主干表达 / 英文标识符补充 / 流程节点中文命名 | | |
-| review-checklist / ReviewChecklistCompletenessGate / EvidenceExecutionGate / ReviewEscapeRecordGate | 冻结 checklist / 逐项证据 / 实际验证 / 重复维度规避 / 状态新鲜度；若复审发现遗漏，写 escape record 的 whyMissed / prevention / checklistPatch / rerunEvidence | | |
+| review-checklist / ReviewChecklistCompletenessGate / EvidenceExecutionGate / ReviewEscapeRecordGate / ChecklistStateMaterializationGate | 冻结 checklist / 逐项证据 / 实际验证 / 重复维度规避 / 状态新鲜度；若复审发现遗漏，写 escape record 的 whyMissed / prevention / checklistPatch / rerunEvidence；clean/closed 前物化 header/items/round/ledger/progress/closure 一致 snapshot | | |
 | BuiltArtifactFeatureSmokeGate / TscOutputImportProbe | 构建产物导入执行 / feature smoke / TS 输出导入探针 | | |
 | GeneratedSiteGate / ManualTocDuplicationGate / UserPathContractSweep | 生成站点产物 / TOC-sidebar-nav 去重 / 用户路径消费者同步 | | |
 | BenchmarkRegressionGuard | 基线 / 对照 / 阈值 / 回归判定 / skipReason | | |

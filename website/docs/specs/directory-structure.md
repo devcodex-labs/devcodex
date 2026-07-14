@@ -122,7 +122,7 @@ DevCodex 当前默认安装面向目标项目分发以下目录和文件：
 │   │   ├── 17-compliance.instructions.md
 │   │   └── 18-spec-radar.instructions.md
 │   │
-│   ├── skills/                          ← 第三层：扁平一级 Skill（74 个）
+│   ├── skills/                          ← 第三层：扁平一级 Skill（76 个）
 │   │   ├── dev-default/SKILL.md
 │   │   ├── fix-default/SKILL.md
 │   │   ├── audit-common/SKILL.md

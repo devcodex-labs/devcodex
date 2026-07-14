@@ -2,7 +2,7 @@
 applyTo: "**"
 description: analyze 工作流规则，覆盖只读分析、代码取证顺序、多轮收敛与推荐结论
 priority: P4
-version: 1.12.0
+version: 1.13.0
 ---
 # 分析工作流规则（13-analyze）
 
@@ -13,7 +13,7 @@ version: 1.12.0
 ## 核心约束
 
 ### 只读约束
-- **analyze 是只读工作流**：禁止修改任何源码文件
+- **analyze 是项目内容只读工作流**：禁止修改源码、规范与配置；允许写分析报告、记忆，以及经 `spec-governance` 语义分流后必须写入的 active-root 运行态台账
 - 需要修改时 → 在报告中建议切换 dev 或 fix 工作流
 - 用户先给出结论、根因或方案假设时，analyze 仍须独立取证；若核验后结论成立，可直接采纳并说明证据，禁止为了表现“独立”而机械反对
 
@@ -80,6 +80,12 @@ version: 1.12.0
 - 推荐结论必须包含“推荐理由”，且推荐理由能追溯到合理性、可实施性、收益、验证状态、影响范围五项验证。
 - 若没有可推荐动作，必须显式写明 `推荐：无后续动作` 及原因，避免用户从建议列表中猜主路径。
 
+### PostAssessmentGovernanceIntakeGate
+
+- analyze 完成合理性评估与 PCV 事实复核后，必须对当前消息的中性 candidate 形成完整 `GovernanceIntakeDecision`；不得用用户措辞或关键词直接决定是否记录。
+- 结论同时证明更优策略、规范缺口、既有违规或审查盲区时，保留全部 `record.*` 意图并逐项写入/验证；不能只取第一个分类。
+- `record.none` 必须通过 `RecordNoneChallengeGate`；`record.ambiguous` 保持未终结并先澄清。analyze 报告同步记录 candidate ID、target ledger、write requirement/evidence 与 verification state。
+
 ### QuestionEvidenceGate / ComparativeResearchGate
 
 - 用户没有直接说“调研/比较”，但问题本质是在问“是否应该”“哪个更好”“有没有更好建议”“推荐什么方案/工具/项目/产品”时，analyze 必须先判定 `QuestionEvidenceGate`，再决定是否升级为 `analyze.research` 或在当前轮补足对比证据。
@@ -98,6 +104,8 @@ version: 1.12.0
 - analyze.default 的执行细节由 `skills/analyze-default/SKILL.md` 承接；本文件只保留只读边界和工作流索引。
 - 项目级 analyze 在形成结论前必须引用 `load-profile` 的 `ProfileTruthReconciliationGate` targeted 模式；低风险文件级分析可 `N/A + skipReason`。发现 Profile 漂移时只矫正当前结论，Profile 源修改必须切换独立 dev/fix/self-fix。
 - 分析发现规范吸纳、完整吸纳补强、历史长清单迁移、复审遗漏、用户文档、前端运行态、发布门禁、Profile/service 规范或自我进化控制面问题时，不在 instructions 展开 Gate 长清单；必须引用 `skills/spec-governance/SKILL.md` 的 `GovernanceGateRegistry`。
+- 分析返工率、兼容/迁移、配置复杂度或交互语义时，分别引用 `rework-prevention`、`contract-release-authority`、`configuration-ergonomics`、`interactive-semantics`；分析结论不得把历史基线、未发布草稿、实现字段存在或截图当作效果/权威/易用/可访问性完成证据。
+- 分析完整 Agent 平台、文档受众渲染顺序、跨仓消费者验证或逐模块性能维护时，分别引用 `agent-capability-completeness`、`docs-audience-render-sequence`、`consumer-validation`、`module-performance-maintenance`；结论必须受声明对象、运行态/身份链、适用分母与新鲜度约束。
 - 分析报告只写 `gateGroup / ownerSkill / trigger / evidence / validationRoute / skipReason`。分析阶段保持只读，等待用户确认后再切换 dev/fix/self-fix 实施。
 
 ### 收敛后汇总验证（PCV）

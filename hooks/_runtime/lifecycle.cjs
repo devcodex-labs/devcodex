@@ -253,7 +253,10 @@ const INTERCEPTION_LOG = META_STATE_PATHS.interceptionLog
 
 const {
   emptyGovernanceIntakeState,
-  buildGovernanceIntakeCandidate,
+  normalizeGovernanceIntakeState,
+  registerGovernanceIntakeCandidate,
+  buildGovernanceIntakeContextMessage,
+  observeGovernanceLedgerWrite,
   updateGovernanceIntakeResolutionState,
   buildGovernanceIntakeReminderItem
 } = buildLifecycleGovernanceIntakeUtils()
@@ -424,7 +427,8 @@ const {
   buildInterceptionOutput,
   INTERCEPTION_ACTION,
   noopOutput,
-  emptyGovernanceIntakeState
+  emptyGovernanceIntakeState,
+  normalizeGovernanceIntakeState
 })
 
 // ─── CP Gate ─────────────────────────────────────────────────────────────────
@@ -993,7 +997,10 @@ async function main() {
 
   updateVisibleReplyState(state, payload, eventName)
   if (eventName === 'PreCompact' || eventName === 'Stop') {
-    updateGovernanceIntakeResolutionState(state, getVisibleReplyText(payload), eventName)
+    updateGovernanceIntakeResolutionState(state, getVisibleReplyText(payload), eventName, {
+      activeRoot: getActiveNamespaceRoot(state),
+      contextRoot: CONTEXT_ROOT
+    })
   }
   state.lastEvent = eventName || state.lastEvent
 
@@ -1001,7 +1008,7 @@ async function main() {
   if (eventName === 'UserPromptSubmit') {
     state = resetState(mode, state)
     applyPromptTarget(state, promptTarget, payload)
-    state.governanceIntake = buildGovernanceIntakeCandidate(prompt)
+    state.governanceIntake = registerGovernanceIntakeCandidate(state.governanceIntake, prompt)
     state.executionMode = detectExecutionMode(payload, state, promptTarget)
     confirmDangerousApprovalsFromPrompt(state, prompt, eventName, platform)
     // Multi-project workspace guard (v1.9.8+):
@@ -1026,7 +1033,10 @@ async function main() {
       }
     }
     saveState(state)
-    writeStdout(contextMessageOutput('UserPromptSubmit', buildBootstrapMessage()))
+    writeStdout(contextMessageOutput(
+      'UserPromptSubmit',
+      [buildBootstrapMessage(), buildGovernanceIntakeContextMessage(state.governanceIntake)].filter(Boolean).join(' ')
+    ))
     return
   }
 
@@ -1132,6 +1142,12 @@ async function main() {
 
   // ── PostToolUse ────────────────────────────────────────────────────────────
   if (eventName === 'PostToolUse') {
+    observeGovernanceLedgerWrite(state, payload, {
+      activeRoot: getActiveNamespaceRoot(state),
+      contextRoot: CONTEXT_ROOT,
+      eventName,
+      toolName: getToolName(payload)
+    })
     updateArtifactTouches(state, payload, platform)
     saveState(state)
     writeStdout(noopOutput())

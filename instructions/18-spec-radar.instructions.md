@@ -2,7 +2,7 @@
 applyTo: "**"
 description: PC4 规范雷达规则，覆盖规范缺口感知、三轴诊断与治理前置信号
 priority: P4
-version: 1.12.0
+version: 1.13.0
 ---
 # 规范雷达（18-spec-radar）
 
@@ -29,6 +29,8 @@ version: 1.12.0
 > ⚠️ PC4 **禁止依赖关键词匹配触发**（如："确定吗"、"不对"、"再解释"等表面词汇）。  
 > ✅ 正确方式：AI 对当前交互状态执行**三轴自检**，由轴的诊断结论决定是否触发。  
 > 关键词可以作为辅助线索，但不能是触发依据——同一句话在不同语境下可能完全无关。
+
+`PostAssessmentGovernanceIntakeGate` 是全模式基础层：每条非空消息先登记中性 candidate，待合理性评估、项目现实扩展和上下文归因完成后，再以三轴事实及其他项目证据形成 `GovernanceIntakeDecision`。PC4 三轴在 dev 模式提供额外诊断证据，但“未执行 dev 三轴”不等于跳过全模式治理评估；Hook 只维护 candidate set 和证据状态，不按关键词替 AI 分类。候选按 `detected → assessed → generalized → routed → write-observed → acknowledged` 留存阶段历史，`uncertain/ambiguous` 与缺写入证据都不得越级终结。
 
 ## 触发时机
 

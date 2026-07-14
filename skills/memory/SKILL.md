@@ -117,6 +117,7 @@ description: 管理会话记忆的读取与写入。三层记忆体系：Agent �
 | 💡 关键决策 | 本次会话中产生的重要决策 |
 | ⚠️ 待跟进 | 未完成事项或下次需要继续的内容 |
 | 📦 编码检查点 | 编码任务且变更 ≥3 文件时 |
+| 🧾 Governance Intake | candidate IDs、assessmentVerdict、generalizationScope、existingRuleState、复合 record intents、target ledgers、write requirement/evidence、verification state；只存最小锚点，不复制完整 prompt |
 
 ## 格式选择
 

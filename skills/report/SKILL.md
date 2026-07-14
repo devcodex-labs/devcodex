@@ -72,6 +72,12 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 
 ### dev/fix 支撑产物字段
 
+#### ArtifactDeliveryCompletenessGate
+
+最终回复是独立交付 surface：必须在 `📂 本次会话产物` 下显式标注“主要产物”并列出 active task primary artifacts。supporting/runtime 产物按组给数量和完整 manifest 入口；去重只在同一 surface 内进行，不能因报告、记忆或 SUMMARY 已引用而省略。可见回复证据使用 `verified-present / verified-missing / unverified`，未观察到 assistant payload 时不得断言缺失。
+
+涉及审查覆盖时报告必须输出 coverage claim taxonomy；逐文件声明绑定 FileEvidenceLedger，抽样声明绑定 sampledSet/unreadSet/inferenceBoundary。涉及返工时输出 WorkUnit、事件分类、双根因、baseline、prevention、prospective evidence 与 EffectivenessScorecard；样本不足写 `insufficient-sample`。
+
 当以下支撑 Skill 被触发时，报告必须列出对应产物、判定结果与证据；未触发时可标 `N/A` 并说明原因。
 
 | 支撑产物 | 触发场景 | 报告要求 |
@@ -80,7 +86,7 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 | RepairCollaborationContract | AI 判断任务目标为 repair task | 列出 lightweight/full、contractState、authorizationEvidence 与双层证据；full 追加 findingToPatchMap、handoffIntegrity、independentReReview、acceptanceMatrix；模型名称不作为触发证据 |
 | TestRoute | 跨模块、接口、Hook/CLI、模板-示例-校验链、测试路径不明显的任务 | 列出 changeType、routes、commands、skipReason、blockingLevel |
 | CoverageGateDecision / ExternalRuntimePluginLifecycleGate / ExternalRegistryLifecycleMatrixGate / FunctionSourceFingerprintMatrixGate / ClusterEscalationGate / RiskBasedValidationLadder | coverage 门禁、外部 runtime/plugin/registry/adapter/provider 生命周期、function source fingerprint、同风险簇返修或风险分层验证被触发 | 列出 coverage 命令/工具/阈值/基线/当前值/状态；runtime/plugin/registry 矩阵；fingerprint false-positive/false-negative 样本；clusterId、触发计数、whyMissed、冻结矩阵、停止条件和 targeted/related/full gate 层级；未触发写 `N/A + skipReason` |
-| ReleaseVerification | 用户明确要求正式发版、tag、publish 或已进入发布前验证 | 列出 R0~R7 的验证结果与证据；如存在远端 CI，补 R3c 目标 commit CI 绿色证据或 `N/A + skipReason`；pack/publish/install smoke 证据必须包含 `NativeCommandExitCodeGate` 的 command、shell、cwd、exitCode 与 auth/config 来源 |
+| ReleaseVerification | 用户明确要求正式发版、tag、publish 或已进入发布前验证 | 列出 R0~R7 的验证结果与证据；补 `CandidateDiffCompletenessGate` 的 inventory、staged snapshot、cached diff check、name-status、secret-shape 与 intended scope match；如存在远端 CI，补 R3c 目标 commit CI 绿色证据或 `N/A + skipReason`；pack/publish/install smoke 证据必须包含 `NativeCommandExitCodeGate` 的 command、shell、cwd、exitCode 与 auth/config 来源 |
 | ReleaseAudit | 用户要求发版前 review、publish/tag 前风险审查或 audit.发布前审查 | 列出 RL-1~RL-10 审查结果、风险、证据与推荐结论 |
 | ConceptSyncMap | 控制面、模板-示例-校验链、README/website/Profile/validate/部署副本联动任务 | 列出 sourceOfTruth、currentConsumers、historicalMirrors、validateProbes、deployCopies、yellowDeviationBoundary |
 | HostContractVerification | Hook/CLI/宿主契约、visible reply、sticky project、workspace guard、bootstrap 相关任务 | 列出 hostSurface、eventScope、evidenceMode、visibleReplyEvidence、workspaceGuard、bootstrapScope |
@@ -90,10 +96,12 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 | ProfileTruthReconciliationGate | 项目级 analyze / 任意 audit | 列出 mode、profileTrustState 与 `ProfileTruthMatrix(profileClaim / actualSources / status / conclusionAuthority / correctionRoute)`；只读工作流只能矫正结论，不能直接修改 Profile |
 | AuthorizedLocalSecurityAuditPresentationGate | 用户自有/明确授权的本地安全审查，或宿主安全提示导致内容不可见 | 列出 authorizationContext、defensiveObjective、visibleEvidenceBudget、isolatedProbeBoundary；提示发生时追加 SafetyInterruptionCard 与恢复/反馈路线，禁止绕过表述 |
 | PublisherCredentialTopologyGate | 首次发布或 publisher/repository/package/registry/auth topology 变化；普通 patch 记录 unchanged evidence | 列出 publisher/repository/package identity、authMode、secret scope/access/inheritance、workflowPermissions、reference run、topologyParity；不得包含 secret value |
+| ScopedRegistryResolutionGate | scoped package 发布到多个 registry，或任一 `.npmrc` 存在 `@scope:registry` | 列出 packageScope、globalRegistry、scopeRegistry、userconfigSource、commandOverride、resolvedTarget、pollutionReproduction、independentChannelEvidence 与 primaryAuthState；不得把相同版本集直接当作双通道通过 |
 | ProfileTierValidation / AllDevCodexProfileValidation | 涉及 Profile 三档标准、Profile 必需文件、workspace-namespace、规范维护项目或用户要求校验 `.devcodex` 所有项目 | 列出 `ProfileTierStandardGate`、`ProfileLifecycleClassificationGate`、`AllDevCodexProfileValidationGate` 的判定、执行命令、检查项目数、错误数、警告数、是否启用 `--strict-warnings`、active Profile 更新证据和残余风险 |
 | MemoryCannotSatisfyBootstrapGate | 涉及宿主 Memories、模型长期偏好、resume / summary 恢复、Profile / memory bootstrap、Context Rehydration 或用户询问是否可用记忆替代文件读取 | 列出 Memories / 模型回忆的 `navigation-hint` 边界、真实读取的 Profile / SUMMARY / tasks / reports / review checklist / 源码或文档证据、冲突处理、V86/targeted probe；无法读取时写阻塞 / 降级，不得写通过 |
 | Backlog Intake 真相复核 | 任务或批次直接来源于 `data/*.md` open/partial 项 | 列出 `candidateIds`、`classification`、`evidence`、`scopeDelta` |
 | 台账状态回写闭环 | 本轮会关闭/部分关闭/改分类任何 VL/PF/PI/ISSUE/GAP | 列出 `targetLedgers`、`requiredFields`、`writebackEvidence`、`rescanResult` |
+| GovernanceIntakeDecision | 所有非空用户消息；报告工作流均适用 | 列 candidate ID、assessmentVerdict、generalizationScope、existingRuleState、复合 recordIntents、targetLedgers、writeRequirement、writeEvidence、verificationState、skipEvidence；Hook 不可观察时写 `unverified + manualVerificationRoute` |
 | spec-absorption / CommonNormGeneralizationGate / AbsorptionCandidateConsumerProofGate | 规范吸纳、最新可吸纳、仍需吸纳、检查 `.devcodex/*/data` 吸纳清单、项目独有规则剔除 | 列出候选矩阵、`sourceNamespace`、`generalizationEvidence`、`projectSpecificResidue`、`negativeExamples`、`commonTrigger`、`targetConsumer`、`devcodexConsumerEvidence`、`targetOwner`、`layerChecks`、`validationRoute`、`decision` 与 `skipReason` |
 | ProjectArtifactScaleRoutingGate | 项目/目录分析、审查、扫描、能力盘点、大目录或全工作区任务 | 列出 project/root、六项规模指标、ScaleDecisionRecord、exclusionPolicy、batch/checkpoint、invalid-run、V91；未形成前不得声称完成 broad scan |
 | SkillPortfolioLifecycleGate | Skill 组合、依赖、误触发/漏触发、gray/deprecated/retired、合并退役 | 列 portfolio/dependency/lifecycle/trigger score/conflict/deprecation/retirement/authorization 与 V91 |
@@ -102,10 +110,15 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 | ProactiveBetterAlternativeGate | 用户建议、需求/方案确认、规范吸纳、复审清单冻结或报告推荐结论 | 列出用户方案、备选路径、推荐理由、取舍影响；若采纳用户原方案，写明经独立验证后采纳的证据 |
 | AcceptedSuggestionRootCauseGate | 用户提出更优方案或纠正命名 / IA / 验证路线 / 范围边界且本轮采纳 | 列出 whyMissed、采纳依据、关联 VL/PI/PF/GAP 编号、prevention、record.none skipReason（如适用） |
 | PostConfirmationReviewScopeGate / DevelopmentDriftGate | CP 确认后进入下一阶段、进入编码前或实施中范围偏移风险 | 列出轻量/全面复审判定、review-checklist 路径或 skipReason、allowedFirstBatch、blockedScope、driftTriggers、validationRoute、dirty boundary |
+| ChecklistStateMaterializationGate | 多轮复审 clean、streak 增加或 closed 声明 | 列出 ChecklistStateSnapshot、六区块 materialized/stale 状态、currentRound、zeroFindingStreak、currentBatch、remaining、blockers、openFindings、closureState 与清单重开证据；任一 stale 时不得写收敛 |
 | ConfirmedAbsorptionCompletenessGates | 用户确认未完整吸纳、半覆盖、缺独立 Gate、缺 Skill、缺 Prompt、缺探针或缺部署副本 | 按 `public-surface / user-manual / review-checklist / frontend-runtime / profile-service / release-parity / evolution-control-plane` 列出本批 Gate 分层归属与证据；legacy anchors 包括 `PublicSurfaceClosureGate`、`UserManualProductizationGate`、`ReviewAnchorMaterializationGate`、`SemanticLegacyRouteExposureGate`、`ReferenceCodeTruthSamplingGate`、`FrontendAsyncCacheRenderGate`、`StaleWhileRevalidateGate`、`RemoteCIParityPushGate`、`NativeCommandExitCodeGate`、`OfficialApiEvidenceGate`、`EvolutionCapabilityControlPlaneGate`、`FrameworkCapabilityAutoFirstGate`、`DocsThemeRuntimeVisualProbeGate` |
 | LatestAbsorptionExecutionPack A1~A10 | 最新可吸纳清单确认实施、文档语义/示例/派生消费者/Profile feature/批次证据补强 | 按 `GovernanceGateRegistry` 分组列出 `ConfigCanonicalNamespaceGate`、`ProfileRuntimeContractSyncGate`、`BehaviorSemanticDocsParityGate`、`NegativeTranslationParityProbe`、`DocsExampleTruthSurfaceGate`、`CallbackExampleScopeProbe`、`DerivedMetricConsumerProbe`、`DerivedConsumerFailureInjectionProbe`、`FeatureInventoryProfileGate`、`FeatureChecklistEvidenceMatrixGate`、`BatchEvidenceLedgerStateGate`、`BatchProgressCardGate` 的 ownerSkill、validationRoute、V82/targeted test、publicDocs、Profile、deployCopy 和 skipReason |
 | ExpertOutputQualityGate | 代码、文档、示例、fixture、mock、demo、quick start、技术方案或报告需要专家型输出质量，或用户指出“不专业 / 像初级 / 示例误导” | 列出 `roleBaseline`、`productionRecommendedPath`、`frameworkNativeCapability`、`fixtureBoundary`、`antiPatternContrast`、`evidenceMatrix`、V84/targeted probe、publicDocs / Profile / deployCopy 同步证据；未触发写 `N/A + skipReason` |
 | ExpertOwnerSkillGate / 21 个专家 Owner Skill | 产品、体验、架构、运行、安全质量、增长商业、分布式系统、性能、隐私合规或 AI 评测任一专业语义被触发 | 列出 `ownerSkill`、`triggerReason`、`requiredFields`、`validationRoute`、`skipReason`、V85/targeted probe、publicDocs / Profile / deployCopy 同步证据；新增 Owner 必须显式覆盖 `DistributedSystemsArchitectureGate` / `PerformanceEngineeringGate` / `PrivacyComplianceArchitectureGate` / `AiEvaluationEngineeringGate`；增长 / 商业未触发时写 `N/A + skipReason` |
+| ReworkPreventionGate / ReworkReductionValueGate / ReworkEffectivenessLoop | 返工、一次通过率、重复复审逃逸或自我进化效果 | 列 WorkUnit、事件分类、双重根因、baseline、prospective trials、FirstPassYield/WorkUnitReworkRate/RepeatEscapeRate/PreventionHitRate、误报/开销、verdict、rollback/sunset；样本不足写 `insufficient-evidence` |
+| ReleaseAuthorityBeforeCompatibilityGate / ConfigurationErgonomicsGate / InteractiveSemanticProbe | 兼容发布边界、公开配置易用性或用户交互语义 | 分别列 publishedState/consumerEvidence/authoritySources/decision；MinimalTaskConfig/FieldNecessityMatrix/ComplexityBudget/AdvancedCapabilityBoundary/OptionalFieldOmissionProbe；role/name/focusability/Enter-Space-Escape/focus recovery 与运行态证据 |
+| AgentCapabilityDomainCompletenessGate / DocsAudienceRoleAndRenderedSequenceProbe | 完整/最终 Agent 架构声明，或用户文档受众/渲染顺序验收 | completenessObject/domain/owner/boundary/runtime/validation；pageRole/首屏前三信息块/前两组 sidebar/quick-start distance/TOC-outline duplication/generated evidence |
+| ConsumerValidationEngineeringGate / ModulePerformanceCoverageAndMaintenanceGate | 独立消费者仓、跨仓完整验证、多分母 100%，或逐模块性能/长期维护声明 | repositoryBinding/sourceConsumerIdentity/artifactFreshness/dependencyResolution/denominators/crossRepositoryCI/evidenceState/releaseDecision；module applicability/workload/budget/baseline/candidate/capacity/resource/recovery/maintenance triggers |
 | ReviewFindingIntakeGate | 输入来自外部审查报告、AI review finding、audit issue 或代码评审发现 | 列出 finding 来源、本地证据、`must-fix / user-decision-required / docs-implementation-drift / test-coverage-gap / already-fixed-or-not-reproduced / intentional-design-accepted` 分类、用户确认点与最终处理 |
 
 V85 报告兼容锚点：既有 Owner Gate `ProductStrategyOwnerGate`、`DeveloperExperienceArchitectureGate`、`UxInteractionArchitectureGate`、`FrontendArchitectureOwnerGate`、`BackendDomainArchitectureGate`、`ProductionReadinessSreGate`、`ApiContractArchitectureGate`、`ExternalIntegrationArchitectureGate`、`PlatformEcosystemArchitectureGate`、`AiAgentSystemArchitectureGate`、`DataArchitectureGate`、`SecurityThreatModelingGate`、`QualityStrategyGate`、`DesignSystemArchitectureGate`、`AccessibilityI18nGate`、`GrowthAnalyticsGate`、`BusinessModelReviewGate` 继续保留；新增四个 Gate 只做集合扩展。
@@ -135,6 +148,7 @@ V85 报告兼容锚点：既有 Owner Gate `ProductStrategyOwnerGate`、`Develop
 - 报告中每条建议/问题必须附五项验证（合理性 + 可实施性 + 收益 + 验证状态 + 影响范围）— 与 [`17-compliance`](../compliance/SKILL.md) §1 输出验证保持一致
 - analyze / audit / self-fix / dev / fix 报告中，若出现多个可执行建议、多个后续路径、方案对比或用户决策点，必须新增 `## 推荐结论` 或 `## 推荐方案`：推荐项有且仅有 1 个，并说明“推荐理由”；无后续动作时写 `推荐：无后续动作` 与原因
 - 若最终采纳的是用户原始方案，报告中也必须写明“经独立验证后采纳”及其证据来源，避免形成“顺从结论”的假象
+- 报告中的治理落账编号必须与当前 active-root 台账和 Hook/人工复证一致；不能仅因正文出现 `PI/PF/VL/GR/ISSUE` 编号就写“已记录”。复合意图逐项列证据，`record.none` 列独立 challenge evidence。
 - audit / analyze / self-fix 的汇总型报告默认采用“两层问题清单”：先列根因级问题，再展开逐文件完整落点；边界/非缺陷结论单独成节，不混入缺陷编号
 - 报告写入后必须执行 [`compliance`](../compliance/SKILL.md) Skill §5 二次验证（V1~V6）
 - `dev` / `fix` 报告在最终宣告完成前，必须显式体现“ECR 执行闭环复审”这一正式阶段，并与 CP1/CP2/CP3、关键产物、报告、daily tasks、SUMMARY、diff/commit、测试/扫描证据和 dirty 边界完成 1 轮复审对照；若发现阻断性问题，不得直接以“已完成”收尾
@@ -152,6 +166,7 @@ V85 报告兼容锚点：既有 Owner Gate `ProductStrategyOwnerGate`、`Develop
 - analyze/audit 报告使用 Profile 形成项目事实、范围、测试/发布或能力结论时，必须输出 `ProfileTruthReconciliationGate`；`stale-profile` 时以已验证现实矫正结论，并把 Profile 源修改交给独立 dev/fix/self-fix。
 - 授权本地安全审查报告不得复制非必要可执行载荷；出现宿主安全提示时必须引用 SafetyInterruptionCard 与最近有效检查点，不得声称可通过改写绕过平台检查。
 - 发布报告命中 `PublisherCredentialTopologyGate` 时必须把 topology evidence 与 NativeCommandExitCodeGate 分开记录；命令成功不能证明 secret scope/access/identity 等价，报告中不得出现 secret value。
+- 发布报告命中 `ScopedRegistryResolutionGate` 时必须逐条记录 scope 路由优先级和显式目标绑定；primary 身份未通过时，结论只能是阻断，不能先创建 tag 或发布 mirror。
 - 若本轮涉及代码、文档、示例、fixture、mock、demo、quick start、技术方案或报告的专家型质量，或用户指出“不专业 / 像初级 / 示例误导”，报告必须额外写出 `ExpertOutputQualityGate`：说明生产推荐路径、框架原生能力、fixture/mock/demo 边界、反模式对照、证据矩阵和 V84/targeted probe 结果；不得只写“已优化表述”。
 - 若本轮命中产品策略、开发者体验、UX 交互、前端架构、后端领域架构、生产可用性 / SRE、API 契约、外部集成、平台生态、AI Agent 系统、数据架构、安全威胁建模、质量策略、设计系统、无障碍/国际化、增长分析或商业模型专业语义，报告必须额外写出 `ExpertOwnerSkillGate`：说明触发的 ownerSkill、triggerReason、requiredFields、validationRoute、skipReason 和 V85/targeted probe 结果；增长 / 商业为 P3 条件触发，未触发时写 `N/A + skipReason`；不得只写“已用专家视角审查”。
 - 报告涉及记录规范问题时，必须列出规范化意图、置信度、依据、目标台账；涉及规范源、Skill、Hook、CLI、MCP、模板、部署副本、路径规则或 validate 语义变更时，必须列出 SCV-0~SCV-7 证据

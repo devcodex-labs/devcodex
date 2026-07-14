@@ -2,6 +2,15 @@
 
 const { buildGovernanceHelpers } = require('./validate-governance-helpers')
 
+function collectActiveProfileCorpusIfAvailable(fs, path, activeRoot, readFile) {
+  const files = [
+    path.join(activeRoot, 'profile', '01-项目信息.md'),
+    path.join(activeRoot, 'profile', '02-架构约束.md')
+  ]
+  if (!files.every(file => fs.existsSync(file))) return null
+  return files.map(file => readFile(file)).join('\n')
+}
+
 function buildGovernanceReviewChecks(ctx) {
   const {
     ROOT, ACTIVE_DEVCODEX_ROOT, RECENT_REQUIREMENT_ARTIFACT_DAYS,
@@ -360,10 +369,7 @@ function buildGovernanceReviewChecks(ctx) {
       .map(source => source.content)
       .join('\n')
 
-    const profileCorpus = [
-      read(path.join(ACTIVE_DEVCODEX_ROOT, 'profile', '01-项目信息.md')),
-      read(path.join(ACTIVE_DEVCODEX_ROOT, 'profile', '02-架构约束.md'))
-    ].join('\n')
+    const profileCorpus = collectActiveProfileCorpusIfAvailable(fs, path, ACTIVE_DEVCODEX_ROOT, read)
 
     const probes = [
       {
@@ -397,11 +403,12 @@ function buildGovernanceReviewChecks(ctx) {
       { file: 'website/docs/intro/index.md', needles: ['76 个按需触发', 'audit-user-manual'] },
       { file: 'website/docs/guide/development.md', needles: ['audit-user-manual', '菜单导航', 'sidebar'] },
       { file: 'website/docs/specs/directory-structure.md', needles: ['76 个', 'audit-user-manual', '用户侧文档 review'] },
-      { file: 'active profile corpus', content: profileCorpus, needles: ['76', 'audit-user-manual'] },
       { file: 'scripts/lib/test-spec-governance-review.js', needles: ['checkV80'].concat(gates) },
       { file: 'scripts/validate.js', needles: ['createProbeRegistry', 'expectedProbeIds', 'runProbeRegistry'] },
       { file: 'changelog corpus', content: changelogCorpus, needles: ['V80'].concat(gates) }
     ]
+    if (profileCorpus !== null) probes.push({ file: 'active profile corpus', content: profileCorpus, needles: ['76', 'audit-user-manual'] })
+    else console.log('[V80] active Profile corpus unavailable — repository consumers remain authoritative')
 
     for (const probe of probes) {
       const content = probe.content || read(path.join(ROOT, probe.file))
@@ -444,10 +451,7 @@ function buildGovernanceReviewChecks(ctx) {
       err(`[V81] ${skill} positive sample did not classify as absorb`)
     }
 
-    const profileCorpus = [
-      read(path.join(ACTIVE_DEVCODEX_ROOT, 'profile', '01-项目信息.md')),
-      read(path.join(ACTIVE_DEVCODEX_ROOT, 'profile', '02-架构约束.md'))
-    ].join('\n')
+    const profileCorpus = collectActiveProfileCorpusIfAvailable(fs, path, ACTIVE_DEVCODEX_ROOT, read)
     const changelogCorpus = collectChangelogSources()
       .map(source => source.content)
       .join('\n')
@@ -473,11 +477,12 @@ function buildGovernanceReviewChecks(ctx) {
       { file: 'website/docs/specs/directory-structure.md', needles: ['扁平一级 Skill（76 个）', 'spec-absorption'] },
       { file: 'website/docs/guide/development.md', needles: ['spec-absorption', 'CommonNormGeneralizationGate', 'ServiceSpecReadGate'] },
       { file: 'website/docs/versions/v1/1.0.1/CHANGELOG.md', needles: ['spec-absorption', 'V81'] },
-      { file: 'active profile corpus', content: profileCorpus, needles: ['76', 'spec-absorption'] },
       { file: 'scripts/lib/test-spec-governance-review.js', needles: ['checkV81', 'spec-absorption', 'CommonNormGeneralizationGate'] },
       { file: 'scripts/validate.js', needles: ['createProbeRegistry', 'expectedProbeIds', 'runProbeRegistry'] },
       { file: 'changelog corpus', content: changelogCorpus, needles: ['spec-absorption', 'CommonNormGeneralizationGate', 'V81'] }
     ]
+    if (profileCorpus !== null) probes.push({ file: 'active profile corpus', content: profileCorpus, needles: ['76', 'spec-absorption'] })
+    else console.log('[V81] active Profile corpus unavailable — repository consumers remain authoritative')
 
     for (const probe of probes) {
       const content = probe.content || read(path.join(ROOT, probe.file))
@@ -523,10 +528,7 @@ function buildGovernanceReviewChecks(ctx) {
       err('[V82] ConfigCanonicalNamespaceGate positive sample was not accepted')
     }
 
-    const profileCorpus = [
-      read(path.join(ACTIVE_DEVCODEX_ROOT, 'profile', '01-项目信息.md')),
-      read(path.join(ACTIVE_DEVCODEX_ROOT, 'profile', '02-架构约束.md'))
-    ].join('\n')
+    const profileCorpus = collectActiveProfileCorpusIfAvailable(fs, path, ACTIVE_DEVCODEX_ROOT, read)
     const changelogCorpus = collectChangelogSources()
       .map(source => source.content)
       .join('\n')
@@ -558,11 +560,12 @@ function buildGovernanceReviewChecks(ctx) {
       { file: 'README.md', needles: ['LatestAbsorptionExecutionPack', 'A1~A10', 'V82'] },
       { file: 'website/docs/guide/development.md', needles: ['LatestAbsorptionExecutionPack', 'A1~A10', 'V82'] },
       { file: 'website/docs/versions/v1/1.0.1/CHANGELOG.md', needles: ['A1~A10', 'LatestAbsorptionExecutionPack', 'V82'] },
-      { file: 'active profile corpus', content: profileCorpus, needles: ['LatestAbsorptionExecutionPack', 'A1~A10', 'V82'] },
       { file: 'scripts/lib/test-spec-governance-review.js', needles: ['checkV82', 'LatestAbsorptionExecutionPack', 'ConfigCanonicalNamespaceGate'] },
       { file: 'scripts/validate.js', needles: ['createProbeRegistry', 'expectedProbeIds', 'runProbeRegistry'] },
       { file: 'changelog corpus', content: changelogCorpus, needles: ['LatestAbsorptionExecutionPack', 'ConfigCanonicalNamespaceGate', 'V82'] }
     ]
+    if (profileCorpus !== null) probes.push({ file: 'active profile corpus', content: profileCorpus, needles: ['LatestAbsorptionExecutionPack', 'A1~A10', 'V82'] })
+    else console.log('[V82] active Profile corpus unavailable — repository consumers remain authoritative')
 
     for (const probe of probes) {
       const content = probe.content || read(path.join(ROOT, probe.file))
@@ -581,4 +584,4 @@ function buildGovernanceReviewChecks(ctx) {
   return { checkV75, checkV76, checkV77, checkV78, checkV79, checkV80, checkV81, checkV82 }
 }
 
-module.exports = { buildGovernanceReviewChecks }
+module.exports = { buildGovernanceReviewChecks, collectActiveProfileCorpusIfAvailable }

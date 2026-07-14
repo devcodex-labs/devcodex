@@ -11,6 +11,10 @@ function sha256(value) {
   return crypto.createHash('sha256').update(value).digest('hex')
 }
 
+function canonicalizeTextForDigest(value) {
+  return String(value).replace(/\r\n?/g, '\n')
+}
+
 function walk(root) {
   if (!fs.existsSync(root)) return []
   const out = []
@@ -129,6 +133,7 @@ function buildPortfolio(root) {
     const id = path.basename(path.dirname(file))
     const source = normalizePath(root, file)
     const content = fs.readFileSync(file, 'utf8')
+    const canonicalContent = canonicalizeTextForDigest(content)
     const frontmatter = parseFrontmatter(content, id)
     const consumerRows = consumers
       .filter(item => item.content.includes(id))
@@ -144,7 +149,7 @@ function buildPortfolio(root) {
     const validationProfile = consumerRows
       .filter(item => item.role === 'current' && /^scripts\/(?:test-|validate)/.test(item.path))
       .map(item => item.path)
-    const hash = sha256(content)
+    const hash = sha256(canonicalContent)
     sourceRows.push(`${source}:${hash}`)
     return {
       id,
@@ -186,7 +191,7 @@ function buildPortfolio(root) {
       skillsPattern: 'skills/*/SKILL.md',
       registry: 'plugin.json',
       sourceDigest: sha256(sourceRows.sort().join('\n')),
-      pluginDigest: sha256(fs.readFileSync(pluginPath))
+      pluginDigest: sha256(canonicalizeTextForDigest(fs.readFileSync(pluginPath, 'utf8')))
     },
     ordering: 'skills.id asc; graph edges from/to asc',
     summary: {
@@ -196,7 +201,7 @@ function buildPortfolio(root) {
       graySkillCount: skills.filter(skill => skill.lifecycleState === 'gray').length,
       orphanActiveCount: orphanActive.length,
       dependencyCycleCount: cycles.length,
-      instructionBudgetP95Bytes: percentile(skillFiles.map(file => fs.statSync(file).size), 0.95),
+      instructionBudgetP95Bytes: percentile(skillFiles.map(file => Buffer.byteLength(canonicalizeTextForDigest(fs.readFileSync(file, 'utf8')), 'utf8')), 0.95),
       triggerQuality: 'insufficient-evidence'
     },
     dependencyGraph: { nodes, edges, cycles },
@@ -235,6 +240,7 @@ function serializePortfolio(portfolio) {
 
 module.exports = {
   buildPortfolio,
+  canonicalizeTextForDigest,
   detectCycles,
   parseFrontmatter,
   serializePortfolio,

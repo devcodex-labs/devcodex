@@ -1,5 +1,7 @@
 'use strict'
 
+const { collectActiveProfileCorpusIfAvailable } = require('./validate-governance-review')
+
 function runSpecGovernanceReviewSuite(ctx) {
   const {
     ROOT, fs, path, failures, SOURCE_PROJECT_NAME, read, mustInclude,
@@ -178,11 +180,24 @@ function runSpecGovernanceReviewSuite(ctx) {
   }
 
   const checkV80 = 'UserManualReviewScope'
+  const missingProfileCorpus = collectActiveProfileCorpusIfAvailable(
+    { existsSync: () => false }, path, '/clean-checkout/.devcodex', () => { throw new Error('missing Profile must not be read') }
+  )
+  if (missingProfileCorpus !== null) failures.push('checkV80 missing Profile corpus must degrade to null')
+  const presentProfileCorpus = collectActiveProfileCorpusIfAvailable(
+    { existsSync: () => true }, path, '/workspace/.devcodex', file => path.basename(file)
+  )
+  if (!presentProfileCorpus.includes('01-项目信息.md') || !presentProfileCorpus.includes('02-架构约束.md')) {
+    failures.push('checkV80 present Profile corpus must include both required sources')
+  }
   for (const [file, needle] of [
     ['scripts/lib/validate-governance-review.js', 'checkV80'],
     ['scripts/lib/validate-governance-review.js', checkV80],
     ['scripts/lib/validate-governance-review.js', 'DocsNavigationReviewMatrix'],
     ['scripts/lib/validate-governance-review.js', 'audit-user-manual'],
+    ['scripts/lib/validate-governance-review.js', 'collectActiveProfileCorpusIfAvailable'],
+    ['scripts/lib/validate-governance-control.js', 'activeProfileAvailable'],
+    ['scripts/lib/validate-governance-control.js', 'active Profile unavailable'],
     ['scripts/validate.js', 'runProbeRegistry'],
     ['plugin.json', 'skills/audit-user-manual/SKILL.md'],
     ['skills/audit-user-manual/SKILL.md', 'UserManualReviewScope'],

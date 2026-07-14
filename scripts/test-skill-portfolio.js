@@ -5,6 +5,7 @@ const assert = require('assert')
 const path = require('path')
 const {
   buildPortfolio,
+  canonicalizeTextForDigest,
   detectCycles,
   serializePortfolio,
   validatePortfolio
@@ -15,6 +16,7 @@ const first = buildPortfolio(ROOT)
 const second = buildPortfolio(ROOT)
 
 assert.strictEqual(serializePortfolio(first), serializePortfolio(second), 'portfolio generation must be byte-identical')
+assert.strictEqual(canonicalizeTextForDigest('a\r\nb\rc\n'), 'a\nb\nc\n', 'portfolio digests must canonicalize CRLF/CR/LF')
 assert.strictEqual(first.summary.skillCount, 76)
 assert.strictEqual(first.summary.registeredSkillCount, 76)
 assert.strictEqual(first.summary.activeSkillCount, 74)

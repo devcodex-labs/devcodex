@@ -74,6 +74,7 @@ function buildValidateCoreChecks(ctx) {
     const files = roots.flatMap(r => walk(path.join(ROOT, r))).filter(f => f.endsWith('.md'))
       .concat(topFiles.map(f => path.join(ROOT, f)).filter(f => fs.existsSync(f)))
     let checked = 0
+    let historicalRuntimeEvidenceSkipped = 0
     for (const f of files) {
       let content = read(f)
       // strip fenced code blocks and inline code to avoid matching links in examples/templates
@@ -86,13 +87,19 @@ function buildValidateCoreChecks(ctx) {
         if (!target || /^https?:|^mailto:|^file:/.test(target)) continue
         const base = path.dirname(f)
         const abs = path.resolve(base, target)
-        if (target.endsWith('.md') && !fs.existsSync(abs)) {
+        const normalizedTarget = target.replace(/\\/g, '/')
+        const relativeSource = path.relative(ROOT, f).replace(/\\/g, '/')
+        const isHistoricalRuntimeEvidence = relativeSource.startsWith('changelogs/releases/') &&
+          normalizedTarget.split('/').includes('.devcodex')
+        if (target.endsWith('.md') && !fs.existsSync(abs) && isHistoricalRuntimeEvidence) {
+          historicalRuntimeEvidenceSkipped++
+        } else if (target.endsWith('.md') && !fs.existsSync(abs)) {
           warn(`[V2] Broken link in ${path.relative(ROOT, f)}: ${target}`)
         }
         checked++
       }
     }
-    console.log(`[V2] links scanned: ${checked}`)
+    console.log(`[V2] links scanned: ${checked}; historical runtime evidence unavailable: ${historicalRuntimeEvidenceSkipped}`)
   }
 
   function checkV3() {
@@ -488,9 +495,15 @@ function buildValidateCoreChecks(ctx) {
       { file: 'website/docs/intro/index.md', needle: `${skillCount} 个按需触发的工作流技能` },
       { file: 'website/docs/specs/directory-structure.md', needle: `扁平一级 Skill（${skillCount} 个）` }
     ]
+    const activeProfileDirAvailable = fs.existsSync(activePath('profile'))
+    let optionalActiveProfileChecksSkipped = 0
     for (const check of checks) {
       const filePath = check.rawPath === false ? check.file : path.join(ROOT, check.file)
       if (!fs.existsSync(filePath)) {
+        if (check.rawPath === false && !activeProfileDirAvailable) {
+          optionalActiveProfileChecksSkipped++
+          continue
+        }
         warn(`[V19] asset count source missing, skip: ${path.relative(ROOT, filePath)}`)
         continue
       }
@@ -514,7 +527,7 @@ function buildValidateCoreChecks(ctx) {
       err('[V19] active version CHANGELOG must record the existing template-flow-alignment requirement detail')
     }
 
-    console.log(`[V19] asset counts checked: instructions=${instructionCount}, skills=${skillCount}, prompts=${promptCount}, hook-runtime=${hookRuntimeCount}, data-templates=${dataTemplateCount}, scripts=${scriptCount}`)
+    console.log(`[V19] asset counts checked: instructions=${instructionCount}, skills=${skillCount}, prompts=${promptCount}, hook-runtime=${hookRuntimeCount}, data-templates=${dataTemplateCount}, scripts=${scriptCount}; optional active-profile checks skipped=${optionalActiveProfileChecksSkipped}`)
   }
 
   function extractSubtypes(content, workflow) {

@@ -303,13 +303,16 @@ function buildGovernanceControlChecks(ctx) {
   }
 
   function checkV24() {
+    const activeProfileFiles = [
+      activePath('profile', '01-项目信息.md'),
+      activePath('profile', '02-架构约束.md')
+    ]
+    const activeProfileAvailable = activeProfileFiles.every(file => fs.existsSync(file))
     const requiredFiles = [
       'data/templates/pending-issues.md',
       'data/README.md',
       'README.md',
       'RULES.md',
-      activePath('profile', '01-项目信息.md'),
-      activePath('profile', '02-架构约束.md'),
       'website/rspress.config.ts',
       'website/docs/index.md',
       'website/docs/intro/index.md',
@@ -349,13 +352,6 @@ function buildGovernanceControlChecks(ctx) {
       { file: 'RULES.md', needle: 'init --claude' },
       { file: 'RULES.md', needle: 'init --codex' },
       { file: 'RULES.md', needle: 'AGENTS.md' },
-      { file: activePath('profile', '01-项目信息.md'), needle: 'CLAUDE.md', rawPath: false },
-      { file: activePath('profile', '01-项目信息.md'), needle: 'AGENTS.md', rawPath: false },
-      { file: activePath('profile', '01-项目信息.md'), needle: 'pending-issues.md', rawPath: false },
-      { file: activePath('profile', '01-项目信息.md'), needle: '当前阶段', rawPath: false },
-      { file: activePath('profile', '02-架构约束.md'), needle: '.codex/hooks.json', rawPath: false },
-      { file: activePath('profile', '02-架构约束.md'), needle: 'pending-issues', rawPath: false },
-      { file: activePath('profile', '02-架构约束.md'), needle: 'process-improvements', rawPath: false },
       { file: 'website/rspress.config.ts', needle: 'Copilot / Claude Code' },
       { file: 'website/docs/index.md', needle: 'Copilot / Claude Code' },
       { file: 'website/docs/index.md', needle: 'Codex' },
@@ -374,6 +370,19 @@ function buildGovernanceControlChecks(ctx) {
       { file: 'scripts/validate-profile.js', needle: 'jetbrains-copilot' },
       { file: 'scripts/lib/cli-maintenance-commands.js', needle: 'jetbrains-copilot' }
     ]
+    if (activeProfileAvailable) {
+      musts.push(
+        { file: activeProfileFiles[0], needle: 'CLAUDE.md', rawPath: false },
+        { file: activeProfileFiles[0], needle: 'AGENTS.md', rawPath: false },
+        { file: activeProfileFiles[0], needle: 'pending-issues.md', rawPath: false },
+        { file: activeProfileFiles[0], needle: '当前阶段', rawPath: false },
+        { file: activeProfileFiles[1], needle: '.codex/hooks.json', rawPath: false },
+        { file: activeProfileFiles[1], needle: 'pending-issues', rawPath: false },
+        { file: activeProfileFiles[1], needle: 'process-improvements', rawPath: false }
+      )
+    } else {
+      console.log('[V24] active Profile unavailable — repository governance/client/template files remain authoritative')
+    }
 
     for (const probe of musts) {
       const content = probe.rawPath === false ? read(probe.file) : read(path.join(ROOT, probe.file))

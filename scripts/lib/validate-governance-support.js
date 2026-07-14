@@ -418,8 +418,14 @@ function buildGovernanceSupportChecks(ctx) {
       { file: activePath('profile', '01-项目信息.md'), needles: ['host-contract-verification', 'source-consumer-sync'] },
       { file: activePath('profile', '02-架构约束.md'), needles: ['支撑型（5）', 'host-contract-verification'] }
     ]
+    const activeProfileDirAvailable = fs.existsSync(activePath('profile'))
+    let optionalActiveProfileProbesSkipped = 0
     for (const probe of activeProfileProbes) {
       if (!fs.existsSync(probe.file)) {
+        if (!activeProfileDirAvailable) {
+          optionalActiveProfileProbesSkipped++
+          continue
+        }
         warn(`[V28] active profile missing, skip support skill profile probe: ${path.relative(ROOT, probe.file)}`)
         continue
       }
@@ -444,7 +450,7 @@ function buildGovernanceSupportChecks(ctx) {
       }
     }
 
-    console.log('[V28] support skills / progress / release verification sync checked')
+    console.log(`[V28] support skills / progress / release verification sync checked; optional active-profile probes skipped=${optionalActiveProfileProbesSkipped}`)
   }
 
   return {

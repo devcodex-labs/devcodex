@@ -9,6 +9,9 @@ function runSpecGovernanceExpertSuite(ctx) {
   const checkV83 = 'ProfileTierStandardGate'
   for (const [file, needle] of [
     ['scripts/lib/validate-governance-expert.js', 'checkV83'],
+    ['scripts/lib/validate-governance-expert.js', 'collectActiveProfileCorpus'],
+    ['scripts/lib/validate-governance-expert.js', 'appendActiveProfileProbe'],
+    ['scripts/lib/validate-governance-expert.js', 'active Profile corpus unavailable'],
     ['scripts/lib/validate-governance-expert.js', checkV83],
     ['scripts/lib/validate-governance-expert.js', 'ProfileLifecycleClassificationGate'],
     ['scripts/lib/validate-governance-expert.js', 'AllDevCodexProfileValidationGate'],

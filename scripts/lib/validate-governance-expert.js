@@ -10,6 +10,17 @@ function buildGovernanceExpertChecks(ctx) {
   } = ctx
   const { collectChangelogSources, hasChangelogEvidence } = buildGovernanceHelpers(ctx)
 
+  function collectActiveProfileCorpus(names) {
+    const files = names.map(name => path.join(ACTIVE_DEVCODEX_ROOT, 'profile', name))
+    if (!files.every(file => fs.existsSync(file))) return null
+    return files.map(file => read(file)).join('\n')
+  }
+
+  function appendActiveProfileProbe(probes, profileCorpus, needles, probeId) {
+    if (profileCorpus !== null) probes.push({ file: 'active profile corpus', content: profileCorpus, needles })
+    else console.log(`[${probeId}] active Profile corpus unavailable — repository consumers remain authoritative`)
+  }
+
   function checkV83() {
     const gates = [
       'ProfileTierStandardGate',
@@ -17,17 +28,12 @@ function buildGovernanceExpertChecks(ctx) {
       'AllDevCodexProfileValidationGate'
     ]
 
-    const profileCorpus = [
+    const profileCorpus = collectActiveProfileCorpus([
       'README.md',
       '01-项目信息.md',
       '06-功能清单.md',
       '07-用户文档与契约规范.md'
-    ]
-      .map(name => {
-        const file = path.join(ACTIVE_DEVCODEX_ROOT, 'profile', name)
-        return fs.existsSync(file) ? read(file) : ''
-      })
-      .join('\n')
+    ])
     const changelogCorpus = collectChangelogSources()
       .map(source => source.content)
       .join('\n')
@@ -45,9 +51,9 @@ function buildGovernanceExpertChecks(ctx) {
       { file: 'skills/report/SKILL.md', needles: ['ProfileTierValidation', 'AllDevCodexProfileValidation'].concat(gates) },
       { file: 'README.md', needles: ['profile-lite', 'profile-standard', 'profile-closed-loop', 'AllDevCodexProfileValidationGate'].concat(gates) },
       { file: 'website/docs/guide/development.md', needles: ['profile-lite', 'profile-standard', 'profile-closed-loop', 'AllDevCodexProfileValidationGate'].concat(gates) },
-      { file: 'active profile corpus', content: profileCorpus, needles: ['profile-closed-loop', '06-功能清单', '07-用户文档与契约规范', '稳定基线', '活文档'].concat(gates) },
       { file: 'changelog corpus', content: changelogCorpus, needles: ['V83'].concat(gates) }
     ]
+    appendActiveProfileProbe(probes, profileCorpus, ['profile-closed-loop', '06-功能清单', '07-用户文档与契约规范', '稳定基线', '活文档'].concat(gates), 'V83')
 
     for (const probe of probes) {
       const content = probe.content || read(path.join(ROOT, probe.file))
@@ -78,16 +84,11 @@ function buildGovernanceExpertChecks(ctx) {
       'ExpertEvidenceMatrixGate'
     ]
 
-    const profileCorpus = [
+    const profileCorpus = collectActiveProfileCorpus([
       '01-项目信息.md',
       '02-架构约束.md',
       '06-功能清单.md'
-    ]
-      .map(name => {
-        const file = path.join(ACTIVE_DEVCODEX_ROOT, 'profile', name)
-        return fs.existsSync(file) ? read(file) : ''
-      })
-      .join('\n')
+    ])
     const changelogCorpus = collectChangelogSources()
       .map(source => source.content)
       .join('\n')
@@ -131,9 +132,9 @@ function buildGovernanceExpertChecks(ctx) {
       { file: 'website/docs/versions/v1/1.0.1/CHANGELOG.md', needles: ['V84', 'expert-output-quality', 'ExpertOutputQualityGate'] },
       { file: 'scripts/lib/test-spec-governance-expert.js', needles: ['checkV84', 'classifyExpertOutputSample', 'ExpertOutputQualityGate'] },
       { file: 'scripts/validate.js', needles: ['createProbeRegistry', 'expectedProbeIds', 'runProbeRegistry'] },
-      { file: 'active profile corpus', content: profileCorpus, needles: ['76', 'expert-output-quality', 'ExpertOutputQualityGate'] },
       { file: 'changelog corpus', content: changelogCorpus, needles: ['V84', 'expert-output-quality', 'ExpertOutputQualityGate'] }
     ]
+    appendActiveProfileProbe(probes, profileCorpus, ['76', 'expert-output-quality', 'ExpertOutputQualityGate'], 'V84')
 
     for (const probe of probes) {
       const content = probe.content || read(path.join(ROOT, probe.file))
@@ -204,16 +205,11 @@ function buildGovernanceExpertChecks(ctx) {
       }
     }
 
-    const profileCorpus = [
+    const profileCorpus = collectActiveProfileCorpus([
       '01-项目信息.md',
       '02-架构约束.md',
       '06-功能清单.md'
-    ]
-      .map(name => {
-        const file = path.join(ACTIVE_DEVCODEX_ROOT, 'profile', name)
-        return fs.existsSync(file) ? read(file) : ''
-      })
-      .join('\n')
+    ])
     const changelogCorpus = collectChangelogSources()
       .map(source => source.content)
       .join('\n')
@@ -240,9 +236,9 @@ function buildGovernanceExpertChecks(ctx) {
       { file: 'website/docs/versions/v1/1.0.1/CHANGELOG.md', needles: ['V85', 'ExpertOwnerSkillGate'].concat(skillNames) },
       { file: 'scripts/lib/test-spec-governance-expert.js', needles: ['checkV85', 'classifyExpertOwnerSample', 'ExpertOwnerSkillGate'] },
       { file: 'scripts/validate.js', needles: ['createProbeRegistry', 'expectedProbeIds', 'runProbeRegistry'] },
-      { file: 'active profile corpus', content: profileCorpus, needles: ['74', '21 个专家 Owner Skill', 'ExpertOwnerSkillGate', 'V85'].concat(skillNames) },
       { file: 'changelog corpus', content: changelogCorpus, needles: ['V85', 'ExpertOwnerSkillGate'].concat(skillNames) }
     ]
+    appendActiveProfileProbe(probes, profileCorpus, ['74', '21 个专家 Owner Skill', 'ExpertOwnerSkillGate', 'V85'].concat(skillNames), 'V85')
 
     for (const [name, gate, fields] of skillMap) {
       probes.push({
@@ -274,16 +270,11 @@ function buildGovernanceExpertChecks(ctx) {
       err('[V86] positive memory bootstrap sample must be file-truth-required')
     }
 
-    const profileCorpus = [
+    const profileCorpus = collectActiveProfileCorpus([
       '01-项目信息.md',
       '06-功能清单.md',
       '07-用户文档与契约规范.md'
-    ]
-      .map(name => {
-        const file = path.join(ACTIVE_DEVCODEX_ROOT, 'profile', name)
-        return fs.existsSync(file) ? read(file) : ''
-      })
-      .join('\n')
+    ])
     const changelogCorpus = collectChangelogSources()
       .map(source => source.content)
       .join('\n')
@@ -302,9 +293,9 @@ function buildGovernanceExpertChecks(ctx) {
       { file: 'website/docs/versions/v1/1.0.1/CHANGELOG.md', needles: [gate, 'V86'] },
       { file: 'scripts/lib/test-spec-governance-expert.js', needles: ['checkV86', 'classifyMemoryBootstrapSample', gate] },
       { file: 'scripts/validate.js', needles: ['createProbeRegistry', 'expectedProbeIds', 'runProbeRegistry'] },
-      { file: 'active profile corpus', content: profileCorpus, needles: [gate, 'V86'] },
       { file: 'changelog corpus', content: changelogCorpus, needles: [gate, 'V86'] }
     ]
+    appendActiveProfileProbe(probes, profileCorpus, [gate, 'V86'], 'V86')
 
     for (const probe of probes) {
       const content = probe.content || read(path.join(ROOT, probe.file))

@@ -16,7 +16,8 @@
     "DocsNavigationReviewMatrix": "user-manual navigation or rendered sequence changes",
     "AllDevCodexProfileValidation": "profile generation, migration or workspace-wide profile validation",
     "ReleaseEfficiencyControl": "release candidate freeze, critical path budget, evidence reuse, isolated consumer cwd or release rework incident",
-    "ConsumerValidationEngineering": "independent consumer repository, design fitness or validation finding repair loop"
+    "ConsumerValidationEngineering": "independent consumer repository, design fitness or validation finding repair loop",
+    "BrandVisualQuality": "brand master lineage, theme geometry, micro or mono variants, visual evidence or blocker reset"
   },
   "overlays": {
     "dev": ["requirementTrace", "implementationSummary", "testRoute", "documentSync"],

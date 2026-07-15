@@ -248,6 +248,12 @@ A1~A10 最新吸纳执行包默认复用上述 `docs-semantics-examples`、`deri
 - VL/PF 关闭链的时间顺序必须满足 `登记时间 ≤ 修复时间 ≤ 验证时间/关闭时间`；不得写入未来时间或让关闭/验证早于登记。若只能确定日期而非分钟，先保留 `—` 并在证据中说明来源，禁止倒填一个看似精确但破坏时间线的值。
 - 若实施、复审或范围收紧改变了 VL/PF/PI/ISSUE/GAP 的真实状态，必须执行**台账状态回写闭环**：回写状态、验证证据、验证时间、关闭时间或部分完成说明，并在批次完成前做 1 轮 target ledger rescan，确认 open 计数、进度、报告和 SUMMARY 已同步。
 
+## RuntimeStateTransitionProjectionGate
+
+运行态索引必须把 append-only 历史与当前投影分开：每个物理 source 的最后已知状态形成 `sourceProjections`，同源先后状态形成 `historicalTransitions`；合法 `open/partial/deferred/closed` 迁移不能仅因出现多个历史值而报警。
+
+当前状态按 `canonical ledger > Agent SUMMARY > cross-ledger reference > daily task > global SUMMARY` 选择。只有最高合格权威层的多个当前投影不一致时才输出 `CONFLICTING_CURRENT_STATE`；低权威消费者滞后写入 `consumerDrifts`，用于修复同步但不冒充 strict conflict。索引必须保持只读，并同时公开 `observedStatuses`、`currentProjection`、历史迁移数、consumer drift 数和精确 alert。
+
 ## RecordRouter
 
 RecordRouter 只在记录意图识别后执行。

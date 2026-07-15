@@ -71,6 +71,7 @@ PR-7 测试与风险（🟡 标注，不阻断）
 - PR-2 代码、文档、示例、fixture、quick start、技术方案或报告需要对外或供维护者长期消费，但缺少 `ExpertOutputQualityGate`：未区分生产推荐路径、框架原生能力、fixture/mock/demo 边界、反模式和证据矩阵
 - PR-2 命中产品策略、开发者体验、UX 交互、前端架构、后端领域架构、生产可用性 / SRE、API 契约、外部集成、平台生态、AI Agent 系统、数据架构、安全威胁建模、质量策略、设计系统、无障碍/国际化、增长分析或商业模型，但缺少 `ExpertOwnerSkillGate`：未列出 ownerSkill、triggerReason、requiredFields、validationRoute、skipReason 和 V85/targeted probe 证据；增长分析和商业模型为 P3 条件触发，未命中时必须写 `N/A + skipReason`
 - PR-2 声称完整/最终 Agent 架构或平台却缺 `AgentCapabilityDomainCompletenessGate` 的 completenessObject 与 domain owner/boundary/runtime/validation；涉及独立消费者仓/跨仓 100% 却缺 `ConsumerValidationEngineeringGate`；声称逐模块完整性能却缺 `ModulePerformanceCoverageAndMaintenanceGate`
+- PR-2 涉及品牌标志、图标、主题资产、微尺寸或单色资产生产，却缺 `BrandVisualQualityGate` 的母版谱系、主题几何、微尺寸/单色、人工视觉结论和 blocker reset 路线
 - PR-2 触发跨项目已吸纳守门但缺少 `GovernanceGateRegistry` 分组判定、`gateGroup / ownerSkill / validationRoute / skipReason`、代表性 legacy anchors（如 `CodeTruthRequirementGate`、`ManualReviewEvidenceRetention`、`ReviewFindingIntakeGate`、`MethodLevelLeakPressureProbe`、`V2FormalSolutionPackage`）的证据
 - PR-2 涉及配置 schema、provider 选项、runtime 开关、legacy alias 或公开配置文档，但缺少 `ConfigCanonicalNamespaceGate`：未说明 canonical namespace、既有历史契约、顶层配置例外理由、legacy alias 兼容窗口和验证探针
 - PR-2 涉及公开配置字段、嵌套配置、默认值或首次接入路径，但缺少 `ConfigurationErgonomicsGate`：没有 MinimalTaskConfig、FieldNecessityMatrix、ComplexityBudget、AdvancedCapabilityBoundary 或 OptionalFieldOmissionProbe
@@ -200,6 +201,7 @@ PR-7 测试与风险（🟡 标注，不阻断）
 | TestRoute 是否体现验证范围预算与真实执行义务？ | `VerificationScopeBudgetGate` 匹配风险强度，`LiveVerificationExecutionObligation` 对“已验证/可运行/已发布”等声明有实际命令或等价证据 |
 | TestRoute 是否体现 coverage 与外部 runtime 风险？ | 命中时包含 `CoverageGateDecision`、`ExternalRuntimePluginLifecycleGate`、`ExternalRegistryLifecycleMatrixGate`、`FunctionSourceFingerprintMatrixGate`、`ClusterEscalationGate` 与 `RiskBasedValidationLadder` 的状态或 `N/A + skipReason` |
 | TestRoute 是否体现 V95 完整性风险？ | 命中时包含 agentCapabilityCompleteness、docsAudienceRenderedSequence、externalConsumerValidation、modulePerformanceMaintenance 的路线、分母、运行态/跨仓证据或 `N/A + skipReason` |
+| 品牌视觉生产是否纳入专属证据？ | 命中 `brand-visual-quality` gateGroup 时包含 MasterLineageMatrix、ThemeGeometryParity、MicroMonoMatrix、VisualEvidencePack、人工结论与 VisualBlockerResetRecord；文件存在或单张截图不算通过 |
 | 前端体验验证是否纳入 TestRoute？ | 命中 `FrontendExperienceQualityGate` 时包含 Browser/截图/Playwright/E2E/人工复核等项目等价证据；未触发时有 `N/A + skipReason` |
 | 技术方案 §9 风险是否已识别关键风险？ | 至少列出 1 条技术风险 |
 | 每条风险是否有对应缓解措施？ | 无"待定"缓解措施 |

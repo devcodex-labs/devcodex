@@ -15,7 +15,7 @@ applyTo: .devcodex/**/requirements/**
 > ⚠️ 若本轮任务或批次直接来源于 `data/*.md` 的 open/partial 项，计划中必须显式写出 Backlog Intake 真相复核和台账状态回写闭环：先分类 `pure-open / residual-tail / already-fixed / misclassified`，再说明本轮范围是否缩减以及回写证据如何产出。
 > ⚠️ 若 CP1 真相源是产品直接提供的 `01-产品需求.md`，实施计划只能承接产品原文、流程节点、前端交互、字段描述和 AI / 研发缺口检查结果；不得把计划写成新的产品需求稿。
 > ⚠️ 发布、pack、benchmark、codegen 或包边界任务必须写明串行验证顺序：构建/生成完成后再单独执行 package boundary check，不得与会写入 `dist` 的命令并行。
-> ⚠️ 文档、UI、专家质量、发布、数据、安全、性能、外部消费者、复审或治理等条件能力统一从 `skills/spec-governance/gate-registry.json` 选择 `gateGroup` 与 Owner Skill；计划只记录实际触发项、Owner 产物、验证路线和 skipReason，不维护版本化 Gate/Owner 名录。
+> ⚠️ 文档、UI、专家质量、发布、数据、安全、性能、外部消费者、复审或治理等条件能力统一从 `skills/spec-governance/gate-registry.json` 选择 `gateGroup` 与 Owner Skill；计划只记录实际触发项、Owner 产物、验证路线和 skipReason，不维护版本化 Gate/Owner 名录。命中 `brand-visual-quality` 时把母版谱系、主题几何、微尺寸/单色、视觉证据和 blocker reset 分配到同一可验收批次。
 
 ## 计划模式
 

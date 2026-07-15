@@ -159,17 +159,17 @@ function buildGovernanceExpertChecks(ctx) {
       { file: 'prompts/report-fix.prompt.md', needles: ['ExpertOutputQualityGate', 'V84'] },
       { file: 'prompts/report-audit.prompt.md', needles: ['ExpertOutputQualityGate', 'V84'] },
       { file: 'prompts/report-scenario-test.prompt.md', needles: ['ExpertOutputQualityGate', 'V84'] },
-      { file: 'README.md', needles: ['76 个', 'expert-output-quality', 'V84', 'ExpertOutputQualityGate'] },
-      { file: 'website/docs/index.md', needles: ['76 个 Skills', 'expert-output-quality'] },
-      { file: 'website/docs/intro/index.md', needles: ['76 个按需触发', 'expert-output-quality'] },
-      { file: 'website/docs/specs/directory-structure.md', needles: ['扁平一级 Skill（76 个）', 'expert-output-quality'] },
+      { file: 'README.md', needles: ['77 个', 'expert-output-quality', 'V84', 'ExpertOutputQualityGate'] },
+      { file: 'website/docs/index.md', needles: ['77 个 Skills', 'expert-output-quality'] },
+      { file: 'website/docs/intro/index.md', needles: ['77 个按需触发', 'expert-output-quality'] },
+      { file: 'website/docs/specs/directory-structure.md', needles: ['扁平一级 Skill（77 个）', 'expert-output-quality'] },
       { file: 'website/docs/guide/development.md', needles: ['expert-output-quality', 'ExpertOutputQualityGate', 'V84'] },
       { file: 'website/docs/versions/v1/1.0.1/CHANGELOG.md', needles: ['V84', 'expert-output-quality', 'ExpertOutputQualityGate'] },
       { file: 'scripts/lib/test-spec-governance-expert.js', needles: ['checkV84', 'classifyExpertOutputSample', 'ExpertOutputQualityGate'] },
       { file: 'scripts/validate.js', needles: ['createProbeRegistry', 'expectedProbeIds', 'runProbeRegistry'] },
       { file: 'changelog corpus', content: changelogCorpus, needles: ['V84', 'expert-output-quality', 'ExpertOutputQualityGate'] }
     ]
-    appendActiveProfileProbe(probes, profileCorpus, ['76', 'expert-output-quality', 'ExpertOutputQualityGate'], 'V84')
+    appendActiveProfileProbe(probes, profileCorpus, ['77', 'expert-output-quality', 'ExpertOutputQualityGate'], 'V84')
 
     for (const probe of probes) {
       const content = probe.content || read(path.join(ROOT, probe.file))
@@ -263,10 +263,10 @@ function buildGovernanceExpertChecks(ctx) {
       { file: 'prompts/report-fix.prompt.md', needles: ['ExpertOwnerSkillGate', 'V85'].concat(skillNames) },
       { file: 'prompts/report-audit.prompt.md', needles: ['ExpertOwnerSkillGate', 'V85'].concat(skillNames) },
       { file: 'prompts/report-scenario-test.prompt.md', needles: ['ExpertOwnerSkillGate', 'V85'].concat(gates) },
-      { file: 'README.md', needles: ['76 个', '21 个专家 Owner Skill', 'ExpertOwnerSkillGate', 'V85'].concat(skillNames) },
-      { file: 'website/docs/index.md', needles: ['76 个 Skills', '专家 Owner Skill'] },
-      { file: 'website/docs/intro/index.md', needles: ['76 个按需触发', '专家 Owner Skill'] },
-      { file: 'website/docs/specs/directory-structure.md', needles: ['扁平一级 Skill（76 个）', 'ExpertOwnerSkillGate'].concat(skillNames) },
+      { file: 'README.md', needles: ['77 个', '21 个专家 Owner Skill', 'ExpertOwnerSkillGate', 'V85'].concat(skillNames) },
+      { file: 'website/docs/index.md', needles: ['77 个 Skills', '专家 Owner Skill'] },
+      { file: 'website/docs/intro/index.md', needles: ['77 个按需触发', '专家 Owner Skill'] },
+      { file: 'website/docs/specs/directory-structure.md', needles: ['扁平一级 Skill（77 个）', 'ExpertOwnerSkillGate'].concat(skillNames) },
       { file: 'website/docs/guide/development.md', needles: ['ExpertOwnerSkillGate', 'V85'].concat(skillNames) },
       { file: 'website/docs/versions/v1/1.0.1/CHANGELOG.md', needles: ['V85', 'ExpertOwnerSkillGate'].concat(skillNames) },
       { file: 'scripts/lib/test-spec-governance-expert.js', needles: ['checkV85', 'classifyExpertOwnerSample', 'ExpertOwnerSkillGate'] },
@@ -551,8 +551,8 @@ function buildGovernanceExpertChecks(ctx) {
       { file: 'skills/spec-absorption/SKILL.md', needles: ['ProjectArtifactScaleRoutingGate', 'invalid/discarded'] },
       { file: 'skills/test-router/SKILL.md', needles: ['artifactScaleRouting', 'V91'] },
       { file: 'skills/report/SKILL.md', needles: ['ProjectArtifactScaleRoutingGate', 'V91'] },
-      { file: 'README.md', needles: ['76 个', 'ProjectArtifactScaleRoutingGate', 'skill-gap-analysis'] },
-      { file: 'website/docs/intro/index.md', needles: ['76 个按需触发', 'skill-gap-analysis'] }
+      { file: 'README.md', needles: ['77 个', 'ProjectArtifactScaleRoutingGate', 'skill-gap-analysis'] },
+      { file: 'website/docs/intro/index.md', needles: ['77 个按需触发', 'skill-gap-analysis'] }
     ]
     for (const probe of probes) {
       const content = read(path.join(ROOT, probe.file))

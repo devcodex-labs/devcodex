@@ -75,6 +75,19 @@ Profile 加载只证明“声明已读取”，不能证明声明仍为当前真
 
 Profile 可以约束目标态和项目政策，但不得覆盖已验证的当前实现事实。analyze/audit 保持只读：发现漂移时立即矫正本轮结论并记录交接，不得直接修改 Profile 源文件；后续源文件修订必须进入独立 dev/fix/self-fix 与 `ProfileImpactCheck`。
 
+### ProfileReleaseTruthAuthorityMatrixGate
+
+DevCodex 自维护、Profile 生成/复审、workspace base 同步和发布事实变更必须区分发布权威、当前消费者与历史证据：
+
+| 层 | 事实源 / 处理 |
+|---|---|
+| release authority | `package.json` 与 `plugin.json` 的一致版本；正式发布状态再由 tag、CI、registry 证据补充 |
+| current project consumers | project `01` 当前版本/阶段、`05` 当前发布事实、`07` 当前发布基线/版本语义/当前分发 |
+| workspace current consumer | 明确标注“DevCodex 工作区规范版本”的 workspace `01` 当前版本/阶段 |
+| historical / per-feature | `changelogs/releases/**`、versioned docs、`06` 单能力 releaseState；不得按当前全局版本批量改写 |
+
+加载时把每条明确 current claim 写入 authority matrix；版本不一致时 `profileTrustState=drift-detected`，validator 至少返回 warning/non-zero，不得把“文件存在”视为通过。只读工作流报告漂移并采用 release authority 修正结论；获授权的 dev/fix/self-fix 才同步 Profile。普通项目的自身版本不得错误对比 DevCodex package 版本。
+
 ### MemoryCannotSatisfyBootstrapGate
 
 Codex / 宿主内置 Memories、模型长期偏好、上一轮摘要或用户口头记忆只能作为导航提示，不能满足 DevCodex bootstrap、Profile 加载、Context Rehydration、CP 确认、报告结论或验证证据。

@@ -28,6 +28,7 @@ for (const suite of ['Base', 'Review', 'Expert', 'Scale']) {
 }
 assert(specRunner.includes('runReworkTrustControlSuite'), 'missing rework trust control suite runner')
 assert(validator.includes('buildConsumerEvolutionControlChecks'), 'missing V95 consumer evolution validator owner')
+assert(validator.includes('buildBrandVisualQualityChecks'), 'missing V97 brand visual validator owner')
 
 const cli = read('index.js')
 for (const contract of ['buildCliInstallCommands', 'buildCliMaintenanceCommands', 'createCliCommandRegistry', 'runCliCommand']) {

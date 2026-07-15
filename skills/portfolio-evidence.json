@@ -15,6 +15,15 @@
     "promotionCriteria": "trigger precision requires real comparable work units; structural evidence alone cannot promote lifecycle state"
   },
   "skills": {
+    "brand-visual-quality": {
+      "stateRationale": "gray until prospective brand asset WorkUnits prove visual evidence value and bounded review cost",
+      "promotionCriteria": "three comparable WorkUnits or two independent projects with fresh lineage, parity, micro/mono, human acceptance and blocker-reset evidence",
+      "positiveFixture": "scripts/test-brand-visual-quality.js#complete-accepted-evidence",
+      "negativeFixture": "scripts/test-brand-visual-quality.js#incomplete-or-unreset-blocker-rejected",
+      "rollbackToGray": "remain or return gray when false positives, review cost, recurrence or design-system overlap exceed the accepted boundary",
+      "conflicts": ["design-system-architecture"],
+      "conflictReviewEvidence": "skills/brand-visual-quality/SKILL.md#owner-边界"
+    },
     "consumer-validation-engineering": {
       "stateRationale": "gray until independent cross-repository consumer evidence covers at least two contexts",
       "promotionCriteria": "two independent repositories with fresh identity, artifact and CI evidence plus acceptable correction rate"

@@ -10,12 +10,19 @@ const SOURCE_RANK = {
   'daily-task': 70,
   'global-summary': 60
 }
+const CANONICAL_LEDGER_BY_KIND = {
+  PI: 'data/process-improvements.md',
+  PF: 'data/pending-fixes.md',
+  VL: 'data/violations.md',
+  GR: 'data/gap-registry.md',
+  ISSUE: 'data/pending-issues.md'
+}
 
 function normalizeStatus(text) {
   const value = String(text || '').toLowerCase()
   if (/\b(?:closed|fixed|resolved|complete|completed|accepted)\b|已关闭|已修复|已完成|✅/.test(value)) return 'closed'
   if (/\b(?:deferred|postponed)\b|延后|延期/.test(value)) return 'deferred'
-  if (/\b(?:partial|pending|in-progress|executing|blocked)\b|部分|进行中|待确认|🔄|⚠️/.test(value)) return 'partial'
+  if (/\b(?:partial|residual-tail|pending|in-progress|executing|blocked)\b|部分|进行中|待确认|🔄|⚠️/.test(value)) return 'partial'
   if (/\b(?:open|todo|not-started)\b|待处理|未开始|⏹️/.test(value)) return 'open'
   return 'unknown'
 }
@@ -81,14 +88,82 @@ function extractClaims(activeRoot, source) {
   return claims
 }
 
-function selectClaim(claims) {
-  return [...claims].sort((a, b) => {
-    const rank = SOURCE_RANK[b.sourceKind] - SOURCE_RANK[a.sourceKind]
-    if (rank) return rank
-    const sameSource = a.source.localeCompare(b.source)
-    if (sameSource) return sameSource
-    return b.line - a.line
-  }).find(claim => claim.normalizedStatus !== 'unknown') || claims[claims.length - 1]
+const LEGAL_TRANSITIONS = new Set([
+  'open>partial',
+  'open>deferred',
+  'open>closed',
+  'partial>open',
+  'partial>deferred',
+  'partial>closed',
+  'deferred>open',
+  'deferred>partial',
+  'deferred>closed',
+  'closed>open',
+  'closed>partial',
+  'closed>deferred'
+])
+
+function classifyTransition(from, to) {
+  if (from === to) return 'unchanged'
+  return LEGAL_TRANSITIONS.has(`${from}>${to}`) ? 'legal' : 'unrecognized'
+}
+
+function authorityRankForClaim(claim) {
+  if (claim.sourceKind !== 'ledger') return SOURCE_RANK[claim.sourceKind]
+  return claim.source === CANONICAL_LEDGER_BY_KIND[claim.kind] ? SOURCE_RANK.ledger : 75
+}
+
+/** Keep only the last known status in each physical source; append-only history is not current conflict. */
+function projectClaimsBySource(claims) {
+  const grouped = new Map()
+  for (const claim of claims) {
+    if (!grouped.has(claim.source)) grouped.set(claim.source, [])
+    grouped.get(claim.source).push(claim)
+  }
+
+  const sourceProjections = []
+  const historicalTransitions = []
+  for (const [source, sourceClaims] of grouped) {
+    const known = sourceClaims
+      .filter(claim => claim.normalizedStatus !== 'unknown')
+      .sort((a, b) => a.line - b.line)
+    for (let index = 1; index < known.length; index += 1) {
+      const previous = known[index - 1]
+      const current = known[index]
+      if (previous.normalizedStatus === current.normalizedStatus) continue
+      historicalTransitions.push({
+        source,
+        sourceKind: current.sourceKind,
+        from: previous.normalizedStatus,
+        to: current.normalizedStatus,
+        classification: classifyTransition(previous.normalizedStatus, current.normalizedStatus),
+        fromAnchor: previous.anchor,
+        toAnchor: current.anchor
+      })
+    }
+    const selected = known[known.length - 1]
+    if (selected) {
+      sourceProjections.push({
+        source,
+        sourceKind: selected.sourceKind,
+        authorityRank: authorityRankForClaim(selected),
+        normalizedStatus: selected.normalizedStatus,
+        anchor: selected.anchor,
+        line: selected.line
+      })
+    }
+  }
+
+  sourceProjections.sort((a, b) =>
+    b.authorityRank - a.authorityRank ||
+    a.source.localeCompare(b.source) ||
+    b.line - a.line
+  )
+  historicalTransitions.sort((a, b) =>
+    a.source.localeCompare(b.source) ||
+    a.toAnchor.localeCompare(b.toAnchor, undefined, { numeric: true })
+  )
+  return { sourceProjections, historicalTransitions }
 }
 
 function buildRuntimeStateIndex(activeRoot) {
@@ -101,16 +176,47 @@ function buildRuntimeStateIndex(activeRoot) {
   }
 
   const records = Array.from(grouped, ([recordId, recordClaims]) => {
-    const statuses = Array.from(new Set(recordClaims.map(claim => claim.normalizedStatus).filter(status => status !== 'unknown'))).sort()
-    const selected = selectClaim(recordClaims)
+    const observedStatuses = Array.from(new Set(recordClaims
+      .map(claim => claim.normalizedStatus)
+      .filter(status => status !== 'unknown'))).sort()
+    const { sourceProjections, historicalTransitions } = projectClaimsBySource(recordClaims)
+    const currentAuthorityRank = sourceProjections.length ? sourceProjections[0].authorityRank : null
+    const authorityProjections = sourceProjections.filter(projection => projection.authorityRank === currentAuthorityRank)
+    const conflictingStatuses = Array.from(new Set(authorityProjections.map(projection => projection.normalizedStatus))).sort()
+    const currentAuthorityQualified = currentAuthorityRank !== null && currentAuthorityRank >= SOURCE_RANK['agent-summary']
+    const conflict = currentAuthorityQualified && conflictingStatuses.length > 1
+    const currentProjection = authorityProjections[0] || null
+    // Lower-authority stale consumers remain visible, but they do not block strict validation.
+    const consumerDrifts = conflict || !currentProjection
+      ? []
+      : sourceProjections
+          .filter(projection =>
+            projection.authorityRank < currentAuthorityRank &&
+            projection.normalizedStatus !== currentProjection.normalizedStatus
+          )
+          .map(projection => ({
+            source: projection.source,
+            sourceKind: projection.sourceKind,
+            authorityRank: projection.authorityRank,
+            normalizedStatus: projection.normalizedStatus,
+            expectedStatus: currentProjection.normalizedStatus,
+            anchor: projection.anchor
+          }))
     return {
       recordId,
       kind: recordId.split('-')[0],
-      normalizedStatus: selected ? selected.normalizedStatus : 'unknown',
-      conflict: statuses.length > 1,
-      conflictingStatuses: statuses,
-      precedence: 'ledger > agent-summary > daily-task > global-summary; later line wins within the same source',
-      selectedAnchor: selected ? selected.anchor : null,
+      normalizedStatus: currentProjection ? currentProjection.normalizedStatus : 'unknown',
+      observedStatuses,
+      sourceProjections,
+      historicalTransitions,
+      currentAuthorityRank,
+      currentAuthorityQualified,
+      currentProjection,
+      consumerDrifts,
+      conflict,
+      conflictingStatuses: conflict ? conflictingStatuses : [],
+      precedence: 'last known status per source; canonical ledger > agent-summary > cross-ledger reference > daily-task > global-summary; conflict only within a qualified current authority rank',
+      selectedAnchor: currentProjection ? currentProjection.anchor : null,
       claims: recordClaims.sort((a, b) => a.source.localeCompare(b.source) || a.line - b.line)
     }
   }).sort((a, b) => a.recordId.localeCompare(b.recordId, undefined, { numeric: true }))
@@ -133,9 +239,9 @@ function buildRuntimeStateIndex(activeRoot) {
     }
     if (record.conflict) {
       consistencyAlerts.push({
-        code: 'CONFLICTING_TERMINAL_STATE',
+        code: 'CONFLICTING_CURRENT_STATE',
         recordId: record.recordId,
-        message: `${record.recordId} has incompatible claims: ${record.conflictingStatuses.join(', ')}`
+        message: `${record.recordId} has incompatible current claims at authority rank ${record.currentAuthorityRank}: ${record.conflictingStatuses.join(', ')}`
       })
     }
   }
@@ -149,6 +255,8 @@ function buildRuntimeStateIndex(activeRoot) {
       sourceFileCount: sources.length,
       recordCount: records.length,
       conflictCount: records.filter(record => record.conflict).length,
+      historicalTransitionCount: records.reduce((total, record) => total + record.historicalTransitions.length, 0),
+      consumerDriftCount: records.reduce((total, record) => total + record.consumerDrifts.length, 0),
       alertCount: consistencyAlerts.length
     },
     consistencyAlerts,

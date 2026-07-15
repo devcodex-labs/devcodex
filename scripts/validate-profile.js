@@ -102,6 +102,67 @@ function extractVersion(label, text) {
   return ''
 }
 
+function readFileIfExists(filePath) {
+  return filePath && fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf8') : ''
+}
+
+function extractCurrentReleaseClaims(fileName, text) {
+  const claims = []
+  const patterns = fileName === '05-发布规范.md'
+    ? [
+        ['当前发布事实', /当前发布事实[：:][^\r\n]*?\bv?(\d+\.\d+\.\d+)/]
+      ]
+    : fileName === '07-用户文档与契约规范.md'
+      ? [
+          ['当前发布基线', /当前发布基线[：:][^\r\n]*?\bv?(\d+\.\d+\.\d+)/],
+          ['版本语义契约', /\|\s*版本语义契约\s*\|[^\r\n]*?package\s+`?v?(\d+\.\d+\.\d+)/],
+          ['当前发布分发', /\|\s*v?(\d+\.\d+\.\d+)\s+发布分发\s*\|/]
+        ]
+      : []
+  for (const [label, pattern] of patterns) {
+    const match = String(text || '').match(pattern)
+    if (match) claims.push({ label, version: match[1] })
+  }
+  return claims
+}
+
+/** ProfileReleaseTruthAuthorityMatrixGate checks explicit current consumers only; historical release text is intentionally ignored. */
+function checkProfileReleaseTruthAuthorityMatrix(projectInfoText) {
+  if (!pluginVersion) return
+  const directProjectInfoPath = path.join(profileDir, '01-项目信息.md')
+  const directProjectInfo = readFileIfExists(directProjectInfoPath)
+  const devcodexProject = isSourceRepoProfileTarget() || /@vextjs\/devcodex/.test(directProjectInfo)
+  const checked = new Set()
+
+  function checkClaim(source, label, version) {
+    if (!version) return
+    const key = `${source}:${label}:${version}`
+    if (checked.has(key)) return
+    checked.add(key)
+    if (version !== pluginVersion) {
+      warn(`[profile] ProfileReleaseTruthAuthorityMatrixGate ${source} ${label}漂移: ${version} → ${pluginVersion}`)
+    }
+  }
+
+  if (devcodexProject) {
+    checkClaim('01-项目信息.md', '当前版本', extractVersion('当前版本', projectInfoText))
+    checkClaim('01-项目信息.md', '当前阶段', extractVersion('当前阶段', projectInfoText))
+    for (const fileName of ['05-发布规范.md', '07-用户文档与契约规范.md']) {
+      const directText = readFileIfExists(path.join(profileDir, fileName))
+      for (const claim of extractCurrentReleaseClaims(fileName, directText)) {
+        checkClaim(fileName, claim.label, claim.version)
+      }
+    }
+  }
+
+  const workspaceInfoPath = workspaceProfileDir ? path.join(workspaceProfileDir, '01-项目信息.md') : ''
+  const workspaceInfo = readFileIfExists(workspaceInfoPath)
+  if (/DevCodex\s*工作区规范版本/.test(workspaceInfo)) {
+    checkClaim('workspace/01-项目信息.md', '当前版本', extractVersion('当前版本', workspaceInfo))
+    checkClaim('workspace/01-项目信息.md', '当前阶段', extractVersion('当前阶段', workspaceInfo))
+  }
+}
+
 function hasLegacyStageDraft(text) {
   return /##\s*当前阶段/m.test(text) &&
     /^\s*[-*]\s*主版本分支[：:]/m.test(text) &&
@@ -571,7 +632,7 @@ const readmeText = readProfileFile('README.md')
 const architectureText = readProfileFile('02-架构约束.md')
 const styleText = readProfileFile('03-代码风格.md')
 const projectInfoText = readProfileFile('01-项目信息.md')
-// DevCodex package version is authoritative only for the DevCodex source profile.
+// DevCodex package version is authoritative only for explicit DevCodex current-release consumers.
 if (pluginVersion && projectInfoText && isSourceRepoProfileTarget()) {
   const projectInfo = projectInfoText
   const currentVersion = extractVersion('当前版本', projectInfo)
@@ -579,20 +640,18 @@ if (pluginVersion && projectInfoText && isSourceRepoProfileTarget()) {
 
   if (!currentVersion) {
     warn('[profile] 01-项目信息.md missing 当前版本 entry')
-  } else if (currentVersion !== pluginVersion) {
-    warn(`[profile] 01-项目信息.md 当前版本漂移: ${currentVersion} → ${pluginVersion}`)
   }
 
   if (!currentStageVersion) {
     if (!hasLegacyStageDraft(projectInfo)) {
       warn('[profile] 01-项目信息.md missing 当前阶段 version entry')
     }
-  } else if (currentStageVersion !== pluginVersion) {
-    warn(`[profile] 01-项目信息.md 当前阶段漂移: ${currentStageVersion} → ${pluginVersion}`)
   }
 
   checkProjectInfoSemantics(projectInfo)
 }
+
+checkProfileReleaseTruthAuthorityMatrix(projectInfoText)
 
 checkS02ProfileFreshness({
   'README.md': readmeText,

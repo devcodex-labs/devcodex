@@ -8,7 +8,12 @@
 
 ## 当前未发布变更
 
-暂无未发布变更。
+### 2026-07-15
+
+- 新增 gray `brand-visual-quality` 与 `BrandVisualQualityGate`，覆盖 MasterLineage、ThemeGeometryParity、MicroOpticalVariant、MonoMaster、VisualEvidencePack、VisualBlockerReset；以 V97 正负 fixture 和独立前向试用守门，未形成真实 WorkUnit 前不晋级 active。
+- `RuntimeStateTransitionProjectionGate` 将 append-only 历史迁移、当前权威投影、低权威 consumer drift 和真正 `CONFLICTING_CURRENT_STATE` 分离，保留 schema v1/read-only 兼容并降低 strict conflict 噪声。
+- `ProfileReleaseTruthAuthorityMatrixGate` 以 package/plugin 为 DevCodex release authority，对账 project 01/05/07 与 workspace current claim；历史 release/versioned docs 不被批量误判。
+- Skill portfolio 更新为当前源码 77（74 active + 3 gray），同步 gate registry、CP/TestRoute/report/prompts、README/website/Profile、V92/V95/V97 与 package closure；版本仍为 1.14.0，本批不 tag、不 publish。
 
 ## 记录提示
 

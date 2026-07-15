@@ -31,6 +31,8 @@ TestRoute 的稳定输入、route selector、固定输出与 skip 合同以同�
 
 先按变化事实选择所有适用 selector，再按风险升级验证层级。不得仅因“已有单测”跳过跨边界、真实 runtime、package candidate、Profile 或部署副本验证；不适用的 selector 必须形成结构化跳过记录。
 
+`brandVisualQuality` 是 `brand-visual-quality` gateGroup 的领域绑定，不新增顶层 selector：至少选择 `static`，并用 Owner Skill 的同画布渲染、微尺寸/单色预览和人工视觉结论补充 evidence；涉及网站或产品运行态采用资产时再叠加 `runtime-e2e`。若任务只改 token/component 而不生产品牌资产，写结构化 skipReason 并交给设计系统 Owner。
+
 ## TestRoute 输出
 
 输出固定为 `selectedRoutes / commands / evidence / skipped / residualRisk / coverageClaim`。推荐使用以下最小结构：

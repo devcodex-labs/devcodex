@@ -80,6 +80,7 @@ description: 返工预防工程 Owner — 当任务涉及返工率、一次通�
 - `quality-strategy` / `test-router`：选择风险驱动验证组合。
 - `evolution-governance`：管理候选、gray 试点、升级、回滚和授权。
 - `spec-absorption`：执行 ReworkReductionValueGate 与消费者证明。
+- `brand-visual-quality`：提供品牌资产 WorkUnit、`VisualBlockerResetRecord`、复发和人工修正数据；当前资产修复通过只关闭该 WorkUnit，仍需后续可比较样本才能证明返工预防有效。
 - `report`：输出 baseline、事件分类、效果和剩余风险。
 
 ## 反模式

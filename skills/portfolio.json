@@ -5,22 +5,22 @@
   "generatedFrom": {
     "skillsPattern": "skills/*/SKILL.md",
     "registry": "plugin.json",
-    "sourceDigest": "b3bc486cbd95f6c0f8bda2ea2068a589c27e609bd77c0e41955e2b6a359a5b8e",
-    "pluginDigest": "189b0461d95c900ec6d39783aa6dfc96219e6698a82c40dcc2ffa70355d49cac",
+    "sourceDigest": "ba0eda1cb0f4ec84d37ef9a5de8571240b8cbd3c929a8e711632838e2c1e9f7a",
+    "pluginDigest": "249bae2e62d3eebe6f70a19f4c70bc5071169dac23395a5d80a891139d7046b1",
     "portfolioEvidence": "skills/portfolio-evidence.json",
-    "portfolioEvidenceDigest": "3914336d42e126a9b4425103788eeb3b4b7414d76bd464ccae1daedc83ff82bf"
+    "portfolioEvidenceDigest": "6a8d955709cea0d06cb863b833d5deb4630c3924021ac5bf6286f2dbb626dc2e"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
-    "skillCount": 76,
-    "registeredSkillCount": 76,
+    "skillCount": 77,
+    "registeredSkillCount": 77,
     "activeSkillCount": 74,
-    "graySkillCount": 2,
+    "graySkillCount": 3,
     "orphanActiveCount": 0,
     "dependencyCycleCount": 0,
     "dependencyEdgeCount": 3,
-    "conflictReviewedCount": 76,
-    "operationalEvidenceCompleteCount": 76,
+    "conflictReviewedCount": 77,
+    "operationalEvidenceCompleteCount": 77,
     "triggerPrecisionMeasuredCount": 0,
     "instructionBudgetP95Bytes": 19285,
     "triggerQuality": "structural-only"
@@ -47,6 +47,7 @@
       "audit-tech-design",
       "audit-user-manual",
       "backend-domain-architecture",
+      "brand-visual-quality",
       "business-model-review",
       "compliance",
       "consumer-validation-engineering",
@@ -3287,6 +3288,135 @@
       }
     },
     {
+      "id": "brand-visual-quality",
+      "name": "brand-visual-quality",
+      "description": "品牌视觉资产生产质量 Owner — 当任务涉及品牌标志、图标、主题变体、微尺寸光学校正、单色母版、主资产谱系或视觉验收证据时使用；要求把几何一致性、变体关系和人工视觉结论绑定到可重放证据，避免只凭文件存在或单次截图宣告完成。",
+      "owner": "brand-visual-quality",
+      "triggers": {
+        "terms": [
+          "Owner",
+          "brand-visual-quality"
+        ],
+        "positive": [
+          {
+            "fixture": "frontmatter-description-resolves",
+            "input": "品牌视觉资产生产质量 Owner — 当任务涉及品牌标志、图标、主题变体、微尺寸光学校正、单色母版、主资产谱系或视觉验收证据时使用；要求把几何一致性、变体关系和人工视觉结论绑定到可重放证据，避免只凭文件存在或单次截图宣告完成。"
+          }
+        ],
+        "negative": [
+          {
+            "fixture": "empty-or-unregistered-trigger-rejected",
+            "input": ""
+          }
+        ],
+        "ambiguous": []
+      },
+      "ownedArtifacts": [
+        "skills/brand-visual-quality/SKILL.md"
+      ],
+      "source": "skills/brand-visual-quality/SKILL.md",
+      "hash": "864a359649145d30daec7a5aa8b841293525f79ed8e0447dfd7eca542e61cc00",
+      "version": "1.14.0",
+      "lifecycleState": "gray",
+      "dependencies": [],
+      "references": [],
+      "conflicts": [
+        "design-system-architecture"
+      ],
+      "conflictReview": {
+        "status": "declared",
+        "evidence": "skills/brand-visual-quality/SKILL.md#owner-边界"
+      },
+      "consumers": [
+        {
+          "path": "changelogs/unreleased.md",
+          "role": "current"
+        },
+        {
+          "path": "package.json",
+          "role": "current"
+        },
+        {
+          "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "prompts/implementation-plan.prompt.md",
+          "role": "current"
+        },
+        {
+          "path": "prompts/technical-design.prompt.md",
+          "role": "current"
+        },
+        {
+          "path": "README.md",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/validate-brand-visual-quality.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-brand-visual-quality.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-control-plane-contracts.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-skill-portfolio.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/validate.js",
+          "role": "current"
+        },
+        {
+          "path": "website/docs/guide/development.md",
+          "role": "current"
+        },
+        {
+          "path": "website/docs/index.md",
+          "role": "current"
+        },
+        {
+          "path": "website/docs/intro/index.md",
+          "role": "current"
+        }
+      ],
+      "validationProfile": [
+        "scripts/test-brand-visual-quality.js",
+        "scripts/test-control-plane-contracts.js",
+        "scripts/test-skill-portfolio.js",
+        "scripts/validate.js"
+      ],
+      "lastEvidenceAt": "2026-07-14",
+      "evidence": {
+        "registration": "plugin.json",
+        "operationalReadiness": {
+          "state": "complete",
+          "currentConsumer": "changelogs/unreleased.md",
+          "positiveFixture": "scripts/test-brand-visual-quality.js#complete-accepted-evidence",
+          "negativeFixture": "scripts/test-brand-visual-quality.js#incomplete-or-unreset-blocker-rejected",
+          "rollbackToGray": "remain or return gray when false positives, review cost, recurrence or design-system overlap exceed the accepted boundary",
+          "lastEvidenceAt": "2026-07-14"
+        },
+        "triggerPrecision": {
+          "state": "structural-only",
+          "sampleCount": 0,
+          "precision": null,
+          "falsePositiveRate": null,
+          "falseNegativeRate": null,
+          "manualCorrectionRate": null,
+          "lastMeasuredAt": null
+        },
+        "lifecycleAuthorization": "plugin.json#skills[].lifecycleState",
+        "stateRationale": "gray until prospective brand asset WorkUnits prove visual evidence value and bounded review cost",
+        "promotionCriteria": "three comparable WorkUnits or two independent projects with fresh lineage, parity, micro/mono, human acceptance and blocker-reset evidence"
+      }
+    },
+    {
       "id": "business-model-review",
       "name": "business-model-review",
       "description": "商业模型审查专家 Owner — 当任务涉及商业化、定价、套餐、成本收益、收入模型、运营负担、市场渠道、付费路径、商业风险或长期可持续性时使用；要求把技术方案和产品范围绑定到价值交换、成本结构和可持续运营。",
@@ -3980,10 +4110,6 @@
           "role": "current"
         },
         {
-          "path": "website/docs/index.md",
-          "role": "current"
-        },
-        {
           "path": "website/docs/intro/index.md",
           "role": "current"
         }
@@ -4411,7 +4537,7 @@
         "skills/design-system-architecture/SKILL.md"
       ],
       "source": "skills/design-system-architecture/SKILL.md",
-      "hash": "eec6f98bc6ea088c706b4a9fb71da2347700381cbb5ac486267443f29ee96571",
+      "hash": "6ac2efaf27c707104ab89385ff514ce4384c3b497d033315c034b61057cff3bf",
       "version": "1.14.0",
       "lifecycleState": "active",
       "dependencies": [],
@@ -4440,6 +4566,10 @@
         },
         {
           "path": "scripts/lib/test-spec-governance-expert.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/validate-brand-visual-quality.js",
           "role": "current"
         },
         {
@@ -5317,7 +5447,7 @@
         "skills/dev-plan-review/SKILL.md"
       ],
       "source": "skills/dev-plan-review/SKILL.md",
-      "hash": "f94c54774db6cfc463cb08be92a08197a2ea15828ac85907db66951da9d54ea6",
+      "hash": "c5b2d48d93d2a47a213ef6296b9276dd2cc34252472b04cf65ffe8f81cff26d1",
       "version": "1.14.0",
       "lifecycleState": "active",
       "dependencies": [],
@@ -5418,6 +5548,10 @@
         },
         {
           "path": "scripts/lib/test-spec-governance-review.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/validate-brand-visual-quality.js",
           "role": "current"
         },
         {
@@ -7856,6 +7990,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/validate-profile.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/validate.js",
           "role": "current"
         },
@@ -7963,6 +8101,7 @@
       "validationProfile": [
         "scripts/test-governance-intake.js",
         "scripts/test-skill-portfolio.js",
+        "scripts/validate-profile.js",
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
@@ -8018,7 +8157,7 @@
         "skills/load-profile/SKILL.md"
       ],
       "source": "skills/load-profile/SKILL.md",
-      "hash": "cfe57265727e78a35951840704357a0e61d02a88b795d9b02608649735d42735",
+      "hash": "bdb0153d36a6ee8eeae23e2cb983f38abc58114a9937124a6b1970699b6da58e",
       "version": "1.14.0",
       "lifecycleState": "active",
       "dependencies": [],
@@ -8107,6 +8246,10 @@
         },
         {
           "path": "scripts/lib/test-spec-governance-review.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/validate-brand-visual-quality.js",
           "role": "current"
         },
         {
@@ -9200,6 +9343,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/validate-brand-visual-quality.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/validate-consumer-evolution-controls.js",
           "role": "current"
         },
@@ -10011,7 +10158,7 @@
         "skills/profile-bootstrap/SKILL.md"
       ],
       "source": "skills/profile-bootstrap/SKILL.md",
-      "hash": "d3d2eb23532082f27516dbcae3d0cd3a03dcbd4167cd481097b02db519dd3dc6",
+      "hash": "4d89575e5e0cda2a7fe3fdabe6f015cc6eb621eafeb5f0903b4432122ddce771",
       "version": "1.14.0",
       "lifecycleState": "active",
       "dependencies": [],
@@ -10084,6 +10231,10 @@
         },
         {
           "path": "scripts/lib/test-spec-governance-review.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/validate-brand-visual-quality.js",
           "role": "current"
         },
         {
@@ -10929,6 +11080,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/validate-brand-visual-quality.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/validate-consumer-evolution-controls.js",
           "role": "current"
         },
@@ -11253,7 +11408,7 @@
         "skills/review-checklist/SKILL.md"
       ],
       "source": "skills/review-checklist/SKILL.md",
-      "hash": "80dff72c3962f2e5a66bd5b02d98bd070e1d02d1a2100e39913fd0b2473040e8",
+      "hash": "a4d719e148349c6e90be9b9b8809649c47f3fcb52932bfbd8ca75726336693a7",
       "version": "1.14.0",
       "lifecycleState": "active",
       "dependencies": [],
@@ -11302,6 +11457,10 @@
         },
         {
           "path": "scripts/lib/test-spec-governance-review.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/validate-brand-visual-quality.js",
           "role": "current"
         },
         {
@@ -11403,7 +11562,7 @@
         "skills/rework-prevention-engineering/SKILL.md"
       ],
       "source": "skills/rework-prevention-engineering/SKILL.md",
-      "hash": "cf46bce087d15f759dff0fa300962e8b530ea6264cca8be3b3eaf85063e5a96a",
+      "hash": "112f96a3dbe82f4fc194fca05f84d85f38e484f7102cf365186f8f02dee6467a",
       "version": "1.14.0",
       "lifecycleState": "gray",
       "dependencies": [],
@@ -11432,6 +11591,10 @@
         },
         {
           "path": "scripts/lib/test-rework-trust-controls.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/validate-brand-visual-quality.js",
           "role": "current"
         },
         {
@@ -12506,7 +12669,7 @@
         "skills/spec-governance/SKILL.md"
       ],
       "source": "skills/spec-governance/SKILL.md",
-      "hash": "f7044d3dd52bfb7e0bb2e568e10d2695912297d68a067fff3dd21a35efc9b887",
+      "hash": "f63ad45d70c67a449d2b5edd6eb2e9181f6530bb9f46467948bd7ff5f0856cbf",
       "version": "1.14.0",
       "lifecycleState": "active",
       "dependencies": [
@@ -12745,6 +12908,10 @@
         },
         {
           "path": "scripts/lib/test-spec-governance-scale.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/validate-brand-visual-quality.js",
           "role": "current"
         },
         {
@@ -13023,6 +13190,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/validate-brand-visual-quality.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/validate-consumer-evolution-controls.js",
           "role": "current"
         },
@@ -13275,7 +13446,7 @@
         "skills/test-router/SKILL.md"
       ],
       "source": "skills/test-router/SKILL.md",
-      "hash": "876f28e5f67d9c1223a452f7d6c8d1a9cda3d02306f3cc403e91dfb745d352e6",
+      "hash": "3b725c195c82fa34e823463227c389cbb49d769e7d917d67d03d7797f0c3ade9",
       "version": "1.14.0",
       "lifecycleState": "active",
       "dependencies": [],
@@ -13412,6 +13583,10 @@
         },
         {
           "path": "scripts/lib/test-spec-governance-review.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/validate-brand-visual-quality.js",
           "role": "current"
         },
         {

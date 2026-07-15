@@ -1,0 +1,4 @@
+interface:
+  display_name: "Brand Visual Quality"
+  short_description: "Validate brand asset lineage, geometry, variants, and visual evidence"
+  default_prompt: "Use $brand-visual-quality to verify master lineage, theme geometry, micro and mono variants, and fresh visual acceptance evidence."

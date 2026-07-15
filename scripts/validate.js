@@ -80,7 +80,7 @@
  * V92 项目工程与治理闭环优化（CI/coverage/checked-command/portfolio/runtime-state/manifest/docs）
  * V93 控制面模块化边界与探针注册表
  * V94 返工预防、审查/产物信任链与发布/配置/交互 Owner 子门禁
- * V95~V96 完整性与剩余吸纳门禁（Agent/文档/消费者/性能/发布/批次/契约/阶段/场景）
+ * V95~V97 完整性、剩余吸纳与品牌视觉质量门禁
  *
  * Exit: 0=OK, 1=error, 2=warnings only
  */
@@ -109,9 +109,9 @@ const { buildOptimizationControlChecks } = require('./lib/validate-optimization-
 const { buildReworkTrustControlChecks } = require('./lib/validate-rework-trust-controls')
 const { buildConsumerEvolutionControlChecks } = require('./lib/validate-consumer-evolution-controls')
 const { buildResidualAbsorptionControlChecks } = require('./lib/validate-residual-absorption-controls')
+const { buildBrandVisualQualityChecks } = require('./lib/validate-brand-visual-quality')
 const { buildGovernanceSupportChecks } = require('./lib/validate-governance-support')
 const { resolveActiveRuntimeRoot } = require('../hooks/_runtime/workspace-layout.cjs')
-
 const ROOT = path.resolve(__dirname, '..')
 const WORKSPACE_ROOT = path.dirname(ROOT)
 const TARGET_DEPLOYMENT_RUNTIME_ROOT = resolveActiveRuntimeRoot(WORKSPACE_ROOT)
@@ -294,7 +294,7 @@ const modularityChecks = buildModularityControlChecks({ ROOT, fs, path, read, er
 const reworkTrustChecks = buildReworkTrustControlChecks({ ROOT, fs, path, read, err, console })
 const consumerEvolutionChecks = buildConsumerEvolutionControlChecks({ ROOT, fs, path, read, err, console })
 const residualAbsorptionChecks = buildResidualAbsorptionControlChecks({ ROOT, fs, path, read, err, console })
-
+const brandVisualQualityChecks = buildBrandVisualQualityChecks({ ROOT, ACTIVE_DEVCODEX_ROOT, fs, path, read, err, console })
 // V29~V38 moved to scripts/lib/validate-governance-mid.js
 // V39~V57 moved to scripts/lib/validate-governance-tail.js
 
@@ -307,8 +307,7 @@ function checkV7b() {
     err(`[V7b] instruction-fallback smoke test failed${detail ? `: ${detail}` : ''}`)
   }
 }
-
-const expectedProbeIds = Array.from({ length: 96 }, (_, index) => `V${index + 1}`)
+const expectedProbeIds = Array.from({ length: 97 }, (_, index) => `V${index + 1}`)
 const probeRegistry = createProbeRegistry([
   { owner: 'core-contract', checks: Object.values(coreChecks) },
   { owner: 'package-deployment', checks: Object.values(packageChecks) },
@@ -325,7 +324,8 @@ const probeRegistry = createProbeRegistry([
   { owner: 'modularity-controls', checks: Object.values(modularityChecks), dependencies: { V93: ['V19', 'V26', 'V92'] } },
   { owner: 'rework-trust-controls', checks: Object.values(reworkTrustChecks), dependencies: { V94: ['V29', 'V39', 'V73', 'V91', 'V93'] } },
   { owner: 'consumer-evolution-controls', checks: Object.values(consumerEvolutionChecks), dependencies: { V95: ['V73', 'V85', 'V91', 'V93', 'V94'] } },
-  { owner: 'residual-absorption-controls', checks: Object.values(residualAbsorptionChecks), dependencies: { V96: ['V73', 'V91', 'V93', 'V94', 'V95'] } }
+  { owner: 'residual-absorption-controls', checks: Object.values(residualAbsorptionChecks), dependencies: { V96: ['V73', 'V91', 'V93', 'V94', 'V95'] } },
+  { owner: 'brand-visual-quality', checks: Object.values(brandVisualQualityChecks), dependencies: { V97: ['V73', 'V92', 'V93', 'V94', 'V96'] } }
 ], { expectedIds: expectedProbeIds })
 
 runProbeRegistry(probeRegistry, {

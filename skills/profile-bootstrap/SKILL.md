@@ -15,6 +15,7 @@ description: Profile 计划与分档生成 — 先预览目标根、推荐档位
 - 执行 `ProfileGenerationContractGate` / `ProfileTierStandardGate` / `ProfileLifecycleClassificationGate`：生成器、CLI、加载器、validator、Prompt 和公开文档必须消费同一档位契约。首次创建默认仍以 `profile-lite` 为目标，但必须展示基于 package/目录/脚本证据的推荐档位；用户通过 `--tier` 明确选择后才升级。
 - 执行 `ProfileTierMigrationSafetyGate`：默认继承已检测档位；升级只补缺失文件并保留已有正文；未带 `--allow-downgrade` 时拒绝降档；显式降档只改档位声明并保留高档文件；`--dry-run` / `profile plan` 对目录、文件和备份必须零写入。
 - 执行 `AllDevCodexProfileValidationGate`：workspace-namespace、规范维护项目或用户要求全项目校验时，生成/复审后运行 `node scripts/validate-all-profiles.js --workspace <workspace-root>` 或记录不可执行原因。
+- 执行 `ProfileReleaseTruthAuthorityMatrixGate`：DevCodex Profile 草稿或同步不得从历史 changelog/versioned docs 推断当前版本；以 package/plugin 为 release authority，对账 project 01/05/07 与标明 DevCodex 规范版本的 workspace 01。发现 current claim 漂移时生成修订动作并让 validator 非零，历史 release 与 `06` 分能力状态保持原语义。
 
 ## 三档生成策略
 

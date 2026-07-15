@@ -304,6 +304,45 @@ function main() {
         assert.match(sourceVersionDriftOutput, /当前版本漂移: 0\.0\.0/)
         assert.match(sourceVersionDriftOutput, /当前阶段漂移: 0\.0\.0/)
 
+        const staleCurrentConsumerRoot = createWorkspace(currentProjectInfo())
+        writeFile(staleCurrentConsumerRoot, '.devcodex/profile/07-用户文档与契约规范.md', [
+            '# 07',
+            '',
+            '> 当前发布基线：v0.0.0。',
+            '',
+            '| 契约 | 来源 |',
+            '|---|---|',
+            '| 版本语义契约 | package `0.0.0` release truth |',
+            '| v0.0.0 发布分发 | 当前 GitHub Packages 分发 |'
+        ].join('\n'))
+        const staleCurrentConsumerResult = runValidateWithArgs(staleCurrentConsumerRoot, ['--source-repo-profile'])
+        const staleCurrentConsumerOutput = `${staleCurrentConsumerResult.stdout}\n${staleCurrentConsumerResult.stderr}`
+        assert.strictEqual(staleCurrentConsumerResult.status, 2, staleCurrentConsumerOutput)
+        assert.match(staleCurrentConsumerOutput, /ProfileReleaseTruthAuthorityMatrixGate 07-用户文档与契约规范\.md 当前发布基线漂移/)
+
+        const alignedCurrentConsumerRoot = createWorkspace(currentProjectInfo())
+        writeFile(alignedCurrentConsumerRoot, '.devcodex/profile/07-用户文档与契约规范.md', `# 07\n\n> 当前发布基线：v${VERSION}。\n`)
+        const alignedCurrentConsumerResult = runValidateWithArgs(alignedCurrentConsumerRoot, ['--source-repo-profile'])
+        assert.strictEqual(alignedCurrentConsumerResult.status, 0, `${alignedCurrentConsumerResult.stdout}\n${alignedCurrentConsumerResult.stderr}`)
+
+        const historicalReleaseRoot = createWorkspace(currentProjectInfo())
+        writeFile(historicalReleaseRoot, '.devcodex/profile/07-用户文档与契约规范.md', '# 07\n\n- 历史发布：package 0.0.0 release truth。\n')
+        const historicalReleaseResult = runValidateWithArgs(historicalReleaseRoot, ['--source-repo-profile'])
+        assert.strictEqual(historicalReleaseResult.status, 0, `${historicalReleaseResult.stdout}\n${historicalReleaseResult.stderr}`)
+
+        const staleWorkspaceAuthorityRoot = createWorkspaceNamespaceWorkspace([
+            '# Workspace 项目信息',
+            '',
+            '| 项目 | 内容 |',
+            '|---|---|',
+            '| **当前版本** | 0.0.0（DevCodex 工作区规范版本；workspace 本身无独立包版本） |',
+            '| **当前阶段** | 0.0.0（DevCodex 工作区规范版本基线） |'
+        ].join('\n'))
+        const staleWorkspaceAuthorityResult = runValidate(path.join(staleWorkspaceAuthorityRoot, 'chat'))
+        const staleWorkspaceAuthorityOutput = `${staleWorkspaceAuthorityResult.stdout}\n${staleWorkspaceAuthorityResult.stderr}`
+        assert.strictEqual(staleWorkspaceAuthorityResult.status, 2, staleWorkspaceAuthorityOutput)
+        assert.match(staleWorkspaceAuthorityOutput, /workspace\/01-项目信息\.md 当前版本漂移/)
+
         const standardRoot = createWorkspace(currentProjectInfo())
         writeFile(standardRoot, '.devcodex/profile/README.md', [
             '# README',

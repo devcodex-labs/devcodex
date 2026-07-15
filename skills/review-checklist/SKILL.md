@@ -108,6 +108,7 @@ escape record 至少包含：
 | governance-ledger | PI/PF/VL/GAP/ISSUE 台账状态和关闭证据 |
 | feature-inventory | Profile feature inventory、capability group、公开面、文档入口和验证路线 |
 | batch-evidence | EvidenceLedger、批次矩阵、Progress Card、baseline / executed / partial / failed / not-started 状态 |
+| brand-visual-evidence | `VisualEvidencePack`、母版谱系、主题几何、微尺寸/单色矩阵、人工结论；发现视觉 blocker 后必须追加 reset 并重跑受影响同母版矩阵 |
 
 ## 与其他 Skill 的关系
 

@@ -65,4 +65,5 @@ description: 设计系统架构专家 Owner — 当任务涉及设计系统、�
 
 - `frontend-architecture`：设计系统落地到组件边界和状态模型。
 - `ux-interaction-architecture`：交互状态和任务流影响组件变体。
+- `brand-visual-quality`：品牌母版谱系、主题几何 parity、微尺寸光学校正、单色母版和视觉证据由其 Owner；本 Skill 消费已验收资产并负责 token/theme/component/Figma-code adoption。命中资产生产时引用 `ThemeGeometryParityGate`，不得在本 Skill 内复制生产门禁。
 - `figma` 相关 Skill：需要 Figma 写入或设计读取时按 Figma 工具链执行。

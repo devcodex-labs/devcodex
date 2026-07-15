@@ -66,10 +66,10 @@ function buildOptimizationControlChecks(ctx) {
 
     const portfolio = buildPortfolio(ROOT)
     const portfolioErrors = validatePortfolio(portfolio)
-    if (portfolio.summary.skillCount !== 76) err(`[V92] expected 76 skills, got ${portfolio.summary.skillCount}`)
-    if (portfolio.summary.graySkillCount !== 2) err(`[V92] expected two gray skills, got ${portfolio.summary.graySkillCount}`)
+    if (portfolio.summary.skillCount !== 77) err(`[V92] expected 77 skills, got ${portfolio.summary.skillCount}`)
+    if (portfolio.summary.graySkillCount !== 3) err(`[V92] expected three gray skills, got ${portfolio.summary.graySkillCount}`)
     if (portfolio.summary.dependencyEdgeCount < 1) err('[V92] explicit Skill dependency graph has no edges')
-    if (portfolio.summary.operationalEvidenceCompleteCount !== 76) err('[V92] operational lifecycle evidence is incomplete')
+    if (portfolio.summary.operationalEvidenceCompleteCount !== 77) err('[V92] operational lifecycle evidence is incomplete')
     if (portfolio.summary.triggerQuality !== 'structural-only') err('[V92] trigger precision must remain structural-only without real samples')
     portfolioErrors.forEach(error => err(`[V92] portfolio: ${error}`))
     const committedText = String(read(path.join(ROOT, 'skills/portfolio.json')))
@@ -79,12 +79,15 @@ function buildOptimizationControlChecks(ctx) {
     if (!runtimeState.readOnlySourcePolicy || runtimeState.schemaVersion !== 1) {
       err('[V92] runtime-state index must stay schema v1 and read-only')
     }
+    if (!Number.isInteger(runtimeState.summary.historicalTransitionCount) || !Number.isInteger(runtimeState.summary.consumerDriftCount)) {
+      err('[V92] runtime-state index must expose transition and consumer-drift diagnostics')
+    }
 
     const readme = read(path.join(ROOT, 'README.md'))
     for (const needle of ['5 分钟快速开始', 'GitHub Packages', 'npm.pkg.github.com', 'NODE_AUTH_TOKEN', 'read:packages', '当前唯一发布通道', '1.0.1']) {
       if (!readme.includes(needle)) err(`[V92] README product path missing: ${needle}`)
     }
-    console.log(`[V92] optimization controls checked: skills=76 gray=2 runtimeAlerts=${runtimeState.summary.alertCount}`)
+    console.log(`[V92] optimization controls checked: skills=77 gray=3 runtimeAlerts=${runtimeState.summary.alertCount}`)
   }
 
   return { checkV92 }

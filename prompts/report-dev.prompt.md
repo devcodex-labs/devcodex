@@ -72,6 +72,8 @@ applyTo: .devcodex/**/reports/requirements/**
 
 跨会话、多批次、中断或残余风险未关闭时追加 `ContextHandoffCard`；Profile、release、service lifecycle 等条件段按 schema 与 Owner Skill 生成。
 
+命中品牌资产生产时追加 `BrandVisualQuality` 条件段：只记录五类产物链接、自动检查、人工结论、blocker reset 与剩余风险，不把文件存在或单张截图写成通过。
+
 ## §6 测试验证
 
 | selector / gateGroup | 结果 | 命令与 exitCode | 证据 / skipReason |

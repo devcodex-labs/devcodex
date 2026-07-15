@@ -341,6 +341,12 @@
       "tier": "free"
     },
     {
+      "id": "brand-visual-quality",
+      "file": "skills/brand-visual-quality/SKILL.md",
+      "lifecycleState": "gray",
+      "tier": "free"
+    },
+    {
       "id": "accessibility-i18n",
       "file": "skills/accessibility-i18n/SKILL.md",
       "tier": "free"

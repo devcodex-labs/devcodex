@@ -106,6 +106,21 @@ function createWorkspaceNamespaceWorkspace(projectInfo) {
     return root
 }
 
+function createClosedLoopWorkspaceNamespace(projectInfo) {
+    const root = createWorkspaceNamespaceWorkspace(projectInfo)
+    writeFile(root, '.devcodex/workspace/profile/README.md', [
+        '# README',
+        '',
+        '- Profile 档位：profile-closed-loop。',
+        '- 生命周期：01~03 为稳定基线；04~07 为活文档；config.local.json 与 08+ 为条件 / 本地文档。'
+    ].join('\n'))
+    writeFile(root, '.devcodex/workspace/profile/04-测试规范.md', '# 04 — 测试规范\n')
+    writeFile(root, '.devcodex/workspace/profile/05-发布规范.md', '# 05 — 发布规范\n')
+    writeFile(root, '.devcodex/workspace/profile/06-功能清单.md', featureInventoryDocument())
+    writeFile(root, '.devcodex/workspace/profile/07-用户文档与契约规范.md', '# 07 — 用户文档与契约规范\n')
+    return root
+}
+
 function legacyProjectInfo() {
     return [
         '# 01 — 项目信息',
@@ -172,6 +187,22 @@ function currentProjectInfo() {
         '- `config.json` 可配置 `extensions.devcodex.concurrency` 并发策略：默认 `auto`，保守项目可设 `serial`，核心单写者锁不可删除。',
         ''
     ].join('\n')
+}
+
+function createClosedLoopWorkspace(lifecycle, readmeExtras = []) {
+    const root = createWorkspace(currentProjectInfo())
+    writeFile(root, '.devcodex/profile/README.md', [
+        '# README',
+        '',
+        '- Profile 档位：profile-closed-loop。',
+        `- 生命周期：${lifecycle}。`,
+        ...readmeExtras
+    ].join('\n'))
+    writeFile(root, '.devcodex/profile/04-测试规范.md', '# 04 — 测试规范\n')
+    writeFile(root, '.devcodex/profile/05-发布规范.md', '# 05 — 发布规范\n')
+    writeFile(root, '.devcodex/profile/06-功能清单.md', featureInventoryDocument())
+    writeFile(root, '.devcodex/profile/07-用户文档与契约规范.md', '# 07 — 用户文档与契约规范\n')
+    return root
 }
 
 function validLocalConfig() {
@@ -423,6 +454,48 @@ function main() {
         const closedLoopOutput = `${closedLoopResult.stdout}\n${closedLoopResult.stderr}`
 
         assert.strictEqual(closedLoopResult.status, 0, closedLoopOutput)
+
+        const closedLoopChineseRoot = createClosedLoopWorkspace('01~03 为稳定基线；04~07 为活文档；config.local.json 与 08+ 为条件 / 本地文档')
+        const closedLoopChineseResult = runValidate(closedLoopChineseRoot)
+        assert.strictEqual(
+            closedLoopChineseResult.status,
+            0,
+            `${closedLoopChineseResult.stdout}\n${closedLoopChineseResult.stderr}`
+        )
+
+        const lifecycleDiagnosticCases = [
+            {
+                name: 'stable-baseline',
+                lifecycle: 'living document / conditional-required local docs',
+                expected: 'stable-baseline'
+            },
+            {
+                name: 'living-document',
+                lifecycle: 'stable baseline / conditional-required local docs',
+                expected: 'living-document'
+            },
+            {
+                name: 'conditional-or-local-docs',
+                lifecycle: 'stable baseline / living document',
+                extras: [
+                    '- 本地命令：npm test。',
+                    '- required checks remain enabled。',
+                    '- conditional workflows are documented elsewhere。'
+                ],
+                expected: 'conditional-or-local-docs'
+            }
+        ]
+        for (const diagnosticCase of lifecycleDiagnosticCases) {
+            const diagnosticRoot = createClosedLoopWorkspace(diagnosticCase.lifecycle, diagnosticCase.extras)
+            const diagnosticResult = runValidate(diagnosticRoot)
+            const diagnosticOutput = `${diagnosticResult.stdout}\n${diagnosticResult.stderr}`
+            assert.strictEqual(diagnosticResult.status, 1, `${diagnosticCase.name}: ${diagnosticOutput}`)
+            assert.match(diagnosticOutput, new RegExp(`lifecycle missing ${diagnosticCase.expected}`))
+            for (const category of ['stable-baseline', 'living-document', 'conditional-or-local-docs']) {
+                if (category === diagnosticCase.expected) continue
+                assert.doesNotMatch(diagnosticOutput, new RegExp(`lifecycle missing ${category}`))
+            }
+        }
 
         const missingColumnsRoot = createWorkspace(currentProjectInfo())
         writeFile(missingColumnsRoot, '.devcodex/profile/README.md', '# README\n\n- Profile 档位：profile-closed-loop。\n- 生命周期：stable baseline / living document / conditional-required local docs。\n')
@@ -676,6 +749,22 @@ function main() {
 
         assert.strictEqual(explicitFallbackResult.status, 0, explicitFallbackOutput)
         assert.doesNotMatch(explicitFallbackOutput, /missing required/)
+
+        const closedLoopFallbackRoot = createClosedLoopWorkspaceNamespace(currentProjectInfo())
+        const closedLoopFallbackProfileDir = path.join(closedLoopFallbackRoot, '.devcodex', 'chat', 'profile')
+        writeFile(closedLoopFallbackRoot, '.devcodex/chat/profile/01-项目信息.md', currentProjectInfo())
+        const closedLoopFallbackResult = runValidateWithArgs(
+            path.join(closedLoopFallbackRoot, 'chat'),
+            [
+                '--profile-dir',
+                closedLoopFallbackProfileDir,
+                '--workspace-profile',
+                path.join(closedLoopFallbackRoot, '.devcodex', 'workspace', 'profile')
+            ]
+        )
+        const closedLoopFallbackOutput = `${closedLoopFallbackResult.stdout}\n${closedLoopFallbackResult.stderr}`
+        assert.strictEqual(closedLoopFallbackResult.status, 0, closedLoopFallbackOutput)
+        assert.doesNotMatch(closedLoopFallbackOutput, /lifecycle missing/)
 
         const localTierOverridesFallbackRoot = createWorkspaceNamespaceWorkspace(currentProjectInfo())
         const localStandardProfileDir = path.join(localTierOverridesFallbackRoot, '.devcodex', 'sample', 'profile')

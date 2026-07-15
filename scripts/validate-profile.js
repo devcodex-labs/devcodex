@@ -18,7 +18,7 @@ const {
   PROFILE_TIERS,
   extractProfileTierDeclarations,
   hasFeatureInventorySource: contractHasFeatureInventorySource,
-  hasProfileLifecycle: contractHasProfileLifecycle,
+  inspectProfileLifecycle,
   inspectFeatureInventoryDocument,
   parseMarkdownTables,
   FEATURE_INVENTORY_COLUMN_LABELS
@@ -27,6 +27,8 @@ const { resolveProfileDir } = require('../hooks/_runtime/workspace-layout.cjs')
 
 // ProfileGenerationContractGate / FeatureInventorySchemaGate / ProfileTierMigrationSafetyGate
 // share the tier vocabulary: profile-lite | profile-standard | profile-closed-loop.
+// ProfileLifecycleClassificationGate keeps the historical "conditional-required/local docs" contract anchor;
+// user diagnostics expose its precise category key as "conditional-or-local-docs".
 
 const PLUGIN_ROOT = path.resolve(__dirname, '..')
 const args = process.argv.slice(2)
@@ -771,10 +773,6 @@ function validateCanonicalFeatureInventory(projectInfo, inventoryResult) {
   }
 }
 
-function hasProfileLifecycle(combined) {
-  return contractHasProfileLifecycle(combined)
-}
-
 function validateProfileTier(tier, combined) {
   if (tier === 'profile-lite') return
 
@@ -798,8 +796,9 @@ function validateProfileTier(tier, combined) {
     if (!hasProfileFile('07-用户文档与契约规范.md')) {
       err('[profile] profile-closed-loop requires 07-用户文档与契约规范.md')
     }
-    if (!hasProfileLifecycle(combined)) {
-      err('[profile] profile-closed-loop requires lifecycle wording for stable baseline, living document and conditional-required/local docs')
+    const lifecycle = inspectProfileLifecycle(combined)
+    for (const missing of lifecycle.missing) {
+      err(`[profile] profile-closed-loop lifecycle missing ${missing}`)
     }
   }
   validateCanonicalFeatureInventory(projectInfoText, inventoryResult)

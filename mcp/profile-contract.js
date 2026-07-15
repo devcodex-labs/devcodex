@@ -197,11 +197,26 @@ function inspectFeatureInventoryDocument(markdown, { requireV1 = false } = {}) {
   }
 }
 
-function hasProfileLifecycle(corpus) {
+function inspectProfileLifecycle(corpus) {
   const text = String(corpus || '')
-  return /stable baseline|稳定基线/i.test(text) &&
-    /living document|活文档/i.test(text) &&
-    /conditional|required|conditional-required|条件必需|条件\s*[\/]\s*本地|本地/i.test(text)
+  const result = {
+    stableBaseline: /\bstable[\s-]+baseline\b|稳定基线/i.test(text),
+    livingDocument: /\bliving[\s-]+documents?\b|活文档/i.test(text),
+    conditionalOrLocalDocs: /\bconditional(?:-required)?\s*(?:(?:\/|or|and)\s*)?local\s+docs?\b|条件(?:必需)?\s*(?:\/|或|和)\s*本地文档/i.test(text)
+  }
+  const missing = []
+  if (!result.stableBaseline) missing.push('stable-baseline')
+  if (!result.livingDocument) missing.push('living-document')
+  if (!result.conditionalOrLocalDocs) missing.push('conditional-or-local-docs')
+  return {
+    ...result,
+    missing,
+    valid: missing.length === 0
+  }
+}
+
+function hasProfileLifecycle(corpus) {
+  return inspectProfileLifecycle(corpus).valid
 }
 
 function inspectProfileContract(tier, availableFiles, corpus = '', documents = {}) {
@@ -266,6 +281,7 @@ module.exports = {
   parseMarkdownTables,
   inspectFeatureInventoryDocument,
   hasFeatureInventorySource,
+  inspectProfileLifecycle,
   hasProfileLifecycle,
   inspectProfileContract
 }

@@ -80,16 +80,20 @@ function buildBrandVisualQualityChecks(ctx) {
     }
 
     const profileRoot = path.join(ACTIVE_DEVCODEX_ROOT, 'profile')
-    for (const [file, needle] of [
-      ['01-项目信息.md', '77-Skill'],
-      ['04-测试规范.md', 'V97'],
-      ['06-功能清单.md', 'brand-visual-quality'],
-      ['07-用户文档与契约规范.md', '品牌视觉质量契约']
-    ]) {
-      const target = path.join(profileRoot, file)
-      if (!fs.existsSync(target) || !fs.readFileSync(target, 'utf8').includes(needle)) {
-        err(`[V97] active Profile missing ${needle}: ${file}`)
+    if (fs.existsSync(profileRoot)) {
+      for (const [file, needle] of [
+        ['01-项目信息.md', '77-Skill'],
+        ['04-测试规范.md', 'V97'],
+        ['06-功能清单.md', 'brand-visual-quality'],
+        ['07-用户文档与契约规范.md', '品牌视觉质量契约']
+      ]) {
+        const target = path.join(profileRoot, file)
+        if (!fs.existsSync(target) || !fs.readFileSync(target, 'utf8').includes(needle)) {
+          err(`[V97] active Profile missing ${needle}: ${file}`)
+        }
       }
+    } else {
+      console.log('[V97] active Profile corpus unavailable — repository consumers remain authoritative')
     }
     console.log('[V97] brand visual quality, runtime transition and Profile release authority controls checked')
   }

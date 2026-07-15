@@ -2,7 +2,12 @@
 'use strict'
 
 const assert = require('assert')
-const { classifyBrandVisualEvidence } = require('./lib/validate-brand-visual-quality')
+const fs = require('fs')
+const path = require('path')
+const {
+  buildBrandVisualQualityChecks,
+  classifyBrandVisualEvidence
+} = require('./lib/validate-brand-visual-quality')
 
 const complete = {
   masterLineage: true,
@@ -19,4 +24,18 @@ assert.strictEqual(classifyBrandVisualEvidence({ ...complete, blockerDetected: t
 assert.strictEqual(classifyBrandVisualEvidence({ ...complete, reviewerVerdict: 'rejected' }), 'rejected')
 assert.strictEqual(classifyBrandVisualEvidence({ ...complete, blockerDetected: true, blockerResetComplete: true, reviewerVerdict: 'accepted' }), 'accepted')
 
-console.log('✓ brand visual quality positive, incomplete, rejected and blocker-reset fixtures passed')
+const root = path.resolve(__dirname, '..')
+const cleanCheckoutErrors = []
+const cleanCheckoutChecks = buildBrandVisualQualityChecks({
+  ROOT: root,
+  ACTIVE_DEVCODEX_ROOT: path.join(root, '.nonexistent-active-root'),
+  fs,
+  path,
+  read: file => fs.readFileSync(file, 'utf8'),
+  err: message => cleanCheckoutErrors.push(message),
+  console: { log() {} }
+})
+cleanCheckoutChecks.checkV97()
+assert.deepStrictEqual(cleanCheckoutErrors, [], 'clean checkout without active Profile must use repository consumers')
+
+console.log('✓ brand visual quality positive, incomplete, rejected, blocker-reset and clean-checkout fixtures passed')

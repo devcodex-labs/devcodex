@@ -42,6 +42,7 @@ description: 执行契约规范 — 为长流程、多文件、Auto 或控制面
 | `publisherCredentialTopology` | 条件 | 首次发布或发布身份/仓库/package/registry/auth topology 变化时，引用 `PublisherCredentialTopologyGate`；只记录身份、scope/access/permission/ownership/成功证据，不含 secret value |
 | `currentBatchScopeDiff` | 条件 | 多阶段/多批次 dev/fix 必填；比较 total phase scope、allowedFirstBatch、当前 batch、blockedScope 与本次 diff |
 | `validationConsumerRebind` | 条件 | 新增 root script、CI job、validator、deploy copy 或 consumer 时必填；把 allowedPaths、TestRoute、rollback 与 consumerScope 重新绑定 |
+| `turnLivenessContract` | 条件 | 长任务、工具完成后无续接、宿主停滞或跨轮次恢复时必填；引用 `ai-agent-system-architecture` 的状态/lease/ACK/terminal/checkpoint 契约与能力边界 |
 
 ## 偏离分级
 
@@ -63,6 +64,10 @@ description: 执行契约规范 — 为长流程、多文件、Auto 或控制面
 - `execution-contract` 只提供可复审契约，不豁免 S01~S07、C01、C10、C18。
 - Auto 修改路径必须同时满足静态白名单和当前 Contract 的 `allowedPaths`。
 - Contract 缺少 `allowedPaths`、`requiredArtifacts` 或 `validationRoute` 时，不得进入无人值守执行。
+
+## Turn Liveness 条件契约
+
+命中长任务或宿主停滞时，ExecutionContract 只引用 `ai-agent-system-architecture#TurnLivenessRecoveryGate`，并补充本任务的 `allowedRecoveryActions / forbiddenRecoveryActions / checkpointOwner / idempotencyEvidence / hostCapability / sidecarLifecycle / recoveryValidation`。默认允许状态观察、恢复卡和用户可见诊断；默认禁止自动重放 mutation、修改宿主私有 thread store、终止未知/用户进程或把 Hook-only 检测描述为无事件 watchdog。sidecar 若未积累前瞻证据必须保持 gray，并写 trial/rollback 条件。
 
 ## DualLayerRepairCollaborationContract
 

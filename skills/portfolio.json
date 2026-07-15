@@ -5,7 +5,7 @@
   "generatedFrom": {
     "skillsPattern": "skills/*/SKILL.md",
     "registry": "plugin.json",
-    "sourceDigest": "ba0eda1cb0f4ec84d37ef9a5de8571240b8cbd3c929a8e711632838e2c1e9f7a",
+    "sourceDigest": "21291aea143b626fa45514ae7140c196427fdb40489b3b993dc753a80d78201d",
     "pluginDigest": "249bae2e62d3eebe6f70a19f4c70bc5071169dac23395a5d80a891139d7046b1",
     "portfolioEvidence": "skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "6a8d955709cea0d06cb863b833d5deb4630c3924021ac5bf6286f2dbb626dc2e"
@@ -567,7 +567,7 @@
         "skills/ai-agent-system-architecture/SKILL.md"
       ],
       "source": "skills/ai-agent-system-architecture/SKILL.md",
-      "hash": "2c881849061fdb6469424c43efa5d499627dfd3ab6856af32ed30ae4589ea103",
+      "hash": "dc85e43e95c0e67d247e125992cfcf475a55d95a1cbc7d8286334e8a1eba77d7",
       "version": "1.14.0",
       "lifecycleState": "active",
       "dependencies": [],
@@ -608,6 +608,10 @@
         },
         {
           "path": "scripts/lib/validate-governance-expert.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/validate-turn-liveness-controls.js",
           "role": "current"
         },
         {
@@ -6675,7 +6679,7 @@
         "skills/execution-contract/SKILL.md"
       ],
       "source": "skills/execution-contract/SKILL.md",
-      "hash": "95c16e0edf76530c9197b15fe1290d32bdce76b00033a0590e2b7892b9e56d4f",
+      "hash": "7f9fb0d41effd00307cb2ef6d5393c4ab96cc0ecd5c0bc2ee187f080aa34d388",
       "version": "1.14.0",
       "lifecycleState": "active",
       "dependencies": [],
@@ -6768,6 +6772,10 @@
         },
         {
           "path": "scripts/lib/validate-residual-absorption-controls.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/validate-turn-liveness-controls.js",
           "role": "current"
         },
         {
@@ -7572,7 +7580,7 @@
         "skills/host-contract-verification/SKILL.md"
       ],
       "source": "skills/host-contract-verification/SKILL.md",
-      "hash": "e2b48cbb1b1bb6e10f4075bb76444c5781c0e9f8a771b414afbb3f49d3bd9eb9",
+      "hash": "cf398bd46d49b7a34304b00c495db2abd69185acec994931d27dfd2b15027c8d",
       "version": "1.14.0",
       "lifecycleState": "active",
       "dependencies": [],
@@ -7633,6 +7641,10 @@
         },
         {
           "path": "scripts/lib/validate-rework-trust-controls.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/validate-turn-liveness-controls.js",
           "role": "current"
         },
         {
@@ -8605,6 +8617,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/check-turn-liveness.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/instruction-fallback-check.js",
           "role": "current"
         },
@@ -9396,6 +9412,10 @@
         },
         {
           "path": "scripts/lib/validate-residual-absorption-controls.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/validate-turn-liveness-controls.js",
           "role": "current"
         },
         {
@@ -10782,7 +10802,7 @@
         "skills/report/SKILL.md"
       ],
       "source": "skills/report/SKILL.md",
-      "hash": "a006e9d1588876c266e5bb9877bd5c4e8bbd5fe2f0cc1622e72aa488059d0467",
+      "hash": "3840c116505f2fc87fc4eeb5968122597f2dffa55cce533a1aa8c860b153fd84",
       "version": "1.14.0",
       "lifecycleState": "active",
       "dependencies": [],
@@ -11137,6 +11157,10 @@
         },
         {
           "path": "scripts/lib/validate-rework-trust-controls.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/validate-turn-liveness-controls.js",
           "role": "current"
         },
         {
@@ -11562,7 +11586,7 @@
         "skills/rework-prevention-engineering/SKILL.md"
       ],
       "source": "skills/rework-prevention-engineering/SKILL.md",
-      "hash": "112f96a3dbe82f4fc194fca05f84d85f38e484f7102cf365186f8f02dee6467a",
+      "hash": "0352d3f598bdae45a0bd3c3869bf4ed90ad0edc9e1b247b95945487afb333db4",
       "version": "1.14.0",
       "lifecycleState": "gray",
       "dependencies": [],
@@ -11582,6 +11606,10 @@
           "role": "historical"
         },
         {
+          "path": "changelogs/unreleased.md",
+          "role": "current"
+        },
+        {
           "path": "plugin.json",
           "role": "current"
         },
@@ -11599,6 +11627,10 @@
         },
         {
           "path": "scripts/lib/validate-rework-trust-controls.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/validate-turn-liveness-controls.js",
           "role": "current"
         },
         {
@@ -11623,7 +11655,7 @@
         "registration": "plugin.json",
         "operationalReadiness": {
           "state": "complete",
-          "currentConsumer": "plugin.json",
+          "currentConsumer": "changelogs/unreleased.md",
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
@@ -12963,6 +12995,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/validate-turn-liveness-controls.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-control-plane-module-contracts.js",
           "role": "current"
         },
@@ -13446,7 +13482,7 @@
         "skills/test-router/SKILL.md"
       ],
       "source": "skills/test-router/SKILL.md",
-      "hash": "3b725c195c82fa34e823463227c389cbb49d769e7d917d67d03d7797f0c3ade9",
+      "hash": "8529c3c1f17f7bf18d2835c60304851b21c3e8532d12911dd2af1812755de46a",
       "version": "1.14.0",
       "lifecycleState": "active",
       "dependencies": [],
@@ -13627,6 +13663,10 @@
         },
         {
           "path": "scripts/lib/validate-rework-trust-controls.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/validate-turn-liveness-controls.js",
           "role": "current"
         },
         {

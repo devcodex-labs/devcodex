@@ -1,0 +1,24 @@
+{
+  "activeProject": "devcodex-v1",
+  "activeScope": "project",
+  "turnLiveness": {
+    "schemaVersion": 1,
+    "state": "awaiting-continuation",
+    "turnKey": "gray-sidecar-fixture",
+    "eventSequence": 3,
+    "startedAt": "2026-01-01T00:00:00.000Z",
+    "lastEventType": "PostToolUse",
+    "lastEventAt": "2026-01-01T00:00:01.000Z",
+    "lastToolCallId": "fixture-tool",
+    "lastToolOutputAt": "2026-01-01T00:00:01.000Z",
+    "continuationAckAt": "",
+    "inFlightOperation": null,
+    "checkpoint": {
+      "phase": "tool-output-persisted",
+      "artifactPaths": [],
+      "nextAction": "await continuation ACK",
+      "resumeToken": "fixture-resume",
+      "idempotencyKey": "fixture-idem"
+    }
+  }
+}

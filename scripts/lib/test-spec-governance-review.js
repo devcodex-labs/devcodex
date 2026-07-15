@@ -187,8 +187,8 @@ function runSpecGovernanceReviewSuite(ctx) {
   const presentProfileCorpus = collectActiveProfileCorpusIfAvailable(
     { existsSync: () => true }, path, '/workspace/.devcodex', file => path.basename(file)
   )
-  if (!presentProfileCorpus.includes('01-项目信息.md') || !presentProfileCorpus.includes('02-架构约束.md')) {
-    failures.push('checkV80 present Profile corpus must include both required sources')
+  if (!presentProfileCorpus.includes('01-项目信息.md') || !presentProfileCorpus.includes('02-架构约束.md') || !presentProfileCorpus.includes('06-功能清单.md')) {
+    failures.push('checkV80 present Profile corpus must include required and closed-loop feature sources')
   }
   for (const [file, needle] of [
     ['scripts/lib/validate-governance-review.js', 'checkV80'],

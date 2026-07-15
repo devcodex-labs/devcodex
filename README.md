@@ -40,6 +40,7 @@ DevCodex 通过 `.github/`（Copilot）、`CLAUDE.md + .claude/ + .mcp.json`（C
 - **自动报告**: 每次会话自动写入报告，从不询问 — 直接执行
 - **安全底线**: S01~S07 七条不可覆盖的安全规则
 - **宿主生命周期护栏**: Claude Code 与 OpenAI Codex 在已支持的 Hook 事件上提供 runtime 护栏；Copilot / JetBrains / Cursor 等无等价本地 Hook 时降级为 instruction-fallback；默认 `safety-only` 仅对危险命令硬拦，流程项提醒放行，`strict` 模式才升级可阻断事件
+- **长任务 Turn Liveness**: `TurnLivenessRecoveryGate` 记录 `running / awaiting-continuation / suspect / stalled-recoverable / terminal` 状态、工具租约、continuation ACK 与恢复检查点；Hook 只能在事件到达时判断历史停滞，不能自行唤醒宿主、重放写操作或把 `PostToolUse` 当成任务完成
 - **全模式入口检查**: 所有模式在实质任务前显示 PC0~PC7；dev 模式额外执行 PC4 规范雷达与完整合规链
 - **项目现实扩展**: 先做语义意图初判，再结合目标项目 Profile、目录与当前任务上下文修正最终路由、产物落点和验证方式
 - **可配置并发策略**: Profile `config.json` 可配置 `extensions.devcodex.concurrency`；默认 `auto` 表示只读准备和隔离验证可并行、共享状态写入保持单写者，保守项目可设为 `serial`
@@ -497,6 +498,12 @@ DevCodex Hook runtime 不再把所有拦截都等同为“停止”。拦截会�
 7. **不知道该跑哪个诊断命令**
    - `devcodex doctor` 看宿主 / Hook / Profile / 记忆状态
    - `devcodex help` 看 CLI 子命令与参数说明
+8. **长任务在工具输出后看起来一直挂着**
+   - `PostToolUse` 只表示工具返回，Turn Liveness 会先进入 `awaiting-continuation`；120 秒后记为 `suspect`，300 秒后记为 `stalled-recoverable`
+   - 有后续 Hook 事件时，runtime 会基于 checkpoint 生成一次性 `TurnRecoveryCard`；宿主没有继续派发事件时，Hook 本身无法主动唤醒任务
+   - 工具或 Agent 仍持有有效长租约时不会按 120/300 秒误判；任何恢复都不得自动重放未知副作用的写操作
+   - gray sidecar 可执行 `npm run check:turn-liveness -- --state <lifecycle-state.json> --json`；安装包消费者可直接运行 `node node_modules/@vextjs/devcodex/scripts/check-turn-liveness.js --state <lifecycle-state.json> --json`
+   - sidecar 只做一次读取和分类，不 watch、不写状态、不唤醒宿主、不重放操作、不控制进程；输出 `sidecar-observed` 不能冒充 `host-native-verified`
 
 ## IDE 兼容性
 

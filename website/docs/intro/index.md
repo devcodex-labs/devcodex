@@ -48,6 +48,7 @@ npx @vextjs/devcodex init --codex
 | 规范随代码版本化 | 用版本文档管理规范演进与实现边界 |
 | 跨项目复用 | 通过 `devcodex init` 安装到目标项目，并用 `update` 同步受管规范 |
 | 多宿主一致入口 | Copilot、Claude Code 与 Codex 共用同一规范源，分别落到 `.github/`、`CLAUDE.md + .claude/`、`AGENTS.md + .agents/ + .codex/`；Hook 能力按宿主/事件降级，并按官方输出契约区分顶层 block、`continue:false` 与工具级 deny |
+| 长任务停滞可诊断 | `TurnLivenessRecoveryGate` 区分运行、等待续接、可疑、可恢复停滞与终态，记录工具租约、continuation ACK 和 checkpoint；Hook 只在事件到达时观察，不承诺自行唤醒宿主或自动重放写操作 |
 | 文件真相源优先 | `MemoryCannotSatisfyBootstrapGate` 要求宿主 Memories、模型长期偏好或交接卡只作为 `navigation-hint`，新线程 / resume / summary 恢复仍读取 Profile、tasks、reports 和源码 / 文档真相源 |
 | Profile 真相对账 | 项目级 analyze/audit 用 `ProfileTruthMatrix` 对照 Profile 声明与当前代码、配置、运行和发布事实；过期 Profile 不覆盖现实，只读工作流不直接改 Profile |
 | 双层修复协作契约 | 所有 repair task 至少形成轻量决策/验收层与执行/验证层；高风险升级完整契约和独立复证。模型名称、是否切换模型或 Agent 都不是触发条件 |

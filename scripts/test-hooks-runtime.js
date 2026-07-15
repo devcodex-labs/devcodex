@@ -10,6 +10,7 @@ const { buildTestHooksRuntimeFixtures } = require('./lib/test-hooks-runtime-fixt
 const { runHooksRuntimeBootstrapLayoutScenarios } = require('./lib/test-hooks-runtime-bootstrap-layout')
 const { runHooksRuntimeVisibilityScenarios } = require('./lib/test-hooks-runtime-visibility')
 const { runHooksRuntimeGovernanceIntakeScenarios } = require('./lib/test-hooks-runtime-governance-intake')
+const { DEFAULT_THRESHOLDS } = require('../hooks/_runtime/lifecycle-turn-liveness.cjs')
 
 const ROOT = path.resolve(__dirname, '..')
 const RUNTIME = path.join(ROOT, 'hooks', '_runtime', 'lifecycle.cjs')
@@ -91,6 +92,68 @@ function main() {
   runHooksRuntimeBootstrapLayoutScenarios(runtimeScenarioContext)
   runHooksRuntimeGovernanceIntakeScenarios(runtimeScenarioContext)
   runHooksRuntimeVisibilityScenarios(runtimeScenarioContext)
+
+  // ISSUE-043 P0: blocked tools never receive a lease; successful tool output
+  // becomes awaiting-continuation and a later process invocation rehydrates a
+  // stale turn into a single recovery card before starting the new turn.
+  cleanState()
+  run({ hookEventName: 'UserPromptSubmit', session_id: 'blocked-turn', prompt: 'liveness blocked tool test' })
+  run({
+    hookEventName: 'PreToolUse',
+    tool_use_id: 'blocked-tool',
+    tool_name: 'Bash',
+    tool_input: { command: 'git reset --hard' }
+  })
+  let livenessState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(livenessState.turnLiveness.inFlightOperation, null)
+
+  cleanState()
+  run({ hookEventName: 'UserPromptSubmit', session_id: 'liveness-turn-1', prompt: 'liveness replay test' })
+  runBootstrapReads()
+  run({
+    hookEventName: 'PreToolUse',
+    tool_use_id: 'liveness-tool-1',
+    tool_name: 'read_file',
+    tool_input: { filePath: 'src/liveness.js' }
+  })
+  livenessState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(livenessState.turnLiveness.inFlightOperation.operationId, 'liveness-tool-1')
+  assert.strictEqual(livenessState.turnLiveness.state, 'running')
+
+  run({
+    hookEventName: 'PostToolUse',
+    tool_use_id: 'liveness-tool-1',
+    tool_name: 'read_file',
+    tool_input: { filePath: 'src/liveness.js' },
+    success: true
+  })
+  livenessState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(livenessState.turnLiveness.state, 'awaiting-continuation')
+  assert.strictEqual(livenessState.turnLiveness.inFlightOperation, null)
+  const staleAt = new Date(Date.now() - DEFAULT_THRESHOLDS.stalledAfterMs - 1000).toISOString()
+  livenessState.turnLiveness.lastToolOutputAt = staleAt
+  livenessState.turnLiveness.lastEventAt = staleAt
+  fs.writeFileSync(STATE_FILE, JSON.stringify(livenessState, null, 2))
+
+  const recoveredTurn = run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: 'liveness-turn-2',
+    prompt: 'resume stalled liveness turn'
+  })
+  assert.match(JSON.stringify(recoveredTurn), /TurnRecoveryCard/)
+  livenessState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(livenessState.turnLiveness.turnKey, 'liveness-turn-2')
+  assert.strictEqual(livenessState.turnLiveness.previousTurn.terminalState, 'interrupted')
+  assert.strictEqual(livenessState.turnLiveness.lastRecoveryCard.priorState, 'stalled-recoverable')
+  const recoveredNoticeKey = livenessState.turnLiveness.lastRecoveryNoticeKey
+
+  run({ hookEventName: 'PreCompact', session_id: 'liveness-turn-2' })
+  livenessState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(livenessState.turnLiveness.lastRecoveryNoticeKey, recoveredNoticeKey)
+  run({ hookEventName: 'Stop', session_id: 'liveness-turn-2', success: true })
+  livenessState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(livenessState.turnLiveness.state, 'completed')
+  assert.strictEqual(livenessState.turnLiveness.inFlightOperation, null)
 
   // Auto v1.1: explicit @devcodex-auto or explicit natural-language auto authorization
   // writes executionMode=auto; in safety-only mode, non-whitelisted paths warn instead

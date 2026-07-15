@@ -74,6 +74,7 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 - dev/fix 改变项目现实且命中 Profile 影响时写 `ProfileImpactCheck`。
 - 只有正式 release workflow 才写 `ReleaseVerification`。
 - 所有非空用户消息保留 `GovernanceIntakeDecision`；未命中台账写入时也要给出独立 `skipEvidence`。
+- 命中 `agent-turn-liveness` 时写 `TurnLivenessRecovery`：只引用 Owner 的状态/lease/ACK/terminal/checkpoint、HostContractRoute、fault matrix 与 sidecar lifecycle 证据；必须区分 host-native、Hook-event 和 sidecar，不能把 PostToolUse 落盘冒充模型续接或终态。
 
 最终回复是独立交付 surface：在“本次会话产物”中列 active task 主要产物；supporting/runtime 产物按组给数量和完整 manifest 入口。可见回复证据使用 `verified-present / verified-missing / unverified`，不可观察时不得断言缺失。
 

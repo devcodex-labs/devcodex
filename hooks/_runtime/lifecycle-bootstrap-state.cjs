@@ -28,7 +28,9 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     INTERCEPTION_ACTION,
     noopOutput,
     emptyGovernanceIntakeState,
-    normalizeGovernanceIntakeState
+    normalizeGovernanceIntakeState,
+    createTurnLivenessState,
+    normalizeTurnLivenessState
   } = ctx
 
   function buildScopedNeedles(scopeRoot, segments) {
@@ -103,6 +105,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       },
       cp3Runtime: {},
       governanceIntake: emptyGovernanceIntakeState(),
+      turnLiveness: createTurnLivenessState(),
       mutated: false,
       reportTouched: false,
       memoryTouched: false,
@@ -138,6 +141,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       stickyProject: { ...current.stickyProject, ...(saved.stickyProject || {}), ...(metaState?.stickyProject || {}) },
       cp3Runtime: { ...current.cp3Runtime, ...(saved.cp3Runtime || {}) },
       governanceIntake: normalizeGovernanceIntakeState(saved.governanceIntake),
+      turnLiveness: normalizeTurnLivenessState(saved.turnLiveness),
       dangerousApprovals: { ...current.dangerousApprovals, ...(saved.dangerousApprovals || {}) }
     }
   }
@@ -170,6 +174,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     state.stickyProject = { ...state.stickyProject, ...(previousState?.stickyProject || {}) }
     state.cp3Runtime = { ...(previousState?.cp3Runtime || {}) }
     state.governanceIntake = normalizeGovernanceIntakeState(previousState?.governanceIntake)
+    state.turnLiveness = normalizeTurnLivenessState(previousState?.turnLiveness)
     state.dangerousApprovals = { ...(previousState?.dangerousApprovals || {}) }
     saveState(state)
     return state

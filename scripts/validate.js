@@ -29,11 +29,7 @@
  * V25~V27 ECR/RecordRouter/SCV 与 active-root 落点边界语义
  * V28 Support skills / progress / release verification sync（五个支撑型 Skill、进度强触发与资产计数）
  * V29 Hook visible reply / sticky project / intent expansion sync（Stop 三态、workspace profile 路径、意图扩展摘要）
- * V30~V34 规范资产漂移收敛（resume 顺序 / PC5 部署面 / audit-state / audit 收敛 / contributing 模板）
- * V35 Concept Sync Map sync（真相源、当前消费者、历史镜像、探针、部署副本、黄色偏离）
- * V36 Host contract verification sync（宿主契约验证路线、HostContractRoute、报告证据）
- * V37 Namespace safety / CLI protection / deterministic test chain（容器命名空间、防 clobber、test:all 拆链）
- * V38 README authoring/review governance sync（README 用户视角写作、专项 review、targeted test 与消费者链）
+ * V30~V38 规范资产漂移、Concept Sync Map、Host contract、namespace/CLI 与 README 治理同步
  * V39 Governance improvement intake sync（全模式主动优化清单、统一回执、PI/PF 联动与强制探针）
  * V40 Profile local config sync（config.local schema、用户指定 env 引用、受控扩展位与本地 overlay 消费链）
  * V41 Requirement runtime artifact structure sync（recent requirements 的 01/04/05 运行时结构探针）
@@ -80,7 +76,7 @@
  * V92 项目工程与治理闭环优化（CI/coverage/checked-command/portfolio/runtime-state/manifest/docs）
  * V93 控制面模块化边界与探针注册表
  * V94 返工预防、审查/产物信任链与发布/配置/交互 Owner 子门禁
- * V95~V97 完整性、剩余吸纳与品牌视觉质量门禁
+ * V95~V98 完整性、剩余吸纳、品牌视觉质量与 Turn Liveness 门禁
  *
  * Exit: 0=OK, 1=error, 2=warnings only
  */
@@ -110,6 +106,7 @@ const { buildReworkTrustControlChecks } = require('./lib/validate-rework-trust-c
 const { buildConsumerEvolutionControlChecks } = require('./lib/validate-consumer-evolution-controls')
 const { buildResidualAbsorptionControlChecks } = require('./lib/validate-residual-absorption-controls')
 const { buildBrandVisualQualityChecks } = require('./lib/validate-brand-visual-quality')
+const { buildTurnLivenessControlChecks } = require('./lib/validate-turn-liveness-controls')
 const { buildGovernanceSupportChecks } = require('./lib/validate-governance-support')
 const { resolveActiveRuntimeRoot } = require('../hooks/_runtime/workspace-layout.cjs')
 const ROOT = path.resolve(__dirname, '..')
@@ -295,6 +292,7 @@ const reworkTrustChecks = buildReworkTrustControlChecks({ ROOT, fs, path, read, 
 const consumerEvolutionChecks = buildConsumerEvolutionControlChecks({ ROOT, fs, path, read, err, console })
 const residualAbsorptionChecks = buildResidualAbsorptionControlChecks({ ROOT, fs, path, read, err, console })
 const brandVisualQualityChecks = buildBrandVisualQualityChecks({ ROOT, ACTIVE_DEVCODEX_ROOT, fs, path, read, err, console })
+const turnLivenessChecks = buildTurnLivenessControlChecks({ ROOT, ACTIVE_DEVCODEX_ROOT, fs, path, read, err, console })
 // V29~V38 moved to scripts/lib/validate-governance-mid.js
 // V39~V57 moved to scripts/lib/validate-governance-tail.js
 
@@ -307,7 +305,7 @@ function checkV7b() {
     err(`[V7b] instruction-fallback smoke test failed${detail ? `: ${detail}` : ''}`)
   }
 }
-const expectedProbeIds = Array.from({ length: 97 }, (_, index) => `V${index + 1}`)
+const expectedProbeIds = Array.from({ length: 98 }, (_, index) => `V${index + 1}`)
 const probeRegistry = createProbeRegistry([
   { owner: 'core-contract', checks: Object.values(coreChecks) },
   { owner: 'package-deployment', checks: Object.values(packageChecks) },
@@ -325,7 +323,8 @@ const probeRegistry = createProbeRegistry([
   { owner: 'rework-trust-controls', checks: Object.values(reworkTrustChecks), dependencies: { V94: ['V29', 'V39', 'V73', 'V91', 'V93'] } },
   { owner: 'consumer-evolution-controls', checks: Object.values(consumerEvolutionChecks), dependencies: { V95: ['V73', 'V85', 'V91', 'V93', 'V94'] } },
   { owner: 'residual-absorption-controls', checks: Object.values(residualAbsorptionChecks), dependencies: { V96: ['V73', 'V91', 'V93', 'V94', 'V95'] } },
-  { owner: 'brand-visual-quality', checks: Object.values(brandVisualQualityChecks), dependencies: { V97: ['V73', 'V92', 'V93', 'V94', 'V96'] } }
+  { owner: 'brand-visual-quality', checks: Object.values(brandVisualQualityChecks), dependencies: { V97: ['V73', 'V92', 'V93', 'V94', 'V96'] } },
+  { owner: 'turn-liveness', checks: Object.values(turnLivenessChecks), dependencies: { V98: ['V36', 'V73', 'V94', 'V96'] } }
 ], { expectedIds: expectedProbeIds })
 
 runProbeRegistry(probeRegistry, {

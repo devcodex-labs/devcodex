@@ -26,7 +26,7 @@ applyTo: ".devcodex/**/reports/audit/**, .devcodex/**/reports/self-fix/**"
 > **ReviewCoverageDelta**: ✅已核验 / ⚠️缺失 / N/A（说明）
 > **ReviewDimensionDeltaGate**: ✅已核验 / ⚠️缺失 / N/A（说明）
 > **PCV状态**: ✅已完成 / 🔄进行中
-> **控制面证据**: Concept Sync Map / HostContractVerification / SCV / 新增探针 / 黄色偏离 / 部署同步（按适用填写）
+> **控制面证据**: Concept Sync Map / HostContractVerification / TurnLivenessRecovery / SCV / 新增探针 / 黄色偏离 / 部署同步（按适用填写）
 ```
 
 ## §1 审查轮次摘要

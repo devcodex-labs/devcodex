@@ -10,6 +10,7 @@
 
 ### 2026-07-15
 
+- 实施 ISSUE-043 的 Turn Liveness P0/P1/P2：新增状态机、工具 lease、continuation ACK、checkpoint、`TurnRecoveryCard` 与跨重启重放，接入 `ai-agent-system-architecture` / `host-contract-verification` / `execution-contract` / `rework-prevention-engineering` / TestRoute / report / prompts / Profile，并以 V98、runtime replay、gray sidecar zero-write 与 package fixture 守门；Hook 仅具备事件到达时的历史停滞识别能力，sidecar 保持 one-shot gray，禁止自动唤醒、状态写入、进程控制和未知副作用重放。
 - 新增 gray `brand-visual-quality` 与 `BrandVisualQualityGate`，覆盖 MasterLineage、ThemeGeometryParity、MicroOpticalVariant、MonoMaster、VisualEvidencePack、VisualBlockerReset；以 V97 正负 fixture 和独立前向试用守门，未形成真实 WorkUnit 前不晋级 active。
 - `RuntimeStateTransitionProjectionGate` 将 append-only 历史迁移、当前权威投影、低权威 consumer drift 和真正 `CONFLICTING_CURRENT_STATE` 分离，保留 schema v1/read-only 兼容并降低 strict conflict 噪声。
 - `ProfileReleaseTruthAuthorityMatrixGate` 以 package/plugin 为 DevCodex release authority，对账 project 01/05/07 与 workspace current claim；历史 release/versioned docs 不被批量误判。

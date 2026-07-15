@@ -70,6 +70,12 @@ description: 返工预防工程 Owner — 当任务涉及返工率、一次通�
 
 发布候选因普通 working diff 未覆盖 untracked 文件而逃逸时，将 `CandidateDiffCompletenessGate` 作为 gray prevention：`defectRootCause` 记录文件缺陷，`controlFailure` 记录候选证据范围错误，`escapedFrom` 与 `detectedAt` 分离；当前事件的 staged rerun 仅关闭本事件，后续可比较发布 WorkUnit 才能形成 prospective effectiveness evidence。
 
+### Turn Liveness Prevention Trial
+
+`long-task-silent-orphaned-turn` 簇以 `OrphanInProgressCount / MeanStaleDetectionTime / RecoverySuccessRate / FalseStallRate / DuplicateMutationRate / UserWaitWithoutFeedback` 为效果指标。控制层由 `ai-agent-system-architecture` 的 `TurnLivenessRecoveryGate`、Hook replay 和可选 gray sidecar 组成；当前停滞案例修复通过只关闭本 WorkUnit，不能证明防复发有效。
+
+sidecar 晋级至少需要 5 个可比较长任务 WorkUnit，包含 2 个真实长工具和 2 个故障注入样例，并记录误报、额外状态 I/O 和恢复成本。误报超过项目预算、重复 mutation 非零或宿主边界不清时，回退为提示-only/one-shot，保留 checkpoint 和 terminal invariant。
+
 ## 生命周期与授权
 
 新控制按 `draft → gray → active` 管理，复用 `skill-lifecycle-governance`；规范候选与自动化复用 `evolution-governance` 的 candidate-only 授权。返工率目标不得授权 AI 自动修改 active 规范、源码、数据或发布面。
@@ -81,6 +87,7 @@ description: 返工预防工程 Owner — 当任务涉及返工率、一次通�
 - `evolution-governance`：管理候选、gray 试点、升级、回滚和授权。
 - `spec-absorption`：执行 ReworkReductionValueGate 与消费者证明。
 - `brand-visual-quality`：提供品牌资产 WorkUnit、`VisualBlockerResetRecord`、复发和人工修正数据；当前资产修复通过只关闭该 WorkUnit，仍需后续可比较样本才能证明返工预防有效。
+- `ai-agent-system-architecture` / `host-contract-verification`：提供 Turn Liveness 状态、能力边界和 direct replay；返工 Skill 只拥有前瞻效果评估，不复制运行时状态机。
 - `report`：输出 baseline、事件分类、效果和剩余风险。
 
 ## 反模式

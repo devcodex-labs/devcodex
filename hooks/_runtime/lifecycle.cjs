@@ -21,6 +21,15 @@ const { buildLifecycleHookOutput } = require('./lifecycle-hook-output.cjs')
 const { buildLifecycleNamespaceStateUtils } = require('./lifecycle-namespace-state.cjs')
 const { buildLifecyclePayloadUtils } = require('./lifecycle-payload-utils.cjs')
 const { buildLifecycleProjectTargetUtils } = require('./lifecycle-project-target.cjs')
+const {
+  completeToolLease,
+  createTurnLivenessState,
+  formatTurnRecoveryMessage,
+  markTurnTerminal,
+  normalizeTurnLivenessState,
+  observeTurnEvent,
+  startToolLease
+} = require('./lifecycle-turn-liveness.cjs')
 const { buildLifecycleVisibleReplyUtils } = require('./lifecycle-visible-reply.cjs')
 const {
   collectWorkspaceProjectNamespaces,
@@ -428,7 +437,9 @@ const {
   INTERCEPTION_ACTION,
   noopOutput,
   emptyGovernanceIntakeState,
-  normalizeGovernanceIntakeState
+  normalizeGovernanceIntakeState,
+  createTurnLivenessState,
+  normalizeTurnLivenessState
 })
 
 // ─── CP Gate ─────────────────────────────────────────────────────────────────
@@ -1002,11 +1013,19 @@ async function main() {
       contextRoot: CONTEXT_ROOT
     })
   }
+  let livenessObservation = null
+  const livenessEventName = eventName || (getToolName(payload) ? 'PreToolUse' : '')
+  if (livenessEventName && livenessEventName !== 'UserPromptSubmit') {
+    livenessObservation = observeTurnEvent(state.turnLiveness, livenessEventName, payload)
+    state.turnLiveness = livenessObservation.state
+  }
   state.lastEvent = eventName || state.lastEvent
 
   // ── UserPromptSubmit ───────────────────────────────────────────────────────
   if (eventName === 'UserPromptSubmit') {
     state = resetState(mode, state)
+    livenessObservation = observeTurnEvent(state.turnLiveness, eventName, payload)
+    state.turnLiveness = livenessObservation.state
     applyPromptTarget(state, promptTarget, payload)
     state.governanceIntake = registerGovernanceIntakeCandidate(state.governanceIntake, prompt)
     state.executionMode = detectExecutionMode(payload, state, promptTarget)
@@ -1035,7 +1054,11 @@ async function main() {
     saveState(state)
     writeStdout(contextMessageOutput(
       'UserPromptSubmit',
-      [buildBootstrapMessage(), buildGovernanceIntakeContextMessage(state.governanceIntake)].filter(Boolean).join(' ')
+      [
+        buildBootstrapMessage(),
+        buildGovernanceIntakeContextMessage(state.governanceIntake),
+        formatTurnRecoveryMessage(livenessObservation.recoveryCard)
+      ].filter(Boolean).join(' ')
     ))
     return
   }
@@ -1076,6 +1099,7 @@ async function main() {
       if (isPureReadTool(payload) || isClarificationTool(payload)) {
         updateBootstrapState(state, payload)
         state.lastReason = 'bootstrap-read-or-clarification-allowed'
+        state.turnLiveness = startToolLease(state.turnLiveness, payload, getToolName(payload))
         saveState(state)
         writeStdout(noopOutput())
         return
@@ -1097,6 +1121,7 @@ async function main() {
     if (autoWhitelist && autoWhitelist.allowed) {
       state.lastReason = 'auto-whitelist-bypass'
       updateArtifactTouches(state, payload, platform)
+      state.turnLiveness = startToolLease(state.turnLiveness, payload, getToolName(payload))
       saveState(state)
       writeStdout(noopOutput())
       return
@@ -1135,6 +1160,7 @@ async function main() {
     }
 
     updateArtifactTouches(state, payload, platform)
+    state.turnLiveness = startToolLease(state.turnLiveness, payload, getToolName(payload))
     saveState(state)
     writeStdout(noopOutput())
     return
@@ -1149,6 +1175,7 @@ async function main() {
       toolName: getToolName(payload)
     })
     updateArtifactTouches(state, payload, platform)
+    state.turnLiveness = completeToolLease(state.turnLiveness, payload)
     saveState(state)
     writeStdout(noopOutput())
     return
@@ -1166,6 +1193,14 @@ async function main() {
         eventName === 'Stop'
           ? 'Complete the missing entry/compliance/artifact/memory/report items before ending.'
           : 'Persist missing state before compacting.'
+      )
+    }
+    if (eventName === 'Stop') {
+      const failed = payload.success === false || payload.is_error === true || payload.isError === true || !!payload.error
+      state.turnLiveness = markTurnTerminal(
+        state.turnLiveness,
+        failed ? 'error' : 'completed',
+        failed ? 'stop-event-error' : 'stop-event-completed'
       )
     }
     saveState(state)

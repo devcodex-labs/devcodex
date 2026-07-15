@@ -27,6 +27,7 @@ description: AI Agent 系统架构专家 Owner — 当任务涉及 Agent 路由�
 | `ToolPermissionBoundaryGate` | 工具权限、危险操作、确认和 fallback 必须明确 | toolPermissionBoundary |
 | `ContextMemoryStateGate` | 上下文恢复、记忆、handoff 和状态新鲜度必须设计 | contextMemoryModel |
 | `ReplayObservabilityGate` | 行为验证不能只靠文字说明，需 replay、fixture 或日志证据 | observabilityReplay |
+| `TurnLivenessRecoveryGate` | 长任务或工具输出后的 turn 必须用事件时间、AI-owned lease、continuation ACK、terminal invariant 与 checkpoint 区分运行、可疑、可恢复停滞和终态 | turnLivenessContract、TurnRecoveryCard、TurnLivenessEvidence |
 | `RepairCollaborationRoleBoundaryGate` | repair task 必须把决策/验收与执行/验证角色、授权证据、状态与独立复证设计清楚；模型或 Agent 名称不构成风险分类 | roleAssignments、authorizationEvidence、independentReReview |
 | `AgentCapabilityDomainCompletenessGate` | 声称完整/最终 Agent 架构或平台前先声明 completenessObject，并验证请求链、反馈链、横切面及适用产品/企业链 | agentCapabilityDomainMatrix |
 
@@ -41,6 +42,22 @@ description: AI Agent 系统架构专家 Owner — 当任务涉及 Agent 路由�
 | enterprise-saas | hosted-platform + organization、entitlement、usage/metering/billing、admin/ops、audit/compliance |
 
 每个适用能力域必须记录 `owner`、`publicPrivateBoundary`、`runtimeStatus`、`validationRoute`。较窄对象通过不能升级解释为较宽对象完整；报告使用“完整/最终/无需新增域”时，缺少 `completenessObject` 或任一适用域即判 incomplete。
+
+### TurnLivenessRecoveryGate
+
+当任务涉及长时间运行、工具完成后无续接、线程持续 `inProgress`、恢复或宿主停滞时，先冻结 `TurnLivenessContract`：
+
+| 字段 | 要求 |
+|---|---|
+| `stateModel` | 至少区分 `idle / running / awaiting-continuation / suspect / stalled-recoverable / completed / error / interrupted` |
+| `eventEvidence` | `turnKey / lastEventType / lastEventAt / lastToolOutputAt / continuationAckAt` |
+| `lease` | 只有已放行的 AI-owned operation 才能建立 lease；用户进程或未知 PID 不能作为可清理 lease |
+| `terminalInvariant` | tool output 不等于 turn 完成；显式 Stop/error/interruption 后必须清除 in-flight lease |
+| `checkpoint` | `phase / artifactPaths / nextAction / resumeToken / idempotencyKey`，恢复前必须验证幂等边界 |
+| `capabilityBoundary` | 分开记录 host-native watchdog、Hook event-time detection 与 read-only sidecar；Hook 无事件时不得宣称能自唤醒 |
+| `validation` | direct replay + no-continuation / active-lease / restart-rehydrate / duplicate-recovery fault matrix |
+
+默认 `awaiting-continuation` 可采用 120 秒 suspect / 300 秒 stalled advisory；慢模型推理和长工具必须由更长的 agent/operation lease 覆盖，不能机械套用 ACK 阈值。观察到 stale 只生成 `TurnRecoveryCard`；没有宿主授权与幂等复证时，禁止自动重放 mutation、kill/restart/interrupt/resume。
 
 ## 执行步骤
 
@@ -62,6 +79,7 @@ description: AI Agent 系统架构专家 Owner — 当任务涉及 Agent 路由�
 | contextMemoryModel | 上下文、记忆、handoff、summary、状态新鲜度 |
 | stateMachineHandoff | 状态机、恢复、阻塞、交接 |
 | observabilityReplay | replay、fixture、日志、validate 证据 |
+| turnLivenessContract | 状态、事件、lease、ACK、终态、checkpoint、能力边界与故障矩阵 |
 | humanInLoopBoundary | 用户确认、auto、人工复核和最终责任边界 |
 | evidenceMatrix | 判断 -> hook / runtime / report / memory / replay / tests |
 | agentCapabilityDomainMatrix | completenessObject -> domain -> owner / boundary / runtime / validation |
@@ -75,6 +93,7 @@ description: AI Agent 系统架构专家 Owner — 当任务涉及 Agent 路由�
 | 用 summary 覆盖文件真相源 | 遵循 Context Rehydration Contract |
 | 自动模式绕过危险确认 | 保留 S01/S06 等不可豁免底线 |
 | 行为变更无 replay | 补 direct/fixture replay 或等价 validate |
+| 把 Hook 状态写入当成无事件 watchdog | 明确 event-time detection 边界，并用宿主能力或 gray read-only sidecar补充观察 |
 
 ## 与其他 Skill 的关系
 

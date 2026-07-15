@@ -3,12 +3,15 @@
 const { buildGovernanceHelpers } = require('./validate-governance-helpers')
 
 function collectActiveProfileCorpusIfAvailable(fs, path, activeRoot, readFile) {
-  const files = [
+  const requiredFiles = [
     path.join(activeRoot, 'profile', '01-项目信息.md'),
     path.join(activeRoot, 'profile', '02-架构约束.md')
   ]
-  if (!files.every(file => fs.existsSync(file))) return null
-  return files.map(file => readFile(file)).join('\n')
+  if (!requiredFiles.every(file => fs.existsSync(file))) return null
+  const closedLoopFiles = ['06-功能清单.md', '07-用户文档与契约规范.md']
+    .map(name => path.join(activeRoot, 'profile', name))
+    .filter(file => fs.existsSync(file))
+  return requiredFiles.concat(closedLoopFiles).map(file => readFile(file)).join('\n')
 }
 
 function buildGovernanceReviewChecks(ctx) {

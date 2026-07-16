@@ -1,5 +1,8 @@
 'use strict'
 
+const PACKAGE_JSON = require('../../package.json')
+const { createCliFailure, createCliSuccess, parseJsonArgs, printCliJson } = require('./cli-json-contract.js')
+
 function buildCliMaintenanceCommands(ctx) {
   const {
     fs, os, path, process, console, c, SOURCES, CODEX_HOOK_COMMAND,
@@ -13,71 +16,139 @@ function buildCliMaintenanceCommands(ctx) {
     recommendProfileTier, compareProfileTiers, updateProfileTierDeclaration
   } = ctx
 
-  function cmdStatus() {
+  const cliMetadata = { packageName: PACKAGE_JSON.name, packageVersion: PACKAGE_JSON.version }
+
+  function parseDiagnosticCommandArgs(command, argv) {
+    const options = parseJsonArgs(argv)
+    if (!options.errors.length) return options
+    const usage = `Use: devcodex ${command} [--json]`
+    if (options.json) {
+      printCliJson(console, createCliFailure(
+        command,
+        'CLI_INVALID_OPTION',
+        options.errors.join('; '),
+        usage,
+        cliMetadata,
+        { options: (argv || []).filter(item => item !== '--json') }
+      ))
+    } else {
+      console.log(c.red(`  ${options.errors.join('; ')}`))
+      console.log(c.dim(`  ${usage}`))
+    }
+    process.exitCode = 2
+    return null
+  }
+
+  function collectStatusFacts() {
     const cwd = process.cwd()
     const ghDir = path.join(cwd, '.github')
-    const isSrc = isSourceRepo(cwd)
+    const sourceRepository = isSourceRepo(cwd)
+    const installSurfaces = SOURCES.map(({ to }) => {
+      const fileCount = walkDir(path.join(ghDir, to)).length
+      return { id: to, fileCount, installed: fileCount > 0 }
+    })
+    let trackedEntryFiles = installSurfaces.reduce((total, item) => total + item.fileCount, 0)
+
+    const rulesInstalled = fs.existsSync(path.join(ghDir, 'RULES.md'))
+    const copilotInstructionsInstalled = fs.existsSync(path.join(ghDir, 'copilot-instructions.md'))
+    const claudeMdInstalled = fs.existsSync(path.join(cwd, 'CLAUDE.md'))
+    const claudeHookFiles = walkDir(path.join(cwd, '.claude', 'hooks', '_runtime')).length
+    const claudeSkills = walkDir(path.join(cwd, '.claude', 'skills')).length
+    const agentsMdInstalled = fs.existsSync(path.join(cwd, 'AGENTS.md'))
+    const codexHookJsonInstalled = fs.existsSync(path.join(cwd, '.codex', 'hooks.json'))
+    const codexHookFiles = walkDir(path.join(cwd, '.codex', 'hooks', '_runtime')).length
+    const codexHookDiagnostics = readCodexHookCommands(cwd)
+    const agentsSkills = walkDir(path.join(cwd, '.agents', 'skills')).length
+    trackedEntryFiles += [
+      rulesInstalled,
+      copilotInstructionsInstalled,
+      claudeMdInstalled,
+      agentsMdInstalled,
+      codexHookJsonInstalled
+    ].filter(Boolean).length
+
+    const profileDir = resolveProfileDir(cwd)
+    const profileState = inspectProfileState(profileDir)
+    const legacy = getLegacyCounts(ghDir)
+    return {
+      schemaVersion: 'StatusDiagnosticV1',
+      cwd,
+      sourceRepository,
+      trackedEntryFiles,
+      installSurfaces,
+      entryFiles: {
+        rulesInstalled,
+        copilotInstructionsInstalled,
+        claudeMdInstalled,
+        claudeHookFiles,
+        claudeSkills,
+        agentsMdInstalled,
+        agentsSkills,
+        codexHookJsonInstalled,
+        codexHookFiles,
+        codexHookDiagnostics
+      },
+      profile: {
+        directory: profileDir,
+        tier: profileState.tier,
+        complete: profileState.complete,
+        error: profileState.error,
+        present: profileState.present,
+        total: profileState.total,
+        required: profileState.required,
+        semantic: profileState.semantic,
+        configExists: profileState.configExists,
+        featureInventory: profileState.featureInventory || null
+      },
+      legacy
+    }
+  }
+
+  function cmdStatus(argv = []) {
+    const options = parseDiagnosticCommandArgs('status', argv)
+    if (!options) return
+    const facts = collectStatusFacts()
+    if (options.json) {
+      printCliJson(console, createCliSuccess('status', facts, cliMetadata))
+      return facts
+    }
+
+    const {
+      cwd, sourceRepository: isSrc, trackedEntryFiles: total, installSurfaces,
+      entryFiles, profile, legacy
+    } = facts
     console.log()
     console.log(c.bold('  DevCodex status') + c.dim(` in ${cwd}`))
     if (isSrc) console.log(c.yellow('  ⚠️  Source repository detected — showing source repo status'))
     console.log(c.dim('  ──────────────────────────────────────'))
     console.log()
 
-    let total = 0
-    for (const { to } of SOURCES) {
-      const files = walkDir(path.join(ghDir, to))
-      total += files.length
-      const label = files.length > 0 ? c.green(`${files.length} files`) : c.red('not installed')
-      console.log(`  ${c.cyan(to.padEnd(14))} ${label}`)
+    for (const surface of installSurfaces) {
+      const label = surface.installed ? c.green(`${surface.fileCount} files`) : c.red('not installed')
+      console.log(`  ${c.cyan(surface.id.padEnd(14))} ${label}`)
     }
 
-    // Check RULES.md
-    const rulesInstalled = fs.existsSync(path.join(ghDir, 'RULES.md'))
-    if (rulesInstalled) total++
-    console.log(`  ${c.cyan('RULES.md'.padEnd(14))} ${rulesInstalled ? c.green('installed') : c.red('not installed')}`)
+    console.log(`  ${c.cyan('RULES.md'.padEnd(14))} ${entryFiles.rulesInstalled ? c.green('installed') : c.red('not installed')}`)
+    console.log(`  ${c.cyan('copilot-instr'.padEnd(14))} ${entryFiles.copilotInstructionsInstalled ? c.green('installed') : c.red('not installed')}`)
+    console.log(`  ${c.cyan('CLAUDE.md'.padEnd(14))} ${entryFiles.claudeMdInstalled ? c.green('installed') : c.red('not installed')}`)
+    console.log(`  ${c.cyan('.claude/hooks'.padEnd(14))} ${entryFiles.claudeHookFiles ? c.green(`${entryFiles.claudeHookFiles} files`) : c.red('not installed')}`)
+    console.log(`  ${c.cyan('.claude/skills'.padEnd(14))} ${entryFiles.claudeSkills ? c.green(`${entryFiles.claudeSkills} files`) : c.red('not installed')}`)
+    console.log(`  ${c.cyan('AGENTS.md'.padEnd(14))} ${entryFiles.agentsMdInstalled ? c.green('installed') : c.red('not installed')}`)
+    console.log(`  ${c.cyan('.agents/skills'.padEnd(14))} ${entryFiles.agentsSkills ? c.green(`${entryFiles.agentsSkills} files`) : c.red('not installed')}`)
+    console.log(`  ${c.cyan('.codex/hooks'.padEnd(14))} ${entryFiles.codexHookJsonInstalled && entryFiles.codexHookFiles ? c.green(`${entryFiles.codexHookFiles + 1} files`) : c.red('not installed')}`)
+    console.log(`  ${c.cyan('.codex command'.padEnd(14))} ${formatCodexHookCommandStatus(entryFiles.codexHookDiagnostics)}`)
 
-    // Check copilot-instructions.md
-    const ciInstalled = fs.existsSync(path.join(ghDir, 'copilot-instructions.md'))
-    if (ciInstalled) total++
-    console.log(`  ${c.cyan('copilot-instr'.padEnd(14))} ${ciInstalled ? c.green('installed') : c.red('not installed')}`)
-
-    // Check Claude Code adapter
-    const claudeMdInstalled = fs.existsSync(path.join(cwd, 'CLAUDE.md'))
-    const claudeHookFiles = walkDir(path.join(cwd, '.claude', 'hooks', '_runtime')).length
-    const claudeSkills = walkDir(path.join(cwd, '.claude', 'skills')).length
-    if (claudeMdInstalled) total++
-    console.log(`  ${c.cyan('CLAUDE.md'.padEnd(14))} ${claudeMdInstalled ? c.green('installed') : c.red('not installed')}`)
-    console.log(`  ${c.cyan('.claude/hooks'.padEnd(14))} ${claudeHookFiles ? c.green(`${claudeHookFiles} files`) : c.red('not installed')}`)
-    console.log(`  ${c.cyan('.claude/skills'.padEnd(14))} ${claudeSkills ? c.green(`${claudeSkills} files`) : c.red('not installed')}`)
-
-    // Check Codex adapter
-    const agentsMdInstalled = fs.existsSync(path.join(cwd, 'AGENTS.md'))
-    const codexHookJsonInstalled = fs.existsSync(path.join(cwd, '.codex', 'hooks.json'))
-    const codexHookFiles = walkDir(path.join(cwd, '.codex', 'hooks', '_runtime')).length
-    const codexHookDiagnostics = readCodexHookCommands(cwd)
-    const agentsSkills = walkDir(path.join(cwd, '.agents', 'skills')).length
-    if (agentsMdInstalled) total++
-    if (codexHookJsonInstalled) total++
-    console.log(`  ${c.cyan('AGENTS.md'.padEnd(14))} ${agentsMdInstalled ? c.green('installed') : c.red('not installed')}`)
-    console.log(`  ${c.cyan('.agents/skills'.padEnd(14))} ${agentsSkills ? c.green(`${agentsSkills} files`) : c.red('not installed')}`)
-    console.log(`  ${c.cyan('.codex/hooks'.padEnd(14))} ${codexHookJsonInstalled && codexHookFiles ? c.green(`${codexHookFiles + 1} files`) : c.red('not installed')}`)
-    console.log(`  ${c.cyan('.codex command'.padEnd(14))} ${formatCodexHookCommandStatus(codexHookDiagnostics)}`)
-
-    // Check profile state (legacy project root or workspace-namespace active root)
-    const profileDir = resolveProfileDir(cwd)
-    const profileState = inspectProfileState(profileDir)
     let profileLabel
-    const profileDetails = profileState.required
-      ? `files ${profileState.required.present}/${profileState.required.total}; semantic ${profileState.semantic.present}/${profileState.semantic.total}; config ${profileState.configExists ? 'present' : 'missing'}`
-      : `${profileState.present}/${profileState.total} checks`
-    if (profileState.error) profileLabel = c.red(`invalid   (${profileState.error})`)
-    else if (profileState.complete) profileLabel = c.green(`complete  (${profileState.tier}; ${profileDetails})`)
-    else if (profileState.present > 0) profileLabel = c.yellow(`partial   (${profileState.tier}; ${profileDetails})`)
+    const profileDetails = profile.required
+      ? `files ${profile.required.present}/${profile.required.total}; semantic ${profile.semantic.present}/${profile.semantic.total}; config ${profile.configExists ? 'present' : 'missing'}`
+      : `${profile.present}/${profile.total} checks`
+    if (profile.error) profileLabel = c.red(`invalid   (${profile.error})`)
+    else if (profile.complete) profileLabel = c.green(`complete  (${profile.tier}; ${profileDetails})`)
+    else if (profile.present > 0) profileLabel = c.yellow(`partial   (${profile.tier}; ${profileDetails})`)
     else profileLabel = c.red(`missing   (${profileDetails} — run: devcodex profile plan)`)
     console.log(`  ${c.cyan('profile'.padEnd(14))} ${profileLabel}`)
 
-    const legacyCounts = getLegacyCounts(ghDir)
-    for (const item of legacyCounts) {
+    for (const item of legacy) {
       const label = item.count > 0 ? c.yellow(`${item.count} files (legacy)`) : c.dim('not installed')
       console.log(`  ${c.cyan(item.label.padEnd(14))} ${label}`)
     }
@@ -95,11 +166,12 @@ function buildCliMaintenanceCommands(ctx) {
         console.log(c.dim('  (Source repo: these are development copies, not a target project installation)'))
       }
     }
-    const legacyPresent = legacyCounts.some(item => item.count > 0)
+    const legacyPresent = legacy.some(item => item.count > 0)
     if (legacyPresent) {
       console.log(c.yellow('  ⚠️  Legacy custom agent files detected. They are no longer part of the default installation set.'))
     }
     console.log()
+    return facts
   }
 
   function parseProfileInitArgs(argv) {
@@ -274,8 +346,7 @@ function buildCliMaintenanceCommands(ctx) {
     return { ok: true, dryRun: options.dryRun, detectedTier, recommendedTier: recommendation.tier, targetTier: tier, actions }
   }
 
-  function cmdDoctor() {
-    // v1.9.7+ P-001/P-004: runtime diagnostic for host detection & JetBrains verification
+  function collectDoctorFacts() {
     const cwd = process.cwd()
     const env = process.env
     const platformEvidence = detectHostPlatform(env, cwd)
@@ -304,6 +375,70 @@ function buildCliMaintenanceCommands(ctx) {
     else if (platform === 'vscode-copilot' && hasGithubHooks) mode = 'workspace-hooks detected (VS Code Copilot preview; verify target IDE)'
     else if (platform === 'jetbrains-copilot') mode = 'instruction-fallback (JetBrains — Hooks unsupported)'
     else if (platform === 'unknown' && installedHosts.length > 1) mode = 'mixed install (host unresolved; multiple adapters present)'
+
+    return {
+      schemaVersion: 'DoctorDiagnosticV1',
+      cwd,
+      platform,
+      platformSource: platformEvidence.source,
+      platformEvidence,
+      agent,
+      installedHosts,
+      mode,
+      enforcement: 'safety-only by default; strict blocks only host-supported events',
+      installArtifacts: {
+        hasGithubHooks,
+        hasClaudeHooks,
+        hasCodexHooksJson,
+        hasCodexHooks,
+        hasCopilotMd,
+        hasClaudeMd,
+        hasAgentsMd,
+        hasAgentsSkills,
+        hasInstructions
+      },
+      codexHookDiagnostics,
+      codexConfigState: {
+        hasUserConfig: codexConfigState.hasUserConfig,
+        hasWorkspaceConfig: codexConfigState.hasWorkspaceConfig
+      },
+      profile: {
+        directory: profileDir,
+        ...profileState,
+        featureInventory: profileState.featureInventory || null
+      },
+      capabilityBoundary: {
+        localOnly: true,
+        hookEvidence: 'event-dependent',
+        instructionFallback: true,
+        serverUrl: false,
+        auth: false,
+        tenant: false,
+        telemetry: false
+      }
+    }
+  }
+
+  function cmdDoctor(argv = []) {
+    // v1.9.7+ P-001/P-004: runtime diagnostic for host detection & JetBrains verification
+    const options = parseDiagnosticCommandArgs('doctor', argv)
+    if (!options) return
+    const facts = collectDoctorFacts()
+    if (options.json) {
+      printCliJson(console, createCliSuccess('doctor', facts, cliMetadata))
+      return facts
+    }
+    const {
+      cwd, platformEvidence, platform, agent, installedHosts, mode,
+      installArtifacts, codexHookDiagnostics, codexConfigState,
+      profile: profileState
+    } = facts
+    const {
+      hasGithubHooks, hasClaudeHooks, hasCodexHooksJson, hasCodexHooks,
+      hasCopilotMd, hasClaudeMd, hasAgentsMd, hasAgentsSkills, hasInstructions
+    } = installArtifacts
+    const profileDir = profileState.directory
+    const hasProfile = profileState.complete
 
     console.log()
     console.log(c.bold('  DevCodex Doctor') + c.dim(` v1.9.7+ — runtime diagnostics`))
@@ -405,8 +540,10 @@ function buildCliMaintenanceCommands(ctx) {
       ${c.cyan('migrate-layout')}    Plan/apply/rollback centralized .devcodex workspace layout
       ${c.cyan('profile init')}      Auto-generate tiered .devcodex/profile/ drafts
       ${c.cyan('profile plan')}      Preview Profile root/tier/file actions without writing
-      ${c.cyan('status')}            Show what DevCodex files are installed
-      ${c.cyan('doctor')}            Diagnose host platform / agent / mode (v1.9.7+)
+      ${c.cyan('status')}            Show installed files; add --json for StatusDiagnosticV1
+      ${c.cyan('doctor')}            Diagnose host/agent/mode; add --json for DoctorDiagnosticV1
+      ${c.cyan('probe')}             Run bounded local-only diagnostics; accepts IDs and --json
+      ${c.cyan('trace show|replay')} Read/validate the current LocalTaskTrace; never executes payloads
 
     ${c.bold('Options:')}
       ${c.dim('--force,  -f')}       Overwrite existing files
@@ -416,6 +553,7 @@ function buildCliMaintenanceCommands(ctx) {
       ${c.dim('--prod')}             (profile init only) Set mode=prod instead of dev
       ${c.dim('--tier <tier>')}      (profile init only) profile-lite | profile-standard | profile-closed-loop
       ${c.dim('--allow-downgrade')}  (profile init only) Explicitly allow a lower tier; files are retained
+      ${c.dim('--json')}             (status/doctor) Emit one DevCodexCliEnvelopeV1 JSON document
 
     ${c.bold('Examples:')}
       devcodex init                 # First-time three-host install

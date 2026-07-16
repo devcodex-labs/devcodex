@@ -37,11 +37,11 @@ function buildGovernanceExpertChecks(ctx) {
       if (/downgrade=true/.test(text) && !/allow-downgrade=true/.test(text)) return 'invalid-downgrade'
       if (/inventory=bullets/.test(text)) return 'invalid-inventory'
       if (/canonical=01\+06/.test(text)) return 'invalid-duplicate-canonical'
-      if (gates.every(gate => text.includes(gate)) && /dry-run=true writes=0/.test(text) && /FeatureInventorySchemaV1/.test(text)) return 'contract-ready'
+      if (gates.every(gate => text.includes(gate)) && /dry-run=true writes=0/.test(text) && /FeatureInventorySchemaV2/.test(text)) return 'contract-ready'
       return 'needs-review'
     }
 
-    const validSample = `${gates.join(' ')} dry-run=true writes=0 FeatureInventorySchemaV1 canonical=06`
+    const validSample = `${gates.join(' ')} dry-run=true writes=0 FeatureInventorySchemaV2 canonical=06`
     if (classifyProfileGenerationSample(validSample) !== 'contract-ready') err('[V83] valid Profile generation contract sample must pass')
     if (classifyProfileGenerationSample('dry-run=true writes=2') !== 'invalid-dry-run') err('[V83] dry-run write sample must fail')
     if (classifyProfileGenerationSample('downgrade=true allow-downgrade=false') !== 'invalid-downgrade') err('[V83] implicit downgrade sample must fail')
@@ -61,27 +61,27 @@ function buildGovernanceExpertChecks(ctx) {
     const probes = [
       { file: 'scripts/validate-profile.js', needles: ['--profile-dir', '--workspace-profile', 'profile-lite', 'profile-standard', 'profile-closed-loop', 'profile tier missing', 'workspace fallback', 'conditional-required'].concat(gates) },
       { file: 'scripts/validate-all-profiles.js', needles: ['--workspace', '.devcodex', '--profile-dir', '--strict-warnings', 'checked=', 'warnings='] },
-      { file: 'scripts/test-validate-profile.js', needles: ['profile-standard', 'profile-closed-loop', 'FeatureInventorySchemaV1', 'standardLegacyRoot', 'standardBulletsRoot', 'emptyInventoryRoot', 'placeholderOnlyRoot', 'fakeSourceRoot', 'externalLegacyRoot', 'releaseStateConflictRoot', "releaseState: 'v1.0.0'", 'runValidateAll', 'checked=2'] },
+      { file: 'scripts/test-validate-profile.js', needles: ['profile-standard', 'profile-closed-loop', 'FeatureInventorySchemaV1', 'FeatureInventorySchemaV2', 'compatibleV1Root', 'invalid lifecycleState', 'standardLegacyRoot', 'standardBulletsRoot', 'emptyInventoryRoot', 'placeholderOnlyRoot', 'fakeSourceRoot', 'externalLegacyRoot', 'releaseStateConflictRoot', "releaseState: 'v1.0.0'", 'runValidateAll', 'checked=2'] },
       { file: 'scripts/test-cli-behavior.js', needles: ['--dry-run', '--allow-downgrade', 'files', 'semantic', 'forceOutput', 'safe downgrade retains higher-tier files', 'invalid existing Profile tier', 'default generation matrix must remain 5/8/9'] },
       { file: 'scripts/lib/test-spec-governance-expert.js', needles: ['checkV83', 'classifyProfileGenerationSample'].concat(gates) },
       { file: 'scripts/validate.js', needles: ['createProbeRegistry', 'expectedProbeIds', 'runProbeRegistry'] },
       { file: 'package.json', needles: ['test:profile-all', 'node scripts/validate-all-profiles.js', 'scripts/validate-all-profiles.js'] },
-      { file: 'mcp/profile-contract.js', needles: ['PROFILE_GENERATION_CONTRACT', 'FeatureInventorySchemaV1', 'compareProfileTiers', 'updateProfileTierDeclaration', 'inspectFeatureInventoryDocument'] },
-      { file: 'scripts/lib/profile-bootstrap-utils.js', needles: ['recommendProfileTier', 'FeatureInventorySchemaV1', 'sourceEvidence'] },
+      { file: 'mcp/profile-contract.js', needles: ['PROFILE_GENERATION_CONTRACT', 'FeatureInventorySchemaV1', 'FeatureInventorySchemaV2', 'projectFeatureInventoryState', 'compareProfileTiers', 'updateProfileTierDeclaration', 'inspectFeatureInventoryDocument'] },
+      { file: 'scripts/lib/profile-bootstrap-utils.js', needles: ['recommendProfileTier', 'FeatureInventorySchemaV2', 'sourceEvidence', 'lifecycleState', 'evidenceRefs'] },
       { file: 'scripts/lib/cli-maintenance-commands.js', needles: ['profile plan', '--dry-run', '--allow-downgrade', 'refusing profile downgrade', 'recommended tier'] },
-      { file: 'instructions/01a-profile-loading.instructions.md', needles: ['ProfileGenerationContractGate', 'FeatureInventorySchemaV1', '06-功能清单.md'] },
+      { file: 'instructions/01a-profile-loading.instructions.md', needles: ['ProfileGenerationContractGate', 'FeatureInventorySchemaV2', '兼容读取', '06-功能清单.md'] },
       { file: 'skills/dev-init/SKILL.md', needles: ['ProfileGenerationContractGate', 'profile plan', '--allow-downgrade'] },
       { file: 'skills/load-profile/SKILL.md', needles: ['profile-lite', 'profile-standard', 'profile-closed-loop', 'conditional-required'].concat(gates) },
-      { file: 'skills/profile-bootstrap/SKILL.md', needles: ['profile plan', 'profile-lite', 'profile-standard', 'profile-closed-loop', 'FeatureInventorySchemaV1', 'FeatureInventoryProfileGate'].concat(gates) },
-      { file: 'prompts/project-profile.prompt.md', needles: ['ProfileGenerationContractGate', 'FeatureInventorySchemaV1', '事实来源', '发布状态'] },
+      { file: 'skills/profile-bootstrap/SKILL.md', needles: ['profile plan', 'profile-lite', 'profile-standard', 'profile-closed-loop', 'FeatureInventorySchemaV2', '兼容读取 V1', 'FeatureInventoryProfileGate'].concat(gates) },
+      { file: 'prompts/project-profile.prompt.md', needles: ['ProfileGenerationContractGate', 'FeatureInventorySchemaV2', '事实来源', '发布状态', '生命周期状态', '证据引用'] },
       { file: 'skills/test-router/SKILL.md', needles: ['profileTierValidation', 'allDevCodexProfileValidation'].concat(gates) },
       { file: 'skills/report/SKILL.md', needles: ['ProfileTierValidation', 'AllDevCodexProfileValidation'].concat(gates) },
-      { file: 'README.md', needles: ['profile plan', 'profile-lite', 'profile-standard', 'profile-closed-loop', 'FeatureInventorySchemaV1', '5 / 8 / 9', 'AllDevCodexProfileValidationGate'].concat(gates) },
-      { file: 'website/docs/guide/profile.md', needles: ['profile plan', '--dry-run', '--allow-downgrade', 'FeatureInventorySchemaV1', '5 / 8 / 9', 'defaultGeneratedFiles', 'requiredFiles'].concat(gates) },
+      { file: 'README.md', needles: ['profile plan', 'profile-lite', 'profile-standard', 'profile-closed-loop', 'FeatureInventorySchemaV2', '兼容读取 V1', '5 / 8 / 9', 'AllDevCodexProfileValidationGate'].concat(gates) },
+      { file: 'website/docs/guide/profile.md', needles: ['profile plan', '--dry-run', '--allow-downgrade', 'FeatureInventorySchemaV2', '兼容读取 V1', '5 / 8 / 9', 'defaultGeneratedFiles', 'requiredFiles'].concat(gates) },
       { file: 'website/docs/guide/development.md', needles: ['profile-lite', 'profile-standard', 'profile-closed-loop', 'AllDevCodexProfileValidationGate'].concat(gates) },
       { file: 'changelog corpus', content: changelogCorpus, needles: ['V83'].concat(gates) }
     ]
-    appendActiveProfileProbe(probes, profileCorpus, ['profile-closed-loop', '06-功能清单', '07-用户文档与契约规范', 'FeatureInventorySchemaV1', '稳定基线', '活文档'].concat(gates), 'V83')
+    appendActiveProfileProbe(probes, profileCorpus, ['profile-closed-loop', '06-功能清单', '07-用户文档与契约规范', 'FeatureInventorySchemaV2', '证据状态', '稳定基线', '活文档'].concat(gates), 'V83')
 
     for (const probe of probes) {
       const content = probe.content || read(path.join(ROOT, probe.file))

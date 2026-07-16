@@ -80,10 +80,12 @@ function main() {
   assert.strictEqual(state.state, 'completed')
   assert.strictEqual(state.inFlightOperation, null)
   assert.strictEqual(state.previousTurn.terminalState, 'completed')
+  assert.strictEqual(state.checkpointValidation.postExecution.status, 'pass')
 
   const oldState = normalizeTurnLivenessState({ state: 'running', lastEventAt: '2026-07-15T00:00:01.000Z' }, { nowMs: at(0) })
   assert.strictEqual(oldState.schemaVersion, 1)
   assert.strictEqual(oldState.checkpoint.resumeToken, '')
+  assert.strictEqual(oldState.checkpointValidation.postExecution.status, 'unverified')
   assert.deepStrictEqual(oldState.thresholds, DEFAULT_THRESHOLDS)
 
   const staleOld = {

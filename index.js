@@ -18,15 +18,10 @@ const { buildCliRuntimeUtils } = require('./scripts/lib/cli-runtime-utils.js')
 const { buildProfileBootstrapUtils } = require('./scripts/lib/profile-bootstrap-utils.js')
 const { buildCliInstallCommands } = require('./scripts/lib/cli-install-commands.js')
 const { buildCliMaintenanceCommands } = require('./scripts/lib/cli-maintenance-commands.js')
+const { buildCliObservabilityCommands } = require('./scripts/lib/cli-observability-commands.js')
 const { createCliCommandRegistry, runCliCommand } = require('./scripts/lib/cli-command-registry.js')
-const {
-  resolveTenantSelection,
-  shouldIncludeInstructionFile
-} = require('./scripts/lib/tenant-selection.js')
-const {
-  createDeploymentSession,
-  writeManifestAtomic
-} = require('./scripts/lib/deployment-manifest-utils.js')
+const { resolveTenantSelection, shouldIncludeInstructionFile } = require('./scripts/lib/tenant-selection.js')
+const { createDeploymentSession, writeManifestAtomic } = require('./scripts/lib/deployment-manifest-utils.js')
 const { runCli: runMigrateLayout } = require('./scripts/migrate-layout.js')
 const {
   detectProfileTier, filesForProfileTier, inspectProfileContract, normalizeProfileTier,
@@ -409,9 +404,12 @@ const { cmdStatus, cmdProfileInit, cmdDoctor, cmdHelp } = buildCliMaintenanceCom
   recommendProfileTier,
   detectAgent, detectHostPlatform, detectInstalledHostAssets
 })
+const { cmdProbe, cmdTrace } = buildCliObservabilityCommands({
+  fs, process, console, c, resolveProfileDir, inspectProfileState, detectHostPlatform, detectInstalledHostAssets
+})
 
 const cliCommandRegistry = createCliCommandRegistry({
-  cmdInit, cmdInitClaude, cmdInitCodex, cmdStatus, cmdProfileInit, cmdDoctor, cmdHelp
+  cmdInit, cmdInitClaude, cmdInitCodex, cmdStatus, cmdProfileInit, cmdDoctor, cmdProbe, cmdTrace, cmdHelp
 })
 
 // ─── Entry point ─────────────────────────────────────────────────────────────
@@ -430,6 +428,8 @@ module.exports = {
   cmdHelp,
   cmdProfileInit,
   cmdDoctor,
+  cmdProbe,
+  cmdTrace,
   isSourceRepo,
   findLayoutInfo,
   inferProjectFromCwd,

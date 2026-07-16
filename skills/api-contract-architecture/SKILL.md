@@ -25,6 +25,7 @@ description: API 契约架构专家 Owner — 当任务涉及 public API、HTTP/
 | `ApiContractArchitectureGate` | 公开契约必须有消费者、输入、输出、错误、兼容和验证矩阵 | consumerSurface、contractInventory |
 | `ConsumerSurfaceGate` | 先列真实消费者，避免首个实现反向定义公共契约 | README、types、examples、route、SDK |
 | `ErrorModelGate` | 错误结构、错误码、detail 和恢复路径必须稳定 | errorModel、docs |
+| `CliJsonContractGate` | 机器可读 CLI 必须冻结 envelope 字段、成功/失败互斥、错误码、nextStep 与 native exit code | DevCodexCliEnvelopeV1、spawn fixtures |
 | `VersionCompatibilityGate` | 兼容、弃用、迁移和 breaking change 必须明确 | versionCompatibility |
 | `ReleaseAuthorityBeforeCompatibilityGate` | 先证明契约是否已发布并形成稳定消费者，再决定兼容、迁移或直接收敛 | publishedState、consumerEvidence、authoritySources、decision |
 | `ConfigurationErgonomicsGate` | 公开配置 Schema 必须证明最小任务、字段必要性、复杂度预算和可选字段省略行为 | MinimalTaskConfig、FieldNecessityMatrix、OptionalFieldOmissionProbe |
@@ -37,7 +38,7 @@ description: API 契约架构专家 Owner — 当任务涉及 public API、HTTP/
 2. 冻结现状契约：字段、类型、错误、版本、默认值、边界条件。
 3. 执行 `ReleaseAuthorityBeforeCompatibilityGate`：核对 tag/registry/release note/public docs/实际消费者；已发布才进入兼容评估，未发布且无稳定消费者默认直接收敛，未发布但存在产品取舍则交用户决策，事实不明时不得编造兼容义务。
 4. 定义目标契约与兼容策略：新增、保留、弃用、迁移、拒绝。
-5. 为错误模型、分页过滤、幂等和重试写稳定语义。
+5. 为错误模型、分页过滤、幂等和重试写稳定语义；CLI JSON 合同还要冻结 success/failure 字段互斥和 exit=0/1/2 映射。
 6. 若合同存在 discriminator 或条件完成态，执行 cross-variant 字段注入与完成证据删除/反转 mutation；Schema、semantic validator、docs field set 与 runtime 必须给出同一结论。
 7. 把契约映射到文档、示例、`.http` / `.cjs`、types、runtime probe。
 
@@ -53,6 +54,7 @@ description: API 契约架构专家 Owner — 当任务涉及 public API、HTTP/
 | versionCompatibility | 兼容、弃用、迁移、breaking change |
 | releaseAuthority | publishedState、consumerEvidence、authoritySources 与兼容决策 |
 | errorModel | 错误码、detail、恢复路径 |
+| cliJsonContract | envelope、字段互斥、错误码、nextStep、exit map 与默认人读兼容 |
 | idempotencyPagination | 幂等、分页、过滤、排序、重试语义 |
 | sdkDocsImpact | SDK、README、examples、public types、文档影响 |
 | evidenceMatrix | 判断 -> 代码 / 类型 / 文档 / 测试 / 运行时证据 |
@@ -68,6 +70,7 @@ description: API 契约架构专家 Owner — 当任务涉及 public API、HTTP/
 | 首个 provider 字段反向定义公共 API | 区分业务契约与 provider payload |
 | 用单个示例证明兼容 | 抽样 public types、README、tests 和 runtime |
 | 未发布候选也默认背负历史兼容层 | 先做 ReleaseAuthorityBeforeCompatibilityGate；无稳定消费者时直接收敛 canonical contract |
+| JSON 错误只写 message 或以 exit 0 返回 | 冻结稳定 errorCode/nextStep，并用原生退出码区分合同错误与检查失败 |
 
 ## 与其他 Skill 的关系
 

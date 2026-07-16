@@ -3,7 +3,7 @@
 function buildProfileBootstrapUtils(context) {
   const {
     fs, path, detectHostPlatform, detectInstalledHostAssets, processEnv,
-    featureInventorySchemaVersion = 'FeatureInventorySchemaV1',
+    featureInventorySchemaVersion = 'FeatureInventorySchemaV2',
     featureInventoryColumnLabels = {}
   } = context
 
@@ -101,7 +101,8 @@ ${tier !== 'profile-lite' ? '| 04-测试规范.md | 测试与验证路线 |\n| 0
       featureId: '能力 ID', capabilityGroup: '能力组', publicSurface: '公开面',
       configEntrypoint: '配置入口', primaryConsumers: '主要消费者', docsEntrypoint: '文档入口',
       validationRoute: '验证路线', sourceEvidence: '事实来源', maintenanceOwner: '维护责任',
-      releaseState: '发布状态', ...featureInventoryColumnLabels
+      releaseState: '发布状态', lifecycleState: '生命周期状态', evidenceState: '证据状态',
+      asOf: '证据日期', evidenceRefs: '证据引用', ...featureInventoryColumnLabels
     }
     const pkg = ctx.pkg || {}
     const candidates = []
@@ -111,6 +112,7 @@ ${tier !== 'profile-lite' ? '| 04-测试规范.md | 测试与验证路线 |\n| 0
       ? 'CODEOWNERS'
       : 'unverified: 项目维护者'
     const releaseState = pkg.version ? `unverified: package.json#version=${pkg.version}` : 'unverified: package.json#version 缺失'
+    const asOf = new Date().toISOString().slice(0, 10)
     const exportsEvidence = pkg.exports ? 'package.json#exports' : (pkg.main ? 'package.json#main' : 'package.json#name')
     candidates.push({
       featureId: 'package-root',
@@ -122,7 +124,11 @@ ${tier !== 'profile-lite' ? '| 04-测试规范.md | 测试与验证路线 |\n| 0
       validationRoute: testRoute,
       sourceEvidence: exportsEvidence,
       maintenanceOwner: owner,
-      releaseState
+      releaseState,
+      lifecycleState: 'implemented',
+      evidenceState: 'source-backed',
+      asOf,
+      evidenceRefs: exportsEvidence
     })
     for (const [name, target] of Object.entries(pkg.bin || {})) {
       candidates.push({
@@ -135,7 +141,11 @@ ${tier !== 'profile-lite' ? '| 04-测试规范.md | 测试与验证路线 |\n| 0
         validationRoute: testRoute,
         sourceEvidence: `package.json#bin.${name}`,
         maintenanceOwner: owner,
-        releaseState
+        releaseState,
+        lifecycleState: 'implemented',
+        evidenceState: 'source-backed',
+        asOf,
+        evidenceRefs: `package.json#bin.${name}`
       })
     }
     const escapeCell = value => String(value).replace(/\|/g, '\\|').replace(/\r?\n/g, ' ')

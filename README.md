@@ -40,7 +40,7 @@ DevCodex 通过 `.github/`（Copilot）、`CLAUDE.md + .claude/ + .mcp.json`（C
 - **自动报告**: 每次会话自动写入报告，从不询问 — 直接执行
 - **安全底线**: S01~S07 七条不可覆盖的安全规则
 - **宿主生命周期护栏**: Claude Code 与 OpenAI Codex 在已支持的 Hook 事件上提供 runtime 护栏；Copilot / JetBrains / Cursor 等无等价本地 Hook 时降级为 instruction-fallback；默认 `safety-only` 仅对危险命令硬拦，流程项提醒放行，`strict` 模式才升级可阻断事件
-- **长任务 Turn Liveness**: `TurnLivenessRecoveryGate` 记录 `running / awaiting-continuation / suspect / stalled-recoverable / terminal` 状态、工具租约、continuation ACK 与恢复检查点；Hook 只能在事件到达时判断历史停滞，不能自行唤醒宿主、重放写操作或把 `PostToolUse` 当成任务完成
+- **长任务 Turn Liveness**: `TurnLivenessRecoveryGate` 记录 `running / awaiting-continuation / suspect / stalled-recoverable / terminal` 状态、工具租约、continuation ACK、双阶段 checkpoint 与当前 turn 的 `LocalTaskTraceV1`；Hook 只能在事件到达时判断历史停滞，trace replay 只返回数据，不能自行唤醒宿主、执行 payload、重放写操作或把 `PostToolUse` 当成任务完成
 - **全模式入口检查**: 所有模式在实质任务前显示 PC0~PC7；dev 模式额外执行 PC4 规范雷达与完整合规链
 - **项目现实扩展**: 先做语义意图初判，再结合目标项目 Profile、目录与当前任务上下文修正最终路由、产物落点和验证方式
 - **可配置并发策略**: Profile `config.json` 可配置 `extensions.devcodex.concurrency`；默认 `auto` 表示只读准备和隔离验证可并行、共享状态写入保持单写者，保守项目可设为 `serial`
@@ -64,7 +64,7 @@ DevCodex 通过 `.github/`（Copilot）、`CLAUDE.md + .claude/ + .mcp.json`（C
 - **授权本地安全审查呈现**: `AuthorizedLocalSecurityAuditPresentationGate` 由 `security-threat-modeling` 承接，分离用户可见最小证据和隔离本地探针；内容不可见或额外安全检查发生时保存 `SafetyInterruptionCard` 并从文件真相/审查状态恢复，不把表达调整描述成绕过平台控制。V89 验证授权、证据预算与恢复链。
 - **发布凭据拓扑**: `PublisherCredentialTopologyGate` 由 `release-verification` 承接；首次发布或 publisher/repository/package/registry/auth topology 变化时核对发布身份、secret scope/access/inheritance、workflow permission、package ownership 和最近成功 run。只验证拓扑，不读取或输出 secret value；普通 patch 可记录 unchanged evidence。V90 与 R0~R7 共同守门。
 - **scoped registry 目标解析**: `ScopedRegistryResolutionGate` 由 `release-verification` 承接；scoped package 双仓发布必须同时冻结 global registry、`@scope:registry`、userconfig 与命令级 override，用隔离配置或显式 scope override 证明两通道独立解析。V92 与 targeted fixture 防止相同 scope 路由制造双仓假阳性。
-- **Profile 生成与三档闭环校验**: `ProfileGenerationContractGate` 统一 `profile-lite` / `profile-standard` / `profile-closed-loop` 的生成、加载、状态和校验契约；`FeatureInventorySchemaGate` 要求规范功能清单使用 `FeatureInventorySchemaV1`，`ProfileTierMigrationSafetyGate` 保证 plan/dry-run 零写入、升级保留正文、降档显式授权；`ProfileTierStandardGate`、`ProfileLifecycleClassificationGate` 与 `AllDevCodexProfileValidationGate` 继续负责档位、生命周期和全工作区校验
+- **Profile 生成与三档闭环校验**: `ProfileGenerationContractGate` 统一 `profile-lite` / `profile-standard` / `profile-closed-loop` 的生成、加载、状态和校验契约；`FeatureInventorySchemaGate` 要求新生成的规范功能清单使用 `FeatureInventorySchemaV2` 并兼容读取 V1，分离生命周期、证据状态、日期与引用；`ProfileTierMigrationSafetyGate` 保证 plan/dry-run 零写入、升级保留正文、降档显式授权；`ProfileTierStandardGate`、`ProfileLifecycleClassificationGate` 与 `AllDevCodexProfileValidationGate` 继续负责档位、生命周期和全工作区校验
 - **项目工程泄漏审查**: 项目工程 / 代码质量审查执行 `PE-12 资源生命周期与泄漏风险`，必须检查内存泄露、资源泄漏、监听器/定时器/连接/流未释放、缓存无界增长和组件卸载清理缺失
 - **泄漏风险稳定性压测**: 写测试用例或回归验证时先执行 `LeakRiskStabilityPressureTest` 条件判定；命中长运行、高并发、缓存/连接/监听器/定时器/流/socket/worker/订阅/组件生命周期或 `PE-12` 风险时，TestRoute 纳入场景/负载/稳定性压测并记录基线、冷却后回落和资源指标前后对比；低风险任务写 `N/A + skipReason`
 - **coverage 与外部 runtime 生命周期验证**: 项目存在 coverage 阈值、CI coverage 或发布覆盖率要求时执行 `CoverageGateDecision`，区分断言通过与覆盖率门禁通过；外部 runtime/plugin/registry/adapter/provider、injected runtime、owner mutation 或 function source fingerprint 风险执行 `ExternalRuntimePluginLifecycleGate`、`ExternalRegistryLifecycleMatrixGate`、`FunctionSourceFingerprintMatrixGate`、`ClusterEscalationGate` 与 `RiskBasedValidationLadder`
@@ -279,8 +279,10 @@ AGENTS.md                 ← 与 instructions.md / copilot-instructions.md / CL
 | `devcodex migrate-layout plan` | 生成 `.devcodex` 工作区集中布局迁移清单 |
 | `devcodex migrate-layout apply --manifest <path>` | 按 manifest 执行集中布局切换 |
 | `devcodex migrate-layout rollback --manifest <path>` | 回滚集中布局迁移 |
-| `devcodex status` | 状态：检查已安装的组件 |
-| `devcodex doctor` | 诊断当前宿主、Agent、Hook、Profile 与记忆状态 |
+| `devcodex status [--json]` | 状态：检查已安装组件；JSON 模式返回 `StatusDiagnosticV1` |
+| `devcodex doctor [--json]` | 诊断当前宿主、Agent、Hook、Profile 与记忆状态；JSON 模式返回 `DoctorDiagnosticV1` |
+| `devcodex probe [id ...] [--json]` | 运行同步、local-only、只读 typed probes；默认包含 host/workspace/profile |
+| `devcodex trace show\|replay [--state <file>] [--json]` | 查看或校验重放当前 turn trace 的只读数据投影；不执行 payload 或 mutation |
 | `devcodex help` | 查看 CLI 子命令与选项帮助 |
 | `devcodex init --dry-run` | 预览模式：仅显示将复制的文件 |
 
@@ -319,10 +321,15 @@ devcodex profile init --tier profile-standard
 devcodex status
 ```
 
+自动化脚本可使用 `devcodex status --json` / `devcodex doctor --json`。两者只输出一个 `DevCodexCliEnvelopeV1` JSON 文档；非法参数返回稳定 `CLI_INVALID_OPTION` 和退出码 2，默认人读输出保持兼容。
+
+本地维护者还可运行 `devcodex probe --json` 获取 host/workspace/profile 的 typed 只读结果，或用 `devcodex trace show|replay --state <lifecycle-state.json> --json` 检查 `LocalTaskTraceV1`。probe 不联网、不监听、不写状态；trace replay 不执行事件 payload，输出会携带源文件 SHA-256 便于 zero-write 对账。
+
 - 首次创建默认目标是 `profile-lite`，命令会另外显示基于 package、脚本和目录证据得出的推荐档位；只有显式 `--tier` 才升级。
 - 已有 Profile 默认继承当前档位；升级只补缺失文件并保留原正文。显式降档必须追加 `--allow-downgrade`，高档文件仍会保留。
 - `profile plan` 等价于安全预览，和 `profile init --dry-run` 一样不会创建目录、文件或备份；`--force` 会在覆盖前备份。
-- 三档默认生成矩阵为 **5 / 8 / 9**：lite 生成 README、01~03、config；standard 再生成 04/05/06；closed-loop 再生成 07。规范清单采用 `FeatureInventorySchemaV1` 十字段表，扫描无法证明的事实保持 `unverified`，不会伪装成已发布能力。
+- 三档默认生成矩阵为 **5 / 8 / 9**：lite 生成 README、01~03、config；standard 再生成 04/05/06；closed-loop 再生成 07。规范清单采用 `FeatureInventorySchemaV2` 十四字段表并兼容读取 V1；扫描无法证明的事实保持 `unverified`，不会因文档存在伪装成 implemented/validated/released。
+- Skill portfolio 使用 schema v2：每项保留确定性 `SkillIndexV2` 投影；`BundleDecisionV1` 只读输出 selected/ignored/conflict/budget/exit，不修改 `plugin.json` lifecycle。
 
 完整命令、三档文件矩阵、迁移和排错见 [Profile 使用指南](./website/docs/guide/profile.md)。
 
@@ -501,6 +508,8 @@ DevCodex Hook runtime 不再把所有拦截都等同为“停止”。拦截会�
 8. **长任务在工具输出后看起来一直挂着**
    - `PostToolUse` 只表示工具返回，Turn Liveness 会先进入 `awaiting-continuation`；120 秒后记为 `suspect`，300 秒后记为 `stalled-recoverable`
    - 有后续 Hook 事件时，runtime 会基于 checkpoint 生成一次性 `TurnRecoveryCard`；宿主没有继续派发事件时，Hook 本身无法主动唤醒任务
+   - `CheckpointValidationResultV1` 分开记录 response-time 与 post-execution；PostToolUse/PreCompact 或缺失证据不能让 post-execution 通过，只有实际 Stop terminal evidence 才能完成
+   - `devcodex trace show|replay --state <lifecycle-state.json> --json` 可检查当前 turn 的 sequence/duplicate/terminal；replay 只读且不会执行 payload
    - 工具或 Agent 仍持有有效长租约时不会按 120/300 秒误判；任何恢复都不得自动重放未知副作用的写操作
    - gray sidecar 可执行 `npm run check:turn-liveness -- --state <lifecycle-state.json> --json`；安装包消费者可直接运行 `node node_modules/@vextjs/devcodex/scripts/check-turn-liveness.js --state <lifecycle-state.json> --json`
    - sidecar 只做一次读取和分类，不 watch、不写状态、不唤醒宿主、不重放操作、不控制进程；输出 `sidecar-observed` 不能冒充 `host-native-verified`

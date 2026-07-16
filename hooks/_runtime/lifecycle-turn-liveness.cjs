@@ -1,6 +1,18 @@
 'use strict'
 
 const crypto = require('crypto')
+const {
+  createCheckpointValidationSet,
+  normalizeCheckpointValidationSet,
+  validateCheckpointEvidence
+} = require('./lifecycle-checkpoint-validation.cjs')
+const {
+  LocalTaskTraceError,
+  appendLocalTaskTraceEvent,
+  createLocalTaskTrace,
+  createTraceEventId,
+  normalizeLocalTaskTrace
+} = require('./lifecycle-task-trace.cjs')
 
 const DEFAULT_THRESHOLDS = Object.freeze({
   suspectAfterMs: 2 * 60 * 1000,
@@ -73,6 +85,27 @@ function collectArtifactPaths(value, keyPath = '', output = []) {
   return output
 }
 
+function appendStateTrace(state, input, nowMs) {
+  if (!state.taskTrace) return
+  try {
+    state.taskTrace = appendLocalTaskTraceEvent(state.taskTrace, input, { nowMs })
+    state.taskTraceLastError = null
+  } catch (error) {
+    if (!(error instanceof LocalTaskTraceError)) throw error
+    if (error.code !== 'TRACE_DUPLICATE_EVENT') {
+      state.taskTraceLastError = { errorCode: error.code, message: error.message, observedAt: toIso(nowMs) }
+    }
+  }
+}
+
+function traceEventPayload(payload, toolName = '') {
+  return {
+    toolCallId: getToolCallId(payload) || null,
+    toolName: String(toolName || ''),
+    artifactPaths: [...new Set(collectArtifactPaths(payload))].slice(0, 20)
+  }
+}
+
 function normalizeThresholds(raw = {}) {
   const suspectAfterMs = positiveNumber(raw.suspectAfterMs, DEFAULT_THRESHOLDS.suspectAfterMs)
   const stalledAfterMs = Math.max(
@@ -112,6 +145,9 @@ function createTurnLivenessState(options = {}) {
       resumeToken: '',
       idempotencyKey: ''
     },
+    checkpointValidation: createCheckpointValidationSet({ nowMs }),
+    taskTrace: null,
+    taskTraceLastError: null,
     thresholds: normalizeThresholds(options.thresholds),
     lastRecoveryCard: null,
     lastRecoveryNoticeKey: '',
@@ -144,6 +180,12 @@ function normalizeTurnLivenessState(raw, options = {}) {
     eventSequence: Math.max(0, Number.parseInt(raw.eventSequence, 10) || 0),
     inFlightOperation: operation,
     checkpoint: { ...base.checkpoint, ...checkpoint, artifactPaths },
+    checkpointValidation: normalizeCheckpointValidationSet(raw.checkpointValidation, options),
+    taskTrace: normalizeLocalTaskTrace(raw.taskTrace, {
+      nowMs: nowMsFrom(options),
+      turnKey: String(raw.turnKey || ''),
+      openedAt: raw.startedAt
+    }),
     thresholds: normalizeThresholds(raw.thresholds),
     lastRecoveryCard: raw.lastRecoveryCard && typeof raw.lastRecoveryCard === 'object'
       ? { ...raw.lastRecoveryCard }
@@ -269,6 +311,13 @@ function observeTurnEvent(raw, eventName, payload = {}, options = {}) {
     state.continuationAckAt = ''
     state.inFlightOperation = null
     state.checkpoint = { ...createTurnLivenessState({ nowMs }).checkpoint }
+    state.checkpointValidation = createCheckpointValidationSet({ nowMs })
+    state.checkpointValidation.postExecution = validateCheckpointEvidence({
+      mode: 'post-execution',
+      deadlineAt: toIso(nowMs + state.thresholds.operationLeaseMs + state.thresholds.stalledAfterMs)
+    }, { nowMs })
+    state.taskTrace = createLocalTaskTrace({ turnKey: state.turnKey, openedAt: nowIso, nowMs })
+    state.taskTraceLastError = null
   } else {
     if (normalizedEvent !== 'PostToolUse' && state.lastToolOutputAt && !state.continuationAckAt) {
       state.continuationAckAt = nowIso
@@ -279,6 +328,21 @@ function observeTurnEvent(raw, eventName, payload = {}, options = {}) {
       state.checkpoint.phase = 'pre-compact'
       state.checkpoint.nextAction = state.checkpoint.nextAction || 'rehydrate context and continue'
     }
+  }
+
+  state.checkpointValidation.responseTime = validateCheckpointEvidence({
+    mode: 'response-time',
+    evidence: [{ type: 'host-event', eventName: normalizedEvent, observedAt: nowIso }]
+  }, { nowMs })
+  if (state.taskTrace) {
+    const toolCallId = getToolCallId(payload)
+    appendStateTrace(state, {
+      eventId: createTraceEventId(state.taskTrace, ['host', normalizedEvent, toolCallId || state.eventSequence]),
+      observedAt: nowIso,
+      type: normalizedEvent || 'UnknownHostEvent',
+      result: 'observed',
+      payload: traceEventPayload(payload)
+    }, nowMs)
   }
 
   return { state, classificationBefore, recoveryCard }
@@ -307,6 +371,12 @@ function startToolLease(raw, payload = {}, toolName = '', options = {}) {
     resumeToken: stableId('resume', [state.turnKey, operationId]),
     idempotencyKey: stableId('idem', [state.turnKey, operationId])
   }
+  appendStateTrace(state, {
+    eventId: createTraceEventId(state.taskTrace, ['lease-start', operationId]),
+    type: 'ToolLeaseStarted',
+    result: 'allowed',
+    payload: traceEventPayload(payload, toolName)
+  }, nowMs)
   return state
 }
 
@@ -332,6 +402,14 @@ function completeToolLease(raw, payload = {}, options = {}) {
     resumeToken: state.checkpoint.resumeToken || stableId('resume', [state.turnKey, operationId]),
     idempotencyKey: state.checkpoint.idempotencyKey || stableId('idem', [state.turnKey, operationId])
   }
+  if (!duplicate) {
+    appendStateTrace(state, {
+      eventId: createTraceEventId(state.taskTrace, ['lease-complete', operationId]),
+      type: 'ToolLeaseCompleted',
+      result: toolFailed ? 'error' : 'success',
+      payload: traceEventPayload(payload)
+    }, nowMs)
+  }
   return state
 }
 
@@ -354,6 +432,17 @@ function markTurnTerminal(raw, terminalState = 'completed', reason = '', options
     phase: `terminal:${normalizedTerminal}`,
     nextAction: ''
   }
+  state.checkpointValidation.postExecution = validateCheckpointEvidence({
+    mode: 'post-execution',
+    evidence: [{ type: 'host-terminal-event', terminalState: normalizedTerminal, reason: String(reason || normalizedTerminal) }]
+  }, { nowMs })
+  const traceTerminal = normalizedTerminal === 'completed' ? 'complete' : (normalizedTerminal === 'error' ? 'failed' : 'interrupted')
+  appendStateTrace(state, {
+    eventId: createTraceEventId(state.taskTrace, ['terminal', traceTerminal]),
+    type: 'TurnTerminal',
+    terminalStatus: traceTerminal,
+    payload: { reason: String(reason || normalizedTerminal) }
+  }, nowMs)
   return state
 }
 

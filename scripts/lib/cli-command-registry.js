@@ -1,7 +1,7 @@
 'use strict'
 
 function createCliCommandRegistry(commands) {
-  const required = ['cmdInit', 'cmdInitClaude', 'cmdInitCodex', 'cmdStatus', 'cmdProfileInit', 'cmdDoctor', 'cmdHelp']
+  const required = ['cmdInit', 'cmdInitClaude', 'cmdInitCodex', 'cmdStatus', 'cmdProfileInit', 'cmdDoctor', 'cmdProbe', 'cmdTrace', 'cmdHelp']
   for (const name of required) {
     if (typeof commands[name] !== 'function') throw new TypeError(`missing CLI command handler: ${name}`)
   }
@@ -48,8 +48,10 @@ function runCliCommand({ cmd, argv, registry, runMigrateLayout, process, c, cons
     runMigrateLayout(argv)
     return 'migrate-layout'
   }
-  if (cmd === 'status') { registry.cmdStatus(); return 'status' }
-  if (cmd === 'doctor') { registry.cmdDoctor(); return 'doctor' }
+  if (cmd === 'status') { registry.cmdStatus(argv); return 'status' }
+  if (cmd === 'doctor') { registry.cmdDoctor(argv); return 'doctor' }
+  if (cmd === 'probe') { registry.cmdProbe(argv); return 'probe' }
+  if (cmd === 'trace') { registry.cmdTrace(argv); return 'trace' }
   registry.cmdHelp()
   return 'help'
 }

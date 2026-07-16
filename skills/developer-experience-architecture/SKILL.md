@@ -26,6 +26,7 @@ description: 开发者体验架构专家 Owner — 当任务涉及 CLI、SDK、A
 | `FirstSuccessPathGate` | 用户按文档从空状态到第一个成功结果的路径必须可执行 | 命令、输入、期望输出、耗时 |
 | `ExampleTruthGate` | 示例必须是真实业务工作流，不用硬编码单例冒充主路径 | 源码、测试、运行结果、fixtureBoundary |
 | `ErrorExperienceGate` | 错误信息必须能指向原因、修复动作和相关文档 | stderr、日志、排错章节 |
+| `MachineReadableCliContractGate` | 新增机器可读 CLI 时必须保持默认人读路径，并冻结单一 JSON envelope、稳定错误码、nextStep 与 native exit code | human/json replay、negative fixture、exit map |
 | `MigrationPathGate` | Breaking 或行为变化必须提供迁移步骤和兼容边界 | changelog、migration、compat notes |
 | `ConfigurationErgonomicsGate` | 配置设计必须让常见任务保持最小、可理解、可省略，复杂度只留在高级能力边界 | MinimalTaskConfig、FieldNecessityMatrix、ComplexityBudget、AdvancedCapabilityBoundary、OptionalFieldOmissionProbe |
 
@@ -36,8 +37,9 @@ description: 开发者体验架构专家 Owner — 当任务涉及 CLI、SDK、A
 3. 检查集成步骤是否依赖本机绝对路径、私有工作区、隐藏文档或未声明前置条件。
 4. 审查示例：是否符合生产推荐路径、是否说明 fixture/mock/demo 边界。
 5. 审查错误体验：失败时是否可定位、可恢复、可继续验证。
-6. 执行 `ConfigurationErgonomicsGate`：为最高频任务给出最小配置，逐字段证明必要性，冻结复杂度预算，分离高级能力，并验证可选字段真实省略后仍能完成任务。
-7. 对版本或契约变化补迁移路径、兼容策略和文档入口。
+6. 若 CLI 提供 `--json`，验证 stdout 只有一个可解析 JSON 文档；合同错误 exit=2、运行检查失败 exit=1、成功 exit=0，默认人读输出不得被 JSON 字段泄漏污染。
+7. 执行 `ConfigurationErgonomicsGate`：为最高频任务给出最小配置，逐字段证明必要性，冻结复杂度预算，分离高级能力，并验证可选字段真实省略后仍能完成任务。
+8. 对版本或契约变化补迁移路径、兼容策略和文档入口。
 
 ## ConfigurationErgonomicsGate
 
@@ -63,6 +65,7 @@ description: 开发者体验架构专家 Owner — 当任务涉及 CLI、SDK、A
 | integrationSteps | 接入步骤、配置、依赖和环境要求 |
 | exampleTruth | 示例是否真实业务工作流；fixture/mock/demo 边界 |
 | errorExperience | 常见失败、错误信息、排错入口和恢复动作 |
+| machineReadableCli | human/json 兼容、envelope、errorCode/nextStep、exit map 与 spawn 证据 |
 | migrationPath | 版本变化、兼容策略、迁移步骤 |
 | configurationErgonomics | 最小配置、字段必要性、复杂度预算、高级边界和省略探针 |
 | docsEntryPoints | README / 文档站 / API / changelog / examples 可点击入口 |
@@ -75,6 +78,7 @@ description: 开发者体验架构专家 Owner — 当任务涉及 CLI、SDK、A
 | quick start 只展示硬编码 happy path | 补真实业务输入、失败路径和恢复方式 |
 | 示例文件能跑但不是推荐接入方式 | 标注 exampleTruth / fixtureBoundary，并给生产主路径 |
 | 错误信息只说 failed | 输出原因、下一步和文档入口 |
+| JSON 模式混入 banner/progress 文本或仍以 exit 0 报错 | stdout 只输出 envelope，并按合同/检查失败映射 native exit code |
 | 文档链接写死本机路径或 `.devcodex` 私有路径 | 改为仓库相对路径、公开 URL 或说明不可分享边界 |
 | 把所有底层能力都暴露为配置 | 保留 MinimalTaskConfig，把低频/高级能力放入显式 advanced boundary |
 

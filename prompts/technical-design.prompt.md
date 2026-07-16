@@ -26,7 +26,8 @@ applyTo: .devcodex/**/requirements/**
 > ⚠️ CP2 必须承接 CP1 的平台工程判断和 `ImplementationComplexityLevel`（兼容旧字段 `ImplementationComplexityPreference`）：消费者范围、共享契约边界、模块职责、可维护性成本、非目标和最小实现预算要互相一致；没有真实复用者或演进边界时，不得新增 factory / manager / adapter / registry 等预设抽象。
 > ⚠️ §7 必须物化验证计划、命令/矩阵路线、验收标准和退出条件；进入编码前，§2.6 写清允许首批、阻断范围、偏移触发、验证路线和消费者同步。
 > ⚠️ 当 AI 判断目标包含修复 Bug/缺陷/回归/安全问题/规范缺口/审查 finding 时，技术方案必须引用 `repair-collaboration`：低风险填写 lightweight 双层字段，高风险填写 full + findingToPatchMap + handoffIntegrity + independentReReview；模型名称不是触发条件。
-> ⚠️ 长任务、工具完成后无续接、orphaned `inProgress` 或宿主恢复命中 `agent-turn-liveness`：技术方案必须引用 `TurnLivenessRecoveryGate`，物化状态/lease/ACK/terminal/checkpoint、host-native/Hook-event/sidecar 能力边界与 no-continuation/active-lease/restart/duplicate fault matrix；禁止把 Hook 落盘写成无事件自唤醒。
+> ⚠️ 机器可读 CLI、本地 probe 或 trace show/replay 命中 `local-observability-contract`：冻结 human/json 兼容、envelope、errorCode/nextStep、native exit map、local-only/zero-write 与 package/docs 消费者；不得把构建期 V# probe registry 当成本地运行时 probe。
+> ⚠️ 长任务、工具完成后无续接、orphaned `inProgress` 或宿主恢复命中 `agent-turn-liveness`：技术方案必须引用 `TurnLivenessRecoveryGate`，物化状态/lease/ACK/terminal、response-time/post-execution `CheckpointValidationResultV1`、只读 `LocalTaskTraceV1`、host-native/Hook-event/sidecar 能力边界与 no-continuation/active-lease/restart/duplicate/timeout fault matrix；禁止把 Hook 落盘写成无事件自唤醒，禁止 trace replay 执行 payload 或重放 mutation。
 > ⚠️ package boundary / pack / benchmark / codegen 验证必须写清串行顺序；任何会删除、重建或写入 `dist` 的命令不得和包边界检查并行。
 > ⚠️ 前端、文档、发布、数据、安全、性能、外部消费者、专家输出、规范吸纳或历史分层等跨域语义，均按 registry 触发对应 Owner；本模板不得维护版本化 Owner/Gate 名录。未触发的分组写聚合 `N/A + skipReason`。
 

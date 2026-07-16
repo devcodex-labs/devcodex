@@ -68,7 +68,10 @@ applyTo: .devcodex/**/{requirements,bugs}/**; .devcodex/**/fix/**
 | ReleaseAudit | 发版前 review / publish 或 tag 前风险审查 | ✅/🔄/N/A | RL-1~RL-10 / risks / recommendation |
 | ReleaseVerification | tag / release / publish / 发布前验证 | ✅/🔄/N/A | |
 | ConceptSyncMap | 控制面 / 模板-示例-校验链 / README / website / Profile / validate / 部署副本联动 | ✅/🔄/N/A | sourceOfTruth / currentConsumers / historicalMirrors / validateProbes / deployCopies / yellowDeviationBoundary |
-| HostContractVerification | Hook / CLI / visible reply / sticky project / workspace guard / bootstrap / ArtifactLinkSet / MCP fallback | ✅/🔄/N/A | hostSurface / eventScope / evidenceMode / visibleReplyEvidence / workspaceGuard / bootstrapScope / artifactLinkMatrix / mcpFallback |
+| HostContractVerification | Hook / CLI / visible reply / sticky project / workspace guard / bootstrap / ArtifactLinkSet / MCP fallback / local observability | ✅/🔄/N/A | hostSurface / eventScope / evidenceMode / visibleReplyEvidence / workspaceGuard / bootstrapScope / artifactLinkMatrix / mcpFallback / localProbe / checkpointValidation / localTaskTrace |
+| CliDiagnosticContract | machine-readable CLI / typed local probe / stable error or exit | ✅/🔄/N/A | envelope / humanCompatibility / errorCode / nextStep / nativeExitMap / localOnly / zeroWrite |
+| CheckpointValidation | response-time / post-execution evidence | ✅/🔄/N/A | mode / status / evidenceState / deadlineAt / errorCode |
+| LocalTaskTrace | current-turn trace / read-only replay | ✅/🔄/N/A | traceId / sequence / terminal / restart / replayBoundary / sourceHash |
 | OfficialDocsEvidence | 依赖 / 框架 / SDK / 平台 API / 外部模块引入或升级 | ✅/🔄/N/A | 官方文档来源 / 关键用法 / 限制 / 兼容性 / skipReason |
 | ProfileImpactCheck | 项目技术栈 / 目录 / 脚本 / 配置 / 发布状态变化 | ✅/🔄/N/A | targetProfileFiles / updateOrSkip / skipReason / evidence |
 | ConsumerDependencyTreeProbe | 消费者验证失败且症状指向依赖、插件、共享库或框架适配 | ✅/🔄/N/A | package.json / lockfile / node_modules / npm ls <关键依赖> / sourcePatchDecision |

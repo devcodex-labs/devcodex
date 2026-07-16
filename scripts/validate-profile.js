@@ -21,7 +21,8 @@ const {
   inspectProfileLifecycle,
   inspectFeatureInventoryDocument,
   parseMarkdownTables,
-  FEATURE_INVENTORY_COLUMN_LABELS
+  FEATURE_INVENTORY_COLUMN_LABELS,
+  FEATURE_INVENTORY_V1_COLUMNS
 } = require('../mcp/profile-contract')
 const { resolveProfileDir } = require('../hooks/_runtime/workspace-layout.cjs')
 
@@ -748,10 +749,10 @@ function validateFeatureInventorySource(combined, requireV1) {
 
 function validateCanonicalFeatureInventory(projectInfo, inventoryResult) {
   if (!inventoryResult || !inventoryResult.valid || !hasProfileFile('06-功能清单.md')) return
-  const labels = Object.values(FEATURE_INVENTORY_COLUMN_LABELS)
+  const labels = FEATURE_INVENTORY_V1_COLUMNS.map(key => FEATURE_INVENTORY_COLUMN_LABELS[key])
   const duplicateTable = parseMarkdownTables(projectInfo).find(table => labels.every(label => table.headers.includes(label)))
   if (duplicateTable) {
-    err('[profile] 01-项目信息.md must not duplicate the complete FeatureInventorySchemaV1 table; 06-功能清单.md is canonical')
+    err('[profile] 01-项目信息.md must not duplicate the complete FeatureInventory table; 06-功能清单.md is canonical')
   }
   const stateFamily = value => {
     const text = String(value || '').toLowerCase()

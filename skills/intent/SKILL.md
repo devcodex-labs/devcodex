@@ -85,6 +85,22 @@ description: 识别用户意图类型（dev/fix/analyze/audit/self-fix/chat/resu
 | `confidence` | high/medium/low |
 | `alternatives` | 被排除路线及原因 |
 
+## IntentConsistencyGuard-lite
+
+当用户消息准备触发确认、继续或阶段转换时，先由语义路由得到 `semanticAction/confidence`，再使用 `IntentConsistencyInputV1 → IntentConsistencyDecisionV1` 核对显式状态证据；不得让本 Guard 用关键词替代语义识别。机器可执行真相源为 `scripts/lib/intent-consistency.js`。
+
+证据优先级固定为：`user-current > confirmed-requirement-or-proposal > phase > route-hint > history`。`confirm/continue` 必须同时绑定当前 `proposalRef` 与 `requirementRef`；“确认 / 继续 / yes / ok”等短确认只有在引用唯一且 phase/requirement 匹配时才能返回 `matched`。
+
+| 场景 | status | errorCode | 处理 |
+|---|---|---|---|
+| refs/phase/confidence 一致 | `matched` | `null` | 允许进入已确认转换 |
+| proposal 或 requirement 状态缺失 | `clarify` | `INTENT_STATE_MISSING` | 恢复当前引用后重新确认 |
+| requirement 不匹配 | `blocked` | `INTENT_REQUIREMENT_MISMATCH` | 重载 active requirement |
+| phase 不匹配 | `blocked` | `INTENT_PHASE_MISMATCH` | 返回预期阶段或刷新阶段证据 |
+| confidence 低于执行阈值 | `clarify` | `INTENT_LOW_CONFIDENCE` | 澄清语义，不猜测转换 |
+
+`routeHints/historyRefs` 可作为 `ignored` 解释证据，但不得覆盖当前用户消息或已确认产物。该合同只返回 decision，不自行写 CP state、需求文件或 Hook 状态。
+
 ## analyze vs audit 区分
 
 | 维度 | analyze | audit |

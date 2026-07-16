@@ -11,7 +11,7 @@ description: Profile 计划与分档生成 — 先预览目标根、推荐档位
 - 不触发：`devcodex init` / `devcodex init --claude` 完成后仅 **提示** "下一步运行 devcodex profile init"，不自动生成（避免覆盖用户已有 Profile）
 - workspace-namespace：当 `<workspace>/.devcodex/layout.json` 启用后，在工作区根执行 `devcodex profile init` 应治理 `.devcodex/workspace/profile/`；在明确项目上下文执行时治理 `.devcodex/<project>/profile/`。运行时多项目 warning 必须提示 `.devcodex/workspace/profile/`，不得继续指向 legacy `.devcodex/profile/`。
 - Profile 初稿或复审必须考虑 `ProfileReadChainGate` / `ServiceNormCoverageGate`：记录 workspace base、project overlay、config.local overlay、fallback、全部服务集合、docs 自维护链、导航、版本、构建、报告和记忆消费者；从单服务抽公共 Profile 规则时执行 `StrongestProfileSourceGate` / `ServiceSpecificResidueSweep`。
-- 公开包、SDK、CLI、多模块、文档站、public API 或 runtime 配置明显的项目，Profile 初稿/复审必须执行 `FeatureInventoryProfileGate` / `FeatureInventorySchemaGate`：`06-功能清单.md` 是默认唯一规范清单，使用 `FeatureInventorySchemaV1`，覆盖能力 ID、能力组、公开面、配置入口、主要消费者、文档入口、验证路线、事实来源、维护责任和发布状态；扫描不能证明的字段写 `unverified` / 待人工确认，不得编造成已发布事实。
+- 公开包、SDK、CLI、多模块、文档站、public API 或 runtime 配置明显的项目，Profile 初稿/复审必须执行 `FeatureInventoryProfileGate` / `FeatureInventorySchemaGate`：`06-功能清单.md` 是默认唯一规范清单，新生成内容使用 `FeatureInventorySchemaV2`，在 V1 十字段基础上增加生命周期状态、证据状态、证据日期和证据引用；扫描不能证明的字段写 `unverified` / 待人工确认，不得编造成 implemented/validated/released。validator 兼容读取 V1，但 V1 投影证据状态必须保持 `unverified`。
 - 执行 `ProfileGenerationContractGate` / `ProfileTierStandardGate` / `ProfileLifecycleClassificationGate`：生成器、CLI、加载器、validator、Prompt 和公开文档必须消费同一档位契约。首次创建默认仍以 `profile-lite` 为目标，但必须展示基于 package/目录/脚本证据的推荐档位；用户通过 `--tier` 明确选择后才升级。
 - 执行 `ProfileTierMigrationSafetyGate`：默认继承已检测档位；升级只补缺失文件并保留已有正文；未带 `--allow-downgrade` 时拒绝降档；显式降档只改档位声明并保留高档文件；`--dry-run` / `profile plan` 对目录、文件和备份必须零写入。
 - 执行 `AllDevCodexProfileValidationGate`：workspace-namespace、规范维护项目或用户要求全项目校验时，生成/复审后运行 `node scripts/validate-all-profiles.js --workspace <workspace-root>` 或记录不可执行原因。
@@ -22,7 +22,7 @@ description: Profile 计划与分档生成 — 先预览目标根、推荐档位
 | 档位 | Bootstrap 行为 | 后续补齐 |
 |------|----------------|----------|
 | `profile-lite` | 默认生成 `README.md`、`01-项目信息.md`、`02-架构约束.md`、`03-代码风格.md`、`config.json` | 人工复核后定稿 |
-| `profile-standard` | 生成 lite 全部文件 + `04-测试规范.md` + `05-发布规范.md` + `06-功能清单.md`；未验证事实保持显式未确认 | 由真实脚本、CI、发布流程和源码证据复核 `FeatureInventorySchemaV1` |
+| `profile-standard` | 生成 lite 全部文件 + `04-测试规范.md` + `05-发布规范.md` + `06-功能清单.md`；未验证事实保持显式未确认 | 由真实脚本、CI、发布流程和源码证据复核 `FeatureInventorySchemaV2`；兼容读取 V1 |
 | `profile-closed-loop` | 生成 standard 全部文件 + `07-用户文档与契约规范.md`；适用于规范维护、SDK/CLI/文档站/public API 等完整闭环项目 | 持续维护活文档，必要时补条件 / 本地文档 |
 
 生命周期分类：

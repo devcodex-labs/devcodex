@@ -34,7 +34,7 @@ version: 1.14.0
 
 - Profile 生成、加载、状态和校验统一使用 `profile-lite` / `profile-standard` / `profile-closed-loop` 契约；首次创建默认 lite，但先由 `devcodex profile plan` 展示推荐档位、目标根和逐文件动作。
 - `profile plan` / `--dry-run` 必须零写入；已有 Profile 默认继承档位。升级仅补缺失文件并保留正文，降档必须显式 `--allow-downgrade` 且保留高档文件，执行 `ProfileTierMigrationSafetyGate`。
-- `FeatureInventorySchemaGate`：standard/closed-loop 的功能清单来源必须是可定位 Markdown 文件；closed-loop 的 `06-功能清单.md` 必须使用 `FeatureInventorySchemaV1` 十字段表。`01-项目信息.md` 仅保留摘要和链接，不复制规范表。
+- `FeatureInventorySchemaGate`：standard/closed-loop 的功能清单来源必须是可定位 Markdown 文件；新生成及当前维护的 closed-loop `06-功能清单.md` 使用 `FeatureInventorySchemaV2` 十四字段表，将发布状态与生命周期状态、证据状态、证据日期、证据引用分离。validator 兼容读取 V1，但不得用 V1 文档存在推断 runtime/released。`01-项目信息.md` 仅保留摘要和链接，不复制规范表。
 
 ### 运行态目录写入
 
@@ -84,7 +84,7 @@ version: 1.14.0
 | `03-代码风格.md` | 编码规范 | 是 |
 | `04-测试规范.md` | 测试框架/覆盖率 | `profile-standard` 起必需 |
 | `05-交付发布规范.md` / `05-发布规范.md` | 版本号/发布流程 | `profile-standard` 起必需 |
-| `06-功能清单.md` | `FeatureInventorySchemaV1` 规范功能清单 | standard 默认生成；closed-loop 必需 |
+| `06-功能清单.md` | `FeatureInventorySchemaV2` 规范功能清单（兼容读取 V1） | standard 默认生成；closed-loop 必需 |
 | `07-用户文档与契约规范.md` | 用户文档与公开契约维护规则 | `profile-closed-loop` 必需 |
 | `config.json` | 运行模式配置（ENV_MODE）+ agent 兜底标识；Auto 别名全局默认 `@rocky`，可配置 `extensions.devcodex.autoAliases` 替换默认别名；也可配置 `extensions.devcodex.concurrency` 并发策略 | 按需 |
 | `config.local.json` | 用户 / 项目指定时使用的本地 overlay：长期连接、本地明文连接信息、env / secretRef 引用、`extensions.<namespace>` 扩展位 | 可选 |

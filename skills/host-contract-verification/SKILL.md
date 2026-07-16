@@ -20,6 +20,7 @@ description: 宿主契约验证规范 — 为 Hook / CLI / bootstrap / visible r
 | Bootstrap、部署副本、父链同步口径变更 | 🔴 必须 |
 | `ArtifactLinkSet` / 产物文件点击兼容矩阵变更 | 🔴 必须 |
 | Copilot / Codex MCP bridge 报错、`profile_load` fallback、`invoke undefined` 恢复链变更 | 🔴 必须 |
+| 公开本地 probe、checkpoint 证据语义或 trace show/replay 变更 | 🔴 必须 |
 | 仅普通业务代码改动 | N/A |
 
 ## HostContractRoute
@@ -36,6 +37,9 @@ description: 宿主契约验证规范 — 为 Hook / CLI / bootstrap / visible r
 | `artifactLinkMatrix` | 条件 | `ArtifactLinkSet` 对 Copilot / Claude Code / Codex / instruction-fallback 的主链接与 copy fallback 覆盖情况 |
 | `mcpFallback` | 条件 | MCP bridge 失败时是否降级到文件读取 / instruction-fallback；记录错误文本、fallback 路线和是否停止重试 |
 | `turnLiveness` | 条件 | 长任务/无续接场景的 host-native、Hook-event、sidecar 能力边界，以及 lease、ACK、terminal、checkpoint 证据 |
+| `localProbe` | 条件 | `LocalProbeDescriptorV1/ResultV1` 的 ID、依赖、local-only、同步只读和 zero-write 证据 |
+| `checkpointValidation` | 条件 | response-time / post-execution 的 evidence、deadline、status 与 incomplete/timeout 处理 |
+| `localTaskTrace` | 条件 | `LocalTaskTraceV1` 的 sequence、duplicate、terminal、restart 与只读 replay 边界 |
 | `commands` | ✅ | 本轮实际执行命令或 targeted tests |
 
 ## 最小验证矩阵
@@ -50,6 +54,8 @@ description: 宿主契约验证规范 — 为 Hook / CLI / bootstrap / visible r
 | ArtifactLinkSet / 产物点击 | static matrix probe + visible reply fixture；若声称某客户端可点，需 direct replay 或用户实测证据 |
 | MCP bridge fallback | MCP server no-args direct replay + 非 Full 宿主 fallback 文案探针；若错误来自宿主桥接层，只能声明 fallback 已覆盖，不能声明宿主 bug 已修复 |
 | Turn Liveness / orphaned turn | state-machine fault matrix + Hook direct replay + restart rehydrate；事件停止后的 proactive 检测只能由 host-native watchdog 或 gray read-only sidecar 证明 |
+| 本地 probe | descriptor/dependency/error fixture + CLI JSON/human replay + state hash zero-write；不得联网、启动 watcher 或写 telemetry |
+| checkpoint / local trace | fixed-clock 双阶段 fixture + Hook terminal replay + sequence/duplicate/restart/terminal 负例；trace replay 必须证明 payload 不执行且源 state hash 不变 |
 | 仅文档声明变更 | `source-consumer-sync` + validate probe；若声称宿主行为改变则不得只改文档 |
 
 ## 证据要求
@@ -67,6 +73,8 @@ Stop/PreCompact 对最终回复产物证据必须使用 `verified-present / veri
 5. 产物链接必须区分“Markdown 主链接已生成”“当前宿主可点击已实测”“绝对路径 copy fallback 已提供”三种证据；不得把第一项等同于后两项。
 6. `profile_load` / MCP 工具出现 `Cannot read properties of undefined (reading 'invoke')` 时，若 DevCodex MCP server direct replay 通过，应记录为宿主 MCP bridge 失败并启用 `mcpFallback=used`，禁止反复重试同一 MCP 调用。
 7. Turn Liveness 声明必须分别标注 `host-native-verified / hook-event-verified / sidecar-observed / unsupported / unverified`；PostToolUse 落盘只能证明工具结果已观察，不能证明模型续接或 turn 已终态。
+8. `CheckpointValidationResultV1` 缺失 post-execution evidence 时只能是 `unverified` 或 `incomplete-timeout`；只有实际 Hook terminal evidence 才能通过，禁止把等待或 PreCompact 当完成。
+9. `LocalTaskTraceV1` 只保留当前 turn 的 typed data projection；`replay` 不得 dispatch payload、重放 mutation、改 lifecycle state、唤醒宿主或控制进程。
 
 ### NativeCommandExitCodeGate 可执行适配
 
@@ -98,6 +106,9 @@ Stop/PreCompact 对最终回复产物证据必须使用 `verified-present / veri
 | artifactLinkMatrix | |
 | mcpFallback | |
 | turnLiveness | capability layer、lease/ACK/terminal/checkpoint、fault matrix 与证据状态 |
+| localProbe | descriptor/dependency/local-only/zero-write 与 CLI 证据 |
+| checkpointValidation | response-time/post-execution 结果、deadline 与证据状态 |
+| localTaskTrace | ordered events、terminal、restart、read-only replay 与 source hash |
 | commands | |
 ```
 
@@ -107,3 +118,4 @@ Stop/PreCompact 对最终回复产物证据必须使用 `verified-present / veri
 - 禁止把 `npm test` 通过等价为 direct replay 已覆盖。
 - 禁止在需要 direct replay 的场景下只保留人工口头判断。
 - 禁止把 Hook 下一事件到达时的 stale 检测写成无事件时可自唤醒；禁止用 sidecar 观察授权自动进程或宿主状态 mutation。
+- 禁止把 trace replay 写成 operation replay，或执行 payload 中的命令、文件动作和工具调用。

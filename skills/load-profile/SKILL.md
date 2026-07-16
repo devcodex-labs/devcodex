@@ -102,7 +102,7 @@ Codex / 宿主内置 Memories、模型长期偏好、上一轮摘要或用户口
 公开包、SDK、CLI、多模块仓库、文档站、public API、可配置 runtime 或跨项目规范维护任务需要稳定功能清单时，必须执行 `FeatureInventoryProfileGate`：
 
 - Profile 中应有可追踪 feature inventory 或精确说明其当前 Markdown 来源；关键词命中、临时清单或不存在的路径不能证明来源有效。
-- `profile-closed-loop` 使用 `06-功能清单.md` 作为规范真相源，并符合 `FeatureInventorySchemaV1`：能力 ID、能力组、公开面、配置入口、主要消费者、文档入口、验证路线、事实来源、维护责任、发布状态。`01-项目信息.md` 只能保留摘要和链接，不得复制完整规范表。
+- `profile-closed-loop` 使用 `06-功能清单.md` 作为规范真相源；新生成/当前维护内容符合 `FeatureInventorySchemaV2`：V1 十字段基础上增加生命周期状态、证据状态、证据日期和证据引用。validator 兼容读取 V1，但 V1 投影不得宣称已验证或已发布。`01-项目信息.md` 只能保留摘要和链接，不得复制完整规范表。
 - feature inventory 不能由复审清单临时拼接；复审清单只记录本轮验证状态，Profile 或正式文档记录稳定能力面。
 - 功能增删、默认行为变化、公开 API 或文档站能力变化时，报告需写 `ProfileRuntimeContractSyncGate` 与 `ProfileImpactCheck` 是否同步。
 
@@ -147,7 +147,7 @@ node scripts/validate-all-profiles.js --workspace <workspace-root>
 | `03-代码风格.md` | 编码规范 | 是 |
 | `04-测试规范.md` | 测试框架/覆盖率 | `profile-standard` 起必需 |
 | `05-交付发布规范.md` / `05-发布规范.md` | 版本号/发布流程 | `profile-standard` 起必需 |
-| `06-功能清单.md` | `FeatureInventorySchemaV1` 功能清单规范源；standard 默认生成，closed-loop 必需 | `profile-standard` 生成；`profile-closed-loop` 必需 |
+| `06-功能清单.md` | `FeatureInventorySchemaV2` 功能清单规范源（兼容读取 V1）；standard 默认生成，closed-loop 必需 | `profile-standard` 生成；`profile-closed-loop` 必需 |
 | `07-用户文档与契约规范.md` | README、站点文档、quick start、API/CLI/Hook/宿主契约维护规则 | `profile-closed-loop` 必需 |
 | `config.json` | 运行模式配置（ENV_MODE）+ agent 兜底标识；Auto 别名全局默认 `@rocky`，可配置 `extensions.devcodex.autoAliases` 替换默认别名；也可配置 `extensions.devcodex.concurrency` 并发策略 | 按需 |
 | `config.local.json` | 用户 / 项目指定时使用的本地 overlay：长期连接、本地明文连接信息、env / secretRef 引用、`extensions.<namespace>` | 条件 / 本地 |

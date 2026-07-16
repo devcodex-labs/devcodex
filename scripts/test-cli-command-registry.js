@@ -7,7 +7,7 @@ const { createCliCommandRegistry, runCliCommand } = require('./lib/cli-command-r
 const calls = []
 const handlers = Object.fromEntries([
   'cmdInit', 'cmdInitClaude', 'cmdInitCodex', 'cmdStatus',
-  'cmdProfileInit', 'cmdDoctor', 'cmdHelp'
+  'cmdProfileInit', 'cmdDoctor', 'cmdProbe', 'cmdTrace', 'cmdHelp'
 ].map(name => [name, argv => calls.push([name, argv])]))
 const registry = createCliCommandRegistry(handlers)
 const fakeProcess = { exitCode: 0 }
@@ -25,6 +25,14 @@ assert.strictEqual(runCliCommand({ cmd: 'profile', argv: ['plan', '--tier', 'pro
 assert.deepStrictEqual(calls.pop(), ['cmdProfileInit', ['--tier', 'profile-standard', '--dry-run']])
 assert.strictEqual(runCliCommand({ cmd: 'migrate-layout', argv: ['plan'], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger }), 'migrate-layout')
 assert.deepStrictEqual(calls.pop(), ['migrate', ['plan']])
+assert.strictEqual(runCliCommand({ cmd: 'status', argv: ['--json'], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger }), 'status')
+assert.deepStrictEqual(calls.pop(), ['cmdStatus', ['--json']])
+assert.strictEqual(runCliCommand({ cmd: 'doctor', argv: ['--json'], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger }), 'doctor')
+assert.deepStrictEqual(calls.pop(), ['cmdDoctor', ['--json']])
+assert.strictEqual(runCliCommand({ cmd: 'probe', argv: ['profile', '--json'], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger }), 'probe')
+assert.deepStrictEqual(calls.pop(), ['cmdProbe', ['profile', '--json']])
+assert.strictEqual(runCliCommand({ cmd: 'trace', argv: ['show', '--json'], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger }), 'trace')
+assert.deepStrictEqual(calls.pop(), ['cmdTrace', ['show', '--json']])
 assert.strictEqual(runCliCommand({ cmd: 'unknown', argv: [], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger }), 'help')
 assert.deepStrictEqual(calls.pop(), ['cmdHelp', undefined])
 assert.strictEqual(runCliCommand({ cmd: 'init', argv: ['--claude', '--codex'], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger }), 'invalid-adapter-target')

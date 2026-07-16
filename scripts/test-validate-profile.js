@@ -58,8 +58,25 @@ function featureInventoryDocument(overrides = {}) {
         sourceEvidence: 'package.json#bin.devcodex',
         maintenanceOwner: '项目维护者',
         releaseState: 'unverified',
+        lifecycleState: 'implemented',
+        evidenceState: 'source-backed',
+        asOf: '2026-07-16',
+        evidenceRefs: 'package.json#bin.devcodex',
         ...overrides
     }
+    return [
+        '# 06 — 功能清单',
+        '',
+        '> FeatureInventorySchemaV2',
+        '',
+        '| 能力 ID | 能力组 | 公开面 | 配置入口 | 主要消费者 | 文档入口 | 验证路线 | 事实来源 | 维护责任 | 发布状态 | 生命周期状态 | 证据状态 | 证据日期 | 证据引用 |',
+        '|---|---|---|---|---|---|---|---|---|---|---|---|---|---|',
+        `| ${row.featureId} | ${row.capabilityGroup} | ${row.publicSurface} | ${row.configEntrypoint} | ${row.primaryConsumers} | ${row.docsEntrypoint} | ${row.validationRoute} | ${row.sourceEvidence} | ${row.maintenanceOwner} | ${row.releaseState} | ${row.lifecycleState} | ${row.evidenceState} | ${row.asOf} | ${row.evidenceRefs} |`,
+        ''
+    ].join('\n')
+}
+
+function featureInventoryV1Document() {
     return [
         '# 06 — 功能清单',
         '',
@@ -67,7 +84,7 @@ function featureInventoryDocument(overrides = {}) {
         '',
         '| 能力 ID | 能力组 | 公开面 | 配置入口 | 主要消费者 | 文档入口 | 验证路线 | 事实来源 | 维护责任 | 发布状态 |',
         '|---|---|---|---|---|---|---|---|---|---|',
-        `| ${row.featureId} | ${row.capabilityGroup} | ${row.publicSurface} | ${row.configEntrypoint} | ${row.primaryConsumers} | ${row.docsEntrypoint} | ${row.validationRoute} | ${row.sourceEvidence} | ${row.maintenanceOwner} | ${row.releaseState} |`,
+        '| cli-main | CLI | `devcodex` | 命令参数 | CLI 用户 | `README.md` | `node test.js` | package.json#bin.devcodex | 项目维护者 | unverified |',
         ''
     ].join('\n')
 }
@@ -454,6 +471,25 @@ function main() {
         const closedLoopOutput = `${closedLoopResult.stdout}\n${closedLoopResult.stderr}`
 
         assert.strictEqual(closedLoopResult.status, 0, closedLoopOutput)
+
+        const compatibleV1Root = createClosedLoopWorkspace('stable baseline / living document / conditional-required local docs')
+        writeFile(compatibleV1Root, '.devcodex/profile/06-功能清单.md', featureInventoryV1Document())
+        const compatibleV1Result = runValidate(compatibleV1Root)
+        assert.strictEqual(compatibleV1Result.status, 0, `${compatibleV1Result.stdout}\n${compatibleV1Result.stderr}`)
+
+        for (const invalidV2 of [
+            { overrides: { lifecycleState: 'published-by-doc' }, expected: /invalid lifecycleState/ },
+            { overrides: { evidenceState: 'claimed' }, expected: /invalid evidenceState/ },
+            { overrides: { asOf: 'today' }, expected: /invalid asOf/ },
+            { overrides: { evidenceRefs: '' }, expected: /missing evidenceRefs/ }
+        ]) {
+            const invalidV2Root = createClosedLoopWorkspace('stable baseline / living document / conditional-required local docs')
+            writeFile(invalidV2Root, '.devcodex/profile/06-功能清单.md', featureInventoryDocument(invalidV2.overrides))
+            const invalidV2Result = runValidate(invalidV2Root)
+            const invalidV2Output = `${invalidV2Result.stdout}\n${invalidV2Result.stderr}`
+            assert.strictEqual(invalidV2Result.status, 1, invalidV2Output)
+            assert.match(invalidV2Output, invalidV2.expected)
+        }
 
         const closedLoopChineseRoot = createClosedLoopWorkspace('01~03 为稳定基线；04~07 为活文档；config.local.json 与 08+ 为条件 / 本地文档')
         const closedLoopChineseResult = runValidate(closedLoopChineseRoot)

@@ -1,14 +1,14 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "package": "@vextjs/devcodex",
   "packageVersion": "1.14.0",
   "generatedFrom": {
     "skillsPattern": "skills/*/SKILL.md",
     "registry": "plugin.json",
-    "sourceDigest": "21291aea143b626fa45514ae7140c196427fdb40489b3b993dc753a80d78201d",
+    "sourceDigest": "59e89689ec6956c4fd344817e0b11e8ce3b20d3f512b48f525da208c048b53ea",
     "pluginDigest": "249bae2e62d3eebe6f70a19f4c70bc5071169dac23395a5d80a891139d7046b1",
     "portfolioEvidence": "skills/portfolio-evidence.json",
-    "portfolioEvidenceDigest": "6a8d955709cea0d06cb863b833d5deb4630c3924021ac5bf6286f2dbb626dc2e"
+    "portfolioEvidenceDigest": "a2288b9763bc79ea32f4fd47cd4f2ea31501427dc2e9d6871d75064bd281687b"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -514,6 +514,56 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "accessibility-i18n",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "ARIA",
+            "Owner",
+            "RTL",
+            "accessibility-i18n"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "无障碍与国际化专家 Owner — 当任务涉及可访问性、键盘操作、焦点、屏幕阅读器、ARIA、语言地区、本地化、RTL、翻译资源、用户可见文案或多语言文档时使用；要求把包容性体验和本地化验证绑定到真实用户路径。"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:accessibility-i18n",
+        "probeSuiteRefs": [
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -567,7 +617,7 @@
         "skills/ai-agent-system-architecture/SKILL.md"
       ],
       "source": "skills/ai-agent-system-architecture/SKILL.md",
-      "hash": "dc85e43e95c0e67d247e125992cfcf475a55d95a1cbc7d8286334e8a1eba77d7",
+      "hash": "6888fce2e9979c8c4870aa652e9a7f3c36818b54fff1fbf2556c29750562b138",
       "version": "1.14.0",
       "lifecycleState": "active",
       "dependencies": [],
@@ -588,6 +638,10 @@
         },
         {
           "path": "instructions.md",
+          "role": "current"
+        },
+        {
+          "path": "instructions/01-common.instructions.md",
           "role": "current"
         },
         {
@@ -632,6 +686,55 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "ai-agent-system-architecture",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "Agent",
+            "Owner",
+            "ai-agent-system-architecture"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "AI Agent 系统架构专家 Owner — 当任务涉及 Agent 路由、工具调用、上下文管理、记忆、状态机、权限、人机协作、可观测性、回放验证或模型辅助治理时使用；要求把 Agent 行为设计成可解释、可恢复、可审计。"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:ai-agent-system-architecture",
+        "probeSuiteRefs": [
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -744,6 +847,57 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "ai-evaluation-engineering",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "Judge",
+            "LLM-as-judge",
+            "Owner",
+            "Prompt",
+            "ai-evaluation-engineering"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "AI 评测工程专家 Owner — 当任务涉及模型/Prompt 评测、模型选择、黄金集、评分量表、LLM-as-judge、Judge 校准、重复采样、方差、质量-成本-延迟权衡、提示词回归或模型升级回归时使用；要求把概率性结果转化为可复现、可比较且防污染的评测证据。"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:ai-evaluation-engineering",
+        "probeSuiteRefs": [
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -870,6 +1024,55 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "analyze-default",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "PCV",
+            "analyze-default",
+            "analyze-lite"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "默认分析工作流规范 — 只读多轮分析、代码事实优先、analyze-lite 关联联查与 PCV 收敛验证"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:analyze-default",
+        "probeSuiteRefs": [
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -1006,6 +1209,53 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "analyze-research",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "analyze-research"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "技术调研子类型规范 — 技术选型/可行性评估/根因调查，只读工作流"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:analyze-research",
+        "probeSuiteRefs": [
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -1064,7 +1314,7 @@
         "skills/api-contract-architecture/SKILL.md"
       ],
       "source": "skills/api-contract-architecture/SKILL.md",
-      "hash": "2aea0bc56e0cc99663e60066c376ff8640538839bd37dc67aeac82d9adcc8290",
+      "hash": "aa38b2f7dc0fc9a47bf4078f4fa0559a1aa9e5b53cf30f75ad08d7e84791cf3c",
       "version": "1.14.0",
       "lifecycleState": "active",
       "dependencies": [],
@@ -1125,6 +1375,60 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "api-contract-architecture",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "API",
+            "CLI",
+            "HTTP",
+            "Owner",
+            "SDK",
+            "Schema",
+            "api-contract-architecture",
+            "public"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "API 契约架构专家 Owner — 当任务涉及 public API、HTTP/SDK/CLI 契约、版本兼容、错误模型、分页过滤、幂等、Schema、类型、迁移或消费者影响时使用；要求先冻结消费者契约，再设计实现与验证。"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:api-contract-architecture",
+        "probeSuiteRefs": [
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -1344,6 +1648,56 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "api-verification",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "api-verification",
+            "cjs",
+            "http"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "接口验证规范 — 双产物（.http + .cjs）生成 + 自动化执行脚本"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:api-verification",
+        "probeSuiteRefs": [
+          "scripts/test-api-verification-contracts.js",
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -1544,6 +1898,58 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "audit-common",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "Check",
+            "Freshness",
+            "Profile",
+            "audit",
+            "audit-common"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "审查公共维度 G0~G5 + Profile Freshness Check — 所有 audit 子类型必先执行的基础维度层"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:audit-common",
+        "probeSuiteRefs": [
+          "scripts/test-client-contracts.js",
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -1658,6 +2064,55 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "audit-dimensions",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "D25",
+            "audit-dimensions",
+            "specs"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "D1~D25 规范文件审查维度总览 — 规范库/specs 文件专属审查层"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:audit-dimensions",
+        "probeSuiteRefs": [
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -1814,6 +2269,57 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "audit-document",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "DA-1",
+            "DA-6",
+            "README",
+            "audit-document"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "通用文档审查维度 DA-1~DA-6 — README/架构文档/开发指南专属审查层"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:audit-document",
+        "probeSuiteRefs": [
+          "scripts/test-readme-governance.js",
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -1970,6 +2476,54 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "audit-execution-guide",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "audit-execution-guide"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "审查执行指南 — 维度优先级分批、定向审查子集、联动检查清单"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:audit-execution-guide",
+        "probeSuiteRefs": [
+          "scripts/test-readme-governance.js",
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -2128,6 +2682,55 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "audit-project",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "PE-1",
+            "PE-12",
+            "audit-project"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "项目工程审查维度 PE-1~PE-12 — 代码质量/项目结构/依赖安全/资源泄漏专属审查层"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:audit-project",
+        "probeSuiteRefs": [
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -2296,6 +2899,57 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "audit-readme",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "README",
+            "RM-1",
+            "RM-6",
+            "audit-readme"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "README / 用户使用文档专项审查维度 RM-1~RM-6 — 聚焦用户路径、快速开始、示例真实度、配置排错与消费链一致性"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:audit-readme",
+        "probeSuiteRefs": [
+          "scripts/test-readme-governance.js",
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -2490,6 +3144,67 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "audit-release",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "Profile",
+            "Skill",
+            "audit",
+            "audit-release",
+            "package",
+            "plugin",
+            "pre-review",
+            "publish",
+            "readiness",
+            "registry",
+            "release",
+            "release-verification",
+            "review",
+            "tag",
+            "website"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "发布前审查维度 — 审查 release readiness、发布说明质量、兼容性/迁移风险、package/plugin 元数据、文档/Profile/website 同步、回滚策略、registry/tag 风险和发布后验收；用于用户要求发版前 review、release pre-review、publish/tag 前风险审查或 audit 工作流识别为发布准备审查时。不同于 release-verification，本 Skill 负责审查判断，不执行真实发布动作。"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:audit-release",
+        "probeSuiteRefs": [
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -2608,6 +3323,55 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "audit-report",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "RA-1",
+            "RA-6",
+            "audit-report"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "报告审查维度 RA-1~RA-6 — 分析报告/审查报告质量专属审查层"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:audit-report",
+        "probeSuiteRefs": [
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -2750,6 +3514,55 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "audit-requirements",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "RQ-1",
+            "RQ-8",
+            "audit-requirements"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "需求文档审查维度 RQ-1~RQ-8 — 需求定义/功能描述/产品事实源与可派生验证边界专属审查层"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:audit-requirements",
+        "probeSuiteRefs": [
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -2890,6 +3703,59 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "audit-session",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "Token",
+            "audit-root",
+            "audit-session",
+            "audit-state",
+            "json",
+            "session-id"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "审计工作流的跨会话状态机 — 在 <audit-root>/.audit-state/<session-id>.json 持久化轮次/发现项/收敛状态，支持 Token 中断后精准恢复"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:audit-session",
+        "probeSuiteRefs": [
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate-profile.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -3012,6 +3878,55 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "audit-tech-design",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "TD-1",
+            "TD-13",
+            "audit-tech-design"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "技术方案审查维度 TD-1~TD-13 — 架构/技术选型/实施方案专属审查层"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:audit-tech-design",
+        "probeSuiteRefs": [
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -3161,6 +4076,58 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "audit-user-manual",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "README",
+            "audit-user-manual",
+            "quick",
+            "review",
+            "sidebar",
+            "start"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "用户侧文档专项审查聚合入口 — 用于审查最终用户文档、站点文档、文档站、README、quick start、接入手册、项目文档、菜单导航、sidebar、信息架构、文档设计、用户路径、配置排错、真实工作流、生成站点和维护者内容边界；当用户要求 review/审查/复审/检查用户侧文档或项目文档可用性时使用。"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:audit-user-manual",
+        "probeSuiteRefs": [
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -3267,6 +4234,55 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "backend-domain-architecture",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "API",
+            "Owner",
+            "backend-domain-architecture"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "后端领域架构专家 Owner — 当任务涉及领域模型、业务流程、权限、API、事务、一致性、幂等、兼容、数据边界、服务职责或用户要求从后端/领域专家角度审查时使用；要求用领域语言和业务不变量约束实现。"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:backend-domain-architecture",
+        "probeSuiteRefs": [
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -3396,6 +4412,58 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "brand-visual-quality",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "Owner",
+            "brand-visual-quality"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "品牌视觉资产生产质量 Owner — 当任务涉及品牌标志、图标、主题变体、微尺寸光学校正、单色母版、主资产谱系或视觉验收证据时使用；要求把几何一致性、变体关系和人工视觉结论绑定到可重放证据，避免只凭文件存在或单次截图宣告完成。"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [
+          "design-system-architecture"
+        ],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-brand-visual-quality.js#complete-accepted-evidence"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-brand-visual-quality.js#incomplete-or-unreset-blocker-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:brand-visual-quality",
+        "probeSuiteRefs": [
+          "scripts/test-brand-visual-quality.js",
+          "scripts/test-control-plane-contracts.js",
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -3501,6 +4569,54 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "business-model-review",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "Owner",
+            "business-model-review"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "商业模型审查专家 Owner — 当任务涉及商业化、定价、套餐、成本收益、收入模型、运营负担、市场渠道、付费路径、商业风险或长期可持续性时使用；要求把技术方案和产品范围绑定到价值交换、成本结构和可持续运营。"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:business-model-review",
+        "probeSuiteRefs": [
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -4006,6 +5122,60 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "compliance",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "PC0",
+            "PC7",
+            "chat",
+            "compliance",
+            "dev",
+            "prod"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "执行入口检查与 FC/SC/RC/T 合规校验。PC0~PC7 入口检查所有模式启用；仅 dev 模式执行全量合规校验，prod 模式不执行（规范已验证）。chat 豁免合规块。"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:compliance",
+        "probeSuiteRefs": [
+          "scripts/test-client-contracts.js",
+          "scripts/test-hooks-runtime.js",
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -4124,6 +5294,63 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "consumer-validation-engineering",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "CLI",
+            "Owner",
+            "SDK",
+            "artifact",
+            "consumer",
+            "consumer-validation-engineering",
+            "link",
+            "packed",
+            "repository",
+            "verification"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "跨仓消费者验证工程 Owner — 当任务涉及独立 consumer/verification repository、SDK/CLI/框架/公共包的跨仓完整验证、源码 link 与 packed artifact 一致性、多分母 100% 声明、跨仓 CI、新鲜度或漂移治理时使用；要求冻结可复现身份链、分别计算适用分母，并以真实安装和跨仓运行证据约束发布。"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:consumer-validation-engineering",
+        "probeSuiteRefs": [
+          "scripts/test-consumer-evolution-controls.js",
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -4381,6 +5608,58 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "cp-gate",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "CP1",
+            "CP2",
+            "CP3",
+            "cp-gate"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "执行 CP1（需求确认）/ CP2（方案确认）与条件 CP3（实施计划确认）。CP1→CP2 强制按序，CP3 按工作流能力矩阵判定。"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:cp-gate",
+        "probeSuiteRefs": [
+          "scripts/test-hooks-runtime.js",
+          "scripts/test-skill-portfolio.js",
+          "scripts/test-workflow-capabilities.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -4487,6 +5766,55 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "data-architecture",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "Owner",
+            "Schema",
+            "data-architecture"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "数据架构专家 Owner — 当任务涉及数据模型、Schema、迁移、索引、查询、生命周期、数据质量、派生指标、分析消费者、跨环境数据或持久化状态时使用；要求把数据结构、演进和消费链设计清楚。"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:data-architecture",
+        "probeSuiteRefs": [
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -4581,6 +5909,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-skill-portfolio.js",
+          "role": "current"
+        },
+        {
           "path": "website/docs/guide/development.md",
           "role": "current"
         },
@@ -4598,6 +5930,56 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "design-system-architecture",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "Figma",
+            "Owner",
+            "Token",
+            "design-system-architecture"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "设计系统架构专家 Owner — 当任务涉及设计系统、主题、Token、组件变体、Figma/代码同步、UI 一致性、可访问性、国际化、品牌视觉或组件库治理时使用；要求把视觉规则沉淀为可复用、可验证的系统契约。"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:design-system-architecture",
+        "probeSuiteRefs": [
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -4724,6 +6106,55 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "dev-database",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "Migration",
+            "Schema",
+            "dev-database"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "数据库开发子类型规范 — Migration 安全策略 + Schema 变更审查"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:dev-database",
+        "probeSuiteRefs": [
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -4946,6 +6377,59 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "dev-default",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "CP1",
+            "CP2",
+            "CP3",
+            "ECR",
+            "PR-1",
+            "dev-default",
+            "plan-review"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "默认开发子类型规范 — 通用功能开发六阶段流程（CP1→PR-1自检→CP2→plan-review→CP3→执行→ECR执行闭环复审）"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:dev-default",
+        "probeSuiteRefs": [
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -5145,6 +6629,56 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "dev-docs",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "API",
+            "README",
+            "dev-docs"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "文档开发子类型规范 — 技术文档/API文档/README 编写规范"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:dev-docs",
+        "probeSuiteRefs": [
+          "scripts/test-readme-governance.js",
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -5197,7 +6731,7 @@
         "skills/dev-init/SKILL.md"
       ],
       "source": "skills/dev-init/SKILL.md",
-      "hash": "bbe222f6f89874cc3993318c9b9e976df1494383ff9974a1434735e44f457e44",
+      "hash": "7dfe6c56ac162b9c556b866095e115b812c1bdd484a2858cb682f90dad7947fc",
       "version": "1.14.0",
       "lifecycleState": "active",
       "dependencies": [],
@@ -5275,6 +6809,55 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "dev-init",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "Profile",
+            "dev-init"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "项目初始化子类型规范 — 新项目/模块脚手架 + Profile 自动生成"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:dev-init",
+        "probeSuiteRefs": [
+          "scripts/test-readme-governance.js",
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -5396,6 +6979,54 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "dev-optimization",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "autocannon",
+            "dev-optimization"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "性能优化子类型规范 — 基准测试前置 + autocannon 压测集成"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:dev-optimization",
+        "probeSuiteRefs": [
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -5629,6 +7260,58 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "dev-plan-review",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "CP2",
+            "PR-1",
+            "PR-2",
+            "PR-7",
+            "dev-plan-review"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "技术方案验证（两阶段质量门禁）— PR-1 CP2 前自检 + PR-2～PR-7 详细验证，阻断不合格方案进入编码"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:dev-plan-review",
+        "probeSuiteRefs": [
+          "scripts/test-markdown-structure.js",
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -5737,6 +7420,53 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "dev-refactor",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "dev-refactor"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "重构子类型规范 — 测试覆盖前置确认 + 三段式重构流程"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:dev-refactor",
+        "probeSuiteRefs": [
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -5874,6 +7604,54 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "dev-scenario-test",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "artillery",
+            "dev-scenario-test"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "场景测试子类型规范 — 端到端/集成测试 + artillery 负载测试"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:dev-scenario-test",
+        "probeSuiteRefs": [
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -6025,6 +7803,58 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "dev-testing",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "API",
+            "E2E",
+            "dev-testing"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "测试规范 — 单元测试/集成测试/API测试/E2E测试四类覆盖标准与触发条件"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [
+          "api-verification",
+          "dev-scenario-test"
+        ],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:dev-testing",
+        "probeSuiteRefs": [
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -6084,7 +7914,7 @@
         "skills/developer-experience-architecture/SKILL.md"
       ],
       "source": "skills/developer-experience-architecture/SKILL.md",
-      "hash": "cd5bb3c0ba2d8ac25251a5f235c11622dba17640d3023ce310817dbddc692390",
+      "hash": "a61068f5e9d92d6e958d49d548b65c9725cfa65a7578f83822ca75c8a9b4a103",
       "version": "1.14.0",
       "lifecycleState": "active",
       "dependencies": [],
@@ -6141,6 +7971,61 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "developer-experience-architecture",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "API",
+            "CLI",
+            "Hook",
+            "Owner",
+            "README",
+            "SDK",
+            "developer-experience-architecture",
+            "quick",
+            "start"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "开发者体验架构专家 Owner — 当任务涉及 CLI、SDK、API、Hook、插件、框架、README、quick start、示例、错误信息、迁移、贡献路径或开发者接入体验时使用；要求验证第一次成功路径、真实示例、错误恢复和维护者消费链。"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:developer-experience-architecture",
+        "probeSuiteRefs": [
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -6255,6 +8140,55 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "distributed-systems-architecture",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "Owner",
+            "RPC",
+            "distributed-systems-architecture"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "分布式系统架构专家 Owner — 当任务涉及消息队列、RPC、事件驱动、跨服务一致性、分布式锁/租约、交付语义、顺序、幂等、重试、补偿、分区、背压或故障注入时使用；要求把网络与重复执行视为常态并冻结可验证的不变量。"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:distributed-systems-architecture",
+        "probeSuiteRefs": [
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -6492,6 +8426,54 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "document-sync",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "document-sync"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "文档同步规范 — 代码变更后同步必查与条件文档"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:document-sync",
+        "probeSuiteRefs": [
+          "scripts/test-readme-governance.js",
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -6626,6 +8608,55 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "evolution-governance",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "Prompt",
+            "Skill",
+            "evolution-governance"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "自我进化治理能力 — 规范、Skill、Prompt、探针和发布流程自动优化的控制面门禁"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:evolution-governance",
+        "probeSuiteRefs": [
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -6679,7 +8710,7 @@
         "skills/execution-contract/SKILL.md"
       ],
       "source": "skills/execution-contract/SKILL.md",
-      "hash": "7f9fb0d41effd00307cb2ef6d5393c4ab96cc0ecd5c0bc2ee187f080aa34d388",
+      "hash": "275a03643f546ffe78e0e537c3183f078181a03eae1884ad7d2a7795ce9e4003",
       "version": "1.14.0",
       "lifecycleState": "active",
       "dependencies": [],
@@ -6801,6 +8832,56 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "execution-contract",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "Auto",
+            "ExecutionContract",
+            "execution-contract"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "执行契约规范 — 为长流程、多文件、Auto 或控制面任务生成/校验 ExecutionContract，约束范围、路径、产物、验证路线、偏离分级与恢复策略"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:execution-contract",
+        "probeSuiteRefs": [
+          "scripts/test-client-contracts.js",
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -6920,6 +9001,56 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "expert-output-quality",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "expert-output-quality",
+            "fixture",
+            "quick",
+            "start"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "专家型产物质量门禁 — 当任务涉及代码、文档、示例、fixture、quick start、技术方案、报告或用户指出“不专业 / 像初级 / 示例误导 / 没有资深架构视角”时使用；要求区分生产推荐路径、框架原生能力、测试夹具边界、反模式与证据矩阵。"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:expert-output-quality",
+        "probeSuiteRefs": [
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -7030,6 +9161,59 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "external-integration-architecture",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "API",
+            "OAuth",
+            "Owner",
+            "Webhook",
+            "connector",
+            "external-integration-architecture",
+            "provider"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "外部集成架构专家 Owner — 当任务涉及第三方 API、Webhook、OAuth、回调、provider/connector、配额、重试、降级、供应商锁定、外部故障或集成文档时使用；要求隔离外部边界并设计失败恢复。"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:external-integration-architecture",
+        "probeSuiteRefs": [
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -7203,6 +9387,54 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "fix-default",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "Bug",
+            "fix-default"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "默认修复子类型规范 — Bug 修复三步扫描 + CP 流程"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:fix-default",
+        "probeSuiteRefs": [
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -7300,6 +9532,54 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "fix-security",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "CVE",
+            "fix-security"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "安全修复子类型规范 — CVE/漏洞响应 + 四项安全专项扫描"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:fix-security",
+        "probeSuiteRefs": [
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -7411,6 +9691,60 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "frontend-architecture",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "Nuxt",
+            "Owner",
+            "SSE",
+            "SSR",
+            "config",
+            "frontend-architecture",
+            "i18n",
+            "runtime"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "前端架构专家 Owner — 当任务涉及页面、组件、状态管理、数据获取、异步缓存、SSR/Nuxt、runtime config、i18n、SSE、空白页、性能、可访问性或前端验证路线时使用；要求优先保证旧数据可见、异步刷新、渲染稳定和用户主路径不断线。"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:frontend-architecture",
+        "probeSuiteRefs": [
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -7516,6 +9850,54 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "growth-analytics",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "Owner",
+            "growth-analytics"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "增长分析专家 Owner — 当任务涉及增长指标、埋点、漏斗、转化、留存、实验、产品数据决策、增长看板或数据驱动优化时使用；要求把事件、指标、隐私边界和决策闭环绑定到真实用户行为。"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:growth-analytics",
+        "probeSuiteRefs": [
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -7580,7 +9962,7 @@
         "skills/host-contract-verification/SKILL.md"
       ],
       "source": "skills/host-contract-verification/SKILL.md",
-      "hash": "cf398bd46d49b7a34304b00c495db2abd69185acec994931d27dfd2b15027c8d",
+      "hash": "732322f20e9f15238e93cb8decfe34abb4d36bb9a57230dc3ae78a47f0e723e7",
       "version": "1.14.0",
       "lifecycleState": "active",
       "dependencies": [],
@@ -7617,6 +9999,10 @@
         },
         {
           "path": "README.md",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/cli-observability-commands.js",
           "role": "current"
         },
         {
@@ -7670,6 +10056,67 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "host-contract-verification",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "ArtifactLinkSet",
+            "CLI",
+            "Hook",
+            "MCP",
+            "bootstrap",
+            "direct",
+            "fallback",
+            "fixture",
+            "guard",
+            "host-contract-verification",
+            "replay",
+            "reply",
+            "visible",
+            "workspace"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "宿主契约验证规范 — 为 Hook / CLI / bootstrap / visible reply / workspace guard / ArtifactLinkSet / MCP fallback 相关任务定义 direct replay、fixture replay、部署同步与证据输出路线"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:host-contract-verification",
+        "probeSuiteRefs": [
+          "scripts/test-client-contracts.js",
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -7808,6 +10255,53 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "impact-review",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "impact-review"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "影响评估规范 — 代码变更六维影响框架 + 回归风险评级"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:impact-review",
+        "probeSuiteRefs": [
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -7868,7 +10362,7 @@
         "skills/intent/SKILL.md"
       ],
       "source": "skills/intent/SKILL.md",
-      "hash": "50d5b624d8235c65868ca0d222dfceaff2bf50e38475bf0fe109a91c1072760b",
+      "hash": "5f848fc2285fddb3a9f9aa4d8368f9bb5c7306f23274662a267a4f8848fa43e9",
       "version": "1.14.0",
       "lifecycleState": "active",
       "dependencies": [],
@@ -7942,6 +10436,10 @@
           "role": "current"
         },
         {
+          "path": "package.json",
+          "role": "current"
+        },
+        {
           "path": "plugin.json",
           "role": "current"
         },
@@ -7955,6 +10453,10 @@
         },
         {
           "path": "prompts/report-analysis.prompt.md",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/intent-consistency.js",
           "role": "current"
         },
         {
@@ -7999,6 +10501,14 @@
         },
         {
           "path": "scripts/test-governance-intake.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-intent-consistency.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-skill-portfolio.js",
           "role": "current"
         },
         {
@@ -8112,11 +10622,71 @@
       ],
       "validationProfile": [
         "scripts/test-governance-intake.js",
+        "scripts/test-intent-consistency.js",
         "scripts/test-skill-portfolio.js",
         "scripts/validate-profile.js",
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "intent",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "Free",
+            "analyze",
+            "audit",
+            "chat",
+            "dev",
+            "fix",
+            "intent",
+            "other",
+            "resume",
+            "self-fix"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "识别用户意图类型（dev/fix/analyze/audit/self-fix/chat/resume/other），采用前置识别 + 三问法。Free 层可用。"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:intent",
+        "probeSuiteRefs": [
+          "scripts/test-governance-intake.js",
+          "scripts/test-intent-consistency.js",
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate-profile.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -8169,7 +10739,7 @@
         "skills/load-profile/SKILL.md"
       ],
       "source": "skills/load-profile/SKILL.md",
-      "hash": "bdb0153d36a6ee8eeae23e2cb983f38abc58114a9937124a6b1970699b6da58e",
+      "hash": "3c1fa546de14ce165a1febd7fdbfb29a39442492a0e9e09fdc7a0568c8a41ba6",
       "version": "1.14.0",
       "lifecycleState": "active",
       "dependencies": [],
@@ -8367,6 +10937,55 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "load-profile",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "Profile",
+            "load-profile"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "项目 Profile 加载规范 — 意图识别后独立确定目标项目并加载配置"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:load-profile",
+        "probeSuiteRefs": [
+          "scripts/test-governance-intake.js",
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -8957,6 +11576,65 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "memory",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "Agent",
+            "memory"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "管理会话记忆的读取与写入。三层记忆体系：Agent 日记 / 需求记忆 / 项目总记忆。"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:memory",
+        "probeSuiteRefs": [
+          "scripts/test-cli-behavior.js",
+          "scripts/test-governance-intake.js",
+          "scripts/test-hooks-runtime.js",
+          "scripts/test-instruction-fallback-check.js",
+          "scripts/test-mcp-servers.js",
+          "scripts/test-migrate-layout.js",
+          "scripts/test-pack-clean.js",
+          "scripts/test-requirement-artifacts.js",
+          "scripts/test-runtime-state-index.js",
+          "scripts/test-skill-portfolio.js",
+          "scripts/test-validate-profile.js",
+          "scripts/validate-profile.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -9078,6 +11756,58 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "performance-engineering",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "Owner",
+            "benchmark",
+            "p95",
+            "p99",
+            "performance-engineering",
+            "profiling"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "性能工程专家 Owner — 当任务涉及性能优化、性能预算、benchmark、profiling、p95/p99、吞吐、延迟、资源效率、容量规划、压测或性能回归时使用；要求先建立可比较基线，再定位瓶颈、评估容量并形成统计可信的回归结论。"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:performance-engineering",
+        "probeSuiteRefs": [
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -9283,6 +12013,10 @@
           "role": "current"
         },
         {
+          "path": "mcp/profile-contract.js",
+          "role": "current"
+        },
+        {
           "path": "package.json",
           "role": "current"
         },
@@ -9332,6 +12066,10 @@
         },
         {
           "path": "scripts/lib/cli-maintenance-commands.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/cli-observability-commands.js",
           "role": "current"
         },
         {
@@ -9696,6 +12434,68 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "plan",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "agent",
+            "devcodex",
+            "other",
+            "plan"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "制定结构化执行计划。当用户请求不匹配任何已有工作流（other 路由）时，由 devcodex.agent.md 的 plan 兜底路由触发。"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:plan",
+        "probeSuiteRefs": [
+          "scripts/test-cli-behavior.js",
+          "scripts/test-cli-command-registry.js",
+          "scripts/test-client-contracts.js",
+          "scripts/test-control-plane-contracts.js",
+          "scripts/test-control-plane-module-contracts.js",
+          "scripts/test-governance-intake.js",
+          "scripts/test-hooks-runtime.js",
+          "scripts/test-markdown-structure.js",
+          "scripts/test-migrate-layout.js",
+          "scripts/test-requirement-artifacts.js",
+          "scripts/test-residual-absorption-controls.js",
+          "scripts/test-skill-portfolio.js",
+          "scripts/test-workflow-capabilities.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -9803,6 +12603,56 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "platform-ecosystem-architecture",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "CLI",
+            "Hook",
+            "Owner",
+            "platform-ecosystem-architecture"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "平台生态架构专家 Owner — 当任务涉及 CLI、Hook、多宿主、插件、扩展点、能力发现、部署副本、兼容矩阵、迁移、版本分发或生态治理时使用；要求把平台能力设计成可发现、可扩展、可兼容、可发布。"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:platform-ecosystem-architecture",
+        "probeSuiteRefs": [
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -9913,6 +12763,55 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "privacy-compliance-architecture",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "Owner",
+            "PII",
+            "privacy-compliance-architecture"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "隐私与合规架构专家 Owner — 当任务涉及个人信息/PII、数据分类、目的限制、同意、最小化、保留删除、数据驻留、跨境、日志脱敏、主体访问导出删除权或隐私审计时使用；要求把数据生命周期和用户权利映射到真实系统路径与证据。"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:privacy-compliance-architecture",
+        "probeSuiteRefs": [
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -10018,6 +12917,54 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "product-strategy",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "Owner",
+            "product-strategy"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "产品策略专家 Owner — 当任务涉及需求价值、目标用户、范围取舍、优先级、路线图、成功指标、产品化文档或用户要求从产品专家角度审查时使用；要求把方案绑定用户问题、业务价值、阶段边界和可验证信号。"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:product-strategy",
+        "probeSuiteRefs": [
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -10124,6 +13071,55 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "production-readiness-sre",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "Owner",
+            "SRE",
+            "production-readiness-sre"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "生产可用性 / SRE 专家 Owner — 当任务涉及发布风险、运行稳定性、可观测性、容量、资源生命周期、内存泄漏、回滚、故障恢复、运行手册、长连接、队列、缓存或生产验收时使用；要求把实现映射到可运行、可监控、可恢复、可回滚。"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:production-readiness-sre",
+        "probeSuiteRefs": [
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -10178,7 +13174,7 @@
         "skills/profile-bootstrap/SKILL.md"
       ],
       "source": "skills/profile-bootstrap/SKILL.md",
-      "hash": "4d89575e5e0cda2a7fe3fdabe6f015cc6eb621eafeb5f0903b4432122ddce771",
+      "hash": "98d6b2aabd7761c33d99ae703c96f223f82b48410ad7d4937be15f20b4314ecd",
       "version": "1.14.0",
       "lifecycleState": "active",
       "dependencies": [],
@@ -10287,6 +13283,56 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "profile-bootstrap",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "Profile",
+            "devcodex",
+            "profile",
+            "profile-bootstrap"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "Profile 计划与分档生成 — 先预览目标根、推荐档位和文件动作，再按统一契约生成可追踪的 .devcodex/profile/ 草稿"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:profile-bootstrap",
+        "probeSuiteRefs": [
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -10400,6 +13446,54 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "quality-strategy",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "Owner",
+            "quality-strategy"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "质量策略专家 Owner — 当任务涉及测试策略、验收矩阵、覆盖率、风险分层、回归范围、发布信心、质量度量、测试金字塔或用户要求 QA/质量专家视角时使用；要求用风险驱动选择验证组合。"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:quality-strategy",
+        "probeSuiteRefs": [
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -10532,6 +13626,57 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "readme-authoring",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "README",
+            "consumer",
+            "map",
+            "readme-authoring"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "README 写作规范 — 为 README / 用户使用文档收口用户视角、章节顺序、示例策略与 consumer map"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:readme-authoring",
+        "probeSuiteRefs": [
+          "scripts/test-readme-governance.js",
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -10745,6 +13890,62 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "release-verification",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "changelog",
+            "commit",
+            "install",
+            "pack",
+            "publish",
+            "push",
+            "registry",
+            "release-verification",
+            "smoke",
+            "tag"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "发布验证规范 — 覆盖版本、changelog、测试、pack、install smoke、commit/tag/push/publish 前确认与发布后 registry/tag 验收"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:release-verification",
+        "probeSuiteRefs": [
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -11080,6 +14281,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/cli-observability-commands.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/control-plane-contracts.js",
           "role": "current"
         },
@@ -11381,6 +14586,67 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "report",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "analyze",
+            "audit",
+            "chat",
+            "dev",
+            "fix",
+            "report",
+            "self-fix"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "生成并写入工作流执行报告。适用于 dev/fix/analyze/audit/self-fix（chat 豁免）。"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:report",
+        "probeSuiteRefs": [
+          "scripts/test-client-contracts.js",
+          "scripts/test-control-plane-contracts.js",
+          "scripts/test-hooks-runtime.js",
+          "scripts/test-instruction-fallback-check.js",
+          "scripts/test-mcp-servers.js",
+          "scripts/test-migrate-layout.js",
+          "scripts/test-skill-portfolio.js",
+          "scripts/test-validate-profile.js",
+          "scripts/validate-profile.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -11533,6 +14799,53 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "review-checklist",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "review-checklist"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "复审清单整理与审查规范 — 创建、冻结、证据执行、状态更新与收敛关闭"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:review-checklist",
+        "probeSuiteRefs": [
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -11651,6 +14964,55 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "rework-prevention-engineering",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "Owner",
+            "rework-prevention-engineering",
+            "whyMissed"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "返工预防工程 Owner — 当任务涉及返工率、一次通过率、反复返修、复审持续出现新问题、重复逃逸、whyMissed 复发、预防措施有效性或希望把问题发现前移时使用；要求区分返工与需求变化，建立可比较基线，并用后续任务的前瞻证据验证控制是否有效。"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:rework-prevention-engineering",
+        "probeSuiteRefs": [
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -11977,6 +15339,63 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "routing",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "SKILL",
+            "Skill",
+            "common",
+            "instructions",
+            "intent",
+            "routing"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "定义意图识别结果到工作流的路由映射。本 Skill 为人类可读参考，实际路由由 `01-common.instructions.md` + `intent/SKILL.md` + 各工作流 instructions 共同定义。"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:routing",
+        "probeSuiteRefs": [
+          "scripts/test-checked-command.js",
+          "scripts/test-cli-behavior.js",
+          "scripts/test-cli-command-registry.js",
+          "scripts/test-governance-intake.js",
+          "scripts/test-skill-portfolio.js",
+          "scripts/test-workflow-capabilities.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -12084,6 +15503,56 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "security-threat-modeling",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "OAuth",
+            "Owner",
+            "Webhook",
+            "security-threat-modeling"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "安全威胁建模专家 Owner — 当任务涉及权限、认证、授权、输入输出信任边界、密钥策略、审计、攻击面、Webhook/OAuth、敏感操作或用户要求安全专家视角时使用；要求识别滥用路径并绑定缓解验证。"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:security-threat-modeling",
+        "probeSuiteRefs": [
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -12194,6 +15663,55 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "skill-gap-analysis",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "Owner",
+            "Skill",
+            "skill-gap-analysis"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "Skill 缺口与大语料分析 Owner — 当任务涉及项目/工作区产物扫描、能力盘点、缺少哪些 Skill、全量审查前规模判断、大目录分批、抽样深读、扫描恢复或自我进化候选发现时使用；要求先识别项目并形成规模决策，再进行有边界的证据扫描。"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:skill-gap-analysis",
+        "probeSuiteRefs": [
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -12252,7 +15770,7 @@
         "skills/skill-lifecycle-governance/SKILL.md"
       ],
       "source": "skills/skill-lifecycle-governance/SKILL.md",
-      "hash": "25213544f68e89e8c545668cf5ec041355dfb8ec9beb319e5d127623e92e9900",
+      "hash": "cd4ba84fa561f8b9c2cc27896a88ae3a7e1b257e46e55e1b355dda2e0760064f",
       "version": "1.14.0",
       "lifecycleState": "active",
       "dependencies": [],
@@ -12296,6 +15814,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-skill-portfolio.js",
+          "role": "current"
+        },
+        {
           "path": "website/docs/intro/index.md",
           "role": "current"
         },
@@ -12309,6 +15831,60 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "skill-lifecycle-governance",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "Owner",
+            "Skill",
+            "active",
+            "deprecated",
+            "gray",
+            "portfolio",
+            "retired",
+            "skill-lifecycle-governance"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "Skill 生命周期治理 Owner — 当任务涉及 Skill 组合、重叠冲突、依赖关系、误触发/漏触发、active/gray/deprecated/retired 状态、合并拆分、废弃退役、质量指标或自我进化后的 Skill portfolio 健康度时使用。"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:skill-lifecycle-governance",
+        "probeSuiteRefs": [
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -12477,6 +16053,57 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "source-consumer-sync",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "Concept",
+            "Map",
+            "Sync",
+            "source-consumer-sync",
+            "validate"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "真相源-消费者同步规范 — 为规范源、模板、validate、文档站与部署副本变更建立 Concept Sync Map，区分当前消费者与历史镜像"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:source-consumer-sync",
+        "probeSuiteRefs": [
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -12647,6 +16274,55 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "spec-absorption",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "Skill",
+            "data",
+            "spec-absorption"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "规范吸纳执行 Skill — 用于检查 data 最新可吸纳项、证明通用规范价值、剔除项目独有规则、输出吸纳清单、分层决策、同步消费者和验证探针；当用户说“吸纳规范 / 最新可吸纳 / 仍需吸纳 / 检查 data 是否有规范 / 开始吸纳”时使用。"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:spec-absorption",
+        "probeSuiteRefs": [
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -13055,6 +16731,61 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "spec-governance",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "RecordRouter",
+            "SCV",
+            "spec-absorption",
+            "spec-governance"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "规范治理生命周期 — 意图驱动记录、RecordRouter 分流、SCV 规范变更验证；规范吸纳执行细节由 spec-absorption 承接"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [
+          "spec-absorption"
+        ],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:spec-governance",
+        "probeSuiteRefs": [
+          "scripts/test-control-plane-module-contracts.js",
+          "scripts/test-governance-intake.js",
+          "scripts/test-skill-portfolio.js",
+          "scripts/test-spec-governance.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -13428,6 +17159,60 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "summary",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "Skill",
+            "memory",
+            "summary"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "写入会话摘要到记忆日文件。区别于 memory Skill（会话记录读写）。任务结束前与 memory Skill 配合完成记忆持久化。"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:summary",
+        "probeSuiteRefs": [
+          "scripts/test-hooks-runtime.js",
+          "scripts/test-mcp-servers.js",
+          "scripts/test-migrate-layout.js",
+          "scripts/test-runtime-state-index.js",
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate-profile.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -13482,7 +17267,7 @@
         "skills/test-router/SKILL.md"
       ],
       "source": "skills/test-router/SKILL.md",
-      "hash": "8529c3c1f17f7bf18d2835c60304851b21c3e8532d12911dd2af1812755de46a",
+      "hash": "81431297919dd1f919277f58c9d713d57e4cef352b6296494f85ef04cb5a24ca",
       "version": "1.14.0",
       "lifecycleState": "active",
       "dependencies": [],
@@ -13712,6 +17497,57 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "test-router",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "API",
+            "E2E",
+            "pack",
+            "test-router"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "测试路由规范 — 根据变更类型、影响范围与风险选择静态、单元、集成、API、E2E、场景/负载、pack 或发布验证，并记录跳过理由"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:test-router",
+        "probeSuiteRefs": [
+          "scripts/test-client-contracts.js",
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -13891,6 +17727,56 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "token-check",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "Tier",
+            "tier",
+            "token-check"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "授权占位规范 — 当前所有功能全量开放，无 tier 限制。Tier 门控为预留功能。"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:token-check",
+        "probeSuiteRefs": [
+          "scripts/test-skill-portfolio.js",
+          "scripts/test-validate-profile.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -14039,6 +17925,57 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "user-manual-authoring",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "README",
+            "docs-first",
+            "quick",
+            "start",
+            "user-manual-authoring"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "最终用户使用文档写作规范 — 站点文档、README、quick start、接入手册与 docs-first 用户手册"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:user-manual-authoring",
+        "probeSuiteRefs": [
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -14144,6 +18081,54 @@
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "ux-interaction-architecture",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "Owner",
+            "ux-interaction-architecture"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "UX 交互架构专家 Owner — 当任务涉及页面流程、信息架构、任务路径、交互状态、空/错/加载/恢复、可理解性、操作成本、键盘/无障碍触点或用户要求补充交互设计规范时使用；要求从用户任务和状态反馈闭环审查体验。"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:ux-interaction-architecture",
+        "probeSuiteRefs": [
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {

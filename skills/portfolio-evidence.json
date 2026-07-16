@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "ownerSkill": "skill-lifecycle-governance",
   "evidenceDate": "2026-07-14",
   "defaults": {
@@ -12,7 +12,16 @@
       "scripts/validate.js"
     ],
     "stateRationale": "registered source, current consumer and operational fixtures are present",
-    "promotionCriteria": "trigger precision requires real comparable work units; structural evidence alone cannot promote lifecycle state"
+    "promotionCriteria": "trigger precision requires real comparable work units; structural evidence alone cannot promote lifecycle state",
+    "skillIndex": {
+      "type": "skill",
+      "workflow": [],
+      "phase": [],
+      "priority": 100,
+      "visibility": "agent",
+      "maxTokens": null,
+      "exitCondition": "work-unit-complete-or-workflow-transition"
+    }
   },
   "skills": {
     "brand-visual-quality": {

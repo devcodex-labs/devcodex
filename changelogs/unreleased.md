@@ -16,6 +16,7 @@
 - `RuntimeStateTransitionProjectionGate` 将 append-only 历史迁移、当前权威投影、低权威 consumer drift 和真正 `CONFLICTING_CURRENT_STATE` 分离，保留 schema v1/read-only 兼容并降低 strict conflict 噪声。
 - `ProfileReleaseTruthAuthorityMatrixGate` 以 package/plugin 为 DevCodex release authority，对账 project 01/05/07 与 workspace current claim；历史 release/versioned docs 不被批量误判。
 - Skill portfolio 更新为当前源码 77（74 active + 3 gray），同步 gate registry、CP/TestRoute/report/prompts、README/website/Profile、V92/V95/V97 与 package closure；版本仍为 1.14.0，本批不 tag、不 publish。
+- 吸纳 v2 规划的 A/B 本地薄切片：`status/doctor --json` 统一诊断 envelope、IntentConsistencyGuard-lite、Skill Portfolio schema v2/BundleDecisionV1、FeatureInventorySchemaV2 状态与证据投影，以及 typed local probe、双阶段 CheckpointValidation、`LocalTaskTraceV1` 与只读 `probe/trace` CLI；保留 CLI 人读、Profile V1 兼容、77/74/3 lifecycle 和 Hook 无事件不自唤醒边界，版本仍为 1.14.0。
 
 ## 记录提示
 

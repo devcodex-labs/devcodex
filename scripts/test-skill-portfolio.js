@@ -5,6 +5,7 @@ const assert = require('assert')
 const path = require('path')
 const {
   buildPortfolio,
+  buildBundleDecision,
   buildTriggerContract,
   canonicalizeTextForDigest,
   collectDependencies,
@@ -20,6 +21,7 @@ const second = buildPortfolio(ROOT)
 assert.strictEqual(serializePortfolio(first), serializePortfolio(second), 'portfolio generation must be byte-identical')
 assert.strictEqual(canonicalizeTextForDigest('a\r\nb\rc\n'), 'a\nb\nc\n', 'portfolio digests must canonicalize CRLF/CR/LF')
 assert.strictEqual(first.summary.skillCount, 77)
+assert.strictEqual(first.schemaVersion, 2)
 assert.strictEqual(first.summary.registeredSkillCount, 77)
 assert.strictEqual(first.summary.activeSkillCount, 74)
 assert.strictEqual(first.summary.graySkillCount, 3)
@@ -46,6 +48,13 @@ for (const skill of first.skills.filter(item => item.lifecycleState === 'active'
   assert.strictEqual(skill.evidence.triggerPrecision.state, 'structural-only')
   assert.ok(skill.validationProfile.length > 0)
   assert.ok(['reviewed-none', 'declared'].includes(skill.conflictReview.status))
+  assert.strictEqual(skill.skillIndex.id, skill.id)
+  assert.strictEqual(skill.skillIndex.type, 'skill')
+  assert.deepStrictEqual(skill.skillIndex.requires, skill.dependencies)
+  assert.deepStrictEqual(skill.skillIndex.conflictsWith, skill.conflicts)
+  assert.strictEqual(skill.skillIndex.evidenceState, 'source-backed')
+  assert.strictEqual(skill.skillIndex.maxTokens, null)
+  assert.deepStrictEqual(skill.skillIndex.domains, [], `${skill.id} must not infer a semantic domain from its id`)
 }
 assert.deepStrictEqual(validatePortfolio(first), [])
 assert.deepStrictEqual(detectCycles(['a', 'b'], [{ from: 'a', to: 'b' }, { from: 'b', to: 'a' }]), [['a', 'b', 'a']])
@@ -67,5 +76,30 @@ assert.ok(validatePortfolio(missingConflictReview).some(error => error.includes(
 const falseMeasured = JSON.parse(JSON.stringify(first))
 falseMeasured.skills[0].evidence.triggerPrecision.state = 'measured'
 assert.ok(validatePortfolio(falseMeasured).some(error => error.includes('measured trigger precision lacks samples')))
+
+const portfolioBeforeDecision = serializePortfolio(first)
+const decision = buildBundleDecision(first, {
+  candidateIds: ['skill-lifecycle-governance', 'missing-skill', 'intent'],
+  maxSkills: 1
+})
+assert.deepStrictEqual(decision.selected.map(item => item.id), ['intent'])
+assert.deepStrictEqual(decision.ignored.map(item => [item.id, item.reason]), [
+  ['missing-skill', 'unknown'],
+  ['skill-lifecycle-governance', 'budget']
+])
+assert.strictEqual(decision.budget.status, 'exhausted')
+assert.strictEqual(serializePortfolio(first), portfolioBeforeDecision, 'bundle decisions must not mutate portfolio state')
+
+const conflictDecision = buildBundleDecision(first, {
+  candidateIds: ['brand-visual-quality', 'design-system-architecture'],
+  includeGray: true
+})
+assert.deepStrictEqual(conflictDecision.selected.map(item => item.id), ['brand-visual-quality'])
+assert.deepStrictEqual(conflictDecision.ignored.map(item => [item.id, item.reason]), [['design-system-architecture', 'conflict']])
+assert.deepStrictEqual(conflictDecision.conflicts, [{ left: 'brand-visual-quality', right: 'design-system-architecture' }])
+
+const invalidIndex = JSON.parse(JSON.stringify(first))
+invalidIndex.skills[0].skillIndex.evidenceState = 'claimed-without-evidence'
+assert.ok(validatePortfolio(invalidIndex).some(error => error.includes('invalid SkillIndexV2 evidenceState')))
 
 console.log('✓ Skill portfolio determinism, coverage and negative fixtures passed')

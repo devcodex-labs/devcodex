@@ -92,7 +92,7 @@ description: "Use when: ..."   # 必填，AI 靠这个发现 Skill
 - audit 执行 `AuditMutationBoundaryGate`：只写审计报告、audit-state、记忆和运行态台账；finding 先记录/交接，源码、规范、配置、测试、文档或部署副本的修复必须经用户显式授权后进入独立 fix/self-fix，audit 不自动写源、`git add` 或继承修复权限
 - repair task 执行 `repair-collaboration`：所有修复至少有 lightweight 决策/验收层与执行/验证层；P0/P1、安全、控制面、公共契约、≥5 文件、多批次、角色交接或发布风险使用 full，并用 `findingToPatchMap`、`handoffIntegrity`、`independentReReview` 和 acceptance matrix 关闭。触发依据是修复语义与风险，不是模型名称或是否切换 Agent
 - 重复复审、返工率或一次通过率治理触发 `rework-prevention-engineering`：以 WorkUnit/ReworkEvent 区分 defect、requirement gap、implementation error、verification gap 与 environment noise，执行双重根因、ReworkRiskProfile、前瞻 trial 和 `ReworkEffectivenessLoop`；没有至少 3 个可比较 WorkUnit 或 2 个独立上下文的前瞻证据时保持 gray，不得用历史复盘或指标美化直接宣称有效。审查覆盖声明、最终产物交付、未发布兼容判断、最小配置和可交互对象分别绑定 `ReviewCoverageClaimIntegrityGate`、`ArtifactDeliveryCompletenessGate`、`ReleaseAuthorityBeforeCompatibilityGate`、`ConfigurationErgonomicsGate` 与 `InteractiveSemanticProbe`，由 V94 复证
-- Profile 按 `profile-lite` / `profile-standard` / `profile-closed-loop` 三档维护：[Profile 使用指南](./profile.md)提供 `profile plan` → init → status 用户路径；`ProfileGenerationContractGate` 统一生成/加载/状态/校验契约，`FeatureInventorySchemaGate` 要求 `FeatureInventorySchemaV1` 结构化清单，`ProfileTierMigrationSafetyGate` 验证 dry-run 零写入、升级保留和降档授权；`ProfileTierStandardGate` 检查必需文件，`ProfileLifecycleClassificationGate` 区分稳定基线、活文档和条件 / 本地文档，`AllDevCodexProfileValidationGate` 在规范维护、workspace-namespace、SDK/CLI、文档站、public API 或用户要求全 `.devcodex` 校验时执行 `node scripts/validate-all-profiles.js --workspace <workspace-root>`；V83 同时运行 CLI 与 validator 负向探针，历史兼容 warning 和阻断 error 必须分开记录
+- Profile 按 `profile-lite` / `profile-standard` / `profile-closed-loop` 三档维护：[Profile 使用指南](./profile.md)提供 `profile plan` → init → status 用户路径；`ProfileGenerationContractGate` 统一生成/加载/状态/校验契约，`FeatureInventorySchemaGate` 要求新生成清单使用 `FeatureInventorySchemaV2` 并兼容读取 V1，分离生命周期与证据状态/日期/引用；`ProfileTierMigrationSafetyGate` 验证 dry-run 零写入、升级保留和降档授权；`ProfileTierStandardGate` 检查必需文件，`ProfileLifecycleClassificationGate` 区分稳定基线、活文档和条件 / 本地文档，`AllDevCodexProfileValidationGate` 在规范维护、workspace-namespace、SDK/CLI、文档站、public API 或用户要求全 `.devcodex` 校验时执行 `node scripts/validate-all-profiles.js --workspace <workspace-root>`；V83 同时运行 CLI 与 validator 负向探针，历史兼容 warning 和阻断 error 必须分开记录
 - 项目工程 / 代码质量审查必须执行 `PE-12 资源生命周期与泄漏风险`：检查内存泄露、资源泄漏、监听器/定时器/连接/流未释放、缓存无界增长、组件卸载清理缺失，并在不适用时写明 `N/A + skipReason`
 - 写测试用例或回归验证时必须执行 `LeakRiskStabilityPressureTest` 条件判定：命中长运行服务、高并发路径、缓存/队列/连接池、监听器/定时器、连接/文件/流/socket/worker、订阅、前端组件生命周期或 `PE-12` 风险时，TestRoute 纳入泄漏风险稳定性压测；证据至少包含基线、压力场景、冷却后回落、资源指标前后对比和清理结果。低风险纯单元测试、静态文档或无长生命周期资源变更可写 `N/A + skipReason`
 - 存在 coverage 阈值、CI coverage 或发布覆盖率要求时执行 `CoverageGateDecision`，不能用单元断言通过替代覆盖率门禁通过；外部 runtime/plugin/registry/adapter/provider、injected runtime、owner mutation 或 function source fingerprint 风险执行 `ExternalRuntimePluginLifecycleGate`、`ExternalRegistryLifecycleMatrixGate`、`FunctionSourceFingerprintMatrixGate`、`ClusterEscalationGate` 与 `RiskBasedValidationLadder`，覆盖生命周期矩阵、registry 矩阵、fingerprint 误判矩阵和同风险簇分层验证
@@ -242,12 +242,19 @@ Hook / CLI / visible reply / sticky project / workspace guard 相关任务还要
 ### 诊断与排错入口
 
 - `devcodex doctor`：查看当前宿主、Hook、Profile、记忆与 adapter 状态，适合先判断“规则到底有没有加载”
+- `devcodex status --json` / `devcodex doctor --json`：输出统一 `DevCodexCliEnvelopeV1`，适合 CI/脚本消费；非法参数为 `CLI_INVALID_OPTION` + exit 2，默认人读输出不变
+- `devcodex probe [host workspace profile] --json`：运行同步、local-only、只读 typed probes；依赖失败会 skipped，不联网、不 watch、不写状态或 telemetry
+- `devcodex trace show|replay --state <lifecycle-state.json> --json`：查看/校验当前 `LocalTaskTraceV1`；sequence/duplicate/terminal 失败返回稳定错误，replay 不执行 payload、不改 state、不唤醒或控制进程
+- Intent 阶段转换使用 `IntentConsistencyDecisionV1` 核对 proposal/requirement/phase/confidence；短确认无绑定时必须澄清，不能靠历史或 route hint 补猜
+- Skill portfolio schema v2 提供保守 `SkillIndexV2` 和只读 `BundleDecisionV1`；结构证据不得自动改变 active/gray lifecycle
 - `devcodex help`：查看 CLI 子命令与参数，尤其是 `profile init`、`migrate-layout`、`init/update --claude/--codex`
 - `node scripts/validate-all-profiles.js --workspace <workspace-root>`：校验 `.devcodex/workspace/profile` 与 `.devcodex/<project>/profile` 的三档必需文件和 workspace fallback；发布前可追加 `--strict-warnings`
 - `DEVCODEX_HOOK_ENFORCEMENT`：默认 `safety-only`，仅危险命令硬拦；切到 `strict` 前应先确认宿主确实支持对应 Hook 事件；当前 Codex adapter 已内置 `PreCompact` compaction runtime 兜底
 - `.mcp.json` 目前只由 Claude Code adapter 自动写入；Codex / Copilot 若宿主支持 MCP，需要手工配置，不能把 Claude 的 `.mcp.json` 当成三宿主通用入口
 - Turn Liveness：工具返回后先进入 `awaiting-continuation`，120 秒无后续事件标记 `suspect`，300 秒标记 `stalled-recoverable`；活动工具/Agent 使用更长租约，避免把真实长任务误判为挂起
 - 宿主能力边界：`PostToolUse` 不是 terminal，也不能证明宿主会继续派发事件；Hook 仅在下一次事件到达时生成一次性 `TurnRecoveryCard`，不得自行唤醒宿主、控制进程或重放未知副作用操作
+- 双阶段 CheckpointValidation：response-time 记录当前可见事件；post-execution 缺 Stop terminal evidence 时保持 `unverified`，deadline 到期为 `incomplete-timeout`，不得把等待或 PreCompact 推断为完成
+- LocalTaskTrace：当前 turn 记录严格递增 sequence、唯一 eventId 和唯一末尾 terminal；历史 turn 只保留 TurnLiveness 摘要，CLI replay 是只读数据投影
 - gray sidecar：源码仓运行 `npm run check:turn-liveness -- --state <lifecycle-state.json> --json`；安装包运行 `node node_modules/@vextjs/devcodex/scripts/check-turn-liveness.js --state <lifecycle-state.json> --json`。它只做 one-shot 读取/分类，证据状态为 `sidecar-observed`，不 watch、不写状态、不唤醒、不重放、不控制进程
 
 ### 产物链接与 MCP fallback

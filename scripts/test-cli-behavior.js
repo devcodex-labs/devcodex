@@ -6,7 +6,7 @@ const fs = require('fs')
 const os = require('os')
 const path = require('path')
 const { spawnSync } = require('child_process')
-const { PROFILE_GENERATION_CONTRACT } = require('../mcp/profile-contract.js')
+const { PROFILE_GENERATION_CONTRACT, projectFeatureInventoryState } = require('../mcp/profile-contract.js')
 
 const ROOT = path.resolve(__dirname, '..')
 const CLI = path.join(ROOT, 'index.js')
@@ -23,6 +23,15 @@ const HOST_ENV_SCRUB = {
   CURSOR_TRACE_ID: '',
   CURSOR_USER_ID: ''
 }
+
+assert.deepStrictEqual(projectFeatureInventoryState('FeatureInventorySchemaV2', []), {
+  schemaVersion: 'FeatureInventorySchemaV2',
+  featureCount: 0,
+  lifecycleCounts: {},
+  evidenceCounts: { unverified: 0 },
+  evidenceState: 'unverified',
+  asOf: null
+})
 
 function stripAnsi(text) {
   return String(text || '').replace(/\x1b\[[0-9;]*m/g, '')
@@ -245,6 +254,45 @@ function testDoctorAvoidsCodexBiasInMixedHostRepo() {
   fs.rmSync(root, { recursive: true, force: true })
 }
 
+function testMachineReadableDiagnosticsAndStableErrors() {
+  const root = createTempRoot('devcodex-cli-json-diagnostics-')
+  writeFile(root, 'package.json', '{ "name": "diagnostic-project" }\n')
+
+  const statusHuman = runCli(['status'], root)
+  assert.match(statusHuman, /DevCodex status/)
+  assert.doesNotMatch(statusHuman, /DevCodexCliEnvelopeV1/)
+
+  const status = JSON.parse(runCli(['status', '--json'], root))
+  assert.strictEqual(status.schemaVersion, 'DevCodexCliEnvelopeV1')
+  assert.strictEqual(status.ok, true)
+  assert.strictEqual(status.command, 'status')
+  assert.strictEqual(status.packageVersion, '1.14.0')
+  assert.strictEqual(status.payload.schemaVersion, 'StatusDiagnosticV1')
+  assert.strictEqual(status.payload.cwd, root)
+  assert.ok(Array.isArray(status.payload.installSurfaces))
+
+  const doctor = JSON.parse(runCli(['doctor', '--json'], root))
+  assert.strictEqual(doctor.ok, true)
+  assert.strictEqual(doctor.command, 'doctor')
+  assert.strictEqual(doctor.payload.schemaVersion, 'DoctorDiagnosticV1')
+  assert.deepStrictEqual(doctor.payload.capabilityBoundary, {
+    localOnly: true,
+    hookEvidence: 'event-dependent',
+    instructionFallback: true,
+    serverUrl: false,
+    auth: false,
+    tenant: false,
+    telemetry: false
+  })
+
+  const failure = JSON.parse(runCliFailure(['status', '--bad', '--json'], root))
+  assert.strictEqual(failure.ok, false)
+  assert.strictEqual(failure.errorCode, 'CLI_INVALID_OPTION')
+  assert.match(failure.nextStep, /status \[--json\]/)
+
+  fs.rmSync(root, { recursive: true, force: true })
+}
+
 function testDefaultInitBootstrapsActiveRootData() {
   const root = createTempRoot('devcodex-cli-runtime-data-')
   writeFile(root, 'package.json', '{ "name": "tmp-runtime-data" }\n')
@@ -363,9 +411,33 @@ function testProfileInitAndStatusShareTierContract() {
     assert.ok(fs.existsSync(path.join(profileDir, file)), `missing closed-loop profile file: ${file}`)
   }
   assert.match(fs.readFileSync(path.join(profileDir, 'README.md'), 'utf8'), /profile-closed-loop/)
-  assert.match(fs.readFileSync(path.join(profileDir, '06-功能清单.md'), 'utf8'), /FeatureInventorySchemaV1/)
+  assert.match(fs.readFileSync(path.join(profileDir, '06-功能清单.md'), 'utf8'), /FeatureInventorySchemaV2/)
   assert.match(runCli(['status'], root), /profile-closed-loop; files 8\/8; semantic 4\/4; config present/)
   assert.match(runCli(['doctor'], root), /profile.*✅ profile-closed-loop/)
+  const statusJson = JSON.parse(runCli(['status', '--json'], root))
+  assert.strictEqual(statusJson.payload.profile.featureInventory.schemaVersion, 'FeatureInventorySchemaV2')
+  assert.strictEqual(statusJson.payload.profile.featureInventory.evidenceState, 'source-backed')
+  assert.strictEqual(statusJson.payload.profile.featureInventory.lifecycleCounts.implemented, 1)
+
+  writeFile(
+    root,
+    '.devcodex/profile/06-功能清单.md',
+    [
+      '# 06 — 功能清单',
+      '',
+      '> FeatureInventorySchemaV1',
+      '',
+      '| 能力 ID | 能力组 | 公开面 | 配置入口 | 主要消费者 | 文档入口 | 验证路线 | 事实来源 | 维护责任 | 发布状态 |',
+      '|---|---|---|---|---|---|---|---|---|---|',
+      '| cli-main | CLI | `devcodex` | 命令参数 | CLI 用户 | `README.md` | `node test.js` | package.json#bin.devcodex | 项目维护者 | unverified |',
+      ''
+    ].join('\n')
+  )
+  const legacyStatusJson = JSON.parse(runCli(['status', '--json'], root))
+  assert.strictEqual(legacyStatusJson.payload.profile.featureInventory.schemaVersion, 'FeatureInventorySchemaV1')
+  assert.strictEqual(legacyStatusJson.payload.profile.featureInventory.evidenceState, 'unverified')
+  assert.strictEqual(legacyStatusJson.payload.profile.featureInventory.lifecycleCounts.unknown, 1)
+  assert.match(runCli(['status'], root), /profile-closed-loop; files 8\/8; semantic 4\/4; config present/)
 
   fs.appendFileSync(
     path.join(profileDir, 'README.md'),
@@ -444,6 +516,7 @@ function main() {
   testClaudeInitPreservesCustomConfig()
   testClaudeUpdateBacksUpAndPreservesCustomConfig()
   testDoctorAvoidsCodexBiasInMixedHostRepo()
+  testMachineReadableDiagnosticsAndStableErrors()
   testDefaultInitBootstrapsActiveRootData()
   testTenantSelectionIsExplicit()
   testCodexInitBootstrapsWorkspaceNamespaceData()

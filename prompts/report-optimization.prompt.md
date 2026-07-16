@@ -22,7 +22,7 @@ applyTo: .devcodex/**/reports/optimizations/**
 > **Agent**: <agent-id>
 > **状态**: 进行中 / 已完成
 > **关联需求**: [路径]
-> **支撑产物**: ExecutionContract / TestRoute / ReleaseAudit / ReleaseVerification / ConceptSyncMap / HostContractVerification / 05-实施进度.md（按触发状态填写）
+> **支撑产物**: ExecutionContract / TestRoute / ReleaseAudit / ReleaseVerification / ConceptSyncMap / HostContractVerification / CliDiagnosticContract / CheckpointValidation / LocalTaskTrace / TurnLivenessRecovery / 05-实施进度.md（按触发状态填写）
 ```
 
 ## §1 执行摘要

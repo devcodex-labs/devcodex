@@ -209,7 +209,8 @@ version: 1.14.0
 - `test-router`：dev/fix 执行前选择验证路线时触发
 - `audit-release` / `ReleaseAudit`：发版前 review、release pre-review、publish/tag 前风险审查或 audit 识别为发布准备审查时触发
 - `release-verification`：用户明确要求 release / tag / publish 或版本发布验证时触发
-- `host-contract-verification`：宿主事件契约、visible reply、sticky project、workspace guard、bootstrap 证据任务触发
+- `host-contract-verification`：宿主事件契约、visible reply、sticky project、workspace guard、bootstrap、本地 probe、双阶段 checkpoint 或只读 trace 证据任务触发
+- `ai-agent-system-architecture`：Agent 状态机、Turn Liveness、CheckpointValidation、LocalTaskTrace、回放或可观测性边界变更时触发
 - `source-consumer-sync`：规范源、README/website/Profile/validate/部署副本联动时触发
 - `profile-bootstrap`：Profile 缺失、用户要求补建 Profile、需要从 prod 降级恢复到 dev 模式，或需要生成 `.devcodex/profile/` 初稿时触发；优先建议/执行 `devcodex profile init`，不得用 AI 推测内容替代文件真相源
 - `api-verification`：PR-5① 标记触发

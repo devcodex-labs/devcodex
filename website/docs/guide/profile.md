@@ -62,7 +62,7 @@ devcodex profile init --force
 
 ## 功能清单怎么写
 
-`06-功能清单.md` 是默认唯一规范功能清单。closed-loop 必须使用 `FeatureInventorySchemaV1`：
+`06-功能清单.md` 是默认唯一规范功能清单。新生成和当前维护的 closed-loop 使用 `FeatureInventorySchemaV2`：
 
 | 字段 | 回答的问题 |
 |------|------------|
@@ -71,10 +71,12 @@ devcodex profile init --force
 | 主要消费者 / 文档入口 | 谁使用，去哪里读说明？ |
 | 验证路线 / 事实来源 | 如何证明，证据来自哪里？ |
 | 维护责任 / 发布状态 | 谁维护，当前是否已发布？ |
+| 生命周期状态 | 当前是 planned、implemented、validated、released 还是 historical？ |
+| 证据状态 / 证据日期 / 证据引用 | 结论由什么当前证据支持，证据新鲜到哪一天？ |
 
 `01-项目信息.md` 只保留摘要和到 06 的链接，不复制完整表。关键词命中、纯项目符号、占位行或不存在的“来源路径”都不能通过 `FeatureInventorySchemaGate`。
 
-兼容说明：已有 `profile-standard` 可继续使用包含“能力组 / 当前口径 / 主要证据 / 验证路线”的结构化 legacy 表；新生成的 standard 和所有 closed-loop Profile 使用 V1。legacy 表不会被 plan/init 静默重写，建议在项目下一次主动升级或复审时迁移。
+兼容说明：validator 兼容读取 V1，已有 `profile-standard` 也可继续使用包含“能力组 / 当前口径 / 主要证据 / 验证路线”的结构化 legacy 表；新生成的 standard 和当前维护的 closed-loop Profile 使用 V2。V1/legacy 不会被 plan/init 静默重写，其状态投影保持 `unverified`，建议在项目下一次主动升级或复审时迁移。
 
 ## 常用参数
 
@@ -95,9 +97,11 @@ devcodex profile init --force
 ```bash
 devcodex status
 devcodex doctor
+devcodex status --json
+devcodex doctor --json
 ```
 
-状态会分开显示 `files`、`semantic` 和 `config`，避免把可选配置混入必需文件计数。维护 workspace-namespace 或 DevCodex 规范仓时，再运行全工作区校验：
+状态会分开显示 `files`、`semantic` 和 `config`，避免把可选配置混入必需文件计数。`--json` 使用统一 `DevCodexCliEnvelopeV1`，Profile 投影会返回 schema、生命周期计数、证据计数与 `asOf`；V1 兼容输入保持 `unverified`。维护 workspace-namespace 或 DevCodex 规范仓时，再运行全工作区校验：
 
 `ProfileTierStandardGate` 检查档位必需文件，`ProfileLifecycleClassificationGate` 检查稳定基线/活文档/条件本地文档，`AllDevCodexProfileValidationGate` 汇总所有 namespace 并区分 error 与 warning。
 
@@ -107,7 +111,7 @@ node scripts/validate-all-profiles.js --workspace <workspace-root>
 
 - 目标根不符合预期：检查 `.devcodex/layout.json`；workspace-namespace 的工作区基线位于 `.devcodex/workspace/profile/`，项目 overlay 位于 `.devcodex/<project>/profile/`。
 - standard/closed-loop 显示 semantic 缺失：检查功能清单来源是否真实存在，以及 06 是否为结构化表。
-- closed-loop 校验失败：确认 06 使用完整 `FeatureInventorySchemaV1`，07 存在，并写清稳定基线、活文档和条件/本地文档生命周期。
+- closed-loop 校验失败：确认 06 使用完整 `FeatureInventorySchemaV2`（或可兼容读取的 V1），07 存在，并写清稳定基线、活文档和条件/本地文档生命周期。
 - 不确定是否应该升级：重新运行 `profile plan --tier <候选档位>`，对照文件动作和推荐理由后再决定。
 
 下一步可阅读[开发规范](./development.md)了解维护者验证路线，或回到[维护者指南概述](./index.md)。

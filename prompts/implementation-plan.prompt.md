@@ -101,7 +101,9 @@ applyTo: .devcodex/**/requirements/**
 | ConceptSyncMap / ProfileImpactCheck | | | source-consumer-sync / load-profile | | |
 | 其他适用 gateGroup | | | registry ownerSkill | | |
 
-`agent-turn-liveness` 命中时，把状态机/Hook adapter、Owner/consumer sync、gray sidecar 严格拆批；前一批 direct replay 与 fault matrix 未通过前不得开放后一批。sidecar 默认只读 one-shot，不得在计划中预授权自动 mutation 或进程控制。
+`local-observability-contract` 命中时，计划必须包含 CLI human/json/error/exit、typed local probe dependency/error/zero-write、公开文档与 package boundary 的任务和验证映射。
+
+`agent-turn-liveness` 命中时，把状态机/Hook adapter、双阶段 CheckpointValidation、LocalTaskTrace/只读 replay、Owner/consumer sync、gray sidecar 严格拆批；前一批 direct replay 与 fault matrix 未通过前不得开放后一批。sidecar 和 trace replay 默认只读，不得在计划中预授权 payload 执行、operation replay、自动 mutation 或进程控制。
 
 跨会话、多批次、服务启动、发布、依赖升级或台账回写等条件产物，在命中时作为“其他适用 gateGroup/产物”逐项加入；未命中只保留一条聚合 `N/A + skipReason`。
 

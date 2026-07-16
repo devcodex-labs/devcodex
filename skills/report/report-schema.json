@@ -11,6 +11,9 @@
     "ReleaseVerification": "release workflow only",
     "ConceptSyncMap": "control-plane or source-consumer change",
     "HostContractVerification": "host, hook, CLI or visible-reply contract change",
+    "CliDiagnosticContract": "machine-readable CLI envelope, local probe, stable error or native exit behavior",
+    "CheckpointValidation": "response-time or post-execution checkpoint evidence is produced or reviewed",
+    "LocalTaskTrace": "typed current-turn trace, validation or read-only replay is produced or reviewed",
     "BacklogIntakeAndLedgerWriteback": "task is sourced from a runtime ledger or changes ledger state",
     "RepairCollaborationContract": "repair task only",
     "DocsNavigationReviewMatrix": "user-manual navigation or rendered sequence changes",
@@ -18,7 +21,7 @@
     "ReleaseEfficiencyControl": "release candidate freeze, critical path budget, evidence reuse, isolated consumer cwd or release rework incident",
     "ConsumerValidationEngineering": "independent consumer repository, design fitness or validation finding repair loop",
     "BrandVisualQuality": "brand master lineage, theme geometry, micro or mono variants, visual evidence or blocker reset",
-    "TurnLivenessRecovery": "long task, tool-complete without continuation, orphaned inProgress, host recovery or gray liveness sidecar"
+    "TurnLivenessRecovery": "long task, tool-complete without continuation, orphaned inProgress, host recovery, checkpoint validation, local task trace or gray liveness sidecar"
   },
   "overlays": {
     "dev": ["requirementTrace", "implementationSummary", "testRoute", "documentSync"],

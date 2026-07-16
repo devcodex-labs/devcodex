@@ -5,6 +5,7 @@ const fs = require('fs')
 const path = require('path')
 
 const LEGAL_STATES = new Set(['draft', 'gray', 'active', 'deprecated', 'retired', 'blocked'])
+const SKILL_INDEX_EVIDENCE_STATES = new Set(['unverified', 'source-backed', 'validated'])
 const TEXT_EXTENSIONS = new Set(['.md', '.js', '.cjs', '.json', '.ts', '.yml', '.yaml'])
 
 function sha256(value) {
@@ -142,13 +143,94 @@ function detectCycles(nodes, edges) {
   return cycles
 }
 
+function normalizeStringArray(value, fallback = []) {
+  if (!Array.isArray(value)) return [...fallback]
+  return [...new Set(value.map(item => String(item || '').trim()).filter(Boolean))].sort()
+}
+
+function buildSkillIndex({ id, triggers, dependencies, conflicts, validationProfile, operationalReadiness, defaults, override }) {
+  const declared = { ...(defaults.skillIndex || {}), ...(override.skillIndex || {}) }
+  const maxTokens = Number.isInteger(declared.maxTokens) && declared.maxTokens > 0 ? declared.maxTokens : null
+  return {
+    id,
+    type: String(declared.type || 'skill'),
+    workflow: normalizeStringArray(declared.workflow),
+    phase: normalizeStringArray(declared.phase),
+    domains: normalizeStringArray(declared.domains),
+    triggers,
+    requires: [...dependencies],
+    conflictsWith: [...conflicts],
+    priority: Number.isInteger(declared.priority) ? declared.priority : 100,
+    visibility: String(declared.visibility || 'agent'),
+    maxTokens,
+    fixtures: [
+      { kind: 'positive', ref: operationalReadiness.positiveFixture },
+      { kind: 'negative', ref: operationalReadiness.negativeFixture }
+    ],
+    evolvableUnitRef: String(declared.evolvableUnitRef || `skill:${id}`),
+    probeSuiteRefs: normalizeStringArray(declared.probeSuiteRefs, validationProfile),
+    exitCondition: String(declared.exitCondition || 'work-unit-complete-or-workflow-transition'),
+    evidenceState: String(declared.evidenceState || 'source-backed')
+  }
+}
+
+/** Select a deterministic, read-only Skill bundle without changing portfolio lifecycle state. */
+function buildBundleDecision(portfolio, input = {}) {
+  const byId = new Map((portfolio.skills || []).map(skill => [skill.id, skill]))
+  const candidateIds = normalizeStringArray(input.candidateIds)
+  const includeGray = input.includeGray === true
+  const maxSkills = Number.isInteger(input.maxSkills) && input.maxSkills >= 0 ? input.maxSkills : null
+  const selected = []
+  const ignored = []
+  const conflicts = []
+
+  for (const id of candidateIds) {
+    const skill = byId.get(id)
+    if (!skill) {
+      ignored.push({ id, reason: 'unknown' })
+      continue
+    }
+    if (skill.lifecycleState !== 'active' && !(includeGray && skill.lifecycleState === 'gray')) {
+      ignored.push({ id, reason: 'inactive', lifecycleState: skill.lifecycleState })
+      continue
+    }
+    const conflicting = selected.find(item => {
+      const selectedSkill = byId.get(item.id)
+      return skill.skillIndex.conflictsWith.includes(item.id) || selectedSkill.skillIndex.conflictsWith.includes(id)
+    })
+    if (conflicting) {
+      ignored.push({ id, reason: 'conflict', conflictWith: conflicting.id })
+      conflicts.push({ left: conflicting.id, right: id })
+      continue
+    }
+    if (maxSkills !== null && selected.length >= maxSkills) {
+      ignored.push({ id, reason: 'budget' })
+      continue
+    }
+    selected.push({ id, reason: 'eligible', priority: skill.skillIndex.priority })
+  }
+
+  const budgetStatus = maxSkills === null
+    ? 'not-enforced'
+    : (selected.length >= maxSkills && ignored.some(item => item.reason === 'budget') ? 'exhausted' : 'within-limit')
+  return {
+    schemaVersion: 'BundleDecisionV1',
+    candidates: candidateIds,
+    selected,
+    ignored,
+    conflicts,
+    budget: { type: 'maxSkills', limit: maxSkills, used: selected.length, status: budgetStatus },
+    exitCondition: selected.length ? 'bundle-ready' : 'no-skill-selected'
+  }
+}
+
 function buildPortfolio(root) {
   const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'))
   const pluginPath = path.join(root, 'plugin.json')
   const plugin = JSON.parse(fs.readFileSync(pluginPath, 'utf8'))
   const portfolioEvidencePath = path.join(root, 'skills', 'portfolio-evidence.json')
   const portfolioEvidence = JSON.parse(fs.readFileSync(portfolioEvidencePath, 'utf8'))
-  if (portfolioEvidence.schemaVersion !== 1 || portfolioEvidence.ownerSkill !== 'skill-lifecycle-governance') {
+  if (portfolioEvidence.schemaVersion !== 2 || portfolioEvidence.ownerSkill !== 'skill-lifecycle-governance') {
     throw new Error('invalid skills/portfolio-evidence.json header')
   }
   const registered = new Map((plugin.skills || []).map(item => [item.id, item]))
@@ -197,12 +279,22 @@ function buildPortfolio(root) {
     const conflicts = Array.isArray(override.conflicts) ? [...override.conflicts].sort() : []
     const hash = sha256(canonicalContent)
     sourceRows.push(`${source}:${hash}`)
+    const skillIndex = buildSkillIndex({
+      id,
+      triggers: buildTriggerContract(id, frontmatter.description),
+      dependencies,
+      conflicts,
+      validationProfile,
+      operationalReadiness,
+      defaults: portfolioEvidence.defaults,
+      override
+    })
     return {
       id,
       name: frontmatter.name,
       description: frontmatter.description,
       owner: id,
-      triggers: buildTriggerContract(id, frontmatter.description),
+      triggers: skillIndex.triggers,
       ownedArtifacts: [source],
       source,
       hash,
@@ -218,6 +310,7 @@ function buildPortfolio(root) {
       consumers: consumerRows,
       validationProfile,
       lastEvidenceAt: operationalReadiness.lastEvidenceAt,
+      skillIndex,
       evidence: {
         registration: isRegistered ? 'plugin.json' : null,
         operationalReadiness,
@@ -246,7 +339,7 @@ function buildPortfolio(root) {
     .map(skill => skill.id)
 
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     package: packageJson.name,
     packageVersion: packageJson.version,
     generatedFrom: {
@@ -286,6 +379,7 @@ function buildPortfolio(root) {
 function validatePortfolio(portfolio) {
   const errors = []
   const ids = new Set()
+  if (portfolio.schemaVersion !== 2) errors.push(`unsupported portfolio schema version: ${portfolio.schemaVersion}`)
   for (const skill of portfolio.skills || []) {
     if (ids.has(skill.id)) errors.push(`duplicate skill id: ${skill.id}`)
     ids.add(skill.id)
@@ -306,6 +400,15 @@ function validatePortfolio(portfolio) {
     const triggerPrecision = skill.evidence && skill.evidence.triggerPrecision
     if (!triggerPrecision || !['structural-only', 'measured'].includes(triggerPrecision.state)) errors.push(`invalid trigger precision state: ${skill.id}`)
     if (triggerPrecision && triggerPrecision.state === 'measured' && triggerPrecision.sampleCount <= 0) errors.push(`measured trigger precision lacks samples: ${skill.id}`)
+    const index = skill.skillIndex
+    if (!index || index.id !== skill.id || index.type !== 'skill') errors.push(`invalid SkillIndexV2 identity: ${skill.id}`)
+    for (const field of ['workflow', 'phase', 'domains', 'requires', 'conflictsWith', 'fixtures', 'probeSuiteRefs']) {
+      if (!index || !Array.isArray(index[field])) errors.push(`invalid SkillIndexV2 ${field}: ${skill.id}`)
+    }
+    if (!index || !Number.isInteger(index.priority)) errors.push(`invalid SkillIndexV2 priority: ${skill.id}`)
+    if (index && index.maxTokens !== null && (!Number.isInteger(index.maxTokens) || index.maxTokens <= 0)) errors.push(`invalid SkillIndexV2 maxTokens: ${skill.id}`)
+    if (!index || !SKILL_INDEX_EVIDENCE_STATES.has(index.evidenceState)) errors.push(`invalid SkillIndexV2 evidenceState: ${skill.id}`)
+    if (!index || !index.evolvableUnitRef || !index.exitCondition || !index.visibility) errors.push(`incomplete SkillIndexV2 contract: ${skill.id}`)
   }
   if ((portfolio.dependencyGraph && portfolio.dependencyGraph.cycles || []).length) {
     errors.push('dependency graph contains cycles')
@@ -319,7 +422,9 @@ function serializePortfolio(portfolio) {
 }
 
 module.exports = {
+  buildBundleDecision,
   buildPortfolio,
+  buildSkillIndex,
   buildTriggerContract,
   canonicalizeTextForDigest,
   collectDependencies,

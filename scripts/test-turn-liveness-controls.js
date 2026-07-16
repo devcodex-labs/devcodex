@@ -37,6 +37,8 @@ assert.strictEqual(observation.evidenceMode, 'sidecar-observed')
 assert.strictEqual(observation.classification.state, 'stalled-recoverable')
 assert.strictEqual(observation.capabilityBoundary.readOnly, true)
 assert.strictEqual(observation.capabilityBoundary.processControl, false)
+assert.strictEqual(observation.checkpointValidation.postExecution.status, 'unverified')
+assert.strictEqual(observation.taskTrace.status, 'open')
 assert.strictEqual(hash(fixture), beforeHash, 'zero-write sidecar must not mutate the observed state file')
 
 const sidecarSource = fs.readFileSync(sidecar, 'utf8')

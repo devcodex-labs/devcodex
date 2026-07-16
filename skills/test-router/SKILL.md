@@ -33,7 +33,9 @@ TestRoute 的稳定输入、route selector、固定输出与 skip 合同以同�
 
 `brandVisualQuality` 是 `brand-visual-quality` gateGroup 的领域绑定，不新增顶层 selector：至少选择 `static`，并用 Owner Skill 的同画布渲染、微尺寸/单色预览和人工视觉结论补充 evidence；涉及网站或产品运行态采用资产时再叠加 `runtime-e2e`。若任务只改 token/component 而不生产品牌资产，写结构化 skipReason 并交给设计系统 Owner。
 
-`turnLiveness` 是 `agent-turn-liveness` gateGroup 的领域绑定，不新增顶层 selector：至少选择 `unit-integration + runtime-e2e`，执行 fixed-clock 状态机、Hook direct replay、no-continuation、active lease、restart rehydrate 与 duplicate recovery；触达 Profile/部署或 gray sidecar package 时再叠加 `profile-deploy / package-release`。Hook 无事件自唤醒能力未由宿主或 sidecar 实证时，coverageClaim 必须降级并保留 residualRisk。
+`localObservability` 是 `local-observability-contract` gateGroup 的领域绑定：CLI JSON/human/error/exit 选择 `unit-integration + runtime-e2e`；typed local probe 追加 dependency/error/zero-write fixture；进入 package/公开文档时叠加 `package-release / profile-deploy`。
+
+`turnLiveness` 是 `agent-turn-liveness` gateGroup 的领域绑定，不新增顶层 selector：至少选择 `unit-integration + runtime-e2e`，执行 fixed-clock 状态机、Hook direct replay、no-continuation、active lease、restart rehydrate 与 duplicate recovery；`CheckpointValidationResultV1` 必须覆盖 response-time/post-execution、缺证据与 timeout；`LocalTaskTraceV1` 必须覆盖 sequence/duplicate/terminal/restart、payload 不执行和 source state zero-write。触达 Profile/部署或 gray sidecar package 时再叠加 `profile-deploy / package-release`。Hook 无事件自唤醒能力未由宿主或 sidecar 实证时，coverageClaim 必须降级并保留 residualRisk。
 
 ## TestRoute 输出
 

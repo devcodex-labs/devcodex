@@ -5,9 +5,14 @@ const {
   classifyTurnLiveness,
   completeToolLease,
   createTurnLivenessState,
+  markTurnTerminal,
   observeTurnEvent,
   startToolLease
 } = require('../../hooks/_runtime/lifecycle-turn-liveness.cjs')
+const {
+  replayLocalTaskTrace,
+  validateLocalTaskTrace
+} = require('../../hooks/_runtime/lifecycle-task-trace.cjs')
 
 function buildTurnLivenessControlChecks(ctx) {
   const { ROOT, ACTIVE_DEVCODEX_ROOT, fs, path, read, err, console } = ctx
@@ -27,27 +32,36 @@ function buildTurnLivenessControlChecks(ctx) {
   function checkV98() {
     const required = [
       ['hooks/_runtime/lifecycle-turn-liveness.cjs', ['classifyTurnLiveness', 'startToolLease', 'completeToolLease', 'TurnRecoveryCard', 'hook-event-observation-only']],
+      ['hooks/_runtime/lifecycle-checkpoint-validation.cjs', ['CheckpointValidationResultV1', 'response-time', 'post-execution', 'TRACE_COMPLETION_TIMEOUT']],
+      ['hooks/_runtime/lifecycle-task-trace.cjs', ['LocalTaskTraceV1', 'LocalTaskTraceReplayV1', 'TRACE_DUPLICATE_EVENT', 'payloadExecution']],
       ['hooks/_runtime/lifecycle-bootstrap-state.cjs', ['turnLiveness', 'normalizeTurnLivenessState']],
       ['hooks/_runtime/lifecycle.cjs', ['observeTurnEvent', 'startToolLease', 'markTurnTerminal']],
-      ['skills/ai-agent-system-architecture/SKILL.md', ['TurnLivenessRecoveryGate', 'terminalInvariant', 'capabilityBoundary']],
-      ['skills/execution-contract/SKILL.md', ['turnLivenessContract', 'allowedRecoveryActions', 'forbiddenRecoveryActions']],
-      ['skills/host-contract-verification/SKILL.md', ['turnLiveness', 'hook-event-verified', 'sidecar-observed']],
+      ['scripts/lib/cli-observability-commands.js', ['LocalProbeContractError', 'cmdProbe', 'cmdTrace', 'legacy-normalized-unverified']],
+      ['skills/ai-agent-system-architecture/SKILL.md', ['TurnLivenessRecoveryGate', 'LocalTaskTraceGate', 'checkpointValidation', 'payloadExecution']],
+      ['skills/execution-contract/SKILL.md', ['turnLivenessContract', 'allowedRecoveryActions', 'forbiddenRecoveryActions', 'CheckpointValidationResultV1', 'LocalTaskTraceV1']],
+      ['skills/host-contract-verification/SKILL.md', ['turnLiveness', 'hook-event-verified', 'sidecar-observed', 'localProbe', 'checkpointValidation', 'localTaskTrace']],
       ['skills/rework-prevention-engineering/SKILL.md', ['Turn Liveness Prevention Trial', 'FalseStallRate', 'DuplicateMutationRate']],
-      ['skills/test-router/SKILL.md', ['agent-turn-liveness', 'no-continuation', 'restart rehydrate']],
-      ['skills/report/report-schema.json', ['TurnLivenessRecovery']],
-      ['skills/spec-governance/gate-registry.json', ['agent-turn-liveness', 'TurnLivenessReplayMatrix', 'V98']],
-      ['prompts/technical-design.prompt.md', ['agent-turn-liveness', 'TurnLivenessRecoveryGate']],
-      ['prompts/implementation-plan.prompt.md', ['agent-turn-liveness', 'gray sidecar']],
-      ['prompts/report-dev.prompt.md', ['TurnLivenessRecovery']],
-      ['prompts/report-fix.prompt.md', ['TurnLivenessRecovery']],
-      ['prompts/report-audit.prompt.md', ['TurnLivenessRecovery']],
+      ['skills/test-router/SKILL.md', ['agent-turn-liveness', 'local-observability-contract', 'CheckpointValidationResultV1', 'LocalTaskTraceV1']],
+      ['skills/report/report-schema.json', ['CliDiagnosticContract', 'CheckpointValidation', 'LocalTaskTrace', 'TurnLivenessRecovery']],
+      ['skills/spec-governance/gate-registry.json', ['local-observability-contract', 'agent-turn-liveness', 'CheckpointValidationResultV1', 'LocalTaskTraceV1', 'V98']],
+      ['instructions/01-common.instructions.md', ['host-contract-verification', 'CheckpointValidation', 'LocalTaskTrace']],
+      ['prompts/technical-design.prompt.md', ['agent-turn-liveness', 'TurnLivenessRecoveryGate', 'CheckpointValidationResultV1', 'LocalTaskTraceV1']],
+      ['prompts/implementation-plan.prompt.md', ['agent-turn-liveness', 'CheckpointValidation', 'LocalTaskTrace']],
+      ['prompts/implementation-progress.prompt.md', ['CliDiagnosticContract', 'CheckpointValidation', 'LocalTaskTrace']],
+      ['prompts/delivery-checklist.prompt.md', ['CliDiagnosticContract', 'CheckpointValidation', 'LocalTaskTrace']],
+      ['prompts/report-dev.prompt.md', ['CliDiagnosticContract', 'CheckpointValidation', 'LocalTaskTrace', 'TurnLivenessRecovery']],
+      ['prompts/report-fix.prompt.md', ['CliDiagnosticContract', 'CheckpointValidation', 'LocalTaskTrace', 'TurnLivenessRecovery']],
+      ['prompts/report-audit.prompt.md', ['CliDiagnosticContract', 'CheckpointValidation', 'LocalTaskTrace', 'TurnLivenessRecovery']],
       ['scripts/check-turn-liveness.js', ['gray-read-only-one-shot', 'sidecar-observed', 'operationReplay', 'processControl']],
-      ['package.json', ['check:turn-liveness', 'scripts/check-turn-liveness.js']],
-      ['README.md', ['TurnLivenessRecoveryGate', 'stalled-recoverable', 'Hook 本身无法主动唤醒任务']],
+      ['package.json', ['test:local-probe', 'test:checkpoint-validation', 'test:local-task-trace', 'check:turn-liveness', 'scripts/check-turn-liveness.js']],
+      ['README.md', ['TurnLivenessRecoveryGate', 'stalled-recoverable', 'Hook 本身无法主动唤醒任务', 'devcodex probe', 'LocalTaskTraceV1']],
       ['website/docs/intro/index.md', ['长任务停滞可诊断', 'TurnLivenessRecoveryGate']],
-      ['website/docs/guide/development.md', ['Turn Liveness', 'PostToolUse', '不得自行唤醒宿主']],
-      ['changelogs/unreleased.md', ['ISSUE-043', 'Turn Liveness', 'V98']],
+      ['website/docs/guide/development.md', ['Turn Liveness', 'PostToolUse', '不得自行唤醒宿主', 'devcodex probe', 'CheckpointValidation', 'LocalTaskTrace']],
+      ['changelogs/unreleased.md', ['ISSUE-043', 'Turn Liveness', 'V98', 'LocalTaskTraceV1']],
       ['scripts/test-turn-liveness.js', ['active-operation-lease', 'stalled-recoverable']],
+      ['scripts/test-checkpoint-validation.js', ['incomplete-timeout', 'host-terminal-event']],
+      ['scripts/test-local-task-trace.js', ['TRACE_DUPLICATE_EVENT', 'payload-must-not-run', 'CLI_INVALID_OPTION']],
+      ['scripts/test-local-probe.js', ['PROBE_DEPENDENCY_FAILED', 'zero-write']],
       ['scripts/test-turn-liveness-controls.js', ['zero-write', 'gray-read-only-one-shot']],
       ['scripts/test-hooks-runtime.js', ['liveness-turn-2', 'TurnRecoveryCard']]
     ]
@@ -64,19 +78,34 @@ function buildTurnLivenessControlChecks(ctx) {
     state = completeToolLease(state, { tool_use_id: 'v98-tool' }, { nowMs: 3000 })
     const stalled = classifyTurnLiveness(state, { nowMs: 3000 + DEFAULT_THRESHOLDS.stalledAfterMs })
     if (stalled.state !== 'stalled-recoverable') err(`[V98] no-continuation fixture expected stalled-recoverable, got ${stalled.state}`)
+    if (state.checkpointValidation.postExecution.status === 'pass') {
+      err('[V98] PostToolUse must not satisfy post-execution checkpoint validation')
+    }
+    state = markTurnTerminal(state, 'completed', 'v98-terminal', { nowMs: 4000 })
+    if (state.checkpointValidation.postExecution.status !== 'pass') {
+      err('[V98] Hook terminal evidence must satisfy post-execution checkpoint validation')
+    }
+    const traceValidation = validateLocalTaskTrace(state.taskTrace)
+    if (!traceValidation.valid) err(`[V98] LocalTaskTraceV1 invalid: ${JSON.stringify(traceValidation.violations)}`)
+    const replay = replayLocalTaskTrace(state.taskTrace)
+    if (!replay.ok || replay.capabilityBoundary.operationReplay || replay.capabilityBoundary.payloadExecution) {
+      err('[V98] LocalTaskTrace replay must remain a valid read-only data projection')
+    }
 
     const profileRoot = path.join(ACTIVE_DEVCODEX_ROOT, 'profile')
     if (fs.existsSync(profileRoot)) {
-      for (const [file, needle] of [
-        ['01-项目信息.md', 'Turn Liveness'],
-        ['02-架构约束.md', 'lifecycle-turn-liveness.cjs'],
-        ['04-测试规范.md', 'V98'],
-        ['06-功能清单.md', 'turn-liveness'],
-        ['07-用户文档与契约规范.md', 'Turn Liveness']
+      for (const [file, needles] of [
+        ['01-项目信息.md', ['Turn Liveness', 'CLI 工程脚本** | 97']],
+        ['02-架构约束.md', ['lifecycle-turn-liveness.cjs', 'lifecycle-checkpoint-validation.cjs', 'lifecycle-task-trace.cjs']],
+        ['03-代码风格.md', ['LocalTaskTraceV1', 'local probe']],
+        ['04-测试规范.md', ['V98', 'test-local-probe.js', 'test-checkpoint-validation.js', 'test-local-task-trace.js']],
+        ['06-功能清单.md', ['local-observability', 'turn-liveness', 'CheckpointValidation', 'LocalTaskTraceV1']],
+        ['07-用户文档与契约规范.md', ['本地 probe 契约', 'CheckpointValidation', 'LocalTaskTrace']]
       ]) {
         const target = path.join(profileRoot, file)
-        if (!fs.existsSync(target) || !fs.readFileSync(target, 'utf8').includes(needle)) {
-          err(`[V98] active Profile missing ${needle}: ${file}`)
+        const content = fs.existsSync(target) ? fs.readFileSync(target, 'utf8') : ''
+        for (const needle of needles) {
+          if (!content.includes(needle)) err(`[V98] active Profile missing ${needle}: ${file}`)
         }
       }
     } else {

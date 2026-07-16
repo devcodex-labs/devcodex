@@ -7,8 +7,9 @@ const PROFILE_CLOSED_LOOP_FILES = [...PROFILE_STANDARD_FILES, '07-用户文档�
 const PROFILE_DEFAULT_FILES = [...PROFILE_CLOSED_LOOP_FILES, 'config.json', 'config.local.json']
 const PROFILE_RELEASE_FILES = ['05-发布规范.md', '05-交付发布规范.md']
 const PROFILE_TIER_ORDER = Object.freeze(['profile-lite', 'profile-standard', 'profile-closed-loop'])
-const FEATURE_INVENTORY_SCHEMA_VERSION = 'FeatureInventorySchemaV1'
-const FEATURE_INVENTORY_COLUMNS = Object.freeze([
+const FEATURE_INVENTORY_LEGACY_SCHEMA_VERSION = 'FeatureInventorySchemaV1'
+const FEATURE_INVENTORY_SCHEMA_VERSION = 'FeatureInventorySchemaV2'
+const FEATURE_INVENTORY_V1_COLUMNS = Object.freeze([
   'featureId',
   'capabilityGroup',
   'publicSurface',
@@ -20,6 +21,13 @@ const FEATURE_INVENTORY_COLUMNS = Object.freeze([
   'maintenanceOwner',
   'releaseState'
 ])
+const FEATURE_INVENTORY_COLUMNS = Object.freeze([
+  ...FEATURE_INVENTORY_V1_COLUMNS,
+  'lifecycleState',
+  'evidenceState',
+  'asOf',
+  'evidenceRefs'
+])
 const FEATURE_INVENTORY_COLUMN_LABELS = Object.freeze({
   featureId: '能力 ID',
   capabilityGroup: '能力组',
@@ -30,10 +38,16 @@ const FEATURE_INVENTORY_COLUMN_LABELS = Object.freeze({
   validationRoute: '验证路线',
   sourceEvidence: '事实来源',
   maintenanceOwner: '维护责任',
-  releaseState: '发布状态'
+  releaseState: '发布状态',
+  lifecycleState: '生命周期状态',
+  evidenceState: '证据状态',
+  asOf: '证据日期',
+  evidenceRefs: '证据引用'
 })
+const FEATURE_LIFECYCLE_STATES = new Set(['planned', 'implemented', 'validated', 'released', 'historical'])
+const FEATURE_EVIDENCE_STATES = new Set(['unverified', 'source-backed', 'validated'])
 const PROFILE_GENERATION_CONTRACT = Object.freeze({
-  version: 1,
+  version: 2,
   tiers: Object.freeze({
     'profile-lite': Object.freeze({
       requiredFiles: Object.freeze([...PROFILE_BASE_FILES]),
@@ -50,7 +64,7 @@ const PROFILE_GENERATION_CONTRACT = Object.freeze({
     'profile-closed-loop': Object.freeze({
       requiredFiles: Object.freeze([...PROFILE_CLOSED_LOOP_FILES]),
       defaultGeneratedFiles: Object.freeze([...PROFILE_CLOSED_LOOP_FILES, 'config.json']),
-      semanticChecks: Object.freeze(['tier-declaration', 'feature-inventory-schema-v1', 'profile-lifecycle']),
+      semanticChecks: Object.freeze(['tier-declaration', 'feature-inventory-schema', 'profile-lifecycle']),
       optionalFiles: Object.freeze(['config.local.json', '08-*', '09-*'])
     })
   }),
@@ -145,15 +159,63 @@ function parseMarkdownTables(markdown) {
   return tables
 }
 
-function inspectFeatureInventoryDocument(markdown, { requireV1 = false } = {}) {
+function projectFeatureInventoryState(schemaVersion, rows) {
+  if (schemaVersion !== FEATURE_INVENTORY_SCHEMA_VERSION) {
+    return {
+      schemaVersion,
+      featureCount: rows.length,
+      lifecycleCounts: { unknown: rows.length },
+      evidenceCounts: { unverified: rows.length },
+      evidenceState: 'unverified',
+      asOf: null
+    }
+  }
+  if (!rows.length) {
+    return {
+      schemaVersion,
+      featureCount: 0,
+      lifecycleCounts: {},
+      evidenceCounts: { unverified: 0 },
+      evidenceState: 'unverified',
+      asOf: null
+    }
+  }
+  const lifecycleCounts = {}
+  const evidenceCounts = {}
+  for (const row of rows) {
+    lifecycleCounts[row.lifecycleState] = (lifecycleCounts[row.lifecycleState] || 0) + 1
+    evidenceCounts[row.evidenceState] = (evidenceCounts[row.evidenceState] || 0) + 1
+  }
+  const dates = rows.map(row => row.asOf).filter(value => /^\d{4}-\d{2}-\d{2}$/.test(value)).sort()
+  const evidenceState = rows.some(row => row.evidenceState === 'unverified')
+    ? 'unverified'
+    : (rows.length > 0 && rows.every(row => row.evidenceState === 'validated') ? 'validated' : 'source-backed')
+  return {
+    schemaVersion,
+    featureCount: rows.length,
+    lifecycleCounts,
+    evidenceCounts,
+    evidenceState,
+    asOf: dates.length ? dates[dates.length - 1] : null
+  }
+}
+
+function inspectFeatureInventoryDocument(markdown, { requireV1 = false, requireV2 = false } = {}) {
   const text = String(markdown || '')
-  const requiredLabels = FEATURE_INVENTORY_COLUMNS.map(key => FEATURE_INVENTORY_COLUMN_LABELS[key])
   const tables = parseMarkdownTables(text)
-  const table = tables.find(candidate => requiredLabels.every(label => candidate.headers.includes(label)))
-  const declaresV1 = text.includes(FEATURE_INVENTORY_SCHEMA_VERSION)
+  const v1Labels = FEATURE_INVENTORY_V1_COLUMNS.map(key => FEATURE_INVENTORY_COLUMN_LABELS[key])
+  const v2Labels = FEATURE_INVENTORY_COLUMNS.map(key => FEATURE_INVENTORY_COLUMN_LABELS[key])
+  const v2Table = tables.find(candidate => v2Labels.every(label => candidate.headers.includes(label)))
+  const v1Table = tables.find(candidate => v1Labels.every(label => candidate.headers.includes(label)))
+  const declaresV2 = text.includes(FEATURE_INVENTORY_SCHEMA_VERSION)
+  const declaresV1 = text.includes(FEATURE_INVENTORY_LEGACY_SCHEMA_VERSION)
+  const table = v2Table || v1Table
+  const schemaVersion = v2Table ? FEATURE_INVENTORY_SCHEMA_VERSION : FEATURE_INVENTORY_LEGACY_SCHEMA_VERSION
   const errors = []
-  if ((requireV1 || declaresV1) && !table) {
-    errors.push(`feature inventory must contain columns: ${requiredLabels.join(' | ')}`)
+  if ((requireV2 || declaresV2) && !v2Table) {
+    errors.push(`feature inventory must contain ${FEATURE_INVENTORY_SCHEMA_VERSION} columns: ${v2Labels.join(' | ')}`)
+  } else if ((requireV1 || declaresV1) && !table) {
+    errors.push(`feature inventory must contain columns: ${v1Labels.join(' | ')}`)
   }
   if (!table) {
     const legacyHeaderGroups = [
@@ -169,31 +231,48 @@ function inspectFeatureInventoryDocument(markdown, { requireV1 = false } = {}) {
       : []
     if (legacyTable && !validRows.length) errors.push('feature inventory requires at least one non-placeholder row')
     return {
-      schemaVersion: declaresV1 ? FEATURE_INVENTORY_SCHEMA_VERSION : 'legacy',
+      schemaVersion: declaresV2 ? FEATURE_INVENTORY_SCHEMA_VERSION : (declaresV1 ? FEATURE_INVENTORY_LEGACY_SCHEMA_VERSION : 'legacy'),
       valid: !!legacyTable && errors.length === 0,
       headers: legacyTable ? legacyTable.headers : [],
       rows: legacyTable ? legacyTable.rows : [],
       validRows,
-      errors
+      errors,
+      projection: projectFeatureInventoryState('legacy', validRows)
     }
   }
 
-  const rows = table.rows.map(cells => Object.fromEntries(FEATURE_INVENTORY_COLUMNS.map(key => [key, cells[table.headers.indexOf(FEATURE_INVENTORY_COLUMN_LABELS[key])] || ''])))
+  const columns = schemaVersion === FEATURE_INVENTORY_SCHEMA_VERSION ? FEATURE_INVENTORY_COLUMNS : FEATURE_INVENTORY_V1_COLUMNS
+  const rows = table.rows.map(cells => Object.fromEntries(columns.map(key => [key, cells[table.headers.indexOf(FEATURE_INVENTORY_COLUMN_LABELS[key])] || ''])))
   const validRows = rows.filter(row => {
     const values = Object.values(row).map(value => value.trim())
     if (values.some(value => !value)) return false
     if (/^(待补充|待维护者补充|todo|tbd)$/i.test(row.featureId)) return false
     if (!/package\.json|plugin\.json|scripts\/|mcp\/|hooks\/|skills\/|instructions\/|prompts\/|changelogs\/|index\.js|README\.md|website\/|unverified|待人工确认/i.test(row.sourceEvidence)) return false
+    if (schemaVersion === FEATURE_INVENTORY_SCHEMA_VERSION) {
+      if (!FEATURE_LIFECYCLE_STATES.has(row.lifecycleState)) return false
+      if (!FEATURE_EVIDENCE_STATES.has(row.evidenceState)) return false
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(row.asOf)) return false
+      if (!row.evidenceRefs.trim()) return false
+    }
     return true
   })
   if (!validRows.length) errors.push('feature inventory requires at least one non-placeholder row with source evidence')
+  if (schemaVersion === FEATURE_INVENTORY_SCHEMA_VERSION) {
+    rows.forEach((row, index) => {
+      if (!FEATURE_LIFECYCLE_STATES.has(row.lifecycleState)) errors.push(`feature inventory row ${index + 1} has invalid lifecycleState: ${row.lifecycleState || '(missing)'}`)
+      if (!FEATURE_EVIDENCE_STATES.has(row.evidenceState)) errors.push(`feature inventory row ${index + 1} has invalid evidenceState: ${row.evidenceState || '(missing)'}`)
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(row.asOf)) errors.push(`feature inventory row ${index + 1} has invalid asOf: ${row.asOf || '(missing)'}`)
+      if (!row.evidenceRefs.trim()) errors.push(`feature inventory row ${index + 1} is missing evidenceRefs`)
+    })
+  }
   return {
-    schemaVersion: FEATURE_INVENTORY_SCHEMA_VERSION,
+    schemaVersion,
     valid: errors.length === 0,
     headers: table.headers,
     rows,
     validRows,
-    errors
+    errors,
+    projection: projectFeatureInventoryState(schemaVersion, validRows)
   }
 }
 
@@ -222,8 +301,11 @@ function hasProfileLifecycle(corpus) {
 function inspectProfileContract(tier, availableFiles, corpus = '', documents = {}) {
   const normalized = normalizeProfileTier(tier)
   const files = availableFiles instanceof Set ? availableFiles : new Set(availableFiles || [])
+  const inventory = documents['06-功能清单.md']
+    ? inspectFeatureInventoryDocument(documents['06-功能清单.md'])
+    : null
   const requiredChecks = PROFILE_BASE_FILES.map(file => ({ key: file, pass: files.has(file) }))
-  const semanticChecks = [{ key: 'tier-declaration', pass: extractProfileTierDeclarations(corpus).length === 1 }]
+  const semanticChecks = [{ key: 'tier-declaration', pass: new Set(extractProfileTierDeclarations(corpus)).size === 1 }]
 
   if (normalized !== 'profile-lite') {
     requiredChecks.push({ key: '04-测试规范.md', pass: files.has('04-测试规范.md') })
@@ -233,7 +315,7 @@ function inspectProfileContract(tier, availableFiles, corpus = '', documents = {
   if (normalized === 'profile-closed-loop') {
     requiredChecks.push({ key: '06-功能清单.md', pass: files.has('06-功能清单.md') })
     requiredChecks.push({ key: '07-用户文档与契约规范.md', pass: files.has('07-用户文档与契约规范.md') })
-    semanticChecks.push({ key: 'feature-inventory-schema-v1', pass: inspectFeatureInventoryDocument(documents['06-功能清单.md'] || '', { requireV1: true }).valid })
+    semanticChecks.push({ key: 'feature-inventory-schema', pass: inspectFeatureInventoryDocument(documents['06-功能清单.md'] || '', { requireV1: true }).valid })
     semanticChecks.push({ key: 'profile-lifecycle', pass: hasProfileLifecycle(corpus) })
   }
 
@@ -256,7 +338,10 @@ function inspectProfileContract(tier, availableFiles, corpus = '', documents = {
       total: semanticChecks.length,
       missing: semanticChecks.filter(check => !check.pass).map(check => check.key)
     },
-    config: configCheck
+    config: configCheck,
+    featureInventory: inventory
+      ? { valid: inventory.valid, errors: inventory.errors, ...inventory.projection }
+      : null
   }
 }
 
@@ -269,7 +354,9 @@ module.exports = {
   PROFILE_RELEASE_FILES,
   PROFILE_TIER_ORDER,
   PROFILE_GENERATION_CONTRACT,
+  FEATURE_INVENTORY_LEGACY_SCHEMA_VERSION,
   FEATURE_INVENTORY_SCHEMA_VERSION,
+  FEATURE_INVENTORY_V1_COLUMNS,
   FEATURE_INVENTORY_COLUMNS,
   FEATURE_INVENTORY_COLUMN_LABELS,
   normalizeProfileTier,
@@ -280,6 +367,7 @@ module.exports = {
   updateProfileTierDeclaration,
   parseMarkdownTables,
   inspectFeatureInventoryDocument,
+  projectFeatureInventoryState,
   hasFeatureInventorySource,
   inspectProfileLifecycle,
   hasProfileLifecycle,

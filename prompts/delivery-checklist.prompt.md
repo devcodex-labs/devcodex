@@ -43,8 +43,11 @@ applyTo: .devcodex/**/requirements/**
 | 12 | ReleaseVerification | 用户明确要求 tag / release / publish 或进入正式发版 | ☐/N/A |
 | 13 | ConceptSyncMap | 控制面、模板-示例-校验链、README / website / Profile / validate / 部署副本联动 | ☐/N/A |
 | 14 | HostContractVerification | Hook / CLI / visible reply / sticky project / workspace guard / bootstrap 相关任务 | ☐/N/A |
-| 15 | OfficialDocsEvidence | 新增/升级依赖、框架、SDK、平台 API、外部模块或外部平台能力判断 | ☐/N/A |
-| 16 | ProfileImpactCheck | 项目技术栈、目录边界、脚本、测试/发布路线、分发面、配置项、长期连接或本地 overlay schema 变化 | ☐/N/A |
+| 15 | CliDiagnosticContract | 机器可读 CLI、typed local probe、稳定错误码或 native exit 变化 | ☐/N/A |
+| 16 | CheckpointValidation | response-time / post-execution checkpoint evidence 变化 | ☐/N/A |
+| 17 | LocalTaskTrace | 当前 turn typed trace、terminal 或只读 replay 变化 | ☐/N/A |
+| 18 | OfficialDocsEvidence | 新增/升级依赖、框架、SDK、平台 API、外部模块或外部平台能力判断 | ☐/N/A |
+| 19 | ProfileImpactCheck | 项目技术栈、目录边界、脚本、测试/发布路线、分发面、配置项、长期连接或本地 overlay schema 变化 | ☐/N/A |
 
 ## 使用说明
 

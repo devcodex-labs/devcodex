@@ -15,7 +15,13 @@ description: Skill 生命周期治理 Owner — 当任务涉及 Skill 组合、�
 
 合法状态：`draft → gray → active → deprecated → retired`，另允许 `gray→draft`、`active→gray` 和任意非 retired 状态进入 `blocked`。禁止 `draft→active`、`active→retired` 或 retired 静默恢复。
 
-DevCodex 源仓的机器可读实例是 `skills/portfolio.json`：由 `scripts/generate-skill-portfolio.js` 从 `skills/*/SKILL.md` 与 `plugin.json` 确定性生成，`--check` 只比较、不改生命周期。严格 `dependencies` 只承载显式依赖声明；普通 Markdown 关系进入 `referenceGraph`，避免把互相说明误报成依赖环。
+DevCodex 源仓的机器可读实例是 `skills/portfolio.json`（schema v2）：由 `scripts/generate-skill-portfolio.js` 从 `skills/*/SKILL.md`、`plugin.json` 与 `skills/portfolio-evidence.json` 确定性生成，`--check` 只比较、不改生命周期。严格 `dependencies` 只承载显式依赖声明；普通 Markdown 关系进入 `referenceGraph`，避免把互相说明误报成依赖环。
+
+### SkillIndexV2 与 BundleDecisionV1
+
+每个 portfolio entry 必须包含保守的 `skillIndex` 投影：`id/type/workflow/phase/domains/triggers/requires/conflictsWith/priority/visibility/maxTokens/fixtures/evolvableUnitRef/probeSuiteRefs/exitCondition/evidenceState`。没有直接事实时使用空数组、`maxTokens=null` 或 `evidenceState=unverified`，禁止凭结构证据编造 workflow/phase/token budget。
+
+`buildBundleDecision` 只读消费 candidate IDs、当前 lifecycle、显式冲突和可选 `maxSkills`，输出 `selected/ignored/conflicts/budget/exitCondition`。ignored reason 固定为 `unknown/inactive/conflict/budget`；该决策不得写 portfolio、修改 `plugin.json` 或自动把 gray/draft 晋级 active。
 
 ### 激活条件
 
@@ -75,4 +81,4 @@ DevCodex 源仓的机器可读实例是 `skills/portfolio.json`：由 `scripts/g
 
 至少覆盖：完整 active、orphan active、循环依赖、draft 直跳 active、active 直退役、误触发超阈值、deprecated 无迁移、gray rollback、retired 引用残留和低样本指标不得自动决策。
 
-源仓最小命令：`node scripts/generate-skill-portfolio.js --check` + `node scripts/test-skill-portfolio.js`。静态消费者和注册事实可以证明集合/引用完整，但 precision、false positive/negative 与人工纠偏率没有真实样本时必须保持 `insufficient-evidence`。
+源仓最小命令：`node scripts/generate-skill-portfolio.js --check` + `node scripts/test-skill-portfolio.js`。静态消费者和注册事实可以证明集合/引用完整，但 precision、false positive/negative 与人工纠偏率没有真实样本时必须保持 `insufficient-evidence`；SkillIndex `source-backed` 也不能替代触发 precision 的真实测量。

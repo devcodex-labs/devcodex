@@ -70,6 +70,12 @@ function inspectTurnLiveness(stateFile, options = {}) {
     continuationAckAt: state.continuationAckAt,
     inFlightOperation: state.inFlightOperation,
     checkpoint: state.checkpoint,
+    checkpointValidation: state.checkpointValidation,
+    taskTrace: state.taskTrace ? {
+      traceId: state.taskTrace.traceId,
+      status: state.taskTrace.status,
+      sequence: state.taskTrace.sequence
+    } : null,
     thresholds: state.thresholds,
     capabilityBoundary: {
       readOnly: true,

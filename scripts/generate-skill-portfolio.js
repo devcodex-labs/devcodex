@@ -24,10 +24,12 @@ if (check) {
   const current = fs.existsSync(OUTPUT) ? fs.readFileSync(OUTPUT, 'utf8') : ''
   if (current !== desired) {
     console.error('Skill portfolio is stale. Run: node scripts/generate-skill-portfolio.js')
+    console.error('V92 parity: consumers/skills are git-tracked only (untracked files ignored).')
     process.exit(1)
   }
   console.log(`✓ Skill portfolio is deterministic and current (${portfolio.summary.skillCount} skills)`)
 } else {
   fs.writeFileSync(OUTPUT, desired)
   console.log(`✓ Wrote ${path.relative(ROOT, OUTPUT)} (${portfolio.summary.skillCount} skills)`)
+  console.log('  source=git-tracked-files-only (CI clean-checkout parity)')
 }

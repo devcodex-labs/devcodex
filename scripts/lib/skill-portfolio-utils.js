@@ -1,6 +1,7 @@
 'use strict'
 
 const crypto = require('crypto')
+const { execFileSync } = require('child_process')
 const fs = require('fs')
 const path = require('path')
 
@@ -93,23 +94,90 @@ function classifyConsumer(relativePath) {
   return 'current'
 }
 
-function listConsumerDocuments(root) {
-  const excludedTop = new Set(['.git', '.devcodex', 'coverage', 'dist', 'node_modules', 'skills'])
-  const files = []
-  function visit(dir, depth = 0) {
-    if (!fs.existsSync(dir)) return
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      if (entry.isDirectory() && ((depth === 0 && excludedTop.has(entry.name)) || entry.name === 'node_modules' || entry.name === 'dist')) continue
-      const full = path.join(dir, entry.name)
-      if (entry.isDirectory()) visit(full, depth + 1)
-      else if (TEXT_EXTENSIONS.has(path.extname(entry.name).toLowerCase())) files.push(full)
-    }
+function gitLsFiles(root, pathspecs = []) {
+  try {
+    const args = ['-C', root, 'ls-files', '-z', '--']
+    if (pathspecs.length) args.push(...pathspecs)
+    else args.push('.')
+    const out = execFileSync('git', args, {
+      encoding: 'buffer',
+      maxBuffer: 64 * 1024 * 1024,
+      windowsHide: true
+    })
+    return out.toString('utf8').split('\0').filter(Boolean).map(rel => rel.replace(/\\/g, '/'))
+  } catch {
+    return null
   }
-  visit(root)
-  return files.sort().map(file => ({
+}
+
+function isPortfolioConsumerExcluded(relativePath) {
+  const rel = relativePath.replace(/\\/g, '/')
+  const excludedPrefixes = [
+    'skills/',
+    'node_modules/',
+    'coverage/',
+    'dist/',
+    '.git/',
+    '.devcodex/',
+    'website/doc_build/',
+    'website/dist/'
+  ]
+  if (excludedPrefixes.some(prefix => rel === prefix.slice(0, -1) || rel.startsWith(prefix))) return true
+  const base = path.posix.basename(rel)
+  if (base === 'portfolio.json' || base === 'portfolio-evidence.json') return true
+  return !TEXT_EXTENSIONS.has(path.extname(rel).toLowerCase())
+}
+
+/**
+ * Consumer scan for Skill portfolio.
+ * MUST use git-tracked paths only when git is available so dirty/untracked worktrees
+ * match CI clean checkouts (V92). Untracked reports/tmp/backup files must never change consumers.
+ */
+function listConsumerDocuments(root) {
+  const tracked = gitLsFiles(root)
+  const files = []
+
+  if (tracked && tracked.length) {
+    for (const rel of tracked) {
+      if (isPortfolioConsumerExcluded(rel)) continue
+      const full = path.join(root, rel)
+      if (!fs.existsSync(full) || !fs.statSync(full).isFile()) continue
+      files.push(full)
+    }
+  } else {
+    // Fallback for non-git unpack / pack install smoke: filesystem walk with same exclusions.
+    const excludedTop = new Set(['.git', '.devcodex', 'coverage', 'dist', 'node_modules', 'skills', 'doc_build'])
+    function visit(dir, depth = 0) {
+      if (!fs.existsSync(dir)) return
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (entry.isDirectory() && ((depth === 0 && excludedTop.has(entry.name)) || entry.name === 'node_modules' || entry.name === 'dist' || entry.name === 'doc_build')) continue
+        const full = path.join(dir, entry.name)
+        if (entry.isDirectory()) visit(full, depth + 1)
+        else if (TEXT_EXTENSIONS.has(path.extname(entry.name).toLowerCase())) files.push(full)
+      }
+    }
+    visit(root)
+  }
+
+  return files.sort((a, b) => a.localeCompare(b)).map(file => ({
     path: normalizePath(root, file),
     content: fs.readFileSync(file, 'utf8')
   }))
+}
+
+/** List SKILL.md paths: git-tracked only when available (ignore untracked skill drafts). */
+function listSkillMarkdownFiles(root) {
+  const tracked = gitLsFiles(root, ['skills'])
+  if (tracked && tracked.length) {
+    return tracked
+      .filter(rel => rel.replace(/\\/g, '/').endsWith('/SKILL.md') || /^skills\/[^/]+\/SKILL\.md$/.test(rel.replace(/\\/g, '/')))
+      .map(rel => path.join(root, rel))
+      .filter(full => fs.existsSync(full) && fs.statSync(full).isFile())
+      .sort((a, b) => a.localeCompare(b))
+  }
+  return walk(path.join(root, 'skills'))
+    .filter(file => path.basename(file) === 'SKILL.md')
+    .sort((a, b) => a.localeCompare(b))
 }
 
 function percentile(values, ratio) {
@@ -234,9 +302,7 @@ function buildPortfolio(root) {
     throw new Error('invalid skills/portfolio-evidence.json header')
   }
   const registered = new Map((plugin.skills || []).map(item => [item.id, item]))
-  const skillFiles = walk(path.join(root, 'skills'))
-    .filter(file => path.basename(file) === 'SKILL.md')
-    .sort()
+  const skillFiles = listSkillMarkdownFiles(root)
   const knownNames = new Set(skillFiles.map(file => path.basename(path.dirname(file))))
   const consumers = listConsumerDocuments(root)
   const sourceRows = []
@@ -429,6 +495,10 @@ module.exports = {
   canonicalizeTextForDigest,
   collectDependencies,
   detectCycles,
+  gitLsFiles,
+  isPortfolioConsumerExcluded,
+  listConsumerDocuments,
+  listSkillMarkdownFiles,
   parseFrontmatter,
   serializePortfolio,
   validatePortfolio

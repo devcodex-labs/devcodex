@@ -10,6 +10,7 @@ const {
   canonicalizeTextForDigest,
   collectDependencies,
   detectCycles,
+  listConsumerDocuments,
   serializePortfolio,
   validatePortfolio
 } = require('./lib/skill-portfolio-utils')
@@ -19,6 +20,31 @@ const first = buildPortfolio(ROOT)
 const second = buildPortfolio(ROOT)
 
 assert.strictEqual(serializePortfolio(first), serializePortfolio(second), 'portfolio generation must be byte-identical')
+// V92 parity: consumers must come from git-tracked paths only when git is available.
+const consumers = listConsumerDocuments(ROOT)
+assert.ok(consumers.length > 50, 'expected a non-trivial tracked consumer set')
+assert.ok(!consumers.some(item => item.path.startsWith('skills/')), 'skills/ must not be scanned as consumers')
+assert.ok(!consumers.some(item => item.path.includes('.devcodex/')), '.devcodex must not be scanned as consumers')
+
+// Untracked pollution must not change portfolio serialization (CI clean parity).
+const fs = require('fs')
+const pollution = path.join(ROOT, `_portfolio_pollution_${process.pid}.md`)
+const beforePollution = serializePortfolio(first)
+fs.writeFileSync(pollution, [
+  '# pollution',
+  'accessibility-i18n intent memory load-profile brand-visual-quality execution-contract',
+  'This untracked file must not become a Skill consumer.'
+].join('\n'), 'utf8')
+try {
+  const polluted = buildPortfolio(ROOT)
+  assert.strictEqual(
+    serializePortfolio(polluted),
+    beforePollution,
+    'untracked files must not change Skill portfolio (V92 clean-checkout parity)'
+  )
+} finally {
+  fs.unlinkSync(pollution)
+}
 assert.strictEqual(canonicalizeTextForDigest('a\r\nb\rc\n'), 'a\nb\nc\n', 'portfolio digests must canonicalize CRLF/CR/LF')
 assert.strictEqual(first.summary.skillCount, 78)
 assert.strictEqual(first.schemaVersion, 2)

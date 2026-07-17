@@ -58,6 +58,15 @@ description: Skill 缺口与大语料分析 Owner — 当任务涉及项目/工�
 
 所有覆盖结论同时执行 `audit-common` 的 `ReviewCoverageClaimIntegrityGate`。`WorkspaceCorpusManifest` 只能证明 inventory-covered；关键词检索只能证明 machine-scanned；代表文件深读必须明确 sampledSet/unreadSet/inferenceBoundary。只有逐文件 FileEvidenceLedger 才能声明逐字全读。
 
+## 与 incremental-project-analysis 分界
+
+| 本 Skill | `incremental-project-analysis` |
+|----------|--------------------------------|
+| 规模路由、corpus inventory、Skill 缺口 vs Owner | 知识快照、digest 失效、BatchProgress 强制交付、GlobalBacklog、精度合同、双层验证 |
+| 「怎么分批扫、缺什么能力」 | 「扫完的事实如何复用、如何对用户分批交付与综合」 |
+
+`batched` / `sampled+deep-read` 的 analyze 路径在形成 ScaleDecision 后应**同时**调用 `incremental-project-analysis` 的交付与精度门禁；本 Skill 不把快照状态机整坨并入。
+
 ## 反模式
 
 - 未识别项目就从 workspace root 递归扫描。
@@ -66,6 +75,7 @@ description: Skill 缺口与大语料分析 Owner — 当任务涉及项目/工�
 - 只按关键词计数，不读代表样本、不反查现有 Skill。
 - 用抽样深读结果宣称“逐字审查所有文件”。
 - 同一批次失败后继续沿用部分输出，或用后续成功命令覆盖前序失败。
+- 做完分批扫描却不调用 incremental Skill，导致无 ProgressCard / 无快照 / 假完整主题清单。
 
 ## 验证
 

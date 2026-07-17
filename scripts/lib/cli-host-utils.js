@@ -82,9 +82,21 @@ function buildCliHostUtils({ fs, path, isPlainObject, claudeMcpJson }) {
   function detectHostPlatform(env = process.env, cwd = process.cwd()) {
     if (env.CLAUDE_CODE_VERSION || env.CLAUDE_HOOK_COMMAND) return { platform: 'claude', source: 'env-derived' }
     if (env.CODEX_HOME || env.CODEX_ENV_PWD || env.OPENAI_CODEX) return { platform: 'codex', source: 'env-derived' }
+    if (
+      env.GROK_AGENT ||
+      env.GROK_HOME ||
+      env.GROK_SESSION ||
+      env.GROK_SESSION_ID ||
+      env.GROK_BUILD ||
+      env.XAI_GROK ||
+      env.XAI_AGENT ||
+      /grok/i.test(String(env.TERM_PROGRAM || ''))
+    ) {
+      return { platform: 'grok', source: 'env-derived' }
+    }
+    if (env.CURSOR_TRACE_ID || env.CURSOR_USER_ID) return { platform: 'cursor', source: 'env-derived' }
     if (env.IDEA_INITIAL_DIRECTORY || env.JETBRAINS_IDE) return { platform: 'jetbrains-copilot', source: 'env-derived' }
     if (env.TERM_PROGRAM === 'vscode' || env.VSCODE_PID) return { platform: 'vscode-copilot', source: 'env-derived' }
-    if (env.CURSOR_TRACE_ID || env.CURSOR_USER_ID) return { platform: 'cursor', source: 'env-derived' }
 
     const installed = detectInstalledHostAssets(cwd)
     if (installed.length === 1) {

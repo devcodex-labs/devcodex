@@ -49,27 +49,13 @@ const SERVER_INFO = {
   version: '1.0.0'
 }
 
-const VALID_AGENTS = new Set([
-  'copilot',
-  'vscode-copilot',
-  'jetbrains-copilot',
-  'claude-code',
-  'codex',
-  'cursor',
-  'unknown-agent'
-])
+const {
+  VALID_AGENTS,
+  normalizeAgent,
+  detectRuntimeAgent
+} = require('./agent-identity.cjs')
 
-function normalizeAgent(value) {
-  const agent = String(value || '').trim().toLowerCase()
-  return VALID_AGENTS.has(agent) ? agent : ''
-}
-
-// This MCP server is deployed through the Claude Code adapter by default. An
-// explicit env value wins for tests or future host-specific launchers.
-function detectRuntimeAgent() {
-  return normalizeAgent(process.env.DEVCODEX_AGENT) || 'claude-code'
-}
-
+// Prefer DEVCODEX_AGENT; otherwise infer host env (incl. grok). Never default to claude-code.
 const DEFAULT_AGENT = detectRuntimeAgent()
 
 const TOOLS = [
@@ -120,7 +106,7 @@ const TOOLS = [
   },
   {
     name: 'profile_load',
-    description: '加载 .devcodex/profile/ 下的所有标准 Profile 文件，返回各文件的路径与内容；若存在 `config.local.json`，也会作为本地 overlay 元数据返回。',
+    description: '按需加载 Profile 文件正文。默认有 maxFiles/maxBytes 硬预算；省略 files 时须 explicitFull=true + fullReadReason，否则返回 inventory/错误（禁止默认真全量）。',
     inputSchema: {
       type: 'object',
       properties: {
@@ -131,7 +117,27 @@ const TOOLS = [
         files: {
           type: 'array',
           items: { type: 'string' },
-          description: '指定要加载的文件名列表（如 ["01-项目信息.md"]），省略则加载全部标准文件'
+          description: '指定要加载的文件名列表（如 ["01-项目信息.md"]）；省略时须 explicitFull'
+        },
+        maxFiles: {
+          type: 'integer',
+          minimum: 1,
+          maximum: 50,
+          description: '单次最多加载文件数，默认 2（explicitFull 时放宽到档位全集）'
+        },
+        maxBytes: {
+          type: 'integer',
+          minimum: 1024,
+          maximum: 2000000,
+          description: '单次拼接正文最大字节，默认 32768；超限截断并 truncated=true'
+        },
+        explicitFull: {
+          type: 'boolean',
+          description: 'true 时允许无 files 的档位全量 load（仍受 maxBytes）'
+        },
+        fullReadReason: {
+          type: 'string',
+          description: 'explicitFull=true 时必填原因'
         }
       }
     }
@@ -684,33 +690,119 @@ function handleProfileContextPlan(args = {}) {
   }
 }
 
-function handleProfileLoad(args) {
-  const names = (args.files && args.files.length > 0) ? args.files : resolveDefaultProfileFiles(args.project)
+const DEFAULT_PROFILE_LOAD_MAX_FILES = 2
+const DEFAULT_PROFILE_LOAD_MAX_BYTES = 32 * 1024
+
+function handleProfileLoad(args = {}) {
+  const hasFiles = Array.isArray(args.files) && args.files.length > 0
+  const explicitFull = args.explicitFull === true
+  if (!hasFiles && !explicitFull) {
+    const inventory = resolveDefaultProfileFiles(args.project)
+    return {
+      content: [{
+        type: 'text',
+        text: JSON.stringify({
+          schemaVersion: 'ProfileLoadBudgetErrorV1',
+          errorCode: 'PROFILE_LOAD_BUDGET',
+          message: 'profile_load without files requires explicitFull=true and fullReadReason (hard budget; no silent full-tier load).',
+          nextStep: 'Pass files: [...] for targeted load (default maxFiles=2, maxBytes=32768), or explicitFull+fullReadReason for tier full read.',
+          inventoryFiles: inventory,
+          defaults: { maxFiles: DEFAULT_PROFILE_LOAD_MAX_FILES, maxBytes: DEFAULT_PROFILE_LOAD_MAX_BYTES }
+        }, null, 2)
+      }],
+      isError: true
+    }
+  }
+  if (explicitFull && !hasFiles && !String(args.fullReadReason || '').trim()) {
+    return {
+      content: [{
+        type: 'text',
+        text: JSON.stringify({
+          schemaVersion: 'ProfileLoadBudgetErrorV1',
+          errorCode: 'PROFILE_FULL_REASON_REQUIRED',
+          message: 'explicitFull profile_load requires non-empty fullReadReason.',
+          nextStep: 'Provide fullReadReason describing why tier full read is necessary.'
+        }, null, 2)
+      }],
+      isError: true
+    }
+  }
+
+  const requested = hasFiles ? args.files : resolveDefaultProfileFiles(args.project)
+  // Explicit files list: load all named files (still hard-capped by maxBytes).
+  // No-files + explicitFull: tier full set. Otherwise default maxFiles=2.
+  const maxFiles = Number.isInteger(args.maxFiles) && args.maxFiles > 0
+    ? args.maxFiles
+    : (hasFiles || explicitFull ? requested.length : DEFAULT_PROFILE_LOAD_MAX_FILES)
+  const maxBytes = Number.isInteger(args.maxBytes) && args.maxBytes >= 1024
+    ? args.maxBytes
+    : (explicitFull ? 512 * 1024 : DEFAULT_PROFILE_LOAD_MAX_BYTES)
+
+  const selected = requested.slice(0, maxFiles)
+  const deferred = requested.slice(maxFiles)
   const parts = []
   const missing = []
+  let usedBytes = 0
+  let truncatedByBytes = false
+  const loaded = []
 
-  for (const name of names) {
+  for (const name of selected) {
     const resolved = resolveProfileFile(name, args.project)
     if (resolved) {
-      const sourceLines = [
-        `> 来源：${resolved.sourceLabel}`
-      ]
+      const sourceLines = [`> 来源：${resolved.sourceLabel}`]
       for (const sourcePath of resolved.sourcePaths || []) {
         sourceLines.push(`> 路径：${sourcePath}`)
       }
-      parts.push(`### ${name}\n\n${sourceLines.join('\n')}\n\n${resolved.content}`)
+      let body = resolved.content
+      const header = `### ${name}\n\n${sourceLines.join('\n')}\n\n`
+      const pieceBudget = maxBytes - usedBytes - Buffer.byteLength(header, 'utf8') - 32
+      if (pieceBudget <= 0) {
+        truncatedByBytes = true
+        deferred.unshift(name, ...selected.slice(selected.indexOf(name) + 1))
+        break
+      }
+      const bodyBytes = Buffer.byteLength(body, 'utf8')
+      if (bodyBytes > pieceBudget) {
+        body = body.slice(0, Math.max(0, Math.floor(pieceBudget * 0.5))) + '\n\n…(truncated by maxBytes)…\n'
+        truncatedByBytes = true
+      }
+      const block = `${header}${body}`
+      usedBytes += Buffer.byteLength(block, 'utf8')
+      parts.push(block)
+      loaded.push(name)
+      if (truncatedByBytes && bodyBytes > pieceBudget) {
+        const rest = selected.slice(selected.indexOf(name) + 1)
+        deferred.unshift(...rest)
+        break
+      }
     } else if (REQUIRED_FILES.has(name)) {
       parts.push(`### ${name}\n\n（⚠️ 必需文件不存在）`)
       missing.push(name)
+      loaded.push(name)
     } else {
       parts.push(`### ${name}\n\n（文件不存在，跳过）`)
+      loaded.push(name)
     }
   }
 
   let text = parts.join('\n\n---\n\n')
+  const meta = {
+    truncated: deferred.length > 0 || truncatedByBytes,
+    loadedFiles: loaded,
+    deferredFiles: [...new Set(deferred)],
+    usedBytes,
+    maxFiles,
+    maxBytes,
+    explicitFull
+  }
+  const metaBlock = `<!-- profile_load_budget ${JSON.stringify(meta)} -->\n\n`
+  if (meta.truncated) {
+    text = `⚠️ profile_load 硬预算生效：已加载 ${loaded.length} 文件 / ${usedBytes} bytes（maxFiles=${maxFiles}, maxBytes=${maxBytes}）。未读：${meta.deferredFiles.join('、') || '（字节截断）'}。请按需再次 profile_load(files)。\n\n---\n\n` + text
+  }
   if (missing.length > 0) {
     text = `⚠️ 必需 Profile 文件缺失，AI 将以保守降级模式运行：${missing.join('、')}\n\n---\n\n` + text
   }
+  text = metaBlock + text
 
   return {
     content: [{
@@ -778,8 +870,16 @@ function handlePromptsGet(args) {
     throw new Error('project is required for devcodex-init when MCP runs from workspace root')
   }
 
-  // 复用 handleProfileLoad 获取已明确项目的 Profile 内容
-  const profileResponse = handleProfileLoad({ project })
+  // 复用 handleProfileLoad：init prompt 需要档位全量，显式 full + 原因
+  const profileResponse = handleProfileLoad({
+    project,
+    explicitFull: true,
+    fullReadReason: 'devcodex-init prompt embeds tier Profile for onboarding',
+    maxBytes: 512 * 1024
+  })
+  if (profileResponse.isError) {
+    throw new Error(profileResponse.content?.[0]?.text || 'profile_load failed for devcodex-init')
+  }
   const profileText = profileResponse.content[0].text
 
   const promptText = `请严格遵循以下工作流规范与项目配置执行后续任务：\n\n## 1. 核心规范 (CLAUDE.md)\n\n${claudeContent}\n\n## 2. 项目专属配置 (Profile)\n\n${profileText}\n\n请在充分理解上述规范后，输出预检查块 (PC0~PC7) 并等待我的进一步指示。`

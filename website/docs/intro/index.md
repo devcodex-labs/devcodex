@@ -98,7 +98,7 @@ DevCodex 提供两个 Agent 入口：
 |------|------|
 | Agent | `devcodex.agent.md`（确认模式）+ `devcodex-auto.agent.md`（全自动模式）|
 | Instructions | 全局规范与工作流主规则，按 `applyTo` 全局注入 |
-| Skills | 当前源码 77 个按需触发的工作流技能（74 active + 3 gray）；`brand-visual-quality` 是尚未发版的 gray 能力，另覆盖 `rework-prevention-engineering`、`consumer-validation-engineering`、`analyze-default`、`skill-gap-analysis`、`skill-lifecycle-governance`、`spec-absorption`、`user-manual-authoring`、`audit-user-manual`、`expert-output-quality`、`review-checklist`、`evolution-governance`、`readme-authoring`、`audit-readme`、`audit-release`，以及 `execution-contract` / `test-router` / `release-verification` / `host-contract-verification` / `source-consumer-sync`；专家能力保持 21 个专家 Owner Skill |
+| Skills | 当前源码 78 个按需触发的工作流技能（75 active + 3 gray）；`brand-visual-quality` 是尚未发版的 gray 能力，另覆盖 `rework-prevention-engineering`、`consumer-validation-engineering`、`analyze-default`、`skill-gap-analysis`、`skill-lifecycle-governance`、`spec-absorption`、`user-manual-authoring`、`audit-user-manual`、`expert-output-quality`、`review-checklist`、`evolution-governance`、`readme-authoring`、`audit-readme`、`audit-release`，以及 `execution-contract` / `test-router` / `release-verification` / `host-contract-verification` / `source-consumer-sync`；专家能力保持 21 个专家 Owner Skill |
 | Prompts | CP 节点输出模板 |
 | Hooks | `UserPromptSubmit` / `PreToolUse` / `Stop` 等生命周期钩子 |
 | Codex adapter | `AGENTS.md` + `.agents/skills/` + `.codex/hooks.json` |
@@ -119,3 +119,6 @@ DevCodex 提供两个 Agent 入口：
 
 - [设计理念](/intro/philosophy) — 为什么这样构建，而不是另一种方式
 - [商业化规划](/intro/pricing) — v1 免费策略与 v2 商业化方向
+
+
+> Skill 规模锚点：78 个 Skills；扁平一级 Skill（78 个）。

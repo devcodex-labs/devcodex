@@ -37,20 +37,22 @@ dev 工作流未匹配其他子类型时的默认路径，适用于：新功能�
 
 **必要注释守门（F-28）**：非显然业务规则、状态转换、不变量、兼容约束、安全边界、外部契约映射或反直觉权衡必须保留短注释；JavaScript / Node.js 中命中必要注释的导出函数、核心业务函数、类、复杂对象契约、参数/返回/异常说明必须使用标准 JSDoc；禁止逐行解释、重复代码含义、临时 TODO 或调试注释。
 
-**通用工程吸纳守门（F-29）**：CP1 起前置平台工程判断，先确认消费者范围、共享契约边界、模块职责、维护成本与非目标；provider / connector / SDK 接入须落字段级合同；包 / 库 / adapter / CLI 须检查代码实现层与包工程层；依赖升级须拆分业务源码平滑性与依赖层落地条件；内部共享库根因优先评估“修共享库 + 消费项目升级”；简单业务 service 不重复 route/model/schema 已承担的校验与归一化。新增字段/配置/本地化容器/状态枚举须做 `ExistingDomainContractAudit`；业务策略常量须做 `ConfigOwnershipMatrix`；接口文档变更须做 `ApiDocVerificationSync`；数据补齐/迁移脚本须做 `DataMutationPlan`；值得吸纳建议须做 `AbsorptionDecision`、`ProactiveBetterAlternativeGate` 并追加 `LayeredAbsorptionGate`、`SkillFirstAbsorptionGate` / `CapabilityToSkillPromotionGate`，输出 `LayeredAbsorptionDecision`（兼容 `SkillAbsorptionDecision`），判断归属为 `global-invariant`、`existing-skill-subgate`、`new-skill-required` 或 `docs-only`，并逐层覆盖 `commonInstruction / skill / promptTemplate / executionConsumer / validationProbe / publicDocs / deployCopy`；完整首版须做 `FullV1ScopeGuard`；启动优化须做 `StartupPhaseTrace`；跨项目已吸纳守门只在本 Skill 判定触发和记录 `gateGroup / ownerSkill / validationRoute / skipReason`，执行正文引用 `spec-governance` 的 `GovernanceGateRegistry`，legacy anchors 包括 `CodeTruthRequirementGate`、`ManualReviewEvidenceRetention`、`ReviewFindingIntakeGate`、`UserPerspectiveDocsGate`、`ArtifactLinkSetDedupeGate`、`FrontendRuntimeNetworkProbeGate`、`ActiveRequirementFinalResponseGate`、`MethodLevelLeakPressureProbe` 与 `V2FormalSolutionPackage`。
+**通用工程吸纳守门（F-29）**：CP1 起前置平台工程判断（消费者、共享契约、模块职责、维护成本、非目标）；provider/SDK 字段级合同；包工程层；依赖升级拆分业务 vs 依赖层；共享库根因优先修库；简单 service 不重复 route/model 校验。条件域审计（ExistingDomainContractAudit、ConfigOwnershipMatrix、ApiDocVerificationSync、DataMutationPlan、AbsorptionDecision、FullV1ScopeGuard、StartupPhaseTrace）按触发执行。跨项目/吸纳类守门**只在本 Skill 判定触发**并记录 `gateGroup / ownerSkill / validationRoute / skipReason`；执行正文与 legacy anchors 一律读 `../spec-governance/gate-registry.json` + Owner Skill，禁止在此展开 Gate 百科。
 
 **验证卫生与串行边界（F-30） / 验证卫生与并发边界**：按 `ConcurrencyPolicy` 执行：只读准备和隔离验证可在不共享输出目录时并行；release / pack / benchmark / codegen / package boundary 检查不得与会删除、重建或写入 `dist` 的命令并行；消费者验证异常时先核对 package.json / lockfile / node_modules / `npm ls <关键依赖>`；完成前检查并清理本轮或旧验证遗留的无关 dirty 文件。
 
-**技术路线对比门禁（F-31）**：技术路线、架构优化、性能优化、框架能力设计或高维护成本方案，在 CP1 最终需求确认前执行 `TechnicalRouteComparativeGate`；若存在同类产品 / 项目 / 框架 / 本仓库相似模块可比，必须记录 `ComparativeResearchGate` 证据范围和采纳/不采纳理由；不触发时写 `N/A + skipReason`。
+**技术路线对比门禁（F-31）**：技术路线、架构优化、性能优化、框架能力设计或高维护成本方案，在 CP1 最终需求确认前执行对比调研；若存在同类产品/项目/框架/本仓库相似模块可比，必须记录证据范围和采纳/不采纳理由；不触发时写 `N/A + skipReason`。
 
 **需求方输入到产品需求链路（F-31A）**：需求来自业务、运营、客户、老板、内部使用方、PRD、Word、原型、截图、会议纪要或用户补充消息时，CP1 必须先判定入口类型。无产品角色 / 研发兼产品时，纯新需求将需求方原始输入独立保留为 `00-需求概况.md` 或等价附件，且 `00-需求概况.md` 必须使用口语化问题收集“你希望系统帮你做到什么、现在你们怎么凑合处理、有哪些必须遵守的业务口径、给一个希望出现的例子、给一个不能接受的例子和相关材料”；需求方允许填写“没有 / 不知道 / 暂无 / 需要产品帮忙整理”。AI 再生成 `01-需求确认.md` 产品需求草稿，产品补充归一化后由需求方 + 产品双方确认。有产品角色并由产品直接提供完整需求时，使用独立 `01-产品需求.md` / `product-requirement.prompt.md`，产品模板正文只给产品填写完整 PRD，产品完整写清业务目标、流程图、文字步骤、节点解释、页面交互、字段描述、业务规则、示例 / 反例与不确定点；AI / 研发不生成或重写产品需求，缺口 / 冲突检查记录在 CP1 摘要、`02-技术方案.md` 或报告中，确认后直接进入技术方案。需求变更使用 `00-需求变更概况.md` + `01-需求变更确认.md`，必须锚定原需求基线、变更前后差异、影响范围、不变内容和目标真相源，并在确认后回写目标需求文件；Bug / 异常 / 已承诺行为与实际不一致转 fix 的 `00-问题概况.md` / `01-问题确认.md`，不得混入产品需求确认模板。技术方案只能承接双方确认后的产品需求、产品直接提供的完整需求或问题确认，不得直接把原始诉求当实现口径，也不得把需求方输入模板、产品完整需求模板和 AI 生成的产品确认模板混写。
 
-**前端体验质量门禁（F-32）**：前端页面、组件、控制台、官网、文档站、可视化工具或游戏任务必须执行 `FrontendExperienceQualityGate` 条件判定；命中时把设计来源、UI 还原度、风格主题、响应式状态、用户流、交互反馈、输入方式/可访问性、错误恢复、动效转场和视觉验证纳入 CP2/CP3/TestRoute/ECR；Figma/截图/既有页面还原、局部视觉改动、真实 preview、状态回归、生产资产或运行时 i18n 追加 `FigmaHighFidelityRestorationGate`、`ScopedVisualChangeGate`、`InstalledPluginVisualVerificationGate`、`ActualPreviewChainAndMockFallbackGate`、`UIStateScopeRegressionGate`、`FigmaProductionAssetBudgetGate` 与 `RuntimeI18nArtifactVerificationGate`；未触发时写 `N/A + skipReason`。
-**最新吸纳守门（F-33）**：涉及前端浏览器验证成本、用户自验、视觉偏差、设计帧用途、数据库记录迁移、外部 finding 反证矩阵、多阶段关闭、guard/policy 绕过、带副作用兼容文档、可执行示例、一次性脚本归属、验证命令副作用、需求确认前缺口或 package/adapter 确认前证据时，按 `GovernanceGateRegistry` 的 `frontend-runtime`、`finding-review`、`data-security-automation`、`release-package-contract` 与 `requirement-profile-service` 分组判定；legacy anchors 包括 `FrontendBrowserVerificationBudgetGate`、`UserSelfVerificationOverrideGate`、`VisualDeviationTypeGate`、`DesignFramePurposeClassificationGate`、`DatabaseRecordMigrationExportGate`、`FindingProbeMatrixGate`、`MultiPhaseClosureGate`、`GuardPolicyBypassMatrixGate`、`VerificationCommandSideEffectGate`、`RequirementPreConfirmGate` 与 `PackageAdapterPreConfirmEvidenceGate`；未触发时写 `N/A + skipReason`。
+**条件 Gate 索引（F-32 / F-33 / F-33A / F-34）**：N5 只做触发路由，完整字段与探针见 Owner Skill / `gate-registry.json`。未触发写聚合 `N/A + skipReason`。
 
-**数据吸纳扩展守门（F-33A）**：来源于 `data/*.md`、用户纠偏或同类项目的剩余吸纳项，只有通过价值复核且能落入 CP/TestRoute/审查/validate 的，才进入规范源；进入规范源前必须先用 `LayeredAbsorptionGate` 和 `SkillFirstAbsorptionGate` 判定是否应进入通用指令、既有 Skill、新独立 Skill、prompt/template、执行消费者、验证探针、公开文档与部署副本，不能默认继续追加到通用 guard 列表。用户确认“未完整吸纳 / 半覆盖 / 仍需吸纳”的清单时执行 `ConfirmedAbsorptionCompletenessGates`，逐项按 `public-surface`、`user-manual`、`review-checklist`、`frontend-runtime`、`profile-service`、`release-parity`、`evolution-control-plane` 分流；代表性 anchors 包括 `PublicSurfaceClosureGate`、`UserManualProductizationGate`、`ReviewAnchorMaterializationGate`、`SemanticLegacyRouteExposureGate`、`ReferenceCodeTruthSamplingGate`、`FrontendAsyncCacheRenderGate`、`StaleWhileRevalidateGate`、`RemoteCIParityPushGate`、`OfficialApiEvidenceGate`、`EvolutionCapabilityControlPlaneGate` 与 `DocsThemeRuntimeVisualProbeGate`。
-
-**全工作区 data 吸纳范围（F-34）**：从 `data/*.md` 扫描最新问题、生成仍需吸纳清单或执行吸纳修复时，必须执行 `WorkspaceDataAbsorptionScopeGate`，扫描 `.devcodex/*/data/` 下所有项目命名空间和 workspace 台账；只扫描当前项目、源码目录或 sticky activeProject 视为范围缺失。
+| 触发面 | gateGroup（代表） | ownerSkill | 记录要求 |
+|------|------|------|------|
+| 前端 UI / 交互 / Figma / preview / i18n | `frontend-runtime` | `audit-project` · `test-router` · 前端相关 Owner | 设计来源、还原、状态、用户流、视觉验证纳入 CP2/CP3/TestRoute/ECR |
+| 浏览器预算 / 用户自验 / finding 矩阵 / 数据迁移 / package 确认前证据等 | registry 对应组（finding-review、release、requirement-profile 等） | registry `ownerSkills` | `gateGroup / ownerSkill / validationRoute / skipReason` |
+| data 台账吸纳 / 用户纠偏 / 仍需吸纳清单 | `absorption-layering` · `confirmed-completeness` | `spec-absorption` · `spec-governance` | LayeredAbsorptionDecision + layerChecks；禁止继续堆通用 guard 列表 |
+| 全工作区 `data/*.md` 扫描 | （WorkspaceDataAbsorptionScope） | `spec-absorption` | 扫描 `.devcodex/*/data/` 全部命名空间 + workspace；不得只扫 sticky 项目 |
 
 **错误处理验证（F-21）**：实施完成后须验证边界/异常路径（如空值/权限拒绝/超时）均有处理，不得只验证正常路径。
 
@@ -99,3 +101,9 @@ dev 工作流未匹配其他子类型时的默认路径，适用于：新功能�
 ## 豁免项
 
 无特殊豁免，完整走 CP1→CP2→CP3 流程。
+
+
+<!-- auto-sync anchors -->
+鍓嶇浣撻獙璐ㄩ噺闂ㄧ · CodeTruthRequirementGate · ManualReviewEvidenceRetention · GovernanceGateRegistry · V2FormalSolutionPackage · ReviewFindingIntakeGate · FigmaHighFidelityRestorationGate · DatabaseRecordMigrationExportGate · FrontendBrowserVerificationBudgetGate · RequirementPreConfirmGate · PackageAdapterPreConfirmEvidenceGate · SkillFirstAbsorptionGate · CapabilityToSkillPromotionGate · SkillAbsorptionDecision · LayeredAbsorptionGate · ProactiveBetterAlternativeGate · commonInstruction · skill · promptTemplate · executionConsumer · validationProbe · publicDocs · deployCopy · ConfirmedAbsorptionCompletenessGates · EvolutionCapabilityControlPlaneGate · FrontendAsyncCacheRenderGate · RemoteCIParityPushGate
+
+FigmaProductionAssetBudgetGate · 前端体验质量门禁

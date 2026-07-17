@@ -216,7 +216,8 @@ const DEVCODEX_GITIGNORE_ENTRIES = [
  */
 const CLAUDE_HOOK_COMMAND = `node -e "let d=process.cwd(),fs=require('fs'),p=require('path');while(true){const f=p.join(d,'.claude','hooks','_runtime','lifecycle.cjs');if(fs.existsSync(f)&&(fs.existsSync(p.join(d,'.devcodex'))||fs.existsSync(p.join(d,'package.json')))){require(f);break}const n=p.dirname(d);if(n===d){process.exit(0)}d=n}"`
 
-const CODEX_HOOK_COMMAND = 'node ./.codex/hooks/_runtime/lifecycle.cjs'
+// Monorepo-safe: walk up for .codex/hooks/_runtime/lifecycle.cjs with project marker (parity with Claude).
+const CODEX_HOOK_COMMAND = `node -e "let d=process.cwd(),fs=require('fs'),p=require('path');while(true){const f=p.join(d,'.codex','hooks','_runtime','lifecycle.cjs');if(fs.existsSync(f)&&(fs.existsSync(p.join(d,'.devcodex'))||fs.existsSync(p.join(d,'package.json')))){require(f);break}const n=p.dirname(d);if(n===d){process.exit(0)}d=n}"`
 
 function getCodexConfigState(cwd) {
   const userConfig = path.join(os.homedir(), '.codex', 'config.toml')
@@ -249,12 +250,15 @@ const CLAUDE_SETTINGS_HOOKS = {
   }
 }
 
-/** Claude Code project settings permissions: pre-approve DevCodex's normal tool surface */
+/** Claude Code project settings: minimal pre-approve for DevCodex surface (ABS-14 / FIX-19) */
 const CLAUDE_SETTINGS_PERMISSIONS = {
   $schema: 'https://json.schemastore.org/claude-code-settings.json',
   permissions: {
     allow: [
-      'Bash',
+      // Prefer scoped tools; bare "Bash" removed — use Bash(node:*) / project scripts when needed
+      'Bash(node:*)',
+      'Bash(npm:*)',
+      'Bash(npx:*)',
       'BashOutput',
       'Edit',
       'Glob',
@@ -275,10 +279,11 @@ const CLAUDE_SETTINGS_PERMISSIONS = {
       'mcp__devcodex-profile',
       'mcp__devcodex-profile__*'
     ],
-    ask: [],
+    ask: ['Bash'],
     deny: []
   },
-  enableAllProjectMcpServers: true
+  // Only auto-enable DevCodex MCP servers, not every project MCP
+  enableAllProjectMcpServers: false
 }
 
 /** Claude Code .mcp.json content written to target project root */

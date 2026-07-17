@@ -342,7 +342,11 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
     tool_name: 'devcodex-profile/profile_load',
     tool_input: {}
   })
-  const legacyProfileResult = callProfileTool(TEMP_ROOT, 'profile_load', {})
+  const legacyProfileResult = callProfileTool(TEMP_ROOT, 'profile_load', {
+    explicitFull: true,
+    fullReadReason: 'hooks bootstrap legacy full-read fixture',
+    maxBytes: 500000
+  })
   run({
     hookEventName: 'PostToolUse',
     tool_use_id: 'legacy-profile-load',

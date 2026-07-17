@@ -16,3 +16,7 @@ changelogs/
 assets/hooks/
 scripts/
 .github/workflows/
+
+skills/portfolio.json
+skills/portfolio-evidence.json
+

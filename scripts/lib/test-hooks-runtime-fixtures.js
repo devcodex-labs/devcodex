@@ -41,11 +41,24 @@ function buildTestHooksRuntimeFixtures({
   }
 
   function run(payload, cwd = TEMP_ROOT, env = {}) {
+    // Neutralize ambient host signals (e.g. developer GROK_AGENT) so bootstrap agent
+    // matches fixture paths under clients/claude-code unless a test overrides env.
+    const mergedEnv = {
+      ...process.env,
+      GROK_AGENT: '',
+      GROK_HOME: '',
+      GROK_SESSION: '',
+      GROK_SESSION_ID: '',
+      GROK_BUILD: '',
+      XAI_GROK: '',
+      XAI_AGENT: '',
+      ...env
+    }
     const result = spawnSync(process.execPath, [RUNTIME], {
       cwd,
       input: JSON.stringify(payload),
       encoding: 'utf8',
-      env: { ...process.env, ...env }
+      env: mergedEnv
     })
 
     if (result.status !== 0) {

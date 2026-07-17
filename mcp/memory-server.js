@@ -43,27 +43,13 @@ const SERVER_INFO = {
   version: '1.0.0'
 }
 
-const VALID_AGENTS = new Set([
-  'copilot',
-  'vscode-copilot',
-  'jetbrains-copilot',
-  'claude-code',
-  'codex',
-  'cursor',
-  'unknown-agent'
-])
+const {
+  VALID_AGENTS,
+  normalizeAgent,
+  detectRuntimeAgent
+} = require('./agent-identity.cjs')
 
-function normalizeAgent(value) {
-  const agent = String(value || '').trim().toLowerCase()
-  return VALID_AGENTS.has(agent) ? agent : ''
-}
-
-// This server is normally launched by Claude Code. DEVCODEX_AGENT lets other
-// launchers/tests pin the actual host without consulting profile config.
-function detectRuntimeAgent() {
-  return normalizeAgent(process.env.DEVCODEX_AGENT) || 'claude-code'
-}
-
+// Prefer DEVCODEX_AGENT; otherwise infer host env (incl. grok). Never default to claude-code.
 const EXPLICIT_RUNTIME_AGENT = normalizeAgent(process.env.DEVCODEX_AGENT)
 const DEFAULT_AGENT = detectRuntimeAgent()
 const TASK_KINDS = new Set(['requirements', 'bugs', 'optimizations', 'scenario-tests'])
@@ -124,7 +110,7 @@ const TOOLS = [
     inputSchema: {
       type: 'object',
       properties: {
-        agent: { type: 'string', description: 'Agent 标识（如 claude-code / codex / copilot），默认当前实际宿主' },
+        agent: { type: 'string', description: 'Agent 标识（如 claude-code / codex / copilot / grok），默认当前实际宿主' },
         date: { type: 'string', description: 'YYYYMMDD 日期，默认今日' },
         scope: { type: 'string', enum: ['project', 'workspace'], description: '可选。集中布局下指定读取域；默认按当前 cwd 推断。若 cwd 在 workspace 根，必须显式传 project 或 scope:"workspace"。' },
         project: { type: 'string', description: '可选。集中布局下显式指定项目命名空间；旧布局下仅允许当前项目，避免 workspace 根误读项目记忆。' }

@@ -20,11 +20,28 @@ function rpcRequest(id, method, params = {}) {
 
 function runServer(script, requests, cwd = ROOT, env = {}) {
   const input = requests.concat('').join('\n')
+  // Neutralize ambient host signals (e.g. developer GROK_AGENT) so identity is test-controlled.
+  // Default pin DEVCODEX_AGENT=claude-code for suite stability; callers may override or clear.
+  const mergedEnv = {
+    ...process.env,
+    GROK_AGENT: '',
+    GROK_HOME: '',
+    GROK_SESSION: '',
+    GROK_SESSION_ID: '',
+    GROK_BUILD: '',
+    XAI_GROK: '',
+    XAI_AGENT: '',
+    DEVCODEX_AGENT: 'claude-code',
+    ...env
+  }
+  if (Object.prototype.hasOwnProperty.call(env, 'DEVCODEX_AGENT')) {
+    mergedEnv.DEVCODEX_AGENT = env.DEVCODEX_AGENT
+  }
   const result = spawnSync(process.execPath, [path.join(ROOT, script), cwd], {
     cwd: ROOT,
     input,
     encoding: 'utf8',
-    env: { ...process.env, ...env }
+    env: mergedEnv
   })
 
   if (result.status !== 0) {
@@ -103,6 +120,7 @@ function setupConfiguredMcpTarget() {
   fs.copyFileSync(path.join(ROOT, 'mcp', 'profile-server.js'), path.join(targetRoot, '.claude', 'mcp', 'profile-server.js'))
   fs.copyFileSync(path.join(ROOT, 'mcp', 'path-guard.js'), path.join(targetRoot, '.claude', 'mcp', 'path-guard.js'))
   fs.copyFileSync(path.join(ROOT, 'mcp', 'profile-contract.js'), path.join(targetRoot, '.claude', 'mcp', 'profile-contract.js'))
+  fs.copyFileSync(path.join(ROOT, 'mcp', 'agent-identity.cjs'), path.join(targetRoot, '.claude', 'mcp', 'agent-identity.cjs'))
   fs.copyFileSync(
     path.join(ROOT, 'hooks', '_runtime', 'workspace-layout.cjs'),
     path.join(targetRoot, '.claude', 'hooks', '_runtime', 'workspace-layout.cjs')
@@ -803,6 +821,26 @@ function testMemoryProjectionLayoutTargets() {
   assert.ok(!fs.existsSync(path.join(TEMP_ROOT, '.devcodex', 'escape')))
 }
 
+function testAgentIdentitySharedModule() {
+  const {
+    VALID_AGENTS,
+    normalizeAgent,
+    detectRuntimeAgent
+  } = require(path.join(ROOT, 'mcp', 'agent-identity.cjs'))
+
+  assert.strictEqual(VALID_AGENTS.has('grok'), true)
+  assert.strictEqual(normalizeAgent('grok'), 'grok')
+  assert.strictEqual(normalizeAgent('claude'), '')
+  assert.strictEqual(detectRuntimeAgent({ DEVCODEX_AGENT: 'grok' }), 'grok')
+  assert.strictEqual(detectRuntimeAgent({ DEVCODEX_AGENT: 'codex', GROK_AGENT: '1' }), 'codex')
+  assert.strictEqual(detectRuntimeAgent({ GROK_AGENT: '1' }), 'grok')
+  assert.strictEqual(detectRuntimeAgent({ CLAUDE_CODE_VERSION: '1.0.0' }), 'claude-code')
+  assert.strictEqual(detectRuntimeAgent({ CODEX_HOME: 'C:\\x' }), 'codex')
+  // Unrecognized host must not impersonate Claude Code
+  assert.strictEqual(detectRuntimeAgent({}), 'unknown-agent')
+  assert.strictEqual(detectRuntimeAgent({ DEVCODEX_AGENT: '' }), 'unknown-agent')
+}
+
 function testMemoryProjectionAgentAmbiguity() {
   setupMemoryProjectionFixture()
   fs.mkdirSync(path.join(TEMP_ROOT, '.devcodex', '.memory', 'clients', 'codex'), { recursive: true })
@@ -830,6 +868,29 @@ function testMemoryProjectionAgentAmbiguity() {
   assert.match(error.message, /claude-code, codex, copilot/)
 }
 
+function testGrokAgentMemoryWrite() {
+  setupMemoryProjectionFixture()
+  const responses = runServer('mcp/memory-server.js', [
+    rpcRequest(1, 'tools/call', {
+      name: 'memory_session_write',
+      arguments: { date: '20260717', content: '# grok session\n', agent: 'grok' }
+    }),
+    rpcRequest(2, 'tools/call', {
+      name: 'memory_status',
+      arguments: { agent: 'grok' }
+    })
+  ], TEMP_ROOT, { DEVCODEX_AGENT: 'grok' })
+
+  const writeResult = resultById(responses, 1)
+  assert.notStrictEqual(writeResult.isError, true, writeResult.content?.[0]?.text || 'write failed')
+  const statusResult = resultById(responses, 2)
+  assert.notStrictEqual(statusResult.isError, true, statusResult.content?.[0]?.text || 'status failed')
+  const status = toolJson(statusResult)
+  assert.strictEqual(status.agent, 'grok')
+  assert.strictEqual(status.today.exists, true)
+  assert.ok(fs.existsSync(path.join(TEMP_ROOT, '.devcodex', '.memory', 'clients', 'grok', 'tasks', '20260717.md')))
+}
+
 function testWorkspaceNamespaceProfileMerge() {
   setupLayoutWorkspace()
   const projectRoot = path.join(TEMP_ROOT, 'chat')
@@ -840,7 +901,7 @@ function testWorkspaceNamespaceProfileMerge() {
       name: 'profile_load',
       arguments: { files: ['01-项目信息.md', '03-代码风格.md', 'config.json', 'config.local.json'] }
     })
-  ], projectRoot)
+  ], projectRoot, { DEVCODEX_AGENT: 'claude-code' })
 
   const payload = JSON.parse(resultById(responses, 2).content?.[0]?.text || '{}')
   assert.strictEqual(payload.layoutMode, 'workspace-namespace')
@@ -858,17 +919,32 @@ function testWorkspaceNamespaceProfileMerge() {
 
 function testProfileLoadWithoutArguments() {
   setupLegacyWorkspace()
-  const responses = runServer('mcp/profile-server.js', [
+  // Hard budget: no-args full load is rejected unless explicitFull+fullReadReason
+  const blocked = runServer('mcp/profile-server.js', [
     rpcRequest(1, 'initialize'),
     rpcRequest(2, 'tools/call', { name: 'profile_load' }),
     rpcRequest(3, 'tools/call', { name: 'profile_load', arguments: null }),
     rpcRequest(4, 'tools/call', { name: 'profile_load', arguments: {} })
   ], TEMP_ROOT)
-
-  const snapshots = []
   for (const id of [2, 3, 4]) {
+    const result = resultById(blocked, id)
+    assert.strictEqual(result.isError, true)
+    const text = result.content?.[0]?.text || ''
+    assert.match(text, /PROFILE_LOAD_BUDGET|explicitFull/)
+  }
+
+  const fullArgs = {
+    explicitFull: true,
+    fullReadReason: 'legacy compatibility fixture requires tier full read',
+    maxBytes: 500000
+  }
+  const responses = runServer('mcp/profile-server.js', [
+    rpcRequest(5, 'tools/call', { name: 'profile_load', arguments: fullArgs }),
+    rpcRequest(6, 'tools/call', { name: 'profile_load', arguments: { ...fullArgs } })
+  ], TEMP_ROOT)
+
+  for (const id of [5, 6]) {
     const result = resultById(responses, id)
-    snapshots.push(result)
     assert.notStrictEqual(result.isError, true)
     const text = result.content?.[0]?.text || ''
     assert.match(text, /01-项目信息/)
@@ -877,8 +953,22 @@ function testProfileLoadWithoutArguments() {
     assert.match(text, /config\.local\.json/)
     assert.doesNotMatch(text, /invoke|TypeError/i)
   }
-  assert.deepStrictEqual(snapshots[1], snapshots[0], 'profile_load missing/null/empty arguments must keep one legacy snapshot')
-  assert.deepStrictEqual(snapshots[2], snapshots[0], 'profile_load missing/null/empty arguments must keep one legacy snapshot')
+  assert.deepStrictEqual(
+    resultById(responses, 6).content,
+    resultById(responses, 5).content,
+    'explicitFull profile_load must be stable across identical calls'
+  )
+
+  const targeted = runServer('mcp/profile-server.js', [
+    rpcRequest(7, 'tools/call', {
+      name: 'profile_load',
+      arguments: { files: ['01-项目信息.md', '03-代码风格.md'] }
+    })
+  ], TEMP_ROOT)
+  const targetedText = resultById(targeted, 7).content?.[0]?.text || ''
+  assert.notStrictEqual(resultById(targeted, 7).isError, true)
+  assert.match(targetedText, /01-项目信息/)
+  assert.match(targetedText, /03-代码风格/)
 }
 
 function testProfileContextPlanContract() {
@@ -1109,7 +1199,15 @@ function testProfileContextPlanReadTrace() {
   assert(!profileReadBasenames(localPlanTrace.reads).includes('config.local.json'), 'plan may select local metadata but must not read local content')
 
   const legacy = runProfileServerWithReadTrace([
-    rpcRequest(5, 'tools/call', { name: 'profile_load', arguments: { project: 'chat' } })
+    rpcRequest(5, 'tools/call', {
+      name: 'profile_load',
+      arguments: {
+        project: 'chat',
+        explicitFull: true,
+        fullReadReason: 'context-read trace fixture full tier',
+        maxBytes: 500000
+      }
+    })
   ], projectRoot)
   const legacyNames = new Set(profileReadBasenames(legacy.reads))
   for (const file of ['README.md', '01-项目信息.md', '06-功能清单.md', '07-用户文档与契约规范.md', 'config.local.json']) {
@@ -1344,7 +1442,9 @@ testMemoryCpConfirmForExtendedTaskKinds()
 testMemoryProjectionQueriesAndZeroWrite()
 testMemoryProjectionErrorsAndMalformedSources()
 testMemoryProjectionLayoutTargets()
+testAgentIdentitySharedModule()
 testMemoryProjectionAgentAmbiguity()
+testGrokAgentMemoryWrite()
 testWorkspaceNamespaceProfileMerge()
 testProfileLoadWithoutArguments()
 testProfileContextPlanContract()

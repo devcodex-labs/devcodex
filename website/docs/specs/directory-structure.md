@@ -122,7 +122,7 @@ DevCodex 当前默认安装面向目标项目分发以下目录和文件：
 │   │   ├── 17-compliance.instructions.md
 │   │   └── 18-spec-radar.instructions.md
 │   │
-│   ├── skills/                          ← 第三层：扁平一级 Skill（77 个）
+│   ├── skills/                          ← 第三层：扁平一级 Skill（78 个）
 │   │   ├── dev-default/SKILL.md
 │   │   ├── fix-default/SKILL.md
 │   │   ├── audit-common/SKILL.md
@@ -235,3 +235,6 @@ DevCodex 当前默认注册 `PreCompact`，用于在手动或自动压缩前执�
 3. 本页只冻结分发面和目录职责，具体文件列表由源码目录实际内容决定
 
 > 结论：本页冻结**三层架构原则、分发面与目录职责**；数量类信息需要与 README/profile 同步维护。
+
+
+> Skill 规模锚点：78 个 Skills；78 个按需触发。

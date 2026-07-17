@@ -113,7 +113,7 @@ function buildResidualAbsorptionControlChecks(ctx) {
     const required = [
       ['skills/release-verification/SKILL.md', ['CandidateFreezeGate', 'ReleaseCriticalPathBudgetGate', 'ValidationEvidenceReuseGate', 'ReleaseReworkIncidentGate', 'IsolatedConsumerCwdGate', 'npm init --prefix']],
       ['skills/audit-release/SKILL.md', ['CandidateFreezeGate', 'ValidationEvidenceReuseGate']],
-      ['skills/execution-contract/SKILL.md', ['CurrentBatchScopeDiffProbe', 'NewValidationConsumerRebindProbe', 'ValidationConsumerRebindMatrix']],
+      ['skills/execution-contract/SKILL.md', ['CurrentBatchScopeDiffProbe', 'NewValidationConsumerRebindProbe', 'ValidationConsumerRebindMatrix', 'ExecutionBudgetGate', 'ExternalWaitAccountingGate', 'LongTaskAuthorizationGate', 'StopSnapshot']],
       ['skills/api-contract-architecture/SKILL.md', ['ContractVariantIsolationMutationGate', 'CompletionEvidenceDeletionMatrix']],
       ['skills/quality-strategy/SKILL.md', ['ContractMutationCoverageGate', 'schema-semantic parity']],
       ['skills/audit-requirements/SKILL.md', ['PhaseDeliverySemanticGate', 'OriginalIntentReverseTraceProbe']],
@@ -123,7 +123,9 @@ function buildResidualAbsorptionControlChecks(ctx) {
       ['skills/distributed-systems-architecture/SKILL.md', ['DurableBatchOrchestrationProbe', '持久化 cursor/checkpoint']],
       ['skills/spec-governance/gate-registry.json', ['release-efficiency', 'batch-scope-rebinding', 'contract-mutation-isolation', 'phase-delivery-semantics', 'scenario-durable-workflow']],
       ['skills/report/report-schema.json', ['ReleaseEfficiencyControl', 'ConsumerValidationEngineering']],
-      ['README.md', ['ReleaseEfficiencyControlGate', 'IsolatedConsumerCwdGate', 'ScenarioCoverageMatrixProbe', 'DesignFitnessGate', 'V96']],
+      ['skills/report/SKILL.md', ['WorkspaceSyncStatus', 'CompletionEvidenceGate', 'PostDeliverySelfCheck', 'ExecutionBudget']],
+      ['skills/compliance/SKILL.md', ['T11', 'T12', 'T13', 'ExecutionBudget']],
+      ['README.md', ['ReleaseEfficiencyControlGate', 'IsolatedConsumerCwdGate', 'ScenarioCoverageMatrixProbe', 'DesignFitnessGate', 'V96', 'ExecutionBudgetGate']],
       ['website/docs/guide/development.md', ['CurrentBatchScopeDiffProbe', 'ContractVariantIsolationMutationGate', 'PhaseDeliverySemanticGate', 'ScenarioCoverageMatrixProbe', 'DesignFitnessGate', 'V96']],
       ['website/docs/guide/release.md', ['CandidateFreezeGate', 'ReleaseCriticalPathBudgetGate', 'ValidationEvidenceReuseGate', 'IsolatedConsumerCwdGate']]
     ]

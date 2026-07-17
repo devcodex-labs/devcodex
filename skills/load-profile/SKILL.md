@@ -51,6 +51,7 @@ description: 项目 Profile 加载规范 — 先形成语义意图种子与唯�
 - 调用 `profile_context_plan`，以 canonical intent、changeTypes、risk、confidence 和明确 selector 生成 `ContextReadPlanV1`；计划必须列出 baseline / selected / excluded / unclassified、base/project fallback 和实际 active-root。
 - `ProfilePlanNoHiddenFullReadProbe` 必须证明计划阶段只返回 README/index、effective non-local config 与顶层 metadata inventory，没有预读 `01~09-*`、`config.local.json` 或其他 selected 正文。
 - selected 正文通过 `profile_load({ project, files })` 定向读取；只有 contextEpoch / planId / activeRoot / source 精确关联且 `PostToolUse` 观察成功的 `ContextReadReceiptV1` 才能证明加载完成。
+- **硬预算（ABS-06 / PF-133）**：`profile_load` **禁止**无参默认真全量。省略 `files` 时必须 `explicitFull=true` + 非空 `fullReadReason`；否则返回 `PROFILE_LOAD_BUDGET` 错误与 inventory。定向 load 默认 `maxBytes=32768`（可调）；`explicitFull` 默认更高字节上限仍可能 `truncated`。不得把无参全量成功当作 Context Acquisition 完成证据。
 - 全量升级必须记录 `fullReadReason`，仅限用户/项目明确要求、audit/migration、低置信或必要来源缺失；`config.local.json` 还须用户/项目明确指定，不能因文件存在自动读取。
 - 覆盖 `.devcodex/<project>/profile` 读取链、`.devcodex/workspace/profile` 回退链和 sticky activeProject 生效边界；实质 identity / scope / action / risk / digest 漂移或 compact/resume 时重新规划。
 - 复审服务 / 框架规范时列出全部服务集合、docs 自维护链、导航、版本、构建、报告和记忆消费者。

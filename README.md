@@ -51,6 +51,7 @@ DevCodex 通过 `.github/`（Copilot）、`CLAUDE.md + .claude/ + .mcp.json`（C
 - **跨仓消费者验证**: `consumer-validation-engineering` 以 RepositoryBinding、SourceConsumerIdentity、ValidationDenominatorMatrix、packed artifact、跨仓 CI 与 freshness drift 约束 SDK/CLI/框架/公共包的独立消费者仓；`DesignFitnessGate` 额外判断主路径、默认值、配置层级、框架约定和维护成本，`ValidationFindingRepairLoop` 在 source mutation 后使旧 identity/证据 stale 并按影响矩阵重跑。realpath、行为全绿或单一 100% 分母不能冒充完整验证。该 Skill 保持 `gray`，由 V95 正负探针守门
 - **品牌视觉资产质量（未发布 gray）**: `brand-visual-quality` 用母版谱系、主题几何 parity、微尺寸光学校正、单色母版、`VisualEvidencePack` 与 blocker reset 管理 logo/icon 等品牌资产生产；文件存在、构建成功或单张截图不能替代同画布证据与人工结论。当前只完成结构化 V97/前向试用证据，仍需真实 WorkUnit 才能晋级 active
 - **发布前审查与关键路径治理**: `audit-release` 负责 release readiness、说明、兼容、包与发布风险；`release-verification` 执行 R0~R7，并以 `ReleaseEfficiencyControlGate` 的 `CandidateFreezeGate`、`ReleaseCriticalPathBudgetGate`、`ValidationEvidenceReuseGate` 管理候选 generation、预算和证据失效。pack/install smoke 额外执行 `IsolatedConsumerCwdGate`：显式 consumer manifest、真实 consumer cwd、source identity 前后对账；禁止用 `npm init --prefix` 冒充 cwd 隔离。无可比较基线时预算只能 advisory，不能削弱 version/pack/registry/R7
+- **长任务墙钟预算与授权**: `execution-contract` 的 `ExecutionBudgetGate`、`ExternalWaitAccountingGate`、`LongTaskAuthorizationGate` 要求 Auto/多批次/长 resume 冻结 `maxWallClock` 与 cycle 预算，等人/外部等待不计入执行预算，用户「继续」必须新 cycle；`report`/`compliance` 同步 `WorkspaceSyncStatus`、`CompletionEvidenceGate` 与条件 `PostDeliverySelfCheck`
 - **审计与修复授权分离**: `AuditMutationBoundaryGate` 规定 audit 只写报告、audit-state、记忆和运行态台账；任何源码/规范/配置/测试/文档/部署副本修复都需用户显式授权后进入独立 fix/self-fix，audit 不自动改源、`git add` 或继承修复权限
 - **分析与用户文档能力**: `analyze-default` / `analyze-research` 承接分析与调研；`user-manual-authoring`、`audit-user-manual`、`readme-authoring` 和 `audit-readme` 收口站点文档 / README / quick start 的用户路径、信息架构、配置排错和真实工作流。声称场景完整时必须执行 `ScenarioCoverageMatrixProbe`；队列/批处理还要执行 `DurableBatchOrchestrationProbe`，页面或关键词存在、一次 `addBulk`、进程内 callback 都不能替代持久 run、故障恢复与 executable evidence
 - **专家型产物质量能力**: `expert-output-quality` 负责代码、文档、示例、fixture、quick start、技术方案和报告的专家型输出质量；`ExpertOutputQualityGate` 要求先给生产推荐路径、框架原生能力和项目既有能力，再说明 fixture/mock/demo 边界、反模式和证据矩阵。V84 探针会阻止把测试夹具、硬编码单例或每个 route 重复声明包装成生产推荐实践。
@@ -93,11 +94,11 @@ DevCodex 通过 `.github/`（Copilot）、`CLAUDE.md + .claude/ + .mcp.json`（C
 
 ## 5 分钟快速开始
 
-先区分两个版本概念：npm package 的当前已发布版本是 **v1.14.0**；文档站的 **1.0.1** 是活动需求文档版本，不是可安装包版本。
+先区分两个版本概念：npm package 的当前已发布版本是 **v1.15.0**；文档站的 **1.0.1** 是活动需求文档版本，不是可安装包版本。
 
 | 通道 | 当前状态 | 用途 |
 |---|---|---|
-| GitHub Packages | ✅ v1.14.0 已发布 | 当前唯一发布通道；安装需要 GitHub Packages `read:packages` 认证 |
+| GitHub Packages | ✅ v1.15.0 已发布 | 当前唯一发布通道；安装需要 GitHub Packages `read:packages` 认证 |
 
 1. 确认 CLI 运行时（文档站维护另需 Node `^20.19.0 || >=22.12.0`）：
 
@@ -114,7 +115,7 @@ node --version # CLI 需要 Node.js >=18
 
 当前 shell 的 `NODE_AUTH_TOKEN` 需使用具备 `read:packages` 的 GitHub PAT。
 
-3. 安装当前 v1.14.0：
+3. 安装当前 v1.15.0：
 
 ```bash
 npm install @vextjs/devcodex
@@ -131,7 +132,7 @@ npx @vextjs/devcodex status
 
 ## 安装
 
-以下是当前已发布 v1.14.0 的完整安装说明。当前版本仅发布到 GitHub Packages，安装需要读取认证。
+以下是当前已发布 v1.15.0 的完整安装说明。当前版本仅发布到 GitHub Packages，安装需要读取认证。
 
 ### 1. 配置 GitHub Packages
 
@@ -148,12 +149,12 @@ export NODE_AUTH_TOKEN=YOUR_GITHUB_PAT
 
 这里的环境变量仅用于 GitHub Packages 认证流程，不代表项目里的普通配置默认都应 env 化；未明确要求 env 时，AI 不得主动把明文或硬编码改成 env、`secretRef`、secret manager 或 `config.local.json`。
 
-> v1.14.0 未发布到 npmjs；缺少上述 registry 或读取认证时，安装不会自动回退到其他通道。
+> v1.15.0 未发布到 npmjs；缺少上述 registry 或读取认证时，安装不会自动回退到其他通道。
 
 ### 2. 安装并初始化
 
 ```bash
-npm install @vextjs/devcodex@1.14.0
+npm install @vextjs/devcodex@1.15.0
 npx @vextjs/devcodex init          # 默认三宿主部署：Copilot + Claude Code adapter + Codex adapter
 npx @vextjs/devcodex init --claude # 仅 Claude Code adapter
 npx @vextjs/devcodex init --codex  # 仅 Codex adapter
@@ -166,7 +167,7 @@ npx @vextjs/devcodex init --codex  # 仅 Codex adapter
 ├── copilot-instructions.md  ← 默认 Copilot always-on 总则（新增）
 ├── instructions/   ← Instructions 约束（15 个，含全部工作流规则）
 ├── agents/         ← Copilot 自定义 Agent（v1.9.8 起恢复默认分发）
-├── skills/         ← 当前源码 Skill 详细检查标准（77 个，按需读取，含默认分析、用户文档、用户侧文档 review 聚合、专家型产物质量、21 个专家 Owner Skill、复审清单、自我进化治理、README 专项能力、spec-governance、spec-absorption 与 5 个支撑型 Skill）；其中 74 active，`rework-prevention-engineering`、`consumer-validation-engineering`、`brand-visual-quality` 3 个 gray；新增品牌视觉能力尚未发版
+├── skills/         ← 当前源码 Skill 详细检查标准（78 个，按需读取，含默认分析、用户文档、用户侧文档 review 聚合、专家型产物质量、21 个专家 Owner Skill、复审清单、自我进化治理、README 专项能力、spec-governance、spec-absorption 与 5 个支撑型 Skill）；其中 75 active，`rework-prevention-engineering`、`consumer-validation-engineering`、`brand-visual-quality` 3 个 gray；新增品牌视觉能力尚未发版
 ├── prompts/        ← Prompt 模板（30 个）
 ├── hooks/          ← 宿主生命周期 Hook 配置与运行时
 │   ├── devcodex.lifecycle.json
@@ -310,7 +311,7 @@ devcodex migrate-layout rollback --manifest <manifest-path>
 
 ## Profile 计划、生成与升级
 
-> 发布状态：以下 `profile plan`、统一分档生成和安全迁移行为已随 **v1.14.0** 发布；安装当前包即可使用。
+> 发布状态：以下 `profile plan`、统一分档生成和安全迁移行为已随 **v1.15.0** 发布；安装当前包即可使用。
 
 先预览，再写入：
 
@@ -335,7 +336,7 @@ devcodex status
 
 ## 意图驱动的上下文读取（源码已实现，尚未发布）
 
-> 发布状态：以下能力已在当前源码完成 targeted/Hook/V99 验证，但不是 v1.14.0 已发布承诺；使用者应以目标 tag、package registry 和 release notes 为准。
+> 发布状态：以下能力已在当前源码完成 targeted/Hook/V99 验证，但不是 v1.15.0 已发布承诺；使用者应以目标 tag、package registry 和 release notes 为准。
 
 在当前源码能力启用且宿主支持 DevCodex MCP 时，推荐使用以下生产主链，避免每条消息都把整套 Profile 与完整记忆注入上下文：
 
@@ -413,7 +414,7 @@ devcodex/
 ├── instructions.md # 单源规范文件；安装时按平台生成 copilot-instructions.md / CLAUDE.md / AGENTS.md
 ├── agents/        # Agent 源文件；Copilot 端默认分发，Claude Code 端不分发
 ├── instructions/  # 全局 Instructions（15 个，含工作流规则摘要，自动注入）
-├── skills/        # Skill 详细检查标准（77 个，按 01-common §按需读取表 路由读取）
+├── skills/        # Skill 详细检查标准（78 个，按 01-common §按需读取表 路由读取）
 ├── prompts/       # Prompt 模板（30 个）
 ├── hooks/         # Workspace Hooks 配置与分发到 `.github/hooks/_runtime/` 的运行时及 helper 模块
 ├── codex/         # Codex adapter 源模板（分发到 `.codex/hooks.json`，不是工作区部署副本 `.codex/`）
@@ -449,7 +450,7 @@ README / 用户使用文档当前补充四类专项 Skill：`user-manual-authori
 | **GitHub Copilot (VS Code)** | `.github/instructions/*.md` + `copilot-instructions.md` + `.github/agents/` | ⚠️ instruction-fallback；Workspace Hooks 需按目标版本另行实测 | ⚠️ 文本/本地 fallback | ❌ 未内置 MCP | 🟡 Beta |
 | **GitHub Copilot (JetBrains)** | `.github/instructions/*.md` + `copilot-instructions.md`（instruction-fallback） | ⚠️ 官方自定义指令路径，无本地 Hook 硬拦承诺 | ⚠️ 仅文本 | ❌ 未内置 MCP | 🟡 Beta |
 | **Claude Code (CLI/桌面端)** | `CLAUDE.md` + `.claude/{instructions,skills,prompts,hooks/_runtime,mcp}/` + `settings.json` hooks + `.mcp.json` | ✅ Hook 事件支持硬拦；默认 `safety-only` 下流程项提醒放行 | ✅ Hook + 文本确认 | ✅ MCP | 🟢 Full |
-| **Cursor IDE** | 需手工配置 `.cursor/rules` 或 root `AGENTS.md`（instruction-fallback；DevCodex 不自动分发 Cursor 规则） | ⚠️ 无 DevCodex 本地 Hook 硬拦承诺 | ⚠️ 仅文本 | ❌ | 🟡 Best-effort |
+| **Cursor IDE** | 需手工配置 `.cursor/rules` 或 root `AGENTS.md`（instruction-fallback；DevCodex **不**自动分发 Cursor 规则；HOST best-effort only） | ⚠️ 无 DevCodex 本地 Hook 硬拦承诺 | ⚠️ 仅文本 | ❌ | 🟡 Best-effort |
 | **OpenAI Codex app/CLI** | `AGENTS.md` + `.agents/skills/` + `.codex/hooks.json`（含 `PreCompact` compaction guardrail） | ⚠️ Codex hook guardrail；阻断输出按事件契约分为顶层 `decision`、`continue:false` 与工具级 `permissionDecision` | ⚠️ Hook + 文本确认 | ⚠️ 可手工配置 MCP；DevCodex 未自动写入 | 🟡 Beta |
 | **ChatGPT 普通对话** | 不读取本地工作区 `AGENTS.md` / `.agents/` / `.codex/`；可手工粘贴规则 | ❌ | ⚠️ 文本 | ❌ | 🔴 Unsupported |
 
@@ -573,7 +574,7 @@ DevCodex Hook runtime 不再把所有拦截都等同为“停止”。拦截会�
 
 DevCodex 的 `plugin.json` 声明 `tier: "free"`，所有 Skill 均标注 `tier: "free"`。这些 tier 字段是**面向未来的 prompt-level 声明**（供 `token-check` Skill 在 Agent 侧做软门控），**CLI 不做任何授权校验**：
 
-- CLI 本身不做额外 license/tier 授权校验；当前 v1.14.0 通过 GitHub Packages 分发，registry 读取认证仍按平台规则执行
+- CLI 本身不做额外 license/tier 授权校验；当前 v1.15.0 通过 GitHub Packages 分发，registry 读取认证仍按平台规则执行
 - 未来接入服务端 token 校验时，tier 字段才会生效
 - 当前阶段 tier 仅作为规划信息，不影响功能使用
 

@@ -459,16 +459,16 @@ function buildGovernanceReviewChecks(ctx) {
       { file: 'prompts/report-dev.prompt.md', needles: gates },
       { file: 'prompts/report-fix.prompt.md', needles: gates },
       { file: 'prompts/report-audit.prompt.md', needles: gates.concat(['文档设计', '菜单导航']) },
-      { file: 'README.md', needles: ['77 个', 'audit-user-manual', '用户侧文档 review 聚合'] },
-      { file: 'website/docs/index.md', needles: ['77 个 Skills', '用户侧文档 review 聚合'] },
-      { file: 'website/docs/intro/index.md', needles: ['77 个按需触发', 'audit-user-manual'] },
+      { file: 'README.md', needles: ['78 个', 'audit-user-manual', '用户侧文档 review 聚合'] },
+      { file: 'website/docs/index.md', needles: ['78 个 Skills', '用户侧文档 review 聚合'] },
+      { file: 'website/docs/intro/index.md', needles: ['78 个按需触发', 'audit-user-manual'] },
       { file: 'website/docs/guide/development.md', needles: ['audit-user-manual', '菜单导航', 'sidebar'] },
-      { file: 'website/docs/specs/directory-structure.md', needles: ['77 个', 'audit-user-manual', '用户侧文档 review'] },
+      { file: 'website/docs/specs/directory-structure.md', needles: ['78 个', 'audit-user-manual', '用户侧文档 review'] },
       { file: 'scripts/lib/test-spec-governance-review.js', needles: ['checkV80'].concat(gates) },
       { file: 'scripts/validate.js', needles: ['createProbeRegistry', 'expectedProbeIds', 'runProbeRegistry'] },
       { file: 'changelog corpus', content: changelogCorpus, needles: ['V80'].concat(gates) }
     ]
-    if (profileCorpus !== null) probes.push({ file: 'active profile corpus', content: profileCorpus, needles: ['77', 'audit-user-manual'] })
+    if (profileCorpus !== null) probes.push({ file: 'active profile corpus', content: profileCorpus, needles: ['78', 'audit-user-manual'] })
     else console.log('[V80] active Profile corpus unavailable — repository consumers remain authoritative')
 
     for (const probe of probes) {
@@ -532,17 +532,17 @@ function buildGovernanceReviewChecks(ctx) {
       { file: 'prompts/report-fix.prompt.md', needles: ['spec-absorption', 'AbsorptionCandidateConsumerProofGate', 'targetOwner'] },
       { file: 'prompts/report-audit.prompt.md', needles: ['spec-absorption', 'projectSpecificResidue', 'devcodexConsumerEvidence'] },
       { file: 'prompts/report-scenario-test.prompt.md', needles: ['spec-absorption', 'negativeExamples', 'validationRoute'] },
-      { file: 'README.md', needles: ['spec-absorption', 'CommonNormGeneralizationGate', 'ServiceSpecReadGate', '77 个'] },
-      { file: 'website/docs/index.md', needles: ['77 个 Skills', '规范吸纳执行'] },
-      { file: 'website/docs/intro/index.md', needles: ['77 个按需触发的工作流技能', 'spec-absorption'] },
-      { file: 'website/docs/specs/directory-structure.md', needles: ['扁平一级 Skill（77 个）', 'spec-absorption'] },
+      { file: 'README.md', needles: ['spec-absorption', 'CommonNormGeneralizationGate', 'ServiceSpecReadGate', '78 个'] },
+      { file: 'website/docs/index.md', needles: ['78 个 Skills', '规范吸纳执行'] },
+      { file: 'website/docs/intro/index.md', needles: ['78 个按需触发的工作流技能', 'spec-absorption'] },
+      { file: 'website/docs/specs/directory-structure.md', needles: ['扁平一级 Skill（78 个）', 'spec-absorption'] },
       { file: 'website/docs/guide/development.md', needles: ['spec-absorption', 'CommonNormGeneralizationGate', 'ServiceSpecReadGate'] },
       { file: 'website/docs/versions/v1/1.0.1/CHANGELOG.md', needles: ['spec-absorption', 'V81'] },
       { file: 'scripts/lib/test-spec-governance-review.js', needles: ['checkV81', 'spec-absorption', 'CommonNormGeneralizationGate'] },
       { file: 'scripts/validate.js', needles: ['createProbeRegistry', 'expectedProbeIds', 'runProbeRegistry'] },
       { file: 'changelog corpus', content: changelogCorpus, needles: ['spec-absorption', 'CommonNormGeneralizationGate', 'V81'] }
     ]
-    if (profileCorpus !== null) probes.push({ file: 'active profile corpus', content: profileCorpus, needles: ['77', 'spec-absorption'] })
+    if (profileCorpus !== null) probes.push({ file: 'active profile corpus', content: profileCorpus, needles: ['78', 'spec-absorption'] })
     else console.log('[V81] active Profile corpus unavailable — repository consumers remain authoritative')
 
     for (const probe of probes) {

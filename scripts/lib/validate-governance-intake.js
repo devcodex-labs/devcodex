@@ -584,8 +584,8 @@ function buildGovernanceIntakeChecks(ctx) {
       err('[V52] Codex hooks.json missing PreCompact event')
     }
     const preCompactJson = JSON.stringify(preCompactEntries)
-    if (!preCompactJson.includes('node ./.codex/hooks/_runtime/lifecycle.cjs')) {
-      err('[V52] Codex PreCompact hook must invoke workspace lifecycle runtime')
+    if (!(/lifecycle\.cjs/.test(preCompactJson) && /\.codex/.test(preCompactJson) && /process\.cwd\(\)/.test(preCompactJson))) {
+      err('[V52] Codex PreCompact hook must invoke monorepo-safe upward-walk lifecycle runtime')
     }
     if (!preCompactJson.includes('manual|auto')) {
       err('[V52] Codex PreCompact matcher must cover manual|auto triggers')

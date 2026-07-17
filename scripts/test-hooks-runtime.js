@@ -27,6 +27,12 @@ const INTERCEPTION_LOG = path.join(STATE_DIR, 'interceptions.jsonl')
 const TEST_AGENT = 'claude-code'
 const FALLBACK_BOOTSTRAP_AGENT = (() => {
   if (process.env.CLAUDE_CODE_VERSION || process.env.CLAUDE_HOOK_COMMAND) return 'claude-code'
+  if (
+    process.env.GROK_AGENT ||
+    process.env.GROK_HOME ||
+    process.env.GROK_SESSION ||
+    process.env.GROK_BUILD
+  ) return 'grok'
   if (process.env.IDEA_INITIAL_DIRECTORY || process.env.JETBRAINS_IDE) return 'jetbrains-copilot'
   if (process.env.TERM_PROGRAM === 'vscode' || process.env.VSCODE_PID) return 'vscode-copilot'
   return 'copilot'

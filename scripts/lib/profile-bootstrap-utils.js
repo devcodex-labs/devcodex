@@ -272,6 +272,7 @@ ${tree || '(empty)'}
     const platformEvidence = detectHostPlatform(processEnv, cwd)
     if (platformEvidence.platform === 'claude') return 'claude-code'
     if (platformEvidence.platform === 'codex') return 'codex'
+    if (platformEvidence.platform === 'grok') return 'grok'
     if (platformEvidence.platform === 'jetbrains-copilot') return 'jetbrains-copilot'
     if (platformEvidence.platform === 'vscode-copilot') return 'vscode-copilot'
     if (platformEvidence.platform === 'cursor') return 'cursor'

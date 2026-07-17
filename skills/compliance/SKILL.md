@@ -15,6 +15,8 @@ description: 执行入口检查与 FC/SC/RC/T 合规校验。PC0~PC7 入口检�
 >
 > ⚠️ **入口检查（PC0~PC7）所有模式启用**，收到用户消息后立即执行；dev 模式额外执行 PC4 完整规范雷达，非 dev 模式 PC4 标注 N/A，详见 [`17-compliance.instructions.md`](../../instructions/17-compliance.instructions.md) §入口检查。
 >
+> 🔴 **PC0 单源语义（ABS-07）**：用户可见 PC0 必须写 `ContextReadPlan` + 必要来源回执；`instructions.md`、`17-compliance`、`precheck-status.prompt` **同源**。禁止「Profile ✅ 已加载」单字段冒充上下文完整；PC7 使用 `memory_status` + 有界 query 回执一致表述。
+>
 > ℹ️ ENV_MODE 未注入（profile 未加载）时，默认按 `prod`（不执行合规检查）。
 
 ## §0.1 SpecRadarSubgate（PC4 规范雷达承接）
@@ -162,8 +164,12 @@ SC: SC2 [✅/❌] SC4 [✅/❌] SC6 [✅/❌] ...（仅列适用项，逐项实�
 | T5 | ✅ 合规通过（FC+SC 全通过） |
 | T6 | ✅ 约束遵守（C01~C22 + 关联文件已同步 + GovernanceIntakeClosureGate 已终结或明确 unverified/ambiguous） |
 | T7 | ✅ 工作流验证（dev/fix: 扫描/验证 + ECR 已执行；audit/analyze: PCV 与推荐结论已执行）|
-| T8 | ✅ SUMMARY 已更新；若触发上下文交接，daily tasks 或报告已写 `ContextHandoffCard` |
+| T8 | ✅ SUMMARY 已更新；若触发上下文交接，daily tasks 或报告已写 `ContextHandoffCard`；若主动建议新会话，同回复已交付 `NewSessionContinuationCard` |
 | T9 | ✅ 产物路径已输出 |
+| T10 | ✅ 条件：长任务是否记录 `SessionTimingCard`（或 N/A+skipReason）；确认类清单是否含 CoverageMatrix 或 residual 声明（ABS-17/18） |
+| T11 | ✅ 条件：长任务/Auto/多批次是否具备 `ExecutionBudget` + `LongTaskAuthorization`（或 N/A+skipReason）；有等待面时是否分列 external wait（PI-118/PF-137） |
+| T12 | ✅ 条件：触及部署消费者时是否输出 `WorkspaceSyncStatus`；dev/fix/self-fix 宣称完成时是否通过 `CompletionEvidenceGate`（ECR + 同步/验证/dirty 证据） |
+| T13 | ✅ 条件：长任务收口 / 宣称完成 / 用户质疑慢漏时是否执行 `PostDeliverySelfCheck`（或 N/A+skipReason）；不得用自评刷 PI |
 
 ## §7 自修复触发
 

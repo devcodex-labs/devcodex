@@ -153,6 +153,8 @@ function buildLifecycleNamespaceStateUtils(ctx) {
 
     if (platform === 'codex') return 'codex'
     if (platform === 'claude') return 'claude-code'
+    if (platform === 'grok') return 'grok'
+    if (platform === 'cursor') return 'cursor'
     if (platform === 'jetbrains-copilot') return 'jetbrains-copilot'
     if (platform === 'vscode-copilot') {
       if (existingAgents.has('vscode-copilot')) return 'vscode-copilot'

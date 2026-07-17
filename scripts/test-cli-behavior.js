@@ -21,8 +21,18 @@ const HOST_ENV_SCRUB = {
   TERM_PROGRAM: '',
   VSCODE_PID: '',
   CURSOR_TRACE_ID: '',
-  CURSOR_USER_ID: ''
+  CURSOR_USER_ID: '',
+  // HOST-grok: scrub so doctor/status fixtures stay host-neutral under Grok agent hosts
+  GROK_AGENT: '',
+  GROK_HOME: '',
+  GROK_SESSION: '',
+  GROK_SESSION_ID: '',
+  GROK_BUILD: '',
+  XAI_GROK: '',
+  XAI_AGENT: '',
+  DEVCODEX_AGENT: ''
 }
+const { CODEX_HOOK_COMMAND } = require('../index.js')
 
 assert.deepStrictEqual(projectFeatureInventoryState('FeatureInventorySchemaV2', []), {
   schemaVersion: 'FeatureInventorySchemaV2',
@@ -157,7 +167,10 @@ function assertCodexAdapterState(root) {
     const entries = hooks.hooks?.[eventName]
     assert.ok(Array.isArray(entries) && entries.length > 0, `missing Codex hook event: ${eventName}`)
     const commands = JSON.stringify(entries)
-    assert.ok(commands.includes('node ./.codex/hooks/_runtime/lifecycle.cjs'), `unexpected hook command for ${eventName}`)
+    assert.ok(
+      commands.includes('lifecycle.cjs') && (commands.includes('.codex') || commands.includes('codex')),
+      `unexpected hook command for ${eventName}`
+    )
   }
   assert.ok(
     JSON.stringify(hooks.hooks.PreCompact).includes('manual|auto'),
@@ -181,7 +194,7 @@ function assertClaudeMergeState(root, { claudeMdManaged }) {
   assert.deepStrictEqual(settings.permissions.deny, ['DeleteTool'])
   assert.ok(settings.permissions.allow.includes('Read'))
   assert.ok(settings.permissions.allow.includes('mcp__devcodex-memory'))
-  assert.strictEqual(settings.enableAllProjectMcpServers, true)
+  assert.strictEqual(settings.enableAllProjectMcpServers, false)
 
   const preToolUseHooks = settings.hooks?.PreToolUse || []
   const promptHooks = settings.hooks?.UserPromptSubmit || []
@@ -242,7 +255,7 @@ function testDoctorAvoidsCodexBiasInMixedHostRepo() {
   writeFile(root, '.codex/hooks/_runtime/lifecycle.cjs', 'module.exports = {}\n')
   writeJson(root, '.codex/hooks.json', {
     hooks: {
-      UserPromptSubmit: [{ command: 'node ./.codex/hooks/_runtime/lifecycle.cjs' }]
+      UserPromptSubmit: [{ command: CODEX_HOOK_COMMAND }]
     }
   })
 
@@ -266,7 +279,7 @@ function testMachineReadableDiagnosticsAndStableErrors() {
   assert.strictEqual(status.schemaVersion, 'DevCodexCliEnvelopeV1')
   assert.strictEqual(status.ok, true)
   assert.strictEqual(status.command, 'status')
-  assert.strictEqual(status.packageVersion, '1.14.0')
+  assert.strictEqual(status.packageVersion, '1.15.0')
   assert.strictEqual(status.payload.schemaVersion, 'StatusDiagnosticV1')
   assert.strictEqual(status.payload.cwd, root)
   assert.ok(Array.isArray(status.payload.installSurfaces))

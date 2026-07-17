@@ -1,0 +1,4 @@
+interface:
+  display_name: "Incremental Project Analysis"
+  short_description: "Knowledge snapshots, incremental invalidation, batch delivery, and analysis precision"
+  default_prompt: "Use $incremental-project-analysis for durable project knowledge snapshots, selective invalidation, batch progress delivery, global backlog synthesis, and precision contracts."

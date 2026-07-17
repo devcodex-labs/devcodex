@@ -26,7 +26,7 @@ applyTo: .devcodex/**/requirements/**
 > ⚠️ 描述“已接入 / 未接入”类状态时，先核验依赖与源码消费点，再拆分底座能力、当前消费者和高级能力尾项，避免把“基础已接入但高级能力未接入”误写成整体未接入。
 > ⚠️ TechnicalRouteComparativeGate：技术路线、架构优化、性能优化、框架能力设计或高维护成本方案在 CP1 最终需求确认前，若存在同类产品 / 项目 / 框架 / 本仓库相似模块可比，必须执行 `ComparativeResearchGate`；不触发时写 `N/A + skipReason`。
 > ⚠️ 前端页面、组件、控制台、官网、文档站、可视化工具、游戏或用户可见 UI / 交互需求，产品需求事实源必须覆盖设计来源、UI 还原度、风格主题、响应式状态、视觉验证、用户流、交互反馈、输入方式/可访问性、错误恢复和动效转场；内部技术 Gate 标识只作为 AI 派生判定，不作为需求方或产品填写项。
-> ⚠️ CrossProjectLearnedGuards 等内部 Gate 只在 `§9.3 AI 内部派生守门索引` 中保留稳定标识，供技术方案、TestRoute、validate 与报告追溯；产品可见填写区必须优先使用中文业务问题。
+> ⚠️ 内部 Gate 不进产品填写区。条件门禁只通过 `§9.3` 与 `skills/spec-governance/gate-registry.json`（`gateGroup → ownerSkill`）追溯；产品可见填写区必须优先使用中文业务问题。
 
 | 类型 | 适用场景 | 默认重点 |
 |------|---------|---------|

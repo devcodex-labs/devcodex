@@ -55,7 +55,8 @@ function buildGovernancePackageDeploymentChecks(ctx) {
       const packFilename = arr[0]?.filename || ''
       const pkg = JSON.parse(read(path.join(ROOT, 'package.json')))
       const plugin = JSON.parse(read(path.join(ROOT, 'plugin.json')))
-      const packageFiles = new Set((pkg.files || []).filter(item => !item.endsWith('/')))
+      // package.json "files" globs (e.g. skills/*/**) expand at pack time; do not require them as literal paths
+      const packageFiles = new Set((pkg.files || []).filter(item => !item.endsWith('/') && !String(item).includes('*')))
       const pluginFiles = new Set((plugin.skills || []).map(item => item.file).filter(Boolean))
       function resolveLocalDependency(fromFile, request) {
         const resolved = path.normalize(path.join(path.dirname(fromFile), request)).replace(/\\/g, '/')
@@ -154,10 +155,21 @@ function buildGovernancePackageDeploymentChecks(ctx) {
       const codexHookCommands = Object.values(codexHookConfig.hooks || {})
         .flat()
         .flatMap(entry => entry.command ? [entry.command] : (entry.hooks || []).map(hook => hook.command).filter(Boolean))
-      const expectedCodexCommand = 'node ./.codex/hooks/_runtime/lifecycle.cjs'
-      const invalidCodexCommands = codexHookCommands.filter(command => command !== expectedCodexCommand)
+      // Monorepo-safe parent-walk (parity with CLAUDE_HOOK_COMMAND); relative ./.codex/... alone fails in subdirs
+      const invalidCodexCommands = codexHookCommands.filter(command => !(
+        /process\.cwd\(\)/.test(command) &&
+        /while\s*\(/.test(command) &&
+        /\.codex/.test(command) &&
+        /lifecycle\.cjs/.test(command)
+      ))
       if (!codexHookCommands.length || invalidCodexCommands.length) {
-        err(`[V6] Codex hook commands must use workspace runtime path: ${invalidCodexCommands.join(', ') || '(none found)'}`)
+        err(`[V6] Codex hook commands must use upward-walk monorepo-safe path: ${invalidCodexCommands.join(', ') || '(none found)'}`)
+      }
+      {
+        const codexHookMatch = indexSrc.match(/CODEX_HOOK_COMMAND\s*=\s*`([^`]+)`/)
+        if (!codexHookMatch || !/process\.cwd\(\)/.test(codexHookMatch[1]) || !/while\s*\(/.test(codexHookMatch[1])) {
+          err('[V6] CODEX_HOOK_COMMAND must use upward-walk pattern (cwd→parent→...→root) to survive subdir invocation')
+        }
       }
       const codexPreCompactEntries = codexHookConfig.hooks?.PreCompact || []
       if (!Array.isArray(codexPreCompactEntries) || !codexPreCompactEntries.length) {

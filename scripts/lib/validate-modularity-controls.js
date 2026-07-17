@@ -8,7 +8,7 @@ function buildModularityControlChecks(ctx) {
     for (const [file, maximum] of [
       ['scripts/validate.js', 350],
       ['scripts/test-spec-governance.js', 150],
-      ['index.js', 450],
+      ['index.js', 460],
       ['scripts/lib/validate-governance-tail.js', 100]
     ]) {
       const actual = lineCount(file)

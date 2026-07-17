@@ -59,9 +59,9 @@ function buildBrandVisualQualityChecks(ctx) {
       ['prompts/technical-design.prompt.md', ['brand-visual-quality']],
       ['prompts/implementation-plan.prompt.md', ['brand-visual-quality']],
       ['prompts/report-dev.prompt.md', ['BrandVisualQuality']],
-      ['README.md', ['77 个', 'brand-visual-quality']],
-      ['website/docs/index.md', ['77 个 Skills', 'brand-visual-quality']],
-      ['website/docs/intro/index.md', ['77 个按需触发', 'brand-visual-quality']],
+      ['README.md', ['78 个', 'brand-visual-quality']],
+      ['website/docs/index.md', ['78 个 Skills', 'brand-visual-quality']],
+      ['website/docs/intro/index.md', ['78 个按需触发', 'brand-visual-quality']],
       ['changelogs/unreleased.md', ['BrandVisualQualityGate', 'ProfileReleaseTruthAuthorityMatrixGate', 'RuntimeStateTransitionProjectionGate']]
     ]
     for (const [file, needles] of required) checkFile(file, needles)
@@ -72,8 +72,8 @@ function buildBrandVisualQualityChecks(ctx) {
 
     const portfolio = JSON.parse(read(path.join(ROOT, 'skills/portfolio.json')))
     const portfolioSkill = portfolio.skills.find(item => item.id === 'brand-visual-quality')
-    if (portfolio.summary.skillCount !== 77 || portfolio.summary.activeSkillCount !== 74 || portfolio.summary.graySkillCount !== 3) {
-      err('[V97] portfolio must be 77 skills = 74 active + 3 gray')
+    if (portfolio.summary.skillCount !== 78 || portfolio.summary.activeSkillCount !== 75 || portfolio.summary.graySkillCount !== 3) {
+      err('[V97] portfolio must be 78 skills = 75 active + 3 gray')
     }
     if (!portfolioSkill || portfolioSkill.lifecycleState !== 'gray' || !portfolioSkill.conflicts.includes('design-system-architecture')) {
       err('[V97] brand visual gray lifecycle or design-system conflict declaration missing')
@@ -82,7 +82,7 @@ function buildBrandVisualQualityChecks(ctx) {
     const profileRoot = path.join(ACTIVE_DEVCODEX_ROOT, 'profile')
     if (fs.existsSync(profileRoot)) {
       for (const [file, needle] of [
-        ['01-项目信息.md', '77-Skill'],
+        ['01-项目信息.md', '78-Skill'],
         ['04-测试规范.md', 'V97'],
         ['06-功能清单.md', 'brand-visual-quality'],
         ['07-用户文档与契约规范.md', '品牌视觉质量契约']

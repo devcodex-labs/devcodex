@@ -32,7 +32,8 @@ description: 管理会话记忆的读取与写入。三层记忆体系：Agent �
      - Codex：`codex`（通过 `AGENTS.md` / `.agents/skills/` / `.codex/hooks.json` 适配）
      - Cursor IDE：`cursor`
      - JetBrains Copilot：`jetbrains-copilot`
-     - 无法确定：`unknown-agent`
+     - Grok Build / Grok CLI（xAI）：`grok`（`DEVCODEX_AGENT=grok` 或 `GROK_AGENT` 等；禁止长期误绑 `codex`）
+     - 无法确定：`unknown-agent`（运行时不得默认 `claude-code`）
   4. **写入约定**：`devcodex profile init` 生成 `config.json` 时可以写入当时探测到的 `agent` 作为兜底提示；`devcodex init` / `devcodex init --claude` / `devcodex init --codex` 只负责分发规则与运行时文件，不直接生成 profile config。
   5. **冲突处理**：若 profile agent 与当前实际宿主不同，Agent 日记、SUMMARY、报告路径均按当前实际宿主写入，并在 PC0/doctor/报告中提示差异。
 - ⛔ **禁止使用 shell 命令（bash find、PowerShell glob）查找记忆文件**（shell glob 会跳过隐藏目录）
@@ -164,6 +165,34 @@ description: 管理会话记忆的读取与写入。三层记忆体系：Agent �
 ### ContextHandoffCard
 
 跨会话、跨 Agent、多批次、summary/compact 前、用户要求“传递上下文”或即将中断时，daily tasks 或报告必须写入 `ContextHandoffCard`，字段至少包含：`source-of-truth`、`confirmed-decisions`、`open-risks`、`next-action`、`blocked-reason`、`must-not-overwrite`、`validation-state`、`artifact-links`。`ContextHandoffCard` 是交接卡，恢复方仍须按 `Context Rehydration Contract` 重新核对文件真相源；禁止把交接卡写成 SUMMARY 自由文本段落。
+
+### NewSessionContinuationCard（ABS-11 / PI-114）
+
+凡 AI **主动建议**或因 C08 / 规模门禁**要求切换新会话**，必须在**同一最终回复**交付用户可复制的 `NewSessionContinuationCard`，字段至少：`targetProject`、`task`、`phaseAndConfirmationState`（CP pending 不得写成已确认）、`sourceOfTruth`、`confirmedDecisions`、`mustNotOverwrite`、`validationState`、`nextAction`、`copyReadyPrompt`。内部 handoff **不能**替代该用户可见入口。接收方仍须重建 ContextReadPlan，禁止默认全读 Profile/SUMMARY。
+
+### SessionTimingCard（ABS-18 / PI-117）
+
+长任务（non-chat 的 analyze/audit/dev/fix、多批次、用户抱怨慢、完整深度等）须在会话段或报告附录记录：
+
+| 字段 | 说明 |
+|------|------|
+| `startedAt` / `endedAt` 或 `lastActiveAt` | ISO 墙钟 |
+| `wallClock` | 总时长（含等待） |
+| `executionMs` / `waitingUserMs` / `waitingExternalMs` | **ExternalWaitAccountingGate**：执行 / 等人 / 外部等待分列 |
+| `phases[]` | 至少覆盖：context-acquire / plan-or-cp / execute-or-read / validate / report-memory / **waiting-user** /（条件）waiting-external |
+| `slowTags` | 可选 1～3 个有证据标签（large-corpus / waiting-user / full-profile-load…） |
+| `cycleId` / `budget` | 条件：命中 `ExecutionBudgetGate` 时记录 cycle 与 maxWallClock 等预算快照 |
+| `authorizationEvidence` | 条件：命中 `LongTaskAuthorizationGate` 时记录续跑/Auto 授权 |
+
+**等人确认与外部等待必须单独计时**，不得并入「AI 执行慢」，也不得消耗 `maxWallClock` 执行预算。纯 chat 秒回可 `N/A + skipReason`。用户面可给一行：`耗时 XhYm（执行 … · 等人 … · 外部 …）`。
+
+### ExecutionBudget 记忆锚点（PI-118 / PF-137）
+
+命中长任务预算时，daily tasks 须能定位当前 `cycleId`、预算上限、已消耗执行墙钟、StopSnapshot 路径（若已触发）与「继续=新 cycle」状态。禁止在记忆里把用户「继续」写成同一 cycle 预算清零。
+
+### ProjectKnowledgeSnapshot 边界
+
+`incremental-project-analysis` 的知识快照/digest **不得**写入 SUMMARY 正文（SUMMARY 纯索引）；快照落独立产物路径，daily tasks 只链路径。
 
 ### 全局 SUMMARY（项目共用）
 ```text

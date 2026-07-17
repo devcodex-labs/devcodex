@@ -16,8 +16,8 @@ hero:
 features:
   - title: 🎯 结构化工作流
     details: 8 种工作流（dev/fix/audit/analyze/self-fix/resume/plan/chat），执行流程骨架已冻结
-  - title: 🛠️ 77 个 Skills
-    details: 当前源码 74 active + 3 gray；新增未发布 gray `brand-visual-quality` 承接品牌视觉资产质量，其余覆盖开发、修复、审计、规范吸纳执行、跨仓消费者验证、用户侧文档 review 聚合、`expert-output-quality` 专家型产物质量与 21 个专家 Owner Skill，以及宿主契约验证、真相源-消费者同步
+  - title: 🛠️ 78 个 Skills
+    details: 当前源码 75 active + 3 gray；新增未发布 gray `brand-visual-quality` 承接品牌视觉资产质量，其余覆盖开发、修复、审计、规范吸纳执行、跨仓消费者验证、用户侧文档 review 聚合、`expert-output-quality` 专家型产物质量与 21 个专家 Owner Skill，以及宿主契约验证、真相源-消费者同步
   - title: 🧩 三宿主分发
     details: Copilot、Claude Code 与 Codex 共用同一规范源；Hook 能力按宿主/事件降级，Codex 按事件契约使用顶层 decision、continue:false 或工具级 permissionDecision
   - title: 🔒 四层合规检查
@@ -29,3 +29,6 @@ features:
   - title: 🏢 v2.0.0 多租户
     details: v2 系列规划中，用于平台化与多租户方向
 ---
+
+
+> Skill 规模锚点：78 个按需触发；扁平一级 Skill（78 个）。

@@ -821,7 +821,7 @@ if (cfgInfo.source !== 'missing') {
   if (!cfg.mode) warn('[profile] config.json missing "mode" (defaults to prod)')
   else if (!['dev', 'prod'].includes(cfg.mode)) err(`[profile] invalid mode: ${cfg.mode}`)
   // agent
-  const validAgents = ['copilot', 'vscode-copilot', 'jetbrains-copilot', 'claude-code', 'codex', 'cursor', 'unknown-agent']
+  const validAgents = ['copilot', 'vscode-copilot', 'jetbrains-copilot', 'claude-code', 'codex', 'cursor', 'grok', 'unknown-agent']
   if (!cfg.agent) warn('[profile] config.json missing "agent" fallback hint (actual host inferred at runtime)')
   else if (!validAgents.includes(cfg.agent)) err(`[profile] invalid agent: ${cfg.agent} (expected: ${validAgents.join('|')})`)
   // plugin version drift

@@ -28,3 +28,8 @@ coverage/
 # Hook replay payloads (local validation only, do not commit)
 .tmp-hook-editfiles.json
 .tmp-hook-terminal.json
+
+source-root-deployment-backup-*/
+tmp-validate*.txt
+package.json.tmp-test
+

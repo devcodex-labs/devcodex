@@ -1,6 +1,6 @@
 # DevCodex — 项目规范（统一规范源）
 
-> DevCodex v1.11.0+ · 单源规范文件
+> DevCodex v1.15.0 · 单源规范文件
 > 本文件是 DevCodex 唯一的规范源文件。`devcodex init` 默认安装到 `.github/copilot-instructions.md`（Copilot）、项目根 `CLAUDE.md`（Claude Code）与工作区根 `AGENTS.md`（Codex）。`devcodex init --claude` 仅安装 Claude Code 入口；`devcodex init --codex` 仅安装 Codex 入口。`CLAUDE.md` 与 `AGENTS.md` 都是本文件的部署副本，由本文件持续覆盖。
 
 ---
@@ -69,7 +69,7 @@ S02 不再把“敏感信息、明文密码、连接字符串或硬编码”定�
 | C16 | 规模判断与批量分批 | 分析、审查、扫描或批量操作前必须先识别唯一项目/root，并执行 `ProjectArtifactScaleRoutingGate` 的 bounded inventory，按文件数、可解析字节、最大文件、目录集中度、派生产物比例和消费者扩散面决定 `single-pass / batched / sampled+deep-read / blocked`；≥10 文件 mutation 或非 small corpus 必须分批并写 checkpoint，禁止先无界扫描超时后再补分批 |
 | C17 | 过程改进记录 | 每条非空用户消息先登记中性治理候选，完成合理性评估和上下文归因后再按语义形成 `GovernanceIntakeDecision`；关键词不得作为权威触发/分类依据。用户建议的策略经确认更优，或揭示规范未定义/不完整且可泛化时，必须走 Improvement Intake：将策略写入 `data/process-improvements.md`（优化清单，PI）；若同时暴露规范缺口，再联动 `data/pending-fixes.md`（PF）。复合意图逐项 all-of 验证；不得询问是否记录；所有模式命中后都必须显式回执已记录的 `PI-xxx / PF-xxx` |
 | C18 | 全模式入口检查不可跳过 | 同 S07 |
-| C19 | 确认后前置复审 | 每次用户明确确认后、进入下一阶段前，必须先对当前已确认产物做 1 轮轻量前置复审，并显式输出结果；控制面 / 多文件联动 / 真相源同步 / 模板-示例-校验链场景必须追加交叉验证；若发现阻断性问题，先修正并告知用户，再重新确认；无阻断问题方可推进 |
+| C19 | 确认后前置复审 | 每次用户明确确认后、进入下一阶段前，必须执行 `PostConfirmationReviewScopeGate`：低风险单文件或纯文案可做轻量复审；高风险、多模块、公共 API/配置、安全能力、package/adapter、文档消费者、控制面或多真相源同步任务必须升级为冻结清单驱动的全面复审；命中控制面 / 多文件联动 / 真相源同步 / 模板-示例-校验链场景必须追加交叉验证，并显式输出结果；若发现阻断性问题，先修正并告知用户，再重新确认；无阻断问题方可推进 |
 | C20 | 官方文档证据前置 | 新增/升级第三方依赖、框架、SDK、平台 API 或外部模块前，必须先读取官方使用文档/官方参考资料并形成 `OfficialDocsEvidence`；缺失证据时不得进入编码 |
 | C21 | Profile 联动判定 | dev/fix 修改项目技术栈、目录边界、脚本、测试/发布路线、分发面、配置项、长期连接或本地 overlay schema 时，必须执行 `ProfileImpactCheck`：更新 Profile 或写明跳过理由 |
 | C22 | AI 自启动服务清理（ServiceLifecycleCleanup） | AI 为验证启动 dev server、文档站、本地 API/mock、数据库代理、SSH 隧道、Playwright/Cypress server、压测 target 等长运行进程时，必须记录启动命令、cwd、PID/job、端口/URL；验证完成、失败或中断收尾前主动停止仅由 AI 启动的服务并核验端口释放；不得杀用户既有进程；用户明确要求保留时记录保留原因、PID/端口和关闭方式 |
@@ -348,7 +348,8 @@ dev/fix 修改完成前必须判定是否影响 Profile。命中以下任一触�
 | `finding-review` | `ReviewFindingIntakeGate`、`DesignIntentAndDocsConsistencyGate`、`AuditReportIsSignalNotEvidence`、`IntentionalDesignClassification`、`UserDecisionBeforeMutation`、`DocsImplementationDriftAttribution`、`TestCoverageGapOnly`、`FindingProbeMatrixGate`、`ReviewDimensionDeltaGate`、`ReviewChecklistCompletenessGate`、`EvidenceExecutionGate`、`OmissionOnlyReviewGate` |
 | `frontend-runtime` | `FrontendExperienceQualityGate`、`FigmaHighFidelityRestorationGate`、`ScopedVisualChangeGate`、`InstalledPluginVisualVerificationGate`、`VisualDeviationTypeGate`、`DesignFramePurposeClassificationGate`、`ActualPreviewChainAndMockFallbackGate`、`UIStateScopeRegressionGate`、`FigmaProductionAssetBudgetGate`、`RuntimeI18nArtifactVerificationGate`、`FrontendBrowserVerificationBudgetGate`、`UserSelfVerificationOverrideGate`、`FrontendRuntimeNetworkProbeGate`、`UIConfirmedSourceConflictTraceGate` |
 | `user-manual-delivery` | `UserFacingDeliveryChainGate`、`FinalUserManualFirstGate`、`DocsSiteInformationArchitectureGate`、`UserManualFlowAndFailureGate`、`QueueDocsRealWorkflowGate`、`GeneratedSiteGate`、`ManualTocDuplicationGate`、`UserPathContractSweep` |
-| `release-package-contract` | `ExplicitCommitAuthorizationGate`、`CompatibilityAndContractAuthorityGate`、`PackageAdapterPreConfirmEvidenceGate`、`BuiltArtifactFeatureSmokeGate`、`TscOutputImportProbe`、`PackageNameAuthorityGate`、`PublicModuleDifferentiationGate`、`AdapterBenchmarkAttribution`、`BenchmarkRegressionGuard`、`PerformanceBenchmarkFirstGate`、`RemoteCIParityPushGate` |
+| `release-package-contract` | `ExplicitCommitAuthorizationGate`、`CompatibilityAndContractAuthorityGate`、`PackageAdapterPreConfirmEvidenceGate`、`BuiltArtifactFeatureSmokeGate`、`TscOutputImportProbe`、`PackageNameAuthorityGate`、`PublicModuleDifferentiationGate`、`AdapterBenchmarkAttribution`、`BenchmarkRegressionGuard`、`PerformanceBenchmarkFirstGate`、`RemoteCIParityPushGate`、`WorkspaceSyncStatus`、`CompletionEvidenceGate` |
+| `long-task-budget` | `ExecutionBudgetGate`、`ExternalWaitAccountingGate`、`LongTaskAuthorizationGate`、`PostDeliverySelfCheck`、`SessionTimingCard`（观测）— Owner=`execution-contract` + memory/report/compliance |
 | `requirement-profile-service` | `ProductRequirementTraceabilityGate`、`RequirementPreConfirmGate`、`RequirementVerdictStateSyncGate`、`MultiPhaseClosureGate`、`LocalExecutionConfigProbe`、`AdjacentScopeExpansionGuard`、`WorkspaceDataAbsorptionScopeGate`、`ProfileReadChainGate`、`ServiceNormCoverageGate`、`StrongestProfileSourceGate`、`ServiceSpecificResidueSweep`、`RouteNamespaceResponsibilityGate` |
 | `data-security-automation` | `GuardPolicyBypassMatrixGate`、`DatabaseRecordMigrationExportGate`、`CollectionRelationIdNamingGate`、`UserFacingVerificationArtifactLanguageGate`、`VerificationCommandSideEffectGate`、`OneOffRequirementScriptPlacementGate` |
 | `site-v2-leak` | `FlowchartNodeExplanationGate`、`DocsSiteVisualAcceptanceGate`、`MethodLevelLeakPressureProbe`、`V2MCPFirstPlanningGate`、`V2FormalSolutionPackage` |
@@ -451,11 +452,12 @@ CP1（需求确认）→ CP2（方案确认）→ [plan-review] → CP3（实施
 | 追问 | 回答后保持当前 CP 状态 |
 | 模糊 | 主动确认（"您的意思是...？"）|
 
-### 确认后前置轻量复审
+### 确认后前置复审（C19 / PostConfirmationReviewScopeGate）
 
-- 每次 CP1 / CP2 / CP3 确认后、进入下一阶段前，必须先做 1 轮轻量前置复审，并显式输出结果。
-- 当场景涉及控制面规则、多文件联动、真相源同步、模板/示例/校验链联动时，前置复审必须追加交叉验证。
-- 若前置复审或交叉验证发现阻断项，必须先修正当前产物并重新确认，不得继续推进。
+- 每次 CP1 / CP2 / CP3 确认后、进入下一阶段前，必须执行 `PostConfirmationReviewScopeGate` 并显式输出结果。
+- **轻量**：低风险单文件或纯文案 → 1 轮轻量前置复审即可。
+- **全面**：高风险、多模块、公共 API/配置、安全、package/adapter、文档消费者、控制面或多真相源同步 → 冻结清单驱动的全面复审；命中控制面 / 多文件联动 / 真相源同步 / 模板-示例-校验链时必须追加交叉验证。
+- 若发现阻断项，必须先修正当前产物并重新确认，不得继续推进。
 
 ### Skill 按需读取（仅读对应子类型 Skill）
 
@@ -487,18 +489,18 @@ CP1（需求确认）→ CP2（方案确认）→ [plan-review] → CP3（实施
 ### CP 流程（fix）
 
 ```
-CP1（问题确认）→ CP2（方案确认）→ [impact-review] → 执行 → [CP3]
+CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → 执行 → 三步扫描 → ECR
 ```
 
 - **CP1**：先确认这是 Bug / 异常 / 已承诺行为与实际不一致，而不是纯新需求或需求变更；报告方输入优先落 `bugs/<问题>/00-问题概况.md`，AI / 研发据此输出 `01-问题确认.md` 或等价问题分析报告（根因 + 影响范围）→ 等待确认
 - **CP2**：输出修复方案；若修复涉及依赖/框架/SDK/平台 API 变更必须附 `OfficialDocsEvidence`，涉及项目事实变化时必须附 `ProfileImpactCheck` → 等待确认
-- **CP3**：≥5 文件变更 或 含高风险操作时必须
-- 若执行过程中新增范围触发 CP3 条件（例如实际修改文件数扩展到 ≥5，或修复途中引入高风险/控制面联动），必须暂停执行，先补做 CP3，再继续修复。
+- **CP3**：≥5 文件变更 或 含高风险操作时，**在执行前**触发确认；与 `11-fix` 一致为「触发时 `[CP3] → 执行`」，**禁止**写成「执行后再补 CP3 框」误导顺序
+- 若执行过程中新增范围触发 CP3 条件（例如实际修改文件数扩展到 ≥5，或修复途中引入高风险/控制面联动），必须暂停执行，先补做 CP3，再继续修复
 - **ECR**：执行完成并完成修复三步扫描后、宣告完成前必须执行 ECR 执行闭环复审，覆盖 CP1/CP2/CP3、报告、daily tasks、SUMMARY、diff/commit、测试/扫描证据、AI 自启动服务清理证据与 dirty 边界。
 
-### 确认后前置轻量复审
+### 确认后前置复审（fix · C19）
 
-- fix 工作流在 CP1 / CP2 / CP3 确认后、进入下一阶段前，同样必须先做 1 轮轻量前置复审，并显式输出结果。
+- fix 工作流在 CP1 / CP2 / CP3 确认后、进入下一阶段前，同样执行 `PostConfirmationReviewScopeGate`（轻量或全面按风险升级）。
 - 当问题涉及控制面规则、多文件联动、真相源同步、模板/示例/校验链联动时，必须追加交叉验证。
 - 若发现阻断项，先修正当前产物并重新确认，再继续推进。
 
@@ -567,7 +569,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → 执行 →
 - `<agent>` 解析规则（按优先级）：
   1. 当前实际宿主优先：以当前会话/工具链可验证的宿主事实为准，产物必须写入对应宿主目录，例如当前在 Codex 中执行时写 `.memory/clients/codex/`，不得被历史 profile 覆盖。
   2. Profile agent 兜底：仅当当前实际宿主无法可靠判断时，才读取 `.devcodex/profile/config.json` 的 `"agent"` 字段作为 fallback hint。
-  3. 若仍无法判断，写入 `unknown-agent` 并记录原因；枚举值固定：`copilot` / `vscode-copilot` / `jetbrains-copilot` / `claude-code` / `codex` / `cursor` / `unknown-agent`（禁止使用裸 `claude`，与 Claude API/Claude.ai 区分）。
+  3. 若仍无法判断，写入 `unknown-agent` 并记录原因；枚举值固定：`copilot` / `vscode-copilot` / `jetbrains-copilot` / `claude-code` / `codex` / `cursor` / `grok` / `unknown-agent`（禁止使用裸 `claude`，与 Claude API/Claude.ai 区分；Grok 使用 `grok`，禁止长期误绑 `codex`；无法识别时不得默认 `claude-code`）。
   4. `devcodex profile init` 可写入当时探测到的 `"agent"` 作为兜底提示；若 profile agent 与当前实际宿主不同，Agent 日记、SUMMARY、报告路径均按当前实际宿主写入，并在 PC0/doctor/报告中提示差异。
 - 禁止用 Bash 命令查找记忆文件（shell glob 跳过隐藏目录），必须用 Read 工具逐层进入
 

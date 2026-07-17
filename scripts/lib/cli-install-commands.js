@@ -29,6 +29,20 @@ function buildCliInstallCommands(ctx) {
     ))
   }
 
+  /** Content-equal skip: avoid rewrite when bytes already match (init and --force update). */
+  function filesContentEqual(srcFile, destFile) {
+    try {
+      if (!fs.existsSync(destFile)) return false
+      const srcStat = fs.statSync(srcFile)
+      const destStat = fs.statSync(destFile)
+      if (!srcStat.isFile() || !destStat.isFile()) return false
+      if (srcStat.size !== destStat.size) return false
+      return fs.readFileSync(srcFile).equals(fs.readFileSync(destFile))
+    } catch {
+      return false
+    }
+  }
+
   function cmdInit(argv) {
     const force = argv.includes('--force') || argv.includes('-f')
     const dryRun = argv.includes('--dry-run')
@@ -73,10 +87,16 @@ function buildCliInstallCommands(ctx) {
         const rel = path.relative(srcDir, srcFile)
         const destFile = path.join(destDir, rel)
         const existed = fs.existsSync(destFile)
+        const shown = `.github/${to}/${rel.replace(/\\/g, '/')}`
 
+        if (existed && filesContentEqual(srcFile, destFile)) {
+          skipped++
+          console.log(c.dim(`  ~ ${shown}`))
+          continue
+        }
         if (existed && !force) {
           skipped++
-          console.log(c.dim(`  ~ .github/${to}/${rel.replace(/\\/g, '/')}`))
+          console.log(c.dim(`  ~ ${shown} (outdated; use --force)`))
           continue
         }
 
@@ -85,8 +105,8 @@ function buildCliInstallCommands(ctx) {
           fs.copyFileSync(srcFile, destFile)
         }
 
-        if (existed) { updated++; console.log(c.yellow(`  ↺ .github/${to}/${rel.replace(/\\/g, '/')}`)) }
-        else { added++; console.log(c.green(`  ✓ .github/${to}/${rel.replace(/\\/g, '/')}`)) }
+        if (existed) { updated++; console.log(c.yellow(`  ↺ ${shown}`)) }
+        else { added++; console.log(c.green(`  ✓ ${shown}`)) }
       }
     }
 
@@ -95,13 +115,16 @@ function buildCliInstallCommands(ctx) {
     const rulesDest = path.join(ghDir, 'RULES.md')
     if (fs.existsSync(rulesSrc)) {
       const existed = fs.existsSync(rulesDest)
-      if (!existed || force) {
+      if (existed && filesContentEqual(rulesSrc, rulesDest)) {
+        skipped++
+        console.log(c.dim('  ~ .github/RULES.md'))
+      } else if (existed && !force) {
+        skipped++
+        console.log(c.dim('  ~ .github/RULES.md (outdated; use --force)'))
+      } else if (!existed || force) {
         if (!dryRun) { fs.mkdirSync(ghDir, { recursive: true }); fs.copyFileSync(rulesSrc, rulesDest) }
         if (existed) { updated++; console.log(c.yellow('  ↺ .github/RULES.md')) }
         else { added++; console.log(c.green('  ✓ .github/RULES.md')) }
-      } else {
-        skipped++
-        console.log(c.dim('  ~ .github/RULES.md'))
       }
     }
 
@@ -110,13 +133,16 @@ function buildCliInstallCommands(ctx) {
     const ciDest = path.join(ghDir, 'copilot-instructions.md')
     if (fs.existsSync(ciSrc)) {
       const existed = fs.existsSync(ciDest)
-      if (!existed || force) {
+      if (existed && filesContentEqual(ciSrc, ciDest)) {
+        skipped++
+        console.log(c.dim('  ~ .github/copilot-instructions.md'))
+      } else if (existed && !force) {
+        skipped++
+        console.log(c.dim('  ~ .github/copilot-instructions.md (outdated; use --force)'))
+      } else if (!existed || force) {
         if (!dryRun) { fs.mkdirSync(ghDir, { recursive: true }); fs.copyFileSync(ciSrc, ciDest) }
         if (existed) { updated++; console.log(c.yellow('  ↺ .github/copilot-instructions.md  (from instructions.md)')) }
         else { added++; console.log(c.green('  ✓ .github/copilot-instructions.md  (from instructions.md)')) }
-      } else {
-        skipped++
-        console.log(c.dim('  ~ .github/copilot-instructions.md'))
       }
     }
 
@@ -229,18 +255,24 @@ function buildCliInstallCommands(ctx) {
         const rel = path.relative(srcDir, srcFile)
         const destFile = path.join(destDir, rel)
         const existed = fs.existsSync(destFile)
+        const shown = `.claude/${to}/${rel.replace(/\\/g, '/')}`
 
+        if (existed && filesContentEqual(srcFile, destFile)) {
+          skipped++
+          log(c.dim(`  ~ ${shown}`))
+          continue
+        }
         if (existed && !force) {
           skipped++
-          log(c.dim(`  ~ .claude/${to}/${rel.replace(/\\/g, '/')}`))
+          log(c.dim(`  ~ ${shown} (outdated; use --force)`))
           continue
         }
         if (!dryRun) {
           fs.mkdirSync(path.dirname(destFile), { recursive: true })
           fs.copyFileSync(srcFile, destFile)
         }
-        if (existed) { updated++; log(c.yellow(`  ↺ .claude/${to}/${rel.replace(/\\/g, '/')}`)) }
-        else { added++; log(c.green(`  ✓ .claude/${to}/${rel.replace(/\\/g, '/')}`)) }
+        if (existed) { updated++; log(c.yellow(`  ↺ ${shown}`)) }
+        else { added++; log(c.green(`  ✓ ${shown}`)) }
       }
     }
 
@@ -255,9 +287,12 @@ function buildCliInstallCommands(ctx) {
         settings.permissions.allow,
         CLAUDE_SETTINGS_PERMISSIONS.permissions.allow
       )
-      settings.permissions.ask = normalizeStringArray(settings.permissions.ask)
+      settings.permissions.ask = mergeUniqueStringArrays(
+        settings.permissions.ask,
+        CLAUDE_SETTINGS_PERMISSIONS.permissions.ask
+      )
       settings.permissions.deny = normalizeStringArray(settings.permissions.deny)
-      settings.enableAllProjectMcpServers = true
+      settings.enableAllProjectMcpServers = CLAUDE_SETTINGS_PERMISSIONS.enableAllProjectMcpServers === true
       settings.hooks = mergeClaudeHooks(settings.hooks, CLAUDE_SETTINGS_HOOKS.hooks)
 
       const result = writeManagedJsonFile(settingsPath, settings, { dryRun, backup: true, backupDir })

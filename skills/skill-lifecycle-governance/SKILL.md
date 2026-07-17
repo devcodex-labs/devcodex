@@ -15,6 +15,8 @@ description: Skill 生命周期治理 Owner — 当任务涉及 Skill 组合、�
 
 合法状态：`draft → gray → active → deprecated → retired`，另允许 `gray→draft`、`active→gray` 和任意非 retired 状态进入 `blocked`。禁止 `draft→active`、`active→retired` 或 retired 静默恢复。
 
+**Gray 可选部署规则**：`gray` Skill 表示可选/试验能力，**默认不进入宿主部署面**（`plugin.json` skills 清单、部署副本、init 默认分发）；可保留在源仓 `skills/` 与 `portfolio.json` 供验证、文档索引与晋级证据。只有经 `evolution-governance` 授权并满足激活条件后，才可晋级 `active` 并纳入默认部署。不得因源码目录存在 gray Skill 就要求消费者安装或强制触发。
+
 DevCodex 源仓的机器可读实例是 `skills/portfolio.json`（schema v2）：由 `scripts/generate-skill-portfolio.js` 从 `skills/*/SKILL.md`、`plugin.json` 与 `skills/portfolio-evidence.json` 确定性生成，`--check` 只比较、不改生命周期。严格 `dependencies` 只承载显式依赖声明；普通 Markdown 关系进入 `referenceGraph`，避免把互相说明误报成依赖环。
 
 ### SkillIndexV2 与 BundleDecisionV1

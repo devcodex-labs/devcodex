@@ -4,6 +4,19 @@ function buildLifecycleHookOutput({ env, enforcementMode }) {
   function detectPlatform(payload) {
     if (env.CLAUDE_CODE_VERSION || env.CLAUDE_HOOK_COMMAND) return 'claude'
     if (env.CODEX_SANDBOX || env.CODEX_HOME || env.OPENAI_CODEX) return 'codex'
+    if (
+      env.GROK_AGENT ||
+      env.GROK_HOME ||
+      env.GROK_SESSION ||
+      env.GROK_SESSION_ID ||
+      env.GROK_BUILD ||
+      env.XAI_GROK ||
+      env.XAI_AGENT ||
+      /grok/i.test(String(env.TERM_PROGRAM || ''))
+    ) {
+      return 'grok'
+    }
+    if (env.CURSOR_TRACE_ID || env.CURSOR_USER_ID) return 'cursor'
     if (env.IDEA_INITIAL_DIRECTORY || env.JETBRAINS_IDE) return 'jetbrains-copilot'
     const toolName = String(payload.tool_name || payload.toolName || '').trim()
     if (toolName && /^[A-Z]/.test(toolName)) return 'claude'

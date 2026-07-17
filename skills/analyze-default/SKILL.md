@@ -26,12 +26,14 @@ description: 默认分析工作流规范 — 只读多轮分析、代码事实�
 |---|---|
 | A1 问题界定 | 写一句话分析目标、边界、输入证据和不分析范围 |
 | A1a 规模路由 | broad scan 前调用 `skill-gap-analysis` 的 `ProjectArtifactScaleRoutingGate`；先识别项目并形成 `ScaleDecisionRecord`，再决定 single-pass / batched / sampled+deep-read / blocked |
+| A1b 增量与精度 | 当 decision 为 `batched` / `sampled+deep-read`，或用户要求增量/逐文件/完整深度时，**必须**加载 `incremental-project-analysis`：冻结 depthTier、尝试加载/创建 `ProjectKnowledgeSnapshot`、按 SelectiveInvalidation 生成本轮 plan；禁止只靠自然语言摘要复用 |
 | A2 事实取证 | 先查真实代码、文档、配置或运行证据，再对照计划或用户说法 |
 | A3 多轮分析 | 至少 3 轮；连续 2 轮无新发现后才可收敛 |
 | A4 analyze-lite CRS | 建立关联文件集合，收敛前反向联查是否遗漏关键消费者 |
 | A5 PCV 汇总验证 | 对每条结论执行去重、实证核查、三列验证、分级和推荐结论 |
 | A5a 治理评估 | 完成结论合理性评估后，对当前中性候选执行 `PostAssessmentGovernanceIntakeGate`；复合意图逐项落账，`record.none` 提供 challenge evidence |
-| A6 报告输出 | 结论必须包含合理性、可实施性、收益、验证状态和影响范围 |
+| A6 报告输出 | 结论必须包含合理性、可实施性、收益、验证状态和影响范围；non-small 须 Theme+Detail 双产物；确认清单须 CoverageMatrix |
+| A6b 分批交付 | 若走 `incremental-project-analysis` 分批：每 accepted 批输出 `BatchProgressCard`；全批后 `GlobalOptimizationBacklog` + 双层 ValidationResult |
 
 ## 证据门禁
 
@@ -114,3 +116,9 @@ analyze 只矫正结论，不修改 Profile。需要修订 Profile 时在 `upgra
 | `recommendation` | 推荐结论、推荐理由或无后续动作 |
 | `upgradeAdvice` | 是否建议切换 audit/dev/fix/research，含理由 |
 | `governanceIntake` | candidate ID、评估结论、泛化范围、现有规范状态、复合 record intents、target ledgers、write requirement/evidence、verification state 或 none challenge |
+| `coverageMatrix` | 大库/多报告确认清单时：`FindingThemeCoverageMatrix`（source→mapped/residual/EX）；禁止主题合并冒充零遗漏（ABS-17） |
+| `timing` | 长分析：`SessionTimingCard` 或 N/A+skipReason（ABS-18） |
+
+### 分析交付双产物（ABS-10）
+
+大库或多批分析完成时，除主题优先级清单外，须链接去噪后的 high/medium 明细（或 FindingDetailLedger）；不得用 8 条主题冒充「仅有 8 个问题」。精度档位与宣称边界见 `incremental-project-analysis`（待建）/ PI-115。

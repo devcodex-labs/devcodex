@@ -89,6 +89,13 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 - 报告写入后必须执行 [`compliance`](../compliance/SKILL.md) Skill §5 二次验证（V1~V6）
 - `dev` / `fix` 报告在最终宣告完成前，必须显式体现“ECR 执行闭环复审”这一正式阶段，并与 CP1/CP2/CP3、关键产物、报告、daily tasks、SUMMARY、diff/commit、测试/扫描证据和 dirty 边界完成 1 轮复审对照；若发现阻断性问题，不得直接以“已完成”收尾
 - 跨会话、跨 Agent、多批次、summary/compact 前、用户要求“传递上下文”或未完成任务的报告必须包含 `ContextHandoffCard`；已完成且无需交接时写 `ContextHandoffCard: N/A + skipReason`
+- 主动建议或 C08 强制新会话时，最终回复与报告须含 `NewSessionContinuationCard`（可复制启动文本；CP pending 不得写成 confirmed）
+- 长任务报告附录推荐 `SessionTimingCard`（startedAt/endedAt、阶段耗时、waiting-user / waiting-external 分列；命中预算时附 cycleId 与 budget 消耗）
+- 长任务 / Auto / 多批次报告条件段：`ExecutionBudget`（maxWallClock 与触顶 StopSnapshot）、`ExternalWaitAccounting`、`LongTaskAuthorization`（PI-118 / PF-137）；未触发写 `N/A + skipReason`
+- **WorkspaceSyncStatus（PI-109 / PF-129）**：凡改规范源 / Skill / 部署消费者 / Profile 部署面，最终回复与报告必须写 `workspaceRoot`、`updateCommand`、`hostsSynced`（如 `.github`/`.claude`/`.agents`/`.codex`/`AGENTS.md`）、`result`（synced / skipped+reason / blocked）、`evidence`；禁止只写「源码已改」却不说明工作区部署是否同步
+- **CompletionEvidenceGate**：dev/fix/self-fix 宣告「已完成 / 已收口」前，报告必须同时具备：① ECR 矩阵或显式 N/A 理由；② 适用时的 WorkspaceSyncStatus；③ 测试/validate 关键证据或阻塞说明；④ dirty 边界说明。缺任一项不得写「已完成」
+- **PostDeliverySelfCheck（条件）**：长任务结束、宣称完成、或用户质疑慢/漏/不专业时，最终回复前轻量自检：耗时分列是否诚实、完成证据是否齐全、是否越界宣称「完整/零遗漏」、可泛化改进是否已走 Improvement Intake。纯 chat / 中间进度可 N/A。**禁止**每条短回复强制全量打分写 PI
+- **最终确认清单 / 可吸纳包 / 实施 backlog**（analyze 收敛交付）必须附 `FindingThemeCoverageMatrix`（ABS-17）：每行 `sourceId → mappedTo | residualId | EX | disposition`；禁止仅用主题合并清单宣称「完整/零遗漏」；用户确认主题包后若有 residual，状态标 `partial-confirmed` 并列出 residual pack
 - `dev` / `fix` 报告的 ECR 必须核对本轮真实触发的条件产物、TestRoute、Owner 证据、进度/记忆/台账、部署同步和 dirty 边界；未触发项按 schema 写 `N/A + skipReason`
 - 方案/复审阶段出现 blocker 时，报告必须引用完整 `BlockerSnapshot`；同阶段安全独立检查未执行时记录 `stopReason / skippedChecks / recoveryEntry`，不得只报告首个红项后声称该阶段已完整审查
 - backlog intake、治理落账、规范吸纳、历史分层、用户建议采纳、跨会话恢复、Profile、发布、安全审查或专家 Owner 等条件语义，统一从 `report-schema.json` 与 `../spec-governance/gate-registry.json` 生成对应段；报告只记录 `gateGroup / result / evidence / skipReason` 并链接 Owner 产物

@@ -43,6 +43,52 @@ description: 执行契约规范 — 为长流程、多文件、Auto 或控制面
 | `currentBatchScopeDiff` | 条件 | 多阶段/多批次 dev/fix 必填；比较 total phase scope、allowedFirstBatch、当前 batch、blockedScope 与本次 diff |
 | `validationConsumerRebind` | 条件 | 新增 root script、CI job、validator、deploy copy 或 consumer 时必填；把 allowedPaths、TestRoute、rollback 与 consumerScope 重新绑定 |
 | `turnLivenessContract` | 条件 | 长任务、工具完成后无续接、宿主停滞或跨轮次恢复时必填；引用 `ai-agent-system-architecture` 的状态/lease/ACK/terminal/checkpoint、CheckpointValidation 与 LocalTaskTrace 契约及能力边界 |
+| `executionBudget` | 条件 | Auto、多批次、预计 ≥10 文件、C08 恢复、用户反馈「太慢/卡/文件太多」、或 resume 长任务时必填；见 `ExecutionBudgetGate` |
+| `longTaskAuthorization` | 条件 | 与 `executionBudget` 同触发；记录授权证据与 cycle 身份，见 `LongTaskAuthorizationGate` |
+| `externalWaitAccounting` | 条件 | 存在 CP 等待、CI/鉴权/人工审批/外部系统等待时必填；见 `ExternalWaitAccountingGate` |
+
+## ExecutionBudgetGate / ExternalWaitAccountingGate / LongTaskAuthorizationGate（PI-118 / PF-137）
+
+长任务不得只依赖事后 `SessionTimingCard` 或 C08 轮次阈值。命中 Auto、多批次、预计 ≥10 文件、C08 恢复、用户反馈「太慢/卡/文件太多」、跨会话 resume 同一长任务时，必须冻结 **墙钟预算 + 外部等待会计 + 长任务授权**。
+
+### ExecutionBudgetGate（墙钟预算 / 事中熔断）
+
+| 字段 | 要求 |
+|------|------|
+| `cycleId` | 当前恢复周期唯一 ID；禁止与已关闭 cycle 复用 |
+| `startedAt` | ISO 墙钟起点 |
+| `maxWallClock` | 本 cycle 最大执行墙钟（不含 external wait） |
+| `maxWorkUnits` | 本 cycle 最大 WorkUnit 数 |
+| `maxDirtyDelta` | 允许新增的源码/配置 status 条目上限（或等价 diff 预算） |
+| `maxMaterialFindings` | 新增实质性 finding 上限 |
+| `maxFullRuns` / `maxBuildRuns` | full test / build 次数上限；默认只在里程碑 closure 执行 |
+| `compactionBudget` | 允许的 compact/resume 次数 |
+| `stopActions` | 预算触顶后允许的动作（handoff/report/memory only 等） |
+| `resetPolicy` | 仅允许 `close-cycle-and-open-new`；禁止静默清零同一 cycle |
+
+任一预算先到：立即停止新 source mutation，写 `StopSnapshot`（elapsed、completed、remaining、dirty delta、findings、validation runs、blocker、nextAction），并进入用户确认/新 cycle 路径。
+
+### ExternalWaitAccountingGate（外部等待）
+
+| 等待类型 | 计入 |
+|----------|------|
+| AI 读/写/验证/构建 | `executionMs`（消耗 wallClock 预算） |
+| 等用户 CP/确认/授权 | `waitingUserMs`（**不**消耗执行预算） |
+| 等 CI / registry 鉴权 / 人工审批 / 外部系统 | `waitingExternalMs`（**不**消耗执行预算） |
+
+报告与 TimingCard 必须分列 `执行 / 等人 / 外部等待`；禁止把隔夜等人或 CI 排队算成「AI 执行了一整夜」。`maxWallClock` 只约束 `executionMs`。
+
+### LongTaskAuthorizationGate（长任务授权）
+
+| 规则 | 要求 |
+|------|------|
+| 进入长任务 | 必须有可审计 `authorizationEvidence`：用户明确继续、合法 Auto、或 CP 确认；不得伪造 |
+| 预算未冻结 | 禁止无人值守 source mutation |
+| 用户再次「继续」 | **不得**静默清零同一 `cycleId` 的已消耗预算 |
+| 续跑 | 关闭旧 cycle → 新 `cycleId` + 新预算 + 更新 `allowedPaths` + 新授权证据 |
+| 第二次 compact/resume 且旧 cycle 未关 | 强制 StopSnapshot 并要求新 cycle |
+
+permission-core 等业务任务级 baseline 只能作样板，不得替代 DevCodex 通用 Contract 字段。
 
 ## 偏离分级
 
@@ -139,11 +185,15 @@ P0/P1、安全、控制面、公共 API/Schema/config、预计 ≥5 文件、多
 | safetyInterruptionRecovery | |
 | publisherCredentialTopology | |
 | turnLivenessContract | state/lease/ACK/terminal + checkpointValidation + LocalTaskTrace/replayBoundary |
+| executionBudget | cycleId / maxWallClock / maxWorkUnits / maxDirtyDelta / maxFullRuns / stopActions / resetPolicy |
+| externalWaitAccounting | executionMs vs waitingUserMs vs waitingExternalMs |
+| longTaskAuthorization | authorizationEvidence / cycle lifecycle / continue=new-cycle |
 ```
 
 ## 验证
 
 - 执行前：CP2/CP3 或修复方案中存在 Contract 字段，并通过 `DevelopmentDriftGate` 核对 `allowedFirstBatch / blockedScope / driftTriggers / validationRoute / consumerSync / dirty boundary`。
+- 长任务 / Auto / resume：存在 `executionBudget` + `longTaskAuthorization`；有等待面时存在 `externalWaitAccounting`；缺预算或未授权不得进入无人值守 mutation。
 - repair task：轻量契约字段完整；高风险 full 契约的 finding map、handoff、独立复证和状态转换完整；只出现模型名称不得误触发。
-- 执行中：每个 Batch 对照 `allowedPaths`、`requiredArtifacts`、`consumerScope`、`backlogTruthReview`、`regressionMatrix`、`ledgerWriteback` 与 `deviationLog`。
-- 执行后：ECR-2/ECR-3/ECR-7 引用 Contract、`verificationEvidence`、历史能力回归结果、backlog 真相复核结果与最终偏离记录；命中 turn liveness 时同时引用双阶段 checkpoint 与 trace zero-write/replay 证据。
+- 执行中：每个 Batch 对照 `allowedPaths`、`requiredArtifacts`、`consumerScope`、`backlogTruthReview`、`regressionMatrix`、`ledgerWriteback` 与 `deviationLog`；消耗逼近预算时提前提示，触顶写 `StopSnapshot`。
+- 执行后：ECR-2/ECR-3/ECR-7 引用 Contract、`verificationEvidence`、历史能力回归结果、backlog 真相复核结果与最终偏离记录；命中 turn liveness 时同时引用双阶段 checkpoint 与 trace zero-write/replay 证据；长任务 ECR 必须引用 budget 消耗与等待分列。

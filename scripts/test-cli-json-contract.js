@@ -9,13 +9,13 @@ const {
   parseJsonArgs
 } = require('./lib/cli-json-contract')
 
-const metadata = { packageName: '@vextjs/devcodex', packageVersion: '1.14.0' }
+const metadata = { packageName: '@vextjs/devcodex', packageVersion: '1.15.0' }
 assert.deepStrictEqual(createCliSuccess('status', { ready: true }, metadata), {
   schemaVersion: CLI_ENVELOPE_SCHEMA_VERSION,
   ok: true,
   command: 'status',
   packageName: '@vextjs/devcodex',
-  packageVersion: '1.14.0',
+  packageVersion: '1.15.0',
   payload: { ready: true }
 })
 
@@ -26,7 +26,7 @@ assert.deepStrictEqual(
     ok: false,
     command: 'doctor',
     packageName: '@vextjs/devcodex',
-    packageVersion: '1.14.0',
+    packageVersion: '1.15.0',
     errorCode: 'CLI_INVALID_OPTION',
     message: 'unsupported option: --bad',
     nextStep: 'Use: devcodex doctor [--json]',

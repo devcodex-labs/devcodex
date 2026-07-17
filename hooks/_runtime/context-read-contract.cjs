@@ -596,7 +596,9 @@ function buildContextReadPlan(input = {}, options = {}) {
       chars: finiteOrNull(input.budget?.chars),
       tokens: finiteOrNull(input.budget?.tokens),
       latencyMs: finiteOrNull(input.budget?.latencyMs),
-      advisory: true
+      // FIX-06: default advisory; allow force when budget.force === true (ABS-06)
+      advisory: input.budget?.force === true ? false : true,
+      force: input.budget?.force === true
     },
     escalationTriggers: uniqueSorted(CONTEXT_READ_CONTRACT.escalationTriggers),
     triggeredEscalations: [...triggerSet].sort(),
@@ -731,7 +733,12 @@ function validateContextReadPlan(raw) {
   const memoryQueries = selected.filter(source => source.kind === 'memory').map(source => source.selector).sort()
   if (stableDigest(memoryQueries) !== stableDigest(raw.memory?.requiredQueries)) errors.push('memory.requiredQueries mismatch')
   if (raw.freshness?.strategy !== 'size+mtimeMs+metadataDigest' || raw.freshness?.reuse !== false) errors.push('invalid freshness contract')
-  if (!raw.budget || raw.budget.advisory !== true) errors.push('budget must be advisory')
+  if (!raw.budget) errors.push('budget is required')
+  else if (raw.budget.force === true) {
+    if (raw.budget.advisory !== false) errors.push('budget.force requires advisory=false')
+  } else if (raw.budget.advisory !== true) {
+    errors.push('budget must be advisory unless force=true')
+  }
   if (!raw.planningTelemetry || !Number.isFinite(raw.planningTelemetry.bytes) || !Number.isFinite(raw.planningTelemetry.chars)) {
     errors.push('planningTelemetry bytes/chars are required')
   }

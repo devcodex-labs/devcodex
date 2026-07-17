@@ -49,6 +49,8 @@ const forbidden = [
   /data\/process-improvements\.md/,
   /data\/pending-issues\.md/,
   /data\/gap-registry\.md/,
+  /skills\/portfolio\.json/,
+  /skills\/portfolio-evidence\.json/,
   /schema-dsl/i,
   /vext-test/i,
 ]
@@ -67,7 +69,10 @@ function walk(dir) {
 const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
 const plugin = JSON.parse(fs.readFileSync(path.join(ROOT, 'plugin.json'), 'utf8'))
 const npmignore = fs.readFileSync(path.join(ROOT, '.npmignore'), 'utf8')
-const packageFiles = (pkg.files || []).filter(item => !item.endsWith('/'))
+// Exact file entries only — skip directory suffixes and globs (e.g. skills/*/**)
+const packageFiles = (pkg.files || []).filter(item => (
+  !item.endsWith('/') && !/[*?![\]]/.test(item)
+))
 const pluginFiles = (plugin.skills || []).map(item => item.file).filter(Boolean)
 const packagedScripts = packageFiles.filter(file => file.startsWith('scripts/') && file.endsWith('.js'))
 const packagedScriptDeps = packagedScripts.flatMap(file => collectRuntimeDependencies(file))
@@ -78,6 +83,7 @@ const dataTemplateFiles = walk(path.join(ROOT, 'data', 'templates'))
   .filter(file => file.endsWith('.md'))
   .map(file => path.relative(ROOT, file).replace(/\\/g, '/'))
 const indexRuntimeRequires = collectRuntimeDependencies('index.js')
+const skillPackFiles = files.filter(file => file.startsWith('skills/') && file.endsWith('SKILL.md'))
 
 const required = [
   'instructions.md',
@@ -88,6 +94,7 @@ const required = [
   'hooks/_runtime/lifecycle.cjs',
   'mcp/memory-server.js',
   'mcp/profile-server.js',
+  'mcp/agent-identity.cjs',
   'scripts/instruction-fallback-check.js',
   'scripts/migrate-layout.js',
   'assets/icon-512.png',
@@ -109,6 +116,15 @@ const missing = required.filter(file => !files.includes(file))
 if (missing.length) {
   console.error('\x1b[31m✗ Pack missing required content:\x1b[0m')
   missing.forEach(file => console.error('  ' + file))
+  process.exit(1)
+}
+if (skillPackFiles.length < 10) {
+  console.error('\x1b[31m✗ Pack missing skills (expected skills/*/** to include SKILL.md packages):\x1b[0m')
+  console.error(`  found ${skillPackFiles.length} skills/*/SKILL.md`)
+  process.exit(1)
+}
+if (files.some(file => file === 'skills/portfolio.json' || file === 'skills/portfolio-evidence.json')) {
+  console.error('\x1b[31m✗ Pack must exclude skills/portfolio.json and skills/portfolio-evidence.json\x1b[0m')
   process.exit(1)
 }
 if (npmignore.includes('tests/')) {

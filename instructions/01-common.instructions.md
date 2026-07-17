@@ -2,7 +2,7 @@
 applyTo: "**"
 description: 通用规范总则，覆盖优先级、意图路由、Profile/active-root、宿主适配与治理总线
 priority: P5
-version: 1.14.0
+version: 1.15.0
 ---
 # 通用规范
 
@@ -55,7 +55,7 @@ version: 1.14.0
 | C05 | 记忆+报告自动写入 | 同 S05，完整规则见 [`00-safety.instructions.md`](./00-safety.instructions.md) | 🔒 S05 |
 | C06 | 禁止 overwrite 源码/规范文件 | 同 S04，完整规则见 [`00-safety.instructions.md`](./00-safety.instructions.md) | 🔒 S04 |
 | C07 | 并发执行策略 | 默认按 `ConcurrencyPolicy` 执行：只读准备和隔离验证可按配置并行；同一 active-root、CP 状态、记忆、报告、台账、audit session、source mutation、package boundary 和危险操作必须串行或单写者。禁止并行启动会写共享状态的子 Agent | — |
-| C08 | Token 耗尽防护 | 超 10 轮进入关注区；超 13 轮预警（写编码检查点到记忆）；超 15 轮防护（立即写完整记忆 + 建议开新会话）；≥15 轮+≥5 文件→硬性暂停（立即停止当前工具调用序列，输出 `⛔ PAUSE` 说明原因，写入记忆，等待用户明确继续指令，不再执行新的文件变更） | — |
+| C08 | Token / 长任务预算防护 | 超 10 轮进入关注区；超 13 轮预警（写编码检查点到记忆）；超 15 轮防护（立即写完整记忆 + 建议开新会话）；≥15 轮+≥5 文件→硬性暂停（立即停止当前工具调用序列，输出 `⛔ PAUSE` 说明原因，写入记忆，等待用户明确继续指令，不再执行新的文件变更）。长任务 / Auto / 多批次还须叠加 `execution-contract` 的 `ExecutionBudgetGate` / `ExternalWaitAccountingGate` / `LongTaskAuthorizationGate`：墙钟执行预算触顶停 mutation；等人/外部等待不计入执行预算；用户「继续」必须关旧 cycle 并开新 cycle+新预算，禁止静默清零 | — |
 | C09 | 文件编码安全 | 禁止终端命令批量修改中文 .md 文件（`Set-Content`/`sed -i` 会破坏 UTF-8 编码），必须使用编辑器工具逐文件修改 | — |
 | C10 | 禁止执行危险命令 | 同 S06，完整规则见 [`00-safety.instructions.md`](./00-safety.instructions.md) | 🔒 S06 |
 | C11 | 关联文件同步 | 修改/新建/重命名文件后检查所有引用处并同步（SC4 🔴 阻塞性检查） | — |

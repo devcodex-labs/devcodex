@@ -2,7 +2,7 @@
 applyTo: "**"
 description: 记忆规则，覆盖 tasks、SUMMARY、需求记忆的读取顺序、写入时机与格式约束
 priority: P5
-version: 1.14.0
+version: 1.15.0
 ---
 # 记忆写入规则（15-memory）
 
@@ -38,7 +38,8 @@ version: 1.14.0
    - Codex：`codex`（通过 `AGENTS.md` / `.agents/skills/` / `.codex/hooks.json` 适配）
    - Cursor IDE：`cursor`
    - JetBrains Copilot：`jetbrains-copilot`
-   - 无法确定：`unknown-agent`
+   - Grok Build / Grok CLI（xAI）：`grok`（可通过 `DEVCODEX_AGENT=grok` 或 `GROK_AGENT` 等宿主信号识别；禁止长期误绑 `codex`）
+   - 无法确定：`unknown-agent`（MCP 运行时不得在无法识别时默认 `claude-code`）
 4. **写入约定**：`devcodex profile init` 生成 `config.json` 时可以写入当时探测到的 `agent` 作为兜底提示；`devcodex init` / `devcodex init --claude` / `devcodex init --codex` 只负责分发规则与运行时文件，不直接生成 profile config
 5. **冲突处理**：若 profile agent 与当前实际宿主不同，Agent 日记、SUMMARY、报告路径均按当前实际宿主写入，并在 PC0/doctor/报告中提示差异。
 - ⛔ **禁止使用 shell 命令（bash find、PowerShell glob）查找记忆文件**（shell glob 会跳过以 `.` 开头的隐藏目录）

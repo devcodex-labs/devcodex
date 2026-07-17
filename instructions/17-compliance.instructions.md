@@ -2,7 +2,7 @@
 applyTo: "**"
 description: dev 模式合规检查规则，覆盖 FC/SC/RC/T、入口检查与完成验证
 priority: P4
-version: 1.14.0
+version: 1.15.0
 ---
 # 合规检查规则（17-compliance）
 
@@ -36,23 +36,23 @@ version: 1.14.0
 ```text
 ---
 🔍 入口检查（[DEV/PROD] 模式）
-- PC0 上下文：项目 [项目名/未识别] · 输出语言 [中文/英文] · Profile ✅ 已加载 / ❌ 未加载（立即读取后继续）
+- PC0 上下文：项目 [项目名/未识别] · 输出语言 [中/英] · ContextReadPlan [✅已形成/⚠️降级] · 必要来源回执 [✅verified/⚠️partial/❌missing]
 - PC1 意图：语义初判 [用户意图] → 项目现实扩展后 [工作流名称/子类型]
 - PC2 会话状态：第 N 轮（>10 关注 / >13 预警 / >15 防护） · 待跟进事项 ✅ 无 / ⚠️ [简述]
 - PC3 执行准备：项目现实扩展 [已完成/待澄清] · 未完成任务 ✅ 无 / ⚠️ 存在 🔄 会话：[简述] → 建议先 resume · 产物落点 [已确定/无需产物/待确定]
 - PC4 规范雷达：dev 模式见 `18-spec-radar.instructions.md` §输出格式；非 dev 模式 N/A（dev 扩展诊断未启用）
 - PC5 部署体状态（v1.11.0+）：cwd 父链 `.github/`、`.claude/`、`AGENTS.md`、`.agents/`、`.codex/` ✅ 存在 / N/A 无父级 · 与源仓库同步 ✅ / ⚠️ [N 文件滞后] / N/A
 - PC6 工作区一致性（v1.9.4+）：git 未提交变更 ✅ 无 / ⚠️ [N 文件 dirty] · 当前任务目录 [requirements/<X>/ / bugs/<Y>/ / 无关联]
-- PC7 新会话首步 resume 强制检测（v1.9.4+，仅首条用户消息触发）：✅ 已 Read tasks 文件 + 比对 SUMMARY 一致 / ⚠️ 数据不一致需 resume / N/A（非首条）
+- PC7 新会话首步 resume 强制检测（v1.9.4+，仅首条用户消息触发）：✅ `memory_status` + 有界 session/SUMMARY query 回执一致 / ⚠️ 数据不一致或证据不足需处理 / N/A（非首条）
 ```
 
-> ⚠️ PC0 检查失败时（Profile 未加载）不得跳过 — 必须立即加载后才能继续，ENV_MODE 由 Profile 的 `config.json` 决定。
+> ⚠️ PC0 检查失败时（ContextReadPlan 未形成或必要来源回执 missing）不得跳过 — 必须立即形成计划并取得可验证回执后才能继续；ENV_MODE 由 Profile 的 `config.json` 决定（未加载时默认 prod）。**禁止**仅用「Profile ✅ 已加载」替代 ContextReadPlan + 回执语义。
 >
-> 🔴 **项目未识别处理**（v1.9.8+）：当 PC0 列出"项目 [未识别]"时，AI **必须暂停后续 PC1~PC7 输出**，在入口检查块位置输出：
-> ```
-> ⚠️ 项目未识别，请确认当前请求关联哪个项目（如 cacheHub / payment / vext / monSQLize 等）。未明确前不得启动任何工作流、不得发起超出当前文件范围的工作区扫描。
-> ```
-> 等用户明确后再续输出完整 PC0~PC7。豁免词（同步 `lifecycle.cjs` `isMultiProjectWorkspace`）：`workspace` / `monorepo` / `全工作区` / `all projects` / `所有项目`。运行时默认 `safety-only` 只提醒放行，`strict` 模式才硬拦截；AI 侧流程仍不得跳过澄清。
+> 🔴 **项目未识别处理**（v1.9.8+ / FIX-39）：与 S07「实质内容前须 PC0~PC7」协调为：
+> 1. **先输出不完整入口块**：至少 PC0 写 `项目 [未识别]`，PC1~PC7 可写 `⏸ 待项目明确`（满足可见入口块，不宣称完整）。
+> 2. **暂停工作流与扫描**：不得启动 dev/fix/analyze/audit 实质变更或无界工作区扫描。
+> 3. 用户明确项目后，再输出**完整** PC0~PC7 并继续。
+> 豁免词（同步 `lifecycle.cjs` `isMultiProjectWorkspace`）：`workspace` / `monorepo` / `全工作区` / `all projects` / `所有项目`。
 >
 > ⚠️ `hook-enforced` 模式下，入口检查状态可以由宿主事件驱动后显示为**首个结构化状态块**；`instruction-fallback` 模式下，入口检查块仍应尽量位于回复开头，但不再机械要求“第一批 tool call”“第一行输出”。
 >

@@ -8,7 +8,7 @@ description: 定义意图识别结果到工作流的路由映射。本 Skill 为
 
 定义意图识别结果到工作流的路由映射。用户通常经 Agent 入口进入，但**实际路由判定**由 `01-common.instructions.md` §意图路由表 + `intent/SKILL.md` 三问法 + `load-profile/SKILL.md` 项目现实扩展共同完成。
 
-> ⚠️ 本 Skill 为**人类可读参考**。工作流 mutation / CP / artifact 的机器可验证合同见同目录 `workflow-capabilities.json`；Agent 文件只负责入口包装，不再承载完整路由表或工作流主逻辑。
+> ⚠️ 本 Skill 为**人类可读参考（docs-only / FIX-23）**，可不作为执行时必读正文。工作流 mutation / CP / artifact 的机器可验证合同见同目录 `workflow-capabilities.json`；实际路由以 `01-common` + `intent` + 工作流 instructions 为准。Agent 文件只负责入口包装。
 
 ## 路由映射表
 

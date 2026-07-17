@@ -33,6 +33,7 @@ init 完成后必须执行 `ProfileGenerationContractGate`，先运行 `devcodex
 
 ## 关键规则
 
+- **Gray Skill 不默认部署**：`portfolio` 中 `lifecycleState=gray` 的 Skill 为可选/试验能力，init / 宿主分发默认不安装到部署副本；仅 `active` Skill 进入默认分发（见 `skill-lifecycle-governance`）
 - 跳过 CP3（init 无需实施计划阶段）；同时豁免 `dev-plan-review`（CP3 已跳过，质量门禁不适用）；必须记录 `CP3: N/A（init 子类型豁免）`，供 hook/fallback 区分合法豁免与漏确认
 - 生成的 .gitignore 必须覆盖当前 layout 对应的 `<active-root>/.memory/`；legacy 单项目模式才使用 `.devcodex/.memory/`
 - 依赖选型遵循项目 profile 中的技术栈约束（若已有 profile）

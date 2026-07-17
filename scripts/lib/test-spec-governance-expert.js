@@ -93,9 +93,9 @@ function runSpecGovernanceExpertSuite(ctx) {
     ['prompts/report-audit.prompt.md', checkV84],
     ['prompts/report-scenario-test.prompt.md', checkV84],
     ['README.md', 'expert-output-quality'],
-    ['website/docs/index.md', '77 个 Skills'],
-    ['website/docs/intro/index.md', '77 个按需触发'],
-    ['website/docs/specs/directory-structure.md', '扁平一级 Skill（77 个）'],
+    ['website/docs/index.md', '78 个 Skills'],
+    ['website/docs/intro/index.md', '78 个按需触发'],
+    ['website/docs/specs/directory-structure.md', '扁平一级 Skill（78 个）'],
     ['website/docs/guide/development.md', checkV84],
     ['website/docs/versions/v1/1.0.1/CHANGELOG.md', 'V84']
   ]) {
@@ -240,9 +240,9 @@ function runSpecGovernanceExpertSuite(ctx) {
     ['prompts/report-audit.prompt.md', checkV85],
     ['prompts/report-scenario-test.prompt.md', checkV85],
     ['README.md', '专家 Owner Skill'],
-    ['website/docs/index.md', '77 个 Skills'],
+    ['website/docs/index.md', '78 个 Skills'],
     ['website/docs/intro/index.md', '专家 Owner Skill'],
-    ['website/docs/specs/directory-structure.md', '扁平一级 Skill（77 个）'],
+    ['website/docs/specs/directory-structure.md', '扁平一级 Skill（78 个）'],
     ['website/docs/guide/development.md', checkV85],
     ['website/docs/versions/v1/1.0.1/CHANGELOG.md', 'V85']
   ]) {

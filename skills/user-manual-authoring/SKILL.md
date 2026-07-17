@@ -52,26 +52,16 @@ description: 最终用户使用文档写作规范 — 站点文档、README、qu
 
 ## 必执行门禁
 
-- `UserDocsPrimarySurfaceGate`：冻结 `targetSurface`、`documentLocation` 与 `primaryAudience=用户/使用者`。
-- `UserDocsImmediateComprehensionGate`：输出功能完整性、配置易懂性、首次读者即时理解三轴结论。
-- `UserManualProductizationGate`：最终用户文档按使用者产品化组织，主路径必须覆盖受众、任务、配置、真实示例、排错、失败恢复和源码 / 示例可点击链路；内部字段、实现说明和维护者验收不得占主路径。
-- `UserManualRenderedFlowAndRealWorkflowProbe`：文档包含 Mermaid / 流程图时必须验证真实渲染；quick start、队列、任务、异步、导入导出或批处理示例必须是真实业务工作流，不能用硬编码单例冒充主路径。
-- `DocsPageRoleMatrixGate` / `CompleteUserManualSiteMatrixGate`：文档站或多页 README 需要为每个页面标明 role、audience、sourceOfTruth、nav/sidebar 位置和是否用户主路径；完整用户手册站点覆盖入门、配置、常见任务、reference、排错、限制与下一步。
-- `SidebarPageRoleMaterializationProbe` / `SidebarGroupSemanticModelProbe`：新增公开能力、修菜单缺项、调整 sidebar 分组或命名时，先从当前站点配置 / docs inventory / generated HTML 反查 route、label、page role 和整组任务模型；内部实现依赖不得自动成为 IA 归属。
-- `ChinesePrimaryExpressionGate`：中文站点文档和中文用户手册用中文主干解释任务、配置、错误和流程；英文标识符只作为精确补充。
-- `DocsThemeRuntimeVisualProbeGate`：文档站主题、导航、搜索、代码高亮、移动端、暗色/亮色或交互体验变化时，验证真实运行态视觉和交互，不只检查 Markdown 源码。
-- `UserFacingDeliveryChainGate`：文档先于技术方案成为用户路径合同，ECR 对照需求和用户文档审查。
-- `FinalUserManualFirstGate`：docs-first 或最终用户手册场景写目标版本最终可执行路径，而不是当前 preview 状态说明。
-- `DocsSiteInformationArchitectureGate`：文档站按受众、任务和信息类型分区，不把所有内容塞进用户手册。
-- `UserManualFlowAndFailureGate`：用户手册覆盖整体流程、关键角色、第一次成功、失败分流、排查命令和恢复/降级。
-- `QueueDocsRealWorkflowGate`：队列、任务和异步类 quick start 必须说明数据来源、批量入队、payload、handler 业务动作、失败/重试/幂等和观测。
-- `ScenarioCoverageMatrixProbe`：声称用户手册/站点“场景完整”时，为每个 in-scope 场景记录 `scenarioId / audienceGoal / topology / trigger / config / execute / expectedState / failure / recovery / observe / executableEvidence / status`；页面、关键词或作者自报 covered 不能替代逐场景证据，runtime-required 但未执行只能 partial。
-- `DurableBatchOrchestrationProbe`：队列/批处理主路径若声称持续分页、分批、多 Worker、聚合完成或崩溃恢复，必须引用 `distributed-systems-architecture` 的持久化 run 语义；一次 `addBulk`、进程内 callback 或循环伪代码不得标为完整批处理。
-- `PublicUserDocsMaintainerBoundaryGate`：公开用户文档不得混入维护者验收、内部同步清单、台账状态或发布 checklist。
-- `DocsConsumerSweep` / `UserPathContractSweep`：文档新增能力、命令、配置、导航或用户路径时，同步当前消费者。
-- `BehaviorSemanticDocsParityGate` / `NegativeTranslationParityProbe`：最终用户手册中的行为承诺、默认值、兼容路径、限制、支持/不支持、启用/禁用、同步/异步和缓存/刷新语义必须与 public API、runtime wiring、README/website、generated search 与多语言版本一致。
-- `DocsExampleTruthSurfaceGate` / `CallbackExampleScopeProbe`：用户主路径中的示例不能只凭伪代码表达；option/config/method/field/callback/handler/ctx 必须能追到 public types、schema、runtime dispatcher、导出入口或最小执行探针。
-- `ExpertOutputQualityGate`：代码、文档、示例、fixture、quick start、技术方案或报告面向用户 / 维护者消费时，先给生产推荐路径和框架原生能力，再说明 fixture/mock/demo 的验证边界；不得把测试夹具、硬编码单例或每个 route 重复声明当成主推实践。命中时调用 `expert-output-quality`，执行 `ProductionRecommendedPathGate`、`FrameworkNativeCapabilityFirstGate`、`FixtureBoundaryDisclosureGate`、`AntiPatternContrastGate` 与 `ExpertEvidenceMatrixGate`。
+> 共享 Gate 分组与 requiredEvidence 以 `../spec-governance/gate-registry.json` 为准（`user-manual` / `docs-ia-readability` / `docs-semantics-examples` / `docs-audience-render-sequence` / `scenario-durable-workflow` / `expert-output-quality`）。下表是本 Owner 的**差分清单**（触发 → 要证什么），不维护跨 Skill 百科。
+
+| 触发 | 要证什么（摘要） |
+|------|------------------|
+| 任意用户手册 / README / 站点文档 | 冻结用户主受众与落点；主路径覆盖理解→第一次成功→任务→配置→失败恢复；公开面不混维护者 checklist |
+| docs-first / 最终用户手册 | 文档先于技术方案成为用户路径合同；写目标版本可执行路径，不是 preview 状态说明 |
+| 文档站 / 多页 README | page role / sidebar 任务模型 / IA 分区；中文主表达；主题与生成站点运行态（不仅 Markdown） |
+| 队列 / 异步 / 批处理 quick start | 真实业务工作流；声称场景完整或持久化编排时追加 scenario / durable 证据（见 registry） |
+| 行为承诺 / 示例 / 回调 | 语义与 public API/runtime 对齐；示例可追溯 type/schema/dispatcher；fixture 不得冒充生产推荐路径（`expert-output-quality`） |
+| 能力 / 导航 / 路径变更 | 同步 README、website、Profile、examples、validate、部署副本与代码消费点 |
 
 ## 执行步骤
 
@@ -103,3 +93,17 @@ description: 最终用户使用文档写作规范 — 站点文档、README、qu
 - 禁止把最终用户手册写成整站全部内容容器。
 - 禁止把当前不可用状态说明冒充目标版本最终用户手册。
 - 禁止把 fixture、mock、demo、硬编码单例或重复 route/middleware/resource 声明写成用户主路径的生产推荐实践；必须标明验证用途和推荐替代。
+
+
+## 同步锚点（validate / consumer）
+
+FixtureBoundaryDisclosureGate · ScenarioCoverageMatrixProbe · DurableBatchOrchestrationProbe
+
+
+## 额外同步锚点
+
+ChinesePrimaryExpressionGate · SidebarPageRoleMaterializationProbe · SidebarGroupSemanticModelProbe
+
+
+<!-- auto-sync anchors -->
+UserFacingDeliveryChainGate · FinalUserManualFirstGate · UserPathContractSweep · UserManualProductizationGate · UserManualRenderedFlowAndRealWorkflowProbe · DocsPageRoleMatrixGate · DocsThemeRuntimeVisualProbeGate

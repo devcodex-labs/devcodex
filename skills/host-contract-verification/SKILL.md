@@ -20,6 +20,7 @@ description: 宿主契约验证规范 — 为 Hook / CLI / bootstrap / visible r
 | Bootstrap、部署副本、父链同步口径变更 | 🔴 必须 |
 | `ArtifactLinkSet` / 产物文件点击兼容矩阵变更 | 🔴 必须 |
 | Copilot / Codex MCP bridge 报错、`profile_load` fallback、`invoke undefined` 恢复链变更 | 🔴 必须 |
+| `ContextReadPlanV1` / `ContextReadReceiptV1`、Pre/Post 相关性、上下文读取 allowlist 或 fallback 语义变更 | 🔴 必须 |
 | 公开本地 probe、checkpoint 证据语义或 trace show/replay 变更 | 🔴 必须 |
 | 仅普通业务代码改动 | N/A |
 
@@ -35,7 +36,8 @@ description: 宿主契约验证规范 — 为 Hook / CLI / bootstrap / visible r
 | `workspaceGuard` | 条件 | 多项目 workspace、sticky project、workspace profile 提示等边界验证 |
 | `bootstrapScope` | 条件 | 父链部署体、入口检查块、adapter 初始化或 update 部署验证 |
 | `artifactLinkMatrix` | 条件 | `ArtifactLinkSet` 对 Copilot / Claude Code / Codex / instruction-fallback 的主链接与 copy fallback 覆盖情况 |
-| `mcpFallback` | 条件 | MCP bridge 失败时是否降级到文件读取 / instruction-fallback；记录错误文本、fallback 路线和是否停止重试 |
+| `mcpFallback` | 条件 | MCP bridge 失败时是否降级到同计划有界文件读取 / instruction-fallback；记录错误文本、fallback 路线和是否停止重试 |
+| `contextAcquisition` | 条件 | plan/epoch/target/source 相关性、Pre attempted、Post success receipt、fallback 与完成状态 |
 | `turnLiveness` | 条件 | 长任务/无续接场景的 host-native、Hook-event、sidecar 能力边界，以及 lease、ACK、terminal、checkpoint 证据 |
 | `localProbe` | 条件 | `LocalProbeDescriptorV1/ResultV1` 的 ID、依赖、local-only、同步只读和 zero-write 证据 |
 | `checkpointValidation` | 条件 | response-time / post-execution 的 evidence、deadline、status 与 incomplete/timeout 处理 |
@@ -53,6 +55,7 @@ description: 宿主契约验证规范 — 为 Hook / CLI / bootstrap / visible r
 | managed deployment manifest | legacy + workspace-namespace fixture、update preview、manifest schema/hash、stale 保留、V8 direct replay |
 | ArtifactLinkSet / 产物点击 | static matrix probe + visible reply fixture；若声称某客户端可点，需 direct replay 或用户实测证据 |
 | MCP bridge fallback | MCP server no-args direct replay + 非 Full 宿主 fallback 文案探针；若错误来自宿主桥接层，只能声明 fallback 已覆盖，不能声明宿主 bug 已修复 |
+| 意图驱动上下文获取 | `ContextAcquisitionToolAllowlistProbe` + plan/receipt direct replay + Pre/Post fixture + hidden-full-read 负例 + fallback no-deadlock |
 | Turn Liveness / orphaned turn | state-machine fault matrix + Hook direct replay + restart rehydrate；事件停止后的 proactive 检测只能由 host-native watchdog 或 gray read-only sidecar 证明 |
 | 本地 probe | descriptor/dependency/error fixture + CLI JSON/human replay + state hash zero-write；不得联网、启动 watcher 或写 telemetry |
 | checkpoint / local trace | fixed-clock 双阶段 fixture + Hook terminal replay + sequence/duplicate/restart/terminal 负例；trace replay 必须证明 payload 不执行且源 state hash 不变 |
@@ -65,6 +68,14 @@ description: 宿主契约验证规范 — 为 Hook / CLI / bootstrap / visible r
 Stop/PreCompact 对最终回复产物证据必须使用 `verified-present / verified-missing / unverified`：只有观察到可解析 assistant 内容才能判定 present/missing；未观察到只能 unverified。记录 `evidenceSource / missingItems`，不得用任意一个链接替代 active task 的 primary artifacts，也不得保存不必要的完整回复正文。
 
 最终回复在单一 surface 内列出“主要产物”；小集合全列，大集合列 primary + 完整 manifest 入口 + supporting/runtime/excluded-generated 计数。报告、记忆或 SUMMARY 已有链接不能成为最终回复省略 primary artifacts 的理由。
+
+### ContextAcquisitionHostEvidenceGate
+
+- `ContextAcquisitionToolAllowlistProbe` 只允许已注册的只读 Profile / memory 查询工具推进 source state；普通文件搜索、写工具、legacy no-args 全文读取或未知工具不得伪造完成。
+- `PreToolUse` 只记录 correlated attempted；只有 `PostToolUse` 中可解析的成功结果，且 planId、contextEpoch、activeRoot、tool/source/query 全部匹配时，才生成或推进 `ContextReadReceiptV1`。
+- 需覆盖结构化 MCP、path-observable 与 instruction-only 三种宿主能力；后两者缺少可验证结果时必须保持 `unverified`，不能由提示文案升级为 `relevant-complete/completed`。
+- MCP bridge 失败只允许一次同计划 bounded fallback 并停止重试；fallback 失败或证据不可观察时输出 warnings / missing sources，但不得形成死循环或跳过后续安全与 CP 门禁。
+- direct/fixture replay 至少覆盖 success、tool error、mismatched epoch/target/source、duplicate/stale Post、legacy projection 和 hidden full-read mutation；报告区分 server direct success 与 host bridge verified。
 
 1. 报告必须说明证据来自 direct replay、fixture replay、现有 targeted test，还是 validate probe 推断。
 2. 无法直接读取最终 assistant 内容时，只能落为 `unverified`，不能伪造 `verified-present`。
@@ -105,6 +116,7 @@ Stop/PreCompact 对最终回复产物证据必须使用 `verified-present / veri
 | bootstrapScope | |
 | artifactLinkMatrix | |
 | mcpFallback | |
+| contextAcquisition | plan/epoch/target/source、allowlist、Pre/Post、receipt、fallback 与完成状态 |
 | turnLiveness | capability layer、lease/ACK/terminal/checkpoint、fault matrix 与证据状态 |
 | localProbe | descriptor/dependency/local-only/zero-write 与 CLI 证据 |
 | checkpointValidation | response-time/post-execution 结果、deadline 与证据状态 |

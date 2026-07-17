@@ -150,7 +150,7 @@ version: 1.14.0
 
 | 机制 | 本质 | 错误理解 |
 |------|------|---------|
-| 预检查（获取时间/读文件/加载规范）| 入口门禁，防止上下文丢失 | 不是"开销" |
+| 预检查（意图种子/有界读计划/加载规范）| 入口门禁，防止上下文丢失并控制无关上下文 | 不是省略真相源 |
 | CP 确认点 | 防止方向偏差后大量返工 | 不是"打断" |
 | 合规检查 | 防止遗漏导致下次会话补救 | 不是"繁琐" |
 | 多轮审查 | 防止首轮盲区导致问题遗漏 | 不是"重复" |
@@ -164,7 +164,7 @@ version: 1.14.0
 ## Skill 按需读取表
 
 > ⚠️ 仅读取当前工作流子类型对应的 Skills，禁止全量读取。
-> ⚠️ **Profile 加载（读取 `.devcodex/profile/`）是所有工作流的前置步骤，不受本表约束，必须在执行任何工作流前完成。**
+> ⚠️ **`ContextAcquisitionGate` 是所有工作流的前置步骤，不受本表约束：先形成 `IntentSeedV1` 与唯一项目，再生成 `ContextReadPlanV1` 并定向读取；禁止把“Profile 是真相源”实现成默认整目录读取。**
 > ℹ️ `18-spec-radar.instructions.md`（PC4 规范雷达）是 Instruction（不是 Skill），通过 `applyTo:"**"` 全局注入，无需在本表中加载；仅 dev 模式在入口检查中执行完整三轴诊断。
 
 > ⚠️ **扩展点**：新增工作流子类型时，须同时更新以下5处（D5 L1~L3 联动）：
@@ -281,7 +281,10 @@ version: 1.14.0
 
 ### Profile 加载
 
-- Profile 加载适用于所有工作流（含 analyze / audit / chat）；跨会话恢复时必须重新读取，摘要不能替代 Profile。
+- Profile 上下文适用于所有工作流（含 analyze / audit / chat），但读取范围由 `ContextAcquisitionGate` 决定：`IntentSeedV1 → 唯一项目/active-root → ContextReadPlanV1 → 定向加载 → Post 成功回执`。
+- baseline 只允许 README/index、effective non-local config 与顶层 metadata inventory；项目事实、架构、代码风格、测试、发布等正文按 intent / changeTypes / risk 选择，禁止 hidden full read。
+- 跨会话恢复必须重新校验 epoch、目标、计划与必要来源新鲜度；摘要不能替代 Profile，也不能自动触发整套 Profile 重读。
+- 全量读取须有 `fullReadReason`；`config.local.json` 只在用户或项目明确指定时进入 selected sources。旧 no-args 全量工具仅作兼容，不得作为正常默认路径。
 - `workspace-namespace` 命中时，Profile 与运行态目录采用集中路径模型；`.devcodex/workspace/profile/` 是 workspace base profile 的真实路径。
 - 运行态写入必须遵循 `single active scope write`，不得双写旧路径与新命名空间。
 - `config.local.json`、`workspace base + project overlay`、`sticky `activeProject`` 与 `项目现实扩展（Project Reality Expansion）` 的完整规则已移动到 [`01a-profile-loading.instructions.md`](./01a-profile-loading.instructions.md)。

@@ -10,7 +10,7 @@ applyTo: .devcodex/**/requirements/**
 > ⚠️ 本模板只承接任务拆分、实施顺序、前置依赖、验证方式与回滚策略，不重复需求背景或技术方案中的设计论证。
 > ⚠️ 生成的 Markdown 实施计划文档必须在头部后补 `## 目录导航`。
 > ⚠️ SimpleTaskFastPath、docs/init/plan-review 子类型豁免或其他合法 CP3 豁免场景，可将 `04-实施计划.md` 标为 `N/A + skipReason`；不得用本模板“补文书”覆盖已确认的轻路径或子类型豁免。
-> ⚠️ 控制面、Auto、多批次、预计修改 ≥10 文件、模板-示例-校验链或发布前置任务，计划中必须列出 ExecutionContract / TestRoute / ReleaseAudit / ReleaseVerification / ConceptSyncMap / HostContractVerification / 05-实施进度.md 的触发状态与证据。
+> ⚠️ 控制面、Auto、多批次、预计修改 ≥10 文件、模板-示例-校验链或发布前置任务，计划中必须列出 ExecutionContract / TestRoute / ReleaseAudit / ReleaseVerification / ConceptSyncMap / HostContractVerification / ContextAcquisition / 05-实施进度.md 的触发状态与证据。
 > ⚠️ 项目/目录扫描计划必须先写 `ProjectArtifactScaleRoutingGate`、ScaleDecisionRecord、exclusion、batch/checkpoint、invalid-run 与 V91；不得把“全量 inventory”默认等同“逐字读取所有文件”。
 > ⚠️ 若本轮任务或批次直接来源于 `data/*.md` 的 open/partial 项，计划中必须显式写出 Backlog Intake 真相复核和台账状态回写闭环：先分类 `pure-open / residual-tail / already-fixed / misclassified`，再说明本轮范围是否缩减以及回写证据如何产出。
 > ⚠️ 若 CP1 真相源是产品直接提供的 `01-产品需求.md`，实施计划只能承接产品原文、流程节点、前端交互、字段描述和 AI / 研发缺口检查结果；不得把计划写成新的产品需求稿。
@@ -99,11 +99,14 @@ applyTo: .devcodex/**/requirements/**
 | ExecutionContract / RepairCollaborationContract | | | execution-contract | | |
 | TestRoute | | | test-router schema | | |
 | ConceptSyncMap / ProfileImpactCheck | | | source-consumer-sync / load-profile | | |
+| ContextAcquisition | | | `context-acquisition` registry group / Owner Skills | | |
 | 其他适用 gateGroup | | | registry ownerSkill | | |
 
 `local-observability-contract` 命中时，计划必须包含 CLI human/json/error/exit、typed local probe dependency/error/zero-write、公开文档与 package boundary 的任务和验证映射。
 
 `agent-turn-liveness` 命中时，把状态机/Hook adapter、双阶段 CheckpointValidation、LocalTaskTrace/只读 replay、Owner/consumer sync、gray sidecar 严格拆批；前一批 direct replay 与 fault matrix 未通过前不得开放后一批。sidecar 和 trace replay 默认只读，不得在计划中预授权 payload 执行、operation replay、自动 mutation 或进程控制。
+
+`context-acquisition` 命中时，批次顺序至少为 shared contract/oracle → Profile plan + `ProfilePlanNoHiddenFullReadProbe` → Memory bounded query → Hook Post receipt → consumers/V99；每批记录 selected/excluded、missing、legacy 与 staged known-red，前一批 mandatory miss 或 false complete 未归零不得进入公开消费者同步。
 
 跨会话、多批次、服务启动、发布、依赖升级或台账回写等条件产物，在命中时作为“其他适用 gateGroup/产物”逐项加入；未命中只保留一条聚合 `N/A + skipReason`。
 
@@ -172,6 +175,7 @@ applyTo: .devcodex/**/requirements/**
 - [ ] `test-route-schema.json` 选择的 routes 已执行，命令、exitCode、证据和 skipped 记录完整
 - [ ] 所有适用 `gateGroup` 已由 registry Owner 产出证据；未触发项有聚合 `N/A + skipReason`
 - [ ] ExecutionContract、RepairCollaboration、ConceptSyncMap、ProfileImpactCheck、ServiceLifecycleCleanup、Backlog/台账回写等条件产物已按触发事实处理
+- [ ] ContextAcquisition 触发时，plan/receipt/hidden-read/bounded-memory/V99 证据与 staged consumer owner 已记录
 - [ ] 控制面/高风险任务已执行 targeted + related + full validation 或明确降级
 - [ ] CHANGELOG 只按 unreleased/release 状态和项目三轨规则更新
 - [ ] delivery-checklist 已核对 active task 主要产物、支持 manifest 与最终可见交付面

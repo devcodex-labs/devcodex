@@ -13,7 +13,7 @@ const {
 const ROOT = path.resolve(__dirname, '..')
 const contracts = loadControlPlaneContracts(ROOT)
 assert.deepStrictEqual(contracts.errors, [])
-assert.strictEqual(contracts.gateRegistry.groups.length, 41)
+assert.strictEqual(contracts.gateRegistry.groups.length, 42)
 const gateGroupIds = new Set(contracts.gateRegistry.groups.map(group => group.id))
 for (const expected of [
   'batch-scope-rebinding',
@@ -21,6 +21,7 @@ for (const expected of [
   'runtime-state-truth',
   'local-observability-contract',
   'agent-turn-liveness',
+  'context-acquisition',
   'brand-visual-quality',
   'contract-mutation-isolation',
   'phase-delivery-semantics',

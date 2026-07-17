@@ -1,14 +1,14 @@
 ---
 name: load-profile
-description: 项目 Profile 加载规范 — 意图识别后独立确定目标项目并加载配置
+description: 项目 Profile 加载规范 — 先形成语义意图种子与唯一目标，再按计划加载最小充分配置
 ---
 # Load Profile Skill
 
 ## 职责
 
-在意图识别完成后，**独立确定目标项目 `<project>`**，并加载对应的项目配置（profile）。可与记忆读取并发执行。
+在 `IntentSeedV1` 形成后，**独立确定目标项目 `<project>`**，再按 `ContextReadPlanV1` 加载最小充分的项目配置（profile）。计划确定后的只读 Profile 与记忆查询可按并发策略执行。
 
-加载完成后必须把 Profile 结果交给“项目现实扩展”步骤，作为最终意图路由、产物落点和验证方式的输入。
+必要来源形成 `ContextReadReceiptV1` 后，必须把 Profile 结果交给“项目现实扩展”步骤，作为最终意图路由、产物落点和验证方式的输入。
 
 ## 如何确定 `<project>`
 
@@ -46,10 +46,13 @@ description: 项目 Profile 加载规范 — 意图识别后独立确定目标�
 
 ### ProfileReadChainGate / ServiceNormCoverageGate
 
-服务 / 框架规范复审、跨服务需求、workspace-namespace 或 Profile 同步任务必须执行 `ProfileReadChainGate` / `ServiceNormCoverageGate`：
+所有工作流的 Profile 获取都必须执行 `ProfileReadChainGate`；服务 / 框架规范复审、跨服务需求、workspace-namespace 或 Profile 同步任务还必须执行 `ServiceNormCoverageGate`：
 
-- 明确 base profile、project overlay、config.local overlay、fallback profile 和实际 active-root。
-- 覆盖 `.devcodex/<project>/profile` 读取链、`.devcodex/workspace/profile` 回退链和 sticky activeProject 生效边界。
+- 调用 `profile_context_plan`，以 canonical intent、changeTypes、risk、confidence 和明确 selector 生成 `ContextReadPlanV1`；计划必须列出 baseline / selected / excluded / unclassified、base/project fallback 和实际 active-root。
+- `ProfilePlanNoHiddenFullReadProbe` 必须证明计划阶段只返回 README/index、effective non-local config 与顶层 metadata inventory，没有预读 `01~09-*`、`config.local.json` 或其他 selected 正文。
+- selected 正文通过 `profile_load({ project, files })` 定向读取；只有 contextEpoch / planId / activeRoot / source 精确关联且 `PostToolUse` 观察成功的 `ContextReadReceiptV1` 才能证明加载完成。
+- 全量升级必须记录 `fullReadReason`，仅限用户/项目明确要求、audit/migration、低置信或必要来源缺失；`config.local.json` 还须用户/项目明确指定，不能因文件存在自动读取。
+- 覆盖 `.devcodex/<project>/profile` 读取链、`.devcodex/workspace/profile` 回退链和 sticky activeProject 生效边界；实质 identity / scope / action / risk / digest 漂移或 compact/resume 时重新规划。
 - 复审服务 / 框架规范时列出全部服务集合、docs 自维护链、导航、版本、构建、报告和记忆消费者。
 - 从单服务抽公共规范时同步执行 `StrongestProfileSourceGate` / `ServiceSpecificResidueSweep`，以最强 Profile 为基线并清扫服务化残留。
 
@@ -92,7 +95,7 @@ DevCodex 自维护、Profile 生成/复审、workspace base 同步和发布事�
 
 Codex / 宿主内置 Memories、模型长期偏好、上一轮摘要或用户口头记忆只能作为导航提示，不能满足 DevCodex bootstrap、Profile 加载、Context Rehydration、CP 确认、报告结论或验证证据。
 
-- 新线程、resume、summary 恢复、compact 后继续、跨项目切换或用户提到“你应该记得”时，仍必须读取当前 active namespace 的 Profile、Agent SUMMARY、今日 tasks、必要的昨日 tasks、相关 report / review checklist 和当前源码 / 文档真相源。
+- 新线程、resume、summary 恢复、compact 后继续、跨项目切换或用户提到“你应该记得”时，仍必须重新建立当前 active namespace 的计划并取得必要文件真相源回执；使用 bounded Profile plan、memory status/query（有限投影覆盖 Agent SUMMARY / daily tasks）与 handoff 指向的精确 report / review checklist / source，禁止固定全读 Profile、SUMMARY、今日/昨日 tasks。
 - 若内置 Memories 与文件真相源冲突，以文件真相源为准；报告或 PC 块说明冲突和采用依据。
 - 若无法完成文件真相源读取，只能标记阻塞或降级，不能把 Memories / 模型回忆写成 `verified`、`loaded`、`passed` 或 CP / release 证据。
 - 当用户询问是否启用宿主 Memories 时，结论必须同时说明本门禁：开启也不降低文件读取门槛；无法保证该门禁时默认不建议作为正式 DevCodex 运行模式。
@@ -139,6 +142,8 @@ node scripts/validate-all-profiles.js --workspace <workspace-root>
 
 ## 标准文件（按需加载）
 
+下表是档位存在性契约，不是每轮默认正文读取集合；具体读取由 `ContextReadPlanV1` 决定。
+
 | 文件 | 说明 | 必须 |
 |------|------|:----:|
 | `README.md` | profile 索引，声明 `profile-lite` / `profile-standard` / `profile-closed-loop` 档位 | 是 |
@@ -168,13 +173,13 @@ node scripts/validate-all-profiles.js --workspace <workspace-root>
 
 | 情况 | 处理 |
 |------|------|
-| profile/ 或集中布局命名空间存在 | 读取 README.md + 按需读其他文件；存在 `config.local.json` 时一并作为本地 overlay 读取 |
+| profile/ 或集中布局命名空间存在 | `profile_context_plan` 返回 README/index、effective non-local config 与 metadata inventory，再按 selected files 定向读取；`config.local.json` 仅在用户 / 项目明确指定时读取 |
 | 二者都不存在 | 提示用户是否自动生成（扫描项目源码推断） |
 | 部分文件缺失 | 文档文件可按 `workspace fallback` 继续读取；必须文件仍提示用户补充 |
 
 ## 项目现实扩展输出
 
-Profile 读取后，必须形成以下最小结论，供 PC1/PC3 与后续工作流使用：
+必要 Profile 来源取得 Post 成功回执后，必须形成以下最小结论，供 PC1/PC3 与后续工作流使用：
 
 | 字段 | 说明 |
 |------|------|
@@ -199,8 +204,8 @@ Profile 读取后，必须形成以下最小结论，供 PC1/PC3 与后续工作
 
 | 服务类型 | 加载范围 | 说明 |
 |---------|---------|------|
-| **入口服务** | 完整加载：`README.md` + `01~03-*.md` + `config.json` | 主执行服务，需完整约束 |
-| **关联服务** | 轻量加载：`01-项目信息.md` + `02-架构约束.md` | 仅了解接口契约和架构边界，减少 Token 消耗 |
+| **入口服务** | 独立 plan：baseline + 当前 action/risk 所需正文 | 主服务也不得无理由固定全读 `01~03-*` |
+| **关联服务** | 独立 plan：通常只选择接口契约、项目事实或架构边界中的必要项 | 未选择来源写 excluded reason，不按身份预读整套 |
 
 **优先级**：入口服务 profile > 关联服务 profile > 通用规范（P4）
 

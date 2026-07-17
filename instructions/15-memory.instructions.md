@@ -46,26 +46,25 @@ version: 1.14.0
 
 ## 读取策略
 
-> 🔴 **读取顺序按意图分叉（正常会话 vs resume）**：
-> - **正常会话**：SUMMARY 优先 → 再读今日/昨日任务文件（索引驱动）
-> - **resume 意图**：今日任务文件优先 → 再读 SUMMARY 获取宏观上下文（时间驱动）
->
-> 原因：SUMMARY 是轻量索引（一行/会话），适合快速定位；但同一天内多个会话的最新意图只存在于任务文件末尾段落，SUMMARY 先读会导致错认旧任务。
+### MemoryContextQueryGate
+
+记忆读取必须进入当前 `ContextReadPlanV1`，并通过 `MemoryContextQueryGate` 执行有界查询；“文件是真相源”不等于“先读完整文件”。
 
 | 场景 | 读取范围 | 执行顺序 |
 |------|---------|---------|
-| **正常会话 · 首步** | Agent SUMMARY.md（快速定位最近状态）| 第一读 |
-| 正常会话 | 今日文件 + 昨日文件 | 第二读 |
-| 今日文件不存在 | 仅读昨日文件 | — |
-| 文件存在但解析失败 | 重命名为 `.bak.md`，创建新文件 | — |
-| **intent = resume · 首步** | 今日 `tasks/YYYYMMDD.md`（定位最后一个会话段落，确认真实意图）| **第一读** |
-| intent = resume · 次步 | Agent SUMMARY.md（宏观上下文补充）| 第二读 |
+| **正常会话 · 首步** | `memory_status(limit <= 5)`：今日/昨日 metadata、有限 SUMMARY 行、active 状态与冲突；不返回整文件正文 | 第一读 |
+| 正常会话 · 连续性相关 | `memory_summary_query(status: active/unresolved, limit <= 5)` | status 证明需要时再读 |
+| **intent = resume · 首步** | `memory_status(limit <= 5)` | 第一读 |
+| intent = resume · 精确恢复 | `memory_session_query(date/sessionId/status, limit: 1, handoffOnly: true/false, maxChars: 有界)`；已知存在卡片时只取 handoff，否则取单个 bounded session，再定向读取 requirements/bugs sessions、报告或 review checklist | 第二读 |
+| resume · 宏观补充 | `memory_summary_query(status: unresolved, limit <= 5)` | 仅精确 session 仍不足时 |
+| 文件不存在 / 旧格式 / 解析失败 | 返回 bounded empty + warnings，证据保持 partial/unverified；读取动作零写入 | 禁止在读取阶段重命名或创建文件 |
 | intent = resume · 当前项目无 🔄 | 告知用户最近任务均已完成（引用最后会话摘要），询问是否切换项目或开始新任务；**禁止静默回退旧任务** | — |
-| resume 超 14 天 | ① 从 SUMMARY.md 查找最后 🔄 状态行 → ② 提示用户提供具体日期或会话编号 → ③ 精准读取对应日期文件 | — |
+| resume 超 14 天 | `memory_summary_query(status: unresolved, since/limit)` 定位候选 → 提示日期或会话编号 → `memory_session_query` 精确读取 | — |
 
-> ⛔ 禁止默认读取超过昨日以前的文件（resume 和用户明确要求除外）
+> ⛔ 禁止默认读取完整 SUMMARY、完整 daily tasks 或昨日以前正文（精确 resume 查询和用户明确要求除外）。
 > ⛔ **禁止静默回退**：resume 意图检测到当前项目无 🔄 任务时，禁止静默选取历史旧任务继续执行；必须明确告知用户当前状态并询问意图。
 > ⚠️ **跨项目 resume**：记忆文件是项目级独立管理的。当用户在不同项目间切换后说"继续"，AI 只能读取当前项目的记忆；若当前项目无 🔄，须主动询问是否需要恢复其他项目的工作，而非猜测。
+> ⚠️ 旧 `memory_session_read` / `memory_summary_read` 保持兼容，但 no-args 全文结果不是生产默认路径，也不能单独把 `ContextReadReceiptV1.status` 推进到 `relevant-complete/completed`。
 
 ## Context Rehydration Contract（记忆侧）
 
@@ -83,7 +82,8 @@ version: 1.14.0
 
 - `SUMMARY.md` 是索引，不是事实源；不得用 SUMMARY 覆盖当日 tasks 或需求级 sessions。
 - 若 tasks / sessions / 已确认产物与摘要冲突，必须以文件真相源为准，并重建 Intent Expansion Card。
-- 新会话首步的 tasks + SUMMARY 一致性检查（PC7）是 Context Rehydration Contract 的最低执行面，不得省略。
+- 新会话首步的 `memory_status` 与必要的有界 session/SUMMARY query 一致性检查（PC7）是 Context Rehydration Contract 的最低执行面，不得省略。
+- compact / summary 恢复必须按 contextEpoch 重建计划，先查询精确 `ContextHandoffCard`，再按其 source-of-truth 定向复证；不能把压缩摘要或全文件重读当作捷径。
 
 ## ContextHandoffCard（记忆侧）
 
@@ -117,7 +117,7 @@ version: 1.14.0
 
 ## 新会话 🔄 检测
 
-新会话开始时检查今日/昨日任务文件（`tasks/YYYYMMDD.md`，**不检查 SUMMARY**）中是否有状态 🔄 的未完成任务：
+新会话开始时用 `memory_status` 检查今日/昨日 metadata、有限 SUMMARY 行与状态冲突；仅发现 active / unresolved 候选时再用 `memory_session_query` 取对应片段：
 - 有 🔄 → 输出提示：`⚠️ 上次存在未完成任务：[简述]，建议先 resume`
 - 用户说"继续"/"恢复" + 存在 🔄 → 判定为 `resume`
 
@@ -127,20 +127,20 @@ version: 1.14.0
 
 收到首条用户消息时（无论用户措辞），AI 必须：
 
-1. **Read** 今日 `tasks/YYYYMMDD.md`（不存在则昨日）
-2. **检测最末** `## 会话 NN` 的状态字段：
+1. 调用 `memory_status(limit <= 5)`，记录目标 project/scope/actual agent 与 Post 成功回执。
+2. 对 active / unresolved 候选调用 `memory_session_query(limit: 1)`，检测对应 `## 会话 NN` 状态：
    | 状态 | 路由 |
    |------|------|
    | 显式 `状态: ✅` | 正常走意图识别 |
    | 显式 `状态: 🔄` | 触发 resume 提示，建议用户确认是否继续上次任务 |
    | 状态字段缺失 / `## 会话 NN` 标题后段落内容不完整 | 触发 ⚠️ "可能 limit 截断"报警，提示用户确认 |
-3. **对比 SUMMARY 与 tasks 一致性**：
+3. 使用 status 返回的有限 SUMMARY 投影或 `memory_summary_query(limit <= 5)` 对比一致性：
    - SUMMARY 最末行状态 ✅ + tasks 对应段落实际未完成（缺 `状态: ✅` 或段落明显残缺）→ 🔴 数据不一致报警
 4. **仅本步通过后才进入** cp-gate / 工作流路由判定
 
 > ⚠️ **触发判定不依赖用户措辞**："继续任务"/"接着做"/"开始干"/"我来了" 等含糊或明确措辞均不影响 — 本步骤是 hook 强制 + AI 自检兜底。
 
-> ⛔ **禁止**：直接按用户首条消息路由到 dev/fix/analyze 而不先读 tasks 文件。违反即触发 G10 VL 标记。
+> ⛔ **禁止**：直接按首条消息路由而不执行有界状态检查；也禁止用该门禁为默认读取完整 tasks / SUMMARY 辩护。违反即触发 G10 VL 标记。
 
 ## 会话字段
 

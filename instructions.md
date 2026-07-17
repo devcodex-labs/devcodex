@@ -117,15 +117,18 @@ S02 不再把“敏感信息、明文密码、连接字符串或硬编码”定�
 
 ---
 
-## Profile 加载（所有工作流前置步骤）
+## ContextAcquisitionGate — 意图驱动上下文获取（所有工作流前置步骤）
 
-- 收到消息后、执行工作流前必须读取 `.devcodex/profile/`
-- Profile 缺失时 ENV_MODE 默认为 `prod`（保守降级）
-- 跨会话恢复时**必须重新读取 Profile 文件**（摘要 ≠ Profile 已加载）
+- 每条非空用户消息先仅依据当前消息与已观察到的会话连续性形成 `IntentSeedV1`，再确定唯一目标项目 / active-root；在这两步完成前不得预读 Profile、SUMMARY 或 daily tasks 正文。
+- 目标唯一后调用 `profile_context_plan` 形成 `ContextReadPlanV1`：baseline 只返回 README/index、effective non-local config 与顶层 metadata inventory；`01~09-*`、`config.local.json` 和记忆正文必须进入 selected / excluded / unclassified 决策，禁止 hidden full read。
+- 按计划使用 `profile_load(files)`、`memory_status`、`memory_session_query`、`memory_summary_query` 获取最小必要正文；只有与 plan / epoch / target / source 精确关联且被 `PostToolUse` 观察为成功的结果，才能形成 `ContextReadReceiptV1`。`PreToolUse` 只代表 attempted，不代表 loaded / verified / complete。
+- 全量读取仅在用户 / 项目明确要求、audit / migration 确需全量、低置信无法安全裁剪、或必要真相源缺失且定向升级不足时允许，并记录 `fullReadReason`。`config.local.json` 仍只在用户或项目明确指定时读取。
+- Profile 缺失时 ENV_MODE 默认为 `prod`（保守降级）；resume / compact / summary 恢复必须重建 seed 与计划并精确查询当前 handoff、sessions、报告或清单，摘要不能替代文件真相源，但也不构成整目录重读理由。
+- 旧 no-args 全量 MCP 工具保留兼容性，不得作为正常生产路径，也不得单独证明上下文完整。
 
 ### 项目现实扩展
 
-执行顺序必须为：`用户消息语义初判 → 目标项目识别 → Profile/config 加载 → 项目现实扩展 → 最终意图与工作流路由`。
+执行顺序必须为：`用户消息语义初判（IntentSeedV1）→ 目标项目识别 → ContextReadPlanV1 → 定向读取 + ContextReadReceiptV1 → 项目现实扩展 → 最终意图与工作流路由`。
 
 - 项目现实扩展必须结合目标项目的技术栈、目录结构、当前需求/bug 产物、测试/发布约束，修正或确认最终工作流/子类型。
 - 项目未识别时，不得为了扩展意图而无界扫描工作区；必须先询问用户。
@@ -605,14 +608,14 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → 执行 →
 ```
 ---
 🔍 入口检查（[DEV/PROD] 模式）
-- PC0 上下文：项目 [项目名] · 输出语言 [中/英] · Profile ✅已加载/❌未加载
+- PC0 上下文：项目 [项目名] · 输出语言 [中/英] · ContextReadPlan [✅已形成/⚠️降级] · 必要来源回执 [✅verified/⚠️partial/❌missing]
 - PC1 意图：语义初判 [用户意图] → 项目现实扩展后 [工作流/子类型]
 - PC2 会话状态：第 N 轮（>10关注/>13预警/>15防护） · 待跟进 ✅无/⚠️[简述]
 - PC3 执行准备：项目现实扩展 [已完成/待澄清] · 未完成任务 ✅无/⚠️存在🔄：[简述] · 产物落点 [已确定/无需/待确定]
 - PC4 规范雷达：dev 模式输出三轴诊断结果；非 dev 模式 N/A（dev 扩展诊断未启用）
 - PC5 部署体状态（v1.11.0+）：cwd 父链 `.github/`、`.claude/`、`AGENTS.md`、`.agents/`、`.codex/` ✅ 存在 / N/A 无父级 · 与源仓库同步 ✅ / ⚠️ [N 文件滞后] / N/A
 - PC6 工作区一致性（v1.9.4+）：git 未提交变更 ✅ 无 / ⚠️ [N 文件 dirty] · 当前需求目录 [requirements/<X>/ / 无关联]
-- PC7 新会话首步 resume 强制检测（v1.9.4+，仅首条用户消息触发）：✅ 已 Read tasks 文件 + 比对 SUMMARY 一致 / ⚠️ 数据不一致需 resume / N/A（非首条）
+- PC7 新会话首步 resume 强制检测（v1.9.4+，仅首条用户消息触发）：✅ `memory_status` + 有界 session/SUMMARY query 回执一致 / ⚠️ 数据不一致或证据不足需处理 / N/A（非首条）
 ---
 ```
 
@@ -680,7 +683,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → 执行 →
 - **用户面禁止输出**：内部工作流 ID（`dev.docs`/`fix.default`）、原始工具参数 XML、内部路由标签、调试 JSON
 - 仅在用户明确追问内部分类/机制时才展开内部术语，且最小化展开
 - 涉及文件产物时，回复末尾必须输出 `ArtifactLinkSet`：主 Markdown 链接 + 必要 `绝对路径：` copy fallback；Copilot / Codex / 未知宿主或用户反馈无法点击时不得只输出相对链接或裸文件名
-- Copilot / Codex 等非 Claude Code 宿主调用 DevCodex MCP 出现 `invoke` undefined 或工具桥接失败时，按宿主 MCP bridge 失败处理：停止重试同一 MCP，降级读取 Profile / SUMMARY / tasks 文件，并记录 `mcpFallback=used`
+- Copilot / Codex 等非 Claude Code 宿主调用 DevCodex MCP 出现 `invoke` undefined 或工具桥接失败时，按宿主 MCP bridge 失败处理：停止重试同一 MCP，只执行一次 path-observable / instruction-fallback 的同计划有界读取，记录 `mcpFallback=used`；无法取得 Post 成功证据时保持 `unverified`，不得退化为整目录或整文件默认读取
 - Commit subject 只描述主变更，不堆叠背景/验证步骤
 
 ## 提交与未发布变更边界

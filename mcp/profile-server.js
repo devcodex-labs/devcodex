@@ -7,10 +7,12 @@
  * Implements MCP 2024-11-05 protocol over stdin/stdout (JSON-RPC 2.0).
  *
  * Tools:
+ *   profile_context_plan — Build an intent-scoped Profile read plan without pre-reading selected documents
  *   profile_load     — Read all standard profile files for a project (including optional local overlay metadata)
  *   profile_get_mode — Return ENV_MODE (dev/prod) and resolved runtime agent
  */
 
+const crypto = require('crypto')
 const fs = require('fs')
 const path = require('path')
 const { assertSingleSegment, resolveInside } = require('./path-guard')
@@ -18,8 +20,15 @@ const {
   PROFILE_BASE_FILES,
   PROFILE_RELEASE_FILES,
   detectProfileTier,
-  filesForProfileTier
+  filesForProfileTier,
+  parseMarkdownTables
 } = require('./profile-contract')
+const {
+  CONTEXT_READ_CONTRACT,
+  buildContextReadError,
+  buildContextReadPlan,
+  normalizeIntentSeed
+} = require('../hooks/_runtime/context-read-contract.cjs')
 const {
   findLayoutInfo,
   inferProjectFromCwd,
@@ -64,6 +73,51 @@ function detectRuntimeAgent() {
 const DEFAULT_AGENT = detectRuntimeAgent()
 
 const TOOLS = [
+  {
+    name: 'profile_context_plan',
+    description: '按 canonical intent 与 changeTypes 生成 ContextReadPlanV1。计划无损返回 README/index 与 effective non-local config；其余 Profile 文件仅收集顶层 metadata，不预读正文。',
+    inputSchema: {
+      type: 'object',
+      required: ['intent'],
+      properties: {
+        intent: {
+          type: 'string',
+          enum: CONTEXT_READ_CONTRACT.intents,
+          description: 'canonical top-level intent'
+        },
+        changeTypes: {
+          type: 'array',
+          uniqueItems: true,
+          items: { type: 'string', enum: CONTEXT_READ_CONTRACT.changeTypes },
+          description: '高置信非 chat/resume 任务必填；docs/testing/release 等均在此表达。'
+        },
+        contextEpoch: { type: 'string', minLength: 1 },
+        project: { type: 'string' },
+        host: { type: 'string' },
+        risk: { type: 'string', enum: CONTEXT_READ_CONTRACT.risks },
+        confidence: { type: 'number', minimum: 0, maximum: 1 },
+        profileSelectors: {
+          type: 'array',
+          items: {
+            type: 'object',
+            required: ['file', 'reason', 'authority'],
+            properties: {
+              file: { type: 'string' },
+              reason: { type: 'string', minLength: 1 },
+              authority: { type: 'string', minLength: 1 }
+            },
+            additionalProperties: false
+          }
+        },
+        baselineDigest: { type: 'string' },
+        explicitFull: { type: 'boolean' },
+        fullReadReason: { type: 'string' },
+        configLocalRequested: { type: 'boolean' },
+        crossService: { type: 'boolean' }
+      },
+      additionalProperties: false
+    }
+  },
   {
     name: 'profile_load',
     description: '加载 .devcodex/profile/ 下的所有标准 Profile 文件，返回各文件的路径与内容；若存在 `config.local.json`，也会作为本地 overlay 元数据返回。',
@@ -297,6 +351,195 @@ function resolveConfigFile(projectName) {
   }
 }
 
+const CONTEXT_PLAN_ARG_FIELDS = new Set([
+  'intent', 'changeTypes', 'contextEpoch', 'project', 'host', 'risk', 'confidence',
+  'profileSelectors', 'baselineDigest', 'explicitFull', 'fullReadReason',
+  'configLocalRequested', 'crossService'
+])
+const CONTEXT_PLAN_EPOCHS = new Map()
+
+function resolveProfilePlanTarget(projectName) {
+  if (LAYOUT.enabled) {
+    const project = resolveProjectName(projectName)
+    if (!project) throw new Error('project is required for profile_context_plan when MCP runs from workspace root')
+    return {
+      project,
+      activeRoot: namespaceRootPath(LAYOUT.workspaceRoot, project)
+    }
+  }
+  const projectRoot = resolveProjectRoot(projectName)
+  return {
+    project: path.basename(projectRoot),
+    activeRoot: path.join(projectRoot, '.devcodex')
+  }
+}
+
+function getProfilePlanLayers(project) {
+  if (LAYOUT.enabled) {
+    return [
+      { dir: getWorkspaceProfileDir(), layer: 'workspace', authority: 'workspace-profile' },
+      {
+        dir: getProjectNamespaceProfileDir(project),
+        layer: `project:${project}`,
+        authority: `project-profile:${project}`
+      }
+    ].filter(item => item.dir)
+  }
+  const dirs = getLegacyProfileDirs(project)
+  const primary = path.resolve(dirs[0])
+  const ordered = [...new Set(dirs.map(dir => path.resolve(dir)))].reverse()
+  return ordered.map(dir => ({
+    dir,
+    layer: dir === primary ? `project:${project}` : 'workspace-fallback',
+    authority: dir === primary ? `project-profile:${project}` : 'workspace-profile-fallback'
+  }))
+}
+
+function statProfileRef(filePath, layer) {
+  try {
+    const stat = fs.statSync(filePath)
+    if (!stat.isFile()) throw new Error('not a file')
+    return { path: filePath, layer, exists: true, size: stat.size, mtimeMs: stat.mtimeMs }
+  } catch {
+    return { path: filePath, layer, exists: false, size: null, mtimeMs: null }
+  }
+}
+
+function parseReadmeCatalog(markdown, authority) {
+  const tables = parseMarkdownTables(markdown)
+  const table = tables.find(candidate => {
+    const fileIndex = candidate.headers.findIndex(header => /^(文件|file)$/i.test(header.trim()))
+    const descriptionIndex = candidate.headers.findIndex(header => /说明|description/i.test(header))
+    const requiredIndex = candidate.headers.findIndex(header => /必须|required/i.test(header))
+    if (fileIndex < 0 || (descriptionIndex < 0 && requiredIndex < 0)) return false
+    return candidate.rows.some(row => !!extractFile(row[fileIndex]))
+  })
+  if (!table) return []
+  const fileIndex = table.headers.findIndex(header => /^(文件|file)$/i.test(header.trim()))
+  const descriptionIndex = table.headers.findIndex(header => /说明|description/i.test(header))
+  const requiredIndex = table.headers.findIndex(header => /必须|required/i.test(header))
+  return table.rows.map(row => {
+    const file = extractFile(row[fileIndex])
+    if (!file) return null
+    const requiredText = requiredIndex >= 0 ? String(row[requiredIndex] || '').trim() : ''
+    return {
+      file,
+      description: descriptionIndex >= 0 ? String(row[descriptionIndex] || '').trim() : '',
+      requiredToExist: !!requiredText && !/(按需|可选|条件|否|n\/a|—|-)/i.test(requiredText),
+      authority
+    }
+  }).filter(Boolean)
+
+  function extractFile(cell) {
+    const text = String(cell || '').trim()
+    const link = text.match(/\]\(([^)]+)\)/)
+    let candidate = link ? link[1].trim().replace(/^\.\//, '') : text.replace(/[`*_]/g, '').trim()
+    try { candidate = decodeURIComponent(candidate) } catch {}
+    if (!candidate || /[\\/]/.test(candidate) || !(/\.md$/i.test(candidate) || ['config.json', 'config.local.json'].includes(candidate))) return ''
+    try { return assertSingleSegment(candidate, 'profile catalog file') } catch { return '' }
+  }
+}
+
+/** Collect lossless baseline bodies plus bounded top-level metadata without reading 01~09/local content. */
+function collectProfilePlanInputs(target) {
+  const layers = getProfilePlanLayers(target.project)
+  const readmeLayers = []
+  const actualNames = new Set()
+  for (const layer of layers) {
+    const readmePath = path.join(layer.dir, 'README.md')
+    const content = readFileText(readmePath)
+    if (content !== null) {
+      readmeLayers.push({ ...layer, content, ref: statProfileRef(readmePath, layer.layer) })
+    }
+    let entries = []
+    try { entries = fs.readdirSync(layer.dir, { withFileTypes: true }) } catch {}
+    for (const entry of entries) {
+      if (!entry.isFile()) continue
+      const file = String(entry.name || '').trim()
+      if (/\.md$/i.test(file) || ['config.json', 'config.local.json'].includes(file)) actualNames.add(file)
+    }
+  }
+  if (!readmeLayers.length) throw new Error('Profile README.md is missing for the active target')
+  const effectiveReadme = readmeLayers[readmeLayers.length - 1]
+  const profileTier = detectProfileTier(effectiveReadme.content)
+
+  const catalogByFile = new Map()
+  for (const item of readmeLayers) {
+    for (const entry of parseReadmeCatalog(item.content, `profile-readme:${item.layer}`)) {
+      catalogByFile.set(entry.file, entry)
+    }
+  }
+  const tierFiles = filesForProfileTier(profileTier, { includeConfig: false })
+  for (const expected of tierFiles) {
+    let file = expected
+    if (expected === '05-发布规范.md') {
+      file = PROFILE_RELEASE_FILES.find(candidate => actualNames.has(candidate) || catalogByFile.has(candidate)) || expected
+    }
+    const prior = catalogByFile.get(file)
+    catalogByFile.set(file, {
+      file,
+      description: prior?.description || `Required by ${profileTier}.`,
+      requiredToExist: true,
+      authority: prior?.authority || `profile-tier:${profileTier}`
+    })
+  }
+
+  const candidateNames = new Set([
+    ...actualNames,
+    ...catalogByFile.keys(),
+    'README.md',
+    'config.json',
+    'config.local.json'
+  ])
+  const inventory = [...candidateNames].sort().map(file => {
+    const refs = layers.map(layer => statProfileRef(path.join(layer.dir, file), layer.layer))
+    const effectiveRef = [...refs].reverse().find(ref => ref.exists) || refs[refs.length - 1]
+    return {
+      file,
+      sourceLayer: effectiveRef.layer,
+      sourceRefs: [effectiveRef],
+      authority: 'bounded-top-level-profile-inventory'
+    }
+  })
+
+  const config = resolveConfigFile(target.project)
+  let configSourceRefs = (config.sourcePaths || []).map(sourcePath => {
+    const layer = [...layers].reverse().find(item => path.dirname(sourcePath) === path.resolve(item.dir) || path.dirname(sourcePath) === item.dir)
+    return statProfileRef(sourcePath, layer?.layer || 'profile-config')
+  })
+  if (!configSourceRefs.length) {
+    const strongest = layers[layers.length - 1]
+    configSourceRefs = [statProfileRef(path.join(strongest.dir, 'config.json'), strongest.layer)]
+  }
+  const mode = String(config.config?.mode || '').toLowerCase() === 'dev' ? 'dev' : 'prod'
+  return {
+    baselineContext: {
+      layout: LAYOUT.mode,
+      project: target.project,
+      mode,
+      agent: DEFAULT_AGENT,
+      profileTier,
+      effectiveConfig: config.config || {},
+      readme: {
+        content: effectiveReadme.content,
+        sourceRefs: readmeLayers.map(item => item.ref)
+      },
+      configSourceRefs,
+      catalog: [...catalogByFile.values()].sort((left, right) => left.file.localeCompare(right.file)),
+      inventory
+    }
+  }
+}
+
+function getContextPlanEpoch(requestedEpoch) {
+  const contextEpoch = String(requestedEpoch || '').trim() || `ctx-${crypto.randomUUID()}`
+  if (!CONTEXT_PLAN_EPOCHS.has(contextEpoch)) {
+    CONTEXT_PLAN_EPOCHS.set(contextEpoch, new Date().toISOString())
+    if (CONTEXT_PLAN_EPOCHS.size > 100) CONTEXT_PLAN_EPOCHS.delete(CONTEXT_PLAN_EPOCHS.keys().next().value)
+  }
+  return { contextEpoch, createdAt: CONTEXT_PLAN_EPOCHS.get(contextEpoch) }
+}
+
 function resolveDefaultProfileFiles(projectName) {
   const tierCorpus = ['README.md', '01-项目信息.md', '06-功能清单.md', '07-用户文档与契约规范.md']
     .map(name => resolveProfileFile(name, projectName)?.content || '')
@@ -312,6 +555,134 @@ function resolveDefaultProfileFiles(projectName) {
 }
 
 // ─── Tool handlers ────────────────────────────────────────────────────────────
+
+function contextPlanResult(value) {
+  const isError = value?.schemaVersion === CONTEXT_READ_CONTRACT.schemas.error
+  return {
+    content: [{ type: 'text', text: JSON.stringify(value, null, 2) }],
+    ...(isError ? { isError: true } : {})
+  }
+}
+
+function handleProfileContextPlan(args = {}) {
+  const unknown = Object.keys(args).filter(key => !CONTEXT_PLAN_ARG_FIELDS.has(key))
+  if (unknown.length) {
+    return contextPlanResult(buildContextReadError(
+      'CONTEXT_PLAN_INVALID',
+      `Unsupported profile_context_plan fields: ${unknown.join(', ')}.`,
+      'Remove fields outside the published input schema.'
+    ))
+  }
+  if (args.changeTypes !== undefined && !Array.isArray(args.changeTypes)) {
+    return contextPlanResult(buildContextReadError('CONTEXT_PLAN_INVALID', 'changeTypes must be an array.'))
+  }
+  if (args.profileSelectors !== undefined && !Array.isArray(args.profileSelectors)) {
+    return contextPlanResult(buildContextReadError('CONTEXT_PLAN_INVALID', 'profileSelectors must be an array.'))
+  }
+  for (const field of ['explicitFull', 'configLocalRequested', 'crossService']) {
+    if (args[field] !== undefined && typeof args[field] !== 'boolean') {
+      return contextPlanResult(buildContextReadError('CONTEXT_PLAN_INVALID', `${field} must be boolean.`))
+    }
+  }
+  if (args.contextEpoch !== undefined && !String(args.contextEpoch || '').trim()) {
+    return contextPlanResult(buildContextReadError('CONTEXT_PLAN_INVALID', 'contextEpoch must be non-empty when supplied.'))
+  }
+
+  const epoch = getContextPlanEpoch(args.contextEpoch)
+  const seed = normalizeIntentSeed({
+    schemaVersion: CONTEXT_READ_CONTRACT.schemas.intentSeed,
+    contextEpoch: epoch.contextEpoch,
+    semantic: args.intent,
+    targetHint: typeof args.project === 'string' && args.project.trim() ? args.project.trim() : null,
+    continuationHint: args.intent === 'resume',
+    riskHint: args.risk || 'normal',
+    confidence: args.confidence,
+    createdAt: epoch.createdAt
+  })
+  if (seed.schemaVersion === CONTEXT_READ_CONTRACT.schemas.error) return contextPlanResult(seed)
+  const changeTypes = Array.isArray(args.changeTypes) ? args.changeTypes : []
+  if (new Set(changeTypes).size !== changeTypes.length || changeTypes.some(item => !CONTEXT_READ_CONTRACT.changeTypes.includes(item))) {
+    return contextPlanResult(buildContextReadError('CONTEXT_PLAN_INVALID', 'changeTypes contains an unsupported or duplicate value.'))
+  }
+  if (seed.confidence >= 0.6 && !['chat', 'resume'].includes(seed.semantic) && !changeTypes.length && args.explicitFull !== true) {
+    return contextPlanResult(buildContextReadError(
+      'CONTEXT_CHANGE_TYPES_REQUIRED',
+      'High-confidence non-chat work requires changeTypes or explicitFull.',
+      'Provide precise changeTypes before reading Profile context.'
+    ))
+  }
+  if (args.explicitFull === true && !String(args.fullReadReason || '').trim()) {
+    return contextPlanResult(buildContextReadError('CONTEXT_FULL_REASON_REQUIRED', 'Explicit full Profile reads require fullReadReason.'))
+  }
+  if (args.profileSelectors?.length && !String(args.baselineDigest || '').trim()) {
+    return contextPlanResult(buildContextReadError('CONTEXT_BASELINE_STALE', 'profileSelectors require the current baselineDigest.'))
+  }
+  for (const selector of args.profileSelectors || []) {
+    if (!selector || typeof selector !== 'object' || Array.isArray(selector)) {
+      return contextPlanResult(buildContextReadError('CONTEXT_PLAN_INVALID', 'Each profile selector must be an object.'))
+    }
+    const unsupported = Object.keys(selector).filter(key => !['file', 'reason', 'authority'].includes(key))
+    if (unsupported.length) {
+      return contextPlanResult(buildContextReadError(
+        'CONTEXT_PLAN_INVALID',
+        `Unsupported profile selector fields: ${unsupported.join(', ')}.`
+      ))
+    }
+    if (!String(selector.reason || '').trim() || !String(selector.authority || '').trim()) {
+      return contextPlanResult(buildContextReadError(
+        'CONTEXT_PLAN_INVALID',
+        'Each profile selector requires non-empty reason and authority.'
+      ))
+    }
+    try { assertSingleSegment(selector?.file, 'profile selector file') } catch (error) {
+      return contextPlanResult(buildContextReadError('CONTEXT_PLAN_INVALID', error.message, 'Use a bounded top-level Profile file.'))
+    }
+    if (selector.file === 'config.local.json' && args.configLocalRequested !== true) {
+      return contextPlanResult(buildContextReadError('CONTEXT_PLAN_INVALID', 'config.local.json requires explicit user or project policy.'))
+    }
+  }
+
+  let target
+  try {
+    target = resolveProfilePlanTarget(args.project)
+  } catch (error) {
+    return contextPlanResult(buildContextReadError(
+      'CONTEXT_ACTIVE_TARGET_MISMATCH',
+      error.message,
+      'Resolve one active project before planning Profile context.'
+    ))
+  }
+
+  const startedAt = process.hrtime.bigint()
+  try {
+    const inputs = collectProfilePlanInputs(target)
+    const latencyMs = Number(process.hrtime.bigint() - startedAt) / 1e6
+    return contextPlanResult(buildContextReadPlan({
+      intentSeed: { ...seed, targetHint: target.project },
+      identity: {
+        activeRoot: target.activeRoot,
+        project: target.project,
+        host: String(args.host || DEFAULT_AGENT),
+        finalIntent: seed.semantic
+      },
+      changeTypes,
+      baselineContext: inputs.baselineContext,
+      profileSelectors: args.profileSelectors,
+      baselineDigest: args.baselineDigest,
+      explicitFull: args.explicitFull === true,
+      fullReadReason: args.fullReadReason,
+      configLocalRequested: args.configLocalRequested === true,
+      crossService: args.crossService === true,
+      planningTelemetry: { latencyMs }
+    }))
+  } catch (error) {
+    return contextPlanResult(buildContextReadError(
+      'CONTEXT_PLAN_INVALID',
+      error.message,
+      'Repair the Profile README/config baseline and retry once.'
+    ))
+  }
+}
 
 function handleProfileLoad(args) {
   const names = (args.files && args.files.length > 0) ? args.files : resolveDefaultProfileFiles(args.project)
@@ -443,6 +814,7 @@ function dispatch(method, params) {
       const args = params?.arguments || {}
       try {
         switch (name) {
+          case 'profile_context_plan': return handleProfileContextPlan(args)
           case 'profile_load': return handleProfileLoad(args)
           case 'profile_get_mode': return handleProfileGetMode(args)
           default:

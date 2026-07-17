@@ -28,6 +28,7 @@ applyTo: .devcodex/**/requirements/**
 > ⚠️ 当 AI 判断目标包含修复 Bug/缺陷/回归/安全问题/规范缺口/审查 finding 时，技术方案必须引用 `repair-collaboration`：低风险填写 lightweight 双层字段，高风险填写 full + findingToPatchMap + handoffIntegrity + independentReReview；模型名称不是触发条件。
 > ⚠️ 机器可读 CLI、本地 probe 或 trace show/replay 命中 `local-observability-contract`：冻结 human/json 兼容、envelope、errorCode/nextStep、native exit map、local-only/zero-write 与 package/docs 消费者；不得把构建期 V# probe registry 当成本地运行时 probe。
 > ⚠️ 长任务、工具完成后无续接、orphaned `inProgress` 或宿主恢复命中 `agent-turn-liveness`：技术方案必须引用 `TurnLivenessRecoveryGate`，物化状态/lease/ACK/terminal、response-time/post-execution `CheckpointValidationResultV1`、只读 `LocalTaskTraceV1`、host-native/Hook-event/sidecar 能力边界与 no-continuation/active-lease/restart/duplicate/timeout fault matrix；禁止把 Hook 落盘写成无事件自唤醒，禁止 trace replay 执行 payload 或重放 mutation。
+> ⚠️ 意图、Profile/Memory bootstrap、MCP read 或 Hook receipt 变化命中 `context-acquisition`：技术方案必须记录 `ContextReadPlanV1` 的目标、baseline、selected/excluded、升级与 replan 条件，以及 Post success receipt、fallback 和 V99 路线；不得把 required-to-exist 写成每轮全文读取。
 > ⚠️ package boundary / pack / benchmark / codegen 验证必须写清串行顺序；任何会删除、重建或写入 `dist` 的命令不得和包边界检查并行。
 > ⚠️ 前端、文档、发布、数据、安全、性能、外部消费者、专家输出、规范吸纳或历史分层等跨域语义，均按 registry 触发对应 Owner；本模板不得维护版本化 Owner/Gate 名录。未触发的分组写聚合 `N/A + skipReason`。
 
@@ -72,6 +73,7 @@ applyTo: .devcodex/**/requirements/**
   - [§2.5 异常处理](#25-异常处理)
   - [§2.6 实施映射与范围边界](#26-实施映射与范围边界)
   - [§2.7 最小实现与注释策略](#27-最小实现与注释策略)
+  - [§2.8 Context Acquisition（条件）](#28-context-acquisition条件)
 - [§3 Breaking Changes](#3-breaking-changes)
 - [§4 依赖变更](#4-依赖变更)
 - [§5 安全性设计](#5-安全性设计)
@@ -328,6 +330,18 @@ applyTo: .devcodex/**/requirements/**
 - JavaScript / Node.js 中命中必要注释的导出函数、核心业务函数、类、复杂对象契约、参数/返回/异常说明必须使用标准 JSDoc；普通行注释不能替代 JSDoc 契约。
 - 禁止逐行解释、重复函数名/变量名含义、保留临时 TODO、把调试说明当业务注释。
 - 如果代码已经能清晰表达意图，且不涉及上述场景，可写 `注释策略: N/A + skipReason`。
+
+### §2.8 Context Acquisition（条件）
+
+> 仅在 intent/Profile/memory/bootstrap/Hook read 语义变化时填写；其他任务写 `N/A + skipReason`。字段真相源为 `context-acquisition` registry group 与对应 Owner Skills，本节只记录本方案选择，不复制完整 Gate。
+
+| 字段 | 方案选择 |
+|------|----------|
+| intentSeed / unique target | |
+| baseline / selected / excluded | |
+| fullReadReason / replan triggers | |
+| Post receipt / fallback / missing sources | |
+| validation | `ProfilePlanNoHiddenFullReadProbe` / V99 / host direct replay / oracle parity |
 
 ## §3 Breaking Changes（条件）
 

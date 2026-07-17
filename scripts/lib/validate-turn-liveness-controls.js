@@ -95,7 +95,7 @@ function buildTurnLivenessControlChecks(ctx) {
     const profileRoot = path.join(ACTIVE_DEVCODEX_ROOT, 'profile')
     if (fs.existsSync(profileRoot)) {
       for (const [file, needles] of [
-        ['01-项目信息.md', ['Turn Liveness', 'CLI 工程脚本** | 97']],
+        ['01-项目信息.md', ['Turn Liveness', 'scripts/check-turn-liveness.js']],
         ['02-架构约束.md', ['lifecycle-turn-liveness.cjs', 'lifecycle-checkpoint-validation.cjs', 'lifecycle-task-trace.cjs']],
         ['03-代码风格.md', ['LocalTaskTraceV1', 'local probe']],
         ['04-测试规范.md', ['V98', 'test-local-probe.js', 'test-checkpoint-validation.js', 'test-local-task-trace.js']],

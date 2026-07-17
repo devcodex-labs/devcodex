@@ -11,9 +11,11 @@ const { runHooksRuntimeBootstrapLayoutScenarios } = require('./lib/test-hooks-ru
 const { runHooksRuntimeVisibilityScenarios } = require('./lib/test-hooks-runtime-visibility')
 const { runHooksRuntimeGovernanceIntakeScenarios } = require('./lib/test-hooks-runtime-governance-intake')
 const { DEFAULT_THRESHOLDS } = require('../hooks/_runtime/lifecycle-turn-liveness.cjs')
+const { stableDigest } = require('../hooks/_runtime/context-read-contract.cjs')
 
 const ROOT = path.resolve(__dirname, '..')
 const RUNTIME = path.join(ROOT, 'hooks', '_runtime', 'lifecycle.cjs')
+const PROFILE_SERVER = path.join(ROOT, 'mcp', 'profile-server.js')
 
 // Use a temp directory as the workspace root to isolate from real requirements
 const TEMP_ROOT = path.join(os.tmpdir(), `devcodex-hooks-test-${process.pid}`)
@@ -36,6 +38,7 @@ const {
   getLayoutStateFile,
   getLayoutCaptureLog,
   getWorkspaceLayoutStateFile,
+  callProfileTool,
   runBootstrapReads,
   runLayoutBootstrapReads,
   cleanState,
@@ -54,7 +57,9 @@ const {
   process,
   spawnSync,
   RUNTIME,
+  PROFILE_SERVER,
   TEMP_ROOT,
+  STATE_FILE,
   TEST_AGENT
 })
 
@@ -70,10 +75,12 @@ const runtimeScenarioContext = {
   TEST_AGENT,
   FALLBACK_BOOTSTRAP_AGENT,
   WRONG_FALLBACK_AGENT,
+  stableDigest,
   getTaskStamp,
   getMemoryFilePath,
   getLayoutStateFile,
   getWorkspaceLayoutStateFile,
+  callProfileTool,
   runBootstrapReads,
   runLayoutBootstrapReads,
   cleanState,
@@ -290,7 +297,13 @@ function main() {
     tool_input: { filePath: getMemoryFilePath('codex', 'tasks', `${getTaskStamp(0)}.md`) }
   }, TEMP_ROOT, { CODEX_HOME: '1' })
   const codexBootstrapState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
-  assert.strictEqual(codexBootstrapState.bootstrapComplete, true)
+  assert.strictEqual(codexBootstrapState.bootstrapComplete, false)
+  assert.deepStrictEqual(codexBootstrapState.contextAcquisition.legacyObserved, {
+    profileRead: true,
+    summaryRead: true,
+    tasksRead: true,
+    bootstrapComplete: false
+  })
 
   cleanLayoutState(
     { mode: 'prod', agent: TEST_AGENT },

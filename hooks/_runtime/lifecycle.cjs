@@ -15,6 +15,19 @@ const fs = require('fs')
 const path = require('path')
 const crypto = require('crypto')
 const { buildLifecycleBootstrapStateUtils } = require('./lifecycle-bootstrap-state.cjs')
+const {
+  CONTEXT_READ_CONTRACT,
+  createContextReadReceipt,
+  extractContextPlanBody,
+  extractContextSourceEvidence,
+  markContextReadReceiptStale,
+  normalizeContextReadState,
+  normalizeContextToolOutcome,
+  recordContextReadAttempt,
+  recordContextReadOutcome,
+  stableDigest,
+  validateContextReadPlan
+} = require('./context-read-contract.cjs')
 const { buildLifecycleDangerousCommandUtils } = require('./lifecycle-dangerous-command.cjs')
 const { buildLifecycleGovernanceIntakeUtils } = require('./lifecycle-governance-intake.cjs')
 const { buildLifecycleHookOutput } = require('./lifecycle-hook-output.cjs')
@@ -400,19 +413,19 @@ const {
   loadState,
   saveState,
   resetState,
-  isBootstrapReadTool,
-  isPureReadTool,
-  isClarificationTool,
-  updateBootstrapState,
-  isReadOnlyBootstrapShellCommand,
+  beginContextAcquisition,
+  markContextAcquisitionStale,
+  recordContextPreToolUse,
+  recordContextPostToolUse,
+  getContextAcquisitionDecision,
   buildBootstrapMessage,
   buildBootstrapDenyOutput,
-  buildBootstrapWarningOutput,
-  buildBootstrapWarningKey,
   buildDedupedBootstrapWarningOutput
 } = buildLifecycleBootstrapStateUtils({
   fs,
   path,
+  crypto,
+  CONTEXT_ROOT,
   LAYOUT,
   CONTEXT_PROJECT,
   DEFAULT_SCOPE,
@@ -439,7 +452,20 @@ const {
   emptyGovernanceIntakeState,
   normalizeGovernanceIntakeState,
   createTurnLivenessState,
-  normalizeTurnLivenessState
+  normalizeTurnLivenessState,
+  CONTEXT_READ_CONTRACT,
+  createContextReadReceipt,
+  extractContextPlanBody,
+  extractContextSourceEvidence,
+  markContextReadReceiptStale,
+  normalizeContextReadState,
+  normalizeContextToolOutcome,
+  recordContextReadAttempt,
+  recordContextReadOutcome,
+  stableDigest,
+  validateContextReadPlan,
+  extractToolPaths,
+  isSourceCodeMutation
 })
 
 // ─── CP Gate ─────────────────────────────────────────────────────────────────
@@ -1027,6 +1053,7 @@ async function main() {
     livenessObservation = observeTurnEvent(state.turnLiveness, eventName, payload)
     state.turnLiveness = livenessObservation.state
     applyPromptTarget(state, promptTarget, payload)
+    beginContextAcquisition(state, payload, platform)
     state.governanceIntake = registerGovernanceIntakeCandidate(state.governanceIntake, prompt)
     state.executionMode = detectExecutionMode(payload, state, promptTarget)
     confirmDangerousApprovalsFromPrompt(state, prompt, eventName, platform)
@@ -1055,7 +1082,7 @@ async function main() {
     writeStdout(contextMessageOutput(
       'UserPromptSubmit',
       [
-        buildBootstrapMessage(),
+        buildBootstrapMessage(state),
         buildGovernanceIntakeContextMessage(state.governanceIntake),
         formatTurnRecoveryMessage(livenessObservation.recoveryCard)
       ].filter(Boolean).join(' ')
@@ -1094,26 +1121,21 @@ async function main() {
       saveState(state)
     }
 
-    // 2. Bootstrap enforcement (all modes, both Copilot and Claude Code)
-    if (!state.bootstrapComplete) {
-      if (isPureReadTool(payload) || isClarificationTool(payload)) {
-        updateBootstrapState(state, payload)
-        state.lastReason = 'bootstrap-read-or-clarification-allowed'
-        state.turnLiveness = startToolLease(state.turnLiveness, payload, getToolName(payload))
-        saveState(state)
-        writeStdout(noopOutput())
-        return
-      }
-      if (!isBootstrapReadTool(payload, state)) {
-        state.lastReason = 'blocked-before-bootstrap'
-        const output = isStrictEnforcement()
-          ? buildBootstrapDenyOutput(state, payload, eventName, platform)
-          : buildDedupedBootstrapWarningOutput(state, payload, eventName, platform)
+    // 2. Context acquisition: PreToolUse records an attempt only. A compatible
+    // action reuses the current plan; a broader/unknown action makes it stale.
+    // Fallback warnings are carried forward so Auto/CP/permission gates still run.
+    const contextPre = recordContextPreToolUse(state, payload, platform)
+    const contextDecision = getContextAcquisitionDecision(state, contextPre)
+    let contextGateOutput = null
+    if (!['complete', 'allowed-read'].includes(contextDecision.status)) {
+      if (contextDecision.hardBlockEligible && isStrictEnforcement()) {
+        state.lastReason = 'context-acquisition-incomplete'
+        const output = buildBootstrapDenyOutput(state, payload, eventName, platform)
         saveState(state)
         writeStdout(output)
         return
       }
-      updateBootstrapState(state, payload)
+      contextGateOutput = buildDedupedBootstrapWarningOutput(state, payload, eventName, platform)
     }
 
     // 2.5. Auto v1.1 whitelist gate — only whitelisted governance/test/docs paths can bypass CP gate
@@ -1123,7 +1145,7 @@ async function main() {
       updateArtifactTouches(state, payload, platform)
       state.turnLiveness = startToolLease(state.turnLiveness, payload, getToolName(payload))
       saveState(state)
-      writeStdout(noopOutput())
+      writeStdout(contextGateOutput || noopOutput())
       return
     }
     if (autoWhitelist && !autoWhitelist.allowed) {
@@ -1162,12 +1184,13 @@ async function main() {
     updateArtifactTouches(state, payload, platform)
     state.turnLiveness = startToolLease(state.turnLiveness, payload, getToolName(payload))
     saveState(state)
-    writeStdout(noopOutput())
+    writeStdout(contextGateOutput || noopOutput())
     return
   }
 
   // ── PostToolUse ────────────────────────────────────────────────────────────
   if (eventName === 'PostToolUse') {
+    recordContextPostToolUse(state, payload)
     observeGovernanceLedgerWrite(state, payload, {
       activeRoot: getActiveNamespaceRoot(state),
       contextRoot: CONTEXT_ROOT,
@@ -1183,6 +1206,7 @@ async function main() {
 
   // ── PreCompact / Stop ──────────────────────────────────────────────────────
   if (eventName === 'PreCompact' || eventName === 'Stop') {
+    if (eventName === 'PreCompact') markContextAcquisitionStale(state, 'compact')
     captureFinalPayloadSample(payload, eventName, state)
     const reminder = buildDedupedClosureReminder(state, eventName)
     let output = reminder ? systemMessageOutput(reminder) : noopOutput()

@@ -71,7 +71,7 @@ description: "Use when: ..."   # 必填，AI 靠这个发现 Skill
 - `analyze-default` 承接默认分析工作流的只读多轮、代码事实优先、analyze-lite CRS、PCV 和推荐结论；`instructions/13-analyze.instructions.md` 只保留入口与路由索引，避免分析默认路径继续堆在 instructions。
 - **规范吸纳执行入口**：最新可吸纳、仍需吸纳、开始吸纳或扫描 `.devcodex/*/data` 时先触发 `spec-absorption`，执行 `CommonNormGeneralizationGate` 与 `AbsorptionCandidateConsumerProofGate`，证明通用规范价值、剔除项目独有残留、绑定 DevCodex 当前消费者和 targetOwner；`ServiceSpecReadGate` 这类项目私有规则只作为负向样例或 case evidence，不进入通用规范。
 - **最新吸纳执行包 A1~A10**：确认实施最新可吸纳清单时，按 `LatestAbsorptionExecutionPack` 和 `GovernanceGateRegistry` 分组同步 `ConfigCanonicalNamespaceGate`、`ProfileRuntimeContractSyncGate`、`BehaviorSemanticDocsParityGate`、`NegativeTranslationParityProbe`、`DocsExampleTruthSurfaceGate`、`CallbackExampleScopeProbe`、`DerivedMetricConsumerProbe`、`DerivedConsumerFailureInjectionProbe`、`FeatureInventoryProfileGate`、`FeatureChecklistEvidenceMatrixGate`、`BatchEvidenceLedgerStateGate` 与 `BatchProgressCardGate`；V82 探针负责核对 Skill、Prompt、TestRoute、report、README/website/changelog、Profile、部署副本和来源台账回写。
-- **记忆启动链真相源**：`MemoryCannotSatisfyBootstrapGate` 要求宿主 Memories、模型长期偏好、SUMMARY 或 ContextHandoffCard 只能作为 `navigation-hint`；新线程、resume、summary 恢复、compact 后继续或跨项目切换时仍必须读取当前 active namespace 的 Profile、tasks、reports、review checklist 和源码 / 文档真相源，V86 探针负责核对 `load-profile`、`memory`、TestRoute、report、README/website/Profile、changelog 与部署副本。
+- **记忆启动链真相源**：`MemoryCannotSatisfyBootstrapGate` 要求宿主 Memories、模型长期偏好、SUMMARY 或 ContextHandoffCard 只能作为 `navigation-hint`；新线程、resume、summary 恢复、compact 后继续或跨项目切换时仍须用 bounded Profile plan、memory status/query 与 handoff 指向的精确 reports/review checklist/source 复证。V86 保证文件真相不被模型记忆替代，V99 保证复证不退化为固定全文读取或 PreToolUse 假完成。
 - **分层吸纳架构（兼容 Skill-first 吸纳架构）**：用户建议、data 台账、复审发现或新守门项准备吸纳时，先执行 `spec-absorption`，再执行 `LayeredAbsorptionGate`，并兼容 `SkillFirstAbsorptionGate` / `CapabilityToSkillPromotionGate`，输出 `LayeredAbsorptionDecision`（含 `SkillAbsorptionDecision`）。分类只能是 `global-invariant`、`existing-skill-subgate`、`new-skill-required` 或 `docs-only`；若具备独立触发词、产物、状态、模板、检查矩阵或跨工作流复用价值，应沉淀为新 Skill 或现有 Skill 子门禁，并同步 prompts/templates、执行消费者、验证探针、公开文档和部署副本，不能只继续塞进通用守门长列表。采纳用户建议前还要执行 `ProactiveBetterAlternativeGate`，有更优方案必须先提出取舍；采纳用户纠正时执行 `AcceptedSuggestionRootCauseGate`，记录 whyMissed、采纳依据、台账编号和防复发动作。
 - **历史通用规范分层迁移**：整理旧吸纳项、通用 instructions 长清单、prompt/report 重复清单或跨版本规范资产时，执行 `HistoricalCommonNormLayeringGate`。实施前先冻结逐文件审查矩阵，标注 `targetLayer`、`targetOwner`、`semanticStrength`、`validation` 与 `skipReason`；当前消费者同步到 Skill、Prompt、TestRoute、report、document-sync、V74/V75 validate 探针、README/website/changelog、Profile 和部署副本。`PromptLongGateListDriftProbe` 用 SCV 负向样例防止旧 Gate 长清单回流，当前 README、website 和 prompts 只写 `GovernanceGateRegistry` 分组与代表锚点；旧规则尚未找到同等强度承接方时只保留为 `legacy-index-retained`，不把新 Gate 正文继续追加回通用层。
 - **完整吸纳补强门禁**：用户确认“未完整吸纳 / 半覆盖 / 仍需吸纳”时执行 `ConfirmedAbsorptionCompletenessGates`，按 `LayeredAbsorptionGate` 补齐 commonInstruction、skill、promptTemplate、executionConsumer、validationProbe、publicDocs 与 deployCopy；具体 Gate 由 `GovernanceGateRegistry` 分流到 `public-surface / user-manual / review-checklist / frontend-runtime / profile-service / release-parity / evolution-control-plane`，代表锚点包括 `PublicSurfaceClosureGate`、`UserManualProductizationGate`、`ReviewAnchorMaterializationGate`、`FrontendAsyncCacheRenderGate`、`RemoteCIParityPushGate`、`NativeCommandExitCodeGate` 与 `DocsThemeRuntimeVisualProbeGate`；自我进化控制面进入 `evolution-governance`。
@@ -161,13 +161,23 @@ description: "Use when: ..."   # 必填，AI 靠这个发现 Skill
 
 ### 项目现实扩展
 
-日常开发中，DevCodex 不应只按用户字面关键词决定工作流。当前正式流程为：
+日常开发中，DevCodex 不应只按用户字面关键词决定工作流。当前源码规范流程为：
 
 ```text
-语义意图初判 → 目标项目/Profile 加载 → 项目现实扩展 → 最终工作流/子类型
+语义意图初判（IntentSeedV1）→ 唯一项目/activeRoot → ContextReadPlanV1 → 定向读取 + ContextReadReceiptV1 → 项目现实扩展 → 最终工作流/子类型
 ```
 
 项目现实扩展至少要检查目标项目、真实影响范围、关联文件族、产物落点和验证方式；若项目未明确，必须先澄清，不能为了扩展意图而无界扫描工作区。
+
+### 意图驱动的上下文获取
+
+当前源码的推荐生产路径是“每条消息先生成 seed、每个 contextEpoch 冻结一个计划”，不是“每个工具动作前重读 Profile”。该能力尚未构成新的 release 声明，公开可用性仍以 tag、registry 与 release notes 为准。
+
+- `profile_context_plan` 只读取 README/index、effective non-local config，并对顶层 Profile 文件做 metadata inventory；`01~09-*` 与 `config.local.json` 正文必须进入 selected/excluded/unclassified 决策。
+- selected Profile 用 `profile_load(files=[...])` 定向读取；记忆先用 `memory_status`，resume/continuity 再用 `memory_session_query` 或 `memory_summary_query` 获取单个有界片段。
+- `ContextReadReceiptV1` 只接受 planId、contextEpoch、activeRoot、source/query 精确相关的 PostToolUse 成功证据。PreToolUse、失败调用、提示文案和 legacy no-args full 都不能声明 complete。
+- 用户/项目明确要求、audit/migration、低置信、必要来源缺失或实质 scope/risk/digest 漂移可以升级/重算；预算只触发告警或升级，不能压掉安全、CP、治理或强制证据。
+- MCP bridge 失败只允许一次同计划 bounded fallback；结果不可观察时保持 unverified，并继续执行后续安全与确认门禁。
 
 ### 治理意图按评估结果分流
 
@@ -196,6 +206,8 @@ dev 模式默认向用户展示完整 Intent Expansion Card；prod、instruction
 7. AI 当前推断
 
 摘要只能作导航提示，不能覆盖文件真相源；若文件态和当前推断冲突，必须重建 Intent Expansion Card。
+
+这里的优先级是“冲突时谁更权威”，不是默认全文读取清单。恢复时先用 `memory_status` 定位 active/unresolved，再取单个 handoff/session 和必要 SUMMARY 行，最后按 source-of-truth 精确读取需求、报告、清单或源码。
 
 ### ContextHandoffCard
 

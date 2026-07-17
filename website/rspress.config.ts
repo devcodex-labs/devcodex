@@ -128,6 +128,7 @@ export default defineConfig({
                                 { text: '版本概述', link: '/versions/v1/1.0.1/' },
                                 { text: '需求变更日志', link: '/versions/v1/1.0.1/CHANGELOG' },
                                 { text: '需求总览', link: '/versions/v1/1.0.1/requirements/' },
+                                { text: '意图驱动的上下文按需加载', link: '/versions/v1/1.0.1/requirements/p0/intent-driven-context-loading' },
                                 { text: '模板边界与开发流程收口', link: '/versions/v1/1.0.1/requirements/p1/template-flow-alignment/' },
                                 { text: '可配置并发执行策略', link: '/versions/v1/1.0.1/requirements/p1/concurrency-policy/' },
                                 { text: '全局默认 Auto 别名', link: '/versions/v1/1.0.1/requirements/p1/global-auto-alias/' },

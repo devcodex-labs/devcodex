@@ -44,7 +44,7 @@ DevCodex 通过 `.github/`（Copilot）、`CLAUDE.md + .claude/ + .mcp.json`（C
 - **全模式入口检查**: 所有模式在实质任务前显示 PC0~PC7；dev 模式额外执行 PC4 规范雷达与完整合规链
 - **项目现实扩展**: 先做语义意图初判，再结合目标项目 Profile、目录与当前任务上下文修正最终路由、产物落点和验证方式
 - **可配置并发策略**: Profile `config.json` 可配置 `extensions.devcodex.concurrency`；默认 `auto` 表示只读准备和隔离验证可并行、共享状态写入保持单写者，保守项目可设为 `serial`
-- **文件真相源优先的记忆启动链**: `MemoryCannotSatisfyBootstrapGate` 要求宿主 Memories、模型长期偏好、SUMMARY 或交接卡只能作为 `navigation-hint`；新线程、resume、summary 恢复或跨项目切换仍必须实际读取当前 active namespace 的 Profile、tasks、reports、review checklist 和源码 / 文档真相源。V86 探针防止把内置记忆当成 bootstrap / CP / 报告 / 验证证据。
+- **文件真相源优先的有界启动链**: `MemoryCannotSatisfyBootstrapGate` 要求宿主 Memories、模型长期偏好、SUMMARY 或交接卡只能作为 `navigation-hint`；新线程、resume、summary 恢复或跨项目切换仍须通过 Profile plan、memory status/query 与 handoff 指向的精确 reports/review checklist/source 复证。V86 防止用内置记忆替代文件真相，V99 防止把复证误写成默认全文读取或失败调用假完成。
 - **支撑型 Skill**: `execution-contract` / `test-router` / `release-verification` / `host-contract-verification` / `source-consumer-sync` 为控制面、多批次、测试路线、宿主契约验证与真相源-消费者同步提供可审计支撑，不新增工作流分支
 - **模型无关双层修复协作契约**: AI 判断任务目标为 repair task 时至少建立 `lightweight` 决策/验收层 + 执行/验证层契约；P0/P1、安全、控制面、公共契约、多批次、角色交接或发布风险升级 `full`，用 `findingToPatchMap`、`handoffIntegrity` 与 `independentReReview` 防止范围漂移和补丁作者唯一自证。模型名称或是否切换 Agent 不是触发条件
 - **返工预防与信任链**: `rework-prevention-engineering` 以 WorkUnit/ReworkEvent、双重根因、FirstPassYield 和前瞻 trial 把“复审又发现问题”前移为可度量预防；新 Skill 当前保持 `gray`，只有跨任务前瞻证据证明有效才可升级。`CandidateDiffCompletenessGate` 在 commit/tag/publish 前用 staged candidate snapshot 覆盖 tracked/untracked，并执行 cached diff、name-status、secret-shape 与 intended scope 对账；普通 working diff 不能替代。`ReviewCoverageClaimIntegrityGate`、`ArtifactDeliveryCompletenessGate`、`ReleaseAuthorityBeforeCompatibilityGate`、`ConfigurationErgonomicsGate` 与 `InteractiveSemanticProbe` 分别约束审查真实性、产物交付、兼容判断、配置易用性和交互语义
@@ -333,6 +333,20 @@ devcodex status
 
 完整命令、三档文件矩阵、迁移和排错见 [Profile 使用指南](./website/docs/guide/profile.md)。
 
+## 意图驱动的上下文读取（源码已实现，尚未发布）
+
+> 发布状态：以下能力已在当前源码完成 targeted/Hook/V99 验证，但不是 v1.14.0 已发布承诺；使用者应以目标 tag、package registry 和 release notes 为准。
+
+在当前源码能力启用且宿主支持 DevCodex MCP 时，推荐使用以下生产主链，避免每条消息都把整套 Profile 与完整记忆注入上下文：
+
+1. 从当前消息形成语义意图并确定唯一 project/active-root。
+2. 调用 `profile_context_plan`：只返回 README/index、effective non-local config 与顶层文件 metadata，`01~09-*` 和 `config.local.json` 不在规划阶段预读正文。
+3. 用 `profile_load(files=[...])` 读取计划选中的 Profile 文件；记忆先调用 `memory_status`，仅在需要连续性时再调用 `memory_session_query` / `memory_summary_query`。
+4. 只有与 plan/epoch/target/source 精确关联且由 PostToolUse 观察成功的结果，才能形成 `ContextReadReceiptV1`；失败、不可观察或 fallback 结果保持 partial/unverified。
+5. 用户/项目明确要求、audit/migration、低置信或必要来源缺失时可升级全量并记录原因；普通工具动作复用当前计划，只有目标、scope/action/risk、digest 或 compact/resume 漂移才重算。
+
+旧的 no-args `profile_load`、`memory_session_read` 和 `memory_summary_read` 仍保留兼容性，但不再是推荐默认路径，也不能单独证明相关上下文已经完整加载。`config.local.json` 仍只有在用户或项目明确指定时才读取。
+
 ## 本地开发
 
 ```bash
@@ -484,7 +498,7 @@ DevCodex Hook runtime 不再把所有拦截都等同为“停止”。拦截会�
 1. **Hook 没生效 / 规则看起来没加载**
    - 先运行 `devcodex doctor`
    - 再核对当前宿主是否真的支持本地 Hook 硬拦，以及目标项目是否已重新打开会话
-2. **Profile 没加载或 workspace-namespace 路径不对**
+2. **Context plan 没建立或 workspace-namespace 路径不对**
    - 先运行 `devcodex doctor`
    - 再用 `devcodex help` 查看 `profile init` 和 `migrate-layout` 子命令，核对 `.devcodex/workspace/profile/` 与项目命名空间路径
    - 维护 DevCodex 源仓或 workspace-namespace 时，运行 `node scripts/validate-all-profiles.js --workspace <workspace-root>` 校验所有 Profile；发布前需要严格处理 warning 时追加 `--strict-warnings`
@@ -493,7 +507,8 @@ DevCodex Hook runtime 不再把所有拦截都等同为“停止”。拦截会�
    - DevCodex 当前只会自动写 Claude Code 的 `.mcp.json`；Codex / Copilot 需要手工配置
 4. **Copilot 里 `profile_load` 报 `invoke` undefined**
    - 这通常表示宿主 MCP bridge 没有完成工具调用，而不是 DevCodex profile 文件一定损坏
-   - 不要反复重试同一个 MCP 调用；先降级为读取 `.devcodex/**/profile/`、`SUMMARY.md` 与当日任务记忆
+   - 不要反复重试同一个 MCP 调用；按同一计划只做一次有界 fallback：确认唯一项目，读取 README/config baseline，再读取 selected Profile 与单个 memory session/SUMMARY 投影；不要改成整目录或整文件默认读取
+   - fallback 无法提供可观察的成功结果时保持 `unverified`，不要把工具调用意图或提示文案当成 `ContextReadReceiptV1` 完成证据
    - 同时运行 `devcodex doctor` 或宿主自带 MCP 诊断，确认 MCP server 是否真的连接
 5. **产物文件无法点击**
    - 先看回复末尾是否有 `ArtifactLinkSet`：Markdown 链接 + 必要 `绝对路径：...`

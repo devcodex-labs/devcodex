@@ -40,22 +40,20 @@ description: 管理会话记忆的读取与写入。三层记忆体系：Agent �
 
 ## 读取策略
 
-> 🔴 **读取顺序按意图分叉（正常会话 vs resume）**：
-> - **正常会话**：SUMMARY 优先 → 再读今日/昨日任务文件（索引驱动）
-> - **resume 意图**：今日任务文件优先 → 再读 SUMMARY 获取宏观上下文（时间驱动）
->
-> 原因：SUMMARY 是轻量索引（一行/会话），适合快速定位；但同一天内多个会话的最新意图只存在于任务文件末尾段落，SUMMARY 先读会导致错认旧任务。
+### MemoryContextQueryGate
+
+记忆读取必须绑定当前 `ContextReadPlanV1`，先取结构化状态，再按 continuity 精确查询；“必须复证文件真相”不得实现成固定全文读取。
 
 | 场景 | 读取范围 | 执行顺序 |
 |------|---------|---------|
-| **正常会话 · 首步** | Agent SUMMARY.md（快速定位最近状态）| 第一读 |
-| 正常会话 | 今日文件 + 昨日文件（路径已知，可并发读取）| 第二读 |
-| 今日文件不存在 | 仅读昨日文件 | — |
-| 文件存在但解析失败 | 重命名为 `YYYYMMDD.bak.md`，创建新文件，不阻断 | — |
-| **intent = resume · 首步** | 今日 `tasks/YYYYMMDD.md`（定位最后一个会话段落，确认真实意图）| **第一读** |
-| intent = resume · 次步 | Agent SUMMARY.md（宏观上下文补充）| 第二读 |
+| **正常会话 · 首步** | `memory_status(limit <= 5)`，只返回今日/昨日 metadata、有限 SUMMARY 行、active 状态与冲突 | 第一读 |
+| 正常会话 · 连续性相关 | `memory_summary_query(status: active/unresolved, limit <= 5)` | status 证明需要时再读 |
+| **intent = resume · 首步** | `memory_status(limit <= 5)` | 第一读 |
+| intent = resume · 精确恢复 | `memory_session_query(date/sessionId/status, limit: 1, handoffOnly: true/false, maxChars: 有界)`；已知存在卡片时只取 handoff，否则取单个 bounded session，再定向读取需求 sessions、报告或 checklist | 第二读 |
+| resume · 宏观补充 | `memory_summary_query(status: unresolved, limit <= 5)` | 精确 session 不足时 |
+| 文件不存在 / 旧格式 / 解析失败 | bounded empty + warnings；保持 partial/unverified，读取零写入 | 禁止自动 rename / create |
 | intent = resume · 当前项目无 🔄 | 告知用户最近任务均已完成（引用最后会话摘要），询问是否切换项目或开始新任务；**禁止静默回退旧任务** | — |
-| resume 超 14 天 | ① 从 SUMMARY.md 查找最后 🔄 状态行 → ② 提示用户提供具体日期/会话编号 → ③ 精准读取对应日期文件 | — |
+| resume 超 14 天 | `memory_summary_query(status: unresolved, since/limit)` 定位 → 提示日期/会话编号 → `memory_session_query` 精确读取 | — |
 | 用户明确要求历史回溯 | 同 resume | — |
 
 `ConcurrencyPolicy`：记忆读取可作为只读通道并发执行；记忆写入、SUMMARY 更新、ContextHandoffCard 和会话状态提交必须按 `memory` 单写者锁串行完成。
@@ -64,12 +62,13 @@ description: 管理会话记忆的读取与写入。三层记忆体系：Agent �
 
 宿主或产品内置的 Memories、模型长期偏好、对话摘要、ContextHandoffCard 或 SUMMARY 都不能替代当前文件真相源读取：
 
-- Memories 只能提示“可能要看哪里”，不得替代 Profile、daily tasks、Agent SUMMARY、需求级 sessions、报告、review checklist、源码或文档的实际读取结果。
-- 新线程、resume、summary 恢复、compact 后继续或跨项目切换时，必须重新读取当前 active-root 下的 Profile 与记忆文件；不能因为模型“记得上次任务”就跳过本节读取策略。
+- Memories 只能提示“可能要看哪里”，不得替代 bounded Profile plan、`memory_status` / `memory_session_query` / `memory_summary_query`、需求级 sessions、报告、review checklist、源码或文档的实际读取结果。
+- 新线程、resume、summary 恢复、compact 后继续或跨项目切换时，必须重建 context epoch 与计划并重新查询必要来源；不能因为模型“记得上次任务”就跳过复证，也不能因此默认全文读取。
 - SUMMARY 是索引，ContextHandoffCard 是交接卡；二者都不能覆盖 daily tasks、已确认需求/问题产物、报告和当前源码真相。
 - 报告或最终回复若引用 Memories 辅助判断，必须标记为 `navigation-hint`，并列出完成真实读取的文件证据；无法读取时写阻塞 / 降级，不写通过。
 
-> ⛔ 禁止默认读取超过昨日以前的文件
+> ⛔ 禁止默认读取完整 SUMMARY、完整 daily tasks 或昨日以前正文；精确 resume 查询与用户明确要求除外。
+> ⚠️ 旧 `memory_session_read` / `memory_summary_read` 仅作兼容；no-args 全文读取不是生产默认路径，也不能单独把 `ContextReadReceiptV1.status` 推进到 `relevant-complete/completed`。
 > ⛔ **禁止静默回退**：resume 意图检测到当前项目无 🔄 任务时，禁止静默选取历史旧任务继续；必须明确告知用户当前状态并询问意图。
 > ⚠️ **跨项目 resume**：记忆文件是项目级独立管理的。当用户在不同项目间切换后说"继续"，AI 只能读取当前项目的记忆；若当前项目无 🔄，须主动询问是否需要恢复其他项目的工作，而非猜测。
 
@@ -94,7 +93,7 @@ description: 管理会话记忆的读取与写入。三层记忆体系：Agent �
 
 ## 新会话 🔄 检测
 
-新会话开始时检查今日/昨日任务文件（`tasks/YYYYMMDD.md`，**不检查 SUMMARY**）中是否有状态 🔄 的未完成任务：
+新会话开始时调用 `memory_status` 检查今日/昨日 metadata、有限 SUMMARY 行和状态冲突；发现 active / unresolved 候选后，才用 `memory_session_query(limit: 1)` 取得对应片段：
 - 有 🔄 → 输出提示：`⚠️ 上次存在未完成任务：[简述]，建议先 resume`
 - 用户说"继续"/"恢复" + 存在 🔄 → 判定为 `resume`
 

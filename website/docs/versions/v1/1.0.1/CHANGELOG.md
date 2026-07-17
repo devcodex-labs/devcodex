@@ -15,6 +15,7 @@
 
 | 日期 | 变更内容 | 影响范围 | 原因 |
 |------|---------|---------|------|
+| 2026-07-17 | 实现“意图驱动的上下文按需加载”P0 源码与当前消费者 | shared contract、Profile/memory MCP、Hook receipt、V99、规范/执行消费者、README/guide、active requirement/Profile、三宿主部署与 portfolio；未发布，最终资格验证/推送待收口 | 将 Profile/memory 默认全量读取与 Hook 路径触碰假完成收敛为 `IntentSeedV1 / ContextReadPlanV1 / ContextReadReceiptV1`，mandatory miss/false complete 归零，同时保留无参兼容、full oracle 与证据升级边界 |
 | 2026-07-10 | 新增 Profile 真相、安全审查呈现与发布凭据拓扑门禁 | `ProfileTruthReconciliationGate` / V88、`AuthorizedLocalSecurityAuditPresentationGate` / V89、`PublisherCredentialTopologyGate` / V90、analyze/audit/release consumers、README/website/Profile/部署副本 | 防止过期 Profile 污染结论、授权安全审查因呈现和中断恢复缺口丢失证据，以及首次发布只复制 workflow 却遗漏 publisher/auth/secret scope/package ownership 拓扑 |
 | 2026-07-10 | 新增模型无关双层修复协作契约 | `DualLayerRepairCollaborationContract`、`repair-collaboration`、lightweight/full、`authorizationEvidence`、`findingToPatchMap`、`handoffIntegrity`、`independentReReview`、V87、README/website/Profile/部署副本 | 让所有 repair task 都具备最低决策/验收与执行/验证契约，高风险修复增加独立复证，同时避免把具体模型或切换模型误写成触发条件 |
 | 2026-07-09 | 新增发布包公开脚本依赖闭包门禁 | `PackagedScriptDependencyClosureGate`、`release-verification`、`audit-release`、`test-pack-clean`、V6 包边界检查、`package.json files`、README/website 发布指南 | 防止源码目录测试通过但 npm tarball 内公开脚本缺少本地 helper、spawn 目标脚本或运行时依赖，发布前必须用包边界和临时安装路径验证真实消费者可执行 |

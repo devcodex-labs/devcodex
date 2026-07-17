@@ -5,7 +5,7 @@
   "generatedFrom": {
     "skillsPattern": "skills/*/SKILL.md",
     "registry": "plugin.json",
-    "sourceDigest": "59e89689ec6956c4fd344817e0b11e8ce3b20d3f512b48f525da208c048b53ea",
+    "sourceDigest": "72a560a17e69047f0c0af1112f633c08e8a8536131c00809a75a94f4aed706e2",
     "pluginDigest": "249bae2e62d3eebe6f70a19f4c70bc5071169dac23395a5d80a891139d7046b1",
     "portfolioEvidence": "skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "a2288b9763bc79ea32f4fd47cd4f2ea31501427dc2e9d6871d75064bd281687b"
@@ -22,7 +22,7 @@
     "conflictReviewedCount": 77,
     "operationalEvidenceCompleteCount": 77,
     "triggerPrecisionMeasuredCount": 0,
-    "instructionBudgetP95Bytes": 19285,
+    "instructionBudgetP95Bytes": 19567,
     "triggerQuality": "structural-only"
   },
   "dependencyGraph": {
@@ -617,7 +617,7 @@
         "skills/ai-agent-system-architecture/SKILL.md"
       ],
       "source": "skills/ai-agent-system-architecture/SKILL.md",
-      "hash": "6888fce2e9979c8c4870aa652e9a7f3c36818b54fff1fbf2556c29750562b138",
+      "hash": "8a887524ae3b372471ef2dde77003f43cc5472e4517286cd23fc5ed3fb638df6",
       "version": "1.14.0",
       "lifecycleState": "active",
       "dependencies": [],
@@ -658,6 +658,10 @@
         },
         {
           "path": "scripts/lib/validate-consumer-evolution-controls.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/validate-context-read-controls.js",
           "role": "current"
         },
         {
@@ -9962,7 +9966,7 @@
         "skills/host-contract-verification/SKILL.md"
       ],
       "source": "skills/host-contract-verification/SKILL.md",
-      "hash": "732322f20e9f15238e93cb8decfe34abb4d36bb9a57230dc3ae78a47f0e723e7",
+      "hash": "6725edbc2493beee3b791278e0b6181da3b81ebbdb2a38cb7efe82a46eb2df90",
       "version": "1.14.0",
       "lifecycleState": "active",
       "dependencies": [],
@@ -10011,6 +10015,10 @@
         },
         {
           "path": "scripts/lib/test-spec-governance-scale.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/validate-context-read-controls.js",
           "role": "current"
         },
         {
@@ -10396,6 +10404,14 @@
           "role": "historical"
         },
         {
+          "path": "hooks/_runtime/context-read-contract.cjs",
+          "role": "current"
+        },
+        {
+          "path": "hooks/_runtime/lifecycle-bootstrap-state.cjs",
+          "role": "current"
+        },
+        {
           "path": "hooks/_runtime/lifecycle-governance-intake.cjs",
           "role": "current"
         },
@@ -10405,6 +10421,10 @@
         },
         {
           "path": "instructions/01-common.instructions.md",
+          "role": "current"
+        },
+        {
+          "path": "instructions/01a-profile-loading.instructions.md",
           "role": "current"
         },
         {
@@ -10436,6 +10456,10 @@
           "role": "current"
         },
         {
+          "path": "mcp/profile-server.js",
+          "role": "current"
+        },
+        {
           "path": "package.json",
           "role": "current"
         },
@@ -10456,7 +10480,19 @@
           "role": "current"
         },
         {
+          "path": "prompts/technical-design.prompt.md",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/intent-consistency.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/test-hooks-runtime-bootstrap-layout.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/test-hooks-runtime-fixtures.js",
           "role": "current"
         },
         {
@@ -10469,6 +10505,10 @@
         },
         {
           "path": "scripts/lib/test-spec-governance-scale.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/validate-context-read-controls.js",
           "role": "current"
         },
         {
@@ -10500,11 +10540,19 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-context-read-contract.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-governance-intake.js",
           "role": "current"
         },
         {
           "path": "scripts/test-intent-consistency.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-mcp-servers.js",
           "role": "current"
         },
         {
@@ -10608,6 +10656,10 @@
           "role": "historical"
         },
         {
+          "path": "website/docs/versions/v1/1.0.1/requirements/index.md",
+          "role": "current"
+        },
+        {
           "path": "website/docs/versions/v1/1.0.1/requirements/p1/concurrency-policy/design.md",
           "role": "current"
         },
@@ -10618,11 +10670,17 @@
         {
           "path": "website/docs/versions/v2/2.0.0/index.md",
           "role": "current"
+        },
+        {
+          "path": "website/rspress.config.ts",
+          "role": "current"
         }
       ],
       "validationProfile": [
+        "scripts/test-context-read-contract.js",
         "scripts/test-governance-intake.js",
         "scripts/test-intent-consistency.js",
+        "scripts/test-mcp-servers.js",
         "scripts/test-skill-portfolio.js",
         "scripts/validate-profile.js",
         "scripts/validate.js"
@@ -10678,8 +10736,10 @@
         ],
         "evolvableUnitRef": "skill:intent",
         "probeSuiteRefs": [
+          "scripts/test-context-read-contract.js",
           "scripts/test-governance-intake.js",
           "scripts/test-intent-consistency.js",
+          "scripts/test-mcp-servers.js",
           "scripts/test-skill-portfolio.js",
           "scripts/validate-profile.js",
           "scripts/validate.js"
@@ -10691,7 +10751,7 @@
         "registration": "plugin.json",
         "operationalReadiness": {
           "state": "complete",
-          "currentConsumer": "hooks/_runtime/lifecycle-governance-intake.cjs",
+          "currentConsumer": "hooks/_runtime/context-read-contract.cjs",
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
@@ -10714,7 +10774,7 @@
     {
       "id": "load-profile",
       "name": "load-profile",
-      "description": "项目 Profile 加载规范 — 意图识别后独立确定目标项目并加载配置",
+      "description": "项目 Profile 加载规范 — 先形成语义意图种子与唯一目标，再按计划加载最小充分配置",
       "owner": "load-profile",
       "triggers": {
         "terms": [
@@ -10724,7 +10784,7 @@
         "positive": [
           {
             "fixture": "frontmatter-description-resolves",
-            "input": "项目 Profile 加载规范 — 意图识别后独立确定目标项目并加载配置"
+            "input": "项目 Profile 加载规范 — 先形成语义意图种子与唯一目标，再按计划加载最小充分配置"
           }
         ],
         "negative": [
@@ -10739,7 +10799,7 @@
         "skills/load-profile/SKILL.md"
       ],
       "source": "skills/load-profile/SKILL.md",
-      "hash": "3c1fa546de14ce165a1febd7fdbfb29a39442492a0e9e09fdc7a0568c8a41ba6",
+      "hash": "4619163e6b6d6a1439e436c3d84062772d7efb2a38b78c084c3a2199dc111361",
       "version": "1.14.0",
       "lifecycleState": "active",
       "dependencies": [],
@@ -10832,6 +10892,10 @@
         },
         {
           "path": "scripts/lib/validate-brand-visual-quality.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/validate-context-read-controls.js",
           "role": "current"
         },
         {
@@ -10951,7 +11015,7 @@
           "positive": [
             {
               "fixture": "frontmatter-description-resolves",
-              "input": "项目 Profile 加载规范 — 意图识别后独立确定目标项目并加载配置"
+              "input": "项目 Profile 加载规范 — 先形成语义意图种子与唯一目标，再按计划加载最小充分配置"
             }
           ],
           "negative": [
@@ -11038,7 +11102,7 @@
         "skills/memory/SKILL.md"
       ],
       "source": "skills/memory/SKILL.md",
-      "hash": "faee73475c7003bb9641d4421fa70a8c2e6924feb2afe51e8c0ee9a3967fbb0b",
+      "hash": "4f8927221babc2ecff85f3c60ce212b846c0b0a41f12db8058d7d2edfc895fcd",
       "version": "1.14.0",
       "lifecycleState": "active",
       "dependencies": [],
@@ -11132,6 +11196,10 @@
           "role": "current"
         },
         {
+          "path": "hooks/_runtime/context-read-contract.cjs",
+          "role": "current"
+        },
+        {
           "path": "hooks/_runtime/lifecycle-bootstrap-state.cjs",
           "role": "current"
         },
@@ -11204,6 +11272,10 @@
           "role": "current"
         },
         {
+          "path": "prompts/implementation-plan.prompt.md",
+          "role": "current"
+        },
+        {
           "path": "prompts/memory-session.prompt.md",
           "role": "current"
         },
@@ -11229,6 +11301,10 @@
         },
         {
           "path": "prompts/requirement-session.prompt.md",
+          "role": "current"
+        },
+        {
+          "path": "prompts/technical-design.prompt.md",
           "role": "current"
         },
         {
@@ -11276,6 +11352,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/validate-context-read-controls.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/validate-core-checks.js",
           "role": "current"
         },
@@ -11309,6 +11389,10 @@
         },
         {
           "path": "scripts/test-cli-behavior.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-context-read-contract.js",
           "role": "current"
         },
         {
@@ -11548,6 +11632,10 @@
           "role": "current"
         },
         {
+          "path": "website/docs/versions/v1/1.0.1/requirements/p0/intent-driven-context-loading.md",
+          "role": "current"
+        },
+        {
           "path": "website/docs/versions/v1/1.0.1/requirements/p1/concurrency-policy/design.md",
           "role": "current"
         },
@@ -11562,6 +11650,7 @@
       ],
       "validationProfile": [
         "scripts/test-cli-behavior.js",
+        "scripts/test-context-read-contract.js",
         "scripts/test-governance-intake.js",
         "scripts/test-hooks-runtime.js",
         "scripts/test-instruction-fallback-check.js",
@@ -11619,6 +11708,7 @@
         "evolvableUnitRef": "skill:memory",
         "probeSuiteRefs": [
           "scripts/test-cli-behavior.js",
+          "scripts/test-context-read-contract.js",
           "scripts/test-governance-intake.js",
           "scripts/test-hooks-runtime.js",
           "scripts/test-instruction-fallback-check.js",
@@ -11981,7 +12071,23 @@
           "role": "historical"
         },
         {
+          "path": "changelogs/unreleased.md",
+          "role": "current"
+        },
+        {
+          "path": "hooks/_runtime/context-read-contract.cjs",
+          "role": "current"
+        },
+        {
+          "path": "hooks/_runtime/lifecycle-bootstrap-state.cjs",
+          "role": "current"
+        },
+        {
           "path": "hooks/_runtime/lifecycle-governance-intake.cjs",
+          "role": "current"
+        },
+        {
+          "path": "hooks/_runtime/lifecycle.cjs",
           "role": "current"
         },
         {
@@ -12017,6 +12123,10 @@
           "role": "current"
         },
         {
+          "path": "mcp/profile-server.js",
+          "role": "current"
+        },
+        {
           "path": "package.json",
           "role": "current"
         },
@@ -12042,6 +12152,10 @@
         },
         {
           "path": "prompts/report-dev.prompt.md",
+          "role": "current"
+        },
+        {
+          "path": "prompts/technical-design.prompt.md",
           "role": "current"
         },
         {
@@ -12081,6 +12195,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/test-hooks-runtime-fixtures.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/test-hooks-runtime-governance-intake.js",
           "role": "current"
         },
@@ -12102,6 +12220,10 @@
         },
         {
           "path": "scripts/lib/validate-consumer-evolution-controls.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/validate-context-read-controls.js",
           "role": "current"
         },
         {
@@ -12173,6 +12295,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-context-read-contract.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-control-plane-contracts.js",
           "role": "current"
         },
@@ -12190,6 +12316,10 @@
         },
         {
           "path": "scripts/test-markdown-structure.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-mcp-servers.js",
           "role": "current"
         },
         {
@@ -12401,6 +12531,10 @@
           "role": "current"
         },
         {
+          "path": "website/docs/versions/v1/1.0.1/requirements/p0/intent-driven-context-loading.md",
+          "role": "current"
+        },
+        {
           "path": "website/docs/versions/v1/1.0.1/requirements/p1/latest-data-absorption-guards/index.md",
           "role": "current"
         },
@@ -12421,11 +12555,13 @@
         "scripts/test-cli-behavior.js",
         "scripts/test-cli-command-registry.js",
         "scripts/test-client-contracts.js",
+        "scripts/test-context-read-contract.js",
         "scripts/test-control-plane-contracts.js",
         "scripts/test-control-plane-module-contracts.js",
         "scripts/test-governance-intake.js",
         "scripts/test-hooks-runtime.js",
         "scripts/test-markdown-structure.js",
+        "scripts/test-mcp-servers.js",
         "scripts/test-migrate-layout.js",
         "scripts/test-requirement-artifacts.js",
         "scripts/test-residual-absorption-controls.js",
@@ -12481,11 +12617,13 @@
           "scripts/test-cli-behavior.js",
           "scripts/test-cli-command-registry.js",
           "scripts/test-client-contracts.js",
+          "scripts/test-context-read-contract.js",
           "scripts/test-control-plane-contracts.js",
           "scripts/test-control-plane-module-contracts.js",
           "scripts/test-governance-intake.js",
           "scripts/test-hooks-runtime.js",
           "scripts/test-markdown-structure.js",
+          "scripts/test-mcp-servers.js",
           "scripts/test-migrate-layout.js",
           "scripts/test-requirement-artifacts.js",
           "scripts/test-residual-absorption-controls.js",
@@ -14225,6 +14363,10 @@
           "role": "current"
         },
         {
+          "path": "mcp/memory-server.js",
+          "role": "current"
+        },
+        {
           "path": "package-lock.json",
           "role": "current"
         },
@@ -14310,6 +14452,10 @@
         },
         {
           "path": "scripts/lib/validate-consumer-evolution-controls.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/validate-context-read-controls.js",
           "role": "current"
         },
         {
@@ -14549,6 +14695,10 @@
           "role": "current"
         },
         {
+          "path": "website/docs/versions/v1/1.0.1/requirements/p0/intent-driven-context-loading.md",
+          "role": "current"
+        },
+        {
           "path": "website/docs/versions/v1/1.0.1/requirements/p1/concurrency-policy/design.md",
           "role": "current"
         },
@@ -14719,6 +14869,10 @@
         },
         {
           "path": "changelogs/unreleased.md",
+          "role": "current"
+        },
+        {
+          "path": "hooks/_runtime/lifecycle-bootstrap-state.cjs",
           "role": "current"
         },
         {
@@ -16627,6 +16781,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/validate-context-read-controls.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/validate-core-checks.js",
           "role": "current"
         },
@@ -16873,6 +17031,14 @@
           "role": "historical"
         },
         {
+          "path": "changelogs/unreleased.md",
+          "role": "current"
+        },
+        {
+          "path": "hooks/_runtime/context-read-contract.cjs",
+          "role": "current"
+        },
+        {
           "path": "hooks/_runtime/lifecycle-bootstrap-state.cjs",
           "role": "current"
         },
@@ -16957,11 +17123,23 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/test-hooks-runtime-bootstrap-layout.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/test-hooks-runtime-fixtures.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/validate-brand-visual-quality.js",
           "role": "current"
         },
         {
           "path": "scripts/lib/validate-consumer-evolution-controls.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/validate-context-read-controls.js",
           "role": "current"
         },
         {
@@ -16986,6 +17164,10 @@
         },
         {
           "path": "scripts/lib/validate-optimization-controls.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-context-read-contract.js",
           "role": "current"
         },
         {
@@ -17145,11 +17327,16 @@
           "role": "historical"
         },
         {
+          "path": "website/docs/versions/v1/1.0.1/requirements/p0/intent-driven-context-loading.md",
+          "role": "current"
+        },
+        {
           "path": "website/rspress.config.ts",
           "role": "current"
         }
       ],
       "validationProfile": [
+        "scripts/test-context-read-contract.js",
         "scripts/test-hooks-runtime.js",
         "scripts/test-mcp-servers.js",
         "scripts/test-migrate-layout.js",
@@ -17202,6 +17389,7 @@
         ],
         "evolvableUnitRef": "skill:summary",
         "probeSuiteRefs": [
+          "scripts/test-context-read-contract.js",
           "scripts/test-hooks-runtime.js",
           "scripts/test-mcp-servers.js",
           "scripts/test-migrate-layout.js",
@@ -17267,7 +17455,7 @@
         "skills/test-router/SKILL.md"
       ],
       "source": "skills/test-router/SKILL.md",
-      "hash": "81431297919dd1f919277f58c9d713d57e4cef352b6296494f85ef04cb5a24ca",
+      "hash": "acc5f349c2579f09b27f97f7297b025a9b5e9dc95eee2946eb6df18b26ea862f",
       "version": "1.14.0",
       "lifecycleState": "active",
       "dependencies": [],
@@ -17412,6 +17600,10 @@
         },
         {
           "path": "scripts/lib/validate-consumer-evolution-controls.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/validate-context-read-controls.js",
           "role": "current"
         },
         {

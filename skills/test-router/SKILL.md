@@ -37,6 +37,8 @@ TestRoute 的稳定输入、route selector、固定输出与 skip 合同以同�
 
 `turnLiveness` 是 `agent-turn-liveness` gateGroup 的领域绑定，不新增顶层 selector：至少选择 `unit-integration + runtime-e2e`，执行 fixed-clock 状态机、Hook direct replay、no-continuation、active lease、restart rehydrate 与 duplicate recovery；`CheckpointValidationResultV1` 必须覆盖 response-time/post-execution、缺证据与 timeout；`LocalTaskTraceV1` 必须覆盖 sequence/duplicate/terminal/restart、payload 不执行和 source state zero-write。触达 Profile/部署或 gray sidecar package 时再叠加 `profile-deploy / package-release`。Hook 无事件自唤醒能力未由宿主或 sidecar 实证时，coverageClaim 必须降级并保留 residualRisk。
 
+`context-acquisition` 是同名 gateGroup 的领域绑定，不新增顶层 selector：契约、Profile/Memory MCP 或 Hook receipt 变化至少选择 `unit-integration + runtime-e2e`；规范、Prompt、README/website 或部署面变化叠加 `static`，触达 Profile/宿主分发时再叠加 `profile-deploy`。Owner evidence 至少链接 IntentSeed/plan/receipt correlation、`ProfilePlanNoHiddenFullReadProbe`、bounded memory query、failed-Pre/false-complete 负例、legacy compatibility 与 V99。性能证据记录 bytes/chars/latency/cache/escalation；input tokens 不可观测时必须标 N/A，不能用 chars 冒充。staged consumer 只允许精确列出 missing consumer 与后续 Owner batch，不得把 known-red 泛化为通过。
+
 ## TestRoute 输出
 
 输出固定为 `selectedRoutes / commands / evidence / skipped / residualRisk / coverageClaim`。推荐使用以下最小结构：

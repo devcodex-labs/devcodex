@@ -8,6 +8,10 @@
 
 ## 当前未发布变更
 
+### 2026-07-17
+
+- 实现 `ContextAcquisitionGate` 的意图驱动上下文获取：新增 `profile_context_plan`、`memory_status`、`memory_session_query`、`memory_summary_query` 与共享 `IntentSeedV1 / ContextReadPlanV1 / ContextReadReceiptV1`，Profile 规划阶段只读 baseline/metadata，任务正文和记忆改为 targeted bounded query；Hook 仅以精确关联的 PostToolUse 成功结果推进回执，Pre、失败、wrong-root、unobservable 与 legacy no-args full 均不能假完成。新增 full oracle、hidden-read 负例和 `V99`，保留旧 Profile/memory 工具兼容；当前仅为源码未发布增量，不改变 v1.14.0 release authority，也未执行 tag/publish。
+
 ### 2026-07-15
 
 - 修复 `ProfileLifecycleClassificationGate` 的可执行语义：共享 contract 改为稳定基线/活文档/条件或本地文档三类独立 inspection，validator 输出逐类缺项，新增无关“本地/required/conditional”、三类单缺失、中英文完整声明与 workspace fallback/overlay 负向/正向夹具；同步修正 monSQLize closed-loop Profile 和原 F-012 尾项，不改变 Profile 档位或 CLI 契约。

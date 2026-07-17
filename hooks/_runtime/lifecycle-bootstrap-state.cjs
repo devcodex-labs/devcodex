@@ -4,6 +4,8 @@ function buildLifecycleBootstrapStateUtils(ctx) {
   const {
     fs,
     path,
+    crypto,
+    CONTEXT_ROOT,
     LAYOUT,
     CONTEXT_PROJECT,
     DEFAULT_SCOPE,
@@ -30,8 +32,107 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     emptyGovernanceIntakeState,
     normalizeGovernanceIntakeState,
     createTurnLivenessState,
-    normalizeTurnLivenessState
+    normalizeTurnLivenessState,
+    CONTEXT_READ_CONTRACT,
+    createContextReadReceipt,
+    extractContextPlanBody,
+    extractContextSourceEvidence,
+    markContextReadReceiptStale,
+    normalizeContextReadState,
+    normalizeContextToolOutcome,
+    recordContextReadAttempt,
+    recordContextReadOutcome,
+    stableDigest,
+    validateContextReadPlan,
+    extractToolPaths,
+    isSourceCodeMutation
   } = ctx
+
+  const PROFILE_SERVER = 'devcodex-profile'
+  const MEMORY_SERVER = 'devcodex-memory'
+  const PROFILE_TOOLS = new Set(['profile_context_plan', 'profile_load'])
+  const MEMORY_READ_TOOLS = new Set([
+    'memory_status',
+    'memory_session_query',
+    'memory_summary_query',
+    'memory_session_read',
+    'memory_summary_read'
+  ])
+  const MEMORY_SCHEMAS = Object.freeze({
+    memory_status: 'MemoryStatusV1',
+    memory_session_query: 'MemorySessionQueryV1',
+    memory_summary_query: 'MemorySummaryQueryV1'
+  })
+  const MUTATION_TOOL_RE = /^(?:apply[_-]?patch|create[_-]?file|write|edit|str[_-]?replace|insert[_-]?code|rewrite[_-]?file)$/i
+  const READ_TOOL_RE = /^(?:read(?:[_-]?file)?|list[_-]?dir|file[_-]?search|grep(?:[_-]?search)?|semantic[_-]?search|glob)$/i
+
+  function normalizePath(value) {
+    return String(value || '').trim().replace(/\\/g, '/')
+  }
+
+  function safeProfileFile(value) {
+    const file = String(value || '').trim()
+    return !!file && file !== '.' && file !== '..' && !/[\\/\0]/.test(file) &&
+      (/\.md$/i.test(file) || ['config.json', 'config.local.json'].includes(file))
+  }
+
+  function getToolInput(payload) {
+    const input = payload?.tool_input ?? payload?.toolInput ?? payload?.input ?? payload?.arguments ?? {}
+    return input && typeof input === 'object' && !Array.isArray(input) ? input : {}
+  }
+
+  function getToolCallId(payload) {
+    return String(
+      payload?.tool_use_id || payload?.toolUseId || payload?.tool_call_id ||
+      payload?.toolCallId || payload?.call_id || payload?.callId || ''
+    ).trim()
+  }
+
+  function canonicalContextTool(payload) {
+    const raw = getToolName(payload)
+    const lower = raw.toLowerCase()
+    let server = String(payload?.server_name || payload?.serverName || '').trim().toLowerCase()
+    let tool = lower
+    const claude = lower.match(/^mcp__([^_]+(?:-[^_]+)*)__([a-z0-9_]+)$/)
+    const pair = lower.match(/^([^/]+)\/([a-z0-9_]+)$/)
+    if (claude) {
+      server = claude[1]
+      tool = claude[2]
+    } else if (pair) {
+      server = pair[1]
+      tool = pair[2]
+    }
+    if (!server && (PROFILE_TOOLS.has(tool) || MEMORY_READ_TOOLS.has(tool))) {
+      return { raw, server: '', tool, canonical: '', recognizedName: true }
+    }
+    const recognized = (server === PROFILE_SERVER && PROFILE_TOOLS.has(tool)) ||
+      (server === MEMORY_SERVER && MEMORY_READ_TOOLS.has(tool))
+    return {
+      raw,
+      server,
+      tool,
+      canonical: recognized ? `${server}/${tool}` : '',
+      recognizedName: recognized
+    }
+  }
+
+  function targetProject(state) {
+    return String(state?.activeProject || CONTEXT_PROJECT || path.basename(CONTEXT_ROOT)).trim()
+  }
+
+  function targetMatches(args, state) {
+    const expected = targetProject(state)
+    return !args.project || String(args.project).trim() === expected
+  }
+
+  function contextError(code, message, nextStep) {
+    return {
+      schemaVersion: CONTEXT_READ_CONTRACT.schemas.error,
+      errorCode: code,
+      message,
+      nextStep: nextStep || 'Correct the context acquisition input before retrying.'
+    }
+  }
 
   function buildScopedNeedles(scopeRoot, segments) {
     return buildPathNeedles(path.join(scopeRoot, ...segments))
@@ -65,10 +166,136 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     }
   }
 
+  /** Normalize new and legacy lifecycle state into one ContextReadStateV1 aggregate. */
+  function normalizeContextAcquisition(state) {
+    const raw = state?.contextAcquisition && typeof state.contextAcquisition === 'object'
+      ? state.contextAcquisition
+      : {}
+    const legacyObserved = {
+      profileRead: raw.legacyObserved?.profileRead === true || state?.bootstrap?.profileRead === true,
+      summaryRead: raw.legacyObserved?.summaryRead === true || state?.bootstrap?.summaryRead === true,
+      tasksRead: raw.legacyObserved?.tasksRead === true || state?.bootstrap?.tasksRead === true,
+      bootstrapComplete: false
+    }
+    const normalized = normalizeContextReadState({
+      contextAcquisition: raw,
+      bootstrap: legacyObserved
+    })
+    const inFlight = Array.isArray(raw.inFlight)
+      ? raw.inFlight.filter(item => item && typeof item === 'object').slice(-20)
+      : []
+    const postHistory = Array.isArray(raw.postHistory)
+      ? raw.postHistory.filter(item => item && typeof item === 'object').slice(-40)
+      : []
+    return {
+      ...normalized,
+      activeRoot: normalizePath(raw.activeRoot || normalized.plan?.identity?.activeRoot || getActiveNamespaceRoot(state)),
+      project: String(raw.project || normalized.plan?.identity?.project || targetProject(state)),
+      hostCapability: ['structured-plan', 'path-observable', 'instruction-only'].includes(raw.hostCapability)
+        ? raw.hostCapability
+        : 'instruction-only',
+      verificationMode: normalized.receipt?.verificationMode ||
+        (['structured-plan', 'path-observable', 'instruction-only'].includes(raw.verificationMode)
+          ? raw.verificationMode
+          : 'instruction-only'),
+      targetResolved: raw.targetResolved === true,
+      inFlight,
+      postHistory,
+      planAttemptKeys: Array.isArray(raw.planAttemptKeys) ? [...new Set(raw.planAttemptKeys.map(String))].slice(-10) : [],
+      failedPlanKeys: Array.isArray(raw.failedPlanKeys) ? [...new Set(raw.failedPlanKeys.map(String))].slice(-10) : [],
+      replanCount: Math.max(normalized.replanCount, Number.parseInt(raw.replanCount, 10) || 0),
+      conditionalReplanCount: Math.max(0, Number.parseInt(raw.conditionalReplanCount, 10) || 0),
+      fallbackAttempts: Math.min(1, Math.max(normalized.fallbackAttempts, Number.parseInt(raw.fallbackAttempts, 10) || 0)),
+      fallbackActive: raw.fallbackActive === true,
+      lastFallbackReason: String(raw.lastFallbackReason || ''),
+      lastWarningKey: String(raw.lastWarningKey || ''),
+      lastError: raw.lastError && typeof raw.lastError === 'object' ? raw.lastError : null,
+      blockedReason: String(raw.blockedReason || ''),
+      handoff: raw.handoff && typeof raw.handoff === 'object' ? raw.handoff : null,
+      legacyObserved,
+      bootstrap: normalized.bootstrap
+    }
+  }
+
+  function syncContextProjection(state) {
+    state.contextAcquisition = normalizeContextAcquisition(state)
+    state.bootstrap = { ...state.contextAcquisition.bootstrap }
+    state.bootstrapComplete = state.contextAcquisition.bootstrap.bootstrapComplete === true
+    state.phase = state.bootstrapComplete ? 'active' : 'bootstrapping'
+    return state.contextAcquisition
+  }
+
+  function hostCapabilityFor(platform, payload) {
+    const explicit = String(payload?.devcodexContextCapability || payload?.contextCapability || '').trim()
+    if (['structured-plan', 'path-observable', 'instruction-only'].includes(explicit)) return explicit
+    if (platform === 'claude') return 'structured-plan'
+    if (platform === 'codex') return 'path-observable'
+    return 'instruction-only'
+  }
+
+  /** Start one opaque, target-bound acquisition epoch for a UserPromptSubmit event. */
+  function beginContextAcquisition(state, payload, platform) {
+    const previous = normalizeContextAcquisition(state)
+    const project = targetProject(state)
+    const targetResolved = !LAYOUT.enabled || !!state.activeProject
+    const handoff = previous.contextEpoch
+      ? {
+          contextEpoch: previous.contextEpoch,
+          planId: previous.plan?.planId || '',
+          status: previous.receipt?.status || 'unverified',
+          activeRoot: previous.activeRoot,
+          project: previous.project
+        }
+      : previous.handoff
+    state.contextAcquisition = {
+      schemaVersion: CONTEXT_READ_CONTRACT.schemas.state,
+      contextEpoch: `ctx-${crypto.randomUUID()}`,
+      activeRoot: normalizePath(getActiveNamespaceRoot(state)),
+      project,
+      targetResolved,
+      hostCapability: hostCapabilityFor(platform, payload),
+      verificationMode: hostCapabilityFor(platform, payload) === 'structured-plan'
+        ? 'structured-plan'
+        : hostCapabilityFor(platform, payload),
+      plan: null,
+      receipt: null,
+      planCallCount: 0,
+      replanCount: 0,
+      conditionalReplanCount: 0,
+      fallbackAttempts: 0,
+      fallbackActive: false,
+      lastFallbackReason: '',
+      inFlight: [],
+      postHistory: [],
+      planAttemptKeys: [],
+      failedPlanKeys: [],
+      lastWarningKey: '',
+      lastError: targetResolved
+        ? null
+        : contextError('CONTEXT_ACTIVE_TARGET_MISMATCH', 'A unique active project is required before context planning.'),
+      blockedReason: targetResolved ? '' : 'active-target-ambiguous',
+      legacyObserved: { profileRead: false, summaryRead: false, tasksRead: false, bootstrapComplete: false },
+      handoff
+    }
+    syncContextProjection(state)
+    return state.contextAcquisition
+  }
+
+  /** Invalidate reusable evidence without converting a drift event into a full read. */
+  function markContextAcquisitionStale(state, reason = 'scope-drift') {
+    const acquisition = syncContextProjection(state)
+    if (!acquisition.plan || !acquisition.receipt) return acquisition
+    acquisition.receipt = markContextReadReceiptStale(acquisition.receipt, acquisition.plan, reason)
+    acquisition.replanCount = Math.max(acquisition.replanCount, acquisition.receipt.replanCount)
+    state.contextAcquisition = acquisition
+    syncContextProjection(state)
+    return state.contextAcquisition
+  }
+
   function buildDefaultState(mode) {
     const normalizedMode = mode === 'dev' ? 'dev' : 'prod'
-    return {
-      version: 1,
+    const state = {
+      version: 2,
       mode: normalizedMode,
       executionMode: EXECUTION_MODE.CONFIRM,
       phase: 'bootstrapping',
@@ -113,6 +340,28 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       lastEvent: '',
       lastReason: ''
     }
+    state.contextAcquisition = {
+      schemaVersion: CONTEXT_READ_CONTRACT.schemas.state,
+      contextEpoch: '',
+      activeRoot: normalizePath(getActiveNamespaceRoot(state)),
+      project: targetProject(state),
+      targetResolved: !LAYOUT.enabled || !!state.activeProject,
+      hostCapability: 'instruction-only',
+      verificationMode: 'instruction-only',
+      plan: null,
+      receipt: null,
+      planCallCount: 0,
+      replanCount: 0,
+      conditionalReplanCount: 0,
+      fallbackAttempts: 0,
+      fallbackActive: false,
+      inFlight: [],
+      postHistory: [],
+      planAttemptKeys: [],
+      failedPlanKeys: [],
+      legacyObserved: { profileRead: false, summaryRead: false, tasksRead: false, bootstrapComplete: false }
+    }
+    return state
   }
 
   function loadState(modeHint) {
@@ -132,9 +381,10 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     const mode = modeHint || readProfileMode(saved || metaState || null, saved?.activeProject || metaState?.activeProject || '')
     const current = buildDefaultState(mode)
     if (!saved || typeof saved !== 'object') return current
-    return {
+    const state = {
       ...current,
       ...saved,
+      version: 2,
       mode,
       bootstrap: { ...current.bootstrap, ...(saved.bootstrap || {}) },
       visible: { ...current.visible, ...(saved.visible || {}) },
@@ -144,9 +394,12 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       turnLiveness: normalizeTurnLivenessState(saved.turnLiveness),
       dangerousApprovals: { ...current.dangerousApprovals, ...(saved.dangerousApprovals || {}) }
     }
+    syncContextProjection(state)
+    return state
   }
 
   function saveState(state) {
+    syncContextProjection(state)
     state.updatedAt = new Date().toISOString()
     const activePaths = getStatePaths(state)
     fs.mkdirSync(activePaths.dir, { recursive: true })
@@ -176,6 +429,16 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     state.governanceIntake = normalizeGovernanceIntakeState(previousState?.governanceIntake)
     state.turnLiveness = normalizeTurnLivenessState(previousState?.turnLiveness)
     state.dangerousApprovals = { ...(previousState?.dangerousApprovals || {}) }
+    const previousAcquisition = previousState ? normalizeContextAcquisition(previousState) : null
+    if (previousAcquisition?.contextEpoch) {
+      state.contextAcquisition.handoff = {
+        contextEpoch: previousAcquisition.contextEpoch,
+        planId: previousAcquisition.plan?.planId || '',
+        status: previousAcquisition.receipt?.status || 'unverified',
+        activeRoot: previousAcquisition.activeRoot,
+        project: previousAcquisition.project
+      }
+    }
     saveState(state)
     return state
   }
@@ -245,33 +508,624 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     return /^vscode[_-]?askquestions$/.test(getToolName(payload).toLowerCase())
   }
 
+  function classifyContextAcquisitionTool(payload, state) {
+    const acquisition = syncContextProjection(state)
+    const identity = canonicalContextTool(payload)
+    const args = getToolInput(payload)
+    if (identity.recognizedName && !identity.canonical) {
+      return { allowed: false, suspicious: true, reason: 'context tool requires an exact server/tool identity' }
+    }
+    if (identity.canonical) {
+      if (!targetMatches(args, state)) {
+        return { allowed: false, suspicious: true, reason: 'context tool target does not match the active project' }
+      }
+      if (identity.tool === 'profile_context_plan') {
+        const epoch = String(args.contextEpoch || '').trim()
+        const planKey = stableDigest({ contextEpoch: acquisition.contextEpoch, canonical: identity.canonical, args })
+        if (!acquisition.targetResolved || !epoch || epoch !== acquisition.contextEpoch) {
+          return { allowed: false, suspicious: true, reason: 'profile plan must use the current bound contextEpoch' }
+        }
+        if (acquisition.failedPlanKeys.includes(planKey)) {
+          return { allowed: false, suspicious: true, reason: 'the same failed plan call cannot be retried in this epoch' }
+        }
+        if (acquisition.planAttemptKeys.includes(planKey) && acquisition.plan) {
+          return { allowed: false, suspicious: true, reason: 'the same installed plan call is already recorded for this epoch' }
+        }
+        return {
+          allowed: true,
+          kind: 'plan',
+          ...identity,
+          args,
+          argsDigest: stableDigest(args),
+          planKey,
+          sourceIds: []
+        }
+      }
+      if (identity.tool === 'profile_load') {
+        const files = Array.isArray(args.files) ? args.files.map(String) : []
+        if (args.files !== undefined && !Array.isArray(args.files)) {
+          return { allowed: false, suspicious: true, reason: 'profile_load files must be an array' }
+        }
+        if (files.some(file => !safeProfileFile(file)) || new Set(files).size !== files.length) {
+          return { allowed: false, suspicious: true, reason: 'profile_load files must be unique safe top-level Profile names' }
+        }
+        if (!files.length) {
+          return {
+            allowed: true,
+            kind: 'legacy-profile-full',
+            legacyFull: true,
+            fallback: true,
+            ...identity,
+            args,
+            argsDigest: stableDigest(args),
+            sourceIds: []
+          }
+        }
+        if (acquisition.plan) {
+          const selected = new Set(acquisition.plan.profile.selectedFiles)
+          if (files.some(file => !selected.has(file))) {
+            return { allowed: false, suspicious: true, reason: 'profile_load files exceed the authoritative plan selection' }
+          }
+        }
+        return {
+          allowed: true,
+          kind: 'profile-load',
+          fallback: !acquisition.plan,
+          ...identity,
+          args,
+          argsDigest: stableDigest(args),
+          sourceIds: files.map(file => `profile:${file}`)
+        }
+      }
+      const legacyFull = ['memory_session_read', 'memory_summary_read'].includes(identity.tool)
+      const sourceId = `memory:${identity.tool}`
+      if (!legacyFull && acquisition.plan && !acquisition.plan.selectedSources.some(source => source.sourceId === sourceId)) {
+        return { allowed: false, suspicious: true, reason: 'memory query is not selected by the authoritative plan' }
+      }
+      return {
+        allowed: true,
+        kind: legacyFull ? 'legacy-memory-full' : 'memory-query',
+        legacyFull,
+        fallback: !acquisition.plan || legacyFull,
+        ...identity,
+        args,
+        argsDigest: stableDigest(args),
+        sourceIds: legacyFull ? [] : [sourceId]
+      }
+    }
+    if (isBootstrapReadTool(payload, state)) {
+      return {
+        allowed: true,
+        kind: 'raw-targeted',
+        canonical: `raw/${getToolName(payload).toLowerCase()}`,
+        server: 'raw',
+        tool: getToolName(payload).toLowerCase(),
+        args,
+        argsDigest: stableDigest(args),
+        sourceIds: [],
+        fallback: true
+      }
+    }
+    return { allowed: false, suspicious: false, reason: '' }
+  }
+
+  function docsOnlyPaths(payload) {
+    const paths = [...new Set(extractToolPaths(payload) || [])]
+    return paths.length > 0 && paths.every(file => {
+      const normalized = normalizePath(file).toLowerCase()
+      return /(?:^|\/)(?:docs?|website|changelogs?|requirements|bugs|reports?|review-checklists?)(?:\/|$)/.test(normalized) ||
+        /(?:\.md|\.mdx|\.txt)$/.test(normalized) || /(?:^|\/)readme(?:\.[^/]+)?$/.test(normalized)
+    })
+  }
+
+  function classifyContextAction(payload, platform, state, knownAcquisition) {
+    const acquisition = knownAcquisition || classifyContextAcquisitionTool(payload, state)
+    if (acquisition.allowed) return 'context-read'
+    if (isClarificationTool(payload) || READ_TOOL_RE.test(getToolName(payload))) return 'analysis-read'
+    const tool = getToolName(payload).toLowerCase()
+    const command = getCommandText(payload)
+    if (/\b(?:npm|pnpm|yarn)\s+(?:run\s+)?(?:test|check|validate)|\bnode\s+scripts\/(?:test|check|validate)[^\s]*/i.test(command) ||
+      /(?:^|[_-])(?:test|validate|check)(?:[_-]|$)/i.test(tool)) return 'test-execution'
+    if (/\b(?:npm\s+publish|git\s+(?:push|tag)|gh\s+release|devcodex\s+release)\b/i.test(command) || /(?:publish|release)/i.test(tool)) {
+      return 'release'
+    }
+    const mutationTool = MUTATION_TOOL_RE.test(tool) || isSourceCodeMutation(payload, platform, state)
+    if (mutationTool) return docsOnlyPaths(payload) ? 'docs-mutation' : 'source-mutation'
+    if (/^(?:shell[_-]?command|run[_-]?in[_-]?terminal|send[_-]?to[_-]?terminal|bash|powershell)$/i.test(tool)) {
+      if (isReadOnlyBootstrapShellCommand(payload) ||
+        /^\s*(?:git\s+(?:status|diff|show|log)|npm\s+(?:ls|view)|node\s+-[pev]|rg\b|get-|ls\b|dir\b)/i.test(command)) {
+        return 'analysis-read'
+      }
+    }
+    return 'dangerous'
+  }
+
+  function activateFallback(acquisition, reason) {
+    if (!acquisition.fallbackActive) {
+      acquisition.fallbackActive = true
+      acquisition.fallbackAttempts = 1
+      acquisition.lastFallbackReason = String(reason || 'structured context acquisition unavailable')
+    }
+    if (acquisition.hostCapability !== 'instruction-only') acquisition.verificationMode = 'path-observable'
+  }
+
+  /** Record a bounded attempt and action-envelope decision; never records read success. */
+  function recordContextPreToolUse(state, payload, platform) {
+    const acquisition = syncContextProjection(state)
+    const classified = classifyContextAcquisitionTool(payload, state)
+    const actionClass = classifyContextAction(payload, platform, state, classified)
+    const priorStatus = acquisition.receipt?.status || ''
+    if (classified.suspicious) {
+      acquisition.lastError = contextError('CONTEXT_PLAN_INVALID', classified.reason)
+    }
+    if (classified.allowed) {
+      if (classified.fallback) activateFallback(acquisition, classified.kind)
+      if (classified.kind === 'plan') {
+        acquisition.planCallCount += 1
+        if (!acquisition.planAttemptKeys.includes(classified.planKey)) {
+          acquisition.planAttemptKeys.push(classified.planKey)
+          acquisition.planAttemptKeys = acquisition.planAttemptKeys.slice(-10)
+        }
+      } else if (acquisition.plan && acquisition.receipt && !classified.legacyFull) {
+        acquisition.receipt = recordContextReadAttempt(acquisition.receipt, acquisition.plan, {
+          toolCallId: getToolCallId(payload),
+          actionClass,
+          activeRoot: acquisition.activeRoot,
+          riskHint: acquisition.plan.identity.intentSeed.riskHint,
+          sourceIds: classified.sourceIds
+        })
+      }
+      const entry = {
+        attemptId: `pre-${crypto.randomUUID()}`,
+        toolCallId: getToolCallId(payload),
+        contextEpoch: acquisition.contextEpoch,
+        activeRoot: acquisition.activeRoot,
+        project: acquisition.project,
+        canonical: classified.canonical,
+        server: classified.server,
+        tool: classified.tool,
+        kind: classified.kind,
+        args: classified.args,
+        argsDigest: classified.argsDigest,
+        planKey: classified.planKey || '',
+        sourceIds: classified.sourceIds,
+        actionClass,
+        startedAt: new Date().toISOString()
+      }
+      const duplicatePre = entry.toolCallId && acquisition.inFlight.some(item =>
+        item.toolCallId === entry.toolCallId && item.contextEpoch === entry.contextEpoch
+      )
+      if (!duplicatePre) acquisition.inFlight = [...acquisition.inFlight, entry].slice(-20)
+      if (classified.kind === 'legacy-profile-full') acquisition.legacyObserved.profileRead = true
+      if (classified.kind === 'legacy-memory-full') {
+        if (classified.tool === 'memory_summary_read') acquisition.legacyObserved.summaryRead = true
+        if (classified.tool === 'memory_session_read') acquisition.legacyObserved.tasksRead = true
+      }
+    } else if (acquisition.plan && acquisition.receipt) {
+      acquisition.receipt = recordContextReadAttempt(acquisition.receipt, acquisition.plan, {
+        toolCallId: getToolCallId(payload),
+        actionClass,
+        activeRoot: acquisition.activeRoot,
+        riskHint: acquisition.plan.identity.intentSeed.riskHint,
+        sourceIds: []
+      })
+    }
+    if (acquisition.receipt?.status === 'stale' && priorStatus !== 'stale') {
+      acquisition.replanCount = Math.max(acquisition.replanCount, acquisition.receipt.replanCount)
+    }
+    state.contextAcquisition = acquisition
+    if (classified.kind === 'raw-targeted') updateBootstrapState(state, payload)
+    else syncContextProjection(state)
+    return { acquisition: state.contextAcquisition, classified, actionClass }
+  }
+
+  /** Return only context-gate strength; Auto, CP, permission, and danger remain downstream owners. */
+  function getContextAcquisitionDecision(state, preResult) {
+    const acquisition = syncContextProjection(state)
+    if (acquisition.bootstrap.bootstrapComplete) return { status: 'complete', hardBlockEligible: false }
+    if (preResult?.classified?.allowed || preResult?.actionClass === 'analysis-read') {
+      return { status: 'allowed-read', hardBlockEligible: false }
+    }
+    const hardBlockEligible = acquisition.hostCapability === 'structured-plan' &&
+      acquisition.targetResolved && !acquisition.fallbackActive
+    return {
+      status: acquisition.receipt?.status || (acquisition.plan ? 'planned' : 'unverified'),
+      hardBlockEligible,
+      reason: acquisition.receipt?.status === 'stale' ? 'scope-drift requires one replan' : 'context evidence is incomplete'
+    }
+  }
+
+  function parseExactJson(value) {
+    if (value && typeof value === 'object' && !Array.isArray(value)) return value
+    if (typeof value !== 'string') return null
+    let text = value.trim()
+    const fenced = text.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i)
+    if (fenced) text = fenced[1].trim()
+    try {
+      const parsed = JSON.parse(text)
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null
+    } catch {
+      return null
+    }
+  }
+
+  function invalidateStructuredReceipt(acquisition, message) {
+    if (acquisition.plan) {
+      acquisition.receipt = createContextReadReceipt(acquisition.plan, { verificationMode: 'instruction-only' })
+    }
+    acquisition.verificationMode = acquisition.hostCapability === 'instruction-only'
+      ? 'instruction-only'
+      : 'path-observable'
+    acquisition.lastError = contextError('CONTEXT_PLAN_INVALID', message)
+    acquisition.blockedReason = 'ambiguous-post-evidence'
+  }
+
+  function findPostAttempt(acquisition, state, payload, resultDigest) {
+    const identity = canonicalContextTool(payload)
+    const canonical = identity.canonical ||
+      (isBootstrapReadTool(payload, state)
+        ? `raw/${getToolName(payload).toLowerCase()}`
+        : '')
+    const toolCallId = getToolCallId(payload)
+    if (toolCallId) {
+      const prior = acquisition.postHistory.find(item =>
+        item.toolCallId === toolCallId && item.contextEpoch === acquisition.contextEpoch && item.canonical === canonical
+      )
+      if (prior) return { prior, canonical, toolCallId, attempt: null }
+      const attempt = acquisition.inFlight.find(item =>
+        item.toolCallId === toolCallId && item.contextEpoch === acquisition.contextEpoch && item.canonical === canonical
+      )
+      return { prior: null, canonical, toolCallId, attempt: attempt || null }
+    }
+    const candidates = acquisition.inFlight.filter(item =>
+      item.contextEpoch === acquisition.contextEpoch && item.canonical === canonical
+    )
+    const priorCandidates = candidates.length === 0
+      ? acquisition.postHistory.filter(item => item.contextEpoch === acquisition.contextEpoch && item.canonical === canonical)
+      : []
+    return {
+      prior: priorCandidates.length === 1 ? priorCandidates[0] : null,
+      canonical,
+      toolCallId: '',
+      attempt: candidates.length === 1 ? candidates[0] : null,
+      ambiguous: candidates.length > 1 || priorCandidates.length > 1,
+      digestMatch: priorCandidates.length === 1 && priorCandidates[0].resultDigest === resultDigest
+    }
+  }
+
+  function currentRefDigest(ref) {
+    try {
+      const stat = fs.statSync(ref.path)
+      if (!stat.isFile()) return null
+      return stableDigest({
+        path: normalizePath(ref.path),
+        layer: ref.layer,
+        exists: true,
+        size: stat.size,
+        mtimeMs: stat.mtimeMs
+      })
+    } catch {
+      return null
+    }
+  }
+
+  function splitProfileSections(text) {
+    const headings = []
+    const regex = /^### ([^\r\n]+)\r?$/gm
+    let match
+    while ((match = regex.exec(text)) !== null) {
+      const file = match[1].trim()
+      if (safeProfileFile(file)) headings.push({ file, start: match.index, bodyStart: regex.lastIndex })
+    }
+    return headings.map((heading, index) => ({
+      ...heading,
+      body: text.slice(heading.bodyStart, headings[index + 1]?.start ?? text.length).trim()
+    }))
+  }
+
+  function parseProfileSectionEnvelope(body) {
+    const lines = String(body || '').replace(/\r\n/g, '\n').split('\n')
+    while (lines[0] === '') lines.shift()
+    while (lines[lines.length - 1] === '') lines.pop()
+    if (lines[lines.length - 1]?.trim() === '---') lines.pop()
+    while (lines[lines.length - 1] === '') lines.pop()
+    if (!/^> 来源：.+$/.test(lines[0] || '')) return { valid: false, paths: [], content: '' }
+    let index = 1
+    const paths = []
+    while (/^> 路径：.+$/.test(lines[index] || '')) {
+      paths.push(normalizePath(lines[index].slice('> 路径：'.length)))
+      index += 1
+    }
+    if (!paths.length) return { valid: false, paths: [], content: '' }
+    if (lines[index] === '') index += 1
+    return {
+      valid: true,
+      paths,
+      content: lines.slice(index).join('\n')
+    }
+  }
+
+  function buildFailedSourceEvidence(plan, attempt, outcome) {
+    return attempt.sourceIds.map(sourceId => {
+      const selected = plan.selectedSources.find(source => source.sourceId === sourceId)
+      return {
+        observationId: `post-${attempt.attemptId}-${sourceId}`,
+        toolCallId: attempt.toolCallId,
+        sourceId,
+        contextEpoch: attempt.contextEpoch,
+        planId: plan.planId,
+        activeRoot: attempt.activeRoot,
+        sourceLayer: selected?.sourceLayer || '',
+        outcome: outcome.error ? 'failed' : 'unobservable',
+        successful: false,
+        observable: outcome.observable,
+        transportSuccess: outcome.transportSuccess,
+        sourceRefsMatch: false,
+        schemaMatch: false,
+        targetMatch: false,
+        resultDigest: outcome.resultDigest
+      }
+    })
+  }
+
+  function profileSourceResults(acquisition, attempt, outcome) {
+    const plan = acquisition.plan
+    if (!outcome.transportSuccess) return { sourceResults: buildFailedSourceEvidence(plan, attempt, outcome), drift: false }
+    const sections = splitProfileSections(outcome.text)
+    const requestedFiles = attempt.args.files.map(String)
+    const headingFiles = sections.map(section => section.file)
+    const duplicate = new Set(headingFiles).size !== headingFiles.length
+    const extra = headingFiles.some(file => !requestedFiles.includes(file))
+    let drift = false
+    const sourceResults = requestedFiles.map(file => {
+      const sourceId = `profile:${file}`
+      const selected = plan.selectedSources.find(source => source.sourceId === sourceId)
+      const matches = sections.filter(section => section.file === file)
+      const section = matches[0]
+      const missingMarker = /（(?:⚠️\s*)?必需文件不存在）|（文件不存在，跳过）/.test(section?.body || '')
+      const envelope = parseProfileSectionEnvelope(section?.body)
+      const paths = envelope.paths
+      const expectedRefs = new Map((selected?.sourceRefs || []).map(ref => [normalizePath(ref.path).toLowerCase(), ref]))
+      const observedRefs = paths.map(value => expectedRefs.get(value.toLowerCase())).filter(Boolean)
+      const refsMatch = !!selected && paths.length > 0 && observedRefs.length === paths.length &&
+        new Set(paths.map(value => value.toLowerCase())).size === paths.length
+      for (const ref of observedRefs) {
+        if (!ref.exists || currentRefDigest(ref) !== ref.metadataDigest) drift = true
+      }
+      const layers = [...new Set(observedRefs.map(ref => ref.layer))]
+      const valid = !!selected && matches.length === 1 && !duplicate && !extra && !missingMarker &&
+        envelope.valid && refsMatch && !drift
+      return {
+        observationId: `post-${attempt.attemptId}-${sourceId}`,
+        toolCallId: attempt.toolCallId,
+        sourceId,
+        contextEpoch: attempt.contextEpoch,
+        planId: plan.planId,
+        activeRoot: attempt.activeRoot,
+        sourceLayer: layers.length === 1 ? layers[0] : selected?.sourceLayer,
+        outcome: valid ? 'observed-success' : (missingMarker || !section ? 'missing' : 'invalid'),
+        successful: valid,
+        observable: outcome.observable,
+        transportSuccess: outcome.transportSuccess,
+        sourceRefsMatch: refsMatch && !duplicate && !extra,
+        schemaMatch: true,
+        targetMatch: true,
+        bytes: Buffer.byteLength(envelope.content, 'utf8'),
+        chars: envelope.content.length
+      }
+    })
+    return { sourceResults, drift }
+  }
+
+  function memorySourceResults(acquisition, attempt, outcome) {
+    const plan = acquisition.plan
+    const sourceId = attempt.sourceIds[0]
+    const selected = plan.selectedSources.find(source => source.sourceId === sourceId)
+    const body = outcome.transportSuccess ? parseExactJson(outcome.payload) : null
+    const expectedSchema = MEMORY_SCHEMAS[attempt.tool]
+    const schemaMatch = !!body && body.schemaVersion === expectedSchema
+    const source = body?.source && typeof body.source === 'object' ? body.source : {}
+    const target = body?.target && typeof body.target === 'object' ? body.target : source
+    const resultRoot = normalizePath(body?.activeRoot || target.activeRoot || source.activeRoot)
+    const resultProject = String(body?.project || target.project || source.project || '').trim()
+    const targetMatch = resultRoot === acquisition.activeRoot && resultProject === acquisition.project
+    const query = body?.query && typeof body.query === 'object' ? body.query : {}
+    const queryFields = ['date', 'sessionId', 'status', 'handoffOnly', 'since']
+    const queryMatch = attempt.tool === 'memory_status' || queryFields.every(field =>
+      attempt.args[field] === undefined || stableDigest(query[field]) === stableDigest(attempt.args[field])
+    )
+    const successful = outcome.transportSuccess && schemaMatch && targetMatch && queryMatch && !!selected
+    return [{
+      observationId: `post-${attempt.attemptId}-${sourceId}`,
+      toolCallId: attempt.toolCallId,
+      sourceId,
+      contextEpoch: attempt.contextEpoch,
+      planId: plan.planId,
+      activeRoot: attempt.activeRoot,
+      sourceLayer: 'memory-query',
+      outcome: successful ? 'observed-success' : (outcome.error ? 'failed' : 'invalid'),
+      successful,
+      observable: outcome.observable,
+      transportSuccess: outcome.transportSuccess,
+      sourceRefsMatch: !!selected && queryMatch,
+      schemaMatch,
+      targetMatch
+    }]
+  }
+
+  function applySourceResults(acquisition, attempt, payload, sourceResults) {
+    const extracted = extractContextSourceEvidence(acquisition.plan, payload, {
+      sourceResults,
+      toolCallId: attempt.toolCallId,
+      contextEpoch: attempt.contextEpoch,
+      planId: acquisition.plan.planId,
+      activeRoot: attempt.activeRoot
+    })
+    const evidence = extracted.evidence.length ? extracted.evidence : sourceResults
+    for (const item of evidence) {
+      acquisition.receipt = recordContextReadOutcome(acquisition.receipt, acquisition.plan, item)
+    }
+  }
+
+  function installObservedPlan(acquisition, attempt, payload) {
+    const extracted = extractContextPlanBody(payload)
+    const plan = extracted.plan
+    const identityMatches = !!plan && plan.identity.contextEpoch === acquisition.contextEpoch &&
+      normalizePath(plan.identity.activeRoot) === acquisition.activeRoot &&
+      plan.identity.project === acquisition.project &&
+      String(attempt.args.contextEpoch || '') === acquisition.contextEpoch
+    if (!identityMatches) {
+      if (!acquisition.failedPlanKeys.includes(attempt.planKey)) acquisition.failedPlanKeys.push(attempt.planKey)
+      acquisition.failedPlanKeys = acquisition.failedPlanKeys.slice(-10)
+      activateFallback(acquisition, extracted.error?.message || 'plan result identity is not observable or does not match')
+      acquisition.lastError = extracted.error || contextError(
+        'CONTEXT_ACTIVE_TARGET_MISMATCH',
+        'Observed plan does not match the current epoch, root, or project.'
+      )
+      return false
+    }
+    const validation = validateContextReadPlan(plan)
+    if (!validation.valid) {
+      if (!acquisition.failedPlanKeys.includes(attempt.planKey)) acquisition.failedPlanKeys.push(attempt.planKey)
+      activateFallback(acquisition, validation.error.message)
+      acquisition.lastError = validation.error
+      return false
+    }
+    if (acquisition.plan && acquisition.plan.planId !== plan.planId) {
+      const conditional = Array.isArray(attempt.args.profileSelectors) && attempt.args.profileSelectors.length > 0 &&
+        !!attempt.args.baselineDigest && acquisition.conditionalReplanCount < 1
+      const driftReplan = ['stale', 'blocked'].includes(acquisition.receipt?.status)
+      if (!conditional && !driftReplan) {
+        invalidateStructuredReceipt(acquisition, 'A different plan cannot replace a live plan without a conditional selector or scope drift.')
+        return false
+      }
+      if (conditional) acquisition.conditionalReplanCount += 1
+    }
+    const priorReplanCount = acquisition.replanCount
+    let receipt = createContextReadReceipt(plan, {
+      verificationMode: 'structured-plan',
+      planObserved: true,
+      toolCallId: attempt.toolCallId
+    })
+    receipt.replanCount = priorReplanCount
+    if (plan.exitCondition === 'blocked') {
+      receipt = {
+        ...receipt,
+        status: 'blocked',
+        satisfiedSourceIds: [],
+        missingSourceIds: [...plan.mandatorySourceIds],
+        completedAt: null
+      }
+      acquisition.blockedReason = 'plan-exit-blocked'
+    } else {
+      acquisition.blockedReason = ''
+    }
+    acquisition.plan = plan
+    acquisition.receipt = receipt
+    acquisition.verificationMode = 'structured-plan'
+    acquisition.fallbackActive = false
+    acquisition.lastError = null
+    return true
+  }
+
+  /** Correlate an observable PostToolUse result and advance only independently proven sources. */
+  function recordContextPostToolUse(state, payload) {
+    const acquisition = syncContextProjection(state)
+    const identity = canonicalContextTool(payload)
+    if (!identity.canonical && !isBootstrapReadTool(payload, state)) {
+      return { observed: false, ignored: true }
+    }
+    const outcome = normalizeContextToolOutcome(payload)
+    const correlation = findPostAttempt(acquisition, state, payload, outcome.resultDigest)
+    if (correlation.prior) {
+      if (correlation.prior.resultDigest !== outcome.resultDigest) {
+        invalidateStructuredReceipt(acquisition, 'Conflicting duplicate PostToolUse evidence cannot be correlated safely.')
+      }
+      state.contextAcquisition = acquisition
+      syncContextProjection(state)
+      return { observed: false, duplicate: true, conflicting: correlation.prior.resultDigest !== outcome.resultDigest }
+    }
+    if (!correlation.attempt) {
+      acquisition.lastError = contextError(
+        'CONTEXT_PLAN_INVALID',
+        correlation.ambiguous
+          ? 'PostToolUse without a call id matches multiple in-flight context reads.'
+          : 'PostToolUse does not match an in-flight context read in the current epoch.'
+      )
+      state.contextAcquisition = acquisition
+      syncContextProjection(state)
+      return { observed: false, ambiguous: correlation.ambiguous === true }
+    }
+    const attempt = correlation.attempt
+    const explicitPostInput = ['tool_input', 'toolInput', 'input', 'arguments']
+      .some(key => Object.prototype.hasOwnProperty.call(payload || {}, key))
+    const inputMismatch = explicitPostInput && stableDigest(getToolInput(payload)) !== attempt.argsDigest
+    if (inputMismatch) {
+      if (acquisition.plan) invalidateStructuredReceipt(acquisition, 'PostToolUse input does not match the correlated PreToolUse attempt.')
+      else {
+        activateFallback(acquisition, 'PostToolUse input mismatch')
+        acquisition.lastError = contextError('CONTEXT_PLAN_INVALID', 'PostToolUse input does not match the correlated PreToolUse attempt.')
+      }
+    } else if (attempt.kind === 'plan') {
+      installObservedPlan(acquisition, attempt, payload)
+    } else if (attempt.kind === 'profile-load' && acquisition.plan && acquisition.receipt) {
+      const parsed = profileSourceResults(acquisition, attempt, outcome)
+      if (parsed.drift) {
+        acquisition.receipt = markContextReadReceiptStale(acquisition.receipt, acquisition.plan, 'profile-drift')
+        acquisition.replanCount = Math.max(acquisition.replanCount, acquisition.receipt.replanCount)
+      } else {
+        applySourceResults(acquisition, attempt, payload, parsed.sourceResults)
+      }
+    } else if (attempt.kind === 'memory-query' && acquisition.plan && acquisition.receipt) {
+      applySourceResults(acquisition, attempt, payload, memorySourceResults(acquisition, attempt, outcome))
+    }
+    acquisition.inFlight = acquisition.inFlight.filter(item => item.attemptId !== attempt.attemptId)
+    acquisition.postHistory = [...acquisition.postHistory, {
+      toolCallId: attempt.toolCallId,
+      attemptId: attempt.attemptId,
+      contextEpoch: attempt.contextEpoch,
+      canonical: attempt.canonical,
+      resultDigest: outcome.resultDigest,
+      outcome: inputMismatch ? 'invalid' : (outcome.error ? 'failed' : (outcome.transportSuccess ? 'observed' : 'unobservable')),
+      observedAt: new Date().toISOString()
+    }].slice(-40)
+    state.contextAcquisition = acquisition
+    syncContextProjection(state)
+    return { observed: true, attempt, outcome }
+  }
+
   function updateBootstrapState(state, payload) {
     const scopes = getBootstrapScopes(state, payload)
     const inputStrings = getToolInputStrings(payload)
-    if (touchesPath(payload, ...scopes.profileNeedles)) state.bootstrap.profileRead = true
+    const acquisition = normalizeContextAcquisition(state)
+    if (touchesPath(payload, ...scopes.profileNeedles)) acquisition.legacyObserved.profileRead = true
     if ((scopes.summaryNeedles.length && touchesPath(payload, ...scopes.summaryNeedles)) ||
       (!scopes.summaryNeedles.length &&
         touchesPath(payload, ...scopes.memoryNeedles) &&
         inputStrings.some(input => input.includes('/summary.md')))) {
-      state.bootstrap.summaryRead = true
+      acquisition.legacyObserved.summaryRead = true
     }
     if ((scopes.taskNeedles.length && touchesPath(payload, ...scopes.taskNeedles)) ||
       (!scopes.taskNeedles.length &&
         touchesPath(payload, ...scopes.memoryNeedles) &&
         inputStrings.some(isRecentBootstrapTaskPath))) {
-      state.bootstrap.tasksRead = true
+      acquisition.legacyObserved.tasksRead = true
     }
-    state.bootstrapComplete = !!(
-      state.bootstrap.profileRead && state.bootstrap.summaryRead && state.bootstrap.tasksRead
-    )
-    if (state.bootstrapComplete) state.phase = 'active'
+    state.contextAcquisition = acquisition
+    syncContextProjection(state)
   }
 
-  function buildBootstrapMessage() {
+  function buildBootstrapMessage(state) {
+    const acquisition = syncContextProjection(state)
+    const targetHandoff = acquisition.targetResolved
+      ? `Use the opaque contextEpoch=${acquisition.contextEpoch} unchanged when calling mcp__devcodex-profile__profile_context_plan for project=${acquisition.project}.`
+      : `contextEpoch=${acquisition.contextEpoch} is unbound; resolve one active project before requesting a Profile plan.`
     return [
-      'DevCodex hook-enforced bootstrap is active for this user message.',
-      'Load the effective profile (legacy .devcodex/profile/ or workspace-namespace profile roots) and memory files under',
-      'the active .devcodex namespace before any substantive work.',
+      'DevCodex intent-driven context acquisition is active for this user message.',
+      'Classify the canonical intent first, then obtain ContextReadPlanV1 and load only its selected Profile files and bounded memory queries.',
+      'Resolve the active target against legacy .devcodex/profile/ or workspace-namespace base + project overlay roots before reading.',
+      targetHandoff,
+      'A full Profile/SUMMARY/tasks read is a legacy or explicit escalation path, not the normal bootstrap default.',
       'Your first user-visible block must be the entry check PC0-PC7 before substantive task content; dev mode adds full PC4 diagnostics.',
       '*** S07 compaction trigger (v1.9.6+): if this turn resumes from /compact, /resume, or summary-restore,',
       'this also counts as "first user-visible reply" — you MUST re-output PC0-PC7 even when instructed to "continue without acknowledging".'
@@ -279,47 +1133,41 @@ function buildLifecycleBootstrapStateUtils(ctx) {
   }
 
   function buildBootstrapDenyOutput(state, payload, eventName, platform) {
-    const missing = []
-    if (!state.bootstrap.profileRead) missing.push('profile')
-    if (!state.bootstrap.summaryRead) missing.push('SUMMARY')
-    if (!state.bootstrap.tasksRead) missing.push('tasks')
+    const acquisition = syncContextProjection(state)
+    const missing = acquisition.receipt?.missingSourceIds || ['authoritative-plan']
     const toolName = getToolName(payload) || 'tool'
     return buildInterceptionOutput(
       state,
       platform || 'copilot',
       eventName,
       INTERCEPTION_ACTION.REQUIRE_COMPLETION,
-      'bootstrap-incomplete',
-      `Blocked tool use before DevCodex bootstrap: ${toolName}`,
-      `Read .devcodex/profile/ plus SUMMARY/tasks memory files first. Missing: ${missing.join(', ') || 'none'}.`,
-      'Read the effective profile, SUMMARY, and today tasks file, then retry the tool.'
+      'context-acquisition-incomplete',
+      `Blocked ${toolName} until the current context plan has verifiable evidence`,
+      `Missing sources: ${missing.join(', ') || 'none'}. Use contextEpoch=${acquisition.contextEpoch}; do not replace the plan with an unbounded full read.`,
+      'Complete the exact plan/query evidence or replan once after scope drift, then retry the tool.'
     )
   }
 
   function buildBootstrapWarningOutput(state, payload, eventName, platform) {
-    const missing = []
-    if (!state.bootstrap.profileRead) missing.push('profile')
-    if (!state.bootstrap.summaryRead) missing.push('SUMMARY')
-    if (!state.bootstrap.tasksRead) missing.push('tasks')
+    const acquisition = syncContextProjection(state)
+    const missing = acquisition.receipt?.missingSourceIds || ['authoritative-plan']
     const toolName = getToolName(payload) || 'tool'
     return buildInterceptionOutput(
       state,
       platform || 'copilot',
       eventName,
-      INTERCEPTION_ACTION.REQUIRE_COMPLETION,
-      'bootstrap-incomplete',
-      `Bootstrap incomplete before ${toolName}`,
-      `Read .devcodex/profile/ plus SUMMARY/tasks memory files as soon as possible. Missing: ${missing.join(', ') || 'none'}. Tool allowed in safety-only mode.`,
-      'Read bootstrap files before substantive work.'
+      INTERCEPTION_ACTION.WARN_CONTINUE,
+      'context-acquisition-unverified',
+      `Context evidence is unverified before ${toolName}`,
+      `Missing sources: ${missing.join(', ') || 'none'}. Continue through downstream Auto/CP/permission gates; use targeted fallback at most once if structured results are unavailable.`,
+      'Use the current epoch plan or one bounded targeted fallback; do not infer completion from a PreToolUse path touch.'
     )
   }
 
   function buildBootstrapWarningKey(state) {
-    const missing = []
-    if (!state.bootstrap.profileRead) missing.push('profile')
-    if (!state.bootstrap.summaryRead) missing.push('SUMMARY')
-    if (!state.bootstrap.tasksRead) missing.push('tasks')
-    return [state.promptCount || 0, missing.join(',')].join('|')
+    const acquisition = syncContextProjection(state)
+    const missing = acquisition.receipt?.missingSourceIds || ['authoritative-plan']
+    return [acquisition.contextEpoch, acquisition.receipt?.status || 'unverified', missing.join(',')].join('|')
   }
 
   function buildDedupedBootstrapWarningOutput(state, payload, eventName, platform) {
@@ -335,6 +1183,11 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     loadState,
     saveState,
     resetState,
+    beginContextAcquisition,
+    markContextAcquisitionStale,
+    recordContextPreToolUse,
+    recordContextPostToolUse,
+    getContextAcquisitionDecision,
     isBootstrapReadTool,
     isPureReadTool,
     isClarificationTool,

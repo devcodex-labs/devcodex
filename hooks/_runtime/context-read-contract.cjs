@@ -1,0 +1,1310 @@
+'use strict'
+
+const crypto = require('crypto')
+
+const CONTEXT_READ_CONTRACT = Object.freeze({
+  schemas: Object.freeze({
+    intentSeed: 'IntentSeedV1',
+    plan: 'ContextReadPlanV1',
+    receipt: 'ContextReadReceiptV1',
+    error: 'ContextReadErrorV1',
+    state: 'ContextReadStateV1'
+  }),
+  errors: Object.freeze([
+    'CONTEXT_INTENT_REQUIRED',
+    'CONTEXT_INTENT_INVALID',
+    'CONTEXT_CHANGE_TYPES_REQUIRED',
+    'CONTEXT_BASELINE_STALE',
+    'CONTEXT_PROFILE_CATALOG_DRIFT',
+    'CONTEXT_PLAN_INVALID',
+    'CONTEXT_FULL_REASON_REQUIRED',
+    'CONTEXT_ACTIVE_TARGET_MISMATCH',
+    'MEMORY_QUERY_INVALID',
+    'MEMORY_SCOPE_AMBIGUOUS'
+  ]),
+  intents: Object.freeze(['dev', 'fix', 'analyze', 'audit', 'self-fix', 'chat', 'resume', 'other']),
+  changeTypes: Object.freeze([
+    'project-info', 'architecture', 'code-style', 'source-code', 'testing', 'release',
+    'feature-state', 'docs', 'public-contract', 'config', 'security', 'destructive'
+  ]),
+  risks: Object.freeze(['normal', 'high', 'critical']),
+  actionClasses: Object.freeze([
+    'context-read', 'analysis-read', 'test-execution', 'docs-mutation',
+    'source-mutation', 'release', 'dangerous'
+  ]),
+  verificationModes: Object.freeze(['structured-plan', 'path-observable', 'instruction-only']),
+  receiptStatuses: Object.freeze([
+    'unplanned', 'baseline-ready', 'planned', 'attempted', 'relevant-complete',
+    'escalated-full', 'completed', 'unverified', 'stale', 'blocked'
+  ]),
+  escalationTriggers: Object.freeze([
+    'low-confidence', 'cross-service', 'public-contract', 'release', 'security',
+    'destructive', 'missing-reference', 'profile-catalog-drift', 'profile-drift',
+    'scope-drift', 'compact', 'explicit-full'
+  ])
+})
+
+const INTENTS = new Set(CONTEXT_READ_CONTRACT.intents)
+const CHANGE_TYPES = new Set(CONTEXT_READ_CONTRACT.changeTypes)
+const RISKS = new Set(CONTEXT_READ_CONTRACT.risks)
+const ACTION_CLASSES = new Set(CONTEXT_READ_CONTRACT.actionClasses)
+const VERIFICATION_MODES = new Set(CONTEXT_READ_CONTRACT.verificationModes)
+const RECEIPT_STATUSES = new Set(CONTEXT_READ_CONTRACT.receiptStatuses)
+const PLAN_FIELDS = new Set([
+  'schemaVersion', 'planId', 'identity', 'baselineContext', 'actionEnvelope', 'changeTypes',
+  'selectedSources', 'mandatorySourceIds', 'excludedSources', 'catalogCoverage',
+  'existenceSources', 'freshness', 'budget', 'escalationTriggers', 'triggeredEscalations',
+  'exitCondition', 'profile', 'memory', 'fullRead', 'fullReadReason', 'planningTelemetry'
+])
+const SEED_FIELDS = new Set([
+  'schemaVersion', 'contextEpoch', 'semantic', 'intent', 'targetHint', 'continuationHint',
+  'riskHint', 'confidence', 'createdAt'
+])
+const RECEIPT_FIELDS = new Set([
+  'schemaVersion', 'receiptId', 'contextEpoch', 'planId', 'identity', 'verificationMode',
+  'status', 'observations', 'satisfiedSourceIds', 'missingSourceIds', 'fullRead',
+  'fullReadReason', 'escalations', 'completedAt', 'consumedAt', 'replanCount', 'lastError'
+])
+const SUCCESS_OUTCOMES = new Set(['baseline-ready', 'observed-success'])
+const RISK_RANK = Object.freeze({ normal: 0, high: 1, critical: 2 })
+
+function canonicalize(value, seen = new WeakSet()) {
+  if (value === null || value === undefined) return value === undefined ? null : value
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null
+  if (typeof value !== 'object') return value
+  if (seen.has(value)) throw new TypeError('Cannot digest a circular value')
+  seen.add(value)
+  const normalized = Array.isArray(value)
+    ? value.map(item => canonicalize(item, seen))
+    : Object.keys(value).sort().reduce((output, key) => {
+        if (value[key] !== undefined) output[key] = canonicalize(value[key], seen)
+        return output
+      }, {})
+  seen.delete(value)
+  return normalized
+}
+
+function stableDigest(value) {
+  const serialized = JSON.stringify(canonicalize(value))
+  return crypto.createHash('sha256').update(serialized).digest('hex')
+}
+
+function deepClone(value) {
+  return canonicalize(value)
+}
+
+function finiteOrNull(value) {
+  return Number.isFinite(value) && value >= 0 ? value : null
+}
+
+function nowIso(options = {}) {
+  const nowMs = Number.isFinite(options.nowMs) ? options.nowMs : Date.now()
+  return new Date(nowMs).toISOString()
+}
+
+function validIso(value) {
+  return typeof value === 'string' && value.trim() && Number.isFinite(Date.parse(value))
+}
+
+function uniqueSorted(value, allowed = null) {
+  const result = [...new Set((Array.isArray(value) ? value : [])
+    .map(item => String(item || '').trim())
+    .filter(item => item && (!allowed || allowed.has(item))))]
+  return result.sort()
+}
+
+function safeProfileFile(value) {
+  const file = String(value || '').trim()
+  return !!file && file !== '.' && file !== '..' && !/[\\/]/.test(file) && !file.includes('\0')
+}
+
+function normalizePath(value) {
+  return String(value || '').trim().replace(/\\/g, '/')
+}
+
+function buildContextReadError(errorCode, message, nextStep) {
+  const code = CONTEXT_READ_CONTRACT.errors.includes(errorCode)
+    ? errorCode
+    : 'CONTEXT_PLAN_INVALID'
+  return {
+    schemaVersion: CONTEXT_READ_CONTRACT.schemas.error,
+    errorCode: code,
+    message: String(message || code),
+    nextStep: String(nextStep || 'Correct the context acquisition input and retry once.')
+  }
+}
+
+function measureContextPayload(value, options = {}) {
+  const serialized = typeof value === 'string' ? value : JSON.stringify(value)
+  return {
+    bytes: Buffer.byteLength(serialized || '', 'utf8'),
+    chars: (serialized || '').length,
+    latencyMs: finiteOrNull(options.latencyMs),
+    tokens: finiteOrNull(options.tokens)
+  }
+}
+
+function normalizeIntentSeed(raw = {}, options = {}) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return buildContextReadError('CONTEXT_INTENT_REQUIRED', 'Intent seed must be an object.', 'Provide a canonical intent.')
+  }
+  const unknown = Object.keys(raw).filter(key => !SEED_FIELDS.has(key))
+  if (unknown.length) {
+    return buildContextReadError(
+      'CONTEXT_PLAN_INVALID',
+      `IntentSeedV1 contains unsupported fields: ${unknown.join(', ')}.`,
+      'Remove sibling contract fields before planning.'
+    )
+  }
+  if (raw.schemaVersion && raw.schemaVersion !== CONTEXT_READ_CONTRACT.schemas.intentSeed) {
+    return buildContextReadError('CONTEXT_PLAN_INVALID', 'Intent seed discriminator is invalid.', 'Use IntentSeedV1.')
+  }
+  const semantic = String(raw.semantic || raw.intent || '').trim()
+  if (!semantic) {
+    return buildContextReadError('CONTEXT_INTENT_REQUIRED', 'Canonical intent is required.', 'Provide one supported top-level intent.')
+  }
+  if (!INTENTS.has(semantic) || (raw.semantic && raw.intent && raw.semantic !== raw.intent)) {
+    return buildContextReadError('CONTEXT_INTENT_INVALID', `Unsupported canonical intent: ${semantic}.`, 'Use a documented canonical intent.')
+  }
+  const riskHint = String(raw.riskHint || 'normal')
+  if (!RISKS.has(riskHint)) {
+    return buildContextReadError('CONTEXT_PLAN_INVALID', `Invalid riskHint: ${riskHint}.`, 'Use normal, high, or critical.')
+  }
+  const confidence = raw.confidence === undefined ? 1 : Number(raw.confidence)
+  if (!Number.isFinite(confidence) || confidence < 0 || confidence > 1) {
+    return buildContextReadError('CONTEXT_PLAN_INVALID', 'confidence must be between 0 and 1.', 'Provide a bounded confidence value.')
+  }
+  const createdAt = validIso(raw.createdAt) ? new Date(Date.parse(raw.createdAt)).toISOString() : nowIso(options)
+  const targetHint = typeof raw.targetHint === 'string' && raw.targetHint.trim() ? raw.targetHint.trim() : null
+  const contextEpoch = String(raw.contextEpoch || options.contextEpoch || '').trim() ||
+    `ctx-${stableDigest({ semantic, targetHint, createdAt }).slice(0, 20)}`
+  return {
+    schemaVersion: CONTEXT_READ_CONTRACT.schemas.intentSeed,
+    contextEpoch,
+    semantic,
+    targetHint,
+    continuationHint: raw.continuationHint === true,
+    riskHint,
+    confidence,
+    createdAt
+  }
+}
+
+function normalizeSourceRef(raw = {}) {
+  const normalized = {
+    path: normalizePath(raw.path),
+    layer: String(raw.layer || '').trim(),
+    exists: raw.exists === true,
+    size: finiteOrNull(raw.size),
+    mtimeMs: finiteOrNull(raw.mtimeMs)
+  }
+  if (!normalized.path || !normalized.layer) return { error: 'source ref requires path and layer' }
+  const expectedDigest = stableDigest(normalized)
+  if (raw.metadataDigest && raw.metadataDigest !== expectedDigest) return { error: `metadataDigest mismatch for ${normalized.path}` }
+  return { value: { ...normalized, metadataDigest: expectedDigest } }
+}
+
+function normalizeSourceRefs(value) {
+  const refs = []
+  for (const raw of Array.isArray(value) ? value : []) {
+    const result = normalizeSourceRef(raw)
+    if (result.error) return result
+    refs.push(result.value)
+  }
+  refs.sort((left, right) => `${left.layer}:${left.path}`.localeCompare(`${right.layer}:${right.path}`))
+  return { value: refs }
+}
+
+function normalizeBaselineContext(raw = {}, identity = {}) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { error: 'baselineContext must be an object' }
+  const readmeRaw = typeof raw.readme === 'string' ? { content: raw.readme } : (raw.readme || {})
+  const readmeRefs = normalizeSourceRefs(readmeRaw.sourceRefs || raw.readmeSourceRefs)
+  const configRefs = normalizeSourceRefs(raw.configSourceRefs)
+  if (readmeRefs.error || configRefs.error) return { error: readmeRefs.error || configRefs.error }
+  if (typeof readmeRaw.content !== 'string' || !readmeRaw.content.length) return { error: 'baseline README content is required' }
+  if (!readmeRefs.value.length) return { error: 'baseline README sourceRefs are required' }
+  if (!readmeRefs.value.some(ref => ref.exists)) return { error: 'baseline README must have an existing authoritative source ref' }
+  if (!raw.effectiveConfig || typeof raw.effectiveConfig !== 'object' || Array.isArray(raw.effectiveConfig)) {
+    return { error: 'effectiveConfig must be an object' }
+  }
+  if (!configRefs.value.length) return { error: 'effective config sourceRefs are required' }
+  const catalog = Array.isArray(raw.catalog) ? deepClone(raw.catalog) : []
+  const inventory = Array.isArray(raw.inventory) ? deepClone(raw.inventory) : []
+  catalog.sort((left, right) => profileFileFrom(left).localeCompare(profileFileFrom(right)))
+  inventory.sort((left, right) => profileFileFrom(left).localeCompare(profileFileFrom(right)))
+  if (new Set(catalog.map(profileFileFrom)).size !== catalog.length) return { error: 'catalog contains duplicate Profile candidates' }
+  if (new Set(inventory.map(profileFileFrom)).size !== inventory.length) return { error: 'inventory contains duplicate Profile candidates' }
+  const value = {
+    layout: String(raw.layout || 'legacy'),
+    project: String(raw.project || identity.project || ''),
+    mode: String(raw.mode || 'prod'),
+    agent: String(raw.agent || 'generic'),
+    profileTier: String(raw.profileTier || 'minimal'),
+    effectiveConfig: deepClone(raw.effectiveConfig),
+    readme: { content: readmeRaw.content, sourceRefs: readmeRefs.value },
+    configSourceRefs: configRefs.value,
+    catalog,
+    inventory
+  }
+  if (!value.project) return { error: 'baseline project is required' }
+  value.baselineDigest = stableDigest(value)
+  if (raw.baselineDigest && raw.baselineDigest !== value.baselineDigest) return { error: 'baselineDigest mismatch' }
+  return { value }
+}
+
+function profileFileFrom(raw = {}) {
+  return String(raw.file || raw.name || raw.selector || '').trim()
+}
+
+function profileSourceId(file) {
+  return `profile:${file}`
+}
+
+function collectProfileCandidates(baseline, explicitCandidates = []) {
+  const byFile = new Map()
+  const merge = (raw, origin) => {
+    const file = profileFileFrom(raw)
+    if (!safeProfileFile(file)) return
+    const prior = byFile.get(file) || { file, sourceId: profileSourceId(file) }
+    const merged = { ...prior, ...deepClone(raw), file, sourceId: profileSourceId(file) }
+    if (origin === 'catalog') merged.cataloged = true
+    if (origin === 'inventory') merged.inventoried = true
+    if (raw.required === true || raw.requiredToExist === true) merged.requiredToExist = true
+    byFile.set(file, merged)
+  }
+  baseline.catalog.forEach(item => merge(item, 'catalog'))
+  baseline.inventory.forEach(item => merge(item, 'inventory'))
+  ;(Array.isArray(explicitCandidates) ? explicitCandidates : []).forEach(item => merge(item, 'explicit'))
+
+  const candidates = []
+  for (const raw of byFile.values()) {
+    const candidateRefs = raw.sourceRefs || (raw.path ? [raw] : [])
+    const normalizedRefs = normalizeSourceRefs(candidateRefs)
+    if (normalizedRefs.error) return { error: normalizedRefs.error }
+    const refs = normalizedRefs.value.length
+      ? normalizedRefs.value
+      : [normalizeSourceRef({
+          path: `profile://${raw.file}`,
+          layer: String(raw.sourceLayer || 'profile-metadata'),
+          exists: raw.exists === true,
+          size: raw.size,
+          mtimeMs: raw.mtimeMs
+        }).value]
+    candidates.push({
+      sourceId: String(raw.sourceId || profileSourceId(raw.file)),
+      kind: raw.file === 'config.local.json' ? 'profile-local' : 'profile',
+      selector: raw.file,
+      mandatory: false,
+      authority: String(raw.authority || (raw.cataloged ? 'profile-catalog' : 'profile-inventory')),
+      reason: String(raw.reason || 'Profile candidate discovered from bounded baseline metadata.'),
+      sourceLayer: String(raw.sourceLayer || [...new Set(refs.map(ref => ref.layer))].join('+') || 'profile'),
+      sourceRefs: refs,
+      cataloged: raw.cataloged === true,
+      inventoried: raw.inventoried === true,
+      requiredToExist: raw.requiredToExist === true,
+      standard: raw.standard === true || /^\d{2}-.+\.md$/i.test(raw.file),
+      exists: refs.some(ref => ref.exists)
+    })
+  }
+  candidates.sort((left, right) => left.selector.localeCompare(right.selector))
+  return { value: candidates }
+}
+
+function sourceDescriptor(input) {
+  return {
+    sourceId: input.sourceId,
+    kind: input.kind,
+    selector: input.selector,
+    mandatory: input.mandatory === true,
+    authority: input.authority,
+    reason: input.reason,
+    sourceLayer: input.sourceLayer,
+    sourceRefs: deepClone(input.sourceRefs)
+  }
+}
+
+function baselineSources(baseline) {
+  return [
+    sourceDescriptor({
+      sourceId: profileSourceId('README.md'),
+      kind: 'profile-baseline',
+      selector: 'README.md',
+      mandatory: true,
+      authority: 'lossless-plan-baseline',
+      reason: 'The Profile index must be delivered losslessly in the plan result.',
+      sourceLayer: [...new Set(baseline.readme.sourceRefs.map(ref => ref.layer))].join('+'),
+      sourceRefs: baseline.readme.sourceRefs
+    }),
+    sourceDescriptor({
+      sourceId: profileSourceId('config.json'),
+      kind: 'profile-baseline',
+      selector: 'config.json',
+      mandatory: true,
+      authority: 'effective-non-local-config',
+      reason: 'Effective non-local Profile configuration is part of the lossless baseline.',
+      sourceLayer: [...new Set(baseline.configSourceRefs.map(ref => ref.layer))].join('+'),
+      sourceRefs: baseline.configSourceRefs
+    })
+  ]
+}
+
+function memorySource(toolName, project) {
+  const ref = normalizeSourceRef({
+    path: `memory://${project}/${toolName}`,
+    layer: 'memory-query',
+    exists: true,
+    size: null,
+    mtimeMs: null
+  }).value
+  return sourceDescriptor({
+    sourceId: `memory:${toolName}`,
+    kind: 'memory',
+    selector: toolName,
+    mandatory: true,
+    authority: 'bounded-memory-query',
+    reason: toolName === 'memory_status'
+      ? 'Compact task continuity metadata is required for every planned acquisition.'
+      : 'Resume requires an exact bounded session or handoff projection.',
+    sourceLayer: 'memory-query',
+    sourceRefs: [ref]
+  })
+}
+
+function selectProfilePrefixes(intent, changeTypes) {
+  const prefixes = new Set()
+  const add = (...values) => values.forEach(value => prefixes.add(value))
+  for (const changeType of changeTypes) {
+    if (changeType === 'project-info') add('01-')
+    if (changeType === 'architecture' || changeType === 'source-code') add('02-')
+    if (changeType === 'code-style') add('03-')
+    if (changeType === 'testing') add('04-')
+    if (changeType === 'feature-state') add('06-')
+    if (changeType === 'config') add('01-', '02-')
+    if (changeType === 'docs') add('01-', '02-', '03-', '07-')
+    if (changeType === 'public-contract') add('01-', '02-', '03-', '04-', '06-', '07-')
+    if (changeType === 'release') add('01-', '04-', '05-', '06-', '07-')
+  }
+  if (['dev', 'fix', 'self-fix', 'other'].includes(intent) &&
+      changeTypes.some(item => ['project-info', 'architecture', 'code-style', 'source-code', 'config'].includes(item))) {
+    add('01-', '02-', '03-')
+  }
+  if (changeTypes.includes('release') && changeTypes.some(item => ['architecture', 'code-style', 'source-code'].includes(item))) {
+    add('02-', '03-')
+  }
+  return prefixes
+}
+
+function deriveActionEnvelope(intent, changeTypes, riskHint) {
+  const allowed = new Set(['context-read', 'analysis-read'])
+  if (intent !== 'chat') allowed.add('test-execution')
+  const mutationIntent = ['dev', 'fix', 'self-fix', 'other'].includes(intent)
+  const docsMutation = mutationIntent && changeTypes.some(item => ['docs', 'public-contract'].includes(item))
+  const sourceMutation = mutationIntent &&
+    changeTypes.some(item => !['docs'].includes(item))
+  if (docsMutation) allowed.add('docs-mutation')
+  if (sourceMutation) allowed.add('source-mutation')
+  if (changeTypes.includes('release')) allowed.add('release')
+  if (changeTypes.includes('destructive')) allowed.add('dangerous')
+  return {
+    allowedActionClasses: [...allowed].sort(),
+    mutationExpected: allowed.has('docs-mutation') || allowed.has('source-mutation') || allowed.has('release') || allowed.has('dangerous'),
+    riskCeiling: riskHint
+  }
+}
+
+function buildContextReadPlan(input = {}, options = {}) {
+  const seed = normalizeIntentSeed(input.intentSeed || input.seed || input, options)
+  if (seed.schemaVersion === CONTEXT_READ_CONTRACT.schemas.error) return seed
+  const identityInput = input.identity && typeof input.identity === 'object' ? input.identity : {}
+  const activeRoot = normalizePath(identityInput.activeRoot || input.activeRoot)
+  const project = String(identityInput.project || input.project || seed.targetHint || '').trim()
+  const host = String(identityInput.host || input.host || 'standalone').trim()
+  const finalIntent = String(identityInput.finalIntent || input.finalIntent || seed.semantic).trim()
+  if (!activeRoot || !project || !INTENTS.has(finalIntent)) {
+    return buildContextReadError('CONTEXT_ACTIVE_TARGET_MISMATCH', 'A unique activeRoot, project, and finalIntent are required.', 'Resolve the active target before planning.')
+  }
+  const changeTypes = uniqueSorted(input.changeTypes, CHANGE_TYPES)
+  const suppliedChangeTypes = Array.isArray(input.changeTypes) ? input.changeTypes.map(String) : []
+  if (changeTypes.length !== new Set(suppliedChangeTypes).size || suppliedChangeTypes.some(item => !CHANGE_TYPES.has(item))) {
+    return buildContextReadError('CONTEXT_PLAN_INVALID', 'changeTypes contains an unsupported or duplicate value.', 'Use stable ContextReadPlanV1 change types.')
+  }
+  const lowConfidence = seed.confidence < 0.6
+  if (!changeTypes.length && !['chat', 'resume'].includes(finalIntent) && !input.explicitFull && !lowConfidence) {
+    return buildContextReadError('CONTEXT_CHANGE_TYPES_REQUIRED', 'High-confidence non-chat work requires changeTypes or explicitFull.', 'Provide precise changeTypes or an explicit full-read reason.')
+  }
+  if (input.explicitFull === true && !String(input.fullReadReason || '').trim()) {
+    return buildContextReadError('CONTEXT_FULL_REASON_REQUIRED', 'Explicit full Profile reads require a reason.', 'Provide fullReadReason.')
+  }
+
+  const baselineResult = normalizeBaselineContext(input.baselineContext, { project })
+  if (baselineResult.error) {
+    const stale = /Digest mismatch/i.test(baselineResult.error)
+    return buildContextReadError(
+      stale ? 'CONTEXT_BASELINE_STALE' : 'CONTEXT_PLAN_INVALID',
+      baselineResult.error,
+      'Rebuild and deliver the complete Profile baseline.'
+    )
+  }
+  const baseline = baselineResult.value
+  if (baseline.project !== project) {
+    return buildContextReadError('CONTEXT_ACTIVE_TARGET_MISMATCH', 'Baseline project does not match the active target.', 'Resolve the active project before planning.')
+  }
+  const candidatesResult = collectProfileCandidates(baseline, input.candidates || input.sources)
+  if (candidatesResult.error) {
+    return buildContextReadError('CONTEXT_PLAN_INVALID', candidatesResult.error, 'Correct Profile source metadata.')
+  }
+  const candidates = candidatesResult.value
+  const selectors = Array.isArray(input.profileSelectors) ? input.profileSelectors : []
+  if (selectors.length && input.baselineDigest !== baseline.baselineDigest) {
+    return buildContextReadError('CONTEXT_BASELINE_STALE', 'profileSelectors were based on a stale or missing baselineDigest.', 'Refresh the baseline and retry the conditional plan once.')
+  }
+  const selectorByFile = new Map()
+  for (const selector of selectors) {
+    const file = profileFileFrom(selector)
+    if (!safeProfileFile(file) || !String(selector.reason || '').trim() || !String(selector.authority || '').trim()) {
+      return buildContextReadError('CONTEXT_PLAN_INVALID', 'Each profileSelector needs a safe file, reason, and authority.', 'Correct the conditional selector.')
+    }
+    if (!candidates.some(candidate => candidate.selector === file)) {
+      return buildContextReadError('CONTEXT_PLAN_INVALID', `Unknown profileSelector: ${file}.`, 'Select only a catalog or inventory candidate.')
+    }
+    if (file === 'config.local.json' && input.configLocalRequested !== true) {
+      return buildContextReadError('CONTEXT_PLAN_INVALID', 'config.local.json requires explicit user or project policy.', 'Set configLocalRequested only when that policy exists.')
+    }
+    selectorByFile.set(file, selector)
+  }
+
+  const triggerSet = new Set(uniqueSorted(input.escalationTriggers, new Set(CONTEXT_READ_CONTRACT.escalationTriggers)))
+  if (input.explicitFull === true || finalIntent === 'audit') triggerSet.add('explicit-full')
+  if (lowConfidence) triggerSet.add('low-confidence')
+  if (input.crossService === true) triggerSet.add('cross-service')
+  if (changeTypes.includes('public-contract')) triggerSet.add('public-contract')
+  for (const trigger of ['release', 'security', 'destructive']) {
+    if (changeTypes.includes(trigger)) triggerSet.add(trigger)
+  }
+  const fullRead = input.explicitFull === true || finalIntent === 'audit' || lowConfidence || input.crossService === true ||
+    changeTypes.some(item => ['release', 'security', 'destructive'].includes(item))
+  const automaticFullReason = input.explicitFull === true
+    ? String(input.fullReadReason).trim()
+    : finalIntent === 'audit'
+      ? 'audit-intent'
+      : lowConfidence
+        ? 'low-confidence'
+        : input.crossService === true
+          ? 'cross-service'
+          : changeTypes.find(item => ['release', 'security', 'destructive'].includes(item)) || null
+
+  const selectedFiles = new Set()
+  const prefixes = selectProfilePrefixes(finalIntent, changeTypes)
+  for (const candidate of candidates) {
+    if (candidate.selector === 'README.md' || candidate.selector === 'config.json') continue
+    if (candidate.selector === 'config.local.json') {
+      if (input.configLocalRequested === true && (fullRead || selectorByFile.has(candidate.selector) || changeTypes.includes('config'))) {
+        selectedFiles.add(candidate.selector)
+      }
+      continue
+    }
+    if (selectorByFile.has(candidate.selector)) selectedFiles.add(candidate.selector)
+    if (candidate.cataloged && fullRead && candidate.standard) selectedFiles.add(candidate.selector)
+    if (candidate.cataloged && [...prefixes].some(prefix => candidate.selector.startsWith(prefix))) selectedFiles.add(candidate.selector)
+  }
+
+  const baselineSelected = baselineSources(baseline)
+  const selectedSources = [...baselineSelected]
+  for (const candidate of candidates) {
+    if (!selectedFiles.has(candidate.selector)) continue
+    const selector = selectorByFile.get(candidate.selector)
+    selectedSources.push(sourceDescriptor({
+      ...candidate,
+      mandatory: true,
+      authority: selector ? String(selector.authority).trim() : candidate.authority,
+      reason: selector ? String(selector.reason).trim() : `Required by ${finalIntent}/${changeTypes.join('+') || 'full-read'} context.`
+    }))
+  }
+  selectedSources.push(memorySource('memory_status', project))
+  if (finalIntent === 'resume') selectedSources.push(memorySource('memory_session_query', project))
+  selectedSources.sort((left, right) => left.sourceId.localeCompare(right.sourceId))
+
+  const selectedIds = new Set(selectedSources.map(source => source.sourceId))
+  const unclassifiedIds = []
+  const excludedSources = []
+  for (const candidate of candidates) {
+    if (selectedIds.has(candidate.sourceId)) continue
+    const uncataloguedMarkdown = candidate.selector.toLowerCase().endsWith('.md') && !candidate.cataloged
+    if (uncataloguedMarkdown) {
+      unclassifiedIds.push(candidate.sourceId)
+      continue
+    }
+    let skipReason = `The ${finalIntent}/${changeTypes.join('+') || 'baseline-only'} plan does not require ${candidate.selector} content.`
+    if (candidate.selector === 'config.local.json') skipReason = 'No explicit user or project policy requested config.local.json content.'
+    else if (candidate.standard) skipReason = `No matching changeType or profileSelector requires ${candidate.selector}.`
+    else if (!candidate.selector.toLowerCase().endsWith('.md')) skipReason = `${candidate.selector} is metadata-only for this context plan.`
+    excludedSources.push({ sourceId: candidate.sourceId, selector: candidate.selector, skipReason })
+  }
+  if (unclassifiedIds.length) triggerSet.add('profile-catalog-drift')
+
+  const existenceSources = candidates
+    .filter(candidate => candidate.requiredToExist)
+    .map(candidate => ({
+      sourceId: candidate.sourceId,
+      selector: candidate.selector,
+      required: true,
+      exists: candidate.exists,
+      metadataDigests: candidate.sourceRefs.map(ref => ref.metadataDigest)
+    }))
+    .sort((left, right) => left.sourceId.localeCompare(right.sourceId))
+  const missingRequired = existenceSources.filter(source => !source.exists)
+  if (missingRequired.length) triggerSet.add('missing-reference')
+
+  const candidateIds = candidates.map(candidate => candidate.sourceId).sort()
+  const coverageSelected = candidateIds.filter(sourceId => selectedIds.has(sourceId))
+  const coverageExcluded = excludedSources.map(source => source.sourceId).sort()
+  const blocked = missingRequired.length > 0 || unclassifiedIds.length > 0
+  const planningMeasure = measureContextPayload({ seed, activeRoot, project, changeTypes, baselineDigest: baseline.baselineDigest }, {
+    latencyMs: input.planningTelemetry?.latencyMs,
+    tokens: input.planningTelemetry?.inputTokens
+  })
+  const plan = {
+    schemaVersion: CONTEXT_READ_CONTRACT.schemas.plan,
+    planId: '',
+    identity: {
+      contextEpoch: seed.contextEpoch,
+      activeRoot,
+      project,
+      host,
+      intentSeed: seed,
+      finalIntent
+    },
+    baselineContext: baseline,
+    actionEnvelope: deriveActionEnvelope(finalIntent, changeTypes, seed.riskHint),
+    changeTypes,
+    selectedSources,
+    mandatorySourceIds: selectedSources.filter(source => source.mandatory).map(source => source.sourceId).sort(),
+    excludedSources: excludedSources.sort((left, right) => left.sourceId.localeCompare(right.sourceId)),
+    catalogCoverage: {
+      selectedIds: coverageSelected,
+      excludedIds: coverageExcluded,
+      unclassifiedIds: unclassifiedIds.sort()
+    },
+    existenceSources,
+    freshness: {
+      strategy: 'size+mtimeMs+metadataDigest',
+      reuse: false,
+      invalidators: ['active-root', 'baseline-digest', 'profile-metadata', 'scope', 'risk']
+    },
+    budget: {
+      bytes: finiteOrNull(input.budget?.bytes),
+      chars: finiteOrNull(input.budget?.chars),
+      tokens: finiteOrNull(input.budget?.tokens),
+      latencyMs: finiteOrNull(input.budget?.latencyMs),
+      advisory: true
+    },
+    escalationTriggers: uniqueSorted(CONTEXT_READ_CONTRACT.escalationTriggers),
+    triggeredEscalations: [...triggerSet].sort(),
+    exitCondition: blocked ? 'blocked' : (fullRead ? 'escalated-full' : 'relevant-complete'),
+    profile: {
+      selectedFiles: [...selectedFiles].sort(),
+      configLocalRequested: input.configLocalRequested === true
+    },
+    memory: {
+      requiredQueries: selectedSources.filter(source => source.kind === 'memory').map(source => source.selector).sort()
+    },
+    fullRead,
+    fullReadReason: fullRead ? automaticFullReason : null,
+    planningTelemetry: {
+      bytes: planningMeasure.bytes,
+      chars: planningMeasure.chars,
+      latencyMs: planningMeasure.latencyMs,
+      inputTokens: planningMeasure.tokens
+    }
+  }
+  const identityForDigest = { ...plan, planId: undefined, planningTelemetry: undefined }
+  plan.planId = `plan-${stableDigest(identityForDigest).slice(0, 24)}`
+  const validation = validateContextReadPlan(plan)
+  return validation.valid ? plan : validation.error
+}
+
+function validateContextReadPlan(raw) {
+  const errors = []
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) errors.push('plan must be an object')
+  if (errors.length) return { valid: false, errors, error: buildContextReadError('CONTEXT_PLAN_INVALID', errors[0]) }
+  if (raw.schemaVersion !== CONTEXT_READ_CONTRACT.schemas.plan) errors.push('invalid plan discriminator')
+  const unknown = Object.keys(raw).filter(key => !PLAN_FIELDS.has(key))
+  if (unknown.length) errors.push(`unsupported plan fields: ${unknown.join(', ')}`)
+  for (const foreign of ['observations', 'completedAt', 'consumedAt', 'satisfiedSourceIds', 'missingSourceIds']) {
+    if (Object.prototype.hasOwnProperty.call(raw, foreign)) errors.push(`receipt-only field present: ${foreign}`)
+  }
+  const identity = raw.identity && typeof raw.identity === 'object' ? raw.identity : {}
+  const seed = normalizeIntentSeed(identity.intentSeed || {})
+  if (seed.schemaVersion === CONTEXT_READ_CONTRACT.schemas.error || stableDigest(seed) !== stableDigest(identity.intentSeed)) {
+    errors.push('identity.intentSeed is invalid or non-canonical')
+  }
+  if (!identity.contextEpoch || identity.contextEpoch !== identity.intentSeed?.contextEpoch) errors.push('identity epoch mismatch')
+  if (!normalizePath(identity.activeRoot) || !String(identity.project || '').trim() ||
+      !String(identity.host || '').trim() || !INTENTS.has(identity.finalIntent)) {
+    errors.push('identity target is incomplete')
+  }
+  const baselineResult = normalizeBaselineContext(raw.baselineContext, { project: identity.project })
+  if (baselineResult.error) errors.push(`invalid baselineContext: ${baselineResult.error}`)
+  else if (stableDigest(baselineResult.value) !== stableDigest(raw.baselineContext)) errors.push('baselineContext is non-canonical')
+  if (raw.baselineContext?.project !== identity.project) errors.push('baseline project does not match plan identity')
+
+  const changeTypes = uniqueSorted(raw.changeTypes, CHANGE_TYPES)
+  if (!Array.isArray(raw.changeTypes) || stableDigest(changeTypes) !== stableDigest(raw.changeTypes)) errors.push('changeTypes must be sorted, unique, and valid')
+  if (identity.intentSeed?.confidence >= 0.6 && !['chat', 'resume'].includes(identity.finalIntent) && !changeTypes.length && raw.fullRead !== true) {
+    errors.push('high-confidence non-chat plan lacks changeTypes')
+  }
+  const envelope = raw.actionEnvelope && typeof raw.actionEnvelope === 'object' ? raw.actionEnvelope : {}
+  const allowedActions = uniqueSorted(envelope.allowedActionClasses, ACTION_CLASSES)
+  if (!allowedActions.length || stableDigest(allowedActions) !== stableDigest(envelope.allowedActionClasses)) errors.push('invalid actionEnvelope actions')
+  if (typeof envelope.mutationExpected !== 'boolean' || !RISKS.has(envelope.riskCeiling)) errors.push('invalid actionEnvelope metadata')
+  const expectedEnvelope = deriveActionEnvelope(identity.finalIntent, changeTypes, identity.intentSeed?.riskHint)
+  if (stableDigest(expectedEnvelope) !== stableDigest(envelope)) errors.push('actionEnvelope is not derived from intent scope')
+
+  const selected = Array.isArray(raw.selectedSources) ? raw.selectedSources : []
+  if (!selected.length) errors.push('selectedSources must be non-empty')
+  const selectedIdSet = new Set()
+  for (const source of selected) {
+    if (!source || typeof source !== 'object') {
+      errors.push('selected source must be an object')
+      continue
+    }
+    if (!source.sourceId || selectedIdSet.has(source.sourceId)) errors.push(`duplicate or missing selected sourceId: ${source.sourceId || '<empty>'}`)
+    selectedIdSet.add(source.sourceId)
+    if (!source.kind || !source.selector || typeof source.mandatory !== 'boolean' || !source.authority || !source.reason || !source.sourceLayer) {
+      errors.push(`selected source fields incomplete: ${source.sourceId || '<empty>'}`)
+    }
+    const refs = normalizeSourceRefs(source.sourceRefs)
+    if (refs.error || !refs.value?.length || stableDigest(refs.value) !== stableDigest(source.sourceRefs)) {
+      errors.push(`selected source refs invalid: ${source.sourceId || '<empty>'}`)
+    }
+    if (source.kind.startsWith('profile') && !safeProfileFile(source.selector)) errors.push(`unsafe Profile selector: ${source.selector}`)
+  }
+  const derivedMandatory = selected.filter(source => source?.mandatory === true).map(source => source.sourceId).sort()
+  if (!derivedMandatory.length || stableDigest(derivedMandatory) !== stableDigest(raw.mandatorySourceIds)) {
+    errors.push('mandatorySourceIds is not derived from selectedSources')
+  }
+  for (const requiredBaseline of [profileSourceId('README.md'), profileSourceId('config.json')]) {
+    const source = selected.find(item => item.sourceId === requiredBaseline)
+    if (!source || source.kind !== 'profile-baseline' || source.mandatory !== true) errors.push(`missing lossless baseline source: ${requiredBaseline}`)
+  }
+
+  const excluded = Array.isArray(raw.excludedSources) ? raw.excludedSources : []
+  const excludedIds = []
+  for (const source of excluded) {
+    const reason = String(source?.skipReason || '').trim()
+    if (!source?.sourceId || !source.selector || !reason || /^(not needed|暂不需要)$/i.test(reason)) errors.push('excluded source requires an independent skipReason')
+    excludedIds.push(source?.sourceId)
+  }
+  if (new Set(excludedIds).size !== excludedIds.length) errors.push('duplicate excluded sourceId')
+  const coverage = raw.catalogCoverage && typeof raw.catalogCoverage === 'object' ? raw.catalogCoverage : {}
+  const coverageSelected = uniqueSorted(coverage.selectedIds)
+  const coverageExcluded = uniqueSorted(coverage.excludedIds)
+  const coverageUnclassified = uniqueSorted(coverage.unclassifiedIds)
+  if ([...coverageSelected, ...coverageExcluded, ...coverageUnclassified].length !==
+      new Set([...coverageSelected, ...coverageExcluded, ...coverageUnclassified]).size) {
+    errors.push('catalog coverage classes overlap')
+  }
+  if (coverageSelected.some(id => !selectedIdSet.has(id))) errors.push('catalog selectedIds is not selected')
+  if (stableDigest(coverageExcluded) !== stableDigest(uniqueSorted(excludedIds))) errors.push('catalog excludedIds mismatch')
+  const universe = []
+  for (const entry of [...(raw.baselineContext?.catalog || []), ...(raw.baselineContext?.inventory || [])]) {
+    const file = profileFileFrom(entry)
+    if (!safeProfileFile(file)) errors.push(`unsafe baseline candidate: ${file || '<empty>'}`)
+    else universe.push(profileSourceId(file))
+  }
+  const coverageUnion = uniqueSorted([...coverageSelected, ...coverageExcluded, ...coverageUnclassified])
+  if (stableDigest(coverageUnion) !== stableDigest(uniqueSorted(universe))) errors.push('catalog coverage does not partition the baseline candidate universe')
+  if (coverageUnclassified.length && raw.exitCondition !== 'blocked') errors.push('unclassified Profile candidates require a blocked plan')
+
+  if (!['relevant-complete', 'escalated-full', 'blocked'].includes(raw.exitCondition)) errors.push('invalid exitCondition')
+  if (raw.fullRead === true && !String(raw.fullReadReason || '').trim()) errors.push('fullReadReason is required')
+  if (raw.fullRead !== true && raw.fullReadReason !== null) errors.push('targeted plan must not carry fullReadReason')
+  if (raw.fullRead === true && raw.exitCondition === 'relevant-complete') errors.push('full plan must use escalated-full or blocked exit')
+  if (raw.fullRead !== true && raw.exitCondition === 'escalated-full') errors.push('targeted plan cannot use escalated-full exit')
+  const selectedProfileFiles = selected
+    .filter(source => ['profile', 'profile-local'].includes(source.kind))
+    .map(source => source.selector)
+    .sort()
+  if (stableDigest(selectedProfileFiles) !== stableDigest(raw.profile?.selectedFiles)) errors.push('profile.selectedFiles mismatch')
+  if (typeof raw.profile?.configLocalRequested !== 'boolean') errors.push('profile configLocalRequested is required')
+  if (selectedProfileFiles.includes('config.local.json') && raw.profile?.configLocalRequested !== true) errors.push('config.local.json selected without policy')
+  const memoryQueries = selected.filter(source => source.kind === 'memory').map(source => source.selector).sort()
+  if (stableDigest(memoryQueries) !== stableDigest(raw.memory?.requiredQueries)) errors.push('memory.requiredQueries mismatch')
+  if (raw.freshness?.strategy !== 'size+mtimeMs+metadataDigest' || raw.freshness?.reuse !== false) errors.push('invalid freshness contract')
+  if (!raw.budget || raw.budget.advisory !== true) errors.push('budget must be advisory')
+  if (!raw.planningTelemetry || !Number.isFinite(raw.planningTelemetry.bytes) || !Number.isFinite(raw.planningTelemetry.chars)) {
+    errors.push('planningTelemetry bytes/chars are required')
+  }
+  const escalationTriggers = uniqueSorted(raw.escalationTriggers, new Set(CONTEXT_READ_CONTRACT.escalationTriggers))
+  const triggeredEscalations = uniqueSorted(raw.triggeredEscalations, new Set(CONTEXT_READ_CONTRACT.escalationTriggers))
+  if (stableDigest(escalationTriggers) !== stableDigest(raw.escalationTriggers) ||
+      stableDigest(triggeredEscalations) !== stableDigest(raw.triggeredEscalations)) {
+    errors.push('escalation trigger arrays must be sorted, unique, and valid')
+  }
+  const expectedPlanId = `plan-${stableDigest({ ...raw, planId: undefined, planningTelemetry: undefined }).slice(0, 24)}`
+  if (raw.planId !== expectedPlanId) errors.push('planId digest mismatch')
+  return errors.length
+    ? { valid: false, errors, error: buildContextReadError('CONTEXT_PLAN_INVALID', errors.join('; '), 'Rebuild the plan from authoritative baseline inputs.') }
+    : { valid: true, errors: [], value: raw }
+}
+
+function outcomePayload(raw, path = 'root', depth = 0) {
+  if (depth > 8 || raw === null || raw === undefined) return { payload: null, variant: path, observable: false }
+  if (typeof raw === 'string') return { payload: raw, variant: path, observable: true }
+  if (Array.isArray(raw)) {
+    const texts = raw.filter(item => item && typeof item.text === 'string').map(item => item.text)
+    return texts.length
+      ? { payload: texts.join('\n'), variant: `${path}.content`, observable: true }
+      : { payload: raw, variant: path, observable: raw.length > 0 }
+  }
+  if (typeof raw !== 'object') return { payload: raw, variant: path, observable: true }
+  const localFailed = raw.success === false || raw.is_error === true || raw.isError === true || !!raw.error
+  const localError = localFailed ? String(raw.error?.message || raw.error || 'tool outcome failed') : null
+  if (raw.schemaVersion === CONTEXT_READ_CONTRACT.schemas.plan || /^Memory.+V1$/.test(String(raw.schemaVersion || ''))) {
+    return { payload: raw, variant: path, observable: true, failed: localFailed, error: localError }
+  }
+  for (const key of ['tool_response', 'toolResponse', 'tool_result', 'toolResult', 'result', 'output', 'structuredContent']) {
+    if (raw[key] !== undefined && raw[key] !== null) {
+      const nested = outcomePayload(raw[key], `${path}.${key}`, depth + 1)
+      return { ...nested, failed: localFailed || nested.failed === true, error: localError || nested.error || null }
+    }
+  }
+  if (Array.isArray(raw.content)) {
+    const nested = outcomePayload(raw.content, `${path}.content`, depth + 1)
+    return { ...nested, failed: localFailed || nested.failed === true, error: localError || nested.error || null }
+  }
+  if (typeof raw.text === 'string') return { payload: raw.text, variant: `${path}.text`, observable: true, failed: localFailed, error: localError }
+  if (depth > 0) return { payload: raw, variant: path, observable: true, failed: localFailed, error: localError }
+  return { payload: null, variant: path, observable: false, failed: localFailed, error: localError }
+}
+
+function normalizeContextToolOutcome(raw = {}) {
+  const extracted = outcomePayload(raw)
+  const source = raw && typeof raw === 'object' ? raw : {}
+  const failed = source.success === false || source.is_error === true || source.isError === true || !!source.error || extracted.failed === true
+  let serialized = ''
+  if (extracted.observable) {
+    try {
+      serialized = typeof extracted.payload === 'string' ? extracted.payload : JSON.stringify(extracted.payload)
+    } catch {
+      serialized = ''
+    }
+  }
+  const telemetry = measureContextPayload(serialized, {
+    latencyMs: source.latencyMs ?? source.telemetry?.latencyMs,
+    tokens: source.tokens ?? source.telemetry?.tokens
+  })
+  return {
+    success: !failed,
+    transportSuccess: !failed && extracted.observable,
+    observable: extracted.observable,
+    variant: extracted.variant,
+    payload: extracted.payload,
+    text: typeof extracted.payload === 'string' ? extracted.payload : serialized,
+    resultDigest: extracted.observable ? stableDigest(extracted.payload) : null,
+    error: failed ? String(source.error?.message || source.error || extracted.error || 'tool outcome failed') : null,
+    telemetry
+  }
+}
+
+function parseExactJson(value) {
+  if (value && typeof value === 'object' && !Array.isArray(value)) return value
+  if (typeof value !== 'string') return null
+  let text = value.trim()
+  const fenced = text.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i)
+  if (fenced) text = fenced[1].trim()
+  try {
+    const parsed = JSON.parse(text)
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null
+  } catch {
+    return null
+  }
+}
+
+function extractContextPlanBody(raw) {
+  const outcome = normalizeContextToolOutcome(raw)
+  if (!outcome.transportSuccess) {
+    return {
+      plan: null,
+      outcome,
+      error: buildContextReadError('CONTEXT_PLAN_INVALID', 'Tool result does not contain an observable successful plan body.', 'Use an observable structured plan result.')
+    }
+  }
+  const plan = parseExactJson(outcome.payload)
+  const validation = validateContextReadPlan(plan)
+  return validation.valid
+    ? { plan, outcome, error: null }
+    : { plan: null, outcome, error: validation.error }
+}
+
+function extractContextSourceEvidence(plan, rawOutcome, options = {}) {
+  const planValidation = validateContextReadPlan(plan)
+  const outcome = normalizeContextToolOutcome(rawOutcome)
+  if (!planValidation.valid) return { outcome, evidence: [], error: planValidation.error }
+  if (!outcome.transportSuccess) {
+    return { outcome, evidence: [], error: buildContextReadError('CONTEXT_PLAN_INVALID', 'Source outcome is not observable and successful.', 'Record an unverified outcome without satisfying sources.') }
+  }
+  let sourceResults = Array.isArray(options.sourceResults) ? options.sourceResults : null
+  if (!sourceResults && outcome.payload && typeof outcome.payload === 'object') {
+    sourceResults = Array.isArray(outcome.payload.sourceResults)
+      ? outcome.payload.sourceResults
+      : (Array.isArray(outcome.payload.evidence) ? outcome.payload.evidence : null)
+  }
+  if (!sourceResults && options.sourceId) sourceResults = [{ sourceId: options.sourceId, ...options }]
+  if (options.toolName === 'profile_context_plan') {
+    const extracted = extractContextPlanBody(rawOutcome)
+    if (extracted.plan && extracted.plan.planId === plan.planId) {
+      sourceResults = plan.selectedSources
+        .filter(source => source.kind === 'profile-baseline')
+        .map(source => ({
+          sourceId: source.sourceId,
+          outcome: 'baseline-ready',
+          successful: true,
+          sourceLayer: source.sourceLayer,
+          sourceRefsMatch: true,
+          schemaMatch: true,
+          targetMatch: true
+        }))
+    } else {
+      return { outcome, evidence: [], error: extracted.error || buildContextReadError('CONTEXT_PLAN_INVALID', 'Observed plan identity mismatch.') }
+    }
+  }
+  const evidence = []
+  for (const raw of sourceResults || []) {
+    const selected = plan.selectedSources.find(source => source.sourceId === raw.sourceId)
+    if (!selected) continue
+    const isMemory = selected.kind === 'memory'
+    evidence.push({
+      observationId: String(raw.observationId || options.observationId || ''),
+      toolCallId: String(raw.toolCallId || options.toolCallId || ''),
+      sourceId: selected.sourceId,
+      sourceKind: selected.kind,
+      contextEpoch: String(raw.contextEpoch || options.contextEpoch || ''),
+      planId: String(raw.planId || options.planId || ''),
+      activeRoot: normalizePath(raw.activeRoot || options.activeRoot || ''),
+      sourceLayer: String(raw.sourceLayer || options.sourceLayer || ''),
+      outcome: String(raw.outcome || (raw.successful === false ? 'failed' : 'observed-success')),
+      successful: raw.successful !== false,
+      observable: raw.observable !== false && outcome.observable,
+      transportSuccess: raw.transportSuccess !== false && outcome.transportSuccess,
+      sourceRefsMatch: raw.sourceRefsMatch === true,
+      schemaMatch: isMemory ? raw.schemaMatch === true : raw.schemaMatch !== false,
+      targetMatch: isMemory ? raw.targetMatch === true : raw.targetMatch !== false,
+      resultDigest: outcome.resultDigest,
+      bytes: finiteOrNull(raw.bytes ?? outcome.telemetry.bytes),
+      chars: finiteOrNull(raw.chars ?? outcome.telemetry.chars),
+      latencyMs: finiteOrNull(raw.latencyMs ?? outcome.telemetry.latencyMs),
+      tokens: finiteOrNull(raw.tokens ?? outcome.telemetry.tokens),
+      cache: raw.cache === true
+    })
+  }
+  return { outcome, evidence, error: null }
+}
+
+function observationSuccessful(observation) {
+  return !!observation && observation.correlationValid !== false && observation.successful === true &&
+    observation.observable === true && observation.transportSuccess === true && observation.activeRootMatch === true &&
+    observation.sourceRefsMatch === true && observation.schemaMatch !== false && observation.targetMatch !== false &&
+    SUCCESS_OUTCOMES.has(observation.outcome)
+}
+
+function evidenceProjection(observations, mandatorySourceIds) {
+  const satisfied = []
+  const missing = []
+  for (const sourceId of mandatorySourceIds) {
+    const terminal = observations.filter(item => item.sourceId === sourceId && item.outcome !== 'attempted' && item.correlationValid !== false)
+    const latest = terminal[terminal.length - 1]
+    if (observationSuccessful(latest)) satisfied.push(sourceId)
+    else missing.push(sourceId)
+  }
+  return { satisfiedSourceIds: satisfied.sort(), missingSourceIds: missing.sort() }
+}
+
+function normalizeObservation(raw = {}) {
+  return {
+    observationId: String(raw.observationId || ''),
+    toolCallId: String(raw.toolCallId || ''),
+    sourceId: raw.sourceId ? String(raw.sourceId) : null,
+    sourceKind: raw.sourceKind ? String(raw.sourceKind) : null,
+    actionClass: raw.actionClass ? String(raw.actionClass) : null,
+    attemptedAt: validIso(raw.attemptedAt) ? new Date(Date.parse(raw.attemptedAt)).toISOString() : null,
+    observedAt: validIso(raw.observedAt) ? new Date(Date.parse(raw.observedAt)).toISOString() : null,
+    outcome: String(raw.outcome || 'unobservable'),
+    successful: raw.successful === true,
+    observable: raw.observable === true,
+    transportSuccess: raw.transportSuccess === true,
+    activeRootMatch: raw.activeRootMatch === true,
+    sourceLayer: raw.sourceLayer ? String(raw.sourceLayer) : null,
+    sourceRefsMatch: raw.sourceRefsMatch === true,
+    schemaMatch: raw.schemaMatch !== false,
+    targetMatch: raw.targetMatch !== false,
+    correlationValid: raw.correlationValid !== false,
+    resultDigest: raw.resultDigest ? String(raw.resultDigest) : null,
+    bytes: finiteOrNull(raw.bytes),
+    chars: finiteOrNull(raw.chars),
+    latencyMs: finiteOrNull(raw.latencyMs),
+    tokens: finiteOrNull(raw.tokens),
+    cache: raw.cache === true
+  }
+}
+
+function baseReceipt(plan, verificationMode, options = {}) {
+  const planObserved = verificationMode === 'structured-plan' && options.planObserved === true
+  const observations = planObserved
+    ? plan.selectedSources.filter(source => source.kind === 'profile-baseline').map(source => normalizeObservation({
+        observationId: `baseline-${source.sourceId}`,
+        toolCallId: String(options.toolCallId || ''),
+        sourceId: source.sourceId,
+        sourceKind: source.kind,
+        attemptedAt: nowIso(options),
+        observedAt: nowIso(options),
+        outcome: 'baseline-ready',
+        successful: true,
+        observable: true,
+        transportSuccess: true,
+        activeRootMatch: true,
+        sourceLayer: source.sourceLayer,
+        sourceRefsMatch: true,
+        schemaMatch: true,
+        targetMatch: true,
+        correlationValid: true,
+        resultDigest: stableDigest(plan.baselineContext),
+        bytes: measureContextPayload(plan.baselineContext).bytes,
+        chars: measureContextPayload(plan.baselineContext).chars
+      }))
+    : []
+  const projection = evidenceProjection(observations, plan.mandatorySourceIds)
+  return {
+    schemaVersion: CONTEXT_READ_CONTRACT.schemas.receipt,
+    receiptId: `receipt-${stableDigest({ planId: plan.planId, verificationMode }).slice(0, 24)}`,
+    contextEpoch: plan.identity.contextEpoch,
+    planId: plan.planId,
+    identity: {
+      activeRoot: plan.identity.activeRoot,
+      project: plan.identity.project,
+      host: plan.identity.host
+    },
+    verificationMode,
+    status: planObserved ? (plan.fullRead ? 'escalated-full' : 'baseline-ready') : 'unverified',
+    observations,
+    ...projection,
+    fullRead: plan.fullRead,
+    fullReadReason: plan.fullReadReason,
+    escalations: plan.triggeredEscalations.map(trigger => ({ trigger, reason: trigger, observedAt: nowIso(options), action: 'planned' })),
+    completedAt: null,
+    consumedAt: null,
+    replanCount: 0,
+    lastError: null
+  }
+}
+
+function createContextReadReceipt(plan, options = {}) {
+  const validation = validateContextReadPlan(plan)
+  if (!validation.valid) return validation.error
+  let verificationMode = String(options.verificationMode || 'instruction-only')
+  if (!VERIFICATION_MODES.has(verificationMode)) verificationMode = 'instruction-only'
+  if (verificationMode === 'structured-plan' && options.planObserved !== true) verificationMode = 'instruction-only'
+  return baseReceipt(plan, verificationMode, options)
+}
+
+function normalizeReceipt(raw, plan, options = {}) {
+  const planValidation = validateContextReadPlan(plan)
+  if (!planValidation.valid) return planValidation.error
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return createContextReadReceipt(plan, options)
+  const foreign = Object.keys(raw).filter(key => !RECEIPT_FIELDS.has(key))
+  if (foreign.length) return buildContextReadError('CONTEXT_PLAN_INVALID', `ContextReadReceiptV1 contains unsupported fields: ${foreign.join(', ')}.`)
+  if (raw.schemaVersion !== CONTEXT_READ_CONTRACT.schemas.receipt || raw.planId !== plan.planId || raw.contextEpoch !== plan.identity.contextEpoch) {
+    return buildContextReadError('CONTEXT_PLAN_INVALID', 'Receipt discriminator or plan identity mismatch.')
+  }
+  const verificationMode = VERIFICATION_MODES.has(raw.verificationMode) ? raw.verificationMode : 'instruction-only'
+  const observations = (Array.isArray(raw.observations) ? raw.observations : []).map(normalizeObservation).slice(-100)
+  const projection = evidenceProjection(observations, plan.mandatorySourceIds)
+  const staleOrBlocked = ['stale', 'blocked'].includes(raw.status)
+  const allSatisfied = projection.missingSourceIds.length === 0
+  let status = RECEIPT_STATUSES.has(raw.status) ? raw.status : 'unverified'
+  let completedAt = validIso(raw.completedAt) ? new Date(Date.parse(raw.completedAt)).toISOString() : null
+  let consumedAt = validIso(raw.consumedAt) ? new Date(Date.parse(raw.consumedAt)).toISOString() : null
+  if (!staleOrBlocked && verificationMode !== 'structured-plan') {
+    status = 'unverified'
+    completedAt = null
+    consumedAt = null
+  } else if (!staleOrBlocked && allSatisfied) {
+    status = consumedAt ? 'completed' : 'relevant-complete'
+    completedAt = completedAt || nowIso(options)
+  } else if (!staleOrBlocked && ['relevant-complete', 'completed'].includes(status)) {
+    status = plan.fullRead ? 'escalated-full' : (observations.length ? 'attempted' : 'planned')
+    completedAt = null
+    consumedAt = null
+  }
+  const effectiveProjection = staleOrBlocked
+    ? { satisfiedSourceIds: [], missingSourceIds: [...plan.mandatorySourceIds] }
+    : projection
+  return {
+    schemaVersion: CONTEXT_READ_CONTRACT.schemas.receipt,
+    receiptId: String(raw.receiptId || `receipt-${stableDigest({ planId: plan.planId, verificationMode }).slice(0, 24)}`),
+    contextEpoch: plan.identity.contextEpoch,
+    planId: plan.planId,
+    identity: { activeRoot: plan.identity.activeRoot, project: plan.identity.project, host: plan.identity.host },
+    verificationMode,
+    status,
+    observations,
+    ...effectiveProjection,
+    fullRead: plan.fullRead,
+    fullReadReason: plan.fullReadReason,
+    escalations: Array.isArray(raw.escalations) ? deepClone(raw.escalations).slice(-20) : [],
+    completedAt,
+    consumedAt,
+    replanCount: Math.max(0, Number.parseInt(raw.replanCount, 10) || 0),
+    lastError: raw.lastError && typeof raw.lastError === 'object' ? deepClone(raw.lastError) : null
+  }
+}
+
+function markContextReadReceiptStale(receipt, plan, reason = 'scope-drift', options = {}) {
+  const normalized = normalizeReceipt(receipt, plan, options)
+  if (normalized.schemaVersion === CONTEXT_READ_CONTRACT.schemas.error) return normalized
+  if (normalized.status === 'stale') return normalized
+  const observedAt = nowIso(options)
+  return {
+    ...normalized,
+    status: 'stale',
+    satisfiedSourceIds: [],
+    missingSourceIds: [...plan.mandatorySourceIds],
+    escalations: [...normalized.escalations, {
+      trigger: CONTEXT_READ_CONTRACT.escalationTriggers.includes(reason) ? reason : 'scope-drift',
+      reason: String(reason || 'scope-drift'),
+      observedAt,
+      action: 'replan-required'
+    }].slice(-20),
+    completedAt: null,
+    consumedAt: null,
+    replanCount: normalized.replanCount + 1,
+    lastError: buildContextReadError('CONTEXT_PLAN_INVALID', `Context receipt is stale: ${reason}.`, 'Replan once before the broader action.')
+  }
+}
+
+function recordContextReadAttempt(receipt, plan, attempt = {}, options = {}) {
+  const normalized = normalizeReceipt(receipt, plan, options)
+  if (normalized.schemaVersion === CONTEXT_READ_CONTRACT.schemas.error) return normalized
+  if (['stale', 'blocked'].includes(normalized.status)) return normalized
+  const actionClass = String(attempt.actionClass || '').trim()
+  const activeRoot = normalizePath(attempt.activeRoot || plan.identity.activeRoot)
+  const riskHint = String(attempt.riskHint || plan.identity.intentSeed.riskHint)
+  const requestedSourceIds = uniqueSorted(attempt.sourceIds)
+  const incompatible = !ACTION_CLASSES.has(actionClass) ||
+    !plan.actionEnvelope.allowedActionClasses.includes(actionClass) ||
+    activeRoot !== plan.identity.activeRoot ||
+    !RISKS.has(riskHint) || RISK_RANK[riskHint] > RISK_RANK[plan.actionEnvelope.riskCeiling] ||
+    requestedSourceIds.some(sourceId => !plan.selectedSources.some(source => source.sourceId === sourceId))
+  if (incompatible) return markContextReadReceiptStale(normalized, plan, 'scope-drift', options)
+  const attemptedAt = nowIso(options)
+  const targets = requestedSourceIds.length ? requestedSourceIds : [null]
+  const observations = [...normalized.observations]
+  for (const sourceId of targets) {
+    const selected = plan.selectedSources.find(source => source.sourceId === sourceId)
+    const observation = normalizeObservation({
+      observationId: `attempt-${stableDigest({
+        toolCallId: attempt.toolCallId,
+        sourceId,
+        actionClass,
+        contextEpoch: plan.identity.contextEpoch
+      }).slice(0, 20)}`,
+      toolCallId: attempt.toolCallId,
+      sourceId,
+      sourceKind: selected?.kind,
+      actionClass,
+      attemptedAt,
+      outcome: 'attempted',
+      activeRootMatch: activeRoot === plan.identity.activeRoot,
+      sourceLayer: selected?.sourceLayer,
+      correlationValid: true
+    })
+    if (!observations.some(item => item.observationId === observation.observationId)) observations.push(observation)
+  }
+  return {
+    ...normalized,
+    status: plan.fullRead ? 'escalated-full' : 'attempted',
+    observations: observations.slice(-100),
+    completedAt: null,
+    consumedAt: null
+  }
+}
+
+function observationSemanticDigest(observation) {
+  return stableDigest({
+    toolCallId: observation.toolCallId,
+    sourceId: observation.sourceId,
+    sourceKind: observation.sourceKind,
+    outcome: observation.outcome,
+    successful: observation.successful,
+    observable: observation.observable,
+    transportSuccess: observation.transportSuccess,
+    activeRootMatch: observation.activeRootMatch,
+    sourceLayer: observation.sourceLayer,
+    sourceRefsMatch: observation.sourceRefsMatch,
+    schemaMatch: observation.schemaMatch,
+    targetMatch: observation.targetMatch,
+    correlationValid: observation.correlationValid,
+    resultDigest: observation.resultDigest
+  })
+}
+
+function recordContextReadOutcome(receipt, plan, evidence = {}, options = {}) {
+  const normalized = normalizeReceipt(receipt, plan, options)
+  if (normalized.schemaVersion === CONTEXT_READ_CONTRACT.schemas.error) return normalized
+  if (['stale', 'blocked'].includes(normalized.status)) return normalized
+  const selected = plan.selectedSources.find(source => source.sourceId === evidence.sourceId)
+  if (!selected) return normalized
+  const epochMatch = String(evidence.contextEpoch || '') === plan.identity.contextEpoch
+  const planMatch = String(evidence.planId || '') === plan.planId
+  const activeRootMatch = normalizePath(evidence.activeRoot) === plan.identity.activeRoot
+  const layerMatch = evidence.sourceLayer === selected.sourceLayer || selected.sourceRefs.some(ref => ref.layer === evidence.sourceLayer)
+  const correlationValid = epochMatch && planMatch
+  let outcome = String(evidence.outcome || 'unobservable')
+  let successful = evidence.successful === true
+  if (!activeRootMatch) {
+    outcome = 'wrong-root'
+    successful = false
+  } else if (!correlationValid) {
+    outcome = 'invalid'
+    successful = false
+  } else if (evidence.observable !== true) {
+    outcome = 'unobservable'
+    successful = false
+  } else if (evidence.transportSuccess !== true || !layerMatch || evidence.sourceRefsMatch !== true ||
+      (selected.kind === 'memory' && (evidence.schemaMatch !== true || evidence.targetMatch !== true))) {
+    outcome = evidence.transportSuccess === false ? 'failed' : 'invalid'
+    successful = false
+  }
+  const observedAt = nowIso(options)
+  const observation = normalizeObservation({
+    ...evidence,
+    observationId: evidence.observationId || `result-${stableDigest({
+      toolCallId: evidence.toolCallId,
+      sourceId: evidence.sourceId,
+      resultDigest: evidence.resultDigest,
+      contextEpoch: plan.identity.contextEpoch,
+      planId: plan.planId
+    }).slice(0, 20)}`,
+    sourceKind: selected.kind,
+    observedAt,
+    outcome,
+    successful,
+    activeRootMatch,
+    sourceLayer: evidence.sourceLayer,
+    correlationValid,
+    schemaMatch: selected.kind === 'memory' ? evidence.schemaMatch === true : evidence.schemaMatch !== false,
+    targetMatch: selected.kind === 'memory' ? evidence.targetMatch === true : evidence.targetMatch !== false
+  })
+  const duplicate = normalized.observations.find(item => item.observationId && item.observationId === observation.observationId)
+  if (duplicate && observationSemanticDigest(duplicate) !== observationSemanticDigest(observation)) {
+    const conflict = normalizeObservation({
+      ...observation,
+      observationId: `${observation.observationId}-conflict`,
+      outcome: 'invalid',
+      successful: false,
+      sourceRefsMatch: false,
+      resultDigest: stableDigest([duplicate.resultDigest, observation.resultDigest])
+    })
+    const conflicted = normalizeReceipt({
+      ...normalized,
+      status: 'unverified',
+      observations: [...normalized.observations, conflict].slice(-100),
+      completedAt: null,
+      consumedAt: null,
+      lastError: buildContextReadError('CONTEXT_PLAN_INVALID', 'Conflicting duplicate PostToolUse evidence is ambiguous.', 'Keep the receipt unverified and replan once if the action still requires context.')
+    }, plan, options)
+    return { ...conflicted, status: 'unverified', completedAt: null, consumedAt: null }
+  }
+  const next = duplicate ? normalized : { ...normalized, observations: [...normalized.observations, observation].slice(-100) }
+  return completeContextReadReceipt(next, plan, options)
+}
+
+function completeContextReadReceipt(receipt, plan, options = {}) {
+  const normalized = normalizeReceipt(receipt, plan, options)
+  if (normalized.schemaVersion === CONTEXT_READ_CONTRACT.schemas.error) return normalized
+  if (['stale', 'blocked'].includes(normalized.status)) return normalized
+  if (normalized.verificationMode !== 'structured-plan') {
+    return { ...normalized, status: 'unverified', completedAt: null, consumedAt: null }
+  }
+  if (normalized.missingSourceIds.length) {
+    return {
+      ...normalized,
+      status: plan.fullRead ? 'escalated-full' : (normalized.observations.length ? 'attempted' : 'planned'),
+      completedAt: null,
+      consumedAt: null
+    }
+  }
+  const completedAt = normalized.completedAt || nowIso(options)
+  if (options.consume === true) {
+    return { ...normalized, status: 'completed', completedAt, consumedAt: nowIso(options) }
+  }
+  return { ...normalized, status: 'relevant-complete', completedAt, consumedAt: null }
+}
+
+function deriveLegacyBootstrapProjection(receipt, legacy = {}) {
+  if (!receipt || receipt.schemaVersion !== CONTEXT_READ_CONTRACT.schemas.receipt) {
+    return {
+      profileRead: legacy.profileRead === true,
+      summaryRead: legacy.summaryRead === true,
+      tasksRead: legacy.tasksRead === true,
+      bootstrapComplete: false
+    }
+  }
+  const successful = receipt.observations.filter(observationSuccessful)
+  const verifiedComplete = ['relevant-complete', 'completed'].includes(receipt.status) && receipt.verificationMode === 'structured-plan'
+  return {
+    profileRead: verifiedComplete && successful.some(item => item.sourceKind?.startsWith('profile')),
+    summaryRead: verifiedComplete && successful.some(item => ['memory:memory_status', 'memory:memory_summary_query'].includes(item.sourceId)),
+    tasksRead: verifiedComplete && successful.some(item => ['memory:memory_status', 'memory:memory_session_query'].includes(item.sourceId)),
+    bootstrapComplete: verifiedComplete
+  }
+}
+
+function normalizeContextReadState(raw = {}, options = {}) {
+  const source = raw.contextAcquisition && typeof raw.contextAcquisition === 'object' ? raw.contextAcquisition : raw
+  const planCandidate = source.plan || source.currentPlan || null
+  const planValidation = validateContextReadPlan(planCandidate)
+  const plan = planValidation.valid ? deepClone(planCandidate) : null
+  let receipt = null
+  if (plan && source.receipt) {
+    const normalized = normalizeReceipt(source.receipt, plan, options)
+    if (normalized.schemaVersion === CONTEXT_READ_CONTRACT.schemas.receipt) receipt = normalized
+  }
+  const legacySource = raw.bootstrap && typeof raw.bootstrap === 'object' ? raw.bootstrap : raw
+  return {
+    schemaVersion: CONTEXT_READ_CONTRACT.schemas.state,
+    contextEpoch: plan?.identity.contextEpoch || String(source.contextEpoch || ''),
+    plan,
+    receipt,
+    planCallCount: Math.max(0, Number.parseInt(source.planCallCount, 10) || 0),
+    replanCount: receipt?.replanCount || Math.max(0, Number.parseInt(source.replanCount, 10) || 0),
+    fallbackAttempts: Math.min(1, Math.max(0, Number.parseInt(source.fallbackAttempts, 10) || 0)),
+    legacyObserved: {
+      profileRead: legacySource.profileRead === true,
+      summaryRead: legacySource.summaryRead === true,
+      tasksRead: legacySource.tasksRead === true,
+      bootstrapComplete: legacySource.bootstrapComplete === true
+    },
+    bootstrap: deriveLegacyBootstrapProjection(receipt, legacySource)
+  }
+}
+
+module.exports = {
+  CONTEXT_READ_CONTRACT,
+  buildContextReadError,
+  buildContextReadPlan,
+  completeContextReadReceipt,
+  createContextReadReceipt,
+  deriveLegacyBootstrapProjection,
+  extractContextPlanBody,
+  extractContextSourceEvidence,
+  markContextReadReceiptStale,
+  measureContextPayload,
+  normalizeContextReadState,
+  normalizeContextToolOutcome,
+  normalizeIntentSeed,
+  recordContextReadAttempt,
+  recordContextReadOutcome,
+  stableDigest,
+  validateContextReadPlan
+}

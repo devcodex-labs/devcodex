@@ -24,7 +24,7 @@ applyTo: .devcodex/**/reports/requirements/**
 > **关联方案**: [路径]
 > **Release 状态**: 未进入 / 待用户确认 / 已执行
 > **日志落点**: `changelogs/unreleased.md` / `CHANGELOG.md + changelogs/releases/vX.Y.Z.md`
-> **支撑产物**: ExecutionContract / TestRoute / ReleaseAudit / ReleaseVerification / ConceptSyncMap / HostContractVerification / CliDiagnosticContract / CheckpointValidation / LocalTaskTrace / TurnLivenessRecovery / 05-实施进度.md（按触发状态填写）
+> **支撑产物**: ExecutionContract / TestRoute / ReleaseAudit / ReleaseVerification / ConceptSyncMap / HostContractVerification / ContextAcquisition / CliDiagnosticContract / CheckpointValidation / LocalTaskTrace / TurnLivenessRecovery / 05-实施进度.md（按触发状态填写）
 > **ContextHandoffCard**: 触发时填写；未触发写 N/A + skipReason
 ```
 
@@ -74,6 +74,8 @@ applyTo: .devcodex/**/reports/requirements/**
 
 命中品牌资产生产时追加 `BrandVisualQuality` 条件段：只记录五类产物链接、自动检查、人工结论、blocker reset 与剩余风险，不把文件存在或单张截图写成通过。
 
+命中 `context-acquisition` 时追加 `ContextAcquisition` 条件段，至少记录 planId/contextEpoch/activeRoot、selected/excluded/missing sources、`ContextReadReceiptV1.status`、fullReadReason/fallback、实际 bytes/chars/latency（tokens 不可观测则 N/A）、legacy compatibility 与 V99 结果。PreToolUse、调用文案或 legacy no-args full 不能作为成功证据。
+
 ## §6 测试验证
 
 | selector / gateGroup | 结果 | 命令与 exitCode | 证据 / skipReason |
@@ -101,7 +103,7 @@ TestRoute 选中的路线必须全部出现；覆盖率、视觉、文档、构�
 |--------|----------|:----:|------|
 | ECR-1 | CP1/CP2/CP3、05-实施进度、报告、daily tasks、SUMMARY | ✅/⚠️ | |
 | ECR-2 | 需求条款 / 问题 ID → diff/commit 文件 | ✅/⚠️ | |
-| ECR-3 | CP3 步骤 / ExecutionContract / TestRoute / ServiceLifecycleCleanup / ConceptSyncMap / HostContractVerification → 测试/部署/验证证据 | ✅/⚠️ | |
+| ECR-3 | CP3 步骤 / ExecutionContract / TestRoute / ServiceLifecycleCleanup / ConceptSyncMap / HostContractVerification / ContextAcquisition → 测试/部署/验证证据 | ✅/⚠️ | |
 | ECR-4 | 报告声明 → 测试/探针/官方文档/OfficialDocsEvidence/ProfileImpactCheck/ReleaseAudit/ReleaseVerification/部署同步证据 | ✅/⚠️ | |
 | ECR-5 | memory daily → SUMMARY | ✅/⚠️ | |
 | ECR-6 | git dirty 边界 | ✅/⚠️ | |

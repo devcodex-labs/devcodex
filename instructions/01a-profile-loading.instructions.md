@@ -1,6 +1,6 @@
 ---
 applyTo: "**"
-description: Profile 加载、active-root 路径、目标项目识别与项目现实扩展的通用规范
+description: 意图驱动的 Profile 加载、active-root 路径、目标项目识别与项目现实扩展规范
 priority: P5
 version: 1.14.0
 ---
@@ -10,11 +10,11 @@ version: 1.14.0
 
 ## 适用范围
 
-- 适用于所有工作流（含 analyze / audit / chat）。
-- 无论工作流子类型是否有对应 Skill，均须在收到消息后、执行工作流前完成 Profile 加载。
+- 适用于所有工作流（含 analyze / audit / chat），但不等于每轮读取全部 Profile 文件。
+- 收到消息后先形成 `IntentSeedV1` 并确定唯一目标项目；随后完成有界计划、定向加载和必要来源回执，才进入项目现实扩展。
 - Profile 缺失时 ENV_MODE 默认为 `prod`（保守降级）。
-- chat 不豁免 Profile 加载和入口检查；它只豁免合规检查层（FC/SC/RC/T）和报告。
-- 跨会话恢复时必须重新读取 Profile 文件；摘要 ≠ Profile 已加载。
+- chat 不豁免 `ContextAcquisitionGate` 和入口检查；低风险 chat 可仅消费 baseline，不应读取无关 Profile 正文。
+- 跨会话恢复必须重新验证 context epoch、目标、计划和必要来源新鲜度；摘要 ≠ Profile 证据，恢复也 ≠ 默认全量重读。
 
 ## `.devcodex` 读取与写入模型
 
@@ -29,6 +29,18 @@ version: 1.14.0
 - `config.local.json` 可保存 host、port、database、schema、username、内部 URL、连接别名、password、token、apiKey、privateKey、clientSecret、signingKey、connectionPassword、connectionString 等本地字段；`*Env` / `secretRef` 只有在用户指定、项目既有配置或用户指定的发布流程明确要求时才使用
 - `README.md`、`01-项目信息.md`、`02-架构约束.md`、`03-代码风格.md` 采用 `project file first + workspace fallback`
 - Profile 缺失时仍按 `prod` 保守降级；若用户要求补建 Profile、恢复 dev 模式、初始化 `.devcodex/profile/` 或修复 Profile 缺失，应读取 `profile-bootstrap` 并优先建议/执行 `devcodex profile init`，不得用 AI 推测内容静默替代 Profile 文件真相源。
+
+### ProfileReadChainGate / ServiceNormCoverageGate
+
+所有工作流的 Profile 获取都必须执行 `ProfileReadChainGate`；服务 / 框架规范复审、跨服务需求、workspace-namespace 或 Profile 同步任务还必须执行 `ServiceNormCoverageGate`：
+
+- 先调用 `profile_context_plan`，以 canonical intent、changeTypes、risk、confidence 与明确 selector 形成 `ContextReadPlanV1`；计划必须列出 selected / excluded / unclassified、base/project fallback、实际 active-root 与必要理由。
+- baseline 可返回 README/index 内容、effective non-local config 和顶层 metadata inventory。`ProfilePlanNoHiddenFullReadProbe` 必须证明规划阶段没有读取 `01~09-*`、`config.local.json` 或其他 selected Profile 正文；存在文件不等于读取文件。
+- 计划选中的正文通过 `profile_load({ project, files })` 定向加载。只有与 contextEpoch / planId / activeRoot / sourceId 精确相关且由 `PostToolUse` 观察成功的 `ContextReadReceiptV1` 才能证明 loaded；PreToolUse 只记 attempted。
+- 全量升级仅允许 `explicit-user/project-policy/audit/migration/low-confidence/required-source-missing` 等可审计原因，并写 `fullReadReason`；`config.local.json` 必须另有用户 / 项目明确要求，不能因文件存在自动入选。
+- 覆盖 `.devcodex/<project>/profile` 读取链、`.devcodex/workspace/profile` 回退链和 sticky activeProject 生效边界；目标变化、scope/action/risk 漂移、Profile digest 变化或 compact/resume 才触发重新规划，不得每个工具动作都重复加载。
+- 复审服务 / 框架规范时列出全部服务集合、docs 自维护链、导航、版本、构建、报告和记忆消费者。
+- 从单服务抽公共规范时同步执行 `StrongestProfileSourceGate` / `ServiceSpecificResidueSweep`，以最强 Profile 为基线并清扫服务化残留。
 
 ### ProfileGenerationContractGate
 
@@ -66,7 +78,7 @@ version: 1.14.0
 执行顺序必须为：
 
 ```text
-用户消息语义初判 → 目标项目识别 → Profile / config 加载 → 项目现实扩展 → 最终意图与工作流路由
+用户消息语义初判（IntentSeedV1）→ 目标项目识别 → profile_context_plan → 定向 Profile 读取 + ContextReadReceiptV1 → 项目现实扩展 → 最终意图与工作流路由
 ```
 
 - 项目现实扩展只能使用已确定项目的 Profile、明确提及文件、当前需求产物和必要只读元信息；不得绕过“项目未识别先询问”的扫描禁令。
@@ -75,6 +87,8 @@ version: 1.14.0
 - 若扩展不足以稳定判断，不得猜测；应在入口检查处提出最小澄清问题。
 
 ## Profile 标准文件
+
+下表定义文件存在性与生命周期要求，不是每轮默认读取集合；实际正文范围以 `ContextReadPlanV1` 为准。
 
 | 文件 | 说明 | 必须 |
 |------|------|:----:|

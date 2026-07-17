@@ -6,7 +6,8 @@ const fs = require('fs')
 const path = require('path')
 const {
   buildBrandVisualQualityChecks,
-  classifyBrandVisualEvidence
+  classifyBrandVisualEvidence,
+  classifyComponentTransparencyTopology
 } = require('./lib/validate-brand-visual-quality')
 
 const complete = {
@@ -15,14 +16,32 @@ const complete = {
   microOpticalVariant: true,
   monoMaster: true,
   visualEvidencePack: true,
-  humanVisualConclusion: true
+  humanVisualConclusion: true,
+  componentTransparencyTopology: true
 }
 
-assert.strictEqual(classifyBrandVisualEvidence({ ...complete, reviewerVerdict: 'accepted' }), 'accepted')
+assert.strictEqual(classifyBrandVisualEvidence({ ...complete, reviewerVerdict: 'accepted', topologyVerdict: 'pass' }), 'accepted')
 assert.strictEqual(classifyBrandVisualEvidence({ ...complete, monoMaster: false, reviewerVerdict: 'accepted' }), 'verification-pending')
+assert.strictEqual(classifyBrandVisualEvidence({ ...complete, componentTransparencyTopology: false, reviewerVerdict: 'accepted' }), 'verification-pending')
 assert.strictEqual(classifyBrandVisualEvidence({ ...complete, blockerDetected: true, blockerResetComplete: false, reviewerVerdict: 'accepted' }), 'blocked')
+assert.strictEqual(classifyBrandVisualEvidence({ ...complete, topologyVerdict: 'topology-fail', reviewerVerdict: 'accepted' }), 'blocked')
 assert.strictEqual(classifyBrandVisualEvidence({ ...complete, reviewerVerdict: 'rejected' }), 'rejected')
-assert.strictEqual(classifyBrandVisualEvidence({ ...complete, blockerDetected: true, blockerResetComplete: true, reviewerVerdict: 'accepted' }), 'accepted')
+assert.strictEqual(classifyBrandVisualEvidence({ ...complete, blockerDetected: true, blockerResetComplete: true, reviewerVerdict: 'accepted', topologyVerdict: 'pass' }), 'accepted')
+
+assert.strictEqual(classifyComponentTransparencyTopology({
+  canvasCornersTransparent: true,
+  globalOpaqueRatio: 0.2,
+  centerRoiOpaqueRatio: 1,
+  componentFillContract: 'wireframe-holes',
+  expectedCenterTransparent: true
+}), 'topology-fail')
+assert.strictEqual(classifyComponentTransparencyTopology({
+  canvasCornersTransparent: true,
+  globalOpaqueRatio: 0.2,
+  centerRoiOpaqueRatio: 0.3,
+  componentFillContract: 'wireframe-holes',
+  componentTopologyVerified: true
+}), 'pass')
 
 const root = path.resolve(__dirname, '..')
 const cleanCheckoutErrors = []

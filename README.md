@@ -94,11 +94,11 @@ DevCodex 通过 `.github/`（Copilot）、`CLAUDE.md + .claude/ + .mcp.json`（C
 
 ## 5 分钟快速开始
 
-先区分两个版本概念：npm package 的当前已发布版本是 **v1.15.0**；文档站的 **1.0.1** 是活动需求文档版本，不是可安装包版本。
+先区分两个版本概念：npm package 的当前已发布版本是 **v1.15.1**；文档站的 **1.0.1** 是活动需求文档版本，不是可安装包版本。
 
 | 通道 | 当前状态 | 用途 |
 |---|---|---|
-| GitHub Packages | ✅ v1.15.0 已发布 | 当前唯一发布通道；安装需要 GitHub Packages `read:packages` 认证 |
+| GitHub Packages | ✅ v1.15.1 已发布 | 当前唯一发布通道；安装需要 GitHub Packages `read:packages` 认证 |
 
 1. 确认 CLI 运行时（文档站维护另需 Node `^20.19.0 || >=22.12.0`）：
 
@@ -115,7 +115,7 @@ node --version # CLI 需要 Node.js >=18
 
 当前 shell 的 `NODE_AUTH_TOKEN` 需使用具备 `read:packages` 的 GitHub PAT。
 
-3. 安装当前 v1.15.0：
+3. 安装当前 v1.15.1：
 
 ```bash
 npm install @vextjs/devcodex
@@ -132,7 +132,7 @@ npx @vextjs/devcodex status
 
 ## 安装
 
-以下是当前已发布 v1.15.0 的完整安装说明。当前版本仅发布到 GitHub Packages，安装需要读取认证。
+以下是当前已发布 v1.15.1 的完整安装说明。当前版本仅发布到 GitHub Packages，安装需要读取认证。
 
 ### 1. 配置 GitHub Packages
 
@@ -149,12 +149,12 @@ export NODE_AUTH_TOKEN=YOUR_GITHUB_PAT
 
 这里的环境变量仅用于 GitHub Packages 认证流程，不代表项目里的普通配置默认都应 env 化；未明确要求 env 时，AI 不得主动把明文或硬编码改成 env、`secretRef`、secret manager 或 `config.local.json`。
 
-> v1.15.0 未发布到 npmjs；缺少上述 registry 或读取认证时，安装不会自动回退到其他通道。
+> v1.15.1 未发布到 npmjs；缺少上述 registry 或读取认证时，安装不会自动回退到其他通道。
 
 ### 2. 安装并初始化
 
 ```bash
-npm install @vextjs/devcodex@1.15.0
+npm install @vextjs/devcodex@1.15.1
 npx @vextjs/devcodex init          # 默认三宿主部署：Copilot + Claude Code adapter + Codex adapter
 npx @vextjs/devcodex init --claude # 仅 Claude Code adapter
 npx @vextjs/devcodex init --codex  # 仅 Codex adapter
@@ -311,7 +311,7 @@ devcodex migrate-layout rollback --manifest <manifest-path>
 
 ## Profile 计划、生成与升级
 
-> 发布状态：以下 `profile plan`、统一分档生成和安全迁移行为已随 **v1.15.0** 发布；安装当前包即可使用。
+> 发布状态：以下 `profile plan`、统一分档生成和安全迁移行为已随 **v1.15.1** 发布；安装当前包即可使用。
 
 先预览，再写入：
 
@@ -336,7 +336,7 @@ devcodex status
 
 ## 意图驱动的上下文读取（源码已实现，尚未发布）
 
-> 发布状态：以下能力已在当前源码完成 targeted/Hook/V99 验证，但不是 v1.15.0 已发布承诺；使用者应以目标 tag、package registry 和 release notes 为准。
+> 发布状态：以下能力已在当前源码完成 targeted/Hook/V99 验证，但不是 v1.15.1 已发布承诺；使用者应以目标 tag、package registry 和 release notes 为准。
 
 在当前源码能力启用且宿主支持 DevCodex MCP 时，推荐使用以下生产主链，避免每条消息都把整套 Profile 与完整记忆注入上下文：
 
@@ -574,7 +574,7 @@ DevCodex Hook runtime 不再把所有拦截都等同为“停止”。拦截会�
 
 DevCodex 的 `plugin.json` 声明 `tier: "free"`，所有 Skill 均标注 `tier: "free"`。这些 tier 字段是**面向未来的 prompt-level 声明**（供 `token-check` Skill 在 Agent 侧做软门控），**CLI 不做任何授权校验**：
 
-- CLI 本身不做额外 license/tier 授权校验；当前 v1.15.0 通过 GitHub Packages 分发，registry 读取认证仍按平台规则执行
+- CLI 本身不做额外 license/tier 授权校验；当前 v1.15.1 通过 GitHub Packages 分发，registry 读取认证仍按平台规则执行
 - 未来接入服务端 token 校验时，tier 字段才会生效
 - 当前阶段 tier 仅作为规划信息，不影响功能使用
 

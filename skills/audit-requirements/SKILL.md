@@ -47,6 +47,13 @@ description: 需求文档审查维度 RQ-1~RQ-8 — 需求定义/功能描述/�
 - 执行 `OriginalIntentReverseTraceProbe`：从用户原始消息、已确认需求和当前阶段反向证明“纳入”指规划、设计、编码还是发布；事实不明时不得默认把全部源码债务锁入当前阶段。
 - CP、技术方案、批次、验收、进度和最终结论出现不同 phaseKind 时为阻断性不一致。
 
+**ValidationLifecycleTraceabilityGate（GR-044）**
+- 分阶段 / 状态机型需求或明确「先验证再 accepted/final」的任务，验收矩阵**不能**替代独立验证阶段。
+- 必须能反向追踪：`plan → execute → validate → accept/deliver → synthesize → global validate → complete`。
+- 最小产物：`ValidationPlanV1`（进入执行前）、`BatchValidationResultV1`（批次 accepted 前）、`GlobalValidationResultV1`（final/completed 前）；缺 plan 不得执行/accepted；result=fail/inconclusive 必须隔离并回流，不得静默 final。
+- 负向：`exitCode=0` 但无 ValidationResult 仍试图 accepted/final → 阻断。
+- 增量分析域已由 `incremental-project-analysis` 实现同构契约；本门禁要求**需求审查与复审清单**通用检查，不限于该 Skill。
+
 **FrontendExperienceQualityGate 前端 UI / 交互需求（条件）**
 - 需求涉及前端页面、组件、控制台、官网、文档站、可视化工具或游戏时，必须说明设计来源或既有风格依据
 - UI 事实源至少覆盖还原度、风格主题一致性、响应式/状态覆盖与视觉验证依据

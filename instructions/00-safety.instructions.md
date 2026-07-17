@@ -2,7 +2,7 @@
 applyTo: "**"
 description: 安全底线与输出语言规则，定义 S01~S07、违规处理与不可豁免边界
 priority: P2
-version: 1.15.0
+version: 1.15.1
 ---
 # 安全底线规范（S01~S07）
 

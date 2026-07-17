@@ -4,18 +4,20 @@
 const assert = require('assert')
 const fs = require('fs')
 const path = require('path')
-const { buildModularityControlChecks } = require('./lib/validate-modularity-controls')
+const {
+  buildModularityControlChecks,
+  ENTRY_MODULE_LINE_BUDGETS
+} = require('./lib/validate-modularity-controls')
 
 const ROOT = path.resolve(__dirname, '..')
 const read = file => fs.readFileSync(path.join(ROOT, file), 'utf8')
 const lines = file => read(file).split(/\r?\n/).length
 
-for (const [file, maximum] of [
-  ['scripts/validate.js', 350],
-  ['scripts/test-spec-governance.js', 150],
-  ['index.js', 450],
-  ['scripts/lib/validate-governance-tail.js', 100]
-]) assert(lines(file) <= maximum, `${file} exceeds ${maximum} lines`)
+// Must share ENTRY_MODULE_LINE_BUDGETS with V93 — never hardcode a second budget table.
+assert(Array.isArray(ENTRY_MODULE_LINE_BUDGETS) && ENTRY_MODULE_LINE_BUDGETS.length > 0, 'ENTRY_MODULE_LINE_BUDGETS missing')
+for (const [file, maximum] of ENTRY_MODULE_LINE_BUDGETS) {
+  assert(lines(file) <= maximum, `${file} exceeds ${maximum} lines`)
+}
 
 const validator = read('scripts/validate.js')
 assert(validator.includes('createProbeRegistry'))

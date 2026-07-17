@@ -6,13 +6,35 @@ const REQUIRED_ACCEPTANCE_FIELDS = [
   'microOpticalVariant',
   'monoMaster',
   'visualEvidencePack',
-  'humanVisualConclusion'
+  'humanVisualConclusion',
+  'componentTransparencyTopology'
 ]
+
+/**
+ * ComponentTransparencyTopologyGate classifier (PF-130 / PI-110 / GR-042).
+ * Canvas-global alpha can pass while a center ROI is fully opaque — that is false green.
+ * @param {object} sample
+ * @returns {'pass'|'topology-fail'|'pending'}
+ */
+function classifyComponentTransparencyTopology(sample) {
+  const value = sample || {}
+  const cornersOk = value.canvasCornersTransparent === true
+  const globalOk = typeof value.globalOpaqueRatio === 'number' && value.globalOpaqueRatio < 0.5
+  const centerOpaque = typeof value.centerRoiOpaqueRatio === 'number' && value.centerRoiOpaqueRatio >= 0.99
+  const contract = value.componentFillContract
+  const expectsHoles = contract === 'wireframe-holes' || contract === 'mesh-open' || value.expectedCenterTransparent === true
+  if (cornersOk && globalOk && centerOpaque && expectsHoles) return 'topology-fail'
+  if (value.componentTopologyVerified === true && !centerOpaque) return 'pass'
+  if (value.componentTopologyVerified === true && centerOpaque && !expectsHoles) return 'pass'
+  return 'pending'
+}
 
 function classifyBrandVisualEvidence(sample) {
   const value = sample || {}
   if (value.blockerDetected && !value.blockerResetComplete) return 'blocked'
   if (!REQUIRED_ACCEPTANCE_FIELDS.every(field => value[field] === true)) return 'verification-pending'
+  if (value.componentTransparencyTopology !== true) return 'verification-pending'
+  if (value.topologyVerdict === 'topology-fail') return 'blocked'
   if (value.reviewerVerdict === 'rejected') return 'rejected'
   return value.reviewerVerdict === 'accepted' ? 'accepted' : 'verification-pending'
 }
@@ -39,13 +61,32 @@ function buildBrandVisualQualityChecks(ctx) {
 
   function checkV97() {
     const complete = Object.fromEntries(REQUIRED_ACCEPTANCE_FIELDS.map(field => [field, true]))
-    expect({ ...complete, reviewerVerdict: 'accepted' }, 'accepted', 'complete positive evidence')
+    expect({ ...complete, reviewerVerdict: 'accepted', topologyVerdict: 'pass' }, 'accepted', 'complete positive evidence')
     expect({ ...complete, monoMaster: false, reviewerVerdict: 'accepted' }, 'verification-pending', 'missing mono evidence')
+    expect({ ...complete, componentTransparencyTopology: false, reviewerVerdict: 'accepted' }, 'verification-pending', 'missing topology evidence')
     expect({ ...complete, blockerDetected: true, blockerResetComplete: false, reviewerVerdict: 'accepted' }, 'blocked', 'unreset blocker')
+    expect({ ...complete, topologyVerdict: 'topology-fail', reviewerVerdict: 'accepted' }, 'blocked', 'center ROI opaque false green')
     expect({ ...complete, reviewerVerdict: 'rejected' }, 'rejected', 'human rejection')
 
+    const topologyFail = classifyComponentTransparencyTopology({
+      canvasCornersTransparent: true,
+      globalOpaqueRatio: 0.2,
+      centerRoiOpaqueRatio: 1,
+      componentFillContract: 'wireframe-holes',
+      expectedCenterTransparent: true
+    })
+    if (topologyFail !== 'topology-fail') err(`[V97] topology false-green fixture expected topology-fail, got ${topologyFail}`)
+    const topologyPass = classifyComponentTransparencyTopology({
+      canvasCornersTransparent: true,
+      globalOpaqueRatio: 0.2,
+      centerRoiOpaqueRatio: 0.35,
+      componentFillContract: 'wireframe-holes',
+      componentTopologyVerified: true
+    })
+    if (topologyPass !== 'pass') err(`[V97] topology positive fixture expected pass, got ${topologyPass}`)
+
     const required = [
-      ['skills/brand-visual-quality/SKILL.md', ['BrandVisualQualityGate', 'MasterLineageGate', 'ThemeGeometryParityGate', 'MicroOpticalVariantGate', 'MonoMasterGate', 'VisualEvidencePackGate', 'VisualBlockerResetGate', 'gray']],
+      ['skills/brand-visual-quality/SKILL.md', ['BrandVisualQualityGate', 'MasterLineageGate', 'ThemeGeometryParityGate', 'MicroOpticalVariantGate', 'MonoMasterGate', 'VisualEvidencePackGate', 'VisualBlockerResetGate', 'ComponentTransparencyTopologyGate', 'centerRoiOpaqueRatio', 'gray']],
       ['skills/brand-visual-quality/agents/openai.yaml', ['$brand-visual-quality', 'Brand Visual Quality']],
       ['skills/design-system-architecture/SKILL.md', ['brand-visual-quality', 'ThemeGeometryParityGate']],
       ['skills/rework-prevention-engineering/SKILL.md', ['brand-visual-quality', 'VisualBlockerResetRecord']],
@@ -62,7 +103,7 @@ function buildBrandVisualQualityChecks(ctx) {
       ['README.md', ['78 个', 'brand-visual-quality']],
       ['website/docs/index.md', ['78 个 Skills', 'brand-visual-quality']],
       ['website/docs/intro/index.md', ['78 个按需触发', 'brand-visual-quality']],
-      ['changelogs/unreleased.md', ['BrandVisualQualityGate', 'ProfileReleaseTruthAuthorityMatrixGate', 'RuntimeStateTransitionProjectionGate']]
+      ['changelogs/unreleased.md', ['BrandVisualQualityGate', 'ComponentTransparencyTopologyGate', 'ProfileReleaseTruthAuthorityMatrixGate', 'RuntimeStateTransitionProjectionGate']]
     ]
     for (const [file, needles] of required) checkFile(file, needles)
 
@@ -103,5 +144,6 @@ function buildBrandVisualQualityChecks(ctx) {
 
 module.exports = {
   buildBrandVisualQualityChecks,
-  classifyBrandVisualEvidence
+  classifyBrandVisualEvidence,
+  classifyComponentTransparencyTopology
 }

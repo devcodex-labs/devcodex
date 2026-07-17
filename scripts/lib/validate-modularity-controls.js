@@ -1,16 +1,19 @@
 'use strict'
 
+/** Single source for entry-module line budgets (V93 + control-plane module contracts). */
+const ENTRY_MODULE_LINE_BUDGETS = Object.freeze([
+  ['scripts/validate.js', 350],
+  ['scripts/test-spec-governance.js', 150],
+  ['index.js', 460],
+  ['scripts/lib/validate-governance-tail.js', 100]
+])
+
 function buildModularityControlChecks(ctx) {
   const { ROOT, fs, path, read, err, console } = ctx
   const lineCount = file => read(path.join(ROOT, file)).split(/\r?\n/).length
 
   function checkV93() {
-    for (const [file, maximum] of [
-      ['scripts/validate.js', 350],
-      ['scripts/test-spec-governance.js', 150],
-      ['index.js', 460],
-      ['scripts/lib/validate-governance-tail.js', 100]
-    ]) {
+    for (const [file, maximum] of ENTRY_MODULE_LINE_BUDGETS) {
       const actual = lineCount(file)
       if (actual > maximum) err(`[V93] module budget exceeded: ${file} ${actual}/${maximum} lines`)
     }
@@ -59,4 +62,4 @@ function buildModularityControlChecks(ctx) {
   return { checkV93 }
 }
 
-module.exports = { buildModularityControlChecks }
+module.exports = { buildModularityControlChecks, ENTRY_MODULE_LINE_BUDGETS }

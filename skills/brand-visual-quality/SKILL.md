@@ -77,6 +77,21 @@ description: 品牌视觉资产生产质量 Owner — 当任务涉及品牌标�
 
 发现 blocker 后写 `VisualBlockerResetRecord`：记录 finding、受影响资产、补丁、旧证据失效范围、新母版身份和必须重跑的矩阵。修复单个输出后，至少重跑同母版全部主题、相关微尺寸、单色输出和证据包；不得复用 blocker 前的 accepted 结论。
 
+### ComponentTransparencyTopologyGate
+
+复合透明标志（网络球、晶核、徽章、线框核心等）不得只凭**整图画布**四角透明或全局 `opaqueRatio` 通过。必须建立组件级透明拓扑：
+
+| 字段 | 要求 |
+|---|---|
+| `componentTree` | 外环 / 核心 / 节点 / 辉光 / 遮挡层 |
+| `componentFillContract` | 每组件允许的 fill/stroke/alpha（线框核心默认 `fill=none` 或 `wireframe-holes`） |
+| `centerRoiOpaqueRatio` | 中央核心 ROI 不透明占比；线框/网格孔洞场景不得 ≥0.99 |
+| `holePenetration` | 白/暗/棋盘格背景下孔洞应透出背景 |
+| `occlusionOrder` | 前环遮挡与后环层级 |
+| `topologyVerdict` | `pass` / `topology-fail` / `pending` |
+
+**负向假绿（必须阻断）**：`canvasCornersTransparent=true` 且 `globalOpaqueRatio<0.5`，但 `centerRoiOpaqueRatio≥0.99` 且合同要求孔洞/线框透明 → `topology-fail`，WorkUnit 不得 `accepted`。分类器：`classifyComponentTransparencyTopology`（V97 / `test-brand-visual-quality`）。
+
 ## 产物契约
 
 每个 WorkUnit 使用以下五类产物：
@@ -86,6 +101,7 @@ description: 品牌视觉资产生产质量 Owner — 当任务涉及品牌标�
 3. `MicroMonoMatrix`
 4. `VisualEvidencePack`
 5. `VisualBlockerResetRecord`（无 blocker 时写 `N/A + no-blocker-observed`）
+6. `ComponentTransparencyTopology`（无复合透明资产时写 `N/A + skipReason`）
 
 任务状态机：
 

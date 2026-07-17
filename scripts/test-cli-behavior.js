@@ -279,7 +279,7 @@ function testMachineReadableDiagnosticsAndStableErrors() {
   assert.strictEqual(status.schemaVersion, 'DevCodexCliEnvelopeV1')
   assert.strictEqual(status.ok, true)
   assert.strictEqual(status.command, 'status')
-  assert.strictEqual(status.packageVersion, '1.15.0')
+  assert.strictEqual(status.packageVersion, require('../package.json').version)
   assert.strictEqual(status.payload.schemaVersion, 'StatusDiagnosticV1')
   assert.strictEqual(status.payload.cwd, root)
   assert.ok(Array.isArray(status.payload.installSurfaces))

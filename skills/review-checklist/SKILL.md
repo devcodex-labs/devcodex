@@ -48,6 +48,7 @@ description: 复审清单整理与审查规范 — 创建、冻结、证据执�
 - `SampleIssueExpansionGate`：用户给出样例问题时，样例只能作为 seed evidence；正式复审必须先展开全维度图，标明样例覆盖 / 未覆盖维度，再冻结清单。
 - `ReviewAnchorMaterializationGate`：PR / TD / CP2 / 发布前审查锚点必须物化为可 grep 的清单项、章节或表格，不能只写“已语义覆盖”。
 - `RequirementDimensionBindingGate` / `RequirementPriorityAndPhaseGate`：需求维度进入复审清单时，必须绑定 CP2、批次计划、验收证据和阶段关闭规则；多阶段项写 entry / exit / carryOver / closeRule。
+- `ValidationLifecycleTraceabilityGate`（GR-044）：分阶段/状态机需求必须证明独立验证阶段（`ValidationPlanV1` / `BatchValidationResultV1` / `GlobalValidationResultV1`）；验收矩阵不能替代 validate→accept 边界；无结果或 fail/inconclusive 不得 final。
 - `PhaseDeliverySemanticGate`：多阶段/路线图复审冻结 `phaseKind`、planningCoverage、sourceDelivery 与 `OriginalIntentReverseTrace`；不得把规划覆盖误报为源码交付。
 - `ChecklistEscapeAnalysisGate`：发现遗漏或返修时，分析为什么上轮清单、维度或探针没覆盖。
 - `ReviewEscapeRecordGate`：二次复审、返修或实施过程中发现新问题逃逸时，必须先追加 escape record，再补清单和重跑证据。

@@ -90,6 +90,14 @@ description: 执行契约规范 — 为长流程、多文件、Auto 或控制面
 
 permission-core 等业务任务级 baseline 只能作样板，不得替代 DevCodex 通用 Contract 字段。
 
+## OwnIntroducedRegressionSelfFixGate / SharedStateMutationGate（PI-119）
+
+| 门禁 | 规则 |
+|------|------|
+| `OwnIntroducedRegressionSelfFixGate` | 本会话/本批次**自己改出**的 CI 红、targeted 失败或 validate 回归：完成根因分析后**必须主动修本地并复证**，不得停在「是否要修」确认；用户面只汇报证据与残余风险 |
+| `SharedStateMutationGate` | `git commit` / `git push` / `tag` / `publish` / 远端共享态：**默认禁止**；仅当用户**当前消息**明确授权（如「提交并推送」「发布」）才可执行；「发版一次」≠ 后续补丁无限 push；一次审批不是空白支票 |
+| 与 Auto 关系 | `@rocky` / Auto 可自动通过 CP，**不**豁免 SharedStateMutationGate；发布类自然语言（如「版本发布」）仅授权**本轮收口发布动作**，仍须 R6 清单与成功证据 |
+
 ## 偏离分级
 
 | 级别 | 判定 | 处理 |

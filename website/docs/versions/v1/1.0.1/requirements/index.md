@@ -14,7 +14,7 @@
 
 | 优先级 | 主题 | 状态 | 说明 |
 |--------|------|------|------|
-| P0 | [意图驱动的上下文按需加载](./p0/intent-driven-context-loading) | 🟢 源码/Profile/部署已验证 | 以 `IntentSeedV1 → ContextReadPlanV1 → targeted load → ContextReadReceiptV1` 替代默认全量读取；mandatory miss/false complete 已归零，portfolio 与 V1~V99 全绿，最终资格验证和推送待完成 |
+| P0 | [意图驱动的上下文按需加载](./p0/intent-driven-context-loading) | 🟢 已实现并复证 | 以 `IntentSeedV1 → ContextReadPlanV1 → targeted load → ContextReadReceiptV1` 替代默认全量读取；mandatory miss/false complete 已归零，portfolio、V1~V99 与远端 CI 全绿，main 已推送但尚未发布 |
 | P1 | [模板边界与开发流程收口](./p1/template-flow-alignment/index) | ✅ 已收口 | 正式需求入口、执行模板职责、CP1/CP2/CP3 关注点与 `03/04/05` 产物边界已同步 |
 | P1 | [可配置并发执行策略](./p1/concurrency-policy/index) | ✅ 已实现 | `extensions.devcodex.concurrency`、`ConcurrencyPolicy`、只读/验证并发与不可变单写者锁 |
 | P1 | [全局默认 Auto 别名](./p1/global-auto-alias/index) | ✅ 已实现 | `@rocky` 全局默认；`extensions.devcodex.autoAliases` 替换默认别名，空数组关闭默认 |

@@ -345,6 +345,319 @@ function inspectProfileContract(tier, availableFiles, corpus = '', documents = {
   }
 }
 
+function normalizeSkillIds(value) {
+  if (!Array.isArray(value)) return []
+  return [...new Set(value.map(item => String(item || '').trim()).filter(Boolean))].sort()
+}
+
+function skillPriority(skill) {
+  return Number.isInteger(skill?.skillIndex?.priority) ? skill.skillIndex.priority : 100
+}
+
+function skillRequires(skill) {
+  return normalizeSkillIds(skill?.skillIndex?.requires || skill?.dependencies)
+}
+
+function skillConflicts(skill) {
+  return normalizeSkillIds(skill?.skillIndex?.conflictsWith || skill?.conflicts)
+}
+
+function orderSkillClosure(ids, byId) {
+  const selected = new Set(ids)
+  const indegree = new Map([...selected].map(id => [id, 0]))
+  const outgoing = new Map([...selected].map(id => [id, []]))
+  for (const id of selected) {
+    for (const dependency of skillRequires(byId.get(id))) {
+      if (!selected.has(dependency)) continue
+      outgoing.get(dependency).push(id)
+      indegree.set(id, indegree.get(id) + 1)
+    }
+  }
+  const compare = (left, right) => skillPriority(byId.get(left)) - skillPriority(byId.get(right)) || left.localeCompare(right)
+  const ready = [...selected].filter(id => indegree.get(id) === 0).sort(compare)
+  const ordered = []
+  while (ready.length) {
+    const id = ready.shift()
+    ordered.push(id)
+    for (const dependent of outgoing.get(id).sort(compare)) {
+      indegree.set(dependent, indegree.get(dependent) - 1)
+      if (indegree.get(dependent) === 0) {
+        ready.push(dependent)
+        ready.sort(compare)
+      }
+    }
+  }
+  return ordered.length === selected.size ? ordered : []
+}
+
+function buildBundleStages(selected, budget) {
+  if (!selected.length) return []
+  const stages = []
+  let current = []
+  let bytes = 0
+  let tokens = 0
+  const flush = () => {
+    if (!current.length) return
+    stages.push({ index: stages.length + 1, skillIds: current.map(item => item.id), bytes, tokens: budget.tokens.status === 'enforced' ? tokens : null })
+    current = []
+    bytes = 0
+    tokens = 0
+  }
+  for (const item of selected) {
+    const exceedsSkills = budget.maxSkills !== null && current.length >= budget.maxSkills
+    const exceedsBytes = budget.maxBytes !== null && current.length > 0 && bytes + item.sourceBytes > budget.maxBytes
+    const exceedsTokens = budget.tokens.status === 'enforced' && current.length > 0 && tokens + item.tokenCount > budget.tokens.limit
+    if (exceedsSkills || exceedsBytes || exceedsTokens) flush()
+    current.push(item)
+    bytes += item.sourceBytes
+    tokens += item.tokenCount || 0
+  }
+  flush()
+  return stages.map(stage => ({
+    ...stage,
+    overBudgetSingle: stage.skillIds.length === 1 && (
+      (budget.maxBytes !== null && stage.bytes > budget.maxBytes) ||
+      (budget.tokens.status === 'enforced' && stage.tokens > budget.tokens.limit)
+    )
+  }))
+}
+
+/** Build a read-only, dependency-closed Skill bundle using whole SKILL.md byte identities. */
+function buildBundleDecisionV2(portfolio, input = {}) {
+  const skills = Array.isArray(portfolio?.skills) ? portfolio.skills : []
+  const byId = new Map(skills.map(skill => [skill.id, skill]))
+  const candidateIds = normalizeSkillIds(input.candidateIds)
+  const mandatoryIds = input.mandatoryIds === undefined
+    ? [...candidateIds]
+    : normalizeSkillIds(input.mandatoryIds)
+  const roots = [...new Set([...candidateIds, ...mandatoryIds])].sort()
+  const mandatoryRoots = new Set(mandatoryIds)
+  const includeGray = input.includeGray === true
+  const hostCapability = ['bundle-v2', 'native-oracle', 'unsupported'].includes(input.hostCapability)
+    ? input.hostCapability
+    : 'bundle-v2'
+  const maxSkills = Number.isInteger(input.maxSkills) && input.maxSkills > 0 ? input.maxSkills : null
+  const maxBytes = Number.isInteger(input.maxBytes) && input.maxBytes > 0 ? input.maxBytes : null
+  const tokenCounts = input.tokenCounts && typeof input.tokenCounts === 'object' && !Array.isArray(input.tokenCounts)
+    ? input.tokenCounts
+    : {}
+  const tokenCounterAvailable = input.hostTokenCounter === true
+  const maxTokens = tokenCounterAvailable && Number.isInteger(input.maxTokens) && input.maxTokens > 0
+    ? input.maxTokens
+    : null
+  const ignored = []
+  const blockers = []
+  const closure = new Set()
+  const mandatoryClosure = new Set()
+
+  function inspectRoot(root, mandatory) {
+    const local = new Set()
+    const visiting = new Set()
+    let failure = null
+    function visit(id, requiredBy) {
+      if (visiting.has(id)) {
+        failure = { code: 'dependency-cycle', id, requiredBy }
+        return
+      }
+      if (local.has(id) || failure) return
+      const skill = byId.get(id)
+      if (!skill) {
+        failure = { code: 'unknown', id, requiredBy }
+        return
+      }
+      const eligible = skill.lifecycleState === 'active' || (includeGray && skill.lifecycleState === 'gray')
+      if (!eligible) {
+        failure = { code: 'inactive', id, requiredBy, lifecycleState: skill.lifecycleState }
+        return
+      }
+      if (!String(skill.owner || '').trim()) {
+        failure = { code: 'owner-missing', id, requiredBy }
+        return
+      }
+      if (!Number.isInteger(skill.sourceBytes) || skill.sourceBytes < 1) {
+        failure = { code: 'source-bytes-missing', id, requiredBy }
+        return
+      }
+      if (!String(skill.source || '').trim() || !String(skill.hash || '').trim()) {
+        failure = { code: 'source-metadata-missing', id, requiredBy }
+        return
+      }
+      visiting.add(id)
+      for (const dependency of skillRequires(skill)) visit(dependency, id)
+      visiting.delete(id)
+      if (!failure) local.add(id)
+    }
+    visit(root, null)
+    if (failure) {
+      if (mandatory) blockers.push({ ...failure, root, mandatory: true })
+      else ignored.push({ id: root, reason: failure.code, details: failure })
+      return
+    }
+    for (const id of local) {
+      closure.add(id)
+      if (mandatory) mandatoryClosure.add(id)
+    }
+  }
+
+  for (const root of roots) inspectRoot(root, mandatoryRoots.has(root))
+  const closureIds = orderSkillClosure(closure, byId)
+  if (closure.size && !closureIds.length) blockers.push({ code: 'dependency-cycle', mandatory: true })
+
+  const excluded = new Set()
+  const conflicts = []
+  for (let leftIndex = 0; leftIndex < closureIds.length; leftIndex += 1) {
+    const left = closureIds[leftIndex]
+    for (let rightIndex = leftIndex + 1; rightIndex < closureIds.length; rightIndex += 1) {
+      const right = closureIds[rightIndex]
+      if (!skillConflicts(byId.get(left)).includes(right) && !skillConflicts(byId.get(right)).includes(left)) continue
+      const leftMandatory = mandatoryClosure.has(left)
+      const rightMandatory = mandatoryClosure.has(right)
+      const conflict = { left, right, leftMandatory, rightMandatory }
+      conflicts.push(conflict)
+      if (leftMandatory && rightMandatory) {
+        blockers.push({ code: 'mandatory-conflict', ...conflict })
+        continue
+      }
+      let loser
+      if (leftMandatory) loser = right
+      else if (rightMandatory) loser = left
+      else {
+        const leftKey = [skillPriority(byId.get(left)), left]
+        const rightKey = [skillPriority(byId.get(right)), right]
+        loser = leftKey[0] < rightKey[0] || (leftKey[0] === rightKey[0] && leftKey[1] < rightKey[1]) ? right : left
+      }
+      excluded.add(loser)
+      ignored.push({ id: loser, reason: 'conflict', conflictWith: loser === left ? right : left })
+    }
+  }
+
+  let changed = true
+  while (changed) {
+    changed = false
+    for (const id of closureIds) {
+      if (excluded.has(id) || mandatoryClosure.has(id)) continue
+      const missingDependency = skillRequires(byId.get(id)).find(dependency => excluded.has(dependency))
+      if (missingDependency) {
+        excluded.add(id)
+        ignored.push({ id, reason: 'dependency-conflict', dependency: missingDependency })
+        changed = true
+      }
+    }
+  }
+
+  const reachable = new Set()
+  function markReachable(id) {
+    if (reachable.has(id) || excluded.has(id) || !closure.has(id)) return
+    reachable.add(id)
+    for (const dependency of skillRequires(byId.get(id))) markReachable(dependency)
+  }
+  for (const id of mandatoryClosure) markReachable(id)
+  for (const id of candidateIds) markReachable(id)
+  for (const id of closureIds) {
+    if (mandatoryClosure.has(id) || excluded.has(id) || reachable.has(id)) continue
+    excluded.add(id)
+    ignored.push({ id, reason: 'orphaned-dependency' })
+  }
+
+  const tokens = {
+    status: maxTokens === null ? 'N/A' : 'enforced',
+    limit: maxTokens,
+    reason: maxTokens === null
+      ? (tokenCounterAvailable ? 'maxTokens-not-requested' : 'host-token-counter-unavailable')
+      : null
+  }
+  if (maxTokens !== null) {
+    for (const id of closureIds.filter(id => !excluded.has(id))) {
+      if (Number.isInteger(tokenCounts[id]) && tokenCounts[id] >= 0) continue
+      if (mandatoryClosure.has(id)) blockers.push({ code: 'token-count-missing', id, mandatory: true })
+      else {
+        excluded.add(id)
+        ignored.push({ id, reason: 'token-count-missing' })
+      }
+    }
+  }
+
+  const itemFor = id => {
+    const skill = byId.get(id)
+    return {
+      id,
+      reason: candidateIds.includes(id) ? 'candidate' : 'dependency',
+      mandatory: mandatoryClosure.has(id),
+      priority: skillPriority(skill),
+      source: skill.source,
+      sourceBytes: skill.sourceBytes,
+      sourceHash: skill.hash,
+      tokenCount: maxTokens === null || !Number.isInteger(tokenCounts[id]) ? null : tokenCounts[id]
+    }
+  }
+  const mandatoryItems = closureIds.filter(id => mandatoryClosure.has(id) && !excluded.has(id)).map(itemFor)
+  const optionalItems = closureIds.filter(id => !mandatoryClosure.has(id) && !excluded.has(id)).map(itemFor)
+  const mandatoryBytes = mandatoryItems.reduce((sum, item) => sum + item.sourceBytes, 0)
+  const mandatoryTokens = maxTokens === null
+    ? null
+    : (mandatoryItems.every(item => Number.isInteger(item.tokenCount))
+        ? mandatoryItems.reduce((sum, item) => sum + item.tokenCount, 0)
+        : null)
+  const overBudgetMandatory = (maxSkills !== null && mandatoryItems.length > maxSkills) ||
+    (maxBytes !== null && mandatoryBytes > maxBytes) ||
+    (maxTokens !== null && mandatoryTokens !== null && mandatoryTokens > maxTokens)
+  const selected = [...mandatoryItems]
+  let usedBytes = mandatoryBytes
+  let usedTokens = mandatoryTokens || 0
+  if (!overBudgetMandatory && blockers.length === 0) {
+    for (const item of optionalItems) {
+      const dependenciesReady = skillRequires(byId.get(item.id)).every(dependency => selected.some(selectedItem => selectedItem.id === dependency))
+      const fits = dependenciesReady &&
+        (maxSkills === null || selected.length + 1 <= maxSkills) &&
+        (maxBytes === null || usedBytes + item.sourceBytes <= maxBytes) &&
+        (maxTokens === null || usedTokens + item.tokenCount <= maxTokens)
+      if (!fits) {
+        ignored.push({ id: item.id, reason: dependenciesReady ? 'budget' : 'dependency-budget' })
+        continue
+      }
+      selected.push(item)
+      usedBytes += item.sourceBytes
+      usedTokens += item.tokenCount || 0
+    }
+  } else {
+    for (const item of optionalItems) ignored.push({ id: item.id, reason: 'budget' })
+  }
+
+  const budget = {
+    maxSkills,
+    maxBytes,
+    tokens,
+    mandatory: { skills: mandatoryItems.length, bytes: mandatoryBytes, tokens: mandatoryTokens },
+    selected: { skills: selected.length, bytes: selected.reduce((sum, item) => sum + item.sourceBytes, 0), tokens: maxTokens === null ? null : selected.reduce((sum, item) => sum + item.tokenCount, 0) },
+    status: overBudgetMandatory ? 'over-budget-mandatory' : 'within-limit'
+  }
+  let completion = blockers.length ? 'blocked' : (overBudgetMandatory ? 'over-budget-mandatory' : 'complete')
+  if (completion === 'complete' && hostCapability === 'unsupported') completion = 'fallback-full'
+  return {
+    schemaVersion: 'BundleDecisionV2',
+    portfolioSchemaVersion: portfolio?.schemaVersion || null,
+    candidates: candidateIds,
+    mandatoryIds,
+    closure: closureIds,
+    selected: blockers.length ? [] : selected,
+    ignored: ignored.sort((left, right) => left.id.localeCompare(right.id) || left.reason.localeCompare(right.reason)),
+    conflicts,
+    blockers,
+    budget,
+    stages: blockers.length ? [] : buildBundleStages(selected, budget),
+    completion,
+    hostCapability,
+    fallback: hostCapability === 'unsupported' && !blockers.length
+      ? { required: true, route: 'full-skill-read', reason: 'host-bundle-capability-unavailable' }
+      : { required: false, route: null, reason: null },
+    lifecycleMutationAllowed: false,
+    writes: [],
+    exitCondition: blockers.length
+      ? 'blocked'
+      : (overBudgetMandatory ? 'read-stages-in-order' : (hostCapability === 'unsupported' ? 'fallback-full-skill-read' : 'bundle-ready'))
+  }
+}
+
 module.exports = {
   PROFILE_TIERS,
   PROFILE_BASE_FILES,
@@ -368,6 +681,7 @@ module.exports = {
   parseMarkdownTables,
   inspectFeatureInventoryDocument,
   projectFeatureInventoryState,
+  buildBundleDecisionV2,
   hasFeatureInventorySource,
   inspectProfileLifecycle,
   hasProfileLifecycle,

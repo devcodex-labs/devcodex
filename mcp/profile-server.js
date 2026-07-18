@@ -8,7 +8,8 @@
  *
  * Tools:
  *   profile_context_plan — Build an intent-scoped Profile read plan without pre-reading selected documents
- *   profile_load     — Read all standard profile files for a project (including optional local overlay metadata)
+ *   profile_load     — Read whole Profile files or explicitly selected whole Markdown sections
+ *   profile_skill_plan — Build a dependency-closed, whole-SKILL read plan
  *   profile_get_mode — Return ENV_MODE (dev/prod) and resolved runtime agent
  */
 
@@ -19,23 +20,28 @@ const { assertSingleSegment, resolveInside } = require('./path-guard')
 const {
   PROFILE_BASE_FILES,
   PROFILE_RELEASE_FILES,
+  buildBundleDecisionV2,
   detectProfileTier,
   filesForProfileTier,
   parseMarkdownTables
 } = require('./profile-contract')
+const { selectProfileSections } = require('./profile-section-selector.cjs')
 const {
   CONTEXT_READ_CONTRACT,
   buildContextReadError,
   buildContextReadPlan,
   normalizeIntentSeed,
+  stableDigest,
   validateContextReadPlan
 } = require('../hooks/_runtime/context-read-contract.cjs')
-const { buildJsonContentIdentity } = require('../hooks/_runtime/content-identity.cjs')
+const { buildJsonContentIdentity, validateContentIdentity } = require('../hooks/_runtime/content-identity.cjs')
 const { createDerivedStateStore } = require('../hooks/_runtime/derived-state-store.cjs')
+const { resolveExecutionFeatureDecisionForCwd } = require('../hooks/_runtime/execution-optimization-routing.cjs')
 const {
   findLayoutInfo,
   inferProjectFromCwd,
   namespaceRootPath,
+  normalizeExecutionOptimizationMode,
   normalizeProjectNamespace,
   readJsonFile,
   resolveLegacyProjectRoot
@@ -60,6 +66,25 @@ const {
 
 // Prefer DEVCODEX_AGENT; otherwise infer host env (incl. grok). Never default to claude-code.
 const DEFAULT_AGENT = detectRuntimeAgent()
+
+const EXECUTION_OPTIMIZATION_BINDING_SCHEMA = {
+  type: 'object',
+  required: ['schemaVersion', 'requested', 'mode', 'status', 'errorCode', 'configIdentity', 'bindingDigest'],
+  properties: {
+    schemaVersion: { const: CONTEXT_READ_CONTRACT.schemas.executionOptimizationBinding },
+    requested: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+    mode: { type: 'string', enum: ['safe-auto', 'full-only'] },
+    status: { type: 'string', enum: ['defaulted', 'configured', 'fail-closed'] },
+    errorCode: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+    configIdentity: {
+      type: 'object',
+      required: ['schemaVersion', 'algorithm', 'sourceKey', 'contractVersion', 'digest', 'bytes'],
+      additionalProperties: false
+    },
+    bindingDigest: { type: 'string', pattern: '^[a-f0-9]{64}$' }
+  },
+  additionalProperties: false
+}
 
 const TOOLS = [
   {
@@ -109,7 +134,7 @@ const TOOLS = [
   },
   {
     name: 'profile_load',
-    description: '按需加载 Profile 文件正文。默认有 maxFiles/maxBytes 硬预算；省略 files 时须 explicitFull=true + fullReadReason，否则返回 inventory/错误（禁止默认真全量）。',
+    description: '按需加载 Profile 文件正文或完整 Markdown section。默认有 maxFiles/maxBytes 硬预算；不在段落中间截断，partial/fallback 状态显式返回。',
     inputSchema: {
       type: 'object',
       properties: {
@@ -132,7 +157,27 @@ const TOOLS = [
           type: 'integer',
           minimum: 1024,
           maximum: 2000000,
-          description: '单次拼接正文最大字节，默认 32768；超限截断并 truncated=true'
+          description: '单次拼接正文最大字节，默认 32768；只在完整文件/section 边界切分'
+        },
+        sectionSelectors: {
+          type: 'array',
+          uniqueItems: true,
+          items: {
+            type: 'object',
+            required: ['file', 'headingQueries'],
+            properties: {
+              file: { type: 'string', minLength: 1 },
+              headingQueries: { type: 'array', minItems: 1, uniqueItems: true, items: { type: 'string', minLength: 1 } },
+              requiredQueries: { type: 'array', uniqueItems: true, items: { type: 'string', minLength: 1 } },
+              includePreamble: { type: 'boolean' },
+              includeDescendants: { type: 'boolean' },
+              maxBytes: { type: 'integer', minimum: 1024, maximum: 2000000 },
+              confidence: { type: 'number', minimum: 0, maximum: 1 },
+              parser: { type: 'string', enum: ['atx-v1'] }
+            },
+            additionalProperties: false
+          },
+          description: '仅可选择 files 中已请求的文件；required 缺失/歧义、低置信或 parser 不支持时自动回退整文件。'
         },
         explicitFull: {
           type: 'boolean',
@@ -141,8 +186,31 @@ const TOOLS = [
         fullReadReason: {
           type: 'string',
           description: 'explicitFull=true 时必填原因'
-        }
-      }
+        },
+        executionOptimization: EXECUTION_OPTIMIZATION_BINDING_SCHEMA
+      },
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'profile_skill_plan',
+    description: '基于 current Skill portfolio 生成 BundleDecisionV2：先校验 lifecycle，再做 transitive requires、mandatory conflict 与完整 SKILL.md bytes 预算；只读且不改变 lifecycle。',
+    inputSchema: {
+      type: 'object',
+      required: ['candidateIds'],
+      properties: {
+        candidateIds: { type: 'array', minItems: 1, uniqueItems: true, items: { type: 'string', minLength: 1 } },
+        mandatoryIds: { type: 'array', uniqueItems: true, items: { type: 'string', minLength: 1 } },
+        includeGray: { type: 'boolean' },
+        maxSkills: { type: 'integer', minimum: 1, maximum: 78 },
+        maxBytes: { type: 'integer', minimum: 1024, maximum: 2000000 },
+        maxTokens: { type: 'integer', minimum: 1 },
+        hostTokenCounter: { type: 'boolean' },
+        tokenCounts: { type: 'object', additionalProperties: { type: 'integer', minimum: 0 } },
+        hostCapability: { type: 'string', enum: ['bundle-v2', 'native-oracle', 'unsupported'] },
+        executionOptimization: EXECUTION_OPTIMIZATION_BINDING_SCHEMA
+      },
+      additionalProperties: false
     }
   },
   {
@@ -597,7 +665,7 @@ function finalizeContextPlanResponseBytes(plan) {
   return plan
 }
 
-function applyContextPlanComputationCache(candidate, target) {
+function applyContextPlanComputationCache(candidate, target, featureDecision) {
   const lookupStarted = process.hrtime.bigint()
   const usage = contextCacheUsage(target.activeRoot)
   const baseDecision = {
@@ -608,6 +676,15 @@ function applyContextPlanComputationCache(candidate, target) {
     bodyDeliverySkipped: false,
     bytes: usage.bytes,
     maxBytes: CONTEXT_CACHE_MAX_BYTES
+  }
+  if (!featureDecision.optimizationAllowed) {
+    candidate.cacheDecision = {
+      ...baseDecision,
+      status: 'bypassed',
+      reasonCode: featureDecision.reasonCode
+    }
+    candidate.stageTiming.cacheLookupMs = Number(process.hrtime.bigint() - lookupStarted) / 1e6
+    return finalizeContextPlanResponseBytes(candidate)
   }
   if (usage.error || usage.exceeded) {
     candidate.cacheDecision = {
@@ -691,6 +768,79 @@ function resolveDefaultProfileFiles(projectName) {
     if (alternative) names[releaseIndex] = alternative
   }
   return [...names, 'config.json', 'config.local.json']
+}
+
+function resolveExecutionOptimizationBinding(binding) {
+  const errors = []
+  if (!binding || typeof binding !== 'object' || Array.isArray(binding)) {
+    errors.push('binding must be an object')
+  } else {
+    const allowed = new Set(['schemaVersion', 'requested', 'mode', 'status', 'errorCode', 'configIdentity', 'bindingDigest'])
+    if (Object.keys(binding).some(key => !allowed.has(key))) errors.push('binding contains unsupported fields')
+    if (binding.schemaVersion !== CONTEXT_READ_CONTRACT.schemas.executionOptimizationBinding) errors.push('binding schema is invalid')
+    if (!['safe-auto', 'full-only'].includes(binding.mode)) errors.push('binding mode is invalid')
+    if (!['defaulted', 'configured', 'fail-closed'].includes(binding.status)) errors.push('binding status is invalid')
+    if (!validateContentIdentity(binding.configIdentity).valid) errors.push('binding config identity is invalid')
+    const digestInput = {
+      schemaVersion: binding.schemaVersion,
+      requested: binding.requested,
+      mode: binding.mode,
+      status: binding.status,
+      errorCode: binding.errorCode,
+      configIdentity: binding.configIdentity
+    }
+    if (binding.bindingDigest !== stableDigest(digestInput)) errors.push('binding digest is invalid')
+    if (binding.status === 'defaulted' && (binding.requested !== null || binding.mode !== 'safe-auto' || binding.errorCode !== null)) errors.push('defaulted binding is non-canonical')
+    if (binding.status === 'configured' && (!['safe-auto', 'full-only'].includes(binding.requested) || binding.mode !== binding.requested || binding.errorCode !== null)) errors.push('configured binding is non-canonical')
+    if (binding.status === 'fail-closed' && (['safe-auto', 'full-only'].includes(binding.requested) || binding.mode !== 'full-only' || binding.errorCode !== 'EXECUTION_OPTIMIZATION_MODE_INVALID')) errors.push('fail-closed binding is non-canonical')
+  }
+  const validation = { valid: errors.length === 0, errors }
+  if (!validation.valid) {
+    return {
+      ...normalizeExecutionOptimizationMode('invalid-plan-binding'),
+      errorCode: 'EXECUTION_OPTIMIZATION_BINDING_INVALID',
+      bindingValid: false,
+      validationErrors: validation.errors
+    }
+  }
+  return {
+    requested: binding.requested,
+    effective: binding.mode,
+    status: binding.status,
+    errorCode: binding.errorCode,
+    bindingValid: true,
+    configIdentity: binding.configIdentity,
+    bindingDigest: binding.bindingDigest
+  }
+}
+
+function resolveProfileOptimizationFeature(project, optimizationMode, featureId) {
+  try {
+    const target = resolveProfilePlanTarget(project)
+    return resolveExecutionFeatureDecisionForCwd({
+      cwd: INPUT_ROOT,
+      activeRoot: target.activeRoot,
+      modeDecision: optimizationMode,
+      featureId
+    })
+  } catch (error) {
+    return {
+      ...resolveExecutionFeatureDecisionForCwd({
+        cwd: INPUT_ROOT,
+        activeRoot: path.join(INPUT_ROOT, '.devcodex'),
+        modeDecision: {
+          requested: null,
+          effective: 'full-only',
+          status: 'fail-closed',
+          errorCode: 'EXECUTION_OPTIMIZATION_TARGET_INVALID'
+        },
+        state: null,
+        featureId
+      }),
+      reasonCode: 'execution-optimization-target-invalid',
+      targetError: error.message
+    }
+  }
 }
 
 // ─── Tool handlers ────────────────────────────────────────────────────────────
@@ -816,7 +966,12 @@ function handleProfileContextPlan(args = {}) {
       stageTiming: { latencyMs, sourceReadMs: latencyMs }
     })
     if (candidate.schemaVersion === CONTEXT_READ_CONTRACT.schemas.error) return contextPlanResult(candidate)
-    return contextPlanResult(applyContextPlanComputationCache(candidate, target))
+    const optimizationMode = resolveExecutionOptimizationBinding(candidate.executionOptimization)
+    return contextPlanResult(applyContextPlanComputationCache(
+      candidate,
+      target,
+      resolveProfileOptimizationFeature(target.project, optimizationMode, 'context-computation-reuse')
+    ))
   } catch (error) {
     return contextPlanResult(buildContextReadError(
       'CONTEXT_PLAN_INVALID',
@@ -829,42 +984,65 @@ function handleProfileContextPlan(args = {}) {
 const DEFAULT_PROFILE_LOAD_MAX_FILES = 2
 const DEFAULT_PROFILE_LOAD_MAX_BYTES = 32 * 1024
 
+function profileLoadError(errorCode, message, nextStep, details = {}) {
+  return {
+    content: [{
+      type: 'text',
+      text: JSON.stringify({ schemaVersion: 'ProfileLoadBudgetErrorV1', errorCode, message, nextStep, ...details }, null, 2)
+    }],
+    isError: true
+  }
+}
+
 function handleProfileLoad(args = {}) {
   const hasFiles = Array.isArray(args.files) && args.files.length > 0
   const explicitFull = args.explicitFull === true
   if (!hasFiles && !explicitFull) {
     const inventory = resolveDefaultProfileFiles(args.project)
-    return {
-      content: [{
-        type: 'text',
-        text: JSON.stringify({
-          schemaVersion: 'ProfileLoadBudgetErrorV1',
-          errorCode: 'PROFILE_LOAD_BUDGET',
-          message: 'profile_load without files requires explicitFull=true and fullReadReason (hard budget; no silent full-tier load).',
-          nextStep: 'Pass files: [...] for targeted load (default maxFiles=2, maxBytes=32768), or explicitFull+fullReadReason for tier full read.',
-          inventoryFiles: inventory,
-          defaults: { maxFiles: DEFAULT_PROFILE_LOAD_MAX_FILES, maxBytes: DEFAULT_PROFILE_LOAD_MAX_BYTES }
-        }, null, 2)
-      }],
-      isError: true
-    }
+    return profileLoadError(
+      'PROFILE_LOAD_BUDGET',
+      'profile_load without files requires explicitFull=true and fullReadReason (hard budget; no silent full-tier load).',
+      'Pass files: [...] for targeted load (default maxFiles=2, maxBytes=32768), or explicitFull+fullReadReason for tier full read.',
+      { inventoryFiles: inventory, defaults: { maxFiles: DEFAULT_PROFILE_LOAD_MAX_FILES, maxBytes: DEFAULT_PROFILE_LOAD_MAX_BYTES } }
+    )
   }
   if (explicitFull && !hasFiles && !String(args.fullReadReason || '').trim()) {
-    return {
-      content: [{
-        type: 'text',
-        text: JSON.stringify({
-          schemaVersion: 'ProfileLoadBudgetErrorV1',
-          errorCode: 'PROFILE_FULL_REASON_REQUIRED',
-          message: 'explicitFull profile_load requires non-empty fullReadReason.',
-          nextStep: 'Provide fullReadReason describing why tier full read is necessary.'
-        }, null, 2)
-      }],
-      isError: true
-    }
+    return profileLoadError(
+      'PROFILE_FULL_REASON_REQUIRED',
+      'explicitFull profile_load requires non-empty fullReadReason.',
+      'Provide fullReadReason describing why tier full read is necessary.'
+    )
   }
 
   const requested = hasFiles ? args.files : resolveDefaultProfileFiles(args.project)
+  const suppliedSelectors = args.sectionSelectors === undefined ? [] : args.sectionSelectors
+  if (!Array.isArray(suppliedSelectors)) {
+    return profileLoadError('PROFILE_SECTION_SELECTORS_INVALID', 'sectionSelectors must be an array.', 'Pass one selector object per requested Profile file.')
+  }
+  const optimizationMode = resolveExecutionOptimizationBinding(args.executionOptimization)
+  const featureDecision = resolveProfileOptimizationFeature(args.project, optimizationMode, 'profile-section-load')
+  const rawSelectors = featureDecision.optimizationAllowed ? suppliedSelectors : []
+  if (rawSelectors.length && !hasFiles) {
+    return profileLoadError(
+      'PROFILE_SECTION_FILES_REQUIRED',
+      'sectionSelectors require an explicit files list selected by the ContextReadPlan.',
+      'Pass files: [...] and keep every selector.file inside that list.'
+    )
+  }
+  const selectorByFile = new Map()
+  for (const selector of rawSelectors) {
+    const file = String(selector?.file || '').trim()
+    if (!file || !Array.isArray(selector.headingQueries) || !selector.headingQueries.length) {
+      return profileLoadError('PROFILE_SECTION_SELECTOR_INVALID', 'each section selector requires file and non-empty headingQueries.', 'Correct the selector and retry.')
+    }
+    if (!requested.includes(file)) {
+      return profileLoadError('PROFILE_SECTION_FILE_NOT_SELECTED', `section selector file is not present in files: ${file}`, 'Add the file to the ContextReadPlan-selected files list or remove the selector.')
+    }
+    if (selectorByFile.has(file)) {
+      return profileLoadError('PROFILE_SECTION_SELECTOR_DUPLICATE', `duplicate section selector for file: ${file}`, 'Merge heading queries into one selector per file.')
+    }
+    selectorByFile.set(file, selector)
+  }
   // Explicit files list: load all named files (still hard-capped by maxBytes).
   // No-files + explicitFull: tier full set. Otherwise default maxFiles=2.
   const maxFiles = Number.isInteger(args.maxFiles) && args.maxFiles > 0
@@ -880,60 +1058,103 @@ function handleProfileLoad(args = {}) {
   const missing = []
   let usedBytes = 0
   let truncatedByBytes = false
+  let truncatedBySections = false
   const loaded = []
+  const sectionReceipts = []
 
-  for (const name of selected) {
+  for (let selectedIndex = 0; selectedIndex < selected.length; selectedIndex += 1) {
+    const name = selected[selectedIndex]
     const resolved = resolveProfileFile(name, args.project)
     if (resolved) {
       const sourceLines = [`> 来源：${resolved.sourceLabel}`]
       for (const sourcePath of resolved.sourcePaths || []) {
         sourceLines.push(`> 路径：${sourcePath}`)
       }
-      let body = resolved.content
       const header = `### ${name}\n\n${sourceLines.join('\n')}\n\n`
-      const pieceBudget = maxBytes - usedBytes - Buffer.byteLength(header, 'utf8') - 32
-      if (pieceBudget <= 0) {
+      const separator = parts.length ? '\n\n---\n\n' : ''
+      const pieceBudget = maxBytes - usedBytes - Buffer.byteLength(separator + header, 'utf8')
+      if (pieceBudget < 1) {
         truncatedByBytes = true
-        deferred.unshift(name, ...selected.slice(selected.indexOf(name) + 1))
+        deferred.unshift(name, ...selected.slice(selectedIndex + 1))
         break
       }
-      const bodyBytes = Buffer.byteLength(body, 'utf8')
-      if (bodyBytes > pieceBudget) {
-        body = body.slice(0, Math.max(0, Math.floor(pieceBudget * 0.5))) + '\n\n…(truncated by maxBytes)…\n'
-        truncatedByBytes = true
-      }
+      const selector = selectorByFile.get(name)
+      const selection = selector
+        ? selectProfileSections({
+          file: name,
+          content: resolved.content,
+          selector: {
+            ...selector,
+            maxBytes: Math.min(
+              Number.isInteger(selector.maxBytes) ? selector.maxBytes : pieceBudget,
+              pieceBudget
+            )
+          }
+        })
+        : null
+      const body = selection ? selection.body : resolved.content
       const block = `${header}${body}`
-      usedBytes += Buffer.byteLength(block, 'utf8')
+      const blockBytes = Buffer.byteLength(separator + block, 'utf8')
+      if (blockBytes > maxBytes - usedBytes) {
+        truncatedByBytes = true
+        deferred.unshift(name, ...selected.slice(selectedIndex + 1))
+        if (selection) sectionReceipts.push({ ...selection.receipt, bodyDelivered: false, deliveryCompletion: 'deferred-full-file' })
+        break
+      }
+      usedBytes += blockBytes
       parts.push(block)
       loaded.push(name)
-      if (truncatedByBytes && bodyBytes > pieceBudget) {
-        const rest = selected.slice(selected.indexOf(name) + 1)
-        deferred.unshift(...rest)
+      if (selection) {
+        sectionReceipts.push({ ...selection.receipt, bodyDelivered: true, deliveryCompletion: selection.receipt.completion })
+        if (selection.receipt.completion === 'partial') {
+          truncatedBySections = true
+          deferred.push(name)
+        }
+      }
+    } else {
+      const placeholder = REQUIRED_FILES.has(name)
+        ? `### ${name}\n\n（⚠️ 必需文件不存在）`
+        : `### ${name}\n\n（文件不存在，跳过）`
+      const separator = parts.length ? '\n\n---\n\n' : ''
+      const placeholderBytes = Buffer.byteLength(separator + placeholder, 'utf8')
+      if (placeholderBytes > maxBytes - usedBytes) {
+        truncatedByBytes = true
+        deferred.unshift(name, ...selected.slice(selectedIndex + 1))
         break
       }
-    } else if (REQUIRED_FILES.has(name)) {
-      parts.push(`### ${name}\n\n（⚠️ 必需文件不存在）`)
-      missing.push(name)
-      loaded.push(name)
-    } else {
-      parts.push(`### ${name}\n\n（文件不存在，跳过）`)
+      usedBytes += placeholderBytes
+      parts.push(placeholder)
+      if (REQUIRED_FILES.has(name)) missing.push(name)
       loaded.push(name)
     }
   }
 
   let text = parts.join('\n\n---\n\n')
   const meta = {
-    truncated: deferred.length > 0 || truncatedByBytes,
+    schemaVersion: 'ProfileLoadReceiptV2',
+    completion: missing.length ? 'failed' : (deferred.length > 0 || truncatedByBytes || truncatedBySections ? 'partial' : 'complete'),
+    truncated: deferred.length > 0 || truncatedByBytes || truncatedBySections,
     loadedFiles: loaded,
     deferredFiles: [...new Set(deferred)],
     usedBytes,
     maxFiles,
     maxBytes,
-    explicitFull
+    explicitFull,
+    executionOptimizationMode: optimizationMode.effective,
+    executionOptimizationBinding: optimizationMode.bindingValid ? 'verified' : 'missing-or-invalid-fail-closed',
+    executionOptimizationFeature: {
+      lifecycleState: featureDecision.lifecycleState,
+      stateStatus: featureDecision.stateStatus,
+      reasonCode: featureDecision.reasonCode
+    },
+    optimizationFallback: !featureDecision.optimizationAllowed && suppliedSelectors.length > 0
+      ? 'full-profile-file'
+      : null,
+    sectionReceipts
   }
   const metaBlock = `<!-- profile_load_budget ${JSON.stringify(meta)} -->\n\n`
   if (meta.truncated) {
-    text = `⚠️ profile_load 硬预算生效：已加载 ${loaded.length} 文件 / ${usedBytes} bytes（maxFiles=${maxFiles}, maxBytes=${maxBytes}）。未读：${meta.deferredFiles.join('、') || '（字节截断）'}。请按需再次 profile_load(files)。\n\n---\n\n` + text
+    text = `⚠️ profile_load 边界预算生效：已加载 ${loaded.length} 文件 / ${usedBytes} bytes（maxFiles=${maxFiles}, maxBytes=${maxBytes}）。待补读：${meta.deferredFiles.join('、') || 'section query'}。正文未在段落中间截断；请按 receipt 补读 deferred section 或整文件。\n\n---\n\n` + text
   }
   if (missing.length > 0) {
     text = `⚠️ 必需 Profile 文件缺失，AI 将以保守降级模式运行：${missing.join('、')}\n\n---\n\n` + text
@@ -946,6 +1167,45 @@ function handleProfileLoad(args = {}) {
       text
     }]
   }
+}
+
+function handleProfileSkillPlan(args = {}) {
+  const portfolioPath = path.resolve(__dirname, '..', 'skills', 'portfolio.json')
+  let portfolio
+  try {
+    portfolio = JSON.parse(fs.readFileSync(portfolioPath, 'utf8'))
+  } catch (error) {
+    return {
+      content: [{
+        type: 'text',
+        text: JSON.stringify({
+          schemaVersion: 'BundleDecisionErrorV1',
+          errorCode: 'SKILL_PORTFOLIO_READ_FAILED',
+          message: error.message,
+          nextStep: 'Regenerate or deploy skills/portfolio.json, then retry profile_skill_plan.'
+        }, null, 2)
+      }],
+      isError: true
+    }
+  }
+  const { executionOptimization, ...bundleArgs } = args
+  const optimizationMode = resolveExecutionOptimizationBinding(executionOptimization)
+  const featureDecision = resolveProfileOptimizationFeature(args.project, optimizationMode, 'skill-bundle')
+  const decision = buildBundleDecisionV2(portfolio, {
+    ...bundleArgs,
+    ...(!featureDecision.optimizationAllowed ? { hostCapability: 'unsupported' } : {})
+  })
+  const response = {
+    ...decision,
+    executionOptimization: {
+      schemaVersion: featureDecision.schemaVersion,
+      lifecycleState: featureDecision.lifecycleState,
+      stateStatus: featureDecision.stateStatus,
+      reasonCode: featureDecision.reasonCode,
+      optimizationAllowed: featureDecision.optimizationAllowed
+    }
+  }
+  return { content: [{ type: 'text', text: JSON.stringify(response, null, 2) }] }
 }
 
 function handleProfileGetMode(args = {}) {
@@ -1052,6 +1312,7 @@ function dispatch(method, params) {
         switch (name) {
           case 'profile_context_plan': return handleProfileContextPlan(args)
           case 'profile_load': return handleProfileLoad(args)
+          case 'profile_skill_plan': return handleProfileSkillPlan(args)
           case 'profile_get_mode': return handleProfileGetMode(args)
           default:
             throw Object.assign(new Error(`Unknown tool: ${name}`), { code: -32601 })

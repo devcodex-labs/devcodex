@@ -6,6 +6,7 @@ const path = require('path')
 const {
   buildPortfolio,
   buildBundleDecision,
+  buildBundleDecisionV2,
   buildTriggerContract,
   canonicalizeTextForDigest,
   collectDependencies,
@@ -82,6 +83,7 @@ for (const skill of first.skills.filter(item => item.lifecycleState === 'active'
   assert.deepStrictEqual(skill.skillIndex.conflictsWith, skill.conflicts)
   assert.strictEqual(skill.skillIndex.evidenceState, 'source-backed')
   assert.strictEqual(skill.skillIndex.maxTokens, null)
+  assert.strictEqual(skill.sourceBytes, Buffer.byteLength(canonicalizeTextForDigest(fs.readFileSync(path.join(ROOT, skill.source), 'utf8')), 'utf8'))
   assert.deepStrictEqual(skill.skillIndex.domains, [], `${skill.id} must not infer a semantic domain from its id`)
 }
 assert.deepStrictEqual(validatePortfolio(first), [])
@@ -101,6 +103,9 @@ assert.ok(validatePortfolio(missingFixture).some(error => error.includes('missin
 const missingConflictReview = JSON.parse(JSON.stringify(first))
 delete missingConflictReview.skills[0].conflictReview
 assert.ok(validatePortfolio(missingConflictReview).some(error => error.includes('missing conflict review')))
+const missingSourceBytes = JSON.parse(JSON.stringify(first))
+delete missingSourceBytes.skills[0].sourceBytes
+assert.ok(validatePortfolio(missingSourceBytes).some(error => error.includes('missing sourceBytes')))
 const falseMeasured = JSON.parse(JSON.stringify(first))
 falseMeasured.skills[0].evidence.triggerPrecision.state = 'measured'
 assert.ok(validatePortfolio(falseMeasured).some(error => error.includes('measured trigger precision lacks samples')))
@@ -125,6 +130,108 @@ const conflictDecision = buildBundleDecision(first, {
 assert.deepStrictEqual(conflictDecision.selected.map(item => item.id), ['brand-visual-quality'])
 assert.deepStrictEqual(conflictDecision.ignored.map(item => [item.id, item.reason]), [['design-system-architecture', 'conflict']])
 assert.deepStrictEqual(conflictDecision.conflicts, [{ left: 'brand-visual-quality', right: 'design-system-architecture' }])
+
+const v2Decision = buildBundleDecisionV2(first, {
+  candidateIds: ['dev-testing'],
+  maxSkills: 10,
+  maxBytes: 1024 * 1024
+})
+assert.strictEqual(v2Decision.schemaVersion, 'BundleDecisionV2')
+assert.strictEqual(v2Decision.completion, 'complete')
+assert.deepStrictEqual(new Set(v2Decision.selected.map(item => item.id)),
+  new Set(['api-verification', 'dev-scenario-test', 'dev-testing']))
+assert(v2Decision.selected.findIndex(item => item.id === 'api-verification') < v2Decision.selected.findIndex(item => item.id === 'dev-testing'))
+assert(v2Decision.selected.findIndex(item => item.id === 'dev-scenario-test') < v2Decision.selected.findIndex(item => item.id === 'dev-testing'))
+assert.strictEqual(v2Decision.budget.selected.bytes,
+  v2Decision.selected.reduce((sum, item) => sum + item.sourceBytes, 0))
+assert.strictEqual(v2Decision.budget.tokens.status, 'N/A')
+assert.deepStrictEqual(v2Decision.writes, [])
+
+const overBudgetMandatory = buildBundleDecisionV2(first, {
+  candidateIds: ['dev-testing'],
+  maxSkills: 1,
+  maxBytes: 1024 * 1024
+})
+assert.strictEqual(overBudgetMandatory.completion, 'over-budget-mandatory')
+assert.strictEqual(overBudgetMandatory.selected.length, 3)
+assert(overBudgetMandatory.stages.length >= 3)
+assert.strictEqual(overBudgetMandatory.exitCondition, 'read-stages-in-order')
+
+const inactiveGray = buildBundleDecisionV2(first, { candidateIds: ['brand-visual-quality'] })
+assert.strictEqual(inactiveGray.completion, 'blocked')
+assert(inactiveGray.blockers.some(item => item.code === 'inactive'))
+const explicitGray = buildBundleDecisionV2(first, {
+  candidateIds: ['brand-visual-quality'],
+  includeGray: true
+})
+assert.strictEqual(explicitGray.completion, 'complete')
+
+const mandatoryConflict = buildBundleDecisionV2(first, {
+  candidateIds: ['brand-visual-quality', 'design-system-architecture'],
+  includeGray: true
+})
+assert.strictEqual(mandatoryConflict.completion, 'blocked')
+assert(mandatoryConflict.blockers.some(item => item.code === 'mandatory-conflict'))
+const optionalConflict = buildBundleDecisionV2(first, {
+  candidateIds: ['brand-visual-quality', 'design-system-architecture'],
+  mandatoryIds: ['design-system-architecture'],
+  includeGray: true
+})
+assert.strictEqual(optionalConflict.completion, 'complete')
+assert.deepStrictEqual(optionalConflict.selected.map(item => item.id), ['design-system-architecture'])
+assert(optionalConflict.ignored.some(item => item.id === 'brand-visual-quality' && item.reason === 'conflict'))
+
+const orphanDependencyPortfolio = JSON.parse(JSON.stringify(first))
+const optionalRoot = orphanDependencyPortfolio.skills.find(item => item.id === 'brand-visual-quality')
+optionalRoot.dependencies = ['intent']
+optionalRoot.skillIndex.requires = ['intent']
+const orphanDependency = buildBundleDecisionV2(orphanDependencyPortfolio, {
+  candidateIds: ['brand-visual-quality', 'design-system-architecture'],
+  mandatoryIds: ['design-system-architecture'],
+  includeGray: true
+})
+assert.deepStrictEqual(orphanDependency.selected.map(item => item.id), ['design-system-architecture'])
+assert(orphanDependency.ignored.some(item => item.id === 'intent' && item.reason === 'orphaned-dependency'))
+
+const missingSourceMetadataPortfolio = JSON.parse(JSON.stringify(first))
+delete missingSourceMetadataPortfolio.skills.find(item => item.id === 'intent').hash
+const missingSourceMetadata = buildBundleDecisionV2(missingSourceMetadataPortfolio, { candidateIds: ['intent'] })
+assert.strictEqual(missingSourceMetadata.completion, 'blocked')
+assert(missingSourceMetadata.blockers.some(item => item.code === 'source-metadata-missing'))
+
+const unknownMandatory = buildBundleDecisionV2(first, { candidateIds: ['missing-skill'] })
+assert.strictEqual(unknownMandatory.completion, 'blocked')
+assert(unknownMandatory.blockers.some(item => item.code === 'unknown'))
+const hostFallback = buildBundleDecisionV2(first, {
+  candidateIds: ['intent'],
+  hostCapability: 'unsupported',
+  maxTokens: 1
+})
+assert.strictEqual(hostFallback.completion, 'fallback-full')
+assert.strictEqual(hostFallback.fallback.route, 'full-skill-read')
+assert.strictEqual(hostFallback.budget.tokens.status, 'N/A')
+assert.strictEqual(hostFallback.selected[0].sourceBytes, first.skills.find(item => item.id === 'intent').sourceBytes)
+
+const optionalTokenCountMissing = buildBundleDecisionV2(first, {
+  candidateIds: ['intent', 'load-profile'],
+  mandatoryIds: ['intent'],
+  hostTokenCounter: true,
+  maxTokens: 1000,
+  tokenCounts: { intent: 100 }
+})
+assert.strictEqual(optionalTokenCountMissing.completion, 'complete')
+assert.deepStrictEqual(optionalTokenCountMissing.selected.map(item => item.id), ['intent'])
+assert(optionalTokenCountMissing.ignored.some(item => item.id === 'load-profile' && item.reason === 'token-count-missing'))
+assert.strictEqual(optionalTokenCountMissing.blockers.length, 0)
+
+const mandatoryTokenCountMissing = buildBundleDecisionV2(first, {
+  candidateIds: ['intent'],
+  hostTokenCounter: true,
+  maxTokens: 1000
+})
+assert.strictEqual(mandatoryTokenCountMissing.completion, 'blocked')
+assert(mandatoryTokenCountMissing.blockers.some(item => item.id === 'intent' && item.code === 'token-count-missing'))
+assert.strictEqual(serializePortfolio(first), portfolioBeforeDecision, 'BundleDecisionV2 must remain read-only')
 
 const invalidIndex = JSON.parse(JSON.stringify(first))
 invalidIndex.skills[0].skillIndex.evidenceState = 'claimed-without-evidence'

@@ -199,6 +199,10 @@ function buildGovernancePackageDeploymentChecks(ctx) {
   }
 
   function checkV8() {
+    if (process.env.DEVCODEX_VALIDATION_SCOPE === 'source') {
+      console.log('[V8] source validation scope — workspace deployment parity deferred to profile-deploy route')
+      return
+    }
     const parentRoot = path.dirname(ROOT)
     const claudeDir = path.join(parentRoot, '.claude')
     const githubDir = path.join(parentRoot, '.github')

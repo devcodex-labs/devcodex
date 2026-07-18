@@ -120,15 +120,16 @@ S02 不再把“敏感信息、明文密码、连接字符串或硬编码”定�
 ## ContextAcquisitionGate — 意图驱动上下文获取（所有工作流前置步骤）
 
 - 每条非空用户消息先仅依据当前消息与已观察到的会话连续性形成 `IntentSeedV1`，再确定唯一目标项目 / active-root；在这两步完成前不得预读 Profile、SUMMARY 或 daily tasks 正文。
-- 目标唯一后调用 `profile_context_plan` 形成 `ContextReadPlanV1`：baseline 只返回 README/index、effective non-local config 与顶层 metadata inventory；`01~09-*`、`config.local.json` 和记忆正文必须进入 selected / excluded / unclassified 决策，禁止 hidden full read。
-- 按计划使用 `profile_load(files)`、`memory_status`、`memory_session_query`、`memory_summary_query` 获取最小必要正文；只有与 plan / epoch / target / source 精确关联且被 `PostToolUse` 观察为成功的结果，才能形成 `ContextReadReceiptV1`。`PreToolUse` 只代表 attempted，不代表 loaded / verified / complete。
+- 目标唯一后调用 `profile_context_plan` 形成 `ContextReadPlanV2`（兼容读取 V1）：baseline 只返回 README/index、effective non-local config 与顶层 metadata inventory；`01~09-*`、`config.local.json` 和记忆正文必须进入 selected / excluded / unclassified 决策，禁止 hidden full read。
+- `ContextReadPlanV2` 必须从已经读取的 effective config 生成身份绑定的 `ExecutionOptimizationPlanBindingV1`。`profile_load` / `profile_skill_plan` 消费该绑定，禁止为了判断优化模式再次隐式读取 `config.json`；绑定缺失、损坏或未知时必须 fail-closed 到 `full-only`，不得继续 section/bundle 优化。
+- 按计划使用 `profile_load(files)`、`memory_status`、`memory_session_query`、`memory_summary_query` 获取最小必要正文；只有与 plan / epoch / target / source 精确关联且被 `PostToolUse` 观察为成功的结果，才能形成 `ContextReadReceiptV2`（兼容 V1）。`PreToolUse` 只代表 attempted，不代表 loaded / verified / complete。
 - 全量读取仅在用户 / 项目明确要求、audit / migration 确需全量、低置信无法安全裁剪、或必要真相源缺失且定向升级不足时允许，并记录 `fullReadReason`。`config.local.json` 仍只在用户或项目明确指定时读取。
 - Profile 缺失时 ENV_MODE 默认为 `prod`（保守降级）；resume / compact / summary 恢复必须重建 seed 与计划并精确查询当前 handoff、sessions、报告或清单，摘要不能替代文件真相源，但也不构成整目录重读理由。
 - 旧 no-args 全量 MCP 工具保留兼容性，不得作为正常生产路径，也不得单独证明上下文完整。
 
 ### 项目现实扩展
 
-执行顺序必须为：`用户消息语义初判（IntentSeedV1）→ 目标项目识别 → ContextReadPlanV1 → 定向读取 + ContextReadReceiptV1 → 项目现实扩展 → 最终意图与工作流路由`。
+执行顺序必须为：`用户消息语义初判（IntentSeedV1）→ 目标项目识别 → ContextReadPlanV2 → 定向读取 + ContextReadReceiptV2 → 项目现实扩展 → 最终意图与工作流路由`。
 
 - 项目现实扩展必须结合目标项目的技术栈、目录结构、当前需求/bug 产物、测试/发布约束，修正或确认最终工作流/子类型。
 - 项目未识别时，不得为了扩展意图而无界扫描工作区；必须先询问用户。
@@ -158,6 +159,14 @@ S02 不再把“敏感信息、明文密码、连接字符串或硬编码”定�
 | `config.local.json` | 用户 / 项目指定时使用的本地 overlay：长期连接、本地明文连接信息、env / secretRef 引用、`extensions.<namespace>` 扩展位 | 可选 |
 
 > **Copilot / Claude Code / Codex 三宿主 Bootstrap 提醒**（v1.11.0+）：`lifecycle.cjs` 只在宿主实际提供 Hook 事件时形成 runtime 护栏。Claude Code 具备项目级 hooks + MCP，是当前 Full 路径；Codex 通过 `.codex/hooks.json` 接入，阻断输出按事件契约区分顶层 `decision`、`continue:false` 与工具级 `permissionDecision`；Copilot / JetBrains / Cursor 默认按 instruction-fallback 处理，不承诺本地 Hook 硬拦。默认 `safety-only` 模式下，bootstrap / CP / auto 白名单等流程问题输出提醒并放行工具，仅危险命令继续硬拦；设置 `DEVCODEX_HOOK_ENFORCEMENT=strict` 时，只有支持硬拦的事件才停止流程。AI 仍须在首条用户可见回复输出 PC0~PC7 入口检查块（S07/C18）。
+
+### ExecutionChainOptimizationGate（执行链优化与回滚）
+
+- 执行链优化状态使用 `ExecutionOptimizationStateV2` / `OptimizationFeatureStateV1`，生命周期为 `off → shadow → trial → default`，异常进入 `rolled-back`，连续无收益或维护税过高可进入 `sunset`。
+- `extensions.devcodex.executionOptimization.mode` 只允许 `safe-auto | full-only`，缺省 `safe-auto`。`full-only` 是正确性优先的 kill switch：禁用索引/cache/changed-scope/section/bundle/snapshot 复用，但保留有界任务定位、完整上下文读取、full validation 与完整项目分析。
+- 每个真实消费者在动作前必须读取当前 active-root 的只读状态，并形成 `ExecutionOptimizationFeatureDecisionV1`；`off / shadow / rolled-back / sunset` 必须立即走该 feature 的完整 fallback。状态缺失沿用 trial 兼容路径，状态损坏、超预算、未知 schema、身份不匹配或目标无法确定时必须 fail-closed，禁止只在 status/doctor 展示 lifecycle 而执行链仍继续加速。
+- promotion 必须使用 prospective trial：正确性错误为 0、直接收益与样本量达标、full fallback 回归/观测开销/false-positive 在预算内；任何 wrong task/root/CP、mandatory miss、required finding miss 或 false complete 非 0，立即 rollback，禁止用历史成功样例抵消。
+- 相关实现或消费者变化必须执行 `test:execution-chain-evolution`、V101 与适用的 full/Profile/package/website 路由；benchmark 未满足可比环境或样本策略时只能标 `provisional`，不得宣称目标收益。
 
 ### Hook 拦截动作语义
 

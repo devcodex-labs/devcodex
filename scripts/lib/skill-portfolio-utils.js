@@ -4,6 +4,7 @@ const crypto = require('crypto')
 const { execFileSync } = require('child_process')
 const fs = require('fs')
 const path = require('path')
+const { buildBundleDecisionV2 } = require('../../mcp/profile-contract')
 
 const LEGAL_STATES = new Set(['draft', 'gray', 'active', 'deprecated', 'retired', 'blocked'])
 const SKILL_INDEX_EVIDENCE_STATES = new Set(['unverified', 'source-backed', 'validated'])
@@ -344,6 +345,7 @@ function buildPortfolio(root) {
     }
     const conflicts = Array.isArray(override.conflicts) ? [...override.conflicts].sort() : []
     const hash = sha256(canonicalContent)
+    const sourceBytes = Buffer.byteLength(canonicalContent, 'utf8')
     sourceRows.push(`${source}:${hash}`)
     const skillIndex = buildSkillIndex({
       id,
@@ -364,6 +366,7 @@ function buildPortfolio(root) {
       ownedArtifacts: [source],
       source,
       hash,
+      sourceBytes,
       version: packageJson.version,
       lifecycleState,
       dependencies,
@@ -451,6 +454,7 @@ function validatePortfolio(portfolio) {
     ids.add(skill.id)
     if (!LEGAL_STATES.has(skill.lifecycleState)) errors.push(`illegal lifecycle state: ${skill.id}=${skill.lifecycleState}`)
     if (!skill.source || !skill.hash || !skill.version) errors.push(`missing source/hash/version: ${skill.id}`)
+    if (!Number.isInteger(skill.sourceBytes) || skill.sourceBytes < 1) errors.push(`missing sourceBytes: ${skill.id}`)
     if (!skill.triggers || !Array.isArray(skill.triggers.terms) || !skill.triggers.terms.length) errors.push(`missing structured triggers: ${skill.id}`)
     if (!skill.conflictReview || !['reviewed-none', 'declared'].includes(skill.conflictReview.status)) errors.push(`missing conflict review: ${skill.id}`)
     if (skill.lifecycleState === 'active' && !skill.consumers.some(item => item.role === 'current')) {
@@ -489,6 +493,7 @@ function serializePortfolio(portfolio) {
 
 module.exports = {
   buildBundleDecision,
+  buildBundleDecisionV2,
   buildPortfolio,
   buildSkillIndex,
   buildTriggerContract,

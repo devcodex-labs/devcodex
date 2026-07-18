@@ -196,6 +196,9 @@ assert.strictEqual(normalizeIntentSeed({ intent: 'dev', selectedSources: [] }).e
 assert.strictEqual(stableDigest({ b: 2, a: 1 }), stableDigest({ a: 1, b: 2 }))
 
 const devPlan = assertPlan(buildContextReadPlan(makeInput('dev', ['source-code']), { nowMs: BASE_MS }))
+assert.strictEqual(devPlan.executionOptimization.schemaVersion, CONTEXT_READ_CONTRACT.schemas.executionOptimizationBinding)
+assert.strictEqual(devPlan.executionOptimization.mode, 'safe-auto')
+assert.strictEqual(devPlan.executionOptimization.status, 'defaulted')
 assert.deepStrictEqual(devPlan.profile.selectedFiles, STANDARD_FILES.slice(0, 3))
 assert(devPlan.selectedSources.some(source => source.sourceId === 'profile:README.md' && source.kind === 'profile-baseline'))
 assert(devPlan.selectedSources.some(source => source.sourceId === 'profile:config.json' && source.kind === 'profile-baseline'))
@@ -348,6 +351,9 @@ mutations.push(resignPlan(brokenEnvelope))
 const unknownEscalation = clone(devPlan)
 unknownEscalation.triggeredEscalations.push('unknown-escalation')
 mutations.push(resignPlan(unknownEscalation))
+const forgedOptimization = clone(devPlan)
+forgedOptimization.executionOptimization.mode = 'full-only'
+mutations.push(forgedOptimization)
 for (const mutation of mutations) assert.strictEqual(validateContextReadPlan(mutation).valid, false, 'plan mutation escaped validation')
 
 let receipt = createContextReadReceipt(devPlan, {
@@ -634,6 +640,17 @@ const reusable = evaluateContextReuse({
 })
 assert.strictEqual(reusable.computation.reuse, true)
 assert.strictEqual(reusable.delivery.reuse, true)
+const fullOnlyReuse = evaluateContextReuse({
+  plan: currentPlan,
+  priorPlan,
+  priorReceipt,
+  hostSessionId: 'host-session-1',
+  sourceIdentities: priorReceipt.sourceIdentities,
+  executionOptimizationMode: 'full-only'
+})
+assert.strictEqual(fullOnlyReuse.computation.reuse, false)
+assert.strictEqual(fullOnlyReuse.delivery.reuse, false)
+assert.strictEqual(fullOnlyReuse.delivery.reasonCode, 'execution-optimization-full-only')
 const reusedReceipt = createContextReadReceipt(currentPlan, {
   verificationMode: 'structured-plan',
   planObserved: true,
@@ -683,7 +700,7 @@ assert.strictEqual(sourceDecision.delivery.reuse, false)
 assert.strictEqual(sourceDecision.delivery.reasonCode, 'source-identity-mismatch')
 
 const legacyPlan = clone(devPlan)
-for (const field of ['planContentId', 'identityInputs', 'reusePolicy', 'stageTiming', 'cacheDecision']) delete legacyPlan[field]
+  for (const field of ['planContentId', 'identityInputs', 'executionOptimization', 'reusePolicy', 'stageTiming', 'cacheDecision']) delete legacyPlan[field]
 legacyPlan.schemaVersion = CONTEXT_READ_CONTRACT.schemas.planV1
 legacyPlan.freshness = {
   strategy: 'size+mtimeMs+metadataDigest',

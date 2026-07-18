@@ -72,6 +72,9 @@ applyTo: .devcodex/**/{requirements,bugs}/**; .devcodex/**/fix/**
 | CliDiagnosticContract | machine-readable CLI / typed local probe / stable error or exit | ✅/🔄/N/A | envelope / humanCompatibility / errorCode / nextStep / nativeExitMap / localOnly / zeroWrite |
 | CheckpointValidation | response-time / post-execution evidence | ✅/🔄/N/A | mode / status / evidenceState / deadlineAt / errorCode |
 | LocalTaskTrace | current-turn trace / read-only replay | ✅/🔄/N/A | traceId / sequence / terminal / restart / replayBoundary / sourceHash |
+| ProjectKnowledge | 增量项目分析 / 逐文件分批 / snapshot reuse | ✅/🔄/N/A | snapshot/plan/receipt identity / changed / affected / lens-gap / reused / sample oracle / accepted pointer |
+| ExecutionAttemptLedger | formal run / 重复失败 / cancel / restart | ✅/🔄/N/A | qualification / attemptNo / failureSignature / source+evidence delta / FirstPassYield / timing split / terminal / StopSnapshot |
+| ExecutionOptimizationStateV2 | 执行链索引/cache/changed/section/bundle/snapshot 优化 | ✅/🔄/N/A | feature lifecycle / `ExecutionOptimizationFeatureDecisionV1` 六消费者实接 / prospective trial / correctness / benefit / fallback regression / overhead / false positive / `full-only` rollback / V101 |
 | OfficialDocsEvidence | 依赖 / 框架 / SDK / 平台 API / 外部模块引入或升级 | ✅/🔄/N/A | 官方文档来源 / 关键用法 / 限制 / 兼容性 / skipReason |
 | ProfileImpactCheck | 项目技术栈 / 目录 / 脚本 / 配置 / 发布状态变化 | ✅/🔄/N/A | targetProfileFiles / updateOrSkip / skipReason / evidence |
 | ConsumerDependencyTreeProbe | 消费者验证失败且症状指向依赖、插件、共享库或框架适配 | ✅/🔄/N/A | package.json / lockfile / node_modules / npm ls <关键依赖> / sourcePatchDecision |

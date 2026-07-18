@@ -42,6 +42,10 @@ description: 增量项目分析 Owner — 知识快照、内容 digest、分析�
 
 落盘建议：`<active-root>/reports/analysis/<agent>/YYYYMMDD/deep/` 或任务目录 `artifacts/knowledge-snapshot/`；**禁止**写入 Agent SUMMARY 正文。
 
+源仓 runtime Owner 为 `scripts/lib/project-knowledge-store.js`，内部 CLI 为 `scripts/project-analysis-state.js status|plan|accept`。accepted runtime 固定落到 `<active-root>/.runtime-state/project-knowledge/v1/<repoId>/snapshot.json`；`plan`/`status` 只读，只有 `BatchValidationResultV1=pass` 且 sample oracle=pass 的 `accept` 可推进 pointer 并写任务证据。
+
+当 execution optimization 为 `full-only`，或 `project-knowledge-reuse` 的 `ExecutionOptimizationFeatureDecisionV1` 为 `off / shadow / rolled-back / sunset`，或 state/snapshot schema/identity 无效、oracle 失败时，`plan` 必须返回 `full-project-analysis`，不得复用 snapshot records；status 同时公开 `executionOptimizationMode`、feature decision 与 `reuseAllowed=false`。kill switch 只关闭加速，不跳过 inventory、智能分批、逐批验证、最终全局验证或高/中/低 backlog。
+
 ---
 
 ## Gate 索引（执行正文）
@@ -60,12 +64,16 @@ description: 增量项目分析 Owner — 知识快照、内容 digest、分析�
 3. 状态：`fresh / stale / coverage-gap / incompatible / full-required`。
 4. 强制升级：快照损坏、base 不可达、schema 不兼容、动态依赖未知、高风险变更、闭包过大、抽样复证失败。
 
+`mtime/size` 只能做候选加速；fresh 必须由 current bytes content identity 证明。rename 必须同时写旧 path tombstone 与新 path identity，delete 写 tombstone；配置变化保守扩到受影响全域。ImpactGraph 每条边必须含 type/source/evidenceStrength，图覆盖不足时不得声称 selective complete。
+
 ### AdaptiveBatchDeliveryGate（ABS-02）
 
 1. 按模块 / namespace / 消费者 / 风险分批；每批有 budget 与 checkpoint。
 2. **每个 accepted 批次**必须立即输出并持久化：`BatchProgressCard` + 本批发现 + checkpoint + snapshot delta。
 3. **禁止**等待全量完成才首次交付用户可见结果。
 4. 恢复只从最后一个 `accepted` 批次继续；`invalid/blocked` 不得推进指针。
+
+复用抽样必须按 contentId/path 稳定排序选择 5%，最少 3、最多 20，不足 3 全抽。任一 content/fact mismatch 使本批 `invalid + full-required`；历史 runtime 只标 stale，不自动删除。
 
 ### GlobalPrioritySynthesisGate（ABS-03）
 

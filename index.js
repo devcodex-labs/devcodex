@@ -388,10 +388,10 @@ const { cmdStatus, cmdProfileInit, cmdDoctor, cmdHelp } = buildCliMaintenanceCom
 const { cmdProbe, cmdTrace } = buildCliObservabilityCommands({
   fs, process, console, c, resolveProfileDir, inspectProfileState, detectHostPlatform, detectInstalledHostAssets
 })
-const { cmdTask } = buildCliExecutionCommands({ process, console, c })
+const { cmdSkill, cmdTask } = buildCliExecutionCommands({ process, console, c })
 
 const cliCommandRegistry = createCliCommandRegistry({
-  cmdInit, cmdInitClaude, cmdInitCodex, cmdStatus, cmdProfileInit, cmdDoctor, cmdProbe, cmdTrace, cmdTask, cmdHelp
+  cmdInit, cmdInitClaude, cmdInitCodex, cmdStatus, cmdProfileInit, cmdDoctor, cmdProbe, cmdTrace, cmdSkill, cmdTask, cmdHelp
 })
 
 // ─── Entry point ─────────────────────────────────────────────────────────────
@@ -412,6 +412,7 @@ module.exports = {
   cmdDoctor,
   cmdProbe,
   cmdTrace,
+  cmdSkill,
   cmdTask,
   isSourceRepo,
   findLayoutInfo,

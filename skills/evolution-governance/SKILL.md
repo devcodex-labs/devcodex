@@ -65,6 +65,14 @@ description: 自我进化治理能力 — 规范、Skill、Prompt、探针和发
 
 `EvolutionRun` 的有效性字段至少包括：`qualityObjective / baselineWindow / reworkCluster / targetPhaseShift / candidateControl / prospectiveTrials / falsePositiveCost / overheadCost / effectivenessVerdict / rollbackOrSunset`。
 
+## ExecutionOptimizationLifecycleGate
+
+执行链性能能力以 `OptimizationFeatureStateV1` 管理 `off → shadow → trial → default`，有害候选进入 `rolled-back`，连续两个 release candidate 无有效收益或维护税超过收益时进入 `sunset` review。当前受控能力仅包括 task index、context computation reuse、changed-scope validation、Profile section load、Skill bundle 与 ProjectKnowledge reuse；新增 feature 必须先补消费者、full fallback、负向探针和 V101，不得只向状态数组追加名称。
+
+`safe-auto` 只允许已通过 trial 的加速路径；`full-only` 必须关闭全部选择性复用并保持 bounded task resolver、完整 Context/Profile/Skill 读取、full validation 与 full-project-analysis 可用。状态 schema 只读兼容上一版，writer 只写当前版；未知未来 schema 或无效配置 fail-closed，不猜测迁移。promotion 必须同时满足 prospective trials、正确性零错误、收益阈值、fallback regression、overhead 与 false-positive 预算，任一正确性错误立即 rollback。
+
+生命周期不是观测面标签。task resolver、Context cache、validation runner、Profile loader、Skill planner 与 ProjectKnowledge planner 必须在每次真实动作前消费 `ExecutionOptimizationFeatureDecisionV1`；`off / shadow / rolled-back / sunset` 禁止进入优化分支。状态文件缺失可按 trial 兼容启动，但读取失败、容量绕过、未知 schema、identity 无效或目标 root 不明确必须走该 feature 的 full route，并由负向探针证明六类消费者均未漏接。
+
 ## 负向用例
 
 自我进化控制面至少覆盖以下拒绝 / 降级探针：
@@ -77,6 +85,8 @@ description: 自我进化治理能力 — 规范、Skill、Prompt、探针和发
 6. `direct-publish-blocked`：模型建议不得直接 tag、release、publish 或覆盖部署副本。
 7. `retrospective-only-proof`：只有历史问题和文本规则时必须保持 `insufficient-evidence`。
 8. `metric-gaming`：通过缩小 WorkUnit、把返工改标计划迭代或降低验收标准制造的指标改善必须判无效。
+9. `execution-full-only`：kill switch、无效绑定或未知 schema 下仍命中 cache/changed/section/bundle/snapshot 必须失败。
+10. `execution-lifecycle-disconnected`：状态已为 `off / shadow / rolled-back / sunset`，但任一真实消费者仍进入优化分支，必须失败；仅 status/doctor 显示回滚不构成执行闭包。
 
 ## 交付证据
 

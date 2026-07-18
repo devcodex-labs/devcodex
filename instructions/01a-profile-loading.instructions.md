@@ -23,6 +23,7 @@ version: 1.15.1
 ### Profile / config 读取
 
 - `config.json` 采用 `workspace base + project overlay`；Auto 精确别名全局默认 `@rocky`，可用 `extensions.devcodex.autoAliases` 替换全局默认别名（省略表示沿用默认，空数组表示关闭默认别名），也可在 `extensions.devcodex.concurrency` 配置 `ConcurrencyPolicy`
+- `extensions.devcodex.executionOptimization.mode` 只允许 `safe-auto | full-only`，缺省 `safe-auto`；`full-only` 关闭选择性复用但不关闭正确的完整执行路径
 - `extensions.devcodex.concurrency` 缺省为 `mode=auto`：只读准备与隔离验证可按通道上限并行；`mode=serial` 表示全串行；项目只能追加 `locks.additionalSingleWriterScopes`，不得删除核心单写者域或开启并行 mutation
 - `config.local.json` 与 `config.json` 同路径模型，可作为用户 / 项目指定的本地 overlay（长期连接、本地明文连接信息、env / secretRef 引用、`extensions.<namespace>`），不得覆盖 `mode` / `agent` / `pluginVersion`
 - 连接配置来源遵循 S02：默认可直写或沿用项目既有模式；只有用户或项目明确指定 `config.local.json` 时，脚本、测试、数据库 / SSH / MongoDB / 数据操作才从当前 Profile 路径模型下的 `config.local.json` 读取，缺失文件或字段时提醒补齐
@@ -35,6 +36,8 @@ version: 1.15.1
 所有工作流的 Profile 获取都必须执行 `ProfileReadChainGate`；服务 / 框架规范复审、跨服务需求、workspace-namespace 或 Profile 同步任务还必须执行 `ServiceNormCoverageGate`：
 
 - 先调用 `profile_context_plan`，以 canonical intent、changeTypes、risk、confidence 与明确 selector 形成 `ContextReadPlanV2`（保留 `ContextReadPlanV1` 读取兼容）；计划必须列出 selected / excluded / unclassified、base/project fallback、实际 active-root 与必要理由。
+- 计划必须从 baseline 已含的 effective config 形成 `ExecutionOptimizationPlanBindingV1`，并把绑定传给后续 `profile_load` / `profile_skill_plan`；消费者不得为了读取优化开关额外读取 `config.json`。绑定缺失、损坏或未知时 fail-closed 到 `full-only`，转为完整 Profile 文件 / 完整 Skill 读取。
+- 绑定只证明 config mode；Context/Profile/Skill 消费者仍须读取同一 active-root 的只读 `ExecutionOptimizationStateV2`，形成 `ExecutionOptimizationFeatureDecisionV1`。feature 为 `off / shadow / rolled-back / sunset`，或状态损坏、超预算、未知 schema、identity/target 无效时，必须分别 bypass computation cache、回退整文件或 `full-skill-read`，禁止只在诊断面显示回滚。
 - baseline 可返回 README/index 内容、effective non-local config 和顶层 metadata inventory。`ProfilePlanNoHiddenFullReadProbe` 必须证明规划阶段没有读取 `01~09-*`、`config.local.json` 或其他 selected Profile 正文；存在文件不等于读取文件。
 - 计划选中的正文通过 `profile_load({ project, files })` 定向加载。只有与 contextEpoch / invocation `planId` / `planContentId` / activeRoot / sourceId 精确相关且由 `PostToolUse` 观察成功的 `ContextReadReceiptV2`（兼容 `ContextReadReceiptV1`）才能证明 loaded；PreToolUse 只记 attempted。
 - `planContentId` 只证明等价计划内容，可跨进程复用解析/索引等 computation metadata；它不能证明正文已交付。正文 delivery reuse 仅限同一 host session、同一 contextEpoch、相同 source identity 且当前模型已有成功 body observation；新会话、压缩/恢复新 epoch、不可观察 session 或任一失效因子变化都必须重新交付所需正文。
@@ -102,7 +105,7 @@ version: 1.15.1
 | `05-交付发布规范.md` / `05-发布规范.md` | 版本号/发布流程 | `profile-standard` 起必需 |
 | `06-功能清单.md` | `FeatureInventorySchemaV2` 规范功能清单（兼容读取 V1） | standard 默认生成；closed-loop 必需 |
 | `07-用户文档与契约规范.md` | 用户文档与公开契约维护规则 | `profile-closed-loop` 必需 |
-| `config.json` | 运行模式配置（ENV_MODE）+ agent 兜底标识；Auto 别名全局默认 `@rocky`，可配置 `extensions.devcodex.autoAliases` 替换默认别名；也可配置 `extensions.devcodex.concurrency` 并发策略 | 按需 |
+| `config.json` | 运行模式配置（ENV_MODE）+ agent 兜底标识；Auto 别名全局默认 `@rocky`，可配置 `extensions.devcodex.autoAliases` 替换默认别名；也可配置 `extensions.devcodex.concurrency` 并发策略及可选 `extensions.devcodex.executionOptimization.mode`（缺省 `safe-auto`） | 按需 |
 | `config.local.json` | 用户 / 项目指定时使用的本地 overlay：长期连接、本地明文连接信息、env / secretRef 引用、`extensions.<namespace>` 扩展位 | 可选 |
 
 ## ENV_MODE 注入

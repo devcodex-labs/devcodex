@@ -46,9 +46,19 @@ description: 性能工程专家 Owner — 当任务涉及性能优化、性能�
 
 全部适用模块 accepted 前只能报告 `partial`；不可变基线变更必须有授权和迁移证据，不能通过减少适用模块、删除 flake 或重写基线制造通过率。
 
+## ExecutionChainBenchmarkGate
+
+DevCodex 自身的任务续接、上下文/Profile/Skill 读取、验证 DAG 与增量分析优化统一输出 `ExecutionChainBenchmarkResultV1`。四个 direct-benefit 维度为 validation wall time、delivered bytes、analysis recompute work、resume setup cost；baseline/candidate 必须使用同一环境 identity、单位和样本策略，等权计算几何平均，禁止把不同量纲直接相加。
+
+只有 correctness 指标全为 0、综合改善至少 25%、至少 3/4 维度改善 20%、任一维度回归不超过 5%、instrumentation overhead 不超过 3% 时，结果才可 `accepted`。样本不足、环境不一致或宿主 token/TTFT 不可观测时保持 `provisional` / `N/A`；不得用 bytes 冒充 token。任何默认晋级还必须有 prospective trial（至少 3 个可比 WorkUnit 或 2 个独立上下文），历史样例只能证明基线。
+
+性能 accepted 还必须证明 lifecycle 能控制真实执行路径：将每个受控 feature 置为 `rolled-back` 后，task index、Context cache、changed validation、Profile section、Skill bundle 与 ProjectKnowledge 都必须通过 `ExecutionOptimizationFeatureDecisionV1` 回到完整路径；只有 status/doctor 投影变化、消费者仍走加速时属于 correctness failure，收益数据作废。
+
+基准 evaluator 使用 `npm run benchmark:execution-chain -- --input <ExecutionChainBenchmarkInputV1.json>`；只有显式 `--output` 才可写结果。benchmark、website build 与 package smoke 串行执行，避免派生产物污染可比性。
+
 ## 输出字段
 
-`workloadModel`、`performanceBudget`、`benchmarkProtocol`、`baselineEvidence`、`profilingEvidence`、`bottleneckAttribution`、`capacityModel`、`regressionThresholds`、`comparisonLimits`、`modulePerformanceCoverage`、`maintenanceTriggers`、`decision`、`evidenceMatrix`。
+`workloadModel`、`performanceBudget`、`benchmarkProtocol`、`baselineEvidence`、`profilingEvidence`、`bottleneckAttribution`、`capacityModel`、`regressionThresholds`、`comparisonLimits`、`modulePerformanceCoverage`、`maintenanceTriggers`、`executionChainBenchmark`、`decision`、`evidenceMatrix`。
 
 ## 反模式
 

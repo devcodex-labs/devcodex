@@ -20,6 +20,16 @@ const DEFAULT_THRESHOLDS = Object.freeze({
   operationLeaseMs: 30 * 60 * 1000
 })
 const TERMINAL_STATES = new Set(['completed', 'error', 'interrupted'])
+const EXECUTION_ATTEMPT_LEDGER_SCHEMA = 'ExecutionAttemptLedgerV1'
+const EXECUTION_ATTEMPT_TERMINALS = new Set(['completed', 'error', 'aborted', 'cancelled', 'stopped'])
+
+class ExecutionAttemptLedgerError extends Error {
+  constructor(code, message) {
+    super(message)
+    this.name = 'ExecutionAttemptLedgerError'
+    this.code = code
+  }
+}
 
 function nowMsFrom(options = {}) {
   return Number.isFinite(options.nowMs) ? options.nowMs : Date.now()
@@ -41,6 +51,208 @@ function positiveNumber(value, fallback) {
 function stableId(prefix, parts) {
   const digest = crypto.createHash('sha256').update(parts.map(part => String(part || '')).join('\u001f')).digest('hex')
   return `${prefix}-${digest.slice(0, 20)}`
+}
+
+function nonNegativeNumber(value) {
+  return Number.isFinite(value) && value >= 0 ? value : 0
+}
+
+function createExecutionAttemptLedger() {
+  return {
+    schemaVersion: EXECUTION_ATTEMPT_LEDGER_SCHEMA,
+    entries: [],
+    stopSnapshot: null,
+    terminal: null,
+    duplicateEvents: 0
+  }
+}
+
+function normalizeExecutionAttemptLedger(raw) {
+  const base = createExecutionAttemptLedger()
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return base
+  return {
+    schemaVersion: EXECUTION_ATTEMPT_LEDGER_SCHEMA,
+    entries: Array.isArray(raw.entries) ? raw.entries.filter(item => item && typeof item === 'object').map(item => ({ ...item })).slice(-100) : [],
+    stopSnapshot: raw.stopSnapshot && typeof raw.stopSnapshot === 'object' ? { ...raw.stopSnapshot } : null,
+    terminal: raw.terminal && typeof raw.terminal === 'object' ? { ...raw.terminal } : null,
+    duplicateEvents: Math.max(0, Number.parseInt(raw.duplicateEvents, 10) || 0)
+  }
+}
+
+function attemptKey(value = {}) {
+  return [String(value.candidateId || ''), String(value.phase || ''), String(value.commandSignature || value.command || '')].join('\u001f')
+}
+
+function attemptSemanticId(value = {}) {
+  return stableId('attempt-event', [
+    value.eventId, value.kind, value.candidateId, value.phase, value.commandSignature || value.command,
+    value.result, value.failureSignature, value.sourceDelta, value.evidenceDelta,
+    value.commandWallMs, value.externalWaitMs, value.waitingUserMs, value.modelReasoningMs
+  ])
+}
+
+function noProgressFailureStreak(entries, key, failureSignature) {
+  let streak = 0
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const entry = entries[index]
+    if (entry.kind !== 'formal') continue
+    if (entry.attemptKey !== key || entry.result !== 'failed' || entry.failureSignature !== failureSignature || entry.sourceDelta !== 0 || entry.evidenceDelta !== 0) break
+    streak += 1
+  }
+  return streak
+}
+
+function evaluateExecutionAttempt(raw, attempt = {}) {
+  const ledger = normalizeExecutionAttemptLedger(raw?.executionAttemptLedger || raw)
+  const key = attemptKey(attempt)
+  const failureSignature = String(attempt.failureSignature || '')
+  const stopped = ledger.stopSnapshot && ledger.stopSnapshot.attemptKey === key
+  const streak = failureSignature ? noProgressFailureStreak(ledger.entries, key, failureSignature) : 0
+  return {
+    schemaVersion: 'ExecutionAttemptDecisionV1',
+    allowed: !ledger.terminal && !isTerminalState(raw?.state) && !stopped && streak < 2,
+    decision: (ledger.terminal || isTerminalState(raw?.state)) ? 'terminal' : ((stopped || streak >= 2) ? 'stop-before-third' : 'allow'),
+    noProgressFailureStreak: streak,
+    stopSnapshot: ledger.stopSnapshot
+  }
+}
+
+/** Record qualification/formal evidence inside the existing TurnLiveness state. */
+function recordExecutionAttempt(raw, attempt = {}, options = {}) {
+  const nowMs = nowMsFrom(options)
+  const state = normalizeTurnLivenessState(raw, { ...options, nowMs })
+  const ledger = normalizeExecutionAttemptLedger(state.executionAttemptLedger)
+  const kind = attempt.kind === 'qualification' ? 'qualification' : 'formal'
+  const candidateId = String(attempt.candidateId || '').trim()
+  const phase = String(attempt.phase || '').trim()
+  const commandSignature = String(attempt.commandSignature || attempt.command || '').trim()
+  if (!candidateId || !phase || !commandSignature) {
+    throw new ExecutionAttemptLedgerError('ATTEMPT_IDENTITY_REQUIRED', 'candidateId, phase and commandSignature are required')
+  }
+  const eventId = String(attempt.eventId || stableId('attempt', [state.turnKey, candidateId, phase, commandSignature, ledger.entries.length + 1])).trim()
+  const semanticId = attemptSemanticId({ ...attempt, eventId, kind, candidateId, phase, commandSignature })
+  const duplicate = ledger.entries.find(entry => entry.eventId === eventId)
+  if (duplicate) {
+    if (duplicate.semanticId !== semanticId) throw new ExecutionAttemptLedgerError('ATTEMPT_DUPLICATE_CONFLICT', `conflicting duplicate attempt event: ${eventId}`)
+    ledger.duplicateEvents += 1
+    state.executionAttemptLedger = ledger
+    return { state, decision: { schemaVersion: 'ExecutionAttemptDecisionV1', allowed: false, decision: 'duplicate-ignored', eventId } }
+  }
+  if (ledger.terminal || isTerminalState(state.state)) {
+    return { state, decision: { schemaVersion: 'ExecutionAttemptDecisionV1', allowed: false, decision: 'terminal' } }
+  }
+
+  const key = attemptKey({ candidateId, phase, commandSignature })
+  const result = ['passed', 'failed', 'inconclusive', 'cancelled', 'aborted'].includes(attempt.result) ? attempt.result : 'inconclusive'
+  if (kind === 'formal') {
+    const currentDecision = evaluateExecutionAttempt(ledger, { candidateId, phase, commandSignature, failureSignature: attempt.failureSignature })
+    if (!currentDecision.allowed) {
+      state.executionAttemptLedger = ledger
+      return { state, decision: currentDecision }
+    }
+    if (attempt.qualificationAvailable === true) {
+      const qualification = [...ledger.entries].reverse().find(entry => entry.kind === 'qualification' && entry.attemptKey === key)
+      if (!qualification || qualification.result !== 'passed') {
+        state.executionAttemptLedger = ledger
+        return {
+          state,
+          decision: { schemaVersion: 'ExecutionAttemptDecisionV1', allowed: false, decision: 'qualification-required', attemptKey: key }
+        }
+      }
+    }
+  }
+  const attemptNo = ledger.entries.filter(entry => entry.kind === kind && entry.attemptKey === key).length + 1
+  const entry = {
+    schemaVersion: 'ExecutionAttemptEntryV1',
+    eventId,
+    semanticId,
+    observedAt: toIso(nowMs),
+    turnKey: state.turnKey,
+    kind,
+    candidateId,
+    phase,
+    commandSignature,
+    attemptKey: key,
+    attemptNo,
+    qualificationEvidence: normalizeStringListForLedger(attempt.qualificationEvidence),
+    result,
+    failureSignature: result === 'failed' ? String(attempt.failureSignature || 'unknown-failure') : '',
+    sourceDelta: nonNegativeNumber(attempt.sourceDelta),
+    evidenceDelta: nonNegativeNumber(attempt.evidenceDelta),
+    firstPassYield: kind === 'formal' && attemptNo === 1 && result === 'passed' ? 1 : 0,
+    commandWallMs: nonNegativeNumber(attempt.commandWallMs),
+    externalWaitMs: nonNegativeNumber(attempt.externalWaitMs),
+    waitingUserMs: nonNegativeNumber(attempt.waitingUserMs),
+    modelReasoningMs: nonNegativeNumber(attempt.modelReasoningMs),
+    terminal: ['cancelled', 'aborted'].includes(result) ? result : null
+  }
+  ledger.entries.push(entry)
+  ledger.entries = ledger.entries.slice(-100)
+  let decision = { schemaVersion: 'ExecutionAttemptDecisionV1', allowed: true, decision: 'recorded', attemptNo }
+  if (kind === 'formal' && result === 'failed') {
+    const streak = noProgressFailureStreak(ledger.entries, key, entry.failureSignature)
+    if (streak >= 2) {
+      ledger.stopSnapshot = {
+        schemaVersion: 'StopSnapshotV1',
+        reason: 'repeated-formal-failure-zero-delta',
+        observedAt: entry.observedAt,
+        candidateId,
+        phase,
+        commandSignature,
+        attemptKey: key,
+        failureSignature: entry.failureSignature,
+        consecutiveAttempts: streak,
+        sourceDelta: 0,
+        evidenceDelta: 0,
+        nextAction: 'stop new mutation before the third formal run; inspect or request a new authorized cycle'
+      }
+      state.checkpoint = {
+        ...state.checkpoint,
+        phase: 'execution-stop-required',
+        nextAction: ledger.stopSnapshot.nextAction
+      }
+      decision = { schemaVersion: 'ExecutionAttemptDecisionV1', allowed: false, decision: 'stop-before-third', attemptNo, stopSnapshot: ledger.stopSnapshot }
+    }
+  }
+  state.executionAttemptLedger = ledger
+  return { state, decision, entry }
+}
+
+function normalizeStringListForLedger(values) {
+  if (!Array.isArray(values)) return []
+  return [...new Set(values.map(value => String(value || '').trim()).filter(Boolean))].slice(0, 20)
+}
+
+function finalizeExecutionAttemptLedger(raw, terminalState, evidence = {}, options = {}) {
+  const nowMs = nowMsFrom(options)
+  const state = normalizeTurnLivenessState(raw, { ...options, nowMs })
+  const ledger = normalizeExecutionAttemptLedger(state.executionAttemptLedger)
+  if (ledger.terminal || isTerminalState(state.state)) return state
+  const status = EXECUTION_ATTEMPT_TERMINALS.has(terminalState) ? terminalState : 'error'
+  ledger.terminal = {
+    status,
+    observedAt: toIso(nowMs),
+    reason: String(evidence.reason || status),
+    cancelFinalizer: ['cancelled', 'aborted'].includes(status)
+      ? {
+          status: evidence.cancelFinalizerStatus || 'unverified',
+          serviceLifecycleCleanup: evidence.serviceLifecycleCleanup || 'unverified'
+        }
+      : null
+  }
+  state.executionAttemptLedger = ledger
+  state.inFlightOperation = null
+  if (['cancelled', 'aborted'].includes(status)) {
+    state.state = 'interrupted'
+    state.previousTurn = {
+      turnKey: state.turnKey,
+      terminalState: status,
+      terminalAt: ledger.terminal.observedAt,
+      reason: ledger.terminal.reason
+    }
+    state.checkpoint = { ...state.checkpoint, phase: `terminal:${status}`, nextAction: '' }
+  }
+  return state
 }
 
 function firstString(source, keys) {
@@ -148,6 +360,8 @@ function createTurnLivenessState(options = {}) {
     checkpointValidation: createCheckpointValidationSet({ nowMs }),
     taskTrace: null,
     taskTraceLastError: null,
+    executionAttemptLedger: createExecutionAttemptLedger(),
+    previousExecutionAttemptLedger: null,
     thresholds: normalizeThresholds(options.thresholds),
     lastRecoveryCard: null,
     lastRecoveryNoticeKey: '',
@@ -186,6 +400,10 @@ function normalizeTurnLivenessState(raw, options = {}) {
       turnKey: String(raw.turnKey || ''),
       openedAt: raw.startedAt
     }),
+    executionAttemptLedger: normalizeExecutionAttemptLedger(raw.executionAttemptLedger),
+    previousExecutionAttemptLedger: raw.previousExecutionAttemptLedger && typeof raw.previousExecutionAttemptLedger === 'object'
+      ? normalizeExecutionAttemptLedger(raw.previousExecutionAttemptLedger)
+      : null,
     thresholds: normalizeThresholds(raw.thresholds),
     lastRecoveryCard: raw.lastRecoveryCard && typeof raw.lastRecoveryCard === 'object'
       ? { ...raw.lastRecoveryCard }
@@ -295,6 +513,10 @@ function observeTurnEvent(raw, eventName, payload = {}, options = {}) {
   state.lastEventAt = nowIso
 
   if (normalizedEvent === 'UserPromptSubmit') {
+    if (state.executionAttemptLedger.terminal) {
+      state.previousExecutionAttemptLedger = normalizeExecutionAttemptLedger(state.executionAttemptLedger)
+      state.executionAttemptLedger = createExecutionAttemptLedger()
+    }
     if (priorTurnKey && !isTerminalState(priorState) && priorState !== 'idle') {
       state.previousTurn = {
         turnKey: priorTurnKey,
@@ -443,6 +665,14 @@ function markTurnTerminal(raw, terminalState = 'completed', reason = '', options
     terminalStatus: traceTerminal,
     payload: { reason: String(reason || normalizedTerminal) }
   }, nowMs)
+  if (state.executionAttemptLedger.entries.length && !state.executionAttemptLedger.terminal) {
+    state.executionAttemptLedger.terminal = {
+      status: normalizedTerminal === 'completed' ? 'completed' : (normalizedTerminal === 'interrupted' ? 'aborted' : 'error'),
+      observedAt: toIso(nowMs),
+      reason: String(reason || normalizedTerminal),
+      cancelFinalizer: null
+    }
+  }
   return state
 }
 
@@ -454,14 +684,21 @@ function formatTurnRecoveryMessage(card) {
 
 module.exports = {
   DEFAULT_THRESHOLDS,
+  EXECUTION_ATTEMPT_LEDGER_SCHEMA,
+  ExecutionAttemptLedgerError,
   buildTurnRecoveryCard,
   classifyTurnLiveness,
   completeToolLease,
+  createExecutionAttemptLedger,
   createTurnLivenessState,
+  evaluateExecutionAttempt,
+  finalizeExecutionAttemptLedger,
   formatTurnRecoveryMessage,
   isTerminalState,
   markTurnTerminal,
+  normalizeExecutionAttemptLedger,
   normalizeTurnLivenessState,
   observeTurnEvent,
+  recordExecutionAttempt,
   startToolLease
 }

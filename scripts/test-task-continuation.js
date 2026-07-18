@@ -13,6 +13,10 @@ const {
   resolveTaskContinuation,
   validateTaskIdentity
 } = require('../hooks/_runtime/task-continuation-contract.cjs')
+const {
+  createOptimizationState,
+  persistOptimizationState
+} = require('./lib/execution-optimization')
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), `devcodex-task-continuation-${process.pid}-`))
 const indexPath = path.join(root, '.devcodex', 'workspace', '.runtime-state', 'task-continuation-index.json')
@@ -86,6 +90,27 @@ try {
 
   const reused = resolve('Current Performance Task')
   assert.strictEqual(reused.index.state, 'reused')
+
+  fs.mkdirSync(path.join(root, '.devcodex', 'workspace', 'profile'), { recursive: true })
+  fs.writeFileSync(path.join(root, '.devcodex', 'workspace', 'profile', 'config.json'), JSON.stringify({
+    mode: 'dev',
+    extensions: { devcodex: { executionOptimization: { mode: 'full-only' } } }
+  }, null, 2) + '\n')
+  fs.rmSync(indexPath, { force: true })
+  const fullOnlyResolution = resolve('Current Performance Task')
+  assert.strictEqual(fullOnlyResolution.status, 'resolved-active')
+  assert.strictEqual(fullOnlyResolution.index.state, 'disabled-full-only')
+  assert.strictEqual(fs.existsSync(indexPath), false, 'full-only resolver must not read or write the derived index')
+  fs.writeFileSync(path.join(root, '.devcodex', 'workspace', 'profile', 'config.json'), JSON.stringify({ mode: 'dev' }, null, 2) + '\n')
+
+  const optimizationRoot = path.join(root, '.devcodex', 'workspace')
+  const rolledBackIndex = createOptimizationState({ featureStates: { 'task-index-acceleration': 'rolled-back' } })
+  assert.strictEqual(persistOptimizationState(optimizationRoot, rolledBackIndex).status, 'persisted')
+  const lifecycleDisabled = resolve('Current Performance Task')
+  assert.strictEqual(lifecycleDisabled.index.state, 'disabled-feature-lifecycle')
+  assert.strictEqual(lifecycleDisabled.index.featureDecision.lifecycleState, 'rolled-back')
+  assert.strictEqual(lifecycleDisabled.index.featureDecision.reasonCode, 'feature-rolled-back')
+  fs.rmSync(path.join(optimizationRoot, '.runtime-state', 'execution-optimization'), { recursive: true, force: true })
 
   writeTask('alpha', 'requirements', 'legacy-only', { legacy: true, withCp: false })
   const legacy = resolve('legacy-only')

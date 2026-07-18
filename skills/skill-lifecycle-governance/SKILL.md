@@ -19,11 +19,17 @@ description: Skill 生命周期治理 Owner — 当任务涉及 Skill 组合、�
 
 DevCodex 源仓的机器可读实例是 `skills/portfolio.json`（schema v2）：由 `scripts/generate-skill-portfolio.js` 从 `skills/*/SKILL.md`、`plugin.json` 与 `skills/portfolio-evidence.json` 确定性生成，`--check` 只比较、不改生命周期。严格 `dependencies` 只承载显式依赖声明；普通 Markdown 关系进入 `referenceGraph`，避免把互相说明误报成依赖环。
 
-### SkillIndexV2 与 BundleDecisionV1
+### SkillIndexV2 与 BundleDecisionV1/V2
 
 每个 portfolio entry 必须包含保守的 `skillIndex` 投影：`id/type/workflow/phase/domains/triggers/requires/conflictsWith/priority/visibility/maxTokens/fixtures/evolvableUnitRef/probeSuiteRefs/exitCondition/evidenceState`。没有直接事实时使用空数组、`maxTokens=null` 或 `evidenceState=unverified`，禁止凭结构证据编造 workflow/phase/token budget。
 
 `buildBundleDecision` 只读消费 candidate IDs、当前 lifecycle、显式冲突和可选 `maxSkills`，输出 `selected/ignored/conflicts/budget/exitCondition`。ignored reason 固定为 `unknown/inactive/conflict/budget`；该决策不得写 portfolio、修改 `plugin.json` 或自动把 gray/draft 晋级 active。
+
+`BundleDecisionV2` 是渐进加载的正确性 oracle：先校验 active（gray 仅显式 `includeGray`），再递归闭合 `requires`，依赖必须排在消费者之前；随后处理 mandatory conflict，并按 priority/id 确定 optional 冲突结果。预算必须使用 `SKILL.md` canonical UTF-8 全文的精确 `sourceBytes`，按 `maxSkills → maxBytes` 选择；只有宿主提供真实 token counter 时才执行 `maxTokens`，否则固定为 `N/A`，不得用 bytes 估算 token。
+
+mandatory Skill 或其依赖未知、inactive、owner/sourceBytes 缺失、冲突或真实 token count 缺失时必须 `blocked`。mandatory 闭包超预算时不得截断 `SKILL.md`，必须输出依赖优先的完整 Skill stages；宿主不支持 Bundle V2 时必须 `fallback-full / full-skill-read`。optional 项可因 conflict、budget 或 token-count-missing 被忽略，但不能影响 mandatory 完整性。该 oracle 全程只读，禁止修改 lifecycle、portfolio、`plugin.json` 或部署状态。
+
+`BundleDecisionV2` 的配置开关必须来自当前 Context plan 的 `ExecutionOptimizationPlanBindingV1`，随后再以同一 active-root 的 `ExecutionOptimizationFeatureDecisionV1` 校验 `skill-bundle` lifecycle。模式为 `full-only`、绑定缺失/损坏、feature 为 `off / shadow / rolled-back / sunset`、状态无效或消费者不支持该契约时，一律返回 `fallback-full / full-skill-read`；不得为了读取开关额外加载 Profile config，也不得把 fallback 冒充 bundle 命中。Skill lifecycle 与执行优化 lifecycle 相互独立：回退 bundle 不得修改 portfolio 的 active/gray 状态。
 
 ### 激活条件
 

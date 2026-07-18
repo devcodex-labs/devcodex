@@ -44,6 +44,7 @@ description: 执行契约规范 — 为长流程、多文件、Auto 或控制面
 | `validationConsumerRebind` | 条件 | 新增 root script、CI job、validator、deploy copy 或 consumer 时必填；把 allowedPaths、TestRoute、rollback 与 consumerScope 重新绑定 |
 | `turnLivenessContract` | 条件 | 长任务、工具完成后无续接、宿主停滞或跨轮次恢复时必填；引用 `ai-agent-system-architecture` 的状态/lease/ACK/terminal/checkpoint、CheckpointValidation 与 LocalTaskTrace 契约及能力边界 |
 | `executionBudget` | 条件 | Auto、多批次、预计 ≥10 文件、C08 恢复、用户反馈「太慢/卡/文件太多」、或 resume 长任务时必填；见 `ExecutionBudgetGate` |
+| `executionAttemptLedger` | 条件 | formal command、失败重试、取消/中断或 restart 时必填；作为既有 TurnLiveness state 的 `ExecutionAttemptLedgerV1` 子状态，不得新建平行状态机 |
 | `longTaskAuthorization` | 条件 | 与 `executionBudget` 同触发；记录授权证据与 cycle 身份，见 `LongTaskAuthorizationGate` |
 | `externalWaitAccounting` | 条件 | 存在 CP 等待、CI/鉴权/人工审批/外部系统等待时必填；见 `ExternalWaitAccountingGate` |
 
@@ -125,6 +126,12 @@ permission-core 等业务任务级 baseline 只能作样板，不得替代 DevCo
 
 `CheckpointValidationResultV1` 必须分别记录 response-time 与 post-execution 的 `status/evidence/deadline/errorCode`；缺失宿主终态证据不得写 pass。启用 `LocalTaskTraceV1` 时还必须冻结 `traceOwner / eventTypes / terminalSource / replayBoundary / retentionScope`：只允许当前 turn 的只读数据投影，禁止 payload 执行、operation replay、state mutation、host wakeup 与 process control。
 
+### ExecutionAttemptLedgerGate
+
+`ExecutionAttemptLedgerV1` 直接嵌入现有 TurnLiveness state，记录 `candidateId / phase / commandSignature / qualificationEvidence / attemptNo / failureSignature / sourceDelta / evidenceDelta / FirstPassYield / commandWallMs / externalWaitMs / waitingUserMs / modelReasoningMs / terminal`。有可用 qualification probe 时，formal run 前必须先有同 candidate/phase/command 的 pass；否则返回 `qualification-required`。
+
+相同 candidate + phase + command + failureSignature 的连续两次 formal failure，且两次 `sourceDelta=0 / evidenceDelta=0` 时，第二次即生成 `StopSnapshotV1`，第三次正式运行前返回 `stop-before-third` 并停止新 mutation。相同 eventId 的相同语义重复交付幂等忽略，语义冲突必须报错。用户取消/中断必须写 `cancelled/aborted` terminal、释放 AI-owned lease，并记录 cancel finalizer 与 ServiceLifecycleCleanup；restart 只恢复原 ledger，不得把旧 inProgress 自动提升 completed。
+
 ## DualLayerRepairCollaborationContract
 
 当 AI 根据问题锚点和预期行为判断任务目标是修复 Bug、缺陷、回归、安全问题、规范缺口、审查 finding 或其他已确认不正确行为时，必须建立双层修复协作契约。该触发与模型名称、是否切换模型/Agent、宿主 UI 或工作流标签无关；纯新增能力、纯分析/审计发现阶段或只讨论模型选择不触发。
@@ -194,6 +201,7 @@ P0/P1、安全、控制面、公共 API/Schema/config、预计 ≥5 文件、多
 | publisherCredentialTopology | |
 | turnLivenessContract | state/lease/ACK/terminal + checkpointValidation + LocalTaskTrace/replayBoundary |
 | executionBudget | cycleId / maxWallClock / maxWorkUnits / maxDirtyDelta / maxFullRuns / stopActions / resetPolicy |
+| executionAttemptLedger | qualification / attemptNo / failureSignature / source+evidence delta / timing split / terminal / StopSnapshot |
 | externalWaitAccounting | executionMs vs waitingUserMs vs waitingExternalMs |
 | longTaskAuthorization | authorizationEvidence / cycle lifecycle / continue=new-cycle |
 ```

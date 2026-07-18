@@ -235,6 +235,11 @@ function buildGovernanceIntakeChecks(ctx) {
       }
     }
 
+    if (process.env.DEVCODEX_VALIDATION_SCOPE === 'source') {
+      console.log('[V41] source validation scope — active requirement/bug artifact scan deferred to profile-deploy route')
+      return
+    }
+
     const { checkedDirs, issues } = collectRecentRequirementArtifactIssues({
       activeRoot: ACTIVE_DEVCODEX_ROOT,
       recentDays: RECENT_REQUIREMENT_ARTIFACT_DAYS
@@ -258,8 +263,10 @@ function buildGovernanceIntakeChecks(ctx) {
     const testRouter = read(path.join(ROOT, 'skills', 'test-router', 'SKILL.md'))
 
     const scriptExpectations = [
-      ['test', 'npm run test:core'],
-      ['test', 'node scripts/test-release-metadata.js'],
+      ['test', 'node scripts/run-validation.js --route full'],
+      ['test:fast', 'node scripts/run-validation.js --route fast'],
+      ['test:full', 'node scripts/run-validation.js --route full'],
+      ['test:validation-dag', 'node scripts/test-validation-dag.js'],
       ['test:all', 'npm test'],
       ['test:all:with-audit', 'npm run test:audit'],
       ['test:release-metadata', 'node scripts/test-release-metadata.js'],
@@ -268,6 +275,14 @@ function buildGovernanceIntakeChecks(ctx) {
     for (const [scriptName, needle] of scriptExpectations) {
       const value = scripts[scriptName] || ''
       if (!value.includes(needle)) err(`[V42] package.json script ${scriptName} missing "${needle}"`)
+    }
+    const validationManifest = JSON.parse(read(path.join(ROOT, 'scripts', 'validation-manifest.json')))
+    for (const route of ['fast', 'full', 'changed', 'profile-deploy', 'package-release']) {
+      if (!validationManifest.routes?.[route]) err(`[V42] validation manifest missing route ${route}`)
+    }
+    if (!validationManifest.nodes?.some(node => node.id === 'release-metadata') ||
+        !validationManifest.nodes?.some(node => node.id === 'pack-clean')) {
+      err('[V42] validation manifest must retain release-metadata and pack-clean nodes')
     }
     if (!(scripts['test:audit'] || '').includes('registry=https://registry.npmjs.org')) {
       err('[V42] package.json test:audit must pin npm audit to registry.npmjs.org so GitHub Packages publishConfig does not break publish dry-run/prepublishOnly')

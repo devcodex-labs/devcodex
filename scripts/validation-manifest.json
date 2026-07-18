@@ -1,0 +1,2294 @@
+{
+  "schemaVersion": "ValidationManifestV1",
+  "contractVersion": "1",
+  "description": "Canonical serial validation graph for DevCodex source, package and deployment consumers.",
+  "consumerGraphComplete": true,
+  "criticalInputs": [
+    ".github/workflows/**",
+    "package.json",
+    "plugin.json",
+    "scripts/validation-manifest.json",
+    "scripts/run-validation.js",
+    "scripts/lib/validation-dag.js",
+    "scripts/lib/checked-command.js",
+    "scripts/validate.js",
+    "scripts/lib/probe-registry.js",
+    "scripts/lib/validate-*.js"
+  ],
+  "invariantNodes": [
+    "validate-versions",
+    "validate-core",
+    "validation-dag",
+    "pack-clean",
+    "syntax"
+  ],
+  "routes": {
+    "fast": {
+      "nodes": [
+        "validate-versions",
+        "validate-core",
+        "checked-command",
+        "skill-portfolio",
+        "skill-portfolio-current",
+        "profile-section-selector",
+        "project-knowledge-store",
+        "runtime-state-index",
+        "deployment-manifest",
+        "content-identity",
+        "task-continuation",
+        "validation-dag",
+        "probe-registry",
+        "cli-command-registry",
+        "cli-json-contract",
+        "intent-consistency",
+        "local-probe",
+        "context-read",
+        "context-read-controls",
+        "tenant-selection",
+        "workflow-capabilities",
+        "api-verification-contracts",
+        "git-index-isolation",
+        "control-plane-contracts",
+        "markdown-structure",
+        "control-plane-module-contracts",
+        "consumer-evolution-controls",
+        "residual-absorption-controls",
+        "brand-visual-quality",
+        "turn-liveness",
+        "execution-attempt-ledger",
+        "execution-chain-evolution",
+        "checkpoint-validation",
+        "local-task-trace",
+        "turn-liveness-controls",
+        "closure-evidence",
+        "spec-governance",
+        "governance-intake",
+        "profile-governance",
+        "readme-governance",
+        "requirement-artifacts",
+        "hooks-runtime",
+        "instruction-fallback",
+        "mcp-servers",
+        "client-contracts",
+        "migrate-layout",
+        "cli-behavior",
+        "release-metadata",
+        "pack-clean",
+        "syntax"
+      ]
+    },
+    "full": {
+      "nodes": [
+        "validate-versions",
+        "validate-core",
+        "checked-command",
+        "skill-portfolio",
+        "skill-portfolio-current",
+        "profile-section-selector",
+        "project-knowledge-store",
+        "runtime-state-index",
+        "deployment-manifest",
+        "content-identity",
+        "task-continuation",
+        "validation-dag",
+        "probe-registry",
+        "cli-command-registry",
+        "cli-json-contract",
+        "intent-consistency",
+        "local-probe",
+        "context-read",
+        "context-read-controls",
+        "tenant-selection",
+        "workflow-capabilities",
+        "api-verification-contracts",
+        "git-index-isolation",
+        "control-plane-contracts",
+        "markdown-structure",
+        "control-plane-module-contracts",
+        "consumer-evolution-controls",
+        "residual-absorption-controls",
+        "brand-visual-quality",
+        "turn-liveness",
+        "execution-attempt-ledger",
+        "execution-chain-evolution",
+        "checkpoint-validation",
+        "local-task-trace",
+        "turn-liveness-controls",
+        "closure-evidence",
+        "spec-governance",
+        "governance-intake",
+        "profile-governance",
+        "readme-governance",
+        "requirement-artifacts",
+        "hooks-runtime",
+        "instruction-fallback",
+        "mcp-servers",
+        "client-contracts",
+        "migrate-layout",
+        "cli-behavior",
+        "release-metadata",
+        "pack-clean",
+        "syntax",
+        "generated-site-precheck",
+        "website-build",
+        "generated-site-postcheck"
+      ]
+    },
+    "changed": {
+      "dynamic": true
+    },
+    "profile-deploy": {
+      "nodes": [
+        "validate-versions",
+        "validate-core",
+        "validate-workspace",
+        "validation-dag",
+        "deployment-manifest",
+        "context-read-controls",
+        "profile-section-selector",
+        "execution-chain-evolution",
+        "profile-governance",
+        "instruction-fallback",
+        "mcp-servers",
+        "client-contracts",
+        "migrate-layout",
+        "pack-clean",
+        "syntax"
+      ]
+    },
+    "package-release": {
+      "nodes": [
+        "validate-versions",
+        "validate-core",
+        "validation-dag",
+        "readme-governance",
+        "client-contracts",
+        "release-metadata",
+        "pack-clean",
+        "syntax",
+        "generated-site-precheck",
+        "website-build",
+        "generated-site-postcheck"
+      ]
+    }
+  },
+  "nodes": [
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "validate-versions",
+      "owner": "version-governance",
+      "command": "node",
+      "args": [
+        "scripts/validate-versions.js"
+      ],
+      "dependencies": [],
+      "inputs": [
+        "package.json",
+        "plugin.json",
+        "RULES.md",
+        "SECURITY.md",
+        "instructions.md",
+        "changelogs/**",
+        ".github/workflows/**"
+      ],
+      "consumers": [
+        "validate-core",
+        "release-metadata",
+        "pack-clean"
+      ],
+      "invariants": [
+        "version"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "candidate-bound",
+      "writeScopes": [],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "validate-core",
+      "owner": "control-plane-validation",
+      "command": "node",
+      "args": [
+        "scripts/validate.js"
+      ],
+      "environment": {
+        "DEVCODEX_VALIDATION_SCOPE": "source"
+      },
+      "dependencies": [
+        "validate-versions"
+      ],
+      "inputs": [
+        "instructions.md",
+        "instructions/**",
+        "skills/**",
+        "prompts/**",
+        "hooks/**",
+        "mcp/**",
+        "scripts/validate.js",
+        "scripts/lib/validate-*.js",
+        "scripts/lib/probe-registry.js",
+        "package.json",
+        "plugin.json",
+        "README.md",
+        "website/**"
+      ],
+      "consumers": [],
+      "invariants": [
+        "safety",
+        "contract"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "never",
+      "writeScopes": [],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "validate-workspace",
+      "owner": "workspace-validation",
+      "command": "node",
+      "args": [
+        "scripts/validate.js"
+      ],
+      "dependencies": [
+        "validate-versions"
+      ],
+      "inputs": [],
+      "consumers": [],
+      "invariants": [
+        "workspace",
+        "deployment",
+        "runtime-artifacts"
+      ],
+      "riskClass": "high",
+      "cachePolicy": "never",
+      "writeScopes": [],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "checked-command",
+      "owner": "command-execution",
+      "command": "node",
+      "args": [
+        "scripts/test-checked-command.js"
+      ],
+      "dependencies": [],
+      "inputs": [
+        "scripts/lib/checked-command.js",
+        "scripts/test-checked-command.js"
+      ],
+      "consumers": [
+        "validation-dag"
+      ],
+      "invariants": [
+        "command-exit"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "skill-portfolio",
+      "owner": "skill-lifecycle",
+      "command": "node",
+      "args": [
+        "scripts/test-skill-portfolio.js"
+      ],
+      "dependencies": [],
+      "inputs": [
+        "skills/**",
+        "scripts/lib/skill-portfolio-utils.js",
+        "scripts/test-skill-portfolio.js",
+        "scripts/generate-skill-portfolio.js"
+      ],
+      "consumers": [
+        "skill-portfolio-current"
+      ],
+      "invariants": [
+        "contract"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "skill-portfolio-current",
+      "owner": "skill-lifecycle",
+      "command": "node",
+      "args": [
+        "scripts/generate-skill-portfolio.js",
+        "--check"
+      ],
+      "dependencies": [],
+      "inputs": [
+        "skills/**",
+        "scripts/lib/skill-portfolio-utils.js",
+        "scripts/generate-skill-portfolio.js"
+      ],
+      "consumers": [],
+      "invariants": [
+        "contract"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "candidate-bound",
+      "writeScopes": [],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "profile-section-selector",
+      "owner": "profile-skill-progressive-load",
+      "command": "node",
+      "args": [
+        "scripts/test-profile-section-selector.js"
+      ],
+      "dependencies": [
+        "context-read"
+      ],
+      "inputs": [
+        "mcp/profile-section-selector.cjs",
+        "mcp/profile-contract.js",
+        "mcp/profile-server.js",
+        "scripts/test-profile-section-selector.js",
+        "skills/load-profile/SKILL.md",
+        "skills/skill-lifecycle-governance/SKILL.md"
+      ],
+      "consumers": [
+        "context-read-controls",
+        "mcp-servers"
+      ],
+      "invariants": [
+        "contract",
+        "full-file-fallback",
+        "no-false-complete"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1",
+        "ProfileSectionLoadReceiptV1",
+        "BundleDecisionV2"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "project-knowledge-store",
+      "owner": "incremental-project-analysis",
+      "command": "node",
+      "args": [
+        "scripts/test-project-knowledge-store.js"
+      ],
+      "dependencies": [
+        "content-identity"
+      ],
+      "inputs": [
+        "scripts/lib/project-knowledge-store.js",
+        "scripts/project-analysis-state.js",
+        "scripts/test-project-knowledge-store.js",
+        "skills/incremental-project-analysis/SKILL.md",
+        "skills/report/SKILL.md",
+        "skills/report/report-schema.json",
+        "prompts/implementation-progress.prompt.md"
+      ],
+      "consumers": [],
+      "invariants": [
+        "content-identity",
+        "accepted-pointer",
+        "sample-oracle",
+        "full-fallback"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1",
+        "IncrementalAnalysisReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "runtime-state-index",
+      "owner": "runtime-state",
+      "command": "node",
+      "args": [
+        "scripts/test-runtime-state-index.js"
+      ],
+      "dependencies": [],
+      "inputs": [
+        "scripts/lib/runtime-state-index.js",
+        "scripts/test-runtime-state-index.js",
+        "scripts/check-runtime-state.js"
+      ],
+      "consumers": [],
+      "invariants": [
+        "contract"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "deployment-manifest",
+      "owner": "deployment-sync",
+      "command": "node",
+      "args": [
+        "scripts/test-deployment-manifest.js"
+      ],
+      "dependencies": [],
+      "inputs": [
+        "scripts/lib/deployment-manifest-utils.js",
+        "scripts/lib/deployment-descriptors.js",
+        "scripts/test-deployment-manifest.js",
+        "agents/**",
+        "codex/**",
+        "hooks/**",
+        ".github/**"
+      ],
+      "consumers": [],
+      "invariants": [
+        "contract"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "content-identity",
+      "owner": "content-identity",
+      "command": "node",
+      "args": [
+        "scripts/test-content-identity.js"
+      ],
+      "dependencies": [],
+      "inputs": [
+        "hooks/_runtime/content-identity.cjs",
+        "hooks/_runtime/derived-state-store.cjs",
+        "scripts/test-content-identity.js"
+      ],
+      "consumers": [
+        "task-continuation",
+        "context-read",
+        "project-knowledge-store"
+      ],
+      "invariants": [
+        "contract"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "task-continuation",
+      "owner": "task-continuation",
+      "command": "node",
+      "args": [
+        "scripts/test-task-continuation.js"
+      ],
+      "dependencies": [
+        "content-identity"
+      ],
+      "inputs": [
+        "hooks/_runtime/execution-optimization-routing.cjs",
+        "hooks/_runtime/task-continuation-contract.cjs",
+        "scripts/lib/cli-execution-commands.js",
+        "scripts/test-task-continuation.js",
+        "mcp/memory-server.js",
+        "instructions/01c-intent-expansion.instructions.md",
+        "instructions/15-memory.instructions.md",
+        "instructions/16-report.instructions.md",
+        "prompts/memory-session.prompt.md",
+        "prompts/requirement-session.prompt.md",
+        "skills/intent/SKILL.md",
+        "skills/memory/SKILL.md"
+      ],
+      "consumers": [
+        "mcp-servers",
+        "hooks-runtime",
+        "cli-behavior"
+      ],
+      "invariants": [
+        "contract"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "validation-dag",
+      "owner": "validation-dag",
+      "command": "node",
+      "args": [
+        "scripts/test-validation-dag.js"
+      ],
+      "dependencies": [
+        "checked-command"
+      ],
+      "inputs": [
+        "scripts/validation-manifest.json",
+        "scripts/lib/validation-dag.js",
+        "scripts/run-validation.js",
+        "scripts/test-validation-dag.js",
+        "scripts/lib/checked-command.js",
+        "package.json"
+      ],
+      "consumers": [],
+      "invariants": [
+        "validation-graph",
+        "native-exit"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "probe-registry",
+      "owner": "probe-registry",
+      "command": "node",
+      "args": [
+        "scripts/test-probe-registry.js"
+      ],
+      "dependencies": [],
+      "inputs": [
+        "scripts/lib/probe-registry.js",
+        "scripts/test-probe-registry.js",
+        "scripts/validate.js"
+      ],
+      "consumers": [
+        "control-plane-module-contracts"
+      ],
+      "invariants": [
+        "contract"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "cli-command-registry",
+      "owner": "cli-contract",
+      "command": "node",
+      "args": [
+        "scripts/test-cli-command-registry.js"
+      ],
+      "dependencies": [],
+      "inputs": [
+        "index.js",
+        "scripts/lib/cli-command-registry.js",
+        "scripts/lib/cli-*-commands.js",
+        "scripts/test-cli-command-registry.js"
+      ],
+      "consumers": [
+        "cli-json-contract",
+        "cli-behavior",
+        "control-plane-module-contracts"
+      ],
+      "invariants": [
+        "contract"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "cli-json-contract",
+      "owner": "cli-contract",
+      "command": "node",
+      "args": [
+        "scripts/test-cli-json-contract.js"
+      ],
+      "dependencies": [
+        "cli-command-registry"
+      ],
+      "inputs": [
+        "index.js",
+        "scripts/lib/cli-json-contract.js",
+        "scripts/lib/cli-*-commands.js",
+        "scripts/test-cli-json-contract.js"
+      ],
+      "consumers": [
+        "cli-behavior"
+      ],
+      "invariants": [
+        "contract"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "intent-consistency",
+      "owner": "intent-routing",
+      "command": "node",
+      "args": [
+        "scripts/test-intent-consistency.js"
+      ],
+      "dependencies": [],
+      "inputs": [
+        "scripts/lib/intent-consistency.js",
+        "scripts/test-intent-consistency.js",
+        "skills/intent/SKILL.md",
+        "instructions/01c-intent-expansion.instructions.md"
+      ],
+      "consumers": [
+        "hooks-runtime"
+      ],
+      "invariants": [
+        "contract"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "local-probe",
+      "owner": "local-observability",
+      "command": "node",
+      "args": [
+        "scripts/test-local-probe.js"
+      ],
+      "dependencies": [],
+      "inputs": [
+        "scripts/lib/local-probe.js",
+        "scripts/test-local-probe.js",
+        "scripts/lib/probe-registry.js"
+      ],
+      "consumers": [],
+      "invariants": [
+        "contract"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "context-read",
+      "owner": "context-acquisition",
+      "command": "node",
+      "args": [
+        "scripts/test-context-read-contract.js"
+      ],
+      "dependencies": [
+        "content-identity"
+      ],
+      "inputs": [
+        "hooks/_runtime/content-identity.cjs",
+        "hooks/_runtime/context-read-contract.cjs",
+        "hooks/_runtime/lifecycle-bootstrap-state.cjs",
+        "scripts/test-context-read-contract.js"
+      ],
+      "consumers": [
+        "context-read-controls",
+        "mcp-servers",
+        "hooks-runtime"
+      ],
+      "invariants": [
+        "contract"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "context-read-controls",
+      "owner": "context-acquisition",
+      "command": "node",
+      "args": [
+        "scripts/lib/validate-context-read-controls.js"
+      ],
+      "dependencies": [
+        "context-read"
+      ],
+      "inputs": [
+        "hooks/_runtime/context-read-contract.cjs",
+        "scripts/lib/validate-context-read-controls.js",
+        "skills/load-profile/SKILL.md",
+        "skills/memory/SKILL.md",
+        "instructions/01a-profile-loading.instructions.md",
+        "instructions/15-memory.instructions.md",
+        "prompts/**"
+      ],
+      "consumers": [],
+      "invariants": [
+        "contract"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "tenant-selection",
+      "owner": "tenant-routing",
+      "command": "node",
+      "args": [
+        "scripts/test-tenant-selection.js"
+      ],
+      "dependencies": [],
+      "inputs": [
+        "scripts/lib/tenant-selection.js",
+        "scripts/test-tenant-selection.js",
+        "instructions/tenants/**"
+      ],
+      "consumers": [],
+      "invariants": [
+        "contract"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "workflow-capabilities",
+      "owner": "workflow-routing",
+      "command": "node",
+      "args": [
+        "scripts/test-workflow-capabilities.js"
+      ],
+      "dependencies": [],
+      "inputs": [
+        "routing/**",
+        "scripts/test-workflow-capabilities.js",
+        "skills/**",
+        "instructions/**"
+      ],
+      "consumers": [],
+      "invariants": [
+        "contract"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "api-verification-contracts",
+      "owner": "api-contract",
+      "command": "node",
+      "args": [
+        "scripts/test-api-verification-contracts.js"
+      ],
+      "dependencies": [],
+      "inputs": [
+        "scripts/test-api-verification-contracts.js",
+        "skills/api-verification/**",
+        "prompts/**",
+        "data/templates/**"
+      ],
+      "consumers": [],
+      "invariants": [
+        "contract"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "git-index-isolation",
+      "owner": "git-safety",
+      "command": "node",
+      "args": [
+        "scripts/test-git-index-isolation.js"
+      ],
+      "dependencies": [],
+      "inputs": [
+        "scripts/test-git-index-isolation.js",
+        "skills/**",
+        "instructions/**",
+        "prompts/**"
+      ],
+      "consumers": [],
+      "invariants": [
+        "contract"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "control-plane-contracts",
+      "owner": "control-plane-contract",
+      "command": "node",
+      "args": [
+        "scripts/test-control-plane-contracts.js"
+      ],
+      "dependencies": [],
+      "inputs": [
+        "scripts/lib/control-plane-contracts.js",
+        "scripts/test-control-plane-contracts.js",
+        "instructions/**",
+        "skills/**",
+        "prompts/**"
+      ],
+      "consumers": [],
+      "invariants": [
+        "contract"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "markdown-structure",
+      "owner": "document-contract",
+      "command": "node",
+      "args": [
+        "scripts/test-markdown-structure.js"
+      ],
+      "dependencies": [],
+      "inputs": [
+        "instructions/**",
+        "skills/**",
+        "prompts/**",
+        "README.md",
+        "CHANGELOG.md",
+        "SECURITY.md",
+        "scripts/test-markdown-structure.js"
+      ],
+      "consumers": [],
+      "invariants": [
+        "contract"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "candidate-bound",
+      "writeScopes": [],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "control-plane-module-contracts",
+      "owner": "control-plane-modularity",
+      "command": "node",
+      "args": [
+        "scripts/test-control-plane-module-contracts.js"
+      ],
+      "dependencies": [
+        "probe-registry",
+        "cli-command-registry"
+      ],
+      "inputs": [
+        "scripts/validate.js",
+        "index.js",
+        "scripts/lib/validate-*.js",
+        "scripts/lib/cli-*.js",
+        "scripts/lib/probe-registry.js",
+        "scripts/test-control-plane-module-contracts.js"
+      ],
+      "consumers": [],
+      "invariants": [
+        "contract"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "consumer-evolution-controls",
+      "owner": "consumer-evolution",
+      "command": "node",
+      "args": [
+        "scripts/test-consumer-evolution-controls.js"
+      ],
+      "dependencies": [],
+      "inputs": [
+        "scripts/lib/validate-consumer-evolution-controls.js",
+        "scripts/test-consumer-evolution-controls.js",
+        "skills/**",
+        "instructions/**",
+        "prompts/**"
+      ],
+      "consumers": [],
+      "invariants": [
+        "contract"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "residual-absorption-controls",
+      "owner": "spec-absorption",
+      "command": "node",
+      "args": [
+        "scripts/test-residual-absorption-controls.js"
+      ],
+      "dependencies": [],
+      "inputs": [
+        "scripts/lib/validate-residual-absorption-controls.js",
+        "scripts/test-residual-absorption-controls.js",
+        "skills/**",
+        "instructions/**",
+        "prompts/**"
+      ],
+      "consumers": [],
+      "invariants": [
+        "contract"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "brand-visual-quality",
+      "owner": "brand-visual",
+      "command": "node",
+      "args": [
+        "scripts/test-brand-visual-quality.js"
+      ],
+      "dependencies": [],
+      "inputs": [
+        "scripts/lib/validate-brand-visual-quality.js",
+        "scripts/test-brand-visual-quality.js",
+        "assets/**",
+        "skills/brand-visual-quality/**"
+      ],
+      "consumers": [],
+      "invariants": [
+        "contract"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "turn-liveness",
+      "owner": "turn-liveness",
+      "command": "node",
+      "args": [
+        "scripts/test-turn-liveness.js"
+      ],
+      "dependencies": [],
+      "inputs": [
+        "hooks/_runtime/lifecycle-turn-liveness.cjs",
+        "scripts/test-turn-liveness.js",
+        "skills/ai-agent-system-architecture/SKILL.md"
+      ],
+      "consumers": [
+        "execution-attempt-ledger",
+        "checkpoint-validation",
+        "local-task-trace",
+        "turn-liveness-controls",
+        "hooks-runtime"
+      ],
+      "invariants": [
+        "contract"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "execution-attempt-ledger",
+      "owner": "execution-contract",
+      "command": "node",
+      "args": [
+        "scripts/test-execution-attempt-ledger.js"
+      ],
+      "dependencies": [
+        "turn-liveness"
+      ],
+      "inputs": [
+        "hooks/_runtime/lifecycle-turn-liveness.cjs",
+        "scripts/test-execution-attempt-ledger.js",
+        "skills/execution-contract/SKILL.md",
+        "skills/report/SKILL.md",
+        "skills/report/report-schema.json",
+        "prompts/implementation-progress.prompt.md"
+      ],
+      "consumers": [
+        "turn-liveness-controls"
+      ],
+      "invariants": [
+        "qualification-first",
+        "stop-before-third",
+        "terminal-finalizer",
+        "duplicate-idempotency"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1",
+        "ExecutionAttemptLedgerV1",
+        "StopSnapshotV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "execution-chain-evolution",
+      "owner": "execution-chain-evolution",
+      "command": "node",
+      "args": [
+        "scripts/test-execution-chain-evolution.js"
+      ],
+      "dependencies": [
+        "task-continuation",
+        "context-read",
+        "validation-dag",
+        "profile-section-selector",
+        "project-knowledge-store",
+        "execution-attempt-ledger"
+      ],
+      "inputs": [
+        "hooks/_runtime/workspace-layout.cjs",
+        "hooks/_runtime/execution-optimization-routing.cjs",
+        "hooks/_runtime/context-read-contract.cjs",
+        "hooks/_runtime/task-continuation-contract.cjs",
+        "mcp/profile-server.js",
+        "scripts/lib/execution-optimization.js",
+        "scripts/benchmark-execution-chain.js",
+        "scripts/test-execution-chain-evolution.js",
+        "scripts/run-validation.js",
+        "scripts/project-analysis-state.js",
+        "scripts/lib/cli-maintenance-commands.js",
+        "scripts/lib/cli-execution-commands.js",
+        "package.json"
+      ],
+      "consumers": [
+        "validate-core",
+        "mcp-servers",
+        "cli-behavior"
+      ],
+      "invariants": [
+        "prospective-trial",
+        "correctness-first-promotion",
+        "full-only-kill-switch",
+        "rollback-sunset",
+        "benchmark-comparability"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1",
+        "OptimizationTransitionReceiptV1",
+        "ExecutionChainBenchmarkResultV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "checkpoint-validation",
+      "owner": "turn-liveness",
+      "command": "node",
+      "args": [
+        "scripts/test-checkpoint-validation.js"
+      ],
+      "dependencies": [
+        "turn-liveness"
+      ],
+      "inputs": [
+        "hooks/_runtime/lifecycle-checkpoint-validation.cjs",
+        "scripts/test-checkpoint-validation.js",
+        "skills/ai-agent-system-architecture/SKILL.md"
+      ],
+      "consumers": [],
+      "invariants": [
+        "contract"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "local-task-trace",
+      "owner": "turn-liveness",
+      "command": "node",
+      "args": [
+        "scripts/test-local-task-trace.js"
+      ],
+      "dependencies": [
+        "turn-liveness"
+      ],
+      "inputs": [
+        "hooks/_runtime/lifecycle-task-trace.cjs",
+        "scripts/test-local-task-trace.js",
+        "skills/ai-agent-system-architecture/SKILL.md"
+      ],
+      "consumers": [],
+      "invariants": [
+        "contract"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "turn-liveness-controls",
+      "owner": "turn-liveness",
+      "command": "node",
+      "args": [
+        "scripts/test-turn-liveness-controls.js"
+      ],
+      "dependencies": [
+        "turn-liveness"
+      ],
+      "inputs": [
+        "scripts/lib/validate-turn-liveness-controls.js",
+        "scripts/test-turn-liveness-controls.js",
+        "hooks/**",
+        "skills/ai-agent-system-architecture/SKILL.md"
+      ],
+      "consumers": [],
+      "invariants": [
+        "contract"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "closure-evidence",
+      "owner": "closure-evidence",
+      "command": "node",
+      "args": [
+        "scripts/test-closure-evidence-controls.js"
+      ],
+      "dependencies": [],
+      "inputs": [
+        "scripts/lib/validate-closure-evidence-controls.js",
+        "scripts/test-closure-evidence-controls.js",
+        "skills/cp-gate/SKILL.md",
+        "instructions/**",
+        "prompts/**"
+      ],
+      "consumers": [],
+      "invariants": [
+        "contract"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "spec-governance",
+      "owner": "spec-governance",
+      "command": "node",
+      "args": [
+        "scripts/test-spec-governance.js"
+      ],
+      "dependencies": [],
+      "inputs": [
+        "scripts/test-spec-governance.js",
+        "scripts/lib/spec-governance-*.js",
+        "skills/spec-governance/**",
+        "data/**"
+      ],
+      "consumers": [],
+      "invariants": [
+        "contract"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "governance-intake",
+      "owner": "spec-governance",
+      "command": "node",
+      "args": [
+        "scripts/test-governance-intake.js"
+      ],
+      "dependencies": [],
+      "inputs": [
+        "scripts/test-governance-intake.js",
+        "skills/spec-governance/**",
+        "data/**",
+        "instructions/**"
+      ],
+      "consumers": [],
+      "invariants": [
+        "contract"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "profile-governance",
+      "owner": "profile-governance",
+      "command": "node",
+      "args": [
+        "scripts/test-validate-profile.js"
+      ],
+      "dependencies": [],
+      "inputs": [
+        "scripts/validate-profile.js",
+        "scripts/validate-all-profiles.js",
+        "scripts/test-validate-profile.js",
+        "skills/load-profile/**",
+        "skills/profile-bootstrap/**",
+        "data/templates/profile/**"
+      ],
+      "consumers": [
+        "mcp-servers",
+        "client-contracts"
+      ],
+      "invariants": [
+        "contract"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "readme-governance",
+      "owner": "readme-governance",
+      "command": "node",
+      "args": [
+        "scripts/test-readme-governance.js"
+      ],
+      "dependencies": [],
+      "inputs": [
+        "README.md",
+        "website/**",
+        "skills/readme-authoring/**",
+        "skills/user-manual-authoring/**",
+        "scripts/test-readme-governance.js"
+      ],
+      "consumers": [],
+      "invariants": [
+        "contract"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "requirement-artifacts",
+      "owner": "requirement-artifacts",
+      "command": "node",
+      "args": [
+        "scripts/test-requirement-artifacts.js"
+      ],
+      "dependencies": [],
+      "inputs": [
+        "website/docs/versions/**/requirements/**",
+        "prompts/requirement-*.prompt.md",
+        "prompts/implementation-plan.prompt.md",
+        "scripts/lib/requirement-artifact-check.js",
+        "scripts/test-requirement-artifacts.js"
+      ],
+      "consumers": [],
+      "invariants": [
+        "contract"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "hooks-runtime",
+      "owner": "host-runtime",
+      "command": "node",
+      "args": [
+        "scripts/test-hooks-runtime.js"
+      ],
+      "dependencies": [
+        "task-continuation",
+        "context-read",
+        "intent-consistency",
+        "turn-liveness"
+      ],
+      "inputs": [
+        "hooks/**",
+        "scripts/test-hooks-runtime.js",
+        "scripts/lib/test-hooks-runtime-*.js",
+        "skills/host-contract-verification/**"
+      ],
+      "consumers": [],
+      "invariants": [
+        "contract"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "instruction-fallback",
+      "owner": "host-runtime",
+      "command": "node",
+      "args": [
+        "scripts/test-instruction-fallback-check.js"
+      ],
+      "dependencies": [],
+      "inputs": [
+        "scripts/instruction-fallback-check.js",
+        "scripts/test-instruction-fallback-check.js",
+        "agents/**",
+        "codex/**",
+        "instructions/**"
+      ],
+      "consumers": [],
+      "invariants": [
+        "contract"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "mcp-servers",
+      "owner": "mcp-contract",
+      "command": "node",
+      "args": [
+        "scripts/test-mcp-servers.js"
+      ],
+      "dependencies": [
+        "task-continuation",
+        "context-read",
+        "profile-governance"
+      ],
+      "inputs": [
+        "mcp/**",
+        "scripts/test-mcp-servers.js",
+        "hooks/_runtime/execution-optimization-routing.cjs",
+        "hooks/_runtime/context-read-contract.cjs",
+        "hooks/_runtime/task-continuation-contract.cjs"
+      ],
+      "consumers": [],
+      "invariants": [
+        "contract"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "client-contracts",
+      "owner": "client-contract",
+      "command": "node",
+      "args": [
+        "scripts/test-client-contracts.js"
+      ],
+      "dependencies": [],
+      "inputs": [
+        "scripts/test-client-contracts.js",
+        "agents/**",
+        "codex/**",
+        "hooks/**",
+        "mcp/**",
+        "plugin.json",
+        ".mcp.json"
+      ],
+      "consumers": [],
+      "invariants": [
+        "contract"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "migrate-layout",
+      "owner": "workspace-layout",
+      "command": "node",
+      "args": [
+        "scripts/test-migrate-layout.js"
+      ],
+      "dependencies": [],
+      "inputs": [
+        "scripts/migrate-layout.js",
+        "scripts/test-migrate-layout.js",
+        "hooks/_runtime/workspace-layout.cjs",
+        "data/templates/**"
+      ],
+      "consumers": [],
+      "invariants": [
+        "contract"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "cli-behavior",
+      "owner": "cli-contract",
+      "command": "node",
+      "args": [
+        "scripts/test-cli-behavior.js"
+      ],
+      "dependencies": [
+        "cli-json-contract",
+        "task-continuation"
+      ],
+      "inputs": [
+        "index.js",
+        "scripts/lib/cli-*.js",
+        "scripts/test-cli-behavior.js",
+        "mcp/**"
+      ],
+      "consumers": [],
+      "invariants": [
+        "contract"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "release-metadata",
+      "owner": "release-metadata",
+      "command": "node",
+      "args": [
+        "scripts/test-release-metadata.js"
+      ],
+      "dependencies": [
+        "validate-versions"
+      ],
+      "inputs": [
+        "package.json",
+        "plugin.json",
+        "CHANGELOG.md",
+        "changelogs/**",
+        "website/docs/versions/**",
+        "scripts/test-release-metadata.js"
+      ],
+      "consumers": [],
+      "invariants": [
+        "version",
+        "release-metadata"
+      ],
+      "riskClass": "release",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "pack-clean",
+      "owner": "package-boundary",
+      "command": "node",
+      "args": [
+        "scripts/test-pack-clean.js"
+      ],
+      "dependencies": [
+        "validate-versions"
+      ],
+      "inputs": [
+        "package.json",
+        ".npmignore",
+        "scripts/test-pack-clean.js",
+        "scripts/validation-manifest.json",
+        "scripts/run-validation.js",
+        "scripts/lib/validation-dag.js"
+      ],
+      "consumers": [],
+      "invariants": [
+        "package"
+      ],
+      "riskClass": "release",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 180000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "syntax",
+      "owner": "static-syntax",
+      "command": "node",
+      "args": [
+        "scripts/check-syntax.js"
+      ],
+      "dependencies": [],
+      "inputs": [
+        "**/*.js",
+        "**/*.cjs",
+        "package.json"
+      ],
+      "consumers": [],
+      "invariants": [
+        "syntax"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "candidate-bound",
+      "writeScopes": [],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "generated-site-precheck",
+      "owner": "website-validation",
+      "command": "node",
+      "args": [
+        "scripts/test-generated-site-links.js"
+      ],
+      "dependencies": [],
+      "inputs": [
+        "website/**",
+        "README.md",
+        "scripts/test-generated-site-links.js",
+        "scripts/check-generated-site-links.js"
+      ],
+      "consumers": [
+        "website-build",
+        "generated-site-postcheck"
+      ],
+      "invariants": [
+        "contract"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "never",
+      "writeScopes": [],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "website-build",
+      "owner": "website-build",
+      "command": "npm",
+      "args": [
+        "--prefix",
+        "website",
+        "run",
+        "build"
+      ],
+      "dependencies": [
+        "generated-site-precheck"
+      ],
+      "inputs": [
+        "website/**",
+        "README.md",
+        "scripts/test-generated-site-links.js",
+        "scripts/check-generated-site-links.js"
+      ],
+      "consumers": [
+        "generated-site-postcheck"
+      ],
+      "invariants": [
+        "contract"
+      ],
+      "riskClass": "release",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "website-build"
+      ],
+      "timeoutMs": 240000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "generated-site-postcheck",
+      "owner": "website-validation",
+      "command": "node",
+      "args": [
+        "scripts/check-generated-site-links.js"
+      ],
+      "dependencies": [
+        "generated-site-precheck",
+        "website-build"
+      ],
+      "inputs": [
+        "website/**",
+        "README.md",
+        "scripts/check-generated-site-links.js"
+      ],
+      "consumers": [],
+      "invariants": [
+        "contract"
+      ],
+      "riskClass": "release",
+      "cachePolicy": "never",
+      "writeScopes": [],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    }
+  ]
+}

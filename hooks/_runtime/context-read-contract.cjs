@@ -20,6 +20,7 @@ const CONTEXT_READ_CONTRACT = Object.freeze({
     state: 'ContextReadStateV2',
     stateV1: 'ContextReadStateV1',
     identityInputs: 'ContextPlanIdentityInputsV1',
+    executionOptimizationBinding: 'ExecutionOptimizationPlanBindingV1',
     reuseDecision: 'ContextReuseDecisionV1',
     stageTiming: 'StageTimingV1'
   }),
@@ -72,7 +73,7 @@ const PLAN_V1_FIELDS = new Set([
 ])
 const PLAN_FIELDS = new Set([
   ...PLAN_V1_FIELDS,
-  'planContentId', 'identityInputs', 'reusePolicy', 'stageTiming', 'cacheDecision'
+  'planContentId', 'identityInputs', 'executionOptimization', 'reusePolicy', 'stageTiming', 'cacheDecision'
 ])
 const SEED_FIELDS = new Set([
   'schemaVersion', 'contextEpoch', 'semantic', 'intent', 'targetHint', 'continuationHint',
@@ -277,6 +278,71 @@ function planSourceIdentity(source) {
   }).identity
 }
 
+function buildExecutionOptimizationPlanBinding(effectiveConfig = {}, options = {}) {
+  const requestedValue = effectiveConfig?.extensions?.devcodex?.executionOptimization?.mode
+  const requested = requestedValue === undefined || requestedValue === null || requestedValue === ''
+    ? null
+    : String(requestedValue).trim()
+  const configured = requested === 'safe-auto' || requested === 'full-only'
+  const mode = requested === null ? 'safe-auto' : (configured ? requested : 'full-only')
+  const status = requested === null ? 'defaulted' : (configured ? 'configured' : 'fail-closed')
+  const project = String(options.project || '').trim() || 'unknown-project'
+  const configIdentity = buildJsonContentIdentity({
+    sourceKey: `profile://${project}/config.json#effective`,
+    value: effectiveConfig && typeof effectiveConfig === 'object' && !Array.isArray(effectiveConfig) ? effectiveConfig : {},
+    contractVersion: 'profile-config@1'
+  }).identity
+  const binding = {
+    schemaVersion: CONTEXT_READ_CONTRACT.schemas.executionOptimizationBinding,
+    requested,
+    mode,
+    status,
+    errorCode: status === 'fail-closed' ? 'EXECUTION_OPTIMIZATION_MODE_INVALID' : null,
+    configIdentity
+  }
+  return { ...binding, bindingDigest: stableDigest(binding) }
+}
+
+function validateExecutionOptimizationPlanBinding(raw, options = {}) {
+  const errors = []
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    errors.push('execution optimization binding must be an object')
+    return { valid: false, errors }
+  }
+  const allowed = new Set(['schemaVersion', 'requested', 'mode', 'status', 'errorCode', 'configIdentity', 'bindingDigest'])
+  const unknown = Object.keys(raw).filter(key => !allowed.has(key))
+  if (unknown.length) errors.push(`unsupported execution optimization binding fields: ${unknown.join(', ')}`)
+  if (raw.schemaVersion !== CONTEXT_READ_CONTRACT.schemas.executionOptimizationBinding) errors.push('invalid execution optimization binding discriminator')
+  if (!['safe-auto', 'full-only'].includes(raw.mode)) errors.push('invalid execution optimization mode')
+  if (!['defaulted', 'configured', 'fail-closed'].includes(raw.status)) errors.push('invalid execution optimization status')
+  if (raw.requested !== null && typeof raw.requested !== 'string') errors.push('execution optimization requested must be string or null')
+  if (raw.status === 'defaulted' && (raw.requested !== null || raw.mode !== 'safe-auto' || raw.errorCode !== null)) {
+    errors.push('defaulted execution optimization binding is non-canonical')
+  }
+  if (raw.status === 'configured' && (!['safe-auto', 'full-only'].includes(raw.requested) || raw.mode !== raw.requested || raw.errorCode !== null)) {
+    errors.push('configured execution optimization binding is non-canonical')
+  }
+  if (raw.status === 'fail-closed' && (['safe-auto', 'full-only'].includes(raw.requested) || raw.mode !== 'full-only' || raw.errorCode !== 'EXECUTION_OPTIMIZATION_MODE_INVALID')) {
+    errors.push('fail-closed execution optimization binding is non-canonical')
+  }
+  const identityValidation = validateContentIdentity(raw.configIdentity)
+  if (!identityValidation.valid) errors.push(`invalid execution optimization configIdentity: ${identityValidation.errors.join(', ')}`)
+  const digestInput = {
+    schemaVersion: raw.schemaVersion,
+    requested: raw.requested,
+    mode: raw.mode,
+    status: raw.status,
+    errorCode: raw.errorCode,
+    configIdentity: raw.configIdentity
+  }
+  if (raw.bindingDigest !== stableDigest(digestInput)) errors.push('execution optimization binding digest mismatch')
+  if (options.effectiveConfig !== undefined) {
+    const expected = buildExecutionOptimizationPlanBinding(options.effectiveConfig, { project: options.project })
+    if (stableDigest(expected) !== stableDigest(raw)) errors.push('execution optimization binding does not match effective config')
+  }
+  return errors.length ? { valid: false, errors } : { valid: true, errors: [], value: raw }
+}
+
 function buildPlanIdentityInputs(plan) {
   const baseline = plan.baselineContext
   const inventoryProjection = [...(baseline.catalog || []), ...(baseline.inventory || [])]
@@ -325,6 +391,7 @@ function buildPlanIdentityInputs(plan) {
       changeTypes: [...plan.changeTypes]
     },
     baseline: { readmeIdentity, configIdentity, candidateIdentity },
+    executionOptimization: deepClone(plan.executionOptimization),
     selectedSources: plan.selectedSources.map(source => ({
       sourceId: source.sourceId,
       kind: source.kind,
@@ -862,6 +929,7 @@ function buildContextReadPlan(input = {}, options = {}) {
       latencyMs: planningMeasure.latencyMs,
       inputTokens: planningMeasure.tokens
     },
+    executionOptimization: buildExecutionOptimizationPlanBinding(baseline.effectiveConfig, { project }),
     identityInputs: null,
     reusePolicy: buildReusePolicy(),
     stageTiming: normalizeStageTiming(input.stageTiming || input.planningTelemetry, {
@@ -1021,6 +1089,13 @@ function validateContextReadPlan(raw) {
     errors.push('escalation trigger arrays must be sorted, unique, and valid')
   }
   if (isV2) {
+    const optimizationValidation = validateExecutionOptimizationPlanBinding(raw.executionOptimization, {
+      effectiveConfig: raw.baselineContext?.effectiveConfig,
+      project: identity.project
+    })
+    if (!optimizationValidation.valid) {
+      errors.push(`executionOptimization is invalid: ${optimizationValidation.errors.join(', ')}`)
+    }
     try {
       const expectedInputs = buildPlanIdentityInputs(raw)
       if (stableDigest(expectedInputs) !== stableDigest(raw.identityInputs)) errors.push('identityInputs is not derived from plan content')
@@ -1326,6 +1401,11 @@ function evaluateContextReuse(input = {}) {
   if (!planValidation.valid || plan?.schemaVersion !== CONTEXT_READ_CONTRACT.schemas.plan) {
     decision.computation.reasonCode = 'current-plan-invalid'
     decision.delivery.reasonCode = 'current-plan-invalid'
+    return decision
+  }
+  if (input.executionOptimizationMode === 'full-only' || plan.cacheDecision?.reasonCode === 'execution-optimization-full-only') {
+    decision.computation.reasonCode = 'execution-optimization-full-only'
+    decision.delivery.reasonCode = 'execution-optimization-full-only'
     return decision
   }
   if (!priorValidation.valid || priorPlan?.schemaVersion !== CONTEXT_READ_CONTRACT.schemas.plan) {

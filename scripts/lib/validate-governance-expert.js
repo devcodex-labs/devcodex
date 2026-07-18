@@ -273,7 +273,7 @@ function buildGovernanceExpertChecks(ctx) {
       { file: 'scripts/validate.js', needles: ['createProbeRegistry', 'expectedProbeIds', 'runProbeRegistry'] },
       { file: 'changelog corpus', content: changelogCorpus, needles: ['V85', 'ExpertOwnerSkillGate'].concat(skillNames) }
     ]
-    appendActiveProfileProbe(probes, profileCorpus, ['74', '21 个专家 Owner Skill', 'ExpertOwnerSkillGate', 'V85'].concat(skillNames), 'V85')
+    appendActiveProfileProbe(probes, profileCorpus, ['78', '21 个专家 Owner Skill', 'ExpertOwnerSkillGate', 'V85'].concat(skillNames), 'V85')
 
     for (const [name, gate, fields] of skillMap) {
       probes.push({

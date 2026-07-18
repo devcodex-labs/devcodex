@@ -22,7 +22,7 @@ applyTo: .devcodex/**/reports/optimizations/**
 > **Agent**: <agent-id>
 > **状态**: 进行中 / 已完成
 > **关联需求**: [路径]
-> **支撑产物**: ExecutionContract / TestRoute / ReleaseAudit / ReleaseVerification / ConceptSyncMap / HostContractVerification / TaskResolutionV1 / CliDiagnosticContract / CheckpointValidation / LocalTaskTrace / TurnLivenessRecovery / 05-实施进度.md（按触发状态填写）
+> **支撑产物**: ExecutionContract / TestRoute / ReleaseAudit / ReleaseVerification / ConceptSyncMap / HostContractVerification / TaskResolutionV1 / CliDiagnosticContract / CheckpointValidation / LocalTaskTrace / ProjectKnowledge / ExecutionAttemptLedger / TurnLivenessRecovery / 05-实施进度.md（按触发状态填写）
 ```
 
 ## §1 执行摘要
@@ -51,6 +51,14 @@ applyTo: .devcodex/**/reports/optimizations/**
 | 平均延迟 | X ms | Y ms | -Z% |
 | P99 延迟 | X ms | Y ms | -Z% |
 
+执行链优化追加 `ExecutionChainBenchmarkResultV1`：列出 environment identity、cold/warm、warmup/measurement、四个 direct-benefit 维度的 median/p95/sampleCount、correctness、instrumentation overhead、几何平均改善与 improvedDimensions。环境或样本不可比时结论必须为 `provisional`；token/TTFT 不可观测写 `N/A + reason`，禁止用 bytes/chars 代替。
+
+同时给出六类消费者的 `ExecutionOptimizationFeatureDecisionV1` 负向证据：feature 置为 `rolled-back` 或 state 无效时，task index、Context cache、changed validation、Profile section、Skill bundle、ProjectKnowledge 必须逐一命中完整 fallback。只有 status/doctor 显示回滚、真实消费者未切换时属于阻断性 correctness failure。
+
+| feature | lifecycle | baseline/candidate | direct benefit | correctness | fallback regression | overhead/false positive | verdict |
+|---------|-----------|--------------------|----------------|-------------|---------------------|-------------------------|---------|
+| | off/shadow/trial/default/rolled-back/sunset | | | | | | effective/ineffective/harmful/insufficient-evidence |
+
 ## §5 接口行为一致性
 
 > 优化不得改变对外接口行为，验证如下：
@@ -68,6 +76,7 @@ applyTo: .devcodex/**/reports/optimizations/**
 | api-verification | ✅ 通过 | 接口行为未变 |
 | 负载测试 (autocannon) | ✅ 通过 | — |
 | 单元测试 | ✅ 通过 | — |
+| `test:execution-chain-evolution` / V101 | ✅ 通过 / N/A | prospective trial、full-only、rollback/sunset、invalid-state fail-closed 与六消费者 feature decision 闭包 |
 
 ## §6.2 工作流 overlay 与治理证据（条件）
 

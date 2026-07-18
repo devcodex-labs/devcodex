@@ -76,7 +76,7 @@
  * V92 项目工程与治理闭环优化（CI/coverage/checked-command/portfolio/runtime-state/manifest/docs）
  * V93 控制面模块化边界与探针注册表
  * V94 返工预防、审查/产物信任链与发布/配置/交互 Owner 子门禁
- * V95~V100：完整性/吸纳/品牌/TurnLiveness/ContextRead/ClosureEvidence
+ * V95~V101：完整性/吸纳/品牌/TurnLiveness/ContextRead/ClosureEvidence/ExecutionChain
  * Exit: 0=OK, 1=error, 2=warnings only
  */
 'use strict'
@@ -107,6 +107,7 @@ const { buildBrandVisualQualityChecks } = require('./lib/validate-brand-visual-q
 const { buildTurnLivenessControlChecks } = require('./lib/validate-turn-liveness-controls')
 const { buildContextReadControlChecks } = require('./lib/validate-context-read-controls')
 const { buildClosureEvidenceControlChecks } = require('./lib/validate-closure-evidence-controls')
+const { buildExecutionChainControlChecks } = require('./lib/validate-execution-chain-controls')
 const { buildGovernanceSupportChecks } = require('./lib/validate-governance-support')
 const { resolveActiveRuntimeRoot } = require('../hooks/_runtime/workspace-layout.cjs')
 const ROOT = path.resolve(__dirname, '..')
@@ -127,11 +128,9 @@ function walk(dir) {
   return out
 }
 const read = createCanonicalAwareReader(ROOT, p => fs.readFileSync(p, 'utf8'))
-
 function fileHash(filePath) {
   return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex')
 }
-
 function readJsonIfExists(filePath) {
   try {
     return JSON.parse(fs.readFileSync(filePath, 'utf8'))
@@ -139,7 +138,6 @@ function readJsonIfExists(filePath) {
     return null
   }
 }
-
 function resolveActiveDevcodexRoot(repoRoot) {
   const legacyRoot = path.join(repoRoot, '.devcodex')
   const workspaceRoot = path.dirname(repoRoot)
@@ -294,6 +292,7 @@ const brandVisualQualityChecks = buildBrandVisualQualityChecks({ ROOT, ACTIVE_DE
 const turnLivenessChecks = buildTurnLivenessControlChecks({ ROOT, ACTIVE_DEVCODEX_ROOT, fs, path, read, err, console })
 const contextReadChecks = buildContextReadControlChecks({ ROOT, ACTIVE_DEVCODEX_ROOT, fs, path, read, err, console })
 const closureEvidenceChecks = buildClosureEvidenceControlChecks({ ROOT, fs, path, read, err, console })
+const executionChainChecks = buildExecutionChainControlChecks({ ROOT, ACTIVE_DEVCODEX_ROOT, fs, path, read, err, console })
 
 function checkV7b() {
   try {
@@ -304,7 +303,7 @@ function checkV7b() {
     err(`[V7b] instruction-fallback smoke test failed${detail ? `: ${detail}` : ''}`)
   }
 }
-const expectedProbeIds = Array.from({ length: 100 }, (_, index) => `V${index + 1}`)
+const expectedProbeIds = Array.from({ length: 101 }, (_, index) => `V${index + 1}`)
 const probeRegistry = createProbeRegistry([
   { owner: 'core-contract', checks: Object.values(coreChecks) },
   { owner: 'package-deployment', checks: Object.values(packageChecks) },
@@ -325,7 +324,8 @@ const probeRegistry = createProbeRegistry([
   { owner: 'brand-visual-quality', checks: Object.values(brandVisualQualityChecks), dependencies: { V97: ['V73', 'V92', 'V93', 'V94', 'V96'] } },
   { owner: 'turn-liveness', checks: Object.values(turnLivenessChecks), dependencies: { V98: ['V36', 'V73', 'V94', 'V96'] } },
   { owner: 'context-read-controls', checks: Object.values(contextReadChecks), dependencies: { V99: ['V86', 'V93', 'V98'] } },
-  { owner: 'closure-evidence-controls', checks: Object.values(closureEvidenceChecks), dependencies: { V100: ['V93', 'V94', 'V99'] } }
+  { owner: 'closure-evidence-controls', checks: Object.values(closureEvidenceChecks), dependencies: { V100: ['V93', 'V94', 'V99'] } },
+  { owner: 'execution-chain-controls', checks: Object.values(executionChainChecks), dependencies: { V101: ['V92', 'V98', 'V99', 'V100'] } }
 ], { expectedIds: expectedProbeIds })
 
 runProbeRegistry(probeRegistry, {

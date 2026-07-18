@@ -231,6 +231,10 @@ function buildValidateCoreChecks(ctx) {
   }
 
   function checkV10() {
+    if (process.env.DEVCODEX_VALIDATION_SCOPE === 'source') {
+      console.log('[V10] source validation scope — active audit-state regression probes deferred to profile-deploy route')
+      return
+    }
     const stateDir = activePath('.audit-state')
     if (!fs.existsSync(stateDir)) {
       console.log('[V10] no audit-state directory — skip')
@@ -304,6 +308,10 @@ function buildValidateCoreChecks(ctx) {
   }
 
   function checkV15() {
+    if (process.env.DEVCODEX_VALIDATION_SCOPE === 'source') {
+      console.log('[V15] source validation scope — active audit-state consistency deferred to profile-deploy route')
+      return
+    }
     const stateDir = activePath('.audit-state')
     if (!fs.existsSync(stateDir)) {
       console.log('[V15] no audit-state directory — skip')
@@ -495,10 +503,15 @@ function buildValidateCoreChecks(ctx) {
       { file: 'website/docs/intro/index.md', needle: `${skillCount} 个按需触发的工作流技能` },
       { file: 'website/docs/specs/directory-structure.md', needle: `扁平一级 Skill（${skillCount} 个）` }
     ]
-    const activeProfileDirAvailable = fs.existsSync(activePath('profile'))
+    const sourceValidationScope = process.env.DEVCODEX_VALIDATION_SCOPE === 'source'
+    const activeProfileDirAvailable = !sourceValidationScope && fs.existsSync(activePath('profile'))
     let optionalActiveProfileChecksSkipped = 0
     for (const check of checks) {
       const filePath = check.rawPath === false ? check.file : path.join(ROOT, check.file)
+      if (sourceValidationScope && check.rawPath === false) {
+        optionalActiveProfileChecksSkipped++
+        continue
+      }
       if (!fs.existsSync(filePath)) {
         if (check.rawPath === false && !activeProfileDirAvailable) {
           optionalActiveProfileChecksSkipped++

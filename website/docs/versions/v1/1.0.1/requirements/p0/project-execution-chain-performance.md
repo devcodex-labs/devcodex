@@ -1,6 +1,6 @@
 # 需求：项目侧执行链性能、任务名续接与增量分析
 
-> **状态**：🟠 CP1/CP2/CP3 已确认；B0、B1 accepted，B2 实施中
+> **状态**：🟢 CP1/CP2/CP3 已确认；B0～B6 源码能力已实现，最终证据由任务报告/ECR 持有，未发版
 > **优先级**：P0 正确性与性能基础 + P1 主要收益
 > **确认日期**：2026-07-18
 > **适用范围**：DevCodex v1 未发布增量
@@ -15,6 +15,7 @@
 - [实施批次](#实施批次)
 - [验证生命周期](#验证生命周期)
 - [质量与稳定边界](#质量与稳定边界)
+- [稳定演进与 kill switch](#稳定演进与-kill-switch)
 - [条件路线图与非目标](#条件路线图与非目标)
 - [当前阶段](#当前阶段)
 
@@ -101,6 +102,14 @@ DevCodex 已建立意图驱动的 Profile / memory 按需读取，但项目侧�
 
 P1-04/P1-05 继续由 `incremental-project-analysis` 承接；性能、验证和长任务能力分别进入已有 Owner，不创建重复的“大而全性能 Skill”。
 
+## 稳定演进与 kill switch
+
+六项加速能力统一使用 `ExecutionOptimizationStateV2` / `OptimizationFeatureStateV1`，按 `off → shadow → trial → default` 演进；正确性错误立即进入 `rolled-back`，连续无收益或维护税超过收益进入 `sunset` review。索引、cache、manifest 与 snapshot 都是可重建派生状态，不覆盖任务目录、sessions、CP、源码或测试真相。
+
+可选配置只有 `extensions.devcodex.executionOptimization.mode = safe-auto | full-only`，省略即 `safe-auto`。`full-only` 会关闭 changed-scope、Context body delivery reuse、Profile section、Skill bundle 与 snapshot reuse，但保持 bounded task resolver、完整上下文/Profile/Skill、full validation 和 full-project-analysis。每个真实消费者还会在动作前形成 `ExecutionOptimizationFeatureDecisionV1`；feature 为 `off / shadow / rolled-back / sunset` 时立即走完整 fallback。无效配置、未知/损坏状态、缺失或伪造的 `ExecutionOptimizationPlanBindingV1` 同样 fail-closed。
+
+`profile_context_plan` 从已读取的 effective config 生成身份绑定并交给 `profile_load` / `profile_skill_plan`；后续消费者禁止为了判断模式额外读取 `config.json`。feature lifecycle 只读取 active-root 下的可重建派生状态，不读取 Profile 正文；这保证读取轨迹仍严格等于计划 selected files，不以隐藏读取换取优化开关。
+
 ## 实施批次
 
 | 批次 | 范围 | exit gate |
@@ -130,7 +139,7 @@ V0 基线 → 每批 focused validation → 批次 accepted/rollback → 跨批�
 | V3 | DAG 去重、changed/affected/invariant、fail-fast/full fallback | 唯一能力不减；高风险仍 full |
 | V4 | Profile/Skill mandatory、snapshot changed/affected/lens-gap、rename/delete/tombstone、批次恢复 | mandatory miss=0；required finding miss=0 |
 | V5 | schema migration、旧 alias、prospective trial、误报/开销、rollback/sunset | 有害候选不晋级；旧契约兼容 |
-| V6 | npm full、coverage、website/package/Profile/部署、负向 mutation、需求反向追踪 | falseComplete=0；所有必做项有真实证据 |
+| V6 | npm full、coverage、V101、website/package/Profile/部署、负向 mutation、需求反向追踪 | falseComplete=0；所有必做项有真实证据 |
 
 任何阶段 fail / inconclusive 时，对应批次不得 accepted，性能结论保持 provisional。
 
@@ -161,5 +170,6 @@ V0 基线 → 每批 focused validation → 批次 accepted/rollback → 跨批�
 - CP1 v0.4、CP2 v1.0、CP3 v1.0 均已按确认前全文 SHA-256 绑定。
 - CP2 确认后全面复审 30/30、CP3 确认后全面复审 32/32，均为 zero blocker。
 - B0 已修复 portfolio/Profile/current docs freshness 并冻结 comparable-green；B1 已交付稳定 taskId/alias、bounded index/resolver 与 CLI/MCP/Hook 四入口，V1 wrong task/root/CP 为 0。
-- 当前严格进入 B2：分离 Context invocation/content identity、computation reuse 与正文交付复用；尚未宣称 validation DAG、Profile/Skill 渐进加载或增量知识已完成。
-- 工作区同步与最终本地 commit 已授权；push、tag、publish、release 未授权。性能目标仍须 B6 真实基准与质量门禁证明。
+- B2 已交付 Context V2 与跨进程 computation reuse；B3 已交付无重复 canonical validation DAG；B4 已交付 Profile section 与 Skill bundle；B5 已交付 ProjectKnowledge 增量计划、抽样 oracle、双层验证和 ExecutionAttemptLedger。
+- B6 已交付 `ExecutionOptimizationStateV2`、benchmark evaluator、V101、公开文档/Profile/package/deploy 消费者与 full-only 回滚路径；是否完成与性能结论以当前任务的 fresh full/coverage/site/package/deploy/ECR 和基准结果为准，本静态页面不替代验收证据。
+- 工作区同步与最终本地 commit 已授权；push、tag、publish、release 未授权。当前源码能力尚未构成新版本发布声明。

@@ -10,6 +10,7 @@ const {
   stableStringify
 } = require('./content-identity.cjs')
 const { createDerivedStateStore } = require('./derived-state-store.cjs')
+const { resolveExecutionFeatureDecisionForCwd } = require('./execution-optimization-routing.cjs')
 const {
   collectWorkspaceProjectNamespaces,
   findLayoutInfo,
@@ -482,6 +483,7 @@ function resolveTaskContinuation({
   scope = 'auto',
   budgets = {},
   persistIndex = true,
+  useIndex,
   now = () => Date.now()
 } = {}) {
   const displayQuery = String(name || '').normalize('NFKC').trim().replace(/\s+/gu, ' ')
@@ -513,18 +515,33 @@ function resolveTaskContinuation({
     throw error
   }
 
+  const optimizationActiveRoot = rootContext.scope === 'workspace'
+    ? path.join(rootContext.layout.workspaceRoot, '.devcodex', 'workspace')
+    : rootContext.roots[0].activeRoot
+  const featureDecision = resolveExecutionFeatureDecisionForCwd({
+    cwd,
+    activeRoot: optimizationActiveRoot,
+    project,
+    featureId: 'task-index-acceleration'
+  })
+  const indexEnabled = useIndex !== false && featureDecision.optimizationAllowed
   const store = createDerivedStateStore({
     root: rootContext.storeRoot,
     relativePath: rootContext.storeRelativePath,
     maxBytes: rootContext.scope === 'workspace' ? 16 * 1024 * 1024 : 4 * 1024 * 1024,
     lockWaitMs: 2000,
-    maxWrites: persistIndex ? 1 : 0,
+    maxWrites: persistIndex && indexEnabled ? 1 : 0,
     now
   })
-  const readReceipt = store.read({ expectedIdentity: inventory.sourceIdentity })
+  const readReceipt = indexEnabled
+    ? store.read({ expectedIdentity: inventory.sourceIdentity })
+    : { status: 'bypassed', errorCode: featureDecision.reasonCode }
   let index = readReceipt.status === 'fresh' && validateIndex(readReceipt.value, rootContext) ? readReceipt.value : null
   let writeReceipt = null
-  let indexState = index ? 'reused' : 'rebuilt-memory'
+  const disabledState = featureDecision.configurationMode === 'full-only' || featureDecision.stateMode === 'full-only'
+    ? 'disabled-full-only'
+    : (['invalid', 'bypassed', 'error'].includes(featureDecision.stateStatus) ? 'disabled-fail-closed' : 'disabled-feature-lifecycle')
+  let indexState = index ? 'reused' : (indexEnabled ? 'rebuilt-memory' : disabledState)
   const rebuildReason = index ? null : (readReceipt.status === 'fresh' ? 'invalid-index-contract' : readReceipt.status)
   if (!index) {
     try {
@@ -542,10 +559,12 @@ function resolveTaskContinuation({
       }
       throw error
     }
-    writeReceipt = store.write(index)
-    if (writeReceipt.status === 'persisted') indexState = 'rebuilt-persisted'
-    else if (writeReceipt.status === 'bypassed') indexState = 'rebuilt-bypassed'
-    else if (writeReceipt.status === 'error') indexState = 'rebuilt-error'
+    if (indexEnabled) {
+      writeReceipt = store.write(index)
+      if (writeReceipt.status === 'persisted') indexState = 'rebuilt-persisted'
+      else if (writeReceipt.status === 'bypassed') indexState = 'rebuilt-bypassed'
+      else if (writeReceipt.status === 'error') indexState = 'rebuilt-error'
+    }
   }
 
   const indexEvidence = {
@@ -554,7 +573,15 @@ function resolveTaskContinuation({
     filePath: store.filePath,
     sourceIdentity: inventory.sourceIdentity,
     readStatus: readReceipt.status,
-    writeStatus: writeReceipt?.status || null
+    writeStatus: writeReceipt?.status || null,
+    featureDecision: {
+      schemaVersion: featureDecision.schemaVersion,
+      featureId: featureDecision.featureId,
+      lifecycleState: featureDecision.lifecycleState,
+      optimizationAllowed: featureDecision.optimizationAllowed,
+      reasonCode: featureDecision.reasonCode,
+      stateStatus: featureDecision.stateStatus
+    }
   }
   const base = baseResolution(rootContext, displayQuery, normalizedQuery, indexEvidence)
   const matches = findExactMatches(index.entries, normalizedQuery)

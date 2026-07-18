@@ -14,6 +14,10 @@ const {
   buildJsonContentIdentity,
   validateContentIdentity
 } = require('../hooks/_runtime/content-identity.cjs')
+const {
+  createOptimizationState,
+  persistOptimizationState
+} = require('./lib/execution-optimization')
 
 const ROOT = path.resolve(__dirname, '..')
 const TEMP_ROOT = path.join(os.tmpdir(), `devcodex-mcp-test-${process.pid}`)
@@ -115,6 +119,7 @@ function setupConfiguredMcpTarget() {
   const targetRoot = path.join(TEMP_ROOT, 'configured-target')
   fs.mkdirSync(path.join(targetRoot, '.claude', 'mcp'), { recursive: true })
   fs.mkdirSync(path.join(targetRoot, '.claude', 'hooks', '_runtime'), { recursive: true })
+  fs.mkdirSync(path.join(targetRoot, '.claude', 'skills'), { recursive: true })
   const profileRoot = path.join(targetRoot, '.devcodex', 'profile')
   fs.mkdirSync(profileRoot, { recursive: true })
   fs.writeFileSync(path.join(profileRoot, 'README.md'), [
@@ -136,7 +141,9 @@ function setupConfiguredMcpTarget() {
   fs.copyFileSync(path.join(ROOT, 'mcp', 'profile-server.js'), path.join(targetRoot, '.claude', 'mcp', 'profile-server.js'))
   fs.copyFileSync(path.join(ROOT, 'mcp', 'path-guard.js'), path.join(targetRoot, '.claude', 'mcp', 'path-guard.js'))
   fs.copyFileSync(path.join(ROOT, 'mcp', 'profile-contract.js'), path.join(targetRoot, '.claude', 'mcp', 'profile-contract.js'))
+  fs.copyFileSync(path.join(ROOT, 'mcp', 'profile-section-selector.cjs'), path.join(targetRoot, '.claude', 'mcp', 'profile-section-selector.cjs'))
   fs.copyFileSync(path.join(ROOT, 'mcp', 'agent-identity.cjs'), path.join(targetRoot, '.claude', 'mcp', 'agent-identity.cjs'))
+  fs.copyFileSync(path.join(ROOT, 'skills', 'portfolio.json'), path.join(targetRoot, '.claude', 'skills', 'portfolio.json'))
   fs.copyFileSync(
     path.join(ROOT, 'hooks', '_runtime', 'workspace-layout.cjs'),
     path.join(targetRoot, '.claude', 'hooks', '_runtime', 'workspace-layout.cjs')
@@ -145,7 +152,7 @@ function setupConfiguredMcpTarget() {
     path.join(ROOT, 'hooks', '_runtime', 'context-read-contract.cjs'),
     path.join(targetRoot, '.claude', 'hooks', '_runtime', 'context-read-contract.cjs')
   )
-  for (const file of ['content-identity.cjs', 'derived-state-store.cjs', 'task-continuation-contract.cjs']) {
+  for (const file of ['content-identity.cjs', 'derived-state-store.cjs', 'execution-optimization-routing.cjs', 'task-continuation-contract.cjs']) {
     fs.copyFileSync(
       path.join(ROOT, 'hooks', '_runtime', file),
       path.join(targetRoot, '.claude', 'hooks', '_runtime', file)
@@ -1028,6 +1035,223 @@ function testProfileLoadWithoutArguments() {
   assert.match(targetedText, /03-代码风格/)
 }
 
+function testProfileSectionSelectorsAndSkillPlan() {
+  setupLegacyWorkspace()
+  const safePlanResponses = runServer('mcp/profile-server.js', [
+    rpcRequest(70, 'tools/call', {
+      name: 'profile_context_plan',
+      arguments: { intent: 'chat', contextEpoch: 'safe-optimization-binding' }
+    })
+  ], TEMP_ROOT)
+  const safeOptimization = toolJson(resultById(safePlanResponses, 70)).executionOptimization
+  assert.strictEqual(safeOptimization.mode, 'safe-auto')
+  fs.writeFileSync(path.join(TEMP_ROOT, '.devcodex', 'profile', '01-项目信息.md'), [
+    'Profile preamble.',
+    '',
+    '# Project',
+    '',
+    'Project facts.',
+    '',
+    '## Runtime',
+    '',
+    'Runtime facts.',
+    '',
+    '## Security',
+    '',
+    'Security facts.',
+    '',
+    '## Large Appendix',
+    '',
+    'x'.repeat(5000),
+    ''
+  ].join('\n'))
+  const requests = [
+    rpcRequest(1, 'tools/call', {
+      name: 'profile_load',
+      arguments: {
+        files: ['01-项目信息.md'],
+        maxBytes: 20000,
+        executionOptimization: safeOptimization,
+        sectionSelectors: [{
+          file: '01-项目信息.md',
+          headingQueries: ['Runtime'],
+          requiredQueries: ['Runtime'],
+          maxBytes: 4096
+        }]
+      }
+    }),
+    rpcRequest(2, 'tools/call', {
+      name: 'profile_load',
+      arguments: {
+        files: ['01-项目信息.md'],
+        maxBytes: 20000,
+        executionOptimization: safeOptimization,
+        sectionSelectors: [{
+          file: '01-项目信息.md',
+          headingQueries: ['Missing'],
+          requiredQueries: ['Missing'],
+          maxBytes: 4096
+        }]
+      }
+    }),
+    rpcRequest(3, 'tools/call', {
+      name: 'profile_load',
+      arguments: {
+        files: ['01-项目信息.md'],
+        maxBytes: 4096,
+        executionOptimization: safeOptimization,
+        sectionSelectors: [{
+          file: '01-项目信息.md',
+          headingQueries: ['Runtime', 'Large Appendix'],
+          requiredQueries: ['Runtime'],
+          maxBytes: 1024
+        }]
+      }
+    }),
+    rpcRequest(4, 'tools/call', {
+      name: 'profile_load',
+      arguments: {
+        files: ['02-架构约束.md'],
+        executionOptimization: safeOptimization,
+        sectionSelectors: [{ file: '01-项目信息.md', headingQueries: ['Runtime'] }]
+      }
+    }),
+    rpcRequest(5, 'tools/call', {
+      name: 'profile_skill_plan',
+      arguments: { candidateIds: ['dev-testing'], maxBytes: 1000000, executionOptimization: safeOptimization }
+    }),
+    rpcRequest(6, 'tools/call', {
+      name: 'profile_skill_plan',
+      arguments: { candidateIds: ['brand-visual-quality'], executionOptimization: safeOptimization }
+    }),
+    rpcRequest(7, 'tools/call', {
+      name: 'profile_skill_plan',
+      arguments: { candidateIds: ['intent'], hostCapability: 'unsupported', executionOptimization: safeOptimization }
+    })
+  ]
+  const responses = runServer('mcp/profile-server.js', requests, TEMP_ROOT)
+  const loadMeta = result => {
+    const text = result.content?.[0]?.text || ''
+    const match = text.match(/<!-- profile_load_budget (\{[^\n]+\}) -->/)
+    assert(match, 'missing profile_load_budget receipt')
+    return { text, meta: JSON.parse(match[1]) }
+  }
+
+  const exact = loadMeta(resultById(responses, 1))
+  assert.match(exact.text, /Runtime facts/)
+  assert.doesNotMatch(exact.text, /Security facts/)
+  assert.strictEqual(exact.meta.schemaVersion, 'ProfileLoadReceiptV2')
+  assert.strictEqual(exact.meta.sectionReceipts[0].schemaVersion, 'ProfileSectionLoadReceiptV1')
+  assert.strictEqual(exact.meta.sectionReceipts[0].completion, 'complete')
+  assert.strictEqual(exact.meta.sectionReceipts[0].requiredSatisfied, true)
+
+  const fallback = loadMeta(resultById(responses, 2))
+  assert.match(fallback.text, /Project facts/)
+  assert.match(fallback.text, /Security facts/)
+  assert.strictEqual(fallback.meta.sectionReceipts[0].completion, 'fallback-full')
+  assert.strictEqual(fallback.meta.sectionReceipts[0].fallbackReason, 'required-query-missing-or-ambiguous')
+
+  const partial = loadMeta(resultById(responses, 3))
+  assert.match(partial.text, /Runtime facts/)
+  assert.doesNotMatch(partial.text, /x{128}/)
+  assert.doesNotMatch(partial.text, /truncated by maxBytes/)
+  assert.strictEqual(partial.meta.completion, 'partial')
+  assert(partial.meta.sectionReceipts[0].deferredSections.some(item => item.query === 'Large Appendix'))
+
+  const invalid = resultById(responses, 4)
+  assert.strictEqual(invalid.isError, true)
+
+  const configPath = path.join(TEMP_ROOT, '.devcodex', 'profile', 'config.json')
+  const fullOnlyConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'))
+  fullOnlyConfig.extensions = { devcodex: { executionOptimization: { mode: 'full-only' } } }
+  fs.writeFileSync(configPath, JSON.stringify(fullOnlyConfig, null, 2) + '\n')
+  const fullOnlyPlanResponses = runServer('mcp/profile-server.js', [
+    rpcRequest(80, 'tools/call', {
+      name: 'profile_context_plan',
+      arguments: { intent: 'chat', contextEpoch: 'full-only-binding' }
+    })
+  ], TEMP_ROOT)
+  const fullOnlyOptimization = toolJson(resultById(fullOnlyPlanResponses, 80)).executionOptimization
+  assert.strictEqual(fullOnlyOptimization.mode, 'full-only')
+  const fullOnlyResponses = runServer('mcp/profile-server.js', [
+    rpcRequest(8, 'tools/call', {
+      name: 'profile_load',
+      arguments: {
+        files: ['01-项目信息.md'],
+        maxBytes: 20000,
+        executionOptimization: fullOnlyOptimization,
+        sectionSelectors: [{ file: '01-项目信息.md', headingQueries: ['Runtime'], requiredQueries: ['Runtime'] }]
+      }
+    }),
+    rpcRequest(9, 'tools/call', {
+      name: 'profile_skill_plan',
+      arguments: { candidateIds: ['intent'], executionOptimization: fullOnlyOptimization }
+    })
+  ], TEMP_ROOT)
+  const fullOnlyLoad = loadMeta(resultById(fullOnlyResponses, 8))
+  assert.strictEqual(fullOnlyLoad.meta.executionOptimizationMode, 'full-only')
+  assert.strictEqual(fullOnlyLoad.meta.optimizationFallback, 'full-profile-file')
+  assert.strictEqual(fullOnlyLoad.meta.sectionReceipts.length, 0)
+  assert.match(fullOnlyLoad.text, /Security facts/)
+  const fullOnlySkill = JSON.parse(resultById(fullOnlyResponses, 9).content[0].text)
+  assert.strictEqual(fullOnlySkill.completion, 'fallback-full')
+  assert.strictEqual(fullOnlySkill.fallback.route, 'full-skill-read')
+  assert.match(invalid.content[0].text, /PROFILE_SECTION_FILE_NOT_SELECTED/)
+
+  const bundle = toolJson(resultById(responses, 5))
+  assert.strictEqual(bundle.schemaVersion, 'BundleDecisionV2')
+  assert.strictEqual(bundle.completion, 'complete')
+  assert.deepStrictEqual(new Set(bundle.selected.map(item => item.id)),
+    new Set(['api-verification', 'dev-scenario-test', 'dev-testing']))
+  const inactive = toolJson(resultById(responses, 6))
+  assert.strictEqual(inactive.completion, 'blocked')
+  assert(inactive.blockers.some(item => item.code === 'inactive'))
+  const hostFallback = toolJson(resultById(responses, 7))
+  assert.strictEqual(hostFallback.completion, 'fallback-full')
+  assert.strictEqual(hostFallback.fallback.route, 'full-skill-read')
+
+  delete fullOnlyConfig.extensions
+  fs.writeFileSync(configPath, JSON.stringify(fullOnlyConfig, null, 2) + '\n')
+  const lifecycleState = createOptimizationState({
+    featureStates: {
+      'context-computation-reuse': 'rolled-back',
+      'profile-section-load': 'rolled-back',
+      'skill-bundle': 'rolled-back'
+    }
+  })
+  assert.strictEqual(persistOptimizationState(path.join(TEMP_ROOT, '.devcodex'), lifecycleState).status, 'persisted')
+  const lifecycleResponses = runServer('mcp/profile-server.js', [
+    rpcRequest(90, 'tools/call', {
+      name: 'profile_context_plan',
+      arguments: { intent: 'chat', contextEpoch: 'feature-lifecycle-rollback' }
+    }),
+    rpcRequest(91, 'tools/call', {
+      name: 'profile_load',
+      arguments: {
+        files: ['01-项目信息.md'],
+        maxBytes: 20000,
+        executionOptimization: safeOptimization,
+        sectionSelectors: [{ file: '01-项目信息.md', headingQueries: ['Runtime'], requiredQueries: ['Runtime'] }]
+      }
+    }),
+    rpcRequest(92, 'tools/call', {
+      name: 'profile_skill_plan',
+      arguments: { candidateIds: ['intent'], executionOptimization: safeOptimization }
+    })
+  ], TEMP_ROOT)
+  const lifecyclePlan = toolJson(resultById(lifecycleResponses, 90))
+  assert.strictEqual(lifecyclePlan.cacheDecision.status, 'bypassed')
+  assert.strictEqual(lifecyclePlan.cacheDecision.reasonCode, 'feature-rolled-back')
+  const lifecycleLoad = loadMeta(resultById(lifecycleResponses, 91))
+  assert.strictEqual(lifecycleLoad.meta.executionOptimizationFeature.lifecycleState, 'rolled-back')
+  assert.strictEqual(lifecycleLoad.meta.optimizationFallback, 'full-profile-file')
+  assert.strictEqual(lifecycleLoad.meta.sectionReceipts.length, 0)
+  const lifecycleSkill = toolJson(resultById(lifecycleResponses, 92))
+  assert.strictEqual(lifecycleSkill.completion, 'fallback-full')
+  assert.strictEqual(lifecycleSkill.executionOptimization.lifecycleState, 'rolled-back')
+  assert.strictEqual(lifecycleSkill.executionOptimization.reasonCode, 'feature-rolled-back')
+}
+
 function testProfileContextPlanContract() {
   setupContextPlanWorkspace()
   const projectRoot = path.join(TEMP_ROOT, 'chat')
@@ -1057,6 +1281,7 @@ function testProfileContextPlanContract() {
   assert.deepStrictEqual(planTool.inputSchema.required, ['intent'])
   assert.deepStrictEqual(planTool.inputSchema.properties.intent.enum, CONTEXT_READ_CONTRACT.intents)
   assert(tools.some(tool => tool.name === 'profile_load'))
+  assert(tools.some(tool => tool.name === 'profile_skill_plan'))
   assert(tools.some(tool => tool.name === 'profile_get_mode'))
 
   const chatResult = resultById(responses, 2)
@@ -1236,7 +1461,11 @@ function testProfileContextPlanLocalPolicyAndFullEscalation() {
   const load = runServer('mcp/profile-server.js', [
     rpcRequest(3, 'tools/call', {
       name: 'profile_load',
-      arguments: { project: 'chat', files: localPlan.profile.selectedFiles }
+      arguments: {
+        project: 'chat',
+        files: localPlan.profile.selectedFiles,
+        executionOptimization: localPlan.executionOptimization
+      }
     })
   ], projectRoot)
   assert.match(resultById(load, 3).content?.[0]?.text || '', /LOCAL-BODY-SENTINEL/)
@@ -1291,7 +1520,11 @@ function testProfileContextPlanReadTrace() {
   const targeted = runProfileServerWithReadTrace([
     rpcRequest(3, 'tools/call', {
       name: 'profile_load',
-      arguments: { project: 'chat', files: plan.profile.selectedFiles }
+      arguments: {
+        project: 'chat',
+        files: plan.profile.selectedFiles,
+        executionOptimization: plan.executionOptimization
+      }
     })
   ], projectRoot)
   const targetedNames = [...new Set(profileReadBasenames(targeted.reads))].sort()
@@ -1495,6 +1728,13 @@ function testMcpJsonLaunchContract() {
   const config = JSON.parse(fs.readFileSync(path.join(ROOT, '.mcp.json'), 'utf8'))
   const servers = config.mcpServers || {}
   const targetRoot = setupConfiguredMcpTarget()
+  const configuredPlanResponses = runConfiguredServer(servers['devcodex-profile'], [
+    rpcRequest(89, 'tools/call', {
+      name: 'profile_context_plan',
+      arguments: { intent: 'chat', contextEpoch: 'configured-optimization-binding' }
+    })
+  ], targetRoot)
+  const configuredOptimization = toolJson(resultById(configuredPlanResponses, 89)).executionOptimization
   const expected = {
     'devcodex-memory': '.claude/mcp/memory-server.js',
     'devcodex-profile': '.claude/mcp/profile-server.js'
@@ -1514,6 +1754,14 @@ function testMcpJsonLaunchContract() {
         rpcRequest(92, 'tools/call', {
           name: 'profile_context_plan',
           arguments: { intent: 'chat', contextEpoch: 'configured-target-plan' }
+        }),
+        rpcRequest(93, 'tools/call', {
+          name: 'profile_skill_plan',
+          arguments: {
+            candidateIds: ['intent'],
+            maxBytes: 100000,
+            executionOptimization: configuredOptimization
+          }
         })
       )
     } else {
@@ -1526,9 +1774,13 @@ function testMcpJsonLaunchContract() {
     assert.strictEqual(resultById(responses, 90).serverInfo.name, name)
     if (name === 'devcodex-profile') {
       assert(resultById(responses, 91).tools.some(tool => tool.name === 'profile_context_plan'))
+      assert(resultById(responses, 91).tools.some(tool => tool.name === 'profile_skill_plan'))
       const configuredPlan = toolJson(resultById(responses, 92))
       assert.strictEqual(validateContextReadPlan(configuredPlan).valid, true)
       assert.strictEqual(configuredPlan.identity.project, 'configured-target')
+      const configuredBundle = toolJson(resultById(responses, 93))
+      assert.strictEqual(configuredBundle.schemaVersion, 'BundleDecisionV2')
+      assert.strictEqual(configuredBundle.completion, 'complete')
     } else {
       assert(resultById(responses, 91).tools.some(tool => tool.name === 'memory_status'))
       assert(resultById(responses, 91).tools.some(tool => tool.name === 'memory_task_resolve'))
@@ -1558,6 +1810,7 @@ testMemoryProjectionAgentAmbiguity()
 testGrokAgentMemoryWrite()
 testWorkspaceNamespaceProfileMerge()
 testProfileLoadWithoutArguments()
+testProfileSectionSelectorsAndSkillPlan()
 testProfileContextPlanContract()
 testProfileContextPlanConditionalSelectors()
 testProfileContextPlanLocalPolicyAndFullEscalation()

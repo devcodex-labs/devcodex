@@ -59,6 +59,74 @@ function readJsonFile(filePath) {
   try { return JSON.parse(fs.readFileSync(filePath, 'utf8')) } catch { return null }
 }
 
+function normalizeExecutionOptimizationMode(value) {
+  if (value === undefined || value === null || value === '') {
+    return { requested: null, effective: 'safe-auto', status: 'defaulted', errorCode: null }
+  }
+  const requested = String(value).trim()
+  if (requested === 'safe-auto' || requested === 'full-only') {
+    return { requested, effective: requested, status: 'configured', errorCode: null }
+  }
+  return {
+    requested,
+    effective: 'full-only',
+    status: 'fail-closed',
+    errorCode: 'EXECUTION_OPTIMIZATION_MODE_INVALID'
+  }
+}
+
+function readExecutionOptimizationConfig(filePath) {
+  if (!fs.existsSync(filePath)) return { filePath, status: 'missing', value: null }
+  try {
+    const value = JSON.parse(fs.readFileSync(filePath, 'utf8'))
+    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('config root must be an object')
+    return { filePath, status: 'loaded', value }
+  } catch (error) {
+    return { filePath, status: 'invalid', value: null, error: error.message }
+  }
+}
+
+function resolveExecutionOptimizationModeForCwd(cwd, explicitProject = '') {
+  const absoluteCwd = path.resolve(cwd)
+  const layout = findLayoutInfo(absoluteCwd)
+  const records = []
+  if (!layout.enabled) {
+    records.push(readExecutionOptimizationConfig(path.join(absoluteCwd, '.devcodex', 'profile', 'config.json')))
+  } else {
+    records.push(readExecutionOptimizationConfig(path.join(layout.workspaceRoot, '.devcodex', 'workspace', 'profile', 'config.json')))
+    const project = explicitProject
+      ? normalizeProjectNamespace(explicitProject, layout, { contextProject: inferProjectFromCwd(absoluteCwd, layout) || '' })
+      : inferProjectFromCwd(absoluteCwd, layout)
+    if (project) records.push(readExecutionOptimizationConfig(path.join(namespaceRootPath(layout.workspaceRoot, project), 'profile', 'config.json')))
+  }
+  const invalid = records.find(record => record.status === 'invalid')
+  if (invalid) {
+    return {
+      requested: null,
+      effective: 'full-only',
+      status: 'fail-closed',
+      errorCode: 'EXECUTION_OPTIMIZATION_CONFIG_INVALID',
+      sourcePaths: records.map(record => record.filePath),
+      details: invalid.error
+    }
+  }
+  let requested
+  let sourcePath = null
+  for (const record of records) {
+    if (record.status !== 'loaded') continue
+    const candidate = record.value?.extensions?.devcodex?.executionOptimization?.mode
+    if (candidate !== undefined) {
+      requested = candidate
+      sourcePath = record.filePath
+    }
+  }
+  return {
+    ...normalizeExecutionOptimizationMode(requested),
+    sourcePath,
+    sourcePaths: records.map(record => record.filePath)
+  }
+}
+
 function findLayoutInfo(startDir) {
   let current = path.resolve(startDir)
   while (true) {
@@ -280,7 +348,9 @@ module.exports = {
   joinNamespaceSegments,
   namespaceRootPath,
   normalizeProjectNamespace,
+  normalizeExecutionOptimizationMode,
   readJsonFile,
+  resolveExecutionOptimizationModeForCwd,
   resolveActiveRuntimeRoot,
   resolveLegacyProjectRoot,
   resolveProfileDir,

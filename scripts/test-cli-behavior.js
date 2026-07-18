@@ -291,11 +291,14 @@ function testMachineReadableDiagnosticsAndStableErrors() {
   assert.strictEqual(status.payload.schemaVersion, 'StatusDiagnosticV1')
   assert.strictEqual(status.payload.cwd, root)
   assert.ok(Array.isArray(status.payload.installSurfaces))
+  assert.strictEqual(status.payload.executionOptimization.config.effective, 'safe-auto')
+  assert.deepStrictEqual(status.payload.executionOptimization.writes, [])
 
   const doctor = JSON.parse(runCli(['doctor', '--json'], root))
   assert.strictEqual(doctor.ok, true)
   assert.strictEqual(doctor.command, 'doctor')
   assert.strictEqual(doctor.payload.schemaVersion, 'DoctorDiagnosticV1')
+  assert.strictEqual(doctor.payload.executionOptimization.config.effective, 'safe-auto')
   assert.deepStrictEqual(doctor.payload.capabilityBoundary, {
     localOnly: true,
     hookEvidence: 'event-dependent',
@@ -310,6 +313,15 @@ function testMachineReadableDiagnosticsAndStableErrors() {
   assert.strictEqual(failure.ok, false)
   assert.strictEqual(failure.errorCode, 'CLI_INVALID_OPTION')
   assert.match(failure.nextStep, /status \[--json\]/)
+
+  writeJson(root, '.devcodex/profile/config.json', {
+    mode: 'dev',
+    extensions: { devcodex: { executionOptimization: { mode: 'full-only' } } }
+  })
+  const fullOnly = JSON.parse(runCli(['status', '--json'], root))
+  assert.strictEqual(fullOnly.payload.executionOptimization.config.effective, 'full-only')
+  assert(fullOnly.payload.executionOptimization.features.every(item => item.decision.optimizationAllowed === false))
+  assert.ok(!fs.existsSync(path.join(root, '.devcodex', '.runtime-state', 'execution-optimization')), 'status must not initialize optimization state')
 
   fs.rmSync(root, { recursive: true, force: true })
 }
@@ -533,6 +545,47 @@ function testProfileInitRejectsInvalidArguments() {
   fs.rmSync(root, { recursive: true, force: true })
 }
 
+function testSkillPlanHumanJsonFallbackAndNativeExitCodes() {
+  const root = createTempRoot('devcodex-cli-skill-plan-')
+  writeFile(root, 'package.json', '{ "name": "skill-plan-project" }\n')
+
+  const json = JSON.parse(runCli(['skill', 'plan', 'dev-testing', '--max-bytes', '1000000', '--json'], root))
+  assert.strictEqual(json.schemaVersion, 'DevCodexCliEnvelopeV1')
+  assert.strictEqual(json.ok, true)
+  assert.strictEqual(json.payload.schemaVersion, 'BundleDecisionV2')
+  assert.strictEqual(json.payload.completion, 'complete')
+  assert.deepStrictEqual(new Set(json.payload.selected.map(item => item.id)),
+    new Set(['api-verification', 'dev-scenario-test', 'dev-testing']))
+  assert.match(runCli(['skill', 'plan', 'intent'], root), /Skill bundle plan/)
+
+  const staged = JSON.parse(runCli(['skill', 'plan', 'dev-testing', '--max-skills', '1', '--json'], root))
+  assert.strictEqual(staged.payload.completion, 'over-budget-mandatory')
+  assert(staged.payload.stages.length >= 3)
+  const fallback = JSON.parse(runCli(['skill', 'plan', 'intent', '--host-capability', 'unsupported', '--json'], root))
+  assert.strictEqual(fallback.payload.completion, 'fallback-full')
+  assert.strictEqual(fallback.payload.fallback.route, 'full-skill-read')
+
+  writeJson(root, '.devcodex/profile/config.json', {
+    mode: 'dev',
+    extensions: { devcodex: { executionOptimization: { mode: 'full-only' } } }
+  })
+  const configuredFallback = JSON.parse(runCli(['skill', 'plan', 'intent', '--json'], root))
+  assert.strictEqual(configuredFallback.payload.completion, 'fallback-full')
+  assert.strictEqual(configuredFallback.payload.fallback.route, 'full-skill-read')
+
+  const blocked = runCliResult(['skill', 'plan', 'brand-visual-quality', '--json'], root)
+  assert.strictEqual(blocked.status, 1)
+  const blockedEnvelope = JSON.parse(stripAnsi(blocked.stdout))
+  assert.strictEqual(blockedEnvelope.errorCode, 'SKILL_BUNDLE_BLOCKED')
+  assert.strictEqual(blockedEnvelope.details.completion, 'blocked')
+  const invalid = runCliResult(['skill', 'plan', '--json'], root)
+  assert.strictEqual(invalid.status, 2)
+  assert.strictEqual(JSON.parse(stripAnsi(invalid.stdout)).errorCode, 'CLI_INVALID_OPTION')
+  assert.ok(!fs.existsSync(path.join(root, '.devcodex', '.runtime-state')), 'skill plan must remain read-only')
+
+  fs.rmSync(root, { recursive: true, force: true })
+}
+
 function testTaskResolveHumanJsonAndNativeExitCodes() {
   const root = createTempRoot('devcodex-cli-task-resolve-')
   writeFile(root, 'package.json', '{ "name": "task-resolve-project" }\n')
@@ -597,6 +650,7 @@ function main() {
   testProfileInitAndStatusShareTierContract()
   testProfilePlanAndTierTransitionsAreSafe()
   testProfileInitRejectsInvalidArguments()
+  testSkillPlanHumanJsonFallbackAndNativeExitCodes()
   testTaskResolveHumanJsonAndNativeExitCodes()
   process.stdout.write('cli behavior test passed\n')
 }

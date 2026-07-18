@@ -87,11 +87,22 @@ if (pkg.scripts['test:readme-governance'] !== 'node scripts/test-readme-governan
 }
 const testAllScript = pkg.scripts['test:all'] || ''
 const testScript = pkg.scripts.test || ''
-const readmeGovernanceCovered =
-  testAllScript.includes('node scripts/test-readme-governance.js') ||
-  (testAllScript.trim() === 'npm test' && testScript.includes('node scripts/test-readme-governance.js'))
+const validationManifest = JSON.parse(read('scripts/validation-manifest.json'))
+const readmeGovernanceNode = validationManifest.nodes.find(node => node.id === 'readme-governance')
+const fullRouteNodes = validationManifest.routes.full && validationManifest.routes.full.nodes
+const readmeGovernanceCovered = Boolean(
+  testAllScript.trim() === 'npm test' &&
+  testScript === 'node scripts/run-validation.js --route full' &&
+  readmeGovernanceNode &&
+  readmeGovernanceNode.command === 'node' &&
+  Array.isArray(readmeGovernanceNode.args) &&
+  readmeGovernanceNode.args.length === 1 &&
+  readmeGovernanceNode.args[0] === 'scripts/test-readme-governance.js' &&
+  Array.isArray(fullRouteNodes) &&
+  fullRouteNodes.includes('readme-governance')
+)
 if (!readmeGovernanceCovered) {
-  failures.push('package.json test/test:all missing readme governance targeted test')
+  failures.push('validation full route missing readme governance targeted node')
 }
 
 if (failures.length) {

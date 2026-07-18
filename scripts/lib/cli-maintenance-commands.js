@@ -2,6 +2,7 @@
 
 const PACKAGE_JSON = require('../../package.json')
 const { createCliFailure, createCliSuccess, parseJsonArgs, printCliJson } = require('./cli-json-contract.js')
+const { inspectExecutionOptimization } = require('./execution-optimization.js')
 
 function buildCliMaintenanceCommands(ctx) {
   const {
@@ -70,6 +71,7 @@ function buildCliMaintenanceCommands(ctx) {
     const profileDir = resolveProfileDir(cwd)
     const profileState = inspectProfileState(profileDir)
     const legacy = getLegacyCounts(ghDir)
+    const executionOptimization = inspectExecutionOptimization(cwd)
     return {
       schemaVersion: 'StatusDiagnosticV1',
       cwd,
@@ -100,6 +102,7 @@ function buildCliMaintenanceCommands(ctx) {
         configExists: profileState.configExists,
         featureInventory: profileState.featureInventory || null
       },
+      executionOptimization,
       legacy
     }
   }
@@ -115,7 +118,7 @@ function buildCliMaintenanceCommands(ctx) {
 
     const {
       cwd, sourceRepository: isSrc, trackedEntryFiles: total, installSurfaces,
-      entryFiles, profile, legacy
+      entryFiles, profile, executionOptimization, legacy
     } = facts
     console.log()
     console.log(c.bold('  DevCodex status') + c.dim(` in ${cwd}`))
@@ -147,6 +150,7 @@ function buildCliMaintenanceCommands(ctx) {
     else if (profile.present > 0) profileLabel = c.yellow(`partial   (${profile.tier}; ${profileDetails})`)
     else profileLabel = c.red(`missing   (${profileDetails} — run: devcodex profile plan)`)
     console.log(`  ${c.cyan('profile'.padEnd(14))} ${profileLabel}`)
+    console.log(`  ${c.cyan('optimization'.padEnd(14))} ${executionOptimization.config.effective} (${executionOptimization.stateStatus}; ${executionOptimization.features.filter(item => item.decision.optimizationAllowed).length}/${executionOptimization.features.length} accelerated)`)
 
     for (const item of legacy) {
       const label = item.count > 0 ? c.yellow(`${item.count} files (legacy)`) : c.dim('not installed')
@@ -368,6 +372,7 @@ function buildCliMaintenanceCommands(ctx) {
     const profileDir = resolveProfileDir(cwd)
     const profileState = inspectProfileState(profileDir)
     const hasProfile = profileState.complete
+    const executionOptimization = inspectExecutionOptimization(cwd)
 
     let mode = 'instruction-fallback'
     if (platform === 'claude' && hasClaudeHooks) mode = 'hook-enforced (Claude Code)'
@@ -407,6 +412,7 @@ function buildCliMaintenanceCommands(ctx) {
         ...profileState,
         featureInventory: profileState.featureInventory || null
       },
+      executionOptimization,
       capabilityBoundary: {
         localOnly: true,
         hookEvidence: 'event-dependent',
@@ -431,7 +437,8 @@ function buildCliMaintenanceCommands(ctx) {
     const {
       cwd, platformEvidence, platform, agent, installedHosts, mode,
       installArtifacts, codexHookDiagnostics, codexConfigState,
-      profile: profileState
+      profile: profileState,
+      executionOptimization
     } = facts
     const {
       hasGithubHooks, hasClaudeHooks, hasCodexHooksJson, hasCodexHooks,
@@ -448,6 +455,7 @@ function buildCliMaintenanceCommands(ctx) {
     console.log(`  agent:           ${c.cyan(agent)}`)
     console.log(`  installed hosts: ${installedHosts.length ? c.cyan(installedHosts.join(', ')) : c.dim('none detected')}`)
     console.log(`  mode:            ${c.bold(mode)}`)
+    console.log(`  optimization:    ${c.bold(executionOptimization.config.effective)} ${c.dim(`(${executionOptimization.config.status}; state=${executionOptimization.stateStatus})`)}`)
     console.log(c.dim('  enforcement:     default safety-only warns/continues for bootstrap/CP/auto; strict blocks only host-supported events.'))
     console.log()
     console.log(c.bold('  Install artifacts:'))
@@ -544,6 +552,7 @@ function buildCliMaintenanceCommands(ctx) {
       ${c.cyan('doctor')}            Diagnose host/agent/mode; add --json for DoctorDiagnosticV1
       ${c.cyan('probe')}             Run bounded local-only diagnostics; accepts IDs and --json
       ${c.cyan('trace show|replay')} Read/validate the current LocalTaskTrace; never executes payloads
+      ${c.cyan('skill plan')}        Plan a dependency-closed whole-SKILL bundle; add --json for BundleDecisionV2
       ${c.cyan('task resolve')}      Resolve an active task by exact name, alias, project, or stable taskId
 
     ${c.bold('Options:')}
@@ -567,6 +576,7 @@ function buildCliMaintenanceCommands(ctx) {
       devcodex update --claude      # Refresh Claude Code adapter only
       devcodex update --codex       # Refresh Codex adapter only
       devcodex status               # Check installation
+      devcodex skill plan intent load-profile --max-bytes 32768 --json
       devcodex task resolve "my task" --json # Resolve without loading unrelated task bodies
   `)
   }

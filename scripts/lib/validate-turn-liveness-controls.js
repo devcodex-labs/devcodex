@@ -5,8 +5,10 @@ const {
   classifyTurnLiveness,
   completeToolLease,
   createTurnLivenessState,
+  finalizeExecutionAttemptLedger,
   markTurnTerminal,
   observeTurnEvent,
+  recordExecutionAttempt,
   startToolLease
 } = require('../../hooks/_runtime/lifecycle-turn-liveness.cjs')
 const {
@@ -31,29 +33,29 @@ function buildTurnLivenessControlChecks(ctx) {
 
   function checkV98() {
     const required = [
-      ['hooks/_runtime/lifecycle-turn-liveness.cjs', ['classifyTurnLiveness', 'startToolLease', 'completeToolLease', 'TurnRecoveryCard', 'hook-event-observation-only']],
+      ['hooks/_runtime/lifecycle-turn-liveness.cjs', ['classifyTurnLiveness', 'startToolLease', 'completeToolLease', 'TurnRecoveryCard', 'hook-event-observation-only', 'ExecutionAttemptLedgerV1', 'stop-before-third', 'finalizeExecutionAttemptLedger']],
       ['hooks/_runtime/lifecycle-checkpoint-validation.cjs', ['CheckpointValidationResultV1', 'response-time', 'post-execution', 'TRACE_COMPLETION_TIMEOUT']],
       ['hooks/_runtime/lifecycle-task-trace.cjs', ['LocalTaskTraceV1', 'LocalTaskTraceReplayV1', 'TRACE_DUPLICATE_EVENT', 'payloadExecution']],
       ['hooks/_runtime/lifecycle-bootstrap-state.cjs', ['turnLiveness', 'normalizeTurnLivenessState']],
       ['hooks/_runtime/lifecycle.cjs', ['observeTurnEvent', 'startToolLease', 'markTurnTerminal']],
       ['scripts/lib/cli-observability-commands.js', ['LocalProbeContractError', 'cmdProbe', 'cmdTrace', 'legacy-normalized-unverified']],
       ['skills/ai-agent-system-architecture/SKILL.md', ['TurnLivenessRecoveryGate', 'LocalTaskTraceGate', 'checkpointValidation', 'payloadExecution']],
-      ['skills/execution-contract/SKILL.md', ['turnLivenessContract', 'allowedRecoveryActions', 'forbiddenRecoveryActions', 'CheckpointValidationResultV1', 'LocalTaskTraceV1']],
+      ['skills/execution-contract/SKILL.md', ['turnLivenessContract', 'allowedRecoveryActions', 'forbiddenRecoveryActions', 'CheckpointValidationResultV1', 'LocalTaskTraceV1', 'ExecutionAttemptLedgerGate', 'StopSnapshotV1']],
       ['skills/host-contract-verification/SKILL.md', ['turnLiveness', 'hook-event-verified', 'sidecar-observed', 'localProbe', 'checkpointValidation', 'localTaskTrace']],
       ['skills/rework-prevention-engineering/SKILL.md', ['Turn Liveness Prevention Trial', 'FalseStallRate', 'DuplicateMutationRate']],
       ['skills/test-router/SKILL.md', ['agent-turn-liveness', 'local-observability-contract', 'CheckpointValidationResultV1', 'LocalTaskTraceV1']],
-      ['skills/report/report-schema.json', ['CliDiagnosticContract', 'CheckpointValidation', 'LocalTaskTrace', 'TurnLivenessRecovery']],
+      ['skills/report/report-schema.json', ['CliDiagnosticContract', 'CheckpointValidation', 'LocalTaskTrace', 'ExecutionAttemptLedger', 'TurnLivenessRecovery']],
       ['skills/spec-governance/gate-registry.json', ['local-observability-contract', 'agent-turn-liveness', 'CheckpointValidationResultV1', 'LocalTaskTraceV1', 'V98']],
       ['instructions/01-common.instructions.md', ['host-contract-verification', 'CheckpointValidation', 'LocalTaskTrace']],
       ['prompts/technical-design.prompt.md', ['agent-turn-liveness', 'TurnLivenessRecoveryGate', 'CheckpointValidationResultV1', 'LocalTaskTraceV1']],
       ['prompts/implementation-plan.prompt.md', ['agent-turn-liveness', 'CheckpointValidation', 'LocalTaskTrace']],
-      ['prompts/implementation-progress.prompt.md', ['CliDiagnosticContract', 'CheckpointValidation', 'LocalTaskTrace']],
+      ['prompts/implementation-progress.prompt.md', ['CliDiagnosticContract', 'CheckpointValidation', 'LocalTaskTrace', 'ExecutionAttemptLedger']],
       ['prompts/delivery-checklist.prompt.md', ['CliDiagnosticContract', 'CheckpointValidation', 'LocalTaskTrace']],
       ['prompts/report-dev.prompt.md', ['CliDiagnosticContract', 'CheckpointValidation', 'LocalTaskTrace', 'TurnLivenessRecovery']],
       ['prompts/report-fix.prompt.md', ['CliDiagnosticContract', 'CheckpointValidation', 'LocalTaskTrace', 'TurnLivenessRecovery']],
       ['prompts/report-audit.prompt.md', ['CliDiagnosticContract', 'CheckpointValidation', 'LocalTaskTrace', 'TurnLivenessRecovery']],
       ['scripts/check-turn-liveness.js', ['gray-read-only-one-shot', 'sidecar-observed', 'operationReplay', 'processControl']],
-      ['package.json', ['test:local-probe', 'test:checkpoint-validation', 'test:local-task-trace', 'check:turn-liveness', 'scripts/check-turn-liveness.js']],
+      ['package.json', ['test:local-probe', 'test:checkpoint-validation', 'test:local-task-trace', 'test:execution-attempt-ledger', 'check:turn-liveness', 'scripts/check-turn-liveness.js']],
       ['README.md', ['TurnLivenessRecoveryGate', 'stalled-recoverable', 'Hook 本身无法主动唤醒任务', 'devcodex probe', 'LocalTaskTraceV1']],
       ['website/docs/intro/index.md', ['长任务停滞可诊断', 'TurnLivenessRecoveryGate']],
       ['website/docs/guide/development.md', ['Turn Liveness', 'PostToolUse', '不得自行唤醒宿主', 'devcodex probe', 'CheckpointValidation', 'LocalTaskTrace']],
@@ -61,6 +63,7 @@ function buildTurnLivenessControlChecks(ctx) {
       ['scripts/test-turn-liveness.js', ['active-operation-lease', 'stalled-recoverable']],
       ['scripts/test-checkpoint-validation.js', ['incomplete-timeout', 'host-terminal-event']],
       ['scripts/test-local-task-trace.js', ['TRACE_DUPLICATE_EVENT', 'payload-must-not-run', 'CLI_INVALID_OPTION']],
+      ['scripts/test-execution-attempt-ledger.js', ['qualification-required', 'stop-before-third', 'cancelled', 'ATTEMPT_DUPLICATE_CONFLICT']],
       ['scripts/test-local-probe.js', ['PROBE_DEPENDENCY_FAILED', 'zero-write']],
       ['scripts/test-turn-liveness-controls.js', ['zero-write', 'gray-read-only-one-shot']],
       ['scripts/test-hooks-runtime.js', ['liveness-turn-2', 'TurnRecoveryCard']]
@@ -90,6 +93,25 @@ function buildTurnLivenessControlChecks(ctx) {
     const replay = replayLocalTaskTrace(state.taskTrace)
     if (!replay.ok || replay.capabilityBoundary.operationReplay || replay.capabilityBoundary.payloadExecution) {
       err('[V98] LocalTaskTrace replay must remain a valid read-only data projection')
+    }
+    let attemptState = createTurnLivenessState({ nowMs: 4500 })
+    attemptState = observeTurnEvent(attemptState, 'UserPromptSubmit', { session_id: 'v98-attempt-turn' }, { nowMs: 4500 }).state
+    let attempt = recordExecutionAttempt(attemptState, {
+      eventId: 'v98-attempt-1', kind: 'formal', candidateId: 'v98-candidate', phase: 'test',
+      commandSignature: 'node:test', result: 'failed', failureSignature: 'v98-failure', sourceDelta: 0, evidenceDelta: 0
+    }, { nowMs: 5000 })
+    attempt = recordExecutionAttempt(attempt.state, {
+      eventId: 'v98-attempt-2', kind: 'formal', candidateId: 'v98-candidate', phase: 'test',
+      commandSignature: 'node:test', result: 'failed', failureSignature: 'v98-failure', sourceDelta: 0, evidenceDelta: 0
+    }, { nowMs: 6000 })
+    if (attempt.decision.decision !== 'stop-before-third' || !attempt.state.executionAttemptLedger.stopSnapshot) {
+      err('[V98] repeated zero-delta formal failure must stop before the third run')
+    }
+    const cancelled = finalizeExecutionAttemptLedger(attempt.state, 'cancelled', {
+      cancelFinalizerStatus: 'passed', serviceLifecycleCleanup: 'N/A'
+    }, { nowMs: 7000 })
+    if (cancelled.executionAttemptLedger.terminal?.status !== 'cancelled' || cancelled.inFlightOperation) {
+      err('[V98] cancellation must persist terminal evidence and release the operation lease')
     }
 
     const profileRoot = path.join(ACTIVE_DEVCODEX_ROOT, 'profile')

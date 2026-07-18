@@ -21,6 +21,9 @@ DevCodex 通过 `.github/`（Copilot）、`CLAUDE.md + .claude/ + .mcp.json`（C
 - [默认执行原则](#默认执行原则)
 - [CLI 命令](#cli-命令)
 - [`.devcodex` 工作区集中布局（v1.10.0+）](#devcodex-工作区集中布局v1100)
+- [Profile 计划、生成与升级](#profile-计划生成与升级)
+- [意图驱动的上下文读取（源码已实现，尚未发布）](#意图驱动的上下文读取源码已实现尚未发布)
+- [项目侧执行链性能与稳定回滚（源码已实现，尚未发布）](#项目侧执行链性能与稳定回滚源码已实现尚未发布)
 - [本地开发](#本地开发)
 - [架构概览](#架构概览)
 - [客户端支持矩阵（Client Support Matrix）](#客户端支持矩阵client-support-matrix)
@@ -43,6 +46,7 @@ DevCodex 通过 `.github/`（Copilot）、`CLAUDE.md + .claude/ + .mcp.json`（C
 - **长任务 Turn Liveness**: `TurnLivenessRecoveryGate` 记录 `running / awaiting-continuation / suspect / stalled-recoverable / terminal` 状态、工具租约、continuation ACK、双阶段 checkpoint 与当前 turn 的 `LocalTaskTraceV1`；Hook 只能在事件到达时判断历史停滞，trace replay 只返回数据，不能自行唤醒宿主、执行 payload、重放写操作或把 `PostToolUse` 当成任务完成
 - **全模式入口检查**: 所有模式在实质任务前显示 PC0~PC7；dev 模式额外执行 PC4 规范雷达与完整合规链
 - **项目现实扩展**: 先做语义意图初判，再结合目标项目 Profile、目录与当前任务上下文修正最终路由、产物落点和验证方式
+- **任务名续接与增量执行链（未发布源码能力）**: 新会话只需发送 `继续<任务名>任务`；系统通过稳定 task identity 有界定位，再复证 sessions/CP/产物。Context、validation DAG、Profile/Skill 与 ProjectKnowledge 可按内容身份增量执行，并由 `full-only` kill switch 保留完整正确路径
 - **可配置并发策略**: Profile `config.json` 可配置 `extensions.devcodex.concurrency`；默认 `auto` 表示只读准备和隔离验证可并行、共享状态写入保持单写者，保守项目可设为 `serial`
 - **文件真相源优先的有界启动链**: `MemoryCannotSatisfyBootstrapGate` 要求宿主 Memories、模型长期偏好、SUMMARY 或交接卡只能作为 `navigation-hint`；新线程、resume、summary 恢复或跨项目切换仍须通过 Profile plan、memory status/query 与 handoff 指向的精确 reports/review checklist/source 复证。V86 防止用内置记忆替代文件真相，V99 防止把复证误写成默认全文读取或失败调用假完成。
 - **支撑型 Skill**: `execution-contract` / `test-router` / `release-verification` / `host-contract-verification` / `source-consumer-sync` 为控制面、多批次、测试路线、宿主契约验证与真相源-消费者同步提供可审计支撑，不新增工作流分支
@@ -212,6 +216,9 @@ AGENTS.md                 ← 与 instructions.md / copilot-instructions.md / CL
 
 深度审查一下这个项目的代码质量
 → 自动识别为 audit 工作流 → 多轮收敛审查 → 输出报告
+
+继续P0项目侧执行链性能优化任务
+→ 有界定位同名任务 → 复证 sessions/CP/当前产物 → 从最后 accepted 批次继续
 ```
 
 标准安装路径下，无需也不依赖 `@DevCodex`；`.github/agents/` 作为 Copilot 端可选显式入口随默认安装分发。`v1.9.0` 起，Hook 运行时也随 `init/update` / `init --claude` 分发到目标项目，不再要求从 `node_modules/@vextjs/devcodex/...` 读取 Hook 脚本。
@@ -284,6 +291,8 @@ AGENTS.md                 ← 与 instructions.md / copilot-instructions.md / CL
 | `devcodex doctor [--json]` | 诊断当前宿主、Agent、Hook、Profile 与记忆状态；JSON 模式返回 `DoctorDiagnosticV1` |
 | `devcodex probe [id ...] [--json]` | 运行同步、local-only、只读 typed probes；默认包含 host/workspace/profile |
 | `devcodex trace show\|replay [--state <file>] [--json]` | 查看或校验重放当前 turn trace 的只读数据投影；不执行 payload 或 mutation |
+| `devcodex task resolve <任务名> [--project <name>] [--json]` | 有界定位可恢复任务；只返回 identity/session/CP metadata，不执行历史 payload |
+| `devcodex skill plan <id...> [--mandatory <id...>] [--json]` | 生成 dependency-closed `BundleDecisionV2`；宿主不支持或 `full-only` 时回退完整 Skill 读取 |
 | `devcodex help` | 查看 CLI 子命令与选项帮助 |
 | `devcodex init --dry-run` | 预览模式：仅显示将复制的文件 |
 
@@ -341,12 +350,43 @@ devcodex status
 在当前源码能力启用且宿主支持 DevCodex MCP 时，推荐使用以下生产主链，避免每条消息都把整套 Profile 与完整记忆注入上下文：
 
 1. 从当前消息形成语义意图并确定唯一 project/active-root。
-2. 调用 `profile_context_plan`：只返回 README/index、effective non-local config 与顶层文件 metadata，`01~09-*` 和 `config.local.json` 不在规划阶段预读正文。
-3. 用 `profile_load(files=[...])` 读取计划选中的 Profile 文件；记忆先调用 `memory_status`，仅在需要连续性时再调用 `memory_session_query` / `memory_summary_query`。
-4. 只有与 plan/epoch/target/source 精确关联且由 PostToolUse 观察成功的结果，才能形成 `ContextReadReceiptV1`；失败、不可观察或 fallback 结果保持 partial/unverified。
+2. 调用 `profile_context_plan`：只返回 README/index、effective non-local config 与顶层文件 metadata，`01~09-*` 和 `config.local.json` 不在规划阶段预读正文；`ContextReadPlanV2` 同时携带身份绑定的 `ExecutionOptimizationPlanBindingV1`。
+3. 用 `profile_load(files=[...], executionOptimization=<plan binding>)` 读取计划选中的 Profile 文件；记忆先调用 `memory_status`，仅在需要连续性时再调用 `memory_session_query` / `memory_summary_query`。load/skill 消费者不得为判断开关隐式重读 `config.json`。
+4. 只有与 plan/epoch/target/source 精确关联且由 PostToolUse 观察成功的结果，才能形成 `ContextReadReceiptV2`（兼容 V1）；失败、不可观察或 fallback 结果保持 partial/unverified。
 5. 用户/项目明确要求、audit/migration、低置信或必要来源缺失时可升级全量并记录原因；普通工具动作复用当前计划，只有目标、scope/action/risk、digest 或 compact/resume 漂移才重算。
 
 旧的 no-args `profile_load`、`memory_session_read` 和 `memory_summary_read` 仍保留兼容性，但不再是推荐默认路径，也不能单独证明相关上下文已经完整加载。`config.local.json` 仍只有在用户或项目明确指定时才读取。
+
+## 项目侧执行链性能与稳定回滚（源码已实现，尚未发布）
+
+当前源码把 task index、Context computation reuse、changed-scope validation、Profile section、Skill bundle 与 ProjectKnowledge snapshot 统一纳入 `ExecutionOptimizationStateV2`。派生索引/cache/snapshot 只负责加速，损坏、过期或关闭时不会成为第二真相源。
+
+可选配置只有一个，省略时即为 `safe-auto`：
+
+```json
+{
+  "extensions": {
+    "devcodex": {
+      "executionOptimization": {
+        "mode": "full-only"
+      }
+    }
+  }
+}
+```
+
+`full-only` 是 kill switch：关闭 changed-scope、正文 delivery reuse、Profile section、Skill bundle 和 snapshot reuse，但保留 bounded task resolver、完整 Context/Profile/Skill 读取、full validation 与 full-project-analysis。六类消费者会在实际动作前形成 `ExecutionOptimizationFeatureDecisionV1`：`off / shadow / rolled-back / sunset` 立即切回对应完整路径；状态损坏、未知 schema 或身份无效同样 fail-closed，状态缺失则保持 trial 兼容行为。该判断读取 active-root 的派生状态，不额外偷读 Profile 正文或 `config.json`。`devcodex status --json` / `doctor --json` 只读显示当前模式、状态和每个 feature 的 route，不创建运行态文件。
+
+维护者验证命令：
+
+```bash
+npm run test:execution-chain-evolution
+npm run test:changed
+npm run test:full
+npm run benchmark:execution-chain -- --input ./benchmark-input.json
+```
+
+benchmark 输入/输出分别为 `ExecutionChainBenchmarkInputV1` / `ExecutionChainBenchmarkResultV1`。只有同环境、样本满足、correctness 全为 0、综合改善至少 25% 且回归/开销预算通过时才能标 accepted；否则如实保持 `provisional` 或 rejected。本节描述的是 v1.15.1 之后的未发布源码能力，不代表 registry 当前版本已经提供。
 
 ## 本地开发
 

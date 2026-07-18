@@ -17,7 +17,7 @@ const EXPECTED_SCHEMAS = Object.freeze({
   reuseDecision: 'ContextReuseDecisionV1',
   stageTiming: 'StageTimingV1'
 })
-const REQUIRED_PROFILE_TOOLS = Object.freeze(['profile_context_plan', 'profile_load'])
+const REQUIRED_PROFILE_TOOLS = Object.freeze(['profile_context_plan', 'profile_load', 'profile_skill_plan'])
 const REQUIRED_MEMORY_QUERY_TOOLS = Object.freeze(['memory_status', 'memory_session_query', 'memory_summary_query'])
 const REQUIRED_MEMORY_LEGACY_TOOLS = Object.freeze([
   'memory_session_read',
@@ -34,7 +34,8 @@ const CURRENT_CONSUMER_REQUIREMENTS = Object.freeze([
   ['instructions/01a-profile-loading.instructions.md', ['ProfileReadChainGate', 'profile_context_plan', 'ProfilePlanNoHiddenFullReadProbe']],
   ['instructions/15-memory.instructions.md', ['MemoryContextQueryGate', 'memory_status', 'memory_session_query', 'memory_summary_query']],
   ['skills/ai-agent-system-architecture/SKILL.md', ['ContextAcquisitionGate', 'IntentSeedV1', 'ContextReadReceiptV1']],
-  ['skills/load-profile/SKILL.md', ['ProfileReadChainGate', 'profile_context_plan', 'ProfilePlanNoHiddenFullReadProbe']],
+  ['skills/load-profile/SKILL.md', ['ProfileReadChainGate', 'profile_context_plan', 'ProfilePlanNoHiddenFullReadProbe', 'ProfileSectionSelectionGate', 'ProfileSectionLoadReceiptV1']],
+  ['skills/skill-lifecycle-governance/SKILL.md', ['BundleDecisionV2', 'sourceBytes', 'full-skill-read']],
   ['skills/memory/SKILL.md', ['MemoryContextQueryGate', 'memory_status', 'memory_session_query', 'memory_summary_query']],
   ['skills/host-contract-verification/SKILL.md', ['ContextReadReceiptV1', 'ContextAcquisitionToolAllowlistProbe', 'PostToolUse']],
   ['skills/test-router/SKILL.md', ['context-acquisition', 'V99']],
@@ -184,10 +185,14 @@ function buildContextReadControlChecks(ctx) {
       'deriveLegacyBootstrapProjection', 'bodyDeliverySkipped'
     ])
     const profileSource = checkFile('mcp/profile-server.js', [
-      "name: 'profile_context_plan'", "name: 'profile_load'", 'collectProfilePlanInputs',
+      "name: 'profile_context_plan'", "name: 'profile_load'", "name: 'profile_skill_plan'", 'collectProfilePlanInputs',
       "case 'profile_context_plan'", "case 'profile_load'", 'bounded-top-level-profile-inventory',
       'CONTEXT_READ_CONTRACT', 'handleProfileContextPlan', 'ContextPlanComputationCacheV1',
-      'CONTEXT_CACHE_MAX_BYTES', 'applyContextPlanComputationCache'
+      'CONTEXT_CACHE_MAX_BYTES', 'applyContextPlanComputationCache', 'sectionSelectors',
+      'ProfileLoadReceiptV2', 'BundleDecisionV2'
+    ])
+    checkFile('mcp/profile-section-selector.cjs', [
+      'ProfileSectionSelectorV1', 'ProfileSectionLoadReceiptV1', 'fallback-full', 'required-query-missing-or-ambiguous'
     ])
     const memorySource = checkFile('mcp/memory-server.js', [
       "name: 'memory_status'", "name: 'memory_session_query'", "name: 'memory_summary_query'",
@@ -210,8 +215,10 @@ function buildContextReadControlChecks(ctx) {
     ])
     checkFile('scripts/test-mcp-servers.js', [
       'testProfileContextPlanReadTrace', 'plan hidden-read detected', 'legacy full-read compatibility trace lost',
-      'all new memory projection tools must be zero-write'
+      'all new memory projection tools must be zero-write', 'profile_skill_plan', 'ProfileSectionLoadReceiptV1',
+      'BundleDecisionV2'
     ])
+    checkFile('scripts/test-profile-section-selector.js', ['fallback-full', 'partial', 'mandatoryMiss=0'])
     checkFile('scripts/test-hooks-runtime.js', ['buildTestHooksRuntimeFixtures', 'runBootstrapReads'])
     checkFile('scripts/lib/test-hooks-runtime-bootstrap-layout.js', [
       'mcp__devcodex-profile__profile_context_plan', 'mcp__devcodex-memory__memory_summary_append',
@@ -256,7 +263,7 @@ function buildContextReadControlChecks(ctx) {
       }
     }
 
-    checkFile('scripts/validate.js', ['buildContextReadControlChecks', 'length: 100', "owner: 'context-read-controls'"])
+    checkFile('scripts/validate.js', ['buildContextReadControlChecks', 'length: 101', "owner: 'context-read-controls'"])
     const ownerSource = checkFile('scripts/lib/validate-context-read-controls.js', [
       'buildContextReadControlChecks', 'classifyContractSchemaSnapshot', 'classifyProfilePlanReadTrace',
       'classifyRuntimeToolSurface', 'classifyConsumerClosure'

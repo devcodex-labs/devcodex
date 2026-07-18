@@ -14,6 +14,16 @@ function buildOptimizationControlChecks(ctx) {
     const required = [
       '.github/workflows/ci.yml',
       'scripts/lib/checked-command.js',
+      'scripts/validation-manifest.json',
+      'scripts/lib/validation-dag.js',
+      'scripts/run-validation.js',
+      'scripts/test-validation-dag.js',
+      'mcp/profile-section-selector.cjs',
+      'scripts/test-profile-section-selector.js',
+      'scripts/lib/project-knowledge-store.js',
+      'scripts/project-analysis-state.js',
+      'scripts/test-project-knowledge-store.js',
+      'scripts/test-execution-attempt-ledger.js',
       'scripts/publish-dry-run.js',
       'scripts/lib/skill-portfolio-utils.js',
       'scripts/generate-skill-portfolio.js',
@@ -30,8 +40,59 @@ function buildOptimizationControlChecks(ctx) {
     if (pkg.publishConfig?.registry !== 'https://npm.pkg.github.com/' || pkg.publishConfig?.access !== 'restricted') {
       err('[V92] GitHub Packages publishConfig candidate is not canonical')
     }
-    for (const script of ['test:optimization-controls', 'test:coverage', 'release:dry-run:npmjs', 'release:dry-run:github']) {
+    for (const script of [
+      'test:optimization-controls',
+      'test:profile-section-selector',
+      'test:project-knowledge',
+      'test:execution-attempt-ledger',
+      'test:validation-dag',
+      'test:changed',
+      'test:profile-deploy',
+      'test:package-release',
+      'test:coverage',
+      'release:dry-run:npmjs',
+      'release:dry-run:github'
+    ]) {
       if (!pkg.scripts?.[script]) err(`[V92] missing package script: ${script}`)
+    }
+    if (pkg.scripts?.test !== 'node scripts/run-validation.js --route full' ||
+        pkg.scripts?.['test:fast'] !== 'node scripts/run-validation.js --route fast' ||
+        pkg.scripts?.['test:full'] !== 'node scripts/run-validation.js --route full') {
+      err('[V92] stable test entry points must route through the canonical validation manifest')
+    }
+    const requiredPackageFiles = [
+      'scripts/validation-manifest.json',
+      'scripts/run-validation.js',
+      'scripts/test-validation-dag.js',
+      'scripts/test-profile-section-selector.js',
+      'scripts/project-analysis-state.js',
+      'scripts/test-project-knowledge-store.js',
+      'scripts/test-execution-attempt-ledger.js',
+      'scripts/lib/project-knowledge-store.js',
+      'scripts/lib/validation-dag.js'
+    ]
+    for (const relative of requiredPackageFiles) {
+      if (!pkg.files?.includes(relative)) err(`[V92] package files missing validation DAG consumer: ${relative}`)
+    }
+    const profileContract = read(path.join(ROOT, 'mcp/profile-server.js'))
+    for (const needle of ['profile_skill_plan', 'sectionSelectors', 'ProfileLoadReceiptV2', 'BundleDecisionV2']) {
+      if (!profileContract.includes(needle)) err(`[V92] Profile/Skill progressive-load contract missing: ${needle}`)
+    }
+    const profileSelector = read(path.join(ROOT, 'mcp/profile-section-selector.cjs'))
+    for (const needle of ['ProfileSectionSelectorV1', 'ProfileSectionLoadReceiptV1', 'fallback-full']) {
+      if (!profileSelector.includes(needle)) err(`[V92] Profile section selector Owner missing: ${needle}`)
+    }
+    const lifecycleSkill = read(path.join(ROOT, 'skills/skill-lifecycle-governance/SKILL.md'))
+    for (const needle of ['BundleDecisionV2', 'sourceBytes', 'full-skill-read']) {
+      if (!lifecycleSkill.includes(needle)) err(`[V92] Skill lifecycle V2 consumer missing: ${needle}`)
+    }
+    const knowledgeStore = read(path.join(ROOT, 'scripts/lib/project-knowledge-store.js'))
+    for (const needle of ['ProjectKnowledgeSnapshotV1', 'IncrementalAnalysisPlanV1', 'IncrementalAnalysisReceiptV1', 'selectDeterministicReuseSample', 'persistAcceptedKnowledge']) {
+      if (!knowledgeStore.includes(needle)) err(`[V92] ProjectKnowledge runtime missing: ${needle}`)
+    }
+    const analysisOwner = read(path.join(ROOT, 'skills/incremental-project-analysis/SKILL.md'))
+    for (const needle of ['project-analysis-state.js status|plan|accept', '5%', 'full-required', 'BatchValidationResultV1=pass']) {
+      if (!analysisOwner.includes(needle)) err(`[V92] incremental analysis consumer missing: ${needle}`)
     }
     if (pkg.devDependencies?.c8 !== '10.1.3') err('[V92] c8 must stay pinned to Node18-compatible 10.1.3')
 

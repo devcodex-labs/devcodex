@@ -110,11 +110,35 @@ CP 门控**不受 ENV_MODE 影响**。dev/prod 均强制保持 CP1→CP2 顺序�
   - 发现阻断问题：停止推进，修正当前产物，告知用户，再回到对应 CP 重新确认
   - 连续 2 次仍发现新的阻断问题：提示升级为定向 `audit` 或扩大扫描范围
 
+## ConfirmBindingGate / ClosureEvidenceGate（控制面确认绑定）
+
+> 🔴 **ConfirmBindingGate**：控制面、多文件、Hook/MCP/CLI/分发、或用户要求 digest 绑定时，CP 确认必须绑定 **确认前** 产物全文 `artifactPath + version + artifactSha256`。  
+> 🔴 **禁止**确认后仅改产物头部/状态字段再刷新 hash 仍保持同一 ✅（必须标 `stale` 并重确认）。  
+> 🔴 **ClosureEvidenceGate**：宣称 closed / 可确认下一 CP / 可实施 时，每条 P0 须双列 `designEvidence` + `runtimeOwners(writer|reader|schema|probe)`；仅有设计段落 → 最高 `partial`，禁止写「可确认 CP3 / 可实施」。  
+> 🔴 **ReReviewRuntimeFirstGate**：用户说「已调整 / 再审」时，先绑 hash、先问 runtime 假绿，再做旧 finding 打勾。
+
+控制面推荐写入（digest 扩展表）：
+
+```markdown
+### CP 确认记录
+| CP | 状态 | artifactPath | version | sha256 | sourceMessage | confirmedAt |
+|:--:|:----:|--------------|---------|--------|---------------|-------------|
+| CP1 | ✅ | `01-需求确认.md` | v0.4.0 | `ABC…` | 确认 CP1 | 10:30 |
+| CP2 | ⏳ | — | — | — | — | — |
+| CP3 | ⏹️ | — | — | — | — | — |
+```
+
+- MCP：`memory_cp_confirm { requirement, kind, phase, time, artifactPath, artifactVersion, artifactSha256, sourceMessage }`  
+  - 传入 path/sha 时服务端会 **对照磁盘重算 hash**，不一致则拒绝写入  
+  - 仅 `phase/time` 为 legacy 兼容（非控制面小任务）
+- Hook：`readCpConfirmations` 对含 sha 的行执行 `verifyArtifactDigest`；不匹配则视为未确认
+- 探针：V100（`validate-closure-evidence-controls`）
+
 ## 任务级记忆（sessions.md）CP 确认格式
 
-> 🔴 **hook 读取此格式**：`hooks/_runtime/lifecycle.cjs` 通过读取 `.devcodex/requirements/<任务名>/.memory/sessions.md` 或 `.devcodex/bugs/<任务名>/.memory/sessions.md` 判断 CP 确认状态，正则为 `| CP[123] | ✅ |`。格式不符则 hook 视为"未确认"；默认 `safety-only` 下输出提醒并放行，`strict` 模式下阻断代码写入工具（Write/Edit/apply_patch）。
+> 🔴 **hook 读取此格式**：`hooks/_runtime/lifecycle.cjs` 通过读取 `.devcodex/requirements/<任务名>/.memory/sessions.md` 或 `.devcodex/bugs/<任务名>/.memory/sessions.md` 判断 CP 确认状态。legacy 正则为 `| CP[123] | ✅ |`；digest 扩展表在 sha 与磁盘一致时才算 ✅。格式不符或 digest 不匹配则 hook 视为"未确认"；默认 `safety-only` 下输出提醒并放行，`strict` 模式下阻断代码写入工具（Write/Edit/apply_patch）。
 
-每次用户确认 CP 后，立即在对应任务目录的 `.memory/sessions.md` 写入或更新：
+每次用户确认 CP 后，立即在对应任务目录的 `.memory/sessions.md` 写入或更新（控制面优先 digest 扩展表；小任务可用 legacy 三列表）：
 
 ```markdown
 ### CP 确认记录
@@ -125,9 +149,9 @@ CP 门控**不受 ENV_MODE 影响**。dev/prod 均强制保持 CP1→CP2 顺序�
 | CP3 | ⏹️   | —     |
 ```
 
-- `✅` 已确认 · `⏳` 等待确认 · `⏹️` 未开始
-- 推荐：使用 MCP 工具 `memory_cp_confirm {requirement, kind, phase, time}` 自动写入（格式保证正确；`kind=requirements|bugs`，旧调用保持兼容）
-- 无 MCP 时：用 Edit 工具追加/更新此表格，确保 `| CP1 | ✅ |` 格式出现在文件中
+- `✅` 已确认 · `⏳` 等待确认 · `⏹️` 未开始 · `stale` 正文已变须重确认
+- 推荐：使用 MCP 工具 `memory_cp_confirm`（控制面带 digest 字段）
+- 无 MCP 时：用 Edit 工具追加/更新此表格
 - **禁止**：用 Bash/shell 命令修改此文件（C09：破坏 UTF-8 编码）
 
 ## CP 记录格式（报告文件）

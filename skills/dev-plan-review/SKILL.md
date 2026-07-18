@@ -59,6 +59,8 @@ PR-7 测试与风险（🟡 标注，不阻断）
 - PR-1 缺少 `§7.1 产品事实源→技术验证映射（需求验收映射）`，导致 CP1 需求方输入锚点 / 双方确认后的产品事实源 / 产品直接提供的 `01-产品需求.md` 无法追踪到设计点、验证路线或 CP3 任务
 - PR-2 技术选型不兼容或存在"待定"步骤
 - PR-2 非单文件小修、控制面、多模块、接口契约、数据/状态模型或模板-校验链任务缺少 `§2.0 目标架构与模块边界`、契约矩阵、数据/状态模型，且未写 `N/A + skipReason`
+- PR-2 **ControlPlaneContractFirstGate**：Hook/MCP/CLI/descriptor/manifest/plugin 生命周期/CP 状态机/validate 语义/多宿主分发任务缺少 **Current→Target ContractMatrix**（字段、writer、reader、error/compat、迁移）或 `runtimeOwners`，且未写 `N/A + skipReason` → 🔴
+- PR-2 **ClosureEvidenceGate**：方案或承接审查宣称 closed/可实施时，P0 项缺少双列 `designEvidence` + `runtimeOwners` + `negativeProbe`；仅 design 不得标 closed
 - PR-2 非纯文案或单文件小修的方案缺少 `§2.7 最小实现与注释策略`、CP1 `ImplementationComplexityLevel` 继承、复杂度预算，或新增抽象缺少真实消费者 / 既有本地模式 / 边界隔离 / 已确认契约依据
 - PR-2 在 CP1 为 `简单够用` 或用户未要求复杂化时自行升级为 `中等` / `企业级`，但缺少用户确认、多方案取舍和维护成本说明
 - PR-2 三方 provider / connector / SDK 接入类方案未先区分业务功能接口与底层 provider adapter，缺少 provider metadata、内部 payload、上游 request 映射、标准化 result、错误 detail 字段级合同，或首个 provider 反向定义公共 contract
@@ -108,6 +110,8 @@ PR-7 测试与风险（🟡 标注，不阻断）
 | 非单文件小修、控制面、多模块或模板-校验链任务是否单独列出目标架构与模块边界？ | 已在 `§2.0 目标架构与模块边界` 说明目标职责、输入输出、依赖与不负责事项；不触发时有 `N/A + skipReason` |
 | 对已有公共接口/Schema/返回结构/错误码的改动，是否给出“现状契约 → 目标契约”差异说明？ | 已明确差异与迁移边界；若无现状基线则说明为新增 |
 | 涉及公共接口、函数签名、Schema、配置、CLI 参数、Hook payload、MCP tool/resource、事件或报告字段时，是否给出契约矩阵？ | 已覆盖调用方/消费者、输入、输出、错误/异常、兼容策略与验证方式 |
+| 控制面任务是否执行 ControlPlaneContractFirstGate？ | Hook/MCP/CLI/descriptor/manifest/plugin/CP 状态/分发类 CP2 含 Current→Target **ContractMatrix** 与 `runtimeOwners`；不触发写 `N/A + skipReason` |
+| 宣称 closed/可实施时是否满足 ClosureEvidenceGate？ | 每条 P0 有 designEvidence + runtimeOwners + negativeProbe；仅 design → partial，禁止可确认 CP3 |
 | 涉及 Schema/Model/数据库/配置/缓存/运行态状态/台账/Profile/报告字段时，是否给出数据模型 / 状态模型？ | 已说明当前结构、目标结构、生命周期/状态转换、持久化/迁移影响、兼容策略与验证方式；不触发时有 `N/A + skipReason` |
 | 技术执行流程是否区别于 CP1 业务流程，并能映射到 CP3？ | `§2.1` 以技术实现路径和节点职责为主，且含文件/依赖/CP3锚点 |
 | 方案是否给出最小实现与注释策略？ | 已在 `§2.7` 继承 CP1 `ImplementationComplexityLevel`，写明复杂度预算、最小实现边界、必要注释触发点；小修豁免时有 `N/A + skipReason` |

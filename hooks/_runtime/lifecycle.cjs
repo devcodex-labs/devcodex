@@ -477,6 +477,34 @@ function readCpConfirmations(reqPath) {
   let text
   try { text = fs.readFileSync(p, 'utf8') } catch { return none }
   const confirmed = { CP1: false, CP2: false, CP3: false, CP3Exempt: false }
+
+  // ConfirmBindingGate: prefer digest-aware parser when available.
+  // Legacy tables without sha256 remain valid (ok + legacy).
+  // Extended tables with sha256 must match on-disk artifact or confirmation is rejected.
+  try {
+    const cpDigestPath = path.join(__dirname, '..', '..', 'scripts', 'lib', 'cp-digest.js')
+    if (fs.existsSync(cpDigestPath)) {
+      const { parseCpSessions, verifyArtifactDigest } = require(cpDigestPath)
+      const parsed = parseCpSessions(text)
+      for (const phase of ['CP1', 'CP2', 'CP3']) {
+        const row = parsed[phase]
+        if (!row || !row.confirmed) continue
+        if (row.artifactSha256) {
+          const verify = verifyArtifactDigest(reqPath, row)
+          if (!verify.ok) continue
+        }
+        confirmed[phase] = true
+      }
+      if (parsed.CP3Exempt) {
+        confirmed.CP3 = true
+        confirmed.CP3Exempt = true
+      }
+      return confirmed
+    }
+  } catch (_) {
+    // fall through to legacy regex
+  }
+
   const re = /\|\s*(CP[123])\s*\|\s*✅/g
   let m
   while ((m = re.exec(text)) !== null) {

@@ -220,6 +220,7 @@ function buildContextReadControlChecks(ctx) {
     const collector = extractTopLevelFunctionSource(profileSource, 'collectProfilePlanInputs')
     const handler = extractTopLevelFunctionSource(profileSource, 'handleProfileContextPlan')
     if (!collector || !handler) err('[V99] Profile plan function boundary is not observable')
+    // note: probe count floor is maintained in validate.js expectedProbeIds (V1..Vn)
     for (const forbidden of ['resolveDefaultProfileFiles(', 'handleProfileLoad(', 'resolveProfileFile(']) {
       if (collector.includes(forbidden) || handler.includes(forbidden)) {
         err(`[V99] Profile plan hidden full-read guard detected: ${forbidden}`)
@@ -241,7 +242,7 @@ function buildContextReadControlChecks(ctx) {
       }
     }
 
-    checkFile('scripts/validate.js', ['buildContextReadControlChecks', 'length: 99', "owner: 'context-read-controls'"])
+    checkFile('scripts/validate.js', ['buildContextReadControlChecks', 'length: 100', "owner: 'context-read-controls'"])
     const ownerSource = checkFile('scripts/lib/validate-context-read-controls.js', [
       'buildContextReadControlChecks', 'classifyContractSchemaSnapshot', 'classifyProfilePlanReadTrace',
       'classifyRuntimeToolSurface', 'classifyConsumerClosure'

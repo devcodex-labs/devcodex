@@ -22,6 +22,15 @@ G0 必须先调用 `skill-gap-analysis` 的 `ProjectArtifactScaleRoutingGate`：
 
 > 分批策略详见 [`audit-execution-guide/SKILL.md`](../audit-execution-guide/SKILL.md) §体量分批策略。
 
+## ReReviewRuntimeFirstGate / ClosureEvidenceGate
+
+当用户要求「再审 / 已调整 / 复审修订稿」或审查宣称 finding **closed / 可确认下一 CP / 可实施 / scheme-pass** 时：
+
+1. **ReReviewRuntimeFirstGate**：先绑定当前正文 hash；先问「按实施计划开工，Hook/MCP/descriptor 会不会假绿？」并抽样 runtime/writer/reader；**禁止**只对照方案段落是否出现旧 finding 文案后关闭。
+2. **ClosureEvidenceGate**：每条 P0/阻断关闭须双列 `designEvidence` + `runtimeOwners(writer|reader|schema|probe)` + `negativeProbe`；仅 design → 最高 `partial`，禁止写可进 CP3。
+3. 外部/前序审查报告（含其他 Agent）一律 `AuditReportIsSignalNotEvidence`，须回源码/当前正文复证。
+4. 探针锚点：V100。
+
 ## ReviewCoverageClaimIntegrityGate
 
 审查报告、清单和最终回复必须区分 `inventory-covered / machine-scanned / manually-read / sampled-deep-read / executed-verified`。目录枚举、grep 命中、抽样深读和运行探针不得相互冒充。

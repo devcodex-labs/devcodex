@@ -76,8 +76,7 @@
  * V92 项目工程与治理闭环优化（CI/coverage/checked-command/portfolio/runtime-state/manifest/docs）
  * V93 控制面模块化边界与探针注册表
  * V94 返工预防、审查/产物信任链与发布/配置/交互 Owner 子门禁
- * V95~V99 完整性、剩余吸纳、品牌视觉质量、Turn Liveness 与上下文按需读取门禁
- *
+ * V95~V100：完整性/吸纳/品牌/TurnLiveness/ContextRead/ClosureEvidence
  * Exit: 0=OK, 1=error, 2=warnings only
  */
 'use strict'
@@ -107,6 +106,7 @@ const { buildResidualAbsorptionControlChecks } = require('./lib/validate-residua
 const { buildBrandVisualQualityChecks } = require('./lib/validate-brand-visual-quality')
 const { buildTurnLivenessControlChecks } = require('./lib/validate-turn-liveness-controls')
 const { buildContextReadControlChecks } = require('./lib/validate-context-read-controls')
+const { buildClosureEvidenceControlChecks } = require('./lib/validate-closure-evidence-controls')
 const { buildGovernanceSupportChecks } = require('./lib/validate-governance-support')
 const { resolveActiveRuntimeRoot } = require('../hooks/_runtime/workspace-layout.cjs')
 const ROOT = path.resolve(__dirname, '..')
@@ -293,8 +293,7 @@ const residualAbsorptionChecks = buildResidualAbsorptionControlChecks({ ROOT, fs
 const brandVisualQualityChecks = buildBrandVisualQualityChecks({ ROOT, ACTIVE_DEVCODEX_ROOT, fs, path, read, err, console })
 const turnLivenessChecks = buildTurnLivenessControlChecks({ ROOT, ACTIVE_DEVCODEX_ROOT, fs, path, read, err, console })
 const contextReadChecks = buildContextReadControlChecks({ ROOT, ACTIVE_DEVCODEX_ROOT, fs, path, read, err, console })
-// V29~V38 moved to scripts/lib/validate-governance-mid.js
-// V39~V57 moved to scripts/lib/validate-governance-tail.js
+const closureEvidenceChecks = buildClosureEvidenceControlChecks({ ROOT, fs, path, read, err, console })
 
 function checkV7b() {
   try {
@@ -305,7 +304,7 @@ function checkV7b() {
     err(`[V7b] instruction-fallback smoke test failed${detail ? `: ${detail}` : ''}`)
   }
 }
-const expectedProbeIds = Array.from({ length: 99 }, (_, index) => `V${index + 1}`)
+const expectedProbeIds = Array.from({ length: 100 }, (_, index) => `V${index + 1}`)
 const probeRegistry = createProbeRegistry([
   { owner: 'core-contract', checks: Object.values(coreChecks) },
   { owner: 'package-deployment', checks: Object.values(packageChecks) },
@@ -325,7 +324,8 @@ const probeRegistry = createProbeRegistry([
   { owner: 'residual-absorption-controls', checks: Object.values(residualAbsorptionChecks), dependencies: { V96: ['V73', 'V91', 'V93', 'V94', 'V95'] } },
   { owner: 'brand-visual-quality', checks: Object.values(brandVisualQualityChecks), dependencies: { V97: ['V73', 'V92', 'V93', 'V94', 'V96'] } },
   { owner: 'turn-liveness', checks: Object.values(turnLivenessChecks), dependencies: { V98: ['V36', 'V73', 'V94', 'V96'] } },
-  { owner: 'context-read-controls', checks: Object.values(contextReadChecks), dependencies: { V99: ['V86', 'V93', 'V98'] } }
+  { owner: 'context-read-controls', checks: Object.values(contextReadChecks), dependencies: { V99: ['V86', 'V93', 'V98'] } },
+  { owner: 'closure-evidence-controls', checks: Object.values(closureEvidenceChecks), dependencies: { V100: ['V93', 'V94', 'V99'] } }
 ], { expectedIds: expectedProbeIds })
 
 runProbeRegistry(probeRegistry, {

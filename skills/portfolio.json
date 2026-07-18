@@ -5,7 +5,7 @@
   "generatedFrom": {
     "skillsPattern": "skills/*/SKILL.md",
     "registry": "plugin.json",
-    "sourceDigest": "3db90c5a02b0e05a8a3fb6127918941a2cc4b2056370cf3000db9f935ba32c56",
+    "sourceDigest": "be3d8c036eb197f84b1b30f40b0d79e98dc33a2c2339bbc9e02683052c9dfc50",
     "pluginDigest": "cc57240623affa2447299cbde653711235554e77d38fb1298d02fd75124148c4",
     "portfolioEvidence": "skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "a2288b9763bc79ea32f4fd47cd4f2ea31501427dc2e9d6871d75064bd281687b"
@@ -22,7 +22,7 @@
     "conflictReviewedCount": 78,
     "operationalEvidenceCompleteCount": 78,
     "triggerPrecisionMeasuredCount": 0,
-    "instructionBudgetP95Bytes": 19550,
+    "instructionBudgetP95Bytes": 19968,
     "triggerQuality": "structural-only"
   },
   "dependencyGraph": {
@@ -1774,7 +1774,7 @@
         "skills/audit-common/SKILL.md"
       ],
       "source": "skills/audit-common/SKILL.md",
-      "hash": "d3ae2d40cec16e45df73af02afb37b423e6e89870fe904b1c151175e0da8552f",
+      "hash": "3df8832bb32bd0d3a7297df66af479de02f9d59ae09fb629dced56b8f764ba01",
       "version": "1.15.1",
       "lifecycleState": "active",
       "dependencies": [],
@@ -1827,6 +1827,10 @@
         {
           "path": "changelogs/releases/v1.9.9.md",
           "role": "historical"
+        },
+        {
+          "path": "changelogs/unreleased.md",
+          "role": "current"
         },
         {
           "path": "instructions.md",
@@ -5444,7 +5448,7 @@
         "skills/cp-gate/SKILL.md"
       ],
       "source": "skills/cp-gate/SKILL.md",
-      "hash": "e9bd51258ca9067a6650bf86cfd1ea424c121a47873e4de0223040b89104b015",
+      "hash": "97189f3c6ac5f7c3e26cb445af6f008f797971a0ff733d26d1d103e64ac3fd56",
       "version": "1.15.1",
       "lifecycleState": "active",
       "dependencies": [],
@@ -5502,6 +5506,10 @@
         {
           "path": "changelogs/releases/v1.9.5.md",
           "role": "historical"
+        },
+        {
+          "path": "changelogs/unreleased.md",
+          "role": "current"
         },
         {
           "path": "hooks/_runtime/lifecycle.cjs",
@@ -5703,7 +5711,7 @@
         "registration": "plugin.json",
         "operationalReadiness": {
           "state": "complete",
-          "currentConsumer": "hooks/_runtime/lifecycle.cjs",
+          "currentConsumer": "changelogs/unreleased.md",
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
@@ -7127,7 +7135,7 @@
         "skills/dev-plan-review/SKILL.md"
       ],
       "source": "skills/dev-plan-review/SKILL.md",
-      "hash": "660e7534eaeecb82572c276e55e25f1ffb9d8342ee43d06bb5a8092ab8806679",
+      "hash": "5badf73f16f25f7e5dc3638d82bae4a9af6d13889c30c2468cecbd97667c01cf",
       "version": "1.15.1",
       "lifecycleState": "active",
       "dependencies": [],
@@ -7205,6 +7213,10 @@
         {
           "path": "changelogs/releases/v1.7.0.md",
           "role": "historical"
+        },
+        {
+          "path": "changelogs/unreleased.md",
+          "role": "current"
         },
         {
           "path": "instructions.md",
@@ -11396,6 +11408,10 @@
           "role": "historical"
         },
         {
+          "path": "changelogs/unreleased.md",
+          "role": "current"
+        },
+        {
           "path": "hooks/_runtime/context-read-contract.cjs",
           "role": "current"
         },
@@ -12285,6 +12301,10 @@
         {
           "path": "changelogs/releases/v1.9.1.md",
           "role": "historical"
+        },
+        {
+          "path": "changelogs/unreleased.md",
+          "role": "current"
         },
         {
           "path": "hooks/_runtime/context-read-contract.cjs",

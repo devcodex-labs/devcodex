@@ -870,10 +870,16 @@ function testMemoryProjectionAgentAmbiguity() {
 
 function testGrokAgentMemoryWrite() {
   setupMemoryProjectionFixture()
+  // Use calendar "today" so memory_status.today.exists is not tied to a hard-coded YYYYMMDD.
+  const today = new Date()
+  const y = today.getFullYear()
+  const m = String(today.getMonth() + 1).padStart(2, '0')
+  const d = String(today.getDate()).padStart(2, '0')
+  const day = `${y}${m}${d}`
   const responses = runServer('mcp/memory-server.js', [
     rpcRequest(1, 'tools/call', {
       name: 'memory_session_write',
-      arguments: { date: '20260717', content: '# grok session\n', agent: 'grok' }
+      arguments: { date: day, content: '# grok session\n', agent: 'grok' }
     }),
     rpcRequest(2, 'tools/call', {
       name: 'memory_status',
@@ -888,7 +894,7 @@ function testGrokAgentMemoryWrite() {
   const status = toolJson(statusResult)
   assert.strictEqual(status.agent, 'grok')
   assert.strictEqual(status.today.exists, true)
-  assert.ok(fs.existsSync(path.join(TEMP_ROOT, '.devcodex', '.memory', 'clients', 'grok', 'tasks', '20260717.md')))
+  assert.ok(fs.existsSync(path.join(TEMP_ROOT, '.devcodex', '.memory', 'clients', 'grok', 'tasks', `${day}.md`)))
 }
 
 function testWorkspaceNamespaceProfileMerge() {

@@ -23,10 +23,19 @@ function buildCliInstallCommands(ctx) {
     }
   }
 
+  const {
+    createSkillDeployFileFilter,
+    isSkillsSource
+  } = require('./skill-deploy-filter')
+  const skillDeployFilter = createSkillDeployFileFilter(PKG_ROOT)
+
   function sourceFiles(srcDir, from, tenantId) {
-    return walkDir(srcDir).filter(srcFile => (
-      from !== 'instructions' || shouldIncludeInstructionFile(path.relative(srcDir, srcFile), tenantId)
-    ))
+    return walkDir(srcDir).filter(srcFile => {
+      const rel = path.relative(srcDir, srcFile).replace(/\\/g, '/')
+      if (from === 'instructions' && !shouldIncludeInstructionFile(rel, tenantId)) return false
+      if (isSkillsSource(from) && !skillDeployFilter(rel)) return false
+      return true
+    })
   }
 
   /** Content-equal skip: avoid rewrite when bytes already match (init and --force update). */

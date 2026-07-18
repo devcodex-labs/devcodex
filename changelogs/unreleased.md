@@ -9,4 +9,11 @@ WorkspaceDataAbsorptionScopeGate · DocsSiteVisualAcceptanceGate · OmissionOnly
 
 ## 当前未发布变更
 
-（空 — v1.15.1 增量已写入 `changelogs/releases/v1.15.1.md`）
+### CE+CPCF · 控制面闭合证据与误放行治理（2026-07-18）
+
+- **ClosureEvidenceGate / ControlPlaneContractFirstGate / ConfirmBindingGate / ReReviewRuntimeFirstGate / HomologousDeployFilterGate** 写入 cp-gate、dev-plan-review、audit-common；always-on 仅索引。
+- **ConfirmBinding**：`memory_cp_confirm` 支持 artifactPath/version/sha256 并磁盘重算；Hook `readCpConfirmations` 校验 digest（legacy 无 sha 兼容）。
+- **HomologousDeploy**：`skill-deploy-filter` 同源过滤 gray；作用于 CLI copy 与 `buildDeploymentDescriptors`。
+- **V100** + `npm run test:closure-evidence`。
+- 需求：`.devcodex/devcodex-v1/requirements/控制面闭合证据与误放行治理/`。
+

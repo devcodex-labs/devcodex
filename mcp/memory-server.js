@@ -17,6 +17,7 @@
  *   memory_summary_append — Append one index row to agent SUMMARY.md
  */
 
+const crypto = require('crypto')
 const fs = require('fs')
 const path = require('path')
 const { assertSingleSegment, resolveInside } = require('./path-guard')
@@ -134,7 +135,7 @@ const TOOLS = [
   },
   {
     name: 'memory_cp_confirm',
-    description: '在任务的 .memory/sessions.md 中记录 CP 确认状态（✅）。',
+    description: '在任务的 .memory/sessions.md 中记录 CP 确认状态（✅）。控制面/推荐路径应传入 artifactPath+artifactSha256（ConfirmBindingGate）；仅 phase/time 为 legacy 兼容。',
     inputSchema: {
       type: 'object',
       required: ['requirement', 'phase'],
@@ -143,6 +144,10 @@ const TOOLS = [
         kind: { type: 'string', enum: ['requirements', 'bugs', 'optimizations', 'scenario-tests'], description: '任务根类型，默认 requirements' },
         phase: { type: 'string', enum: ['CP1', 'CP2', 'CP3'], description: 'CP 阶段' },
         time: { type: 'string', description: '确认时间（如 10:30），默认当前时间' },
+        artifactPath: { type: 'string', description: 'ConfirmBindingGate：被确认产物相对任务目录或 active-root 的路径（如 01-需求确认.md）' },
+        artifactVersion: { type: 'string', description: 'ConfirmBindingGate：产物版本号（如 v0.4.0）' },
+        artifactSha256: { type: 'string', description: 'ConfirmBindingGate：确认前对产物全文计算的 SHA-256（hex，大小写不敏感）' },
+        sourceMessage: { type: 'string', description: '用户确认原话摘要' },
         scope: { type: 'string', enum: ['project', 'workspace'], description: '可选。集中布局下指定写入域；默认按当前 cwd 推断。若 cwd 在 workspace 根，必须显式传 project 或 scope:"workspace"。' },
         project: { type: 'string', description: '可选。集中布局下显式指定项目命名空间；旧布局下仅允许当前项目，避免 workspace 根误写任务确认。' }
       }
@@ -940,38 +945,103 @@ function handleMemoryCpConfirm(args) {
   const p = taskSessionsPath(kind, args.requirement, args)
   const time = args.time || currentTime()
   const existing = readFile(p)
+  const hasDigest = Boolean(args.artifactPath || args.artifactSha256 || args.artifactVersion)
+  if (hasDigest && (!args.artifactPath || !args.artifactSha256)) {
+    throw new Error('ConfirmBindingGate: artifactPath and artifactSha256 are required together')
+  }
+  const sha = args.artifactSha256 ? String(args.artifactSha256).replace(/`/g, '').toUpperCase() : null
+  const artifactPath = args.artifactPath ? String(args.artifactPath).replace(/\\/g, '/') : null
+  const artifactVersion = args.artifactVersion || '—'
+  const sourceMessage = args.sourceMessage || '—'
 
-  if (!existing) {
-    // Create sessions.md with full CP table
-    const header = [
-      `# ${args.requirement} — CP 确认记录`,
-      '',
-      '| CP  | 状态 | 时间  |',
-      '|:---:|:----:|-------|',
-      `| CP1 | ${args.phase === 'CP1' ? '✅' : '⏳'} | ${args.phase === 'CP1' ? time : '—'} |`,
-      `| CP2 | ${args.phase === 'CP2' ? '✅' : '⏹️'} | ${args.phase === 'CP2' ? time : '—'} |`,
-      `| CP3 | ${args.phase === 'CP3' ? '✅' : '⏹️'} | ${args.phase === 'CP3' ? time : '—'} |`,
-      ''
-    ].join('\n')
-    fs.mkdirSync(path.dirname(p), { recursive: true })
-    fs.writeFileSync(p, header, 'utf8')
-    return { content: [{ type: 'text', text: `已创建 sessions.md 并记录 ${args.phase} ✅` }] }
+  if (hasDigest && artifactPath) {
+    const taskDir = path.dirname(path.dirname(p)) // .../<task>/.memory/sessions.md
+    const candidates = [
+      path.join(taskDir, artifactPath),
+      path.join(taskDir, path.basename(artifactPath))
+    ]
+    let matched = false
+    for (const candidate of candidates) {
+      if (!fs.existsSync(candidate) || !fs.statSync(candidate).isFile()) continue
+      const actual = crypto.createHash('sha256').update(fs.readFileSync(candidate)).digest('hex').toUpperCase()
+      if (actual !== sha) {
+        throw new Error(`ConfirmBindingGate: artifactSha256 mismatch for ${artifactPath} (disk=${actual})`)
+      }
+      matched = true
+      break
+    }
+    if (!matched) {
+      throw new Error(`ConfirmBindingGate: artifact not found for digest verify: ${artifactPath}`)
+    }
   }
 
-  // Update existing table row in-place
+  const extendedRow = (phase, active) => {
+    if (!active) {
+      if (phase === 'CP1') return `| CP1 | ⏳ | — | — | — | — | — |`
+      if (phase === 'CP2') return `| CP2 | ⏹️ | — | — | — | — | — |`
+      return `| CP3 | ⏹️ | — | — | — | — | — |`
+    }
+    return `| ${phase} | ✅ | \`${artifactPath}\` | ${artifactVersion} | \`${sha}\` | ${sourceMessage} | ${time} |`
+  }
+
+  if (!existing) {
+    const header = hasDigest
+      ? [
+          `# ${args.requirement} — CP 确认记录`,
+          '',
+          '| CP | 状态 | artifactPath | version | sha256 | sourceMessage | confirmedAt |',
+          '|:--:|:----:|--------------|---------|--------|---------------|-------------|',
+          extendedRow('CP1', args.phase === 'CP1'),
+          extendedRow('CP2', args.phase === 'CP2'),
+          extendedRow('CP3', args.phase === 'CP3'),
+          ''
+        ].join('\n')
+      : [
+          `# ${args.requirement} — CP 确认记录`,
+          '',
+          '| CP  | 状态 | 时间  |',
+          '|:---:|:----:|-------|',
+          `| CP1 | ${args.phase === 'CP1' ? '✅' : '⏳'} | ${args.phase === 'CP1' ? time : '—'} |`,
+          `| CP2 | ${args.phase === 'CP2' ? '✅' : '⏹️'} | ${args.phase === 'CP2' ? time : '—'} |`,
+          `| CP3 | ${args.phase === 'CP3' ? '✅' : '⏹️'} | ${args.phase === 'CP3' ? time : '—'} |`,
+          ''
+        ].join('\n')
+    fs.mkdirSync(path.dirname(p), { recursive: true })
+    fs.writeFileSync(p, header, 'utf8')
+    return { content: [{ type: 'text', text: `已创建 sessions.md 并记录 ${args.phase} ✅${hasDigest ? ' (digest-bound)' : ''}` }] }
+  }
+
   const phaseNum = args.phase.replace('CP', '')
-  const rowRe = new RegExp(`(\\|\\s*CP${phaseNum}\\s*\\|\\s*)([^|]*)(\\|\\s*)([^|]*)(\\|)`)
   let updated = existing
 
-  if (rowRe.test(existing)) {
-    updated = existing.replace(rowRe, `| ${args.phase} | ✅ | ${time} |`)
+  if (hasDigest) {
+    const extRowRe = new RegExp(`\\|\\s*CP${phaseNum}\\s*\\|[^\\n]*`)
+    const newRow = `| ${args.phase} | ✅ | \`${artifactPath}\` | ${artifactVersion} | \`${sha}\` | ${sourceMessage} | ${time} |`
+    if (extRowRe.test(updated) && updated.includes('artifactPath')) {
+      updated = updated.replace(extRowRe, newRow)
+    } else if (extRowRe.test(updated)) {
+      // upgrade legacy row to extended when digest supplied
+      updated = updated.replace(extRowRe, newRow)
+      if (!updated.includes('artifactPath')) {
+        updated = updated.replace(
+          /\| CP\s*\|\s*状态\s*\|\s*时间\s*\|/,
+          '| CP | 状态 | artifactPath | version | sha256 | sourceMessage | confirmedAt |'
+        )
+      }
+    } else {
+      updated = updated.trimEnd() + `\n${newRow}\n`
+    }
   } else {
-    // Row not found — append it
-    updated = existing.trimEnd() + `\n| ${args.phase} | ✅ | ${time} |\n`
+    const rowRe = new RegExp(`(\\|\\s*CP${phaseNum}\\s*\\|\\s*)([^|]*)(\\|\\s*)([^|]*)(\\|)`)
+    if (rowRe.test(existing)) {
+      updated = existing.replace(rowRe, `| ${args.phase} | ✅ | ${time} |`)
+    } else {
+      updated = existing.trimEnd() + `\n| ${args.phase} | ✅ | ${time} |\n`
+    }
   }
 
   fs.writeFileSync(p, updated, 'utf8')
-  return { content: [{ type: 'text', text: `已在 sessions.md 记录 ${args.phase} ✅ (${time})` }] }
+  return { content: [{ type: 'text', text: `已在 sessions.md 记录 ${args.phase} ✅ (${time})${hasDigest ? ' digest-bound' : ''}` }] }
 }
 
 function handleMemorySummaryRead(args) {

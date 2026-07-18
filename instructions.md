@@ -1,6 +1,6 @@
 # DevCodex — 项目规范（统一规范源）
 
-> DevCodex v1.15.0 · 单源规范文件
+> DevCodex v1.15.1 · 单源规范文件
 > 本文件是 DevCodex 唯一的规范源文件。`devcodex init` 默认安装到 `.github/copilot-instructions.md`（Copilot）、项目根 `CLAUDE.md`（Claude Code）与工作区根 `AGENTS.md`（Codex）。`devcodex init --claude` 仅安装 Claude Code 入口；`devcodex init --codex` 仅安装 Codex 入口。`CLAUDE.md` 与 `AGENTS.md` 都是本文件的部署副本，由本文件持续覆盖。
 
 ---
@@ -276,6 +276,18 @@ CP2 / 技术方案 / 报告必须记录 `LayeredAbsorptionDecision`：`candidate
 - 真相复核至少要核对：源码现状、运行时台账、最近报告/进度、验证结果与最新记忆索引。
 - 非 `pure-open` 项不得原样沿用旧 open 统计；必须先回写台账、修正本轮范围和 CP1/CP2/CP3 口径，再继续推进。
 - 用户面至少要显式说明：候选编号、复核分类、是否缩减本轮范围。
+
+### ClosureEvidenceGate / ControlPlaneContractFirstGate / ConfirmBindingGate（索引）
+
+> 执行正文在 `skills/dev-plan-review`、`skills/cp-gate`、`skills/audit-common`；探针 **V100**。always-on 只保留不变量索引。
+
+| Gate | 不变量 |
+|------|--------|
+| **ClosureEvidenceGate** | 宣称 closed / 可确认下一 CP / 可实施 时，P0 须双列 designEvidence + runtimeOwners + negativeProbe；仅 design → 最高 partial |
+| **ControlPlaneContractFirstGate** | Hook/MCP/CLI/descriptor/manifest/plugin/CP 状态/分发类 CP2 须 Current→Target ContractMatrix |
+| **ConfirmBindingGate** | 控制面 CP 确认绑定确认前 artifactPath+version+sha256；禁止确认后改头刷 hash 冒充 ✅；Hook/MCP 校验磁盘 |
+| **ReReviewRuntimeFirstGate** | 「再审/已调整」先 runtime 假绿抽样，禁止只打勾方案段落 |
+| **HomologousDeployFilterGate** | gray 等同生命周期过滤须同源作用于 copy 与 deployment descriptor（`skill-deploy-filter`） |
 
 ### OfficialDocsEvidence（官方文档证据）
 

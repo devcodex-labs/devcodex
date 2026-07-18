@@ -90,37 +90,12 @@ const CODEX_SOURCES = [
   { from: 'codex', to: '.codex' },
 ]
 
+const { buildDeploymentDescriptors: buildDeploymentDescriptorsImpl } = require('./scripts/lib/deployment-descriptors.js')
+
 function buildDeploymentDescriptors(surfaces, { tenantId = null } = {}) {
-  const selected = new Set(surfaces)
-  const descriptors = []
-  const descriptor = (surface, source, destination) => ({
-    surface,
-    source,
-    destination,
-    ...(source === 'instructions'
-      ? { fileFilter: relative => shouldIncludeInstructionFile(relative, tenantId) }
-      : {})
+  return buildDeploymentDescriptorsImpl(PKG_ROOT, surfaces, {
+    SOURCES, CLAUDE_SOURCES, CODEX_SOURCES, tenantId
   })
-  if (selected.has('copilot')) {
-    descriptors.push(...SOURCES.map(item => descriptor('copilot', item.from, path.join('.github', item.to))))
-    descriptors.push(
-      { surface: 'copilot', source: 'RULES.md', destination: path.join('.github', 'RULES.md') },
-      { surface: 'copilot', source: 'instructions.md', destination: path.join('.github', 'copilot-instructions.md') }
-    )
-  }
-  if (selected.has('claude')) {
-    descriptors.push(...CLAUDE_SOURCES.map(item => descriptor('claude', item.from, path.join('.claude', item.to))))
-    descriptors.push({ surface: 'claude', source: 'instructions.md', destination: 'CLAUDE.md' })
-  }
-  if (selected.has('codex')) {
-    descriptors.push(...CODEX_SOURCES.map(item => ({
-      surface: 'codex',
-      source: item.from,
-      destination: item.to
-    })))
-    descriptors.push({ surface: 'codex', source: 'instructions.md', destination: 'AGENTS.md' })
-  }
-  return descriptors
 }
 
 function beginManagedDeployment(cwd, surfaces, { tenantId = null } = {}) {

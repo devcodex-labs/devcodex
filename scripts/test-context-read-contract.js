@@ -4,14 +4,17 @@
 const assert = require('assert')
 const fs = require('fs')
 const path = require('path')
+const { spawnSync } = require('child_process')
 const { performance } = require('perf_hooks')
 const contract = require('../hooks/_runtime/context-read-contract.cjs')
+const { buildContentIdentity } = require('../hooks/_runtime/content-identity.cjs')
 
 const {
   CONTEXT_READ_CONTRACT,
   buildContextReadPlan,
   completeContextReadReceipt,
   createContextReadReceipt,
+  evaluateContextReuse,
   extractContextPlanBody,
   extractContextSourceEvidence,
   measureContextPayload,
@@ -110,7 +113,7 @@ function makeInput(intent, changeTypes, extras = {}) {
   }
 }
 
-function assertPlan(value, message = 'expected a valid ContextReadPlanV1') {
+function assertPlan(value, message = 'expected a valid ContextReadPlanV2') {
   assert.strictEqual(value.schemaVersion, CONTEXT_READ_CONTRACT.schemas.plan, `${message}: ${value.errorCode || value.message || ''}`)
   const validation = validateContextReadPlan(value)
   assert.strictEqual(validation.valid, true, `${message}: ${validation.errors.join(' | ')}`)
@@ -123,6 +126,7 @@ function resignPlan(plan) {
 }
 
 function observedEvidence(plan, source, overrides = {}) {
+  const body = JSON.stringify({ sourceId: source.sourceId, body: 'fixture' })
   return {
     sourceId: source.sourceId,
     contextEpoch: plan.identity.contextEpoch,
@@ -137,6 +141,13 @@ function observedEvidence(plan, source, overrides = {}) {
     schemaMatch: true,
     targetMatch: true,
     resultDigest: stableDigest({ sourceId: source.sourceId, body: 'fixture' }),
+    contentIdentity: buildContentIdentity({
+      sourceKey: `fixture://${source.sourceId}`,
+      content: body,
+      contractVersion: source.kind === 'memory' ? 'MemoryStatusV1' : 'ProfileBodyV1'
+    }),
+    bodyObserved: true,
+    hostSessionId: 'host-session-1',
     bytes: 32,
     chars: 32,
     ...overrides
@@ -148,6 +159,7 @@ function satisfyAll(plan, verificationMode = 'structured-plan') {
     verificationMode,
     planObserved: verificationMode === 'structured-plan',
     toolCallId: 'plan-call-1',
+    hostSessionId: 'host-session-1',
     nowMs: BASE_MS
   })
   for (const sourceId of plan.mandatorySourceIds) {
@@ -160,7 +172,8 @@ function satisfyAll(plan, verificationMode = 'structured-plan') {
   return completeContextReadReceipt(receipt, plan, { nowMs: BASE_MS + 100 })
 }
 
-assert.strictEqual(Object.keys(contract).length, 17, 'A0 export budget must remain within the frozen 12-18 range')
+assert(Object.keys(contract).length >= 12 && Object.keys(contract).length <= 18,
+  'A0 export budget must remain within the frozen 12-18 range')
 const moduleSource = fs.readFileSync(path.join(__dirname, '..', 'hooks', '_runtime', 'context-read-contract.cjs'), 'utf8')
 for (const forbidden of ["require('fs')", "require('http')", "require('https')", "require('net')", 'writeFile', 'appendFile']) {
   assert(!moduleSource.includes(forbidden), `pure contract contains forbidden I/O token: ${forbidden}`)
@@ -193,7 +206,8 @@ assert.strictEqual(devPlan.catalogCoverage.unclassifiedIds.length, 0)
 const stablePlan = assertPlan(buildContextReadPlan(makeInput('dev', ['source-code'], {
   planningTelemetry: { latencyMs: 999, inputTokens: 17 }
 }), { nowMs: BASE_MS }))
-assert.strictEqual(stablePlan.planId, devPlan.planId, 'telemetry must not change plan identity')
+assert.strictEqual(stablePlan.planContentId, devPlan.planContentId, 'telemetry must not change plan content identity')
+assert.notStrictEqual(stablePlan.planId, devPlan.planId, 'each plan invocation must remain isolated')
 assert.strictEqual(stablePlan.planningTelemetry.inputTokens, 17)
 assert.strictEqual(devPlan.planningTelemetry.inputTokens, null)
 const reorderedBaseline = makeBaseline()
@@ -202,7 +216,8 @@ reorderedBaseline.inventory.reverse()
 const reorderedPlan = assertPlan(buildContextReadPlan(makeInput('dev', ['source-code'], {
   baseline: reorderedBaseline
 }), { nowMs: BASE_MS }))
-assert.strictEqual(reorderedPlan.planId, devPlan.planId, 'catalog and inventory enumeration order must not change plan identity')
+assert.strictEqual(reorderedPlan.planContentId, devPlan.planContentId,
+  'catalog and inventory enumeration order must not change plan content identity')
 
 const chatPlan = assertPlan(buildContextReadPlan(makeInput('chat', []), { nowMs: BASE_MS }))
 assert.deepStrictEqual(chatPlan.profile.selectedFiles, [])
@@ -257,6 +272,13 @@ const selectedCustomPlan = assertPlan(buildContextReadPlan(makeInput('chat', [],
 })))
 assert(selectedCustomPlan.profile.selectedFiles.includes('10-custom.md'))
 assert.strictEqual(selectedCustomPlan.catalogCoverage.unclassifiedIds.length, 0)
+const rewordedCustomPlan = assertPlan(buildContextReadPlan(makeInput('chat', [], {
+  baseline: selectorBaseline,
+  baselineDigest: driftPlan.baselineContext.baselineDigest,
+  profileSelectors: [{ file: '10-custom.md', reason: 'Different display wording for the same selection.', authority: 'user' }]
+})))
+assert.strictEqual(rewordedCustomPlan.planContentId, selectedCustomPlan.planContentId,
+  'free-text reason wording must not pollute controlled plan content identity')
 
 const oracleCases = [
   ['chat', [], []],
@@ -417,6 +439,15 @@ unobservableReceipt = recordContextReadOutcome(unobservableReceipt, devPlan, obs
 }), { nowMs: BASE_MS + 1 })
 assert(unobservableReceipt.missingSourceIds.includes(targetSource.sourceId))
 assert.strictEqual(unobservableReceipt.observations.at(-1).outcome, 'unobservable')
+let identitylessReceipt = createContextReadReceipt(devPlan, {
+  verificationMode: 'structured-plan', planObserved: true, hostSessionId: 'host-session-1', nowMs: BASE_MS
+})
+identitylessReceipt = recordContextReadOutcome(identitylessReceipt, devPlan, observedEvidence(devPlan, targetSource, {
+  contentIdentity: null,
+  bodyObserved: false
+}), { nowMs: BASE_MS + 1 })
+assert(identitylessReceipt.missingSourceIds.includes(targetSource.sourceId),
+  'V2 must not complete a body source without ContentIdentityV1 and body observation')
 
 const mutatedReceipt = clone(completeReceipt)
 const mutatedObservation = mutatedReceipt.observations.find(item => item.sourceId === 'memory:memory_status')
@@ -496,6 +527,174 @@ assert(planEvidence.evidence.every(item => item.outcome === 'baseline-ready'))
 const unicodeMeasure = measureContextPayload('汉A')
 assert.deepStrictEqual(unicodeMeasure, { bytes: 4, chars: 2, latencyMs: null, tokens: null })
 assert.strictEqual(measureContextPayload('abc', { tokens: 7, latencyMs: 1.25 }).tokens, 7)
+
+// V2 identity is stable across independent processes, while each invocation
+// remains isolated and every frozen invalidator causes a content miss.
+function buildPlanInChild(input) {
+  const modulePath = path.join(__dirname, '..', 'hooks', '_runtime', 'context-read-contract.cjs')
+  const script = [
+    `const { buildContextReadPlan } = require(${JSON.stringify(modulePath)});`,
+    "let body=''; process.stdin.setEncoding('utf8');",
+    "process.stdin.on('data', chunk => { body += chunk });",
+    "process.stdin.on('end', () => process.stdout.write(JSON.stringify(buildContextReadPlan(JSON.parse(body)))));"
+  ].join('')
+  const child = spawnSync(process.execPath, ['-e', script], {
+    input: JSON.stringify(input),
+    encoding: 'utf8',
+    timeout: 10000
+  })
+  assert.strictEqual(child.status, 0, child.stderr)
+  return assertPlan(JSON.parse(child.stdout), 'child process plan')
+}
+
+const crossProcessInput = makeInput('dev', ['source-code'])
+const processPlanA = buildPlanInChild(crossProcessInput)
+const processPlanB = buildPlanInChild(crossProcessInput)
+assert.strictEqual(processPlanA.planContentId, processPlanB.planContentId,
+  'equivalent plan content must be stable across independent processes')
+assert.notStrictEqual(processPlanA.planId, processPlanB.planId,
+  'independent invocations must not share planId')
+
+const nextEpochInput = clone(crossProcessInput)
+nextEpochInput.intentSeed.contextEpoch = 'epoch-context-read-2'
+const nextEpochPlan = buildPlanInChild(nextEpochInput)
+assert.strictEqual(nextEpochPlan.planContentId, processPlanA.planContentId,
+  'contextEpoch must not pollute plan content identity')
+assert.notStrictEqual(nextEpochPlan.planId, processPlanA.planId)
+
+const sourceMutationInput = clone(crossProcessInput)
+const changedSource = sourceMutationInput.baselineContext.inventory.find(item => item.file === '01-项目信息.md')
+changedSource.sourceRefs[0].size += 1
+changedSource.sourceRefs[0].mtimeMs += 1
+assert.notStrictEqual(buildPlanInChild(sourceMutationInput).planContentId, processPlanA.planContentId,
+  'source metadata mutation must invalidate computation reuse')
+
+const configMutationInput = clone(crossProcessInput)
+configMutationInput.baselineContext.effectiveConfig.extensions.devcodex.concurrency.mode = 'serial'
+assert.notStrictEqual(buildPlanInChild(configMutationInput).planContentId, processPlanA.planContentId,
+  'effective config mutation must invalidate computation reuse')
+
+const wrongRootInput = clone(crossProcessInput)
+wrongRootInput.identity.activeRoot = 'E:/Worker/.devcodex/other-project'
+const wrongRootPlan = buildPlanInChild(wrongRootInput)
+assert.notStrictEqual(wrongRootPlan.planContentId, processPlanA.planContentId)
+assert.strictEqual(evaluateContextReuse({ plan: wrongRootPlan, priorPlan: processPlanA }).computation.reasonCode,
+  'target-mismatch')
+
+const riskMutationInput = clone(crossProcessInput)
+riskMutationInput.intentSeed.riskHint = 'high'
+assert.notStrictEqual(buildPlanInChild(riskMutationInput).planContentId, processPlanA.planContentId,
+  'risk/action envelope mutation must invalidate computation reuse')
+
+for (const [field, value] of [
+  ['plannerTool', 'profile-context-plan@3'],
+  ['contextPlan', 'ContextReadPlanV3'],
+  ['route', 'context-acquisition@3'],
+  ['consumers', 'profile-memory-hook@3']
+]) {
+  const mutation = clone(processPlanA)
+  mutation.identityInputs.versions[field] = value
+  mutation.planContentId = `plan-content-${stableDigest(mutation.identityInputs)}`
+  mutation.planId = `plan-${stableDigest({
+    planContentId: mutation.planContentId,
+    contextEpoch: mutation.identity.contextEpoch,
+    invocationNonce: mutation.identity.invocationNonce
+  }).slice(0, 24)}`
+  assert.notStrictEqual(mutation.planContentId, processPlanA.planContentId,
+    `${field} mutation must change the claimed content identity`)
+  assert.strictEqual(validateContextReadPlan(mutation).valid, false,
+    `${field} drift must fail closed until the runtime contract itself is upgraded`)
+  assert.strictEqual(evaluateContextReuse({ plan: mutation, priorPlan: processPlanA }).computation.reuse, false)
+}
+
+assert.strictEqual(processPlanA.stageTiming.schemaVersion, 'StageTimingV1')
+assert(Number.isFinite(processPlanA.stageTiming.plannerInputBytes))
+assert(Number.isFinite(processPlanA.stageTiming.plannerResponseBytes))
+assert(Number.isFinite(processPlanA.stageTiming.selectedSourceBytes))
+assert(Number.isFinite(processPlanA.stageTiming.returnedBodyBytes))
+assert.strictEqual(processPlanA.stageTiming.hostDeliveredBytes, null)
+assert.strictEqual(processPlanA.stageTiming.ttftMs, null)
+assert.strictEqual(processPlanA.cacheDecision.bodyDeliverySkipped, false)
+
+const priorPlan = assertPlan(buildContextReadPlan(makeInput('dev', ['source-code']), {
+  nowMs: BASE_MS,
+  invocationNonce: 'reuse-prior'
+}))
+const priorReceipt = satisfyAll(priorPlan)
+const currentPlan = assertPlan(buildContextReadPlan(makeInput('dev', ['source-code']), {
+  nowMs: BASE_MS + 1,
+  invocationNonce: 'reuse-current'
+}))
+const reusable = evaluateContextReuse({
+  plan: currentPlan,
+  priorPlan,
+  priorReceipt,
+  hostSessionId: 'host-session-1',
+  sourceIdentities: priorReceipt.sourceIdentities
+})
+assert.strictEqual(reusable.computation.reuse, true)
+assert.strictEqual(reusable.delivery.reuse, true)
+const reusedReceipt = createContextReadReceipt(currentPlan, {
+  verificationMode: 'structured-plan',
+  planObserved: true,
+  toolCallId: 'reused-plan-call',
+  hostSessionId: 'host-session-1',
+  priorPlan,
+  priorReceipt,
+  sourceIdentities: priorReceipt.sourceIdentities,
+  reuseDecision: reusable,
+  nowMs: BASE_MS + 2
+})
+assert.strictEqual(reusedReceipt.planId, currentPlan.planId)
+assert.strictEqual(reusedReceipt.contextEpoch, currentPlan.identity.contextEpoch)
+assert.strictEqual(reusedReceipt.delivery.reused, true)
+assert.strictEqual(reusedReceipt.status, 'relevant-complete')
+assert.strictEqual(reusedReceipt.reuseFrom.receiptId, priorReceipt.receiptId)
+
+const epochDecision = evaluateContextReuse({
+  plan: nextEpochPlan,
+  priorPlan,
+  priorReceipt,
+  hostSessionId: 'host-session-1',
+  sourceIdentities: priorReceipt.sourceIdentities
+})
+assert.strictEqual(epochDecision.computation.reuse, true)
+assert.strictEqual(epochDecision.delivery.reuse, false)
+assert.strictEqual(epochDecision.delivery.reasonCode, 'context-epoch-mismatch')
+const sessionDecision = evaluateContextReuse({
+  plan: currentPlan,
+  priorPlan,
+  priorReceipt,
+  hostSessionId: 'other-session',
+  sourceIdentities: priorReceipt.sourceIdentities
+})
+assert.strictEqual(sessionDecision.delivery.reuse, false)
+assert.strictEqual(sessionDecision.delivery.reasonCode, 'host-session-mismatch')
+const changedIdentities = clone(priorReceipt.sourceIdentities)
+changedIdentities[0].contentIdentity.digest = '0'.repeat(64)
+const sourceDecision = evaluateContextReuse({
+  plan: currentPlan,
+  priorPlan,
+  priorReceipt,
+  hostSessionId: 'host-session-1',
+  sourceIdentities: changedIdentities
+})
+assert.strictEqual(sourceDecision.delivery.reuse, false)
+assert.strictEqual(sourceDecision.delivery.reasonCode, 'source-identity-mismatch')
+
+const legacyPlan = clone(devPlan)
+for (const field of ['planContentId', 'identityInputs', 'reusePolicy', 'stageTiming', 'cacheDecision']) delete legacyPlan[field]
+legacyPlan.schemaVersion = CONTEXT_READ_CONTRACT.schemas.planV1
+legacyPlan.freshness = {
+  strategy: 'size+mtimeMs+metadataDigest',
+  reuse: false,
+  invalidators: ['active-root', 'baseline-digest', 'profile-metadata', 'scope', 'risk']
+}
+legacyPlan.planId = `plan-${stableDigest({ ...legacyPlan, planId: undefined, planningTelemetry: undefined }).slice(0, 24)}`
+assert.strictEqual(validateContextReadPlan(legacyPlan).valid, true, 'V1 plan reader compatibility must remain')
+assert.strictEqual(createContextReadReceipt(legacyPlan, {
+  verificationMode: 'structured-plan', planObserved: true, nowMs: BASE_MS
+}).schemaVersion, CONTEXT_READ_CONTRACT.schemas.receiptV1)
 
 function percentile(values, ratio) {
   const sorted = [...values].sort((left, right) => left - right)

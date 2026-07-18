@@ -34,9 +34,10 @@ version: 1.15.1
 
 所有工作流的 Profile 获取都必须执行 `ProfileReadChainGate`；服务 / 框架规范复审、跨服务需求、workspace-namespace 或 Profile 同步任务还必须执行 `ServiceNormCoverageGate`：
 
-- 先调用 `profile_context_plan`，以 canonical intent、changeTypes、risk、confidence 与明确 selector 形成 `ContextReadPlanV1`；计划必须列出 selected / excluded / unclassified、base/project fallback、实际 active-root 与必要理由。
+- 先调用 `profile_context_plan`，以 canonical intent、changeTypes、risk、confidence 与明确 selector 形成 `ContextReadPlanV2`（保留 `ContextReadPlanV1` 读取兼容）；计划必须列出 selected / excluded / unclassified、base/project fallback、实际 active-root 与必要理由。
 - baseline 可返回 README/index 内容、effective non-local config 和顶层 metadata inventory。`ProfilePlanNoHiddenFullReadProbe` 必须证明规划阶段没有读取 `01~09-*`、`config.local.json` 或其他 selected Profile 正文；存在文件不等于读取文件。
-- 计划选中的正文通过 `profile_load({ project, files })` 定向加载。只有与 contextEpoch / planId / activeRoot / sourceId 精确相关且由 `PostToolUse` 观察成功的 `ContextReadReceiptV1` 才能证明 loaded；PreToolUse 只记 attempted。
+- 计划选中的正文通过 `profile_load({ project, files })` 定向加载。只有与 contextEpoch / invocation `planId` / `planContentId` / activeRoot / sourceId 精确相关且由 `PostToolUse` 观察成功的 `ContextReadReceiptV2`（兼容 `ContextReadReceiptV1`）才能证明 loaded；PreToolUse 只记 attempted。
+- `planContentId` 只证明等价计划内容，可跨进程复用解析/索引等 computation metadata；它不能证明正文已交付。正文 delivery reuse 仅限同一 host session、同一 contextEpoch、相同 source identity 且当前模型已有成功 body observation；新会话、压缩/恢复新 epoch、不可观察 session 或任一失效因子变化都必须重新交付所需正文。
 - 全量升级仅允许 `explicit-user/project-policy/audit/migration/low-confidence/required-source-missing` 等可审计原因，并写 `fullReadReason`；`config.local.json` 必须另有用户 / 项目明确要求，不能因文件存在自动入选。
 - 覆盖 `.devcodex/<project>/profile` 读取链、`.devcodex/workspace/profile` 回退链和 sticky activeProject 生效边界；目标变化、scope/action/risk 漂移、Profile digest 变化或 compact/resume 才触发重新规划，不得每个工具动作都重复加载。
 - 复审服务 / 框架规范时列出全部服务集合、docs 自维护链、导航、版本、构建、报告和记忆消费者。
@@ -72,13 +73,14 @@ version: 1.15.1
 - `lifecycle.cjs` 默认 `safety-only` 下只输出提醒并放行工具，`strict` 模式下才执行 runtime 硬拦截；本条仍是 AI 侧必须遵守的流程约束。
 - 当启用 `workspace-namespace` 且缺少 workspace profile 时，运行时提示必须指向真实路径 `.devcodex/workspace/profile/`。
 - 若同一宿主会话已识别唯一目标项目，后续“继续 / 确认”等消息可在短 TTL 内沿用 sticky `activeProject` 与项目 `mode`；新会话、TTL 过期、命中多个项目或用户显式选择 workspace 时必须重新判断。
+- 完整 `继续<任务名>任务` / `继续 <任务名>` 应先用 `TaskResolutionV1` 的 bounded exact resolver 定位项目，再形成该 active namespace 的 ContextReadPlan；该定位阶段不得预读 Profile 正文，且歧义/完成/stale/scale-blocked 不得错误绑定项目。
 
 ## 项目现实扩展（Project Reality Expansion）
 
 执行顺序必须为：
 
 ```text
-用户消息语义初判（IntentSeedV1）→ 目标项目识别 → profile_context_plan → 定向 Profile 读取 + ContextReadReceiptV1 → 项目现实扩展 → 最终意图与工作流路由
+用户消息语义初判（IntentSeedV1）→ 目标项目识别 → profile_context_plan → 定向 Profile 读取 + ContextReadReceiptV2（V1 兼容）→ 项目现实扩展 → 最终意图与工作流路由
 ```
 
 - 项目现实扩展只能使用已确定项目的 Profile、明确提及文件、当前需求产物和必要只读元信息；不得绕过“项目未识别先询问”的扫描禁令。
@@ -88,7 +90,7 @@ version: 1.15.1
 
 ## Profile 标准文件
 
-下表定义文件存在性与生命周期要求，不是每轮默认读取集合；实际正文范围以 `ContextReadPlanV1` 为准。
+下表定义文件存在性与生命周期要求，不是每轮默认读取集合；实际正文范围以 `ContextReadPlanV2`（V1 兼容）为准。
 
 | 文件 | 说明 | 必须 |
 |------|------|:----:|

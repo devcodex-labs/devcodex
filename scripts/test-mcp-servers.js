@@ -10,12 +10,28 @@ const {
   CONTEXT_READ_CONTRACT,
   validateContextReadPlan
 } = require('../hooks/_runtime/context-read-contract.cjs')
+const {
+  buildJsonContentIdentity,
+  validateContentIdentity
+} = require('../hooks/_runtime/content-identity.cjs')
 
 const ROOT = path.resolve(__dirname, '..')
 const TEMP_ROOT = path.join(os.tmpdir(), `devcodex-mcp-test-${process.pid}`)
 
 function rpcRequest(id, method, params = {}) {
   return JSON.stringify({ jsonrpc: '2.0', id, method, params })
+}
+
+function assertMemoryProjectionIdentity(value, toolName) {
+  assert.strictEqual(validateContentIdentity(value.contentIdentity).valid, true)
+  const projection = Object.fromEntries(Object.entries(value)
+    .filter(([key]) => !['contentIdentity', 'telemetry'].includes(key)))
+  const expected = buildJsonContentIdentity({
+    sourceKey: `memory://${value.project || value.source?.project}/${toolName}#delivered`,
+    value: projection,
+    contractVersion: value.schemaVersion
+  }).identity
+  assert.deepStrictEqual(value.contentIdentity, expected)
 }
 
 function runServer(script, requests, cwd = ROOT, env = {}) {
@@ -129,6 +145,12 @@ function setupConfiguredMcpTarget() {
     path.join(ROOT, 'hooks', '_runtime', 'context-read-contract.cjs'),
     path.join(targetRoot, '.claude', 'hooks', '_runtime', 'context-read-contract.cjs')
   )
+  for (const file of ['content-identity.cjs', 'derived-state-store.cjs', 'task-continuation-contract.cjs']) {
+    fs.copyFileSync(
+      path.join(ROOT, 'hooks', '_runtime', file),
+      path.join(targetRoot, '.claude', 'hooks', '_runtime', file)
+    )
+  }
   return targetRoot
 }
 
@@ -539,6 +561,35 @@ function testMemoryDefaultAgent() {
   assert.ok(!fs.existsSync(path.join(TEMP_ROOT, '.devcodex', '.memory', 'clients', 'claude')))
 }
 
+function testMemoryTaskResolveContract() {
+  setupLegacyWorkspace()
+  const taskRoot = path.join(TEMP_ROOT, '.devcodex', 'optimizations', 'MCP续接任务')
+  fs.mkdirSync(path.join(taskRoot, '.memory'), { recursive: true })
+  fs.writeFileSync(path.join(taskRoot, '.memory', 'task.json'), JSON.stringify({
+    schemaVersion: 'TaskIdentityV1',
+    taskId: '6f5faaf1-9a0c-4b12-99c3-4386e415a305',
+    displayName: 'MCP续接任务',
+    aliases: ['MCP旧任务名'],
+    createdAt: '2026-07-18T00:00:00.000Z',
+    identityRevision: 1
+  }, null, 2) + '\n')
+  fs.writeFileSync(path.join(taskRoot, '.memory', 'sessions.md'), '# session\n\n> **当前状态**: 🔄 active\n')
+
+  const responses = runServer('mcp/memory-server.js', [
+    rpcRequest(1, 'tools/list'),
+    rpcRequest(2, 'tools/call', { name: 'memory_task_resolve', arguments: { name: 'MCP旧任务名' } }),
+    rpcRequest(3, 'tools/call', { name: 'memory_task_resolve', arguments: { name: '不存在任务', persistIndex: false } })
+  ], TEMP_ROOT)
+  assert(resultById(responses, 1).tools.some(tool => tool.name === 'memory_task_resolve'))
+  const resolved = resultById(responses, 2)
+  assert.strictEqual(resolved.isError, false)
+  assert.strictEqual(resolved.structuredContent.status, 'resolved-active')
+  assert.strictEqual(toolJson(resolved).candidate.taskId, '6f5faaf1-9a0c-4b12-99c3-4386e415a305')
+  const missing = resultById(responses, 3)
+  assert.strictEqual(missing.isError, true)
+  assert.strictEqual(missing.structuredContent.status, 'not-found')
+}
+
 function testMemoryActualHostEnvAgent() {
   setupLegacyWorkspace()
   const responses = runServer('mcp/memory-server.js', [
@@ -675,6 +726,7 @@ function testMemoryProjectionQueriesAndZeroWrite() {
   assert.deepStrictEqual(status.conflicts, [{ sessionKey: '2026-07-17#03', states: ['active', 'completed'] }])
   assert.strictEqual(status.telemetry.filesRead, 1)
   assert.strictEqual(status.telemetry.tokens, null)
+  assertMemoryProjectionIdentity(status, 'memory_status')
 
   const exact = toolJson(resultById(responses, 3))
   assert.strictEqual(exact.schemaVersion, 'MemorySessionQueryV1')
@@ -685,6 +737,7 @@ function testMemoryProjectionQueriesAndZeroWrite() {
   assert.match(exact.matches[0].content, /ACTIVE-BODY-SENTINEL/)
   assert.doesNotMatch(exact.matches[0].content, /COMPLETED-BODY-SENTINEL/)
   assert.strictEqual(exact.truncated, false)
+  assertMemoryProjectionIdentity(exact, 'memory_session_query')
 
   const handoff = toolJson(resultById(responses, 4))
   assert.strictEqual(handoff.query.handoffOnly, true)
@@ -717,6 +770,7 @@ function testMemoryProjectionQueriesAndZeroWrite() {
   assert.strictEqual(defaultSummary.totalMatched, 1)
   assert.strictEqual(defaultSummary.rows[0].state, 'active')
   assert.strictEqual(defaultSummary.rows[0].summary, 'active fixture with `manual|auto` mode')
+  assertMemoryProjectionIdentity(defaultSummary, 'memory_summary_query')
 
   const unresolved = toolJson(resultById(responses, 9))
   assert.deepStrictEqual(
@@ -870,12 +924,9 @@ function testMemoryProjectionAgentAmbiguity() {
 
 function testGrokAgentMemoryWrite() {
   setupMemoryProjectionFixture()
-  // Use calendar "today" so memory_status.today.exists is not tied to a hard-coded YYYYMMDD.
-  const today = new Date()
-  const y = today.getFullYear()
-  const m = String(today.getMonth() + 1).padStart(2, '0')
-  const d = String(today.getDate()).padStart(2, '0')
-  const day = `${y}${m}${d}`
+  // memory-server intentionally derives its day bucket from UTC ISO time.
+  // Use the same contract so this fixture remains stable around local midnight.
+  const day = new Date().toISOString().slice(0, 10).replace(/-/g, '')
   const responses = runServer('mcp/memory-server.js', [
     rpcRequest(1, 'tools/call', {
       name: 'memory_session_write',
@@ -1011,7 +1062,9 @@ function testProfileContextPlanContract() {
   const chatResult = resultById(responses, 2)
   assert.notStrictEqual(chatResult.isError, true)
   const chatPlan = toolJson(chatResult)
-  assert.strictEqual(validateContextReadPlan(chatPlan).valid, true)
+  const chatValidation = validateContextReadPlan(chatPlan)
+  assert.strictEqual(chatValidation.valid, true,
+    `${chatValidation.errors.join(' | ')} cache=${JSON.stringify(chatPlan.cacheDecision)}`)
   assert.match(chatPlan.identity.contextEpoch, /^ctx-/)
   assert.strictEqual(chatPlan.identity.project, 'chat')
   assert.strictEqual(chatPlan.baselineContext.readme.content.includes('PROJECT-README-LOSSLESS-SENTINEL'), true)
@@ -1043,7 +1096,53 @@ function testProfileContextPlanContract() {
   const repeatedDevPlan = toolJson(resultById(responses, 5))
   assert.strictEqual(validateContextReadPlan(devPlan).valid, true)
   assert.deepStrictEqual(devPlan.profile.selectedFiles, ['01-项目信息.md', '02-架构约束.md', '03-代码风格.md'])
-  assert.strictEqual(devPlan.planId, repeatedDevPlan.planId, 'same epoch/scope must keep a stable planId')
+  assert.strictEqual(devPlan.planContentId, repeatedDevPlan.planContentId,
+    'same content must keep a stable planContentId')
+  assert.notStrictEqual(devPlan.planId, repeatedDevPlan.planId,
+    'same epoch still requires an invocation-isolated planId')
+  assert.strictEqual(devPlan.cacheDecision.status, 'miss')
+  assert.strictEqual(repeatedDevPlan.cacheDecision.status, 'hit')
+  assert.strictEqual(repeatedDevPlan.cacheDecision.bodyDeliverySkipped, false)
+  const crossProcessResponse = runServer('mcp/profile-server.js', [
+    rpcRequest(6, 'tools/call', {
+      name: 'profile_context_plan',
+      arguments: { intent: 'dev', changeTypes: ['source-code'], project: 'chat', contextEpoch: 'epoch-dev-plan' }
+    })
+  ], projectRoot)
+  const crossProcessPlan = toolJson(resultById(crossProcessResponse, 6))
+  assert.strictEqual(crossProcessPlan.planContentId, devPlan.planContentId)
+  assert.notStrictEqual(crossProcessPlan.planId, devPlan.planId)
+  assert.strictEqual(crossProcessPlan.cacheDecision.status, 'hit',
+    'equivalent content must reuse computation metadata across server processes')
+
+  const cacheDir = path.join(TEMP_ROOT, '.devcodex', 'chat', '.runtime-state', 'context-plan-cache')
+  const cacheFile = path.join(cacheDir, `${devPlan.planContentId}.json`)
+  fs.writeFileSync(cacheFile, '{invalid-json', 'utf8')
+  const corruptResponse = runServer('mcp/profile-server.js', [
+    rpcRequest(7, 'tools/call', {
+      name: 'profile_context_plan',
+      arguments: { intent: 'dev', changeTypes: ['source-code'], project: 'chat', contextEpoch: 'epoch-dev-plan' }
+    })
+  ], projectRoot)
+  const corruptPlan = toolJson(resultById(corruptResponse, 7))
+  assert.strictEqual(corruptPlan.cacheDecision.status, 'error')
+  assert.strictEqual(validateContextReadPlan(corruptPlan).valid, true,
+    'a corrupt derived cache must preserve the correct full-compute result')
+
+  const capacityFile = path.join(cacheDir, 'capacity-probe.json')
+  fs.writeFileSync(capacityFile, Buffer.alloc(32 * 1024 * 1024 + 1))
+  const bypassResponse = runServer('mcp/profile-server.js', [
+    rpcRequest(8, 'tools/call', {
+      name: 'profile_context_plan',
+      arguments: { intent: 'chat', project: 'chat', contextEpoch: 'epoch-capacity-bypass' }
+    })
+  ], projectRoot)
+  const bypassPlan = toolJson(resultById(bypassResponse, 8))
+  assert.strictEqual(bypassPlan.cacheDecision.status, 'bypassed')
+  assert.strictEqual(bypassPlan.cacheDecision.reasonCode, 'metadata-budget-exceeded')
+  assert.strictEqual(validateContextReadPlan(bypassPlan).valid, true,
+    'capacity bypass must continue the correct non-cache read path')
+  fs.unlinkSync(capacityFile)
   assert(Number.isFinite(devPlan.planningTelemetry.latencyMs))
   const serialized = JSON.stringify(devPlan)
   assert.doesNotMatch(serialized, /HIDDEN-BODY-|HIDDEN-PROJECT-03|LOCAL-BODY-SENTINEL/)
@@ -1102,7 +1201,11 @@ function testProfileContextPlanConditionalSelectors() {
   assert.strictEqual(validateContextReadPlan(selected).valid, true)
   assert.deepStrictEqual(selected.profile.selectedFiles, ['10-custom.md'])
   assert.strictEqual(selected.catalogCoverage.unclassifiedIds.length, 0)
-  assert.strictEqual(selected.planId, repeated.planId, 'identical conditional replan must be stable')
+  assert.strictEqual(selected.planContentId, repeated.planContentId,
+    'identical conditional replan content must be stable')
+  assert.notStrictEqual(selected.planId, repeated.planId,
+    'conditional invocations must remain isolated')
+  assert.strictEqual(repeated.cacheDecision.status, 'hit')
   assert.strictEqual(resultById(responses, 4).isError, true)
   assert.strictEqual(toolJson(resultById(responses, 4)).errorCode, 'CONTEXT_BASELINE_STALE')
   assert.strictEqual(resultById(responses, 5).isError, true)
@@ -1428,6 +1531,7 @@ function testMcpJsonLaunchContract() {
       assert.strictEqual(configuredPlan.identity.project, 'configured-target')
     } else {
       assert(resultById(responses, 91).tools.some(tool => tool.name === 'memory_status'))
+      assert(resultById(responses, 91).tools.some(tool => tool.name === 'memory_task_resolve'))
       const configuredStatus = toolJson(resultById(responses, 92))
       assert.strictEqual(configuredStatus.schemaVersion, 'MemoryStatusV1')
       assert.strictEqual(configuredStatus.project, 'configured-target')
@@ -1442,6 +1546,7 @@ testProfileTierConflictRejected()
 testProfileModeFallbackAgent()
 testProfileAgentUsesRuntimeBeforeProfileFallback()
 testMemoryDefaultAgent()
+testMemoryTaskResolveContract()
 testMemoryActualHostEnvAgent()
 testMemoryCpConfirmForBugs()
 testMemoryCpConfirmForExtendedTaskKinds()

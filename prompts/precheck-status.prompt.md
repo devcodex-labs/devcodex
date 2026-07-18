@@ -25,7 +25,7 @@ applyTo: "**"
   → N/A（非 dev 模式：dev 扩展诊断未启用）
 - PC5 部署体状态（v1.11.0+）：cwd 父链 `.github/`、`.claude/`、`AGENTS.md`、`.agents/`、`.codex/` ✅ 存在 / N/A 无父级 · 与源仓库同步 ✅ / ⚠️ [N 文件滞后] / N/A
 - PC6 工作区一致性（v1.9.4+）：git 未提交变更 ✅ 无 / ⚠️ [N 文件 dirty] · 当前任务目录 [requirements/<X>/ / bugs/<Y>/ / 无关联]
-- PC7 新会话首步 resume 强制检测（v1.9.4+，仅首条用户消息触发）：✅ `memory_status` + 有界 session/SUMMARY query 回执一致 / ⚠️ 数据不一致或证据不足需处理 / N/A（非首条）
+- PC7 新会话首步 resume 强制检测（仅首条用户消息触发）：命名续接写 `TaskResolutionV1 [resolved-active/ambiguous/...]+定向复证状态`；其他场景写 `memory_status` + 有界 session/SUMMARY query 回执一致 / ⚠️ 数据不一致或证据不足 / N/A（非首条）
 ```
 
 ## chat / prod 模式
@@ -46,4 +46,4 @@ applyTo: "**"
 - 产物落点：仅输出状态（已确定 / 无需产物 / 待确定），不要直接输出内部 filePath
 - PC0：与 `instructions.md` / `17-compliance.instructions.md` **同源**：写 ContextReadPlan + 必要来源回执，**禁止**再用「Profile ✅ 已加载」单字段冒充上下文完整
 - PC5~PC7：与 `instructions/17-compliance.instructions.md` 保持一致；无法执行时必须标注 N/A 或 ⚠️ 原因，禁止省略
-- 若主动建议或因 C08 要求新会话：同回复附 `NewSessionContinuationCard`（可复制启动文本）；长任务在记忆/报告记 `SessionTimingCard`（开始/结束/阶段，等人与执行分列）
+- 若主动建议或因 C08 要求新会话：同回复附内部完整 `NewSessionContinuationCard`，用户可复制入口固定为 `继续<displayName>任务`；长任务在记忆/报告记 `SessionTimingCard`（开始/结束/阶段，等人与执行分列）

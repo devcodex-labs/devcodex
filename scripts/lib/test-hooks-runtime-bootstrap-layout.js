@@ -441,9 +441,9 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
   // Plan ingestion accepts host result variants, verifies the full identity,
   // and Profile aggregate reads satisfy each selected source independently.
   cleanState()
-  run({ hookEventName: 'UserPromptSubmit', prompt: 'dev source change plan' })
+  run({ hookEventName: 'UserPromptSubmit', session_id: 'context-session-1', prompt: 'dev source change plan' })
   let planned = observePlan({ intent: 'dev', changeTypes: ['source-code'], resultField: 'toolResponse' }).state
-  assert.strictEqual(planned.contextAcquisition.plan.schemaVersion, 'ContextReadPlanV1')
+  assert.strictEqual(planned.contextAcquisition.plan.schemaVersion, 'ContextReadPlanV2')
   assert.strictEqual(planned.contextAcquisition.verificationMode, 'structured-plan')
   assert.deepStrictEqual(planned.contextAcquisition.plan.profile.selectedFiles,
     ['01-项目信息.md', '02-架构约束.md', '03-代码风格.md'])
@@ -474,7 +474,19 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
   assert(profileObserved.contextAcquisition.receipt.satisfiedSourceIds.includes('profile:03-代码风格.md'))
   assert.deepStrictEqual(profileObserved.contextAcquisition.receipt.missingSourceIds, ['memory:memory_status'])
   profileObserved = observeMemoryStatus()
+  assert.strictEqual(profileObserved.contextAcquisition.receipt.schemaVersion, 'ContextReadReceiptV2')
   assert.strictEqual(profileObserved.contextAcquisition.receipt.status, 'relevant-complete')
+  assert.strictEqual(profileObserved.contextAcquisition.receipt.sourceIdentities.length,
+    profileObserved.contextAcquisition.plan.mandatorySourceIds.length)
+  assert.strictEqual(profileObserved.contextAcquisition.receipt.delivery.bodyObserved, true)
+  assert.strictEqual(profileObserved.contextAcquisition.receipt.delivery.eligible, true)
+  assert.strictEqual(profileObserved.contextAcquisition.receipt.delivery.reused, false)
+  assert.strictEqual(profileObserved.contextAcquisition.receipt.delivery.hostSessionId, 'context-session-1')
+  assert.strictEqual(profileObserved.contextAcquisition.stageTiming.schemaVersion, 'StageTimingV1')
+  assert(Number.isFinite(profileObserved.contextAcquisition.stageTiming.plannerResponseBytes))
+  assert(Number.isFinite(profileObserved.contextAcquisition.stageTiming.returnedBodyBytes))
+  assert(Number.isFinite(profileObserved.contextAcquisition.stageTiming.hostDeliveredBytes))
+  assert(profileObserved.contextAcquisition.stageTiming.hostDeliveredBytes > 0)
   assert.strictEqual(profileObserved.bootstrapComplete, true)
 
   const planCountBeforeCompatibleRead = profileObserved.contextAcquisition.planCallCount
@@ -487,6 +499,27 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
   let compatibleState = readLegacyState()
   assert.strictEqual(compatibleState.contextAcquisition.planCallCount, planCountBeforeCompatibleRead)
   assert.strictEqual(compatibleState.contextAcquisition.receipt.status, 'relevant-complete')
+
+  const selectedProfilePath = compatibleState.contextAcquisition.plan.selectedSources
+    .find(source => source.sourceId === 'profile:01-项目信息.md').sourceRefs[0].path
+  run({
+    hookEventName: 'PostToolUse',
+    tool_use_id: 'selected-profile-mutation',
+    tool_name: 'Edit',
+    tool_input: { file_path: selectedProfilePath, old_string: 'before', new_string: 'after' },
+    success: true,
+    tool_response: { content: [{ type: 'text', text: 'updated' }] }
+  })
+  const sourceStaleState = readLegacyState()
+  assert.strictEqual(sourceStaleState.contextAcquisition.receipt.status, 'stale')
+  assert.strictEqual(sourceStaleState.contextAcquisition.receipt.delivery.eligible, false)
+  assert(sourceStaleState.contextAcquisition.receipt.escalations.some(item => item.trigger === 'source-digest'))
+
+  cleanState()
+  run({ hookEventName: 'UserPromptSubmit', session_id: 'context-session-1', prompt: 'release scope expansion' })
+  observePlan({ intent: 'chat' })
+  const releaseReady = observeMemoryStatus('release-memory-status')
+  assert.strictEqual(releaseReady.contextAcquisition.receipt.status, 'relevant-complete')
 
   const releaseExpansion = run({
     hookEventName: 'PreToolUse',
@@ -506,6 +539,15 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
   })
   staleState = readLegacyState()
   assert.strictEqual(staleState.contextAcquisition.replanCount, 1, 'scope drift must not create a replan loop')
+  const priorEpoch = staleState.contextAcquisition.contextEpoch
+  const priorContentId = staleState.contextAcquisition.plan.planContentId
+  run({ hookEventName: 'UserPromptSubmit', session_id: 'context-session-1', prompt: 'new epoch delivery probe' })
+  const nextEpochState = readLegacyState()
+  assert.notStrictEqual(nextEpochState.contextAcquisition.contextEpoch, priorEpoch)
+  assert.strictEqual(nextEpochState.contextAcquisition.plan, null)
+  assert.strictEqual(nextEpochState.contextAcquisition.receipt, null,
+    'a new epoch must never inherit a body-observed completion receipt')
+  assert.strictEqual(nextEpochState.contextAcquisition.handoff.planContentId, priorContentId)
 
   // Aggregate transport success is insufficient: removing one section leaves
   // that source missing while the other valid sections remain independently satisfied.

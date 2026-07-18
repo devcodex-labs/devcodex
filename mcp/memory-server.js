@@ -10,6 +10,7 @@
  *   memory_status         — Read bounded today/yesterday/SUMMARY metadata
  *   memory_session_query  — Read exact bounded daily-memory session sections
  *   memory_summary_query  — Read bounded latest/unresolved SUMMARY rows
+ *   memory_task_resolve   — Resolve an exact task identity without loading task bodies
  *   memory_session_read   — Read today's/yesterday's session memory file
  *   memory_session_write  — Append a block to the session memory file
  *   memory_cp_confirm     — Record CP checkpoint confirmation in sessions.md
@@ -32,6 +33,11 @@ const {
   CONTEXT_READ_CONTRACT,
   buildContextReadError
 } = require('../hooks/_runtime/context-read-contract.cjs')
+const { buildJsonContentIdentity } = require('../hooks/_runtime/content-identity.cjs')
+const {
+  TaskContinuationError,
+  resolveTaskContinuation
+} = require('../hooks/_runtime/task-continuation-contract.cjs')
 
 const INPUT_ROOT = process.argv[2]
   ? path.resolve(process.argv[2])
@@ -56,6 +62,21 @@ const DEFAULT_AGENT = detectRuntimeAgent()
 const TASK_KINDS = new Set(['requirements', 'bugs', 'optimizations', 'scenario-tests'])
 
 const TOOLS = [
+  {
+    name: 'memory_task_resolve',
+    description: '按稳定 taskId、active displayName 或 alias 精确定位任务。只读取有界 identity/session/CP 元数据，不把任务名或派生索引当作状态真相。',
+    inputSchema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['name'],
+      properties: {
+        name: { type: 'string', minLength: 1, maxLength: 300, description: '精确任务名、alias 或稳定 taskId' },
+        project: { type: 'string', description: '可选项目命名空间；提供后限制为 project scope' },
+        scope: { type: 'string', enum: ['project', 'workspace'], description: '可选；默认按 cwd/project 推断' },
+        persistIndex: { type: 'boolean', description: '是否持久化可重建索引；默认 true' }
+      }
+    }
+  },
   {
     name: 'memory_status',
     description: '返回当前目标的紧凑记忆状态：今日/昨日元数据、有限 SUMMARY 行、活动会话与状态冲突。不返回整文件正文。',
@@ -713,6 +734,19 @@ function projectionTelemetry(value, sourceDocuments, startedAt) {
   }
 }
 
+function withProjectionIdentity(projection, toolName, target, sourceDocuments, startedAt) {
+  const contentIdentity = buildJsonContentIdentity({
+    sourceKey: `memory://${target.project}/${toolName}#delivered`,
+    value: projection,
+    contractVersion: projection.schemaVersion
+  }).identity
+  const identified = { ...projection, contentIdentity }
+  return {
+    ...identified,
+    telemetry: projectionTelemetry(identified, sourceDocuments, startedAt)
+  }
+}
+
 function memoryProjectionResult(value) {
   const isError = value?.schemaVersion === CONTEXT_READ_CONTRACT.schemas.error
   return {
@@ -782,10 +816,7 @@ function handleMemoryStatus(args) {
       conflicts,
       warnings: [...boundWarnings, ...parsed.warnings].slice(0, 20)
     }
-    return {
-      ...projection,
-      telemetry: projectionTelemetry(projection, [summaryDocument], startedAt)
-    }
+    return withProjectionIdentity(projection, 'memory_status', target, [summaryDocument], startedAt)
   })
 }
 
@@ -870,10 +901,7 @@ function handleMemorySessionQuery(args) {
       source,
       warnings: parsed.warnings
     }
-    return {
-      ...projection,
-      telemetry: projectionTelemetry(projection, [document], startedAt)
-    }
+    return withProjectionIdentity(projection, 'memory_session_query', target, [document], startedAt)
   })
 }
 
@@ -913,10 +941,7 @@ function handleMemorySummaryQuery(args) {
       source,
       warnings: parsed.warnings
     }
-    return {
-      ...projection,
-      telemetry: projectionTelemetry(projection, [document], startedAt)
-    }
+    return withProjectionIdentity(projection, 'memory_summary_query', target, [document], startedAt)
   })
 }
 
@@ -1064,6 +1089,22 @@ function handleMemorySummaryAppend(args) {
   return { content: [{ type: 'text', text: `已追加到 SUMMARY.md` }] }
 }
 
+function handleMemoryTaskResolve(args) {
+  if (!String(args.name || '').trim()) throw new TaskContinuationError('TASK_NAME_REQUIRED', 'name is required')
+  const resolution = resolveTaskContinuation({
+    cwd: INPUT_ROOT,
+    name: args.name,
+    project: args.project || '',
+    scope: args.scope || 'auto',
+    persistIndex: args.persistIndex !== false
+  })
+  return {
+    content: [{ type: 'text', text: JSON.stringify(resolution, null, 2) }],
+    structuredContent: resolution,
+    isError: resolution.status !== 'resolved-active'
+  }
+}
+
 // ─── MCP JSON-RPC dispatcher ──────────────────────────────────────────────────
 
 function dispatch(method, params) {
@@ -1083,6 +1124,7 @@ function dispatch(method, params) {
       const args = params?.arguments || {}
       try {
         switch (name) {
+          case 'memory_task_resolve': return handleMemoryTaskResolve(args)
           case 'memory_status': return handleMemoryStatus(args)
           case 'memory_session_query': return handleMemorySessionQuery(args)
           case 'memory_summary_query': return handleMemorySummaryQuery(args)

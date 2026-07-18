@@ -20,7 +20,7 @@ description: 宿主契约验证规范 — 为 Hook / CLI / bootstrap / visible r
 | Bootstrap、部署副本、父链同步口径变更 | 🔴 必须 |
 | `ArtifactLinkSet` / 产物文件点击兼容矩阵变更 | 🔴 必须 |
 | Copilot / Codex MCP bridge 报错、`profile_load` fallback、`invoke undefined` 恢复链变更 | 🔴 必须 |
-| `ContextReadPlanV1` / `ContextReadReceiptV1`、Pre/Post 相关性、上下文读取 allowlist 或 fallback 语义变更 | 🔴 必须 |
+| `ContextReadPlanV2` / `ContextReadReceiptV2`（含 V1 兼容）、Pre/Post 相关性、内容身份/复用、上下文读取 allowlist 或 fallback 语义变更 | 🔴 必须 |
 | 公开本地 probe、checkpoint 证据语义或 trace show/replay 变更 | 🔴 必须 |
 | 仅普通业务代码改动 | N/A |
 
@@ -72,7 +72,8 @@ Stop/PreCompact 对最终回复产物证据必须使用 `verified-present / veri
 ### ContextAcquisitionHostEvidenceGate
 
 - `ContextAcquisitionToolAllowlistProbe` 只允许已注册的只读 Profile / memory 查询工具推进 source state；普通文件搜索、写工具、legacy no-args 全文读取或未知工具不得伪造完成。
-- `PreToolUse` 只记录 correlated attempted；只有 `PostToolUse` 中可解析的成功结果，且 planId、contextEpoch、activeRoot、tool/source/query 全部匹配时，才生成或推进 `ContextReadReceiptV1`。
+- `PreToolUse` 只记录 correlated attempted；只有 `PostToolUse` 中可解析的成功结果，且 invocation planId、planContentId、contextEpoch、activeRoot、tool/source/query 全部匹配时，才生成或推进 `ContextReadReceiptV2`（V1 兼容）。
+- `ContextDeliveryReuseHostProbe` 必须分别证明 computation reuse 与 delivery reuse：跨进程只允许复用内容身份绑定的计算元数据；正文省略还必须同 host session、同 epoch、同 source identity 且当前模型已有成功 body observation。宿主无法提供稳定 session 或 Post body 证据时 delivery reuse 必须降级为 false。
 - 需覆盖结构化 MCP、path-observable 与 instruction-only 三种宿主能力；后两者缺少可验证结果时必须保持 `unverified`，不能由提示文案升级为 `relevant-complete/completed`。
 - MCP bridge 失败只允许一次同计划 bounded fallback 并停止重试；fallback 失败或证据不可观察时输出 warnings / missing sources，但不得形成死循环或跳过后续安全与 CP 门禁。
 - direct/fixture replay 至少覆盖 success、tool error、mismatched epoch/target/source、duplicate/stale Post、legacy projection 和 hidden full-read mutation；报告区分 server direct success 与 host bridge verified。

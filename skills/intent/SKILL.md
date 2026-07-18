@@ -6,6 +6,7 @@ description: 识别用户意图类型（dev/fix/analyze/audit/self-fix/chat/resu
 
 | 检查 | 条件 | 意图 |
 |------|------|------|
+| 是否按任务名恢复？ | 完整消息符合 `继续<任务名>任务` 或 `继续 <任务名>` | 先调用 `memory_task_resolve`；仅 `resolved-active` 进入 `resume`，其余状态按最小消歧/完成说明/stale CP 处理 |
 | 是否恢复中断？ | 用户说"继续"/"恢复"，**且**今日/昨日任务文件（daily file）中存在状态为 🔄 的会话（SUMMARY 索引表的状态列不作为判断依据，见 `15-memory` §新会话 🔄 检测）| `resume` → 直接路由，跳过三问 |
 | 是否纯问答？ | 仅提问/求解释，无文件变更或任务执行意图 | `chat` → 直接路由，跳过三问 |
 
@@ -23,6 +24,10 @@ description: 识别用户意图类型（dev/fix/analyze/audit/self-fix/chat/resu
 > ℹ️ 项目内 `dev` 模式下的规范优化、规则提升与实现讨论，不因这两个标签增加额外限制。
 
 > 两项均为否 → 进入三问判断。
+
+### TaskContinuationIntentGate
+
+任务名续接只把名称当定位键，不把名称、Hook 命中或派生索引当作状态真相。匹配顺序固定为 stable taskId → active displayName exact → active alias exact → completed/rejected exact；相似名称只返回最多 5 个建议，禁止 fuzzy 自动命中。`resolved-active` 后仍须按 `task.json → sessions.md → 当前绑定产物/checkpoint` 定向复水化并复证 CP digest；`ambiguous / not-found / completed / rejected / stale-confirmation / scale-blocked` 不得进入任务执行。
 
 ## 三问判断法
 

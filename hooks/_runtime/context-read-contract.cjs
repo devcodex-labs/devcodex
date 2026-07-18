@@ -1,14 +1,27 @@
 'use strict'
 
 const crypto = require('crypto')
+const {
+  CONTENT_IDENTITY_SCHEMA,
+  buildContentIdentity,
+  buildJsonContentIdentity,
+  stableStringify,
+  validateContentIdentity
+} = require('./content-identity.cjs')
 
 const CONTEXT_READ_CONTRACT = Object.freeze({
   schemas: Object.freeze({
     intentSeed: 'IntentSeedV1',
-    plan: 'ContextReadPlanV1',
-    receipt: 'ContextReadReceiptV1',
+    plan: 'ContextReadPlanV2',
+    planV1: 'ContextReadPlanV1',
+    receipt: 'ContextReadReceiptV2',
+    receiptV1: 'ContextReadReceiptV1',
     error: 'ContextReadErrorV1',
-    state: 'ContextReadStateV1'
+    state: 'ContextReadStateV2',
+    stateV1: 'ContextReadStateV1',
+    identityInputs: 'ContextPlanIdentityInputsV1',
+    reuseDecision: 'ContextReuseDecisionV1',
+    stageTiming: 'StageTimingV1'
   }),
   errors: Object.freeze([
     'CONTEXT_INTENT_REQUIRED',
@@ -40,7 +53,8 @@ const CONTEXT_READ_CONTRACT = Object.freeze({
   escalationTriggers: Object.freeze([
     'low-confidence', 'cross-service', 'public-contract', 'release', 'security',
     'destructive', 'missing-reference', 'profile-catalog-drift', 'profile-drift',
-    'scope-drift', 'compact', 'explicit-full'
+    'scope-drift', 'source-digest', 'config-digest', 'tool-schema-drift',
+    'route-consumer-drift', 'host-session-drift', 'compact', 'explicit-full'
   ])
 })
 
@@ -50,23 +64,44 @@ const RISKS = new Set(CONTEXT_READ_CONTRACT.risks)
 const ACTION_CLASSES = new Set(CONTEXT_READ_CONTRACT.actionClasses)
 const VERIFICATION_MODES = new Set(CONTEXT_READ_CONTRACT.verificationModes)
 const RECEIPT_STATUSES = new Set(CONTEXT_READ_CONTRACT.receiptStatuses)
-const PLAN_FIELDS = new Set([
+const PLAN_V1_FIELDS = new Set([
   'schemaVersion', 'planId', 'identity', 'baselineContext', 'actionEnvelope', 'changeTypes',
   'selectedSources', 'mandatorySourceIds', 'excludedSources', 'catalogCoverage',
   'existenceSources', 'freshness', 'budget', 'escalationTriggers', 'triggeredEscalations',
   'exitCondition', 'profile', 'memory', 'fullRead', 'fullReadReason', 'planningTelemetry'
 ])
+const PLAN_FIELDS = new Set([
+  ...PLAN_V1_FIELDS,
+  'planContentId', 'identityInputs', 'reusePolicy', 'stageTiming', 'cacheDecision'
+])
 const SEED_FIELDS = new Set([
   'schemaVersion', 'contextEpoch', 'semantic', 'intent', 'targetHint', 'continuationHint',
   'riskHint', 'confidence', 'createdAt'
 ])
-const RECEIPT_FIELDS = new Set([
+const RECEIPT_V1_FIELDS = new Set([
   'schemaVersion', 'receiptId', 'contextEpoch', 'planId', 'identity', 'verificationMode',
   'status', 'observations', 'satisfiedSourceIds', 'missingSourceIds', 'fullRead',
   'fullReadReason', 'escalations', 'completedAt', 'consumedAt', 'replanCount', 'lastError'
 ])
+const RECEIPT_FIELDS = new Set([
+  ...RECEIPT_V1_FIELDS,
+  'planContentId', 'sourceIdentities', 'delivery', 'reuseFrom'
+])
 const SUCCESS_OUTCOMES = new Set(['baseline-ready', 'observed-success'])
 const RISK_RANK = Object.freeze({ normal: 0, high: 1, critical: 2 })
+const REASON_CODES = new Set([
+  'baseline-readme', 'baseline-config', 'memory-status', 'memory-session',
+  'explicit-selector', 'intent-change-type', 'full-read', 'excluded-local-policy',
+  'excluded-no-match', 'excluded-metadata-only'
+])
+const CONTEXT_IDENTITY_VERSIONS = Object.freeze({
+  contextPlan: 'ContextReadPlanV2',
+  contextReceipt: 'ContextReadReceiptV2',
+  contentIdentity: CONTENT_IDENTITY_SCHEMA,
+  plannerTool: 'profile-context-plan@2',
+  route: 'context-acquisition@2',
+  consumers: 'profile-memory-hook@2'
+})
 
 function canonicalize(value, seen = new WeakSet()) {
   if (value === null || value === undefined) return value === undefined ? null : value
@@ -122,6 +157,12 @@ function normalizePath(value) {
   return String(value || '').trim().replace(/\\/g, '/')
 }
 
+function compareText(left, right) {
+  const a = String(left)
+  const b = String(right)
+  return a < b ? -1 : (a > b ? 1 : 0)
+}
+
 function buildContextReadError(errorCode, message, nextStep) {
   const code = CONTEXT_READ_CONTRACT.errors.includes(errorCode)
     ? errorCode
@@ -142,6 +183,187 @@ function measureContextPayload(value, options = {}) {
     latencyMs: finiteOrNull(options.latencyMs),
     tokens: finiteOrNull(options.tokens)
   }
+}
+
+function normalizeIdentityVersions(raw = {}) {
+  const versions = {}
+  for (const [key, fallback] of Object.entries(CONTEXT_IDENTITY_VERSIONS)) {
+    versions[key] = String(raw?.[key] || fallback).trim()
+  }
+  return versions
+}
+
+function normalizeCacheDecision(raw = {}, planContentId = '') {
+  const statuses = new Set(['hit', 'miss', 'bypassed', 'error', 'disabled'])
+  const status = statuses.has(raw.status) ? raw.status : 'bypassed'
+  return {
+    schemaVersion: 'ContextComputationCacheDecisionV1',
+    status,
+    cacheKey: String(raw.cacheKey || planContentId || ''),
+    scope: normalizePath(raw.scope || ''),
+    reasonCode: String(raw.reasonCode || (status === 'bypassed' ? 'no-cache-adapter' : status)),
+    reusedArtifacts: uniqueSorted(raw.reusedArtifacts),
+    bodyDeliverySkipped: false,
+    bytes: finiteOrNull(raw.bytes),
+    maxBytes: finiteOrNull(raw.maxBytes)
+  }
+}
+
+function normalizeStageTiming(raw = {}, defaults = {}) {
+  const value = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {}
+  return {
+    schemaVersion: CONTEXT_READ_CONTRACT.schemas.stageTiming,
+    plannerInputBytes: finiteOrNull(value.plannerInputBytes ?? defaults.plannerInputBytes),
+    plannerResponseBytes: finiteOrNull(value.plannerResponseBytes ?? defaults.plannerResponseBytes),
+    selectedSourceBytes: finiteOrNull(value.selectedSourceBytes ?? defaults.selectedSourceBytes),
+    returnedBodyBytes: finiteOrNull(value.returnedBodyBytes ?? defaults.returnedBodyBytes),
+    hostDeliveredBytes: finiteOrNull(value.hostDeliveredBytes ?? defaults.hostDeliveredBytes),
+    latencyMs: finiteOrNull(value.latencyMs ?? defaults.latencyMs),
+    cacheLookupMs: finiteOrNull(value.cacheLookupMs ?? defaults.cacheLookupMs),
+    sourceReadMs: finiteOrNull(value.sourceReadMs ?? defaults.sourceReadMs),
+    parseMs: finiteOrNull(value.parseMs ?? defaults.parseMs),
+    serializeMs: finiteOrNull(value.serializeMs ?? defaults.serializeMs),
+    tokens: finiteOrNull(value.tokens ?? defaults.tokens),
+    ttftMs: finiteOrNull(value.ttftMs ?? defaults.ttftMs)
+  }
+}
+
+function buildReusePolicy() {
+  return {
+    schemaVersion: 'ContextReusePolicyV1',
+    computationReuse: {
+      crossProcess: true,
+      bodyDeliverySkipped: false,
+      requiredMatches: ['planContentId', 'activeRoot', 'project', 'tool', 'schema', 'route', 'consumers']
+    },
+    deliveryReuse: {
+      crossProcess: false,
+      sameHostSession: true,
+      sameContextEpoch: true,
+      bodyObservationRequired: true,
+      sourceIdentityRequired: true
+    },
+    metadataBudgetBytes: 32 * 1024 * 1024,
+    capacityAction: 'bypass-write'
+  }
+}
+
+function sumSelectedSourceBytes(sources) {
+  const seen = new Set()
+  let bytes = 0
+  for (const source of Array.isArray(sources) ? sources : []) {
+    for (const ref of Array.isArray(source?.sourceRefs) ? source.sourceRefs : []) {
+      const key = `${normalizePath(ref.path)}#${ref.layer}`
+      if (seen.has(key) || !ref.exists || !Number.isFinite(ref.size)) continue
+      seen.add(key)
+      bytes += ref.size
+    }
+  }
+  return bytes
+}
+
+function planSourceIdentity(source) {
+  return buildJsonContentIdentity({
+    sourceKey: `context-plan/source/${source.sourceId}`,
+    value: (source.sourceRefs || []).map(ref => ({
+      path: normalizePath(ref.path),
+      layer: ref.layer,
+      exists: ref.exists,
+      size: ref.size,
+      mtimeMs: ref.mtimeMs,
+      metadataDigest: ref.metadataDigest
+    })),
+    contractVersion: 'profile-source-metadata@1'
+  }).identity
+}
+
+function buildPlanIdentityInputs(plan) {
+  const baseline = plan.baselineContext
+  const inventoryProjection = [...(baseline.catalog || []), ...(baseline.inventory || [])]
+    .map(item => ({
+      file: profileFileFrom(item),
+      requiredToExist: item.requiredToExist === true || item.required === true,
+      sourceRefs: (item.sourceRefs || []).map(ref => ({
+        path: normalizePath(ref.path),
+        layer: String(ref.layer || ''),
+        exists: ref.exists === true,
+        size: finiteOrNull(ref.size),
+        mtimeMs: finiteOrNull(ref.mtimeMs)
+      }))
+    }))
+    .sort((left, right) => compareText(left.file, right.file))
+  const readmeIdentity = buildContentIdentity({
+    sourceKey: `profile://${plan.identity.project}/README.md`,
+    content: baseline.readme.content,
+    contractVersion: 'profile-readme@1'
+  })
+  const configIdentity = buildJsonContentIdentity({
+    sourceKey: `profile://${plan.identity.project}/config.json#effective`,
+    value: baseline.effectiveConfig,
+    contractVersion: 'profile-config@1'
+  }).identity
+  const candidateIdentity = buildJsonContentIdentity({
+    sourceKey: `profile://${plan.identity.project}/catalog-inventory`,
+    value: inventoryProjection,
+    contractVersion: 'profile-catalog-inventory@1'
+  }).identity
+  return {
+    schemaVersion: CONTEXT_READ_CONTRACT.schemas.identityInputs,
+    target: {
+      activeRoot: normalizePath(plan.identity.activeRoot),
+      project: plan.identity.project,
+      host: plan.identity.host,
+      layout: baseline.layout,
+      mode: baseline.mode,
+      profileTier: baseline.profileTier
+    },
+    intent: {
+      finalIntent: plan.identity.finalIntent,
+      riskHint: plan.identity.intentSeed.riskHint,
+      confidenceClass: plan.identity.intentSeed.confidence < 0.6 ? 'low' : 'normal',
+      actionEnvelope: deepClone(plan.actionEnvelope),
+      changeTypes: [...plan.changeTypes]
+    },
+    baseline: { readmeIdentity, configIdentity, candidateIdentity },
+    selectedSources: plan.selectedSources.map(source => ({
+      sourceId: source.sourceId,
+      kind: source.kind,
+      selector: source.selector,
+      mandatory: source.mandatory,
+      authority: source.authority,
+      sourceLayer: source.sourceLayer,
+      reasonCode: source.reasonCode,
+      metadataIdentity: planSourceIdentity(source)
+    })),
+    excludedSources: plan.excludedSources.map(source => ({
+      sourceId: source.sourceId,
+      selector: source.selector,
+      reasonCode: source.reasonCode
+    })),
+    queries: [...plan.memory.requiredQueries],
+    resolution: {
+      selectedIds: [...plan.catalogCoverage.selectedIds],
+      excludedIds: [...plan.catalogCoverage.excludedIds],
+      unclassifiedIds: [...plan.catalogCoverage.unclassifiedIds],
+      triggeredEscalations: [...plan.triggeredEscalations],
+      exitCondition: plan.exitCondition,
+      fullRead: plan.fullRead,
+      configLocalRequested: plan.profile.configLocalRequested
+    },
+    versions: normalizeIdentityVersions()
+  }
+}
+
+function refreshPlannerResponseBytes(plan) {
+  let observed = 0
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    plan.stageTiming.plannerResponseBytes = observed
+    const next = Buffer.byteLength(JSON.stringify(plan, null, 2), 'utf8')
+    if (next === observed) break
+    observed = next
+  }
+  plan.stageTiming.plannerResponseBytes = Buffer.byteLength(JSON.stringify(plan, null, 2), 'utf8')
+  return plan
 }
 
 function normalizeIntentSeed(raw = {}, options = {}) {
@@ -211,7 +433,7 @@ function normalizeSourceRefs(value) {
     if (result.error) return result
     refs.push(result.value)
   }
-  refs.sort((left, right) => `${left.layer}:${left.path}`.localeCompare(`${right.layer}:${right.path}`))
+  refs.sort((left, right) => compareText(`${left.layer}:${left.path}`, `${right.layer}:${right.path}`))
   return { value: refs }
 }
 
@@ -230,8 +452,8 @@ function normalizeBaselineContext(raw = {}, identity = {}) {
   if (!configRefs.value.length) return { error: 'effective config sourceRefs are required' }
   const catalog = Array.isArray(raw.catalog) ? deepClone(raw.catalog) : []
   const inventory = Array.isArray(raw.inventory) ? deepClone(raw.inventory) : []
-  catalog.sort((left, right) => profileFileFrom(left).localeCompare(profileFileFrom(right)))
-  inventory.sort((left, right) => profileFileFrom(left).localeCompare(profileFileFrom(right)))
+  catalog.sort((left, right) => compareText(profileFileFrom(left), profileFileFrom(right)))
+  inventory.sort((left, right) => compareText(profileFileFrom(left), profileFileFrom(right)))
   if (new Set(catalog.map(profileFileFrom)).size !== catalog.length) return { error: 'catalog contains duplicate Profile candidates' }
   if (new Set(inventory.map(profileFileFrom)).size !== inventory.length) return { error: 'inventory contains duplicate Profile candidates' }
   const value = {
@@ -306,7 +528,7 @@ function collectProfileCandidates(baseline, explicitCandidates = []) {
       exists: refs.some(ref => ref.exists)
     })
   }
-  candidates.sort((left, right) => left.selector.localeCompare(right.selector))
+  candidates.sort((left, right) => compareText(left.selector, right.selector))
   return { value: candidates }
 }
 
@@ -318,6 +540,7 @@ function sourceDescriptor(input) {
     mandatory: input.mandatory === true,
     authority: input.authority,
     reason: input.reason,
+    reasonCode: REASON_CODES.has(input.reasonCode) ? input.reasonCode : 'intent-change-type',
     sourceLayer: input.sourceLayer,
     sourceRefs: deepClone(input.sourceRefs)
   }
@@ -332,6 +555,7 @@ function baselineSources(baseline) {
       mandatory: true,
       authority: 'lossless-plan-baseline',
       reason: 'The Profile index must be delivered losslessly in the plan result.',
+      reasonCode: 'baseline-readme',
       sourceLayer: [...new Set(baseline.readme.sourceRefs.map(ref => ref.layer))].join('+'),
       sourceRefs: baseline.readme.sourceRefs
     }),
@@ -342,6 +566,7 @@ function baselineSources(baseline) {
       mandatory: true,
       authority: 'effective-non-local-config',
       reason: 'Effective non-local Profile configuration is part of the lossless baseline.',
+      reasonCode: 'baseline-config',
       sourceLayer: [...new Set(baseline.configSourceRefs.map(ref => ref.layer))].join('+'),
       sourceRefs: baseline.configSourceRefs
     })
@@ -365,6 +590,7 @@ function memorySource(toolName, project) {
     reason: toolName === 'memory_status'
       ? 'Compact task continuity metadata is required for every planned acquisition.'
       : 'Resume requires an exact bounded session or handoff projection.',
+    reasonCode: toolName === 'memory_status' ? 'memory-status' : 'memory-session',
     sourceLayer: 'memory-query',
     sourceRefs: [ref]
   })
@@ -426,7 +652,7 @@ function buildContextReadPlan(input = {}, options = {}) {
   const changeTypes = uniqueSorted(input.changeTypes, CHANGE_TYPES)
   const suppliedChangeTypes = Array.isArray(input.changeTypes) ? input.changeTypes.map(String) : []
   if (changeTypes.length !== new Set(suppliedChangeTypes).size || suppliedChangeTypes.some(item => !CHANGE_TYPES.has(item))) {
-    return buildContextReadError('CONTEXT_PLAN_INVALID', 'changeTypes contains an unsupported or duplicate value.', 'Use stable ContextReadPlanV1 change types.')
+    return buildContextReadError('CONTEXT_PLAN_INVALID', 'changeTypes contains an unsupported or duplicate value.', 'Use stable ContextReadPlanV2 change types.')
   }
   const lowConfidence = seed.confidence < 0.6
   if (!changeTypes.length && !['chat', 'resume'].includes(finalIntent) && !input.explicitFull && !lowConfidence) {
@@ -517,12 +743,13 @@ function buildContextReadPlan(input = {}, options = {}) {
       ...candidate,
       mandatory: true,
       authority: selector ? String(selector.authority).trim() : candidate.authority,
-      reason: selector ? String(selector.reason).trim() : `Required by ${finalIntent}/${changeTypes.join('+') || 'full-read'} context.`
+      reason: selector ? String(selector.reason).trim() : `Required by ${finalIntent}/${changeTypes.join('+') || 'full-read'} context.`,
+      reasonCode: selector ? 'explicit-selector' : (fullRead ? 'full-read' : 'intent-change-type')
     }))
   }
   selectedSources.push(memorySource('memory_status', project))
   if (finalIntent === 'resume') selectedSources.push(memorySource('memory_session_query', project))
-  selectedSources.sort((left, right) => left.sourceId.localeCompare(right.sourceId))
+  selectedSources.sort((left, right) => compareText(left.sourceId, right.sourceId))
 
   const selectedIds = new Set(selectedSources.map(source => source.sourceId))
   const unclassifiedIds = []
@@ -535,10 +762,17 @@ function buildContextReadPlan(input = {}, options = {}) {
       continue
     }
     let skipReason = `The ${finalIntent}/${changeTypes.join('+') || 'baseline-only'} plan does not require ${candidate.selector} content.`
-    if (candidate.selector === 'config.local.json') skipReason = 'No explicit user or project policy requested config.local.json content.'
-    else if (candidate.standard) skipReason = `No matching changeType or profileSelector requires ${candidate.selector}.`
-    else if (!candidate.selector.toLowerCase().endsWith('.md')) skipReason = `${candidate.selector} is metadata-only for this context plan.`
-    excludedSources.push({ sourceId: candidate.sourceId, selector: candidate.selector, skipReason })
+    let reasonCode = 'excluded-no-match'
+    if (candidate.selector === 'config.local.json') {
+      skipReason = 'No explicit user or project policy requested config.local.json content.'
+      reasonCode = 'excluded-local-policy'
+    } else if (candidate.standard) {
+      skipReason = `No matching changeType or profileSelector requires ${candidate.selector}.`
+    } else if (!candidate.selector.toLowerCase().endsWith('.md')) {
+      skipReason = `${candidate.selector} is metadata-only for this context plan.`
+      reasonCode = 'excluded-metadata-only'
+    }
+    excludedSources.push({ sourceId: candidate.sourceId, selector: candidate.selector, skipReason, reasonCode })
   }
   if (unclassifiedIds.length) triggerSet.add('profile-catalog-drift')
 
@@ -551,7 +785,7 @@ function buildContextReadPlan(input = {}, options = {}) {
       exists: candidate.exists,
       metadataDigests: candidate.sourceRefs.map(ref => ref.metadataDigest)
     }))
-    .sort((left, right) => left.sourceId.localeCompare(right.sourceId))
+    .sort((left, right) => compareText(left.sourceId, right.sourceId))
   const missingRequired = existenceSources.filter(source => !source.exists)
   if (missingRequired.length) triggerSet.add('missing-reference')
 
@@ -563,23 +797,29 @@ function buildContextReadPlan(input = {}, options = {}) {
     latencyMs: input.planningTelemetry?.latencyMs,
     tokens: input.planningTelemetry?.inputTokens
   })
+  const invocationNonce = String(input.invocationNonce || options.invocationNonce || crypto.randomUUID()).trim()
+  if (!invocationNonce) {
+    return buildContextReadError('CONTEXT_PLAN_INVALID', 'ContextReadPlanV2 requires an invocation nonce.', 'Create a fresh invocation identity and retry.')
+  }
   const plan = {
     schemaVersion: CONTEXT_READ_CONTRACT.schemas.plan,
     planId: '',
+    planContentId: '',
     identity: {
       contextEpoch: seed.contextEpoch,
       activeRoot,
       project,
       host,
       intentSeed: seed,
-      finalIntent
+      finalIntent,
+      invocationNonce
     },
     baselineContext: baseline,
     actionEnvelope: deriveActionEnvelope(finalIntent, changeTypes, seed.riskHint),
     changeTypes,
     selectedSources,
     mandatorySourceIds: selectedSources.filter(source => source.mandatory).map(source => source.sourceId).sort(),
-    excludedSources: excludedSources.sort((left, right) => left.sourceId.localeCompare(right.sourceId)),
+    excludedSources: excludedSources.sort((left, right) => compareText(left.sourceId, right.sourceId)),
     catalogCoverage: {
       selectedIds: coverageSelected,
       excludedIds: coverageExcluded,
@@ -587,9 +827,13 @@ function buildContextReadPlan(input = {}, options = {}) {
     },
     existenceSources,
     freshness: {
-      strategy: 'size+mtimeMs+metadataDigest',
-      reuse: false,
-      invalidators: ['active-root', 'baseline-digest', 'profile-metadata', 'scope', 'risk']
+      strategy: 'content-identity+metadata',
+      reuse: true,
+      invalidators: [
+        'active-root', 'config-digest', 'consumer-version', 'context-epoch', 'host-session',
+        'intent-action-risk', 'profile-metadata', 'route-version', 'schema-version',
+        'source-digest', 'tool-version'
+      ]
     },
     budget: {
       bytes: finiteOrNull(input.budget?.bytes),
@@ -617,10 +861,28 @@ function buildContextReadPlan(input = {}, options = {}) {
       chars: planningMeasure.chars,
       latencyMs: planningMeasure.latencyMs,
       inputTokens: planningMeasure.tokens
-    }
+    },
+    identityInputs: null,
+    reusePolicy: buildReusePolicy(),
+    stageTiming: normalizeStageTiming(input.stageTiming || input.planningTelemetry, {
+      plannerInputBytes: planningMeasure.bytes,
+      selectedSourceBytes: sumSelectedSourceBytes(selectedSources),
+      returnedBodyBytes: Buffer.byteLength(baseline.readme.content, 'utf8') +
+        Buffer.byteLength(stableStringify(baseline.effectiveConfig), 'utf8'),
+      latencyMs: planningMeasure.latencyMs,
+      tokens: planningMeasure.tokens
+    }),
+    cacheDecision: normalizeCacheDecision(input.cacheDecision)
   }
-  const identityForDigest = { ...plan, planId: undefined, planningTelemetry: undefined }
-  plan.planId = `plan-${stableDigest(identityForDigest).slice(0, 24)}`
+  plan.identityInputs = buildPlanIdentityInputs(plan)
+  plan.planContentId = `plan-content-${stableDigest(plan.identityInputs)}`
+  plan.cacheDecision = normalizeCacheDecision(input.cacheDecision, plan.planContentId)
+  plan.planId = `plan-${stableDigest({
+    planContentId: plan.planContentId,
+    contextEpoch: seed.contextEpoch,
+    invocationNonce
+  }).slice(0, 24)}`
+  refreshPlannerResponseBytes(plan)
   const validation = validateContextReadPlan(plan)
   return validation.valid ? plan : validation.error
 }
@@ -629,8 +891,11 @@ function validateContextReadPlan(raw) {
   const errors = []
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) errors.push('plan must be an object')
   if (errors.length) return { valid: false, errors, error: buildContextReadError('CONTEXT_PLAN_INVALID', errors[0]) }
-  if (raw.schemaVersion !== CONTEXT_READ_CONTRACT.schemas.plan) errors.push('invalid plan discriminator')
-  const unknown = Object.keys(raw).filter(key => !PLAN_FIELDS.has(key))
+  const isV2 = raw.schemaVersion === CONTEXT_READ_CONTRACT.schemas.plan
+  const isV1 = raw.schemaVersion === CONTEXT_READ_CONTRACT.schemas.planV1
+  if (!isV1 && !isV2) errors.push('invalid plan discriminator')
+  const allowedFields = isV1 ? PLAN_V1_FIELDS : PLAN_FIELDS
+  const unknown = Object.keys(raw).filter(key => !allowedFields.has(key))
   if (unknown.length) errors.push(`unsupported plan fields: ${unknown.join(', ')}`)
   for (const foreign of ['observations', 'completedAt', 'consumedAt', 'satisfiedSourceIds', 'missingSourceIds']) {
     if (Object.prototype.hasOwnProperty.call(raw, foreign)) errors.push(`receipt-only field present: ${foreign}`)
@@ -641,6 +906,7 @@ function validateContextReadPlan(raw) {
     errors.push('identity.intentSeed is invalid or non-canonical')
   }
   if (!identity.contextEpoch || identity.contextEpoch !== identity.intentSeed?.contextEpoch) errors.push('identity epoch mismatch')
+  if (isV2 && !String(identity.invocationNonce || '').trim()) errors.push('identity invocation nonce is required')
   if (!normalizePath(identity.activeRoot) || !String(identity.project || '').trim() ||
       !String(identity.host || '').trim() || !INTENTS.has(identity.finalIntent)) {
     errors.push('identity target is incomplete')
@@ -675,6 +941,7 @@ function validateContextReadPlan(raw) {
     if (!source.kind || !source.selector || typeof source.mandatory !== 'boolean' || !source.authority || !source.reason || !source.sourceLayer) {
       errors.push(`selected source fields incomplete: ${source.sourceId || '<empty>'}`)
     }
+    if (isV2 && !REASON_CODES.has(source.reasonCode)) errors.push(`selected source reasonCode invalid: ${source.sourceId || '<empty>'}`)
     const refs = normalizeSourceRefs(source.sourceRefs)
     if (refs.error || !refs.value?.length || stableDigest(refs.value) !== stableDigest(source.sourceRefs)) {
       errors.push(`selected source refs invalid: ${source.sourceId || '<empty>'}`)
@@ -695,6 +962,7 @@ function validateContextReadPlan(raw) {
   for (const source of excluded) {
     const reason = String(source?.skipReason || '').trim()
     if (!source?.sourceId || !source.selector || !reason || /^(not needed|暂不需要)$/i.test(reason)) errors.push('excluded source requires an independent skipReason')
+    if (isV2 && !REASON_CODES.has(source?.reasonCode)) errors.push(`excluded source reasonCode invalid: ${source?.sourceId || '<empty>'}`)
     excludedIds.push(source?.sourceId)
   }
   if (new Set(excludedIds).size !== excludedIds.length) errors.push('duplicate excluded sourceId')
@@ -732,7 +1000,11 @@ function validateContextReadPlan(raw) {
   if (selectedProfileFiles.includes('config.local.json') && raw.profile?.configLocalRequested !== true) errors.push('config.local.json selected without policy')
   const memoryQueries = selected.filter(source => source.kind === 'memory').map(source => source.selector).sort()
   if (stableDigest(memoryQueries) !== stableDigest(raw.memory?.requiredQueries)) errors.push('memory.requiredQueries mismatch')
-  if (raw.freshness?.strategy !== 'size+mtimeMs+metadataDigest' || raw.freshness?.reuse !== false) errors.push('invalid freshness contract')
+  if (isV1) {
+    if (raw.freshness?.strategy !== 'size+mtimeMs+metadataDigest' || raw.freshness?.reuse !== false) errors.push('invalid V1 freshness contract')
+  } else if (raw.freshness?.strategy !== 'content-identity+metadata' || raw.freshness?.reuse !== true) {
+    errors.push('invalid V2 freshness contract')
+  }
   if (!raw.budget) errors.push('budget is required')
   else if (raw.budget.force === true) {
     if (raw.budget.advisory !== false) errors.push('budget.force requires advisory=false')
@@ -748,8 +1020,40 @@ function validateContextReadPlan(raw) {
       stableDigest(triggeredEscalations) !== stableDigest(raw.triggeredEscalations)) {
     errors.push('escalation trigger arrays must be sorted, unique, and valid')
   }
-  const expectedPlanId = `plan-${stableDigest({ ...raw, planId: undefined, planningTelemetry: undefined }).slice(0, 24)}`
-  if (raw.planId !== expectedPlanId) errors.push('planId digest mismatch')
+  if (isV2) {
+    try {
+      const expectedInputs = buildPlanIdentityInputs(raw)
+      if (stableDigest(expectedInputs) !== stableDigest(raw.identityInputs)) errors.push('identityInputs is not derived from plan content')
+      const expectedContentId = `plan-content-${stableDigest(expectedInputs)}`
+      if (raw.planContentId !== expectedContentId) errors.push('planContentId digest mismatch')
+      const expectedPlanId = `plan-${stableDigest({
+        planContentId: expectedContentId,
+        contextEpoch: identity.contextEpoch,
+        invocationNonce: identity.invocationNonce
+      }).slice(0, 24)}`
+      if (raw.planId !== expectedPlanId) errors.push('planId invocation digest mismatch')
+    } catch (error) {
+      errors.push(`identityInputs validation failed: ${error.message}`)
+    }
+    if (stableDigest(raw.reusePolicy) !== stableDigest(buildReusePolicy())) errors.push('reusePolicy contract mismatch')
+    const stageTiming = normalizeStageTiming(raw.stageTiming)
+    if (stableDigest(stageTiming) !== stableDigest(raw.stageTiming) || stageTiming.plannerResponseBytes === null) {
+      errors.push('StageTimingV1 is missing or non-canonical')
+    }
+    const cacheDecision = normalizeCacheDecision(raw.cacheDecision, raw.planContentId)
+    if (stableDigest(cacheDecision) !== stableDigest(raw.cacheDecision) || cacheDecision.bodyDeliverySkipped !== false) {
+      errors.push('computation cache decision is missing or conflates body delivery')
+    }
+    if (cacheDecision.status === 'hit' && (!cacheDecision.scope || !cacheDecision.reusedArtifacts.length)) {
+      errors.push('cache hit requires a scope and reused computation artifact')
+    }
+    if (cacheDecision.status !== 'hit' && cacheDecision.reusedArtifacts.length) {
+      errors.push('non-hit cache decision cannot claim reused artifacts')
+    }
+  } else {
+    const expectedPlanId = `plan-${stableDigest({ ...raw, planId: undefined, planningTelemetry: undefined }).slice(0, 24)}`
+    if (raw.planId !== expectedPlanId) errors.push('planId digest mismatch')
+  }
   return errors.length
     ? { valid: false, errors, error: buildContextReadError('CONTEXT_PLAN_INVALID', errors.join('; '), 'Rebuild the plan from authoritative baseline inputs.') }
     : { valid: true, errors: [], value: raw }
@@ -767,7 +1071,8 @@ function outcomePayload(raw, path = 'root', depth = 0) {
   if (typeof raw !== 'object') return { payload: raw, variant: path, observable: true }
   const localFailed = raw.success === false || raw.is_error === true || raw.isError === true || !!raw.error
   const localError = localFailed ? String(raw.error?.message || raw.error || 'tool outcome failed') : null
-  if (raw.schemaVersion === CONTEXT_READ_CONTRACT.schemas.plan || /^Memory.+V1$/.test(String(raw.schemaVersion || ''))) {
+  if ([CONTEXT_READ_CONTRACT.schemas.plan, CONTEXT_READ_CONTRACT.schemas.planV1].includes(raw.schemaVersion) ||
+      /^Memory.+V1$/.test(String(raw.schemaVersion || ''))) {
     return { payload: raw, variant: path, observable: true, failed: localFailed, error: localError }
   }
   for (const key of ['tool_response', 'toolResponse', 'tool_result', 'toolResult', 'result', 'output', 'structuredContent']) {
@@ -898,8 +1203,12 @@ function extractContextSourceEvidence(plan, rawOutcome, options = {}) {
       schemaMatch: isMemory ? raw.schemaMatch === true : raw.schemaMatch !== false,
       targetMatch: isMemory ? raw.targetMatch === true : raw.targetMatch !== false,
       resultDigest: outcome.resultDigest,
+      contentIdentity: raw.contentIdentity || null,
+      bodyObserved: raw.bodyObserved === true,
+      hostSessionId: String(raw.hostSessionId || options.hostSessionId || ''),
       bytes: finiteOrNull(raw.bytes ?? outcome.telemetry.bytes),
       chars: finiteOrNull(raw.chars ?? outcome.telemetry.chars),
+      hostDeliveredBytes: finiteOrNull(raw.hostDeliveredBytes),
       latencyMs: finiteOrNull(raw.latencyMs ?? outcome.telemetry.latencyMs),
       tokens: finiteOrNull(raw.tokens ?? outcome.telemetry.tokens),
       cache: raw.cache === true
@@ -915,13 +1224,16 @@ function observationSuccessful(observation) {
     SUCCESS_OUTCOMES.has(observation.outcome)
 }
 
-function evidenceProjection(observations, mandatorySourceIds) {
+function evidenceProjection(observations, mandatorySourceIds, requireContentIdentity = false) {
   const satisfied = []
   const missing = []
   for (const sourceId of mandatorySourceIds) {
     const terminal = observations.filter(item => item.sourceId === sourceId && item.outcome !== 'attempted' && item.correlationValid !== false)
     const latest = terminal[terminal.length - 1]
-    if (observationSuccessful(latest)) satisfied.push(sourceId)
+    const identityReady = !requireContentIdentity || (
+      latest?.bodyObserved === true && validateContentIdentity(latest?.contentIdentity).valid
+    )
+    if (observationSuccessful(latest) && identityReady) satisfied.push(sourceId)
     else missing.push(sourceId)
   }
   return { satisfiedSourceIds: satisfied.sort(), missingSourceIds: missing.sort() }
@@ -947,18 +1259,197 @@ function normalizeObservation(raw = {}) {
     targetMatch: raw.targetMatch !== false,
     correlationValid: raw.correlationValid !== false,
     resultDigest: raw.resultDigest ? String(raw.resultDigest) : null,
+    contentIdentity: validateContentIdentity(raw.contentIdentity).valid ? deepClone(raw.contentIdentity) : null,
+    bodyObserved: raw.bodyObserved === true,
+    hostSessionId: String(raw.hostSessionId || ''),
     bytes: finiteOrNull(raw.bytes),
     chars: finiteOrNull(raw.chars),
+    hostDeliveredBytes: finiteOrNull(raw.hostDeliveredBytes),
     latencyMs: finiteOrNull(raw.latencyMs),
     tokens: finiteOrNull(raw.tokens),
     cache: raw.cache === true
   }
 }
 
+function collectReceiptSourceIdentities(observations) {
+  const latest = new Map()
+  for (const observation of observations || []) {
+    if (!observation.sourceId || observation.outcome === 'attempted') continue
+    if (!observationSuccessful(observation) || !observation.bodyObserved ||
+        !validateContentIdentity(observation.contentIdentity).valid) {
+      latest.delete(observation.sourceId)
+    } else {
+      latest.set(observation.sourceId, {
+        sourceId: observation.sourceId,
+        contentIdentity: deepClone(observation.contentIdentity)
+      })
+    }
+  }
+  return [...latest.values()].sort((left, right) => compareText(left.sourceId, right.sourceId))
+}
+
+function sameSourceIdentities(left, right) {
+  const normalize = value => (Array.isArray(value) ? value : [])
+    .filter(item => item && item.sourceId && validateContentIdentity(item.contentIdentity).valid)
+    .map(item => ({ sourceId: String(item.sourceId), contentIdentity: item.contentIdentity }))
+    .sort((a, b) => compareText(a.sourceId, b.sourceId))
+  return stableDigest(normalize(left)) === stableDigest(normalize(right))
+}
+
+function normalizeDeliveryState(raw = {}, hostSessionId = '') {
+  const session = String(raw.hostSessionId || hostSessionId || '')
+  return {
+    schemaVersion: 'ContextDeliveryStateV1',
+    hostSessionId: session,
+    bodyObserved: raw.bodyObserved === true,
+    reused: raw.reused === true,
+    eligible: raw.eligible === true,
+    reasonCode: String(raw.reasonCode || 'body-read-required')
+  }
+}
+
+function evaluateContextReuse(input = {}) {
+  const plan = input.plan
+  const priorPlan = input.priorPlan
+  const rawPriorReceipt = input.priorReceipt
+  const planValidation = validateContextReadPlan(plan)
+  const priorValidation = validateContextReadPlan(priorPlan)
+  const hostSessionId = String(input.hostSessionId || '')
+  const decision = {
+    schemaVersion: CONTEXT_READ_CONTRACT.schemas.reuseDecision,
+    planId: plan?.planId || '',
+    planContentId: plan?.planContentId || '',
+    computation: { reuse: false, reasonCode: 'no-compatible-prior-plan' },
+    delivery: { reuse: false, reasonCode: 'body-read-required' },
+    reuseFrom: null
+  }
+  if (!planValidation.valid || plan?.schemaVersion !== CONTEXT_READ_CONTRACT.schemas.plan) {
+    decision.computation.reasonCode = 'current-plan-invalid'
+    decision.delivery.reasonCode = 'current-plan-invalid'
+    return decision
+  }
+  if (!priorValidation.valid || priorPlan?.schemaVersion !== CONTEXT_READ_CONTRACT.schemas.plan) {
+    decision.computation.reasonCode = priorPlan?.schemaVersion === CONTEXT_READ_CONTRACT.schemas.planV1
+      ? 'legacy-plan-no-content-identity'
+      : 'no-compatible-prior-plan'
+    decision.delivery.reasonCode = 'legacy-or-missing-prior-plan'
+    return decision
+  }
+  const targetMatches = normalizePath(plan.identity.activeRoot) === normalizePath(priorPlan.identity.activeRoot) &&
+    plan.identity.project === priorPlan.identity.project
+  if (!targetMatches) {
+    decision.computation.reasonCode = 'target-mismatch'
+    decision.delivery.reasonCode = 'target-mismatch'
+    return decision
+  }
+  if (plan.planContentId !== priorPlan.planContentId) {
+    decision.computation.reasonCode = 'plan-content-mismatch'
+    decision.delivery.reasonCode = 'plan-content-mismatch'
+    return decision
+  }
+  decision.computation = { reuse: true, reasonCode: 'content-identity-match' }
+  decision.reuseFrom = { planId: priorPlan.planId, planContentId: priorPlan.planContentId }
+
+  if (!rawPriorReceipt || rawPriorReceipt.schemaVersion !== CONTEXT_READ_CONTRACT.schemas.receipt) {
+    decision.delivery.reasonCode = 'legacy-or-missing-receipt'
+    return decision
+  }
+  const priorReceipt = normalizeReceipt(rawPriorReceipt, priorPlan)
+  if (priorReceipt.schemaVersion !== CONTEXT_READ_CONTRACT.schemas.receipt ||
+      priorReceipt.receiptId !== rawPriorReceipt.receiptId) {
+    decision.delivery.reasonCode = 'prior-receipt-invalid'
+    return decision
+  }
+  if (priorReceipt.planId !== priorPlan.planId || priorReceipt.planContentId !== priorPlan.planContentId) {
+    decision.delivery.reasonCode = 'prior-receipt-plan-mismatch'
+    return decision
+  }
+  if (!hostSessionId || priorReceipt.delivery?.hostSessionId !== hostSessionId) {
+    decision.delivery.reasonCode = 'host-session-mismatch'
+    return decision
+  }
+  if (plan.identity.contextEpoch !== priorPlan.identity.contextEpoch || priorReceipt.contextEpoch !== plan.identity.contextEpoch) {
+    decision.delivery.reasonCode = 'context-epoch-mismatch'
+    return decision
+  }
+  if (priorReceipt.verificationMode !== 'structured-plan' || !['relevant-complete', 'completed'].includes(priorReceipt.status)) {
+    decision.delivery.reasonCode = 'prior-receipt-incomplete'
+    return decision
+  }
+  const priorSourceIdentities = Array.isArray(priorReceipt.sourceIdentities) ? priorReceipt.sourceIdentities : []
+  const currentSourceIdentities = Array.isArray(input.sourceIdentities) ? input.sourceIdentities : []
+  if (priorSourceIdentities.length !== plan.mandatorySourceIds.length ||
+      currentSourceIdentities.length !== plan.mandatorySourceIds.length ||
+      !sameSourceIdentities(priorSourceIdentities, currentSourceIdentities)) {
+    decision.delivery.reasonCode = 'source-identity-mismatch'
+    return decision
+  }
+  const allBodiesObserved = plan.mandatorySourceIds.every(sourceId => priorReceipt.observations
+    .some(observation => observation.sourceId === sourceId && observationSuccessful(observation) &&
+      observation.bodyObserved === true && observation.hostSessionId === hostSessionId &&
+      validateContentIdentity(observation.contentIdentity).valid))
+  if (!allBodiesObserved) {
+    decision.delivery.reasonCode = 'body-observation-unproven'
+    return decision
+  }
+  decision.delivery = { reuse: true, reasonCode: 'same-session-epoch-content-observed' }
+  decision.reuseFrom = {
+    ...decision.reuseFrom,
+    receiptId: priorReceipt.receiptId,
+    sourceIdentities: deepClone(priorSourceIdentities)
+  }
+  return decision
+}
+
+function buildReceiptId(receipt) {
+  return `receipt-${stableDigest({
+    contextEpoch: receipt.contextEpoch,
+    planId: receipt.planId,
+    planContentId: receipt.planContentId || null,
+    verificationMode: receipt.verificationMode,
+    status: receipt.status,
+    sourceIdentities: receipt.sourceIdentities || [],
+    results: (receipt.observations || []).filter(item => item.outcome !== 'attempted').map(item => ({
+      sourceId: item.sourceId,
+      outcome: item.outcome,
+      resultDigest: item.resultDigest,
+      bodyObserved: item.bodyObserved,
+      hostSessionId: item.hostSessionId
+    })),
+    delivery: receipt.delivery || null,
+    reuseFrom: receipt.reuseFrom || null
+  }).slice(0, 24)}`
+}
+
+function refreshReceiptId(receipt) {
+  return receipt?.schemaVersion === CONTEXT_READ_CONTRACT.schemas.receipt
+    ? { ...receipt, receiptId: buildReceiptId(receipt) }
+    : receipt
+}
+
+function baselineContentIdentity(plan, sourceId) {
+  if (sourceId === profileSourceId('README.md')) {
+    return buildContentIdentity({
+      sourceKey: `profile://${plan.identity.project}/README.md#delivered`,
+      content: plan.baselineContext.readme.content,
+      contractVersion: 'profile-readme@1'
+    })
+  }
+  return buildJsonContentIdentity({
+    sourceKey: `profile://${plan.identity.project}/config.json#delivered`,
+    value: plan.baselineContext.effectiveConfig,
+    contractVersion: 'profile-config@1'
+  }).identity
+}
+
 function baseReceipt(plan, verificationMode, options = {}) {
+  const isV2 = plan.schemaVersion === CONTEXT_READ_CONTRACT.schemas.plan
+  const hostSessionId = String(options.hostSessionId || '')
   const planObserved = verificationMode === 'structured-plan' && options.planObserved === true
   const observations = planObserved
-    ? plan.selectedSources.filter(source => source.kind === 'profile-baseline').map(source => normalizeObservation({
+    ? plan.selectedSources.filter(source => source.kind === 'profile-baseline').map(source => {
+        const contentIdentity = isV2 ? baselineContentIdentity(plan, source.sourceId) : null
+        return normalizeObservation({
         observationId: `baseline-${source.sourceId}`,
         toolCallId: String(options.toolCallId || ''),
         sourceId: source.sourceId,
@@ -975,21 +1466,31 @@ function baseReceipt(plan, verificationMode, options = {}) {
         schemaMatch: true,
         targetMatch: true,
         correlationValid: true,
-        resultDigest: stableDigest(plan.baselineContext),
-        bytes: measureContextPayload(plan.baselineContext).bytes,
-        chars: measureContextPayload(plan.baselineContext).chars
-      }))
+        resultDigest: contentIdentity?.digest || stableDigest(plan.baselineContext),
+        contentIdentity,
+        bodyObserved: isV2 && planObserved,
+        hostSessionId,
+        bytes: contentIdentity?.bytes ?? measureContextPayload(plan.baselineContext).bytes,
+        chars: isV2
+          ? (source.sourceId === profileSourceId('README.md')
+              ? plan.baselineContext.readme.content.length
+              : stableStringify(plan.baselineContext.effectiveConfig).length)
+          : measureContextPayload(plan.baselineContext).chars,
+        hostDeliveredBytes: contentIdentity?.bytes ?? null
+        })
+      })
     : []
-  const projection = evidenceProjection(observations, plan.mandatorySourceIds)
-  return {
-    schemaVersion: CONTEXT_READ_CONTRACT.schemas.receipt,
-    receiptId: `receipt-${stableDigest({ planId: plan.planId, verificationMode }).slice(0, 24)}`,
+  const projection = evidenceProjection(observations, plan.mandatorySourceIds, isV2)
+  const receipt = {
+    schemaVersion: isV2 ? CONTEXT_READ_CONTRACT.schemas.receipt : CONTEXT_READ_CONTRACT.schemas.receiptV1,
+    receiptId: '',
     contextEpoch: plan.identity.contextEpoch,
     planId: plan.planId,
     identity: {
       activeRoot: plan.identity.activeRoot,
       project: plan.identity.project,
-      host: plan.identity.host
+      host: plan.identity.host,
+      ...(isV2 ? { hostSessionId } : {})
     },
     verificationMode,
     status: planObserved ? (plan.fullRead ? 'escalated-full' : 'baseline-ready') : 'unverified',
@@ -1003,6 +1504,22 @@ function baseReceipt(plan, verificationMode, options = {}) {
     replanCount: 0,
     lastError: null
   }
+  if (isV2) {
+    receipt.planContentId = plan.planContentId
+    receipt.sourceIdentities = collectReceiptSourceIdentities(observations)
+    receipt.delivery = normalizeDeliveryState({
+      hostSessionId,
+      bodyObserved: receipt.sourceIdentities.length === plan.mandatorySourceIds.length,
+      eligible: false,
+      reused: false,
+      reasonCode: hostSessionId ? 'body-read-required' : 'host-session-unobservable'
+    })
+    receipt.reuseFrom = null
+    receipt.receiptId = buildReceiptId(receipt)
+  } else {
+    receipt.receiptId = `receipt-${stableDigest({ planId: plan.planId, verificationMode }).slice(0, 24)}`
+  }
+  return receipt
 }
 
 function createContextReadReceipt(plan, options = {}) {
@@ -1011,21 +1528,68 @@ function createContextReadReceipt(plan, options = {}) {
   let verificationMode = String(options.verificationMode || 'instruction-only')
   if (!VERIFICATION_MODES.has(verificationMode)) verificationMode = 'instruction-only'
   if (verificationMode === 'structured-plan' && options.planObserved !== true) verificationMode = 'instruction-only'
-  return baseReceipt(plan, verificationMode, options)
+  const receipt = baseReceipt(plan, verificationMode, options)
+  if (plan.schemaVersion !== CONTEXT_READ_CONTRACT.schemas.plan || !options.priorPlan || !options.priorReceipt) {
+    return receipt
+  }
+  const decision = evaluateContextReuse({
+    plan,
+    priorPlan: options.priorPlan,
+    priorReceipt: options.priorReceipt,
+    hostSessionId: options.hostSessionId,
+    sourceIdentities: options.sourceIdentities
+  })
+  if (options.reuseDecision && stableDigest(options.reuseDecision) !== stableDigest(decision)) return receipt
+  if (decision?.delivery?.reuse !== true) return receipt
+  const reusedObservations = []
+  for (const sourceId of plan.mandatorySourceIds) {
+    const candidates = options.priorReceipt.observations.filter(item =>
+      item.sourceId === sourceId && observationSuccessful(item) && item.bodyObserved === true
+    )
+    const prior = candidates[candidates.length - 1]
+    if (!prior) return receipt
+    reusedObservations.push(normalizeObservation({
+      ...prior,
+      observationId: `reuse-${stableDigest({ sourceId, planId: plan.planId, receiptId: options.priorReceipt.receiptId }).slice(0, 20)}`,
+      toolCallId: String(options.toolCallId || ''),
+      attemptedAt: nowIso(options),
+      observedAt: nowIso(options),
+      hostSessionId: String(options.hostSessionId || ''),
+      cache: true
+    }))
+  }
+  return normalizeReceipt({
+    ...receipt,
+    observations: reusedObservations,
+    status: 'relevant-complete',
+    delivery: normalizeDeliveryState({
+      hostSessionId: options.hostSessionId,
+      bodyObserved: true,
+      eligible: true,
+      reused: true,
+      reasonCode: decision.delivery.reasonCode
+    }),
+    reuseFrom: decision.reuseFrom,
+    completedAt: nowIso(options)
+  }, plan, options)
 }
 
 function normalizeReceipt(raw, plan, options = {}) {
   const planValidation = validateContextReadPlan(plan)
   if (!planValidation.valid) return planValidation.error
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return createContextReadReceipt(plan, options)
-  const foreign = Object.keys(raw).filter(key => !RECEIPT_FIELDS.has(key))
-  if (foreign.length) return buildContextReadError('CONTEXT_PLAN_INVALID', `ContextReadReceiptV1 contains unsupported fields: ${foreign.join(', ')}.`)
-  if (raw.schemaVersion !== CONTEXT_READ_CONTRACT.schemas.receipt || raw.planId !== plan.planId || raw.contextEpoch !== plan.identity.contextEpoch) {
+  const isV2 = plan.schemaVersion === CONTEXT_READ_CONTRACT.schemas.plan
+  const allowedFields = isV2 ? RECEIPT_FIELDS : RECEIPT_V1_FIELDS
+  const expectedSchema = isV2 ? CONTEXT_READ_CONTRACT.schemas.receipt : CONTEXT_READ_CONTRACT.schemas.receiptV1
+  const foreign = Object.keys(raw).filter(key => !allowedFields.has(key))
+  if (foreign.length) return buildContextReadError('CONTEXT_PLAN_INVALID', `${expectedSchema} contains unsupported fields: ${foreign.join(', ')}.`)
+  if (raw.schemaVersion !== expectedSchema || raw.planId !== plan.planId || raw.contextEpoch !== plan.identity.contextEpoch ||
+      (isV2 && raw.planContentId !== plan.planContentId)) {
     return buildContextReadError('CONTEXT_PLAN_INVALID', 'Receipt discriminator or plan identity mismatch.')
   }
   const verificationMode = VERIFICATION_MODES.has(raw.verificationMode) ? raw.verificationMode : 'instruction-only'
   const observations = (Array.isArray(raw.observations) ? raw.observations : []).map(normalizeObservation).slice(-100)
-  const projection = evidenceProjection(observations, plan.mandatorySourceIds)
+  const projection = evidenceProjection(observations, plan.mandatorySourceIds, isV2)
   const staleOrBlocked = ['stale', 'blocked'].includes(raw.status)
   const allSatisfied = projection.missingSourceIds.length === 0
   let status = RECEIPT_STATUSES.has(raw.status) ? raw.status : 'unverified'
@@ -1046,12 +1610,17 @@ function normalizeReceipt(raw, plan, options = {}) {
   const effectiveProjection = staleOrBlocked
     ? { satisfiedSourceIds: [], missingSourceIds: [...plan.mandatorySourceIds] }
     : projection
-  return {
-    schemaVersion: CONTEXT_READ_CONTRACT.schemas.receipt,
-    receiptId: String(raw.receiptId || `receipt-${stableDigest({ planId: plan.planId, verificationMode }).slice(0, 24)}`),
+  const normalized = {
+    schemaVersion: expectedSchema,
+    receiptId: '',
     contextEpoch: plan.identity.contextEpoch,
     planId: plan.planId,
-    identity: { activeRoot: plan.identity.activeRoot, project: plan.identity.project, host: plan.identity.host },
+    identity: {
+      activeRoot: plan.identity.activeRoot,
+      project: plan.identity.project,
+      host: plan.identity.host,
+      ...(isV2 ? { hostSessionId: String(raw.identity?.hostSessionId || options.hostSessionId || '') } : {})
+    },
     verificationMode,
     status,
     observations,
@@ -1064,6 +1633,31 @@ function normalizeReceipt(raw, plan, options = {}) {
     replanCount: Math.max(0, Number.parseInt(raw.replanCount, 10) || 0),
     lastError: raw.lastError && typeof raw.lastError === 'object' ? deepClone(raw.lastError) : null
   }
+  if (isV2) {
+    normalized.planContentId = plan.planContentId
+    normalized.sourceIdentities = collectReceiptSourceIdentities(observations)
+    const hostSessionId = normalized.identity.hostSessionId
+    const bodyObserved = normalized.sourceIdentities.length === plan.mandatorySourceIds.length
+    const reused = raw.delivery?.reused === true && raw.reuseFrom && typeof raw.reuseFrom === 'object'
+    normalized.delivery = normalizeDeliveryState({
+      hostSessionId,
+      bodyObserved,
+      reused,
+      eligible: !staleOrBlocked && bodyObserved && !!hostSessionId,
+      reasonCode: reused
+        ? String(raw.delivery.reasonCode || 'same-session-epoch-content-observed')
+        : (staleOrBlocked
+            ? `receipt-${status}`
+            : (bodyObserved && hostSessionId
+                ? 'current-session-content-observed'
+                : (hostSessionId ? 'body-read-required' : 'host-session-unobservable')))
+    })
+    normalized.reuseFrom = reused ? deepClone(raw.reuseFrom) : null
+    normalized.receiptId = buildReceiptId(normalized)
+  } else {
+    normalized.receiptId = String(raw.receiptId || `receipt-${stableDigest({ planId: plan.planId, verificationMode }).slice(0, 24)}`)
+  }
+  return normalized
 }
 
 function markContextReadReceiptStale(receipt, plan, reason = 'scope-drift', options = {}) {
@@ -1071,7 +1665,7 @@ function markContextReadReceiptStale(receipt, plan, reason = 'scope-drift', opti
   if (normalized.schemaVersion === CONTEXT_READ_CONTRACT.schemas.error) return normalized
   if (normalized.status === 'stale') return normalized
   const observedAt = nowIso(options)
-  return {
+  return refreshReceiptId({
     ...normalized,
     status: 'stale',
     satisfiedSourceIds: [],
@@ -1086,7 +1680,7 @@ function markContextReadReceiptStale(receipt, plan, reason = 'scope-drift', opti
     consumedAt: null,
     replanCount: normalized.replanCount + 1,
     lastError: buildContextReadError('CONTEXT_PLAN_INVALID', `Context receipt is stale: ${reason}.`, 'Replan once before the broader action.')
-  }
+  })
 }
 
 function recordContextReadAttempt(receipt, plan, attempt = {}, options = {}) {
@@ -1127,13 +1721,13 @@ function recordContextReadAttempt(receipt, plan, attempt = {}, options = {}) {
     })
     if (!observations.some(item => item.observationId === observation.observationId)) observations.push(observation)
   }
-  return {
+  return refreshReceiptId({
     ...normalized,
     status: plan.fullRead ? 'escalated-full' : 'attempted',
     observations: observations.slice(-100),
     completedAt: null,
     consumedAt: null
-  }
+  })
 }
 
 function observationSemanticDigest(observation) {
@@ -1151,7 +1745,10 @@ function observationSemanticDigest(observation) {
     schemaMatch: observation.schemaMatch,
     targetMatch: observation.targetMatch,
     correlationValid: observation.correlationValid,
-    resultDigest: observation.resultDigest
+    resultDigest: observation.resultDigest,
+    contentIdentity: observation.contentIdentity,
+    bodyObserved: observation.bodyObserved,
+    hostSessionId: observation.hostSessionId
   })
 }
 
@@ -1220,7 +1817,7 @@ function recordContextReadOutcome(receipt, plan, evidence = {}, options = {}) {
       consumedAt: null,
       lastError: buildContextReadError('CONTEXT_PLAN_INVALID', 'Conflicting duplicate PostToolUse evidence is ambiguous.', 'Keep the receipt unverified and replan once if the action still requires context.')
     }, plan, options)
-    return { ...conflicted, status: 'unverified', completedAt: null, consumedAt: null }
+    return refreshReceiptId({ ...conflicted, status: 'unverified', completedAt: null, consumedAt: null })
   }
   const next = duplicate ? normalized : { ...normalized, observations: [...normalized.observations, observation].slice(-100) }
   return completeContextReadReceipt(next, plan, options)
@@ -1231,25 +1828,25 @@ function completeContextReadReceipt(receipt, plan, options = {}) {
   if (normalized.schemaVersion === CONTEXT_READ_CONTRACT.schemas.error) return normalized
   if (['stale', 'blocked'].includes(normalized.status)) return normalized
   if (normalized.verificationMode !== 'structured-plan') {
-    return { ...normalized, status: 'unverified', completedAt: null, consumedAt: null }
+    return refreshReceiptId({ ...normalized, status: 'unverified', completedAt: null, consumedAt: null })
   }
   if (normalized.missingSourceIds.length) {
-    return {
+    return refreshReceiptId({
       ...normalized,
       status: plan.fullRead ? 'escalated-full' : (normalized.observations.length ? 'attempted' : 'planned'),
       completedAt: null,
       consumedAt: null
-    }
+    })
   }
   const completedAt = normalized.completedAt || nowIso(options)
   if (options.consume === true) {
-    return { ...normalized, status: 'completed', completedAt, consumedAt: nowIso(options) }
+    return refreshReceiptId({ ...normalized, status: 'completed', completedAt, consumedAt: nowIso(options) })
   }
-  return { ...normalized, status: 'relevant-complete', completedAt, consumedAt: null }
+  return refreshReceiptId({ ...normalized, status: 'relevant-complete', completedAt, consumedAt: null })
 }
 
 function deriveLegacyBootstrapProjection(receipt, legacy = {}) {
-  if (!receipt || receipt.schemaVersion !== CONTEXT_READ_CONTRACT.schemas.receipt) {
+  if (!receipt || ![CONTEXT_READ_CONTRACT.schemas.receipt, CONTEXT_READ_CONTRACT.schemas.receiptV1].includes(receipt.schemaVersion)) {
     return {
       profileRead: legacy.profileRead === true,
       summaryRead: legacy.summaryRead === true,
@@ -1275,7 +1872,7 @@ function normalizeContextReadState(raw = {}, options = {}) {
   let receipt = null
   if (plan && source.receipt) {
     const normalized = normalizeReceipt(source.receipt, plan, options)
-    if (normalized.schemaVersion === CONTEXT_READ_CONTRACT.schemas.receipt) receipt = normalized
+    if ([CONTEXT_READ_CONTRACT.schemas.receipt, CONTEXT_READ_CONTRACT.schemas.receiptV1].includes(normalized.schemaVersion)) receipt = normalized
   }
   const legacySource = raw.bootstrap && typeof raw.bootstrap === 'object' ? raw.bootstrap : raw
   return {
@@ -1303,6 +1900,7 @@ module.exports = {
   completeContextReadReceipt,
   createContextReadReceipt,
   deriveLegacyBootstrapProjection,
+  evaluateContextReuse,
   extractContextPlanBody,
   extractContextSourceEvidence,
   markContextReadReceiptStale,

@@ -19,6 +19,7 @@ const { buildProfileBootstrapUtils } = require('./scripts/lib/profile-bootstrap-
 const { buildCliInstallCommands } = require('./scripts/lib/cli-install-commands.js')
 const { buildCliMaintenanceCommands } = require('./scripts/lib/cli-maintenance-commands.js')
 const { buildCliObservabilityCommands } = require('./scripts/lib/cli-observability-commands.js')
+const { buildCliExecutionCommands } = require('./scripts/lib/cli-execution-commands.js')
 const { createCliCommandRegistry, runCliCommand } = require('./scripts/lib/cli-command-registry.js')
 const { resolveTenantSelection, shouldIncludeInstructionFile } = require('./scripts/lib/tenant-selection.js')
 const { createDeploymentSession, writeManifestAtomic } = require('./scripts/lib/deployment-manifest-utils.js')
@@ -387,9 +388,10 @@ const { cmdStatus, cmdProfileInit, cmdDoctor, cmdHelp } = buildCliMaintenanceCom
 const { cmdProbe, cmdTrace } = buildCliObservabilityCommands({
   fs, process, console, c, resolveProfileDir, inspectProfileState, detectHostPlatform, detectInstalledHostAssets
 })
+const { cmdTask } = buildCliExecutionCommands({ process, console, c })
 
 const cliCommandRegistry = createCliCommandRegistry({
-  cmdInit, cmdInitClaude, cmdInitCodex, cmdStatus, cmdProfileInit, cmdDoctor, cmdProbe, cmdTrace, cmdHelp
+  cmdInit, cmdInitClaude, cmdInitCodex, cmdStatus, cmdProfileInit, cmdDoctor, cmdProbe, cmdTrace, cmdTask, cmdHelp
 })
 
 // ─── Entry point ─────────────────────────────────────────────────────────────
@@ -410,6 +412,7 @@ module.exports = {
   cmdDoctor,
   cmdProbe,
   cmdTrace,
+  cmdTask,
   isSourceRepo,
   findLayoutInfo,
   inferProjectFromCwd,

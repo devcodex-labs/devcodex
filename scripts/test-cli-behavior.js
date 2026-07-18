@@ -69,6 +69,14 @@ function runCliFailure(args, cwd, envOverrides = {}) {
   return stripAnsi(`${result.stdout || ''}${result.stderr || ''}`)
 }
 
+function runCliResult(args, cwd, envOverrides = {}) {
+  return spawnSync(process.execPath, [CLI, ...args], {
+    cwd,
+    encoding: 'utf8',
+    env: { ...process.env, ...HOST_ENV_SCRUB, ...envOverrides }
+  })
+}
+
 function writeFile(root, relativePath, content) {
   const fullPath = path.join(root, relativePath)
   fs.mkdirSync(path.dirname(fullPath), { recursive: true })
@@ -525,6 +533,56 @@ function testProfileInitRejectsInvalidArguments() {
   fs.rmSync(root, { recursive: true, force: true })
 }
 
+function testTaskResolveHumanJsonAndNativeExitCodes() {
+  const root = createTempRoot('devcodex-cli-task-resolve-')
+  writeFile(root, 'package.json', '{ "name": "task-resolve-project" }\n')
+  const taskRoot = path.join(root, '.devcodex', 'optimizations', 'CLI任务')
+  writeJson(taskRoot, '.memory/task.json', {
+    schemaVersion: 'TaskIdentityV1',
+    taskId: '5baea296-2392-493c-a615-a84a0cb6e249',
+    displayName: 'CLI任务',
+    aliases: ['CLI旧任务名'],
+    createdAt: '2026-07-18T00:00:00.000Z',
+    identityRevision: 1
+  })
+  const sessionsPath = path.join(taskRoot, '.memory', 'sessions.md')
+  writeFile(taskRoot, '.memory/sessions.md', '# CLI task\n\n> **当前状态**: 🔄 active\n')
+  const canonicalBefore = fs.readFileSync(sessionsPath, 'utf8')
+
+  const json = JSON.parse(runCli(['task', 'resolve', 'CLI旧任务名', '--json'], root))
+  assert.strictEqual(json.schemaVersion, 'DevCodexCliEnvelopeV1')
+  assert.strictEqual(json.ok, true)
+  assert.strictEqual(json.payload.status, 'resolved-active')
+  assert.strictEqual(json.payload.candidate.taskId, '5baea296-2392-493c-a615-a84a0cb6e249')
+  assert.match(runCli(['task', 'resolve', 'CLI任务'], root), /resolved-active/)
+  assert.strictEqual(fs.readFileSync(sessionsPath, 'utf8'), canonicalBefore, 'task resolve must not change canonical sessions')
+
+  const missing = runCliResult(['task', 'resolve', '不存在', '--json'], root)
+  assert.strictEqual(missing.status, 1)
+  assert.strictEqual(JSON.parse(stripAnsi(missing.stdout)).errorCode, 'TASK_NOT_FOUND')
+  const invalid = runCliResult(['task', 'resolve', '--json'], root)
+  assert.strictEqual(invalid.status, 2)
+  assert.strictEqual(JSON.parse(stripAnsi(invalid.stdout)).errorCode, 'CLI_INVALID_OPTION')
+
+  const duplicateRoot = path.join(root, '.devcodex', 'bugs', 'CLI同名副本')
+  writeJson(duplicateRoot, '.memory/task.json', {
+    schemaVersion: 'TaskIdentityV1',
+    taskId: '1d39dc56-903c-4f2e-984e-d75dd8501ff8',
+    displayName: 'CLI任务',
+    aliases: [],
+    createdAt: '2026-07-18T00:00:00.000Z',
+    identityRevision: 1
+  })
+  writeFile(duplicateRoot, '.memory/sessions.md', '# duplicate\n\n> **当前状态**: 🔄 active\n')
+  const ambiguous = runCliResult(['task', 'resolve', 'CLI任务', '--json'], root)
+  assert.strictEqual(ambiguous.status, 2)
+  const ambiguousEnvelope = JSON.parse(stripAnsi(ambiguous.stdout))
+  assert.strictEqual(ambiguousEnvelope.errorCode, 'TASK_AMBIGUOUS')
+  assert.strictEqual(ambiguousEnvelope.details.candidates.length, 2)
+
+  fs.rmSync(root, { recursive: true, force: true })
+}
+
 function main() {
   testClaudeInitPreservesCustomConfig()
   testClaudeUpdateBacksUpAndPreservesCustomConfig()
@@ -539,6 +597,7 @@ function main() {
   testProfileInitAndStatusShareTierContract()
   testProfilePlanAndTierTransitionsAreSafe()
   testProfileInitRejectsInvalidArguments()
+  testTaskResolveHumanJsonAndNativeExitCodes()
   process.stdout.write('cli behavior test passed\n')
 }
 

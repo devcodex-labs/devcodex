@@ -6,9 +6,9 @@ description: 项目 Profile 加载规范 — 先形成语义意图种子与唯�
 
 ## 职责
 
-在 `IntentSeedV1` 形成后，**独立确定目标项目 `<project>`**，再按 `ContextReadPlanV1` 加载最小充分的项目配置（profile）。计划确定后的只读 Profile 与记忆查询可按并发策略执行。
+在 `IntentSeedV1` 形成后，**独立确定目标项目 `<project>`**，再按 `ContextReadPlanV2`（兼容读取 `ContextReadPlanV1`）加载最小充分的项目配置（profile）。计划确定后的只读 Profile 与记忆查询可按并发策略执行。
 
-必要来源形成 `ContextReadReceiptV1` 后，必须把 Profile 结果交给“项目现实扩展”步骤，作为最终意图路由、产物落点和验证方式的输入。
+必要来源形成 `ContextReadReceiptV2`（V1 兼容）后，必须把 Profile 结果交给“项目现实扩展”步骤，作为最终意图路由、产物落点和验证方式的输入。
 
 ## 如何确定 `<project>`
 
@@ -48,9 +48,10 @@ description: 项目 Profile 加载规范 — 先形成语义意图种子与唯�
 
 所有工作流的 Profile 获取都必须执行 `ProfileReadChainGate`；服务 / 框架规范复审、跨服务需求、workspace-namespace 或 Profile 同步任务还必须执行 `ServiceNormCoverageGate`：
 
-- 调用 `profile_context_plan`，以 canonical intent、changeTypes、risk、confidence 和明确 selector 生成 `ContextReadPlanV1`；计划必须列出 baseline / selected / excluded / unclassified、base/project fallback 和实际 active-root。
+- 调用 `profile_context_plan`，以 canonical intent、changeTypes、risk、confidence 和明确 selector 生成 `ContextReadPlanV2`（V1 reader 保留）；计划必须列出 baseline / selected / excluded / unclassified、base/project fallback 和实际 active-root。
 - `ProfilePlanNoHiddenFullReadProbe` 必须证明计划阶段只返回 README/index、effective non-local config 与顶层 metadata inventory，没有预读 `01~09-*`、`config.local.json` 或其他 selected 正文。
-- selected 正文通过 `profile_load({ project, files })` 定向读取；只有 contextEpoch / planId / activeRoot / source 精确关联且 `PostToolUse` 观察成功的 `ContextReadReceiptV1` 才能证明加载完成。
+- selected 正文通过 `profile_load({ project, files })` 定向读取；只有 contextEpoch / invocation `planId` / `planContentId` / activeRoot / source 精确关联且 `PostToolUse` 观察成功的 `ContextReadReceiptV2`（V1 兼容）才能证明加载完成。
+- `ContentIdentityReuseGate`：computation reuse 可跨进程复用有界解析/索引元数据，但仍须读取并返回当前任务需要的正文；delivery reuse 仅在同 host session、同 contextEpoch、同 planContentId、同 source identity 且当前模型的成功 body observation 可证时成立。cache hit 不能单独满足 receipt，旧 epoch receipt 只能作为 `reuseFrom`，不得改写成当前完成态。
 - **硬预算（ABS-06 / PF-133）**：`profile_load` **禁止**无参默认真全量。省略 `files` 时必须 `explicitFull=true` + 非空 `fullReadReason`；否则返回 `PROFILE_LOAD_BUDGET` 错误与 inventory。定向 load 默认 `maxBytes=32768`（可调）；`explicitFull` 默认更高字节上限仍可能 `truncated`。不得把无参全量成功当作 Context Acquisition 完成证据。
 - 全量升级必须记录 `fullReadReason`，仅限用户/项目明确要求、audit/migration、低置信或必要来源缺失；`config.local.json` 还须用户/项目明确指定，不能因文件存在自动读取。
 - 覆盖 `.devcodex/<project>/profile` 读取链、`.devcodex/workspace/profile` 回退链和 sticky activeProject 生效边界；实质 identity / scope / action / risk / digest 漂移或 compact/resume 时重新规划。
@@ -97,6 +98,7 @@ DevCodex 自维护、Profile 生成/复审、workspace base 同步和发布事�
 Codex / 宿主内置 Memories、模型长期偏好、上一轮摘要或用户口头记忆只能作为导航提示，不能满足 DevCodex bootstrap、Profile 加载、Context Rehydration、CP 确认、报告结论或验证证据。
 
 - 新线程、resume、summary 恢复、compact 后继续、跨项目切换或用户提到“你应该记得”时，仍必须重新建立当前 active namespace 的计划并取得必要文件真相源回执；使用 bounded Profile plan、memory status/query（有限投影覆盖 Agent SUMMARY / daily tasks）与 handoff 指向的精确 report / review checklist / source，禁止固定全读 Profile、SUMMARY、今日/昨日 tasks。
+- 完整 `继续<任务名>任务` / `继续 <任务名>` 先通过 `TaskResolutionV1` exact 定位 active project，再为该项目形成 ContextReadPlan；resolver 只可读取有界 task metadata，不得为了识别项目预读 Profile 正文。定位失败、歧义、完成、stale CP 或 scale-blocked 时不得创建错误项目计划。
 - 若内置 Memories 与文件真相源冲突，以文件真相源为准；报告或 PC 块说明冲突和采用依据。
 - 若无法完成文件真相源读取，只能标记阻塞或降级，不能把 Memories / 模型回忆写成 `verified`、`loaded`、`passed` 或 CP / release 证据。
 - 当用户询问是否启用宿主 Memories 时，结论必须同时说明本门禁：开启也不降低文件读取门槛；无法保证该门禁时默认不建议作为正式 DevCodex 运行模式。
@@ -143,7 +145,7 @@ node scripts/validate-all-profiles.js --workspace <workspace-root>
 
 ## 标准文件（按需加载）
 
-下表是档位存在性契约，不是每轮默认正文读取集合；具体读取由 `ContextReadPlanV1` 决定。
+下表是档位存在性契约，不是每轮默认正文读取集合；具体读取由 `ContextReadPlanV2`（V1 兼容）决定。
 
 | 文件 | 说明 | 必须 |
 |------|------|:----:|

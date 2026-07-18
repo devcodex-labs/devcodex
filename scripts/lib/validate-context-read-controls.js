@@ -6,10 +6,16 @@ const { CONTEXT_READ_CONTRACT } = require('../../hooks/_runtime/context-read-con
 
 const EXPECTED_SCHEMAS = Object.freeze({
   intentSeed: 'IntentSeedV1',
-  plan: 'ContextReadPlanV1',
-  receipt: 'ContextReadReceiptV1',
+  plan: 'ContextReadPlanV2',
+  planV1: 'ContextReadPlanV1',
+  receipt: 'ContextReadReceiptV2',
+  receiptV1: 'ContextReadReceiptV1',
   error: 'ContextReadErrorV1',
-  state: 'ContextReadStateV1'
+  state: 'ContextReadStateV2',
+  stateV1: 'ContextReadStateV1',
+  identityInputs: 'ContextPlanIdentityInputsV1',
+  reuseDecision: 'ContextReuseDecisionV1',
+  stageTiming: 'StageTimingV1'
 })
 const REQUIRED_PROFILE_TOOLS = Object.freeze(['profile_context_plan', 'profile_load'])
 const REQUIRED_MEMORY_QUERY_TOOLS = Object.freeze(['memory_status', 'memory_session_query', 'memory_summary_query'])
@@ -172,13 +178,16 @@ function buildContextReadControlChecks(ctx) {
 
   function checkRuntimeSources() {
     const contractSource = checkFile('hooks/_runtime/context-read-contract.cjs', [
-      'IntentSeedV1', 'ContextReadPlanV1', 'ContextReadReceiptV1', 'ContextReadErrorV1',
-      'normalizeIntentSeed', 'buildContextReadPlan', 'createContextReadReceipt', 'deriveLegacyBootstrapProjection'
+      'IntentSeedV1', 'ContextReadPlanV2', 'ContextReadPlanV1', 'ContextReadReceiptV2', 'ContextReadReceiptV1',
+      'ContextPlanIdentityInputsV1', 'ContextReuseDecisionV1', 'StageTimingV1', 'ContextReadErrorV1',
+      'normalizeIntentSeed', 'buildContextReadPlan', 'createContextReadReceipt', 'evaluateContextReuse',
+      'deriveLegacyBootstrapProjection', 'bodyDeliverySkipped'
     ])
     const profileSource = checkFile('mcp/profile-server.js', [
       "name: 'profile_context_plan'", "name: 'profile_load'", 'collectProfilePlanInputs',
       "case 'profile_context_plan'", "case 'profile_load'", 'bounded-top-level-profile-inventory',
-      'CONTEXT_READ_CONTRACT', 'handleProfileContextPlan'
+      'CONTEXT_READ_CONTRACT', 'handleProfileContextPlan', 'ContextPlanComputationCacheV1',
+      'CONTEXT_CACHE_MAX_BYTES', 'applyContextPlanComputationCache'
     ])
     const memorySource = checkFile('mcp/memory-server.js', [
       "name: 'memory_status'", "name: 'memory_session_query'", "name: 'memory_summary_query'",
@@ -187,13 +196,18 @@ function buildContextReadControlChecks(ctx) {
     ])
     const bootstrapSource = checkFile('hooks/_runtime/lifecycle-bootstrap-state.cjs', [
       'classifyContextAcquisitionTool', 'recordContextPreToolUse', 'recordContextPostToolUse',
-      'structured-plan', 'path-observable', 'instruction-only', 'syncContextProjection'
+      'structured-plan', 'path-observable', 'instruction-only', 'syncContextProjection',
+      'evaluateContextReuse', 'contentIdentity', 'bodyObserved', 'hostSessionId'
     ])
     checkFile('hooks/_runtime/lifecycle.cjs', [
       'beginContextAcquisition', 'recordContextPreToolUse', 'recordContextPostToolUse',
       'getContextAcquisitionDecision', 'markContextAcquisitionStale'
     ])
-    checkFile('scripts/test-context-read-contract.js', ['mandatoryMisses', 'falseComplete=0', 'siblingPlan.observations = []'])
+    checkFile('scripts/test-context-read-contract.js', [
+      'mandatoryMisses', 'falseComplete=0', 'siblingPlan.observations = []',
+      'equivalent plan content must be stable across independent processes', 'context-epoch-mismatch',
+      'source-identity-mismatch'
+    ])
     checkFile('scripts/test-mcp-servers.js', [
       'testProfileContextPlanReadTrace', 'plan hidden-read detected', 'legacy full-read compatibility trace lost',
       'all new memory projection tools must be zero-write'
@@ -259,7 +273,10 @@ function buildContextReadControlChecks(ctx) {
     for (const owner of ['ai-agent-system-architecture', 'load-profile', 'memory', 'host-contract-verification']) {
       if (!group.ownerSkills.includes(owner)) err(`[V99] context-acquisition owner missing: ${owner}`)
     }
-    for (const evidence of ['IntentSeedV1', 'ContextReadPlanV1', 'ContextReadReceiptV1', 'ProfilePlanNoHiddenFullReadProbe']) {
+    for (const evidence of [
+      'IntentSeedV1', 'ContextReadPlanV2', 'ContextReadReceiptV2', 'ContextReadPlanV1', 'ContextReadReceiptV1',
+      'ContentIdentityV1', 'ContextReuseDecisionV1', 'StageTimingV1', 'ProfilePlanNoHiddenFullReadProbe'
+    ]) {
       if (!group.requiredEvidence.includes(evidence)) err(`[V99] context-acquisition evidence missing: ${evidence}`)
     }
     for (const route of ['V99', 'test-context-read', 'test-mcp-servers', 'test-hooks-runtime', 'V8', 'V92']) {

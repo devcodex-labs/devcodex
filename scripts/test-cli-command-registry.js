@@ -7,7 +7,7 @@ const { createCliCommandRegistry, runCliCommand } = require('./lib/cli-command-r
 const calls = []
 const handlers = Object.fromEntries([
   'cmdInit', 'cmdInitClaude', 'cmdInitCodex', 'cmdStatus',
-  'cmdProfileInit', 'cmdDoctor', 'cmdProbe', 'cmdTrace', 'cmdHelp'
+  'cmdProfileInit', 'cmdDoctor', 'cmdProbe', 'cmdTrace', 'cmdTask', 'cmdHelp'
 ].map(name => [name, argv => calls.push([name, argv])]))
 const registry = createCliCommandRegistry(handlers)
 const fakeProcess = { exitCode: 0 }
@@ -33,6 +33,8 @@ assert.strictEqual(runCliCommand({ cmd: 'probe', argv: ['profile', '--json'], re
 assert.deepStrictEqual(calls.pop(), ['cmdProbe', ['profile', '--json']])
 assert.strictEqual(runCliCommand({ cmd: 'trace', argv: ['show', '--json'], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger }), 'trace')
 assert.deepStrictEqual(calls.pop(), ['cmdTrace', ['show', '--json']])
+assert.strictEqual(runCliCommand({ cmd: 'task', argv: ['resolve', 'current', '--json'], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger }), 'task')
+assert.deepStrictEqual(calls.pop(), ['cmdTask', ['resolve', 'current', '--json']])
 assert.strictEqual(runCliCommand({ cmd: 'unknown', argv: [], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger }), 'help')
 assert.deepStrictEqual(calls.pop(), ['cmdHelp', undefined])
 assert.strictEqual(runCliCommand({ cmd: 'init', argv: ['--claude', '--codex'], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger }), 'invalid-adapter-target')

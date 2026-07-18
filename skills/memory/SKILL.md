@@ -43,10 +43,12 @@ description: 管理会话记忆的读取与写入。三层记忆体系：Agent �
 
 ### MemoryContextQueryGate
 
-记忆读取必须绑定当前 `ContextReadPlanV1`，先取结构化状态，再按 continuity 精确查询；“必须复证文件真相”不得实现成固定全文读取。
+记忆读取必须绑定当前 `ContextReadPlanV2`（兼容 `ContextReadPlanV1`），先取带 `ContentIdentityV1` 的结构化状态，再按 continuity 精确查询；“必须复证文件真相”不得实现成固定全文读取。
 
 | 场景 | 读取范围 | 执行顺序 |
 |------|---------|---------|
+| **命名续接 · 首步** | 完整消息为 `继续<任务名>任务` / `继续 <任务名>` 时调用 `memory_task_resolve(name, project?)`；只取 identity/session/CP metadata 与结构化结果 | 先于通用 resume 查询 |
+| 命名续接 · 唯一 active | 定向读取该任务 `.memory/task.json`、`.memory/sessions.md`、当前绑定 artifact/checkpoint；执行 SemanticContinuationDiff | resolver 只定位，不替代复水化 |
 | **正常会话 · 首步** | `memory_status(limit <= 5)`，只返回今日/昨日 metadata、有限 SUMMARY 行、active 状态与冲突 | 第一读 |
 | 正常会话 · 连续性相关 | `memory_summary_query(status: active/unresolved, limit <= 5)` | status 证明需要时再读 |
 | **intent = resume · 首步** | `memory_status(limit <= 5)` | 第一读 |
@@ -69,9 +71,9 @@ description: 管理会话记忆的读取与写入。三层记忆体系：Agent �
 - 报告或最终回复若引用 Memories 辅助判断，必须标记为 `navigation-hint`，并列出完成真实读取的文件证据；无法读取时写阻塞 / 降级，不写通过。
 
 > ⛔ 禁止默认读取完整 SUMMARY、完整 daily tasks 或昨日以前正文；精确 resume 查询与用户明确要求除外。
-> ⚠️ 旧 `memory_session_read` / `memory_summary_read` 仅作兼容；no-args 全文读取不是生产默认路径，也不能单独把 `ContextReadReceiptV1.status` 推进到 `relevant-complete/completed`。
+> ⚠️ 旧 `memory_session_read` / `memory_summary_read` 仅作兼容；no-args 全文读取不是生产默认路径，也不能单独把 `ContextReadReceiptV2`（或兼容的 `ContextReadReceiptV1`）推进到 `relevant-complete/completed`。记忆 projection 的 telemetry 不进入内容身份，cache hit 也不等于当前模型已观察正文。
 > ⛔ **禁止静默回退**：resume 意图检测到当前项目无 🔄 任务时，禁止静默选取历史旧任务继续；必须明确告知用户当前状态并询问意图。
-> ⚠️ **跨项目 resume**：记忆文件是项目级独立管理的。当用户在不同项目间切换后说"继续"，AI 只能读取当前项目的记忆；若当前项目无 🔄，须主动询问是否需要恢复其他项目的工作，而非猜测。
+> ⚠️ **跨项目 resume**：无任务名的普通“继续/恢复”仍只使用当前项目的有界记忆，当前项目无 🔄 时须询问；完整 `继续<任务名>任务` 可通过 workspace 派生索引做有界 exact 定位，但同名、规模超限或非 active 状态必须停止消歧，不能猜测。
 
 ## 写入规则
 
@@ -168,7 +170,7 @@ description: 管理会话记忆的读取与写入。三层记忆体系：Agent �
 
 ### NewSessionContinuationCard（ABS-11 / PI-114）
 
-凡 AI **主动建议**或因 C08 / 规模门禁**要求切换新会话**，必须在**同一最终回复**交付用户可复制的 `NewSessionContinuationCard`，字段至少：`targetProject`、`task`、`phaseAndConfirmationState`（CP pending 不得写成已确认）、`sourceOfTruth`、`confirmedDecisions`、`mustNotOverwrite`、`validationState`、`nextAction`、`copyReadyPrompt`。内部 handoff **不能**替代该用户可见入口。接收方仍须重建 ContextReadPlan，禁止默认全读 Profile/SUMMARY。
+凡 AI **主动建议**或因 C08 / 规模门禁**要求切换新会话**，必须在**同一最终回复**交付用户可复制的 `NewSessionContinuationCard`，字段至少：`targetProject`、稳定 `taskId`（已有时）、`task`、`phaseAndConfirmationState`（CP pending 不得写成已确认）、`sourceOfTruth`、`confirmedDecisions`、`mustNotOverwrite`、`validationState`、`nextAction`、`copyReadyPrompt`。面向用户的 `copyReadyPrompt` 固定收敛为 `继续<displayName>任务`；长 Card 留在内部/报告作降级证据。接收方仍须用 resolver 定位并重建 ContextReadPlan，禁止默认全读 Profile/SUMMARY。
 
 ### SessionTimingCard（ABS-18 / PI-117）
 

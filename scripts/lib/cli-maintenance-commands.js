@@ -544,6 +544,7 @@ function buildCliMaintenanceCommands(ctx) {
       ${c.cyan('doctor')}            Diagnose host/agent/mode; add --json for DoctorDiagnosticV1
       ${c.cyan('probe')}             Run bounded local-only diagnostics; accepts IDs and --json
       ${c.cyan('trace show|replay')} Read/validate the current LocalTaskTrace; never executes payloads
+      ${c.cyan('task resolve')}      Resolve an active task by exact name, alias, project, or stable taskId
 
     ${c.bold('Options:')}
       ${c.dim('--force,  -f')}       Overwrite existing files
@@ -553,7 +554,7 @@ function buildCliMaintenanceCommands(ctx) {
       ${c.dim('--prod')}             (profile init only) Set mode=prod instead of dev
       ${c.dim('--tier <tier>')}      (profile init only) profile-lite | profile-standard | profile-closed-loop
       ${c.dim('--allow-downgrade')}  (profile init only) Explicitly allow a lower tier; files are retained
-      ${c.dim('--json')}             (status/doctor) Emit one DevCodexCliEnvelopeV1 JSON document
+      ${c.dim('--json')}             Emit one DevCodexCliEnvelopeV1 document for supported commands
 
     ${c.bold('Examples:')}
       devcodex init                 # First-time three-host install
@@ -566,6 +567,7 @@ function buildCliMaintenanceCommands(ctx) {
       devcodex update --claude      # Refresh Claude Code adapter only
       devcodex update --codex       # Refresh Codex adapter only
       devcodex status               # Check installation
+      devcodex task resolve "my task" --json # Resolve without loading unrelated task bodies
   `)
   }
 

@@ -5,7 +5,7 @@
   "generatedFrom": {
     "skillsPattern": "skills/*/SKILL.md",
     "registry": "plugin.json",
-    "sourceDigest": "be3d8c036eb197f84b1b30f40b0d79e98dc33a2c2339bbc9e02683052c9dfc50",
+    "sourceDigest": "c119be8c88145b2283c1f2c32ad131788da249aae211960b01a686fdb4a5edd0",
     "pluginDigest": "cc57240623affa2447299cbde653711235554e77d38fb1298d02fd75124148c4",
     "portfolioEvidence": "skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "a2288b9763bc79ea32f4fd47cd4f2ea31501427dc2e9d6871d75064bd281687b"
@@ -22,7 +22,7 @@
     "conflictReviewedCount": 78,
     "operationalEvidenceCompleteCount": 78,
     "triggerPrecisionMeasuredCount": 0,
-    "instructionBudgetP95Bytes": 19968,
+    "instructionBudgetP95Bytes": 20438,
     "triggerQuality": "structural-only"
   },
   "dependencyGraph": {
@@ -630,7 +630,7 @@
         "skills/ai-agent-system-architecture/SKILL.md"
       ],
       "source": "skills/ai-agent-system-architecture/SKILL.md",
-      "hash": "8a887524ae3b372471ef2dde77003f43cc5472e4517286cd23fc5ed3fb638df6",
+      "hash": "91d6c543f67c28c2bb544378490fd30a423aaf0d4a6bda88a1fac191bb7fb0ac",
       "version": "1.15.1",
       "lifecycleState": "active",
       "dependencies": [],
@@ -1854,6 +1854,10 @@
         },
         {
           "path": "scripts/lib/test-spec-governance-expert.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/validate-closure-evidence-controls.js",
           "role": "current"
         },
         {
@@ -5448,7 +5452,7 @@
         "skills/cp-gate/SKILL.md"
       ],
       "source": "skills/cp-gate/SKILL.md",
-      "hash": "97189f3c6ac5f7c3e26cb445af6f008f797971a0ff733d26d1d103e64ac3fd56",
+      "hash": "cfc5f94fe0506650fefabc954459dc14cad46069619a407c4026f0ce178cc2f4",
       "version": "1.15.1",
       "lifecycleState": "active",
       "dependencies": [],
@@ -5556,6 +5560,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/validate-closure-evidence-controls.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/validate-governance-control.js",
           "role": "current"
         },
@@ -5577,6 +5585,10 @@
         },
         {
           "path": "scripts/lib/validate-governance-support.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-closure-evidence-controls.js",
           "role": "current"
         },
         {
@@ -5649,6 +5661,7 @@
         }
       ],
       "validationProfile": [
+        "scripts/test-closure-evidence-controls.js",
         "scripts/test-hooks-runtime.js",
         "scripts/test-skill-portfolio.js",
         "scripts/test-workflow-capabilities.js",
@@ -5699,6 +5712,7 @@
         ],
         "evolvableUnitRef": "skill:cp-gate",
         "probeSuiteRefs": [
+          "scripts/test-closure-evidence-controls.js",
           "scripts/test-hooks-runtime.js",
           "scripts/test-skill-portfolio.js",
           "scripts/test-workflow-capabilities.js",
@@ -7244,6 +7258,10 @@
         },
         {
           "path": "scripts/lib/validate-brand-visual-quality.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/validate-closure-evidence-controls.js",
           "role": "current"
         },
         {
@@ -10031,7 +10049,7 @@
         "skills/host-contract-verification/SKILL.md"
       ],
       "source": "skills/host-contract-verification/SKILL.md",
-      "hash": "6725edbc2493beee3b791278e0b6181da3b81ebbdb2a38cb7efe82a46eb2df90",
+      "hash": "b59ea88a9fb2cd51dff3b2274ebac8daf363c287ef6b2767f15c5a1cf9eed061",
       "version": "1.15.1",
       "lifecycleState": "active",
       "dependencies": [],
@@ -10578,7 +10596,7 @@
         "skills/intent/SKILL.md"
       ],
       "source": "skills/intent/SKILL.md",
-      "hash": "5f848fc2285fddb3a9f9aa4d8368f9bb5c7306f23274662a267a4f8848fa43e9",
+      "hash": "acd66722cb22727762be4e7e0bb349b2e5a60881fc5edf833e6fd1850a18b7f2",
       "version": "1.15.1",
       "lifecycleState": "active",
       "dependencies": [],
@@ -11007,7 +11025,7 @@
         "skills/load-profile/SKILL.md"
       ],
       "source": "skills/load-profile/SKILL.md",
-      "hash": "898288314c65e16678a3c993d4d711aea144ea607087027e59ece0ac2c29959b",
+      "hash": "fc569026ec284b1543c7f8606d01394e462b9d0bda189824533b586d28fdea90",
       "version": "1.15.1",
       "lifecycleState": "active",
       "dependencies": [],
@@ -11314,7 +11332,7 @@
         "skills/memory/SKILL.md"
       ],
       "source": "skills/memory/SKILL.md",
-      "hash": "7a0fb1f53fd1d39975add94ef01760a6d1a29d53447161d02885f71ecc87c9f2",
+      "hash": "398284229e75451e492bc12d75e291d85e7aaf15f69324581eb263cd134199f7",
       "version": "1.15.1",
       "lifecycleState": "active",
       "dependencies": [],
@@ -11448,6 +11466,10 @@
           "role": "current"
         },
         {
+          "path": "instructions/01c-intent-expansion.instructions.md",
+          "role": "current"
+        },
+        {
           "path": "instructions/02-output-paths.instructions.md",
           "role": "current"
         },
@@ -11548,6 +11570,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/cp-digest.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/requirement-artifact-check.js",
           "role": "current"
         },
@@ -11573,6 +11599,10 @@
         },
         {
           "path": "scripts/lib/test-spec-governance-expert.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/validate-closure-evidence-controls.js",
           "role": "current"
         },
         {
@@ -12448,6 +12478,10 @@
         },
         {
           "path": "scripts/lib/validate-brand-visual-quality.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/validate-closure-evidence-controls.js",
           "role": "current"
         },
         {
@@ -14381,7 +14415,7 @@
         "skills/report/SKILL.md"
       ],
       "source": "skills/report/SKILL.md",
-      "hash": "11eaede50c7adf1506021b3e5cd6295b102919485660b07a1a924069495e6147",
+      "hash": "a810a69882a336086bccf92de553a84493e9699dd7f60b2a6e9be48bce076c3f",
       "version": "1.15.1",
       "lifecycleState": "active",
       "dependencies": [],

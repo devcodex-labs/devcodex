@@ -22,7 +22,7 @@ applyTo: .devcodex/**/reports/optimizations/**
 > **Agent**: <agent-id>
 > **状态**: 进行中 / 已完成
 > **关联需求**: [路径]
-> **支撑产物**: ExecutionContract / TestRoute / ReleaseAudit / ReleaseVerification / ConceptSyncMap / HostContractVerification / CliDiagnosticContract / CheckpointValidation / LocalTaskTrace / TurnLivenessRecovery / 05-实施进度.md（按触发状态填写）
+> **支撑产物**: ExecutionContract / TestRoute / ReleaseAudit / ReleaseVerification / ConceptSyncMap / HostContractVerification / TaskResolutionV1 / CliDiagnosticContract / CheckpointValidation / LocalTaskTrace / TurnLivenessRecovery / 05-实施进度.md（按触发状态填写）
 ```
 
 ## §1 执行摘要
@@ -78,6 +78,8 @@ applyTo: .devcodex/**/reports/optimizations/**
 | | passed / failed / partial / N/A | | | |
 
 跨会话、多批次、中断或残余风险未关闭时追加 `ContextHandoffCard`；Profile、release、service lifecycle 等条件段按 schema 与 Owner Skill 生成。
+
+命中任务名续接或主动建议新会话时记录 taskId/displayName、resolver 状态、sessions/当前 artifact digest 复证与 `copyReadyPrompt=继续<displayName>任务`；不得把 index/Hook 命中写成 CP 或正文已恢复。
 
 ## §6.5 ECR 执行闭环复审
 

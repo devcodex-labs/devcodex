@@ -24,7 +24,7 @@ applyTo: .devcodex/**/reports/requirements/**
 > **关联方案**: [路径]
 > **Release 状态**: 未进入 / 待用户确认 / 已执行
 > **日志落点**: `changelogs/unreleased.md` / `CHANGELOG.md + changelogs/releases/vX.Y.Z.md`
-> **支撑产物**: ExecutionContract / TestRoute / ReleaseAudit / ReleaseVerification / ConceptSyncMap / HostContractVerification / ContextAcquisition / CliDiagnosticContract / CheckpointValidation / LocalTaskTrace / TurnLivenessRecovery / 05-实施进度.md（按触发状态填写）
+> **支撑产物**: ExecutionContract / TestRoute / ReleaseAudit / ReleaseVerification / ConceptSyncMap / HostContractVerification / TaskResolutionV1 / ContextAcquisition / CliDiagnosticContract / CheckpointValidation / LocalTaskTrace / TurnLivenessRecovery / 05-实施进度.md（按触发状态填写）
 > **ContextHandoffCard**: 触发时填写；未触发写 N/A + skipReason
 ```
 
@@ -71,6 +71,8 @@ applyTo: .devcodex/**/reports/requirements/**
 | | passed / failed / partial / N/A | | | |
 
 跨会话、多批次、中断或残余风险未关闭时追加 `ContextHandoffCard`；Profile、release、service lifecycle 等条件段按 schema 与 Owner Skill 生成。
+
+命中任务名续接或主动建议新会话时记录 taskId/displayName、resolver 状态、sessions/当前 artifact digest 复证与 `copyReadyPrompt=继续<displayName>任务`；不得把 index/Hook 命中写成 CP 或正文已恢复。
 
 命中品牌资产生产时追加 `BrandVisualQuality` 条件段：只记录五类产物链接、自动检查、人工结论、blocker reset 与剩余风险，不把文件存在或单张截图写成通过。
 

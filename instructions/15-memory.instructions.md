@@ -49,10 +49,12 @@ version: 1.15.1
 
 ### MemoryContextQueryGate
 
-记忆读取必须进入当前 `ContextReadPlanV1`，并通过 `MemoryContextQueryGate` 执行有界查询；“文件是真相源”不等于“先读完整文件”。
+记忆读取必须进入当前 `ContextReadPlanV2`（兼容 `ContextReadPlanV1`），并通过 `MemoryContextQueryGate` 执行有界查询；“文件是真相源”不等于“先读完整文件”。
 
 | 场景 | 读取范围 | 执行顺序 |
 |------|---------|---------|
+| **命名续接 · 首步** | 完整消息为 `继续<任务名>任务` / `继续 <任务名>` 时调用 `memory_task_resolve(name, project?)`；只返回有界 identity/session/CP metadata | 先于通用 resume 查询 |
+| 命名续接 · 唯一 active | 定向读取该任务 `task.json`、`sessions.md`、当前绑定 artifact/checkpoint | resolver 只定位，不替代复水化 |
 | **正常会话 · 首步** | `memory_status(limit <= 5)`：今日/昨日 metadata、有限 SUMMARY 行、active 状态与冲突；不返回整文件正文 | 第一读 |
 | 正常会话 · 连续性相关 | `memory_summary_query(status: active/unresolved, limit <= 5)` | status 证明需要时再读 |
 | **intent = resume · 首步** | `memory_status(limit <= 5)` | 第一读 |
@@ -64,8 +66,12 @@ version: 1.15.1
 
 > ⛔ 禁止默认读取完整 SUMMARY、完整 daily tasks 或昨日以前正文（精确 resume 查询和用户明确要求除外）。
 > ⛔ **禁止静默回退**：resume 意图检测到当前项目无 🔄 任务时，禁止静默选取历史旧任务继续执行；必须明确告知用户当前状态并询问意图。
-> ⚠️ **跨项目 resume**：记忆文件是项目级独立管理的。当用户在不同项目间切换后说"继续"，AI 只能读取当前项目的记忆；若当前项目无 🔄，须主动询问是否需要恢复其他项目的工作，而非猜测。
-> ⚠️ 旧 `memory_session_read` / `memory_summary_read` 保持兼容，但 no-args 全文结果不是生产默认路径，也不能单独把 `ContextReadReceiptV1.status` 推进到 `relevant-complete/completed`。
+> ⚠️ **跨项目 resume**：无任务名的普通“继续/恢复”仍只读取当前项目的有界记忆；完整 `继续<任务名>任务` 可通过 workspace 派生索引有界 exact 定位。ambiguous、scale-blocked、completed/rejected 或 stale-confirmation 必须停止并给出最小下一步，禁止猜测或自动重开。
+
+### TaskIdentity / TaskResolution 真相边界
+
+新任务在授权创建任务目录时同步创建 `<task-root>/.memory/task.json`（`TaskIdentityV1`：稳定 UUID `taskId`、`displayName`、去重 `aliases`、`createdAt`、递增 `identityRevision`）。`project/kind/path` 从安全目录派生，status/CP 继续只由 sessions 与绑定 artifact digest 决定。legacy 任务可只读唯一解析，但查询不得主动物化 identity；派生 index 损坏、锁竞争或写预算达限时走 bounded rebuild/bypass，不得覆盖 canonical task/session。
+结构化记忆投影必须携带可验证的 `ContentIdentityV1`；telemetry、wall clock 和调用身份不进入内容 digest。旧 `memory_session_read` / `memory_summary_read` 保持兼容，但 no-args 全文结果不是生产默认路径，也不能单独把 `ContextReadReceiptV2`（或兼容的 `ContextReadReceiptV1`）推进到 `relevant-complete/completed`。
 
 ## Context Rehydration Contract（记忆侧）
 

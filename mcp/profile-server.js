@@ -27,8 +27,11 @@ const {
   CONTEXT_READ_CONTRACT,
   buildContextReadError,
   buildContextReadPlan,
-  normalizeIntentSeed
+  normalizeIntentSeed,
+  validateContextReadPlan
 } = require('../hooks/_runtime/context-read-contract.cjs')
+const { buildJsonContentIdentity } = require('../hooks/_runtime/content-identity.cjs')
+const { createDerivedStateStore } = require('../hooks/_runtime/derived-state-store.cjs')
 const {
   findLayoutInfo,
   inferProjectFromCwd,
@@ -61,7 +64,7 @@ const DEFAULT_AGENT = detectRuntimeAgent()
 const TOOLS = [
   {
     name: 'profile_context_plan',
-    description: '按 canonical intent 与 changeTypes 生成 ContextReadPlanV1。计划无损返回 README/index 与 effective non-local config；其余 Profile 文件仅收集顶层 metadata，不预读正文。',
+    description: '按 canonical intent 与 changeTypes 生成 ContextReadPlanV2。稳定 planContentId 与单次 planId 分离；计划无损返回 README/index 与 effective non-local config，其余 Profile 文件仅收集顶层 metadata，不预读正文。',
     inputSchema: {
       type: 'object',
       required: ['intent'],
@@ -363,6 +366,8 @@ const CONTEXT_PLAN_ARG_FIELDS = new Set([
   'configLocalRequested', 'crossService'
 ])
 const CONTEXT_PLAN_EPOCHS = new Map()
+const CONTEXT_CACHE_MAX_BYTES = 32 * 1024 * 1024
+const CONTEXT_CACHE_MAX_ENTRIES = 4096
 
 function resolveProfilePlanTarget(projectName) {
   if (LAYOUT.enabled) {
@@ -546,6 +551,134 @@ function getContextPlanEpoch(requestedEpoch) {
   return { contextEpoch, createdAt: CONTEXT_PLAN_EPOCHS.get(contextEpoch) }
 }
 
+function contextPlanStableProjection(plan) {
+  const projection = {}
+  for (const [key, value] of Object.entries(plan)) {
+    if (['planId', 'identity', 'planningTelemetry', 'stageTiming', 'cacheDecision'].includes(key)) continue
+    projection[key] = value
+  }
+  return projection
+}
+
+function contextCacheUsage(activeRoot) {
+  const cacheDir = path.join(activeRoot, '.runtime-state', 'context-plan-cache')
+  let entries
+  try { entries = fs.readdirSync(cacheDir, { withFileTypes: true }) } catch (error) {
+    if (error?.code === 'ENOENT') return { cacheDir, entries: 0, bytes: 0, exceeded: false }
+    return { cacheDir, entries: 0, bytes: 0, exceeded: false, error }
+  }
+  if (entries.length > CONTEXT_CACHE_MAX_ENTRIES) {
+    return { cacheDir, entries: entries.length, bytes: null, exceeded: true, reasonCode: 'entry-bound-exceeded' }
+  }
+  let bytes = 0
+  let files = 0
+  for (const entry of entries) {
+    if (!entry.isFile()) continue
+    try {
+      bytes += fs.statSync(path.join(cacheDir, entry.name)).size
+      files += 1
+    } catch { }
+    if (bytes > CONTEXT_CACHE_MAX_BYTES) {
+      return { cacheDir, entries: files, bytes, exceeded: true, reasonCode: 'metadata-budget-exceeded' }
+    }
+  }
+  return { cacheDir, entries: files, bytes, exceeded: false }
+}
+
+function finalizeContextPlanResponseBytes(plan) {
+  let observed = Number(plan.stageTiming?.plannerResponseBytes) || 0
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    plan.stageTiming.plannerResponseBytes = observed
+    const next = Buffer.byteLength(JSON.stringify(plan, null, 2), 'utf8')
+    if (next === observed) break
+    observed = next
+  }
+  plan.stageTiming.plannerResponseBytes = Buffer.byteLength(JSON.stringify(plan, null, 2), 'utf8')
+  return plan
+}
+
+function applyContextPlanComputationCache(candidate, target) {
+  const lookupStarted = process.hrtime.bigint()
+  const usage = contextCacheUsage(target.activeRoot)
+  const baseDecision = {
+    schemaVersion: 'ContextComputationCacheDecisionV1',
+    cacheKey: candidate.planContentId,
+    scope: target.activeRoot.replace(/\\/g, '/'),
+    reusedArtifacts: [],
+    bodyDeliverySkipped: false,
+    bytes: usage.bytes,
+    maxBytes: CONTEXT_CACHE_MAX_BYTES
+  }
+  if (usage.error || usage.exceeded) {
+    candidate.cacheDecision = {
+      ...baseDecision,
+      status: usage.error ? 'error' : 'bypassed',
+      reasonCode: usage.error ? 'cache-inventory-error' : usage.reasonCode
+    }
+    candidate.stageTiming.cacheLookupMs = Number(process.hrtime.bigint() - lookupStarted) / 1e6
+    return finalizeContextPlanResponseBytes(candidate)
+  }
+
+  const sourceIdentity = buildJsonContentIdentity({
+    sourceKey: `context-plan://${target.activeRoot.replace(/\\/g, '/')}/${candidate.planContentId}`,
+    value: candidate.identityInputs,
+    contractVersion: candidate.schemaVersion
+  }).identity
+  const relativePath = path.join('.runtime-state', 'context-plan-cache', `${candidate.planContentId}.json`)
+  const store = createDerivedStateStore({
+    root: target.activeRoot,
+    relativePath,
+    maxBytes: CONTEXT_CACHE_MAX_BYTES,
+    lockWaitMs: 2000,
+    maxWrites: 1
+  })
+  const cached = store.read({ expectedIdentity: sourceIdentity })
+  if (cached.status === 'fresh' && cached.value?.schemaVersion === 'ContextPlanComputationCacheV1' &&
+      cached.value.planContentId === candidate.planContentId && cached.value.projection) {
+    const reused = {
+      ...candidate,
+      ...cached.value.projection,
+      identity: candidate.identity,
+      planningTelemetry: candidate.planningTelemetry,
+      stageTiming: candidate.stageTiming,
+      cacheDecision: candidate.cacheDecision
+    }
+    const validation = validateContextReadPlan(reused)
+    if (validation.valid) {
+      reused.cacheDecision = {
+        ...baseDecision,
+        status: 'hit',
+        reasonCode: 'content-identity-match',
+        reusedArtifacts: ['plan-content-projection'],
+        bytes: cached.bytes
+      }
+      reused.stageTiming.cacheLookupMs = Number(process.hrtime.bigint() - lookupStarted) / 1e6
+      return finalizeContextPlanResponseBytes(reused)
+    }
+  }
+
+  const serializedEntry = {
+    schemaVersion: 'ContextPlanComputationCacheV1',
+    sourceIdentity,
+    planContentId: candidate.planContentId,
+    projection: contextPlanStableProjection(candidate)
+  }
+  const prospectiveBytes = Buffer.byteLength(JSON.stringify(serializedEntry, null, 2) + '\n', 'utf8')
+  const capacityAvailable = Number(usage.bytes || 0) + prospectiveBytes <= CONTEXT_CACHE_MAX_BYTES
+  const write = capacityAvailable ? store.write(serializedEntry) : { status: 'bypassed', errorCode: 'DERIVED_STATE_CAPACITY_EXCEEDED' }
+  const corrupted = ['invalid', 'stale'].includes(cached.status)
+  candidate.cacheDecision = {
+    ...baseDecision,
+    status: corrupted ? 'error' : (write.status === 'persisted' ? 'miss' : 'bypassed'),
+    reasonCode: corrupted
+      ? 'cache-entry-invalid'
+      : (write.status === 'persisted' ? 'cache-entry-missing' : String(write.errorCode || 'cache-write-bypassed').toLowerCase()),
+    bytes: write.bytes ?? usage.bytes
+  }
+  candidate.stageTiming.cacheLookupMs = Number(process.hrtime.bigint() - lookupStarted) / 1e6
+  return finalizeContextPlanResponseBytes(candidate)
+}
+
 function resolveDefaultProfileFiles(projectName) {
   const tierCorpus = ['README.md', '01-项目信息.md', '06-功能清单.md', '07-用户文档与契约规范.md']
     .map(name => resolveProfileFile(name, projectName)?.content || '')
@@ -663,7 +796,7 @@ function handleProfileContextPlan(args = {}) {
   try {
     const inputs = collectProfilePlanInputs(target)
     const latencyMs = Number(process.hrtime.bigint() - startedAt) / 1e6
-    return contextPlanResult(buildContextReadPlan({
+    const candidate = buildContextReadPlan({
       intentSeed: { ...seed, targetHint: target.project },
       identity: {
         activeRoot: target.activeRoot,
@@ -679,8 +812,11 @@ function handleProfileContextPlan(args = {}) {
       fullReadReason: args.fullReadReason,
       configLocalRequested: args.configLocalRequested === true,
       crossService: args.crossService === true,
-      planningTelemetry: { latencyMs }
-    }))
+      planningTelemetry: { latencyMs },
+      stageTiming: { latencyMs, sourceReadMs: latencyMs }
+    })
+    if (candidate.schemaVersion === CONTEXT_READ_CONTRACT.schemas.error) return contextPlanResult(candidate)
+    return contextPlanResult(applyContextPlanComputationCache(candidate, target))
   } catch (error) {
     return contextPlanResult(buildContextReadError(
       'CONTEXT_PLAN_INVALID',

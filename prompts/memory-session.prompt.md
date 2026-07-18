@@ -73,6 +73,18 @@ applyTo: .devcodex/**/.memory/**
 | `must-not-overwrite` | [不得覆盖的用户变更/真相源] |
 | `validation-state` | [已执行、未执行、失败的证据] |
 | `artifact-links` | [需求/计划/进度/报告/清单路径] |
+
+### ▶ NewSessionContinuationCard（触发时）
+
+| 字段 | 内容 |
+|------|------|
+| `targetProject` | [项目命名空间] |
+| `taskId` | [已有稳定 UUID；legacy 写 N/A] |
+| `displayName` | [任务当前名称] |
+| `phaseAndConfirmationState` | [CP 与执行阶段] |
+| `sourceOfTruth` | [task.json / sessions / 当前产物] |
+| `nextAction` | [唯一下一动作] |
+| `copyReadyPrompt` | `继续<displayName>任务` |
 ```
 
 ## 格式选择

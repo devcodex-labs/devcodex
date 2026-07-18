@@ -1,5 +1,11 @@
 'use strict'
 
+const {
+  buildContentIdentity,
+  buildJsonContentIdentity,
+  validateContentIdentity
+} = require('./content-identity.cjs')
+
 function buildLifecycleBootstrapStateUtils(ctx) {
   const {
     fs,
@@ -24,6 +30,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     touchesPath,
     getToolInputStrings,
     getCommandText,
+    getPayloadSessionKey,
     getRecentBootstrapTaskStamps,
     isRecentBootstrapTaskPath,
     buildInterceptionOutput,
@@ -35,6 +42,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     normalizeTurnLivenessState,
     CONTEXT_READ_CONTRACT,
     createContextReadReceipt,
+    evaluateContextReuse,
     extractContextPlanBody,
     extractContextSourceEvidence,
     markContextReadReceiptStale,
@@ -166,7 +174,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     }
   }
 
-  /** Normalize new and legacy lifecycle state into one ContextReadStateV1 aggregate. */
+  /** Normalize new and legacy lifecycle state into one ContextReadStateV2 aggregate. */
   function normalizeContextAcquisition(state) {
     const raw = state?.contextAcquisition && typeof state.contextAcquisition === 'object'
       ? state.contextAcquisition
@@ -194,10 +202,14 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       hostCapability: ['structured-plan', 'path-observable', 'instruction-only'].includes(raw.hostCapability)
         ? raw.hostCapability
         : 'instruction-only',
+      hostSessionId: String(raw.hostSessionId || ''),
       verificationMode: normalized.receipt?.verificationMode ||
         (['structured-plan', 'path-observable', 'instruction-only'].includes(raw.verificationMode)
           ? raw.verificationMode
           : 'instruction-only'),
+      stageTiming: raw.stageTiming && raw.stageTiming.schemaVersion === CONTEXT_READ_CONTRACT.schemas.stageTiming
+        ? raw.stageTiming
+        : (normalized.plan?.stageTiming || null),
       targetResolved: raw.targetResolved === true,
       inFlight,
       postHistory,
@@ -211,6 +223,9 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       lastWarningKey: String(raw.lastWarningKey || ''),
       lastError: raw.lastError && typeof raw.lastError === 'object' ? raw.lastError : null,
       blockedReason: String(raw.blockedReason || ''),
+      lastReuseDecision: raw.lastReuseDecision && typeof raw.lastReuseDecision === 'object'
+        ? raw.lastReuseDecision
+        : null,
       handoff: raw.handoff && typeof raw.handoff === 'object' ? raw.handoff : null,
       legacyObserved,
       bootstrap: normalized.bootstrap
@@ -242,6 +257,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       ? {
           contextEpoch: previous.contextEpoch,
           planId: previous.plan?.planId || '',
+          planContentId: previous.plan?.planContentId || '',
           status: previous.receipt?.status || 'unverified',
           activeRoot: previous.activeRoot,
           project: previous.project
@@ -254,11 +270,13 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       project,
       targetResolved,
       hostCapability: hostCapabilityFor(platform, payload),
+      hostSessionId: String(getPayloadSessionKey(payload) || ''),
       verificationMode: hostCapabilityFor(platform, payload) === 'structured-plan'
         ? 'structured-plan'
         : hostCapabilityFor(platform, payload),
       plan: null,
       receipt: null,
+      stageTiming: null,
       planCallCount: 0,
       replanCount: 0,
       conditionalReplanCount: 0,
@@ -274,6 +292,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
         ? null
         : contextError('CONTEXT_ACTIVE_TARGET_MISMATCH', 'A unique active project is required before context planning.'),
       blockedReason: targetResolved ? '' : 'active-target-ambiguous',
+      lastReuseDecision: null,
       legacyObserved: { profileRead: false, summaryRead: false, tasksRead: false, bootstrapComplete: false },
       handoff
     }
@@ -290,6 +309,41 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     state.contextAcquisition = acquisition
     syncContextProjection(state)
     return state.contextAcquisition
+  }
+
+  /** Invalidate delivery evidence only after an observed successful mutation of a selected source. */
+  function markContextPostMutationStale(state, payload, platform) {
+    const acquisition = syncContextProjection(state)
+    if (!acquisition.plan || !acquisition.receipt || ['stale', 'blocked'].includes(acquisition.receipt.status)) return false
+    if (!normalizeContextToolOutcome(payload).success) return false
+    const rawTool = getToolName(payload).toLowerCase()
+    if (/memory_(?:session_write|summary_append|cp_confirm)|memory-(?:session-write|summary-append|cp-confirm)/.test(rawTool)) {
+      markContextAcquisitionStale(state, 'source-digest')
+      return true
+    }
+    const directMutation = /^(?:write|edit|apply[_-]?patch|create[_-]?file|str[_-]?replace(?:[_-].*)?|insert[_-]?code(?:[_-].*)?|rewrite[_-]?file)$/i.test(rawTool)
+    const shellMutation = /^(?:bash|powershell|shell[_-]?command|run[_-]?in[_-]?terminal)$/i.test(rawTool) &&
+      /(?:>{1,2}|\btee\b|\bSet-Content\b|\bOut-File\b|\b(?:cp|mv|rm|touch)\b)/i.test(getCommandText(payload))
+    if (!directMutation && !shellMutation) return false
+    const selectedPaths = acquisition.plan.selectedSources
+      .flatMap(source => source.sourceRefs || [])
+      .map(ref => String(ref.path || ''))
+      .filter(value => value && !/^[a-z]+:\/\//i.test(value))
+      .map(value => normalizePath(path.resolve(value)).toLowerCase())
+    if (!selectedPaths.length) return false
+    const mutatedPaths = [...new Set(extractToolPaths(payload) || [])]
+      .map(value => String(value || '').trim())
+      .filter(Boolean)
+      .map(value => normalizePath(path.isAbsolute(value) ? path.resolve(value) : path.resolve(CONTEXT_ROOT, value)).toLowerCase())
+    const memoryRoot = normalizePath(path.join(acquisition.activeRoot, '.memory')).toLowerCase()
+    const hasMemorySource = acquisition.plan.selectedSources.some(source => source.kind === 'memory')
+    const touchesSelected = mutatedPaths.some(target =>
+      selectedPaths.some(selected => selected === target || selected.startsWith(`${target}/`)) ||
+      (hasMemorySource && (target === memoryRoot || target.startsWith(`${memoryRoot}/`)))
+    )
+    if (!touchesSelected) return false
+    markContextAcquisitionStale(state, 'source-digest')
+    return true
   }
 
   function buildDefaultState(mode) {
@@ -347,9 +401,11 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       project: targetProject(state),
       targetResolved: !LAYOUT.enabled || !!state.activeProject,
       hostCapability: 'instruction-only',
+      hostSessionId: '',
       verificationMode: 'instruction-only',
       plan: null,
       receipt: null,
+      stageTiming: null,
       planCallCount: 0,
       replanCount: 0,
       conditionalReplanCount: 0,
@@ -359,6 +415,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       postHistory: [],
       planAttemptKeys: [],
       failedPlanKeys: [],
+      lastReuseDecision: null,
       legacyObserved: { profileRead: false, summaryRead: false, tasksRead: false, bootstrapComplete: false }
     }
     return state
@@ -434,6 +491,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       state.contextAcquisition.handoff = {
         contextEpoch: previousAcquisition.contextEpoch,
         planId: previousAcquisition.plan?.planId || '',
+        planContentId: previousAcquisition.plan?.planContentId || '',
         status: previousAcquisition.receipt?.status || 'unverified',
         activeRoot: previousAcquisition.activeRoot,
         project: previousAcquisition.project
@@ -751,7 +809,10 @@ function buildLifecycleBootstrapStateUtils(ctx) {
 
   function invalidateStructuredReceipt(acquisition, message) {
     if (acquisition.plan) {
-      acquisition.receipt = createContextReadReceipt(acquisition.plan, { verificationMode: 'instruction-only' })
+      acquisition.receipt = createContextReadReceipt(acquisition.plan, {
+        verificationMode: 'instruction-only',
+        hostSessionId: acquisition.hostSessionId
+      })
     }
     acquisition.verificationMode = acquisition.hostCapability === 'instruction-only'
       ? 'instruction-only'
@@ -895,6 +956,13 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       const layers = [...new Set(observedRefs.map(ref => ref.layer))]
       const valid = !!selected && matches.length === 1 && !duplicate && !extra && !missingMarker &&
         envelope.valid && refsMatch && !drift
+      const contentIdentity = envelope.valid
+        ? buildContentIdentity({
+            sourceKey: `profile://${acquisition.project}/${file}#delivered`,
+            content: envelope.content,
+            contractVersion: 'ProfileBodyV1'
+          })
+        : null
       return {
         observationId: `post-${attempt.attemptId}-${sourceId}`,
         toolCallId: attempt.toolCallId,
@@ -910,8 +978,12 @@ function buildLifecycleBootstrapStateUtils(ctx) {
         sourceRefsMatch: refsMatch && !duplicate && !extra,
         schemaMatch: true,
         targetMatch: true,
+        contentIdentity,
+        bodyObserved: valid,
+        hostSessionId: acquisition.hostSessionId,
         bytes: Buffer.byteLength(envelope.content, 'utf8'),
-        chars: envelope.content.length
+        chars: envelope.content.length,
+        hostDeliveredBytes: Buffer.byteLength(envelope.content, 'utf8')
       }
     })
     return { sourceResults, drift }
@@ -934,7 +1006,22 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     const queryMatch = attempt.tool === 'memory_status' || queryFields.every(field =>
       attempt.args[field] === undefined || stableDigest(query[field]) === stableDigest(attempt.args[field])
     )
-    const successful = outcome.transportSuccess && schemaMatch && targetMatch && queryMatch && !!selected
+    const identityProjection = body && typeof body === 'object'
+      ? Object.fromEntries(Object.entries(body).filter(([key]) => !['contentIdentity', 'telemetry'].includes(key)))
+      : null
+    const computedProjectionIdentity = identityProjection
+      ? buildJsonContentIdentity({
+          sourceKey: `memory://${acquisition.project}/${attempt.tool}#delivered`,
+          value: identityProjection,
+          contractVersion: expectedSchema
+        })
+      : null
+    const computedIdentity = computedProjectionIdentity?.identity || null
+    const suppliedIdentityValid = !body?.contentIdentity || (
+      validateContentIdentity(body.contentIdentity).valid &&
+      stableDigest(body.contentIdentity) === stableDigest(computedIdentity)
+    )
+    const successful = outcome.transportSuccess && schemaMatch && targetMatch && queryMatch && !!selected && suppliedIdentityValid
     return [{
       observationId: `post-${attempt.attemptId}-${sourceId}`,
       toolCallId: attempt.toolCallId,
@@ -948,8 +1035,14 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       observable: outcome.observable,
       transportSuccess: outcome.transportSuccess,
       sourceRefsMatch: !!selected && queryMatch,
-      schemaMatch,
-      targetMatch
+      schemaMatch: schemaMatch && suppliedIdentityValid,
+      targetMatch,
+      contentIdentity: computedIdentity,
+      bodyObserved: successful,
+      hostSessionId: acquisition.hostSessionId,
+      bytes: computedIdentity?.bytes ?? null,
+      chars: computedProjectionIdentity?.canonicalJson.length ?? null,
+      hostDeliveredBytes: outcome.telemetry.bytes
     }]
   }
 
@@ -964,6 +1057,15 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     const evidence = extracted.evidence.length ? extracted.evidence : sourceResults
     for (const item of evidence) {
       acquisition.receipt = recordContextReadOutcome(acquisition.receipt, acquisition.plan, item)
+    }
+    if (acquisition.stageTiming?.schemaVersion === CONTEXT_READ_CONTRACT.schemas.stageTiming) {
+      const successful = evidence.filter(item => item.successful === true && item.bodyObserved === true)
+      const sum = field => successful.reduce((total, item) => total + (Number.isFinite(item[field]) ? item[field] : 0), 0)
+      acquisition.stageTiming = {
+        ...acquisition.stageTiming,
+        returnedBodyBytes: Number(acquisition.stageTiming.returnedBodyBytes || 0) + sum('bytes'),
+        hostDeliveredBytes: Number(acquisition.stageTiming.hostDeliveredBytes || 0) + sum('hostDeliveredBytes')
+      }
     }
   }
 
@@ -991,7 +1093,9 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       acquisition.lastError = validation.error
       return false
     }
-    if (acquisition.plan && acquisition.plan.planId !== plan.planId) {
+    const priorPlan = acquisition.plan
+    const priorReceipt = acquisition.receipt
+    if (priorPlan && priorPlan.planId !== plan.planId) {
       const conditional = Array.isArray(attempt.args.profileSelectors) && attempt.args.profileSelectors.length > 0 &&
         !!attempt.args.baselineDigest && acquisition.conditionalReplanCount < 1
       const driftReplan = ['stale', 'blocked'].includes(acquisition.receipt?.status)
@@ -1002,10 +1106,22 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       if (conditional) acquisition.conditionalReplanCount += 1
     }
     const priorReplanCount = acquisition.replanCount
+    const reuseDecision = evaluateContextReuse({
+      plan,
+      priorPlan,
+      priorReceipt,
+      hostSessionId: acquisition.hostSessionId,
+      sourceIdentities: []
+    })
     let receipt = createContextReadReceipt(plan, {
       verificationMode: 'structured-plan',
       planObserved: true,
-      toolCallId: attempt.toolCallId
+      toolCallId: attempt.toolCallId,
+      hostSessionId: acquisition.hostSessionId,
+      priorPlan,
+      priorReceipt,
+      sourceIdentities: [],
+      reuseDecision
     })
     receipt.replanCount = priorReplanCount
     if (plan.exitCondition === 'blocked') {
@@ -1022,6 +1138,11 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     }
     acquisition.plan = plan
     acquisition.receipt = receipt
+    acquisition.stageTiming = {
+      ...plan.stageTiming,
+      hostDeliveredBytes: extracted.outcome?.telemetry?.bytes ?? null
+    }
+    acquisition.lastReuseDecision = reuseDecision
     acquisition.verificationMode = 'structured-plan'
     acquisition.fallbackActive = false
     acquisition.lastError = null
@@ -1122,7 +1243,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       : `contextEpoch=${acquisition.contextEpoch} is unbound; resolve one active project before requesting a Profile plan.`
     return [
       'DevCodex intent-driven context acquisition is active for this user message.',
-      'Classify the canonical intent first, then obtain ContextReadPlanV1 and load only its selected Profile files and bounded memory queries.',
+      'Classify the canonical intent first, then obtain ContextReadPlanV2 and load only its selected Profile files and bounded memory queries.',
       'Resolve the active target against legacy .devcodex/profile/ or workspace-namespace base + project overlay roots before reading.',
       targetHandoff,
       'A full Profile/SUMMARY/tasks read is a legacy or explicit escalation path, not the normal bootstrap default.',
@@ -1185,6 +1306,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     resetState,
     beginContextAcquisition,
     markContextAcquisitionStale,
+    markContextPostMutationStale,
     recordContextPreToolUse,
     recordContextPostToolUse,
     getContextAcquisitionDecision,

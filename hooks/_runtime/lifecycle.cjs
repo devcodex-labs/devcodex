@@ -18,6 +18,7 @@ const { buildLifecycleBootstrapStateUtils } = require('./lifecycle-bootstrap-sta
 const {
   CONTEXT_READ_CONTRACT,
   createContextReadReceipt,
+  evaluateContextReuse,
   extractContextPlanBody,
   extractContextSourceEvidence,
   markContextReadReceiptStale,
@@ -49,6 +50,11 @@ const {
   findLayoutInfo,
   inferProjectFromCwd
 } = require('./workspace-layout.cjs')
+const {
+  TaskContinuationError,
+  parseContinuationCommand,
+  resolveTaskContinuation
+} = require('./task-continuation-contract.cjs')
 
 const CONTEXT_ROOT = process.cwd()
 const PAYLOAD_PREVIEW_LIMIT = 160
@@ -337,6 +343,7 @@ const {
   resolvePromptTarget,
   readModeForPromptTarget,
   applyPromptTarget,
+  setStickyProject,
   shouldSuppressMultiProjectWarning,
   detectExecutionMode,
   buildMultiProjectBlockMessage
@@ -415,6 +422,7 @@ const {
   resetState,
   beginContextAcquisition,
   markContextAcquisitionStale,
+  markContextPostMutationStale,
   recordContextPreToolUse,
   recordContextPostToolUse,
   getContextAcquisitionDecision,
@@ -444,6 +452,7 @@ const {
   touchesPath,
   getToolInputStrings,
   getCommandText,
+  getPayloadSessionKey,
   getRecentBootstrapTaskStamps,
   isRecentBootstrapTaskPath,
   buildInterceptionOutput,
@@ -455,6 +464,7 @@ const {
   normalizeTurnLivenessState,
   CONTEXT_READ_CONTRACT,
   createContextReadReceipt,
+  evaluateContextReuse,
   extractContextPlanBody,
   extractContextSourceEvidence,
   markContextReadReceiptStale,
@@ -1081,10 +1091,87 @@ async function main() {
     livenessObservation = observeTurnEvent(state.turnLiveness, eventName, payload)
     state.turnLiveness = livenessObservation.state
     applyPromptTarget(state, promptTarget, payload)
+    const continuationCommand = parseContinuationCommand(prompt)
+    let continuationResolution = null
+    if (continuationCommand) {
+      try {
+        continuationResolution = resolveTaskContinuation({
+          cwd: CONTEXT_ROOT,
+          name: continuationCommand.displayQuery,
+          project: projectCandidate.project || '',
+          scope: projectCandidate.project ? 'project' : 'workspace'
+        })
+      } catch (error) {
+        if (!(error instanceof TaskContinuationError)) throw error
+        continuationResolution = {
+          schemaVersion: 'TaskResolutionV1',
+          status: 'not-found',
+          errorCode: error.code,
+          message: error.message,
+          nextStep: error.nextStep || 'Specify the exact task name and project.'
+        }
+      }
+      const resolvedProject = continuationResolution?.candidate?.project || ''
+      if (resolvedProject) {
+        const workspaceTask = resolvedProject === 'workspace'
+        state.activeProject = workspaceTask ? '' : resolvedProject
+        state.activeScope = workspaceTask ? 'workspace' : 'project'
+        state.activeProjectSource = 'task-continuation'
+        if (!workspaceTask) setStickyProject(state, resolvedProject, 'task-continuation', payload)
+        state.mode = readModeForPromptTarget(state, {
+          activeProject: workspaceTask ? '' : resolvedProject,
+          activeScope: workspaceTask ? 'workspace' : 'project'
+        })
+      }
+      state.taskContinuation = {
+        schemaVersion: 'TaskContinuationHookEvidenceV1',
+        command: continuationCommand,
+        status: continuationResolution.status,
+        errorCode: continuationResolution.errorCode || null,
+        candidate: continuationResolution.candidate ? {
+          taskId: continuationResolution.candidate.taskId,
+          displayName: continuationResolution.candidate.displayName,
+          project: continuationResolution.candidate.project,
+          kind: continuationResolution.candidate.kind,
+          status: continuationResolution.candidate.status
+        } : null,
+        indexState: continuationResolution.index?.state || null,
+        observedAt: new Date().toISOString(),
+        capabilityBoundary: {
+          payloadExecution: false,
+          taskStatusMutation: false,
+          cpMutation: false,
+          processWakeup: false
+        }
+      }
+    }
     beginContextAcquisition(state, payload, platform)
     state.governanceIntake = registerGovernanceIntakeCandidate(state.governanceIntake, prompt)
     state.executionMode = detectExecutionMode(payload, state, promptTarget)
     confirmDangerousApprovalsFromPrompt(state, prompt, eventName, platform)
+    if (continuationResolution && continuationResolution.status !== 'resolved-active') {
+      const candidates = continuationResolution.candidates || continuationResolution.suggestions || []
+      const candidateText = candidates.slice(0, 5).map(candidate => `${candidate.project}/${candidate.kind}/${candidate.displayName}`).join(', ')
+      const detail = [
+        `Task continuation status=${continuationResolution.status}.`,
+        continuationResolution.message || '',
+        candidateText ? `Candidates: ${candidateText}.` : ''
+      ].filter(Boolean).join(' ')
+      state.lastReason = `task-continuation-${continuationResolution.status}`
+      const output = buildInterceptionOutput(
+        state,
+        platform,
+        eventName,
+        INTERCEPTION_ACTION.REQUIRE_COMPLETION,
+        `task-continuation-${continuationResolution.status}`,
+        `task-continuation-${continuationResolution.status}`,
+        detail,
+        continuationResolution.nextStep || 'Specify the exact active task and retry.'
+      )
+      saveState(state)
+      writeStdout(output)
+      return
+    }
     // Multi-project workspace guard (v1.9.8+):
     // when no workspace-root profile exists and ≥2 sibling projects detected,
     // require the user to specify the target project explicitly.
@@ -1111,6 +1198,9 @@ async function main() {
       'UserPromptSubmit',
       [
         buildBootstrapMessage(state),
+        continuationResolution
+          ? `TaskResolutionV1 resolved-active: ${continuationResolution.candidate.project}/${continuationResolution.candidate.kind}/${continuationResolution.candidate.displayName}. The name only locates the task; rehydrate identity, sessions, and current bound artifacts before continuing.`
+          : '',
         buildGovernanceIntakeContextMessage(state.governanceIntake),
         formatTurnRecoveryMessage(livenessObservation.recoveryCard)
       ].filter(Boolean).join(' ')
@@ -1219,6 +1309,7 @@ async function main() {
   // ── PostToolUse ────────────────────────────────────────────────────────────
   if (eventName === 'PostToolUse') {
     recordContextPostToolUse(state, payload)
+    markContextPostMutationStale(state, payload, platform)
     observeGovernanceLedgerWrite(state, payload, {
       activeRoot: getActiveNamespaceRoot(state),
       contextRoot: CONTEXT_ROOT,

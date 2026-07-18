@@ -106,6 +106,55 @@ function main() {
   runHooksRuntimeGovernanceIntakeScenarios(runtimeScenarioContext)
   runHooksRuntimeVisibilityScenarios(runtimeScenarioContext)
 
+  // TaskResolutionV1: a canonical resume message resolves identity before
+  // Context Acquisition, while Hook remains a no-payload/no-CP thin adapter.
+  cleanState()
+  const continuationTask = path.join(TEMP_ROOT, '.devcodex', 'optimizations', 'Hook续接任务')
+  fs.mkdirSync(path.join(continuationTask, '.memory'), { recursive: true })
+  fs.writeFileSync(path.join(continuationTask, '.memory', 'task.json'), JSON.stringify({
+    schemaVersion: 'TaskIdentityV1',
+    taskId: '6b31500b-f2c4-4f50-9067-d59ad1f806f1',
+    displayName: 'Hook续接任务',
+    aliases: ['Hook旧任务名'],
+    createdAt: '2026-07-18T00:00:00.000Z',
+    identityRevision: 1
+  }, null, 2) + '\n')
+  const continuationSessions = '# Hook continuation\n\n> **当前状态**: 🔄 active\n'
+  fs.writeFileSync(path.join(continuationTask, '.memory', 'sessions.md'), continuationSessions)
+  const resolvedContinuation = run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: 'task-continuation-unique',
+    prompt: '继续 Hook续接任务'
+  })
+  const continuationContext = resolvedContinuation.hookSpecificOutput?.additionalContext || resolvedContinuation.systemMessage || ''
+  assert.match(continuationContext, /TaskResolutionV1 resolved-active/)
+  const continuationState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(continuationState.taskContinuation.status, 'resolved-active')
+  assert.strictEqual(continuationState.taskContinuation.candidate.taskId, '6b31500b-f2c4-4f50-9067-d59ad1f806f1')
+  assert.strictEqual(continuationState.taskContinuation.capabilityBoundary.payloadExecution, false)
+  assert.strictEqual(fs.readFileSync(path.join(continuationTask, '.memory', 'sessions.md'), 'utf8'), continuationSessions)
+
+  const ambiguousTask = path.join(TEMP_ROOT, '.devcodex', 'bugs', 'Hook同名副本')
+  fs.mkdirSync(path.join(ambiguousTask, '.memory'), { recursive: true })
+  fs.writeFileSync(path.join(ambiguousTask, '.memory', 'task.json'), JSON.stringify({
+    schemaVersion: 'TaskIdentityV1',
+    taskId: 'be5737e8-905c-4211-9ebc-e38df6da505e',
+    displayName: 'Hook续接任务',
+    aliases: [],
+    createdAt: '2026-07-18T00:00:00.000Z',
+    identityRevision: 1
+  }, null, 2) + '\n')
+  fs.writeFileSync(path.join(ambiguousTask, '.memory', 'sessions.md'), '# duplicate\n\n> **当前状态**: 🔄 active\n')
+  const ambiguousContinuation = run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: 'task-continuation-ambiguous',
+    prompt: '继续Hook续接任务任务'
+  })
+  assert.match(ambiguousContinuation.systemMessage || ambiguousContinuation.hookSpecificOutput?.additionalContext || '', /ambiguous|Candidates/i)
+  fs.rmSync(continuationTask, { recursive: true, force: true })
+  fs.rmSync(ambiguousTask, { recursive: true, force: true })
+  cleanState()
+
   // ISSUE-043 P0: blocked tools never receive a lease; successful tool output
   // becomes awaiting-continuation and a later process invocation rehydrates a
   // stale turn into a single recovery card before starting the new turn.

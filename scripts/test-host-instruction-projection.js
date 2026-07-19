@@ -13,6 +13,7 @@ const {
 const ROOT = path.resolve(__dirname, '..')
 const source = fs.readFileSync(path.join(ROOT, 'instructions.md'), 'utf8')
 const config = JSON.parse(fs.readFileSync(path.join(ROOT, 'scripts', 'host-instruction-projection.json'), 'utf8'))
+const gitignoreLines = fs.readFileSync(path.join(ROOT, '.gitignore'), 'utf8').split(/\r?\n/)
 const clone = value => JSON.parse(JSON.stringify(value))
 
 const parsed = parseMandatoryRules(source)
@@ -31,6 +32,12 @@ for (const [relative, content] of Object.entries(bundle.files)) {
   const target = path.join(ROOT, relative)
   assert(fs.existsSync(target), `generated output missing: ${relative}`)
   assert.strictEqual(fs.readFileSync(target, 'utf8'), content, `generated output stale: ${relative}`)
+}
+for (const relative of [config.outputs.sharedKernel, config.outputs.claudeWrapper]) {
+  assert(
+    gitignoreLines.includes(`!${relative}`),
+    `generated host projection must be explicitly tracked: ${relative}`
+  )
 }
 for (const relative of [config.outputs.sharedKernel, config.outputs.copilotKernel]) {
   const metrics = bundle.receipt.outputs[relative]

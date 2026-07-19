@@ -10,6 +10,8 @@ node_modules/
 .codex/
 AGENTS.md
 CLAUDE.md
+!host-projections/AGENTS.md
+!host-projections/CLAUDE.md
 # DevCodex optional Gemini / Grok adapter output (generated when this source repo is also the install target)
 .gemini/
 .grok/

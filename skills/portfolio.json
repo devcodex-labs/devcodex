@@ -9,10 +9,10 @@
     "pluginDigest": "0842bf8e1312aef8872796cfd491645d0819e47bb7acd5d7349f8644c6ee3077",
     "portfolioEvidence": "skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "a2288b9763bc79ea32f4fd47cd4f2ea31501427dc2e9d6871d75064bd281687b",
-    "consumerInventoryFileCount": 479,
-    "consumerInventoryDigest": "f587a52209296e5daccd2f8d7436abbd572ade6c125a003eded07c1cc234f594",
-    "consumerProjectionDigest": "80db1568282b850d888679318a7396cdc9cba7142bd1c74d220f72f26b5bff63",
-    "portfolioInputDigest": "5350617d383d16dffe47b4af05c5786cc9caa4806e02ff4cc22f1dc80bbebe61"
+    "consumerInventoryFileCount": 481,
+    "consumerInventoryDigest": "efebd0977a560a8a1a89e1d41d87fbbd01c7a217e7890f8b7074bec0fc344a9b",
+    "consumerProjectionDigest": "93172011a9a5753dabeec804410615f20040a2fb1082aeb64b23451372b353a7",
+    "portfolioInputDigest": "9169f970fb517368c7b11ec002fce16872cd628cc4fd95fd666372012efd8837"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -18210,6 +18210,10 @@
           "role": "current"
         },
         {
+          "path": "host-projections/AGENTS.md",
+          "role": "current"
+        },
+        {
           "path": "host-projections/copilot-instructions.md",
           "role": "current"
         },
@@ -19450,6 +19454,10 @@
       "consumers": [
         {
           "path": "changelogs/unreleased.md",
+          "role": "current"
+        },
+        {
+          "path": "host-projections/AGENTS.md",
           "role": "current"
         },
         {

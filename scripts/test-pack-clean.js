@@ -95,6 +95,8 @@ const required = [
   'mcp/memory-server.js',
   'mcp/profile-server.js',
   'mcp/agent-identity.cjs',
+  'host-projections/AGENTS.md',
+  'host-projections/CLAUDE.md',
   'scripts/instruction-fallback-check.js',
   'scripts/migrate-layout.js',
   'assets/icon-512.png',

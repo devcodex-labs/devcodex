@@ -244,6 +244,7 @@ fs.writeFileSync(legacyBridgeManifest, JSON.stringify({
 }, null, 2) + '\n', 'utf8')
 const bridgeInstall = run(['update', '--host', 'grok'], bridgeProject)
 assert.strictEqual(bridgeInstall.status, 0, bridgeInstall.stderr || bridgeInstall.stdout)
+const grokCliAvailable = !/Grok CLI not found/.test(`${bridgeInstall.stdout || ''}${bridgeInstall.stderr || ''}`)
 for (const relative of [
   'AGENTS.md',
   '.agents/devcodex/instructions.full.md',
@@ -296,16 +297,22 @@ const childStatus = run(['status', '--json'], bridgeProject)
 assert.strictEqual(childStatus.status, 0, childStatus.stderr || childStatus.stdout)
 const childStatusFacts = JSON.parse(childStatus.stdout).payload
 assert.strictEqual(path.resolve(childStatusFacts.hostRoot), path.resolve(bridgeWorkspace))
-for (const field of ['copilotInstructionsInstalled', 'claudeMdInstalled', 'agentsMdInstalled', 'geminiMdInstalled', 'grokWorkspacePluginInstalled']) {
+for (const field of ['copilotInstructionsInstalled', 'claudeMdInstalled', 'agentsMdInstalled', 'geminiMdInstalled']) {
   assert.strictEqual(childStatusFacts.entryFiles[field], true, `child status must inspect workspace owner field ${field}`)
 }
+const childStatusGrok = childStatusFacts.entryFiles.instructionProjection.grokPlugin
+assert.strictEqual(childStatusGrok.sourcePresent, true)
+assert.strictEqual(childStatusGrok.registrationCurrent, true)
+assert.strictEqual(childStatusFacts.entryFiles.grokWorkspacePluginInstalled, childStatusGrok.installation.current)
+assert.strictEqual(childStatusFacts.entryFiles.grokWorkspacePluginInstalled, grokCliAvailable, 'status must not claim official plugin installation when Grok CLI is unavailable')
 const childDoctor = run(['doctor', '--json'], bridgeProject)
 assert.strictEqual(childDoctor.status, 0, childDoctor.stderr || childDoctor.stdout)
 const childDoctorFacts = JSON.parse(childDoctor.stdout).payload
 assert.strictEqual(path.resolve(childDoctorFacts.hostRoot), path.resolve(bridgeWorkspace))
-for (const field of ['hasCopilotMd', 'hasClaudeMd', 'hasAgentsMd', 'hasGeminiMd', 'hasGrokWorkspacePlugin', 'hasGrokPluginRegistration']) {
+for (const field of ['hasCopilotMd', 'hasClaudeMd', 'hasAgentsMd', 'hasGeminiMd', 'hasGrokPluginRegistration']) {
   assert.strictEqual(childDoctorFacts.installArtifacts[field], true, `child doctor must inspect workspace owner field ${field}`)
 }
+assert.strictEqual(childDoctorFacts.installArtifacts.hasGrokWorkspacePlugin, grokCliAvailable, 'doctor must preserve the no-CLI evidence ceiling')
 for (const args of [['update', '--host', 'gemini'], ['update', '--claude']]) {
   const scopedUpdate = run(args, bridgeProject)
   assert.strictEqual(scopedUpdate.status, 0, scopedUpdate.stderr || scopedUpdate.stdout)
@@ -314,10 +321,16 @@ for (const args of [['update', '--host', 'gemini'], ['update', '--claude']]) {
   }
 }
 const bridgeInspection = hostUtils.inspectHostInstructionSurfaces(bridgeProject)
-assert.strictEqual(bridgeInspection.status, 'ready', JSON.stringify(bridgeInspection.issues))
 assert.strictEqual(path.resolve(bridgeInspection.inspectionRoot), path.resolve(bridgeWorkspace))
-assert.strictEqual(bridgeInspection.grokPlugin.installed, true)
+assert.strictEqual(bridgeInspection.grokPlugin.sourcePresent, true)
+assert.strictEqual(bridgeInspection.grokPlugin.installed, grokCliAvailable)
 assert.strictEqual(bridgeInspection.grokPlugin.registrationCurrent, true)
+if (grokCliAvailable) {
+  assert.strictEqual(bridgeInspection.status, 'ready', JSON.stringify(bridgeInspection.issues))
+} else {
+  assert.strictEqual(bridgeInspection.status, 'collision')
+  assert(bridgeInspection.issues.some(item => item.code === 'HOST_GROK_PLUGIN_INSTALLATION_MISSING'))
+}
 const bridgeManifest = JSON.parse(fs.readFileSync(
   path.join(bridgeWorkspace, '.devcodex', 'workspace', 'managed', 'deployment-manifest.json'),
   'utf8'
@@ -328,15 +341,17 @@ for (const surface of ['grok-workspace-plugin', 'shared-kernel', 'shared-agent-s
 }
 const retiredProjectManifest = JSON.parse(fs.readFileSync(legacyBridgeManifest, 'utf8'))
 assert.strictEqual(retiredProjectManifest.entries.length, 0, 'workspace child must have zero current host manifest entries')
-const fixtureRegistry = JSON.parse(fs.readFileSync(path.join(grokHome, 'installed-plugins', 'registry.json'), 'utf8'))
-const fixtureInstalledPlugin = Object.values(fixtureRegistry.repos).find(entry =>
-  entry?.kind?.type === 'Local' && path.resolve(entry.kind.source_path) === path.resolve(bridgeWorkspace, '.grok', 'plugins', 'devcodex-workspace')
-)
-assert(fixtureInstalledPlugin?.path, 'fixture Grok installed plugin registry entry missing')
-fs.appendFileSync(path.join(fixtureInstalledPlugin.path, 'hooks', 'devcodex-workspace.cjs'), '\n// stale-installed-copy-fixture\n', 'utf8')
-const stalePluginInspection = hostUtils.inspectHostInstructionSurfaces(bridgeProject)
-assert.strictEqual(stalePluginInspection.grokPlugin.installed, false)
-assert(stalePluginInspection.issues.some(item => item.code === 'HOST_GROK_PLUGIN_INSTALLATION_STALE'))
+if (grokCliAvailable) {
+  const fixtureRegistry = JSON.parse(fs.readFileSync(path.join(grokHome, 'installed-plugins', 'registry.json'), 'utf8'))
+  const fixtureInstalledPlugin = Object.values(fixtureRegistry.repos).find(entry =>
+    entry?.kind?.type === 'Local' && path.resolve(entry.kind.source_path) === path.resolve(bridgeWorkspace, '.grok', 'plugins', 'devcodex-workspace')
+  )
+  assert(fixtureInstalledPlugin?.path, 'fixture Grok installed plugin registry entry missing')
+  fs.appendFileSync(path.join(fixtureInstalledPlugin.path, 'hooks', 'devcodex-workspace.cjs'), '\n// stale-installed-copy-fixture\n', 'utf8')
+  const stalePluginInspection = hostUtils.inspectHostInstructionSurfaces(bridgeProject)
+  assert.strictEqual(stalePluginInspection.grokPlugin.installed, false)
+  assert(stalePluginInspection.issues.some(item => item.code === 'HOST_GROK_PLUGIN_INSTALLATION_STALE'))
+}
 const bridgeRepeat = run(['update', '--host', 'grok'], bridgeProject)
 assert.strictEqual(bridgeRepeat.status, 0, bridgeRepeat.stderr || bridgeRepeat.stdout)
 const configAfterRepeat = fs.readFileSync(path.join(grokHome, 'config.toml'), 'utf8')
@@ -350,10 +365,13 @@ const configAfterUninstall = fs.readFileSync(path.join(grokHome, 'config.toml'),
 assert.match(configAfterUninstall, /enabled = \["project-owned"\]/)
 assert.match(configAfterUninstall, /yolo = false # preserve-me/)
 assert.doesNotMatch(configAfterUninstall, /devcodex-workspace/)
-const registryAfterUninstall = JSON.parse(fs.readFileSync(path.join(grokHome, 'installed-plugins', 'registry.json'), 'utf8'))
-assert(!Object.values(registryAfterUninstall.repos || {}).some(entry =>
-  entry?.kind?.source_path && path.resolve(entry.kind.source_path) === path.resolve(bridgeWorkspace, '.grok', 'plugins', 'devcodex-workspace')
-))
+const registryAfterUninstallPath = path.join(grokHome, 'installed-plugins', 'registry.json')
+if (fs.existsSync(registryAfterUninstallPath)) {
+  const registryAfterUninstall = JSON.parse(fs.readFileSync(registryAfterUninstallPath, 'utf8'))
+  assert(!Object.values(registryAfterUninstall.repos || {}).some(entry =>
+    entry?.kind?.source_path && path.resolve(entry.kind.source_path) === path.resolve(bridgeWorkspace, '.grok', 'plugins', 'devcodex-workspace')
+  ))
+}
 assert(fs.existsSync(path.join(bridgeWorkspace, '.grok', 'plugins', 'devcodex-workspace')), 'uninstall must retain workspace source')
 const inspectionAfterUninstall = hostUtils.inspectHostInstructionSurfaces(bridgeProject)
 assert.strictEqual(inspectionAfterUninstall.grokPlugin.sourcePresent, true)
@@ -367,9 +385,11 @@ const bridgeReinstall = run(['update', '--host', 'grok'], bridgeProject)
 assert.strictEqual(bridgeReinstall.status, 0, bridgeReinstall.stderr || bridgeReinstall.stdout)
 assert.strictEqual(fs.readFileSync(path.join(grokHome, 'config.toml'), 'utf8'), bridgeConfig)
 const inspectionAfterReinstall = hostUtils.inspectHostInstructionSurfaces(bridgeProject)
-assert.strictEqual(inspectionAfterReinstall.status, 'ready', JSON.stringify(inspectionAfterReinstall.issues))
-assert.strictEqual(inspectionAfterReinstall.grokPlugin.installation.current, true)
-assert(hostUtils.detectInstalledHostAssets(bridgeProject).includes('grok'))
+assert.strictEqual(inspectionAfterReinstall.grokPlugin.sourcePresent, true)
+assert.strictEqual(inspectionAfterReinstall.grokPlugin.registrationCurrent, true)
+assert.strictEqual(inspectionAfterReinstall.grokPlugin.installation.current, grokCliAvailable)
+assert.strictEqual(inspectionAfterReinstall.status, grokCliAvailable ? 'ready' : 'collision', JSON.stringify(inspectionAfterReinstall.issues))
+assert.strictEqual(hostUtils.detectInstalledHostAssets(bridgeProject).includes('grok'), grokCliAvailable)
 const unsupportedUninstall = run(['uninstall', '--host', 'codex', '--dry-run'], bridgeProject)
 assert.strictEqual(unsupportedUninstall.status, 2)
 assert.match(unsupportedUninstall.stdout, /CLI_HOST_UNINSTALL_UNSUPPORTED/)
@@ -495,4 +515,4 @@ for (const surface of ['shared-kernel', 'shared-agent-skills', 'full-fallback'])
   assert(workspaceDescriptorSurfaces.has(surface), `workspace descriptor must include ${surface}`)
 }
 
-console.log('host installation tests passed selectors=5 dryRunWrites=0 collision=blocked managedManifest=verified workspacePlugin=verified uninstall=verified zeroProjectArtifacts=verified defaultHosts=3')
+console.log(`host installation tests passed selectors=5 dryRunWrites=0 collision=blocked managedManifest=verified workspacePlugin=verified grokCli=${grokCliAvailable ? 'available' : 'unavailable-honest'} uninstall=verified zeroProjectArtifacts=verified defaultHosts=3`)

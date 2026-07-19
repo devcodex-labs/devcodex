@@ -143,6 +143,75 @@ try {
     serializePortfolio(buildPortfolio(stagedFixtureRoot, { repositoryView: 'index' })),
     'regenerated and staged portfolio must match the exact index candidate'
   )
+
+  git(stagedFixtureRoot, ['commit', '--quiet', '-m', 'add consumer'])
+  git(stagedFixtureRoot, ['mv', 'docs/new-consumer.md', 'docs/renamed-consumer.md'])
+  const renamedCandidate = buildPortfolio(stagedFixtureRoot, { repositoryView: 'index' })
+  assert.notStrictEqual(
+    serializePortfolio(renamedCandidate),
+    readRepositoryText(stagedFixtureRoot, 'skills/portfolio.json', 'index'),
+    'staged consumer rename must stale the old consumer projection'
+  )
+  fs.writeFileSync(path.join(stagedFixtureRoot, 'skills', 'portfolio.json'), serializePortfolio(renamedCandidate), 'utf8')
+  git(stagedFixtureRoot, ['add', 'skills/portfolio.json'])
+  assert.strictEqual(
+    readRepositoryText(stagedFixtureRoot, 'skills/portfolio.json', 'index'),
+    serializePortfolio(buildPortfolio(stagedFixtureRoot, { repositoryView: 'index' })),
+    'regenerated portfolio must bind the renamed staged path'
+  )
+
+  git(stagedFixtureRoot, ['commit', '--quiet', '-m', 'rename consumer'])
+  git(stagedFixtureRoot, ['rm', '--quiet', 'docs/renamed-consumer.md'])
+  const deletedCandidate = buildPortfolio(stagedFixtureRoot, { repositoryView: 'index' })
+  assert.notStrictEqual(
+    serializePortfolio(deletedCandidate),
+    readRepositoryText(stagedFixtureRoot, 'skills/portfolio.json', 'index'),
+    'staged consumer deletion must stale the old inventory and projection'
+  )
+  fs.writeFileSync(path.join(stagedFixtureRoot, 'skills', 'portfolio.json'), serializePortfolio(deletedCandidate), 'utf8')
+  git(stagedFixtureRoot, ['add', 'skills/portfolio.json'])
+  assert.strictEqual(
+    readRepositoryText(stagedFixtureRoot, 'skills/portfolio.json', 'index'),
+    serializePortfolio(buildPortfolio(stagedFixtureRoot, { repositoryView: 'index' })),
+    'regenerated portfolio must bind the staged deletion'
+  )
+
+  git(stagedFixtureRoot, ['commit', '--quiet', '-m', 'delete consumer'])
+  fs.mkdirSync(path.join(stagedFixtureRoot, 'docs'), { recursive: true })
+  fs.writeFileSync(path.join(stagedFixtureRoot, 'docs', 'amended-consumer.md'), '# Amended intent consumer\n', 'utf8')
+  git(stagedFixtureRoot, ['add', 'docs/amended-consumer.md'])
+  const amendedCandidate = buildPortfolio(stagedFixtureRoot, { repositoryView: 'index' })
+  assert.notStrictEqual(
+    serializePortfolio(amendedCandidate),
+    readRepositoryText(stagedFixtureRoot, 'skills/portfolio.json', 'index'),
+    'a newly staged consumer in an amended candidate must stale the prior commit artifact'
+  )
+  fs.writeFileSync(path.join(stagedFixtureRoot, 'skills', 'portfolio.json'), serializePortfolio(amendedCandidate), 'utf8')
+  git(stagedFixtureRoot, ['add', 'skills/portfolio.json'])
+  assert.deepStrictEqual(validateStagedCandidateSnapshot(gitIndexSnapshot(stagedFixtureRoot)), [])
+  git(stagedFixtureRoot, ['commit', '--quiet', '--amend', '--no-edit'])
+  assert.strictEqual(git(stagedFixtureRoot, ['status', '--porcelain']), '', 'amended target tree must be clean')
+  assert.strictEqual(
+    fs.readFileSync(path.join(stagedFixtureRoot, 'skills', 'portfolio.json'), 'utf8'),
+    serializePortfolio(buildPortfolio(stagedFixtureRoot)),
+    'post-amend clean worktree replay must remain current'
+  )
+
+  const targetSha = git(stagedFixtureRoot, ['rev-parse', 'HEAD'])
+  const targetParent = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-portfolio-target-'))
+  const targetRoot = path.join(targetParent, 'checkout')
+  try {
+    git(targetParent, ['clone', '--quiet', stagedFixtureRoot, targetRoot])
+    git(targetRoot, ['checkout', '--quiet', targetSha])
+    assert.strictEqual(git(targetRoot, ['status', '--porcelain']), '', 'target-SHA checkout must be clean')
+    assert.strictEqual(
+      readRepositoryText(targetRoot, 'skills/portfolio.json', 'index'),
+      serializePortfolio(buildPortfolio(targetRoot, { repositoryView: 'index' })),
+      'detached target-SHA index replay must reproduce the committed portfolio blobs'
+    )
+  } finally {
+    fs.rmSync(targetParent, { recursive: true, force: true })
+  }
 } finally {
   fs.rmSync(stagedFixtureRoot, { recursive: true, force: true })
 }

@@ -5,28 +5,28 @@
   "generatedFrom": {
     "skillsPattern": "skills/*/SKILL.md",
     "registry": "plugin.json",
-    "sourceDigest": "b3d5b07e01766f47202dd818660b2ae1de15b183eccef1b1f7e4c84342a47067",
-    "pluginDigest": "cc57240623affa2447299cbde653711235554e77d38fb1298d02fd75124148c4",
+    "sourceDigest": "a4b31050e32cceed4727d7612219e23299dac910ebeddc50eb365701ced1fafe",
+    "pluginDigest": "0842bf8e1312aef8872796cfd491645d0819e47bb7acd5d7349f8644c6ee3077",
     "portfolioEvidence": "skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "a2288b9763bc79ea32f4fd47cd4f2ea31501427dc2e9d6871d75064bd281687b",
-    "consumerInventoryFileCount": 446,
-    "consumerInventoryDigest": "d60f9ce5ace71fc6ea1c69a3f22c649adb2c565013d7d37ec5c854308a5897e1",
-    "consumerProjectionDigest": "a18ee3dab9931b4aa13d2d6fbde0abd259ff94d73bafbf65fdf705f8973cf1ea",
-    "portfolioInputDigest": "a6adaabea2572e11d0fdcc276942e0eae4e75680aba857942f1d322b1576c807"
+    "consumerInventoryFileCount": 479,
+    "consumerInventoryDigest": "f587a52209296e5daccd2f8d7436abbd572ade6c125a003eded07c1cc234f594",
+    "consumerProjectionDigest": "80db1568282b850d888679318a7396cdc9cba7142bd1c74d220f72f26b5bff63",
+    "portfolioInputDigest": "5350617d383d16dffe47b4af05c5786cc9caa4806e02ff4cc22f1dc80bbebe61"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
-    "skillCount": 78,
-    "registeredSkillCount": 78,
-    "activeSkillCount": 75,
+    "skillCount": 80,
+    "registeredSkillCount": 80,
+    "activeSkillCount": 77,
     "graySkillCount": 3,
     "orphanActiveCount": 0,
     "dependencyCycleCount": 0,
     "dependencyEdgeCount": 3,
-    "conflictReviewedCount": 78,
-    "operationalEvidenceCompleteCount": 78,
+    "conflictReviewedCount": 80,
+    "operationalEvidenceCompleteCount": 80,
     "triggerPrecisionMeasuredCount": 0,
-    "instructionBudgetP95Bytes": 20438,
+    "instructionBudgetP95Bytes": 19335,
     "triggerQuality": "structural-only"
   },
   "dependencyGraph": {
@@ -79,6 +79,7 @@
       "frontend-architecture",
       "growth-analytics",
       "host-contract-verification",
+      "host-instruction-projection",
       "impact-review",
       "incremental-project-analysis",
       "intent",
@@ -108,6 +109,7 @@
       "test-router",
       "token-check",
       "user-manual-authoring",
+      "user-visible-output-contract",
       "ux-interaction-architecture"
     ],
     "edges": [
@@ -423,6 +425,10 @@
       {
         "from": "routing",
         "to": "user-manual-authoring"
+      },
+      {
+        "from": "routing",
+        "to": "user-visible-output-contract"
       },
       {
         "from": "routing",
@@ -1805,8 +1811,8 @@
         "skills/audit-common/SKILL.md"
       ],
       "source": "skills/audit-common/SKILL.md",
-      "hash": "3df8832bb32bd0d3a7297df66af479de02f9d59ae09fb629dced56b8f764ba01",
-      "sourceBytes": 30101,
+      "hash": "80992e5c8099ac2bc4911be09854b2a25e76b50061557dea7df128632a14ed7d",
+      "sourceBytes": 30038,
       "version": "1.15.1",
       "lifecycleState": "active",
       "dependencies": [],
@@ -1922,6 +1928,10 @@
         },
         {
           "path": "scripts/test-client-contracts.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/validation-manifest.json",
           "role": "current"
         },
         {
@@ -2432,8 +2442,8 @@
         "skills/audit-execution-guide/SKILL.md"
       ],
       "source": "skills/audit-execution-guide/SKILL.md",
-      "hash": "69b8e8a0da01c5279a5ff40900c9609081fe0764a3c562d6c835b498ee9b349f",
-      "sourceBytes": 6454,
+      "hash": "59f578b488816efdd2faf9be0dfc8bb43e608d5ab7a00b2b29296cf53982017d",
+      "sourceBytes": 6946,
       "version": "1.15.1",
       "lifecycleState": "active",
       "dependencies": [],
@@ -2509,6 +2519,10 @@
         },
         {
           "path": "scripts/test-readme-governance.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/validation-manifest.json",
           "role": "current"
         },
         {
@@ -4774,8 +4788,8 @@
         "skills/compliance/SKILL.md"
       ],
       "source": "skills/compliance/SKILL.md",
-      "hash": "ec4452d7a72f264e8cd77ed002b122fc553caee9152d0af35ff76938b7dc9701",
-      "sourceBytes": 13720,
+      "hash": "aadb753ff295dc4987516fa445a9c0ebb4c9cff8bee42771ab60c820708b155b",
+      "sourceBytes": 13940,
       "version": "1.15.1",
       "lifecycleState": "active",
       "dependencies": [],
@@ -5006,6 +5020,10 @@
         },
         {
           "path": "scripts/validate.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/validation-manifest.json",
           "role": "current"
         },
         {
@@ -7225,8 +7243,8 @@
         "skills/dev-plan-review/SKILL.md"
       ],
       "source": "skills/dev-plan-review/SKILL.md",
-      "hash": "5badf73f16f25f7e5dc3638d82bae4a9af6d13889c30c2468cecbd97667c01cf",
-      "sourceBytes": 20438,
+      "hash": "bd029616d48cc1c46548e98c2b8e5441c5ab1ddfcc465ec0be4c17b7934915c2",
+      "sourceBytes": 20759,
       "version": "1.15.1",
       "lifecycleState": "active",
       "dependencies": [],
@@ -7367,6 +7385,10 @@
         },
         {
           "path": "scripts/test-markdown-structure.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/validation-manifest.json",
           "role": "current"
         },
         {
@@ -8425,8 +8447,8 @@
         "skills/document-sync/SKILL.md"
       ],
       "source": "skills/document-sync/SKILL.md",
-      "hash": "7aa8c01d58c672d741773c6458163cdabda6bc3ad0c4c212358168347740fb34",
-      "sourceBytes": 8044,
+      "hash": "783750bfb253ca0f9b01b9dd186a56b033b2b8e9898036155eff2828a6dc0fda",
+      "sourceBytes": 8543,
       "version": "1.15.1",
       "lifecycleState": "active",
       "dependencies": [],
@@ -8563,6 +8585,10 @@
         },
         {
           "path": "scripts/test-readme-governance.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/validation-manifest.json",
           "role": "current"
         },
         {
@@ -8897,8 +8923,8 @@
         "skills/execution-contract/SKILL.md"
       ],
       "source": "skills/execution-contract/SKILL.md",
-      "hash": "ec63b8fe367463936aec268a5b85a641bb30e8cd29cb8bd323c2576a7f0eb1a5",
-      "sourceBytes": 18097,
+      "hash": "74a08c52048db3ddfa61f590dacf963bc7fc1707708dc56bca87fbc62b474f1f",
+      "sourceBytes": 18615,
       "version": "1.15.1",
       "lifecycleState": "active",
       "dependencies": [],
@@ -8947,6 +8973,10 @@
         },
         {
           "path": "instructions/14-self-fix.instructions.md",
+          "role": "current"
+        },
+        {
+          "path": "package.json",
           "role": "current"
         },
         {
@@ -9002,7 +9032,15 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/validate-rework-trust-controls.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/validate-turn-liveness-controls.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/validate-visible-output-controls.js",
           "role": "current"
         },
         {
@@ -9010,7 +9048,15 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-review-execution-contract.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-skill-portfolio.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-visible-output-contract.js",
           "role": "current"
         },
         {
@@ -9032,7 +9078,9 @@
       ],
       "validationProfile": [
         "scripts/test-client-contracts.js",
+        "scripts/test-review-execution-contract.js",
         "scripts/test-skill-portfolio.js",
+        "scripts/test-visible-output-contract.js",
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
@@ -9080,7 +9128,9 @@
         "evolvableUnitRef": "skill:execution-contract",
         "probeSuiteRefs": [
           "scripts/test-client-contracts.js",
+          "scripts/test-review-execution-contract.js",
           "scripts/test-skill-portfolio.js",
+          "scripts/test-visible-output-contract.js",
           "scripts/validate.js"
         ],
         "exitCondition": "work-unit-complete-or-workflow-transition",
@@ -9472,8 +9522,8 @@
         "skills/fix-default/SKILL.md"
       ],
       "source": "skills/fix-default/SKILL.md",
-      "hash": "6a96d1933d9fef651be8503d968d15c9a85c58ae2dd349f222ac102d55bd08ce",
-      "sourceBytes": 6352,
+      "hash": "43d3cb0882d9700412c3d910712aeaf97710d839d4ce9d3f7d1a54affa7776a3",
+      "sourceBytes": 6779,
       "version": "1.15.1",
       "lifecycleState": "active",
       "dependencies": [],
@@ -9545,6 +9595,18 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/validate-rework-trust-controls.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-repair-prevention-assessment.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/validation-manifest.json",
+          "role": "current"
+        },
+        {
           "path": "website/docs/specs/directory-structure.md",
           "role": "current"
         },
@@ -9590,6 +9652,7 @@
         }
       ],
       "validationProfile": [
+        "scripts/test-repair-prevention-assessment.js",
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
@@ -9636,6 +9699,7 @@
         ],
         "evolvableUnitRef": "skill:fix-default",
         "probeSuiteRefs": [
+          "scripts/test-repair-prevention-assessment.js",
           "scripts/test-skill-portfolio.js",
           "scripts/validate.js"
         ],
@@ -9694,8 +9758,8 @@
         "skills/fix-security/SKILL.md"
       ],
       "source": "skills/fix-security/SKILL.md",
-      "hash": "a3f5213e60dc395c84f2b3d191023455daed770fe69ddf978197a3f497529e24",
-      "sourceBytes": 1438,
+      "hash": "3f82f08b934e0096e99332811a2447cd1d4e3d64bd6bfa77913ac042999bc7da",
+      "sourceBytes": 1657,
       "version": "1.15.1",
       "lifecycleState": "active",
       "dependencies": [],
@@ -9712,6 +9776,14 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/validate-rework-trust-controls.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/validation-manifest.json",
           "role": "current"
         },
         {
@@ -10135,29 +10207,29 @@
     {
       "id": "host-contract-verification",
       "name": "host-contract-verification",
-      "description": "宿主契约验证规范 — 为 Hook / CLI / bootstrap / visible reply / workspace guard / ArtifactLinkSet / MCP fallback 相关任务定义 direct replay、fixture replay、部署同步与证据输出路线",
+      "description": "宿主契约验证规范 — 为 Hook / CLI / bootstrap / visible envelope / workspace guard / LinkCapabilityDecision / MCP fallback 定义 direct replay、fixture replay、部署同步与证据路线",
       "owner": "host-contract-verification",
       "triggers": {
         "terms": [
-          "ArtifactLinkSet",
           "CLI",
           "Hook",
+          "LinkCapabilityDecision",
           "MCP",
           "bootstrap",
           "direct",
+          "envelope",
           "fallback",
           "fixture",
           "guard",
           "host-contract-verification",
           "replay",
-          "reply",
           "visible",
           "workspace"
         ],
         "positive": [
           {
             "fixture": "frontmatter-description-resolves",
-            "input": "宿主契约验证规范 — 为 Hook / CLI / bootstrap / visible reply / workspace guard / ArtifactLinkSet / MCP fallback 相关任务定义 direct replay、fixture replay、部署同步与证据输出路线"
+            "input": "宿主契约验证规范 — 为 Hook / CLI / bootstrap / visible envelope / workspace guard / LinkCapabilityDecision / MCP fallback 定义 direct replay、fixture replay、部署同步与证据路线"
           }
         ],
         "negative": [
@@ -10172,8 +10244,8 @@
         "skills/host-contract-verification/SKILL.md"
       ],
       "source": "skills/host-contract-verification/SKILL.md",
-      "hash": "b59ea88a9fb2cd51dff3b2274ebac8daf363c287ef6b2767f15c5a1cf9eed061",
-      "sourceBytes": 11404,
+      "hash": "ea665c08529c567c196280f92db9163c78e3b1667dd7d99a93fe0e276ab217ef",
+      "sourceBytes": 11518,
       "version": "1.15.1",
       "lifecycleState": "active",
       "dependencies": [],
@@ -10287,25 +10359,25 @@
         "domains": [],
         "triggers": {
           "terms": [
-            "ArtifactLinkSet",
             "CLI",
             "Hook",
+            "LinkCapabilityDecision",
             "MCP",
             "bootstrap",
             "direct",
+            "envelope",
             "fallback",
             "fixture",
             "guard",
             "host-contract-verification",
             "replay",
-            "reply",
             "visible",
             "workspace"
           ],
           "positive": [
             {
               "fixture": "frontmatter-description-resolves",
-              "input": "宿主契约验证规范 — 为 Hook / CLI / bootstrap / visible reply / workspace guard / ArtifactLinkSet / MCP fallback 相关任务定义 direct replay、fixture replay、部署同步与证据输出路线"
+              "input": "宿主契约验证规范 — 为 Hook / CLI / bootstrap / visible envelope / workspace guard / LinkCapabilityDecision / MCP fallback 定义 direct replay、fixture replay、部署同步与证据路线"
             }
           ],
           "negative": [
@@ -10345,6 +10417,178 @@
         "operationalReadiness": {
           "state": "complete",
           "currentConsumer": "changelogs/unreleased.md",
+          "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
+          "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
+          "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
+          "lastEvidenceAt": "2026-07-14"
+        },
+        "triggerPrecision": {
+          "state": "structural-only",
+          "sampleCount": 0,
+          "precision": null,
+          "falsePositiveRate": null,
+          "falseNegativeRate": null,
+          "manualCorrectionRate": null,
+          "lastMeasuredAt": null
+        },
+        "lifecycleAuthorization": "plugin.json#skills[].lifecycleState",
+        "stateRationale": "registered source, current consumer and operational fixtures are present",
+        "promotionCriteria": "trigger precision requires real comparable work units; structural evidence alone cannot promote lifecycle state"
+      }
+    },
+    {
+      "id": "host-instruction-projection",
+      "name": "host-instruction-projection",
+      "description": "宿主指令投影 Owner — 从统一 instructions 真相源确定性生成精简 Host Kernel、薄包装、覆盖回执与完整回退",
+      "owner": "host-instruction-projection",
+      "triggers": {
+        "terms": [
+          "Host",
+          "Kernel",
+          "Owner",
+          "host-instruction-projection",
+          "instructions"
+        ],
+        "positive": [
+          {
+            "fixture": "frontmatter-description-resolves",
+            "input": "宿主指令投影 Owner — 从统一 instructions 真相源确定性生成精简 Host Kernel、薄包装、覆盖回执与完整回退"
+          }
+        ],
+        "negative": [
+          {
+            "fixture": "empty-or-unregistered-trigger-rejected",
+            "input": ""
+          }
+        ],
+        "ambiguous": []
+      },
+      "ownedArtifacts": [
+        "skills/host-instruction-projection/SKILL.md"
+      ],
+      "source": "skills/host-instruction-projection/SKILL.md",
+      "hash": "cc4a6c9d2b6c69a229e6a4c7e10b3eb14a392358ccd5c43272b4211fd5169aed",
+      "sourceBytes": 6448,
+      "version": "1.15.1",
+      "lifecycleState": "active",
+      "dependencies": [],
+      "references": [],
+      "conflicts": [],
+      "conflictReview": {
+        "status": "reviewed-none",
+        "evidence": "scripts/test-skill-portfolio.js#explicit-conflict-review"
+      },
+      "consumers": [
+        {
+          "path": "package.json",
+          "role": "current"
+        },
+        {
+          "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "scripts/generate-host-instruction-projections.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/validate-host-instruction-controls.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/validate-optimization-controls.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-host-installation.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-host-instruction-projection.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-skill-portfolio.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/validation-manifest.json",
+          "role": "current"
+        },
+        {
+          "path": "website/docs/index.md",
+          "role": "current"
+        },
+        {
+          "path": "website/docs/intro/index.md",
+          "role": "current"
+        }
+      ],
+      "validationProfile": [
+        "scripts/test-host-installation.js",
+        "scripts/test-host-instruction-projection.js",
+        "scripts/test-skill-portfolio.js",
+        "scripts/validate.js"
+      ],
+      "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "host-instruction-projection",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "Host",
+            "Kernel",
+            "Owner",
+            "host-instruction-projection",
+            "instructions"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "宿主指令投影 Owner — 从统一 instructions 真相源确定性生成精简 Host Kernel、薄包装、覆盖回执与完整回退"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:host-instruction-projection",
+        "probeSuiteRefs": [
+          "scripts/test-host-installation.js",
+          "scripts/test-host-instruction-projection.js",
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
+      "evidence": {
+        "registration": "plugin.json",
+        "operationalReadiness": {
+          "state": "complete",
+          "currentConsumer": "package.json",
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
@@ -10581,8 +10825,8 @@
         "skills/incremental-project-analysis/SKILL.md"
       ],
       "source": "skills/incremental-project-analysis/SKILL.md",
-      "hash": "72eafb25ed78fc7e8cd0e5628ad7d31c69a62db76b215e57937daf649e14bcf8",
-      "sourceBytes": 8273,
+      "hash": "4b20319aa27fd4c8641e0aa2424a6f3534a2e5054d9b069c776ca7c4a6d38ba3",
+      "sourceBytes": 11133,
       "version": "1.15.1",
       "lifecycleState": "active",
       "dependencies": [],
@@ -10777,6 +11021,10 @@
           "role": "historical"
         },
         {
+          "path": "grok/skills/devcodex-workspace/SKILL.md",
+          "role": "current"
+        },
+        {
           "path": "hooks/_runtime/context-read-contract.cjs",
           "role": "current"
         },
@@ -10786,6 +11034,18 @@
         },
         {
           "path": "hooks/_runtime/lifecycle-governance-intake.cjs",
+          "role": "current"
+        },
+        {
+          "path": "hooks/_runtime/review-execution-contract.cjs",
+          "role": "current"
+        },
+        {
+          "path": "hooks/_runtime/visible-output-contract.cjs",
+          "role": "current"
+        },
+        {
+          "path": "host-projections/AGENTS.workspace-bridge.md",
           "role": "current"
         },
         {
@@ -10857,6 +11117,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/cli-install-commands.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/cli-maintenance-commands.js",
           "role": "current"
         },
@@ -10917,11 +11181,19 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/validation-dag.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-cli-behavior.js",
           "role": "current"
         },
         {
           "path": "scripts/test-cli-command-registry.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-context-binding.js",
           "role": "current"
         },
         {
@@ -10945,7 +11217,15 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-review-execution-contract.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-skill-portfolio.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-visible-output-contract.js",
           "role": "current"
         },
         {
@@ -11072,12 +11352,15 @@
       "validationProfile": [
         "scripts/test-cli-behavior.js",
         "scripts/test-cli-command-registry.js",
+        "scripts/test-context-binding.js",
         "scripts/test-context-read-contract.js",
         "scripts/test-execution-chain-evolution.js",
         "scripts/test-governance-intake.js",
         "scripts/test-intent-consistency.js",
         "scripts/test-mcp-servers.js",
+        "scripts/test-review-execution-contract.js",
         "scripts/test-skill-portfolio.js",
+        "scripts/test-visible-output-contract.js",
         "scripts/validate-profile.js",
         "scripts/validate.js"
       ],
@@ -11134,12 +11417,15 @@
         "probeSuiteRefs": [
           "scripts/test-cli-behavior.js",
           "scripts/test-cli-command-registry.js",
+          "scripts/test-context-binding.js",
           "scripts/test-context-read-contract.js",
           "scripts/test-execution-chain-evolution.js",
           "scripts/test-governance-intake.js",
           "scripts/test-intent-consistency.js",
           "scripts/test-mcp-servers.js",
+          "scripts/test-review-execution-contract.js",
           "scripts/test-skill-portfolio.js",
+          "scripts/test-visible-output-contract.js",
           "scripts/validate-profile.js",
           "scripts/validate.js"
         ],
@@ -11150,7 +11436,7 @@
         "registration": "plugin.json",
         "operationalReadiness": {
           "state": "complete",
-          "currentConsumer": "hooks/_runtime/context-read-contract.cjs",
+          "currentConsumer": "grok/skills/devcodex-workspace/SKILL.md",
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
@@ -11518,8 +11804,8 @@
         "skills/memory/SKILL.md"
       ],
       "source": "skills/memory/SKILL.md",
-      "hash": "398284229e75451e492bc12d75e291d85e7aaf15f69324581eb263cd134199f7",
-      "sourceBytes": 16894,
+      "hash": "dc9b99af4ef892a9b1025910c81e9be3be66cdea4929dcb7754d8291e8c8d005",
+      "sourceBytes": 17354,
       "version": "1.15.1",
       "lifecycleState": "active",
       "dependencies": [],
@@ -11617,6 +11903,14 @@
           "role": "current"
         },
         {
+          "path": "grok/mcp/workspace-bridge.cjs",
+          "role": "current"
+        },
+        {
+          "path": "grok/skills/devcodex-workspace/SKILL.md",
+          "role": "current"
+        },
+        {
           "path": "hooks/_runtime/context-read-contract.cjs",
           "role": "current"
         },
@@ -11637,11 +11931,19 @@
           "role": "current"
         },
         {
+          "path": "hooks/_runtime/review-execution-contract.cjs",
+          "role": "current"
+        },
+        {
           "path": "hooks/_runtime/task-continuation-contract.cjs",
           "role": "current"
         },
         {
           "path": "hooks/_runtime/workspace-layout.cjs",
+          "role": "current"
+        },
+        {
+          "path": "host-projections/AGENTS.workspace-bridge.md",
           "role": "current"
         },
         {
@@ -11710,10 +12012,6 @@
         },
         {
           "path": "prompts/memory-session.prompt.md",
-          "role": "current"
-        },
-        {
-          "path": "prompts/precheck-status.prompt.md",
           "role": "current"
         },
         {
@@ -11829,11 +12127,19 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/validate-host-instruction-controls.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/migrate-layout.js",
           "role": "current"
         },
         {
           "path": "scripts/test-cli-behavior.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-context-binding.js",
           "role": "current"
         },
         {
@@ -11846,6 +12152,10 @@
         },
         {
           "path": "scripts/test-hooks-runtime.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-host-installation.js",
           "role": "current"
         },
         {
@@ -11866,6 +12176,10 @@
         },
         {
           "path": "scripts/test-requirement-artifacts.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-review-execution-contract.js",
           "role": "current"
         },
         {
@@ -12107,14 +12421,17 @@
       ],
       "validationProfile": [
         "scripts/test-cli-behavior.js",
+        "scripts/test-context-binding.js",
         "scripts/test-context-read-contract.js",
         "scripts/test-governance-intake.js",
         "scripts/test-hooks-runtime.js",
+        "scripts/test-host-installation.js",
         "scripts/test-instruction-fallback-check.js",
         "scripts/test-mcp-servers.js",
         "scripts/test-migrate-layout.js",
         "scripts/test-pack-clean.js",
         "scripts/test-requirement-artifacts.js",
+        "scripts/test-review-execution-contract.js",
         "scripts/test-runtime-state-index.js",
         "scripts/test-skill-portfolio.js",
         "scripts/test-task-continuation.js",
@@ -12166,14 +12483,17 @@
         "evolvableUnitRef": "skill:memory",
         "probeSuiteRefs": [
           "scripts/test-cli-behavior.js",
+          "scripts/test-context-binding.js",
           "scripts/test-context-read-contract.js",
           "scripts/test-governance-intake.js",
           "scripts/test-hooks-runtime.js",
+          "scripts/test-host-installation.js",
           "scripts/test-instruction-fallback-check.js",
           "scripts/test-mcp-servers.js",
           "scripts/test-migrate-layout.js",
           "scripts/test-pack-clean.js",
           "scripts/test-requirement-artifacts.js",
+          "scripts/test-review-execution-contract.js",
           "scripts/test-runtime-state-index.js",
           "scripts/test-skill-portfolio.js",
           "scripts/test-task-continuation.js",
@@ -12548,6 +12868,10 @@
           "role": "current"
         },
         {
+          "path": "grok/skills/devcodex-workspace/SKILL.md",
+          "role": "current"
+        },
+        {
           "path": "hooks/_runtime/context-read-contract.cjs",
           "role": "current"
         },
@@ -12561,6 +12885,14 @@
         },
         {
           "path": "hooks/_runtime/lifecycle.cjs",
+          "role": "current"
+        },
+        {
+          "path": "hooks/_runtime/review-execution-contract.cjs",
+          "role": "current"
+        },
+        {
+          "path": "hooks/_runtime/visible-output-contract.cjs",
           "role": "current"
         },
         {
@@ -12588,6 +12920,10 @@
           "role": "current"
         },
         {
+          "path": "instructions/17-compliance.instructions.md",
+          "role": "current"
+        },
+        {
           "path": "instructions/18-spec-radar.instructions.md",
           "role": "current"
         },
@@ -12612,6 +12948,10 @@
           "role": "current"
         },
         {
+          "path": "prompts/delivery-checklist.prompt.md",
+          "role": "current"
+        },
+        {
           "path": "prompts/implementation-plan.prompt.md",
           "role": "current"
         },
@@ -12620,11 +12960,19 @@
           "role": "current"
         },
         {
+          "path": "prompts/memory-session.prompt.md",
+          "role": "current"
+        },
+        {
           "path": "prompts/project-profile.prompt.md",
           "role": "current"
         },
         {
           "path": "prompts/report-dev.prompt.md",
+          "role": "current"
+        },
+        {
+          "path": "prompts/report-fix.prompt.md",
           "role": "current"
         },
         {
@@ -12665,6 +13013,10 @@
         },
         {
           "path": "scripts/lib/project-knowledge-store.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/repair-prevention-assessment.js",
           "role": "current"
         },
         {
@@ -12760,6 +13112,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/validate-rework-trust-controls.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/validate-turn-liveness-controls.js",
           "role": "current"
         },
@@ -12789,6 +13145,10 @@
         },
         {
           "path": "scripts/test-client-contracts.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-context-binding.js",
           "role": "current"
         },
         {
@@ -12832,6 +13192,14 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-project-knowledge-v2.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-repair-prevention-assessment.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-requirement-artifacts.js",
           "role": "current"
         },
@@ -12840,7 +13208,15 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-review-execution-contract.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-validation-dag.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-visible-output-contract.js",
           "role": "current"
         },
         {
@@ -13072,6 +13448,7 @@
         "scripts/test-cli-behavior.js",
         "scripts/test-cli-command-registry.js",
         "scripts/test-client-contracts.js",
+        "scripts/test-context-binding.js",
         "scripts/test-context-read-contract.js",
         "scripts/test-control-plane-contracts.js",
         "scripts/test-control-plane-module-contracts.js",
@@ -13082,10 +13459,14 @@
         "scripts/test-mcp-servers.js",
         "scripts/test-migrate-layout.js",
         "scripts/test-project-knowledge-store.js",
+        "scripts/test-project-knowledge-v2.js",
+        "scripts/test-repair-prevention-assessment.js",
         "scripts/test-requirement-artifacts.js",
         "scripts/test-residual-absorption-controls.js",
+        "scripts/test-review-execution-contract.js",
         "scripts/test-skill-portfolio.js",
         "scripts/test-validation-dag.js",
+        "scripts/test-visible-output-contract.js",
         "scripts/test-workflow-capabilities.js",
         "scripts/validate.js"
       ],
@@ -13137,6 +13518,7 @@
           "scripts/test-cli-behavior.js",
           "scripts/test-cli-command-registry.js",
           "scripts/test-client-contracts.js",
+          "scripts/test-context-binding.js",
           "scripts/test-context-read-contract.js",
           "scripts/test-control-plane-contracts.js",
           "scripts/test-control-plane-module-contracts.js",
@@ -13147,10 +13529,14 @@
           "scripts/test-mcp-servers.js",
           "scripts/test-migrate-layout.js",
           "scripts/test-project-knowledge-store.js",
+          "scripts/test-project-knowledge-v2.js",
+          "scripts/test-repair-prevention-assessment.js",
           "scripts/test-requirement-artifacts.js",
           "scripts/test-residual-absorption-controls.js",
+          "scripts/test-review-execution-contract.js",
           "scripts/test-skill-portfolio.js",
           "scripts/test-validation-dag.js",
+          "scripts/test-visible-output-contract.js",
           "scripts/test-workflow-capabilities.js",
           "scripts/validate.js"
         ],
@@ -14100,6 +14486,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/validation-manifest.json",
+          "role": "current"
+        },
+        {
           "path": "website/docs/guide/development.md",
           "role": "current"
         },
@@ -14688,8 +15078,8 @@
         "skills/report/SKILL.md"
       ],
       "source": "skills/report/SKILL.md",
-      "hash": "5e504f9f95d7f8f402f130554c82f5d1e900a361ccc062e172aa6f1eb3637cc8",
-      "sourceBytes": 12044,
+      "hash": "343245503a786d31109b9c7c2181ccbcfbdacca3e703b998630e8a95d4ef709c",
+      "sourceBytes": 12941,
       "version": "1.15.1",
       "lifecycleState": "active",
       "dependencies": [],
@@ -14871,6 +15261,14 @@
           "role": "historical"
         },
         {
+          "path": "changelogs/unreleased.md",
+          "role": "current"
+        },
+        {
+          "path": "grok/skills/devcodex-workspace/SKILL.md",
+          "role": "current"
+        },
+        {
           "path": "hooks/_runtime/lifecycle-bootstrap-state.cjs",
           "role": "current"
         },
@@ -14883,7 +15281,15 @@
           "role": "current"
         },
         {
+          "path": "hooks/_runtime/review-execution-contract.cjs",
+          "role": "current"
+        },
+        {
           "path": "hooks/_runtime/workspace-layout.cjs",
+          "role": "current"
+        },
+        {
+          "path": "host-projections/AGENTS.workspace-bridge.md",
           "role": "current"
         },
         {
@@ -15071,6 +15477,14 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/validate-visible-output-controls.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/validation-orchestration.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/migrate-layout.js",
           "role": "current"
         },
@@ -15103,11 +15517,27 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-review-execution-contract.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-validate-profile.js",
           "role": "current"
         },
         {
+          "path": "scripts/test-validation-dag.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-visible-output-contract.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/validate-profile.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/validate.js",
           "role": "current"
         },
         {
@@ -15291,8 +15721,11 @@
         "scripts/test-mcp-servers.js",
         "scripts/test-migrate-layout.js",
         "scripts/test-project-knowledge-store.js",
+        "scripts/test-review-execution-contract.js",
         "scripts/test-skill-portfolio.js",
         "scripts/test-validate-profile.js",
+        "scripts/test-validation-dag.js",
+        "scripts/test-visible-output-contract.js",
         "scripts/validate-profile.js",
         "scripts/validate.js"
       ],
@@ -15351,8 +15784,11 @@
           "scripts/test-mcp-servers.js",
           "scripts/test-migrate-layout.js",
           "scripts/test-project-knowledge-store.js",
+          "scripts/test-review-execution-contract.js",
           "scripts/test-skill-portfolio.js",
           "scripts/test-validate-profile.js",
+          "scripts/test-validation-dag.js",
+          "scripts/test-visible-output-contract.js",
           "scripts/validate-profile.js",
           "scripts/validate.js"
         ],
@@ -15410,8 +15846,8 @@
         "skills/review-checklist/SKILL.md"
       ],
       "source": "skills/review-checklist/SKILL.md",
-      "hash": "1adb052f8f4cd0389d07a089d1d789e6ecc1486716a8fa3d1ec9ef3e634f87ee",
-      "sourceBytes": 12763,
+      "hash": "bb3284b076cec29790e323834af92c0b61d8035d2dd23353c160d9b3e285b1f5",
+      "sourceBytes": 14679,
       "version": "1.15.1",
       "lifecycleState": "active",
       "dependencies": [],
@@ -15492,6 +15928,14 @@
         },
         {
           "path": "scripts/lib/validate-rework-trust-controls.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/validate-visible-output-controls.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/validation-manifest.json",
           "role": "current"
         },
         {
@@ -15620,8 +16064,8 @@
         "skills/rework-prevention-engineering/SKILL.md"
       ],
       "source": "skills/rework-prevention-engineering/SKILL.md",
-      "hash": "0352d3f598bdae45a0bd3c3869bf4ed90ad0edc9e1b247b95945487afb333db4",
-      "sourceBytes": 7246,
+      "hash": "0885014c630b2ab2aaf0f442ff60c28da25451c51b425720926899e1bffa71cd",
+      "sourceBytes": 10005,
       "version": "1.15.1",
       "lifecycleState": "gray",
       "dependencies": [],
@@ -15653,7 +16097,23 @@
           "role": "current"
         },
         {
+          "path": "instructions.md",
+          "role": "current"
+        },
+        {
+          "path": "instructions/11-fix.instructions.md",
+          "role": "current"
+        },
+        {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "prompts/implementation-plan.prompt.md",
+          "role": "current"
+        },
+        {
+          "path": "prompts/technical-design.prompt.md",
           "role": "current"
         },
         {
@@ -15677,7 +16137,15 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-repair-prevention-assessment.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-skill-portfolio.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/validation-manifest.json",
           "role": "current"
         },
         {
@@ -15690,6 +16158,7 @@
         }
       ],
       "validationProfile": [
+        "scripts/test-repair-prevention-assessment.js",
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
@@ -15737,6 +16206,7 @@
         ],
         "evolvableUnitRef": "skill:rework-prevention-engineering",
         "probeSuiteRefs": [
+          "scripts/test-repair-prevention-assessment.js",
           "scripts/test-skill-portfolio.js",
           "scripts/validate.js"
         ],
@@ -15799,8 +16269,8 @@
         "skills/routing/SKILL.md"
       ],
       "source": "skills/routing/SKILL.md",
-      "hash": "23946207d6318d946c4c0ae128cea8b15609e87ab5bb9ac9df2923f000169613",
-      "sourceBytes": 15974,
+      "hash": "ca2d28dd7f55a7c4a76a64801e5bd623cc6c7945ffa19097389215256332956f",
+      "sourceBytes": 16567,
       "version": "1.15.1",
       "lifecycleState": "active",
       "dependencies": [],
@@ -15855,6 +16325,7 @@
         "skill-lifecycle-governance",
         "spec-absorption",
         "user-manual-authoring",
+        "user-visible-output-contract",
         "ux-interaction-architecture"
       ],
       "conflicts": [],
@@ -15896,7 +16367,15 @@
           "role": "historical"
         },
         {
+          "path": "hooks/_runtime/review-execution-contract.cjs",
+          "role": "current"
+        },
+        {
           "path": "hooks/_runtime/task-continuation-contract.cjs",
+          "role": "current"
+        },
+        {
+          "path": "host-projections/coverage.json",
           "role": "current"
         },
         {
@@ -15920,6 +16399,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/host-instruction-projection.json",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/cli-execution-commands.js",
           "role": "current"
         },
@@ -15929,6 +16412,10 @@
         },
         {
           "path": "scripts/lib/execution-optimization.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/host-instruction-projection.js",
           "role": "current"
         },
         {
@@ -16005,6 +16492,10 @@
         },
         {
           "path": "scripts/test-mcp-servers.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-review-execution-contract.js",
           "role": "current"
         },
         {
@@ -16110,6 +16601,7 @@
         "scripts/test-cli-command-registry.js",
         "scripts/test-governance-intake.js",
         "scripts/test-mcp-servers.js",
+        "scripts/test-review-execution-contract.js",
         "scripts/test-skill-portfolio.js",
         "scripts/test-workflow-capabilities.js",
         "scripts/validate.js"
@@ -16166,6 +16658,7 @@
           "scripts/test-cli-command-registry.js",
           "scripts/test-governance-intake.js",
           "scripts/test-mcp-servers.js",
+          "scripts/test-review-execution-contract.js",
           "scripts/test-skill-portfolio.js",
           "scripts/test-workflow-capabilities.js",
           "scripts/validate.js"
@@ -17713,6 +18206,14 @@
           "role": "current"
         },
         {
+          "path": "hooks/_runtime/visible-output-contract.cjs",
+          "role": "current"
+        },
+        {
+          "path": "host-projections/copilot-instructions.md",
+          "role": "current"
+        },
+        {
           "path": "instructions.md",
           "role": "current"
         },
@@ -17770,6 +18271,10 @@
         },
         {
           "path": "README.md",
+          "role": "current"
+        },
+        {
+          "path": "scripts/check-critical-coverage.js",
           "role": "current"
         },
         {
@@ -17837,6 +18342,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-cli-behavior.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-context-read-contract.js",
           "role": "current"
         },
@@ -17858,6 +18367,10 @@
         },
         {
           "path": "scripts/test-skill-portfolio.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-visible-output-contract.js",
           "role": "current"
         },
         {
@@ -18010,12 +18523,14 @@
         }
       ],
       "validationProfile": [
+        "scripts/test-cli-behavior.js",
         "scripts/test-context-read-contract.js",
         "scripts/test-hooks-runtime.js",
         "scripts/test-mcp-servers.js",
         "scripts/test-migrate-layout.js",
         "scripts/test-runtime-state-index.js",
         "scripts/test-skill-portfolio.js",
+        "scripts/test-visible-output-contract.js",
         "scripts/validate-profile.js",
         "scripts/validate.js"
       ],
@@ -18063,12 +18578,14 @@
         ],
         "evolvableUnitRef": "skill:summary",
         "probeSuiteRefs": [
+          "scripts/test-cli-behavior.js",
           "scripts/test-context-read-contract.js",
           "scripts/test-hooks-runtime.js",
           "scripts/test-mcp-servers.js",
           "scripts/test-migrate-layout.js",
           "scripts/test-runtime-state-index.js",
           "scripts/test-skill-portfolio.js",
+          "scripts/test-visible-output-contract.js",
           "scripts/validate-profile.js",
           "scripts/validate.js"
         ],
@@ -18129,8 +18646,8 @@
         "skills/test-router/SKILL.md"
       ],
       "source": "skills/test-router/SKILL.md",
-      "hash": "94fb631e22ed0aa836eb15b99d4c84e1760eac7b4ff3f2599ba91032f758c34d",
-      "sourceBytes": 6928,
+      "hash": "2cd5f4663641ec173920e312c1ec8b43e7ca3832db757b53b70ca27137ae6d2c",
+      "sourceBytes": 8349,
       "version": "1.15.1",
       "lifecycleState": "active",
       "dependencies": [],
@@ -18334,6 +18851,14 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-repair-prevention-assessment.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/validation-manifest.json",
+          "role": "current"
+        },
+        {
           "path": "website/docs/guide/development.md",
           "role": "current"
         },
@@ -18368,6 +18893,7 @@
       ],
       "validationProfile": [
         "scripts/test-client-contracts.js",
+        "scripts/test-repair-prevention-assessment.js",
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
@@ -18417,6 +18943,7 @@
         "evolvableUnitRef": "skill:test-router",
         "probeSuiteRefs": [
           "scripts/test-client-contracts.js",
+          "scripts/test-repair-prevention-assessment.js",
           "scripts/test-skill-portfolio.js",
           "scripts/validate.js"
         ],
@@ -18862,6 +19389,202 @@
         "operationalReadiness": {
           "state": "complete",
           "currentConsumer": "instructions.md",
+          "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
+          "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
+          "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
+          "lastEvidenceAt": "2026-07-14"
+        },
+        "triggerPrecision": {
+          "state": "structural-only",
+          "sampleCount": 0,
+          "precision": null,
+          "falsePositiveRate": null,
+          "falseNegativeRate": null,
+          "manualCorrectionRate": null,
+          "lastMeasuredAt": null
+        },
+        "lifecycleAuthorization": "plugin.json#skills[].lifecycleState",
+        "stateRationale": "registered source, current consumer and operational fixtures are present",
+        "promotionCriteria": "trigger precision requires real comparable work units; structural evidence alone cannot promote lifecycle state"
+      }
+    },
+    {
+      "id": "user-visible-output-contract",
+      "name": "user-visible-output-contract",
+      "description": "用户可见输出契约 Owner — 统一入口检查、完成检查、确认、进度、结果、阻断及内部产物到用户交付的确定性投影",
+      "owner": "user-visible-output-contract",
+      "triggers": {
+        "terms": [
+          "Owner",
+          "user-visible-output-contract"
+        ],
+        "positive": [
+          {
+            "fixture": "frontmatter-description-resolves",
+            "input": "用户可见输出契约 Owner — 统一入口检查、完成检查、确认、进度、结果、阻断及内部产物到用户交付的确定性投影"
+          }
+        ],
+        "negative": [
+          {
+            "fixture": "empty-or-unregistered-trigger-rejected",
+            "input": ""
+          }
+        ],
+        "ambiguous": []
+      },
+      "ownedArtifacts": [
+        "skills/user-visible-output-contract/SKILL.md"
+      ],
+      "source": "skills/user-visible-output-contract/SKILL.md",
+      "hash": "838fdf356aa53386fba012ef4e70269605882900fbf8dd264890315fa0916886",
+      "sourceBytes": 8441,
+      "version": "1.15.1",
+      "lifecycleState": "active",
+      "dependencies": [],
+      "references": [],
+      "conflicts": [],
+      "conflictReview": {
+        "status": "reviewed-none",
+        "evidence": "scripts/test-skill-portfolio.js#explicit-conflict-review"
+      },
+      "consumers": [
+        {
+          "path": "changelogs/unreleased.md",
+          "role": "current"
+        },
+        {
+          "path": "host-projections/copilot-instructions.md",
+          "role": "current"
+        },
+        {
+          "path": "host-projections/coverage.json",
+          "role": "current"
+        },
+        {
+          "path": "instructions.md",
+          "role": "current"
+        },
+        {
+          "path": "instructions/01-common.instructions.md",
+          "role": "current"
+        },
+        {
+          "path": "instructions/02-output-paths.instructions.md",
+          "role": "current"
+        },
+        {
+          "path": "instructions/17-compliance.instructions.md",
+          "role": "current"
+        },
+        {
+          "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "prompts/implementation-plan.prompt.md",
+          "role": "current"
+        },
+        {
+          "path": "prompts/precheck-status.prompt.md",
+          "role": "current"
+        },
+        {
+          "path": "prompts/technical-design.prompt.md",
+          "role": "current"
+        },
+        {
+          "path": "scripts/host-instruction-projection.json",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/validate-rework-trust-controls.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/validate-visible-output-controls.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-skill-portfolio.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-visible-output-contract.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/validation-manifest.json",
+          "role": "current"
+        },
+        {
+          "path": "website/docs/index.md",
+          "role": "current"
+        },
+        {
+          "path": "website/docs/intro/index.md",
+          "role": "current"
+        }
+      ],
+      "validationProfile": [
+        "scripts/test-skill-portfolio.js",
+        "scripts/test-visible-output-contract.js",
+        "scripts/validate.js"
+      ],
+      "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "user-visible-output-contract",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "Owner",
+            "user-visible-output-contract"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "用户可见输出契约 Owner — 统一入口检查、完成检查、确认、进度、结果、阻断及内部产物到用户交付的确定性投影"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:user-visible-output-contract",
+        "probeSuiteRefs": [
+          "scripts/test-skill-portfolio.js",
+          "scripts/test-visible-output-contract.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
+      "evidence": {
+        "registration": "plugin.json",
+        "operationalReadiness": {
+          "state": "complete",
+          "currentConsumer": "changelogs/unreleased.md",
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",

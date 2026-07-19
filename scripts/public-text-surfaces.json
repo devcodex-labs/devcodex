@@ -1,0 +1,32 @@
+{
+  "schemaVersion": "PublicTextSurfacesV1",
+  "surfaces": [
+    { "path": "README.md", "role": "package-readme" },
+    { "path": "changelogs/unreleased.md", "role": "current-changelog" },
+    { "path": "website/docs/intro/index.md", "role": "website-home" },
+    { "path": "website/docs/guide/development.md", "role": "website-current-guide" },
+    { "path": "website/docs/specs/directory-structure.md", "role": "website-current-spec" }
+  ],
+  "contaminationPatterns": [
+    {
+      "id": "validator-output-contamination",
+      "pattern": "^\\s*\\[V\\d+[a-z]?\\].*(?:missing|drift|error|failed)",
+      "flags": "gimu"
+    }
+  ],
+  "highConfidenceMojibakePatterns": [
+    {
+      "id": "cjk-mojibake-cluster",
+      "pattern": "(?:楠岃|鍓嶅|澶嶅|璧勬簮|鏋舵瀯|鎸囨爣|闆跺)",
+      "flags": "gu"
+    }
+  ],
+  "lowConfidenceMojibakePatterns": [
+    {
+      "id": "latin-mojibake-marker",
+      "pattern": "(?:Ã.|Â.|â€|ï»¿)",
+      "flags": "gu"
+    }
+  ],
+  "allowlist": []
+}

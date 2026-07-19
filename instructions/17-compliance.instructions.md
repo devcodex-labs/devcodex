@@ -143,7 +143,7 @@ version: 1.15.1
 | FC2 | 报告文件已写入（chat 豁免） |
 | FC3 | CP 按序执行（dev/fix；其他 N/A） |
 | FC4 | 文件名/路径合规（`NN--` 双横杠开头；本轮无报告产物时标 N/A） |
-| FC5 | 产物交付完整（`ArtifactDeliveryCompletenessGate`：主要产物自包含、manifest/计数、`ArtifactLinkSet`、surface-local dedupe、Markdown 链接与必要 copy fallback；可见证据三态）|
+| FC5 | `ArtifactDeliveryManifestV1` 完整对账；`UserFacingArtifactSetV1` required hidden=0、计数守恒；semantic name/action/order 与 capability renderer 有效 |
 | FC6 | 新增 DevCodex 规范资产 `.md` 行数检查（instructions / skills / prompts / templates / 规范源等超 500 行须按 C13 拆分；业务项目需求、技术方案、报告和正式项目文档不因 C13 强制拆分） |
 | FC7 | 用户决策选项与报告决策点必带推荐 + 理由：所有 AskUserQuestion / 多选项呈现 / CP 范围选择 / 方案对比 / analyze-audit 报告决策点必须有且仅有 1 个 🟢 推荐项（首位置 + 标签含"(推荐)"或表格标 ⭐），并附一句话推荐理由；没有可推荐动作时必须显式写 `推荐：无后续动作` 与原因 |
 
@@ -213,7 +213,7 @@ version: 1.15.1
 | T6 | ✅ 约束遵守（C01~C22 + GovernanceIntakeClosureGate 已终结或明确 unverified/ambiguous） |
 | T7 | ✅ 工作流验证（dev/fix: 适用门禁已执行，且“执行 → 扫描/验证 → ECR → 完成”正式阶段已走完；其中 fix 的三步扫描与 ECR 已完成；audit/analyze: PCV 与推荐结论已执行）|
 | T8 | ✅ SUMMARY 已更新；若触发上下文交接，daily tasks 或报告已写 `ContextHandoffCard` |
-| T9 | ✅ 产物路径已输出 |
+| T9 | ✅ internal manifest 与用户可见交付均完成；默认隐藏内部记录仍已写入、验证并纳入 ECR |
 
 > ℹ️ **T 层补充**：T2/T3/T8 验证的是最终完成态，和 FC/SC 的“写入动作是否发生”不同；只有两层都通过，才表示既没有漏写，也没有在收尾阶段失配。
 
@@ -223,18 +223,20 @@ version: 1.15.1
 
 **dev 模式**（回复末尾必须输出）：
 ```text
----
-🛡️ DEV 模式 | 合规检查
-FC: FC1 [✅/❌] FC2 [✅/N/A] FC3 [✅/N/A] FC4 [✅/❌] FC5 [✅/N/A] FC6 [✅/❌] FC7 [✅/N/A]
-SC: SC2 [✅/❌] SC4 [✅/❌] SC6 [✅/❌] ...（仅列适用项，逐项实际验证后填写）
-整体：✅ 全通过 / ⚠️ <N> 项待修正
+### DevCodex · 完成检查
+`PASS/WARN/BLOCK/UNVERIFIED` · `[project]`
 
-📂 本次会话产物：
-- [文件名（类型）](workspace相对路径/file.md)
----
+- FC1~FC7 [状态] 固定 ID 与实际证据
+- SCx/RCx/Tx [状态] 仅列适用项
+
+#### 完成交付文件
+- [语义名称](capability-selected-target) — 用途；操作：用户动作
+已列 N / 总计 M；默认隐藏 R
+
+DevCodexVisibleEnvelopeV1 · completion-check · [状态] · [semanticDigest]
 ```
 
-> ⚠️ **FC5 填写规则**：最终回复必须在 `📂 本次会话产物` 区块标注“主要产物”并列出 active task primary artifacts；大集合提供完整 manifest 入口和 supporting/runtime/excluded-generated 计数。去重仅限同一 surface；Hook 未观察到 assistant payload 时状态只能为 `unverified`，不得断言缺失。
+> ⚠️ **FC5 填写规则**：触发 `user-visible-output-contract`。internal manifest 必须 planned=observed=internalDelivered；visible set 必须 required hidden=0 且 `listed+remaining=total`。默认隐藏 session/daily/SUMMARY/task/checkpoint/raw receipt/manifest/ledger，但继续写入和 ECR。链接必须由 `LinkCapabilityDecisionV1` 按当前 surface 证据选择；Rich clickable 不重复绝对路径，只有用户要求、链接失败、工作区外、歧义或无法定位时追加 fallback。Hook 未观察 payload时只能 `unverified`，legacy 格式最多 `unverified-legacy`。
 
 ## 自修复触发（不进入 self-fix 工作流）
 

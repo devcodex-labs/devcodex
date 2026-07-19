@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "CriticalCoverageV1",
+  "modules": [
+    {
+      "path": "scripts/lib/validate-execution-chain-controls.js",
+      "thresholds": {
+        "lines": 90,
+        "statements": 90,
+        "functions": 100,
+        "branches": 85
+      }
+    }
+  ]
+}

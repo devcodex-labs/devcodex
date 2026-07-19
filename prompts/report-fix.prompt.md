@@ -27,7 +27,7 @@ applyTo: .devcodex/**/reports/bugs/**
 > **修复时间**: YYYY-MM-DD HH:MM:SS（incident 类型必填）
 > **Release 状态**: 未进入 / 待用户确认 / 已执行
 > **日志落点**: `changelogs/unreleased.md` / `CHANGELOG.md + changelogs/releases/vX.Y.Z.md`
-> **支撑产物**: ExecutionContract / TestRoute / ReleaseAudit / ReleaseVerification / ConceptSyncMap / HostContractVerification / CliDiagnosticContract / CheckpointValidation / LocalTaskTrace / TurnLivenessRecovery / 05-实施进度.md（按触发状态填写）
+> **支撑产物**: ExecutionContract / RepairPreventionAssessment / TestRoute / ReleaseAudit / ReleaseVerification / ConceptSyncMap / HostContractVerification / CliDiagnosticContract / CheckpointValidation / LocalTaskTrace / TurnLivenessRecovery / 05-实施进度.md（按触发状态填写）
 > **ContextHandoffCard**: 触发时填写；未触发写 N/A + skipReason
 ```
 
@@ -73,6 +73,14 @@ applyTo: .devcodex/**/reports/bugs/**
 
 跨会话、多批次、中断或残余风险未关闭时追加 `ContextHandoffCard`；Profile、release、service lifecycle 等条件段按 schema 与 Owner Skill 生成。
 
+所有 fix 追加 `RepairPreventionAssessment` 条件段：引用 `RepairPreventionAssessmentV1`，分别记录 preventionDecision/mode、immediateClosureEvidence、prospectiveEvidencePlan/effectivenessStatus 和 rollbackOrSunset；`no-new-control` 记录 reason/evidence，禁止把本次回归通过写成长期 prevention effective。
+
+ECR 的 review 状态必须来自唯一 `ReviewStateSnapshotV1`，并引用 planId、candidate/stage、fresh receipt digests、EvidenceSaturation 与 StageTiming；不得在报告手写另一套 open/blocker/stale 计数。
+
+命中用户可见输出时追加 `VisibleOutputContract`：引用同一 `ArtifactDeliveryManifestV1.manifestDigest`、`UserFacingArtifactSetV1` 计数、`DevCodexVisibleEnvelopeV1.semanticDigest`、`LinkCapabilityDecisionV1` 和 renderer parity；默认用户列表不包含 session/daily/SUMMARY/task/checkpoint/raw receipt/manifest/ledger，但这些内部产物仍须写入、验证和参与 ECR。
+
+HostContractRoute 发生 MCP bridge 降级时记录 `mcpFallback=used`、原始错误、单次有界 fallback 与最终证据状态；不得把 fallback 尝试写成已加载或反复重试同一 MCP 调用。
+
 ## §5 回归验证
 
 | selector / gateGroup | 结果 | 修复前失败证据 | 修复后证据 / skipReason |
@@ -92,7 +100,7 @@ applyTo: .devcodex/**/reports/bugs/**
 | ECR-1 | CP1/CP2/CP3、05-实施进度、报告、daily tasks、SUMMARY | ✅/⚠️ | |
 | ECR-2 | 问题 ID / 根因链 → diff/commit 文件 | ✅/⚠️ | |
 | ECR-3 | CP3 步骤 / ExecutionContract / TestRoute / ServiceLifecycleCleanup / ConceptSyncMap / HostContractVerification → 测试/部署/验证证据 | ✅/⚠️ | |
-| ECR-4 | 修复报告声明 → 测试/扫描/探针结果/OfficialDocsEvidence/ProfileImpactCheck/ReleaseAudit/ReleaseVerification/部署同步证据；派生资产追加 post-stage candidate + post-commit replay | ✅/⚠️ | |
+| ECR-4 | 修复报告声明 → 测试/扫描/探针结果/OfficialDocsEvidence/ProfileImpactCheck/ReleaseAudit/ReleaseVerification/VisibleOutputContract/部署同步证据；派生资产追加 post-stage candidate + post-commit replay | ✅/⚠️ | |
 | ECR-5 | memory daily → SUMMARY | ✅/⚠️ | |
 | ECR-6 | git dirty 边界 | ✅/⚠️ | |
 | ECR-7 | 控制面任务 SCV / validate / direct replay / host-contract probe / 新增探针 / 黄色偏离 / backlog 真相复核 / 台账状态回写 | ✅/N/A | |
@@ -128,7 +136,7 @@ applyTo: .devcodex/**/reports/bugs/**
 ## §9 后置处理
 
 - [ ] document-sync、影响评估与 ProfileImpactCheck 已完成或有 skipReason
-- [ ] ExecutionContract、RepairCollaboration、TestRoute 和实际触发的 registry gateGroup 已收口
+- [ ] ExecutionContract、RepairCollaboration、RepairPreventionAssessment、TestRoute 和实际触发的 registry gateGroup 已收口
 - [ ] 复审逃逸如有发生，whyMissed、prevention、checklistPatch 与 rerunEvidence 已回写 Owner 产物
 - [ ] 服务生命周期、进度、ContextHandoffCard 和台账状态已按触发条件同步
 - [ ] release-status：未进入 / 待用户确认 / 已执行；CHANGELOG / unreleased 已按发布状态更新

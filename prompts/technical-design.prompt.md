@@ -15,7 +15,7 @@ applyTo: .devcodex/**/requirements/**
 > ⚠️ 本模板优先回答：现状是什么、目标设计是什么、实现流程怎么走、关键节点谁负责、契约与边界如何处理、风险与测试如何覆盖。
 > ⚠️ CP2 技术方案必须把**目标架构/模块边界、数据/状态模型、契约矩阵、技术执行流程、产品事实源→技术验证映射（需求验收映射）**作为一等或条件章节表达，禁止只散落在说明文字、文件清单或测试备注中。这里的实现验收由技术方案从 CP1 双方确认后的产品需求派生，不要求需求方或产品在 CP1 填写验收标准；若产品已直接提供 `01-产品需求.md`，技术方案直接承接该产品完整需求，不再要求 AI 生成 `01-需求确认.md`。
 > ⚠️ 生成的 Markdown 技术方案文档必须在头部后补 `## 目录导航`。若需求属于契约驱动型，方案中必须显式引用目标文档路径、文档模式与本方案引用的契约范围。
-> ⚠️ 控制面、Auto、多批次、预计修改 ≥10 文件、模板-示例-校验链或发布前置任务，方案中必须说明是否触发 `execution-contract`、`test-router`、`audit-release`、`release-verification`、`source-consumer-sync`、`host-contract-verification` 与 `05-实施进度.md`。
+> ⚠️ 控制面、Auto、多批次、预计修改 ≥10 文件、模板-示例-校验链或发布前置任务，方案中必须说明是否触发 `execution-contract`、`test-router`、`audit-release`、`release-verification`、`source-consumer-sync`、`host-contract-verification`、`user-visible-output-contract` 与 `05-实施进度.md`。
 > ⚠️ 项目/目录分析、审查或扫描必须在 broad scan 前填写 `ProjectArtifactScaleRoutingGate` / `ScaleDecisionRecord`：项目/root、六项规模指标、single-pass/batched/sampled+deep-read/blocked、排除策略、batch/checkpoint、invalid-run 与 V91。
 > ⚠️ 若本方案触发或豁免任何关键产物，必须在 §1 或 §8 写出 ArtifactDecisionMatrix：`artifact`、`state(create/update/skip/N/A)`、`reason`、`trigger`、`upgradeTrigger`、`targetArtifact`。
 > ⚠️ 若本方案承接了用户可见“意图扩展摘要”，必须在 §0 或 §1 说明语义初判、项目现实扩展后路由、关键风险、验证路线与备选路径如何落到方案中。
@@ -26,9 +26,11 @@ applyTo: .devcodex/**/requirements/**
 > ⚠️ CP2 必须承接 CP1 的平台工程判断和 `ImplementationComplexityLevel`（兼容旧字段 `ImplementationComplexityPreference`）：消费者范围、共享契约边界、模块职责、可维护性成本、非目标和最小实现预算要互相一致；没有真实复用者或演进边界时，不得新增 factory / manager / adapter / registry 等预设抽象。
 > ⚠️ §7 必须物化验证计划、命令/矩阵路线、验收标准和退出条件；进入编码前，§2.6 写清允许首批、阻断范围、偏移触发、验证路线和消费者同步。
 > ⚠️ 当 AI 判断目标包含修复 Bug/缺陷/回归/安全问题/规范缺口/审查 finding 时，技术方案必须引用 `repair-collaboration`：低风险填写 lightweight 双层字段，高风险填写 full + findingToPatchMap + handoffIntegrity + independentReReview；模型名称不是触发条件。
+> ⚠️ 同一 repair 方案必须引用 `rework-prevention-engineering#RepairPreventionAssessmentGate`，冻结 `RepairPreventionAssessmentV1` 的 mode/decision、双根因、regression/negative seeds、immediate closure 与 prospective plan、Owner/consumers 和 rollback/sunset；`no-new-control` 必须有标准 reason/evidence，当前修复重跑不能晋级 prevention。
 > ⚠️ 机器可读 CLI、本地 probe 或 trace show/replay 命中 `local-observability-contract`：冻结 human/json 兼容、envelope、errorCode/nextStep、native exit map、local-only/zero-write 与 package/docs 消费者；不得把构建期 V# probe registry 当成本地运行时 probe。
 > ⚠️ 长任务、工具完成后无续接、orphaned `inProgress` 或宿主恢复命中 `agent-turn-liveness`：技术方案必须引用 `TurnLivenessRecoveryGate`，物化状态/lease/ACK/terminal、response-time/post-execution `CheckpointValidationResultV1`、只读 `LocalTaskTraceV1`、host-native/Hook-event/sidecar 能力边界与 no-continuation/active-lease/restart/duplicate/timeout fault matrix；禁止把 Hook 落盘写成无事件自唤醒，禁止 trace replay 执行 payload 或重放 mutation。
-> ⚠️ 意图、Profile/Memory bootstrap、MCP read 或 Hook receipt 变化命中 `context-acquisition`：技术方案必须记录 `ContextReadPlanV1` 的目标、baseline、selected/excluded、升级与 replan 条件，以及 Post success receipt、fallback 和 V99 路线；不得把 required-to-exist 写成每轮全文读取。
+> ⚠️ 意图、Profile/Memory bootstrap、MCP read 或 Hook receipt 变化命中 `context-acquisition`：技术方案必须记录 `ContextReadPlanV2` 的 planContentId/目标/baseline/selected/excluded、升级与 replan 条件，以及 `ContextReadReceiptV2` 的 Post success、fallback、失效和 V99 路线；`ContextReadPlanV1`/`ContextReadReceiptV1` 只保留 reader compatibility，不得把 required-to-exist 写成每轮全文读取。
+> ⚠️ 入口/完成检查、确认、进度、最终结果、阻断或文件交付变化命中 `user-visible-output-contract`：技术方案必须冻结 internal manifest→visible set→Envelope→capability renderer 单链，说明 internal-only、计数守恒、semantic digest、六 message kinds、宿主证据上限与 legacy/fail-closed 路线。
 > ⚠️ package boundary / pack / benchmark / codegen 验证必须写清串行顺序；任何会删除、重建或写入 `dist` 的命令不得和包边界检查并行。
 > ⚠️ 前端、文档、发布、数据、安全、性能、外部消费者、专家输出、规范吸纳或历史分层等跨域语义，均按 registry 触发对应 Owner；本模板不得维护版本化 Owner/Gate 名录。未触发的分组写聚合 `N/A + skipReason`。
 

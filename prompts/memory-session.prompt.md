@@ -59,6 +59,22 @@ applyTo: .devcodex/**/.memory/**
 |------|---------|
 | `path/to/file` | 新建/修改/删除 |
 
+### 🧾 InternalDeliveryState（发生文件交付时）
+
+| manifestId | session artifactId / visibility | planned=observed=internalDelivered | visible set / semanticDigest |
+|------------|---------------------------------|------------------------------------|------------------------------|
+| | `internal-only` | verified / failed | |
+
+> session/daily/SUMMARY/task/checkpoint/raw receipt/manifest/ledger 仍进入内部 `ArtifactDeliveryManifestV1` 和 ECR，但默认不进入最终用户文件列表；只有恢复冲突、审计取证、写入失败或用户明确要求时才提升可见性。
+
+### 🔎 ReviewState（正式复审/ECR 触发时）
+
+| planId | snapshotDigest | stage/class | open/blocker/stale/unreviewed | saturation / nextAction |
+|--------|----------------|-------------|--------------------------------|-------------------------|
+| | | | | |
+
+> 只投影 `ReviewStateSnapshotV1`，禁止在记忆中独立重算状态。
+
 ### 🔁 ContextHandoffCard
 
 > 跨会话、跨 Agent、多批次、summary/compact 前或任务即将中断时必填；不触发写 `N/A + skipReason`。

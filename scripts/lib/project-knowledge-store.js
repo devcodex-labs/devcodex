@@ -10,17 +10,22 @@ const {
 } = require('../../hooks/_runtime/content-identity.cjs')
 const { createDerivedStateStore } = require('../../hooks/_runtime/derived-state-store.cjs')
 
-const SNAPSHOT_SCHEMA = 'ProjectKnowledgeSnapshotV1'
-const FILE_RECORD_SCHEMA = 'FileKnowledgeRecordV1'
+const LEGACY_SNAPSHOT_SCHEMA = 'ProjectKnowledgeSnapshotV1'
+const LEGACY_FILE_RECORD_SCHEMA = 'FileKnowledgeRecordV1'
+const SNAPSHOT_SCHEMA = 'ProjectKnowledgeSnapshotV2'
+const FILE_RECORD_SCHEMA = 'FileKnowledgeRecordV2'
+const SEMANTIC_CLAIM_SCHEMA = 'SemanticClaimV1'
+const BINDING_SCHEMA = 'ProjectKnowledgeBindingV1'
 const IMPACT_GRAPH_SCHEMA = 'ImpactGraphV1'
 const LENS_RECORD_SCHEMA = 'AnalysisLensRecordV1'
-const PLAN_SCHEMA = 'IncrementalAnalysisPlanV1'
-const RECEIPT_SCHEMA = 'IncrementalAnalysisReceiptV1'
+const PLAN_SCHEMA = 'IncrementalAnalysisPlanV2'
+const RECEIPT_SCHEMA = 'IncrementalAnalysisReceiptV2'
 const BACKLOG_SCHEMA = 'GlobalOptimizationBacklogV1'
-const POLICY_VERSION = '1'
+const POLICY_VERSION = '2'
 const EVIDENCE_STRENGTH = new Set(['agent-semantic', 'content-structured', 'inventory-only'])
 const COVERAGE_LEVEL = new Set(['deep', 'standard', 'light', 'inventory'])
 const EDGE_TYPES = new Set(['dependency', 'consumer', 'config', 'contract', 'generated', 'test', 'docs'])
+const CLAIM_TYPES = new Set(['inventory', 'structure', 'responsibility', 'symbol', 'import', 'config', 'contract', 'test', 'profile', 'dependency', 'risk', 'recommendation'])
 
 class ProjectKnowledgeError extends Error {
   constructor(code, message, nextStep = '') {
@@ -42,6 +47,79 @@ function normalizeRelative(value) {
 function normalizeStringList(values) {
   if (!Array.isArray(values)) return []
   return [...new Set(values.map(value => String(value || '').trim()).filter(Boolean))].sort()
+}
+
+function normalizeIdentity(value, sourceKey) {
+  if (value && typeof value === 'object' && typeof value.digest === 'string') {
+    return { ...value, digest: String(value.digest) }
+  }
+  const normalized = value === undefined || value === null || value === '' ? 'default' : value
+  return buildJsonContentIdentity({ sourceKey, value: normalized, contractVersion: POLICY_VERSION }).identity
+}
+
+function buildMerkleRoot(records) {
+  let level = records.map(record => buildJsonContentIdentity({
+    sourceKey: `project-inventory-leaf/${record.path}`,
+    value: { path: record.path, digest: record.contentIdentity.digest, bytes: record.contentIdentity.bytes, kind: record.kind },
+    contractVersion: POLICY_VERSION
+  }).identity.digest)
+  const leafCount = level.length
+  if (!level.length) {
+    level = [buildJsonContentIdentity({ sourceKey: 'project-inventory-empty', value: [], contractVersion: POLICY_VERSION }).identity.digest]
+  }
+  while (level.length > 1) {
+    const next = []
+    for (let index = 0; index < level.length; index += 2) {
+      const left = level[index]
+      const right = level[index + 1] || left
+      next.push(buildJsonContentIdentity({ sourceKey: 'project-inventory-node', value: [left, right], contractVersion: POLICY_VERSION }).identity.digest)
+    }
+    level = next
+  }
+  return { schemaVersion: 'ProjectInventoryMerkleRootV1', algorithm: 'sha256-pairwise', leafCount, digest: level[0] }
+}
+
+function buildRangeIdentity(relativePath, content, sourceRange) {
+  const text = Buffer.isBuffer(content) ? content.toString('utf8') : String(content ?? '')
+  const lines = text.split(/\r?\n/)
+  const startLine = Number(sourceRange?.startLine)
+  const endLine = Number(sourceRange?.endLine)
+  if (!Number.isInteger(startLine) || !Number.isInteger(endLine) || startLine < 1 || endLine < startLine || endLine > Math.max(1, lines.length)) {
+    throw new ProjectKnowledgeError('KNOWLEDGE_CLAIM_RANGE_INVALID', `invalid source range for ${relativePath}`)
+  }
+  const selected = lines.slice(startLine - 1, endLine).join('\n')
+  return buildContentIdentity({ sourceKey: `${relativePath}#L${startLine}-L${endLine}`, content: selected, contractVersion: POLICY_VERSION })
+}
+
+function canonicalClaimCore(claim) {
+  if (!claim || typeof claim !== 'object') return null
+  const { claimId, claimDigest, status, ...core } = claim
+  return { ...core, status: 'candidate' }
+}
+
+function buildSemanticClaim({ path: relativePath, type, statement, authority, sourceRange, content, lens = {}, dependsOn = [], status = 'candidate' }) {
+  const normalizedPath = normalizeRelative(relativePath)
+  const normalizedType = CLAIM_TYPES.has(type) ? type : 'structure'
+  const normalizedAuthority = EVIDENCE_STRENGTH.has(authority) ? authority : 'content-structured'
+  const normalizedRange = { startLine: Number(sourceRange?.startLine), endLine: Number(sourceRange?.endLine) }
+  const core = {
+    schemaVersion: SEMANTIC_CLAIM_SCHEMA,
+    path: normalizedPath,
+    type: normalizedType,
+    statement: String(statement || '').trim(),
+    authority: normalizedAuthority,
+    sourceRange: normalizedRange,
+    rangeIdentity: buildRangeIdentity(normalizedPath, content, normalizedRange),
+    sourceContentDigest: buildContentIdentity({ sourceKey: normalizedPath, content, contractVersion: POLICY_VERSION }).digest,
+    lensId: String(lens.lensId || 'default'),
+    lensVersion: String(lens.version || '1'),
+    policyVersion: String(lens.policyVersion || POLICY_VERSION),
+    dependsOn: normalizeStringList(dependsOn),
+    status: 'candidate'
+  }
+  if (!core.statement) throw new ProjectKnowledgeError('KNOWLEDGE_CLAIM_EMPTY', `empty semantic claim: ${normalizedPath}`)
+  const claimDigest = buildJsonContentIdentity({ sourceKey: `${normalizedPath}#semantic-claim`, value: core, contractVersion: POLICY_VERSION }).identity.digest
+  return { ...core, claimId: `claim-${claimDigest.slice(0, 24)}`, claimDigest, status: status === 'accepted' ? 'accepted' : 'candidate' }
 }
 
 function inferLanguage(relativePath) {
@@ -70,7 +148,10 @@ function factDigest(record) {
     imports: normalizeStringList(record.imports),
     configAnchors: normalizeStringList(record.configAnchors),
     contractAnchors: normalizeStringList(record.contractAnchors),
-    facts: Array.isArray(record.facts) ? record.facts : []
+    facts: Array.isArray(record.facts) ? record.facts : [],
+    semanticClaims: (Array.isArray(record.semanticClaims) ? record.semanticClaims : [])
+      .map(claim => ({ claimId: claim.claimId, claimDigest: claim.claimDigest, status: claim.status }))
+      .sort((left, right) => String(left.claimId).localeCompare(String(right.claimId)))
   }
   return buildJsonContentIdentity({ sourceKey: `${record.path}#facts`, value: facts, contractVersion: POLICY_VERSION }).identity.digest
 }
@@ -91,9 +172,21 @@ function buildFileRecord(relativePath, content, options = {}) {
     configAnchors: normalizeStringList(options.configAnchors),
     contractAnchors: normalizeStringList(options.contractAnchors),
     facts: Array.isArray(options.facts) ? options.facts : [],
+    semanticClaims: Array.isArray(options.semanticClaims) ? options.semanticClaims : [],
+    claimBoundary: options.claimBoundary || {
+      maximumAuthority: options.evidenceStrength || 'inventory-only',
+      manualDeepReadClaimAllowed: false,
+      completeIssueCountClaimAllowed: false
+    },
     tombstone: false
   }
   record.factDigest = factDigest(record)
+  record.observationDigest = buildJsonContentIdentity({
+    sourceKey: `${normalizedPath}#observation`,
+    value: { contentDigest: record.contentIdentity.digest, semanticClaims: [] },
+    contractVersion: POLICY_VERSION
+  }).identity.digest
+  Object.defineProperty(record, '__content', { value: bytes, enumerable: false, configurable: false, writable: false })
   return record
 }
 
@@ -119,19 +212,21 @@ function buildInventoryFromFiles(files, options = {}) {
     records.push(buildFileRecord(entry.path, content, entry))
     totalBytes += content.length
   }
+  const merkleRoot = buildMerkleRoot(records)
   const inventoryCore = records.map(record => ({ path: record.path, contentIdentity: record.contentIdentity, kind: record.kind }))
   const inventoryIdentity = buildJsonContentIdentity({
     sourceKey: 'project-inventory',
-    value: inventoryCore,
+    value: { merkleRoot, records: inventoryCore },
     contractVersion: POLICY_VERSION
   }).identity
   return {
-    schemaVersion: 'ProjectInventoryV1',
+    schemaVersion: 'ProjectInventoryV2',
     records,
     fileCount: records.length,
     totalBytes,
     bounded: overflowReason === null,
     overflowReason,
+    merkleRoot,
     inventoryIdentity
   }
 }
@@ -247,13 +342,185 @@ function normalizeLens(lens = {}) {
   }
 }
 
-function createSnapshot({ repoIdentity, inventory, graph = {}, policyVersion = POLICY_VERSION }) {
+function buildKnowledgeBinding({ repoIdentity, inventory, lens = {}, analysisConfigIdentity, parserIdentity, testIdentity, profileIdentity }) {
+  const normalizedLens = normalizeLens(lens)
+  const core = {
+    schemaVersion: BINDING_SCHEMA,
+    repoId: String(repoIdentity?.repoId || ''),
+    root: String(repoIdentity?.root || ''),
+    baseIdentity: String(repoIdentity?.baseIdentity || ''),
+    inventoryIdentity: inventory?.inventoryIdentity || null,
+    inventoryMerkleRoot: inventory?.merkleRoot || null,
+    analysisConfigIdentity: normalizeIdentity(analysisConfigIdentity, 'project-knowledge/analysis-config'),
+    parserIdentity: normalizeIdentity(parserIdentity, 'project-knowledge/parser'),
+    testIdentity: normalizeIdentity(testIdentity, 'project-knowledge/test-route'),
+    profileIdentity: normalizeIdentity(profileIdentity, 'project-knowledge/profile'),
+    lensIdentity: buildJsonContentIdentity({
+      sourceKey: 'project-knowledge/lens',
+      value: {
+        lensId: normalizedLens.lensId,
+        version: normalizedLens.version,
+        questionFingerprint: normalizedLens.questionFingerprint,
+        policyVersion: normalizedLens.policyVersion,
+        dependsOn: normalizedLens.dependsOn
+      },
+      contractVersion: POLICY_VERSION
+    }).identity,
+    policyVersion: POLICY_VERSION
+  }
+  const bindingIdentity = buildJsonContentIdentity({ sourceKey: 'project-knowledge/binding', value: core, contractVersion: POLICY_VERSION }).identity
+  return { ...core, bindingIdentity }
+}
+
+function bindingEnvironmentMatches(left, right) {
+  if (!left || !right || left.schemaVersion !== BINDING_SCHEMA || right.schemaVersion !== BINDING_SCHEMA) return false
+  if (left.repoId !== right.repoId || left.root !== right.root || left.policyVersion !== right.policyVersion) return false
+  return ['analysisConfigIdentity', 'parserIdentity', 'testIdentity', 'profileIdentity']
+    .every(field => left[field]?.digest === right[field]?.digest)
+}
+
+function validateSemanticClaim(claim, inventoryRecord) {
+  if (!claim || claim.schemaVersion !== SEMANTIC_CLAIM_SCHEMA || !CLAIM_TYPES.has(claim.type) || !EVIDENCE_STRENGTH.has(claim.authority)) return false
+  if (claim.path !== inventoryRecord?.path || claim.sourceContentDigest !== inventoryRecord?.contentIdentity?.digest || !claim.claimId || !claim.claimDigest) return false
+  let expectedRange
+  try {
+    expectedRange = buildRangeIdentity(inventoryRecord.path, inventoryRecord.__content, claim.sourceRange)
+  } catch {
+    return false
+  }
+  if (expectedRange.digest !== claim.rangeIdentity?.digest) return false
+  const identity = buildJsonContentIdentity({ sourceKey: `${claim.path}#semantic-claim`, value: canonicalClaimCore(claim), contractVersion: POLICY_VERSION }).identity
+  return claim.claimDigest === identity.digest && claim.claimId === `claim-${identity.digest.slice(0, 24)}`
+}
+
+function observationDigest(record) {
+  const claims = (Array.isArray(record.semanticClaims) ? record.semanticClaims : [])
+    .filter(claim => claim.authority !== 'agent-semantic')
+    .map(claim => ({ claimId: claim.claimId, claimDigest: claim.claimDigest }))
+    .sort((left, right) => left.claimId.localeCompare(right.claimId))
+  return buildJsonContentIdentity({
+    sourceKey: `${record.path}#observation`,
+    value: { contentDigest: record.contentIdentity.digest, semanticClaims: claims },
+    contractVersion: POLICY_VERSION
+  }).identity.digest
+}
+
+function observeFileRecord(inventoryRecord, lens = {}) {
+  if (!inventoryRecord?.__content) {
+    throw new ProjectKnowledgeError('KNOWLEDGE_OBSERVE_CONTENT_MISSING', `source bytes unavailable for ${inventoryRecord?.path || '(unknown)'}`)
+  }
+  const content = inventoryRecord.__content
+  const text = content.toString('utf8')
+  const lines = text.split(/\r?\n/)
+  const rawClaims = []
+  const add = (type, statement, lineNumber, authority = 'content-structured') => {
+    if (rawClaims.length >= 200) return
+    const normalized = String(statement || '').trim().replace(/\s+/g, ' ').slice(0, 500)
+    if (!normalized) return
+    rawClaims.push({ type, statement: normalized, authority, sourceRange: { startLine: lineNumber, endLine: lineNumber } })
+  }
+  lines.forEach((line, index) => {
+    const lineNumber = index + 1
+    const heading = line.match(/^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$/)
+    if (heading) add('structure', `heading: ${heading[1]}`, lineNumber)
+    const importMatch = line.match(/(?:require\(\s*['"]([^'"]+)['"]\s*\)|\bfrom\s+['"]([^'"]+)['"]|^\s*import\s+['"]([^'"]+)['"])/)
+    if (importMatch) add('import', `import: ${importMatch[1] || importMatch[2] || importMatch[3]}`, lineNumber)
+    const symbolMatch = line.match(/\b(?:class|function)\s+([A-Za-z_$][\w$]*)|\b(?:module\.exports|exports\.([A-Za-z_$][\w$]*))\b/)
+    if (symbolMatch) add('symbol', `symbol: ${symbolMatch[1] || symbolMatch[2] || 'module.exports'}`, lineNumber)
+    if (/\b(?:describe|it|test)\s*\(/.test(line)) add('test', `test declaration: ${line.trim()}`, lineNumber)
+    if (inventoryRecord.kind === 'config') {
+      const configMatch = line.match(/^\s*["']?([A-Za-z0-9_.-]+)["']?\s*[:=]/)
+      if (configMatch) add('config', `config key: ${configMatch[1]}`, lineNumber)
+    }
+  })
+  if (inventoryRecord.language === 'json') {
+    try {
+      const parsed = JSON.parse(text)
+      if (parsed && !Array.isArray(parsed) && typeof parsed === 'object') {
+        for (const key of Object.keys(parsed).sort()) {
+          const lineNumber = Math.max(1, lines.findIndex(line => line.includes(`"${key}"`)) + 1)
+          add('config', `top-level key: ${key}`, lineNumber)
+        }
+      }
+    } catch {
+      // Invalid JSON remains inventory-observed; parser validity is owned by validation.
+    }
+  }
+  const deduped = new Map()
+  for (const raw of rawClaims) {
+    const key = `${raw.type}:${raw.statement}:${raw.sourceRange.startLine}`
+    if (!deduped.has(key)) deduped.set(key, raw)
+  }
+  if (!deduped.size) {
+    deduped.set('inventory', {
+      type: 'inventory',
+      statement: `file observed: ${inventoryRecord.path}`,
+      authority: 'inventory-only',
+      sourceRange: { startLine: 1, endLine: 1 }
+    })
+  }
+  const semanticClaims = [...deduped.values()].map(raw => buildSemanticClaim({
+    path: inventoryRecord.path,
+    content,
+    lens,
+    ...raw
+  })).sort((left, right) => left.claimId.localeCompare(right.claimId))
+  const record = {
+    ...inventoryRecord,
+    schemaVersion: FILE_RECORD_SCHEMA,
+    coverageLevel: semanticClaims.some(claim => claim.authority === 'content-structured') ? 'light' : 'inventory',
+    evidenceStrength: semanticClaims.some(claim => claim.authority === 'content-structured') ? 'content-structured' : 'inventory-only',
+    symbols: semanticClaims.filter(claim => claim.type === 'symbol').map(claim => claim.statement),
+    imports: semanticClaims.filter(claim => claim.type === 'import').map(claim => claim.statement),
+    configAnchors: semanticClaims.filter(claim => claim.type === 'config').map(claim => claim.statement),
+    contractAnchors: semanticClaims.filter(claim => claim.type === 'contract').map(claim => claim.statement),
+    facts: semanticClaims.map(claim => ({ anchor: claim.claimId, statement: claim.statement })),
+    semanticClaims,
+    claimBoundary: {
+      maximumAuthority: semanticClaims.some(claim => claim.authority === 'content-structured') ? 'content-structured' : 'inventory-only',
+      manualDeepReadClaimAllowed: false,
+      completeIssueCountClaimAllowed: false
+    },
+    tombstone: false
+  }
+  record.factDigest = factDigest(record)
+  record.observationDigest = observationDigest(record)
+  return record
+}
+
+function observeProjectKnowledge({ inventory, plan, lens = plan?.lens || {} }) {
+  if (!plan || !validatePlanIdentity(plan)) throw new ProjectKnowledgeError('KNOWLEDGE_OBSERVE_PLAN_INVALID', 'observe requires a valid current plan')
+  const byPath = new Map(inventory.records.map(record => [record.path, record]))
+  const observePaths = paths => paths.map(relativePath => observeFileRecord(byPath.get(relativePath), lens))
+  const candidateRecords = observePaths(plan.readPaths)
+  const sampleRecords = observePaths(plan.samplePaths)
+  return {
+    schemaVersion: 'ProjectKnowledgeObservationV1',
+    planId: plan.planId,
+    bindingIdentity: plan.knowledgeBinding?.bindingIdentity || null,
+    candidateRecords,
+    sampleRecords,
+    claimBoundary: 'content-structured-only; no manual-deep-read or complete-issue-count claim',
+    observationIdentity: buildJsonContentIdentity({
+      sourceKey: `project-knowledge/observation/${plan.planId}`,
+      value: {
+        candidateRecords: candidateRecords.map(record => ({ path: record.path, observationDigest: record.observationDigest })),
+        sampleRecords: sampleRecords.map(record => ({ path: record.path, observationDigest: record.observationDigest }))
+      },
+      contractVersion: POLICY_VERSION
+    }).identity
+  }
+}
+
+function createSnapshot({ repoIdentity, inventory, graph = {}, policyVersion = POLICY_VERSION, knowledgeBinding = null }) {
   const normalizedGraph = normalizeGraph(graph)
   return {
     schemaVersion: SNAPSHOT_SCHEMA,
     policyVersion: String(policyVersion),
     repoIdentity,
     inventoryIdentity: inventory.inventoryIdentity,
+    inventoryMerkleRoot: inventory.merkleRoot || null,
+    knowledgeBinding,
     records: [],
     tombstones: [],
     impactGraph: normalizedGraph,
@@ -298,6 +565,13 @@ function validateSnapshotIdentity(snapshot) {
   if (!snapshot || snapshot.schemaVersion !== SNAPSHOT_SCHEMA || !snapshot.snapshotIdentity || !snapshot.repoIdentity?.repoId) return false
   const core = { ...snapshot, snapshotIdentity: null }
   const identity = buildJsonContentIdentity({ sourceKey: `project-knowledge/${snapshot.repoIdentity.repoId}`, value: core, contractVersion: POLICY_VERSION }).identity
+  return identity.digest === snapshot.snapshotIdentity.digest
+}
+
+function validateLegacySnapshotIdentity(snapshot) {
+  if (!snapshot || snapshot.schemaVersion !== LEGACY_SNAPSHOT_SCHEMA || !snapshot.snapshotIdentity || !snapshot.repoIdentity?.repoId) return false
+  const core = { ...snapshot, snapshotIdentity: null }
+  const identity = buildJsonContentIdentity({ sourceKey: `project-knowledge/${snapshot.repoIdentity.repoId}`, value: core, contractVersion: '1' }).identity
   return identity.digest === snapshot.snapshotIdentity.digest
 }
 
@@ -409,10 +683,20 @@ function lensMatches(record, lens) {
 function buildIncrementalAnalysisPlan({ snapshot, inventory, repoIdentity, graph = {}, lens = {}, options = {} }) {
   const currentLens = normalizeLens(lens)
   const normalizedGraph = normalizeGraph(graph.edges ? graph : snapshot?.impactGraph || graph)
-  const normalizedSnapshot = normalizeSnapshot(snapshot, { repoIdentity, inventory, graph: normalizedGraph })
+  const currentBinding = buildKnowledgeBinding({
+    repoIdentity,
+    inventory,
+    lens: currentLens,
+    analysisConfigIdentity: options.analysisConfigIdentity,
+    parserIdentity: options.parserIdentity,
+    testIdentity: options.testIdentity,
+    profileIdentity: options.profileIdentity
+  })
+  const normalizedSnapshot = normalizeSnapshot(snapshot, { repoIdentity, inventory, graph: normalizedGraph, knowledgeBinding: currentBinding })
   const pendingPlanInvalid = !!normalizedSnapshot.pendingPlan && !validatePlanIdentity(normalizedSnapshot.pendingPlan)
   if (!pendingPlanInvalid && normalizedSnapshot.pendingPlan && normalizedSnapshot.pendingPlan.inventoryIdentity?.digest === inventory.inventoryIdentity.digest &&
       normalizedSnapshot.pendingPlan.repoIdentity?.repoId === repoIdentity.repoId &&
+      normalizedSnapshot.pendingPlan.knowledgeBinding?.bindingIdentity?.digest === currentBinding.bindingIdentity.digest &&
       normalizedSnapshot.pendingPlan.lens?.lensId === currentLens.lensId &&
       normalizedSnapshot.pendingPlan.lens?.version === currentLens.version &&
       normalizedSnapshot.pendingPlan.lens?.questionFingerprint === currentLens.questionFingerprint &&
@@ -438,6 +722,8 @@ function buildIncrementalAnalysisPlan({ snapshot, inventory, repoIdentity, graph
   const fullReasons = []
   if (!snapshot) fullReasons.push('snapshot-missing')
   if (!schemaCompatible) fullReasons.push('snapshot-schema-incompatible')
+  if (snapshot && (snapshot.repoIdentity?.repoId !== repoIdentity.repoId || snapshot.repoIdentity?.root !== repoIdentity.root)) fullReasons.push('snapshot-target-binding-mismatch')
+  if (snapshot && !bindingEnvironmentMatches(snapshot.knowledgeBinding, currentBinding)) fullReasons.push('analysis-environment-binding-mismatch')
   if (pendingPlanInvalid) fullReasons.push('pending-plan-identity-invalid')
   if (!inventory.bounded) fullReasons.push(`inventory-${inventory.overflowReason}`)
   if (repoIdentity.baseReachable === false) fullReasons.push('base-unreachable')
@@ -449,6 +735,7 @@ function buildIncrementalAnalysisPlan({ snapshot, inventory, repoIdentity, graph
   let readPaths = [...new Set([...changedActive, ...impacted, ...lensGap])].sort()
   const affectedRatio = currentPaths.length ? readPaths.length / currentPaths.length : 0
   if (snapshot && affectedRatio > (Number.isFinite(options.maxAffectedRatio) ? options.maxAffectedRatio : 0.6)) fullReasons.push('affected-closure-too-large')
+  for (const reason of normalizeStringList(options.forceFullReasons)) fullReasons.push(reason)
   if (fullReasons.length) readPaths = [...currentPaths]
   const reusedPaths = fullReasons.length ? [] : currentPaths.filter(relativePath => !readPaths.includes(relativePath))
   const operations = [
@@ -462,6 +749,8 @@ function buildIncrementalAnalysisPlan({ snapshot, inventory, repoIdentity, graph
     policyVersion: POLICY_VERSION,
     repoIdentity,
     inventoryIdentity: inventory.inventoryIdentity,
+    inventoryMerkleRoot: inventory.merkleRoot || null,
+    knowledgeBinding: currentBinding,
     lens: currentLens,
     delta,
     changed: changedActive,
@@ -490,12 +779,14 @@ function verifyReuseSample({ samplePaths = [], snapshotRecords = [], observedRec
   for (const relativePath of samplePaths) {
     const expected = prior.get(relativePath)
     const actual = observed.get(relativePath)
-    if (!expected || !actual || !sameContent(expected.contentIdentity, actual.contentIdentity) || expected.factDigest !== actual.factDigest) {
+    const expectedDigest = expected?.observationDigest || expected?.factDigest
+    const actualDigest = actual?.observationDigest || actual?.factDigest
+    if (!expected || !actual || !sameContent(expected.contentIdentity, actual.contentIdentity) || expectedDigest !== actualDigest) {
       mismatches.push(relativePath)
     }
   }
   return {
-    schemaVersion: 'ProjectKnowledgeSampleOracleV1',
+    schemaVersion: 'ProjectKnowledgeSampleOracleV2',
     samplePaths: [...samplePaths],
     checked: samplePaths.length,
     mismatches,
@@ -503,12 +794,22 @@ function verifyReuseSample({ samplePaths = [], snapshotRecords = [], observedRec
   }
 }
 
-function normalizeCandidateRecord(candidate, inventoryRecord) {
+function normalizeCandidateRecord(candidate, inventoryRecord, lens) {
   if (!candidate || candidate.path !== inventoryRecord.path || !sameContent(candidate.contentIdentity, inventoryRecord.contentIdentity)) {
     throw new ProjectKnowledgeError('KNOWLEDGE_CANDIDATE_IDENTITY_MISMATCH', `candidate identity mismatch: ${inventoryRecord.path}`)
   }
   if (!COVERAGE_LEVEL.has(candidate.coverageLevel) || !EVIDENCE_STRENGTH.has(candidate.evidenceStrength)) {
     throw new ProjectKnowledgeError('KNOWLEDGE_CANDIDATE_COVERAGE_INVALID', `invalid coverage/evidence: ${inventoryRecord.path}`)
+  }
+  const semanticClaims = Array.isArray(candidate.semanticClaims) ? candidate.semanticClaims : []
+  if (!semanticClaims.length) throw new ProjectKnowledgeError('KNOWLEDGE_CANDIDATE_CLAIMS_MISSING', `semantic claims missing: ${inventoryRecord.path}`)
+  for (const claim of semanticClaims) {
+    if (!validateSemanticClaim(claim, inventoryRecord)) {
+      throw new ProjectKnowledgeError('KNOWLEDGE_CLAIM_IDENTITY_INVALID', `semantic claim identity/range mismatch: ${inventoryRecord.path}`)
+    }
+    if (claim.lensId !== lens.lensId || claim.lensVersion !== lens.version || claim.policyVersion !== lens.policyVersion) {
+      throw new ProjectKnowledgeError('KNOWLEDGE_CLAIM_LENS_MISMATCH', `semantic claim lens mismatch: ${inventoryRecord.path}`)
+    }
   }
   const record = {
     ...inventoryRecord,
@@ -521,9 +822,16 @@ function normalizeCandidateRecord(candidate, inventoryRecord) {
     configAnchors: normalizeStringList(candidate.configAnchors),
     contractAnchors: normalizeStringList(candidate.contractAnchors),
     facts: Array.isArray(candidate.facts) ? candidate.facts : [],
+    semanticClaims: semanticClaims.map(claim => ({ ...claim, status: 'accepted' })).sort((left, right) => left.claimId.localeCompare(right.claimId)),
+    claimBoundary: candidate.claimBoundary || {
+      maximumAuthority: candidate.evidenceStrength,
+      manualDeepReadClaimAllowed: candidate.evidenceStrength === 'agent-semantic',
+      completeIssueCountClaimAllowed: false
+    },
     tombstone: false
   }
   record.factDigest = factDigest(record)
+  record.observationDigest = observationDigest(record)
   return record
 }
 
@@ -563,7 +871,7 @@ function acceptKnowledgeBatch({ snapshot, inventory, repoIdentity, plan, batchId
   if (missing.length) throw new ProjectKnowledgeError('KNOWLEDGE_BATCH_RECORD_MISSING', `candidate records missing: ${missing.join(', ')}`)
   const recordMap = new Map(current.records.map(record => [record.path, record]))
   for (const relativePath of batch.paths) {
-    recordMap.set(relativePath, normalizeCandidateRecord(candidatesByPath.get(relativePath), inventoryByPath.get(relativePath)))
+    recordMap.set(relativePath, normalizeCandidateRecord(candidatesByPath.get(relativePath), inventoryByPath.get(relativePath), plan.lens))
   }
   const tombstones = new Map(current.tombstones.map(item => [item.path, item]))
   for (const operation of batch.operations || []) {
@@ -592,6 +900,8 @@ function acceptKnowledgeBatch({ snapshot, inventory, repoIdentity, plan, batchId
     ...current,
     repoIdentity,
     inventoryIdentity: inventory.inventoryIdentity,
+    inventoryMerkleRoot: inventory.merkleRoot || null,
+    knowledgeBinding: plan.knowledgeBinding,
     records: [...recordMap.values()].sort((left, right) => left.path.localeCompare(right.path)),
     tombstones: [...tombstones.values()].sort((left, right) => left.path.localeCompare(right.path)),
     impactGraph: normalizeGraph(graph.edges ? graph : current.impactGraph),
@@ -622,6 +932,93 @@ function acceptKnowledgeBatch({ snapshot, inventory, repoIdentity, plan, batchId
   }
 }
 
+function bootstrapProjectKnowledge({ snapshot, inventory, repoIdentity, plan, graph = {}, findings = [] }) {
+  if (!validatePlanIdentity(plan) || plan.repoIdentity?.repoId !== repoIdentity.repoId || plan.inventoryIdentity?.digest !== inventory.inventoryIdentity.digest) {
+    throw new ProjectKnowledgeError('KNOWLEDGE_BOOTSTRAP_PLAN_STALE', 'bootstrap plan does not match the current repo/inventory')
+  }
+  if (plan.completion === 'blocked' || !inventory.bounded) {
+    throw new ProjectKnowledgeError('KNOWLEDGE_BOOTSTRAP_INVENTORY_INCOMPLETE', 'bootstrap requires a complete bounded inventory')
+  }
+  const observation = observeProjectKnowledge({ inventory, plan, lens: plan.lens })
+  const candidateByPath = new Map(observation.candidateRecords.map(record => [record.path, record]))
+  const sampleOracle = verifyReuseSample({
+    samplePaths: plan.samplePaths,
+    snapshotRecords: snapshot?.records || [],
+    observedRecords: observation.sampleRecords
+  })
+  if (sampleOracle.status !== 'pass') {
+    return {
+      schemaVersion: 'ProjectKnowledgeBootstrapResultV1',
+      status: 'invalid',
+      snapshot,
+      observation,
+      receipts: [],
+      sampleOracle,
+      acceptedPointerAdvanced: false,
+      fullRequired: true
+    }
+  }
+  let nextSnapshot = snapshot
+  const receipts = []
+  for (const batch of plan.batches) {
+    const candidateRecords = batch.paths.map(relativePath => candidateByPath.get(relativePath)).filter(Boolean)
+    const validationResult = {
+      schemaVersion: 'BatchValidationResultV1',
+      status: candidateRecords.length === batch.paths.length && candidateRecords.every(record =>
+        record.semanticClaims.length > 0 && record.semanticClaims.every(claim => {
+          const inventoryRecord = inventory.records.find(item => item.path === record.path)
+          return validateSemanticClaim(claim, inventoryRecord)
+        })
+      ) ? 'pass' : 'fail',
+      route: 'deterministic-content-observation',
+      claimBoundary: observation.claimBoundary,
+      bindingIdentity: plan.knowledgeBinding.bindingIdentity
+    }
+    const accepted = acceptKnowledgeBatch({
+      snapshot: nextSnapshot,
+      inventory,
+      repoIdentity,
+      plan,
+      batchId: batch.batchId,
+      candidateRecords,
+      validationResult,
+      sampleOracle,
+      graph,
+      findings
+    })
+    if (accepted.receipt.status !== 'accepted') {
+      return {
+        schemaVersion: 'ProjectKnowledgeBootstrapResultV1',
+        status: accepted.receipt.status,
+        snapshot,
+        observation,
+        receipts: [...receipts, accepted.receipt],
+        sampleOracle,
+        acceptedPointerAdvanced: false,
+        fullRequired: accepted.receipt.fullRequired === true
+      }
+    }
+    nextSnapshot = accepted.snapshot
+    receipts.push(accepted.receipt)
+  }
+  return {
+    schemaVersion: 'ProjectKnowledgeBootstrapResultV1',
+    status: plan.batches.length ? 'accepted' : 'unchanged',
+    snapshot: nextSnapshot,
+    observation,
+    receipts,
+    sampleOracle,
+    acceptedPointerAdvanced: plan.batches.length > 0,
+    globalValidation: {
+      schemaVersion: 'GlobalValidationResultV1',
+      status: 'pass',
+      batchesChecked: receipts.length,
+      recordsChecked: observation.candidateRecords.length,
+      bindingIdentity: plan.knowledgeBinding.bindingIdentity
+    }
+  }
+}
+
 function synthesizeGlobalBacklog({ plan, receipts = [], findings = [], globalValidation }) {
   const accepted = new Set(receipts.filter(receipt => receipt.status === 'accepted').map(receipt => receipt.batchId))
   const complete = plan.batches.every(batch => accepted.has(batch.batchId)) && globalValidation?.status === 'pass'
@@ -642,9 +1039,10 @@ function synthesizeGlobalBacklog({ plan, receipts = [], findings = [], globalVal
   }
 }
 
-function knowledgeSnapshotRelativePath(repoId) {
+function knowledgeSnapshotRelativePath(repoId, version = 'v2') {
   if (!/^[a-f0-9]{24}$/.test(String(repoId || ''))) throw new ProjectKnowledgeError('KNOWLEDGE_REPO_ID_INVALID', 'repoId must be 24 lowercase sha256 characters')
-  return `.runtime-state/project-knowledge/v1/${repoId}/snapshot.json`
+  if (!['v1', 'v2'].includes(version)) throw new ProjectKnowledgeError('KNOWLEDGE_SCHEMA_PATH_INVALID', `unsupported knowledge path version: ${version}`)
+  return `.runtime-state/project-knowledge/${version}/${repoId}/snapshot.json`
 }
 
 function readKnowledgeSnapshot(activeRoot, repoId) {
@@ -658,6 +1056,24 @@ function readKnowledgeSnapshot(activeRoot, repoId) {
   if (receipt.status === 'fresh' && !validateSnapshotIdentity(receipt.value)) {
     return { ...receipt, status: 'invalid', errorCode: 'KNOWLEDGE_SNAPSHOT_IDENTITY_INVALID' }
   }
+  if (receipt.status !== 'missing') return receipt
+  const legacyStore = createDerivedStateStore({
+    root: activeRoot,
+    relativePath: knowledgeSnapshotRelativePath(repoId, 'v1'),
+    maxBytes: 32 * 1024 * 1024,
+    maxWrites: 0
+  })
+  const legacyReceipt = legacyStore.read()
+  if (legacyReceipt.status === 'fresh' && validateLegacySnapshotIdentity(legacyReceipt.value)) {
+    return {
+      ...legacyReceipt,
+      status: 'compatibility-v1',
+      reuseAllowed: false,
+      migrationRequired: true,
+      errorCode: 'KNOWLEDGE_V1_READ_ONLY'
+    }
+  }
+  if (legacyReceipt.status === 'fresh') return { ...legacyReceipt, status: 'invalid', errorCode: 'KNOWLEDGE_V1_IDENTITY_INVALID' }
   return receipt
 }
 
@@ -683,11 +1099,18 @@ function persistAcceptedKnowledge({ activeRoot, taskRoot, runId, plan, snapshot,
   })
   const runtimeWrite = runtimeStore.write(snapshot)
   if (runtimeWrite.status !== 'persisted') throw new ProjectKnowledgeError('KNOWLEDGE_RUNTIME_WRITE_FAILED', JSON.stringify(runtimeWrite))
-  return { schemaVersion: 'ProjectKnowledgePersistReceiptV1', runtimeWrite, artifactWrites }
+  return {
+    schemaVersion: 'ProjectKnowledgePersistReceiptV2',
+    runtimeWrite,
+    artifactWrites,
+    acceptedPointerAdvanced: true,
+    transactionBoundary: 'artifact-preflight-and-writes-before-single-runtime-pointer-advance'
+  }
 }
 
 module.exports = {
   BACKLOG_SCHEMA,
+  BINDING_SCHEMA,
   FILE_RECORD_SCHEMA,
   IMPACT_GRAPH_SCHEMA,
   LENS_RECORD_SCHEMA,
@@ -695,9 +1118,11 @@ module.exports = {
   POLICY_VERSION,
   ProjectKnowledgeError,
   RECEIPT_SCHEMA,
+  SEMANTIC_CLAIM_SCHEMA,
   SNAPSHOT_SCHEMA,
   acceptKnowledgeBatch,
   buildFileRecord,
+  buildKnowledgeBinding,
   buildIncrementalAnalysisPlan,
   buildInventoryFromFiles,
   buildRepoIdentity,
@@ -708,12 +1133,17 @@ module.exports = {
   knowledgeSnapshotRelativePath,
   normalizeGraph,
   normalizeLens,
+  observeFileRecord,
+  observeProjectKnowledge,
+  bootstrapProjectKnowledge,
   persistAcceptedKnowledge,
   readKnowledgeSnapshot,
   scanProjectInventory,
   selectDeterministicReuseSample,
   synthesizeGlobalBacklog,
   validatePlanIdentity,
+  validateSemanticClaim,
   validateSnapshotIdentity,
+  validateLegacySnapshotIdentity,
   verifyReuseSample
 }

@@ -6,7 +6,8 @@ function buildGovernanceIntakeChecks(ctx) {
   const {
     ROOT, ACTIVE_DEVCODEX_ROOT, RECENT_REQUIREMENT_ARTIFACT_DAYS,
     collectRecentBugArtifactIssues, collectRecentRequirementArtifactIssues,
-    fs, path, execSync, read, err, mustInclude
+    fs, path, execSync, read, err, mustInclude,
+    isValidationDelegated = () => false
   } = ctx
   const { collectChangelogSources, hasChangelogEvidence } = buildGovernanceHelpers(ctx)
 
@@ -130,11 +131,15 @@ function buildGovernanceIntakeChecks(ctx) {
       }
     }
 
-    try {
-      execSync('node scripts/test-governance-intake.js', { cwd: ROOT, stdio: 'pipe', encoding: 'utf8' })
-    } catch (e) {
-      const detail = String((e.stderr || e.stdout || e.message || '')).trim().split('\n').slice(0, 8).join(' | ')
-      err(`[V39] test-governance-intake failed${detail ? `: ${detail}` : ''}`)
+    if (isValidationDelegated('governance-intake')) {
+      console.log('[V39] governance-intake executable suite delegated to validation DAG; static sync probes retained')
+    } else {
+      try {
+        execSync('node scripts/test-governance-intake.js', { cwd: ROOT, stdio: 'pipe', encoding: 'utf8' })
+      } catch (e) {
+        const detail = String((e.stderr || e.stdout || e.message || '')).trim().split('\n').slice(0, 8).join(' | ')
+        err(`[V39] test-governance-intake failed${detail ? `: ${detail}` : ''}`)
+      }
     }
 
     console.log('[V39] governance improvement intake sync checked')
@@ -193,11 +198,15 @@ function buildGovernanceIntakeChecks(ctx) {
       }
     }
 
-    try {
-      execSync('node scripts/test-validate-profile.js', { cwd: ROOT, stdio: 'pipe', encoding: 'utf8' })
-    } catch (e) {
-      const detail = String((e.stderr || e.stdout || e.message || '')).trim().split('\n').slice(0, 8).join(' | ')
-      err(`[V40] test-validate-profile failed${detail ? `: ${detail}` : ''}`)
+    if (isValidationDelegated('profile-governance')) {
+      console.log('[V40] profile-governance executable suite delegated to validation DAG; static local-config probes retained')
+    } else {
+      try {
+        execSync('node scripts/test-validate-profile.js', { cwd: ROOT, stdio: 'pipe', encoding: 'utf8' })
+      } catch (e) {
+        const detail = String((e.stderr || e.stdout || e.message || '')).trim().split('\n').slice(0, 8).join(' | ')
+        err(`[V40] test-validate-profile failed${detail ? `: ${detail}` : ''}`)
+      }
     }
 
     console.log('[V40] profile local config sync checked')
@@ -551,25 +560,25 @@ function buildGovernanceIntakeChecks(ctx) {
 
   function checkV51() {
     const probes = [
-      { file: 'instructions.md', needles: ['ArtifactLinkSet', 'mcpFallback=used', 'invoke'] },
-      { file: 'instructions/01-common.instructions.md', needles: ['ArtifactLinkSet', 'mcpFallback=used', 'MCP bridge'] },
-      { file: 'instructions/02-output-paths.instructions.md', needles: ['ArtifactLinkSet 客户端兼容矩阵', 'Copy fallback', 'GitHub Copilot', '强制追加', 'Codex Desktop/App', 'MCP profile fallback', '禁止只输出裸文件名'] },
-      { file: 'instructions/16-report.instructions.md', needles: ['ArtifactLinkSet', '绝对路径：', '禁止只输出裸文件名'] },
-      { file: 'instructions/17-compliance.instructions.md', needles: ['ArtifactLinkSet', 'copy fallback'] },
-      { file: 'skills/host-contract-verification/SKILL.md', needles: ['artifactLinkMatrix', 'mcpFallback', 'Cannot read properties of undefined'] },
-      { file: 'skills/test-router/SKILL.md', needles: ['ArtifactLinkSet', 'mcpFallback'] },
-      { file: 'skills/execution-contract/SKILL.md', needles: ['ArtifactLinkSet', 'MCP fallback'] },
-      { file: 'skills/report/SKILL.md', needles: ['ArtifactLinkSet', 'copy fallback'] },
-      { file: 'skills/compliance/SKILL.md', needles: ['ArtifactLinkSet', 'copy fallback'] },
-      { file: 'skills/audit-common/SKILL.md', needles: ['ArtifactLinkSet', 'copy fallback'] },
-      { file: 'prompts/implementation-plan.prompt.md', needles: ['artifactLinkMatrix', 'mcpFallback'] },
-      { file: 'prompts/implementation-progress.prompt.md', needles: ['artifactLinkMatrix', 'mcpFallback'] },
-      { file: 'prompts/report-dev.prompt.md', needles: ['artifactLinkMatrix', 'mcpFallback'] },
-      { file: 'prompts/report-fix.prompt.md', needles: ['artifactLinkMatrix', 'mcpFallback'] },
-      { file: 'README.md', needles: ['产物文件链接兼容', 'profile_load', 'invoke'] },
-      { file: 'website/docs/guide/development.md', needles: ['ArtifactLinkSet', 'mcpFallback=used'] },
+      { file: 'instructions.md', needles: ['ArtifactDeliveryManifestV1', 'LinkCapabilityDecisionV1', 'mcpFallback=used', 'invoke'] },
+      { file: 'instructions/01-common.instructions.md', needles: ['UserFacingArtifactSetV1', 'mcpFallback=used', 'MCP bridge'] },
+      { file: 'instructions/02-output-paths.instructions.md', needles: ['LinkCapabilityDecision 客户端兼容矩阵', '`clickable`', '`portable`', '`failed`', 'MCP profile fallback', '禁止只输出裸文件名'] },
+      { file: 'instructions/16-report.instructions.md', needles: ['ArtifactDeliveryManifestV1', 'UserFacingArtifactSetV1', '绝对路径 fallback'] },
+      { file: 'instructions/17-compliance.instructions.md', needles: ['ArtifactDeliveryManifestV1', 'UserFacingArtifactSetV1', 'LinkCapabilityDecisionV1'] },
+      { file: 'skills/host-contract-verification/SKILL.md', needles: ['artifactLinkMatrix', 'VisibleOutputHostEvidenceGate', 'mcpFallback', 'Cannot read properties of undefined'] },
+      { file: 'skills/test-router/SKILL.md', needles: ['visibleOutputContract', 'semanticDigest', 'mcpFallback'] },
+      { file: 'skills/execution-contract/SKILL.md', needles: ['VisibleEnvelope', 'MCP fallback'] },
+      { file: 'skills/report/SKILL.md', needles: ['ArtifactDeliveryManifestV1', 'UserFacingArtifactSetV1', 'unverified-legacy'] },
+      { file: 'skills/compliance/SKILL.md', needles: ['ArtifactDeliveryManifestV1', 'LinkCapabilityDecisionV1'] },
+      { file: 'skills/audit-common/SKILL.md', needles: ['UserFacingArtifactSetV1', 'capability evidence'] },
+      { file: 'prompts/implementation-plan.prompt.md', needles: ['VisibleOutputContract', 'renderer parity'] },
+      { file: 'prompts/implementation-progress.prompt.md', needles: ['VisibleOutputContract', 'mcpFallback'] },
+      { file: 'prompts/report-dev.prompt.md', needles: ['DevCodexVisibleEnvelopeV1.semanticDigest', 'LinkCapabilityDecisionV1'] },
+      { file: 'prompts/report-fix.prompt.md', needles: ['VisibleOutputContract', 'mcpFallback'] },
+      { file: 'README.md', needles: ['用户可见交付与链接兼容', 'profile_load', 'invoke'] },
+      { file: 'website/docs/guide/development.md', needles: ['DevCodexVisibleEnvelopeV1', 'mcpFallback=used'] },
       { file: 'scripts/test-mcp-servers.js', needles: ['testProfileLoadWithoutArguments', 'assert.doesNotMatch(text, /invoke|TypeError/i)'] },
-      { file: 'scripts/test-client-contracts.js', needles: ['Client contract checks passed', 'ArtifactLinkSet', 'testProfileLoadWithoutArguments'] },
+      { file: 'scripts/test-client-contracts.js', needles: ['Client contract checks passed', 'createLinkCapabilityDecision', 'testProfileLoadWithoutArguments'] },
       { file: 'package.json', needles: ['test:client-contracts', 'node scripts/test-client-contracts.js'] }
     ]
 
@@ -582,11 +591,15 @@ function buildGovernanceIntakeChecks(ctx) {
       }
     }
 
-    try {
-      execSync('node scripts/test-client-contracts.js', { cwd: ROOT, stdio: 'pipe', encoding: 'utf8' })
-    } catch (e) {
-      const detail = String((e.stderr || e.stdout || e.message || '')).trim().split('\n').slice(0, 8).join(' | ')
-      err(`[V51] test-client-contracts failed${detail ? `: ${detail}` : ''}`)
+    if (isValidationDelegated('client-contracts')) {
+      console.log('[V51] client-contracts executable suite delegated to validation DAG; static artifact-link probes retained')
+    } else {
+      try {
+        execSync('node scripts/test-client-contracts.js', { cwd: ROOT, stdio: 'pipe', encoding: 'utf8' })
+      } catch (e) {
+        const detail = String((e.stderr || e.stdout || e.message || '')).trim().split('\n').slice(0, 8).join(' | ')
+        err(`[V51] test-client-contracts failed${detail ? `: ${detail}` : ''}`)
+      }
     }
 
     console.log('[V51] client artifact / MCP fallback sync checked')
@@ -625,11 +638,15 @@ function buildGovernanceIntakeChecks(ctx) {
       }
     }
 
-    try {
-      execSync('node scripts/test-cli-behavior.js', { cwd: ROOT, stdio: 'pipe', encoding: 'utf8' })
-    } catch (e) {
-      const detail = String((e.stderr || e.stdout || e.message || '')).trim().split('\n').slice(0, 8).join(' | ')
-      err(`[V52] test-cli-behavior failed${detail ? `: ${detail}` : ''}`)
+    if (isValidationDelegated('cli-behavior')) {
+      console.log('[V52] cli-behavior executable suite delegated to validation DAG; static Codex adapter probes retained')
+    } else {
+      try {
+        execSync('node scripts/test-cli-behavior.js', { cwd: ROOT, stdio: 'pipe', encoding: 'utf8' })
+      } catch (e) {
+        const detail = String((e.stderr || e.stdout || e.message || '')).trim().split('\n').slice(0, 8).join(' | ')
+        err(`[V52] test-cli-behavior failed${detail ? `: ${detail}` : ''}`)
+      }
     }
 
     console.log('[V52] Codex PreCompact adapter sync checked')

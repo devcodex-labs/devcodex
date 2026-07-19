@@ -203,7 +203,7 @@ SC: SC4 [✅/❌] SC6 [✅/❌] ...（仅列适用项，逐项实际验证后填
 ```
 
 > ℹ️ 合规检查块是 dev 模式下的强制输出，审查发现交接循环不例外。FC2（报告文件）在 PCV 完成后输出最终报告时满足；中间轮次标注 N/A（进行中，未到输出节点）。
-> ⚠️ **FC5 填写规则**：必须在回复末尾的 `📂 本次会话产物` 区块内列出 `ArtifactLinkSet`（格式见 `02-output-paths.instructions.md` §产物路径输出格式）；主链接必须是 Markdown 链接，链接路径用正斜杠；当前宿主为 Codex Desktop/App、Copilot、未知宿主，或用户反馈无法点击时，必须追加 `绝对路径：` copy fallback。本轮无文件变更时填 N/A，有变更时不得填 ✅ 而不列出路径。
+> ⚠️ **FC5 填写规则**：审计产物先进入 `ArtifactDeliveryManifestV1`，再由 `UserFacingArtifactSetV1` 投影“完成交付文件/阻断证据”。用户可见项必须有语义名称、用途和动作；session/SUMMARY/raw ledger 默认 internal-only。链接按当前 surface 的 capability evidence 选择，Rich clickable 不重复绝对路径；未观察 assistant payload 时只能 unverified。
 
 ## 审查收敛规则
 

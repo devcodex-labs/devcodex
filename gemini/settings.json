@@ -1,0 +1,77 @@
+{
+  "hooks": {
+    "BeforeAgent": [
+      {
+        "matcher": "*",
+        "sequential": true,
+        "hooks": [
+          {
+            "name": "devcodex-before-agent",
+            "type": "command",
+            "command": "node .gemini/hooks/_runtime/lifecycle-host-adapters.cjs gemini",
+            "timeout": 10000,
+            "description": "Inject the DevCodex entry and context contract."
+          }
+        ]
+      }
+    ],
+    "BeforeTool": [
+      {
+        "matcher": ".*",
+        "sequential": true,
+        "hooks": [
+          {
+            "name": "devcodex-before-tool",
+            "type": "command",
+            "command": "node .gemini/hooks/_runtime/lifecycle-host-adapters.cjs gemini",
+            "timeout": 10000
+          }
+        ]
+      }
+    ],
+    "AfterTool": [
+      {
+        "matcher": ".*",
+        "sequential": true,
+        "hooks": [
+          {
+            "name": "devcodex-after-tool",
+            "type": "command",
+            "command": "node .gemini/hooks/_runtime/lifecycle-host-adapters.cjs gemini",
+            "timeout": 10000
+          }
+        ]
+      }
+    ],
+    "AfterAgent": [
+      {
+        "matcher": "*",
+        "sequential": true,
+        "hooks": [
+          {
+            "name": "devcodex-after-agent",
+            "type": "command",
+            "command": "node .gemini/hooks/_runtime/lifecycle-host-adapters.cjs gemini",
+            "timeout": 10000,
+            "description": "Validate DevCodex completion output; retry only when the runtime returns deny."
+          }
+        ]
+      }
+    ],
+    "PreCompress": [
+      {
+        "matcher": "*",
+        "sequential": true,
+        "hooks": [
+          {
+            "name": "devcodex-pre-compress",
+            "type": "command",
+            "command": "node .gemini/hooks/_runtime/lifecycle-host-adapters.cjs gemini",
+            "timeout": 10000,
+            "description": "Advisory-only persistence reminder before compression."
+          }
+        ]
+      }
+    ]
+  }
+}

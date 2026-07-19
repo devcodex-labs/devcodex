@@ -31,7 +31,7 @@ description: 执行契约规范 — 为长流程、多文件、Auto 或控制面
 | `backlogTruthReview` | 条件 | 当任务/批次直接来源于 `data/*.md` open/partial 项时必填；列出 `candidateIds`、`classification`、`evidence`、`scopeDelta` |
 | `validationRoute` | ✅ | 引用 `test-router`、`audit-release`、`release-verification` 或当前 CP3 验证矩阵 |
 | `regressionMatrix` | 条件 | 高风险控制面 / 多批次修复必填；列出“历史能力 → 受影响批次 → 必跑验证 → 失败回滚点” |
-| `verificationEvidence` | 条件 | 宿主验证或控制面任务必填；记录 validate、targeted tests、fixture replay、direct replay、部署同步、ArtifactLinkSet、MCP fallback 等证据计划 |
+| `verificationEvidence` | 条件 | 宿主验证或控制面任务必填；记录 validate、targeted tests、fixture/direct replay、部署同步、VisibleEnvelope/UserFacingArtifactSet/LinkCapability、MCP fallback 等证据计划 |
 | `ledgerWriteback` | 条件 | 当本轮会改变 VL/PF/PI/ISSUE/GAP 的状态时必填；列出 `targetLedgers`、`requiredFields`、`writebackEvidence`、`rescanResult` |
 | `deviationPolicy` | ✅ | 绿色/黄色/红色偏离分级与处理方式 |
 | `driftTriggers` | 条件 | `DevelopmentDriftGate` 触发器：范围扩张、包/API/配置/文档消费者变化、新依赖、验证路线改变、dirty 污染或用户新确认 |
@@ -173,6 +173,7 @@ P0/P1、安全、控制面、公共 API/Schema/config、预计 ≥5 文件、多
 ### accepted 条件
 
 - authorization、allowed paths、acceptance matrix 与 required evidence 均有效；full 合同还必须具备完整 finding map、handoff 与 independent re-review。
+- `rework-prevention-engineering#RepairPreventionAssessmentGate` 已返回有效 `RepairPreventionAssessmentV1`；当前修复证据与 prospective prevention evidence 分列，`no-new-control` 具有标准 reason/evidence，高风险或 repeat escape 使用 full。
 - 补丁产出者可以参与验证，但不能成为高风险任务唯一通过证据源；角色独立或黑盒证据独立均可。
 - 证据失败进入 rejected；触达 blockedScope、缺真相源或需要重开 CP 时进入 blocked。
 
@@ -205,12 +206,13 @@ P0/P1、安全、控制面、公共 API/Schema/config、预计 ≥5 文件、多
 | executionAttemptLedger | qualification / attemptNo / failureSignature / source+evidence delta / timing split / terminal / StopSnapshot |
 | externalWaitAccounting | executionMs vs waitingUserMs vs waitingExternalMs |
 | longTaskAuthorization | authorizationEvidence / cycle lifecycle / continue=new-cycle |
+| repairPreventionAssessment | RepairPreventionAssessmentV1 / immediateClosure / prospectiveStatus / rollbackOrSunset |
 ```
 
 ## 验证
 
 - 执行前：CP2/CP3 或修复方案中存在 Contract 字段，并通过 `DevelopmentDriftGate` 核对 `allowedFirstBatch / blockedScope / driftTriggers / validationRoute / consumerSync / dirty boundary`。
 - 长任务 / Auto / resume：存在 `executionBudget` + `longTaskAuthorization`；有等待面时存在 `externalWaitAccounting`；缺预算或未授权不得进入无人值守 mutation。
-- repair task：轻量契约字段完整；高风险 full 契约的 finding map、handoff、独立复证和状态转换完整；只出现模型名称不得误触发。
+- repair task：轻量契约字段完整；高风险 full 契约的 finding map、handoff、独立复证和状态转换完整；RepairPreventionAssessmentV1 有效且没有用 current-event rerun 冒充 prospective effectiveness；只出现模型名称不得误触发。
 - 执行中：每个 Batch 对照 `allowedPaths`、`requiredArtifacts`、`consumerScope`、`backlogTruthReview`、`regressionMatrix`、`ledgerWriteback` 与 `deviationLog`；消耗逼近预算时提前提示，触顶写 `StopSnapshot`。
 - 执行后：ECR-2/ECR-3/ECR-7 引用 Contract、`verificationEvidence`、历史能力回归结果、backlog 真相复核结果与最终偏离记录；命中派生资产时引用 `PostStageDerivedArtifactFreshnessGate` 的 staged candidate receipt 和 post-commit replay，不能用生成时的 working-tree check 代替；命中 turn liveness 时同时引用双阶段 checkpoint 与 trace zero-write/replay 证据；长任务 ECR 必须引用 budget 消耗与等待分列。

@@ -1,0 +1,17 @@
+# >>> devcodex-managed:devcodex-memory
+[mcp_servers.devcodex-memory]
+command = "node"
+args = [".grok/mcp/workspace-bridge.cjs", "memory", "."]
+enabled = true
+startup_timeout_sec = 30
+tool_timeout_sec = 6000
+# <<< devcodex-managed:devcodex-memory
+
+# >>> devcodex-managed:devcodex-profile
+[mcp_servers.devcodex-profile]
+command = "node"
+args = [".grok/mcp/workspace-bridge.cjs", "profile", "."]
+enabled = true
+startup_timeout_sec = 30
+tool_timeout_sec = 6000
+# <<< devcodex-managed:devcodex-profile

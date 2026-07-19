@@ -161,13 +161,19 @@ function assertDeploymentManifest(runtimeRoot, expectedSurface) {
 
 function assertCodexAdapterState(root) {
   const sourceInstructions = fs.readFileSync(path.join(ROOT, 'instructions.md'), 'utf8')
+  const sourceKernel = fs.readFileSync(path.join(ROOT, 'host-projections', 'AGENTS.md'), 'utf8')
   const agentsMd = fs.readFileSync(path.join(root, 'AGENTS.md'), 'utf8')
+  const fullFallback = fs.readFileSync(path.join(root, '.agents', 'devcodex', 'instructions.full.md'), 'utf8')
   const hooks = readJson(root, '.codex/hooks.json')
-  const sourceSkillFiles = walk(path.join(ROOT, 'skills')).filter(file => path.basename(file) === 'SKILL.md')
+  const portfolio = JSON.parse(fs.readFileSync(path.join(ROOT, 'skills', 'portfolio.json'), 'utf8'))
   const installedSkillFiles = walk(path.join(root, '.agents', 'skills')).filter(file => path.basename(file) === 'SKILL.md')
 
-  assert.strictEqual(agentsMd, sourceInstructions)
-  assert.strictEqual(installedSkillFiles.length, sourceSkillFiles.length)
+  assert.strictEqual(agentsMd, sourceKernel)
+  assert.strictEqual(fullFallback, sourceInstructions)
+  assert.strictEqual(installedSkillFiles.length, portfolio.summary.activeSkillCount)
+  for (const graySkill of portfolio.skills.filter(skill => skill.lifecycleState === 'gray')) {
+    assert.ok(!fs.existsSync(path.join(root, '.agents', 'skills', graySkill.id)), `gray Skill must not deploy: ${graySkill.id}`)
+  }
   assert.ok(fs.existsSync(path.join(root, '.agents', 'skills', 'routing', 'SKILL.md')))
   assert.ok(fs.existsSync(path.join(root, '.codex', 'hooks', '_runtime', 'lifecycle.cjs')))
 
@@ -190,13 +196,19 @@ function assertClaudeMergeState(root, { claudeMdManaged }) {
   const settings = readJson(root, '.claude/settings.json')
   const mcp = readJson(root, '.mcp.json')
   const claudeMd = fs.readFileSync(path.join(root, 'CLAUDE.md'), 'utf8')
+  const agentsMd = fs.readFileSync(path.join(root, 'AGENTS.md'), 'utf8')
+  const fullFallback = fs.readFileSync(path.join(root, '.agents', 'devcodex', 'instructions.full.md'), 'utf8')
+  const sourceKernel = fs.readFileSync(path.join(ROOT, 'host-projections', 'AGENTS.md'), 'utf8')
+  const sourceInstructions = fs.readFileSync(path.join(ROOT, 'instructions.md'), 'utf8')
 
   if (claudeMdManaged) {
-    const sourceInstructions = fs.readFileSync(path.join(ROOT, 'instructions.md'), 'utf8')
-    assert.strictEqual(claudeMd, sourceInstructions)
+    const sourceWrapper = fs.readFileSync(path.join(ROOT, 'host-projections', 'CLAUDE.md'), 'utf8')
+    assert.strictEqual(claudeMd, sourceWrapper)
   } else {
     assert.strictEqual(claudeMd, '# custom claude instructions\n')
   }
+  assert.strictEqual(agentsMd, sourceKernel)
+  assert.strictEqual(fullFallback, sourceInstructions)
 
   assert.deepStrictEqual(settings.permissions.ask, ['Bash'])
   assert.deepStrictEqual(settings.permissions.deny, ['DeleteTool'])

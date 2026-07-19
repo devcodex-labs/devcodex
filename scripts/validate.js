@@ -76,12 +76,11 @@
  * V92 项目工程与治理闭环优化（CI/coverage/checked-command/portfolio/runtime-state/manifest/docs）
  * V93 控制面模块化边界与探针注册表
  * V94 返工预防、审查/产物信任链与发布/配置/交互 Owner 子门禁
- * V95~V101：完整性/吸纳/品牌/TurnLiveness/ContextRead/ClosureEvidence/ExecutionChain
+ * V95~V103：完整性/吸纳/品牌/TurnLiveness/ContextRead/ClosureEvidence/ExecutionChain/VisibleOutput/HostProjection
  * Exit: 0=OK, 1=error, 2=warnings only
  */
 'use strict'
-const fs = require('fs')
-const os = require('os')
+const fs = require('fs'), os = require('os')
 const path = require('path')
 const { createCanonicalAwareReader, hasValidCanonicalContract } = require('./lib/canonical-consumer-contracts')
 const crypto = require('crypto')
@@ -108,7 +107,10 @@ const { buildTurnLivenessControlChecks } = require('./lib/validate-turn-liveness
 const { buildContextReadControlChecks } = require('./lib/validate-context-read-controls')
 const { buildClosureEvidenceControlChecks } = require('./lib/validate-closure-evidence-controls')
 const { buildExecutionChainControlChecks } = require('./lib/validate-execution-chain-controls')
+const { buildVisibleOutputControlChecks } = require('./lib/validate-visible-output-controls')
+const { buildHostInstructionControlChecks } = require('./lib/validate-host-instruction-controls')
 const { buildGovernanceSupportChecks } = require('./lib/validate-governance-support')
+const { createValidationOrchestration } = require('./lib/validation-orchestration')
 const { resolveActiveRuntimeRoot } = require('../hooks/_runtime/workspace-layout.cjs')
 const ROOT = path.resolve(__dirname, '..')
 const WORKSPACE_ROOT = path.dirname(ROOT)
@@ -156,6 +158,8 @@ function resolveActiveDevcodexRoot(repoRoot) {
 }
 
 const ACTIVE_DEVCODEX_ROOT = resolveActiveDevcodexRoot(ROOT)
+const validationOrchestration = createValidationOrchestration({ root: ROOT, reportError: err })
+const isValidationDelegated = validationOrchestration.isDelegated
 function activePath(...segments) {
   return path.join(ACTIVE_DEVCODEX_ROOT, ...segments)
 }
@@ -206,7 +210,8 @@ const coreChecks = buildValidateCoreChecks({
   resolveActiveDevcodexRoot,
   readJsonIfExists,
   mustInclude,
-  mustNotInclude
+  mustNotInclude,
+  isValidationDelegated
 })
 
 const tailChecks = buildGovernanceTailChecks({
@@ -220,7 +225,8 @@ const tailChecks = buildGovernanceTailChecks({
   execSync,
   read,
   err,
-  mustInclude
+  mustInclude,
+  isValidationDelegated
 })
 
 const midChecks = buildGovernanceMidChecks({
@@ -238,7 +244,8 @@ const controlChecks = buildGovernanceControlChecks({
   read,
   err,
   execSync,
-  activePath
+  activePath,
+  isValidationDelegated
 })
 
 const supportChecks = buildGovernanceSupportChecks({
@@ -250,13 +257,15 @@ const supportChecks = buildGovernanceSupportChecks({
   warn,
   execSync,
   activePath,
-  mustInclude
+  mustInclude,
+  isValidationDelegated
 })
 
 const promptChecks = buildGovernancePromptChecks({
   mustInclude,
   mustNotInclude,
-  console
+  console,
+  isValidationDelegated
 })
 
 const packageChecks = buildGovernancePackageDeploymentChecks({
@@ -271,9 +280,9 @@ const packageChecks = buildGovernancePackageDeploymentChecks({
   warn,
   console,
   ACTIVE_DEVCODEX_ROOT,
-  TARGET_DEPLOYMENT_RUNTIME_ROOT
+  TARGET_DEPLOYMENT_RUNTIME_ROOT,
+  isValidationDelegated
 })
-
 const optimizationChecks = buildOptimizationControlChecks({
   ROOT,
   ACTIVE_DEVCODEX_ROOT,
@@ -283,7 +292,6 @@ const optimizationChecks = buildOptimizationControlChecks({
   err,
   console
 })
-
 const modularityChecks = buildModularityControlChecks({ ROOT, fs, path, read, err, console })
 const reworkTrustChecks = buildReworkTrustControlChecks({ ROOT, fs, path, read, err, console })
 const consumerEvolutionChecks = buildConsumerEvolutionControlChecks({ ROOT, fs, path, read, err, console })
@@ -293,17 +301,9 @@ const turnLivenessChecks = buildTurnLivenessControlChecks({ ROOT, ACTIVE_DEVCODE
 const contextReadChecks = buildContextReadControlChecks({ ROOT, ACTIVE_DEVCODEX_ROOT, fs, path, read, err, console })
 const closureEvidenceChecks = buildClosureEvidenceControlChecks({ ROOT, fs, path, read, err, console })
 const executionChainChecks = buildExecutionChainControlChecks({ ROOT, ACTIVE_DEVCODEX_ROOT, fs, path, read, err, console })
-
-function checkV7b() {
-  try {
-    execSync('node scripts/test-instruction-fallback-check.js', { cwd: ROOT, stdio: 'pipe', encoding: 'utf8' })
-    console.log('[V7b] instruction-fallback smoke test passed')
-  } catch (e) {
-    const detail = String((e.stderr || e.stdout || e.message || '')).trim().split('\n').slice(0, 8).join(' | ')
-    err(`[V7b] instruction-fallback smoke test failed${detail ? `: ${detail}` : ''}`)
-  }
-}
-const expectedProbeIds = Array.from({ length: 101 }, (_, index) => `V${index + 1}`)
+const visibleOutputChecks = buildVisibleOutputControlChecks({ ROOT, fs, path, read, err, console })
+const hostInstructionChecks = buildHostInstructionControlChecks({ ROOT, fs, path, read, err, console })
+const expectedProbeIds = Array.from({ length: 103 }, (_, index) => `V${index + 1}`)
 const probeRegistry = createProbeRegistry([
   { owner: 'core-contract', checks: Object.values(coreChecks) },
   { owner: 'package-deployment', checks: Object.values(packageChecks) },
@@ -325,15 +325,15 @@ const probeRegistry = createProbeRegistry([
   { owner: 'turn-liveness', checks: Object.values(turnLivenessChecks), dependencies: { V98: ['V36', 'V73', 'V94', 'V96'] } },
   { owner: 'context-read-controls', checks: Object.values(contextReadChecks), dependencies: { V99: ['V86', 'V93', 'V98'] } },
   { owner: 'closure-evidence-controls', checks: Object.values(closureEvidenceChecks), dependencies: { V100: ['V93', 'V94', 'V99'] } },
-  { owner: 'execution-chain-controls', checks: Object.values(executionChainChecks), dependencies: { V101: ['V92', 'V98', 'V99', 'V100'] } }
+  { owner: 'execution-chain-controls', checks: Object.values(executionChainChecks), dependencies: { V101: ['V92', 'V98', 'V99', 'V100'] } },
+  { owner: 'visible-output-controls', checks: Object.values(visibleOutputChecks), dependencies: { V102: ['V93', 'V94', 'V100', 'V101'] } },
+  { owner: 'host-instruction-controls', checks: Object.values(hostInstructionChecks), dependencies: { V103: ['V92', 'V99', 'V100', 'V102'] } }
 ], { expectedIds: expectedProbeIds })
-
 runProbeRegistry(probeRegistry, {
   afterRun: descriptor => {
-    if (descriptor.id === 'V7') checkV7b()
+    if (descriptor.id === 'V7') validationOrchestration.runInstructionFallbackProbe()
   }
 })
-
 console.log('')
 if (errors.length) {
   console.error(`\x1b[31m✗ ${errors.length} error(s):\x1b[0m`)

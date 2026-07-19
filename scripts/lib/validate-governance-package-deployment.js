@@ -1,9 +1,21 @@
 'use strict'
 
 const { readManifest, verifyManifest } = require('./deployment-manifest-utils')
+const { createSkillDeployFileFilter } = require('./skill-deploy-filter')
 
 function shouldCheckBaseDeploymentSource(relativePath) {
   return !String(relativePath).replace(/\\/g, '/').startsWith('instructions/tenants/')
+}
+
+function isExactWorkspaceBridge(root, fsImpl, pathImpl) {
+  const source = pathImpl.join(root, 'host-projections', 'AGENTS.workspace-bridge.md')
+  const target = pathImpl.join(root, 'AGENTS.md')
+  if (!fsImpl.existsSync(source) || !fsImpl.existsSync(target)) return false
+  try {
+    return fsImpl.readFileSync(source).equals(fsImpl.readFileSync(target))
+  } catch {
+    return false
+  }
 }
 
 function findSourceRootHostDeployments(root, fsImpl, pathImpl, walkFn) {
@@ -14,7 +26,11 @@ function findSourceRootHostDeployments(root, fsImpl, pathImpl, walkFn) {
     { label: 'source-root .agents/', target: pathImpl.join(root, '.agents') },
     { label: 'source-root .codex/', target: pathImpl.join(root, '.codex') }
   ]
-  const deployments = candidates.filter(entry => fsImpl.existsSync(entry.target))
+  const exactWorkspaceBridge = isExactWorkspaceBridge(root, fsImpl, pathImpl)
+  const deployments = candidates.filter(entry => {
+    if (!fsImpl.existsSync(entry.target)) return false
+    return !(entry.label === 'source-root AGENTS.md' && exactWorkspaceBridge)
+  })
   const githubRoot = pathImpl.join(root, '.github')
   if (fsImpl.existsSync(githubRoot)) {
     const nonWorkflowFiles = walkFn(githubRoot).filter(file => {
@@ -41,6 +57,7 @@ function buildGovernancePackageDeploymentChecks(ctx) {
     ACTIVE_DEVCODEX_ROOT,
     TARGET_DEPLOYMENT_RUNTIME_ROOT
   } = ctx
+  const skillDeployFileFilter = createSkillDeployFileFilter(ROOT)
 
   function checkV6() {
     try {
@@ -259,7 +276,7 @@ function buildGovernancePackageDeploymentChecks(ctx) {
       { src: 'hooks/_runtime/lifecycle.cjs', claude: 'hooks/_runtime/lifecycle.cjs', github: 'hooks/_runtime/lifecycle.cjs' },
       { src: 'mcp/memory-server.js', claude: 'mcp/memory-server.js', github: null },
       { src: 'mcp/profile-server.js', claude: 'mcp/profile-server.js', github: null },
-      { src: 'instructions.md', claude: '../CLAUDE.md', github: null }
+      { src: 'host-projections/CLAUDE.md', claude: '../CLAUDE.md', github: null }
     ]
     const seenPairs = new Set(checkPairs.map(pair => pair.src))
 
@@ -273,6 +290,7 @@ function buildGovernancePackageDeploymentChecks(ctx) {
       for (const file of walk(path.join(ROOT, dir)).filter(file => file.endsWith('.md'))) {
         const rel = path.relative(ROOT, file).replace(/\\/g, '/')
         if (!shouldCheckBaseDeploymentSource(rel)) continue
+        if (rel.startsWith('skills/') && !skillDeployFileFilter(rel.slice('skills/'.length))) continue
         addPair(rel)
       }
     }
@@ -339,7 +357,7 @@ function buildGovernancePackageDeploymentChecks(ctx) {
 
     if (githubExists) {
       compareDeployment(
-        'instructions.md',
+        'host-projections/copilot-instructions.md',
         path.join(githubDir, 'copilot-instructions.md'),
         '.github/copilot-instructions.md',
         'npx devcodex update'
@@ -347,11 +365,12 @@ function buildGovernancePackageDeploymentChecks(ctx) {
     }
 
     if (codexExists) {
-      compareDeployment('instructions.md', path.join(parentRoot, 'AGENTS.md'), 'AGENTS.md', 'npx devcodex update --codex')
+      compareDeployment('host-projections/AGENTS.md', path.join(parentRoot, 'AGENTS.md'), 'AGENTS.md', 'npx devcodex update --codex')
       compareDeployment('codex/hooks.json', path.join(codexDir, 'hooks.json'), '.codex/hooks.json', 'npx devcodex update --codex')
 
       for (const file of walk(path.join(ROOT, 'skills'))) {
         const rel = path.relative(path.join(ROOT, 'skills'), file)
+        if (!skillDeployFileFilter(rel)) continue
         compareDeployment(
           path.join('skills', rel).replace(/\\/g, '/'),
           path.join(agentsDir, 'skills', rel),
@@ -438,5 +457,6 @@ function buildGovernancePackageDeploymentChecks(ctx) {
 module.exports = {
   buildGovernancePackageDeploymentChecks,
   findSourceRootHostDeployments,
+  isExactWorkspaceBridge,
   shouldCheckBaseDeploymentSource
 }

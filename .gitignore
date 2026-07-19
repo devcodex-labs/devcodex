@@ -10,6 +10,10 @@ node_modules/
 .codex/
 AGENTS.md
 CLAUDE.md
+# DevCodex optional Gemini / Grok adapter output (generated when this source repo is also the install target)
+.gemini/
+.grok/
+GEMINI.md
 .vscode/
 dist/
 coverage/

@@ -4,7 +4,7 @@ pageType: home
 hero:
   name: DevCodex
   text: AI 开发工作流规范注入器
-  tagline: 为 Copilot / Claude Code / Codex 提供可安装、可审计、可恢复的统一开发工作流
+  tagline: 默认适配 Copilot / Claude Code / Codex，并可显式扩展 Gemini / Grok 的统一开发工作流
   actions:
     - theme: brand
       text: 开始使用
@@ -16,10 +16,10 @@ hero:
 features:
   - title: 🎯 结构化工作流
     details: 8 种工作流（dev/fix/audit/analyze/self-fix/resume/plan/chat），执行流程骨架已冻结
-  - title: 🛠️ 78 个 Skills
-    details: 当前源码 75 active + 3 gray；新增未发布 gray `brand-visual-quality` 承接品牌视觉资产质量，其余覆盖开发、修复、审计、规范吸纳执行、跨仓消费者验证、用户侧文档 review 聚合、`expert-output-quality` 专家型产物质量与 21 个专家 Owner Skill，以及宿主契约验证、真相源-消费者同步
-  - title: 🧩 三宿主分发
-    details: Copilot、Claude Code 与 Codex 共用同一规范源；Hook 能力按宿主/事件降级，Codex 按事件契约使用顶层 decision、continue:false 或工具级 permissionDecision
+  - title: 🛠️ 80 个 Skills
+    details: 当前源码 77 active + 3 gray；新增未发布 `user-visible-output-contract` 与 `host-instruction-projection`，gray `brand-visual-quality` 承接品牌视觉资产质量，其余覆盖开发、修复、审计、规范吸纳执行、跨仓消费者验证、用户侧文档 review 聚合、`expert-output-quality` 专家型产物质量与 21 个专家 Owner Skill，以及宿主契约验证、真相源-消费者同步
+  - title: 🧩 默认三宿主、可选五宿主
+    details: Copilot、Claude Code、Codex 默认部署；当前未发布源码可显式增加 Gemini / Grok。五宿主共用精简 kernel、按需 Skills 与完整回退，Hook 能力按宿主/事件降级并受 direct/fixture/instruction-backed 证据上限约束
   - title: 🔒 四层合规检查
     details: FC（形式合规）→ SC（实质合规）→ RC（恢复性检查）→ T（任务完成验证）；chat 仅保留记忆与 dev 预检查
   - title: 🧠 跨会话记忆
@@ -31,4 +31,4 @@ features:
 ---
 
 
-> Skill 规模锚点：78 个按需触发；扁平一级 Skill（78 个）。
+> Skill 规模锚点：80 个按需触发；扁平一级 Skill（80 个）。

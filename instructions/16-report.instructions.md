@@ -102,12 +102,12 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 - 每条建议/问题必须附五项验证（合理性 + 可实施性 + 收益 + 验证状态 + 影响范围）— 与 [`17-compliance.instructions.md`](./17-compliance.instructions.md) §1 输出验证保持一致
 - 报告写入后必须执行二次验证（V1~V6，见 `17-compliance.instructions.md`）
 - 跨会话/未完成/多批次任务不得缺少 `ContextHandoffCard`；SUMMARY 只能作为索引，不得替代交接卡
-- 回复末尾必须输出报告路径（按 `ArtifactLinkSet` 输出主 Markdown 链接与必要 copy fallback，详见 [`02-output-paths.instructions.md`](./02-output-paths.instructions.md) §产物路径输出格式）：
+- 报告必须登记到 `ArtifactDeliveryManifestV1`，最终用户面由 `UserFacingArtifactSetV1` 投影为语义链接（详见 [`02-output-paths.instructions.md`](./02-output-paths.instructions.md) §产物路径输出格式）：
   ```markdown
-  - [NN--简述.md](workspace相对路径/.devcodex/reports/.../NN--简述.md)
-  绝对路径：E:\...\NN--简述.md
+  #### 完成交付文件
+  - [最终执行与验证报告](capability-selected-target) — 汇总完成范围、验证结果和残余风险；操作：查看结论
   ```
-  > 当前宿主为 Codex Desktop/App、Copilot、未知宿主，或用户反馈无法点击时，必须追加 `绝对路径：` 行；禁止只输出裸文件名。
+  > Rich clickable 已验证时不得重复绝对路径；只有用户要求、链接失败、工作区外、歧义或无法定位时追加绝对路径 fallback。session/SUMMARY/raw ledger 默认不进入用户列表。
 - C13 只约束新建 DevCodex 规范资产 `.md`；报告不因 C13 强制压缩或拆分，超长报告按可读性、索引导航和项目规范决定是否拆分
 
 ### 写入工具选择（v1.9.4+）

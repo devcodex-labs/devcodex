@@ -21,6 +21,7 @@ function buildGovernanceReviewChecks(ctx) {
     fs, path, execSync, read, err, mustInclude
   } = ctx
   const { collectChangelogSources, hasChangelogEvidence } = buildGovernanceHelpers(ctx)
+  const skillCount = JSON.parse(read(path.join(ROOT, 'plugin.json'))).skills.length
 
   function checkV75() {
     const probeName = 'PromptLongGateListDriftProbe'
@@ -459,11 +460,11 @@ function buildGovernanceReviewChecks(ctx) {
       { file: 'prompts/report-dev.prompt.md', needles: gates },
       { file: 'prompts/report-fix.prompt.md', needles: gates },
       { file: 'prompts/report-audit.prompt.md', needles: gates.concat(['文档设计', '菜单导航']) },
-      { file: 'README.md', needles: ['78 个', 'audit-user-manual', '用户侧文档 review 聚合'] },
-      { file: 'website/docs/index.md', needles: ['78 个 Skills', '用户侧文档 review 聚合'] },
-      { file: 'website/docs/intro/index.md', needles: ['78 个按需触发', 'audit-user-manual'] },
+      { file: 'README.md', needles: [`${skillCount} 个`, 'audit-user-manual', '用户侧文档 review 聚合'] },
+      { file: 'website/docs/index.md', needles: [`${skillCount} 个 Skills`, '用户侧文档 review 聚合'] },
+      { file: 'website/docs/intro/index.md', needles: [`${skillCount} 个按需触发`, 'audit-user-manual'] },
       { file: 'website/docs/guide/development.md', needles: ['audit-user-manual', '菜单导航', 'sidebar'] },
-      { file: 'website/docs/specs/directory-structure.md', needles: ['78 个', 'audit-user-manual', '用户侧文档 review'] },
+      { file: 'website/docs/specs/directory-structure.md', needles: [`${skillCount} 个`, 'audit-user-manual', '用户侧文档 review'] },
       { file: 'scripts/lib/test-spec-governance-review.js', needles: ['checkV80'].concat(gates) },
       { file: 'scripts/validate.js', needles: ['createProbeRegistry', 'expectedProbeIds', 'runProbeRegistry'] },
       { file: 'changelog corpus', content: changelogCorpus, needles: ['V80'].concat(gates) }
@@ -532,10 +533,10 @@ function buildGovernanceReviewChecks(ctx) {
       { file: 'prompts/report-fix.prompt.md', needles: ['spec-absorption', 'AbsorptionCandidateConsumerProofGate', 'targetOwner'] },
       { file: 'prompts/report-audit.prompt.md', needles: ['spec-absorption', 'projectSpecificResidue', 'devcodexConsumerEvidence'] },
       { file: 'prompts/report-scenario-test.prompt.md', needles: ['spec-absorption', 'negativeExamples', 'validationRoute'] },
-      { file: 'README.md', needles: ['spec-absorption', 'CommonNormGeneralizationGate', 'ServiceSpecReadGate', '78 个'] },
-      { file: 'website/docs/index.md', needles: ['78 个 Skills', '规范吸纳执行'] },
-      { file: 'website/docs/intro/index.md', needles: ['78 个按需触发的工作流技能', 'spec-absorption'] },
-      { file: 'website/docs/specs/directory-structure.md', needles: ['扁平一级 Skill（78 个）', 'spec-absorption'] },
+      { file: 'README.md', needles: ['spec-absorption', 'CommonNormGeneralizationGate', 'ServiceSpecReadGate', `${skillCount} 个`] },
+      { file: 'website/docs/index.md', needles: [`${skillCount} 个 Skills`, '规范吸纳执行'] },
+      { file: 'website/docs/intro/index.md', needles: [`${skillCount} 个按需触发的工作流技能`, 'spec-absorption'] },
+      { file: 'website/docs/specs/directory-structure.md', needles: [`扁平一级 Skill（${skillCount} 个）`, 'spec-absorption'] },
       { file: 'website/docs/guide/development.md', needles: ['spec-absorption', 'CommonNormGeneralizationGate', 'ServiceSpecReadGate'] },
       { file: 'website/docs/versions/v1/1.0.1/CHANGELOG.md', needles: ['spec-absorption', 'V81'] },
       { file: 'scripts/lib/test-spec-governance-review.js', needles: ['checkV81', 'spec-absorption', 'CommonNormGeneralizationGate'] },

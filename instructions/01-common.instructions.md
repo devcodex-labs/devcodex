@@ -29,7 +29,7 @@ version: 1.15.1
 >
 > 上述"最小化展开"主要约束**面向用户的默认输出场景**；项目内 `dev` 模式下的规范优化、规则提升与实现讨论不受此条新增限制。
 >
-> ⚠️ **产物链接兼容**：涉及文件产物时，回复末尾必须按 `02-output-paths.instructions.md` 输出 `ArtifactLinkSet`（主 Markdown 链接 + 必要 `绝对路径：` copy fallback）。Copilot / Codex / 未知宿主或用户反馈无法点击时，不得只输出相对链接或裸文件名。
+> ⚠️ **用户可见交付契约**：涉及入口/完成检查、确认、进度、结果、阻断或文件交付时，触发 `user-visible-output-contract`。所有持久化产物先进入 `ArtifactDeliveryManifestV1`，用户面只由 `UserFacingArtifactSetV1` 确定性投影；session、daily、SUMMARY、task/checkpoint 与 raw receipt/manifest/ledger 默认 internal-only。链接按已验证能力选择 clickable/portable/plain/failed；Rich clickable 不重复绝对路径，只有用户要求、链接失败、工作区外、歧义或无法定位时追加绝对路径 fallback。
 >
 > ⚠️ **MCP fallback**：Copilot / Codex 等非 Claude Code 宿主调用 DevCodex MCP 出现 `invoke` undefined、工具桥接不可用或 server 未连接时，视为宿主 MCP bridge 失败；停止重试同一 MCP，降级读取 Profile / SUMMARY / tasks 文件，并在报告或记忆中记录 `mcpFallback=used`。
 
@@ -164,7 +164,7 @@ version: 1.15.1
 ## Skill 按需读取表
 
 > ⚠️ 仅读取当前工作流子类型对应的 Skills，禁止全量读取。
-> ⚠️ **`ContextAcquisitionGate` 是所有工作流的前置步骤，不受本表约束：先形成 `IntentSeedV1` 与唯一项目，再生成 `ContextReadPlanV1` 并定向读取；禁止把“Profile 是真相源”实现成默认整目录读取。**
+> ⚠️ **`ContextAcquisitionGate` 是所有工作流的前置步骤，不受本表约束：先形成 `IntentSeedV1` 与唯一项目，再生成 `ContextReadPlanV2`（V1 只保留 reader compatibility）并定向读取；禁止把“Profile 是真相源”实现成默认整目录读取。**
 > ℹ️ `18-spec-radar.instructions.md`（PC4 规范雷达）是 Instruction（不是 Skill），通过 `applyTo:"**"` 全局注入，无需在本表中加载；仅 dev 模式在入口检查中执行完整三轴诊断。
 
 > ⚠️ **扩展点**：新增工作流子类型时，须同时更新以下5处（D5 L1~L3 联动）：
@@ -281,7 +281,7 @@ version: 1.15.1
 
 ### Profile 加载
 
-- Profile 上下文适用于所有工作流（含 analyze / audit / chat），但读取范围由 `ContextAcquisitionGate` 决定：`IntentSeedV1 → 唯一项目/active-root → ContextReadPlanV1 → 定向加载 → Post 成功回执`。
+- Profile 上下文适用于所有工作流（含 analyze / audit / chat），但读取范围由 `ContextAcquisitionGate` 决定：`IntentSeedV1 → 唯一项目/active-root → ContextReadPlanV2 → 定向加载 → ContextReadReceiptV2`；V1 仅作 reader/runtime compatibility，不能定义 current writer。
 - baseline 只允许 README/index、effective non-local config 与顶层 metadata inventory；项目事实、架构、代码风格、测试、发布等正文按 intent / changeTypes / risk 选择，禁止 hidden full read。
 - 跨会话恢复必须重新校验 epoch、目标、计划与必要来源新鲜度；摘要不能替代 Profile，也不能自动触发整套 Profile 重读。
 - 全量读取须有 `fullReadReason`；`config.local.json` 只在用户或项目明确指定时进入 selected sources。旧 no-args 全量工具仅作兼容，不得作为正常默认路径。

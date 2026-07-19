@@ -109,6 +109,8 @@ function compactPlan(plan, executionOptimization = null) {
     candidateStable: plan.candidateStable,
     changedSource: plan.changedSource,
     changedFiles: plan.changedFiles,
+    impactGraphDigest: plan.impactGraphDigest,
+    planDigest: plan.planDigest,
     fullFallback: plan.fullFallback,
     selectedNodes: plan.selectedNodes.map(node => node.id),
     skipped: plan.skipped,

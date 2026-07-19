@@ -1,6 +1,6 @@
 ---
 name: host-contract-verification
-description: 宿主契约验证规范 — 为 Hook / CLI / bootstrap / visible reply / workspace guard / ArtifactLinkSet / MCP fallback 相关任务定义 direct replay、fixture replay、部署同步与证据输出路线
+description: 宿主契约验证规范 — 为 Hook / CLI / bootstrap / visible envelope / workspace guard / LinkCapabilityDecision / MCP fallback 定义 direct replay、fixture replay、部署同步与证据路线
 ---
 # Host Contract Verification Skill
 
@@ -18,7 +18,7 @@ description: 宿主契约验证规范 — 为 Hook / CLI / bootstrap / visible r
 | Stop / PreCompact 可见回复验证语义变更 | 🔴 必须 |
 | sticky `activeProject` / `mode` / workspace guard 变更 | 🔴 必须 |
 | Bootstrap、部署副本、父链同步口径变更 | 🔴 必须 |
-| `ArtifactLinkSet` / 产物文件点击兼容矩阵变更 | 🔴 必须 |
+| `DevCodexVisibleEnvelopeV1` / `UserFacingArtifactSetV1` / `LinkCapabilityDecisionV1` 变更 | 🔴 必须 |
 | Copilot / Codex MCP bridge 报错、`profile_load` fallback、`invoke undefined` 恢复链变更 | 🔴 必须 |
 | `ContextReadPlanV2` / `ContextReadReceiptV2`（含 V1 兼容）、Pre/Post 相关性、内容身份/复用、上下文读取 allowlist 或 fallback 语义变更 | 🔴 必须 |
 | 公开本地 probe、checkpoint 证据语义或 trace show/replay 变更 | 🔴 必须 |
@@ -35,7 +35,7 @@ description: 宿主契约验证规范 — 为 Hook / CLI / bootstrap / visible r
 | `visibleReplyEvidence` | 条件 | `verified-present` / `verified-missing` / `unverified`，以及证据来源 |
 | `workspaceGuard` | 条件 | 多项目 workspace、sticky project、workspace profile 提示等边界验证 |
 | `bootstrapScope` | 条件 | 父链部署体、入口检查块、adapter 初始化或 update 部署验证 |
-| `artifactLinkMatrix` | 条件 | `ArtifactLinkSet` 对 Copilot / Claude Code / Codex / instruction-fallback 的主链接与 copy fallback 覆盖情况 |
+| `artifactLinkMatrix` | 条件 | 当前 surface 的 capability evidence、clickable/portable/plain/failed、fallbackReason 与 renderer parity；不得按宿主名推测 |
 | `mcpFallback` | 条件 | MCP bridge 失败时是否降级到同计划有界文件读取 / instruction-fallback；记录错误文本、fallback 路线和是否停止重试 |
 | `contextAcquisition` | 条件 | plan/epoch/target/source 相关性、Pre attempted、Post success receipt、fallback 与完成状态 |
 | `turnLiveness` | 条件 | 长任务/无续接场景的 host-native、Hook-event、sidecar 能力边界，以及 lease、ACK、terminal、checkpoint 证据 |
@@ -53,7 +53,7 @@ description: 宿主契约验证规范 — 为 Hook / CLI / bootstrap / visible r
 | sticky project / workspace guard | multi-project fixture + follow-up replay |
 | bootstrap / 部署副本 | `node scripts/validate.js` + 部署同步后的落点复核 |
 | managed deployment manifest | legacy + workspace-namespace fixture、update preview、manifest schema/hash、stale 保留、V8 direct replay |
-| ArtifactLinkSet / 产物点击 | static matrix probe + visible reply fixture；若声称某客户端可点，需 direct replay 或用户实测证据 |
+| visible set / 产物点击 | manifest/projection property test + 三 renderer fixture；若声称当前 surface 可点，需 direct replay 或用户实测证据 |
 | MCP bridge fallback | MCP server no-args direct replay + 非 Full 宿主 fallback 文案探针；若错误来自宿主桥接层，只能声明 fallback 已覆盖，不能声明宿主 bug 已修复 |
 | 意图驱动上下文获取 | `ContextAcquisitionToolAllowlistProbe` + plan/receipt direct replay + Pre/Post fixture + hidden-full-read 负例 + fallback no-deadlock |
 | Turn Liveness / orphaned turn | state-machine fault matrix + Hook direct replay + restart rehydrate；事件停止后的 proactive 检测只能由 host-native watchdog 或 gray read-only sidecar 证明 |
@@ -63,11 +63,11 @@ description: 宿主契约验证规范 — 为 Hook / CLI / bootstrap / visible r
 
 ## 证据要求
 
-### ArtifactDeliveryCompletenessGate
+### VisibleOutputHostEvidenceGate
 
-Stop/PreCompact 对最终回复产物证据必须使用 `verified-present / verified-missing / unverified`：只有观察到可解析 assistant 内容才能判定 present/missing；未观察到只能 unverified。记录 `evidenceSource / missingItems`，不得用任意一个链接替代 active task 的 primary artifacts，也不得保存不必要的完整回复正文。
+Stop/PreCompact 对最终回复证据必须使用 `verified-present / verified-missing / unverified`：只有观察到可解析 assistant 内容和 `DevCodexVisibleEnvelopeV1` marker、合法动作标题、语义 item 才能判定 present/missing；未观察到只能 unverified。记录 `evidenceSource / missingItems / semanticDigest`，不得保存不必要的完整回复正文。
 
-最终回复在单一 surface 内列出“主要产物”；小集合全列，大集合列 primary + 完整 manifest 入口 + supporting/runtime/excluded-generated 计数。报告、记忆或 SUMMARY 已有链接不能成为最终回复省略 primary artifacts 的理由。
+legacy “主要产物 + 绝对路径”最多为 `unverified-legacy`。能力未 direct 验证时保持 portable/plain；Rich clickable 只显示单个语义链接。session、daily、SUMMARY、task/checkpoint 和 raw ledger 默认 internal-only，但宿主验证仍要核对它们已进入 internal manifest 和 ECR。
 
 ### ContextAcquisitionHostEvidenceGate
 

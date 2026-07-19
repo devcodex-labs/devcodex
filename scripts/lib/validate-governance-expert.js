@@ -6,9 +6,11 @@ function buildGovernanceExpertChecks(ctx) {
   const {
     ROOT, ACTIVE_DEVCODEX_ROOT, RECENT_REQUIREMENT_ARTIFACT_DAYS,
     collectRecentBugArtifactIssues, collectRecentRequirementArtifactIssues,
-    fs, path, execSync, read, err, mustInclude
+    fs, path, execSync, read, err, mustInclude,
+    isValidationDelegated = () => false
   } = ctx
   const { collectChangelogSources, hasChangelogEvidence } = buildGovernanceHelpers(ctx)
+  const skillCount = JSON.parse(read(path.join(ROOT, 'plugin.json'))).skills.length
 
   function collectActiveProfileCorpus(names) {
     const files = names.map(name => path.join(ACTIVE_DEVCODEX_ROOT, 'profile', name))
@@ -92,18 +94,26 @@ function buildGovernanceExpertChecks(ctx) {
       }
     }
 
-    try {
-      execSync('node scripts/test-validate-profile.js', { cwd: ROOT, stdio: 'pipe', encoding: 'utf8' })
-    } catch (e) {
-      const detail = String((e.stderr || e.stdout || e.message || '')).trim().split('\n').slice(0, 8).join(' | ')
-      err(`[V83] test-validate-profile failed${detail ? `: ${detail}` : ''}`)
+    if (isValidationDelegated('profile-governance')) {
+      console.log('[V83] profile-governance executable suite delegated to validation DAG; static contract probes retained')
+    } else {
+      try {
+        execSync('node scripts/test-validate-profile.js', { cwd: ROOT, stdio: 'pipe', encoding: 'utf8' })
+      } catch (e) {
+        const detail = String((e.stderr || e.stdout || e.message || '')).trim().split('\n').slice(0, 8).join(' | ')
+        err(`[V83] test-validate-profile failed${detail ? `: ${detail}` : ''}`)
+      }
     }
 
-    try {
-      execSync('node scripts/test-cli-behavior.js', { cwd: ROOT, stdio: 'pipe', encoding: 'utf8' })
-    } catch (e) {
-      const detail = String((e.stderr || e.stdout || e.message || '')).trim().split('\n').slice(0, 8).join(' | ')
-      err(`[V83] test-cli-behavior failed${detail ? `: ${detail}` : ''}`)
+    if (isValidationDelegated('cli-behavior')) {
+      console.log('[V83] cli-behavior executable suite delegated to validation DAG; static contract probes retained')
+    } else {
+      try {
+        execSync('node scripts/test-cli-behavior.js', { cwd: ROOT, stdio: 'pipe', encoding: 'utf8' })
+      } catch (e) {
+        const detail = String((e.stderr || e.stdout || e.message || '')).trim().split('\n').slice(0, 8).join(' | ')
+        err(`[V83] test-cli-behavior failed${detail ? `: ${detail}` : ''}`)
+      }
     }
 
     console.log('[V83] Profile generation contract, migration safety and workspace validation sync checked')
@@ -159,10 +169,10 @@ function buildGovernanceExpertChecks(ctx) {
       { file: 'prompts/report-fix.prompt.md', needles: ['ExpertOutputQualityGate', 'V84'] },
       { file: 'prompts/report-audit.prompt.md', needles: ['ExpertOutputQualityGate', 'V84'] },
       { file: 'prompts/report-scenario-test.prompt.md', needles: ['ExpertOutputQualityGate', 'V84'] },
-      { file: 'README.md', needles: ['78 个', 'expert-output-quality', 'V84', 'ExpertOutputQualityGate'] },
-      { file: 'website/docs/index.md', needles: ['78 个 Skills', 'expert-output-quality'] },
-      { file: 'website/docs/intro/index.md', needles: ['78 个按需触发', 'expert-output-quality'] },
-      { file: 'website/docs/specs/directory-structure.md', needles: ['扁平一级 Skill（78 个）', 'expert-output-quality'] },
+      { file: 'README.md', needles: [`${skillCount} 个`, 'expert-output-quality', 'V84', 'ExpertOutputQualityGate'] },
+      { file: 'website/docs/index.md', needles: [`${skillCount} 个 Skills`, 'expert-output-quality'] },
+      { file: 'website/docs/intro/index.md', needles: [`${skillCount} 个按需触发`, 'expert-output-quality'] },
+      { file: 'website/docs/specs/directory-structure.md', needles: [`扁平一级 Skill（${skillCount} 个）`, 'expert-output-quality'] },
       { file: 'website/docs/guide/development.md', needles: ['expert-output-quality', 'ExpertOutputQualityGate', 'V84'] },
       { file: 'website/docs/versions/v1/1.0.1/CHANGELOG.md', needles: ['V84', 'expert-output-quality', 'ExpertOutputQualityGate'] },
       { file: 'scripts/lib/test-spec-governance-expert.js', needles: ['checkV84', 'classifyExpertOutputSample', 'ExpertOutputQualityGate'] },
@@ -263,10 +273,10 @@ function buildGovernanceExpertChecks(ctx) {
       { file: 'prompts/report-fix.prompt.md', needles: ['ExpertOwnerSkillGate', 'V85'].concat(skillNames) },
       { file: 'prompts/report-audit.prompt.md', needles: ['ExpertOwnerSkillGate', 'V85'].concat(skillNames) },
       { file: 'prompts/report-scenario-test.prompt.md', needles: ['ExpertOwnerSkillGate', 'V85'].concat(gates) },
-      { file: 'README.md', needles: ['78 个', '21 个专家 Owner Skill', 'ExpertOwnerSkillGate', 'V85'].concat(skillNames) },
-      { file: 'website/docs/index.md', needles: ['78 个 Skills', '专家 Owner Skill'] },
-      { file: 'website/docs/intro/index.md', needles: ['78 个按需触发', '专家 Owner Skill'] },
-      { file: 'website/docs/specs/directory-structure.md', needles: ['扁平一级 Skill（78 个）', 'ExpertOwnerSkillGate'].concat(skillNames) },
+      { file: 'README.md', needles: [`${skillCount} 个`, '21 个专家 Owner Skill', 'ExpertOwnerSkillGate', 'V85'].concat(skillNames) },
+      { file: 'website/docs/index.md', needles: [`${skillCount} 个 Skills`, '专家 Owner Skill'] },
+      { file: 'website/docs/intro/index.md', needles: [`${skillCount} 个按需触发`, '专家 Owner Skill'] },
+      { file: 'website/docs/specs/directory-structure.md', needles: [`扁平一级 Skill（${skillCount} 个）`, 'ExpertOwnerSkillGate'].concat(skillNames) },
       { file: 'website/docs/guide/development.md', needles: ['ExpertOwnerSkillGate', 'V85'].concat(skillNames) },
       { file: 'website/docs/versions/v1/1.0.1/CHANGELOG.md', needles: ['V85', 'ExpertOwnerSkillGate'].concat(skillNames) },
       { file: 'scripts/lib/test-spec-governance-expert.js', needles: ['checkV85', 'classifyExpertOwnerSample', 'ExpertOwnerSkillGate'] },
@@ -551,8 +561,8 @@ function buildGovernanceExpertChecks(ctx) {
       { file: 'skills/spec-absorption/SKILL.md', needles: ['ProjectArtifactScaleRoutingGate', 'invalid/discarded'] },
       { file: 'skills/test-router/SKILL.md', needles: ['artifactScaleRouting', 'V91'] },
       { file: 'skills/report/SKILL.md', needles: ['ProjectArtifactScaleRoutingGate', 'V91'] },
-      { file: 'README.md', needles: ['78 个', 'ProjectArtifactScaleRoutingGate', 'skill-gap-analysis'] },
-      { file: 'website/docs/intro/index.md', needles: ['78 个按需触发', 'skill-gap-analysis'] }
+      { file: 'README.md', needles: [`${skillCount} 个`, 'ProjectArtifactScaleRoutingGate', 'skill-gap-analysis'] },
+      { file: 'website/docs/intro/index.md', needles: [`${skillCount} 个按需触发`, 'skill-gap-analysis'] }
     ]
     for (const probe of probes) {
       const content = read(path.join(ROOT, probe.file))

@@ -97,9 +97,11 @@ applyTo: .devcodex/**/requirements/**
 | 产物 / gateGroup | 状态 | 触发事实 | Owner / 真相源 | 计划落点 | 验证路线 / skipReason |
 |------------------|------|----------|------------------|----------|------------------------|
 | ExecutionContract / RepairCollaborationContract | | | execution-contract | | |
+| RepairPreventionAssessment | | repair task accepted 前必经 | rework-prevention-engineering / RepairPreventionAssessmentV1 | | |
 | TestRoute | | | test-router schema | | |
 | ConceptSyncMap / ProfileImpactCheck | | | source-consumer-sync / load-profile | | |
 | ContextAcquisition | | | `context-acquisition` registry group / Owner Skills | | |
+| VisibleOutputContract | | 入口/确认/进度/完成/阻断或文件交付 | user-visible-output-contract | internal manifest / visible set / envelope / renderer | |
 | 其他适用 gateGroup | | | registry ownerSkill | | |
 
 `local-observability-contract` 命中时，计划必须包含 CLI human/json/error/exit、typed local probe dependency/error/zero-write、公开文档与 package boundary 的任务和验证映射。
@@ -176,9 +178,10 @@ applyTo: .devcodex/**/requirements/**
 - [ ] 实施任务、影响评估与文档同步均已完成
 - [ ] `test-route-schema.json` 选择的 routes 已执行，命令、exitCode、证据和 skipped 记录完整
 - [ ] 所有适用 `gateGroup` 已由 registry Owner 产出证据；未触发项有聚合 `N/A + skipReason`
-- [ ] ExecutionContract、RepairCollaboration、ConceptSyncMap、ProfileImpactCheck、ServiceLifecycleCleanup、Backlog/台账回写等条件产物已按触发事实处理
+- [ ] ExecutionContract、RepairCollaboration、RepairPreventionAssessment、ConceptSyncMap、ProfileImpactCheck、ServiceLifecycleCleanup、Backlog/台账回写等条件产物已按触发事实处理
 - [ ] ContextAcquisition 触发时，plan/receipt/hidden-read/bounded-memory/V99 证据与 staged consumer owner 已记录
+- [ ] VisibleOutputContract 触发时，planned=observed=internalDelivered、required hidden=0、计数守恒、semanticDigest 与 renderer parity 已记录；internal-only 文件未默认进入用户列表
 - [ ] 派生资产触发时，post-stage candidate receipt 与 post-commit replay 均已记录，且不复用 working-tree check
 - [ ] 控制面/高风险任务已执行 targeted + related + full validation 或明确降级
 - [ ] CHANGELOG 只按 unreleased/release 状态和项目三轨规则更新
-- [ ] delivery-checklist 已核对 active task 主要产物、支持 manifest 与最终可见交付面
+- [ ] delivery-checklist 已核对 active task 的内部完整 manifest、用户可见交付集合与最终 Envelope

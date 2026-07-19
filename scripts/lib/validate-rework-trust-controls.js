@@ -1,5 +1,52 @@
 'use strict'
 
+const { assessRepairPrevention } = require('./repair-prevention-assessment')
+
+function repairAssessmentFixture(overrides = {}) {
+  return {
+    schemaVersion: 'RepairPreventionAssessmentV1',
+    repairId: 'repair-v94',
+    taskId: 'task-v94',
+    problemCluster: 'v94-fixture',
+    riskClass: 'normal',
+    riskTags: [],
+    mode: 'light',
+    repeatEscape: false,
+    defectRootCause: 'fixture defect',
+    controlFailure: 'fixture control gap',
+    escapedFrom: ['implementation'],
+    detectedAt: 'verification',
+    preventionDecision: 'no-new-control',
+    noNewControlReason: 'existing-effective-control',
+    noNewControlEvidence: ['existing probe failed as designed'],
+    regressionSeeds: ['fixture seed'],
+    negativeCases: ['fixture negative'],
+    controlOwner: 'rework-prevention-engineering',
+    consumers: ['fix-default'],
+    immediateClosureEvidence: ['current regression passed'],
+    prospectiveEvidencePlan: {
+      status: 'not-required',
+      currentEventOnly: true,
+      comparableWorkUnits: 0,
+      independentContexts: 0,
+      metricGaming: false,
+      rollbackReady: true,
+      authority: 'existing control authority'
+    },
+    rollbackOrSunset: {
+      rollbackTriggers: ['control behavior changes'],
+      sunsetCriteria: ['consumer is removed'],
+      reviewAt: 'next contract review'
+    },
+    ...overrides
+  }
+}
+
+function classifyRepairPreventionAssessmentSample(sample) {
+  const result = assessRepairPrevention(sample)
+  return result.valid ? `${result.lifecycleState}:${result.effectivenessStatus}` : `invalid:${result.errors[0]}`
+}
+
 function classifyCoverageClaimSample(sample) {
   const fullClaim = ['full', '逐文件全读', 'all-files'].includes(sample.claim)
   if (fullClaim && (sample.mode !== 'full-read' || !sample.coverageLedger || sample.unresolvedFiles > 0)) return 'invalid-claim'
@@ -8,9 +55,14 @@ function classifyCoverageClaimSample(sample) {
 
 function classifyArtifactDeliverySample(sample) {
   if (!sample.observed) return 'unverified'
-  return sample.hasSection && sample.hasPrimaryArtifacts && sample.hasAbsolutePaths
-    ? 'verified-present'
-    : 'verified-missing'
+  if (sample.legacyFormat && !sample.hasEnvelopeMarker) return 'unverified-legacy'
+  const complete = sample.hasEnvelopeMarker === true &&
+    sample.hasAllowedSection === true &&
+    sample.hasSemanticItems === true &&
+    sample.requiredHidden === 0 &&
+    sample.listed + sample.remaining === sample.total &&
+    sample.capabilityEvidence === true
+  return complete ? 'verified-present' : 'verified-missing'
 }
 
 function classifyReworkPromotionSample(sample) {
@@ -81,8 +133,8 @@ function buildReworkTrustControlChecks(ctx) {
     expect(classifyCoverageClaimSample({ claim: 'full', mode: 'sampled', coverageLedger: false, unresolvedFiles: 4 }), 'invalid-claim', 'coverage negative')
     expect(classifyCoverageClaimSample({ claim: 'full', mode: 'full-read', coverageLedger: true, unresolvedFiles: 0 }), 'evidence-bounded', 'coverage positive')
     expect(classifyArtifactDeliverySample({ observed: false }), 'unverified', 'artifact unobserved')
-    expect(classifyArtifactDeliverySample({ observed: true, hasSection: true, hasPrimaryArtifacts: false, hasAbsolutePaths: true }), 'verified-missing', 'artifact missing')
-    expect(classifyArtifactDeliverySample({ observed: true, hasSection: true, hasPrimaryArtifacts: true, hasAbsolutePaths: true }), 'verified-present', 'artifact complete')
+    expect(classifyArtifactDeliverySample({ observed: true, hasEnvelopeMarker: true, hasAllowedSection: true, hasSemanticItems: false, requiredHidden: 0, listed: 0, remaining: 1, total: 1, capabilityEvidence: true }), 'verified-missing', 'artifact missing')
+    expect(classifyArtifactDeliverySample({ observed: true, hasEnvelopeMarker: true, hasAllowedSection: true, hasSemanticItems: true, requiredHidden: 0, listed: 1, remaining: 0, total: 1, capabilityEvidence: true }), 'verified-present', 'artifact complete')
     expect(classifyReworkPromotionSample({ retrospectiveOnly: true }), 'retrospective-only', 'rework retrospective negative')
     expect(classifyReworkPromotionSample({ retrospectiveOnly: false, comparableWorkUnits: 3, independentContexts: 1, firstPassYieldImproved: true, metricGaming: false, rollbackReady: true }), 'eligible-for-active-review', 'rework promotion positive')
     expect(classifyCandidateDiffCompletenessSample({ hasUntracked: true, stagedSnapshot: false, cachedDiffCheck: true, nameStatusReview: true, secretShapeScan: true, scopeMatch: true }), 'incomplete', 'candidate diff untracked negative')
@@ -96,22 +148,43 @@ function buildReworkTrustControlChecks(ctx) {
     const checklistSnapshot = { currentRound: 'R2', zeroFindingStreak: 2, currentBatch: 'release-audit', remaining: ['R3'], blockers: [], openFindings: 0, closureState: 'running' }
     expect(classifyChecklistStateSample({ sections: Object.fromEntries(['header', 'items', 'round', 'ledger', 'progress', 'closure'].map(section => [section, { ...checklistSnapshot }])) }), 'materialized', 'checklist snapshot positive')
     expect(classifyChecklistStateSample({ sections: { ...Object.fromEntries(['header', 'items', 'round', 'ledger', 'closure'].map(section => [section, { ...checklistSnapshot }])), progress: { ...checklistSnapshot, currentBatch: 'CP2', remaining: ['B1~B4'] } } }), 'stale', 'checklist progress stale negative')
+    expect(classifyRepairPreventionAssessmentSample(repairAssessmentFixture()), 'none:not-applicable', 'repair prevention no-new positive')
+    expect(classifyRepairPreventionAssessmentSample(repairAssessmentFixture({ repeatEscape: true })), 'invalid:full-mode-required', 'repair prevention repeat negative')
+    expect(classifyRepairPreventionAssessmentSample(repairAssessmentFixture({
+      preventionDecision: 'existing-control-restored',
+      prospectiveEvidencePlan: { status: 'sufficient', currentEventOnly: true, comparableWorkUnits: 3, independentContexts: 0, metricGaming: false, rollbackReady: true, authority: 'current rerun' }
+    })), 'invalid:prospective-sufficient-evidence-invalid', 'repair prevention retrospective promotion negative')
 
     const required = [
-      ['skills/rework-prevention-engineering/SKILL.md', ['ReworkRiskProfile', 'ReworkEffectivenessLoop', 'FirstPassYield', 'CandidateDiffCompletenessGate', 'gray']],
+      ['skills/rework-prevention-engineering/SKILL.md', ['RepairPreventionAssessmentGate', 'RepairPreventionAssessmentV1', 'ReworkRiskProfile', 'ReworkEffectivenessLoop', 'FirstPassYield', 'CandidateDiffCompletenessGate', 'gray']],
+      ['skills/rework-prevention-engineering/repair-prevention-assessment.schema.json', ['RepairPreventionAssessmentV1', 'immediateClosureEvidence', 'prospectiveEvidencePlan', 'rollbackOrSunset']],
+      ['scripts/lib/repair-prevention-assessment.js', ['assessRepairPrevention', 'prospective-sufficient-evidence-invalid', 'emergency-active']],
+      ['scripts/test-repair-prevention-assessment.js', ['first/repeat/no-new/emergency/rollback/sunset']],
       ['skills/release-verification/SKILL.md', ['CandidateDiffCompletenessGate', 'git diff --cached --check', 'intended scope']],
       ['skills/audit-release/SKILL.md', ['CandidateDiffCompletenessGate']],
       ['skills/audit-common/SKILL.md', ['ReviewCoverageClaimIntegrityGate', 'coverageClaims']],
-      ['skills/host-contract-verification/SKILL.md', ['ArtifactDeliveryCompletenessGate', 'verified-missing', 'unverified']],
+      ['skills/user-visible-output-contract/SKILL.md', ['ArtifactDeliveryManifestGate', 'UserFacingArtifactProjectionGate', 'DevCodexVisibleEnvelopeV1', 'LinkCapabilityDecisionV1']],
+      ['skills/host-contract-verification/SKILL.md', ['VisibleOutputHostEvidenceGate', 'verified-missing', 'unverified']],
       ['skills/evolution-governance/SKILL.md', ['ReworkEffectivenessLoop', 'retrospective-only']],
       ['skills/spec-absorption/SKILL.md', ['ReworkReductionValueGate', 'rollbackOrSunset']],
       ['skills/api-contract-architecture/SKILL.md', ['ReleaseAuthorityBeforeCompatibilityGate', 'publishedState']],
       ['skills/developer-experience-architecture/SKILL.md', ['ConfigurationErgonomicsGate', 'OptionalFieldOmissionProbe']],
       ['skills/accessibility-i18n/SKILL.md', ['InteractiveSemanticProbe', 'focusRecovery']],
       ['skills/spec-governance/SKILL.md', ['rework-prevention', 'contract-release-authority', 'configuration-ergonomics', 'interactive-semantics']],
-      ['skills/test-router/SKILL.md', ['coverageClaimIntegrity', 'artifactDeliveryCompleteness', 'reworkEffectiveness', 'candidateDiffCompleteness', 'interactiveSemantics']],
-      ['skills/report/SKILL.md', ['ArtifactDeliveryCompletenessGate', 'ReworkPreventionGate', 'CandidateDiffCompletenessGate', 'ReleaseAuthorityBeforeCompatibilityGate']],
-      ['skills/review-checklist/SKILL.md', ['ChecklistStateMaterializationGate', 'ChecklistStateSnapshot', 'CandidateDiffCompletenessGate']],
+      ['skills/fix-default/SKILL.md', ['RepairPreventionAssessmentGate', 'RepairPreventionAssessmentV1']],
+      ['skills/fix-security/SKILL.md', ['RepairPreventionAssessmentGate', 'emergency-active']],
+      ['skills/execution-contract/SKILL.md', ['RepairPreventionAssessmentGate', 'repairPreventionAssessment']],
+      ['skills/test-router/SKILL.md', ['repairPreventionAssessment', 'coverageClaimIntegrity', 'artifactDeliveryCompleteness', 'reworkEffectiveness', 'candidateDiffCompleteness', 'interactiveSemantics']],
+      ['skills/report/SKILL.md', ['RepairPreventionAssessment', 'ArtifactDeliveryManifestV1', 'UserFacingArtifactSetV1', 'CandidateDiffCompletenessGate', 'ReleaseAuthorityBeforeCompatibilityGate']],
+      ['skills/review-checklist/SKILL.md', ['RepairPreventionAssessmentReviewGate', 'ChecklistStateMaterializationGate', 'ChecklistStateSnapshot', 'CandidateDiffCompletenessGate']],
+      ['skills/spec-governance/gate-registry.json', ['repair-prevention-assessment', 'RepairPreventionAssessmentV1']],
+      ['prompts/technical-design.prompt.md', ['RepairPreventionAssessmentGate', 'RepairPreventionAssessmentV1']],
+      ['prompts/implementation-plan.prompt.md', ['RepairPreventionAssessment']],
+      ['prompts/report-fix.prompt.md', ['RepairPreventionAssessmentV1', 'prospectiveEvidencePlan']],
+      ['prompts/report-dev.prompt.md', ['RepairPreventionAssessment']],
+      ['prompts/report-audit.prompt.md', ['RepairPreventionAssessmentReviewGate']],
+      ['instructions/11-fix.instructions.md', ['RepairPreventionAssessmentGate', 'current repair closure']],
+      ['instructions.md', ['repair-prevention-assessment', 'RepairPreventionAssessmentV1']],
       ['prompts/report-audit.prompt.md', ['ChecklistStateMaterializationGate', 'ChecklistStateSnapshot']],
       ['hooks/_runtime/lifecycle-visible-reply.cjs', ['artifactStatus', 'verified-present', 'verified-missing', 'unverified']],
       ['scripts/lib/test-rework-trust-controls.js', ['classifyCoverageClaimSample', 'checkV94', 'retrospective-only']]
@@ -119,7 +192,7 @@ function buildReworkTrustControlChecks(ctx) {
     for (const [file, needles] of required) checkFile(file, needles)
 
     const pkg = JSON.parse(read(path.join(ROOT, 'package.json')))
-    checkCurrentChangeRecord(pkg.version, ['rework-prevention-engineering', 'ChecklistStateMaterializationGate', 'V94'])
+    checkCurrentChangeRecord(pkg.version, ['RepairPreventionAssessmentGate', 'rework-prevention-engineering', 'ChecklistStateMaterializationGate', 'V94'])
     const plugin = JSON.parse(read(path.join(ROOT, 'plugin.json')))
     const registration = plugin.skills.find(item => item.id === 'rework-prevention-engineering')
     if (!registration || registration.file !== 'skills/rework-prevention-engineering/SKILL.md') err('[V94] rework skill registration missing')
@@ -138,6 +211,7 @@ module.exports = {
   classifyCoverageClaimSample,
   classifyChecklistStateSample,
   classifyInteractiveSemanticSample,
+  classifyRepairPreventionAssessmentSample,
   classifyReleaseAuthoritySample,
   classifyReworkPromotionSample
 }

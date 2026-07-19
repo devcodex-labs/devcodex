@@ -1,0 +1,212 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://devcodex.dev/schemas/visible-output-contract-v1.json",
+  "title": "DevCodex visible output contracts",
+  "oneOf": [
+    { "$ref": "#/$defs/ArtifactDeliveryManifestV1" },
+    { "$ref": "#/$defs/UserFacingArtifactSetV1" },
+    { "$ref": "#/$defs/LinkCapabilityDecisionV1" },
+    { "$ref": "#/$defs/DevCodexVisibleEnvelopeV1" }
+  ],
+  "$defs": {
+    "status": {
+      "enum": ["PASS", "WARN", "BLOCK", "UNVERIFIED", "N/A"]
+    },
+    "artifactEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "artifactId", "canonicalPath", "previousPath", "lifecycleOperation", "origin", "ownership",
+        "artifactClass", "deliveryRequirement", "visibility", "displayName", "purposeKey", "purposeText",
+        "userAction", "readingOrder", "contentDigest", "evidenceRefs"
+      ],
+      "properties": {
+        "artifactId": { "type": "string", "minLength": 1 },
+        "canonicalPath": { "type": "string", "minLength": 1, "not": { "pattern": "^file://" } },
+        "previousPath": { "type": ["string", "null"] },
+        "lifecycleOperation": { "enum": ["create", "update", "rename", "move", "delete", "unchanged-evidence"] },
+        "origin": { "type": "string", "minLength": 1 },
+        "ownership": { "type": "string", "minLength": 1 },
+        "artifactClass": { "type": "string", "minLength": 1 },
+        "deliveryRequirement": { "enum": ["required", "supporting", "internal"] },
+        "visibility": { "enum": ["decision-required", "result", "evidence", "optional-detail", "internal-only"] },
+        "displayName": { "type": "string", "minLength": 4 },
+        "purposeKey": { "type": "string", "minLength": 1 },
+        "purposeText": { "type": "string", "minLength": 1 },
+        "userAction": { "type": "string", "minLength": 1 },
+        "readingOrder": { "type": "integer", "minimum": 0 },
+        "contentDigest": { "type": "string", "minLength": 1 },
+        "evidenceRefs": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+      }
+    },
+    "ArtifactDeliveryManifestV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion", "taskId", "candidateIdentity", "generatedAt", "entries", "reconciliation",
+        "manifestId", "validation"
+      ],
+      "properties": {
+        "schemaVersion": { "const": "ArtifactDeliveryManifestV1" },
+        "taskId": { "type": "string", "minLength": 1 },
+        "candidateIdentity": {
+          "oneOf": [
+            { "type": "string", "minLength": 1 },
+            { "type": "object", "minProperties": 1 }
+          ]
+        },
+        "generatedAt": { "type": "string", "format": "date-time" },
+        "entries": { "type": "array", "items": { "$ref": "#/$defs/artifactEntry" } },
+        "reconciliation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "plannedCount", "observedCount", "internalDeliveredCount", "entryCount", "missingEntries",
+            "unexpectedEntries", "missingObserved", "unexpectedObserved", "missingInternalDelivered",
+            "unexpectedInternalDelivered", "conflicting", "status"
+          ],
+          "properties": {
+            "plannedCount": { "type": "integer", "minimum": 0 },
+            "observedCount": { "type": "integer", "minimum": 0 },
+            "internalDeliveredCount": { "type": "integer", "minimum": 0 },
+            "entryCount": { "type": "integer", "minimum": 0 },
+            "missingEntries": { "type": "array", "items": { "type": "string" } },
+            "unexpectedEntries": { "type": "array", "items": { "type": "string" } },
+            "missingObserved": { "type": "array", "items": { "type": "string" } },
+            "unexpectedObserved": { "type": "array", "items": { "type": "string" } },
+            "missingInternalDelivered": { "type": "array", "items": { "type": "string" } },
+            "unexpectedInternalDelivered": { "type": "array", "items": { "type": "string" } },
+            "conflicting": { "type": "array", "items": { "type": "string" } },
+            "status": { "enum": ["verified", "failed"] }
+          }
+        },
+        "manifestId": { "type": "string", "pattern": "^artifact-manifest-[a-f0-9]{64}$" },
+        "validation": { "$ref": "#/$defs/validation" }
+      }
+    },
+    "visibleArtifactItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "artifactId", "canonicalPath", "lifecycleOperation", "visibility", "displayName", "purposeKey",
+        "purposeText", "userAction", "readingOrder", "contentDigest"
+      ],
+      "properties": {
+        "artifactId": { "type": "string" },
+        "canonicalPath": { "type": "string" },
+        "lifecycleOperation": { "enum": ["create", "update", "rename", "move", "delete", "unchanged-evidence"] },
+        "visibility": { "enum": ["decision-required", "result", "evidence", "optional-detail", "internal-only"] },
+        "displayName": { "type": "string" },
+        "purposeKey": { "type": "string" },
+        "purposeText": { "type": "string" },
+        "userAction": { "type": "string" },
+        "readingOrder": { "type": "integer" },
+        "contentDigest": { "type": "string" }
+      }
+    },
+    "UserFacingArtifactSetV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "manifestId", "scope", "heading", "items", "counts", "reconciliation", "setId", "validation"],
+      "properties": {
+        "schemaVersion": { "const": "UserFacingArtifactSetV1" },
+        "manifestId": { "type": "string" },
+        "scope": { "enum": ["default", "all-deliverable", "internal-audit"] },
+        "heading": { "enum": ["需要你确认的文件", "本批交付文件", "完成交付文件", "阻断证据"] },
+        "items": { "type": "array", "items": { "$ref": "#/$defs/visibleArtifactItem" } },
+        "counts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["listed", "remaining", "total"],
+          "properties": {
+            "listed": { "type": "integer", "minimum": 0 },
+            "remaining": { "type": "integer", "minimum": 0 },
+            "total": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "reconciliation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "requiredHidden", "countConserved"],
+          "properties": {
+            "status": { "enum": ["verified", "failed"] },
+            "requiredHidden": { "type": "array", "items": { "type": "string" } },
+            "countConserved": { "type": "boolean" }
+          }
+        },
+        "setId": { "type": "string", "pattern": "^user-facing-artifacts-[a-f0-9]{64}$" },
+        "validation": { "$ref": "#/$defs/validation" }
+      }
+    },
+    "LinkCapabilityDecisionV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion", "surface", "evidenceState", "mode", "workspaceRoot", "targetRelation",
+        "absolutePathFallback", "fallbackReason", "evidenceRefs", "decisionId", "validation"
+      ],
+      "properties": {
+        "schemaVersion": { "const": "LinkCapabilityDecisionV1" },
+        "surface": { "type": "string", "minLength": 1 },
+        "evidenceState": { "enum": ["verified", "unverified", "failed"] },
+        "mode": { "enum": ["clickable", "portable", "plain", "failed"] },
+        "workspaceRoot": { "type": ["string", "null"] },
+        "targetRelation": { "enum": ["workspace", "external", "ambiguous"] },
+        "absolutePathFallback": { "type": "boolean" },
+        "fallbackReason": { "type": "string" },
+        "evidenceRefs": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "decisionId": { "type": "string", "pattern": "^link-capability-[a-f0-9]{64}$" },
+        "validation": { "$ref": "#/$defs/validation" }
+      }
+    },
+    "visibleCheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "ordinal", "status", "summaryKey", "summary", "evidenceState", "evidenceRefs", "requiredAction"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "ordinal": { "type": "integer", "minimum": 0 },
+        "status": { "$ref": "#/$defs/status" },
+        "summaryKey": { "type": "string", "minLength": 1 },
+        "summary": { "type": "string", "minLength": 1 },
+        "evidenceState": { "enum": ["verified", "unverified", "failed"] },
+        "evidenceRefs": { "type": "array", "items": { "type": "string" } },
+        "requiredAction": { "type": ["string", "null"] }
+      }
+    },
+    "DevCodexVisibleEnvelopeV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion", "messageKind", "status", "context", "checks", "decision", "recommendedAction",
+        "artifactManifest", "userFacingArtifactSet", "artifactLinks", "linkCapability", "presentation",
+        "semanticDigest", "validation"
+      ],
+      "properties": {
+        "schemaVersion": { "const": "DevCodexVisibleEnvelopeV1" },
+        "messageKind": { "enum": ["entry-check", "completion-check", "confirmation", "progress", "final-result", "error-block"] },
+        "status": { "$ref": "#/$defs/status" },
+        "context": { "type": ["object", "null"] },
+        "checks": { "type": "array", "items": { "$ref": "#/$defs/visibleCheck" } },
+        "decision": { "type": ["object", "null"] },
+        "recommendedAction": { "type": ["string", "null"] },
+        "artifactManifest": { "type": ["object", "null"] },
+        "userFacingArtifactSet": { "oneOf": [{ "$ref": "#/$defs/UserFacingArtifactSetV1" }, { "type": "null" }] },
+        "artifactLinks": { "type": "array", "items": { "type": "object" } },
+        "linkCapability": { "oneOf": [{ "$ref": "#/$defs/LinkCapabilityDecisionV1" }, { "type": "null" }] },
+        "presentation": { "type": "object" },
+        "semanticDigest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "validation": { "$ref": "#/$defs/validation" }
+      }
+    },
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["valid", "errors"],
+      "properties": {
+        "valid": { "type": "boolean" },
+        "errors": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

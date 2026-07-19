@@ -29,22 +29,22 @@ const REQUIRED_MEMORY_LEGACY_TOOLS = Object.freeze([
 const CONSUMER_ACTIVATION_ANCHORS = Object.freeze(['ContextAcquisitionGate', 'profile_context_plan', 'V99'])
 
 const CURRENT_CONSUMER_REQUIREMENTS = Object.freeze([
-  ['instructions.md', ['ContextAcquisitionGate', 'IntentSeedV1', 'ContextReadPlanV1', 'ContextReadReceiptV1']],
-  ['instructions/01-common.instructions.md', ['ContextAcquisitionGate', 'ContextReadPlanV1']],
+  ['instructions.md', ['ContextAcquisitionGate', 'IntentSeedV1', 'ContextReadPlanV2', 'ContextReadReceiptV2', '兼容读取 V1']],
+  ['instructions/01-common.instructions.md', ['ContextAcquisitionGate', 'ContextReadPlanV2', 'V1 只保留 reader compatibility']],
   ['instructions/01a-profile-loading.instructions.md', ['ProfileReadChainGate', 'profile_context_plan', 'ProfilePlanNoHiddenFullReadProbe']],
   ['instructions/15-memory.instructions.md', ['MemoryContextQueryGate', 'memory_status', 'memory_session_query', 'memory_summary_query']],
-  ['skills/ai-agent-system-architecture/SKILL.md', ['ContextAcquisitionGate', 'IntentSeedV1', 'ContextReadReceiptV1']],
+  ['skills/ai-agent-system-architecture/SKILL.md', ['ContextAcquisitionGate', 'IntentSeedV1', 'ContextReadPlanV2', 'ContextReadReceiptV2', 'V1 兼容']],
   ['skills/load-profile/SKILL.md', ['ProfileReadChainGate', 'profile_context_plan', 'ProfilePlanNoHiddenFullReadProbe', 'ProfileSectionSelectionGate', 'ProfileSectionLoadReceiptV1']],
   ['skills/skill-lifecycle-governance/SKILL.md', ['BundleDecisionV2', 'sourceBytes', 'full-skill-read']],
   ['skills/memory/SKILL.md', ['MemoryContextQueryGate', 'memory_status', 'memory_session_query', 'memory_summary_query']],
-  ['skills/host-contract-verification/SKILL.md', ['ContextReadReceiptV1', 'ContextAcquisitionToolAllowlistProbe', 'PostToolUse']],
+  ['skills/host-contract-verification/SKILL.md', ['ContextReadReceiptV2', 'V1 兼容', 'ContextAcquisitionToolAllowlistProbe', 'PostToolUse']],
   ['skills/test-router/SKILL.md', ['context-acquisition', 'V99']],
   ['skills/report/report-schema.json', ['ContextAcquisition']],
-  ['prompts/technical-design.prompt.md', ['context-acquisition', 'ContextReadPlanV1', 'V99']],
+  ['prompts/technical-design.prompt.md', ['context-acquisition', 'ContextReadPlanV2', 'ContextReadReceiptV2', 'ContextReadPlanV1', 'V99']],
   ['prompts/implementation-plan.prompt.md', ['context-acquisition', 'ProfilePlanNoHiddenFullReadProbe', 'V99']],
-  ['prompts/report-dev.prompt.md', ['ContextAcquisition', 'ContextReadReceiptV1', 'V99']],
-  ['README.md', ['profile_context_plan', 'memory_status', 'ContextReadReceiptV1']],
-  ['website/docs/guide/development.md', ['profile_context_plan', 'memory_status', 'ContextReadReceiptV1']],
+  ['prompts/report-dev.prompt.md', ['ContextAcquisition', 'ContextReadReceiptV2', 'ContextReadReceiptV1', 'V99']],
+  ['README.md', ['profile_context_plan', 'memory_status', 'ContextReadReceiptV2', 'V1 receipt 只作兼容读取']],
+  ['website/docs/guide/development.md', ['profile_context_plan', 'memory_status', 'ContextReadPlanV2', 'ContextReadReceiptV2', 'V1 只保留 reader compatibility']],
   ['changelogs/unreleased.md', CONSUMER_ACTIVATION_ANCHORS]
 ])
 
@@ -263,7 +263,7 @@ function buildContextReadControlChecks(ctx) {
       }
     }
 
-    checkFile('scripts/validate.js', ['buildContextReadControlChecks', 'length: 101', "owner: 'context-read-controls'"])
+    checkFile('scripts/validate.js', ['buildContextReadControlChecks', 'length: 103', "owner: 'context-read-controls'"])
     const ownerSource = checkFile('scripts/lib/validate-context-read-controls.js', [
       'buildContextReadControlChecks', 'classifyContractSchemaSnapshot', 'classifyProfilePlanReadTrace',
       'classifyRuntimeToolSurface', 'classifyConsumerClosure'

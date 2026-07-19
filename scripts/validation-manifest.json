@@ -10,7 +10,14 @@
     "scripts/validation-manifest.json",
     "scripts/run-validation.js",
     "scripts/lib/validation-dag.js",
+    "scripts/lib/validation-orchestration.js",
     "scripts/lib/checked-command.js",
+    "scripts/host-instruction-projection.json",
+    "scripts/lib/host-instruction-projection.js",
+    "scripts/lib/host-surface-descriptors.js",
+    "host-projections/**",
+    "gemini/**",
+    "grok/**",
     "scripts/validate.js",
     "scripts/lib/probe-registry.js",
     "scripts/lib/validate-*.js"
@@ -43,6 +50,7 @@
         "intent-consistency",
         "local-probe",
         "context-read",
+        "context-binding",
         "context-read-controls",
         "tenant-selection",
         "workflow-capabilities",
@@ -73,7 +81,15 @@
         "migrate-layout",
         "cli-behavior",
         "release-metadata",
-        "pack-clean",
+      "pack-clean",
+      "public-text-integrity",
+      "review-execution-contract",
+      "visible-output-contract",
+      "repair-prevention-assessment",
+      "critical-coverage",
+      "host-instruction-projection",
+      "host-adapters",
+      "host-installation",
         "syntax"
       ]
     },
@@ -97,6 +113,7 @@
         "intent-consistency",
         "local-probe",
         "context-read",
+        "context-binding",
         "context-read-controls",
         "tenant-selection",
         "workflow-capabilities",
@@ -127,7 +144,15 @@
         "migrate-layout",
         "cli-behavior",
         "release-metadata",
-        "pack-clean",
+      "pack-clean",
+      "public-text-integrity",
+      "review-execution-contract",
+      "visible-output-contract",
+      "repair-prevention-assessment",
+      "critical-coverage",
+      "host-instruction-projection",
+      "host-adapters",
+      "host-installation",
         "syntax",
         "generated-site-precheck",
         "website-build",
@@ -144,6 +169,7 @@
         "validate-workspace",
         "validation-dag",
         "deployment-manifest",
+        "context-binding",
         "context-read-controls",
         "profile-section-selector",
         "execution-chain-evolution",
@@ -152,7 +178,15 @@
         "mcp-servers",
         "client-contracts",
         "migrate-layout",
-        "pack-clean",
+      "pack-clean",
+      "public-text-integrity",
+      "review-execution-contract",
+      "visible-output-contract",
+      "repair-prevention-assessment",
+      "critical-coverage",
+      "host-instruction-projection",
+      "host-adapters",
+      "host-installation",
         "syntax"
       ]
     },
@@ -164,7 +198,15 @@
         "readme-governance",
         "client-contracts",
         "release-metadata",
-        "pack-clean",
+      "pack-clean",
+      "public-text-integrity",
+      "review-execution-contract",
+      "visible-output-contract",
+      "repair-prevention-assessment",
+      "critical-coverage",
+      "host-instruction-projection",
+      "host-adapters",
+      "host-installation",
         "syntax",
         "generated-site-precheck",
         "website-build",
@@ -225,6 +267,53 @@
       "environment": {
         "DEVCODEX_VALIDATION_SCOPE": "source"
       },
+      "delegatedClosure": [
+        {
+          "probe": "V7",
+          "nodeId": "hooks-runtime",
+          "command": "node scripts/test-hooks-runtime.js"
+        },
+        {
+          "probe": "V7b",
+          "nodeId": "instruction-fallback",
+          "command": "node scripts/test-instruction-fallback-check.js"
+        },
+        {
+          "probe": "V16",
+          "nodeId": "mcp-servers",
+          "command": "node scripts/test-mcp-servers.js"
+        },
+        {
+          "probe": "V17/V40/V83",
+          "nodeId": "profile-governance",
+          "command": "node scripts/test-validate-profile.js"
+        },
+        {
+          "probe": "V22",
+          "nodeId": "migrate-layout",
+          "command": "node scripts/test-migrate-layout.js"
+        },
+        {
+          "probe": "V26",
+          "nodeId": "spec-governance",
+          "command": "node scripts/test-spec-governance.js"
+        },
+        {
+          "probe": "V39",
+          "nodeId": "governance-intake",
+          "command": "node scripts/test-governance-intake.js"
+        },
+        {
+          "probe": "V51",
+          "nodeId": "client-contracts",
+          "command": "node scripts/test-client-contracts.js"
+        },
+        {
+          "probe": "V52/V83",
+          "nodeId": "cli-behavior",
+          "command": "node scripts/test-cli-behavior.js"
+        }
+      ],
       "dependencies": [
         "validate-versions"
       ],
@@ -485,7 +574,9 @@
         "skills/report/report-schema.json",
         "prompts/implementation-progress.prompt.md"
       ],
-      "consumers": [],
+      "consumers": [
+        "project-knowledge-v2"
+      ],
       "invariants": [
         "content-identity",
         "accepted-pointer",
@@ -507,7 +598,57 @@
       },
       "evidenceArtifacts": [
         "ValidationExecutionReceiptV1",
-        "IncrementalAnalysisReceiptV1"
+        "IncrementalAnalysisReceiptV2"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "project-knowledge-v2",
+      "owner": "incremental-project-analysis",
+      "command": "node",
+      "args": [
+        "scripts/test-project-knowledge-v2.js"
+      ],
+      "dependencies": [
+        "project-knowledge-store"
+      ],
+      "inputs": [
+        "scripts/lib/project-knowledge-store.js",
+        "scripts/project-analysis-state.js",
+        "scripts/test-project-knowledge-v2.js",
+        "skills/incremental-project-analysis/SKILL.md",
+        "skills/report/SKILL.md",
+        "skills/report/report-schema.json",
+        "prompts/implementation-progress.prompt.md",
+        "website/docs/guide/development.md",
+        "website/docs/specs/report-output-flow.md"
+      ],
+      "consumers": [],
+      "invariants": [
+        "merkle-content-identity",
+        "semantic-claim-range-binding",
+        "analysis-environment-binding",
+        "accepted-only-persistence",
+        "legacy-v1-read-only",
+        "deterministic-observe-bootstrap"
+      ],
+      "riskClass": "high",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1",
+        "ProjectKnowledgeObservationV1",
+        "ProjectKnowledgePersistReceiptV2"
       ]
     },
     {
@@ -557,9 +698,13 @@
       "inputs": [
         "scripts/lib/deployment-manifest-utils.js",
         "scripts/lib/deployment-descriptors.js",
+        "scripts/lib/host-surface-descriptors.js",
         "scripts/test-deployment-manifest.js",
         "agents/**",
         "codex/**",
+        "gemini/**",
+        "grok/**",
+        "host-projections/**",
         "hooks/**",
         ".github/**"
       ],
@@ -687,6 +832,7 @@
       "inputs": [
         "scripts/validation-manifest.json",
         "scripts/lib/validation-dag.js",
+        "scripts/lib/validation-orchestration.js",
         "scripts/run-validation.js",
         "scripts/test-validation-dag.js",
         "scripts/lib/checked-command.js",
@@ -922,6 +1068,7 @@
         "scripts/test-context-read-contract.js"
       ],
       "consumers": [
+        "context-binding",
         "context-read-controls",
         "mcp-servers",
         "hooks-runtime"
@@ -1477,7 +1624,8 @@
       "consumers": [
         "validate-core",
         "mcp-servers",
-        "cli-behavior"
+        "cli-behavior",
+        "critical-coverage"
       ],
       "invariants": [
         "prospective-trial",
@@ -2157,6 +2305,457 @@
     },
     {
       "schemaVersion": "ValidationNodeV1",
+      "id": "public-text-integrity",
+      "owner": "quality-strategy",
+      "command": "node",
+      "args": [
+        "scripts/test-public-text-integrity.js"
+      ],
+      "dependencies": [],
+      "inputs": [
+        "README.md",
+        "changelogs/**",
+        "website/docs/**",
+        "scripts/public-text-surfaces.json",
+        "scripts/lib/public-text-integrity.js",
+        "scripts/test-public-text-integrity.js"
+      ],
+      "consumers": [
+        "website-build"
+      ],
+      "invariants": [
+        "utf8-fatal",
+        "public-text-integrity"
+      ],
+      "riskClass": "release",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1",
+        "PublicTextIntegrityResultV1"
+      ]
+    },
+  {
+    "schemaVersion": "ValidationNodeV1",
+    "id": "critical-coverage",
+      "owner": "quality-strategy",
+      "command": "npm",
+      "args": [
+        "run",
+        "test:critical-coverage"
+      ],
+      "dependencies": [
+        "execution-chain-evolution"
+      ],
+      "inputs": [
+        "package.json",
+        "scripts/critical-coverage.json",
+        "scripts/check-critical-coverage.js",
+        "scripts/test-execution-chain-controls.js",
+        "scripts/lib/validate-execution-chain-controls.js"
+      ],
+      "consumers": [],
+      "invariants": [
+        "critical-coverage-ratchet",
+        "direct-execution"
+      ],
+      "riskClass": "release",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "coverage-critical"
+      ],
+      "timeoutMs": 180000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1",
+        "CriticalCoverageV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "repair-prevention-assessment",
+      "owner": "rework-prevention-engineering",
+      "command": "node",
+      "args": [
+        "scripts/test-repair-prevention-assessment.js"
+      ],
+      "dependencies": [],
+      "inputs": [
+        "instructions.md",
+        "instructions/11-fix.instructions.md",
+        "skills/rework-prevention-engineering/SKILL.md",
+        "skills/rework-prevention-engineering/repair-prevention-assessment.schema.json",
+        "skills/fix-default/SKILL.md",
+        "skills/fix-security/SKILL.md",
+        "skills/execution-contract/SKILL.md",
+        "skills/review-checklist/SKILL.md",
+        "skills/test-router/SKILL.md",
+        "skills/report/SKILL.md",
+        "skills/spec-governance/gate-registry.json",
+        "prompts/technical-design.prompt.md",
+        "prompts/implementation-plan.prompt.md",
+        "prompts/report-fix.prompt.md",
+        "prompts/report-dev.prompt.md",
+        "prompts/report-audit.prompt.md",
+        "scripts/lib/repair-prevention-assessment.js",
+        "scripts/lib/validate-rework-trust-controls.js",
+        "scripts/lib/test-rework-trust-controls.js",
+        "scripts/test-repair-prevention-assessment.js",
+        "package.json"
+      ],
+      "consumers": [
+        "validate-core"
+      ],
+      "invariants": [
+        "all-repair-assessment",
+        "immediate-prospective-separation",
+        "repeat-escape-escalation",
+        "rollback-sunset"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "candidate-bound",
+      "writeScopes": [],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1",
+        "RepairPreventionAssessmentV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "review-execution-contract",
+      "owner": "review-checklist",
+      "command": "node",
+      "args": [
+        "scripts/test-review-execution-contract.js"
+      ],
+      "dependencies": [],
+      "inputs": [
+        "instructions.md",
+        "skills/review-checklist/SKILL.md",
+        "skills/dev-plan-review/SKILL.md",
+        "skills/audit-execution-guide/SKILL.md",
+        "skills/memory/SKILL.md",
+        "skills/report/SKILL.md",
+        "skills/report/report-schema.json",
+        "skills/spec-governance/gate-registry.json",
+        "prompts/implementation-progress.prompt.md",
+        "prompts/report-dev.prompt.md",
+        "prompts/report-fix.prompt.md",
+        "prompts/report-audit.prompt.md",
+        "prompts/memory-session.prompt.md",
+        "hooks/_runtime/review-execution-contract.cjs",
+        "scripts/test-review-execution-contract.js",
+        "package.json"
+      ],
+      "consumers": [],
+      "invariants": [
+        "candidate-bound-review-plan",
+        "receipt-freshness",
+        "evidence-saturation",
+        "single-state-projection",
+        "stage-timing"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "candidate-bound",
+      "writeScopes": [],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1",
+        "ReviewExecutionPlanV1",
+        "ReviewEvidenceReceiptV1",
+        "ReviewStateSnapshotV1",
+        "StageTimingV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "visible-output-contract",
+      "owner": "user-visible-output-contract",
+      "command": "node",
+      "args": [
+        "scripts/test-visible-output-contract.js"
+      ],
+      "dependencies": [],
+      "inputs": [
+        "instructions.md",
+        "instructions/01-common.instructions.md",
+        "instructions/02-output-paths.instructions.md",
+        "instructions/16-report.instructions.md",
+        "instructions/17-compliance.instructions.md",
+        "skills/user-visible-output-contract/SKILL.md",
+        "skills/user-visible-output-contract/visible-output-contract.schema.json",
+        "skills/host-contract-verification/SKILL.md",
+        "skills/compliance/SKILL.md",
+        "skills/report/SKILL.md",
+        "skills/report/report-schema.json",
+        "skills/memory/SKILL.md",
+        "skills/document-sync/SKILL.md",
+        "skills/test-router/SKILL.md",
+        "skills/execution-contract/SKILL.md",
+        "skills/audit-common/SKILL.md",
+        "skills/routing/SKILL.md",
+        "skills/spec-governance/gate-registry.json",
+        "prompts/precheck-status.prompt.md",
+        "prompts/technical-design.prompt.md",
+        "prompts/implementation-plan.prompt.md",
+        "prompts/implementation-progress.prompt.md",
+        "prompts/memory-session.prompt.md",
+        "prompts/delivery-checklist.prompt.md",
+        "prompts/report-dev.prompt.md",
+        "prompts/report-fix.prompt.md",
+        "prompts/report-audit.prompt.md",
+        "hooks/_runtime/visible-output-contract.cjs",
+        "hooks/_runtime/lifecycle-visible-reply.cjs",
+        "scripts/test-visible-output-contract.js",
+        "scripts/lib/test-hooks-runtime-visibility.js",
+        "scripts/test-client-contracts.js",
+        "package.json",
+        "plugin.json",
+        "skills/portfolio.json",
+        "changelogs/unreleased.md",
+        "README.md",
+        "website/docs/guide/development.md",
+        "website/docs/specs/compliance-framework.md",
+        "website/docs/specs/exec-compliance-flow.md",
+        "website/docs/specs/report-output-flow.md"
+      ],
+      "consumers": [
+        "validate-core",
+        "client-contracts",
+        "hooks-runtime"
+      ],
+      "invariants": [
+        "internal-visible-separation",
+        "artifact-reconciliation",
+        "semantic-display-name",
+        "renderer-parity",
+        "link-capability-honesty",
+        "visible-envelope-fail-closed"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "candidate-bound",
+      "writeScopes": [],
+      "timeoutMs": 30000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1",
+        "ArtifactDeliveryManifestV1",
+        "UserFacingArtifactSetV1",
+        "DevCodexVisibleEnvelopeV1",
+        "LinkCapabilityDecisionV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "context-binding",
+      "owner": "context-acquisition",
+      "command": "node",
+      "args": [
+        "scripts/test-context-binding.js"
+      ],
+      "dependencies": [
+        "context-read"
+      ],
+      "inputs": [
+        "hooks/_runtime/context-read-contract.cjs",
+        "hooks/_runtime/content-identity.cjs",
+        "scripts/test-context-binding.js"
+      ],
+      "consumers": [],
+      "invariants": [
+        "target-binding",
+        "receipt-correlation",
+        "legacy-completion-ceiling"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "never",
+      "writeScopes": [],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1",
+        "ContextReadBindingV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "host-instruction-projection",
+      "owner": "host-instruction-projection",
+      "command": "npm",
+      "args": [
+        "run",
+        "test:host-instruction-projection"
+      ],
+      "dependencies": [],
+      "inputs": [
+        "instructions.md",
+        "scripts/host-instruction-projection.json",
+        "scripts/generate-host-instruction-projections.js",
+        "scripts/lib/host-instruction-projection.js",
+        "scripts/test-host-instruction-projection.js",
+        "skills/host-instruction-projection/**",
+        "host-projections/**"
+      ],
+      "consumers": [
+        "host-installation"
+      ],
+      "invariants": [
+        "mandatory-rule-coverage",
+        "kernel-budget",
+        "projection-freshness",
+        "full-fallback"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "candidate-bound",
+      "writeScopes": [],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1",
+        "HostInstructionCoverageReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "host-adapters",
+      "owner": "host-contract-verification",
+      "command": "npm",
+      "args": [
+        "run",
+        "test:host-adapters"
+      ],
+      "dependencies": [],
+      "inputs": [
+        "hooks/_runtime/lifecycle-host-adapters.cjs",
+        "hooks/_runtime/lifecycle-hook-output.cjs",
+        "hooks/_runtime/lifecycle.cjs",
+        "gemini/**",
+        "grok/**",
+        "scripts/test-host-adapters.js"
+      ],
+      "consumers": [],
+      "invariants": [
+        "event-mapping",
+        "capability-ceiling",
+        "portable-hook-output"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "candidate-bound",
+      "writeScopes": [],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1",
+        "HostCapabilityEvidenceV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "host-installation",
+      "owner": "host-instruction-projection",
+      "command": "npm",
+      "args": [
+        "run",
+        "test:host-installation"
+      ],
+      "dependencies": [
+        "host-instruction-projection"
+      ],
+      "inputs": [
+        "index.js",
+        "package.json",
+        "plugin.json",
+        "host-projections/**",
+        "gemini/**",
+        "grok/**",
+        "hooks/_runtime/**",
+        "scripts/lib/cli-*.js",
+        "scripts/lib/deployment-descriptors.js",
+        "scripts/lib/host-surface-descriptors.js",
+        "scripts/test-host-installation.js"
+      ],
+      "consumers": [],
+      "invariants": [
+        "default-host-compatibility",
+        "dry-run-zero-write",
+        "entry-collision",
+        "two-cwd"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 180000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1",
+        "HostInstallationContractV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
       "id": "syntax",
       "owner": "static-syntax",
       "command": "node",
@@ -2237,7 +2836,8 @@
         "build"
       ],
       "dependencies": [
-        "generated-site-precheck"
+        "generated-site-precheck",
+        "public-text-integrity"
       ],
       "inputs": [
         "website/**",

@@ -126,33 +126,57 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 
 ## 产物路径输出格式
 
-`ArtifactDeliveryCompletenessGate`：最终回复属于独立 surface，必须在 `📂 本次会话产物` 区块明确写“主要产物”并列出 active task primary artifacts。小集合直接全列；大集合列 primary + 完整 manifest 入口，并说明 supporting/runtime/excluded-generated 数量。去重仅限同一 surface，不得因为报告、记忆或 SUMMARY 已列出而从最终回复省略。
+用户可见文件交付统一由 `skills/user-visible-output-contract/SKILL.md` 管理。执行链固定为：
 
-每轮回复中涉及文件新建或修改时，在回复末尾输出：
+`ArtifactDeliveryManifestV1（内部完整）→ UserFacingArtifactSetV1（用户最小必要）→ DevCodexVisibleEnvelopeV1 → LinkCapabilityDecisionV1 renderer`。
+
+### 内部完整与用户可见分层
+
+- 所有持久化 mutation、恢复证据和审计证据都进入 internal manifest，并满足 planned=observed=internalDelivered；默认隐藏不等于停止写入、验证或参与 ECR。
+- 默认用户面只显示待确认文件、实际结果，以及影响结论可信度的 required evidence。
+- session、daily、Agent/全局 SUMMARY、task state、checkpoint/runtime state、raw receipt、raw manifest、raw ledger 默认 `internal-only`。
+- 用户要求完整交付清单时使用 `all-deliverable`；只有审计、治理调查或用户明确要求内部留痕时使用 `internal-audit`。任何 scope 都必须满足 `listed + remaining = total`。
+
+### 动作标题与语义名称
+
+标题按消息类型只允许：
+
+- `需要你确认的文件`
+- `本批交付文件`
+- `完成交付文件`
+- `阻断证据`
+
+每项必须输出 `displayName + purposeText + userAction`。路径、文件名、CP 编号、版本或状态不能单独充当名称。当前消费者禁止使用含义不稳定的“主要产物”和“本次会话全部产物”；历史版本文档不回填。
+
+### LinkCapabilityDecision 客户端兼容矩阵
+
+能力必须按当前 surface 的可验证证据选择，禁止只按宿主名称硬编码：
+
+| capability mode | 主表示 | 绝对路径 fallback | 证据边界 |
+|---|---|---|---|
+| `clickable` | 单个语义 Markdown 链接 | 默认不显示 | 当前 surface 点击能力已验证；Rich 不得重复路径 |
+| `portable` | 工作区相对 Markdown 链接 | 默认不显示 | Markdown 可用但点击能力未知；这是未知宿主默认档 |
+| `plain` | 语义名称 + 可复制相对/短路径 | 默认不显示 | 终端或日志仅保证纯文本 |
+| `failed` | 语义名称 + 可复制定位 | 显示并记录原因 | 链接已失败或宿主无法定位 |
+
+只有以下情况允许绝对路径 fallback：用户明确要求、链接实际失败、目标位于工作区外、路径歧义、宿主无法定位。用户未要求且 Rich 点击已验证时，同一文件只能出现一个可点击语义链接，不得再重复 `绝对路径：...`。
+
+`ArtifactLinkSet` 保留为可见集合的兼容投影名，不再是真相源；`ArtifactLinkSetDedupeGate` 执行规范化绝对路径去重，按 canonical path 合并同一物理文件。禁止 `file://`，禁止只输出裸文件名，禁止询问“是否需要打开”。
+
+推荐 Rich 示例：
 
 ```markdown
-📂 本次会话产物：
-- [文件名（类型）](workspace相对路径/file.md)
+#### 完成交付文件
+- [最终执行与验证报告](E:/Worker/.devcodex/.../12--最终执行报告.md) — 汇总完成范围、验证结果和残余风险；操作：查看结论
 ```
 
-> 🔴 **格式说明**：
-> - **必需行**：输出 `ArtifactLinkSet` 的主链接，必须是 Markdown 链接，禁止只输出裸文件名。默认使用**工作区根的相对路径**（不以 `/` 开头、不带 `file://` 协议），链接路径统一用正斜杠。
-> - **Copy fallback**：当当前宿主为 Codex Desktop/App、Copilot、未知宿主，或用户已反馈“无法点击”时，主链接下一行必须追加 `绝对路径：` 纯文本行，供复制打开。Windows 绝对路径统一写成 `E:\...` 或 `E:/...`，POSIX 用 `/...`。
-> - **Codex Desktop/App 特例**：当前宿主可验证为 Codex Desktop/App 时，主链接可以使用绝对文件系统路径作为 Markdown target；若路径包含空格，用尖括号包裹 target。
-> - **ArtifactLinkSetDedupeGate**：输出前必须按规范化绝对路径去重，同一物理文件无论同时出现在最终回复、报告、记忆、SUMMARY、相对链接、绝对链接或 copy fallback 中，只保留一个主 ArtifactLinkSet 条目；不同目录的同名文件必须带足够路径消歧，历史镜像 / 部署副本 / 当前主产物要明确标注身份，避免宿主文件面板展示成双份产物。
-> - 禁止询问"是否需要打开"；禁止省略产物路径输出。
-> - 禁止使用 `file://` 协议作为默认链接；它在部分 IDE webview / Chat 面板中会被 CSP 或宿主策略阻止。
-> - ⚠️ **历史版本兼容**：v1.9.3 及之前使用 `[name](file:///E:/...)` 格式，存量报告无需回填，但新增报告须按本格式生成。
+Portable 示例保持同一语义项，只将 target 改为工作区相对路径：
 
-### ArtifactLinkSet 客户端兼容矩阵
+```markdown
+- [最终执行与验证报告](.devcodex/devcodex-v1/.../12--最终执行报告.md) — 汇总完成范围、验证结果和残余风险；操作：查看结论
+```
 
-| 宿主 | 主链接 | Copy fallback | 说明 |
-|------|--------|---------------|------|
-| GitHub Copilot（VS Code / JetBrains / Visual Studio）| `[文件名](.devcodex/.../file.md)` | 强制追加 | Copilot Chat 不保证所有 Markdown 文件链接在所有视图都可点；必须同时保留可复制绝对路径 |
-| Claude Code | `[文件名](.devcodex/.../file.md)` | 可选；跨工具交付时追加 | Claude Code 项目级 `.mcp.json` 与文件上下文能力不等价于所有 Markdown 链接都可被其他宿主点击 |
-| Codex Desktop/App | `[文件名](E:/Worker/.../file.md)` 或绝对路径 target | 强制追加 | Codex App 用户面更适合绝对本地路径；仍保留 copy fallback |
-| Codex CLI | `[文件名](.devcodex/.../file.md)` | 强制追加 | 终端环境未必渲染可点击 Markdown，绝对路径是保底入口 |
-| instruction-fallback / 未识别宿主 | `[文件名](.devcodex/.../file.md)` | 强制追加 | 未知宿主不得假设 Markdown 链接可点击 |
+Portable/Plain 在同一 semanticDigest 下只改变链接形式，不改变文件集合、顺序、状态或动作。legacy “主要产物 + 绝对路径”文本最多识别为 `unverified-legacy`，不能作为 verified delivery receipt。
 
 ### MCP profile fallback
 

@@ -16,7 +16,7 @@ const { createDerivedStateStore } = require('../../hooks/_runtime/derived-state-
 
 const VALIDATION_MANIFEST_SCHEMA = 'ValidationManifestV1'
 const VALIDATION_NODE_SCHEMA = 'ValidationNodeV1'
-const VALIDATION_RECEIPT_SCHEMA = 'ValidationExecutionReceiptV1'
+const VALIDATION_RECEIPT_SCHEMA = 'ValidationExecutionReceiptV2'
 const VALIDATION_CACHE_SCHEMA = 'ValidationEvidenceV1'
 const VALIDATION_CONTRACT_VERSION = '1'
 const VALIDATION_CACHE_MAX_BYTES = 256 * 1024 * 1024
@@ -133,6 +133,20 @@ function validateValidationManifest(manifest) {
     }
     for (const field of requiredArrayFields) {
       if (!Array.isArray(node[field])) nodeErrors.push(field)
+    }
+    if (node.delegatedClosure !== undefined) {
+      if (!Array.isArray(node.delegatedClosure)) {
+        nodeErrors.push('delegatedClosure')
+      } else {
+        for (const entry of node.delegatedClosure) {
+          if (!entry || typeof entry !== 'object' || Array.isArray(entry) ||
+              !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(entry.nodeId || '') ||
+              !String(entry.probe || '').trim() || !String(entry.command || '').trim()) {
+            nodeErrors.push('delegatedClosure.entry')
+            break
+          }
+        }
+      }
     }
     if (!RISK_CLASSES.has(node.riskClass)) nodeErrors.push('riskClass')
     if (!CACHE_POLICIES.has(node.cachePolicy)) nodeErrors.push('cachePolicy')
@@ -270,6 +284,39 @@ function addConsumers(ids, byId) {
   return selected
 }
 
+function buildValidationImpactGraph({ manifest, changedFiles = [] }) {
+  const normalizedChanged = [...new Set(changedFiles.map(normalizeRelativePath))].sort()
+  const byId = new Map(manifest.nodes.map(node => [node.id, node]))
+  const matchedNodeIds = manifest.nodes
+    .filter(node => normalizedChanged.some(file => matchesAnyGlob(file, node.inputs)))
+    .map(node => node.id)
+  const unknownInputs = normalizedChanged.filter(file => !manifest.nodes.some(node => matchesAnyGlob(file, node.inputs)))
+  let affected = addConsumers(new Set(matchedNodeIds), byId)
+  for (const invariant of manifest.invariantNodes) affected.add(invariant)
+  affected = addDependencies(affected, byId)
+  const affectedNodeIds = topologicalNodeOrder(manifest).filter(node => affected.has(node.id)).map(node => node.id)
+  const edges = []
+  for (const node of manifest.nodes) {
+    for (const dependency of node.dependencies) if (affected.has(node.id) || affected.has(dependency)) edges.push([dependency, node.id, 'dependency'])
+    for (const consumer of node.consumers) if (affected.has(node.id) || affected.has(consumer)) edges.push([node.id, consumer, 'consumer'])
+  }
+  const core = {
+    schemaVersion: 'ValidationImpactGraphV1',
+    changedFiles: normalizedChanged,
+    matchedNodeIds,
+    affectedNodeIds,
+    invariantNodeIds: manifest.invariantNodes.filter(id => affected.has(id)),
+    unknownInputs,
+    consumerGraphComplete: manifest.consumerGraphComplete === true,
+    edges: edges.sort((left, right) => stableStringify(left).localeCompare(stableStringify(right)))
+  }
+  return {
+    ...core,
+    complete: core.consumerGraphComplete && unknownInputs.length === 0,
+    impactGraphDigest: sha256(Buffer.from(stableStringify(core), 'utf8'))
+  }
+}
+
 function planValidation({ manifest, route = 'changed', changedFiles = [], changedSource = 'explicit',
   riskClass = 'normal', candidateStable = true, candidateId = null }) {
   validateValidationManifest(manifest)
@@ -283,6 +330,7 @@ function planValidation({ manifest, route = 'changed', changedFiles = [], change
   const byId = new Map(manifest.nodes.map(node => [node.id, node]))
   const ordered = topologicalNodeOrder(manifest)
   const fullIds = new Set(manifest.routes.full.nodes)
+  const impactGraph = buildValidationImpactGraph({ manifest, changedFiles: normalizedChanged })
   let selected = new Set()
   let routeResolved = route
   let fullFallback = null
@@ -306,18 +354,13 @@ function planValidation({ manifest, route = 'changed', changedFiles = [], change
     fullFallback = 'validation-control-plane-changed'
     selected = new Set(fullIds)
   } else {
-    const unknown = normalizedChanged.filter(file => !manifest.nodes.some(node => matchesAnyGlob(file, node.inputs)))
+    const unknown = impactGraph.unknownInputs
     if (unknown.length) {
       routeResolved = 'full'
       fullFallback = 'unknown-input:' + unknown.join(',')
       selected = new Set(fullIds)
     } else {
-      for (const node of manifest.nodes) {
-        if (normalizedChanged.some(file => matchesAnyGlob(file, node.inputs))) selected.add(node.id)
-      }
-      selected = addConsumers(selected, byId)
-      for (const invariant of manifest.invariantNodes) selected.add(invariant)
-      selected = addDependencies(selected, byId)
+      selected = new Set(impactGraph.affectedNodeIds)
       if (selected.size / fullIds.size > 0.8) {
         routeResolved = 'full'
         fullFallback = 'closure-over-80-percent'
@@ -337,7 +380,7 @@ function planValidation({ manifest, route = 'changed', changedFiles = [], change
     upgradeCondition: 'input, consumer, risk, manifest, or candidate identity changes'
   }))
   const signatures = new Set(selectedNodes.map(commandSignature))
-  return {
+  const planCore = {
     schemaVersion: 'ValidationPlanV1',
     routeRequested: route,
     routeResolved,
@@ -346,6 +389,8 @@ function planValidation({ manifest, route = 'changed', changedFiles = [], change
     candidateStable,
     changedSource,
     changedFiles: normalizedChanged,
+    impactGraph,
+    impactGraphDigest: impactGraph.impactGraphDigest,
     fullFallback,
     selectedNodes,
     skipped,
@@ -354,6 +399,7 @@ function planValidation({ manifest, route = 'changed', changedFiles = [], change
     duplicateLeafCount: selectedNodes.length - signatures.size,
     requiredNodeMisses: 0
   }
+  return { ...planCore, planDigest: sha256(Buffer.from(stableStringify(planCore), 'utf8')) }
 }
 
 function gitOutput(repoRoot, args, encoding = 'utf8') {
@@ -633,6 +679,33 @@ function executeValidationPlan({ manifest, plan, candidate, repoRoot, activeRoot
 
   for (let index = 0; index < effectivePlan.selectedNodes.length; index += 1) {
     const node = effectivePlan.selectedNodes[index]
+    const declaredDelegates = new Set((node.delegatedClosure || []).map(entry => entry.nodeId))
+    const delegatedNodeIds = effectivePlan.selectedNodes
+      .filter(item => item.id !== node.id && declaredDelegates.has(item.id))
+      .map(item => item.id)
+    const executionNode = node.id === 'validate-core'
+      ? {
+          ...node,
+          environment: {
+            ...(node.environment || {}),
+            DEVCODEX_VALIDATION_ORCHESTRATED: '1',
+            DEVCODEX_VALIDATION_DELEGATED_NODES: delegatedNodeIds.join(',')
+          }
+        }
+      : node
+    const nodeContractDigest = sha256(Buffer.from(stableStringify(executionNode), 'utf8'))
+    const dependencyReceiptDigests = node.dependencies.map(dependency => {
+      const prior = results.find(result => result.nodeId === dependency)
+      return prior ? prior.evidenceDigest || prior.cacheIdentity?.digest || null : null
+    })
+    const delegatedClosureDigest = sha256(Buffer.from(stableStringify({
+      nodeId: node.id,
+      dependencies: node.dependencies,
+      consumers: node.consumers,
+      delegatedClosure: node.delegatedClosure || [],
+      delegatedNodeIds,
+      executionMode: 'orchestrated'
+    }), 'utf8'))
     const descriptor = cacheDescriptor({ manifestIdentityValue, candidate, node })
     const cacheEligible = useCache && candidate.stable && node.cachePolicy === 'candidate-bound'
     if (cacheEligible) {
@@ -646,16 +719,19 @@ function executeValidationPlan({ manifest, plan, candidate, repoRoot, activeRoot
     }
 
     try {
-      const evidence = invoke(node)
+      const evidence = invoke(executionNode)
       const nodeEvidence = {
         nodeId: node.id,
+        nodeContractDigest,
+        dependencyReceiptDigests,
+        delegatedClosureDigest,
         status: 'passed',
         cacheStatus: node.cachePolicy === 'candidate-bound'
           ? (candidate.stable ? 'miss' : 'bypassed-unstable')
           : 'disabled',
-        command: node.command,
-        args: node.args,
-        environment: node.environment || {},
+        command: executionNode.command,
+        args: executionNode.args,
+        environment: executionNode.environment || {},
         exitCode: evidence.exitCode,
         signal: evidence.signal || null,
         durationMs: evidence.durationMs,
@@ -664,9 +740,9 @@ function executeValidationPlan({ manifest, plan, candidate, repoRoot, activeRoot
         invariantCoverage: node.invariants,
         evidenceDigest: sha256(Buffer.from(stableStringify({
           nodeId: node.id,
-          command: node.command,
-          args: node.args,
-          environment: node.environment || {},
+          command: executionNode.command,
+          args: executionNode.args,
+          environment: executionNode.environment || {},
           exitCode: evidence.exitCode,
           signal: evidence.signal || null,
           stdout: evidence.stdout || '',
@@ -688,11 +764,14 @@ function executeValidationPlan({ manifest, plan, candidate, repoRoot, activeRoot
       failedNode = node.id
       const result = {
         nodeId: node.id,
+        nodeContractDigest,
+        dependencyReceiptDigests,
+        delegatedClosureDigest,
         status: 'failed',
         cacheStatus: 'disabled',
-        command: node.command,
-        args: node.args,
-        environment: node.environment || {},
+        command: executionNode.command,
+        args: executionNode.args,
+        environment: executionNode.environment || {},
         exitCode: typeof evidence.exitCode === 'number' ? evidence.exitCode : null,
         signal: evidence.signal || null,
         durationMs: Number(evidence.durationMs || 0),
@@ -715,12 +794,35 @@ function executeValidationPlan({ manifest, plan, candidate, repoRoot, activeRoot
     runId,
     candidateId: candidate.candidateId,
     candidateStable: candidate.stable,
+    candidateIdentity: {
+      candidateId: candidate.candidateId,
+      stable: candidate.stable,
+      head: candidate.head || null,
+      changedSource: candidate.changedSource || 'unknown',
+      changedFiles: candidate.changedFiles || [],
+      dirtyIdentities: candidate.dirtyIdentities || []
+    },
     manifestIdentity: manifestIdentityValue,
     routeRequested: effectivePlan.routeRequested,
     routeResolved: effectivePlan.routeResolved,
     riskClass: effectivePlan.riskClass,
     changedSource: effectivePlan.changedSource,
     changedFiles: effectivePlan.changedFiles,
+    impactGraphDigest: effectivePlan.impactGraphDigest,
+    nodeContractDigest: sha256(Buffer.from(stableStringify(results.map(result => [result.nodeId, result.nodeContractDigest])), 'utf8')),
+    dependencyReceiptDigests: Object.fromEntries(results.map(result => [result.nodeId, result.dependencyReceiptDigests || []])),
+    delegatedClosureDigest: sha256(Buffer.from(stableStringify(results.map(result => [result.nodeId, result.delegatedClosureDigest])), 'utf8')),
+    testRouteDigest: effectivePlan.planDigest,
+    intentExpansionDigest: process.env.DEVCODEX_INTENT_EXPANSION_DIGEST || null,
+    contextBindingTrace: process.env.DEVCODEX_CONTEXT_BINDING_DIGEST
+      ? { status: 'bound', bindingDigest: process.env.DEVCODEX_CONTEXT_BINDING_DIGEST }
+      : { status: 'unverified', bindingDigest: null },
+    executionMode: 'orchestrated-serial',
+    cacheDecision: {
+      requested: useCache,
+      eligibleRoute: effectivePlan.routeRequested === 'changed' && effectivePlan.routeResolved === 'changed',
+      hitCount: results.filter(result => result.status === 'cache-hit').length
+    },
     fullFallback: effectivePlan.fullFallback,
     selectedNodes: effectivePlan.selectedNodes.map(node => node.id),
     skipped: effectivePlan.skipped,
@@ -755,6 +857,7 @@ module.exports = {
   VALIDATION_RECEIPT_SCHEMA,
   ValidationDagError,
   buildCandidateIdentity,
+  buildValidationImpactGraph,
   cacheDescriptor,
   cacheRelativePath,
   commandSignature,

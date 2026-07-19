@@ -9,6 +9,7 @@ function buildGovernanceQualityChecks(ctx) {
     fs, path, execSync, read, err, mustInclude
   } = ctx
   const { collectChangelogSources, hasChangelogEvidence } = buildGovernanceHelpers(ctx)
+  const skillCount = JSON.parse(read(path.join(ROOT, 'plugin.json'))).skills.length
 
   function checkV55() {
     const probes = [
@@ -876,9 +877,9 @@ function buildGovernanceQualityChecks(ctx) {
       { file: 'prompts/report-scenario-test.prompt.md', needles: ['SkillFirstAbsorptionGate'] },
       { file: 'README.md', needles: ['Skill-first 吸纳架构', 'user-manual-authoring', 'review-checklist'] },
       { file: 'website/docs/guide/development.md', needles: ['Skill-first 吸纳架构', 'user-manual-authoring', 'review-checklist'] },
-      { file: 'website/docs/index.md', needles: ['78 个 Skills'] },
-      { file: 'website/docs/intro/index.md', needles: ['78 个按需触发的工作流技能', 'user-manual-authoring', 'review-checklist'] },
-      { file: 'website/docs/specs/directory-structure.md', needles: ['扁平一级 Skill（78 个）', 'user-manual-authoring', 'review-checklist'] },
+      { file: 'website/docs/index.md', needles: [`${skillCount} 个 Skills`] },
+      { file: 'website/docs/intro/index.md', needles: [`${skillCount} 个按需触发的工作流技能`, 'user-manual-authoring', 'review-checklist'] },
+      { file: 'website/docs/specs/directory-structure.md', needles: [`扁平一级 Skill（${skillCount} 个）`, 'user-manual-authoring', 'review-checklist'] },
       { file: 'website/docs/versions/v1/1.0.1/requirements/p1/latest-data-absorption-guards/index.md', needles: gates.concat(['V71', 'user-manual-authoring', 'review-checklist']) },
       { file: 'website/docs/versions/v1/1.0.1/CHANGELOG.md', needles: ['V71 探针', 'SkillFirstAbsorptionGate', 'user-manual-authoring', 'review-checklist'] },
       { file: 'changelogs/releases/v1.11.27.md', needles: gates.concat(['V71', 'PI-079', 'PI-080', 'PI-081', 'PF-084', 'PF-085', 'PF-086', 'user-manual-authoring', 'review-checklist']) },
@@ -1021,10 +1022,10 @@ function buildGovernanceQualityChecks(ctx) {
       { file: 'prompts/report-fix.prompt.md', needles: ['ConfirmedAbsorptionCompletenessGates', 'FrontendAsyncCacheRenderGate', 'RemoteCIParityPushGate'] },
       { file: 'prompts/report-audit.prompt.md', needles: ['ConfirmedAbsorptionCompletenessGates', 'GovernanceGateRegistry', 'evolution-control-plane'] },
       { file: 'prompts/report-scenario-test.prompt.md', needles: ['ConfirmedAbsorptionCompletenessGates', 'GovernanceGateRegistry', 'frontend-runtime'] },
-      { file: 'README.md', needles: ['ConfirmedAbsorptionCompletenessGates', 'evolution-governance', '78 个'] },
-      { file: 'website/docs/index.md', needles: ['78 个 Skills'] },
-      { file: 'website/docs/intro/index.md', needles: ['78 个按需触发的工作流技能', 'evolution-governance'] },
-      { file: 'website/docs/specs/directory-structure.md', needles: ['扁平一级 Skill（78 个）', 'evolution-governance'] },
+      { file: 'README.md', needles: ['ConfirmedAbsorptionCompletenessGates', 'evolution-governance', `${skillCount} 个`] },
+      { file: 'website/docs/index.md', needles: [`${skillCount} 个 Skills`] },
+      { file: 'website/docs/intro/index.md', needles: [`${skillCount} 个按需触发的工作流技能`, 'evolution-governance'] },
+      { file: 'website/docs/specs/directory-structure.md', needles: [`扁平一级 Skill（${skillCount} 个）`, 'evolution-governance'] },
       { file: 'website/docs/guide/development.md', needles: ['ConfirmedAbsorptionCompletenessGates', 'evolution-governance'] },
       { file: 'website/docs/versions/v1/1.0.1/requirements/p1/latest-data-absorption-guards/index.md', needles: gates.concat(['V73', 'evolution-governance']) },
       { file: 'website/docs/versions/v1/1.0.1/CHANGELOG.md', needles: ['V73 探针', 'ConfirmedAbsorptionCompletenessGates', 'evolution-governance'] },

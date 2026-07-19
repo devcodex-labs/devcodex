@@ -7,7 +7,7 @@
 
 ## DevCodex 是什么？
 
-DevCodex 通过 `.github/`（Copilot）、`CLAUDE.md + .claude/ + .mcp.json`（Claude Code）以及 `AGENTS.md + .agents/ + .codex/`（Codex）向受支持的 AI 编码客户端注入结构化的开发工作流规范。
+DevCodex 默认通过 `.github/`（Copilot）、`CLAUDE.md + .claude/ + .mcp.json`（Claude Code）以及 `AGENTS.md + .agents/ + .codex/`（Codex）注入结构化工作流；当前未发布源码还提供显式 Gemini / Grok adapter，五宿主共享同一精简内核、按需 Skills 与完整回退真相源。
 在支持 Hooks 的宿主中，它优先用 `hooks/_runtime/lifecycle.cjs` 提供确定性的生命周期护栏；在不支持 Hooks 的宿主中，则回退到 instructions 语义层继续工作。
 
 ## 目录导航
@@ -51,7 +51,7 @@ DevCodex 通过 `.github/`（Copilot）、`CLAUDE.md + .claude/ + .mcp.json`（C
 - **文件真相源优先的有界启动链**: `MemoryCannotSatisfyBootstrapGate` 要求宿主 Memories、模型长期偏好、SUMMARY 或交接卡只能作为 `navigation-hint`；新线程、resume、summary 恢复或跨项目切换仍须通过 Profile plan、memory status/query 与 handoff 指向的精确 reports/review checklist/source 复证。V86 防止用内置记忆替代文件真相，V99 防止把复证误写成默认全文读取或失败调用假完成。
 - **支撑型 Skill**: `execution-contract` / `test-router` / `release-verification` / `host-contract-verification` / `source-consumer-sync` 为控制面、多批次、测试路线、宿主契约验证与真相源-消费者同步提供可审计支撑，不新增工作流分支
 - **模型无关双层修复协作契约**: AI 判断任务目标为 repair task 时至少建立 `lightweight` 决策/验收层 + 执行/验证层契约；P0/P1、安全、控制面、公共契约、多批次、角色交接或发布风险升级 `full`，用 `findingToPatchMap`、`handoffIntegrity` 与 `independentReReview` 防止范围漂移和补丁作者唯一自证。模型名称或是否切换 Agent 不是触发条件
-- **返工预防与信任链**: `rework-prevention-engineering` 以 WorkUnit/ReworkEvent、双重根因、FirstPassYield 和前瞻 trial 把“复审又发现问题”前移为可度量预防；新 Skill 当前保持 `gray`，只有跨任务前瞻证据证明有效才可升级。`CandidateDiffCompletenessGate` 在 commit/tag/publish 前用 staged candidate snapshot 覆盖 tracked/untracked，并执行 cached diff、name-status、secret-shape 与 intended scope 对账；普通 working diff 不能替代。派生资产另由 `PostStageDerivedArtifactFreshnessGate` 在完整 stage 后读取 Git index，并在 commit 后 clean tree 复放，防止“先生成、后新增消费者”逃逸。`ReviewCoverageClaimIntegrityGate`、`ArtifactDeliveryCompletenessGate`、`ReleaseAuthorityBeforeCompatibilityGate`、`ConfigurationErgonomicsGate` 与 `InteractiveSemanticProbe` 分别约束审查真实性、产物交付、兼容判断、配置易用性和交互语义
+- **返工预防与信任链**: `rework-prevention-engineering` 以 WorkUnit/ReworkEvent、双重根因、FirstPassYield 和前瞻 trial 把“复审又发现问题”前移为可度量预防；新 Skill 当前保持 `gray`，只有跨任务前瞻证据证明有效才可升级。`CandidateDiffCompletenessGate` 在 commit/tag/publish 前用 staged candidate snapshot 覆盖 tracked/untracked，并执行 cached diff、name-status、secret-shape 与 intended scope 对账；普通 working diff 不能替代。派生资产另由 `PostStageDerivedArtifactFreshnessGate` 在完整 stage 后读取 Git index，并在 commit 后 clean tree 复放，防止“先生成、后新增消费者”逃逸。`ReviewCoverageClaimIntegrityGate`、`ArtifactDeliveryManifestGate`、`VisibleOutputHostEvidenceGate`、`ReleaseAuthorityBeforeCompatibilityGate`、`ConfigurationErgonomicsGate` 与 `InteractiveSemanticProbe` 分别约束审查真实性、内部交付对账、用户可见证据、兼容判断、配置易用性和交互语义
 - **跨仓消费者验证**: `consumer-validation-engineering` 以 RepositoryBinding、SourceConsumerIdentity、ValidationDenominatorMatrix、packed artifact、跨仓 CI 与 freshness drift 约束 SDK/CLI/框架/公共包的独立消费者仓；`DesignFitnessGate` 额外判断主路径、默认值、配置层级、框架约定和维护成本，`ValidationFindingRepairLoop` 在 source mutation 后使旧 identity/证据 stale 并按影响矩阵重跑。realpath、行为全绿或单一 100% 分母不能冒充完整验证。该 Skill 保持 `gray`，由 V95 正负探针守门
 - **品牌视觉资产质量（未发布 gray）**: `brand-visual-quality` 用母版谱系、主题几何 parity、微尺寸光学校正、单色母版、`VisualEvidencePack` 与 blocker reset 管理 logo/icon 等品牌资产生产；文件存在、构建成功或单张截图不能替代同画布证据与人工结论。当前只完成结构化 V97/前向试用证据，仍需真实 WorkUnit 才能晋级 active
 - **发布前审查与关键路径治理**: `audit-release` 负责 release readiness、说明、兼容、包与发布风险；`release-verification` 执行 R0~R7，并以 `ReleaseEfficiencyControlGate` 的 `CandidateFreezeGate`、`ReleaseCriticalPathBudgetGate`、`ValidationEvidenceReuseGate` 管理候选 generation、预算和证据失效。pack/install smoke 额外执行 `IsolatedConsumerCwdGate`：显式 consumer manifest、真实 consumer cwd、source identity 前后对账；禁止用 `npm init --prefix` 冒充 cwd 隔离。无可比较基线时预算只能 advisory，不能削弱 version/pack/registry/R7
@@ -164,6 +164,14 @@ npx @vextjs/devcodex init --claude # 仅 Claude Code adapter
 npx @vextjs/devcodex init --codex  # 仅 Codex adapter
 ```
 
+当前仓库的未发布源码还支持通用宿主选择器；registry 中的 v1.15.1 尚不包含该能力，从源码验证时使用：
+
+```bash
+node index.js init --host gemini
+node index.js init --host grok
+node index.js init --host all       # 显式部署 Copilot / Claude / Codex / Gemini / Grok
+```
+
 默认 `init` 会先将 Copilot 规范文件复制到项目的 `.github/` 目录，再链式部署 Claude Code adapter（`CLAUDE.md + .claude/ + .mcp.json`）与 Codex adapter（`AGENTS.md + .agents/ + .codex/`）：
 
 ```
@@ -171,7 +179,7 @@ npx @vextjs/devcodex init --codex  # 仅 Codex adapter
 ├── copilot-instructions.md  ← 默认 Copilot always-on 总则（新增）
 ├── instructions/   ← Instructions 约束（15 个，含全部工作流规则）
 ├── agents/         ← Copilot 自定义 Agent（v1.9.8 起恢复默认分发）
-├── skills/         ← 当前源码 Skill 详细检查标准（78 个，按需读取，含默认分析、用户文档、用户侧文档 review 聚合、专家型产物质量、21 个专家 Owner Skill、复审清单、自我进化治理、README 专项能力、spec-governance、spec-absorption 与 5 个支撑型 Skill）；其中 75 active，`rework-prevention-engineering`、`consumer-validation-engineering`、`brand-visual-quality` 3 个 gray；新增品牌视觉能力尚未发版
+├── skills/         ← 当前源码 Skill 详细检查标准（80 个，按需读取，含默认分析、用户文档、用户侧文档 review 聚合、专家型产物质量、21 个专家 Owner Skill、复审清单、自我进化治理、README 专项能力、spec-governance、spec-absorption 与 5 个支撑型 Skill）；其中 77 active，`rework-prevention-engineering`、`consumer-validation-engineering`、`brand-visual-quality` 3 个 gray；新增用户可见输出与宿主指令投影能力尚未发版
 ├── prompts/        ← Prompt 模板（30 个）
 ├── hooks/          ← 宿主生命周期 Hook 配置与运行时
 │   ├── devcodex.lifecycle.json
@@ -183,8 +191,9 @@ npx @vextjs/devcodex init --codex  # 仅 Codex adapter
 Codex adapter 会同步以下工作区根产物：
 
 ```
-AGENTS.md                 ← 与 instructions.md / copilot-instructions.md / CLAUDE.md 同源
+AGENTS.md                 ← 由 instructions.md 确定性生成的共享精简内核
 .agents/
+├── devcodex/instructions.full.md ← 非 always-on 的完整规范回退
 └── skills/               ← Skill 详细检查标准（与源仓库 skills/ 同步）
 .codex/
 ├── hooks.json            ← Codex Hook 入口配置
@@ -254,9 +263,13 @@ AGENTS.md                 ← 与 instructions.md / copilot-instructions.md / CL
 - **Intent Expansion 可见性**：dev 模式默认会直接展示完整 Card；prod、instruction-fallback 宿主或低风险轻任务才退化为 3~5 行摘要。
 - **意图扩展摘要**：当扩展后路由变化、命中控制面/宿主差异、风险较高或跨会话恢复时，会在用户面输出 3~5 行摘要，便于确认“为什么这样路由”。
 - **Context Rehydration Contract**：压缩恢复、resume 或用户要求按文件真相重建时，会按“当前用户消息 → 已确认产物 → sessions → tasks → SUMMARY → 摘要 → AI 推断”的优先级恢复上下文，摘要不能覆盖文件真相源。
-- **ContextHandoffCard**：跨会话、跨 Agent、多批次、summary/compact 前或用户要求传递上下文时，会把 source-of-truth、confirmed decisions、open risks、next action、must-not-overwrite、validation state 与 ArtifactLinkSet 写入报告或 daily tasks；恢复时仍按 Context Rehydration Contract 重新核对文件真相源。
+- **ContextHandoffCard**：跨会话、跨 Agent、多批次、summary/compact 前或用户要求传递上下文时，会把 source-of-truth、confirmed decisions、open risks、next action、must-not-overwrite、validation state 与 canonical artifact identities 写入报告或 daily tasks；恢复时仍按 Context Rehydration Contract 重新核对文件真相源。这些恢复证据进入 internal manifest，默认不占用最终用户交付列表。
 - **SimpleTaskFastPath**：非常明确、预计 ≤2 文件、无公共契约/配置/发布/控制面/台账来源/高风险、无需多轮跟踪的简单 dev/fix 任务，可免建 `00-需求概况.md` / `00-需求变更概况.md` / `00-问题概况.md` / `01-需求确认.md` / `01-产品需求.md` / `01-需求变更确认.md` / `01-问题确认.md` / `04-实施计划.md`，改用内联 CP 摘要 + 报告/记忆 `N/A + skipReason`；范围扩大时立即升级回完整产物链。若已有需求/bug 真相源，命中 `ExistingRequirementArtifactOverride`，调整内容必须先回写文件，回复只做摘要。
 - **ArtifactDecisionMatrix**：CP1/CP2/CP3/ECR 会按任务规模列出关键产物的 `create` / `update` / `skip` / `N/A` 状态，覆盖入口类型、需求概况、产品完整需求、需求变更概况、问题概况、需求确认、需求变更确认、问题确认、技术方案、实施计划、实施进度、关键决策、目标文档、报告和记忆；判定优先级为已有真相源回写 > 任务触发条件 > SimpleTaskFastPath > 子类型豁免，避免模板“必填”口径压过轻路径或条件触发。
+### 产物文件链接兼容
+
+- 用户可见产物先形成内部完整 manifest，再投影最小必要文件集；session、daily、SUMMARY、task state、raw receipt/manifest/ledger 默认不显示，但继续写入和参与 ECR。
+- 链接由 `LinkCapabilityDecisionV1` 按当前 surface 证据选择 clickable/portable/plain/failed；可点击语义链接不重复绝对路径，只有用户要求、链接失败、工作区外、歧义或无法定位时才显示 fallback。
 - **Hook closure 三态**：Stop/PreCompact 可见回复验证区分 `verified-present`、`verified-missing`、`unverified`；无法解析最终 assistant 内容时只提示无法验证，并给出 payload capture 指引，不再断言“未输出”。
 - **长流程执行契约**：Auto、控制面、多批次、预计修改 ≥10 文件或发布前置任务会触发 ExecutionContract；测试路线不明显时触发 TestRoute；正式发版前触发 ReleaseAudit 与 ReleaseVerification；控制面消费链联动时建立 Concept Sync Map；宿主契约变化时触发 `host-contract-verification`。
 - **修复协作分级**：`repair-collaboration` 由修复语义和风险触发，不由 Sol/Ultra 等模型名触发；低风险可内联 lightweight，高风险必须 full，并禁止从 executing 直接跳到 accepted。
@@ -361,6 +374,8 @@ devcodex status
 
 当前源码把 task index、Context computation reuse、changed-scope validation、Profile section、Skill bundle 与 ProjectKnowledge snapshot 统一纳入 `ExecutionOptimizationStateV2`。派生索引/cache/snapshot 只负责加速，损坏、过期或关闭时不会成为第二真相源。
 
+大型项目首次逐文件分析可用 `node scripts/project-analysis-state.js observe` 生成零写入结构观察，或用 `bootstrap --task-root <任务目录>` 在全部批次身份与验证通过后建立 `ProjectKnowledgeSnapshotV2`。后续 `plan` 只选择 changed、impact closure 与 lens-gap；未变文件按稳定 5% oracle 复证。V2 以 inventory Merkle 和 repo/root/config/parser/test/Profile binding 防止错库复用，并用 `SemanticClaimV1` 把声明绑定到精确 source range 与 authority。自动 bootstrap 只代表 `content-structured` 基线，不代表人工逐文件深读；V1 snapshot 仅可读取迁移状态，不能继续复用或原地写回。
+
 可选配置只有一个，省略时即为 `safe-auto`：
 
 ```json
@@ -451,10 +466,10 @@ npm run dev
 
 ```
 devcodex/
-├── instructions.md # 单源规范文件；安装时按平台生成 copilot-instructions.md / CLAUDE.md / AGENTS.md
+├── instructions.md # 单源完整规范；确定性生成精简 host kernel、薄 wrapper 与非 always-on full fallback
 ├── agents/        # Agent 源文件；Copilot 端默认分发，Claude Code 端不分发
 ├── instructions/  # 全局 Instructions（15 个，含工作流规则摘要，自动注入）
-├── skills/        # Skill 详细检查标准（78 个，按 01-common §按需读取表 路由读取）
+├── skills/        # Skill 详细检查标准（80 个，按 01-common §按需读取表 路由读取）
 ├── prompts/       # Prompt 模板（30 个）
 ├── hooks/         # Workspace Hooks 配置与分发到 `.github/hooks/_runtime/` 的运行时及 helper 模块
 ├── codex/         # Codex adapter 源模板（分发到 `.codex/hooks.json`，不是工作区部署副本 `.codex/`）
@@ -490,28 +505,34 @@ README / 用户使用文档当前补充四类专项 Skill：`user-manual-authori
 | **GitHub Copilot (VS Code)** | `.github/instructions/*.md` + `copilot-instructions.md` + `.github/agents/` | ⚠️ instruction-fallback；Workspace Hooks 需按目标版本另行实测 | ⚠️ 文本/本地 fallback | ❌ 未内置 MCP | 🟡 Beta |
 | **GitHub Copilot (JetBrains)** | `.github/instructions/*.md` + `copilot-instructions.md`（instruction-fallback） | ⚠️ 官方自定义指令路径，无本地 Hook 硬拦承诺 | ⚠️ 仅文本 | ❌ 未内置 MCP | 🟡 Beta |
 | **Claude Code (CLI/桌面端)** | `CLAUDE.md` + `.claude/{instructions,skills,prompts,hooks/_runtime,mcp}/` + `settings.json` hooks + `.mcp.json` | ✅ Hook 事件支持硬拦；默认 `safety-only` 下流程项提醒放行 | ✅ Hook + 文本确认 | ✅ MCP | 🟢 Full |
+| **Gemini CLI** | `GEMINI.md` 薄入口 + `AGENTS.md` kernel + `.agents/skills/` + `.gemini/settings.json` | ⚠️ Before/After adapter 已实现；本机无 CLI direct replay | ⚠️ Hook + portable fallback | ⚠️ 按宿主配置 | 🟡 Beta / UNVERIFIED |
+| **Grok Build** | 独立项目：`AGENTS.md` kernel + `.agents/skills/`；workspace 子项目：轻量 `AGENTS.md` + `.grok/skills/devcodex-workspace/` 桥接父级真相源；两者均含 `.grok/hooks/devcodex.json` | ⚠️ 项目根 direct inspect 已验证；仅 PreToolUse 具备阻断能力 | ⚠️ instruction-backed / partial | ✅ 已发现项目 MCP | 🟡 Partial |
 | **Cursor IDE** | 需手工配置 `.cursor/rules` 或 root `AGENTS.md`（instruction-fallback；DevCodex **不**自动分发 Cursor 规则；HOST best-effort only） | ⚠️ 无 DevCodex 本地 Hook 硬拦承诺 | ⚠️ 仅文本 | ❌ | 🟡 Best-effort |
 | **OpenAI Codex app/CLI** | `AGENTS.md` + `.agents/skills/` + `.codex/hooks.json`（含 `PreCompact` compaction guardrail） | ⚠️ Codex hook guardrail；阻断输出按事件契约分为顶层 `decision`、`continue:false` 与工具级 `permissionDecision` | ⚠️ Hook + 文本确认 | ⚠️ 可手工配置 MCP；DevCodex 未自动写入 | 🟡 Beta |
 | **ChatGPT 普通对话** | 不读取本地工作区 `AGENTS.md` / `.agents/` / `.codex/`；可手工粘贴规则 | ❌ | ⚠️ 文本 | ❌ | 🔴 Unsupported |
 
-> **安装命令**：默认三宿主部署 → `npx @vextjs/devcodex init`；仅 Claude Code adapter → `npx @vextjs/devcodex init --claude`（v1.9.0+）；仅 Codex adapter → `npx @vextjs/devcodex init --codex`。
+> **安装命令**：已发布 v1.15.1 默认三宿主部署 → `npx @vextjs/devcodex init`；仅 Claude Code adapter → `npx @vextjs/devcodex init --claude`；仅 Codex adapter → `npx @vextjs/devcodex init --codex`。当前未发布源码可用 `node index.js init --host <gemini|grok|all>` 显式增加 Gemini / Grok，默认面仍保持三宿主兼容行为。
+>
+> **Grok workspace 桥接**：在启用 `workspace-namespace` 的直接子项目根执行 `update --host grok` 时，CLI 自动部署一个可被 `grok inspect` 发现的轻量入口和单一 bridge Skill；它先判定意图，再定向读取 workspace 根的 kernel、相关 Skills 与 Profile 片段，不复制整棵 `.agents/`，也不创建第二套项目运行态。项目 `.grok/config.toml` 通过带所有权标记的 MCP block 增量合并，保留用户自有 TOML；bridge 将 memory/profile MCP 绑定到父级受管服务。独立项目仍部署本地 kernel、Skills 与完整 fail-closed fallback。
 >
 > **能力差异**：🟢 Full = 已验证 Hook 事件 + MCP + 自动同步；🟡 Beta/Best-effort = 尚未达到 Full，具体能力以矩阵各列为准；🔴 Unsupported = 不在当前本地 adapter 发布范围。默认 `safety-only` 下，bootstrap / CP / auto 白名单等流程问题为提醒并继续，仅危险命令硬拦；设置 `DEVCODEX_HOOK_ENFORCEMENT=strict` 后，支持硬拦的事件才会停止流程。
 >
 > **MCP 边界**：`.mcp.json` 是 Claude Code adapter 的自动写入文件；DevCodex 当前不会为 Copilot 或 Codex 自动写入 MCP manifest。若 Copilot / Codex 宿主后续支持本地 MCP，请按宿主能力手工配置，再用 `devcodex doctor` 或宿主自带诊断命令核对状态。
 
-### 产物文件链接兼容
+### 用户可见交付与链接兼容
 
-DevCodex 在回复末尾输出文件产物时使用 `ArtifactLinkSet`，避免“在一个客户端可点击、换到另一个客户端失效”：
+DevCodex 先用 `ArtifactDeliveryManifestV1` 对账所有内部产物，再由 `UserFacingArtifactSetV1` 确定性投影用户真正需要的文件，并通过 `DevCodexVisibleEnvelopeV1` 统一入口检查、确认、进度、完成结果与阻断信息。默认只显示最终报告、实际交付物和影响结论可信度的必要证据；session、daily、SUMMARY、task/checkpoint、raw receipt/manifest/ledger 仍会写入和验证，但不占用用户交付列表。
 
-| 宿主 | 主链接策略 | 保底策略 |
-|------|------------|----------|
-| Copilot / JetBrains / Visual Studio | 工作区相对 Markdown 链接 | 强制同时给 `绝对路径：...` 供复制打开 |
-| Claude Code | 工作区相对 Markdown 链接 | 跨工具交付时复制绝对路径 |
-| Codex Desktop/App | 绝对路径 Markdown 链接优先 | 同时给 `绝对路径：...` |
-| Codex CLI / 未识别宿主 | 工作区相对 Markdown 链接 | 强制给 `绝对路径：...` |
+链接形式由当前回复 surface 的可验证能力决定，而不是只按客户端名称猜测：
 
-如果你看到“本次会话产物”下面只有文件名、没有 Markdown 链接或绝对路径，那属于输出不完整，应要求 AI 补齐 `ArtifactLinkSet`。
+| 能力档 | 用户面表示 | 降级规则 |
+|--------|------------|----------|
+| `clickable` | 单个语义 Markdown 链接 | 已验证可点击时不重复明文绝对路径 |
+| `portable` | 工作区相对 Markdown 链接 | 点击能力未知时的默认档，保持可迁移 |
+| `plain` | 语义名称 + 可复制相对/短路径 | 适用于只保证纯文本的终端或日志 |
+| `failed` | 语义名称 + 可复制定位 | 链接已失败或宿主无法定位时给出绝对路径 fallback 与原因 |
+
+每个可见文件都包含“语义名称 + 用途 + 用户动作”，并按决策、结果、证据、可选详情排序。只有用户明确要求、链接实际失败、文件位于工作区外、路径有歧义或宿主无法定位时才追加绝对路径；禁止 `file://` 和只输出裸文件名。`ArtifactLinkSet` 仅保留为兼容投影名，不再是交付真相源。
 
 ## 运行时配置
 
@@ -549,12 +570,13 @@ DevCodex Hook runtime 不再把所有拦截都等同为“停止”。拦截会�
 4. **Copilot 里 `profile_load` 报 `invoke` undefined**
    - 这通常表示宿主 MCP bridge 没有完成工具调用，而不是 DevCodex profile 文件一定损坏
    - 不要反复重试同一个 MCP 调用；按同一计划只做一次有界 fallback：确认唯一项目，读取 README/config baseline，再读取 selected Profile 与单个 memory session/SUMMARY 投影；不要改成整目录或整文件默认读取
-   - fallback 无法提供可观察的成功结果时保持 `unverified`，不要把工具调用意图或提示文案当成 `ContextReadReceiptV1` 完成证据
+   - fallback 无法提供可观察的成功结果时保持 `unverified`，不要把工具调用意图或提示文案当成 `ContextReadReceiptV2` 完成证据；V1 receipt 只作兼容读取
    - 同时运行 `devcodex doctor` 或宿主自带 MCP 诊断，确认 MCP server 是否真的连接
-5. **产物文件无法点击**
-   - 先看回复末尾是否有 `ArtifactLinkSet`：Markdown 链接 + 必要 `绝对路径：...`
-   - Copilot / JetBrains / 终端里必须同时有绝对路径 fallback；若缺失，要求 AI 补齐
-   - Codex Desktop/App 中更推荐绝对路径 Markdown target；如果只给了相对链接，可以要求 AI 补绝对路径
+5. **产物文件无法点击或交付列表看不懂**
+   - 先确认文件项是否包含语义名称、用途和“操作”说明，而不是只有文件名或 CP 编号
+   - 点击能力未知时允许使用工作区相对 Markdown 链接；不要仅因客户端名称要求重复绝对路径
+   - 链接实际失败、文件在工作区外、路径有歧义或宿主无法定位时，要求输出带原因的绝对路径 fallback
+   - 需要内部留痕时可明确要求 `internal-audit` 完整清单；日常结果默认隐藏 session、SUMMARY 与 raw ledger
 6. **CP 卡住或只看到提醒不拦截**
    - 先确认当前是否处于 `safety-only`
    - 如需更严格的流程门禁，再评估是否启用 `DEVCODEX_HOOK_ENFORCEMENT=strict`

@@ -1,0 +1,57 @@
+{
+  "description": "DevCodex lifecycle bridge for Grok Build; project hooks require explicit trust.",
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .grok/hooks/_runtime/lifecycle-host-adapters.cjs grok"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .grok/hooks/_runtime/lifecycle-host-adapters.cjs grok"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .grok/hooks/_runtime/lifecycle-host-adapters.cjs grok"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .grok/hooks/_runtime/lifecycle-host-adapters.cjs grok"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .grok/hooks/_runtime/lifecycle-host-adapters.cjs grok"
+          }
+        ]
+      }
+    ]
+  }
+}

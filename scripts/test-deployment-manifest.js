@@ -11,7 +11,10 @@ const {
   verifyManifest,
   writeManifestAtomic
 } = require('./lib/deployment-manifest-utils')
-const { findSourceRootHostDeployments } = require('./lib/validate-governance-package-deployment')
+const {
+  findSourceRootHostDeployments,
+  isExactWorkspaceBridge
+} = require('./lib/validate-governance-package-deployment')
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-manifest-'))
 const packageRoot = path.join(root, 'package')
@@ -78,6 +81,25 @@ try {
     })
     return visit(directory)
   }), [], 'source-root CI workflow must not be treated as a host deployment')
+  write(path.join(sourceCheck, 'host-projections/AGENTS.workspace-bridge.md'), '# exact bridge\n')
+  write(path.join(sourceCheck, 'AGENTS.md'), '# exact bridge\n')
+  assert.strictEqual(isExactWorkspaceBridge(sourceCheck, fs, path), true)
+  assert.deepStrictEqual(findSourceRootHostDeployments(sourceCheck, fs, path, directory => {
+    const visit = current => fs.readdirSync(current, { withFileTypes: true }).flatMap(entry => {
+      const full = path.join(current, entry.name)
+      return entry.isDirectory() ? visit(full) : [full]
+    })
+    return visit(directory)
+  }), [], 'exact source-root workspace bridge must be allowed')
+  write(path.join(sourceCheck, 'AGENTS.md'), '# drifted or full deployment\n')
+  assert.strictEqual(isExactWorkspaceBridge(sourceCheck, fs, path), false)
+  assert.ok(findSourceRootHostDeployments(sourceCheck, fs, path, directory => {
+    const visit = current => fs.readdirSync(current, { withFileTypes: true }).flatMap(entry => {
+      const full = path.join(current, entry.name)
+      return entry.isDirectory() ? visit(full) : [full]
+    })
+    return visit(directory)
+  }).some(item => item.label === 'source-root AGENTS.md'))
   write(path.join(sourceCheck, '.github/skills/example/SKILL.md'), '# deployed copy\n')
   assert.ok(findSourceRootHostDeployments(sourceCheck, fs, path, directory => {
     const visit = current => fs.readdirSync(current, { withFileTypes: true }).flatMap(entry => {

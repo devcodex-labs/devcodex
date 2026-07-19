@@ -63,16 +63,19 @@ applyTo: .devcodex/**/{requirements,bugs}/**; .devcodex/**/fix/**
 |------|----------|:--------:|------|
 | ExecutionContract | Auto / 控制面 / 多批次 / 预计修改 ≥10 文件 / release 前置任务 | ✅/🔄/N/A | |
 | RepairCollaborationContract | repair task；lightweight/full 由风险决定，模型名称不触发 | ✅/🔄/N/A | contractState / authorizationEvidence / acceptance evidence；full 的 finding map / handoff / independent re-review |
+| RepairPreventionAssessment | 所有 repair accepted 前必经；light/full 由风险与 repeat escape 决定 | ✅/🔄/N/A | decision / immediateClosure / prospectiveStatus / rollbackOrSunset；current rerun 不得晋级 prevention |
+| ReviewExecution | 正式复审/ECR/确认后高风险复审 | ✅/🔄/N/A | planId / candidateDigest / reviewClass / fresh receipt digests / saturation / snapshotDigest / StageTimingV1 |
 | TestRoute | 跨模块 / API / Hook / CLI / 模板-示例-校验链 / 测试路线不明显 | ✅/🔄/N/A | |
 | LeakRiskStabilityPressureTest | 写测试/回归验证命中长运行、并发、资源生命周期或 PE-12 风险 | ✅/🔄/N/A | baseline / pressureScenario / cooldown / resourceMetrics / skipReason |
 | ReleaseAudit | 发版前 review / publish 或 tag 前风险审查 | ✅/🔄/N/A | RL-1~RL-10 / risks / recommendation |
 | ReleaseVerification | tag / release / publish / 发布前验证 | ✅/🔄/N/A | |
 | ConceptSyncMap | 控制面 / 模板-示例-校验链 / README / website / Profile / validate / 部署副本联动 | ✅/🔄/N/A | sourceOfTruth / currentConsumers / historicalMirrors / validateProbes / deployCopies / yellowDeviationBoundary |
-| HostContractVerification | Hook / CLI / visible reply / sticky project / workspace guard / bootstrap / ArtifactLinkSet / MCP fallback / local observability | ✅/🔄/N/A | hostSurface / eventScope / evidenceMode / visibleReplyEvidence / workspaceGuard / bootstrapScope / artifactLinkMatrix / mcpFallback / localProbe / checkpointValidation / localTaskTrace |
+| VisibleOutputContract | entry/completion/confirmation/progress/final/error 或文件交付 | PASS/🔄/N/A | manifestId / reconciliation / visibleSetId / listed+remaining=total / requiredHidden / semanticDigest / rendererTier |
+| HostContractVerification | Hook / CLI / visible envelope / sticky project / workspace guard / bootstrap / LinkCapability / MCP fallback / local observability | ✅/🔄/N/A | hostSurface / eventScope / evidenceMode / visibleReplyEvidence / workspaceGuard / bootstrapScope / capabilityEvidence / rendererParity / mcpFallback / localProbe / checkpointValidation / localTaskTrace |
 | CliDiagnosticContract | machine-readable CLI / typed local probe / stable error or exit | ✅/🔄/N/A | envelope / humanCompatibility / errorCode / nextStep / nativeExitMap / localOnly / zeroWrite |
 | CheckpointValidation | response-time / post-execution evidence | ✅/🔄/N/A | mode / status / evidenceState / deadlineAt / errorCode |
 | LocalTaskTrace | current-turn trace / read-only replay | ✅/🔄/N/A | traceId / sequence / terminal / restart / replayBoundary / sourceHash |
-| ProjectKnowledge | 增量项目分析 / 逐文件分批 / snapshot reuse | ✅/🔄/N/A | snapshot/plan/receipt identity / changed / affected / lens-gap / reused / sample oracle / accepted pointer |
+| ProjectKnowledge | 增量项目分析 / 逐文件分批 / V2 snapshot reuse | ✅/🔄/N/A | snapshot/plan/receipt/binding identity / inventory Merkle / changed / affected / lens-gap / reused / 5% oracle / SemanticClaim authority+range / V1 read-only migration / accepted pointer / claim boundary |
 | ExecutionAttemptLedger | formal run / 重复失败 / cancel / restart | ✅/🔄/N/A | qualification / attemptNo / failureSignature / source+evidence delta / FirstPassYield / timing split / terminal / StopSnapshot |
 | ExecutionOptimizationStateV2 | 执行链索引/cache/changed/section/bundle/snapshot 优化 | ✅/🔄/N/A | feature lifecycle / `ExecutionOptimizationFeatureDecisionV1` 六消费者实接 / prospective trial / correctness / benefit / fallback regression / overhead / false positive / `full-only` rollback / V101 |
 | OfficialDocsEvidence | 依赖 / 框架 / SDK / 平台 API / 外部模块引入或升级 | ✅/🔄/N/A | 官方文档来源 / 关键用法 / 限制 / 兼容性 / skipReason |

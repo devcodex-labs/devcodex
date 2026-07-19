@@ -24,7 +24,7 @@ applyTo: .devcodex/**/reports/requirements/**
 > **关联方案**: [路径]
 > **Release 状态**: 未进入 / 待用户确认 / 已执行
 > **日志落点**: `changelogs/unreleased.md` / `CHANGELOG.md + changelogs/releases/vX.Y.Z.md`
-> **支撑产物**: ExecutionContract / TestRoute / ReleaseAudit / ReleaseVerification / ConceptSyncMap / HostContractVerification / TaskResolutionV1 / ContextAcquisition / CliDiagnosticContract / CheckpointValidation / LocalTaskTrace / TurnLivenessRecovery / 05-实施进度.md（按触发状态填写）
+> **支撑产物**: ExecutionContract / RepairPreventionAssessment（含 repair 切片时）/ TestRoute / ReleaseAudit / ReleaseVerification / ConceptSyncMap / HostContractVerification / TaskResolutionV1 / ContextAcquisition / CliDiagnosticContract / CheckpointValidation / LocalTaskTrace / TurnLivenessRecovery / 05-实施进度.md（按触发状态填写）
 > **ContextHandoffCard**: 触发时填写；未触发写 N/A + skipReason
 ```
 
@@ -76,7 +76,15 @@ applyTo: .devcodex/**/reports/requirements/**
 
 命中品牌资产生产时追加 `BrandVisualQuality` 条件段：只记录五类产物链接、自动检查、人工结论、blocker reset 与剩余风险，不把文件存在或单张截图写成通过。
 
-命中 `context-acquisition` 时追加 `ContextAcquisition` 条件段，至少记录 planId/contextEpoch/activeRoot、selected/excluded/missing sources、`ContextReadReceiptV1.status`、fullReadReason/fallback、实际 bytes/chars/latency（tokens 不可观测则 N/A）、legacy compatibility 与 V99 结果。PreToolUse、调用文案或 legacy no-args full 不能作为成功证据。
+命中 `context-acquisition` 时追加 `ContextAcquisition` 条件段，至少记录 planId/planContentId/contextEpoch/activeRoot、selected/excluded/missing sources、`ContextReadReceiptV2.status`、content identity/reuseFrom/失效因子、fullReadReason/fallback、实际 bytes/chars/latency（tokens 不可观测则 N/A）、V1 reader compatibility 与 V99 结果。PreToolUse、调用文案、cache hit 或 legacy no-args full 不能作为成功证据。
+
+dev 中含 repair 切片时追加 `RepairPreventionAssessment`：只引用 Owner 的 V1 assessment，分列 immediate closure 与 prospective evidence；纯新增能力写 `N/A + skipReason`。
+
+正式复审/ECR 追加 `ReviewExecution`：只投影同一个 `ReviewStateSnapshotV1.snapshotDigest`，列 planId/candidate/stage/class、fresh receipt digests、saturation、nextAction 与 StageTiming；禁止在报告重新计算状态。
+
+命中用户可见输出时追加 `VisibleOutputContract`：引用同一 `ArtifactDeliveryManifestV1.manifestDigest`、`UserFacingArtifactSetV1` 计数、`DevCodexVisibleEnvelopeV1.semanticDigest`、`LinkCapabilityDecisionV1` 和 renderer parity；session/daily/SUMMARY/task/checkpoint/raw receipt/manifest/ledger 默认 internal-only，但仍参与 ECR。宿主 capability 未 direct 验证时写 portable/plain/unverified，不得按宿主名推断。
+
+HostContractRoute 发生 MCP bridge 降级时记录 `mcpFallback=used`、原始错误、单次有界 fallback 与最终证据状态；不得把 fallback 尝试写成已加载或反复重试同一 MCP 调用。
 
 ## §6 测试验证
 
@@ -106,7 +114,7 @@ TestRoute 选中的路线必须全部出现；覆盖率、视觉、文档、构�
 | ECR-1 | CP1/CP2/CP3、05-实施进度、报告、daily tasks、SUMMARY | ✅/⚠️ | |
 | ECR-2 | 需求条款 / 问题 ID → diff/commit 文件 | ✅/⚠️ | |
 | ECR-3 | CP3 步骤 / ExecutionContract / TestRoute / ServiceLifecycleCleanup / ConceptSyncMap / HostContractVerification / ContextAcquisition → 测试/部署/验证证据 | ✅/⚠️ | |
-| ECR-4 | 报告声明 → 测试/探针/官方文档/OfficialDocsEvidence/ProfileImpactCheck/ReleaseAudit/ReleaseVerification/部署同步证据；派生资产追加 post-stage candidate + post-commit replay | ✅/⚠️ | |
+| ECR-4 | 报告声明 → 测试/探针/官方文档/OfficialDocsEvidence/ProfileImpactCheck/ReleaseAudit/ReleaseVerification/VisibleOutputContract/部署同步证据；派生资产追加 post-stage candidate + post-commit replay | ✅/⚠️ | |
 | ECR-5 | memory daily → SUMMARY | ✅/⚠️ | |
 | ECR-6 | git dirty 边界 | ✅/⚠️ | |
 | ECR-7 | 控制面任务 SCV / validate / direct replay / host-contract probe / 新增探针 / 黄色偏离 / backlog 真相复核 / 台账状态回写 | ✅/N/A | |

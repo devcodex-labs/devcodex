@@ -1,32 +1,78 @@
 'use strict'
 
+const { HOST_ALIASES, HOST_IDS } = require('./host-surface-descriptors')
+
 function createCliCommandRegistry(commands) {
-  const required = ['cmdInit', 'cmdInitClaude', 'cmdInitCodex', 'cmdStatus', 'cmdProfileInit', 'cmdDoctor', 'cmdProbe', 'cmdTrace', 'cmdSkill', 'cmdTask', 'cmdHelp']
+  const required = ['cmdInit', 'cmdInitHost', 'cmdInitClaude', 'cmdInitCodex', 'cmdStatus', 'cmdProfileInit', 'cmdDoctor', 'cmdProbe', 'cmdTrace', 'cmdSkill', 'cmdTask', 'cmdHelp']
   for (const name of required) {
     if (typeof commands[name] !== 'function') throw new TypeError(`missing CLI command handler: ${name}`)
   }
   return Object.freeze({ ...commands })
 }
 
+function parseHostSelection(argv = []) {
+  const selections = []
+  const cleanedArgv = []
+  for (let index = 0; index < argv.length; index++) {
+    const arg = argv[index]
+    if (Object.prototype.hasOwnProperty.call(HOST_ALIASES, arg)) {
+      selections.push({ host: HOST_ALIASES[arg], flag: arg })
+      continue
+    }
+    if (arg === '--host') {
+      const value = argv[index + 1]
+      if (!value || value.startsWith('--')) {
+        return { ok: false, code: 'CLI_HOST_UNSUPPORTED', message: '--host requires a supported value.', cleanedArgv }
+      }
+      selections.push({ host: String(value).trim().toLowerCase(), flag: `--host ${value}` })
+      index++
+      continue
+    }
+    if (arg.startsWith('--host=')) {
+      selections.push({ host: arg.slice('--host='.length).trim().toLowerCase(), flag: arg })
+      continue
+    }
+    cleanedArgv.push(arg)
+  }
+  if (selections.length > 1) {
+    return {
+      ok: false,
+      code: 'CLI_HOST_SELECTION_CONFLICT',
+      message: `Host selectors are mutually exclusive and non-repeatable: ${selections.map(item => item.flag).join(', ')}`,
+      cleanedArgv
+    }
+  }
+  const host = selections[0]?.host || null
+  if (host && host !== 'all' && !HOST_IDS.includes(host)) {
+    return {
+      ok: false,
+      code: 'CLI_HOST_UNSUPPORTED',
+      message: `Unsupported host "${host}". Use ${[...HOST_IDS, 'all'].join('|')}.`,
+      cleanedArgv
+    }
+  }
+  return { ok: true, host, cleanedArgv }
+}
+
 function runCliCommand({ cmd, argv, registry, runMigrateLayout, process, c, console }) {
-  const isClaude = argv.includes('--claude')
-  const isCodex = argv.includes('--codex')
-  if (isClaude && isCodex) {
-    console.log(c.red('  --claude and --codex are mutually exclusive. Choose one adapter target.'))
-    process.exitCode = 1
-    return 'invalid-adapter-target'
+  const selection = parseHostSelection(argv)
+  if (!selection.ok) {
+    console.log(c.red(`  ${selection.code}: ${selection.message}`))
+    process.exitCode = 2
+    return selection.code
   }
 
-  const withoutTarget = argv.filter(item => item !== '--claude' && item !== '--codex')
   if (cmd === 'init') {
-    if (isClaude) registry.cmdInitClaude(withoutTarget)
-    else if (isCodex) registry.cmdInitCodex(withoutTarget)
+    if (selection.host === 'claude' && argv.includes('--claude')) registry.cmdInitClaude(selection.cleanedArgv)
+    else if (selection.host === 'codex' && argv.includes('--codex')) registry.cmdInitCodex(['--force', ...selection.cleanedArgv])
+    else if (selection.host) registry.cmdInitHost(selection.host, selection.cleanedArgv)
     else registry.cmdInit(argv)
     return 'init'
   }
   if (cmd === 'update') {
-    if (isClaude) registry.cmdInitClaude(['--force', ...withoutTarget])
-    else if (isCodex) registry.cmdInitCodex(['--force', ...withoutTarget])
+    if (selection.host === 'claude' && argv.includes('--claude')) registry.cmdInitClaude(['--force', ...selection.cleanedArgv])
+    else if (selection.host === 'codex' && argv.includes('--codex')) registry.cmdInitCodex(['--force', ...selection.cleanedArgv])
+    else if (selection.host) registry.cmdInitHost(selection.host, ['--force', ...selection.cleanedArgv])
     else registry.cmdInit(['--force', ...argv])
     return 'update'
   }
@@ -58,4 +104,4 @@ function runCliCommand({ cmd, argv, registry, runMigrateLayout, process, c, cons
   return 'help'
 }
 
-module.exports = { createCliCommandRegistry, runCliCommand }
+module.exports = { createCliCommandRegistry, parseHostSelection, runCliCommand }

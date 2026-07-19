@@ -2,13 +2,13 @@
 'use strict'
 
 /**
- * DevCodex unified lifecycle hook — Copilot, Claude Code & Codex
+ * DevCodex unified lifecycle hook — Copilot, Claude Code, Codex, Gemini & Grok
  *
  * Auto-detects platform from tool name casing:
  *   Claude Code  → PascalCase tools (Write, Edit, Bash, Read …)
  *   Copilot      → snake_case / lowercase tools (apply_patch, create_file …)
  *
- * Handles: UserPromptSubmit · PreToolUse · PostToolUse · PreCompact · Stop
+ * Handles normalized: UserPromptSubmit · PreToolUse · PostToolUse · PreCompact · Stop
  */
 
 const fs = require('fs')

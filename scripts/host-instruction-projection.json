@@ -1,0 +1,115 @@
+{
+  "schemaVersion": "HostInstructionProjectionConfigV1",
+  "sourceFile": "instructions.md",
+  "fullFallbackDestination": ".agents/devcodex/instructions.full.md",
+  "budgets": {
+    "kernelMaxBytes": 16384,
+    "kernelMaxLines": 200,
+    "wrapperMaxBytes": 2048
+  },
+  "outputs": {
+    "sharedKernel": "host-projections/AGENTS.md",
+    "copilotKernel": "host-projections/copilot-instructions.md",
+    "claudeWrapper": "host-projections/CLAUDE.md",
+    "geminiWrapper": "host-projections/GEMINI.md",
+    "coverageReceipt": "host-projections/coverage.json"
+  },
+  "mandatoryRuleIds": [
+    "S01", "S02", "S03", "S04", "S05", "S06", "S07",
+    "C01", "C02", "C03", "C04", "C05", "C06", "C07", "C08", "C09", "C10", "C11",
+    "C12", "C13", "C14", "C15", "C16", "C17", "C18", "C19", "C20", "C21", "C22"
+  ],
+  "semanticGroups": [
+    {
+      "id": "routing",
+      "title": "意图与路由",
+      "sourceAnchors": ["## 意图识别（三问法）", "### 意图路由表", "`resume`", "`chat`"],
+      "projectionAnchors": ["resume", "chat", "dev", "fix", "analyze", "audit"],
+      "projectionLines": [
+        "- 每条消息先识别 resume/chat；否则用三问判断最终目的是变更还是结论、分析是手段还是目的、是否修改文件。",
+        "- 任一指向变更路由 dev/fix/self-fix；全为结论路由 analyze/audit；other 仅作规划兜底。"
+      ]
+    },
+    {
+      "id": "cp",
+      "title": "CP 与确认",
+      "sourceAnchors": ["CP1（需求确认）→ CP2（方案确认）", "**CP3**", "**ECR**", "PostConfirmationReviewScopeGate"],
+      "projectionAnchors": ["CP1", "CP2", "CP3", "ECR", "PostConfirmationReviewScopeGate"],
+      "projectionLines": [
+        "- dev/fix 严格按 CP1→CP2→条件 CP3→执行；确认后先运行 PostConfirmationReviewScopeGate。",
+        "- 完成前必须执行 ECR；SimpleTaskFastPath 只能减产物，不能省略安全、入口、验证、报告、记忆或 ECR。"
+      ]
+    },
+    {
+      "id": "context",
+      "title": "意图驱动上下文",
+      "sourceAnchors": ["ContextAcquisitionGate", "IntentSeedV1", "ContextReadPlanV2", "ExecutionOptimizationPlanBindingV1", "ContextReadReceiptV2", "PostToolUse", "fullReadReason", "workspace-namespace"],
+      "projectionAnchors": ["IntentSeedV1", "ContextReadPlanV2", "ExecutionOptimizationPlanBindingV1", "ContextReadReceiptV2", "PostToolUse", "fullReadReason", "workspace-namespace"],
+      "projectionLines": [
+        "- 顺序固定：IntentSeedV1→唯一项目/active-root→ContextReadPlanV2→定向读取→PostToolUse 成功证据→ContextReadReceiptV2→最终路由。",
+        "- ExecutionOptimizationPlanBindingV1 缺失或身份不符时 full-only；全量读取必须写 fullReadReason，V1 仅 reader compatibility。",
+        "- workspace-namespace 下使用 workspace base + project overlay，并在目标唯一后绑定 active-root；不得跨项目读取或写入运行态。"
+      ]
+    },
+    {
+      "id": "governance",
+      "title": "治理与改进",
+      "sourceAnchors": ["RecordRouter + SCV", "GovernanceIntakeDecision", "Improvement Intake", "LedgerWriteEvidenceGate"],
+      "projectionAnchors": ["RecordRouter", "GovernanceIntakeDecision", "Improvement Intake", "LedgerWriteEvidenceGate", "SCV"],
+      "projectionLines": [
+        "- 每条非空消息先中性登记，合理性与归因后形成 GovernanceIntakeDecision；关键词不能决定分类。",
+        "- 可泛化改进/缺口走 Improvement Intake 与 RecordRouter；LedgerWriteEvidenceGate 只接受正确 active-root 的可观察写入；控制面变更执行 SCV。"
+      ]
+    },
+    {
+      "id": "closure",
+      "title": "质量与闭环",
+      "sourceAnchors": ["ClosureEvidenceGate", "ControlPlaneContractFirstGate", "执行顺序：", "| T9 |"],
+      "projectionAnchors": ["ClosureEvidenceGate", "ControlPlaneContractFirstGate", "FC", "SC", "RC", "T1~T9"],
+      "projectionLines": [
+        "- 控制面先执行 ControlPlaneContractFirstGate；closed/可实施声明受 ClosureEvidenceGate 的 runtime owner 与负向探针约束。",
+        "- 完成顺序为 PC0~PC7→FC→SC→RC→报告验证→T1~T9；内部 manifest、记忆与报告必须真实写入并参与 ECR。"
+      ]
+    },
+    {
+      "id": "visible-output",
+      "title": "用户可见输出",
+      "sourceAnchors": ["user-visible-output-contract", "PC0~PC7", "PASS / WARN / BLOCK / UNVERIFIED / N/A", "ArtifactDeliveryManifestV1"],
+      "projectionAnchors": ["user-visible-output-contract", "PC0~PC7", "PASS", "WARN", "BLOCK", "UNVERIFIED", "ArtifactDeliveryManifestV1"],
+      "projectionLines": [
+        "- 入口、确认、进度、完成与阻断由 user-visible-output-contract 投影；首条和恢复首条必须显示 PC0~PC7。",
+        "- 状态仅 PASS/WARN/BLOCK/UNVERIFIED/N/A；ArtifactDeliveryManifestV1 内部完整，默认用户面仅显示需要决策、结果和 required evidence。"
+      ]
+    },
+    {
+      "id": "auto-boundary",
+      "title": "自动授权边界",
+      "sourceAnchors": ["@rocky", "autoAliases", "不可豁免"],
+      "projectionAnchors": ["@rocky", "autoAliases", "不可豁免"],
+      "projectionLines": [
+        "- @rocky、有效 autoAliases 或明确自然语言 auto 授权可自动通过 CP；模糊昵称或普通“继续”不等价。",
+        "- auto 不扩大任务范围，且 S01/S02 用户策略/S03~S07/C01/C10/C18 不可豁免。"
+      ]
+    }
+  ],
+  "wrappers": {
+    "claude": [
+      "# DevCodex — Claude Code Adapter（generated）",
+      "",
+      "@AGENTS.md",
+      "",
+      "- 上方 shared kernel 为强制入口；按需读取 `.claude/skills/`。",
+      "- kernel 不足或 coverage/freshness 失败时读取 `.agents/devcodex/instructions.full.md`。",
+      "- Hook direct evidence 缺失时保持 unverified，不得凭配置文件宣称 enforced。"
+    ],
+    "gemini": [
+      "# DevCodex — Gemini CLI Adapter（generated）",
+      "",
+      "@AGENTS.md",
+      "",
+      "- 上方 shared kernel 为强制入口；按需读取 `.agents/skills/`。",
+      "- kernel 不足或 coverage/freshness 失败时读取 `.agents/devcodex/instructions.full.md`。",
+      "- BeforeAgent/AfterAgent/PreCompress 的能力声明必须受 direct replay 证据上限约束。"
+    ]
+  }
+}

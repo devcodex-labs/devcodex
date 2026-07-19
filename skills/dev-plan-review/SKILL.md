@@ -17,6 +17,8 @@ description: 技术方案验证（两阶段质量门禁）— PR-1 CP2 前自检
 
 > ⚠️ 边界说明：本 Skill 只负责**编码前**的方案质量门禁，不覆盖执行后的关键产物复审；执行后的稳定性确认由 `10-dev.instructions.md` 中的“ECR 执行闭环复审”规则负责。
 
+PR-1 与 PR-2~PR-7 各阶段开始前必须由 `review-checklist` Owner 形成 candidate-bound `ReviewExecutionPlanV1`；BlockerSnapshot、执行命令与零发现结论形成 `ReviewEvidenceReceiptV1`。方案或规则/Skill/Probe/影响图变化后旧 receipt 立即 stale，不得因文件少复用旧阶段结论。
+
 ## 豁免
 
 - `dev-docs` 子类型：豁免（文档产物，不涉及代码实施）

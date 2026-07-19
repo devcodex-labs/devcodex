@@ -40,19 +40,27 @@ dev 模式 PC4 至少输出：
 每次回复末尾**必须**输出合规检查状态块：
 
 ```text
----
-🛡️ DEV 模式 | 合规检查
-FC: FC1 [✅/❌] FC2 [✅/N/A] FC3 [✅/N/A] FC4 [✅/❌] FC5 [✅/N/A] FC6 [✅/❌] FC7 [✅/N/A]
-SC: SC2 [✅/❌] SC4 [✅/❌] SC6 [✅/❌] ...（仅列适用项，逐项实际验证后填写）
-整体：✅ 全通过 / ⚠️ <N> 项待修正
+### DevCodex · 完成检查
+`PASS/WARN/BLOCK/UNVERIFIED` · `[project]`
 
-📂 本次会话产物：
-- [filename (类型)](workspace相对路径/file.md)
----
+- FC1 [状态] 记忆写入
+- FC2 [状态] 报告写入
+- FC3 [状态] CP 顺序
+- FC4 [状态] 文件名/路径
+- FC5 [状态] internal manifest 与 visible set 对账
+- FC6 [状态] 规范资产行数
+- FC7 [状态] 决策推荐
+- SCx/RCx/Tx [状态] 仅列适用项
+
+#### 完成交付文件
+- [语义名称](capability-selected-target) — 用途；操作：用户动作
+已列 N / 总计 M；默认隐藏 R
+
+DevCodexVisibleEnvelopeV1 · completion-check · [状态] · [semanticDigest]
 ```
 
 > ⛔ dev 模式下不输出状态块视为未执行合规检查。
-> ⚠️ **FC5 填写规则**：执行 `ArtifactDeliveryCompletenessGate`。必须在回复末尾的 `📂 本次会话产物` 区块标注“主要产物”并列出 active task primary artifacts；大集合提供完整 manifest 入口和 supporting/runtime/excluded-generated 计数。主链接必须是 Markdown 链接，必要时追加绝对路径 fallback；跨 surface 不得去重省略。Hook 证据为 `verified-present / verified-missing / unverified`，未观察 payload 时禁止断言缺失。
+> ⚠️ **FC5 填写规则**：触发 `user-visible-output-contract`。`ArtifactDeliveryManifestV1` 必须 planned=observed=internalDelivered，`UserFacingArtifactSetV1` 必须 required hidden=0 且 `listed+remaining=total`；session/daily/SUMMARY/task/checkpoint/raw ledger 默认 internal-only 但仍参与 ECR。链接按 `LinkCapabilityDecisionV1` 输出；Rich clickable 不重复绝对路径。Hook 未观察 payload 时只能 `unverified`，legacy 格式最多 `unverified-legacy`。
 > ℹ️ prod 模式不执行合规检查，不输出状态块。
 > ℹ️ chat 工作流豁免此输出。
 
@@ -93,7 +101,7 @@ SC: SC2 [✅/❌] SC4 [✅/❌] SC6 [✅/❌] ...（仅列适用项，逐项实�
 | FC2 | 报告文件已写入（chat 豁免） |
 | FC3 | CP 按序执行（dev/fix；其他 N/A） |
 | FC4 | 文件名/路径合规（`NN--` 双横杠开头） |
-| FC5 | 产物交付完整（`ArtifactDeliveryCompletenessGate`：主要产物自包含、manifest/计数、`ArtifactLinkSet`、surface-local dedupe、Markdown 链接与必要 copy fallback；可见证据三态）|
+| FC5 | `ArtifactDeliveryManifestV1` 完整对账；`UserFacingArtifactSetV1` required hidden=0、计数守恒；semantic name/action/order 与 capability renderer 有效 |
 | FC6 | 新增 DevCodex 规范资产 `.md` 行数检查（instructions / skills / prompts / templates / 规范源等超 500 行须按 [C13](../../instructions/01-common.instructions.md) 拆分；业务项目需求、技术方案、报告和正式项目文档不因 C13 强制拆分） |
 | FC7 | 用户决策选项与报告决策点必带推荐 + 理由：所有 AskUserQuestion / 多选项呈现 / CP 选项 / 方案对比 / analyze-audit 报告决策点必须有且仅有 1 个推荐项，推荐项置首且说明推荐理由；无后续动作时写明 `推荐：无后续动作` |
 
@@ -165,7 +173,7 @@ SC: SC2 [✅/❌] SC4 [✅/❌] SC6 [✅/❌] ...（仅列适用项，逐项实�
 | T6 | ✅ 约束遵守（C01~C22 + 关联文件已同步 + GovernanceIntakeClosureGate 已终结或明确 unverified/ambiguous） |
 | T7 | ✅ 工作流验证（dev/fix: 扫描/验证 + ECR 已执行；audit/analyze: PCV 与推荐结论已执行）|
 | T8 | ✅ SUMMARY 已更新；若触发上下文交接，daily tasks 或报告已写 `ContextHandoffCard`；若主动建议新会话，同回复已交付 `NewSessionContinuationCard` |
-| T9 | ✅ 产物路径已输出 |
+| T9 | ✅ internal manifest 与用户可见交付均完成；默认隐藏内部记录仍已写入、验证并纳入 ECR |
 | T10 | ✅ 条件：长任务是否记录 `SessionTimingCard`（或 N/A+skipReason）；确认类清单是否含 CoverageMatrix 或 residual 声明（ABS-17/18） |
 | T11 | ✅ 条件：长任务/Auto/多批次是否具备 `ExecutionBudget` + `LongTaskAuthorization`（或 N/A+skipReason）；有等待面时是否分列 external wait（PI-118/PF-137） |
 | T12 | ✅ 条件：触及部署消费者时是否输出 `WorkspaceSyncStatus`；dev/fix/self-fix 宣称完成时是否通过 `CompletionEvidenceGate`（ECR + 同步/验证/dirty 证据） |

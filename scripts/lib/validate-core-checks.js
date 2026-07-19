@@ -23,7 +23,8 @@ function buildValidateCoreChecks(ctx) {
     resolveActiveDevcodexRoot,
     readJsonIfExists,
     mustInclude,
-    mustNotInclude
+    mustNotInclude,
+    isValidationDelegated = () => false
   } = ctx
 
   function checkV1() {
@@ -173,7 +174,11 @@ function buildValidateCoreChecks(ctx) {
 
   function checkV7() {
     try {
-      execSync('node scripts/test-hooks-runtime.js', { cwd: ROOT, stdio: 'pipe', encoding: 'utf8' })
+      if (isValidationDelegated('hooks-runtime')) {
+        console.log('[V7] hooks-runtime child suite delegated to validation DAG; retaining direct lifecycle contract probe')
+      } else {
+        execSync('node scripts/test-hooks-runtime.js', { cwd: ROOT, stdio: 'pipe', encoding: 'utf8' })
+      }
       const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-v7-hooks-'))
       try {
         fs.mkdirSync(path.join(tmp, '.devcodex', 'profile'), { recursive: true })
@@ -387,6 +392,10 @@ function buildValidateCoreChecks(ctx) {
   }
 
   function checkV16() {
+    if (isValidationDelegated('mcp-servers')) {
+      console.log('[V16] MCP servers smoke suite delegated to validation DAG')
+      return
+    }
     try {
       execSync('node scripts/test-mcp-servers.js', { cwd: ROOT, stdio: 'pipe', encoding: 'utf8' })
       console.log('[V16] MCP servers smoke test passed')
@@ -397,6 +406,10 @@ function buildValidateCoreChecks(ctx) {
   }
 
   function checkV17() {
+    if (isValidationDelegated('profile-governance')) {
+      console.log('[V17] profile drift suite delegated to validation DAG')
+      return
+    }
     try {
       execSync('node scripts/validate-profile.js', { cwd: ROOT, stdio: 'pipe', encoding: 'utf8' })
       console.log('[V17] profile drift check passed')

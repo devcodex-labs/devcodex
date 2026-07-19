@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "devcodex://schemas/RepairPreventionAssessmentV1",
+  "title": "RepairPreventionAssessmentV1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schemaVersion",
+    "repairId",
+    "taskId",
+    "problemCluster",
+    "riskClass",
+    "riskTags",
+    "mode",
+    "repeatEscape",
+    "defectRootCause",
+    "controlFailure",
+    "escapedFrom",
+    "detectedAt",
+    "preventionDecision",
+    "regressionSeeds",
+    "negativeCases",
+    "controlOwner",
+    "consumers",
+    "immediateClosureEvidence",
+    "prospectiveEvidencePlan",
+    "rollbackOrSunset"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "RepairPreventionAssessmentV1" },
+    "repairId": { "type": "string", "minLength": 1 },
+    "taskId": { "type": "string", "minLength": 1 },
+    "problemCluster": { "type": "string", "minLength": 1 },
+    "riskClass": { "enum": ["low", "normal", "high", "critical"] },
+    "riskTags": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "mode": { "enum": ["light", "full"] },
+    "repeatEscape": { "type": "boolean" },
+    "defectRootCause": { "type": "string", "minLength": 1 },
+    "controlFailure": { "type": "string", "minLength": 1 },
+    "escapedFrom": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "detectedAt": { "type": "string", "minLength": 1 },
+    "preventionDecision": {
+      "enum": ["existing-control-restored", "new-control-provisional", "no-new-control", "emergency-active"]
+    },
+    "regressionSeeds": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "negativeCases": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "controlOwner": { "type": "string", "minLength": 1 },
+    "consumers": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "immediateClosureEvidence": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "prospectiveEvidencePlan": {
+      "type": "object",
+      "required": ["status", "currentEventOnly", "comparableWorkUnits", "independentContexts", "metricGaming", "rollbackReady", "authority"],
+      "properties": {
+        "status": { "enum": ["not-required", "planned", "collecting", "sufficient"] },
+        "currentEventOnly": { "type": "boolean" },
+        "comparableWorkUnits": { "type": "integer", "minimum": 0 },
+        "independentContexts": { "type": "integer", "minimum": 0 },
+        "metricGaming": { "type": "boolean" },
+        "rollbackReady": { "type": "boolean" },
+        "authority": { "type": "string", "minLength": 1 }
+      }
+    },
+    "rollbackOrSunset": {
+      "type": "object",
+      "required": ["rollbackTriggers", "sunsetCriteria", "reviewAt"],
+      "properties": {
+        "rollbackTriggers": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+        "sunsetCriteria": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+        "reviewAt": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

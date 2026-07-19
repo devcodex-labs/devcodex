@@ -18,6 +18,8 @@ description: 审查执行指南 — 维度优先级分批、定向审查子集�
 
 ## 事件驱动定向审查
 
+audit 每轮先形成 `ReviewExecutionPlanV1`，按 stage+risk+claims/dimensions 选择 R0~R4；targeted audit 仍需两个具有 coverage/dimension delta 的有效零发现轮次，full/security/release 保留三个。receipt 复用必须通过 `ReviewEvidenceFreshnessGate` 与 5% 稳定内容 oracle，unknown/mismatch 一律 full-required。
+
 | 触发场景 | 推荐专属维度 |
 |---------|------------|
 | 修改了 RULES.md | D2·D3·D5·D9·D17 |
@@ -75,6 +77,7 @@ description: 审查执行指南 — 维度优先级分批、定向审查子集�
 批次 5（💡 改进维度）：D13·D14·D15 → 输出发现 → 记录/交接 → 更新记忆
 ReviewCoverageDelta：R2+ 先列 ReviewedSet / UnreviewedRelatedSet / NewlyReadThisRound / RepeatReadReason / NoNewSurfaceReason，优先补读此前未审查但相关的代码、配置、测试、文档、部署副本和消费者链
 ReviewDimensionDeltaGate：R2+ 同步列 PreviousDimensionSet / CurrentDimensionFocus / NewDimensionRationale / RepeatedDimensionReason，避免每轮机械重复同一组维度；重复维度只允许阻断项回归、高风险锚点、新证据或抽样
+ReviewStateSnapshotV1：每批更新同一个 plan/candidate/stage snapshot；报告、记忆、进度和最终结论只投影其 snapshotDigest
 重启轮次：所有批次完成、本轮无新发现，且 ReviewCoverageDelta + ReviewDimensionDeltaGate 合格 → 有效零发现计数 +1 → 连续 3 轮有效零发现则进入 CRS 门禁（仍须满足连续 3 轮零发现）
 CRS 收敛门禁：连续 3 轮有效零发现后执行全库关键词扫描（见 audit-common §关联文件发现）
 PCV：CRS ✅ 后执行 PCV（见 audit-common §收敛后汇总验证）→ 最终报告

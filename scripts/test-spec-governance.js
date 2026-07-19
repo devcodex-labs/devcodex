@@ -18,6 +18,8 @@ function read(file) {
   return fs.readFileSync(path.join(ROOT, file), 'utf8')
 }
 
+const skillCount = JSON.parse(read('plugin.json')).skills.length
+
 function mustInclude(file, needle) {
   const content = read(file)
   if (!content.includes(needle) && !hasValidCanonicalContract(ROOT, file, content, needle)) failures.push(`${file} missing "${needle}"`)
@@ -50,6 +52,7 @@ const suiteContext = {
   path,
   failures,
   SOURCE_PROJECT_NAME,
+  skillCount,
   read,
   mustInclude,
   mustNotInclude,

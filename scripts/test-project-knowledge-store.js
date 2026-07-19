@@ -12,6 +12,7 @@ const {
   buildIncrementalAnalysisPlan,
   buildInventoryFromFiles,
   buildRepoIdentity,
+  observeFileRecord,
   persistAcceptedKnowledge,
   readKnowledgeSnapshot,
   scanProjectInventory,
@@ -33,17 +34,8 @@ function inventory(files) {
   return buildInventoryFromFiles(files)
 }
 
-function semanticRecord(record, anchor = record.path) {
-  return {
-    ...record,
-    coverageLevel: 'deep',
-    evidenceStrength: 'agent-semantic',
-    symbols: [`symbol:${anchor}`],
-    imports: [],
-    configAnchors: record.kind === 'config' ? [`config:${anchor}`] : [],
-    contractAnchors: [`contract:${anchor}`],
-    facts: [{ anchor, statement: `fact:${anchor}` }]
-  }
+function semanticRecord(record, lens) {
+  return observeFileRecord(record, lens)
 }
 
 // Keep embedded fixture source distinct from this packaged test's real CommonJS dependencies.
@@ -72,7 +64,7 @@ const firstPlan = buildIncrementalAnalysisPlan({
   lens,
   options: { maxBatchFiles: 10 }
 })
-assert.strictEqual(firstPlan.schemaVersion, 'IncrementalAnalysisPlanV1')
+assert.strictEqual(firstPlan.schemaVersion, 'IncrementalAnalysisPlanV2')
 assert.strictEqual(firstPlan.fullRequired, true)
 assert(firstPlan.fullReasons.includes('snapshot-missing'))
 assert.deepStrictEqual(firstPlan.readPaths, initialInventory.records.map(record => record.path))
@@ -87,7 +79,7 @@ for (const batch of firstPlan.batches) {
     repoIdentity,
     plan: firstPlan,
     batchId: batch.batchId,
-    candidateRecords: batch.paths.map(relativePath => semanticRecord(initialInventory.records.find(record => record.path === relativePath))),
+    candidateRecords: batch.paths.map(relativePath => semanticRecord(initialInventory.records.find(record => record.path === relativePath), firstPlan.lens)),
     validationResult: { schemaVersion: 'BatchValidationResultV1', status: 'pass' },
     sampleOracle: verifyReuseSample({ samplePaths: [] }),
     graph,
@@ -136,7 +128,7 @@ const validSample = verifyReuseSample({
 })
 assert.strictEqual(validSample.status, 'pass')
 const badObserved = JSON.parse(JSON.stringify(snapshot.records.filter(record => unchangedPlan.samplePaths.includes(record.path))))
-badObserved[0].factDigest = '0'.repeat(64)
+badObserved[0].observationDigest = '0'.repeat(64)
 assert.strictEqual(verifyReuseSample({ samplePaths: unchangedPlan.samplePaths, snapshotRecords: snapshot.records, observedRecords: badObserved }).status, 'fail')
 
 const changedInventory = inventory({
@@ -184,7 +176,7 @@ const fakeOracleAccept = acceptKnowledgeBatch({
   repoIdentity,
   plan: renamePlan,
   batchId: renamePlan.batches[0].batchId,
-  candidateRecords: renamePlan.batches[0].paths.map(relativePath => semanticRecord(renamedInventory.records.find(record => record.path === relativePath))),
+  candidateRecords: renamePlan.batches[0].paths.map(relativePath => semanticRecord(renamedInventory.records.find(record => record.path === relativePath), renamePlan.lens)),
   validationResult: { status: 'pass' },
   sampleOracle: { status: 'pass', samplePaths: [], checked: 0, mismatches: [] },
   graph: { coverage: 1, edges: [] }
@@ -198,7 +190,7 @@ for (const batch of renamePlan.batches) {
     repoIdentity,
     plan: renamePlan,
     batchId: batch.batchId,
-    candidateRecords: batch.paths.map(relativePath => semanticRecord(renamedInventory.records.find(record => record.path === relativePath))),
+    candidateRecords: batch.paths.map(relativePath => semanticRecord(renamedInventory.records.find(record => record.path === relativePath), renamePlan.lens)),
     validationResult: { status: 'pass' },
     sampleOracle: verifyReuseSample({
       samplePaths: renamePlan.samplePaths,
@@ -230,7 +222,7 @@ const firstBatchAccepted = acceptKnowledgeBatch({
   repoIdentity: batchRepo,
   plan: batchPlan,
   batchId: batchOne.batchId,
-  candidateRecords: batchOne.paths.map(relativePath => semanticRecord(batchInventory.records.find(record => record.path === relativePath))),
+  candidateRecords: batchOne.paths.map(relativePath => semanticRecord(batchInventory.records.find(record => record.path === relativePath), batchPlan.lens)),
   validationResult: { status: 'pass' },
   sampleOracle: verifyReuseSample({ samplePaths: [] }),
   graph: { coverage: 1, edges: [] }
@@ -372,7 +364,7 @@ const cli = spawnSync(process.execPath, [
 ], { cwd: ROOT, encoding: 'utf8', windowsHide: true })
 assert.strictEqual(cli.status, 0, cli.stderr || cli.stdout)
 const cliEnvelope = JSON.parse(cli.stdout)
-assert.strictEqual(cliEnvelope.schemaVersion, 'ProjectAnalysisStateCliV1')
+assert.strictEqual(cliEnvelope.schemaVersion, 'ProjectAnalysisStateCliV2')
 assert.strictEqual(cliEnvelope.data.fullRequired, true)
 assert.strictEqual(fs.existsSync(cliActive), false, 'plan must not write accepted runtime state')
 

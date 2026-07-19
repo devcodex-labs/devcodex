@@ -97,7 +97,7 @@ DevCodex 已建立意图驱动的 Profile / memory 按需读取，但项目侧�
 | P1-01 | validation owner/dependency DAG、changed/affected closure、evidence cache、checked execution | 减少非必要验证 | high-risk、release/RC、安全、低置信、图不完整时 full |
 | P1-02 | Profile heading/section selector 与 mandatory fallback | 减少无关 Profile 正文 | mandatory 缺失、选择不完整或置信不足时补读/full |
 | P1-03 | Skill dependency closure、bundle decision 与 references 渐进披露 | 减少无关 Skill 正文 | mandatory Owner/依赖不得因预算截断；已选 `SKILL.md` 完整读取 |
-| P1-04 | `ProjectKnowledgeSnapshot`、content digest、ImpactGraph 与 lens-gap | 重复分析只重算必要范围 | 快照/图/coverage 失效或高风险审计时 full-required |
+| P1-04 | `ProjectKnowledgeSnapshotV2`、Merkle/binding、range-bound `SemanticClaimV1`、ImpactGraph 与 lens-gap | 重复分析只重算必要范围且不越过声明证据边界 | V1 只读、快照/绑定/图/coverage 失效或高风险审计时 full-required |
 | P1-05 | 智能分批、accepted checkpoint、snapshot delta 与全局高/中/低唯一清单 | 避免长时间无反馈并可恢复 | fail/inconclusive 批次不污染 accepted 状态，不输出 final |
 
 P1-04/P1-05 继续由 `incremental-project-analysis` 承接；性能、验证和长任务能力分别进入已有 Owner，不创建重复的“大而全性能 Skill”。
@@ -137,7 +137,7 @@ V0 基线 → 每批 focused validation → 批次 accepted/rollback → 跨批�
 | V1 | unique/ambiguous/missing/renamed/completed/stale/index rebuild；四类入口 | wrong task/root/CP=0；semantic diff miss=0 |
 | V2 | 两独立进程、hit/miss/bypass/error 与 invalidator mutation | 错误复用=0；索引/cache 可重建 |
 | V3 | DAG 去重、changed/affected/invariant、fail-fast/full fallback | 唯一能力不减；高风险仍 full |
-| V4 | Profile/Skill mandatory、snapshot changed/affected/lens-gap、rename/delete/tombstone、批次恢复 | mandatory miss=0；required finding miss=0 |
+| V4 | Profile/Skill mandatory、V2 snapshot changed/affected/lens-gap、Merkle、wrong binding/content/range、V1 read-only、rename/delete/tombstone、批次恢复 | mandatory miss=0；required finding miss=0；invalid pointer advance=0 |
 | V5 | schema migration、旧 alias、prospective trial、误报/开销、rollback/sunset | 有害候选不晋级；旧契约兼容 |
 | V6 | npm full、coverage、V101、website/package/Profile/部署、负向 mutation、需求反向追踪 | falseComplete=0；所有必做项有真实证据 |
 
@@ -170,6 +170,6 @@ V0 基线 → 每批 focused validation → 批次 accepted/rollback → 跨批�
 - CP1 v0.4、CP2 v1.0、CP3 v1.0 均已按确认前全文 SHA-256 绑定。
 - CP2 确认后全面复审 30/30、CP3 确认后全面复审 32/32，均为 zero blocker。
 - B0 已修复 portfolio/Profile/current docs freshness 并冻结 comparable-green；B1 已交付稳定 taskId/alias、bounded index/resolver 与 CLI/MCP/Hook 四入口，V1 wrong task/root/CP 为 0。
-- B2 已交付 Context V2 与跨进程 computation reuse；B3 已交付无重复 canonical validation DAG；B4 已交付 Profile section 与 Skill bundle；B5 已交付 ProjectKnowledge 增量计划、抽样 oracle、双层验证和 ExecutionAttemptLedger。
+- B2 已交付 Context V2 与跨进程 computation reuse；B3 已交付无重复 canonical validation DAG；B4 已交付 Profile section 与 Skill bundle；B5 的 ProjectKnowledge 已后续升级为 V2 单仓（Merkle/environment binding、typed range claim、deterministic observe/bootstrap、V1 read-only migration），并保留抽样 oracle、双层验证和 ExecutionAttemptLedger。
 - B6 已交付 `ExecutionOptimizationStateV2`、benchmark evaluator、V101、公开文档/Profile/package/deploy 消费者与 full-only 回滚路径；是否完成与性能结论以当前任务的 fresh full/coverage/site/package/deploy/ECR 和基准结果为准，本静态页面不替代验收证据。
 - 工作区同步与最终本地 commit 已授权；push、tag、publish、release 未授权。当前源码能力尚未构成新版本发布声明。

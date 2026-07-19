@@ -2,13 +2,14 @@
 'use strict'
 
 const assert = require('assert')
-const { createCliCommandRegistry, runCliCommand } = require('./lib/cli-command-registry')
+const { createCliCommandRegistry, parseHostSelection, runCliCommand } = require('./lib/cli-command-registry')
 
 const calls = []
 const handlers = Object.fromEntries([
   'cmdInit', 'cmdInitClaude', 'cmdInitCodex', 'cmdStatus',
   'cmdProfileInit', 'cmdDoctor', 'cmdProbe', 'cmdTrace', 'cmdSkill', 'cmdTask', 'cmdHelp'
 ].map(name => [name, argv => calls.push([name, argv])]))
+handlers.cmdInitHost = (host, argv) => calls.push(['cmdInitHost', host, argv])
 const registry = createCliCommandRegistry(handlers)
 const fakeProcess = { exitCode: 0 }
 const c = { red: value => value, dim: value => value }
@@ -16,9 +17,15 @@ const logger = { log: () => {} }
 const migrate = argv => calls.push(['migrate', argv])
 
 assert.strictEqual(runCliCommand({ cmd: 'init', argv: ['--codex', '--dry-run'], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger }), 'init')
-assert.deepStrictEqual(calls.pop(), ['cmdInitCodex', ['--dry-run']])
+assert.deepStrictEqual(calls.pop(), ['cmdInitCodex', ['--force', '--dry-run']])
 assert.strictEqual(runCliCommand({ cmd: 'update', argv: ['--claude'], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger }), 'update')
 assert.deepStrictEqual(calls.pop(), ['cmdInitClaude', ['--force']])
+assert.strictEqual(runCliCommand({ cmd: 'init', argv: ['--host', 'gemini', '--dry-run'], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger }), 'init')
+assert.deepStrictEqual(calls.pop(), ['cmdInitHost', 'gemini', ['--dry-run']])
+assert.strictEqual(runCliCommand({ cmd: 'update', argv: ['--grok'], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger }), 'update')
+assert.deepStrictEqual(calls.pop(), ['cmdInitHost', 'grok', ['--force']])
+assert.strictEqual(runCliCommand({ cmd: 'init', argv: [], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger }), 'init')
+assert.deepStrictEqual(calls.pop(), ['cmdInit', []])
 assert.strictEqual(runCliCommand({ cmd: 'profile', argv: ['init', '--prod'], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger }), 'profile-init')
 assert.deepStrictEqual(calls.pop(), ['cmdProfileInit', ['--prod']])
 assert.strictEqual(runCliCommand({ cmd: 'profile', argv: ['plan', '--tier', 'profile-standard'], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger }), 'profile-plan')
@@ -39,8 +46,12 @@ assert.strictEqual(runCliCommand({ cmd: 'task', argv: ['resolve', 'current', '--
 assert.deepStrictEqual(calls.pop(), ['cmdTask', ['resolve', 'current', '--json']])
 assert.strictEqual(runCliCommand({ cmd: 'unknown', argv: [], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger }), 'help')
 assert.deepStrictEqual(calls.pop(), ['cmdHelp', undefined])
-assert.strictEqual(runCliCommand({ cmd: 'init', argv: ['--claude', '--codex'], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger }), 'invalid-adapter-target')
-assert.strictEqual(fakeProcess.exitCode, 1)
+assert.strictEqual(runCliCommand({ cmd: 'init', argv: ['--claude', '--codex'], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger }), 'CLI_HOST_SELECTION_CONFLICT')
+assert.strictEqual(fakeProcess.exitCode, 2)
+assert.strictEqual(runCliCommand({ cmd: 'init', argv: ['--host', 'unknown'], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger }), 'CLI_HOST_UNSUPPORTED')
+assert.strictEqual(runCliCommand({ cmd: 'init', argv: ['--host=gemini', '--gemini'], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger }), 'CLI_HOST_SELECTION_CONFLICT')
+assert.deepStrictEqual(parseHostSelection(['--host', 'all', '--dry-run']), { ok: true, host: 'all', cleanedArgv: ['--dry-run'] })
+assert.strictEqual(parseHostSelection(['--host']).code, 'CLI_HOST_UNSUPPORTED')
 assert.throws(() => createCliCommandRegistry({}), /missing CLI command handler/)
 
 console.log('✓ CLI command registry routing and negative fixtures passed')

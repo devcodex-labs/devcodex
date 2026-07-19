@@ -10,7 +10,8 @@ function buildGovernanceSupportChecks(ctx) {
     warn,
     execSync,
     activePath,
-    mustInclude
+    mustInclude,
+    isValidationDelegated = () => false
   } = ctx
 
   function checkV25() {
@@ -183,11 +184,15 @@ function buildGovernanceSupportChecks(ctx) {
       }
     }
 
-    try {
-      execSync('node scripts/test-spec-governance.js', { cwd: ROOT, stdio: 'pipe', encoding: 'utf8' })
-    } catch (e) {
-      const detail = String((e.stderr || e.stdout || e.message || '')).trim().split('\n').slice(0, 8).join(' | ')
-      err(`[V26] test-spec-governance failed${detail ? `: ${detail}` : ''}`)
+    if (isValidationDelegated('spec-governance')) {
+      console.log('[V26] spec-governance executable suite delegated to validation DAG; static consumer probes retained')
+    } else {
+      try {
+        execSync('node scripts/test-spec-governance.js', { cwd: ROOT, stdio: 'pipe', encoding: 'utf8' })
+      } catch (e) {
+        const detail = String((e.stderr || e.stdout || e.message || '')).trim().split('\n').slice(0, 8).join(' | ')
+        err(`[V26] test-spec-governance failed${detail ? `: ${detail}` : ''}`)
+      }
     }
     console.log('[V26] spec governance semantics checked')
   }

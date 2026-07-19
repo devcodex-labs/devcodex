@@ -27,7 +27,7 @@ description: 定义意图识别结果到工作流的路由映射。本 Skill 为
 
 > ⚠️ 本表仅供路由参考。执行时按 `01-common` §Skill 按需读取表 读取对应 Skill，禁止全量读取。
 > 子类型标识汇总：`dev.default` / `dev.docs` / `dev.refactor` / `dev.database` / `dev.init` / `dev.optimization` / `dev.scenario-test` / `dev.plan-review` / `fix.default` / `fix.security` / `fix.incident` / `analyze.default` / `analyze.research`
-> 支撑型 Skill 不作为工作流子类型；Profile 缺失、补建 Profile 或恢复 dev 模式时按需触发 `profile-bootstrap`。用户文档/最终手册写作语义优先触发 `user-manual-authoring`；用户侧文档 review、项目文档审查、菜单导航或文档 IA 审查语义优先触发 `audit-user-manual`；正式复审/清单收敛语义优先触发 `review-checklist`；返工率、一次通过率、反复返修、复审持续出现新问题、重复逃逸或预防措施有效性语义触发 `rework-prevention-engineering`；代码、文档、示例、fixture、技术方案或报告被要求具备技术专家 / 资深架构 / 领域专家质量，或用户指出“不专业 / 像初级 / 示例误导”时优先触发 `expert-output-quality`；产品策略、开发者体验、UX 交互、前端架构、后端领域架构、生产可用性、API 契约、外部集成、平台生态、AI Agent 系统、数据架构、安全威胁建模、质量策略、设计系统、无障碍/国际化、增长分析或商业模型语义分别按需叠加对应专家 Owner Skill；增长和商业为 P3 条件触发，未命中时写 `N/A + skipReason`；规范吸纳、最新可吸纳、data 吸纳清单或仍需吸纳语义优先触发 `spec-absorption`；自我进化/自动吸纳/自动优化规范或模型辅助治理语义优先触发 `evolution-governance`。
+> 支撑型 Skill 不作为工作流子类型；Profile 缺失、补建 Profile 或恢复 dev 模式时按需触发 `profile-bootstrap`。PC0~PC7、完成检查、确认、进度、最终结果、阻断或文件交付触发 `user-visible-output-contract`；用户文档/最终手册写作语义优先触发 `user-manual-authoring`；用户侧文档 review、项目文档审查、菜单导航或文档 IA 审查语义优先触发 `audit-user-manual`；正式复审/清单收敛语义优先触发 `review-checklist`；任何 repair task 在 accepted 前触发 `rework-prevention-engineering#RepairPreventionAssessmentGate`，返工率、一次通过率、反复返修、重复逃逸或效果评估再进入完整 ReworkPreventionGate；代码、文档、示例、fixture、技术方案或报告被要求具备技术专家 / 资深架构 / 领域专家质量，或用户指出“不专业 / 像初级 / 示例误导”时优先触发 `expert-output-quality`；产品策略、开发者体验、UX 交互、前端架构、后端领域架构、生产可用性、API 契约、外部集成、平台生态、AI Agent 系统、数据架构、安全威胁建模、质量策略、设计系统、无障碍/国际化、增长分析或商业模型语义分别按需叠加对应专家 Owner Skill；增长和商业为 P3 条件触发，未命中时写 `N/A + skipReason`；规范吸纳、最新可吸纳、data 吸纳清单或仍需吸纳语义优先触发 `spec-absorption`；自我进化/自动吸纳/自动优化规范或模型辅助治理语义优先触发 `evolution-governance`。
 
 | 工作流 | 子类型 | Skill 文件 |
 |--------|--------|-----------|
@@ -59,6 +59,7 @@ description: 定义意图识别结果到工作流的路由映射。本 Skill 为
 | 站点文档、最终用户使用文档、README、quick start、接入手册、docs-first 用户手册 | `skills/user-manual-authoring/SKILL.md` | 用户文档写作入口；README 继续叠加 `readme-authoring` |
 | 用户侧文档 review、项目文档审查、文档设计、菜单导航、sidebar、信息架构 | `skills/audit-user-manual/SKILL.md` | 用户文档审查聚合入口；按顺序叠加 `user-manual-authoring`、`audit-document`、条件 `audit-readme`、`review-checklist` |
 | 正式复审、ECR、发布前复审、多轮收敛、冻结清单、外部 finding 批次 | `skills/review-checklist/SKILL.md` | 复审清单创建、冻结、逐项证据、状态新鲜度与收敛关闭 |
+| PC0~PC7、FC/SC/RC/T、确认、进度、最终结果、阻断、产物文件交付 | `skills/user-visible-output-contract/SKILL.md` | internal manifest→visible set→Envelope→capability renderer；默认隐藏 session/SUMMARY/raw ledger |
 | 专家型代码/文档/示例/fixture/方案/报告质量、不专业纠正、生产推荐路径与反模式边界 | `skills/expert-output-quality/SKILL.md` | 执行 `ExpertOutputQualityGate`，区分生产推荐路径、框架原生能力、fixture/mock/demo 边界、反模式和证据矩阵 |
 | 产品策略、用户价值、范围取舍、优先级、成功指标、多阶段关闭 | `skills/product-strategy/SKILL.md` | 执行 `ExpertOwnerSkillGate` / `ProductStrategyOwnerGate`，绑定 targetUser、problemValue、priorityTradeoff、scopeBoundary、successSignals、riskDecision、evidenceMatrix |
 | 开发者体验、CLI/SDK/API/Hook/插件接入、quick start、示例、错误信息、迁移 | `skills/developer-experience-architecture/SKILL.md` | 执行 `DeveloperExperienceArchitectureGate`，验证 firstSuccessPath、integrationSteps、exampleTruth、errorExperience、migrationPath、docsEntryPoints |
@@ -80,6 +81,7 @@ description: 定义意图识别结果到工作流的路由映射。本 Skill 为
 | 全工作区/项目产物扫描、能力盘点、缺少哪些 Skill、大目录分批、扫描恢复 | `skills/skill-gap-analysis/SKILL.md` | 先执行 `ProjectArtifactScaleRoutingGate` 和 ScaleDecisionRecord，再做 corpus/gap/convergence |
 | Skill 生命周期、组合冲突、依赖、误触发/漏触发、灰度、废弃与退役 | `skills/skill-lifecycle-governance/SKILL.md` | 执行 SkillPortfolioLifecycleGate，active 变化仍需 evolution-governance 授权 |
 | 返工率、一次通过率、重复逃逸、whyMissed 复发、预防有效性 | `skills/rework-prevention-engineering/SKILL.md` | 执行 ReworkPreventionGate，区分需求变化并用后续可比较任务验证 prevention |
+| 任何 repair task 的完成/accepted | `skills/rework-prevention-engineering/SKILL.md` | 执行 RepairPreventionAssessmentGate；当前关闭与前瞻效果分列 |
 | 分布式系统、消息队列、RPC、交付/顺序、幂等、重试、补偿、分区、背压 | `skills/distributed-systems-architecture/SKILL.md` | 执行 DistributedSystemsArchitectureGate，绑定 consistency/delivery/ordering/failure matrix |
 | 性能工程、性能预算、benchmark、profiling、p95/p99、容量和性能回归 | `skills/performance-engineering/SKILL.md` | 执行 PerformanceEngineeringGate，先基线再归因与回归决策 |
 | PII/个人信息、同意、保留删除、驻留、主体权利和隐私审计 | `skills/privacy-compliance-architecture/SKILL.md` | 执行 PrivacyComplianceArchitectureGate，绑定数据生命周期和权利流程 |

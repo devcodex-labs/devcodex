@@ -43,6 +43,10 @@ TestRoute 的稳定输入、route selector、固定输出与 skip 合同以同�
 
 `derivedArtifactFreshness` 绑定 `skill-lifecycle` 或对应派生资产 Owner，不新增顶层 selector：至少选择 `static + unit-integration + runtime-e2e`，覆盖确定性生成、先生成后 stage 的负例、精确 staged/index candidate check 与 post-commit clean-tree replay；触达 Profile/部署副本叠加 `profile-deploy`，触达 package/release candidate 叠加 `package-release`。working-tree check、staged check 与 post-commit replay 必须分别记录 candidateState，不能复用一次结果冒充三种状态。
 
+`repairPreventionAssessment` 绑定 `rework-prevention-engineering`，不新增顶层 selector：所有 repair 至少选择 `static + unit-integration`，分别绑定当前 defect 的 regression/negative evidence 与 prevention decision 的 prospective/rollback evidence。高风险、repeat escape、emergency-active、控制面或公共契约再叠加 `runtime-e2e` 和适用的 package/profile 路线；当前修复重跑只能进入 immediate closure，不得填充 prospective effectiveness。
+
+`visibleOutputContract` 绑定 `user-visible-output-contract`，不新增顶层 selector：任何 `ArtifactDeliveryManifestV1`、`UserFacingArtifactSetV1`、`DevCodexVisibleEnvelopeV1`、renderer 或 visible-reply Hook 变化至少选择 `static + unit-integration + runtime-e2e`，覆盖 planned/observed/internalDelivered 对账、required hidden=0、计数守恒、六 message kinds、compact eligibility、legacy/unobserved ceiling、semanticDigest 和 rich/portable/plain 等价性。触达 README/website/Profile/部署副本时叠加 `profile-deploy`，进入 package public surface 时叠加 `package-release`。宿主 capability 未 direct replay 时必须保持 portable/plain 或 unverified，不得按宿主名推断 clickable。
+
 ## TestRoute 输出
 
 输出固定为 `selectedRoutes / commands / evidence / skipped / residualRisk / coverageClaim`。推荐使用以下最小结构：
@@ -75,4 +79,4 @@ coverageClaim: executed-selected-routes
 
 ## 报告要求
 
-dev/fix/optimization/scenario-test 报告应包含 TestRoute 或明确 `N/A`，ECR-3/ECR-4 应引用实际执行结果。若命中宿主验证，还应同时引用 `host-contract-verification` 的 HostContractRoute 结果。
+dev/fix/optimization/scenario-test 报告应包含 TestRoute 或明确 `N/A`，ECR-3/ECR-4 应引用实际执行结果。若命中宿主验证，还应同时引用 `host-contract-verification` 的 HostContractRoute 结果，包括适用时的 `mcpFallback=used`；若命中用户可见输出，必须引用 manifest/visible set/envelope/capability 的同一 semanticDigest 与 renderer parity 结果。

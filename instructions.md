@@ -260,9 +260,10 @@ CP2 / 技术方案 / 报告必须记录 `LayeredAbsorptionDecision`：`candidate
 | gateGroup | 目标承接 |
 |------|----------|
 | `repair-collaboration` | 所有 repair task 至少形成轻量双层修复协作契约；P0/P1、安全、控制面、公共契约、多批次、角色交接或发布风险升级完整契约并要求独立复证 → `execution-contract` |
+| `repair-prevention-assessment` | 所有 repair accepted 前形成 `RepairPreventionAssessmentV1`；当前关闭与前瞻效果分列，repeat/high-risk 升 full，Owner=`rework-prevention-engineering` |
 | `public-surface` | `PublicSurfaceClosureGate`、`SemanticLegacyRouteExposureGate`、`ReferenceCodeTruthSamplingGate`、`RemoteCIParityPushGate`、`PortableExternalArtifactGate` → `audit-release` / `release-verification` / `audit-readme` |
 | `user-manual` | `UserManualProductizationGate`、`UserManualRenderedFlowAndRealWorkflowProbe`、`DocsPageRoleMatrixGate`、`CompleteUserManualSiteMatrixGate`、`DocsThemeRuntimeVisualProbeGate` → `user-manual-authoring` / `audit-user-manual` |
-| `review-checklist` | `SampleIssueExpansionGate`、`RequirementDimensionBindingGate`、`RequirementPriorityAndPhaseGate`、`ReviewAnchorMaterializationGate` → `review-checklist` / `audit-requirements` |
+| `review-checklist` | `ReviewExecutionPlanV1`、`ReviewEvidenceReceiptV1`、`EvidenceSaturationGate`、`ReviewStateSnapshotV1`、`StageTimingV1` 与既有 `SampleIssueExpansionGate`、`RequirementDimensionBindingGate`、`RequirementPriorityAndPhaseGate`、`ReviewAnchorMaterializationGate` → `review-checklist` / `audit-requirements`；未知绑定或 stale receipt 回退 full-required |
 | `frontend-runtime` | `FrontendAsyncCacheRenderGate`、`StaleWhileRevalidateGate`、`AsyncDbTruthSourceVerificationGate` → `audit-project` / `test-router` / `api-verification` |
 | `profile-service` | `StrongestProfileSourceGate`、`ServiceSpecificResidueSweep`、`ProfileReadChainGate`、`ServiceNormCoverageGate`、`RouteNamespaceResponsibilityGate` → `load-profile` / `profile-bootstrap` |
 | `evolution-control-plane` | `EvolutionCapabilityControlPlaneGate`、`FrameworkCapabilityAutoFirstGate`、`OfficialApiEvidenceGate` → `evolution-governance` / `dev-plan-review` |
@@ -510,13 +511,14 @@ CP1（需求确认）→ CP2（方案确认）→ [plan-review] → CP3（实施
 ### CP 流程（fix）
 
 ```
-CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → 执行 → 三步扫描 → ECR
+CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → 执行 → 三步扫描 → RepairPreventionAssessment → ECR
 ```
 
 - **CP1**：先确认这是 Bug / 异常 / 已承诺行为与实际不一致，而不是纯新需求或需求变更；报告方输入优先落 `bugs/<问题>/00-问题概况.md`，AI / 研发据此输出 `01-问题确认.md` 或等价问题分析报告（根因 + 影响范围）→ 等待确认
 - **CP2**：输出修复方案；若修复涉及依赖/框架/SDK/平台 API 变更必须附 `OfficialDocsEvidence`，涉及项目事实变化时必须附 `ProfileImpactCheck` → 等待确认
 - **CP3**：≥5 文件变更 或 含高风险操作时，**在执行前**触发确认；与 `11-fix` 一致为「触发时 `[CP3] → 执行`」，**禁止**写成「执行后再补 CP3 框」误导顺序
 - 若执行过程中新增范围触发 CP3 条件（例如实际修改文件数扩展到 ≥5，或修复途中引入高风险/控制面联动），必须暂停执行，先补做 CP3，再继续修复
+- **RepairPreventionAssessmentGate**：所有 repair task 在 accepted 前必须由 `rework-prevention-engineering` 形成有效 `RepairPreventionAssessmentV1`；当前修复重跑只证明 immediate closure，`no-new-control` 必须有标准 reason/evidence，repeat/high-risk 使用 full。
 - **ECR**：执行完成并完成修复三步扫描后、宣告完成前必须执行 ECR 执行闭环复审，覆盖 CP1/CP2/CP3、报告、daily tasks、SUMMARY、diff/commit、测试/扫描证据、AI 自启动服务清理证据与 dirty 边界。
 
 ### 确认后前置复审（fix · C19）
@@ -628,19 +630,24 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → 
 
 ### 入口检查输出格式（所有模式，所有工作流前置，chat 也须执行）
 
+```text
+### DevCodex · 入口检查
+`[PASS/WARN/BLOCK/UNVERIFIED]` · `[项目名]`
+
+- PC0 [状态] ContextReadPlan 与必要来源回执
+- PC1 [状态] 语义初判 → 项目现实扩展后最终路由
+- PC2 [状态] 会话/Token 防护/待跟进
+- PC3 [状态] 唯一项目、连续性与产物落点
+- PC4 [状态] dev 规范雷达；非 dev 为 N/A
+- PC5 [状态] 当前宿主部署、同步与实际加载证据
+- PC6 [状态] git dirty、active task 与工作区一致性
+- PC7 [状态] 新会话或 resume 的 bounded continuation 检测
+
+下一步：[必要动作]
+DevCodexVisibleEnvelopeV1 · entry-check · [状态] · [semanticDigest]
 ```
----
-🔍 入口检查（[DEV/PROD] 模式）
-- PC0 上下文：项目 [项目名] · 输出语言 [中/英] · ContextReadPlan [✅已形成/⚠️降级] · 必要来源回执 [✅verified/⚠️partial/❌missing]
-- PC1 意图：语义初判 [用户意图] → 项目现实扩展后 [工作流/子类型]
-- PC2 会话状态：第 N 轮（>10关注/>13预警/>15防护） · 待跟进 ✅无/⚠️[简述]
-- PC3 执行准备：项目现实扩展 [已完成/待澄清] · 未完成任务 ✅无/⚠️存在🔄：[简述] · 产物落点 [已确定/无需/待确定]
-- PC4 规范雷达：dev 模式输出三轴诊断结果；非 dev 模式 N/A（dev 扩展诊断未启用）
-- PC5 部署体状态（v1.11.0+）：cwd 父链 `.github/`、`.claude/`、`AGENTS.md`、`.agents/`、`.codex/` ✅ 存在 / N/A 无父级 · 与源仓库同步 ✅ / ⚠️ [N 文件滞后] / N/A
-- PC6 工作区一致性（v1.9.4+）：git 未提交变更 ✅ 无 / ⚠️ [N 文件 dirty] · 当前需求目录 [requirements/<X>/ / 无关联]
-- PC7 新会话首步 resume 强制检测（v1.9.4+，仅首条用户消息触发）：✅ `memory_status` + 有界 session/SUMMARY query 回执一致 / ⚠️ 数据不一致或证据不足需处理 / N/A（非首条）
----
-```
+
+入口检查、完成检查、确认、进度、最终结果与阻断统一由 `user-visible-output-contract` 投影；状态词固定为 `PASS / WARN / BLOCK / UNVERIFIED / N/A`。未知能力或缺证据不得用图标冒充 PASS；新会话、resume/compact、scope/risk/dirty/receipt 变化或存在非 PASS/N/A 时必须 expanded。
 
 ### FC 形式合规（必须全通过）
 
@@ -650,7 +657,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → 
 | FC2 | 报告文件已写入（chat 豁免）|
 | FC3 | CP 按序执行（dev/fix；其他 N/A）|
 | FC4 | 文件名/路径合规（`NN--` 双横杠开头；本轮无报告产物时 N/A）|
-| FC5 | 产物路径已输出（`ArtifactLinkSet`：Markdown 主链接 + 必要 `绝对路径：` copy fallback）|
+| FC5 | `ArtifactDeliveryManifestV1` 已完整对账，`UserFacingArtifactSetV1` required hidden=0、计数守恒，并按已验证 `LinkCapabilityDecisionV1` 输出 |
 | FC6 | 新增 DevCodex 规范资产 `.md` 超 500 行须按 C13 拆分（业务产物不强制）|
 | FC7 | 用户决策选项与报告决策点必带推荐 + 理由 |
 
@@ -695,7 +702,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → 
 | T6 | 约束遵守（C01~C22） |
 | T7 | 工作流验证（dev/fix 含适用门禁、三步扫描与 ECR；audit/analyze 含 PCV 与推荐结论） |
 | T8 | SUMMARY 已更新；若触发上下文交接，daily tasks 或报告已写 `ContextHandoffCard` |
-| T9 | 产物路径已输出 |
+| T9 | 内部 manifest 与用户可见交付均已完成；默认隐藏的 session/SUMMARY/raw ledger 仍已写入并参与 ECR |
 
 > 完整逐项定义见当前平台部署目录中的 `instructions/17-compliance.instructions.md`；本表为就地索引（编号与语义与该文件一一对应）。
 
@@ -705,7 +712,8 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → 
 
 - **用户面禁止输出**：内部工作流 ID（`dev.docs`/`fix.default`）、原始工具参数 XML、内部路由标签、调试 JSON
 - 仅在用户明确追问内部分类/机制时才展开内部术语，且最小化展开
-- 涉及文件产物时，回复末尾必须输出 `ArtifactLinkSet`：主 Markdown 链接 + 必要 `绝对路径：` copy fallback；Copilot / Codex / 未知宿主或用户反馈无法点击时不得只输出相对链接或裸文件名
+- 涉及文件产物时，先形成内部 `ArtifactDeliveryManifestV1`，再由 `UserFacingArtifactSetV1` 确定性投影；默认不展示 session、daily、SUMMARY、task state、checkpoint、raw receipt/manifest/ledger
+- 可见项必须使用语义名称、用途、用户动作和稳定阅读顺序；Rich 点击能力已验证时只显示一个语义链接，不重复绝对路径。绝对路径仅在用户要求、链接失败、工作区外、歧义或无法定位时 fallback
 - Copilot / Codex 等非 Claude Code 宿主调用 DevCodex MCP 出现 `invoke` undefined 或工具桥接失败时，按宿主 MCP bridge 失败处理：停止重试同一 MCP，只执行一次 path-observable / instruction-fallback 的同计划有界读取，记录 `mcpFallback=used`；无法取得 Post 成功证据时保持 `unverified`，不得退化为整目录或整文件默认读取
 - Commit subject 只描述主变更，不堆叠背景/验证步骤
 

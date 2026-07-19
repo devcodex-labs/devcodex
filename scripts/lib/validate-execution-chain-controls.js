@@ -10,7 +10,10 @@ const EXPECTED_FEATURE_ROUTES = Object.freeze({
 })
 
 function buildExecutionChainControlChecks(ctx) {
-  const { ROOT, ACTIVE_DEVCODEX_ROOT, fs, path, read, err, console } = ctx
+  const {
+    ROOT, ACTIVE_DEVCODEX_ROOT, fs, path, read, err, console,
+    loadExecutionOptimization = () => require('./execution-optimization')
+  } = ctx
 
   function requireFile(relative) {
     const full = path.join(ROOT, relative)
@@ -30,7 +33,7 @@ function buildExecutionChainControlChecks(ctx) {
   function checkRuntimeContract() {
     let runtime
     try {
-      runtime = require('./execution-optimization')
+      runtime = loadExecutionOptimization()
     } catch (error) {
       err(`[V101] execution optimization runtime cannot load: ${error.message}`)
       return
@@ -165,7 +168,7 @@ function buildExecutionChainControlChecks(ctx) {
         ['02-架构约束.md', ['ExecutionOptimizationStateV2', 'ExecutionOptimizationFeatureDecisionV1', 'full-only']],
         ['03-代码风格.md', ['OptimizationFeatureStateV1', 'ExecutionOptimizationFeatureDecisionV1', 'fail-closed']],
         ['04-测试规范.md', ['V101', 'ExecutionOptimizationFeatureDecisionV1', 'test:execution-chain-evolution']],
-        ['06-功能清单.md', ['ProjectKnowledgeSnapshotV1', 'ExecutionOptimizationStateV2', 'ExecutionOptimizationFeatureDecisionV1']],
+        ['06-功能清单.md', ['ProjectKnowledgeSnapshotV2', 'SemanticClaimV1', 'ExecutionOptimizationStateV2', 'ExecutionOptimizationFeatureDecisionV1']],
         ['07-用户文档与契约规范.md', ['继续<任务名>任务', 'ExecutionOptimizationFeatureDecisionV1', 'benchmark:execution-chain']]
       ]
       for (const [file, anchors] of profileConsumers) {

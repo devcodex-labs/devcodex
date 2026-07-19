@@ -13,7 +13,7 @@ function buildCliMaintenanceCommands(ctx) {
     filesForProfileTier, readJsonSafe, safeFirstLine, detectArch, listTopDirs,
     detectStyle, genProfileReadme, genProjectInfo, genArchitecture, genStyle,
     genTestSpec, genReleaseSpec, genFeatureInventory, genUserContractSpec,
-    genConfigJson, detectAgent, detectHostPlatform, detectInstalledHostAssets,
+    genConfigJson, detectAgent, detectHostPlatform, detectInstalledHostAssets, inspectHostInstructionSurfaces,
     recommendProfileTier, compareProfileTiers, updateProfileTierDeclaration
   } = ctx
 
@@ -60,12 +60,21 @@ function buildCliMaintenanceCommands(ctx) {
     const codexHookFiles = walkDir(path.join(cwd, '.codex', 'hooks', '_runtime')).length
     const codexHookDiagnostics = readCodexHookCommands(cwd)
     const agentsSkills = walkDir(path.join(cwd, '.agents', 'skills')).length
+    const geminiMdInstalled = fs.existsSync(path.join(cwd, 'GEMINI.md'))
+    const geminiSettingsInstalled = fs.existsSync(path.join(cwd, '.gemini', 'settings.json'))
+    const geminiHookFiles = walkDir(path.join(cwd, '.gemini', 'hooks', '_runtime')).length
+    const grokHookConfigInstalled = fs.existsSync(path.join(cwd, '.grok', 'hooks', 'devcodex.json'))
+    const grokHookFiles = walkDir(path.join(cwd, '.grok', 'hooks', '_runtime')).length
+    const instructionProjection = inspectHostInstructionSurfaces(cwd)
     trackedEntryFiles += [
       rulesInstalled,
       copilotInstructionsInstalled,
       claudeMdInstalled,
       agentsMdInstalled,
-      codexHookJsonInstalled
+      codexHookJsonInstalled,
+      geminiMdInstalled,
+      geminiSettingsInstalled,
+      grokHookConfigInstalled
     ].filter(Boolean).length
 
     const profileDir = resolveProfileDir(cwd)
@@ -88,7 +97,13 @@ function buildCliMaintenanceCommands(ctx) {
         agentsSkills,
         codexHookJsonInstalled,
         codexHookFiles,
-        codexHookDiagnostics
+        codexHookDiagnostics,
+        geminiMdInstalled,
+        geminiSettingsInstalled,
+        geminiHookFiles,
+        grokHookConfigInstalled,
+        grokHookFiles,
+        instructionProjection
       },
       profile: {
         directory: profileDir,
@@ -140,6 +155,14 @@ function buildCliMaintenanceCommands(ctx) {
     console.log(`  ${c.cyan('.agents/skills'.padEnd(14))} ${entryFiles.agentsSkills ? c.green(`${entryFiles.agentsSkills} files`) : c.red('not installed')}`)
     console.log(`  ${c.cyan('.codex/hooks'.padEnd(14))} ${entryFiles.codexHookJsonInstalled && entryFiles.codexHookFiles ? c.green(`${entryFiles.codexHookFiles + 1} files`) : c.red('not installed')}`)
     console.log(`  ${c.cyan('.codex command'.padEnd(14))} ${formatCodexHookCommandStatus(entryFiles.codexHookDiagnostics)}`)
+    console.log(`  ${c.cyan('GEMINI.md'.padEnd(14))} ${entryFiles.geminiMdInstalled ? c.green('installed') : c.dim('not installed')}`)
+    console.log(`  ${c.cyan('.gemini/hooks'.padEnd(14))} ${entryFiles.geminiSettingsInstalled && entryFiles.geminiHookFiles ? c.green(`${entryFiles.geminiHookFiles + 1} files`) : c.dim('not installed')}`)
+    console.log(`  ${c.cyan('.grok/hooks'.padEnd(14))} ${entryFiles.grokHookConfigInstalled && entryFiles.grokHookFiles ? c.green(`${entryFiles.grokHookFiles + 1} files`) : c.dim('not installed')}`)
+    console.log(`  ${c.cyan('host kernel'.padEnd(14))} ${entryFiles.instructionProjection.status === 'ready'
+      ? c.green('ready')
+      : (entryFiles.instructionProjection.status === 'not-installed'
+          ? c.dim('not installed')
+          : c.yellow(`${entryFiles.instructionProjection.issues.length} issue(s)`))}`)
 
     let profileLabel
     const profileDetails = profile.required
@@ -165,7 +188,7 @@ function buildCliMaintenanceCommands(ctx) {
         console.log(`  ${c.yellow('Not initialized.')} Run ${c.bold('devcodex init')} to install.`)
       }
     } else {
-      console.log(`  ${c.green(`${total} tracked entry files`)} installed across .github/ / .claude/ / Codex adapter`)
+      console.log(`  ${c.green(`${total} tracked entry files`)} installed across configured Copilot/Claude/Codex/Gemini/Grok surfaces`)
       if (isSrc) {
         console.log(c.dim('  (Source repo: these are development copies, not a target project installation)'))
       }
@@ -369,6 +392,12 @@ function buildCliMaintenanceCommands(ctx) {
     const hasAgentsMd = fs.existsSync(path.join(cwd, 'AGENTS.md'))
     const hasAgentsSkills = fs.existsSync(path.join(cwd, '.agents', 'skills'))
     const hasInstructions = fs.existsSync(path.join(cwd, '.github', 'instructions'))
+    const hasGeminiMd = fs.existsSync(path.join(cwd, 'GEMINI.md'))
+    const hasGeminiSettings = fs.existsSync(path.join(cwd, '.gemini', 'settings.json'))
+    const hasGeminiHooks = hasGeminiSettings && fs.existsSync(path.join(cwd, '.gemini', 'hooks', '_runtime', 'lifecycle-host-adapters.cjs'))
+    const hasGrokHookConfig = fs.existsSync(path.join(cwd, '.grok', 'hooks', 'devcodex.json'))
+    const hasGrokHooks = hasGrokHookConfig && fs.existsSync(path.join(cwd, '.grok', 'hooks', '_runtime', 'lifecycle-host-adapters.cjs'))
+    const instructionProjection = inspectHostInstructionSurfaces(cwd)
     const profileDir = resolveProfileDir(cwd)
     const profileState = inspectProfileState(profileDir)
     const hasProfile = profileState.complete
@@ -377,6 +406,8 @@ function buildCliMaintenanceCommands(ctx) {
     let mode = 'instruction-fallback'
     if (platform === 'claude' && hasClaudeHooks) mode = 'hook-enforced (Claude Code)'
     else if (platform === 'codex' && hasCodexHooks) mode = 'hook guardrail (Codex; event-dependent)'
+    else if (platform === 'gemini' && hasGeminiHooks) mode = 'hook guardrail (Gemini; PreCompress advisory)'
+    else if (platform === 'grok' && hasGrokHooks) mode = 'hook partial (Grok; only PreToolUse blocking)'
     else if (platform === 'vscode-copilot' && hasGithubHooks) mode = 'workspace-hooks detected (VS Code Copilot preview; verify target IDE)'
     else if (platform === 'jetbrains-copilot') mode = 'instruction-fallback (JetBrains — Hooks unsupported)'
     else if (platform === 'unknown' && installedHosts.length > 1) mode = 'mixed install (host unresolved; multiple adapters present)'
@@ -400,7 +431,13 @@ function buildCliMaintenanceCommands(ctx) {
         hasClaudeMd,
         hasAgentsMd,
         hasAgentsSkills,
-        hasInstructions
+        hasInstructions,
+        hasGeminiMd,
+        hasGeminiSettings,
+        hasGeminiHooks,
+        hasGrokHookConfig,
+        hasGrokHooks,
+        instructionProjection
       },
       codexHookDiagnostics,
       codexConfigState: {
@@ -442,7 +479,9 @@ function buildCliMaintenanceCommands(ctx) {
     } = facts
     const {
       hasGithubHooks, hasClaudeHooks, hasCodexHooksJson, hasCodexHooks,
-      hasCopilotMd, hasClaudeMd, hasAgentsMd, hasAgentsSkills, hasInstructions
+      hasCopilotMd, hasClaudeMd, hasAgentsMd, hasAgentsSkills, hasInstructions,
+      hasGeminiMd, hasGeminiSettings, hasGeminiHooks, hasGrokHookConfig, hasGrokHooks,
+      instructionProjection
     } = installArtifacts
     const profileDir = profileState.directory
     const hasProfile = profileState.complete
@@ -470,6 +509,14 @@ function buildCliMaintenanceCommands(ctx) {
     console.log(`    .github/copilot-instructions.md      ${hasCopilotMd ? c.green('✅') : c.dim('—')}`)
     console.log(`    .github/instructions/                ${hasInstructions ? c.green('✅') : c.dim('—')}`)
     console.log(`    .github/hooks/_runtime/lifecycle.cjs ${hasGithubHooks ? c.green('✅') : c.dim('—')}`)
+    console.log(`    GEMINI.md                            ${hasGeminiMd ? c.green('✅') : c.dim('—')}`)
+    console.log(`    .gemini/settings + hook adapter      ${hasGeminiSettings && hasGeminiHooks ? c.green('✅') : c.dim('—')}`)
+    console.log(`    .grok/hooks/devcodex + adapter       ${hasGrokHookConfig && hasGrokHooks ? c.green('✅') : c.dim('—')}`)
+    console.log(`    host instruction projection          ${instructionProjection.status === 'ready'
+      ? c.green('✅ ready')
+      : (instructionProjection.status === 'not-installed'
+          ? c.dim('not installed')
+          : c.yellow(`⚠️ ${instructionProjection.issues.length} issue(s)`))}`)
     const profileDiagnostic = profileState.error
       ? c.red(`❌ invalid — ${profileState.error}`)
       : (hasProfile
@@ -512,6 +559,19 @@ function buildCliMaintenanceCommands(ctx) {
       console.log(c.dim(`      Expected hook command: ${CODEX_HOOK_COMMAND}`))
       console.log()
     }
+    if (platform === 'gemini' && !hasGeminiHooks) {
+      console.log(c.yellow('  ⚠️  Gemini CLI detected but project adapter is missing — run `devcodex init --host gemini`'))
+      console.log()
+    }
+    if (platform === 'grok' && !hasGrokHooks) {
+      console.log(c.yellow('  ⚠️  Grok detected but project adapter is missing — run `devcodex init --host grok`'))
+      console.log()
+    }
+    if (instructionProjection.issues.length) {
+      for (const issue of instructionProjection.issues) console.log(c.yellow(`  ⚠️  ${issue.code}`))
+      console.log(c.dim('      Run `devcodex update --host <host>` and use the full fallback until projection is ready.'))
+      console.log()
+    }
     if (hasCodexHooksJson) {
       if (codexHookDiagnostics.error) {
         console.log(c.yellow(`  ⚠️  Codex hooks.json could not be parsed: ${codexHookDiagnostics.error}`))
@@ -532,7 +592,7 @@ function buildCliMaintenanceCommands(ctx) {
 
   function cmdHelp() {
     console.log(`
-    ${c.bold('DevCodex')} — AI-powered development workflow rules for GitHub Copilot, Claude Code & Codex
+    ${c.bold('DevCodex')} — AI-powered development workflow rules for Copilot, Claude, Codex, Gemini & Grok
 
     ${c.bold('Usage:')}
       devcodex <command> [options]
@@ -542,9 +602,11 @@ function buildCliMaintenanceCommands(ctx) {
       ${c.cyan('init')}              Install Copilot files, then deploy Claude Code and Codex adapters
       ${c.cyan('init --claude')}     Install Claude Code adapter only
       ${c.cyan('init --codex')}      Install Codex adapter only
+      ${c.cyan('init --host <id>')}  Install copilot|claude|codex|gemini|grok|all
       ${c.cyan('update')}            Overwrite Copilot files, then deploy Claude Code and Codex adapters
       ${c.cyan('update --claude')}   Overwrite Claude Code adapter only
       ${c.cyan('update --codex')}    Overwrite Codex adapter only
+      ${c.cyan('update --host <id>')} Refresh one host or all five hosts
       ${c.cyan('migrate-layout')}    Plan/apply/rollback centralized .devcodex workspace layout
       ${c.cyan('profile init')}      Auto-generate tiered .devcodex/profile/ drafts
       ${c.cyan('profile plan')}      Preview Profile root/tier/file actions without writing
@@ -560,6 +622,9 @@ function buildCliMaintenanceCommands(ctx) {
       ${c.dim('--dry-run')}          Preview what would be installed without writing files
       ${c.dim('--claude')}           Only target Claude Code adapter (skip Copilot .github/)
       ${c.dim('--codex')}            Only target Codex adapter (skip Copilot .github/ and Claude Code)
+      ${c.dim('--gemini')}           Alias for --host gemini
+      ${c.dim('--grok')}             Alias for --host grok
+      ${c.dim('--host <id>')}        copilot | claude | codex | gemini | grok | all
       ${c.dim('--prod')}             (profile init only) Set mode=prod instead of dev
       ${c.dim('--tier <tier>')}      (profile init only) profile-lite | profile-standard | profile-closed-loop
       ${c.dim('--allow-downgrade')}  (profile init only) Explicitly allow a lower tier; files are retained
@@ -569,6 +634,9 @@ function buildCliMaintenanceCommands(ctx) {
       devcodex init                 # First-time three-host install
       devcodex init --claude        # Claude Code adapter only
       devcodex init --codex         # Codex adapter only
+      devcodex init --host gemini   # Gemini CLI adapter only
+      devcodex init --host grok     # Grok Build adapter only
+      devcodex update --host all    # Refresh all five host adapters
       devcodex migrate-layout plan  # Generate centralized layout migration manifest
       devcodex profile init --tier profile-standard  # Generate tiered Profile drafts
       devcodex profile plan --tier profile-closed-loop # Preview a safe upgrade

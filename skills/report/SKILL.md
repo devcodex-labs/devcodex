@@ -75,10 +75,12 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 - 只有正式 release workflow 才写 `ReleaseVerification`。
 - 所有非空用户消息保留 `GovernanceIntakeDecision`；未命中台账写入时也要给出独立 `skipEvidence`。
 - 命中 `agent-turn-liveness` 时写 `TurnLivenessRecovery`：只引用 Owner 的状态/lease/ACK/terminal/checkpoint、HostContractRoute、fault matrix 与 sidecar lifecycle 证据；必须区分 host-native、Hook-event 和 sidecar，不能把 PostToolUse 落盘冒充模型续接或终态。
-- 命中增量项目分析时写 `ProjectKnowledge`：只记录 snapshot/plan/receipt identity、changed/affected/lens-gap/reused、5% oracle、batch accepted pointer 与 final/provisional 边界，禁止把快照正文复制到报告或 SUMMARY。
+- 命中增量项目分析时写 `ProjectKnowledge`：只记录 V2 snapshot/plan/receipt/binding identity、inventory Merkle、changed/affected/lens-gap/reused、5% oracle、claim authority/range 验证、V1 read-only migration 状态、batch accepted pointer 与 final/provisional 边界，禁止把快照或声明正文复制到报告或 SUMMARY；结构化 bootstrap 不得表述为人工逐文件深读。
 - 命中 formal retry/cancel/restart 时写 `ExecutionAttemptLedger`：分列 qualification、failureSignature、source/evidence delta、FirstPassYield、command/external/user/model timing、StopSnapshot 与 terminal/finalizer；不得把等待时间混成执行性能。
+- 任何 repair task 写 `RepairPreventionAssessment`：引用 Owner 的 assessment identity/decision/mode，分列 `immediateClosureEvidence` 与 `prospectiveEvidencePlan`，并记录 rollback/sunset；不得用本次测试通过宣称长期 prevention effective。
+- 正式复审/ECR 写 `ReviewExecution`：引用 `ReviewExecutionPlanV1`、fresh receipt digests、EvidenceSaturation、唯一 `ReviewStateSnapshotV1.snapshotDigest` 与 `StageTimingV1`；报告不得重新推导 review counts 或把 failed/inconclusive receipt 写成可复用。
 
-最终回复是独立交付 surface：在“本次会话产物”中列 active task 主要产物；supporting/runtime 产物按组给数量和完整 manifest 入口。可见回复证据使用 `verified-present / verified-missing / unverified`，不可观察时不得断言缺失。
+最终回复是独立交付 surface：报告必须先登记到 `ArtifactDeliveryManifestV1`，再由 `UserFacingArtifactSetV1` 投影。默认用户面显示最终报告、直接交付物和 required evidence；session/daily/SUMMARY/task/checkpoint/raw receipt/manifest/ledger 默认 internal-only，但仍写入并参与 ECR。可见回复证据使用 `verified-present / verified-missing / unverified`，legacy 文本最多 `unverified-legacy`，不可观察时不得断言缺失。
 
 ## 输出规则
 
@@ -105,7 +107,7 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 - 报告涉及规范源、Skill、Hook、CLI、MCP、模板、部署副本、路径规则或 validate 语义变更时，仍需列出 SCV-0~SCV-7 证据；外部 finding intake 不得把报告结论当作已验证事实
 - 控制面报告若出现新增探针、黄色偏离或部署同步，必须单独写出部署同步证据与其他证据来源，不能只在摘要里带过
 - 报告末尾引用本次会话记忆路径
-- 回复末尾必须输出产物文件路径（按 `ArtifactLinkSet` 输出主 Markdown 链接；当前宿主为 Codex Desktop/App、Copilot、未知宿主或用户反馈无法点击时，追加 `绝对路径：` copy fallback；输出前执行 `ArtifactLinkSetDedupeGate`，按规范化绝对路径去重同一物理文件，详见 [`02-output-paths.instructions.md`](../../instructions/02-output-paths.instructions.md) §产物路径输出格式，[FC5](../compliance/SKILL.md)）
+- 回复末尾由 `user-visible-output-contract` 输出“完成交付文件”：每项使用语义 displayName、purposeText、userAction，并按 decision→result→evidence→optional 顺序。`ArtifactLinkSet` 只作兼容投影；Rich clickable 不重复绝对路径，只有用户要求、链接失败、工作区外、歧义或无法定位时追加 fallback（详见 [`02-output-paths.instructions.md`](../../instructions/02-output-paths.instructions.md)）
 
 ## 行数与拆分
 

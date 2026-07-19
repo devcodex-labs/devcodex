@@ -1,12 +1,12 @@
 # DevCodex 使用介绍
 
-> 本站是 DevCodex 官方文档入口，面向需要在 Copilot / Claude Code / Codex 中统一 AI 开发工作流的使用者和集成开发者。需求、实现和发布材料保留在“维护者指南”与“版本”分区，不占用第一次成功路径。
+> 本站是 DevCodex 官方文档入口，面向需要在 Copilot / Claude Code / Codex 中统一 AI 开发工作流，并按需接入 Gemini CLI / Grok Build 的使用者和集成开发者。需求、实现和发布材料保留在“维护者指南”与“版本”分区，不占用第一次成功路径。
 
 ---
 
 ## DevCodex 是什么
 
-DevCodex 是通过 npm 包和 CLI 分发的 AI 开发规范注入器。它把同一套工作流、Skills、Hooks、记忆和报告契约安装到目标项目，并分别适配 Copilot、Claude Code 与 Codex。
+DevCodex 是通过 npm 包和 CLI 分发的 AI 开发规范注入器。默认安装适配 Copilot、Claude Code 与 Codex；当前未发布源码还可显式增加 Gemini CLI / Grok Build adapter。所有宿主从同一真相源生成精简入口，按意图读取 Skills，证据不足时回退完整规范。
 
 站点同时保留稳定规范和版本化维护资料；历史版本目录中的旧需求页只代表当时基线，不等同于当前实现。当前安装、命令和宿主支持以仓库 [README](https://github.com/vextjs/devcodex#安装) 与当前发布版本为准。
 
@@ -14,7 +14,7 @@ DevCodex 是通过 npm 包和 CLI 分发的 AI 开发规范注入器。它把同
 
 ## 快速开始
 
-> 版本语义：npm package 当前已发布版本是 **v1.14.0**；站内 **1.0.1** 是活动需求文档版本。当前版本仅发布到 GitHub Packages，安装需要 `read:packages` 认证。
+> 版本语义：npm package 当前已发布版本是 **v1.15.1**；站内 **1.0.1** 是活动需求文档版本。当前版本仅发布到 GitHub Packages，安装需要 `read:packages` 认证；Gemini / Grok 通用宿主选择器仍属于未发布源码能力。
 
 1. 确认 Node.js >=18；按 [安装说明](https://github.com/vextjs/devcodex#5-分钟快速开始) 配置 `@vextjs:registry=https://npm.pkg.github.com` 与当前 shell 的 `NODE_AUTH_TOKEN`。
 2. 安装并在目标项目初始化三宿主规范，然后执行 status：
@@ -47,7 +47,8 @@ npx @vextjs/devcodex init --codex
 | 工作流行为可审计 | 通过报告、audit-state 与合规检查形成可追溯闭环 |
 | 规范随代码版本化 | 用版本文档管理规范演进与实现边界 |
 | 跨项目复用 | 通过 `devcodex init` 安装到目标项目，并用 `update` 同步受管规范 |
-| 多宿主一致入口 | Copilot、Claude Code 与 Codex 共用同一规范源，分别落到 `.github/`、`CLAUDE.md + .claude/`、`AGENTS.md + .agents/ + .codex/`；Hook 能力按宿主/事件降级，并按官方输出契约区分顶层 block、`continue:false` 与工具级 deny |
+| 多宿主一致入口 | 默认 Copilot、Claude Code 与 Codex，显式选择时增加 Gemini / Grok；五宿主共用同一规范源与精简投影，Hook 能力按宿主/事件降级，并按官方输出契约区分顶层 block、`continue:false` 与工具级 deny |
+| 上下文成本可控 | always-on 入口使用有 coverage 与预算约束的精简 kernel；Claude / Gemini 仅保留薄 wrapper，具体流程按意图加载 Skills，完整规范作为 fail-closed fallback |
 | 长任务停滞可诊断 | `TurnLivenessRecoveryGate` 区分运行、等待续接、可疑、可恢复停滞与终态，记录工具租约、continuation ACK 和 checkpoint；Hook 只在事件到达时观察，不承诺自行唤醒宿主或自动重放写操作 |
 | 文件真相源优先 | `MemoryCannotSatisfyBootstrapGate` 要求宿主 Memories、模型长期偏好或交接卡只作为 `navigation-hint`，新线程 / resume / summary 恢复仍读取 Profile、tasks、reports 和源码 / 文档真相源 |
 | Profile 真相对账 | 项目级 analyze/audit 用 `ProfileTruthMatrix` 对照 Profile 声明与当前代码、配置、运行和发布事实；过期 Profile 不覆盖现实，只读工作流不直接改 Profile |
@@ -97,11 +98,12 @@ DevCodex 提供两个 Agent 入口：
 | 组件 | 说明 |
 |------|------|
 | Agent | `devcodex.agent.md`（确认模式）+ `devcodex-auto.agent.md`（全自动模式）|
-| Instructions | 全局规范与工作流主规则，按 `applyTo` 全局注入 |
-| Skills | 当前源码 78 个按需触发的工作流技能（75 active + 3 gray）；`brand-visual-quality` 是尚未发版的 gray 能力，另覆盖 `rework-prevention-engineering`、`consumer-validation-engineering`、`analyze-default`、`skill-gap-analysis`、`skill-lifecycle-governance`、`spec-absorption`、`user-manual-authoring`、`audit-user-manual`、`expert-output-quality`、`review-checklist`、`evolution-governance`、`readme-authoring`、`audit-readme`、`audit-release`，以及 `execution-contract` / `test-router` / `release-verification` / `host-contract-verification` / `source-consumer-sync`；专家能力保持 21 个专家 Owner Skill |
+| Host kernel / Instructions | 宿主自动发现精简 kernel；节点 Instructions 与 Skills 按平台能力和意图加载，完整规范保留非 always-on fallback |
+| Skills | 当前源码 80 个按需触发的工作流技能（77 active + 3 gray）；新增未发布 `user-visible-output-contract` 与 `host-instruction-projection`，`brand-visual-quality` 是尚未发版的 gray 能力，另覆盖 `rework-prevention-engineering`、`consumer-validation-engineering`、`analyze-default`、`skill-gap-analysis`、`skill-lifecycle-governance`、`spec-absorption`、`user-manual-authoring`、`audit-user-manual`、`expert-output-quality`、`review-checklist`、`evolution-governance`、`readme-authoring`、`audit-readme`、`audit-release`，以及 `execution-contract` / `test-router` / `release-verification` / `host-contract-verification` / `source-consumer-sync`；专家能力保持 21 个专家 Owner Skill |
 | Prompts | CP 节点输出模板 |
 | Hooks | `UserPromptSubmit` / `PreToolUse` / `Stop` 等生命周期钩子 |
 | Codex adapter | `AGENTS.md` + `.agents/skills/` + `.codex/hooks.json` |
+| Gemini / Grok adapter | 当前未发布源码通过 `--host gemini|grok|all` 显式部署；Grok workspace 子项目自动使用轻量入口 + 单一 resolver Skill 回到父级真相源；能力按 direct / fixture / instruction-backed 证据分级 |
 
 ---
 
@@ -121,4 +123,4 @@ DevCodex 提供两个 Agent 入口：
 - [商业化规划](/intro/pricing) — v1 免费策略与 v2 商业化方向
 
 
-> Skill 规模锚点：78 个 Skills；扁平一级 Skill（78 个）。
+> Skill 规模锚点：80 个 Skills；扁平一级 Skill（80 个）。

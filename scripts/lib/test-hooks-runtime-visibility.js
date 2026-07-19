@@ -252,7 +252,7 @@ function runHooksRuntimeVisibilityScenarios(context) {
     assistantMessage: 'Final answer without compliance block or artifact paths.'
   })
   assert.match(missingComplianceAndPathsReminder.systemMessage || '', /合规检查状态块未输出/)
-  assert.match(missingComplianceAndPathsReminder.systemMessage || '', /产物交付不完整/)
+  assert.match(missingComplianceAndPathsReminder.systemMessage || '', /用户可见交付不完整.*VisibleOutputHostEvidenceGate/)
   assert.match(missingComplianceAndPathsReminder.systemMessage || '', /missingItems=.*artifact-section/)
 
   cleanState()
@@ -298,7 +298,7 @@ function runHooksRuntimeVisibilityScenarios(context) {
     assistantMessage: 'Final answer still missed the artifact section.'
   })
   assert.ok(!/合规检查状态块未输出/.test(artifactSectionRequiredReminder.systemMessage || ''))
-  assert.match(artifactSectionRequiredReminder.systemMessage || '', /产物交付不完整/)
+  assert.match(artifactSectionRequiredReminder.systemMessage || '', /用户可见交付不完整.*VisibleOutputHostEvidenceGate/)
 
   cleanState()
   run({
@@ -333,10 +333,9 @@ function runHooksRuntimeVisibilityScenarios(context) {
       'SC: SC1 [✅]',
       '整体：✅ 全通过',
       '',
-      '📂 本次会话产物：',
-      '主要产物：',
-      '- [01--sample.md](/E:/Worker/devcodex-v1/.devcodex/reports/analysis/claude-code/20260525/01--sample.md)',
-      '  `E:\\Worker\\devcodex-v1\\.devcodex\\reports\\analysis\\claude-code\\20260525\\01--sample.md`'
+      '#### 完成交付文件',
+      '- [最终执行与验证报告](/E:/Worker/devcodex-v1/.devcodex/reports/analysis/claude-code/20260525/01--sample.md) — 说明本次执行与验证结论；操作：查看结论',
+      '`DevCodexVisibleEnvelopeV1 · final-result · PASS · aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`'
     ].join('\n')
   })
   const completeClosureReply = run({
@@ -344,10 +343,9 @@ function runHooksRuntimeVisibilityScenarios(context) {
     assistantMessage: [
       '🛡️ DEV 模式 | 合规检查',
       'FC: FC1 [✅] FC2 [✅] FC3 [✅] FC4 [✅] FC5 [✅] FC6 [✅]',
-      '📂 本次会话产物：',
-      '主要产物：',
-      '- [01--sample.md](/E:/Worker/devcodex-v1/.devcodex/reports/analysis/claude-code/20260525/01--sample.md)',
-      '  `E:\\Worker\\devcodex-v1\\.devcodex\\reports\\analysis\\claude-code\\20260525\\01--sample.md`'
+      '#### 完成交付文件',
+      '- [最终执行与验证报告](/E:/Worker/devcodex-v1/.devcodex/reports/analysis/claude-code/20260525/01--sample.md) — 说明本次执行与验证结论；操作：查看结论',
+      '`DevCodexVisibleEnvelopeV1 · final-result · PASS · aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`'
     ].join('\n')
   })
   assert.ok(!completeClosureReply.systemMessage)
@@ -400,7 +398,10 @@ function runHooksRuntimeVisibilityScenarios(context) {
       '- [01--sample.md](/E:/Worker/devcodex-v1/.devcodex/reports/analysis/claude-code/20260525/01--sample.md)'
     ].join('\n')
   })
-  assert.ok(!singleLineArtifactClosureReply.systemMessage)
+  assert.match(singleLineArtifactClosureReply.systemMessage || '', /无法验证最终用户可见回复的产物交付/)
+  const legacyArtifactState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(legacyArtifactState.visible.artifactStatus, 'unverified')
+  assert.ok(legacyArtifactState.visible.artifactMissingItems.includes('legacy-artifact-format'))
 
   cleanState()
   run({
@@ -433,9 +434,9 @@ function runHooksRuntimeVisibilityScenarios(context) {
     'SC: SC1 [✅]',
     '整体：✅ 全通过',
     '',
-    '📂 本次会话产物：',
-    '主要产物：',
-    '- [01--sample.md](/E:/Worker/devcodex-v1/.devcodex/reports/analysis/claude-code/20260525/01--sample.md)'
+    '#### 完成交付文件',
+    '- [最终执行与验证报告](/E:/Worker/devcodex-v1/.devcodex/reports/analysis/claude-code/20260525/01--sample.md) — 说明本次执行与验证结论；操作：查看结论',
+    '`DevCodexVisibleEnvelopeV1 · final-result · PASS · bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb`'
   ].join('\n'))
   const transcriptBackedClosureReply = run({
     hook_event_name: 'Stop',

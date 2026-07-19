@@ -1,0 +1,310 @@
+{
+  "schemaVersion": "HostInstructionCoverageReceiptV1",
+  "sourceFile": "instructions.md",
+  "sourceDigest": "1431bbf9bac789c5d7b19a3f64ab8c7df3d352d51a7503123f2d899812b7643c",
+  "configDigest": "22da2caf8716caf1e4368f686dca1b57847f36b45a3648b5e13cb210bb8baafd",
+  "mode": "kernel",
+  "fallback": {
+    "destination": ".agents/devcodex/instructions.full.md",
+    "sourceDigest": "1431bbf9bac789c5d7b19a3f64ab8c7df3d352d51a7503123f2d899812b7643c",
+    "available": true
+  },
+  "budgets": {
+    "kernelMaxBytes": 16384,
+    "kernelMaxLines": 200,
+    "wrapperMaxBytes": 2048
+  },
+  "ruleCoverage": [
+    {
+      "id": "S01",
+      "covered": true
+    },
+    {
+      "id": "S02",
+      "covered": true
+    },
+    {
+      "id": "S03",
+      "covered": true
+    },
+    {
+      "id": "S04",
+      "covered": true
+    },
+    {
+      "id": "S05",
+      "covered": true
+    },
+    {
+      "id": "S06",
+      "covered": true
+    },
+    {
+      "id": "S07",
+      "covered": true
+    },
+    {
+      "id": "C01",
+      "covered": true
+    },
+    {
+      "id": "C02",
+      "covered": true
+    },
+    {
+      "id": "C03",
+      "covered": true
+    },
+    {
+      "id": "C04",
+      "covered": true
+    },
+    {
+      "id": "C05",
+      "covered": true
+    },
+    {
+      "id": "C06",
+      "covered": true
+    },
+    {
+      "id": "C07",
+      "covered": true
+    },
+    {
+      "id": "C08",
+      "covered": true
+    },
+    {
+      "id": "C09",
+      "covered": true
+    },
+    {
+      "id": "C10",
+      "covered": true
+    },
+    {
+      "id": "C11",
+      "covered": true
+    },
+    {
+      "id": "C12",
+      "covered": true
+    },
+    {
+      "id": "C13",
+      "covered": true
+    },
+    {
+      "id": "C14",
+      "covered": true
+    },
+    {
+      "id": "C15",
+      "covered": true
+    },
+    {
+      "id": "C16",
+      "covered": true
+    },
+    {
+      "id": "C17",
+      "covered": true
+    },
+    {
+      "id": "C18",
+      "covered": true
+    },
+    {
+      "id": "C19",
+      "covered": true
+    },
+    {
+      "id": "C20",
+      "covered": true
+    },
+    {
+      "id": "C21",
+      "covered": true
+    },
+    {
+      "id": "C22",
+      "covered": true
+    }
+  ],
+  "semanticCoverage": [
+    {
+      "id": "routing",
+      "sourceAnchors": [
+        "## 意图识别（三问法）",
+        "### 意图路由表",
+        "`resume`",
+        "`chat`"
+      ],
+      "projectionAnchors": [
+        "resume",
+        "chat",
+        "dev",
+        "fix",
+        "analyze",
+        "audit"
+      ],
+      "missingSourceAnchors": [],
+      "missingProjectionAnchors": [],
+      "covered": true
+    },
+    {
+      "id": "cp",
+      "sourceAnchors": [
+        "CP1（需求确认）→ CP2（方案确认）",
+        "**CP3**",
+        "**ECR**",
+        "PostConfirmationReviewScopeGate"
+      ],
+      "projectionAnchors": [
+        "CP1",
+        "CP2",
+        "CP3",
+        "ECR",
+        "PostConfirmationReviewScopeGate"
+      ],
+      "missingSourceAnchors": [],
+      "missingProjectionAnchors": [],
+      "covered": true
+    },
+    {
+      "id": "context",
+      "sourceAnchors": [
+        "ContextAcquisitionGate",
+        "IntentSeedV1",
+        "ContextReadPlanV2",
+        "ExecutionOptimizationPlanBindingV1",
+        "ContextReadReceiptV2",
+        "PostToolUse",
+        "fullReadReason",
+        "workspace-namespace"
+      ],
+      "projectionAnchors": [
+        "IntentSeedV1",
+        "ContextReadPlanV2",
+        "ExecutionOptimizationPlanBindingV1",
+        "ContextReadReceiptV2",
+        "PostToolUse",
+        "fullReadReason",
+        "workspace-namespace"
+      ],
+      "missingSourceAnchors": [],
+      "missingProjectionAnchors": [],
+      "covered": true
+    },
+    {
+      "id": "governance",
+      "sourceAnchors": [
+        "RecordRouter + SCV",
+        "GovernanceIntakeDecision",
+        "Improvement Intake",
+        "LedgerWriteEvidenceGate"
+      ],
+      "projectionAnchors": [
+        "RecordRouter",
+        "GovernanceIntakeDecision",
+        "Improvement Intake",
+        "LedgerWriteEvidenceGate",
+        "SCV"
+      ],
+      "missingSourceAnchors": [],
+      "missingProjectionAnchors": [],
+      "covered": true
+    },
+    {
+      "id": "closure",
+      "sourceAnchors": [
+        "ClosureEvidenceGate",
+        "ControlPlaneContractFirstGate",
+        "执行顺序：",
+        "| T9 |"
+      ],
+      "projectionAnchors": [
+        "ClosureEvidenceGate",
+        "ControlPlaneContractFirstGate",
+        "FC",
+        "SC",
+        "RC",
+        "T1~T9"
+      ],
+      "missingSourceAnchors": [],
+      "missingProjectionAnchors": [],
+      "covered": true
+    },
+    {
+      "id": "visible-output",
+      "sourceAnchors": [
+        "user-visible-output-contract",
+        "PC0~PC7",
+        "PASS / WARN / BLOCK / UNVERIFIED / N/A",
+        "ArtifactDeliveryManifestV1"
+      ],
+      "projectionAnchors": [
+        "user-visible-output-contract",
+        "PC0~PC7",
+        "PASS",
+        "WARN",
+        "BLOCK",
+        "UNVERIFIED",
+        "ArtifactDeliveryManifestV1"
+      ],
+      "missingSourceAnchors": [],
+      "missingProjectionAnchors": [],
+      "covered": true
+    },
+    {
+      "id": "auto-boundary",
+      "sourceAnchors": [
+        "@rocky",
+        "autoAliases",
+        "不可豁免"
+      ],
+      "projectionAnchors": [
+        "@rocky",
+        "autoAliases",
+        "不可豁免"
+      ],
+      "missingSourceAnchors": [],
+      "missingProjectionAnchors": [],
+      "covered": true
+    }
+  ],
+  "coverage": {
+    "coveredCount": 36,
+    "mandatoryCount": 36,
+    "percentage": 100
+  },
+  "outputs": {
+    "host-projections/AGENTS.md": {
+      "bytes": 9830,
+      "lines": 82,
+      "digest": "139cb60ed6a710e1d9dbce1ab16c8daa6a5592cfc0726f76341919666dd2fc2a"
+    },
+    "host-projections/copilot-instructions.md": {
+      "bytes": 9816,
+      "lines": 82,
+      "digest": "a9e06e96976ae4c03e7f4bb45ed8b6bbd098a4af4d7fa640c2b504602bc40b11"
+    },
+    "host-projections/CLAUDE.md": {
+      "bytes": 327,
+      "lines": 8,
+      "digest": "616ed533df1f84d10098da6119c42145624d2d086bb67330ac5c2b688a96ebc2"
+    },
+    "host-projections/GEMINI.md": {
+      "bytes": 332,
+      "lines": 8,
+      "digest": "ea925f8679ca53452ef7162ceb19025dd20980f36fa5091aa283888c1a7af91e"
+    }
+  },
+  "collisions": [],
+  "validation": {
+    "valid": true,
+    "errors": []
+  },
+  "receiptId": "host-instruction-coverage-9f1e6713b0d1002e7bb37f1d23b957e6ae9545fc29c6e8d4272a5ece2e44550e"
+}

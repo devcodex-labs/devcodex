@@ -82,6 +82,7 @@ description: 管理会话记忆的读取与写入。三层记忆体系：Agent �
 | 收到首条消息 | 创建/追加会话段落，状态 🔄 |
 | 每轮交互 | 追加对话记录到 📨 字段 |
 | 子任务完成（多任务） | 追加 `T{N}进度：✅` |
+| 正式复审状态变化 | 只投影 `ReviewStateSnapshotV1` 的 snapshotDigest/nextAction/counts；不得在 memory 独立重算 open/blocker/stale/unreviewed |
 | 超 13 轮预警（[C08](../../instructions/01-common.instructions.md)） | 写编码检查点到当前段落 |
 | 报告写入后 | 追加报告路径到 📄 关联报告 |
 | 完成回复前 | 确保 📨 对话记录已追加本轮 |
@@ -91,7 +92,7 @@ description: 管理会话记忆的读取与写入。三层记忆体系：Agent �
 - 🔴 **禁止询问用户"是否需要写入记忆"**（[C05/S05](../../instructions/00-safety.instructions.md) 自动写入）
 - 追加段落时使用增量编辑，禁止覆盖已有内容（[C06/S04](../../instructions/00-safety.instructions.md)）
 - 禁止使用 `Set-Content` 等命令修改 .md 文件（[C09](../../instructions/01-common.instructions.md)）
-- 写入报告路径、ContextHandoffCard 或 artifact-links 前执行 `ArtifactLinkSetDedupeGate`：同一物理文件按规范化绝对路径只保留一个主引用；记忆/SUMMARY 可作为索引证据，但不得把同一文件的相对链接、绝对链接和 copy fallback 记录成多份主产物。
+- 写入报告路径、ContextHandoffCard 或 artifact-links 前执行 `ArtifactLinkSetDedupeGate`：同一物理文件按 canonical path 只保留一个主引用。session、daily、SUMMARY、task state 和 checkpoint 必须进入 `ArtifactDeliveryManifestV1`，但默认 `internal-only`；只有 resume/handoff、状态冲突、写入失败、审计取证或用户明确要求时进入 `UserFacingArtifactSetV1`。
 - 需求修订、再次复审、宣布“可确认 / 暂不通过 / 已修订待复审”或从修复清单回写真相源时，记忆写入必须配合 `RequirementVerdictStateSyncGate`：daily tasks、需求级 sessions 和 SUMMARY 的状态口径不得与需求真相源顶部状态、推荐结论、修复清单或 audit-state decision 冲突。
 
 ## 新会话 🔄 检测
@@ -120,6 +121,7 @@ description: 管理会话记忆的读取与写入。三层记忆体系：Agent �
 | ⚠️ 待跟进 | 未完成事项或下次需要继续的内容 |
 | 📦 编码检查点 | 编码任务且变更 ≥3 文件时 |
 | 🧾 Governance Intake | candidate IDs、assessmentVerdict、generalizationScope、existingRuleState、复合 record intents、target ledgers、write requirement/evidence、verification state；只存最小锚点，不复制完整 prompt |
+| 🔎 ReviewState | planId、snapshotDigest、stage、reviewClass、open/blocker/stale/unreviewed、saturation、nextAction；正文以 review checklist/runtime 为准 |
 
 ## 格式选择
 
@@ -160,7 +162,7 @@ description: 管理会话记忆的读取与写入。三层记忆体系：Agent �
 - 摘要：一行 50~100 字，包含做了什么 + 关键数字/结果
 - 多任务会话：一行覆盖全部任务，不拆多行
 - 排序：按时间正序追加（最新在最后）
-- 关联报告与关联记忆按 `ArtifactLinkSetDedupeGate` 只写当前主报告 / 主记忆索引；同一物理文件在报告、记忆和最终回复重复出现时，用同一 canonical path 归并。
+- 关联报告与关联记忆按 `ArtifactLinkSetDedupeGate` 只写当前主报告 / 主记忆索引；同一物理文件用 canonical path 归并。内部索引不因用户面默认隐藏而停止写入或从 ECR 排除。
 
 > 🔴 **SUMMARY 纯索引约束**：SUMMARY 仅包含表头 + 会话索引行，**禁止添加任何自由文本段落**（如"当前状态""关键决策""待处理事项"等非索引内容）。🔄 状态标记仅出现在索引表的「状态」列，不得出现在表外文本中。已有旧格式 SUMMARY 应在下次写入时迁移（移除非索引段落，内容转入 daily file 或 profile）。
 

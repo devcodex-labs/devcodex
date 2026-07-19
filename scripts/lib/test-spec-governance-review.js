@@ -4,7 +4,7 @@ const { collectActiveProfileCorpusIfAvailable } = require('./validate-governance
 
 function runSpecGovernanceReviewSuite(ctx) {
   const {
-    ROOT, fs, path, failures, SOURCE_PROJECT_NAME, read, mustInclude,
+    ROOT, fs, path, failures, SOURCE_PROJECT_NAME, skillCount, read, mustInclude,
     mustNotInclude, collectChangelogContents, mustIncludeInChangelogs
   } = ctx
 
@@ -218,7 +218,7 @@ function runSpecGovernanceReviewSuite(ctx) {
     ['prompts/report-fix.prompt.md', 'DocsNavigationReviewMatrix'],
     ['prompts/report-audit.prompt.md', 'audit-user-manual / UserManualReviewScope / DocsNavigationReviewMatrix'],
     ['README.md', '用户侧文档 review 聚合'],
-    ['website/docs/index.md', '78 个 Skills'],
+    ['website/docs/index.md', `${skillCount} 个 Skills`],
     ['website/docs/intro/index.md', 'audit-user-manual'],
     ['website/docs/guide/development.md', 'audit-user-manual'],
     ['website/docs/specs/directory-structure.md', 'audit-user-manual']
@@ -271,7 +271,7 @@ function runSpecGovernanceReviewSuite(ctx) {
     ['prompts/report-scenario-test.prompt.md', 'negativeExamples'],
     ['README.md', checkV81],
     ['README.md', 'ServiceSpecReadGate'],
-    ['website/docs/index.md', '78 个 Skills'],
+    ['website/docs/index.md', `${skillCount} 个 Skills`],
     ['website/docs/intro/index.md', checkV81],
     ['website/docs/specs/directory-structure.md', checkV81],
     ['website/docs/guide/development.md', 'CommonNormGeneralizationGate'],

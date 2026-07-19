@@ -121,7 +121,7 @@ DevCodex 采用“双阶段发布 + 三层日志”：
    - `R4`：执行 `npm pack --dry-run` 与 `npm publish --dry-run`
    - `R5~R7`：按需做 install smoke、tag/publish 前确认与发布后验收
 
-> v1.14.0 的 `publishConfig` 指向 GitHub Packages restricted 通道；`release:dry-run:npmjs` / `release:dry-run:github` 继续保留为多目标发布前诊断工具，但当前版本只授权和验收 GitHub Packages。真实发布仍必须完成 package ownership / publisher / auth topology、目标提交远端 CI 与目标 registry 后验收；dry-run 通过不能替代真实发布证据。
+> v1.15.1 的 `publishConfig` 指向 GitHub Packages restricted 通道；`release:dry-run:npmjs` / `release:dry-run:github` 继续保留为多目标发布前诊断工具，但当前版本只授权和验收 GitHub Packages。真实发布仍必须完成 package ownership / publisher / auth topology、目标提交远端 CI 与目标 registry 后验收；dry-run 通过不能替代真实发布证据。
 
 > 对 scoped package，`.npmrc` 的 `@scope:registry` 会优先影响目标解析；每个实际目标的 view、whoami、dry-run、publish 与发布后查询都必须执行 `ScopedRegistryResolutionGate`，用隔离 userconfig 或显式 `--@scope:registry=<target>` 绑定目标。存在多个目标时必须独立取证；未列入本次发布范围的 registry 记录为 `N/A + scopeDecision`，不得伪报已发布。
 

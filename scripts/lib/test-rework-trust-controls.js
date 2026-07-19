@@ -7,6 +7,7 @@ const {
   classifyChecklistStateSample,
   classifyCoverageClaimSample,
   classifyInteractiveSemanticSample,
+  classifyRepairPreventionAssessmentSample,
   classifyReleaseAuthoritySample,
   classifyReworkPromotionSample
 } = require('./validate-rework-trust-controls')
@@ -20,8 +21,9 @@ function runReworkTrustControlSuite(ctx) {
   expect(classifyCoverageClaimSample({ claim: '逐文件全读', mode: 'sampled', coverageLedger: false, unresolvedFiles: 2 }), 'invalid-claim', 'coverage negative')
   expect(classifyCoverageClaimSample({ claim: 'all-files', mode: 'full-read', coverageLedger: true, unresolvedFiles: 0 }), 'evidence-bounded', 'coverage positive')
   expect(classifyArtifactDeliverySample({ observed: false }), 'unverified', 'artifact unobserved')
-  expect(classifyArtifactDeliverySample({ observed: true, hasSection: true, hasPrimaryArtifacts: false, hasAbsolutePaths: true }), 'verified-missing', 'artifact negative')
-  expect(classifyArtifactDeliverySample({ observed: true, hasSection: true, hasPrimaryArtifacts: true, hasAbsolutePaths: true }), 'verified-present', 'artifact positive')
+  expect(classifyArtifactDeliverySample({ observed: true, legacyFormat: true, hasEnvelopeMarker: false }), 'unverified-legacy', 'artifact legacy ceiling')
+  expect(classifyArtifactDeliverySample({ observed: true, hasEnvelopeMarker: true, hasAllowedSection: true, hasSemanticItems: true, requiredHidden: 1, listed: 2, remaining: 1, total: 3, capabilityEvidence: true }), 'verified-missing', 'artifact required hidden')
+  expect(classifyArtifactDeliverySample({ observed: true, hasEnvelopeMarker: true, hasAllowedSection: true, hasSemanticItems: true, requiredHidden: 0, listed: 2, remaining: 1, total: 3, capabilityEvidence: true }), 'verified-present', 'artifact positive')
   expect(classifyReworkPromotionSample({ retrospectiveOnly: true }), 'retrospective-only', 'retrospective-only')
   expect(classifyReworkPromotionSample({ retrospectiveOnly: false, comparableWorkUnits: 2, independentContexts: 1, firstPassYieldImproved: true, metricGaming: false, rollbackReady: true }), 'hold-gray', 'insufficient evidence')
   expect(classifyReworkPromotionSample({ retrospectiveOnly: false, comparableWorkUnits: 3, independentContexts: 1, firstPassYieldImproved: true, metricGaming: false, rollbackReady: true }), 'eligible-for-active-review', 'prospective evidence')
@@ -36,15 +38,19 @@ function runReworkTrustControlSuite(ctx) {
   const checklistSnapshot = { currentRound: 'R1', zeroFindingStreak: 1, currentBatch: 'audit', remaining: ['R2'], blockers: [], openFindings: 0, closureState: 'running' }
   expect(classifyChecklistStateSample({ sections: Object.fromEntries(['header', 'items', 'round', 'ledger', 'progress', 'closure'].map(section => [section, { ...checklistSnapshot }])) }), 'materialized', 'checklist materialized')
   expect(classifyChecklistStateSample({ sections: { ...Object.fromEntries(['header', 'items', 'round', 'ledger', 'closure'].map(section => [section, { ...checklistSnapshot }])), progress: { ...checklistSnapshot, currentBatch: 'CP2' } } }), 'stale', 'checklist progress stale')
+  expect(classifyRepairPreventionAssessmentSample(null), 'invalid:assessment-object-required', 'repair prevention missing assessment')
 
   for (const [file, needles] of [
-    ['scripts/lib/validate-rework-trust-controls.js', ['checkV94', 'ReviewCoverageClaimIntegrityGate', 'ArtifactDeliveryCompletenessGate', 'classifyCandidateDiffCompletenessSample', 'classifyChecklistStateSample']],
+    ['scripts/lib/validate-rework-trust-controls.js', ['checkV94', 'ReviewCoverageClaimIntegrityGate', 'VisibleOutputHostEvidenceGate', 'classifyCandidateDiffCompletenessSample', 'classifyChecklistStateSample']],
     ['skills/review-checklist/SKILL.md', ['ChecklistStateMaterializationGate', 'ChecklistStateSnapshot', 'CandidateDiffCompletenessGate']],
     ['skills/release-verification/SKILL.md', ['CandidateDiffCompletenessGate', 'git diff --cached --check']],
-    ['skills/rework-prevention-engineering/SKILL.md', ['ReworkEffectivenessLoop', 'FirstPassYield', 'CandidateDiffCompletenessGate']],
+    ['skills/rework-prevention-engineering/SKILL.md', ['RepairPreventionAssessmentGate', 'RepairPreventionAssessmentV1', 'ReworkEffectivenessLoop', 'FirstPassYield', 'CandidateDiffCompletenessGate']],
+    ['scripts/lib/repair-prevention-assessment.js', ['assessRepairPrevention', 'emergency-active']],
+    ['scripts/test-repair-prevention-assessment.js', ['first/repeat/no-new/emergency/rollback/sunset']],
     ['skills/routing/SKILL.md', ['rework-prevention-engineering']],
     ['plugin.json', ['rework-prevention-engineering', '"lifecycleState": "gray"']]
   ]) for (const needle of needles) mustInclude(file, needle)
+  mustIncludeInChangelogs('RepairPreventionAssessmentGate')
   mustIncludeInChangelogs('V94')
 }
 

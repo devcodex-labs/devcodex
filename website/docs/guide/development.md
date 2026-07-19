@@ -152,7 +152,7 @@ description: "Use when: ..."   # 必填，AI 靠这个发现 Skill
 日常开发中，DevCodex 不应只按用户字面关键词决定工作流。当前源码规范流程为：
 
 ```text
-语义意图初判（IntentSeedV1）→ 唯一项目/activeRoot → ContextReadPlanV1 → 定向读取 + ContextReadReceiptV1 → 项目现实扩展 → 最终工作流/子类型
+语义意图初判（IntentSeedV1）→ 唯一项目/activeRoot → ContextReadPlanV2 → 定向读取 + ContextReadReceiptV2 → 项目现实扩展 → 最终工作流/子类型
 ```
 
 项目现实扩展至少要检查目标项目、真实影响范围、关联文件族、产物落点和验证方式；若项目未明确，必须先澄清，不能为了扩展意图而无界扫描工作区。
@@ -163,9 +163,26 @@ description: "Use when: ..."   # 必填，AI 靠这个发现 Skill
 
 - `profile_context_plan` 只读取 README/index、effective non-local config，并对顶层 Profile 文件做 metadata inventory；`01~09-*` 与 `config.local.json` 正文必须进入 selected/excluded/unclassified 决策。
 - selected Profile 用 `profile_load(files=[...])` 定向读取；记忆先用 `memory_status`，resume/continuity 再用 `memory_session_query` 或 `memory_summary_query` 获取单个有界片段。
-- `ContextReadReceiptV1` 只接受 planId、contextEpoch、activeRoot、source/query 精确相关的 PostToolUse 成功证据。PreToolUse、失败调用、提示文案和 legacy no-args full 都不能声明 complete。
+- `ContextReadReceiptV2` 只接受 planId、planContentId、contextEpoch、activeRoot、source identity/query 精确相关的 PostToolUse 成功证据。PreToolUse、失败调用、cache hit、提示文案和 legacy no-args full 都不能声明 complete；V1 只保留 reader compatibility。
 - 用户/项目明确要求、audit/migration、低置信、必要来源缺失或实质 scope/risk/digest 漂移可以升级/重算；预算只触发告警或升级，不能压掉安全、CP、治理或强制证据。
 - MCP bridge 失败只允许一次同计划 bounded fallback；结果不可观察时保持 unverified，并继续执行后续安全与确认门禁。
+
+### 大型项目的增量分析快照
+
+首次完整或逐文件分析不必在后续任务中反复重读全库。当前源码提供单一 ProjectKnowledge V2 仓：
+
+```text
+status → plan → observe（零写入）→ bootstrap/accept（验证通过后写入）
+```
+
+- `observe` 从当前文件字节生成确定性的 heading、symbol、import、config/test 等结构声明；它明确不是“人工逐文件深读”。
+- `bootstrap --task-root <任务目录>` 先在内存完成所有智能批次、range digest、binding 与 sample oracle 验证，最后才推进一次 accepted runtime pointer。
+- 后续 `plan` 只读取 changed、依赖/消费者影响闭包和新的 lens-gap；复用集按 contentId/path 稳定抽取 5%（最少 3、最多 20）重新观察。
+- `ProjectKnowledgeBindingV1` 同时绑定 repo/root、inventory Merkle、分析配置、解析器、测试路线和 Profile；任一环境身份错配都回退 full-required，普通内容小改动则走 delta。
+- 每条 `SemanticClaimV1` 都绑定 authority、精确 source range/range digest、lens、policy 和依赖。inventory/结构观察不得宣称职责、风险、建议、完整问题数或人工深读；这些判断只能由 `agent-semantic` 声明承接。
+- V1 snapshot 仅返回只读迁移状态，不参与 V2 reuse/accept；快照损坏、抽样不一致、动态依赖未知或高风险分析同样走完整正确路径。
+
+运行时位置为 `<active-root>/.runtime-state/project-knowledge/v2/<repoId>/snapshot.json`。它始终是可重建派生状态，项目文件、已确认需求和验证证据仍是真相源。
 
 ### 治理意图按评估结果分流
 
@@ -257,9 +274,11 @@ Hook / CLI / visible reply / sticky project / workspace guard 相关任务还要
 - LocalTaskTrace：当前 turn 记录严格递增 sequence、唯一 eventId 和唯一末尾 terminal；历史 turn 只保留 TurnLiveness 摘要，CLI replay 是只读数据投影
 - gray sidecar：源码仓运行 `npm run check:turn-liveness -- --state <lifecycle-state.json> --json`；安装包运行 `node node_modules/@vextjs/devcodex/scripts/check-turn-liveness.js --state <lifecycle-state.json> --json`。它只做 one-shot 读取/分类，证据状态为 `sidecar-observed`，不 watch、不写状态、不唤醒、不重放、不控制进程
 
-### 产物链接与 MCP fallback
+### 用户可见交付与 MCP fallback
 
-用户面产物路径必须按 `ArtifactLinkSet` 输出：主 Markdown 链接 + 必要 `绝对路径：` copy fallback。Copilot / JetBrains / Visual Studio 默认使用工作区相对 Markdown 链接，并强制追加绝对路径 fallback；Codex Desktop/App 可使用绝对路径 Markdown target；未知宿主或用户已反馈“无法点击”时同样必须追加绝对路径。输出前执行 `ArtifactLinkSetDedupeGate`：按 canonical path 去重同一物理文件的相对链接、绝对链接、报告/记忆/SUMMARY 引用和 fallback，避免宿主面板看起来生成了双份产物。
+文件交付采用 `ArtifactDeliveryManifestV1 → UserFacingArtifactSetV1 → DevCodexVisibleEnvelopeV1 → LinkCapabilityDecisionV1 renderer`。内部 manifest 对账全部 planned/observed/delivered 产物；用户面默认只显示最终报告、直接交付物和必要证据，session、daily、SUMMARY、task/checkpoint、raw receipt/manifest/ledger 继续写入和验证但不默认展示。每项使用语义名称、用途和用户动作，按决策、结果、证据、可选详情排序。
+
+链接策略依据当前 surface 的可验证能力选择：已验证 clickable 时只显示一个语义 Markdown 链接；未知能力使用 portable 工作区相对链接；纯文本 surface 使用可复制短路径。只有用户明确要求、链接实际失败、工作区外、路径歧义或宿主无法定位时才追加绝对路径 fallback，并记录原因。`ArtifactLinkSet` 仅是兼容投影，仍由 `ArtifactLinkSetDedupeGate` 按 canonical path 去重；禁止 `file://` 与裸文件名交付。
 
 若 Copilot / Codex 等非 Claude Code 宿主在 `profile_load`、`profile_get_mode` 等 MCP 工具上出现 `Cannot read properties of undefined (reading 'invoke')`，按宿主 MCP bridge 失败处理：不要反复重试同一 MCP 调用，立即降级读取 `.devcodex/**/profile/`、`SUMMARY.md` 与当日任务记忆，并在 HostContractRoute 中记录 `mcpFallback=used`。
 
@@ -317,10 +336,8 @@ ConfirmationRequest 是语义层抽象，不要求 runtime 逐字输出同名对
 
 
 <!-- auto-sync anchors -->
-Profile Freshness Check · 涓嶈兘鍙獙璇佲€滃寘鑳藉畨瑁呪€?
-  [V56] platform framing / validation hygiene drift in website/docs/guide/development.md: missing  · 楠岃瘉鍗敓涓庡寘杈圭晫 · 澶嶅瑕嗙洊澧為噺 · 鏈夋晥闆跺彂鐜?
-  [V59] project audit leak-risk drift in website/docs/guide/development.md: missing  · 璧勬簮鎸囨爣鍓嶅悗瀵规瘮 · V2FormalSolutionPackage · 棣栭〉棣栧睆 · 鍒嗗眰鍚哥撼鏋舵瀯
+Profile Freshness Check · 不能只验证“包能安装” · 验证卫生与包边界 · 复审覆盖增量 · 有效零发现
 
-RuntimeI18nArtifactVerificationGate · FrontendBrowserVerificationBudgetGate · UserDocsImmediateComprehensionGate · UserPathContractSweep · 不能只验证“包能安装” · 需求/问题定义阶段先做平台工程判断 · 验证卫生与包边界 · 复审覆盖增量 · 有效零发现 · 内存泄露 · 资源指标前后对比 · 首页首屏 · 分层吸纳架构
+RuntimeI18nArtifactVerificationGate · FrontendBrowserVerificationBudgetGate · UserDocsImmediateComprehensionGate · UserPathContractSweep · 不能只验证“包能安装” · 需求/问题定义阶段先做平台工程判断 · 验证卫生与包边界 · 复审覆盖增量 · 有效零发现 · 内存泄露 · 资源指标前后对比 · 首页首屏 · 分层吸纳架构 · V2FormalSolutionPackage
 
 自动生成 outline/侧栏已覆盖导航 · AuditMutationBoundaryGate

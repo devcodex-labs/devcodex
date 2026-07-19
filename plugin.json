@@ -6,7 +6,7 @@
   "name": "DevCodex",
   "publisher": "Rocky",
   "displayName": "DevCodex — AI Development Workflow Assistant",
-  "description": "Standardized AI-assisted development workflow system for Copilot, Claude Code and Codex.",
+  "description": "Standardized AI-assisted development workflow system for Copilot, Claude Code, Codex, Gemini CLI and Grok.",
   "icon": "assets/icon-512.png",
   "license": "AGPL-3.0-or-later",
   "repository": "https://github.com/vextjs/devcodex",
@@ -417,6 +417,16 @@
       "id": "spec-governance",
       "file": "skills/spec-governance/SKILL.md",
       "tier": "free"
+    },
+    {
+      "id": "user-visible-output-contract",
+      "file": "skills/user-visible-output-contract/SKILL.md",
+      "tier": "free"
+    },
+    {
+      "id": "host-instruction-projection",
+      "file": "skills/host-instruction-projection/SKILL.md",
+      "tier": "free"
     }
   ],
   "instructions": [
@@ -507,6 +517,7 @@
     "ai-dev",
     "claude-code",
     "codex",
+    "gemini-cli",
     "grok"
   ],
   "categories": [

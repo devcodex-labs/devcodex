@@ -23,6 +23,7 @@ function buildOptimizationControlChecks(ctx) {
       'scripts/lib/project-knowledge-store.js',
       'scripts/project-analysis-state.js',
       'scripts/test-project-knowledge-store.js',
+      'scripts/test-project-knowledge-v2.js',
       'scripts/test-execution-attempt-ledger.js',
       'scripts/publish-dry-run.js',
       'scripts/lib/skill-portfolio-utils.js',
@@ -32,7 +33,19 @@ function buildOptimizationControlChecks(ctx) {
       'scripts/lib/runtime-state-index.js',
       'scripts/check-runtime-state.js',
       'scripts/lib/deployment-manifest-utils.js',
-      'scripts/test-deployment-manifest.js'
+      'scripts/test-deployment-manifest.js',
+      'skills/host-instruction-projection/SKILL.md',
+      'scripts/host-instruction-projection.json',
+      'scripts/lib/host-instruction-projection.js',
+      'scripts/lib/host-surface-descriptors.js',
+      'scripts/generate-host-instruction-projections.js',
+      'scripts/test-host-instruction-projection.js',
+      'scripts/test-host-adapters.js',
+      'scripts/test-host-installation.js',
+      'scripts/test-context-binding.js',
+      'host-projections/coverage.json',
+      'gemini/settings.json',
+      'grok/hooks/devcodex.json'
     ]
     required.forEach(requireFile)
 
@@ -44,12 +57,17 @@ function buildOptimizationControlChecks(ctx) {
       'test:optimization-controls',
       'test:profile-section-selector',
       'test:project-knowledge',
+      'test:project-knowledge-v2',
       'test:execution-attempt-ledger',
       'test:validation-dag',
       'test:changed',
       'test:profile-deploy',
       'test:package-release',
       'test:skill-portfolio:staged',
+      'test:host-instruction-projection',
+      'test:host-adapters',
+      'test:host-installation',
+      'test:context-binding',
       'test:coverage',
       'release:dry-run:npmjs',
       'release:dry-run:github'
@@ -79,9 +97,16 @@ function buildOptimizationControlChecks(ctx) {
       'scripts/test-profile-section-selector.js',
       'scripts/project-analysis-state.js',
       'scripts/test-project-knowledge-store.js',
+      'scripts/test-project-knowledge-v2.js',
       'scripts/test-execution-attempt-ledger.js',
+      'scripts/test-context-binding.js',
+      'scripts/test-host-adapters.js',
+      'scripts/test-host-installation.js',
+      'scripts/test-host-instruction-projection.js',
       'scripts/lib/project-knowledge-store.js',
-      'scripts/lib/validation-dag.js'
+      'scripts/lib/validation-dag.js',
+      'scripts/lib/host-instruction-projection.js',
+      'scripts/lib/host-surface-descriptors.js'
     ]
     for (const relative of requiredPackageFiles) {
       if (!pkg.files?.includes(relative)) err(`[V92] package files missing validation DAG consumer: ${relative}`)
@@ -99,11 +124,11 @@ function buildOptimizationControlChecks(ctx) {
       if (!lifecycleSkill.includes(needle)) err(`[V92] Skill lifecycle V2 consumer missing: ${needle}`)
     }
     const knowledgeStore = read(path.join(ROOT, 'scripts/lib/project-knowledge-store.js'))
-    for (const needle of ['ProjectKnowledgeSnapshotV1', 'IncrementalAnalysisPlanV1', 'IncrementalAnalysisReceiptV1', 'selectDeterministicReuseSample', 'persistAcceptedKnowledge']) {
+    for (const needle of ['ProjectKnowledgeSnapshotV2', 'FileKnowledgeRecordV2', 'SemanticClaimV1', 'ProjectKnowledgeBindingV1', 'IncrementalAnalysisPlanV2', 'IncrementalAnalysisReceiptV2', 'selectDeterministicReuseSample', 'observeProjectKnowledge', 'bootstrapProjectKnowledge', 'persistAcceptedKnowledge', 'KNOWLEDGE_V1_READ_ONLY']) {
       if (!knowledgeStore.includes(needle)) err(`[V92] ProjectKnowledge runtime missing: ${needle}`)
     }
     const analysisOwner = read(path.join(ROOT, 'skills/incremental-project-analysis/SKILL.md'))
-    for (const needle of ['project-analysis-state.js status|plan|accept', '5%', 'full-required', 'BatchValidationResultV1=pass']) {
+    for (const needle of ['project-analysis-state.js status|plan|observe|bootstrap|accept', '5%', 'full-required', 'BatchValidationResultV1=pass', 'SemanticClaimV1', 'V1 只读兼容']) {
       if (!analysisOwner.includes(needle)) err(`[V92] incremental analysis consumer missing: ${needle}`)
     }
     if (pkg.devDependencies?.c8 !== '10.1.3') err('[V92] c8 must stay pinned to Node18-compatible 10.1.3')
@@ -139,10 +164,10 @@ function buildOptimizationControlChecks(ctx) {
 
     const portfolio = buildPortfolio(ROOT)
     const portfolioErrors = validatePortfolio(portfolio)
-    if (portfolio.summary.skillCount !== 78) err(`[V92] expected 78 skills, got ${portfolio.summary.skillCount}`)
+    if (portfolio.summary.skillCount !== 80) err(`[V92] expected 80 skills, got ${portfolio.summary.skillCount}`)
     if (portfolio.summary.graySkillCount !== 3) err(`[V92] expected three gray skills, got ${portfolio.summary.graySkillCount}`)
     if (portfolio.summary.dependencyEdgeCount < 1) err('[V92] explicit Skill dependency graph has no edges')
-    if (portfolio.summary.operationalEvidenceCompleteCount !== 78) err('[V92] operational lifecycle evidence is incomplete')
+    if (portfolio.summary.operationalEvidenceCompleteCount !== 80) err('[V92] operational lifecycle evidence is incomplete')
     if (portfolio.summary.triggerQuality !== 'structural-only') err('[V92] trigger precision must remain structural-only without real samples')
     if (!Number.isInteger(portfolio.generatedFrom.consumerInventoryFileCount) || portfolio.generatedFrom.consumerInventoryFileCount < 50) {
       err('[V92] portfolio consumer inventory is missing or unexpectedly small')
@@ -166,7 +191,7 @@ function buildOptimizationControlChecks(ctx) {
     for (const needle of ['5 分钟快速开始', 'GitHub Packages', 'npm.pkg.github.com', 'NODE_AUTH_TOKEN', 'read:packages', '当前唯一发布通道', '1.0.1']) {
       if (!readme.includes(needle)) err(`[V92] README product path missing: ${needle}`)
     }
-    console.log(`[V92] optimization controls checked: skills=78 gray=3 runtimeAlerts=${runtimeState.summary.alertCount}`)
+    console.log(`[V92] optimization controls checked: skills=80 gray=3 runtimeAlerts=${runtimeState.summary.alertCount}`)
   }
 
   return { checkV92 }

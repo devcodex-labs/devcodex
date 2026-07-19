@@ -6,6 +6,7 @@ const path = require('path')
 const {
   ProjectKnowledgeError,
   acceptKnowledgeBatch,
+  bootstrapProjectKnowledge,
   buildIncrementalAnalysisPlan,
   buildRepoIdentity,
   persistAcceptedKnowledge,
@@ -31,10 +32,14 @@ function parseArgs(argv) {
     maxBatchFiles: 50,
     input: '',
     runId: '',
+    analysisConfigIdentity: '',
+    parserIdentity: '',
+    testIdentity: '',
+    profileIdentity: '',
     json: false,
     errors: []
   }
-  const valueFlags = new Set(['--repo', '--active-root', '--task-root', '--lens', '--lens-version', '--question', '--policy-version', '--max-files', '--max-bytes', '--max-batch-files', '--input', '--run-id'])
+  const valueFlags = new Set(['--repo', '--active-root', '--task-root', '--lens', '--lens-version', '--question', '--policy-version', '--max-files', '--max-bytes', '--max-batch-files', '--input', '--run-id', '--analysis-config-identity', '--parser-identity', '--test-identity', '--profile-identity'])
   for (let index = 1; index < values.length; index += 1) {
     const arg = String(values[index])
     if (arg === '--json') {
@@ -65,16 +70,20 @@ function parseArgs(argv) {
       else options.maxBatchFiles = Number(value)
     } else if (arg === '--input') options.input = path.resolve(String(value))
     else if (arg === '--run-id') options.runId = String(value)
+    else if (arg === '--analysis-config-identity') options.analysisConfigIdentity = String(value)
+    else if (arg === '--parser-identity') options.parserIdentity = String(value)
+    else if (arg === '--test-identity') options.testIdentity = String(value)
+    else if (arg === '--profile-identity') options.profileIdentity = String(value)
   }
-  if (!['status', 'plan', 'accept'].includes(options.action)) options.errors.push(`unknown action: ${options.action || '(none)'}`)
+  if (!['status', 'plan', 'observe', 'bootstrap', 'accept'].includes(options.action)) options.errors.push(`unknown action: ${options.action || '(none)'}`)
   options.activeRoot = options.activeRoot || path.join(options.repoRoot, '.devcodex')
   if (options.action === 'accept' && !options.input) options.errors.push('accept requires --input <candidate.json>')
-  if (options.action === 'accept' && !options.taskRoot) options.errors.push('accept requires --task-root <task-root>')
+  if (['accept', 'bootstrap'].includes(options.action) && !options.taskRoot) options.errors.push(`${options.action} requires --task-root <task-root>`)
   return options
 }
 
 function envelope(ok, action, data = null, error = null) {
-  return { schemaVersion: 'ProjectAnalysisStateCliV1', ok, action, data, error }
+  return { schemaVersion: 'ProjectAnalysisStateCliV2', ok, action, data, error }
 }
 
 function printResult(options, result) {
@@ -91,6 +100,10 @@ function printResult(options, result) {
     process.stdout.write(`ProjectKnowledge status: ${data.status}; repoId=${data.repoId}; records=${data.records}\n`)
   } else if (options.action === 'plan') {
     process.stdout.write(`Incremental analysis plan: ${data.planId}; read=${data.readPaths.length}; reused=${data.reusedPaths.length}; batches=${data.batches.length}; fullRequired=${data.fullRequired}\n`)
+  } else if (options.action === 'observe') {
+    process.stdout.write(`ProjectKnowledge observation: plan=${data.plan.planId}; candidates=${data.observation.candidateRecords.length}; samples=${data.observation.sampleRecords.length}; writes=0\n`)
+  } else if (options.action === 'bootstrap') {
+    process.stdout.write(`ProjectKnowledge bootstrap: ${data.bootstrap.status}; batches=${data.bootstrap.receipts.length}; persisted=${Boolean(data.persistReceipt)}\n`)
   } else {
     process.stdout.write(`Knowledge batch ${data.receipt.batchId}: ${data.receipt.status}; next=${data.receipt.nextBatchId || 'none'}\n`)
   }
@@ -101,15 +114,10 @@ function fail(options, code, message, nextStep, exitCode) {
   process.exitCode = exitCode
 }
 
-function loadSnapshot(activeRoot, repoId) {
-  const receipt = readKnowledgeSnapshot(activeRoot, repoId)
-  return receipt.status === 'fresh' ? receipt.value : null
-}
-
 function main(argv = process.argv.slice(2)) {
   const options = parseArgs(argv)
   if (options.errors.length) {
-    fail(options, 'CLI_INVALID_OPTION', options.errors.join('; '), 'Use status|plan|accept with explicit --repo/--active-root and --task-root for accept.', 2)
+    fail(options, 'CLI_INVALID_OPTION', options.errors.join('; '), 'Use status|plan|observe|bootstrap|accept with explicit --repo/--active-root and --task-root for write actions.', 2)
     return
   }
   try {
@@ -127,26 +135,33 @@ function main(argv = process.argv.slice(2)) {
       reasonCode: featureDecision.reasonCode,
       stateStatus: featureDecision.stateStatus
     }
-    const acceptedSnapshot = loadSnapshot(options.activeRoot, repoIdentity.repoId)
+    const snapshotReceipt = readKnowledgeSnapshot(options.activeRoot, repoIdentity.repoId)
+    const acceptedSnapshot = snapshotReceipt.status === 'fresh' ? snapshotReceipt.value : null
     const snapshot = featureDecision.optimizationAllowed ? acceptedSnapshot : null
     if (options.action === 'status') {
       const data = {
-        schemaVersion: 'ProjectKnowledgeStatusV1',
+        schemaVersion: 'ProjectKnowledgeStatusV2',
         repoId: repoIdentity.repoId,
-        status: acceptedSnapshot?.status || 'missing',
-        records: acceptedSnapshot?.records?.length || 0,
-        tombstones: acceptedSnapshot?.tombstones?.length || 0,
+        status: acceptedSnapshot?.status || snapshotReceipt.status,
+        snapshotReadStatus: snapshotReceipt.status,
+        records: (acceptedSnapshot || snapshotReceipt.value)?.records?.length || 0,
+        tombstones: (acceptedSnapshot || snapshotReceipt.value)?.tombstones?.length || 0,
         pendingPlanId: acceptedSnapshot?.pendingPlan?.planId || null,
         inventoryIdentity: inventory.inventoryIdentity,
+        inventoryMerkleRoot: inventory.merkleRoot,
+        migrationRequired: snapshotReceipt.migrationRequired === true,
         executionOptimizationMode: featureDecision.configurationMode,
-        reuseAllowed: featureDecision.optimizationAllowed,
+        reuseAllowed: featureDecision.optimizationAllowed && snapshotReceipt.status === 'fresh',
         executionOptimization: optimizationProjection
       }
       printResult(options, envelope(true, 'status', data))
       process.exitCode = 0
       return data
     }
-    if (options.action === 'plan') {
+    if (['plan', 'observe', 'bootstrap'].includes(options.action)) {
+      const forceFullReasons = []
+      if (!featureDecision.optimizationAllowed) forceFullReasons.push('execution-optimization-disabled')
+      if (snapshotReceipt.status === 'compatibility-v1') forceFullReasons.push('legacy-v1-read-only')
       const plan = buildIncrementalAnalysisPlan({
         snapshot,
         inventory,
@@ -158,12 +173,52 @@ function main(argv = process.argv.slice(2)) {
           questionFingerprint: options.questionFingerprint,
           policyVersion: options.policyVersion
         },
-        options: { maxBatchFiles: options.maxBatchFiles }
+        options: {
+          maxBatchFiles: options.maxBatchFiles,
+          analysisConfigIdentity: options.analysisConfigIdentity,
+          parserIdentity: options.parserIdentity,
+          testIdentity: options.testIdentity,
+          profileIdentity: options.profileIdentity,
+          forceFullReasons
+        }
       })
       const planWithDecision = { ...plan, executionOptimization: optimizationProjection }
-      printResult(options, envelope(true, 'plan', planWithDecision))
+      if (options.action === 'plan') {
+        printResult(options, envelope(true, 'plan', planWithDecision))
+        process.exitCode = 0
+        return planWithDecision
+      }
+      const bootstrap = bootstrapProjectKnowledge({
+        snapshot,
+        inventory,
+        repoIdentity,
+        plan,
+        graph: snapshot?.impactGraph || {}
+      })
+      if (options.action === 'observe') {
+        const data = { plan: planWithDecision, observation: bootstrap.observation, sampleOracle: bootstrap.sampleOracle, writeCount: 0 }
+        printResult(options, envelope(true, 'observe', data))
+        process.exitCode = bootstrap.sampleOracle.status === 'pass' ? 0 : 1
+        return data
+      }
+      if (!['accepted', 'unchanged'].includes(bootstrap.status)) {
+        const data = { plan: planWithDecision, bootstrap, persistReceipt: null }
+        printResult(options, envelope(true, 'bootstrap', data))
+        process.exitCode = 1
+        return data
+      }
+      const persistReceipt = bootstrap.status === 'accepted' ? persistAcceptedKnowledge({
+        activeRoot: options.activeRoot,
+        taskRoot: options.taskRoot,
+        runId: options.runId || plan.planId,
+        plan,
+        snapshot: bootstrap.snapshot,
+        receipt: bootstrap.receipts.at(-1)
+      }) : null
+      const data = { plan: planWithDecision, bootstrap, persistReceipt }
+      printResult(options, envelope(true, 'bootstrap', data))
       process.exitCode = 0
-      return planWithDecision
+      return data
     }
 
     const input = JSON.parse(fs.readFileSync(options.input, 'utf8'))

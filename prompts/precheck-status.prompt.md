@@ -10,22 +10,21 @@ applyTo: "**"
 ## 全模式入口检查（推荐格式）
 
 ```markdown
----
-🔍 入口检查（[DEV/PROD] 模式）
-- PC0 上下文：项目 [项目名/未识别] · 输出语言 [中/英] · ContextReadPlan [✅已形成/⚠️降级] · 必要来源回执 [✅verified/⚠️partial/❌missing]
-- PC1 意图：语义初判 [用户意图] → 项目现实扩展后 [工作流名称/子类型]
-- PC2 会话状态：第 N 轮（>10 关注 / >13 预警 / >15 防护） · 待跟进事项 ✅ 无 / ⚠️ [简述]
-- PC3 执行准备：项目现实扩展 [已完成/待澄清] · 未完成任务 ✅ 无 / ⚠️ 存在 🔄 会话：[简述] → 建议先 resume · 产物落点 [已确定/无需产物/待确定]
-- PC4 规范雷达：[Axis A ✅/⚠️] [Axis B ✅/⚠️] [Axis C ✅/⚠️]
-  → ✅ 三轴正常，无规范问题
-  → ⚠️ PF 标记（G1）：[简述规范缺陷] · 延迟追加 pending-fixes.md
-  → ⚠️ PF 标记（G4, G7）：[简述] · 延迟追加（多轴并列时，用逗号分隔 G 码，跨轴分行）
-  → VL 标记：[简述执行偏差] · 延迟追加 violations.md
-  → ⚠️ 疑似 PF：[简述疑点] · 待用户确认后追加
-  → N/A（非 dev 模式：dev 扩展诊断未启用）
-- PC5 部署体状态（v1.11.0+）：cwd 父链 `.github/`、`.claude/`、`AGENTS.md`、`.agents/`、`.codex/` ✅ 存在 / N/A 无父级 · 与源仓库同步 ✅ / ⚠️ [N 文件滞后] / N/A
-- PC6 工作区一致性（v1.9.4+）：git 未提交变更 ✅ 无 / ⚠️ [N 文件 dirty] · 当前任务目录 [requirements/<X>/ / bugs/<Y>/ / 无关联]
-- PC7 新会话首步 resume 强制检测（仅首条用户消息触发）：命名续接写 `TaskResolutionV1 [resolved-active/ambiguous/...]+定向复证状态`；其他场景写 `memory_status` + 有界 session/SUMMARY query 回执一致 / ⚠️ 数据不一致或证据不足 / N/A（非首条）
+### DevCodex · 入口检查
+`[PASS/WARN/BLOCK/UNVERIFIED]` · `[项目名/未识别]`
+
+- PC0 [状态] ContextReadPlan 与必要来源回执
+- PC1 [状态] 语义初判 → 项目现实扩展后的最终路由
+- PC2 [状态] 会话/Token 防护/待跟进
+- PC3 [状态] 唯一项目、任务连续性与产物落点
+- PC4 [状态] dev 规范雷达 group/owner/validation；非 dev 为 N/A
+- PC5 [状态] 当前宿主部署、同步与实际加载证据
+- PC6 [状态] git dirty、active task 与工作区一致性
+- PC7 [状态] 新会话/resume 的 bounded continuation 检测
+
+下一步：[必要动作]
+
+`DevCodexVisibleEnvelopeV1 · entry-check · [状态] · [semanticDigest]`
 ```
 
 ## chat / prod 模式
@@ -46,4 +45,8 @@ applyTo: "**"
 - 产物落点：仅输出状态（已确定 / 无需产物 / 待确定），不要直接输出内部 filePath
 - PC0：与 `instructions.md` / `17-compliance.instructions.md` **同源**：写 ContextReadPlan + 必要来源回执，**禁止**再用「Profile ✅ 已加载」单字段冒充上下文完整
 - PC5~PC7：与 `instructions/17-compliance.instructions.md` 保持一致；无法执行时必须标注 N/A 或 ⚠️ 原因，禁止省略
+- PC5 部署面必须显式覆盖 `.github/`、`.claude/`、根 `AGENTS.md`、`.agents/` 与 `.codex/`；只检查某一宿主副本不得写“全部同步”
+- PC7 新会话首步 resume 强制检测：新任务、compact/summary 恢复或 `继续<任务名>任务` 首次响应必须重建 bounded continuation，并核对文件真相源后再继续
+- 先用 `user-visible-output-contract` 形成完整 Envelope，再渲染为 rich/portable/plain；状态词固定为 PASS/WARN/BLOCK/UNVERIFIED/N/A
+- 新会话、resume/compact、target/intent/risk/CP/dirty/receipt 变化或存在 WARN/BLOCK/UNVERIFIED 时必须 expanded；同 epoch + semanticDigest 不变且全 PASS/N/A 才可 compact，compact 仍保留 PC0~PC7
 - 若主动建议或因 C08 要求新会话：同回复附内部完整 `NewSessionContinuationCard`，用户可复制入口固定为 `继续<displayName>任务`；长任务在记忆/报告记 `SessionTimingCard`（开始/结束/阶段，等人与执行分列）

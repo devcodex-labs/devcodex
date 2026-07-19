@@ -43,7 +43,7 @@ flowchart TD
 | FC2 | 报告文件已写入 | chat 豁免 |
 | FC3 | CP 按序执行 | dev/fix 强制 |
 | FC4 | 文件名/路径合规 | `NN--` 双横杠 |
-| FC5 | 产物路径已输出 | `📂 本次会话产物` 区块内的相对路径 Markdown 链接 |
+| FC5 | 内部交付与用户可见输出完整 | `ArtifactDeliveryManifestV1` 完整对账；`UserFacingArtifactSetV1` required hidden=0 且计数守恒；可见项有语义名称、用途、动作和能力证据 |
 | FC6 | 新增 DevCodex 规范资产 `.md` 行数 | instructions / skills / prompts / templates / 规范源等 ≤ 500 行；业务项目需求、技术方案、报告和正式项目文档不因 C13 强制拆分 |
 | FC7 | 决策推荐项 | 用户决策节点和报告决策点必须有推荐项和推荐理由；无后续动作时写“推荐：无后续动作” |
 

@@ -72,8 +72,9 @@ flowchart TD
 3. 多建议、多路径或方案对比时必须有推荐结论 / 推荐方案与推荐理由；无后续动作时写“推荐：无后续动作”
 4. 文件名使用 `NN--` 双横杠格式
 5. dev/fix 报告必须包含 ECR 执行闭环复审结果
-6. 报告末尾引用本次会话记忆路径
-7. 回复末尾必须输出 `📂 本次会话产物` 区块与相对路径 Markdown 链接
+6. 报告内部登记关联记忆的 canonical identity；session、daily、SUMMARY 与 raw ledger 默认 internal-only，不要求在用户回复列出
+7. 回复由 `DevCodexVisibleEnvelopeV1` 输出“需要你确认的文件 / 本批交付文件 / 完成交付文件 / 阻断证据”之一；每项使用语义名称、用途与用户动作，链接形式由当前 surface 的 capability evidence 决定
+8. 命中增量项目分析时，报告追加 ProjectKnowledge V2 的 binding/Merkle、changed/affected/lens-gap/reused、5% oracle、SemanticClaim authority+range、V1 只读迁移与 accepted-only pointer 证据；结构化 bootstrap 不得写成“人工逐文件深读完成”
 
 ---
 

@@ -105,7 +105,7 @@ version: 1.15.1
 | `blocked-reason` | 条件 | 阻塞时写明原因与所需输入 |
 | `must-not-overwrite` | ✅ | 不得覆盖的用户变更、dirty 边界、不可删除项 |
 | `validation-state` | ✅ | 已验证/失败/待验证证据 |
-| `artifact-links` | ✅ | 报告、记忆、关键产物的 ArtifactLinkSet 或 copy fallback |
+| `artifact-links` | ✅ | 报告、记忆、关键产物的 canonical identity；session/SUMMARY 默认 internal-only，用户面由 UserFacingArtifactSetV1 按需投影 |
 
 `ContextHandoffCard` 只负责交接，不替代 Context Rehydration Contract；恢复方仍须按文件真相源优先级重新核对。
 

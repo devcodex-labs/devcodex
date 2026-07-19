@@ -56,6 +56,28 @@ description: 返工预防工程 Owner — 当任务涉及返工率、一次通�
 
 完整模式必须产出：`ReworkEventLedger`、`EscapePatternCluster`、`PreventionControlSet`、`EffectivenessScorecard` 和 rollback/sunset 条件。
 
+## RepairPreventionAssessmentGate
+
+任何 repair task——无论最终路由为 fix、dev 中的修复切片、self-fix、审查 finding 修复还是发布阻断修复——在 `accepted` 前都必须形成 `RepairPreventionAssessmentV1`。机器结构以 [`repair-prevention-assessment.schema.json`](repair-prevention-assessment.schema.json) 为准，确定性判定以 `scripts/lib/repair-prevention-assessment.js` 为准；其他 Skill、Prompt、报告和清单只引用 Owner，不复制字段定义。
+
+本 Gate 同时给出两个互不替代的结论：
+
+- `immediateClosureEvidence` 只证明当前问题已修复，可允许当前 repair 关闭；
+- `prospectiveEvidencePlan` 只证明长期控制的试验/效果状态。当前事件重跑通过一律是 `retrospective-only`，不得把 provisional control 晋级为 active/effective。
+
+### 决策与升级
+
+| `preventionDecision` | 使用条件 | 生命周期 |
+|---|---|---|
+| `existing-control-restored` | 已有有效控制因执行/接线偏差未生效，本次恢复其消费者或执行链 | 保持既有 active；不得用当前重跑重新证明效果 |
+| `new-control-provisional` | 新增或实质改变 prompt/contract/checklist/probe/test/hook/tool 控制 | `draft/gray`；达到前瞻样本门槛后才可申请 active |
+| `no-new-control` | 已有控制已足够、一次性不可泛化、成本高于风险或不存在更早发现点 | 必须选择标准 reason 并给独立证据；不能用“已修复”作理由 |
+| `emergency-active` | P0/安全/控制面高危问题需要先启用控制 | `active-expiring`；必须有明确授权、前瞻补证、回滚触发和 reviewAt |
+
+低/普通风险首次 repair 可用 `mode=light`，但 schema 的双根因、回归 seed、负向 case、当前关闭证据和 rollback/sunset 仍不可缺。P0/P1、安全、控制面、公共契约、发布、多批次、角色交接、high/critical 或 repeat escape 必须 `mode=full`，追加 `whyMissed / authorizationEvidence / independentReReviewPlan`。
+
+重复逃逸不得选择 `no-new-control` 或只恢复原说明文案；必须升级 `new-control-provisional`，紧急场景才允许 `emergency-active`。全模式下 regression seeds、negative cases、Owner、consumers 和 rollback/sunset 任何一项缺失，都不得把 repair collaboration contract 转为 `accepted`。
+
 ## ReworkEffectivenessLoop
 
 1. 建立 baselineWindow 和可比较 WorkUnit 边界。
@@ -89,6 +111,8 @@ sidecar 晋级至少需要 5 个可比较长任务 WorkUnit，包含 2 个真实
 - `brand-visual-quality`：提供品牌资产 WorkUnit、`VisualBlockerResetRecord`、复发和人工修正数据；当前资产修复通过只关闭该 WorkUnit，仍需后续可比较样本才能证明返工预防有效。
 - `ai-agent-system-architecture` / `host-contract-verification`：提供 Turn Liveness 状态、能力边界和 direct replay；返工 Skill 只拥有前瞻效果评估，不复制运行时状态机。
 - `report`：输出 baseline、事件分类、效果和剩余风险。
+- `execution-contract` / `fix-default` / `fix-security`：所有 repair 的 accepted 前入口；只引用本 Gate 的 assessment result。
+- `review-checklist` / `test-router`：分别核对 assessment 完整性和 immediate/prospective 两条证据路线，不重定义生命周期阈值。
 
 ## 反模式
 
@@ -97,3 +121,4 @@ sidecar 晋级至少需要 5 个可比较长任务 WorkUnit，包含 2 个真实
 - 用当前事件修复后的通过结果冒充前瞻效果。
 - 为降低指标而减少审查、隐藏 finding、延迟 accepted 或扩大 planned-iteration。
 - 已有规则复发时继续堆 instructions 文案，却不补执行消费者或探针。
+- 把 `no-new-control` 当作免填项，或用当前修复测试通过证明长期 prevention 已有效。

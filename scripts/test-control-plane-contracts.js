@@ -13,9 +13,11 @@ const {
 const ROOT = path.resolve(__dirname, '..')
 const contracts = loadControlPlaneContracts(ROOT)
 assert.deepStrictEqual(contracts.errors, [])
-assert.strictEqual(contracts.gateRegistry.groups.length, 43)
 const gateGroupIds = new Set(contracts.gateRegistry.groups.map(group => group.id))
+assert.strictEqual(gateGroupIds.size, contracts.gateRegistry.groups.length)
+assert.ok(contracts.gateRegistry.groups.length >= 44, 'gate registry unexpectedly lost groups')
 for (const expected of [
+  'repair-prevention-assessment',
   'batch-scope-rebinding',
   'release-efficiency',
   'long-task-budget',

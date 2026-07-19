@@ -76,13 +76,14 @@ DevCodex 提供两个 Agent 入口，而非通过指令切换：
 
 ---
 
-## Skills 系统：按需加载，不是全量注入
+## Skills 系统：按需加载，宿主入口只保留精简内核
 
-Instructions 是全量注入（每次会话都加载），Skills 是按需触发（只在相关任务时调用）。
+宿主每次会话只自动发现受覆盖与预算约束的精简 kernel（Claude / Gemini 使用薄 wrapper 指向共享 kernel）；Skills 按任务意图触发。完整 `instructions.md` 保存在非 always-on fallback 路径，仅在覆盖、绑定、新鲜度或低置信场景需要时读取。
 
 这个分层的好处：
-- **Instructions** 承载安全底线和通用约束，必须始终生效
+- **Host kernel** 承载安全底线、优先级、路由与 fail-closed 入口，必须始终生效
 - **Skills** 承载具体工作流逻辑，按任务类型加载，不浪费上下文窗口
+- **Full fallback** 保留完整规范强度，在裁剪证据不足时恢复，不用“少读”换质量
 
 ---
 

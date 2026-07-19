@@ -26,36 +26,44 @@ function buildLifecycleVisibleReplyUtils(ctx) {
     const lines = String(text || '').split(/\r?\n/)
     let inArtifactSection = false
     let sectionFound = false
-    let primaryLabel = false
+    let envelopeMarker = false
+    let legacyLabel = false
     let linkCount = 0
-    let absolutePathEvidence = false
+    let semanticItemCount = 0
+    let semanticDigest = ''
     for (let index = 0; index < lines.length; index++) {
       const line = lines[index]
-      if (/^\s*📂\s*本次会话产物[:：]?\s*$/.test(line)) {
+      const marker = line.match(/DevCodexVisibleEnvelopeV1\s*·\s*(?:entry-check|completion-check|confirmation|progress|final-result|error-block)\s*·\s*(?:PASS|WARN|BLOCK|UNVERIFIED|N\/A)\s*·\s*([a-f0-9]{64})/)
+      if (marker) {
+        envelopeMarker = true
+        semanticDigest = marker[1]
+      }
+      if (/^\s*(?:#{1,6}\s*)?(?:需要你确认的文件|本批交付文件|完成交付文件|阻断证据)[:：]?\s*$/.test(line)) {
         inArtifactSection = true
         sectionFound = true
         continue
       }
+      if (/📂\s*本次会话产物|主要产物|primary artifacts?/i.test(line)) legacyLabel = true
       if (!inArtifactSection) continue
       if (/^#{1,6}\s+/.test(line)) break
-      if (/主要产物|primary artifacts?/i.test(line)) primaryLabel = true
-      if (!/^\s*-\s*\[[^\]]+\]\([^\)]+\)\s*$/.test(line)) continue
-      linkCount += 1
-      const target = line.match(/\]\((?:<)?([^\)>]+)(?:>)?\)/)?.[1] || ''
-      if (/^(?:\/[A-Za-z]:\/|[A-Za-z]:\\)/.test(target)) absolutePathEvidence = true
-      const nextLine = String(lines[index + 1] || '').trim()
-      if (/^`?[A-Za-z]:\\.+`?$/.test(nextLine)) absolutePathEvidence = true
-      if (/^(?:绝对路径|Absolute path)[:：]\s*`?[A-Za-z]:\\.+`?$/.test(nextLine)) absolutePathEvidence = true
+      if (/^\s*-\s*\[[^\]]+\]\((?:<)?[^\)]+(?:>)?\)/.test(line)) linkCount += 1
+      if (/^\s*-\s*(?:\[[^\]]+\]\([^\)]+\)|[^—\[]+)\s*—\s*.+(?:操作|action)[:：]/i.test(line)) {
+        semanticItemCount += 1
+      }
     }
     const missingItems = []
     if (!sectionFound) missingItems.push('artifact-section')
-    if (!primaryLabel) missingItems.push('primary-artifacts-label')
-    if (!linkCount) missingItems.push('artifact-links')
-    if (linkCount && !absolutePathEvidence) missingItems.push('absolute-path-evidence')
+    if (!envelopeMarker) missingItems.push(legacyLabel ? 'legacy-artifact-format' : 'visible-envelope-marker')
+    if (sectionFound && !semanticItemCount) missingItems.push('semantic-artifact-items')
+    const status = legacyLabel && !envelopeMarker
+      ? 'unverified'
+      : missingItems.length ? 'verified-missing' : 'verified-present'
     return {
-      status: missingItems.length ? 'verified-missing' : 'verified-present',
+      status,
       missingItems,
-      linkCount
+      linkCount,
+      semanticItemCount,
+      semanticDigest
     }
   }
 
@@ -72,13 +80,13 @@ function buildLifecycleVisibleReplyUtils(ctx) {
     }
     const text = evidence.text
     state.visible.payloadObserved = true
-    if (/入口检查（|预检查（DEV 模式）|PC0 上下文/.test(text)) {
+    if (/入口检查（|预检查（DEV 模式）|PC0 上下文|DevCodexVisibleEnvelopeV1\s*·\s*entry-check/.test(text)) {
       state.visible.precheck = true
       state.visible.precheckStatus = 'verified-present'
     } else if (!state.visible.precheck) {
       state.visible.precheckStatus = 'verified-missing'
     }
-    if (/🛡️ DEV 模式 \| 合规检查|FC:\s*FC1/.test(text)) state.visible.compliance = true
+    if (/🛡️ DEV 模式 \| 合规检查|FC:\s*FC1|DevCodexVisibleEnvelopeV1\s*·\s*completion-check/.test(text)) state.visible.compliance = true
     const artifactEvidence = analyzeArtifactDelivery(text)
     state.visible.artifactStatus = artifactEvidence.status
     state.visible.artifactMissingItems = artifactEvidence.missingItems
@@ -122,7 +130,7 @@ function buildLifecycleVisibleReplyUtils(ctx) {
     const artifactStatus = state.visible?.artifactStatus || (state.visible?.artifactPaths ? 'verified-present' : 'unverified')
     if (eventName === 'Stop' && state.mode === 'dev' && state.reportTouched && artifactStatus === 'verified-missing') {
       const missing = (state.visible.artifactMissingItems || []).join(', ') || 'artifact-delivery-manifest'
-      items.push(`产物交付不完整（ArtifactDeliveryCompletenessGate：missingItems=${missing}；evidenceSource=${state.visible.artifactEvidenceSource || 'unknown'}）`)
+      items.push(`用户可见交付不完整（VisibleOutputHostEvidenceGate：missingItems=${missing}；evidenceSource=${state.visible.artifactEvidenceSource || 'unknown'}）`)
     } else if (eventName === 'Stop' && state.mode === 'dev' && state.reportTouched && artifactStatus === 'unverified') {
       items.push('无法验证最终用户可见回复的产物交付（Stop/PreCompact 未提供可解析 assistant 内容；状态只能为 unverified）')
     }

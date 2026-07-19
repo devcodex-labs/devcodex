@@ -40,6 +40,8 @@ description: 复审清单整理与审查规范 — 创建、冻结、证据执�
 
 ## 必执行门禁
 
+`ReviewExecutionPlanV1`、`ReviewEvidenceReceiptV1`、`ReviewStateSnapshotV1`、`EvidenceSaturationResultV1` 与 `StageTimingV1` 的确定性行为由 `hooks/_runtime/review-execution-contract.cjs` 拥有。本 Skill 负责人读清单与流程；checklist、report、memory、progress 和 final 状态只能投影同一个 snapshotDigest，不得分别手写状态。
+
 - `ReviewChecklistPrecreationGate`：正式复审前先创建清单文件或明确复用已有清单。
 - `ChecklistFreezeFileGate`：开始执行前冻结清单范围、维度和来源锚点；新增项只能追加，不得静默改写已冻结项。
 - `ReviewChecklistCompletenessGate`：每个清单项都要有状态、证据或 skipReason。
@@ -59,7 +61,11 @@ description: 复审清单整理与审查规范 — 创建、冻结、证据执�
 - `BatchEvidenceLedgerStateGate`：多批次、矩阵验证、长链路吸纳或发布前检查必须冻结 EvidenceLedger，区分 baseline-confirmed、executed-passed、partial、failed、not-started，且每项有 actualSources、commands、status、finding 或 skipReason。
 - `BatchProgressCardGate`：多批次最终报告、记忆和回复必须同步 Progress Card，覆盖总范围、已完成、当前批、下一批、剩余项、阻塞/风险和证据链接。
 - `ChecklistStateMaterializationGate`：每轮 clean、streak 增加或 closed 声明前，必须重开当前清单，以同一个 `ChecklistStateSnapshot` 原子核对 header、冻结项、轮次表、Evidence Ledger、Progress Card、Closure 六区块的 `currentRound / zeroFindingStreak / currentBatch / remaining / blockers / openFindings / closureState`。任一区块 stale、缺字段或互相冲突时，本轮无效且 streak 不增加；修正后必须从受影响轮次重新执行，不能只改文案。
+- `ReviewExecutionPlanningGate`：复审执行前以 workflow/stage/userIntent/candidate/changed+affected/risk/claims/dimensions/evidence/exclusions 形成 `ReviewExecutionPlanV1`；未知 stage/risk/scope、changed 不属于 affected closure 或身份无效时 fail closed 为 R4/full-required。文件少不得降低控制面、公共契约、安全或发布风险。
+- `ReviewEvidenceFreshnessGate`：receipt 必须绑定 plan/candidate/stage/scope/dimension/claim/lens、rule/skill/probe、impact graph、command/environment/runId、dependency/consumer/intent/risk digest；failed/inconclusive/open/blocker 或任一绑定变化均 stale 且不可复用。
+- `EvidenceSaturationGate`：适用 dimensions/claims/fresh evidence 完整、UnreviewedRelatedSet 为空或逐项具备 reason/authority/upgradeCondition、open/blocker/stale=0、独立/负向/fallback/dirty boundary 达标才通过。稳定 receipt 按内容身份抽样 5%（最少 3、最多 20）；任一 mismatch 立即 full-required。
 - `RepairCollaborationAcceptanceGate`：repair task 的清单必须绑定 `repairClass / contractState / authorizationEvidence`；full 合同逐项核对 findingToPatchMap、handoffIntegrity、independentReReview 和 acceptanceMatrix，禁止补丁产出者以唯一证据关闭高风险项。
+- `RepairPreventionAssessmentReviewGate`：所有 repair 的清单在 accepted 前核对 `RepairPreventionAssessmentV1` 的 mode/decision、双根因、regression seeds、negative cases、Owner/consumers、immediate closure、prospective status 与 rollback/sunset；repeat escape 的旧控制复用、无理由 `no-new-control`、当前重跑晋级 prevention 均为 blocker。
 - `ReviewCoverageClaimIntegrityGate`：逐文件/逐服务/全量深读声明必须有 FileEvidenceLedger；抽样必须公开 sampledSet、unreadSet、sampleMethod 与 inferenceBoundary。
 - `ReworkPreventionHandoffGate`：escape 属于原确认范围且已越过目标门禁时，交给 `rework-prevention-engineering` 分类 ReworkEvent/cluster，并把 prevention 注册到后续可比较任务；本任务重跑通过不能单独证明预防有效。
 - `CandidateDiffCompletenessGate`：commit/tag/publish 前，复审清单必须把授权范围物化为 staged candidate snapshot，并记录 cached diff check、name-status、secret-shape scan 与 intended scope 对账；普通 working diff 不得作为未跟踪文件已覆盖的证据。
@@ -76,7 +82,8 @@ description: 复审清单整理与审查规范 — 创建、冻结、证据执�
 5. 每完成一项立即更新状态；失败项写修复建议和阻断级别。
 6. 返修或发现遗漏时先执行 `ReviewEscapeRecordGate`，追加 escape record，再执行 `ChecklistEscapeAnalysisGate`，说明遗漏原因、补充清单和补充探针。
 7. 收敛前执行 `ChecklistStateFreshnessGate`，确认清单、报告、记忆、SUMMARY 和台账状态一致。
-8. 最终报告引用清单文件路径，未关闭项不得被隐藏。
+8. 从唯一 `ReviewStateSnapshotV1` 投影 checklist/report/memory/progress/final，并记录互斥 `StageTimingV1`；模型 reasoning 不可观察时写 N/A。
+9. 最终报告引用清单文件路径，未关闭项不得被隐藏。
 
 ## ReviewEscapeRecordGate
 

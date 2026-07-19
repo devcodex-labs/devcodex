@@ -1,5 +1,5 @@
 function buildGovernanceControlChecks(ctx) {
-  const { ROOT, fs, path, read, err, execSync, activePath } = ctx
+  const { ROOT, fs, path, read, err, execSync, activePath, isValidationDelegated = () => false } = ctx
 
   function checkV20() {
     const probes = [
@@ -183,11 +183,11 @@ function buildGovernanceControlChecks(ctx) {
     const workspaceAgents = path.resolve(ROOT, '..', 'AGENTS.md')
     if (fs.existsSync(workspaceAgents)) {
       const content = read(workspaceAgents)
-      for (const needle of [
-        '强制约束（C01~C22）',
-        '全量 FC1~FC7 + SC1~SC15 + RC1~RC4 + T1~T9',
-        '编号与语义与该文件一一对应'
-      ]) {
+      const projectedKernel = content.includes('Shared Host Kernel（generated）')
+      const needles = projectedKernel
+        ? ['强制不变量（S01~S07 / C01~C22）', '完成顺序为 PC0~PC7→FC→SC→RC→报告验证→T1~T9', 'Full fallback: .agents/devcodex/instructions.full.md']
+        : ['强制约束（C01~C22）', '全量 FC1~FC7 + SC1~SC15 + RC1~RC4 + T1~T9', '编号与语义与该文件一一对应']
+      for (const needle of needles) {
         if (!content.includes(needle)) {
           err(`[V21] workspace AGENTS drift: missing "${needle}" in ../AGENTS.md`)
         }
@@ -198,6 +198,10 @@ function buildGovernanceControlChecks(ctx) {
   }
 
   function checkV22() {
+    if (isValidationDelegated('migrate-layout')) {
+      console.log('[V22] migrate-layout smoke suite delegated to validation DAG')
+      return
+    }
     try {
       execSync('node scripts/test-migrate-layout.js', { cwd: ROOT, stdio: 'pipe', encoding: 'utf8' })
       console.log('[V22] migrate-layout smoke test passed')
@@ -292,7 +296,11 @@ function buildGovernanceControlChecks(ctx) {
     const workspaceAgents = path.resolve(ROOT, '..', 'AGENTS.md')
     if (fs.existsSync(workspaceAgents)) {
       const content = read(workspaceAgents)
-      for (const needle of ['workspace-namespace', '机械唱反调']) {
+      const projectedKernel = content.includes('Shared Host Kernel（generated）')
+      const needles = projectedKernel
+        ? ['workspace-namespace', '机械唱反调', 'Full fallback: .agents/devcodex/instructions.full.md']
+        : ['workspace-namespace', '机械唱反调']
+      for (const needle of needles) {
         if (!content.includes(needle)) {
           err(`[V23] workspace AGENTS drift: missing "${needle}" in ../AGENTS.md`)
         }

@@ -85,6 +85,11 @@ function buildBrandVisualQualityChecks(ctx) {
     })
     if (topologyPass !== 'pass') err(`[V97] topology positive fixture expected pass, got ${topologyPass}`)
 
+    const plugin = JSON.parse(read(path.join(ROOT, 'plugin.json')))
+    const skillCount = plugin.skills.length
+    const graySkillCount = plugin.skills.filter(item => item.lifecycleState === 'gray').length
+    const activeSkillCount = skillCount - graySkillCount
+
     const required = [
       ['skills/brand-visual-quality/SKILL.md', ['BrandVisualQualityGate', 'MasterLineageGate', 'ThemeGeometryParityGate', 'MicroOpticalVariantGate', 'MonoMasterGate', 'VisualEvidencePackGate', 'VisualBlockerResetGate', 'ComponentTransparencyTopologyGate', 'centerRoiOpaqueRatio', 'gray']],
       ['skills/brand-visual-quality/agents/openai.yaml', ['$brand-visual-quality', 'Brand Visual Quality']],
@@ -100,21 +105,20 @@ function buildBrandVisualQualityChecks(ctx) {
       ['prompts/technical-design.prompt.md', ['brand-visual-quality']],
       ['prompts/implementation-plan.prompt.md', ['brand-visual-quality']],
       ['prompts/report-dev.prompt.md', ['BrandVisualQuality']],
-      ['README.md', ['78 个', 'brand-visual-quality']],
-      ['website/docs/index.md', ['78 个 Skills', 'brand-visual-quality']],
-      ['website/docs/intro/index.md', ['78 个按需触发', 'brand-visual-quality']],
+      ['README.md', [`${skillCount} 个`, 'brand-visual-quality']],
+      ['website/docs/index.md', [`${skillCount} 个 Skills`, 'brand-visual-quality']],
+      ['website/docs/intro/index.md', [`${skillCount} 个按需触发`, 'brand-visual-quality']],
       ['changelogs/unreleased.md', ['BrandVisualQualityGate', 'ComponentTransparencyTopologyGate', 'ProfileReleaseTruthAuthorityMatrixGate', 'RuntimeStateTransitionProjectionGate']]
     ]
     for (const [file, needles] of required) checkFile(file, needles)
 
-    const plugin = JSON.parse(read(path.join(ROOT, 'plugin.json')))
     const registration = plugin.skills.find(item => item.id === 'brand-visual-quality')
     if (!registration || registration.lifecycleState !== 'gray') err('[V97] brand visual Skill must be registered as gray')
 
     const portfolio = JSON.parse(read(path.join(ROOT, 'skills/portfolio.json')))
     const portfolioSkill = portfolio.skills.find(item => item.id === 'brand-visual-quality')
-    if (portfolio.summary.skillCount !== 78 || portfolio.summary.activeSkillCount !== 75 || portfolio.summary.graySkillCount !== 3) {
-      err('[V97] portfolio must be 78 skills = 75 active + 3 gray')
+    if (portfolio.summary.skillCount !== skillCount || portfolio.summary.activeSkillCount !== activeSkillCount || portfolio.summary.graySkillCount !== graySkillCount) {
+      err(`[V97] portfolio must match plugin registry: ${skillCount} skills = ${activeSkillCount} active + ${graySkillCount} gray`)
     }
     if (!portfolioSkill || portfolioSkill.lifecycleState !== 'gray' || !portfolioSkill.conflicts.includes('design-system-architecture')) {
       err('[V97] brand visual gray lifecycle or design-system conflict declaration missing')
@@ -123,7 +127,7 @@ function buildBrandVisualQualityChecks(ctx) {
     const profileRoot = path.join(ACTIVE_DEVCODEX_ROOT, 'profile')
     if (fs.existsSync(profileRoot)) {
       for (const [file, needle] of [
-        ['01-项目信息.md', '78-Skill'],
+        ['01-项目信息.md', `${skillCount}-Skill`],
         ['04-测试规范.md', 'V97'],
         ['06-功能清单.md', 'brand-visual-quality'],
         ['07-用户文档与契约规范.md', '品牌视觉质量契约']

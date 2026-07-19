@@ -11,6 +11,7 @@ const { buildContentIdentity, stableStringify } = require('../hooks/_runtime/con
 const {
   ValidationDagError,
   buildCandidateIdentity,
+  buildValidationImpactGraph,
   cacheDescriptor,
   cacheRelativePath,
   commandSignature,
@@ -20,6 +21,7 @@ const {
   readValidationManifest,
   validateValidationManifest
 } = require('./lib/validation-dag')
+const { createValidationOrchestration } = require('./lib/validation-orchestration')
 
 const ROOT = path.resolve(__dirname, '..')
 const MANIFEST_PATH = path.join(__dirname, 'validation-manifest.json')
@@ -41,7 +43,8 @@ function fixtureNode(id, options = {}) {
     writeScopes: options.writeScopes === undefined ? ['isolated-temp'] : options.writeScopes,
     timeoutMs: options.timeoutMs || 5000,
     exitMap: { success: [0], failure: 'nonzero-or-signal', timeout: 'ETIMEDOUT' },
-    evidenceArtifacts: ['ValidationExecutionReceiptV1']
+    evidenceArtifacts: ['ValidationExecutionReceiptV1'],
+    ...(options.delegatedClosure === undefined ? {} : { delegatedClosure: options.delegatedClosure })
   }
 }
 
@@ -83,7 +86,32 @@ function run() {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-validation-dag-'))
   try {
     const manifest = readValidationManifest(MANIFEST_PATH)
-    assert.strictEqual(manifest.nodes.length, 54)
+    assert.ok(manifest.nodes.length >= 56, 'canonical manifest unexpectedly lost validation nodes')
+    let fallbackInvocations = 0
+    const fallbackErrors = []
+    const standaloneOrchestration = createValidationOrchestration({
+      root: ROOT,
+      reportError: message => fallbackErrors.push(message),
+      env: {},
+      runCommand: () => { fallbackInvocations += 1 },
+      logger: { log: () => {} }
+    })
+    standaloneOrchestration.runInstructionFallbackProbe()
+    assert.strictEqual(fallbackInvocations, 1)
+    assert.strictEqual(fallbackErrors.length, 0)
+    const delegatedOrchestration = createValidationOrchestration({
+      root: ROOT,
+      reportError: message => fallbackErrors.push(message),
+      env: {
+        DEVCODEX_VALIDATION_ORCHESTRATED: '1',
+        DEVCODEX_VALIDATION_DELEGATED_NODES: 'hooks-runtime,instruction-fallback'
+      },
+      runCommand: () => { fallbackInvocations += 1 },
+      logger: { log: () => {} }
+    })
+    delegatedOrchestration.runInstructionFallbackProbe()
+    assert.strictEqual(fallbackInvocations, 1)
+    assert.strictEqual(delegatedOrchestration.isDelegated('hooks-runtime'), true)
     assert.deepStrictEqual(Object.keys(manifest.routes).sort(),
       ['changed', 'fast', 'full', 'package-release', 'profile-deploy'])
     const fullPlan = planValidation({
@@ -95,10 +123,22 @@ function run() {
       candidateStable: true,
       candidateId: 'fixture-full'
     })
-    assert.strictEqual(fullPlan.selectedNodeCount, 53)
+    assert.strictEqual(fullPlan.selectedNodeCount, manifest.routes.full.nodes.length)
     assert.strictEqual(fullPlan.duplicateLeafCount, 0)
     assert.strictEqual(fullPlan.requiredNodeMisses, 0)
-    assert.strictEqual(new Set(manifest.nodes.map(commandSignature)).size, 54)
+    assert.match(fullPlan.impactGraphDigest, /^[a-f0-9]{64}$/)
+    assert.match(fullPlan.planDigest, /^[a-f0-9]{64}$/)
+    assert.strictEqual(new Set(manifest.nodes.map(commandSignature)).size, manifest.nodes.length)
+
+    const impactFixture = fixtureManifest([
+      fixtureNode('impact-source', { inputs: ['src/**'], consumers: ['impact-consumer'] }),
+      fixtureNode('impact-consumer', { inputs: ['consumer/**'], dependencies: ['impact-source'] })
+    ])
+    const impactGraph = buildValidationImpactGraph({ manifest: impactFixture, changedFiles: ['src/a.js'] })
+    assert.deepStrictEqual(impactGraph.matchedNodeIds, ['impact-source'])
+    assert.deepStrictEqual(impactGraph.affectedNodeIds, ['impact-source', 'impact-consumer'])
+    assert.strictEqual(impactGraph.complete, true)
+    assert.strictEqual(buildValidationImpactGraph({ manifest: impactFixture, changedFiles: ['unknown/a.js'] }).complete, false)
 
     const duplicateId = clone(manifest)
     duplicateId.nodes.push(clone(duplicateId.nodes[0]))
@@ -121,6 +161,11 @@ function run() {
     delete missingGraphStatus.consumerGraphComplete
     assert.throws(() => validateValidationManifest(missingGraphStatus),
       error => error instanceof ValidationDagError && /consumerGraphComplete/.test(error.message))
+
+    const invalidDelegatedClosure = clone(manifest)
+    invalidDelegatedClosure.nodes.find(node => node.id === 'validate-core').delegatedClosure[0].nodeId = 'Missing_Node'
+    assert.throws(() => validateValidationManifest(invalidDelegatedClosure),
+      error => error instanceof ValidationDagError && /delegatedClosure.entry/.test(error.message))
 
     const cycle = clone(manifest)
     cycle.nodes.find(node => node.id === 'validate-core').consumers.push('validate-versions')
@@ -303,7 +348,46 @@ function run() {
       runCommand
     })
     assert.strictEqual(firstRun.receipt.nativeExitCode, 0)
+    assert.strictEqual(firstRun.receipt.schemaVersion, 'ValidationExecutionReceiptV2')
+    assert.match(firstRun.receipt.nodeContractDigest, /^[a-f0-9]{64}$/)
+    assert.match(firstRun.receipt.delegatedClosureDigest, /^[a-f0-9]{64}$/)
+    assert.match(firstRun.receipt.testRouteDigest, /^[a-f0-9]{64}$/)
+    assert.strictEqual(firstRun.receipt.executionMode, 'orchestrated-serial')
+    assert.strictEqual(firstRun.receipt.contextBindingTrace.status, 'unverified')
     assert.strictEqual(runCount, 1)
+
+    const delegatedCore = fixtureNode('validate-core', {
+      dependencies: [],
+      delegatedClosure: [{ probe: 'V7', nodeId: 'hooks-runtime', command: 'node scripts/test-hooks-runtime.js' }]
+    })
+    const delegatedHooks = fixtureNode('hooks-runtime', { dependencies: ['validate-core'] })
+    const delegatedManifest = fixtureManifest([delegatedCore, delegatedHooks])
+    const delegatedPlan = planValidation({
+      manifest: delegatedManifest,
+      route: 'full',
+      changedFiles: [],
+      changedSource: 'explicit',
+      riskClass: 'normal',
+      candidateStable: true,
+      candidateId: 'fixture-delegated'
+    })
+    const observedNodes = []
+    const delegatedRun = executeValidationPlan({
+      manifest: delegatedManifest,
+      plan: delegatedPlan,
+      candidate: { ...candidate, candidateId: 'fixture-delegated' },
+      repoRoot: ROOT,
+      activeRoot: tempRoot,
+      useCache: false,
+      runCommand: node => {
+        observedNodes.push(node)
+        return successEvidence(node)
+      }
+    })
+    assert.strictEqual(delegatedRun.receipt.nativeExitCode, 0)
+    assert.strictEqual(observedNodes[0].environment.DEVCODEX_VALIDATION_ORCHESTRATED, '1')
+    assert.strictEqual(observedNodes[0].environment.DEVCODEX_VALIDATION_DELEGATED_NODES, 'hooks-runtime')
+    assert.strictEqual(observedNodes[1].environment?.DEVCODEX_VALIDATION_ORCHESTRATED, undefined)
     const secondRun = executeValidationPlan({
       manifest: cachedManifest,
       plan: cachedPlan,
@@ -635,7 +719,7 @@ function run() {
     assert.strictEqual(failureEnvelope.error.code, 'VALIDATION_NODE_FAILED')
     assert.strictEqual(failureEnvelope.data.receipt.results[0].exitCode, 7)
 
-    console.log('validation DAG tests passed: manifestNodes=54 fullNodes=53 duplicateLeaf=0 requiredMiss=0 graphFallback=closed cacheTamper/invariant/unstable=closed nativeExit=0/1/2')
+    console.log(`validation DAG tests passed: manifestNodes=${manifest.nodes.length} fullNodes=${fullPlan.selectedNodeCount} duplicateLeaf=0 requiredMiss=0 graphFallback=closed cacheTamper/invariant/unstable=closed nativeExit=0/1/2`)
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true })
   }

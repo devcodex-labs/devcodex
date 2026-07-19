@@ -37,7 +37,7 @@ version: 1.15.1
 ## CP 流程（C02 约束）
 
 ```text
-CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → [execution-contract/test-router] → 执行 → 三步扫描 → ECR 执行闭环复审 → 完成
+CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → [execution-contract/test-router] → 执行 → 三步扫描 → RepairPreventionAssessment → ECR 执行闭环复审 → 完成
 ```
 
 - **CP1**：先确认这是 Bug / 异常 / 已承诺行为与实际不一致，而不是纯新需求或需求变更；报告方输入优先落 `bugs/<问题>/00-问题概况.md`，AI / 研发据此输出 `01-问题确认.md` 或等价问题分析报告（根因 + 影响范围），并前置平台工程判断：消费者范围、共享契约边界、模块职责、维护成本和非目标；模块化只在真实复用者、演进边界或跨模块共享契约存在时成立，用户确认
@@ -47,6 +47,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → 
 - **backlog 来源前置真相复核**：若本轮 bug、批次或修复范围直接来源于 `data/*.md` 的 open/partial 项，CP1 前必须先把候选项分类为 `pure-open` / `residual-tail` / `already-fixed` / `misclassified`；非 `pure-open` 项须先回写状态并修正范围口径，再进入修复。
 - **执行期 CP3 回退**：若执行过程中实际修改范围扩展到 CP3 门槛（文件数从 <5 增至 ≥5，或新增高风险/控制面联动），必须暂停执行，补做 CP3 后再继续。
 - **execution-contract/test-router**：≥5 文件、高风险、控制面或多批次修复时执行，明确允许路径、必需产物和验证路线
+- **RepairPreventionAssessmentGate**：所有 repair task 在 accepted 前执行 `rework-prevention-engineering` 的 `RepairPreventionAssessmentV1`；current repair closure 与 prospective prevention evidence 必须分列，repeat escape/high risk 升 full，`no-new-control` 必须有标准 reason/evidence
 - **Intent Expansion 可见性**：dev 模式下，CP1 / 问题确认前默认向用户展示完整 Intent Expansion Card；这会覆盖旧的“意图扩展摘要”默认行为，但当命中控制面或宿主能力差异、跨会话 resume、prod、instruction-fallback 宿主或低风险轻任务时，仍允许退化为 3~5 行意图扩展摘要。
 - **OfficialDocsEvidence**：依赖升级、框架/SDK/API 修复、平台行为变更或外部模块替换时，CP2 前必须读取官方使用文档/官方参考资料；缺失证据不得进入执行。
 - **ProfileImpactCheck**：修复改变技术栈、目录边界、脚本、测试/发布路线、分发面、配置项、长期连接或本地 overlay schema 时，必须同步 Profile 或记录 `skipReason`。
@@ -58,7 +59,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → 
 - **BenchmarkRegressionGuard**：修复触及已有 benchmark 基线项目的 hot path（runtime / validator / parser / cache / adapter 等）时，即使本轮不是性能优化，也必须判定是否跑代表性 benchmark regression；超过阈值时阻断发布或进入用户确认的性能 / 正确性取舍。
 - **FrontendExperienceQualityGate**：修复前端页面、组件、控制台、官网、文档站、可视化工具或游戏体验问题时，必须判定 `frontend-runtime` gateGroup；TestRoute 按风险选择 Browser/截图/E2E、console/network/resource/runtime、代码级替代证据或 `N/A + skipReason`。Figma/截图/既有页面、资源、本地化、状态回归和浏览器验证预算等子门禁由 `test-router` 与目标 UI/审查 Skill 承接。
 - **CrossProjectLearnedGuards / GovernanceGateRegistry**：修复涉及已吸纳泛化经验、审查清单证据化、用户文档（`user-manual`）、前端运行态、发布/pack、Profile/service、public surface、兼容契约或自我进化控制面时，只在 fix 层记录 `gateGroup / ownerSkill / validationRoute / skipReason`，完整 Gate 正文以 `spec-governance` 的 `GovernanceGateRegistry`、目标 Skill、report 和 validate 探针为准。
-- 修复涉及重复返工、兼容/迁移、公开配置或交互对象时，分别路由 `rework-prevention`、`contract-release-authority`、`configuration-ergonomics`、`interactive-semantics`；不得用历史问题数量、未发布草稿、字段实现用途或截图替代对应证据。
+- 所有 repair 先路由 `repair-prevention-assessment`；涉及重复返工、效果评估、兼容/迁移、公开配置或交互对象时，再分别路由 `rework-prevention`、`contract-release-authority`、`configuration-ergonomics`、`interactive-semantics`。不得用当前重跑、历史问题数量、未发布草稿、字段实现用途或截图替代对应证据。
 - **ReviewFindingIntakeGate**：修复范围来自审查报告、AI review finding、audit issue 或代码评审发现时，CP1 前必须逐条分类为 `must-fix` / `user-decision-required` / `docs-implementation-drift` / `test-coverage-gap` / `already-fixed-or-not-reproduced` / `intentional-design-accepted`；命中 `user-decision-required`、兼容风险或文档/实现二选一时，修改源码前必须先取得用户确认。
 - **SimpleTaskFastPath**：非常明确、预计 ≤2 文件、无公共 API/Schema/依赖/配置/发布/控制面/台账来源/高风险、无需多轮跟踪的简单修复，可用内联问题概况 / 问题确认 + 报告/记忆替代 bug 目录与完整 CP 产物；报告必须写 `SimpleTaskFastPath: applied`、`00-问题概况.md: N/A + skipReason`、`01-问题确认.md: N/A + skipReason`、验证证据和升级回退判断。执行中任一条件失效时，立即升级回完整 fix CP/产物链。
 - **ExistingRequirementArtifactOverride**：当用户是在调整/修改/补充既有 `00-问题概况.md`、`01-问题确认.md`、bug CP 产物或需求文件时，SimpleTaskFastPath 只能跳过新建完整 bug 目录，不能跳过更新已有真相源；必须先增量编辑已有问题/需求产物，回复仅作为摘要。找不到目标产物时先按 Profile、bugs/requirements、sessions、tasks 与用户提及路径定位，仍无法确认才最小澄清。
@@ -224,14 +225,16 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → 
 3. S3 影响评估 — 评估受影响范围
 
 **执行阶段**：
-1. 实现修复（最小化变更范围）
-2. 编写/更新回归测试
-3. 修复三步必做
-4. api-verification（若涉及接口）
-5. document-sync（若涉及文档）
+1. 建立 RepairCollaborationContract 与 RepairPreventionAssessmentV1
+2. 实现修复（最小化变更范围）
+3. 编写/更新回归测试
+4. 修复三步必做
+5. api-verification（若涉及接口）
+6. document-sync（若涉及文档）
 
 **关键规则**：
 - 所有 fix 均触发 `repair-collaboration`：低风险修复至少记录问题/预期/验收证据与允许路径/验证/回滚触发；P0/P1、安全、控制面、公共契约、≥5 文件、多批次、角色交接或发布风险必须使用 `execution-contract` 的完整双层契约，并在 accepted 前取得独立复证。模型或 Agent 是否切换不影响该判定
+- 所有 fix 在 accepted 前均须由 `RepairPreventionAssessmentGate` 判定 `existing-control-restored / new-control-provisional / no-new-control / emergency-active`；当前事件测试只证明 immediate closure，长期有效性必须来自后续可比较样本
 - 修复必须附带回归测试，禁止无测试的 hotfix（emergency 除外）
 - 修复范围不得超出问题边界（禁止顺手重构）
 - CP1 问题确认必须给出 `ImplementationComplexityLevel`（兼容旧字段 `ImplementationComplexityPreference`），默认 `简单够用`：只修确认根因和影响范围；若 AI 判断需要升级到 `中等` / `企业级`，先列备选、开发周期、难度、维护成本和取舍并等待用户确认

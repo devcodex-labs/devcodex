@@ -2,6 +2,8 @@
 
 function buildLifecycleHookOutput({ env, enforcementMode }) {
   function detectPlatform(payload) {
+    if (env.DEVCODEX_HOST_PLATFORM === 'gemini' || env.GEMINI_CLI || env.GEMINI_SESSION_ID) return 'gemini'
+    if (env.DEVCODEX_HOST_PLATFORM === 'grok') return 'grok'
     if (env.CLAUDE_CODE_VERSION || env.CLAUDE_HOOK_COMMAND) return 'claude'
     if (env.CODEX_SANDBOX || env.CODEX_HOME || env.OPENAI_CODEX) return 'codex'
     if (
@@ -82,6 +84,10 @@ function buildLifecycleHookOutput({ env, enforcementMode }) {
       if (event === 'pretooluse') return toolBlockOutput(eventName, reason, detail)
       return { decision: 'block', reason: message }
     }
+    if (platform === 'gemini') {
+      if (event === 'precompact') return { continue: true, systemMessage: message }
+      return { decision: 'deny', reason: message }
+    }
     return toolBlockOutput(eventName, reason, detail)
   }
 
@@ -115,6 +121,7 @@ function buildLifecycleHookOutput({ env, enforcementMode }) {
     if (platform === 'codex') {
       return ['pretooluse', 'permissionrequest', 'userpromptsubmit', 'stop', 'subagentstop', 'agentstop', 'precompact', 'postcompact'].includes(event)
     }
+    if (platform === 'gemini') return ['pretooluse', 'userpromptsubmit', 'stop'].includes(event)
     return ['pretooluse', 'permissionrequest'].includes(event)
   }
 

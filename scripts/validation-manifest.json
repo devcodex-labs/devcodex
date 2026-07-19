@@ -343,6 +343,13 @@
       "dependencies": [],
       "inputs": [
         "skills/**",
+        "**/*.md",
+        "**/*.js",
+        "**/*.cjs",
+        "**/*.json",
+        "**/*.ts",
+        "**/*.yml",
+        "**/*.yaml",
         "scripts/lib/skill-portfolio-utils.js",
         "scripts/test-skill-portfolio.js",
         "scripts/generate-skill-portfolio.js"
@@ -382,6 +389,13 @@
       "dependencies": [],
       "inputs": [
         "skills/**",
+        "**/*.md",
+        "**/*.js",
+        "**/*.cjs",
+        "**/*.json",
+        "**/*.ts",
+        "**/*.yml",
+        "**/*.yaml",
         "scripts/lib/skill-portfolio-utils.js",
         "scripts/generate-skill-portfolio.js"
       ],

@@ -246,7 +246,7 @@ Hook / CLI / visible reply / sticky project / workspace guard 相关任务还要
 - `devcodex probe [host workspace profile] --json`：运行同步、local-only、只读 typed probes；依赖失败会 skipped，不联网、不 watch、不写状态或 telemetry
 - `devcodex trace show|replay --state <lifecycle-state.json> --json`：查看/校验当前 `LocalTaskTraceV1`；sequence/duplicate/terminal 失败返回稳定错误，replay 不执行 payload、不改 state、不唤醒或控制进程
 - Intent 阶段转换使用 `IntentConsistencyDecisionV1` 核对 proposal/requirement/phase/confidence；短确认无绑定时必须澄清，不能靠历史或 route hint 补猜
-- Skill portfolio schema v2 提供保守 `SkillIndexV2` 和只读 `BundleDecisionV1`；结构证据不得自动改变 active/gray lifecycle
+- Skill portfolio schema v2 提供保守 `SkillIndexV2` 和只读 `BundleDecisionV1`；结构证据不得自动改变 active/gray lifecycle。portfolio 会绑定 tracked consumer inventory/projection；所有预期文件 stage 后运行 `npm run test:skill-portfolio:staged`，commit 后在 clean tree 重跑普通 `--check`，两次证据不能互相替代
 - `devcodex help`：查看 CLI 子命令与参数，尤其是 `profile init`、`migrate-layout`、`init/update --claude/--codex`
 - `node scripts/validate-all-profiles.js --workspace <workspace-root>`：校验 `.devcodex/workspace/profile` 与 `.devcodex/<project>/profile` 的三档必需文件和 workspace fallback；发布前可追加 `--strict-warnings`
 - `DEVCODEX_HOOK_ENFORCEMENT`：默认 `safety-only`，仅危险命令硬拦；切到 `strict` 前应先确认宿主确实支持对应 Hook 事件；当前 Codex adapter 已内置 `PreCompact` compaction runtime 兜底

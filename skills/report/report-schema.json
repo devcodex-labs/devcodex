@@ -16,6 +16,7 @@
     "CheckpointValidation": "response-time or post-execution checkpoint evidence is produced or reviewed",
     "LocalTaskTrace": "typed current-turn trace, validation or read-only replay is produced or reviewed",
     "ProjectKnowledge": "incremental project knowledge snapshot, impact/lens plan, sample oracle or batch acceptance is produced or reviewed",
+    "DerivedArtifactFreshness": "generated artifact depends on tracked or staged consumers, templates, indexes or candidate membership",
     "ExecutionAttemptLedger": "formal run qualification, repeated failure, cancellation, restart or no-progress stop evidence is produced or reviewed",
     "BacklogIntakeAndLedgerWriteback": "task is sourced from a runtime ledger or changes ledger state",
     "RepairCollaborationContract": "repair task only",

@@ -2,6 +2,8 @@
 'use strict'
 
 const assert = require('assert')
+const { execFileSync } = require('child_process')
+const os = require('os')
 const path = require('path')
 const {
   buildPortfolio,
@@ -11,8 +13,11 @@ const {
   canonicalizeTextForDigest,
   collectDependencies,
   detectCycles,
+  gitIndexSnapshot,
   listConsumerDocuments,
+  readRepositoryText,
   serializePortfolio,
+  validateStagedCandidateSnapshot,
   validatePortfolio
 } = require('./lib/skill-portfolio-utils')
 
@@ -45,6 +50,128 @@ try {
   )
 } finally {
   fs.unlinkSync(pollution)
+}
+
+// PostStageDerivedArtifactFreshnessGate: an input tracked after generation must stale the index candidate.
+function git(cwd, args) {
+  return execFileSync('git', args, { cwd, encoding: 'utf8', windowsHide: true }).trim()
+}
+
+function writeJson(file, value) {
+  fs.mkdirSync(path.dirname(file), { recursive: true })
+  fs.writeFileSync(file, JSON.stringify(value, null, 2) + '\n', 'utf8')
+}
+
+const stagedFixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-portfolio-staged-'))
+try {
+  git(stagedFixtureRoot, ['init', '--quiet'])
+  git(stagedFixtureRoot, ['config', 'user.email', 'test@example.com'])
+  git(stagedFixtureRoot, ['config', 'user.name', 'DevCodex Test'])
+  git(stagedFixtureRoot, ['config', 'core.autocrlf', 'false'])
+  writeJson(path.join(stagedFixtureRoot, 'package.json'), { name: 'portfolio-fixture', version: '1.0.0' })
+  writeJson(path.join(stagedFixtureRoot, 'plugin.json'), {
+    skills: [{ id: 'intent', file: 'skills/intent/SKILL.md', lifecycleState: 'active' }]
+  })
+  writeJson(path.join(stagedFixtureRoot, 'skills', 'portfolio-evidence.json'), {
+    schemaVersion: 2,
+    ownerSkill: 'skill-lifecycle-governance',
+    evidenceDate: '2026-07-19',
+    defaults: {
+      positiveFixture: 'scripts/test-intent.js#positive',
+      negativeFixture: 'scripts/test-intent.js#negative',
+      rollbackToGray: 'rollback fixture',
+      conflictReviewEvidence: 'scripts/test-intent.js#conflict-review',
+      validationProfile: ['scripts/test-intent.js'],
+      stateRationale: 'fixture source and consumer are present',
+      promotionCriteria: 'fixture only',
+      skillIndex: {
+        type: 'skill', workflow: [], phase: [], priority: 100, visibility: 'agent', maxTokens: null,
+        exitCondition: 'work-unit-complete'
+      }
+    },
+    skills: {}
+  })
+  fs.mkdirSync(path.join(stagedFixtureRoot, 'skills', 'intent'), { recursive: true })
+  fs.writeFileSync(path.join(stagedFixtureRoot, 'skills', 'intent', 'SKILL.md'), [
+    '---',
+    'name: intent',
+    'description: Use for intent routing.',
+    '---',
+    '# Intent fixture'
+  ].join('\n') + '\n', 'utf8')
+  fs.mkdirSync(path.join(stagedFixtureRoot, 'scripts'), { recursive: true })
+  fs.writeFileSync(path.join(stagedFixtureRoot, 'scripts', 'test-intent.js'), '// intent fixture\n', 'utf8')
+  git(stagedFixtureRoot, ['add', '.'])
+  const baselinePortfolio = serializePortfolio(buildPortfolio(stagedFixtureRoot, { repositoryView: 'index' }))
+  fs.writeFileSync(path.join(stagedFixtureRoot, 'skills', 'portfolio.json'), baselinePortfolio, 'utf8')
+  git(stagedFixtureRoot, ['add', 'skills/portfolio.json'])
+  git(stagedFixtureRoot, ['commit', '--quiet', '-m', 'baseline'])
+  assert.deepStrictEqual(
+    validateStagedCandidateSnapshot(gitIndexSnapshot(stagedFixtureRoot)),
+    ['no staged candidate paths; stage the intended change set before checking derived artifacts'],
+    'staged freshness check must not pass before a candidate is materialized'
+  )
+
+  fs.mkdirSync(path.join(stagedFixtureRoot, 'docs'), { recursive: true })
+  fs.writeFileSync(path.join(stagedFixtureRoot, 'docs', 'new-consumer.md'), '# New intent consumer\n', 'utf8')
+  assert.strictEqual(
+    serializePortfolio(buildPortfolio(stagedFixtureRoot)),
+    baselinePortfolio,
+    'untracked consumer must not affect the worktree portfolio view'
+  )
+  git(stagedFixtureRoot, ['add', 'docs/new-consumer.md'])
+  const stagedCandidate = buildPortfolio(stagedFixtureRoot, { repositoryView: 'index' })
+  assert.notStrictEqual(
+    serializePortfolio(stagedCandidate),
+    readRepositoryText(stagedFixtureRoot, 'skills/portfolio.json', 'index'),
+    'consumer staged after generation must stale the staged portfolio candidate'
+  )
+  assert.strictEqual(stagedCandidate.generatedFrom.consumerInventoryFileCount, 4)
+  for (const field of ['consumerInventoryDigest', 'consumerProjectionDigest', 'portfolioInputDigest']) {
+    assert.match(stagedCandidate.generatedFrom[field], /^[a-f0-9]{64}$/, `${field} must be a SHA-256 identity`)
+  }
+  const stagedSnapshot = gitIndexSnapshot(stagedFixtureRoot)
+  assert.strictEqual(stagedSnapshot.available, true)
+  assert.strictEqual(stagedSnapshot.stagedPathCount, 1)
+  assert.match(stagedSnapshot.indexTreeIdentity, /^[a-f0-9]{64}$/)
+  assert.deepStrictEqual(validateStagedCandidateSnapshot(stagedSnapshot), [])
+
+  fs.writeFileSync(path.join(stagedFixtureRoot, 'skills', 'portfolio.json'), serializePortfolio(stagedCandidate), 'utf8')
+  git(stagedFixtureRoot, ['add', 'skills/portfolio.json'])
+  assert.strictEqual(
+    readRepositoryText(stagedFixtureRoot, 'skills/portfolio.json', 'index'),
+    serializePortfolio(buildPortfolio(stagedFixtureRoot, { repositoryView: 'index' })),
+    'regenerated and staged portfolio must match the exact index candidate'
+  )
+} finally {
+  fs.rmSync(stagedFixtureRoot, { recursive: true, force: true })
+}
+
+const nonGitFixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-portfolio-nongit-'))
+try {
+  fs.mkdirSync(path.join(nonGitFixtureRoot, 'docs'), { recursive: true })
+  fs.writeFileSync(path.join(nonGitFixtureRoot, 'docs', 'consumer.md'), '# intent consumer\n', 'utf8')
+  assert.deepStrictEqual(
+    listConsumerDocuments(nonGitFixtureRoot).map(item => item.path),
+    ['docs/consumer.md'],
+    'non-Git worktree fallback must remain bounded to text consumers'
+  )
+  assert.throws(
+    () => listConsumerDocuments(nonGitFixtureRoot, { repositoryView: 'index' }),
+    /Git index is unavailable/,
+    'staged checks must not fall back to filesystem consumers outside Git'
+  )
+  assert.strictEqual(gitIndexSnapshot(nonGitFixtureRoot).available, false)
+  assert.deepStrictEqual(
+    validateStagedCandidateSnapshot(gitIndexSnapshot(nonGitFixtureRoot)),
+    ['Git index is unavailable', 'no staged candidate paths; stage the intended change set before checking derived artifacts', 'invalid Git index identity']
+  )
+  assert.throws(
+    () => readRepositoryText(nonGitFixtureRoot, 'docs/consumer.md', 'invalid-view'),
+    /unsupported portfolio repository view/
+  )
+} finally {
+  fs.rmSync(nonGitFixtureRoot, { recursive: true, force: true })
 }
 assert.strictEqual(canonicalizeTextForDigest('a\r\nb\rc\n'), 'a\nb\nc\n', 'portfolio digests must canonicalize CRLF/CR/LF')
 assert.strictEqual(first.summary.skillCount, 78)

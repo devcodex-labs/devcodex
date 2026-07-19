@@ -111,6 +111,7 @@ DevCodex 采用“双阶段发布 + 三层日志”：
    - `R2a`：执行 `CandidateFreezeGate`，冻结 candidate identity/generation、授权 scope、允许 mutation class 与 evidence dependency graph；冻结后非 P0/P1、非发布阻断治理项进入下一版本
    - `R3`：执行 `npm test`（默认全链）
    - `R3a`：执行 `CandidateDiffCompletenessGate`；清点 tracked/untracked 后物化 staged candidate snapshot，再执行 `git diff --cached --check`、name-status 复核、按项目策略的 secret-shape scan 与 intended scope 对账。普通 `git diff --check` 不覆盖未跟踪文件，不能替代本门禁
+   - 若 staged candidate 含 portfolio、索引、代码生成或其他派生资产输入，追加 Owner `PostStageDerivedArtifactFreshnessGate`：在完整 stage 后读取 Git index 校验派生资产，再在 commit 后 clean target tree 复放；生成时的 working-tree check 不能替代任一阶段
    - `R3b`：执行 `npm run test:audit` + package completeness gate（`description`、`keywords`、`repository`、`homepage`、`bugs`、`license`、`files/exports/bin`、`publishConfig`、`engines`、`plugin.json`）；package boundary check 必须在 build / benchmark / codegen 完成后单独串行执行；公开打包脚本必须执行 `PackagedScriptDependencyClosureGate`，递归核对本地 helper、spawn 目标脚本和运行时依赖进入 tarball
    - `R5`：pack/install smoke 执行 `IsolatedConsumerCwdGate`；先创建或核验显式 consumer `package.json`，再把每个 npm 命令的真实 cwd 切到 consumer，并比较 source candidate identity/dirty/staged 前后状态。`npm init --prefix` 或仅传 `--prefix` 不算 cwd 隔离
    - GitHub Packages 发布链中，`test:audit` 必须显式使用 `https://registry.npmjs.org` 作为 audit registry，避免 publish dry-run / prepublishOnly 继承 GitHub Packages 的非审计端点；这不等于跳过审计

@@ -108,6 +108,8 @@ applyTo: .devcodex/**/requirements/**
 
 `context-acquisition` 命中时，批次顺序至少为 shared contract/oracle → Profile plan + `ProfilePlanNoHiddenFullReadProbe` → Memory bounded query → Hook Post receipt → consumers/V99；每批记录 selected/excluded、missing、legacy 与 staged known-red，前一批 mandatory miss 或 false complete 未归零不得进入公开消费者同步。
 
+`skill-lifecycle` 或其他派生资产新鲜度命中时，计划必须把 generate、完整 staged candidate 物化、Owner `PostStageDerivedArtifactFreshnessGate`、commit 与 post-commit clean-tree replay 分成有序检查点；记录 input identity 和 candidateState，禁止在后续文件尚未进入 index 时提前用 working-tree `--check` 宣告完成。
+
 跨会话、多批次、服务启动、发布、依赖升级或台账回写等条件产物，在命中时作为“其他适用 gateGroup/产物”逐项加入；未命中只保留一条聚合 `N/A + skipReason`。
 
 
@@ -176,6 +178,7 @@ applyTo: .devcodex/**/requirements/**
 - [ ] 所有适用 `gateGroup` 已由 registry Owner 产出证据；未触发项有聚合 `N/A + skipReason`
 - [ ] ExecutionContract、RepairCollaboration、ConceptSyncMap、ProfileImpactCheck、ServiceLifecycleCleanup、Backlog/台账回写等条件产物已按触发事实处理
 - [ ] ContextAcquisition 触发时，plan/receipt/hidden-read/bounded-memory/V99 证据与 staged consumer owner 已记录
+- [ ] 派生资产触发时，post-stage candidate receipt 与 post-commit replay 均已记录，且不复用 working-tree check
 - [ ] 控制面/高风险任务已执行 targeted + related + full validation 或明确降级
 - [ ] CHANGELOG 只按 unreleased/release 状态和项目三轨规则更新
 - [ ] delivery-checklist 已核对 active task 主要产物、支持 manifest 与最终可见交付面

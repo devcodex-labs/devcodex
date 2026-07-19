@@ -5,10 +5,14 @@
   "generatedFrom": {
     "skillsPattern": "skills/*/SKILL.md",
     "registry": "plugin.json",
-    "sourceDigest": "1910f3fe866a55b3cf9f65a6cd8b8745b60d552feeaaded9ad53d82d612c1ea5",
+    "sourceDigest": "b3d5b07e01766f47202dd818660b2ae1de15b183eccef1b1f7e4c84342a47067",
     "pluginDigest": "cc57240623affa2447299cbde653711235554e77d38fb1298d02fd75124148c4",
     "portfolioEvidence": "skills/portfolio-evidence.json",
-    "portfolioEvidenceDigest": "a2288b9763bc79ea32f4fd47cd4f2ea31501427dc2e9d6871d75064bd281687b"
+    "portfolioEvidenceDigest": "a2288b9763bc79ea32f4fd47cd4f2ea31501427dc2e9d6871d75064bd281687b",
+    "consumerInventoryFileCount": 446,
+    "consumerInventoryDigest": "d60f9ce5ace71fc6ea1c69a3f22c649adb2c565013d7d37ec5c854308a5897e1",
+    "consumerProjectionDigest": "a18ee3dab9931b4aa13d2d6fbde0abd259ff94d73bafbf65fdf705f8973cf1ea",
+    "portfolioInputDigest": "a6adaabea2572e11d0fdcc276942e0eae4e75680aba857942f1d322b1576c807"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -685,6 +689,10 @@
         },
         {
           "path": "scripts/lib/validate-turn-liveness-controls.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/validation-manifest.json",
           "role": "current"
         },
         {
@@ -1623,6 +1631,10 @@
         },
         {
           "path": "scripts/test-skill-portfolio.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/validation-manifest.json",
           "role": "current"
         },
         {
@@ -4473,6 +4485,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/validation-manifest.json",
+          "role": "current"
+        },
+        {
           "path": "website/docs/guide/development.md",
           "role": "current"
         },
@@ -5650,6 +5666,10 @@
         },
         {
           "path": "scripts/validate.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/validation-manifest.json",
           "role": "current"
         },
         {
@@ -8738,6 +8758,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/validate-execution-chain-controls.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/validate-governance-quality.js",
           "role": "current"
         },
@@ -8873,8 +8897,8 @@
         "skills/execution-contract/SKILL.md"
       ],
       "source": "skills/execution-contract/SKILL.md",
-      "hash": "5446be44f81d7ce90c360405d0c9aef328a941e127c9addced17dc8637c2d24d",
-      "sourceBytes": 17699,
+      "hash": "ec63b8fe367463936aec268a5b85a641bb30e8cd29cb8bd323c2576a7f0eb1a5",
+      "sourceBytes": 18097,
       "version": "1.15.1",
       "lifecycleState": "active",
       "dependencies": [],
@@ -8987,6 +9011,10 @@
         },
         {
           "path": "scripts/test-skill-portfolio.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/validation-manifest.json",
           "role": "current"
         },
         {
@@ -10229,6 +10257,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/validation-manifest.json",
+          "role": "current"
+        },
+        {
           "path": "website/docs/guide/development.md",
           "role": "current"
         },
@@ -10574,11 +10606,19 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/validate-execution-chain-controls.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/validate-optimization-controls.js",
           "role": "current"
         },
         {
           "path": "scripts/test-skill-portfolio.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/validation-manifest.json",
           "role": "current"
         },
         {
@@ -10889,6 +10929,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-execution-chain-evolution.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-governance-intake.js",
           "role": "current"
         },
@@ -10910,6 +10954,10 @@
         },
         {
           "path": "scripts/validate.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/validation-manifest.json",
           "role": "current"
         },
         {
@@ -11025,6 +11073,7 @@
         "scripts/test-cli-behavior.js",
         "scripts/test-cli-command-registry.js",
         "scripts/test-context-read-contract.js",
+        "scripts/test-execution-chain-evolution.js",
         "scripts/test-governance-intake.js",
         "scripts/test-intent-consistency.js",
         "scripts/test-mcp-servers.js",
@@ -11086,6 +11135,7 @@
           "scripts/test-cli-behavior.js",
           "scripts/test-cli-command-registry.js",
           "scripts/test-context-read-contract.js",
+          "scripts/test-execution-chain-evolution.js",
           "scripts/test-governance-intake.js",
           "scripts/test-intent-consistency.js",
           "scripts/test-mcp-servers.js",
@@ -11253,6 +11303,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/validate-execution-chain-controls.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/validate-governance-expert.js",
           "role": "current"
         },
@@ -11282,6 +11336,10 @@
         },
         {
           "path": "scripts/test-skill-portfolio.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/validation-manifest.json",
           "role": "current"
         },
         {
@@ -11835,6 +11893,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/validation-manifest.json",
+          "role": "current"
+        },
+        {
           "path": "website/docs/guide/development.md",
           "role": "current"
         },
@@ -12223,6 +12285,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/validate-execution-chain-controls.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/validate-governance-expert.js",
           "role": "current"
         },
@@ -12598,6 +12664,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/project-knowledge-store.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/requirement-artifact-check.js",
           "role": "current"
         },
@@ -12694,7 +12764,19 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/validation-dag.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/migrate-layout.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/project-analysis-state.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/run-validation.js",
           "role": "current"
         },
         {
@@ -12722,6 +12804,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-execution-chain-evolution.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-governance-intake.js",
           "role": "current"
         },
@@ -12742,6 +12828,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-project-knowledge-store.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-requirement-artifacts.js",
           "role": "current"
         },
@@ -12750,11 +12840,19 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-validation-dag.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-workflow-capabilities.js",
           "role": "current"
         },
         {
           "path": "scripts/validate.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/validation-manifest.json",
           "role": "current"
         },
         {
@@ -12977,14 +13075,17 @@
         "scripts/test-context-read-contract.js",
         "scripts/test-control-plane-contracts.js",
         "scripts/test-control-plane-module-contracts.js",
+        "scripts/test-execution-chain-evolution.js",
         "scripts/test-governance-intake.js",
         "scripts/test-hooks-runtime.js",
         "scripts/test-markdown-structure.js",
         "scripts/test-mcp-servers.js",
         "scripts/test-migrate-layout.js",
+        "scripts/test-project-knowledge-store.js",
         "scripts/test-requirement-artifacts.js",
         "scripts/test-residual-absorption-controls.js",
         "scripts/test-skill-portfolio.js",
+        "scripts/test-validation-dag.js",
         "scripts/test-workflow-capabilities.js",
         "scripts/validate.js"
       ],
@@ -13039,14 +13140,17 @@
           "scripts/test-context-read-contract.js",
           "scripts/test-control-plane-contracts.js",
           "scripts/test-control-plane-module-contracts.js",
+          "scripts/test-execution-chain-evolution.js",
           "scripts/test-governance-intake.js",
           "scripts/test-hooks-runtime.js",
           "scripts/test-markdown-structure.js",
           "scripts/test-mcp-servers.js",
           "scripts/test-migrate-layout.js",
+          "scripts/test-project-knowledge-store.js",
           "scripts/test-requirement-artifacts.js",
           "scripts/test-residual-absorption-controls.js",
           "scripts/test-skill-portfolio.js",
+          "scripts/test-validation-dag.js",
           "scripts/test-workflow-capabilities.js",
           "scripts/validate.js"
         ],
@@ -13832,6 +13936,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/validation-manifest.json",
+          "role": "current"
+        },
+        {
           "path": "website/docs/versions/v1/1.0.1/CHANGELOG.md",
           "role": "current"
         },
@@ -14169,6 +14277,10 @@
         },
         {
           "path": "scripts/test-readme-governance.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/validation-manifest.json",
           "role": "current"
         },
         {
@@ -14576,8 +14688,8 @@
         "skills/report/SKILL.md"
       ],
       "source": "skills/report/SKILL.md",
-      "hash": "4b859ec3574b84c046a4f0dd5a4b84662fba09d06f64c8bad64f83e04d595c07",
-      "sourceBytes": 11908,
+      "hash": "5e504f9f95d7f8f402f130554c82f5d1e900a361ccc062e172aa6f1eb3637cc8",
+      "sourceBytes": 12044,
       "version": "1.15.1",
       "lifecycleState": "active",
       "dependencies": [],
@@ -14903,6 +15015,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/validate-execution-chain-controls.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/validate-governance-control.js",
           "role": "current"
         },
@@ -14983,11 +15099,19 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-project-knowledge-store.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-validate-profile.js",
           "role": "current"
         },
         {
           "path": "scripts/validate-profile.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/validation-manifest.json",
           "role": "current"
         },
         {
@@ -15166,6 +15290,7 @@
         "scripts/test-instruction-fallback-check.js",
         "scripts/test-mcp-servers.js",
         "scripts/test-migrate-layout.js",
+        "scripts/test-project-knowledge-store.js",
         "scripts/test-skill-portfolio.js",
         "scripts/test-validate-profile.js",
         "scripts/validate-profile.js",
@@ -15225,6 +15350,7 @@
           "scripts/test-instruction-fallback-check.js",
           "scripts/test-mcp-servers.js",
           "scripts/test-migrate-layout.js",
+          "scripts/test-project-knowledge-store.js",
           "scripts/test-skill-portfolio.js",
           "scripts/test-validate-profile.js",
           "scripts/validate-profile.js",
@@ -15284,8 +15410,8 @@
         "skills/review-checklist/SKILL.md"
       ],
       "source": "skills/review-checklist/SKILL.md",
-      "hash": "286078897698786add407ac4b8790938bda6290767259d44f7bbb4cb7da0bbd3",
-      "sourceBytes": 12348,
+      "hash": "1adb052f8f4cd0389d07a089d1d789e6ecc1486716a8fa3d1ec9ef3e634f87ee",
+      "sourceBytes": 12763,
       "version": "1.15.1",
       "lifecycleState": "active",
       "dependencies": [],
@@ -15802,6 +15928,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/execution-optimization.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/test-rework-trust-controls.js",
           "role": "current"
         },
@@ -15819,6 +15949,10 @@
         },
         {
           "path": "scripts/lib/validate-core-checks.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/validate-execution-chain-controls.js",
           "role": "current"
         },
         {
@@ -15846,6 +15980,14 @@
           "role": "current"
         },
         {
+          "path": "scripts/project-analysis-state.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/run-validation.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-checked-command.js",
           "role": "current"
         },
@@ -15866,7 +16008,15 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-skill-portfolio.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-workflow-capabilities.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/validation-manifest.json",
           "role": "current"
         },
         {
@@ -16403,8 +16553,8 @@
         "skills/skill-lifecycle-governance/SKILL.md"
       ],
       "source": "skills/skill-lifecycle-governance/SKILL.md",
-      "hash": "2a2c250ad1808bb48fe847651b5f2adb4715a520ec9f4546d9ae1d0af683170f",
-      "sourceBytes": 8444,
+      "hash": "8ba4721920adc33942dd3a0a463201385f90bb96d02714f4c7919921fe237f9a",
+      "sourceBytes": 10223,
       "version": "1.15.1",
       "lifecycleState": "active",
       "dependencies": [],
@@ -16448,6 +16598,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/validate-execution-chain-controls.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/validate-governance-expert.js",
           "role": "current"
         },
@@ -16457,6 +16611,10 @@
         },
         {
           "path": "scripts/test-skill-portfolio.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/validation-manifest.json",
           "role": "current"
         },
         {
@@ -16905,6 +17063,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/validation-manifest.json",
+          "role": "current"
+        },
+        {
           "path": "website/docs/guide/development.md",
           "role": "current"
         },
@@ -17345,6 +17507,10 @@
         },
         {
           "path": "scripts/test-spec-governance.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/validation-manifest.json",
           "role": "current"
         },
         {
@@ -17963,8 +18129,8 @@
         "skills/test-router/SKILL.md"
       ],
       "source": "skills/test-router/SKILL.md",
-      "hash": "29a3c197c4581f746c9d3c1bfd7b7afcaa9c0dbf12755debdb090a123cf9fc90",
-      "sourceBytes": 6382,
+      "hash": "94fb631e22ed0aa836eb15b99d4c84e1760eac7b4ff3f2599ba91032f758c34d",
+      "sourceBytes": 6928,
       "version": "1.15.1",
       "lifecycleState": "active",
       "dependencies": [],
@@ -18117,6 +18283,10 @@
         },
         {
           "path": "scripts/lib/validate-context-read-controls.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/validate-execution-chain-controls.js",
           "role": "current"
         },
         {
@@ -18604,6 +18774,10 @@
         },
         {
           "path": "scripts/lib/validate-residual-absorption-controls.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/validation-manifest.json",
           "role": "current"
         },
         {

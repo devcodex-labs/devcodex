@@ -56,6 +56,7 @@
     "test:workflow-capabilities": "node scripts/test-workflow-capabilities.js",
     "test:api-verification-contracts": "node scripts/test-api-verification-contracts.js",
     "test:git-index-isolation": "node scripts/test-git-index-isolation.js",
+    "test:skill-portfolio:staged": "node scripts/generate-skill-portfolio.js --check-staged",
     "test:control-plane-contracts": "node scripts/test-control-plane-contracts.js",
     "test:markdown-structure": "node scripts/test-markdown-structure.js",
     "test:consumer-evolution-controls": "node scripts/test-consumer-evolution-controls.js",

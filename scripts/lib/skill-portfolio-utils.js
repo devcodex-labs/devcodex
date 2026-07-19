@@ -103,12 +103,159 @@ function gitLsFiles(root, pathspecs = []) {
     const out = execFileSync('git', args, {
       encoding: 'buffer',
       maxBuffer: 64 * 1024 * 1024,
+      stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true
     })
     return out.toString('utf8').split('\0').filter(Boolean).map(rel => rel.replace(/\\/g, '/'))
   } catch {
     return null
   }
+}
+
+function readGitIndexRows(root) {
+  return execFileSync('git', ['-C', root, 'ls-files', '--stage', '-z'], {
+    encoding: 'buffer',
+    maxBuffer: 64 * 1024 * 1024,
+    stdio: ['ignore', 'pipe', 'pipe'],
+    windowsHide: true
+  })
+}
+
+function parseGitIndexEntries(indexRows) {
+  return indexRows.toString('utf8').split('\0').filter(Boolean).map(row => {
+    const match = row.match(/^(\d+) ([a-f0-9]+) (\d+)\t([\s\S]+)$/)
+    if (!match) throw new Error(`unable to parse Git index row: ${row.slice(0, 120)}`)
+    return {
+      mode: match[1],
+      objectId: match[2],
+      stage: Number(match[3]),
+      path: match[4].replace(/\\/g, '/')
+    }
+  })
+}
+
+function readGitObjectBatch(root, objectIds) {
+  const uniqueIds = Array.from(new Set(objectIds))
+  if (!uniqueIds.length) return new Map()
+  const output = execFileSync('git', ['-C', root, 'cat-file', '--batch'], {
+    encoding: 'buffer',
+    input: Buffer.from(`${uniqueIds.join('\n')}\n`, 'utf8'),
+    maxBuffer: 128 * 1024 * 1024,
+    stdio: ['pipe', 'pipe', 'pipe'],
+    windowsHide: true
+  })
+  const objects = new Map()
+  let offset = 0
+  for (const requestedId of uniqueIds) {
+    const headerEnd = output.indexOf(0x0a, offset)
+    if (headerEnd < 0) throw new Error(`missing Git object header for ${requestedId}`)
+    const header = output.subarray(offset, headerEnd).toString('utf8')
+    const match = header.match(/^([a-f0-9]+) (\S+) (\d+)$/)
+    if (!match || match[2] !== 'blob') throw new Error(`invalid Git object response for ${requestedId}: ${header}`)
+    const size = Number(match[3])
+    const contentStart = headerEnd + 1
+    const contentEnd = contentStart + size
+    if (contentEnd >= output.length || output[contentEnd] !== 0x0a) {
+      throw new Error(`truncated Git object response for ${requestedId}`)
+    }
+    objects.set(requestedId, output.subarray(contentStart, contentEnd))
+    offset = contentEnd + 1
+  }
+  if (offset !== output.length) throw new Error('unexpected trailing bytes in Git object batch response')
+  return objects
+}
+
+function loadGitIndexRepositorySnapshot(root) {
+  const indexRows = readGitIndexRows(root)
+  const entries = parseGitIndexEntries(indexRows)
+  const unmergedPaths = entries.filter(entry => entry.stage !== 0).map(entry => entry.path)
+  if (unmergedPaths.length) {
+    throw new Error(`Git index contains unmerged entries: ${Array.from(new Set(unmergedPaths)).join(', ')}`)
+  }
+  const objects = readGitObjectBatch(root, entries.map(entry => entry.objectId))
+  const files = new Map(entries.map(entry => {
+    const content = objects.get(entry.objectId)
+    if (!content) throw new Error(`Git index blob is unavailable: ${entry.path}`)
+    return [entry.path, content]
+  }))
+  return {
+    repositoryView: 'index',
+    indexRows,
+    indexFileCount: entries.length,
+    indexTreeIdentity: sha256(indexRows),
+    paths: entries.map(entry => entry.path).sort((a, b) => a.localeCompare(b)),
+    readText(relativePath) {
+      const rel = String(relativePath || '').replace(/\\/g, '/')
+      const content = files.get(rel)
+      if (!content) throw new Error(`unable to read staged portfolio input from Git index: ${rel}`)
+      return content.toString('utf8')
+    }
+  }
+}
+
+function readRepositoryText(root, relativePath, repositoryView = 'worktree') {
+  const rel = String(relativePath || '').replace(/\\/g, '/')
+  if (repositoryView === 'worktree') {
+    return fs.readFileSync(path.join(root, rel), 'utf8')
+  }
+  if (repositoryView !== 'index') {
+    throw new Error(`unsupported portfolio repository view: ${repositoryView}`)
+  }
+  try {
+    return execFileSync('git', ['-C', root, 'show', `:${rel}`], {
+      encoding: 'buffer',
+      maxBuffer: 64 * 1024 * 1024,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      windowsHide: true
+    }).toString('utf8')
+  } catch (error) {
+    throw new Error(`unable to read staged portfolio input from Git index: ${rel} (${error.message})`)
+  }
+}
+
+function gitIndexSnapshot(root, repositorySnapshot = null) {
+  try {
+    const indexRows = repositorySnapshot?.indexRows || readGitIndexRows(root)
+    const entries = parseGitIndexEntries(indexRows)
+    const unmergedPathCount = new Set(entries.filter(entry => entry.stage !== 0).map(entry => entry.path)).size
+    const stagedRows = execFileSync('git', ['-C', root, 'diff', '--cached', '--name-only', '-z', '--'], {
+      encoding: 'buffer',
+      maxBuffer: 64 * 1024 * 1024,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      windowsHide: true
+    })
+    const stagedPaths = stagedRows.toString('utf8').split('\0').filter(Boolean)
+    const verifiedIndexRows = readGitIndexRows(root)
+    if (sha256(verifiedIndexRows) !== sha256(indexRows)) {
+      throw new Error('Git index changed while the staged candidate snapshot was being captured')
+    }
+    return {
+      available: true,
+      repositoryView: 'index',
+      indexFileCount: entries.filter(entry => entry.stage === 0).length,
+      unmergedPathCount,
+      stagedPathCount: stagedPaths.length,
+      stagedPaths: stagedPaths.map(rel => rel.replace(/\\/g, '/')).sort(),
+      indexTreeIdentity: sha256(indexRows)
+    }
+  } catch (error) {
+    return {
+      available: false,
+      repositoryView: 'index',
+      error: error.message
+    }
+  }
+}
+
+function validateStagedCandidateSnapshot(snapshot) {
+  const errors = []
+  if (!snapshot || snapshot.available !== true) errors.push('Git index is unavailable')
+  if (Number(snapshot?.unmergedPathCount || 0) > 0) errors.push('Git index contains unmerged entries')
+  if (!Number.isInteger(snapshot?.stagedPathCount) || snapshot.stagedPathCount < 1) {
+    errors.push('no staged candidate paths; stage the intended change set before checking derived artifacts')
+  }
+  if (!/^[a-f0-9]{64}$/.test(String(snapshot?.indexTreeIdentity || ''))) errors.push('invalid Git index identity')
+  return errors
 }
 
 function isPortfolioConsumerExcluded(relativePath) {
@@ -134,18 +281,25 @@ function isPortfolioConsumerExcluded(relativePath) {
  * MUST use git-tracked paths only when git is available so dirty/untracked worktrees
  * match CI clean checkouts (V92). Untracked reports/tmp/backup files must never change consumers.
  */
-function listConsumerDocuments(root) {
-  const tracked = gitLsFiles(root)
+function listConsumerDocuments(root, options = {}) {
+  const repositoryView = options.repositoryView || 'worktree'
+  const repositorySnapshot = options.repositorySnapshot || null
+  const tracked = repositorySnapshot?.paths || gitLsFiles(root)
   const files = []
 
   if (tracked && tracked.length) {
     for (const rel of tracked) {
       if (isPortfolioConsumerExcluded(rel)) continue
-      const full = path.join(root, rel)
-      if (!fs.existsSync(full) || !fs.statSync(full).isFile()) continue
-      files.push(full)
+      if (repositoryView === 'worktree') {
+        const full = path.join(root, rel)
+        if (!fs.existsSync(full) || !fs.statSync(full).isFile()) continue
+      }
+      files.push(rel)
     }
   } else {
+    if (repositoryView === 'index') {
+      throw new Error('Git index is unavailable; staged Skill portfolio freshness cannot be verified')
+    }
     // Fallback for non-git unpack / pack install smoke: filesystem walk with same exclusions.
     const excludedTop = new Set(['.git', '.devcodex', 'coverage', 'dist', 'node_modules', 'skills', 'doc_build'])
     function visit(dir, depth = 0) {
@@ -154,30 +308,38 @@ function listConsumerDocuments(root) {
         if (entry.isDirectory() && ((depth === 0 && excludedTop.has(entry.name)) || entry.name === 'node_modules' || entry.name === 'dist' || entry.name === 'doc_build')) continue
         const full = path.join(dir, entry.name)
         if (entry.isDirectory()) visit(full, depth + 1)
-        else if (TEXT_EXTENSIONS.has(path.extname(entry.name).toLowerCase())) files.push(full)
+        else if (TEXT_EXTENSIONS.has(path.extname(entry.name).toLowerCase())) files.push(normalizePath(root, full))
       }
     }
     visit(root)
   }
 
-  return files.sort((a, b) => a.localeCompare(b)).map(file => ({
-    path: normalizePath(root, file),
-    content: fs.readFileSync(file, 'utf8')
+  return files.sort((a, b) => a.localeCompare(b)).map(relative => ({
+    path: relative.replace(/\\/g, '/'),
+    content: repositorySnapshot
+      ? repositorySnapshot.readText(relative)
+      : readRepositoryText(root, relative, repositoryView)
   }))
 }
 
-/** List SKILL.md paths: git-tracked only when available (ignore untracked skill drafts). */
-function listSkillMarkdownFiles(root) {
-  const tracked = gitLsFiles(root, ['skills'])
+/** List SKILL.md repository paths: git-tracked only when available (ignore untracked skill drafts). */
+function listSkillMarkdownPaths(root, options = {}) {
+  const repositoryView = options.repositoryView || 'worktree'
+  const repositorySnapshot = options.repositorySnapshot || null
+  const tracked = repositorySnapshot?.paths.filter(rel => rel.startsWith('skills/')) || gitLsFiles(root, ['skills'])
   if (tracked && tracked.length) {
     return tracked
       .filter(rel => rel.replace(/\\/g, '/').endsWith('/SKILL.md') || /^skills\/[^/]+\/SKILL\.md$/.test(rel.replace(/\\/g, '/')))
-      .map(rel => path.join(root, rel))
-      .filter(full => fs.existsSync(full) && fs.statSync(full).isFile())
+      .filter(rel => repositoryView === 'index' || (fs.existsSync(path.join(root, rel)) && fs.statSync(path.join(root, rel)).isFile()))
+      .map(rel => rel.replace(/\\/g, '/'))
       .sort((a, b) => a.localeCompare(b))
+  }
+  if (repositoryView === 'index') {
+    throw new Error('Git index is unavailable; staged Skill sources cannot be verified')
   }
   return walk(path.join(root, 'skills'))
     .filter(file => path.basename(file) === 'SKILL.md')
+    .map(file => normalizePath(root, file))
     .sort((a, b) => a.localeCompare(b))
 }
 
@@ -293,25 +455,32 @@ function buildBundleDecision(portfolio, input = {}) {
   }
 }
 
-function buildPortfolio(root) {
-  const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'))
-  const pluginPath = path.join(root, 'plugin.json')
-  const plugin = JSON.parse(fs.readFileSync(pluginPath, 'utf8'))
-  const portfolioEvidencePath = path.join(root, 'skills', 'portfolio-evidence.json')
-  const portfolioEvidence = JSON.parse(fs.readFileSync(portfolioEvidencePath, 'utf8'))
+function buildPortfolio(root, options = {}) {
+  const repositoryView = options.repositoryView || 'worktree'
+  const repositorySnapshot = repositoryView === 'index'
+    ? (options.repositorySnapshot || loadGitIndexRepositorySnapshot(root))
+    : null
+  const readText = relative => repositorySnapshot
+    ? repositorySnapshot.readText(relative)
+    : readRepositoryText(root, relative, repositoryView)
+  const packageJson = JSON.parse(readText('package.json'))
+  const pluginPath = 'plugin.json'
+  const plugin = JSON.parse(readText(pluginPath))
+  const portfolioEvidencePath = 'skills/portfolio-evidence.json'
+  const portfolioEvidence = JSON.parse(readText(portfolioEvidencePath))
   if (portfolioEvidence.schemaVersion !== 2 || portfolioEvidence.ownerSkill !== 'skill-lifecycle-governance') {
     throw new Error('invalid skills/portfolio-evidence.json header')
   }
   const registered = new Map((plugin.skills || []).map(item => [item.id, item]))
-  const skillFiles = listSkillMarkdownFiles(root)
-  const knownNames = new Set(skillFiles.map(file => path.basename(path.dirname(file))))
-  const consumers = listConsumerDocuments(root)
+  const skillPaths = listSkillMarkdownPaths(root, { repositoryView, repositorySnapshot })
+  const knownNames = new Set(skillPaths.map(relative => path.posix.basename(path.posix.dirname(relative))))
+  const consumers = listConsumerDocuments(root, { repositoryView, repositorySnapshot })
   const sourceRows = []
+  const consumerProjectionRows = []
 
-  const skills = skillFiles.map(file => {
-    const id = path.basename(path.dirname(file))
-    const source = normalizePath(root, file)
-    const content = fs.readFileSync(file, 'utf8')
+  const skills = skillPaths.map(source => {
+    const id = path.posix.basename(path.posix.dirname(source))
+    const content = readText(source)
     const canonicalContent = canonicalizeTextForDigest(content)
     const frontmatter = parseFrontmatter(content, id)
     const consumerRows = consumers
@@ -324,6 +493,9 @@ function buildPortfolio(root) {
       consumerRows.push({ path: 'plugin.json', role: 'current' })
     }
     consumerRows.sort((a, b) => a.path.localeCompare(b.path) || a.role.localeCompare(b.role))
+    for (const consumer of consumerRows) {
+      consumerProjectionRows.push(`${id}:${consumer.path}:${consumer.role}`)
+    }
     const references = collectReferences(content, knownNames).filter(name => name !== id)
     const dependencies = collectDependencies(content, knownNames).filter(name => name !== id)
     const validationProfile = consumerRows
@@ -406,6 +578,18 @@ function buildPortfolio(root) {
   const orphanActive = skills
     .filter(skill => skill.lifecycleState === 'active' && !skill.consumers.some(item => item.role === 'current'))
     .map(skill => skill.id)
+  const sourceDigest = sha256(sourceRows.sort().join('\n'))
+  const pluginDigest = sha256(canonicalizeTextForDigest(readText(pluginPath)))
+  const portfolioEvidenceDigest = sha256(canonicalizeTextForDigest(readText(portfolioEvidencePath)))
+  const consumerInventoryDigest = sha256(consumers.map(item => item.path).sort().join('\n'))
+  const consumerProjectionDigest = sha256(consumerProjectionRows.sort().join('\n'))
+  const portfolioInputDigest = sha256([
+    `skills:${sourceDigest}`,
+    `plugin:${pluginDigest}`,
+    `evidence:${portfolioEvidenceDigest}`,
+    `consumer-inventory:${consumerInventoryDigest}`,
+    `consumer-projection:${consumerProjectionDigest}`
+  ].join('\n'))
 
   return {
     schemaVersion: 2,
@@ -414,10 +598,14 @@ function buildPortfolio(root) {
     generatedFrom: {
       skillsPattern: 'skills/*/SKILL.md',
       registry: 'plugin.json',
-      sourceDigest: sha256(sourceRows.sort().join('\n')),
-      pluginDigest: sha256(canonicalizeTextForDigest(fs.readFileSync(pluginPath, 'utf8'))),
+      sourceDigest,
+      pluginDigest,
       portfolioEvidence: 'skills/portfolio-evidence.json',
-      portfolioEvidenceDigest: sha256(canonicalizeTextForDigest(fs.readFileSync(portfolioEvidencePath, 'utf8')))
+      portfolioEvidenceDigest,
+      consumerInventoryFileCount: consumers.length,
+      consumerInventoryDigest,
+      consumerProjectionDigest,
+      portfolioInputDigest
     },
     ordering: 'skills.id asc; graph edges from/to asc',
     summary: {
@@ -431,7 +619,7 @@ function buildPortfolio(root) {
       conflictReviewedCount: skills.filter(skill => skill.conflictReview.status === 'reviewed-none' || skill.conflictReview.status === 'declared').length,
       operationalEvidenceCompleteCount: skills.filter(skill => skill.evidence.operationalReadiness.state === 'complete').length,
       triggerPrecisionMeasuredCount: skills.filter(skill => skill.evidence.triggerPrecision.state === 'measured').length,
-      instructionBudgetP95Bytes: percentile(skillFiles.map(file => Buffer.byteLength(canonicalizeTextForDigest(fs.readFileSync(file, 'utf8')), 'utf8')), 0.95),
+      instructionBudgetP95Bytes: percentile(skillPaths.map(relative => Buffer.byteLength(canonicalizeTextForDigest(readText(relative)), 'utf8')), 0.95),
       triggerQuality: 'structural-only'
     },
     dependencyGraph: { nodes, edges, cycles },
@@ -449,6 +637,13 @@ function validatePortfolio(portfolio) {
   const errors = []
   const ids = new Set()
   if (portfolio.schemaVersion !== 2) errors.push(`unsupported portfolio schema version: ${portfolio.schemaVersion}`)
+  const generatedFrom = portfolio.generatedFrom || {}
+  if (!Number.isInteger(generatedFrom.consumerInventoryFileCount) || generatedFrom.consumerInventoryFileCount < 1) {
+    errors.push('invalid consumerInventoryFileCount')
+  }
+  for (const field of ['consumerInventoryDigest', 'consumerProjectionDigest', 'portfolioInputDigest']) {
+    if (!/^[a-f0-9]{64}$/.test(String(generatedFrom[field] || ''))) errors.push(`invalid ${field}`)
+  }
   for (const skill of portfolio.skills || []) {
     if (ids.has(skill.id)) errors.push(`duplicate skill id: ${skill.id}`)
     ids.add(skill.id)
@@ -500,11 +695,15 @@ module.exports = {
   canonicalizeTextForDigest,
   collectDependencies,
   detectCycles,
+  gitIndexSnapshot,
   gitLsFiles,
   isPortfolioConsumerExcluded,
   listConsumerDocuments,
-  listSkillMarkdownFiles,
+  listSkillMarkdownPaths,
+  loadGitIndexRepositorySnapshot,
   parseFrontmatter,
+  readRepositoryText,
   serializePortfolio,
+  validateStagedCandidateSnapshot,
   validatePortfolio
 }

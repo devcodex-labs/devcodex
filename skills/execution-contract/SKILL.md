@@ -42,6 +42,7 @@ description: 执行契约规范 — 为长流程、多文件、Auto 或控制面
 | `publisherCredentialTopology` | 条件 | 首次发布或发布身份/仓库/package/registry/auth topology 变化时，引用 `PublisherCredentialTopologyGate`；只记录身份、scope/access/permission/ownership/成功证据，不含 secret value |
 | `currentBatchScopeDiff` | 条件 | 多阶段/多批次 dev/fix 必填；比较 total phase scope、allowedFirstBatch、当前 batch、blockedScope 与本次 diff |
 | `validationConsumerRebind` | 条件 | 新增 root script、CI job、validator、deploy copy 或 consumer 时必填；把 allowedPaths、TestRoute、rollback 与 consumerScope 重新绑定 |
+| `derivedArtifactFreshness` | 条件 | 派生资产受 tracked/staged consumer、模板、索引或生成顺序影响时必填；绑定 Owner Gate、生成输入 identity、post-stage candidate check 与 post-commit replay |
 | `turnLivenessContract` | 条件 | 长任务、工具完成后无续接、宿主停滞或跨轮次恢复时必填；引用 `ai-agent-system-architecture` 的状态/lease/ACK/terminal/checkpoint、CheckpointValidation 与 LocalTaskTrace 契约及能力边界 |
 | `executionBudget` | 条件 | Auto、多批次、预计 ≥10 文件、C08 恢复、用户反馈「太慢/卡/文件太多」、或 resume 长任务时必填；见 `ExecutionBudgetGate` |
 | `executionAttemptLedger` | 条件 | formal command、失败重试、取消/中断或 restart 时必填；作为既有 TurnLiveness state 的 `ExecutionAttemptLedgerV1` 子状态，不得新建平行状态机 |
@@ -212,4 +213,4 @@ P0/P1、安全、控制面、公共 API/Schema/config、预计 ≥5 文件、多
 - 长任务 / Auto / resume：存在 `executionBudget` + `longTaskAuthorization`；有等待面时存在 `externalWaitAccounting`；缺预算或未授权不得进入无人值守 mutation。
 - repair task：轻量契约字段完整；高风险 full 契约的 finding map、handoff、独立复证和状态转换完整；只出现模型名称不得误触发。
 - 执行中：每个 Batch 对照 `allowedPaths`、`requiredArtifacts`、`consumerScope`、`backlogTruthReview`、`regressionMatrix`、`ledgerWriteback` 与 `deviationLog`；消耗逼近预算时提前提示，触顶写 `StopSnapshot`。
-- 执行后：ECR-2/ECR-3/ECR-7 引用 Contract、`verificationEvidence`、历史能力回归结果、backlog 真相复核结果与最终偏离记录；命中 turn liveness 时同时引用双阶段 checkpoint 与 trace zero-write/replay 证据；长任务 ECR 必须引用 budget 消耗与等待分列。
+- 执行后：ECR-2/ECR-3/ECR-7 引用 Contract、`verificationEvidence`、历史能力回归结果、backlog 真相复核结果与最终偏离记录；命中派生资产时引用 `PostStageDerivedArtifactFreshnessGate` 的 staged candidate receipt 和 post-commit replay，不能用生成时的 working-tree check 代替；命中 turn liveness 时同时引用双阶段 checkpoint 与 trace zero-write/replay 证据；长任务 ECR 必须引用 budget 消耗与等待分列。

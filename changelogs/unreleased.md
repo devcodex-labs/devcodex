@@ -9,6 +9,12 @@ WorkspaceDataAbsorptionScopeGate · DocsSiteVisualAcceptanceGate · OmissionOnly
 
 ## 当前未发布变更
 
+### 提交候选派生资产新鲜度（2026-07-19）
+
+- Skill portfolio 增加 worktree/index 双视图、consumer inventory/projection/input digest 与 `--check-staged` 维护者入口，直接校验 Git index 中将被提交的 blob。
+- 新增“先生成、后 stage consumer”隔离负向夹具，并让 changed-scope validation 的 portfolio 节点覆盖实际 tracked text consumer 扩散面。
+- `PostStageDerivedArtifactFreshnessGate` 同步到 Skill Owner、执行/复审/报告消费者和公开指南；完成证据要求 post-stage candidate 与 post-commit clean-tree 两阶段复证。
+
 ### 项目侧执行链性能、任务名续接与稳定演进（2026-07-19）
 
 - 新增稳定 task identity 与 `继续<任务名>任务` 的 Hook/MCP/CLI 有界恢复链；索引损坏、同名歧义、完成态或 CP 漂移均 fail-closed。

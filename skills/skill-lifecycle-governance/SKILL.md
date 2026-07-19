@@ -19,6 +19,14 @@ description: Skill 生命周期治理 Owner — 当任务涉及 Skill 组合、�
 
 DevCodex 源仓的机器可读实例是 `skills/portfolio.json`（schema v2）：由 `scripts/generate-skill-portfolio.js` 从 `skills/*/SKILL.md`、`plugin.json` 与 `skills/portfolio-evidence.json` 确定性生成，`--check` 只比较、不改生命周期。严格 `dependencies` 只承载显式依赖声明；普通 Markdown 关系进入 `referenceGraph`，避免把互相说明误报成依赖环。
 
+### PostStageDerivedArtifactFreshnessGate
+
+当 Skill portfolio 或其他派生资产会受 tracked consumer membership、索引、模板、生成顺序或候选文件集合影响时，普通工作树 `--check` 不能单独证明提交候选新鲜。commit/tag/publish 前必须先物化完整 staged candidate，再执行 `node scripts/generate-skill-portfolio.js --check-staged`：该模式从 Git index 读取 package、registry、evidence、Skill source 与 consumer blob，并与 index 内的 `skills/portfolio.json` 比较；Git/index 不可读或任一输入 stale 时 fail-closed，不得回退工作树后宣称通过。
+
+portfolio 的 `generatedFrom` 必须分别保留 Skill `sourceDigest` 与 `consumerInventoryFileCount / consumerInventoryDigest / consumerProjectionDigest / portfolioInputDigest`。consumer 漂移不得伪装成 Skill 源变化；commit SHA/index tree identity 只进入本次 validation receipt，不写入派生资产，避免自引用。生成后又新增/重命名/删除 consumer 时，正确顺序是：stage 最终输入 → regenerate → stage portfolio → `--check-staged`。完成声明还需在 commit 后 clean target tree 运行普通 `--check`；post-stage 与 post-commit 证据互补，不能互相替代。
+
+本 Gate 补充 `CandidateDiffCompletenessGate`：后者证明 staged candidate 覆盖授权范围，前者证明派生资产与该 candidate 一致。负向夹具必须覆盖“先生成、后 stage consumer”会失败，以及重新生成并 stage 后会通过；changed-scope validation 的 portfolio 节点 inputs 必须覆盖真实 tracked text consumer 扩散面。
+
 ### SkillIndexV2 与 BundleDecisionV1/V2
 
 每个 portfolio entry 必须包含保守的 `skillIndex` 投影：`id/type/workflow/phase/domains/triggers/requires/conflictsWith/priority/visibility/maxTokens/fixtures/evolvableUnitRef/probeSuiteRefs/exitCondition/evidenceState`。没有直接事实时使用空数组、`maxTokens=null` 或 `evidenceState=unverified`，禁止凭结构证据编造 workflow/phase/token budget。
@@ -89,4 +97,4 @@ mandatory Skill 或其依赖未知、inactive、owner/sourceBytes 缺失、冲�
 
 至少覆盖：完整 active、orphan active、循环依赖、draft 直跳 active、active 直退役、误触发超阈值、deprecated 无迁移、gray rollback、retired 引用残留和低样本指标不得自动决策。
 
-源仓最小命令：`node scripts/generate-skill-portfolio.js --check` + `node scripts/test-skill-portfolio.js`。静态消费者和注册事实可以证明集合/引用完整，但 precision、false positive/negative 与人工纠偏率没有真实样本时必须保持 `insufficient-evidence`；SkillIndex `source-backed` 也不能替代触发 precision 的真实测量。
+源仓最小命令：日常运行 `node scripts/generate-skill-portfolio.js --check` + `node scripts/test-skill-portfolio.js`；提交候选追加 `node scripts/generate-skill-portfolio.js --check-staged`，提交后在 clean target tree 重跑普通 `--check`。静态消费者和注册事实可以证明集合/引用完整，但 precision、false positive/negative 与人工纠偏率没有真实样本时必须保持 `insufficient-evidence`；SkillIndex `source-backed` 也不能替代触发 precision 的真实测量。

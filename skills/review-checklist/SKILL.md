@@ -63,6 +63,7 @@ description: 复审清单整理与审查规范 — 创建、冻结、证据执�
 - `ReviewCoverageClaimIntegrityGate`：逐文件/逐服务/全量深读声明必须有 FileEvidenceLedger；抽样必须公开 sampledSet、unreadSet、sampleMethod 与 inferenceBoundary。
 - `ReworkPreventionHandoffGate`：escape 属于原确认范围且已越过目标门禁时，交给 `rework-prevention-engineering` 分类 ReworkEvent/cluster，并把 prevention 注册到后续可比较任务；本任务重跑通过不能单独证明预防有效。
 - `CandidateDiffCompletenessGate`：commit/tag/publish 前，复审清单必须把授权范围物化为 staged candidate snapshot，并记录 cached diff check、name-status、secret-shape scan 与 intended scope 对账；普通 working diff 不得作为未跟踪文件已覆盖的证据。
+- `PostStageDerivedArtifactFreshnessGate`：存在 portfolio、索引、生成代码、文档清单或其他 tracked consumer 派生资产时，清单必须在 staged snapshot 物化后执行 Owner 提供的 candidate check，并在 commit 后对 clean target tree replay；记录 input digest、candidate identity、staged/post-commit 两次结果，禁止用“生成器刚运行过”代替提交态新鲜度。
 - `ReleaseEfficiencyControlGate`：发布清单记录 candidate generation/freeze、关键路径预算模式、evidence reuse/invalidations 与 release rework incident；无基线预算只能 advisory。
 - `ConsumerDesignFitnessRepairGate`：独立消费者验证命中时，清单同时核对 DesignFitnessMatrix 和 ValidationFindingRepairLoop；source mutation 后旧 evidence 必须 stale。
 

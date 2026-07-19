@@ -41,6 +41,8 @@ TestRoute 的稳定输入、route selector、固定输出与 skip 合同以同�
 
 `executionChainOptimization` 是执行链性能与稳定演进的领域绑定：至少选择 `static + unit-integration + runtime-e2e`，执行 manifest 节点 `execution-chain-evolution`、V101、任务/Context/Profile/Skill/knowledge 的 full-only 负例，并逐一验证 `ExecutionOptimizationFeatureDecisionV1` 在 `off / shadow / rolled-back / sunset` 下真实阻断六类优化消费者。触达 Profile/部署叠加 `profile-deploy`，公开 package/benchmark 脚本叠加 `package-release` smoke，网站说明变化追加 website build/link。只有 full route、correctness oracle 和可比 benchmark 都通过才可声明 accepted；否则状态保持 `provisional`，但 `full-only` 正确路径必须继续为 green。
 
+`derivedArtifactFreshness` 绑定 `skill-lifecycle` 或对应派生资产 Owner，不新增顶层 selector：至少选择 `static + unit-integration + runtime-e2e`，覆盖确定性生成、先生成后 stage 的负例、精确 staged/index candidate check 与 post-commit clean-tree replay；触达 Profile/部署副本叠加 `profile-deploy`，触达 package/release candidate 叠加 `package-release`。working-tree check、staged check 与 post-commit replay 必须分别记录 candidateState，不能复用一次结果冒充三种状态。
+
 ## TestRoute 输出
 
 输出固定为 `selectedRoutes / commands / evidence / skipped / residualRisk / coverageClaim`。推荐使用以下最小结构：

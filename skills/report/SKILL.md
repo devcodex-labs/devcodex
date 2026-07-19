@@ -95,7 +95,7 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 - 长任务报告附录推荐 `SessionTimingCard`（startedAt/endedAt、阶段耗时、waiting-user / waiting-external 分列；命中预算时附 cycleId 与 budget 消耗）
 - 长任务 / Auto / 多批次报告条件段：`ExecutionBudget`（maxWallClock 与触顶 StopSnapshot）、`ExternalWaitAccounting`、`LongTaskAuthorization`（PI-118 / PF-137）；未触发写 `N/A + skipReason`
 - **WorkspaceSyncStatus（PI-109 / PF-129）**：凡改规范源 / Skill / 部署消费者 / Profile 部署面，最终回复与报告必须写 `workspaceRoot`、`updateCommand`、`hostsSynced`（如 `.github`/`.claude`/`.agents`/`.codex`/`AGENTS.md`）、`result`（synced / skipped+reason / blocked）、`evidence`；禁止只写「源码已改」却不说明工作区部署是否同步
-- **CompletionEvidenceGate**：dev/fix/self-fix 宣告「已完成 / 已收口」前，报告必须同时具备：① ECR 矩阵或显式 N/A 理由；② 适用时的 WorkspaceSyncStatus；③ 测试/validate 关键证据或阻塞说明；④ dirty 边界说明。缺任一项不得写「已完成」
+- **CompletionEvidenceGate**：dev/fix/self-fix 宣告「已完成 / 已收口」前，报告必须同时具备：① ECR 矩阵或显式 N/A 理由；② 适用时的 WorkspaceSyncStatus；③ 测试/validate 关键证据或阻塞说明；④ dirty 边界说明；⑤ 存在派生资产时的 `PostStageDerivedArtifactFreshnessGate` staged candidate receipt 与 post-commit clean-tree replay。缺任一适用项不得写「已完成」
 - **PostDeliverySelfCheck（条件）**：长任务结束、宣称完成、或用户质疑慢/漏/不专业时，最终回复前轻量自检：耗时分列是否诚实、完成证据是否齐全、是否越界宣称「完整/零遗漏」、可泛化改进是否已走 Improvement Intake。纯 chat / 中间进度可 N/A。**禁止**每条短回复强制全量打分写 PI
 - **最终确认清单 / 可吸纳包 / 实施 backlog**（analyze 收敛交付）必须附 `FindingThemeCoverageMatrix`（ABS-17）：每行 `sourceId → mappedTo | residualId | EX | disposition`；禁止仅用主题合并清单宣称「完整/零遗漏」；用户确认主题包后若有 residual，状态标 `partial-confirmed` 并列出 residual pack
 - `dev` / `fix` 报告的 ECR 必须核对本轮真实触发的条件产物、TestRoute、Owner 证据、进度/记忆/台账、部署同步和 dirty 边界；未触发项按 schema 写 `N/A + skipReason`

@@ -49,6 +49,7 @@ function buildOptimizationControlChecks(ctx) {
       'test:changed',
       'test:profile-deploy',
       'test:package-release',
+      'test:skill-portfolio:staged',
       'test:coverage',
       'release:dry-run:npmjs',
       'release:dry-run:github'
@@ -59,6 +60,17 @@ function buildOptimizationControlChecks(ctx) {
         pkg.scripts?.['test:fast'] !== 'node scripts/run-validation.js --route fast' ||
         pkg.scripts?.['test:full'] !== 'node scripts/run-validation.js --route full') {
       err('[V92] stable test entry points must route through the canonical validation manifest')
+    }
+    if (pkg.scripts?.['test:skill-portfolio:staged'] !== 'node scripts/generate-skill-portfolio.js --check-staged') {
+      err('[V92] staged Skill portfolio command must target the Git index candidate')
+    }
+    const validationManifest = JSON.parse(read(path.join(ROOT, 'scripts/validation-manifest.json')))
+    const portfolioInputGlobs = ['**/*.md', '**/*.js', '**/*.cjs', '**/*.json', '**/*.ts', '**/*.yml', '**/*.yaml']
+    for (const nodeId of ['skill-portfolio', 'skill-portfolio-current']) {
+      const node = validationManifest.nodes?.find(item => item.id === nodeId)
+      for (const input of portfolioInputGlobs) {
+        if (!node?.inputs?.includes(input)) err(`[V92] ${nodeId} missing tracked consumer input: ${input}`)
+      }
     }
     const requiredPackageFiles = [
       'scripts/validation-manifest.json',
@@ -83,7 +95,7 @@ function buildOptimizationControlChecks(ctx) {
       if (!profileSelector.includes(needle)) err(`[V92] Profile section selector Owner missing: ${needle}`)
     }
     const lifecycleSkill = read(path.join(ROOT, 'skills/skill-lifecycle-governance/SKILL.md'))
-    for (const needle of ['BundleDecisionV2', 'sourceBytes', 'full-skill-read']) {
+    for (const needle of ['BundleDecisionV2', 'sourceBytes', 'full-skill-read', 'PostStageDerivedArtifactFreshnessGate', '--check-staged', 'consumerInventoryDigest']) {
       if (!lifecycleSkill.includes(needle)) err(`[V92] Skill lifecycle V2 consumer missing: ${needle}`)
     }
     const knowledgeStore = read(path.join(ROOT, 'scripts/lib/project-knowledge-store.js'))
@@ -132,6 +144,12 @@ function buildOptimizationControlChecks(ctx) {
     if (portfolio.summary.dependencyEdgeCount < 1) err('[V92] explicit Skill dependency graph has no edges')
     if (portfolio.summary.operationalEvidenceCompleteCount !== 78) err('[V92] operational lifecycle evidence is incomplete')
     if (portfolio.summary.triggerQuality !== 'structural-only') err('[V92] trigger precision must remain structural-only without real samples')
+    if (!Number.isInteger(portfolio.generatedFrom.consumerInventoryFileCount) || portfolio.generatedFrom.consumerInventoryFileCount < 50) {
+      err('[V92] portfolio consumer inventory is missing or unexpectedly small')
+    }
+    for (const field of ['consumerInventoryDigest', 'consumerProjectionDigest', 'portfolioInputDigest']) {
+      if (!/^[a-f0-9]{64}$/.test(String(portfolio.generatedFrom[field] || ''))) err(`[V92] portfolio missing ${field}`)
+    }
     portfolioErrors.forEach(error => err(`[V92] portfolio: ${error}`))
     const committedText = String(read(path.join(ROOT, 'skills/portfolio.json')))
     if (committedText !== serializePortfolio(portfolio)) err('[V92] committed Skill portfolio is stale')

@@ -20,7 +20,7 @@ function base(overrides = {}) {
     preventionDecision: 'new-control-provisional',
     regressionSeeds: ['legacy-only current consumer'],
     negativeCases: ['legacy-only fixture must fail'],
-    controlOwner: 'rework-prevention-engineering',
+    controlOwner: 'repair-prevention-assessment',
     consumers: ['fix-default', 'test-router'],
     immediateClosureEvidence: ['focused regression exit 0'],
     prospectiveEvidencePlan: {

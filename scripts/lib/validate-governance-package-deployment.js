@@ -8,29 +8,26 @@ function shouldCheckBaseDeploymentSource(relativePath) {
 }
 
 function isExactWorkspaceBridge(root, fsImpl, pathImpl) {
-  const source = pathImpl.join(root, 'host-projections', 'AGENTS.workspace-bridge.md')
-  const target = pathImpl.join(root, 'AGENTS.md')
-  if (!fsImpl.existsSync(source) || !fsImpl.existsSync(target)) return false
-  try {
-    return fsImpl.readFileSync(source).equals(fsImpl.readFileSync(target))
-  } catch {
-    return false
-  }
+  // Compatibility export for older callers. HostAdapterScopeV1 no longer permits a
+  // source-repository/project AGENTS bridge in workspace-namespace mode.
+  void root
+  void fsImpl
+  void pathImpl
+  return false
 }
 
 function findSourceRootHostDeployments(root, fsImpl, pathImpl, walkFn) {
   const candidates = [
     { label: 'source-root CLAUDE.md', target: pathImpl.join(root, 'CLAUDE.md') },
     { label: 'source-root AGENTS.md', target: pathImpl.join(root, 'AGENTS.md') },
+    { label: 'source-root GEMINI.md', target: pathImpl.join(root, 'GEMINI.md') },
     { label: 'source-root .claude/', target: pathImpl.join(root, '.claude') },
     { label: 'source-root .agents/', target: pathImpl.join(root, '.agents') },
-    { label: 'source-root .codex/', target: pathImpl.join(root, '.codex') }
+    { label: 'source-root .codex/', target: pathImpl.join(root, '.codex') },
+    { label: 'source-root .gemini/', target: pathImpl.join(root, '.gemini') },
+    { label: 'source-root .grok/', target: pathImpl.join(root, '.grok') }
   ]
-  const exactWorkspaceBridge = isExactWorkspaceBridge(root, fsImpl, pathImpl)
-  const deployments = candidates.filter(entry => {
-    if (!fsImpl.existsSync(entry.target)) return false
-    return !(entry.label === 'source-root AGENTS.md' && exactWorkspaceBridge)
-  })
+  const deployments = candidates.filter(entry => fsImpl.existsSync(entry.target))
   const githubRoot = pathImpl.join(root, '.github')
   if (fsImpl.existsSync(githubRoot)) {
     const nonWorkflowFiles = walkFn(githubRoot).filter(file => {
@@ -430,6 +427,10 @@ function buildGovernancePackageDeploymentChecks(ctx) {
         }
         for (const destination of result.staleExisting) {
           err(`[V8] stale managed entry still exists (preview only; do not auto-delete): ${destination}`)
+          stale++
+        }
+        for (const conflict of result.ownershipConflicts) {
+          err(`[V8] managed manifest destination has multiple current owners: ${conflict.destination} <= ${conflict.owners.join(', ')}`)
           stale++
         }
       } catch (error) {

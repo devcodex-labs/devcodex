@@ -1,11 +1,7 @@
 #!/usr/bin/env node
 /**
  * DevCodex CLI – npx devcodex <command>
- *
- * Commands:
- *   init    Copy all DevCodex files into your project's .github/ directory
- *   update  Overwrite installed files with the latest version from the package
- *   status  Show what DevCodex files are installed in the current project
+ * Commands and aliases are defined by the shared CLI command registry.
  */
 
 'use strict'
@@ -21,8 +17,16 @@ const { buildCliMaintenanceCommands } = require('./scripts/lib/cli-maintenance-c
 const { buildCliObservabilityCommands } = require('./scripts/lib/cli-observability-commands.js')
 const { buildCliExecutionCommands } = require('./scripts/lib/cli-execution-commands.js')
 const { createCliCommandRegistry, runCliCommand } = require('./scripts/lib/cli-command-registry.js')
+const { launchGrok } = require('./scripts/lib/grok-workspace-launcher.js')
 const { resolveTenantSelection, shouldIncludeInstructionFile } = require('./scripts/lib/tenant-selection.js')
 const { createDeploymentSession, writeManifestAtomic } = require('./scripts/lib/deployment-manifest-utils.js')
+const {
+  grokUserConfigPath,
+  retireWorkspaceProjectHostManifest,
+  resolveHostAdapterScope,
+  syncGrokPluginInstallation, uninstallGrokPluginInstallation,
+  writeGrokPluginRegistration
+} = require('./scripts/lib/host-adapter-scope.js')
 const { runCli: runMigrateLayout } = require('./scripts/migrate-layout.js')
 const {
   detectProfileTier, filesForProfileTier, inspectProfileContract, normalizeProfileTier,
@@ -92,13 +96,13 @@ const CODEX_SOURCES = [
 
 const { buildDeploymentDescriptors: buildDeploymentDescriptorsImpl } = require('./scripts/lib/deployment-descriptors.js')
 
-function buildDeploymentDescriptors(surfaces, { tenantId = null, grokWorkspaceBridge = false } = {}) {
+function buildDeploymentDescriptors(surfaces, { tenantId = null, grokWorkspaceBridge = false, grokWorkspaceScope = false } = {}) {
   return buildDeploymentDescriptorsImpl(PKG_ROOT, surfaces, {
-    SOURCES, CLAUDE_SOURCES, CODEX_SOURCES, tenantId, grokWorkspaceBridge
+    SOURCES, CLAUDE_SOURCES, CODEX_SOURCES, tenantId, grokWorkspaceBridge, grokWorkspaceScope
   })
 }
 
-function beginManagedDeployment(cwd, surfaces, { tenantId = null, grokWorkspaceBridge = false } = {}) {
+function beginManagedDeployment(cwd, surfaces, { tenantId = null, grokWorkspaceBridge = false, grokWorkspaceScope = false } = {}) {
   const runtimeRoot = resolveActiveRuntimeRoot(cwd)
   const manifestFile = path.join(runtimeRoot, 'managed', 'deployment-manifest.json')
   const packageJson = readJsonFile(path.join(PKG_ROOT, 'package.json')) || {}
@@ -106,7 +110,7 @@ function beginManagedDeployment(cwd, surfaces, { tenantId = null, grokWorkspaceB
     packageRoot: PKG_ROOT,
     targetRoot: cwd,
     manifestFile,
-    descriptors: buildDeploymentDescriptors(surfaces, { tenantId, grokWorkspaceBridge }),
+    descriptors: buildDeploymentDescriptors(surfaces, { tenantId, grokWorkspaceBridge, grokWorkspaceScope }),
     packageName: packageJson.name || '@vextjs/devcodex',
     packageVersion: packageJson.version || 'unknown'
   })
@@ -163,16 +167,6 @@ function inferProjectFromCwd(cwd, layout) {
 
 function resolveActiveRuntimeRoot(cwd) {
   return sharedResolveActiveRuntimeRoot(cwd)
-}
-
-function resolveGrokWorkspaceBridge(cwd) {
-  const absoluteCwd = path.resolve(cwd)
-  const layout = findLayoutInfo(absoluteCwd)
-  if (!layout.enabled || path.resolve(layout.workspaceRoot) === absoluteCwd) return false
-  const project = inferProjectFromCwd(absoluteCwd, layout)
-  if (!project) return false
-  const projectRoot = path.join(layout.workspaceRoot, ...String(project).split('/').filter(Boolean))
-  return path.resolve(projectRoot) === absoluteCwd
 }
 
 const DEVCODEX_GITIGNORE_ENTRIES = [
@@ -352,7 +346,7 @@ const {
   featureInventoryColumnLabels: FEATURE_INVENTORY_COLUMN_LABELS
 })
 
-const { cmdInit, cmdInitHost, cmdInitClaude, cmdInitCodex, cmdInitGemini, cmdInitGrok } = buildCliInstallCommands({
+const { cmdInit, cmdInitHost, cmdInitClaude, cmdInitCodex, cmdInitGemini, cmdInitGrok, cmdUninstallHost } = buildCliInstallCommands({
   fs, path, process, console, c, PKG_ROOT, SOURCES, CLAUDE_SOURCES,
   CODEX_SOURCES, CLAUDE_SETTINGS_HOOKS, CLAUDE_SETTINGS_PERMISSIONS,
   CLAUDE_MCP_JSON, CODEX_HOOK_COMMAND, isSourceRepo, beginManagedDeployment,
@@ -360,7 +354,11 @@ const { cmdInit, cmdInitHost, cmdInitClaude, cmdInitCodex, cmdInitGemini, cmdIni
   writeManagedJsonFile, normalizeStringArray, mergeUniqueStringArrays,
   mergeClaudeHooks, mergeClaudeMcpConfig,
   ensureRuntimeDirs, ensureDevCodexGitignore, walkDir,
-  resolveActiveRuntimeRoot, resolveGrokWorkspaceBridge, resolveGitignoreRoot, getLegacyCounts, isPlainObject,
+  resolveActiveRuntimeRoot, resolveGitignoreRoot, getLegacyCounts, isPlainObject,
+  resolveHostAdapterScope, writeGrokPluginRegistration,
+  syncGrokPluginInstallation,
+  uninstallGrokPluginInstallation,
+  retireWorkspaceProjectHostManifest,
   resolveTenantSelection, shouldIncludeInstructionFile
 })
 
@@ -393,15 +391,27 @@ const { cmdStatus, cmdProfileInit, cmdDoctor, cmdHelp } = buildCliMaintenanceCom
   genProfileReadme, genProjectInfo, genArchitecture, genStyle, genTestSpec,
   genReleaseSpec, genFeatureInventory, genUserContractSpec, genConfigJson,
   recommendProfileTier,
-  detectAgent, detectHostPlatform, detectInstalledHostAssets, inspectHostInstructionSurfaces
+  detectAgent, detectHostPlatform, detectInstalledHostAssets, inspectHostInstructionSurfaces,
+  resolveHostAdapterScope, grokUserConfigPath
 })
 const { cmdProbe, cmdTrace } = buildCliObservabilityCommands({
   fs, process, console, c, resolveProfileDir, inspectProfileState, detectHostPlatform, detectInstalledHostAssets
 })
 const { cmdSkill, cmdTask } = buildCliExecutionCommands({ process, console, c })
+function cmdGrok(argv) {
+  try {
+    const result = launchGrok(argv, { cwd: process.cwd() })
+    process.exitCode = result.status
+    return result
+  } catch (error) {
+    console.error(c.red(`  ${error.code || 'GROK_LAUNCHER_FAILED'}: ${error.message}`))
+    process.exitCode = 2
+    return null
+  }
+}
 
 const cliCommandRegistry = createCliCommandRegistry({
-  cmdInit, cmdInitHost, cmdInitClaude, cmdInitCodex, cmdStatus, cmdProfileInit, cmdDoctor, cmdProbe, cmdTrace, cmdSkill, cmdTask, cmdHelp
+  cmdInit, cmdInitHost, cmdInitClaude, cmdInitCodex, cmdUninstallHost, cmdGrok, cmdStatus, cmdProfileInit, cmdDoctor, cmdProbe, cmdTrace, cmdSkill, cmdTask, cmdHelp
 })
 
 // ─── Entry point ─────────────────────────────────────────────────────────────
@@ -419,6 +429,8 @@ module.exports = {
   cmdInitCodex,
   cmdInitGemini,
   cmdInitGrok,
+  cmdUninstallHost,
+  cmdGrok,
   cmdStatus,
   cmdHelp,
   cmdProfileInit,
@@ -431,13 +443,14 @@ module.exports = {
   findLayoutInfo,
   inferProjectFromCwd,
   resolveActiveRuntimeRoot,
-  resolveGrokWorkspaceBridge,
+  resolveHostAdapterScope,
   resolveGitignoreRoot,
   ensureRuntimeDirs,
   SOURCES,
   CLAUDE_SOURCES,
   CODEX_SOURCES,
   CLAUDE_HOOK_COMMAND,
+  CLAUDE_MCP_JSON,
   CODEX_HOOK_COMMAND,
   buildDeploymentDescriptors,
   beginManagedDeployment,

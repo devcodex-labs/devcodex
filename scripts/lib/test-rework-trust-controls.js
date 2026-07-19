@@ -44,11 +44,12 @@ function runReworkTrustControlSuite(ctx) {
     ['scripts/lib/validate-rework-trust-controls.js', ['checkV94', 'ReviewCoverageClaimIntegrityGate', 'VisibleOutputHostEvidenceGate', 'classifyCandidateDiffCompletenessSample', 'classifyChecklistStateSample']],
     ['skills/review-checklist/SKILL.md', ['ChecklistStateMaterializationGate', 'ChecklistStateSnapshot', 'CandidateDiffCompletenessGate']],
     ['skills/release-verification/SKILL.md', ['CandidateDiffCompletenessGate', 'git diff --cached --check']],
-    ['skills/rework-prevention-engineering/SKILL.md', ['RepairPreventionAssessmentGate', 'RepairPreventionAssessmentV1', 'ReworkEffectivenessLoop', 'FirstPassYield', 'CandidateDiffCompletenessGate']],
+    ['skills/repair-prevention-assessment/SKILL.md', ['RepairPreventionAssessmentGate', 'RepairPreventionAssessmentV1', 'immediateClosureEvidence', 'prospectiveEvidencePlan']],
+    ['skills/rework-prevention-engineering/SKILL.md', ['active RepairPreventionAssessmentGate', 'ReworkEffectivenessLoop', 'FirstPassYield', 'CandidateDiffCompletenessGate']],
     ['scripts/lib/repair-prevention-assessment.js', ['assessRepairPrevention', 'emergency-active']],
     ['scripts/test-repair-prevention-assessment.js', ['first/repeat/no-new/emergency/rollback/sunset']],
-    ['skills/routing/SKILL.md', ['rework-prevention-engineering']],
-    ['plugin.json', ['rework-prevention-engineering', '"lifecycleState": "gray"']]
+    ['skills/routing/SKILL.md', ['repair-prevention-assessment', 'rework-prevention-engineering']],
+    ['plugin.json', ['repair-prevention-assessment', 'rework-prevention-engineering', '"lifecycleState": "gray"']]
   ]) for (const needle of needles) mustInclude(file, needle)
   mustIncludeInChangelogs('RepairPreventionAssessmentGate')
   mustIncludeInChangelogs('V94')

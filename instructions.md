@@ -1,7 +1,7 @@
 # DevCodex — 项目规范（统一规范源）
 
 > DevCodex v1.15.1 · 单源规范文件
-> 本文件是 DevCodex 唯一的规范源文件。`devcodex init` 默认安装到 `.github/copilot-instructions.md`（Copilot）、项目根 `CLAUDE.md`（Claude Code）与工作区根 `AGENTS.md`（Codex）。`devcodex init --claude` 仅安装 Claude Code 入口；`devcodex init --codex` 仅安装 Codex 入口。`CLAUDE.md` 与 `AGENTS.md` 都是本文件的部署副本，由本文件持续覆盖。
+> 本文件是 DevCodex 唯一的规范源文件。`devcodex init` 先通过 `HostAdapterScopeV1` 解析唯一宿主 owner：普通仓库为项目根，workspace-namespace 为工作区根；再在该 owner 投影 Copilot、Claude Code 与 Codex 入口。`devcodex init --claude` 仅安装 Claude Code 入口；`devcodex init --codex` 仅安装 Codex 入口。`CLAUDE.md` 与 `AGENTS.md` 都是本文件的部署副本，由本文件持续覆盖。
 
 ---
 
@@ -260,7 +260,7 @@ CP2 / 技术方案 / 报告必须记录 `LayeredAbsorptionDecision`：`candidate
 | gateGroup | 目标承接 |
 |------|----------|
 | `repair-collaboration` | 所有 repair task 至少形成轻量双层修复协作契约；P0/P1、安全、控制面、公共契约、多批次、角色交接或发布风险升级完整契约并要求独立复证 → `execution-contract` |
-| `repair-prevention-assessment` | 所有 repair accepted 前形成 `RepairPreventionAssessmentV1`；当前关闭与前瞻效果分列，repeat/high-risk 升 full，Owner=`rework-prevention-engineering` |
+| `repair-prevention-assessment` | 所有 repair accepted 前形成 `RepairPreventionAssessmentV1`；当前关闭与前瞻效果分列，repeat/high-risk 升 full，Owner=active `repair-prevention-assessment`；gray `rework-prevention-engineering` 只拥有长期效果工程 |
 | `public-surface` | `PublicSurfaceClosureGate`、`SemanticLegacyRouteExposureGate`、`ReferenceCodeTruthSamplingGate`、`RemoteCIParityPushGate`、`PortableExternalArtifactGate` → `audit-release` / `release-verification` / `audit-readme` |
 | `user-manual` | `UserManualProductizationGate`、`UserManualRenderedFlowAndRealWorkflowProbe`、`DocsPageRoleMatrixGate`、`CompleteUserManualSiteMatrixGate`、`DocsThemeRuntimeVisualProbeGate` → `user-manual-authoring` / `audit-user-manual` |
 | `review-checklist` | `ReviewExecutionPlanV1`、`ReviewEvidenceReceiptV1`、`EvidenceSaturationGate`、`ReviewStateSnapshotV1`、`StageTimingV1` 与既有 `SampleIssueExpansionGate`、`RequirementDimensionBindingGate`、`RequirementPriorityAndPhaseGate`、`ReviewAnchorMaterializationGate` → `review-checklist` / `audit-requirements`；未知绑定或 stale receipt 回退 full-required |
@@ -518,7 +518,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → 
 - **CP2**：输出修复方案；若修复涉及依赖/框架/SDK/平台 API 变更必须附 `OfficialDocsEvidence`，涉及项目事实变化时必须附 `ProfileImpactCheck` → 等待确认
 - **CP3**：≥5 文件变更 或 含高风险操作时，**在执行前**触发确认；与 `11-fix` 一致为「触发时 `[CP3] → 执行`」，**禁止**写成「执行后再补 CP3 框」误导顺序
 - 若执行过程中新增范围触发 CP3 条件（例如实际修改文件数扩展到 ≥5，或修复途中引入高风险/控制面联动），必须暂停执行，先补做 CP3，再继续修复
-- **RepairPreventionAssessmentGate**：所有 repair task 在 accepted 前必须由 `rework-prevention-engineering` 形成有效 `RepairPreventionAssessmentV1`；当前修复重跑只证明 immediate closure，`no-new-control` 必须有标准 reason/evidence，repeat/high-risk 使用 full。
+- **RepairPreventionAssessmentGate**：所有 repair task 在 accepted 前必须由 active `repair-prevention-assessment` 形成有效 `RepairPreventionAssessmentV1`；当前修复重跑只证明 immediate closure，`no-new-control` 必须有标准 reason/evidence，repeat/high-risk 使用 full；gray `rework-prevention-engineering` 不得成为 mandatory dependency。
 - **ECR**：执行完成并完成修复三步扫描后、宣告完成前必须执行 ECR 执行闭环复审，覆盖 CP1/CP2/CP3、报告、daily tasks、SUMMARY、diff/commit、测试/扫描证据、AI 自启动服务清理证据与 dirty 边界。
 
 ### 确认后前置复审（fix · C19）

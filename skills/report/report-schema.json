@@ -21,7 +21,7 @@
     "ExecutionAttemptLedger": "formal run qualification, repeated failure, cancellation, restart or no-progress stop evidence is produced or reviewed",
     "BacklogIntakeAndLedgerWriteback": "task is sourced from a runtime ledger or changes ledger state",
     "RepairCollaborationContract": "repair task only",
-    "RepairPreventionAssessment": "every repair task before accepted; owner is rework-prevention-engineering",
+    "RepairPreventionAssessment": "every repair task before accepted; owner is active repair-prevention-assessment; gray rework-prevention-engineering is optional effectiveness analysis",
     "ReviewExecution": "formal review or ECR uses one candidate-bound plan, fresh receipts, saturation, snapshot and stage timing",
     "DocsNavigationReviewMatrix": "user-manual navigation or rendered sequence changes",
     "AllDevCodexProfileValidation": "profile generation, migration or workspace-wide profile validation",

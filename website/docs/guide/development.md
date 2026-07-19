@@ -87,7 +87,7 @@ description: "Use when: ..."   # 必填，AI 靠这个发现 Skill
 | 前端运行态 / UI 体验 | `frontend-runtime` · `interactive-semantics` | `audit-project` · `test-router` · 相关 Owner |
 | 跨仓消费者 / Agent·性能完整性 | `consumer-validation` · `agent-capability-completeness` · `module-performance-maintenance` | 对应 Owner Skill |
 | 品牌视觉 / 本地可观测 / 回合活性 | `brand-visual-quality` · `local-observability-contract` · `agent-turn-liveness` | 对应 Owner Skill |
-| 修复协作 / 返工治理 | `repair-collaboration` · `rework-prevention` | `execution-contract` · `rework-prevention-engineering` |
+| 修复完成 / 返工治理 | `repair-collaboration` · `repair-prevention-assessment` · `rework-prevention` | `execution-contract` · active `repair-prevention-assessment` · gray `rework-prevention-engineering` |
 | 自我进化控制面 / Skill 生命周期 | `evolution-control-plane` · `skill-lifecycle` | `evolution-governance` · `skill-lifecycle-governance` |
 
 **仍写在用户流程层的硬规则（非 Gate 百科）**：
@@ -177,10 +177,10 @@ status → plan → observe（零写入）→ bootstrap/accept（验证通过后
 
 - `observe` 从当前文件字节生成确定性的 heading、symbol、import、config/test 等结构声明；它明确不是“人工逐文件深读”。
 - `bootstrap --task-root <任务目录>` 先在内存完成所有智能批次、range digest、binding 与 sample oracle 验证，最后才推进一次 accepted runtime pointer。
-- 后续 `plan` 只读取 changed、依赖/消费者影响闭包和新的 lens-gap；复用集按 contentId/path 稳定抽取 5%（最少 3、最多 20）重新观察。
+- 生产 CLI 会从当前 inventory 字节构建带 `builderVersion` 的 `ImpactGraphV1`，首期解析 JS/TS 静态相对依赖与 Markdown 本地链接，并记录 coverage、unresolved references 与 `unknownConsumerPaths`。后续 `plan` 只读取 changed、当前依赖/消费者影响闭包和新的 lens-gap；复用集按 contentId/path 稳定抽取 5%（最少 3、最多 20）重新观察。
 - `ProjectKnowledgeBindingV1` 同时绑定 repo/root、inventory Merkle、分析配置、解析器、测试路线和 Profile；任一环境身份错配都回退 full-required，普通内容小改动则走 delta。
 - 每条 `SemanticClaimV1` 都绑定 authority、精确 source range/range digest、lens、policy 和依赖。inventory/结构观察不得宣称职责、风险、建议、完整问题数或人工深读；这些判断只能由 `agent-semantic` 声明承接。
-- V1 snapshot 仅返回只读迁移状态，不参与 V2 reuse/accept；快照损坏、抽样不一致、动态依赖未知或高风险分析同样走完整正确路径。
+- V1 snapshot 仅返回只读迁移状态，不参与 V2 reuse/accept；快照损坏、抽样不一致、graph builder 不兼容或高风险分析走完整正确路径。正常 graph identity 变化会用当前图重算闭包而不是全文；动态依赖消费者自身变化才 full-required，其他变化保守重读全部 unknown consumers。
 
 运行时位置为 `<active-root>/.runtime-state/project-knowledge/v2/<repoId>/snapshot.json`。它始终是可重建派生状态，项目文件、已确认需求和验证证据仍是真相源。
 

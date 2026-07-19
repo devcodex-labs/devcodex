@@ -44,7 +44,7 @@ try {
   }
   writeManifestAtomic(session)
   assert.deepStrictEqual(verifyManifest({ packageRoot, targetRoot, manifest: readManifest(manifestFile) }), {
-    missing: [], mismatched: [], staleExisting: []
+    missing: [], mismatched: [], staleExisting: [], ownershipConflicts: []
   })
 
   fs.rmSync(path.join(packageRoot, 'skills', 'two.md'))
@@ -72,6 +72,63 @@ try {
   })
   assert.ok(session.preview.unowned.includes('.github/skills/custom.md'))
 
+  const legacyTarget = path.join(root, 'legacy-target')
+  const legacyManifestFile = path.join(root, 'legacy-runtime', 'deployment-manifest.json')
+  write(path.join(packageRoot, 'host-projections', 'AGENTS.workspace-bridge.md'), '# bridge owner\n')
+  write(path.join(legacyTarget, 'AGENTS.md'), '# bridge owner\n')
+  write(legacyManifestFile, JSON.stringify({
+    schemaVersion: 1,
+    package: '@vextjs/devcodex',
+    packageVersion: '1.15.1',
+    targetRoot: legacyTarget,
+    generatedAt: '2026-07-19T00:00:00.000Z',
+    entries: [
+      { source: 'instructions.md', destination: 'AGENTS.md', surface: 'codex', hash: 'legacy-a' },
+      { source: 'host-projections/AGENTS.workspace-bridge.md', destination: 'AGENTS.md', surface: 'grok-workspace-bridge', hash: 'legacy-b' },
+      { source: 'host-projections/AGENTS.md', destination: 'AGENTS.md', surface: 'shared-kernel', hash: 'legacy-c' }
+    ],
+    staleEntries: []
+  }, null, 2) + '\n')
+  const legacyBefore = readManifest(legacyManifestFile)
+  assert.strictEqual(
+    verifyManifest({ packageRoot, targetRoot: legacyTarget, manifest: legacyBefore }).ownershipConflicts.length,
+    1,
+    'legacy manifest must expose duplicate physical owners'
+  )
+  const legacySession = createDeploymentSession({
+    packageRoot,
+    targetRoot: legacyTarget,
+    manifestFile: legacyManifestFile,
+    descriptors: [{
+      surface: 'grok-workspace-bridge',
+      source: 'host-projections/AGENTS.workspace-bridge.md',
+      destination: 'AGENTS.md'
+    }],
+    packageName: '@vextjs/devcodex',
+    packageVersion: '1.15.1'
+  })
+  assert.deepStrictEqual(
+    legacySession.manifest.entries.filter(entry => entry.destination === 'AGENTS.md').map(entry => entry.surface),
+    ['grok-workspace-bridge'],
+    'selected physical owner must replace every legacy surface owner for the same destination'
+  )
+  assert.deepStrictEqual(
+    verifyManifest({ packageRoot, targetRoot: legacyTarget, manifest: legacySession.manifest }).ownershipConflicts,
+    []
+  )
+  write(path.join(packageRoot, 'host-projections', 'AGENTS.alternate.md'), '# alternate owner\n')
+  assert.throws(() => createDeploymentSession({
+    packageRoot,
+    targetRoot: legacyTarget,
+    manifestFile: legacyManifestFile,
+    descriptors: [
+      { surface: 'bridge-a', source: 'host-projections/AGENTS.workspace-bridge.md', destination: 'AGENTS.md' },
+      { surface: 'bridge-b', source: 'host-projections/AGENTS.alternate.md', destination: './AGENTS.md' }
+    ],
+    packageName: '@vextjs/devcodex',
+    packageVersion: '1.15.1'
+  }), /Deployment descriptor ownership conflict/)
+
   const sourceCheck = path.join(root, 'source-check')
   write(path.join(sourceCheck, '.github/workflows/ci.yml'), 'name: CI\n')
   assert.deepStrictEqual(findSourceRootHostDeployments(sourceCheck, fs, path, directory => {
@@ -81,16 +138,26 @@ try {
     })
     return visit(directory)
   }), [], 'source-root CI workflow must not be treated as a host deployment')
-  write(path.join(sourceCheck, 'host-projections/AGENTS.workspace-bridge.md'), '# exact bridge\n')
-  write(path.join(sourceCheck, 'AGENTS.md'), '# exact bridge\n')
-  assert.strictEqual(isExactWorkspaceBridge(sourceCheck, fs, path), true)
-  assert.deepStrictEqual(findSourceRootHostDeployments(sourceCheck, fs, path, directory => {
+  const exactBridge = [
+    '# exact bridge',
+    '',
+    '> projectionRole: workspace-bridge',
+    '> projectionScope: host-neutral',
+    '',
+    'Host-specific adapter rule: only when the current host identifies itself as Grok, open `.grok/skills/devcodex-workspace/SKILL.md`.',
+    'Other hosts must not treat `.grok` as a shared instruction source.',
+    ''
+  ].join('\n')
+  write(path.join(sourceCheck, 'host-projections/AGENTS.workspace-bridge.md'), exactBridge)
+  write(path.join(sourceCheck, 'AGENTS.md'), exactBridge)
+  assert.strictEqual(isExactWorkspaceBridge(sourceCheck, fs, path), false)
+  assert.ok(findSourceRootHostDeployments(sourceCheck, fs, path, directory => {
     const visit = current => fs.readdirSync(current, { withFileTypes: true }).flatMap(entry => {
       const full = path.join(current, entry.name)
       return entry.isDirectory() ? visit(full) : [full]
     })
     return visit(directory)
-  }), [], 'exact source-root workspace bridge must be allowed')
+  }).some(item => item.label === 'source-root AGENTS.md'), 'workspace project/source root bridge must be rejected')
   write(path.join(sourceCheck, 'AGENTS.md'), '# drifted or full deployment\n')
   assert.strictEqual(isExactWorkspaceBridge(sourceCheck, fs, path), false)
   assert.ok(findSourceRootHostDeployments(sourceCheck, fs, path, directory => {

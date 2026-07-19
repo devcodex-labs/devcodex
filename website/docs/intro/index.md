@@ -17,7 +17,7 @@ DevCodex 是通过 npm 包和 CLI 分发的 AI 开发规范注入器。默认安
 > 版本语义：npm package 当前已发布版本是 **v1.15.1**；站内 **1.0.1** 是活动需求文档版本。当前版本仅发布到 GitHub Packages，安装需要 `read:packages` 认证；Gemini / Grok 通用宿主选择器仍属于未发布源码能力。
 
 1. 确认 Node.js >=18；按 [安装说明](https://github.com/vextjs/devcodex#5-分钟快速开始) 配置 `@vextjs:registry=https://npm.pkg.github.com` 与当前 shell 的 `NODE_AUTH_TOKEN`。
-2. 安装并在目标项目初始化三宿主规范，然后执行 status：
+2. 安装并从目标项目初始化三宿主规范，然后执行 status：
 
 ```bash
 npm install @vextjs/devcodex
@@ -32,9 +32,9 @@ npx @vextjs/devcodex init --claude
 npx @vextjs/devcodex init --codex
 ```
 
-执行完成后，目标项目会出现对应的 `.github/`、`CLAUDE.md + .claude/` 或 `AGENTS.md + .agents/ + .codex/` 受管文件。新开 AI 会话并发送开发、修复或审查任务，即可验证入口检查、工作流路由、报告与记忆是否生效。安装出现 401/403 时检查 scope registry、`read:packages` 与当前 shell 的 `NODE_AUTH_TOKEN`。完整命令、更新方式和排错步骤见 [README](https://github.com/vextjs/devcodex)。
+执行完成后，普通仓库会在项目根出现对应宿主文件；workspace-namespace 会把这些受管文件统一写到工作区根，子项目不生成 `.github/.claude/.codex/.gemini/.grok` 或入口文件。新开 AI 会话并发送开发、修复或审查任务，即可验证入口检查、工作流路由、报告与记忆是否生效。安装出现 401/403 时检查 scope registry、`read:packages` 与当前 shell 的 `NODE_AUTH_TOKEN`。完整命令、更新方式和排错步骤见 [README](https://github.com/vextjs/devcodex)。
 
-每次 `init/update` 都会在 active runtime root 更新 managed deployment manifest，并预览新增、更新、陈旧和未受管文件。陈旧文件只报告、不自动删除；未受管文件不会被 DevCodex 接管。
+每次 `init/update` 都会在 active runtime root 更新 managed deployment manifest，并预览新增、更新、陈旧和未受管文件。陈旧文件只报告、不自动删除；未受管文件不会被 DevCodex 接管；同一规范化物理 destination 只能有一个 current owner。workspace-namespace 下宿主资产统一由工作区拥有：Grok 使用工作区薄插件与官方用户级本地插件登记，子项目默认不生成任何宿主目录或入口文件；安装登记保持用户配置原始字节。工作区根可直接运行 `grok`，子 Git 项目的完整 kernel 路线使用 `devcodex grok`，plain child 仅为 best-effort Skill discovery。
 
 ---
 
@@ -46,7 +46,7 @@ npx @vextjs/devcodex init --codex
 | 跨会话上下文保持 | 通过 `.devcodex/.memory/` 写入 Agent 日记、需求记忆与项目总记忆 |
 | 工作流行为可审计 | 通过报告、audit-state 与合规检查形成可追溯闭环 |
 | 规范随代码版本化 | 用版本文档管理规范演进与实现边界 |
-| 跨项目复用 | 通过 `devcodex init` 安装到目标项目，并用 `update` 同步受管规范 |
+| 跨项目复用 | 普通仓库安装到项目根；workspace-namespace 安装到共享 owner 根，并用 `update` 同步受管规范 |
 | 多宿主一致入口 | 默认 Copilot、Claude Code 与 Codex，显式选择时增加 Gemini / Grok；五宿主共用同一规范源与精简投影，Hook 能力按宿主/事件降级，并按官方输出契约区分顶层 block、`continue:false` 与工具级 deny |
 | 上下文成本可控 | always-on 入口使用有 coverage 与预算约束的精简 kernel；Claude / Gemini 仅保留薄 wrapper，具体流程按意图加载 Skills，完整规范作为 fail-closed fallback |
 | 长任务停滞可诊断 | `TurnLivenessRecoveryGate` 区分运行、等待续接、可疑、可恢复停滞与终态，记录工具租约、continuation ACK 和 checkpoint；Hook 只在事件到达时观察，不承诺自行唤醒宿主或自动重放写操作 |
@@ -99,11 +99,11 @@ DevCodex 提供两个 Agent 入口：
 |------|------|
 | Agent | `devcodex.agent.md`（确认模式）+ `devcodex-auto.agent.md`（全自动模式）|
 | Host kernel / Instructions | 宿主自动发现精简 kernel；节点 Instructions 与 Skills 按平台能力和意图加载，完整规范保留非 always-on fallback |
-| Skills | 当前源码 80 个按需触发的工作流技能（77 active + 3 gray）；新增未发布 `user-visible-output-contract` 与 `host-instruction-projection`，`brand-visual-quality` 是尚未发版的 gray 能力，另覆盖 `rework-prevention-engineering`、`consumer-validation-engineering`、`analyze-default`、`skill-gap-analysis`、`skill-lifecycle-governance`、`spec-absorption`、`user-manual-authoring`、`audit-user-manual`、`expert-output-quality`、`review-checklist`、`evolution-governance`、`readme-authoring`、`audit-readme`、`audit-release`，以及 `execution-contract` / `test-router` / `release-verification` / `host-contract-verification` / `source-consumer-sync`；专家能力保持 21 个专家 Owner Skill |
+| Skills | 当前源码 81 个按需触发的工作流技能（78 active + 3 gray）；active `repair-prevention-assessment` 承担所有 repair 的完成门禁，gray `rework-prevention-engineering` 只承担返工效果试验；新增未发布 `user-visible-output-contract` 与 `host-instruction-projection`，`brand-visual-quality` 是尚未发版的 gray 能力，另覆盖 `consumer-validation-engineering`、`analyze-default`、`skill-gap-analysis`、`skill-lifecycle-governance`、`spec-absorption`、`user-manual-authoring`、`audit-user-manual`、`expert-output-quality`、`review-checklist`、`evolution-governance`、`readme-authoring`、`audit-readme`、`audit-release`，以及 `execution-contract` / `test-router` / `release-verification` / `host-contract-verification` / `source-consumer-sync`；专家能力保持 21 个专家 Owner Skill |
 | Prompts | CP 节点输出模板 |
 | Hooks | `UserPromptSubmit` / `PreToolUse` / `Stop` 等生命周期钩子 |
 | Codex adapter | `AGENTS.md` + `.agents/skills/` + `.codex/hooks.json` |
-| Gemini / Grok adapter | 当前未发布源码通过 `--host gemini|grok|all` 显式部署；Grok workspace 子项目自动使用轻量入口 + 单一 resolver Skill 回到父级真相源；能力按 direct / fixture / instruction-backed 证据分级 |
+| Gemini / Grok adapter | 当前未发布源码通过 `--host gemini|grok|all` 显式部署；Grok workspace 模式使用工作区 `.grok/plugins/devcodex-workspace` 与官方用户级本地插件登记，child project 零 generated host artifacts；`devcodex grok` 用官方 `--rules` 提供 child full 路线，plain child 保持 partial；显式 `project-portable` 才生成项目 adapter，能力按 direct / fixture / instruction-backed 证据分级 |
 
 ---
 
@@ -123,4 +123,4 @@ DevCodex 提供两个 Agent 入口：
 - [商业化规划](/intro/pricing) — v1 免费策略与 v2 商业化方向
 
 
-> Skill 规模锚点：80 个 Skills；扁平一级 Skill（80 个）。
+> Skill 规模锚点：81 个 Skills；扁平一级 Skill（81 个）。

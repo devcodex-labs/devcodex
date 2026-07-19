@@ -15,21 +15,19 @@ function normalizeHostList(hosts) {
   return Array.from(new Set(expanded.filter(host => HOST_IDS.includes(host))))
 }
 
-function projectionDescriptors(hosts, { grokWorkspaceBridge = false } = {}) {
+function projectionDescriptors(hosts, { grokWorkspaceBridge = false, grokWorkspaceScope = false } = {}) {
   const selected = new Set(normalizeHostList(hosts))
   const descriptors = []
   if (!selected.size) return descriptors
-  const bridgeGrokOnly = grokWorkspaceBridge && selected.size === 1 && selected.has('grok')
+  const workspaceRegisteredGrok = (grokWorkspaceScope || grokWorkspaceBridge) && selected.has('grok')
 
-  if (!bridgeGrokOnly) {
-    descriptors.push({
-      surface: 'full-fallback',
-      source: 'instructions.md',
-      destination: '.agents/devcodex/instructions.full.md',
-      role: 'full-fallback'
-    })
-  }
-  if (!bridgeGrokOnly && ['claude', 'codex', 'gemini', 'grok'].some(host => selected.has(host))) {
+  descriptors.push({
+    surface: 'full-fallback',
+    source: 'instructions.md',
+    destination: '.agents/devcodex/instructions.full.md',
+    role: 'full-fallback'
+  })
+  if (['claude', 'codex', 'gemini', 'grok'].some(host => selected.has(host))) {
     descriptors.push({
       surface: 'shared-kernel',
       source: 'host-projections/AGENTS.md',
@@ -37,7 +35,7 @@ function projectionDescriptors(hosts, { grokWorkspaceBridge = false } = {}) {
       role: 'kernel'
     })
   }
-  if (!bridgeGrokOnly && ['codex', 'gemini', 'grok'].some(host => selected.has(host))) {
+  if (['codex', 'gemini', 'grok'].some(host => selected.has(host))) {
     descriptors.push({
       surface: 'shared-agent-skills',
       source: 'skills',
@@ -69,32 +67,20 @@ function projectionDescriptors(hosts, { grokWorkspaceBridge = false } = {}) {
     )
   }
   if (selected.has('grok')) {
-    if (bridgeGrokOnly) {
+    if (workspaceRegisteredGrok) {
+      descriptors.push({
+        surface: 'grok-workspace-plugin',
+        source: 'grok/plugins/devcodex-workspace',
+        destination: '.grok/plugins/devcodex-workspace',
+        role: 'workspace-plugin',
+        replacesSurfaces: ['grok', 'grok-workspace-bridge']
+      })
+    } else {
       descriptors.push(
-        {
-          surface: 'grok-workspace-bridge',
-          source: 'host-projections/AGENTS.workspace-bridge.md',
-          destination: 'AGENTS.md',
-          role: 'kernel'
-        },
-        {
-          surface: 'grok-workspace-bridge',
-          source: 'grok/skills/devcodex-workspace',
-          destination: '.grok/skills/devcodex-workspace',
-          role: 'bridge-skill'
-        },
-        {
-          surface: 'grok-workspace-bridge',
-          source: 'grok/mcp',
-          destination: '.grok/mcp',
-          role: 'mcp-bridge'
-        }
+        { surface: 'grok', source: 'grok/hooks/devcodex.json', destination: '.grok/hooks/devcodex.json', role: 'host-config' },
+        { surface: 'grok', source: 'hooks/_runtime', destination: '.grok/hooks/_runtime', role: 'hook-runtime' }
       )
     }
-    descriptors.push(
-      { surface: 'grok', source: 'grok/hooks/devcodex.json', destination: '.grok/hooks/devcodex.json', role: 'host-config' },
-      { surface: 'grok', source: 'hooks/_runtime', destination: '.grok/hooks/_runtime', role: 'hook-runtime' }
-    )
   }
   return descriptors
 }

@@ -61,6 +61,8 @@ description: 真相源-消费者同步规范 — 为规范源、模板、validat
 5. 定义 `yellowDeviationBoundary`，把允许纳入的额外消费者写入进度或报告。
 6. 实施后做双向联查：正向 grep 真相源，反向 grep 旧口径残留。
 
+部署副本同步还必须执行物理所有权复核：以 target root 下规范化绝对 destination 为键，而不是只按 surface 名称去重。同一路径出现多个 current writer/manifest entry 时阻断；宿主专用 adapter 可以位于项目内，但不得被公共 bridge 描述为所有宿主的共享消费者。
+
 ## Registry 驱动的同步面
 
 规范吸纳、控制面或历史规则分层时，不在本 Skill 维护版本号清单。执行方必须读取 `../spec-governance/gate-registry.json`，用 `gateGroup` 找到 `ownerSkills / requiredEvidence / route / legacyAnchors`，再建立本轮 Concept Sync Map。

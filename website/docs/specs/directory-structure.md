@@ -33,7 +33,7 @@ DevCodex 的核心设计问题是：**主流程里有十几个节点规范，如
 
 核心安全、优先级、路由、上下文获取、确认与闭环规则是整个执行体系的**前置条件**——AI 不先读精简内核，就不知道如何进入按需加载链。
 
-这些最小规则必须在任务开始前可见，没有按需延后的空间，因此 Copilot 使用生成后的 `copilot-instructions.md` kernel，Codex 原生读取共享 `AGENTS.md` kernel，Claude / Gemini 仅用薄入口指向共享 kernel。Grok 独立项目同样读取共享 kernel；启用 `workspace-namespace` 的子项目则读取项目内轻量 bridge，并由一个可发现的 Grok Skill 定向解析父级 kernel 与 Skills。完整 `instructions.md` 另存为 `.agents/devcodex/instructions.full.md`，只在覆盖、新鲜度、宿主发现或低置信场景需要时回退读取。
+这些最小规则必须在任务开始前可见，没有按需延后的空间，因此 Copilot 使用生成后的 `copilot-instructions.md` kernel，Codex 原生读取共享 `AGENTS.md` kernel，Claude / Gemini 仅用薄入口指向共享 kernel。Grok 的显式 portable 项目与 workspace 根同样原生读取 `AGENTS.md`；`workspace-namespace` 的子 Git 项目由工作区插件提供 Skill/Hook/MCP discovery，并通过 `devcodex grok` 的官方 `--rules` launcher 获得完整 kernel 保证。launcher 按最终 `--cwd` 重新解析 owner，root kernel 缺失或 nested workspace 不匹配时 fail closed。Grok passive Hook stdout 被忽略，不能作为注入证据。完整 `instructions.md` 另存为 `.agents/devcodex/instructions.full.md`，只在覆盖、新鲜度、宿主发现或低置信场景需要时回退读取。
 kernel 由单一真相源确定性生成，并受 coverage、source digest、字节/行预算与负向语义探针约束；“始终可见”不再等于“每次加载完整规范”。
 
 ### 第二层用 `*.instructions.md` — 节点规范按语义匹配
@@ -76,7 +76,7 @@ dev / fix / audit 等工作流的执行细节，只有在用户或 Agent 实际�
 
 ## 官方标准概览
 
-DevCodex 当前默认安装面向目标项目分发以下目录和文件：
+DevCodex 当前默认向解析后的宿主 owner 分发以下目录和文件；普通仓库的 owner 是项目根，workspace-namespace 的 owner 是工作区根：
 
 | 组件 | 路径 | 说明 |
 |------|------|------|
@@ -90,8 +90,10 @@ DevCodex 当前默认安装面向目标项目分发以下目录和文件：
 | Claude Code adapter | `CLAUDE.md` 薄入口 + `.claude/{instructions,skills,prompts,hooks/_runtime,mcp,data}` + `.mcp.json` | Claude Code 项目规则、hooks 与 MCP |
 | Codex adapter | `AGENTS.md` kernel + `.agents/skills/` + `.codex/hooks.json` + `.codex/hooks/_runtime/` | Codex 工作区规则、Skill 与 Hook 入口 |
 | Gemini adapter（显式启用） | `GEMINI.md` 薄入口 + `.gemini/settings.json` + shared `.agents/` | Gemini context import、Before/After hooks 与 portable fallback |
-| Grok adapter（显式启用） | 独立项目：`AGENTS.md` + `.agents/skills/`；workspace 子项目：轻量 `AGENTS.md` + `.grok/{skills/devcodex-workspace,mcp,config.toml}`；均含 `.grok/hooks/devcodex.json` | Grok project rules、意图驱动父级解析、父级 MCP 绑定与能力分级 Hook |
+| Grok adapter（显式启用） | portable 项目：`AGENTS.md + .agents/skills + .grok/hooks`；workspace：`.grok/plugins/devcodex-workspace` + 官方用户级本地插件登记（配置只维护 enabled 状态），子项目零 generated host artifacts | root native kernel；child plain Skill-discovery/partial；`devcodex grok --rules` full；Hook/MCP 与工作区外 no-op 分级 |
 | 完整规范回退 | `.agents/devcodex/instructions.full.md` | 非 always-on；kernel 覆盖或绑定失效时 fail closed 读取 |
+
+源码仓根受版本控制的 `.mcp.json` 是包开发/插件清单，路径指向包内 `mcp/*`；CLI 安装到业务项目的 `.mcp.json` 是另一份派生契约，路径指向目标项目 `.claude/mcp/*`。验证必须分别覆盖两者，不能因文件名相同而共享相对路径假设。
 
 > 说明：`v1.9.8` 起，`devcodex init/update` 已恢复 Copilot 端 `.github/agents/` 默认分发；`devcodex init --claude` 与 `devcodex init --codex` 仍不分发 agents。
 
@@ -125,7 +127,7 @@ DevCodex 当前默认安装面向目标项目分发以下目录和文件：
 │   │   ├── 17-compliance.instructions.md
 │   │   └── 18-spec-radar.instructions.md
 │   │
-│   ├── skills/                          ← 第三层：扁平一级 Skill（80 个）
+│   ├── skills/                          ← 第三层：扁平一级 Skill（81 个）
 │   │   ├── dev-default/SKILL.md
 │   │   ├── fix-default/SKILL.md
 │   │   ├── audit-common/SKILL.md
@@ -143,7 +145,7 @@ DevCodex 当前默认安装面向目标项目分发以下目录和文件：
 │
 ├── CLAUDE.md                             ← Claude Code 薄入口，指向共享 AGENTS kernel
 ├── .claude/                              ← Claude Code instructions/skills/prompts/hooks/mcp/data
-├── AGENTS.md                             ← workspace 根/独立项目为共享 kernel；Grok workspace 子项目为轻量 bridge
+├── AGENTS.md                             ← workspace 根或显式 portable 项目的共享 kernel；workspace 子项目不生成
 ├── .agents/
 │   ├── devcodex/instructions.full.md    ← 非 always-on 完整规范回退
 │   └── skills/                           ← 共享 active Skill 目录
@@ -152,7 +154,7 @@ DevCodex 当前默认安装面向目标项目分发以下目录和文件：
 │   └── hooks/_runtime/lifecycle.cjs      ← 统一生命周期运行时
 ├── GEMINI.md                             ← Gemini 薄入口（仅显式启用 Gemini 时部署）
 ├── .gemini/                              ← Gemini settings 与 Hook runtime
-├── .grok/                                ← Grok hooks；workspace 子项目另含单一 resolver Skill
+├── .grok/plugins/devcodex-workspace/     ← workspace Grok 薄插件；只在工作区根，官方用户级登记绑定此 source owner
 │
 ├── .devcodex/                           ← workspace-namespace 运行态（不提交 Git）
 │   ├── <project>/                           单项目 active-root：profile / requirements / reports / .memory / .audit-state
@@ -204,7 +206,7 @@ applyTo: "**"
 Markdown 内容
 ```
 
-DevCodex 当前采用“单一完整真相源 → 精简宿主投影 → 路由后按需 Skill → 必要时完整回退”的组合：Copilot 使用独立生成 kernel，Codex 与 Grok 独立项目使用 `AGENTS.md` kernel，Claude / Gemini 使用薄 wrapper；Grok workspace 子项目只保留 bridge + resolver Skill，并回到父级真相源，不复制整套 Skills。不维护相互漂移的宿主完整副本，也不维护独立 `codex/AGENTS.md`。
+DevCodex 当前采用“单一完整真相源 → 精简宿主投影 → 路由后按需 Skill → 必要时完整回退”的组合：Copilot 使用独立生成 kernel，Codex 与 Grok portable 项目使用 `AGENTS.md` kernel，Claude / Gemini 使用薄 wrapper；Grok workspace 模式使用工作区 plugin + 官方用户级本地插件登记，不向子项目复制入口或 Skills。`HostAdapterScopeV1` 统一 `workspace-native / user-registered-workspace / project-portable` 的 owner、activation、destination 与证据上限；同一规范化物理 destination 只能有一个 current owner，install/update/status/doctor/uninstall 使用同一 scope identity。Grok uninstall 只撤销用户登记与受管配置，workspace source 继续保留。
 
 ---
 
@@ -245,4 +247,4 @@ DevCodex 当前默认注册 `PreCompact`，用于在手动或自动压缩前执�
 > 结论：本页冻结**三层架构原则、分发面与目录职责**；数量类信息需要与 README/profile 同步维护。
 
 
-> Skill 规模锚点：80 个 Skills；80 个按需触发。
+> Skill 规模锚点：81 个 Skills；81 个按需触发。

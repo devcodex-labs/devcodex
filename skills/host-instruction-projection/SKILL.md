@@ -52,9 +52,37 @@ description: 宿主指令投影 Owner — 从统一 instructions 真相源确定
 | Codex | `AGENTS.md`（shared kernel） | `.agents/skills` + `.agents/devcodex/instructions.full.md` |
 | Claude | `CLAUDE.md`（仅导入 `@AGENTS.md` 的薄包装） | `.claude/skills` + full fallback |
 | Gemini | `GEMINI.md`（导入 `@AGENTS.md` 的薄包装） | `.agents/skills` + full fallback |
-| Grok | 原生 `AGENTS.md` | `.agents/skills` + full fallback |
+| Grok | 独立 `project-portable` 安装使用原生 `AGENTS.md`；workspace 根原生读取共享 kernel；workspace 子 Git 项目用 `devcodex grok` 官方 `--rules` launcher 绑定同一 kernel | workspace 插件提供 resolver Skill、Hook/MCP bridge；官方用户级本地插件登记绑定 workspace source owner，配置只维护 enabled 状态 |
 
 wrapper 只允许宿主能力提示和 shared kernel 指针；不得复制完整规则。Grok 不创建 `.grok/rules` 规范副本。
+
+## HostAdapterScopeGate
+
+每次生成、安装、更新、状态检查、诊断或卸载宿主 adapter 前必须先形成 `HostAdapterScopeV1`：
+
+| scope | owner / activation | 子项目默认产物 |
+|---|---|---:|
+| `workspace-native` | workspace root / ancestor 或宿主原生工作区发现 | 0 |
+| `user-registered-workspace` | workspace root / 官方用户级本地插件登记 + 配置 enabled 状态 | 0 |
+| `project-portable` | 显式 project root / repo-shared project discovery | 按显式选择生成 |
+
+- workspace-namespace 默认只能选择前两类；不能因为某宿主从 repo cwd 启动，就把 ignored adapter 复制进每个子项目。
+- Grok 的 workspace owner 固定为 `<workspace-root>/.grok/plugins/devcodex-workspace`。插件只含 metadata、thin resolver、Hook/MCP bridge；不得复制完整 kernel 或 Skill 树。
+- 使用 Grok 官方 `plugin install/update/uninstall` 管理用户级本地插件登记，登记的 `source_path` 必须指回 workspace owner，安装副本 digest 必须一致；官方命令导致的配置格式化必须恢复为调用前原始字节。
+- 用户配置只增量维护 DevCodex plugin enabled 项，并移除同一 workspace owner 的旧受管 path 项以避免同名插件碰撞；未知键、注释和其他插件必须保留，重复执行幂等，移除时只触达完全匹配的受管项。用户显式 disabled 时 fail closed。
+- 插件必须把 cwd 解析出的 workspace 与自身 owner workspace 比对；工作区外 no-op，根缺失/歧义 fail closed，不得全局注入项目状态。
+- Grok 官方契约规定 passive Hook stdout 被忽略，因此 `UserPromptSubmit` 不得声明或模拟上下文注入。工作区根依赖原生 `AGENTS.md`；子 Git 项目需要 full 证据时使用 `devcodex grok`，由官方 `--rules` 绑定同一 kernel。plain child 仅可保持 Skill-discovery / partial 口径。
+- `project-portable` 必须由显式参数选择，其产物应是可共享、manifest 管理的项目能力；不能靠 `.gitignore` 隐藏。
+- 同一规范化 destination 当前 owner 只能为 1。workspace 模式下 project manifest 的 legacy host claims 必须退休，workspace manifest 的 missing/mismatch/stale/duplicate 必须为 0。
+- 旧项目 adapter 只能在新链路验证后做可逆 quarantine；不得由 update 静默永久删除用户文件。
+- `uninstall --host grok` 只移除官方用户安装与精确受管 config 项，必须保留 workspace plugin source、未知配置和其他插件；重复卸载幂等。portable 项目资产不得借此静默删除。
+
+## GrokWorkspacePluginGate
+
+1. 官方能力证据必须覆盖 plugin install/update/uninstall、`[plugins].enabled`、plugin hooks 的 `GROK_PLUGIN_ROOT`、passive Hook stdout ignored、官方 `--rules` 与 `grok inspect --json`；变更前重新核验时效性。
+2. `UserPromptSubmit` / `Stop` / `PreCompact` 只允许 passive 观测或运行态维护；`PreToolUse` 才能按 Grok 顶层 `{decision, reason}` 契约形成阻断。任何 passive stdout 都不能作为 kernel evidence。
+3. plain `grok` 必须从 workspace root 与 child project 两个 cwd direct 验证 plugin identity，并分别记录 root native kernel 与 child Skill-discovery 上限；工作区外必须 no-op。
+4. `devcodex grok` launcher 必须先按官方 `--cwd` 解析最终 cwd/owner，在 workspace root 校验原生 kernel 存在，并仅在子 Git 项目追加同一 kernel；合并用户额外 `--rules`，拒绝 system prompt override 与重复 cwd 冲突，并以 headless direct replay 证明 `launcher-rules`。不得用 launcher 结果升级 plain child 结论，也不得从父 workspace 借用缺失的子 workspace kernel。
 
 ## FullFallbackGate
 
@@ -82,15 +110,17 @@ full fallback 是兼容/故障路径，不得与 kernel 同时作为两个 alway
 - 旧 `--claude`、`--codex` 保留；`--gemini`、`--grok` 为等价 alias。
 - 无 selector 的 init/update 继续部署 Copilot+Claude+Codex；只有 `--host all` 部署五宿主。
 - 重复或冲突 selector 使用 `CLI_HOST_SELECTION_CONFLICT`；未知 host 使用 `CLI_HOST_UNSUPPORTED`。
-- managed manifest 必须记录 projection source/content digest；dry-run 零写入；从 source cwd 与目标项目 cwd 分别验证边界。
+- managed manifest 必须记录 projection source/content digest，并保证规范化物理 destination 单一 current owner；dry-run 零写入；从 source cwd 与目标项目 cwd 分别验证边界。
+- workspace-namespace 从 child project 调用默认、单宿主或 `--host all` install/update 时，所有非 portable target/manifest owner 必须解析为 workspace root；Grok uninstall 与 status/doctor 也消费相同 scope identity。uninstall 不删除 workspace source。
 
 ## 验证路线
 
 1. `node scripts/generate-host-instruction-projections.js --check`。
 2. `node scripts/test-host-instruction-projection.js`：规则缺失、锚点 mutation、预算回退、重复内容碰撞、派生新鲜度。
 3. `node scripts/test-host-adapters.js`：Gemini/Grok event 与输出映射。
-4. `node scripts/test-cli-command-registry.js` 与 host install fixture：默认兼容、五 host、aliases、unknown/conflict、dry-run、collision、two-cwd。
-5. `node scripts/run-validation.js --route full --no-cache`、package/Profile/deploy、staged freshness 与 post-commit clean replay。
+4. `node scripts/test-cli-command-registry.js` 与 host install fixture：默认兼容、五 host、aliases、unknown/conflict、dry-run、collision、two-cwd，以及 Grok uninstall/repeat/reinstall 配置保真。
+5. `grok plugin validate grok/plugins/devcodex-workspace` + workspace/project/outside `grok inspect --json`；无 direct 的宿主保持 `UNVERIFIED`。
+6. `node scripts/run-validation.js --route full --no-cache`、package/Profile/deploy、staged freshness 与 post-commit clean replay。
 
 ## 回滚
 
@@ -108,3 +138,4 @@ full fallback 是兼容/故障路径，不得与 kernel 同时作为两个 alway
 - 为压缩体积删除安全、CP、Context、治理、恢复或 ECR 不变量。
 - 在缺少 direct evidence 时宣称宿主已实际加载、执行或强制。
 - 把 coverage receipt 或生成 header 当成规范真相源。
+- 在 workspace 默认模式向子项目生成 `AGENTS.md/.grok/.codex/.claude/.gemini`，或让读写/诊断使用不同作用域解析器。

@@ -11,6 +11,7 @@ const {
   ProjectKnowledgeError,
   acceptKnowledgeBatch,
   bootstrapProjectKnowledge,
+  buildImpactGraphFromInventory,
   buildIncrementalAnalysisPlan,
   buildInventoryFromFiles,
   buildRepoIdentity,
@@ -54,6 +55,30 @@ const graph = {
   coverage: 1,
   edges: [{ from: 'src/b.js', to: 'src/a.js', type: 'consumer', evidenceStrength: 'content-structured', source: 'fixture' }]
 }
+const productionGraph = buildImpactGraphFromInventory(inventory)
+assert.strictEqual(productionGraph.schemaVersion, 'ImpactGraphV1')
+assert.strictEqual(productionGraph.builderVersion, 'static-relative-v1')
+assert(
+  productionGraph.edges.some(edge =>
+    edge.from === 'src/b.js' &&
+    edge.to === 'src/a.js' &&
+    edge.type === 'consumer' &&
+    edge.source === 'static-relative-import'
+  ),
+  'production inventory graph must resolve relative require dependency to its consumer'
+)
+assert.strictEqual(productionGraph.coverage, 1)
+assert.strictEqual(productionGraph.dynamicDependencyUnknown, false)
+assert.strictEqual(
+  buildImpactGraphFromInventory(sameInventory).graphIdentity.digest,
+  productionGraph.graphIdentity.digest,
+  'production graph identity must be ordering-independent'
+)
+const dynamicGraph = buildImpactGraphFromInventory(buildInventoryFromFiles({
+  'src/dynamic.js': 'module.exports = require(runtimeName)\n'
+}))
+assert.strictEqual(dynamicGraph.dynamicDependencyUnknown, true)
+assert.deepStrictEqual(dynamicGraph.stats.unknownConsumerPaths, ['src/dynamic.js'])
 const plan = buildIncrementalAnalysisPlan({ snapshot: null, inventory, repoIdentity, graph, lens, options: { maxBatchFiles: 2 } })
 assert.strictEqual(plan.schemaVersion, 'IncrementalAnalysisPlanV2')
 assert.strictEqual(plan.knowledgeBinding.schemaVersion, 'ProjectKnowledgeBindingV1')
@@ -149,6 +174,100 @@ const changedPlan = buildIncrementalAnalysisPlan({ snapshot: bootstrap.snapshot,
 assert.deepStrictEqual(changedPlan.readPaths.filter(item => item.startsWith('src/')), ['src/a.js', 'src/b.js'])
 assert(changedPlan.reusedPaths.includes('README.md'))
 
+const dynamicFiles = {
+  'src/a.js': "module.exports = req" + "uire('./b')\n",
+  'src/b.js': 'module.exports = 1\n',
+  'src/dynamic.js': 'module.exports = require(runtimeName)\n'
+}
+const dynamicInventory = buildInventoryFromFiles(dynamicFiles)
+const dynamicRepo = buildRepoIdentity(repoRoot, dynamicInventory, { baseIdentity: 'dynamic-base' })
+const dynamicDerivedGraph = buildImpactGraphFromInventory(dynamicInventory)
+const dynamicInitialPlan = buildIncrementalAnalysisPlan({
+  snapshot: null,
+  inventory: dynamicInventory,
+  repoIdentity: dynamicRepo,
+  graph: dynamicDerivedGraph,
+  lens,
+  options: { maxAffectedRatio: 1 }
+})
+const dynamicBootstrap = bootstrapProjectKnowledge({
+  snapshot: null,
+  inventory: dynamicInventory,
+  repoIdentity: dynamicRepo,
+  plan: dynamicInitialPlan,
+  graph: dynamicDerivedGraph
+})
+const dynamicDependencyChanged = buildInventoryFromFiles({ ...dynamicFiles, 'src/b.js': 'module.exports = 2\n' })
+const dynamicDependencyPlan = buildIncrementalAnalysisPlan({
+  snapshot: dynamicBootstrap.snapshot,
+  inventory: dynamicDependencyChanged,
+  repoIdentity: dynamicRepo,
+  graph: buildImpactGraphFromInventory(dynamicDependencyChanged),
+  lens,
+  options: { maxAffectedRatio: 1 }
+})
+assert.strictEqual(dynamicDependencyPlan.fullRequired, false)
+assert.deepStrictEqual(
+  dynamicDependencyPlan.readPaths,
+  ['src/a.js', 'src/b.js', 'src/dynamic.js'],
+  'unknown consumers must be conservatively reread for other dependency changes'
+)
+const dynamicConsumerChanged = buildInventoryFromFiles({ ...dynamicFiles, 'src/dynamic.js': 'module.exports = require(otherRuntimeName)\n' })
+const dynamicConsumerPlan = buildIncrementalAnalysisPlan({
+  snapshot: dynamicBootstrap.snapshot,
+  inventory: dynamicConsumerChanged,
+  repoIdentity: dynamicRepo,
+  graph: buildImpactGraphFromInventory(dynamicConsumerChanged),
+  lens,
+  options: { maxAffectedRatio: 1 }
+})
+assert.strictEqual(dynamicConsumerPlan.fullRequired, true)
+assert(dynamicConsumerPlan.fullReasons.includes('dynamic-dependency-consumer-changed'))
+
+const productionInitialPlan = buildIncrementalAnalysisPlan({
+  snapshot: null,
+  inventory,
+  repoIdentity,
+  graph: productionGraph,
+  lens,
+  options: { maxAffectedRatio: 1 }
+})
+const productionBootstrap = bootstrapProjectKnowledge({
+  snapshot: null,
+  inventory,
+  repoIdentity,
+  plan: productionInitialPlan,
+  graph: productionGraph
+})
+const graphChangedInventory = buildInventoryFromFiles({
+  ...files,
+  'src/a.js': "module.exports = req" + "uire('./b')\nreq" + "uire('./new')\n",
+  'src/new.js': 'module.exports = true\n'
+})
+const graphChangedPlan = buildIncrementalAnalysisPlan({
+  snapshot: productionBootstrap.snapshot,
+  inventory: graphChangedInventory,
+  repoIdentity,
+  graph: buildImpactGraphFromInventory(graphChangedInventory),
+  lens,
+  options: { maxAffectedRatio: 1 }
+})
+assert.strictEqual(graphChangedPlan.graphChanged, true)
+assert.strictEqual(graphChangedPlan.fullRequired, false, 'a current graph topology change must use the new closure without forcing a full reread')
+assert(graphChangedPlan.readPaths.includes('src/a.js'))
+assert(graphChangedPlan.readPaths.includes('src/b.js'))
+assert(graphChangedPlan.readPaths.includes('src/new.js'))
+const legacyGraphMigrationPlan = buildIncrementalAnalysisPlan({
+  snapshot: bootstrap.snapshot,
+  inventory,
+  repoIdentity,
+  graph: productionGraph,
+  lens,
+  options: { maxAffectedRatio: 1 }
+})
+assert.strictEqual(legacyGraphMigrationPlan.fullRequired, true)
+assert(legacyGraphMigrationPlan.fullReasons.includes('impact-graph-builder-migration'))
+
 for (const [field, value] of [
   ['analysisConfigIdentity', 'config-v2'],
   ['parserIdentity', 'parser-v2'],
@@ -212,5 +331,34 @@ assert.strictEqual(cliEnvelope.schemaVersion, 'ProjectAnalysisStateCliV2')
 assert.strictEqual(cliEnvelope.data.writeCount, 0)
 assert.strictEqual(fs.existsSync(cliActive), false, 'CLI observe must not create runtime state')
 
+const cliTask = path.join(tempRoot, 'cli-task')
+const cliBootstrap = spawnSync(process.execPath, [
+  path.join(ROOT, 'scripts', 'project-analysis-state.js'), 'bootstrap', '--repo', repoRoot, '--active-root', cliActive,
+  '--task-root', cliTask, '--run-id', 'production-graph-fixture',
+  '--lens', 'fixture', '--question', 'fixture-v2', '--json'
+], { cwd: ROOT, encoding: 'utf8', windowsHide: true, maxBuffer: 16 * 1024 * 1024 })
+assert.strictEqual(cliBootstrap.status, 0, cliBootstrap.stderr || cliBootstrap.stdout)
+const cliBootstrapEnvelope = JSON.parse(cliBootstrap.stdout)
+assert.strictEqual(cliBootstrapEnvelope.data.bootstrap.snapshot.impactGraph.coverage, 1)
+assert(
+  cliBootstrapEnvelope.data.bootstrap.snapshot.impactGraph.edges.some(edge =>
+    edge.from === 'src/b.js' && edge.to === 'src/a.js'
+  ),
+  'production CLI bootstrap must persist the derived dependency graph'
+)
+fs.writeFileSync(path.join(repoRoot, 'src', 'b.js'), 'module.exports = 3\n')
+const cliChangedPlan = spawnSync(process.execPath, [
+  path.join(ROOT, 'scripts', 'project-analysis-state.js'), 'plan', '--repo', repoRoot, '--active-root', cliActive,
+  '--lens', 'fixture', '--question', 'fixture-v2', '--json'
+], { cwd: ROOT, encoding: 'utf8', windowsHide: true })
+assert.strictEqual(cliChangedPlan.status, 0, cliChangedPlan.stderr || cliChangedPlan.stdout)
+const cliChangedEnvelope = JSON.parse(cliChangedPlan.stdout)
+assert.strictEqual(cliChangedEnvelope.data.fullRequired, false)
+assert.deepStrictEqual(
+  cliChangedEnvelope.data.readPaths.filter(relativePath => relativePath.startsWith('src/')),
+  ['src/a.js', 'src/b.js'],
+  'production CLI plan must expand a changed dependency to its consumer'
+)
+
 fs.rmSync(tempRoot, { recursive: true, force: true })
-console.log('project knowledge V2 tests passed: Merkle/binding/claims/range/bootstrap/V1-read-only/delta/oracle writes=accepted-only')
+console.log('project knowledge V2 tests passed: production graph/Merkle/binding/claims/range/bootstrap/V1-read-only/delta/oracle writes=accepted-only')

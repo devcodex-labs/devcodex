@@ -5,26 +5,26 @@
   "generatedFrom": {
     "skillsPattern": "skills/*/SKILL.md",
     "registry": "plugin.json",
-    "sourceDigest": "a4b31050e32cceed4727d7612219e23299dac910ebeddc50eb365701ced1fafe",
-    "pluginDigest": "0842bf8e1312aef8872796cfd491645d0819e47bb7acd5d7349f8644c6ee3077",
+    "sourceDigest": "cb851a1c0431d4594bdd56cb3f67970dd817cba0a8cf7199bb6a2f5d0f1ef951",
+    "pluginDigest": "41ec6da9aa259043623550e09d0ab43c6fd12c7bd5c87361ce549cf8c1cdc521",
     "portfolioEvidence": "skills/portfolio-evidence.json",
-    "portfolioEvidenceDigest": "a2288b9763bc79ea32f4fd47cd4f2ea31501427dc2e9d6871d75064bd281687b",
-    "consumerInventoryFileCount": 481,
-    "consumerInventoryDigest": "efebd0977a560a8a1a89e1d41d87fbbd01c7a217e7890f8b7074bec0fc344a9b",
-    "consumerProjectionDigest": "93172011a9a5753dabeec804410615f20040a2fb1082aeb64b23451372b353a7",
-    "portfolioInputDigest": "9169f970fb517368c7b11ec002fce16872cd628cc4fd95fd666372012efd8837"
+    "portfolioEvidenceDigest": "85229c1463a5068750d5417e5ebf960907532dccf99b1cd3da0a88f7007792b4",
+    "consumerInventoryFileCount": 489,
+    "consumerInventoryDigest": "cbaac39b123e356ac83be61d88214cd95384a864799067a1b6301d3d941463d3",
+    "consumerProjectionDigest": "499a78bbe8dcc204e80f93bd8877a02b5c195ae8877db39868baa1805e1dba6f",
+    "portfolioInputDigest": "a0d5f6abf76deac86352a8ec51faf3f6854089bbe05357d1a9d0538b52b21b7d"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
-    "skillCount": 80,
-    "registeredSkillCount": 80,
-    "activeSkillCount": 77,
+    "skillCount": 81,
+    "registeredSkillCount": 81,
+    "activeSkillCount": 78,
     "graySkillCount": 3,
     "orphanActiveCount": 0,
     "dependencyCycleCount": 0,
     "dependencyEdgeCount": 3,
-    "conflictReviewedCount": 80,
-    "operationalEvidenceCompleteCount": 80,
+    "conflictReviewedCount": 81,
+    "operationalEvidenceCompleteCount": 81,
     "triggerPrecisionMeasuredCount": 0,
     "instructionBudgetP95Bytes": 19335,
     "triggerQuality": "structural-only"
@@ -95,6 +95,7 @@
       "quality-strategy",
       "readme-authoring",
       "release-verification",
+      "repair-prevention-assessment",
       "report",
       "review-checklist",
       "rework-prevention-engineering",
@@ -225,6 +226,10 @@
       {
         "from": "report",
         "to": "compliance"
+      },
+      {
+        "from": "rework-prevention-engineering",
+        "to": "repair-prevention-assessment"
       },
       {
         "from": "routing",
@@ -397,6 +402,10 @@
       {
         "from": "routing",
         "to": "quality-strategy"
+      },
+      {
+        "from": "routing",
+        "to": "repair-prevention-assessment"
       },
       {
         "from": "routing",
@@ -8923,8 +8932,8 @@
         "skills/execution-contract/SKILL.md"
       ],
       "source": "skills/execution-contract/SKILL.md",
-      "hash": "74a08c52048db3ddfa61f590dacf963bc7fc1707708dc56bca87fbc62b474f1f",
-      "sourceBytes": 18615,
+      "hash": "7743788e80a5fa9458d9f04c974cceaa9c862199a216dd807fec94a998cad43f",
+      "sourceBytes": 18621,
       "version": "1.15.1",
       "lifecycleState": "active",
       "dependencies": [],
@@ -9522,8 +9531,8 @@
         "skills/fix-default/SKILL.md"
       ],
       "source": "skills/fix-default/SKILL.md",
-      "hash": "43d3cb0882d9700412c3d910712aeaf97710d839d4ce9d3f7d1a54affa7776a3",
-      "sourceBytes": 6779,
+      "hash": "f891666adc574667207968ab1970940800fb0b91b8cccc965f75224ea2b32823",
+      "sourceBytes": 6785,
       "version": "1.15.1",
       "lifecycleState": "active",
       "dependencies": [],
@@ -9758,8 +9767,8 @@
         "skills/fix-security/SKILL.md"
       ],
       "source": "skills/fix-security/SKILL.md",
-      "hash": "3f82f08b934e0096e99332811a2447cd1d4e3d64bd6bfa77913ac042999bc7da",
-      "sourceBytes": 1657,
+      "hash": "ba00055f013aa556f99f4b8ef4f0524306ff4f01b7610db19957a34caa31316d",
+      "sourceBytes": 1663,
       "version": "1.15.1",
       "lifecycleState": "active",
       "dependencies": [],
@@ -10244,8 +10253,8 @@
         "skills/host-contract-verification/SKILL.md"
       ],
       "source": "skills/host-contract-verification/SKILL.md",
-      "hash": "ea665c08529c567c196280f92db9163c78e3b1667dd7d99a93fe0e276ab217ef",
-      "sourceBytes": 11518,
+      "hash": "d24ac9fc394888adb22adeb37ad41db62eb9a0d1fdb13f9e46bd39b436524886",
+      "sourceBytes": 12400,
       "version": "1.15.1",
       "lifecycleState": "active",
       "dependencies": [],
@@ -10467,8 +10476,8 @@
         "skills/host-instruction-projection/SKILL.md"
       ],
       "source": "skills/host-instruction-projection/SKILL.md",
-      "hash": "cc4a6c9d2b6c69a229e6a4c7e10b3eb14a392358ccd5c43272b4211fd5169aed",
-      "sourceBytes": 6448,
+      "hash": "da7c9b52254503efacce68e47ccd5c79ce8fd7b8ea9782d8ff10b2be37cf64e4",
+      "sourceBytes": 11146,
       "version": "1.15.1",
       "lifecycleState": "active",
       "dependencies": [],
@@ -10825,8 +10834,8 @@
         "skills/incremental-project-analysis/SKILL.md"
       ],
       "source": "skills/incremental-project-analysis/SKILL.md",
-      "hash": "4b20319aa27fd4c8641e0aa2424a6f3534a2e5054d9b069c776ca7c4a6d38ba3",
-      "sourceBytes": 11133,
+      "hash": "34291cafb7412c2ccf28037ea293c4c345fbb2e3937d8bcb0095c37ffdebfbf9",
+      "sourceBytes": 12066,
       "version": "1.15.1",
       "lifecycleState": "active",
       "dependencies": [],
@@ -11019,6 +11028,10 @@
         {
           "path": "changelogs/releases/v1.5.0.md",
           "role": "historical"
+        },
+        {
+          "path": "grok/plugins/devcodex-workspace/skills/devcodex-workspace/SKILL.md",
+          "role": "current"
         },
         {
           "path": "grok/skills/devcodex-workspace/SKILL.md",
@@ -11436,7 +11449,7 @@
         "registration": "plugin.json",
         "operationalReadiness": {
           "state": "complete",
-          "currentConsumer": "grok/skills/devcodex-workspace/SKILL.md",
+          "currentConsumer": "grok/plugins/devcodex-workspace/skills/devcodex-workspace/SKILL.md",
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
@@ -11907,6 +11920,14 @@
           "role": "current"
         },
         {
+          "path": "grok/plugins/devcodex-workspace/.mcp.json",
+          "role": "current"
+        },
+        {
+          "path": "grok/plugins/devcodex-workspace/mcp/workspace-bridge.cjs",
+          "role": "current"
+        },
+        {
           "path": "grok/skills/devcodex-workspace/SKILL.md",
           "role": "current"
         },
@@ -12055,6 +12076,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/cli-install-commands.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/cli-runtime-utils.js",
           "role": "current"
         },
@@ -12152,10 +12177,6 @@
         },
         {
           "path": "scripts/test-hooks-runtime.js",
-          "role": "current"
-        },
-        {
-          "path": "scripts/test-host-installation.js",
           "role": "current"
         },
         {
@@ -12425,7 +12446,6 @@
         "scripts/test-context-read-contract.js",
         "scripts/test-governance-intake.js",
         "scripts/test-hooks-runtime.js",
-        "scripts/test-host-installation.js",
         "scripts/test-instruction-fallback-check.js",
         "scripts/test-mcp-servers.js",
         "scripts/test-migrate-layout.js",
@@ -12487,7 +12507,6 @@
           "scripts/test-context-read-contract.js",
           "scripts/test-governance-intake.js",
           "scripts/test-hooks-runtime.js",
-          "scripts/test-host-installation.js",
           "scripts/test-instruction-fallback-check.js",
           "scripts/test-mcp-servers.js",
           "scripts/test-migrate-layout.js",
@@ -12868,6 +12887,10 @@
           "role": "current"
         },
         {
+          "path": "grok/plugins/devcodex-workspace/skills/devcodex-workspace/SKILL.md",
+          "role": "current"
+        },
+        {
           "path": "grok/skills/devcodex-workspace/SKILL.md",
           "role": "current"
         },
@@ -13004,11 +13027,23 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/cli-install-commands.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/cli-maintenance-commands.js",
           "role": "current"
         },
         {
           "path": "scripts/lib/cli-observability-commands.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/grok-workspace-launcher.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/host-adapter-scope.js",
           "role": "current"
         },
         {
@@ -15046,6 +15081,218 @@
       }
     },
     {
+      "id": "repair-prevention-assessment",
+      "name": "repair-prevention-assessment",
+      "description": "修复防复发完成门禁 Owner — 任何 fix、self-fix 或 dev 中的 repair 切片在 accepted 前使用；形成可机器验证的 RepairPreventionAssessmentV1，分离当前关闭证据与长期前瞻有效性，避免 active 工作流依赖未部署的 gray 能力。",
+      "owner": "repair-prevention-assessment",
+      "triggers": {
+        "terms": [
+          "Owner",
+          "RepairPreventionAssessmentV1",
+          "accepted",
+          "active",
+          "dev",
+          "fix",
+          "gray",
+          "repair",
+          "repair-prevention-assessment",
+          "self-fix"
+        ],
+        "positive": [
+          {
+            "fixture": "frontmatter-description-resolves",
+            "input": "修复防复发完成门禁 Owner — 任何 fix、self-fix 或 dev 中的 repair 切片在 accepted 前使用；形成可机器验证的 RepairPreventionAssessmentV1，分离当前关闭证据与长期前瞻有效性，避免 active 工作流依赖未部署的 gray 能力。"
+          }
+        ],
+        "negative": [
+          {
+            "fixture": "empty-or-unregistered-trigger-rejected",
+            "input": ""
+          }
+        ],
+        "ambiguous": []
+      },
+      "ownedArtifacts": [
+        "skills/repair-prevention-assessment/SKILL.md"
+      ],
+      "source": "skills/repair-prevention-assessment/SKILL.md",
+      "hash": "0a9b288234443aeb56bf3c4898aaa9432df27edd78ebd74bf7e7fa3c34560561",
+      "sourceBytes": 4889,
+      "version": "1.15.1",
+      "lifecycleState": "active",
+      "dependencies": [],
+      "references": [],
+      "conflicts": [],
+      "conflictReview": {
+        "status": "reviewed-none",
+        "evidence": "scripts/test-skill-portfolio.js#explicit-conflict-review"
+      },
+      "consumers": [
+        {
+          "path": "changelogs/unreleased.md",
+          "role": "current"
+        },
+        {
+          "path": "instructions.md",
+          "role": "current"
+        },
+        {
+          "path": "instructions/11-fix.instructions.md",
+          "role": "current"
+        },
+        {
+          "path": "package.json",
+          "role": "current"
+        },
+        {
+          "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "prompts/implementation-plan.prompt.md",
+          "role": "current"
+        },
+        {
+          "path": "prompts/technical-design.prompt.md",
+          "role": "current"
+        },
+        {
+          "path": "README.md",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/test-rework-trust-controls.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/validate-rework-trust-controls.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-control-plane-contracts.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-host-installation.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-repair-prevention-assessment.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-skill-portfolio.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/validation-manifest.json",
+          "role": "current"
+        },
+        {
+          "path": "website/docs/guide/development.md",
+          "role": "current"
+        },
+        {
+          "path": "website/docs/index.md",
+          "role": "current"
+        },
+        {
+          "path": "website/docs/intro/index.md",
+          "role": "current"
+        }
+      ],
+      "validationProfile": [
+        "scripts/test-control-plane-contracts.js",
+        "scripts/test-host-installation.js",
+        "scripts/test-repair-prevention-assessment.js",
+        "scripts/test-skill-portfolio.js",
+        "scripts/validate.js"
+      ],
+      "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "repair-prevention-assessment",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "Owner",
+            "RepairPreventionAssessmentV1",
+            "accepted",
+            "active",
+            "dev",
+            "fix",
+            "gray",
+            "repair",
+            "repair-prevention-assessment",
+            "self-fix"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "修复防复发完成门禁 Owner — 任何 fix、self-fix 或 dev 中的 repair 切片在 accepted 前使用；形成可机器验证的 RepairPreventionAssessmentV1，分离当前关闭证据与长期前瞻有效性，避免 active 工作流依赖未部署的 gray 能力。"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-repair-prevention-assessment.js#valid-full-and-light-assessments"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-repair-prevention-assessment.js#invalid-lifecycle-and-evidence-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:repair-prevention-assessment",
+        "probeSuiteRefs": [
+          "scripts/test-control-plane-contracts.js",
+          "scripts/test-host-installation.js",
+          "scripts/test-repair-prevention-assessment.js",
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
+      "evidence": {
+        "registration": "plugin.json",
+        "operationalReadiness": {
+          "state": "complete",
+          "currentConsumer": "changelogs/unreleased.md",
+          "positiveFixture": "scripts/test-repair-prevention-assessment.js#valid-full-and-light-assessments",
+          "negativeFixture": "scripts/test-repair-prevention-assessment.js#invalid-lifecycle-and-evidence-rejected",
+          "rollbackToGray": "fail closed for repair acceptance and revert consumer routing if runtime reachability or false-blocking evidence regresses",
+          "lastEvidenceAt": "2026-07-14"
+        },
+        "triggerPrecision": {
+          "state": "structural-only",
+          "sampleCount": 0,
+          "precision": null,
+          "falsePositiveRate": null,
+          "falseNegativeRate": null,
+          "manualCorrectionRate": null,
+          "lastMeasuredAt": null
+        },
+        "lifecycleAuthorization": "plugin.json#skills[].lifecycleState",
+        "stateRationale": "active correctness gate extracted from the gray effectiveness program; deterministic schema, validator, positive/negative fixtures and mandatory repair consumers are operational",
+        "promotionCriteria": "not applicable: this unit owns repair completion correctness and does not claim prospective rework reduction"
+      }
+    },
+    {
       "id": "report",
       "name": "report",
       "description": "生成并写入工作流执行报告。适用于 dev/fix/analyze/audit/self-fix（chat 豁免）。",
@@ -15374,6 +15621,10 @@
         },
         {
           "path": "scripts/lib/canonical-consumer-contracts.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/cli-install-commands.js",
           "role": "current"
         },
         {
@@ -16064,12 +16315,14 @@
         "skills/rework-prevention-engineering/SKILL.md"
       ],
       "source": "skills/rework-prevention-engineering/SKILL.md",
-      "hash": "0885014c630b2ab2aaf0f442ff60c28da25451c51b425720926899e1bffa71cd",
-      "sourceBytes": 10005,
+      "hash": "f28eb9cc8abbe73501916448ae85df24efde4c730224b9237a18e3b6b1ae1064",
+      "sourceBytes": 10416,
       "version": "1.15.1",
       "lifecycleState": "gray",
       "dependencies": [],
-      "references": [],
+      "references": [
+        "repair-prevention-assessment"
+      ],
       "conflicts": [],
       "conflictReview": {
         "status": "reviewed-none",
@@ -16109,14 +16362,6 @@
           "role": "current"
         },
         {
-          "path": "prompts/implementation-plan.prompt.md",
-          "role": "current"
-        },
-        {
-          "path": "prompts/technical-design.prompt.md",
-          "role": "current"
-        },
-        {
           "path": "README.md",
           "role": "current"
         },
@@ -16137,7 +16382,7 @@
           "role": "current"
         },
         {
-          "path": "scripts/test-repair-prevention-assessment.js",
+          "path": "scripts/test-host-installation.js",
           "role": "current"
         },
         {
@@ -16153,12 +16398,16 @@
           "role": "current"
         },
         {
+          "path": "website/docs/index.md",
+          "role": "current"
+        },
+        {
           "path": "website/docs/intro/index.md",
           "role": "current"
         }
       ],
       "validationProfile": [
-        "scripts/test-repair-prevention-assessment.js",
+        "scripts/test-host-installation.js",
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
@@ -16206,7 +16455,7 @@
         ],
         "evolvableUnitRef": "skill:rework-prevention-engineering",
         "probeSuiteRefs": [
-          "scripts/test-repair-prevention-assessment.js",
+          "scripts/test-host-installation.js",
           "scripts/test-skill-portfolio.js",
           "scripts/validate.js"
         ],
@@ -16269,8 +16518,8 @@
         "skills/routing/SKILL.md"
       ],
       "source": "skills/routing/SKILL.md",
-      "hash": "ca2d28dd7f55a7c4a76a64801e5bd623cc6c7945ffa19097389215256332956f",
-      "sourceBytes": 16567,
+      "hash": "7dbd01b9b6753adef42adb2445594467874dbd4fa5c6b7393c1ddab45b34e8bb",
+      "sourceBytes": 16622,
       "version": "1.15.1",
       "lifecycleState": "active",
       "dependencies": [],
@@ -16318,6 +16567,7 @@
         "product-strategy",
         "production-readiness-sre",
         "quality-strategy",
+        "repair-prevention-assessment",
         "review-checklist",
         "rework-prevention-engineering",
         "security-threat-modeling",
@@ -16365,6 +16615,10 @@
         {
           "path": "changelogs/releases/v1.5.0.md",
           "role": "historical"
+        },
+        {
+          "path": "grok/plugins/devcodex-workspace/skills/devcodex-workspace/SKILL.md",
+          "role": "current"
         },
         {
           "path": "hooks/_runtime/review-execution-contract.cjs",
@@ -17237,8 +17491,8 @@
         "skills/source-consumer-sync/SKILL.md"
       ],
       "source": "skills/source-consumer-sync/SKILL.md",
-      "hash": "d2a07819ce2e856ea61b48b19d5c885b9cec44f280669f590c8e5617a308c7b5",
-      "sourceBytes": 5038,
+      "hash": "5e1d2f167573b7c96f041c2ada823d690f399bbe9500f4f6265a6e009afaea9c",
+      "sourceBytes": 5372,
       "version": "1.15.1",
       "lifecycleState": "active",
       "dependencies": [],
@@ -17536,10 +17790,6 @@
           "role": "current"
         },
         {
-          "path": "scripts/lib/validate-core-checks.js",
-          "role": "current"
-        },
-        {
           "path": "scripts/lib/validate-governance-expert.js",
           "role": "current"
         },
@@ -17684,8 +17934,8 @@
         "skills/spec-governance/SKILL.md"
       ],
       "source": "skills/spec-governance/SKILL.md",
-      "hash": "f63ad45d70c67a449d2b5edd6eb2e9181f6530bb9f46467948bd7ff5f0856cbf",
-      "sourceBytes": 28885,
+      "hash": "448bfb4ffdbea14744eda7317a8f0b214e640a253010e23493aa3f9c605e965b",
+      "sourceBytes": 28983,
       "version": "1.15.1",
       "lifecycleState": "active",
       "dependencies": [
@@ -17936,10 +18186,6 @@
         },
         {
           "path": "scripts/lib/validate-context-read-controls.js",
-          "role": "current"
-        },
-        {
-          "path": "scripts/lib/validate-core-checks.js",
           "role": "current"
         },
         {
@@ -18650,8 +18896,8 @@
         "skills/test-router/SKILL.md"
       ],
       "source": "skills/test-router/SKILL.md",
-      "hash": "2cd5f4663641ec173920e312c1ec8b43e7ca3832db757b53b70ca27137ae6d2c",
-      "sourceBytes": 8349,
+      "hash": "a957b12d34d3aa4b55886c1b1fa2d764260727ddec72ecc8e4390e3533480e4e",
+      "sourceBytes": 8443,
       "version": "1.15.1",
       "lifecycleState": "active",
       "dependencies": [],

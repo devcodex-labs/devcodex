@@ -21,7 +21,7 @@ function repairAssessmentFixture(overrides = {}) {
     noNewControlEvidence: ['existing probe failed as designed'],
     regressionSeeds: ['fixture seed'],
     negativeCases: ['fixture negative'],
-    controlOwner: 'rework-prevention-engineering',
+    controlOwner: 'repair-prevention-assessment',
     consumers: ['fix-default'],
     immediateClosureEvidence: ['current regression passed'],
     prospectiveEvidencePlan: {
@@ -156,7 +156,9 @@ function buildReworkTrustControlChecks(ctx) {
     })), 'invalid:prospective-sufficient-evidence-invalid', 'repair prevention retrospective promotion negative')
 
     const required = [
-      ['skills/rework-prevention-engineering/SKILL.md', ['RepairPreventionAssessmentGate', 'RepairPreventionAssessmentV1', 'ReworkRiskProfile', 'ReworkEffectivenessLoop', 'FirstPassYield', 'CandidateDiffCompletenessGate', 'gray']],
+      ['skills/repair-prevention-assessment/SKILL.md', ['RepairPreventionAssessmentGate', 'RepairPreventionAssessmentV1', 'immediateClosureEvidence', 'prospectiveEvidencePlan', 'active workflow', 'gray Skill']],
+      ['skills/repair-prevention-assessment/repair-prevention-assessment.schema.json', ['RepairPreventionAssessmentV1', 'immediateClosureEvidence', 'prospectiveEvidencePlan', 'rollbackOrSunset']],
+      ['skills/rework-prevention-engineering/SKILL.md', ['active RepairPreventionAssessmentGate', 'ReworkRiskProfile', 'ReworkEffectivenessLoop', 'FirstPassYield', 'CandidateDiffCompletenessGate', 'gray']],
       ['skills/rework-prevention-engineering/repair-prevention-assessment.schema.json', ['RepairPreventionAssessmentV1', 'immediateClosureEvidence', 'prospectiveEvidencePlan', 'rollbackOrSunset']],
       ['scripts/lib/repair-prevention-assessment.js', ['assessRepairPrevention', 'prospective-sufficient-evidence-invalid', 'emergency-active']],
       ['scripts/test-repair-prevention-assessment.js', ['first/repeat/no-new/emergency/rollback/sunset']],
@@ -192,11 +194,33 @@ function buildReworkTrustControlChecks(ctx) {
     for (const [file, needles] of required) checkFile(file, needles)
 
     const pkg = JSON.parse(read(path.join(ROOT, 'package.json')))
-    checkCurrentChangeRecord(pkg.version, ['RepairPreventionAssessmentGate', 'rework-prevention-engineering', 'ChecklistStateMaterializationGate', 'V94'])
+    checkCurrentChangeRecord(pkg.version, ['RepairPreventionAssessmentGate', 'repair-prevention-assessment', 'ChecklistStateMaterializationGate', 'V94'])
     const plugin = JSON.parse(read(path.join(ROOT, 'plugin.json')))
-    const registration = plugin.skills.find(item => item.id === 'rework-prevention-engineering')
-    if (!registration || registration.file !== 'skills/rework-prevention-engineering/SKILL.md') err('[V94] rework skill registration missing')
-    if (registration?.lifecycleState !== 'gray') err('[V94] new rework skill must remain gray')
+    const assessmentRegistration = plugin.skills.find(item => item.id === 'repair-prevention-assessment')
+    if (!assessmentRegistration || assessmentRegistration.file !== 'skills/repair-prevention-assessment/SKILL.md') {
+      err('[V94] active repair-prevention-assessment registration missing')
+    }
+    if (assessmentRegistration?.lifecycleState && assessmentRegistration.lifecycleState !== 'active') {
+      err('[V94] repair-prevention-assessment must be active/default-deployed')
+    }
+    const reworkRegistration = plugin.skills.find(item => item.id === 'rework-prevention-engineering')
+    if (!reworkRegistration || reworkRegistration.file !== 'skills/rework-prevention-engineering/SKILL.md') err('[V94] rework skill registration missing')
+    if (reworkRegistration?.lifecycleState !== 'gray') err('[V94] rework effectiveness skill must remain gray')
+    const canonicalSchema = String(read(path.join(ROOT, 'skills/repair-prevention-assessment/repair-prevention-assessment.schema.json')))
+    const compatibilitySchema = String(read(path.join(ROOT, 'skills/rework-prevention-engineering/repair-prevention-assessment.schema.json')))
+    if (canonicalSchema !== compatibilitySchema) err('[V94] repair prevention compatibility schema drifted from active canonical owner')
+    for (const relative of [
+      'skills/fix-default/SKILL.md',
+      'skills/fix-security/SKILL.md',
+      'skills/execution-contract/SKILL.md',
+      'instructions/11-fix.instructions.md',
+      'prompts/technical-design.prompt.md',
+      'prompts/implementation-plan.prompt.md'
+    ]) {
+      if (String(read(path.join(ROOT, relative))).includes('rework-prevention-engineering#RepairPreventionAssessmentGate')) {
+        err(`[V94] active repair consumer depends on unavailable gray assessment owner: ${relative}`)
+      }
+    }
     console.log('[V94] rework prevention, coverage/artifact trust and owner subgates checked')
   }
 

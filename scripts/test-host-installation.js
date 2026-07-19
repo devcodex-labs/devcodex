@@ -8,17 +8,24 @@ const path = require('path')
 const { spawnSync } = require('child_process')
 const { buildDeploymentDescriptors } = require('./lib/deployment-descriptors')
 const { buildCliHostUtils } = require('./lib/cli-host-utils')
+const { mergeGrokPluginRegistration, removeGrokPluginRegistration } = require('./lib/host-adapter-scope')
+const { buildGrokLaunchPlan } = require('./lib/grok-workspace-launcher')
 
 const ROOT = path.resolve(__dirname, '..')
 const INDEX = path.join(ROOT, 'index.js')
-const FIXTURE_ROOT = path.join(os.tmpdir(), 'devcodex-host-installation-contract-v1')
+const FIXTURE_ROOT = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-host-installation-contract-v1-'))
+process.env.GROK_HOME = path.join(FIXTURE_ROOT, 'grok-home')
 
 function run(args, cwd) {
   return spawnSync(process.execPath, [INDEX, ...args], {
     cwd,
     encoding: 'utf8',
     maxBuffer: 32 * 1024 * 1024,
-    env: { ...process.env, NO_COLOR: '1' }
+    env: {
+      ...process.env,
+      NO_COLOR: '1',
+      GROK_HOME: path.join(FIXTURE_ROOT, 'grok-home')
+    }
   })
 }
 
@@ -64,7 +71,55 @@ function deploymentOptions() {
   }
 }
 
-fs.mkdirSync(FIXTURE_ROOT, { recursive: true })
+const multilinePluginConfig = [
+  '[plugins]',
+  'enabled = [',
+  '  "project-owned" # keep-inline-comment',
+  ']',
+  'paths = [',
+  '  # keep-list-comment',
+  '  "C:/existing/plugin",',
+  ']',
+  '',
+  '[ui]',
+  'yolo = false # keep-setting-comment',
+  ''
+].join('\n')
+const multilineMerge = mergeGrokPluginRegistration(
+  multilinePluginConfig,
+  path.join(FIXTURE_ROOT, 'workspace', '.grok', 'plugins', 'devcodex-workspace')
+)
+assert.match(multilineMerge.desired, /"project-owned", # keep-inline-comment/)
+assert.match(multilineMerge.desired, /# keep-list-comment/)
+assert.match(multilineMerge.desired, /yolo = false # keep-setting-comment/)
+assert.match(multilineMerge.desired, /"devcodex-workspace"/)
+assert.match(multilineMerge.desired, /"C:\/existing\/plugin"/)
+assert.doesNotMatch(multilineMerge.desired, /workspace\/\.grok\/plugins\/devcodex-workspace/)
+assert.strictEqual(
+  mergeGrokPluginRegistration(
+    multilineMerge.desired,
+    path.join(FIXTURE_ROOT, 'workspace', '.grok', 'plugins', 'devcodex-workspace')
+  ).changed,
+  false,
+  'multiline Grok plugin config merge must be idempotent'
+)
+const multilineRemoval = removeGrokPluginRegistration(
+  multilineMerge.desired,
+  path.join(FIXTURE_ROOT, 'workspace', '.grok', 'plugins', 'devcodex-workspace')
+)
+assert.doesNotMatch(multilineRemoval.desired, /devcodex-workspace/)
+assert.match(multilineRemoval.desired, /"project-owned", # keep-inline-comment/)
+assert.match(multilineRemoval.desired, /# keep-list-comment/)
+assert.match(multilineRemoval.desired, /yolo = false # keep-setting-comment/)
+assert.throws(
+  () => mergeGrokPluginRegistration(
+    '[plugins]\ndisabled = ["devcodex-workspace"]\n',
+    path.join(FIXTURE_ROOT, 'workspace', '.grok', 'plugins', 'devcodex-workspace')
+  ),
+  /GROK_PLUGIN_DISABLED_BY_USER/,
+  'an explicit user disable must fail closed without being overwritten'
+)
+
 const hostUtils = buildCliHostUtils({
   fs,
   path,
@@ -86,7 +141,7 @@ const sourceSnapshotOptions = {
   ]
 }
 const sourceSnapshot = filesUnder(ROOT, sourceSnapshotOptions)
-const sourceDryRun = run(['init', '--host', 'grok', '--dry-run'], ROOT)
+const sourceDryRun = run(['update', '--host', 'grok', '--dry-run'], ROOT)
 assert.strictEqual(sourceDryRun.status, 0, sourceDryRun.stderr || sourceDryRun.stdout)
 assert.deepStrictEqual(filesUnder(ROOT, sourceSnapshotOptions), sourceSnapshot, 'source-cwd dry run must not write')
 
@@ -124,105 +179,320 @@ for (const relative of [
   'AGENTS.md',
   '.agents/devcodex/instructions.full.md',
   '.agents/skills/host-instruction-projection/SKILL.md',
+  '.agents/skills/repair-prevention-assessment/SKILL.md',
   '.grok/hooks/devcodex.json',
   '.grok/hooks/_runtime/lifecycle-host-adapters.cjs',
   '.devcodex/managed/deployment-manifest.json'
 ]) {
   assert(fs.existsSync(path.join(managedRoot, relative)), `managed install missing ${relative}`)
 }
+assert(
+  !fs.existsSync(path.join(managedRoot, '.agents', 'skills', 'rework-prevention-engineering')),
+  'gray rework effectiveness Skill must not enter the default deployment'
+)
 const managedInspection = hostUtils.inspectHostInstructionSurfaces(managedRoot)
 assert.strictEqual(managedInspection.status, 'ready', JSON.stringify(managedInspection.issues))
 const managedManifest = JSON.parse(fs.readFileSync(
   path.join(managedRoot, '.devcodex', 'managed', 'deployment-manifest.json'),
   'utf8'
 ))
+assert.strictEqual(
+  new Set(managedManifest.entries.map(entry => path.resolve(managedRoot, entry.destination).toLowerCase())).size,
+  managedManifest.entries.length,
+  'managed manifest must have exactly one current owner per physical destination'
+)
 const managedSurfaces = new Set(managedManifest.entries.map(entry => entry.surface))
 for (const surface of ['grok', 'shared-kernel', 'shared-agent-skills', 'full-fallback']) {
   assert(managedSurfaces.has(surface), `managed manifest missing ${surface}`)
 }
 
-// In a workspace namespace, a project-root Grok install stays lightweight and resolves
-// the parent kernel/Skills through one locally discoverable bridge Skill.
+// In a workspace namespace, invoking Grok installation from a child project writes only
+// workspace-owned assets and a user registration. The child remains free of generated
+// host artifacts and its legacy managed claims are retired.
 const bridgeWorkspace = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-grok-workspace-bridge-'))
 const bridgeProject = path.join(bridgeWorkspace, 'project-a')
 fs.mkdirSync(path.join(bridgeWorkspace, '.devcodex'), { recursive: true })
 fs.mkdirSync(bridgeProject, { recursive: true })
+fs.mkdirSync(path.join(bridgeProject, '.git'), { recursive: true })
 fs.writeFileSync(
   path.join(bridgeWorkspace, '.devcodex', 'layout.json'),
   JSON.stringify({ mode: 'workspace-namespace' }, null, 2) + '\n',
   'utf8'
 )
 fs.writeFileSync(path.join(bridgeProject, 'package.json'), '{"name":"project-a"}\n', 'utf8')
+const grokHome = path.join(FIXTURE_ROOT, 'grok-home')
+fs.mkdirSync(grokHome, { recursive: true })
+fs.writeFileSync(
+  path.join(grokHome, 'config.toml'),
+  '[plugins]\nenabled = ["project-owned"]\n\n[ui]\nyolo = false # preserve-me\n',
+  'utf8'
+)
+const legacyBridgeManifest = path.join(bridgeWorkspace, '.devcodex', 'project-a', 'managed', 'deployment-manifest.json')
+fs.mkdirSync(path.dirname(legacyBridgeManifest), { recursive: true })
+fs.writeFileSync(legacyBridgeManifest, JSON.stringify({
+  schemaVersion: 1,
+  package: '@vextjs/devcodex',
+  packageVersion: '1.15.1',
+  targetRoot: bridgeProject,
+  generatedAt: '2026-07-19T00:00:00.000Z',
+  entries: [
+    { source: 'instructions.md', destination: 'AGENTS.md', surface: 'codex', hash: 'legacy-a' },
+    { source: 'host-projections/AGENTS.workspace-bridge.md', destination: 'AGENTS.md', surface: 'grok-workspace-bridge', hash: 'legacy-b' },
+    { source: 'host-projections/AGENTS.md', destination: 'AGENTS.md', surface: 'shared-kernel', hash: 'legacy-c' }
+  ],
+  staleEntries: []
+}, null, 2) + '\n', 'utf8')
 const bridgeInstall = run(['update', '--host', 'grok'], bridgeProject)
 assert.strictEqual(bridgeInstall.status, 0, bridgeInstall.stderr || bridgeInstall.stdout)
 for (const relative of [
   'AGENTS.md',
-  '.grok/skills/devcodex-workspace/SKILL.md',
-  '.grok/mcp/workspace-bridge.cjs',
-  '.grok/config.toml',
-  '.grok/hooks/devcodex.json',
-  '.grok/hooks/_runtime/lifecycle-host-adapters.cjs'
+  '.agents/devcodex/instructions.full.md',
+  '.agents/skills/host-instruction-projection/SKILL.md',
+  '.grok/plugins/devcodex-workspace/.claude-plugin/plugin.json',
+  '.grok/plugins/devcodex-workspace/hooks/devcodex-workspace.cjs',
+  '.grok/plugins/devcodex-workspace/skills/devcodex-workspace/SKILL.md',
+  '.grok/plugins/devcodex-workspace/.mcp.json'
 ]) {
-  assert(fs.existsSync(path.join(bridgeProject, relative)), `workspace bridge install missing ${relative}`)
+  assert(fs.existsSync(path.join(bridgeWorkspace, relative)), `workspace plugin install missing ${relative}`)
 }
-assert.strictEqual(
-  fs.readFileSync(path.join(bridgeProject, 'AGENTS.md'), 'utf8'),
-  fs.readFileSync(path.join(ROOT, 'host-projections', 'AGENTS.workspace-bridge.md'), 'utf8')
-)
-assert(!fs.existsSync(path.join(bridgeProject, '.agents')), 'workspace bridge must not duplicate parent .agents tree')
-const bridgeConfig = fs.readFileSync(path.join(bridgeProject, '.grok', 'config.toml'), 'utf8')
-assert.match(bridgeConfig, /\[mcp_servers\.devcodex-memory\]/)
-assert.match(bridgeConfig, /\[mcp_servers\.devcodex-profile\]/)
+const workspaceChildForbidden = [
+  'AGENTS.md', 'CLAUDE.md', 'GEMINI.md', '.mcp.json',
+  '.github', '.grok', '.agents', '.codex', '.claude', '.gemini'
+]
+for (const relative of workspaceChildForbidden) {
+  assert(!fs.existsSync(path.join(bridgeProject, relative)), `workspace child must not contain generated ${relative}`)
+}
+const bridgeConfig = fs.readFileSync(path.join(grokHome, 'config.toml'), 'utf8')
+assert.match(bridgeConfig, /enabled = \["project-owned", "devcodex-workspace"\]/)
+assert.doesNotMatch(bridgeConfig, /paths\s*=.*devcodex-workspace/)
+assert.match(bridgeConfig, /yolo = false # preserve-me/)
+const childDefaultUpdate = run(['update'], bridgeProject)
+assert.strictEqual(childDefaultUpdate.status, 0, childDefaultUpdate.stderr || childDefaultUpdate.stdout)
+for (const relative of workspaceChildForbidden) {
+  assert(!fs.existsSync(path.join(bridgeProject, relative)), `default child update leaked generated ${relative}`)
+}
+for (const relative of ['.github/copilot-instructions.md', 'CLAUDE.md', '.claude/settings.json', 'AGENTS.md', '.codex/hooks.json']) {
+  assert(fs.existsSync(path.join(bridgeWorkspace, relative)), `default child update missing workspace owner asset ${relative}`)
+}
+const childAllUpdate = run(['update', '--host', 'all'], bridgeProject)
+assert.strictEqual(childAllUpdate.status, 0, childAllUpdate.stderr || childAllUpdate.stdout)
+for (const relative of workspaceChildForbidden) {
+  assert(!fs.existsSync(path.join(bridgeProject, relative)), `all-host child update leaked generated ${relative}`)
+}
+for (const relative of ['GEMINI.md', '.gemini/settings.json', '.grok/plugins/devcodex-workspace/.claude-plugin/plugin.json']) {
+  assert(fs.existsSync(path.join(bridgeWorkspace, relative)), `all-host child update missing workspace owner asset ${relative}`)
+}
+for (const relative of ['.grok/skills', '.grok/mcp', '.grok/workspace-config.toml']) {
+  assert(!fs.existsSync(path.join(bridgeWorkspace, relative)), `workspace owner must not receive retired project bridge asset ${relative}`)
+}
+const allHostManifest = JSON.parse(fs.readFileSync(
+  path.join(bridgeWorkspace, '.devcodex', 'workspace', 'managed', 'deployment-manifest.json'),
+  'utf8'
+))
+assert(allHostManifest.entries.some(entry => entry.surface === 'grok-workspace-plugin'))
+assert(!allHostManifest.entries.some(entry => entry.surface === 'grok'), 'workspace all-host update must retire legacy project-local Grok claims')
+assert(!allHostManifest.entries.some(entry => entry.destination.startsWith('.grok/hooks/')), 'workspace all-host manifest must not retain legacy Grok hook destinations')
+const childStatus = run(['status', '--json'], bridgeProject)
+assert.strictEqual(childStatus.status, 0, childStatus.stderr || childStatus.stdout)
+const childStatusFacts = JSON.parse(childStatus.stdout).payload
+assert.strictEqual(path.resolve(childStatusFacts.hostRoot), path.resolve(bridgeWorkspace))
+for (const field of ['copilotInstructionsInstalled', 'claudeMdInstalled', 'agentsMdInstalled', 'geminiMdInstalled', 'grokWorkspacePluginInstalled']) {
+  assert.strictEqual(childStatusFacts.entryFiles[field], true, `child status must inspect workspace owner field ${field}`)
+}
+const childDoctor = run(['doctor', '--json'], bridgeProject)
+assert.strictEqual(childDoctor.status, 0, childDoctor.stderr || childDoctor.stdout)
+const childDoctorFacts = JSON.parse(childDoctor.stdout).payload
+assert.strictEqual(path.resolve(childDoctorFacts.hostRoot), path.resolve(bridgeWorkspace))
+for (const field of ['hasCopilotMd', 'hasClaudeMd', 'hasAgentsMd', 'hasGeminiMd', 'hasGrokWorkspacePlugin', 'hasGrokPluginRegistration']) {
+  assert.strictEqual(childDoctorFacts.installArtifacts[field], true, `child doctor must inspect workspace owner field ${field}`)
+}
+for (const args of [['update', '--host', 'gemini'], ['update', '--claude']]) {
+  const scopedUpdate = run(args, bridgeProject)
+  assert.strictEqual(scopedUpdate.status, 0, scopedUpdate.stderr || scopedUpdate.stdout)
+  for (const relative of workspaceChildForbidden) {
+    assert(!fs.existsSync(path.join(bridgeProject, relative)), `${args.join(' ')} leaked generated ${relative}`)
+  }
+}
 const bridgeInspection = hostUtils.inspectHostInstructionSurfaces(bridgeProject)
 assert.strictEqual(bridgeInspection.status, 'ready', JSON.stringify(bridgeInspection.issues))
-assert.strictEqual(bridgeInspection.entries.find(item => item.surface === 'shared').workspaceBridge, true)
+assert.strictEqual(path.resolve(bridgeInspection.inspectionRoot), path.resolve(bridgeWorkspace))
+assert.strictEqual(bridgeInspection.grokPlugin.installed, true)
+assert.strictEqual(bridgeInspection.grokPlugin.registrationCurrent, true)
 const bridgeManifest = JSON.parse(fs.readFileSync(
-  path.join(bridgeWorkspace, '.devcodex', 'project-a', 'managed', 'deployment-manifest.json'),
+  path.join(bridgeWorkspace, '.devcodex', 'workspace', 'managed', 'deployment-manifest.json'),
   'utf8'
 ))
 const bridgeSurfaces = new Set(bridgeManifest.entries.map(entry => entry.surface))
-for (const surface of ['grok', 'grok-workspace-bridge']) {
-  assert(bridgeSurfaces.has(surface), `workspace bridge manifest missing ${surface}`)
+for (const surface of ['grok-workspace-plugin', 'shared-kernel', 'shared-agent-skills', 'full-fallback']) {
+  assert(bridgeSurfaces.has(surface), `workspace plugin manifest missing ${surface}`)
 }
-for (const surface of ['shared-kernel', 'shared-agent-skills', 'full-fallback']) {
-  assert(!bridgeSurfaces.has(surface), `workspace bridge manifest must not duplicate ${surface}`)
-}
-const bridgeRepeat = run(['init', '--host', 'grok', '--dry-run'], bridgeProject)
+const retiredProjectManifest = JSON.parse(fs.readFileSync(legacyBridgeManifest, 'utf8'))
+assert.strictEqual(retiredProjectManifest.entries.length, 0, 'workspace child must have zero current host manifest entries')
+const fixtureRegistry = JSON.parse(fs.readFileSync(path.join(grokHome, 'installed-plugins', 'registry.json'), 'utf8'))
+const fixtureInstalledPlugin = Object.values(fixtureRegistry.repos).find(entry =>
+  entry?.kind?.type === 'Local' && path.resolve(entry.kind.source_path) === path.resolve(bridgeWorkspace, '.grok', 'plugins', 'devcodex-workspace')
+)
+assert(fixtureInstalledPlugin?.path, 'fixture Grok installed plugin registry entry missing')
+fs.appendFileSync(path.join(fixtureInstalledPlugin.path, 'hooks', 'devcodex-workspace.cjs'), '\n// stale-installed-copy-fixture\n', 'utf8')
+const stalePluginInspection = hostUtils.inspectHostInstructionSurfaces(bridgeProject)
+assert.strictEqual(stalePluginInspection.grokPlugin.installed, false)
+assert(stalePluginInspection.issues.some(item => item.code === 'HOST_GROK_PLUGIN_INSTALLATION_STALE'))
+const bridgeRepeat = run(['update', '--host', 'grok'], bridgeProject)
 assert.strictEqual(bridgeRepeat.status, 0, bridgeRepeat.stderr || bridgeRepeat.stdout)
+const configAfterRepeat = fs.readFileSync(path.join(grokHome, 'config.toml'), 'utf8')
+assert.strictEqual(configAfterRepeat, bridgeConfig, 'repeat workspace install must preserve user config byte-for-byte')
+const uninstallDryRun = run(['uninstall', '--host', 'grok', '--dry-run'], bridgeProject)
+assert.strictEqual(uninstallDryRun.status, 0, uninstallDryRun.stderr || uninstallDryRun.stdout)
+assert.strictEqual(fs.readFileSync(path.join(grokHome, 'config.toml'), 'utf8'), bridgeConfig)
+const bridgeUninstall = run(['uninstall', '--host', 'grok'], bridgeProject)
+assert.strictEqual(bridgeUninstall.status, 0, bridgeUninstall.stderr || bridgeUninstall.stdout)
+const configAfterUninstall = fs.readFileSync(path.join(grokHome, 'config.toml'), 'utf8')
+assert.match(configAfterUninstall, /enabled = \["project-owned"\]/)
+assert.match(configAfterUninstall, /yolo = false # preserve-me/)
+assert.doesNotMatch(configAfterUninstall, /devcodex-workspace/)
+const registryAfterUninstall = JSON.parse(fs.readFileSync(path.join(grokHome, 'installed-plugins', 'registry.json'), 'utf8'))
+assert(!Object.values(registryAfterUninstall.repos || {}).some(entry =>
+  entry?.kind?.source_path && path.resolve(entry.kind.source_path) === path.resolve(bridgeWorkspace, '.grok', 'plugins', 'devcodex-workspace')
+))
+assert(fs.existsSync(path.join(bridgeWorkspace, '.grok', 'plugins', 'devcodex-workspace')), 'uninstall must retain workspace source')
+const inspectionAfterUninstall = hostUtils.inspectHostInstructionSurfaces(bridgeProject)
+assert.strictEqual(inspectionAfterUninstall.grokPlugin.sourcePresent, true)
+assert.strictEqual(inspectionAfterUninstall.grokPlugin.installed, false)
+assert(inspectionAfterUninstall.issues.some(item => item.code === 'HOST_GROK_PLUGIN_INSTALLATION_MISSING'))
+assert(!hostUtils.detectInstalledHostAssets(bridgeProject).includes('grok'))
+const bridgeUninstallRepeat = run(['uninstall', '--host', 'grok'], bridgeProject)
+assert.strictEqual(bridgeUninstallRepeat.status, 0, bridgeUninstallRepeat.stderr || bridgeUninstallRepeat.stdout)
+assert.strictEqual(fs.readFileSync(path.join(grokHome, 'config.toml'), 'utf8'), configAfterUninstall)
+const bridgeReinstall = run(['update', '--host', 'grok'], bridgeProject)
+assert.strictEqual(bridgeReinstall.status, 0, bridgeReinstall.stderr || bridgeReinstall.stdout)
+assert.strictEqual(fs.readFileSync(path.join(grokHome, 'config.toml'), 'utf8'), bridgeConfig)
+const inspectionAfterReinstall = hostUtils.inspectHostInstructionSurfaces(bridgeProject)
+assert.strictEqual(inspectionAfterReinstall.status, 'ready', JSON.stringify(inspectionAfterReinstall.issues))
+assert.strictEqual(inspectionAfterReinstall.grokPlugin.installation.current, true)
+assert(hostUtils.detectInstalledHostAssets(bridgeProject).includes('grok'))
+const unsupportedUninstall = run(['uninstall', '--host', 'codex', '--dry-run'], bridgeProject)
+assert.strictEqual(unsupportedUninstall.status, 2)
+assert.match(unsupportedUninstall.stdout, /CLI_HOST_UNINSTALL_UNSUPPORTED/)
+const portableUninstall = run(['uninstall', '--host', 'grok', '--project-portable', '--dry-run'], bridgeProject)
+assert.strictEqual(portableUninstall.status, 2)
+assert.match(portableUninstall.stdout, /CLI_HOST_UNINSTALL_SCOPE_UNSUPPORTED/)
+const portableAll = run(['update', '--host', 'all', '--project-portable', '--dry-run'], bridgeProject)
+assert.strictEqual(portableAll.status, 2)
+assert.match(portableAll.stdout, /CLI_HOST_SCOPE_CONFLICT/)
 
-const mergeWorkspace = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-grok-config-merge-'))
-const mergeProject = path.join(mergeWorkspace, 'project-b')
-fs.mkdirSync(path.join(mergeWorkspace, '.devcodex'), { recursive: true })
-fs.mkdirSync(path.join(mergeProject, '.grok'), { recursive: true })
-fs.writeFileSync(path.join(mergeWorkspace, '.devcodex', 'layout.json'), '{"mode":"workspace-namespace"}\n', 'utf8')
-fs.writeFileSync(path.join(mergeProject, 'package.json'), '{"name":"project-b"}\n', 'utf8')
-fs.writeFileSync(path.join(mergeProject, '.grok', 'config.toml'), '[plugins]\nenabled = ["project-owned"]\n', 'utf8')
-const mergeInstall = run(['update', '--host', 'grok'], mergeProject)
-assert.strictEqual(mergeInstall.status, 0, mergeInstall.stderr || mergeInstall.stdout)
-const mergedConfig = fs.readFileSync(path.join(mergeProject, '.grok', 'config.toml'), 'utf8')
-assert.match(mergedConfig, /\[plugins\]\nenabled = \["project-owned"\]/)
-assert.match(mergedConfig, /\[mcp_servers\.devcodex-memory\]/)
-assert.match(mergedConfig, /\[mcp_servers\.devcodex-profile\]/)
+const portableProject = path.join(bridgeWorkspace, 'portable-project')
+fs.mkdirSync(path.join(portableProject, '.git'), { recursive: true })
+fs.writeFileSync(path.join(portableProject, 'package.json'), '{"name":"portable-project"}\n', 'utf8')
+const portableInstall = run(['update', '--host', 'grok', '--project-portable'], portableProject)
+assert.strictEqual(portableInstall.status, 0, portableInstall.stderr || portableInstall.stdout)
+for (const relative of ['AGENTS.md', '.agents/devcodex/instructions.full.md', '.grok/hooks/devcodex.json']) {
+  assert(fs.existsSync(path.join(portableProject, relative)), `explicit portable Grok install missing ${relative}`)
+}
+assert(!fs.existsSync(path.join(portableProject, '.grok/plugins/devcodex-workspace')), 'portable mode must not copy the workspace plugin')
+
+const projectLaunchPlan = buildGrokLaunchPlan(['--rules', 'project-extra-rule', '-p', 'check'], { cwd: bridgeProject })
+assert.strictEqual(projectLaunchPlan.kernelRequired, true)
+assert.strictEqual(projectLaunchPlan.evidenceMode, 'launcher-rules')
+assert.strictEqual(projectLaunchPlan.args[0], '--rules')
+assert.match(projectLaunchPlan.args[1], /DevCodex controlling workspace kernel follows/)
+assert.match(projectLaunchPlan.args[1], /project-extra-rule/)
+assert.deepStrictEqual(projectLaunchPlan.args.slice(2), ['-p', 'check'])
+const redirectedLaunchPlan = buildGrokLaunchPlan(['--cwd', bridgeProject, '-p', 'check'], { cwd: bridgeWorkspace })
+assert.strictEqual(path.resolve(redirectedLaunchPlan.cwd), path.resolve(bridgeProject))
+assert.strictEqual(redirectedLaunchPlan.kernelRequired, true, 'official --cwd must participate in scope/kernel resolution')
+assert(!redirectedLaunchPlan.args.includes('--cwd'), 'resolved --cwd must not be forwarded a second time')
+const rootLaunchPlan = buildGrokLaunchPlan([], { cwd: bridgeWorkspace })
+assert.strictEqual(rootLaunchPlan.kernelRequired, false)
+assert.strictEqual(rootLaunchPlan.evidenceMode, 'plain-native')
+assert.throws(
+  () => buildGrokLaunchPlan(['--system-prompt-override', 'unsafe'], { cwd: bridgeProject }),
+  /GROK_LAUNCHER_SYSTEM_OVERRIDE_CONFLICT/
+)
+assert.throws(
+  () => buildGrokLaunchPlan(['--system-prompt=unsafe'], { cwd: bridgeProject }),
+  /GROK_LAUNCHER_SYSTEM_OVERRIDE_CONFLICT/
+)
+assert.throws(
+  () => buildGrokLaunchPlan(['--cwd', bridgeProject, '--cwd=other'], { cwd: bridgeWorkspace }),
+  /GROK_LAUNCHER_CWD_CONFLICT/
+)
+
+const deployedHook = require(path.join(bridgeWorkspace, '.grok', 'plugins', 'devcodex-workspace', 'hooks', 'devcodex-workspace.cjs'))
+const activeHook = deployedHook.runWorkspaceBridge(
+  { hookEventName: 'UserPromptSubmit', cwd: bridgeProject },
+  { cwd: bridgeProject, pluginRoot: path.join(bridgeWorkspace, '.grok', 'plugins', 'devcodex-workspace') }
+)
+assert.strictEqual(activeHook.status, 0)
+assert.strictEqual(activeHook.kernelInjected, false)
+assert.strictEqual(activeHook.evidenceMode, 'passive-hook-no-context-injection')
+assert.doesNotMatch(activeHook.output.systemMessage || '', /DevCodex controlling workspace kernel follows/)
+if (process.platform === 'win32') {
+  const caseVariantHook = deployedHook.runWorkspaceBridge(
+    { hookEventName: 'UserPromptSubmit', cwd: bridgeProject.toLowerCase() },
+    { cwd: bridgeProject.toLowerCase(), pluginRoot: path.join(bridgeWorkspace, '.grok', 'plugins', 'devcodex-workspace').toLowerCase() }
+  )
+  assert.strictEqual(caseVariantHook.reason, 'workspace-active', 'Windows path casing must not split one workspace identity')
+}
+const workspaceRootHook = deployedHook.runWorkspaceBridge(
+  { hookEventName: 'UserPromptSubmit', cwd: bridgeWorkspace },
+  { cwd: bridgeWorkspace, pluginRoot: path.join(bridgeWorkspace, '.grok', 'plugins', 'devcodex-workspace') }
+)
+assert.strictEqual(workspaceRootHook.status, 0)
+assert.strictEqual(workspaceRootHook.kernelInjected, false)
+assert.strictEqual(workspaceRootHook.evidenceMode, 'passive-hook-no-context-injection')
+assert.doesNotMatch(workspaceRootHook.output.systemMessage || '', /DevCodex controlling workspace kernel follows/)
+const outsideHook = deployedHook.runWorkspaceBridge(
+  { hookEventName: 'UserPromptSubmit', cwd: FIXTURE_ROOT },
+  { cwd: FIXTURE_ROOT, pluginRoot: path.join(bridgeWorkspace, '.grok', 'plugins', 'devcodex-workspace') }
+)
+assert.strictEqual(outsideHook.reason, 'outside-managed-workspace')
+assert.deepStrictEqual(outsideHook.output, { continue: true })
+const nestedWorkspace = path.join(bridgeProject, 'nested workspace')
+fs.mkdirSync(path.join(nestedWorkspace, '.devcodex'), { recursive: true })
+fs.mkdirSync(path.join(nestedWorkspace, '.git'), { recursive: true })
+fs.writeFileSync(
+  path.join(nestedWorkspace, '.devcodex', 'layout.json'),
+  JSON.stringify({ mode: 'workspace-namespace' }, null, 2) + '\n',
+  'utf8'
+)
+const nestedWorkspaceHook = deployedHook.runWorkspaceBridge(
+  { hookEventName: 'UserPromptSubmit', cwd: nestedWorkspace },
+  { cwd: nestedWorkspace, pluginRoot: path.join(bridgeWorkspace, '.grok', 'plugins', 'devcodex-workspace') }
+)
+assert.strictEqual(nestedWorkspaceHook.reason, 'outside-managed-workspace', 'a plugin must not cross into a nearer workspace owner')
+assert.deepStrictEqual(nestedWorkspaceHook.output, { continue: true })
+assert.throws(
+  () => buildGrokLaunchPlan([], { cwd: nestedWorkspace }),
+  /GROK_LAUNCHER_KERNEL_MISSING/,
+  'a nested workspace with spaces and no kernel must fail closed instead of borrowing its parent kernel'
+)
 
 // The legacy default remains the three original hosts; explicit all adds Gemini and Grok.
 const defaults = buildDeploymentDescriptors(ROOT, ['copilot', 'claude', 'codex'], deploymentOptions())
 const all = buildDeploymentDescriptors(ROOT, ['all'], deploymentOptions())
-const bridgeDescriptors = buildDeploymentDescriptors(ROOT, ['grok'], {
+const workspaceDescriptors = buildDeploymentDescriptors(ROOT, ['grok'], {
   ...deploymentOptions(),
-  grokWorkspaceBridge: true
+  grokWorkspaceScope: true
+})
+const workspaceAllDescriptors = buildDeploymentDescriptors(ROOT, ['all'], {
+  ...deploymentOptions(),
+  grokWorkspaceScope: true
 })
 const defaultSurfaces = new Set(defaults.map(item => item.surface))
 const allSurfaces = new Set(all.map(item => item.surface))
-const bridgeDescriptorSurfaces = new Set(bridgeDescriptors.map(item => item.surface))
+const workspaceDescriptorSurfaces = new Set(workspaceDescriptors.map(item => item.surface))
+const workspaceAllDescriptorSurfaces = new Set(workspaceAllDescriptors.map(item => item.surface))
 assert(!defaultSurfaces.has('gemini'))
 assert(!defaultSurfaces.has('grok'))
 for (const surface of ['copilot', 'claude', 'codex', 'shared-kernel', 'full-fallback']) {
   assert(defaultSurfaces.has(surface), `default descriptor missing ${surface}`)
 }
 for (const surface of ['gemini', 'grok']) assert(allSurfaces.has(surface), `all descriptor missing ${surface}`)
-assert(bridgeDescriptorSurfaces.has('grok-workspace-bridge'))
+assert(workspaceDescriptorSurfaces.has('grok-workspace-plugin'))
+assert(workspaceAllDescriptorSurfaces.has('grok-workspace-plugin'))
+assert(!workspaceAllDescriptorSurfaces.has('grok'))
 for (const surface of ['shared-kernel', 'shared-agent-skills', 'full-fallback']) {
-  assert(!bridgeDescriptorSurfaces.has(surface), `bridge descriptor must omit ${surface}`)
+  assert(workspaceDescriptorSurfaces.has(surface), `workspace descriptor must include ${surface}`)
 }
 
-console.log('host installation tests passed selectors=5 dryRunWrites=0 collision=blocked managedManifest=verified workspaceBridge=verified defaultHosts=3')
+console.log('host installation tests passed selectors=5 dryRunWrites=0 collision=blocked managedManifest=verified workspacePlugin=verified uninstall=verified zeroProjectArtifacts=verified defaultHosts=3')

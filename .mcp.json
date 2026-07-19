@@ -4,19 +4,19 @@
       "type": "stdio",
       "command": "node",
       "args": [
-        ".claude/mcp/memory-server.js",
+        "mcp/memory-server.js",
         "."
       ],
-      "_note": "Reads/writes .devcodex/.memory/ session files and records CP confirmations."
+      "_note": "Package-local development manifest; installed Claude projects receive .claude/mcp paths from the CLI."
     },
     "devcodex-profile": {
       "type": "stdio",
       "command": "node",
       "args": [
-        ".claude/mcp/profile-server.js",
+        "mcp/profile-server.js",
         "."
       ],
-      "_note": "Loads .devcodex/profile/ files and returns ENV_MODE / agent config."
+      "_note": "Package-local development manifest; installed Claude projects receive .claude/mcp paths from the CLI."
     }
   }
 }

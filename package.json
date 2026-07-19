@@ -173,6 +173,8 @@
     "scripts/lib/deployment-manifest-utils.js",
     "scripts/lib/host-instruction-projection.js",
     "scripts/lib/host-surface-descriptors.js",
+    "scripts/lib/host-adapter-scope.js",
+    "scripts/lib/grok-workspace-launcher.js",
     "scripts/lib/cli-host-utils.js",
     "scripts/lib/cli-runtime-utils.js",
     "scripts/lib/profile-bootstrap-utils.js",

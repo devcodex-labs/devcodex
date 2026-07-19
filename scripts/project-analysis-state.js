@@ -7,6 +7,7 @@ const {
   ProjectKnowledgeError,
   acceptKnowledgeBatch,
   bootstrapProjectKnowledge,
+  buildImpactGraphFromInventory,
   buildIncrementalAnalysisPlan,
   buildRepoIdentity,
   persistAcceptedKnowledge,
@@ -123,6 +124,7 @@ function main(argv = process.argv.slice(2)) {
   try {
     const inventory = scanProjectInventory(options.repoRoot, { maxFiles: options.maxFiles, maxBytes: options.maxBytes })
     const repoIdentity = buildRepoIdentity(options.repoRoot, inventory)
+    const currentGraph = buildImpactGraphFromInventory(inventory)
     const featureDecision = resolveExecutionFeatureDecisionForCwd({
       cwd: options.repoRoot,
       activeRoot: options.activeRoot,
@@ -147,6 +149,10 @@ function main(argv = process.argv.slice(2)) {
         records: (acceptedSnapshot || snapshotReceipt.value)?.records?.length || 0,
         tombstones: (acceptedSnapshot || snapshotReceipt.value)?.tombstones?.length || 0,
         pendingPlanId: acceptedSnapshot?.pendingPlan?.planId || null,
+        graphEdges: currentGraph.edges.length,
+        graphCoverage: currentGraph.coverage,
+        graphDynamicDependencyUnknown: currentGraph.dynamicDependencyUnknown,
+        graphIdentity: currentGraph.graphIdentity,
         inventoryIdentity: inventory.inventoryIdentity,
         inventoryMerkleRoot: inventory.merkleRoot,
         migrationRequired: snapshotReceipt.migrationRequired === true,
@@ -166,7 +172,7 @@ function main(argv = process.argv.slice(2)) {
         snapshot,
         inventory,
         repoIdentity,
-        graph: snapshot?.impactGraph || {},
+        graph: currentGraph,
         lens: {
           lensId: options.lensId,
           version: options.lensVersion,
@@ -193,7 +199,7 @@ function main(argv = process.argv.slice(2)) {
         inventory,
         repoIdentity,
         plan,
-        graph: snapshot?.impactGraph || {}
+        graph: currentGraph
       })
       if (options.action === 'observe') {
         const data = { plan: planWithDecision, observation: bootstrap.observation, sampleOracle: bootstrap.sampleOracle, writeCount: 0 }
@@ -242,7 +248,7 @@ function main(argv = process.argv.slice(2)) {
       candidateRecords: input.candidateRecords,
       validationResult: input.validationResult,
       sampleOracle,
-      graph: input.graph || snapshot?.impactGraph || {},
+      graph: currentGraph,
       findings: input.findings
     })
     if (accepted.receipt.status !== 'accepted') {

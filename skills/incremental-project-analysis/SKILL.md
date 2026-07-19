@@ -63,6 +63,8 @@ V1 只读兼容：`v1/<repoId>/snapshot.json` 仅用于返回 `compatibility-v1 
 5. `ProjectKnowledgeBindingV1` 的 repo/root、配置、解析器、测试路线或 Profile 身份错配时强制 full-required；inventory 内容差异走 delta/impact，不因正常小变化误判为环境错配。
 6. **禁止**仅保存 Markdown 自然语言总结当作可复用知识。
 
+生产 CLI 必须从当前 bounded inventory 的真实字节构建 `ImpactGraphV1`：首期至少解析 JS/TS 静态相对 `require/import/export/dynamic import literal` 与 Markdown 本地链接，记录 typed edge、source、evidenceStrength、覆盖率、未解析引用和 `unknownConsumerPaths`。图必须带 `builderVersion`；旧/未知 builder 首次迁移 full-required，之后普通图拓扑变化使用当前图重新计算影响闭包，不得仅因 graph identity 改变就无条件全文重读。
+
 ### SemanticClaimBoundaryGate
 
 1. 每条可复用声明必须是 `SemanticClaimV1`，至少包含 `type / statement / authority / sourceRange / rangeIdentity / sourceContentDigest / lensId / policyVersion / dependsOn / claimDigest / status`。
@@ -75,9 +77,9 @@ V1 只读兼容：`v1/<repoId>/snapshot.json` 仅用于返回 `compatibility-v1 
 1. 变化集优先 `git diff --name-status`，并用当前 digest 覆盖未提交/未跟踪/rename。
 2. 直接变化扩展到依赖、消费者、公共契约、配置、生成链、测试与文档闭包。
 3. 状态：`fresh / stale / coverage-gap / incompatible / full-required`。
-4. 强制升级：快照损坏、base 不可达、schema 不兼容、动态依赖未知、高风险变更、闭包过大、抽样复证失败。
+4. 强制升级：快照损坏、base 不可达、schema/builder 不兼容、高风险变更、闭包过大、抽样复证失败；动态依赖消费者自身发生变化时 full-required，其他文件变化时必须把全部 unknown consumer 注入 affected closure 并显式重读，禁止静默复用。
 
-`mtime/size` 只能做候选加速；fresh 必须由 current bytes content identity 证明。rename 必须同时写旧 path tombstone 与新 path identity，delete 写 tombstone；配置变化保守扩到受影响全域。ImpactGraph 每条边必须含 type/source/evidenceStrength，图覆盖不足时不得声称 selective complete。
+`mtime/size` 只能做候选加速；fresh 必须由 current bytes content identity 证明。rename 必须同时写旧 path tombstone 与新 path identity，delete 写 tombstone；配置变化保守扩到受影响全域。ImpactGraph 每条边必须含 type/source/evidenceStrength，图覆盖不足时不得声称 selective complete；`unknownConsumerPaths` 与 builder/stats 必须进入 graph identity。graph identity 变化会使未完成旧 plan 失效，但只在 builder 迁移或其他升级条件命中时触发全文；正常拓扑变化应以新图计算 changed/impact closure。
 
 ### AdaptiveBatchDeliveryGate（ABS-02）
 

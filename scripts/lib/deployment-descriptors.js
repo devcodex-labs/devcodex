@@ -14,12 +14,13 @@ function buildDeploymentDescriptors(packageRoot, surfaces, {
   CLAUDE_SOURCES,
   CODEX_SOURCES,
   tenantId = null,
-  grokWorkspaceBridge = false
+  grokWorkspaceBridge = false,
+  grokWorkspaceScope = false
 } = {}) {
   const selected = new Set(normalizeHostList(surfaces))
   const descriptors = []
   const skillFilter = createSkillDeployFileFilter(packageRoot)
-  const descriptor = (surface, source, destination, role = null) => {
+  const descriptor = (surface, source, destination, role = null, replacesSurfaces = null) => {
     const filters = []
     if (source === 'instructions') {
       filters.push(relative => shouldIncludeInstructionFile(relative, tenantId))
@@ -30,6 +31,7 @@ function buildDeploymentDescriptors(packageRoot, surfaces, {
       source,
       destination,
       ...(role ? { role } : {}),
+      ...(Array.isArray(replacesSurfaces) && replacesSurfaces.length ? { replacesSurfaces } : {}),
       ...(filters.length ? { fileFilter: relative => filters.every(fn => fn(relative)) } : {})
     }
   }
@@ -45,8 +47,8 @@ function buildDeploymentDescriptors(packageRoot, surfaces, {
       .filter(item => item.from !== 'skills')
       .map(item => descriptor('codex', item.from, item.to)))
   }
-  for (const item of projectionDescriptors([...selected], { grokWorkspaceBridge })) {
-    descriptors.push(descriptor(item.surface, item.source, item.destination, item.role))
+  for (const item of projectionDescriptors([...selected], { grokWorkspaceBridge, grokWorkspaceScope })) {
+    descriptors.push(descriptor(item.surface, item.source, item.destination, item.role, item.replacesSurfaces))
   }
   return descriptors
 }

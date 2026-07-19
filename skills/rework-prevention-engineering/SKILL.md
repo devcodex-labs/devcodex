@@ -56,16 +56,18 @@ description: 返工预防工程 Owner — 当任务涉及返工率、一次通�
 
 完整模式必须产出：`ReworkEventLedger`、`EscapePatternCluster`、`PreventionControlSet`、`EffectivenessScorecard` 和 rollback/sunset 条件。
 
-## RepairPreventionAssessmentGate
+## 与 active RepairPreventionAssessmentGate 的关系
 
-任何 repair task——无论最终路由为 fix、dev 中的修复切片、self-fix、审查 finding 修复还是发布阻断修复——在 `accepted` 前都必须形成 `RepairPreventionAssessmentV1`。机器结构以 [`repair-prevention-assessment.schema.json`](repair-prevention-assessment.schema.json) 为准，确定性判定以 `scripts/lib/repair-prevention-assessment.js` 为准；其他 Skill、Prompt、报告和清单只引用 Owner，不复制字段定义。
+所有 repair task 在 `accepted` 前先执行 active [`repair-prevention-assessment`](../repair-prevention-assessment/SKILL.md) 的 `RepairPreventionAssessmentGate`。机器结构以 active Owner 的 [`repair-prevention-assessment.schema.json`](../repair-prevention-assessment/repair-prevention-assessment.schema.json) 为准，确定性判定仍由 `scripts/lib/repair-prevention-assessment.js` 承担。本 gray Skill 只消费 assessment 结果来建立返工簇和前瞻效果试验；不得成为 active workflow 的 mandatory dependency。本目录的同名 schema 仅作既有包路径兼容镜像，必须与 canonical schema 字节一致。
 
 本 Gate 同时给出两个互不替代的结论：
 
 - `immediateClosureEvidence` 只证明当前问题已修复，可允许当前 repair 关闭；
 - `prospectiveEvidencePlan` 只证明长期控制的试验/效果状态。当前事件重跑通过一律是 `retrospective-only`，不得把 provisional control 晋级为 active/effective。
 
-### 决策与升级
+### 决策与升级摘要
+
+以下为 gray 效果工程消费 assessment 时需要的生命周期摘要；字段真相与阻断语义以 active Owner 为准。
 
 | `preventionDecision` | 使用条件 | 生命周期 |
 |---|---|---|
@@ -111,7 +113,7 @@ sidecar 晋级至少需要 5 个可比较长任务 WorkUnit，包含 2 个真实
 - `brand-visual-quality`：提供品牌资产 WorkUnit、`VisualBlockerResetRecord`、复发和人工修正数据；当前资产修复通过只关闭该 WorkUnit，仍需后续可比较样本才能证明返工预防有效。
 - `ai-agent-system-architecture` / `host-contract-verification`：提供 Turn Liveness 状态、能力边界和 direct replay；返工 Skill 只拥有前瞻效果评估，不复制运行时状态机。
 - `report`：输出 baseline、事件分类、效果和剩余风险。
-- `execution-contract` / `fix-default` / `fix-security`：所有 repair 的 accepted 前入口；只引用本 Gate 的 assessment result。
+- `execution-contract` / `fix-default` / `fix-security`：所有 repair 的 accepted 前入口；只引用 active `repair-prevention-assessment` Owner 的 assessment result，本 gray Gate 不拥有完成判定。
 - `review-checklist` / `test-router`：分别核对 assessment 完整性和 immediate/prospective 两条证据路线，不重定义生命周期阈值。
 
 ## 反模式

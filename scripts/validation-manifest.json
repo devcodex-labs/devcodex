@@ -630,7 +630,9 @@
         "analysis-environment-binding",
         "accepted-only-persistence",
         "legacy-v1-read-only",
-        "deterministic-observe-bootstrap"
+        "deterministic-observe-bootstrap",
+        "production-impact-graph",
+        "graph-builder-migration"
       ],
       "riskClass": "high",
       "cachePolicy": "never",
@@ -710,7 +712,8 @@
       ],
       "consumers": [],
       "invariants": [
-        "contract"
+        "contract",
+        "normalized-destination-single-owner"
       ],
       "riskClass": "normal",
       "cachePolicy": "never",
@@ -2390,7 +2393,7 @@
     {
       "schemaVersion": "ValidationNodeV1",
       "id": "repair-prevention-assessment",
-      "owner": "rework-prevention-engineering",
+      "owner": "repair-prevention-assessment",
       "command": "node",
       "args": [
         "scripts/test-repair-prevention-assessment.js"
@@ -2399,6 +2402,8 @@
       "inputs": [
         "instructions.md",
         "instructions/11-fix.instructions.md",
+        "skills/repair-prevention-assessment/SKILL.md",
+        "skills/repair-prevention-assessment/repair-prevention-assessment.schema.json",
         "skills/rework-prevention-engineering/SKILL.md",
         "skills/rework-prevention-engineering/repair-prevention-assessment.schema.json",
         "skills/fix-default/SKILL.md",
@@ -2725,8 +2730,11 @@
         "grok/**",
         "hooks/_runtime/**",
         "scripts/lib/cli-*.js",
+        "scripts/lib/deployment-manifest-utils.js",
         "scripts/lib/deployment-descriptors.js",
         "scripts/lib/host-surface-descriptors.js",
+        "scripts/lib/host-adapter-scope.js",
+        "scripts/lib/grok-workspace-launcher.js",
         "scripts/test-host-installation.js"
       ],
       "consumers": [],
@@ -2734,6 +2742,11 @@
         "default-host-compatibility",
         "dry-run-zero-write",
         "entry-collision",
+        "normalized-destination-single-owner",
+        "workspace-plugin-scope",
+        "plain-vs-launcher-evidence",
+        "status-doctor-scope-parity",
+        "launcher-effective-cwd",
         "two-cwd"
       ],
       "riskClass": "normal",

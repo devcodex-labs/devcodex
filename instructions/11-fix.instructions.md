@@ -47,7 +47,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → 
 - **backlog 来源前置真相复核**：若本轮 bug、批次或修复范围直接来源于 `data/*.md` 的 open/partial 项，CP1 前必须先把候选项分类为 `pure-open` / `residual-tail` / `already-fixed` / `misclassified`；非 `pure-open` 项须先回写状态并修正范围口径，再进入修复。
 - **执行期 CP3 回退**：若执行过程中实际修改范围扩展到 CP3 门槛（文件数从 <5 增至 ≥5，或新增高风险/控制面联动），必须暂停执行，补做 CP3 后再继续。
 - **execution-contract/test-router**：≥5 文件、高风险、控制面或多批次修复时执行，明确允许路径、必需产物和验证路线
-- **RepairPreventionAssessmentGate**：所有 repair task 在 accepted 前执行 `rework-prevention-engineering` 的 `RepairPreventionAssessmentV1`；current repair closure 与 prospective prevention evidence 必须分列，repeat escape/high risk 升 full，`no-new-control` 必须有标准 reason/evidence
+- **RepairPreventionAssessmentGate**：所有 repair task 在 accepted 前执行 active `repair-prevention-assessment` 的 `RepairPreventionAssessmentV1`；current repair closure 与 prospective prevention evidence 必须分列，repeat escape/high risk 升 full，`no-new-control` 必须有标准 reason/evidence；gray `rework-prevention-engineering` 仅在返工指标或长期效果语义下额外触发
 - **Intent Expansion 可见性**：dev 模式下，CP1 / 问题确认前默认向用户展示完整 Intent Expansion Card；这会覆盖旧的“意图扩展摘要”默认行为，但当命中控制面或宿主能力差异、跨会话 resume、prod、instruction-fallback 宿主或低风险轻任务时，仍允许退化为 3~5 行意图扩展摘要。
 - **OfficialDocsEvidence**：依赖升级、框架/SDK/API 修复、平台行为变更或外部模块替换时，CP2 前必须读取官方使用文档/官方参考资料；缺失证据不得进入执行。
 - **ProfileImpactCheck**：修复改变技术栈、目录边界、脚本、测试/发布路线、分发面、配置项、长期连接或本地 overlay schema 时，必须同步 Profile 或记录 `skipReason`。

@@ -9,12 +9,17 @@ WorkspaceDataAbsorptionScopeGate · DocsSiteVisualAcceptanceGate · OmissionOnly
 
 ## 当前未发布变更
 
-### Grok workspace 子项目意图驱动桥接（2026-07-19）
+### Grok workspace 插件与宿主作用域纠偏（2026-07-20）
 
-- `workspace-namespace` 的项目根执行 `--host grok` 时自动部署轻量 `AGENTS.md`、单一 `devcodex-workspace` resolver Skill 与 Grok hooks；不复制父级 `.agents`，也不创建第二套项目运行态。
+- `workspace-namespace` 的项目根执行 `--host grok` 时，实际部署 owner 自动提升到工作区根：工作区只保留单一 `devcodex-workspace` 薄插件，子项目不生成 `AGENTS.md`、`.grok` 或其他宿主入口，也不创建第二套项目运行态。
 - bridge 在读取 Profile / memory / full fallback 前先形成语义意图种子，再绑定父级 kernel、项目 active-root 与意图相关 Skills；缺失或歧义时 fail-closed。
 - 独立项目仍保留本地 kernel + Skills + 完整 fallback；部署 manifest、碰撞检测、host inspection、source-root 精确例外与正负向 fixture 已同步。
-- 修正 Grok lifecycle 事件误带 tool matcher 导致 `UserPromptSubmit` / `Stop` 被拒载的问题；workspace bridge 通过可保留用户 TOML 的 managed MCP blocks 覆盖低优先级 `.mcp.json`，memory/profile direct doctor 均完成握手。
+- 修正 Grok lifecycle 事件误带 tool matcher 导致 `UserPromptSubmit` / `Stop` 被拒载的问题；workspace 模式改由工作区薄插件承载 Hook 与 MCP bridge，通过官方本地插件安装登记确保 Git 项目 cwd 可达，只维护 `plugins.enabled` 并迁出旧的同 owner path 注册，避免插件碰撞；安装过程恢复用户配置原始字节。
+- 新增 `HostAdapterScopeV1`：workspace-namespace 的子项目默认零 generated host artifacts；Grok adapter owner 固定在工作区 `.grok/plugins/devcodex-workspace`，工作区外 no-op，用户配置保真/幂等，project legacy manifest claims 自动退休。旧项目 bridge 方案已 superseded。
+- 新增 `devcodex grok` full-evidence launcher：只在 workspace 子 Git 项目用官方 `--rules` 绑定共享 kernel，并明确把 plain child 的 Skill-discovery/partial 与 launcher direct evidence 分开；修正把 passive Hook stdout 误当上下文注入的错误口径。
+- 拆分包开发与 Claude 安装态 MCP 契约：源码根 `.mcp.json` 改为指向实际存在的包内 `mcp/*`，CLI 仍为业务项目生成 `.claude/mcp/*`，避免 Grok 在源码仓发现通用 manifest 时启动不存在路径。
+- 补齐 `uninstall --host grok` 生命周期：复用 `HostAdapterScopeV1`，官方卸载用户插件并只移除 DevCodex 受管配置，保留 workspace source、未知键/注释与重复卸载幂等性。
+- 关闭诊断与 launcher 的作用域旁路：从子项目执行 `status/doctor` 也检查工作区 owner；`devcodex grok` 先消费官方 `--cwd`，拒绝 system-prompt override/重复 cwd，并在 root kernel 缺失、nested workspace 或 Windows 路径大小写变体下保持 fail-closed/同一身份。
 
 ### 内部完整交付与用户可见输出契约（2026-07-19）
 
@@ -24,7 +29,7 @@ WorkspaceDataAbsorptionScopeGate · DocsSiteVisualAcceptanceGate · OmissionOnly
 
 ### 所有修复的长期防复发评估（2026-07-19）
 
-- `rework-prevention-engineering` 新增 `RepairPreventionAssessmentGate` / `RepairPreventionAssessmentV1`，所有 repair 在 accepted 前必须区分当前问题关闭与长期 prevention 效果。
+- 将所有 repair 的稳定完成门禁拆为 active `repair-prevention-assessment`（`RepairPreventionAssessmentGate` / `RepairPreventionAssessmentV1`）；gray `rework-prevention-engineering` 只保留返工指标与 prospective effectiveness，消除 active workflow 对默认不部署 gray Skill 的强依赖。
 - 支持 `existing-control-restored / new-control-provisional / no-new-control / emergency-active`，高风险或 repeat escape 强制 full；当前事件重跑不得晋级 prevention，控制必须具备 prospective evidence 与 rollback/sunset。
 - fix/security/execution/review/TestRoute/report/Prompt/registry 消费者与 V94、独立正负向验证节点已同步；未新增重复 Prevention Skill。
 
@@ -45,6 +50,7 @@ WorkspaceDataAbsorptionScopeGate · DocsSiteVisualAcceptanceGate · OmissionOnly
 - 新增稳定 task identity 与 `继续<任务名>任务` 的 Hook/MCP/CLI 有界恢复链；索引损坏、同名歧义、完成态或 CP 漂移均 fail-closed。
 - ContextRead V2 内容身份与 computation/body-delivery 分离；Profile section、Skill `BundleDecisionV2`、changed-scope validation DAG、`ProjectKnowledgeSnapshotV2` 和长任务 `ExecutionAttemptLedgerV1` 均保留完整 fallback。
 - ProjectKnowledge 升级为单仓 V2：Merkle inventory、repo/root/config/parser/test/Profile binding、`FileKnowledgeRecordV2`、range-bound `SemanticClaimV1`、确定性 observe/bootstrap、5% oracle 与 accepted-only pointer；V1 仅只读兼容并强制 full-required migration。
+- ProjectKnowledge 生产 CLI 现从真实 inventory 构建并持久化 versioned `ImpactGraphV1`，覆盖 JS/TS 静态相对依赖与 Markdown 本地链接；普通图变化走当前闭包，builder 迁移、低覆盖或动态消费者自身变化才升级全文。
 - 新增 `ExecutionOptimizationStateV2`、prospective trial、rollback/sunset 与 `safe-auto | full-only` kill switch；六类真实消费者在动作前统一形成 `ExecutionOptimizationFeatureDecisionV1`，feature 回滚或状态无效会立即走完整执行路径。
 - 新增 `test:execution-chain-evolution`、`benchmark:execution-chain`、canonical validation 节点及 V101；当前变更尚未发布，不改变 v1.15.1 registry 能力声明。
 

@@ -19,22 +19,30 @@ function buildHostInstructionControlChecks(ctx) {
       'scripts/host-instruction-projection.json',
       'scripts/lib/host-instruction-projection.js',
       'scripts/lib/host-surface-descriptors.js',
+      'scripts/lib/host-adapter-scope.js',
+      'scripts/lib/grok-workspace-launcher.js',
       'scripts/generate-host-instruction-projections.js',
       'scripts/test-host-instruction-projection.js',
       'scripts/test-host-adapters.js',
       'scripts/test-host-installation.js',
       'hooks/_runtime/lifecycle-host-adapters.cjs',
       'host-projections/AGENTS.md',
-      'host-projections/AGENTS.workspace-bridge.md',
       'host-projections/copilot-instructions.md',
       'host-projections/CLAUDE.md',
       'host-projections/GEMINI.md',
       'host-projections/coverage.json',
       'gemini/settings.json',
       'grok/hooks/devcodex.json',
+      'grok/plugins/devcodex-workspace/.claude-plugin/plugin.json',
+      'grok/plugins/devcodex-workspace/.mcp.json',
+      'grok/plugins/devcodex-workspace/hooks/hooks.json',
+      'grok/plugins/devcodex-workspace/hooks/devcodex-workspace.cjs',
+      'grok/plugins/devcodex-workspace/skills/devcodex-workspace/SKILL.md',
+      'grok/plugins/devcodex-workspace/mcp/workspace-bridge.cjs',
       'grok/skills/devcodex-workspace/SKILL.md',
       'grok/mcp/workspace-bridge.cjs',
-      'grok/workspace-config.toml'
+      'grok/workspace-config.toml',
+      'host-projections/AGENTS.workspace-bridge.md'
     ]
     required.forEach(requireFile)
     if (required.some(relative => !fs.existsSync(path.join(ROOT, relative)))) return
@@ -64,14 +72,11 @@ function buildHostInstructionControlChecks(ctx) {
       if (!content.includes('@AGENTS.md')) err(`[V103] wrapper pointer missing: ${relative}`)
       if (Buffer.byteLength(content, 'utf8') > coverage.budgets.wrapperMaxBytes) err(`[V103] wrapper budget exceeded: ${relative}`)
     }
-    const bridge = String(read(path.join(ROOT, 'host-projections/AGENTS.workspace-bridge.md')))
-    if (!bridge.includes('projectionRole: workspace-bridge') || !bridge.includes('.grok/skills/devcodex-workspace/SKILL.md')) {
-      err('[V103] Grok workspace bridge discovery contract missing')
+    const grokPluginManifest = JSON.parse(String(read(path.join(ROOT, 'grok/plugins/devcodex-workspace/.claude-plugin/plugin.json'))))
+    if (grokPluginManifest.name !== 'devcodex-workspace' || !grokPluginManifest.version) {
+      err('[V103] Grok workspace plugin identity missing')
     }
-    if (Buffer.byteLength(bridge, 'utf8') > coverage.budgets.wrapperMaxBytes) {
-      err('[V103] Grok workspace bridge budget exceeded')
-    }
-    const grokHooks = JSON.parse(String(read(path.join(ROOT, 'grok/hooks/devcodex.json'))))
+    const grokHooks = JSON.parse(String(read(path.join(ROOT, 'grok/plugins/devcodex-workspace/hooks/hooks.json'))))
     for (const event of ['UserPromptSubmit', 'Stop', 'PreCompact']) {
       if (grokHooks.hooks?.[event]?.some(group => Object.prototype.hasOwnProperty.call(group, 'matcher'))) {
         err(`[V103] Grok lifecycle event must omit tool matcher: ${event}`)
@@ -80,15 +85,26 @@ function buildHostInstructionControlChecks(ctx) {
     for (const event of ['PreToolUse', 'PostToolUse']) {
       if (!grokHooks.hooks?.[event]?.length) err(`[V103] Grok tool hook missing: ${event}`)
     }
-    const grokConfig = String(read(path.join(ROOT, 'grok/workspace-config.toml')))
-    for (const anchor of [
-      'devcodex-managed:devcodex-memory',
-      'devcodex-managed:devcodex-profile',
-      '[mcp_servers.devcodex-memory]',
-      '[mcp_servers.devcodex-profile]',
-      '.grok/mcp/workspace-bridge.cjs'
+    const grokMcp = JSON.parse(String(read(path.join(ROOT, 'grok/plugins/devcodex-workspace/.mcp.json'))))
+    for (const server of ['devcodex-memory', 'devcodex-profile']) {
+      if (!grokMcp.mcpServers?.[server]?.args?.some(value => String(value).includes('GROK_PLUGIN_ROOT'))) {
+        err(`[V103] Grok workspace plugin MCP bridge missing: ${server}`)
+      }
+    }
+    const pluginHookRuntime = String(read(path.join(ROOT, 'grok/plugins/devcodex-workspace/hooks/devcodex-workspace.cjs')))
+    for (const anchor of ['outside-managed-workspace', 'workspace-kernel-missing', 'GROK_PLUGIN_ROOT', 'passive-hook-no-context-injection', 'blocking-tool-hook']) {
+      if (!pluginHookRuntime.includes(anchor)) err(`[V103] Grok plugin isolation/kernel contract missing: ${anchor}`)
+    }
+    for (const relative of [
+      'grok/skills/devcodex-workspace/SKILL.md',
+      'grok/mcp/workspace-bridge.cjs',
+      'grok/workspace-config.toml',
+      'host-projections/AGENTS.workspace-bridge.md'
     ]) {
-      if (!grokConfig.includes(anchor)) err(`[V103] Grok workspace MCP config missing: ${anchor}`)
+      const legacySource = String(read(path.join(ROOT, relative)))
+      if (!legacySource.includes('retired-compatibility-fixture') || !legacySource.includes('MUST NOT')) {
+        err(`[V103] legacy project bridge source is not explicitly retired: ${relative}`)
+      }
     }
     if (fs.existsSync(path.join(ROOT, 'grok', 'rules'))) err('[V103] Grok must not receive a duplicate rules tree')
 
@@ -96,7 +112,7 @@ function buildHostInstructionControlChecks(ctx) {
     for (const script of ['test:host-instruction-projection', 'test:host-adapters', 'test:host-installation']) {
       if (!pkg.scripts?.[script]) err(`[V103] package script missing: ${script}`)
     }
-    for (const packaged of ['gemini/', 'grok/', 'host-projections/', 'scripts/lib/host-instruction-projection.js', 'scripts/lib/host-surface-descriptors.js']) {
+    for (const packaged of ['gemini/', 'grok/', 'host-projections/', 'scripts/lib/host-instruction-projection.js', 'scripts/lib/host-surface-descriptors.js', 'scripts/lib/host-adapter-scope.js', 'scripts/lib/grok-workspace-launcher.js']) {
       if (!pkg.files?.includes(packaged)) err(`[V103] package files missing: ${packaged}`)
     }
     const plugin = JSON.parse(String(read(path.join(ROOT, 'plugin.json'))))
@@ -110,18 +126,32 @@ function buildHostInstructionControlChecks(ctx) {
     const cliSource = [
       'scripts/lib/cli-command-registry.js',
       'scripts/lib/cli-install-commands.js',
+      'scripts/lib/cli-maintenance-commands.js',
       'scripts/lib/cli-host-utils.js',
-      'scripts/lib/host-surface-descriptors.js'
+      'scripts/lib/host-surface-descriptors.js',
+      'scripts/lib/host-adapter-scope.js',
+      'scripts/lib/grok-workspace-launcher.js'
     ].map(relative => String(read(path.join(ROOT, relative)))).join('\n')
     for (const anchor of [
       '--host',
       'CLI_HOST_UNSUPPORTED',
       'CLI_HOST_SELECTION_CONFLICT',
+      'CLI_HOST_SCOPE_CONFLICT',
       'HOST_INSTRUCTION_COLLISION',
       'DEFAULT_HOSTS',
-      'grok-workspace-bridge',
-      'resolveGrokWorkspaceBridge',
-      'mergeGrokWorkspaceConfig'
+      'HostAdapterScopeV1',
+      'user-registered-workspace',
+      'grok-workspace-plugin',
+      'writeGrokPluginRegistration',
+      'inspectGrokPluginInstallation',
+      'uninstallGrokPluginInstallation',
+      'GrokPluginUninstallReceiptV1',
+      'retireWorkspaceProjectHostManifest',
+      'instructionProjection.inspectionRoot',
+      'hostRoot',
+      'GrokWorkspaceLaunchPlanV1',
+      'GROK_LAUNCHER_CWD_CONFLICT',
+      'launcher-rules'
     ]) {
       if (!cliSource.includes(anchor)) err(`[V103] CLI host contract missing: ${anchor}`)
     }

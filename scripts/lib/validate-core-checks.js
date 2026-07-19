@@ -441,8 +441,8 @@ function buildValidateCoreChecks(ctx) {
         continue
       }
       const expectedScript = name === 'devcodex-memory'
-        ? '.claude/mcp/memory-server.js'
-        : '.claude/mcp/profile-server.js'
+        ? 'mcp/memory-server.js'
+        : 'mcp/profile-server.js'
       if (server.command !== 'node') {
         err(`[V18] ${name} command must be node`)
       }
@@ -452,6 +452,9 @@ function buildValidateCoreChecks(ctx) {
       }
       if (server.args[0] !== expectedScript || server.args[1] !== '.') {
         err(`[V18] ${name} args must be ["${expectedScript}", "."]`)
+      }
+      if (!fs.existsSync(path.join(ROOT, expectedScript))) {
+        err(`[V18] package-local MCP script does not exist: ${expectedScript}`)
       }
       if (server.args.some(arg => /\$\{/.test(String(arg)))) {
         err(`[V18] ${name} args must not require shell parameter expansion`)
@@ -464,6 +467,11 @@ function buildValidateCoreChecks(ctx) {
     ].join('\n')
     if (!indexSrc.includes('mcpServers:')) {
       err('[V18] index.js CLAUDE_MCP_JSON must generate "mcpServers"')
+    }
+    for (const targetScript of ['.claude/mcp/memory-server.js', '.claude/mcp/profile-server.js']) {
+      if (!indexSrc.includes(targetScript)) {
+        err(`[V18] index.js CLAUDE_MCP_JSON missing installed-project path: ${targetScript}`)
+      }
     }
     if (/\n\s+servers:\s*\{/.test(indexSrc)) {
       err('[V18] index.js still contains VS Code-style "servers" root in generated MCP config')
@@ -496,7 +504,7 @@ function buildValidateCoreChecks(ctx) {
     const checks = [
       { file: 'README.md', needle: `Instructions 约束（${instructionCount} 个，含全部工作流规则）` },
       { file: 'README.md', needle: `全局 Instructions（${instructionCount} 个，含工作流规则摘要，自动注入）` },
-      { file: 'README.md', needle: `Skill 详细检查标准（${skillCount} 个，按需读取，含默认分析、用户文档、用户侧文档 review 聚合、专家型产物质量、21 个专家 Owner Skill、复审清单、自我进化治理、README 专项能力、spec-governance、spec-absorption 与 5 个支撑型 Skill）` },
+      { file: 'README.md', needle: `Skill 详细检查标准（${skillCount} 个，按需读取` },
       { file: 'README.md', needle: `Skill 详细检查标准（${skillCount} 个，按 01-common §按需读取表 路由读取）` },
       { file: 'README.md', needle: `Prompt 模板（${promptCount} 个）` },
       { file: activePath('profile', '01-项目信息.md'), needle: `| **Skill** | ${skillCount} |`, rawPath: false },

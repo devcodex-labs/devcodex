@@ -52,7 +52,8 @@ description: 宿主契约验证规范 — 为 Hook / CLI / bootstrap / visible e
 | 可见回复三态 | fixture replay 或 direct replay，报告中写明 `visibleReplyEvidence` |
 | sticky project / workspace guard | multi-project fixture + follow-up replay |
 | bootstrap / 部署副本 | `node scripts/validate.js` + 部署同步后的落点复核 |
-| managed deployment manifest | legacy + workspace-namespace fixture、update preview、manifest schema/hash、stale 保留、V8 direct replay |
+| managed deployment manifest | legacy 多 owner + workspace-namespace fixture、规范化 destination 单一 current owner、project current host=0、workspace missing/mismatch/stale/duplicate=0、V8 direct replay |
+| workspace 宿主作用域 | `HostAdapterScopeV1` owner/activation 一致 + 子项目五类 generated host artifact=0 + Grok workspace plugin/用户登记正向 + uninstall/repeat/reinstall 配置保真 + status/doctor 同 owner + root native kernel + child plain partial + `devcodex grok --rules` full 路线 + `--cwd`/nested workspace/Windows path identity + outside-workspace no-op 负向 |
 | visible set / 产物点击 | manifest/projection property test + 三 renderer fixture；若声称当前 surface 可点，需 direct replay 或用户实测证据 |
 | MCP bridge fallback | MCP server no-args direct replay + 非 Full 宿主 fallback 文案探针；若错误来自宿主桥接层，只能声明 fallback 已覆盖，不能声明宿主 bug 已修复 |
 | 意图驱动上下文获取 | `ContextAcquisitionToolAllowlistProbe` + plan/receipt direct replay + Pre/Post fixture + hidden-full-read 负例 + fallback no-deadlock |
@@ -87,6 +88,8 @@ legacy “主要产物 + 绝对路径”最多为 `unverified-legacy`。能力�
 7. Turn Liveness 声明必须分别标注 `host-native-verified / hook-event-verified / sidecar-observed / unsupported / unverified`；PostToolUse 落盘只能证明工具结果已观察，不能证明模型续接或 turn 已终态。
 8. `CheckpointValidationResultV1` 缺失 post-execution evidence 时只能是 `unverified` 或 `incomplete-timeout`；只有实际 Hook terminal evidence 才能通过，禁止把等待或 PreCompact 当完成。
 9. `LocalTaskTraceV1` 只保留当前 turn 的 typed data projection；`replay` 不得 dispatch payload、重放 mutation、改 lifecycle state、唤醒宿主或控制进程。
+10. workspace-namespace 下项目根存在 generated `.grok/AGENTS.md` 是作用域异常而不是部署成功证据；只有 workspace plugin、用户注册、两 cwd 同 identity 与工作区外 no-op 同时通过，才能升级 Grok workspace 结论。
+11. plain host 与显式 launcher fallback 必须分别记录 `commands/evidenceMode/evidenceCeiling`；任何一方通过都不能替另一方升级结论。
 
 ### NativeCommandExitCodeGate 可执行适配
 

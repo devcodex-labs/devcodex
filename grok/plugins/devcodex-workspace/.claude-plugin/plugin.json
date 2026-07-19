@@ -1,0 +1,8 @@
+{
+  "name": "devcodex-workspace",
+  "version": "1.0.0",
+  "description": "Workspace-scoped DevCodex bridge for Grok Build without project-local generated adapters.",
+  "author": {
+    "name": "DevCodex"
+  }
+}

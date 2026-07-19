@@ -173,7 +173,7 @@ P0/P1、安全、控制面、公共 API/Schema/config、预计 ≥5 文件、多
 ### accepted 条件
 
 - authorization、allowed paths、acceptance matrix 与 required evidence 均有效；full 合同还必须具备完整 finding map、handoff 与 independent re-review。
-- `rework-prevention-engineering#RepairPreventionAssessmentGate` 已返回有效 `RepairPreventionAssessmentV1`；当前修复证据与 prospective prevention evidence 分列，`no-new-control` 具有标准 reason/evidence，高风险或 repeat escape 使用 full。
+- active `repair-prevention-assessment#RepairPreventionAssessmentGate` 已返回有效 `RepairPreventionAssessmentV1`；当前修复证据与 prospective prevention evidence 分列，`no-new-control` 具有标准 reason/evidence，高风险或 repeat escape 使用 full。
 - 补丁产出者可以参与验证，但不能成为高风险任务唯一通过证据源；角色独立或黑盒证据独立均可。
 - 证据失败进入 rejected；触达 blockedScope、缺真相源或需要重开 CP 时进入 blocked。
 

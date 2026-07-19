@@ -377,6 +377,11 @@
       "tier": "free"
     },
     {
+      "id": "repair-prevention-assessment",
+      "file": "skills/repair-prevention-assessment/SKILL.md",
+      "tier": "free"
+    },
+    {
       "id": "rework-prevention-engineering",
       "file": "skills/rework-prevention-engineering/SKILL.md",
       "lifecycleState": "gray",

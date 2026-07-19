@@ -1,21 +1,9 @@
 # Root .gitignore — DevCodex refactor workspace
 node_modules/
-.github/*
-!.github/workflows/
-!.github/workflows/**
-# DevCodex Claude Code adapter output (devcodex init --claude target; do not commit in source repo)
-.claude/
-# DevCodex Codex adapter output (devcodex init --codex target; do not commit in source repo)
-.agents/
-.codex/
-AGENTS.md
-CLAUDE.md
 !host-projections/AGENTS.md
 !host-projections/CLAUDE.md
-# DevCodex optional Gemini / Grok adapter output (generated when this source repo is also the install target)
-.gemini/
-.grok/
-GEMINI.md
+# Host adapters are workspace-owned in workspace-namespace mode. Do not ignore
+# source-root/project copies: V8 and git status must expose accidental deployment.
 .vscode/
 dist/
 coverage/

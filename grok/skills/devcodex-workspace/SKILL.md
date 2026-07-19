@@ -1,11 +1,16 @@
 ---
 name: devcodex-workspace
-description: Required resolver for a Grok project inside a DevCodex workspace namespace; loads the shared kernel and only intent-relevant parent Skills without duplicating the workspace Skill tree.
+description: Retired compatibility fixture for the former project-local Grok bridge; current workspace installs use grok/plugins/devcodex-workspace.
 ---
 
-# DevCodex Workspace Resolver
+# DevCodex Workspace Resolver（retired compatibility fixture）
 
-Use this Skill for every non-empty request when the project `AGENTS.md` declares `projectionRole: workspace-bridge`.
+> lifecycleStatus: retired-compatibility-fixture
+> deploymentStatus: MUST NOT be deployed by current workspace descriptors
+
+This file is retained only so historical packages and migration evidence remain readable. Current `workspace-namespace` installs use the workspace-owned plugin under `grok/plugins/devcodex-workspace`; child projects must not receive this Skill or a project bridge.
+
+For forensic replay of an old project bridge, the historical resolver contract was:
 
 1. Preserve the semantic intent seed already formed from the user message and conversation continuity.
 2. Walk upward from the current project directory to the nearest unique parent containing `.devcodex/layout.json` whose `mode` is `workspace-namespace`. That parent is `<workspace-root>`. Do not search above the first valid marker.

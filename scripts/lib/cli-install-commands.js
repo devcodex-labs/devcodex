@@ -7,11 +7,13 @@ function buildCliInstallCommands(ctx) {
     fs, path, process, console, c, PKG_ROOT, SOURCES, CLAUDE_SOURCES,
     CODEX_SOURCES, CLAUDE_SETTINGS_HOOKS, CLAUDE_SETTINGS_PERMISSIONS,
     CLAUDE_MCP_JSON, CODEX_HOOK_COMMAND, isSourceRepo, beginManagedDeployment,
-    finishManagedDeployment, walkDir, resolveActiveRuntimeRoot, resolveGrokWorkspaceBridge, resolveGitignoreRoot,
+    finishManagedDeployment, walkDir, resolveActiveRuntimeRoot, resolveGitignoreRoot,
     copyManagedTextFile, readJsonFileWithStatus,
     writeManagedJsonFile, normalizeStringArray, mergeUniqueStringArrays,
     mergeClaudeHooks, mergeClaudeMcpConfig,
     ensureRuntimeDirs, ensureDevCodexGitignore, getLegacyCounts, isPlainObject,
+    resolveHostAdapterScope, writeGrokPluginRegistration, syncGrokPluginInstallation,
+    uninstallGrokPluginInstallation, retireWorkspaceProjectHostManifest,
     resolveTenantSelection, shouldIncludeInstructionFile
   } = ctx
 
@@ -59,74 +61,6 @@ function buildCliInstallCommands(ctx) {
     target.updated += delta.updated || 0
     target.skipped += delta.skipped || 0
     return target
-  }
-
-  function parseManagedTomlBlocks(template) {
-    const blocks = []
-    const matcher = /^# >>> devcodex-managed:([a-z0-9-]+)\r?\n([\s\S]*?)^# <<< devcodex-managed:\1\s*$/gm
-    for (const match of template.matchAll(matcher)) {
-      const section = match[2].match(/^\s*\[([^\]]+)\]\s*$/m)?.[1]
-      if (!section) throw new Error(`GROK_MCP_TEMPLATE_INVALID: managed block ${match[1]} has no TOML section`)
-      blocks.push({ id: match[1], section, text: match[0].trim() })
-    }
-    if (!blocks.length) throw new Error('GROK_MCP_TEMPLATE_INVALID: no managed TOML blocks found')
-    return blocks
-  }
-
-  function withoutManagedTomlBlock(content, id) {
-    const begin = `# >>> devcodex-managed:${id}`
-    const end = `# <<< devcodex-managed:${id}`
-    const start = content.indexOf(begin)
-    if (start < 0) return content
-    const finish = content.indexOf(end, start)
-    if (finish < 0) throw new Error(`GROK_MCP_CONFIG_INVALID: unterminated managed block ${id}`)
-    return content.slice(0, start) + content.slice(finish + end.length)
-  }
-
-  function escapeRegExp(value) {
-    return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  }
-
-  function mergeGrokWorkspaceConfig({ cwd, dryRun, backupDir, log, inlineLog }) {
-    const templatePath = path.join(PKG_ROOT, 'grok', 'workspace-config.toml')
-    const destination = path.join(cwd, '.grok', 'config.toml')
-    const blocks = parseManagedTomlBlocks(fs.readFileSync(templatePath, 'utf8'))
-    const existed = fs.existsSync(destination)
-    const current = existed ? fs.readFileSync(destination, 'utf8') : ''
-    let base = current
-    for (const block of blocks) base = withoutManagedTomlBlock(base, block.id)
-    base = base.trimEnd()
-    const included = []
-    const userOwned = []
-    for (const block of blocks) {
-      const sectionPattern = new RegExp(`^\\s*\\[${escapeRegExp(block.section)}\\]\\s*(?:#.*)?$`, 'm')
-      if (sectionPattern.test(base)) userOwned.push(block.section)
-      else included.push(block.text)
-    }
-    const desired = [base, ...included].filter(Boolean).join('\n\n') + '\n'
-    if (userOwned.length) {
-      inlineLog(c.yellow(`  ⚠ preserved user-owned Grok MCP section(s): ${userOwned.join(', ')}`))
-    }
-    if (current === desired) {
-      log(c.dim('  ~ .grok/config.toml (managed MCP blocks)'))
-      return { added: 0, updated: 0, skipped: 1 }
-    }
-    let backupPath = null
-    if (existed && current.trim()) {
-      const suffix = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14)
-      backupPath = path.join(backupDir, `config.toml.bak.${suffix}`)
-      if (!dryRun) {
-        fs.mkdirSync(path.dirname(backupPath), { recursive: true })
-        fs.copyFileSync(destination, backupPath)
-      }
-    }
-    if (!dryRun) {
-      fs.mkdirSync(path.dirname(destination), { recursive: true })
-      fs.writeFileSync(destination, desired, 'utf8')
-    }
-    if (backupPath) inlineLog(c.yellow(`  ⚠ backed up existing .grok/config.toml to ${path.relative(cwd, backupPath)}`))
-    log(existed ? c.yellow('  ↺ .grok/config.toml (managed MCP blocks)') : c.green('  ✓ .grok/config.toml (managed MCP blocks)'))
-    return { added: existed ? 0 : 1, updated: existed ? 1 : 0, skipped: 0 }
   }
 
   function copyProjectedFile({ cwd, source, destination, force, dryRun, backupDir, log, inlineLog, label }) {
@@ -223,17 +157,59 @@ function buildCliInstallCommands(ctx) {
   function hostEntryCollision(host, argv) {
     if (argv.includes('--force') || argv.includes('-f')) return null
     const cwd = process.cwd()
-    const grokWorkspaceBridge = host === 'grok' && resolveGrokWorkspaceBridge(cwd)
-    for (const pair of hostEntryPairs(host, { grokWorkspaceBridge })) {
+    const explicitPortable = host === 'grok' && argv.includes('--project-portable')
+    const scope = resolveHostAdapterScope(cwd, host === 'grok' ? 'grok' : 'codex', {
+      requestedScope: explicitPortable ? 'project-portable' : null,
+      explicitPortable
+    })
+    const grokScope = ['grok', 'all'].includes(host) ? resolveHostAdapterScope(cwd, 'grok') : null
+    const targetRoot = scope.ownerRoot
+    const grokWorkspaceScope = grokScope?.scope === 'user-registered-workspace'
+    for (const pair of hostEntryPairs(host, { grokWorkspaceScope })) {
+      // Thin host wrappers may contain user instructions. `init` preserves them while
+      // `update` reaches this path with --force and refreshes the managed wrapper.
+      if (pair.role === 'wrapper') continue
       const source = path.join(PKG_ROOT, pair.source)
-      const destination = path.join(cwd, pair.destination)
+      const destination = path.join(targetRoot, pair.destination)
       if (!fs.existsSync(source) || !fs.existsSync(destination) || filesContentEqual(source, destination)) continue
       return { host, destination: pair.destination, expectedSource: pair.source, role: pair.role }
     }
     return null
   }
 
-  function cmdInit(argv, { copilotOnly = false, includeExtended = false } = {}) {
+  function runFromHostOwner(host, operation, options = {}) {
+    const invocationCwd = process.cwd()
+    const hostScope = resolveHostAdapterScope(invocationCwd, host)
+    const ownerRoot = path.resolve(hostScope.ownerRoot)
+    const sameOwner = process.platform === 'win32'
+      ? ownerRoot.toLowerCase() === path.resolve(invocationCwd).toLowerCase()
+      : ownerRoot === path.resolve(invocationCwd)
+    if (sameOwner) return operation({ hostScope, invocationCwd })
+    process.chdir(ownerRoot)
+    try {
+      const result = operation({ hostScope, invocationCwd })
+      if (!options.dryRun && (!process.exitCode || process.exitCode === 0)) {
+        // Host assets belong to the workspace owner, but task/runtime state remains
+        // project-scoped so intent, Profile, memory and reports never collapse into
+        // the shared workspace namespace.
+        ensureRuntimeDirs(invocationCwd, false)
+      }
+      const grokScope = resolveHostAdapterScope(invocationCwd, 'grok')
+      retireWorkspaceProjectHostManifest(grokScope, { dryRun: options.dryRun === true })
+      return result
+    } finally {
+      process.chdir(invocationCwd)
+    }
+  }
+
+  function cmdInit(argv, { copilotOnly = false, includeExtended = false, ownerResolved = false } = {}) {
+    if (!ownerResolved) {
+      return runFromHostOwner(
+        'codex',
+        () => cmdInit(argv, { copilotOnly, includeExtended, ownerResolved: true }),
+        { dryRun: argv.includes('--dry-run') }
+      )
+    }
     const force = argv.includes('--force') || argv.includes('-f')
     const dryRun = argv.includes('--dry-run')
     const tenantId = readTenantSelection(argv)
@@ -241,7 +217,8 @@ function buildCliInstallCommands(ctx) {
     const cwd = process.cwd()
     const ghDir = path.join(cwd, '.github')
     const managedHosts = includeExtended ? HOST_IDS : (copilotOnly ? ['copilot'] : DEFAULT_HOSTS)
-    const managedSession = beginManagedDeployment(cwd, managedHosts, { tenantId })
+    const grokWorkspaceScope = includeExtended && resolveHostAdapterScope(cwd, 'grok').scope === 'user-registered-workspace'
+    const managedSession = beginManagedDeployment(cwd, managedHosts, { tenantId, grokWorkspaceScope })
 
     // Warn if running inside the DevCodex source repo
     if (isSourceRepo(cwd)) {
@@ -800,57 +777,99 @@ function buildCliInstallCommands(ctx) {
     const tenantId = readTenantSelection(argv)
     if (tenantId === undefined) return
     const cwd = process.cwd()
-    const grokWorkspaceBridge = resolveGrokWorkspaceBridge(cwd)
-    const managedSession = internal ? null : beginManagedDeployment(cwd, ['grok'], { tenantId, grokWorkspaceBridge })
+    const requestedScope = argv.includes('--project-portable') ? 'project-portable' : null
+    const hostScope = resolveHostAdapterScope(cwd, 'grok', {
+      requestedScope,
+      explicitPortable: requestedScope === 'project-portable'
+    })
+    const grokWorkspaceScope = hostScope.scope === 'user-registered-workspace'
+    const targetRoot = hostScope.ownerRoot
+    const managedSession = internal ? null : beginManagedDeployment(targetRoot, ['grok'], { tenantId, grokWorkspaceScope })
     const counts = { added: 0, updated: 0, skipped: 0 }
     const log = internal ? () => {} : (...args) => console.log(...args)
     const inlineLog = (...args) => console.log(...args)
-    const backupDir = path.join(resolveActiveRuntimeRoot(cwd), '.tmp', 'backups')
+    const activeRoot = resolveActiveRuntimeRoot(targetRoot)
+    const backupDir = path.join(activeRoot, '.tmp', 'backups')
+
+    if (grokWorkspaceScope) {
+      writeGrokPluginRegistration({
+        pluginPath: hostScope.pluginRoot,
+        activeRoot,
+        dryRun: true,
+        env: process.env
+      })
+    }
 
     if (!internal) {
       console.log()
       console.log(c.bold('  DevCodex') + c.dim(' — Grok Build Adapter'))
       console.log(c.dim('  ──────────────────────────────────────'))
       console.log(`  ${c.cyan('Source:')} ${c.dim(PKG_ROOT)}`)
-      console.log(`  ${c.cyan('Target:')} ${c.dim(cwd)}`)
-      if (grokWorkspaceBridge) console.log(`  ${c.cyan('Mode:')} ${c.dim('workspace bridge (shared parent kernel + intent-selected Skills)')}`)
+      console.log(`  ${c.cyan('Target:')} ${c.dim(targetRoot)}`)
+      console.log(`  ${c.cyan('Scope:')} ${c.dim(hostScope.scope)}`)
       if (dryRun) console.log(c.yellow('  [DRY RUN] No files will be written.\n'))
     }
 
-    if (grokWorkspaceBridge) {
-      addCounts(counts, copyProjectedFile({
-        cwd, source: 'host-projections/AGENTS.workspace-bridge.md', destination: 'AGENTS.md',
-        force, dryRun, backupDir, log, inlineLog, label: 'AGENTS.md (workspace bridge)'
-      }))
-      addCounts(counts, copyProjectedTree({
-        cwd, source: 'grok/skills/devcodex-workspace', destination: path.join('.grok', 'skills', 'devcodex-workspace'),
-        force, dryRun, backupDir, log, inlineLog, tenantId
-      }))
-      addCounts(counts, copyProjectedTree({
-        cwd, source: 'grok/mcp', destination: path.join('.grok', 'mcp'),
-        force, dryRun, backupDir, log, inlineLog, tenantId
-      }))
-      addCounts(counts, mergeGrokWorkspaceConfig({ cwd, dryRun, backupDir, log, inlineLog }))
-    } else {
+    if (grokWorkspaceScope) {
       addCounts(counts, copySharedProjectionAssets({
-        cwd, force, dryRun, backupDir, log, inlineLog, tenantId,
+        cwd: targetRoot, force, dryRun, backupDir, log, inlineLog, tenantId,
         includeKernel: true, includeSkills: true
       }))
+      addCounts(counts, copyProjectedTree({
+        cwd: targetRoot,
+        source: 'grok/plugins/devcodex-workspace',
+        destination: path.join('.grok', 'plugins', 'devcodex-workspace'),
+        force, dryRun, backupDir, log, inlineLog, tenantId
+      }))
+      const registration = writeGrokPluginRegistration({
+        pluginPath: hostScope.pluginRoot,
+        activeRoot,
+        dryRun,
+        env: process.env
+      })
+      if (registration.changed) {
+        counts.updated++
+        log(c.green('  ✓ Grok user config (managed workspace plugin registration)'))
+      } else {
+        counts.skipped++
+        log(c.dim('  ~ Grok user config (workspace plugin already registered)'))
+      }
+      const installation = syncGrokPluginInstallation({
+        pluginPath: hostScope.pluginRoot,
+        dryRun,
+        env: process.env
+      })
+      if (installation.status === 'unavailable') {
+        inlineLog(c.yellow('  ⚠ Grok CLI not found; plugin path is registered but runtime activation remains unverified'))
+      } else if (installation.status === 'verified') {
+        log(c.green('  ✓ Grok user plugin installation synchronized'))
+      } else {
+        log(c.dim(`  ~ Grok user plugin installation (${installation.status})`))
+      }
+    } else {
+      addCounts(counts, copySharedProjectionAssets({
+        cwd: targetRoot, force, dryRun, backupDir, log, inlineLog, tenantId,
+        includeKernel: true, includeSkills: true
+      }))
+      addCounts(counts, copyProjectedFile({
+        cwd: targetRoot, source: 'grok/hooks/devcodex.json', destination: path.join('.grok', 'hooks', 'devcodex.json'),
+        force, dryRun, backupDir, log, inlineLog, label: '.grok/hooks/devcodex.json'
+      }))
+      addCounts(counts, copyProjectedTree({
+        cwd: targetRoot, source: 'hooks/_runtime', destination: path.join('.grok', 'hooks', '_runtime'),
+        force, dryRun, backupDir, log, inlineLog, tenantId
+      }))
     }
-    addCounts(counts, copyProjectedFile({
-      cwd, source: 'grok/hooks/devcodex.json', destination: path.join('.grok', 'hooks', 'devcodex.json'),
-      force, dryRun, backupDir, log, inlineLog, label: '.grok/hooks/devcodex.json'
-    }))
-    addCounts(counts, copyProjectedTree({
-      cwd, source: 'hooks/_runtime', destination: path.join('.grok', 'hooks', '_runtime'),
-      force, dryRun, backupDir, log, inlineLog, tenantId
-    }))
     if (!dryRun) {
-      ensureRuntimeDirs(cwd, dryRun)
-      counts.added += ensureDevCodexGitignore(resolveGitignoreRoot(cwd), dryRun, log)
+      ensureRuntimeDirs(targetRoot, dryRun)
+      counts.added += ensureDevCodexGitignore(resolveGitignoreRoot(targetRoot), dryRun, log)
     }
-    printAdapterSummary('Grok adapter', counts, dryRun, internal, 'Restart Grok, run `/hooks-trust`, then verify with `grok inspect --json`.')
+    const nextStep = grokWorkspaceScope
+      ? 'Restart Grok, then verify the registered workspace plugin from both workspace and project cwd with `grok inspect --json`.'
+      : 'Restart Grok, run `/hooks-trust`, then verify with `grok inspect --json`.'
+    printAdapterSummary('Grok adapter', counts, dryRun, internal, nextStep)
     if (managedSession) finishManagedDeployment(managedSession, dryRun)
+    if (grokWorkspaceScope) retireWorkspaceProjectHostManifest(hostScope, { dryRun })
     return counts
   }
 
@@ -861,6 +880,11 @@ function buildCliInstallCommands(ctx) {
       process.exitCode = 2
       return { ok: false, code: 'CLI_HOST_UNSUPPORTED' }
     }
+    if (argv.includes('--project-portable') && normalized !== 'grok') {
+      console.log(c.red('  CLI_HOST_SCOPE_CONFLICT: --project-portable is supported only with --host grok.'))
+      process.exitCode = 2
+      return { ok: false, code: 'CLI_HOST_SCOPE_CONFLICT' }
+    }
     const collision = hostEntryCollision(normalized, argv)
     if (collision) {
       console.log(c.red(
@@ -870,15 +894,48 @@ function buildCliInstallCommands(ctx) {
       process.exitCode = 2
       return { ok: false, code: 'HOST_INSTRUCTION_COLLISION', collision }
     }
-    if (normalized === 'all') return cmdInit(argv, { includeExtended: true })
-    if (normalized === 'copilot') return cmdInit(argv, { copilotOnly: true })
-    if (normalized === 'claude') return cmdInitClaude(argv)
-    if (normalized === 'codex') return cmdInitCodex(argv)
-    if (normalized === 'gemini') return cmdInitGemini(argv)
-    return cmdInitGrok(argv)
+    if (normalized === 'grok') return cmdInitGrok(argv)
+    const scopedOperation = () => {
+      if (normalized === 'all') return cmdInit(argv, { includeExtended: true, ownerResolved: true })
+      if (normalized === 'copilot') return cmdInit(argv, { copilotOnly: true, ownerResolved: true })
+      if (normalized === 'claude') return cmdInitClaude(argv)
+      if (normalized === 'codex') return cmdInitCodex(argv)
+      return cmdInitGemini(argv)
+    }
+    return runFromHostOwner('codex', scopedOperation, { dryRun: argv.includes('--dry-run') })
   }
 
-  return { cmdInit, cmdInitHost, cmdInitClaude, cmdInitCodex, cmdInitGemini, cmdInitGrok }
+  function cmdUninstallHost(host, argv = []) {
+    const normalized = String(host || '').trim().toLowerCase()
+    if (normalized !== 'grok') {
+      console.log(c.red('  CLI_HOST_UNINSTALL_UNSUPPORTED: only the user-registered Grok workspace adapter has an automatic uninstall lifecycle.'))
+      process.exitCode = 2
+      return { ok: false, code: 'CLI_HOST_UNINSTALL_UNSUPPORTED' }
+    }
+    const dryRun = argv.includes('--dry-run')
+    const requestedScope = argv.includes('--project-portable') ? 'project-portable' : null
+    const hostScope = resolveHostAdapterScope(process.cwd(), 'grok', {
+      requestedScope,
+      explicitPortable: requestedScope === 'project-portable'
+    })
+    if (hostScope.scope !== 'user-registered-workspace') {
+      console.log(c.red('  CLI_HOST_UNINSTALL_SCOPE_UNSUPPORTED: project-portable files require an explicit reviewed cleanup plan.'))
+      process.exitCode = 2
+      return { ok: false, code: 'CLI_HOST_UNINSTALL_SCOPE_UNSUPPORTED', hostScope }
+    }
+    const receipt = uninstallGrokPluginInstallation({
+      pluginPath: hostScope.pluginRoot,
+      activeRoot: resolveActiveRuntimeRoot(hostScope.ownerRoot),
+      dryRun,
+      env: process.env
+    })
+    console.log(receipt.status === 'already-absent'
+      ? c.dim('  ~ Grok workspace plugin registration already absent')
+      : c.green(`  ✓ Grok workspace plugin ${dryRun ? 'uninstall planned' : 'unregistered'}; workspace source retained`))
+    return receipt
+  }
+
+  return { cmdInit, cmdInitHost, cmdInitClaude, cmdInitCodex, cmdInitGemini, cmdInitGrok, cmdUninstallHost }
 }
 
 module.exports = { buildCliInstallCommands }

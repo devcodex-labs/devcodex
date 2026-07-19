@@ -371,13 +371,19 @@ function testTenantSelectionIsExplicit() {
 
 function testCodexInitBootstrapsWorkspaceNamespaceData() {
   const root = createTempRoot('devcodex-cli-codex-data-')
+  const projectRoot = path.join(root, 'packages', 'app-a')
   writeJson(root, '.devcodex/layout.json', { version: 1, mode: 'workspace-namespace' })
   writeFile(root, 'packages/app-a/package.json', '{ "name": "app-a" }\n')
 
-  runCli(['init', '--codex'], path.join(root, 'packages', 'app-a'))
+  runCli(['init', '--codex'], projectRoot)
 
   assertRuntimeDataBootstrap(path.join(root, '.devcodex', 'packages', 'app-a'))
-  assertDeploymentManifest(path.join(root, '.devcodex', 'packages', 'app-a'), 'codex')
+  assertCodexAdapterState(root)
+  assertDeploymentManifest(path.join(root, '.devcodex', 'workspace'), 'codex')
+  for (const relative of ['AGENTS.md', '.agents', '.codex']) {
+    assert.ok(!fs.existsSync(path.join(projectRoot, relative)), `workspace child must not receive generated ${relative}`)
+  }
+  assert.ok(!fs.existsSync(path.join(root, '.devcodex', 'packages', 'app-a', 'managed')), 'project active-root must not own host deployment claims')
   assert.ok(!fs.existsSync(path.join(root, '.devcodex', 'managed')), 'workspace namespace must not create a parallel root manifest')
   fs.rmSync(root, { recursive: true, force: true })
 }
@@ -407,25 +413,26 @@ function testCodexInitBacksUpManagedFiles() {
 
 function testCodexUpdateRefreshesAdapterInWorkspaceNamespace() {
   const root = createTempRoot('devcodex-cli-codex-update-')
+  const projectRoot = path.join(root, 'packages', 'app-a')
+  const staleAgents = '# stale codex agent\n'
   writeJson(root, '.devcodex/layout.json', { version: 1, mode: 'workspace-namespace' })
   writeFile(root, 'packages/app-a/package.json', '{ "name": "app-a" }\n')
-  writeFile(root, 'packages/app-a/AGENTS.md', '# stale codex agent\n')
+  writeFile(root, 'packages/app-a/AGENTS.md', staleAgents)
   writeJson(root, 'packages/app-a/.codex/hooks.json', {
     hooks: {
       UserPromptSubmit: [{ hooks: [{ type: 'command', command: 'echo stale-command' }] }]
     }
   })
 
-  runCli(['update', '--codex'], path.join(root, 'packages', 'app-a'))
+  runCli(['update', '--codex'], projectRoot)
 
-  assertCodexAdapterState(path.join(root, 'packages', 'app-a'))
+  assertCodexAdapterState(root)
   assertRuntimeDataBootstrap(path.join(root, '.devcodex', 'packages', 'app-a'))
-  assertDeploymentManifest(path.join(root, '.devcodex', 'packages', 'app-a'), 'codex')
-  assert.ok(!fs.existsSync(path.join(root, '.devcodex', 'managed')), 'workspace namespace must keep manifest under the project active-root')
-
-  const backupRoot = path.join(root, '.devcodex', 'packages', 'app-a', '.tmp', 'backups')
-  assert.ok(findBackups(backupRoot, 'AGENTS.md').length >= 1)
-  assert.ok(findBackups(backupRoot, 'hooks.json').length >= 1)
+  assertDeploymentManifest(path.join(root, '.devcodex', 'workspace'), 'codex')
+  assert.strictEqual(fs.readFileSync(path.join(projectRoot, 'AGENTS.md'), 'utf8'), staleAgents, 'unowned child artifact must be preserved for reviewed migration')
+  assert.match(fs.readFileSync(path.join(projectRoot, '.codex', 'hooks.json'), 'utf8'), /stale-command/)
+  assert.ok(!fs.existsSync(path.join(root, '.devcodex', 'packages', 'app-a', 'managed')), 'project active-root must not own host deployment claims')
+  assert.ok(!fs.existsSync(path.join(root, '.devcodex', 'managed')), 'workspace namespace must keep the host manifest under workspace runtime state')
 
   fs.rmSync(root, { recursive: true, force: true })
 }

@@ -188,7 +188,7 @@ description: 规范治理生命周期 — 意图驱动记录、RecordRouter 分�
 
 | 稳定职责域 | 代表 gateGroup | Owner 入口 |
 |---|---|---|
-| 修复与复审 | `repair-collaboration`、`review-checklist`、`review-escape`、`rework-prevention` | execution-contract / review-checklist / rework-prevention-engineering |
+| 修复与复审 | `repair-collaboration`、`repair-prevention-assessment`、`review-checklist`、`review-escape`、`rework-prevention` | execution-contract / active repair-prevention-assessment / review-checklist；长期效果才路由 gray rework-prevention-engineering |
 | 规范吸纳 | `absorption-layering`、`historical-common-layering`、`confirmed-completeness` | spec-absorption / spec-governance |
 | 交付与运行态 | `frontend-runtime`、`public-surface`、`release-parity`、`interactive-semantics` | 对应领域 Owner + test-router |
 | Profile 与规模 | `profile-service`、`memory-bootstrap`、`artifact-scale-skill-gap`、`skill-lifecycle` | load-profile / memory / skill-gap-analysis / skill-lifecycle-governance |

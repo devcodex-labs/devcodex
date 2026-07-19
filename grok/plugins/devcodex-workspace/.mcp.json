@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "devcodex-memory": {
+      "command": "node",
+      "args": ["${GROK_PLUGIN_ROOT}/mcp/workspace-bridge.cjs", "memory", "."]
+    },
+    "devcodex-profile": {
+      "command": "node",
+      "args": ["${GROK_PLUGIN_ROOT}/mcp/workspace-bridge.cjs", "profile", "."]
+    }
+  }
+}

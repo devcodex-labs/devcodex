@@ -23,6 +23,29 @@ function portable(relative) {
   return relative.replace(/\\/g, '/')
 }
 
+function destinationKey(targetRoot, destination) {
+  const resolved = path.normalize(path.resolve(targetRoot, String(destination || '')))
+  return process.platform === 'win32' ? resolved.toLowerCase() : resolved
+}
+
+function findOwnershipConflicts(entries, targetRoot) {
+  const owners = new Map()
+  for (const entry of Array.isArray(entries) ? entries : []) {
+    const key = destinationKey(targetRoot, entry.destination)
+    if (!owners.has(key)) owners.set(key, [])
+    owners.get(key).push(entry)
+  }
+  return [...owners.values()]
+    .filter(group => group.length > 1)
+    .map(group => ({
+      destination: portable(group[0].destination),
+      owners: group
+        .map(entry => `${entry.surface}:${entry.source}`)
+        .sort()
+    }))
+    .sort((left, right) => left.destination.localeCompare(right.destination))
+}
+
 function expandDescriptors(packageRoot, targetRoot, descriptors) {
   const entries = []
   for (const descriptor of descriptors) {
@@ -65,13 +88,28 @@ function scanUnowned(targetRoot, descriptors, knownDestinations) {
 }
 
 function createDeploymentSession({ packageRoot, targetRoot, manifestFile, descriptors, packageName, packageVersion }) {
-  const selectedSurfaces = new Set(descriptors.map(item => item.surface))
+  const selectedSurfaces = new Set(descriptors.flatMap(item => [
+    item.surface,
+    ...(Array.isArray(item.replacesSurfaces) ? item.replacesSurfaces : [])
+  ]))
   const previous = readManifest(manifestFile)
   const selectedEntries = expandDescriptors(packageRoot, targetRoot, descriptors)
-  const preservedEntries = (previous && previous.entries || []).filter(entry => !selectedSurfaces.has(entry.surface))
+  const selectedConflicts = findOwnershipConflicts(selectedEntries, targetRoot)
+  if (selectedConflicts.length) {
+    const detail = selectedConflicts.map(item => `${item.destination} <= ${item.owners.join(', ')}`).join('; ')
+    throw new Error(`Deployment descriptor ownership conflict: ${detail}`)
+  }
+  const selectedDestinationKeys = new Set(selectedEntries.map(entry => destinationKey(targetRoot, entry.destination)))
+  const preservedEntries = (previous && previous.entries || []).filter(entry =>
+    !selectedSurfaces.has(entry.surface) &&
+    !selectedDestinationKeys.has(destinationKey(targetRoot, entry.destination))
+  )
   const entries = preservedEntries.concat(selectedEntries)
     .sort((a, b) => a.destination.localeCompare(b.destination) || a.surface.localeCompare(b.surface))
-  const previousSelected = (previous && previous.entries || []).filter(entry => selectedSurfaces.has(entry.surface))
+  const previousSelected = (previous && previous.entries || []).filter(entry =>
+    selectedSurfaces.has(entry.surface) ||
+    selectedDestinationKeys.has(destinationKey(targetRoot, entry.destination))
+  )
   const currentDestinations = new Set(selectedEntries.map(entry => entry.destination))
   const previousDestinations = new Set(previousSelected.map(entry => entry.destination))
 
@@ -86,9 +124,16 @@ function createDeploymentSession({ packageRoot, targetRoot, manifestFile, descri
   }
 
   const stale = previousSelected
-    .filter(entry => !currentDestinations.has(entry.destination) && fs.existsSync(path.join(targetRoot, entry.destination)))
+    .filter(entry =>
+      !selectedDestinationKeys.has(destinationKey(targetRoot, entry.destination)) &&
+      fs.existsSync(path.join(targetRoot, entry.destination))
+    )
   const preservedStale = (previous && previous.staleEntries || [])
-    .filter(entry => !selectedSurfaces.has(entry.surface) && fs.existsSync(path.join(targetRoot, entry.destination)))
+    .filter(entry =>
+      !selectedSurfaces.has(entry.surface) &&
+      !selectedDestinationKeys.has(destinationKey(targetRoot, entry.destination)) &&
+      fs.existsSync(path.join(targetRoot, entry.destination))
+    )
   const staleEntries = preservedStale.concat(stale)
     .sort((a, b) => a.destination.localeCompare(b.destination) || a.surface.localeCompare(b.surface))
   const knownDestinations = new Set([...currentDestinations, ...previousDestinations])
@@ -122,6 +167,7 @@ function verifyManifest({ packageRoot, targetRoot, manifest }) {
   const missing = []
   const mismatched = []
   const staleExisting = []
+  const ownershipConflicts = findOwnershipConflicts(manifest.entries, targetRoot)
   for (const entry of manifest.entries) {
     const source = path.join(packageRoot, entry.source)
     const destination = path.join(targetRoot, entry.destination)
@@ -131,13 +177,15 @@ function verifyManifest({ packageRoot, targetRoot, manifest }) {
   for (const entry of manifest.staleEntries) {
     if (fs.existsSync(path.join(targetRoot, entry.destination))) staleExisting.push(entry.destination)
   }
-  return { missing, mismatched, staleExisting }
+  return { missing, mismatched, staleExisting, ownershipConflicts }
 }
 
 module.exports = {
   createDeploymentSession,
+  destinationKey,
   expandDescriptors,
   fileHash,
+  findOwnershipConflicts,
   readManifest,
   verifyManifest,
   writeManifestAtomic

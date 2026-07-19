@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 'use strict'
 
+// lifecycleStatus: retired-compatibility-fixture
+// Current workspace descriptors MUST NOT deploy this project-local MCP bridge.
+// The supported implementation lives in grok/plugins/devcodex-workspace/mcp/.
+
 const fs = require('fs')
 const path = require('path')
 

@@ -37,6 +37,13 @@
       "stateRationale": "gray until independent cross-repository consumer evidence covers at least two contexts",
       "promotionCriteria": "two independent repositories with fresh identity, artifact and CI evidence plus acceptable correction rate"
     },
+    "repair-prevention-assessment": {
+      "stateRationale": "active correctness gate extracted from the gray effectiveness program; deterministic schema, validator, positive/negative fixtures and mandatory repair consumers are operational",
+      "promotionCriteria": "not applicable: this unit owns repair completion correctness and does not claim prospective rework reduction",
+      "positiveFixture": "scripts/test-repair-prevention-assessment.js#valid-full-and-light-assessments",
+      "negativeFixture": "scripts/test-repair-prevention-assessment.js#invalid-lifecycle-and-evidence-rejected",
+      "rollbackToGray": "fail closed for repair acceptance and revert consumer routing if runtime reachability or false-blocking evidence regresses"
+    },
     "rework-prevention-engineering": {
       "stateRationale": "gray until prospective ReworkEffectivenessLoop evidence reaches its sample threshold",
       "promotionCriteria": "prospective comparable work units demonstrate benefit, bounded false positives and a tested rollback path"

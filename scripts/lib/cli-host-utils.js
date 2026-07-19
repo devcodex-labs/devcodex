@@ -1,6 +1,12 @@
 'use strict'
 
 const crypto = require('crypto')
+const {
+  grokUserConfigPath,
+  inspectGrokPluginInstallation,
+  mergeGrokPluginRegistration,
+  resolveHostAdapterScope
+} = require('./host-adapter-scope.js')
 
 function buildCliHostUtils({ fs, path, isPlainObject, claudeMcpJson }) {
   function normalizeStringArray(value) {
@@ -78,7 +84,12 @@ function buildCliHostUtils({ fs, path, isPlainObject, claudeMcpJson }) {
       fs.existsSync(path.join(cwd, 'GEMINI.md')) ||
       fs.existsSync(path.join(cwd, '.gemini'))
     )
-    const hasGrok = fs.existsSync(path.join(cwd, '.grok'))
+    let grokScope = null
+    try { grokScope = resolveHostAdapterScope(cwd, 'grok') } catch { }
+    const hasGrok = grokScope?.scope === 'user-registered-workspace'
+      ? fs.existsSync(path.join(grokScope.pluginRoot, '.claude-plugin', 'plugin.json')) &&
+        inspectGrokPluginInstallation(grokScope.pluginRoot, process.env).current
+      : fs.existsSync(path.join(cwd, '.grok'))
     if (hasCodex) installed.push('codex')
     if (hasClaude) installed.push('claude-code')
     if (hasCopilot) installed.push('copilot')
@@ -88,6 +99,9 @@ function buildCliHostUtils({ fs, path, isPlainObject, claudeMcpJson }) {
   }
 
   function inspectHostInstructionSurfaces(cwd) {
+    let hostScope = null
+    try { hostScope = resolveHostAdapterScope(cwd, 'grok') } catch { }
+    const inspectionRoot = hostScope?.scope === 'user-registered-workspace' ? hostScope.ownerRoot : cwd
     const budgets = { kernelMaxBytes: 16 * 1024, kernelMaxLines: 200, wrapperMaxBytes: 2 * 1024 }
     const definitions = [
       { surface: 'shared', role: 'kernel', relative: 'AGENTS.md' },
@@ -97,11 +111,14 @@ function buildCliHostUtils({ fs, path, isPlainObject, claudeMcpJson }) {
       { surface: 'full-fallback', role: 'fallback', relative: path.join('.agents', 'devcodex', 'instructions.full.md') }
     ]
     const entries = definitions.map(definition => {
-      const file = path.join(cwd, definition.relative)
+      const file = path.join(inspectionRoot, definition.relative)
       if (!fs.existsSync(file)) return { ...definition, path: file, installed: false }
       const content = fs.readFileSync(file, 'utf8')
       const sourceDigest = content.match(/^> sourceDigest: ([a-f0-9]{64})$/m)?.[1] || null
       const workspaceBridge = /^> projectionRole: workspace-bridge$/m.test(content)
+      const hostNeutralBridge = workspaceBridge && /^> projectionScope: host-neutral$/m.test(content) &&
+        /only when the current host identifies itself as Grok/.test(content) &&
+        /Other hosts must not treat `\.grok` as a shared instruction source/.test(content)
       return {
         ...definition,
         path: file,
@@ -111,6 +128,7 @@ function buildCliHostUtils({ fs, path, isPlainObject, claudeMcpJson }) {
         digest: crypto.createHash('sha256').update(content).digest('hex'),
         sourceDigest,
         workspaceBridge,
+        hostNeutralBridge,
         sharedKernelPointer: definition.role !== 'wrapper' || content.includes('@AGENTS.md')
       }
     })
@@ -145,11 +163,39 @@ function buildCliHostUtils({ fs, path, isPlainObject, claudeMcpJson }) {
     if (kernels.length && !fallback.installed && !sharedKernel.workspaceBridge) {
       issues.push({ code: 'HOST_FULL_FALLBACK_MISSING', path: fallback.path })
     }
-    if (sharedKernel.workspaceBridge && !fs.existsSync(path.join(cwd, '.grok', 'skills', 'devcodex-workspace', 'SKILL.md'))) {
-      issues.push({
-        code: 'HOST_WORKSPACE_BRIDGE_SKILL_MISSING',
-        path: path.join(cwd, '.grok', 'skills', 'devcodex-workspace', 'SKILL.md')
-      })
+    let grokPlugin = null
+    if (hostScope?.scope === 'user-registered-workspace') {
+      const manifest = path.join(hostScope.pluginRoot, '.claude-plugin', 'plugin.json')
+      const hook = path.join(hostScope.pluginRoot, 'hooks', 'devcodex-workspace.cjs')
+      const configPath = grokUserConfigPath(process.env)
+      const installation = inspectGrokPluginInstallation(hostScope.pluginRoot, process.env)
+      let registrationCurrent = false
+      let registrationError = null
+      try {
+        const config = fs.existsSync(configPath) ? fs.readFileSync(configPath, 'utf8') : ''
+        registrationCurrent = !mergeGrokPluginRegistration(config, hostScope.pluginRoot).changed
+      } catch (error) { registrationError = error.message }
+      grokPlugin = {
+        root: hostScope.pluginRoot,
+        manifest,
+        hook,
+        configPath,
+        sourcePresent: fs.existsSync(manifest) && fs.existsSync(hook),
+        installed: fs.existsSync(manifest) && fs.existsSync(hook) && installation.current,
+        installation,
+        registrationCurrent,
+        registrationError
+      }
+      if (!grokPlugin.sourcePresent) issues.push({ code: 'HOST_GROK_WORKSPACE_PLUGIN_MISSING', path: hostScope.pluginRoot })
+      else if (!installation.registered) issues.push({ code: 'HOST_GROK_PLUGIN_INSTALLATION_MISSING', path: installation.registryFile })
+      else if (!installation.current) issues.push({ code: 'HOST_GROK_PLUGIN_INSTALLATION_STALE', path: installation.installedPath })
+      if (!registrationCurrent) {
+        issues.push({
+          code: registrationError ? 'HOST_GROK_PLUGIN_REGISTRATION_INVALID' : 'HOST_GROK_PLUGIN_REGISTRATION_MISSING',
+          path: configPath,
+          ...(registrationError ? { detail: registrationError } : {})
+        })
+      }
     }
     if (fallback.installed && sourceDigests.size === 1 && fallback.digest !== [...sourceDigests][0]) {
       issues.push({
@@ -170,6 +216,9 @@ function buildCliHostUtils({ fs, path, isPlainObject, claudeMcpJson }) {
     return {
       schemaVersion: 'HostInstructionSurfaceInspectionV1',
       cwd: path.resolve(cwd),
+      inspectionRoot: path.resolve(inspectionRoot),
+      hostScope,
+      grokPlugin,
       budgets,
       entries,
       issues,

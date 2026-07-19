@@ -22,6 +22,7 @@ const PLAN_SCHEMA = 'IncrementalAnalysisPlanV2'
 const RECEIPT_SCHEMA = 'IncrementalAnalysisReceiptV2'
 const BACKLOG_SCHEMA = 'GlobalOptimizationBacklogV1'
 const POLICY_VERSION = '2'
+const GRAPH_BUILDER_VERSION = 'static-relative-v1'
 const EVIDENCE_STRENGTH = new Set(['agent-semantic', 'content-structured', 'inventory-only'])
 const COVERAGE_LEVEL = new Set(['deep', 'standard', 'light', 'inventory'])
 const EDGE_TYPES = new Set(['dependency', 'consumer', 'config', 'contract', 'generated', 'test', 'docs'])
@@ -319,13 +320,131 @@ function normalizeGraph(graph = {}) {
     })
   }
   edges.sort((left, right) => left.from.localeCompare(right.from) || left.to.localeCompare(right.to) || left.type.localeCompare(right.type))
+  const stats = {
+    eligibleFiles: Number.isInteger(graph.stats?.eligibleFiles) ? graph.stats.eligibleFiles : 0,
+    analyzedFiles: Number.isInteger(graph.stats?.analyzedFiles) ? graph.stats.analyzedFiles : 0,
+    totalReferences: Number.isInteger(graph.stats?.totalReferences) ? graph.stats.totalReferences : edges.length,
+    resolvedReferences: Number.isInteger(graph.stats?.resolvedReferences) ? graph.stats.resolvedReferences : edges.length,
+    unresolvedReferences: Number.isInteger(graph.stats?.unresolvedReferences) ? graph.stats.unresolvedReferences : 0,
+    unknownConsumerPaths: normalizeStringList(graph.stats?.unknownConsumerPaths)
+  }
+  const coverage = Number.isFinite(graph.coverage)
+    ? Math.max(0, Math.min(1, graph.coverage))
+    : (edges.length ? 1 : 0)
+  const dynamicDependencyUnknown = graph.dynamicDependencyUnknown === true
+  const builderVersion = String(graph.builderVersion || 'legacy')
   return {
     schemaVersion: IMPACT_GRAPH_SCHEMA,
+    builderVersion,
     edges,
-    coverage: Number.isFinite(graph.coverage) ? Math.max(0, Math.min(1, graph.coverage)) : (edges.length ? 1 : 0),
-    dynamicDependencyUnknown: graph.dynamicDependencyUnknown === true,
-    graphIdentity: buildJsonContentIdentity({ sourceKey: 'impact-graph', value: edges, contractVersion: POLICY_VERSION }).identity
+    coverage,
+    dynamicDependencyUnknown,
+    stats,
+    graphIdentity: buildJsonContentIdentity({
+      sourceKey: 'impact-graph',
+      value: { builderVersion, edges, coverage, dynamicDependencyUnknown, stats },
+      contractVersion: POLICY_VERSION
+    }).identity
   }
+}
+
+const GRAPH_SOURCE_EXTENSIONS = ['.js', '.cjs', '.mjs', '.jsx', '.ts', '.tsx', '.json']
+const GRAPH_DOC_EXTENSIONS = ['.md', '.mdx']
+
+function resolveInventoryReference(fromPath, specifier, pathSet, extensions) {
+  const withoutFragment = String(specifier || '').trim().replace(/^<|>$/g, '').split(/[?#]/, 1)[0]
+  if (!withoutFragment || !withoutFragment.startsWith('.')) return null
+  const base = path.posix.normalize(path.posix.join(path.posix.dirname(fromPath), withoutFragment))
+  if (!base || base === '.' || base.startsWith('../') || path.posix.isAbsolute(base)) return null
+  const candidates = [
+    base,
+    ...extensions.map(extension => `${base}${extension}`),
+    ...extensions.map(extension => path.posix.join(base, `index${extension}`)),
+    ...extensions.map(extension => path.posix.join(base, `README${extension}`))
+  ]
+  return candidates.find(candidate => pathSet.has(candidate)) || null
+}
+
+function extractStaticReferences(record) {
+  const text = record.__content?.toString('utf8') || ''
+  const references = []
+  let dynamicDependencyUnknown = false
+  if (['javascript', 'typescript'].includes(record.language)) {
+    const patterns = [
+      /\brequire\s*\(\s*['"`]([^'"`]+)['"`]\s*\)/g,
+      /\b(?:import|export)\s+(?:[^'"`]*?\s+from\s+)?['"`]([^'"`]+)['"`]/g,
+      /\bimport\s*\(\s*['"`]([^'"`]+)['"`]\s*\)/g
+    ]
+    for (const pattern of patterns) {
+      for (const match of text.matchAll(pattern)) references.push({ specifier: match[1], type: 'consumer', source: 'static-relative-import' })
+    }
+    if (/\b(?:require|import)\s*\(\s*(?!['"`])/.test(text)) dynamicDependencyUnknown = true
+  } else if (record.language === 'markdown') {
+    for (const match of text.matchAll(/!?\[[^\]]*\]\(([^)\s]+)(?:\s+['"][^'"]*['"])?\)/g)) {
+      references.push({ specifier: match[1], type: 'docs', source: 'markdown-local-link' })
+    }
+  }
+  return { references, dynamicDependencyUnknown }
+}
+
+function buildImpactGraphFromInventory(inventory) {
+  const records = Array.isArray(inventory?.records) ? inventory.records : []
+  const pathSet = new Set(records.map(record => record.path))
+  const edgeMap = new Map()
+  let eligibleFiles = 0
+  let analyzedFiles = 0
+  let totalReferences = 0
+  let resolvedReferences = 0
+  let unresolvedReferences = 0
+  let dynamicDependencyUnknown = false
+  const unknownConsumerPaths = new Set()
+
+  for (const record of records) {
+    const sourceLike = ['javascript', 'typescript'].includes(record.language)
+    const docsLike = record.language === 'markdown'
+    if (!sourceLike && !docsLike) continue
+    eligibleFiles += 1
+    const extracted = extractStaticReferences(record)
+    analyzedFiles += 1
+    if (extracted.dynamicDependencyUnknown) {
+      dynamicDependencyUnknown = true
+      unknownConsumerPaths.add(record.path)
+    }
+    const extensions = sourceLike ? GRAPH_SOURCE_EXTENSIONS : GRAPH_DOC_EXTENSIONS
+    for (const reference of extracted.references) {
+      if (!String(reference.specifier || '').startsWith('.')) continue
+      totalReferences += 1
+      const target = resolveInventoryReference(record.path, reference.specifier, pathSet, extensions)
+      if (!target) {
+        unresolvedReferences += 1
+        continue
+      }
+      resolvedReferences += 1
+      const edge = {
+        from: target,
+        to: record.path,
+        type: reference.type,
+        evidenceStrength: 'content-structured',
+        source: reference.source
+      }
+      edgeMap.set(`${edge.from}\u0000${edge.to}\u0000${edge.type}`, edge)
+    }
+  }
+  const coverage = totalReferences ? resolvedReferences / totalReferences : (eligibleFiles ? analyzedFiles / eligibleFiles : 1)
+  return normalizeGraph({
+    builderVersion: GRAPH_BUILDER_VERSION,
+    edges: [...edgeMap.values()],
+    coverage,
+    dynamicDependencyUnknown,
+    stats: {
+      eligibleFiles,
+      analyzedFiles,
+      totalReferences,
+      resolvedReferences,
+      unresolvedReferences,
+      unknownConsumerPaths: [...unknownConsumerPaths].sort()
+    }
+  })
 }
 
 function normalizeLens(lens = {}) {
@@ -683,6 +802,11 @@ function lensMatches(record, lens) {
 function buildIncrementalAnalysisPlan({ snapshot, inventory, repoIdentity, graph = {}, lens = {}, options = {} }) {
   const currentLens = normalizeLens(lens)
   const normalizedGraph = normalizeGraph(graph.edges ? graph : snapshot?.impactGraph || graph)
+  const priorGraph = snapshot ? normalizeGraph(snapshot.impactGraph || {}) : null
+  const graphIdentityChanged = Boolean(
+    priorGraph &&
+    priorGraph.graphIdentity?.digest !== normalizedGraph.graphIdentity?.digest
+  )
   const currentBinding = buildKnowledgeBinding({
     repoIdentity,
     inventory,
@@ -694,7 +818,7 @@ function buildIncrementalAnalysisPlan({ snapshot, inventory, repoIdentity, graph
   })
   const normalizedSnapshot = normalizeSnapshot(snapshot, { repoIdentity, inventory, graph: normalizedGraph, knowledgeBinding: currentBinding })
   const pendingPlanInvalid = !!normalizedSnapshot.pendingPlan && !validatePlanIdentity(normalizedSnapshot.pendingPlan)
-  if (!pendingPlanInvalid && normalizedSnapshot.pendingPlan && normalizedSnapshot.pendingPlan.inventoryIdentity?.digest === inventory.inventoryIdentity.digest &&
+  if (!graphIdentityChanged && !pendingPlanInvalid && normalizedSnapshot.pendingPlan && normalizedSnapshot.pendingPlan.inventoryIdentity?.digest === inventory.inventoryIdentity.digest &&
       normalizedSnapshot.pendingPlan.repoIdentity?.repoId === repoIdentity.repoId &&
       normalizedSnapshot.pendingPlan.knowledgeBinding?.bindingIdentity?.digest === currentBinding.bindingIdentity.digest &&
       normalizedSnapshot.pendingPlan.lens?.lensId === currentLens.lensId &&
@@ -714,7 +838,14 @@ function buildIncrementalAnalysisPlan({ snapshot, inventory, repoIdentity, graph
   const currentPaths = inventory.records.map(record => record.path)
   const changedActive = [...delta.added, ...delta.modified, ...delta.renames.map(item => item.to)]
   const configChanged = inventory.records.some(record => changedActive.includes(record.path) && record.kind === 'config')
-  const impacted = configChanged ? [...currentPaths] : expandImpact(changedActive, inventory.records, normalizedGraph)
+  const unknownConsumerPaths = normalizeStringList(normalizedGraph.stats?.unknownConsumerPaths)
+    .filter(relativePath => currentPaths.includes(relativePath))
+  const impacted = configChanged
+    ? [...currentPaths]
+    : [...new Set([
+        ...expandImpact(changedActive, inventory.records, normalizedGraph),
+        ...(changedActive.length ? unknownConsumerPaths : [])
+      ])].sort()
   const priorLens = normalizedSnapshot.lenses.find(record => record.lensId === currentLens.lensId)
   const lensGap = lensMatches(priorLens, currentLens)
     ? currentLens.dependsOn.filter(relativePath => !priorLens.coveragePaths.includes(relativePath))
@@ -725,9 +856,15 @@ function buildIncrementalAnalysisPlan({ snapshot, inventory, repoIdentity, graph
   if (snapshot && (snapshot.repoIdentity?.repoId !== repoIdentity.repoId || snapshot.repoIdentity?.root !== repoIdentity.root)) fullReasons.push('snapshot-target-binding-mismatch')
   if (snapshot && !bindingEnvironmentMatches(snapshot.knowledgeBinding, currentBinding)) fullReasons.push('analysis-environment-binding-mismatch')
   if (pendingPlanInvalid) fullReasons.push('pending-plan-identity-invalid')
+  if (priorGraph && priorGraph.builderVersion !== normalizedGraph.builderVersion) fullReasons.push('impact-graph-builder-migration')
   if (!inventory.bounded) fullReasons.push(`inventory-${inventory.overflowReason}`)
   if (repoIdentity.baseReachable === false) fullReasons.push('base-unreachable')
-  if (normalizedGraph.dynamicDependencyUnknown || options.dynamicDependencyUnknown === true) fullReasons.push('dynamic-dependency-unknown')
+  if (
+    options.dynamicDependencyUnknown === true ||
+    changedActive.some(relativePath => unknownConsumerPaths.includes(relativePath))
+  ) {
+    fullReasons.push('dynamic-dependency-consumer-changed')
+  }
   if (options.highRisk === true) fullReasons.push('high-risk-analysis')
   if (snapshot && normalizedGraph.coverage < (Number.isFinite(options.minimumGraphCoverage) ? options.minimumGraphCoverage : 0.8) && changedActive.length) {
     fullReasons.push('impact-graph-coverage-insufficient')
@@ -755,6 +892,7 @@ function buildIncrementalAnalysisPlan({ snapshot, inventory, repoIdentity, graph
     delta,
     changed: changedActive,
     affected: impacted,
+    graphChanged: graphIdentityChanged,
     lensGap: [...new Set(lensGap)].sort(),
     readPaths,
     reusedPaths,
@@ -1122,6 +1260,7 @@ module.exports = {
   SNAPSHOT_SCHEMA,
   acceptKnowledgeBatch,
   buildFileRecord,
+  buildImpactGraphFromInventory,
   buildKnowledgeBinding,
   buildIncrementalAnalysisPlan,
   buildInventoryFromFiles,

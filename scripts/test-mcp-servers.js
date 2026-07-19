@@ -18,6 +18,7 @@ const {
   createOptimizationState,
   persistOptimizationState
 } = require('./lib/execution-optimization')
+const { CLAUDE_MCP_JSON } = require('../index.js')
 
 const ROOT = path.resolve(__dirname, '..')
 const TEMP_ROOT = path.join(os.tmpdir(), `devcodex-mcp-test-${process.pid}`)
@@ -136,7 +137,10 @@ function setupConfiguredMcpTarget() {
   for (const file of ['01-项目信息.md', '02-架构约束.md', '03-代码风格.md']) {
     fs.writeFileSync(path.join(profileRoot, file), `# ${file}\n`)
   }
-  fs.copyFileSync(path.join(ROOT, '.mcp.json'), path.join(targetRoot, '.mcp.json'))
+  fs.writeFileSync(
+    path.join(targetRoot, '.mcp.json'),
+    `${JSON.stringify(CLAUDE_MCP_JSON, null, 2)}\n`
+  )
   fs.copyFileSync(path.join(ROOT, 'mcp', 'memory-server.js'), path.join(targetRoot, '.claude', 'mcp', 'memory-server.js'))
   fs.copyFileSync(path.join(ROOT, 'mcp', 'profile-server.js'), path.join(targetRoot, '.claude', 'mcp', 'profile-server.js'))
   fs.copyFileSync(path.join(ROOT, 'mcp', 'path-guard.js'), path.join(targetRoot, '.claude', 'mcp', 'path-guard.js'))
@@ -1725,9 +1729,24 @@ function testAdjacentMcpPathArgumentsRejected() {
 }
 
 function testMcpJsonLaunchContract() {
-  const config = JSON.parse(fs.readFileSync(path.join(ROOT, '.mcp.json'), 'utf8'))
-  const servers = config.mcpServers || {}
+  const packageConfig = JSON.parse(fs.readFileSync(path.join(ROOT, '.mcp.json'), 'utf8'))
+  const packageServers = packageConfig.mcpServers || {}
+  const packageExpected = {
+    'devcodex-memory': 'mcp/memory-server.js',
+    'devcodex-profile': 'mcp/profile-server.js'
+  }
+  for (const [name, scriptPath] of Object.entries(packageExpected)) {
+    const server = packageServers[name]
+    assert.ok(server, `package .mcp.json missing ${name}`)
+    assert.deepStrictEqual(server.args, [scriptPath, '.'])
+    assert.ok(fs.existsSync(path.join(ROOT, scriptPath)), `package MCP script missing: ${scriptPath}`)
+    const responses = runConfiguredServer(server, [rpcRequest(88, 'initialize')], ROOT)
+    assert.strictEqual(resultById(responses, 88).serverInfo.name, name)
+  }
+
   const targetRoot = setupConfiguredMcpTarget()
+  const targetConfig = JSON.parse(fs.readFileSync(path.join(targetRoot, '.mcp.json'), 'utf8'))
+  const servers = targetConfig.mcpServers || {}
   const configuredPlanResponses = runConfiguredServer(servers['devcodex-profile'], [
     rpcRequest(89, 'tools/call', {
       name: 'profile_context_plan',

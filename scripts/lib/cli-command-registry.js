@@ -3,7 +3,7 @@
 const { HOST_ALIASES, HOST_IDS } = require('./host-surface-descriptors')
 
 function createCliCommandRegistry(commands) {
-  const required = ['cmdInit', 'cmdInitHost', 'cmdInitClaude', 'cmdInitCodex', 'cmdStatus', 'cmdProfileInit', 'cmdDoctor', 'cmdProbe', 'cmdTrace', 'cmdSkill', 'cmdTask', 'cmdHelp']
+  const required = ['cmdInit', 'cmdInitHost', 'cmdInitClaude', 'cmdInitCodex', 'cmdUninstallHost', 'cmdGrok', 'cmdStatus', 'cmdProfileInit', 'cmdDoctor', 'cmdProbe', 'cmdTrace', 'cmdSkill', 'cmdTask', 'cmdHelp']
   for (const name of required) {
     if (typeof commands[name] !== 'function') throw new TypeError(`missing CLI command handler: ${name}`)
   }
@@ -63,18 +63,24 @@ function runCliCommand({ cmd, argv, registry, runMigrateLayout, process, c, cons
   }
 
   if (cmd === 'init') {
-    if (selection.host === 'claude' && argv.includes('--claude')) registry.cmdInitClaude(selection.cleanedArgv)
-    else if (selection.host === 'codex' && argv.includes('--codex')) registry.cmdInitCodex(['--force', ...selection.cleanedArgv])
-    else if (selection.host) registry.cmdInitHost(selection.host, selection.cleanedArgv)
+    if (selection.host) registry.cmdInitHost(selection.host,
+      selection.host === 'codex' && argv.includes('--codex') ? ['--force', ...selection.cleanedArgv] : selection.cleanedArgv)
     else registry.cmdInit(argv)
     return 'init'
   }
   if (cmd === 'update') {
-    if (selection.host === 'claude' && argv.includes('--claude')) registry.cmdInitClaude(['--force', ...selection.cleanedArgv])
-    else if (selection.host === 'codex' && argv.includes('--codex')) registry.cmdInitCodex(['--force', ...selection.cleanedArgv])
-    else if (selection.host) registry.cmdInitHost(selection.host, ['--force', ...selection.cleanedArgv])
+    if (selection.host) registry.cmdInitHost(selection.host, ['--force', ...selection.cleanedArgv])
     else registry.cmdInit(['--force', ...argv])
     return 'update'
+  }
+  if (cmd === 'uninstall') {
+    if (!selection.host) {
+      console.log(c.red('  CLI_HOST_REQUIRED: uninstall requires --host grok.'))
+      process.exitCode = 2
+      return 'CLI_HOST_REQUIRED'
+    }
+    registry.cmdUninstallHost(selection.host, selection.cleanedArgv)
+    return 'uninstall'
   }
   if (cmd === 'profile') {
     if (argv[0] === 'init') {
@@ -94,6 +100,7 @@ function runCliCommand({ cmd, argv, registry, runMigrateLayout, process, c, cons
     runMigrateLayout(argv)
     return 'migrate-layout'
   }
+  if (cmd === 'grok') { registry.cmdGrok(argv); return 'grok' }
   if (cmd === 'status') { registry.cmdStatus(argv); return 'status' }
   if (cmd === 'doctor') { registry.cmdDoctor(argv); return 'doctor' }
   if (cmd === 'probe') { registry.cmdProbe(argv); return 'probe' }

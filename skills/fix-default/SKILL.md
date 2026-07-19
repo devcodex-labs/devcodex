@@ -27,7 +27,7 @@ description: 默认修复子类型规范 — Bug 修复三步扫描 + CP 流程
 ## 执行阶段
 
 1. 建立 `repair-collaboration` 双层契约：低风险使用 lightweight；P0/P1、安全、控制面、公共契约、≥5 文件、多批次、角色交接或发布风险使用 full，accepted 前必须有独立复证；模型/Agent 名称不参与触发
-2. 执行 `rework-prevention-engineering#RepairPreventionAssessmentGate`：所有 repair 在 accepted 前必须有有效 `RepairPreventionAssessmentV1`；当前修复重跑只关闭当前事件，不能冒充长期 prevention 有效
+2. 执行 active `repair-prevention-assessment#RepairPreventionAssessmentGate`：所有 repair 在 accepted 前必须有有效 `RepairPreventionAssessmentV1`；当前修复重跑只关闭当前事件，不能冒充长期 prevention 有效
 3. 实现修复（最小化变更范围）
 4. 编写/更新回归测试
 5. **修复三步必做**（[SC3](../compliance/SKILL.md) 强制，执行后立即扫描）：

@@ -42,7 +42,9 @@ function buildCliMaintenanceCommands(ctx) {
 
   function collectStatusFacts() {
     const cwd = process.cwd()
-    const ghDir = path.join(cwd, '.github')
+    const instructionProjection = inspectHostInstructionSurfaces(cwd)
+    const hostRoot = path.resolve(instructionProjection.inspectionRoot || cwd)
+    const ghDir = path.join(hostRoot, '.github')
     const sourceRepository = isSourceRepo(cwd)
     const installSurfaces = SOURCES.map(({ to }) => {
       const fileCount = walkDir(path.join(ghDir, to)).length
@@ -52,20 +54,23 @@ function buildCliMaintenanceCommands(ctx) {
 
     const rulesInstalled = fs.existsSync(path.join(ghDir, 'RULES.md'))
     const copilotInstructionsInstalled = fs.existsSync(path.join(ghDir, 'copilot-instructions.md'))
-    const claudeMdInstalled = fs.existsSync(path.join(cwd, 'CLAUDE.md'))
-    const claudeHookFiles = walkDir(path.join(cwd, '.claude', 'hooks', '_runtime')).length
-    const claudeSkills = walkDir(path.join(cwd, '.claude', 'skills')).length
-    const agentsMdInstalled = fs.existsSync(path.join(cwd, 'AGENTS.md'))
-    const codexHookJsonInstalled = fs.existsSync(path.join(cwd, '.codex', 'hooks.json'))
-    const codexHookFiles = walkDir(path.join(cwd, '.codex', 'hooks', '_runtime')).length
-    const codexHookDiagnostics = readCodexHookCommands(cwd)
-    const agentsSkills = walkDir(path.join(cwd, '.agents', 'skills')).length
-    const geminiMdInstalled = fs.existsSync(path.join(cwd, 'GEMINI.md'))
-    const geminiSettingsInstalled = fs.existsSync(path.join(cwd, '.gemini', 'settings.json'))
-    const geminiHookFiles = walkDir(path.join(cwd, '.gemini', 'hooks', '_runtime')).length
-    const grokHookConfigInstalled = fs.existsSync(path.join(cwd, '.grok', 'hooks', 'devcodex.json'))
-    const grokHookFiles = walkDir(path.join(cwd, '.grok', 'hooks', '_runtime')).length
-    const instructionProjection = inspectHostInstructionSurfaces(cwd)
+    const claudeMdInstalled = fs.existsSync(path.join(hostRoot, 'CLAUDE.md'))
+    const claudeHookFiles = walkDir(path.join(hostRoot, '.claude', 'hooks', '_runtime')).length
+    const claudeSkills = walkDir(path.join(hostRoot, '.claude', 'skills')).length
+    const agentsMdInstalled = fs.existsSync(path.join(hostRoot, 'AGENTS.md'))
+    const codexHookJsonInstalled = fs.existsSync(path.join(hostRoot, '.codex', 'hooks.json'))
+    const codexHookFiles = walkDir(path.join(hostRoot, '.codex', 'hooks', '_runtime')).length
+    const codexHookDiagnostics = readCodexHookCommands(hostRoot)
+    const agentsSkills = walkDir(path.join(hostRoot, '.agents', 'skills')).length
+    const geminiMdInstalled = fs.existsSync(path.join(hostRoot, 'GEMINI.md'))
+    const geminiSettingsInstalled = fs.existsSync(path.join(hostRoot, '.gemini', 'settings.json'))
+    const geminiHookFiles = walkDir(path.join(hostRoot, '.gemini', 'hooks', '_runtime')).length
+    const grokWorkspacePluginInstalled = Boolean(instructionProjection.grokPlugin?.installed)
+    const grokPluginRegistrationCurrent = Boolean(instructionProjection.grokPlugin?.registrationCurrent)
+    const grokHookConfigInstalled = grokWorkspacePluginInstalled || fs.existsSync(path.join(hostRoot, '.grok', 'hooks', 'devcodex.json'))
+    const grokHookFiles = grokWorkspacePluginInstalled
+      ? walkDir(path.join(instructionProjection.grokPlugin.root, 'hooks')).length
+      : walkDir(path.join(hostRoot, '.grok', 'hooks', '_runtime')).length
     trackedEntryFiles += [
       rulesInstalled,
       copilotInstructionsInstalled,
@@ -84,6 +89,7 @@ function buildCliMaintenanceCommands(ctx) {
     return {
       schemaVersion: 'StatusDiagnosticV1',
       cwd,
+      hostRoot,
       sourceRepository,
       trackedEntryFiles,
       installSurfaces,
@@ -103,6 +109,8 @@ function buildCliMaintenanceCommands(ctx) {
         geminiHookFiles,
         grokHookConfigInstalled,
         grokHookFiles,
+        grokWorkspacePluginInstalled,
+        grokPluginRegistrationCurrent,
         instructionProjection
       },
       profile: {
@@ -132,11 +140,12 @@ function buildCliMaintenanceCommands(ctx) {
     }
 
     const {
-      cwd, sourceRepository: isSrc, trackedEntryFiles: total, installSurfaces,
+      cwd, hostRoot, sourceRepository: isSrc, trackedEntryFiles: total, installSurfaces,
       entryFiles, profile, executionOptimization, legacy
     } = facts
     console.log()
     console.log(c.bold('  DevCodex status') + c.dim(` in ${cwd}`))
+    if (path.resolve(hostRoot) !== path.resolve(cwd)) console.log(c.dim(`  Host owner: ${hostRoot}`))
     if (isSrc) console.log(c.yellow('  ⚠️  Source repository detected — showing source repo status'))
     console.log(c.dim('  ──────────────────────────────────────'))
     console.log()
@@ -157,7 +166,9 @@ function buildCliMaintenanceCommands(ctx) {
     console.log(`  ${c.cyan('.codex command'.padEnd(14))} ${formatCodexHookCommandStatus(entryFiles.codexHookDiagnostics)}`)
     console.log(`  ${c.cyan('GEMINI.md'.padEnd(14))} ${entryFiles.geminiMdInstalled ? c.green('installed') : c.dim('not installed')}`)
     console.log(`  ${c.cyan('.gemini/hooks'.padEnd(14))} ${entryFiles.geminiSettingsInstalled && entryFiles.geminiHookFiles ? c.green(`${entryFiles.geminiHookFiles + 1} files`) : c.dim('not installed')}`)
-    console.log(`  ${c.cyan('.grok/hooks'.padEnd(14))} ${entryFiles.grokHookConfigInstalled && entryFiles.grokHookFiles ? c.green(`${entryFiles.grokHookFiles + 1} files`) : c.dim('not installed')}`)
+    console.log(`  ${c.cyan('Grok adapter'.padEnd(14))} ${entryFiles.grokWorkspacePluginInstalled
+      ? (entryFiles.grokPluginRegistrationCurrent ? c.green('workspace plugin registered') : c.yellow('plugin present; registration stale'))
+      : (entryFiles.grokHookConfigInstalled && entryFiles.grokHookFiles ? c.green(`${entryFiles.grokHookFiles + 1} project files`) : c.dim('not installed'))}`)
     console.log(`  ${c.cyan('host kernel'.padEnd(14))} ${entryFiles.instructionProjection.status === 'ready'
       ? c.green('ready')
       : (entryFiles.instructionProjection.status === 'not-installed'
@@ -376,28 +387,31 @@ function buildCliMaintenanceCommands(ctx) {
   function collectDoctorFacts() {
     const cwd = process.cwd()
     const env = process.env
+    const instructionProjection = inspectHostInstructionSurfaces(cwd)
+    const hostRoot = path.resolve(instructionProjection.inspectionRoot || cwd)
     const platformEvidence = detectHostPlatform(env, cwd)
     const platform = platformEvidence.platform
     const agent = detectAgent(cwd)
-    const installedHosts = detectInstalledHostAssets(cwd)
+    const installedHosts = detectInstalledHostAssets(hostRoot)
 
-    const hasGithubHooks = fs.existsSync(path.join(cwd, '.github', 'hooks', '_runtime', 'lifecycle.cjs'))
-    const hasClaudeHooks = fs.existsSync(path.join(cwd, '.claude', 'hooks', '_runtime', 'lifecycle.cjs'))
-    const hasCodexHooksJson = fs.existsSync(path.join(cwd, '.codex', 'hooks.json'))
-    const hasCodexHooks = hasCodexHooksJson && fs.existsSync(path.join(cwd, '.codex', 'hooks', '_runtime', 'lifecycle.cjs'))
-    const codexHookDiagnostics = readCodexHookCommands(cwd)
-    const codexConfigState = getCodexConfigState(cwd)
-    const hasCopilotMd = fs.existsSync(path.join(cwd, '.github', 'copilot-instructions.md'))
-    const hasClaudeMd = fs.existsSync(path.join(cwd, 'CLAUDE.md'))
-    const hasAgentsMd = fs.existsSync(path.join(cwd, 'AGENTS.md'))
-    const hasAgentsSkills = fs.existsSync(path.join(cwd, '.agents', 'skills'))
-    const hasInstructions = fs.existsSync(path.join(cwd, '.github', 'instructions'))
-    const hasGeminiMd = fs.existsSync(path.join(cwd, 'GEMINI.md'))
-    const hasGeminiSettings = fs.existsSync(path.join(cwd, '.gemini', 'settings.json'))
-    const hasGeminiHooks = hasGeminiSettings && fs.existsSync(path.join(cwd, '.gemini', 'hooks', '_runtime', 'lifecycle-host-adapters.cjs'))
-    const hasGrokHookConfig = fs.existsSync(path.join(cwd, '.grok', 'hooks', 'devcodex.json'))
-    const hasGrokHooks = hasGrokHookConfig && fs.existsSync(path.join(cwd, '.grok', 'hooks', '_runtime', 'lifecycle-host-adapters.cjs'))
-    const instructionProjection = inspectHostInstructionSurfaces(cwd)
+    const hasGithubHooks = fs.existsSync(path.join(hostRoot, '.github', 'hooks', '_runtime', 'lifecycle.cjs'))
+    const hasClaudeHooks = fs.existsSync(path.join(hostRoot, '.claude', 'hooks', '_runtime', 'lifecycle.cjs'))
+    const hasCodexHooksJson = fs.existsSync(path.join(hostRoot, '.codex', 'hooks.json'))
+    const hasCodexHooks = hasCodexHooksJson && fs.existsSync(path.join(hostRoot, '.codex', 'hooks', '_runtime', 'lifecycle.cjs'))
+    const codexHookDiagnostics = readCodexHookCommands(hostRoot)
+    const codexConfigState = getCodexConfigState(hostRoot)
+    const hasCopilotMd = fs.existsSync(path.join(hostRoot, '.github', 'copilot-instructions.md'))
+    const hasClaudeMd = fs.existsSync(path.join(hostRoot, 'CLAUDE.md'))
+    const hasAgentsMd = fs.existsSync(path.join(hostRoot, 'AGENTS.md'))
+    const hasAgentsSkills = fs.existsSync(path.join(hostRoot, '.agents', 'skills'))
+    const hasInstructions = fs.existsSync(path.join(hostRoot, '.github', 'instructions'))
+    const hasGeminiMd = fs.existsSync(path.join(hostRoot, 'GEMINI.md'))
+    const hasGeminiSettings = fs.existsSync(path.join(hostRoot, '.gemini', 'settings.json'))
+    const hasGeminiHooks = hasGeminiSettings && fs.existsSync(path.join(hostRoot, '.gemini', 'hooks', '_runtime', 'lifecycle-host-adapters.cjs'))
+    const hasGrokWorkspacePlugin = Boolean(instructionProjection.grokPlugin?.installed)
+    const hasGrokPluginRegistration = Boolean(instructionProjection.grokPlugin?.registrationCurrent)
+    const hasGrokHookConfig = hasGrokWorkspacePlugin || fs.existsSync(path.join(hostRoot, '.grok', 'hooks', 'devcodex.json'))
+    const hasGrokHooks = hasGrokWorkspacePlugin || (hasGrokHookConfig && fs.existsSync(path.join(hostRoot, '.grok', 'hooks', '_runtime', 'lifecycle-host-adapters.cjs')))
     const profileDir = resolveProfileDir(cwd)
     const profileState = inspectProfileState(profileDir)
     const hasProfile = profileState.complete
@@ -415,6 +429,7 @@ function buildCliMaintenanceCommands(ctx) {
     return {
       schemaVersion: 'DoctorDiagnosticV1',
       cwd,
+      hostRoot,
       platform,
       platformSource: platformEvidence.source,
       platformEvidence,
@@ -437,6 +452,8 @@ function buildCliMaintenanceCommands(ctx) {
         hasGeminiHooks,
         hasGrokHookConfig,
         hasGrokHooks,
+        hasGrokWorkspacePlugin,
+        hasGrokPluginRegistration,
         instructionProjection
       },
       codexHookDiagnostics,
@@ -472,7 +489,7 @@ function buildCliMaintenanceCommands(ctx) {
       return facts
     }
     const {
-      cwd, platformEvidence, platform, agent, installedHosts, mode,
+      cwd, hostRoot, platformEvidence, platform, agent, installedHosts, mode,
       installArtifacts, codexHookDiagnostics, codexConfigState,
       profile: profileState,
       executionOptimization
@@ -481,6 +498,7 @@ function buildCliMaintenanceCommands(ctx) {
       hasGithubHooks, hasClaudeHooks, hasCodexHooksJson, hasCodexHooks,
       hasCopilotMd, hasClaudeMd, hasAgentsMd, hasAgentsSkills, hasInstructions,
       hasGeminiMd, hasGeminiSettings, hasGeminiHooks, hasGrokHookConfig, hasGrokHooks,
+      hasGrokWorkspacePlugin, hasGrokPluginRegistration,
       instructionProjection
     } = installArtifacts
     const profileDir = profileState.directory
@@ -490,6 +508,7 @@ function buildCliMaintenanceCommands(ctx) {
     console.log(c.bold('  DevCodex Doctor') + c.dim(` v1.9.7+ — runtime diagnostics`))
     console.log(c.dim('  ──────────────────────────────────────'))
     console.log(`  cwd:             ${cwd}`)
+    console.log(`  host owner:      ${hostRoot}`)
     console.log(`  platform:        ${c.cyan(platform)}  ${c.dim(`(${platformEvidence.source})`)}`)
     console.log(`  agent:           ${c.cyan(agent)}`)
     console.log(`  installed hosts: ${installedHosts.length ? c.cyan(installedHosts.join(', ')) : c.dim('none detected')}`)
@@ -511,7 +530,9 @@ function buildCliMaintenanceCommands(ctx) {
     console.log(`    .github/hooks/_runtime/lifecycle.cjs ${hasGithubHooks ? c.green('✅') : c.dim('—')}`)
     console.log(`    GEMINI.md                            ${hasGeminiMd ? c.green('✅') : c.dim('—')}`)
     console.log(`    .gemini/settings + hook adapter      ${hasGeminiSettings && hasGeminiHooks ? c.green('✅') : c.dim('—')}`)
-    console.log(`    .grok/hooks/devcodex + adapter       ${hasGrokHookConfig && hasGrokHooks ? c.green('✅') : c.dim('—')}`)
+    console.log(`    Grok workspace plugin + registration ${hasGrokWorkspacePlugin && hasGrokPluginRegistration
+      ? c.green('✅')
+      : (hasGrokWorkspacePlugin ? c.yellow('⚠️ plugin present; registration stale') : c.dim('—'))}`)
     console.log(`    host instruction projection          ${instructionProjection.status === 'ready'
       ? c.green('✅ ready')
       : (instructionProjection.status === 'not-installed'
@@ -564,7 +585,7 @@ function buildCliMaintenanceCommands(ctx) {
       console.log()
     }
     if (platform === 'grok' && !hasGrokHooks) {
-      console.log(c.yellow('  ⚠️  Grok detected but project adapter is missing — run `devcodex init --host grok`'))
+      console.log(c.yellow('  ⚠️  Grok detected but its resolved adapter is missing — run `devcodex init --host grok` from the current scope'))
       console.log()
     }
     if (instructionProjection.issues.length) {
@@ -607,6 +628,8 @@ function buildCliMaintenanceCommands(ctx) {
       ${c.cyan('update --claude')}   Overwrite Claude Code adapter only
       ${c.cyan('update --codex')}    Overwrite Codex adapter only
       ${c.cyan('update --host <id>')} Refresh one host or all five hosts
+      ${c.cyan('uninstall --host grok')} Remove the Grok user registration; retain workspace source
+      ${c.cyan('grok')}              Launch Grok with workspace kernel binding when cwd is a child Git project
       ${c.cyan('migrate-layout')}    Plan/apply/rollback centralized .devcodex workspace layout
       ${c.cyan('profile init')}      Auto-generate tiered .devcodex/profile/ drafts
       ${c.cyan('profile plan')}      Preview Profile root/tier/file actions without writing
@@ -637,6 +660,9 @@ function buildCliMaintenanceCommands(ctx) {
       devcodex init --host gemini   # Gemini CLI adapter only
       devcodex init --host grok     # Grok Build adapter only
       devcodex update --host all    # Refresh all five host adapters
+      devcodex uninstall --host grok --dry-run # Preview safe Grok deregistration
+      devcodex grok                 # Full-evidence Grok launcher for workspace child projects
+      devcodex grok -p "Review this diff" --output-format json
       devcodex migrate-layout plan  # Generate centralized layout migration manifest
       devcodex profile init --tier profile-standard  # Generate tiered Profile drafts
       devcodex profile plan --tier profile-closed-loop # Preview a safe upgrade

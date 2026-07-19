@@ -51,7 +51,7 @@ DevCodex 默认通过 `.github/`（Copilot）、`CLAUDE.md + .claude/ + .mcp.jso
 - **文件真相源优先的有界启动链**: `MemoryCannotSatisfyBootstrapGate` 要求宿主 Memories、模型长期偏好、SUMMARY 或交接卡只能作为 `navigation-hint`；新线程、resume、summary 恢复或跨项目切换仍须通过 Profile plan、memory status/query 与 handoff 指向的精确 reports/review checklist/source 复证。V86 防止用内置记忆替代文件真相，V99 防止把复证误写成默认全文读取或失败调用假完成。
 - **支撑型 Skill**: `execution-contract` / `test-router` / `release-verification` / `host-contract-verification` / `source-consumer-sync` 为控制面、多批次、测试路线、宿主契约验证与真相源-消费者同步提供可审计支撑，不新增工作流分支
 - **模型无关双层修复协作契约**: AI 判断任务目标为 repair task 时至少建立 `lightweight` 决策/验收层 + 执行/验证层契约；P0/P1、安全、控制面、公共契约、多批次、角色交接或发布风险升级 `full`，用 `findingToPatchMap`、`handoffIntegrity` 与 `independentReReview` 防止范围漂移和补丁作者唯一自证。模型名称或是否切换 Agent 不是触发条件
-- **返工预防与信任链**: `rework-prevention-engineering` 以 WorkUnit/ReworkEvent、双重根因、FirstPassYield 和前瞻 trial 把“复审又发现问题”前移为可度量预防；新 Skill 当前保持 `gray`，只有跨任务前瞻证据证明有效才可升级。`CandidateDiffCompletenessGate` 在 commit/tag/publish 前用 staged candidate snapshot 覆盖 tracked/untracked，并执行 cached diff、name-status、secret-shape 与 intended scope 对账；普通 working diff 不能替代。派生资产另由 `PostStageDerivedArtifactFreshnessGate` 在完整 stage 后读取 Git index，并在 commit 后 clean tree 复放，防止“先生成、后新增消费者”逃逸。`ReviewCoverageClaimIntegrityGate`、`ArtifactDeliveryManifestGate`、`VisibleOutputHostEvidenceGate`、`ReleaseAuthorityBeforeCompatibilityGate`、`ConfigurationErgonomicsGate` 与 `InteractiveSemanticProbe` 分别约束审查真实性、内部交付对账、用户可见证据、兼容判断、配置易用性和交互语义
+- **修复完成与返工效果分层**: active `repair-prevention-assessment` 是所有 repair 的默认完成门禁，强制分离当前关闭证据与长期前瞻计划；gray `rework-prevention-engineering` 仅在返工率、重复逃逸簇或效果验证时使用，以 WorkUnit/ReworkEvent、FirstPassYield 和 prospective trial 判断是否值得晋级。active 工作流不依赖默认不部署的 gray Skill。`CandidateDiffCompletenessGate` 在 commit/tag/publish 前用 staged candidate snapshot 覆盖 tracked/untracked，并执行 cached diff、name-status、secret-shape 与 intended scope 对账；普通 working diff 不能替代。派生资产另由 `PostStageDerivedArtifactFreshnessGate` 在完整 stage 后读取 Git index，并在 commit 后 clean tree 复放，防止“先生成、后新增消费者”逃逸。`ReviewCoverageClaimIntegrityGate`、`ArtifactDeliveryManifestGate`、`VisibleOutputHostEvidenceGate`、`ReleaseAuthorityBeforeCompatibilityGate`、`ConfigurationErgonomicsGate` 与 `InteractiveSemanticProbe` 分别约束审查真实性、内部交付对账、用户可见证据、兼容判断、配置易用性和交互语义
 - **跨仓消费者验证**: `consumer-validation-engineering` 以 RepositoryBinding、SourceConsumerIdentity、ValidationDenominatorMatrix、packed artifact、跨仓 CI 与 freshness drift 约束 SDK/CLI/框架/公共包的独立消费者仓；`DesignFitnessGate` 额外判断主路径、默认值、配置层级、框架约定和维护成本，`ValidationFindingRepairLoop` 在 source mutation 后使旧 identity/证据 stale 并按影响矩阵重跑。realpath、行为全绿或单一 100% 分母不能冒充完整验证。该 Skill 保持 `gray`，由 V95 正负探针守门
 - **品牌视觉资产质量（未发布 gray）**: `brand-visual-quality` 用母版谱系、主题几何 parity、微尺寸光学校正、单色母版、`VisualEvidencePack` 与 blocker reset 管理 logo/icon 等品牌资产生产；文件存在、构建成功或单张截图不能替代同画布证据与人工结论。当前只完成结构化 V97/前向试用证据，仍需真实 WorkUnit 才能晋级 active
 - **发布前审查与关键路径治理**: `audit-release` 负责 release readiness、说明、兼容、包与发布风险；`release-verification` 执行 R0~R7，并以 `ReleaseEfficiencyControlGate` 的 `CandidateFreezeGate`、`ReleaseCriticalPathBudgetGate`、`ValidationEvidenceReuseGate` 管理候选 generation、预算和证据失效。pack/install smoke 额外执行 `IsolatedConsumerCwdGate`：显式 consumer manifest、真实 consumer cwd、source identity 前后对账；禁止用 `npm init --prefix` 冒充 cwd 隔离。无可比较基线时预算只能 advisory，不能削弱 version/pack/registry/R7
@@ -125,14 +125,14 @@ node --version # CLI 需要 Node.js >=18
 npm install @vextjs/devcodex
 ```
 
-4. 在目标项目初始化并验证：
+4. 在目标项目（或已启用 workspace-namespace 的任一子项目）初始化并验证：
 
 ```bash
 npx @vextjs/devcodex init
 npx @vextjs/devcodex status
 ```
 
-成功时会看到 `.github/`、`CLAUDE.md + .claude/` 与 `AGENTS.md + .agents/ + .codex/` 三套当前宿主面。安装返回 401/403 时，检查 `.npmrc` 的 scope registry、PAT 的 `read:packages` 权限和当前 shell 的 `NODE_AUTH_TOKEN`。
+成功时，普通仓库会在项目根看到三套当前宿主面；workspace-namespace 则统一出现在工作区根，子项目保持零 generated host artifacts。安装返回 401/403 时，检查 `.npmrc` 的 scope registry、PAT 的 `read:packages` 权限和当前 shell 的 `NODE_AUTH_TOKEN`。
 
 ## 安装
 
@@ -172,14 +172,14 @@ node index.js init --host grok
 node index.js init --host all       # 显式部署 Copilot / Claude / Codex / Gemini / Grok
 ```
 
-默认 `init` 会先将 Copilot 规范文件复制到项目的 `.github/` 目录，再链式部署 Claude Code adapter（`CLAUDE.md + .claude/ + .mcp.json`）与 Codex adapter（`AGENTS.md + .agents/ + .codex/`）：
+默认 `init` 会先解析宿主资产 owner：普通仓库使用项目根，workspace-namespace 使用工作区根。随后在该 owner 下部署 Copilot `.github/`、Claude Code adapter（`CLAUDE.md + .claude/ + .mcp.json`）与 Codex adapter（`AGENTS.md + .agents/ + .codex/`）：
 
 ```
 .github/
 ├── copilot-instructions.md  ← 默认 Copilot always-on 总则（新增）
 ├── instructions/   ← Instructions 约束（15 个，含全部工作流规则）
 ├── agents/         ← Copilot 自定义 Agent（v1.9.8 起恢复默认分发）
-├── skills/         ← 当前源码 Skill 详细检查标准（80 个，按需读取，含默认分析、用户文档、用户侧文档 review 聚合、专家型产物质量、21 个专家 Owner Skill、复审清单、自我进化治理、README 专项能力、spec-governance、spec-absorption 与 5 个支撑型 Skill）；其中 77 active，`rework-prevention-engineering`、`consumer-validation-engineering`、`brand-visual-quality` 3 个 gray；新增用户可见输出与宿主指令投影能力尚未发版
+├── skills/         ← 当前源码 Skill 详细检查标准（81 个，按需读取，含 active `repair-prevention-assessment`、默认分析、用户文档、用户侧文档 review 聚合、专家型产物质量、21 个专家 Owner Skill、复审清单、自我进化治理、README 专项能力、spec-governance、spec-absorption 与支撑型 Skill）；其中 78 active，`rework-prevention-engineering`、`consumer-validation-engineering`、`brand-visual-quality` 3 个 gray；新增用户可见输出、宿主指令投影与修复评估拆分能力尚未发版
 ├── prompts/        ← Prompt 模板（30 个）
 ├── hooks/          ← 宿主生命周期 Hook 配置与运行时
 │   ├── devcodex.lifecycle.json
@@ -200,11 +200,13 @@ AGENTS.md                 ← 由 instructions.md 确定性生成的共享精简
 └── hooks/_runtime/       ← 统一 lifecycle.cjs 运行时及 helper 模块
 ```
 
-`init --claude` 是 Claude Code-only 路径：只写入 `CLAUDE.md`、`.claude/{instructions,skills,prompts,hooks/_runtime,mcp,data}` 与 `.mcp.json`，并同步开启项目级 hooks / MCP / permissions 配置。
+`init --claude` 是 Claude Code-only 路径：只向解析后的宿主 owner 写入 `CLAUDE.md`、`.claude/{instructions,skills,prompts,hooks/_runtime,mcp,data}` 与 `.mcp.json`，并同步 hooks / MCP / permissions 配置。
 
-`init --codex` 是 Codex-only 路径：只写入 `AGENTS.md`、`.agents/skills/` 与 `.codex/{hooks.json,hooks/_runtime}`。若工作区根已有非空 `AGENTS.md` 或 `.codex/hooks.json` 且内容不同，CLI 会先把备份写入 active-root 的 `.tmp/backups/`，再覆盖为 DevCodex 受管副本。
+`init --codex` 是 Codex-only 路径：只向解析后的宿主 owner 写入 `AGENTS.md`、`.agents/skills/` 与 `.codex/{hooks.json,hooks/_runtime}`。若 owner 根已有非空 `AGENTS.md` 或 `.codex/hooks.json` 且内容不同，CLI 会先把备份写入 active-root 的 `.tmp/backups/`，再覆盖为 DevCodex 受管副本。
 
 `init/update` 还会在当前 active runtime root 写入 `managed/deployment-manifest.json`。命令先预览 `add/update/unchanged/stale/unowned`：`stale` 只报警，不会自动删除；`unowned` 表示目标受管子树中从未进入 manifest 的文件（例如用户自有 `.codex/config.toml`），不会被接管。workspace-namespace 下 manifest 写入 `.devcodex/<project-or-workspace>/managed/`，不会另建平行运行态根。
+
+workspace-namespace 的共享真相与宿主 adapter 都由工作区拥有。Grok 使用工作区 `.grok/plugins/devcodex-workspace` 薄插件：工作区根由 Grok 原生发现，CLI 再以 Grok 官方本地插件命令登记该 workspace source owner，确保子 Git 项目 cwd 同样可发现 resolver Skill、Hook 与 MCP；用户级 `~/.grok/config.toml` 只精确维护受管 `plugins.enabled` 项，旧的受管 `plugins.paths` 项会被移除以避免同名插件碰撞。从子项目执行 `update --host grok` 时实际 owner/manifest 仍是工作区根，子项目不会生成 `AGENTS.md`、`.grok/`、`.codex/`、`.claude/` 或 `.gemini/`。由于 Grok passive Hook stdout 不进入提示上下文，子 Git 项目的完整 kernel 保证通过 `devcodex grok` 调用官方 `--rules` 提供；plain `grok` 只承诺插件发现与 best-effort resolver Skill。项目本地 adapter 仅用于显式 `--project-portable` 模式。
 
 > ⚠️ 请确保 IDE 的 "Use Instruction Files" 设置已开启（默认开启）。
 >
@@ -297,6 +299,9 @@ AGENTS.md                 ← 由 instructions.md 确定性生成的共享精简
 | `devcodex update` | 更新：覆盖同步 Copilot `.github/`，并链式覆盖 Claude Code 与 Codex adapter |
 | `devcodex update --claude` | 更新：仅覆盖同步 Claude Code adapter |
 | `devcodex update --codex` | 更新：仅覆盖同步 Codex adapter |
+| `devcodex update --host <copilot\|claude\|codex\|gemini\|grok\|all>` | 按同一作用域解析器更新指定宿主 |
+| `devcodex uninstall --host grok [--dry-run]` | 解除 Grok 官方用户级插件安装及 DevCodex 自有 enabled/path 项；保留工作区插件 source 与用户其他配置 |
+| `devcodex grok [Grok 参数]` | 按最终 `--cwd` 解析 workspace；root 校验原生 kernel，子 Git 项目用官方 `--rules` 绑定共享 kernel |
 | `devcodex migrate-layout plan` | 生成 `.devcodex` 工作区集中布局迁移清单 |
 | `devcodex migrate-layout apply --manifest <path>` | 按 manifest 执行集中布局切换 |
 | `devcodex migrate-layout rollback --manifest <path>` | 回滚集中布局迁移 |
@@ -319,6 +324,7 @@ AGENTS.md                 ← 由 instructions.md 确定性生成的共享精简
 - `config.local.json`：与 `config.json` 采用相同的 `workspace/profile + <project>/profile` overlay 模型，可作为用户 / 项目指定的本地 overlay，承载长期连接、本地明文连接信息、env / secretRef 引用和 `extensions.<namespace>`；不覆盖 `mode` / `agent`；脚本、测试、数据库 / SSH / MongoDB / 数据操作连接信息默认可直写或沿用项目既有模式，只有用户或项目明确指定时才从这里取得
 - Profile 文档：项目命名空间文件优先，缺失回退到 `workspace/profile`
 - CLI / Hook 运行态目录：统一写 active-root；单项目为 `<workspace>/.devcodex/<project>/.memory|.audit-state`，全工作区为 `<workspace>/.devcodex/workspace/.memory|.audit-state`
+- 宿主部署 owner：从任一子项目执行默认、单宿主或 `--host all` 的 `init/update`，均先解析到工作区根；子项目不生成 `.github/.claude/.codex/.gemini/.grok` 或入口文件。只有显式 Grok `--project-portable` 允许项目级 adapter。
 - 多项目 workspace 根缺少 workspace profile 时，Hook 提示真实路径 `.devcodex/workspace/profile/`；同一宿主会话已识别唯一项目后，后续“继续/确认”会在短 TTL 内沿用该项目和项目 `mode`，新会话、TTL 过期或显式 workspace 请求会重新判断。
 
 配套 CLI：
@@ -374,7 +380,7 @@ devcodex status
 
 当前源码把 task index、Context computation reuse、changed-scope validation、Profile section、Skill bundle 与 ProjectKnowledge snapshot 统一纳入 `ExecutionOptimizationStateV2`。派生索引/cache/snapshot 只负责加速，损坏、过期或关闭时不会成为第二真相源。
 
-大型项目首次逐文件分析可用 `node scripts/project-analysis-state.js observe` 生成零写入结构观察，或用 `bootstrap --task-root <任务目录>` 在全部批次身份与验证通过后建立 `ProjectKnowledgeSnapshotV2`。后续 `plan` 只选择 changed、impact closure 与 lens-gap；未变文件按稳定 5% oracle 复证。V2 以 inventory Merkle 和 repo/root/config/parser/test/Profile binding 防止错库复用，并用 `SemanticClaimV1` 把声明绑定到精确 source range 与 authority。自动 bootstrap 只代表 `content-structured` 基线，不代表人工逐文件深读；V1 snapshot 仅可读取迁移状态，不能继续复用或原地写回。
+大型项目首次逐文件分析可用 `node scripts/project-analysis-state.js observe` 生成零写入结构观察，或用 `bootstrap --task-root <任务目录>` 在全部批次身份与验证通过后建立 `ProjectKnowledgeSnapshotV2`。生产路径会从当前 inventory 字节解析 JS/TS 静态相对依赖与 Markdown 本地链接，持久化带 builder 版本、覆盖率、未解析引用和 unknown consumer 的真实 `ImpactGraphV1`。后续 `plan` 只选择 changed、当前图的 impact closure 与 lens-gap；未变文件按稳定 5% oracle 复证。旧 graph builder 首次迁移走 full-required，正常图拓扑变化只重算新闭包；动态依赖消费者自身变化才强制全文，其他变化会保守重读全部 unknown consumers。V2 以 inventory Merkle 和 repo/root/config/parser/test/Profile binding 防止错库复用，并用 `SemanticClaimV1` 把声明绑定到精确 source range 与 authority。自动 bootstrap 只代表 `content-structured` 基线，不代表人工逐文件深读；V1 snapshot 仅可读取迁移状态，不能继续复用或原地写回。
 
 可选配置只有一个，省略时即为 `safe-auto`：
 
@@ -411,7 +417,7 @@ git clone https://github.com/vextjs/devcodex.git
 cd devcodex
 ```
 
-### 在目标项目中测试 CLI
+### 从目标项目测试 CLI
 
 ```bash
 # 方式一：直接用 node 运行（推荐，无需 link）
@@ -444,7 +450,7 @@ node /path/to/devcodex/index.js status
 
 ### 在 IDE 中验证规则自动生效
 
-1. 在目标项目执行 `devcodex init`（默认同步 `.github/`，并链式部署 `CLAUDE.md + .claude/ + .mcp.json` 以及 `AGENTS.md + .agents/ + .codex/`）
+1. 从目标项目执行 `devcodex init`；普通仓库写项目根，workspace-namespace 子项目自动写工作区 owner 根
 2. 重启 IDE
 3. Copilot：直接在 Copilot Chat 中输入普通需求，确认无需 `@DevCodex` 也会按规则工作
 4. Claude Code-only：仅需单独部署 Claude Code adapter 时执行 `devcodex init --claude`，随后新开会话并确认 `CLAUDE.md`、`.claude/settings.json`、`.mcp.json` 已生效
@@ -469,7 +475,7 @@ devcodex/
 ├── instructions.md # 单源完整规范；确定性生成精简 host kernel、薄 wrapper 与非 always-on full fallback
 ├── agents/        # Agent 源文件；Copilot 端默认分发，Claude Code 端不分发
 ├── instructions/  # 全局 Instructions（15 个，含工作流规则摘要，自动注入）
-├── skills/        # Skill 详细检查标准（80 个，按 01-common §按需读取表 路由读取）
+├── skills/        # Skill 详细检查标准（81 个，按 01-common §按需读取表 路由读取）
 ├── prompts/       # Prompt 模板（30 个）
 ├── hooks/         # Workspace Hooks 配置与分发到 `.github/hooks/_runtime/` 的运行时及 helper 模块
 ├── codex/         # Codex adapter 源模板（分发到 `.codex/hooks.json`，不是工作区部署副本 `.codex/`）
@@ -506,18 +512,18 @@ README / 用户使用文档当前补充四类专项 Skill：`user-manual-authori
 | **GitHub Copilot (JetBrains)** | `.github/instructions/*.md` + `copilot-instructions.md`（instruction-fallback） | ⚠️ 官方自定义指令路径，无本地 Hook 硬拦承诺 | ⚠️ 仅文本 | ❌ 未内置 MCP | 🟡 Beta |
 | **Claude Code (CLI/桌面端)** | `CLAUDE.md` + `.claude/{instructions,skills,prompts,hooks/_runtime,mcp}/` + `settings.json` hooks + `.mcp.json` | ✅ Hook 事件支持硬拦；默认 `safety-only` 下流程项提醒放行 | ✅ Hook + 文本确认 | ✅ MCP | 🟢 Full |
 | **Gemini CLI** | `GEMINI.md` 薄入口 + `AGENTS.md` kernel + `.agents/skills/` + `.gemini/settings.json` | ⚠️ Before/After adapter 已实现；本机无 CLI direct replay | ⚠️ Hook + portable fallback | ⚠️ 按宿主配置 | 🟡 Beta / UNVERIFIED |
-| **Grok Build** | 独立项目：`AGENTS.md` kernel + `.agents/skills/`；workspace 子项目：轻量 `AGENTS.md` + `.grok/skills/devcodex-workspace/` 桥接父级真相源；两者均含 `.grok/hooks/devcodex.json` | ⚠️ 项目根 direct inspect 已验证；仅 PreToolUse 具备阻断能力 | ⚠️ instruction-backed / partial | ✅ 已发现项目 MCP | 🟡 Partial |
+| **Grok Build** | 独立显式 portable：项目 `AGENTS.md + .agents + .grok/hooks`；workspace-namespace：工作区 `.grok/plugins/devcodex-workspace` + 官方用户级本地插件登记，子项目零 generated host artifacts；`devcodex grok` 提供 full kernel launcher | ⚠️ plugin validate、两 cwd inspect、passive/PreToolUse 分级已验证；plain child 为 partial，launcher 为 direct | ⚠️ plain child partial；launcher 完整文本门控 | ✅ plugin MCP doctor direct | 🟡 Plain Partial / Launcher Full |
 | **Cursor IDE** | 需手工配置 `.cursor/rules` 或 root `AGENTS.md`（instruction-fallback；DevCodex **不**自动分发 Cursor 规则；HOST best-effort only） | ⚠️ 无 DevCodex 本地 Hook 硬拦承诺 | ⚠️ 仅文本 | ❌ | 🟡 Best-effort |
 | **OpenAI Codex app/CLI** | `AGENTS.md` + `.agents/skills/` + `.codex/hooks.json`（含 `PreCompact` compaction guardrail） | ⚠️ Codex hook guardrail；阻断输出按事件契约分为顶层 `decision`、`continue:false` 与工具级 `permissionDecision` | ⚠️ Hook + 文本确认 | ⚠️ 可手工配置 MCP；DevCodex 未自动写入 | 🟡 Beta |
 | **ChatGPT 普通对话** | 不读取本地工作区 `AGENTS.md` / `.agents/` / `.codex/`；可手工粘贴规则 | ❌ | ⚠️ 文本 | ❌ | 🔴 Unsupported |
 
 > **安装命令**：已发布 v1.15.1 默认三宿主部署 → `npx @vextjs/devcodex init`；仅 Claude Code adapter → `npx @vextjs/devcodex init --claude`；仅 Codex adapter → `npx @vextjs/devcodex init --codex`。当前未发布源码可用 `node index.js init --host <gemini|grok|all>` 显式增加 Gemini / Grok，默认面仍保持三宿主兼容行为。
 >
-> **Grok workspace 桥接**：在启用 `workspace-namespace` 的直接子项目根执行 `update --host grok` 时，CLI 自动部署一个可被 `grok inspect` 发现的轻量入口和单一 bridge Skill；它先判定意图，再定向读取 workspace 根的 kernel、相关 Skills 与 Profile 片段，不复制整棵 `.agents/`，也不创建第二套项目运行态。项目 `.grok/config.toml` 通过带所有权标记的 MCP block 增量合并，保留用户自有 TOML；bridge 将 memory/profile MCP 绑定到父级受管服务。独立项目仍部署本地 kernel、Skills 与完整 fail-closed fallback。
+> **Grok workspace 插件**：在 `workspace-namespace` 的工作区或任一子项目执行 `update --host grok`，CLI 都把 kernel、Skills、薄插件和 managed manifest 写到同一工作区 owner，再通过 Grok 官方本地插件命令同步用户安装登记；用户 Grok 配置只增量维护 DevCodex plugin enabled 项，并移除同一 owner 的旧 path 注册，官方命令执行后恢复配置原始字节，因此其他设置、注释和插件保持不变，重复执行幂等。`uninstall --host grok` 复用相同 scope identity，只解除官方用户安装与受管配置，保留 workspace source，重复卸载幂等。插件用安装登记中的 source owner 校验 cwd，工作区外 no-op。工作区根可直接运行 `grok`；子 Git 项目要获得完整 kernel 保证时运行 `devcodex grok [原 Grok 参数]`。launcher 先消费官方 `--cwd` 决定真实 owner，校验 root kernel，且只在子 Git 边界追加官方 `--rules`；用户额外 rules 会合并，system prompt override 与重复 cwd 会因破坏保证而拒绝。plain child 与 launcher 证据严格分开，不能恢复 ignored 项目 bridge 冒充成功。
 >
 > **能力差异**：🟢 Full = 已验证 Hook 事件 + MCP + 自动同步；🟡 Beta/Best-effort = 尚未达到 Full，具体能力以矩阵各列为准；🔴 Unsupported = 不在当前本地 adapter 发布范围。默认 `safety-only` 下，bootstrap / CP / auto 白名单等流程问题为提醒并继续，仅危险命令硬拦；设置 `DEVCODEX_HOOK_ENFORCEMENT=strict` 后，支持硬拦的事件才会停止流程。
 >
-> **MCP 边界**：`.mcp.json` 是 Claude Code adapter 的自动写入文件；DevCodex 当前不会为 Copilot 或 Codex 自动写入 MCP manifest。若 Copilot / Codex 宿主后续支持本地 MCP，请按宿主能力手工配置，再用 `devcodex doctor` 或宿主自带诊断命令核对状态。
+> **MCP 边界**：安装到业务项目根的 `.mcp.json` 由 Claude Code adapter 自动写入，并引用该项目的 `.claude/mcp/*`。DevCodex 源码仓自身受版本控制的 `.mcp.json` 则是包开发/插件清单，只引用包内 `mcp/*`；两者是独立契约，禁止拿源码清单覆盖安装态清单。DevCodex 当前不会为 Copilot 或 Codex 自动写入 MCP manifest；其他宿主只按其已验证的原生发现链使用。
 
 ### 用户可见交付与链接兼容
 

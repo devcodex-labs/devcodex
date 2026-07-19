@@ -6,10 +6,11 @@ const { createCliCommandRegistry, parseHostSelection, runCliCommand } = require(
 
 const calls = []
 const handlers = Object.fromEntries([
-  'cmdInit', 'cmdInitClaude', 'cmdInitCodex', 'cmdStatus',
+  'cmdInit', 'cmdInitClaude', 'cmdInitCodex', 'cmdGrok', 'cmdStatus',
   'cmdProfileInit', 'cmdDoctor', 'cmdProbe', 'cmdTrace', 'cmdSkill', 'cmdTask', 'cmdHelp'
 ].map(name => [name, argv => calls.push([name, argv])]))
 handlers.cmdInitHost = (host, argv) => calls.push(['cmdInitHost', host, argv])
+handlers.cmdUninstallHost = (host, argv) => calls.push(['cmdUninstallHost', host, argv])
 const registry = createCliCommandRegistry(handlers)
 const fakeProcess = { exitCode: 0 }
 const c = { red: value => value, dim: value => value }
@@ -17,9 +18,9 @@ const logger = { log: () => {} }
 const migrate = argv => calls.push(['migrate', argv])
 
 assert.strictEqual(runCliCommand({ cmd: 'init', argv: ['--codex', '--dry-run'], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger }), 'init')
-assert.deepStrictEqual(calls.pop(), ['cmdInitCodex', ['--force', '--dry-run']])
+assert.deepStrictEqual(calls.pop(), ['cmdInitHost', 'codex', ['--force', '--dry-run']])
 assert.strictEqual(runCliCommand({ cmd: 'update', argv: ['--claude'], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger }), 'update')
-assert.deepStrictEqual(calls.pop(), ['cmdInitClaude', ['--force']])
+assert.deepStrictEqual(calls.pop(), ['cmdInitHost', 'claude', ['--force']])
 assert.strictEqual(runCliCommand({ cmd: 'init', argv: ['--host', 'gemini', '--dry-run'], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger }), 'init')
 assert.deepStrictEqual(calls.pop(), ['cmdInitHost', 'gemini', ['--dry-run']])
 assert.strictEqual(runCliCommand({ cmd: 'update', argv: ['--grok'], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger }), 'update')
@@ -32,6 +33,12 @@ assert.strictEqual(runCliCommand({ cmd: 'profile', argv: ['plan', '--tier', 'pro
 assert.deepStrictEqual(calls.pop(), ['cmdProfileInit', ['--tier', 'profile-standard', '--dry-run']])
 assert.strictEqual(runCliCommand({ cmd: 'migrate-layout', argv: ['plan'], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger }), 'migrate-layout')
 assert.deepStrictEqual(calls.pop(), ['migrate', ['plan']])
+assert.strictEqual(runCliCommand({ cmd: 'grok', argv: ['-p', 'check'], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger }), 'grok')
+assert.deepStrictEqual(calls.pop(), ['cmdGrok', ['-p', 'check']])
+assert.strictEqual(runCliCommand({ cmd: 'uninstall', argv: ['--host', 'grok', '--dry-run'], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger }), 'uninstall')
+assert.deepStrictEqual(calls.pop(), ['cmdUninstallHost', 'grok', ['--dry-run']])
+assert.strictEqual(runCliCommand({ cmd: 'uninstall', argv: [], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger }), 'CLI_HOST_REQUIRED')
+assert.strictEqual(fakeProcess.exitCode, 2)
 assert.strictEqual(runCliCommand({ cmd: 'status', argv: ['--json'], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger }), 'status')
 assert.deepStrictEqual(calls.pop(), ['cmdStatus', ['--json']])
 assert.strictEqual(runCliCommand({ cmd: 'doctor', argv: ['--json'], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger }), 'doctor')

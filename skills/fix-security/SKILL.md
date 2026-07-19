@@ -23,7 +23,7 @@ description: 安全修复子类型规范 — CVE/漏洞响应 + 四项安全专�
 
 - CP1 必须包含：漏洞描述 + CVSS 评分 + 影响版本范围
 - CP2 必须包含：修复方案 + 是否需要 Breaking Change + 公告计划
-- 安全 repair 必须执行 `rework-prevention-engineering#RepairPreventionAssessmentGate` 且使用 `mode=full`；需要先启用控制时只能选择带授权、前瞻补证和 rollback/sunset 的 `emergency-active`
+- 安全 repair 必须执行 active `repair-prevention-assessment#RepairPreventionAssessmentGate` 且使用 `mode=full`；需要先启用控制时只能选择带授权、前瞻补证和 rollback/sunset 的 `emergency-active`
 - 安全修复 PR 描述中**禁止包含**漏洞细节（防止公开 CVE 前泄露）
 - 依赖升级必须检查 Peer Dependencies 兼容性
 

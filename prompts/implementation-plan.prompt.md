@@ -97,7 +97,7 @@ applyTo: .devcodex/**/requirements/**
 | 产物 / gateGroup | 状态 | 触发事实 | Owner / 真相源 | 计划落点 | 验证路线 / skipReason |
 |------------------|------|----------|------------------|----------|------------------------|
 | ExecutionContract / RepairCollaborationContract | | | execution-contract | | |
-| RepairPreventionAssessment | | repair task accepted 前必经 | rework-prevention-engineering / RepairPreventionAssessmentV1 | | |
+| RepairPreventionAssessment | | repair task accepted 前必经 | active repair-prevention-assessment / RepairPreventionAssessmentV1 | | |
 | TestRoute | | | test-router schema | | |
 | ConceptSyncMap / ProfileImpactCheck | | | source-consumer-sync / load-profile | | |
 | ContextAcquisition | | | `context-acquisition` registry group / Owner Skills | | |

@@ -9,10 +9,10 @@
     "pluginDigest": "41ec6da9aa259043623550e09d0ab43c6fd12c7bd5c87361ce549cf8c1cdc521",
     "portfolioEvidence": "skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "85229c1463a5068750d5417e5ebf960907532dccf99b1cd3da0a88f7007792b4",
-    "consumerInventoryFileCount": 494,
-    "consumerInventoryDigest": "79408dddc0cf4337c34324261c32dfee894cb92b07ee1cf205006c98bacc317b",
-    "consumerProjectionDigest": "40379a93f5a095c86510734cab52194e8a99bc16f3841e34c224f3d4f174dfab",
-    "portfolioInputDigest": "13007da7b839bc7c43a755f4f194ea39afd59740ae386ab06f10e7ba6f5b7da9"
+    "consumerInventoryFileCount": 495,
+    "consumerInventoryDigest": "7ef165faf292018451e947fdb3c6dfbb47ac80b5df9ed41c665967610f673fef",
+    "consumerProjectionDigest": "6fc7117814581354dd33e1c39eaff382d7497d4980ec1dc33c95ca6a2adb6899",
+    "portfolioInputDigest": "11f2495707163d228931db23d0334d068851ab813a52f9b40e86f5aab82a0e72"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -11135,6 +11135,10 @@
         },
         {
           "path": "prompts/technical-design.prompt.md",
+          "role": "current"
+        },
+        {
+          "path": "scripts/fixtures/host-parity/platform-capability-request-xai.md",
           "role": "current"
         },
         {

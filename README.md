@@ -520,6 +520,7 @@ README / 用户使用文档当前补充四类专项 Skill：`user-manual-authori
 > **安装命令**：已发布 v1.15.1 默认三宿主部署 → `npx @vextjs/devcodex init`；仅 Claude Code adapter → `npx @vextjs/devcodex init --claude`；仅 Codex adapter → `npx @vextjs/devcodex init --codex`。当前未发布源码可用 `node index.js init --host <gemini|grok|all>` 显式增加 Gemini / Grok，默认面仍保持三宿主兼容行为。
 >
 > **Grok workspace 插件**：在 `workspace-namespace` 的工作区或任一子项目执行 `update --host grok`，CLI 都把 kernel、Skills、薄插件和 managed manifest 写到同一工作区 owner。薄插件 source 位于 `.grok/devcodex/plugins/devcodex-workspace`，不会被 project auto-discovery 再发现，只由 Grok 官方本地插件登记形成一个 user identity。旧 `.grok/plugins/devcodex-workspace` 登记会先通过官方 CLI 迁移，新安装 digest 验证后旧 source 才可逆移动到 `.tmp/backups`；失败走旧 source/registration/config 回滚。用户 Grok 配置只维护 DevCodex enabled 项和新旧受管 path 清理，其他设置、注释和插件保持不变，重复执行幂等。`uninstall --host grok` 只解除当前官方登记与受管配置，保留 canonical workspace source。工作区根可直接运行 `grok`；子 Git 项目要获得完整 kernel 保证时运行 `devcodex grok [原 Grok 参数]`。launcher 先消费官方 `--cwd` 决定真实 owner，校验 root kernel，且只在子 Git 边界追加官方 `--rules`；用户额外 rules 会合并，system prompt override 与重复 cwd 会因破坏保证而拒绝。root native、plain child 与 launcher 证据严格分开。
+> `doctor/status` 诊断将 workspace plugin 的 source+registration 可用性与 installed digest 新鲜度分开：digest drift 只作为 warning 和刷新建议，不再把已登记且可用的 adapter 误报为未安装。
 >
 > **能力差异**：🟢 Full = 已验证 Hook 事件 + MCP + 自动同步；🟡 Beta/Best-effort = 尚未达到 Full，具体能力以矩阵各列为准；🔴 Unsupported = 不在当前本地 adapter 发布范围。默认 `safety-only` 下，bootstrap / CP / auto 白名单等流程问题为提醒并继续，仅危险命令硬拦；设置 `DEVCODEX_HOOK_ENFORCEMENT=strict` 后，支持硬拦的事件才会停止流程。
 >

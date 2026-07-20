@@ -181,6 +181,7 @@
     "scripts/lib/profile-bootstrap-utils.js",
     "scripts/lib/cli-install-commands.js",
     "scripts/lib/cli-maintenance-commands.js",
+    "scripts/lib/host-parity-scorecard.js",
     "scripts/lib/cli-command-registry.js",
     "scripts/lib/cli-json-contract.js",
     "scripts/lib/cli-observability-commands.js",

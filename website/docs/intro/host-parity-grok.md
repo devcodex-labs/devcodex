@@ -59,6 +59,8 @@ devcodex status
 | `full-capable` | kernel + lifecycle + deny 适配 + path-observable + 插件登记齐全；**仍须** `devcodex grok` 做 Full 会话 |
 | `partial` | 缺检查项；按 doctor 列出的 checks 修复后重跑 |
 
+若 workspace plugin source 与用户级登记都存在，但安装副本 digest 与 source 不一致，`doctor/status` 只把它列为 warning；这表示建议重新执行 `devcodex update --host grok` 刷新安装副本，但不应把当前可用的 workspace adapter 误报为“未安装”。
+
 禁止把 `full-capable` 解读为「UserPromptSubmit 已注入 PC0」。
 
 ## 平台上限

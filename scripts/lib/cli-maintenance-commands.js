@@ -180,8 +180,9 @@ function buildCliMaintenanceCommands(ctx) {
     console.log(`  ${c.cyan('Grok adapter'.padEnd(14))} ${entryFiles.grokWorkspacePluginInstalled
       ? (entryFiles.grokPluginRegistrationCurrent ? c.green('workspace plugin registered') : c.yellow('plugin present; registration stale'))
       : (entryFiles.grokHookConfigInstalled && entryFiles.grokHookFiles ? c.green(`${entryFiles.grokHookFiles + 1} project files`) : c.dim('not installed'))}`)
+    const projectionWarnings = entryFiles.instructionProjection.warnings || []
     console.log(`  ${c.cyan('host kernel'.padEnd(14))} ${entryFiles.instructionProjection.status === 'ready'
-      ? c.green('ready')
+      ? (projectionWarnings.length ? c.yellow(`ready; ${projectionWarnings.length} warning(s)`) : c.green('ready'))
       : (entryFiles.instructionProjection.status === 'not-installed'
           ? c.dim('not installed')
           : c.yellow(`${entryFiles.instructionProjection.issues.length} issue(s)`))}`)
@@ -568,8 +569,9 @@ function buildCliMaintenanceCommands(ctx) {
     console.log(`    Grok workspace plugin + registration ${hasGrokWorkspacePlugin && hasGrokPluginRegistration
       ? c.green('✅')
       : (hasGrokWorkspacePlugin ? c.yellow('⚠️ plugin present; registration stale') : c.dim('—'))}`)
+    const projectionWarnings = instructionProjection.warnings || []
     console.log(`    host instruction projection          ${instructionProjection.status === 'ready'
-      ? c.green('✅ ready')
+      ? (projectionWarnings.length ? c.yellow(`✅ ready; ${projectionWarnings.length} warning(s)`) : c.green('✅ ready'))
       : (instructionProjection.status === 'not-installed'
           ? c.dim('not installed')
           : c.yellow(`⚠️ ${instructionProjection.issues.length} issue(s)`))}`)
@@ -638,6 +640,11 @@ function buildCliMaintenanceCommands(ctx) {
     if (instructionProjection.issues.length) {
       for (const issue of instructionProjection.issues) console.log(c.yellow(`  ⚠️  ${issue.code}`))
       console.log(c.dim('      Run `devcodex update --host <host>` and use the full fallback until projection is ready.'))
+      console.log()
+    }
+    if ((instructionProjection.warnings || []).length) {
+      for (const warning of instructionProjection.warnings) console.log(c.yellow(`  ⚠️  ${warning.code}`))
+      console.log(c.dim('      Warning only: source/installed digest drift does not make the Grok adapter unavailable.'))
       console.log()
     }
     if (hasCodexHooksJson) {

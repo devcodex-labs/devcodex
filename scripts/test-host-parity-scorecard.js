@@ -8,7 +8,8 @@ const path = require('path')
 const {
   evaluateGrokHostParity,
   composeEntryCheckBlock,
-  entryCheckAssistSuffix
+  entryCheckAssistSuffix,
+  composePc4Line
 } = require('./lib/host-parity-scorecard.js')
 const { adaptHostOutput } = require('../hooks/_runtime/lifecycle-host-adapters.cjs')
 const { buildLifecyclePayloadUtils } = require('../hooks/_runtime/lifecycle-payload-utils.cjs')
@@ -18,6 +19,10 @@ const block = composeEntryCheckBlock({ project: 'demo', status: 'PASS', nextStep
 assert.match(block, /### DevCodex · 入口检查/)
 assert.match(block, /`PASS` · `demo`/)
 assert.match(block, /PC0/)
+assert.match(block, /PC4 \[UNVERIFIED\] ENV_MODE unknown/)
+assert.match(composeEntryCheckBlock({ project: 'demo', envMode: 'dev' }), /PC4 \[UNVERIFIED\] dev 模式/)
+assert.match(composeEntryCheckBlock({ project: 'demo', envMode: 'prod' }), /PC4 \[N\/A\] prod 模式/)
+assert.match(composePc4Line({ envMode: 'unexpected' }), /ENV_MODE unknown/)
 assert.match(entryCheckAssistSuffix({ project: 'x' }), /S07 assist/)
 
 // Workspace-like layout for hardReady

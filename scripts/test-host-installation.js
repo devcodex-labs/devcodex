@@ -350,7 +350,8 @@ for (const field of ['copilotInstructionsInstalled', 'claudeMdInstalled', 'agent
 const childStatusGrok = childStatusFacts.entryFiles.instructionProjection.grokPlugin
 assert.strictEqual(childStatusGrok.sourcePresent, true)
 assert.strictEqual(childStatusGrok.registrationCurrent, true)
-assert.strictEqual(childStatusFacts.entryFiles.grokWorkspacePluginInstalled, childStatusGrok.installation.current)
+assert.strictEqual(childStatusFacts.entryFiles.grokWorkspacePluginInstalled, childStatusGrok.installed)
+assert.strictEqual(childStatusGrok.installed, childStatusGrok.installation.registered)
 assert.strictEqual(childStatusFacts.entryFiles.grokWorkspacePluginInstalled, grokCliAvailable, 'status must not claim official plugin installation when Grok CLI is unavailable')
 const childDoctor = run(['doctor', '--json'], bridgeProject)
 assert.strictEqual(childDoctor.status, 0, childDoctor.stderr || childDoctor.stdout)
@@ -396,8 +397,10 @@ if (grokCliAvailable) {
   assert(fixtureInstalledPlugin?.path, 'fixture Grok installed plugin registry entry missing')
   fs.appendFileSync(path.join(fixtureInstalledPlugin.path, 'hooks', 'devcodex-workspace.cjs'), '\n// stale-installed-copy-fixture\n', 'utf8')
   const stalePluginInspection = hostUtils.inspectHostInstructionSurfaces(bridgeProject)
-  assert.strictEqual(stalePluginInspection.grokPlugin.installed, false)
-  assert(stalePluginInspection.issues.some(item => item.code === 'HOST_GROK_PLUGIN_INSTALLATION_STALE'))
+  assert.strictEqual(stalePluginInspection.grokPlugin.installed, true)
+  assert.strictEqual(stalePluginInspection.grokPlugin.installationCurrent, false)
+  assert(stalePluginInspection.warnings.some(item => item.code === 'HOST_GROK_PLUGIN_INSTALLATION_STALE'))
+  assert(!stalePluginInspection.issues.some(item => item.code === 'HOST_GROK_PLUGIN_INSTALLATION_STALE'))
 }
 const bridgeRepeat = run(['update', '--host', 'grok'], bridgeProject)
 assert.strictEqual(bridgeRepeat.status, 0, bridgeRepeat.stderr || bridgeRepeat.stdout)
@@ -514,6 +517,13 @@ const outsideHook = deployedHook.runWorkspaceBridge(
 )
 assert.strictEqual(outsideHook.reason, 'outside-managed-workspace')
 assert.deepStrictEqual(outsideHook.output, { continue: true })
+const outsidePreToolHook = deployedHook.runWorkspaceBridge(
+  { hookEventName: 'PreToolUse', cwd: FIXTURE_ROOT, toolInput: { command: 'echo ok' } },
+  { cwd: FIXTURE_ROOT, pluginRoot: path.join(bridgeWorkspace, '.grok', 'devcodex', 'plugins', 'devcodex-workspace') }
+)
+assert.strictEqual(outsidePreToolHook.reason, 'workspace-active')
+assert.strictEqual(outsidePreToolHook.evidenceMode, 'blocking-tool-hook')
+assert.deepStrictEqual(outsidePreToolHook.output, { decision: 'allow' })
 const nestedWorkspace = path.join(bridgeProject, 'nested workspace')
 fs.mkdirSync(path.join(nestedWorkspace, '.devcodex'), { recursive: true })
 fs.mkdirSync(path.join(nestedWorkspace, '.git'), { recursive: true })

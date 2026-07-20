@@ -49,6 +49,23 @@ function readBootstrapCapability(bootstrapPath) {
   }
 }
 
+function normalizeEnvMode(value) {
+  const mode = String(value || '').trim().toLowerCase()
+  if (mode === 'dev' || mode === 'prod') return mode
+  return 'unknown'
+}
+
+function composePc4Line(options = {}) {
+  const mode = normalizeEnvMode(options.envMode || options.mode || options.profileMode)
+  if (mode === 'dev') {
+    return '- PC4 [UNVERIFIED] dev 模式：必须输出完整规范雷达，并绑定所用 Skills/Profile/Owner/TestRoute'
+  }
+  if (mode === 'prod') {
+    return '- PC4 [N/A] prod 模式：不展开 dev 规范雷达；安全底线与 CP 门控仍强制'
+  }
+  return '- PC4 [UNVERIFIED] ENV_MODE unknown：需先读取 Profile config 后判定 dev/prod 与 PC4 展开方式'
+}
+
 /**
  * @param {object} input
  * @param {string} input.cwd
@@ -180,7 +197,7 @@ function composeEntryCheckBlock(options = {}) {
     '- PC1 [UNVERIFIED] 语义初判 → 项目现实扩展后最终路由',
     '- PC2 [UNVERIFIED] 会话/Token 防护/待跟进',
     '- PC3 [UNVERIFIED] 唯一项目、连续性与产物落点',
-    '- PC4 [N/A] 非 dev 编码时 N/A；dev 时写规范雷达',
+    composePc4Line(options),
     '- PC5 [UNVERIFIED] 宿主部署/同步/加载证据（Grok: Partial unless Full launcher）',
     '- PC6 [UNVERIFIED] git dirty、active task 与工作区一致性',
     '- PC7 [UNVERIFIED] 新会话或 resume 的 bounded continuation',
@@ -203,6 +220,7 @@ module.exports = {
   evaluateGrokHostParity,
   composeEntryCheckBlock,
   entryCheckAssistSuffix,
+  composePc4Line,
   readAdapterDenyContract,
   readBootstrapCapability
 }

@@ -24,8 +24,8 @@ function isUnder(root, target) {
   return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel))
 }
 
-function noop() {
-  return { decision: 'allow' }
+function noop(payload) {
+  return isPreTool(payload) ? { decision: 'allow' } : { continue: true }
 }
 
 function deny(reason) {
@@ -157,11 +157,25 @@ function resolveCwdCandidates(payload, options = {}) {
 function resolveWorkspace(pluginRoot, payload, options = {}) {
   const expectedWorkspace = workspaceFromPluginRoot(pluginRoot)
   const candidates = resolveCwdCandidates(payload, options)
+  const discovered = candidates.map((start) => ({ start, found: findWorkspaceRoot(start) }))
 
-  for (const start of candidates) {
-    const found = findWorkspaceRoot(start)
+  for (const { start, found } of discovered) {
     if (found && expectedWorkspace && samePath(found, expectedWorkspace)) {
       return { expectedWorkspace, discoveredWorkspace: found, cwd: start, via: 'walk-match' }
+    }
+  }
+  const conflictingWorkspace = discovered.find(item =>
+    item.found
+    && expectedWorkspace
+    && !samePath(item.found, expectedWorkspace)
+    && isUnder(expectedWorkspace, item.start)
+  )
+  if (conflictingWorkspace) {
+    return {
+      expectedWorkspace,
+      discoveredWorkspace: conflictingWorkspace.found,
+      cwd: conflictingWorkspace.start,
+      via: 'walk-other'
     }
   }
 
@@ -187,7 +201,7 @@ function resolveWorkspace(pluginRoot, payload, options = {}) {
     }
   }
 
-  const firstFound = candidates.map(findWorkspaceRoot).find(Boolean) || null
+  const firstFound = discovered.find(item => item.found)?.found || null
   return {
     expectedWorkspace,
     discoveredWorkspace: firstFound,
@@ -217,7 +231,7 @@ function runWorkspaceBridge(payload, options = {}) {
     if (local) {
       return { status: 0, workspaceRoot: null, output: local, reason: 'outside-managed-local-danger-deny' }
     }
-    return { status: 0, workspaceRoot: null, output: noop(), reason: 'outside-managed-workspace' }
+    return { status: 0, workspaceRoot: null, output: noop(payload), reason: 'outside-managed-workspace' }
   }
 
   const kernelPath = path.join(discoveredWorkspace, 'AGENTS.md')
@@ -231,7 +245,7 @@ function runWorkspaceBridge(payload, options = {}) {
     path.join(discoveredWorkspace, '.claude', 'hooks', '_runtime', 'lifecycle-host-adapters.cjs')
   ]
   const adapter = adapterCandidates.find((file) => fs.existsSync(file))
-  let output = noop()
+  let output = noop(payload)
   let adapterNote = 'no-adapter'
 
   if (adapter) {
@@ -256,7 +270,7 @@ function runWorkspaceBridge(payload, options = {}) {
       output = deny(parsed.reason || 'DevCodex denied this tool call.')
       adapterNote = 'adapter-deny'
     } else if (child.status === 0 && parsed) {
-      output = parsed.decision ? parsed : (parsed.continue === false ? deny(parsed.reason || 'blocked') : noop())
+      output = parsed.decision ? parsed : (parsed.continue === false ? deny(parsed.reason || 'blocked') : noop(payload))
       adapterNote = 'adapter-ok'
     } else if (child.status !== 0) {
       const local = localDangerDeny(payload)
@@ -329,7 +343,7 @@ if (require.main === module) {
       process.exit(result.status)
       return
     }
-    const output = result.output || noop()
+    const output = result.output || noop(payload)
     process.stdout.write(JSON.stringify(output))
     if (output.decision === 'deny') process.exit(2)
     process.exit(0)

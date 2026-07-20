@@ -5,14 +5,14 @@
   "generatedFrom": {
     "skillsPattern": "skills/*/SKILL.md",
     "registry": "plugin.json",
-    "sourceDigest": "1d7570f659bba298e21bf655d250c017c928d9c2de7a7818b2bc246a6d8c3a10",
+    "sourceDigest": "7e715296546dc7f5298f80cfab9a21facd6717fbf7395b0a7850c8002594e7db",
     "pluginDigest": "41ec6da9aa259043623550e09d0ab43c6fd12c7bd5c87361ce549cf8c1cdc521",
     "portfolioEvidence": "skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "85229c1463a5068750d5417e5ebf960907532dccf99b1cd3da0a88f7007792b4",
-    "consumerInventoryFileCount": 489,
-    "consumerInventoryDigest": "cbaac39b123e356ac83be61d88214cd95384a864799067a1b6301d3d941463d3",
-    "consumerProjectionDigest": "499a78bbe8dcc204e80f93bd8877a02b5c195ae8877db39868baa1805e1dba6f",
-    "portfolioInputDigest": "8f07290ab17aee201da83a52d50fa7d6bc6e2c3de3cce945285e61e71737792e"
+    "consumerInventoryFileCount": 494,
+    "consumerInventoryDigest": "79408dddc0cf4337c34324261c32dfee894cb92b07ee1cf205006c98bacc317b",
+    "consumerProjectionDigest": "5f31b7ea4702a378c8fc3c795ffcc54747773c891baaaaa6af2e2ea218defe08",
+    "portfolioInputDigest": "65cb4c05c559aa4dd845dc559f9d51a4e881d2d954bdf9c20580765b8cb0a832"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -4797,8 +4797,8 @@
         "skills/compliance/SKILL.md"
       ],
       "source": "skills/compliance/SKILL.md",
-      "hash": "aadb753ff295dc4987516fa445a9c0ebb4c9cff8bee42771ab60c820708b155b",
-      "sourceBytes": 13940,
+      "hash": "83d4498b3763e214ebbabbf417b2d75ca77e4a62c4dc37b423773d033b7932a6",
+      "sourceBytes": 14179,
       "version": "1.15.1",
       "lifecycleState": "active",
       "dependencies": [],
@@ -4890,6 +4890,10 @@
         {
           "path": "changelogs/releases/v1.9.8.md",
           "role": "historical"
+        },
+        {
+          "path": "changelogs/unreleased.md",
+          "role": "current"
         },
         {
           "path": "data/templates/violations.md",
@@ -11964,7 +11968,15 @@
           "role": "current"
         },
         {
+          "path": "host-projections/AGENTS.md",
+          "role": "current"
+        },
+        {
           "path": "host-projections/AGENTS.workspace-bridge.md",
+          "role": "current"
+        },
+        {
+          "path": "host-projections/copilot-instructions.md",
           "role": "current"
         },
         {
@@ -11973,6 +11985,10 @@
         },
         {
           "path": "instructions.md",
+          "role": "current"
+        },
+        {
+          "path": "instructions/00-safety.instructions.md",
           "role": "current"
         },
         {
@@ -12085,6 +12101,10 @@
         },
         {
           "path": "scripts/lib/cp-digest.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/host-parity-scorecard.js",
           "role": "current"
         },
         {
@@ -13047,6 +13067,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/host-parity-scorecard.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/project-knowledge-store.js",
           "role": "current"
         },
@@ -13068,6 +13092,10 @@
         },
         {
           "path": "scripts/lib/test-hooks-runtime-governance-intake.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/test-hooks-runtime-visibility.js",
           "role": "current"
         },
         {
@@ -13208,6 +13236,10 @@
         },
         {
           "path": "scripts/test-hooks-runtime.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-host-adapters.js",
           "role": "current"
         },
         {
@@ -13490,6 +13522,7 @@
         "scripts/test-execution-chain-evolution.js",
         "scripts/test-governance-intake.js",
         "scripts/test-hooks-runtime.js",
+        "scripts/test-host-adapters.js",
         "scripts/test-markdown-structure.js",
         "scripts/test-mcp-servers.js",
         "scripts/test-migrate-layout.js",
@@ -13560,6 +13593,7 @@
           "scripts/test-execution-chain-evolution.js",
           "scripts/test-governance-intake.js",
           "scripts/test-hooks-runtime.js",
+          "scripts/test-host-adapters.js",
           "scripts/test-markdown-structure.js",
           "scripts/test-mcp-servers.js",
           "scripts/test-migrate-layout.js",
@@ -15512,6 +15546,10 @@
           "role": "current"
         },
         {
+          "path": "grok/plugins/devcodex-workspace/skills/devcodex-workspace/SKILL.md",
+          "role": "current"
+        },
+        {
           "path": "grok/skills/devcodex-workspace/SKILL.md",
           "role": "current"
         },
@@ -15536,11 +15574,23 @@
           "role": "current"
         },
         {
+          "path": "host-projections/AGENTS.md",
+          "role": "current"
+        },
+        {
           "path": "host-projections/AGENTS.workspace-bridge.md",
           "role": "current"
         },
         {
+          "path": "host-projections/copilot-instructions.md",
+          "role": "current"
+        },
+        {
           "path": "instructions.md",
+          "role": "current"
+        },
+        {
+          "path": "instructions/00-safety.instructions.md",
           "role": "current"
         },
         {
@@ -15561,6 +15611,10 @@
         },
         {
           "path": "instructions/16-report.instructions.md",
+          "role": "current"
+        },
+        {
+          "path": "instructions/17-compliance.instructions.md",
           "role": "current"
         },
         {
@@ -18452,6 +18506,10 @@
           "role": "current"
         },
         {
+          "path": "hooks/_runtime/lifecycle.cjs",
+          "role": "current"
+        },
+        {
           "path": "hooks/_runtime/visible-output-contract.cjs",
           "role": "current"
         },
@@ -19686,8 +19744,8 @@
         "skills/user-visible-output-contract/SKILL.md"
       ],
       "source": "skills/user-visible-output-contract/SKILL.md",
-      "hash": "838fdf356aa53386fba012ef4e70269605882900fbf8dd264890315fa0916886",
-      "sourceBytes": 8441,
+      "hash": "449373f2a84c6c1a001410d49ff3549511b857a5f145c50a7d22652a78991196",
+      "sourceBytes": 8562,
       "version": "1.15.1",
       "lifecycleState": "active",
       "dependencies": [],

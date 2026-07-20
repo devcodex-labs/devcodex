@@ -26,6 +26,7 @@ WorkspaceDataAbsorptionScopeGate · DocsSiteVisualAcceptanceGate · OmissionOnly
 - **收口剩余可交付**：站内 [Grok 与 Codex 对齐](website/docs/intro/host-parity-grok.md) + sidebar；哲学页 Auto 宿主诚实分列；阶段 3 平台需求单 `03-平台能力需求-xAI.md`；`test-host-parity-remaining` 跨宿主 hard-block 与文档存在性烟测。
 - **Grok 危险命令未拦修复**：PreTool/PostTool 去掉非法 regex matcher `*`（Grok 按正则解析，`*` 无效导致 hook 可能不触发）；`pre_tool_use` 等 snake_case 事件名规范为 lifecycle `PreToolUse`；bridge 在 `decision:deny` 时 exit 2。
 - **Grok bridge 二次加固**：`GROK_WORKSPACE_ROOT`/多 cwd 候选与 plugin-bound fallback；adapter 非 0 退出仍解析 deny JSON；bridge 本地危险命令兜底 deny；写入 `pretool-last.json` 诊断；Remove-Item 参数顺序兼容。
+- **HostParity 残余收口**：入口检查 helper 的 PC4 改为 `dev / prod / unknown` 三态；Grok workspace bridge 对 passive event 输出 `{ continue: true }`、PreToolUse 保持 Grok native allow/deny，并修复 nested workspace owner 越界；`status/doctor` 将 Grok installed source+registration 与 installed digest drift 分层，digest drift 仅 warning；package `files` 补入 `scripts/lib/host-parity-scorecard.js` 并通过 pack/isolated consumer smoke。
 
 ### Grok workspace 插件与宿主作用域纠偏（2026-07-20）
 

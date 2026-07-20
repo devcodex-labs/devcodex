@@ -14,8 +14,8 @@
 
 | 优先级 | 主题 | 状态 | 说明 |
 |--------|------|------|------|
-| P0 | [意图驱动的上下文按需加载](./p0/intent-driven-context-loading) | 🟢 已实现并复证 | 已发布基线采用 V1；当前未发布源码升级为 `IntentSeedV1 → ContextReadPlanV2 → targeted load → ContextReadReceiptV2`，并保持 V1 读取兼容与 hidden-read 探针 |
-| P0 | [项目侧执行链性能、任务名续接与增量分析](./p0/project-execution-chain-performance) | 🟢 B0～B6 源码能力已实现（未发版） | 用户新会话只发 `继续<任务名>任务`；任务名续接、ContextRead V2、validation DAG、Profile/Skill 渐进加载、ProjectKnowledge、feature-level 回滚与 V101 已闭合，最终验证证据由任务报告/ECR 持有，未发版 |
+| P0 | [意图驱动的上下文按需加载](./p0/intent-driven-context-loading) | 🟢 已实现并随 v1.15.2 发布 | 已发布基线采用 V1；v1.15.2 升级为 `IntentSeedV1 → ContextReadPlanV2 → targeted load → ContextReadReceiptV2`，并保持 V1 读取兼容与 hidden-read 探针 |
+| P0 | [项目侧执行链性能、任务名续接与增量分析](./p0/project-execution-chain-performance) | 🟢 B0～B6 已实现并随 v1.15.2 发布 | 用户新会话只发 `继续<任务名>任务`；任务名续接、ContextRead V2、validation DAG、Profile/Skill 渐进加载、ProjectKnowledge、feature-level 回滚与 V101 已闭合，最终验证证据由任务报告/ECR 持有 |
 | P1 | [模板边界与开发流程收口](./p1/template-flow-alignment/index) | ✅ 已收口 | 正式需求入口、执行模板职责、CP1/CP2/CP3 关注点与 `03/04/05` 产物边界已同步 |
 | P1 | [可配置并发执行策略](./p1/concurrency-policy/index) | ✅ 已实现 | `extensions.devcodex.concurrency`、`ConcurrencyPolicy`、只读/验证并发与不可变单写者锁 |
 | P1 | [全局默认 Auto 别名](./p1/global-auto-alias/index) | ✅ 已实现 | `@rocky` 全局默认；`extensions.devcodex.autoAliases` 替换默认别名，空数组关闭默认 |

@@ -6,7 +6,7 @@
 
 ## DevCodex 是什么
 
-DevCodex 是通过 npm 包和 CLI 分发的 AI 开发规范注入器。默认安装适配 Copilot、Claude Code 与 Codex；当前未发布源码还可显式增加 Gemini CLI / Grok Build adapter。所有宿主从同一真相源生成精简入口，按意图读取 Skills，证据不足时回退完整规范。
+DevCodex 是通过 npm 包和 CLI 分发的 AI 开发规范注入器。默认安装适配 Copilot、Claude Code 与 Codex；v1.15.2 还可显式增加 Gemini CLI / Grok Build adapter。所有宿主从同一真相源生成精简入口，按意图读取 Skills，证据不足时回退完整规范。
 
 站点同时保留稳定规范和版本化维护资料；历史版本目录中的旧需求页只代表当时基线，不等同于当前实现。当前安装、命令和宿主支持以仓库 [README](https://github.com/vextjs/devcodex#安装) 与当前发布版本为准。
 
@@ -14,7 +14,7 @@ DevCodex 是通过 npm 包和 CLI 分发的 AI 开发规范注入器。默认安
 
 ## 快速开始
 
-> 版本语义：npm package 当前已发布版本是 **v1.15.1**；站内 **1.0.1** 是活动需求文档版本。当前版本仅发布到 GitHub Packages，安装需要 `read:packages` 认证；Gemini / Grok 通用宿主选择器仍属于未发布源码能力。
+> 版本语义：npm package 当前发布版本是 **v1.15.2**；站内 **1.0.1** 是活动需求文档版本。当前版本仅发布到 GitHub Packages，安装需要 `read:packages` 认证；Gemini / Grok 通用宿主选择器随 v1.15.2 发布。
 
 1. 确认 Node.js >=18；按 [安装说明](https://github.com/vextjs/devcodex#5-分钟快速开始) 配置 `@vextjs:registry=https://npm.pkg.github.com` 与当前 shell 的 `NODE_AUTH_TOKEN`。
 2. 安装并从目标项目初始化三宿主规范，然后执行 status：
@@ -99,11 +99,11 @@ DevCodex 提供两个 Agent 入口：
 |------|------|
 | Agent | `devcodex.agent.md`（确认模式）+ `devcodex-auto.agent.md`（全自动模式）|
 | Host kernel / Instructions | 宿主自动发现精简 kernel；节点 Instructions 与 Skills 按平台能力和意图加载，完整规范保留非 always-on fallback |
-| Skills | 当前源码 81 个按需触发的工作流技能（78 active + 3 gray）；active `repair-prevention-assessment` 承担所有 repair 的完成门禁，gray `rework-prevention-engineering` 只承担返工效果试验；新增未发布 `user-visible-output-contract` 与 `host-instruction-projection`，`brand-visual-quality` 是尚未发版的 gray 能力，另覆盖 `consumer-validation-engineering`、`analyze-default`、`skill-gap-analysis`、`skill-lifecycle-governance`、`spec-absorption`、`user-manual-authoring`、`audit-user-manual`、`expert-output-quality`、`review-checklist`、`evolution-governance`、`readme-authoring`、`audit-readme`、`audit-release`，以及 `execution-contract` / `test-router` / `release-verification` / `host-contract-verification` / `source-consumer-sync`；专家能力保持 21 个专家 Owner Skill |
+| Skills | v1.15.2 包含 81 个按需触发的工作流技能（78 active + 3 gray）；active `repair-prevention-assessment` 承担所有 repair 的完成门禁，gray `rework-prevention-engineering` 只承担返工效果试验；`user-visible-output-contract` 与 `host-instruction-projection` 已纳入当前包，`brand-visual-quality` 是 gray 试用能力，另覆盖 `consumer-validation-engineering`、`analyze-default`、`skill-gap-analysis`、`skill-lifecycle-governance`、`spec-absorption`、`user-manual-authoring`、`audit-user-manual`、`expert-output-quality`、`review-checklist`、`evolution-governance`、`readme-authoring`、`audit-readme`、`audit-release`，以及 `execution-contract` / `test-router` / `release-verification` / `host-contract-verification` / `source-consumer-sync`；专家能力保持 21 个专家 Owner Skill |
 | Prompts | CP 节点输出模板 |
 | Hooks | `UserPromptSubmit` / `PreToolUse` / `Stop` 等生命周期钩子 |
 | Codex adapter | `AGENTS.md` + `.agents/skills/` + `.codex/hooks.json` |
-| Gemini / Grok adapter | 当前未发布源码通过 `--host gemini|grok|all` 显式部署；Grok workspace 模式使用非自动发现 source `.grok/devcodex/plugins/devcodex-workspace` 与单一官方用户级本地插件登记，child project 零 generated host artifacts；root 为 Native，plain child 为 Partial，`devcodex grok --rules` 为 Full；显式 `project-portable` 才生成项目 adapter，能力按 direct / fixture / instruction-backed 证据分级 |
+| Gemini / Grok adapter | v1.15.2 通过 `--host gemini|grok|all` 显式部署；Grok workspace 模式使用非自动发现 source `.grok/devcodex/plugins/devcodex-workspace` 与单一官方用户级本地插件登记，child project 零 generated host artifacts；root 为 Native，plain child 为 Partial，`devcodex grok --rules` 为 Full；显式 `project-portable` 才生成项目 adapter，能力按 direct / fixture / instruction-backed 证据分级 |
 
 ---
 

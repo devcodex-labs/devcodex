@@ -1,7 +1,7 @@
 # 变更日志 (CHANGELOG)
 
 > **说明**: 版本概览摘要。最新版本的详细变更见下方表格首行的 `changelogs/releases/vX.Y.Z.md` 链接；历史版本见对应详细变更文件
-> **最后更新**: 2026-07-18
+> **最后更新**: 2026-07-21
 
 ---
 
@@ -9,6 +9,7 @@
 
 | 版本 | 日期 | 变更摘要 | 详细 |
 |------|------|---------|------|
+| [v1.15.2](./changelogs/releases/v1.15.2.md) | 2026-07-21 | 🔧 **意图驱动上下文 + 执行链优化 + 发布真相纠偏**：ContextRead V2、任务名续接、validation DAG、ProjectKnowledge、Grok/Gemini 显式宿主、S07/Turn Liveness/可见输出、基座准入与 residual F 闭环 | [查看](./changelogs/releases/v1.15.2.md) |
 | [v1.15.1](./changelogs/releases/v1.15.1.md) | 2026-07-18 | 🔧 **CI 行数预算单源 + 品牌拓扑假绿 + 共享态闸门**：`ENTRY_MODULE_LINE_BUDGETS`、`ComponentTransparencyTopologyGate`、PI-119 自修/push 闸门、GR-044 验证阶段可追溯、台账 already-fixed 回写 | [查看](./changelogs/releases/v1.15.1.md) |
 | [v1.15.0](./changelogs/releases/v1.15.0.md) | 2026-07-18 | ✨ **长任务墙钟预算与完成证据**：ExecutionBudget / ExternalWait / LongTaskAuthorization、WorkspaceSyncStatus、CompletionEvidenceGate、清单 11 收口 | [查看](./changelogs/releases/v1.15.0.md) |
 | [v1.14.0](./changelogs/releases/v1.14.0.md) | 2026-07-14 | ✨ **Profile 生成、控制面契约与发布效率治理**：发布 Profile plan/分档安全迁移、canonical workflow/tenant/gate/report/TestRoute 契约、返工预防补强、六组剩余规范吸纳门禁与 V96 | [查看](./changelogs/releases/v1.14.0.md) |
@@ -124,7 +125,7 @@
 
 ## 相关文档
 
-- [`changelogs/releases/v1.15.1.md`](./changelogs/releases/v1.15.1.md) — 最新版本详细变更文档
+- [`changelogs/releases/v1.15.2.md`](./changelogs/releases/v1.15.2.md) — 最新版本详细变更文档
 - [`changelogs/releases/v1.15.0.md`](./changelogs/releases/v1.15.0.md) — 上一版本详细变更文档
 - [`changelogs/releases/v1.14.0.md`](./changelogs/releases/v1.14.0.md) — 历史版本详细变更文档
 - [`changelogs/releases/v1.11.21.md`](./changelogs/releases/v1.11.21.md) — 历史版本详细变更文档

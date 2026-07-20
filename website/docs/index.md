@@ -17,9 +17,9 @@ features:
   - title: 🎯 结构化工作流
     details: 8 种工作流（dev/fix/audit/analyze/self-fix/resume/plan/chat），执行流程骨架已冻结
   - title: 🛠️ 81 个 Skills
-    details: 当前源码 78 active + 3 gray；active `repair-prevention-assessment` 负责所有 repair 的完成门禁，gray `rework-prevention-engineering` 只负责长期效果试验；新增未发布 `user-visible-output-contract` 与 `host-instruction-projection`，gray `brand-visual-quality` 承接品牌视觉资产质量，其余覆盖开发、修复、审计、规范吸纳执行、跨仓消费者验证、用户侧文档 review 聚合、`expert-output-quality` 专家型产物质量与 21 个专家 Owner Skill，以及宿主契约验证、真相源-消费者同步
+    details: v1.15.2 包含 78 active + 3 gray；active `repair-prevention-assessment` 负责所有 repair 的完成门禁，gray `rework-prevention-engineering` 只负责长期效果试验；`user-visible-output-contract` 与 `host-instruction-projection` 已纳入当前包，gray `brand-visual-quality` 承接品牌视觉资产质量，其余覆盖开发、修复、审计、规范吸纳执行、跨仓消费者验证、用户侧文档 review 聚合、`expert-output-quality` 专家型产物质量与 21 个专家 Owner Skill，以及宿主契约验证、真相源-消费者同步
   - title: 🧩 默认三宿主、可选五宿主
-    details: Copilot、Claude Code、Codex 默认部署；当前未发布源码可显式增加 Gemini / Grok。五宿主共用精简 kernel、按需 Skills 与完整回退，Hook 能力按宿主/事件降级并受 direct/fixture/instruction-backed 证据上限约束
+    details: Copilot、Claude Code、Codex 默认部署；v1.15.2 可显式增加 Gemini / Grok。五宿主共用精简 kernel、按需 Skills 与完整回退，Hook 能力按宿主/事件降级并受 direct/fixture/instruction-backed 证据上限约束
   - title: 🔒 四层合规检查
     details: FC（形式合规）→ SC（实质合规）→ RC（恢复性检查）→ T（任务完成验证）；chat 仅保留记忆与 dev 预检查
   - title: 🧠 跨会话记忆

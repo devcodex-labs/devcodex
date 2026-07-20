@@ -1,9 +1,9 @@
 # 需求：意图驱动的上下文按需加载
 
-> **状态**：🟢 源码、当前消费者、Profile、三宿主部署、最终资格验证与 main 推送复证均已完成；尚未发布
+> **状态**：🟢 源码、当前消费者、Profile、三宿主部署、最终资格验证与 main 推送复证均已完成；随 v1.15.2 发布
 > **优先级**：P0
 > **确认日期**：2026-07-17
-> **适用范围**：DevCodex v1 未发布增量
+> **适用范围**：DevCodex v1.15.2 发布增量
 
 ## 目录导航
 
@@ -105,4 +105,4 @@ IntentSeedV1 → ContextReadPlanV1 → targeted load → ContextReadReceiptV1
 - CP1/CP2/CP3 均已确认；A0 共享契约、A1 Profile plan、A2 Hook receipt、A3 bounded memory、V99、规范 Owner、TestRoute/report/prompts 与 README/development guide 已完成分批实现和复审。
 - 当前源码主链为 `IntentSeedV1 → unique project/activeRoot → ContextReadPlanV1 → targeted Profile/memory query → PostToolUse success → ContextReadReceiptV1`；同一 contextEpoch 普通动作复用计划，只有目标、scope/action/risk、digest 或 compact/resume 漂移才重算。
 - fresh evidence 已证明 `mandatoryMisses=0`、`falseComplete=0`；`profile_context_plan` 规划阶段对 `01~09-*` 与 `config.local.json` 正文 hidden read=0，旧无参 Profile/memory 工具保持兼容但不再是推荐默认路径。
-- 本能力仍是 v1.14.0 之后的未发布源码增量；active Profile、website build、生成链接、三宿主部署副本、portfolio 与 V1~V99 已 fresh 验证，最终 coverage/npm/package、复审与远端推送证据未闭合前，不得写成已发布或 registry 可用。
+- 本能力是 v1.15.2 发布增量；active Profile、website build、生成链接、三宿主部署副本、portfolio 与 V1~V99 已 fresh 验证，最终发布状态以 registry/tag/R7 验收为准。

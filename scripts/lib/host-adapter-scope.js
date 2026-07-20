@@ -378,6 +378,16 @@ function grokHomePath(env = process.env) {
   return env.GROK_HOME ? path.resolve(env.GROK_HOME) : path.join(os.homedir(), '.grok')
 }
 
+function isGrokCliUnavailableResult(result) {
+  if (result?.error?.code === 'ENOENT' || result?.error?.code === 'EACCES') return true
+  return Boolean(result && result.status === null && !result.signal && !result.stdout && !result.stderr)
+}
+
+function formatGrokCommandOutput(result) {
+  const output = String(result?.stderr || result?.stdout || '').trim()
+  return output || result?.error?.message || 'no output'
+}
+
 function readInstalledPluginRegistry(env = process.env) {
   const registryFile = path.join(grokHomePath(env), 'installed-plugins', 'registry.json')
   if (!fs.existsSync(registryFile)) return { registryFile, value: { version: 1, repos: {} } }
@@ -429,7 +439,7 @@ function inspectGrokPluginInstallation(pluginPath, env = process.env) {
 function syncGrokPluginInstallation({ pluginPath, dryRun = false, env = process.env }) {
   const source = path.resolve(pluginPath)
   const probe = spawnSync('grok', ['version'], { encoding: 'utf8', windowsHide: true, env })
-  if (probe.error?.code === 'ENOENT') {
+  if (isGrokCliUnavailableResult(probe)) {
     return {
       schemaVersion: 'GrokPluginInstallationReceiptV1',
       status: 'unavailable',
@@ -439,7 +449,7 @@ function syncGrokPluginInstallation({ pluginPath, dryRun = false, env = process.
     }
   }
   if (probe.status !== 0) {
-    const error = new Error(`GROK_PLUGIN_CLI_UNAVAILABLE: ${String(probe.stderr || probe.stdout).trim()}`)
+    const error = new Error(`GROK_PLUGIN_CLI_UNAVAILABLE: ${formatGrokCommandOutput(probe)}`)
     error.code = 'GROK_PLUGIN_CLI_UNAVAILABLE'
     throw error
   }
@@ -584,7 +594,7 @@ function syncGrokWorkspacePluginInstallation({
   }
 
   const probe = spawnSync('grok', ['version'], { encoding: 'utf8', windowsHide: true, env })
-  if (probe.error?.code === 'ENOENT') {
+  if (isGrokCliUnavailableResult(probe)) {
     const configBase = configSnapshot.existed
       ? configSnapshot.content
       : (fs.existsSync(configPath) ? fs.readFileSync(configPath, 'utf8') : '')
@@ -614,7 +624,7 @@ function syncGrokWorkspacePluginInstallation({
     }
   }
   if (probe.status !== 0) {
-    const error = new Error(`GROK_PLUGIN_CLI_UNAVAILABLE: ${String(probe.stderr || probe.stdout).trim()}`)
+    const error = new Error(`GROK_PLUGIN_CLI_UNAVAILABLE: ${formatGrokCommandOutput(probe)}`)
     error.code = 'GROK_PLUGIN_CLI_UNAVAILABLE'
     throw error
   }

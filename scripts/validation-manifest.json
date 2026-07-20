@@ -165,7 +165,6 @@
     "profile-deploy": {
       "nodes": [
         "validate-versions",
-        "validate-core",
         "validate-workspace",
         "validation-dag",
         "deployment-manifest",
@@ -360,12 +359,68 @@
       "args": [
         "scripts/validate.js"
       ],
+      "environment": {
+        "DEVCODEX_VALIDATION_SCOPE": "source",
+        "DEVCODEX_VALIDATION_MODE": "workspace"
+      },
+      "delegatedClosure": [
+        {
+          "probe": "V7",
+          "nodeId": "hooks-runtime",
+          "command": "node scripts/test-hooks-runtime.js"
+        },
+        {
+          "probe": "V7b",
+          "nodeId": "instruction-fallback",
+          "command": "node scripts/test-instruction-fallback-check.js"
+        },
+        {
+          "probe": "V16",
+          "nodeId": "mcp-servers",
+          "command": "node scripts/test-mcp-servers.js"
+        },
+        {
+          "probe": "V17/V40/V83",
+          "nodeId": "profile-governance",
+          "command": "node scripts/test-validate-profile.js"
+        },
+        {
+          "probe": "V22",
+          "nodeId": "migrate-layout",
+          "command": "node scripts/test-migrate-layout.js"
+        },
+        {
+          "probe": "V26",
+          "nodeId": "spec-governance",
+          "command": "node scripts/test-spec-governance.js"
+        },
+        {
+          "probe": "V39",
+          "nodeId": "governance-intake",
+          "command": "node scripts/test-governance-intake.js"
+        },
+        {
+          "probe": "V51",
+          "nodeId": "client-contracts",
+          "command": "node scripts/test-client-contracts.js"
+        },
+        {
+          "probe": "V52/V83",
+          "nodeId": "cli-behavior",
+          "command": "node scripts/test-cli-behavior.js"
+        }
+      ],
       "dependencies": [
         "validate-versions"
       ],
       "inputs": [],
+      "coversNodes": [
+        "validate-core"
+      ],
       "consumers": [],
       "invariants": [
+        "safety",
+        "contract",
         "workspace",
         "deployment",
         "runtime-artifacts"

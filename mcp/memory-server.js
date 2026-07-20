@@ -40,6 +40,16 @@ const {
   resolveTaskContinuation
 } = require('../hooks/_runtime/task-continuation-contract.cjs')
 
+function loadCpDigestContract() {
+  try {
+    return require('../scripts/lib/cp-digest.js')
+  } catch {
+    return null
+  }
+}
+
+const CP_DIGEST_CONTRACT = loadCpDigestContract()
+
 const INPUT_ROOT = process.argv[2]
   ? path.resolve(process.argv[2])
   : process.cwd()
@@ -61,6 +71,20 @@ const {
 const EXPLICIT_RUNTIME_AGENT = normalizeAgent(process.env.DEVCODEX_AGENT)
 const DEFAULT_AGENT = detectRuntimeAgent()
 const TASK_KINDS = new Set(['requirements', 'bugs', 'optimizations', 'scenario-tests'])
+
+const CONTEXT_READ_BINDING_SCHEMA = {
+  type: 'object',
+  required: ['schemaVersion', 'contextEpoch', 'planId', 'planContentId', 'activeRoot', 'project'],
+  properties: {
+    schemaVersion: { const: 'ContextReadBindingV1' },
+    contextEpoch: { type: 'string', minLength: 1 },
+    planId: { type: 'string', minLength: 1 },
+    planContentId: { type: 'string', minLength: 1 },
+    activeRoot: { type: 'string', minLength: 1 },
+    project: { type: 'string' }
+  },
+  additionalProperties: false
+}
 
 const TOOLS = [
   {
@@ -88,7 +112,8 @@ const TOOLS = [
         agent: { type: 'string', description: 'Agent 标识，默认当前实际宿主' },
         scope: { type: 'string', enum: ['project', 'workspace'], description: '集中布局下的读取域' },
         project: { type: 'string', description: '集中布局下的项目命名空间' },
-        limit: { type: 'integer', minimum: 1, maximum: 20, description: 'latestRows 数量，默认 5，最大 20' }
+        limit: { type: 'integer', minimum: 1, maximum: 20, description: 'latestRows 数量，默认 5，最大 20' },
+        contextBinding: CONTEXT_READ_BINDING_SCHEMA
       }
     }
   },
@@ -107,7 +132,8 @@ const TOOLS = [
         status: { type: 'string', enum: ['active', 'completed', 'blocked', 'unresolved', 'all'], description: '会话状态，默认 all' },
         limit: { type: 'integer', minimum: 1, maximum: 20, description: '最多返回会话数，默认 1' },
         handoffOnly: { type: 'boolean', description: '仅返回 ContextHandoffCard' },
-        maxChars: { type: 'integer', minimum: 1, maximum: 50000, description: '正文总字符预算，默认 12000' }
+        maxChars: { type: 'integer', minimum: 1, maximum: 50000, description: '正文总字符预算，默认 12000' },
+        contextBinding: CONTEXT_READ_BINDING_SCHEMA
       }
     }
   },
@@ -123,7 +149,8 @@ const TOOLS = [
         project: { type: 'string', description: '集中布局下的项目命名空间' },
         status: { type: 'string', enum: ['active', 'completed', 'blocked', 'unresolved', 'all'], description: '默认 active' },
         limit: { type: 'integer', minimum: 1, maximum: 50, description: '最多返回行数，默认 5，最大 50' },
-        since: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$', description: '只返回该日期及之后的行' }
+        since: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$', description: '只返回该日期及之后的行' },
+        contextBinding: CONTEXT_READ_BINDING_SCHEMA
       }
     }
   },
@@ -341,6 +368,154 @@ function taskSessionsPath(kind, requirement, args = {}) {
   return resolveInside(getActiveRoot(args), kind, assertSingleSegment(requirement, 'requirement'), '.memory', 'sessions.md')
 }
 
+const CP_HEADING_RE = /^#{1,6}\s+.*CP\s*确认记录\s*$/i
+const CP_TABLE_HEADER_RE = /^\|\s*CP\s*\|\s*状态\s*\|\s*(?:时间\s*\||artifactPath\s*\|\s*version\s*\|\s*sha256\s*\|\s*sourceMessage\s*\|\s*confirmedAt\s*\|)\s*$/i
+const EXTENDED_CP_TABLE_HEADER_RE = /^\|\s*CP\s*\|\s*状态\s*\|\s*artifactPath\s*\|\s*version\s*\|\s*sha256\s*\|\s*sourceMessage\s*\|\s*confirmedAt\s*\|\s*$/i
+
+function parseCpTableRows(text) {
+  if (CP_DIGEST_CONTRACT) return CP_DIGEST_CONTRACT.parseCpSessions(text)
+  const rows = { CP1: null, CP2: null, CP3: null }
+  const lineRe = /^\|\s*(CP[123])\s*\|\s*([^|\n]+)\|(.*)$/gm
+  let match
+  while ((match = lineRe.exec(String(text || ''))) !== null) {
+    const cells = String(match[3] || '').split('|').map(cell => cell.trim()).filter(Boolean)
+    rows[match[1]] = {
+      confirmed: match[2].includes('✅') && !/stale/i.test(match[2]),
+      stale: /stale/i.test(match[2]),
+      artifactPath: cells.length >= 5 ? cells[0] : null,
+      artifactVersion: cells.length >= 5 ? cells[1] : null,
+      artifactSha256: cells.length >= 5 ? String(cells[2] || '').replace(/`/g, '').toUpperCase() : null,
+      sourceMessage: cells.length >= 5 ? cells[3] : null,
+      confirmedAt: cells.length >= 5 ? cells[4] : (cells.length === 1 ? cells[0] : null)
+    }
+  }
+  return rows
+}
+
+function renderExtendedCpTable(phases) {
+  if (CP_DIGEST_CONTRACT) return CP_DIGEST_CONTRACT.buildExtendedCpTable({ phases })
+  const lines = [
+    '### CP 确认记录',
+    '',
+    '| CP | 状态 | artifactPath | version | sha256 | sourceMessage | confirmedAt |',
+    '|:--:|:----:|--------------|---------|--------|---------------|-------------|'
+  ]
+  for (const phase of ['CP1', 'CP2', 'CP3']) {
+    const row = phases[phase]
+    lines.push(`| ${phase} | ${row.status} | ${row.artifactPath} | ${row.artifactVersion} | ${row.artifactSha256} | ${row.sourceMessage} | ${row.confirmedAt} |`)
+  }
+  lines.push('')
+  return lines.join('\n')
+}
+
+function taskMemoryTransactionTarget(args = {}) {
+  const activeRoot = getActiveRoot(args)
+  const project = LAYOUT.enabled
+    ? (resolveProjectName(args.project) || CONTEXT_PROJECT || '')
+    : (path.basename(resolveProjectRoot(args.project)) || path.basename(INPUT_ROOT))
+  const workspaceRoot = LAYOUT.enabled ? path.join(LAYOUT.workspaceRoot, '.devcodex', 'workspace') : ''
+  return {
+    activeRoot,
+    project: path.resolve(activeRoot) === path.resolve(workspaceRoot || activeRoot) && workspaceRoot ? '' : project,
+    scope: workspaceRoot && path.resolve(activeRoot) === path.resolve(workspaceRoot) ? 'workspace' : 'project',
+    agent: EXPLICIT_RUNTIME_AGENT || DEFAULT_AGENT
+  }
+}
+
+function locateCpTableBlock(text) {
+  const lines = String(text || '').replace(/\r\n/g, '\n').split('\n')
+  const headingIndex = lines.findIndex(line => CP_HEADING_RE.test(line.trim()))
+  let headerIndex = -1
+  if (headingIndex >= 0) {
+    for (let index = headingIndex + 1; index < lines.length; index += 1) {
+      if (/^#{1,6}\s+/.test(lines[index]) && index > headingIndex + 1) break
+      if (CP_TABLE_HEADER_RE.test(lines[index].trim())) {
+        headerIndex = index
+        break
+      }
+    }
+  }
+  if (headerIndex < 0) headerIndex = lines.findIndex(line => CP_TABLE_HEADER_RE.test(line.trim()))
+  if (headerIndex < 0 && headingIndex < 0) return { lines, found: false }
+
+  if (headerIndex < 0) {
+    return {
+      lines,
+      found: true,
+      start: headingIndex,
+      end: headingIndex + 1,
+      headingLine: lines[headingIndex]
+    }
+  }
+
+  let end = headerIndex + 1
+  while (end < lines.length && (lines[end].trim() === '' || lines[end].trim().startsWith('|'))) end += 1
+  const start = headingIndex >= 0 && headingIndex < headerIndex ? headingIndex : headerIndex
+  return {
+    lines,
+    found: true,
+    start,
+    end,
+    headingLine: headingIndex >= 0 && headingIndex < headerIndex ? lines[headingIndex] : '### CP 确认记录'
+  }
+}
+
+function cpCodeCell(value) {
+  const normalized = String(value || '').replace(/`/g, '').trim()
+  return normalized && normalized !== '—' ? `\`${normalized}\`` : '—'
+}
+
+function cpTextCell(value, fallback = '—') {
+  const normalized = String(value || '').replace(/[|\r\n]+/g, ' ').trim()
+  return normalized || fallback
+}
+
+function existingCpPhaseRow(parsed, phase) {
+  const row = parsed[phase]
+  return {
+    status: row?.confirmed ? '✅' : (row?.stale ? '⚠️ stale' : (phase === 'CP1' ? '⏳' : '⏹️')),
+    artifactPath: cpCodeCell(row?.artifactPath),
+    artifactVersion: cpTextCell(row?.artifactVersion),
+    artifactSha256: cpCodeCell(row?.artifactSha256),
+    sourceMessage: cpTextCell(row?.sourceMessage),
+    confirmedAt: cpTextCell(row?.confirmedAt)
+  }
+}
+
+function renderCpConfirmation(existing, args, binding) {
+  const newline = String(existing || '').includes('\r\n') ? '\r\n' : '\n'
+  const location = locateCpTableBlock(existing)
+  const priorBlock = location.found
+    ? location.lines.slice(location.start, location.end).join('\n')
+    : ''
+  const parsed = parseCpTableRows(priorBlock)
+  const phases = Object.fromEntries(['CP1', 'CP2', 'CP3'].map(phase => [phase, existingCpPhaseRow(parsed, phase)]))
+  const active = phases[args.phase]
+  active.status = '✅'
+  active.confirmedAt = cpTextCell(binding.time)
+  if (binding.hasDigest) {
+    active.artifactPath = cpCodeCell(binding.artifactPath)
+    active.artifactVersion = cpTextCell(binding.artifactVersion)
+    active.artifactSha256 = cpCodeCell(binding.sha)
+    active.sourceMessage = cpTextCell(binding.sourceMessage)
+  }
+
+  const renderedLines = renderExtendedCpTable(phases).split('\n')
+  renderedLines[0] = location.headingLine || (existing ? '### CP 确认记录' : `# ${args.requirement} — CP 确认记录`)
+  const rendered = renderedLines.join('\n')
+  let output
+  if (location.found) {
+    output = [
+      ...location.lines.slice(0, location.start),
+      ...rendered.split('\n'),
+      ...location.lines.slice(location.end)
+    ].join('\n')
+  } else {
+    output = `${String(existing || '').trimEnd()}${existing ? '\n\n' : ''}${rendered}`
+  }
+  return output.replace(/\n/g, newline).replace(new RegExp(`${newline}*$`), newline)
+}
+
 function appendFile(filePath, content) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true })
   fs.appendFileSync(filePath, content, 'utf8')
@@ -451,11 +626,11 @@ function formatSessionId(number) {
 // ─── Bounded read-only projection helpers ───────────────────────────────────
 
 const MEMORY_QUERY_STATUSES = new Set(['active', 'completed', 'blocked', 'unresolved', 'all'])
-const MEMORY_STATUS_FIELDS = new Set(['agent', 'scope', 'project', 'limit'])
+const MEMORY_STATUS_FIELDS = new Set(['agent', 'scope', 'project', 'limit', 'contextBinding'])
 const MEMORY_SESSION_QUERY_FIELDS = new Set([
-  'agent', 'scope', 'project', 'date', 'sessionId', 'status', 'limit', 'handoffOnly', 'maxChars'
+  'agent', 'scope', 'project', 'date', 'sessionId', 'status', 'limit', 'handoffOnly', 'maxChars', 'contextBinding'
 ])
-const MEMORY_SUMMARY_QUERY_FIELDS = new Set(['agent', 'scope', 'project', 'status', 'limit', 'since'])
+const MEMORY_SUMMARY_QUERY_FIELDS = new Set(['agent', 'scope', 'project', 'status', 'limit', 'since', 'contextBinding'])
 const MAX_SUMMARY_ROWS_FOR_STATUS = 20
 
 function elapsedMs(startedAt) {
@@ -496,6 +671,63 @@ function memoryQueryError(message, nextStep, code = 'MEMORY_QUERY_INVALID') {
   error.contextReadCode = code
   error.nextStep = nextStep || 'Correct the bounded memory query and retry once.'
   return error
+}
+
+function comparableActiveRoot(value) {
+  const resolved = path.resolve(String(value || ''))
+  return process.platform === 'win32' ? resolved.toLowerCase() : resolved
+}
+
+function resolveContextReadBinding(binding, target) {
+  if (binding === undefined || binding === null) {
+    return {
+      schemaVersion: 'ContextReadBindingV1',
+      contextEpoch: null,
+      planId: null,
+      planContentId: null,
+      activeRoot: target.activeRoot,
+      project: target.project,
+      bindingStatus: 'legacy-unbound',
+      verificationMode: 'legacy-unbound'
+    }
+  }
+  if (typeof binding !== 'object' || Array.isArray(binding)) {
+    throw memoryQueryError(
+      'contextBinding must be an object.',
+      'Pass the exact ContextReadBindingV1 derived from the current ContextReadPlanV2.',
+      'CONTEXT_BINDING_INVALID'
+    )
+  }
+  const allowed = new Set(['schemaVersion', 'contextEpoch', 'planId', 'planContentId', 'activeRoot', 'project'])
+  const unknown = Object.keys(binding).filter(key => !allowed.has(key))
+  const requiredStrings = ['contextEpoch', 'planId', 'planContentId', 'activeRoot']
+  if (unknown.length || binding.schemaVersion !== 'ContextReadBindingV1' ||
+      requiredStrings.some(field => typeof binding[field] !== 'string' || !binding[field].trim()) ||
+      typeof binding.project !== 'string') {
+    throw memoryQueryError(
+      'contextBinding does not match the published ContextReadBindingV1 request schema.',
+      'Pass only schemaVersion/contextEpoch/planId/planContentId/activeRoot/project from the current plan.',
+      'CONTEXT_BINDING_INVALID'
+    )
+  }
+  if (comparableActiveRoot(binding.activeRoot) !== comparableActiveRoot(target.activeRoot) ||
+      binding.project.trim() !== String(target.project || '').trim()) {
+    throw memoryQueryError(
+      'contextBinding target does not match the resolved active root and project.',
+      'Regenerate the ContextReadPlanV2 for the resolved memory target.',
+      'CONTEXT_BINDING_MISMATCH'
+    )
+  }
+  return {
+    schemaVersion: 'ContextReadBindingV1',
+    contextEpoch: binding.contextEpoch.trim(),
+    planId: binding.planId.trim(),
+    planContentId: binding.planContentId.trim(),
+    activeRoot: binding.activeRoot.trim(),
+    project: binding.project.trim(),
+    bindingStatus: 'verified',
+    verificationMode: 'request-bound'
+  }
 }
 
 function normalizeBoundedInteger(value, fallback, max, field) {
@@ -897,6 +1129,7 @@ function handleMemoryStatus(args) {
   return runMemoryProjection(args, MEMORY_STATUS_FIELDS, input => {
     const startedAt = process.hrtime.bigint()
     const target = resolveMemoryTarget(input)
+    const contextBinding = resolveContextReadBinding(input.contextBinding, target)
     const limit = normalizeBoundedInteger(input.limit, 5, 20, 'limit')
     const todayDate = today()
     const yesterdayDate = yesterday()
@@ -934,7 +1167,8 @@ function handleMemoryStatus(args) {
       latestRows,
       activeSessionIds,
       conflicts,
-      warnings: [...boundWarnings, ...parsed.warnings].slice(0, 20)
+      warnings: [...boundWarnings, ...parsed.warnings].slice(0, 20),
+      contextBinding
     }
     return withProjectionIdentity(projection, 'memory_status', target, [summaryDocument], startedAt)
   })
@@ -944,6 +1178,7 @@ function handleMemorySessionQuery(args) {
   return runMemoryProjection(args, MEMORY_SESSION_QUERY_FIELDS, input => {
     const startedAt = process.hrtime.bigint()
     const target = resolveMemoryTarget(input)
+    const contextBinding = resolveContextReadBinding(input.contextBinding, target)
     if (input.date !== undefined && (typeof input.date !== 'string' || !input.date)) {
       throw memoryQueryError('date must be a non-empty YYYYMMDD string when supplied.')
     }
@@ -1019,7 +1254,8 @@ function handleMemorySessionQuery(args) {
       matches,
       truncated: candidates.length > matches.length || contentTruncated,
       source,
-      warnings: parsed.warnings
+      warnings: parsed.warnings,
+      contextBinding
     }
     return withProjectionIdentity(projection, 'memory_session_query', target, [document], startedAt)
   })
@@ -1029,6 +1265,7 @@ function handleMemorySummaryQuery(args) {
   return runMemoryProjection(args, MEMORY_SUMMARY_QUERY_FIELDS, input => {
     const startedAt = process.hrtime.bigint()
     const target = resolveMemoryTarget(input)
+    const contextBinding = resolveContextReadBinding(input.contextBinding, target)
     const status = normalizeQueryStatus(input.status, 'active')
     const limit = normalizeBoundedInteger(input.limit, 5, 50, 'limit')
     if (input.since !== undefined && (
@@ -1059,7 +1296,8 @@ function handleMemorySummaryQuery(args) {
       totalMatched: filtered.length,
       truncated: filtered.length > rows.length,
       source,
-      warnings: parsed.warnings
+      warnings: parsed.warnings,
+      contextBinding
     }
     return withProjectionIdentity(projection, 'memory_summary_query', target, [document], startedAt)
   })
@@ -1134,7 +1372,6 @@ function handleMemoryCpConfirm(args) {
 
   const p = taskSessionsPath(kind, args.requirement, args)
   const time = args.time || currentTime()
-  const existing = readFile(p)
   const hasDigest = Boolean(args.artifactPath || args.artifactSha256 || args.artifactVersion)
   if (hasDigest && (!args.artifactPath || !args.artifactSha256)) {
     throw new Error('ConfirmBindingGate: artifactPath and artifactSha256 are required together')
@@ -1165,73 +1402,47 @@ function handleMemoryCpConfirm(args) {
     }
   }
 
-  const extendedRow = (phase, active) => {
-    if (!active) {
-      if (phase === 'CP1') return `| CP1 | ⏳ | — | — | — | — | — |`
-      if (phase === 'CP2') return `| CP2 | ⏹️ | — | — | — | — | — |`
-      return `| CP3 | ⏹️ | — | — | — | — | — |`
-    }
-    return `| ${phase} | ✅ | \`${artifactPath}\` | ${artifactVersion} | \`${sha}\` | ${sourceMessage} | ${time} |`
+  const target = taskMemoryTransactionTarget(args)
+  const transaction = withMemoryTransaction(target, p, existing => renderCpConfirmation(existing, args, {
+    hasDigest,
+    sha,
+    artifactPath,
+    artifactVersion,
+    sourceMessage,
+    time
+  }))
+  const persisted = readFile(p)
+  const block = locateCpTableBlock(persisted)
+  const blockText = block.found ? block.lines.slice(block.start, block.end).join('\n') : ''
+  const parsed = parseCpTableRows(blockText)
+  const phaseRow = parsed[args.phase]
+  const cpRowCount = (blockText.match(/^\|\s*CP[123]\s*\|/gm) || []).length
+  if (!block.found || !EXTENDED_CP_TABLE_HEADER_RE.test(blockText.split('\n').find(line => EXTENDED_CP_TABLE_HEADER_RE.test(line.trim())) || '') ||
+      cpRowCount !== 3 || !phaseRow?.confirmed) {
+    throw new Error('ConfirmBindingGate: CP confirmation readback is incomplete or malformed')
   }
-
-  if (!existing) {
-    const header = hasDigest
-      ? [
-          `# ${args.requirement} — CP 确认记录`,
-          '',
-          '| CP | 状态 | artifactPath | version | sha256 | sourceMessage | confirmedAt |',
-          '|:--:|:----:|--------------|---------|--------|---------------|-------------|',
-          extendedRow('CP1', args.phase === 'CP1'),
-          extendedRow('CP2', args.phase === 'CP2'),
-          extendedRow('CP3', args.phase === 'CP3'),
-          ''
-        ].join('\n')
-      : [
-          `# ${args.requirement} — CP 确认记录`,
-          '',
-          '| CP  | 状态 | 时间  |',
-          '|:---:|:----:|-------|',
-          `| CP1 | ${args.phase === 'CP1' ? '✅' : '⏳'} | ${args.phase === 'CP1' ? time : '—'} |`,
-          `| CP2 | ${args.phase === 'CP2' ? '✅' : '⏹️'} | ${args.phase === 'CP2' ? time : '—'} |`,
-          `| CP3 | ${args.phase === 'CP3' ? '✅' : '⏹️'} | ${args.phase === 'CP3' ? time : '—'} |`,
-          ''
-        ].join('\n')
-    fs.mkdirSync(path.dirname(p), { recursive: true })
-    fs.writeFileSync(p, header, 'utf8')
-    return { content: [{ type: 'text', text: `已创建 sessions.md 并记录 ${args.phase} ✅${hasDigest ? ' (digest-bound)' : ''}` }] }
-  }
-
-  const phaseNum = args.phase.replace('CP', '')
-  let updated = existing
-
   if (hasDigest) {
-    const extRowRe = new RegExp(`\\|\\s*CP${phaseNum}\\s*\\|[^\\n]*`)
-    const newRow = `| ${args.phase} | ✅ | \`${artifactPath}\` | ${artifactVersion} | \`${sha}\` | ${sourceMessage} | ${time} |`
-    if (extRowRe.test(updated) && updated.includes('artifactPath')) {
-      updated = updated.replace(extRowRe, newRow)
-    } else if (extRowRe.test(updated)) {
-      // upgrade legacy row to extended when digest supplied
-      updated = updated.replace(extRowRe, newRow)
-      if (!updated.includes('artifactPath')) {
-        updated = updated.replace(
-          /\| CP\s*\|\s*状态\s*\|\s*时间\s*\|/,
-          '| CP | 状态 | artifactPath | version | sha256 | sourceMessage | confirmedAt |'
-        )
-      }
-    } else {
-      updated = updated.trimEnd() + `\n${newRow}\n`
-    }
-  } else {
-    const rowRe = new RegExp(`(\\|\\s*CP${phaseNum}\\s*\\|\\s*)([^|]*)(\\|\\s*)([^|]*)(\\|)`)
-    if (rowRe.test(existing)) {
-      updated = existing.replace(rowRe, `| ${args.phase} | ✅ | ${time} |`)
-    } else {
-      updated = existing.trimEnd() + `\n| ${args.phase} | ✅ | ${time} |\n`
+    const persistedPath = String(phaseRow.artifactPath || '').replace(/`/g, '')
+    if (persistedPath !== artifactPath || phaseRow.artifactSha256 !== sha) {
+      throw new Error('ConfirmBindingGate: CP confirmation readback does not match artifact binding')
     }
   }
-
-  fs.writeFileSync(p, updated, 'utf8')
-  return { content: [{ type: 'text', text: `已在 sessions.md 记录 ${args.phase} ✅ (${time})${hasDigest ? ' digest-bound' : ''}` }] }
+  const confirmation = {
+    schemaVersion: 'MemoryCpConfirmationReceiptV1',
+    phase: args.phase,
+    status: 'confirmed',
+    digestBound: hasDigest,
+    artifactPath,
+    artifactSha256: sha,
+    confirmedAt: time,
+    cpRowCount,
+    readbackVerified: true,
+    transaction
+  }
+  return {
+    content: [{ type: 'text', text: `已在 sessions.md 记录 ${args.phase} ✅ (${time})${hasDigest ? ' digest-bound' : ''}\n${JSON.stringify(confirmation)}` }],
+    structuredContent: confirmation
+  }
 }
 
 function handleMemorySummaryRead(args) {

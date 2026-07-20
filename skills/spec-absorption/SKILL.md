@@ -85,6 +85,21 @@ description: 规范吸纳执行 Skill — 用于检查 data 最新可吸纳项�
 
 消费者证明失败时，不得实施为 active 规范；最多进入 PF / ISSUE，或作为 case evidence 保留。
 
+## BaseImpactAssessmentV1 / ComplexityDeltaBudgetV1
+
+新增或晋级规范、Skill、Prompt、流程、验证器或部署消费者时，必须把基座影响作为吸纳决策的子记录，而不是另建平行“基座治理”入口。最小字段：
+
+`changeId / servedIntent / currentGap / absorptionDecision / baseClass(base-neutral|base-compatible|base-changing) / affectedContracts / unaffectedIntents / consumers / fanout / defaultPathDelta / fallbackBehavior / migration / rollback / positiveProbe / negativeProbe / disabledOrMisconfiguredProbe / complexityDelta / replacementOrRetirementCredit / owner / reviewAt / deprecationAndDeletionCondition`。
+
+判定规则：
+
+- `base-neutral`：不改变常驻路径、默认 Context、强制阶段、用户确认数、公共契约或未命中任务；仍需至少一个真实消费者和 `UnaffectedIntentRegression`。
+- `base-compatible`：改变局部消费者或验证路线，但默认行为、fallback 与未受影响意图保持兼容；必须有正向、负向和 disabled/misconfigured 探针。
+- `base-changing`：改变事实基座、always-on 路径、公共契约或默认强制行为；必须单独确认、写迁移/回滚和全面复审，不能由普通 auto 授权夹带通过。
+- 缺真实消费者、缺回滚、缺退役/删除条件、缺 `ComplexityDeltaBudgetV1` 或没有 `replacementOrRetirementCredit` 抵消维护成本时，不得进入 active。
+
+`UnaffectedIntentRegression` 至少覆盖一个普通 chat / 普通 dev / 低风险 fix 或其他未命中意图样本，证明新增能力不会让无关任务增加默认读取、默认确认、默认产物或默认验证成本。
+
 ## ReworkReductionValueGate
 
 涉及“减少返工、避免复审再发现、提升一次通过率”的吸纳候选必须填写：

@@ -81,6 +81,7 @@ description: "Use when: ..."   # 必填，AI 靠这个发现 Skill
 | 记忆 / Profile bootstrap / 有界上下文 | `memory-bootstrap` · `context-acquisition` · `profile-service` | `memory` · `load-profile` · `ai-agent-system-architecture` |
 | 用户手册 / 文档站 / README | `user-manual` · `docs-ia-readability` · `docs-semantics-examples` | `user-manual-authoring` · `audit-user-manual` · `dev-docs` |
 | 专家产物 / 领域专家语义 | `expert-output-quality` · `expert-owner-skills` | `expert-output-quality` + 对应专家 Owner |
+| 基座准入 / 操作说明 / 代码事实 | `base-admission-governance` · `expert-output-quality` | `BaseImpactAssessmentV1` / `ComplexityDeltaBudgetV1` / `UnaffectedIntentRegression` 保护稳定基座；`OperationExplanationContractV1`、`CodeTruthEvidenceMatrixGate`、`SolutionFitAgainstRepoGate` 与唯一推荐门禁让用户操作、repo 事实和推荐结论可追溯；V84/V96 提供正负向探针 |
 | 正式复审 / ECR / 逃逸补清单 | `review-checklist` · `review-escape` · `post-confirmation-review` | `review-checklist` · `cp-gate` · `dev-plan-review` |
 | 编码偏移 / 多批次范围 | `development-drift` · `batch-scope-rebinding` | `execution-contract` · `dev-default` |
 | 发布 / registry / 公开面 | `release-parity` · `public-surface` · `contract-release-authority` | `release-verification` · `audit-release` |

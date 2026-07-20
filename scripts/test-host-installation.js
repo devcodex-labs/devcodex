@@ -129,6 +129,19 @@ const hostUtils = buildCliHostUtils({
   claudeMcpJson: { mcpServers: {} }
 })
 
+assert.deepStrictEqual(
+  hostUtils.detectHostPlatform({ DEVCODEX_AGENT: ' CoDeX ', GROK_AGENT: '1', GEMINI_AGENT: '1' }, FIXTURE_ROOT),
+  { platform: 'codex', source: 'explicit-agent' },
+  'explicit Codex identity must outrank stale Grok/Gemini host hints'
+)
+assert.deepStrictEqual(
+  hostUtils.detectHostPlatform({ DEVCODEX_AGENT: 'claude_code', GROK_AGENT: '1' }, FIXTURE_ROOT),
+  { platform: 'claude', source: 'explicit-agent' }
+)
+for (const agent of ['grok', 'gemini', 'copilot']) {
+  assert.strictEqual(hostUtils.detectHostPlatform({ DEVCODEX_AGENT: agent, CODEX_HOME: '1' }, FIXTURE_ROOT).platform, agent)
+}
+
 // Two-cwd contract: the package root and a target root both support host-selective dry runs.
 // c8 writes NODE_V8_COVERAGE payloads while child processes run. Those framework-owned
 // files are outside the CLI mutation contract and must not make a dry run look stateful.

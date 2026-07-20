@@ -8,6 +8,10 @@ const os = require('os')
 const path = require('path')
 const { spawnSync } = require('child_process')
 const {
+  buildExtendedCpTable,
+  parseCpSessions
+} = require('./lib/cp-digest')
+const {
   CONTEXT_READ_CONTRACT,
   validateContextReadPlan
 } = require('../hooks/_runtime/context-read-contract.cjs')
@@ -638,7 +642,8 @@ function testMemoryCpConfirmForBugs() {
   const sessionsPath = path.join(TEMP_ROOT, '.devcodex', 'bugs', 'Bug任务', '.memory', 'sessions.md')
   assert.ok(fs.existsSync(sessionsPath))
   const sessions = fs.readFileSync(sessionsPath, 'utf8')
-  assert.match(sessions, /\| CP2 \| ✅ \| 10:30 \|/)
+  assert.match(sessions, /artifactPath \| version \| sha256 \| sourceMessage \| confirmedAt/)
+  assert.match(sessions, /\| CP2 \| ✅ \| — \| — \| — \| — \| 10:30 \|/)
 }
 
 function testMemoryCpConfirmForExtendedTaskKinds() {
@@ -660,6 +665,103 @@ function testMemoryCpConfirmForExtendedTaskKinds() {
   assert.match(resultById(responses, 3).content?.[0]?.text || '', /CP3/)
   assert.ok(fs.existsSync(path.join(TEMP_ROOT, '.devcodex', 'optimizations', '性能任务', '.memory', 'sessions.md')))
   assert.ok(fs.existsSync(path.join(TEMP_ROOT, '.devcodex', 'scenario-tests', '场景测试任务', '.memory', 'sessions.md')))
+}
+
+function testMemoryCpConfirmPreservesOrdinaryTables() {
+  setupLegacyWorkspace()
+  const taskRoot = path.join(TEMP_ROOT, '.devcodex', 'requirements', '表格任务')
+  const sessionsPath = path.join(taskRoot, '.memory', 'sessions.md')
+  const artifactPath = path.join(taskRoot, '02-技术方案.md')
+  fs.mkdirSync(path.dirname(sessionsPath), { recursive: true })
+  fs.writeFileSync(artifactPath, '# 技术方案\n', 'utf8')
+  const ordinaryTable = [
+    '# Requirement Sessions — 表格任务',
+    '',
+    '| 日期 | 会话 | 变更 | 产物 | 状态 |',
+    '|---|---|---|---|---|',
+    '| 2026-07-20 | codex-01 | 需求确认 | `01.md` | ✅ |',
+    ''
+  ].join('\n')
+  fs.writeFileSync(sessionsPath, ordinaryTable, 'utf8')
+  const digest = crypto.createHash('sha256').update(fs.readFileSync(artifactPath)).digest('hex')
+
+  const first = runServer('mcp/memory-server.js', [
+    rpcRequest(1, 'tools/call', {
+      name: 'memory_cp_confirm',
+      arguments: {
+        requirement: '表格任务',
+        phase: 'CP2',
+        time: '12:00',
+        artifactPath: '02-技术方案.md',
+        artifactVersion: 'v1.0',
+        artifactSha256: digest,
+        sourceMessage: '批准|确认\n继续'
+      }
+    })
+  ], TEMP_ROOT)
+  const confirmation = resultById(first, 1)
+  assert.strictEqual(confirmation.isError, undefined)
+  assert.strictEqual(confirmation.structuredContent.readbackVerified, true)
+  assert.strictEqual(confirmation.structuredContent.cpRowCount, 3)
+  let sessions = fs.readFileSync(sessionsPath, 'utf8')
+  assert.ok(sessions.startsWith(ordinaryTable.trimEnd()), 'ordinary session table must remain unchanged')
+  assert.strictEqual((sessions.match(/^### CP 确认记录$/gm) || []).length, 1)
+  assert.strictEqual((sessions.match(/^\|\s*CP[123]\s*\|/gm) || []).length, 3)
+  assert.ok(sessions.includes(buildExtendedCpTable({
+    phases: {
+      CP1: { status: '⏳', artifactPath: '—', artifactVersion: '—', artifactSha256: '—', sourceMessage: '—', confirmedAt: '—' },
+      CP2: { status: '✅', artifactPath: '`02-技术方案.md`', artifactVersion: 'v1.0', artifactSha256: `\`${digest.toUpperCase()}\``, sourceMessage: '批准 确认 继续', confirmedAt: '12:00' },
+      CP3: { status: '⏹️', artifactPath: '—', artifactVersion: '—', artifactSha256: '—', sourceMessage: '—', confirmedAt: '—' }
+    }
+  })), 'memory MCP CP writer must match scripts/lib/cp-digest.js renderer')
+  const parsedByOwner = parseCpSessions(sessions)
+  assert.strictEqual(parsedByOwner.CP2.artifactSha256, digest.toUpperCase())
+  assert.strictEqual(parsedByOwner.CP2.sourceMessage, '批准 确认 继续')
+  assert.match(sessions, /\| CP2 \| ✅ \| `02-技术方案\.md` \| v1\.0 \| `[A-F0-9]{64}` \| 批准 确认 继续 \| 12:00 \|/)
+
+  const second = runServer('mcp/memory-server.js', [
+    rpcRequest(2, 'tools/call', {
+      name: 'memory_cp_confirm',
+      arguments: {
+        requirement: '表格任务',
+        phase: 'CP3',
+        time: '12:05',
+        artifactPath: '02-技术方案.md',
+        artifactVersion: 'v1.0',
+        artifactSha256: digest,
+        sourceMessage: '自动确认'
+      }
+    })
+  ], TEMP_ROOT)
+  assert.strictEqual(resultById(second, 2).structuredContent.readbackVerified, true)
+  sessions = fs.readFileSync(sessionsPath, 'utf8')
+  assert.strictEqual((sessions.match(/^### CP 确认记录$/gm) || []).length, 1)
+  assert.strictEqual((sessions.match(/^\|\s*CP[123]\s*\|/gm) || []).length, 3)
+  assert.match(sessions, /\| CP2 \| ✅ \|/)
+  assert.match(sessions, /\| CP3 \| ✅ \|/)
+
+  const legacyTaskRoot = path.join(TEMP_ROOT, '.devcodex', 'requirements', '旧表任务')
+  const legacySessions = path.join(legacyTaskRoot, '.memory', 'sessions.md')
+  fs.mkdirSync(path.dirname(legacySessions), { recursive: true })
+  fs.writeFileSync(legacySessions, [
+    '# 旧表任务', '', '### CP 确认记录', '',
+    '| CP | 状态 | 时间 |', '|---|---|---|',
+    '| CP1 | ✅ | 09:00 |', '| CP2 | ⏹️ | — |', '| CP3 | ⏹️ | — |', ''
+  ].join('\n'), 'utf8')
+  const legacy = runServer('mcp/memory-server.js', [
+    rpcRequest(3, 'tools/call', {
+      name: 'memory_cp_confirm',
+      arguments: { requirement: '旧表任务', phase: 'CP2', time: '12:10' }
+    })
+  ], TEMP_ROOT)
+  assert.strictEqual(resultById(legacy, 3).structuredContent.readbackVerified, true)
+  const upgraded = fs.readFileSync(legacySessions, 'utf8')
+  assert.match(upgraded, /artifactPath \| version \| sha256 \| sourceMessage \| confirmedAt/)
+  assert.match(upgraded, /\| CP1 \| ✅ \| — \| — \| — \| — \| 09:00 \|/)
+  assert.match(upgraded, /\| CP2 \| ✅ \| — \| — \| — \| — \| 12:10 \|/)
+  const legacyParsedByOwner = parseCpSessions(upgraded)
+  assert.strictEqual(legacyParsedByOwner.CP1.confirmed, true)
+  assert.strictEqual(legacyParsedByOwner.CP2.confirmed, true)
 }
 
 function testMemoryProjectionQueriesAndZeroWrite() {
@@ -1038,6 +1140,93 @@ function testProfileLoadWithoutArguments() {
   assert.notStrictEqual(resultById(targeted, 7).isError, true)
   assert.match(targetedText, /01-项目信息/)
   assert.match(targetedText, /03-代码风格/)
+}
+
+function testContextReadBindingContract() {
+  setupLegacyWorkspace()
+  const planResponses = runServer('mcp/profile-server.js', [
+    rpcRequest(1, 'tools/call', {
+      name: 'profile_context_plan',
+      arguments: { intent: 'chat', contextEpoch: 'binding-contract-epoch' }
+    })
+  ], TEMP_ROOT)
+  const plan = toolJson(resultById(planResponses, 1))
+  const binding = {
+    schemaVersion: 'ContextReadBindingV1',
+    contextEpoch: plan.identity.contextEpoch,
+    planId: plan.planId,
+    planContentId: plan.planContentId,
+    activeRoot: plan.identity.activeRoot,
+    project: plan.identity.project
+  }
+
+  const profileResponses = runServer('mcp/profile-server.js', [
+    rpcRequest(2, 'tools/list'),
+    rpcRequest(3, 'tools/call', {
+      name: 'profile_load',
+      arguments: { files: ['01-项目信息.md'], contextBinding: binding }
+    }),
+    rpcRequest(4, 'tools/call', {
+      name: 'profile_load',
+      arguments: { files: ['01-项目信息.md'], contextBinding: { ...binding, activeRoot: path.join(TEMP_ROOT, 'other') } }
+    }),
+    rpcRequest(5, 'tools/call', {
+      name: 'profile_skill_plan',
+      arguments: { candidateIds: ['intent'], contextBinding: binding }
+    }),
+    rpcRequest(6, 'tools/call', {
+      name: 'profile_load',
+      arguments: { files: ['01-项目信息.md'] }
+    })
+  ], TEMP_ROOT)
+  const listed = resultById(profileResponses, 2).tools
+  assert.ok(listed.find(tool => tool.name === 'profile_load').inputSchema.properties.contextBinding)
+  assert.ok(listed.find(tool => tool.name === 'profile_skill_plan').inputSchema.properties.contextBinding)
+  const profileText = resultById(profileResponses, 3).content[0].text
+  const profileMeta = JSON.parse(/<!-- profile_load_budget (\{[^\n]+\}) -->/.exec(profileText)[1])
+  assert.deepStrictEqual(profileMeta.contextBinding, {
+    ...binding,
+    activeRoot: plan.identity.activeRoot,
+    bindingStatus: 'verified',
+    verificationMode: 'request-bound'
+  })
+  const mismatch = toolJson(resultById(profileResponses, 4))
+  assert.strictEqual(resultById(profileResponses, 4).isError, true)
+  assert.strictEqual(mismatch.errorCode, 'CONTEXT_BINDING_MISMATCH')
+  const skillPlan = toolJson(resultById(profileResponses, 5))
+  assert.strictEqual(skillPlan.contextBinding.bindingStatus, 'verified')
+  const legacyProfileMeta = JSON.parse(/<!-- profile_load_budget (\{[^\n]+\}) -->/.exec(
+    resultById(profileResponses, 6).content[0].text
+  )[1])
+  assert.strictEqual(legacyProfileMeta.contextBinding.bindingStatus, 'legacy-unbound')
+
+  const memoryResponses = runServer('mcp/memory-server.js', [
+    rpcRequest(7, 'tools/list'),
+    rpcRequest(8, 'tools/call', { name: 'memory_status', arguments: { contextBinding: binding } }),
+    rpcRequest(9, 'tools/call', {
+      name: 'memory_status',
+      arguments: { contextBinding: { ...binding, project: 'wrong-project' } }
+    }),
+    rpcRequest(10, 'tools/call', { name: 'memory_status', arguments: {} }),
+    rpcRequest(11, 'tools/call', {
+      name: 'memory_status',
+      arguments: { contextBinding: { ...binding, unsupported: true } }
+    })
+  ], TEMP_ROOT)
+  assert.ok(resultById(memoryResponses, 7).tools
+    .find(tool => tool.name === 'memory_status').inputSchema.properties.contextBinding)
+  const boundMemory = toolJson(resultById(memoryResponses, 8))
+  assert.strictEqual(boundMemory.contextBinding.bindingStatus, 'verified')
+  assert.strictEqual(boundMemory.contextBinding.verificationMode, 'request-bound')
+  assertMemoryProjectionIdentity(boundMemory, 'memory_status')
+  const memoryMismatch = toolJson(resultById(memoryResponses, 9))
+  assert.strictEqual(resultById(memoryResponses, 9).isError, true)
+  assert.strictEqual(memoryMismatch.errorCode, 'CONTEXT_BINDING_MISMATCH')
+  const legacyMemory = toolJson(resultById(memoryResponses, 10))
+  assert.strictEqual(legacyMemory.contextBinding.bindingStatus, 'legacy-unbound')
+  const invalidMemory = toolJson(resultById(memoryResponses, 11))
+  assert.strictEqual(resultById(memoryResponses, 11).isError, true)
+  assert.strictEqual(invalidMemory.errorCode, 'CONTEXT_BINDING_INVALID')
 }
 
 function testProfileSectionSelectorsAndSkillPlan() {
@@ -1883,6 +2072,7 @@ testMemoryTaskResolveContract()
 testMemoryActualHostEnvAgent()
 testMemoryCpConfirmForBugs()
 testMemoryCpConfirmForExtendedTaskKinds()
+testMemoryCpConfirmPreservesOrdinaryTables()
 testMemoryProjectionQueriesAndZeroWrite()
 testMemoryProjectionErrorsAndMalformedSources()
 testMemoryProjectionLayoutTargets()
@@ -1891,6 +2081,7 @@ testMemoryProjectionAgentAmbiguity()
 testGrokAgentMemoryWrite()
 testWorkspaceNamespaceProfileMerge()
 testProfileLoadWithoutArguments()
+testContextReadBindingContract()
 testProfileSectionSelectorsAndSkillPlan()
 testProfileContextPlanContract()
 testProfileContextPlanConditionalSelectors()

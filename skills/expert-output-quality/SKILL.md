@@ -31,6 +31,12 @@ description: 专家型产物质量门禁 — 当任务涉及代码、文档、�
 | `ExampleArchitectureFitnessGate` | 示例要符合项目推荐架构，避免在 route、controller、UI 或测试里重复声明框架已承载的资源配置 | architectureFit、consumerImpact |
 | `AntiPatternContrastGate` | 必要时列出“错误写法 / 为什么错 / 正确写法”，但不把反模式放成主路径 | antiPattern、replacement |
 | `ExpertEvidenceMatrixGate` | 关键建议必须绑定代码、类型、官方文档、运行时、测试、构建或用户路径证据 | evidenceMatrix |
+| `OperationExplanationContractV1` | 面向用户或维护者的操作说明必须写清目标、前置条件、输入、状态影响、结果形态、结果来源、失败语义、下一步和证据 | operationId、userGoal、resultSource、failureSemantics |
+| `ResponseProvenanceClosureGate` | 报告和最终回复中“已完成 / 已验证 / 推荐”的结论必须能追溯到文件、命令、测试、运行时或用户确认来源 | resultSource、evidence、freshness |
+| `CodeTruthEvidenceMatrixGate` | 重要需求、技术方案和修复结论必须绑定 repo path、符号/契约、当前行为、反证探针和差距，不能只靠文档自洽 | repoPath、symbol、currentBehavior、negativeProbe、gap |
+| `SolutionFitAgainstRepoGate` | 方案必须说明复用点、消费者、变更面、回滚和保持现状成本，避免凭空设计 | reusePoint、consumer、rollback、statusQuoCost |
+| `UniqueRecommendationBeforeConfirmGate` | 多方案比较收敛后只能有一个推荐方案或一个明确组合推荐 | recommended=1、alternatives、reason |
+| `NoPreferenceMenuAfterConvergenceGate` | 已由证据收敛且用户授予 auto 时，不再要求用户选择无意义偏好菜单 | auto evidence、decisionOwner |
 
 ## 执行步骤
 
@@ -57,6 +63,9 @@ description: 专家型产物质量门禁 — 当任务涉及代码、文档、�
 | exampleArchitectureFitness | 示例是否符合推荐架构；不符合时给替代示例 |
 | antiPatternContrast | 错误写法、风险、替代方案；不需要时写 N/A |
 | evidenceMatrix | 判断 -> 代码/类型/官方文档/测试/运行时/用户路径证据 |
+| operationExplanation | `OperationExplanationContractV1`，不涉及用户/维护者操作时写 N/A + skipReason |
+| codeTruthEvidence | `CodeTruthEvidenceMatrixGate`，绑定 repo path / symbol / currentBehavior / negativeProbe / gap |
+| solutionFitAndRecommendation | `SolutionFitAgainstRepoGate` + `UniqueRecommendationBeforeConfirmGate` / `NoPreferenceMenuAfterConvergenceGate` |
 ```
 
 ## 常见修正

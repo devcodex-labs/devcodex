@@ -86,6 +86,20 @@ const EXECUTION_OPTIMIZATION_BINDING_SCHEMA = {
   additionalProperties: false
 }
 
+const CONTEXT_READ_BINDING_SCHEMA = {
+  type: 'object',
+  required: ['schemaVersion', 'contextEpoch', 'planId', 'planContentId', 'activeRoot', 'project'],
+  properties: {
+    schemaVersion: { const: 'ContextReadBindingV1' },
+    contextEpoch: { type: 'string', minLength: 1 },
+    planId: { type: 'string', minLength: 1 },
+    planContentId: { type: 'string', minLength: 1 },
+    activeRoot: { type: 'string', minLength: 1 },
+    project: { type: 'string' }
+  },
+  additionalProperties: false
+}
+
 const TOOLS = [
   {
     name: 'profile_context_plan',
@@ -187,7 +201,8 @@ const TOOLS = [
           type: 'string',
           description: 'explicitFull=true 时必填原因'
         },
-        executionOptimization: EXECUTION_OPTIMIZATION_BINDING_SCHEMA
+        executionOptimization: EXECUTION_OPTIMIZATION_BINDING_SCHEMA,
+        contextBinding: CONTEXT_READ_BINDING_SCHEMA
       },
       additionalProperties: false
     }
@@ -199,6 +214,7 @@ const TOOLS = [
       type: 'object',
       required: ['candidateIds'],
       properties: {
+        project: { type: 'string', description: '可选。指定目标项目命名空间。' },
         candidateIds: { type: 'array', minItems: 1, uniqueItems: true, items: { type: 'string', minLength: 1 } },
         mandatoryIds: { type: 'array', uniqueItems: true, items: { type: 'string', minLength: 1 } },
         includeGray: { type: 'boolean' },
@@ -208,7 +224,8 @@ const TOOLS = [
         hostTokenCounter: { type: 'boolean' },
         tokenCounts: { type: 'object', additionalProperties: { type: 'integer', minimum: 0 } },
         hostCapability: { type: 'string', enum: ['bundle-v2', 'native-oracle', 'unsupported'] },
-        executionOptimization: EXECUTION_OPTIMIZATION_BINDING_SCHEMA
+        executionOptimization: EXECUTION_OPTIMIZATION_BINDING_SCHEMA,
+        contextBinding: CONTEXT_READ_BINDING_SCHEMA
       },
       additionalProperties: false
     }
@@ -857,6 +874,57 @@ function resolveProfileOptimizationFeature(project, optimizationMode, featureId)
   }
 }
 
+function contextBindingError(errorCode, message) {
+  const error = new Error(message)
+  error.contextReadCode = errorCode
+  return error
+}
+
+function comparableActiveRoot(value) {
+  const resolved = path.resolve(String(value || ''))
+  return process.platform === 'win32' ? resolved.toLowerCase() : resolved
+}
+
+function resolveContextReadBinding(binding, target) {
+  if (binding === undefined || binding === null) {
+    return {
+      schemaVersion: 'ContextReadBindingV1',
+      contextEpoch: null,
+      planId: null,
+      planContentId: null,
+      activeRoot: target.activeRoot,
+      project: target.project,
+      bindingStatus: 'legacy-unbound',
+      verificationMode: 'legacy-unbound'
+    }
+  }
+  if (typeof binding !== 'object' || Array.isArray(binding)) {
+    throw contextBindingError('CONTEXT_BINDING_INVALID', 'contextBinding must be an object.')
+  }
+  const allowed = new Set(['schemaVersion', 'contextEpoch', 'planId', 'planContentId', 'activeRoot', 'project'])
+  const unknown = Object.keys(binding).filter(key => !allowed.has(key))
+  const requiredStrings = ['contextEpoch', 'planId', 'planContentId', 'activeRoot']
+  if (unknown.length || binding.schemaVersion !== 'ContextReadBindingV1' ||
+      requiredStrings.some(field => typeof binding[field] !== 'string' || !binding[field].trim()) ||
+      typeof binding.project !== 'string') {
+    throw contextBindingError('CONTEXT_BINDING_INVALID', 'contextBinding does not match the published ContextReadBindingV1 request schema.')
+  }
+  if (comparableActiveRoot(binding.activeRoot) !== comparableActiveRoot(target.activeRoot) ||
+      binding.project.trim() !== String(target.project || '').trim()) {
+    throw contextBindingError('CONTEXT_BINDING_MISMATCH', 'contextBinding target does not match the resolved active root and project.')
+  }
+  return {
+    schemaVersion: 'ContextReadBindingV1',
+    contextEpoch: binding.contextEpoch.trim(),
+    planId: binding.planId.trim(),
+    planContentId: binding.planContentId.trim(),
+    activeRoot: binding.activeRoot.trim(),
+    project: binding.project.trim(),
+    bindingStatus: 'verified',
+    verificationMode: 'request-bound'
+  }
+}
+
 // ─── Tool handlers ────────────────────────────────────────────────────────────
 
 function contextPlanResult(value) {
@@ -1028,6 +1096,17 @@ function handleProfileLoad(args = {}) {
     )
   }
 
+  let contextBinding
+  try {
+    contextBinding = resolveContextReadBinding(args.contextBinding, resolveProfilePlanTarget(args.project))
+  } catch (error) {
+    return profileLoadError(
+      error.contextReadCode || 'CONTEXT_BINDING_INVALID',
+      error.message,
+      'Regenerate the ContextReadPlanV2 for the resolved active target and pass its exact ContextReadBindingV1.'
+    )
+  }
+
   const requested = hasFiles ? args.files : resolveDefaultProfileFiles(args.project)
   const suppliedSelectors = args.sectionSelectors === undefined ? [] : args.sectionSelectors
   if (!Array.isArray(suppliedSelectors)) {
@@ -1164,7 +1243,8 @@ function handleProfileLoad(args = {}) {
     optimizationFallback: !featureDecision.optimizationAllowed && suppliedSelectors.length > 0
       ? 'full-profile-file'
       : null,
-    sectionReceipts
+    sectionReceipts,
+    contextBinding
   }
   const metaBlock = `<!-- profile_load_budget ${JSON.stringify(meta)} -->\n\n`
   if (meta.truncated) {
@@ -1184,6 +1264,23 @@ function handleProfileLoad(args = {}) {
 }
 
 function handleProfileSkillPlan(args = {}) {
+  let contextBinding
+  try {
+    contextBinding = resolveContextReadBinding(args.contextBinding, resolveProfilePlanTarget(args.project))
+  } catch (error) {
+    return {
+      content: [{
+        type: 'text',
+        text: JSON.stringify({
+          schemaVersion: 'BundleDecisionErrorV1',
+          errorCode: error.contextReadCode || 'CONTEXT_BINDING_INVALID',
+          message: error.message,
+          nextStep: 'Regenerate the ContextReadPlanV2 for the resolved active target and pass its exact ContextReadBindingV1.'
+        }, null, 2)
+      }],
+      isError: true
+    }
+  }
   const portfolioPath = path.resolve(__dirname, '..', 'skills', 'portfolio.json')
   let portfolio
   try {
@@ -1202,7 +1299,7 @@ function handleProfileSkillPlan(args = {}) {
       isError: true
     }
   }
-  const { executionOptimization, ...bundleArgs } = args
+  const { executionOptimization, contextBinding: _contextBinding, project: _project, ...bundleArgs } = args
   const optimizationMode = resolveExecutionOptimizationBinding(executionOptimization)
   const featureDecision = resolveProfileOptimizationFeature(args.project, optimizationMode, 'skill-bundle')
   const decision = buildBundleDecisionV2(portfolio, {
@@ -1217,7 +1314,8 @@ function handleProfileSkillPlan(args = {}) {
       stateStatus: featureDecision.stateStatus,
       reasonCode: featureDecision.reasonCode,
       optimizationAllowed: featureDecision.optimizationAllowed
-    }
+    },
+    contextBinding
   }
   return { content: [{ type: 'text', text: JSON.stringify(response, null, 2) }] }
 }

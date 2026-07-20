@@ -129,6 +129,27 @@ function run() {
     assert.match(fullPlan.impactGraphDigest, /^[a-f0-9]{64}$/)
     assert.match(fullPlan.planDigest, /^[a-f0-9]{64}$/)
     assert.strictEqual(new Set(manifest.nodes.map(commandSignature)).size, manifest.nodes.length)
+    const profileDeployPlan = planValidation({
+      manifest,
+      route: 'profile-deploy',
+      changedFiles: [],
+      changedSource: 'explicit',
+      riskClass: 'high',
+      candidateStable: true,
+      candidateId: 'fixture-profile-deploy'
+    })
+    const profileDeployIds = profileDeployPlan.selectedNodes.map(node => node.id)
+    assert.ok(!profileDeployIds.includes('validate-core'), 'profile-deploy must not execute the source/full validator twice')
+    assert.ok(profileDeployIds.includes('validate-workspace'))
+    const coreDelegates = manifest.nodes.find(node => node.id === 'validate-core').delegatedClosure
+    const workspaceDelegates = manifest.nodes.find(node => node.id === 'validate-workspace').delegatedClosure
+    assert.deepStrictEqual(workspaceDelegates, coreDelegates, 'workspace validator must own the same delegated leaf closure')
+    assert.deepStrictEqual(profileDeployPlan.coveredInvariantNodes, ['validate-core'])
+    assert.strictEqual(
+      profileDeployPlan.selectedNodes.filter(node => node.command === 'node' && node.args.join(' ') === 'scripts/validate.js').length,
+      1,
+      'profile-deploy must contain one full validation command'
+    )
 
     const impactFixture = fixtureManifest([
       fixtureNode('impact-source', { inputs: ['src/**'], consumers: ['impact-consumer'] }),
@@ -166,6 +187,26 @@ function run() {
     invalidDelegatedClosure.nodes.find(node => node.id === 'validate-core').delegatedClosure[0].nodeId = 'Missing_Node'
     assert.throws(() => validateValidationManifest(invalidDelegatedClosure),
       error => error instanceof ValidationDagError && /delegatedClosure.entry/.test(error.message))
+
+    const invalidCoveredNode = clone(manifest)
+    invalidCoveredNode.nodes.find(node => node.id === 'validate-workspace').coversNodes = ['missing-node']
+    assert.throws(() => validateValidationManifest(invalidCoveredNode),
+      error => error instanceof ValidationDagError && /covers unknown node/.test(error.message))
+
+    const mismatchedCoveredNode = clone(manifest)
+    mismatchedCoveredNode.nodes.find(node => node.id === 'validate-workspace').args = ['scripts/other-validator.js']
+    assert.throws(() => validateValidationManifest(mismatchedCoveredNode),
+      error => error instanceof ValidationDagError && /covers node with a different command/.test(error.message))
+
+    const missingCoveredEnvironment = clone(manifest)
+    delete missingCoveredEnvironment.nodes.find(node => node.id === 'validate-workspace').environment.DEVCODEX_VALIDATION_SCOPE
+    assert.throws(() => validateValidationManifest(missingCoveredEnvironment),
+      error => error instanceof ValidationDagError && /preserve covered environment/.test(error.message))
+
+    const missingCoveredDelegation = clone(manifest)
+    missingCoveredDelegation.nodes.find(node => node.id === 'validate-workspace').delegatedClosure.pop()
+    assert.throws(() => validateValidationManifest(missingCoveredDelegation),
+      error => error instanceof ValidationDagError && /preserve delegated closure/.test(error.message))
 
     const cycle = clone(manifest)
     cycle.nodes.find(node => node.id === 'validate-core').consumers.push('validate-versions')
@@ -356,11 +397,11 @@ function run() {
     assert.strictEqual(firstRun.receipt.contextBindingTrace.status, 'unverified')
     assert.strictEqual(runCount, 1)
 
-    const delegatedCore = fixtureNode('validate-core', {
+    const delegatedCore = fixtureNode('generic-validation-owner', {
       dependencies: [],
       delegatedClosure: [{ probe: 'V7', nodeId: 'hooks-runtime', command: 'node scripts/test-hooks-runtime.js' }]
     })
-    const delegatedHooks = fixtureNode('hooks-runtime', { dependencies: ['validate-core'] })
+    const delegatedHooks = fixtureNode('hooks-runtime', { dependencies: ['generic-validation-owner'] })
     const delegatedManifest = fixtureManifest([delegatedCore, delegatedHooks])
     const delegatedPlan = planValidation({
       manifest: delegatedManifest,

@@ -30,6 +30,33 @@ function classifyBatchScopeRebindSample(sample) {
   return 'pass'
 }
 
+function classifyBaseImpactAdmissionSample(sample) {
+  const requiredFields = [
+    'changeId', 'servedIntent', 'currentGap', 'absorptionDecision', 'baseClass',
+    'affectedContracts', 'unaffectedIntents', 'consumers', 'fanout',
+    'defaultPathDelta', 'fallbackBehavior', 'rollback', 'positiveProbe',
+    'negativeProbe', 'disabledOrMisconfiguredProbe', 'complexityDelta',
+    'replacementOrRetirementCredit', 'owner', 'reviewAt', 'deprecationAndDeletionCondition'
+  ]
+  if (!sample || requiredFields.some(field => sample[field] === undefined || sample[field] === null || sample[field] === '')) {
+    return 'incomplete'
+  }
+  if (!['base-neutral', 'base-compatible', 'base-changing'].includes(sample.baseClass)) return 'invalid-base-class'
+  if (!Array.isArray(sample.consumers) || sample.consumers.length === 0) return 'no-consumer'
+  if (!Array.isArray(sample.unaffectedIntents) || sample.unaffectedIntents.length === 0) return 'unaffected-regression-missing'
+  if (sample.defaultPathDelta && sample.defaultPathDelta.addsAlwaysOn === true && sample.baseClass !== 'base-changing') {
+    return 'misclassified-base-change'
+  }
+  if (sample.baseClass === 'base-changing' && (!sample.standaloneConfirmation || !sample.migration ||
+      !sample.positiveProbe || !sample.negativeProbe || !sample.disabledOrMisconfiguredProbe)) {
+    return 'base-change-unconfirmed'
+  }
+  if (!sample.deprecationAndDeletionCondition || sample.deprecationAndDeletionCondition === 'none') {
+    return 'lifecycle-incomplete'
+  }
+  return 'accepted'
+}
+
 function classifyContractMutationSample(sample) {
   if (!sample.applicable) return 'not-applicable'
   if (!sample.variantIsolationExecuted || !sample.completionDeletionExecuted ||
@@ -98,6 +125,34 @@ function buildResidualAbsorptionControlChecks(ctx) {
     expect(classifyBatchScopeRebindSample(batch), 'pass', 'batch positive')
     expect(classifyBatchScopeRebindSample({ ...batch, validationConsumerAdded: true, allowedPathsRebound: true, testRouteRebound: false }), 'blocked', 'consumer rebind negative')
 
+    const baseAdmission = {
+      changeId: 'PI-140',
+      servedIntent: 'keep base stable',
+      currentGap: 'no admission classifier',
+      absorptionDecision: 'existing-skill-subgate',
+      baseClass: 'base-compatible',
+      affectedContracts: ['spec-absorption'],
+      unaffectedIntents: ['ordinary-chat'],
+      consumers: ['spec-absorption', 'test-router'],
+      fanout: 2,
+      defaultPathDelta: { addsAlwaysOn: false },
+      fallbackBehavior: 'legacy path unchanged',
+      rollback: 'remove subgate and probe',
+      positiveProbe: 'base-compatible sample accepted',
+      negativeProbe: 'base-changing without confirmation rejected',
+      disabledOrMisconfiguredProbe: 'missing consumer rejected',
+      complexityDelta: { runtime: 0, maintenance: 1 },
+      replacementOrRetirementCredit: 'deprecate duplicate local gate',
+      owner: 'spec-absorption',
+      reviewAt: 'next release',
+      deprecationAndDeletionCondition: 'sunset when stronger owner replaces it'
+    }
+    expect(classifyBaseImpactAdmissionSample(baseAdmission), 'accepted', 'base admission positive')
+    expect(classifyBaseImpactAdmissionSample({ ...baseAdmission, consumers: [] }), 'no-consumer', 'base admission no consumer negative')
+    expect(classifyBaseImpactAdmissionSample({ ...baseAdmission, unaffectedIntents: [] }), 'unaffected-regression-missing', 'base admission unaffected regression negative')
+    expect(classifyBaseImpactAdmissionSample({ ...baseAdmission, defaultPathDelta: { addsAlwaysOn: true } }), 'misclassified-base-change', 'base admission always-on misclassification negative')
+    expect(classifyBaseImpactAdmissionSample({ ...baseAdmission, baseClass: 'base-changing', standaloneConfirmation: false }), 'base-change-unconfirmed', 'base-changing confirmation negative')
+
     expect(classifyContractMutationSample({ applicable: true, variantIsolationExecuted: true, completionDeletionExecuted: true, schemaSemanticParity: true, docsRuntimeParity: true, siblingFieldAccepted: true, missingCompletionEvidenceAccepted: false }), 'escaped', 'variant injection negative')
     expect(classifyContractMutationSample({ applicable: true, variantIsolationExecuted: true, completionDeletionExecuted: true, schemaSemanticParity: true, docsRuntimeParity: true, siblingFieldAccepted: false, missingCompletionEvidenceAccepted: false }), 'pass', 'contract mutation positive')
 
@@ -122,6 +177,9 @@ function buildResidualAbsorptionControlChecks(ctx) {
       ['skills/audit-user-manual/SKILL.md', ['ScenarioCoverageMatrixProbe', 'DurableBatchOrchestrationProbe']],
       ['skills/distributed-systems-architecture/SKILL.md', ['DurableBatchOrchestrationProbe', '持久化 cursor/checkpoint']],
       ['skills/spec-governance/gate-registry.json', ['release-efficiency', 'batch-scope-rebinding', 'contract-mutation-isolation', 'phase-delivery-semantics', 'scenario-durable-workflow']],
+      ['skills/spec-absorption/SKILL.md', ['BaseImpactAssessmentV1', 'ComplexityDeltaBudgetV1', 'UnaffectedIntentRegression', 'replacementOrRetirementCredit', 'base-neutral', 'base-compatible', 'base-changing']],
+      ['skills/spec-governance/SKILL.md', ['base-admission-governance', 'BaseImpactAssessmentV1', 'ComplexityDeltaBudgetV1']],
+      ['skills/test-router/SKILL.md', ['baseAdmissionGovernance', 'BaseImpactAssessmentV1', 'V96']],
       ['skills/report/report-schema.json', ['ReleaseEfficiencyControl', 'ConsumerValidationEngineering']],
       ['skills/report/SKILL.md', ['WorkspaceSyncStatus', 'CompletionEvidenceGate', 'PostDeliverySelfCheck', 'ExecutionBudget']],
       ['skills/compliance/SKILL.md', ['T11', 'T12', 'T13', 'ExecutionBudget']],
@@ -134,10 +192,10 @@ function buildResidualAbsorptionControlChecks(ctx) {
     const pkg = JSON.parse(read(path.join(ROOT, 'package.json')))
     const changelogFiles = ['changelogs/unreleased.md', `changelogs/releases/v${pkg.version}.md`]
     const changelog = changelogFiles.filter(file => fs.existsSync(path.join(ROOT, file))).map(file => read(path.join(ROOT, file))).join('\n')
-    for (const needle of ['CandidateFreezeGate', 'IsolatedConsumerCwdGate', 'DesignFitnessGate', 'V96']) {
+    for (const needle of ['CandidateFreezeGate', 'IsolatedConsumerCwdGate', 'DesignFitnessGate', 'BaseImpactAssessmentV1', 'V96']) {
       if (!changelog.includes(needle)) err(`[V96] current changelog corpus missing "${needle}"`)
     }
-    console.log('[V96] residual absorption release/batch/contract/phase/scenario controls checked')
+    console.log('[V96] residual absorption release/batch/contract/phase/scenario/base-admission controls checked')
   }
 
   return { checkV96 }
@@ -145,6 +203,7 @@ function buildResidualAbsorptionControlChecks(ctx) {
 
 module.exports = {
   buildResidualAbsorptionControlChecks,
+  classifyBaseImpactAdmissionSample,
   classifyBatchScopeRebindSample,
   classifyContractMutationSample,
   classifyDurableBatchSample,

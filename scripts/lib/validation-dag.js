@@ -46,6 +46,17 @@ function commandSignature(node) {
   return stableStringify([node.command, node.args, node.environment || {}])
 }
 
+function environmentPreserves(covering = {}, covered = {}) {
+  return Object.entries(covered || {}).every(([key, value]) => covering && covering[key] === value)
+}
+
+function arrayIncludesAll(covering = [], covered = []) {
+  if (!Array.isArray(covering) || !Array.isArray(covered)) return false
+  if (covering.length === 0) return true
+  const coveringSet = new Set(covering)
+  return covered.every(item => coveringSet.has(item))
+}
+
 function globToRegExp(glob) {
   const source = normalizeRelativePath(glob)
   let out = '^'
@@ -148,6 +159,13 @@ function validateValidationManifest(manifest) {
         }
       }
     }
+    if (node.coversNodes !== undefined && (
+      !Array.isArray(node.coversNodes) ||
+      new Set(node.coversNodes).size !== node.coversNodes.length ||
+      node.coversNodes.some(id => !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id || ''))
+    )) {
+      nodeErrors.push('coversNodes')
+    }
     if (!RISK_CLASSES.has(node.riskClass)) nodeErrors.push('riskClass')
     if (!CACHE_POLICIES.has(node.cachePolicy)) nodeErrors.push('cachePolicy')
     if (!Number.isInteger(node.timeoutMs) || node.timeoutMs < 1) nodeErrors.push('timeoutMs')
@@ -178,6 +196,44 @@ function validateValidationManifest(manifest) {
     for (const consumer of node.consumers || []) {
       if (!byId.has(consumer)) errors.push('node ' + node.id + ' has unknown consumer ' + consumer)
       if (consumer === node.id) errors.push('node ' + node.id + ' consumes itself')
+    }
+    for (const coveredId of node.coversNodes || []) {
+      const covered = byId.get(coveredId)
+      if (!covered) errors.push('node ' + node.id + ' covers unknown node ' + coveredId)
+      else {
+        if (coveredId === node.id) errors.push('node ' + node.id + ' covers itself')
+        if (node.command !== covered.command || stableStringify(node.args) !== stableStringify(covered.args)) {
+          errors.push('node ' + node.id + ' covers node with a different command: ' + coveredId)
+        }
+        if (!environmentPreserves(node.environment || {}, covered.environment || {})) {
+          errors.push('node ' + node.id + ' does not preserve covered environment from ' + coveredId)
+        }
+        if (stableStringify(node.exitMap || {}) !== stableStringify(covered.exitMap || {})) {
+          errors.push('node ' + node.id + ' does not preserve covered exit map from ' + coveredId)
+        }
+        if (node.cachePolicy !== covered.cachePolicy) {
+          errors.push('node ' + node.id + ' does not preserve covered cache policy from ' + coveredId)
+        }
+        if ((node.timeoutMs || 0) < (covered.timeoutMs || 0)) {
+          errors.push('node ' + node.id + ' has a shorter timeout than covered node ' + coveredId)
+        }
+        if (!arrayIncludesAll(node.inputs || [], covered.inputs || [])) {
+          errors.push('node ' + node.id + ' does not cover input scope from ' + coveredId)
+        }
+        if (!arrayIncludesAll(node.writeScopes || [], covered.writeScopes || [])) {
+          errors.push('node ' + node.id + ' does not cover write scopes from ' + coveredId)
+        }
+        for (const delegatedEntry of covered.delegatedClosure || []) {
+          if (!(node.delegatedClosure || []).some(entry => stableStringify(entry) === stableStringify(delegatedEntry))) {
+            errors.push('node ' + node.id + ' does not preserve delegated closure from ' + coveredId)
+          }
+        }
+        for (const invariant of covered.invariants || []) {
+          if (!(node.invariants || []).includes(invariant)) {
+            errors.push('node ' + node.id + ' does not preserve covered invariant ' + invariant + ' from ' + coveredId)
+          }
+        }
+      }
     }
     for (const glob of node.inputs || []) {
       try { globToRegExp(glob) } catch (error) { errors.push('node ' + node.id + ' invalid input glob: ' + error.message) }
@@ -369,7 +425,11 @@ function planValidation({ manifest, route = 'changed', changedFiles = [], change
     }
   }
 
-  for (const invariant of manifest.invariantNodes) selected.add(invariant)
+  const coveredNodeIds = new Set([...selected].flatMap(id => byId.get(id)?.coversNodes || []))
+  const coveredInvariantNodes = manifest.invariantNodes.filter(id => coveredNodeIds.has(id))
+  for (const invariant of manifest.invariantNodes) {
+    if (!coveredNodeIds.has(invariant)) selected.add(invariant)
+  }
   selected = addDependencies(selected, byId)
   const selectedNodes = ordered.filter(node => selected.has(node.id))
   const skipped = ordered.filter(node => !selected.has(node.id)).map(node => ({
@@ -396,6 +456,7 @@ function planValidation({ manifest, route = 'changed', changedFiles = [], change
     skipped,
     selectedNodeCount: selectedNodes.length,
     fullNodeCount: fullIds.size,
+    coveredInvariantNodes,
     duplicateLeafCount: selectedNodes.length - signatures.size,
     requiredNodeMisses: 0
   }
@@ -683,7 +744,7 @@ function executeValidationPlan({ manifest, plan, candidate, repoRoot, activeRoot
     const delegatedNodeIds = effectivePlan.selectedNodes
       .filter(item => item.id !== node.id && declaredDelegates.has(item.id))
       .map(item => item.id)
-    const executionNode = node.id === 'validate-core'
+    const executionNode = Array.isArray(node.delegatedClosure) && node.delegatedClosure.length > 0
       ? {
           ...node,
           environment: {

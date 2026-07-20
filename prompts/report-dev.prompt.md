@@ -76,9 +76,11 @@ applyTo: .devcodex/**/reports/requirements/**
 
 命中品牌资产生产时追加 `BrandVisualQuality` 条件段：只记录五类产物链接、自动检查、人工结论、blocker reset 与剩余风险，不把文件存在或单张截图写成通过。
 
-命中 `context-acquisition` 时追加 `ContextAcquisition` 条件段，至少记录 planId/planContentId/contextEpoch/activeRoot、selected/excluded/missing sources、`ContextReadReceiptV2.status`、content identity/reuseFrom/失效因子、fullReadReason/fallback、实际 bytes/chars/latency（tokens 不可观测则 N/A）、V1 reader compatibility 与 V99 结果。PreToolUse、调用文案、cache hit 或 legacy no-args full 不能作为成功证据。
+命中 `context-acquisition` 时追加 `ContextAcquisition` 条件段，至少记录 planId/planContentId/contextEpoch/activeRoot、selected/excluded/missing sources、`ContextReadBindingV1.bindingStatus`、`ContextReadReceiptV2.status`、content identity/reuseFrom/失效因子、fullReadReason/fallback、实际 bytes/chars/latency（tokens 不可观测则 N/A）、`ContextReadReceiptV1` reader compatibility 与 V99 结果。PreToolUse、调用文案、cache hit 或 legacy no-args full 不能作为成功证据。
 
 dev 中含 repair 切片时追加 `RepairPreventionAssessment`：只引用 Owner 的 V1 assessment，分列 immediate closure 与 prospective evidence；纯新增能力写 `N/A + skipReason`。
+
+命中用户操作说明或重要方案推荐时追加 `OperationExplanationContractV1` 与 `CodeTruthEvidenceMatrixGate`：记录 operationId/userGoal/resultShape/resultSource/failureSemantics/nextAction/evidence，以及 repo path/symbol/currentBehavior/negativeProbe/gap；收敛后只保留一个推荐方案或一个明确组合推荐。
 
 正式复审/ECR 追加 `ReviewExecution`：只投影同一个 `ReviewStateSnapshotV1.snapshotDigest`，列 planId/candidate/stage/class、fresh receipt digests、saturation、nextAction 与 StageTiming；禁止在报告重新计算状态。
 

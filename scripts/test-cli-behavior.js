@@ -292,6 +292,20 @@ function testDoctorAvoidsCodexBiasInMixedHostRepo() {
   fs.rmSync(root, { recursive: true, force: true })
 }
 
+function testDoctorHonorsExplicitAgentBeforeAmbientHints() {
+  const root = createTempRoot('devcodex-cli-doctor-explicit-host-')
+  writeFile(root, 'package.json', '{ "name": "explicit-host-diagnostic" }\n')
+  const doctor = JSON.parse(runCli(['doctor', '--json'], root, {
+    DEVCODEX_AGENT: 'codex',
+    GROK_AGENT: '1',
+    GROK_SESSION_ID: 'stale-grok-session',
+    GEMINI_AGENT: '1'
+  }))
+  assert.strictEqual(doctor.payload.platform, 'codex')
+  assert.strictEqual(doctor.payload.platformEvidence.source, 'explicit-agent')
+  fs.rmSync(root, { recursive: true, force: true })
+}
+
 function testMachineReadableDiagnosticsAndStableErrors() {
   const root = createTempRoot('devcodex-cli-json-diagnostics-')
   writeFile(root, 'package.json', '{ "name": "diagnostic-project" }\n')
@@ -664,6 +678,7 @@ function main() {
   testClaudeInitPreservesCustomConfig()
   testClaudeUpdateBacksUpAndPreservesCustomConfig()
   testDoctorAvoidsCodexBiasInMixedHostRepo()
+  testDoctorHonorsExplicitAgentBeforeAmbientHints()
   testMachineReadableDiagnosticsAndStableErrors()
   testDefaultInitBootstrapsActiveRootData()
   testTenantSelectionIsExplicit()

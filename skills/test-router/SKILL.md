@@ -45,6 +45,8 @@ TestRoute 的稳定输入、route selector、固定输出与 skip 合同以同�
 
 `repairPreventionAssessment` 绑定 active `repair-prevention-assessment`，不新增顶层 selector：所有 repair 至少选择 `static + unit-integration`，分别绑定当前 defect 的 regression/negative evidence 与 prevention decision 的 prospective/rollback evidence。高风险、repeat escape、emergency-active、控制面或公共契约再叠加 `runtime-e2e` 和适用的 package/profile 路线；当前修复重跑只能进入 immediate closure，不得填充 prospective effectiveness。返工指标或长期效果验证才额外绑定 gray `rework-prevention-engineering`。
 
+`baseAdmissionGovernance` 绑定 `spec-absorption` / `skill-lifecycle-governance`，不新增顶层 selector：新增或晋级规范、Skill、Prompt、流程、验证器或部署消费者至少选择 `static + unit-integration`，并记录 `BaseImpactAssessmentV1`、`ComplexityDeltaBudgetV1`、`UnaffectedIntentRegression`、`replacementOrRetirementCredit`、回滚和退役/删除条件。`base-changing` 叠加 `runtime-e2e + profile-deploy`，且必须有单独确认和未受影响意图负样本；普通 chat/dev/fix 不因此增加默认验证路径。V96 负责正负向分类器证据。
+
 `visibleOutputContract` 绑定 `user-visible-output-contract`，不新增顶层 selector：任何 `ArtifactDeliveryManifestV1`、`UserFacingArtifactSetV1`、`DevCodexVisibleEnvelopeV1`、renderer 或 visible-reply Hook 变化至少选择 `static + unit-integration + runtime-e2e`，覆盖 planned/observed/internalDelivered 对账、required hidden=0、计数守恒、六 message kinds、compact eligibility、legacy/unobserved ceiling、semanticDigest 和 rich/portable/plain 等价性。触达 README/website/Profile/部署副本时叠加 `profile-deploy`，进入 package public surface 时叠加 `package-release`。宿主 capability 未 direct replay 时必须保持 portable/plain 或 unverified，不得按宿主名推断 clickable。
 
 ## TestRoute 输出

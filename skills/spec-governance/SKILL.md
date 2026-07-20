@@ -190,6 +190,7 @@ description: 规范治理生命周期 — 意图驱动记录、RecordRouter 分�
 |---|---|---|
 | 修复与复审 | `repair-collaboration`、`repair-prevention-assessment`、`review-checklist`、`review-escape`、`rework-prevention` | execution-contract / active repair-prevention-assessment / review-checklist；长期效果才路由 gray rework-prevention-engineering |
 | 规范吸纳 | `absorption-layering`、`historical-common-layering`、`confirmed-completeness` | spec-absorption / spec-governance |
+| 基座准入 | `base-admission-governance` | spec-absorption / skill-lifecycle-governance / test-router；记录 `BaseImpactAssessmentV1`、`ComplexityDeltaBudgetV1` 与未受影响意图回归 |
 | 交付与运行态 | `frontend-runtime`、`public-surface`、`release-parity`、`interactive-semantics` | 对应领域 Owner + test-router |
 | Profile 与规模 | `profile-service`、`memory-bootstrap`、`artifact-scale-skill-gap`、`skill-lifecycle` | load-profile / memory / skill-gap-analysis / skill-lifecycle-governance |
 | 演进与跨仓 | `evolution-control-plane`、`consumer-validation`、`module-performance-maintenance` | evolution-governance / consumer-validation-engineering / performance-engineering |

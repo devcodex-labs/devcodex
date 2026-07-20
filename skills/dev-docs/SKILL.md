@@ -60,6 +60,7 @@ description: 文档开发子类型规范 — 技术文档/API文档/README 编�
 | 契约/公开面（差分） | 契约驱动型或公开模块文档：区分公开 API vs 内部实现；未发布能力只写 unreleased/草案/preview |
 | 用户手册类 | 站点文档 / README / 用户使用文档 → 转入 `user-manual-authoring`（+ 条件 `readme-authoring`），不在此复制用户主路径 Gate 百科 |
 | 专家产物 / 语义·示例真相 | 命中时调用 `expert-output-quality` 与 registry `docs-semantics-examples`；记录 `gateGroup / ownerSkill / skipReason` |
+| 操作说明合同 | 面向用户或维护者的步骤、命令、按钮、工具调用或最终回复必须补 `OperationExplanationContractV1`：`operationId/userGoal/preconditions/input/stateEffect/resultShape/resultSource/failureSemantics/nextAction/evidence` |
 | 消费链 | 命令/配置/字段/路径/阅读顺序变更时同步 README / website / Profile / examples / nav / validate / 部署副本 |
 
 ## API 文档规范
@@ -137,9 +138,7 @@ ChinesePrimaryExpressionGate · SidebarPageRoleMaterializationProbe · SidebarGr
 
 
 <!-- auto-sync anchors -->
-FormalDocsDevCodexBoundary · CodeTruthRequirementGate · PackageNameAuthorityGate · PublicModuleDifferentiationGate · ProductRequirementTraceabilityGate · FlowchartNodeExplanationGate · DocsSiteVisualAcceptanceGate · PublicDocsReleasedVersionGate · UIConfirmedSourceConflictTraceGate · UserPerspectiveDocsGate · DocsConsumerSweep · 蹇冩櫤璐熸媴 · 缁存姢鑰呴獙鏀?
-  [V67] public user docs / active final response drift in skills/audit-document/SKILL.md: missing  · SideEffectCompatibilityDocsGate · ExecutableExampleTruthProbeGate · RequirementPreConfirmGate · RequirementVerdictStateSyncGate · UserDocsImmediateComprehensionGate · UserDocsPrimarySurfaceGate · public docs site · requirement deliverable · UserFacingDeliveryChainGate · FinalUserManualFirstGate · GeneratedSiteGate · ManualTocDuplicationGate · UserPathContractSweep · UserManualProductizationGate · UserManualRenderedFlowAndRealWorkflowProbe · CompleteUserManualSiteMatrixGate · DocsThemeRuntimeVisualProbeGate
-
-PublicUserDocsMaintainerBoundaryGate · 心智负担 · 维护者验收
+FormalDocsDevCodexBoundary · CodeTruthRequirementGate · PackageNameAuthorityGate · PublicModuleDifferentiationGate · ProductRequirementTraceabilityGate · FlowchartNodeExplanationGate · DocsSiteVisualAcceptanceGate · PublicDocsReleasedVersionGate · UIConfirmedSourceConflictTraceGate · UserPerspectiveDocsGate · DocsConsumerSweep · 心智负担 · 维护者验收
+SideEffectCompatibilityDocsGate · ExecutableExampleTruthProbeGate · RequirementPreConfirmGate · RequirementVerdictStateSyncGate · UserDocsImmediateComprehensionGate · UserDocsPrimarySurfaceGate · public docs site · requirement deliverable · UserFacingDeliveryChainGate · FinalUserManualFirstGate · GeneratedSiteGate · ManualTocDuplicationGate · UserPathContractSweep · UserManualProductizationGate · UserManualRenderedFlowAndRealWorkflowProbe · CompleteUserManualSiteMatrixGate · DocsThemeRuntimeVisualProbeGate · PublicUserDocsMaintainerBoundaryGate
 
 自动生成 outline/侧栏已覆盖导航

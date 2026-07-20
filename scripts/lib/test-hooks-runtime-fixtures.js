@@ -40,6 +40,74 @@ function buildTestHooksRuntimeFixtures({
     return path.join(TEMP_ROOT, '.devcodex', 'workspace', '.memory', 'hooks', 'workspace', 'lifecycle-state.json')
   }
 
+  function fixtureToolName(rawName) {
+    const lower = String(rawName || '').toLowerCase()
+    const claude = lower.match(/^mcp__[^_]+(?:-[^_]+)*__([a-z0-9_]+)$/)
+    const pair = lower.match(/^[^/]+\/([a-z0-9_]+)$/)
+    return claude?.[1] || pair?.[1] || lower
+  }
+
+  function plannedContextBinding(cwd) {
+    try {
+      const statePath = getRuntimeStatePath(cwd)
+      const state = JSON.parse(fs.readFileSync(statePath, 'utf8'))
+      const plan = state?.contextAcquisition?.plan
+      if (!plan) return null
+      return {
+        schemaVersion: 'ContextReadBindingV1',
+        contextEpoch: plan.identity.contextEpoch,
+        planId: plan.planId,
+        planContentId: plan.planContentId,
+        activeRoot: plan.identity.activeRoot,
+        project: plan.identity.project
+      }
+    } catch {
+      return null
+    }
+  }
+
+  function bindFixtureArgs(name, args, cwd, mode) {
+    const tool = fixtureToolName(name)
+    const planBoundTools = new Set([
+      'profile_load', 'profile_skill_plan', 'memory_status', 'memory_session_query', 'memory_summary_query'
+    ])
+    if (mode === 'omit' || !planBoundTools.has(tool) || args?.contextBinding !== undefined) return args
+    const binding = plannedContextBinding(cwd)
+    return binding ? { ...(args || {}), contextBinding: binding } : args
+  }
+
+  function bindFixtureResult(name, value, cwd, mode) {
+    const tool = fixtureToolName(name)
+    if (mode === 'omit' || !['memory_status', 'memory_session_query', 'memory_summary_query'].includes(tool) ||
+        !value || typeof value !== 'object' || Array.isArray(value) || value.content || value.contextBinding !== undefined) return value
+    const binding = plannedContextBinding(cwd)
+    return binding
+      ? { ...value, contextBinding: { ...binding, bindingStatus: 'verified', verificationMode: 'request-bound' } }
+      : value
+  }
+
+  function prepareFixturePayload(payload, cwd) {
+    const mode = payload?.fixtureContextBinding
+    const prepared = { ...(payload || {}) }
+    delete prepared.fixtureContextBinding
+    const inputKey = ['tool_input', 'toolInput', 'input', 'arguments']
+      .find(key => Object.prototype.hasOwnProperty.call(prepared, key))
+    if (inputKey && prepared[inputKey] && typeof prepared[inputKey] === 'object' && !Array.isArray(prepared[inputKey])) {
+      prepared[inputKey] = bindFixtureArgs(prepared.tool_name || prepared.toolName, prepared[inputKey], cwd, mode)
+    }
+    const resultKey = ['tool_result', 'tool_response', 'toolResult', 'toolResponse']
+      .find(key => Object.prototype.hasOwnProperty.call(prepared, key))
+    if (resultKey) {
+      prepared[resultKey] = bindFixtureResult(
+        prepared.tool_name || prepared.toolName,
+        prepared[resultKey],
+        cwd,
+        mode
+      )
+    }
+    return prepared
+  }
+
   function run(payload, cwd = TEMP_ROOT, env = {}) {
     // Neutralize ambient host signals (e.g. developer GROK_AGENT) so bootstrap agent
     // matches fixture paths under clients/claude-code unless a test overrides env.
@@ -54,9 +122,10 @@ function buildTestHooksRuntimeFixtures({
       XAI_AGENT: '',
       ...env
     }
+    const preparedPayload = prepareFixturePayload(payload, cwd)
     const result = spawnSync(process.execPath, [RUNTIME], {
       cwd,
-      input: JSON.stringify(payload),
+      input: JSON.stringify(preparedPayload),
       encoding: 'utf8',
       env: mergedEnv
     })
@@ -69,11 +138,12 @@ function buildTestHooksRuntimeFixtures({
   }
 
   function callProfileTool(cwd, name, args) {
+    const boundArgs = bindFixtureArgs(name, args, cwd)
     const request = {
       jsonrpc: '2.0',
       id: 1,
       method: 'tools/call',
-      params: { name, arguments: args }
+      params: { name, arguments: boundArgs }
     }
     const result = spawnSync(process.execPath, [PROFILE_SERVER, cwd], {
       cwd,

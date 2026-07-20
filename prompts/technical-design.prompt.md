@@ -24,6 +24,7 @@ applyTo: .devcodex/**/requirements/**
 > ⚠️ 条件治理能力统一从 `skills/spec-governance/gate-registry.json` 选择 `gateGroup` 与 Owner Skill；技术方案只写触发事实、owner、产物链接、验证路线和 skipReason，不复制 Owner 正文。品牌母版、主题/尺寸变体或单色资产生产命中 `brand-visual-quality` 时，必须链接五类视觉产物和人工验收路线。
 > ⚠️ provider / connector / 三方 SDK 接入类方案必须先冻结业务功能接口，再说明底层 provider adapter / model / operation / 配置如何实现该功能；不得把内部 provider 能力直接反向暴露成业务接口。随后冻结字段级合同和统一 operation contract；包 / 库 / adapter / CLI 方案必须同时检查代码实现层与包工程层。
 > ⚠️ CP2 必须承接 CP1 的平台工程判断和 `ImplementationComplexityLevel`（兼容旧字段 `ImplementationComplexityPreference`）：消费者范围、共享契约边界、模块职责、可维护性成本、非目标和最小实现预算要互相一致；没有真实复用者或演进边界时，不得新增 factory / manager / adapter / registry 等预设抽象。
+> ⚠️ 重要技术结论必须通过 `CodeTruthEvidenceMatrixGate` 绑定 repo path、symbol/contract、currentBehavior、negativeProbe 和 gap；方案推荐还必须通过 `SolutionFitAgainstRepoGate` 说明 reusePoint、consumer、rollback 与 statusQuoCost。
 > ⚠️ §7 必须物化验证计划、命令/矩阵路线、验收标准和退出条件；进入编码前，§2.6 写清允许首批、阻断范围、偏移触发、验证路线和消费者同步。
 > ⚠️ 当 AI 判断目标包含修复 Bug/缺陷/回归/安全问题/规范缺口/审查 finding 时，技术方案必须引用 `repair-collaboration`：低风险填写 lightweight 双层字段，高风险填写 full + findingToPatchMap + handoffIntegrity + independentReReview；模型名称不是触发条件。
 > ⚠️ 同一 repair 方案必须引用 active `repair-prevention-assessment#RepairPreventionAssessmentGate`，冻结 `RepairPreventionAssessmentV1` 的 mode/decision、双根因、regression/negative seeds、immediate closure 与 prospective plan、Owner/consumers 和 rollback/sunset；`no-new-control` 必须有标准 reason/evidence，当前修复重跑不能晋级 prevention。

@@ -78,7 +78,5 @@ UserManualProductizationGate · UserManualRenderedFlowAndRealWorkflowProbe · Do
 
 
 <!-- auto-sync anchors -->
-DocumentationTranslationParityGuard · FormalDocsDevCodexBoundary · LiveVerificationExecutionObligation · FlowchartNodeExplanationGate · DocsSiteVisualAcceptanceGate · UserPerspectiveDocsGate · DocsConsumerSweep · 浣庡績鏅鸿礋鎷?
-  [V67] public user docs / active final response drift in skills/dev-docs/SKILL.md: missing  · SideEffectCompatibilityDocsGate · ExecutableExampleTruthProbeGate · UserDocsImmediateComprehensionGate · UserDocsPrimarySurfaceGate · 鏈彂甯?runtime · FinalUserManualFirstGate · DocsSiteInformationArchitectureGate · UserManualFlowAndFailureGate · GeneratedSiteGate · ManualTocDuplicationGate · UserPathContractSweep
-
-低心智负担 · PublicUserDocsMaintainerBoundaryGate · 未发布 runtime
+DocumentationTranslationParityGuard · FormalDocsDevCodexBoundary · LiveVerificationExecutionObligation · FlowchartNodeExplanationGate · DocsSiteVisualAcceptanceGate · UserPerspectiveDocsGate · DocsConsumerSweep · 低心智负担
+SideEffectCompatibilityDocsGate · ExecutableExampleTruthProbeGate · UserDocsImmediateComprehensionGate · UserDocsPrimarySurfaceGate · 未发布 runtime · FinalUserManualFirstGate · DocsSiteInformationArchitectureGate · UserManualFlowAndFailureGate · GeneratedSiteGate · ManualTocDuplicationGate · UserPathContractSweep · PublicUserDocsMaintainerBoundaryGate

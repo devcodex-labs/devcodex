@@ -9,6 +9,11 @@ WorkspaceDataAbsorptionScopeGate · DocsSiteVisualAcceptanceGate · OmissionOnly
 
 ## 当前未发布变更
 
+### DevCodex V1 基座准入与证据合同（2026-07-20）
+
+- G4：`BaseImpactAssessmentV1` / `ComplexityDeltaBudgetV1` / `UnaffectedIntentRegression` 纳入既有 spec-absorption / test-router / V96，不新增平行 Registry 或常驻基座流程；新增 `replacementOrRetirementCredit`、回滚和退役/删除条件，防止后续规范、Skill、Prompt 或验证器继续侵入稳定基座。
+- G5：`OperationExplanationContractV1`、`ResponseProvenanceClosureGate`、`CodeTruthEvidenceMatrixGate`、`SolutionFitAgainstRepoGate`、`UniqueRecommendationBeforeConfirmGate` 与 `NoPreferenceMenuAfterConvergenceGate` 纳入 expert-output / CP / report 消费者；V84 增加操作合同缺字段、代码事实缺证据和多推荐菜单负样本。
+
 ### DevCodex V1 全量审计 residual F 项闭环（ISSUE-045 / ISSUE-047 / ISSUE-051 / ISSUE-052 / ISSUE-053 / ISSUE-054 / ISSUE-057，2026-07-20）
 
 - Profile 06 `validation-execution` 证据数字同步当前 validation manifest：64 nodes、fast 59、full 62，避免旧 `54/full 53` 继续误导审计结论。

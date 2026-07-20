@@ -5,14 +5,14 @@
   "generatedFrom": {
     "skillsPattern": "skills/*/SKILL.md",
     "registry": "plugin.json",
-    "sourceDigest": "c04e04c24134d11eb593b4872c99fd1e84b3b3a5ad4da0c0163c22d7ea3fcb99",
+    "sourceDigest": "0a39885e70c02d2b6ff2ec841f238c963efcbc74102b3ca32cadd531028c7040",
     "pluginDigest": "41ec6da9aa259043623550e09d0ab43c6fd12c7bd5c87361ce549cf8c1cdc521",
     "portfolioEvidence": "skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "85229c1463a5068750d5417e5ebf960907532dccf99b1cd3da0a88f7007792b4",
     "consumerInventoryFileCount": 495,
     "consumerInventoryDigest": "7ef165faf292018451e947fdb3c6dfbb47ac80b5df9ed41c665967610f673fef",
-    "consumerProjectionDigest": "6fc7117814581354dd33e1c39eaff382d7497d4980ec1dc33c95ca6a2adb6899",
-    "portfolioInputDigest": "11f2495707163d228931db23d0334d068851ab813a52f9b40e86f5aab82a0e72"
+    "consumerProjectionDigest": "19987cc589e13a267765cec5e80f9bae9d6d8988f2f57138bab12ad2c954a035",
+    "portfolioInputDigest": "5ff3d383a2464f03a5d0e5798776084a6f30aff595ac927abfebd66f2af5913d"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -26,7 +26,7 @@
     "conflictReviewedCount": 81,
     "operationalEvidenceCompleteCount": 81,
     "triggerPrecisionMeasuredCount": 0,
-    "instructionBudgetP95Bytes": 19335,
+    "instructionBudgetP95Bytes": 19671,
     "triggerQuality": "structural-only"
   },
   "dependencyGraph": {
@@ -140,10 +140,6 @@
         "to": "memory"
       },
       {
-        "from": "audit-document",
-        "to": "dev-docs"
-      },
-      {
         "from": "audit-execution-guide",
         "to": "audit-common"
       },
@@ -170,10 +166,6 @@
       {
         "from": "dev-default",
         "to": "report"
-      },
-      {
-        "from": "dev-docs",
-        "to": "audit-document"
       },
       {
         "from": "dev-plan-review",
@@ -2248,14 +2240,12 @@
         "skills/audit-document/SKILL.md"
       ],
       "source": "skills/audit-document/SKILL.md",
-      "hash": "b5c78953c354dd9363469af4a1a45765962ebb3ef93dc7f417a31f5f22574c2e",
-      "sourceBytes": 4918,
+      "hash": "4694646d809177548965c19d14e88c7f7d5601ab21f4847f6fdff9a35e0f73c7",
+      "sourceBytes": 4774,
       "version": "1.15.1",
       "lifecycleState": "active",
       "dependencies": [],
-      "references": [
-        "dev-docs"
-      ],
+      "references": [],
       "conflicts": [],
       "conflictReview": {
         "status": "reviewed-none",
@@ -5547,8 +5537,8 @@
         "skills/cp-gate/SKILL.md"
       ],
       "source": "skills/cp-gate/SKILL.md",
-      "hash": "cfc5f94fe0506650fefabc954459dc14cad46069619a407c4026f0ce178cc2f4",
-      "sourceBytes": 19335,
+      "hash": "26955fdee1645c8d16fbdd4699f255e90bf74e8d80b60e7499e88ffdcf6e4af0",
+      "sourceBytes": 19671,
       "version": "1.15.1",
       "lifecycleState": "active",
       "dependencies": [],
@@ -5661,6 +5651,10 @@
         },
         {
           "path": "scripts/lib/validate-governance-control.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/validate-governance-expert.js",
           "role": "current"
         },
         {
@@ -6376,8 +6370,8 @@
         "skills/dev-default/SKILL.md"
       ],
       "source": "skills/dev-default/SKILL.md",
-      "hash": "32374c81b4515fbb806dae773a215c4d3db10aa636744ea43fb905c124937d40",
-      "sourceBytes": 14199,
+      "hash": "d3ee59cd9a819b40e7fb0a4120a57c8a857141a111fd600b4b83aa6776dfcb77",
+      "sourceBytes": 14159,
       "version": "1.15.1",
       "lifecycleState": "active",
       "dependencies": [],
@@ -6648,14 +6642,12 @@
         "skills/dev-docs/SKILL.md"
       ],
       "source": "skills/dev-docs/SKILL.md",
-      "hash": "16bccddcdd2d978f039a618b00d582e9999706344b28f5b0b505f01edaac171c",
-      "sourceBytes": 8166,
+      "hash": "315d6e3b046d28b28c17066da805336df3a2edeee54ccccbc249069525f5317e",
+      "sourceBytes": 8286,
       "version": "1.15.1",
       "lifecycleState": "active",
       "dependencies": [],
-      "references": [
-        "audit-document"
-      ],
+      "references": [],
       "conflicts": [],
       "conflictReview": {
         "status": "reviewed-none",
@@ -7256,8 +7248,8 @@
         "skills/dev-plan-review/SKILL.md"
       ],
       "source": "skills/dev-plan-review/SKILL.md",
-      "hash": "bd029616d48cc1c46548e98c2b8e5441c5ab1ddfcc465ec0be4c17b7934915c2",
-      "sourceBytes": 20759,
+      "hash": "8740d0a1224b7accd893b6843c6ba78efe246e8b508e2874ab9fb29ab12593b7",
+      "sourceBytes": 20978,
       "version": "1.15.1",
       "lifecycleState": "active",
       "dependencies": [],
@@ -9203,8 +9195,8 @@
         "skills/expert-output-quality/SKILL.md"
       ],
       "source": "skills/expert-output-quality/SKILL.md",
-      "hash": "58e57f0cf65c6e87a13aa83a7d445ed672debaa374952db18f3717a0bea533a7",
-      "sourceBytes": 6544,
+      "hash": "ff403621f10772cfa8c8afea58304e019353c33236ffd65a59392642deed9dbe",
+      "sourceBytes": 8177,
       "version": "1.15.1",
       "lifecycleState": "active",
       "dependencies": [],
@@ -12979,6 +12971,10 @@
           "role": "current"
         },
         {
+          "path": "mcp/memory-server.js",
+          "role": "current"
+        },
+        {
           "path": "mcp/profile-contract.js",
           "role": "current"
         },
@@ -15367,8 +15363,8 @@
         "skills/report/SKILL.md"
       ],
       "source": "skills/report/SKILL.md",
-      "hash": "343245503a786d31109b9c7c2181ccbcfbdacca3e703b998630e8a95d4ef709c",
-      "sourceBytes": 12941,
+      "hash": "1a3ee9772cab24260a242205648a10bcba08d73430f44c16981ca21cb5a62b1f",
+      "sourceBytes": 13258,
       "version": "1.15.1",
       "lifecycleState": "active",
       "dependencies": [],
@@ -17775,8 +17771,8 @@
         "skills/spec-absorption/SKILL.md"
       ],
       "source": "skills/spec-absorption/SKILL.md",
-      "hash": "e952f2aed1fae5897356be21ce315cb6897e9e5705e6b19d9345cbd8c9a93e99",
-      "sourceBytes": 12395,
+      "hash": "65ea93249af736d5d7297dda05682ff2f038dbe7b68becabf6adf351d255f41f",
+      "sourceBytes": 14063,
       "version": "1.15.1",
       "lifecycleState": "active",
       "dependencies": [],
@@ -17806,6 +17802,10 @@
         {
           "path": "changelogs/releases/v1.15.0.md",
           "role": "historical"
+        },
+        {
+          "path": "changelogs/unreleased.md",
+          "role": "current"
         },
         {
           "path": "instructions.md",
@@ -17860,7 +17860,15 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/validate-residual-absorption-controls.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/validate-rework-trust-controls.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-residual-absorption-controls.js",
           "role": "current"
         },
         {
@@ -17889,6 +17897,7 @@
         }
       ],
       "validationProfile": [
+        "scripts/test-residual-absorption-controls.js",
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
@@ -17936,6 +17945,7 @@
         ],
         "evolvableUnitRef": "skill:spec-absorption",
         "probeSuiteRefs": [
+          "scripts/test-residual-absorption-controls.js",
           "scripts/test-skill-portfolio.js",
           "scripts/validate.js"
         ],
@@ -17996,8 +18006,8 @@
         "skills/spec-governance/SKILL.md"
       ],
       "source": "skills/spec-governance/SKILL.md",
-      "hash": "448bfb4ffdbea14744eda7317a8f0b214e640a253010e23493aa3f9c605e965b",
-      "sourceBytes": 28983,
+      "hash": "5e6239d7dad729d8a756c09e3910aa45e63a00fb68b311acb426d3efa603bf71",
+      "sourceBytes": 29181,
       "version": "1.15.1",
       "lifecycleState": "active",
       "dependencies": [
@@ -18962,8 +18972,8 @@
         "skills/test-router/SKILL.md"
       ],
       "source": "skills/test-router/SKILL.md",
-      "hash": "a957b12d34d3aa4b55886c1b1fa2d764260727ddec72ecc8e4390e3533480e4e",
-      "sourceBytes": 8443,
+      "hash": "0b8de7fe8eaf243fc5ee980949f6e8925ed5e1cddcc0280ea98746d5e90580ea",
+      "sourceBytes": 9043,
       "version": "1.15.1",
       "lifecycleState": "active",
       "dependencies": [],
@@ -19152,6 +19162,10 @@
         },
         {
           "path": "scripts/lib/validate-optimization-controls.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/validate-residual-absorption-controls.js",
           "role": "current"
         },
         {

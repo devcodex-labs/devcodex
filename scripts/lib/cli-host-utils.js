@@ -239,6 +239,20 @@ function buildCliHostUtils({ fs, path, isPlainObject, claudeMcpJson }) {
   }
 
   function detectHostPlatform(env = process.env, cwd = process.cwd()) {
+    const explicitAgent = String(env.DEVCODEX_AGENT || '').trim().toLowerCase().replace(/[_\s]+/g, '-')
+    const explicitPlatforms = {
+      codex: 'codex',
+      grok: 'grok',
+      gemini: 'gemini',
+      claude: 'claude',
+      'claude-code': 'claude',
+      copilot: 'copilot',
+      'vscode-copilot': 'vscode-copilot',
+      'jetbrains-copilot': 'jetbrains-copilot'
+    }
+    if (explicitPlatforms[explicitAgent]) {
+      return { platform: explicitPlatforms[explicitAgent], source: 'explicit-agent' }
+    }
     if (env.GEMINI_CLI || env.GEMINI_AGENT || env.GEMINI_SESSION_ID) return { platform: 'gemini', source: 'env-derived' }
     if (env.CLAUDE_CODE_VERSION || env.CLAUDE_HOOK_COMMAND) return { platform: 'claude', source: 'env-derived' }
     if (env.CODEX_HOME || env.CODEX_ENV_PWD || env.OPENAI_CODEX) return { platform: 'codex', source: 'env-derived' }

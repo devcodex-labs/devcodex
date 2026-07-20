@@ -104,6 +104,6 @@ dev 工作流未匹配其他子类型时的默认路径，适用于：新功能�
 
 
 <!-- auto-sync anchors -->
-鍓嶇浣撻獙璐ㄩ噺闂ㄧ · CodeTruthRequirementGate · ManualReviewEvidenceRetention · GovernanceGateRegistry · V2FormalSolutionPackage · ReviewFindingIntakeGate · FigmaHighFidelityRestorationGate · DatabaseRecordMigrationExportGate · FrontendBrowserVerificationBudgetGate · RequirementPreConfirmGate · PackageAdapterPreConfirmEvidenceGate · SkillFirstAbsorptionGate · CapabilityToSkillPromotionGate · SkillAbsorptionDecision · LayeredAbsorptionGate · ProactiveBetterAlternativeGate · commonInstruction · skill · promptTemplate · executionConsumer · validationProbe · publicDocs · deployCopy · ConfirmedAbsorptionCompletenessGates · EvolutionCapabilityControlPlaneGate · FrontendAsyncCacheRenderGate · RemoteCIParityPushGate
+前端体验质量门禁 · CodeTruthRequirementGate · ManualReviewEvidenceRetention · GovernanceGateRegistry · V2FormalSolutionPackage · ReviewFindingIntakeGate · FigmaHighFidelityRestorationGate · DatabaseRecordMigrationExportGate · FrontendBrowserVerificationBudgetGate · RequirementPreConfirmGate · PackageAdapterPreConfirmEvidenceGate · SkillFirstAbsorptionGate · CapabilityToSkillPromotionGate · SkillAbsorptionDecision · LayeredAbsorptionGate · ProactiveBetterAlternativeGate · commonInstruction · skill · promptTemplate · executionConsumer · validationProbe · publicDocs · deployCopy · ConfirmedAbsorptionCompletenessGates · EvolutionCapabilityControlPlaneGate · FrontendAsyncCacheRenderGate · RemoteCIParityPushGate
 
-FigmaProductionAssetBudgetGate · 前端体验质量门禁
+FigmaProductionAssetBudgetGate

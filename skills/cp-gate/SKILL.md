@@ -70,6 +70,7 @@ CP 门控**不受 ENV_MODE 影响**。dev/prod 均强制保持 CP1→CP2 顺序�
 12. **审计问题清单转修复的 CP1 映射**：当 fix 源自 audit/analyze 的问题清单时，CP1 必须建立问题 ID 映射，逐项标注 `本轮修复 / 已关闭 / 延后 / 另起任务`，并把验收口径写入 CP1 产物；禁止只列新增问题而漏掉用户已指出或上轮已确认的问题。
 13. **执行期 CP3 回退**：若执行过程中实际变更范围触达 CP3 门槛（≥5 文件、高风险、控制面联动），必须暂停执行、补做或重开 CP3，再继续后续修改与验证。
 14. **backlog 来源前置真相复核**：当 CP1/问题确认直接来源于 `data/*.md` 的 open/partial 项时，进入正式确认前必须先把候选项分类为 `pure-open` / `residual-tail` / `already-fixed` / `misclassified`；非 `pure-open` 项须先回写状态并修正本轮范围，不得把 stale-open 条目继续按纯 open 统计。
+15. **代码事实与唯一推荐**：CP1/CP2/CP3 的重要需求、方案和推荐结论触发 `CodeTruthEvidenceMatrixGate`，至少绑定 repo path、符号/契约、当前行为、反证探针和差距；多方案收敛后触发 `UniqueRecommendationBeforeConfirmGate`，只能保留一个推荐方案或一个明确组合推荐。
 
 ## CP 响应处理
 

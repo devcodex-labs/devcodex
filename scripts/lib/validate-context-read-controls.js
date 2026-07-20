@@ -26,34 +26,47 @@ const REQUIRED_MEMORY_LEGACY_TOOLS = Object.freeze([
   'memory_summary_read',
   'memory_summary_append'
 ])
-const CONSUMER_ACTIVATION_ANCHORS = Object.freeze(['ContextAcquisitionGate', 'profile_context_plan', 'V99'])
-
-const CURRENT_CONSUMER_REQUIREMENTS = Object.freeze([
-  ['instructions.md', ['ContextAcquisitionGate', 'IntentSeedV1', 'ContextReadPlanV2', 'ContextReadReceiptV2', '兼容读取 V1']],
-  ['instructions/01-common.instructions.md', ['ContextAcquisitionGate', 'ContextReadPlanV2', 'V1 只保留 reader compatibility']],
+const CANONICAL_V2_CONSUMER_REQUIREMENTS = Object.freeze([
+  ['instructions.md', ['ContextAcquisitionGate', 'IntentSeedV1', 'ContextReadPlanV2', 'ContextReadReceiptV2']],
+  ['instructions/01-common.instructions.md', ['ContextAcquisitionGate', 'ContextReadPlanV2']],
   ['instructions/01a-profile-loading.instructions.md', ['ProfileReadChainGate', 'profile_context_plan', 'ProfilePlanNoHiddenFullReadProbe']],
   ['instructions/15-memory.instructions.md', ['MemoryContextQueryGate', 'memory_status', 'memory_session_query', 'memory_summary_query']],
-  ['skills/ai-agent-system-architecture/SKILL.md', ['ContextAcquisitionGate', 'IntentSeedV1', 'ContextReadPlanV2', 'ContextReadReceiptV2', 'V1 兼容']],
+  ['skills/ai-agent-system-architecture/SKILL.md', ['ContextAcquisitionGate', 'IntentSeedV1', 'ContextReadPlanV2', 'ContextReadReceiptV2']],
   ['skills/load-profile/SKILL.md', ['ProfileReadChainGate', 'profile_context_plan', 'ProfilePlanNoHiddenFullReadProbe', 'ProfileSectionSelectionGate', 'ProfileSectionLoadReceiptV1']],
   ['skills/skill-lifecycle-governance/SKILL.md', ['BundleDecisionV2', 'sourceBytes', 'full-skill-read']],
   ['skills/memory/SKILL.md', ['MemoryContextQueryGate', 'memory_status', 'memory_session_query', 'memory_summary_query']],
-  ['skills/host-contract-verification/SKILL.md', ['ContextReadReceiptV2', 'V1 兼容', 'ContextAcquisitionToolAllowlistProbe', 'PostToolUse']],
+  ['skills/host-contract-verification/SKILL.md', ['ContextReadReceiptV2', 'ContextAcquisitionToolAllowlistProbe', 'PostToolUse']],
   ['skills/test-router/SKILL.md', ['context-acquisition', 'V99']],
   ['skills/report/report-schema.json', ['ContextAcquisition']],
-  ['prompts/technical-design.prompt.md', ['context-acquisition', 'ContextReadPlanV2', 'ContextReadReceiptV2', 'ContextReadPlanV1', 'V99']],
+  ['prompts/technical-design.prompt.md', ['context-acquisition', 'ContextReadPlanV2', 'ContextReadReceiptV2', 'V99']],
   ['prompts/implementation-plan.prompt.md', ['context-acquisition', 'ProfilePlanNoHiddenFullReadProbe', 'V99']],
-  ['prompts/report-dev.prompt.md', ['ContextAcquisition', 'ContextReadReceiptV2', 'ContextReadReceiptV1', 'V99']],
-  ['README.md', ['profile_context_plan', 'memory_status', 'ContextReadReceiptV2', 'V1 receipt 只作兼容读取']],
-  ['website/docs/guide/development.md', ['profile_context_plan', 'memory_status', 'ContextReadPlanV2', 'ContextReadReceiptV2', 'V1 只保留 reader compatibility']],
-  ['changelogs/unreleased.md', CONSUMER_ACTIVATION_ANCHORS]
+  ['prompts/report-dev.prompt.md', ['ContextAcquisition', 'ContextReadReceiptV2', 'ContextReadBindingV1', 'V99']],
+  ['README.md', ['profile_context_plan', 'memory_status', 'ContextReadReceiptV2']],
+  ['website/docs/guide/development.md', ['profile_context_plan', 'memory_status', 'ContextReadPlanV2', 'ContextReadReceiptV2']]
 ])
 
-const PROFILE_CONSUMER_REQUIREMENTS = Object.freeze([
+const V1_READER_COMPATIBILITY_REQUIREMENTS = Object.freeze([
+  ['instructions.md', ['兼容读取 V1']],
+  ['instructions/01-common.instructions.md', ['V1 只保留 reader compatibility']],
+  ['skills/ai-agent-system-architecture/SKILL.md', ['V1 兼容']],
+  ['skills/host-contract-verification/SKILL.md', ['V1 兼容']],
+  ['prompts/technical-design.prompt.md', ['ContextReadPlanV1']],
+  ['prompts/report-dev.prompt.md', ['ContextReadReceiptV1']],
+  ['README.md', ['V1 receipt 只作兼容读取']],
+  ['website/docs/guide/development.md', ['V1 只保留 reader compatibility']]
+])
+
+const PROFILE_CANONICAL_V2_REQUIREMENTS = Object.freeze([
   ['01-项目信息.md', ['V99', 'test:context-read-controls']],
   ['02-架构约束.md', ['context-read-contract.cjs', 'validate-context-read-controls.js']],
   ['04-测试规范.md', ['V99', 'test:context-read', 'test:context-read-controls']],
-  ['06-功能清单.md', ['profile_context_plan', 'memory_status', 'ContextReadReceiptV1']],
-  ['07-用户文档与契约规范.md', ['ContextAcquisitionGate', 'targeted', 'legacy']]
+  ['06-功能清单.md', ['profile_context_plan', 'memory_status']],
+  ['07-用户文档与契约规范.md', ['ContextAcquisitionGate', 'targeted']]
+])
+
+const PROFILE_V1_READER_COMPATIBILITY_REQUIREMENTS = Object.freeze([
+  ['06-功能清单.md', ['ContextReadReceiptV1']],
+  ['07-用户文档与契约规范.md', ['legacy']]
 ])
 
 const FORBIDDEN_LEGACY_PRIMARY = Object.freeze([
@@ -92,13 +105,12 @@ function classifyRuntimeToolSurface(surface) {
 }
 
 function classifyConsumerClosure(snapshot) {
-  if (!snapshot || !['none', 'partial', 'complete'].includes(snapshot.activationState)) {
-    return 'invalid-consumer-snapshot'
-  }
-  if (snapshot.activationState === 'partial') return 'activation-incomplete'
-  if (snapshot.activationState === 'none') return 'consumer-sync-staged'
-  if ((snapshot.missing || []).length) return 'consumer-incomplete'
+  if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) return 'invalid-consumer-snapshot'
+  if (![snapshot.canonicalMissing, snapshot.compatibilityMissing, snapshot.forbiddenLegacy]
+    .every(value => value === undefined || Array.isArray(value))) return 'invalid-consumer-snapshot'
+  if ((snapshot.canonicalMissing || []).length) return 'consumer-incomplete'
   if ((snapshot.forbiddenLegacy || []).length) return 'legacy-primary-drift'
+  if ((snapshot.compatibilityMissing || []).length) return 'reader-compatibility-incomplete'
   return 'consumer-ready'
 }
 
@@ -170,11 +182,10 @@ function buildContextReadControlChecks(ctx) {
       'legacy removal mutation'
     )
     expect(classifyRuntimeToolSurface({ ...readySurface, profileTools: ['profile_load'] }), 'profile-surface-incomplete', 'plan removal negative')
-    expect(classifyConsumerClosure({ activationState: 'none', missing: ['docs'] }), 'consumer-sync-staged', 'staged consumer positive')
-    expect(classifyConsumerClosure({ activationState: 'partial' }), 'activation-incomplete', 'partial activation negative')
-    expect(classifyConsumerClosure({ activationState: 'complete', missing: ['README'] }), 'consumer-incomplete', 'consumer missing negative')
-    expect(classifyConsumerClosure({ activationState: 'complete', forbiddenLegacy: ['full-read-first'] }), 'legacy-primary-drift', 'legacy primary negative')
-    expect(classifyConsumerClosure({ activationState: 'complete' }), 'consumer-ready', 'consumer positive')
+    expect(classifyConsumerClosure({ canonicalMissing: ['README'] }), 'consumer-incomplete', 'canonical consumer missing must fail unconditionally')
+    expect(classifyConsumerClosure({ forbiddenLegacy: ['full-read-first'] }), 'legacy-primary-drift', 'legacy primary negative')
+    expect(classifyConsumerClosure({ compatibilityMissing: ['ContextReadReceiptV1'] }), 'reader-compatibility-incomplete', 'V1 reader compatibility negative')
+    expect(classifyConsumerClosure({ canonicalMissing: [], compatibilityMissing: [], forbiddenLegacy: [] }), 'consumer-ready', 'consumer positive')
   }
 
   function checkRuntimeSources() {
@@ -189,7 +200,8 @@ function buildContextReadControlChecks(ctx) {
       "case 'profile_context_plan'", "case 'profile_load'", 'bounded-top-level-profile-inventory',
       'CONTEXT_READ_CONTRACT', 'handleProfileContextPlan', 'ContextPlanComputationCacheV1',
       'CONTEXT_CACHE_MAX_BYTES', 'applyContextPlanComputationCache', 'sectionSelectors',
-      'ProfileLoadReceiptV2', 'BundleDecisionV2'
+      'ProfileLoadReceiptV2', 'BundleDecisionV2', 'ContextReadBindingV1', 'CONTEXT_BINDING_INVALID',
+      'CONTEXT_BINDING_MISMATCH'
     ])
     checkFile('mcp/profile-section-selector.cjs', [
       'ProfileSectionSelectorV1', 'ProfileSectionLoadReceiptV1', 'fallback-full', 'required-query-missing-or-ambiguous'
@@ -197,12 +209,14 @@ function buildContextReadControlChecks(ctx) {
     const memorySource = checkFile('mcp/memory-server.js', [
       "name: 'memory_status'", "name: 'memory_session_query'", "name: 'memory_summary_query'",
       "case 'memory_status'", "case 'memory_session_query'", "case 'memory_summary_query'",
-      'MemoryStatusV1', 'MemorySessionQueryV1', 'MemorySummaryQueryV1', 'CONTEXT_READ_CONTRACT'
+      'MemoryStatusV1', 'MemorySessionQueryV1', 'MemorySummaryQueryV1', 'CONTEXT_READ_CONTRACT',
+      'ContextReadBindingV1', 'legacy-unbound', 'request-bound'
     ])
     const bootstrapSource = checkFile('hooks/_runtime/lifecycle-bootstrap-state.cjs', [
       'classifyContextAcquisitionTool', 'recordContextPreToolUse', 'recordContextPostToolUse',
       'structured-plan', 'path-observable', 'instruction-only', 'syncContextProjection',
-      'evaluateContextReuse', 'contentIdentity', 'bodyObserved', 'hostSessionId'
+      'evaluateContextReuse', 'contentIdentity', 'bodyObserved', 'hostSessionId',
+      'ContextReadBindingV1', 'CONTEXT_BINDING_MISMATCH'
     ])
     checkFile('hooks/_runtime/lifecycle.cjs', [
       'beginContextAcquisition', 'recordContextPreToolUse', 'recordContextPostToolUse',
@@ -226,7 +240,9 @@ function buildContextReadControlChecks(ctx) {
     ])
 
     expect(classifyContractSchemaSnapshot(CONTEXT_READ_CONTRACT.schemas), 'schema-ready', 'runtime contract schemas')
-    if (CONTEXT_READ_CONTRACT.intents.length !== 8 || !CONTEXT_READ_CONTRACT.errors.includes('MEMORY_SCOPE_AMBIGUOUS')) {
+    if (CONTEXT_READ_CONTRACT.intents.length !== 8 ||
+        !['CONTEXT_BINDING_INVALID', 'CONTEXT_BINDING_MISMATCH', 'MEMORY_SCOPE_AMBIGUOUS']
+          .every(code => CONTEXT_READ_CONTRACT.errors.includes(code))) {
       err('[V99] shared contract intent/error registry drift')
     }
 
@@ -295,36 +311,40 @@ function buildContextReadControlChecks(ctx) {
   }
 
   function collectConsumerState() {
-    const changelog = readRelative('changelogs/unreleased.md') || ''
-    const activationCount = CONSUMER_ACTIVATION_ANCHORS.filter(anchor => changelog.includes(anchor)).length
-    const activationState = activationCount === 0
-      ? 'none'
-      : (activationCount === CONSUMER_ACTIVATION_ANCHORS.length ? 'complete' : 'partial')
-    const missing = []
+    const canonicalMissing = []
+    const compatibilityMissing = []
     const forbiddenLegacy = []
-    for (const [relative, needles] of CURRENT_CONSUMER_REQUIREMENTS) {
-      const content = readRelative(relative)
-      if (content === null) {
-        missing.push(`${relative}:missing-file`)
-        continue
+    const collectMissing = (requirements, output) => {
+      for (const [relative, needles] of requirements) {
+        const content = readRelative(relative)
+        if (content === null) {
+          output.push(`${relative}:missing-file`)
+          continue
+        }
+        for (const needle of needles) if (!content.includes(needle)) output.push(`${relative}:${needle}`)
       }
-      for (const needle of needles) if (!content.includes(needle)) missing.push(`${relative}:${needle}`)
     }
+    collectMissing(CANONICAL_V2_CONSUMER_REQUIREMENTS, canonicalMissing)
+    collectMissing(V1_READER_COMPATIBILITY_REQUIREMENTS, compatibilityMissing)
     for (const [relative, needles] of FORBIDDEN_LEGACY_PRIMARY) {
-      const content = readRelative(relative) || ''
-      for (const needle of needles) if (content.includes(needle)) forbiddenLegacy.push(`${relative}:${needle}`)
+      const content = readRelative(relative)
+      for (const needle of needles) if ((content || '').includes(needle)) forbiddenLegacy.push(`${relative}:${needle}`)
     }
 
     const profileRoot = ACTIVE_DEVCODEX_ROOT ? pathApi.join(ACTIVE_DEVCODEX_ROOT, 'profile') : null
     if (profileRoot && fileSystem.existsSync(profileRoot)) {
-      for (const [relative, needles] of PROFILE_CONSUMER_REQUIREMENTS) {
-        const file = pathApi.join(profileRoot, relative)
-        const content = fileSystem.existsSync(file) ? fileSystem.readFileSync(file, 'utf8') : ''
-        if (!content) missing.push(`profile/${relative}:missing-file`)
-        else for (const needle of needles) if (!content.includes(needle)) missing.push(`profile/${relative}:${needle}`)
+      const collectProfileMissing = (requirements, output) => {
+        for (const [relative, needles] of requirements) {
+          const file = pathApi.join(profileRoot, relative)
+          const content = fileSystem.existsSync(file) ? fileSystem.readFileSync(file, 'utf8') : ''
+          if (!content) output.push(`profile/${relative}:missing-file`)
+          else for (const needle of needles) if (!content.includes(needle)) output.push(`profile/${relative}:${needle}`)
+        }
       }
+      collectProfileMissing(PROFILE_CANONICAL_V2_REQUIREMENTS, canonicalMissing)
+      collectProfileMissing(PROFILE_V1_READER_COMPATIBILITY_REQUIREMENTS, compatibilityMissing)
     }
-    return { activationState, missing, forbiddenLegacy }
+    return { canonicalMissing, compatibilityMissing, forbiddenLegacy }
   }
 
   function checkV99() {
@@ -333,13 +353,10 @@ function buildContextReadControlChecks(ctx) {
     checkRegistration()
     const consumerState = collectConsumerState()
     const closure = classifyConsumerClosure(consumerState)
-    if (closure === 'activation-incomplete') {
-      err('[V99] context acquisition public activation is partial; changelog claim must be all-of')
-    } else if (consumerState.activationState === 'complete' && closure !== 'consumer-ready') {
-      for (const missing of consumerState.missing) err(`[V99] consumer parity missing: ${missing}`)
-      for (const stale of consumerState.forbiddenLegacy) err(`[V99] legacy full-read primary residue: ${stale}`)
-    }
-    console.log(`[V99] context acquisition controls checked: consumer=${closure} missing=${consumerState.missing.length}`)
+    for (const missing of consumerState.canonicalMissing) err(`[V99] canonical V2 consumer parity missing: ${missing}`)
+    for (const missing of consumerState.compatibilityMissing) err(`[V99] V1 reader compatibility missing: ${missing}`)
+    for (const stale of consumerState.forbiddenLegacy) err(`[V99] legacy full-read primary residue: ${stale}`)
+    console.log(`[V99] context acquisition controls checked: consumer=${closure} canonicalMissing=${consumerState.canonicalMissing.length} compatibilityMissing=${consumerState.compatibilityMissing.length}`)
   }
 
   return { checkV99 }

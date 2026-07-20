@@ -3,6 +3,7 @@
 
 const assert = require('assert')
 const {
+  classifyBaseImpactAdmissionSample,
   classifyBatchScopeRebindSample,
   classifyContractMutationSample,
   classifyDurableBatchSample,
@@ -26,6 +27,32 @@ assert.strictEqual(classifyIsolatedConsumerCwdSample({ ...isolatedConsumer, sour
 const batch = { phaseTotalScope: true, allowedFirstBatch: true, actualTargetSet: true, blockedScope: true, dirtyBoundary: true, currentBatchOnly: true, blockedScopeTouched: false, rollbackAuthorized: true }
 assert.strictEqual(classifyBatchScopeRebindSample(batch), 'pass')
 assert.strictEqual(classifyBatchScopeRebindSample({ ...batch, blockedScopeTouched: true }), 'blocked')
+
+const baseAdmission = {
+  changeId: 'PI-140',
+  servedIntent: 'keep base stable',
+  currentGap: 'no admission classifier',
+  absorptionDecision: 'existing-skill-subgate',
+  baseClass: 'base-compatible',
+  affectedContracts: ['spec-absorption'],
+  unaffectedIntents: ['ordinary-chat'],
+  consumers: ['spec-absorption'],
+  fanout: 1,
+  defaultPathDelta: { addsAlwaysOn: false },
+  fallbackBehavior: 'legacy path unchanged',
+  rollback: 'remove subgate and probe',
+  positiveProbe: 'accepted sample',
+  negativeProbe: 'base-changing sample',
+  disabledOrMisconfiguredProbe: 'missing consumer sample',
+  complexityDelta: { runtime: 0, maintenance: 1 },
+  replacementOrRetirementCredit: 'retire duplicate local rule',
+  owner: 'spec-absorption',
+  reviewAt: 'next release',
+  deprecationAndDeletionCondition: 'delete when stronger owner replaces it'
+}
+assert.strictEqual(classifyBaseImpactAdmissionSample(baseAdmission), 'accepted')
+assert.strictEqual(classifyBaseImpactAdmissionSample({ ...baseAdmission, consumers: [] }), 'no-consumer')
+assert.strictEqual(classifyBaseImpactAdmissionSample({ ...baseAdmission, defaultPathDelta: { addsAlwaysOn: true } }), 'misclassified-base-change')
 
 const contract = { applicable: true, variantIsolationExecuted: true, completionDeletionExecuted: true, schemaSemanticParity: true, docsRuntimeParity: true, siblingFieldAccepted: false, missingCompletionEvidenceAccepted: false }
 assert.strictEqual(classifyContractMutationSample(contract), 'pass')

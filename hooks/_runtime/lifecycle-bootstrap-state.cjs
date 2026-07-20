@@ -71,6 +71,10 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     memory_session_query: 'MemorySessionQueryV1',
     memory_summary_query: 'MemorySummaryQueryV1'
   })
+  const CONTEXT_READ_BINDING_SCHEMA = 'ContextReadBindingV1'
+  const CONTEXT_READ_BINDING_REQUEST_FIELDS = Object.freeze([
+    'schemaVersion', 'contextEpoch', 'planId', 'planContentId', 'activeRoot', 'project'
+  ])
   const MUTATION_TOOL_RE = /^(?:apply[_-]?patch|create[_-]?file|write|edit|str[_-]?replace|insert[_-]?code|rewrite[_-]?file)$/i
   const READ_TOOL_RE = /^(?:read(?:[_-]?file)?|list[_-]?dir|file[_-]?search|grep(?:[_-]?search)?|semantic[_-]?search|glob)$/i
 
@@ -131,6 +135,54 @@ function buildLifecycleBootstrapStateUtils(ctx) {
   function targetMatches(args, state) {
     const expected = targetProject(state)
     return !args.project || String(args.project).trim() === expected
+  }
+
+  function expectedContextReadBinding(acquisition) {
+    const plan = acquisition?.plan
+    if (!plan) return null
+    return {
+      schemaVersion: CONTEXT_READ_BINDING_SCHEMA,
+      contextEpoch: plan.identity.contextEpoch,
+      planId: plan.planId,
+      planContentId: plan.planContentId,
+      activeRoot: plan.identity.activeRoot,
+      project: plan.identity.project
+    }
+  }
+
+  function validateContextReadBinding(binding, expected, { response = false } = {}) {
+    if (!expected) {
+      return binding === undefined || binding === null
+        ? { valid: true, status: 'legacy-unbound' }
+        : { valid: false, errorCode: 'CONTEXT_BINDING_MISMATCH', reason: 'contextBinding has no live authoritative plan' }
+    }
+    if (!binding || typeof binding !== 'object' || Array.isArray(binding)) {
+      return { valid: false, errorCode: 'CONTEXT_BINDING_INVALID', reason: 'ContextReadBindingV1 is required for plan-bound context reads' }
+    }
+    const allowed = new Set(response
+      ? [...CONTEXT_READ_BINDING_REQUEST_FIELDS, 'bindingStatus', 'verificationMode']
+      : CONTEXT_READ_BINDING_REQUEST_FIELDS)
+    if (Object.keys(binding).some(key => !allowed.has(key)) ||
+        CONTEXT_READ_BINDING_REQUEST_FIELDS.some(key => !Object.prototype.hasOwnProperty.call(binding, key))) {
+      return { valid: false, errorCode: 'CONTEXT_BINDING_INVALID', reason: 'contextBinding fields do not match the published schema' }
+    }
+    if (binding.schemaVersion !== CONTEXT_READ_BINDING_SCHEMA ||
+        CONTEXT_READ_BINDING_REQUEST_FIELDS.slice(1, 5).some(key => typeof binding[key] !== 'string' || !binding[key].trim()) ||
+        typeof binding.project !== 'string') {
+      return { valid: false, errorCode: 'CONTEXT_BINDING_INVALID', reason: 'contextBinding contains an invalid schema or empty identity field' }
+    }
+    const identityMatches = binding.contextEpoch === expected.contextEpoch &&
+      binding.planId === expected.planId &&
+      binding.planContentId === expected.planContentId &&
+      normalizePath(binding.activeRoot) === normalizePath(expected.activeRoot) &&
+      binding.project === expected.project
+    if (!identityMatches) {
+      return { valid: false, errorCode: 'CONTEXT_BINDING_MISMATCH', reason: 'contextBinding does not match the live plan identity' }
+    }
+    if (response && (binding.bindingStatus !== 'verified' || binding.verificationMode !== 'request-bound')) {
+      return { valid: false, errorCode: 'CONTEXT_BINDING_MISMATCH', reason: 'context tool response is not request-bound and verified' }
+    }
+    return { valid: true, status: response ? 'verified' : 'request-bound' }
   }
 
   function contextError(code, message, nextStep) {
@@ -630,6 +682,10 @@ function buildLifecycleBootstrapStateUtils(ctx) {
           if (files.some(file => !selected.has(file))) {
             return { allowed: false, suspicious: true, reason: 'profile_load files exceed the authoritative plan selection' }
           }
+          const binding = validateContextReadBinding(args.contextBinding, expectedContextReadBinding(acquisition))
+          if (!binding.valid) {
+            return { allowed: false, suspicious: true, errorCode: binding.errorCode, reason: binding.reason }
+          }
         }
         return {
           allowed: true,
@@ -645,6 +701,12 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       const sourceId = `memory:${identity.tool}`
       if (!legacyFull && acquisition.plan && !acquisition.plan.selectedSources.some(source => source.sourceId === sourceId)) {
         return { allowed: false, suspicious: true, reason: 'memory query is not selected by the authoritative plan' }
+      }
+      if (!legacyFull && acquisition.plan) {
+        const binding = validateContextReadBinding(args.contextBinding, expectedContextReadBinding(acquisition))
+        if (!binding.valid) {
+          return { allowed: false, suspicious: true, errorCode: binding.errorCode, reason: binding.reason }
+        }
       }
       return {
         allowed: true,
@@ -720,7 +782,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     const actionClass = classifyContextAction(payload, platform, state, classified)
     const priorStatus = acquisition.receipt?.status || ''
     if (classified.suspicious) {
-      acquisition.lastError = contextError('CONTEXT_PLAN_INVALID', classified.reason)
+      acquisition.lastError = contextError(classified.errorCode || 'CONTEXT_PLAN_INVALID', classified.reason)
     }
     if (classified.allowed) {
       if (classified.fallback) activateFallback(acquisition, classified.kind)
@@ -912,6 +974,17 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     }
   }
 
+  function parseProfileLoadReceipt(text) {
+    const match = /<!-- profile_load_budget (\{[^\r\n]*\}) -->/.exec(String(text || ''))
+    if (!match) return null
+    try {
+      const parsed = JSON.parse(match[1])
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null
+    } catch {
+      return null
+    }
+  }
+
   function buildFailedSourceEvidence(plan, attempt, outcome) {
     return attempt.sourceIds.map(sourceId => {
       const selected = plan.selectedSources.find(source => source.sourceId === sourceId)
@@ -943,6 +1016,13 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     const headingFiles = sections.map(section => section.file)
     const duplicate = new Set(headingFiles).size !== headingFiles.length
     const extra = headingFiles.some(file => !requestedFiles.includes(file))
+    const receipt = parseProfileLoadReceipt(outcome.text)
+    const binding = validateContextReadBinding(
+      receipt?.contextBinding,
+      expectedContextReadBinding(acquisition),
+      { response: true }
+    )
+    if (!binding.valid) acquisition.lastError = contextError(binding.errorCode, binding.reason)
     let drift = false
     const sourceResults = requestedFiles.map(file => {
       const sourceId = `profile:${file}`
@@ -960,7 +1040,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
         if (!ref.exists || currentRefDigest(ref) !== ref.metadataDigest) drift = true
       }
       const layers = [...new Set(observedRefs.map(ref => ref.layer))]
-      const valid = !!selected && matches.length === 1 && !duplicate && !extra && !missingMarker &&
+      const valid = binding.valid && !!selected && matches.length === 1 && !duplicate && !extra && !missingMarker &&
         envelope.valid && refsMatch && !drift
       const contentIdentity = envelope.valid
         ? buildContentIdentity({
@@ -982,8 +1062,8 @@ function buildLifecycleBootstrapStateUtils(ctx) {
         observable: outcome.observable,
         transportSuccess: outcome.transportSuccess,
         sourceRefsMatch: refsMatch && !duplicate && !extra,
-        schemaMatch: true,
-        targetMatch: true,
+        schemaMatch: binding.valid,
+        targetMatch: binding.valid,
         contentIdentity,
         bodyObserved: valid,
         hostSessionId: acquisition.hostSessionId,
@@ -1012,6 +1092,12 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     const queryMatch = attempt.tool === 'memory_status' || queryFields.every(field =>
       attempt.args[field] === undefined || stableDigest(query[field]) === stableDigest(attempt.args[field])
     )
+    const binding = validateContextReadBinding(
+      body?.contextBinding,
+      expectedContextReadBinding(acquisition),
+      { response: true }
+    )
+    if (!binding.valid) acquisition.lastError = contextError(binding.errorCode, binding.reason)
     const identityProjection = body && typeof body === 'object'
       ? Object.fromEntries(Object.entries(body).filter(([key]) => !['contentIdentity', 'telemetry'].includes(key)))
       : null
@@ -1027,7 +1113,8 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       validateContentIdentity(body.contentIdentity).valid &&
       stableDigest(body.contentIdentity) === stableDigest(computedIdentity)
     )
-    const successful = outcome.transportSuccess && schemaMatch && targetMatch && queryMatch && !!selected && suppliedIdentityValid
+    const successful = outcome.transportSuccess && schemaMatch && targetMatch && queryMatch &&
+      binding.valid && !!selected && suppliedIdentityValid
     return [{
       observationId: `post-${attempt.attemptId}-${sourceId}`,
       toolCallId: attempt.toolCallId,
@@ -1041,8 +1128,8 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       observable: outcome.observable,
       transportSuccess: outcome.transportSuccess,
       sourceRefsMatch: !!selected && queryMatch,
-      schemaMatch: schemaMatch && suppliedIdentityValid,
-      targetMatch,
+      schemaMatch: schemaMatch && suppliedIdentityValid && binding.valid,
+      targetMatch: targetMatch && binding.valid,
       contentIdentity: computedIdentity,
       bodyObserved: successful,
       hostSessionId: acquisition.hostSessionId,

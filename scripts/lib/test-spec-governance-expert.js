@@ -51,6 +51,18 @@ function runSpecGovernanceExpertSuite(ctx) {
     if (production && boundary) return 'expert-quality'
     return 'needs-review'
   }
+  function classifyOperationExplanationSample(sample) {
+    const fields = ['operationId', 'userGoal', 'preconditions', 'input', 'stateEffect', 'resultShape', 'resultSource', 'failureSemantics', 'nextAction', 'evidence']
+    return fields.every(field => String(sample || '').includes(field)) ? 'operation-ready' : 'operation-incomplete'
+  }
+  function classifyCodeTruthRecommendationSample(sample) {
+    const text = String(sample || '')
+    if (/recommended=([2-9]|\d{2,})/.test(text)) return 'multiple-recommendations'
+    const fields = ['repoPath', 'symbol', 'currentBehavior', 'evidence', 'negativeProbe', 'gap', 'reusePoint', 'consumer', 'rollback', 'statusQuoCost']
+    if (!fields.every(field => text.includes(field))) return 'missing-code-truth-fields'
+    if (!/recommended=1/.test(text)) return 'missing-unique-recommendation'
+    return 'recommendation-ready'
+  }
 
   if (classifyExpertOutputSample('permission-core-auth fixture 通过在每个 route 都重复 middlewares 和 auth 资源配置证明底层能力可用。') !== 'misleading-fixture') {
     failures.push('checkV84 negative fixture sample must be misleading-fixture')
@@ -58,10 +70,24 @@ function runSpecGovernanceExpertSuite(ctx) {
   if (classifyExpertOutputSample('生产推荐路径应优先使用框架原生能力和项目既有 helper；fixtureBoundary 只说明 mock/demo 验证边界，antiPattern/evidenceMatrix 标出每个 route 重复声明不是推荐写法。') !== 'expert-quality') {
     failures.push('checkV84 positive expert sample must be expert-quality')
   }
+  if (classifyOperationExplanationSample('operationId userGoal preconditions input stateEffect resultShape resultSource failureSemantics nextAction evidence') !== 'operation-ready') {
+    failures.push('checkV84 operation explanation positive sample must pass')
+  }
+  if (classifyOperationExplanationSample('operationId userGoal input resultShape') !== 'operation-incomplete') {
+    failures.push('checkV84 operation explanation negative sample must fail')
+  }
+  if (classifyCodeTruthRecommendationSample('CodeTruthEvidenceMatrixGate repoPath symbol currentBehavior evidence negativeProbe gap SolutionFitAgainstRepoGate reusePoint consumer rollback statusQuoCost UniqueRecommendationBeforeConfirmGate recommended=1 alternatives=2 NoPreferenceMenuAfterConvergenceGate auto=true') !== 'recommendation-ready') {
+    failures.push('checkV84 code truth unique recommendation positive sample must pass')
+  }
+  if (classifyCodeTruthRecommendationSample('CodeTruthEvidenceMatrixGate repoPath currentBehavior evidence UniqueRecommendationBeforeConfirmGate recommended=2') !== 'multiple-recommendations') {
+    failures.push('checkV84 multiple recommendation negative sample must fail')
+  }
 
   for (const [file, needle] of [
     ['scripts/lib/validate-governance-expert.js', 'checkV84'],
     ['scripts/lib/validate-governance-expert.js', 'classifyExpertOutputSample'],
+    ['scripts/lib/validate-governance-expert.js', 'classifyOperationExplanationSample'],
+    ['scripts/lib/validate-governance-expert.js', 'classifyCodeTruthRecommendationSample'],
     ['scripts/lib/validate-governance-expert.js', checkV84],
     ['scripts/validate.js', 'runProbeRegistry'],
     ['scripts/validate.js', 'runProbeRegistry'],
@@ -72,12 +98,17 @@ function runSpecGovernanceExpertSuite(ctx) {
     ['skills/expert-output-quality/SKILL.md', 'FixtureBoundaryDisclosureGate'],
     ['skills/expert-output-quality/SKILL.md', 'AntiPatternContrastGate'],
     ['skills/expert-output-quality/SKILL.md', 'ExpertEvidenceMatrixGate'],
+    ['skills/expert-output-quality/SKILL.md', 'OperationExplanationContractV1'],
+    ['skills/expert-output-quality/SKILL.md', 'CodeTruthEvidenceMatrixGate'],
+    ['skills/expert-output-quality/SKILL.md', 'UniqueRecommendationBeforeConfirmGate'],
     ['plugin.json', 'expert-output-quality'],
     ['skills/routing/SKILL.md', 'expert-output-quality'],
     ['skills/spec-governance/SKILL.md', 'expert-output-quality'],
     ['skills/spec-absorption/SKILL.md', checkV84],
     ['skills/dev-plan-review/SKILL.md', checkV84],
+    ['skills/cp-gate/SKILL.md', 'CodeTruthEvidenceMatrixGate'],
     ['skills/dev-docs/SKILL.md', checkV84],
+    ['skills/dev-docs/SKILL.md', 'OperationExplanationContractV1'],
     ['skills/user-manual-authoring/SKILL.md', 'expertOutputQualityEvidence'],
     ['skills/audit-document/SKILL.md', checkV84],
     ['skills/audit-readme/SKILL.md', checkV84],
@@ -86,6 +117,7 @@ function runSpecGovernanceExpertSuite(ctx) {
     ['skills/audit-tech-design/SKILL.md', checkV84],
     ['skills/test-router/SKILL.md', 'expertOutputQuality'],
     ['skills/report/SKILL.md', checkV84],
+    ['skills/report/SKILL.md', 'CodeTruthEvidenceMatrixGate'],
     ['prompts/technical-design.prompt.md', checkV84],
     ['prompts/implementation-plan.prompt.md', checkV84],
     ['prompts/report-dev.prompt.md', checkV84],

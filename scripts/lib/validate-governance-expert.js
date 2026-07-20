@@ -126,7 +126,13 @@ function buildGovernanceExpertChecks(ctx) {
       'FrameworkNativeCapabilityFirstGate',
       'FixtureBoundaryDisclosureGate',
       'AntiPatternContrastGate',
-      'ExpertEvidenceMatrixGate'
+      'ExpertEvidenceMatrixGate',
+      'OperationExplanationContractV1',
+      'ResponseProvenanceClosureGate',
+      'CodeTruthEvidenceMatrixGate',
+      'SolutionFitAgainstRepoGate',
+      'UniqueRecommendationBeforeConfirmGate',
+      'NoPreferenceMenuAfterConvergenceGate'
     ]
 
     const profileCorpus = collectActiveProfileCorpus([
@@ -146,6 +152,21 @@ function buildGovernanceExpertChecks(ctx) {
     if (classifyExpertOutputSample(positive) !== 'expert-quality') {
       err('[V84] positive expert sample must be classified as expert-quality')
     }
+    if (classifyOperationExplanationSample('operationId userGoal preconditions input stateEffect resultShape resultSource failureSemantics nextAction evidence') !== 'operation-ready') {
+      err('[V84] complete operation explanation sample must pass')
+    }
+    if (classifyOperationExplanationSample('operationId userGoal input resultShape nextAction') !== 'operation-incomplete') {
+      err('[V84] incomplete operation explanation sample must fail')
+    }
+    if (classifyCodeTruthRecommendationSample('CodeTruthEvidenceMatrixGate repoPath symbol currentBehavior evidence negativeProbe gap SolutionFitAgainstRepoGate reusePoint consumer rollback statusQuoCost UniqueRecommendationBeforeConfirmGate recommended=1 alternatives=2 NoPreferenceMenuAfterConvergenceGate auto=true') !== 'recommendation-ready') {
+      err('[V84] code truth and unique recommendation positive sample must pass')
+    }
+    if (classifyCodeTruthRecommendationSample('CodeTruthEvidenceMatrixGate repoPath currentBehavior evidence UniqueRecommendationBeforeConfirmGate recommended=2') !== 'multiple-recommendations') {
+      err('[V84] multiple recommendation sample must fail')
+    }
+    if (classifyCodeTruthRecommendationSample('CodeTruthEvidenceMatrixGate repoPath currentBehavior evidence UniqueRecommendationBeforeConfirmGate recommended=1') !== 'missing-code-truth-fields') {
+      err('[V84] missing code truth fields sample must fail')
+    }
 
     const probes = [
       { file: 'skills/expert-output-quality/SKILL.md', needles: ['name: expert-output-quality', 'description:', 'roleBaseline', 'productionRecommendedPath', 'frameworkNativeCapability', 'fixtureBoundary', 'antiPatternContrast', 'evidenceMatrix'].concat(gates) },
@@ -153,8 +174,9 @@ function buildGovernanceExpertChecks(ctx) {
       { file: 'skills/routing/SKILL.md', needles: ['expert-output-quality', '不专业', '像初级', '示例误导'] },
       { file: 'skills/spec-governance/SKILL.md', needles: ['expert-output-quality'].concat(gates) },
       { file: 'skills/spec-absorption/SKILL.md', needles: ['ExpertOutputQualityGate', 'ProductionRecommendedPathGate', 'FrameworkNativeCapabilityFirstGate'] },
-      { file: 'skills/dev-plan-review/SKILL.md', needles: ['ExpertOutputQualityGate', 'fixture/mock/demo', 'evidenceMatrix'] },
-      { file: 'skills/dev-docs/SKILL.md', needles: ['ExpertOutputQualityGate', 'ProductionRecommendedPathGate', 'fixture/mock/demo/legacy'] },
+      { file: 'skills/cp-gate/SKILL.md', needles: ['CodeTruthEvidenceMatrixGate', 'UniqueRecommendationBeforeConfirmGate'] },
+      { file: 'skills/dev-plan-review/SKILL.md', needles: ['ExpertOutputQualityGate', 'fixture/mock/demo', 'evidenceMatrix', 'SolutionFitAgainstRepoGate'] },
+      { file: 'skills/dev-docs/SKILL.md', needles: ['ExpertOutputQualityGate', 'ProductionRecommendedPathGate', 'fixture/mock/demo/legacy', 'OperationExplanationContractV1'] },
       { file: 'skills/user-manual-authoring/SKILL.md', needles: ['expertOutputQualityEvidence', 'expert-output-quality', 'FixtureBoundaryDisclosureGate'] },
       { file: 'skills/audit-document/SKILL.md', needles: ['ExpertOutputQualityGate', 'fixture/mock/demo'] },
       { file: 'skills/audit-readme/SKILL.md', needles: ['ExpertOutputQualityGate', '生产推荐路径'] },
@@ -162,10 +184,10 @@ function buildGovernanceExpertChecks(ctx) {
       { file: 'skills/audit-project/SKILL.md', needles: ['ExpertOutputQualityGate', '不专业', '像初级'] },
       { file: 'skills/audit-tech-design/SKILL.md', needles: ['ExpertOutputQualityGate', '生产推荐路径'] },
       { file: 'skills/test-router/SKILL.md', needles: ['expertOutputQuality', 'V84'].concat(gates) },
-      { file: 'skills/report/SKILL.md', needles: ['ExpertOutputQualityGate', 'V84', '不得只写“已优化表述”'] },
-      { file: 'prompts/technical-design.prompt.md', needles: ['ExpertOutputQualityGate', 'fixture/mock/demo 边界'] },
-      { file: 'prompts/implementation-plan.prompt.md', needles: ['ExpertOutputQualityGate', 'V84/targeted probe'] },
-      { file: 'prompts/report-dev.prompt.md', needles: ['ExpertOutputQualityGate', 'V84'] },
+      { file: 'skills/report/SKILL.md', needles: ['ExpertOutputQualityGate', 'V84', '不得只写“已优化表述”', 'OperationExplanationContractV1', 'CodeTruthEvidenceMatrixGate'] },
+      { file: 'prompts/technical-design.prompt.md', needles: ['ExpertOutputQualityGate', 'fixture/mock/demo 边界', 'CodeTruthEvidenceMatrixGate'] },
+      { file: 'prompts/implementation-plan.prompt.md', needles: ['ExpertOutputQualityGate', 'V84/targeted probe', 'SolutionFitAgainstRepoGate'] },
+      { file: 'prompts/report-dev.prompt.md', needles: ['ExpertOutputQualityGate', 'V84', 'OperationExplanationContractV1'] },
       { file: 'prompts/report-fix.prompt.md', needles: ['ExpertOutputQualityGate', 'V84'] },
       { file: 'prompts/report-audit.prompt.md', needles: ['ExpertOutputQualityGate', 'V84'] },
       { file: 'prompts/report-scenario-test.prompt.md', needles: ['ExpertOutputQualityGate', 'V84'] },
@@ -578,6 +600,20 @@ function buildGovernanceExpertChecks(ctx) {
     if (fixtureOnly && !production && !boundary) return 'misleading-fixture'
     if (production && boundary) return 'expert-quality'
     return 'needs-review'
+  }
+
+  function classifyOperationExplanationSample(sample) {
+    const fields = ['operationId', 'userGoal', 'preconditions', 'input', 'stateEffect', 'resultShape', 'resultSource', 'failureSemantics', 'nextAction', 'evidence']
+    return fields.every(field => String(sample || '').includes(field)) ? 'operation-ready' : 'operation-incomplete'
+  }
+
+  function classifyCodeTruthRecommendationSample(sample) {
+    const text = String(sample || '')
+    if (/recommended=([2-9]|\d{2,})/.test(text)) return 'multiple-recommendations'
+    const fields = ['repoPath', 'symbol', 'currentBehavior', 'evidence', 'negativeProbe', 'gap', 'reusePoint', 'consumer', 'rollback', 'statusQuoCost']
+    if (!fields.every(field => text.includes(field))) return 'missing-code-truth-fields'
+    if (!/recommended=1/.test(text)) return 'missing-unique-recommendation'
+    return 'recommendation-ready'
   }
 
   function classifyExpertOwnerSample(sample) {

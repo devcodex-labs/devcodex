@@ -173,7 +173,9 @@ function buildCliHostUtils({ fs, path, isPlainObject, claudeMcpJson }) {
       let registrationError = null
       try {
         const config = fs.existsSync(configPath) ? fs.readFileSync(configPath, 'utf8') : ''
-        registrationCurrent = !mergeGrokPluginRegistration(config, hostScope.pluginRoot).changed
+        registrationCurrent = !mergeGrokPluginRegistration(config, hostScope.pluginRoot, {
+          legacyPluginPaths: hostScope.legacyPluginRoots
+        }).changed
       } catch (error) { registrationError = error.message }
       grokPlugin = {
         root: hostScope.pluginRoot,
@@ -183,6 +185,7 @@ function buildCliHostUtils({ fs, path, isPlainObject, claudeMcpJson }) {
         sourcePresent: fs.existsSync(manifest) && fs.existsSync(hook),
         installed: fs.existsSync(manifest) && fs.existsSync(hook) && installation.current,
         installation,
+        legacySourcesPresent: (hostScope.legacyPluginRoots || []).filter(item => fs.existsSync(item)),
         registrationCurrent,
         registrationError
       }
@@ -195,6 +198,9 @@ function buildCliHostUtils({ fs, path, isPlainObject, claudeMcpJson }) {
           path: configPath,
           ...(registrationError ? { detail: registrationError } : {})
         })
+      }
+      if (grokPlugin.legacySourcesPresent.length) {
+        issues.push({ code: 'HOST_GROK_LEGACY_PLUGIN_SOURCE_PRESENT', paths: grokPlugin.legacySourcesPresent })
       }
     }
     if (fallback.installed && sourceDigests.size === 1 && fallback.digest !== [...sourceDigests][0]) {

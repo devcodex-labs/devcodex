@@ -67,7 +67,7 @@ wrapper 只允许宿主能力提示和 shared kernel 指针；不得复制完整
 | `project-portable` | 显式 project root / repo-shared project discovery | 按显式选择生成 |
 
 - workspace-namespace 默认只能选择前两类；不能因为某宿主从 repo cwd 启动，就把 ignored adapter 复制进每个子项目。
-- Grok 的 workspace owner 固定为 `<workspace-root>/.grok/plugins/devcodex-workspace`。插件只含 metadata、thin resolver、Hook/MCP bridge；不得复制完整 kernel 或 Skill 树。
+- Grok 的 workspace owner 固定为非自动发现 source `<workspace-root>/.grok/devcodex/plugins/devcodex-workspace`，只由官方 user installation 暴露一个插件 identity；旧 `.grok/plugins/devcodex-workspace` 仅作可逆迁移输入。插件只含 metadata、thin resolver、Hook/MCP bridge；不得复制完整 kernel 或 Skill 树。
 - 使用 Grok 官方 `plugin install/update/uninstall` 管理用户级本地插件登记，登记的 `source_path` 必须指回 workspace owner，安装副本 digest 必须一致；官方命令导致的配置格式化必须恢复为调用前原始字节。
 - 用户配置只增量维护 DevCodex plugin enabled 项，并移除同一 workspace owner 的旧受管 path 项以避免同名插件碰撞；未知键、注释和其他插件必须保留，重复执行幂等，移除时只触达完全匹配的受管项。用户显式 disabled 时 fail closed。
 - 插件必须把 cwd 解析出的 workspace 与自身 owner workspace 比对；工作区外 no-op，根缺失/歧义 fail closed，不得全局注入项目状态。

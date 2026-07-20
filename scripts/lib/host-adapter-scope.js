@@ -17,6 +17,11 @@ const HOST_SCOPE = Object.freeze({
   PROJECT_PORTABLE: 'project-portable'
 })
 
+const GROK_WORKSPACE_PLUGIN_RELATIVE = Object.freeze(['.grok', 'devcodex', 'plugins', 'devcodex-workspace'])
+const GROK_LEGACY_WORKSPACE_PLUGIN_RELATIVES = Object.freeze([
+  Object.freeze(['.grok', 'plugins', 'devcodex-workspace'])
+])
+
 function portable(value) {
   return String(value).replace(/\\/g, '/')
 }
@@ -67,8 +72,11 @@ function resolveHostAdapterScope(cwd, host = 'grok', options = {}) {
 
   const ownerRoot = scope === HOST_SCOPE.PROJECT_PORTABLE ? absoluteCwd : workspaceRoot
   const pluginRoot = host === 'grok' && scope === HOST_SCOPE.USER_REGISTERED_WORKSPACE
-    ? path.join(ownerRoot, '.grok', 'plugins', 'devcodex-workspace')
+    ? path.join(ownerRoot, ...GROK_WORKSPACE_PLUGIN_RELATIVE)
     : null
+  const legacyPluginRoots = host === 'grok' && scope === HOST_SCOPE.USER_REGISTERED_WORKSPACE
+    ? GROK_LEGACY_WORKSPACE_PLUGIN_RELATIVES.map(relative => path.join(ownerRoot, ...relative))
+    : []
   const result = {
     schemaVersion: 'HostAdapterScopeV1',
     host,
@@ -79,6 +87,7 @@ function resolveHostAdapterScope(cwd, host = 'grok', options = {}) {
     projectRoot: projectRoot ? path.resolve(projectRoot) : null,
     ownerRoot,
     pluginRoot,
+    legacyPluginRoots,
     activation: scope === HOST_SCOPE.USER_REGISTERED_WORKSPACE
       ? 'user-plugin-registration'
       : (scope === HOST_SCOPE.WORKSPACE_NATIVE ? 'workspace-native-discovery' : 'project-local-discovery'),
@@ -304,10 +313,11 @@ function mergeGrokPluginRegistration(content, pluginPath, options = {}) {
   }
 
   const canonicalPath = portable(path.resolve(pluginPath))
+  const managedPaths = [canonicalPath, ...(options.legacyPluginPaths || []).map(item => portable(path.resolve(item)))]
   section = findTomlSection(lines, 'plugins')
   const legacyPathAssignment = readArrayAssignment(lines, section, 'paths')
   if (legacyPathAssignment) {
-    removeArrayValues(lines, legacyPathAssignment, value => samePath(value, canonicalPath))
+    removeArrayValues(lines, legacyPathAssignment, value => managedPaths.some(candidate => samePath(value, candidate)))
   }
   const upserts = [
     { key: 'enabled', value: pluginName, same: (left, right) => left === right }
@@ -334,6 +344,7 @@ function mergeGrokPluginRegistration(content, pluginPath, options = {}) {
     changed: desired !== String(content || ''),
     pluginName,
     pluginPath: canonicalPath,
+    legacyPluginPaths: managedPaths.slice(1),
     beforeDigest: contentDigest(content || ''),
     afterDigest: contentDigest(desired)
   }
@@ -496,6 +507,199 @@ function syncGrokPluginInstallation({ pluginPath, dryRun = false, env = process.
   }
 }
 
+function timestampSuffix() {
+  return `${new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 17)}-${process.pid}`
+}
+
+function writeTextAtomic(file, content) {
+  fs.mkdirSync(path.dirname(file), { recursive: true })
+  const temp = `${file}.tmp-${process.pid}`
+  fs.writeFileSync(temp, content, 'utf8')
+  fs.renameSync(temp, file)
+}
+
+function runGrokPluginCommandPreservingConfig(args, env, configSnapshot) {
+  const result = spawnSync('grok', args, { encoding: 'utf8', windowsHide: true, env })
+  if (configSnapshot.existed) writeTextAtomic(configSnapshot.path, configSnapshot.content)
+  if (result.error?.code === 'ENOENT') {
+    const error = new Error('GROK_PLUGIN_CLI_UNAVAILABLE: grok CLI not found')
+    error.code = 'GROK_PLUGIN_CLI_UNAVAILABLE'
+    throw error
+  }
+  if (result.status !== 0) {
+    const error = new Error(`GROK_PLUGIN_COMMAND_FAILED: ${String(result.stderr || result.stdout).trim()}`)
+    error.code = 'GROK_PLUGIN_COMMAND_FAILED'
+    throw error
+  }
+  return result
+}
+
+/**
+ * Migrate the managed workspace plugin between local-source identities without
+ * deleting the legacy source or allowing Grok to rewrite unrelated user config.
+ */
+function syncGrokWorkspacePluginInstallation({
+  pluginPath,
+  legacyPluginPaths = [],
+  activeRoot,
+  backupDir,
+  dryRun = false,
+  env = process.env
+}) {
+  const canonical = path.resolve(pluginPath)
+  const legacy = legacyPluginPaths.map(item => path.resolve(item)).filter(item => !samePath(item, canonical))
+  const canonicalInstalled = findInstalledLocalPlugin(canonical, env)
+  const legacyInstalled = legacy
+    .map(source => ({ source, installed: findInstalledLocalPlugin(source, env) }))
+    .filter(item => item.installed.repoId)
+  const registeredIdentities = [
+    ...(canonicalInstalled.repoId ? [{ source: canonical, installed: canonicalInstalled }] : []),
+    ...legacyInstalled
+  ]
+  if (registeredIdentities.length > 1) {
+    const error = new Error('GROK_PLUGIN_MIGRATION_IDENTITY_CONFLICT: multiple managed local registrations exist')
+    error.code = 'GROK_PLUGIN_MIGRATION_IDENTITY_CONFLICT'
+    throw error
+  }
+
+  const legacySources = legacy.filter(source => fs.existsSync(source))
+  const configPath = grokUserConfigPath(env)
+  const configSnapshot = {
+    path: configPath,
+    existed: fs.existsSync(configPath),
+    content: fs.existsSync(configPath) ? fs.readFileSync(configPath, 'utf8') : ''
+  }
+  const planned = Boolean(legacyInstalled.length || legacySources.length)
+  if (dryRun) {
+    return {
+      schemaVersion: 'GrokWorkspacePluginMigrationReceiptV1',
+      status: planned ? 'planned-migration' : (canonicalInstalled.repoId ? 'planned-update' : 'planned-install'),
+      pluginPath: portable(canonical),
+      legacyPluginPaths: legacy.map(portable),
+      legacyRegistered: legacyInstalled.map(item => item.installed.repoId),
+      legacySources: legacySources.map(portable),
+      backupPaths: [],
+      dryRun: true
+    }
+  }
+
+  const probe = spawnSync('grok', ['version'], { encoding: 'utf8', windowsHide: true, env })
+  if (probe.error?.code === 'ENOENT') {
+    return {
+      schemaVersion: 'GrokWorkspacePluginMigrationReceiptV1',
+      status: 'unavailable',
+      reason: 'grok-cli-not-found-legacy-source-retained',
+      pluginPath: portable(canonical),
+      legacyPluginPaths: legacy.map(portable),
+      legacySources: legacySources.map(portable),
+      backupPaths: [],
+      dryRun: false
+    }
+  }
+  if (probe.status !== 0) {
+    const error = new Error(`GROK_PLUGIN_CLI_UNAVAILABLE: ${String(probe.stderr || probe.stdout).trim()}`)
+    error.code = 'GROK_PLUGIN_CLI_UNAVAILABLE'
+    throw error
+  }
+
+  const backupRoot = path.resolve(backupDir || path.join(activeRoot || resolveActiveRuntimeRoot(process.cwd()), '.tmp', 'backups'))
+  const backupPaths = []
+  let canonicalSynchronized = false
+  try {
+    if (legacyInstalled.length) {
+      const legacyState = legacyInstalled[0]
+      const pluginName = Object.keys(legacyState.installed.entry?.plugins || {})
+        .find(name => name === 'devcodex-workspace') || 'devcodex-workspace'
+      runGrokPluginCommandPreservingConfig(
+        ['plugin', 'uninstall', pluginName, '--confirm', '--keep-data'],
+        env,
+        configSnapshot
+      )
+      if (findInstalledLocalPlugin(legacyState.source, env).repoId) {
+        const error = new Error('GROK_PLUGIN_MIGRATION_UNINSTALL_MISMATCH: legacy registry identity remains')
+        error.code = 'GROK_PLUGIN_MIGRATION_UNINSTALL_MISMATCH'
+        throw error
+      }
+    }
+
+    const installation = syncGrokPluginInstallation({ pluginPath: canonical, dryRun: false, env })
+    canonicalSynchronized = installation.status === 'verified'
+    if (!canonicalSynchronized) {
+      const error = new Error(`GROK_PLUGIN_MIGRATION_INSTALL_MISMATCH: ${installation.status}`)
+      error.code = 'GROK_PLUGIN_MIGRATION_INSTALL_MISMATCH'
+      throw error
+    }
+
+    for (const source of legacySources) {
+      fs.mkdirSync(backupRoot, { recursive: true })
+      const destination = path.join(backupRoot, `grok-workspace-plugin-legacy.${timestampSuffix()}`)
+      fs.renameSync(source, destination)
+      backupPaths.push({ previousPath: portable(source), backupPath: portable(destination) })
+    }
+
+    const configBase = configSnapshot.existed
+      ? configSnapshot.content
+      : (fs.existsSync(configPath) ? fs.readFileSync(configPath, 'utf8') : '')
+    const merge = mergeGrokPluginRegistration(configBase, canonical, { legacyPluginPaths: legacy })
+    if (merge.changed || !configSnapshot.existed) writeTextAtomic(configPath, merge.desired)
+    const receipt = {
+      schemaVersion: 'GrokWorkspacePluginMigrationReceiptV1',
+      status: planned ? 'migrated' : 'verified',
+      pluginPath: portable(canonical),
+      legacyPluginPaths: legacy.map(portable),
+      legacyRegistered: legacyInstalled.map(item => item.installed.repoId),
+      backupPaths,
+      installation,
+      configPath,
+      configBeforeDigest: contentDigest(configSnapshot.content),
+      configAfterDigest: contentDigest(fs.readFileSync(configPath, 'utf8')),
+      dryRun: false
+    }
+    if (activeRoot) {
+      const receiptFile = path.join(activeRoot, 'managed', 'grok-plugin-migration.json')
+      writeTextAtomic(receiptFile, JSON.stringify({ ...receipt, recordedAt: new Date().toISOString() }, null, 2) + '\n')
+      receipt.receiptFile = receiptFile
+    }
+    return receipt
+  } catch (error) {
+    const rollback = { sourceRestored: true, registrationRestored: !legacyInstalled.length, configRestored: false }
+    for (const moved of [...backupPaths].reverse()) {
+      try {
+        if (!fs.existsSync(moved.previousPath) && fs.existsSync(moved.backupPath)) {
+          fs.renameSync(moved.backupPath, moved.previousPath)
+        }
+      } catch { rollback.sourceRestored = false }
+    }
+    try {
+      if (canonicalSynchronized && findInstalledLocalPlugin(canonical, env).repoId) {
+        runGrokPluginCommandPreservingConfig(
+          ['plugin', 'uninstall', 'devcodex-workspace', '--confirm', '--keep-data'],
+          env,
+          configSnapshot
+        )
+      }
+      if (legacyInstalled.length && fs.existsSync(legacyInstalled[0].source)) {
+        runGrokPluginCommandPreservingConfig(
+          ['plugin', 'install', legacyInstalled[0].source, '--trust'],
+          env,
+          configSnapshot
+        )
+        rollback.registrationRestored = Boolean(findInstalledLocalPlugin(legacyInstalled[0].source, env).repoId)
+      }
+      if (configSnapshot.existed) {
+        writeTextAtomic(configPath, configSnapshot.content)
+        rollback.configRestored = fs.readFileSync(configPath, 'utf8') === configSnapshot.content
+      } else if (fs.existsSync(configPath)) {
+        fs.mkdirSync(backupRoot, { recursive: true })
+        fs.renameSync(configPath, path.join(backupRoot, `grok-user-config.rollback.${timestampSuffix()}`))
+        rollback.configRestored = true
+      } else rollback.configRestored = true
+    } catch { }
+    error.migrationRollback = rollback
+    throw error
+  }
+}
+
 function uninstallGrokPluginInstallation({ pluginPath, activeRoot, dryRun = false, env = process.env }) {
   const source = path.resolve(pluginPath)
   const configPath = grokUserConfigPath(env)
@@ -581,10 +785,10 @@ function uninstallGrokPluginInstallation({ pluginPath, activeRoot, dryRun = fals
   }
 }
 
-function writeGrokPluginRegistration({ pluginPath, activeRoot, dryRun = false, env = process.env }) {
+function writeGrokPluginRegistration({ pluginPath, legacyPluginPaths = [], activeRoot, dryRun = false, env = process.env }) {
   const configPath = grokUserConfigPath(env)
   const current = fs.existsSync(configPath) ? fs.readFileSync(configPath, 'utf8') : ''
-  const merge = mergeGrokPluginRegistration(current, pluginPath)
+  const merge = mergeGrokPluginRegistration(current, pluginPath, { legacyPluginPaths })
   let backupPath = null
   if (merge.changed && !dryRun) {
     if (current) {
@@ -685,6 +889,7 @@ module.exports = {
   resolveHostAdapterScope,
   samePath,
   syncGrokPluginInstallation,
+  syncGrokWorkspacePluginInstallation,
   uninstallGrokPluginInstallation,
   writeGrokPluginRegistration
 }

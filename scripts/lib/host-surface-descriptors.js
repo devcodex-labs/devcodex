@@ -71,7 +71,7 @@ function projectionDescriptors(hosts, { grokWorkspaceBridge = false, grokWorkspa
       descriptors.push({
         surface: 'grok-workspace-plugin',
         source: 'grok/plugins/devcodex-workspace',
-        destination: '.grok/plugins/devcodex-workspace',
+        destination: '.grok/devcodex/plugins/devcodex-workspace',
         role: 'workspace-plugin',
         replacesSurfaces: ['grok', 'grok-workspace-bridge']
       })

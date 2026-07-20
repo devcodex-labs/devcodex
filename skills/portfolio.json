@@ -5,14 +5,14 @@
   "generatedFrom": {
     "skillsPattern": "skills/*/SKILL.md",
     "registry": "plugin.json",
-    "sourceDigest": "cb851a1c0431d4594bdd56cb3f67970dd817cba0a8cf7199bb6a2f5d0f1ef951",
+    "sourceDigest": "1d7570f659bba298e21bf655d250c017c928d9c2de7a7818b2bc246a6d8c3a10",
     "pluginDigest": "41ec6da9aa259043623550e09d0ab43c6fd12c7bd5c87361ce549cf8c1cdc521",
     "portfolioEvidence": "skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "85229c1463a5068750d5417e5ebf960907532dccf99b1cd3da0a88f7007792b4",
     "consumerInventoryFileCount": 489,
     "consumerInventoryDigest": "cbaac39b123e356ac83be61d88214cd95384a864799067a1b6301d3d941463d3",
     "consumerProjectionDigest": "499a78bbe8dcc204e80f93bd8877a02b5c195ae8877db39868baa1805e1dba6f",
-    "portfolioInputDigest": "a0d5f6abf76deac86352a8ec51faf3f6854089bbe05357d1a9d0538b52b21b7d"
+    "portfolioInputDigest": "8f07290ab17aee201da83a52d50fa7d6bc6e2c3de3cce945285e61e71737792e"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -10476,8 +10476,8 @@
         "skills/host-instruction-projection/SKILL.md"
       ],
       "source": "skills/host-instruction-projection/SKILL.md",
-      "hash": "da7c9b52254503efacce68e47ccd5c79ce8fd7b8ea9782d8ff10b2be37cf64e4",
-      "sourceBytes": 11146,
+      "hash": "5ce81101a45ba30dad9f67e5a84165b56401ab29e5088c879d5c341910fcb7d1",
+      "sourceBytes": 11304,
       "version": "1.15.1",
       "lifecycleState": "active",
       "dependencies": [],

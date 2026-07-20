@@ -90,7 +90,7 @@ DevCodex 当前默认向解析后的宿主 owner 分发以下目录和文件；�
 | Claude Code adapter | `CLAUDE.md` 薄入口 + `.claude/{instructions,skills,prompts,hooks/_runtime,mcp,data}` + `.mcp.json` | Claude Code 项目规则、hooks 与 MCP |
 | Codex adapter | `AGENTS.md` kernel + `.agents/skills/` + `.codex/hooks.json` + `.codex/hooks/_runtime/` | Codex 工作区规则、Skill 与 Hook 入口 |
 | Gemini adapter（显式启用） | `GEMINI.md` 薄入口 + `.gemini/settings.json` + shared `.agents/` | Gemini context import、Before/After hooks 与 portable fallback |
-| Grok adapter（显式启用） | portable 项目：`AGENTS.md + .agents/skills + .grok/hooks`；workspace：`.grok/plugins/devcodex-workspace` + 官方用户级本地插件登记（配置只维护 enabled 状态），子项目零 generated host artifacts | root native kernel；child plain Skill-discovery/partial；`devcodex grok --rules` full；Hook/MCP 与工作区外 no-op 分级 |
+| Grok adapter（显式启用） | portable 项目：`AGENTS.md + .agents/skills + .grok/hooks`；workspace：非自动发现 source `.grok/devcodex/plugins/devcodex-workspace` + 单一官方用户级本地插件登记，子项目零 generated host artifacts | root native kernel；child plain Skill-discovery/partial；`devcodex grok --rules` full；Hook/MCP 与工作区外 no-op 分级 |
 | 完整规范回退 | `.agents/devcodex/instructions.full.md` | 非 always-on；kernel 覆盖或绑定失效时 fail closed 读取 |
 
 源码仓根受版本控制的 `.mcp.json` 是包开发/插件清单，路径指向包内 `mcp/*`；CLI 安装到业务项目的 `.mcp.json` 是另一份派生契约，路径指向目标项目 `.claude/mcp/*`。验证必须分别覆盖两者，不能因文件名相同而共享相对路径假设。
@@ -154,7 +154,7 @@ DevCodex 当前默认向解析后的宿主 owner 分发以下目录和文件；�
 │   └── hooks/_runtime/lifecycle.cjs      ← 统一生命周期运行时
 ├── GEMINI.md                             ← Gemini 薄入口（仅显式启用 Gemini 时部署）
 ├── .gemini/                              ← Gemini settings 与 Hook runtime
-├── .grok/plugins/devcodex-workspace/     ← workspace Grok 薄插件；只在工作区根，官方用户级登记绑定此 source owner
+├── .grok/devcodex/plugins/devcodex-workspace/ ← workspace Grok 薄插件非自动发现 source；官方用户级登记绑定此唯一 owner
 │
 ├── .devcodex/                           ← workspace-namespace 运行态（不提交 Git）
 │   ├── <project>/                           单项目 active-root：profile / requirements / reports / .memory / .audit-state

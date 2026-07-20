@@ -31,11 +31,13 @@ function findWorkspaceRoot(start) {
 
 function workspaceFromPluginRoot(pluginRoot) {
   const absolute = path.resolve(pluginRoot)
-  if (
-    path.basename(path.dirname(absolute)).toLowerCase() === 'plugins' &&
-    path.basename(path.dirname(path.dirname(absolute))).toLowerCase() === '.grok'
-  ) {
-    return path.dirname(path.dirname(path.dirname(absolute)))
+  const sourceWorkspace = findWorkspaceRoot(absolute)
+  if (sourceWorkspace) {
+    const allowedSources = [
+      path.join(sourceWorkspace, '.grok', 'devcodex', 'plugins', 'devcodex-workspace'),
+      path.join(sourceWorkspace, '.grok', 'plugins', 'devcodex-workspace')
+    ]
+    if (allowedSources.some(candidate => samePath(candidate, absolute))) return sourceWorkspace
   }
   const installedRoot = path.dirname(absolute)
   if (path.basename(installedRoot).toLowerCase() !== 'installed-plugins') return null

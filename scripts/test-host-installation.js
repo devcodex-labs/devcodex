@@ -87,7 +87,8 @@ const multilinePluginConfig = [
 ].join('\n')
 const multilineMerge = mergeGrokPluginRegistration(
   multilinePluginConfig,
-  path.join(FIXTURE_ROOT, 'workspace', '.grok', 'plugins', 'devcodex-workspace')
+  path.join(FIXTURE_ROOT, 'workspace', '.grok', 'devcodex', 'plugins', 'devcodex-workspace'),
+  { legacyPluginPaths: [path.join(FIXTURE_ROOT, 'workspace', '.grok', 'plugins', 'devcodex-workspace')] }
 )
 assert.match(multilineMerge.desired, /"project-owned", # keep-inline-comment/)
 assert.match(multilineMerge.desired, /# keep-list-comment/)
@@ -98,14 +99,15 @@ assert.doesNotMatch(multilineMerge.desired, /workspace\/\.grok\/plugins\/devcode
 assert.strictEqual(
   mergeGrokPluginRegistration(
     multilineMerge.desired,
-    path.join(FIXTURE_ROOT, 'workspace', '.grok', 'plugins', 'devcodex-workspace')
+    path.join(FIXTURE_ROOT, 'workspace', '.grok', 'devcodex', 'plugins', 'devcodex-workspace'),
+    { legacyPluginPaths: [path.join(FIXTURE_ROOT, 'workspace', '.grok', 'plugins', 'devcodex-workspace')] }
   ).changed,
   false,
   'multiline Grok plugin config merge must be idempotent'
 )
 const multilineRemoval = removeGrokPluginRegistration(
   multilineMerge.desired,
-  path.join(FIXTURE_ROOT, 'workspace', '.grok', 'plugins', 'devcodex-workspace')
+  path.join(FIXTURE_ROOT, 'workspace', '.grok', 'devcodex', 'plugins', 'devcodex-workspace')
 )
 assert.doesNotMatch(multilineRemoval.desired, /devcodex-workspace/)
 assert.match(multilineRemoval.desired, /"project-owned", # keep-inline-comment/)
@@ -114,7 +116,7 @@ assert.match(multilineRemoval.desired, /yolo = false # keep-setting-comment/)
 assert.throws(
   () => mergeGrokPluginRegistration(
     '[plugins]\ndisabled = ["devcodex-workspace"]\n',
-    path.join(FIXTURE_ROOT, 'workspace', '.grok', 'plugins', 'devcodex-workspace')
+    path.join(FIXTURE_ROOT, 'workspace', '.grok', 'devcodex', 'plugins', 'devcodex-workspace')
   ),
   /GROK_PLUGIN_DISABLED_BY_USER/,
   'an explicit user disable must fail closed without being overwritten'
@@ -227,6 +229,28 @@ fs.writeFileSync(
   '[plugins]\nenabled = ["project-owned"]\n\n[ui]\nyolo = false # preserve-me\n',
   'utf8'
 )
+const legacyWorkspacePlugin = path.join(bridgeWorkspace, '.grok', 'plugins', 'devcodex-workspace')
+fs.mkdirSync(path.dirname(legacyWorkspacePlugin), { recursive: true })
+fs.cpSync(path.join(ROOT, 'grok', 'plugins', 'devcodex-workspace'), legacyWorkspacePlugin, { recursive: true })
+const grokVersionProbe = spawnSync('grok', ['version'], {
+  encoding: 'utf8',
+  windowsHide: true,
+  env: { ...process.env, GROK_HOME: grokHome }
+})
+const fixtureGrokCliAvailable = grokVersionProbe.status === 0
+if (fixtureGrokCliAvailable) {
+  const legacyOfficialInstall = spawnSync('grok', ['plugin', 'install', legacyWorkspacePlugin, '--trust'], {
+    encoding: 'utf8',
+    windowsHide: true,
+    env: { ...process.env, GROK_HOME: grokHome }
+  })
+  assert.strictEqual(legacyOfficialInstall.status, 0, legacyOfficialInstall.stderr || legacyOfficialInstall.stdout)
+  fs.writeFileSync(
+    path.join(grokHome, 'config.toml'),
+    '[plugins]\nenabled = ["project-owned"]\n\n[ui]\nyolo = false # preserve-me\n',
+    'utf8'
+  )
+}
 const legacyBridgeManifest = path.join(bridgeWorkspace, '.devcodex', 'project-a', 'managed', 'deployment-manifest.json')
 fs.mkdirSync(path.dirname(legacyBridgeManifest), { recursive: true })
 fs.writeFileSync(legacyBridgeManifest, JSON.stringify({
@@ -245,16 +269,39 @@ fs.writeFileSync(legacyBridgeManifest, JSON.stringify({
 const bridgeInstall = run(['update', '--host', 'grok'], bridgeProject)
 assert.strictEqual(bridgeInstall.status, 0, bridgeInstall.stderr || bridgeInstall.stdout)
 const grokCliAvailable = !/Grok CLI not found/.test(`${bridgeInstall.stdout || ''}${bridgeInstall.stderr || ''}`)
+assert.strictEqual(grokCliAvailable, fixtureGrokCliAvailable)
 for (const relative of [
   'AGENTS.md',
   '.agents/devcodex/instructions.full.md',
   '.agents/skills/host-instruction-projection/SKILL.md',
-  '.grok/plugins/devcodex-workspace/.claude-plugin/plugin.json',
-  '.grok/plugins/devcodex-workspace/hooks/devcodex-workspace.cjs',
-  '.grok/plugins/devcodex-workspace/skills/devcodex-workspace/SKILL.md',
-  '.grok/plugins/devcodex-workspace/.mcp.json'
+  '.grok/devcodex/plugins/devcodex-workspace/.claude-plugin/plugin.json',
+  '.grok/devcodex/plugins/devcodex-workspace/hooks/devcodex-workspace.cjs',
+  '.grok/devcodex/plugins/devcodex-workspace/skills/devcodex-workspace/SKILL.md',
+  '.grok/devcodex/plugins/devcodex-workspace/.mcp.json'
 ]) {
   assert(fs.existsSync(path.join(bridgeWorkspace, relative)), `workspace plugin install missing ${relative}`)
+}
+const migrationReceiptPath = path.join(bridgeWorkspace, '.devcodex', 'workspace', 'managed', 'grok-plugin-migration.json')
+if (grokCliAvailable) {
+  assert(!fs.existsSync(legacyWorkspacePlugin), 'successful migration must remove the legacy path from Grok auto-discovery by reversible move')
+  const migrationReceipt = JSON.parse(fs.readFileSync(migrationReceiptPath, 'utf8'))
+  assert.strictEqual(migrationReceipt.status, 'migrated')
+  assert(migrationReceipt.backupPaths.some(item => path.resolve(item.previousPath) === path.resolve(legacyWorkspacePlugin)))
+  assert(migrationReceipt.backupPaths.every(item => fs.existsSync(item.backupPath)), 'legacy source backup must remain recoverable')
+  const coldInspect = spawnSync('grok', ['inspect', '--json'], {
+    cwd: bridgeWorkspace,
+    encoding: 'utf8',
+    windowsHide: true,
+    env: { ...process.env, GROK_HOME: grokHome }
+  })
+  assert.strictEqual(coldInspect.status, 0, coldInspect.stderr || coldInspect.stdout)
+  assert.doesNotMatch(`${coldInspect.stderr || ''}${coldInspect.stdout || ''}`, /plugin name collision/i)
+  const coldInspectPayload = JSON.parse(coldInspect.stdout)
+  const managedPlugins = coldInspectPayload.plugins.filter(item => item.name === 'devcodex-workspace')
+  assert.strictEqual(managedPlugins.length, 1, 'cold workspace inspect must expose one canonical plugin identity')
+  assert.strictEqual(managedPlugins[0].scope, 'user', 'canonical source must not be project auto-discovered')
+} else {
+  assert(fs.existsSync(legacyWorkspacePlugin), 'without Grok CLI the legacy auto-discovered source must be retained')
 }
 const workspaceChildForbidden = [
   'AGENTS.md', 'CLAUDE.md', 'GEMINI.md', '.mcp.json',
@@ -280,7 +327,7 @@ assert.strictEqual(childAllUpdate.status, 0, childAllUpdate.stderr || childAllUp
 for (const relative of workspaceChildForbidden) {
   assert(!fs.existsSync(path.join(bridgeProject, relative)), `all-host child update leaked generated ${relative}`)
 }
-for (const relative of ['GEMINI.md', '.gemini/settings.json', '.grok/plugins/devcodex-workspace/.claude-plugin/plugin.json']) {
+for (const relative of ['GEMINI.md', '.gemini/settings.json', '.grok/devcodex/plugins/devcodex-workspace/.claude-plugin/plugin.json']) {
   assert(fs.existsSync(path.join(bridgeWorkspace, relative)), `all-host child update missing workspace owner asset ${relative}`)
 }
 for (const relative of ['.grok/skills', '.grok/mcp', '.grok/workspace-config.toml']) {
@@ -344,7 +391,7 @@ assert.strictEqual(retiredProjectManifest.entries.length, 0, 'workspace child mu
 if (grokCliAvailable) {
   const fixtureRegistry = JSON.parse(fs.readFileSync(path.join(grokHome, 'installed-plugins', 'registry.json'), 'utf8'))
   const fixtureInstalledPlugin = Object.values(fixtureRegistry.repos).find(entry =>
-    entry?.kind?.type === 'Local' && path.resolve(entry.kind.source_path) === path.resolve(bridgeWorkspace, '.grok', 'plugins', 'devcodex-workspace')
+    entry?.kind?.type === 'Local' && path.resolve(entry.kind.source_path) === path.resolve(bridgeWorkspace, '.grok', 'devcodex', 'plugins', 'devcodex-workspace')
   )
   assert(fixtureInstalledPlugin?.path, 'fixture Grok installed plugin registry entry missing')
   fs.appendFileSync(path.join(fixtureInstalledPlugin.path, 'hooks', 'devcodex-workspace.cjs'), '\n// stale-installed-copy-fixture\n', 'utf8')
@@ -369,10 +416,10 @@ const registryAfterUninstallPath = path.join(grokHome, 'installed-plugins', 'reg
 if (fs.existsSync(registryAfterUninstallPath)) {
   const registryAfterUninstall = JSON.parse(fs.readFileSync(registryAfterUninstallPath, 'utf8'))
   assert(!Object.values(registryAfterUninstall.repos || {}).some(entry =>
-    entry?.kind?.source_path && path.resolve(entry.kind.source_path) === path.resolve(bridgeWorkspace, '.grok', 'plugins', 'devcodex-workspace')
+    entry?.kind?.source_path && path.resolve(entry.kind.source_path) === path.resolve(bridgeWorkspace, '.grok', 'devcodex', 'plugins', 'devcodex-workspace')
   ))
 }
-assert(fs.existsSync(path.join(bridgeWorkspace, '.grok', 'plugins', 'devcodex-workspace')), 'uninstall must retain workspace source')
+assert(fs.existsSync(path.join(bridgeWorkspace, '.grok', 'devcodex', 'plugins', 'devcodex-workspace')), 'uninstall must retain workspace source')
 const inspectionAfterUninstall = hostUtils.inspectHostInstructionSurfaces(bridgeProject)
 assert.strictEqual(inspectionAfterUninstall.grokPlugin.sourcePresent, true)
 assert.strictEqual(inspectionAfterUninstall.grokPlugin.installed, false)
@@ -408,7 +455,7 @@ assert.strictEqual(portableInstall.status, 0, portableInstall.stderr || portable
 for (const relative of ['AGENTS.md', '.agents/devcodex/instructions.full.md', '.grok/hooks/devcodex.json']) {
   assert(fs.existsSync(path.join(portableProject, relative)), `explicit portable Grok install missing ${relative}`)
 }
-assert(!fs.existsSync(path.join(portableProject, '.grok/plugins/devcodex-workspace')), 'portable mode must not copy the workspace plugin')
+assert(!fs.existsSync(path.join(portableProject, '.grok/devcodex/plugins/devcodex-workspace')), 'portable mode must not copy the workspace plugin')
 
 const projectLaunchPlan = buildGrokLaunchPlan(['--rules', 'project-extra-rule', '-p', 'check'], { cwd: bridgeProject })
 assert.strictEqual(projectLaunchPlan.kernelRequired, true)
@@ -437,10 +484,10 @@ assert.throws(
   /GROK_LAUNCHER_CWD_CONFLICT/
 )
 
-const deployedHook = require(path.join(bridgeWorkspace, '.grok', 'plugins', 'devcodex-workspace', 'hooks', 'devcodex-workspace.cjs'))
+const deployedHook = require(path.join(bridgeWorkspace, '.grok', 'devcodex', 'plugins', 'devcodex-workspace', 'hooks', 'devcodex-workspace.cjs'))
 const activeHook = deployedHook.runWorkspaceBridge(
   { hookEventName: 'UserPromptSubmit', cwd: bridgeProject },
-  { cwd: bridgeProject, pluginRoot: path.join(bridgeWorkspace, '.grok', 'plugins', 'devcodex-workspace') }
+  { cwd: bridgeProject, pluginRoot: path.join(bridgeWorkspace, '.grok', 'devcodex', 'plugins', 'devcodex-workspace') }
 )
 assert.strictEqual(activeHook.status, 0)
 assert.strictEqual(activeHook.kernelInjected, false)
@@ -449,13 +496,13 @@ assert.doesNotMatch(activeHook.output.systemMessage || '', /DevCodex controlling
 if (process.platform === 'win32') {
   const caseVariantHook = deployedHook.runWorkspaceBridge(
     { hookEventName: 'UserPromptSubmit', cwd: bridgeProject.toLowerCase() },
-    { cwd: bridgeProject.toLowerCase(), pluginRoot: path.join(bridgeWorkspace, '.grok', 'plugins', 'devcodex-workspace').toLowerCase() }
+    { cwd: bridgeProject.toLowerCase(), pluginRoot: path.join(bridgeWorkspace, '.grok', 'devcodex', 'plugins', 'devcodex-workspace').toLowerCase() }
   )
   assert.strictEqual(caseVariantHook.reason, 'workspace-active', 'Windows path casing must not split one workspace identity')
 }
 const workspaceRootHook = deployedHook.runWorkspaceBridge(
   { hookEventName: 'UserPromptSubmit', cwd: bridgeWorkspace },
-  { cwd: bridgeWorkspace, pluginRoot: path.join(bridgeWorkspace, '.grok', 'plugins', 'devcodex-workspace') }
+  { cwd: bridgeWorkspace, pluginRoot: path.join(bridgeWorkspace, '.grok', 'devcodex', 'plugins', 'devcodex-workspace') }
 )
 assert.strictEqual(workspaceRootHook.status, 0)
 assert.strictEqual(workspaceRootHook.kernelInjected, false)
@@ -463,7 +510,7 @@ assert.strictEqual(workspaceRootHook.evidenceMode, 'passive-hook-no-context-inje
 assert.doesNotMatch(workspaceRootHook.output.systemMessage || '', /DevCodex controlling workspace kernel follows/)
 const outsideHook = deployedHook.runWorkspaceBridge(
   { hookEventName: 'UserPromptSubmit', cwd: FIXTURE_ROOT },
-  { cwd: FIXTURE_ROOT, pluginRoot: path.join(bridgeWorkspace, '.grok', 'plugins', 'devcodex-workspace') }
+  { cwd: FIXTURE_ROOT, pluginRoot: path.join(bridgeWorkspace, '.grok', 'devcodex', 'plugins', 'devcodex-workspace') }
 )
 assert.strictEqual(outsideHook.reason, 'outside-managed-workspace')
 assert.deepStrictEqual(outsideHook.output, { continue: true })
@@ -477,7 +524,7 @@ fs.writeFileSync(
 )
 const nestedWorkspaceHook = deployedHook.runWorkspaceBridge(
   { hookEventName: 'UserPromptSubmit', cwd: nestedWorkspace },
-  { cwd: nestedWorkspace, pluginRoot: path.join(bridgeWorkspace, '.grok', 'plugins', 'devcodex-workspace') }
+  { cwd: nestedWorkspace, pluginRoot: path.join(bridgeWorkspace, '.grok', 'devcodex', 'plugins', 'devcodex-workspace') }
 )
 assert.strictEqual(nestedWorkspaceHook.reason, 'outside-managed-workspace', 'a plugin must not cross into a nearer workspace owner')
 assert.deepStrictEqual(nestedWorkspaceHook.output, { continue: true })

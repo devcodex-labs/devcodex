@@ -15,7 +15,7 @@ WorkspaceDataAbsorptionScopeGate · DocsSiteVisualAcceptanceGate · OmissionOnly
 - bridge 在读取 Profile / memory / full fallback 前先形成语义意图种子，再绑定父级 kernel、项目 active-root 与意图相关 Skills；缺失或歧义时 fail-closed。
 - 独立项目仍保留本地 kernel + Skills + 完整 fallback；部署 manifest、碰撞检测、host inspection、source-root 精确例外与正负向 fixture 已同步。
 - 修正 Grok lifecycle 事件误带 tool matcher 导致 `UserPromptSubmit` / `Stop` 被拒载的问题；workspace 模式改由工作区薄插件承载 Hook 与 MCP bridge，通过官方本地插件安装登记确保 Git 项目 cwd 可达，只维护 `plugins.enabled` 并迁出旧的同 owner path 注册，避免插件碰撞；安装过程恢复用户配置原始字节。
-- 新增 `HostAdapterScopeV1`：workspace-namespace 的子项目默认零 generated host artifacts；Grok adapter owner 固定在工作区 `.grok/plugins/devcodex-workspace`，工作区外 no-op，用户配置保真/幂等，project legacy manifest claims 自动退休。旧项目 bridge 方案已 superseded。
+- 修复 Grok workspace plugin 双身份碰撞：`HostAdapterScopeV1` 将 canonical source 迁移到非自动发现的 `.grok/devcodex/plugins/devcodex-workspace`，只保留官方 user installation identity；旧 source/registration 采用 install-before-move 的可逆备份迁移，配置保真、工作区外 no-op、子项目零 generated host artifacts 与 legacy manifest 退休保持不变。
 - 新增 `devcodex grok` full-evidence launcher：只在 workspace 子 Git 项目用官方 `--rules` 绑定共享 kernel，并明确把 plain child 的 Skill-discovery/partial 与 launcher direct evidence 分开；修正把 passive Hook stdout 误当上下文注入的错误口径。
 - 拆分包开发与 Claude 安装态 MCP 契约：源码根 `.mcp.json` 改为指向实际存在的包内 `mcp/*`，CLI 仍为业务项目生成 `.claude/mcp/*`，避免 Grok 在源码仓发现通用 manifest 时启动不存在路径。
 - 补齐 `uninstall --host grok` 生命周期：复用 `HostAdapterScopeV1`，官方卸载用户插件并只移除 DevCodex 受管配置，保留 workspace source、未知键/注释与重复卸载幂等性。

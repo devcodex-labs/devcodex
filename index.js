@@ -24,7 +24,7 @@ const {
   grokUserConfigPath,
   retireWorkspaceProjectHostManifest,
   resolveHostAdapterScope,
-  syncGrokPluginInstallation, uninstallGrokPluginInstallation,
+  syncGrokPluginInstallation, syncGrokWorkspacePluginInstallation, uninstallGrokPluginInstallation,
   writeGrokPluginRegistration
 } = require('./scripts/lib/host-adapter-scope.js')
 const { runCli: runMigrateLayout } = require('./scripts/migrate-layout.js')
@@ -356,7 +356,7 @@ const { cmdInit, cmdInitHost, cmdInitClaude, cmdInitCodex, cmdInitGemini, cmdIni
   ensureRuntimeDirs, ensureDevCodexGitignore, walkDir,
   resolveActiveRuntimeRoot, resolveGitignoreRoot, getLegacyCounts, isPlainObject,
   resolveHostAdapterScope, writeGrokPluginRegistration,
-  syncGrokPluginInstallation,
+  syncGrokPluginInstallation, syncGrokWorkspacePluginInstallation,
   uninstallGrokPluginInstallation,
   retireWorkspaceProjectHostManifest,
   resolveTenantSelection, shouldIncludeInstructionFile

@@ -13,6 +13,7 @@ function buildCliInstallCommands(ctx) {
     mergeClaudeHooks, mergeClaudeMcpConfig,
     ensureRuntimeDirs, ensureDevCodexGitignore, getLegacyCounts, isPlainObject,
     resolveHostAdapterScope, writeGrokPluginRegistration, syncGrokPluginInstallation,
+    syncGrokWorkspacePluginInstallation,
     uninstallGrokPluginInstallation, retireWorkspaceProjectHostManifest,
     resolveTenantSelection, shouldIncludeInstructionFile
   } = ctx
@@ -794,6 +795,7 @@ function buildCliInstallCommands(ctx) {
     if (grokWorkspaceScope) {
       writeGrokPluginRegistration({
         pluginPath: hostScope.pluginRoot,
+        legacyPluginPaths: hostScope.legacyPluginRoots,
         activeRoot,
         dryRun: true,
         env: process.env
@@ -818,30 +820,27 @@ function buildCliInstallCommands(ctx) {
       addCounts(counts, copyProjectedTree({
         cwd: targetRoot,
         source: 'grok/plugins/devcodex-workspace',
-        destination: path.join('.grok', 'plugins', 'devcodex-workspace'),
+        destination: path.join('.grok', 'devcodex', 'plugins', 'devcodex-workspace'),
         force, dryRun, backupDir, log, inlineLog, tenantId
       }))
-      const registration = writeGrokPluginRegistration({
+      const installation = syncGrokWorkspacePluginInstallation({
         pluginPath: hostScope.pluginRoot,
+        legacyPluginPaths: hostScope.legacyPluginRoots,
         activeRoot,
+        backupDir,
         dryRun,
         env: process.env
       })
-      if (registration.changed) {
+      if (installation.status === 'migrated') {
         counts.updated++
-        log(c.green('  ✓ Grok user config (managed workspace plugin registration)'))
+        log(c.green('  ✓ Grok workspace plugin migrated to the canonical source'))
       } else {
         counts.skipped++
-        log(c.dim('  ~ Grok user config (workspace plugin already registered)'))
+        log(c.dim(`  ~ Grok workspace plugin source (${installation.status})`))
       }
-      const installation = syncGrokPluginInstallation({
-        pluginPath: hostScope.pluginRoot,
-        dryRun,
-        env: process.env
-      })
       if (installation.status === 'unavailable') {
-        inlineLog(c.yellow('  ⚠ Grok CLI not found; plugin path is registered but runtime activation remains unverified'))
-      } else if (installation.status === 'verified') {
+        inlineLog(c.yellow('  ⚠ Grok CLI not found; legacy source was retained and canonical activation remains unverified'))
+      } else if (['verified', 'migrated'].includes(installation.status)) {
         log(c.green('  ✓ Grok user plugin installation synchronized'))
       } else {
         log(c.dim(`  ~ Grok user plugin installation (${installation.status})`))

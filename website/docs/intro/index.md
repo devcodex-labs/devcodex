@@ -103,7 +103,7 @@ DevCodex 提供两个 Agent 入口：
 | Prompts | CP 节点输出模板 |
 | Hooks | `UserPromptSubmit` / `PreToolUse` / `Stop` 等生命周期钩子 |
 | Codex adapter | `AGENTS.md` + `.agents/skills/` + `.codex/hooks.json` |
-| Gemini / Grok adapter | 当前未发布源码通过 `--host gemini|grok|all` 显式部署；Grok workspace 模式使用工作区 `.grok/plugins/devcodex-workspace` 与官方用户级本地插件登记，child project 零 generated host artifacts；`devcodex grok` 用官方 `--rules` 提供 child full 路线，plain child 保持 partial；显式 `project-portable` 才生成项目 adapter，能力按 direct / fixture / instruction-backed 证据分级 |
+| Gemini / Grok adapter | 当前未发布源码通过 `--host gemini|grok|all` 显式部署；Grok workspace 模式使用非自动发现 source `.grok/devcodex/plugins/devcodex-workspace` 与单一官方用户级本地插件登记，child project 零 generated host artifacts；root 为 Native，plain child 为 Partial，`devcodex grok --rules` 为 Full；显式 `project-portable` 才生成项目 adapter，能力按 direct / fixture / instruction-backed 证据分级 |
 
 ---
 

@@ -72,14 +72,9 @@ const siteText = fs.readFileSync(sitePage, 'utf8')
 assert.match(siteText, /devcodex grok/)
 assert.match(siteText, /HostParity/)
 
-// Platform req doc (workspace runtime)
-const platformReqCandidates = [
-  path.join(__dirname, '../../.devcodex/devcodex-v1/requirements/20260720-grok-host-parity-codex/03-平台能力需求-xAI.md'),
-  path.join(process.cwd(), '../.devcodex/devcodex-v1/requirements/20260720-grok-host-parity-codex/03-平台能力需求-xAI.md'),
-  path.join('E:/Worker/.devcodex/devcodex-v1/requirements/20260720-grok-host-parity-codex/03-平台能力需求-xAI.md')
-]
-const platformReq = platformReqCandidates.find((p) => fs.existsSync(p))
-assert.ok(platformReq, 'platform capability request doc must exist')
+// Platform request semantic fixture (source-contained for clean checkout / CI)
+const platformReq = path.join(__dirname, 'fixtures/host-parity/platform-capability-request-xai.md')
+assert.ok(fs.existsSync(platformReq), 'source-contained platform capability request fixture must exist')
 assert.match(fs.readFileSync(platformReq, 'utf8'), /P-GROK-1/)
 
 // SessionStart stamp
@@ -91,6 +86,26 @@ const stamp = spawnSync(process.execPath, [sessionStart], {
 })
 assert.strictEqual(stamp.status, 0)
 assert.ok(fs.existsSync(path.join(root, 'pdata', 'session-stamps', 'smoke-1.json')))
+
+// Portable Grok hook SessionStart must treat session id as an untrusted filename
+const portableHook = JSON.parse(fs.readFileSync(path.join(__dirname, '../grok/hooks/devcodex.json'), 'utf8'))
+const portableSessionStart = portableHook.hooks.SessionStart[0].hooks[0].command
+const portableRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-portable-grok-'))
+const hostileStamp = spawnSync(portableSessionStart, {
+  shell: true,
+  env: { ...process.env, GROK_PLUGIN_DATA: portableRoot, GROK_SESSION_ID: '../escape' },
+  encoding: 'utf8'
+})
+assert.strictEqual(hostileStamp.status, 0)
+const portableStampDir = path.join(portableRoot, 'devcodex-grok-session-stamps')
+const portableFiles = fs.readdirSync(portableStampDir)
+assert.ok(portableFiles.length >= 1)
+assert.strictEqual(fs.existsSync(path.join(portableRoot, 'escape.json')), false)
+for (const file of portableFiles) {
+  const target = path.resolve(portableStampDir, file)
+  const rel = path.relative(portableStampDir, target)
+  assert.ok(rel && !rel.startsWith('..') && !path.isAbsolute(rel), `portable stamp escaped: ${target}`)
+}
 
 // Scorecard against real workspace root if present
 const workspaceRoot = path.resolve(__dirname, '../..')

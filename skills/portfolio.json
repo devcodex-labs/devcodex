@@ -5,14 +5,14 @@
   "generatedFrom": {
     "skillsPattern": "skills/*/SKILL.md",
     "registry": "plugin.json",
-    "sourceDigest": "7e715296546dc7f5298f80cfab9a21facd6717fbf7395b0a7850c8002594e7db",
+    "sourceDigest": "c04e04c24134d11eb593b4872c99fd1e84b3b3a5ad4da0c0163c22d7ea3fcb99",
     "pluginDigest": "41ec6da9aa259043623550e09d0ab43c6fd12c7bd5c87361ce549cf8c1cdc521",
     "portfolioEvidence": "skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "85229c1463a5068750d5417e5ebf960907532dccf99b1cd3da0a88f7007792b4",
     "consumerInventoryFileCount": 494,
     "consumerInventoryDigest": "79408dddc0cf4337c34324261c32dfee894cb92b07ee1cf205006c98bacc317b",
-    "consumerProjectionDigest": "5f31b7ea4702a378c8fc3c795ffcc54747773c891baaaaa6af2e2ea218defe08",
-    "portfolioInputDigest": "65cb4c05c559aa4dd845dc559f9d51a4e881d2d954bdf9c20580765b8cb0a832"
+    "consumerProjectionDigest": "40379a93f5a095c86510734cab52194e8a99bc16f3841e34c224f3d4f174dfab",
+    "portfolioInputDigest": "13007da7b839bc7c43a755f4f194ea39afd59740ae386ab06f10e7ba6f5b7da9"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -11106,6 +11106,10 @@
           "role": "current"
         },
         {
+          "path": "mcp/memory-server.js",
+          "role": "current"
+        },
+        {
           "path": "mcp/profile-server.js",
           "role": "current"
         },
@@ -11821,8 +11825,8 @@
         "skills/memory/SKILL.md"
       ],
       "source": "skills/memory/SKILL.md",
-      "hash": "dc9b99af4ef892a9b1025910c81e9be3be66cdea4929dcb7754d8291e8c8d005",
-      "sourceBytes": 17354,
+      "hash": "7b3b0cc019d74608a4dafa4129c3e29187a34bc8f60e8b218692610fb8186435",
+      "sourceBytes": 18578,
       "version": "1.15.1",
       "lifecycleState": "active",
       "dependencies": [],

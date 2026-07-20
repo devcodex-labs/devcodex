@@ -2,6 +2,7 @@
 'use strict'
 
 const assert = require('assert')
+const crypto = require('crypto')
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
@@ -1728,6 +1729,67 @@ function testAdjacentMcpPathArgumentsRejected() {
   }
 }
 
+function testMemorySessionAllocationAndTransactions() {
+  setupLayoutWorkspace()
+  const projectRoot = path.join(TEMP_ROOT, 'chat')
+  const responses = runServer('mcp/memory-server.js', [
+    rpcRequest(1, 'initialize'),
+    rpcRequest(2, 'tools/list'),
+    rpcRequest(3, 'tools/call', {
+      name: 'memory_session_allocate',
+      arguments: { date: '20260524', title: 'first', intent: 'test' }
+    }),
+    rpcRequest(4, 'tools/call', {
+      name: 'memory_session_allocate',
+      arguments: { date: '20260524', title: 'second', intent: 'test' }
+    }),
+    rpcRequest(5, 'tools/call', {
+      name: 'memory_session_write',
+      arguments: { date: '20260524', content: '追加内容\n' }
+    }),
+    rpcRequest(6, 'tools/call', {
+      name: 'memory_summary_append',
+      arguments: { row: '| 2026-05-24 | 01 | test | atomic summary | — | — | ✅ |' }
+    })
+  ], projectRoot)
+
+  assert(resultById(responses, 2).tools.some(tool => tool.name === 'memory_session_allocate'))
+  const first = JSON.parse(resultById(responses, 3).content[0].text)
+  const second = JSON.parse(resultById(responses, 4).content[0].text)
+  assert.strictEqual(first.schemaVersion, 'MemorySessionAllocationReceiptV1')
+  assert.strictEqual(first.sessionId, '01')
+  assert.strictEqual(second.sessionId, '02')
+  assert.strictEqual(first.transaction.schemaVersion, 'MemoryTransactionReceiptV1')
+  assert.match(resultById(responses, 5).content[0].text, /MemoryTransactionReceiptV1/)
+  assert.match(resultById(responses, 6).content[0].text, /MemoryTransactionReceiptV1/)
+
+  const dailyPath = path.join(TEMP_ROOT, '.devcodex', 'chat', '.memory', 'clients', 'claude-code', 'tasks', '20260524.md')
+  const daily = fs.readFileSync(dailyPath, 'utf8')
+  assert.match(daily, /## 会话 01 — first/)
+  assert.match(daily, /## 会话 02 — second/)
+  assert.match(daily, /追加内容/)
+  const summary = fs.readFileSync(path.join(TEMP_ROOT, '.devcodex', 'chat', '.memory', 'clients', 'claude-code', 'SUMMARY.md'), 'utf8')
+  assert.match(summary, /atomic summary/)
+
+  const lockedDate = '20260525'
+  const activeRoot = path.join(TEMP_ROOT, '.devcodex', 'chat')
+  const lockedFile = path.join(activeRoot, '.memory', 'clients', 'claude-code', 'tasks', `${lockedDate}.md`)
+  const lockKey = crypto.createHash('sha256').update(`${activeRoot}\0${path.resolve(lockedFile)}`).digest('hex')
+  const lockDir = path.join(activeRoot, '.runtime-state', 'memory-locks', lockKey)
+  fs.mkdirSync(lockDir, { recursive: true })
+  fs.writeFileSync(path.join(lockDir, 'owner.json'), '{"pid":999999}\n', 'utf8')
+
+  const blocked = runServer('mcp/memory-server.js', [
+    rpcRequest(7, 'tools/call', {
+      name: 'memory_session_write',
+      arguments: { date: lockedDate, content: '# should-not-write\n' }
+    })
+  ], projectRoot)
+  assert.strictEqual(resultById(blocked, 7).isError, true)
+  assert.match(resultById(blocked, 7).content?.[0]?.text || '', /MEMORY_TRANSACTION_LOCKED/)
+  assert.strictEqual(fs.existsSync(lockedFile), false, 'locked memory write must not half-write the target')
+}
+
 function testMcpJsonLaunchContract() {
   const packageConfig = JSON.parse(fs.readFileSync(path.join(ROOT, '.mcp.json'), 'utf8'))
   const packageServers = packageConfig.mcpServers || {}
@@ -1838,6 +1900,7 @@ testWorkspaceNamespaceMemoryScope()
 testWorkspaceRootMemoryScopeRequiresExplicitTarget()
 testWorkspaceNamespaceNestedProjectInference()
 testWorkspaceNamespaceTraversalRejected()
+testMemorySessionAllocationAndTransactions()
 testAdjacentMcpPathArgumentsRejected()
 testMcpJsonLaunchContract()
 fs.rmSync(TEMP_ROOT, { recursive: true, force: true })

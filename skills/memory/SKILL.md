@@ -61,6 +61,15 @@ description: 管理会话记忆的读取与写入。三层记忆体系：Agent �
 
 `ConcurrencyPolicy`：记忆读取可作为只读通道并发执行；记忆写入、SUMMARY 更新、ContextHandoffCard 和会话状态提交必须按 `memory` 单写者锁串行完成。
 
+### MemoryTransactionWriterGate
+
+当可用 MCP memory writer 时，Agent 不得再用“读取 daily 尾号 → 自行计算会话编号 → 直接编辑 daily/SUMMARY 多文件”的方式作为首选写入路径。
+
+- 新会话编号必须优先通过 `memory_session_allocate(project, date, title, intent, sourceMessage)` 原子分配；该工具会在 active-root / agent / date 作用域内持有 writer lock，并写入 reserved daily 段，返回 `MemorySessionAllocationReceiptV1`。
+- `memory_session_write` 与 `memory_summary_append` 必须返回 `MemoryTransactionReceiptV1`，包含 activeRoot、agent、file、beforeDigest、afterDigest、transactionId 与完成时间；报告/记忆可引用 receipt，而不是只写“已追加”。
+- 遇到 `MEMORY_TRANSACTION_LOCKED` 时，当前写入方必须重读 `memory_status` / `memory_summary_query` 后重试或降级为阻塞说明，禁止忽略锁继续手工写同一文件。
+- MCP 不可用时可使用宿主增量编辑 fallback，但必须在报告或记忆中标记 `memoryWriter=fallback`，并在写前后核对 daily 与 SUMMARY digest。
+
 ### MemoryCannotSatisfyBootstrapGate
 
 宿主或产品内置的 Memories、模型长期偏好、对话摘要、ContextHandoffCard 或 SUMMARY 都不能替代当前文件真相源读取：
@@ -90,7 +99,7 @@ description: 管理会话记忆的读取与写入。三层记忆体系：Agent �
 
 **约束**：
 - 🔴 **禁止询问用户"是否需要写入记忆"**（[C05/S05](../../instructions/00-safety.instructions.md) 自动写入）
-- 追加段落时使用增量编辑，禁止覆盖已有内容（[C06/S04](../../instructions/00-safety.instructions.md)）
+- 追加段落时优先使用 `memory_session_allocate` + `memory_session_write` 事务写入；MCP 不可用时才使用增量编辑 fallback，禁止覆盖已有内容（[C06/S04](../../instructions/00-safety.instructions.md)）
 - 禁止使用 `Set-Content` 等命令修改 .md 文件（[C09](../../instructions/01-common.instructions.md)）
 - 写入报告路径、ContextHandoffCard 或 artifact-links 前执行 `ArtifactLinkSetDedupeGate`：同一物理文件按 canonical path 只保留一个主引用。session、daily、SUMMARY、task state 和 checkpoint 必须进入 `ArtifactDeliveryManifestV1`，但默认 `internal-only`；只有 resume/handoff、状态冲突、写入失败、审计取证或用户明确要求时进入 `UserFacingArtifactSetV1`。
 - 需求修订、再次复审、宣布“可确认 / 暂不通过 / 已修订待复审”或从修复清单回写真相源时，记忆写入必须配合 `RequirementVerdictStateSyncGate`：daily tasks、需求级 sessions 和 SUMMARY 的状态口径不得与需求真相源顶部状态、推荐结论、修复清单或 audit-state decision 冲突。

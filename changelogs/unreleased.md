@@ -9,6 +9,13 @@ WorkspaceDataAbsorptionScopeGate · DocsSiteVisualAcceptanceGate · OmissionOnly
 
 ## 当前未发布变更
 
+### DevCodex V1 全量审计 residual F 项闭环（ISSUE-045 / ISSUE-047 / ISSUE-051 / ISSUE-052 / ISSUE-053 / ISSUE-054 / ISSUE-057，2026-07-20）
+
+- Profile 06 `validation-execution` 证据数字同步当前 validation manifest：64 nodes、fast 59、full 62，避免旧 `54/full 53` 继续误导审计结论。
+- memory MCP 增加 `memory_session_allocate`、active-root/agent/date scoped lock、原子文件替换与 `MemoryTransactionReceiptV1`；memory Skill 增加 `MemoryTransactionWriterGate`，测试覆盖唯一会话分配、事务 receipt、锁冲突 fail-closed 与无半提交。
+- HostParity 发布关键测试不再依赖仓库外 `.devcodex` 运行态文档，改用 tracked fixture；portable Grok SessionStart 对 `GROK_SESSION_ID` 做清洗和 base-boundary check，并增加 hostile replay 防路径越界。
+- workspace deployment manifest 通过 `devcodex update` 重新同步，status/doctor 与 `test:profile-deploy` 的 managed manifest 权威重新一致；Agent SUMMARY 历史违规投影补齐至 runtime alerts=0。
+
 ### HostParity 残留验证收口（ISSUE-049 / ISSUE-050，2026-07-20）
 
 - `CHANGELOG.md` 的“最新版本详细变更文档”链接回到当前 package 版本，并在 V4 增加确定性探针，防止发布摘要再次滞后。

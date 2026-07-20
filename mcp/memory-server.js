@@ -10,6 +10,7 @@
  *   memory_status         — Read bounded today/yesterday/SUMMARY metadata
  *   memory_session_query  — Read exact bounded daily-memory session sections
  *   memory_summary_query  — Read bounded latest/unresolved SUMMARY rows
+ *   memory_session_allocate — Atomically reserve the next daily session section
  *   memory_task_resolve   — Resolve an exact task identity without loading task bodies
  *   memory_session_read   — Read today's/yesterday's session memory file
  *   memory_session_write  — Append a block to the session memory file
@@ -123,6 +124,23 @@ const TOOLS = [
         status: { type: 'string', enum: ['active', 'completed', 'blocked', 'unresolved', 'all'], description: '默认 active' },
         limit: { type: 'integer', minimum: 1, maximum: 50, description: '最多返回行数，默认 5，最大 50' },
         since: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$', description: '只返回该日期及之后的行' }
+      }
+    }
+  },
+  {
+    name: 'memory_session_allocate',
+    description: '在 active-root/agent/date 作用域内原子分配下一会话编号，并写入一个 reserved daily memory 段，避免多写者通过读尾号产生重复编号。',
+    inputSchema: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        agent: { type: 'string', description: 'Agent 标识，默认当前实际宿主' },
+        scope: { type: 'string', enum: ['project', 'workspace'], description: '集中布局下的写入域' },
+        project: { type: 'string', description: '集中布局下的项目命名空间' },
+        date: { type: 'string', pattern: '^\\d{8}$', description: 'YYYYMMDD，默认今日' },
+        title: { type: 'string', minLength: 1, maxLength: 160, description: '会话标题，默认 未命名任务' },
+        intent: { type: 'string', maxLength: 120, description: '意图标签，默认 unspecified' },
+        sourceMessage: { type: 'string', maxLength: 300, description: '用户消息摘要，可选' }
       }
     }
   },
@@ -326,6 +344,108 @@ function taskSessionsPath(kind, requirement, args = {}) {
 function appendFile(filePath, content) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true })
   fs.appendFileSync(filePath, content, 'utf8')
+}
+
+function fileDigest(content) {
+  return crypto.createHash('sha256').update(String(content || ''), 'utf8').digest('hex')
+}
+
+function relativeToActiveRoot(target, filePath) {
+  return path.relative(target.activeRoot, filePath).replace(/\\/g, '/')
+}
+
+function memoryLockDir(target, filePath) {
+  const key = crypto
+    .createHash('sha256')
+    .update(`${target.activeRoot}\0${path.resolve(filePath)}`)
+    .digest('hex')
+  return resolveInside(target.activeRoot, '.runtime-state', 'memory-locks', key)
+}
+
+function acquireMemoryLock(target, filePath) {
+  const lockDir = memoryLockDir(target, filePath)
+  fs.mkdirSync(path.dirname(lockDir), { recursive: true })
+  try {
+    fs.mkdirSync(lockDir)
+  } catch (error) {
+    if (error.code === 'EEXIST') {
+      throw new Error(`MEMORY_TRANSACTION_LOCKED: ${relativeToActiveRoot(target, filePath)} is locked by another writer`)
+    }
+    throw error
+  }
+  const owner = {
+    schemaVersion: 'MemoryWriterLockV1',
+    pid: process.pid,
+    file: relativeToActiveRoot(target, filePath),
+    acquiredAt: new Date().toISOString()
+  }
+  fs.writeFileSync(path.join(lockDir, 'owner.json'), `${JSON.stringify(owner, null, 2)}\n`, 'utf8')
+  return lockDir
+}
+
+function releaseMemoryLock(lockDir) {
+  try {
+    fs.rmSync(lockDir, { recursive: true, force: true })
+  } catch {
+    // Best-effort cleanup. A stale lock is safer than deleting an unknown path.
+  }
+}
+
+function atomicReplaceFile(filePath, content) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true })
+  const temp = path.join(
+    path.dirname(filePath),
+    `.${path.basename(filePath)}.${process.pid}.${Date.now()}.${crypto.randomBytes(4).toString('hex')}.tmp`
+  )
+  try {
+    fs.writeFileSync(temp, content, { encoding: 'utf8', flag: 'wx' })
+    fs.renameSync(temp, filePath)
+  } catch (error) {
+    try { fs.unlinkSync(temp) } catch { /* ignore temp cleanup failures */ }
+    throw error
+  }
+}
+
+function withMemoryTransaction(target, filePath, operation) {
+  const lockDir = acquireMemoryLock(target, filePath)
+  const startedAt = new Date().toISOString()
+  try {
+    const before = readFile(filePath)
+    const beforeDigest = fileDigest(before)
+    const next = operation(before)
+    atomicReplaceFile(filePath, next)
+    const after = readFile(filePath)
+    const receipt = {
+      schemaVersion: 'MemoryTransactionReceiptV1',
+      transactionId: crypto.randomBytes(8).toString('hex'),
+      activeRoot: target.activeRoot,
+      project: target.project,
+      scope: target.scope,
+      agent: target.agent,
+      file: relativeToActiveRoot(target, filePath),
+      beforeDigest,
+      afterDigest: fileDigest(after),
+      startedAt,
+      completedAt: new Date().toISOString()
+    }
+    return receipt
+  } finally {
+    releaseMemoryLock(lockDir)
+  }
+}
+
+function parseExistingSessionNumbers(content) {
+  const ids = []
+  const re = /^##\s+会话\s+#?(\d+)\b/gm
+  let match
+  while ((match = re.exec(content || '')) !== null) {
+    ids.push(Number(match[1]))
+  }
+  return ids.filter(Number.isFinite)
+}
+
+function formatSessionId(number) {
+  return number < 100 ? String(number).padStart(2, '0') : String(number)
 }
 
 // ─── Bounded read-only projection helpers ───────────────────────────────────
@@ -955,10 +1075,55 @@ function handleMemorySessionRead(args) {
 function handleMemorySessionWrite(args) {
   if (!args.content) throw new Error('content is required')
   validateDate(args.date)
-  const p = sessionFilePath(args.agent, args.date, args)
-  const separator = fs.existsSync(p) ? '\n' : ''
-  appendFile(p, separator + args.content)
-  return { content: [{ type: 'text', text: `已追加到 ${path.relative(LAYOUT.workspaceRoot, p)}` }] }
+  const target = resolveMemoryTarget(args)
+  const p = memoryClientPath(target, 'tasks', `${args.date || today()}.md`)
+  const receipt = withMemoryTransaction(target, p, existing => {
+    const separator = existing ? '\n' : ''
+    return existing + separator + args.content
+  })
+  return {
+    content: [{
+      type: 'text',
+      text: `已追加到 ${relativeToActiveRoot(target, p)}\n${JSON.stringify(receipt)}`
+    }]
+  }
+}
+
+function handleMemorySessionAllocate(args) {
+  validateDate(args.date)
+  const input = { ...args, date: args.date || today() }
+  const target = resolveMemoryTarget(input)
+  const p = memoryClientPath(target, 'tasks', `${input.date}.md`)
+  let allocatedId = null
+  const receipt = withMemoryTransaction(target, p, existing => {
+    const maxId = Math.max(0, ...parseExistingSessionNumbers(existing))
+    allocatedId = formatSessionId(maxId + 1)
+    const title = String(input.title || '未命名任务').trim()
+    const intent = String(input.intent || 'unspecified').trim() || 'unspecified'
+    const sourceMessage = String(input.sourceMessage || '—').trim() || '—'
+    const block = [
+      `## 会话 ${allocatedId} — ${title}`,
+      '',
+      `- **时间**：${new Date().toISOString().slice(0, 16).replace('T', ' ')}`,
+      `- **意图**：${intent}`,
+      '- **状态**：🔄 reserved / awaiting content',
+      `- **sourceMessage**：${sourceMessage}`,
+      '',
+      '### 📨 对话记录',
+      '',
+      '| 轮次 | 👤 用户消息 | 🤖 AI执行 | 状态 |',
+      '|:----:|-----------|----------|:----:|',
+      ''
+    ].join('\n')
+    const separator = existing ? '\n\n' : ''
+    return existing + separator + block
+  })
+  const allocation = {
+    schemaVersion: 'MemorySessionAllocationReceiptV1',
+    sessionId: allocatedId,
+    transaction: receipt
+  }
+  return { content: [{ type: 'text', text: JSON.stringify(allocation) }] }
 }
 
 function handleMemoryCpConfirm(args) {
@@ -1077,16 +1242,13 @@ function handleMemorySummaryRead(args) {
 
 function handleMemorySummaryAppend(args) {
   if (!args.row) throw new Error('row is required')
-  const p = summaryFilePath(args.agent, args)
-  const existing = readFile(p)
-
-  if (!existing) {
-    fs.mkdirSync(path.dirname(p), { recursive: true })
-    fs.writeFileSync(p, summaryHeader(args.agent || DEFAULT_AGENT, args) + args.row + '\n', 'utf8')
-  } else {
-    appendFile(p, args.row + '\n')
-  }
-  return { content: [{ type: 'text', text: `已追加到 SUMMARY.md` }] }
+  const target = resolveMemoryTarget(args)
+  const p = memoryClientPath(target, 'SUMMARY.md')
+  const receipt = withMemoryTransaction(target, p, existing => {
+    if (!existing) return summaryHeader(args.agent || target.agent, args) + args.row + '\n'
+    return existing + args.row + '\n'
+  })
+  return { content: [{ type: 'text', text: `已追加到 SUMMARY.md\n${JSON.stringify(receipt)}` }] }
 }
 
 function handleMemoryTaskResolve(args) {
@@ -1128,6 +1290,7 @@ function dispatch(method, params) {
           case 'memory_status': return handleMemoryStatus(args)
           case 'memory_session_query': return handleMemorySessionQuery(args)
           case 'memory_summary_query': return handleMemorySummaryQuery(args)
+          case 'memory_session_allocate': return handleMemorySessionAllocate(args)
           case 'memory_session_read': return handleMemorySessionRead(args)
           case 'memory_session_write': return handleMemorySessionWrite(args)
           case 'memory_cp_confirm': return handleMemoryCpConfirm(args)

@@ -136,7 +136,10 @@ function buildLifecyclePayloadUtils({ fs, path, payloadPreviewLimit, transcriptT
   function getVisibleReplyEvidence(payload) {
     const directFieldNames = [
       'assistantMessage', 'assistant_message', 'response',
-      'responseText', 'response_text', 'output', 'reply', 'content', 'message'
+      'responseText', 'response_text', 'output', 'reply', 'content', 'message',
+      // Extra Grok / harness aliases when hosts expose final turn text (W8).
+      'finalMessage', 'final_message', 'assistantResponse', 'assistant_response',
+      'agentMessage', 'agent_message', 'completion', 'result', 'text'
     ]
     for (const fieldName of directFieldNames) {
       if (!Object.prototype.hasOwnProperty.call(payload, fieldName)) continue

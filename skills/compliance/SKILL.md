@@ -15,6 +15,8 @@ description: 执行入口检查与 FC/SC/RC/T 合规校验。PC0~PC7 入口检�
 >
 > ⚠️ **入口检查（PC0~PC7）所有模式启用**，收到用户消息后立即执行；dev 模式额外执行 PC4 完整规范雷达，非 dev 模式 PC4 标注 N/A，详见 [`17-compliance.instructions.md`](../../instructions/17-compliance.instructions.md) §入口检查。
 >
+> 🔴 **S07 时序**：用户**首次可见** PC0~PC7 先于实质正文与产物 mutation（报告/记忆/台账）；**禁止**最终文首补 PC 冒充已先输出。Hook 可报告 `s07OrderStatus`（ok/late/missing/unverified）。
+>
 > 🔴 **PC0 单源语义（ABS-07）**：用户可见 PC0 必须写 `ContextReadPlan` + 必要来源回执；`instructions.md`、`17-compliance`、`precheck-status.prompt` **同源**。禁止「Profile ✅ 已加载」单字段冒充上下文完整；PC7 使用 `memory_status` + 有界 query 回执一致表述。
 >
 > ℹ️ ENV_MODE 未注入（profile 未加载）时，默认按 `prod`（不执行合规检查）。

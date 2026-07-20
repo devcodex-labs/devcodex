@@ -1,6 +1,16 @@
 {
   "description": "DevCodex lifecycle bridge for Grok Build; project hooks require explicit trust.",
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"const fs=require('fs'),p=require('path'),o=require('os');const d=p.join(process.env.GROK_PLUGIN_DATA||o.tmpdir(),'devcodex-grok-session-stamps');fs.mkdirSync(d,{recursive:true});fs.writeFileSync(p.join(d,(process.env.GROK_SESSION_ID||'s')+'.json'),JSON.stringify({schemaVersion:'GrokSessionStartStampV1',stampedAt:new Date().toISOString(),cwd:process.cwd()}));\""
+          }
+        ]
+      }
+    ],
     "UserPromptSubmit": [
       {
         "hooks": [
@@ -13,22 +23,22 @@
     ],
     "PreToolUse": [
       {
-        "matcher": "*",
         "hooks": [
           {
             "type": "command",
-            "command": "node .grok/hooks/_runtime/lifecycle-host-adapters.cjs grok"
+            "command": "node .grok/hooks/_runtime/lifecycle-host-adapters.cjs grok",
+            "timeout": 15
           }
         ]
       }
     ],
     "PostToolUse": [
       {
-        "matcher": "*",
         "hooks": [
           {
             "type": "command",
-            "command": "node .grok/hooks/_runtime/lifecycle-host-adapters.cjs grok"
+            "command": "node .grok/hooks/_runtime/lifecycle-host-adapters.cjs grok",
+            "timeout": 15
           }
         ]
       }

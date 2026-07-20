@@ -58,6 +58,7 @@ export default defineConfig({
                     items: [
                         { text: '什么是 DevCodex', link: '/intro/' },
                         { text: '设计理念', link: '/intro/philosophy' },
+                        { text: 'Grok 与 Codex 宿主对齐', link: '/intro/host-parity-grok' },
                         { text: '套餐与定价', link: '/intro/pricing' },
                     ],
                 },

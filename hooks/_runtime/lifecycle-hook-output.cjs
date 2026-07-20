@@ -122,6 +122,9 @@ function buildLifecycleHookOutput({ env, enforcementMode }) {
       return ['pretooluse', 'permissionrequest', 'userpromptsubmit', 'stop', 'subagentstop', 'agentstop', 'precompact', 'postcompact'].includes(event)
     }
     if (platform === 'gemini') return ['pretooluse', 'userpromptsubmit', 'stop'].includes(event)
+    // Grok Build: only PreToolUse is blocking; all other lifecycle events are passive
+    // (stdout ignored). Never advertise UserPromptSubmit/Stop hard-block parity with Codex.
+    if (platform === 'grok') return event === 'pretooluse' || event === 'permissionrequest'
     return ['pretooluse', 'permissionrequest'].includes(event)
   }
 

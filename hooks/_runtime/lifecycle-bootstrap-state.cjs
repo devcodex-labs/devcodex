@@ -244,7 +244,9 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     const explicit = String(payload?.devcodexContextCapability || payload?.contextCapability || '').trim()
     if (['structured-plan', 'path-observable', 'instruction-only'].includes(explicit)) return explicit
     if (platform === 'claude') return 'structured-plan'
-    if (platform === 'codex') return 'path-observable'
+    // Codex and Grok both expose PreToolUse path observation; Grok cannot inject
+    // UserPromptSubmit context (passive stdout ignored) so parity is path-observable only.
+    if (platform === 'codex' || platform === 'grok') return 'path-observable'
     return 'instruction-only'
   }
 
@@ -375,8 +377,12 @@ function buildLifecycleBootstrapStateUtils(ctx) {
         artifactPaths: false,
         artifactStatus: 'unverified',
         artifactEvidenceSource: '',
-        artifactMissingItems: []
+        artifactMissingItems: [],
+        s07OrderStatus: 'unverified'
       },
+      productMutationBeforePrecheck: false,
+      productMutationCountThisTurn: 0,
+      s07ProductWarnEmitted: false,
       stickyProject: {
         project: CONTEXT_PROJECT || '',
         source: CONTEXT_PROJECT ? 'context' : '',
@@ -1257,6 +1263,31 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     const acquisition = syncContextProjection(state)
     const missing = acquisition.receipt?.missingSourceIds || ['authoritative-plan']
     const toolName = getToolName(payload) || 'tool'
+    let detail = `Missing sources: ${missing.join(', ') || 'none'}. Use contextEpoch=${acquisition.contextEpoch}; do not replace the plan with an unbounded full read.`
+    // Grok cannot inject UserPromptSubmit context; attach S07 portable block to deny reason (W7 assist).
+    // Keep template inline so deployed .codex/hooks/_runtime copies do not depend on package scripts/.
+    if (platform === 'grok') {
+      const project = acquisition.project || state.activeProject || '未识别'
+      detail += [
+        '',
+        '--- DevCodex S07 assist (Grok cannot inject this; emit in the user-visible reply) ---',
+        '### DevCodex · 入口检查',
+        `\`BLOCK\` · \`${project}\``,
+        '',
+        '- PC0 [UNVERIFIED] ContextReadPlan 与必要来源回执',
+        '- PC1 [UNVERIFIED] 语义初判 → 最终路由',
+        '- PC2 [UNVERIFIED] 会话/Token/待跟进',
+        '- PC3 [UNVERIFIED] 唯一项目与产物落点',
+        '- PC4 [N/A] 非 dev 时 N/A',
+        '- PC5 [UNVERIFIED] Grok HostParity（Partial unless Full launcher）',
+        '- PC6 [UNVERIFIED] dirty/active task',
+        '- PC7 [UNVERIFIED] resume/continuation',
+        '',
+        '下一步：先输出完整 PC0~PC7，再完成 ContextReadPlan 证据后重试工具',
+        'DevCodexVisibleEnvelopeV1 · entry-check · BLOCK · s07-assist-context-incomplete',
+        '--- end S07 assist ---'
+      ].join('\n')
+    }
     return buildInterceptionOutput(
       state,
       platform || 'copilot',
@@ -1264,7 +1295,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       INTERCEPTION_ACTION.REQUIRE_COMPLETION,
       'context-acquisition-incomplete',
       `Blocked ${toolName} until the current context plan has verifiable evidence`,
-      `Missing sources: ${missing.join(', ') || 'none'}. Use contextEpoch=${acquisition.contextEpoch}; do not replace the plan with an unbounded full read.`,
+      detail,
       'Complete the exact plan/query evidence or replan once after scope drift, then retry the tool.'
     )
   }
@@ -1319,7 +1350,8 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     buildBootstrapDenyOutput,
     buildBootstrapWarningOutput,
     buildBootstrapWarningKey,
-    buildDedupedBootstrapWarningOutput
+    buildDedupedBootstrapWarningOutput,
+    hostCapabilityFor
   }
 }
 

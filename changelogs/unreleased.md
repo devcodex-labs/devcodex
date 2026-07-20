@@ -9,6 +9,24 @@ WorkspaceDataAbsorptionScopeGate · DocsSiteVisualAcceptanceGate · OmissionOnly
 
 ## 当前未发布变更
 
+### S07 入口检查时序与产物写入门禁（VL-004 / PI-016，2026-07-20）
+
+- 规范：`S07` 明确用户**首次可见** PC0~PC7 先于实质正文与产物 mutation（`reports/`、`.memory/`、台账）；禁止「最终文首补 PC」冒充先输出；`17-compliance` / `compliance` / `precheck-status` / `user-visible-output-contract` 同源对齐；kernel 投影已刷新。
+- 运行时：产物路径 PreToolUse 默认 safety-only 提醒一次、`strict` deny；Stop 结算 `s07OrderStatus=ok|late|missing|unverified` 并在 late 时 closure reminder。
+- 验证：`scripts/test-hooks-runtime.js` 覆盖 warn/deny/只读放行/late；工作区 `update --host all` 同步 `.codex`/`.claude`/`.github`/Gemini runtime 与 `AGENTS.md` / `instructions.full.md`。
+
+### Grok HostParity（对齐 Codex 硬门禁，2026-07-20）
+
+- Grok PreToolUse 输出适配官方契约：`permissionDecision` / `decision:block` → `{"decision":"deny","reason"}`；允许 → `{"decision":"allow"}`。
+- 被动事件（UserPromptSubmit / Stop / PreCompact 等）剥离硬拦 decision，并标记 `passive-hook-no-context-injection`，禁止把 stdout 当成上下文注入证据。
+- `hostCapabilityFor('grok')` 升为 `path-observable`（与 Codex 同档工具路径观察）；`eventSupportsHardBlock` 对 Grok 仅承认 PreToolUse。
+- workspace plugin Skill 增加 Full（`devcodex grok --rules`）/ Partial（plain child）诚实分列；禁止宣称与 Codex hook-enforced 完全一致。
+- 契约测试：`scripts/test-host-adapters.js` 覆盖 deny/allow、被动不 block、path-observable 与 hard-block 矩阵。
+- **补齐**：`HostParityScorecardV1` 接入 `doctor`/`status`（含 `--json`）；Grok `SessionStart` 会话戳记；上下文 deny 附 S07 PC0 辅助模板；Stop 探针扩展字段与 `### DevCodex · 入口检查` 识别；MCP `profile_compose_entry_check`；`npm run test:host-parity`。
+- **收口剩余可交付**：站内 [Grok 与 Codex 对齐](website/docs/intro/host-parity-grok.md) + sidebar；哲学页 Auto 宿主诚实分列；阶段 3 平台需求单 `03-平台能力需求-xAI.md`；`test-host-parity-remaining` 跨宿主 hard-block 与文档存在性烟测。
+- **Grok 危险命令未拦修复**：PreTool/PostTool 去掉非法 regex matcher `*`（Grok 按正则解析，`*` 无效导致 hook 可能不触发）；`pre_tool_use` 等 snake_case 事件名规范为 lifecycle `PreToolUse`；bridge 在 `decision:deny` 时 exit 2。
+- **Grok bridge 二次加固**：`GROK_WORKSPACE_ROOT`/多 cwd 候选与 plugin-bound fallback；adapter 非 0 退出仍解析 deny JSON；bridge 本地危险命令兜底 deny；写入 `pretool-last.json` 诊断；Remove-Item 参数顺序兼容。
+
 ### Grok workspace 插件与宿主作用域纠偏（2026-07-20）
 
 - `workspace-namespace` 的项目根执行 `--host grok` 时，实际部署 owner 自动提升到工作区根：工作区只保留单一 `devcodex-workspace` 薄插件，子项目不生成 `AGENTS.md`、`.grok` 或其他宿主入口，也不创建第二套项目运行态。

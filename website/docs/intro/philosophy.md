@@ -28,7 +28,16 @@ CP 流程（CP1 需求确认 → CP2 方案确认 → CP3 实施确认）的设�
 - **每个阶段独立**：需求理解不代表方案正确，方案正确不代表实施计划合理
 - **不可跳过**：单次跳过会导致后续所有阶段建立在错误假设上，代价远高于多等一轮确认
 
-Auto v1.1（`@devcodex-auto`、全局默认 `@rocky`、Profile `extensions.devcodex.autoAliases` 替换别名，或明确自然语言 auto 授权）并不是"去掉约束"。它只在 hook-enforced 宿主里，对治理文件、文档、`.devcodex/` 产物、README 与 auto 专属回归脚本等白名单路径自动推进；配置了 `autoAliases` 时该列表替换全局默认别名，空数组表示关闭默认别名；模糊提及、询问 auto 规则、未生效昵称或普通“继续”不算授权；非白名单源码路径默认回确认模式，安全底线始终有效。
+Auto v1.1（`@devcodex-auto`、全局默认 `@rocky`、Profile `extensions.devcodex.autoAliases` 替换别名，或明确自然语言 auto 授权）并不是"去掉约束"。它只在 **hook-enforced 或具备等价 PreTool 硬门禁** 的宿主里，对治理文件、文档、`.devcodex/` 产物、README 与 auto 专属回归脚本等白名单路径自动推进；配置了 `autoAliases` 时该列表替换全局默认别名，空数组表示关闭默认别名；模糊提及、询问 auto 规则、未生效昵称或普通“继续”不算授权；非白名单源码路径默认回确认模式，安全底线始终有效。
+
+**宿主诚实分列（Auto）**：
+
+| 宿主 | Auto runtime 保证 |
+|------|-------------------|
+| Claude Code（hooks 齐全） | 可宣称 hook-enforced 白名单自动推进 |
+| Codex（hooks 齐全） | 事件依赖的 hook guardrail；PreTool 等可硬拦 |
+| Grok Build | **仅 PreToolUse 可硬拦**；无 UserPromptSubmit 注入/Stop 硬拦。Auto 语义保留，但 **不得** 宣称与 Claude 同级 hook-enforced 全自动；Full 会话用 `devcodex grok`。详见 [Grok 与 Codex 对齐](/intro/host-parity-grok) |
+| JetBrains / 纯 instruction-fallback | 只同步规则语义，无 runtime 硬自动 |
 
 ---
 

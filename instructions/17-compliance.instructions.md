@@ -57,6 +57,8 @@ version: 1.15.1
 > ⚠️ `hook-enforced` 模式下，入口检查状态可以由宿主事件驱动后显示为**首个结构化状态块**；`instruction-fallback` 模式下，入口检查块仍应尽量位于回复开头，但不再机械要求“第一批 tool call”“第一行输出”。
 >
 > ⚠️ **S07 自修正触发**（见 [`00-safety.instructions.md`](./00-safety.instructions.md) §S07）：AI 自检发现已开始生成实质内容但尚未输出入口检查块时，立即触发 S07 — 在当前位置补输出 PC0~PC7，重新评估意图与项目现实扩展后继续，**不等待用户重新发送消息，不终止当前请求**。
+>
+> 🔴 **S07 时序（VL-004 / PI-016）**：用户**首次可见** PC0~PC7 必须先于实质正文与产物 mutation（`reports/`、`.memory/`、台账 `data/*` 写入）。**「最终回复文首补 PC」≠ 已先输出入口检查**。只读准备 tool 可在首次可见入口检查之后执行。Hook 可对产物路径 safety-only 提醒或 strict 拦截，并在 Stop 记录 `s07OrderStatus=late|missing|ok|unverified`；tool-loop 宿主不保证 UI 先于任意 tool。
 
 ### PC4 规范雷达（dev 模式专属）
 

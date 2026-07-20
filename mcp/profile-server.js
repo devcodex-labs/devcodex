@@ -225,6 +225,20 @@ const TOOLS = [
         }
       }
     }
+  },
+  {
+    name: 'profile_compose_entry_check',
+    description: '生成规范 ### DevCodex · 入口检查 (PC0~PC7) portable 块，供模型粘贴到用户可见回复。不替代 S07；Grok 无法注入该块。',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        project: { type: 'string', description: '项目名；默认未识别' },
+        status: { type: 'string', description: 'PASS/WARN/BLOCK/UNVERIFIED/N/A' },
+        nextStep: { type: 'string' },
+        semanticDigest: { type: 'string' }
+      },
+      additionalProperties: false
+    }
   }
 ]
 
@@ -1314,6 +1328,23 @@ function dispatch(method, params) {
           case 'profile_load': return handleProfileLoad(args)
           case 'profile_skill_plan': return handleProfileSkillPlan(args)
           case 'profile_get_mode': return handleProfileGetMode(args)
+          case 'profile_compose_entry_check': {
+            const { composeEntryCheckBlock } = require('../scripts/lib/host-parity-scorecard.js')
+            const block = composeEntryCheckBlock({
+              project: args.project,
+              status: args.status,
+              nextStep: args.nextStep,
+              semanticDigest: args.semanticDigest
+            })
+            return {
+              content: [{ type: 'text', text: block }],
+              structuredContent: {
+                schemaVersion: 'EntryCheckComposeV1',
+                block,
+                note: 'Paste into the user-visible reply before substantive work. Grok hooks cannot inject this.'
+              }
+            }
+          }
           default:
             throw Object.assign(new Error(`Unknown tool: ${name}`), { code: -32601 })
         }

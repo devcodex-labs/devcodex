@@ -3,6 +3,7 @@
 const PACKAGE_JSON = require('../../package.json')
 const { createCliFailure, createCliSuccess, parseJsonArgs, printCliJson } = require('./cli-json-contract.js')
 const { inspectExecutionOptimization } = require('./execution-optimization.js')
+const { evaluateGrokHostParity } = require('./host-parity-scorecard.js')
 
 function buildCliMaintenanceCommands(ctx) {
   const {
@@ -86,6 +87,15 @@ function buildCliMaintenanceCommands(ctx) {
     const profileState = inspectProfileState(profileDir)
     const legacy = getLegacyCounts(ghDir)
     const executionOptimization = inspectExecutionOptimization(cwd)
+    const hostParity = evaluateGrokHostParity({
+      cwd,
+      hostRoot,
+      instructionProjection,
+      hasAgentsMd: agentsMdInstalled,
+      hasCodexLifecycle: codexHookFiles > 0 && codexHookJsonInstalled,
+      hasGrokWorkspacePlugin: grokWorkspacePluginInstalled,
+      hasGrokPluginRegistration: grokPluginRegistrationCurrent
+    })
     return {
       schemaVersion: 'StatusDiagnosticV1',
       cwd,
@@ -93,6 +103,7 @@ function buildCliMaintenanceCommands(ctx) {
       sourceRepository,
       trackedEntryFiles,
       installSurfaces,
+      hostParity,
       entryFiles: {
         rulesInstalled,
         copilotInstructionsInstalled,
@@ -141,7 +152,7 @@ function buildCliMaintenanceCommands(ctx) {
 
     const {
       cwd, hostRoot, sourceRepository: isSrc, trackedEntryFiles: total, installSurfaces,
-      entryFiles, profile, executionOptimization, legacy
+      entryFiles, profile, executionOptimization, legacy, hostParity
     } = facts
     console.log()
     console.log(c.bold('  DevCodex status') + c.dim(` in ${cwd}`))
@@ -174,6 +185,11 @@ function buildCliMaintenanceCommands(ctx) {
       : (entryFiles.instructionProjection.status === 'not-installed'
           ? c.dim('not installed')
           : c.yellow(`${entryFiles.instructionProjection.issues.length} issue(s)`))}`)
+    if (hostParity) {
+      console.log(`  ${c.cyan('Grok parity'.padEnd(14))} ${hostParity.hardReady
+        ? c.green(`${hostParity.tier} — use: devcodex grok`)
+        : c.yellow(`${hostParity.tier} — see doctor --json hostParity.checks`)}`)
+    }
 
     let profileLabel
     const profileDetails = profile.required
@@ -426,6 +442,17 @@ function buildCliMaintenanceCommands(ctx) {
     else if (platform === 'jetbrains-copilot') mode = 'instruction-fallback (JetBrains — Hooks unsupported)'
     else if (platform === 'unknown' && installedHosts.length > 1) mode = 'mixed install (host unresolved; multiple adapters present)'
 
+    const hostParity = evaluateGrokHostParity({
+      cwd,
+      hostRoot,
+      instructionProjection,
+      hasAgentsMd,
+      hasCodexLifecycle: hasCodexHooks,
+      hasGrokWorkspacePlugin,
+      hasGrokPluginRegistration,
+      platform
+    })
+
     return {
       schemaVersion: 'DoctorDiagnosticV1',
       cwd,
@@ -436,6 +463,7 @@ function buildCliMaintenanceCommands(ctx) {
       agent,
       installedHosts,
       mode,
+      hostParity,
       enforcement: 'safety-only by default; strict blocks only host-supported events',
       installArtifacts: {
         hasGithubHooks,
@@ -492,7 +520,8 @@ function buildCliMaintenanceCommands(ctx) {
       cwd, hostRoot, platformEvidence, platform, agent, installedHosts, mode,
       installArtifacts, codexHookDiagnostics, codexConfigState,
       profile: profileState,
-      executionOptimization
+      executionOptimization,
+      hostParity
     } = facts
     const {
       hasGithubHooks, hasClaudeHooks, hasCodexHooksJson, hasCodexHooks,
@@ -515,6 +544,12 @@ function buildCliMaintenanceCommands(ctx) {
     console.log(`  mode:            ${c.bold(mode)}`)
     console.log(`  optimization:    ${c.bold(executionOptimization.config.effective)} ${c.dim(`(${executionOptimization.config.status}; state=${executionOptimization.stateStatus})`)}`)
     console.log(c.dim('  enforcement:     default safety-only warns/continues for bootstrap/CP/auto; strict blocks only host-supported events.'))
+    if (hostParity) {
+      const tierColor = hostParity.hardReady ? c.green : c.yellow
+      console.log(`  Grok HostParity: ${tierColor(hostParity.tier)} ${c.dim(`(ref Codex; ${hostParity.hardReady ? 'hard path ready' : 'partial'})`)}`)
+      console.log(c.dim(`  ${hostParity.userVisibleSummary}`))
+      console.log(c.dim(`  Full session entry: ${hostParity.recommendedEntry}`))
+    }
     console.log()
     console.log(c.bold('  Install artifacts:'))
     console.log(`    CLAUDE.md                            ${hasClaudeMd ? c.green('✅') : c.dim('—')}`)
@@ -586,6 +621,18 @@ function buildCliMaintenanceCommands(ctx) {
     }
     if (platform === 'grok' && !hasGrokHooks) {
       console.log(c.yellow('  ⚠️  Grok detected but its resolved adapter is missing — run `devcodex init --host grok` from the current scope'))
+      console.log()
+    }
+    if (hostParity && !hostParity.hardReady) {
+      console.log(c.bold('  Grok HostParity checks:'))
+      for (const [key, ok] of Object.entries(hostParity.checks || {})) {
+        console.log(`    ${key.padEnd(28)} ${ok ? c.green('✅') : c.red('❌')}`)
+      }
+      console.log(c.dim('  Cannot claim: ' + (hostParity.cannotClaim || []).slice(0, 2).join('; ')))
+      console.log()
+    } else if (hostParity && hostParity.hardReady) {
+      console.log(c.dim('  Grok HostParity: PreTool deny + path-observable ready. Still cannot claim UserPromptSubmit inject or Stop hard-block.'))
+      console.log(c.dim('  Prefer `devcodex grok` in child Git projects for Full kernel evidence.'))
       console.log()
     }
     if (instructionProjection.issues.length) {

@@ -34,7 +34,7 @@ npx @vextjs/devcodex init --codex
 
 执行完成后，普通仓库会在项目根出现对应宿主文件；workspace-namespace 会把这些受管文件统一写到工作区根，子项目不生成 `.github/.claude/.codex/.gemini/.grok` 或入口文件。新开 AI 会话并发送开发、修复或审查任务，即可验证入口检查、工作流路由、报告与记忆是否生效。安装出现 401/403 时检查 scope registry、`read:packages` 与当前 shell 的 `NODE_AUTH_TOKEN`。完整命令、更新方式和排错步骤见 [README](https://github.com/vextjs/devcodex)。
 
-每次 `init/update` 都会在 active runtime root 更新 managed deployment manifest，并预览新增、更新、陈旧和未受管文件。陈旧文件只报告、不自动删除；未受管文件不会被 DevCodex 接管；同一规范化物理 destination 只能有一个 current owner。workspace-namespace 下宿主资产统一由工作区拥有：Grok 使用工作区薄插件与官方用户级本地插件登记，子项目默认不生成任何宿主目录或入口文件；安装登记保持用户配置原始字节。工作区根可直接运行 `grok`，子 Git 项目的完整 kernel 路线使用 `devcodex grok`，plain child 仅为 best-effort Skill discovery。
+每次 `init/update` 都会在 active runtime root 更新 managed deployment manifest，并预览新增、更新、陈旧和未受管文件。陈旧文件只报告、不自动删除；未受管文件不会被 DevCodex 接管；同一规范化物理 destination 只能有一个 current owner。workspace-namespace 下宿主资产统一由工作区拥有：Grok 使用工作区薄插件与官方用户级本地插件登记，子项目默认不生成任何宿主目录或入口文件；安装登记保持用户配置原始字节。工作区根可直接运行 `grok`，子 Git 项目的完整 kernel 路线使用 `devcodex grok`，plain child 仅为 best-effort Skill discovery。Grok 与 Codex 的能力对照、诊断命令与平台上限见 **[Grok 宿主与 Codex 对齐说明](/intro/host-parity-grok)**。
 
 ---
 

@@ -369,10 +369,35 @@ const {
 // ─── Payload helpers ──────────────────────────────────────────────────────────
 
 function getEventName(payload) {
-  return String(
+  const raw = String(
     payload.hookEventName || payload.hook_event_name ||
     payload.eventName || payload.event || payload.phase || ''
   ).trim()
+  if (!raw) return ''
+  // Normalize Grok/Cursor snake_case and Claude PascalCase to lifecycle canonical names.
+  const token = raw.toLowerCase().replace(/[^a-z]/g, '')
+  const canonical = {
+    pretooluse: 'PreToolUse',
+    posttooluse: 'PostToolUse',
+    posttoolusefailure: 'PostToolUse',
+    userpromptsubmit: 'UserPromptSubmit',
+    sessionstart: 'SessionStart',
+    sessionend: 'SessionEnd',
+    stop: 'Stop',
+    stopfailure: 'Stop',
+    precompact: 'PreCompact',
+    postcompact: 'PostCompact',
+    subagentstart: 'SubagentStart',
+    subagentstop: 'SubagentStop',
+    subagentend: 'SubagentStop',
+    notification: 'Notification',
+    beforeagent: 'UserPromptSubmit',
+    afteragent: 'Stop',
+    beforetool: 'PreToolUse',
+    aftertool: 'PostToolUse',
+    precompress: 'PreCompact'
+  }
+  return canonical[token] || raw
 }
 
 function getToolName(payload) {
@@ -983,7 +1008,7 @@ const DANGEROUS_PATTERNS = [
   { re: /\bdelete\s+from\b(?:(?!\bwhere\b|;)[\s\S])*(?:;|$)/i, reason: 'Blocked: DELETE FROM without WHERE', neverApprove: true },
   { re: /\btruncate\b/i, reason: 'Blocked: TRUNCATE', neverApprove: true },
   { re: /\bdel\s+\/f\s+\/q\b/i, reason: 'Blocked: del /f /q' },
-  { re: /Remove-Item.*-Recurse.*-Force/i, reason: 'Blocked: Remove-Item -Recurse -Force' }
+  { re: /Remove-Item[\s\S]*-Recurse[\s\S]*-Force|Remove-Item[\s\S]*-Force[\s\S]*-Recurse/i, reason: 'Blocked: Remove-Item -Recurse -Force' }
 ]
 
 const {
@@ -1027,6 +1052,52 @@ function updateArtifactTouches(state, payload, platform) {
   if (touchesPath(payload, '/reports/')) state.reportTouched = true
   if (touchesPath(payload, '/.memory/', '/sessions.md')) state.memoryTouched = true
   if (isMutatingTool(payload, platform)) state.mutated = true
+}
+
+/** Product-artifact paths: reports, memory, runtime ledgers (S07 order / VL-004). */
+const PRODUCT_ARTIFACT_PATH_NEEDLES = [
+  '/reports/',
+  '\\reports\\',
+  '/.memory/',
+  '\\.memory\\',
+  '/data/violations.md',
+  '/data/process-improvements.md',
+  '/data/pending-fixes.md',
+  '/data/pending-issues.md',
+  '/data/gap-registry.md'
+]
+
+function isWriteLikeToolName(toolName) {
+  const tn = String(toolName || '').toLowerCase()
+  return (
+    /^(?:write|edit|search[_-]?replace|str[_-]?replace|apply[_-]?patch|create[_-]?file|multi[_-]?edit|insert[_-]?code|rewrite[_-]?file)$/i.test(tn) ||
+    /memory_(?:session_write|summary_append|cp_confirm)|memory-(?:session-write|summary-append|cp-confirm)/i.test(tn)
+  )
+}
+
+/**
+ * True when a mutating tool targets product artifacts that must not precede first user-visible PC0.
+ * Read-only tools never match. Mid-turn precheck is almost never verified-present on tool-loop hosts.
+ */
+function isProductArtifactMutation(payload, platform) {
+  const toolName = getToolName(payload)
+  const writeLike = isWriteLikeToolName(toolName)
+  const mutating = isMutatingTool(payload, platform)
+  if (!writeLike && !mutating) return false
+  if (touchesPath(payload, ...PRODUCT_ARTIFACT_PATH_NEEDLES)) return true
+  // MCP memory writes often omit path strings in tool_input
+  if (/memory_(?:session_write|summary_append)|memory-(?:session-write|summary-append)/i.test(toolName)) return true
+  return false
+}
+
+function markProductMutationOrder(state, payload, platform) {
+  if (!isProductArtifactMutation(payload, platform)) return false
+  const precheckStatus = getPrecheckEvidenceStatus(state)
+  if (precheckStatus !== 'verified-present') {
+    state.productMutationBeforePrecheck = true
+    state.productMutationCountThisTurn = (state.productMutationCountThisTurn || 0) + 1
+  }
+  return true
 }
 
 const {
@@ -1260,6 +1331,7 @@ async function main() {
     const autoWhitelist = checkAutoWhitelist(payload, platform, state)
     if (autoWhitelist && autoWhitelist.allowed) {
       state.lastReason = 'auto-whitelist-bypass'
+      markProductMutationOrder(state, payload, platform)
       updateArtifactTouches(state, payload, platform)
       state.turnLiveness = startToolLease(state.turnLiveness, payload, getToolName(payload))
       saveState(state)
@@ -1299,6 +1371,41 @@ async function main() {
       return
     }
 
+    // 3.5 S07 product-artifact order (VL-004): reports/memory/ledgers vs first user-visible PC
+    // Note: tool-loop hosts rarely have verified-present precheck mid-turn; late is expected if products write first.
+    if (isProductArtifactMutation(payload, platform)) {
+      markProductMutationOrder(state, payload, platform)
+      const precheckStatus = getPrecheckEvidenceStatus(state)
+      if (precheckStatus !== 'verified-present') {
+        const reason = 's07-product-before-entry-check'
+        const detailZh = 'S07 时序：产物 mutation（reports/.memory/台账）须在用户首次可见 PC0~PC7 之后；禁止最终文首补 PC 冒充先输出。'
+        const detailEn = 'S07 order: product artifact writes require first user-visible PC0-PC7 before reports/memory/ledger mutations.'
+        if (isStrictEnforcement()) {
+          state.lastReason = reason
+          saveState(state)
+          writeStdout(buildInterceptionOutput(
+            state, platform, eventName, INTERCEPTION_ACTION.REQUIRE_COMPLETION, reason,
+            reason, detailZh, detailEn
+          ))
+          return
+        }
+        if (!state.s07ProductWarnEmitted) {
+          state.s07ProductWarnEmitted = true
+          state.lastReason = `${reason}-warn`
+          updateArtifactTouches(state, payload, platform)
+          state.turnLiveness = startToolLease(state.turnLiveness, payload, getToolName(payload))
+          saveState(state)
+          writeStdout(buildInterceptionOutput(
+            state, platform, eventName, INTERCEPTION_ACTION.REQUIRE_COMPLETION, reason,
+            reason,
+            `${detailZh} Tool allowed in safety-only mode.`,
+            `${detailEn} Tool allowed in safety-only mode.`
+          ))
+          return
+        }
+      }
+    }
+
     updateArtifactTouches(state, payload, platform)
     state.turnLiveness = startToolLease(state.turnLiveness, payload, getToolName(payload))
     saveState(state)
@@ -1316,6 +1423,7 @@ async function main() {
       eventName,
       toolName: getToolName(payload)
     })
+    markProductMutationOrder(state, payload, platform)
     updateArtifactTouches(state, payload, platform)
     state.turnLiveness = completeToolLease(state.turnLiveness, payload)
     saveState(state)

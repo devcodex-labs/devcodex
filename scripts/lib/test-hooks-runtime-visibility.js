@@ -4,6 +4,7 @@ function runHooksRuntimeVisibilityScenarios(context) {
   const {
     assert,
     fs,
+    path,
     TEMP_ROOT,
     STATE_DIR,
     STATE_FILE,
@@ -348,7 +349,12 @@ function runHooksRuntimeVisibilityScenarios(context) {
       '`DevCodexVisibleEnvelopeV1 · final-result · PASS · aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`'
     ].join('\n')
   })
-  assert.ok(!completeClosureReply.systemMessage)
+  // Product writes preceded Stop precheck evidence → S07 order late (VL-004); other closure items clean
+  assert.match(completeClosureReply.systemMessage || '', /S07 order|product mutation before entry-check|VL-004/i)
+  assert.ok(!/合规检查状态块未输出/.test(completeClosureReply.systemMessage || ''))
+  assert.ok(!/用户可见交付不完整/.test(completeClosureReply.systemMessage || ''))
+  const completeClosureState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(completeClosureState.visible.s07OrderStatus, 'late')
 
   cleanState()
   run({
@@ -444,7 +450,8 @@ function runHooksRuntimeVisibilityScenarios(context) {
     transcript_path: transcriptPath,
     cwd: TEMP_ROOT
   })
-  assert.ok(!transcriptBackedClosureReply.systemMessage)
+  // Reports/memory mutations before transcript PC evidence → late order reminder only
+  assert.match(transcriptBackedClosureReply.systemMessage || '', /S07 order|product mutation before entry-check|VL-004/i)
   const transcriptBackedState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
   assert.strictEqual(transcriptBackedState.visible.payloadObserved, true)
   assert.strictEqual(transcriptBackedState.visible.precheck, true)
@@ -452,6 +459,7 @@ function runHooksRuntimeVisibilityScenarios(context) {
   assert.strictEqual(transcriptBackedState.visible.artifactPaths, true)
   assert.strictEqual(transcriptBackedState.visible.artifactStatus, 'verified-present')
   assert.strictEqual(transcriptBackedState.visible.artifactEvidenceSource, 'transcript_path')
+  assert.strictEqual(transcriptBackedState.visible.s07OrderStatus, 'late')
 
   cleanState()
   run({
@@ -520,6 +528,95 @@ function runHooksRuntimeVisibilityScenarios(context) {
   assert.ok(!/entry check block 未输出/.test(unverifiedStop.systemMessage || ''))
   visibleState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
   assert.strictEqual(visibleState.visible.replyEvidence, 'unverified')
+  assert.strictEqual(visibleState.visible.s07OrderStatus || 'unverified', 'unverified')
+
+  // ── S07 product-artifact order (VL-004 / PI-016) ───────────────────────────
+  cleanState()
+  run({
+    hookEventName: 'UserPromptSubmit',
+    prompt: 's07 product write before entry-check safety-only'
+  })
+  runBootstrapReads(TEST_AGENT)
+  const productWriteWarn = run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'Write',
+    tool_input: {
+      file_path: path.join(TEMP_ROOT, '.devcodex', 'reports', 'analysis', 'test', '01--sample.md'),
+      content: '# report\n'
+    }
+  })
+  assert.strictEqual(productWriteWarn.continue, true)
+  assert.match(
+    productWriteWarn.systemMessage || productWriteWarn.hookSpecificOutput?.permissionDecisionReason || '',
+    /s07-product-before-entry-check|S07/i
+  )
+  assert.notStrictEqual(productWriteWarn.hookSpecificOutput?.permissionDecision, 'deny')
+  let s07State = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(s07State.productMutationBeforePrecheck, true)
+  assert.strictEqual(s07State.s07ProductWarnEmitted, true)
+
+  const productWriteSecond = run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'Write',
+    tool_input: {
+      file_path: path.join(TEMP_ROOT, '.devcodex', 'reports', 'analysis', 'test', '02--sample.md'),
+      content: '# report2\n'
+    }
+  })
+  assert.strictEqual(productWriteSecond.continue, true)
+
+  const lateOrderStop = run({
+    hookEventName: 'Stop',
+    assistantMessage: [
+      '### DevCodex · 入口检查',
+      '- PC0 [PASS] plan',
+      '### 结论',
+      'done'
+    ].join('\n')
+  })
+  assert.match(lateOrderStop.systemMessage || '', /S07 order|product mutation before entry-check|VL-004/i)
+  s07State = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(s07State.visible.s07OrderStatus, 'late')
+
+  cleanState()
+  run({
+    hookEventName: 'UserPromptSubmit',
+    prompt: 's07 product write strict deny'
+  })
+  runBootstrapReads(TEST_AGENT)
+  const productWriteStrict = run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'Write',
+    tool_input: {
+      file_path: path.join(TEMP_ROOT, '.devcodex', 'reports', 'analysis', 'test', '01--strict.md'),
+      content: '# report\n'
+    }
+  }, TEMP_ROOT, { DEVCODEX_HOOK_ENFORCEMENT: 'strict', CLAUDE_HOOK_COMMAND: '1' })
+  assert.strictEqual(productWriteStrict.hookSpecificOutput?.permissionDecision, 'deny')
+  assert.match(
+    productWriteStrict.hookSpecificOutput?.permissionDecisionReason || productWriteStrict.systemMessage || '',
+    /s07-product-before-entry-check|S07/i
+  )
+
+  cleanState()
+  run({
+    hookEventName: 'UserPromptSubmit',
+    prompt: 's07 readonly tools are not product mutations'
+  })
+  runBootstrapReads(TEST_AGENT)
+  const readOnlyOk = run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'Read',
+    tool_input: {
+      file_path: path.join(TEMP_ROOT, '.devcodex', 'reports', 'analysis', 'test', '01--sample.md')
+    }
+  })
+  assert.strictEqual(readOnlyOk.continue, true)
+  assert.ok(!/s07-product-before-entry-check/i.test(
+    readOnlyOk.systemMessage || readOnlyOk.hookSpecificOutput?.permissionDecisionReason || ''
+  ))
+  s07State = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.notStrictEqual(s07State.productMutationBeforePrecheck, true)
 }
 
 module.exports = {

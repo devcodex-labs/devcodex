@@ -76,15 +76,32 @@ function buildLifecycleVisibleReplyUtils(ctx) {
     if (!evidence.observed) {
       state.visible.artifactStatus = 'unverified'
       state.visible.artifactMissingItems = []
+      state.visible.stopProbe = {
+        schemaVersion: 'StopPayloadProbeV1',
+        observed: false,
+        source: '',
+        precheckStatus: 'unverified',
+        textBytes: 0,
+        note: 'Grok/Codex Stop often omits assistant body; cannot verified-missing PC0 without payload'
+      }
       return
     }
     const text = evidence.text
     state.visible.payloadObserved = true
-    if (/入口检查（|预检查（DEV 模式）|PC0 上下文|DevCodexVisibleEnvelopeV1\s*·\s*entry-check/.test(text)) {
+    // Accept both legacy and portable envelope precheck markers (W8).
+    if (/入口检查（|预检查（DEV 模式）|PC0 上下文|###\s*DevCodex\s*·\s*入口检查|DevCodexVisibleEnvelopeV1\s*·\s*entry-check/.test(text)) {
       state.visible.precheck = true
       state.visible.precheckStatus = 'verified-present'
     } else if (!state.visible.precheck) {
       state.visible.precheckStatus = 'verified-missing'
+    }
+    // Record probe quality for doctor/debug: whether host exposed assistant text at all.
+    state.visible.stopProbe = {
+      schemaVersion: 'StopPayloadProbeV1',
+      observed: true,
+      source: evidence.source || 'unknown',
+      precheckStatus: state.visible.precheckStatus,
+      textBytes: Buffer.byteLength(String(text || ''), 'utf8')
     }
     if (/🛡️ DEV 模式 \| 合规检查|FC:\s*FC1|DevCodexVisibleEnvelopeV1\s*·\s*completion-check/.test(text)) state.visible.compliance = true
     const artifactEvidence = analyzeArtifactDelivery(text)
@@ -116,6 +133,30 @@ function buildLifecycleVisibleReplyUtils(ctx) {
     return 'unverified'
   }
 
+  /**
+   * Settle S07 order relative to product mutations (reports/memory/ledgers).
+   * Mid-turn tool-loops almost never have verified-present precheck until Stop;
+   * productMutationBeforePrecheck + final PC => late (VL-004 class).
+   */
+  function settleS07OrderStatus(state, eventName) {
+    if (eventName !== 'Stop' && eventName !== 'PreCompact') return
+    if (!state.visible) state.visible = {}
+    const precheckStatus = getPrecheckEvidenceStatus(state)
+    if (precheckStatus === 'unverified') {
+      state.visible.s07OrderStatus = 'unverified'
+      return
+    }
+    if (precheckStatus === 'verified-missing') {
+      state.visible.s07OrderStatus = 'missing'
+      return
+    }
+    if (state.productMutationBeforePrecheck) {
+      state.visible.s07OrderStatus = 'late'
+      return
+    }
+    state.visible.s07OrderStatus = 'ok'
+  }
+
   function buildClosureReminder(state, eventName) {
     const items = []
     const precheckStatus = getPrecheckEvidenceStatus(state)
@@ -123,6 +164,10 @@ function buildLifecycleVisibleReplyUtils(ctx) {
       items.push('entry check block 未输出（S07/C18：首条用户可见回复必须含 PC0~PC7 入口检查块）')
     } else if (eventName === 'Stop' && precheckStatus === 'unverified') {
       items.push(`无法验证最终用户可见回复是否包含入口检查块（Stop/PreCompact 未提供可解析 assistant 内容；如需取证请创建 ${getStatePaths(state).finalPayloadFlag} 后重试）`)
+    }
+    settleS07OrderStatus(state, eventName)
+    if (eventName === 'Stop' && state.visible?.s07OrderStatus === 'late') {
+      items.push('S07 order: product mutation before entry-check evidence（VL-004：文首补 PC 不算先输出；reports/.memory/台账写入须在首次可见 PC0~PC7 之后）')
     }
     if (eventName === 'Stop' && state.mode === 'dev' && state.reportTouched && state.visible && !state.visible.compliance) {
       items.push('合规检查状态块未输出（17-compliance：dev 模式非 chat 回复末尾必须含 🛡️ DEV 模式 | 合规检查 状态块）')
@@ -157,6 +202,7 @@ function buildLifecycleVisibleReplyUtils(ctx) {
     updateVisibleReplyState,
     captureFinalPayloadSample,
     getPrecheckEvidenceStatus,
+    settleS07OrderStatus,
     buildClosureReminder,
     buildDedupedClosureReminder
   }

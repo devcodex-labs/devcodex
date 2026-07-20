@@ -1,6 +1,17 @@
 {
   "description": "DevCodex workspace lifecycle bridge for Grok Build.",
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${GROK_PLUGIN_ROOT}/hooks/session-start.cjs\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
     "UserPromptSubmit": [
       {
         "hooks": [
@@ -13,22 +24,22 @@
     ],
     "PreToolUse": [
       {
-        "matcher": "*",
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${GROK_PLUGIN_ROOT}/hooks/devcodex-workspace.cjs\""
+            "command": "node \"${GROK_PLUGIN_ROOT}/hooks/devcodex-workspace.cjs\"",
+            "timeout": 15
           }
         ]
       }
     ],
     "PostToolUse": [
       {
-        "matcher": "*",
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${GROK_PLUGIN_ROOT}/hooks/devcodex-workspace.cjs\""
+            "command": "node \"${GROK_PLUGIN_ROOT}/hooks/devcodex-workspace.cjs\"",
+            "timeout": 15
           }
         ]
       }

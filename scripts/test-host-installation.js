@@ -8,7 +8,11 @@ const path = require('path')
 const { spawnSync } = require('child_process')
 const { buildDeploymentDescriptors } = require('./lib/deployment-descriptors')
 const { buildCliHostUtils } = require('./lib/cli-host-utils')
-const { mergeGrokPluginRegistration, removeGrokPluginRegistration } = require('./lib/host-adapter-scope')
+const {
+  mergeGrokPluginRegistration,
+  removeGrokPluginRegistration,
+  syncGrokWorkspacePluginInstallation
+} = require('./lib/host-adapter-scope')
 const { buildGrokLaunchPlan } = require('./lib/grok-workspace-launcher')
 
 const ROOT = path.resolve(__dirname, '..')
@@ -121,6 +125,28 @@ assert.throws(
   /GROK_PLUGIN_DISABLED_BY_USER/,
   'an explicit user disable must fail closed without being overwritten'
 )
+
+const noCliWorkspace = path.join(FIXTURE_ROOT, 'no-cli-workspace')
+const noCliActiveRoot = path.join(noCliWorkspace, '.devcodex', 'workspace')
+const noCliGrokHome = path.join(FIXTURE_ROOT, 'no-cli-grok-home')
+const noCliPlugin = path.join(noCliWorkspace, '.grok', 'devcodex', 'plugins', 'devcodex-workspace')
+const noCliLegacy = path.join(noCliWorkspace, '.grok', 'plugins', 'devcodex-workspace')
+fs.mkdirSync(noCliPlugin, { recursive: true })
+fs.mkdirSync(noCliLegacy, { recursive: true })
+fs.mkdirSync(noCliGrokHome, { recursive: true })
+fs.writeFileSync(path.join(noCliPlugin, 'plugin.json'), '{"name":"devcodex-workspace"}\n', 'utf8')
+fs.writeFileSync(path.join(noCliLegacy, 'plugin.json'), '{"name":"devcodex-workspace-legacy"}\n', 'utf8')
+fs.writeFileSync(path.join(noCliGrokHome, 'config.toml'), '[plugins]\nenabled = ["project-owned"]\n', 'utf8')
+const noCliReceipt = syncGrokWorkspacePluginInstallation({
+  pluginPath: noCliPlugin,
+  legacyPluginPaths: [noCliLegacy],
+  activeRoot: noCliActiveRoot,
+  env: { ...process.env, GROK_HOME: noCliGrokHome, PATH: '' }
+})
+assert.strictEqual(noCliReceipt.status, 'unavailable')
+assert.match(fs.readFileSync(path.join(noCliGrokHome, 'config.toml'), 'utf8'), /enabled = \["project-owned", "devcodex-workspace"\]/)
+assert(fs.existsSync(noCliLegacy), 'no-CLI migration must retain the legacy source')
+assert(fs.existsSync(path.join(noCliActiveRoot, 'managed', 'grok-plugin-migration.json')), 'no-CLI migration receipt must be recorded')
 
 const hostUtils = buildCliHostUtils({
   fs,

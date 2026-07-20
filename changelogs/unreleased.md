@@ -57,6 +57,7 @@ WorkspaceDataAbsorptionScopeGate · DocsSiteVisualAcceptanceGate · OmissionOnly
 - 拆分包开发与 Claude 安装态 MCP 契约：源码根 `.mcp.json` 改为指向实际存在的包内 `mcp/*`，CLI 仍为业务项目生成 `.claude/mcp/*`，避免 Grok 在源码仓发现通用 manifest 时启动不存在路径。
 - 补齐 `uninstall --host grok` 生命周期：复用 `HostAdapterScopeV1`，官方卸载用户插件并只移除 DevCodex 受管配置，保留 workspace source、未知键/注释与重复卸载幂等性。
 - 关闭诊断与 launcher 的作用域旁路：从子项目执行 `status/doctor` 也检查工作区 owner；`devcodex grok` 先消费官方 `--cwd`，拒绝 system-prompt override/重复 cwd，并在 root kernel 缺失、nested workspace 或 Windows 路径大小写变体下保持 fail-closed/同一身份。
+- 修复无 Grok CLI 环境下 workspace plugin 安装降级路径：仍写入 canonical `plugins.enabled` registration 与 migration receipt，但 installation 保持 `unavailable`，避免 CI/Linux 无 CLI 时 status/doctor 与 host-installation 契约漂移。
 
 ### 内部完整交付与用户可见输出契约（2026-07-19）
 

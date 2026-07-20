@@ -585,7 +585,13 @@ function syncGrokWorkspacePluginInstallation({
 
   const probe = spawnSync('grok', ['version'], { encoding: 'utf8', windowsHide: true, env })
   if (probe.error?.code === 'ENOENT') {
-    return {
+    const configBase = configSnapshot.existed
+      ? configSnapshot.content
+      : (fs.existsSync(configPath) ? fs.readFileSync(configPath, 'utf8') : '')
+    const merge = mergeGrokPluginRegistration(configBase, canonical, { legacyPluginPaths: legacy })
+    if (merge.changed || !configSnapshot.existed) writeTextAtomic(configPath, merge.desired)
+    const configAfter = fs.existsSync(configPath) ? fs.readFileSync(configPath, 'utf8') : ''
+    const receipt = {
       schemaVersion: 'GrokWorkspacePluginMigrationReceiptV1',
       status: 'unavailable',
       reason: 'grok-cli-not-found-legacy-source-retained',
@@ -593,7 +599,18 @@ function syncGrokWorkspacePluginInstallation({
       legacyPluginPaths: legacy.map(portable),
       legacySources: legacySources.map(portable),
       backupPaths: [],
+      configPath,
+      configBeforeDigest: contentDigest(configSnapshot.content),
+      configAfterDigest: contentDigest(configAfter),
       dryRun: false
+    }
+    if (activeRoot) {
+      const receiptFile = path.join(activeRoot, 'managed', 'grok-plugin-migration.json')
+      writeTextAtomic(receiptFile, JSON.stringify({ ...receipt, recordedAt: new Date().toISOString() }, null, 2) + '\n')
+      receipt.receiptFile = receiptFile
+    }
+    return {
+      ...receipt
     }
   }
   if (probe.status !== 0) {

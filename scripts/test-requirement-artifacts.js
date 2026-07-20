@@ -196,7 +196,7 @@ try {
   assert(bugResult.issues.some(item => item.includes('bad-bug/01-问题确认.md missing "## 目录导航"')))
   assert(!bugResult.issues.some(item => item.includes('good-bug')))
 
-  console.log('Requirement runtime artifact checks passed')
+  console.log('Requirement runtime artifact source-scope fixture checks passed; active-root V41 coverage is exercised by node scripts/validate.js')
 } finally {
   fs.rmSync(tempRoot, { recursive: true, force: true })
 }

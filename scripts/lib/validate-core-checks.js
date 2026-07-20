@@ -151,6 +151,13 @@ function buildValidateCoreChecks(ctx) {
         warn(`[V4] SECURITY.md references ${secMatch[0]} but current is ${major}.${minor}.x`)
       }
     }
+    const changelogContent = read(path.join(ROOT, 'CHANGELOG.md'))
+    const expectedLatestDetail = `changelogs/releases/v${pkg.version}.md`
+    const latestDetailLine = changelogContent.split(/\r?\n/)
+      .find(line => line.includes('最新版本详细变更文档'))
+    if (!latestDetailLine || !latestDetailLine.includes(expectedLatestDetail)) {
+      err(`[V4] CHANGELOG latest detail link must point to ${expectedLatestDetail}`)
+    }
     console.log(`[V4] versions aligned at ${pkg.version}`)
   }
 

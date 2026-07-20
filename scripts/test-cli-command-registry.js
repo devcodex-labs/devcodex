@@ -14,7 +14,8 @@ handlers.cmdUninstallHost = (host, argv) => calls.push(['cmdUninstallHost', host
 const registry = createCliCommandRegistry(handlers)
 const fakeProcess = { exitCode: 0 }
 const c = { red: value => value, dim: value => value }
-const logger = { log: () => {} }
+const logs = []
+const logger = { log: (...args) => logs.push(args.join(' ')) }
 const migrate = argv => calls.push(['migrate', argv])
 
 assert.strictEqual(runCliCommand({ cmd: 'init', argv: ['--codex', '--dry-run'], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger }), 'init')
@@ -51,8 +52,21 @@ assert.strictEqual(runCliCommand({ cmd: 'skill', argv: ['plan', 'intent', '--jso
 assert.deepStrictEqual(calls.pop(), ['cmdSkill', ['plan', 'intent', '--json']])
 assert.strictEqual(runCliCommand({ cmd: 'task', argv: ['resolve', 'current', '--json'], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger }), 'task')
 assert.deepStrictEqual(calls.pop(), ['cmdTask', ['resolve', 'current', '--json']])
-assert.strictEqual(runCliCommand({ cmd: 'unknown', argv: [], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger }), 'help')
+fakeProcess.exitCode = 0
+assert.strictEqual(runCliCommand({ cmd: undefined, argv: [], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger }), 'help')
+assert.strictEqual(fakeProcess.exitCode, 0)
 assert.deepStrictEqual(calls.pop(), ['cmdHelp', undefined])
+assert.strictEqual(runCliCommand({ cmd: 'help', argv: [], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger }), 'help')
+assert.deepStrictEqual(calls.pop(), ['cmdHelp', undefined])
+logs.length = 0
+assert.strictEqual(runCliCommand({ cmd: '--version', argv: [], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger, packageVersion: '1.2.3' }), 'version')
+assert.strictEqual(logs.pop(), '1.2.3')
+logs.length = 0
+fakeProcess.exitCode = 0
+assert.strictEqual(runCliCommand({ cmd: 'unknown', argv: [], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger }), 'CLI_COMMAND_UNKNOWN')
+assert.strictEqual(fakeProcess.exitCode, 2)
+assert.deepStrictEqual(calls.pop(), ['cmdHelp', undefined])
+assert.ok(logs.some(line => line.includes('CLI_COMMAND_UNKNOWN')))
 assert.strictEqual(runCliCommand({ cmd: 'init', argv: ['--claude', '--codex'], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger }), 'CLI_HOST_SELECTION_CONFLICT')
 assert.strictEqual(fakeProcess.exitCode, 2)
 assert.strictEqual(runCliCommand({ cmd: 'init', argv: ['--host', 'unknown'], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger }), 'CLI_HOST_UNSUPPORTED')

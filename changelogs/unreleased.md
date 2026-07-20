@@ -9,6 +9,12 @@ WorkspaceDataAbsorptionScopeGate · DocsSiteVisualAcceptanceGate · OmissionOnly
 
 ## 当前未发布变更
 
+### HostParity 残留验证收口（ISSUE-049 / ISSUE-050，2026-07-20）
+
+- `CHANGELOG.md` 的“最新版本详细变更文档”链接回到当前 package 版本，并在 V4 增加确定性探针，防止发布摘要再次滞后。
+- CLI 顶层命令补齐 `help` / `--help` / `--version` / `version` 语义；未知命令返回 `CLI_COMMAND_UNKNOWN` 与非零退出码，并通过 registry 与真实进程回归测试覆盖。
+- 修复 `changelogs/unreleased.md` 到站点文档的相对链接，消除 V2 残留告警。
+
 ### S07 入口检查时序与产物写入门禁（VL-004 / PI-016，2026-07-20）
 
 - 规范：`S07` 明确用户**首次可见** PC0~PC7 先于实质正文与产物 mutation（`reports/`、`.memory/`、台账）；禁止「最终文首补 PC」冒充先输出；`17-compliance` / `compliance` / `precheck-status` / `user-visible-output-contract` 同源对齐；kernel 投影已刷新。
@@ -23,7 +29,7 @@ WorkspaceDataAbsorptionScopeGate · DocsSiteVisualAcceptanceGate · OmissionOnly
 - workspace plugin Skill 增加 Full（`devcodex grok --rules`）/ Partial（plain child）诚实分列；禁止宣称与 Codex hook-enforced 完全一致。
 - 契约测试：`scripts/test-host-adapters.js` 覆盖 deny/allow、被动不 block、path-observable 与 hard-block 矩阵。
 - **补齐**：`HostParityScorecardV1` 接入 `doctor`/`status`（含 `--json`）；Grok `SessionStart` 会话戳记；上下文 deny 附 S07 PC0 辅助模板；Stop 探针扩展字段与 `### DevCodex · 入口检查` 识别；MCP `profile_compose_entry_check`；`npm run test:host-parity`。
-- **收口剩余可交付**：站内 [Grok 与 Codex 对齐](website/docs/intro/host-parity-grok.md) + sidebar；哲学页 Auto 宿主诚实分列；阶段 3 平台需求单 `03-平台能力需求-xAI.md`；`test-host-parity-remaining` 跨宿主 hard-block 与文档存在性烟测。
+- **收口剩余可交付**：站内 [Grok 与 Codex 对齐](../website/docs/intro/host-parity-grok.md) + sidebar；哲学页 Auto 宿主诚实分列；阶段 3 平台需求单 `03-平台能力需求-xAI.md`；`test-host-parity-remaining` 跨宿主 hard-block 与文档存在性烟测。
 - **Grok 危险命令未拦修复**：PreTool/PostTool 去掉非法 regex matcher `*`（Grok 按正则解析，`*` 无效导致 hook 可能不触发）；`pre_tool_use` 等 snake_case 事件名规范为 lifecycle `PreToolUse`；bridge 在 `decision:deny` 时 exit 2。
 - **Grok bridge 二次加固**：`GROK_WORKSPACE_ROOT`/多 cwd 候选与 plugin-bound fallback；adapter 非 0 退出仍解析 deny JSON；bridge 本地危险命令兜底 deny；写入 `pretool-last.json` 诊断；Remove-Item 参数顺序兼容。
 - **HostParity 残余收口**：入口检查 helper 的 PC4 改为 `dev / prod / unknown` 三态；Grok workspace bridge 对 passive event 输出 `{ continue: true }`、PreToolUse 保持 Grok native allow/deny，并修复 nested workspace owner 越界；`status/doctor` 将 Grok installed source+registration 与 installed digest drift 分层，digest drift 仅 warning；package `files` 补入 `scripts/lib/host-parity-scorecard.js` 并通过 pack/isolated consumer smoke。

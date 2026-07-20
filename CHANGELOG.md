@@ -124,9 +124,9 @@
 
 ## 相关文档
 
-- [`changelogs/releases/v1.13.0.md`](./changelogs/releases/v1.13.0.md) — 最新版本详细变更文档
-- [`changelogs/releases/v1.12.0.md`](./changelogs/releases/v1.12.0.md) — 上一版本详细变更文档
-- [`changelogs/releases/v1.11.33.md`](./changelogs/releases/v1.11.33.md) — 历史版本详细变更文档
+- [`changelogs/releases/v1.15.1.md`](./changelogs/releases/v1.15.1.md) — 最新版本详细变更文档
+- [`changelogs/releases/v1.15.0.md`](./changelogs/releases/v1.15.0.md) — 上一版本详细变更文档
+- [`changelogs/releases/v1.14.0.md`](./changelogs/releases/v1.14.0.md) — 历史版本详细变更文档
 - [`changelogs/releases/v1.11.21.md`](./changelogs/releases/v1.11.21.md) — 历史版本详细变更文档
 - [`changelogs/releases/v1.11.18.md`](./changelogs/releases/v1.11.18.md) — 历史版本详细变更文档
 - [`changelogs/releases/v1.11.17.md`](./changelogs/releases/v1.11.17.md) — 历史版本详细变更文档

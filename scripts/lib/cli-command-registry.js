@@ -54,7 +54,24 @@ function parseHostSelection(argv = []) {
   return { ok: true, host, cleanedArgv }
 }
 
-function runCliCommand({ cmd, argv, registry, runMigrateLayout, process, c, console }) {
+function isHelpCommand(cmd) {
+  return !cmd || cmd === 'help' || cmd === '--help' || cmd === '-h'
+}
+
+function isVersionCommand(cmd) {
+  return cmd === 'version' || cmd === '--version' || cmd === '-v'
+}
+
+function runCliCommand({ cmd, argv, registry, runMigrateLayout, process, c, console, packageVersion = null }) {
+  if (isHelpCommand(cmd)) {
+    registry.cmdHelp()
+    return 'help'
+  }
+  if (isVersionCommand(cmd)) {
+    console.log(packageVersion || 'unknown')
+    return 'version'
+  }
+
   const selection = parseHostSelection(argv)
   if (!selection.ok) {
     console.log(c.red(`  ${selection.code}: ${selection.message}`))
@@ -107,8 +124,11 @@ function runCliCommand({ cmd, argv, registry, runMigrateLayout, process, c, cons
   if (cmd === 'trace') { registry.cmdTrace(argv); return 'trace' }
   if (cmd === 'skill') { registry.cmdSkill(argv); return 'skill' }
   if (cmd === 'task') { registry.cmdTask(argv); return 'task' }
+  console.log(c.red(`  CLI_COMMAND_UNKNOWN: Unknown command "${cmd}".`))
+  console.log(c.dim('  Run devcodex help to see available commands.'))
   registry.cmdHelp()
-  return 'help'
+  process.exitCode = 2
+  return 'CLI_COMMAND_UNKNOWN'
 }
 
 module.exports = { createCliCommandRegistry, parseHostSelection, runCliCommand }

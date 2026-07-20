@@ -110,6 +110,11 @@ function createTempRoot(prefix) {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix))
 }
 
+assert.match(runCli([], ROOT), /Usage:/)
+assert.match(runCli(['help'], ROOT), /Usage:/)
+assert.strictEqual(runCli(['--version'], ROOT).trim(), require('../package.json').version)
+assert.match(runCliFailure(['definitely-unknown-command'], ROOT), /CLI_COMMAND_UNKNOWN/)
+
 function buildClaudeProject(root) {
   writeFile(root, 'package.json', '{ "name": "tmp-cli-project" }\n')
   writeFile(root, 'CLAUDE.md', '# custom claude instructions\n')

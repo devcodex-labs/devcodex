@@ -418,7 +418,7 @@ const cliCommandRegistry = createCliCommandRegistry({
 
 if (require.main === module) {
   const [, , cmd, ...argv] = process.argv
-  runCliCommand({ cmd, argv, registry: cliCommandRegistry, runMigrateLayout, process, c, console })
+  runCliCommand({ cmd, argv, registry: cliCommandRegistry, runMigrateLayout, process, c, console, packageVersion: readJsonFile(path.join(PKG_ROOT, 'package.json'))?.version || null })
 }
 
 module.exports = {

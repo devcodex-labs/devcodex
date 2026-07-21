@@ -9,10 +9,10 @@
     "pluginDigest": "3e417180688c359025e64d584c098b5ef5ba112cf2ef8ca970f1c5589fe3d2bb",
     "portfolioEvidence": "skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "85229c1463a5068750d5417e5ebf960907532dccf99b1cd3da0a88f7007792b4",
-    "consumerInventoryFileCount": 506,
-    "consumerInventoryDigest": "eca8fd6129fe2ca143fc95be77ee37d4692e004b9e2519a979401c7484bf6ba4",
+    "consumerInventoryFileCount": 507,
+    "consumerInventoryDigest": "f509a00073d6753f444f6ba274b74d6eb3ee257afad38082036d55ce46c1bcbe",
     "consumerProjectionDigest": "c6df0ba0a96c3f3f417591af7f6147984f17eb901263518c9e449d5010bda4cf",
-    "portfolioInputDigest": "e7edf8a9327a0230d91c7f0ab08112708b4080ccc55169cda253e312ec136165"
+    "portfolioInputDigest": "5acb3c11d22e9d5d8a5e0cb4631c15f7abf2d98ff1bade37e0ef7e51ac14ec47"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {

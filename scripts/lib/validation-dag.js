@@ -86,18 +86,35 @@ function matchesAnyGlob(relativePath, globs) {
   return globs.some(glob => globToRegExp(glob).test(relativePath))
 }
 
-function readValidationManifest(manifestPath) {
+function normalizeCommandLine(command, args = []) {
+  const parts = Array.isArray(args) && args.length
+    ? [command, ...args]
+    : String(command || '').trim().split(/\s+/).filter(Boolean)
+  return parts.join(' ').replace(/\\/g, '/')
+}
+
+function extractScriptPathFromCommandLine(commandLine) {
+  const parts = String(commandLine || '').trim().split(/\s+/).filter(Boolean)
+  const script = parts.find(part => /(^|\/)scripts\/.+\.(js|cjs|mjs)$/.test(part.replace(/\\/g, '/')))
+  return script ? script.replace(/\\/g, '/') : null
+}
+
+function readValidationManifest(manifestPath, options = {}) {
   let manifest
   try {
     manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
   } catch (error) {
     throw new ValidationDagError('VALIDATION_MANIFEST_READ_FAILED', error.message)
   }
-  validateValidationManifest(manifest)
+  const repoRoot = options.repoRoot
+    ? path.resolve(options.repoRoot)
+    : path.dirname(path.resolve(manifestPath, '..'))
+  validateValidationManifest(manifest, { repoRoot })
   return manifest
 }
 
-function validateValidationManifest(manifest) {
+function validateValidationManifest(manifest, options = {}) {
+  const repoRoot = options.repoRoot ? path.resolve(options.repoRoot) : null
   const errors = []
   if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) {
     throw new ValidationDagError('VALIDATION_MANIFEST_INVALID', 'manifest must be an object')
@@ -237,6 +254,27 @@ function validateValidationManifest(manifest) {
     }
     for (const glob of node.inputs || []) {
       try { globToRegExp(glob) } catch (error) { errors.push('node ' + node.id + ' invalid input glob: ' + error.message) }
+    }
+    // Nested command closure integrity (PF-148): delegated leaves must be real and consistent
+    for (const entry of node.delegatedClosure || []) {
+      if (!entry || typeof entry !== 'object') continue
+      const commandLine = normalizeCommandLine(entry.command)
+      const scriptPath = extractScriptPathFromCommandLine(commandLine)
+      if (repoRoot && scriptPath) {
+        const absoluteScript = path.resolve(repoRoot, scriptPath)
+        const relativeCheck = path.relative(repoRoot, absoluteScript)
+        if (relativeCheck.startsWith('..') || path.isAbsolute(relativeCheck) || !fs.existsSync(absoluteScript)) {
+          errors.push('node ' + node.id + ' delegatedClosure command missing or outside repo: ' + scriptPath)
+        }
+      }
+      const peer = byId.get(entry.nodeId)
+      if (peer) {
+        const peerLine = normalizeCommandLine(peer.command, peer.args || [])
+        // Only enforce parity for real script leaves (fixtures may use process.execPath stubs)
+        if (extractScriptPathFromCommandLine(peerLine) && peerLine !== commandLine) {
+          errors.push('node ' + node.id + ' delegatedClosure ' + entry.nodeId + ' command mismatches top-level leaf')
+        }
+      }
     }
   }
 
@@ -924,9 +962,11 @@ module.exports = {
   commandSignature,
   directoryUsage,
   executeValidationPlan,
+  extractScriptPathFromCommandLine,
   globToRegExp,
   manifestIdentity,
   matchesAnyGlob,
+  normalizeCommandLine,
   normalizeRelativePath,
   planValidation,
   readNodeCache,

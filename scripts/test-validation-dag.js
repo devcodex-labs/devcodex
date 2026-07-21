@@ -208,6 +208,24 @@ function run() {
     assert.throws(() => validateValidationManifest(missingCoveredDelegation),
       error => error instanceof ValidationDagError && /preserve delegated closure/.test(error.message))
 
+    // PF-148 nested closure integrity: missing script path and mismatched top-level leaf command
+    const missingDelegatedScript = clone(manifest)
+    missingDelegatedScript.nodes.find(node => node.id === 'validate-core').delegatedClosure[0].command =
+      'node scripts/__missing_nested_probe_for_pf148__.js'
+    assert.throws(
+      () => validateValidationManifest(missingDelegatedScript, { repoRoot: ROOT }),
+      error => error instanceof ValidationDagError && /delegatedClosure command missing/.test(error.message)
+    )
+    const mismatchedDelegatedLeaf = clone(manifest)
+    mismatchedDelegatedLeaf.nodes.find(node => node.id === 'validate-core').delegatedClosure[0].command =
+      'node scripts/test-mcp-servers.js'
+    assert.throws(
+      () => validateValidationManifest(mismatchedDelegatedLeaf, { repoRoot: ROOT }),
+      error => error instanceof ValidationDagError && /command mismatches top-level leaf/.test(error.message)
+    )
+    // positive: real manifest still validates with repoRoot
+    assert.doesNotThrow(() => validateValidationManifest(manifest, { repoRoot: ROOT }))
+
     const cycle = clone(manifest)
     cycle.nodes.find(node => node.id === 'validate-core').consumers.push('validate-versions')
     assert.throws(() => validateValidationManifest(cycle),

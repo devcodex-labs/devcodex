@@ -50,6 +50,7 @@ DevCodex 默认通过 `.github/`（Copilot）、`CLAUDE.md + .claude/ + .mcp.jso
 - **可配置并发策略**: Profile `config.json` 可配置 `extensions.devcodex.concurrency`；默认 `auto` 表示只读准备和隔离验证可并行、共享状态写入保持单写者，保守项目可设为 `serial`
 - **文件真相源优先的有界启动链**: `MemoryCannotSatisfyBootstrapGate` 要求宿主 Memories、模型长期偏好、SUMMARY 或交接卡只能作为 `navigation-hint`；新线程、resume、summary 恢复或跨项目切换仍须通过 Profile plan、memory status/query 与 handoff 指向的精确 reports/review checklist/source 复证。V86 防止用内置记忆替代文件真相，V99 防止把复证误写成默认全文读取或失败调用假完成。
 - **支撑型 Skill**: `execution-contract` / `test-router` / `release-verification` / `host-contract-verification` / `source-consumer-sync` 为控制面、多批次、测试路线、宿主契约验证与真相源-消费者同步提供可审计支撑，不新增工作流分支
+- **Always-On 质量守恒治理（Unreleased）**: `AlwaysOnSurfaceMatrixV1` 同时统计 Host Kernel 与 `instructions/*.md applyTo:"**"` 面，`HostAdapterCompatibilityMatrixV1` 按 Copilot/Claude/Codex/Gemini/Grok root/plain/launcher 限定能力上限，Q1~Q8 Shadow 40 样本要求 P0 零漏判；当前只读诊断与探针已落地，AO-3 默认轻注入仍未启用
 - **模型无关双层修复协作契约**: AI 判断任务目标为 repair task 时至少建立 `lightweight` 决策/验收层 + 执行/验证层契约；P0/P1、安全、控制面、公共契约、多批次、角色交接或发布风险升级 `full`，用 `findingToPatchMap`、`handoffIntegrity` 与 `independentReReview` 防止范围漂移和补丁作者唯一自证。模型名称或是否切换 Agent 不是触发条件
 - **修复完成与返工效果分层**: active `repair-prevention-assessment` 是所有 repair 的默认完成门禁，强制分离当前关闭证据与长期前瞻计划；gray `rework-prevention-engineering` 仅在返工率、重复逃逸簇或效果验证时使用，以 WorkUnit/ReworkEvent、FirstPassYield 和 prospective trial 判断是否值得晋级。active 工作流不依赖默认不部署的 gray Skill。`CandidateDiffCompletenessGate` 在 commit/tag/publish 前用 staged candidate snapshot 覆盖 tracked/untracked，并执行 cached diff、name-status、secret-shape 与 intended scope 对账；普通 working diff 不能替代。派生资产另由 `PostStageDerivedArtifactFreshnessGate` 在完整 stage 后读取 Git index，并在 commit 后 clean tree 复放，防止“先生成、后新增消费者”逃逸。`ReviewCoverageClaimIntegrityGate`、`ArtifactDeliveryManifestGate`、`VisibleOutputHostEvidenceGate`、`ReleaseAuthorityBeforeCompatibilityGate`、`ConfigurationErgonomicsGate` 与 `InteractiveSemanticProbe` 分别约束审查真实性、内部交付对账、用户可见证据、兼容判断、配置易用性和交互语义
 - **跨仓消费者验证**: `consumer-validation-engineering` 以 RepositoryBinding、SourceConsumerIdentity、ValidationDenominatorMatrix、packed artifact、跨仓 CI 与 freshness drift 约束 SDK/CLI/框架/公共包的独立消费者仓；`DesignFitnessGate` 额外判断主路径、默认值、配置层级、框架约定和维护成本，`ValidationFindingRepairLoop` 在 source mutation 后使旧 identity/证据 stale 并按影响矩阵重跑。realpath、行为全绿或单一 100% 分母不能冒充完整验证。该 Skill 保持 `gray`，由 V95 正负探针守门
@@ -352,7 +353,7 @@ devcodex profile init --tier profile-standard
 devcodex status
 ```
 
-自动化脚本可使用 `devcodex status --json` / `devcodex doctor --json`。两者只输出一个 `DevCodexCliEnvelopeV1` JSON 文档；非法参数返回稳定 `CLI_INVALID_OPTION` 和退出码 2，默认人读输出保持兼容。`payload.governanceSummary` 以 `GovernanceStatusSummaryV1` 只读汇总 runtime-state、Skill 生命周期/灰度状态、执行优化证据、Gate registry、host truth、dirty boundary 和 fail-closed fast-path 决策，不创建或改写运行态文件。
+自动化脚本可使用 `devcodex status --json` / `devcodex doctor --json`。两者只输出一个 `DevCodexCliEnvelopeV1` JSON 文档；非法参数返回稳定 `CLI_INVALID_OPTION` 和退出码 2，默认人读输出保持兼容。`payload.governanceSummary` 以 `GovernanceStatusSummaryV1` 只读汇总 runtime-state、Skill 生命周期/灰度状态、执行优化证据、Always-On surface/layer/host/shadow 状态、Gate registry、host truth、dirty boundary 和 fail-closed fast-path 决策，不创建或改写运行态文件。
 
 本地维护者还可运行 `devcodex probe --json` 获取 host/workspace/profile 的 typed 只读结果，或用 `devcodex trace show|replay --state <lifecycle-state.json> --json` 检查 `LocalTaskTraceV1`。probe 不联网、不监听、不写状态；trace replay 不执行事件 payload，输出会携带源文件 SHA-256 便于 zero-write 对账。
 
@@ -410,6 +411,17 @@ npm run benchmark:execution-chain -- --input ./benchmark-input.json
 ```
 
 benchmark 输入/输出分别为 `ExecutionChainBenchmarkInputV1` / `ExecutionChainBenchmarkResultV1`。只有同环境、样本满足、correctness 全为 0、综合改善至少 25% 且回归/开销预算通过时才能标 accepted；否则如实保持 `provisional` 或 rejected。本节能力随 v1.15.2 发布，仍按 `full-only` kill switch 保留完整正确路径。
+
+## Always-On 质量守恒诊断（Unreleased）
+
+当前源码已将 always-on 优化拆为可验证诊断层，不直接改变默认注入行为：
+
+- `scripts/lib/always-on-governance.js` 生成只读 `AlwaysOnSurfaceMatrixV1`、`AlwaysOnLayerMatrixV1`、`HostAdapterCompatibilityMatrixV1`、`AlwaysOnLoadReceiptV1` 与 `AlwaysOnShadowResultV1`。
+- `npm run test:always-on-governance` 验证 source/workspace surface、`applyTo:"**"` budget、L0 强不变量覆盖、宿主声明上限、load receipt fail-closed 与 Q1~Q8 40 样本 Shadow。
+- `devcodex status --json` / `doctor --json` 的 `payload.governanceSummary.alwaysOn` 只读显示 AO-0~AO-2 状态；`defaultBehaviorChanged=false`、`ao3Enabled=false` 是当前兼容边界。
+- `scripts/validation-manifest.json` 已新增 `always-on-governance` 节点；fast/full/profile-deploy/package-release route 会把 Always-On 质量守恒纳入控制面回归。
+
+AO-3 默认轻注入必须在 Shadow green 后单独确认，并继续受 `full-only` 和宿主能力证据上限约束。
 
 ## 本地开发
 

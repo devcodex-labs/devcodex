@@ -803,10 +803,12 @@ function buildCliMaintenanceCommands(ctx) {
     const runtime = summary.runtimeState || {}
     const skills = summary.skills || {}
     const gates = summary.gateLifecycle || {}
+    const alwaysOn = summary.alwaysOn || {}
     const dirty = summary.dirtyBoundary || {}
     return `${status} ` +
       c.dim(`runtime ${runtime.recordCount || 0} records/${runtime.alertCount || 0} alerts; `) +
       c.dim(`skills ${skills.skillCount || 0} (${skills.activeSkillCount || 0} active/${skills.graySkillCount || 0} gray); `) +
+      c.dim(`always-on ${alwaysOn.shadow?.sampleCount || 0}/${alwaysOn.shadow?.p0MissedCount || 0} shadow; `) +
       c.dim(`gates ${gates.groupCount || 0}; fast-path ${summary.fastPathPolicy?.visibleMode || 'full'}; git ${dirty.status || 'unknown'}`)
   }
 

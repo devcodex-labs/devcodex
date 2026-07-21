@@ -9,10 +9,10 @@
     "pluginDigest": "3e417180688c359025e64d584c098b5ef5ba112cf2ef8ca970f1c5589fe3d2bb",
     "portfolioEvidence": "skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "85229c1463a5068750d5417e5ebf960907532dccf99b1cd3da0a88f7007792b4",
-    "consumerInventoryFileCount": 498,
-    "consumerInventoryDigest": "d0fe375d15d6d9379f7581196d047423d9f6c7af578a47f3f096a2cbb31d3253",
-    "consumerProjectionDigest": "84c229ee92fe8f78ce3774f92a99b0d6219b07c7eecb28fa8c63cfd13704632c",
-    "portfolioInputDigest": "0d11ed6d131a80fcbe0c29c09cb4a77d3286fd5d44f419c07ac78092003c62e7"
+    "consumerInventoryFileCount": 500,
+    "consumerInventoryDigest": "bf9145b9a4d801d02297c11508981ec44fe0e4c3a253b1d872285eda6b52cb29",
+    "consumerProjectionDigest": "a64c827b7c41d228c7fb960036869039d1c763b983fa571aa8b0552c152d166c",
+    "portfolioInputDigest": "4bb9f63f1789e567e6e3dfcc181baca38cf0816196efd7157f71b88073aec70a"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -5648,6 +5648,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/always-on-governance.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/test-spec-governance-base.js",
           "role": "current"
         },
@@ -6461,6 +6465,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/always-on-governance.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/test-spec-governance-base.js",
           "role": "current"
         },
@@ -6490,6 +6498,10 @@
         },
         {
           "path": "scripts/lib/validate-governance-support.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-always-on-governance.js",
           "role": "current"
         },
         {
@@ -6546,6 +6558,7 @@
         }
       ],
       "validationProfile": [
+        "scripts/test-always-on-governance.js",
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
@@ -6597,6 +6610,7 @@
         ],
         "evolvableUnitRef": "skill:dev-default",
         "probeSuiteRefs": [
+          "scripts/test-always-on-governance.js",
           "scripts/test-skill-portfolio.js",
           "scripts/validate.js"
         ],
@@ -9590,6 +9604,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/always-on-governance.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/test-spec-governance-base.js",
           "role": "current"
         },
@@ -10308,6 +10326,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/always-on-governance.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/cli-observability-commands.js",
           "role": "current"
         },
@@ -10508,6 +10530,10 @@
         },
         {
           "path": "scripts/generate-host-instruction-projections.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/always-on-governance.js",
           "role": "current"
         },
         {
@@ -11148,6 +11174,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/always-on-governance.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/cli-install-commands.js",
           "role": "current"
         },
@@ -11213,6 +11243,10 @@
         },
         {
           "path": "scripts/lib/validation-dag.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-always-on-governance.js",
           "role": "current"
         },
         {
@@ -11381,6 +11415,7 @@
         }
       ],
       "validationProfile": [
+        "scripts/test-always-on-governance.js",
         "scripts/test-cli-behavior.js",
         "scripts/test-cli-command-registry.js",
         "scripts/test-context-binding.js",
@@ -11446,6 +11481,7 @@
         ],
         "evolvableUnitRef": "skill:intent",
         "probeSuiteRefs": [
+          "scripts/test-always-on-governance.js",
           "scripts/test-cli-behavior.js",
           "scripts/test-cli-command-registry.js",
           "scripts/test-context-binding.js",
@@ -12107,6 +12143,10 @@
         },
         {
           "path": "scripts/instruction-fallback-check.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/always-on-governance.js",
           "role": "current"
         },
         {
@@ -13067,6 +13107,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/always-on-governance.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/canonical-consumer-contracts.js",
           "role": "current"
         },
@@ -13228,6 +13272,10 @@
         },
         {
           "path": "scripts/run-validation.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-always-on-governance.js",
           "role": "current"
         },
         {
@@ -13548,6 +13596,7 @@
         }
       ],
       "validationProfile": [
+        "scripts/test-always-on-governance.js",
         "scripts/test-cli-behavior.js",
         "scripts/test-cli-command-registry.js",
         "scripts/test-client-contracts.js",
@@ -13620,6 +13669,7 @@
         ],
         "evolvableUnitRef": "skill:plan",
         "probeSuiteRefs": [
+          "scripts/test-always-on-governance.js",
           "scripts/test-cli-behavior.js",
           "scripts/test-cli-command-registry.js",
           "scripts/test-client-contracts.js",
@@ -15713,6 +15763,10 @@
         },
         {
           "path": "scripts/instruction-fallback-check.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/always-on-governance.js",
           "role": "current"
         },
         {
@@ -18662,6 +18716,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/always-on-governance.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/checked-command.js",
           "role": "current"
         },
@@ -18726,6 +18784,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-always-on-governance.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-cli-behavior.js",
           "role": "current"
         },
@@ -18763,6 +18825,10 @@
         },
         {
           "path": "scripts/validate-profile.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/validation-manifest.json",
           "role": "current"
         },
         {
@@ -18911,6 +18977,7 @@
         }
       ],
       "validationProfile": [
+        "scripts/test-always-on-governance.js",
         "scripts/test-cli-behavior.js",
         "scripts/test-context-read-contract.js",
         "scripts/test-governance-status-summary.js",
@@ -18967,6 +19034,7 @@
         ],
         "evolvableUnitRef": "skill:summary",
         "probeSuiteRefs": [
+          "scripts/test-always-on-governance.js",
           "scripts/test-cli-behavior.js",
           "scripts/test-context-read-contract.js",
           "scripts/test-governance-status-summary.js",
@@ -19158,6 +19226,10 @@
         },
         {
           "path": "README.md",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/always-on-governance.js",
           "role": "current"
         },
         {

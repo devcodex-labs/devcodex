@@ -5,6 +5,7 @@ const fs = require('fs')
 const path = require('path')
 const { buildRuntimeStateIndex, resolveDefaultActiveRoot } = require('./runtime-state-index.js')
 const { inspectExecutionOptimization } = require('./execution-optimization.js')
+const { buildAlwaysOnGovernanceSummary } = require('./always-on-governance.js')
 const { buildSimpleGovernanceFastPathDecision } = require('../../hooks/_runtime/visible-output-contract.cjs')
 
 function readJsonSafe(file) {
@@ -246,6 +247,29 @@ function summarizeGateLifecycle(packageRoot, warnings) {
   }
 }
 
+function summarizeAlwaysOn(packageRoot, cwd, sourceRepository, warnings) {
+  try {
+    return buildAlwaysOnGovernanceSummary({
+      packageRoot,
+      workspaceRoot: sourceRepository ? path.dirname(packageRoot) : cwd
+    })
+  } catch (error) {
+    warnings.push(`always-on-governance-unavailable: ${String(error && error.message ? error.message : error)}`)
+    return {
+      schemaVersion: 'AlwaysOnGovernanceSummaryV1',
+      status: 'warn',
+      readOnly: true,
+      defaultBehaviorChanged: false,
+      ao3Enabled: false,
+      validation: {
+        valid: false,
+        errors: ['always-on-governance-unavailable'],
+        warnings: []
+      }
+    }
+  }
+}
+
 function hostTruthFrom(hostParity) {
   if (!hostParity) {
     return {
@@ -274,6 +298,7 @@ function buildGovernanceStatusSummary(options = {}) {
   const skills = summarizeSkills(packageRoot, warnings)
   const executionOptimization = summarizeExecutionOptimization(cwd, activeRoot, options.executionOptimization, warnings)
   const gateLifecycle = summarizeGateLifecycle(packageRoot, warnings)
+  const alwaysOn = summarizeAlwaysOn(packageRoot, cwd, Boolean(options.sourceRepository), warnings)
   const dirtyBoundary = inspectDirtyBoundary(packageRoot)
   const fastPathPolicy = buildSimpleGovernanceFastPathDecision({
     taskKind: 'diagnostic-summary',
@@ -287,6 +312,7 @@ function buildGovernanceStatusSummary(options = {}) {
   const status = statusFromCounts({
     warningCount: warnings.length +
       (runtimeState.status === 'warn' ? 1 : 0) +
+      (alwaysOn.status === 'warn' ? 1 : 0) +
       (dirtyBoundary.status === 'dirty' ? 1 : 0),
     errorCount: 0
   })
@@ -313,6 +339,7 @@ function buildGovernanceStatusSummary(options = {}) {
     skills,
     executionOptimization,
     gateLifecycle,
+    alwaysOn,
     hostTruth: hostTruthFrom(options.hostParity),
     dirtyBoundary,
     fastPathPolicy,

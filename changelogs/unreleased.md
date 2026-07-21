@@ -8,6 +8,9 @@
 - `devcodex status` / `devcodex doctor` 增加只读 `GovernanceStatusSummaryV1`：汇总 runtime-state、ledger 退役候选、Skill/gray lifecycle、执行优化证据、Gate registry、host truth、dirty boundary 与 fail-closed fast-path 决策；JSON 输出挂载到 `payload.governanceSummary`，human 输出只增加一行治理概览。
 - 新增 `SimpleGovernanceFastPathDecisionV1`，将可见输出 compact 条件显式化；控制面、source mutation、共享状态、风险非 low、CP 未确认、证据缺失或非 compactable message kind 均 fail-closed 到 full。
 - 新增 `scripts/lib/governance-status-summary.js` 与 `scripts/test-governance-status-summary.js`，并接入 `test:control-plane` / `test:optimization-controls`；不新增依赖、不改发布版本、不执行 tag/push/publish。
+- 新增 `AlwaysOnGovernanceSummaryV1` 与 `scripts/lib/always-on-governance.js`：统一生成 `AlwaysOnSurfaceMatrixV1`、`AlwaysOnLayerMatrixV1`、`HostAdapterCompatibilityMatrixV1`、`AlwaysOnLoadReceiptV1` 和 `AlwaysOnShadowResultV1`；`status/doctor --json` 只读投影 `payload.governanceSummary.alwaysOn`。
+- 新增 `npm run test:always-on-governance` 与 validation DAG 节点 `always-on-governance`：验证 Host Kernel + `instructions/*.md applyTo:"**"` 双 surface、L0 强不变量、宿主声明上限、load receipt fail-closed 和 Q1~Q8 40 样本 Shadow P0 零漏判。
+- Always-On 本轮仍保持 `defaultBehaviorChanged=false`、`ao3Enabled=false`：AO-0/AO-1/AO-2/AO-4 基础闭环已落地，AO-3 默认轻注入需 Shadow green 后另行确认。
 
 ## 历史锚点索引（已随 v1.15.0 / v1.15.1 / v1.15.2 发布或归档）
 

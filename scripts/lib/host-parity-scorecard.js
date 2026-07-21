@@ -3,11 +3,141 @@
 /**
  * HostParityScorecardV1 — Grok vs Codex capability honesty for doctor/status.
  * Full ≠ Codex API isomorphism; Full = launcher rules bind + PreTool deny path + path-observable.
+ * PF-165: GrokTurnChecklist + Intent→Skill bundle + doctor repairSteps (no parallel system).
  */
 
 const crypto = require('crypto')
 const fs = require('fs')
 const path = require('path')
+
+/** Scannable always-on checklist for passive-hook hosts (Grok). */
+const GROK_TURN_EXECUTION_CHECKLIST = Object.freeze([
+  { id: 'entry-pc0-pc7', text: 'First user-visible block: full PC0~PC7 (S07); compaction/resume re-emit' },
+  { id: 'intent-route', text: 'IntentSeed → final route (dev/fix/analyze/audit/…); chat/resume only when true' },
+  { id: 'skill-bundle', text: 'Load Intent→Skill mandatory bundle before substantive work' },
+  { id: 'context-plan', text: 'ContextReadPlanV2 + receipts; no unbounded full Profile read without fullReadReason' },
+  { id: 'work-and-gates', text: 'Execute workflow gates (CP/ECR as applicable); no skip for missing inject' },
+  { id: 'report-memory', text: 'Non-chat: write report + memory (+ ledger when governance hits); chat exempt' },
+  { id: 'honest-ceiling', text: 'Do not claim UserPromptSubmit inject / Stop hard-block / Grok===Codex bootstrap' }
+])
+
+/**
+ * Non-chat Intent → mandatory Skill ids (model must load; passive host has no inject reminder).
+ * chat: empty mandatory (optional intent only). resume: rehydrate then inherit prior workflow bundle.
+ */
+const GROK_INTENT_SKILL_BUNDLES = Object.freeze({
+  chat: Object.freeze([]),
+  resume: Object.freeze(['intent', 'compliance', 'memory', 'user-visible-output-contract']),
+  analyze: Object.freeze(['intent', 'compliance', 'user-visible-output-contract', 'analyze-default', 'report', 'memory']),
+  audit: Object.freeze(['intent', 'compliance', 'user-visible-output-contract', 'audit-common', 'report', 'memory']),
+  dev: Object.freeze(['intent', 'compliance', 'user-visible-output-contract', 'dev-default', 'cp-gate', 'report', 'memory']),
+  fix: Object.freeze(['intent', 'compliance', 'user-visible-output-contract', 'fix-default', 'cp-gate', 'report', 'memory']),
+  'self-fix': Object.freeze(['intent', 'compliance', 'user-visible-output-contract', 'fix-default', 'cp-gate', 'report', 'memory']),
+  other: Object.freeze(['intent', 'compliance', 'user-visible-output-contract', 'plan', 'report', 'memory'])
+})
+
+const CHECK_REPAIR_CATALOG = Object.freeze({
+  kernelAgentsMd: {
+    check: 'kernelAgentsMd',
+    command: 'devcodex update',
+    detail: 'Workspace root must have AGENTS.md (shared kernel). Run update from workspace root.'
+  },
+  codexLifecycleReachable: {
+    check: 'codexLifecycleReachable',
+    command: 'devcodex update --host codex',
+    detail: 'Codex lifecycle runtime under .codex/hooks/_runtime is the deny/path-observable contract source.'
+  },
+  denyAdapterContract: {
+    check: 'denyAdapterContract',
+    command: 'devcodex update --host codex && devcodex update --host grok',
+    detail: 'lifecycle-host-adapters must export adaptGrokOutput and decision:deny mapping.'
+  },
+  pathObservableCapability: {
+    check: 'pathObservableCapability',
+    command: 'devcodex update --host codex',
+    detail: 'lifecycle-bootstrap-state must treat Grok as path-observable (same band as Codex tool-path).'
+  },
+  workspacePluginInstalled: {
+    check: 'workspacePluginInstalled',
+    command: 'devcodex update --host grok',
+    detail: 'Install/refresh workspace plugin under .grok/devcodex/plugins/devcodex-workspace.'
+  },
+  workspacePluginRegistered: {
+    check: 'workspacePluginRegistered',
+    command: 'devcodex update --host grok',
+    detail: 'Ensure official user-level plugin registration points at workspace plugin source (doctor registrationCurrent).'
+  }
+})
+
+function resolveGrokIntentSkillBundle(intent) {
+  const key = String(intent || '').trim().toLowerCase()
+  if (Object.prototype.hasOwnProperty.call(GROK_INTENT_SKILL_BUNDLES, key)) {
+    return {
+      intent: key,
+      mandatorySkillIds: [...GROK_INTENT_SKILL_BUNDLES[key]],
+      source: 'GROK_INTENT_SKILL_BUNDLES'
+    }
+  }
+  return {
+    intent: key || 'unknown',
+    mandatorySkillIds: [...GROK_INTENT_SKILL_BUNDLES.other],
+    source: 'GROK_INTENT_SKILL_BUNDLES',
+    fallback: true
+  }
+}
+
+function buildGrokRepairSteps(checks = {}) {
+  const steps = []
+  for (const [key, ok] of Object.entries(checks || {})) {
+    if (ok) continue
+    const catalog = CHECK_REPAIR_CATALOG[key]
+    if (catalog) {
+      steps.push({ ...catalog, status: 'failed' })
+    } else {
+      steps.push({
+        check: key,
+        command: 'devcodex update --host grok && devcodex doctor --json',
+        detail: `Missing HostParity check: ${key}`,
+        status: 'failed'
+      })
+    }
+  }
+  if (steps.length) {
+    steps.push({
+      check: 'full-session-entry',
+      command: 'devcodex grok',
+      detail: 'After hard path is green, start Full sessions with launcher (binds AGENTS.md via --rules). plain grok in child Git remains Partial.',
+      status: 'recommended'
+    })
+  }
+  return steps
+}
+
+function formatGrokTurnChecklistMarkdown() {
+  return [
+    '### GrokTurnChecklist (PF-165)',
+    ...GROK_TURN_EXECUTION_CHECKLIST.map((item, i) => `${i + 1}. **${item.id}** — ${item.text}`),
+    '',
+    'Non-chat Skill bundle: intent + compliance + user-visible-output-contract + workflow Skill + report + memory.',
+    'Platform ceiling: no UserPromptSubmit inject; Stop cannot hard-block incomplete turns.'
+  ].join('\n')
+}
+
+/**
+ * Negative-probe classifier: "I finished the Grok workflow" style text without checklist anchors → thin.
+ * @returns {'checklist-ready'|'checklist-thin'|'not-grok-turn-claim'}
+ */
+function classifyGrokTurnOmissionSample(sample) {
+  const text = String(sample || '')
+  const claimsComplete = /完整(执行|工作流)|GrokTurnChecklist|HostParity|已按.*全流程|workflow complete|full workflow/i.test(text)
+  if (!claimsComplete) return 'not-grok-turn-claim'
+  const hasPc = /PC0|PC0~PC7|入口检查/i.test(text)
+  const hasBundle = /Skill bundle|intent\s*\+|compliance|user-visible-output-contract|mandatorySkill/i.test(text)
+  const hasReportMemory = /report|memory|报告|记忆|S05/i.test(text)
+  const hasCeiling = /cannot claim|不得宣称|inject|Stop hard|platform ceiling|平台上限/i.test(text)
+  const score = [hasPc, hasBundle, hasReportMemory, hasCeiling].filter(Boolean).length
+  return score >= 3 ? 'checklist-ready' : 'checklist-thin'
+}
 
 function fileExists(filePath) {
   try {
@@ -137,9 +267,10 @@ function evaluateGrokHostParity(input = {}) {
 
   // Full requires hardReady + recommendation to use launcher; plain child never auto-Full
   const tier = hardReady ? 'full-capable' : 'partial'
+  const repairSteps = buildGrokRepairSteps(checks)
   const recommendedEntry = hardReady
     ? 'devcodex grok   # Full evidence: --rules binds workspace AGENTS.md'
-    : 'devcodex update --host grok && devcodex grok'
+    : (repairSteps[0] && repairSteps[0].command) || 'devcodex update --host grok && devcodex grok'
 
   const cannotClaim = [
     'UserPromptSubmit context injection (passive stdout ignored on Grok)',
@@ -147,6 +278,13 @@ function evaluateGrokHostParity(input = {}) {
     'verified-present PC0 without assistant payload on Stop',
     'Grok === Codex hook-enforced bootstrap'
   ]
+
+  const failedChecks = Object.entries(checks).filter(([, ok]) => !ok).map(([k]) => k)
+  const repairPreview = repairSteps
+    .filter((s) => s.status === 'failed')
+    .slice(0, 3)
+    .map((s) => s.command)
+    .join(' ; ')
 
   const scorecard = {
     schemaVersion: 'HostParityScorecardV1',
@@ -158,6 +296,10 @@ function evaluateGrokHostParity(input = {}) {
     tier,
     hardReady,
     checks,
+    failedChecks,
+    repairSteps,
+    turnChecklist: GROK_TURN_EXECUTION_CHECKLIST.map((item) => item.id),
+    intentSkillBundles: GROK_INTENT_SKILL_BUNDLES,
     evidence: {
       codexAdapter: fileExists(codexAdapter) ? codexAdapter : null,
       codexBootstrap: fileExists(codexBootstrap) ? codexBootstrap : null,
@@ -168,8 +310,8 @@ function evaluateGrokHostParity(input = {}) {
     recommendedEntry,
     cannotClaim,
     userVisibleSummary: hardReady
-      ? 'Grok HostParity: full-capable (PreTool deny + path-observable + kernel). Use `devcodex grok` for Full session evidence. Inject/Stop still Partial.'
-      : 'Grok HostParity: partial — fix missing checks before claiming PreTool parity.'
+      ? 'Grok HostParity: full-capable (PreTool deny + path-observable + kernel). Use `devcodex grok` for Full session evidence. Inject/Stop still Partial. Follow GrokTurnChecklist + Intent→Skill bundle.'
+      : `Grok HostParity: partial — failed: ${failedChecks.join(', ') || 'unknown'}. Fix: ${repairPreview || 'devcodex update --host grok'}. Then doctor --json hostParity.repairSteps.`
   }
 
   scorecard.digest = crypto
@@ -177,7 +319,8 @@ function evaluateGrokHostParity(input = {}) {
     .update(JSON.stringify({
       tier: scorecard.tier,
       checks: scorecard.checks,
-      hardReady: scorecard.hardReady
+      hardReady: scorecard.hardReady,
+      failedChecks: scorecard.failedChecks
     }))
     .digest('hex')
 
@@ -208,19 +351,31 @@ function composeEntryCheckBlock(options = {}) {
 }
 
 function entryCheckAssistSuffix(options = {}) {
+  const intent = options.intent || 'unknown'
+  const bundle = resolveGrokIntentSkillBundle(intent)
   return [
     '',
     '--- DevCodex S07 assist (Grok cannot inject this into the model; emit in the user-visible reply) ---',
     composeEntryCheckBlock(options),
+    '',
+    'GrokTurnChecklist: PC0~PC7 → Intent→Skill bundle → context plan → work/gates → report+memory → honest ceiling',
+    `Intent→Skill bundle (${bundle.intent}): ${bundle.mandatorySkillIds.join(', ') || '(chat: none mandatory)'}`,
     '--- end S07 assist ---'
   ].join('\n')
 }
 
 module.exports = {
+  GROK_TURN_EXECUTION_CHECKLIST,
+  GROK_INTENT_SKILL_BUNDLES,
+  CHECK_REPAIR_CATALOG,
   evaluateGrokHostParity,
   composeEntryCheckBlock,
   entryCheckAssistSuffix,
   composePc4Line,
+  resolveGrokIntentSkillBundle,
+  buildGrokRepairSteps,
+  formatGrokTurnChecklistMarkdown,
+  classifyGrokTurnOmissionSample,
   readAdapterDenyContract,
   readBootstrapCapability
 }

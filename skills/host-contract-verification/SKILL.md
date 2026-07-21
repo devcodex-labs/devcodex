@@ -90,6 +90,8 @@ legacy “主要产物 + 绝对路径”最多为 `unverified-legacy`。能力�
 9. `LocalTaskTraceV1` 只保留当前 turn 的 typed data projection；`replay` 不得 dispatch payload、重放 mutation、改 lifecycle state、唤醒宿主或控制进程。
 10. workspace-namespace 下项目根存在 generated `.grok/AGENTS.md` 是作用域异常而不是部署成功证据；只有 workspace plugin、用户注册、两 cwd 同 identity 与工作区外 no-op 同时通过，才能升级 Grok workspace 结论。
 11. plain host 与显式 launcher fallback 必须分别记录 `commands/evidenceMode/evidenceCeiling`；任何一方通过都不能替另一方升级结论。
+12. **Grok HostParity partial 闭环（PF-165）**：`doctor`/`status` 的 `hostParity` 必须能给出 `failedChecks` + 可执行 `repairSteps`（command + detail）；宣称已修复 registration/plugin 缺口时，证据须含再次 `doctor --json` 的 checks 回读，不得只写「建议 update」。
+13. **GrokTurnChecklist**：声称「Grok 完整工作流已执行」时，报告/回执须覆盖 entry-pc0-pc7、skill-bundle、report-memory 与 honest-ceiling；负向探针见 `classifyGrokTurnOmissionSample`（`scripts/lib/host-parity-scorecard.js`）。
 
 ### NativeCommandExitCodeGate 可执行适配
 

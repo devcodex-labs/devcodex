@@ -113,6 +113,7 @@ compact 仍显示所有 check IDs、状态、整体状态、项目和“状态�
 - legacy “主要产物 + 绝对路径”文本最多识别为 `unverified-legacy`，不能升级 verified。
 - direct replay 缺失时使用 portable/plain fallback，能力强度保持 unverified。
 - Rich、portable、plain 的 check IDs、visible artifacts、顺序、状态、动作和 semanticDigest 必须一致。
+- **Grok / passive-hook（PF-165）**：无 UserPromptSubmit 注入时仍必须输出完整 PC0~PC7；完成声明须满足 `GrokTurnChecklist`（见 `host-parity-scorecard` / `host-parity-grok.md`），不得把「无 inject」写成可省略入口或报告的理由；`full-capable` ≠ 已注入 PC0。
 
 ## 消费者同步
 

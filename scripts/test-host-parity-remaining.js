@@ -71,6 +71,9 @@ assert.ok(fs.existsSync(sitePage), 'website intro host-parity-grok.md must exist
 const siteText = fs.readFileSync(sitePage, 'utf8')
 assert.match(siteText, /devcodex grok/)
 assert.match(siteText, /HostParity/)
+assert.match(siteText, /GrokTurnChecklist/)
+assert.match(siteText, /repairSteps/)
+assert.match(siteText, /Skill 强制包|Skill bundle|Intent → Skill/i)
 
 // Platform request semantic fixture (source-contained for clean checkout / CI)
 const platformReq = path.join(__dirname, 'fixtures/host-parity/platform-capability-request-xai.md')

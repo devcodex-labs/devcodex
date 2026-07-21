@@ -9,7 +9,13 @@ const {
   evaluateGrokHostParity,
   composeEntryCheckBlock,
   entryCheckAssistSuffix,
-  composePc4Line
+  composePc4Line,
+  resolveGrokIntentSkillBundle,
+  buildGrokRepairSteps,
+  formatGrokTurnChecklistMarkdown,
+  classifyGrokTurnOmissionSample,
+  GROK_TURN_EXECUTION_CHECKLIST,
+  GROK_INTENT_SKILL_BUNDLES
 } = require('./lib/host-parity-scorecard.js')
 const { adaptHostOutput } = require('../hooks/_runtime/lifecycle-host-adapters.cjs')
 const { buildLifecyclePayloadUtils } = require('../hooks/_runtime/lifecycle-payload-utils.cjs')
@@ -66,6 +72,53 @@ const partial = evaluateGrokHostParity({
 })
 assert.strictEqual(partial.hardReady, false)
 assert.strictEqual(partial.tier, 'partial')
+assert.ok(Array.isArray(partial.failedChecks) && partial.failedChecks.includes('kernelAgentsMd'))
+assert.ok(Array.isArray(partial.repairSteps) && partial.repairSteps.length >= 1)
+assert.ok(partial.repairSteps.some((s) => /devcodex update/.test(s.command)))
+assert.match(partial.userVisibleSummary, /partial|failed/i)
+assert.ok(Array.isArray(partial.turnChecklist) && partial.turnChecklist.includes('skill-bundle'))
+assert.ok(partial.intentSkillBundles && partial.intentSkillBundles.analyze)
+
+// PF-165: Intent→Skill bundle
+const analyzeBundle = resolveGrokIntentSkillBundle('analyze')
+assert.deepStrictEqual(analyzeBundle.mandatorySkillIds.slice(0, 3), ['intent', 'compliance', 'user-visible-output-contract'])
+assert.ok(analyzeBundle.mandatorySkillIds.includes('report'))
+assert.ok(analyzeBundle.mandatorySkillIds.includes('memory'))
+assert.strictEqual(resolveGrokIntentSkillBundle('chat').mandatorySkillIds.length, 0)
+assert.ok(GROK_INTENT_SKILL_BUNDLES.fix.includes('fix-default'))
+assert.ok(GROK_TURN_EXECUTION_CHECKLIST.length >= 6)
+assert.match(formatGrokTurnChecklistMarkdown(), /GrokTurnChecklist/)
+
+// PF-165: repair catalog for registration gap
+const regOnly = buildGrokRepairSteps({
+  kernelAgentsMd: true,
+  codexLifecycleReachable: true,
+  denyAdapterContract: true,
+  pathObservableCapability: true,
+  workspacePluginInstalled: true,
+  workspacePluginRegistered: false
+})
+assert.ok(regOnly.some((s) => s.check === 'workspacePluginRegistered' && /update --host grok/.test(s.command)))
+assert.ok(regOnly.some((s) => s.check === 'full-session-entry' && s.command === 'devcodex grok'))
+
+// PF-165 negative: claim full Grok workflow without checklist anchors → thin
+assert.strictEqual(
+  classifyGrokTurnOmissionSample('Grok 完整工作流已执行完毕，任务完成。'),
+  'checklist-thin'
+)
+assert.strictEqual(
+  classifyGrokTurnOmissionSample([
+    '按 GrokTurnChecklist 完整执行工作流：',
+    'PC0~PC7 已输出；Skill bundle intent+compliance+user-visible-output-contract+report+memory；',
+    '已写报告与记忆 S05；platform ceiling: cannot claim inject/Stop hard-block'
+  ].join(' ')),
+  'checklist-ready'
+)
+assert.strictEqual(classifyGrokTurnOmissionSample('普通修 bug 完成'), 'not-grok-turn-claim')
+
+// S07 assist includes skill bundle line
+assert.match(entryCheckAssistSuffix({ project: 'x', intent: 'fix' }), /Intent→Skill bundle \(fix\)/)
+assert.match(entryCheckAssistSuffix({ project: 'x', intent: 'fix' }), /fix-default/)
 
 // Smoke: deny path used by PreToolUse
 const deny = adaptHostOutput('grok', 'PreToolUse', {

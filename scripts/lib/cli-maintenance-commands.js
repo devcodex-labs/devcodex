@@ -652,11 +652,24 @@ function buildCliMaintenanceCommands(ctx) {
       for (const [key, ok] of Object.entries(hostParity.checks || {})) {
         console.log(`    ${key.padEnd(28)} ${ok ? c.green('✅') : c.red('❌')}`)
       }
+      console.log(c.bold('  Repair steps (executable · PF-165):'))
+      const steps = Array.isArray(hostParity.repairSteps) ? hostParity.repairSteps : []
+      if (!steps.length) {
+        console.log(c.dim('    (none listed — re-run doctor --json and inspect hostParity.checks)'))
+      }
+      for (const step of steps) {
+        const mark = step.status === 'recommended' ? c.cyan('→') : c.yellow('!')
+        console.log(`    ${mark} ${c.bold(step.command)}`)
+        console.log(c.dim(`      [${step.check}] ${step.detail}`))
+      }
+      console.log(c.dim('  Re-verify: devcodex doctor --json  →  payload.hostParity.repairSteps / failedChecks'))
       console.log(c.dim('  Cannot claim: ' + (hostParity.cannotClaim || []).slice(0, 2).join('; ')))
+      console.log(c.dim('  GrokTurnChecklist: PC0~PC7 → Skill bundle → work → report+memory (see host-parity-grok.md)'))
       console.log()
     } else if (hostParity && hostParity.hardReady) {
       console.log(c.dim('  Grok HostParity: PreTool deny + path-observable ready. Still cannot claim UserPromptSubmit inject or Stop hard-block.'))
       console.log(c.dim('  Prefer `devcodex grok` in child Git projects for Full kernel evidence.'))
+      console.log(c.dim('  GrokTurnChecklist + Intent→Skill bundle still required (passive host has no inject).'))
       console.log()
     }
     if (instructionProjection.issues.length) {

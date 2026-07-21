@@ -1371,6 +1371,8 @@ function buildLifecycleBootstrapStateUtils(ctx) {
         '- PC7 [UNVERIFIED] resume/continuation',
         '',
         '下一步：先输出完整 PC0~PC7，再完成 ContextReadPlan 证据后重试工具',
+        'GrokTurnChecklist: PC0~PC7 → Intent→Skill bundle → context plan → work → report+memory → honest ceiling',
+        'Skill bundle (non-chat): intent+compliance+user-visible-output-contract+workflow+report+memory',
         'DevCodexVisibleEnvelopeV1 · entry-check · BLOCK · s07-assist-context-incomplete',
         '--- end S07 assist ---'
       ].join('\n')

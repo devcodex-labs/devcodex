@@ -2,7 +2,7 @@
   "schemaVersion": "HostInstructionCoverageReceiptV1",
   "sourceFile": "instructions.md",
   "sourceDigest": "87d7833e4b5a69a3feaad4cbc1cfd31a1a2a9bbbff94fd3f1d731b519ec986b6",
-  "configDigest": "22da2caf8716caf1e4368f686dca1b57847f36b45a3648b5e13cb210bb8baafd",
+  "configDigest": "fee0e4b819cbdf021ea6375a39a5cc939035c6f0eda961305a77ee06222b98fb",
   "mode": "kernel",
   "fallback": {
     "destination": ".agents/devcodex/instructions.full.md",
@@ -272,23 +272,39 @@
       "missingSourceAnchors": [],
       "missingProjectionAnchors": [],
       "covered": true
+    },
+    {
+      "id": "passive-host",
+      "sourceAnchors": [
+        "user-visible-output-contract",
+        "PC0~PC7",
+        "S07"
+      ],
+      "projectionAnchors": [
+        "devcodex grok",
+        "GrokTurnChecklist",
+        "Skill bundle"
+      ],
+      "missingSourceAnchors": [],
+      "missingProjectionAnchors": [],
+      "covered": true
     }
   ],
   "coverage": {
-    "coveredCount": 36,
-    "mandatoryCount": 36,
+    "coveredCount": 37,
+    "mandatoryCount": 37,
     "percentage": 100
   },
   "outputs": {
     "host-projections/AGENTS.md": {
-      "bytes": 9976,
-      "lines": 82,
-      "digest": "56443fbeefbf3689b515151bae187afc82b0dde7c66167ce1003ed8262d3e6d0"
+      "bytes": 10398,
+      "lines": 87,
+      "digest": "64382ec33a95f60e026bf9a1b734cd7323b0e6927bc8059d8631702eee91689a"
     },
     "host-projections/copilot-instructions.md": {
-      "bytes": 9962,
-      "lines": 82,
-      "digest": "f862b4c2ee5e52ecb7980528e12f902077416cf7c4b0eb0f8cf56f4e0ecdb99c"
+      "bytes": 10384,
+      "lines": 87,
+      "digest": "f3643b0d5f9802bb1f1e41d0b3b483c01fd5b4f4322aeddfaeb14f6958bd5da6"
     },
     "host-projections/CLAUDE.md": {
       "bytes": 327,
@@ -306,5 +322,5 @@
     "valid": true,
     "errors": []
   },
-  "receiptId": "host-instruction-coverage-2c548c6cce1f1b736f189e0b2c4013fe607522075154541317c5570aecee2c6a"
+  "receiptId": "host-instruction-coverage-55e07177ae27722624d111001c5a65837472ac8f2861a1de3decbffe65b18afd"
 }

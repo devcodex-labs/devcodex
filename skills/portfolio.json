@@ -5,14 +5,14 @@
   "generatedFrom": {
     "skillsPattern": "skills/*/SKILL.md",
     "registry": "plugin.json",
-    "sourceDigest": "eb15677904bb3ec35f963352f2c02a71ce237dc5f1a4037557f3bf57db50853c",
+    "sourceDigest": "e081c328e11b627abd8095ebf0077a09f5fd872bc27f59df700ea7946dfb5589",
     "pluginDigest": "3e417180688c359025e64d584c098b5ef5ba112cf2ef8ca970f1c5589fe3d2bb",
     "portfolioEvidence": "skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "85229c1463a5068750d5417e5ebf960907532dccf99b1cd3da0a88f7007792b4",
-    "consumerInventoryFileCount": 500,
-    "consumerInventoryDigest": "bf9145b9a4d801d02297c11508981ec44fe0e4c3a253b1d872285eda6b52cb29",
-    "consumerProjectionDigest": "dfe49c4755473a4f1cd9654a9d964d1ac2f8ad7fe03e33a747e9817a7f0a2b41",
-    "portfolioInputDigest": "ec2f99ddde7b7d6f613878285c078e37002ace04971d15a70265ac7276f7e942"
+    "consumerInventoryFileCount": 502,
+    "consumerInventoryDigest": "9b335e838b8a3a05d123768ada3f60f178bdb63e83846e50afd4d3ffc0d95b65",
+    "consumerProjectionDigest": "bc1387ef353713cb061c948e3838c4d8ac2957060147c440a54a0b5dd6ff14ae",
+    "portfolioInputDigest": "6874de1c3009e5bffa8bb36f25719780b5e91f68f05f1a62e15e267c48232040"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -1031,6 +1031,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/host-parity-scorecard.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/test-spec-governance-base.js",
           "role": "current"
         },
@@ -1056,6 +1060,10 @@
         },
         {
           "path": "website/docs/guide/development.md",
+          "role": "current"
+        },
+        {
+          "path": "website/docs/intro/host-parity-grok.md",
           "role": "current"
         },
         {
@@ -1900,6 +1908,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/host-parity-scorecard.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/test-spec-governance-base.js",
           "role": "current"
         },
@@ -1945,6 +1957,10 @@
         },
         {
           "path": "scripts/validation-manifest.json",
+          "role": "current"
+        },
+        {
+          "path": "website/docs/intro/host-parity-grok.md",
           "role": "current"
         },
         {
@@ -4920,6 +4936,10 @@
           "role": "current"
         },
         {
+          "path": "grok/plugins/devcodex-workspace/skills/devcodex-workspace/SKILL.md",
+          "role": "current"
+        },
+        {
           "path": "hooks/_runtime/lifecycle-bootstrap-state.cjs",
           "role": "current"
         },
@@ -4929,6 +4949,14 @@
         },
         {
           "path": "hooks/_runtime/lifecycle.cjs",
+          "role": "current"
+        },
+        {
+          "path": "host-projections/AGENTS.md",
+          "role": "current"
+        },
+        {
+          "path": "host-projections/copilot-instructions.md",
           "role": "current"
         },
         {
@@ -4996,6 +5024,14 @@
           "role": "current"
         },
         {
+          "path": "scripts/host-instruction-projection.json",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/host-parity-scorecard.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/test-hooks-runtime-visibility.js",
           "role": "current"
         },
@@ -5052,6 +5088,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-host-parity-scorecard.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/validate.js",
           "role": "current"
         },
@@ -5061,6 +5101,10 @@
         },
         {
           "path": "website/docs/guide/development.md",
+          "role": "current"
+        },
+        {
+          "path": "website/docs/intro/host-parity-grok.md",
           "role": "current"
         },
         {
@@ -5275,6 +5319,7 @@
       "validationProfile": [
         "scripts/test-client-contracts.js",
         "scripts/test-hooks-runtime.js",
+        "scripts/test-host-parity-scorecard.js",
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
@@ -5327,6 +5372,7 @@
         "probeSuiteRefs": [
           "scripts/test-client-contracts.js",
           "scripts/test-hooks-runtime.js",
+          "scripts/test-host-parity-scorecard.js",
           "scripts/test-skill-portfolio.js",
           "scripts/validate.js"
         ],
@@ -5672,6 +5718,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/host-parity-scorecard.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/test-spec-governance-base.js",
           "role": "current"
         },
@@ -5737,6 +5787,10 @@
         },
         {
           "path": "website/docs/guide/development.md",
+          "role": "current"
+        },
+        {
+          "path": "website/docs/intro/host-parity-grok.md",
           "role": "current"
         },
         {
@@ -6489,6 +6543,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/host-parity-scorecard.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/test-spec-governance-base.js",
           "role": "current"
         },
@@ -6526,6 +6584,10 @@
         },
         {
           "path": "website/docs/guide/development.md",
+          "role": "current"
+        },
+        {
+          "path": "website/docs/intro/host-parity-grok.md",
           "role": "current"
         },
         {
@@ -9632,6 +9694,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/host-parity-scorecard.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/test-spec-governance-base.js",
           "role": "current"
         },
@@ -9660,11 +9726,19 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-host-parity-scorecard.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-repair-prevention-assessment.js",
           "role": "current"
         },
         {
           "path": "scripts/validation-manifest.json",
+          "role": "current"
+        },
+        {
+          "path": "website/docs/intro/host-parity-grok.md",
           "role": "current"
         },
         {
@@ -9713,6 +9787,7 @@
         }
       ],
       "validationProfile": [
+        "scripts/test-host-parity-scorecard.js",
         "scripts/test-repair-prevention-assessment.js",
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
@@ -9760,6 +9835,7 @@
         ],
         "evolvableUnitRef": "skill:fix-default",
         "probeSuiteRefs": [
+          "scripts/test-host-parity-scorecard.js",
           "scripts/test-repair-prevention-assessment.js",
           "scripts/test-skill-portfolio.js",
           "scripts/validate.js"
@@ -10305,8 +10381,8 @@
         "skills/host-contract-verification/SKILL.md"
       ],
       "source": "skills/host-contract-verification/SKILL.md",
-      "hash": "d24ac9fc394888adb22adeb37ad41db62eb9a0d1fdb13f9e46bd39b436524886",
-      "sourceBytes": 12400,
+      "hash": "00e7c7eb5fb5339411e017636989a13ccdc1f3cc977386858f3f316b0d7d27d3",
+      "sourceBytes": 12967,
       "version": "1.15.2",
       "lifecycleState": "active",
       "dependencies": [],
@@ -11118,7 +11194,15 @@
           "role": "current"
         },
         {
+          "path": "host-projections/AGENTS.md",
+          "role": "current"
+        },
+        {
           "path": "host-projections/AGENTS.workspace-bridge.md",
+          "role": "current"
+        },
+        {
+          "path": "host-projections/copilot-instructions.md",
           "role": "current"
         },
         {
@@ -11198,6 +11282,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/host-instruction-projection.json",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/always-on-governance.js",
           "role": "current"
         },
@@ -11207,6 +11295,10 @@
         },
         {
           "path": "scripts/lib/cli-maintenance-commands.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/host-parity-scorecard.js",
           "role": "current"
         },
         {
@@ -11298,6 +11390,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-host-parity-scorecard.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-intent-consistency.js",
           "role": "current"
         },
@@ -11327,6 +11423,10 @@
         },
         {
           "path": "scripts/validation-manifest.json",
+          "role": "current"
+        },
+        {
+          "path": "website/docs/intro/host-parity-grok.md",
           "role": "current"
         },
         {
@@ -11446,6 +11546,7 @@
         "scripts/test-context-read-contract.js",
         "scripts/test-execution-chain-evolution.js",
         "scripts/test-governance-intake.js",
+        "scripts/test-host-parity-scorecard.js",
         "scripts/test-intent-consistency.js",
         "scripts/test-mcp-servers.js",
         "scripts/test-review-execution-contract.js",
@@ -11512,6 +11613,7 @@
           "scripts/test-context-read-contract.js",
           "scripts/test-execution-chain-evolution.js",
           "scripts/test-governance-intake.js",
+          "scripts/test-host-parity-scorecard.js",
           "scripts/test-intent-consistency.js",
           "scripts/test-mcp-servers.js",
           "scripts/test-review-execution-contract.js",
@@ -12010,6 +12112,10 @@
           "role": "current"
         },
         {
+          "path": "grok/plugins/devcodex-workspace/skills/devcodex-workspace/SKILL.md",
+          "role": "current"
+        },
+        {
           "path": "grok/skills/devcodex-workspace/SKILL.md",
           "role": "current"
         },
@@ -12166,6 +12272,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/host-instruction-projection.json",
+          "role": "current"
+        },
+        {
           "path": "scripts/instruction-fallback-check.js",
           "role": "current"
         },
@@ -12175,6 +12285,10 @@
         },
         {
           "path": "scripts/lib/cli-install-commands.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/cli-maintenance-commands.js",
           "role": "current"
         },
         {
@@ -12286,6 +12400,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-host-parity-scorecard.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-instruction-fallback-check.js",
           "role": "current"
         },
@@ -12343,6 +12461,10 @@
         },
         {
           "path": "website/docs/guide/release.md",
+          "role": "current"
+        },
+        {
+          "path": "website/docs/intro/host-parity-grok.md",
           "role": "current"
         },
         {
@@ -12553,6 +12675,7 @@
         "scripts/test-governance-intake.js",
         "scripts/test-governance-status-summary.js",
         "scripts/test-hooks-runtime.js",
+        "scripts/test-host-parity-scorecard.js",
         "scripts/test-instruction-fallback-check.js",
         "scripts/test-mcp-servers.js",
         "scripts/test-migrate-layout.js",
@@ -12615,6 +12738,7 @@
           "scripts/test-governance-intake.js",
           "scripts/test-governance-status-summary.js",
           "scripts/test-hooks-runtime.js",
+          "scripts/test-host-parity-scorecard.js",
           "scripts/test-instruction-fallback-check.js",
           "scripts/test-mcp-servers.js",
           "scripts/test-migrate-layout.js",
@@ -13420,6 +13544,10 @@
         },
         {
           "path": "website/docs/index.md",
+          "role": "current"
+        },
+        {
+          "path": "website/docs/intro/host-parity-grok.md",
           "role": "current"
         },
         {
@@ -15786,6 +15914,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/host-instruction-projection.json",
+          "role": "current"
+        },
+        {
           "path": "scripts/instruction-fallback-check.js",
           "role": "current"
         },
@@ -15802,11 +15934,23 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/cli-maintenance-commands.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/cli-observability-commands.js",
           "role": "current"
         },
         {
           "path": "scripts/lib/control-plane-contracts.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/external-review-claim-verification.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/host-parity-scorecard.js",
           "role": "current"
         },
         {
@@ -15922,7 +16066,15 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-external-review-claim-verification.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-hooks-runtime.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-host-parity-scorecard.js",
           "role": "current"
         },
         {
@@ -15971,6 +16123,10 @@
         },
         {
           "path": "website/docs/index.md",
+          "role": "current"
+        },
+        {
+          "path": "website/docs/intro/host-parity-grok.md",
           "role": "current"
         },
         {
@@ -16141,7 +16297,9 @@
       "validationProfile": [
         "scripts/test-client-contracts.js",
         "scripts/test-control-plane-contracts.js",
+        "scripts/test-external-review-claim-verification.js",
         "scripts/test-hooks-runtime.js",
+        "scripts/test-host-parity-scorecard.js",
         "scripts/test-instruction-fallback-check.js",
         "scripts/test-mcp-servers.js",
         "scripts/test-migrate-layout.js",
@@ -16204,7 +16362,9 @@
         "probeSuiteRefs": [
           "scripts/test-client-contracts.js",
           "scripts/test-control-plane-contracts.js",
+          "scripts/test-external-review-claim-verification.js",
           "scripts/test-hooks-runtime.js",
+          "scripts/test-host-parity-scorecard.js",
           "scripts/test-instruction-fallback-check.js",
           "scripts/test-mcp-servers.js",
           "scripts/test-migrate-layout.js",
@@ -18756,6 +18916,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/external-review-claim-verification.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/governance-status-summary.js",
           "role": "current"
         },
@@ -18821,6 +18985,10 @@
         },
         {
           "path": "scripts/test-context-read-contract.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-external-review-claim-verification.js",
           "role": "current"
         },
         {
@@ -19008,6 +19176,7 @@
         "scripts/test-always-on-governance.js",
         "scripts/test-cli-behavior.js",
         "scripts/test-context-read-contract.js",
+        "scripts/test-external-review-claim-verification.js",
         "scripts/test-governance-status-summary.js",
         "scripts/test-hooks-runtime.js",
         "scripts/test-mcp-servers.js",
@@ -19065,6 +19234,7 @@
           "scripts/test-always-on-governance.js",
           "scripts/test-cli-behavior.js",
           "scripts/test-context-read-contract.js",
+          "scripts/test-external-review-claim-verification.js",
           "scripts/test-governance-status-summary.js",
           "scripts/test-hooks-runtime.js",
           "scripts/test-mcp-servers.js",
@@ -19932,8 +20102,8 @@
         "skills/user-visible-output-contract/SKILL.md"
       ],
       "source": "skills/user-visible-output-contract/SKILL.md",
-      "hash": "449373f2a84c6c1a001410d49ff3549511b857a5f145c50a7d22652a78991196",
-      "sourceBytes": 8562,
+      "hash": "de3ad2aa75d53f5bb0e925544090e482649c0fdf25a441389427bb1fe786319e",
+      "sourceBytes": 8868,
       "version": "1.15.2",
       "lifecycleState": "active",
       "dependencies": [],
@@ -19950,6 +20120,14 @@
         },
         {
           "path": "changelogs/unreleased.md",
+          "role": "current"
+        },
+        {
+          "path": "grok/plugins/devcodex-workspace/skills/devcodex-workspace/SKILL.md",
+          "role": "current"
+        },
+        {
+          "path": "hooks/_runtime/lifecycle-bootstrap-state.cjs",
           "role": "current"
         },
         {
@@ -20001,11 +20179,19 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/host-parity-scorecard.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/validate-rework-trust-controls.js",
           "role": "current"
         },
         {
           "path": "scripts/lib/validate-visible-output-controls.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-host-parity-scorecard.js",
           "role": "current"
         },
         {
@@ -20025,11 +20211,16 @@
           "role": "current"
         },
         {
+          "path": "website/docs/intro/host-parity-grok.md",
+          "role": "current"
+        },
+        {
           "path": "website/docs/intro/index.md",
           "role": "current"
         }
       ],
       "validationProfile": [
+        "scripts/test-host-parity-scorecard.js",
         "scripts/test-skill-portfolio.js",
         "scripts/test-visible-output-contract.js",
         "scripts/validate.js"
@@ -20077,6 +20268,7 @@
         ],
         "evolvableUnitRef": "skill:user-visible-output-contract",
         "probeSuiteRefs": [
+          "scripts/test-host-parity-scorecard.js",
           "scripts/test-skill-portfolio.js",
           "scripts/test-visible-output-contract.js",
           "scripts/validate.js"

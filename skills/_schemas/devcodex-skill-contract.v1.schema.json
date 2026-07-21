@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "devcodex:skill-contract:v1",
+  "title": "DevCodexSkillContractV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion"],
+  "properties": {
+    "schemaVersion": {
+      "const": "DevCodexSkillContractV1"
+    },
+    "triggerFixtures": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "positive": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "maxItems": 50
+        },
+        "negative": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "maxItems": 50
+        },
+        "ambiguous": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "maxItems": 50
+        }
+      }
+    },
+    "resources": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "type", "path", "load"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+          "type": { "enum": ["reference", "asset"] },
+          "path": { "type": "string", "minLength": 1, "maxLength": 512 },
+          "load": { "enum": ["on-demand", "manual"] },
+          "required": { "type": "boolean" }
+        }
+      }
+    },
+    "scripts": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "path", "runtime", "purpose", "invocation"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+          "path": { "type": "string", "minLength": 1, "maxLength": 512 },
+          "runtime": { "const": "node" },
+          "purpose": { "type": "string", "minLength": 1, "maxLength": 256 },
+          "invocation": { "const": "manual-only" },
+          "requiredCapabilities": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "enum": ["filesystem-read", "filesystem-write", "network", "process-spawn"]
+            }
+          }
+        }
+      }
+    }
+  }
+}

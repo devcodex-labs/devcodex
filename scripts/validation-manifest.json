@@ -37,6 +37,7 @@
         "validate-versions",
         "validate-core",
         "checked-command",
+        "skill-sidecar-contract",
         "skill-portfolio",
         "skill-portfolio-current",
         "profile-section-selector",
@@ -84,15 +85,15 @@
         "migrate-layout",
         "cli-behavior",
         "release-metadata",
-      "pack-clean",
-      "public-text-integrity",
-      "review-execution-contract",
-      "visible-output-contract",
-      "repair-prevention-assessment",
-      "critical-coverage",
-      "host-instruction-projection",
-      "host-adapters",
-      "host-installation",
+        "pack-clean",
+        "public-text-integrity",
+        "review-execution-contract",
+        "visible-output-contract",
+        "repair-prevention-assessment",
+        "critical-coverage",
+        "host-instruction-projection",
+        "host-adapters",
+        "host-installation",
         "syntax"
       ]
     },
@@ -101,6 +102,7 @@
         "validate-versions",
         "validate-core",
         "checked-command",
+        "skill-sidecar-contract",
         "skill-portfolio",
         "skill-portfolio-current",
         "profile-section-selector",
@@ -148,15 +150,15 @@
         "migrate-layout",
         "cli-behavior",
         "release-metadata",
-      "pack-clean",
-      "public-text-integrity",
-      "review-execution-contract",
-      "visible-output-contract",
-      "repair-prevention-assessment",
-      "critical-coverage",
-      "host-instruction-projection",
-      "host-adapters",
-      "host-installation",
+        "pack-clean",
+        "public-text-integrity",
+        "review-execution-contract",
+        "visible-output-contract",
+        "repair-prevention-assessment",
+        "critical-coverage",
+        "host-instruction-projection",
+        "host-adapters",
+        "host-installation",
         "syntax",
         "generated-site-precheck",
         "website-build",
@@ -182,16 +184,17 @@
         "mcp-servers",
         "client-contracts",
         "migrate-layout",
-      "pack-clean",
-      "public-text-integrity",
-      "review-execution-contract",
-      "visible-output-contract",
-      "repair-prevention-assessment",
-      "critical-coverage",
-      "host-instruction-projection",
-      "host-adapters",
-      "host-installation",
-        "syntax"
+        "pack-clean",
+        "public-text-integrity",
+        "review-execution-contract",
+        "visible-output-contract",
+        "repair-prevention-assessment",
+        "critical-coverage",
+        "host-instruction-projection",
+        "host-adapters",
+        "host-installation",
+        "syntax",
+        "skill-sidecar-contract"
       ]
     },
     "package-release": {
@@ -203,19 +206,20 @@
         "always-on-governance",
         "client-contracts",
         "release-metadata",
-      "pack-clean",
-      "public-text-integrity",
-      "review-execution-contract",
-      "visible-output-contract",
-      "repair-prevention-assessment",
-      "critical-coverage",
-      "host-instruction-projection",
-      "host-adapters",
-      "host-installation",
+        "pack-clean",
+        "public-text-integrity",
+        "review-execution-contract",
+        "visible-output-contract",
+        "repair-prevention-assessment",
+        "critical-coverage",
+        "host-instruction-projection",
+        "host-adapters",
+        "host-installation",
         "syntax",
         "generated-site-precheck",
         "website-build",
-        "generated-site-postcheck"
+        "generated-site-postcheck",
+        "skill-sidecar-contract"
       ]
     }
   },
@@ -484,13 +488,55 @@
     },
     {
       "schemaVersion": "ValidationNodeV1",
+      "id": "skill-sidecar-contract",
+      "owner": "skill-lifecycle",
+      "command": "node",
+      "args": [
+        "scripts/test-skill-sidecar-contract.js"
+      ],
+      "dependencies": [],
+      "inputs": [
+        "scripts/lib/skill-sidecar-contract.js",
+        "scripts/lib/skill-portfolio-utils.js",
+        "scripts/test-skill-sidecar-contract.js",
+        "skills/_schemas/devcodex-skill-contract.v1.schema.json",
+        "skills/**"
+      ],
+      "consumers": [
+        "skill-portfolio",
+        "skill-portfolio-current"
+      ],
+      "invariants": [
+        "contract"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
       "id": "skill-portfolio",
       "owner": "skill-lifecycle",
       "command": "node",
       "args": [
         "scripts/test-skill-portfolio.js"
       ],
-      "dependencies": [],
+      "dependencies": [
+        "skill-sidecar-contract"
+      ],
       "inputs": [
         "skills/**",
         "**/*.md",
@@ -501,6 +547,7 @@
         "**/*.yml",
         "**/*.yaml",
         "scripts/lib/skill-portfolio-utils.js",
+        "scripts/lib/skill-sidecar-contract.js",
         "scripts/test-skill-portfolio.js",
         "scripts/generate-skill-portfolio.js"
       ],
@@ -536,7 +583,9 @@
         "scripts/generate-skill-portfolio.js",
         "--check"
       ],
-      "dependencies": [],
+      "dependencies": [
+        "skill-sidecar-contract"
+      ],
       "inputs": [
         "skills/**",
         "**/*.md",
@@ -547,6 +596,7 @@
         "**/*.yml",
         "**/*.yaml",
         "scripts/lib/skill-portfolio-utils.js",
+        "scripts/lib/skill-sidecar-contract.js",
         "scripts/generate-skill-portfolio.js"
       ],
       "consumers": [],
@@ -2468,9 +2518,9 @@
         "PublicTextIntegrityResultV1"
       ]
     },
-  {
-    "schemaVersion": "ValidationNodeV1",
-    "id": "critical-coverage",
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "critical-coverage",
       "owner": "quality-strategy",
       "command": "npm",
       "args": [

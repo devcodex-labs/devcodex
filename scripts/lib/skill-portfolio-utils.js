@@ -5,6 +5,10 @@ const { execFileSync } = require('child_process')
 const fs = require('fs')
 const path = require('path')
 const { buildBundleDecisionV2 } = require('../../mcp/profile-contract')
+const {
+  loadSkillSidecarWithReader,
+  sidecarRelativePath
+} = require('./skill-sidecar-contract')
 
 const LEGAL_STATES = new Set(['draft', 'gray', 'active', 'deprecated', 'retired', 'blocked'])
 const SKILL_INDEX_EVIDENCE_STATES = new Set(['unverified', 'source-backed', 'validated'])
@@ -476,6 +480,7 @@ function buildPortfolio(root, options = {}) {
   const knownNames = new Set(skillPaths.map(relative => path.posix.basename(path.posix.dirname(relative))))
   const consumers = listConsumerDocuments(root, { repositoryView, repositorySnapshot })
   const sourceRows = []
+  const sidecarRows = []
   const consumerProjectionRows = []
 
   const skills = skillPaths.map(source => {
@@ -483,6 +488,31 @@ function buildPortfolio(root, options = {}) {
     const content = readText(source)
     const canonicalContent = canonicalizeTextForDigest(content)
     const frontmatter = parseFrontmatter(content, id)
+    let sidecarProjection = null
+    try {
+      const loaded = loadSkillSidecarWithReader(root, id, readText)
+      if (loaded) {
+        sidecarProjection = {
+          path: loaded.path,
+          digest: loaded.digest,
+          state: loaded.state,
+          resourceContracts: loaded.resourceContracts,
+          manualScriptContracts: loaded.manualScriptContracts,
+          triggerFixtures: loaded.triggerFixtures,
+          fallbackPolicy: loaded.fallbackPolicy
+        }
+        sidecarRows.push(`${loaded.path}:${loaded.digest}`)
+        for (const resource of loaded.resourceContracts) {
+          sidecarRows.push(`${id}:resource:${resource.id}:${resource.contentDigest}`)
+        }
+        for (const script of loaded.manualScriptContracts) {
+          sidecarRows.push(`${id}:script:${script.id}:${script.contentDigest}`)
+        }
+      }
+    } catch (error) {
+      const code = error && error.code ? `${error.code}: ` : ''
+      throw new Error(`skill sidecar invalid for ${id} (${sidecarRelativePath(id)}): ${code}${error.message}`)
+    }
     const consumerRows = consumers
       .filter(item => item.content.includes(id))
       .map(item => ({ path: item.path, role: classifyConsumer(item.path) }))
@@ -529,13 +559,15 @@ function buildPortfolio(root, options = {}) {
       defaults: portfolioEvidence.defaults,
       override
     })
+    const ownedArtifacts = [source]
+    if (sidecarProjection) ownedArtifacts.push(sidecarProjection.path)
     return {
       id,
       name: frontmatter.name,
       description: frontmatter.description,
       owner: id,
       triggers: skillIndex.triggers,
-      ownedArtifacts: [source],
+      ownedArtifacts,
       source,
       hash,
       sourceBytes,
@@ -552,6 +584,7 @@ function buildPortfolio(root, options = {}) {
       validationProfile,
       lastEvidenceAt: operationalReadiness.lastEvidenceAt,
       skillIndex,
+      sidecar: sidecarProjection,
       evidence: {
         registration: isRegistered ? 'plugin.json' : null,
         operationalReadiness,
@@ -579,12 +612,14 @@ function buildPortfolio(root, options = {}) {
     .filter(skill => skill.lifecycleState === 'active' && !skill.consumers.some(item => item.role === 'current'))
     .map(skill => skill.id)
   const sourceDigest = sha256(sourceRows.sort().join('\n'))
+  const sidecarDigest = sha256(sidecarRows.length ? sidecarRows.sort().join('\n') : 'sidecar-none')
   const pluginDigest = sha256(canonicalizeTextForDigest(readText(pluginPath)))
   const portfolioEvidenceDigest = sha256(canonicalizeTextForDigest(readText(portfolioEvidencePath)))
   const consumerInventoryDigest = sha256(consumers.map(item => item.path).sort().join('\n'))
   const consumerProjectionDigest = sha256(consumerProjectionRows.sort().join('\n'))
   const portfolioInputDigest = sha256([
     `skills:${sourceDigest}`,
+    `sidecar:${sidecarDigest}`,
     `plugin:${pluginDigest}`,
     `evidence:${portfolioEvidenceDigest}`,
     `consumer-inventory:${consumerInventoryDigest}`,
@@ -597,8 +632,10 @@ function buildPortfolio(root, options = {}) {
     packageVersion: packageJson.version,
     generatedFrom: {
       skillsPattern: 'skills/*/SKILL.md',
+      optionalSidecar: 'skills/*/devcodex.skill.json',
       registry: 'plugin.json',
       sourceDigest,
+      sidecarDigest,
       pluginDigest,
       portfolioEvidence: 'skills/portfolio-evidence.json',
       portfolioEvidenceDigest,
@@ -620,7 +657,8 @@ function buildPortfolio(root, options = {}) {
       operationalEvidenceCompleteCount: skills.filter(skill => skill.evidence.operationalReadiness.state === 'complete').length,
       triggerPrecisionMeasuredCount: skills.filter(skill => skill.evidence.triggerPrecision.state === 'measured').length,
       instructionBudgetP95Bytes: percentile(skillPaths.map(relative => Buffer.byteLength(canonicalizeTextForDigest(readText(relative)), 'utf8')), 0.95),
-      triggerQuality: 'structural-only'
+      triggerQuality: 'structural-only',
+      sidecarPresentCount: skills.filter(skill => skill.sidecar && skill.sidecar.state === 'valid').length
     },
     dependencyGraph: { nodes, edges, cycles },
     referenceGraph: { edges: referenceEdges.sort((a, b) => `${a.from}:${a.to}`.localeCompare(`${b.from}:${b.to}`)) },
@@ -643,6 +681,9 @@ function validatePortfolio(portfolio) {
   }
   for (const field of ['consumerInventoryDigest', 'consumerProjectionDigest', 'portfolioInputDigest']) {
     if (!/^[a-f0-9]{64}$/.test(String(generatedFrom[field] || ''))) errors.push(`invalid ${field}`)
+  }
+  if (generatedFrom.sidecarDigest != null && !/^[a-f0-9]{64}$/.test(String(generatedFrom.sidecarDigest))) {
+    errors.push('invalid sidecarDigest')
   }
   for (const skill of portfolio.skills || []) {
     if (ids.has(skill.id)) errors.push(`duplicate skill id: ${skill.id}`)

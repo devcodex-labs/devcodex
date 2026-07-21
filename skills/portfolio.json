@@ -4,15 +4,17 @@
   "packageVersion": "1.15.2",
   "generatedFrom": {
     "skillsPattern": "skills/*/SKILL.md",
+    "optionalSidecar": "skills/*/devcodex.skill.json",
     "registry": "plugin.json",
     "sourceDigest": "0941b1520cd18739d2799722c11dfd5432da2639524a61238f9dd3817011a68f",
+    "sidecarDigest": "774105d7947b340d15d17115fcb8e37b62ae545cf553f06126d529184fd74872",
     "pluginDigest": "3e417180688c359025e64d584c098b5ef5ba112cf2ef8ca970f1c5589fe3d2bb",
     "portfolioEvidence": "skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "85229c1463a5068750d5417e5ebf960907532dccf99b1cd3da0a88f7007792b4",
     "consumerInventoryFileCount": 507,
     "consumerInventoryDigest": "f509a00073d6753f444f6ba274b74d6eb3ee257afad38082036d55ce46c1bcbe",
     "consumerProjectionDigest": "c6df0ba0a96c3f3f417591af7f6147984f17eb901263518c9e449d5010bda4cf",
-    "portfolioInputDigest": "5acb3c11d22e9d5d8a5e0cb4631c15f7abf2d98ff1bade37e0ef7e51ac14ec47"
+    "portfolioInputDigest": "31afc6ab4f59397032cb064e7a2920ecb4628240052570357045163764dd1cdf"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -27,7 +29,8 @@
     "operationalEvidenceCompleteCount": 81,
     "triggerPrecisionMeasuredCount": 0,
     "instructionBudgetP95Bytes": 21062,
-    "triggerQuality": "structural-only"
+    "triggerQuality": "structural-only",
+    "sidecarPresentCount": 0
   },
   "dependencyGraph": {
     "nodes": [
@@ -593,6 +596,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -773,6 +777,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -937,6 +942,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -1133,6 +1139,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -1317,6 +1324,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -1491,6 +1499,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -1777,6 +1786,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -2050,6 +2060,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -2214,6 +2225,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -2418,6 +2430,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -2627,6 +2640,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -2839,6 +2853,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -3059,6 +3074,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -3315,6 +3331,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -3491,6 +3508,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -3687,6 +3705,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -3881,6 +3900,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -4053,6 +4073,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -4255,6 +4276,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -4411,6 +4433,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -4623,6 +4646,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -4777,6 +4801,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -5379,6 +5404,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -5563,6 +5589,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -5907,6 +5934,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -6063,6 +6091,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -6229,6 +6258,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -6405,6 +6435,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -6699,6 +6730,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -6953,6 +6985,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -7133,6 +7166,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -7303,6 +7337,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -7605,6 +7640,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -7761,6 +7797,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -7959,6 +7996,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -8175,6 +8213,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -8347,6 +8386,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -8511,6 +8551,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -8797,6 +8838,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -8985,6 +9027,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -9251,6 +9294,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -9425,6 +9469,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -9589,6 +9634,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -9843,6 +9889,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -9997,6 +10044,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -10163,6 +10211,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -10317,6 +10366,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -10553,6 +10603,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -10729,6 +10780,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -10915,6 +10967,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -11071,6 +11124,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -11629,6 +11683,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -11953,6 +12008,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -12767,6 +12823,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -12945,6 +13002,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -13878,6 +13936,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -14036,6 +14095,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -14196,6 +14256,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -14350,6 +14411,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -14506,6 +14568,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -14724,6 +14787,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -14890,6 +14954,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -15078,6 +15143,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -15360,6 +15426,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -15572,6 +15639,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -16416,6 +16484,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -16632,6 +16701,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -16836,6 +16906,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -17294,6 +17365,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -17452,6 +17524,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -17616,6 +17689,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -17810,6 +17884,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -18034,6 +18109,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -18268,6 +18344,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -18748,6 +18825,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -19284,6 +19362,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -19652,6 +19731,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -19882,6 +19962,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -20086,6 +20167,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -20312,6 +20394,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {
@@ -20466,6 +20549,7 @@
         "exitCondition": "work-unit-complete-or-workflow-transition",
         "evidenceState": "source-backed"
       },
+      "sidecar": null,
       "evidence": {
         "registration": "plugin.json",
         "operationalReadiness": {

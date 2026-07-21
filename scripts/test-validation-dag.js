@@ -15,6 +15,9 @@ const {
   cacheDescriptor,
   cacheRelativePath,
   commandSignature,
+  buildNestedCommandGraph,
+  planLockAwareSchedule,
+  expandSelectedWithNestedLeaves,
   executeValidationPlan,
   manifestIdentity,
   planValidation,
@@ -226,6 +229,36 @@ function run() {
     // positive: real manifest still validates with repoRoot
     assert.doesNotThrow(() => validateValidationManifest(manifest, { repoRoot: ROOT }))
 
+    // PF-148 slice-2: delegated nodeId must exist as top-level node
+    const missingDelegatedNodeId = clone(manifest)
+    missingDelegatedNodeId.nodes.find(node => node.id === 'validate-core').delegatedClosure[0].nodeId =
+      'missing-nested-leaf-node'
+    assert.throws(
+      () => validateValidationManifest(missingDelegatedNodeId, { repoRoot: ROOT }),
+      error => error instanceof ValidationDagError && /delegatedClosure nodeId missing/.test(error.message)
+    )
+
+    // Nested graph + lock-aware schedule pure helpers
+    const nestedGraph = buildNestedCommandGraph(manifest)
+    assert.ok(nestedGraph.edgeCount >= 2)
+    assert.match(nestedGraph.digest, /^[a-f0-9]{64}$/)
+    const schedule = planLockAwareSchedule([
+      { id: 'a', dependencies: [], writeScopes: ['scope-x'] },
+      { id: 'b', dependencies: [], writeScopes: ['scope-x'] },
+      { id: 'c', dependencies: [], writeScopes: [] }
+    ])
+    assert.ok(schedule.waveCount >= 2)
+    assert.ok(schedule.waves.some(wave => wave.includes('a')))
+    assert.ok(schedule.waves.some(wave => wave.includes('b')))
+    // conflicting scopes must not share a wave
+    for (const wave of schedule.waves) {
+      assert.ok(!(wave.includes('a') && wave.includes('b')))
+    }
+    const byId = new Map(manifest.nodes.map(node => [node.id, node]))
+    const expanded = expandSelectedWithNestedLeaves(new Set(['validate-core']), byId)
+    assert.ok(expanded.has('hooks-runtime'))
+    assert.ok(expanded.has('mcp-servers'))
+
     const cycle = clone(manifest)
     cycle.nodes.find(node => node.id === 'validate-core').consumers.push('validate-versions')
     assert.throws(() => validateValidationManifest(cycle),
@@ -411,7 +444,9 @@ function run() {
     assert.match(firstRun.receipt.nodeContractDigest, /^[a-f0-9]{64}$/)
     assert.match(firstRun.receipt.delegatedClosureDigest, /^[a-f0-9]{64}$/)
     assert.match(firstRun.receipt.testRouteDigest, /^[a-f0-9]{64}$/)
-    assert.strictEqual(firstRun.receipt.executionMode, 'orchestrated-serial')
+    assert.strictEqual(firstRun.receipt.executionMode, 'orchestrated-serial-lock-aware')
+    assert.match(firstRun.receipt.executionSchedule.scheduleDigest, /^[a-f0-9]{64}$/)
+    assert.match(firstRun.receipt.nestedCommandGraphDigest || '', /^[a-f0-9]{64}$|^$/)
     assert.strictEqual(firstRun.receipt.contextBindingTrace.status, 'unverified')
     assert.strictEqual(runCount, 1)
 

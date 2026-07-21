@@ -46,6 +46,118 @@ function commandSignature(node) {
   return stableStringify([node.command, node.args, node.environment || {}])
 }
 
+/**
+ * PF-148 slice-2: nested delegatedClosure graph (parent → leaf nodeIds + command lines).
+ * @param {object} manifest
+ * @returns {{ edges: object[], nodeIds: string[], digest: string }}
+ */
+function buildNestedCommandGraph(manifest) {
+  const edges = []
+  const nodeIds = new Set()
+  for (const node of manifest.nodes || []) {
+    for (const entry of node.delegatedClosure || []) {
+      if (!entry || !entry.nodeId) continue
+      nodeIds.add(node.id)
+      nodeIds.add(entry.nodeId)
+      edges.push({
+        parentId: node.id,
+        childId: entry.nodeId,
+        probe: entry.probe || null,
+        command: normalizeCommandLine(entry.command)
+      })
+    }
+  }
+  edges.sort((left, right) => stableStringify(left).localeCompare(stableStringify(right)))
+  const core = {
+    schemaVersion: 'NestedCommandGraphV1',
+    edgeCount: edges.length,
+    nodeIds: [...nodeIds].sort(),
+    edges
+  }
+  return {
+    ...core,
+    digest: sha256(Buffer.from(stableStringify(core), 'utf8'))
+  }
+}
+
+function writeScopesConflict(left = [], right = []) {
+  if (!Array.isArray(left) || !Array.isArray(right) || !left.length || !right.length) return false
+  const rightSet = new Set(right)
+  return left.some(scope => rightSet.has(scope))
+}
+
+/**
+ * PF-148 slice-2: lock-aware wave schedule (writeScopes conflict ⇒ different waves).
+ * Still executed serially by flattening waves; receipt records parallel eligibility evidence.
+ * @param {object[]} selectedNodes topological subset
+ * @returns {{ schemaVersion: string, mode: string, waves: string[][], parallelEligibleCount: number, serialForcedCount: number, scheduleDigest: string }}
+ */
+function planLockAwareSchedule(selectedNodes = []) {
+  const waves = []
+  const waveScopes = []
+  const nodeWave = new Map()
+  for (const node of selectedNodes) {
+    const scopes = Array.isArray(node.writeScopes) ? node.writeScopes : []
+    let waveIndex = -1
+    for (let index = 0; index < waves.length; index += 1) {
+      // dependencies must finish in an earlier wave
+      const depBlocks = (node.dependencies || []).some(depId => {
+        if (!nodeWave.has(depId)) return false
+        return nodeWave.get(depId) >= index
+      })
+      if (depBlocks) continue
+      if (writeScopesConflict(scopes, waveScopes[index])) continue
+      waveIndex = index
+      break
+    }
+    if (waveIndex < 0) {
+      waveIndex = waves.length
+      waves.push([])
+      waveScopes.push([])
+    }
+    waves[waveIndex].push(node.id)
+    waveScopes[waveIndex].push(...scopes)
+    nodeWave.set(node.id, waveIndex)
+  }
+  const parallelEligibleCount = waves.reduce((sum, wave) => sum + (wave.length > 1 ? wave.length : 0), 0)
+  const serialForcedCount = selectedNodes.filter(node => Array.isArray(node.writeScopes) && node.writeScopes.length > 0).length
+  const core = {
+    schemaVersion: 'ValidationExecutionScheduleV1',
+    mode: 'serial-lock-aware',
+    waveCount: waves.length,
+    waves,
+    parallelEligibleCount,
+    serialForcedCount
+  }
+  return {
+    ...core,
+    scheduleDigest: sha256(Buffer.from(stableStringify(core), 'utf8'))
+  }
+}
+
+/**
+ * Expand selected set with delegatedClosure leaf nodeIds that exist in the manifest.
+ * Ensures nested work is explicit in the plan graph (PF-148 slice-2).
+ */
+function expandSelectedWithNestedLeaves(selected, byId) {
+  const expanded = new Set(selected)
+  let grew = true
+  while (grew) {
+    grew = false
+    for (const id of [...expanded]) {
+      const node = byId.get(id)
+      if (!node) continue
+      for (const entry of node.delegatedClosure || []) {
+        if (entry && entry.nodeId && byId.has(entry.nodeId) && !expanded.has(entry.nodeId)) {
+          expanded.add(entry.nodeId)
+          grew = true
+        }
+      }
+    }
+  }
+  return expanded
+}
+
 function environmentPreserves(covering = {}, covered = {}) {
   return Object.entries(covered || {}).every(([key, value]) => covering && covering[key] === value)
 }
@@ -258,6 +370,9 @@ function validateValidationManifest(manifest, options = {}) {
     // Nested command closure integrity (PF-148): delegated leaves must be real and consistent
     for (const entry of node.delegatedClosure || []) {
       if (!entry || typeof entry !== 'object') continue
+      if (entry.nodeId && !byId.has(entry.nodeId)) {
+        errors.push('node ' + node.id + ' delegatedClosure nodeId missing from manifest: ' + entry.nodeId)
+      }
       const commandLine = normalizeCommandLine(entry.command)
       const scriptPath = extractScriptPathFromCommandLine(commandLine)
       if (repoRoot && scriptPath) {
@@ -469,7 +584,12 @@ function planValidation({ manifest, route = 'changed', changedFiles = [], change
     if (!coveredNodeIds.has(invariant)) selected.add(invariant)
   }
   selected = addDependencies(selected, byId)
+  // PF-148 slice-2: make nested delegated leaves explicit in the selected plan graph
+  selected = expandSelectedWithNestedLeaves(selected, byId)
+  selected = addDependencies(selected, byId)
   const selectedNodes = ordered.filter(node => selected.has(node.id))
+  const nestedCommandGraph = buildNestedCommandGraph({ nodes: selectedNodes })
+  const executionSchedule = planLockAwareSchedule(selectedNodes)
   const skipped = ordered.filter(node => !selected.has(node.id)).map(node => ({
     nodeId: node.id,
     authority: routeResolved === 'full' ? 'full-route-manifest' : 'changed-closure',
@@ -478,6 +598,14 @@ function planValidation({ manifest, route = 'changed', changedFiles = [], change
     upgradeCondition: 'input, consumer, risk, manifest, or candidate identity changes'
   }))
   const signatures = new Set(selectedNodes.map(commandSignature))
+  const nestedParentIds = {}
+  for (const edge of nestedCommandGraph.edges) {
+    if (!selected.has(edge.childId) || !selected.has(edge.parentId)) continue
+    if (!nestedParentIds[edge.childId]) nestedParentIds[edge.childId] = []
+    if (!nestedParentIds[edge.childId].includes(edge.parentId)) {
+      nestedParentIds[edge.childId].push(edge.parentId)
+    }
+  }
   const planCore = {
     schemaVersion: 'ValidationPlanV1',
     routeRequested: route,
@@ -489,6 +617,10 @@ function planValidation({ manifest, route = 'changed', changedFiles = [], change
     changedFiles: normalizedChanged,
     impactGraph,
     impactGraphDigest: impactGraph.impactGraphDigest,
+    nestedCommandGraphDigest: nestedCommandGraph.digest,
+    nestedEdgeCount: nestedCommandGraph.edgeCount,
+    nestedParentIds,
+    executionSchedule,
     fullFallback,
     selectedNodes,
     skipped,
@@ -776,10 +908,24 @@ function executeValidationPlan({ manifest, plan, candidate, repoRoot, activeRoot
     timeoutMs: node.timeoutMs
   }))
 
-  for (let index = 0; index < effectivePlan.selectedNodes.length; index += 1) {
-    const node = effectivePlan.selectedNodes[index]
+  // PF-148 slice-2: lock-aware wave order (serial flatten); keep receipt schedule evidence
+  const executionSchedule = effectivePlan.executionSchedule || planLockAwareSchedule(effectivePlan.selectedNodes)
+  const bySelectedId = new Map(effectivePlan.selectedNodes.map(node => [node.id, node]))
+  const orderedForExecution = []
+  for (const wave of executionSchedule.waves || []) {
+    for (const nodeId of wave) {
+      const node = bySelectedId.get(nodeId)
+      if (node) orderedForExecution.push(node)
+    }
+  }
+  // Fallback if schedule empty
+  const executionNodes = orderedForExecution.length ? orderedForExecution : effectivePlan.selectedNodes
+  const seenCommandSignatures = new Map()
+
+  for (let index = 0; index < executionNodes.length; index += 1) {
+    const node = executionNodes[index]
     const declaredDelegates = new Set((node.delegatedClosure || []).map(entry => entry.nodeId))
-    const delegatedNodeIds = effectivePlan.selectedNodes
+    const delegatedNodeIds = executionNodes
       .filter(item => item.id !== node.id && declaredDelegates.has(item.id))
       .map(item => item.id)
     const executionNode = Array.isArray(node.delegatedClosure) && node.delegatedClosure.length > 0
@@ -812,7 +958,32 @@ function executeValidationPlan({ manifest, plan, candidate, repoRoot, activeRoot
       if (cached.status === 'hit') {
         const result = { ...cached.evidence, status: 'cache-hit', cacheStatus: 'hit' }
         results.push(result)
+        seenCommandSignatures.set(commandSignature(executionNode), node.id)
         if (onNode) onNode(result)
+        continue
+      }
+    }
+
+    // PF-148 slice-2: same leaf command signature already passed/cache-hit → reuse evidence (no double run)
+    const signature = commandSignature(executionNode)
+    const priorOwner = seenCommandSignatures.get(signature)
+    if (priorOwner) {
+      const prior = results.find(result => result.nodeId === priorOwner &&
+        (result.status === 'passed' || result.status === 'cache-hit'))
+      if (prior) {
+        const reused = {
+          ...prior,
+          nodeId: node.id,
+          nodeContractDigest,
+          dependencyReceiptDigests,
+          delegatedClosureDigest,
+          status: 'cache-hit',
+          cacheStatus: 'hit-duplicate-leaf',
+          reuseOfNodeId: priorOwner,
+          evidenceReuse: 'duplicate-leaf-command-signature'
+        }
+        results.push(reused)
+        if (onNode) onNode(reused)
         continue
       }
     }
@@ -857,6 +1028,7 @@ function executeValidationPlan({ manifest, plan, candidate, repoRoot, activeRoot
         }).status
       }
       results.push(nodeEvidence)
+      seenCommandSignatures.set(signature, node.id)
       if (onNode) onNode(nodeEvidence)
     } catch (error) {
       const evidence = error instanceof CheckedCommandError ? error.evidence : (error.evidence || {})
@@ -881,7 +1053,7 @@ function executeValidationPlan({ manifest, plan, candidate, repoRoot, activeRoot
       }
       results.push(result)
       if (onNode) onNode(result)
-      for (const pending of effectivePlan.selectedNodes.slice(index + 1)) abortedNodes.push(pending.id)
+      for (const pending of executionNodes.slice(index + 1)) abortedNodes.push(pending.id)
       break
     }
   }
@@ -916,14 +1088,20 @@ function executeValidationPlan({ manifest, plan, candidate, repoRoot, activeRoot
     contextBindingTrace: process.env.DEVCODEX_CONTEXT_BINDING_DIGEST
       ? { status: 'bound', bindingDigest: process.env.DEVCODEX_CONTEXT_BINDING_DIGEST }
       : { status: 'unverified', bindingDigest: null },
-    executionMode: 'orchestrated-serial',
+    executionMode: 'orchestrated-serial-lock-aware',
+    nestedCommandGraphDigest: effectivePlan.nestedCommandGraphDigest || null,
+    nestedEdgeCount: effectivePlan.nestedEdgeCount || 0,
+    nestedParentIds: effectivePlan.nestedParentIds || {},
+    executionSchedule,
     cacheDecision: {
       requested: useCache,
       eligibleRoute: effectivePlan.routeRequested === 'changed' && effectivePlan.routeResolved === 'changed',
-      hitCount: results.filter(result => result.status === 'cache-hit').length
+      hitCount: results.filter(result => result.status === 'cache-hit').length,
+      duplicateLeafReuseCount: results.filter(result => result.cacheStatus === 'hit-duplicate-leaf').length
     },
     fullFallback: effectivePlan.fullFallback,
     selectedNodes: effectivePlan.selectedNodes.map(node => node.id),
+    executionOrder: executionNodes.map(node => node.id),
     skipped: effectivePlan.skipped,
     results,
     abortedNodes,
@@ -956,22 +1134,26 @@ module.exports = {
   VALIDATION_RECEIPT_SCHEMA,
   ValidationDagError,
   buildCandidateIdentity,
+  buildNestedCommandGraph,
   buildValidationImpactGraph,
   cacheDescriptor,
   cacheRelativePath,
   commandSignature,
   directoryUsage,
   executeValidationPlan,
+  expandSelectedWithNestedLeaves,
   extractScriptPathFromCommandLine,
   globToRegExp,
   manifestIdentity,
   matchesAnyGlob,
   normalizeCommandLine,
   normalizeRelativePath,
+  planLockAwareSchedule,
   planValidation,
   readNodeCache,
   readValidationManifest,
   topologicalNodeOrder,
   validateValidationManifest,
-  writeNodeCache
+  writeNodeCache,
+  writeScopesConflict
 }

@@ -7,7 +7,8 @@
 
 - 专家质量探针与实测标准收口：`MeasuredVerificationStandard` 写入 `compliance` SC14、`analyze-default` PCV-2a、`report`、`expert-output-quality`、`test-router`（`expertOutputQuality`）；V84 增加 raw-text 最小锚点区分力（防止 canonical reader 掩盖完全缺失），修正 profile skillCount 探针，不再要求所有薄消费者堆完整 Gate 长清单。
 - 复审 R1 短修：`instructions/17-compliance.instructions.md` SC14 与 Skill 同源；`gate-registry` expert-output-quality 增加 `measuredVerification` / MVS legacyAnchors；V84 raw 强制对账 instructions+registry（防 VL-072 类逃逸）。
-- PF-148 切片：validation-dag 增加 nested `delegatedClosure` 脚本路径存在性与 top-level leaf 命令一致性校验，并补负向 fixture。
+- PF-148 切片-1：validation-dag 增加 nested `delegatedClosure` 脚本路径存在性与 top-level leaf 命令一致性校验，并补负向 fixture。
+- PF-148 切片-2：`buildNestedCommandGraph` + 委托 leaf 显式入选计划；`planLockAwareSchedule`（writeScopes 锁波次）；receipt `executionSchedule` / nested digests；duplicate-leaf command 证据复用；nodeId 缺失负向。
 - PF-162 / GR-068：`memory_cp_confirm` 禁止将 CP 行写入普通会话索引表；写后校验无区外 CP 行；剥离历史孤儿 CP 行；新增 5 列索引无 CP 区块与污染表负向 fixture。
 - PF-163：`lifecycle-visible-reply` 识别裸路径清单/绝对路径无操作；Stop 无 payload 时 missingItems 含 `semantic-artifact-items` + `visible-payload-unobserved`；补 hooks visibility 负向 fixture。
 - PF-164：`ExternalReviewClaimVerificationGate` + `scripts/lib/external-review-claim-verification.js`；audit-report/report/report-audit 模板；gate-registry 分组；负向 claim-thin fixture；`npm run test:external-review-claim`。

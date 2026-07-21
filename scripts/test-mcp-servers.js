@@ -152,6 +152,12 @@ function setupConfiguredMcpTarget() {
   fs.copyFileSync(path.join(ROOT, 'mcp', 'profile-contract.js'), path.join(targetRoot, '.claude', 'mcp', 'profile-contract.js'))
   fs.copyFileSync(path.join(ROOT, 'mcp', 'profile-section-selector.cjs'), path.join(targetRoot, '.claude', 'mcp', 'profile-section-selector.cjs'))
   fs.copyFileSync(path.join(ROOT, 'mcp', 'agent-identity.cjs'), path.join(targetRoot, '.claude', 'mcp', 'agent-identity.cjs'))
+  // MCP require('../scripts/lib/…') from .claude/mcp → .claude/scripts/lib/…
+  for (const rel of ['scripts/lib/cp-digest.js', 'scripts/lib/host-parity-scorecard.js']) {
+    const dest = path.join(targetRoot, '.claude', ...rel.split('/'))
+    fs.mkdirSync(path.dirname(dest), { recursive: true })
+    fs.copyFileSync(path.join(ROOT, ...rel.split('/')), dest)
+  }
   fs.copyFileSync(path.join(ROOT, 'skills', 'portfolio.json'), path.join(targetRoot, '.claude', 'skills', 'portfolio.json'))
   fs.copyFileSync(
     path.join(ROOT, 'hooks', '_runtime', 'workspace-layout.cjs'),

@@ -5,6 +5,7 @@ const { DEFAULT_HOSTS, HOST_IDS, hostEntryPairs } = require('./host-surface-desc
 function buildCliInstallCommands(ctx) {
   const {
     fs, path, process, console, c, PKG_ROOT, SOURCES, CLAUDE_SOURCES,
+    CLAUDE_MCP_RUNTIME_SCRIPT_DEPS = [],
     CODEX_SOURCES, CLAUDE_SETTINGS_HOOKS, CLAUDE_SETTINGS_PERMISSIONS,
     CLAUDE_MCP_JSON, CODEX_HOOK_COMMAND, isSourceRepo, beginManagedDeployment,
     finishManagedDeployment, walkDir, resolveActiveRuntimeRoot, resolveGitignoreRoot,
@@ -481,6 +482,37 @@ function buildCliInstallCommands(ctx) {
         if (existed) { updated++; log(c.yellow(`  ↺ ${shown}`)) }
         else { added++; log(c.green(`  ✓ ${shown}`)) }
       }
+    }
+
+    // 2b. MCP runtime script deps: .claude/mcp require('../scripts/lib/…') → .claude/scripts/lib/…
+    for (const relRaw of CLAUDE_MCP_RUNTIME_SCRIPT_DEPS) {
+      const rel = String(relRaw || '').replace(/\\/g, '/')
+      if (!rel) continue
+      const srcFile = path.join(PKG_ROOT, ...rel.split('/'))
+      if (!fs.existsSync(srcFile)) {
+        inlineLog(c.yellow(`  ⚠ missing MCP runtime dep source: ${rel}`))
+        continue
+      }
+      const destFile = path.join(clDir, ...rel.split('/'))
+      const existed = fs.existsSync(destFile)
+      const shown = `.claude/${rel}`
+
+      if (existed && filesContentEqual(srcFile, destFile)) {
+        skipped++
+        log(c.dim(`  ~ ${shown}`))
+        continue
+      }
+      if (existed && !force) {
+        skipped++
+        log(c.dim(`  ~ ${shown} (outdated; use --force)`))
+        continue
+      }
+      if (!dryRun) {
+        fs.mkdirSync(path.dirname(destFile), { recursive: true })
+        fs.copyFileSync(srcFile, destFile)
+      }
+      if (existed) { updated++; log(c.yellow(`  ↺ ${shown}`)) }
+      else { added++; log(c.green(`  ✓ ${shown}`)) }
     }
 
     // 3. Write / merge .claude/settings.json

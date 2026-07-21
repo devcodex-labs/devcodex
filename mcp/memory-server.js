@@ -2,7 +2,7 @@
 'use strict'
 
 /**
- * DevCodex MCP Memory Server — local stdio process (no deployment needed)
+ * DevCodex MCP Memory Server — local stdio process (deployed to .claude/mcp/; needs .claude/scripts/lib deps)
  *
  * Implements MCP 2024-11-05 protocol over stdin/stdout (JSON-RPC 2.0).
  *

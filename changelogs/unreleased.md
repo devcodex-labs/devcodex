@@ -5,6 +5,7 @@
 
 ## 当前未发布实现候选（2026-07-21）
 
+- PF-173：Claude MCP 部署补齐 `scripts/lib` 运行时依赖 allowlist（`cp-digest.js` / `host-parity-scorecard.js`）→ `.claude/scripts/lib/`，与 `mcp/*.js` 的 `require('../scripts/lib/…')` 对齐；接入 `cmdInitClaude` + managed descriptors；`test-host-installation` / `test-mcp-servers` 回归。
 - 专家质量探针与实测标准收口：`MeasuredVerificationStandard` 写入 `compliance` SC14、`analyze-default` PCV-2a、`report`、`expert-output-quality`、`test-router`（`expertOutputQuality`）；V84 增加 raw-text 最小锚点区分力（防止 canonical reader 掩盖完全缺失），修正 profile skillCount 探针，不再要求所有薄消费者堆完整 Gate 长清单。
 - 复审 R1 短修：`instructions/17-compliance.instructions.md` SC14 与 Skill 同源；`gate-registry` expert-output-quality 增加 `measuredVerification` / MVS legacyAnchors；V84 raw 强制对账 instructions+registry（防 VL-072 类逃逸）。
 - PF-148 切片-1：validation-dag 增加 nested `delegatedClosure` 脚本路径存在性与 top-level leaf 命令一致性校验，并补负向 fixture。

@@ -89,6 +89,16 @@ const CLAUDE_SOURCES = [
   { from: 'data/templates', to: 'data' },
 ]
 
+/**
+ * MCP under `.claude/mcp/` resolves `require('../scripts/lib/…')` → `.claude/scripts/lib/…`.
+ * Keep this allowlist tight: only modules actually required by `mcp/*.js` (today: memory + profile).
+ * Do not ship the entire package `scripts/lib` tree into consumer projects.
+ */
+const CLAUDE_MCP_RUNTIME_SCRIPT_DEPS = Object.freeze([
+  'scripts/lib/cp-digest.js',
+  'scripts/lib/host-parity-scorecard.js'
+])
+
 const CODEX_SOURCES = [
   { from: 'hooks/_runtime', to: path.join('.codex', 'hooks', '_runtime') },
   { from: 'codex', to: '.codex' },
@@ -98,7 +108,13 @@ const { buildDeploymentDescriptors: buildDeploymentDescriptorsImpl } = require('
 
 function buildDeploymentDescriptors(surfaces, { tenantId = null, grokWorkspaceBridge = false, grokWorkspaceScope = false } = {}) {
   return buildDeploymentDescriptorsImpl(PKG_ROOT, surfaces, {
-    SOURCES, CLAUDE_SOURCES, CODEX_SOURCES, tenantId, grokWorkspaceBridge, grokWorkspaceScope
+    SOURCES,
+    CLAUDE_SOURCES,
+    CLAUDE_MCP_RUNTIME_SCRIPT_DEPS,
+    CODEX_SOURCES,
+    tenantId,
+    grokWorkspaceBridge,
+    grokWorkspaceScope
   })
 }
 
@@ -348,6 +364,7 @@ const {
 
 const { cmdInit, cmdInitHost, cmdInitClaude, cmdInitCodex, cmdInitGemini, cmdInitGrok, cmdUninstallHost } = buildCliInstallCommands({
   fs, path, process, console, c, PKG_ROOT, SOURCES, CLAUDE_SOURCES,
+  CLAUDE_MCP_RUNTIME_SCRIPT_DEPS,
   CODEX_SOURCES, CLAUDE_SETTINGS_HOOKS, CLAUDE_SETTINGS_PERMISSIONS,
   CLAUDE_MCP_JSON, CODEX_HOOK_COMMAND, isSourceRepo, beginManagedDeployment,
   finishManagedDeployment, copyManagedTextFile, readJsonFileWithStatus,
@@ -448,6 +465,7 @@ module.exports = {
   ensureRuntimeDirs,
   SOURCES,
   CLAUDE_SOURCES,
+  CLAUDE_MCP_RUNTIME_SCRIPT_DEPS,
   CODEX_SOURCES,
   CLAUDE_HOOK_COMMAND,
   CLAUDE_MCP_JSON,

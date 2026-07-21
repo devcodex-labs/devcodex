@@ -12,6 +12,7 @@ const { shouldIncludeInstructionFile } = require('./tenant-selection')
 function buildDeploymentDescriptors(packageRoot, surfaces, {
   SOURCES,
   CLAUDE_SOURCES,
+  CLAUDE_MCP_RUNTIME_SCRIPT_DEPS = [],
   CODEX_SOURCES,
   tenantId = null,
   grokWorkspaceBridge = false,
@@ -41,6 +42,12 @@ function buildDeploymentDescriptors(packageRoot, surfaces, {
   }
   if (selected.has('claude')) {
     descriptors.push(...CLAUDE_SOURCES.map(item => descriptor('claude', item.from, path.join('.claude', item.to))))
+    // MCP runtime require('../scripts/lib/…') from .claude/mcp → .claude/scripts/lib/…
+    for (const rel of CLAUDE_MCP_RUNTIME_SCRIPT_DEPS) {
+      const portable = String(rel || '').replace(/\\/g, '/')
+      if (!portable) continue
+      descriptors.push(descriptor('claude', portable, path.join('.claude', ...portable.split('/'))))
+    }
   }
   if (selected.has('codex')) {
     descriptors.push(...CODEX_SOURCES

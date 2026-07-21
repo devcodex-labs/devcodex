@@ -68,6 +68,10 @@ function deploymentOptions() {
       { from: 'prompts', to: 'prompts' },
       { from: 'data/templates', to: 'data' }
     ],
+    CLAUDE_MCP_RUNTIME_SCRIPT_DEPS: [
+      'scripts/lib/cp-digest.js',
+      'scripts/lib/host-parity-scorecard.js'
+    ],
     CODEX_SOURCES: [
       { from: 'hooks/_runtime', to: path.join('.codex', 'hooks', '_runtime') },
       { from: 'codex', to: '.codex' }
@@ -611,4 +615,20 @@ for (const surface of ['shared-kernel', 'shared-agent-skills', 'full-fallback'])
   assert(workspaceDescriptorSurfaces.has(surface), `workspace descriptor must include ${surface}`)
 }
 
-console.log(`host installation tests passed selectors=5 dryRunWrites=0 collision=blocked managedManifest=verified workspacePlugin=verified grokCli=${grokCliAvailable ? 'available' : 'unavailable-honest'} uninstall=verified zeroProjectArtifacts=verified defaultHosts=3`)
+// Claude MCP runtime script deps must land under .claude/scripts/lib (require path from .claude/mcp)
+const claudeMcpScriptDeps = defaults.filter(item =>
+  item.surface === 'claude' &&
+  String(item.destination || '').replace(/\\/g, '/').startsWith('.claude/scripts/lib/')
+)
+assert.strictEqual(claudeMcpScriptDeps.length, 2, 'claude descriptors must include MCP scripts/lib runtime deps')
+for (const expected of [
+  '.claude/scripts/lib/cp-digest.js',
+  '.claude/scripts/lib/host-parity-scorecard.js'
+]) {
+  assert(
+    claudeMcpScriptDeps.some(item => String(item.destination || '').replace(/\\/g, '/') === expected),
+    `missing claude MCP runtime descriptor: ${expected}`
+  )
+}
+
+console.log(`host installation tests passed selectors=5 dryRunWrites=0 collision=blocked managedManifest=verified workspacePlugin=verified grokCli=${grokCliAvailable ? 'available' : 'unavailable-honest'} uninstall=verified zeroProjectArtifacts=verified defaultHosts=3 mcpScriptDeps=2`)

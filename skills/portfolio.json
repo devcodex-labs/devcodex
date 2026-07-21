@@ -9,10 +9,10 @@
     "pluginDigest": "3e417180688c359025e64d584c098b5ef5ba112cf2ef8ca970f1c5589fe3d2bb",
     "portfolioEvidence": "skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "85229c1463a5068750d5417e5ebf960907532dccf99b1cd3da0a88f7007792b4",
-    "consumerInventoryFileCount": 504,
-    "consumerInventoryDigest": "d7e603f5952c0c45a97de3e8a0155363c1d8c86d60e10bb394d6d280f6b180a8",
-    "consumerProjectionDigest": "6d4ec8ed6c4f85ece0803a783c4c4242dfd37f5f5edafc9928e99e1846f576ef",
-    "portfolioInputDigest": "40a8e149d7d4f7ae48b7e65eed223ac58455c3baf1234c4344367bed3a47dbb0"
+    "consumerInventoryFileCount": 506,
+    "consumerInventoryDigest": "eca8fd6129fe2ca143fc95be77ee37d4692e004b9e2519a979401c7484bf6ba4",
+    "consumerProjectionDigest": "348b40443eabd0fb949885e1eb80505b034e26795665b64c238abd25a15bc910",
+    "portfolioInputDigest": "e4e5d4d4b64a5ad98e968d1c5f2ed2ab93e4c30590623dd9cb6da42bcf41927e"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -13292,6 +13292,10 @@
         },
         {
           "path": "scripts/lib/cli-observability-commands.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/discipline-execution-probe.js",
           "role": "current"
         },
         {

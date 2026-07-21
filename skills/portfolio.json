@@ -11,10 +11,10 @@
     "pluginDigest": "3e417180688c359025e64d584c098b5ef5ba112cf2ef8ca970f1c5589fe3d2bb",
     "portfolioEvidence": "skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "85229c1463a5068750d5417e5ebf960907532dccf99b1cd3da0a88f7007792b4",
-    "consumerInventoryFileCount": 507,
-    "consumerInventoryDigest": "f509a00073d6753f444f6ba274b74d6eb3ee257afad38082036d55ce46c1bcbe",
-    "consumerProjectionDigest": "c6df0ba0a96c3f3f417591af7f6147984f17eb901263518c9e449d5010bda4cf",
-    "portfolioInputDigest": "31afc6ab4f59397032cb064e7a2920ecb4628240052570357045163764dd1cdf"
+    "consumerInventoryFileCount": 509,
+    "consumerInventoryDigest": "8ade2a9f8e51813b8bc0185881d56930dccb6693269337d30c1fd263c18050f0",
+    "consumerProjectionDigest": "b39e16d6d39c4773c1714d0e229f9fa1d56926b28b60a0a41c2f4dfb6ab920f8",
+    "portfolioInputDigest": "b112791a0d9c5580bfcf008977b65f08c80db1be6b7ea23d087f6762e0368073"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -16200,6 +16200,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-skill-sidecar-contract.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-validate-profile.js",
           "role": "current"
         },
@@ -16409,6 +16413,7 @@
         "scripts/test-project-knowledge-store.js",
         "scripts/test-review-execution-contract.js",
         "scripts/test-skill-portfolio.js",
+        "scripts/test-skill-sidecar-contract.js",
         "scripts/test-validate-profile.js",
         "scripts/test-validation-dag.js",
         "scripts/test-visible-output-contract.js",
@@ -16475,6 +16480,7 @@
           "scripts/test-project-knowledge-store.js",
           "scripts/test-review-execution-contract.js",
           "scripts/test-skill-portfolio.js",
+          "scripts/test-skill-sidecar-contract.js",
           "scripts/test-validate-profile.js",
           "scripts/test-validation-dag.js",
           "scripts/test-visible-output-contract.js",
@@ -19130,6 +19136,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-skill-sidecar-contract.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-visible-output-contract.js",
           "role": "current"
         },
@@ -19297,6 +19307,7 @@
         "scripts/test-migrate-layout.js",
         "scripts/test-runtime-state-index.js",
         "scripts/test-skill-portfolio.js",
+        "scripts/test-skill-sidecar-contract.js",
         "scripts/test-visible-output-contract.js",
         "scripts/validate-profile.js",
         "scripts/validate.js"
@@ -19355,6 +19366,7 @@
           "scripts/test-migrate-layout.js",
           "scripts/test-runtime-state-index.js",
           "scripts/test-skill-portfolio.js",
+          "scripts/test-skill-sidecar-contract.js",
           "scripts/test-visible-output-contract.js",
           "scripts/validate-profile.js",
           "scripts/validate.js"

@@ -5,14 +5,14 @@
   "generatedFrom": {
     "skillsPattern": "skills/*/SKILL.md",
     "registry": "plugin.json",
-    "sourceDigest": "ae4a652905f478c68bca456a90c22b07f2742d21fa5b35a7aa7707cd5449a218",
+    "sourceDigest": "eb15677904bb3ec35f963352f2c02a71ce237dc5f1a4037557f3bf57db50853c",
     "pluginDigest": "3e417180688c359025e64d584c098b5ef5ba112cf2ef8ca970f1c5589fe3d2bb",
     "portfolioEvidence": "skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "85229c1463a5068750d5417e5ebf960907532dccf99b1cd3da0a88f7007792b4",
     "consumerInventoryFileCount": 500,
     "consumerInventoryDigest": "bf9145b9a4d801d02297c11508981ec44fe0e4c3a253b1d872285eda6b52cb29",
-    "consumerProjectionDigest": "e3851b118d8175c361258a3f32bfd47023f230d0f56b349635dfc4286e49b560",
-    "portfolioInputDigest": "61d203a37137a92b5e318bfc82789f422e2716cbecded520a084da96da76aee7"
+    "consumerProjectionDigest": "dfe49c4755473a4f1cd9654a9d964d1ac2f8ad7fe03e33a747e9817a7f0a2b41",
+    "portfolioInputDigest": "ec2f99ddde7b7d6f613878285c078e37002ace04971d15a70265ac7276f7e942"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -3352,8 +3352,8 @@
         "skills/audit-report/SKILL.md"
       ],
       "source": "skills/audit-report/SKILL.md",
-      "hash": "38f84f47907359e3bf203521ed37e8c33bfb234a0b0f644bd32a14d7d0a1cfe7",
-      "sourceBytes": 1991,
+      "hash": "547d81b8e0ad6ef9690a0bf5841700b61d9e88091cc1b146452ae98fccab42e5",
+      "sourceBytes": 3160,
       "version": "1.15.2",
       "lifecycleState": "active",
       "dependencies": [],
@@ -3364,6 +3364,10 @@
         "evidence": "scripts/test-skill-portfolio.js#explicit-conflict-review"
       },
       "consumers": [
+        {
+          "path": "changelogs/unreleased.md",
+          "role": "current"
+        },
         {
           "path": "instructions.md",
           "role": "current"
@@ -3378,6 +3382,10 @@
         },
         {
           "path": "scripts/lib/test-spec-governance-base.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/test-spec-governance-review.js",
           "role": "current"
         },
         {
@@ -3471,7 +3479,7 @@
         "registration": "plugin.json",
         "operationalReadiness": {
           "state": "complete",
-          "currentConsumer": "instructions.md",
+          "currentConsumer": "changelogs/unreleased.md",
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
@@ -15467,8 +15475,8 @@
         "skills/report/SKILL.md"
       ],
       "source": "skills/report/SKILL.md",
-      "hash": "ca935052bd86878dbb36230994d66ef46f2780956282938b91ca7b6db2e4f690",
-      "sourceBytes": 13753,
+      "hash": "7f38582b670d8889b53d9936c5ee9da5225a97c5f89461b121e90fb0da60f6f1",
+      "sourceBytes": 14147,
       "version": "1.15.2",
       "lifecycleState": "active",
       "dependencies": [],

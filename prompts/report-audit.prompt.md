@@ -83,6 +83,17 @@ applyTo: ".devcodex/**/reports/audit/**, .devcodex/**/reports/self-fix/**"
 **推荐**：[推荐方案 / 推荐：无后续动作]
 **推荐理由**：[关联合理性、可实施性、收益、验证状态、影响范围]
 
+### §3.6 ExternalReviewClaimVerification（条件 · PF-164）
+
+> 仅当本报告复核**外部/他 Agent 审阅输入**时填写；否则 `N/A + skipReason=not-external-review-recap`。
+
+| claimId / 输入主张 | projectEvidence（路径/命令） | verificationStatus | disposition（采纳/部分/拒绝） | unverifiedBoundaries |
+|--------------------|------------------------------|--------------------|-------------------------------|----------------------|
+| | | ✅已验证 / ⚠️待验证 / UNVERIFIED | | |
+
+- EvidenceLedger / 详细报告链接：
+- ExternalReviewClaimVerificationGate：passed / failed / N/A
+
 ## §4 通过项汇总
 
 > 明确通过的关键维度（无问题或已确认符合标准）：

@@ -10,6 +10,7 @@
 - PF-148 切片：validation-dag 增加 nested `delegatedClosure` 脚本路径存在性与 top-level leaf 命令一致性校验，并补负向 fixture。
 - PF-162 / GR-068：`memory_cp_confirm` 禁止将 CP 行写入普通会话索引表；写后校验无区外 CP 行；剥离历史孤儿 CP 行；新增 5 列索引无 CP 区块与污染表负向 fixture。
 - PF-163：`lifecycle-visible-reply` 识别裸路径清单/绝对路径无操作；Stop 无 payload 时 missingItems 含 `semantic-artifact-items` + `visible-payload-unobserved`；补 hooks visibility 负向 fixture。
+- PF-164：`ExternalReviewClaimVerificationGate` + `scripts/lib/external-review-claim-verification.js`；audit-report/report/report-audit 模板；gate-registry 分组；负向 claim-thin fixture；`npm run test:external-review-claim`。
 - `devcodex status` / `devcodex doctor` 增加只读 `GovernanceStatusSummaryV1`：汇总 runtime-state、ledger 退役候选、Skill/gray lifecycle、执行优化证据、Gate registry、host truth、dirty boundary 与 fail-closed fast-path 决策；JSON 输出挂载到 `payload.governanceSummary`，human 输出只增加一行治理概览。
 - 新增 `SimpleGovernanceFastPathDecisionV1`，将可见输出 compact 条件显式化；控制面、source mutation、共享状态、风险非 low、CP 未确认、证据缺失或非 compactable message kind 均 fail-closed 到 full。
 - 新增 `scripts/lib/governance-status-summary.js` 与 `scripts/test-governance-status-summary.js`，并接入 `test:control-plane` / `test:optimization-controls`；不新增依赖、不改发布版本、不执行 tag/push/publish。

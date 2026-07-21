@@ -37,7 +37,24 @@ description: 报告审查维度 RA-1~RA-6 — 分析报告/审查报告质量专
 - 问题状态准确（已修复的标注已验证轮次）
 - 若存在“根因级归并”，必须能从根因项反查到逐文件落点，避免在汇总阶段吞掉文件级异常
 
+## ExternalReviewClaimVerificationGate（PF-164 · 外部审阅复核）
+
+当报告是对**外部审阅 / 他 Agent 审阅 / AI review finding 包**的复核或转写时（不仅是普通 audit），必须额外满足主张级颗粒度，禁止“总评正确但比输入更难定位”：
+
+| 必填 | 说明 |
+|------|------|
+| `inputClaims` | 外部输入主张列表（可编号） |
+| `ClaimVerificationMatrix` | 主张 → 项目证据 → verificationStatus → disposition（采纳/部分采纳/拒绝） |
+| `projectEvidence` | repo path / 命令 / 运行结果，不得只复述外部原文 |
+| `unverifiedBoundaries` | 未验证/UNVERIFIED 边界与推断边界 |
+| `detailReportLink` | 用户可打开的详细报告链接（最终回复不得只有口头总评） |
+
+- 机器分类：`scripts/lib/external-review-claim-verification.js`（`claim-ready` / `claim-thin` / `not-external-review`）
+- 负向：只写总评/建议、无矩阵、无 UNVERIFIED、无详细报告链接 → `claim-thin`，审查不通过
+- 非外部审阅场景：`N/A + skipReason=not-external-review-recap`
+
 ## N/A 规则
 
 - 纯信息性报告无行动项：RA-5 标 N/A
 - 无关联外部文件：RA-6 标 N/A
+- 非外部审阅复核：`ExternalReviewClaimVerificationGate` 标 N/A

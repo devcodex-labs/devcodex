@@ -312,6 +312,7 @@ function testMachineReadableDiagnosticsAndStableErrors() {
 
   const statusHuman = runCli(['status'], root)
   assert.match(statusHuman, /DevCodex status/)
+  assert.match(statusHuman, /governance/)
   assert.doesNotMatch(statusHuman, /DevCodexCliEnvelopeV1/)
 
   const status = JSON.parse(runCli(['status', '--json'], root))
@@ -324,12 +325,21 @@ function testMachineReadableDiagnosticsAndStableErrors() {
   assert.ok(Array.isArray(status.payload.installSurfaces))
   assert.strictEqual(status.payload.executionOptimization.config.effective, 'safe-auto')
   assert.deepStrictEqual(status.payload.executionOptimization.writes, [])
+  assert.strictEqual(status.payload.governanceSummary.schemaVersion, 'GovernanceStatusSummaryV1')
+  assert.strictEqual(status.payload.governanceSummary.readOnly, true)
+  assert.strictEqual(status.payload.governanceSummary.runtimeState.recordCount, 0)
+  assert.strictEqual(status.payload.governanceSummary.skills.schemaVersion, 'SkillSelectionTraceV1')
+  assert.strictEqual(status.payload.governanceSummary.executionOptimization.schemaVersion, 'ExecutionOptimizationEvidenceV1')
+  assert.strictEqual(status.payload.governanceSummary.fastPathPolicy.visibleMode, 'full')
 
   const doctor = JSON.parse(runCli(['doctor', '--json'], root))
   assert.strictEqual(doctor.ok, true)
   assert.strictEqual(doctor.command, 'doctor')
   assert.strictEqual(doctor.payload.schemaVersion, 'DoctorDiagnosticV1')
   assert.strictEqual(doctor.payload.executionOptimization.config.effective, 'safe-auto')
+  assert.strictEqual(doctor.payload.governanceSummary.schemaVersion, 'GovernanceStatusSummaryV1')
+  assert.strictEqual(doctor.payload.governanceSummary.gateLifecycle.readOnly, true)
+  assert.strictEqual(doctor.payload.governanceSummary.ledgers.mutationAllowed, false)
   assert.deepStrictEqual(doctor.payload.capabilityBoundary, {
     localOnly: true,
     hookEvidence: 'event-dependent',

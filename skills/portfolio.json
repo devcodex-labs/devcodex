@@ -9,10 +9,10 @@
     "pluginDigest": "3e417180688c359025e64d584c098b5ef5ba112cf2ef8ca970f1c5589fe3d2bb",
     "portfolioEvidence": "skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "85229c1463a5068750d5417e5ebf960907532dccf99b1cd3da0a88f7007792b4",
-    "consumerInventoryFileCount": 496,
-    "consumerInventoryDigest": "a0cd46dc13fbd7f07153e168d42bb223424b5edb9666098a9c6f6eaaaf63c9e2",
-    "consumerProjectionDigest": "217423498fff7f223a60235e75cb1ca2b4e59523f370b9c787cd08846ddc9747",
-    "portfolioInputDigest": "fd2965be13802a1a76fd941076992d07921dfeb817b08832b2f0bd4ab33bd254"
+    "consumerInventoryFileCount": 498,
+    "consumerInventoryDigest": "d0fe375d15d6d9379f7581196d047423d9f6c7af578a47f3f096a2cbb31d3253",
+    "consumerProjectionDigest": "84c229ee92fe8f78ce3774f92a99b0d6219b07c7eecb28fa8c63cfd13704632c",
+    "portfolioInputDigest": "0d11ed6d131a80fcbe0c29c09cb4a77d3286fd5d44f419c07ac78092003c62e7"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -4470,6 +4470,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/governance-status-summary.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/validate-brand-visual-quality.js",
           "role": "current"
         },
@@ -4483,6 +4487,10 @@
         },
         {
           "path": "scripts/test-control-plane-contracts.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-governance-status-summary.js",
           "role": "current"
         },
         {
@@ -4518,6 +4526,7 @@
         "scripts/test-brand-visual-quality.js",
         "scripts/test-cli-behavior.js",
         "scripts/test-control-plane-contracts.js",
+        "scripts/test-governance-status-summary.js",
         "scripts/test-mcp-servers.js",
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
@@ -4570,6 +4579,7 @@
           "scripts/test-brand-visual-quality.js",
           "scripts/test-cli-behavior.js",
           "scripts/test-control-plane-contracts.js",
+          "scripts/test-governance-status-summary.js",
           "scripts/test-mcp-servers.js",
           "scripts/test-skill-portfolio.js",
           "scripts/validate.js"
@@ -5401,6 +5411,10 @@
         },
         {
           "path": "README.md",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/governance-status-summary.js",
           "role": "current"
         },
         {
@@ -12200,6 +12214,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-governance-status-summary.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-hooks-runtime.js",
           "role": "current"
         },
@@ -12469,6 +12487,7 @@
         "scripts/test-context-binding.js",
         "scripts/test-context-read-contract.js",
         "scripts/test-governance-intake.js",
+        "scripts/test-governance-status-summary.js",
         "scripts/test-hooks-runtime.js",
         "scripts/test-instruction-fallback-check.js",
         "scripts/test-mcp-servers.js",
@@ -12530,6 +12549,7 @@
           "scripts/test-context-binding.js",
           "scripts/test-context-read-contract.js",
           "scripts/test-governance-intake.js",
+          "scripts/test-governance-status-summary.js",
           "scripts/test-hooks-runtime.js",
           "scripts/test-instruction-fallback-check.js",
           "scripts/test-mcp-servers.js",
@@ -13247,6 +13267,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-governance-status-summary.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-hooks-runtime.js",
           "role": "current"
         },
@@ -13533,6 +13557,7 @@
         "scripts/test-control-plane-module-contracts.js",
         "scripts/test-execution-chain-evolution.js",
         "scripts/test-governance-intake.js",
+        "scripts/test-governance-status-summary.js",
         "scripts/test-hooks-runtime.js",
         "scripts/test-host-adapters.js",
         "scripts/test-markdown-structure.js",
@@ -13604,6 +13629,7 @@
           "scripts/test-control-plane-module-contracts.js",
           "scripts/test-execution-chain-evolution.js",
           "scripts/test-governance-intake.js",
+          "scripts/test-governance-status-summary.js",
           "scripts/test-hooks-runtime.js",
           "scripts/test-host-adapters.js",
           "scripts/test-markdown-structure.js",
@@ -16436,6 +16462,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/governance-status-summary.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/test-rework-trust-controls.js",
           "role": "current"
         },
@@ -18245,6 +18275,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/governance-status-summary.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/test-spec-governance-base.js",
           "role": "current"
         },
@@ -18528,6 +18562,10 @@
           "role": "historical"
         },
         {
+          "path": "changelogs/unreleased.md",
+          "role": "current"
+        },
+        {
           "path": "hooks/_runtime/context-read-contract.cjs",
           "role": "current"
         },
@@ -18628,6 +18666,14 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/cli-maintenance-commands.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/governance-status-summary.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/runtime-state-index.js",
           "role": "current"
         },
@@ -18685,6 +18731,10 @@
         },
         {
           "path": "scripts/test-context-read-contract.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-governance-status-summary.js",
           "role": "current"
         },
         {
@@ -18863,6 +18913,7 @@
       "validationProfile": [
         "scripts/test-cli-behavior.js",
         "scripts/test-context-read-contract.js",
+        "scripts/test-governance-status-summary.js",
         "scripts/test-hooks-runtime.js",
         "scripts/test-mcp-servers.js",
         "scripts/test-migrate-layout.js",
@@ -18918,6 +18969,7 @@
         "probeSuiteRefs": [
           "scripts/test-cli-behavior.js",
           "scripts/test-context-read-contract.js",
+          "scripts/test-governance-status-summary.js",
           "scripts/test-hooks-runtime.js",
           "scripts/test-mcp-servers.js",
           "scripts/test-migrate-layout.js",

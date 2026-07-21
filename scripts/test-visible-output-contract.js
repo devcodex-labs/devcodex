@@ -8,6 +8,7 @@ const {
   ACTION_HEADINGS,
   INTERNAL_ARTIFACT_CLASSES,
   createArtifactDeliveryManifest,
+  buildSimpleGovernanceFastPathDecision,
   createLinkCapabilityDecision,
   createVisibleEnvelope,
   projectUserFacingArtifactSet,
@@ -292,6 +293,33 @@ assert.doesNotMatch(confirmationExpanded, /状态未变化/)
 const invalidPortable = renderVisibleEnvelope(invalidStatus, { tier: 'rich-markdown', compact: true })
 assert.match(invalidPortable, /VISIBLE_ENVELOPE_INVALID/)
 assert.doesNotMatch(invalidPortable, /状态未变化/)
+
+const fastPathAllowed = buildSimpleGovernanceFastPathDecision({
+  taskKind: 'chat',
+  messageKind: 'progress',
+  riskClass: 'low',
+  evidenceRefs: ['semantic-digest-stable']
+})
+assert.strictEqual(fastPathAllowed.schemaVersion, 'SimpleGovernanceFastPathDecisionV1')
+assert.strictEqual(fastPathAllowed.validation.valid, true)
+assert.strictEqual(fastPathAllowed.eligible, true)
+assert.strictEqual(fastPathAllowed.visibleMode, 'compact')
+assert.deepStrictEqual(fastPathAllowed.upgradeTriggers, [])
+const fastPathBlocked = buildSimpleGovernanceFastPathDecision({
+  taskKind: 'dev',
+  messageKind: 'final-result',
+  riskClass: 'high',
+  cpState: 'pending',
+  controlPlane: true,
+  sourceMutation: true,
+  evidenceRefs: []
+})
+assert.strictEqual(fastPathBlocked.validation.valid, true)
+assert.strictEqual(fastPathBlocked.eligible, false)
+assert.strictEqual(fastPathBlocked.visibleMode, 'full')
+for (const trigger of ['control-plane', 'source-mutation', 'risk-not-low', 'cp-not-confirmed', 'evidence-missing']) {
+  assert.ok(fastPathBlocked.upgradeTriggers.includes(trigger), `missing trigger: ${trigger}`)
+}
 
 const schema = JSON.parse(fs.readFileSync(path.join(ROOT, 'skills', 'user-visible-output-contract', 'visible-output-contract.schema.json'), 'utf8'))
 for (const definition of ['ArtifactDeliveryManifestV1', 'UserFacingArtifactSetV1', 'LinkCapabilityDecisionV1', 'DevCodexVisibleEnvelopeV1']) {

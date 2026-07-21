@@ -545,6 +545,60 @@ function shouldUseCompact(previous, current, { userRequestedDetails = false } = 
     keys.every(key => previous.context?.[key] === current.context?.[key])
 }
 
+function buildSimpleGovernanceFastPathDecision(input = {}) {
+  const errors = []
+  const evidenceRefs = Array.isArray(input.evidenceRefs) ? input.evidenceRefs.slice().sort() : []
+  if (!textList(evidenceRefs)) errors.push('evidenceRefs-invalid')
+  const riskClass = String(input.riskClass || 'unknown')
+  const taskKind = String(input.taskKind || 'unknown')
+  const messageKind = String(input.messageKind || 'progress')
+  const cpState = String(input.cpState || 'not-applicable')
+  const upgradeTriggers = []
+  const flagMap = {
+    controlPlane: 'control-plane',
+    sourceMutation: 'source-mutation',
+    sharedStateMutation: 'shared-state-mutation',
+    publicSurface: 'public-surface',
+    destructiveOperation: 'destructive-operation',
+    securitySensitive: 'security-sensitive',
+    requiresFullFallback: 'full-fallback-required',
+    userRequestedDetails: 'user-requested-details'
+  }
+  for (const [field, reason] of Object.entries(flagMap)) {
+    if (input[field] === true) upgradeTriggers.push(reason)
+  }
+  if (riskClass !== 'low') upgradeTriggers.push('risk-not-low')
+  if (!['progress', 'entry-check'].includes(messageKind)) upgradeTriggers.push('message-kind-not-compactable')
+  if (['dev', 'fix', 'self-fix'].includes(taskKind) && !['confirmed', 'not-applicable'].includes(cpState)) {
+    upgradeTriggers.push('cp-not-confirmed')
+  }
+  if (evidenceRefs.length === 0) upgradeTriggers.push('evidence-missing')
+  const uniqueTriggers = Array.from(new Set(upgradeTriggers)).sort()
+  const eligible = errors.length === 0 && uniqueTriggers.length === 0
+  const core = {
+    schemaVersion: 'SimpleGovernanceFastPathDecisionV1',
+    taskKind,
+    messageKind,
+    riskClass,
+    cpState,
+    eligible,
+    visibleMode: eligible ? 'compact' : 'full',
+    reasonCode: eligible ? 'simple-low-risk-evidence-backed' : 'fail-closed-full-path',
+    failClosed: true,
+    upgradeTriggers: uniqueTriggers,
+    guardrails: {
+      pcChecks: 'required',
+      cpGates: 'required-when-dev-fix-or-self-fix',
+      governanceIntake: 'required',
+      securityBoundary: 'required',
+      profileAndFullFallback: 'required-when-triggered',
+      internalArtifacts: 'required'
+    },
+    evidenceRefs
+  }
+  return { ...core, decisionId: `simple-governance-fast-path-${digest(core)}`, validation: { valid: errors.length === 0, errors } }
+}
+
 function portableTarget(filePath, workspaceRoot) {
   if (!text(workspaceRoot) || !path.isAbsolute(filePath)) return String(filePath).replace(/\\/g, '/')
   const relative = path.relative(workspaceRoot, filePath)
@@ -630,6 +684,7 @@ module.exports = {
   createArtifactDeliveryManifest,
   createLinkCapabilityDecision,
   createVisibleEnvelope,
+  buildSimpleGovernanceFastPathDecision,
   digest,
   isSemanticDisplayName,
   projectUserFacingArtifactSet,

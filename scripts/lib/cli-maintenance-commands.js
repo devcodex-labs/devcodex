@@ -3,6 +3,7 @@
 const PACKAGE_JSON = require('../../package.json')
 const { createCliFailure, createCliSuccess, parseJsonArgs, printCliJson } = require('./cli-json-contract.js')
 const { inspectExecutionOptimization } = require('./execution-optimization.js')
+const { buildGovernanceStatusSummary } = require('./governance-status-summary.js')
 const { evaluateGrokHostParity } = require('./host-parity-scorecard.js')
 
 function buildCliMaintenanceCommands(ctx) {
@@ -86,6 +87,7 @@ function buildCliMaintenanceCommands(ctx) {
     const profileDir = resolveProfileDir(cwd)
     const profileState = inspectProfileState(profileDir)
     const legacy = getLegacyCounts(ghDir)
+    const activeRoot = resolveActiveRuntimeRoot(cwd)
     const executionOptimization = inspectExecutionOptimization(cwd)
     const hostParity = evaluateGrokHostParity({
       cwd,
@@ -95,6 +97,13 @@ function buildCliMaintenanceCommands(ctx) {
       hasCodexLifecycle: codexHookFiles > 0 && codexHookJsonInstalled,
       hasGrokWorkspacePlugin: grokWorkspacePluginInstalled,
       hasGrokPluginRegistration: grokPluginRegistrationCurrent
+    })
+    const governanceSummary = buildGovernanceStatusSummary({
+      cwd,
+      activeRoot,
+      sourceRepository,
+      executionOptimization,
+      hostParity
     })
     return {
       schemaVersion: 'StatusDiagnosticV1',
@@ -137,6 +146,7 @@ function buildCliMaintenanceCommands(ctx) {
         featureInventory: profileState.featureInventory || null
       },
       executionOptimization,
+      governanceSummary,
       legacy
     }
   }
@@ -152,7 +162,7 @@ function buildCliMaintenanceCommands(ctx) {
 
     const {
       cwd, hostRoot, sourceRepository: isSrc, trackedEntryFiles: total, installSurfaces,
-      entryFiles, profile, executionOptimization, legacy, hostParity
+      entryFiles, profile, executionOptimization, governanceSummary, legacy, hostParity
     } = facts
     console.log()
     console.log(c.bold('  DevCodex status') + c.dim(` in ${cwd}`))
@@ -202,6 +212,7 @@ function buildCliMaintenanceCommands(ctx) {
     else profileLabel = c.red(`missing   (${profileDetails} — run: devcodex profile plan)`)
     console.log(`  ${c.cyan('profile'.padEnd(14))} ${profileLabel}`)
     console.log(`  ${c.cyan('optimization'.padEnd(14))} ${executionOptimization.config.effective} (${executionOptimization.stateStatus}; ${executionOptimization.features.filter(item => item.decision.optimizationAllowed).length}/${executionOptimization.features.length} accelerated)`)
+    console.log(`  ${c.cyan('governance'.padEnd(14))} ${formatGovernanceSummary(governanceSummary)}`)
 
     for (const item of legacy) {
       const label = item.count > 0 ? c.yellow(`${item.count} files (legacy)`) : c.dim('not installed')
@@ -432,6 +443,7 @@ function buildCliMaintenanceCommands(ctx) {
     const profileDir = resolveProfileDir(cwd)
     const profileState = inspectProfileState(profileDir)
     const hasProfile = profileState.complete
+    const activeRoot = resolveActiveRuntimeRoot(cwd)
     const executionOptimization = inspectExecutionOptimization(cwd)
 
     let mode = 'instruction-fallback'
@@ -452,6 +464,13 @@ function buildCliMaintenanceCommands(ctx) {
       hasGrokWorkspacePlugin,
       hasGrokPluginRegistration,
       platform
+    })
+    const governanceSummary = buildGovernanceStatusSummary({
+      cwd,
+      activeRoot,
+      sourceRepository: isSourceRepo(cwd),
+      executionOptimization,
+      hostParity
     })
 
     return {
@@ -496,6 +515,7 @@ function buildCliMaintenanceCommands(ctx) {
         featureInventory: profileState.featureInventory || null
       },
       executionOptimization,
+      governanceSummary,
       capabilityBoundary: {
         localOnly: true,
         hookEvidence: 'event-dependent',
@@ -522,6 +542,7 @@ function buildCliMaintenanceCommands(ctx) {
       installArtifacts, codexHookDiagnostics, codexConfigState,
       profile: profileState,
       executionOptimization,
+      governanceSummary,
       hostParity
     } = facts
     const {
@@ -544,6 +565,7 @@ function buildCliMaintenanceCommands(ctx) {
     console.log(`  installed hosts: ${installedHosts.length ? c.cyan(installedHosts.join(', ')) : c.dim('none detected')}`)
     console.log(`  mode:            ${c.bold(mode)}`)
     console.log(`  optimization:    ${c.bold(executionOptimization.config.effective)} ${c.dim(`(${executionOptimization.config.status}; state=${executionOptimization.stateStatus})`)}`)
+    console.log(`  governance:      ${formatGovernanceSummary(governanceSummary)}`)
     console.log(c.dim('  enforcement:     default safety-only warns/continues for bootstrap/CP/auto; strict blocks only host-supported events.'))
     if (hostParity) {
       const tierColor = hostParity.hardReady ? c.green : c.yellow
@@ -773,6 +795,19 @@ function buildCliMaintenanceCommands(ctx) {
     if (!diagnostics.commands.length) return c.red('missing command')
     if (diagnostics.invalidCommands.length) return c.yellow(`invalid (${diagnostics.invalidCommands.length}/${diagnostics.commands.length})`)
     return c.green('expected')
+  }
+
+  function formatGovernanceSummary(summary) {
+    if (!summary || summary.schemaVersion !== 'GovernanceStatusSummaryV1') return c.dim('unavailable')
+    const status = summary.status === 'pass' ? c.green('pass') : c.yellow(summary.status || 'warn')
+    const runtime = summary.runtimeState || {}
+    const skills = summary.skills || {}
+    const gates = summary.gateLifecycle || {}
+    const dirty = summary.dirtyBoundary || {}
+    return `${status} ` +
+      c.dim(`runtime ${runtime.recordCount || 0} records/${runtime.alertCount || 0} alerts; `) +
+      c.dim(`skills ${skills.skillCount || 0} (${skills.activeSkillCount || 0} active/${skills.graySkillCount || 0} gray); `) +
+      c.dim(`gates ${gates.groupCount || 0}; fast-path ${summary.fastPathPolicy?.visibleMode || 'full'}; git ${dirty.status || 'unknown'}`)
   }
 
   return { cmdStatus, cmdProfileInit, cmdDoctor, cmdHelp }

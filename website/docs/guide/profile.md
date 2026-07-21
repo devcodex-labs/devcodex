@@ -101,7 +101,7 @@ devcodex status --json
 devcodex doctor --json
 ```
 
-状态会分开显示 `files`、`semantic` 和 `config`，避免把可选配置混入必需文件计数。`--json` 使用统一 `DevCodexCliEnvelopeV1`，Profile 投影会返回 schema、生命周期计数、证据计数与 `asOf`；V1 兼容输入保持 `unverified`。维护 workspace-namespace 或 DevCodex 规范仓时，再运行全工作区校验：
+状态会分开显示 `files`、`semantic` 和 `config`，避免把可选配置混入必需文件计数。`--json` 使用统一 `DevCodexCliEnvelopeV1`，Profile 投影会返回 schema、生命周期计数、证据计数与 `asOf`；`governanceSummary` 会以只读方式汇总 runtime-state、Skill/gray lifecycle、执行优化证据、Gate registry、host truth、dirty boundary 和 fail-closed fast-path 决策；V1 兼容输入保持 `unverified`。维护 workspace-namespace 或 DevCodex 规范仓时，再运行全工作区校验：
 
 `ProfileTierStandardGate` 检查档位必需文件，`ProfileLifecycleClassificationGate` 检查稳定基线/活文档/条件本地文档，`AllDevCodexProfileValidationGate` 汇总所有 namespace 并区分 error 与 warning。
 

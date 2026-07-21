@@ -307,8 +307,8 @@ workspace-namespace 的共享真相与宿主 adapter 都由工作区拥有。Gro
 | `devcodex migrate-layout plan` | 生成 `.devcodex` 工作区集中布局迁移清单 |
 | `devcodex migrate-layout apply --manifest <path>` | 按 manifest 执行集中布局切换 |
 | `devcodex migrate-layout rollback --manifest <path>` | 回滚集中布局迁移 |
-| `devcodex status [--json]` | 状态：检查已安装组件；JSON 模式返回 `StatusDiagnosticV1` |
-| `devcodex doctor [--json]` | 诊断当前宿主、Agent、Hook、Profile 与记忆状态；JSON 模式返回 `DoctorDiagnosticV1` |
+| `devcodex status [--json]` | 状态：检查已安装组件；JSON 模式返回 `StatusDiagnosticV1`，含只读 `governanceSummary` |
+| `devcodex doctor [--json]` | 诊断当前宿主、Agent、Hook、Profile 与记忆状态；JSON 模式返回 `DoctorDiagnosticV1`，含同源只读 `governanceSummary` |
 | `devcodex probe [id ...] [--json]` | 运行同步、local-only、只读 typed probes；默认包含 host/workspace/profile |
 | `devcodex trace show\|replay [--state <file>] [--json]` | 查看或校验重放当前 turn trace 的只读数据投影；不执行 payload 或 mutation |
 | `devcodex task resolve <任务名> [--project <name>] [--json]` | 有界定位可恢复任务；只返回 identity/session/CP metadata，不执行历史 payload |
@@ -352,7 +352,7 @@ devcodex profile init --tier profile-standard
 devcodex status
 ```
 
-自动化脚本可使用 `devcodex status --json` / `devcodex doctor --json`。两者只输出一个 `DevCodexCliEnvelopeV1` JSON 文档；非法参数返回稳定 `CLI_INVALID_OPTION` 和退出码 2，默认人读输出保持兼容。
+自动化脚本可使用 `devcodex status --json` / `devcodex doctor --json`。两者只输出一个 `DevCodexCliEnvelopeV1` JSON 文档；非法参数返回稳定 `CLI_INVALID_OPTION` 和退出码 2，默认人读输出保持兼容。`payload.governanceSummary` 以 `GovernanceStatusSummaryV1` 只读汇总 runtime-state、Skill 生命周期/灰度状态、执行优化证据、Gate registry、host truth、dirty boundary 和 fail-closed fast-path 决策，不创建或改写运行态文件。
 
 本地维护者还可运行 `devcodex probe --json` 获取 host/workspace/profile 的 typed 只读结果，或用 `devcodex trace show|replay --state <lifecycle-state.json> --json` 检查 `LocalTaskTraceV1`。probe 不联网、不监听、不写状态；trace replay 不执行事件 payload，输出会携带源文件 SHA-256 便于 zero-write 对账。
 
@@ -398,7 +398,7 @@ devcodex status
 }
 ```
 
-`full-only` 是 kill switch：关闭 changed-scope、正文 delivery reuse、Profile section、Skill bundle 和 snapshot reuse，但保留 bounded task resolver、完整 Context/Profile/Skill 读取、full validation 与 full-project-analysis。六类消费者会在实际动作前形成 `ExecutionOptimizationFeatureDecisionV1`：`off / shadow / rolled-back / sunset` 立即切回对应完整路径；状态损坏、未知 schema 或身份无效同样 fail-closed，状态缺失则保持 trial 兼容行为。该判断读取 active-root 的派生状态，不额外偷读 Profile 正文或 `config.json`。`devcodex status --json` / `doctor --json` 只读显示当前模式、状态和每个 feature 的 route，不创建运行态文件。
+`full-only` 是 kill switch：关闭 changed-scope、正文 delivery reuse、Profile section、Skill bundle 和 snapshot reuse，但保留 bounded task resolver、完整 Context/Profile/Skill 读取、full validation 与 full-project-analysis。六类消费者会在实际动作前形成 `ExecutionOptimizationFeatureDecisionV1`：`off / shadow / rolled-back / sunset` 立即切回对应完整路径；状态损坏、未知 schema 或身份无效同样 fail-closed，状态缺失则保持 trial 兼容行为。该判断读取 active-root 的派生状态，不额外偷读 Profile 正文或 `config.json`。`devcodex status --json` / `doctor --json` 只读显示当前模式、状态和每个 feature 的 route，并在 `governanceSummary.executionOptimization` 中区分 trial acceleration 与 promotion-ready，缺少证据不会被写成可晋升默认；命令本身不创建运行态文件。
 
 维护者验证命令：
 

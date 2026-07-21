@@ -260,7 +260,7 @@ Hook / CLI / visible reply / sticky project / workspace guard 相关任务还要
 ### 诊断与排错入口
 
 - `devcodex doctor`：查看当前宿主、Hook、Profile、记忆与 adapter 状态，适合先判断“规则到底有没有加载”
-- `devcodex status --json` / `devcodex doctor --json`：输出统一 `DevCodexCliEnvelopeV1`，适合 CI/脚本消费；非法参数为 `CLI_INVALID_OPTION` + exit 2，默认人读输出不变
+- `devcodex status --json` / `devcodex doctor --json`：输出统一 `DevCodexCliEnvelopeV1`，适合 CI/脚本消费；非法参数为 `CLI_INVALID_OPTION` + exit 2，默认人读输出不变；`payload.governanceSummary` 只读汇总 runtime-state、Skill/gray lifecycle、执行优化证据、Gate registry、host truth、dirty boundary 与 fail-closed fast-path 决策
 - `devcodex probe [host workspace profile] --json`：运行同步、local-only、只读 typed probes；依赖失败会 skipped，不联网、不 watch、不写状态或 telemetry
 - `devcodex trace show|replay --state <lifecycle-state.json> --json`：查看/校验当前 `LocalTaskTraceV1`；sequence/duplicate/terminal 失败返回稳定错误，replay 不执行 payload、不改 state、不唤醒或控制进程
 - Intent 阶段转换使用 `IntentConsistencyDecisionV1` 核对 proposal/requirement/phase/confidence；短确认无绑定时必须澄清，不能靠历史或 route hint 补猜

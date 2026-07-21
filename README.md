@@ -7,7 +7,7 @@
 
 ## DevCodex 是什么？
 
-DevCodex 默认通过 `.github/`（Copilot）、`CLAUDE.md + .claude/ + .mcp.json`（Claude Code）以及 `AGENTS.md + .agents/ + .codex/`（Codex）注入结构化工作流；v1.15.2 还提供显式 Gemini / Grok adapter，五宿主共享同一精简内核、按需 Skills 与完整回退真相源。
+DevCodex 默认通过 `.github/`（Copilot）、`CLAUDE.md + .claude/ + .mcp.json`（Claude Code）以及 `AGENTS.md + .agents/ + .codex/`（Codex）注入结构化工作流；v1.15.3 还提供显式 Gemini / Grok adapter，五宿主共享同一精简内核、按需 Skills 与完整回退真相源。
 在支持 Hooks 的宿主中，它优先用 `hooks/_runtime/lifecycle.cjs` 提供确定性的生命周期护栏；在不支持 Hooks 的宿主中，则回退到 instructions 语义层继续工作。
 
 ## 目录导航
@@ -22,8 +22,8 @@ DevCodex 默认通过 `.github/`（Copilot）、`CLAUDE.md + .claude/ + .mcp.jso
 - [CLI 命令](#cli-命令)
 - [`.devcodex` 工作区集中布局（v1.10.0+）](#devcodex-工作区集中布局v1100)
 - [Profile 计划、生成与升级](#profile-计划生成与升级)
-- [意图驱动的上下文读取（v1.15.2）](#意图驱动的上下文读取v1152)
-- [项目侧执行链性能与稳定回滚（v1.15.2）](#项目侧执行链性能与稳定回滚v1152)
+- [意图驱动的上下文读取（v1.15.3）](#意图驱动的上下文读取v1152)
+- [项目侧执行链性能与稳定回滚（v1.15.3）](#项目侧执行链性能与稳定回滚v1152)
 - [本地开发](#本地开发)
 - [架构概览](#架构概览)
 - [客户端支持矩阵（Client Support Matrix）](#客户端支持矩阵client-support-matrix)
@@ -46,7 +46,7 @@ DevCodex 默认通过 `.github/`（Copilot）、`CLAUDE.md + .claude/ + .mcp.jso
 - **长任务 Turn Liveness**: `TurnLivenessRecoveryGate` 记录 `running / awaiting-continuation / suspect / stalled-recoverable / terminal` 状态、工具租约、continuation ACK、双阶段 checkpoint 与当前 turn 的 `LocalTaskTraceV1`；Hook 只能在事件到达时判断历史停滞，trace replay 只返回数据，不能自行唤醒宿主、执行 payload、重放写操作或把 `PostToolUse` 当成任务完成
 - **全模式入口检查**: 所有模式在实质任务前显示 PC0~PC7；dev 模式额外执行 PC4 规范雷达与完整合规链
 - **项目现实扩展**: 先做语义意图初判，再结合目标项目 Profile、目录与当前任务上下文修正最终路由、产物落点和验证方式
-- **任务名续接与增量执行链（v1.15.2）**: 新会话只需发送 `继续<任务名>任务`；系统通过稳定 task identity 有界定位，再复证 sessions/CP/产物。Context、validation DAG、Profile/Skill 与 ProjectKnowledge 可按内容身份增量执行，并由 `full-only` kill switch 保留完整正确路径
+- **任务名续接与增量执行链（v1.15.3）**: 新会话只需发送 `继续<任务名>任务`；系统通过稳定 task identity 有界定位，再复证 sessions/CP/产物。Context、validation DAG、Profile/Skill 与 ProjectKnowledge 可按内容身份增量执行，并由 `full-only` kill switch 保留完整正确路径
 - **可配置并发策略**: Profile `config.json` 可配置 `extensions.devcodex.concurrency`；默认 `auto` 表示只读准备和隔离验证可并行、共享状态写入保持单写者，保守项目可设为 `serial`
 - **文件真相源优先的有界启动链**: `MemoryCannotSatisfyBootstrapGate` 要求宿主 Memories、模型长期偏好、SUMMARY 或交接卡只能作为 `navigation-hint`；新线程、resume、summary 恢复或跨项目切换仍须通过 Profile plan、memory status/query 与 handoff 指向的精确 reports/review checklist/source 复证。V86 防止用内置记忆替代文件真相，V99 防止把复证误写成默认全文读取或失败调用假完成。
 - **支撑型 Skill**: `execution-contract` / `test-router` / `release-verification` / `host-contract-verification` / `source-consumer-sync` 为控制面、多批次、测试路线、宿主契约验证与真相源-消费者同步提供可审计支撑，不新增工作流分支
@@ -101,11 +101,11 @@ DevCodex 默认通过 `.github/`（Copilot）、`CLAUDE.md + .claude/ + .mcp.jso
 
 ## 5 分钟快速开始
 
-先区分两个版本概念：npm package 的当前发布版本是 **v1.15.2**；文档站的 **1.0.1** 是活动需求文档版本，不是可安装包版本。
+先区分两个版本概念：npm package 的当前发布版本是 **v1.15.3**；文档站的 **1.0.1** 是活动需求文档版本，不是可安装包版本。
 
 | 通道 | 当前状态 | 用途 |
 |---|---|---|
-| GitHub Packages | ✅ v1.15.2 | 当前唯一发布通道；安装需要 GitHub Packages `read:packages` 认证 |
+| GitHub Packages | ✅ v1.15.3 | 当前唯一发布通道；安装需要 GitHub Packages `read:packages` 认证 |
 
 1. 确认 CLI 运行时（文档站维护另需 Node `^20.19.0 || >=22.12.0`）：
 
@@ -122,7 +122,7 @@ node --version # CLI 需要 Node.js >=18
 
 当前 shell 的 `NODE_AUTH_TOKEN` 需使用具备 `read:packages` 的 GitHub PAT。
 
-3. 安装当前 v1.15.2：
+3. 安装当前 v1.15.3：
 
 ```bash
 npm install @vextjs/devcodex
@@ -139,7 +139,7 @@ npx @vextjs/devcodex status
 
 ## 安装
 
-以下是当前 v1.15.2 的完整安装说明。当前版本仅发布到 GitHub Packages，安装需要读取认证。
+以下是当前 v1.15.3 的完整安装说明。当前版本仅发布到 GitHub Packages，安装需要读取认证。
 
 ### 1. 配置 GitHub Packages
 
@@ -156,18 +156,18 @@ export NODE_AUTH_TOKEN=YOUR_GITHUB_PAT
 
 这里的环境变量仅用于 GitHub Packages 认证流程，不代表项目里的普通配置默认都应 env 化；未明确要求 env 时，AI 不得主动把明文或硬编码改成 env、`secretRef`、secret manager 或 `config.local.json`。
 
-> v1.15.2 未发布到 npmjs；缺少上述 registry 或读取认证时，安装不会自动回退到其他通道。
+> v1.15.3 未发布到 npmjs；缺少上述 registry 或读取认证时，安装不会自动回退到其他通道。
 
 ### 2. 安装并初始化
 
 ```bash
-npm install @vextjs/devcodex@1.15.2
+npm install @vextjs/devcodex@1.15.3
 npx @vextjs/devcodex init          # 默认三宿主部署：Copilot + Claude Code adapter + Codex adapter
 npx @vextjs/devcodex init --claude # 仅 Claude Code adapter
 npx @vextjs/devcodex init --codex  # 仅 Codex adapter
 ```
 
-v1.15.2 包含通用宿主选择器；本地源码验证时也可直接使用：
+v1.15.3 包含通用宿主选择器；本地源码验证时也可直接使用：
 
 ```bash
 node index.js init --host gemini
@@ -182,7 +182,7 @@ node index.js init --host all       # 显式部署 Copilot / Claude / Codex / Ge
 ├── copilot-instructions.md  ← 默认 Copilot always-on 总则（新增）
 ├── instructions/   ← Instructions 约束（15 个，含全部工作流规则）
 ├── agents/         ← Copilot 自定义 Agent（v1.9.8 起恢复默认分发）
-├── skills/         ← v1.15.2 Skill 详细检查标准（81 个，按需读取，含 active `repair-prevention-assessment`、默认分析、用户文档、用户侧文档 review 聚合、专家型产物质量、21 个专家 Owner Skill、复审清单、自我进化治理、README 专项能力、spec-governance、spec-absorption 与支撑型 Skill）；其中 78 active，`rework-prevention-engineering`、`consumer-validation-engineering`、`brand-visual-quality` 3 个 gray；用户可见输出、宿主指令投影与修复评估拆分能力已纳入当前包
+├── skills/         ← v1.15.3 Skill 详细检查标准（81 个，按需读取，含 active `repair-prevention-assessment`、默认分析、用户文档、用户侧文档 review 聚合、专家型产物质量、21 个专家 Owner Skill、复审清单、自我进化治理、README 专项能力、spec-governance、spec-absorption 与支撑型 Skill）；其中 78 active，`rework-prevention-engineering`、`consumer-validation-engineering`、`brand-visual-quality` 3 个 gray；用户可见输出、宿主指令投影与修复评估拆分能力已纳入当前包
 ├── prompts/        ← Prompt 模板（30 个）
 ├── hooks/          ← 宿主生命周期 Hook 配置与运行时
 │   ├── devcodex.lifecycle.json
@@ -342,7 +342,7 @@ devcodex migrate-layout rollback --manifest <manifest-path>
 
 ## Profile 计划、生成与升级
 
-> 发布状态：以下 `profile plan`、统一分档生成和安全迁移行为已随 **v1.15.2** 发布；安装当前包即可使用。
+> 发布状态：以下 `profile plan`、统一分档生成和安全迁移行为已随 **v1.15.3** 发布；安装当前包即可使用。
 
 先预览，再写入：
 
@@ -365,9 +365,9 @@ devcodex status
 
 完整命令、三档文件矩阵、迁移和排错见 [Profile 使用指南](./website/docs/guide/profile.md)。
 
-## 意图驱动的上下文读取（v1.15.2）
+## 意图驱动的上下文读取（v1.15.3）
 
-> 发布状态：以下能力已纳入 v1.15.2 发布候选并通过 targeted/Hook/V99 验证；使用者仍应以目标 tag、package registry 和 release notes 为准。
+> 发布状态：以下能力已纳入 v1.15.3 发布候选并通过 targeted/Hook/V99 验证；使用者仍应以目标 tag、package registry 和 release notes 为准。
 
 在当前源码能力启用且宿主支持 DevCodex MCP 时，推荐使用以下生产主链，避免每条消息都把整套 Profile 与完整记忆注入上下文：
 
@@ -379,7 +379,7 @@ devcodex status
 
 旧的 no-args `profile_load`、`memory_session_read` 和 `memory_summary_read` 仍保留兼容性，但不再是推荐默认路径，也不能单独证明相关上下文已经完整加载。`config.local.json` 仍只有在用户或项目明确指定时才读取。
 
-## 项目侧执行链性能与稳定回滚（v1.15.2）
+## 项目侧执行链性能与稳定回滚（v1.15.3）
 
 当前源码把 task index、Context computation reuse、changed-scope validation、Profile section、Skill bundle 与 ProjectKnowledge snapshot 统一纳入 `ExecutionOptimizationStateV2`。派生索引/cache/snapshot 只负责加速，损坏、过期或关闭时不会成为第二真相源。
 
@@ -410,7 +410,7 @@ npm run test:full
 npm run benchmark:execution-chain -- --input ./benchmark-input.json
 ```
 
-benchmark 输入/输出分别为 `ExecutionChainBenchmarkInputV1` / `ExecutionChainBenchmarkResultV1`。只有同环境、样本满足、correctness 全为 0、综合改善至少 25% 且回归/开销预算通过时才能标 accepted；否则如实保持 `provisional` 或 rejected。本节能力随 v1.15.2 发布，仍按 `full-only` kill switch 保留完整正确路径。
+benchmark 输入/输出分别为 `ExecutionChainBenchmarkInputV1` / `ExecutionChainBenchmarkResultV1`。只有同环境、样本满足、correctness 全为 0、综合改善至少 25% 且回归/开销预算通过时才能标 accepted；否则如实保持 `provisional` 或 rejected。本节能力随 v1.15.3 发布，仍按 `full-only` kill switch 保留完整正确路径。
 
 ## Always-On 质量守恒诊断（Unreleased）
 
@@ -531,7 +531,7 @@ README / 用户使用文档当前补充四类专项 Skill：`user-manual-authori
 | **OpenAI Codex app/CLI** | `AGENTS.md` + `.agents/skills/` + `.codex/hooks.json`（含 `PreCompact` compaction guardrail） | ⚠️ Codex hook guardrail；阻断输出按事件契约分为顶层 `decision`、`continue:false` 与工具级 `permissionDecision` | ⚠️ Hook + 文本确认 | ⚠️ 可手工配置 MCP；DevCodex 未自动写入 | 🟡 Beta |
 | **ChatGPT 普通对话** | 不读取本地工作区 `AGENTS.md` / `.agents/` / `.codex/`；可手工粘贴规则 | ❌ | ⚠️ 文本 | ❌ | 🔴 Unsupported |
 
-> **安装命令**：v1.15.2 默认三宿主部署 → `npx @vextjs/devcodex init`；仅 Claude Code adapter → `npx @vextjs/devcodex init --claude`；仅 Codex adapter → `npx @vextjs/devcodex init --codex`。需要显式增加 Gemini / Grok 时使用 `npx @vextjs/devcodex init --host <gemini|grok|all>` 或本地源码 `node index.js init --host <gemini|grok|all>`，默认面仍保持三宿主兼容行为。
+> **安装命令**：v1.15.3 默认三宿主部署 → `npx @vextjs/devcodex init`；仅 Claude Code adapter → `npx @vextjs/devcodex init --claude`；仅 Codex adapter → `npx @vextjs/devcodex init --codex`。需要显式增加 Gemini / Grok 时使用 `npx @vextjs/devcodex init --host <gemini|grok|all>` 或本地源码 `node index.js init --host <gemini|grok|all>`，默认面仍保持三宿主兼容行为。
 >
 > **Grok workspace 插件**：在 `workspace-namespace` 的工作区或任一子项目执行 `update --host grok`，CLI 都把 kernel、Skills、薄插件和 managed manifest 写到同一工作区 owner。薄插件 source 位于 `.grok/devcodex/plugins/devcodex-workspace`，不会被 project auto-discovery 再发现，只由 Grok 官方本地插件登记形成一个 user identity。旧 `.grok/plugins/devcodex-workspace` 登记会先通过官方 CLI 迁移，新安装 digest 验证后旧 source 才可逆移动到 `.tmp/backups`；失败走旧 source/registration/config 回滚。用户 Grok 配置只维护 DevCodex enabled 项和新旧受管 path 清理，其他设置、注释和插件保持不变，重复执行幂等。`uninstall --host grok` 只解除当前官方登记与受管配置，保留 canonical workspace source。工作区根可直接运行 `grok`；子 Git 项目要获得完整 kernel 保证时运行 `devcodex grok [原 Grok 参数]`。launcher 先消费官方 `--cwd` 决定真实 owner，校验 root kernel，且只在子 Git 边界追加官方 `--rules`；用户额外 rules 会合并，system prompt override 与重复 cwd 会因破坏保证而拒绝。root native、plain child 与 launcher 证据严格分开。
 > `doctor/status` 诊断将 workspace plugin 的 source+registration 可用性与 installed digest 新鲜度分开：digest drift 只作为 warning 和刷新建议，不再把已登记且可用的 adapter 误报为未安装。
@@ -657,7 +657,7 @@ DevCodex Hook runtime 不再把所有拦截都等同为“停止”。拦截会�
 
 DevCodex 的 `plugin.json` 声明 `tier: "free"`，所有 Skill 均标注 `tier: "free"`。这些 tier 字段是**面向未来的 prompt-level 声明**（供 `token-check` Skill 在 Agent 侧做软门控），**CLI 不做任何授权校验**：
 
-- CLI 本身不做额外 license/tier 授权校验；当前 v1.15.2 通过 GitHub Packages 分发，registry 读取认证仍按平台规则执行
+- CLI 本身不做额外 license/tier 授权校验；当前 v1.15.3 通过 GitHub Packages 分发，registry 读取认证仍按平台规则执行
 - 未来接入服务端 token 校验时，tier 字段才会生效
 - 当前阶段 tier 仅作为规划信息，不影响功能使用
 

@@ -9,6 +9,7 @@
 
 | 版本 | 日期 | 变更摘要 | 详细 |
 |------|------|---------|------|
+| [v1.15.3](./changelogs/releases/v1.15.3.md) | 2026-07-21 | 🔧 **治理诊断 + 纪律探针 + Skill 侧车与 Dual-Track 门禁**：AlwaysOn/GovernanceStatus、MeasuredVerification/V84、PF-148~165/087 簇、S1 sidecar、M1/M2 process gates、Claude MCP lib 部署与 CVE 卫生 | [查看](./changelogs/releases/v1.15.3.md) |
 | [v1.15.2](./changelogs/releases/v1.15.2.md) | 2026-07-21 | 🔧 **意图驱动上下文 + 执行链优化 + 发布真相纠偏**：ContextRead V2、任务名续接、validation DAG、ProjectKnowledge、Grok/Gemini 显式宿主、S07/Turn Liveness/可见输出、基座准入与 residual F 闭环 | [查看](./changelogs/releases/v1.15.2.md) |
 | [v1.15.1](./changelogs/releases/v1.15.1.md) | 2026-07-18 | 🔧 **CI 行数预算单源 + 品牌拓扑假绿 + 共享态闸门**：`ENTRY_MODULE_LINE_BUDGETS`、`ComponentTransparencyTopologyGate`、PI-119 自修/push 闸门、GR-044 验证阶段可追溯、台账 already-fixed 回写 | [查看](./changelogs/releases/v1.15.1.md) |
 | [v1.15.0](./changelogs/releases/v1.15.0.md) | 2026-07-18 | ✨ **长任务墙钟预算与完成证据**：ExecutionBudget / ExternalWait / LongTaskAuthorization、WorkspaceSyncStatus、CompletionEvidenceGate、清单 11 收口 | [查看](./changelogs/releases/v1.15.0.md) |
@@ -125,7 +126,7 @@
 
 ## 相关文档
 
-- [`changelogs/releases/v1.15.2.md`](./changelogs/releases/v1.15.2.md) — 最新版本详细变更文档
+- [`changelogs/releases/v1.15.3.md`](./changelogs/releases/v1.15.3.md) — 最新版本详细变更文档
 - [`changelogs/releases/v1.15.0.md`](./changelogs/releases/v1.15.0.md) — 上一版本详细变更文档
 - [`changelogs/releases/v1.14.0.md`](./changelogs/releases/v1.14.0.md) — 历史版本详细变更文档
 - [`changelogs/releases/v1.11.21.md`](./changelogs/releases/v1.11.21.md) — 历史版本详细变更文档

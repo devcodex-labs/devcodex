@@ -1,38 +1,17 @@
 # 未发布变更（Unreleased）
 
 > **用途**: 记录尚未正式发版的实现级变更。
-> **当前**: v1.15.2 发布候选已归档到 `changelogs/releases/v1.15.2.md`；本文件保留历史锚点索引与候选镜像，供 validate 探针消费。
+> **当前**: v1.15.3 已归档到 `changelogs/releases/v1.15.3.md`；本文件仅保留历史锚点索引与镜像供 validate 探针消费。发版后新实现再写入下方「当前未发布」。
 
-## 当前未发布实现候选（2026-07-21）
+## 当前未发布实现候选
 
-- 卫生包 O1 + 验证修复：刷新 `skills/portfolio.json`；V6/pack-clean 扫描忽略注释内伪 `require`；抽出 `cli-console-utils.js` 使 `index.js` 回到 V93 行预算；`package.json#files` 纳入该模块；台账 VL-010/012 时间线对齐；Profile CLI 脚本计数 154。验证：`generate-skill-portfolio --check`、`npm run test:core`、`npm run test:package-release`（40/40）、`npm run test:audit` 均 exit 0。
-- Dependabot #17 / CVE-2026-13149：`website` 经 `overrides` 固定 `brace-expansion@5.0.7`（GHSA-3jxr-9vmj-r5cp DoS）；`npm audit` 清零。
-- PF-173：Claude MCP 部署补齐 `scripts/lib` 运行时依赖 allowlist（`cp-digest.js` / `host-parity-scorecard.js`）→ `.claude/scripts/lib/`，与 `mcp/*.js` 的 `require('../scripts/lib/…')` 对齐；接入 `cmdInitClaude` + managed descriptors；`test-host-installation` / `test-mcp-servers` 回归。
-- 专家质量探针与实测标准收口：`MeasuredVerificationStandard` 写入 `compliance` SC14、`analyze-default` PCV-2a、`report`、`expert-output-quality`、`test-router`（`expertOutputQuality`）；V84 增加 raw-text 最小锚点区分力（防止 canonical reader 掩盖完全缺失），修正 profile skillCount 探针，不再要求所有薄消费者堆完整 Gate 长清单。
-- 复审 R1 短修：`instructions/17-compliance.instructions.md` SC14 与 Skill 同源；`gate-registry` expert-output-quality 增加 `measuredVerification` / MVS legacyAnchors；V84 raw 强制对账 instructions+registry（防 VL-072 类逃逸）。
-- PF-148 切片-1：validation-dag 增加 nested `delegatedClosure` 脚本路径存在性与 top-level leaf 命令一致性校验，并补负向 fixture。
-- PF-148 切片-2：`buildNestedCommandGraph` + 委托 leaf 显式入选计划；`planLockAwareSchedule`（writeScopes 锁波次）；receipt `executionSchedule` / nested digests；duplicate-leaf command 证据复用；nodeId 缺失负向。
-- PF-149 residual：`ContextReadBindingGate`（load-profile）；test-router 要求 binding + `testRouteDigest`/`intentExpansionDigest`；V99 消费者锚点与 registry evidence；`classifyContextReadBindingSample` / unbound 不得 claim complete 负向；01-common 绑定提示。
-- PF-168/169/170：`optimization-backlog-evidence` 分类器（优化升格证据 / 分析落盘 / residual 清单字段）；report Skill 证据族；`test:optimization-backlog-evidence` 挂 control-plane。
-- PF-150：ProjectKnowledge bootstrap/observe/typed claim 主体已由 store+v2 测试覆盖；本轮台账按实测关闭（`test:project-knowledge`）。
-- 纪律簇（VL-053~061 族）：`discipline-execution-probe`（unauthorized-push / preference-menu / CI stop-without-self-fix）；cp-gate + release-verification 锚点；`test:discipline-execution` 挂 control-plane。
-- PF-162 / GR-068：`memory_cp_confirm` 禁止将 CP 行写入普通会话索引表；写后校验无区外 CP 行；剥离历史孤儿 CP 行；新增 5 列索引无 CP 区块与污染表负向 fixture。
-- PF-163：`lifecycle-visible-reply` 识别裸路径清单/绝对路径无操作；Stop 无 payload 时 missingItems 含 `semantic-artifact-items` + `visible-payload-unobserved`；补 hooks visibility 负向 fixture。
-- PF-164：`ExternalReviewClaimVerificationGate` + `scripts/lib/external-review-claim-verification.js`；audit-report/report/report-audit 模板；gate-registry 分组；负向 claim-thin fixture；`npm run test:external-review-claim`。
-- PF-165：Grok 完整工作流强制面 — `GrokTurnChecklist` + Intent→Skill bundle + `hostParity.repairSteps`/`failedChecks`；doctor 人类可执行修复闭环；`classifyGrokTurnOmissionSample` 负向；host-parity-grok / workspace Skill / UV / host-contract / Host Kernel passive-host 组；PreTool S07 assist 附 bundle 提示。
-- PF-087（2026-07-21 入口完整性再开项）：`analyzeEntryCheckCompleteness` — 自由文本 PC0~PC7 分列必齐、禁止折叠合并、dev PC4 无 skipReason 不得伪 N/A；Stop 半截入口 → `verified-missing` + closure reminder；hooks-runtime 负向 fixture；UV FreeTextEntryCheckCompletenessGate。
-- `devcodex status` / `devcodex doctor` 增加只读 `GovernanceStatusSummaryV1`：汇总 runtime-state、ledger 退役候选、Skill/gray lifecycle、执行优化证据、Gate registry、host truth、dirty boundary 与 fail-closed fast-path 决策；JSON 输出挂载到 `payload.governanceSummary`，human 输出只增加一行治理概览。
-- 新增 `SimpleGovernanceFastPathDecisionV1`，将可见输出 compact 条件显式化；控制面、source mutation、共享状态、风险非 low、CP 未确认、证据缺失或非 compactable message kind 均 fail-closed 到 full。
-- 新增 `scripts/lib/governance-status-summary.js` 与 `scripts/test-governance-status-summary.js`，并接入 `test:control-plane` / `test:optimization-controls`；不新增依赖、不改发布版本、不执行 tag/push/publish。
-- 新增 `AlwaysOnGovernanceSummaryV1` 与 `scripts/lib/always-on-governance.js`：统一生成 `AlwaysOnSurfaceMatrixV1`、`AlwaysOnLayerMatrixV1`、`HostAdapterCompatibilityMatrixV1`、`AlwaysOnLoadReceiptV1` 和 `AlwaysOnShadowResultV1`；`status/doctor --json` 只读投影 `payload.governanceSummary.alwaysOn`。
-- 新增 `npm run test:always-on-governance` 与 validation DAG 节点 `always-on-governance`：验证 Host Kernel + `instructions/*.md applyTo:"**"` 双 surface、L0 强不变量、宿主声明上限、load receipt fail-closed 和 Q1~Q8 40 样本 Shadow P0 零漏判。
-- Always-On 本轮仍保持 `defaultBehaviorChanged=false`、`ao3Enabled=false`：AO-0/AO-1/AO-2/AO-4 基础闭环已落地，AO-3 默认轻注入需 Shadow green 后另行确认。
+（空 — v1.15.3 发布候选已归档）
 
-## 历史锚点索引（已随 v1.15.0 / v1.15.1 / v1.15.2 发布或归档）
+## 历史锚点索引（已随 v1.15.0 / v1.15.1 / v1.15.2 / v1.15.3 发布或归档）
 
-WorkspaceDataAbsorptionScopeGate · DocsSiteVisualAcceptanceGate · OmissionOnlyReviewGate · MethodLevelLeakPressureProbe · V2FormalSolutionPackage · V63 · V65 · FigmaHighFidelityRestorationGate · CompatibilityAndContractAuthorityGate · PublicDocsReleasedVersionGate · V66 · ReviewDimensionDeltaGate · UserPerspectiveDocsGate · DocsConsumerSweep · ArtifactLinkSetDedupeGate · FrontendRuntimeNetworkProbeGate · PI-052 · PF-056 · PublicUserDocsMaintainerBoundaryGate · ActiveRequirementFinalResponseGate · V67 · PI-053 · PI-054 · PF-057 · PF-058 · ChecklistStateMaterializationGate · V94 · consumer-validation-engineering · CandidateFreezeGate · IsolatedConsumerCwdGate · DesignFitnessGate · V96 · BrandVisualQualityGate · ComponentTransparencyTopologyGate · ProfileReleaseTruthAuthorityMatrixGate · RuntimeStateTransitionProjectionGate · ISSUE-043 · Turn Liveness · V98 · LocalTaskTraceV1 · ExecutionBudgetGate · ExternalWaitAccountingGate · LongTaskAuthorizationGate · WorkspaceSyncStatus · CompletionEvidenceGate · OwnIntroducedRegressionSelfFixGate · SharedStateMutationGate · ValidationLifecycleTraceabilityGate · Intent Expansion Card · execution-contract · test-router · release-verification · host-contract-verification · source-consumer-sync · verified-present · sticky `activeProject` · 意图扩展摘要 · ProductRequirementTraceabilityGate · PackageNameAuthorityGate · V2MCPFirstPlanningGate · rework-prevention-engineering · V95 · 项目侧执行链性能 · ExecutionOptimizationFeatureDecisionV1 · V101 · BaseImpactAssessmentV1 · ComplexityDeltaBudgetV1 · UnaffectedIntentRegression · OperationExplanationContractV1 · CodeTruthEvidenceMatrixGate · SolutionFitAgainstRepoGate · V1.15.0 · V1.15.1 · V1.15.2
+WorkspaceDataAbsorptionScopeGate · DocsSiteVisualAcceptanceGate · OmissionOnlyReviewGate · MethodLevelLeakPressureProbe · V2FormalSolutionPackage · V63 · V65 · FigmaHighFidelityRestorationGate · CompatibilityAndContractAuthorityGate · PublicDocsReleasedVersionGate · V66 · ReviewDimensionDeltaGate · UserPerspectiveDocsGate · DocsConsumerSweep · ArtifactLinkSetDedupeGate · FrontendRuntimeNetworkProbeGate · PI-052 · PF-056 · PublicUserDocsMaintainerBoundaryGate · ActiveRequirementFinalResponseGate · V67 · PI-053 · PI-054 · PF-057 · PF-058 · ChecklistStateMaterializationGate · V94 · consumer-validation-engineering · CandidateFreezeGate · IsolatedConsumerCwdGate · DesignFitnessGate · V96 · BrandVisualQualityGate · ComponentTransparencyTopologyGate · ProfileReleaseTruthAuthorityMatrixGate · RuntimeStateTransitionProjectionGate · ISSUE-043 · Turn Liveness · V98 · LocalTaskTraceV1 · ExecutionBudgetGate · ExternalWaitAccountingGate · LongTaskAuthorizationGate · WorkspaceSyncStatus · CompletionEvidenceGate · OwnIntroducedRegressionSelfFixGate · SharedStateMutationGate · ValidationLifecycleTraceabilityGate · Intent Expansion Card · execution-contract · test-router · release-verification · host-contract-verification · source-consumer-sync · verified-present · sticky `activeProject` · 意图扩展摘要 · ProductRequirementTraceabilityGate · PackageNameAuthorityGate · V2MCPFirstPlanningGate · rework-prevention-engineering · V95 · 项目侧执行链性能 · ExecutionOptimizationFeatureDecisionV1 · V101 · BaseImpactAssessmentV1 · ComplexityDeltaBudgetV1 · UnaffectedIntentRegression · OperationExplanationContractV1 · CodeTruthEvidenceMatrixGate · SolutionFitAgainstRepoGate · V1.15.0 · V1.15.1 · V1.15.2 · V1.15.3 · GovernanceStatusSummaryV1 · AlwaysOnGovernance · MeasuredVerificationStandard · Dual-TrackClosure · SkillSidecar
 
-## v1.15.2 归档候选镜像
+## v1.15.2 归档候选镜像（历史保留）
 
 ### DevCodex V1 基座准入与证据合同（2026-07-20）
 
@@ -116,7 +95,7 @@ WorkspaceDataAbsorptionScopeGate · DocsSiteVisualAcceptanceGate · OmissionOnly
 - ProjectKnowledge 升级为单仓 V2：Merkle inventory、repo/root/config/parser/test/Profile binding、`FileKnowledgeRecordV2`、range-bound `SemanticClaimV1`、确定性 observe/bootstrap、5% oracle 与 accepted-only pointer；V1 仅只读兼容并强制 full-required migration。
 - ProjectKnowledge 生产 CLI 现从真实 inventory 构建并持久化 versioned `ImpactGraphV1`，覆盖 JS/TS 静态相对依赖与 Markdown 本地链接；普通图变化走当前闭包，builder 迁移、低覆盖或动态消费者自身变化才升级全文。
 - 新增 `ExecutionOptimizationStateV2`、prospective trial、rollback/sunset 与 `safe-auto | full-only` kill switch；六类真实消费者在动作前统一形成 `ExecutionOptimizationFeatureDecisionV1`，feature 回滚或状态无效会立即走完整执行路径。
-- 新增 `test:execution-chain-evolution`、`benchmark:execution-chain`、canonical validation 节点及 V101；当前变更已归档到 v1.15.2 发布候选，发布事实以 registry/tag/R7 验收为准。
+- 新增 `test:execution-chain-evolution`、`benchmark:execution-chain`、canonical validation 节点及 V101；当前变更已归档到 v1.15.3 发布候选，发布事实以 registry/tag/R7 验收为准。
 
 ### CE+CPCF · 控制面闭合证据与误放行治理（2026-07-18）
 

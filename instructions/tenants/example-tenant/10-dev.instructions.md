@@ -2,7 +2,7 @@
 applyTo: "**"
 description: 示例租户对 dev 工作流的局部覆盖演示，说明如何追加租户级约束而非复制全量规则
 priority: P3
-version: 1.15.2
+version: 1.15.3
 ---
 # example-tenant — dev 工作流局部覆盖示例
 

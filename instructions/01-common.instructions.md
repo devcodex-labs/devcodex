@@ -164,7 +164,7 @@ version: 1.15.2
 ## Skill 按需读取表
 
 > ⚠️ 仅读取当前工作流子类型对应的 Skills，禁止全量读取。
-> ⚠️ **`ContextAcquisitionGate` 是所有工作流的前置步骤，不受本表约束：先形成 `IntentSeedV1` 与唯一项目，再生成 `ContextReadPlanV2`（V1 只保留 reader compatibility）并定向读取；禁止把“Profile 是真相源”实现成默认整目录读取。**
+> ⚠️ **`ContextAcquisitionGate` 是所有工作流的前置步骤，不受本表约束：先形成 `IntentSeedV1` 与唯一项目，再生成 `ContextReadPlanV2`（V1 只保留 reader compatibility）并定向读取；load/query 携带 `ContextReadBindingV1`（PF-149）；`legacy-unbound` 不得宣称 complete；禁止把“Profile 是真相源”实现成默认整目录读取。**
 > ℹ️ `18-spec-radar.instructions.md`（PC4 规范雷达）是 Instruction（不是 Skill），通过 `applyTo:"**"` 全局注入，无需在本表中加载；仅 dev 模式在入口检查中执行完整三轴诊断。
 
 > ⚠️ **扩展点**：新增工作流子类型时，须同时更新以下5处（D5 L1~L3 联动）：

@@ -5,14 +5,14 @@
   "generatedFrom": {
     "skillsPattern": "skills/*/SKILL.md",
     "registry": "plugin.json",
-    "sourceDigest": "79d07368b84b2cecd3cc709427bc91f88ec58f7846830bbbb3761471c7c1cb21",
+    "sourceDigest": "9d78fec5690144fb3d4a741fdb7e01ab504b34dbc513ceb894fe32d4419782e2",
     "pluginDigest": "3e417180688c359025e64d584c098b5ef5ba112cf2ef8ca970f1c5589fe3d2bb",
     "portfolioEvidence": "skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "85229c1463a5068750d5417e5ebf960907532dccf99b1cd3da0a88f7007792b4",
     "consumerInventoryFileCount": 502,
     "consumerInventoryDigest": "9b335e838b8a3a05d123768ada3f60f178bdb63e83846e50afd4d3ffc0d95b65",
-    "consumerProjectionDigest": "a10d6b959e289349071c2113d2d753f8ac87e59e672c70d4c65bdf96b2d2470b",
-    "portfolioInputDigest": "e531fb9558773815858ab3bbd3663b24e9e22709e1a1cc5b0290fe9c2d17132e"
+    "consumerProjectionDigest": "d4a29f6c1c1d77cc15c750fa9ed69991a5ab423cc76fbdb49d89c5d1ff7c70b6",
+    "portfolioInputDigest": "42ea3fe5ee858526671350b857c541eb8cb9310fab233d0585697b8f034e184a"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -11166,6 +11166,10 @@
           "role": "historical"
         },
         {
+          "path": "changelogs/unreleased.md",
+          "role": "current"
+        },
+        {
           "path": "grok/plugins/devcodex-workspace/skills/devcodex-workspace/SKILL.md",
           "role": "current"
         },
@@ -11629,7 +11633,7 @@
         "registration": "plugin.json",
         "operationalReadiness": {
           "state": "complete",
-          "currentConsumer": "grok/plugins/devcodex-workspace/skills/devcodex-workspace/SKILL.md",
+          "currentConsumer": "changelogs/unreleased.md",
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
@@ -11677,8 +11681,8 @@
         "skills/load-profile/SKILL.md"
       ],
       "source": "skills/load-profile/SKILL.md",
-      "hash": "05dc309b441ba28d8c451ed8a03bed0047d8449edc2619c5f02c551084507e74",
-      "sourceBytes": 22519,
+      "hash": "af2980daabc852c3f4f08dfb123d52badb186108e0e83c7cf1468ad23de566a7",
+      "sourceBytes": 23127,
       "version": "1.15.2",
       "lifecycleState": "active",
       "dependencies": [],
@@ -11732,6 +11736,10 @@
         {
           "path": "changelogs/releases/v1.9.8.md",
           "role": "historical"
+        },
+        {
+          "path": "changelogs/unreleased.md",
+          "role": "current"
         },
         {
           "path": "instructions.md",
@@ -19306,8 +19314,8 @@
         "skills/test-router/SKILL.md"
       ],
       "source": "skills/test-router/SKILL.md",
-      "hash": "76907baa380ebf82df55bf506e608b00b06fb954117993f0b588718550c63c2f",
-      "sourceBytes": 9646,
+      "hash": "8d68c80caccd1429de12cabad1cee428f2e2a4d70ff6cf9783c23388d8ac551c",
+      "sourceBytes": 9894,
       "version": "1.15.2",
       "lifecycleState": "active",
       "dependencies": [],

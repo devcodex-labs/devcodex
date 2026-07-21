@@ -32,17 +32,19 @@ const CANONICAL_V2_CONSUMER_REQUIREMENTS = Object.freeze([
   ['instructions/01a-profile-loading.instructions.md', ['ProfileReadChainGate', 'profile_context_plan', 'ProfilePlanNoHiddenFullReadProbe']],
   ['instructions/15-memory.instructions.md', ['MemoryContextQueryGate', 'memory_status', 'memory_session_query', 'memory_summary_query']],
   ['skills/ai-agent-system-architecture/SKILL.md', ['ContextAcquisitionGate', 'IntentSeedV1', 'ContextReadPlanV2', 'ContextReadReceiptV2']],
-  ['skills/load-profile/SKILL.md', ['ProfileReadChainGate', 'profile_context_plan', 'ProfilePlanNoHiddenFullReadProbe', 'ProfileSectionSelectionGate', 'ProfileSectionLoadReceiptV1']],
+  ['skills/load-profile/SKILL.md', ['ProfileReadChainGate', 'profile_context_plan', 'ProfilePlanNoHiddenFullReadProbe', 'ProfileSectionSelectionGate', 'ProfileSectionLoadReceiptV1', 'ContextReadBindingGate', 'ContextReadBindingV1']],
   ['skills/skill-lifecycle-governance/SKILL.md', ['BundleDecisionV2', 'sourceBytes', 'full-skill-read']],
   ['skills/memory/SKILL.md', ['MemoryContextQueryGate', 'memory_status', 'memory_session_query', 'memory_summary_query']],
   ['skills/host-contract-verification/SKILL.md', ['ContextReadReceiptV2', 'ContextAcquisitionToolAllowlistProbe', 'PostToolUse']],
-  ['skills/test-router/SKILL.md', ['context-acquisition', 'V99']],
+  ['skills/test-router/SKILL.md', ['context-acquisition', 'V99', 'ContextReadBindingV1', 'testRouteDigest']],
   ['skills/report/report-schema.json', ['ContextAcquisition']],
   ['prompts/technical-design.prompt.md', ['context-acquisition', 'ContextReadPlanV2', 'ContextReadReceiptV2', 'V99']],
   ['prompts/implementation-plan.prompt.md', ['context-acquisition', 'ProfilePlanNoHiddenFullReadProbe', 'V99']],
   ['prompts/report-dev.prompt.md', ['ContextAcquisition', 'ContextReadReceiptV2', 'ContextReadBindingV1', 'V99']],
   ['README.md', ['profile_context_plan', 'memory_status', 'ContextReadReceiptV2']],
-  ['website/docs/guide/development.md', ['profile_context_plan', 'memory_status', 'ContextReadPlanV2', 'ContextReadReceiptV2']]
+  ['website/docs/guide/development.md', ['profile_context_plan', 'memory_status', 'ContextReadPlanV2', 'ContextReadReceiptV2']],
+  ['instructions/01-common.instructions.md', ['ContextReadBindingV1']],
+  ['scripts/lib/validation-dag.js', ['testRouteDigest', 'intentExpansionDigest']]
 ])
 
 const V1_READER_COMPATIBILITY_REQUIREMENTS = Object.freeze([
@@ -112,6 +114,50 @@ function classifyConsumerClosure(snapshot) {
   if ((snapshot.forbiddenLegacy || []).length) return 'legacy-primary-drift'
   if ((snapshot.compatibilityMissing || []).length) return 'reader-compatibility-incomplete'
   return 'consumer-ready'
+}
+
+/**
+ * PF-149: classify ContextReadBindingV1 sample / claim.
+ * @returns {'request-bound'|'legacy-unbound'|'invalid'|'not-context-binding'}
+ */
+function classifyContextReadBindingSample(sample) {
+  const text = String(sample || '')
+  if (!/ContextReadBindingV1|contextBinding|bindingStatus/i.test(text)) {
+    return 'not-context-binding'
+  }
+  if (/CONTEXT_BINDING_INVALID|CONTEXT_BINDING_MISMATCH|schemaVersion\s*[!=]/i.test(text) &&
+      !/ContextReadBindingV1/.test(text)) {
+    return 'invalid'
+  }
+  if (/schemaVersion['":\s]+ContextReadBindingV1/i.test(text) ||
+      /"schemaVersion"\s*:\s*"ContextReadBindingV1"/.test(text)) {
+    const hasFields = /contextEpoch/i.test(text) && /planId/i.test(text) &&
+      /planContentId/i.test(text) && /activeRoot/i.test(text)
+    if (!hasFields) return 'invalid'
+    if (/legacy-unbound|bindingStatus['":\s]+legacy-unbound/i.test(text)) return 'legacy-unbound'
+    return 'request-bound'
+  }
+  if (/legacy-unbound|bindingStatus['":\s]+legacy-unbound/i.test(text)) return 'legacy-unbound'
+  if (/CONTEXT_BINDING_INVALID|CONTEXT_BINDING_MISMATCH/i.test(text)) return 'invalid'
+  return 'invalid'
+}
+
+/**
+ * Unbound or invalid binding cannot claim context acquisition complete (PF-149).
+ * @returns {'ok'|'false-complete-unbound'|'false-complete-invalid'|'n/a'}
+ */
+function classifyBindingCompletenessClaim(sample) {
+  const text = String(sample || '')
+  const claimsComplete = /relevant-complete|context acquisition complete|上下文已齐|ContextAcquisition.*complete|bindingStatus['":\s]+request-bound.*complete/i.test(text) ||
+    (/complete|已完成|verified-present/i.test(text) && /Context Acquisition|上下文获取|ContextReadReceipt/i.test(text))
+  if (!claimsComplete && !/ContextReadBinding|legacy-unbound|request-bound/i.test(text)) return 'n/a'
+  const binding = classifyContextReadBindingSample(text)
+  if (binding === 'request-bound' && claimsComplete) return 'ok'
+  if (binding === 'legacy-unbound' && claimsComplete) return 'false-complete-unbound'
+  if (binding === 'invalid' && claimsComplete) return 'false-complete-invalid'
+  if (binding === 'legacy-unbound' || binding === 'invalid') return 'n/a'
+  if (claimsComplete && binding === 'not-context-binding') return 'false-complete-unbound'
+  return 'ok'
 }
 
 function extractTopLevelFunctionSource(source, name) {
@@ -186,6 +232,28 @@ function buildContextReadControlChecks(ctx) {
     expect(classifyConsumerClosure({ forbiddenLegacy: ['full-read-first'] }), 'legacy-primary-drift', 'legacy primary negative')
     expect(classifyConsumerClosure({ compatibilityMissing: ['ContextReadReceiptV1'] }), 'reader-compatibility-incomplete', 'V1 reader compatibility negative')
     expect(classifyConsumerClosure({ canonicalMissing: [], compatibilityMissing: [], forbiddenLegacy: [] }), 'consumer-ready', 'consumer positive')
+
+    // PF-149 binding classifiers
+    expect(
+      classifyContextReadBindingSample('{"schemaVersion":"ContextReadBindingV1","contextEpoch":"e1","planId":"p1","planContentId":"c1","activeRoot":"/r","project":"demo"}'),
+      'request-bound',
+      'binding request-bound positive'
+    )
+    expect(
+      classifyContextReadBindingSample('ContextReadBindingV1 bindingStatus: legacy-unbound'),
+      'legacy-unbound',
+      'binding legacy-unbound negative class'
+    )
+    expect(
+      classifyBindingCompletenessClaim('legacy-unbound Context Acquisition complete relevant-complete'),
+      'false-complete-unbound',
+      'unbound must not claim complete'
+    )
+    expect(
+      classifyBindingCompletenessClaim('{"schemaVersion":"ContextReadBindingV1","contextEpoch":"e","planId":"p","planContentId":"c","activeRoot":"/x","project":"d"} relevant-complete'),
+      'ok',
+      'bound complete ok'
+    )
   }
 
   function checkRuntimeSources() {
@@ -298,9 +366,13 @@ function buildContextReadControlChecks(ctx) {
     }
     for (const evidence of [
       'IntentSeedV1', 'ContextReadPlanV2', 'ContextReadReceiptV2', 'ContextReadPlanV1', 'ContextReadReceiptV1',
+      'ContextReadBindingV1', 'testRouteDigest', 'intentExpansionDigest',
       'ContentIdentityV1', 'ContextReuseDecisionV1', 'StageTimingV1', 'ProfilePlanNoHiddenFullReadProbe'
     ]) {
       if (!group.requiredEvidence.includes(evidence)) err(`[V99] context-acquisition evidence missing: ${evidence}`)
+    }
+    if (!group.ownerSkills.includes('test-router')) {
+      err('[V99] context-acquisition owner missing: test-router')
     }
     for (const route of ['V99', 'test-context-read', 'test-mcp-servers', 'test-hooks-runtime', 'V8', 'V92']) {
       if (!group.validationRoute.includes(route)) err(`[V99] context-acquisition validation route missing: ${route}`)
@@ -388,7 +460,9 @@ if (require.main === module) runStandalone()
 
 module.exports = {
   buildContextReadControlChecks,
+  classifyBindingCompletenessClaim,
   classifyConsumerClosure,
+  classifyContextReadBindingSample,
   classifyContractSchemaSnapshot,
   classifyProfilePlanReadTrace,
   classifyRuntimeToolSurface

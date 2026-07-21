@@ -630,6 +630,27 @@ function main() {
   })
   assert.strictEqual(allowedAfterBugCp3.continue, true)
 
+  // Dual-Track M1: orphan control-plane mutation when no CP1-bound task exists
+  cleanState()
+  // remove leftover tasks under temp .devcodex if any (cleanState may keep root)
+  const tempDev = path.join(TEMP_ROOT, '.devcodex')
+  for (const kind of ['requirements', 'bugs', 'optimizations', 'scenario-tests']) {
+    const root = path.join(tempDev, kind)
+    if (!fs.existsSync(root)) continue
+    for (const name of fs.readdirSync(root)) {
+      fs.rmSync(path.join(root, name), { recursive: true, force: true })
+    }
+  }
+  run({ hookEventName: 'UserPromptSubmit', prompt: 'orphan control-plane gate test' })
+  runBootstrapReads()
+  const orphanWarn = run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'apply_patch',
+    tool_input: { input: '*** Begin Patch\n*** Update File: scripts/lib/orphan-probe.js\n*** End Patch' }
+  })
+  assert.strictEqual(orphanWarn.continue, true)
+  assert.match(orphanWarn.systemMessage || '', /orphan|控制面|no-bound-task|CP gate/i)
+
   // extended task roots: optimizations and scenario-tests must also participate in CP gate.
   cleanState()
   const optimizationDir = path.join(TEMP_ROOT, '.devcodex', 'optimizations', '性能优化任务')

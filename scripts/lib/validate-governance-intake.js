@@ -260,7 +260,22 @@ function buildGovernanceIntakeChecks(ctx) {
 
     for (const issue of issues) err(`[V41] ${issue}`)
     for (const issue of bugResult.issues) err(`[V41] ${issue}`)
-    console.log(`[V41] requirement runtime artifact structure checked: ${checkedDirs.length} requirement dirs, ${bugResult.checkedDirs.length} bug dirs`)
+
+    // Dual-Track M2 (PF-173): recent completed dev/fix reports need substance ECR evidence
+    let ecrChecked = 0
+    try {
+      const { collectRecentCompletedReportEcrIssues } = require('./completion-report-ecr-check')
+      const ecrResult = collectRecentCompletedReportEcrIssues({
+        activeRoot: ACTIVE_DEVCODEX_ROOT,
+        recentDays: RECENT_REQUIREMENT_ARTIFACT_DAYS
+      })
+      ecrChecked = ecrResult.checkedFiles.length
+      for (const issue of ecrResult.issues) err(`[V41] completion-ecr ${issue}`)
+    } catch (e) {
+      err(`[V41] completion-ecr scan failed: ${e && e.message ? e.message : e}`)
+    }
+
+    console.log(`[V41] requirement runtime artifact structure checked: ${checkedDirs.length} requirement dirs, ${bugResult.checkedDirs.length} bug dirs, completion-ecr reports=${ecrChecked}`)
   }
 
   function checkV42() {

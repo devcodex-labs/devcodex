@@ -11,6 +11,7 @@ const {
   classifyCodeTruthMatrixAtCpSample,
   classifyControlPlaneDigestSample,
   classifyAuthorSelfReviewBoundarySample,
+  classifyCheckboxEcrSample,
   buildDisciplineProbeReceipt
 } = require('./lib/discipline-execution-probe')
 
@@ -101,11 +102,25 @@ assert.strictEqual(
   'ok'
 )
 
+// Dual-Track M2 checkbox ECR (PF-173)
+assert.strictEqual(classifyCheckboxEcrSample('无 ECR 段落'), 'not-ecr-claim')
+assert.strictEqual(
+  classifyCheckboxEcrSample('状态已完成\n## ECR 执行闭环复审\n| ECR-1 | ✅ |\n| ECR-2 | ✅ |'),
+  'checkbox-ecr'
+)
+assert.strictEqual(
+  classifyCheckboxEcrSample(
+    '状态已完成\n## ECR 执行闭环复审\n| ECR-1 | ✅ |\nnpm run test:core exitCode=0 All checks passed'
+  ),
+  'ok'
+)
+
 const r = buildDisciplineProbeReceipt('hello')
 assert.strictEqual(r.push, 'not-release-action')
 assert.strictEqual(r.nextStepOrFork, 'not-next-step')
 assert.strictEqual(r.cpArtifactBeforeConfirm, 'not-cp-confirm')
 assert.strictEqual(r.codeTruthAtCp, 'not-control-plane-cp')
+assert.strictEqual(r.checkboxEcr, 'not-ecr-claim')
 
 const bad = buildDisciplineProbeReceipt('推荐下一步：做 A 或做 B')
 assert.strictEqual(bad.nextStepOrFork, 'or-fork')

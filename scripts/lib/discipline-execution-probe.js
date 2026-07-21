@@ -109,6 +109,23 @@ function classifyAuthorSelfReviewBoundarySample(sample) {
 }
 
 /**
+ * Dual-Track M2: checkbox ECR claim without production evidence (PF-173).
+ * @param {string} sample
+ * @returns {'ok'|'checkbox-ecr'|'not-ecr-claim'}
+ */
+function classifyCheckboxEcrSample(sample) {
+  const text = String(sample || '')
+  if (!/ECR|执行闭环复审/i.test(text)) return 'not-ecr-claim'
+  const completionish = /已完成|SC15\s*PASS|完成检查|宣告完成|任务完成/i.test(text)
+  if (!completionish) return 'not-ecr-claim'
+  const hasEvidence = /test:core|exitCode\s*[=:]\s*0|exit\s*=\s*0|CORE\s*=\s*0|npm\s+run\s+test|All checks passed/i.test(text)
+  if (hasEvidence) return 'ok'
+  const checkboxy = /ECR[\s\S]{0,600}✅[\s\S]{0,200}✅|ECR.*全\s*✅|勾选.*ECR|ECR\s*表.*✅/i.test(text)
+  if (checkboxy || !hasEvidence) return 'checkbox-ecr'
+  return 'ok'
+}
+
+/**
  * @param {string} sample
  * @returns {'ok'|'stop-without-self-fix'|'not-ci-regression'}
  */
@@ -192,7 +209,8 @@ function buildDisciplineProbeReceipt(sample) {
     cpArtifactBeforeConfirm: classifyCpArtifactBeforeConfirmSample(sample),
     codeTruthAtCp: classifyCodeTruthMatrixAtCpSample(sample),
     controlPlaneDigest: classifyControlPlaneDigestSample(sample),
-    authorSelfReviewBoundary: classifyAuthorSelfReviewBoundarySample(sample)
+    authorSelfReviewBoundary: classifyAuthorSelfReviewBoundarySample(sample),
+    checkboxEcr: classifyCheckboxEcrSample(sample)
   }
 }
 
@@ -200,6 +218,7 @@ module.exports = {
   classifyPushAuthorizationSample,
   classifyPreferenceMenuAfterConvergenceSample,
   classifyCpArtifactBeforeConfirmSample,
+  classifyCheckboxEcrSample,
   classifyCodeTruthMatrixAtCpSample,
   classifyControlPlaneDigestSample,
   classifyAuthorSelfReviewBoundarySample,

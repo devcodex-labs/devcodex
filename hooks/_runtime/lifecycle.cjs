@@ -66,6 +66,9 @@ const CP1_FILES = ['01-需求确认.md', '01-产品需求.md', '01-需求概述.
 const CP2_FILE = '02-技术方案.md'
 const CP3_FILE = '04-实施计划.md'
 const CP3_RUNTIME_FILE_THRESHOLD = 5
+// Dual-Track Closure (PI-154 / PF-171): control-plane source paths that require a bound task+CP when mutated.
+// Matches package source under repo root (scripts/hooks/skills js, package.json, validation-manifest).
+const CONTROL_PLANE_SOURCE_RE = /(?:^|[/\\])(?:scripts|hooks|instructions)(?:[/\\]|$)|(?:^|[/\\])package\.json$|(?:^|[/\\])skills[/\\]/i
 const EXECUTION_MODE = { CONFIRM: 'confirm', AUTO: 'auto' }
 const ENFORCEMENT_MODE = (() => {
   const mode = String(process.env.DEVCODEX_HOOK_ENFORCEMENT || 'safety-only').trim().toLowerCase()
@@ -850,11 +853,48 @@ function findIncompleteTaskForPaths(payload, state) {
   return null  // all target tasks have CP3 confirmed → allow
 }
 
+function toControlPlaneRelPath(target) {
+  return toWorkspaceRelativePath(target).replace(/\\/g, '/')
+}
+
+function isControlPlaneSourcePath(target, state) {
+  if (!target || isDevCodexManagedPath(target, state)) return false
+  const rel = toControlPlaneRelPath(target)
+  return CONTROL_PLANE_SOURCE_RE.test(rel)
+}
+
+function payloadTouchesControlPlaneSource(payload, state) {
+  const paths = [...new Set(extractToolPaths(payload))]
+  if (!paths.length) return false
+  return paths.some(p => isControlPlaneSourcePath(p, state))
+}
+
+/**
+ * Dual-Track M1: control-plane source mutation with no CP1-bound task at all → orphan CP3.
+ * Incomplete tasks remain handled by findIncompleteTask*; dirs with CP1 keep normal CP2/CP3 gate.
+ */
+function checkOrphanControlPlaneGate(payload, state) {
+  if (!payloadTouchesControlPlaneSource(payload, state)) return null
+  const dirs = listTaskDirs(state).filter(d =>
+    !fs.existsSync(path.join(d.fullPath, '.archived')) && hasTaskArtifact(d, 'CP1')
+  )
+  if (dirs.length > 0) return null
+  return {
+    phase: 'CP3',
+    reqName: 'no-bound-task',
+    reqPath: getActiveNamespaceRoot(state),
+    kind: 'requirements',
+    code: 'cp-gate-orphan-control-plane'
+  }
+}
+
 function checkCpGate(payload, state) {
   const task = (payload && extractToolPaths(payload).length > 0)
     ? findIncompleteTaskForPaths(payload, state)
     : findIncompleteTask(state)
-  if (!task) return null
+  if (!task) {
+    return checkOrphanControlPlaneGate(payload, state)
+  }
   const confirmed = readCpConfirmations(task.fullPath)
   if (!hasTaskArtifact(task, 'CP2') || !confirmed.CP2) {
     return { phase: 'CP2', reqName: task.name, reqPath: task.fullPath, kind: task.kind }
@@ -972,10 +1012,13 @@ function buildCpDenyOutput(state, platform, eventName, gate, toolName) {
     CP2: 'CP2 (技术方案) 未完成 — 请先输出对应的 CP2 方案产物（如 02-技术方案.md 或 CP2 报告产物），并在 .memory/sessions.md 记录用户确认（✅）后再编码。',
     CP3: `CP3 (实施计划) 未完成 — 请先输出 ${CP3_FILE} 并在 .memory/sessions.md 记录用户确认（✅）后再编码。`
   }
+  const orphanDetail = gate.code === 'cp-gate-orphan-control-plane'
+    ? `控制面源码 mutation 无绑定任务（orphan）— 请先创建 requirements/bugs 任务并完成 CP1~CP3（含 ${CP3_FILE}）后再改 scripts/hooks/package 等控制面路径。`
+    : ''
   const runtimeDetail = gate.runtimeTrigger
     ? `${gate.runtimeTrigger.reason}，请先回到 CP3 更新实施计划并获得确认后再继续。`
     : ''
-  const msg = runtimeDetail || msgs[gate.phase]
+  const msg = orphanDetail || runtimeDetail || msgs[gate.phase]
   return buildInterceptionOutput(
     state, platform, eventName, INTERCEPTION_ACTION.REQUIRE_COMPLETION, gate.code || `cp-gate-${gate.phase}`,
     `CP gate: ${gate.phase} not confirmed for "${gate.reqName}" — ${toolName} denied`,
@@ -985,15 +1028,20 @@ function buildCpDenyOutput(state, platform, eventName, gate, toolName) {
 }
 
 function buildCpWarningOutput(state, platform, eventName, gate, toolName) {
-  const detail = gate.runtimeTrigger
-    ? `${gate.runtimeTrigger.reason}，请先回到 CP3 更新实施计划并获得确认。 Tool allowed in safety-only mode.`
-    : gate.phase === 'CP2'
-    ? 'CP2 (技术方案) 未完成；请尽快补齐方案产物与用户确认记录。'
-    : `CP3 (实施计划) 未完成；请尽快补齐 ${CP3_FILE} 与用户确认记录。`
+  let detail
+  if (gate.code === 'cp-gate-orphan-control-plane') {
+    detail = `控制面源码 mutation 无绑定任务（orphan）；请补任务与 ${CP3_FILE}+确认。 Tool allowed in safety-only mode.`
+  } else if (gate.runtimeTrigger) {
+    detail = `${gate.runtimeTrigger.reason}，请先回到 CP3 更新实施计划并获得确认。 Tool allowed in safety-only mode.`
+  } else if (gate.phase === 'CP2') {
+    detail = 'CP2 (技术方案) 未完成；请尽快补齐方案产物与用户确认记录。 Tool allowed in safety-only mode.'
+  } else {
+    detail = `CP3 (实施计划) 未完成；请尽快补齐 ${CP3_FILE} 与用户确认记录。 Tool allowed in safety-only mode.`
+  }
   return buildInterceptionOutput(
     state, platform, eventName, INTERCEPTION_ACTION.REQUIRE_COMPLETION, gate.code || `cp-gate-${gate.phase}`,
     `CP gate warning: ${gate.phase} not confirmed for "${gate.reqName}" before ${toolName}`,
-    gate.runtimeTrigger ? detail : `${detail} Tool allowed in safety-only mode.`,
+    detail,
     `Complete and confirm ${gate.phase}, then retry the source mutation.`
   )
 }

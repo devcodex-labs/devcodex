@@ -32,7 +32,7 @@ description: 发布验证规范 — 覆盖版本、changelog、测试、pack、i
 | R3d | 执行 `ReleaseCriticalPathBudgetGate`、`ValidationEvidenceReuseGate` 与条件 `ReleaseReworkIncidentGate`；预算或复用不得削弱 immutable candidate、version、pack、registry 与 R7 证据 |
 | R4 | 执行 `npm pack --dry-run` 与 `npm publish --dry-run`（遵循当前 `publishConfig`），并执行 `NativeCommandExitCodeGate` |
 | R5 | 条件执行 pack install smoke，并执行 `IsolatedConsumerCwdGate`：显式 consumer manifest、真实 consumer cwd、source candidate identity 前后对账与真实命令退出码缺一不可 |
-| R6 | commit/tag/push/publish 前输出确认，真实发布动作必须等待用户**当前消息**明确确认（`SharedStateMutationGate` / PI-119）；一次历史发版授权不覆盖后续补丁 push；本会话自引入 CI 回归须先 `OwnIntroducedRegressionSelfFixGate` 本地修绿再进入 R6 |
+| R6 | commit/tag/push/publish 前输出确认，真实发布动作必须等待用户**当前消息**明确确认（`SharedStateMutationGate` / PI-119）；一次历史发版授权不覆盖后续补丁 push；本会话自引入 CI 回归须先 `OwnIntroducedRegressionSelfFixGate` 本地修绿再进入 R6。负向：无用户确认却宣称「已 push」→ 违规；CI 自引入失败却「暂停不修」→ 违规（`classifyPushAuthorizationSample` / `classifyOwnIntroducedRegressionSample`） |
 | R7 | 发布后验证 git tag、registry 版本、安装包边界和 `node scripts/validate.js` |
 
 ## PublisherCredentialTopologyGate

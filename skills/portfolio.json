@@ -5,14 +5,14 @@
   "generatedFrom": {
     "skillsPattern": "skills/*/SKILL.md",
     "registry": "plugin.json",
-    "sourceDigest": "2a949c4d96e6038672fcbd261b928841c9402ed3ce8e4056da86826c79103a08",
+    "sourceDigest": "d625bd7c306d0ce79c03af88471c8bf6323ba41cd590fb44abb7ab27a8ec5d89",
     "pluginDigest": "3e417180688c359025e64d584c098b5ef5ba112cf2ef8ca970f1c5589fe3d2bb",
     "portfolioEvidence": "skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "85229c1463a5068750d5417e5ebf960907532dccf99b1cd3da0a88f7007792b4",
     "consumerInventoryFileCount": 504,
     "consumerInventoryDigest": "d7e603f5952c0c45a97de3e8a0155363c1d8c86d60e10bb394d6d280f6b180a8",
     "consumerProjectionDigest": "6d4ec8ed6c4f85ece0803a783c4c4242dfd37f5f5edafc9928e99e1846f576ef",
-    "portfolioInputDigest": "d924a8ebc1dc3fdf9412f72e7a5f5872a580cd40b581c7f655df6aa4c7d1ae40"
+    "portfolioInputDigest": "40a8e149d7d4f7ae48b7e65eed223ac58455c3baf1234c4344367bed3a47dbb0"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -26,7 +26,7 @@
     "conflictReviewedCount": 81,
     "operationalEvidenceCompleteCount": 81,
     "triggerPrecisionMeasuredCount": 0,
-    "instructionBudgetP95Bytes": 19671,
+    "instructionBudgetP95Bytes": 19856,
     "triggerQuality": "structural-only"
   },
   "dependencyGraph": {
@@ -5617,8 +5617,8 @@
         "skills/cp-gate/SKILL.md"
       ],
       "source": "skills/cp-gate/SKILL.md",
-      "hash": "26955fdee1645c8d16fbdd4699f255e90bf74e8d80b60e7499e88ffdcf6e4af0",
-      "sourceBytes": 19671,
+      "hash": "62393ede67a997bbb31f26d8b0b5c2a952e2486009ca2bf931c02a3757b019f3",
+      "sourceBytes": 19856,
       "version": "1.15.2",
       "lifecycleState": "active",
       "dependencies": [],
@@ -15124,8 +15124,8 @@
         "skills/release-verification/SKILL.md"
       ],
       "source": "skills/release-verification/SKILL.md",
-      "hash": "6f85b41335039f431bd5241d135c040f7746bffd987b4696a6e1511ac6e2b445",
-      "sourceBytes": 17364,
+      "hash": "8c5865d7696da75f76d9722cc55964826c1480808248be50d521df28af46f40f",
+      "sourceBytes": 17557,
       "version": "1.15.2",
       "lifecycleState": "active",
       "dependencies": [],

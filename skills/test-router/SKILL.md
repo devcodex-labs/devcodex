@@ -49,6 +49,8 @@ TestRoute 的稳定输入、route selector、固定输出与 skip 合同以同�
 
 `visibleOutputContract` 绑定 `user-visible-output-contract`，不新增顶层 selector：任何 `ArtifactDeliveryManifestV1`、`UserFacingArtifactSetV1`、`DevCodexVisibleEnvelopeV1`、renderer 或 visible-reply Hook 变化至少选择 `static + unit-integration + runtime-e2e`，覆盖 planned/observed/internalDelivered 对账、required hidden=0、计数守恒、六 message kinds、compact eligibility、legacy/unobserved ceiling、semanticDigest 和 rich/portable/plain 等价性。触达 README/website/Profile/部署副本时叠加 `profile-deploy`，进入 package public surface 时叠加 `package-release`。宿主 capability 未 direct replay 时必须保持 portable/plain 或 unverified，不得按宿主名推断 clickable。
 
+`expertOutputQuality` 绑定 `expert-output-quality` / V84，不新增顶层 selector：代码、文档、示例、fixture、技术方案或报告命中专家型质量时，至少选择 `static`（并优先 `node scripts/test-spec-governance.js` + 控制面变更时 `npm run test:core`），证据链覆盖 `ExpertOutputQualityGate`、生产推荐路径、fixture 边界与 **MeasuredVerificationStandard**（生产入口命令 + exitCode；隔离 harness 不得冒充 V84 成败）。Owner 字段与完整门禁见 `skills/expert-output-quality/SKILL.md` 与 gate-registry `expert-output-quality`。
+
 ## TestRoute 输出
 
 输出固定为 `selectedRoutes / commands / evidence / skipped / residualRisk / coverageClaim`。推荐使用以下最小结构：

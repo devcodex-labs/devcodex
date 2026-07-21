@@ -90,8 +90,19 @@ DevCodexVisibleEnvelopeV1 · completion-check · [状态] · [semanticDigest]
 
 | 属性 | 说明 |
 |------|------|
-| 验证状态 | `✅已验证`（实际读取了源文件确认）或 `⚠️待验证`（基于推测/上下文推断） |
+| 验证状态 | `✅已验证`（实际读取了源文件确认；**运行时/探针/测试结论还须满足下方 MeasuredVerificationStandard**）或 `⚠️待验证`（基于推测/上下文推断/非权威实验） |
 | 影响范围 | 涉及哪些文件/模块（一句话描述） |
+
+### MeasuredVerificationStandard（SC14 承接 · 全工作流运行时结论）
+
+凡报告或用户面将测试、探针、validate、性能数字、命令输出标为 `✅已验证`：
+
+| 规则 | 要求 |
+|------|------|
+| 权威入口 | 必须执行**生产入口命令**，例如 `node scripts/test-spec-governance.js`、`npm run test:core` / `node scripts/validate.js`、需要 full 时用 `npm test`；并记录命令与 exitCode |
+| 非权威实验 | 自写隔离 harness、裸 `fs.read` + `includes`、未复用 `validate.js` 同款 `createCanonicalAwareReader`/ROOT/上下文 的脚本 → 只能标 `非权威实验` 或 `⚠️待验证(生产路径)`，**不得**写成 V# 失败/通过或「今日验收不通过/通过」 |
+| 等价条件 | 隔离脚本若宣称与某 V# / suite 等价，必须复用生产 `read` 路径与上下文，并在报告写 parity 证据 |
+| 历史数字 | SUMMARY / 记忆 / 旧报告中的数字不得直接冒充本轮 `✅已验证` |
 
 若报告或用户面输出包含多个可执行建议、多个后续路径、方案对比或决策点，必须额外给出 `推荐结论` / `推荐方案`，且推荐理由可追溯到五项验证；无后续动作时写明 `推荐：无后续动作`。
 
@@ -124,7 +135,7 @@ DevCodexVisibleEnvelopeV1 · completion-check · [状态] · [semanticDigest]
 | SC11 | [C14](../../instructions/01-common.instructions.md) 多任务拆分检查（≥5任务需建议拆分会话） | 任务≥5时 🔴 |
 | SC12 | [C14](../../instructions/01-common.instructions.md) 多任务进度快照验证（每完成子任务有 T{N}进度 标记） | 任务≥2时 🔴 |
 | SC13 | [C15](../../instructions/01-common.instructions.md) 架构质量自检（dev plan-review 三维评估；fix CP2 三维评估） | dev/fix 🔴 |
-| SC14 | analyze/audit 工作流中，所有标注 ✅已验证 的运行时结论（测试通过率/性能数字/命令输出）均已在**本轮实际执行**对应命令；SUMMARY.md 或记忆文件中的历史数字不得直接用作 ✅已验证，必须降级为 ⚠️待验证 | analyze/audit 🔴 |
+| SC14 | analyze/audit（及任何宣称探针/测试结果的工作流）中，所有标注 ✅已验证 的运行时结论须满足 **MeasuredVerificationStandard**：本轮执行**生产入口命令**并记录 exitCode；隔离 harness / 非生产 reader 不得写成 V# 成败；SUMMARY/记忆历史数字必须降级为 ⚠️待验证 | analyze/audit 🔴；dev/fix 宣称测试/validate 时同标 |
 | SC15 | dev/fix 关键产物已完成 ECR 执行闭环复审：覆盖 CP1/CP2/CP3、实施进度（触发时）、ExecutionContract/TestRoute/ReleaseAudit/ReleaseVerification（触发时）、报告、daily tasks、SUMMARY、diff/commit、测试/扫描证据、dirty 边界；最后一次阻断性修正后至少再复审 1 轮且无新增阻断性问题 | dev/fix 🔴 |
 
 ## §4 恢复性检查（RC）— 非阻塞

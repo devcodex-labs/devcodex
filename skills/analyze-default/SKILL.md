@@ -98,9 +98,10 @@ analyze 只矫正结论，不修改 Profile。需要修订 Profile 时在 `upgra
 |---|---|
 | PCV-1 | 汇总并去重所有轮次发现 |
 | PCV-2 | 对每条结论重新读取对应事实源；运行时数字优先本轮实际执行，不能用记忆历史数字冒充已验证 |
+| PCV-2a | **MeasuredVerificationStandard**：探针/validate/测试结论标 `已验证` 前必须跑生产入口（如 `node scripts/test-spec-governance.js`、`npm run test:core`）；隔离 harness 未复用 `createCanonicalAwareReader` 与 validate 上下文时只能标非权威实验，不得写成 V# 红/绿 |
 | PCV-3 | 补齐合理性、可实施性、收益 |
 | PCV-4 | 多路径时给出推荐结论和推荐理由；无后续动作时写 `推荐：无后续动作` |
-| PCV-5 | 标注 `已验证` / `待验证` / `排除` |
+| PCV-5 | 标注 `已验证` / `待验证` / `排除`；用户可见摘要分列命令、exitCode、权威/实验 |
 | PCV-6 | 输出过滤后的最终结论，排除项说明原因 |
 
 ## 输出最小字段

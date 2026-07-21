@@ -172,8 +172,8 @@ function buildGovernanceExpertChecks(ctx) {
       { file: 'skills/expert-output-quality/SKILL.md', needles: ['name: expert-output-quality', 'description:', 'roleBaseline', 'productionRecommendedPath', 'frameworkNativeCapability', 'fixtureBoundary', 'antiPatternContrast', 'evidenceMatrix'].concat(gates) },
       { file: 'plugin.json', needles: ['expert-output-quality', 'skills/expert-output-quality/SKILL.md'] },
       { file: 'skills/routing/SKILL.md', needles: ['expert-output-quality', '不专业', '像初级', '示例误导'] },
-      { file: 'skills/spec-governance/SKILL.md', needles: ['expert-output-quality'].concat(gates) },
-      { file: 'skills/spec-absorption/SKILL.md', needles: ['ExpertOutputQualityGate', 'ProductionRecommendedPathGate', 'FrameworkNativeCapabilityFirstGate'] },
+      { file: 'skills/spec-governance/SKILL.md', needles: ['expert-output-quality'] },
+      { file: 'skills/spec-absorption/SKILL.md', needles: ['expert-output-quality', 'ExpertOutputQualityGate'] },
       { file: 'skills/cp-gate/SKILL.md', needles: ['CodeTruthEvidenceMatrixGate', 'UniqueRecommendationBeforeConfirmGate'] },
       { file: 'skills/dev-plan-review/SKILL.md', needles: ['ExpertOutputQualityGate', 'fixture/mock/demo', 'evidenceMatrix', 'SolutionFitAgainstRepoGate'] },
       { file: 'skills/dev-docs/SKILL.md', needles: ['ExpertOutputQualityGate', 'ProductionRecommendedPathGate', 'fixture/mock/demo/legacy', 'OperationExplanationContractV1'] },
@@ -183,31 +183,56 @@ function buildGovernanceExpertChecks(ctx) {
       { file: 'skills/audit-user-manual/SKILL.md', needles: ['expert-output-quality', '专家型产物质量'] },
       { file: 'skills/audit-project/SKILL.md', needles: ['ExpertOutputQualityGate', '不专业', '像初级'] },
       { file: 'skills/audit-tech-design/SKILL.md', needles: ['ExpertOutputQualityGate', '生产推荐路径'] },
-      { file: 'skills/test-router/SKILL.md', needles: ['expertOutputQuality', 'V84'].concat(gates) },
-      { file: 'skills/report/SKILL.md', needles: ['ExpertOutputQualityGate', 'V84', '不得只写“已优化表述”', 'OperationExplanationContractV1', 'CodeTruthEvidenceMatrixGate'] },
-      { file: 'prompts/technical-design.prompt.md', needles: ['ExpertOutputQualityGate', 'fixture/mock/demo 边界', 'CodeTruthEvidenceMatrixGate'] },
-      { file: 'prompts/implementation-plan.prompt.md', needles: ['ExpertOutputQualityGate', 'V84/targeted probe', 'SolutionFitAgainstRepoGate'] },
-      { file: 'prompts/report-dev.prompt.md', needles: ['ExpertOutputQualityGate', 'V84', 'OperationExplanationContractV1'] },
-      { file: 'prompts/report-fix.prompt.md', needles: ['ExpertOutputQualityGate', 'V84'] },
-      { file: 'prompts/report-audit.prompt.md', needles: ['ExpertOutputQualityGate', 'V84'] },
-      { file: 'prompts/report-scenario-test.prompt.md', needles: ['ExpertOutputQualityGate', 'V84'] },
+      { file: 'skills/test-router/SKILL.md', needles: ['expertOutputQuality', 'V84', 'MeasuredVerificationStandard', 'ExpertOutputQualityGate'] },
+      { file: 'skills/report/SKILL.md', needles: ['ExpertOutputQualityGate', 'MeasuredVerificationStandard', '不得只写“已优化表述”', 'OperationExplanationContractV1', 'CodeTruthEvidenceMatrixGate'] },
+      { file: 'skills/compliance/SKILL.md', needles: ['MeasuredVerificationStandard', 'SC14'] },
+      { file: 'skills/analyze-default/SKILL.md', needles: ['MeasuredVerificationStandard'] },
+      { file: 'prompts/technical-design.prompt.md', needles: ['CodeTruthEvidenceMatrixGate', 'SolutionFitAgainstRepoGate'] },
+      { file: 'prompts/implementation-plan.prompt.md', needles: ['SolutionFitAgainstRepoGate'] },
+      { file: 'prompts/report-dev.prompt.md', needles: ['OperationExplanationContractV1', 'CodeTruthEvidenceMatrixGate'] },
+      { file: 'prompts/report-fix.prompt.md', needles: ['report-schema.json'] },
+      { file: 'prompts/report-audit.prompt.md', needles: ['report-schema.json'] },
+      { file: 'prompts/report-scenario-test.prompt.md', needles: ['ExpertOutputQualityGate'] },
       { file: 'README.md', needles: [`${skillCount} 个`, 'expert-output-quality', 'V84', 'ExpertOutputQualityGate'] },
       { file: 'website/docs/index.md', needles: [`${skillCount} 个 Skills`, 'expert-output-quality'] },
       { file: 'website/docs/intro/index.md', needles: [`${skillCount} 个按需触发`, 'expert-output-quality'] },
       { file: 'website/docs/specs/directory-structure.md', needles: [`扁平一级 Skill（${skillCount} 个）`, 'expert-output-quality'] },
       { file: 'website/docs/guide/development.md', needles: ['expert-output-quality', 'ExpertOutputQualityGate', 'V84'] },
       { file: 'website/docs/versions/v1/1.0.1/CHANGELOG.md', needles: ['V84', 'expert-output-quality', 'ExpertOutputQualityGate'] },
-      { file: 'scripts/lib/test-spec-governance-expert.js', needles: ['checkV84', 'classifyExpertOutputSample', 'ExpertOutputQualityGate'] },
-      { file: 'scripts/validate.js', needles: ['createProbeRegistry', 'expectedProbeIds', 'runProbeRegistry'] },
+      { file: 'scripts/lib/test-spec-governance-expert.js', needles: ['checkV84', 'classifyExpertOutputSample', 'ExpertOutputQualityGate', 'MeasuredVerificationStandard'] },
+      { file: 'scripts/validate.js', needles: ['createProbeRegistry', 'expectedProbeIds', 'runProbeRegistry', 'createCanonicalAwareReader'] },
       { file: 'changelog corpus', content: changelogCorpus, needles: ['V84', 'expert-output-quality', 'ExpertOutputQualityGate'] }
     ]
-    appendActiveProfileProbe(probes, profileCorpus, ['78', 'expert-output-quality', 'ExpertOutputQualityGate'], 'V84')
+    appendActiveProfileProbe(probes, profileCorpus, [String(skillCount), 'expert-output-quality', 'ExpertOutputQualityGate'], 'V84')
 
     for (const probe of probes) {
       const content = probe.content || read(path.join(ROOT, probe.file))
       for (const needle of probe.needles) {
         if (!content.includes(needle)) {
           err(`[V84] expert output quality skill sync in ${probe.file}: missing "${needle}"`)
+        }
+      }
+    }
+
+    // Raw-text discrimination: canonical-aware includes must not hide total absence of expert/MVS anchors
+    const rawMinima = [
+      ['skills/expert-output-quality/SKILL.md', ['MeasuredVerificationStandard', 'ExpertOutputQualityGate', 'ProductionRecommendedPathGate']],
+      ['skills/compliance/SKILL.md', ['MeasuredVerificationStandard']],
+      ['skills/analyze-default/SKILL.md', ['MeasuredVerificationStandard']],
+      ['skills/report/SKILL.md', ['MeasuredVerificationStandard', 'ExpertOutputQualityGate']],
+      ['skills/test-router/SKILL.md', ['expertOutputQuality', 'MeasuredVerificationStandard', 'V84']],
+      ['skills/routing/SKILL.md', ['expert-output-quality']],
+      ['plugin.json', ['expert-output-quality']],
+      // instructions ↔ skill SC14 parity (PI-146 / PF-167 / VL-072 prevention)
+      ['instructions/17-compliance.instructions.md', ['MeasuredVerificationStandard', 'SC14']],
+      ['instructions.md', ['MeasuredVerificationStandard', 'SC14']],
+      ['skills/spec-governance/gate-registry.json', ['measuredVerification', 'MeasuredVerificationStandard', 'expert-output-quality']]
+    ]
+    for (const [rel, needles] of rawMinima) {
+      const raw = fs.readFileSync(path.join(ROOT, rel), 'utf8')
+      for (const needle of needles) {
+        if (!raw.includes(needle)) {
+          err(`[V84] raw-text expert/MVS anchor missing in ${rel}: "${needle}"`)
         }
       }
     }

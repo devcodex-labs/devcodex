@@ -678,7 +678,7 @@ DevCodexVisibleEnvelopeV1 · entry-check · [状态] · [semanticDigest]
 | SC11 | C14 多任务拆分检查（任务 ≥5） |
 | SC12 | C14 多任务进度快照验证（任务 ≥2） |
 | SC13 | C15 架构质量自检（dev/fix） |
-| SC14 | analyze/audit 标注 ✅已验证 的运行时结论均为本轮实际执行（历史数据须降级 ⚠️待验证） |
+| SC14 | analyze/audit（及宣称探针/测试结果时）标注 ✅已验证 的运行时结论须满足 **MeasuredVerificationStandard**：本轮生产入口命令 + exitCode；隔离 harness 不得写成 V# 成败；历史数据降级 ⚠️待验证（详见 `skills/compliance` / `instructions/17-compliance`） |
 | SC15 | dev/fix 关键产物已完成 ECR 执行闭环复审（控制面变更追加 SCV 证据） |
 
 ### RC 恢复性检查

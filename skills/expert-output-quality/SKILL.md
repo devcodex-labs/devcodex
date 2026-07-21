@@ -33,6 +33,7 @@ description: 专家型产物质量门禁 — 当任务涉及代码、文档、�
 | `ExpertEvidenceMatrixGate` | 关键建议必须绑定代码、类型、官方文档、运行时、测试、构建或用户路径证据 | evidenceMatrix |
 | `OperationExplanationContractV1` | 面向用户或维护者的操作说明必须写清目标、前置条件、输入、状态影响、结果形态、结果来源、失败语义、下一步和证据 | operationId、userGoal、resultSource、failureSemantics |
 | `ResponseProvenanceClosureGate` | 报告和最终回复中“已完成 / 已验证 / 推荐”的结论必须能追溯到文件、命令、测试、运行时或用户确认来源 | resultSource、evidence、freshness |
+| `MeasuredVerificationStandard` | 将探针/validate/测试标为已验证时，必须走生产入口命令（如 `npm run test:core`、`node scripts/test-spec-governance.js`）并记录 exitCode；隔离 harness 未复用 `createCanonicalAwareReader` 时只能标非权威实验，不得写成 V84/V# 成败 | command、exitCode、authorityPath、parityEvidence |
 | `CodeTruthEvidenceMatrixGate` | 重要需求、技术方案和修复结论必须绑定 repo path、符号/契约、当前行为、反证探针和差距，不能只靠文档自洽 | repoPath、symbol、currentBehavior、negativeProbe、gap |
 | `SolutionFitAgainstRepoGate` | 方案必须说明复用点、消费者、变更面、回滚和保持现状成本，避免凭空设计 | reusePoint、consumer、rollback、statusQuoCost |
 | `UniqueRecommendationBeforeConfirmGate` | 多方案比较收敛后只能有一个推荐方案或一个明确组合推荐 | recommended=1、alternatives、reason |
@@ -75,7 +76,8 @@ description: 专家型产物质量门禁 — 当任务涉及代码、文档、�
 | “fixture 每个 route 都重复 middlewares，所以说明可用” | 说明 fixture 只证明底层 `RouteOptions.auth` 存在；生产推荐使用认证插件集中注册、资源 mapper 或 route group / preset helper，route 只保留最小业务声明 |
 | 示例把硬编码单例当主路径 | 标为 smoke / demo，并给真实批量、配置化或生命周期完整的主路径 |
 | 文档只解释内部实现字段 | 先写用户任务、配置选择、成功/失败路径，再把内部字段放到 developer / maintainer 章节 |
-| 报告只说“已验证通过” | 写命令、输入、输出、exitCode、代码落点和残余风险 |
+| 报告只说“已验证通过” | 写**生产入口**命令、输入、输出、exitCode、代码落点和残余风险（MeasuredVerificationStandard） |
+| 用隔离脚本 40 错宣称 V84/core 红 | 先跑 `npm run test:core`；隔离须复用 `createCanonicalAwareReader` 才可谈 V# 等价 |
 | 手写框架已有能力 | 先列框架原生能力和项目既有 helper；仅在有缺口时新增抽象 |
 
 ## 与其他 Skill 的关系

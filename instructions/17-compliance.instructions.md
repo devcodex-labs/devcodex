@@ -168,7 +168,7 @@ version: 1.15.2
 | SC11 | C14 多任务拆分检查 | 任务≥5时 🔴 |
 | SC12 | C14 多任务进度快照验证 | 任务≥2时 🔴 |
 | SC13 | C15 架构质量自检 | dev/fix 🔴 |
-| SC14 | analyze/audit 工作流中，所有标注 ✅已验证 的运行时结论（测试通过率/性能数字/命令输出）均已在**本轮实际执行**对应命令；SUMMARY.md 或记忆文件中的历史执行数据不得直接用作 ✅已验证，必须降级为 ⚠️待验证 | analyze/audit 🔴 |
+| SC14 | analyze/audit（及任何宣称探针/测试结果的工作流）中，所有标注 ✅已验证 的运行时结论须满足 **MeasuredVerificationStandard**：本轮执行**生产入口命令**（如 `node scripts/test-spec-governance.js`、`npm run test:core` / `node scripts/validate.js`、需要时 `npm test`）并记录 exitCode；隔离 harness / 未复用 `createCanonicalAwareReader` 的脚本不得写成 V# 成败；SUMMARY/记忆历史数字必须降级为 ⚠️待验证。完整字段见 `skills/compliance/SKILL.md` | analyze/audit 🔴；dev/fix 宣称测试/validate 时同标 |
 | SC15 | dev/fix 关键产物已完成 ECR 执行闭环复审：覆盖 CP1/CP2/CP3、实施进度（触发时）、ExecutionContract/TestRoute/ReleaseAudit/ReleaseVerification（触发时）、报告、daily tasks、SUMMARY、diff/commit、测试/探针、dirty 边界；控制面/规范/路径/模板/部署副本/validate 语义变更必须追加 SCV-0~SCV-7 证据；最后一次阻断性修正后至少再复审 1 轮且无新增阻断性问题；未满足前不得宣告完成 | dev/fix 🔴 |
 
 ## RC 恢复性检查（非阻塞）

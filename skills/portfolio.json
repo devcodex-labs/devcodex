@@ -5,14 +5,14 @@
   "generatedFrom": {
     "skillsPattern": "skills/*/SKILL.md",
     "registry": "plugin.json",
-    "sourceDigest": "0a39885e70c02d2b6ff2ec841f238c963efcbc74102b3ca32cadd531028c7040",
+    "sourceDigest": "ae4a652905f478c68bca456a90c22b07f2742d21fa5b35a7aa7707cd5449a218",
     "pluginDigest": "3e417180688c359025e64d584c098b5ef5ba112cf2ef8ca970f1c5589fe3d2bb",
     "portfolioEvidence": "skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "85229c1463a5068750d5417e5ebf960907532dccf99b1cd3da0a88f7007792b4",
     "consumerInventoryFileCount": 500,
     "consumerInventoryDigest": "bf9145b9a4d801d02297c11508981ec44fe0e4c3a253b1d872285eda6b52cb29",
-    "consumerProjectionDigest": "a64c827b7c41d228c7fb960036869039d1c763b983fa571aa8b0552c152d166c",
-    "portfolioInputDigest": "4bb9f63f1789e567e6e3dfcc181baca38cf0816196efd7157f71b88073aec70a"
+    "consumerProjectionDigest": "e3851b118d8175c361258a3f32bfd47023f230d0f56b349635dfc4286e49b560",
+    "portfolioInputDigest": "61d203a37137a92b5e318bfc82789f422e2716cbecded520a084da96da76aee7"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -438,6 +438,10 @@
       {
         "from": "summary",
         "to": "compliance"
+      },
+      {
+        "from": "test-router",
+        "to": "expert-output-quality"
       }
     ]
   },
@@ -986,8 +990,8 @@
         "skills/analyze-default/SKILL.md"
       ],
       "source": "skills/analyze-default/SKILL.md",
-      "hash": "b1c4fd93506031ef56b4310c30d4c9eff0d9c19501ee8e2b8c844ad47ead3076",
-      "sourceBytes": 8270,
+      "hash": "2f0a29cca6bd046c7728b15b22cddbc70ee3aa36b0bfe0e8a94e346fbba1d772",
+      "sourceBytes": 8649,
       "version": "1.15.2",
       "lifecycleState": "active",
       "dependencies": [],
@@ -1011,6 +1015,10 @@
           "role": "historical"
         },
         {
+          "path": "changelogs/unreleased.md",
+          "role": "current"
+        },
+        {
           "path": "instructions/13-analyze.instructions.md",
           "role": "current"
         },
@@ -1024,6 +1032,10 @@
         },
         {
           "path": "scripts/lib/test-spec-governance-base.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/test-spec-governance-expert.js",
           "role": "current"
         },
         {
@@ -4797,8 +4809,8 @@
         "skills/compliance/SKILL.md"
       ],
       "source": "skills/compliance/SKILL.md",
-      "hash": "83d4498b3763e214ebbabbf417b2d75ca77e4a62c4dc37b423773d033b7932a6",
-      "sourceBytes": 14179,
+      "hash": "06c07a30a3b42a10037b767cf7f0e682af0a672a2ffd7939db35ab9db6c50e1f",
+      "sourceBytes": 15359,
       "version": "1.15.2",
       "lifecycleState": "active",
       "dependencies": [],
@@ -9223,8 +9235,8 @@
         "skills/expert-output-quality/SKILL.md"
       ],
       "source": "skills/expert-output-quality/SKILL.md",
-      "hash": "ff403621f10772cfa8c8afea58304e019353c33236ffd65a59392642deed9dbe",
-      "sourceBytes": 8177,
+      "hash": "b28894f105ecd9e6a712d6a7cf9c1f660011fdeace3ef9894c6597b1ab325fdf",
+      "sourceBytes": 8735,
       "version": "1.15.2",
       "lifecycleState": "active",
       "dependencies": [],
@@ -9246,6 +9258,10 @@
         {
           "path": "changelogs/releases/v1.15.0.md",
           "role": "historical"
+        },
+        {
+          "path": "changelogs/unreleased.md",
+          "role": "current"
         },
         {
           "path": "plugin.json",
@@ -15451,8 +15467,8 @@
         "skills/report/SKILL.md"
       ],
       "source": "skills/report/SKILL.md",
-      "hash": "1a3ee9772cab24260a242205648a10bcba08d73430f44c16981ca21cb5a62b1f",
-      "sourceBytes": 13258,
+      "hash": "ca935052bd86878dbb36230994d66ef46f2780956282938b91ca7b6db2e4f690",
+      "sourceBytes": 13753,
       "version": "1.15.2",
       "lifecycleState": "active",
       "dependencies": [],
@@ -17867,8 +17883,8 @@
         "skills/spec-absorption/SKILL.md"
       ],
       "source": "skills/spec-absorption/SKILL.md",
-      "hash": "65ea93249af736d5d7297dda05682ff2f038dbe7b68becabf6adf351d255f41f",
-      "sourceBytes": 14063,
+      "hash": "bf93097a5221269edf16fb3c61a0e9416a34397f0d6210bbc2cf8a3465eb68c1",
+      "sourceBytes": 14417,
       "version": "1.15.2",
       "lifecycleState": "active",
       "dependencies": [],
@@ -18270,6 +18286,10 @@
         },
         {
           "path": "instructions/14-self-fix.instructions.md",
+          "role": "current"
+        },
+        {
+          "path": "instructions/17-compliance.instructions.md",
           "role": "current"
         },
         {
@@ -19104,12 +19124,14 @@
         "skills/test-router/SKILL.md"
       ],
       "source": "skills/test-router/SKILL.md",
-      "hash": "0b8de7fe8eaf243fc5ee980949f6e8925ed5e1cddcc0280ea98746d5e90580ea",
-      "sourceBytes": 9043,
+      "hash": "76907baa380ebf82df55bf506e608b00b06fb954117993f0b588718550c63c2f",
+      "sourceBytes": 9646,
       "version": "1.15.2",
       "lifecycleState": "active",
       "dependencies": [],
-      "references": [],
+      "references": [
+        "expert-output-quality"
+      ],
       "conflicts": [],
       "conflictReview": {
         "status": "reviewed-none",

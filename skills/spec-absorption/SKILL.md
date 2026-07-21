@@ -178,12 +178,13 @@ description: 规范吸纳执行 Skill — 用于检查 data 最新可吸纳项�
 
 ## 验证路线
 
-规范吸纳实施完成后至少执行：
+规范吸纳实施完成后至少执行（**MeasuredVerificationStandard**：宣称通过须记录生产入口命令与 exitCode；隔离 harness 不得冒充 V# 成败）：
 
 1. `node scripts/test-spec-governance.js`
-2. `node scripts/validate.js`
+2. `node scripts/validate.js` 或 `npm run test:core`（含 V84 `ExpertOutputQualityGate` / expert-output-quality 同步时）
 3. 高风险控制面或 Skill/部署副本变化时执行项目 `npm test`
 4. 若改 README / website / changelog / Profile，执行引用扫描和 V19 资产计数校验
 5. 若改部署副本，执行 `devcodex update` 或项目规定的同步命令，并再次运行 validate
+6. 命中示例/文档/fixture 专家质量时叠加 `expert-output-quality` Owner 与 gate-registry `expert-output-quality`
 
 验证失败时先修复，再更新复审清单状态；不得只在报告中写“后续处理”。

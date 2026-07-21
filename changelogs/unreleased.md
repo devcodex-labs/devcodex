@@ -12,6 +12,7 @@
 - PF-163：`lifecycle-visible-reply` 识别裸路径清单/绝对路径无操作；Stop 无 payload 时 missingItems 含 `semantic-artifact-items` + `visible-payload-unobserved`；补 hooks visibility 负向 fixture。
 - PF-164：`ExternalReviewClaimVerificationGate` + `scripts/lib/external-review-claim-verification.js`；audit-report/report/report-audit 模板；gate-registry 分组；负向 claim-thin fixture；`npm run test:external-review-claim`。
 - PF-165：Grok 完整工作流强制面 — `GrokTurnChecklist` + Intent→Skill bundle + `hostParity.repairSteps`/`failedChecks`；doctor 人类可执行修复闭环；`classifyGrokTurnOmissionSample` 负向；host-parity-grok / workspace Skill / UV / host-contract / Host Kernel passive-host 组；PreTool S07 assist 附 bundle 提示。
+- PF-087（2026-07-21 入口完整性再开项）：`analyzeEntryCheckCompleteness` — 自由文本 PC0~PC7 分列必齐、禁止折叠合并、dev PC4 无 skipReason 不得伪 N/A；Stop 半截入口 → `verified-missing` + closure reminder；hooks-runtime 负向 fixture；UV FreeTextEntryCheckCompletenessGate。
 - `devcodex status` / `devcodex doctor` 增加只读 `GovernanceStatusSummaryV1`：汇总 runtime-state、ledger 退役候选、Skill/gray lifecycle、执行优化证据、Gate registry、host truth、dirty boundary 与 fail-closed fast-path 决策；JSON 输出挂载到 `payload.governanceSummary`，human 输出只增加一行治理概览。
 - 新增 `SimpleGovernanceFastPathDecisionV1`，将可见输出 compact 条件显式化；控制面、source mutation、共享状态、风险非 low、CP 未确认、证据缺失或非 compactable message kind 均 fail-closed 到 full。
 - 新增 `scripts/lib/governance-status-summary.js` 与 `scripts/test-governance-status-summary.js`，并接入 `test:control-plane` / `test:optimization-controls`；不新增依赖、不改发布版本、不执行 tag/push/publish。

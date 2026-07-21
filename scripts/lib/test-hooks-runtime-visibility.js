@@ -21,6 +21,18 @@ function runHooksRuntimeVisibilityScenarios(context) {
     writeTranscriptEntries
   } = context
 
+  const FULL_ENTRY_CHECK_LINES = [
+    '### DevCodex · 入口检查',
+    '- PC0 [PASS] Context plan',
+    '- PC1 [PASS] Intent',
+    '- PC2 [PASS] Session',
+    '- PC3 [PASS] Project',
+    '- PC4 [N/A] skipReason=non-dev',
+    '- PC5 [PASS] Host',
+    '- PC6 [PASS] Git',
+    '- PC7 [PASS] Next'
+  ]
+
   function run(payload, ...args) {
     const output = runHook(payload, ...args)
     if (payload?.hookEventName === 'UserPromptSubmit' && fs.existsSync(STATE_FILE)) {
@@ -244,7 +256,7 @@ function runHooksRuntimeVisibilityScenarios(context) {
     assistantMessage: [
       '---',
       '🔍 入口检查（DEV 模式）',
-      '- PC0 上下文：项目 devcodex-v1',
+      ...FULL_ENTRY_CHECK_LINES,
       '---'
     ].join('\n')
   })
@@ -281,7 +293,7 @@ function runHooksRuntimeVisibilityScenarios(context) {
     assistantMessage: [
       '---',
       '🔍 入口检查（DEV 模式）',
-      '- PC0 上下文：项目 devcodex-v1',
+      ...FULL_ENTRY_CHECK_LINES,
       '---',
       '---',
       '🛡️ DEV 模式 | 合规检查',
@@ -326,7 +338,7 @@ function runHooksRuntimeVisibilityScenarios(context) {
     assistantMessage: [
       '---',
       '🔍 入口检查（DEV 模式）',
-      '- PC0 上下文：项目 devcodex-v1',
+      ...FULL_ENTRY_CHECK_LINES,
       '---',
       '---',
       '🛡️ DEV 模式 | 合规检查',
@@ -381,7 +393,7 @@ function runHooksRuntimeVisibilityScenarios(context) {
     assistantMessage: [
       '---',
       '🔍 入口检查（DEV 模式）',
-      '- PC0 上下文：项目 devcodex-v1',
+      ...FULL_ENTRY_CHECK_LINES,
       '---',
       '---',
       '🛡️ DEV 模式 | 合规检查',
@@ -434,7 +446,7 @@ function runHooksRuntimeVisibilityScenarios(context) {
     hookEventName: 'Stop',
     assistantMessage: [
       '### DevCodex · 入口检查',
-      'PC0 [PASS]',
+      ...FULL_ENTRY_CHECK_LINES,
       '🛡️ DEV 模式 | 合规检查',
       'FC: FC1 [✅] FC2 [✅]',
       '',
@@ -479,7 +491,7 @@ function runHooksRuntimeVisibilityScenarios(context) {
     hookEventName: 'Stop',
     assistantMessage: [
       '### DevCodex · 入口检查',
-      'PC0 [PASS]',
+      ...FULL_ENTRY_CHECK_LINES,
       '🛡️ DEV 模式 | 合规检查',
       'FC: FC1 [✅]',
       '',
@@ -551,7 +563,7 @@ function runHooksRuntimeVisibilityScenarios(context) {
   const transcriptPath = writeTranscript('copilot-stop-transcript.jsonl', [
     '---',
     '🔍 入口检查（DEV 模式）',
-    '- PC0 上下文：项目 devcodex-v1',
+    ...FULL_ENTRY_CHECK_LINES,
     '---',
     '---',
     '🛡️ DEV 模式 | 合规检查',
@@ -588,7 +600,7 @@ function runHooksRuntimeVisibilityScenarios(context) {
   const contentPartsStop = run({
     hookEventName: 'Stop',
     assistantMessage: [
-      { type: 'text', text: '---\n🔍 入口检查（DEV 模式）\n- PC0 上下文：项目 devcodex-v1\n---' }
+      { type: 'text', text: '### DevCodex · 入口检查\n- PC0 [PASS] Context plan\n- PC1 [PASS] Intent\n- PC2 [PASS] Session\n- PC3 [PASS] Project\n- PC4 [N/A] skipReason=non-dev\n- PC5 [PASS] Host\n- PC6 [PASS] Git\n- PC7 [PASS] Next' }
     ]
   })
   assert.ok(!contentPartsStop.systemMessage)
@@ -604,7 +616,7 @@ function runHooksRuntimeVisibilityScenarios(context) {
     hookEventName: 'Stop',
     messages: [
       { role: 'user', content: 'PC0 上下文 should not count from a user message' },
-      { role: 'assistant', content: [{ type: 'text', text: '---\n🔍 入口检查（DEV 模式）\n- PC0 上下文：项目 devcodex-v1\n---' }] }
+      { role: 'assistant', content: [{ type: 'text', text: '### DevCodex · 入口检查\n- PC0 [PASS] Context plan\n- PC1 [PASS] Intent\n- PC2 [PASS] Session\n- PC3 [PASS] Project\n- PC4 [N/A] skipReason=non-dev\n- PC5 [PASS] Host\n- PC6 [PASS] Git\n- PC7 [PASS] Next' }] }
     ]
   })
   assert.ok(!messagesStop.systemMessage)
@@ -617,7 +629,7 @@ function runHooksRuntimeVisibilityScenarios(context) {
   const choicesStop = run({
     hookEventName: 'Stop',
     choices: [
-      { message: { role: 'assistant', content: [{ text: '---\n🔍 入口检查（DEV 模式）\n- PC0 上下文：项目 devcodex-v1\n---' }] } }
+      { message: { role: 'assistant', content: [{ text: '### DevCodex · 入口检查\n- PC0 [PASS] Context plan\n- PC1 [PASS] Intent\n- PC2 [PASS] Session\n- PC3 [PASS] Project\n- PC4 [N/A] skipReason=non-dev\n- PC5 [PASS] Host\n- PC6 [PASS] Git\n- PC7 [PASS] Next' }] } }
     ]
   })
   assert.ok(!choicesStop.systemMessage)
@@ -629,7 +641,7 @@ function runHooksRuntimeVisibilityScenarios(context) {
   })
   const variantTranscriptPath = writeTranscriptEntries('copilot-stop-transcript-variant.jsonl', [
     { role: 'user', content: 'trigger prompt' },
-    { role: 'assistant', message: { content: [{ type: 'text', text: '---\n🔍 入口检查（DEV 模式）\n- PC0 上下文：项目 devcodex-v1\n---' }] } }
+    { role: 'assistant', message: { content: [{ type: 'text', text: '### DevCodex · 入口检查\n- PC0 [PASS] Context plan\n- PC1 [PASS] Intent\n- PC2 [PASS] Session\n- PC3 [PASS] Project\n- PC4 [N/A] skipReason=non-dev\n- PC5 [PASS] Host\n- PC6 [PASS] Git\n- PC7 [PASS] Next' }] } }
   ])
   const variantTranscriptStop = run({
     hookEventName: 'Stop',
@@ -688,7 +700,7 @@ function runHooksRuntimeVisibilityScenarios(context) {
     hookEventName: 'Stop',
     assistantMessage: [
       '### DevCodex · 入口检查',
-      '- PC0 [PASS] plan',
+      ...FULL_ENTRY_CHECK_LINES,
       '### 结论',
       'done'
     ].join('\n')
@@ -736,6 +748,81 @@ function runHooksRuntimeVisibilityScenarios(context) {
   ))
   s07State = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
   assert.notStrictEqual(s07State.productMutationBeforePrecheck, true)
+
+  // --- PF-087: free-text PC0~PC7 completeness (folded / incomplete must not green precheck) ---
+  const {
+    analyzeEntryCheckCompleteness
+  } = require('../../hooks/_runtime/lifecycle-visible-reply.cjs')
+
+  const foldedSample = [
+    '### DevCodex · 入口检查',
+    '- PC0 [PASS] Context plan',
+    '- PC2–PC7 [PASS] 其余合并'
+  ].join('\n')
+  const folded = analyzeEntryCheckCompleteness(foldedSample)
+  assert.strictEqual(folded.claimed, true)
+  assert.strictEqual(folded.complete, false)
+  assert.ok(folded.missingItems.includes('pc-folded-range'))
+  assert.ok(folded.missingPcs.includes('PC1'))
+
+  const incompleteSample = [
+    '### DevCodex · 入口检查',
+    '- PC0 [PASS] Context plan',
+    '- PC1 [PASS] Intent'
+  ].join('\n')
+  const incomplete = analyzeEntryCheckCompleteness(incompleteSample)
+  assert.strictEqual(incomplete.complete, false)
+  assert.ok(incomplete.missingPcs.includes('PC7'))
+
+  const devNa = analyzeEntryCheckCompleteness([
+    '### DevCodex · 入口检查',
+    '- PC0 [PASS] Context plan',
+    '- PC1 [PASS] Intent',
+    '- PC2 [PASS] Session',
+    '- PC3 [PASS] Project',
+    '- PC4 [N/A]',
+    '- PC5 [PASS] Host',
+    '- PC6 [PASS] Git',
+    '- PC7 [PASS] Next'
+  ].join('\n'), { mode: 'dev' })
+  assert.ok(devNa.missingItems.includes('pc4-dev-na-without-skip'))
+
+  const completeSample = FULL_ENTRY_CHECK_LINES.join('\n')
+  assert.strictEqual(analyzeEntryCheckCompleteness(completeSample).complete, true)
+
+  cleanState()
+  run({
+    hookEventName: 'UserPromptSubmit',
+    prompt: 'pf087 folded entry check'
+  })
+  runBootstrapReads(TEST_AGENT)
+  const foldedStop = run({
+    hookEventName: 'Stop',
+    stop_hook_active: true,
+    finalMessage: foldedSample
+  })
+  assert.match(foldedStop.systemMessage || '', /entry check incomplete|PF-087|pc-folded|PC0~PC7/i)
+  const foldedState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(foldedState.visible.precheckStatus, 'verified-missing')
+  assert.strictEqual(foldedState.visible.precheck, false)
+  assert.ok(foldedState.visible.entryCheckCompleteness)
+  assert.strictEqual(foldedState.visible.entryCheckCompleteness.complete, false)
+
+  cleanState()
+  run({
+    hookEventName: 'UserPromptSubmit',
+    prompt: 'pf087 complete entry check'
+  })
+  runBootstrapReads(TEST_AGENT)
+  run({
+    hookEventName: 'Stop',
+    stop_hook_active: true,
+    finalMessage: completeSample
+  })
+  const completeState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(completeState.visible.precheckStatus, 'verified-present')
+  assert.strictEqual(completeState.visible.precheck, true)
+  assert.strictEqual(completeState.visible.entryCheckCompleteness.complete, true)
 }
 
 module.exports = {

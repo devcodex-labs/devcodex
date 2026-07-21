@@ -1,5 +1,118 @@
 'use strict'
 
+/**
+ * PF-087: free-text entry-check completeness for PC0~PC7 (extends Envelope rules to markdown paths).
+ * Does not invent a parallel gate owner — used by lifecycle-visible-reply + UV contract.
+ *
+ * @param {string} text assistant-visible reply
+ * @param {{ mode?: string }} [options] state.mode (dev|prod|…) for PC4 N/A rules
+ * @returns {{
+ *   claimed: boolean,
+ *   complete: boolean,
+ *   status: 'not-claimed'|'complete'|'incomplete',
+ *   missingPcs: string[],
+ *   missingItems: string[],
+ *   foldedRanges: string[],
+ *   presentPcs: string[]
+ * }}
+ */
+function analyzeEntryCheckCompleteness(text, options = {}) {
+  const body = String(text || '')
+  const mode = String(options.mode || options.envMode || '').toLowerCase()
+  const claimed = /入口检查|预检查（\s*DEV|###\s*DevCodex\s*·\s*入口检查|DevCodexVisibleEnvelopeV1\s*·\s*entry-check|PC0\s*(?:上下文|\[|（)|PC0\s*[：:]/i.test(body)
+  if (!claimed) {
+    return {
+      claimed: false,
+      complete: false,
+      status: 'not-claimed',
+      missingPcs: [],
+      missingItems: [],
+      foldedRanges: [],
+      presentPcs: []
+    }
+  }
+
+  const missingItems = []
+  const foldedRanges = []
+  // Folded / merged PC ranges (e.g. PC2–PC7, PC2-7, PC2~PC7)
+  const foldedRe = /PC\s*([0-7])\s*(?:[-–—~～至到]|到)\s*(?:PC\s*)?([0-7])/gi
+  let fm
+  while ((fm = foldedRe.exec(body)) !== null) {
+    const a = Number(fm[1])
+    const b = Number(fm[2])
+    if (Number.isFinite(a) && Number.isFinite(b) && a !== b) {
+      foldedRanges.push(`PC${Math.min(a, b)}-PC${Math.max(a, b)}`)
+      missingItems.push('pc-folded-range')
+    }
+  }
+  // "PC2–PC7 PASS" style without individual lines
+  if (/PC\s*[2-6]\s*[-–—~～]\s*PC\s*7|PC2\s*[-–—~～]\s*7/i.test(body)) {
+    if (!missingItems.includes('pc-folded-range')) missingItems.push('pc-folded-range')
+  }
+
+  const presentPcs = []
+  for (let i = 0; i <= 7; i++) {
+    // Separate line/bullet/table cell for this PC (not only inside a folded range token)
+    const lineRe = new RegExp(
+      `(?:^|\\n)\\s*(?:[-*]\\s*)?(?:\\|\\s*)?PC${i}\\b(?!\\s*[-–—~～至到])`,
+      'i'
+    )
+    if (lineRe.test(body)) presentPcs.push(`PC${i}`)
+  }
+  const missingPcs = []
+  for (let i = 0; i <= 7; i++) {
+    const id = `PC${i}`
+    if (!presentPcs.includes(id)) missingPcs.push(id)
+  }
+  if (missingPcs.length) missingItems.push('pc-columns-incomplete')
+
+  // PC0 must carry context-ish content (not empty status-only)
+  const pc0Line = body.match(/(?:^|\n)\s*(?:[-*]\s*)?(?:\|\s*)?PC0\b[^\n]{0,200}/i)
+  if (pc0Line) {
+    const content = pc0Line[0]
+    const hasContext = /上下文|Context|plan|active-root|项目|PASS|WARN|BLOCK|UNVERIFIED|N\/A|回执|receipt/i.test(content) &&
+      content.replace(/PC0|\[[^\]]*\]|[|`*_#\-]/gi, '').trim().length >= 2
+    if (!hasContext) missingItems.push('pc0-context-thin')
+  } else {
+    missingItems.push('pc0-context-thin')
+  }
+
+  // PC4: in dev, N/A without skip/reason is invalid; bare "PC4 N/A" alone is thin
+  const pc4Line = body.match(/(?:^|\n)\s*(?:[-*]\s*)?(?:\|\s*)?PC4\b[^\n]{0,220}/i)
+  if (pc4Line) {
+    const line = pc4Line[0]
+    const isNa = /\bN\/A\b|不适用/i.test(line)
+    const hasSkip = /skipReason|跳过理由|非\s*dev|prod\s*模式|不展开|N\/A\s*[：:].+/i.test(line)
+    const hasDevRadar = /规范雷达|Skills?|Profile|Owner|TestRoute|完整/i.test(line)
+    if (mode === 'dev') {
+      if (isNa && !hasSkip) missingItems.push('pc4-dev-na-without-skip')
+      if (!isNa && !hasDevRadar && line.replace(/PC4|\[[^\]]*\]|[|`*_#\-]/gi, '').trim().length < 4) {
+        missingItems.push('pc4-dev-radar-thin')
+      }
+    } else if (isNa && !hasSkip && mode !== 'prod') {
+      // unknown mode: soft warn item still recorded
+      missingItems.push('pc4-na-without-skipReason')
+    }
+  }
+
+  // Unique missingItems
+  const uniqueMissing = []
+  for (const item of missingItems) {
+    if (!uniqueMissing.includes(item)) uniqueMissing.push(item)
+  }
+
+  const complete = uniqueMissing.length === 0 && missingPcs.length === 0 && foldedRanges.length === 0
+  return {
+    claimed: true,
+    complete,
+    status: complete ? 'complete' : 'incomplete',
+    missingPcs,
+    missingItems: uniqueMissing,
+    foldedRanges: [...new Set(foldedRanges)],
+    presentPcs
+  }
+}
+
 function buildLifecycleVisibleReplyUtils(ctx) {
   const {
     fs,
@@ -118,9 +231,21 @@ function buildLifecycleVisibleReplyUtils(ctx) {
     const text = evidence.text
     state.visible.payloadObserved = true
     // Accept both legacy and portable envelope precheck markers (W8).
-    if (/入口检查（|预检查（DEV 模式）|PC0 上下文|###\s*DevCodex\s*·\s*入口检查|DevCodexVisibleEnvelopeV1\s*·\s*entry-check/.test(text)) {
-      state.visible.precheck = true
-      state.visible.precheckStatus = 'verified-present'
+    // PF-087: presence alone is not enough — require free-text PC0~PC7 column completeness.
+    const entryCompleteness = analyzeEntryCheckCompleteness(text, { mode: state.mode })
+    state.visible.entryCheckCompleteness = entryCompleteness
+    if (/入口检查（|预检查（DEV 模式）|PC0 上下文|###\s*DevCodex\s*·\s*入口检查|DevCodexVisibleEnvelopeV1\s*·\s*entry-check|PC0\s*[\[（]/.test(text)) {
+      if (entryCompleteness.complete) {
+        state.visible.precheck = true
+        state.visible.precheckStatus = 'verified-present'
+      } else {
+        // Claimed entry check but folded/incomplete → verified-missing (not green)
+        state.visible.precheck = false
+        state.visible.precheckStatus = 'verified-missing'
+        state.visible.precheckMissingItems = entryCompleteness.missingItems.concat(
+          entryCompleteness.missingPcs.map((id) => `missing-${id}`)
+        )
+      }
     } else if (!state.visible.precheck) {
       state.visible.precheckStatus = 'verified-missing'
     }
@@ -130,6 +255,7 @@ function buildLifecycleVisibleReplyUtils(ctx) {
       observed: true,
       source: evidence.source || 'unknown',
       precheckStatus: state.visible.precheckStatus,
+      entryCheckCompleteness: entryCompleteness.status,
       textBytes: Buffer.byteLength(String(text || ''), 'utf8')
     }
     if (/🛡️ DEV 模式 \| 合规检查|FC:\s*FC1|DevCodexVisibleEnvelopeV1\s*·\s*completion-check/.test(text)) state.visible.compliance = true
@@ -190,7 +316,17 @@ function buildLifecycleVisibleReplyUtils(ctx) {
     const items = []
     const precheckStatus = getPrecheckEvidenceStatus(state)
     if (eventName === 'Stop' && precheckStatus === 'verified-missing') {
-      items.push('entry check block 未输出（S07/C18：首条用户可见回复必须含 PC0~PC7 入口检查块）')
+      const completeness = state.visible?.entryCheckCompleteness
+      if (completeness && completeness.claimed && !completeness.complete) {
+        const detail = [
+          ...(completeness.foldedRanges || []),
+          ...(completeness.missingItems || []),
+          ...(completeness.missingPcs || [])
+        ].slice(0, 8).join(', ')
+        items.push(`entry check incomplete（PF-087：PC0~PC7 须分列完整；不得折叠合并；missing=${detail || 'pc-columns-incomplete'}）`)
+      } else {
+        items.push('entry check block 未输出（S07/C18：首条用户可见回复必须含 PC0~PC7 入口检查块）')
+      }
     } else if (eventName === 'Stop' && precheckStatus === 'unverified') {
       items.push(`无法验证最终用户可见回复是否包含入口检查块（Stop/PreCompact 未提供可解析 assistant 内容；如需取证请创建 ${getStatePaths(state).finalPayloadFlag} 后重试）`)
     }
@@ -229,6 +365,7 @@ function buildLifecycleVisibleReplyUtils(ctx) {
   return {
     hasVisibleReplyPayload,
     analyzeArtifactDelivery,
+    analyzeEntryCheckCompleteness,
     updateVisibleReplyState,
     captureFinalPayloadSample,
     getPrecheckEvidenceStatus,
@@ -238,4 +375,4 @@ function buildLifecycleVisibleReplyUtils(ctx) {
   }
 }
 
-module.exports = { buildLifecycleVisibleReplyUtils }
+module.exports = { buildLifecycleVisibleReplyUtils, analyzeEntryCheckCompleteness }

@@ -97,6 +97,20 @@ Rich clickable 只显示一个语义 Markdown 链接，不重复明文绝对路�
 
 `semanticDigest` 对去展示后的 canonical semantic core 计算；presentation tier、图标、换行、点击形式和本地化 summary 不得改变 digest。
 
+## FreeTextEntryCheckCompletenessGate（PF-087 · 自由文本入口完整性）
+
+当用户可见回复以 **Markdown/自由文本** 输出入口检查（未走 Envelope API）时，Stop/`lifecycle-visible-reply` 不得仅因出现「入口检查 / PC0 上下文」字样判 `verified-present`：
+
+| 规则 | 说明 |
+|------|------|
+| 分列必齐 | 须能识别 **PC0…PC7 各自独立** 行/单元格；缺任一 → incomplete |
+| 禁止折叠 | `PC2–PC7` / `PC2-7` / `PC2~PC7` 等合并范围 → `pc-folded-range`，precheck=`verified-missing` |
+| PC0 上下文 | PC0 行须含上下文/计划/项目等实质内容，不得空壳 |
+| PC4 | **dev** 下 `N/A` 必须带 skipReason/跳过理由；不得无理由伪 N/A |
+| Owner | 本 Skill + `hooks/_runtime/lifecycle-visible-reply.cjs`（`analyzeEntryCheckCompleteness`）；**禁止**平行新 Gate 命名体系 |
+
+机器分类：`complete` / `incomplete` / `not-claimed`。负向 fixture：折叠行、缺 PC、dev PC4 无 skipReason。
+
 ## CompactPresentationGate
 
 只有 `entry-check` 和无待确认的 `progress` 可 compact，且必须同时满足：

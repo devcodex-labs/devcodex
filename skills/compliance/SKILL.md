@@ -106,6 +106,31 @@ DevCodexVisibleEnvelopeV1 · completion-check · [状态] · [semanticDigest]
 
 若报告或用户面输出包含多个可执行建议、多个后续路径、方案对比或决策点，必须额外给出 `推荐结论` / `推荐方案`，且推荐理由可追溯到五项验证；无后续动作时写明 `推荐：无后续动作`。
 
+### UniqueNextStepRecommendationGate（FC7 / SC5 完成态扩展 · PF-172）
+
+凡用户可见 **完成态 / 收口 / 台账批次结束** 的「下一步 / 后续建议 / 推荐结论」：
+
+| 规则 | 要求 |
+|------|------|
+| 唯一主动作 | 有且仅有 **1** 条可执行主动作（一句可验收）；禁止把 ≥2 条可执行路径写成同级推荐 |
+| 禁止「或」并列 | **禁止**用「或 / 或者」在推荐主面上连接两条可执行路径（如「对齐 VL 表或挑 PF 链路」）；机器分类见 `classifyNextStepOrForkSample` → `or-fork` 即失败 |
+| 备选降级 | 非推荐路径只能放在「不推荐 / 明确劣于推荐」小节，并写清为何不选；不得与推荐同级 |
+| 无动作 | 无后续时写 `推荐：无后续动作`，不得硬凑二选一 |
+| 与 CP 前门禁关系 | CP 确认前的 A/B/C 仍由 `UniqueRecommendationBeforeConfirmGate` / `NoPreferenceMenuAfterConvergenceGate` 覆盖；本门禁补 **free-text 完成态** 缺口（VL-077 / PI-151） |
+
+### ControlPlaneDisciplineProbeBundle（PF-138/139/140 · 2026-07-21 吸纳）
+
+| 分类器 | 失败码 | 覆盖 |
+|--------|--------|------|
+| `classifyPreferenceMenuAfterConvergenceSample` | `preference-menu` | 收敛后希望哪种 / A/B/C |
+| `classifyCpArtifactBeforeConfirmSample` | `missing-cp-artifact` | 确认 CP 无产物路径 |
+| `classifyCodeTruthMatrixAtCpSample` | `missing-code-truth-matrix` | 控制面定稿无 CodeTruth 矩阵 |
+| `classifyControlPlaneDigestSample` | `missing-digest` | 控制面确认无 sha/digest |
+| `classifyAuthorSelfReviewBoundarySample` | `author-self-review-as-independent` | 作者自审冒充独立审查 |
+| `classifyNextStepOrForkSample` | `or-fork` | 完成态「或」双主动作 |
+
+生产入口：`npm run test:discipline-execution`。Owner：`cp-gate` + `compliance` + `dev-plan-review` + `expert-output-quality`。
+
 ## §2 形式合规（FC）— 不通过立即修正后重检
 
 | # | 检查项 |
@@ -116,7 +141,7 @@ DevCodexVisibleEnvelopeV1 · completion-check · [状态] · [semanticDigest]
 | FC4 | 文件名/路径合规（`NN--` 双横杠开头） |
 | FC5 | `ArtifactDeliveryManifestV1` 完整对账；`UserFacingArtifactSetV1` required hidden=0、计数守恒；semantic name/action/order 与 capability renderer 有效 |
 | FC6 | 新增 DevCodex 规范资产 `.md` 行数检查（instructions / skills / prompts / templates / 规范源等超 500 行须按 [C13](../../instructions/01-common.instructions.md) 拆分；业务项目需求、技术方案、报告和正式项目文档不因 C13 强制拆分） |
-| FC7 | 用户决策选项与报告决策点必带推荐 + 理由：所有 AskUserQuestion / 多选项呈现 / CP 选项 / 方案对比 / analyze-audit 报告决策点必须有且仅有 1 个推荐项，推荐项置首且说明推荐理由；无后续动作时写明 `推荐：无后续动作` |
+| FC7 | 用户决策选项与报告决策点必带推荐 + 理由：所有 AskUserQuestion / 多选项呈现 / CP 选项 / 方案对比 / analyze-audit 报告决策点必须有且仅有 1 个推荐项，推荐项置首且说明推荐理由；**完成态「下一步/后续建议」适用 UniqueNextStepRecommendationGate**（禁止「或」并列双主动作）；无后续动作时写明 `推荐：无后续动作` |
 
 ## §3 实质合规（SC）— 🔴 阻塞性
 
@@ -126,7 +151,7 @@ DevCodexVisibleEnvelopeV1 · completion-check · [状态] · [semanticDigest]
 | SC2 | 代码已诊断（无未处理 error） | dev/fix 🔴；其他 N/A |
 | SC3 | 修复已全局扫描（三步扫描：同类全局+数据联动+grep零残留） | fix 🔴；dev(重构) 🔴 |
 | SC4 | 关联文件已同步 | dev/fix/self-fix 🔴 |
-| SC5 | 后续建议与推荐结论已输出（报告含 `## 后续建议` / `## 推荐结论` / `## 推荐方案` 或等效内容；无待跟进时显式标注“推荐：无后续动作”即通过） | 全工作流 |
+| SC5 | 后续建议与推荐结论已输出（报告含 `## 后续建议` / `## 推荐结论` / `## 推荐方案` 或等效内容；**有且仅有 1 条主动作**；禁止完成态用「或/或者」并列 ≥2 条可执行路径；备选须标「不推荐」+ 理由；无待跟进时显式标注“推荐：无后续动作”即通过；探针 `classifyNextStepOrForkSample`） | 全工作流 |
 | SC6 | Agent SUMMARY 已更新（`.memory/clients/<agent>/SUMMARY.md`） | 全工作流 🔴 |
 | SC7 | 全局 SUMMARY 关键决策已追加（仅规范变更/架构决策/P0修复） | 有关键决策时 🔴 |
 | SC8 | 上次待跟进已查阅（首次会话 N/A） | 全工作流 🔴 |

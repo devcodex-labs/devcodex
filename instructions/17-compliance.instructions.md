@@ -147,7 +147,7 @@ version: 1.15.2
 | FC4 | 文件名/路径合规（`NN--` 双横杠开头；本轮无报告产物时标 N/A） |
 | FC5 | `ArtifactDeliveryManifestV1` 完整对账；`UserFacingArtifactSetV1` required hidden=0、计数守恒；semantic name/action/order 与 capability renderer 有效 |
 | FC6 | 新增 DevCodex 规范资产 `.md` 行数检查（instructions / skills / prompts / templates / 规范源等超 500 行须按 C13 拆分；业务项目需求、技术方案、报告和正式项目文档不因 C13 强制拆分） |
-| FC7 | 用户决策选项与报告决策点必带推荐 + 理由：所有 AskUserQuestion / 多选项呈现 / CP 范围选择 / 方案对比 / analyze-audit 报告决策点必须有且仅有 1 个 🟢 推荐项（首位置 + 标签含"(推荐)"或表格标 ⭐），并附一句话推荐理由；没有可推荐动作时必须显式写 `推荐：无后续动作` 与原因 |
+| FC7 | 用户决策选项与报告决策点必带推荐 + 理由：所有 AskUserQuestion / 多选项呈现 / CP 范围选择 / 方案对比 / analyze-audit 报告决策点必须有且仅有 1 个 🟢 推荐项（首位置 + 标签含"(推荐)"或表格标 ⭐），并附一句话推荐理由；**完成态「下一步/后续建议」适用 UniqueNextStepRecommendationGate**（禁止用「或/或者」并列 ≥2 条可执行路径；探针 `classifyNextStepOrForkSample`）；没有可推荐动作时必须显式写 `推荐：无后续动作` 与原因 |
 
 > ℹ️ **层次说明**：FC 关注“写入与输出格式是否完整落盘”，T 层关注“任务目标是否最终达成”。看似相近的检查项（如 FC1 vs T3、FC2 vs T2）属于不同验证层，前者防止漏写，后者确认闭环完成。
 
@@ -159,7 +159,7 @@ version: 1.15.2
 | SC2 | 代码已诊断（无未处理 error） | dev/fix 🔴 |
 | SC3 | 修复已全局扫描（同类错误模式全局+数据联动+grep零残留） | fix 🔴 |
 | SC4 | 关联文件已同步（含 profile 中定义的 dev 模式专属同步命令，如 `devcodex update`）| dev/fix/self-fix 🔴 |
-| SC5 | 后续建议与推荐结论已输出；报告含多个建议/路径时必须有 `推荐结论` / `推荐方案`，无待跟进时显式标注“推荐：无后续动作” | 全工作流 |
+| SC5 | 后续建议与推荐结论已输出；报告含多个建议/路径时必须有 `推荐结论` / `推荐方案` 且 **唯一主动作**；禁止完成态 free-text「A 或 B」同级推荐；无待跟进时显式标注“推荐：无后续动作” | 全工作流 |
 | SC6 | Agent SUMMARY 已更新（写入动作已发生） | 全工作流 🔴 |
 | SC7 | 全局 SUMMARY 关键决策已追加 | 有关键决策时 🔴 |
 | SC8 | 上次待跟进已查阅 | 全工作流 🔴 |

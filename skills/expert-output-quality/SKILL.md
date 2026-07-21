@@ -36,8 +36,9 @@ description: 专家型产物质量门禁 — 当任务涉及代码、文档、�
 | `MeasuredVerificationStandard` | 将探针/validate/测试标为已验证时，必须走生产入口命令（如 `npm run test:core`、`node scripts/test-spec-governance.js`）并记录 exitCode；隔离 harness 未复用 `createCanonicalAwareReader` 时只能标非权威实验，不得写成 V84/V# 成败 | command、exitCode、authorityPath、parityEvidence |
 | `CodeTruthEvidenceMatrixGate` | 重要需求、技术方案和修复结论必须绑定 repo path、符号/契约、当前行为、反证探针和差距，不能只靠文档自洽 | repoPath、symbol、currentBehavior、negativeProbe、gap |
 | `SolutionFitAgainstRepoGate` | 方案必须说明复用点、消费者、变更面、回滚和保持现状成本，避免凭空设计 | reusePoint、consumer、rollback、statusQuoCost |
-| `UniqueRecommendationBeforeConfirmGate` | 多方案比较收敛后只能有一个推荐方案或一个明确组合推荐 | recommended=1、alternatives、reason |
+| `UniqueRecommendationBeforeConfirmGate` | 多方案比较收敛后只能有一个推荐方案或一个明确组合推荐；**任何**用户须决策的路径建议（含完成态下一步）均适用 | recommended=1、alternatives、reason |
 | `NoPreferenceMenuAfterConvergenceGate` | 已由证据收敛且用户授予 auto 时，不再要求用户选择无意义偏好菜单 | auto evidence、decisionOwner |
+| `UniqueNextStepRecommendationGate` | 完成态 free-text「下一步/后续建议」仅 1 条主动作；禁止「或/或者」并列双可执行路径（PF-172） | single action、no or-fork、optional 不推荐 block |
 
 ## 执行步骤
 
@@ -66,7 +67,7 @@ description: 专家型产物质量门禁 — 当任务涉及代码、文档、�
 | evidenceMatrix | 判断 -> 代码/类型/官方文档/测试/运行时/用户路径证据 |
 | operationExplanation | `OperationExplanationContractV1`，不涉及用户/维护者操作时写 N/A + skipReason |
 | codeTruthEvidence | `CodeTruthEvidenceMatrixGate`，绑定 repo path / symbol / currentBehavior / negativeProbe / gap |
-| solutionFitAndRecommendation | `SolutionFitAgainstRepoGate` + `UniqueRecommendationBeforeConfirmGate` / `NoPreferenceMenuAfterConvergenceGate` |
+| solutionFitAndRecommendation | `SolutionFitAgainstRepoGate` + `UniqueRecommendationBeforeConfirmGate` / `NoPreferenceMenuAfterConvergenceGate` / `UniqueNextStepRecommendationGate` |
 ```
 
 ## 常见修正

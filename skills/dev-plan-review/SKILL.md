@@ -75,7 +75,7 @@ PR-7 测试与风险（🟡 标注，不阻断）
 | 覆盖率 / 外部 runtime·plugin·registry·fingerprint / 风险簇升级 | `test-router` · `quality-strategy` · 领域 Owner | 缺 CoverageGateDecision、生命周期/fingerprint 矩阵或风险分层路线 |
 | `docs-ia-readability` · `user-manual` · `docs-semantics-examples` | `user-manual-authoring` · `dev-docs` · `document-sync` | 缺 page role / sidebar 任务模型、用户主路径或示例/语义真相 |
 | `expert-output-quality` · `expert-owner-skills` | `expert-output-quality` + 对应专家 Owner | 缺生产推荐路径/fixture 边界，或缺 ownerSkill 触发证据 |
-| `CodeTruthEvidenceMatrixGate` · `SolutionFitAgainstRepoGate` | `expert-output-quality` + repo 事实源 | 缺 repo path / symbol / currentBehavior / negativeProbe / reusePoint / consumer / rollback / statusQuoCost |
+| `CodeTruthEvidenceMatrixGate` · `SolutionFitAgainstRepoGate` · **CodeTruthAtCpEntryGate（PF-139）** | `expert-output-quality` + repo 事实源 + `discipline-execution-probe` | 缺 repo path / symbol / currentBehavior / negativeProbe / reusePoint / consumer / rollback / statusQuoCost；控制面 CP 入口宣称可确认/定稿但无矩阵 → `classifyCodeTruthMatrixAtCpSample` fail |
 | `agent-capability-completeness` · `consumer-validation` · `module-performance-maintenance` | 对应 Owner Skill | 假全量：缺 completeness 对象、跨仓分母或模块性能维护证据 |
 | `brand-visual-quality` | `brand-visual-quality` | 缺母版谱系/主题几何/微尺寸单色/人工结论 |
 | 跨项目/最新/确认吸纳（`absorption-layering` · `confirmed-completeness` 等） | `spec-absorption` · `spec-governance` | 缺 registry 分组判定或 layerChecks / consumerProof |

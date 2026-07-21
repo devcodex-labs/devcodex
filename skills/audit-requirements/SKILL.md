@@ -41,6 +41,50 @@ description: 需求文档审查维度 RQ-1~RQ-8 — 需求定义/功能描述/�
 - 需求应包含足够的正例、反例、边界例、异常与回退口径；缺失项应进入待确认问题
 - 技术验收 / 测试方案类文档才要求可执行验证用例、正向/负向场景和通过标准
 
+**RQ-4 需求一致性 🔴**
+- 同一需求包内编号、术语、范围、优先级与阶段声明不得互相矛盾；同名功能不得给出相反行为
+- 变更需求必须锚定原需求基线（路径/版本/章节），并显式列出 retained / changed / removed / deferred
+- 正例：变更确认稿可追溯到原 F-01，且“不做什么”与正文功能列表无冲突
+- 反例：同一 F-id 在概况写“必须登录”、在确认写“匿名可用”且无裁决记录 → 阻断
+- 必要证据：冲突对（摘录 A/B）、裁决位置（确认稿/报告）、未决冲突清单（可为空）
+- 验证路线：交叉阅读 `00/01` + 功能清单 + 排除范围；无冲突则写 `RQ-4=PASS`，有未决冲突则 `FAIL` 并禁止进入 CP2 编码
+
+**RQ-5 影响分析完整性 🟡**
+- 当需求触及外部系统、共享契约、多模块、数据迁移、权限边界或发布面时，必须说明影响面与回滚/降级口径；纯文案/单页说明可标 `N/A + skipReason`
+- 影响面至少覆盖：直接消费者、间接调用链/数据依赖、破坏性兼容风险、需同步的 Profile/文档/配置（若适用）
+- 正例：新增公开 API 列出 SDK/网站/旧客户端三类消费者与兼容策略
+- 反例：引入跨服务写路径却只写“影响后端”且无消费者与回滚 → `FAIL`
+- 必要证据：ImpactSurface 列表（或 N/A 理由）、兼容/回滚一句、关联模块路径
+- 验证路线：对照变更类型检查是否触发外部依赖/共享契约；无外部依赖时 `RQ-5=N/A`
+
+**RQ-6 约束条件明确性 🟡**
+- 业务、合规、性能、安全、环境与时间窗口等约束须可观察、可判定，禁止仅写“尽量快/安全/兼容”
+- 约束写清：主体（谁遵守）、条件（何时生效）、边界（上限/下限/禁止项）、例外（若有）
+- 正例：“管理端导出单次 ≤ 1 万行；超限返回 400 与可操作提示”
+- 反例：“系统应高性能”且无指标/场景/失败表现 → `FAIL` 或降为待确认
+- 必要证据：约束条目表（主体/条件/边界/例外）或明确“无额外约束”
+- 验证路线：扫描非功能/约束章节；技术量化指标可下沉 CP2，但业务边界须在需求层可判定
+
+**RQ-7 版本与变更追溯 💡/🔴**
+- 有版本号、修订日期或变更记录时，当前有效需求必须可指向唯一 current 真相源；历史版本须标记 historical/superseded
+- 需求变更路径：概况 → 确认 → 回写目标需求真相源；缺失回写锚点时不得宣称“已同步主需求”
+- 正例：`01-需求确认.md` 文首 `version/status/supersedes`，旧稿 status=superseded
+- 反例：多份 active 确认稿并行、无 supersedes → 阻断（🔴）；仅缺 changelog 小节但 current 唯一 → 💡 改进
+- 必要证据：current 路径、version/status、supersedes 链（可空）、变更回写位置
+- 验证路线：列任务目录全部需求稿 status；current 计数必须 = 1
+
+**RQ-8 项目上下文一致性 🟡**
+- 需求中的技术栈、目录边界、脚本、环境、发布面与 active Profile / 仓库现实一致；不一致须标注假设或待确认，不得静默当作事实
+- 无项目 Profile 时 `RQ-8=N/A`；有 Profile 时至少核对 01 项目信息中的栈/阶段/关键路径是否与需求假设冲突
+- 正例：需求声明 Node 20 + monorepo 包名与 Profile 01 一致
+- 反例：需求写“必须改 Django 中间件”而 Profile/仓库为纯 Node CLI → `FAIL` 或待确认
+- 必要证据：Profile 对照表（字段/需求声明/一致或差异）、差异处置（改需求/改 Profile/待确认）
+- 验证路线：定向读取 active Profile 与需求假设句；差异进入待确认或阻断扩展范围
+
+**RequirementDimensionCompletenessGate（声明完整性）**
+- 凡 Skill/报告/清单声明覆盖 `RQ-1~RQ-8`，正文必须为每一维提供可执行通过条件、至少一类失败反例、必要证据字段与验证路线（或显式 `N/A + skipReason` 边界）
+- 仅维度总览表/索引而无独立定义 → 本审查层与 validate 探针均视为不完整，不得标 RQ 全覆盖 PASS
+
 **PhaseDeliverySemanticGate（条件）**
 - 多阶段需求、路线图或“全部纳入某阶段”必须为每阶段标记 `phaseKind=planning-only / design-ready / implementation / release`，分别说明 planning coverage 与 source delivery。
 - 建立 `PhaseDeliverySemanticMatrix`：originalIntent、phaseKind、inScope、sourceDelivery、entry、exit、carryOver、closeRule、confirmationText 必须一致。

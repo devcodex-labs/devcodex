@@ -70,7 +70,10 @@ CP 门控**不受 ENV_MODE 影响**。dev/prod 均强制保持 CP1→CP2 顺序�
 12. **审计问题清单转修复的 CP1 映射**：当 fix 源自 audit/analyze 的问题清单时，CP1 必须建立问题 ID 映射，逐项标注 `本轮修复 / 已关闭 / 延后 / 另起任务`，并把验收口径写入 CP1 产物；禁止只列新增问题而漏掉用户已指出或上轮已确认的问题。
 13. **执行期 CP3 回退**：若执行过程中实际变更范围触达 CP3 门槛（≥5 文件、高风险、控制面联动），必须暂停执行、补做或重开 CP3，再继续后续修改与验证。
 14. **backlog 来源前置真相复核**：当 CP1/问题确认直接来源于 `data/*.md` 的 open/partial 项时，进入正式确认前必须先把候选项分类为 `pure-open` / `residual-tail` / `already-fixed` / `misclassified`；非 `pure-open` 项须先回写状态并修正本轮范围，不得把 stale-open 条目继续按纯 open 统计。
-15. **代码事实与唯一推荐**：CP1/CP2/CP3 的重要需求、方案和推荐结论触发 `CodeTruthEvidenceMatrixGate`，至少绑定 repo path、符号/契约、当前行为、反证探针和差距；多方案收敛后触发 `UniqueRecommendationBeforeConfirmGate`，只能保留一个推荐方案或一个明确组合推荐。**禁止**收敛后用「你希望哪种 / A/B/C 点选」代替唯一推荐（`NoPreferenceMenuAfterConvergenceGate`；机器探针见 `scripts/lib/discipline-execution-probe.js`）。
+15. **代码事实与唯一推荐**：CP1/CP2/CP3 的重要需求、方案和推荐结论触发 `CodeTruthEvidenceMatrixGate`，至少绑定 repo path、符号/契约、当前行为、反证探针和差距；多方案收敛后触发 `UniqueRecommendationBeforeConfirmGate`，只能保留一个推荐方案或一个明确组合推荐。**禁止**收敛后用「你希望哪种 / A/B/C 点选」代替唯一推荐（`NoPreferenceMenuAfterConvergenceGate`）。完成态 / 收口「下一步」另受 `UniqueNextStepRecommendationGate` 约束：禁止 free-text「做 A 或做 B」并列（`classifyNextStepOrForkSample` / PF-172）。
+16. **CpArtifactBeforeConfirmGate（PF-138）**：输出「确认 CP1/CP2/CP3」前，磁盘产物路径必须已写入且出现在确认文案（如 `01-需求确认.md` / `02-技术方案.md` / `artifactPath`）；禁止无路径点选。机器探针：`classifyCpArtifactBeforeConfirmSample` → `missing-cp-artifact` 失败。
+17. **CodeTruthAtCpEntryGate（PF-139）**：控制面 / MCP / Hook / CLI / validate / 分发类任务在写「可确认 CP / 方案定稿 / 可实施」前必须含 `CodeTruthEvidenceMatrix`（或 Gate 名 + repoPath/currentBehavior/negativeProbe）；机器探针：`classifyCodeTruthMatrixAtCpSample` → `missing-code-truth-matrix` 失败。
+18. **ControlPlaneDigest + AuthorSelfReviewBoundary（PF-140）**：控制面确认必须绑定 `artifactPath`+`artifactSha256`/`ConfirmBindingGate`（`classifyControlPlaneDigestSample`）；**禁止**把「作者自审」标成「独立审查」（`classifyAuthorSelfReviewBoundarySample`）。TimeoutOwnership：同步 I/O 不得宣称 wall-clock 硬超时假绿（见 release-verification / MCP 文档边界）。
 
 ## CP 响应处理
 

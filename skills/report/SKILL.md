@@ -95,6 +95,7 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
   - 机器实现：`scripts/lib/optimization-backlog-evidence.js`
 - 命中专家产物、用户操作说明、重要方案或推荐结论时，报告必须引用 `ExpertOutputQualityGate`、`OperationExplanationContractV1`、`CodeTruthEvidenceMatrixGate`、`SolutionFitAgainstRepoGate` 与唯一推荐证据；不得只写“已优化表述”或用文档自洽替代 repo 事实。
 - analyze / audit / self-fix / dev / fix 报告中，若出现多个可执行建议、多个后续路径、方案对比或用户决策点，必须新增 `## 推荐结论` 或 `## 推荐方案`：推荐项有且仅有 1 个，并说明“推荐理由”；无后续动作时写 `推荐：无后续动作` 与原因
+- **UniqueNextStepRecommendationGate（PF-172 / SC5）**：完成态 / 收口的 `## 后续建议` 与用户可见「下一步」必须是 **唯一主动作**。禁止写成「做 A 或做 B」或同级双 bullet 让用户再选；非推荐路径只能写在「不推荐」小节并说明劣于推荐的理由。机器负向：`scripts/lib/discipline-execution-probe.js` 的 `classifyNextStepOrForkSample`（`or-fork` = fail）
 - 若最终采纳的是用户原始方案，报告中也必须写明“经独立验证后采纳”及其证据来源，避免形成“顺从结论”的假象
 - 报告中的治理落账编号必须与当前 active-root 台账和 Hook/人工复证一致；不能仅因正文出现 `PI/PF/VL/GR/ISSUE` 编号就写“已记录”。复合意图逐项列证据，`record.none` 列独立 challenge evidence。
 - audit / analyze / self-fix 的汇总型报告默认采用“两层问题清单”：先列根因级问题，再展开逐文件完整落点；边界/非缺陷结论单独成节，不混入缺陷编号

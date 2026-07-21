@@ -186,6 +186,7 @@
     "scripts/lib/host-adapter-scope.js",
     "scripts/lib/grok-workspace-launcher.js",
     "scripts/lib/cli-host-utils.js",
+    "scripts/lib/cli-console-utils.js",
     "scripts/lib/cli-runtime-utils.js",
     "scripts/lib/profile-bootstrap-utils.js",
     "scripts/lib/cli-install-commands.js",

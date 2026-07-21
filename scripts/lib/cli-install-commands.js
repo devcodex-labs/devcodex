@@ -484,7 +484,7 @@ function buildCliInstallCommands(ctx) {
       }
     }
 
-    // 2b. MCP runtime script deps: .claude/mcp require('../scripts/lib/…') → .claude/scripts/lib/…
+    // 2b. MCP runtime script deps: copy scripts/lib helpers for Claude MCP (mcp/*.js relative require path)
     for (const relRaw of CLAUDE_MCP_RUNTIME_SCRIPT_DEPS) {
       const rel = String(relRaw || '').replace(/\\/g, '/')
       if (!rel) continue

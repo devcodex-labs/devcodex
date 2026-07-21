@@ -24,7 +24,10 @@ function collectRuntimeDependencies(file, seen = new Set()) {
   const fullPath = path.join(ROOT, file)
   if (!fs.existsSync(fullPath)) return [file]
 
+  // Strip comments so doc examples like require('../scripts/lib/...') are not treated as deps.
   const content = fs.readFileSync(fullPath, 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '')
   const deps = []
 
   for (const match of content.matchAll(/require\(['"](\.{1,2}\/[^'"]+)['"]\)/g)) {

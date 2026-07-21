@@ -5,6 +5,7 @@
 
 ## 当前未发布实现候选（2026-07-21）
 
+- 卫生包 O1 + 验证修复：刷新 `skills/portfolio.json`；V6/pack-clean 扫描忽略注释内伪 `require`；抽出 `cli-console-utils.js` 使 `index.js` 回到 V93 行预算；`package.json#files` 纳入该模块；台账 VL-010/012 时间线对齐；Profile CLI 脚本计数 154。验证：`generate-skill-portfolio --check`、`npm run test:core`、`npm run test:package-release`（40/40）、`npm run test:audit` 均 exit 0。
 - Dependabot #17 / CVE-2026-13149：`website` 经 `overrides` 固定 `brace-expansion@5.0.7`（GHSA-3jxr-9vmj-r5cp DoS）；`npm audit` 清零。
 - PF-173：Claude MCP 部署补齐 `scripts/lib` 运行时依赖 allowlist（`cp-digest.js` / `host-parity-scorecard.js`）→ `.claude/scripts/lib/`，与 `mcp/*.js` 的 `require('../scripts/lib/…')` 对齐；接入 `cmdInitClaude` + managed descriptors；`test-host-installation` / `test-mcp-servers` 回归。
 - 专家质量探针与实测标准收口：`MeasuredVerificationStandard` 写入 `compliance` SC14、`analyze-default` PCV-2a、`report`、`expert-output-quality`、`test-router`（`expertOutputQuality`）；V84 增加 raw-text 最小锚点区分力（防止 canonical reader 掩盖完全缺失），修正 profile skillCount 探针，不再要求所有薄消费者堆完整 Gate 长清单。

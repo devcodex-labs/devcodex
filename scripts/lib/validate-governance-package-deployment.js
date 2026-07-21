@@ -84,7 +84,10 @@ function buildGovernancePackageDeploymentChecks(ctx) {
         seen.add(file)
         const fullPath = path.join(ROOT, file)
         if (!fs.existsSync(fullPath)) return [file]
+        // Strip line/block comments so doc examples like require('../scripts/lib/...') are not scanned.
         const content = read(fullPath)
+          .replace(/\/\*[\s\S]*?\*\//g, '')
+          .replace(/^\s*\/\/.*$/gm, '')
         const deps = []
         for (const match of content.matchAll(/require\(['"](\.{1,2}\/[^'"]+)['"]\)/g)) {
           deps.push(resolveLocalDependency(file, match[1]))

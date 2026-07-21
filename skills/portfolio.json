@@ -5,14 +5,14 @@
   "generatedFrom": {
     "skillsPattern": "skills/*/SKILL.md",
     "registry": "plugin.json",
-    "sourceDigest": "d625bd7c306d0ce79c03af88471c8bf6323ba41cd590fb44abb7ab27a8ec5d89",
+    "sourceDigest": "0941b1520cd18739d2799722c11dfd5432da2639524a61238f9dd3817011a68f",
     "pluginDigest": "3e417180688c359025e64d584c098b5ef5ba112cf2ef8ca970f1c5589fe3d2bb",
     "portfolioEvidence": "skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "85229c1463a5068750d5417e5ebf960907532dccf99b1cd3da0a88f7007792b4",
     "consumerInventoryFileCount": 506,
     "consumerInventoryDigest": "eca8fd6129fe2ca143fc95be77ee37d4692e004b9e2519a979401c7484bf6ba4",
-    "consumerProjectionDigest": "348b40443eabd0fb949885e1eb80505b034e26795665b64c238abd25a15bc910",
-    "portfolioInputDigest": "e4e5d4d4b64a5ad98e968d1c5f2ed2ab93e4c30590623dd9cb6da42bcf41927e"
+    "consumerProjectionDigest": "c6df0ba0a96c3f3f417591af7f6147984f17eb901263518c9e449d5010bda4cf",
+    "portfolioInputDigest": "e7edf8a9327a0230d91c7f0ab08112708b4080ccc55169cda253e312ec136165"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -26,7 +26,7 @@
     "conflictReviewedCount": 81,
     "operationalEvidenceCompleteCount": 81,
     "triggerPrecisionMeasuredCount": 0,
-    "instructionBudgetP95Bytes": 19856,
+    "instructionBudgetP95Bytes": 21062,
     "triggerQuality": "structural-only"
   },
   "dependencyGraph": {
@@ -3544,8 +3544,8 @@
         "skills/audit-requirements/SKILL.md"
       ],
       "source": "skills/audit-requirements/SKILL.md",
-      "hash": "0f88d12cb1d57dbee7dfb2a49412c610436175d795cddd553a5331b534b8c06a",
-      "sourceBytes": 8345,
+      "hash": "155f1793aeba13925ce4d04c3422ad82e3aeab0a142081f71c5855dd9accdc74",
+      "sourceBytes": 12518,
       "version": "1.15.2",
       "lifecycleState": "active",
       "dependencies": [],
@@ -4833,8 +4833,8 @@
         "skills/compliance/SKILL.md"
       ],
       "source": "skills/compliance/SKILL.md",
-      "hash": "06c07a30a3b42a10037b767cf7f0e682af0a672a2ffd7939db35ab9db6c50e1f",
-      "sourceBytes": 15359,
+      "hash": "1fc935163d257cc7d9a5739c2c713d22444cce85537b244b1d06db5662f787b4",
+      "sourceBytes": 17554,
       "version": "1.15.2",
       "lifecycleState": "active",
       "dependencies": [],
@@ -5617,8 +5617,8 @@
         "skills/cp-gate/SKILL.md"
       ],
       "source": "skills/cp-gate/SKILL.md",
-      "hash": "62393ede67a997bbb31f26d8b0b5c2a952e2486009ca2bf931c02a3757b019f3",
-      "sourceBytes": 19856,
+      "hash": "a0a7f5871a0a06b4e39cb90def4cf32f8d55089d1a3eace528afb29ab5637ef9",
+      "sourceBytes": 21062,
       "version": "1.15.2",
       "lifecycleState": "active",
       "dependencies": [],
@@ -7358,8 +7358,8 @@
         "skills/dev-plan-review/SKILL.md"
       ],
       "source": "skills/dev-plan-review/SKILL.md",
-      "hash": "8740d0a1224b7accd893b6843c6ba78efe246e8b508e2874ab9fb29ab12593b7",
-      "sourceBytes": 20978,
+      "hash": "4aeb0e9a48d81dc2757f105c047a12b5eaa5264b017efd2fee6be2a0366e7caa",
+      "sourceBytes": 21152,
       "version": "1.15.2",
       "lifecycleState": "active",
       "dependencies": [],
@@ -9305,8 +9305,8 @@
         "skills/expert-output-quality/SKILL.md"
       ],
       "source": "skills/expert-output-quality/SKILL.md",
-      "hash": "b28894f105ecd9e6a712d6a7cf9c1f660011fdeace3ef9894c6597b1ab325fdf",
-      "sourceBytes": 8735,
+      "hash": "b3376ac14d1ee1a4452e8c66d42dbb0d3e04b2753c1b58940f502ce8ade77341",
+      "sourceBytes": 9075,
       "version": "1.15.2",
       "lifecycleState": "active",
       "dependencies": [],
@@ -12308,6 +12308,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/discipline-execution-probe.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/host-parity-scorecard.js",
           "role": "current"
         },
@@ -13471,6 +13475,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-discipline-execution-probe.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-execution-chain-evolution.js",
           "role": "current"
         },
@@ -13772,6 +13780,7 @@
         "scripts/test-context-read-contract.js",
         "scripts/test-control-plane-contracts.js",
         "scripts/test-control-plane-module-contracts.js",
+        "scripts/test-discipline-execution-probe.js",
         "scripts/test-execution-chain-evolution.js",
         "scripts/test-governance-intake.js",
         "scripts/test-governance-status-summary.js",
@@ -13845,6 +13854,7 @@
           "scripts/test-context-read-contract.js",
           "scripts/test-control-plane-contracts.js",
           "scripts/test-control-plane-module-contracts.js",
+          "scripts/test-discipline-execution-probe.js",
           "scripts/test-execution-chain-evolution.js",
           "scripts/test-governance-intake.js",
           "scripts/test-governance-status-summary.js",
@@ -15619,8 +15629,8 @@
         "skills/report/SKILL.md"
       ],
       "source": "skills/report/SKILL.md",
-      "hash": "2b42ffb7fa51db6d0195206e8d731cc670e08bf4c7be346397d93f4484ddd7ba",
-      "sourceBytes": 14746,
+      "hash": "ff59c642395e3a4f71bdbe31b030a560bd9095bd60d36889eccc199b27cee317",
+      "sourceBytes": 15174,
       "version": "1.15.2",
       "lifecycleState": "active",
       "dependencies": [],

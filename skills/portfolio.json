@@ -11,10 +11,10 @@
     "pluginDigest": "425bf30edb976d8daded86730f3e41e78f39dc64a47430a9cf4eee529b7364a9",
     "portfolioEvidence": "skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "85229c1463a5068750d5417e5ebf960907532dccf99b1cd3da0a88f7007792b4",
-    "consumerInventoryFileCount": 511,
-    "consumerInventoryDigest": "3e9c9c73d008577045e1244093ad05ff601da9e560d053e864a5e5716faed03b",
-    "consumerProjectionDigest": "dc4fc8a0d3774491be81dcc7d7c4f0b8f3c011d24316d016b21e2355dd78d2b3",
-    "portfolioInputDigest": "f8600bbbb149293a17d66a234182a4b975386d68e6ad08dea478977bcbd7309f"
+    "consumerInventoryFileCount": 512,
+    "consumerInventoryDigest": "d92e98461c3ac325f3f9284204d609c68fe079696e81147eef06c3b8d55043e7",
+    "consumerProjectionDigest": "7252cc153a2a856f89b3f052b2e17d3f34bd0aa6142903946901a8889df2cbba",
+    "portfolioInputDigest": "5d384ac84d6f168327c654c862d3dcab8af9019ab5f9df9c61c6d642727ad6cd"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -1018,6 +1018,10 @@
         },
         {
           "path": "changelogs/releases/v1.15.0.md",
+          "role": "historical"
+        },
+        {
+          "path": "changelogs/releases/v1.15.3.md",
           "role": "historical"
         },
         {
@@ -4898,6 +4902,10 @@
         },
         {
           "path": "changelogs/releases/v1.15.0.md",
+          "role": "historical"
+        },
+        {
+          "path": "changelogs/releases/v1.15.3.md",
           "role": "historical"
         },
         {
@@ -9366,6 +9374,10 @@
           "role": "historical"
         },
         {
+          "path": "changelogs/releases/v1.15.3.md",
+          "role": "historical"
+        },
+        {
           "path": "plugin.json",
           "role": "current"
         },
@@ -11765,6 +11777,10 @@
           "role": "historical"
         },
         {
+          "path": "changelogs/releases/v1.15.3.md",
+          "role": "historical"
+        },
+        {
           "path": "changelogs/releases/v1.4.0.md",
           "role": "historical"
         },
@@ -12105,6 +12121,10 @@
         },
         {
           "path": "changelogs/releases/v1.15.2.md",
+          "role": "historical"
+        },
+        {
+          "path": "changelogs/releases/v1.15.3.md",
           "role": "historical"
         },
         {
@@ -13154,6 +13174,10 @@
         },
         {
           "path": "changelogs/releases/v1.15.2.md",
+          "role": "historical"
+        },
+        {
+          "path": "changelogs/releases/v1.15.3.md",
           "role": "historical"
         },
         {
@@ -15809,6 +15833,10 @@
         },
         {
           "path": "changelogs/releases/v1.15.0.md",
+          "role": "historical"
+        },
+        {
+          "path": "changelogs/releases/v1.15.3.md",
           "role": "historical"
         },
         {
@@ -19507,6 +19535,10 @@
         },
         {
           "path": "changelogs/releases/v1.15.0.md",
+          "role": "historical"
+        },
+        {
+          "path": "changelogs/releases/v1.15.3.md",
           "role": "historical"
         },
         {

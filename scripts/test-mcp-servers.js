@@ -764,6 +764,93 @@ function testMemoryCpConfirmPreservesOrdinaryTables() {
   assert.strictEqual(legacyParsedByOwner.CP2.confirmed, true)
 }
 
+/**
+ * PF-162 / GR-068: sessions.md already has a 5-col session index table and no CP section.
+ * Writer must append a dedicated CP block (heading + 7-col header + CP1~CP3), never a bare CP row under the index table.
+ * Also repairs orphan CP rows previously leaked under the ordinary table.
+ */
+function testMemoryCpConfirmGenericSessionIndexWithoutCpSection() {
+  setupLegacyWorkspace()
+  const taskRoot = path.join(TEMP_ROOT, '.devcodex', 'requirements', '会话索引无CP表')
+  const sessionsPath = path.join(taskRoot, '.memory', 'sessions.md')
+  const artifactPath = path.join(taskRoot, '01-需求确认.md')
+  fs.mkdirSync(path.dirname(sessionsPath), { recursive: true })
+  fs.writeFileSync(artifactPath, '# 需求确认\nv0.1\n', 'utf8')
+  const sessionIndex = [
+    '# Requirement Sessions — 会话索引无CP表',
+    '',
+    '| 日期 | 会话 | 变更 | 产物 | 状态 |',
+    '|------|------|------|------|------|',
+    '| 2026-07-20 | 01 | 需求整理 | `00-需求概况.md` | 🔄 |',
+    '| 2026-07-20 | 02 | CP1 草稿 | `01-需求确认.md` | 🔄 |',
+    ''
+  ].join('\n')
+  fs.writeFileSync(sessionsPath, sessionIndex, 'utf8')
+  const digest = crypto.createHash('sha256').update(fs.readFileSync(artifactPath)).digest('hex')
+
+  const first = runServer('mcp/memory-server.js', [
+    rpcRequest(1, 'tools/call', {
+      name: 'memory_cp_confirm',
+      arguments: {
+        requirement: '会话索引无CP表',
+        phase: 'CP1',
+        time: '18:32',
+        artifactPath: '01-需求确认.md',
+        artifactVersion: 'v0.1',
+        artifactSha256: digest,
+        sourceMessage: '确认需求'
+      }
+    })
+  ], TEMP_ROOT)
+  const confirmation = resultById(first, 1)
+  assert.strictEqual(confirmation.isError, undefined, 'confirm must succeed')
+  assert.strictEqual(confirmation.structuredContent.readbackVerified, true)
+  assert.strictEqual(confirmation.structuredContent.cpRowCount, 3)
+
+  let sessions = fs.readFileSync(sessionsPath, 'utf8')
+  const beforeCp = sessions.split(/^### CP 确认记录$/m)[0]
+  assert.ok(beforeCp.includes('| 日期 | 会话 | 变更 | 产物 | 状态 |'), 'session index header must remain')
+  assert.ok(beforeCp.includes('| 2026-07-20 | 01 |'), 'session index rows must remain')
+  assert.strictEqual((beforeCp.match(/^\|\s*CP[123]\s*\|/gm) || []).length, 0, 'no CP data rows under session index')
+  assert.strictEqual((sessions.match(/^### CP 确认记录$/gm) || []).length, 1)
+  assert.match(sessions, /\| CP \| 状态 \| artifactPath \| version \| sha256 \| sourceMessage \| confirmedAt \|/)
+  assert.strictEqual((sessions.match(/^\|\s*CP[123]\s*\|/gm) || []).length, 3)
+  assert.match(sessions, /\| CP1 \| ✅ \|/)
+  const parsed = parseCpSessions(sessions)
+  assert.strictEqual(parsed.CP1.confirmed, true)
+  assert.strictEqual(parsed.CP1.artifactSha256, digest.toUpperCase())
+
+  // Malformed mixed table: orphan 7-col CP row under 5-col index without CP heading (historical false-success shape)
+  const polluted = [
+    sessionIndex.trimEnd(),
+    '',
+    `| CP1 | ✅ | \`01-需求确认.md\` | v0.1 | \`${digest.toUpperCase()}\` | 旧泄漏行 | 17:00 |`,
+    ''
+  ].join('\n')
+  fs.writeFileSync(sessionsPath, polluted, 'utf8')
+  const repair = runServer('mcp/memory-server.js', [
+    rpcRequest(2, 'tools/call', {
+      name: 'memory_cp_confirm',
+      arguments: {
+        requirement: '会话索引无CP表',
+        phase: 'CP1',
+        time: '18:40',
+        artifactPath: '01-需求确认.md',
+        artifactVersion: 'v0.1',
+        artifactSha256: digest,
+        sourceMessage: '修复后重确认'
+      }
+    })
+  ], TEMP_ROOT)
+  assert.strictEqual(resultById(repair, 2).structuredContent.readbackVerified, true)
+  sessions = fs.readFileSync(sessionsPath, 'utf8')
+  const beforeAfterRepair = sessions.split(/^### CP 确认记录$/m)[0]
+  assert.strictEqual((beforeAfterRepair.match(/^\|\s*CP[123]\s*\|/gm) || []).length, 0, 'orphan CP row under index must be stripped')
+  assert.strictEqual((sessions.match(/^### CP 确认记录$/gm) || []).length, 1)
+  assert.strictEqual((sessions.match(/^\|\s*CP[123]\s*\|/gm) || []).length, 3)
+  assert.match(sessions, /修复后重确认/)
+}
+
 function testMemoryProjectionQueriesAndZeroWrite() {
   const fixture = setupMemoryProjectionFixture()
   const memoryRoot = path.join(TEMP_ROOT, '.devcodex', '.memory')
@@ -2073,6 +2160,7 @@ testMemoryActualHostEnvAgent()
 testMemoryCpConfirmForBugs()
 testMemoryCpConfirmForExtendedTaskKinds()
 testMemoryCpConfirmPreservesOrdinaryTables()
+testMemoryCpConfirmGenericSessionIndexWithoutCpSection()
 testMemoryProjectionQueriesAndZeroWrite()
 testMemoryProjectionErrorsAndMalformedSources()
 testMemoryProjectionLayoutTargets()

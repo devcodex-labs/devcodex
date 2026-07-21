@@ -422,6 +422,14 @@ function taskMemoryTransactionTarget(args = {}) {
   }
 }
 
+function isCpDataRow(line) {
+  return /^\|\s*CP[123]\s*\|/.test(String(line || '').trim())
+}
+
+/**
+ * Locate the dedicated CP confirmation table only.
+ * Must not treat ordinary session/index Markdown tables as CP tables (PF-162 / GR-068).
+ */
 function locateCpTableBlock(text) {
   const lines = String(text || '').replace(/\r\n/g, '\n').split('\n')
   const headingIndex = lines.findIndex(line => CP_HEADING_RE.test(line.trim()))
@@ -435,16 +443,19 @@ function locateCpTableBlock(text) {
       }
     }
   }
+  // Only scan global headers when they are true CP headers (not any table with a "状态" column)
   if (headerIndex < 0) headerIndex = lines.findIndex(line => CP_TABLE_HEADER_RE.test(line.trim()))
   if (headerIndex < 0 && headingIndex < 0) return { lines, found: false }
 
   if (headerIndex < 0) {
+    // Heading without a CP table: treat as incomplete block to be replaced
     return {
       lines,
       found: true,
       start: headingIndex,
       end: headingIndex + 1,
-      headingLine: lines[headingIndex]
+      headingLine: lines[headingIndex],
+      incomplete: true
     }
   }
 
@@ -456,7 +467,38 @@ function locateCpTableBlock(text) {
     found: true,
     start,
     end,
-    headingLine: headingIndex >= 0 && headingIndex < headerIndex ? lines[headingIndex] : '### CP 确认记录'
+    headingLine: headingIndex >= 0 && headingIndex < headerIndex ? lines[headingIndex] : '### CP 确认记录',
+    incomplete: false
+  }
+}
+
+/** Strip orphan | CP1 | rows that leaked outside a dedicated CP table (false-success repair). */
+function stripOrphanCpRowsOutsideBlock(text) {
+  const location = locateCpTableBlock(text)
+  const lines = location.lines
+  const protectedStart = location.found ? location.start : lines.length
+  const protectedEnd = location.found ? location.end : lines.length
+  const cleaned = lines.filter((line, index) => {
+    if (index >= protectedStart && index < protectedEnd) return true
+    return !isCpDataRow(line)
+  })
+  return cleaned.join('\n')
+}
+
+/**
+ * Fail closed if CP data rows appear before the dedicated CP section
+ * (pollution of ordinary 5-col session index tables).
+ */
+function assertNoCpRowsOutsideDedicatedBlock(text) {
+  const location = locateCpTableBlock(text)
+  const lines = String(text || '').replace(/\r\n/g, '\n').split('\n')
+  const start = location.found ? location.start : lines.length
+  const end = location.found ? location.end : lines.length
+  for (let index = 0; index < lines.length; index += 1) {
+    if (index >= start && index < end) continue
+    if (isCpDataRow(lines[index])) {
+      throw new Error('ConfirmBindingGate: CP rows leaked into non-CP section of sessions.md')
+    }
   }
 }
 
@@ -484,8 +526,10 @@ function existingCpPhaseRow(parsed, phase) {
 
 function renderCpConfirmation(existing, args, binding) {
   const newline = String(existing || '').includes('\r\n') ? '\r\n' : '\n'
-  const location = locateCpTableBlock(existing)
-  const priorBlock = location.found
+  // Drop orphan CP rows that were previously appended under ordinary tables (PF-162 repair)
+  const sanitized = stripOrphanCpRowsOutsideBlock(existing)
+  const location = locateCpTableBlock(sanitized)
+  const priorBlock = location.found && !location.incomplete
     ? location.lines.slice(location.start, location.end).join('\n')
     : ''
   const parsed = parseCpTableRows(priorBlock)
@@ -501,7 +545,7 @@ function renderCpConfirmation(existing, args, binding) {
   }
 
   const renderedLines = renderExtendedCpTable(phases).split('\n')
-  renderedLines[0] = location.headingLine || (existing ? '### CP 确认记录' : `# ${args.requirement} — CP 确认记录`)
+  renderedLines[0] = (location.found && location.headingLine) || (sanitized ? '### CP 确认记录' : `# ${args.requirement} — CP 确认记录`)
   const rendered = renderedLines.join('\n')
   let output
   if (location.found) {
@@ -511,7 +555,8 @@ function renderCpConfirmation(existing, args, binding) {
       ...location.lines.slice(location.end)
     ].join('\n')
   } else {
-    output = `${String(existing || '').trimEnd()}${existing ? '\n\n' : ''}${rendered}`
+    // Never append a bare CP data row; always materialize heading + header + CP1~CP3
+    output = `${String(sanitized || '').trimEnd()}${sanitized ? '\n\n' : ''}${rendered}`
   }
   return output.replace(/\n/g, newline).replace(new RegExp(`${newline}*$`), newline)
 }
@@ -1412,12 +1457,14 @@ function handleMemoryCpConfirm(args) {
     time
   }))
   const persisted = readFile(p)
+  assertNoCpRowsOutsideDedicatedBlock(persisted)
   const block = locateCpTableBlock(persisted)
   const blockText = block.found ? block.lines.slice(block.start, block.end).join('\n') : ''
   const parsed = parseCpTableRows(blockText)
   const phaseRow = parsed[args.phase]
   const cpRowCount = (blockText.match(/^\|\s*CP[123]\s*\|/gm) || []).length
-  if (!block.found || !EXTENDED_CP_TABLE_HEADER_RE.test(blockText.split('\n').find(line => EXTENDED_CP_TABLE_HEADER_RE.test(line.trim())) || '') ||
+  if (!block.found || block.incomplete ||
+      !EXTENDED_CP_TABLE_HEADER_RE.test(blockText.split('\n').find(line => EXTENDED_CP_TABLE_HEADER_RE.test(line.trim())) || '') ||
       cpRowCount !== 3 || !phaseRow?.confirmed) {
     throw new Error('ConfirmBindingGate: CP confirmation readback is incomplete or malformed')
   }

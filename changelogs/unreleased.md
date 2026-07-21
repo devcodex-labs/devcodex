@@ -8,6 +8,7 @@
 - 专家质量探针与实测标准收口：`MeasuredVerificationStandard` 写入 `compliance` SC14、`analyze-default` PCV-2a、`report`、`expert-output-quality`、`test-router`（`expertOutputQuality`）；V84 增加 raw-text 最小锚点区分力（防止 canonical reader 掩盖完全缺失），修正 profile skillCount 探针，不再要求所有薄消费者堆完整 Gate 长清单。
 - 复审 R1 短修：`instructions/17-compliance.instructions.md` SC14 与 Skill 同源；`gate-registry` expert-output-quality 增加 `measuredVerification` / MVS legacyAnchors；V84 raw 强制对账 instructions+registry（防 VL-072 类逃逸）。
 - PF-148 切片：validation-dag 增加 nested `delegatedClosure` 脚本路径存在性与 top-level leaf 命令一致性校验，并补负向 fixture。
+- PF-162 / GR-068：`memory_cp_confirm` 禁止将 CP 行写入普通会话索引表；写后校验无区外 CP 行；剥离历史孤儿 CP 行；新增 5 列索引无 CP 区块与污染表负向 fixture。
 - `devcodex status` / `devcodex doctor` 增加只读 `GovernanceStatusSummaryV1`：汇总 runtime-state、ledger 退役候选、Skill/gray lifecycle、执行优化证据、Gate registry、host truth、dirty boundary 与 fail-closed fast-path 决策；JSON 输出挂载到 `payload.governanceSummary`，human 输出只增加一行治理概览。
 - 新增 `SimpleGovernanceFastPathDecisionV1`，将可见输出 compact 条件显式化；控制面、source mutation、共享状态、风险非 low、CP 未确认、证据缺失或非 compactable message kind 均 fail-closed 到 full。
 - 新增 `scripts/lib/governance-status-summary.js` 与 `scripts/test-governance-status-summary.js`，并接入 `test:control-plane` / `test:optimization-controls`；不新增依赖、不改发布版本、不执行 tag/push/publish。

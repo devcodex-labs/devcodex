@@ -5,14 +5,14 @@
   "generatedFrom": {
     "skillsPattern": "skills/*/SKILL.md",
     "registry": "plugin.json",
-    "sourceDigest": "9d78fec5690144fb3d4a741fdb7e01ab504b34dbc513ceb894fe32d4419782e2",
+    "sourceDigest": "2a949c4d96e6038672fcbd261b928841c9402ed3ce8e4056da86826c79103a08",
     "pluginDigest": "3e417180688c359025e64d584c098b5ef5ba112cf2ef8ca970f1c5589fe3d2bb",
     "portfolioEvidence": "skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "85229c1463a5068750d5417e5ebf960907532dccf99b1cd3da0a88f7007792b4",
-    "consumerInventoryFileCount": 502,
-    "consumerInventoryDigest": "9b335e838b8a3a05d123768ada3f60f178bdb63e83846e50afd4d3ffc0d95b65",
-    "consumerProjectionDigest": "d4a29f6c1c1d77cc15c750fa9ed69991a5ab423cc76fbdb49d89c5d1ff7c70b6",
-    "portfolioInputDigest": "42ea3fe5ee858526671350b857c541eb8cb9310fab233d0585697b8f034e184a"
+    "consumerInventoryFileCount": 504,
+    "consumerInventoryDigest": "d7e603f5952c0c45a97de3e8a0155363c1d8c86d60e10bb394d6d280f6b180a8",
+    "consumerProjectionDigest": "6d4ec8ed6c4f85ece0803a783c4c4242dfd37f5f5edafc9928e99e1846f576ef",
+    "portfolioInputDigest": "d924a8ebc1dc3fdf9412f72e7a5f5872a580cd40b581c7f655df6aa4c7d1ae40"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -15615,8 +15615,8 @@
         "skills/report/SKILL.md"
       ],
       "source": "skills/report/SKILL.md",
-      "hash": "7f38582b670d8889b53d9936c5ee9da5225a97c5f89461b121e90fb0da60f6f1",
-      "sourceBytes": 14147,
+      "hash": "2b42ffb7fa51db6d0195206e8d731cc670e08bf4c7be346397d93f4484ddd7ba",
+      "sourceBytes": 14746,
       "version": "1.15.2",
       "lifecycleState": "active",
       "dependencies": [],
@@ -15966,6 +15966,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/optimization-backlog-evidence.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/skill-portfolio-utils.js",
           "role": "current"
         },
@@ -16099,6 +16103,10 @@
         },
         {
           "path": "scripts/test-migrate-layout.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-optimization-backlog-evidence.js",
           "role": "current"
         },
         {
@@ -16315,6 +16323,7 @@
         "scripts/test-instruction-fallback-check.js",
         "scripts/test-mcp-servers.js",
         "scripts/test-migrate-layout.js",
+        "scripts/test-optimization-backlog-evidence.js",
         "scripts/test-project-knowledge-store.js",
         "scripts/test-review-execution-contract.js",
         "scripts/test-skill-portfolio.js",
@@ -16380,6 +16389,7 @@
           "scripts/test-instruction-fallback-check.js",
           "scripts/test-mcp-servers.js",
           "scripts/test-migrate-layout.js",
+          "scripts/test-optimization-backlog-evidence.js",
           "scripts/test-project-knowledge-store.js",
           "scripts/test-review-execution-contract.js",
           "scripts/test-skill-portfolio.js",

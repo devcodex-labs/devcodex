@@ -409,6 +409,125 @@ function runHooksRuntimeVisibilityScenarios(context) {
   assert.strictEqual(legacyArtifactState.visible.artifactStatus, 'unverified')
   assert.ok(legacyArtifactState.visible.artifactMissingItems.includes('legacy-artifact-format'))
 
+  // PF-163: bare path list without allowed semantic headings
+  cleanState()
+  run({
+    hookEventName: 'UserPromptSubmit',
+    prompt: 'Finish delivery with bare path list only.'
+  })
+  runBootstrapReads()
+  run({
+    hookEventName: 'PostToolUse',
+    tool_name: 'apply_patch',
+    tool_input: {
+      input: '*** Begin Patch\n*** Add File: .devcodex/reports/analysis/claude-code/20260525/02--bare.md\n+# report\n*** End Patch'
+    }
+  })
+  run({
+    hookEventName: 'PostToolUse',
+    tool_name: 'apply_patch',
+    tool_input: {
+      input: `*** Begin Patch\n*** Update File: ${getMemoryFilePath(TEST_AGENT, 'tasks', `${getTaskStamp(0)}.md`)}\n*** End Patch`
+    }
+  })
+  const barePathListReply = run({
+    hookEventName: 'Stop',
+    assistantMessage: [
+      '### DevCodex · 入口检查',
+      'PC0 [PASS]',
+      '🛡️ DEV 模式 | 合规检查',
+      'FC: FC1 [✅] FC2 [✅]',
+      '',
+      '核心文件：',
+      '- reports/analysis/claude-code/20260525/02--bare.md',
+      '- E:\\Worker\\devcodex-v1\\.devcodex\\reports\\analysis\\claude-code\\20260525\\02--bare.md'
+    ].join('\n')
+  })
+  assert.match(barePathListReply.systemMessage || '', /用户可见交付不完整|无法验证最终用户可见回复的产物交付/)
+  const barePathState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.notStrictEqual(barePathState.visible.artifactStatus, 'verified-present')
+  assert.ok(
+    barePathState.visible.artifactMissingItems.includes('bare-path-list') ||
+    barePathState.visible.artifactMissingItems.includes('bare-path-items') ||
+    barePathState.visible.artifactMissingItems.includes('legacy-artifact-format') ||
+    barePathState.visible.artifactMissingItems.includes('artifact-section'),
+    'bare path delivery must be flagged: ' + JSON.stringify(barePathState.visible.artifactMissingItems)
+  )
+
+  // PF-163: allowed heading but absolute paths without 操作 clause
+  cleanState()
+  run({
+    hookEventName: 'UserPromptSubmit',
+    prompt: 'Finish delivery with absolute paths only under completion heading.'
+  })
+  runBootstrapReads()
+  run({
+    hookEventName: 'PostToolUse',
+    tool_name: 'apply_patch',
+    tool_input: {
+      input: '*** Begin Patch\n*** Add File: .devcodex/reports/analysis/claude-code/20260525/03--abs.md\n+# report\n*** End Patch'
+    }
+  })
+  run({
+    hookEventName: 'PostToolUse',
+    tool_name: 'apply_patch',
+    tool_input: {
+      input: `*** Begin Patch\n*** Update File: ${getMemoryFilePath(TEST_AGENT, 'tasks', `${getTaskStamp(0)}.md`)}\n*** End Patch`
+    }
+  })
+  run({
+    hookEventName: 'Stop',
+    assistantMessage: [
+      '### DevCodex · 入口检查',
+      'PC0 [PASS]',
+      '🛡️ DEV 模式 | 合规检查',
+      'FC: FC1 [✅]',
+      '',
+      '#### 完成交付文件',
+      '- E:\\Worker\\devcodex-v1\\.devcodex\\reports\\analysis\\claude-code\\20260525\\03--abs.md',
+      '`DevCodexVisibleEnvelopeV1 · final-result · PASS · aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`'
+    ].join('\n')
+  })
+  const absPathState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(absPathState.visible.artifactStatus, 'verified-missing')
+  assert.ok(
+    absPathState.visible.artifactMissingItems.includes('semantic-artifact-items') ||
+    absPathState.visible.artifactMissingItems.includes('bare-absolute-paths'),
+    'absolute path without action must not be verified-present: ' + JSON.stringify(absPathState.visible.artifactMissingItems)
+  )
+
+  // PF-163: unobserved Stop payload still records semantic-artifact-items for completion evidence
+  cleanState()
+  run({
+    hookEventName: 'UserPromptSubmit',
+    prompt: 'Finish with report but host omits Stop body.'
+  })
+  runBootstrapReads()
+  run({
+    hookEventName: 'PostToolUse',
+    tool_name: 'apply_patch',
+    tool_input: {
+      input: '*** Begin Patch\n*** Add File: .devcodex/reports/analysis/claude-code/20260525/04--unobs.md\n+# report\n*** End Patch'
+    }
+  })
+  run({
+    hookEventName: 'PostToolUse',
+    tool_name: 'apply_patch',
+    tool_input: {
+      input: `*** Begin Patch\n*** Update File: ${getMemoryFilePath(TEST_AGENT, 'tasks', `${getTaskStamp(0)}.md`)}\n*** End Patch`
+    }
+  })
+  const unobservedReply = run({
+    hookEventName: 'Stop'
+    // no assistantMessage / transcript — payload unobserved
+  })
+  assert.match(unobservedReply.systemMessage || '', /无法验证最终用户可见回复的产物交付/)
+  assert.match(unobservedReply.systemMessage || '', /semantic-artifact-items|missingItems=/)
+  const unobservedState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(unobservedState.visible.artifactStatus, 'unverified')
+  assert.ok(unobservedState.visible.artifactMissingItems.includes('semantic-artifact-items'))
+  assert.ok(unobservedState.visible.artifactMissingItems.includes('visible-payload-unobserved'))
+
   cleanState()
   run({
     hookEventName: 'UserPromptSubmit',

@@ -210,6 +210,7 @@ for (const output of [richText, portableText, plainText]) {
   for (const check of envelope.checks) assert.match(output, new RegExp(`${check.id} \\[${check.status.replace('/', '\\/')}\\]`))
   for (const item of entrySet.items) assert.match(output, new RegExp(item.displayName))
   assert.doesNotMatch(output, /主要产物|本次会话全部产物/)
+  assert.doesNotMatch(output, /核心文件|路径列表/)
 }
 assert.doesNotMatch(richText, /绝对路径[:：]/)
 assert.doesNotMatch(portableText, /绝对路径[:：]/)

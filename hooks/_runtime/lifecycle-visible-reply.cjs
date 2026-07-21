@@ -19,6 +19,7 @@ function buildLifecycleVisibleReplyUtils(ctx) {
 
   /**
    * Classify final-surface artifact evidence without inferring content that the host did not expose.
+   * PF-163: also detect bare path lists / filename-only delivery outside allowed semantic headings.
    * @param {string} text visible assistant reply
    * @returns {{status: string, missingItems: string[], linkCount: number}}
    */
@@ -28,9 +29,14 @@ function buildLifecycleVisibleReplyUtils(ctx) {
     let sectionFound = false
     let envelopeMarker = false
     let legacyLabel = false
+    let barePathListHeading = false
+    let barePathBulletCount = 0
+    let bareAbsoluteInSection = 0
     let linkCount = 0
     let semanticItemCount = 0
     let semanticDigest = ''
+    const barePathHeadingRe = /^\s*(?:#{1,6}\s*)?(?:核心文件|主要文件|关键文件|路径列表|交付路径|相关路径|相关文件)[:：]?\s*$/i
+    const barePathBulletRe = /^\s*[-*]\s*(?:`?[\w./\\-]+\.(?:md|json|js|cjs|mjs|ts)`?|[A-Za-z]:\\[^\s]+)\s*$/
     for (let index = 0; index < lines.length; index++) {
       const line = lines[index]
       const marker = line.match(/DevCodexVisibleEnvelopeV1\s*·\s*(?:entry-check|completion-check|confirmation|progress|final-result|error-block)\s*·\s*(?:PASS|WARN|BLOCK|UNVERIFIED|N\/A)\s*·\s*([a-f0-9]{64})/)
@@ -44,26 +50,48 @@ function buildLifecycleVisibleReplyUtils(ctx) {
         continue
       }
       if (/📂\s*本次会话产物|主要产物|primary artifacts?/i.test(line)) legacyLabel = true
-      if (!inArtifactSection) continue
+      if (barePathHeadingRe.test(line)) {
+        barePathListHeading = true
+        legacyLabel = true
+      }
+      if (!inArtifactSection) {
+        if (barePathBulletRe.test(line)) barePathBulletCount += 1
+        continue
+      }
       if (/^#{1,6}\s+/.test(line)) break
       if (/^\s*-\s*\[[^\]]+\]\((?:<)?[^\)]+(?:>)?\)/.test(line)) linkCount += 1
       if (/^\s*-\s*(?:\[[^\]]+\]\([^\)]+\)|[^—\[]+)\s*—\s*.+(?:操作|action)[:：]/i.test(line)) {
         semanticItemCount += 1
+      } else if (/^\s*[-*]\s*(?:[A-Za-z]:\\|`?[A-Za-z]:\\)/.test(line) || barePathBulletRe.test(line)) {
+        // Absolute path or bare filename bullet inside delivery section without action clause
+        bareAbsoluteInSection += 1
       }
     }
     const missingItems = []
     if (!sectionFound) missingItems.push('artifact-section')
     if (!envelopeMarker) missingItems.push(legacyLabel ? 'legacy-artifact-format' : 'visible-envelope-marker')
     if (sectionFound && !semanticItemCount) missingItems.push('semantic-artifact-items')
-    const status = legacyLabel && !envelopeMarker
+    if (barePathListHeading && !sectionFound) missingItems.push('bare-path-list')
+    if (barePathBulletCount > 0 && !sectionFound) missingItems.push('bare-path-items')
+    if (sectionFound && bareAbsoluteInSection > 0 && semanticItemCount === 0) {
+      missingItems.push('bare-absolute-paths')
+    }
+    // Unique missing items while preserving order
+    const uniqueMissing = []
+    for (const item of missingItems) {
+      if (!uniqueMissing.includes(item)) uniqueMissing.push(item)
+    }
+    const status = (legacyLabel || barePathListHeading || barePathBulletCount > 0) && !envelopeMarker
       ? 'unverified'
-      : missingItems.length ? 'verified-missing' : 'verified-present'
+      : uniqueMissing.length ? 'verified-missing' : 'verified-present'
     return {
       status,
-      missingItems,
+      missingItems: uniqueMissing,
       linkCount,
       semanticItemCount,
-      semanticDigest
+      semanticDigest,
+      barePathListHeading,
+      barePathBulletCount
     }
   }
 
@@ -74,8 +102,9 @@ function buildLifecycleVisibleReplyUtils(ctx) {
     state.visible.replySource = evidence.source || ''
     state.visible.artifactEvidenceSource = evidence.source || ''
     if (!evidence.observed) {
+      // PF-163: unobserved payload cannot invent delivery; still surface semantic-artifact gap for completion evidence
       state.visible.artifactStatus = 'unverified'
-      state.visible.artifactMissingItems = []
+      state.visible.artifactMissingItems = ['visible-payload-unobserved', 'semantic-artifact-items']
       state.visible.stopProbe = {
         schemaVersion: 'StopPayloadProbeV1',
         observed: false,
@@ -177,7 +206,8 @@ function buildLifecycleVisibleReplyUtils(ctx) {
       const missing = (state.visible.artifactMissingItems || []).join(', ') || 'artifact-delivery-manifest'
       items.push(`用户可见交付不完整（VisibleOutputHostEvidenceGate：missingItems=${missing}；evidenceSource=${state.visible.artifactEvidenceSource || 'unknown'}）`)
     } else if (eventName === 'Stop' && state.mode === 'dev' && state.reportTouched && artifactStatus === 'unverified') {
-      items.push('无法验证最终用户可见回复的产物交付（Stop/PreCompact 未提供可解析 assistant 内容；状态只能为 unverified）')
+      const missing = (state.visible.artifactMissingItems || []).join(', ') || 'semantic-artifact-items, visible-payload-unobserved'
+      items.push(`无法验证最终用户可见回复的产物交付（Stop/PreCompact 未提供可解析 assistant 内容；状态只能为 unverified；missingItems=${missing}）`)
     }
     if (state.mutated && !state.memoryTouched) items.push('记忆文件尚未写入（S05：会话结束前必须写入）')
     if (state.mutated && !state.reportTouched) items.push('报告文件尚未写入（chat 工作流豁免）')

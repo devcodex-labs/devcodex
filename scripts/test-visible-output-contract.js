@@ -9,13 +9,13 @@ const {
   INTERNAL_ARTIFACT_CLASSES,
   createArtifactDeliveryManifest,
   buildSimpleGovernanceFastPathDecision,
+  classifyArtifactPathColumnSample,
   createLinkCapabilityDecision,
   createVisibleEnvelope,
   projectUserFacingArtifactSet,
   renderVisibleEnvelope,
   shouldUseCompact
 } = require('../hooks/_runtime/visible-output-contract.cjs')
-
 const ROOT = path.resolve(__dirname, '..')
 const WORKSPACE = path.dirname(ROOT)
 
@@ -211,13 +211,36 @@ for (const output of [richText, portableText, plainText]) {
   for (const item of entrySet.items) assert.match(output, new RegExp(item.displayName))
   assert.doesNotMatch(output, /主要产物|本次会话全部产物/)
   assert.doesNotMatch(output, /核心文件|路径列表/)
+  // PF-175: path column required on all presentation tiers
+  assert.match(output, /路径[:：]/)
+  assert.match(output, /\.devcodex[\\/]devcodex-v1/)
 }
 assert.doesNotMatch(richText, /绝对路径[:：]/)
 assert.doesNotMatch(portableText, /绝对路径[:：]/)
+// Rich may use absolute href for clickable open; path cell stays portable
 assert.match(richText, new RegExp(WORKSPACE.replace(/[\\/]/g, '[\\\\/]')))
 assert.doesNotMatch(portableText, new RegExp(WORKSPACE.replace(/[\\/]/g, '[\\\\/]')))
-assert.match(plainText, /\.devcodex[\\/]devcodex-v1/)
 assert.doesNotMatch(plainText, /####|\[[^\]]+\]\([^\)]+\)/)
+
+// PF-175 free-text path column classifier
+assert.strictEqual(
+  classifyArtifactPathColumnSample('#### 完成交付文件\n| 语义名称 | 用途 | 路径 | 操作 |\n| a | b | `.devcodex/x.md` | 查看 |'),
+  'present'
+)
+assert.strictEqual(
+  classifyArtifactPathColumnSample('#### 完成交付文件\n- [报告](x.md) — 用途说明；路径：`.devcodex/x.md`；操作：查看'),
+  'present'
+)
+assert.strictEqual(
+  classifyArtifactPathColumnSample('#### 完成交付文件\n- [报告](x.md) — 用途说明；操作：查看'),
+  'missing-path-column'
+)
+assert.strictEqual(
+  classifyArtifactPathColumnSample('主要产物：\n- E:/Worker/foo.md'),
+  'legacy-bare-path'
+)
+assert.strictEqual(classifyArtifactPathColumnSample('随便聊聊'), 'not-claimed')
+
 const failedEnvelope = createVisibleEnvelope({ ...baseInput, linkCapability: failed })
 assert.strictEqual(failedEnvelope.status, 'BLOCK')
 const failedForSurface = createLinkCapabilityDecision({

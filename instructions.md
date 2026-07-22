@@ -713,7 +713,7 @@ DevCodexVisibleEnvelopeV1 · entry-check · [状态] · [semanticDigest]
 - **用户面禁止输出**：内部工作流 ID（`dev.docs`/`fix.default`）、原始工具参数 XML、内部路由标签、调试 JSON
 - 仅在用户明确追问内部分类/机制时才展开内部术语，且最小化展开
 - 涉及文件产物时，先形成内部 `ArtifactDeliveryManifestV1`，再由 `UserFacingArtifactSetV1` 确定性投影；默认不展示 session、daily、SUMMARY、task state、checkpoint、raw receipt/manifest/ledger
-- 可见项必须使用语义名称、用途、用户动作和稳定阅读顺序；Rich 点击能力已验证时只显示一个语义链接，不重复绝对路径。绝对路径仅在用户要求、链接失败、工作区外、歧义或无法定位时 fallback
+- 可见项必须使用语义名称、用途、路径列、用户动作和稳定阅读顺序（ArtifactPathColumnGate：路径默认 workspace-relative portable）。Rich 点击能力已验证时名称用一个语义链接，可与 portable 路径列并存，不在路径列外重复 `绝对路径：` 行。绝对路径仅在用户要求、链接失败、工作区外、歧义或无法定位时进入路径列/fallback
 - Copilot / Codex 等非 Claude Code 宿主调用 DevCodex MCP 出现 `invoke` undefined 或工具桥接失败时，按宿主 MCP bridge 失败处理：停止重试同一 MCP，只执行一次 path-observable / instruction-fallback 的同计划有界读取，记录 `mcpFallback=used`；无法取得 Post 成功证据时保持 `unverified`，不得退化为整目录或整文件默认读取
 - Commit subject 只描述主变更，不堆叠背景/验证步骤
 

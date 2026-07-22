@@ -72,6 +72,24 @@ session、daily、Agent/全局 SUMMARY、task state、checkpoint/runtime state�
 - 动作标题仅允许：`需要你确认的文件 / 本批交付文件 / 完成交付文件 / 阻断证据`。
 - 禁止当前消费者输出“主要产物”或“本次会话全部产物”；历史版本文档不回填。
 
+## ArtifactPathColumnGate（PF-175 / PI-155）
+
+用户面交付表、CP 确认清单与 Envelope renderer **必须**为每项提供可定位路径，且与语义名分离：
+
+| 规则 | 要求 |
+|------|------|
+| 默认列 | 自由文本表：`语义名称 \| 用途 \| 路径 \| 操作`（操作可并入用途列，但**路径列不可省**） |
+| list 行 | 至少含 `displayName` + `purposeText` + `路径：…` + `操作：…` |
+| 路径默认值 | **workspace-relative portable**（`path.relative(workspaceRoot)` 风格，正斜杠） |
+| 绝对路径 | 仅当：用户明确要求、链接失败、`targetRelation=outside-workspace`、路径歧义、或 `absolutePathFallback` |
+| Rich 并存 | Rich clickable 允许 **语义链接 href=绝对路径（便于打开）** + **路径列=portable**；**禁止**再追加冗余 `绝对路径：…` 行（除非 fallback 激活） |
+| 禁止 | legacy「主要产物 / 核心文件 / 路径列表」+ 裸绝对路径且无语义名/用途/操作 |
+
+机器分类（`classifyArtifactPathColumnSample`）：`present` / `missing-path-column` / `legacy-bare-path` / `not-claimed`。  
+Owner：本 Skill + `hooks/_runtime/visible-output-contract.cjs`；**禁止**平行新 Gate 命名体系。
+
+与 LinkCapabilityDecision 的关系：路径列是**定位字段**，链接 mode 是**打开能力**；二者同向，不得用「Rich 不重复绝对路径」删掉 portable 路径列。
+
 ## LinkCapabilityDecisionGate
 
 `LinkCapabilityDecisionV1` 必须基于当前 surface 的证据，而不是按客户端名称硬编码：
@@ -83,7 +101,7 @@ session、daily、Agent/全局 SUMMARY、task state、checkpoint/runtime state�
 | `plain` | 只保证纯文本可复制 |
 | `failed` | 链接已失败或宿主无法定位目标 |
 
-Rich clickable 只显示一个语义 Markdown 链接，不重复明文绝对路径。Portable/Plain 优先工作区相对或短路径。只有用户要求、链接失败、目标在工作区外、路径歧义或宿主无法定位时才显示绝对路径 fallback，并记录 fallbackReason。
+Rich clickable 只显示一个语义 Markdown 链接作为名称主表示，**不得**在路径列之外再重复明文绝对路径行。Portable/Plain 优先工作区相对或短路径。路径列规则见 `ArtifactPathColumnGate`。只有用户要求、链接失败、目标在工作区外、路径歧义或宿主无法定位时才强制路径列/ fallback 使用绝对路径，并记录 fallbackReason。
 
 `evidenceState=verified` 必须携带非空 `evidenceRefs`；surface 与 Envelope context 必须一致。mode、fallback、reason、target relation 或 decisionId 任一 sibling mutation 都必须 fail closed。`failed` renderer 必须给出可复制的绝对定位与 fallbackReason，不能再次输出已知失败的相对链接。
 
@@ -144,6 +162,7 @@ compact 仍显示所有 check IDs、状态、整体状态、项目和“状态�
 - manifest 正反向 reconciliation、rename/move/delete/tombstone、重复/漏项/非法 visibility mutation 全通过。
 - default/all-deliverable/internal-audit 的集合与计数守恒。
 - internal-only 默认 visible=0，required hidden=0。
-- 三 renderer parity，Rich clickable 绝对路径重复=0。
+- 三 renderer parity：语义集合/顺序/状态/动作/digest 一致；Rich 无冗余 `绝对路径：` 行（无 fallback 时）；**三档均含 `路径：` portable 列**（PF-175）。
 - 六 message kinds、PC0~PC7、compact↔expanded、unknown/invalid fail-closed 全通过。
 - Hook parser 对新 envelope 为 verified-present，对 legacy 为 unverified，对未观察 payload 为 unverified。
+- `classifyArtifactPathColumnSample` 负向：缺路径列 / legacy 裸路径；正向：含 `路径：` 或表头路径列。

@@ -116,7 +116,7 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 - 报告涉及规范源、Skill、Hook、CLI、MCP、模板、部署副本、路径规则或 validate 语义变更时，仍需列出 SCV-0~SCV-7 证据；外部 finding intake 不得把报告结论当作已验证事实
 - 控制面报告若出现新增探针、黄色偏离或部署同步，必须单独写出部署同步证据与其他证据来源，不能只在摘要里带过
 - 报告末尾引用本次会话记忆路径
-- 回复末尾由 `user-visible-output-contract` 输出“完成交付文件”：每项使用语义 displayName、purposeText、userAction，并按 decision→result→evidence→optional 顺序。`ArtifactLinkSet` 只作兼容投影；Rich clickable 不重复绝对路径，只有用户要求、链接失败、工作区外、歧义或无法定位时追加 fallback（详见 [`02-output-paths.instructions.md`](../../instructions/02-output-paths.instructions.md)）
+- 回复末尾由 `user-visible-output-contract` 输出“完成交付文件”：每项使用语义 displayName、purposeText、userAction，并强制 **路径列**（默认 workspace-relative portable，见 ArtifactPathColumnGate / PF-175），按 decision→result→evidence→optional 顺序。`ArtifactLinkSet` 只作兼容投影；Rich clickable 不在路径列外重复 `绝对路径：` 行，只有用户要求、链接失败、工作区外、歧义或无法定位时路径列/fallback 用绝对路径（详见 [`02-output-paths.instructions.md`](../../instructions/02-output-paths.instructions.md)）
 
 ## 行数与拆分
 

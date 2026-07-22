@@ -146,38 +146,52 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 - `完成交付文件`
 - `阻断证据`
 
-每项必须输出 `displayName + purposeText + userAction`。路径、文件名、CP 编号、版本或状态不能单独充当名称。当前消费者禁止使用含义不稳定的“主要产物”和“本次会话全部产物”；历史版本文档不回填。
+每项必须输出 `displayName + purposeText + userAction`，并满足 **ArtifactPathColumnGate（PF-175）**：每项必须有独立 **路径** 字段/列，默认 workspace-relative portable。路径、文件名、CP 编号、版本或状态不能单独充当名称。当前消费者禁止使用含义不稳定的“主要产物”和“本次会话全部产物”；历史版本文档不回填。
+
+自由文本交付表默认列：
+
+| 语义名称 | 用途 | 路径 | 操作 |
+|----------|------|------|------|
 
 ### LinkCapabilityDecision 客户端兼容矩阵
 
 能力必须按当前 surface 的可验证证据选择，禁止只按宿主名称硬编码：
 
-| capability mode | 主表示 | 绝对路径 fallback | 证据边界 |
-|---|---|---|---|
-| `clickable` | 单个语义 Markdown 链接 | 默认不显示 | 当前 surface 点击能力已验证；Rich 不得重复路径 |
-| `portable` | 工作区相对 Markdown 链接 | 默认不显示 | Markdown 可用但点击能力未知；这是未知宿主默认档 |
-| `plain` | 语义名称 + 可复制相对/短路径 | 默认不显示 | 终端或日志仅保证纯文本 |
-| `failed` | 语义名称 + 可复制定位 | 显示并记录原因 | 链接已失败或宿主无法定位 |
+| capability mode | 主表示 | 路径列（强制） | 绝对路径 fallback | 证据边界 |
+|---|---|---|---|---|
+| `clickable` | 单个语义 Markdown 链接（href 可为绝对以便打开） | portable 相对路径 | 默认不进路径列 | Rich 不得在路径列外再写 `绝对路径：` 行 |
+| `portable` | 工作区相对 Markdown 链接 | portable | 默认不进路径列 | Markdown 可用但点击能力未知 |
+| `plain` | 语义名称 + 路径列 | portable 或短路径 | 默认不 | 终端/日志纯文本 |
+| `failed` | 语义名称 + 绝对定位 | 绝对路径 + reason | 显示 | 链接失败或无法定位 |
 
-只有以下情况允许绝对路径 fallback：用户明确要求、链接实际失败、目标位于工作区外、路径歧义、宿主无法定位。用户未要求且 Rich 点击已验证时，同一文件只能出现一个可点击语义链接，不得再重复 `绝对路径：...`。
+只有以下情况允许路径列使用绝对路径（或额外 `绝对路径：...`）：用户明确要求、链接实际失败、目标位于工作区外、路径歧义、宿主无法定位。
 
 `ArtifactLinkSet` 保留为可见集合的兼容投影名，不再是真相源；`ArtifactLinkSetDedupeGate` 执行规范化绝对路径去重，按 canonical path 合并同一物理文件。禁止 `file://`，禁止只输出裸文件名，禁止询问“是否需要打开”。
 
-推荐 Rich 示例：
+推荐 Rich 示例（语义链接 + portable 路径列）：
 
 ```markdown
 #### 完成交付文件
-- [最终执行与验证报告](E:/Worker/.devcodex/.../12--最终执行报告.md) — 汇总完成范围、验证结果和残余风险；操作：查看结论
+- [最终执行与验证报告](E:/Worker/.devcodex/devcodex-v1/reports/.../12--最终执行报告.md) — 汇总完成范围、验证结果和残余风险；路径：`.devcodex/devcodex-v1/reports/.../12--最终执行报告.md`；操作：查看结论
 ```
 
-Portable 示例保持同一语义项，只将 target 改为工作区相对路径：
+自由文本表示例：
 
 ```markdown
-- [最终执行与验证报告](.devcodex/devcodex-v1/.../12--最终执行报告.md) — 汇总完成范围、验证结果和残余风险；操作：查看结论
+#### 完成交付文件
+
+| 语义名称 | 用途 | 路径 | 操作 |
+|----------|------|------|------|
+| 最终执行与验证报告 | 汇总完成范围与残余风险 | `.devcodex/devcodex-v1/reports/.../12--最终执行报告.md` | 查看结论 |
 ```
 
-Portable/Plain 在同一 semanticDigest 下只改变链接形式，不改变文件集合、顺序、状态或动作。legacy “主要产物 + 绝对路径”文本最多识别为 `unverified-legacy`，不能作为 verified delivery receipt。
+Portable 示例保持同一语义项，链接 target 与路径列均为工作区相对路径：
 
+```markdown
+- [最终执行与验证报告](.devcodex/devcodex-v1/reports/requirements/codex/20260719/12--最终执行报告.md) — 汇总完成范围、验证结果和残余风险；路径：`.devcodex/devcodex-v1/reports/requirements/codex/20260719/12--最终执行报告.md`；操作：查看结论
+```
+
+Portable/Plain 在同一 semanticDigest 下只改变链接形式，不改变文件集合、顺序、状态、动作或路径列语义。legacy “主要产物 + 绝对路径”文本最多识别为 `unverified-legacy`，不能作为 verified delivery receipt。当且仅当 fallback 激活时，可追加 `绝对路径：E:/...` 并记录 reason。
 ### MCP profile fallback
 
 若 Copilot / Codex 等非 Claude Code 宿主调用 `profile_load`、`profile_get_mode` 或其他 DevCodex MCP 工具时出现 `TypeError: Cannot read properties of undefined (reading 'invoke')`、工具桥接不可用、MCP server 未连接等错误，视为**宿主 MCP bridge 失败**，不得反复重试同一 MCP 调用。AI 必须立即降级：

@@ -606,21 +606,68 @@ function portableTarget(filePath, workspaceRoot) {
   return String(filePath).replace(/\\/g, '/')
 }
 
-function renderArtifactItem(item, capability, tier) {
+/**
+ * PF-175 ArtifactPathColumnGate: always expose a path cell.
+ * Default = workspace-relative portable; absolute only when fallback/failed/outside.
+ * Rich clickable may still use absolute href for openability; path cell stays portable unless absolutePathFallback.
+ */
+function resolveArtifactPathCell(item, capability) {
   const portable = portableTarget(item.canonicalPath, capability?.workspaceRoot)
-  const target = tier === 'rich-markdown' && capability?.mode === 'clickable'
-    ? String(item.canonicalPath).replace(/\\/g, '/')
-    : portable
-  const suffix = ` — ${item.purposeText}；操作：${item.userAction}`
-  if (tier === 'plain-text' || capability?.mode === 'plain' || capability?.mode === 'failed') {
-    const locator = capability?.absolutePathFallback ? String(item.canonicalPath).replace(/\\/g, '/') : portable
-    const fallback = capability?.absolutePathFallback ? `；fallback：${capability.fallbackReason}` : ''
-    return `- ${item.displayName}${suffix} [${locator}]${fallback}`
+  const absolute = String(item.canonicalPath || '').replace(/\\/g, '/')
+  const forceAbsolute = capability?.absolutePathFallback === true ||
+    capability?.mode === 'failed' ||
+    capability?.targetRelation === 'outside-workspace'
+  return {
+    portable,
+    absolute,
+    pathCell: forceAbsolute ? absolute : portable,
+    forceAbsolute
   }
-  const escapedTarget = /\s/.test(target) ? `<${target}>` : target
-  let line = `- [${item.displayName}](${escapedTarget})${suffix}`
-  if (capability?.absolutePathFallback) line += `\n  绝对路径：${item.canonicalPath}`
+}
+
+function renderArtifactItem(item, capability, tier) {
+  const { portable, absolute, pathCell, forceAbsolute } = resolveArtifactPathCell(item, capability)
+  const linkTarget = tier === 'rich-markdown' && capability?.mode === 'clickable'
+    ? absolute
+    : portable
+  const purpose = text(item.purposeText) || '用途未标注'
+  const action = text(item.userAction) || '查看'
+  // Path column always present (PF-175); not the same as legacy bare absolute-only lists.
+  const pathSuffix = `；路径：\`${pathCell}\`；操作：${action}`
+  if (tier === 'plain-text' || capability?.mode === 'plain' || capability?.mode === 'failed') {
+    const fallback = capability?.absolutePathFallback && capability?.fallbackReason
+      ? `；fallback：${capability.fallbackReason}`
+      : ''
+    return `- ${item.displayName} — ${purpose}${pathSuffix}${fallback}`
+  }
+  const escapedTarget = /\s/.test(linkTarget) ? `<${linkTarget}>` : linkTarget
+  let line = `- [${item.displayName}](${escapedTarget}) — ${purpose}${pathSuffix}`
+  // Absolute line only when path cell is already absolute and reason must stay explicit for failed surfaces.
+  if (forceAbsolute && capability?.absolutePathFallback && capability?.fallbackReason) {
+    line += `\n  绝对路径：${absolute}（${capability.fallbackReason}）`
+  }
   return line
+}
+
+/**
+ * Free-text delivery/CP table classifier (PF-175).
+ * @returns {'not-claimed'|'present'|'missing-path-column'|'legacy-bare-path'}
+ */
+function classifyArtifactPathColumnSample(sample) {
+  const textSample = String(sample || '')
+  if (!textSample.trim()) return 'not-claimed'
+  // Legacy bare-path lists are a claim form even without allowed action headings.
+  if (/(?:主要产物|核心文件|路径列表)\s*[:：]?\s*\n(?:[-*]\s*)?(?:[A-Za-z]:[\\/]|\/)/.test(textSample) &&
+      !/用途|操作：|\|\s*路径\s*\|/.test(textSample)) {
+    return 'legacy-bare-path'
+  }
+  const claimsDelivery = /需要你确认的文件|本批交付文件|完成交付文件|阻断证据|交付表|确认文件/.test(textSample)
+  if (!claimsDelivery) return 'not-claimed'
+  const hasPathColumn =
+    /路径\s*[:：]/.test(textSample) ||
+    /\|\s*路径\s*\|/.test(textSample) ||
+    /路径\s*\|\s*/.test(textSample)
+  return hasPathColumn ? 'present' : 'missing-path-column'
 }
 
 function renderVisibleEnvelope(envelope, { tier = null, compact = false } = {}) {
@@ -685,9 +732,13 @@ module.exports = {
   createLinkCapabilityDecision,
   createVisibleEnvelope,
   buildSimpleGovernanceFastPathDecision,
+  classifyArtifactPathColumnSample,
   digest,
   isSemanticDisplayName,
+  portableTarget,
   projectUserFacingArtifactSet,
+  renderArtifactItem,
+  resolveArtifactPathCell,
   renderVisibleEnvelope,
   shouldUseCompact
 }

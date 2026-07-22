@@ -5,7 +5,10 @@
 
 ## 当前未发布实现候选
 
-（空 — v1.15.3 发布候选已归档）
+- Codex 宿主 MCP：`init/update --codex` 部署 `.claude/mcp/*` 并向 owner `.codex/config.toml` 幂等 merge `BEGIN DEVCODEX-MCP-MANAGED` 块（devcodex-memory + profile，INPUT_ROOT=owner 根）；保留用户其它 mcp_servers；CLI 行为测试与 README 矩阵同步。需求：`Codex宿主MCP配置与分发` CP1 已确认。
+- Codex MCP 复审跟进：`doctor` 纠正「不自动写 MCP」反事实文案；`codexConfigState.mcp` 探测 managed block + server 文件存在；website development 文档与 README 对齐；测试覆盖 config 备份与 doctor mcp.status=ok。
+- PF-175 / PI-155 **ArtifactPathColumnGate**：用户面交付项强制 `路径：` 列（默认 workspace-relative portable）；Rich 语义链接可与路径列并存且无冗余 `绝对路径：` 行；同步 `user-visible-output-contract`、`02-output-paths`、delivery-checklist prompt、`classifyArtifactPathColumnSample` 与 visible-output 测试。
+- 消费者同步：`01-common`、always-on `instructions.md`、`website/docs/specs/report-output-flow.md` 补路径列口径；ECR 后 `devcodex update` 同步部署副本。
 
 ## 历史锚点索引（已随 v1.15.0 / v1.15.1 / v1.15.2 / v1.15.3 发布或归档）
 

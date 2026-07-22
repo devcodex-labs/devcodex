@@ -57,5 +57,6 @@ applyTo: .devcodex/**/requirements/**
 4. 把所有 planned/observed/internal-delivered 文件登记到 `ArtifactDeliveryManifestV1`，rename/move/delete 保留 previousPath/tombstone；
 5. 由 `UserFacingArtifactSetV1` 投影默认交付，检查 required hidden=0、`listed+remaining=total`；session/daily/SUMMARY/task/checkpoint/raw receipt/manifest/ledger 默认 internal-only；
 6. 可见项必须使用 displayName/purposeText/userAction 与稳定 readingOrder，禁止“主要产物”；
-7. 按当前 surface 的 `LinkCapabilityDecisionV1` 选择 rich/portable/plain/failed；Rich clickable 不重复绝对路径；
-8. 完成后在报告中记录 `delivery-checklist: PASS`、manifestId、setId、semanticDigest 与 reconciliation。
+7. 按当前 surface 的 `LinkCapabilityDecisionV1` 选择 rich/portable/plain/failed；Rich clickable 不在路径列外重复 `绝对路径：` 行；
+8. **ArtifactPathColumnGate（PF-175）**：每项必须有路径列/字段，默认 workspace-relative portable；自由文本表默认列=语义名称\|用途\|路径\|操作；
+9. 完成后在报告中记录 `delivery-checklist: PASS`、manifestId、setId、semanticDigest 与 reconciliation。

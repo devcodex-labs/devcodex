@@ -193,17 +193,6 @@ const CLAUDE_HOOK_COMMAND = `node -e "let d=process.cwd(),fs=require('fs'),p=req
 // Monorepo-safe: walk up for .codex/hooks/_runtime/lifecycle.cjs with project marker (parity with Claude).
 const CODEX_HOOK_COMMAND = `node -e "let d=process.cwd(),fs=require('fs'),p=require('path');while(true){const f=p.join(d,'.codex','hooks','_runtime','lifecycle.cjs');if(fs.existsSync(f)&&(fs.existsSync(p.join(d,'.devcodex'))||fs.existsSync(p.join(d,'package.json')))){require(f);break}const n=p.dirname(d);if(n===d){process.exit(0)}d=n}"`
 
-function getCodexConfigState(cwd) {
-  const userConfig = path.join(os.homedir(), '.codex', 'config.toml')
-  const workspaceConfig = path.join(cwd, '.codex', 'config.toml')
-  return {
-    userConfig,
-    workspaceConfig,
-    hasUserConfig: fs.existsSync(userConfig),
-    hasWorkspaceConfig: fs.existsSync(workspaceConfig),
-  }
-}
-
 /** Claude Code settings.json hook configuration */
 const CLAUDE_SETTINGS_HOOKS = {
   hooks: {
@@ -283,6 +272,9 @@ const {
   mergeUniqueStringArrays,
   mergeClaudeHooks,
   mergeClaudeMcpConfig,
+  mergeCodexConfigToml,
+  CODEX_MCP_MANAGED_BEGIN,
+  inspectCodexMcpManagedConfig,
   detectInstalledHostAssets,
   detectHostPlatform,
   inspectHostInstructionSurfaces
@@ -292,6 +284,19 @@ const {
   isPlainObject,
   claudeMcpJson: CLAUDE_MCP_JSON
 })
+
+function getCodexConfigState(cwd) {
+  const userConfig = path.join(os.homedir(), '.codex', 'config.toml')
+  const workspaceConfig = path.join(cwd, '.codex', 'config.toml')
+  const mcp = inspectCodexMcpManagedConfig(cwd)
+  return {
+    userConfig,
+    workspaceConfig,
+    hasUserConfig: fs.existsSync(userConfig),
+    hasWorkspaceConfig: fs.existsSync(workspaceConfig),
+    mcp
+  }
+}
 
 const {
   resolveGitignoreRoot,
@@ -348,7 +353,7 @@ const { cmdInit, cmdInitHost, cmdInitClaude, cmdInitCodex, cmdInitGemini, cmdIni
   CLAUDE_MCP_JSON, CODEX_HOOK_COMMAND, isSourceRepo, beginManagedDeployment,
   finishManagedDeployment, copyManagedTextFile, readJsonFileWithStatus,
   writeManagedJsonFile, normalizeStringArray, mergeUniqueStringArrays,
-  mergeClaudeHooks, mergeClaudeMcpConfig,
+  mergeClaudeHooks, mergeClaudeMcpConfig, mergeCodexConfigToml, CODEX_MCP_MANAGED_BEGIN,
   ensureRuntimeDirs, ensureDevCodexGitignore, walkDir,
   resolveActiveRuntimeRoot, resolveGitignoreRoot, getLegacyCounts, isPlainObject,
   resolveHostAdapterScope, writeGrokPluginRegistration,

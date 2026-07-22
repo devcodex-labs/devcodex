@@ -507,7 +507,8 @@ function buildCliMaintenanceCommands(ctx) {
       codexHookDiagnostics,
       codexConfigState: {
         hasUserConfig: codexConfigState.hasUserConfig,
-        hasWorkspaceConfig: codexConfigState.hasWorkspaceConfig
+        hasWorkspaceConfig: codexConfigState.hasWorkspaceConfig,
+        mcp: codexConfigState.mcp || null
       },
       profile: {
         directory: profileDir,
@@ -583,6 +584,17 @@ function buildCliMaintenanceCommands(ctx) {
     console.log(`    .codex/hooks/_runtime/lifecycle.cjs  ${hasCodexHooks ? c.green('✅') : c.dim('—')}`)
     console.log(`    .codex hook command                  ${formatCodexHookCommandStatus(codexHookDiagnostics)}`)
     console.log(`    Codex config (user/workspace)        ${codexConfigState.hasUserConfig ? c.green('user') : c.dim('user —')} / ${codexConfigState.hasWorkspaceConfig ? c.green('workspace') : c.dim('workspace —')}`)
+    {
+      const mcp = codexConfigState.mcp || { status: 'missing' }
+      const mcpLabel = mcp.status === 'ok'
+        ? c.green('✅ managed memory+profile')
+        : (mcp.status === 'partial'
+            ? c.yellow('⚠️ partial (server path or entry incomplete)')
+            : (mcp.status === 'stale'
+                ? c.yellow('⚠️ stale (entries present; server files missing)')
+                : c.dim('— not configured')))
+      console.log(`    Codex DevCodex MCP                  ${mcpLabel}`)
+    }
     console.log(`    .github/copilot-instructions.md      ${hasCopilotMd ? c.green('✅') : c.dim('—')}`)
     console.log(`    .github/instructions/                ${hasInstructions ? c.green('✅') : c.dim('—')}`)
     console.log(`    .github/hooks/_runtime/lifecycle.cjs ${hasGithubHooks ? c.green('✅') : c.dim('—')}`)
@@ -694,8 +706,24 @@ function buildCliMaintenanceCommands(ctx) {
         console.log()
       }
       console.log(c.dim('  Codex trust/config: hook changes may require trusting the workspace in Codex and opening a new conversation.'))
-      console.log(c.dim('  Codex hook guardrail: blocking behavior is event-dependent; MCP is supported by Codex but DevCodex does not auto-write Codex MCP config.'))
-      console.log(c.dim('  Config presence only is shown above; DevCodex does not read or write Codex config values.'))
+      console.log(c.dim('  Codex hook guardrail: blocking behavior is event-dependent (decision / continue:false / permissionDecision).'))
+      {
+        const mcp = codexConfigState.mcp || { status: 'missing' }
+        if (mcp.status === 'ok') {
+          console.log(c.dim('  Codex MCP: init/update --codex writes managed block in workspace .codex/config.toml (devcodex-memory + profile via .claude/mcp/*).'))
+          console.log(c.dim('  Restart Codex (or open a new conversation) after MCP config changes.'))
+        } else if (mcp.status === 'partial' || mcp.status === 'stale') {
+          console.log(c.yellow('  ⚠️  Codex DevCodex MCP is incomplete — run `devcodex update --codex` then restart Codex.'))
+          if (mcp.memoryServerPath && !mcp.memoryServerExists) {
+            console.log(c.dim(`      Missing memory server: ${mcp.memoryServerPath}`))
+          }
+          if (mcp.profileServerPath && !mcp.profileServerExists) {
+            console.log(c.dim(`      Missing profile server: ${mcp.profileServerPath}`))
+          }
+        } else {
+          console.log(c.dim('  Codex MCP: not configured yet. Run `devcodex init --codex` or `devcodex update --codex` to merge managed MCP servers.'))
+        }
+      }
       console.log()
     }
   }

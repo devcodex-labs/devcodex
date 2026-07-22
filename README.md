@@ -528,7 +528,7 @@ README / 用户使用文档当前补充四类专项 Skill：`user-manual-authori
 | **Gemini CLI** | `GEMINI.md` 薄入口 + `AGENTS.md` kernel + `.agents/skills/` + `.gemini/settings.json` | ⚠️ Before/After adapter 已实现；本机无 CLI direct replay | ⚠️ Hook + portable fallback | ⚠️ 按宿主配置 | 🟡 Beta / UNVERIFIED |
 | **Grok Build** | 独立显式 portable：项目 `AGENTS.md + .agents + .grok/hooks`；workspace-namespace：工作区非自动发现 source `.grok/devcodex/plugins/devcodex-workspace` + 单一官方用户级本地插件登记，子项目零 generated host artifacts | ✅ root native kernel + single user plugin；child plain plugin partial；`devcodex grok` launcher full | ⚠️ 仅 PreToolUse 可阻断；passive stdout ignored | ✅ root/child 双 MCP doctor direct | 🟢 Root Native / 🟡 Child Plain Partial / 🟢 Launcher Full |
 | **Cursor IDE** | 需手工配置 `.cursor/rules` 或 root `AGENTS.md`（instruction-fallback；DevCodex **不**自动分发 Cursor 规则；HOST best-effort only） | ⚠️ 无 DevCodex 本地 Hook 硬拦承诺 | ⚠️ 仅文本 | ❌ | 🟡 Best-effort |
-| **OpenAI Codex app/CLI** | `AGENTS.md` + `.agents/skills/` + `.codex/hooks.json`（含 `PreCompact` compaction guardrail） | ⚠️ Codex hook guardrail；阻断输出按事件契约分为顶层 `decision`、`continue:false` 与工具级 `permissionDecision` | ⚠️ Hook + 文本确认 | ⚠️ 可手工配置 MCP；DevCodex 未自动写入 | 🟡 Beta |
+| **OpenAI Codex app/CLI** | `AGENTS.md` + `.agents/skills/` + `.codex/hooks.json`（含 `PreCompact` compaction guardrail） | ⚠️ Codex hook guardrail；阻断输出按事件契约分为顶层 `decision`、`continue:false` 与工具级 `permissionDecision` | ⚠️ Hook + 文本确认 | ✅ `init/update --codex` 向 `.codex/config.toml` merge `devcodex-memory` + `devcodex-profile`（复用 `.claude/mcp/*`）；可手工覆盖 | 🟡 Beta |
 | **ChatGPT 普通对话** | 不读取本地工作区 `AGENTS.md` / `.agents/` / `.codex/`；可手工粘贴规则 | ❌ | ⚠️ 文本 | ❌ | 🔴 Unsupported |
 
 > **安装命令**：v1.15.3 默认三宿主部署 → `npx @vextjs/devcodex init`；仅 Claude Code adapter → `npx @vextjs/devcodex init --claude`；仅 Codex adapter → `npx @vextjs/devcodex init --codex`。需要显式增加 Gemini / Grok 时使用 `npx @vextjs/devcodex init --host <gemini|grok|all>` 或本地源码 `node index.js init --host <gemini|grok|all>`，默认面仍保持三宿主兼容行为。
@@ -538,7 +538,7 @@ README / 用户使用文档当前补充四类专项 Skill：`user-manual-authori
 >
 > **能力差异**：🟢 Full = 已验证 Hook 事件 + MCP + 自动同步；🟡 Beta/Best-effort = 尚未达到 Full，具体能力以矩阵各列为准；🔴 Unsupported = 不在当前本地 adapter 发布范围。默认 `safety-only` 下，bootstrap / CP / auto 白名单等流程问题为提醒并继续，仅危险命令硬拦；设置 `DEVCODEX_HOOK_ENFORCEMENT=strict` 后，支持硬拦的事件才会停止流程。
 >
-> **MCP 边界**：安装到业务项目根的 `.mcp.json` 由 Claude Code adapter 自动写入，并引用该项目的 `.claude/mcp/*`。DevCodex 源码仓自身受版本控制的 `.mcp.json` 则是包开发/插件清单，只引用包内 `mcp/*`；两者是独立契约，禁止拿源码清单覆盖安装态清单。DevCodex 当前不会为 Copilot 或 Codex 自动写入 MCP manifest；其他宿主只按其已验证的原生发现链使用。
+> **MCP 边界**：安装到业务项目根的 `.mcp.json` 由 Claude Code adapter 自动写入，并引用该项目的 `.claude/mcp/*`。Codex adapter 额外向 owner 的 `.codex/config.toml` 合并同名 server（托管块，非 Claude JSON）。DevCodex 源码仓自身受版本控制的 `.mcp.json` 是包开发/插件清单，只引用包内 `mcp/*`；与安装态清单独立。Copilot 仍不自动写 MCP。
 
 ### 用户可见交付与链接兼容
 
@@ -587,7 +587,9 @@ DevCodex Hook runtime 不再把所有拦截都等同为“停止”。拦截会�
    - 维护 DevCodex 源仓或 workspace-namespace 时，运行 `node scripts/validate-all-profiles.js --workspace <workspace-root>` 校验所有 Profile；发布前需要严格处理 warning 时追加 `--strict-warnings`
 3. **Codex / Copilot 想用 MCP**
    - 先确认宿主本身是否支持本地 MCP
-   - DevCodex 当前只会自动写 Claude Code 的 `.mcp.json`；Codex / Copilot 需要手工配置
+   - **Codex**：`devcodex init/update --codex` 会在工作区 owner 的 `.codex/config.toml` 写入托管块 `BEGIN DEVCODEX-MCP-MANAGED`（memory+profile，复用 `.claude/mcp/*`）；重启 Codex 后生效。用户其它 `mcp_servers` 会保留
+   - **Copilot**：仍无自动 MCP；需宿主支持时再手工配置
+   - Claude 仍使用根目录 `.mcp.json`
 4. **Copilot 里 `profile_load` 报 `invoke` undefined**
    - 这通常表示宿主 MCP bridge 没有完成工具调用，而不是 DevCodex profile 文件一定损坏
    - 不要反复重试同一个 MCP 调用；按同一计划只做一次有界 fallback：确认唯一项目，读取 README/config baseline，再读取 selected Profile 与单个 memory session/SUMMARY 投影；不要改成整目录或整文件默认读取

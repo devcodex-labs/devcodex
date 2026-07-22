@@ -268,7 +268,7 @@ Hook / CLI / visible reply / sticky project / workspace guard 相关任务还要
 - `devcodex help`：查看 CLI 子命令与参数，尤其是 `profile init`、`migrate-layout`、`init/update --claude/--codex`
 - `node scripts/validate-all-profiles.js --workspace <workspace-root>`：校验 `.devcodex/workspace/profile` 与 `.devcodex/<project>/profile` 的三档必需文件和 workspace fallback；发布前可追加 `--strict-warnings`
 - `DEVCODEX_HOOK_ENFORCEMENT`：默认 `safety-only`，仅危险命令硬拦；切到 `strict` 前应先确认宿主确实支持对应 Hook 事件；当前 Codex adapter 已内置 `PreCompact` compaction runtime 兜底
-- `.mcp.json` 目前只由 Claude Code adapter 自动写入；Codex / Copilot 若宿主支持 MCP，需要手工配置，不能把 Claude 的 `.mcp.json` 当成三宿主通用入口
+- `.mcp.json` 由 Claude Code adapter 自动写入（引用项目 `.claude/mcp/*`）。Codex adapter 另向工作区 owner 的 `.codex/config.toml` 幂等 merge 托管块 `BEGIN DEVCODEX-MCP-MANAGED`（`devcodex-memory` + `devcodex-profile`，复用同一套 `.claude/mcp/*`）；`devcodex init/update --codex` 后需重启 Codex。Copilot 仍不自动写 MCP。不能把 Claude 的 `.mcp.json` 当成全宿主通用入口
 - Turn Liveness：工具返回后先进入 `awaiting-continuation`，120 秒无后续事件标记 `suspect`，300 秒标记 `stalled-recoverable`；活动工具/Agent 使用更长租约，避免把真实长任务误判为挂起
 - 宿主能力边界：`PostToolUse` 不是 terminal，也不能证明宿主会继续派发事件；Hook 仅在下一次事件到达时生成一次性 `TurnRecoveryCard`，不得自行唤醒宿主、控制进程或重放未知副作用操作
 - 双阶段 CheckpointValidation：response-time 记录当前可见事件；post-execution 缺 Stop terminal evidence 时保持 `unverified`，deadline 到期为 `incomplete-timeout`，不得把等待或 PreCompact 推断为完成

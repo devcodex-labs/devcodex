@@ -11,7 +11,8 @@ function buildCliInstallCommands(ctx) {
     finishManagedDeployment, walkDir, resolveActiveRuntimeRoot, resolveGitignoreRoot,
     copyManagedTextFile, readJsonFileWithStatus,
     writeManagedJsonFile, normalizeStringArray, mergeUniqueStringArrays,
-    mergeClaudeHooks, mergeClaudeMcpConfig,
+    mergeClaudeHooks, mergeClaudeMcpConfig, mergeCodexConfigToml,
+    CODEX_MCP_MANAGED_BEGIN,
     ensureRuntimeDirs, ensureDevCodexGitignore, getLegacyCounts, isPlainObject,
     resolveHostAdapterScope, writeGrokPluginRegistration, syncGrokPluginInstallation,
     syncGrokWorkspacePluginInstallation,
@@ -696,6 +697,91 @@ function buildCliInstallCommands(ctx) {
       }
     }
 
+    // Deploy shared MCP runtime under .claude/mcp (reused by Claude + Codex)
+    {
+      const mcpSrc = path.join(PKG_ROOT, 'mcp')
+      const mcpDest = path.join(cwd, '.claude', 'mcp')
+      if (fs.existsSync(mcpSrc)) {
+        for (const srcFile of walkDir(mcpSrc)) {
+          const rel = path.relative(mcpSrc, srcFile)
+          const destFile = path.join(mcpDest, rel)
+          const existed = fs.existsSync(destFile)
+          const shown = `.claude/mcp/${rel.replace(/\\/g, '/')}`
+          if (existed && filesContentEqual(srcFile, destFile)) {
+            skipped++
+            log(c.dim(`  ~ ${shown}`))
+            continue
+          }
+          if (existed && !force) {
+            skipped++
+            log(c.dim(`  ~ ${shown} (outdated; use --force)`))
+            continue
+          }
+          if (!dryRun) {
+            fs.mkdirSync(path.dirname(destFile), { recursive: true })
+            fs.copyFileSync(srcFile, destFile)
+          }
+          if (existed) { updated++; log(c.yellow(`  ↺ ${shown}`)) }
+          else { added++; log(c.green(`  ✓ ${shown}`)) }
+        }
+      }
+      for (const relRaw of CLAUDE_MCP_RUNTIME_SCRIPT_DEPS) {
+        const rel = String(relRaw || '').replace(/\\/g, '/')
+        if (!rel) continue
+        const srcFile = path.join(PKG_ROOT, ...rel.split('/'))
+        if (!fs.existsSync(srcFile)) continue
+        const destFile = path.join(cwd, '.claude', ...rel.split('/'))
+        const existed = fs.existsSync(destFile)
+        const shown = `.claude/${rel}`
+        if (existed && filesContentEqual(srcFile, destFile)) {
+          skipped++
+          log(c.dim(`  ~ ${shown}`))
+          continue
+        }
+        if (existed && !force) {
+          skipped++
+          log(c.dim(`  ~ ${shown} (outdated; use --force)`))
+          continue
+        }
+        if (!dryRun) {
+          fs.mkdirSync(path.dirname(destFile), { recursive: true })
+          fs.copyFileSync(srcFile, destFile)
+        }
+        if (existed) { updated++; log(c.yellow(`  ↺ ${shown}`)) }
+        else { added++; log(c.green(`  ✓ ${shown}`)) }
+      }
+    }
+
+    // Merge Codex config.toml MCP servers (managed block; does not wipe user keys)
+    {
+      const codexConfigPath = path.join(cwd, '.codex', 'config.toml')
+      let existing = ''
+      if (fs.existsSync(codexConfigPath)) {
+        try { existing = fs.readFileSync(codexConfigPath, 'utf8') } catch { existing = '' }
+      }
+      const { content, changed } = mergeCodexConfigToml(existing, cwd)
+      const existed = fs.existsSync(codexConfigPath)
+      if (changed) {
+        if (!dryRun) {
+          if (existed) {
+            fs.mkdirSync(backupDir, { recursive: true })
+            const backupPath = path.join(backupDir, `config.toml.bak.${Date.now()}`)
+            try {
+              fs.copyFileSync(codexConfigPath, backupPath)
+              inlineLog(c.yellow(`  ⚠ backed up existing .codex/config.toml to ${path.relative(cwd, backupPath)}`))
+            } catch { /* best-effort */ }
+          }
+          fs.mkdirSync(path.dirname(codexConfigPath), { recursive: true })
+          fs.writeFileSync(codexConfigPath, content, 'utf8')
+        }
+        if (existed) { updated++; log(c.yellow('  ↺ .codex/config.toml  (DevCodex MCP managed block)')) }
+        else { added++; log(c.green('  ✓ .codex/config.toml  (DevCodex MCP managed block)')) }
+      } else {
+        skipped++
+        log(c.dim('  ~ .codex/config.toml  (DevCodex MCP managed block)'))
+      }
+    }
+
     if (!dryRun) {
       ensureRuntimeDirs(cwd, dryRun)
       added += ensureDevCodexGitignore(resolveGitignoreRoot(cwd), dryRun, log)
@@ -712,7 +798,10 @@ function buildCliInstallCommands(ctx) {
         if (updated) parts.push(c.yellow(`${updated} updated`))
         if (skipped) parts.push(c.dim(`${skipped} unchanged`))
         console.log(`  ${c.bold('Done!')} ${parts.join(', ')}`)
-        if (added + updated > 0) console.log(`  ${c.cyan('→')} Restart Codex or open a new Codex conversation to load AGENTS.md and hooks.`)
+        if (added + updated > 0) {
+          console.log(`  ${c.cyan('→')} Restart Codex or open a new conversation to load AGENTS.md, hooks, and DevCodex MCP.`)
+          console.log(`  ${c.cyan('→')} MCP: devcodex-memory + devcodex-profile via .codex/config.toml (managed block).`)
+        }
       }
       console.log()
     } else {

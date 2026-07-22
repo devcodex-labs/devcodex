@@ -195,6 +195,23 @@ function assertCodexAdapterState(root) {
     JSON.stringify(hooks.hooks.PreCompact).includes('manual|auto'),
     'Codex PreCompact hook must match manual and auto compaction triggers'
   )
+
+  // Codex MCP managed block (devcodex-memory + profile via .claude/mcp)
+  assert.ok(fs.existsSync(path.join(root, '.claude', 'mcp', 'memory-server.js')), 'Codex init must deploy memory-server.js')
+  assert.ok(fs.existsSync(path.join(root, '.claude', 'mcp', 'profile-server.js')), 'Codex init must deploy profile-server.js')
+  const codexConfig = fs.readFileSync(path.join(root, '.codex', 'config.toml'), 'utf8')
+  assert.ok(codexConfig.includes('BEGIN DEVCODEX-MCP-MANAGED'), 'Codex config.toml must include managed MCP block')
+  assert.ok(codexConfig.includes('mcp_servers.devcodex-memory'), 'Codex config.toml must register devcodex-memory')
+  assert.ok(codexConfig.includes('mcp_servers.devcodex-profile'), 'Codex config.toml must register devcodex-profile')
+  assert.ok(
+    codexConfig.includes('memory-server.js') && codexConfig.includes('profile-server.js'),
+    'Codex MCP args must point at deployed server scripts'
+  )
+  const ownerToml = String(root).replace(/\\/g, '/')
+  assert.ok(
+    codexConfig.includes(ownerToml) || codexConfig.includes(path.resolve(root).replace(/\\/g, '/')),
+    'Codex MCP args must include owner root as INPUT_ROOT'
+  )
 }
 
 function assertClaudeMergeState(root, { claudeMdManaged }) {
@@ -426,6 +443,8 @@ function testCodexInitBacksUpManagedFiles() {
       Stop: [{ hooks: [{ type: 'command', command: 'echo custom-stop' }] }]
     }
   })
+  // User-owned non-managed key must survive MCP merge
+  writeFile(root, '.codex/config.toml', 'sandbox_mode = "danger-full-access"\n\n[mcp_servers.user_keep]\ncommand = "echo"\n')
 
   runCli(['init', '--codex'], root)
 
@@ -433,9 +452,30 @@ function testCodexInitBacksUpManagedFiles() {
   assertRuntimeDataBootstrap(path.join(root, '.devcodex'))
   assertDeploymentManifest(path.join(root, '.devcodex'), 'codex')
 
+  const codexConfig = fs.readFileSync(path.join(root, '.codex', 'config.toml'), 'utf8')
+  assert.ok(codexConfig.includes('sandbox_mode = "danger-full-access"'), 'user sandbox_mode must be preserved')
+  assert.ok(codexConfig.includes('mcp_servers.user_keep'), 'user mcp_servers must be preserved')
+  assert.ok(codexConfig.includes('BEGIN DEVCODEX-MCP-MANAGED'), 'managed MCP block must be appended')
+
+  // Idempotent second init
+  runCli(['init', '--codex'], root)
+  const again = fs.readFileSync(path.join(root, '.codex', 'config.toml'), 'utf8')
+  const managedCount = (again.match(/BEGIN DEVCODEX-MCP-MANAGED/g) || []).length
+  assert.strictEqual(managedCount, 1, 'managed MCP block must remain single after re-init')
+
   const backupRoot = path.join(root, '.devcodex', '.tmp', 'backups')
   assert.ok(findBackups(backupRoot, 'AGENTS.md').length >= 1)
   assert.ok(findBackups(backupRoot, 'hooks.json').length >= 1)
+  assert.ok(
+    findBackups(backupRoot, 'config.toml').length >= 1,
+    'changing existing .codex/config.toml must create a backup'
+  )
+
+  const doctor = JSON.parse(runCli(['doctor', '--json'], root))
+  assert.strictEqual(doctor.ok, true)
+  assert.strictEqual(doctor.payload?.codexConfigState?.mcp?.status, 'ok', 'doctor must report Codex DevCodex MCP ok after init')
+  assert.strictEqual(doctor.payload?.codexConfigState?.mcp?.memoryServerExists, true)
+  assert.strictEqual(doctor.payload?.codexConfigState?.mcp?.profileServerExists, true)
 
   fs.rmSync(root, { recursive: true, force: true })
 }

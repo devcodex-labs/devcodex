@@ -67,6 +67,165 @@ function buildCliHostUtils({ fs, path, isPlainObject, claudeMcpJson }) {
     return base
   }
 
+  /** Managed block markers for Codex config.toml MCP merge (idempotent). */
+  const CODEX_MCP_MANAGED_BEGIN = '# BEGIN DEVCODEX-MCP-MANAGED'
+  const CODEX_MCP_MANAGED_END = '# END DEVCODEX-MCP-MANAGED'
+
+  function toTomlPath(filePath) {
+    return String(filePath || '').replace(/\\/g, '/')
+  }
+
+  /**
+   * Build Codex [mcp_servers.*] managed block reusing .claude/mcp/* servers.
+   * @param {string} ownerRoot workspace/project owner root (INPUT_ROOT for servers)
+   */
+  function buildCodexMcpManagedBlock(ownerRoot) {
+    const root = path.resolve(ownerRoot)
+    const memoryJs = path.join(root, '.claude', 'mcp', 'memory-server.js')
+    const profileJs = path.join(root, '.claude', 'mcp', 'profile-server.js')
+    return [
+      CODEX_MCP_MANAGED_BEGIN,
+      '# Reuses .claude/mcp servers (same as Claude). Re-run: devcodex update --codex',
+      '[mcp_servers.devcodex-memory]',
+      'command = "node"',
+      'args = [',
+      `  "${toTomlPath(memoryJs)}",`,
+      `  "${toTomlPath(root)}"`,
+      ']',
+      'startup_timeout_sec = 30',
+      '',
+      '[mcp_servers.devcodex-profile]',
+      'command = "node"',
+      'args = [',
+      `  "${toTomlPath(profileJs)}",`,
+      `  "${toTomlPath(root)}"`,
+      ']',
+      'startup_timeout_sec = 30',
+      CODEX_MCP_MANAGED_END
+    ].join('\n')
+  }
+
+  /**
+   * Remove legacy/unmanaged [mcp_servers.devcodex-memory|profile] tables so only the managed block remains.
+   */
+  function stripUnmanagedDevcodexMcpTables(tomlText) {
+    const lines = String(tomlText || '').split(/\r?\n/)
+    const out = []
+    let skipping = false
+    for (const line of lines) {
+      const header = line.match(/^\s*\[mcp_servers\.(devcodex-memory|devcodex-profile)\]\s*$/)
+      if (header) {
+        skipping = true
+        continue
+      }
+      if (skipping) {
+        if (/^\s*\[/.test(line)) {
+          skipping = false
+          out.push(line)
+        }
+        // else drop lines belonging to the unmanaged table
+        continue
+      }
+      out.push(line)
+    }
+    return out.join('\n').replace(/\n{3,}/g, '\n\n')
+  }
+
+  /**
+   * Merge DevCodex MCP servers into Codex config.toml text without removing user keys.
+   * @returns {{ content: string, changed: boolean }}
+   */
+  function mergeCodexConfigToml(existingContent, ownerRoot) {
+    const block = buildCodexMcpManagedBlock(ownerRoot)
+    let text = String(existingContent || '')
+    const begin = text.indexOf(CODEX_MCP_MANAGED_BEGIN)
+    const end = text.indexOf(CODEX_MCP_MANAGED_END)
+    let next
+    if (begin !== -1 && end !== -1 && end > begin) {
+      const before = stripUnmanagedDevcodexMcpTables(text.slice(0, begin))
+      const after = stripUnmanagedDevcodexMcpTables(text.slice(end + CODEX_MCP_MANAGED_END.length).replace(/^\r?\n/, ''))
+      next = before.replace(/\s+$/, '') + (before.replace(/\s+$/, '') ? '\n\n' : '') + block +
+        (after.replace(/^\s+/, '') ? '\n' + after.replace(/^\s+/, '') : '')
+    } else {
+      const stripped = stripUnmanagedDevcodexMcpTables(text).replace(/\s+$/, '')
+      next = (stripped ? stripped + '\n\n' : '') + block + '\n'
+    }
+    if (!next.endsWith('\n')) next += '\n'
+    return { content: next, changed: next !== text }
+  }
+
+  function extractCodexMcpServerArgs(tomlText, serverName) {
+    const re = new RegExp(
+      String.raw`\[mcp_servers\.${serverName}\][\s\S]*?args\s*=\s*\[([^\]]*)\]`,
+      'i'
+    )
+    const match = String(tomlText || '').match(re)
+    if (!match) return []
+    return Array.from(String(match[1]).matchAll(/"([^"]+)"/g)).map(item => item[1])
+  }
+
+  /**
+   * Minimal doctor probe: workspace .codex/config.toml DevCodex MCP managed entries + server file existence.
+   * @returns {{
+   *   hasWorkspaceConfig: boolean,
+   *   hasManagedBlock: boolean,
+   *   hasDevcodexMemory: boolean,
+   *   hasDevcodexProfile: boolean,
+   *   memoryServerPath: string|null,
+   *   profileServerPath: string|null,
+   *   memoryServerExists: boolean,
+   *   profileServerExists: boolean,
+   *   status: 'missing'|'partial'|'stale'|'ok'
+   * }}
+   */
+  function inspectCodexMcpManagedConfig(ownerRoot) {
+    const root = path.resolve(ownerRoot || process.cwd())
+    const workspaceConfig = path.join(root, '.codex', 'config.toml')
+    const expectedMemory = path.join(root, '.claude', 'mcp', 'memory-server.js')
+    const expectedProfile = path.join(root, '.claude', 'mcp', 'profile-server.js')
+    const result = {
+      hasWorkspaceConfig: fs.existsSync(workspaceConfig),
+      hasManagedBlock: false,
+      hasDevcodexMemory: false,
+      hasDevcodexProfile: false,
+      memoryServerPath: null,
+      profileServerPath: null,
+      memoryServerExists: false,
+      profileServerExists: false,
+      status: 'missing'
+    }
+    if (!result.hasWorkspaceConfig) return result
+
+    let text = ''
+    try { text = fs.readFileSync(workspaceConfig, 'utf8') } catch { return result }
+
+    result.hasManagedBlock = text.includes(CODEX_MCP_MANAGED_BEGIN) && text.includes(CODEX_MCP_MANAGED_END)
+    result.hasDevcodexMemory = /^\s*\[mcp_servers\.devcodex-memory\]\s*$/m.test(text)
+    result.hasDevcodexProfile = /^\s*\[mcp_servers\.devcodex-profile\]\s*$/m.test(text)
+
+    const memoryArgs = extractCodexMcpServerArgs(text, 'devcodex-memory')
+    const profileArgs = extractCodexMcpServerArgs(text, 'devcodex-profile')
+    result.memoryServerPath = memoryArgs[0] || toTomlPath(expectedMemory)
+    result.profileServerPath = profileArgs[0] || toTomlPath(expectedProfile)
+
+    const memoryCandidate = memoryArgs[0] ? path.resolve(memoryArgs[0]) : expectedMemory
+    const profileCandidate = profileArgs[0] ? path.resolve(profileArgs[0]) : expectedProfile
+    result.memoryServerExists = fs.existsSync(memoryCandidate)
+    result.profileServerExists = fs.existsSync(profileCandidate)
+
+    if (
+      result.hasDevcodexMemory &&
+      result.hasDevcodexProfile &&
+      result.memoryServerExists &&
+      result.profileServerExists
+    ) {
+      result.status = 'ok'
+    } else if (result.hasDevcodexMemory || result.hasDevcodexProfile || result.hasManagedBlock) {
+      result.status = (result.memoryServerExists || result.profileServerExists) ? 'partial' : 'stale'
+    }
+    return result
+  }
+
   function detectInstalledHostAssets(cwd) {
     const installed = []
     // AGENTS.md/.agents are shared by Codex, Gemini and Grok; only .codex is host-specific.
@@ -289,6 +448,12 @@ function buildCliHostUtils({ fs, path, isPlainObject, claudeMcpJson }) {
     mergeUniqueStringArrays,
     mergeClaudeHooks,
     mergeClaudeMcpConfig,
+    CODEX_MCP_MANAGED_BEGIN,
+    CODEX_MCP_MANAGED_END,
+    buildCodexMcpManagedBlock,
+    mergeCodexConfigToml,
+    extractCodexMcpServerArgs,
+    inspectCodexMcpManagedConfig,
     detectInstalledHostAssets,
     detectHostPlatform,
     inspectHostInstructionSurfaces

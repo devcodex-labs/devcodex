@@ -70,7 +70,9 @@ function deploymentOptions() {
     ],
     CLAUDE_MCP_RUNTIME_SCRIPT_DEPS: [
       'scripts/lib/cp-digest.js',
-      'scripts/lib/host-parity-scorecard.js'
+      'scripts/lib/host-parity-scorecard.js',
+      'scripts/lib/derived-index-contract.js',
+      'scripts/lib/memory-index.js'
     ],
     CODEX_SOURCES: [
       { from: 'hooks/_runtime', to: path.join('.codex', 'hooks', '_runtime') },
@@ -648,10 +650,12 @@ const claudeMcpScriptDeps = defaults.filter(item =>
   item.surface === 'claude' &&
   String(item.destination || '').replace(/\\/g, '/').startsWith('.claude/scripts/lib/')
 )
-assert.strictEqual(claudeMcpScriptDeps.length, 2, 'claude descriptors must include MCP scripts/lib runtime deps')
+assert.strictEqual(claudeMcpScriptDeps.length, 4, 'claude descriptors must include MCP scripts/lib runtime deps')
 for (const expected of [
   '.claude/scripts/lib/cp-digest.js',
-  '.claude/scripts/lib/host-parity-scorecard.js'
+  '.claude/scripts/lib/host-parity-scorecard.js',
+  '.claude/scripts/lib/derived-index-contract.js',
+  '.claude/scripts/lib/memory-index.js'
 ]) {
   assert(
     claudeMcpScriptDeps.some(item => String(item.destination || '').replace(/\\/g, '/') === expected),
@@ -659,4 +663,4 @@ for (const expected of [
   )
 }
 
-console.log(`host installation tests passed selectors=5 dryRunWrites=0 collision=blocked managedManifest=verified workspacePlugin=verified grokCli=${grokCliAvailable ? 'available' : 'unavailable-honest'} uninstall=verified zeroProjectArtifacts=verified defaultHosts=3 mcpScriptDeps=2`)
+console.log(`host installation tests passed selectors=5 dryRunWrites=0 collision=blocked managedManifest=verified workspacePlugin=verified grokCli=${grokCliAvailable ? 'available' : 'unavailable-honest'} uninstall=verified zeroProjectArtifacts=verified defaultHosts=3 mcpScriptDeps=4`)

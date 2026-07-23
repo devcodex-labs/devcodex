@@ -2049,6 +2049,14 @@ function testMemorySessionAllocationAndTransactions() {
     rpcRequest(6, 'tools/call', {
       name: 'memory_summary_append',
       arguments: { row: '| 2026-05-24 | 01 | test | atomic summary | — | — | ✅ |' }
+    }),
+    rpcRequest(7, 'tools/call', {
+      name: 'memory_session_query',
+      arguments: { date: '20260524', status: 'all', limit: 10 }
+    }),
+    rpcRequest(8, 'tools/call', {
+      name: 'memory_summary_query',
+      arguments: { status: 'completed', limit: 10 }
     })
   ], projectRoot)
 
@@ -2059,8 +2067,20 @@ function testMemorySessionAllocationAndTransactions() {
   assert.strictEqual(first.sessionId, '01')
   assert.strictEqual(second.sessionId, '02')
   assert.strictEqual(first.transaction.schemaVersion, 'MemoryTransactionReceiptV1')
+  assert.strictEqual(first.transaction.indexReceipt.status, 'persisted')
+  assert.strictEqual(second.transaction.indexReceipt.status, 'persisted')
+  assert.strictEqual(second.transaction.indexReceipt.generation, 2)
   assert.match(resultById(responses, 5).content[0].text, /MemoryTransactionReceiptV1/)
   assert.match(resultById(responses, 6).content[0].text, /MemoryTransactionReceiptV1/)
+  assert.match(resultById(responses, 5).content[0].text, /MemoryIndexReceiptV1/)
+  assert.match(resultById(responses, 6).content[0].text, /MemoryIndexReceiptV1/)
+  const indexedDaily = toolJson(resultById(responses, 7))
+  const indexedSummary = toolJson(resultById(responses, 8))
+  assert.strictEqual(indexedDaily.indexReceipt.status, 'fresh')
+  assert.strictEqual(indexedDaily.coverage.status, 'complete')
+  assert(indexedDaily.telemetry.indexBytesRead > 0)
+  assert.strictEqual(indexedSummary.indexReceipt.status, 'fresh')
+  assert.strictEqual(indexedSummary.coverage.status, 'complete')
 
   const dailyPath = path.join(TEMP_ROOT, '.devcodex', 'chat', '.memory', 'clients', 'claude-code', 'tasks', '20260524.md')
   const daily = fs.readFileSync(dailyPath, 'utf8')
@@ -2069,6 +2089,22 @@ function testMemorySessionAllocationAndTransactions() {
   assert.match(daily, /追加内容/)
   const summary = fs.readFileSync(path.join(TEMP_ROOT, '.devcodex', 'chat', '.memory', 'clients', 'claude-code', 'SUMMARY.md'), 'utf8')
   assert.match(summary, /atomic summary/)
+
+  const derivedRoot = path.join(TEMP_ROOT, '.devcodex', 'chat', '.runtime-state', 'derived-indexes')
+  const beforeQueryOnly = snapshotTree(derivedRoot)
+  const queryOnly = runServer('mcp/memory-server.js', [
+    rpcRequest(20, 'tools/call', {
+      name: 'memory_session_query',
+      arguments: { date: '20260524', status: 'all', limit: 10 }
+    }),
+    rpcRequest(21, 'tools/call', {
+      name: 'memory_summary_query',
+      arguments: { status: 'completed', limit: 10 }
+    })
+  ], projectRoot)
+  assert.strictEqual(toolJson(resultById(queryOnly, 20)).indexReceipt.status, 'fresh')
+  assert.strictEqual(toolJson(resultById(queryOnly, 21)).indexReceipt.status, 'fresh')
+  assert.deepStrictEqual(snapshotTree(derivedRoot), beforeQueryOnly, 'index-backed MCP query must be zero-write')
 
   const lockedDate = '20260525'
   const activeRoot = path.join(TEMP_ROOT, '.devcodex', 'chat')

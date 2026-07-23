@@ -5,6 +5,7 @@
 
 ## 当前未发布实现候选
 
+- **运行态产物分层存储与索引**：新增内容寻址 partition / immutable manifest / 原子 pointer 公共契约，以及 memory、runtime-state、report 三个 domain adapter；旧 Markdown/files 与 reader 保持，stale/corrupt 自动回退且 query 零写入。memory 10 Tools 不变，仅 additive `indexReceipt/coverage`；status/doctor 使用 compact projection；report 只扫描 allowlisted roots、默认 primary metadata 并按 pointer lazy hydrate。真实 3 进程 ×（5 warmup + 30 measurement）benchmark 的 W1/W3/W4 总读取量减少 91.45% / 90.76% / 98.98%，W2 减少 76.32%，公共投影 mismatch=0；token telemetry 不可见，结论仅声明 bytes/latency。
 - **Workflow completion Shadow**：新增唯一 completion reducer、九类 owner receipt adapter、受管且原子回读的 task input、bounded derived state、两阶段 report/memory commit sidecar、memory read-time digest 复验、stable task selector、risk ledger、`task verify/risk` 与 `status/doctor/trace --completion`；四类生产假绿和反向身份均 fail closed。
 - **规范吸纳结构化执行与防复现闭环**：新增 `AbsorptionCandidateMatrixV1`、`LayeredAbsorptionDecisionV1`、read-only `plan-absorption-candidates` planner 与包分发清单；`spec-absorption`、V96、residual-absorption 和 repair-prevention 测试覆盖 ownerless / consumerless / validationRoute 缺失负例，防止项目独有建议、未绑定消费者建议或只写文档的半吸纳再次进入 ready。
 - **需求/技术方案候选审查内化**：新增 `CandidateReviewBundleV1`、`RequiredCandidateEvidenceGate` 与 `test:candidate-review-bundle`，要求 CP1 候选暴露 `RQMatrix / DomainRealityMatrix / ClaimEvidenceMatrix / EscapeAbsorptionQueue`，CP2 候选暴露 `TDMatrix / BlockerSnapshot / ClaimEvidenceMatrix`；同步 CP gate、plan-review、复审清单、报告与 validation manifest，防止缺矩阵、陈旧证据、软确认绕过和 open blocker。

@@ -32,6 +32,24 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 > 路径详细规范见 [`02-output-paths.instructions.md`](../../instructions/02-output-paths.instructions.md)。
 > 当 `<工作区根>/.devcodex/layout.json` 启用 `workspace-namespace` 时，本文中的任务目录与项目级 `reports/...` 均以当前 **`<active-root>`** 为根。
 
+## 报告索引导航
+
+需要按任务、日期或类别发现历史报告时，优先使用
+`scripts/lib/report-index.js#queryReportIndex` 的 metadata/pointer 结果，禁止先把整个
+report corpus 正文装入上下文。该索引不改变报告 Markdown 真相源，也不新增
+CLI/MCP surface。
+
+- discovery 只允许 `<active-root>/reports/**` 与
+  `<active-root>/{requirements,bugs,optimizations,scenario-tests}/<task>/reports/**`。
+- 默认只返回 `primary-report`；`evidence`、`artifact`、`generated-copy` 与
+  `unknown` 只有显式筛选时才返回，unknown 必须保留 warning。
+- `fresh` 索引可用于 metadata 导航；pointer 损坏、陈旧或出现未登记文件时，
+  只做内存中的 path/stat reconcile 并标记 `fallback`，不得隐式写索引。
+- 正文只能在选定具体 pointer 后通过 `hydrateReportEntry` 有界读取；截断正文只
+  能声明 `metadata-reconciled`，不得声明全文内容已验证。
+- 只有显式维护/benchmark 路径可调用 `rebuildReportIndex`；查询、resume、ECR
+  和普通报告写入必须保持 zero-write。
+
 ## 头部必填
 
 ```markdown

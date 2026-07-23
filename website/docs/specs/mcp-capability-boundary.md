@@ -13,6 +13,13 @@ DevCodex 当前只有两个本地 stdio MCP server。源码握手协议为 `2024
 
 “源码中有 Skill、Prompt 文件或 CLI 命令”不等于它已经是 MCP。只有 server 实际在 `tools/list`、`prompts/list` 或相应协议 primitive 中暴露，并通过握手和调用验证，才能标为已实现。
 
+当前未发布的运行态派生索引没有新增 MCP primitive：memory 的 10 个 Tool 数量和
+名称保持不变。`memory_status`、`memory_summary_query`、`memory_session_query`
+可在 source observation 新鲜时采用 current/month/day byte-range 分区，并返回
+additive `indexReceipt/coverage`；索引缺失、陈旧或损坏时走旧 parser，查询零写入。
+Claude/Codex 安装态会随 memory server 一并部署
+`derived-index-contract.js` 与 `memory-index.js` runtime dependency。
+
 ## 新增能力先做什么
 
 新增或改变能力入口时，先由 `spec-governance` 生成中央 `CapabilitySurfaceDecisionV1`。领域 Skill 负责提供业务/架构证据，并只保存 `decisionRef` 等本地元数据；不得自行复制中央选择字段或直接决定“新建 Skill/MCP”。

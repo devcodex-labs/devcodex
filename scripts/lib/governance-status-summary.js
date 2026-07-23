@@ -3,7 +3,7 @@
 const { spawnSync } = require('child_process')
 const fs = require('fs')
 const path = require('path')
-const { buildRuntimeStateIndex, resolveDefaultActiveRoot } = require('./runtime-state-index.js')
+const { loadRuntimeStateIndex, resolveDefaultActiveRoot } = require('./runtime-state-index.js')
 const { inspectExecutionOptimization } = require('./execution-optimization.js')
 const { buildAlwaysOnGovernanceSummary } = require('./always-on-governance.js')
 const { buildSimpleGovernanceFastPathDecision } = require('../../hooks/_runtime/visible-output-contract.cjs')
@@ -66,7 +66,8 @@ function inspectDirtyBoundary(packageRoot) {
 
 function summarizeRuntimeState(activeRoot, warnings) {
   try {
-    const index = buildRuntimeStateIndex(activeRoot)
+    const loaded = loadRuntimeStateIndex(activeRoot)
+    const index = loaded.index
     const summary = index.summary || {}
     return {
       schemaVersion: 'RuntimeStateSummaryV1',
@@ -78,6 +79,7 @@ function summarizeRuntimeState(activeRoot, warnings) {
       historicalTransitionCount: summary.historicalTransitionCount || 0,
       consumerDriftCount: summary.consumerDriftCount || 0,
       alertCount: summary.alertCount || 0,
+      indexReceipt: loaded.receipt,
       index
     }
   } catch (error) {

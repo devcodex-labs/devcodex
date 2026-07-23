@@ -170,6 +170,14 @@ description: "Use when: ..."   # 必填，AI 靠这个发现 Skill
 - 用户/项目明确要求、audit/migration、低置信、必要来源缺失或实质 scope/risk/digest 漂移可以升级/重算；预算只触发告警或升级，不能压掉安全、CP、治理或强制证据。
 - MCP bridge 失败只允许一次同计划 bounded fallback；结果不可观察时保持 unverified，并继续执行后续安全与确认门禁。
 
+当前未发布源码还为 memory、runtime-state 与 report metadata 增加可重建的内容寻址
+派生索引。Markdown/文件继续作为唯一真相源；查询校验 pointer、manifest 和 source
+observation 后才采用分区，陈旧或损坏则回退原 parser/path-stat，且读取路径始终
+zero-write。memory Tool 仅增加 `indexReceipt/coverage`，不新增 Tool；报告默认只
+返回 allowlisted roots 中的 primary metadata，正文按选定 pointer 有界读取。维护者
+可用 `npm run benchmark:runtime-indexes -- --root <active-root>` 分列 bytes、latency
+与 token-unavailable 边界。
+
 ### 大型项目的增量分析快照
 
 首次完整或逐文件分析不必在后续任务中反复重读全库。当前源码提供单一 ProjectKnowledge V2 仓：

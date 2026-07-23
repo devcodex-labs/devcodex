@@ -45,6 +45,17 @@ description: 管理会话记忆的读取与写入。三层记忆体系：Agent �
 
 记忆读取必须绑定当前 `ContextReadPlanV2`（兼容 `ContextReadPlanV1`），先取带 `ContentIdentityV1` 的结构化状态，再按 continuity 精确查询；“必须复证文件真相”不得实现成固定全文读取。
 
+`memory_status`、`memory_summary_query` 与 `memory_session_query` 可在 source
+metadata 和 pointer/manifest 校验通过时使用
+`<active-root>/.runtime-state/derived-indexes/v1/memory/**` 的
+status/current/month/day byte-range 分区。该索引不是记忆真相源：
+
+- 受管 memory writer 只有在 canonical 文件提交成功后才刷新索引，pointer 最后写并回读。
+- source metadata 漂移、schema/digest 损坏、锁竞争或索引缺失时必须回退既有
+  parser；允许返回 additive `indexReceipt/coverage`，不得改变旧字段、排序或错误。
+- query 与 fallback 均保持 zero-write；不得为了修复索引在读取阶段创建或改写 memory 文件。
+- byte-range 或截断结果只能证明已返回范围，不能声明完整 daily/SUMMARY 正文已验证。
+
 | 场景 | 读取范围 | 执行顺序 |
 |------|---------|---------|
 | **命名续接 · 首步** | 完整消息为 `继续<任务名>任务` / `继续 <任务名>` 时调用 `memory_task_resolve(name, project?)`；只取 identity/session/CP metadata 与结构化结果 | 先于通用 resume 查询 |

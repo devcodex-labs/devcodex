@@ -75,7 +75,9 @@ const CLAUDE_SOURCES = [
  */
 const CLAUDE_MCP_RUNTIME_SCRIPT_DEPS = Object.freeze([
   'scripts/lib/cp-digest.js',
-  'scripts/lib/host-parity-scorecard.js'
+  'scripts/lib/host-parity-scorecard.js',
+  'scripts/lib/derived-index-contract.js',
+  'scripts/lib/memory-index.js'
 ])
 
 const CODEX_SOURCES = [

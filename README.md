@@ -388,6 +388,28 @@ devcodex status
 
 旧的 no-args `profile_load`、`memory_session_read` 和 `memory_summary_read` 仍保留兼容性，但不再是推荐默认路径，也不能单独证明相关上下文已经完整加载。`config.local.json` 仍只有在用户或项目明确指定时才读取。
 
+## 运行态派生索引（未发布）
+
+当前源码为持续增长的 memory、运行态台账投影和报告目录增加
+`DomainDerivedIndexV1`：Markdown/文件仍是唯一真相源，内容寻址 partition、immutable
+manifest 和原子 `current.json` pointer 只负责加速。索引位于
+`<active-root>/.runtime-state/derived-indexes/v1/`；损坏、陈旧、锁竞争或出现未登记
+报告时自动回退现有 parser/path-stat 路径，查询本身不写文件。
+
+- 现有 `memory_status`、`memory_summary_query`、`memory_session_query` 名称、输入、
+  排序与字段不变，只增加 `indexReceipt/coverage`；受管 memory writer 成功后刷新
+  current/month/day byte-range 分区。
+- `status/doctor` 优先读取 compact runtime-state current projection；显式
+  `check-runtime-state --write-index` 继续保留 legacy
+  `.runtime-state/runtime-state-index.json`，并同时提交新分区。
+- 报告工作流默认只查询 allowlisted roots 下的 `primary-report` metadata；evidence、
+  artifact、generated copy 和 unknown 默认排除，正文只在选定 pointer 后有界读取。
+- `npm run benchmark:runtime-indexes -- --root <active-root>` 使用 3 个独立进程、
+  每项 5 次预热和 30 次测量。当前真实快照 W1/W3/W4 总读取量分别减少
+  91.45% / 90.76% / 98.98%，W2 精确 session 减少 76.32%，公共投影零差异；
+  token telemetry 不可见，因此这些结果只声明 bytes/latency 收益，不冒充 token
+  实测。
+
 ## 项目侧执行链性能与稳定回滚（v1.15.3）
 
 当前源码把 task index、Context computation reuse、changed-scope validation、Profile section、Skill bundle 与 ProjectKnowledge snapshot 统一纳入 `ExecutionOptimizationStateV2`。派生索引/cache/snapshot 只负责加速，损坏、过期或关闭时不会成为第二真相源。

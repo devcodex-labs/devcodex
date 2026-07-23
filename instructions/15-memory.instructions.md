@@ -51,6 +51,13 @@ version: 1.15.3
 
 记忆读取必须进入当前 `ContextReadPlanV2`（兼容 `ContextReadPlanV1`），并通过 `MemoryContextQueryGate` 执行有界查询；“文件是真相源”不等于“先读完整文件”。
 
+现有 memory MCP query 可在 source metadata 和 pointer/manifest 校验通过时读取
+`<active-root>/.runtime-state/derived-indexes/v1/memory/**` 的派生分区。canonical
+daily/SUMMARY 仍是唯一真相源：受管 writer 在文件提交后刷新索引；索引缺失、
+陈旧、损坏或锁竞争时回退既有 parser；query/fallback 均零写入。允许 additive
+`indexReceipt/coverage`，不得改变旧字段、排序和错误语义；byte-range 或截断结果
+不得升级为完整正文已验证。
+
 | 场景 | 读取范围 | 执行顺序 |
 |------|---------|---------|
 | **命名续接 · 首步** | 完整消息为 `继续<任务名>任务` / `继续 <任务名>` 时调用 `memory_task_resolve(name, project?)`；只返回有界 identity/session/CP metadata | 先于通用 resume 查询 |

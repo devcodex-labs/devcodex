@@ -10,7 +10,11 @@ description: 自我进化治理能力 — 规范、Skill、Prompt、探针和发
 
 本 Skill 负责把 AI 生成的“改进建议”限制在候选态，明确授权、模型配置、租户 / 权限、配额、数据边界、审计日志、回滚和发布审批。任何模型输出不得直接写入 active 规范、部署副本、tag、release 或 publish 流程。
 
-运行态 canonical 化的迁移第一阶段可使用 `scripts/check-runtime-state.js`：它只读解析台账、Agent/daily/global SUMMARY，输出稳定 record/claim/conflict；只有显式 `--write-index` 才写 active-root 的派生 `.runtime-state/runtime-state-index.json`。该索引不覆盖历史 Markdown、不切换现有写入者，也不授权自动修复或 active mutation。
+运行态 canonical 化的迁移第一阶段可使用 `scripts/check-runtime-state.js`：它优先读取
+fresh compact current projection，陈旧或损坏时只读解析台账、Agent/daily/global
+SUMMARY；只有显式 `--write-index` 才同时写 legacy
+`.runtime-state/runtime-state-index.json` 与内容寻址 current/detail 分区。两者都不
+覆盖历史 Markdown、不切换现有写入者，也不授权自动修复或 active mutation。
 
 ## 触发条件
 

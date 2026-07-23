@@ -6,15 +6,15 @@
     "skillsPattern": "skills/*/SKILL.md",
     "optionalSidecar": "skills/*/devcodex.skill.json",
     "registry": "plugin.json",
-    "sourceDigest": "c84cd2ab34d791511f61eb9a47cc16f67db6678818546c59478852e5af23d96b",
+    "sourceDigest": "792c3df4cab701caf077da73c9fc1f1705499f6a3a6cd4557089fa7ed4c9f368",
     "sidecarDigest": "774105d7947b340d15d17115fcb8e37b62ae545cf553f06126d529184fd74872",
     "pluginDigest": "e972de3b30d46966c4f0c19737ceabffbcd48b94cbd7f7bf5e11175c81b815ac",
     "portfolioEvidence": "skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "85229c1463a5068750d5417e5ebf960907532dccf99b1cd3da0a88f7007792b4",
-    "consumerInventoryFileCount": 550,
-    "consumerInventoryDigest": "6b96b61c7e79618324141360dd264142827bef3357f304616ed38d5934827135",
-    "consumerProjectionDigest": "f7048018b724daa0a286f7abfa464745ca5bf559e93d3037452e30d7e53216d4",
-    "portfolioInputDigest": "241bc53540976de400eb58f3d41d9ed8170785305d8e627b060556978d67b2f5"
+    "consumerInventoryFileCount": 557,
+    "consumerInventoryDigest": "905ae03a0758796737e8b829605eef83188e9a5d6c1c0bcb280b5781e19fe20f",
+    "consumerProjectionDigest": "d8b8ff5c5d1633b30697a7f6590683128874a3159f109e63388b6cfb942213df",
+    "portfolioInputDigest": "7e7ff3f218309a3dceb30b67a403f45431cfa0684e4993bca71f7becb2779918"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -8975,8 +8975,8 @@
         "skills/evolution-governance/SKILL.md"
       ],
       "source": "skills/evolution-governance/SKILL.md",
-      "hash": "9f2c57a21f098991105e40bb7ac7b805b85be55301f322658540d025fb08c716",
-      "sourceBytes": 10029,
+      "hash": "37e1de8a7e35b333ee9b649b4060771c1ddd1e26b014028f8b473c06384a13c1",
+      "sourceBytes": 10088,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [],
@@ -12196,8 +12196,8 @@
         "skills/memory/SKILL.md"
       ],
       "source": "skills/memory/SKILL.md",
-      "hash": "f006d5b23a550e751ae89bd80eb62b7e6e0632b9bd08c3a6e5ccc3740b1b72fc",
-      "sourceBytes": 18865,
+      "hash": "7776d8f9adc7a658e0d11290b9b4d305a670698fe09a835928805daefaa16ef0",
+      "sourceBytes": 19680,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [],
@@ -12431,6 +12431,10 @@
           "role": "current"
         },
         {
+          "path": "package.json",
+          "role": "current"
+        },
+        {
           "path": "plugin.json",
           "role": "current"
         },
@@ -12480,6 +12484,10 @@
         },
         {
           "path": "README.md",
+          "role": "current"
+        },
+        {
+          "path": "scripts/benchmark-runtime-indexes.js",
           "role": "current"
         },
         {
@@ -12548,6 +12556,10 @@
         },
         {
           "path": "scripts/lib/host-parity-scorecard.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/memory-index.js",
           "role": "current"
         },
         {
@@ -12675,11 +12687,19 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-memory-index.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-migrate-layout.js",
           "role": "current"
         },
         {
           "path": "scripts/test-pack-clean.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-report-index.js",
           "role": "current"
         },
         {
@@ -12955,8 +12975,10 @@
         "scripts/test-host-parity-scorecard.js",
         "scripts/test-instruction-fallback-check.js",
         "scripts/test-mcp-servers.js",
+        "scripts/test-memory-index.js",
         "scripts/test-migrate-layout.js",
         "scripts/test-pack-clean.js",
+        "scripts/test-report-index.js",
         "scripts/test-requirement-artifacts.js",
         "scripts/test-requirement-parallel-orchestration.js",
         "scripts/test-review-execution-contract.js",
@@ -13022,8 +13044,10 @@
           "scripts/test-host-parity-scorecard.js",
           "scripts/test-instruction-fallback-check.js",
           "scripts/test-mcp-servers.js",
+          "scripts/test-memory-index.js",
           "scripts/test-migrate-layout.js",
           "scripts/test-pack-clean.js",
+          "scripts/test-report-index.js",
           "scripts/test-requirement-artifacts.js",
           "scripts/test-requirement-parallel-orchestration.js",
           "scripts/test-review-execution-contract.js",
@@ -15994,8 +16018,8 @@
         "skills/report/SKILL.md"
       ],
       "source": "skills/report/SKILL.md",
-      "hash": "9c949e1b802f800ff81a324f89f8253668d42281e2e462994fab7fd489636b41",
-      "sourceBytes": 17671,
+      "hash": "236b646ffc53caa94d631613a18d44b7ad9694292fbef32c05336c8a1627fba1",
+      "sourceBytes": 18782,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [],
@@ -16317,6 +16341,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/benchmark-runtime-indexes.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/fixtures/capability-surface-decision/valid-controlled-tool.json",
           "role": "current"
         },
@@ -16386,6 +16414,10 @@
         },
         {
           "path": "scripts/lib/optimization-backlog-evidence.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/report-index.js",
           "role": "current"
         },
         {
@@ -16549,6 +16581,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-memory-index.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-migrate-layout.js",
           "role": "current"
         },
@@ -16562,6 +16598,10 @@
         },
         {
           "path": "scripts/test-repair-prevention-assessment.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-report-index.js",
           "role": "current"
         },
         {
@@ -16798,10 +16838,12 @@
         "scripts/test-host-parity-scorecard.js",
         "scripts/test-instruction-fallback-check.js",
         "scripts/test-mcp-servers.js",
+        "scripts/test-memory-index.js",
         "scripts/test-migrate-layout.js",
         "scripts/test-optimization-backlog-evidence.js",
         "scripts/test-project-knowledge-store.js",
         "scripts/test-repair-prevention-assessment.js",
+        "scripts/test-report-index.js",
         "scripts/test-requirement-parallel-orchestration.js",
         "scripts/test-review-execution-contract.js",
         "scripts/test-skill-portfolio.js",
@@ -16873,10 +16915,12 @@
           "scripts/test-host-parity-scorecard.js",
           "scripts/test-instruction-fallback-check.js",
           "scripts/test-mcp-servers.js",
+          "scripts/test-memory-index.js",
           "scripts/test-migrate-layout.js",
           "scripts/test-optimization-backlog-evidence.js",
           "scripts/test-project-knowledge-store.js",
           "scripts/test-repair-prevention-assessment.js",
+          "scripts/test-report-index.js",
           "scripts/test-requirement-parallel-orchestration.js",
           "scripts/test-review-execution-contract.js",
           "scripts/test-skill-portfolio.js",
@@ -19682,6 +19726,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/benchmark-runtime-indexes.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/check-critical-coverage.js",
           "role": "current"
         },
@@ -19723,6 +19771,10 @@
         },
         {
           "path": "scripts/lib/governance-status-summary.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/memory-index.js",
           "role": "current"
         },
         {
@@ -19823,6 +19875,10 @@
         },
         {
           "path": "scripts/test-mcp-servers.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-memory-index.js",
           "role": "current"
         },
         {
@@ -20023,6 +20079,7 @@
         "scripts/test-governance-status-summary.js",
         "scripts/test-hooks-runtime.js",
         "scripts/test-mcp-servers.js",
+        "scripts/test-memory-index.js",
         "scripts/test-migrate-layout.js",
         "scripts/test-runtime-state-index.js",
         "scripts/test-skill-portfolio.js",
@@ -20083,6 +20140,7 @@
           "scripts/test-governance-status-summary.js",
           "scripts/test-hooks-runtime.js",
           "scripts/test-mcp-servers.js",
+          "scripts/test-memory-index.js",
           "scripts/test-migrate-layout.js",
           "scripts/test-runtime-state-index.js",
           "scripts/test-skill-portfolio.js",

@@ -36,6 +36,12 @@
     "scripts/lib/evidence-freshness-receipt.js",
     "scripts/test-evidence-freshness-receipt.js",
     "scripts/fixtures/evidence-freshness/**",
+    "scripts/lib/derived-index-contract.js",
+    "scripts/test-derived-index-contract.js",
+    "scripts/lib/memory-index.js",
+    "scripts/test-memory-index.js",
+    "scripts/lib/report-index.js",
+    "scripts/test-report-index.js",
     "scripts/validate.js",
     "scripts/lib/probe-registry.js",
     "scripts/lib/validate-*.js"
@@ -61,6 +67,9 @@
         "runtime-state-index",
         "deployment-manifest",
         "content-identity",
+        "derived-index-contract",
+        "memory-index",
+        "report-index",
         "task-continuation",
         "validation-dag",
         "probe-registry",
@@ -131,6 +140,9 @@
         "runtime-state-index",
         "deployment-manifest",
         "content-identity",
+        "derived-index-contract",
+        "memory-index",
+        "report-index",
         "task-continuation",
         "validation-dag",
         "probe-registry",
@@ -802,7 +814,9 @@
       "args": [
         "scripts/test-runtime-state-index.js"
       ],
-      "dependencies": [],
+      "dependencies": [
+        "derived-index-contract"
+      ],
       "inputs": [
         "scripts/lib/runtime-state-index.js",
         "scripts/test-runtime-state-index.js",
@@ -890,7 +904,8 @@
       "consumers": [
         "task-continuation",
         "context-read",
-        "project-knowledge-store"
+        "project-knowledge-store",
+        "derived-index-contract"
       ],
       "invariants": [
         "contract"
@@ -910,6 +925,149 @@
       },
       "evidenceArtifacts": [
         "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "derived-index-contract",
+      "owner": "runtime-derived-index",
+      "command": "node",
+      "args": [
+        "scripts/test-derived-index-contract.js"
+      ],
+      "dependencies": [
+        "content-identity"
+      ],
+      "inputs": [
+        "hooks/_runtime/content-identity.cjs",
+        "hooks/_runtime/derived-state-store.cjs",
+        "scripts/lib/derived-index-contract.js",
+        "scripts/test-derived-index-contract.js"
+      ],
+      "consumers": [
+        "runtime-state-index",
+        "memory-index",
+        "report-index"
+      ],
+      "invariants": [
+        "content-addressed-partitions",
+        "manifest-before-pointer",
+        "domain-single-writer",
+        "readback",
+        "zero-write-query",
+        "fail-closed-fallback"
+      ],
+      "riskClass": "high",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1",
+        "DerivedIndexCommitReceiptV1",
+        "DerivedIndexQueryEnvelopeV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "memory-index",
+      "owner": "memory",
+      "command": "node",
+      "args": [
+        "scripts/test-memory-index.js"
+      ],
+      "dependencies": [
+        "derived-index-contract"
+      ],
+      "inputs": [
+        "scripts/lib/derived-index-contract.js",
+        "scripts/lib/memory-index.js",
+        "scripts/test-memory-index.js",
+        "mcp/memory-server.js"
+      ],
+      "consumers": [
+        "mcp-servers"
+      ],
+      "invariants": [
+        "summary-current-month-partitions",
+        "daily-byte-range-hydration",
+        "legacy-fallback",
+        "source-metadata-reconciliation",
+        "zero-write-query"
+      ],
+      "riskClass": "high",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1",
+        "MemoryIndexReceiptV1",
+        "DerivedIndexQueryEnvelopeV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "report-index",
+      "owner": "report",
+      "command": "node",
+      "args": [
+        "scripts/test-report-index.js"
+      ],
+      "dependencies": [
+        "derived-index-contract"
+      ],
+      "inputs": [
+        "scripts/lib/derived-index-contract.js",
+        "scripts/lib/report-index.js",
+        "scripts/test-report-index.js",
+        "skills/report/SKILL.md"
+      ],
+      "consumers": [
+        "requirement-artifacts",
+        "review-execution-contract"
+      ],
+      "invariants": [
+        "allowlisted-roots",
+        "classification-default-primary",
+        "metadata-reconciliation",
+        "lazy-hydration",
+        "legacy-fallback",
+        "zero-write-query"
+      ],
+      "riskClass": "high",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1",
+        "ReportIndexRebuildReceiptV1",
+        "DerivedIndexQueryEnvelopeV1"
       ]
     },
     {
@@ -1130,7 +1288,8 @@
         "scripts/test-always-on-governance.js"
       ],
       "dependencies": [
-        "cli-json-contract"
+        "cli-json-contract",
+        "runtime-state-index"
       ],
       "inputs": [
         "package.json",

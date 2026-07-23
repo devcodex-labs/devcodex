@@ -50,6 +50,16 @@ function loadCpDigestContract() {
 
 const CP_DIGEST_CONTRACT = loadCpDigestContract()
 
+function loadMemoryIndexContract() {
+  try {
+    return require('../scripts/lib/memory-index.js')
+  } catch {
+    return null
+  }
+}
+
+const MEMORY_INDEX_CONTRACT = loadMemoryIndexContract()
+
 const INPUT_ROOT = process.argv[2]
   ? path.resolve(process.argv[2])
   : process.cwd()
@@ -1140,6 +1150,106 @@ function parseDailySessions(content, date) {
   return { sessions, warnings: [] }
 }
 
+function indexedSourceMetadata(source) {
+  if (!source) return null
+  const { mtimeMs, ...metadata } = source
+  return metadata
+}
+
+function memoryIndexFallbackReceipt(kind, result) {
+  return {
+    schemaVersion: 'MemoryIndexReceiptV1',
+    status: 'fallback',
+    kind,
+    reason: result?.reason || 'index-unavailable',
+    receipt: result?.envelope?.receipt || null
+  }
+}
+
+function queryStatusIndex(target, sourcePath, limit) {
+  if (!MEMORY_INDEX_CONTRACT) return { status: 'fallback', reason: 'index-module-unavailable' }
+  return MEMORY_INDEX_CONTRACT.queryStatusIndex({ target, sourcePath, limit })
+}
+
+function querySummaryIndex(target, sourcePath, status, limit, since) {
+  if (!MEMORY_INDEX_CONTRACT) return { status: 'fallback', reason: 'index-module-unavailable' }
+  return MEMORY_INDEX_CONTRACT.querySummaryIndex({ target, sourcePath, status, limit, since })
+}
+
+function queryDailyIndex(target, sourcePath, input) {
+  if (!MEMORY_INDEX_CONTRACT) return { status: 'fallback', reason: 'index-module-unavailable' }
+  return MEMORY_INDEX_CONTRACT.queryDailyIndex({
+    target,
+    sourcePath,
+    date: input.date,
+    sessionId: input.sessionId,
+    status: input.status,
+    limit: input.limit,
+    handoffOnly: input.handoffOnly,
+    maxChars: input.maxChars,
+    extractHandoffCard
+  })
+}
+
+function refreshSummaryMemoryIndex(target, filePath) {
+  if (!MEMORY_INDEX_CONTRACT) {
+    return {
+      schemaVersion: 'MemoryIndexReceiptV1',
+      status: 'bypassed',
+      kind: 'summary',
+      reason: 'index-module-unavailable'
+    }
+  }
+  try {
+    const document = readMemoryDocument(filePath)
+    return MEMORY_INDEX_CONTRACT.refreshSummaryIndex({
+      target,
+      document,
+      parsed: parseSummaryRows(document.content),
+      freshnessTier: 'writer-attested'
+    })
+  } catch (error) {
+    return {
+      schemaVersion: 'MemoryIndexReceiptV1',
+      status: 'error',
+      kind: 'summary',
+      errorCode: 'MEMORY_INDEX_REFRESH_FAILED',
+      message: error.message
+    }
+  }
+}
+
+function refreshDailyMemoryIndex(target, filePath, date) {
+  if (!MEMORY_INDEX_CONTRACT) {
+    return {
+      schemaVersion: 'MemoryIndexReceiptV1',
+      status: 'bypassed',
+      kind: 'daily',
+      date,
+      reason: 'index-module-unavailable'
+    }
+  }
+  try {
+    const document = readMemoryDocument(filePath)
+    return MEMORY_INDEX_CONTRACT.refreshDailyIndex({
+      target,
+      date,
+      document,
+      parsed: parseDailySessions(document.content, date),
+      freshnessTier: 'writer-attested'
+    })
+  } catch (error) {
+    return {
+      schemaVersion: 'MemoryIndexReceiptV1',
+      status: 'error',
+      kind: 'daily',
+      date,
+      errorCode: 'MEMORY_INDEX_REFRESH_FAILED',
+      message: error.message
+    }
+  }
+}
+
 function projectionTelemetry(value, sourceDocuments, startedAt) {
   const serialized = JSON.stringify(value)
   return {
@@ -1153,16 +1263,28 @@ function projectionTelemetry(value, sourceDocuments, startedAt) {
   }
 }
 
-function withProjectionIdentity(projection, toolName, target, sourceDocuments, startedAt) {
+function withProjectionIdentity(projection, toolName, target, sourceDocuments, startedAt, telemetryOverride = null) {
   const contentIdentity = buildJsonContentIdentity({
     sourceKey: `memory://${target.project}/${toolName}#delivered`,
     value: projection,
     contractVersion: projection.schemaVersion
   }).identity
   const identified = { ...projection, contentIdentity }
+  const telemetry = projectionTelemetry(identified, sourceDocuments, startedAt)
   return {
     ...identified,
-    telemetry: projectionTelemetry(identified, sourceDocuments, startedAt)
+    telemetry: telemetryOverride
+      ? {
+          ...telemetry,
+          sourceBytes: telemetryOverride.sourceBytes,
+          filesRead: telemetryOverride.filesRead,
+          tokens: telemetryOverride.tokens ?? null,
+          indexLatencyMs: telemetryOverride.latencyMs ?? null,
+          ...(Number.isFinite(telemetryOverride.indexBytesRead)
+            ? { indexBytesRead: telemetryOverride.indexBytesRead }
+            : {})
+        }
+      : telemetry
   }
 }
 
@@ -1202,7 +1324,47 @@ function handleMemoryStatus(args) {
     const yesterdayDate = yesterday()
     const todayMetadata = memoryFileMetadata(memoryClientPath(target, 'tasks', `${todayDate}.md`))
     const yesterdayMetadata = memoryFileMetadata(memoryClientPath(target, 'tasks', `${yesterdayDate}.md`))
-    const summaryDocument = readMemoryDocument(memoryClientPath(target, 'SUMMARY.md'))
+    const summaryPath = memoryClientPath(target, 'SUMMARY.md')
+    const indexed = queryStatusIndex(target, summaryPath, limit)
+    if (indexed.status === 'fresh') {
+      const activeSessionIds = indexed.activeSessionIds.slice(0, MAX_SUMMARY_ROWS_FOR_STATUS)
+      const conflicts = indexed.conflicts.slice(0, MAX_SUMMARY_ROWS_FOR_STATUS)
+      const boundWarnings = []
+      if (indexed.activeSessionIds.length > activeSessionIds.length) {
+        boundWarnings.push(`activeSessionIds was bounded to ${MAX_SUMMARY_ROWS_FOR_STATUS}.`)
+      }
+      if (indexed.conflicts.length > conflicts.length) {
+        boundWarnings.push(`conflicts was bounded to ${MAX_SUMMARY_ROWS_FOR_STATUS}.`)
+      }
+      if (indexed.nonCanonicalActiveCount) {
+        boundWarnings.push(`${indexed.nonCanonicalActiveCount} active SUMMARY row(s) use non-canonical session labels; inspect latestRows.`)
+      }
+      const projection = {
+        schemaVersion: 'MemoryStatusV1',
+        activeRoot: target.activeRoot,
+        project: target.project,
+        agent: target.agent,
+        today: { date: todayDate, ...todayMetadata },
+        yesterday: { date: yesterdayDate, ...yesterdayMetadata },
+        summary: indexedSourceMetadata(indexed.source),
+        latestRows: indexed.latestRows,
+        activeSessionIds,
+        conflicts,
+        warnings: [...boundWarnings, ...indexed.warnings].slice(0, 20),
+        indexReceipt: indexed.envelope.receipt,
+        coverage: indexed.envelope.coverage,
+        contextBinding
+      }
+      return withProjectionIdentity(
+        projection,
+        'memory_status',
+        target,
+        [],
+        startedAt,
+        indexed.envelope.telemetry
+      )
+    }
+    const summaryDocument = readMemoryDocument(summaryPath)
     const parsed = parseSummaryRows(summaryDocument.content)
     const latestRows = parsed.rows.slice().reverse().slice(0, limit)
     const nonCanonicalActiveRows = parsed.rows.filter(row => row.state === 'active' && !row.sessionIdCanonical)
@@ -1235,6 +1397,8 @@ function handleMemoryStatus(args) {
       activeSessionIds,
       conflicts,
       warnings: [...boundWarnings, ...parsed.warnings].slice(0, 20),
+      indexReceipt: memoryIndexFallbackReceipt('summary', indexed),
+      coverage: { status: 'legacy-complete', reason: indexed.reason || 'index-fallback' },
       contextBinding
     }
     return withProjectionIdentity(projection, 'memory_status', target, [summaryDocument], startedAt)
@@ -1265,7 +1429,52 @@ function handleMemorySessionQuery(args) {
       throw memoryQueryError('handoffOnly must be boolean.')
     }
     const handoffOnly = input.handoffOnly === true
-    const document = readMemoryDocument(memoryClientPath(target, 'tasks', `${date}.md`))
+    const dailyPath = memoryClientPath(target, 'tasks', `${date}.md`)
+    const indexed = queryDailyIndex(target, dailyPath, {
+      date,
+      sessionId: normalizedSession,
+      status,
+      limit,
+      handoffOnly,
+      maxChars
+    })
+    const query = {
+      date,
+      sessionId: requestedSessionId || null,
+      status,
+      limit,
+      handoffOnly,
+      maxChars
+    }
+    if (indexed.status === 'fresh') {
+      const source = {
+        activeRoot: target.activeRoot,
+        project: target.project,
+        agent: target.agent,
+        date,
+        ...indexedSourceMetadata(indexed.source)
+      }
+      const projection = {
+        schemaVersion: 'MemorySessionQueryV1',
+        query,
+        matches: indexed.matches,
+        truncated: indexed.envelope.truncated,
+        source,
+        warnings: indexed.warnings,
+        indexReceipt: indexed.envelope.receipt,
+        coverage: indexed.envelope.coverage,
+        contextBinding
+      }
+      return withProjectionIdentity(
+        projection,
+        'memory_session_query',
+        target,
+        [],
+        startedAt,
+        indexed.envelope.telemetry
+      )
+    }
+    const document = readMemoryDocument(dailyPath)
     const parsed = parseDailySessions(document.content, date)
     const candidates = parsed.sessions.slice().reverse().filter(session => {
       if (normalizedSession && session.sessionId !== normalizedSession) return false
@@ -1300,14 +1509,6 @@ function handleMemorySessionQuery(args) {
         break
       }
     }
-    const query = {
-      date,
-      sessionId: requestedSessionId || null,
-      status,
-      limit,
-      handoffOnly,
-      maxChars
-    }
     const source = {
       activeRoot: target.activeRoot,
       project: target.project,
@@ -1322,6 +1523,8 @@ function handleMemorySessionQuery(args) {
       truncated: candidates.length > matches.length || contentTruncated,
       source,
       warnings: parsed.warnings,
+      indexReceipt: memoryIndexFallbackReceipt('daily', indexed),
+      coverage: { status: 'legacy-complete', reason: indexed.reason || 'index-fallback' },
       contextBinding
     }
     return withProjectionIdentity(projection, 'memory_session_query', target, [document], startedAt)
@@ -1342,14 +1545,44 @@ function handleMemorySummaryQuery(args) {
     }
     const since = input.since === undefined ? null : input.since
     if (since !== null) validateSince(since)
-    const document = readMemoryDocument(memoryClientPath(target, 'SUMMARY.md'))
+    const summaryPath = memoryClientPath(target, 'SUMMARY.md')
+    const indexed = querySummaryIndex(target, summaryPath, status, limit, since)
+    const query = { status, limit, since }
+    if (indexed.status === 'fresh') {
+      const source = {
+        activeRoot: target.activeRoot,
+        project: target.project,
+        agent: target.agent,
+        ...indexedSourceMetadata(indexed.source)
+      }
+      const projection = {
+        schemaVersion: 'MemorySummaryQueryV1',
+        query,
+        rows: indexed.rows,
+        totalMatched: indexed.totalMatched,
+        truncated: indexed.envelope.truncated,
+        source,
+        warnings: indexed.warnings,
+        indexReceipt: indexed.envelope.receipt,
+        coverage: indexed.envelope.coverage,
+        contextBinding
+      }
+      return withProjectionIdentity(
+        projection,
+        'memory_summary_query',
+        target,
+        [],
+        startedAt,
+        indexed.envelope.telemetry
+      )
+    }
+    const document = readMemoryDocument(summaryPath)
     const parsed = parseSummaryRows(document.content)
     const filtered = parsed.rows.filter(row => {
       if (since && row.day < since) return false
       return memoryStateMatches(row.state, status)
     })
     const rows = filtered.slice().reverse().slice(0, limit)
-    const query = { status, limit, since }
     const source = {
       activeRoot: target.activeRoot,
       project: target.project,
@@ -1364,6 +1597,8 @@ function handleMemorySummaryQuery(args) {
       truncated: filtered.length > rows.length,
       source,
       warnings: parsed.warnings,
+      indexReceipt: memoryIndexFallbackReceipt('summary', indexed),
+      coverage: { status: 'legacy-complete', reason: indexed.reason || 'index-fallback' },
       contextBinding
     }
     return withProjectionIdentity(projection, 'memory_summary_query', target, [document], startedAt)
@@ -1386,6 +1621,7 @@ function handleMemorySessionWrite(args) {
     const separator = existing ? '\n' : ''
     return existing + separator + args.content
   })
+  receipt.indexReceipt = refreshDailyMemoryIndex(target, p, args.date || today())
   return {
     content: [{
       type: 'text',
@@ -1423,6 +1659,7 @@ function handleMemorySessionAllocate(args) {
     const separator = existing ? '\n\n' : ''
     return existing + separator + block
   })
+  receipt.indexReceipt = refreshDailyMemoryIndex(target, p, input.date)
   const allocation = {
     schemaVersion: 'MemorySessionAllocationReceiptV1',
     sessionId: allocatedId,
@@ -1549,6 +1786,7 @@ function handleMemorySummaryAppend(args) {
     if (!existing) return summaryHeader(args.agent || target.agent, args) + args.row + '\n'
     return existing + args.row + '\n'
   })
+  receipt.indexReceipt = refreshSummaryMemoryIndex(target, p)
   const parsed = parseSummaryRows(readFile(p))
   const appended = parsed.rows[parsed.rows.length - 1]
   if (!appended || appended.day !== day || appended.sessionId !== normalizeSessionId(cells[1])) {
@@ -1634,30 +1872,38 @@ function sendError(id, code, message) {
   process.stdout.write(msg + '\n')
 }
 
-let buffer = ''
-
-process.stdin.setEncoding('utf8')
-process.stdin.on('data', chunk => {
-  buffer += chunk
-  const lines = buffer.split('\n')
-  buffer = lines.pop() // keep incomplete line
-  for (const line of lines) {
-    const trimmed = line.trim()
-    if (!trimmed) continue
-    let req
-    try { req = JSON.parse(trimmed) } catch {
-      sendError(null, -32700, 'Parse error')
-      continue
+if (require.main === module) {
+  let buffer = ''
+  process.stdin.setEncoding('utf8')
+  process.stdin.on('data', chunk => {
+    buffer += chunk
+    const lines = buffer.split('\n')
+    buffer = lines.pop() // keep incomplete line
+    for (const line of lines) {
+      const trimmed = line.trim()
+      if (!trimmed) continue
+      let req
+      try { req = JSON.parse(trimmed) } catch {
+        sendError(null, -32700, 'Parse error')
+        continue
+      }
+      try {
+        const result = dispatch(req.method, req.params)
+        if (req.id !== undefined) sendResponse(req.id, result)
+      } catch (err) {
+        if (req.id !== undefined) sendError(req.id, err.code || -32603, err.message)
+      }
     }
-    try {
-      const result = dispatch(req.method, req.params)
-      if (req.id !== undefined) sendResponse(req.id, result)
-    } catch (err) {
-      if (req.id !== undefined) sendError(req.id, err.code || -32603, err.message)
-    }
-  }
-})
+  })
 
-process.stdin.on('end', () => process.exit(0))
-process.on('SIGINT', () => process.exit(0))
-process.on('SIGTERM', () => process.exit(0))
+  process.stdin.on('end', () => process.exit(0))
+  process.on('SIGINT', () => process.exit(0))
+  process.on('SIGTERM', () => process.exit(0))
+}
+
+module.exports = {
+  dispatch,
+  parseDailySessions,
+  parseSummaryRows,
+  readMemoryDocument
+}

@@ -2,13 +2,17 @@
 'use strict'
 
 const assert = require('assert')
+const crypto = require('crypto')
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
 const {
   buildRuntimeStateIndex,
+  loadRuntimeStateIndex,
   normalizeStatus,
-  writeDerivedIndex
+  readRuntimeStateProjection,
+  writeDerivedIndex,
+  writeRuntimeStateProjection
 } = require('./lib/runtime-state-index')
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-runtime-state-'))
@@ -16,6 +20,25 @@ function write(relative, content) {
   const file = path.join(root, relative)
   fs.mkdirSync(path.dirname(file), { recursive: true })
   fs.writeFileSync(file, content, 'utf8')
+}
+
+function treeSnapshot(rootPath) {
+  if (!fs.existsSync(rootPath)) return []
+  const entries = []
+  function visit(current) {
+    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+      const full = path.join(current, entry.name)
+      if (entry.isDirectory()) visit(full)
+      else {
+        entries.push({
+          path: path.relative(rootPath, full).replace(/\\/g, '/'),
+          digest: crypto.createHash('sha256').update(fs.readFileSync(full)).digest('hex')
+        })
+      }
+    }
+  }
+  visit(rootPath)
+  return entries.sort((left, right) => left.path.localeCompare(right.path))
 }
 
 try {
@@ -60,7 +83,31 @@ try {
   assert.deepStrictEqual(JSON.parse(fs.readFileSync(output, 'utf8')), index)
   assert.ok(fs.readFileSync(path.join(root, 'data/pending-fixes.md'), 'utf8').includes('| PF-080 | 用户文档缺口 | open |'), 'source ledger must not be rewritten')
 
-  console.log('✓ runtime-state transitions, current conflicts, consumer drift, missing-summary and read-only fixtures passed')
+  const projectionWrite = writeRuntimeStateProjection(root, index)
+  assert.ok(['persisted', 'reused'].includes(projectionWrite.status))
+  assert.strictEqual(projectionWrite.readbackVerified, true)
+  const runtimeStateRoot = path.join(root, '.runtime-state')
+  const beforeQuery = treeSnapshot(runtimeStateRoot)
+  const projection = readRuntimeStateProjection(root)
+  assert.strictEqual(projection.status, 'fresh')
+  assert.strictEqual(projection.freshnessTier, 'metadata-reconciled')
+  assert.deepStrictEqual(projection.index.summary, index.summary)
+  assert.deepStrictEqual(projection.index.consistencyAlerts, index.consistencyAlerts)
+  assert.strictEqual(projection.index.records.length, index.records.length)
+  assert.ok(projection.index.records.every(record => !Object.prototype.hasOwnProperty.call(record, 'claims')))
+  const loaded = loadRuntimeStateIndex(root)
+  assert.strictEqual(loaded.receipt.route, 'derived-index')
+  assert.deepStrictEqual(treeSnapshot(runtimeStateRoot), beforeQuery, 'derived reads must remain zero-write')
+
+  write('data/pending-fixes.md', fs.readFileSync(path.join(root, 'data/pending-fixes.md'), 'utf8') + '\n| PF-083 | 新记录 | open |\n')
+  assert.strictEqual(readRuntimeStateProjection(root).status, 'stale')
+  const fallback = loadRuntimeStateIndex(root)
+  assert.strictEqual(fallback.receipt.route, 'source-scan')
+  assert.strictEqual(fallback.receipt.status, 'fallback')
+  assert.ok(fallback.index.records.some(record => record.recordId === 'PF-083'))
+  assert.deepStrictEqual(treeSnapshot(runtimeStateRoot), beforeQuery, 'fallback reads must remain zero-write')
+
+  console.log('✓ runtime-state transitions, compact projection, stale fallback and zero-write fixtures passed')
 } finally {
   fs.rmSync(root, { recursive: true, force: true })
 }

@@ -2,6 +2,11 @@
 
 const fs = require('fs')
 const path = require('path')
+const {
+  buildContentIdentity,
+  stableStringify
+} = require('../../hooks/_runtime/content-identity.cjs')
+const { createDerivedIndexStore } = require('./derived-index-contract.js')
 
 const RECORD_PATTERN = /\b(PI|PF|VL|GR|ISSUE)-\d+\b/g
 const SOURCE_RANK = {
@@ -34,17 +39,6 @@ function statusTextForLine(line) {
   return cells.length ? cells[cells.length - 1] : trimmed
 }
 
-function walk(root) {
-  if (!fs.existsSync(root)) return []
-  const out = []
-  for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
-    const full = path.join(root, entry.name)
-    if (entry.isDirectory()) out.push(...walk(full))
-    else out.push(full)
-  }
-  return out
-}
-
 function classifySource(activeRoot, file) {
   const relative = path.relative(activeRoot, file).replace(/\\/g, '/')
   if (/^data\/(?:process-improvements|pending-fixes|violations|gap-registry|pending-issues)\.md$/.test(relative)) return 'ledger'
@@ -55,15 +49,66 @@ function classifySource(activeRoot, file) {
 }
 
 function discoverSources(activeRoot) {
-  return walk(activeRoot)
+  const candidates = Object.values(CANONICAL_LEDGER_BY_KIND)
+    .map(relative => path.join(activeRoot, relative))
+  const clientsRoot = path.join(activeRoot, '.memory', 'clients')
+  if (fs.existsSync(clientsRoot)) {
+    for (const agent of fs.readdirSync(clientsRoot, { withFileTypes: true }).filter(entry => entry.isDirectory())) {
+      const agentRoot = path.join(clientsRoot, agent.name)
+      candidates.push(path.join(agentRoot, 'SUMMARY.md'))
+      const tasksRoot = path.join(agentRoot, 'tasks')
+      if (!fs.existsSync(tasksRoot)) continue
+      for (const entry of fs.readdirSync(tasksRoot, { withFileTypes: true })) {
+        if (entry.isFile() && /^\d{8}\.md$/.test(entry.name)) candidates.push(path.join(tasksRoot, entry.name))
+      }
+    }
+  }
+  candidates.push(path.join(activeRoot, '.memory', 'SUMMARY.md'))
+  return candidates
+    .filter(file => fs.existsSync(file) && fs.statSync(file).isFile())
     .map(file => ({ file, kind: classifySource(activeRoot, file) }))
     .filter(item => item.kind)
     .sort((a, b) => a.file.localeCompare(b.file))
 }
 
-function extractClaims(activeRoot, source) {
+function sourceObservation(activeRoot, source, content = null) {
+  const stat = fs.statSync(source.file)
   const relative = path.relative(activeRoot, source.file).replace(/\\/g, '/')
-  const lines = fs.readFileSync(source.file, 'utf8').split(/\r?\n/)
+  return {
+    path: relative,
+    kind: source.kind,
+    bytes: stat.size,
+    modifiedAt: stat.mtime.toISOString(),
+    contentIdentity: content === null
+      ? null
+      : buildContentIdentity({
+          sourceKey: `runtime-state://${relative}`,
+          content,
+          contractVersion: '1'
+        })
+  }
+}
+
+function observeRuntimeStateSources(activeRoot) {
+  return discoverSources(activeRoot).map(source => sourceObservation(activeRoot, source))
+}
+
+function sourceIdentityFor(activeRoot, observations) {
+  return buildContentIdentity({
+    sourceKey: `runtime-state://${path.basename(path.resolve(activeRoot))}/sources`,
+    content: stableStringify(observations.map(observation => ({
+      path: observation.path,
+      kind: observation.kind,
+      bytes: observation.bytes,
+      contentIdentity: observation.contentIdentity
+    }))),
+    contractVersion: '1'
+  })
+}
+
+function extractClaims(activeRoot, source, content) {
+  const relative = path.relative(activeRoot, source.file).replace(/\\/g, '/')
+  const lines = content.split(/\r?\n/)
   const claims = []
   let headingRecordIds = []
   lines.forEach((line, index) => {
@@ -168,7 +213,17 @@ function projectClaimsBySource(claims) {
 
 function buildRuntimeStateIndex(activeRoot) {
   const sources = discoverSources(activeRoot)
-  const claims = sources.flatMap(source => extractClaims(activeRoot, source))
+  const documents = sources.map(source => {
+    const content = fs.readFileSync(source.file, 'utf8')
+    return {
+      source,
+      content,
+      observation: sourceObservation(activeRoot, source, content)
+    }
+  })
+  const sourceObservations = documents.map(document => document.observation)
+  const sourceIdentity = sourceIdentityFor(activeRoot, sourceObservations)
+  const claims = documents.flatMap(document => extractClaims(activeRoot, document.source, document.content))
   const grouped = new Map()
   for (const claim of claims) {
     if (!grouped.has(claim.recordId)) grouped.set(claim.recordId, [])
@@ -251,6 +306,8 @@ function buildRuntimeStateIndex(activeRoot) {
     activeRoot: path.resolve(activeRoot),
     sourceModel: ['ledger', 'agent-summary', 'daily-task', 'global-summary'],
     readOnlySourcePolicy: true,
+    sourceIdentity,
+    sourceObservations,
     summary: {
       sourceFileCount: sources.length,
       recordCount: records.length,
@@ -276,6 +333,195 @@ function resolveDefaultActiveRoot(sourceRoot) {
   return path.join(sourceRoot, '.devcodex')
 }
 
+function runtimeStateStore(activeRoot) {
+  return createDerivedIndexStore({
+    activeRoot,
+    domain: 'runtime-state',
+    scopeIdentity: {
+      project: path.basename(path.resolve(activeRoot)),
+      scope: 'current'
+    }
+  })
+}
+
+function compactRuntimeStateRecord(record) {
+  return {
+    recordId: record.recordId,
+    kind: record.kind,
+    normalizedStatus: record.normalizedStatus,
+    currentAuthorityRank: record.currentAuthorityRank,
+    conflict: record.conflict,
+    conflictingStatuses: record.conflictingStatuses,
+    consumerDrifts: record.consumerDrifts,
+    selectedAnchor: record.selectedAnchor
+  }
+}
+
+function compactSourceObservation(observation) {
+  return {
+    path: observation.path,
+    kind: observation.kind,
+    bytes: observation.bytes,
+    modifiedAt: observation.modifiedAt
+  }
+}
+
+function observationsMatch(expected, observed) {
+  if (expected.length !== observed.length) return false
+  return expected.every((item, index) =>
+    item.path === observed[index].path &&
+    item.kind === observed[index].kind &&
+    item.bytes === observed[index].bytes &&
+    item.modifiedAt === observed[index].modifiedAt)
+}
+
+function writeRuntimeStateProjection(activeRoot, index) {
+  if (!index?.sourceIdentity || !Array.isArray(index?.sourceObservations)) {
+    throw new Error('runtime-state projection requires an index built from exact source documents')
+  }
+  const partitions = [{
+    key: 'current',
+    metadata: { recordCount: index.records.length },
+    payload: {
+      schemaVersion: 'RuntimeStateCurrentProjectionV2',
+      activeRoot: index.activeRoot,
+      sourceModel: index.sourceModel,
+      readOnlySourcePolicy: true,
+      sourceObservations: index.sourceObservations.map(compactSourceObservation),
+      summary: index.summary,
+      consistencyAlerts: index.consistencyAlerts,
+      records: index.records.map(compactRuntimeStateRecord)
+    }
+  }]
+  const byKind = new Map()
+  for (const record of index.records) {
+    if (!byKind.has(record.kind)) byKind.set(record.kind, [])
+    byKind.get(record.kind).push(record)
+  }
+  for (const [kind, records] of Array.from(byKind).sort(([left], [right]) => left.localeCompare(right))) {
+    partitions.push({
+      key: `detail:${kind.toLowerCase()}`,
+      metadata: { kind, recordCount: records.length },
+      payload: {
+        schemaVersion: 'RuntimeStateDetailPartitionV2',
+        kind,
+        records
+      }
+    })
+  }
+  return runtimeStateStore(activeRoot).commit({
+    sourceIdentity: index.sourceIdentity,
+    freshnessTier: 'writer-attested',
+    partitions
+  })
+}
+
+function readRuntimeStateProjection(activeRoot) {
+  const store = runtimeStateStore(activeRoot)
+  const current = store.readCurrent()
+  if (current.status !== 'fresh') {
+    return {
+      schemaVersion: 'RuntimeStateProjectionReadV2',
+      status: current.status,
+      freshnessTier: current.freshnessTier || 'stale',
+      receipt: current
+    }
+  }
+  const partition = store.readPartition('current', { current })
+  const payload = partition.payload
+  if (partition.status !== 'fresh' || payload?.schemaVersion !== 'RuntimeStateCurrentProjectionV2') {
+    return {
+      schemaVersion: 'RuntimeStateProjectionReadV2',
+      status: 'invalid',
+      freshnessTier: 'invalid',
+      receipt: partition
+    }
+  }
+  const observed = observeRuntimeStateSources(activeRoot)
+  const fresh = observationsMatch(payload.sourceObservations || [], observed)
+  if (!fresh) {
+    return {
+      schemaVersion: 'RuntimeStateProjectionReadV2',
+      status: 'stale',
+      freshnessTier: 'stale',
+      receipt: {
+        status: 'stale',
+        errorCode: 'RUNTIME_STATE_SOURCE_OBSERVATION_DRIFT',
+        filesRead: partition.filesRead,
+        bytesRead: partition.bytesRead
+      }
+    }
+  }
+  const sourceBytes = observed.reduce((total, item) => total + item.bytes, 0)
+  return {
+    schemaVersion: 'RuntimeStateProjectionReadV2',
+    status: 'fresh',
+    freshnessTier: 'metadata-reconciled',
+    index: {
+      schemaVersion: 1,
+      projectionSchemaVersion: payload.schemaVersion,
+      activeRoot: payload.activeRoot,
+      sourceModel: payload.sourceModel,
+      readOnlySourcePolicy: true,
+      sourceIdentity: current.pointer.sourceIdentity,
+      sourceObservations: payload.sourceObservations,
+      summary: payload.summary,
+      consistencyAlerts: payload.consistencyAlerts,
+      records: payload.records
+    },
+    receipt: {
+      schemaVersion: 'RuntimeStateIndexLoadReceiptV1',
+      status: 'fresh',
+      route: 'derived-index',
+      freshnessTier: 'metadata-reconciled',
+      generation: current.pointer.generation,
+      sourceIdentity: current.pointer.sourceIdentity,
+      filesRead: partition.filesRead,
+      sourceBytes,
+      deliveredBytes: partition.bytesRead,
+      pointerIdentity: partition.pointerIdentity,
+      manifestIdentity: partition.manifestIdentity,
+      objectIdentity: partition.objectIdentity
+    }
+  }
+}
+
+function loadRuntimeStateIndex(activeRoot, options = {}) {
+  if (options.preferDerived !== false) {
+    const projection = readRuntimeStateProjection(activeRoot)
+    if (projection.status === 'fresh') return { index: projection.index, receipt: projection.receipt }
+    if (options.fallback === false) return { index: null, receipt: projection.receipt }
+    const index = buildRuntimeStateIndex(activeRoot)
+    return {
+      index,
+      receipt: {
+        schemaVersion: 'RuntimeStateIndexLoadReceiptV1',
+        status: 'fallback',
+        route: 'source-scan',
+        freshnessTier: projection.freshnessTier || 'stale',
+        fallbackReason: projection.status,
+        filesRead: index.summary.sourceFileCount,
+        sourceBytes: index.sourceObservations.reduce((total, item) => total + item.bytes, 0),
+        deliveredBytes: null
+      }
+    }
+  }
+  const index = buildRuntimeStateIndex(activeRoot)
+  return {
+    index,
+    receipt: {
+      schemaVersion: 'RuntimeStateIndexLoadReceiptV1',
+      status: 'fallback',
+      route: 'source-scan',
+      freshnessTier: 'content-verified',
+      fallbackReason: 'derived-index-disabled',
+      filesRead: index.summary.sourceFileCount,
+      sourceBytes: index.sourceObservations.reduce((total, item) => total + item.bytes, 0),
+      deliveredBytes: null
+    }
+  }
+}
+
 function writeDerivedIndex(activeRoot, index) {
   const outputDir = path.join(activeRoot, '.runtime-state')
   const output = path.join(outputDir, 'runtime-state-index.json')
@@ -288,7 +534,12 @@ function writeDerivedIndex(activeRoot, index) {
 
 module.exports = {
   buildRuntimeStateIndex,
+  discoverSources,
+  loadRuntimeStateIndex,
   normalizeStatus,
+  observeRuntimeStateSources,
+  readRuntimeStateProjection,
   resolveDefaultActiveRoot,
-  writeDerivedIndex
+  writeDerivedIndex,
+  writeRuntimeStateProjection
 }

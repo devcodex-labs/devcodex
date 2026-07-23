@@ -70,9 +70,53 @@ function buildCliHostUtils({ fs, path, isPlainObject, claudeMcpJson }) {
   /** Managed block markers for Codex config.toml MCP merge (idempotent). */
   const CODEX_MCP_MANAGED_BEGIN = '# BEGIN DEVCODEX-MCP-MANAGED'
   const CODEX_MCP_MANAGED_END = '# END DEVCODEX-MCP-MANAGED'
+  const CODEX_MCP_SERVER_NAMES = Object.freeze(['devcodex-memory', 'devcodex-profile'])
 
   function toTomlPath(filePath) {
     return String(filePath || '').replace(/\\/g, '/')
+  }
+
+  /**
+   * Count managed-block markers. Fail-closed requires 0 pairs (will append) or exactly one ordered pair.
+   * @returns {{ begin: number, end: number, ok: boolean, code: string|null }}
+   */
+  function validateCodexMcpManagedMarkers(tomlText) {
+    const text = String(tomlText || '')
+    const begin = (text.match(new RegExp(CODEX_MCP_MANAGED_BEGIN.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')) || []).length
+    const end = (text.match(new RegExp(CODEX_MCP_MANAGED_END.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')) || []).length
+    if (begin === 0 && end === 0) return { begin, end, ok: true, code: null }
+    if (begin === 1 && end === 1) {
+      const bi = text.indexOf(CODEX_MCP_MANAGED_BEGIN)
+      const ei = text.indexOf(CODEX_MCP_MANAGED_END)
+      if (bi !== -1 && ei !== -1 && ei > bi) return { begin, end, ok: true, code: null }
+      return { begin, end, ok: false, code: 'CODEX_MCP_MARKER_INVALID' }
+    }
+    return { begin, end, ok: false, code: 'CODEX_MCP_MARKER_INVALID' }
+  }
+
+  /**
+   * Detect conflicting bare / quoted / dotted identity forms for DevCodex MCP servers.
+   * Why fail-closed: regex merge only owns bare `[mcp_servers.devcodex-*]` tables; other forms create illegal TOML or silent skips.
+   * @returns {{ ok: boolean, code: string|null, forms: Record<string, string[]> }}
+   */
+  function assertCodexMcpServerIdentity(tomlText, { allowBareManaged = true } = {}) {
+    const text = String(tomlText || '')
+    const forms = {}
+    for (const name of CODEX_MCP_SERVER_NAMES) {
+      const found = []
+      if (new RegExp(String.raw`^\s*\[mcp_servers\.${name}\]\s*$`, 'm').test(text)) found.push('bare')
+      if (new RegExp(String.raw`^\s*\[\s*"mcp_servers"\s*\.\s*"${name}"\s*\]\s*$`, 'm').test(text)) found.push('quoted')
+      if (new RegExp(String.raw`^\s*mcp_servers\.${name}(?:\.|[\s=])`, 'm').test(text)) found.push('dotted')
+      forms[name] = found
+      const nonBare = found.filter(f => f !== 'bare')
+      if (nonBare.length > 0) {
+        return { ok: false, code: 'CODEX_MCP_IDENTITY_CONFLICT', forms }
+      }
+      if (!allowBareManaged && found.includes('bare')) {
+        // still ok when bare is only form — allowBareManaged only gates future strip policy
+      }
+    }
+    return { ok: true, code: null, forms }
   }
 
   /**
@@ -133,11 +177,31 @@ function buildCliHostUtils({ fs, path, isPlainObject, claudeMcpJson }) {
 
   /**
    * Merge DevCodex MCP servers into Codex config.toml text without removing user keys.
-   * @returns {{ content: string, changed: boolean }}
+   * Fail-closed: invalid markers or conflicting server identity returns ok:false and does not invent write content.
+   * @returns {{ ok: boolean, content?: string, changed?: boolean, code?: string|null, error?: string }}
    */
   function mergeCodexConfigToml(existingContent, ownerRoot) {
+    const text = String(existingContent || '')
+    const markers = validateCodexMcpManagedMarkers(text)
+    if (!markers.ok) {
+      return {
+        ok: false,
+        code: markers.code,
+        error: `Invalid DevCodex MCP managed markers (begin=${markers.begin}, end=${markers.end}). Fix or remove incomplete BEGIN/END markers, then re-run.`
+      }
+    }
+    // When a valid managed pair exists, strip only outside the block after extract; when none, strip bare unmanaged tables.
+    // Identity: reject quoted/dotted forms anywhere (including outside managed block).
+    const identity = assertCodexMcpServerIdentity(text)
+    if (!identity.ok) {
+      return {
+        ok: false,
+        code: identity.code,
+        error: 'Conflicting Codex MCP server identity forms detected (quoted/dotted). Remove non-bare devcodex-memory/profile tables, then re-run.'
+      }
+    }
+
     const block = buildCodexMcpManagedBlock(ownerRoot)
-    let text = String(existingContent || '')
     const begin = text.indexOf(CODEX_MCP_MANAGED_BEGIN)
     const end = text.indexOf(CODEX_MCP_MANAGED_END)
     let next
@@ -151,15 +215,38 @@ function buildCliHostUtils({ fs, path, isPlainObject, claudeMcpJson }) {
       next = (stripped ? stripped + '\n\n' : '') + block + '\n'
     }
     if (!next.endsWith('\n')) next += '\n'
-    return { content: next, changed: next !== text }
+
+    const postMarkers = validateCodexMcpManagedMarkers(next)
+    if (!postMarkers.ok) {
+      return { ok: false, code: postMarkers.code, error: 'Merge produced invalid managed markers (internal).' }
+    }
+    const postIdentity = assertCodexMcpServerIdentity(next)
+    if (!postIdentity.ok) {
+      return { ok: false, code: postIdentity.code, error: 'Merge produced conflicting MCP server identity (internal).' }
+    }
+
+    return { ok: true, content: next, changed: next !== text, code: null }
+  }
+
+  /**
+   * Extract args for one server from its bare table only (stop at next table header).
+   * Prevents cross-table false positives when a later server has args and the earlier does not.
+   */
+  function extractCodexMcpServerTable(tomlText, serverName) {
+    const text = String(tomlText || '')
+    const headerRe = new RegExp(String.raw`^\s*\[mcp_servers\.${serverName}\]\s*$`, 'im')
+    const headerMatch = headerRe.exec(text)
+    if (!headerMatch) return ''
+    const start = headerMatch.index + headerMatch[0].length
+    const rest = text.slice(start)
+    const nextHeader = rest.search(/^\s*\[/m)
+    return nextHeader === -1 ? rest : rest.slice(0, nextHeader)
   }
 
   function extractCodexMcpServerArgs(tomlText, serverName) {
-    const re = new RegExp(
-      String.raw`\[mcp_servers\.${serverName}\][\s\S]*?args\s*=\s*\[([^\]]*)\]`,
-      'i'
-    )
-    const match = String(tomlText || '').match(re)
+    const table = extractCodexMcpServerTable(tomlText, serverName)
+    if (!table) return []
+    const match = table.match(/args\s*=\s*\[([^\]]*)\]/i)
     if (!match) return []
     return Array.from(String(match[1]).matchAll(/"([^"]+)"/g)).map(item => item[1])
   }
@@ -175,6 +262,8 @@ function buildCliHostUtils({ fs, path, isPlainObject, claudeMcpJson }) {
    *   profileServerPath: string|null,
    *   memoryServerExists: boolean,
    *   profileServerExists: boolean,
+   *   memoryHasArgs: boolean,
+   *   profileHasArgs: boolean,
    *   status: 'missing'|'partial'|'stale'|'ok'
    * }}
    */
@@ -192,6 +281,8 @@ function buildCliHostUtils({ fs, path, isPlainObject, claudeMcpJson }) {
       profileServerPath: null,
       memoryServerExists: false,
       profileServerExists: false,
+      memoryHasArgs: false,
+      profileHasArgs: false,
       status: 'missing'
     }
     if (!result.hasWorkspaceConfig) return result
@@ -205,17 +296,22 @@ function buildCliHostUtils({ fs, path, isPlainObject, claudeMcpJson }) {
 
     const memoryArgs = extractCodexMcpServerArgs(text, 'devcodex-memory')
     const profileArgs = extractCodexMcpServerArgs(text, 'devcodex-profile')
-    result.memoryServerPath = memoryArgs[0] || toTomlPath(expectedMemory)
-    result.profileServerPath = profileArgs[0] || toTomlPath(expectedProfile)
+    result.memoryHasArgs = memoryArgs.length > 0
+    result.profileHasArgs = profileArgs.length > 0
+    result.memoryServerPath = memoryArgs[0] || null
+    result.profileServerPath = profileArgs[0] || null
 
-    const memoryCandidate = memoryArgs[0] ? path.resolve(memoryArgs[0]) : expectedMemory
-    const profileCandidate = profileArgs[0] ? path.resolve(profileArgs[0]) : expectedProfile
-    result.memoryServerExists = fs.existsSync(memoryCandidate)
-    result.profileServerExists = fs.existsSync(profileCandidate)
+    // Missing args must not fall back to "expected path exists" as ok — that was the F-004 false positive.
+    const memoryCandidate = memoryArgs[0] ? path.resolve(memoryArgs[0]) : null
+    const profileCandidate = profileArgs[0] ? path.resolve(profileArgs[0]) : null
+    result.memoryServerExists = Boolean(memoryCandidate && fs.existsSync(memoryCandidate))
+    result.profileServerExists = Boolean(profileCandidate && fs.existsSync(profileCandidate))
 
     if (
       result.hasDevcodexMemory &&
       result.hasDevcodexProfile &&
+      result.memoryHasArgs &&
+      result.profileHasArgs &&
       result.memoryServerExists &&
       result.profileServerExists
     ) {
@@ -226,14 +322,27 @@ function buildCliHostUtils({ fs, path, isPlainObject, claudeMcpJson }) {
     return result
   }
 
+  /**
+   * Claude adapter ownership evidence — shared .claude/mcp alone is not Claude installation.
+   * Why: Codex reuses .claude/mcp runtime; counting any .claude dir polluted host identity (F-007).
+   */
+  function hasClaudeAdapterEvidence(cwd) {
+    if (fs.existsSync(path.join(cwd, 'CLAUDE.md'))) return true
+    if (fs.existsSync(path.join(cwd, '.claude', 'settings.json'))) return true
+    if (fs.existsSync(path.join(cwd, '.claude', 'settings.local.json'))) return true
+    if (fs.existsSync(path.join(cwd, '.claude', 'hooks'))) return true
+    if (fs.existsSync(path.join(cwd, '.claude', 'instructions'))) return true
+    if (fs.existsSync(path.join(cwd, '.claude', 'skills'))) return true
+    // Project .mcp.json with servers is a Claude-oriented install signal (not mcp runtime alone).
+    if (fs.existsSync(path.join(cwd, '.mcp.json'))) return true
+    return false
+  }
+
   function detectInstalledHostAssets(cwd) {
     const installed = []
     // AGENTS.md/.agents are shared by Codex, Gemini and Grok; only .codex is host-specific.
     const hasCodex = fs.existsSync(path.join(cwd, '.codex'))
-    const hasClaude = (
-      fs.existsSync(path.join(cwd, 'CLAUDE.md')) ||
-      fs.existsSync(path.join(cwd, '.claude'))
-    )
+    const hasClaude = hasClaudeAdapterEvidence(cwd)
     const hasCopilot = (
       fs.existsSync(path.join(cwd, '.github', 'copilot-instructions.md')) ||
       fs.existsSync(path.join(cwd, '.github', 'instructions')) ||
@@ -450,10 +559,15 @@ function buildCliHostUtils({ fs, path, isPlainObject, claudeMcpJson }) {
     mergeClaudeMcpConfig,
     CODEX_MCP_MANAGED_BEGIN,
     CODEX_MCP_MANAGED_END,
+    CODEX_MCP_SERVER_NAMES,
     buildCodexMcpManagedBlock,
+    validateCodexMcpManagedMarkers,
+    assertCodexMcpServerIdentity,
     mergeCodexConfigToml,
+    extractCodexMcpServerTable,
     extractCodexMcpServerArgs,
     inspectCodexMcpManagedConfig,
+    hasClaudeAdapterEvidence,
     detectInstalledHostAssets,
     detectHostPlatform,
     inspectHostInstructionSurfaces

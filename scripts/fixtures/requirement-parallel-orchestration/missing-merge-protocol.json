@@ -1,0 +1,18 @@
+{
+  "name": "missing-merge-protocol",
+  "card": {
+    "schemaVersion": "ParallelLaunchCardV1",
+    "requirementId": "REQ-NO-MERGE",
+    "displayName": "缺汇合协议",
+    "activeRoot": "E:/Worker/.devcodex/devcodex-v1",
+    "allowedPaths": ["requirements/no-merge"],
+    "forbiddenSharedSurfaces": ["cp-state", "memory", "report", "ledger", "source-mutation"],
+    "sessionPrompt": "Only work on the allowed path.",
+    "isolationMode": "same-active-root-disjoint-paths",
+    "validationRoute": ["npm run test:changed"],
+    "stopCondition": "Stop on conflict."
+  },
+  "expected": {
+    "classification": "integration-protocol-missing"
+  }
+}

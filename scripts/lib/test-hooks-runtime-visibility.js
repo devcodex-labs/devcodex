@@ -33,6 +33,15 @@ function runHooksRuntimeVisibilityScenarios(context) {
     '- PC7 [PASS] Next'
   ]
 
+  const FINAL_VALIDATION_SUMMARY_LINES = [
+    '#### 验证摘要',
+    '| 类型 | 命令 | exitCode | runId/计数 |',
+    '| 权威 | `npm run test:visible-output` | exitCode 0 | runId=validation-202607230001 / checks=42 |',
+    'WorkspaceSyncStatus: skipped (无需同步)',
+    'dirty boundary: git status clean; no unrelated dirty',
+    'Release actions: push/tag/release/publish 未执行'
+  ]
+
   function run(payload, ...args) {
     const output = runHook(payload, ...args)
     if (payload?.hookEventName === 'UserPromptSubmit' && fs.existsSync(STATE_FILE)) {
@@ -316,6 +325,45 @@ function runHooksRuntimeVisibilityScenarios(context) {
   cleanState()
   run({
     hookEventName: 'UserPromptSubmit',
+    prompt: 'Need a root cure for thin validation summary.'
+  })
+  runBootstrapReads()
+  run({
+    hookEventName: 'PostToolUse',
+    tool_name: 'apply_patch',
+    tool_input: {
+      input: '*** Begin Patch\n*** Add File: .devcodex/reports/analysis/claude-code/20260525/01--sample.md\n+# report\n*** End Patch'
+    }
+  })
+  run({
+    hookEventName: 'PostToolUse',
+    tool_name: 'apply_patch',
+    tool_input: {
+      input: `*** Begin Patch\n*** Update File: ${getMemoryFilePath(TEST_AGENT, 'tasks', `${getTaskStamp(0)}.md`)}\n*** End Patch`
+    }
+  })
+  const thinValidationSummaryReply = run({
+    hookEventName: 'Stop',
+    assistantMessage: [
+      '### DevCodex · 入口检查',
+      ...FULL_ENTRY_CHECK_LINES,
+      '🛡️ DEV 模式 | 合规检查',
+      'FC: FC1 [✅] FC2 [✅] FC3 [✅] FC4 [✅] FC5 [✅] FC6 [✅]',
+      '整体：✅ 全通过',
+      '',
+      '#### 完成交付文件',
+      '- [最终执行与验证报告](/E:/Worker/devcodex-v1/.devcodex/reports/analysis/claude-code/20260525/01--sample.md) — 说明本次执行与验证结论；路径：`.devcodex/reports/analysis/claude-code/20260525/01--sample.md`；操作：查看结论',
+      '`DevCodexVisibleEnvelopeV1 · completion-check · PASS · cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc`'
+    ].join('\n')
+  })
+  assert.match(thinValidationSummaryReply.systemMessage || '', /开发模式最终验证摘要不完整|DevModeCompletionCheckDetailGate/)
+  const thinValidationSummaryState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(thinValidationSummaryState.visible.finalValidationSummaryStatus, 'verified-missing')
+  assert.ok(thinValidationSummaryState.visible.finalValidationSummaryMissingItems.includes('thin-green-summary'))
+
+  cleanState()
+  run({
+    hookEventName: 'UserPromptSubmit',
     prompt: 'Need a root cure for dev mode drift.'
   })
   runBootstrapReads()
@@ -346,8 +394,10 @@ function runHooksRuntimeVisibilityScenarios(context) {
       'SC: SC1 [✅]',
       '整体：✅ 全通过',
       '',
+      ...FINAL_VALIDATION_SUMMARY_LINES,
+      '',
       '#### 完成交付文件',
-      '- [最终执行与验证报告](/E:/Worker/devcodex-v1/.devcodex/reports/analysis/claude-code/20260525/01--sample.md) — 说明本次执行与验证结论；操作：查看结论',
+      '- [最终执行与验证报告](/E:/Worker/devcodex-v1/.devcodex/reports/analysis/claude-code/20260525/01--sample.md) — 说明本次执行与验证结论；路径：`.devcodex/reports/analysis/claude-code/20260525/01--sample.md`；操作：查看结论',
       '`DevCodexVisibleEnvelopeV1 · final-result · PASS · aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`'
     ].join('\n')
   })
@@ -356,17 +406,20 @@ function runHooksRuntimeVisibilityScenarios(context) {
     assistantMessage: [
       '🛡️ DEV 模式 | 合规检查',
       'FC: FC1 [✅] FC2 [✅] FC3 [✅] FC4 [✅] FC5 [✅] FC6 [✅]',
+      ...FINAL_VALIDATION_SUMMARY_LINES,
       '#### 完成交付文件',
-      '- [最终执行与验证报告](/E:/Worker/devcodex-v1/.devcodex/reports/analysis/claude-code/20260525/01--sample.md) — 说明本次执行与验证结论；操作：查看结论',
+      '- [最终执行与验证报告](/E:/Worker/devcodex-v1/.devcodex/reports/analysis/claude-code/20260525/01--sample.md) — 说明本次执行与验证结论；路径：`.devcodex/reports/analysis/claude-code/20260525/01--sample.md`；操作：查看结论',
       '`DevCodexVisibleEnvelopeV1 · final-result · PASS · aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`'
     ].join('\n')
   })
   // Product writes preceded Stop precheck evidence → S07 order late (VL-004); other closure items clean
   assert.match(completeClosureReply.systemMessage || '', /S07 order|product mutation before entry-check|VL-004/i)
   assert.ok(!/合规检查状态块未输出/.test(completeClosureReply.systemMessage || ''))
+  assert.ok(!/最终验证摘要不完整/.test(completeClosureReply.systemMessage || ''))
   assert.ok(!/用户可见交付不完整/.test(completeClosureReply.systemMessage || ''))
   const completeClosureState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
   assert.strictEqual(completeClosureState.visible.s07OrderStatus, 'late')
+  assert.strictEqual(completeClosureState.visible.finalValidationSummaryStatus, 'verified-present')
 
   cleanState()
   run({
@@ -571,8 +624,10 @@ function runHooksRuntimeVisibilityScenarios(context) {
     'SC: SC1 [✅]',
     '整体：✅ 全通过',
     '',
+    ...FINAL_VALIDATION_SUMMARY_LINES,
+    '',
     '#### 完成交付文件',
-    '- [最终执行与验证报告](/E:/Worker/devcodex-v1/.devcodex/reports/analysis/claude-code/20260525/01--sample.md) — 说明本次执行与验证结论；操作：查看结论',
+    '- [最终执行与验证报告](/E:/Worker/devcodex-v1/.devcodex/reports/analysis/claude-code/20260525/01--sample.md) — 说明本次执行与验证结论；路径：`.devcodex/reports/analysis/claude-code/20260525/01--sample.md`；操作：查看结论',
     '`DevCodexVisibleEnvelopeV1 · final-result · PASS · bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb`'
   ].join('\n'))
   const transcriptBackedClosureReply = run({
@@ -587,6 +642,7 @@ function runHooksRuntimeVisibilityScenarios(context) {
   assert.strictEqual(transcriptBackedState.visible.payloadObserved, true)
   assert.strictEqual(transcriptBackedState.visible.precheck, true)
   assert.strictEqual(transcriptBackedState.visible.compliance, true)
+  assert.strictEqual(transcriptBackedState.visible.finalValidationSummaryStatus, 'verified-present')
   assert.strictEqual(transcriptBackedState.visible.artifactPaths, true)
   assert.strictEqual(transcriptBackedState.visible.artifactStatus, 'verified-present')
   assert.strictEqual(transcriptBackedState.visible.artifactEvidenceSource, 'transcript_path')

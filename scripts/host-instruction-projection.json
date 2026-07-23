@@ -65,10 +65,10 @@
       "id": "closure",
       "title": "质量与闭环",
       "sourceAnchors": ["ClosureEvidenceGate", "ControlPlaneContractFirstGate", "执行顺序：", "| T9 |"],
-      "projectionAnchors": ["ClosureEvidenceGate", "ControlPlaneContractFirstGate", "FC", "SC", "RC", "T1~T9"],
+      "projectionAnchors": ["ClosureEvidenceGate", "ControlPlaneContractFirstGate", "FC", "SC", "RC", "T1~T13"],
       "projectionLines": [
         "- 控制面先执行 ControlPlaneContractFirstGate；closed/可实施声明受 ClosureEvidenceGate 的 runtime owner 与负向探针约束。",
-        "- 完成顺序为 PC0~PC7→FC→SC→RC→报告验证→T1~T9；内部 manifest、记忆与报告必须真实写入并参与 ECR。"
+        "- 完成顺序为 PC0~PC7→FC→SC→RC→报告验证→T1~T13；内部 manifest、记忆与报告必须真实写入并参与 ECR。"
       ]
     },
     {

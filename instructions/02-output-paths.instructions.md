@@ -128,7 +128,7 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 
 用户可见文件交付统一由 `skills/user-visible-output-contract/SKILL.md` 管理。执行链固定为：
 
-`ArtifactDeliveryManifestV1（内部完整）→ UserFacingArtifactSetV1（用户最小必要）→ DevCodexVisibleEnvelopeV1 → LinkCapabilityDecisionV1 renderer`。
+`ArtifactDeliveryManifestV1（内部完整）→ UserFacingArtifactSetV1（用户最小必要）→ FinalValidationSummaryV1（dev/fix/self-fix 完成态验证摘要）→ DevCodexVisibleEnvelopeV1 → LinkCapabilityDecisionV1 renderer`。
 
 ### 内部完整与用户可见分层
 

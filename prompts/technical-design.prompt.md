@@ -25,6 +25,7 @@ applyTo: .devcodex/**/requirements/**
 > ⚠️ provider / connector / 三方 SDK 接入类方案必须先冻结业务功能接口，再说明底层 provider adapter / model / operation / 配置如何实现该功能；不得把内部 provider 能力直接反向暴露成业务接口。随后冻结字段级合同和统一 operation contract；包 / 库 / adapter / CLI 方案必须同时检查代码实现层与包工程层。
 > ⚠️ CP2 必须承接 CP1 的平台工程判断和 `ImplementationComplexityLevel`（兼容旧字段 `ImplementationComplexityPreference`）：消费者范围、共享契约边界、模块职责、可维护性成本、非目标和最小实现预算要互相一致；没有真实复用者或演进边界时，不得新增 factory / manager / adapter / registry 等预设抽象。
 > ⚠️ 重要技术结论必须通过 `CodeTruthEvidenceMatrixGate` 绑定 repo path、symbol/contract、currentBehavior、negativeProbe 和 gap；方案推荐还必须通过 `SolutionFitAgainstRepoGate` 说明 reusePoint、consumer、rollback 与 statusQuoCost。
+> ⚠️ CP2 候选在请求确认前必须附 `CandidateReviewBundleV1`：`phaseKind=CP2`、`TDMatrix`、`BlockerSnapshot`、`ClaimEvidenceMatrix`。缺任一项、证据陈旧或存在未关闭 blocker 时，不得写“可确认 CP2 / 可进入 CP3”。
 > ⚠️ §7 必须物化验证计划、命令/矩阵路线、验收标准和退出条件；进入编码前，§2.6 写清允许首批、阻断范围、偏移触发、验证路线和消费者同步。
 > ⚠️ 当 AI 判断目标包含修复 Bug/缺陷/回归/安全问题/规范缺口/审查 finding 时，技术方案必须引用 `repair-collaboration`：低风险填写 lightweight 双层字段，高风险填写 full + findingToPatchMap + handoffIntegrity + independentReReview；模型名称不是触发条件。
 > ⚠️ 同一 repair 方案必须引用 active `repair-prevention-assessment#RepairPreventionAssessmentGate`，冻结 `RepairPreventionAssessmentV1` 的 mode/decision、双根因、regression/negative seeds、immediate closure 与 prospective plan、Owner/consumers 和 rollback/sunset；`no-new-control` 必须有标准 reason/evidence，当前修复重跑不能晋级 prevention。
@@ -32,6 +33,7 @@ applyTo: .devcodex/**/requirements/**
 > ⚠️ 长任务、工具完成后无续接、orphaned `inProgress` 或宿主恢复命中 `agent-turn-liveness`：技术方案必须引用 `TurnLivenessRecoveryGate`，物化状态/lease/ACK/terminal、response-time/post-execution `CheckpointValidationResultV1`、只读 `LocalTaskTraceV1`、host-native/Hook-event/sidecar 能力边界与 no-continuation/active-lease/restart/duplicate/timeout fault matrix；禁止把 Hook 落盘写成无事件自唤醒，禁止 trace replay 执行 payload 或重放 mutation。
 > ⚠️ 意图、Profile/Memory bootstrap、MCP read 或 Hook receipt 变化命中 `context-acquisition`：技术方案必须记录 `ContextReadPlanV2` 的 planContentId/目标/baseline/selected/excluded、升级与 replan 条件，以及 `ContextReadReceiptV2` 的 Post success、fallback、失效和 V99 路线；`ContextReadPlanV1`/`ContextReadReceiptV1` 只保留 reader compatibility，不得把 required-to-exist 写成每轮全文读取。
 > ⚠️ 入口/完成检查、确认、进度、最终结果、阻断或文件交付变化命中 `user-visible-output-contract`：技术方案必须冻结 internal manifest→visible set→Envelope→capability renderer 单链，说明 internal-only、计数守恒、semantic digest、六 message kinds、宿主证据上限与 legacy/fail-closed 路线。
+> ⚠️ 强主张、推荐方案、CP 可确认、外部 finding 采纳、完成态或“已验证/完整”声明命中 `evidence-freshness`：技术方案必须说明 `ClaimEvidenceIndexV1`、`EvidenceFreshnessReceiptV1`、`StaleEvidenceLintDecisionV1`、summary-only 降级、artifact anchor / final validation summary binding 和 `npm run test:evidence-freshness` 验证路线。
 > ⚠️ package boundary / pack / benchmark / codegen 验证必须写清串行顺序；任何会删除、重建或写入 `dist` 的命令不得和包边界检查并行。
 > ⚠️ 前端、文档、发布、数据、安全、性能、外部消费者、专家输出、规范吸纳或历史分层等跨域语义，均按 registry 触发对应 Owner；本模板不得维护版本化 Owner/Gate 名录。未触发的分组写聚合 `N/A + skipReason`。
 
@@ -83,6 +85,7 @@ applyTo: .devcodex/**/requirements/**
 - [§6 性能考量](#6-性能考量)
 - [§7 测试策略](#7-测试策略)
   - [§7.1 产品事实源→技术验证映射（需求验收映射）](#71-产品事实源技术验证映射需求验收映射)
+  - [§7.2 CandidateReviewBundleV1（CP2 确认前内部自查）](#72-candidatereviewbundlev1cp2-确认前内部自查)
 - [§8 实施约束](#8-实施约束)
 - [§9 风险与缓解](#9-风险与缓解)
 ```
@@ -401,6 +404,19 @@ applyTo: .devcodex/**/requirements/**
 | 需求方输入锚点 / CP1产品事实源 / 产品完整需求锚点 | 确认状态 | 对应设计点 | TestRoute/测试类型 | CP3任务锚点 | 技术通过标准 |
 |----------------------------------|--------------|------------|--------------------|-------------|--------------|
 | | | | | | |
+
+### §7.2 CandidateReviewBundleV1（CP2 确认前内部自查）
+
+> 本节在请求 CP2 确认前填写。它不是报告摘要，而是让技术方案候选暴露完整审查维度、阻断快照和主张证据；缺失时只能修订方案，不能推进确认。
+
+| 字段 | 内容 / 证据 | 状态 |
+|------|-------------|------|
+| phaseKind | CP2 | required |
+| TDMatrix | TD-1~TD-13 每维 priority/status/evidence/blockerId/skipReason/negativeProbe | |
+| BlockerSnapshot | stage/blockerId/evidence/affectedSurface/remediation/skippedChecks/stopReason/openBlockers | |
+| ClaimEvidenceMatrix | 方案主张 → repo path/currentBehavior/targetChange/runtimeOwner/validation/UNVERIFIED | |
+| receiptFreshness | 当前 CP2 方案 hash / source HEAD / 规则版本是否一致 | fresh / stale |
+| confirmationDecision | review-ready / review-incomplete / blocked / stale / confirm-blocked | |
 
 ## §8 实施约束（条件）
 

@@ -642,16 +642,23 @@ function testSkillPlanHumanJsonFallbackAndNativeExitCodes() {
   assert.strictEqual(json.ok, true)
   assert.strictEqual(json.payload.schemaVersion, 'BundleDecisionV2')
   assert.strictEqual(json.payload.completion, 'complete')
+  assert.strictEqual(json.payload.budgetDecision.schemaVersion, 'BudgetDecisionV1')
+  assert.strictEqual(json.payload.budgetDecision.enforcementStatus, 'enforced')
+  assert.strictEqual(json.payload.budgetDecision.optimizedHit, true)
   assert.deepStrictEqual(new Set(json.payload.selected.map(item => item.id)),
     new Set(['api-verification', 'dev-scenario-test', 'dev-testing']))
   assert.match(runCli(['skill', 'plan', 'intent'], root), /Skill bundle plan/)
 
   const staged = JSON.parse(runCli(['skill', 'plan', 'dev-testing', '--max-skills', '1', '--json'], root))
   assert.strictEqual(staged.payload.completion, 'over-budget-mandatory')
+  assert.strictEqual(staged.payload.budgetDecision.enforcementStatus, 'blocked')
+  assert.strictEqual(staged.payload.budgetDecision.optimizedHit, false)
   assert(staged.payload.stages.length >= 3)
   const fallback = JSON.parse(runCli(['skill', 'plan', 'intent', '--host-capability', 'unsupported', '--json'], root))
   assert.strictEqual(fallback.payload.completion, 'fallback-full')
   assert.strictEqual(fallback.payload.fallback.route, 'full-skill-read')
+  assert.strictEqual(fallback.payload.budgetDecision.enforcementStatus, 'fallback-full')
+  assert.strictEqual(fallback.payload.budgetDecision.optimizedHit, false)
 
   writeJson(root, '.devcodex/profile/config.json', {
     mode: 'dev',
@@ -660,12 +667,15 @@ function testSkillPlanHumanJsonFallbackAndNativeExitCodes() {
   const configuredFallback = JSON.parse(runCli(['skill', 'plan', 'intent', '--json'], root))
   assert.strictEqual(configuredFallback.payload.completion, 'fallback-full')
   assert.strictEqual(configuredFallback.payload.fallback.route, 'full-skill-read')
+  assert.strictEqual(configuredFallback.payload.budgetDecision.enforcementStatus, 'fallback-full')
+  assert.strictEqual(configuredFallback.payload.budgetDecision.optimizedHit, false)
 
   const blocked = runCliResult(['skill', 'plan', 'brand-visual-quality', '--json'], root)
   assert.strictEqual(blocked.status, 1)
   const blockedEnvelope = JSON.parse(stripAnsi(blocked.stdout))
   assert.strictEqual(blockedEnvelope.errorCode, 'SKILL_BUNDLE_BLOCKED')
   assert.strictEqual(blockedEnvelope.details.completion, 'blocked')
+  assert.strictEqual(blockedEnvelope.details.budgetDecision.enforcementStatus, 'blocked')
   const invalid = runCliResult(['skill', 'plan', '--json'], root)
   assert.strictEqual(invalid.status, 2)
   assert.strictEqual(JSON.parse(stripAnsi(invalid.stdout)).errorCode, 'CLI_INVALID_OPTION')
@@ -724,6 +734,88 @@ function testTaskResolveHumanJsonAndNativeExitCodes() {
   fs.rmSync(root, { recursive: true, force: true })
 }
 
+function testCodexMcpPreventionNegatives() {
+  const { buildCliHostUtils } = require('./lib/cli-host-utils')
+  const hostUtils = buildCliHostUtils({
+    fs,
+    path,
+    isPlainObject: value => value !== null && typeof value === 'object' && !Array.isArray(value),
+    claudeMcpJson: { mcpServers: {} }
+  })
+  const root = 'E:/Worker'
+  const BEGIN = hostUtils.CODEX_MCP_MANAGED_BEGIN
+  const END = hostUtils.CODEX_MCP_MANAGED_END
+
+  // F-002 markers
+  assert.strictEqual(hostUtils.mergeCodexConfigToml(BEGIN + '\nfoo\n', root).code, 'CODEX_MCP_MARKER_INVALID')
+  assert.strictEqual(hostUtils.mergeCodexConfigToml(END + '\n', root).code, 'CODEX_MCP_MARKER_INVALID')
+  assert.strictEqual(hostUtils.mergeCodexConfigToml(END + '\n' + BEGIN + '\n', root).code, 'CODEX_MCP_MARKER_INVALID')
+  // F-002 identity
+  assert.strictEqual(
+    hostUtils.mergeCodexConfigToml('["mcp_servers"."devcodex-memory"]\ncommand = "old"\n', root).code,
+    'CODEX_MCP_IDENTITY_CONFLICT'
+  )
+  assert.strictEqual(
+    hostUtils.mergeCodexConfigToml('mcp_servers.devcodex-memory.command = "old"\n', root).code,
+    'CODEX_MCP_IDENTITY_CONFLICT'
+  )
+  const ok = hostUtils.mergeCodexConfigToml('sandbox_mode = "workspace-write"\n', root)
+  assert.strictEqual(ok.ok, true)
+  assert.strictEqual(hostUtils.mergeCodexConfigToml(ok.content, root).changed, false)
+
+  // F-004 cross-table args false positive
+  const falsePos = [
+    BEGIN,
+    '[mcp_servers.devcodex-memory]',
+    'command = "node"',
+    '',
+    '[mcp_servers.devcodex-profile]',
+    'command = "node"',
+    'args = [',
+    '  "profile-only.js",',
+    '  "E:/Worker"',
+    ']',
+    END,
+    ''
+  ].join('\n')
+  assert.deepStrictEqual(hostUtils.extractCodexMcpServerArgs(falsePos, 'devcodex-memory'), [])
+  assert.deepStrictEqual(
+    hostUtils.extractCodexMcpServerArgs(falsePos, 'devcodex-profile'),
+    ['profile-only.js', 'E:/Worker']
+  )
+
+  const tmp = createTempRoot('devcodex-cli-codex-mcp-neg-')
+  fs.mkdirSync(path.join(tmp, '.codex'), { recursive: true })
+  fs.mkdirSync(path.join(tmp, '.claude', 'mcp'), { recursive: true })
+  fs.writeFileSync(path.join(tmp, '.claude', 'mcp', 'memory-server.js'), '//x\n')
+  fs.writeFileSync(path.join(tmp, '.claude', 'mcp', 'profile-server.js'), '//x\n')
+  fs.writeFileSync(path.join(tmp, '.codex', 'config.toml'), falsePos.replace(/E:\/Worker/g, tmp.replace(/\\/g, '/')))
+  const inspect = hostUtils.inspectCodexMcpManagedConfig(tmp)
+  assert.notStrictEqual(inspect.status, 'ok', 'missing memory args must not report ok')
+  assert.strictEqual(inspect.memoryHasArgs, false)
+
+  // F-007 Codex-only host identity
+  assert.deepStrictEqual(hostUtils.detectInstalledHostAssets(tmp), ['codex'])
+  fs.writeFileSync(path.join(tmp, 'CLAUDE.md'), '# claude\n')
+  assert.ok(hostUtils.detectInstalledHostAssets(tmp).includes('claude-code'))
+
+  // F-001: init must fail closed when markers invalid (existing file preserved)
+  const badRoot = createTempRoot('devcodex-cli-codex-failclosed-')
+  writeFile(badRoot, 'package.json', '{ "name": "tmp-codex-fc" }\n')
+  const badToml = BEGIN + '\nbroken\n'
+  writeFile(badRoot, '.codex/config.toml', badToml)
+  const failed = runCliResult(['init', '--codex'], badRoot)
+  assert.notStrictEqual(failed.status, 0, 'init --codex must fail on invalid markers')
+  assert.strictEqual(
+    fs.readFileSync(path.join(badRoot, '.codex', 'config.toml'), 'utf8'),
+    badToml,
+    'fail-closed must not overwrite broken config'
+  )
+
+  fs.rmSync(tmp, { recursive: true, force: true })
+  fs.rmSync(badRoot, { recursive: true, force: true })
+}
+
 function main() {
   testClaudeInitPreservesCustomConfig()
   testClaudeUpdateBacksUpAndPreservesCustomConfig()
@@ -734,6 +826,7 @@ function main() {
   testTenantSelectionIsExplicit()
   testCodexInitBootstrapsWorkspaceNamespaceData()
   testCodexInitBacksUpManagedFiles()
+  testCodexMcpPreventionNegatives()
   testCodexUpdateRefreshesAdapterInWorkspaceNamespace()
   testProfileInitUsesNestedNamespaceRoot()
   testProfileInitAndStatusShareTierContract()

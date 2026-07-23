@@ -271,6 +271,11 @@
       "tier": "free"
     },
     {
+      "id": "requirement-parallel-orchestration",
+      "file": "skills/requirement-parallel-orchestration/SKILL.md",
+      "tier": "free"
+    },
+    {
       "id": "expert-output-quality",
       "file": "skills/expert-output-quality/SKILL.md",
       "tier": "free"

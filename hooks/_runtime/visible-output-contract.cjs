@@ -23,6 +23,20 @@ const INTERNAL_ARTIFACT_CLASSES = new Set([
   'session', 'daily', 'summary', 'task-state', 'checkpoint', 'runtime-state',
   'raw-receipt', 'raw-manifest', 'raw-ledger'
 ])
+const TRUTH_SOURCE_KINDS = new Set(['json-canonical', 'markdown-canonical', 'projection', 'external'])
+const ARTIFACT_ANCHOR_STATUSES = new Set(['fresh', 'stale', 'blocked', 'unknown'])
+const JSON_CANONICAL_ARTIFACT_CLASSES = new Set([
+  'runtime-state', 'validation-snapshot', 'workflow-completion', 'manifest', 'raw-manifest',
+  'raw-receipt', 'raw-ledger', 'project-knowledge', 'context-plan', 'budget-decision'
+])
+const MARKDOWN_CANONICAL_ARTIFACT_CLASSES = new Set([
+  'requirement', 'cp', 'tech-design', 'skill', 'prompt', 'readme', 'docs', 'instructions',
+  'report', 'changelog', 'decision', 'deliverable', 'evidence'
+])
+const PROJECTION_ARTIFACT_CLASSES = new Set([
+  'memory', 'summary', 'final', 'session', 'daily', 'task-state', 'checkpoint',
+  'visible-envelope', 'user-facing-set', 'artifact-projection'
+])
 const ACTION_HEADINGS = Object.freeze({
   confirmation: '需要你确认的文件',
   progress: '本批交付文件',
@@ -255,6 +269,112 @@ function projectUserFacingArtifactSet(manifest, { scope = 'default', messageKind
     }
   }
   return { ...core, setId: `user-facing-artifacts-${digest(core)}`, validation: { valid: errors.length === 0, errors } }
+}
+
+function normalizeArtifactKind(value) {
+  return String(value || '').trim().toLowerCase()
+}
+
+function classifyArtifactTruthSource(input = {}) {
+  const artifactKind = normalizeArtifactKind(typeof input === 'string' ? input : input.artifactKind)
+  let truthSourceKind = 'external'
+  if (JSON_CANONICAL_ARTIFACT_CLASSES.has(artifactKind)) truthSourceKind = 'json-canonical'
+  else if (MARKDOWN_CANONICAL_ARTIFACT_CLASSES.has(artifactKind)) truthSourceKind = 'markdown-canonical'
+  else if (PROJECTION_ARTIFACT_CLASSES.has(artifactKind)) truthSourceKind = 'projection'
+
+  const core = {
+    schemaVersion: 'ArtifactTruthSourceClassificationV1',
+    artifactKind,
+    truthSourceKind,
+    machineValidationRequired: truthSourceKind === 'json-canonical',
+    projectionAllowed: truthSourceKind !== 'projection',
+    humanConfirmationRequired: ['requirement', 'cp', 'tech-design', 'skill', 'prompt', 'readme', 'docs', 'instructions'].includes(artifactKind),
+    sidecarAllowed: ['markdown-canonical', 'external'].includes(truthSourceKind),
+    canonicalFormat: truthSourceKind === 'json-canonical' ? 'json' : (truthSourceKind === 'markdown-canonical' ? 'markdown' : 'derived')
+  }
+  const errors = []
+  if (!text(artifactKind)) errors.push('artifactKind-required')
+  return { ...core, classificationDigest: `artifact-truth-source-${digest(core)}`, validation: { valid: errors.length === 0, errors } }
+}
+
+function createArtifactAnchor(input = {}) {
+  const classification = classifyArtifactTruthSource(input)
+  const truthSourceKind = TRUTH_SOURCE_KINDS.has(input.truthSourceKind)
+    ? input.truthSourceKind
+    : classification.truthSourceKind
+  const status = ARTIFACT_ANCHOR_STATUSES.has(input.status) ? input.status : 'unknown'
+  const evidenceRefs = textList(input.evidenceRefs)
+    ? [...new Set(input.evidenceRefs)].sort()
+    : []
+  const errors = []
+  for (const field of ['artifactId', 'artifactKind', 'canonicalPath', 'contentDigest', 'generatedAt', 'owner']) {
+    if (!text(input[field])) errors.push(`${field}-required`)
+  }
+  if (text(input.generatedAt) && !Number.isFinite(Date.parse(input.generatedAt))) errors.push('generatedAt-invalid')
+  if (text(input.canonicalPath) && !path.isAbsolute(input.canonicalPath)) errors.push('canonicalPath-not-absolute')
+  if (text(input.canonicalPath) && /^file:\/\//i.test(input.canonicalPath)) errors.push('canonicalPath-file-uri-forbidden')
+  if (input.truthSourceKind !== undefined && !TRUTH_SOURCE_KINDS.has(input.truthSourceKind)) errors.push('truthSourceKind-invalid')
+  if (input.status !== undefined && !ARTIFACT_ANCHOR_STATUSES.has(input.status)) errors.push('status-invalid')
+  if (input.evidenceRefs !== undefined && !textList(input.evidenceRefs)) errors.push('evidenceRefs-invalid')
+  errors.push(...classification.validation.errors.map(error => `classification.${error}`))
+
+  const core = {
+    schemaVersion: 'ArtifactAnchorV1',
+    artifactId: input.artifactId || '',
+    artifactKind: normalizeArtifactKind(input.artifactKind),
+    truthSourceKind,
+    canonicalPath: input.canonicalPath || '',
+    contentDigest: input.contentDigest || '',
+    projectionDigest: input.projectionDigest || null,
+    generatedAt: input.generatedAt || '',
+    owner: input.owner || '',
+    status,
+    stalePolicy: input.stalePolicy || 'contentDigest-mismatch->stale',
+    evidenceRefs,
+    summaryLine: input.summaryLine || '',
+    classification
+  }
+  return { ...core, anchorDigest: `artifact-anchor-${digest(core)}`, validation: { valid: errors.length === 0, errors } }
+}
+
+function projectArtifactAnchorsFromManifest(manifest, {
+  generatedAt = manifest?.generatedAt || '',
+  owner = 'artifact-delivery-manifest',
+  status = 'fresh'
+} = {}) {
+  const errors = []
+  if (manifest?.schemaVersion !== 'ArtifactDeliveryManifestV1' || !manifest?.validation?.valid ||
+      manifest?.reconciliation?.status !== 'verified') errors.push('manifest-not-reconciled')
+  const manifestRef = text(manifest?.manifestId) ? `manifest:${manifest.manifestId}` : 'manifest:unknown'
+  const entries = Array.isArray(manifest?.entries) ? manifest.entries : []
+  const anchors = entries.map(entry => createArtifactAnchor({
+    artifactId: entry.artifactId,
+    artifactKind: entry.artifactClass,
+    canonicalPath: entry.canonicalPath,
+    contentDigest: entry.contentDigest,
+    generatedAt,
+    owner,
+    status,
+    stalePolicy: 'manifest-contentDigest-mismatch->blocked',
+    evidenceRefs: [...(textList(entry.evidenceRefs) ? entry.evidenceRefs : []), manifestRef],
+    summaryLine: entry.purposeText
+  }))
+  anchors.forEach((anchor, index) => {
+    if (!anchor.validation.valid) errors.push(...anchor.validation.errors.map(error => `anchors[${index}].${error}`))
+  })
+  const core = {
+    schemaVersion: 'ArtifactAnchorProjectionV1',
+    sourceSchemaVersion: manifest?.schemaVersion || null,
+    sourceId: manifest?.manifestId || null,
+    sourceDigest: manifest?.manifestId || null,
+    generatedAt,
+    owner,
+    anchors
+  }
+  if (!text(generatedAt)) errors.push('generatedAt-required')
+  if (text(generatedAt) && !Number.isFinite(Date.parse(generatedAt))) errors.push('generatedAt-invalid')
+  if (!text(owner)) errors.push('owner-required')
+  return { ...core, projectionDigest: `artifact-anchor-projection-${digest(core)}`, validation: { valid: errors.length === 0, errors } }
 }
 
 function createLinkCapabilityDecision(input) {
@@ -670,6 +790,123 @@ function classifyArtifactPathColumnSample(sample) {
   return hasPathColumn ? 'present' : 'missing-path-column'
 }
 
+function unique(items) {
+  const result = []
+  for (const item of items) {
+    if (!result.includes(item)) result.push(item)
+  }
+  return result
+}
+
+/**
+ * DevModeCompletionCheckDetailGate / FinalValidationSummaryV1 free-text classifier.
+ *
+ * It keeps the final reply short, but requires enough fields for a reviewer to
+ * verify completion without opening every raw report: command + exitCode,
+ * runId/key count, workspace sync, dirty boundary and release action boundary.
+ * A commit claim additionally requires post-commit replay evidence.
+ */
+function analyzeFinalValidationSummarySample(sample, options = {}) {
+  const textSample = String(sample || '')
+  const claimedCompletion =
+    /DevCodexVisibleEnvelopeV1\s*·\s*completion-check/i.test(textSample) ||
+    /###\s*DevCodex\s*·\s*完成检查/i.test(textSample) ||
+    /🛡️\s*DEV\s*模式\s*\|\s*合规检查/i.test(textSample) ||
+    /(?:完成检查|completion-check|CompletionEvidenceGate)/i.test(textSample)
+
+  if (!textSample.trim() || !claimedCompletion) {
+    return {
+      schemaVersion: 'FinalValidationSummaryAnalysisV1',
+      claimed: false,
+      status: 'not-claimed',
+      classification: 'not-claimed',
+      missingItems: [],
+      evidence: {
+        command: false,
+        exitCode: false,
+        runIdOrKeyCount: false,
+        workspaceSync: false,
+        dirtyBoundary: false,
+        releaseActionBoundary: false,
+        postCommitReplay: false,
+        commitClaimed: false,
+        reportOnly: false,
+        thinGreen: false
+      }
+    }
+  }
+
+  const normalized = textSample.replace(/\r\n/g, '\n')
+  const commandRe = /`?(?:npm|node|pnpm|yarn|npx|grok|devcodex)\s+(?:run\s+)?[A-Za-z0-9:_./@=-][^`\n|;]*/i
+  const commandWithLabelRe = /(?:命令|command|验证|测试|TestRoute|权威)[^\n]{0,80}(?:npm|node|pnpm|yarn|npx|grok|devcodex)\s+/i
+  const hasCommand = commandRe.test(normalized) || commandWithLabelRe.test(normalized)
+  const hasExitCode = /\bexitCode\s*(?:[:=])?\s*(?:0|[1-9]\d*)\b|退出码\s*[:：=]?\s*(?:0|[1-9]\d*)/i.test(normalized)
+  const hasRunIdOrKeyCount =
+    /\brunId\s*[:=]\s*[A-Za-z0-9_.:-]+/i.test(normalized) ||
+    /关键计数|key count|counts?\s*[:=]|计数\s*[:：]/i.test(normalized) ||
+    /\bV\d+\s*(?:~|-|至|到)\s*V?\d+\b/i.test(normalized) ||
+    /(?:checks?|probes?|nodes?|files?|routes?|关键计数|计数|通过|passed)[^\n]{0,24}\b\d+\s*\/\s*\d+\b|\b\d+\s*\/\s*\d+\b[^\n]{0,24}(?:checks?|probes?|nodes?|files?|routes?|项|通过|passed)/i.test(normalized) ||
+    /\b(?:checks?|probes?|nodes?|files?|routes?)\s*[:=]\s*\d+\b/i.test(normalized) ||
+    /\b\d+\s*(?:项|个|条|个探针|项检查)\b/.test(normalized)
+  const hasWorkspaceSync =
+    /WorkspaceSyncStatus|workspace\s*sync|工作区(?:副本)?同步|部署副本同步|hostsSynced/i.test(normalized) &&
+    /synced|skipped|blocked|N\/A|不适用|未触发|无需同步|已同步|跳过/i.test(normalized)
+  const hasDirtyBoundary =
+    /(?:dirty\s*boundary|dirty\s*边界|git\s+status|工作树|dirty\s*status|tracked\s+clean|clean[-\s]tree|无关\s*dirty|未跟踪)[^\n]{0,180}(?:clean|dirty|干净|无关|未跟踪|tracked|empty|0)|(?:clean[-\s]tree|tracked\s+clean|git\s+status\s+(?:--short\s+)?(?:clean|empty|0)|工作树[^\n]{0,120}(?:干净|clean|无关))/i.test(normalized)
+  const hasReleaseBoundary =
+    /(?:push|tag|release|publish|发布动作|Release actions?|发布边界)[^\n]{0,120}(?:未执行|N\/A|skipped|not\s+run|not\s+executed|不执行|none)|(?:未执行|N\/A|skipped|not\s+run|不执行)[^\n]{0,120}(?:push|tag|release|publish)/i.test(normalized)
+  const commitClaimed =
+    /\bcommit\b\s*`?[a-f0-9]{7,40}`?|\bcommit\s+[a-f0-9]{7,40}\b|提交\s*`?[a-f0-9]{7,40}`?/i.test(normalized)
+  const hasPostCommitReplay =
+    /post-commit|commit\s+replay|clean-tree\s+replay|提交后|commit\s*后|提交后复放|提交后验证/i.test(normalized)
+  const reportOnly =
+    /\[[^\]]*(?:报告|report)[^\]]*\]\([^)]+\.md[^)]*\)/i.test(normalized) &&
+    !hasCommand
+  const thinGreen =
+    /全绿|全部通过|已通过|PASS|通过/i.test(normalized) &&
+    !hasCommand &&
+    !hasExitCode
+
+  const missing = []
+  if (!hasCommand) missing.push(thinGreen ? 'thin-green-summary' : reportOnly ? 'report-link-only' : 'validation-command')
+  if (hasCommand && !hasExitCode) missing.push('exit-code')
+  if (!hasRunIdOrKeyCount) missing.push('run-id-or-key-count')
+  if (!hasWorkspaceSync) missing.push('workspace-sync')
+  if (!hasDirtyBoundary) missing.push('dirty-boundary')
+  if (!hasReleaseBoundary) missing.push('release-action-boundary')
+  if (commitClaimed && !hasPostCommitReplay) missing.push('post-commit-replay')
+
+  if (options.requirePostCommitReplay === true && !hasPostCommitReplay) {
+    missing.push('post-commit-replay')
+  }
+
+  const missingItems = unique(missing)
+  const status = missingItems.length ? 'verified-missing' : 'verified-present'
+  return {
+    schemaVersion: 'FinalValidationSummaryAnalysisV1',
+    claimed: true,
+    status,
+    classification: status === 'verified-present' ? 'present' : missingItems[0],
+    missingItems,
+    evidence: {
+      command: hasCommand,
+      exitCode: hasExitCode,
+      runIdOrKeyCount: hasRunIdOrKeyCount,
+      workspaceSync: hasWorkspaceSync,
+      dirtyBoundary: hasDirtyBoundary,
+      releaseActionBoundary: hasReleaseBoundary,
+      postCommitReplay: hasPostCommitReplay,
+      commitClaimed,
+      reportOnly,
+      thinGreen
+    }
+  }
+}
+
+function classifyFinalValidationSummarySample(sample, options = {}) {
+  return analyzeFinalValidationSummarySample(sample, options).classification
+}
+
 function renderVisibleEnvelope(envelope, { tier = null, compact = false } = {}) {
   const validContract = envelope?.validation?.valid === true
   if (!validContract) envelope = invalidEnvelope(envelope?.validation?.errors || ['envelope-invalid'])
@@ -727,15 +964,22 @@ module.exports = {
   MESSAGE_KINDS,
   PRESENTATION_TIERS,
   STATUSES,
+  TRUTH_SOURCE_KINDS,
   VISIBILITIES,
+  ARTIFACT_ANCHOR_STATUSES,
+  classifyArtifactTruthSource,
+  createArtifactAnchor,
   createArtifactDeliveryManifest,
   createLinkCapabilityDecision,
   createVisibleEnvelope,
+  analyzeFinalValidationSummarySample,
   buildSimpleGovernanceFastPathDecision,
   classifyArtifactPathColumnSample,
+  classifyFinalValidationSummarySample,
   digest,
   isSemanticDisplayName,
   portableTarget,
+  projectArtifactAnchorsFromManifest,
   projectUserFacingArtifactSet,
   renderArtifactItem,
   resolveArtifactPathCell,

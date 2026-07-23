@@ -15,7 +15,7 @@ version: 1.15.3
 | ENV_MODE | 检查策略 |
 |----------|---------|
 | `prod`（默认）| 不执行合规检查（规范已验证，Instructions 直接指导 AI 行为） |
-| `dev` | 全量执行 FC1~FC7 + SC1~SC15 + RC1~RC4 + T1~T9 |
+| `dev` | 全量执行 FC1~FC7 + SC1~SC15 + RC1~RC4 + T1~T13 |
 
 > ⛔ S01~S06 安全底线不受 ENV_MODE 影响，无论 dev/prod 均强制；S07（全模式入口检查强制）在 instruction-fallback 模式触发（见 `00-safety.instructions.md` §S07）。dev 模式额外启用 PC4 完整规范雷达与 FC/SC/RC/T 合规检查。
 > ℹ️ ENV_MODE 未注入时，默认按 `prod`（不执行合规检查）。
@@ -116,7 +116,7 @@ version: 1.15.3
 ## 执行顺序
 
 ```text
-[Hook/Fallback 入口检查 PC0~PC7] → dev 模式继续 FC（形式合规）→ SC（实质合规）→ RC（恢复性检查）→ 报告二次验证（V1~V6）→ 任务完成验证（T1~T9）
+[Hook/Fallback 入口检查 PC0~PC7] → dev 模式继续 FC（形式合规）→ SC（实质合规）→ RC（恢复性检查）→ 报告二次验证（V1~V6）→ 任务完成验证（T1~T13）
 ```
 
 > ⚠️ **chat 快速路径**：chat 意图在所有模式下仅执行入口检查（PC0~PC7），跳过 FC/SC/RC/T（§触发时机 §合规检查状态块 chat 豁免）。`hook-enforced` 模式下可由宿主先完成 bootstrap；`instruction-fallback` 模式下仍需在实质回答前输出入口检查状态。
@@ -203,21 +203,25 @@ version: 1.15.3
 
 - **V6**：🔴 级占总问题数超 1/3 时，触发“分级标准是否过严”自检。
 
-## 任务完成验证（T1~T9）
+## 任务完成验证（T1~T13）
 
-| # | 检查项 |
-|:-:|--------|
-| T1 | ✅ 需求覆盖 |
-| T2 | ✅ 报告存在（chat 豁免） |
-| T3 | ✅ 记忆完整 |
-| T4 | ✅ CP 完整（dev/fix；其他 N/A） |
-| T5 | ✅ 合规通过 |
-| T6 | ✅ 约束遵守（C01~C22 + GovernanceIntakeClosureGate 已终结或明确 unverified/ambiguous） |
-| T7 | ✅ 工作流验证（dev/fix: 适用门禁已执行，且“执行 → 扫描/验证 → ECR → 完成”正式阶段已走完；其中 fix 的三步扫描与 ECR 已完成；audit/analyze: PCV 与推荐结论已执行）|
-| T8 | ✅ SUMMARY 已更新；若触发上下文交接，daily tasks 或报告已写 `ContextHandoffCard` |
-| T9 | ✅ internal manifest 与用户可见交付均完成；默认隐藏内部记录仍已写入、验证并纳入 ECR |
+| alias | canonical ID | 检查项 |
+|:---:|---|---|
+| T1 | `requirements.coverage` | ✅ 需求覆盖 |
+| T2 | `delivery.report` | ✅ 报告存在（chat 豁免） |
+| T3 | `delivery.memory` | ✅ 记忆完整 |
+| T4 | `confirmation.cp` | ✅ CP 完整（dev/fix；其他 N/A） |
+| T5 | `governance.compliance` | ✅ 合规通过 |
+| T6 | `constraints.and-sync` | ✅ 约束遵守（C01~C22 + GovernanceIntakeClosureGate 已终结或明确 unverified/ambiguous） |
+| T7 | `workflow.verification` | ✅ 工作流验证（dev/fix: 适用门禁已执行，且“执行 → 扫描/验证 → ECR → 完成”正式阶段已走完；其中 fix 的三步扫描与 ECR 已完成；audit/analyze: PCV 与推荐结论已执行）|
+| T8 | `continuity.summary` | ✅ SUMMARY 已更新；若触发上下文交接，daily tasks 或报告已写 `ContextHandoffCard` |
+| T9 | `delivery.manifest` | ✅ internal manifest 与用户可见交付均完成；默认隐藏内部记录仍已写入、验证并纳入 ECR |
+| T10 | `long-task.timing-and-coverage` | ✅ 条件：长任务 `SessionTimingCard`；确认类清单 CoverageMatrix/residual 声明 |
+| T11 | `long-task.budget-and-authorization` | ✅ 条件：ExecutionBudget、LongTaskAuthorization 与 external wait 分列 |
+| T12 | `deployment.and-completion-evidence` | ✅ 条件：WorkspaceSyncStatus 与 CompletionEvidenceGate |
+| T13 | `post-delivery.self-check` | ✅ 条件：长任务收口/完成声明前执行 PostDeliverySelfCheck |
 
-> ℹ️ **T 层补充**：T2/T3/T8 验证的是最终完成态，和 FC/SC 的“写入动作是否发生”不同；只有两层都通过，才表示既没有漏写，也没有在收尾阶段失配。
+> ℹ️ **T 层补充**：机器契约使用 canonical ID，T1~T13 仅为兼容 alias。T2/T3/T8 验证的是最终完成态，和 FC/SC 的“写入动作是否发生”不同；只有两层都通过，才表示既没有漏写，也没有在收尾阶段失配。
 
 ## 合规检查状态块输出（仅 dev 模式，chat 豁免）
 
@@ -231,6 +235,12 @@ version: 1.15.3
 - FC1~FC7 [状态] 固定 ID 与实际证据
 - SCx/RCx/Tx [状态] 仅列适用项
 
+#### 验证摘要
+| 类型 | 命令 | exitCode | runId/计数 |
+|------|------|----------|------------|
+| 权威/实验/skipped | `command or N/A` | `0/N/A` | `runId 或关键计数` |
+WorkspaceSyncStatus：synced/skipped/blocked + reason；dirty boundary：scope + state；Release actions：push/tag/release/publish 执行边界；post-commit replay：commit 任务必填，否则 N/A + reason。
+
 #### 完成交付文件
 - [语义名称](capability-selected-target) — 用途；操作：用户动作
 已列 N / 总计 M；默认隐藏 R
@@ -239,6 +249,7 @@ DevCodexVisibleEnvelopeV1 · completion-check · [状态] · [semanticDigest]
 ```
 
 > ⚠️ **FC5 填写规则**：触发 `user-visible-output-contract`。internal manifest 必须 planned=observed=internalDelivered；visible set 必须 required hidden=0 且 `listed+remaining=total`。默认隐藏 session/daily/SUMMARY/task/checkpoint/raw receipt/manifest/ledger，但继续写入和 ECR。链接必须由 `LinkCapabilityDecisionV1` 按当前 surface 证据选择；Rich clickable 不重复绝对路径，只有用户要求、链接失败、工作区外、歧义或无法定位时追加 fallback。Hook 未观察 payload时只能 `unverified`，legacy 格式最多 `unverified-legacy`。
+> ⚠️ **DevModeCompletionCheckDetailGate**：completion-check 只写“全绿 / 已通过 / 详见报告”不合格；必须投影 `FinalValidationSummaryV1` 或等价短矩阵，并由 `classifyFinalValidationSummarySample` 负向样例守门。
 
 ## 自修复触发（不进入 self-fix 工作流）
 

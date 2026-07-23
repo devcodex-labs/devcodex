@@ -85,6 +85,15 @@ description: 需求文档审查维度 RQ-1~RQ-8 — 需求定义/功能描述/�
 - 凡 Skill/报告/清单声明覆盖 `RQ-1~RQ-8`，正文必须为每一维提供可执行通过条件、至少一类失败反例、必要证据字段与验证路线（或显式 `N/A + skipReason` 边界）
 - 仅维度总览表/索引而无独立定义 → 本审查层与 validate 探针均视为不完整，不得标 RQ 全覆盖 PASS
 
+**DistributionRequirementRealityGate / DomainRealityMatrix（CP1 候选）**
+- CP1 候选文档在请求确认前必须形成 `CandidateReviewBundleV1`，并包含 `phaseKind=CP1`、`RQMatrix`、`DomainRealityMatrix`、`ClaimEvidenceMatrix`、`EscapeAbsorptionQueue`；缺任一项不得写“可确认 CP1”。
+- `RQMatrix` 至少覆盖 RQ-1~RQ-8，每行包含 `dimension / status / evidence / gap / disposition / skipReason`；只写总评或“已覆盖”不算通过。
+- `DomainRealityMatrix` 用来防止把分发、包、命令、运行态、授权和阶段状态想当然，至少包含：`domain`、`currentReality`、`repoEvidence`、`consumer`、`decision`、`negativeProbe`、`skipReason`。
+- 推荐 domain：`sourceTruth`、`packageChannel`、`licensePolicy`、`commandSurface`、`runtimeCapability`、`phaseKind`。不触发的 domain 可 `N/A + skipReason`，但不能省略整张矩阵。
+- `ClaimEvidenceMatrix` 将每个关键需求主张映射到原始输入、产品事实源、Profile/仓库证据或 `UNVERIFIED` 边界；不得把外部审查报告或 AI 推断当作已验证事实。
+- `EscapeAbsorptionQueue` 记录外部审查/复审发现：`sourceClaimId / finding / localEvidence / disposition(adopt|partial|reject|defer) / targetArtifact / owner / status`；禁止把外部报告直接粘进需求正文后宣布已吸纳。
+- 负向：缺 `DomainRealityMatrix` 却确认“包发布/命令/运行态可用”；缺 `ClaimEvidenceMatrix` 却把假设写成事实；发现外部问题但没有队列和 disposition → 阻断 CP1 确认。
+
 **PhaseDeliverySemanticGate（条件）**
 - 多阶段需求、路线图或“全部纳入某阶段”必须为每阶段标记 `phaseKind=planning-only / design-ready / implementation / release`，分别说明 planning coverage 与 source delivery。
 - 建立 `PhaseDeliverySemanticMatrix`：originalIntent、phaseKind、inScope、sourceDelivery、entry、exit、carryOver、closeRule、confirmationText 必须一致。

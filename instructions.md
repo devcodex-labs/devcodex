@@ -406,7 +406,7 @@ SCV 结果必须写入报告；控制面任务的 ECR-7 必须引用 SCV 证据�
 | 影响点 | `prod`（默认）| `dev` |
 |--------|:------------:|:-----:|
 | CP 门控 | 🔴 强制等待用户确认 | 🔴 强制等待用户确认 |
-| 合规检查 | 不执行 | 全量 FC1~FC7 + SC1~SC15 + RC1~RC4 + T1~T9 |
+| 合规检查 | 不执行 | 全量 FC1~FC7 + SC1~SC15 + RC1~RC4 + T1~T13 |
 | 入口检查输出 | 输出 PC0~PC7 基础状态，PC4 标注 N/A | 输出 PC0~PC7，PC4 执行完整规范雷达 |
 | 合规状态块 | 不输出 | 输出全量状态块（chat 豁免合规块，但仍须预检查）|
 | 安全底线 S01~S06 | 🔴 强制 | 🔴 强制 |
@@ -626,7 +626,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → 
 
 ## 合规检查（仅 dev 模式）
 
-执行顺序：`预检查 PC0~PC7 → FC → SC → RC → 报告验证 V1~V6 → 任务完成验证 T1~T9`
+执行顺序：`预检查 PC0~PC7 → FC → SC → RC → 报告验证 V1~V6 → 任务完成验证 T1~T13`
 
 ### 入口检查输出格式（所有模式，所有工作流前置，chat 也须执行）
 
@@ -647,7 +647,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → 
 DevCodexVisibleEnvelopeV1 · entry-check · [状态] · [semanticDigest]
 ```
 
-入口检查、完成检查、确认、进度、最终结果与阻断统一由 `user-visible-output-contract` 投影；状态词固定为 `PASS / WARN / BLOCK / UNVERIFIED / N/A`。未知能力或缺证据不得用图标冒充 PASS；新会话、resume/compact、scope/risk/dirty/receipt 变化或存在非 PASS/N/A 时必须 expanded。
+入口检查、完成检查、确认、进度、最终结果与阻断统一由 `user-visible-output-contract` 投影；状态词固定为 `PASS / WARN / BLOCK / UNVERIFIED / N/A`。dev/fix/self-fix 的 completion-check 必须投影 `FinalValidationSummaryV1` 或等价短矩阵，列出命令/exitCode、runId 或关键计数、WorkspaceSyncStatus、dirty boundary、release action boundary；commit 声明还要列 post-commit replay。未知能力或缺证据不得用图标冒充 PASS；新会话、resume/compact、scope/risk/dirty/receipt 变化或存在非 PASS/N/A 时必须 expanded。
 
 ### FC 形式合规（必须全通过）
 
@@ -692,19 +692,23 @@ DevCodexVisibleEnvelopeV1 · entry-check · [状态] · [semanticDigest]
 
 ### T 任务完成验证（dev/fix 必跑）
 
-| # | 检查 |
-|:-:|------|
-| T1 | 需求覆盖 |
-| T2 | 报告存在（chat 豁免） |
-| T3 | 记忆完整 |
-| T4 | CP 完整（dev/fix；其他 N/A） |
-| T5 | 合规通过 |
-| T6 | 约束遵守（C01~C22） |
-| T7 | 工作流验证（dev/fix 含适用门禁、三步扫描与 ECR；audit/analyze 含 PCV 与推荐结论） |
-| T8 | SUMMARY 已更新；若触发上下文交接，daily tasks 或报告已写 `ContextHandoffCard` |
-| T9 | 内部 manifest 与用户可见交付均已完成；默认隐藏的 session/SUMMARY/raw ledger 仍已写入并参与 ECR |
+| alias | canonical ID | 检查 |
+|:---:|---|---|
+| T1 | `requirements.coverage` | 需求覆盖 |
+| T2 | `delivery.report` | 报告存在（chat 豁免） |
+| T3 | `delivery.memory` | 记忆完整 |
+| T4 | `confirmation.cp` | CP 完整（dev/fix；其他 N/A） |
+| T5 | `governance.compliance` | 合规通过 |
+| T6 | `constraints.and-sync` | 约束遵守（C01~C22） |
+| T7 | `workflow.verification` | 工作流验证（dev/fix 含适用门禁、三步扫描与 ECR；audit/analyze 含 PCV 与推荐结论） |
+| T8 | `continuity.summary` | SUMMARY 已更新；若触发上下文交接，daily tasks 或报告已写 `ContextHandoffCard` |
+| T9 | `delivery.manifest` | 内部 manifest 与用户可见交付均已完成；默认隐藏的 session/SUMMARY/raw ledger 仍已写入并参与 ECR |
+| T10 | `long-task.timing-and-coverage` | 条件：长任务 `SessionTimingCard`；确认类清单 CoverageMatrix/residual 声明 |
+| T11 | `long-task.budget-and-authorization` | 条件：ExecutionBudget、LongTaskAuthorization 与 external wait 分列 |
+| T12 | `deployment.and-completion-evidence` | 条件：WorkspaceSyncStatus 与 CompletionEvidenceGate |
+| T13 | `post-delivery.self-check` | 条件：长任务收口/完成声明前执行 PostDeliverySelfCheck |
 
-> 完整逐项定义见当前平台部署目录中的 `instructions/17-compliance.instructions.md`；本表为就地索引（编号与语义与该文件一一对应）。
+> 机器契约使用 canonical ID；T1~T13 仅为兼容 alias。完整逐项定义见当前平台部署目录中的 `instructions/17-compliance.instructions.md`。
 
 ---
 
@@ -714,6 +718,7 @@ DevCodexVisibleEnvelopeV1 · entry-check · [状态] · [semanticDigest]
 - 仅在用户明确追问内部分类/机制时才展开内部术语，且最小化展开
 - 涉及文件产物时，先形成内部 `ArtifactDeliveryManifestV1`，再由 `UserFacingArtifactSetV1` 确定性投影；默认不展示 session、daily、SUMMARY、task state、checkpoint、raw receipt/manifest/ledger
 - 可见项必须使用语义名称、用途、路径列、用户动作和稳定阅读顺序（ArtifactPathColumnGate：路径默认 workspace-relative portable）。Rich 点击能力已验证时名称用一个语义链接，可与 portable 路径列并存，不在路径列外重复 `绝对路径：` 行。绝对路径仅在用户要求、链接失败、工作区外、歧义或无法定位时进入路径列/fallback
+- 完成态最终回复不能只写“全绿 / 已通过 / 详见报告”；必须用 `FinalValidationSummaryV1` 短矩阵列出权威命令与边界证据，长日志仍放报告
 - Copilot / Codex 等非 Claude Code 宿主调用 DevCodex MCP 出现 `invoke` undefined 或工具桥接失败时，按宿主 MCP bridge 失败处理：停止重试同一 MCP，只执行一次 path-observable / instruction-fallback 的同计划有界读取，记录 `mcpFallback=used`；无法取得 Post 成功证据时保持 `unverified`，不得退化为整目录或整文件默认读取
 - Commit subject 只描述主变更，不堆叠背景/验证步骤
 

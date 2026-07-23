@@ -76,7 +76,7 @@
  * V92 项目工程与治理闭环优化（CI/coverage/checked-command/portfolio/runtime-state/manifest/docs）
  * V93 控制面模块化边界与探针注册表
  * V94 返工预防、审查/产物信任链与发布/配置/交互 Owner 子门禁
- * V95~V103：完整性/吸纳/品牌/TurnLiveness/ContextRead/ClosureEvidence/ExecutionChain/VisibleOutput/HostProjection
+ * V95~V104：完整性/吸纳/品牌/TurnLiveness/ContextRead/ClosureEvidence/ExecutionChain/VisibleOutput/HostProjection/WorkflowCompletion
  * Exit: 0=OK, 1=error, 2=warnings only
  */
 'use strict'
@@ -107,7 +107,7 @@ const { buildTurnLivenessControlChecks } = require('./lib/validate-turn-liveness
 const { buildContextReadControlChecks } = require('./lib/validate-context-read-controls')
 const { buildClosureEvidenceControlChecks } = require('./lib/validate-closure-evidence-controls')
 const { buildExecutionChainControlChecks } = require('./lib/validate-execution-chain-controls')
-const { buildVisibleOutputControlChecks } = require('./lib/validate-visible-output-controls')
+const { buildVisibleOutputControlChecks } = require('./lib/validate-visible-output-controls'), { buildWorkflowCompletionControlChecks } = require('./lib/validate-workflow-completion-controls')
 const { buildHostInstructionControlChecks } = require('./lib/validate-host-instruction-controls')
 const { buildGovernanceSupportChecks } = require('./lib/validate-governance-support')
 const { createValidationOrchestration } = require('./lib/validation-orchestration')
@@ -302,8 +302,7 @@ const contextReadChecks = buildContextReadControlChecks({ ROOT, ACTIVE_DEVCODEX_
 const closureEvidenceChecks = buildClosureEvidenceControlChecks({ ROOT, fs, path, read, err, console })
 const executionChainChecks = buildExecutionChainControlChecks({ ROOT, ACTIVE_DEVCODEX_ROOT, fs, path, read, err, console })
 const visibleOutputChecks = buildVisibleOutputControlChecks({ ROOT, fs, path, read, err, console })
-const hostInstructionChecks = buildHostInstructionControlChecks({ ROOT, fs, path, read, err, console })
-const expectedProbeIds = Array.from({ length: 103 }, (_, index) => `V${index + 1}`)
+const hostInstructionChecks = buildHostInstructionControlChecks({ ROOT, fs, path, read, err, console }), workflowCompletionChecks = buildWorkflowCompletionControlChecks({ ROOT, ACTIVE_DEVCODEX_ROOT, fs, path, read, err, console }), expectedProbeIds = Array.from({ length: 104 }, (_, index) => `V${index + 1}`)
 const probeRegistry = createProbeRegistry([
   { owner: 'core-contract', checks: Object.values(coreChecks) },
   { owner: 'package-deployment', checks: Object.values(packageChecks) },
@@ -327,7 +326,8 @@ const probeRegistry = createProbeRegistry([
   { owner: 'closure-evidence-controls', checks: Object.values(closureEvidenceChecks), dependencies: { V100: ['V93', 'V94', 'V99'] } },
   { owner: 'execution-chain-controls', checks: Object.values(executionChainChecks), dependencies: { V101: ['V92', 'V98', 'V99', 'V100'] } },
   { owner: 'visible-output-controls', checks: Object.values(visibleOutputChecks), dependencies: { V102: ['V93', 'V94', 'V100', 'V101'] } },
-  { owner: 'host-instruction-controls', checks: Object.values(hostInstructionChecks), dependencies: { V103: ['V92', 'V99', 'V100', 'V102'] } }
+  { owner: 'host-instruction-controls', checks: Object.values(hostInstructionChecks), dependencies: { V103: ['V92', 'V99', 'V100', 'V102'] } },
+  { owner: 'workflow-completion-controls', checks: Object.values(workflowCompletionChecks), dependencies: { V104: ['V96', 'V100', 'V101', 'V102', 'V103'] } }
 ], { expectedIds: expectedProbeIds })
 runProbeRegistry(probeRegistry, {
   afterRun: descriptor => {

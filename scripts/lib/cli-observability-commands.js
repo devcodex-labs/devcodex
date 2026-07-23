@@ -8,6 +8,7 @@ const { LocalTaskTraceError, replayLocalTaskTrace, validateLocalTaskTrace } = re
 const { resolveDefaultStateFile } = require('../check-turn-liveness.js')
 const { createCliFailure, createCliSuccess, printCliJson } = require('./cli-json-contract.js')
 const { LocalProbeContractError, createLocalProbeRegistry, runLocalProbes } = require('./local-probe.js')
+const { readCompletionForCli } = require('./cli-execution-commands.js')
 
 function buildCliObservabilityCommands(ctx) {
   const {
@@ -133,20 +134,30 @@ function buildCliObservabilityCommands(ctx) {
   }
 
   function parseTraceArgs(argv) {
-    const options = { action: '', json: false, stateFile: '', errors: [] }
+    const options = { action: '', json: false, stateFile: '', completion: false, task: '', project: '', errors: [] }
     const values = Array.isArray(argv) ? argv : []
     for (let index = 0; index < values.length; index += 1) {
       const arg = values[index]
       if (arg === '--json') options.json = true
+      else if (arg === '--completion') options.completion = true
       else if (arg === '--state') {
         const candidate = values[index + 1]
         if (!candidate || String(candidate).startsWith('-')) options.errors.push('--state requires a lifecycle-state.json path')
         else options.stateFile = path.resolve(values[++index])
+      } else if (arg === '--task' || arg === '--project') {
+        const field = arg === '--task' ? 'task' : 'project'
+        const candidate = values[index + 1]
+        if (!candidate || String(candidate).startsWith('-')) options.errors.push(`${arg} requires a value`)
+        else if (options[field]) options.errors.push(`${arg} is non-repeatable`)
+        else options[field] = String(values[++index])
       } else if (arg.startsWith('-')) options.errors.push(`unsupported option: ${arg}`)
       else if (!options.action) options.action = arg
       else options.errors.push(`unsupported trace argument: ${arg}`)
     }
     if (!['show', 'replay'].includes(options.action)) options.errors.push(`unknown trace subcommand: ${options.action || '(none)'}`)
+    if (options.completion && options.action !== 'show') options.errors.push('--completion is only valid with trace show')
+    if (!options.completion && (options.task || options.project)) options.errors.push('--task/--project require --completion')
+    if (options.completion && options.stateFile) options.errors.push('--state cannot be combined with --completion')
     return options
   }
 
@@ -207,8 +218,32 @@ function buildCliObservabilityCommands(ctx) {
   function cmdTrace(argv = []) {
     const options = parseTraceArgs(argv)
     if (options.errors.length) {
-      renderTraceFailure(options, 'CLI_INVALID_OPTION', options.errors.join('; '), 'Use: devcodex trace show|replay [--state <lifecycle-state.json>] [--json]', { errors: options.errors }, 2)
+      renderTraceFailure(options, 'CLI_INVALID_OPTION', options.errors.join('; '), 'Use: devcodex trace show|replay [--state <lifecycle-state.json>] [--json], or trace show --completion [--task <task>] [--project <name>].', { errors: options.errors }, 2)
       return null
+    }
+    if (options.completion) {
+      let payload
+      try { payload = readCompletionForCli({ cwd: process.cwd(), task: options.task, project: options.project }) } catch (error) {
+        renderTraceFailure(options, error.code || 'WORKFLOW_COMPLETION_READ_FAILED', error.message, 'Correct the task selector or completion evidence and retry.', null, 2)
+        return null
+      }
+      if (payload.taskResolution?.status !== 'resolved-active') {
+        renderTraceFailure(options, payload.taskResolution?.errorCode || 'TASK_RESOLUTION_FAILED', payload.taskResolution?.message || 'Task resolution failed.', payload.taskResolution?.nextStep || 'Specify an exact active task.', payload.taskResolution, 2)
+        return payload
+      }
+      if (options.json) printCliJson(console, createCliSuccess('trace', payload, cliMetadata))
+      else {
+        const projection = payload.completion?.projection
+        console.log()
+        console.log(c.bold('  DevCodex completion trace'))
+        console.log(`  ${c.cyan('candidate'.padEnd(18))} ${projection?.candidateId || '(unavailable)'}`)
+        console.log(`  ${c.cyan('core'.padEnd(18))} ${projection?.coreSnapshotDigest || '(unavailable)'}`)
+        console.log(`  ${c.cyan('commit'.padEnd(18))} ${projection?.commitDigest || '(not committed)'}`)
+        console.log(`  ${c.cyan('projection'.padEnd(18))} ${projection?.projectionDigest || '(not committed)'}`)
+        console.log(`  ${c.cyan('input'.padEnd(18))} ${payload.completion?.input?.status || 'missing'}`)
+        console.log()
+      }
+      return payload
     }
     const stateFile = options.stateFile || resolveDefaultStateFile(process.cwd())
     let view

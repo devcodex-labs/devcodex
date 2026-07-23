@@ -44,12 +44,15 @@ DevCodex 默认通过 `.github/`（Copilot）、`CLAUDE.md + .claude/ + .mcp.jso
 - **安全底线**: S01~S07 七条不可覆盖的安全规则
 - **宿主生命周期护栏**: Claude Code 与 OpenAI Codex 在已支持的 Hook 事件上提供 runtime 护栏；Copilot / JetBrains / Cursor 等无等价本地 Hook 时降级为 instruction-fallback；默认 `safety-only` 仅对危险命令硬拦，流程项提醒放行，`strict` 模式才升级可阻断事件
 - **长任务 Turn Liveness**: `TurnLivenessRecoveryGate` 记录 `running / awaiting-continuation / suspect / stalled-recoverable / terminal` 状态、工具租约、continuation ACK、双阶段 checkpoint 与当前 turn 的 `LocalTaskTraceV1`；Hook 只能在事件到达时判断历史停滞，trace replay 只返回数据，不能自行唤醒宿主、执行 payload、重放写操作或把 `PostToolUse` 当成任务完成
+- **全过程完成证据（未发布 Shadow）**: `WorkflowCompletionCandidateV1 → Plan/Receipt/Snapshot → Commit → Projection` 将 CP、执行、验证、复审、同步、报告和记忆绑定到同一 candidate；任务输入由 lifecycle 的受管原子写入口生成，`task verify` 只消费通过 schema、候选绑定和回读校验的输入。report-only、marker-only、仅选择测试路线或仅有复审文档都不能标记完成。五宿主共享同一 reducer，direct/portable/fallback 只改变证据上限，不改变完成语义
+- **证据新鲜度与主张复用门禁（Unreleased Shadow）**: `ClaimEvidenceIndexV1` 抽取“已验证 / 推荐 / 可确认 / 完整”等强主张，`EvidenceFreshnessReceiptV1` 绑定 source/context/dependsOn/lease，`StaleEvidenceLintDecisionV1` 输出 fresh、rerun-required、downgrade-only 或 unverifiable；memory/SUMMARY/历史报告/外部审查文字只能作 navigation hint，不能单独支撑强结论。新增 `npm run test:evidence-freshness` 覆盖 summary-only、dependency drift、lease、ArtifactAnchor 与 FinalValidationSummary 绑定。
 - **全模式入口检查**: 所有模式在实质任务前显示 PC0~PC7；dev 模式额外执行 PC4 规范雷达与完整合规链
 - **项目现实扩展**: 先做语义意图初判，再结合目标项目 Profile、目录与当前任务上下文修正最终路由、产物落点和验证方式
 - **任务名续接与增量执行链（v1.15.3）**: 新会话只需发送 `继续<任务名>任务`；系统通过稳定 task identity 有界定位，再复证 sessions/CP/产物。Context、validation DAG、Profile/Skill 与 ProjectKnowledge 可按内容身份增量执行，并由 `full-only` kill switch 保留完整正确路径
 - **可配置并发策略**: Profile `config.json` 可配置 `extensions.devcodex.concurrency`；默认 `auto` 表示只读准备和隔离验证可并行、共享状态写入保持单写者，保守项目可设为 `serial`
+- **多需求并行编排（Unreleased）**: `requirement-parallel-orchestration` 用 `RequirementIndependenceDecisionV1`、`SharedSurfaceLockMapV1`、`ParallelLaunchCardV1` 与 `IntegrationMergeProtocolV1` 判断多需求、子 Agent、子会话或 worktree 是否可并行；缺证据、共享源码写入或 `allowParallelMutations` 均回到串行
 - **文件真相源优先的有界启动链**: `MemoryCannotSatisfyBootstrapGate` 要求宿主 Memories、模型长期偏好、SUMMARY 或交接卡只能作为 `navigation-hint`；新线程、resume、summary 恢复或跨项目切换仍须通过 Profile plan、memory status/query 与 handoff 指向的精确 reports/review checklist/source 复证。V86 防止用内置记忆替代文件真相，V99 防止把复证误写成默认全文读取或失败调用假完成。
-- **支撑型 Skill**: `execution-contract` / `test-router` / `release-verification` / `host-contract-verification` / `source-consumer-sync` 为控制面、多批次、测试路线、宿主契约验证与真相源-消费者同步提供可审计支撑，不新增工作流分支
+- **支撑型 Skill**: `execution-contract` / `test-router` / `release-verification` / `host-contract-verification` / `source-consumer-sync` / `requirement-parallel-orchestration` 为控制面、多批次、测试路线、宿主契约验证、真相源-消费者同步与多需求并行编排提供可审计支撑，不新增工作流分支
 - **Always-On 质量守恒治理（Unreleased）**: `AlwaysOnSurfaceMatrixV1` 同时统计 Host Kernel 与 `instructions/*.md applyTo:"**"` 面，`HostAdapterCompatibilityMatrixV1` 按 Copilot/Claude/Codex/Gemini/Grok root/plain/launcher 限定能力上限，Q1~Q8 Shadow 40 样本要求 P0 零漏判；当前只读诊断与探针已落地，AO-3 默认轻注入仍未启用
 - **模型无关双层修复协作契约**: AI 判断任务目标为 repair task 时至少建立 `lightweight` 决策/验收层 + 执行/验证层契约；P0/P1、安全、控制面、公共契约、多批次、角色交接或发布风险升级 `full`，用 `findingToPatchMap`、`handoffIntegrity` 与 `independentReReview` 防止范围漂移和补丁作者唯一自证。模型名称或是否切换 Agent 不是触发条件
 - **修复完成与返工效果分层**: active `repair-prevention-assessment` 是所有 repair 的默认完成门禁，强制分离当前关闭证据与长期前瞻计划；gray `rework-prevention-engineering` 仅在返工率、重复逃逸簇或效果验证时使用，以 WorkUnit/ReworkEvent、FirstPassYield 和 prospective trial 判断是否值得晋级。active 工作流不依赖默认不部署的 gray Skill。`CandidateDiffCompletenessGate` 在 commit/tag/publish 前用 staged candidate snapshot 覆盖 tracked/untracked，并执行 cached diff、name-status、secret-shape 与 intended scope 对账；普通 working diff 不能替代。派生资产另由 `PostStageDerivedArtifactFreshnessGate` 在完整 stage 后读取 Git index，并在 commit 后 clean tree 复放，防止“先生成、后新增消费者”逃逸。`ReviewCoverageClaimIntegrityGate`、`ArtifactDeliveryManifestGate`、`VisibleOutputHostEvidenceGate`、`ReleaseAuthorityBeforeCompatibilityGate`、`ConfigurationErgonomicsGate` 与 `InteractiveSemanticProbe` 分别约束审查真实性、内部交付对账、用户可见证据、兼容判断、配置易用性和交互语义
@@ -60,6 +63,7 @@ DevCodex 默认通过 `.github/`（Copilot）、`CLAUDE.md + .claude/ + .mcp.jso
 - **审计与修复授权分离**: `AuditMutationBoundaryGate` 规定 audit 只写报告、audit-state、记忆和运行态台账；任何源码/规范/配置/测试/文档/部署副本修复都需用户显式授权后进入独立 fix/self-fix，audit 不自动改源、`git add` 或继承修复权限
 - **分析与用户文档能力**: `analyze-default` / `analyze-research` 承接分析与调研；`user-manual-authoring`、`audit-user-manual`、`readme-authoring` 和 `audit-readme` 收口站点文档 / README / quick start 的用户路径、信息架构、配置排错和真实工作流。声称场景完整时必须执行 `ScenarioCoverageMatrixProbe`；队列/批处理还要执行 `DurableBatchOrchestrationProbe`，页面或关键词存在、一次 `addBulk`、进程内 callback 都不能替代持久 run、故障恢复与 executable evidence
 - **专家型产物质量能力**: `expert-output-quality` 负责代码、文档、示例、fixture、quick start、技术方案和报告的专家型输出质量；`ExpertOutputQualityGate` 要求先给生产推荐路径、框架原生能力和项目既有能力，再说明 fixture/mock/demo 边界、反模式和证据矩阵。V84 探针会阻止把测试夹具、硬编码单例或每个 route 重复声明包装成生产推荐实践。
+- **强主张证据新鲜度能力**: `evidence-freshness` gateGroup 与 `scripts/lib/evidence-freshness-receipt.js` 负责报告、分析、审查、复审清单和用户可见完成检查中的强主张证据复用；`ArtifactAnchorV1`、`ArtifactAnchorProjectionV1` 与 `FinalValidationSummaryV1` 可作为证据依赖，SUMMARY、历史报告和外部审查原文只能作 navigation hint。
 - **操作、代码事实与唯一推荐**: 面向用户或维护者的操作说明使用 `OperationExplanationContractV1`；重要方案/报告使用 `CodeTruthEvidenceMatrixGate` 和 `SolutionFitAgainstRepoGate` 绑定 repo path、symbol、currentBehavior、negativeProbe、gap、reusePoint、consumer、rollback 与 statusQuoCost；收敛后由 `UniqueRecommendationBeforeConfirmGate` / `NoPreferenceMenuAfterConvergenceGate` 保证只有一个推荐方案或明确组合。
 - **专家 Owner Skill 能力**: 21 个专家 Owner Skill 分别承接产品策略、开发者体验、UX 交互、前端架构、后端领域架构、生产可用性 / SRE、API 契约、外部集成、平台生态、AI Agent 系统、数据架构、安全威胁建模、质量策略、设计系统、无障碍/国际化、增长分析和商业模型；`growth-analytics` 与 `business-model-review` 为 P3 条件触发，未命中时写 `N/A + skipReason`；`ExpertOwnerSkillGate` 要求报告 ownerSkill、triggerReason、requiredFields、validationRoute、skipReason 和 V85/targeted probe 证据，避免“专家视角”只停留在泛泛口号。
 - **复审清单能力**: `review-checklist` 负责正式复审、ECR、发布前复审、多轮收敛和外部 finding 批次的清单创建、范围冻结、逐项证据执行、遗漏逃逸分析、状态新鲜度和收敛关闭；`PostConfirmationReviewScopeGate` 要求 CP 确认后按风险选择轻量或全面复审；`ReviewEscapeRecordGate` 要求发现遗漏时先在清单写入 `whyMissed / prevention / checklistPatch / rerunEvidence`，再补清单和重跑验证；`ChecklistStateMaterializationGate` 在 clean/closed 前核对 header、items、round、ledger、progress、closure 六区块一致快照
@@ -79,9 +83,9 @@ DevCodex 默认通过 `.github/`（Copilot）、`CLAUDE.md + .claude/ + .mcp.jso
 - **前端体验质量门禁**: 前端页面、组件、控制台、官网、文档站、可视化工具或游戏任务执行 `FrontendExperienceQualityGate` 条件判定，覆盖设计来源、UI 还原度、风格主题、响应式状态、视觉验证、用户流、交互反馈、输入方式/可访问性、错误恢复和动效转场；Figma/截图/既有页面还原追加 `FigmaHighFidelityRestorationGate`、`ScopedVisualChangeGate`、`InstalledPluginVisualVerificationGate`、`ActualPreviewChainAndMockFallbackGate`、`FrontendRuntimeNetworkProbeGate`、`UIStateScopeRegressionGate`、`FigmaProductionAssetBudgetGate`、`RuntimeI18nArtifactVerificationGate`、`VisualDeviationTypeGate` 与 `DesignFramePurposeClassificationGate`；浏览器验证先执行 `FrontendBrowserVerificationBudgetGate`，用户明确自验或禁止浏览器/截图时执行 `UserSelfVerificationOverrideGate`；命中时 TestRoute 纳入 Browser/截图、Playwright/E2E、console/network/resource/runtime、代码级替代验证或人工复核证据
 - **复审覆盖增量与维度增量**: audit / review / ECR 的连续零发现必须附 `ReviewCoverageDelta`（覆盖面增量）与 `ReviewDimensionDeltaGate`（维度焦点增量），优先阅读此前未审查但相关联的代码、配置、测试、文档、部署副本和消费者链，并避免每轮机械重复同一组维度；无新增覆盖、无新增维度焦点且无证据化理由时，不计入有效零发现
 - **规范治理 Intake**: 所有模式下每条用户消息在合理性评估后都会额外检查是否命中可泛化改进；命中时主动写入 `data/process-improvements.md`（优化清单，PI），必要时联动 `data/pending-fixes.md`（PF），并显式回执 `PI/PF`
-- **规范吸纳执行能力**: `spec-absorption` 负责最新可吸纳、仍需吸纳和 `.devcodex/*/data` 候选扫描，先执行 `CommonNormGeneralizationGate` 与 `AbsorptionCandidateConsumerProofGate`，证明通用规范价值、剔除项目独有残留、绑定 DevCodex 当前消费者和 targetOwner，再进入分层实现与验证；`ServiceSpecReadGate` 等项目私有规则只作负向样例，不吸纳为通用规范
+- **规范吸纳执行能力**: `spec-absorption` 负责最新可吸纳、仍需吸纳和 `.devcodex/*/data` 候选扫描，先执行 `CommonNormGeneralizationGate` 与 `AbsorptionCandidateConsumerProofGate`，证明通用规范价值、剔除项目独有残留、绑定 DevCodex 当前消费者和 targetOwner，再用 `AbsorptionCandidateMatrixV1` + read-only `plan-absorption-candidates` 生成 `LayeredAbsorptionDecisionV1` 后进入分层实现与验证；`ServiceSpecReadGate` 等项目私有规则只作负向样例，不吸纳为通用规范
 - **最新吸纳执行包 A1~A10**: 最新可吸纳清单确认实施时，`LatestAbsorptionExecutionPack` 按 `GovernanceGateRegistry` 分组同步配置 canonical namespace、Profile/runtime contract、行为语义与负向翻译、示例与 callback 真相面、派生消费者与失败注入、FeatureInventoryProfileGate / FeatureChecklistEvidenceMatrixGate、BatchEvidenceLedgerStateGate / BatchProgressCardGate，并用 V82 探针核对 Skill、Prompt、TestRoute、report、README/website/changelog、Profile、部署副本和来源台账回写
-- **分层吸纳架构（兼容 Skill-first 吸纳架构）**: 规范吸纳、data 台账治理、用户确认可泛化建议或新增门禁时，先执行 `LayeredAbsorptionGate`，并兼容 `SkillFirstAbsorptionGate` / `CapabilityToSkillPromotionGate`；输出 `LayeredAbsorptionDecision`（含 `SkillAbsorptionDecision`），逐层覆盖通用指令、Skill、prompts/templates、执行消费者、validate/test 探针、README/website/changelog 和部署副本。采纳用户建议前同步执行 `ProactiveBetterAlternativeGate`，有更优方案必须先提出取舍；采纳用户纠正时执行 `AcceptedSuggestionRootCauseGate`，报告 whyMissed、采纳依据、台账编号和防复发动作
+- **分层吸纳架构（兼容 Skill-first 吸纳架构）**: 规范吸纳、data 台账治理、用户确认可泛化建议或新增门禁时，先执行 `LayeredAbsorptionGate`，并兼容 `SkillFirstAbsorptionGate` / `CapabilityToSkillPromotionGate`；输出 `LayeredAbsorptionDecision` / `LayeredAbsorptionDecisionV1`（含 `SkillAbsorptionDecision`），逐层覆盖通用指令、Skill、prompts/templates、执行消费者、validate/test 探针、README/website/changelog 和部署副本，缺 targetOwner、consumerProof 或 validationRoute 时保持 blocked。采纳用户建议前同步执行 `ProactiveBetterAlternativeGate`，有更优方案必须先提出取舍；采纳用户纠正时执行 `AcceptedSuggestionRootCauseGate`，报告 whyMissed、采纳依据、台账编号和防复发动作
 - **历史通用规范分层迁移**: 迁移此前已堆入通用 instructions、prompt、report 模板或 README 的规范时执行 `HistoricalCommonNormLayeringGate`，先冻结逐文件审查矩阵，再按 `targetLayer / targetOwner / semanticStrength / validation / skipReason` 下沉到 Skill、Prompt、执行消费者、V74/V75 validate 探针、公开文档和部署副本；`PromptLongGateListDriftProbe` 会用 SCV 负向样例防止旧 Gate 长清单回流，当前 README、website 和 prompts 只写 `GovernanceGateRegistry` 分组与代表锚点；无法立即下沉的旧规则只保留为 `legacy-index-retained`，不再作为新增长清单容器
 - **完整吸纳补强门禁**: 用户确认“未完整吸纳 / 半覆盖 / 仍需吸纳”时执行 `ConfirmedAbsorptionCompletenessGates`，按 `public-surface / user-manual / review-checklist / frontend-runtime / profile-service / release-parity / evolution-control-plane` 分组补齐 Skill、Prompt、执行消费者、探针、公开文档和部署副本；代表锚点包括 `PublicSurfaceClosureGate`、`UserManualProductizationGate`、`ReviewAnchorMaterializationGate`、`FrontendAsyncCacheRenderGate`、`RemoteCIParityPushGate`、`NativeCommandExitCodeGate` 与 `DocsThemeRuntimeVisualProbeGate`
 - **Backlog 真相复核与状态回写**: 从 `data/*.md` open/partial 项组织新需求或新批次前，先按 `pure-open / residual-tail / already-fixed / misclassified` 分类；实施后再执行台账状态回写闭环，避免“源码已修但 backlog 仍旧 open”
@@ -95,6 +99,7 @@ DevCodex 默认通过 `.github/`（Copilot）、`CLAUDE.md + .claude/ + .mcp.jso
 - **变更日志分层**: 未发布实现变更写 `changelogs/unreleased.md`，已发布详情统一归档到 `changelogs/releases/vX.Y.Z.md`，目录说明见 `changelogs/README.md`
 - **执行闭环复审**: dev/fix 完成前执行 ECR 执行闭环复审，交叉验证 CP 产物、报告、daily memory、SUMMARY、diff/commit、测试/探针与 dirty 边界
 - **推荐结论**: analyze/audit/report 多建议或多路径场景必须给出推荐结论与推荐理由；无后续动作时明确写“推荐：无后续动作”
+- **证据新鲜度**: 报告、分析、审查、推荐、CP 可确认和完成态强声明会记录 `EvidenceFreshness` 条件段；旧报告、SUMMARY 或外部审查输入只能导航，缺 fresh evidence 时降级为 WARN/UNVERIFIED 或在高风险 enforce 场景阻断。
 - **对比调研门禁**: 用户问“是否应该 / 哪个更好 / 有没有更好建议 / 推荐什么”且结论会影响时间、金钱、架构、产品/项目路线或长期维护成本时，先执行 `QuestionEvidenceGate`；技术路线、架构优化、性能优化、框架能力设计或高维护成本方案在 CP1 最终需求确认前执行 `TechnicalRouteComparativeGate`；必要时比较同类产品 / 项目 / 本仓库相似模块，普通低风险问答可标 `ComparativeResearchGate: N/A + skipReason`
 - **确认交互降级**: 用户确认先抽象为 ConfirmationRequest，再按宿主能力选择按钮、权限提示、Hook 阻断或文本确认 fallback，不把按钮 UI 承诺为全宿主能力
 - **执行护栏**: 新需求切换时优先按意图判断边界；涉及外部平台/API/兼容性判断时优先看官方文档；提交时压缩 commit subject
@@ -182,7 +187,7 @@ node index.js init --host all       # 显式部署 Copilot / Claude / Codex / Ge
 ├── copilot-instructions.md  ← 默认 Copilot always-on 总则（新增）
 ├── instructions/   ← Instructions 约束（15 个，含全部工作流规则）
 ├── agents/         ← Copilot 自定义 Agent（v1.9.8 起恢复默认分发）
-├── skills/         ← v1.15.3 Skill 详细检查标准（81 个，按需读取，含 active `repair-prevention-assessment`、默认分析、用户文档、用户侧文档 review 聚合、专家型产物质量、21 个专家 Owner Skill、复审清单、自我进化治理、README 专项能力、spec-governance、spec-absorption 与支撑型 Skill）；其中 78 active，`rework-prevention-engineering`、`consumer-validation-engineering`、`brand-visual-quality` 3 个 gray；用户可见输出、宿主指令投影与修复评估拆分能力已纳入当前包
+├── skills/         ← v1.15.3 Skill 详细检查标准（82 个，按需读取，含 active `repair-prevention-assessment`、默认分析、用户文档、用户侧文档 review 聚合、专家型产物质量、21 个专家 Owner Skill、复审清单、自我进化治理、README 专项能力、spec-governance、spec-absorption 与支撑型 Skill）；其中 79 active，`rework-prevention-engineering`、`consumer-validation-engineering`、`brand-visual-quality` 3 个 gray；用户可见输出、宿主指令投影、修复评估拆分与多需求并行编排能力已纳入当前源码
 ├── prompts/        ← Prompt 模板（30 个）
 ├── hooks/          ← 宿主生命周期 Hook 配置与运行时
 │   ├── devcodex.lifecycle.json
@@ -313,7 +318,11 @@ workspace-namespace 的共享真相与宿主 adapter 都由工作区拥有。Gro
 | `devcodex probe [id ...] [--json]` | 运行同步、local-only、只读 typed probes；默认包含 host/workspace/profile |
 | `devcodex trace show\|replay [--state <file>] [--json]` | 查看或校验重放当前 turn trace 的只读数据投影；不执行 payload 或 mutation |
 | `devcodex task resolve <任务名> [--project <name>] [--json]` | 有界定位可恢复任务；只返回 identity/session/CP metadata，不执行历史 payload |
-| `devcodex skill plan <id...> [--mandatory <id...>] [--json]` | 生成 dependency-closed `BundleDecisionV2`；宿主不支持或 `full-only` 时回退完整 Skill 读取 |
+| `devcodex task verify [--task <id\|name\|current>] [--project <name>] [--full] [--json]` | 重新汇总 owner receipts 并输出唯一 completion projection；仅 committed complete/warning 返回 exit 0，未完成/风险为 1，selector/contract 错误为 2 |
+| `devcodex task risk accept\|revoke --task <id\|name> ... [--json]` | 对当前 candidate 的可豁免 requirement 追加或撤销显式风险回执；non-waivable、过期或 scope 错误零写入 |
+| `devcodex status\|doctor --completion [--task <id\|name>] [--project <name>] [--json]` | 只读查看 completion phase、first blocker 与建议动作；不触发 reconcile 或状态写入 |
+| `devcodex trace show --completion [--task <id\|name>] [--project <name>] [--json]` | 只读查看 completion identity/lineage，不执行历史 payload |
+| `devcodex skill plan <id...> [--mandatory <id...>] [--json]` | 生成 dependency-closed `BundleDecisionV2`，并内含 `BudgetDecisionV1.enforcementStatus/optimizedHit`；宿主不支持或 `full-only` 时回退完整 Skill 读取 |
 | `devcodex help` | 查看 CLI 子命令与选项帮助 |
 | `devcodex init --dry-run` | 预览模式：仅显示将复制的文件 |
 
@@ -489,7 +498,7 @@ devcodex/
 ├── instructions.md # 单源完整规范；确定性生成精简 host kernel、薄 wrapper 与非 always-on full fallback
 ├── agents/        # Agent 源文件；Copilot 端默认分发，Claude Code 端不分发
 ├── instructions/  # 全局 Instructions（15 个，含工作流规则摘要，自动注入）
-├── skills/        # Skill 详细检查标准（81 个，按 01-common §按需读取表 路由读取）
+├── skills/        # Skill 详细检查标准（82 个，按 01-common §按需读取表 路由读取）
 ├── prompts/       # Prompt 模板（30 个）
 ├── hooks/         # Workspace Hooks 配置与分发到 `.github/hooks/_runtime/` 的运行时及 helper 模块
 ├── codex/         # Codex adapter 源模板（分发到 `.codex/hooks.json`，不是工作区部署副本 `.codex/`）
@@ -500,9 +509,9 @@ devcodex/
 └── plugin.json    # 插件元数据
 ```
 
-规范治理由 `spec-governance` 与 `spec-absorption` 分工：`spec-governance` 负责 `PostAssessmentGovernanceIntakeGate`、RecordRouter、真实落账验证、SCV 和 `GovernanceGateRegistry`；`spec-absorption` 负责最新可吸纳、仍需吸纳和 `.devcodex/*/data` 候选扫描、通用性证明与分层实现。所有模式下每条非空用户消息都会先登记中性 candidate，再由 AI 在合理性评估、项目现实扩展和上下文归因后按语义形成 `GovernanceIntakeDecision`；关键词不具有触发或分类权威。复合意图逐项写入 `violations / pending-fixes / process-improvements（优化清单，PI） / pending-issues / gap-registry`，只有成功 PostToolUse 对当前 active-root 的精确台账写入及落盘 ID 复证后才算 verified；`record.none` 也必须提供完整 challenge evidence。
+规范治理由 `spec-governance` 与 `spec-absorption` 分工：`spec-governance` 负责 `PostAssessmentGovernanceIntakeGate`、RecordRouter、真实落账验证、SCV 和 `GovernanceGateRegistry`；`spec-absorption` 负责最新可吸纳、仍需吸纳和 `.devcodex/*/data` 候选扫描、通用性证明、`AbsorptionCandidateMatrixV1` 结构化规划与分层实现。所有模式下每条非空用户消息都会先登记中性 candidate，再由 AI 在合理性评估、项目现实扩展和上下文归因后按语义形成 `GovernanceIntakeDecision`；关键词不具有触发或分类权威。复合意图逐项写入 `violations / pending-fixes / process-improvements（优化清单，PI） / pending-issues / gap-registry`，只有成功 PostToolUse 对当前 active-root 的精确台账写入及落盘 ID 复证后才算 verified；`record.none` 也必须提供完整 challenge evidence。
 
-控制面与长流程当前有五类支撑型 Skill：`execution-contract` 约束 scope / allowedPaths / requiredArtifacts / consumerScope / validationRoute / deviationLog，`test-router` 统一选择验证路线，`release-verification` 在正式 tag / publish 前执行 R0~R7 发布验证链，`host-contract-verification` 负责 direct replay / fixture replay / bootstrap / workspace guard 证据，`source-consumer-sync` 负责 Concept Sync Map 与当前消费者同步边界。
+控制面与长流程当前有六类支撑型 Skill：`execution-contract` 约束 scope / allowedPaths / requiredArtifacts / consumerScope / validationRoute / deviationLog，`test-router` 统一选择验证路线，`release-verification` 在正式 tag / publish 前执行 R0~R7 发布验证链，`host-contract-verification` 负责 direct replay / fixture replay / bootstrap / workspace guard 证据，`source-consumer-sync` 负责 Concept Sync Map 与当前消费者同步边界，`requirement-parallel-orchestration` 负责多需求并行前的独立性判定、锁图、LaunchCard 与汇合协议。
 
 发布前审查由 `audit-release` 承担：它是 audit 专项维度，审查 release readiness、发布说明质量、兼容/迁移风险、package/plugin 元数据、文档/Profile/website 同步、回滚策略、registry/tag 风险与发布后验收；它不替代 `release-verification`，也不执行真实 `tag` / `push` / `publish`。
 
@@ -542,7 +551,11 @@ README / 用户使用文档当前补充四类专项 Skill：`user-manual-authori
 
 ### 用户可见交付与链接兼容
 
-DevCodex 先用 `ArtifactDeliveryManifestV1` 对账所有内部产物，再由 `UserFacingArtifactSetV1` 确定性投影用户真正需要的文件，并通过 `DevCodexVisibleEnvelopeV1` 统一入口检查、确认、进度、完成结果与阻断信息。默认只显示最终报告、实际交付物和影响结论可信度的必要证据；session、daily、SUMMARY、task/checkpoint、raw receipt/manifest/ledger 仍会写入和验证，但不占用用户交付列表。
+DevCodex 先用 `ArtifactDeliveryManifestV1` 对账所有内部产物；需要续接上下文时，可由同一 manifest 纯投影 `ArtifactAnchorProjectionV1`，只保存 canonical path、`contentDigest`、`projectionDigest`、`truthSourceKind` 与证据引用。用户面则由 `UserFacingArtifactSetV1` 确定性投影真正需要的文件，并通过 `DevCodexVisibleEnvelopeV1` 统一入口检查、确认、进度、完成结果与阻断信息。默认只显示最终报告、实际交付物和影响结论可信度的必要证据；session、daily、SUMMARY、task/checkpoint、raw receipt/manifest/ledger 仍会写入和验证，但不占用用户交付列表。
+
+dev / fix / self-fix 宣告完成时，`completion-check` 还会投影 `FinalValidationSummaryV1` 短矩阵：列出权威命令与 `exitCode`、`runId` 或关键计数、`WorkspaceSyncStatus`、dirty boundary、push/tag/release/publish 边界；如果声明了 commit，还必须列 post-commit replay。长日志仍放在报告里，最终回复不能只写“全绿 / 已通过 / 详见报告”。
+
+当最终回复或报告复用既有证据来支撑“已验证 / 推荐 / 可确认 / 已完成”时，还会投影 `EvidenceFreshness` 摘要：fresh 证据可复用；source/context/dependsOn/lease、artifact anchor、final validation summary 任一关键身份变化则要求重跑或降级；summary-only 证据不再单独支撑强结论。
 
 链接形式由当前回复 surface 的可验证能力决定，而不是只按客户端名称猜测：
 
@@ -560,6 +573,7 @@ DevCodex 先用 `ArtifactDeliveryManifestV1` 对账所有内部产物，再由 `
 | 配置项 | 默认值 | 说明 |
 |--------|--------|------|
 | `DEVCODEX_HOOK_ENFORCEMENT` | `safety-only` | `safety-only` 只对危险命令硬拦，流程类问题提醒放行；`strict` 会对宿主支持硬拦的事件启用更严格的 runtime 阻断 |
+| `profile/config.json → extensions.devcodex.workflowCompletion.mode` | `shadow` | 仅允许 `off / shadow / enforce / rolled-back`；当前未发布实现固定为 shadow，任务输入不能自行升级；真实 30 天/20 样本且 dev/fix 各 5 之前不得 enforce |
 
 > 建议：默认先保持 `safety-only`；只有在团队已验证宿主 Hook 事件覆盖度后，再切到 `strict`。
 
@@ -691,6 +705,8 @@ Auto v1.1 当前只在支持 Hook 的宿主里，对显式 `@devcodex-auto`、�
 ```
 
 默认 `auto` 采用 `parallel prepare, serial commit`：文件搜索、Profile/记忆读取、只读分析和互不写同一输出的验证可并行；同一 active-root 的 CP 状态、记忆、报告、台账、audit session、source mutation、package boundary 和危险操作必须串行或单写者。保守项目可设 `mode: "serial"`；首期不支持 `parallel` 或 `allowParallelMutations`。
+
+当任务涉及多个需求、子 Agent、子会话或 worktree 时，先用 `requirement-parallel-orchestration` 生成 `RequirementIndependenceDecisionV1`。只有 `independent` 且 `ParallelLaunchCardV1` 校验通过时才允许隔离执行；`weakly-coupled-lock` 和 `serial-required` 继续由主会话单写者串行汇合。
 
 ## 许可证
 

@@ -17,9 +17,21 @@
     "scripts/host-instruction-projection.json",
     "scripts/lib/host-instruction-projection.js",
     "scripts/lib/host-surface-descriptors.js",
+    "hooks/_runtime/workflow-completion-contract.cjs",
+    "hooks/_runtime/lifecycle-workflow-completion.cjs",
+    "skills/compliance/workflow-completion.schema.json",
     "host-projections/**",
     "gemini/**",
     "grok/**",
+    "scripts/lib/candidate-review-bundle.js",
+    "scripts/test-candidate-review-bundle.js",
+    "scripts/fixtures/candidate-review-bundle/**",
+    "scripts/lib/requirement-parallel-orchestration.js",
+    "scripts/test-requirement-parallel-orchestration.js",
+    "scripts/fixtures/requirement-parallel-orchestration/**",
+    "scripts/lib/evidence-freshness-receipt.js",
+    "scripts/test-evidence-freshness-receipt.js",
+    "scripts/fixtures/evidence-freshness/**",
     "scripts/validate.js",
     "scripts/lib/probe-registry.js",
     "scripts/lib/validate-*.js"
@@ -78,6 +90,9 @@
         "profile-governance",
         "readme-governance",
         "requirement-artifacts",
+        "candidate-review-bundle",
+        "requirement-parallel-orchestration",
+        "evidence-freshness",
         "hooks-runtime",
         "instruction-fallback",
         "mcp-servers",
@@ -90,6 +105,7 @@
         "review-execution-contract",
         "visible-output-contract",
         "repair-prevention-assessment",
+        "workflow-completion-contract",
         "critical-coverage",
         "host-instruction-projection",
         "host-adapters",
@@ -143,6 +159,9 @@
         "profile-governance",
         "readme-governance",
         "requirement-artifacts",
+        "candidate-review-bundle",
+        "requirement-parallel-orchestration",
+        "evidence-freshness",
         "hooks-runtime",
         "instruction-fallback",
         "mcp-servers",
@@ -155,6 +174,7 @@
         "review-execution-contract",
         "visible-output-contract",
         "repair-prevention-assessment",
+        "workflow-completion-contract",
         "critical-coverage",
         "host-instruction-projection",
         "host-adapters",
@@ -189,6 +209,7 @@
         "review-execution-contract",
         "visible-output-contract",
         "repair-prevention-assessment",
+        "workflow-completion-contract",
         "critical-coverage",
         "host-instruction-projection",
         "host-adapters",
@@ -211,6 +232,7 @@
         "review-execution-contract",
         "visible-output-contract",
         "repair-prevention-assessment",
+        "workflow-completion-contract",
         "critical-coverage",
         "host-instruction-projection",
         "host-adapters",
@@ -2164,6 +2186,167 @@
     },
     {
       "schemaVersion": "ValidationNodeV1",
+      "id": "candidate-review-bundle",
+      "owner": "candidate-review-bundle",
+      "command": "node",
+      "args": [
+        "scripts/test-candidate-review-bundle.js"
+      ],
+      "dependencies": [
+        "requirement-artifacts"
+      ],
+      "inputs": [
+        "prompts/requirement.prompt.md",
+        "prompts/technical-design.prompt.md",
+        "skills/audit-requirements/SKILL.md",
+        "skills/audit-tech-design/SKILL.md",
+        "skills/cp-gate/SKILL.md",
+        "skills/dev-plan-review/SKILL.md",
+        "scripts/lib/candidate-review-bundle.js",
+        "scripts/test-candidate-review-bundle.js",
+        "scripts/fixtures/candidate-review-bundle/**"
+      ],
+      "consumers": [],
+      "invariants": [
+        "contract",
+        "negative-probes"
+      ],
+      "riskClass": "high",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "CandidateReviewBundleReceiptV1",
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "requirement-parallel-orchestration",
+      "owner": "requirement-parallel-orchestration",
+      "command": "node",
+      "args": [
+        "scripts/test-requirement-parallel-orchestration.js"
+      ],
+      "dependencies": [
+        "candidate-review-bundle"
+      ],
+      "inputs": [
+        "skills/requirement-parallel-orchestration/SKILL.md",
+        "skills/dev-default/SKILL.md",
+        "skills/fix-default/SKILL.md",
+        "skills/execution-contract/SKILL.md",
+        "skills/test-router/SKILL.md",
+        "skills/memory/SKILL.md",
+        "skills/report/SKILL.md",
+        "scripts/lib/requirement-parallel-orchestration.js",
+        "scripts/test-requirement-parallel-orchestration.js",
+        "scripts/fixtures/requirement-parallel-orchestration/**",
+        "scripts/validation-manifest.json",
+        "package.json",
+        "plugin.json",
+        "skills/portfolio.json"
+      ],
+      "consumers": [
+        "validate-core"
+      ],
+      "invariants": [
+        "parallel-orchestration",
+        "negative-probes",
+        "single-writer"
+      ],
+      "riskClass": "high",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "RequirementIndependenceDecisionV1",
+        "ParallelLaunchCardValidationV1",
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "evidence-freshness",
+      "owner": "evidence-freshness",
+      "command": "node",
+      "args": [
+        "scripts/test-evidence-freshness-receipt.js"
+      ],
+      "dependencies": [],
+      "inputs": [
+        "scripts/lib/evidence-freshness-receipt.js",
+        "scripts/test-evidence-freshness-receipt.js",
+        "scripts/fixtures/evidence-freshness/**",
+        "skills/report/SKILL.md",
+        "skills/analyze-default/SKILL.md",
+        "skills/audit-report/SKILL.md",
+        "skills/review-checklist/SKILL.md",
+        "skills/user-visible-output-contract/SKILL.md",
+        "skills/test-router/SKILL.md",
+        "skills/compliance/SKILL.md",
+        "skills/spec-governance/gate-registry.json",
+        "skills/report/report-schema.json",
+        "prompts/report-analysis.prompt.md",
+        "prompts/report-audit.prompt.md",
+        "prompts/report-dev.prompt.md",
+        "prompts/report-optimization.prompt.md",
+        "prompts/technical-design.prompt.md",
+        "package.json",
+        "scripts/validation-manifest.json"
+      ],
+      "consumers": [
+        "validate-core",
+        "public-text-integrity",
+        "review-execution-contract",
+        "visible-output-contract",
+        "workflow-completion-contract"
+      ],
+      "invariants": [
+        "claim-evidence-index",
+        "receipt-freshness",
+        "summary-only-downgrade",
+        "artifact-anchor-freshness",
+        "final-validation-summary"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "candidate-bound",
+      "writeScopes": [],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ClaimEvidenceIndexV1",
+        "EvidenceFreshnessReceiptV1",
+        "StaleEvidenceLintDecisionV1",
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
       "id": "hooks-runtime",
       "owner": "host-runtime",
       "command": "node",
@@ -2528,14 +2711,20 @@
         "test:critical-coverage"
       ],
       "dependencies": [
-        "execution-chain-evolution"
+        "execution-chain-evolution",
+        "workflow-completion-contract"
       ],
       "inputs": [
         "package.json",
         "scripts/critical-coverage.json",
         "scripts/check-critical-coverage.js",
         "scripts/test-execution-chain-controls.js",
-        "scripts/lib/validate-execution-chain-controls.js"
+        "scripts/lib/validate-execution-chain-controls.js",
+        "hooks/_runtime/workflow-completion-contract.cjs",
+        "hooks/_runtime/lifecycle-workflow-completion.cjs",
+        "skills/compliance/workflow-completion.schema.json",
+        "scripts/lib/validate-workflow-completion-controls.js",
+        "scripts/test-workflow-completion-contract.js"
       ],
       "consumers": [],
       "invariants": [
@@ -2558,6 +2747,94 @@
       "evidenceArtifacts": [
         "ValidationExecutionReceiptV1",
         "CriticalCoverageV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "workflow-completion-contract",
+      "owner": "workflow-completion-contract",
+      "command": "npm",
+      "args": [
+        "run",
+        "test:workflow-completion"
+      ],
+      "dependencies": [
+        "content-identity",
+        "review-execution-contract",
+        "closure-evidence",
+        "execution-chain-evolution"
+      ],
+      "inputs": [
+        "hooks/_runtime/content-identity.cjs",
+        "hooks/_runtime/workflow-completion-contract.cjs",
+        "hooks/_runtime/lifecycle-workflow-completion.cjs",
+        "hooks/_runtime/lifecycle.cjs",
+        "hooks/_runtime/lifecycle-visible-reply.cjs",
+        "skills/compliance/workflow-completion.schema.json",
+        "scripts/lib/validate-workflow-completion-controls.js",
+        "scripts/test-workflow-completion-contract.js",
+        "scripts/lib/completion-report-ecr-check.js",
+        "scripts/test-completion-report-ecr-check.js",
+        "scripts/lib/cli-execution-commands.js",
+        "scripts/lib/cli-maintenance-commands.js",
+        "scripts/lib/cli-observability-commands.js",
+        "scripts/test-host-adapters.js",
+        "scripts/validate-profile.js",
+        "scripts/test-validate-profile.js",
+        "hooks/_runtime/task-continuation-contract.cjs",
+        "scripts/validation-manifest.json",
+        "scripts/critical-coverage.json",
+        "package.json",
+        "README.md",
+        "changelogs/unreleased.md",
+        "website/docs/guide/development.md"
+      ],
+      "consumers": [
+        "validate-core",
+        "critical-coverage",
+        "hooks-runtime",
+        "client-contracts",
+        "host-adapters",
+        "profile-governance",
+        "pack-clean"
+      ],
+      "invariants": [
+        "candidate-bound-evidence",
+        "canonical-total-order",
+        "risk-does-not-promote-evidence",
+        "phase-no-promotion",
+        "commit-no-digest-cycle",
+        "read-time-projection",
+        "lifecycle-observation-no-completion",
+        "task-isolated-derived-state",
+        "bounded-source-refs",
+        "shadow-promotion-floor",
+        "shadow-rolling-window-reset",
+        "profile-rollout-overrides-task-input",
+        "five-host-semantic-parity"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "candidate-bound",
+      "writeScopes": [],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1",
+        "WorkflowCompletionCandidateV1",
+        "WorkflowCompletionPlanV1",
+        "WorkflowEvidenceReceiptV1",
+        "WorkflowCompletionSnapshotV1",
+        "WorkflowCompletionCommitV1",
+        "WorkflowCompletionProjectionV1",
+        "WorkflowCompletionReportResolutionV1",
+        "WorkflowCompletionCliViewV1",
+        "ShadowEvidenceWindowV1"
       ]
     },
     {
@@ -2736,7 +3013,8 @@
         "semantic-display-name",
         "renderer-parity",
         "link-capability-honesty",
-        "visible-envelope-fail-closed"
+        "visible-envelope-fail-closed",
+        "final-validation-summary"
       ],
       "riskClass": "normal",
       "cachePolicy": "candidate-bound",
@@ -2753,6 +3031,7 @@
         "ValidationExecutionReceiptV1",
         "ArtifactDeliveryManifestV1",
         "UserFacingArtifactSetV1",
+        "FinalValidationSummaryV1",
         "DevCodexVisibleEnvelopeV1",
         "LinkCapabilityDecisionV1"
       ]

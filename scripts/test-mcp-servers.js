@@ -77,6 +77,17 @@ function runServer(script, requests, cwd = ROOT, env = {}) {
   return result.stdout.trim().split(/\r?\n/).filter(Boolean).map(line => JSON.parse(line))
 }
 
+function compactDateInTimeZone(timeZone, date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(date)
+  const values = Object.fromEntries(parts.map(part => [part.type, part.value]))
+  return `${values.year}${values.month}${values.day}`
+}
+
 function runConfiguredServer(server, requests, cwd = ROOT) {
   const command = server.command === 'node' ? process.execPath : server.command
   const input = requests.concat('').join('\n')
@@ -1131,9 +1142,7 @@ function testMemoryProjectionAgentAmbiguity() {
 
 function testGrokAgentMemoryWrite() {
   setupMemoryProjectionFixture()
-  // memory-server intentionally derives its day bucket from UTC ISO time.
-  // Use the same contract so this fixture remains stable around local midnight.
-  const day = new Date().toISOString().slice(0, 10).replace(/-/g, '')
+  const day = compactDateInTimeZone(Intl.DateTimeFormat().resolvedOptions().timeZone)
   const responses = runServer('mcp/memory-server.js', [
     rpcRequest(1, 'tools/call', {
       name: 'memory_session_write',
@@ -1483,11 +1492,17 @@ function testProfileSectionSelectorsAndSkillPlan() {
   const fullOnlySkill = JSON.parse(resultById(fullOnlyResponses, 9).content[0].text)
   assert.strictEqual(fullOnlySkill.completion, 'fallback-full')
   assert.strictEqual(fullOnlySkill.fallback.route, 'full-skill-read')
+  assert.strictEqual(fullOnlySkill.budgetDecision.schemaVersion, 'BudgetDecisionV1')
+  assert.strictEqual(fullOnlySkill.budgetDecision.enforcementStatus, 'fallback-full')
+  assert.strictEqual(fullOnlySkill.budgetDecision.optimizedHit, false)
   assert.match(invalid.content[0].text, /PROFILE_SECTION_FILE_NOT_SELECTED/)
 
   const bundle = toolJson(resultById(responses, 5))
   assert.strictEqual(bundle.schemaVersion, 'BundleDecisionV2')
   assert.strictEqual(bundle.completion, 'complete')
+  assert.strictEqual(bundle.budgetDecision.schemaVersion, 'BudgetDecisionV1')
+  assert.strictEqual(bundle.budgetDecision.enforcementStatus, 'enforced')
+  assert.strictEqual(bundle.budgetDecision.optimizedHit, true)
   assert.deepStrictEqual(new Set(bundle.selected.map(item => item.id)),
     new Set(['api-verification', 'dev-scenario-test', 'dev-testing']))
   const inactive = toolJson(resultById(responses, 6))
@@ -1496,6 +1511,8 @@ function testProfileSectionSelectorsAndSkillPlan() {
   const hostFallback = toolJson(resultById(responses, 7))
   assert.strictEqual(hostFallback.completion, 'fallback-full')
   assert.strictEqual(hostFallback.fallback.route, 'full-skill-read')
+  assert.strictEqual(hostFallback.budgetDecision.enforcementStatus, 'fallback-full')
+  assert.strictEqual(hostFallback.budgetDecision.optimizedHit, false)
 
   delete fullOnlyConfig.extensions
   fs.writeFileSync(configPath, JSON.stringify(fullOnlyConfig, null, 2) + '\n')
@@ -2072,6 +2089,62 @@ function testMemorySessionAllocationAndTransactions() {
   assert.strictEqual(fs.existsSync(lockedFile), false, 'locked memory write must not half-write the target')
 }
 
+function testMemoryLocalCalendarAndWriterReaderContract() {
+  for (const timeZone of ['Pacific/Kiritimati', 'Etc/GMT+12']) {
+    setupLegacyWorkspace()
+    const day = compactDateInTimeZone(timeZone)
+    const responses = runServer('mcp/memory-server.js', [
+      rpcRequest(1, 'tools/call', {
+        name: 'memory_session_allocate',
+        arguments: { title: `timezone-${timeZone}`, intent: 'test.timezone' }
+      }),
+      rpcRequest(2, 'tools/call', {
+        name: 'memory_session_query',
+        arguments: { date: day, status: 'all' }
+      }),
+      rpcRequest(3, 'tools/call', {
+        name: 'memory_session_write',
+        arguments: { date: day, content: '\n状态：✅ 已完成\n' }
+      }),
+      rpcRequest(4, 'tools/call', {
+        name: 'memory_session_query',
+        arguments: { date: day, status: 'completed' }
+      })
+    ], TEMP_ROOT, { TZ: timeZone })
+
+    const allocation = toolJson(resultById(responses, 1))
+    assert.strictEqual(allocation.sessionId, '01')
+    const active = toolJson(resultById(responses, 2))
+    assert.strictEqual(active.matches.length, 1)
+    assert.strictEqual(active.matches[0].state, 'active')
+    assert.match(active.matches[0].content, new RegExp(`\\*\\*时间\\*\\*：${day.slice(0, 4)}-${day.slice(4, 6)}-${day.slice(6, 8)} \\d{2}:\\d{2} [+-]\\d{2}:\\d{2}`))
+    const completed = toolJson(resultById(responses, 4))
+    assert.strictEqual(completed.matches.length, 1)
+    assert.strictEqual(completed.matches[0].state, 'completed')
+    assert.ok(fs.existsSync(path.join(TEMP_ROOT, '.devcodex', '.memory', 'clients', 'claude-code', 'tasks', `${day}.md`)))
+  }
+
+  setupLegacyWorkspace()
+  const summaryPath = path.join(TEMP_ROOT, '.devcodex', '.memory', 'clients', 'claude-code', 'SUMMARY.md')
+  const validRow = '| 2026-07-22 16:30 | 01 | test | valid roundtrip | report.md | memory.md | ✅ |'
+  const responses = runServer('mcp/memory-server.js', [
+    rpcRequest(10, 'tools/call', { name: 'memory_summary_append', arguments: { row: validRow } }),
+    rpcRequest(11, 'tools/call', { name: 'memory_summary_query', arguments: { status: 'completed', since: '2026-07-22' } }),
+    rpcRequest(12, 'tools/call', { name: 'memory_summary_append', arguments: { row: '| 2026-07-22 | 02 | malformed |' } }),
+    rpcRequest(13, 'tools/call', { name: 'memory_summary_append', arguments: { row: '| 2026-07-22 | 02 | test | unescaped | pipe | report | memory | ✅ |' } })
+  ], TEMP_ROOT)
+
+  assert.notStrictEqual(resultById(responses, 10).isError, true)
+  const summary = toolJson(resultById(responses, 11))
+  assert.strictEqual(summary.rows.length, 1)
+  assert.strictEqual(summary.rows[0].summary, 'valid roundtrip')
+  assert.strictEqual(summary.rows[0].state, 'completed')
+  assert.strictEqual(resultById(responses, 12).isError, true)
+  assert.strictEqual(resultById(responses, 13).isError, true)
+  assert.strictEqual(fs.readFileSync(summaryPath, 'utf8').split(validRow).length - 1, 1)
+  assert.doesNotMatch(fs.readFileSync(summaryPath, 'utf8'), /malformed|unescaped/)
+}
+
 function testMcpJsonLaunchContract() {
   const packageConfig = JSON.parse(fs.readFileSync(path.join(ROOT, '.mcp.json'), 'utf8'))
   const packageServers = packageConfig.mcpServers || {}
@@ -2186,6 +2259,7 @@ testWorkspaceRootMemoryScopeRequiresExplicitTarget()
 testWorkspaceNamespaceNestedProjectInference()
 testWorkspaceNamespaceTraversalRejected()
 testMemorySessionAllocationAndTransactions()
+testMemoryLocalCalendarAndWriterReaderContract()
 testAdjacentMcpPathArgumentsRejected()
 testMcpJsonLaunchContract()
 fs.rmSync(TEMP_ROOT, { recursive: true, force: true })

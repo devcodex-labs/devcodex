@@ -421,7 +421,7 @@ function buildGovernanceSupportChecks(ctx) {
 
     const activeProfileProbes = [
       { file: activePath('profile', '01-项目信息.md'), needles: ['host-contract-verification', 'source-consumer-sync'] },
-      { file: activePath('profile', '02-架构约束.md'), needles: ['支撑型（5）', 'host-contract-verification'] }
+      { file: activePath('profile', '02-架构约束.md'), needles: ['支撑型（6）', 'host-contract-verification'] }
     ]
     const activeProfileDirAvailable = fs.existsSync(activePath('profile'))
     let optionalActiveProfileProbesSkipped = 0

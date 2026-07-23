@@ -90,6 +90,14 @@ applyTo: .devcodex/**/reports/optimizations/**
 
 命中任务名续接或主动建议新会话时记录 taskId/displayName、resolver 状态、sessions/当前 artifact digest 复证与 `copyReadyPrompt=继续<displayName>任务`；不得把 index/Hook 命中写成 CP 或正文已恢复。
 
+### §6.3 EvidenceFreshness（条件）
+
+> 当优化报告中的推荐、收益、已验证、完成态或残留清单声明需要复用证据时填写；没有 strong claim 时写 `N/A + skipReason=no-strong-claims`。
+
+| mode | status | indexDigest | strongClaims | downgradeRequired | rerunRequired | evidence |
+|------|--------|-------------|--------------|-------------------|---------------|----------|
+| shadow / warn / enforce | PASS / WARN / BLOCK / UNVERIFIED / N/A | | | | | `npm run test:evidence-freshness` exitCode |
+
 ## §6.5 ECR 执行闭环复审
 
 | ECR 项 | 检查对象 | 结果 | 证据 |

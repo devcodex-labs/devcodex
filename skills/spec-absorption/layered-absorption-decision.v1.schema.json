@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://devcodex.dev/schemas/layered-absorption-decision.v1.schema.json",
+  "title": "LayeredAbsorptionDecisionV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "candidateId",
+    "classification",
+    "targetOwner",
+    "layerChecks",
+    "validationRoute",
+    "consumerSync",
+    "status"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "LayeredAbsorptionDecisionV1" },
+    "candidateId": { "type": "string", "minLength": 1 },
+    "classification": {
+      "enum": [
+        "global-invariant",
+        "existing-skill-subgate",
+        "new-skill-required",
+        "docs-only",
+        "case-evidence-only",
+        "project-local",
+        "already-covered"
+      ]
+    },
+    "targetOwner": { "type": "string" },
+    "targetSkill": { "type": "string" },
+    "triggerTerms": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "ownedArtifacts": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "layerChecks": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["state"],
+        "properties": {
+          "state": { "enum": ["required", "covered", "not-applicable", "blocked"] },
+          "evidence": { "type": "string" },
+          "skipReason": { "type": "string" }
+        }
+      }
+    },
+    "validationRoute": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "consumerSync": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "status": { "enum": ["ready", "blocked", "skipped"] },
+    "blockers": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "skipReason": { "type": "string" },
+    "prevention": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  }
+}

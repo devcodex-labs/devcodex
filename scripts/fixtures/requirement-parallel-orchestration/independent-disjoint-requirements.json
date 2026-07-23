@@ -1,0 +1,33 @@
+{
+  "name": "independent-disjoint-requirements",
+  "input": {
+    "activeRoot": "E:/Worker/.devcodex/devcodex-v1",
+    "freshness": "current",
+    "workItems": [
+      {
+        "id": "REQ-A",
+        "displayName": "需求 A",
+        "cpState": { "CP1": "confirmed", "CP2": "confirmed", "CP3": "confirmed" },
+        "allowedPaths": ["requirements/需求A"],
+        "expectedWrites": [
+          { "path": "requirements/需求A/04-实施计划.md", "surface": "requirement-artifact" }
+        ],
+        "validationRoute": ["npm run test:requirement-artifacts"]
+      },
+      {
+        "id": "REQ-B",
+        "displayName": "需求 B",
+        "cpState": { "CP1": "confirmed", "CP2": "confirmed", "CP3": "confirmed" },
+        "allowedPaths": ["requirements/需求B"],
+        "expectedWrites": [
+          { "path": "requirements/需求B/04-实施计划.md", "surface": "requirement-artifact" }
+        ],
+        "validationRoute": ["npm run test:requirement-artifacts"]
+      }
+    ]
+  },
+  "expected": {
+    "classification": "independent",
+    "launchCards": 2
+  }
+}

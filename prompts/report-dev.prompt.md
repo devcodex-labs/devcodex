@@ -86,6 +86,8 @@ dev 中含 repair 切片时追加 `RepairPreventionAssessment`：只引用 Owner
 
 命中用户可见输出时追加 `VisibleOutputContract`：引用同一 `ArtifactDeliveryManifestV1.manifestDigest`、`UserFacingArtifactSetV1` 计数、`DevCodexVisibleEnvelopeV1.semanticDigest`、`LinkCapabilityDecisionV1` 和 renderer parity；session/daily/SUMMARY/task/checkpoint/raw receipt/manifest/ledger 默认 internal-only，但仍参与 ECR。宿主 capability 未 direct 验证时写 portable/plain/unverified，不得按宿主名推断。
 
+命中 `evidence-freshness` 时追加 `EvidenceFreshness`：记录 `ClaimEvidenceIndexV1.indexDigest`、`StaleEvidenceLintDecisionV1.status/mode`、downgrade/rerun 计数、summary-only 边界、artifact anchor / final validation summary binding 与 `npm run test:evidence-freshness` exitCode。报告只写摘要，不复制内部 receipt 全文。
+
 HostContractRoute 发生 MCP bridge 降级时记录 `mcpFallback=used`、原始错误、单次有界 fallback 与最终证据状态；不得把 fallback 尝试写成已加载或反复重试同一 MCP 调用。
 
 ## §6 测试验证
@@ -98,6 +100,12 @@ HostContractRoute 发生 MCP bridge 降级时记录 `mcpFallback=used`、原始�
 | 实际触发的 Owner gateGroup | | | |
 
 TestRoute 选中的路线必须全部出现；覆盖率、视觉、文档、构建产物、资源生命周期等专属结果通过 Owner 证据链接引用，不在本模板逐 Gate 展开。
+
+### §6.5 EvidenceFreshness（条件）
+
+| mode | status | indexDigest | strongClaims | downgradeRequired | rerunRequired | evidence |
+|------|--------|-------------|--------------|-------------------|---------------|----------|
+| shadow / warn / enforce | PASS / WARN / BLOCK / UNVERIFIED / N/A | | | | | `npm run test:evidence-freshness` exitCode |
 
 
 ## §7 后置处理

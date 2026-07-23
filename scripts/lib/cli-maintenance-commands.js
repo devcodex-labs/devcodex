@@ -5,6 +5,7 @@ const { createCliFailure, createCliSuccess, parseJsonArgs, printCliJson } = requ
 const { inspectExecutionOptimization } = require('./execution-optimization.js')
 const { buildGovernanceStatusSummary } = require('./governance-status-summary.js')
 const { evaluateGrokHostParity } = require('./host-parity-scorecard.js')
+const { readCompletionForCli } = require('./cli-execution-commands.js')
 
 function buildCliMaintenanceCommands(ctx) {
   const {
@@ -22,9 +23,23 @@ function buildCliMaintenanceCommands(ctx) {
   const cliMetadata = { packageName: PACKAGE_JSON.name, packageVersion: PACKAGE_JSON.version }
 
   function parseDiagnosticCommandArgs(command, argv) {
-    const options = parseJsonArgs(argv)
+    const values = Array.isArray(argv) ? argv : []
+    const options = { json: false, completion: false, task: '', project: '', errors: [] }
+    for (let index = 0; index < values.length; index += 1) {
+      const arg = String(values[index])
+      if (arg === '--json') options.json = true
+      else if (arg === '--completion') options.completion = true
+      else if (arg === '--task' || arg === '--project') {
+        const field = arg === '--task' ? 'task' : 'project'
+        const value = values[index + 1]
+        if (!value || String(value).startsWith('--')) options.errors.push(`${arg} requires a value`)
+        else if (options[field]) options.errors.push(`${arg} is non-repeatable`)
+        else { options[field] = String(value); index += 1 }
+      } else options.errors.push(`unsupported option: ${arg}`)
+    }
+    if (!options.completion && (options.task || options.project)) options.errors.push('--task/--project require --completion')
     if (!options.errors.length) return options
-    const usage = `Use: devcodex ${command} [--json]`
+    const usage = `Use: devcodex ${command} [--json] [--completion] [--task <task>] [--project <name>]`
     if (options.json) {
       printCliJson(console, createCliFailure(
         command,
@@ -40,6 +55,33 @@ function buildCliMaintenanceCommands(ctx) {
     }
     process.exitCode = 2
     return null
+  }
+
+  function loadCompletionDiagnostic(command, options) {
+    if (!options.completion) return { ok: true, value: null }
+    let value
+    try {
+      value = readCompletionForCli({ cwd: process.cwd(), task: options.task, project: options.project })
+    } catch (error) {
+      const code = error.code || 'WORKFLOW_COMPLETION_READ_FAILED'
+      if (options.json) printCliJson(console, createCliFailure(command, code, error.message, 'Correct the task selector or completion evidence and retry.', cliMetadata))
+      else console.log(c.red(`  [${code}] ${error.message}`))
+      process.exitCode = 2
+      return { ok: false, value: null }
+    }
+    if (value.taskResolution?.status !== 'resolved-active') {
+      const code = value.taskResolution?.errorCode || 'TASK_RESOLUTION_FAILED'
+      const message = value.taskResolution?.message || 'Task resolution failed.'
+      const nextStep = value.taskResolution?.nextStep || 'Specify an exact active task.'
+      if (options.json) printCliJson(console, createCliFailure(command, code, message, nextStep, cliMetadata, value.taskResolution))
+      else {
+        console.log(c.red(`  [${code}] ${message}`))
+        console.log(c.dim(`  ${nextStep}`))
+      }
+      process.exitCode = 2
+      return { ok: false, value }
+    }
+    return { ok: true, value }
   }
 
   function collectStatusFacts() {
@@ -154,7 +196,9 @@ function buildCliMaintenanceCommands(ctx) {
   function cmdStatus(argv = []) {
     const options = parseDiagnosticCommandArgs('status', argv)
     if (!options) return
-    const facts = collectStatusFacts()
+    const completionDiagnostic = loadCompletionDiagnostic('status', options)
+    if (!completionDiagnostic.ok) return completionDiagnostic.value
+    const facts = { ...collectStatusFacts(), completion: completionDiagnostic.value }
     if (options.json) {
       printCliJson(console, createCliSuccess('status', facts, cliMetadata))
       return facts
@@ -213,6 +257,11 @@ function buildCliMaintenanceCommands(ctx) {
     console.log(`  ${c.cyan('profile'.padEnd(14))} ${profileLabel}`)
     console.log(`  ${c.cyan('optimization'.padEnd(14))} ${executionOptimization.config.effective} (${executionOptimization.stateStatus}; ${executionOptimization.features.filter(item => item.decision.optimizationAllowed).length}/${executionOptimization.features.length} accelerated)`)
     console.log(`  ${c.cyan('governance'.padEnd(14))} ${formatGovernanceSummary(governanceSummary)}`)
+    if (facts.completion) {
+      const projection = facts.completion.completion?.projection
+      console.log(`  ${c.cyan('completion'.padEnd(14))} ${projection ? `${projection.workflowEvidenceState}/${projection.completionPhase}` : 'UNVERIFIED/unavailable'}`)
+      console.log(`  ${c.cyan('projection'.padEnd(14))} ${projection?.projectionDigest || '(not committed)'}`)
+    }
 
     for (const item of legacy) {
       const label = item.count > 0 ? c.yellow(`${item.count} files (legacy)`) : c.dim('not installed')
@@ -533,7 +582,9 @@ function buildCliMaintenanceCommands(ctx) {
     // v1.9.7+ P-001/P-004: runtime diagnostic for host detection & JetBrains verification
     const options = parseDiagnosticCommandArgs('doctor', argv)
     if (!options) return
-    const facts = collectDoctorFacts()
+    const completionDiagnostic = loadCompletionDiagnostic('doctor', options)
+    if (!completionDiagnostic.ok) return completionDiagnostic.value
+    const facts = { ...collectDoctorFacts(), completion: completionDiagnostic.value }
     if (options.json) {
       printCliJson(console, createCliSuccess('doctor', facts, cliMetadata))
       return facts
@@ -544,7 +595,7 @@ function buildCliMaintenanceCommands(ctx) {
       profile: profileState,
       executionOptimization,
       governanceSummary,
-      hostParity
+      hostParity, completion
     } = facts
     const {
       hasGithubHooks, hasClaudeHooks, hasCodexHooksJson, hasCodexHooks,
@@ -567,6 +618,12 @@ function buildCliMaintenanceCommands(ctx) {
     console.log(`  mode:            ${c.bold(mode)}`)
     console.log(`  optimization:    ${c.bold(executionOptimization.config.effective)} ${c.dim(`(${executionOptimization.config.status}; state=${executionOptimization.stateStatus})`)}`)
     console.log(`  governance:      ${formatGovernanceSummary(governanceSummary)}`)
+    if (completion) {
+      const projection = completion.completion?.projection
+      console.log(`  completion:      ${projection ? `${projection.workflowEvidenceState}/${projection.completionPhase}` : 'UNVERIFIED/unavailable'}`)
+      console.log(`  first blocker:   ${projection?.diagnostics?.firstBlocker?.requirementId || '(none)'}`)
+      console.log(`  next actions:    ${(projection?.diagnostics?.recommendedActions || []).join(', ') || '(none)'}`)
+    }
     console.log(c.dim('  enforcement:     default safety-only warns/continues for bootstrap/CP/auto; strict blocks only host-supported events.'))
     if (hostParity) {
       const tierColor = hostParity.hardReady ? c.green : c.yellow
@@ -750,12 +807,14 @@ function buildCliMaintenanceCommands(ctx) {
       ${c.cyan('migrate-layout')}    Plan/apply/rollback centralized .devcodex workspace layout
       ${c.cyan('profile init')}      Auto-generate tiered .devcodex/profile/ drafts
       ${c.cyan('profile plan')}      Preview Profile root/tier/file actions without writing
-      ${c.cyan('status')}            Show installed files; add --json for StatusDiagnosticV1
-      ${c.cyan('doctor')}            Diagnose host/agent/mode; add --json for DoctorDiagnosticV1
+      ${c.cyan('status')}            Show installed files; add --completion for workflow state
+      ${c.cyan('doctor')}            Diagnose host/agent/mode; add --completion for blockers/actions
       ${c.cyan('probe')}             Run bounded local-only diagnostics; accepts IDs and --json
-      ${c.cyan('trace show|replay')} Read/validate the current LocalTaskTrace; never executes payloads
+      ${c.cyan('trace show|replay')} Read LocalTaskTrace; trace show --completion reads receipt identities
       ${c.cyan('skill plan')}        Plan a dependency-closed whole-SKILL bundle; add --json for BundleDecisionV2
       ${c.cyan('task resolve')}      Resolve an active task by exact name, alias, project, or stable taskId
+      ${c.cyan('task verify')}       Reconcile one task; exact --task or unique-active fallback
+      ${c.cyan('task risk')}         Accept/revoke explicit, candidate-bound waivable risk
 
     ${c.bold('Options:')}
       ${c.dim('--force,  -f')}       Overwrite existing files

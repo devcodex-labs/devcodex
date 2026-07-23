@@ -1,0 +1,29 @@
+{
+  "name": "serial-shared-source-mutation",
+  "input": {
+    "activeRoot": "E:/Worker/.devcodex/devcodex-v1",
+    "freshness": "current",
+    "workItems": [
+      {
+        "id": "REQ-LIB-A",
+        "displayName": "修改共享 lib A",
+        "allowedPaths": ["scripts/lib/execution-contract.js"],
+        "expectedWrites": [
+          { "path": "scripts/lib/execution-contract.js", "surface": "source-mutation" }
+        ]
+      },
+      {
+        "id": "REQ-LIB-B",
+        "displayName": "修改共享 lib B",
+        "allowedPaths": ["scripts/lib/execution-contract.js"],
+        "expectedWrites": [
+          { "path": "scripts/lib/execution-contract.js", "surface": "source-mutation" }
+        ]
+      }
+    ]
+  },
+  "expected": {
+    "classification": "serial-required",
+    "reasonCode": "overlapping-write-path"
+  }
+}

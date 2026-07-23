@@ -73,8 +73,10 @@ flowchart TD
 4. 文件名使用 `NN--` 双横杠格式
 5. dev/fix 报告必须包含 ECR 执行闭环复审结果
 6. 报告内部登记关联记忆的 canonical identity；session、daily、SUMMARY 与 raw ledger 默认 internal-only，不要求在用户回复列出
-7. 回复由 `DevCodexVisibleEnvelopeV1` 输出“需要你确认的文件 / 本批交付文件 / 完成交付文件 / 阻断证据”之一；每项使用语义名称、用途、**路径**（默认工作区相对 portable，见 ArtifactPathColumnGate / PF-175）与用户动作；自由文本表默认列=语义名称|用途|路径|操作；链接形式由当前 surface 的 capability evidence 决定；Rich 语义链接可与路径列并存，无 fallback 时不在路径列外重复 `绝对路径：` 行
-8. 命中增量项目分析时，报告追加 ProjectKnowledge V2 的 binding/Merkle、changed/affected/lens-gap/reused、5% oracle、SemanticClaim authority+range、V1 只读迁移与 accepted-only pointer 证据；结构化 bootstrap 不得写成“人工逐文件深读完成”
+7. 若任务需要后续上下文续接，先由已对账的 `ArtifactDeliveryManifestV1` 纯投影 `ArtifactAnchorProjectionV1`；anchor 只记录 canonical path、`contentDigest`、`projectionDigest`、`truthSourceKind` 与 evidenceRefs，不能复制正文或替代 canonical 真相源。回复由 `DevCodexVisibleEnvelopeV1` 输出“需要你确认的文件 / 本批交付文件 / 完成交付文件 / 阻断证据”之一；每项使用语义名称、用途、**路径**（默认工作区相对 portable，见 ArtifactPathColumnGate / PF-175）与用户动作；自由文本表默认列=语义名称|用途|路径|操作；链接形式由当前 surface 的 capability evidence 决定；Rich 语义链接可与路径列并存，无 fallback 时不在路径列外重复 `绝对路径：` 行
+8. dev/fix/self-fix 的完成态最终回复必须投影 `FinalValidationSummaryV1` 或等价短矩阵：权威验证命令与 exitCode、runId 或关键计数、WorkspaceSyncStatus、dirty boundary、release action boundary；声明 commit 时追加 post-commit replay。长日志放报告，最终回复不得只写“全绿 / 已通过 / 详见报告”
+9. 报告、分析、审查、推荐、CP 可确认或完成态声明含 strong claim 时追加 `EvidenceFreshness` 条件段：记录 `ClaimEvidenceIndexV1.indexDigest`、`StaleEvidenceLintDecisionV1.status/mode`、downgrade/rerun 计数、summary-only 边界、artifact anchor / final validation summary binding 和 `npm run test:evidence-freshness` exitCode
+10. 命中增量项目分析时，报告追加 ProjectKnowledge V2 的 binding/Merkle、changed/affected/lens-gap/reused、5% oracle、SemanticClaim authority+range、V1 只读迁移与 accepted-only pointer 证据；结构化 bootstrap 不得写成“人工逐文件深读完成”
 
 ---
 

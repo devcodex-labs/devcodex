@@ -1,0 +1,31 @@
+{
+  "name": "weak-coupled-shared-portfolio",
+  "input": {
+    "activeRoot": "E:/Worker/.devcodex/devcodex-v1",
+    "freshness": "current",
+    "workItems": [
+      {
+        "id": "REQ-SKILL-A",
+        "displayName": "新增 Skill A",
+        "allowedPaths": ["skills/skill-a", "requirements/skill-a"],
+        "expectedWrites": [
+          { "path": "skills/skill-a/SKILL.md", "surface": "source-mutation" },
+          { "path": "skills/portfolio.json", "surface": "skill-portfolio" }
+        ]
+      },
+      {
+        "id": "REQ-SKILL-B",
+        "displayName": "新增 Skill B",
+        "allowedPaths": ["skills/skill-b", "requirements/skill-b"],
+        "expectedWrites": [
+          { "path": "skills/skill-b/SKILL.md", "surface": "source-mutation" },
+          { "path": "skills/portfolio.json", "surface": "skill-portfolio" }
+        ]
+      }
+    ]
+  },
+  "expected": {
+    "classification": "weakly-coupled-lock",
+    "lockSurface": "skill-portfolio"
+  }
+}

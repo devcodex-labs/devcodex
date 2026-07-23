@@ -61,6 +61,8 @@ description: 管理会话记忆的读取与写入。三层记忆体系：Agent �
 
 `ConcurrencyPolicy`：记忆读取可作为只读通道并发执行；记忆写入、SUMMARY 更新、ContextHandoffCard 和会话状态提交必须按 `memory` 单写者锁串行完成。
 
+`requirement-parallel-orchestration`：并行子会话只能把 `RequirementIndependenceDecisionV1`、`ParallelLaunchCardV1` 或局部验证证据交回主会话；需求级 sessions、Agent daily、SUMMARY 和 ContextHandoffCard 仍由主会话按 `memory` 单写者锁串行写入。
+
 ### MemoryTransactionWriterGate
 
 当可用 MCP memory writer 时，Agent 不得再用“读取 daily 尾号 → 自行计算会话编号 → 直接编辑 daily/SUMMARY 多文件”的方式作为首选写入路径。

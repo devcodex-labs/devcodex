@@ -1,0 +1,416 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://devcodex.dev/schemas/workflow-completion-v1.json",
+  "title": "DevCodex workflow completion contracts",
+  "oneOf": [
+    { "$ref": "#/$defs/WorkflowCompletionCandidateV1" },
+    { "$ref": "#/$defs/WorkflowCompletionPlanV1" },
+    { "$ref": "#/$defs/WorkflowEvidenceReceiptV1" },
+    { "$ref": "#/$defs/WorkflowCompletionSnapshotV1" },
+    { "$ref": "#/$defs/PhaseTerminalStateV1" },
+    { "$ref": "#/$defs/WorkflowCompletionReportRefV1" },
+    { "$ref": "#/$defs/WorkflowCompletionMemoryRefV1" },
+    { "$ref": "#/$defs/WorkflowCompletionCommitV1" },
+    { "$ref": "#/$defs/WorkflowCompletionProjectionV1" },
+    { "$ref": "#/$defs/RiskAcceptanceReceiptV1" },
+    { "$ref": "#/$defs/ShadowEvidenceWindowV1" }
+  ],
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "nonEmptyString": { "type": "string", "minLength": 1 },
+    "zonedDateTime": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "(?:Z|[+-][0-9]{2}:[0-9]{2})$"
+    },
+    "status": { "enum": ["PASS", "WARN", "BLOCK", "UNVERIFIED", "N/A"] },
+    "ContentIdentityV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "algorithm", "sourceKey", "contractVersion", "digest", "bytes"],
+      "properties": {
+        "schemaVersion": { "const": "ContentIdentityV1" },
+        "algorithm": { "const": "sha256" },
+        "sourceKey": { "$ref": "#/$defs/nonEmptyString" },
+        "contractVersion": { "$ref": "#/$defs/nonEmptyString" },
+        "digest": { "$ref": "#/$defs/digest" },
+        "bytes": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "TaskScopeV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["project", "kind", "taskId", "relativeTaskPath", "legacyKey", "sourceIdentity"],
+      "properties": {
+        "project": { "$ref": "#/$defs/nonEmptyString" },
+        "kind": { "enum": ["requirements", "bugs", "optimizations", "tasks"] },
+        "taskId": { "type": ["string", "null"], "minLength": 1 },
+        "relativeTaskPath": { "$ref": "#/$defs/nonEmptyString" },
+        "legacyKey": { "$ref": "#/$defs/digest" },
+        "sourceIdentity": { "$ref": "#/$defs/ContentIdentityV1" }
+      }
+    },
+    "componentBindings": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": { "$ref": "#/$defs/digest" }
+    },
+    "WorkflowCompletionCandidateV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "taskScope", "components", "candidateIdentity", "candidateId", "stable"],
+      "properties": {
+        "schemaVersion": { "const": "WorkflowCompletionCandidateV1" },
+        "taskScope": { "$ref": "#/$defs/TaskScopeV1" },
+        "components": { "$ref": "#/$defs/componentBindings" },
+        "candidateIdentity": { "$ref": "#/$defs/ContentIdentityV1" },
+        "candidateId": { "type": "string", "pattern": "^workflow-candidate-[a-f0-9]{64}$" },
+        "stable": { "type": "boolean" }
+      }
+    },
+    "ApplicabilityRuleV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["decision", "authority", "reason", "owner", "evaluatedAtCandidate"],
+      "properties": {
+        "decision": { "enum": ["required", "optional", "N/A"] },
+        "authority": { "$ref": "#/$defs/nonEmptyString" },
+        "reason": { "$ref": "#/$defs/nonEmptyString" },
+        "owner": { "$ref": "#/$defs/nonEmptyString" },
+        "evaluatedAtCandidate": { "type": "string", "pattern": "^workflow-candidate-[a-f0-9]{64}$" }
+      }
+    },
+    "WorkflowRequirementV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requirementId", "alias", "planOrder", "applicability", "dependencyBindings", "nonWaivable"],
+      "properties": {
+        "requirementId": { "type": "string", "pattern": "^[a-z][a-z0-9.-]*(?::[A-Za-z0-9._-]+)?$" },
+        "alias": { "type": ["string", "null"], "pattern": "^T(?:[1-9]|1[0-3])$" },
+        "planOrder": { "type": "integer", "minimum": 0 },
+        "applicability": { "$ref": "#/$defs/ApplicabilityRuleV1" },
+        "dependencyBindings": { "$ref": "#/$defs/componentBindings" },
+        "nonWaivable": { "type": "boolean" }
+      }
+    },
+    "WorkflowCompletionPlanV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "candidateId", "workflow", "intent", "stage", "requirements", "ruleSetDigest", "planDigest"],
+      "properties": {
+        "schemaVersion": { "const": "WorkflowCompletionPlanV1" },
+        "candidateId": { "type": "string", "pattern": "^workflow-candidate-[a-f0-9]{64}$" },
+        "workflow": { "enum": ["dev", "fix", "audit", "analyze", "self-fix", "other"] },
+        "intent": { "$ref": "#/$defs/nonEmptyString" },
+        "stage": { "enum": ["planning", "implementation", "ecr", "delivery", "release"] },
+        "requirements": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/WorkflowRequirementV1" } },
+        "ruleSetDigest": { "$ref": "#/$defs/digest" },
+        "planDigest": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "EvidenceQualificationV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level", "satisfiesRequired", "trusted", "observable", "warning"],
+      "properties": {
+        "level": { "enum": ["E1", "E2", "E3", "E4", "E5"] },
+        "satisfiesRequired": { "type": "boolean" },
+        "trusted": { "type": "boolean" },
+        "observable": { "type": "boolean" },
+        "warning": { "type": "boolean" }
+      }
+    },
+    "WorkflowEvidenceReceiptV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion", "requirementId", "observedCandidateId", "dependencyBindings", "sourceKind",
+        "sourceSchema", "sourceIdentity", "sourceDigest", "result", "observedAt", "actor", "host",
+        "runId", "evidenceRefs", "qualification"
+      ],
+      "properties": {
+        "schemaVersion": { "const": "WorkflowEvidenceReceiptV1" },
+        "requirementId": { "$ref": "#/$defs/nonEmptyString" },
+        "observedCandidateId": { "type": "string", "pattern": "^workflow-candidate-[a-f0-9]{64}$" },
+        "dependencyBindings": { "$ref": "#/$defs/componentBindings" },
+        "sourceKind": { "enum": ["cp", "attempt", "validation", "review", "checkpoint", "sync", "delivery", "manual"] },
+        "sourceSchema": { "$ref": "#/$defs/nonEmptyString" },
+        "sourceIdentity": {
+          "oneOf": [
+            { "$ref": "#/$defs/nonEmptyString" },
+            { "$ref": "#/$defs/ContentIdentityV1" }
+          ]
+        },
+        "sourceDigest": { "$ref": "#/$defs/digest" },
+        "result": { "enum": ["passed", "failed", "inconclusive", "skipped"] },
+        "observedAt": { "$ref": "#/$defs/zonedDateTime" },
+        "actor": { "$ref": "#/$defs/nonEmptyString" },
+        "host": { "$ref": "#/$defs/nonEmptyString" },
+        "runId": { "$ref": "#/$defs/nonEmptyString" },
+        "evidenceRefs": { "type": "array", "maxItems": 100, "items": { "$ref": "#/$defs/nonEmptyString" } },
+        "qualification": { "$ref": "#/$defs/EvidenceQualificationV1" }
+      }
+    },
+    "WorkflowDecisionV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requirementId", "alias", "planOrder", "applicability", "nonWaivable", "state", "freshness",
+        "blockingClassRank", "sourceKind", "sourceDigest", "evidenceRefs", "reason", "recommendedAction"
+      ],
+      "properties": {
+        "requirementId": { "$ref": "#/$defs/nonEmptyString" },
+        "alias": { "type": ["string", "null"] },
+        "planOrder": { "type": "integer", "minimum": 0 },
+        "applicability": { "enum": ["required", "optional", "N/A"] },
+        "nonWaivable": { "type": "boolean" },
+        "state": { "$ref": "#/$defs/status" },
+        "freshness": { "enum": ["fresh", "fresh-reused", "stale", "missing", "N/A"] },
+        "blockingClassRank": { "type": "integer", "minimum": 0, "maximum": 5 },
+        "sourceKind": { "type": ["string", "null"] },
+        "sourceDigest": { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$" },
+        "evidenceRefs": { "type": "array", "items": { "$ref": "#/$defs/nonEmptyString" } },
+        "reason": { "$ref": "#/$defs/nonEmptyString" },
+        "recommendedAction": { "$ref": "#/$defs/nonEmptyString" },
+        "reboundFromCandidateId": { "type": ["string", "null"] }
+      }
+    },
+    "PhaseTerminalStateV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion", "phase", "applicability", "semanticField", "value", "evidenceState",
+        "sourceOwner", "sourceDigest", "evidenceRefs", "reason"
+      ],
+      "properties": {
+        "schemaVersion": { "const": "PhaseTerminalStateV1" },
+        "phase": { "enum": ["turn", "execution", "workflow", "release"] },
+        "applicability": { "enum": ["required", "optional", "N/A"] },
+        "semanticField": { "enum": ["turnTerminal", "executionTerminal", "workflowComplete", "releaseReady"] },
+        "value": { "type": ["boolean", "null"] },
+        "evidenceState": { "$ref": "#/$defs/status" },
+        "sourceOwner": { "type": ["string", "null"] },
+        "sourceDigest": { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$" },
+        "evidenceRefs": { "type": "array", "items": { "$ref": "#/$defs/nonEmptyString" } },
+        "reason": { "$ref": "#/$defs/nonEmptyString" }
+      }
+    },
+    "RiskAcceptanceReceiptV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion", "action", "candidateId", "requirementIds", "actor", "reason", "sourceDigest",
+        "createdAt", "expiresAt", "targetReceiptDigest", "previousDigest", "receiptDigest"
+      ],
+      "properties": {
+        "schemaVersion": { "const": "RiskAcceptanceReceiptV1" },
+        "action": { "enum": ["accept", "revoke"] },
+        "candidateId": { "type": "string", "pattern": "^workflow-candidate-[a-f0-9]{64}$" },
+        "requirementIds": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/nonEmptyString" } },
+        "actor": { "$ref": "#/$defs/nonEmptyString" },
+        "reason": { "$ref": "#/$defs/nonEmptyString" },
+        "sourceDigest": { "$ref": "#/$defs/digest" },
+        "createdAt": { "$ref": "#/$defs/zonedDateTime" },
+        "expiresAt": { "oneOf": [{ "$ref": "#/$defs/zonedDateTime" }, { "type": "null" }] },
+        "targetReceiptDigest": { "oneOf": [{ "$ref": "#/$defs/digest" }, { "type": "null" }] },
+        "previousDigest": { "oneOf": [{ "$ref": "#/$defs/digest" }, { "type": "null" }] },
+        "receiptDigest": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "RolloutStateV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "mode", "ruleSetDigest", "legacyComparison"],
+      "properties": {
+        "schemaVersion": { "const": "RolloutStateV1" },
+        "mode": { "enum": ["off", "shadow", "enforce", "rolled-back"] },
+        "ruleSetDigest": { "$ref": "#/$defs/digest" },
+        "legacyComparison": { "enum": ["not-compared", "same", "false-allow", "false-block"] }
+      }
+    },
+    "WorkflowCompletionSnapshotV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion", "candidateId", "planDigest", "ruleSetDigest", "coreSnapshotDigest", "generatedAt",
+        "counts", "decisions", "coreEvaluationValid", "coreEvidenceState", "coreEvidenceReady",
+        "riskDeliverable", "risk", "phaseTerminals", "diagnostics", "rollout"
+      ],
+      "properties": {
+        "schemaVersion": { "const": "WorkflowCompletionSnapshotV1" },
+        "candidateId": { "type": "string", "pattern": "^workflow-candidate-[a-f0-9]{64}$" },
+        "planDigest": { "$ref": "#/$defs/digest" },
+        "ruleSetDigest": { "$ref": "#/$defs/digest" },
+        "coreSnapshotDigest": { "$ref": "#/$defs/digest" },
+        "generatedAt": { "$ref": "#/$defs/zonedDateTime" },
+        "counts": { "type": "object", "additionalProperties": { "type": "integer", "minimum": 0 } },
+        "decisions": { "type": "array", "items": { "$ref": "#/$defs/WorkflowDecisionV1" } },
+        "coreEvaluationValid": { "type": "boolean" },
+        "coreEvidenceState": { "$ref": "#/$defs/status" },
+        "coreEvidenceReady": { "type": "boolean" },
+        "riskDeliverable": { "type": "boolean" },
+        "risk": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["active", "revoked", "expired", "invalid"],
+          "properties": {
+            "active": { "type": "array", "items": { "$ref": "#/$defs/digest" } },
+            "revoked": { "type": "array", "items": { "$ref": "#/$defs/digest" } },
+            "expired": { "type": "array", "items": { "$ref": "#/$defs/digest" } },
+            "invalid": { "type": "array", "items": { "$ref": "#/$defs/nonEmptyString" } }
+          }
+        },
+        "phaseTerminals": { "type": "array", "minItems": 4, "maxItems": 4, "items": { "$ref": "#/$defs/PhaseTerminalStateV1" } },
+        "diagnostics": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["firstBlocker", "allBlockers", "missingRequired", "staleEvidence", "recommendedActions", "invalidEvidence"],
+          "properties": {
+            "firstBlocker": { "type": ["object", "null"] },
+            "allBlockers": { "type": "array", "items": { "type": "object" } },
+            "missingRequired": { "type": "array", "items": { "$ref": "#/$defs/nonEmptyString" } },
+            "staleEvidence": { "type": "array", "items": { "$ref": "#/$defs/nonEmptyString" } },
+            "recommendedActions": { "type": "array", "items": { "$ref": "#/$defs/nonEmptyString" } },
+            "invalidEvidence": { "type": "array", "items": { "$ref": "#/$defs/nonEmptyString" } }
+          }
+        },
+        "rollout": { "$ref": "#/$defs/RolloutStateV1" }
+      }
+    },
+    "WorkflowCompletionReportRefV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "candidateId", "coreSnapshotDigest", "sidecarPath"],
+      "properties": {
+        "schemaVersion": { "const": "WorkflowCompletionReportRefV1" },
+        "candidateId": { "type": "string", "pattern": "^workflow-candidate-[a-f0-9]{64}$" },
+        "coreSnapshotDigest": { "$ref": "#/$defs/digest" },
+        "sidecarPath": { "type": "string", "pattern": "^[^\\r\\n]+\\.completion\\.json$" }
+      }
+    },
+    "WorkflowCompletionMemoryRefV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "candidateId", "coreSnapshotDigest", "sidecarPath", "memoryKind", "contentIdentity"],
+      "properties": {
+        "schemaVersion": { "const": "WorkflowCompletionMemoryRefV1" },
+        "candidateId": { "type": "string", "pattern": "^workflow-candidate-[a-f0-9]{64}$" },
+        "coreSnapshotDigest": { "$ref": "#/$defs/digest" },
+        "sidecarPath": { "type": "string", "pattern": "^[^\\r\\n]+\\.completion\\.json$" },
+        "memoryKind": { "enum": ["task", "daily", "summary"] },
+        "contentIdentity": { "$ref": "#/$defs/ContentIdentityV1" }
+      }
+    },
+    "deliveryReceiptRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "digest", "evidenceRef"],
+      "properties": {
+        "kind": { "enum": ["report", "memory", "manifest"] },
+        "digest": { "$ref": "#/$defs/digest" },
+        "evidenceRef": { "$ref": "#/$defs/nonEmptyString" }
+      }
+    },
+    "WorkflowCompletionCommitV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion", "candidateId", "coreSnapshotDigest", "deliveryReceiptRefs", "reportIdentity",
+        "memoryReceiptRefs", "artifactManifestDigest", "artifactManifestEntries", "commitOutcome", "createdAt", "commitDigest"
+      ],
+      "properties": {
+        "schemaVersion": { "const": "WorkflowCompletionCommitV1" },
+        "candidateId": { "type": "string", "pattern": "^workflow-candidate-[a-f0-9]{64}$" },
+        "coreSnapshotDigest": { "$ref": "#/$defs/digest" },
+        "deliveryReceiptRefs": { "type": "array", "minItems": 3, "items": { "$ref": "#/$defs/deliveryReceiptRef" } },
+        "reportIdentity": { "$ref": "#/$defs/ContentIdentityV1" },
+        "memoryReceiptRefs": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/deliveryReceiptRef" } },
+        "artifactManifestDigest": { "$ref": "#/$defs/digest" },
+        "artifactManifestEntries": { "type": "array", "items": { "$ref": "#/$defs/nonEmptyString" } },
+        "commitOutcome": { "enum": ["complete", "warning", "risk", "blocked"] },
+        "createdAt": { "$ref": "#/$defs/zonedDateTime" },
+        "commitDigest": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "CommitValidationResultV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "state", "commit", "deliveryAttempt"],
+      "properties": {
+        "schemaVersion": { "const": "CommitValidationResultV1" },
+        "state": { "enum": ["not-attempted", "valid", "failed"] },
+        "commit": { "oneOf": [{ "$ref": "#/$defs/WorkflowCompletionCommitV1" }, { "type": "null" }] },
+        "deliveryAttempt": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["candidateId", "result", "observedAt", "attemptDigest"],
+              "properties": {
+                "candidateId": { "type": "string", "pattern": "^workflow-candidate-[a-f0-9]{64}$" },
+                "result": { "const": "failed" },
+                "observedAt": { "$ref": "#/$defs/zonedDateTime" },
+                "attemptDigest": { "$ref": "#/$defs/digest" }
+              }
+            },
+            { "type": "null" }
+          ]
+        }
+      }
+    },
+    "WorkflowCompletionProjectionV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion", "candidateId", "planDigest", "coreSnapshotDigest", "commitValidationState",
+        "commitDigest", "deliveryAttemptDigest", "ruleSetDigest", "projectionDigest", "generatedAt",
+        "completionPhase", "deliveryCommitted", "workflowEvidenceState", "workflowComplete",
+        "deliveryDecision", "phaseTerminals", "diagnostics", "rollout"
+      ],
+      "properties": {
+        "schemaVersion": { "const": "WorkflowCompletionProjectionV1" },
+        "candidateId": { "type": "string", "pattern": "^workflow-candidate-[a-f0-9]{64}$" },
+        "planDigest": { "$ref": "#/$defs/digest" },
+        "coreSnapshotDigest": { "$ref": "#/$defs/digest" },
+        "commitValidationState": { "enum": ["not-attempted", "valid", "failed"] },
+        "commitDigest": { "oneOf": [{ "$ref": "#/$defs/digest" }, { "type": "null" }] },
+        "deliveryAttemptDigest": { "oneOf": [{ "$ref": "#/$defs/digest" }, { "type": "null" }] },
+        "ruleSetDigest": { "$ref": "#/$defs/digest" },
+        "projectionDigest": { "oneOf": [{ "$ref": "#/$defs/digest" }, { "type": "null" }] },
+        "generatedAt": { "$ref": "#/$defs/zonedDateTime" },
+        "completionPhase": { "enum": [
+          "collecting", "core-ready", "core-blocked", "core-unverified", "delivery-prepared",
+          "committed-complete", "committed-warning", "committed-risk", "committed-blocked", "commit-failed"
+        ] },
+        "deliveryCommitted": { "type": "boolean" },
+        "workflowEvidenceState": { "$ref": "#/$defs/status" },
+        "workflowComplete": { "type": "boolean" },
+        "deliveryDecision": { "enum": ["allowed", "allowed-with-warning", "allowed-with-risk", "blocked", "forbidden"] },
+        "phaseTerminals": { "type": "array", "minItems": 4, "maxItems": 4, "items": { "$ref": "#/$defs/PhaseTerminalStateV1" } },
+        "diagnostics": { "type": "object" },
+        "rollout": { "$ref": "#/$defs/RolloutStateV1" }
+      }
+    },
+    "ShadowEvidenceWindowV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion", "ruleSetDigest", "mode", "uniqueRealSamples", "devSamples", "fixSamples",
+        "windowDays", "falseAllow", "falseBlock", "eligibleForPromotion", "recommendedMode"
+      ],
+      "properties": {
+        "schemaVersion": { "const": "ShadowEvidenceWindowV1" },
+        "ruleSetDigest": { "$ref": "#/$defs/digest" },
+        "mode": { "const": "shadow" },
+        "uniqueRealSamples": { "type": "integer", "minimum": 0 },
+        "devSamples": { "type": "integer", "minimum": 0 },
+        "fixSamples": { "type": "integer", "minimum": 0 },
+        "windowDays": { "type": "number", "minimum": 0 },
+        "falseAllow": { "type": "integer", "minimum": 0 },
+        "falseBlock": { "type": "integer", "minimum": 0 },
+        "eligibleForPromotion": { "type": "boolean" },
+        "recommendedMode": { "enum": ["shadow", "enforce-candidate", "rolled-back"] }
+      }
+    }
+  }
+}

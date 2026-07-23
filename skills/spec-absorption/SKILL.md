@@ -146,6 +146,42 @@ description: 规范吸纳执行 Skill — 用于检查 data 最新可吸纳项�
 
 ## 输出产物
 
+### AbsorptionCandidateMatrixV1
+
+当扫描结果准备进入确认清单或实施批次时，必须先形成 `AbsorptionCandidateMatrixV1`，字段以 `absorption-candidate-matrix.v1.schema.json` 为准。矩阵至少包含：
+
+| 字段 | 说明 |
+|------|------|
+| `candidateId` | PI / PF / GAP / ISSUE / 用户确认项编号 |
+| `sourceNamespace` | 来源 active-root 或 workspace data namespace |
+| `backlogClass` | `pure-open / residual-tail / already-fixed / misclassified` |
+| `commonDecision` | `absorb / case-evidence-only / project-local / docs-only / already-covered / reject / defer` |
+| `targetOwner` | 真实执行 owner，吸纳项缺失 owner 时阻断 |
+| `layerChecks` | `commonInstruction / skill / promptTemplate / executionConsumer / validationProbe / publicDocs / deployCopy` |
+| `validationRoute` | 生产验证入口，不得只写“人工复审” |
+| `prevention` | 涉及防复发时记录根因、控制失效、负向样本与 rollback/sunset |
+
+维护者可用只读 planner 生成分层计划：
+
+```bash
+node scripts/plan-absorption-candidates.js --input <matrix.json>
+node scripts/plan-absorption-candidates.js --self-test
+```
+
+该 planner 只读取输入并向 stdout 输出 `AbsorptionCandidatePlanV1`；禁止写台账、修改 data、自动关闭 PI/PF 或隐式更新规范源。缺 `targetOwner`、非 `pure-open` 却试图吸纳、任一必需 layer blocked 或矩阵 schema 无效时，计划必须停在 blocked/invalid。
+
+### LayeredAbsorptionDecisionV1
+
+每个进入实施的候选必须产出 `LayeredAbsorptionDecisionV1`，字段以 `layered-absorption-decision.v1.schema.json` 为准。该决策用于把自由文本 finding 固定到目标层级和消费者，而不是用报告段落替代执行证据。
+
+| status | 进入条件 | 后续 |
+|--------|----------|------|
+| `ready` | `backlogClass=pure-open`、`commonDecision=absorb`、owner/layer/test/docs/deploy 证据齐全 | 进入实施 |
+| `blocked` | owner 缺失、layer blocked、验证路线缺失或 schema 无效 | 修正矩阵或回 CP |
+| `skipped` | `project-local / already-covered / docs-only / case-evidence-only / reject / defer` | 回写 skipReason，不改通用规范 |
+
+防复发闭环只允许声明当前关闭证据；长期有效性必须进入 `repair-prevention-assessment` 的 prospective plan。禁止把本轮 planner self-test 通过写成长期 prevention 已有效。
+
 ### 候选矩阵
 
 ```markdown

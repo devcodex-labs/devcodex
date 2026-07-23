@@ -11,6 +11,7 @@ const {
   materializeTaskIdentity,
   parseContinuationCommand,
   resolveTaskContinuation,
+  resolveUniqueActiveTaskContinuation,
   validateTaskIdentity
 } = require('../hooks/_runtime/task-continuation-contract.cjs')
 const {
@@ -83,6 +84,9 @@ try {
   assert.strictEqual(resolve('Old Performance Task').status, 'resolved-active')
   assert.strictEqual(resolve('旧性能任务').candidate.displayName, 'Current Performance Task')
   assert.strictEqual(resolve(primary.identity.taskId).status, 'resolved-active')
+  const uniqueActive = resolveUniqueActiveTaskContinuation({ cwd: root, project: 'alpha', scope: 'project' })
+  assert.strictEqual(uniqueActive.status, 'resolved-active')
+  assert.strictEqual(uniqueActive.candidate.taskId, primary.identity.taskId)
 
   const workspaceTask = writeTask('workspace', 'optimizations', 'workspace-task', { displayName: 'Workspace Task', withCp: false })
   assert.strictEqual(resolve('Workspace Task').candidate.project, 'workspace')
@@ -137,6 +141,9 @@ try {
   assert.strictEqual(ambiguous.status, 'ambiguous')
   assert.strictEqual(ambiguous.candidates.length, 2)
   assert.strictEqual(Object.prototype.hasOwnProperty.call(ambiguous.candidates[0], 'taskRoot'), false, 'ambiguous output must stay minimal')
+  const ambiguousActive = resolveUniqueActiveTaskContinuation({ cwd: root, scope: 'workspace' })
+  assert.strictEqual(ambiguousActive.status, 'ambiguous')
+  assert.strictEqual(ambiguousActive.errorCode, 'TASK_AMBIGUOUS')
 
   const notFound = resolve('Current Performance Tas')
   assert.strictEqual(notFound.status, 'not-found')

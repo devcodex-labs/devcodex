@@ -347,7 +347,7 @@ function buildContextReadControlChecks(ctx) {
       }
     }
 
-    checkFile('scripts/validate.js', ['buildContextReadControlChecks', 'length: 103', "owner: 'context-read-controls'"])
+    checkFile('scripts/validate.js', ['buildContextReadControlChecks', 'length: 104', "owner: 'context-read-controls'"])
     const ownerSource = checkFile('scripts/lib/validate-context-read-controls.js', [
       'buildContextReadControlChecks', 'classifyContractSchemaSnapshot', 'classifyProfilePlanReadTrace',
       'classifyRuntimeToolSurface', 'classifyConsumerClosure'

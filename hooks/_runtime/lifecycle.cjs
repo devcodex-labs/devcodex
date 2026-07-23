@@ -45,6 +45,7 @@ const {
   startToolLease
 } = require('./lifecycle-turn-liveness.cjs')
 const { buildLifecycleVisibleReplyUtils } = require('./lifecycle-visible-reply.cjs')
+const { observeWorkflowCompletionEvent } = require('./lifecycle-workflow-completion.cjs')
 const {
   collectWorkspaceProjectNamespaces,
   findLayoutInfo,
@@ -1202,11 +1203,14 @@ async function main() {
     livenessObservation = observeTurnEvent(state.turnLiveness, livenessEventName, payload)
     state.turnLiveness = livenessObservation.state
   }
+  state.workflowCompletionLifecycle = observeWorkflowCompletionEvent(state.workflowCompletionLifecycle, eventName, payload, { host: platform })
   state.lastEvent = eventName || state.lastEvent
 
   // ── UserPromptSubmit ───────────────────────────────────────────────────────
   if (eventName === 'UserPromptSubmit') {
+    const workflowCompletionLifecycle = state.workflowCompletionLifecycle
     state = resetState(mode, state)
+    state.workflowCompletionLifecycle = workflowCompletionLifecycle
     livenessObservation = observeTurnEvent(state.turnLiveness, eventName, payload)
     state.turnLiveness = livenessObservation.state
     applyPromptTarget(state, promptTarget, payload)

@@ -137,4 +137,41 @@ const prospective = expectValid(base({
 }), 'prospective evidence')
 assert.strictEqual(prospective.effectivenessStatus, 'prospective-sufficient')
 
+const absorptionRepair = expectValid(base({
+  repairId: 'repair-absorption-structured-planner',
+  taskId: '规范吸纳结构化执行与防复现闭环优化',
+  problemCluster: 'absorption-freeform-plan-escape',
+  riskClass: 'high',
+  riskTags: ['control-plane', 'spec-absorption'],
+  mode: 'full',
+  defectRootCause: 'absorption findings were converted into prose without schema-backed layer decisions',
+  controlFailure: 'review checklist accepted report text without a targetOwner and negative planner probe',
+  escapedFrom: ['CP2-review'],
+  detectedAt: 'implementation-planning',
+  whyMissed: 'CandidateReviewBundle covered CP evidence but not absorption execution candidate structure',
+  authorizationEvidence: '@rocky auto confirmation',
+  independentReReviewPlan: 'black-box V96 planner and repair-prevention probes',
+  preventionDecision: 'new-control-provisional',
+  regressionSeeds: ['candidate without targetOwner must be blocked'],
+  negativeCases: ['non pure-open candidate cannot be absorbed without skipReason'],
+  controlOwner: 'spec-absorption',
+  consumers: ['test-router', 'review-checklist', 'scripts/plan-absorption-candidates.js'],
+  immediateClosureEvidence: ['npm run test:residual-absorption-controls', 'npm run test:repair-prevention'],
+  prospectiveEvidencePlan: {
+    status: 'planned',
+    currentEventOnly: true,
+    comparableWorkUnits: 0,
+    independentContexts: 0,
+    metricGaming: false,
+    rollbackReady: true,
+    authority: 'future comparable absorption work units'
+  },
+  rollbackOrSunset: {
+    rollbackTriggers: ['planner false positive blocks valid absorption twice'],
+    sunsetCriteria: ['stronger runtime owner replaces schema-backed planner'],
+    reviewAt: 'after 3 comparable absorption work units'
+  }
+}), 'structured absorption repair')
+assert.strictEqual(absorptionRepair.requiredMode, 'full')
+
 console.log('repair prevention assessment passed: first/repeat/no-new/emergency/rollback/sunset')

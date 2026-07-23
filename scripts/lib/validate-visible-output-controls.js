@@ -28,8 +28,12 @@ function buildVisibleOutputControlChecks(ctx) {
     required.forEach(requireFile)
     requireAnchors('instructions.md', ['user-visible-output-contract', 'ArtifactDeliveryManifestV1', 'ReviewExecutionPlanV1'])
     requireAnchors('skills/review-checklist/SKILL.md', ['ReviewExecutionPlanV1', 'ReviewEvidenceReceiptV1', 'ReviewStateSnapshotV1'])
-    requireAnchors('skills/report/SKILL.md', ['ArtifactDeliveryManifestV1', 'UserFacingArtifactSetV1'])
+    requireAnchors('skills/report/SKILL.md', ['ArtifactDeliveryManifestV1', 'UserFacingArtifactSetV1', 'FinalValidationSummaryV1'])
+    requireAnchors('skills/compliance/SKILL.md', ['FinalValidationSummaryV1', 'DevModeCompletionCheckDetailGate'])
+    requireAnchors('skills/user-visible-output-contract/SKILL.md', ['ArtifactAnchorProjectionV1', 'ArtifactAnchorProjectionGate', 'FinalValidationSummaryGate', 'classifyFinalValidationSummarySample'])
     requireAnchors('prompts/precheck-status.prompt.md', ['DevCodexVisibleEnvelopeV1', 'PC0~PC7'])
+    requireAnchors('hooks/_runtime/visible-output-contract.cjs', ['ArtifactAnchorV1', 'projectArtifactAnchorsFromManifest', 'analyzeFinalValidationSummarySample', 'classifyFinalValidationSummarySample'])
+    requireAnchors('hooks/_runtime/lifecycle-visible-reply.cjs', ['finalValidationSummaryStatus', 'DevModeCompletionCheckDetailGate'])
 
     try {
       JSON.parse(read(path.join(ROOT, 'skills/user-visible-output-contract/visible-output-contract.schema.json')))

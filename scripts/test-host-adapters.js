@@ -191,6 +191,86 @@ assert.strictEqual(bootstrapApi.hostCapabilityFor('grok', {}), 'path-observable'
 assert.strictEqual(bootstrapApi.hostCapabilityFor('codex', {}), 'path-observable')
 assert.strictEqual(bootstrapApi.hostCapabilityFor('copilot', {}), 'instruction-only')
 assert.strictEqual(bootstrapApi.hostCapabilityFor('claude', {}), 'structured-plan')
+assert.strictEqual(bootstrapApi.hostCapabilityFor('grok', { contextCapability: 'structured-plan' }), 'path-observable')
+assert.strictEqual(bootstrapApi.hostCapabilityFor('codex', { devcodexContextCapability: 'structured-plan' }), 'path-observable')
+assert.strictEqual(bootstrapApi.hostCapabilityFor('copilot', { contextCapability: 'structured-plan' }), 'instruction-only')
+assert.strictEqual(bootstrapApi.hostCapabilityFor('claude', { contextCapability: 'instruction-only' }), 'instruction-only')
+
+const {
+  HOST_COMPLETION_ROUTES,
+  WorkflowCompletionLifecycleError,
+  completionRouteForHost
+} = require('../hooks/_runtime/lifecycle-workflow-completion.cjs')
+const { projectWorkflowCompletionVisibleState } = require('../hooks/_runtime/lifecycle-visible-reply.cjs')
+const completionHosts = ['codex', 'claude', 'copilot', 'gemini', 'grok']
+assert.deepStrictEqual(Object.keys(HOST_COMPLETION_ROUTES).sort(), [...completionHosts].sort())
+
+const committedProjection = Object.freeze({
+  schemaVersion: 'WorkflowCompletionProjectionV1',
+  workflowEvidenceState: 'PASS',
+  workflowComplete: true,
+  deliveryCommitted: true,
+  completionPhase: 'committed-complete',
+  projectionDigest: 'a'.repeat(64),
+  phaseTerminals: Object.freeze(['requirements', 'implementation', 'verification', 'delivery'].map(phase => Object.freeze({ phase, status: 'PASS' }))),
+  diagnostics: Object.freeze({ firstBlocker: null, recommendedActions: Object.freeze([]) })
+})
+const incompleteProjection = Object.freeze({
+  ...committedProjection,
+  workflowEvidenceState: 'UNVERIFIED',
+  workflowComplete: false,
+  deliveryCommitted: false,
+  completionPhase: 'delivery-prepared',
+  projectionDigest: 'b'.repeat(64),
+  diagnostics: Object.freeze({ firstBlocker: Object.freeze({ requirementId: 'delivery.manifest' }), recommendedActions: Object.freeze(['run-task-verify']) })
+})
+const hostCompletionFixtures = Object.freeze([
+  ['success', committedProjection],
+  ['failed-exit', incompleteProjection],
+  ['tool-unobservable', incompleteProjection],
+  ['stop-only', incompleteProjection],
+  ['marker-only', incompleteProjection],
+  ['candidate-stale', incompleteProjection],
+  ['portable-receipt-missing', incompleteProjection],
+  ['fallback', incompleteProjection],
+  ['adapter-disabled-untrusted', incompleteProjection],
+  ['output-not-injectable', incompleteProjection]
+])
+const expectedVisible = hostCompletionFixtures.map(([, projection]) => projectWorkflowCompletionVisibleState(projection))
+
+for (const host of completionHosts) {
+  const defaults = HOST_COMPLETION_ROUTES[host]
+  const direct = completionRouteForHost(host, {
+    surface: defaults.defaultSurface,
+    adapterEnabled: true,
+    trusted: true,
+    directReplay: true,
+    sourceObserved: true,
+    outputObserved: true
+  })
+  assert.strictEqual(direct.semanticReducer, 'workflow-completion-contract')
+  assert.strictEqual(direct.evidenceMode, 'direct-replay')
+  assert.strictEqual(direct.evidenceCeiling, 'verified')
+  assert.strictEqual(direct.visibleReplyEvidence, 'verified-present')
+
+  const unobserved = completionRouteForHost(host, { surface: defaults.defaultSurface })
+  assert.strictEqual(unobserved.evidenceMode, 'portable-receipt')
+  assert.strictEqual(unobserved.evidenceCeiling, 'UNVERIFIED')
+  assert.strictEqual(unobserved.visibleReplyEvidence, 'unverified')
+
+  const disabled = completionRouteForHost(host, { adapterEnabled: false, trusted: true })
+  assert.strictEqual(disabled.evidenceMode, 'instruction-fallback')
+  assert.strictEqual(disabled.fallbackReason, 'adapter-disabled')
+  const untrusted = completionRouteForHost(host, { adapterEnabled: true, trusted: false })
+  assert.strictEqual(untrusted.evidenceMode, 'instruction-fallback')
+  assert.strictEqual(untrusted.fallbackReason, 'adapter-untrusted')
+
+  const visibleMatrix = hostCompletionFixtures.map(([, projection]) => projectWorkflowCompletionVisibleState(projection))
+  assert.deepStrictEqual(visibleMatrix, expectedVisible, `${host} completion semantics must match the shared reducer`)
+  assert.strictEqual(visibleMatrix[0].workflowComplete, true)
+  for (const state of visibleMatrix.slice(1)) assert.strictEqual(state.workflowComplete, false)
+}
+assert.throws(() => completionRouteForHost('unknown'), error => error instanceof WorkflowCompletionLifecycleError && error.code === 'WORKFLOW_HOST_UNSUPPORTED')
 
 const { buildLifecycleHookOutput } = require('../hooks/_runtime/lifecycle-hook-output.cjs')
 const hookOut = buildLifecycleHookOutput({ env: process.env, enforcementMode: 'safety-only' })
@@ -199,4 +279,4 @@ assert.strictEqual(hookOut.eventSupportsHardBlock('grok', 'UserPromptSubmit'), f
 assert.strictEqual(hookOut.eventSupportsHardBlock('grok', 'Stop'), false)
 assert.strictEqual(hookOut.eventSupportsHardBlock('codex', 'UserPromptSubmit'), true)
 
-console.log('host adapter tests passed gemini mapping, grok decision contract, passive no-block, path-observable parity')
+console.log('host adapter tests passed gemini/grok mapping, capability ceilings, five-host completion parity')

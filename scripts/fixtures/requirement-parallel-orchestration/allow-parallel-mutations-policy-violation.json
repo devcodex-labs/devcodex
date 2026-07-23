@@ -1,0 +1,31 @@
+{
+  "name": "allow-parallel-mutations-policy-violation",
+  "input": {
+    "activeRoot": "E:/Worker/.devcodex/devcodex-v1",
+    "concurrency": {
+      "mode": "auto",
+      "allowParallelMutations": true
+    },
+    "workItems": [
+      {
+        "id": "REQ-POLICY-A",
+        "displayName": "策略违规 A",
+        "allowedPaths": ["skills/a"],
+        "expectedWrites": [
+          { "path": "skills/a/SKILL.md", "surface": "source-mutation" }
+        ]
+      },
+      {
+        "id": "REQ-POLICY-B",
+        "displayName": "策略违规 B",
+        "allowedPaths": ["skills/b"],
+        "expectedWrites": [
+          { "path": "skills/b/SKILL.md", "surface": "source-mutation" }
+        ]
+      }
+    ]
+  },
+  "expected": {
+    "classification": "policy-violation"
+  }
+}

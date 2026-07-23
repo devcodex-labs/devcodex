@@ -422,6 +422,49 @@ function buildBundleStages(selected, budget) {
   }))
 }
 
+function createBudgetDecisionV1(input = {}) {
+  const maxBytes = Number.isInteger(input.maxBytes) && input.maxBytes > 0 ? input.maxBytes : null
+  const maxTokens = Number.isInteger(input.maxTokens) && input.maxTokens > 0 ? input.maxTokens : null
+  const completion = typeof input.completion === 'string' ? input.completion : 'unknown'
+  const budgetStatus = typeof input.budgetStatus === 'string' ? input.budgetStatus : 'unknown'
+  const enterpriseCompleteFlow = input.enterpriseCompleteFlow === true
+  let enforcementStatus = 'not-requested'
+  let fallbackReason = maxBytes === null ? 'maxBytes-not-requested' : null
+
+  if (completion === 'fallback-full') {
+    enforcementStatus = 'fallback-full'
+    fallbackReason = input.fallbackReason || 'full-skill-read'
+  } else if (completion === 'blocked' || budgetStatus === 'over-budget-mandatory') {
+    enforcementStatus = 'blocked'
+    fallbackReason = budgetStatus === 'over-budget-mandatory' ? 'mandatory-over-budget' : 'bundle-blocked'
+  } else if (maxBytes !== null) {
+    enforcementStatus = 'enforced'
+    fallbackReason = null
+  }
+
+  const optimizedHit = enforcementStatus === 'enforced' && budgetStatus === 'within-limit' && completion === 'complete'
+  const warnings = []
+  if (enterpriseCompleteFlow && maxBytes === null) warnings.push('enterprise-complete-maxBytes-missing')
+  if (maxTokens === null) warnings.push('maxTokens-not-enforced')
+
+  return {
+    schemaVersion: 'BudgetDecisionV1',
+    budgetKind: input.budgetKind || 'skill-bundle',
+    maxBytes,
+    maxTokens,
+    enforcementStatus,
+    optimizedHit,
+    fallbackReason,
+    sourceBudgetStatus: budgetStatus,
+    sourceCompletion: completion,
+    enterpriseCompleteFlow,
+    validation: {
+      valid: !(optimizedHit && maxBytes === null),
+      warnings
+    }
+  }
+}
+
 /** Build a read-only, dependency-closed Skill bundle using whole SKILL.md byte identities. */
 function buildBundleDecisionV2(portfolio, input = {}) {
   const skills = Array.isArray(portfolio?.skills) ? portfolio.skills : []
@@ -633,6 +676,18 @@ function buildBundleDecisionV2(portfolio, input = {}) {
   }
   let completion = blockers.length ? 'blocked' : (overBudgetMandatory ? 'over-budget-mandatory' : 'complete')
   if (completion === 'complete' && hostCapability === 'unsupported') completion = 'fallback-full'
+  const fallback = hostCapability === 'unsupported' && !blockers.length
+    ? { required: true, route: 'full-skill-read', reason: 'host-bundle-capability-unavailable' }
+    : { required: false, route: null, reason: null }
+  const budgetDecision = createBudgetDecisionV1({
+    budgetKind: input.budgetKind || 'skill-bundle',
+    maxBytes,
+    maxTokens,
+    completion,
+    budgetStatus: budget.status,
+    enterpriseCompleteFlow: input.enterpriseCompleteFlow === true,
+    fallbackReason: fallback.reason
+  })
   return {
     schemaVersion: 'BundleDecisionV2',
     portfolioSchemaVersion: portfolio?.schemaVersion || null,
@@ -644,12 +699,11 @@ function buildBundleDecisionV2(portfolio, input = {}) {
     conflicts,
     blockers,
     budget,
+    budgetDecision,
     stages: blockers.length ? [] : buildBundleStages(selected, budget),
     completion,
     hostCapability,
-    fallback: hostCapability === 'unsupported' && !blockers.length
-      ? { required: true, route: 'full-skill-read', reason: 'host-bundle-capability-unavailable' }
-      : { required: false, route: null, reason: null },
+    fallback,
     lifecycleMutationAllowed: false,
     writes: [],
     exitCondition: blockers.length
@@ -682,6 +736,7 @@ module.exports = {
   inspectFeatureInventoryDocument,
   projectFeatureInventoryState,
   buildBundleDecisionV2,
+  createBudgetDecisionV1,
   hasFeatureInventorySource,
   inspectProfileLifecycle,
   hasProfileLifecycle,

@@ -23,6 +23,7 @@ applyTo: .devcodex/**/requirements/**
 > ⚠️ CP1 必须填写 `ImplementationComplexityLevel`（兼容旧字段 `ImplementationComplexityPreference`）：用户未要求复杂化、需求未说明或简单方案能满足已确认产品事实源和业务目标时，默认 `简单够用`；AI 可以展示 `中等` / `企业级` 可选方案，但必须让用户自行选择是否升级，并说明开发周期、难度、维护成本与取舍。
 > ⚠️ ExistingRequirementArtifactOverride：用户要求调整/修改/补充既有需求时，如果已有 `00-需求变更概况.md`、`01-需求变更确认.md`、`00-需求概况.md`、`01-需求确认.md`、历史 `01-需求概述.md`、Profile 声明的正式需求文件或 website requirement，必须先增量编辑该文件；回复只能概述变更，不能替代文件回写。SimpleTaskFastPath 只豁免新建完整需求产物，不豁免更新既有真相源。
 > ⚠️ CP1 必须给出 ArtifactDecisionMatrix：列出入口分类、`00-需求概况.md`、`00-需求变更概况.md`、`01-需求确认.md`、`01-产品需求.md`、`01-需求变更确认.md`、`02-技术方案.md`、`04-实施计划.md`、`05-实施进度.md`、`06-关键决策.md`、目标文档、报告、记忆的 `create` / `update` / `skip` / `N/A` 状态、原因和升级回退条件；判定优先级为已有真相源回写 > 任务触发条件 > SimpleTaskFastPath > 子类型豁免。
+> ⚠️ CP1 候选在请求确认前必须附 `CandidateReviewBundleV1`：`phaseKind=CP1`、`RQMatrix`、`DomainRealityMatrix`、`ClaimEvidenceMatrix`、`EscapeAbsorptionQueue`。缺任一项时只能写待补充或阻断，不能写“可确认 CP1”。
 > ⚠️ 描述“已接入 / 未接入”类状态时，先核验依赖与源码消费点，再拆分底座能力、当前消费者和高级能力尾项，避免把“基础已接入但高级能力未接入”误写成整体未接入。
 > ⚠️ TechnicalRouteComparativeGate：技术路线、架构优化、性能优化、框架能力设计或高维护成本方案在 CP1 最终需求确认前，若存在同类产品 / 项目 / 框架 / 本仓库相似模块可比，必须执行 `ComparativeResearchGate`；不触发时写 `N/A + skipReason`。
 > ⚠️ 前端页面、组件、控制台、官网、文档站、可视化工具、游戏或用户可见 UI / 交互需求，产品需求事实源必须覆盖设计来源、UI 还原度、风格主题、响应式状态、视觉验证、用户流、交互反馈、输入方式/可访问性、错误恢复和动效转场；内部技术 Gate 标识只作为 AI 派生判定，不作为需求方或产品填写项。
@@ -85,6 +86,7 @@ applyTo: .devcodex/**/requirements/**
   - [§9.1 研发 / AI 可派生内容](#91-研发--ai-可派生内容)
   - [§9.2 不得由 AI 自行扩展的内容](#92-不得由-ai-自行扩展的内容)
   - [§9.3 AI 内部派生守门索引（非需求方 / 产品填写）](#93-ai-内部派生守门索引非需求方--产品填写)
+  - [§9.4 CandidateReviewBundleV1（CP1 确认前内部自查）](#94-candidatereviewbundlev1cp1-确认前内部自查)
 - [§10 变更历史 / 决策记录](#10-变更历史--决策记录)
 ```
 
@@ -412,6 +414,19 @@ flowchart TD
 | 多阶段、样例扩展或功能清单 | 需求审查 Owner + 阶段验收矩阵 | 引用 §2、§4、§9 |
 
 内部执行方从 `skills/spec-governance/gate-registry.json` 选择适用 `gateGroup`，结果写入技术方案和验证产物，不回填 Gate 目录到产品正文。
+
+### §9.4 CandidateReviewBundleV1（CP1 确认前内部自查）
+
+> 本节由 AI / 研发在请求 CP1 确认前填写，产品或需求方不需要填写。缺少必填矩阵时，不得输出“可确认 CP1”。
+
+| 字段 | 内容 / 证据 | 状态 |
+|------|-------------|------|
+| phaseKind | CP1 | required |
+| RQMatrix | RQ-1~RQ-8 每维 status/evidence/gap/disposition/skipReason | |
+| DomainRealityMatrix | sourceTruth / packageChannel / licensePolicy / commandSurface / runtimeCapability / phaseKind 的 currentReality/repoEvidence/consumer/decision/negativeProbe/skipReason | |
+| ClaimEvidenceMatrix | 关键需求主张 → 原始输入 / 产品事实源 / Profile 或仓库证据 / UNVERIFIED 边界 | |
+| EscapeAbsorptionQueue | 外部审查或复审发现 → localEvidence → disposition → targetArtifact → status | |
+| confirmationDecision | review-ready / review-incomplete / stale / confirm-blocked | |
 
 ## §10 变更历史 / 决策记录
 

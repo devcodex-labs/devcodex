@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://devcodex.dev/schemas/absorption-candidate-matrix.v1.schema.json",
+  "title": "AbsorptionCandidateMatrixV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "phaseKind", "candidates"],
+  "properties": {
+    "schemaVersion": { "const": "AbsorptionCandidateMatrixV1" },
+    "phaseKind": { "enum": ["intake", "planning", "implementation", "review"] },
+    "sourceRoot": { "type": "string", "minLength": 1 },
+    "generatedBy": { "type": "string", "minLength": 1 },
+    "candidates": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/candidate" }
+    }
+  },
+  "$defs": {
+    "candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "candidateId",
+        "sourceNamespace",
+        "rawSummary",
+        "backlogClass",
+        "commonDecision",
+        "targetOwner",
+        "layerChecks",
+        "validationRoute"
+      ],
+      "properties": {
+        "candidateId": { "type": "string", "minLength": 1 },
+        "sourceNamespace": { "type": "string", "minLength": 1 },
+        "rawSummary": { "type": "string", "minLength": 1 },
+        "backlogClass": {
+          "enum": ["pure-open", "residual-tail", "already-fixed", "misclassified"]
+        },
+        "commonDecision": {
+          "enum": ["absorb", "case-evidence-only", "project-local", "docs-only", "already-covered", "reject", "defer"]
+        },
+        "targetOwner": { "type": "string" },
+        "targetLayer": {
+          "enum": [
+            "global-invariant",
+            "existing-skill-subgate",
+            "new-skill-required",
+            "docs-only",
+            "case-evidence-only",
+            "project-local",
+            "already-covered"
+          ]
+        },
+        "triggerTerms": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "ownedArtifacts": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "layerChecks": { "$ref": "#/$defs/layerChecks" },
+        "validationRoute": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "consumerSync": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "skipReason": { "type": "string" },
+        "prevention": { "$ref": "#/$defs/prevention" }
+      }
+    },
+    "layerChecks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "commonInstruction",
+        "skill",
+        "promptTemplate",
+        "executionConsumer",
+        "validationProbe",
+        "publicDocs",
+        "deployCopy"
+      ],
+      "properties": {
+        "commonInstruction": { "$ref": "#/$defs/layerState" },
+        "skill": { "$ref": "#/$defs/layerState" },
+        "promptTemplate": { "$ref": "#/$defs/layerState" },
+        "executionConsumer": { "$ref": "#/$defs/layerState" },
+        "validationProbe": { "$ref": "#/$defs/layerState" },
+        "publicDocs": { "$ref": "#/$defs/layerState" },
+        "deployCopy": { "$ref": "#/$defs/layerState" }
+      }
+    },
+    "layerState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state"],
+      "properties": {
+        "state": { "enum": ["required", "covered", "not-applicable", "blocked"] },
+        "evidence": { "type": "string" },
+        "skipReason": { "type": "string" }
+      }
+    },
+    "prevention": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rootCause", "controlFailure", "negativeCases", "rollbackOrSunset"],
+      "properties": {
+        "rootCause": { "type": "string", "minLength": 1 },
+        "controlFailure": { "type": "string", "minLength": 1 },
+        "negativeCases": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "rollbackOrSunset": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

@@ -130,11 +130,8 @@ function finishManagedDeployment(session, dryRun) {
   return output
 }
 
-// v1.9.8+: agents/ 已恢复 Copilot 端默认分发（Q1），不再视为遗留物。
-// 保留此数组结构以便后续可重新引入其他遗留迁移项。
+// v1.9.8+: agents/ 已恢复 Copilot 默认分发；保留数组便于后续遗留迁移项。
 const LEGACY_TARGETS = []
-
-// ─── Source repo self-detection ───────────────────────────────────────────────
 
 /** Check if cwd is the DevCodex source repo itself */
 function isSourceRepo(dir) {
@@ -176,21 +173,11 @@ const DEVCODEX_GITIGNORE_ENTRIES = [
   '.devcodex/*/profile/config.local.json'
 ]
 
-// ─── Commands ─────────────────────────────────────────────────────────────────
-
-// ─── Claude Code init ─────────────────────────────────────────────────────────
-
 /**
- * Hook command: locate .claude/hooks/_runtime/lifecycle.cjs by walking up from cwd.
- * Why: settings.json may live at workspace root while Claude Code runs in a project subdir.
- * v1.9.7+ monorepo-safe: requires lifecycle.cjs AND a project-root marker (.devcodex/ or
- * package.json) to coexist at the same level, otherwise keeps walking. Prevents false hits
- * on ancestor .claude/ directories that belong to a different (outer) workspace.
- * Silently exits if no DevCodex install is found.
+ * Hook command: walk up for lifecycle.cjs + project marker (.devcodex/ or package.json).
+ * Why: settings may live at workspace root while host runs in a project subdir (monorepo-safe).
  */
 const CLAUDE_HOOK_COMMAND = `node -e "let d=process.cwd(),fs=require('fs'),p=require('path');while(true){const f=p.join(d,'.claude','hooks','_runtime','lifecycle.cjs');if(fs.existsSync(f)&&(fs.existsSync(p.join(d,'.devcodex'))||fs.existsSync(p.join(d,'package.json')))){require(f);break}const n=p.dirname(d);if(n===d){process.exit(0)}d=n}"`
-
-// Monorepo-safe: walk up for .codex/hooks/_runtime/lifecycle.cjs with project marker (parity with Claude).
 const CODEX_HOOK_COMMAND = `node -e "let d=process.cwd(),fs=require('fs'),p=require('path');while(true){const f=p.join(d,'.codex','hooks','_runtime','lifecycle.cjs');if(fs.existsSync(f)&&(fs.existsSync(p.join(d,'.devcodex'))||fs.existsSync(p.join(d,'package.json')))){require(f);break}const n=p.dirname(d);if(n===d){process.exit(0)}d=n}"`
 
 /** Claude Code settings.json hook configuration */
@@ -415,47 +402,17 @@ const cliCommandRegistry = createCliCommandRegistry({
   cmdInit, cmdInitHost, cmdInitClaude, cmdInitCodex, cmdUninstallHost, cmdGrok, cmdStatus, cmdProfileInit, cmdDoctor, cmdProbe, cmdTrace, cmdSkill, cmdTask, cmdHelp
 })
 
-// ─── Entry point ─────────────────────────────────────────────────────────────
-
 if (require.main === module) {
   const [, , cmd, ...argv] = process.argv
   runCliCommand({ cmd, argv, registry: cliCommandRegistry, runMigrateLayout, process, c, console, packageVersion: readJsonFile(path.join(PKG_ROOT, 'package.json'))?.version || null })
 }
 
 module.exports = {
-  walkDir,
-  cmdInit,
-  cmdInitHost,
-  cmdInitClaude,
-  cmdInitCodex,
-  cmdInitGemini,
-  cmdInitGrok,
-  cmdUninstallHost,
-  cmdGrok,
-  cmdStatus,
-  cmdHelp,
-  cmdProfileInit,
-  cmdDoctor,
-  cmdProbe,
-  cmdTrace,
-  cmdSkill,
-  cmdTask,
-  isSourceRepo,
-  findLayoutInfo,
-  inferProjectFromCwd,
-  resolveActiveRuntimeRoot,
-  resolveHostAdapterScope,
-  resolveGitignoreRoot,
-  ensureRuntimeDirs,
-  SOURCES,
-  CLAUDE_SOURCES,
-  CLAUDE_MCP_RUNTIME_SCRIPT_DEPS,
-  CODEX_SOURCES,
-  CLAUDE_HOOK_COMMAND,
-  CLAUDE_MCP_JSON,
-  CODEX_HOOK_COMMAND,
-  buildDeploymentDescriptors,
-  beginManagedDeployment,
-  finishManagedDeployment,
+  walkDir, cmdInit, cmdInitHost, cmdInitClaude, cmdInitCodex, cmdInitGemini, cmdInitGrok,
+  cmdUninstallHost, cmdGrok, cmdStatus, cmdHelp, cmdProfileInit, cmdDoctor, cmdProbe, cmdTrace,
+  cmdSkill, cmdTask, isSourceRepo, findLayoutInfo, inferProjectFromCwd, resolveActiveRuntimeRoot,
+  resolveHostAdapterScope, resolveGitignoreRoot, ensureRuntimeDirs, SOURCES, CLAUDE_SOURCES,
+  CLAUDE_MCP_RUNTIME_SCRIPT_DEPS, CODEX_SOURCES, CLAUDE_HOOK_COMMAND, CLAUDE_MCP_JSON,
+  CODEX_HOOK_COMMAND, buildDeploymentDescriptors, beginManagedDeployment, finishManagedDeployment,
   runMigrateLayout
 }

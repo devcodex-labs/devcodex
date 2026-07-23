@@ -221,6 +221,8 @@ const TOOLS = [
         maxSkills: { type: 'integer', minimum: 1, maximum: 78 },
         maxBytes: { type: 'integer', minimum: 1024, maximum: 2000000 },
         maxTokens: { type: 'integer', minimum: 1 },
+        budgetKind: { type: 'string', enum: ['profile-context', 'skill-bundle', 'artifact-projection'] },
+        enterpriseCompleteFlow: { type: 'boolean' },
         hostTokenCounter: { type: 'boolean' },
         tokenCounts: { type: 'object', additionalProperties: { type: 'integer', minimum: 0 } },
         hostCapability: { type: 'string', enum: ['bundle-v2', 'native-oracle', 'unsupported'] },

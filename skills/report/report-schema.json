@@ -12,6 +12,7 @@
     "ConceptSyncMap": "control-plane or source-consumer change",
     "HostContractVerification": "host, hook, CLI or visible-reply contract change",
     "VisibleOutputContract": "entry/completion/confirmation/progress/final/error output or file delivery is produced or reviewed",
+    "EvidenceFreshness": "strong verified, recommended, confirmed, complete, external-review-adopted or completion claim may reuse prior evidence",
     "ContextAcquisition": "intent, profile, memory, bootstrap or context-read behavior changes",
     "CliDiagnosticContract": "machine-readable CLI envelope, local probe, stable error or native exit behavior",
     "CheckpointValidation": "response-time or post-execution checkpoint evidence is produced or reviewed",

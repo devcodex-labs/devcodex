@@ -6,29 +6,29 @@
     "skillsPattern": "skills/*/SKILL.md",
     "optionalSidecar": "skills/*/devcodex.skill.json",
     "registry": "plugin.json",
-    "sourceDigest": "0941b1520cd18739d2799722c11dfd5432da2639524a61238f9dd3817011a68f",
+    "sourceDigest": "09962639b3a4f654200d2b2d1eb23eb0c733dfbb7173ea41f2ac560071a984d5",
     "sidecarDigest": "774105d7947b340d15d17115fcb8e37b62ae545cf553f06126d529184fd74872",
-    "pluginDigest": "425bf30edb976d8daded86730f3e41e78f39dc64a47430a9cf4eee529b7364a9",
+    "pluginDigest": "e972de3b30d46966c4f0c19737ceabffbcd48b94cbd7f7bf5e11175c81b815ac",
     "portfolioEvidence": "skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "85229c1463a5068750d5417e5ebf960907532dccf99b1cd3da0a88f7007792b4",
-    "consumerInventoryFileCount": 512,
-    "consumerInventoryDigest": "d92e98461c3ac325f3f9284204d609c68fe079696e81147eef06c3b8d55043e7",
-    "consumerProjectionDigest": "7252cc153a2a856f89b3f052b2e17d3f34bd0aa6142903946901a8889df2cbba",
-    "portfolioInputDigest": "5d384ac84d6f168327c654c862d3dcab8af9019ab5f9df9c61c6d642727ad6cd"
+    "consumerInventoryFileCount": 542,
+    "consumerInventoryDigest": "75c5c49e36a637d8a214eebcd29566cbb4c63034536abd9d60cdc73aa7d15913",
+    "consumerProjectionDigest": "a3de4063d9ddfb914e5ea8b11f8432b756da74c37ebe584adf9558a84907678a",
+    "portfolioInputDigest": "f9ef0cefcc940d8ec5af7cd14c4cfdf469555b762e78818a1c696d2dd2bc042f"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
-    "skillCount": 81,
-    "registeredSkillCount": 81,
-    "activeSkillCount": 78,
+    "skillCount": 82,
+    "registeredSkillCount": 82,
+    "activeSkillCount": 79,
     "graySkillCount": 3,
     "orphanActiveCount": 0,
     "dependencyCycleCount": 0,
     "dependencyEdgeCount": 3,
-    "conflictReviewedCount": 81,
-    "operationalEvidenceCompleteCount": 81,
+    "conflictReviewedCount": 82,
+    "operationalEvidenceCompleteCount": 82,
     "triggerPrecisionMeasuredCount": 0,
-    "instructionBudgetP95Bytes": 21062,
+    "instructionBudgetP95Bytes": 21766,
     "triggerQuality": "structural-only",
     "sidecarPresentCount": 0
   },
@@ -100,6 +100,7 @@
       "release-verification",
       "repair-prevention-assessment",
       "report",
+      "requirement-parallel-orchestration",
       "review-checklist",
       "rework-prevention-engineering",
       "routing",
@@ -996,8 +997,8 @@
         "skills/analyze-default/SKILL.md"
       ],
       "source": "skills/analyze-default/SKILL.md",
-      "hash": "2f0a29cca6bd046c7728b15b22cddbc70ee3aa36b0bfe0e8a94e346fbba1d772",
-      "sourceBytes": 8649,
+      "hash": "0a441e3116caa9773cda7ff187943b354c1cc7983c2160780b0d3d4b75b412a1",
+      "sourceBytes": 9338,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [],
@@ -1062,6 +1063,10 @@
         },
         {
           "path": "scripts/lib/validate-governance-intake.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/validation-manifest.json",
           "role": "current"
         },
         {
@@ -3385,8 +3390,8 @@
         "skills/audit-report/SKILL.md"
       ],
       "source": "skills/audit-report/SKILL.md",
-      "hash": "547d81b8e0ad6ef9690a0bf5841700b61d9e88091cc1b146452ae98fccab42e5",
-      "sourceBytes": 3160,
+      "hash": "38d5589b0648d0ae57b0e5fc0e8d80e3f0ad4e562db6883ae8848251ed2cf523",
+      "sourceBytes": 3834,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [],
@@ -3423,6 +3428,14 @@
         },
         {
           "path": "scripts/lib/validate-governance-quality.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/validation-manifest.json",
+          "role": "current"
+        },
+        {
+          "path": "website/docs/guide/development.md",
           "role": "current"
         },
         {
@@ -3558,8 +3571,8 @@
         "skills/audit-requirements/SKILL.md"
       ],
       "source": "skills/audit-requirements/SKILL.md",
-      "hash": "155f1793aeba13925ce4d04c3422ad82e3aeab0a142081f71c5855dd9accdc74",
-      "sourceBytes": 12518,
+      "hash": "3f167b939f398ef4ca33e57b2d98723336ad9483495d6f32085902a344155b5e",
+      "sourceBytes": 14093,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [],
@@ -3627,6 +3640,14 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-candidate-review-bundle.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/validation-manifest.json",
+          "role": "current"
+        },
+        {
           "path": "website/docs/versions/v1/1.0.0/requirements/features/skills-audit.md",
           "role": "historical"
         },
@@ -3648,6 +3669,7 @@
         }
       ],
       "validationProfile": [
+        "scripts/test-candidate-review-bundle.js",
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
@@ -3695,6 +3717,7 @@
         ],
         "evolvableUnitRef": "skill:audit-requirements",
         "probeSuiteRefs": [
+          "scripts/test-candidate-review-bundle.js",
           "scripts/test-skill-portfolio.js",
           "scripts/validate.js"
         ],
@@ -3806,6 +3829,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/requirement-parallel-orchestration.js",
           "role": "current"
         },
         {
@@ -3950,8 +3977,8 @@
         "skills/audit-tech-design/SKILL.md"
       ],
       "source": "skills/audit-tech-design/SKILL.md",
-      "hash": "a4dd3fa7f3334825b4c6e07f0020f2bab119ad9d84886686f9ed2cdc08d29e40",
-      "sourceBytes": 4178,
+      "hash": "a56588d8593d62fb41f8e8da4e9fb50c7f9f3ab9b0f4f35924f08424e85f22b9",
+      "sourceBytes": 10730,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [],
@@ -3995,6 +4022,14 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-candidate-review-bundle.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/validation-manifest.json",
+          "role": "current"
+        },
+        {
           "path": "website/docs/versions/v1/1.0.0/requirements/features/skills-audit.md",
           "role": "historical"
         },
@@ -4016,6 +4051,7 @@
         }
       ],
       "validationProfile": [
+        "scripts/test-candidate-review-bundle.js",
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
@@ -4063,6 +4099,7 @@
         ],
         "evolvableUnitRef": "skill:audit-tech-design",
         "probeSuiteRefs": [
+          "scripts/test-candidate-review-bundle.js",
           "scripts/test-skill-portfolio.js",
           "scripts/validate.js"
         ],
@@ -4854,8 +4891,8 @@
         "skills/compliance/SKILL.md"
       ],
       "source": "skills/compliance/SKILL.md",
-      "hash": "1fc935163d257cc7d9a5739c2c713d22444cce85537b244b1d06db5662f787b4",
-      "sourceBytes": 17554,
+      "hash": "7875025fb64f799970666893efa225ec133152c49ab6ea901fa1c8175039b6ee",
+      "sourceBytes": 18908,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [],
@@ -5105,6 +5142,14 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/validate-visible-output-controls.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/validate-workflow-completion-controls.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-client-contracts.js",
           "role": "current"
         },
@@ -5114,6 +5159,10 @@
         },
         {
           "path": "scripts/test-host-parity-scorecard.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-workflow-completion-contract.js",
           "role": "current"
         },
         {
@@ -5346,6 +5395,7 @@
         "scripts/test-hooks-runtime.js",
         "scripts/test-host-parity-scorecard.js",
         "scripts/test-skill-portfolio.js",
+        "scripts/test-workflow-completion-contract.js",
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
@@ -5399,6 +5449,7 @@
           "scripts/test-hooks-runtime.js",
           "scripts/test-host-parity-scorecard.js",
           "scripts/test-skill-portfolio.js",
+          "scripts/test-workflow-completion-contract.js",
           "scripts/validate.js"
         ],
         "exitCondition": "work-unit-complete-or-workflow-transition",
@@ -5644,8 +5695,8 @@
         "skills/cp-gate/SKILL.md"
       ],
       "source": "skills/cp-gate/SKILL.md",
-      "hash": "a0a7f5871a0a06b4e39cb90def4cf32f8d55089d1a3eace528afb29ab5637ef9",
-      "sourceBytes": 21062,
+      "hash": "5e4318bd5fa737cc2e541432005fdd3154919b3b0fa1210f516a21d0a99e7fa4",
+      "sourceBytes": 21766,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [],
@@ -5793,6 +5844,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-candidate-review-bundle.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-closure-evidence-controls.js",
           "role": "current"
         },
@@ -5874,6 +5929,7 @@
         }
       ],
       "validationProfile": [
+        "scripts/test-candidate-review-bundle.js",
         "scripts/test-closure-evidence-controls.js",
         "scripts/test-hooks-runtime.js",
         "scripts/test-skill-portfolio.js",
@@ -5925,6 +5981,7 @@
         ],
         "evolvableUnitRef": "skill:cp-gate",
         "probeSuiteRefs": [
+          "scripts/test-candidate-review-bundle.js",
           "scripts/test-closure-evidence-controls.js",
           "scripts/test-hooks-runtime.js",
           "scripts/test-skill-portfolio.js",
@@ -6493,8 +6550,8 @@
         "skills/dev-default/SKILL.md"
       ],
       "source": "skills/dev-default/SKILL.md",
-      "hash": "d3ee59cd9a819b40e7fb0a4120a57c8a857141a111fd600b4b83aa6776dfcb77",
-      "sourceBytes": 14159,
+      "hash": "b59fb605e2a495534ef10c4e1220e319c436cb70eeedee6bb4988eae135bd2cd",
+      "sourceBytes": 14644,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [],
@@ -6614,6 +6671,14 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-requirement-parallel-orchestration.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/validation-manifest.json",
+          "role": "current"
+        },
+        {
           "path": "website/docs/guide/development.md",
           "role": "current"
         },
@@ -6672,6 +6737,7 @@
       ],
       "validationProfile": [
         "scripts/test-always-on-governance.js",
+        "scripts/test-requirement-parallel-orchestration.js",
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
@@ -6724,6 +6790,7 @@
         "evolvableUnitRef": "skill:dev-default",
         "probeSuiteRefs": [
           "scripts/test-always-on-governance.js",
+          "scripts/test-requirement-parallel-orchestration.js",
           "scripts/test-skill-portfolio.js",
           "scripts/validate.js"
         ],
@@ -7393,8 +7460,8 @@
         "skills/dev-plan-review/SKILL.md"
       ],
       "source": "skills/dev-plan-review/SKILL.md",
-      "hash": "4aeb0e9a48d81dc2757f105c047a12b5eaa5264b017efd2fee6be2a0366e7caa",
-      "sourceBytes": 21152,
+      "hash": "27aee3e7bbdd841be84843c552a99142502b35a1ee4b5decf083da7f00973a00",
+      "sourceBytes": 22038,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [],
@@ -7534,6 +7601,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-candidate-review-bundle.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-markdown-structure.js",
           "role": "current"
         },
@@ -7583,6 +7654,7 @@
         }
       ],
       "validationProfile": [
+        "scripts/test-candidate-review-bundle.js",
         "scripts/test-markdown-structure.js",
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
@@ -7633,6 +7705,7 @@
         ],
         "evolvableUnitRef": "skill:dev-plan-review",
         "probeSuiteRefs": [
+          "scripts/test-candidate-review-bundle.js",
           "scripts/test-markdown-structure.js",
           "scripts/test-skill-portfolio.js",
           "scripts/validate.js"
@@ -9081,8 +9154,8 @@
         "skills/execution-contract/SKILL.md"
       ],
       "source": "skills/execution-contract/SKILL.md",
-      "hash": "7743788e80a5fa9458d9f04c974cceaa9c862199a216dd807fec94a998cad43f",
-      "sourceBytes": 18621,
+      "hash": "75bcdcea825600aeae9b27a830dd811c8b64b450d001d8654dc825b8b325eb23",
+      "sourceBytes": 18874,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [],
@@ -9111,6 +9184,10 @@
         },
         {
           "path": "changelogs/unreleased.md",
+          "role": "current"
+        },
+        {
+          "path": "hooks/_runtime/lifecycle-workflow-completion.cjs",
           "role": "current"
         },
         {
@@ -9151,6 +9228,10 @@
         },
         {
           "path": "README.md",
+          "role": "current"
+        },
+        {
+          "path": "scripts/fixtures/requirement-parallel-orchestration/serial-shared-source-mutation.json",
           "role": "current"
         },
         {
@@ -9206,6 +9287,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-requirement-parallel-orchestration.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-review-execution-contract.js",
           "role": "current"
         },
@@ -9215,6 +9300,10 @@
         },
         {
           "path": "scripts/test-visible-output-contract.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-workflow-completion-contract.js",
           "role": "current"
         },
         {
@@ -9236,9 +9325,11 @@
       ],
       "validationProfile": [
         "scripts/test-client-contracts.js",
+        "scripts/test-requirement-parallel-orchestration.js",
         "scripts/test-review-execution-contract.js",
         "scripts/test-skill-portfolio.js",
         "scripts/test-visible-output-contract.js",
+        "scripts/test-workflow-completion-contract.js",
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
@@ -9286,9 +9377,11 @@
         "evolvableUnitRef": "skill:execution-contract",
         "probeSuiteRefs": [
           "scripts/test-client-contracts.js",
+          "scripts/test-requirement-parallel-orchestration.js",
           "scripts/test-review-execution-contract.js",
           "scripts/test-skill-portfolio.js",
           "scripts/test-visible-output-contract.js",
+          "scripts/test-workflow-completion-contract.js",
           "scripts/validate.js"
         ],
         "exitCondition": "work-unit-complete-or-workflow-transition",
@@ -9687,8 +9780,8 @@
         "skills/fix-default/SKILL.md"
       ],
       "source": "skills/fix-default/SKILL.md",
-      "hash": "f891666adc574667207968ab1970940800fb0b91b8cccc965f75224ea2b32823",
-      "sourceBytes": 6785,
+      "hash": "73e718524b40213958ffb3832f985ee1958dbf12cf6b0d1146b9ed955baba9cf",
+      "sourceBytes": 7006,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [],
@@ -9780,6 +9873,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-requirement-parallel-orchestration.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/validation-manifest.json",
           "role": "current"
         },
@@ -9835,6 +9932,7 @@
       "validationProfile": [
         "scripts/test-host-parity-scorecard.js",
         "scripts/test-repair-prevention-assessment.js",
+        "scripts/test-requirement-parallel-orchestration.js",
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
@@ -9883,6 +9981,7 @@
         "probeSuiteRefs": [
           "scripts/test-host-parity-scorecard.js",
           "scripts/test-repair-prevention-assessment.js",
+          "scripts/test-requirement-parallel-orchestration.js",
           "scripts/test-skill-portfolio.js",
           "scripts/validate.js"
         ],
@@ -10696,6 +10795,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/validate-workflow-completion-controls.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-host-installation.js",
           "role": "current"
         },
@@ -10708,11 +10811,11 @@
           "role": "current"
         },
         {
-          "path": "scripts/validation-manifest.json",
+          "path": "scripts/test-workflow-completion-contract.js",
           "role": "current"
         },
         {
-          "path": "website/docs/index.md",
+          "path": "scripts/validation-manifest.json",
           "role": "current"
         },
         {
@@ -10724,6 +10827,7 @@
         "scripts/test-host-installation.js",
         "scripts/test-host-instruction-projection.js",
         "scripts/test-skill-portfolio.js",
+        "scripts/test-workflow-completion-contract.js",
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
@@ -10775,6 +10879,7 @@
           "scripts/test-host-installation.js",
           "scripts/test-host-instruction-projection.js",
           "scripts/test-skill-portfolio.js",
+          "scripts/test-workflow-completion-contract.js",
           "scripts/validate.js"
         ],
         "exitCondition": "work-unit-complete-or-workflow-transition",
@@ -11248,6 +11353,10 @@
           "role": "current"
         },
         {
+          "path": "hooks/_runtime/workflow-completion-contract.cjs",
+          "role": "current"
+        },
+        {
           "path": "host-projections/AGENTS.md",
           "role": "current"
         },
@@ -11428,6 +11537,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-completion-report-ecr-check.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-context-binding.js",
           "role": "current"
         },
@@ -11465,6 +11578,10 @@
         },
         {
           "path": "scripts/test-visible-output-contract.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-workflow-completion-contract.js",
           "role": "current"
         },
         {
@@ -11596,6 +11713,7 @@
         "scripts/test-always-on-governance.js",
         "scripts/test-cli-behavior.js",
         "scripts/test-cli-command-registry.js",
+        "scripts/test-completion-report-ecr-check.js",
         "scripts/test-context-binding.js",
         "scripts/test-context-read-contract.js",
         "scripts/test-execution-chain-evolution.js",
@@ -11606,6 +11724,7 @@
         "scripts/test-review-execution-contract.js",
         "scripts/test-skill-portfolio.js",
         "scripts/test-visible-output-contract.js",
+        "scripts/test-workflow-completion-contract.js",
         "scripts/validate-profile.js",
         "scripts/validate.js"
       ],
@@ -11663,6 +11782,7 @@
           "scripts/test-always-on-governance.js",
           "scripts/test-cli-behavior.js",
           "scripts/test-cli-command-registry.js",
+          "scripts/test-completion-report-ecr-check.js",
           "scripts/test-context-binding.js",
           "scripts/test-context-read-contract.js",
           "scripts/test-execution-chain-evolution.js",
@@ -11673,6 +11793,7 @@
           "scripts/test-review-execution-contract.js",
           "scripts/test-skill-portfolio.js",
           "scripts/test-visible-output-contract.js",
+          "scripts/test-workflow-completion-contract.js",
           "scripts/validate-profile.js",
           "scripts/validate.js"
         ],
@@ -12057,8 +12178,8 @@
         "skills/memory/SKILL.md"
       ],
       "source": "skills/memory/SKILL.md",
-      "hash": "7b3b0cc019d74608a4dafa4129c3e29187a34bc8f60e8b218692610fb8186435",
-      "sourceBytes": 18578,
+      "hash": "f006d5b23a550e751ae89bd80eb62b7e6e0632b9bd08c3a6e5ccc3740b1b72fc",
+      "sourceBytes": 18865,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [],
@@ -12200,6 +12321,10 @@
           "role": "current"
         },
         {
+          "path": "hooks/_runtime/lifecycle-workflow-completion.cjs",
+          "role": "current"
+        },
+        {
           "path": "hooks/_runtime/lifecycle.cjs",
           "role": "current"
         },
@@ -12209,6 +12334,14 @@
         },
         {
           "path": "hooks/_runtime/task-continuation-contract.cjs",
+          "role": "current"
+        },
+        {
+          "path": "hooks/_runtime/visible-output-contract.cjs",
+          "role": "current"
+        },
+        {
+          "path": "hooks/_runtime/workflow-completion-contract.cjs",
           "role": "current"
         },
         {
@@ -12336,6 +12469,14 @@
           "role": "current"
         },
         {
+          "path": "scripts/fixtures/evidence-freshness/summary-only-report.md",
+          "role": "current"
+        },
+        {
+          "path": "scripts/fixtures/requirement-parallel-orchestration/missing-merge-protocol.json",
+          "role": "current"
+        },
+        {
           "path": "scripts/host-instruction-projection.json",
           "role": "current"
         },
@@ -12345,6 +12486,14 @@
         },
         {
           "path": "scripts/lib/always-on-governance.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/cli-execution-commands.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/cli-host-utils.js",
           "role": "current"
         },
         {
@@ -12372,11 +12521,19 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/evidence-freshness-receipt.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/host-parity-scorecard.js",
           "role": "current"
         },
         {
           "path": "scripts/lib/requirement-artifact-check.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/requirement-parallel-orchestration.js",
           "role": "current"
         },
         {
@@ -12444,11 +12601,19 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/validate-workflow-completion-controls.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/migrate-layout.js",
           "role": "current"
         },
         {
           "path": "scripts/test-cli-behavior.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-completion-report-ecr-check.js",
           "role": "current"
         },
         {
@@ -12469,6 +12634,10 @@
         },
         {
           "path": "scripts/test-hooks-runtime.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-host-installation.js",
           "role": "current"
         },
         {
@@ -12496,6 +12665,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-requirement-parallel-orchestration.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-review-execution-contract.js",
           "role": "current"
         },
@@ -12513,6 +12686,10 @@
         },
         {
           "path": "scripts/test-validate-profile.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-workflow-completion-contract.js",
           "role": "current"
         },
         {
@@ -12742,22 +12919,26 @@
       ],
       "validationProfile": [
         "scripts/test-cli-behavior.js",
+        "scripts/test-completion-report-ecr-check.js",
         "scripts/test-context-binding.js",
         "scripts/test-context-read-contract.js",
         "scripts/test-governance-intake.js",
         "scripts/test-governance-status-summary.js",
         "scripts/test-hooks-runtime.js",
+        "scripts/test-host-installation.js",
         "scripts/test-host-parity-scorecard.js",
         "scripts/test-instruction-fallback-check.js",
         "scripts/test-mcp-servers.js",
         "scripts/test-migrate-layout.js",
         "scripts/test-pack-clean.js",
         "scripts/test-requirement-artifacts.js",
+        "scripts/test-requirement-parallel-orchestration.js",
         "scripts/test-review-execution-contract.js",
         "scripts/test-runtime-state-index.js",
         "scripts/test-skill-portfolio.js",
         "scripts/test-task-continuation.js",
         "scripts/test-validate-profile.js",
+        "scripts/test-workflow-completion-contract.js",
         "scripts/validate-profile.js",
         "scripts/validate.js"
       ],
@@ -12805,22 +12986,26 @@
         "evolvableUnitRef": "skill:memory",
         "probeSuiteRefs": [
           "scripts/test-cli-behavior.js",
+          "scripts/test-completion-report-ecr-check.js",
           "scripts/test-context-binding.js",
           "scripts/test-context-read-contract.js",
           "scripts/test-governance-intake.js",
           "scripts/test-governance-status-summary.js",
           "scripts/test-hooks-runtime.js",
+          "scripts/test-host-installation.js",
           "scripts/test-host-parity-scorecard.js",
           "scripts/test-instruction-fallback-check.js",
           "scripts/test-mcp-servers.js",
           "scripts/test-migrate-layout.js",
           "scripts/test-pack-clean.js",
           "scripts/test-requirement-artifacts.js",
+          "scripts/test-requirement-parallel-orchestration.js",
           "scripts/test-review-execution-contract.js",
           "scripts/test-runtime-state-index.js",
           "scripts/test-skill-portfolio.js",
           "scripts/test-task-continuation.js",
           "scripts/test-validate-profile.js",
+          "scripts/test-workflow-completion-contract.js",
           "scripts/validate-profile.js",
           "scripts/validate.js"
         ],
@@ -13225,6 +13410,10 @@
           "role": "current"
         },
         {
+          "path": "hooks/_runtime/lifecycle-workflow-completion.cjs",
+          "role": "current"
+        },
+        {
           "path": "hooks/_runtime/lifecycle.cjs",
           "role": "current"
         },
@@ -13234,6 +13423,10 @@
         },
         {
           "path": "hooks/_runtime/visible-output-contract.cjs",
+          "role": "current"
+        },
+        {
+          "path": "hooks/_runtime/workflow-completion-contract.cjs",
           "role": "current"
         },
         {
@@ -13333,7 +13526,15 @@
           "role": "current"
         },
         {
+          "path": "scripts/fixtures/candidate-review-bundle/cp2-ready.md",
+          "role": "current"
+        },
+        {
           "path": "scripts/instruction-fallback-check.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/absorption-candidate-planner.js",
           "role": "current"
         },
         {
@@ -13497,11 +13698,19 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/validate-workflow-completion-controls.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/validation-dag.js",
           "role": "current"
         },
         {
           "path": "scripts/migrate-layout.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/plan-absorption-candidates.js",
           "role": "current"
         },
         {
@@ -13517,6 +13726,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-candidate-review-bundle.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-cli-behavior.js",
           "role": "current"
         },
@@ -13526,6 +13739,10 @@
         },
         {
           "path": "scripts/test-client-contracts.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-completion-report-ecr-check.js",
           "role": "current"
         },
         {
@@ -13546,6 +13763,10 @@
         },
         {
           "path": "scripts/test-discipline-execution-probe.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-evidence-freshness-receipt.js",
           "role": "current"
         },
         {
@@ -13597,6 +13818,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-requirement-parallel-orchestration.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-residual-absorption-controls.js",
           "role": "current"
         },
@@ -13614,6 +13839,10 @@
         },
         {
           "path": "scripts/test-workflow-capabilities.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-workflow-completion-contract.js",
           "role": "current"
         },
         {
@@ -13843,14 +14072,17 @@
       ],
       "validationProfile": [
         "scripts/test-always-on-governance.js",
+        "scripts/test-candidate-review-bundle.js",
         "scripts/test-cli-behavior.js",
         "scripts/test-cli-command-registry.js",
         "scripts/test-client-contracts.js",
+        "scripts/test-completion-report-ecr-check.js",
         "scripts/test-context-binding.js",
         "scripts/test-context-read-contract.js",
         "scripts/test-control-plane-contracts.js",
         "scripts/test-control-plane-module-contracts.js",
         "scripts/test-discipline-execution-probe.js",
+        "scripts/test-evidence-freshness-receipt.js",
         "scripts/test-execution-chain-evolution.js",
         "scripts/test-governance-intake.js",
         "scripts/test-governance-status-summary.js",
@@ -13863,12 +14095,14 @@
         "scripts/test-project-knowledge-v2.js",
         "scripts/test-repair-prevention-assessment.js",
         "scripts/test-requirement-artifacts.js",
+        "scripts/test-requirement-parallel-orchestration.js",
         "scripts/test-residual-absorption-controls.js",
         "scripts/test-review-execution-contract.js",
         "scripts/test-skill-portfolio.js",
         "scripts/test-validation-dag.js",
         "scripts/test-visible-output-contract.js",
         "scripts/test-workflow-capabilities.js",
+        "scripts/test-workflow-completion-contract.js",
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
@@ -13917,14 +14151,17 @@
         "evolvableUnitRef": "skill:plan",
         "probeSuiteRefs": [
           "scripts/test-always-on-governance.js",
+          "scripts/test-candidate-review-bundle.js",
           "scripts/test-cli-behavior.js",
           "scripts/test-cli-command-registry.js",
           "scripts/test-client-contracts.js",
+          "scripts/test-completion-report-ecr-check.js",
           "scripts/test-context-binding.js",
           "scripts/test-context-read-contract.js",
           "scripts/test-control-plane-contracts.js",
           "scripts/test-control-plane-module-contracts.js",
           "scripts/test-discipline-execution-probe.js",
+          "scripts/test-evidence-freshness-receipt.js",
           "scripts/test-execution-chain-evolution.js",
           "scripts/test-governance-intake.js",
           "scripts/test-governance-status-summary.js",
@@ -13937,12 +14174,14 @@
           "scripts/test-project-knowledge-v2.js",
           "scripts/test-repair-prevention-assessment.js",
           "scripts/test-requirement-artifacts.js",
+          "scripts/test-requirement-parallel-orchestration.js",
           "scripts/test-residual-absorption-controls.js",
           "scripts/test-review-execution-contract.js",
           "scripts/test-skill-portfolio.js",
           "scripts/test-validation-dag.js",
           "scripts/test-visible-output-contract.js",
           "scripts/test-workflow-capabilities.js",
+          "scripts/test-workflow-completion-contract.js",
           "scripts/validate.js"
         ],
         "exitCondition": "work-unit-complete-or-workflow-transition",
@@ -15265,6 +15504,10 @@
           "role": "current"
         },
         {
+          "path": "hooks/_runtime/workflow-completion-contract.cjs",
+          "role": "current"
+        },
+        {
           "path": "instructions.md",
           "role": "current"
         },
@@ -15353,6 +15596,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-workflow-completion-contract.js",
+          "role": "current"
+        },
+        {
           "path": "website/docs/guide/development.md",
           "role": "current"
         },
@@ -15379,6 +15626,7 @@
       ],
       "validationProfile": [
         "scripts/test-skill-portfolio.js",
+        "scripts/test-workflow-completion-contract.js",
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
@@ -15433,6 +15681,7 @@
         "evolvableUnitRef": "skill:release-verification",
         "probeSuiteRefs": [
           "scripts/test-skill-portfolio.js",
+          "scripts/test-workflow-completion-contract.js",
           "scripts/validate.js"
         ],
         "exitCondition": "work-unit-complete-or-workflow-transition",
@@ -15709,8 +15958,8 @@
         "skills/report/SKILL.md"
       ],
       "source": "skills/report/SKILL.md",
-      "hash": "ff59c642395e3a4f71bdbe31b030a560bd9095bd60d36889eccc199b27cee317",
-      "sourceBytes": 15174,
+      "hash": "c909b903de9772bdabc2dab18eec09dd97a65aaeebbc79081bbe47f0f9fb232b",
+      "sourceBytes": 17332,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [],
@@ -15924,6 +16173,14 @@
           "role": "current"
         },
         {
+          "path": "hooks/_runtime/visible-output-contract.cjs",
+          "role": "current"
+        },
+        {
+          "path": "hooks/_runtime/workflow-completion-contract.cjs",
+          "role": "current"
+        },
+        {
           "path": "hooks/_runtime/workspace-layout.cjs",
           "role": "current"
         },
@@ -16024,6 +16281,22 @@
           "role": "current"
         },
         {
+          "path": "scripts/fixtures/evidence-freshness/fresh-report.md",
+          "role": "current"
+        },
+        {
+          "path": "scripts/fixtures/evidence-freshness/summary-only-report.md",
+          "role": "current"
+        },
+        {
+          "path": "scripts/fixtures/requirement-parallel-orchestration/launch-card-missing-fields.json",
+          "role": "current"
+        },
+        {
+          "path": "scripts/fixtures/requirement-parallel-orchestration/missing-merge-protocol.json",
+          "role": "current"
+        },
+        {
           "path": "scripts/host-instruction-projection.json",
           "role": "current"
         },
@@ -16060,6 +16333,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/evidence-freshness-receipt.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/external-review-claim-verification.js",
           "role": "current"
         },
@@ -16069,6 +16346,10 @@
         },
         {
           "path": "scripts/lib/optimization-backlog-evidence.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/requirement-parallel-orchestration.js",
           "role": "current"
         },
         {
@@ -16168,11 +16449,23 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/validate-workflow-completion-controls.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/validation-orchestration.js",
           "role": "current"
         },
         {
           "path": "scripts/migrate-layout.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-candidate-review-bundle.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-cli-behavior.js",
           "role": "current"
         },
         {
@@ -16188,11 +16481,19 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-evidence-freshness-receipt.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-external-review-claim-verification.js",
           "role": "current"
         },
         {
           "path": "scripts/test-hooks-runtime.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-host-installation.js",
           "role": "current"
         },
         {
@@ -16220,6 +16521,14 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-repair-prevention-assessment.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-requirement-parallel-orchestration.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-review-execution-contract.js",
           "role": "current"
         },
@@ -16240,6 +16549,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-workflow-completion-contract.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/validate-profile.js",
           "role": "current"
         },
@@ -16252,6 +16565,10 @@
           "role": "current"
         },
         {
+          "path": "website/docs/guide/development.md",
+          "role": "current"
+        },
+        {
           "path": "website/docs/index.md",
           "role": "current"
         },
@@ -16261,6 +16578,10 @@
         },
         {
           "path": "website/docs/intro/index.md",
+          "role": "current"
+        },
+        {
+          "path": "website/docs/specs/completion-compliance-flow.md",
           "role": "current"
         },
         {
@@ -16425,23 +16746,30 @@
         }
       ],
       "validationProfile": [
+        "scripts/test-candidate-review-bundle.js",
+        "scripts/test-cli-behavior.js",
         "scripts/test-client-contracts.js",
         "scripts/test-completion-report-ecr-check.js",
         "scripts/test-control-plane-contracts.js",
+        "scripts/test-evidence-freshness-receipt.js",
         "scripts/test-external-review-claim-verification.js",
         "scripts/test-hooks-runtime.js",
+        "scripts/test-host-installation.js",
         "scripts/test-host-parity-scorecard.js",
         "scripts/test-instruction-fallback-check.js",
         "scripts/test-mcp-servers.js",
         "scripts/test-migrate-layout.js",
         "scripts/test-optimization-backlog-evidence.js",
         "scripts/test-project-knowledge-store.js",
+        "scripts/test-repair-prevention-assessment.js",
+        "scripts/test-requirement-parallel-orchestration.js",
         "scripts/test-review-execution-contract.js",
         "scripts/test-skill-portfolio.js",
         "scripts/test-skill-sidecar-contract.js",
         "scripts/test-validate-profile.js",
         "scripts/test-validation-dag.js",
         "scripts/test-visible-output-contract.js",
+        "scripts/test-workflow-completion-contract.js",
         "scripts/validate-profile.js",
         "scripts/validate.js"
       ],
@@ -16493,23 +16821,30 @@
         ],
         "evolvableUnitRef": "skill:report",
         "probeSuiteRefs": [
+          "scripts/test-candidate-review-bundle.js",
+          "scripts/test-cli-behavior.js",
           "scripts/test-client-contracts.js",
           "scripts/test-completion-report-ecr-check.js",
           "scripts/test-control-plane-contracts.js",
+          "scripts/test-evidence-freshness-receipt.js",
           "scripts/test-external-review-claim-verification.js",
           "scripts/test-hooks-runtime.js",
+          "scripts/test-host-installation.js",
           "scripts/test-host-parity-scorecard.js",
           "scripts/test-instruction-fallback-check.js",
           "scripts/test-mcp-servers.js",
           "scripts/test-migrate-layout.js",
           "scripts/test-optimization-backlog-evidence.js",
           "scripts/test-project-knowledge-store.js",
+          "scripts/test-repair-prevention-assessment.js",
+          "scripts/test-requirement-parallel-orchestration.js",
           "scripts/test-review-execution-contract.js",
           "scripts/test-skill-portfolio.js",
           "scripts/test-skill-sidecar-contract.js",
           "scripts/test-validate-profile.js",
           "scripts/test-validation-dag.js",
           "scripts/test-visible-output-contract.js",
+          "scripts/test-workflow-completion-contract.js",
           "scripts/validate-profile.js",
           "scripts/validate.js"
         ],
@@ -16522,6 +16857,181 @@
         "operationalReadiness": {
           "state": "complete",
           "currentConsumer": "CHANGELOG.md",
+          "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
+          "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
+          "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
+          "lastEvidenceAt": "2026-07-14"
+        },
+        "triggerPrecision": {
+          "state": "structural-only",
+          "sampleCount": 0,
+          "precision": null,
+          "falsePositiveRate": null,
+          "falseNegativeRate": null,
+          "manualCorrectionRate": null,
+          "lastMeasuredAt": null
+        },
+        "lifecycleAuthorization": "plugin.json#skills[].lifecycleState",
+        "stateRationale": "registered source, current consumer and operational fixtures are present",
+        "promotionCriteria": "trigger precision requires real comparable work units; structural evidence alone cannot promote lifecycle state"
+      }
+    },
+    {
+      "id": "requirement-parallel-orchestration",
+      "name": "requirement-parallel-orchestration",
+      "description": "多需求并行编排 Skill — 当任务涉及多个需求/问题/优化并行推进、子会话、子 Agent、worktree 或多 active work 执行前判定时，生成 RequirementIndependenceGate、SharedSurfaceLockMap 与 ParallelLaunchCard。",
+      "owner": "requirement-parallel-orchestration",
+      "triggers": {
+        "terms": [
+          "Agent",
+          "ParallelLaunchCard",
+          "RequirementIndependenceGate",
+          "SharedSurfaceLockMap",
+          "Skill",
+          "active",
+          "requirement-parallel-orchestration",
+          "work",
+          "worktree"
+        ],
+        "positive": [
+          {
+            "fixture": "frontmatter-description-resolves",
+            "input": "多需求并行编排 Skill — 当任务涉及多个需求/问题/优化并行推进、子会话、子 Agent、worktree 或多 active work 执行前判定时，生成 RequirementIndependenceGate、SharedSurfaceLockMap 与 ParallelLaunchCard。"
+          }
+        ],
+        "negative": [
+          {
+            "fixture": "empty-or-unregistered-trigger-rejected",
+            "input": ""
+          }
+        ],
+        "ambiguous": []
+      },
+      "ownedArtifacts": [
+        "skills/requirement-parallel-orchestration/SKILL.md"
+      ],
+      "source": "skills/requirement-parallel-orchestration/SKILL.md",
+      "hash": "e60229b400b74ef53beb7a239e8c327aa47eb918b4e5f9ad3c668f5de4bcc41a",
+      "sourceBytes": 7016,
+      "version": "1.15.3",
+      "lifecycleState": "active",
+      "dependencies": [],
+      "references": [],
+      "conflicts": [],
+      "conflictReview": {
+        "status": "reviewed-none",
+        "evidence": "scripts/test-skill-portfolio.js#explicit-conflict-review"
+      },
+      "consumers": [
+        {
+          "path": "changelogs/unreleased.md",
+          "role": "current"
+        },
+        {
+          "path": "package.json",
+          "role": "current"
+        },
+        {
+          "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "README.md",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-requirement-parallel-orchestration.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/validation-manifest.json",
+          "role": "current"
+        },
+        {
+          "path": "website/docs/guide/development.md",
+          "role": "current"
+        },
+        {
+          "path": "website/docs/index.md",
+          "role": "current"
+        },
+        {
+          "path": "website/docs/intro/index.md",
+          "role": "current"
+        },
+        {
+          "path": "website/docs/specs/directory-structure.md",
+          "role": "current"
+        }
+      ],
+      "validationProfile": [
+        "scripts/test-requirement-parallel-orchestration.js",
+        "scripts/test-skill-portfolio.js",
+        "scripts/validate.js"
+      ],
+      "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "requirement-parallel-orchestration",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "Agent",
+            "ParallelLaunchCard",
+            "RequirementIndependenceGate",
+            "SharedSurfaceLockMap",
+            "Skill",
+            "active",
+            "requirement-parallel-orchestration",
+            "work",
+            "worktree"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "多需求并行编排 Skill — 当任务涉及多个需求/问题/优化并行推进、子会话、子 Agent、worktree 或多 active work 执行前判定时，生成 RequirementIndependenceGate、SharedSurfaceLockMap 与 ParallelLaunchCard。"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:requirement-parallel-orchestration",
+        "probeSuiteRefs": [
+          "scripts/test-requirement-parallel-orchestration.js",
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
+      "sidecar": null,
+      "evidence": {
+        "registration": "plugin.json",
+        "operationalReadiness": {
+          "state": "complete",
+          "currentConsumer": "changelogs/unreleased.md",
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
@@ -16568,8 +17078,8 @@
         "skills/review-checklist/SKILL.md"
       ],
       "source": "skills/review-checklist/SKILL.md",
-      "hash": "bb3284b076cec29790e323834af92c0b61d8035d2dd23353c160d9b3e285b1f5",
-      "sourceBytes": 14679,
+      "hash": "00a698a696219bb7f241bf1c6c3d6d92557de12e95b3591317a3bdfb3bd6688e",
+      "sourceBytes": 15499,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [],
@@ -16657,6 +17167,14 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-candidate-review-bundle.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-repair-prevention-assessment.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/validation-manifest.json",
           "role": "current"
         },
@@ -16682,6 +17200,8 @@
         }
       ],
       "validationProfile": [
+        "scripts/test-candidate-review-bundle.js",
+        "scripts/test-repair-prevention-assessment.js",
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
@@ -16727,6 +17247,8 @@
         ],
         "evolvableUnitRef": "skill:review-checklist",
         "probeSuiteRefs": [
+          "scripts/test-candidate-review-bundle.js",
+          "scripts/test-repair-prevention-assessment.js",
           "scripts/test-skill-portfolio.js",
           "scripts/validate.js"
         ],
@@ -18195,8 +18717,8 @@
         "skills/spec-absorption/SKILL.md"
       ],
       "source": "skills/spec-absorption/SKILL.md",
-      "hash": "bf93097a5221269edf16fb3c61a0e9416a34397f0d6210bbc2cf8a3465eb68c1",
-      "sourceBytes": 14417,
+      "hash": "8ff6f9ba745c33f180d92647eb816877174e3d8a88942f6c92154aa1e5a39708",
+      "sourceBytes": 16824,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [],
@@ -18292,6 +18814,14 @@
           "role": "current"
         },
         {
+          "path": "scripts/plan-absorption-candidates.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-repair-prevention-assessment.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-residual-absorption-controls.js",
           "role": "current"
         },
@@ -18321,6 +18851,7 @@
         }
       ],
       "validationProfile": [
+        "scripts/test-repair-prevention-assessment.js",
         "scripts/test-residual-absorption-controls.js",
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
@@ -18369,6 +18900,7 @@
         ],
         "evolvableUnitRef": "skill:spec-absorption",
         "probeSuiteRefs": [
+          "scripts/test-repair-prevention-assessment.js",
           "scripts/test-residual-absorption-controls.js",
           "scripts/test-skill-portfolio.js",
           "scripts/validate.js"
@@ -18950,11 +19482,19 @@
           "role": "historical"
         },
         {
+          "path": "changelogs/unreleased.md",
+          "role": "current"
+        },
+        {
           "path": "hooks/_runtime/context-read-contract.cjs",
           "role": "current"
         },
         {
           "path": "hooks/_runtime/lifecycle-bootstrap-state.cjs",
+          "role": "current"
+        },
+        {
+          "path": "hooks/_runtime/lifecycle-visible-reply.cjs",
           "role": "current"
         },
         {
@@ -19026,6 +19566,14 @@
           "role": "current"
         },
         {
+          "path": "prompts/report-analysis.prompt.md",
+          "role": "current"
+        },
+        {
+          "path": "prompts/report-dev.prompt.md",
+          "role": "current"
+        },
+        {
           "path": "prompts/technical-design.prompt.md",
           "role": "current"
         },
@@ -19046,6 +19594,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/absorption-candidate-planner.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/always-on-governance.js",
           "role": "current"
         },
@@ -19055,6 +19607,14 @@
         },
         {
           "path": "scripts/lib/cli-maintenance-commands.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/completion-report-ecr-check.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/evidence-freshness-receipt.js",
           "role": "current"
         },
         {
@@ -19079,6 +19639,10 @@
         },
         {
           "path": "scripts/lib/test-hooks-runtime-fixtures.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/test-hooks-runtime-visibility.js",
           "role": "current"
         },
         {
@@ -19118,6 +19682,18 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/validate-residual-absorption-controls.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/validate-workflow-completion-controls.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/plan-absorption-candidates.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-always-on-governance.js",
           "role": "current"
         },
@@ -19127,6 +19703,10 @@
         },
         {
           "path": "scripts/test-context-read-contract.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-evidence-freshness-receipt.js",
           "role": "current"
         },
         {
@@ -19182,7 +19762,15 @@
           "role": "current"
         },
         {
+          "path": "website/docs/specs/completion-compliance-flow.md",
+          "role": "current"
+        },
+        {
           "path": "website/docs/specs/dev-compliance-flow.md",
+          "role": "current"
+        },
+        {
+          "path": "website/docs/specs/exec-compliance-flow.md",
           "role": "current"
         },
         {
@@ -19195,6 +19783,10 @@
         },
         {
           "path": "website/docs/specs/precheck-flow.md",
+          "role": "current"
+        },
+        {
+          "path": "website/docs/specs/report-output-flow.md",
           "role": "current"
         },
         {
@@ -19322,6 +19914,7 @@
         "scripts/test-always-on-governance.js",
         "scripts/test-cli-behavior.js",
         "scripts/test-context-read-contract.js",
+        "scripts/test-evidence-freshness-receipt.js",
         "scripts/test-external-review-claim-verification.js",
         "scripts/test-governance-status-summary.js",
         "scripts/test-hooks-runtime.js",
@@ -19381,6 +19974,7 @@
           "scripts/test-always-on-governance.js",
           "scripts/test-cli-behavior.js",
           "scripts/test-context-read-contract.js",
+          "scripts/test-evidence-freshness-receipt.js",
           "scripts/test-external-review-claim-verification.js",
           "scripts/test-governance-status-summary.js",
           "scripts/test-hooks-runtime.js",
@@ -19451,8 +20045,8 @@
         "skills/test-router/SKILL.md"
       ],
       "source": "skills/test-router/SKILL.md",
-      "hash": "8d68c80caccd1429de12cabad1cee428f2e2a4d70ff6cf9783c23388d8ac551c",
-      "sourceBytes": 9894,
+      "hash": "173f887ab965a876f4d704d7c59a081b4d04f7b300746175f826d5a94e747840",
+      "sourceBytes": 10966,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [],
@@ -19670,7 +20264,19 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-completion-report-ecr-check.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-repair-prevention-assessment.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-requirement-parallel-orchestration.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-workflow-completion-contract.js",
           "role": "current"
         },
         {
@@ -19712,8 +20318,11 @@
       ],
       "validationProfile": [
         "scripts/test-client-contracts.js",
+        "scripts/test-completion-report-ecr-check.js",
         "scripts/test-repair-prevention-assessment.js",
+        "scripts/test-requirement-parallel-orchestration.js",
         "scripts/test-skill-portfolio.js",
+        "scripts/test-workflow-completion-contract.js",
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-14",
@@ -19762,8 +20371,11 @@
         "evolvableUnitRef": "skill:test-router",
         "probeSuiteRefs": [
           "scripts/test-client-contracts.js",
+          "scripts/test-completion-report-ecr-check.js",
           "scripts/test-repair-prevention-assessment.js",
+          "scripts/test-requirement-parallel-orchestration.js",
           "scripts/test-skill-portfolio.js",
+          "scripts/test-workflow-completion-contract.js",
           "scripts/validate.js"
         ],
         "exitCondition": "work-unit-complete-or-workflow-transition",
@@ -20258,8 +20870,8 @@
         "skills/user-visible-output-contract/SKILL.md"
       ],
       "source": "skills/user-visible-output-contract/SKILL.md",
-      "hash": "dc7b63349040b94958bbde1a146bed4b1ecda2feeeca0359c521e36556a77663",
-      "sourceBytes": 9868,
+      "hash": "eac23f6fcd8fe5fbb8098041c9f2b26bb2daf2c68c0920622f814447d243caed",
+      "sourceBytes": 15574,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [],
@@ -20363,7 +20975,7 @@
           "role": "current"
         },
         {
-          "path": "website/docs/index.md",
+          "path": "website/docs/guide/development.md",
           "role": "current"
         },
         {

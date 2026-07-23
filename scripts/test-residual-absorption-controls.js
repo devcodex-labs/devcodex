@@ -3,6 +3,7 @@
 
 const assert = require('assert')
 const {
+  classifyStructuredAbsorptionPlanSample,
   classifyBaseImpactAdmissionSample,
   classifyBatchScopeRebindSample,
   classifyContractMutationSample,
@@ -69,5 +70,35 @@ assert.strictEqual(classifyScenarioCoverageSample({ scenarios: [{ ...scenario, r
 const durable = { applicable: true, sourceExhaustion: true, persistentCheckpoint: true, boundedPacing: true, atomicAggregation: true, durableCompletion: true, coordinatorRecovery: true, workerRecovery: true, backpressure: true, replayEvidence: true }
 assert.strictEqual(classifyDurableBatchSample(durable), 'accepted')
 assert.strictEqual(classifyDurableBatchSample({ ...durable, persistentCheckpoint: false }), 'partial')
+
+const layerChecks = {
+  commonInstruction: { state: 'not-applicable', skipReason: 'skill subgate only' },
+  skill: { state: 'required', evidence: 'skills/spec-absorption/SKILL.md' },
+  promptTemplate: { state: 'not-applicable', skipReason: 'no prompt change' },
+  executionConsumer: { state: 'required', evidence: 'scripts/plan-absorption-candidates.js' },
+  validationProbe: { state: 'required', evidence: 'test:residual-absorption-controls' },
+  publicDocs: { state: 'required', evidence: 'README.md' },
+  deployCopy: { state: 'required', evidence: 'devcodex update --host all' }
+}
+const structured = {
+  schemaVersion: 'AbsorptionCandidateMatrixV1',
+  phaseKind: 'planning',
+  candidates: [{
+    candidateId: 'PI-STRUCTURED-ABSORB',
+    sourceNamespace: '.devcodex/devcodex-v1/data/process-improvements.md',
+    rawSummary: 'structured absorption candidate planning',
+    backlogClass: 'pure-open',
+    commonDecision: 'absorb',
+    targetOwner: 'spec-absorption',
+    targetLayer: 'existing-skill-subgate',
+    layerChecks,
+    validationRoute: ['npm run test:residual-absorption-controls']
+  }]
+}
+assert.strictEqual(classifyStructuredAbsorptionPlanSample(structured), 'accepted')
+assert.strictEqual(classifyStructuredAbsorptionPlanSample({
+  ...structured,
+  candidates: [{ ...structured.candidates[0], targetOwner: '' }]
+}), 'blocked')
 
 console.log('✓ V96 residual absorption positive and negative controls passed')

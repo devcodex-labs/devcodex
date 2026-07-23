@@ -752,15 +752,30 @@ function buildCliInstallCommands(ctx) {
       }
     }
 
-    // Merge Codex config.toml MCP servers (managed block; does not wipe user keys)
+    // Merge Codex config.toml MCP servers (managed block; fail-closed; does not wipe user keys)
     {
       const codexConfigPath = path.join(cwd, '.codex', 'config.toml')
-      let existing = ''
-      if (fs.existsSync(codexConfigPath)) {
-        try { existing = fs.readFileSync(codexConfigPath, 'utf8') } catch { existing = '' }
-      }
-      const { content, changed } = mergeCodexConfigToml(existing, cwd)
       const existed = fs.existsSync(codexConfigPath)
+      let existing = ''
+      if (existed) {
+        try {
+          existing = fs.readFileSync(codexConfigPath, 'utf8')
+        } catch (readErr) {
+          // F-001: never treat read failure as empty config and overwrite user file
+          const msg = `CODEX_CONFIG_READ_FAILED: cannot read ${codexConfigPath}: ${readErr && readErr.message ? readErr.message : readErr}`
+          if (!internal) console.log(c.red(`  ${msg}`))
+          process.exitCode = 1
+          throw new Error(msg)
+        }
+      }
+      const mergeResult = mergeCodexConfigToml(existing, cwd)
+      if (!mergeResult.ok) {
+        const msg = `${mergeResult.code || 'CODEX_MCP_MERGE_FAILED'}: ${mergeResult.error || 'merge failed'}`
+        if (!internal) console.log(c.red(`  ${msg}`))
+        process.exitCode = 1
+        throw new Error(msg)
+      }
+      const { content, changed } = mergeResult
       if (changed) {
         if (!dryRun) {
           if (existed) {
@@ -769,10 +784,29 @@ function buildCliInstallCommands(ctx) {
             try {
               fs.copyFileSync(codexConfigPath, backupPath)
               inlineLog(c.yellow(`  ⚠ backed up existing .codex/config.toml to ${path.relative(cwd, backupPath)}`))
-            } catch { /* best-effort */ }
+            } catch (backupErr) {
+              const msg = `CODEX_CONFIG_BACKUP_FAILED: cannot backup ${codexConfigPath}: ${backupErr && backupErr.message ? backupErr.message : backupErr}`
+              if (!internal) console.log(c.red(`  ${msg}`))
+              process.exitCode = 1
+              throw new Error(msg)
+            }
           }
           fs.mkdirSync(path.dirname(codexConfigPath), { recursive: true })
-          fs.writeFileSync(codexConfigPath, content, 'utf8')
+          // Atomic replace: write temp in same dir then rename (preserves original on failure)
+          const tmpPath = path.join(
+            path.dirname(codexConfigPath),
+            `.config.toml.devcodex-tmp.${process.pid}.${Date.now()}`
+          )
+          try {
+            fs.writeFileSync(tmpPath, content, 'utf8')
+            fs.renameSync(tmpPath, codexConfigPath)
+          } catch (writeErr) {
+            try { if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath) } catch { /* ignore cleanup */ }
+            const msg = `CODEX_CONFIG_WRITE_FAILED: cannot write ${codexConfigPath}: ${writeErr && writeErr.message ? writeErr.message : writeErr}`
+            if (!internal) console.log(c.red(`  ${msg}`))
+            process.exitCode = 1
+            throw new Error(msg)
+          }
         }
         if (existed) { updated++; log(c.yellow('  ↺ .codex/config.toml  (DevCodex MCP managed block)')) }
         else { added++; log(c.green('  ✓ .codex/config.toml  (DevCodex MCP managed block)')) }

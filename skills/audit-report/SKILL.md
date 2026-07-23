@@ -48,9 +48,13 @@ description: 报告审查维度 RA-1~RA-6 — 分析报告/审查报告质量专
 | `projectEvidence` | repo path / 命令 / 运行结果，不得只复述外部原文 |
 | `unverifiedBoundaries` | 未验证/UNVERIFIED 边界与推断边界 |
 | `detailReportLink` | 用户可打开的详细报告链接（最终回复不得只有口头总评） |
+| `EscapeAbsorptionQueue` | 外部 finding → 本地证据 → disposition → 目标产物 / owner / status |
+| `EvidenceFreshness` | 对采纳、拒绝、已验证、可确认等 strong claim 记录 `StaleEvidenceLintDecisionV1.status/mode`；外部原文和历史报告只能是 hint |
 
 - 机器分类：`scripts/lib/external-review-claim-verification.js`（`claim-ready` / `claim-thin` / `not-external-review`）
+- 证据新鲜度分类：`scripts/lib/evidence-freshness-receipt.js`（`ClaimEvidenceIndexV1` / `EvidenceFreshnessReceiptV1` / `StaleEvidenceLintDecisionV1`），生产入口 `npm run test:evidence-freshness`
 - 负向：只写总评/建议、无矩阵、无 UNVERIFIED、无详细报告链接 → `claim-thin`，审查不通过
+- 负向：把外部审查 finding 直接并入需求或技术方案，没有 `EscapeAbsorptionQueue`、本地证据、disposition 和 freshness decision → 审查不通过
 - 非外部审阅场景：`N/A + skipReason=not-external-review-recap`
 
 ## N/A 规则

@@ -103,6 +103,14 @@ applyTo: .devcodex/**/reports/analysis/**
 | `profileTruthReconciled` | passed / N/A + skipReason |
 | `finalVerdict` | converged / not-converged |
 
+### §4.4 EvidenceFreshness（条件）
+
+> 当最终结论、推荐方案、覆盖声明或“已验证”强主张需要复用证据时填写；没有 strong claim 时写 `N/A + skipReason=no-strong-claims`。
+
+| mode | status | indexDigest | strongClaims | downgradeRequired | rerunRequired | summaryOnlyBoundary | evidence |
+|------|--------|-------------|--------------|-------------------|---------------|---------------------|----------|
+| shadow / warn / enforce | PASS / WARN / BLOCK / UNVERIFIED / N/A | | | | | | `npm run test:evidence-freshness` exitCode |
+
 ## §5 对比矩阵（技术选型 / ComparativeResearchGate 触发时）
 
 | 维度 | 方案A | 方案B | 方案C |

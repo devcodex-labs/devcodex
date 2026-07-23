@@ -417,6 +417,20 @@ function validateConcurrencyPolicy(concurrency, sourceName) {
   validateConcurrencyLocks(concurrency.locks, sourceName)
 }
 
+function validateWorkflowCompletionConfig(workflowCompletion, sourceName) {
+  if (workflowCompletion === undefined) return
+  if (!isPlainObject(workflowCompletion)) {
+    err(`[profile] ${sourceName}.extensions.devcodex.workflowCompletion must be an object`)
+    return
+  }
+  for (const key of Object.keys(workflowCompletion)) {
+    if (key !== 'mode') err(`[profile] ${sourceName}.extensions.devcodex.workflowCompletion contains unsupported key: ${key}`)
+  }
+  if (!['off', 'shadow', 'enforce', 'rolled-back'].includes(workflowCompletion.mode)) {
+    err(`[profile] ${sourceName}.extensions.devcodex.workflowCompletion.mode must be one of: off, shadow, enforce, rolled-back`)
+  }
+}
+
 function validateProfileConfigExtensions(cfg, sourceName, projectInfoText, readmeText) {
   const extensions = cfg.extensions
   if (extensions === undefined) return
@@ -431,12 +445,13 @@ function validateProfileConfigExtensions(cfg, sourceName, projectInfoText, readm
     return
   }
   for (const key of Object.keys(devcodex)) {
-    if (!['autoAliases', 'concurrency'].includes(key)) {
+    if (!['autoAliases', 'concurrency', 'workflowCompletion'].includes(key)) {
       err(`[profile] ${sourceName}.extensions.devcodex contains unsupported key: ${key}`)
     }
   }
   validateAutoAliases(devcodex.autoAliases, sourceName)
   validateConcurrencyPolicy(devcodex.concurrency, sourceName)
+  validateWorkflowCompletionConfig(devcodex.workflowCompletion, sourceName)
   if (Array.isArray(devcodex.autoAliases) && devcodex.autoAliases.length > 0) {
     const combined = `${projectInfoText}\n${readmeText}`
     if (!/extensions\.devcodex\.autoAliases|autoAliases|auto 别名|Auto 别名/i.test(combined)) {
@@ -447,6 +462,12 @@ function validateProfileConfigExtensions(cfg, sourceName, projectInfoText, readm
     const combined = `${projectInfoText}\n${readmeText}`
     if (!/extensions\.devcodex\.concurrency|ConcurrencyPolicy|并发策略/i.test(combined)) {
       warn(`[profile] ${sourceName}.extensions.devcodex.concurrency is configured but Profile README / 01-项目信息.md does not document it`)
+    }
+  }
+  if (devcodex.workflowCompletion !== undefined) {
+    const combined = `${projectInfoText}\n${readmeText}`
+    if (!/extensions\.devcodex\.workflowCompletion|workflowCompletion|完成证据/i.test(combined)) {
+      warn(`[profile] ${sourceName}.extensions.devcodex.workflowCompletion is configured but Profile README / 01-项目信息.md does not document it`)
     }
   }
 }

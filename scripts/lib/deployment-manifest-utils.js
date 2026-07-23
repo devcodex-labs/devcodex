@@ -49,6 +49,8 @@ function findOwnershipConflicts(entries, targetRoot) {
 function expandDescriptors(packageRoot, targetRoot, descriptors) {
   const entries = []
   for (const descriptor of descriptors) {
+    // Skip observation-only / managed-segment metadata (no package source file to copy).
+    if (!descriptor.source) continue
     const sourcePath = path.join(packageRoot, descriptor.source)
     if (!fs.existsSync(sourcePath)) continue
     const stat = fs.statSync(sourcePath)

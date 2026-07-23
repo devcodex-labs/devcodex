@@ -9,6 +9,33 @@
         "functions": 100,
         "branches": 85
       }
+    },
+    {
+      "path": "hooks/_runtime/workflow-completion-contract.cjs",
+      "thresholds": {
+        "lines": 90,
+        "statements": 90,
+        "functions": 100,
+        "branches": 85
+      }
+    },
+    {
+      "path": "hooks/_runtime/lifecycle-workflow-completion.cjs",
+      "thresholds": {
+        "lines": 90,
+        "statements": 90,
+        "functions": 100,
+        "branches": 85
+      }
+    },
+    {
+      "path": "scripts/lib/validate-workflow-completion-controls.js",
+      "thresholds": {
+        "lines": 90,
+        "statements": 90,
+        "functions": 100,
+        "branches": 85
+      }
     }
   ]
 }

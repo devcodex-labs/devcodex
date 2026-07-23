@@ -10,10 +10,10 @@
 | 层级 | 缩写 | 执行时机 | 目标 | 说明 |
 |------|------|---------|------|------|
 | 入口检查 | PC0~PC7 | 每条用户消息、实质内容前 | 上下文与意图是否就绪 | 全模式强制；PC0=`ContextReadPlan`+回执，**不是**「Profile 已加载」单字段 |
-| 形式合规 | **FC** | 产物与记忆写入后 | 执行过程是否**形式**完整 | 记忆表格、报告、CP 顺序、`ArtifactDeliveryManifestV1` 与 `UserFacingArtifactSetV1` 等 |
+| 形式合规 | **FC** | 产物与记忆写入后 | 执行过程是否**形式**完整 | 记忆表格、报告、CP 顺序、`ArtifactDeliveryManifestV1`、`ArtifactAnchorProjectionV1` 与 `UserFacingArtifactSetV1` 等 |
 | 实质合规 | **SC** | 形式通过后 | 执行过程是否**实质**达标 | 扫描、同步、SUMMARY、ECR 等；按工作流适用 |
 | 恢复性检查 | **RC** | 收尾前 | 下一 Agent 能否恢复 | 记忆可恢复性、handoff、sessions |
-| 任务完成 | **T** | 宣告完成前 | 需求与合规是否闭环 | T1~T9（+ 条件 T10 计时/覆盖矩阵） |
+| 任务完成 | **T** | 宣告完成前 | 需求与合规是否闭环 | T1~T13；机器语义使用 canonical ID |
 
 > **安全底线 S01~S07** 独立于 FC/SC/RC，全模式强制，不因 prod 关闭合规块而放松。
 
@@ -27,10 +27,14 @@
 | 开发后形式核对 | FC1~FC7 |
 | 开发后实质核对 | SC1~SC15（适用项） |
 | 完成前恢复性 | RC1~RC4 |
-| 任务完成验证 | T1~T9 |
+| 任务完成验证 | T1~T13 |
 | 规范/控制面变更 | **SCV**（Spec Change Verification，S0~S7） |
 
 规范/控制面/路径/模板/部署/校验链发生语义变更时，必须追加 SCV：从变更分类、真相源、关联文件、部署副本、模板示例、验证脚本到残留漂移逐项确认。SCV 不替代 lint/test。
+
+dev / fix / self-fix 在宣告完成时还必须输出 `FinalValidationSummaryV1` 或等价短矩阵：权威验证命令与 exitCode、runId 或关键计数、WorkspaceSyncStatus、dirty boundary、release action boundary；声明 commit 时追加 post-commit replay。报告承载长日志，最终回复不能只写“全绿 / 已通过 / 详见报告”。
+
+当报告、分析、审查、推荐、CP 可确认或完成态声明含 strong claim 时，SC14a 还要求 `EvidenceFreshness`：`ClaimEvidenceIndexV1` 绑定主张，`EvidenceFreshnessReceiptV1` 绑定 source/context/dependsOn/lease，`StaleEvidenceLintDecisionV1` 决定 fresh / rerun / downgrade / unverifiable。SUMMARY、历史报告和外部审查原文只能导航，不能单独支撑“已验证 / 推荐 / 可确认”。
 
 ---
 

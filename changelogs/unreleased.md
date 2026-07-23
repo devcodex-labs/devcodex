@@ -5,10 +5,20 @@
 
 ## 当前未发布实现候选
 
+- **Workflow completion Shadow**：新增唯一 completion reducer、九类 owner receipt adapter、受管且原子回读的 task input、bounded derived state、两阶段 report/memory commit sidecar、memory read-time digest 复验、stable task selector、risk ledger、`task verify/risk` 与 `status/doctor/trace --completion`；四类生产假绿和反向身份均 fail closed。
+- **规范吸纳结构化执行与防复现闭环**：新增 `AbsorptionCandidateMatrixV1`、`LayeredAbsorptionDecisionV1`、read-only `plan-absorption-candidates` planner 与包分发清单；`spec-absorption`、V96、residual-absorption 和 repair-prevention 测试覆盖 ownerless / consumerless / validationRoute 缺失负例，防止项目独有建议、未绑定消费者建议或只写文档的半吸纳再次进入 ready。
+- **需求/技术方案候选审查内化**：新增 `CandidateReviewBundleV1`、`RequiredCandidateEvidenceGate` 与 `test:candidate-review-bundle`，要求 CP1 候选暴露 `RQMatrix / DomainRealityMatrix / ClaimEvidenceMatrix / EscapeAbsorptionQueue`，CP2 候选暴露 `TDMatrix / BlockerSnapshot / ClaimEvidenceMatrix`；同步 CP gate、plan-review、复审清单、报告与 validation manifest，防止缺矩阵、陈旧证据、软确认绕过和 open blocker。
+- **五宿主与灰度证据**：Codex/Claude/Copilot/Gemini/Grok 复用同一 projection；`HostCompletionRouteV1` 只表达 direct/portable/fallback 和 enforcement ceiling。Profile rollout 当前固定 `shadow`；Shadow window 按最近 30 天去重、保留 current/previous header，rule-set 变化 reset；真实 20/dev5/fix5 样本未满足前不得 enforce。
 - Codex 宿主 MCP：`init/update --codex` 部署 `.claude/mcp/*` 并向 owner `.codex/config.toml` 幂等 merge `BEGIN DEVCODEX-MCP-MANAGED` 块（devcodex-memory + profile，INPUT_ROOT=owner 根）；保留用户其它 mcp_servers；CLI 行为测试与 README 矩阵同步。需求：`Codex宿主MCP配置与分发` CP1 已确认。
 - Codex MCP 复审跟进：`doctor` 纠正「不自动写 MCP」反事实文案；`codexConfigState.mcp` 探测 managed block + server 文件存在；website development 文档与 README 对齐；测试覆盖 config 备份与 doctor mcp.status=ok。
 - PF-175 / PI-155 **ArtifactPathColumnGate**：用户面交付项强制 `路径：` 列（默认 workspace-relative portable）；Rich 语义链接可与路径列并存且无冗余 `绝对路径：` 行；同步 `user-visible-output-contract`、`02-output-paths`、delivery-checklist prompt、`classifyArtifactPathColumnSample` 与 visible-output 测试。
 - 消费者同步：`01-common`、always-on `instructions.md`、`website/docs/specs/report-output-flow.md` 补路径列口径；ECR 后 `devcodex update` 同步部署副本。
+- **R2 防复现（F-001~F-009）**：Codex config merge **fail-closed**（读失败/备份失败/非法 marker/identity 冲突不写）；原子 write+rename；doctor **分 table** 取 args（禁跨 table 假阳性）；host detect 仅 `.claude/mcp` 不算 Claude；codex-only descriptors 声明 shared-mcp-runtime + managed-segment-owner；`lifecycle-visible-reply` 生产调用 `classifyArtifactPathColumnSample`；Profile 01/02/07 同步。负例：`test:cli-behavior` / host-installation / visible-output。台账 PI-157 / PF-176 / PF-177 / VL-081。
+- **V93**：压缩 `index.js` 导出与注释冗余，模块行数回到预算内（≤460），以关闭 profile-deploy/core 红项。
+- **PF-186 / PI-164 FinalValidationSummary**：dev/fix/self-fix 完成态新增 `FinalValidationSummaryV1` 短矩阵与 `DevModeCompletionCheckDetailGate`，要求最终回复列出权威验证命令/exitCode、runId 或关键计数、WorkspaceSyncStatus、dirty boundary、release action boundary；声明 commit 时追加 post-commit replay。运行时负向探针覆盖“全绿/详见报告”、报告链接-only、命令无 exitCode、git status only、缺 workspace/dirty/release 边界。
+- **企业完整流上下文预算与产物锚点优化**：`BundleDecisionV2` 增加 `BudgetDecisionV1`，显式区分 `enforced / fallback-full / blocked / not-requested` 与 `optimizedHit`；`ArtifactDeliveryManifestV1` 可纯投影 `ArtifactAnchorProjectionV1 / ArtifactAnchorV1`，以 `contentDigest + projectionDigest + truthSourceKind` 支撑 schema-first 双产物和上下文锚点，不让短 MD 投影替代 canonical 真相源。
+- **证据新鲜度回执与主张复用门禁**：新增 `ClaimEvidenceIndexV1`、`EvidenceFreshnessReceiptV1`、`StaleEvidenceLintDecisionV1` 与 `test:evidence-freshness`，覆盖强主张抽取、summary-only 降级、dependency/lease 漂移、ArtifactAnchor / ArtifactAnchorProjection 和 `FinalValidationSummaryV1` 绑定；同步 report/analyze/audit/review/test-router/visible output、报告模板、README、website、Profile 与 validation manifest。
+- **多需求并行编排 Skill**：新增 active `requirement-parallel-orchestration`、`RequirementIndependenceDecisionV1`、`SharedSurfaceLockMapV1`、`ParallelLaunchCardV1`、`IntegrationMergeProtocolV1` 与 `test:requirement-parallel-orchestration`，覆盖独立、弱耦合、共享源码冲突、LaunchCard 缺字段、缺汇合协议和 `allowParallelMutations` 负向探针；同步 dev/fix/execution-contract/test-router/report/memory、package/plugin、portfolio、README、website 与 Profile。
 
 ## 历史锚点索引（已随 v1.15.0 / v1.15.1 / v1.15.2 / v1.15.3 发布或归档）
 

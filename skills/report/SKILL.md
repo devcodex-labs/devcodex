@@ -74,6 +74,7 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 - dev/fix 改变项目现实且命中 Profile 影响时写 `ProfileImpactCheck`。
 - 只有正式 release workflow 才写 `ReleaseVerification`。
 - 所有非空用户消息保留 `GovernanceIntakeDecision`；未命中台账写入时也要给出独立 `skipEvidence`。
+- 命中 `requirementParallelOrchestration` 时写并行编排摘要：`RequirementIndependenceDecisionV1` 分类、`SharedSurfaceLockMapV1` 锁、`ParallelLaunchCardV1` 有效性、汇合协议、单写者和未关闭风险；报告不得把子会话完成冒充最终完成。
 - 命中 `agent-turn-liveness` 时写 `TurnLivenessRecovery`：只引用 Owner 的状态/lease/ACK/terminal/checkpoint、HostContractRoute、fault matrix 与 sidecar lifecycle 证据；必须区分 host-native、Hook-event 和 sidecar，不能把 PostToolUse 落盘冒充模型续接或终态。
 - 命中增量项目分析时写 `ProjectKnowledge`：只记录 V2 snapshot/plan/receipt/binding identity、inventory Merkle、changed/affected/lens-gap/reused、5% oracle、claim authority/range 验证、V1 read-only migration 状态、batch accepted pointer 与 final/provisional 边界，禁止把快照或声明正文复制到报告或 SUMMARY；结构化 bootstrap 不得表述为人工逐文件深读。
 - 命中 formal retry/cancel/restart 时写 `ExecutionAttemptLedger`：分列 qualification、failureSignature、source/evidence delta、FirstPassYield、command/external/user/model timing、StopSnapshot 与 terminal/finalizer；不得把等待时间混成执行性能。
@@ -86,8 +87,10 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 
 - 每次会话必须写入报告文件（**chat 豁免**，[C05/S05](../../instructions/00-safety.instructions.md)）
 - 报告中每条建议/问题必须附五项验证（合理性 + 可实施性 + 收益 + 验证状态 + 影响范围）— 与 [`17-compliance`](../compliance/SKILL.md) §1 输出验证保持一致
-- **MeasuredVerificationStandard（V84 / SC14）**：报告中凡将 validate、targeted test、`npm run test:core` / `npm test`、性能数字或命令输出标为 `✅已验证`，必须写生产入口命令与 exitCode；自写隔离 harness 或未复用 `validate.js` 的 `createCanonicalAwareReader` 时只能标 `非权威实验` / `⚠️待验证(生产路径)`，不得写成「V# 失败/通过」或「今日 core 红/绿」。用户可见摘要须分列权威路径与实验路径。
+- **MeasuredVerificationStandard（V84 / SC14）**：报告中凡将 validate、targeted test、`npm run test:core` / `npm test`、性能数字或命令输出标为 `✅已验证`，必须写生产入口命令与 exitCode；自写隔离 harness 或未复用 `validate.js` 的 `createCanonicalAwareReader` 时只能标 `非权威实验` / `⚠️待验证(生产路径)`，不得写成「V# 失败/通过」或「今日 core 红/绿」。用户可见摘要须分列权威路径与实验路径，完成态最终回复还必须投影 `FinalValidationSummaryV1` 或等价短矩阵。
+- **EvidenceFreshness**：报告、分析、审查、推荐结论、CP 可确认声明、外部 finding 采纳和完成态强声明命中 `evidence-freshness` gateGroup 时，必须记录 `ClaimEvidenceIndexV1`、`EvidenceFreshnessReceiptV1` 或 `StaleEvidenceLintDecisionV1` 摘要。memory/SUMMARY/历史报告/外部审查文字只能作为 `summary-only` / navigation hint；缺 fresh evidence 的强主张必须降级为 `WARN/UNVERIFIED` 或在 enforce 场景阻断。机器实现：`scripts/lib/evidence-freshness-receipt.js`；生产入口：`npm run test:evidence-freshness`。
 - **ExternalReviewClaimVerificationGate（PF-164）**：对外部/他 Agent 审阅的复核报告必须含 `inputClaims`、`ClaimVerificationMatrix`、项目证据、验证状态、disposition、`unverifiedBoundaries` 与可点击详细报告链接；只写总评或建议视为不合格。Owner 细节见 `audit-report`；机器分类见 `scripts/lib/external-review-claim-verification.js`。
+- **RequiredCandidateEvidenceGate**：dev/fix 报告若覆盖 CP1/CP2 候选或确认前复审，必须记录 CandidateReviewBundleV1 分类、缺失字段、阻断快照和相关命令（如 `npm run test:candidate-review-bundle`）。外部审查发现只通过 `EscapeAbsorptionQueue` / ClaimVerificationMatrix / 本地证据进入结论，禁止直接吸纳。
 - **OptimizationEvidenceFamily（PF-168/169/170）**：
   - 优化需求/方案问题表：须证据等级 A/B/C + 可复现命令；未验证不得写「完整必须优化清单」（`classifyOptimizationBacklogEvidenceSample`）
   - 非 chat 方案审阅/深度分析：须落 `reports/**` 并给可点击链接；禁止仅对话长文宣称分析完成（`classifyAnalysisArtifactDeliverySample`）
@@ -106,17 +109,19 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 - 长任务报告附录推荐 `SessionTimingCard`（startedAt/endedAt、阶段耗时、waiting-user / waiting-external 分列；命中预算时附 cycleId 与 budget 消耗）
 - 长任务 / Auto / 多批次报告条件段：`ExecutionBudget`（maxWallClock 与触顶 StopSnapshot）、`ExternalWaitAccounting`、`LongTaskAuthorization`（PI-118 / PF-137）；未触发写 `N/A + skipReason`
 - **WorkspaceSyncStatus（PI-109 / PF-129）**：凡改规范源 / Skill / 部署消费者 / Profile 部署面，最终回复与报告必须写 `workspaceRoot`、`updateCommand`、`hostsSynced`（如 `.github`/`.claude`/`.agents`/`.codex`/`AGENTS.md`）、`result`（synced / skipped+reason / blocked）、`evidence`；禁止只写「源码已改」却不说明工作区部署是否同步
-- **CompletionEvidenceGate**：dev/fix/self-fix 宣告「已完成 / 已收口」前，报告必须同时具备：① ECR 矩阵或显式 N/A 理由；② 适用时的 WorkspaceSyncStatus；③ 测试/validate 关键证据或阻塞说明；④ dirty 边界说明；⑤ 存在派生资产时的 `PostStageDerivedArtifactFreshnessGate` staged candidate receipt 与 post-commit clean-tree replay。缺任一适用项不得写「已完成」
+- **CompletionEvidenceGate**：dev/fix/self-fix 宣告「已完成 / 已收口」前，报告必须同时具备：① ECR 矩阵或显式 N/A 理由；② 适用时的 WorkspaceSyncStatus；③ 测试/validate 关键证据或阻塞说明；④ dirty 边界说明；⑤ 存在派生资产时的 `PostStageDerivedArtifactFreshnessGate` staged candidate receipt 与 post-commit clean-tree replay。最终回复必须以 `FinalValidationSummaryV1` 短矩阵列出命令/exitCode、runId 或关键计数、workspace sync、dirty boundary、release action boundary；缺任一适用项不得写「已完成」
 - **PostDeliverySelfCheck（条件）**：长任务结束、宣称完成、或用户质疑慢/漏/不专业时，最终回复前轻量自检：耗时分列是否诚实、完成证据是否齐全、是否越界宣称「完整/零遗漏」、可泛化改进是否已走 Improvement Intake。纯 chat / 中间进度可 N/A。**禁止**每条短回复强制全量打分写 PI
 - **最终确认清单 / 可吸纳包 / 实施 backlog**（analyze 收敛交付）必须附 `FindingThemeCoverageMatrix`（ABS-17）：每行 `sourceId → mappedTo | residualId | EX | disposition`；禁止仅用主题合并清单宣称「完整/零遗漏」；用户确认主题包后若有 residual，状态标 `partial-confirmed` 并列出 residual pack
 - `dev` / `fix` 报告的 ECR 必须核对本轮真实触发的条件产物、TestRoute、Owner 证据、进度/记忆/台账、部署同步和 dirty 边界；未触发项按 schema 写 `N/A + skipReason`
 - 方案/复审阶段出现 blocker 时，报告必须引用完整 `BlockerSnapshot`；同阶段安全独立检查未执行时记录 `stopReason / skippedChecks / recoveryEntry`，不得只报告首个红项后声称该阶段已完整审查
+- 报告宣称“不再依赖其他模型审查 / 审查质量已内化”时，必须列出需求候选、技术方案候选、CP gate、复审清单、脚本探针和宿主投影的同步证据；仅改 Prompt 或仅跑外部报告复核不够。
 - backlog intake、治理落账、规范吸纳、历史分层、用户建议采纳、跨会话恢复、Profile、发布、安全审查或专家 Owner 等条件语义，统一从 `report-schema.json` 与 `../spec-governance/gate-registry.json` 生成对应段；报告只记录 `gateGroup / result / evidence / skipReason` 并链接 Owner 产物
+- 命中 `evidence-freshness` 时追加 `EvidenceFreshness` 条件段：记录 `mode`、`status`、strong claim count、`downgradeRequired`、`rerunRequired`、summary-only 边界、artifact anchor / final validation summary binding 与生产入口命令 exitCode；不复制 receipt 全文
 - 任何条件段都不得复制版本化 Gate/Owner 名录；新增能力先更新 registry/schema、Owner 与验证探针，再由报告消费者引用
 - 报告涉及规范源、Skill、Hook、CLI、MCP、模板、部署副本、路径规则或 validate 语义变更时，仍需列出 SCV-0~SCV-7 证据；外部 finding intake 不得把报告结论当作已验证事实
 - 控制面报告若出现新增探针、黄色偏离或部署同步，必须单独写出部署同步证据与其他证据来源，不能只在摘要里带过
 - 报告末尾引用本次会话记忆路径
-- 回复末尾由 `user-visible-output-contract` 输出“完成交付文件”：每项使用语义 displayName、purposeText、userAction，并强制 **路径列**（默认 workspace-relative portable，见 ArtifactPathColumnGate / PF-175），按 decision→result→evidence→optional 顺序。`ArtifactLinkSet` 只作兼容投影；Rich clickable 不在路径列外重复 `绝对路径：` 行，只有用户要求、链接失败、工作区外、歧义或无法定位时路径列/fallback 用绝对路径（详见 [`02-output-paths.instructions.md`](../../instructions/02-output-paths.instructions.md)）
+- 回复末尾由 `user-visible-output-contract` 输出“完成交付文件”：每项使用语义 displayName、purposeText、userAction，并强制 **路径列**（默认 workspace-relative portable，见 PF-175 路径列规则），按 decision→result→evidence→optional 顺序。`ArtifactLinkSet` 只作兼容投影；Rich clickable 不在路径列外重复 `绝对路径：` 行，只有用户要求、链接失败、工作区外、歧义或无法定位时路径列/fallback 用绝对路径（详见 [`02-output-paths.instructions.md`](../../instructions/02-output-paths.instructions.md)）
 
 ## 行数与拆分
 

@@ -294,12 +294,12 @@ function buildLifecycleBootstrapStateUtils(ctx) {
 
   function hostCapabilityFor(platform, payload) {
     const explicit = String(payload?.devcodexContextCapability || payload?.contextCapability || '').trim()
-    if (['structured-plan', 'path-observable', 'instruction-only'].includes(explicit)) return explicit
-    if (platform === 'claude') return 'structured-plan'
-    // Codex and Grok both expose PreToolUse path observation; Grok cannot inject
-    // UserPromptSubmit context (passive stdout ignored) so parity is path-observable only.
-    if (platform === 'codex' || platform === 'grok') return 'path-observable'
-    return 'instruction-only'
+    const capabilities = ['instruction-only', 'path-observable', 'structured-plan']
+    const ceiling = platform === 'claude'
+      ? 'structured-plan'
+      : (platform === 'codex' || platform === 'grok' ? 'path-observable' : 'instruction-only')
+    if (!capabilities.includes(explicit)) return ceiling
+    return capabilities.indexOf(explicit) <= capabilities.indexOf(ceiling) ? explicit : ceiling
   }
 
   /** Start one opaque, target-bound acquisition epoch for a UserPromptSubmit event. */

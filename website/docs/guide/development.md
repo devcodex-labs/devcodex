@@ -67,7 +67,7 @@ description: "Use when: ..."   # 必填，AI 靠这个发现 Skill
 
 - SKILL.md 包含完整的工作流内容：**触发条件** + **执行步骤** + **检查标准**
 - 每个 Skill 目录只有一个 `SKILL.md`，扁平一级目录
-- 支撑型 Skill（如 `execution-contract` / `test-router` / `release-verification` / `host-contract-verification` / `source-consumer-sync`）不能新增工作流分支；必须被 instructions、模板、报告、validate 与用户文档同时消费
+- 支撑型 Skill（如 `execution-contract` / `test-router` / `release-verification` / `host-contract-verification` / `source-consumer-sync` / `requirement-parallel-orchestration`）不能新增工作流分支；必须被 instructions、模板、报告、validate 与用户文档同时消费
 - `analyze-default` 承接默认分析工作流的只读多轮、代码事实优先、analyze-lite CRS、PCV 和推荐结论；`instructions/13-analyze.instructions.md` 只保留入口与路由索引，避免分析默认路径继续堆在 instructions。
 
 ### 条件门禁索引（非百科）
@@ -76,12 +76,13 @@ description: "Use when: ..."   # 必填，AI 靠这个发现 Skill
 
 | 场景 / 触发面 | gateGroup（代表） | Owner Skill |
 |------|------|------|
-| 规范吸纳 / 仍需吸纳 / data 扫描 | `absorption-layering` · `confirmed-completeness` | `spec-absorption` · `spec-governance` |
+| 规范吸纳 / 仍需吸纳 / data 扫描 | `absorption-layering` · `absorption-candidate-matrix` · `confirmed-completeness` | `spec-absorption` · `spec-governance` |
 | 历史长清单迁移 / 防回流 | `historical-common-layering` | `spec-absorption` · `spec-governance` |
 | 记忆 / Profile bootstrap / 有界上下文 | `memory-bootstrap` · `context-acquisition` · `profile-service` | `memory` · `load-profile` · `ai-agent-system-architecture` |
 | 用户手册 / 文档站 / README | `user-manual` · `docs-ia-readability` · `docs-semantics-examples` | `user-manual-authoring` · `audit-user-manual` · `dev-docs` |
 | 专家产物 / 领域专家语义 | `expert-output-quality` · `expert-owner-skills` | `expert-output-quality` + 对应专家 Owner |
 | 基座准入 / 操作说明 / 代码事实 | `base-admission-governance` · `expert-output-quality` | `BaseImpactAssessmentV1` / `ComplexityDeltaBudgetV1` / `UnaffectedIntentRegression` 保护稳定基座；`OperationExplanationContractV1`、`CodeTruthEvidenceMatrixGate`、`SolutionFitAgainstRepoGate` 与唯一推荐门禁让用户操作、repo 事实和推荐结论可追溯；V84/V96 提供正负向探针 |
+| 强主张证据新鲜度 / 证据复用 | `evidence-freshness` | `report` · `analyze-default` · `audit-report` · `review-checklist` · `user-visible-output-contract` |
 | 正式复审 / ECR / 逃逸补清单 | `review-checklist` · `review-escape` · `post-confirmation-review` | `review-checklist` · `cp-gate` · `dev-plan-review` |
 | 编码偏移 / 多批次范围 | `development-drift` · `batch-scope-rebinding` | `execution-contract` · `dev-default` |
 | 发布 / registry / 公开面 | `release-parity` · `public-surface` · `contract-release-authority` | `release-verification` · `audit-release` |
@@ -96,6 +97,7 @@ description: "Use when: ..."   # 必填，AI 靠这个发现 Skill
 - 发布前审查 `audit-release` 与 `release-verification` R0~R7 边界清晰；audit 只写审计产物，修复须独立 fix/self-fix 授权
 - Profile 三档与 [Profile 使用指南](./profile.md)；Node.js 默认 `>=18`；依赖升级拆分业务源码平滑性 vs 依赖层；包边界检查串行；`OfficialDocsEvidence` / `ProfileImpactCheck` / `ServiceLifecycleCleanup` / Improvement Intake / 台账回写 / Backlog 真相复核
 - 可配置并发：`extensions.devcodex.concurrency` 默认 `parallel prepare, serial commit`
+- 多需求并行：多个需求、子 Agent、子会话或 worktree 执行前先跑 `requirement-parallel-orchestration`；缺 valid `ParallelLaunchCardV1` 时保持串行
 - 验证卫生：真实 exitCode、消费者异常先查依赖树、收尾清理无关 dirty
 - 文档阅读顺序与 website nav/sidebar 同批校验；v2.0.0 规划 MCP `devcodex_getWorkflow()` 替代文件读取
 
@@ -243,6 +245,8 @@ Hook Stop / PreCompact 的可见回复验证区分 `verified-present`、`verifie
 
 dev/fix 完成前必须执行 ECR 执行闭环复审。ECR 会交叉验证 CP1/CP2/CP3、报告、daily tasks、SUMMARY、diff/commit、测试/探针和 git dirty 边界，确认没有“报告已完成但证据不足”或“SUMMARY 已完成但 daily 仍未闭环”的状态错配。
 
+当前源码中的未发布 Shadow completion contract 进一步要求结构化 `Candidate → Plan/Receipt/Snapshot → Commit → Projection`。仅有报告、完成 marker、已选择但未执行的 TestRoute，或只有复审文档时保持 `UNVERIFIED/BLOCK`；最终报告与 memory 必须先写入，再由不可变 sidecar 提交，read-time projection 才能成为用户完成结论。
+
 当任务触发 ExecutionContract、TestRoute、ReleaseAudit、ReleaseVerification、ConceptSyncMap、HostContractVerification 或 `05-实施进度.md` 时，ECR 必须把这些产物纳入关键证据；未触发时报告中写明 N/A 依据。
 
 控制面或模板-示例-校验链任务要先建立 Concept Sync Map：至少写清 `sourceOfTruth`、`currentConsumers`、`historicalMirrors`、`validateProbes`、`deployCopies`、`yellowDeviationBoundary`。其中当前消费者必须同批同步，历史镜像只有在明确标注历史性质时才允许保留旧口径。
@@ -263,8 +267,11 @@ Hook / CLI / visible reply / sticky project / workspace guard 相关任务还要
 - `devcodex status --json` / `devcodex doctor --json`：输出统一 `DevCodexCliEnvelopeV1`，适合 CI/脚本消费；非法参数为 `CLI_INVALID_OPTION` + exit 2，默认人读输出不变；`payload.governanceSummary` 只读汇总 runtime-state、Skill/gray lifecycle、执行优化证据、Gate registry、host truth、dirty boundary 与 fail-closed fast-path 决策
 - `devcodex probe [host workspace profile] --json`：运行同步、local-only、只读 typed probes；依赖失败会 skipped，不联网、不 watch、不写状态或 telemetry
 - `devcodex trace show|replay --state <lifecycle-state.json> --json`：查看/校验当前 `LocalTaskTraceV1`；sequence/duplicate/terminal 失败返回稳定错误，replay 不执行 payload、不改 state、不唤醒或控制进程
+- `devcodex task verify [--task <id|name|current>] [--project <name>] [--full] [--json]`：显式重新汇总 lifecycle 受管、原子写入并回读校验的当前 candidate owner receipts；仅 committed complete/warning 返回 exit 0，未完成或风险返回 1，selector/contract 错误返回 2
+- `devcodex task risk accept|revoke --task <id|name> ... [--json]`：只允许显式用户对可豁免 requirement 写入 candidate-bound 风险回执；non-waivable 或 scope 错误零写入
+- `devcodex status|doctor --completion ...` 与 `devcodex trace show --completion ...`：读取同一 projection 的只读诊断，不触发 reconcile。`profile/config.json` 的 `extensions.devcodex.workflowCompletion.mode` 当前为 `shadow`；真实 30 天滚动窗口、20 个 eligible 样本且 dev/fix 各 5 之前保持 waiting-external
 - Intent 阶段转换使用 `IntentConsistencyDecisionV1` 核对 proposal/requirement/phase/confidence；短确认无绑定时必须澄清，不能靠历史或 route hint 补猜
-- Skill portfolio schema v2 提供保守 `SkillIndexV2` 和只读 `BundleDecisionV1`；结构证据不得自动改变 active/gray lifecycle。portfolio 会绑定 tracked consumer inventory/projection；所有预期文件 stage 后运行 `npm run test:skill-portfolio:staged`，commit 后在 clean tree 重跑普通 `--check`，两次证据不能互相替代
+- Skill portfolio schema v2 提供保守 `SkillIndexV2` 和只读 `BundleDecisionV2`；`BudgetDecisionV1` 显式投影预算执行状态、回退原因与 `optimizedHit`。结构证据不得自动改变 active/gray lifecycle。portfolio 会绑定 tracked consumer inventory/projection；所有预期文件 stage 后运行 `npm run test:skill-portfolio:staged`，commit 后在 clean tree 重跑普通 `--check`，两次证据不能互相替代
 - `devcodex help`：查看 CLI 子命令与参数，尤其是 `profile init`、`migrate-layout`、`init/update --claude/--codex`
 - `node scripts/validate-all-profiles.js --workspace <workspace-root>`：校验 `.devcodex/workspace/profile` 与 `.devcodex/<project>/profile` 的三档必需文件和 workspace fallback；发布前可追加 `--strict-warnings`
 - `DEVCODEX_HOOK_ENFORCEMENT`：默认 `safety-only`，仅危险命令硬拦；切到 `strict` 前应先确认宿主确实支持对应 Hook 事件；当前 Codex adapter 已内置 `PreCompact` compaction runtime 兜底
@@ -277,7 +284,9 @@ Hook / CLI / visible reply / sticky project / workspace guard 相关任务还要
 
 ### 用户可见交付与 MCP fallback
 
-文件交付采用 `ArtifactDeliveryManifestV1 → UserFacingArtifactSetV1 → DevCodexVisibleEnvelopeV1 → LinkCapabilityDecisionV1 renderer`。内部 manifest 对账全部 planned/observed/delivered 产物；用户面默认只显示最终报告、直接交付物和必要证据，session、daily、SUMMARY、task/checkpoint、raw receipt/manifest/ledger 继续写入和验证但不默认展示。每项使用语义名称、用途和用户动作，按决策、结果、证据、可选详情排序。
+文件交付采用 `ArtifactDeliveryManifestV1 → ArtifactAnchorProjectionV1 / UserFacingArtifactSetV1 → DevCodexVisibleEnvelopeV1 → LinkCapabilityDecisionV1 renderer`。内部 manifest 对账全部 planned/observed/delivered 产物；需要续接上下文时，anchor projection 只携带 canonical path、`contentDigest`、`projectionDigest`、`truthSourceKind` 和证据引用，不复制正文、不替代 canonical。用户面默认只显示最终报告、直接交付物和必要证据，session、daily、SUMMARY、task/checkpoint、raw receipt/manifest/ledger 继续写入和验证但不默认展示。每项使用语义名称、用途和用户动作，按决策、结果、证据、可选详情排序。
+
+完成态还会输出 `FinalValidationSummaryV1` 短矩阵：至少列权威验证命令、`exitCode`、`runId` 或关键计数、`WorkspaceSyncStatus`、dirty boundary、push/tag/release/publish 边界；声明 commit 时还要列 post-commit replay。报告承载完整日志，最终回复只保留可核验摘要，不能只写“全绿 / 已通过 / 详见报告”。
 
 链接策略依据当前 surface 的可验证能力选择：已验证 clickable 时只显示一个语义 Markdown 链接；未知能力使用 portable 工作区相对链接；纯文本 surface 使用可复制短路径。只有用户明确要求、链接实际失败、工作区外、路径歧义或宿主无法定位时才追加绝对路径 fallback，并记录原因。`ArtifactLinkSet` 仅是兼容投影，仍由 `ArtifactLinkSetDedupeGate` 按 canonical path 去重；禁止 `file://` 与裸文件名交付。
 
@@ -330,7 +339,7 @@ ConfirmationRequest 是语义层抽象，不要求 runtime 逐字输出同名对
 
 | 分类 | 锚点 |
 |------|------|
-| 治理与吸纳 | Backlog Intake 真相复核 · 台账状态回写闭环 · 文档阅读顺序同步 · ReviewCoverageDelta · PE-12 资源生命周期与泄漏风险 · LeakRiskStabilityPressureTest · GovernanceGateRegistry · readme-authoring · audit-readme · ExistingDomainContractAudit · DocumentationTranslationParityGuard · FrontendExperienceQualityGate · ReviewFindingIntakeGate · AcceptedSuggestionRootCauseGate · ClusterEscalationGate · RiskBasedValidationLadder · NativeCommandExitCodeGate · 真实 command/shell/cwd/exitCode · ExternalRuntimePluginLifecycleGate · ExternalRegistryLifecycleMatrixGate · ServiceSpecReadGate · FunctionSourceFingerprintMatrixGate · prompts/templates · ReviewEscapeRecordGate · whyMissed · rerunEvidence · PostConfirmationReviewScopeGate · DevelopmentDriftGate · ChinesePrimaryExpressionGate · HistoricalCommonNormLayeringGate · PromptLongGateListDriftProbe · LayeredAbsorptionGate · LayeredAbsorptionDecision · ProactiveBetterAlternativeGate · Skill-first 吸纳架构 · CommonNormGeneralizationGate · ConfirmedAbsorptionCompletenessGates · LatestAbsorptionExecutionPack · A1~A10 · V74 · V82 · V84 · V85 · V86 · V88 · V89 · V90 · V95 · V96 · profile-lite · profile-standard · profile-closed-loop · AllDevCodexProfileValidationGate · ProfileTierStandardGate · ProfileLifecycleClassificationGate · ProfileGenerationContractGate · FeatureInventorySchemaGate · ProfileTierMigrationSafetyGate · ExpertOutputQualityGate · ExpertOwnerSkillGate · MemoryCannotSatisfyBootstrapGate · findingToPatchMap · independentReReview · ProfileTruthReconciliationGate · AuthorizedLocalSecurityAuditPresentationGate · PublisherCredentialTopologyGate · AgentCapabilityDomainCompletenessGate · ConsumerValidationEngineeringGate · CurrentBatchScopeDiffProbe · ContractVariantIsolationMutationGate · PhaseDeliverySemanticGate · ScenarioCoverageMatrixProbe · DesignFitnessGate · BrandVisualQualityGate · UserDocsPrimarySurfaceGate · PublicUserDocsMaintainerBoundaryGate · ActiveRequirementFinalResponseGate · BenchmarkRegressionGuard · ExecutionBudgetGate · ExternalWaitAccountingGate · LongTaskAuthorizationGate · WorkspaceSyncStatus · CompletionEvidenceGate · PostDeliverySelfCheck · SessionTimingCard · product-strategy · developer-experience-architecture · ux-interaction-architecture · frontend-architecture · backend-domain-architecture · production-readiness-sre · api-contract-architecture · external-integration-architecture · platform-ecosystem-architecture · data-architecture · security-threat-modeling · quality-strategy · design-system-architecture · accessibility-i18n · growth-analytics · business-model-review · distributed-systems-architecture · performance-engineering · privacy-compliance-architecture · ai-evaluation-engineering · DurableBatchOrchestrationProbe |
+| 治理与吸纳 | Backlog Intake 真相复核 · 台账状态回写闭环 · 文档阅读顺序同步 · ReviewCoverageDelta · PE-12 资源生命周期与泄漏风险 · LeakRiskStabilityPressureTest · GovernanceGateRegistry · readme-authoring · audit-readme · ExistingDomainContractAudit · DocumentationTranslationParityGuard · FrontendExperienceQualityGate · ReviewFindingIntakeGate · AcceptedSuggestionRootCauseGate · ClusterEscalationGate · RiskBasedValidationLadder · NativeCommandExitCodeGate · 真实 command/shell/cwd/exitCode · ExternalRuntimePluginLifecycleGate · ExternalRegistryLifecycleMatrixGate · ServiceSpecReadGate · FunctionSourceFingerprintMatrixGate · prompts/templates · ReviewEscapeRecordGate · whyMissed · rerunEvidence · PostConfirmationReviewScopeGate · DevelopmentDriftGate · ChinesePrimaryExpressionGate · HistoricalCommonNormLayeringGate · PromptLongGateListDriftProbe · LayeredAbsorptionGate · LayeredAbsorptionDecision · AbsorptionCandidateMatrixV1 · LayeredAbsorptionDecisionV1 · plan-absorption-candidates · ProactiveBetterAlternativeGate · Skill-first 吸纳架构 · CommonNormGeneralizationGate · ConfirmedAbsorptionCompletenessGates · LatestAbsorptionExecutionPack · A1~A10 · V74 · V82 · V84 · V85 · V86 · V88 · V89 · V90 · V95 · V96 · profile-lite · profile-standard · profile-closed-loop · AllDevCodexProfileValidationGate · ProfileTierStandardGate · ProfileLifecycleClassificationGate · ProfileGenerationContractGate · FeatureInventorySchemaGate · ProfileTierMigrationSafetyGate · ExpertOutputQualityGate · ExpertOwnerSkillGate · MemoryCannotSatisfyBootstrapGate · findingToPatchMap · independentReReview · ProfileTruthReconciliationGate · AuthorizedLocalSecurityAuditPresentationGate · PublisherCredentialTopologyGate · AgentCapabilityDomainCompletenessGate · ConsumerValidationEngineeringGate · CurrentBatchScopeDiffProbe · ContractVariantIsolationMutationGate · PhaseDeliverySemanticGate · ScenarioCoverageMatrixProbe · DesignFitnessGate · BrandVisualQualityGate · UserDocsPrimarySurfaceGate · PublicUserDocsMaintainerBoundaryGate · ActiveRequirementFinalResponseGate · BenchmarkRegressionGuard · ExecutionBudgetGate · ExternalWaitAccountingGate · LongTaskAuthorizationGate · WorkspaceSyncStatus · CompletionEvidenceGate · PostDeliverySelfCheck · SessionTimingCard · product-strategy · developer-experience-architecture · ux-interaction-architecture · frontend-architecture · backend-domain-architecture · production-readiness-sre · api-contract-architecture · external-integration-architecture · platform-ecosystem-architecture · data-architecture · security-threat-modeling · quality-strategy · design-system-architecture · accessibility-i18n · growth-analytics · business-model-review · distributed-systems-architecture · performance-engineering · privacy-compliance-architecture · ai-evaluation-engineering · DurableBatchOrchestrationProbe |
 
 
 > 文档同步锚点：历史通用规范分层迁移；存在 coverage 阈值；CoverageGateDecision；菜单导航；自动生成 outline/侧栏已覆盖导航。
@@ -339,6 +348,6 @@ ConfirmationRequest 是语义层抽象，不要求 runtime 逐字输出同名对
 <!-- auto-sync anchors -->
 Profile Freshness Check · 不能只验证“包能安装” · 验证卫生与包边界 · 复审覆盖增量 · 有效零发现
 
-RuntimeI18nArtifactVerificationGate · FrontendBrowserVerificationBudgetGate · UserDocsImmediateComprehensionGate · UserPathContractSweep · 不能只验证“包能安装” · 需求/问题定义阶段先做平台工程判断 · 验证卫生与包边界 · 复审覆盖增量 · 有效零发现 · 内存泄露 · 资源指标前后对比 · 首页首屏 · 分层吸纳架构 · V2FormalSolutionPackage
+RuntimeI18nArtifactVerificationGate · FrontendBrowserVerificationBudgetGate · UserDocsImmediateComprehensionGate · UserPathContractSweep · 不能只验证“包能安装” · 需求/问题定义阶段先做平台工程判断 · 验证卫生与包边界 · 复审覆盖增量 · 有效零发现 · 内存泄露 · 资源指标前后对比 · 首页首屏 · 分层吸纳架构 · 结构化吸纳候选矩阵 · V2FormalSolutionPackage
 
 自动生成 outline/侧栏已覆盖导航 · AuditMutationBoundaryGate

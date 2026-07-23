@@ -266,7 +266,7 @@ CP1（需求确认）→ PR-1 内部自检 → CP2（方案确认）→ plan-rev
 
 ## plan-review 质量门禁（两阶段强制）
 
-> 非 docs/plan-review/scenario-test 子类型必须执行。PR-1 在 CP2 前做 AI 内部自检；PR-2~PR-7 在 CP2→CP3 之间执行。🔴 阻断时短路停止（不继续后续 PR），回 CP2 重确认。
+> 非 docs/plan-review/scenario-test 子类型必须执行。PR-1 在 CP2 前做 AI 内部自检；PR-2~PR-7 在 CP2→CP3 之间执行。🔴 阻断项进入 `BlockerAggregationGate`：同一阶段继续完成所有安全独立检查，形成完整 `BlockerSnapshot` 后回 CP2 重确认；只有 invalid premise、破坏性副作用、证据污染或外部前置不可用时才 fail-fast，并记录 `stopReason / skippedChecks / recoveryEntry`。
 
 ### PR-1 需求完整性 🔴
 - 方案覆盖 CP1 确认的所有需求点

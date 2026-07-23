@@ -164,10 +164,10 @@ function buildOptimizationControlChecks(ctx) {
 
     const portfolio = buildPortfolio(ROOT)
     const portfolioErrors = validatePortfolio(portfolio)
-    if (portfolio.summary.skillCount !== 81) err(`[V92] expected 81 skills, got ${portfolio.summary.skillCount}`)
+    if (portfolio.summary.skillCount !== 82) err(`[V92] expected 82 skills, got ${portfolio.summary.skillCount}`)
     if (portfolio.summary.graySkillCount !== 3) err(`[V92] expected three gray skills, got ${portfolio.summary.graySkillCount}`)
     if (portfolio.summary.dependencyEdgeCount < 1) err('[V92] explicit Skill dependency graph has no edges')
-    if (portfolio.summary.operationalEvidenceCompleteCount !== 81) err('[V92] operational lifecycle evidence is incomplete')
+    if (portfolio.summary.operationalEvidenceCompleteCount !== 82) err('[V92] operational lifecycle evidence is incomplete')
     if (portfolio.summary.triggerQuality !== 'structural-only') err('[V92] trigger precision must remain structural-only without real samples')
     if (!Number.isInteger(portfolio.generatedFrom.consumerInventoryFileCount) || portfolio.generatedFrom.consumerInventoryFileCount < 50) {
       err('[V92] portfolio consumer inventory is missing or unexpectedly small')
@@ -191,7 +191,7 @@ function buildOptimizationControlChecks(ctx) {
     for (const needle of ['5 分钟快速开始', 'GitHub Packages', 'npm.pkg.github.com', 'NODE_AUTH_TOKEN', 'read:packages', '当前唯一发布通道', '1.0.1']) {
       if (!readme.includes(needle)) err(`[V92] README product path missing: ${needle}`)
     }
-    console.log(`[V92] optimization controls checked: skills=81 gray=3 runtimeAlerts=${runtimeState.summary.alertCount}`)
+    console.log(`[V92] optimization controls checked: skills=82 gray=3 runtimeAlerts=${runtimeState.summary.alertCount}`)
   }
 
   return { checkV92 }

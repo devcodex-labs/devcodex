@@ -55,7 +55,7 @@ dev / fix / audit 等工作流的执行细节，只有在用户或 Agent 实际�
 |------|------|---------|-----------------|
 | 第一层 | **copilot-instructions.md / CLAUDE.md / GEMINI.md / AGENTS.md** | 始终可发现的宿主入口 | 生成的精简内核或指向共享内核的薄入口 |
 | 第二层 | **Instructions** | 按需加载的规范约束（`description` 语义匹配）| 主流程节点执行规范（预检查/摘要/记忆/合规等）|
-| 第三层 | **Skills** | 按需触发的工作流能力入口 | dev / fix / audit / analyze / self-fix / plan / resume / chat，含 `analyze-default` 默认分析与 `analyze-research` 技术调研，以及 `spec-absorption` 规范吸纳执行、`user-manual-authoring` 最终用户文档、`audit-user-manual` 用户侧文档 review 聚合、`expert-output-quality` 专家型产物质量、产品策略/DX/UX/前端/后端/SRE/API/数据/安全/质量/设计系统/无障碍国际化/增长/商业模型专家 Owner Skill、`review-checklist` 复审清单、`evolution-governance` 自我进化治理、`readme-authoring` / `audit-readme` README 专项能力、`audit-release` 发布前审查和 execution-contract / test-router / release-verification / host-contract-verification / source-consumer-sync 等支撑能力 |
+| 第三层 | **Skills** | 按需触发的工作流能力入口 | dev / fix / audit / analyze / self-fix / plan / resume / chat，含 `analyze-default` 默认分析与 `analyze-research` 技术调研，以及 `spec-absorption` 规范吸纳执行、`user-manual-authoring` 最终用户文档、`audit-user-manual` 用户侧文档 review 聚合、`expert-output-quality` 专家型产物质量、产品策略/DX/UX/前端/后端/SRE/API/数据/安全/质量/设计系统/无障碍国际化/增长/商业模型专家 Owner Skill、`review-checklist` 复审清单、`evolution-governance` 自我进化治理、`readme-authoring` / `audit-readme` README 专项能力、`audit-release` 发布前审查和 execution-contract / test-router / release-verification / host-contract-verification / source-consumer-sync / requirement-parallel-orchestration 等支撑能力 |
 | 配套 | **Prompts** | 有参数的结构化输出模板 | CP 节点输出模板（CP1/CP2/CP3）|
 | 分发资产 | **Agents** | Copilot 自定义 Agent 入口 | `@devcodex` / `@devcodex-auto`；Auto 别名全局默认 `@rocky`，Profile `extensions.devcodex.autoAliases` 可替换默认别名；Copilot 端默认分发，Claude Code / Codex 端不分发 |
 
@@ -68,6 +68,7 @@ dev / fix / audit 等工作流的执行细节，只有在用户或 Agent 实际�
 | 官方组件 | Custom Instructions / Skills / Instructions / Prompts | 官方 | 平台可识别并自动加载或按需触发的资产格式 |
 | DevCodex 扩展 | CP1 / CP2 / CP3 | 自定义 | DevCodex 的确认节点体系，不是官方内建能力 |
 | DevCodex 扩展 | ConcurrencyPolicy | 自定义 | Profile `extensions.devcodex.concurrency` 描述只读/验证并发策略；核心单写者域不由项目配置删除 |
+| DevCodex 扩展 | RequirementIndependenceGate | 自定义 | `requirement-parallel-orchestration` 在多需求/子会话/worktree 前输出独立性判定、共享面锁图、LaunchCard 与串行汇合协议 |
 | DevCodex 扩展 | major/minor 版本文档结构 | 自定义 | 文档站采用 `versions/v1/<active-version>/` 承载当前迭代，`1.0.0` 仅保留历史基线 |
 
 > 结论：**官方标准负责"可被平台发现与加载"**，DevCodex 在此之上定义执行流程与分层规范。
@@ -127,7 +128,7 @@ DevCodex 当前默认向解析后的宿主 owner 分发以下目录和文件；�
 │   │   ├── 17-compliance.instructions.md
 │   │   └── 18-spec-radar.instructions.md
 │   │
-│   ├── skills/                          ← 第三层：扁平一级 Skill（81 个）
+│   ├── skills/                          ← 第三层：扁平一级 Skill（82 个）
 │   │   ├── dev-default/SKILL.md
 │   │   ├── fix-default/SKILL.md
 │   │   ├── audit-common/SKILL.md
@@ -193,7 +194,7 @@ description: 'What and when to use. Max 1024 chars.'
 Markdown 内容
 ```
 
-`spec-governance` 是规范治理专用 Skill，负责记录类意图识别、RecordRouter 台账分流、GovernanceGateRegistry 和 SCV（Spec Change Verification）规范变更验证；`spec-absorption` 负责规范吸纳执行，覆盖 `.devcodex/*/data` 候选扫描、通用规范价值证明、项目独有规则剔除、消费者证明、分层决策和验证探针。`user-manual-authoring` 负责站点文档、最终用户手册、README、quick start、接入手册和 docs-first 用户手册；`audit-user-manual` 负责用户侧文档 review、项目文档审查、菜单导航、sidebar、信息架构和文档设计聚合；`expert-output-quality` 负责代码、文档、示例、fixture、quick start、技术方案和报告的专家型产物质量，执行 `ExpertOutputQualityGate` 与 V84 同步探针；21 个专家 Owner Skill 分别为 `product-strategy`、`developer-experience-architecture`、`ux-interaction-architecture`、`frontend-architecture`、`backend-domain-architecture`、`production-readiness-sre`、`api-contract-architecture`、`external-integration-architecture`、`platform-ecosystem-architecture`、`ai-agent-system-architecture`、`data-architecture`、`security-threat-modeling`、`quality-strategy`、`design-system-architecture`、`accessibility-i18n`、`growth-analytics`、`business-model-review`、`distributed-systems-architecture`、`performance-engineering`、`privacy-compliance-architecture`、`ai-evaluation-engineering`，通过 `ExpertOwnerSkillGate` 与 V85 探针承接产品策略、开发者体验、UX、前端、后端领域、SRE、API 契约、外部集成、平台生态、AI Agent、数据、安全、质量、设计系统、无障碍/国际化、增长分析和商业模型专业判断；其中增长和商业为 P3 条件触发，不进入普通任务默认主路径；`review-checklist` 负责正式复审、ECR、发布前复审、多轮收敛和外部 finding 批次的清单创建与证据执行；`evolution-governance` 负责自我进化、自动吸纳、模型辅助规范优化、自动补 Skill / Prompt / Probe 和自动治理候选的控制面。`readme-authoring` 与 `audit-readme` 继续负责 README 分支的用户视角写作与专项审查。`audit-release` 负责发布前审查，判断 release readiness、发布说明质量、兼容/迁移风险、包元数据、文档/Profile/website 同步、回滚策略、registry/tag 风险与发布后验收；`release-verification` 继续负责 R0~R7 执行验证链。`execution-contract`、`test-router`、`release-verification`、`host-contract-verification`、`source-consumer-sync` 是支撑型 Skill，用于长流程边界、验证路线、正式发布前检查、宿主契约证据与真相源-消费者同步，不新增工作流分支。
+`spec-governance` 是规范治理专用 Skill，负责记录类意图识别、RecordRouter 台账分流、GovernanceGateRegistry 和 SCV（Spec Change Verification）规范变更验证；`spec-absorption` 负责规范吸纳执行，覆盖 `.devcodex/*/data` 候选扫描、通用规范价值证明、项目独有规则剔除、消费者证明、分层决策和验证探针。`user-manual-authoring` 负责站点文档、最终用户手册、README、quick start、接入手册和 docs-first 用户手册；`audit-user-manual` 负责用户侧文档 review、项目文档审查、菜单导航、sidebar、信息架构和文档设计聚合；`expert-output-quality` 负责代码、文档、示例、fixture、quick start、技术方案和报告的专家型产物质量，执行 `ExpertOutputQualityGate` 与 V84 同步探针；21 个专家 Owner Skill 分别为 `product-strategy`、`developer-experience-architecture`、`ux-interaction-architecture`、`frontend-architecture`、`backend-domain-architecture`、`production-readiness-sre`、`api-contract-architecture`、`external-integration-architecture`、`platform-ecosystem-architecture`、`ai-agent-system-architecture`、`data-architecture`、`security-threat-modeling`、`quality-strategy`、`design-system-architecture`、`accessibility-i18n`、`growth-analytics`、`business-model-review`、`distributed-systems-architecture`、`performance-engineering`、`privacy-compliance-architecture`、`ai-evaluation-engineering`，通过 `ExpertOwnerSkillGate` 与 V85 探针承接产品策略、开发者体验、UX、前端、后端领域、SRE、API 契约、外部集成、平台生态、AI Agent、数据、安全、质量、设计系统、无障碍/国际化、增长分析和商业模型专业判断；其中增长和商业为 P3 条件触发，不进入普通任务默认主路径；`review-checklist` 负责正式复审、ECR、发布前复审、多轮收敛和外部 finding 批次的清单创建与证据执行；`evolution-governance` 负责自我进化、自动吸纳、模型辅助规范优化、自动补 Skill / Prompt / Probe 和自动治理候选的控制面。`readme-authoring` 与 `audit-readme` 继续负责 README 分支的用户视角写作与专项审查。`audit-release` 负责发布前审查，判断 release readiness、发布说明质量、兼容/迁移风险、包元数据、文档/Profile/website 同步、回滚策略、registry/tag 风险与发布后验收；`release-verification` 继续负责 R0~R7 执行验证链。`execution-contract`、`test-router`、`release-verification`、`host-contract-verification`、`source-consumer-sync`、`requirement-parallel-orchestration` 是支撑型 Skill，用于长流程边界、验证路线、正式发布前检查、宿主契约证据、真相源-消费者同步和多需求并行编排，不新增工作流分支。
 
 ---
 
@@ -247,4 +248,4 @@ DevCodex 当前默认注册 `PreCompact`，用于在手动或自动压缩前执�
 > 结论：本页冻结**三层架构原则、分发面与目录职责**；数量类信息需要与 README/profile 同步维护。
 
 
-> Skill 规模锚点：81 个 Skills；81 个按需触发。
+> Skill 规模锚点：82 个 Skills；82 个按需触发。

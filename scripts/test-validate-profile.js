@@ -659,6 +659,38 @@ function main() {
 
         assert.strictEqual(serialConcurrencyResult.status, 0, serialConcurrencyOutput)
 
+        const validWorkflowCompletionRoot = createWorkspace(currentProjectInfo())
+        writeFile(validWorkflowCompletionRoot, '.devcodex/profile/01-项目信息.md', `${currentProjectInfo()}\n- extensions.devcodex.workflowCompletion.mode controls shadow rollout.\n`)
+        writeFile(validWorkflowCompletionRoot, '.devcodex/profile/config.json', JSON.stringify({
+            mode: 'dev',
+            agent: 'claude-code',
+            pluginVersion: VERSION,
+            extensions: {
+                devcodex: {
+                    workflowCompletion: { mode: 'shadow' }
+                }
+            }
+        }, null, 2))
+        const validWorkflowCompletionResult = runValidate(validWorkflowCompletionRoot)
+        assert.strictEqual(validWorkflowCompletionResult.status, 0, `${validWorkflowCompletionResult.stdout}\n${validWorkflowCompletionResult.stderr}`)
+
+        const invalidWorkflowCompletionRoot = createWorkspace(currentProjectInfo())
+        writeFile(invalidWorkflowCompletionRoot, '.devcodex/profile/config.json', JSON.stringify({
+            mode: 'dev',
+            agent: 'claude-code',
+            pluginVersion: VERSION,
+            extensions: {
+                devcodex: {
+                    workflowCompletion: { mode: 'automatic', autoPromote: true }
+                }
+            }
+        }, null, 2))
+        const invalidWorkflowCompletionResult = runValidate(invalidWorkflowCompletionRoot)
+        const invalidWorkflowCompletionOutput = `${invalidWorkflowCompletionResult.stdout}\n${invalidWorkflowCompletionResult.stderr}`
+        assert.strictEqual(invalidWorkflowCompletionResult.status, 1, invalidWorkflowCompletionOutput)
+        assert.match(invalidWorkflowCompletionOutput, /workflowCompletion contains unsupported key: autoPromote/)
+        assert.match(invalidWorkflowCompletionOutput, /workflowCompletion\.mode must be one of: off, shadow, enforce, rolled-back/)
+
         const invalidConcurrencyRoot = createWorkspace(currentProjectInfo())
         writeFile(invalidConcurrencyRoot, '.devcodex/profile/config.json', JSON.stringify({
             mode: 'dev',

@@ -113,6 +113,36 @@ function analyzeEntryCheckCompleteness(text, options = {}) {
   }
 }
 
+function projectWorkflowCompletionVisibleState(projection) {
+  const valid = projection?.schemaVersion === 'WorkflowCompletionProjectionV1' &&
+    Array.isArray(projection.phaseTerminals) && projection.phaseTerminals.length === 4 &&
+    typeof projection.workflowComplete === 'boolean' && typeof projection.deliveryCommitted === 'boolean' &&
+    (!projection.projectionDigest || /^[a-f0-9]{64}$/.test(projection.projectionDigest))
+  if (!valid) {
+    return {
+      schemaVersion: 'WorkflowCompletionVisibleStateV1',
+      status: 'UNVERIFIED',
+      workflowComplete: false,
+      deliveryCommitted: false,
+      completionPhase: 'unavailable',
+      projectionDigest: null,
+      firstBlocker: null,
+      recommendedActions: ['run-task-verify']
+    }
+  }
+  const committedComplete = projection.workflowComplete === true && projection.deliveryCommitted === true && Boolean(projection.projectionDigest)
+  return {
+    schemaVersion: 'WorkflowCompletionVisibleStateV1',
+    status: projection.workflowEvidenceState,
+    workflowComplete: committedComplete,
+    deliveryCommitted: projection.deliveryCommitted,
+    completionPhase: projection.completionPhase,
+    projectionDigest: projection.projectionDigest,
+    firstBlocker: projection.diagnostics?.firstBlocker?.requirementId || null,
+    recommendedActions: [...(projection.diagnostics?.recommendedActions || [])]
+  }
+}
+
 function buildLifecycleVisibleReplyUtils(ctx) {
   const {
     fs,
@@ -189,6 +219,17 @@ function buildLifecycleVisibleReplyUtils(ctx) {
     if (sectionFound && bareAbsoluteInSection > 0 && semanticItemCount === 0) {
       missingItems.push('bare-absolute-paths')
     }
+    // PF-177 / F-009: production consumer for ArtifactPathColumnGate classifier
+    let pathColumnClass = 'not-claimed'
+    try {
+      const { classifyArtifactPathColumnSample } = require('./visible-output-contract.cjs')
+      pathColumnClass = classifyArtifactPathColumnSample(text)
+      if (pathColumnClass === 'missing-path-column' || pathColumnClass === 'legacy-bare-path') {
+        if (!missingItems.includes(pathColumnClass)) missingItems.push(pathColumnClass)
+      }
+    } catch {
+      // classifier unavailable — do not invent green path-column evidence
+    }
     // Unique missing items while preserving order
     const uniqueMissing = []
     for (const item of missingItems) {
@@ -204,12 +245,18 @@ function buildLifecycleVisibleReplyUtils(ctx) {
       semanticItemCount,
       semanticDigest,
       barePathListHeading,
-      barePathBulletCount
+      barePathBulletCount,
+      pathColumnClass
     }
   }
 
   function updateVisibleReplyState(state, payload, eventName) {
     if (eventName !== 'PreCompact' && eventName !== 'Stop') return
+    const completionProjection = payload?.devcodexWorkflowCompletionProjection || payload?.workflowCompletionProjection
+    if (completionProjection) {
+      if (!state.visible) state.visible = {}
+      state.visible.workflowCompletion = projectWorkflowCompletionVisibleState(completionProjection)
+    }
     const evidence = getVisibleReplyEvidence(payload)
     state.visible.replyEvidence = evidence.observed ? 'verified-present' : 'unverified'
     state.visible.replySource = evidence.source || ''
@@ -218,6 +265,8 @@ function buildLifecycleVisibleReplyUtils(ctx) {
       // PF-163: unobserved payload cannot invent delivery; still surface semantic-artifact gap for completion evidence
       state.visible.artifactStatus = 'unverified'
       state.visible.artifactMissingItems = ['visible-payload-unobserved', 'semantic-artifact-items']
+      state.visible.finalValidationSummaryStatus = 'unverified'
+      state.visible.finalValidationSummaryMissingItems = ['visible-payload-unobserved', 'final-validation-summary']
       state.visible.stopProbe = {
         schemaVersion: 'StopPayloadProbeV1',
         observed: false,
@@ -259,6 +308,17 @@ function buildLifecycleVisibleReplyUtils(ctx) {
       textBytes: Buffer.byteLength(String(text || ''), 'utf8')
     }
     if (/🛡️ DEV 模式 \| 合规检查|FC:\s*FC1|DevCodexVisibleEnvelopeV1\s*·\s*completion-check/.test(text)) state.visible.compliance = true
+    try {
+      const { analyzeFinalValidationSummarySample } = require('./visible-output-contract.cjs')
+      const summaryEvidence = analyzeFinalValidationSummarySample(text)
+      state.visible.finalValidationSummary = summaryEvidence
+      state.visible.finalValidationSummaryStatus =
+        summaryEvidence.status === 'not-claimed' ? 'verified-missing' : summaryEvidence.status
+      state.visible.finalValidationSummaryMissingItems = summaryEvidence.missingItems
+    } catch {
+      state.visible.finalValidationSummaryStatus = 'unverified'
+      state.visible.finalValidationSummaryMissingItems = ['classifier-unavailable', 'final-validation-summary']
+    }
     const artifactEvidence = analyzeArtifactDelivery(text)
     state.visible.artifactStatus = artifactEvidence.status
     state.visible.artifactMissingItems = artifactEvidence.missingItems
@@ -337,6 +397,16 @@ function buildLifecycleVisibleReplyUtils(ctx) {
     if (eventName === 'Stop' && state.mode === 'dev' && state.reportTouched && state.visible && !state.visible.compliance) {
       items.push('合规检查状态块未输出（17-compliance：dev 模式非 chat 回复末尾必须含 🛡️ DEV 模式 | 合规检查 状态块）')
     }
+    if (eventName === 'Stop' && state.mode === 'dev' && state.reportTouched && state.visible?.compliance) {
+      const summaryStatus = state.visible.finalValidationSummaryStatus || 'verified-missing'
+      if (summaryStatus === 'verified-missing') {
+        const missing = (state.visible.finalValidationSummaryMissingItems || []).join(', ') || 'final-validation-summary'
+        items.push(`开发模式最终验证摘要不完整（DevModeCompletionCheckDetailGate：missingItems=${missing}）`)
+      } else if (summaryStatus === 'unverified') {
+        const missing = (state.visible.finalValidationSummaryMissingItems || []).join(', ') || 'final-validation-summary'
+        items.push(`无法验证最终验证摘要（DevModeCompletionCheckDetailGate：status=unverified；missingItems=${missing}）`)
+      }
+    }
     const artifactStatus = state.visible?.artifactStatus || (state.visible?.artifactPaths ? 'verified-present' : 'unverified')
     if (eventName === 'Stop' && state.mode === 'dev' && state.reportTouched && artifactStatus === 'verified-missing') {
       const missing = (state.visible.artifactMissingItems || []).join(', ') || 'artifact-delivery-manifest'
@@ -347,6 +417,9 @@ function buildLifecycleVisibleReplyUtils(ctx) {
     }
     if (state.mutated && !state.memoryTouched) items.push('记忆文件尚未写入（S05：会话结束前必须写入）')
     if (state.mutated && !state.reportTouched) items.push('报告文件尚未写入（chat 工作流豁免）')
+    if (eventName === 'Stop' && state.visible?.workflowCompletion && !state.visible.workflowCompletion.workflowComplete) {
+      items.push(`workflow completion 未提交（phase=${state.visible.workflowCompletion.completionPhase}; firstBlocker=${state.visible.workflowCompletion.firstBlocker || 'none'}）`)
+    }
     const governanceIntakeReminder = buildGovernanceIntakeReminderItem(state)
     if (governanceIntakeReminder) items.push(governanceIntakeReminder)
     if (!items.length) return ''
@@ -375,4 +448,4 @@ function buildLifecycleVisibleReplyUtils(ctx) {
   }
 }
 
-module.exports = { buildLifecycleVisibleReplyUtils, analyzeEntryCheckCompleteness }
+module.exports = { buildLifecycleVisibleReplyUtils, analyzeEntryCheckCompleteness, projectWorkflowCompletionVisibleState }

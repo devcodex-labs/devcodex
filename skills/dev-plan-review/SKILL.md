@@ -19,6 +19,8 @@ description: 技术方案验证（两阶段质量门禁）— PR-1 CP2 前自检
 
 PR-1 与 PR-2~PR-7 各阶段开始前必须由 `review-checklist` Owner 形成 candidate-bound `ReviewExecutionPlanV1`；BlockerSnapshot、执行命令与零发现结论形成 `ReviewEvidenceReceiptV1`。方案或规则/Skill/Probe/影响图变化后旧 receipt 立即 stale，不得因文件少复用旧阶段结论。
 
+CP2 候选进入阶段二前必须先通过 `RequiredCandidateEvidenceGate`：技术方案中存在 fresh `CandidateReviewBundleV1`，且 `phaseKind=CP2`、`TDMatrix`、`BlockerSnapshot`、`ClaimEvidenceMatrix` 均完整。机器负向样本由 `scripts/lib/candidate-review-bundle.js` 与 `npm run test:candidate-review-bundle` 覆盖；缺失、陈旧、软确认绕过或 open blocker 均回 CP2 修订。
+
 ## 豁免
 
 - `dev-docs` 子类型：豁免（文档产物，不涉及代码实施）
@@ -68,6 +70,7 @@ PR-7 测试与风险（🟡 标注，不阻断）
 - PR-2 三方 provider / connector / SDK 接入类方案未先区分业务功能接口与底层 provider adapter，缺少 provider metadata、内部 payload、上游 request 映射、标准化 result、错误 detail 字段级合同，或首个 provider 反向定义公共 contract
 - PR-2 包 / 库 / adapter / CLI 方案缺少代码实现层 + 包工程层检查，且未写 `N/A + skipReason`
 - PR-2 缺少物化验证计划：方案只有泛泛“测试策略”，没有可 grep 的验证计划、命令/矩阵路线、验收标准、退出条件或 TestRoute 输入；涉及性能、并发、发布、文档站、前端、缓存/异步数据时未逐项写 N/A 或证据路线
+- PR-2 缺少 `CandidateReviewBundleV1`、`TDMatrix`、`BlockerSnapshot` 或 `ClaimEvidenceMatrix`，或 `scripts/lib/candidate-review-bundle.js` 可分类为 `review-incomplete` / `blocked` / `stale` / `confirm-blocked`
 - PR-2 条件治理 Gate 命中但未按 `../spec-governance/gate-registry.json` 记录 `gateGroup / ownerSkill / validationRoute / skipReason`（或聚合 `N/A + skipReason`）。PR-2 只保留触发索引，执行正文与字段归 Owner Skill：
 
 | gateGroup / 触发面 | ownerSkill（入口） | 阻断要点（摘要） |
@@ -208,6 +211,8 @@ PR-7 测试与风险（🟡 标注，不阻断）
 | PR-6 架构质量 | ✅/🟡 | |
 | PR-7 测试与风险 | ✅/🟡 | |
 ```
+
+**RequiredCandidateEvidenceGate**：CandidateReviewBundleV1=review-ready / review-incomplete / blocked / stale / confirm-blocked；证据：`TDMatrix`、`BlockerSnapshot`、`ClaimEvidenceMatrix`、`npm run test:candidate-review-bundle`（适用时）。
 
 
 ## 同步锚点（validate / consumer）

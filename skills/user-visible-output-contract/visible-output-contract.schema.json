@@ -4,8 +4,12 @@
   "title": "DevCodex visible output contracts",
   "oneOf": [
     { "$ref": "#/$defs/ArtifactDeliveryManifestV1" },
+    { "$ref": "#/$defs/ArtifactTruthSourceClassificationV1" },
+    { "$ref": "#/$defs/ArtifactAnchorV1" },
+    { "$ref": "#/$defs/ArtifactAnchorProjectionV1" },
     { "$ref": "#/$defs/UserFacingArtifactSetV1" },
     { "$ref": "#/$defs/LinkCapabilityDecisionV1" },
+    { "$ref": "#/$defs/FinalValidationSummaryV1" },
     { "$ref": "#/$defs/DevCodexVisibleEnvelopeV1" }
   ],
   "$defs": {
@@ -81,6 +85,73 @@
           }
         },
         "manifestId": { "type": "string", "pattern": "^artifact-manifest-[a-f0-9]{64}$" },
+        "validation": { "$ref": "#/$defs/validation" }
+      }
+    },
+    "ArtifactTruthSourceClassificationV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion", "artifactKind", "truthSourceKind", "machineValidationRequired",
+        "projectionAllowed", "humanConfirmationRequired", "sidecarAllowed", "canonicalFormat",
+        "classificationDigest", "validation"
+      ],
+      "properties": {
+        "schemaVersion": { "const": "ArtifactTruthSourceClassificationV1" },
+        "artifactKind": { "type": "string", "minLength": 1 },
+        "truthSourceKind": { "enum": ["json-canonical", "markdown-canonical", "projection", "external"] },
+        "machineValidationRequired": { "type": "boolean" },
+        "projectionAllowed": { "type": "boolean" },
+        "humanConfirmationRequired": { "type": "boolean" },
+        "sidecarAllowed": { "type": "boolean" },
+        "canonicalFormat": { "enum": ["json", "markdown", "derived"] },
+        "classificationDigest": { "type": "string", "pattern": "^artifact-truth-source-[a-f0-9]{64}$" },
+        "validation": { "$ref": "#/$defs/validation" }
+      }
+    },
+    "ArtifactAnchorV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion", "artifactId", "artifactKind", "truthSourceKind", "canonicalPath",
+        "contentDigest", "projectionDigest", "generatedAt", "owner", "status", "stalePolicy",
+        "evidenceRefs", "summaryLine", "classification", "anchorDigest", "validation"
+      ],
+      "properties": {
+        "schemaVersion": { "const": "ArtifactAnchorV1" },
+        "artifactId": { "type": "string", "minLength": 1 },
+        "artifactKind": { "type": "string", "minLength": 1 },
+        "truthSourceKind": { "enum": ["json-canonical", "markdown-canonical", "projection", "external"] },
+        "canonicalPath": { "type": "string", "minLength": 1, "not": { "pattern": "^file://" } },
+        "contentDigest": { "type": "string", "minLength": 1 },
+        "projectionDigest": { "type": ["string", "null"] },
+        "generatedAt": { "type": "string", "format": "date-time" },
+        "owner": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["fresh", "stale", "blocked", "unknown"] },
+        "stalePolicy": { "type": "string", "minLength": 1 },
+        "evidenceRefs": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "summaryLine": { "type": "string" },
+        "classification": { "$ref": "#/$defs/ArtifactTruthSourceClassificationV1" },
+        "anchorDigest": { "type": "string", "pattern": "^artifact-anchor-[a-f0-9]{64}$" },
+        "validation": { "$ref": "#/$defs/validation" }
+      }
+    },
+    "ArtifactAnchorProjectionV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion", "sourceSchemaVersion", "sourceId", "sourceDigest", "generatedAt",
+        "owner", "anchors", "projectionDigest", "validation"
+      ],
+      "properties": {
+        "schemaVersion": { "const": "ArtifactAnchorProjectionV1" },
+        "sourceSchemaVersion": { "type": ["string", "null"] },
+        "sourceId": { "type": ["string", "null"] },
+        "sourceDigest": { "type": ["string", "null"] },
+        "generatedAt": { "type": "string", "format": "date-time" },
+        "owner": { "type": "string", "minLength": 1 },
+        "anchors": { "type": "array", "items": { "$ref": "#/$defs/ArtifactAnchorV1" } },
+        "projectionDigest": { "type": "string", "pattern": "^artifact-anchor-projection-[a-f0-9]{64}$" },
         "validation": { "$ref": "#/$defs/validation" }
       }
     },
@@ -172,6 +243,41 @@
         "evidenceState": { "enum": ["verified", "unverified", "failed"] },
         "evidenceRefs": { "type": "array", "items": { "type": "string" } },
         "requiredAction": { "type": ["string", "null"] }
+      }
+    },
+    "validationCommandEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["authority", "command", "exitCode", "runId", "keyCount", "evidenceRefs"],
+      "properties": {
+        "authority": { "enum": ["authoritative", "experiment", "skipped"] },
+        "command": { "type": "string" },
+        "exitCode": { "type": ["integer", "null"] },
+        "runId": { "type": ["string", "null"] },
+        "keyCount": { "type": ["string", "null"] },
+        "evidenceRefs": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "FinalValidationSummaryV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion", "commands", "postCommitReplay", "workspaceSyncStatus",
+        "dirtyBoundary", "releaseActionBoundary", "reportRefs", "validation"
+      ],
+      "properties": {
+        "schemaVersion": { "const": "FinalValidationSummaryV1" },
+        "commands": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/validationCommandEvidence" }
+        },
+        "postCommitReplay": { "type": ["string", "null"] },
+        "workspaceSyncStatus": { "type": "string", "minLength": 1 },
+        "dirtyBoundary": { "type": "string", "minLength": 1 },
+        "releaseActionBoundary": { "type": "string", "minLength": 1 },
+        "reportRefs": { "type": "array", "items": { "type": "string" } },
+        "validation": { "$ref": "#/$defs/validation" }
       }
     },
     "DevCodexVisibleEnvelopeV1": {

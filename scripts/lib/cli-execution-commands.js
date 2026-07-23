@@ -5,11 +5,55 @@ const path = require('path')
 const PACKAGE_JSON = require('../../package.json')
 const {
   TaskContinuationError,
-  resolveTaskContinuation
+  resolveTaskContinuation,
+  resolveUniqueActiveTaskContinuation
 } = require('../../hooks/_runtime/task-continuation-contract.cjs')
+const {
+  WorkflowCompletionLifecycleError,
+  appendRiskAcceptanceDecision,
+  inspectTaskWorkflowCompletion,
+  verifyTaskWorkflowCompletion
+} = require('../../hooks/_runtime/lifecycle-workflow-completion.cjs')
 const { buildBundleDecisionV2 } = require('../../mcp/profile-contract.js')
 const { resolveExecutionFeatureDecisionForCwd } = require('../../hooks/_runtime/execution-optimization-routing.cjs')
 const { createCliFailure, createCliSuccess, printCliJson } = require('./cli-json-contract.js')
+
+function resolveCompletionTask({ cwd, task, project, resolveTask = resolveTaskContinuation, resolveUniqueTask = resolveUniqueActiveTaskContinuation }) {
+  const resolution = task
+    ? resolveTask({ cwd, name: task, project })
+    : resolveUniqueTask({ cwd, project })
+  if (resolution?.status === 'resolved-active' && (resolution.candidate?.legacy || !resolution.candidate?.taskId)) {
+    return {
+      ...resolution,
+      status: 'stale-confirmation',
+      errorCode: 'TASK_IDENTITY_INVALID',
+      message: `Task ${resolution.candidate?.displayName || '(unknown)'} needs a stable TaskIdentityV1 before completion verification.`,
+      nextStep: 'Materialize .memory/task.json with a stable taskId, then retry.'
+    }
+  }
+  return resolution
+}
+
+function completionTaskContext(resolution) {
+  const candidate = resolution?.candidate
+  if (resolution?.status !== 'resolved-active' || !candidate?.taskRoot) return null
+  return {
+    taskRoot: candidate.taskRoot,
+    activeRoot: path.resolve(candidate.taskRoot, '..', '..'),
+    taskKey: `${candidate.project}:${candidate.kind}:${candidate.taskId}`,
+    taskResolution: resolution
+  }
+}
+
+function readCompletionForCli({ cwd, task = '', project = '', verify = false, persist = false, nowMs, resolveTask, resolveUniqueTask }) {
+  const taskResolution = resolveCompletionTask({ cwd, task, project, resolveTask, resolveUniqueTask })
+  const context = completionTaskContext(taskResolution)
+  if (!context) return { taskResolution, completion: null }
+  const completion = verify
+    ? verifyTaskWorkflowCompletion({ ...context, persist, nowMs })
+    : inspectTaskWorkflowCompletion({ ...context, nowMs })
+  return { taskResolution, completion }
+}
 
 function buildCliExecutionCommands(ctx) {
   const {
@@ -17,6 +61,9 @@ function buildCliExecutionCommands(ctx) {
     console,
     c,
     resolveTask = resolveTaskContinuation,
+    resolveUniqueTask = resolveUniqueActiveTaskContinuation,
+    verifyCompletion = verifyTaskWorkflowCompletion,
+    appendRisk = appendRiskAcceptanceDecision,
     buildSkillBundle = buildBundleDecisionV2,
     resolveExecutionFeature = resolveExecutionFeatureDecisionForCwd,
     readSkillPortfolio = () => JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', '..', 'skills', 'portfolio.json'), 'utf8'))
@@ -39,6 +86,40 @@ function buildCliExecutionCommands(ctx) {
     if (options.action !== 'resolve') options.errors.push(`unknown task subcommand: ${options.action || '(none)'}`)
     options.name = options.nameParts.join(' ').trim()
     if (options.action === 'resolve' && !options.name) options.errors.push('task name is required')
+    return options
+  }
+
+  function parseCompletionTaskArgs(argv) {
+    const values = Array.isArray(argv) ? argv : []
+    const risk = values[0] === 'risk'
+    const options = {
+      action: risk ? `risk-${values[1] || ''}` : values[0] || '',
+      task: '', project: '', requirementId: '', receiptDigest: '', reason: '', expiresAt: '',
+      full: false, json: false, errors: []
+    }
+    const start = risk ? 2 : 1
+    const single = (field, flag, value) => {
+      if (!value || String(value).startsWith('--')) options.errors.push(`${flag} requires a value`)
+      else if (options[field]) options.errors.push(`${flag} is non-repeatable`)
+      else options[field] = String(value)
+    }
+    for (let index = start; index < values.length; index += 1) {
+      const arg = String(values[index])
+      if (arg === '--json') options.json = true
+      else if (arg === '--full') options.full = true
+      else if (['--task', '--project', '--requirement', '--receipt', '--reason', '--expires-at'].includes(arg)) {
+        const field = ({ '--task': 'task', '--project': 'project', '--requirement': 'requirementId', '--receipt': 'receiptDigest', '--reason': 'reason', '--expires-at': 'expiresAt' })[arg]
+        const value = values[index + 1]
+        single(field, arg, value)
+        if (value && !String(value).startsWith('--')) index += 1
+      } else options.errors.push(`unsupported option: ${arg}`)
+    }
+    if (!['verify', 'risk-accept', 'risk-revoke'].includes(options.action)) options.errors.push(`unknown task subcommand: ${values.slice(0, 2).join(' ') || '(none)'}`)
+    if (options.action.startsWith('risk-') && !options.task) options.errors.push('--task is required for risk mutation')
+    if (options.action === 'risk-accept' && !options.requirementId) options.errors.push('--requirement is required')
+    if (options.action === 'risk-revoke' && !options.receiptDigest) options.errors.push('--receipt is required')
+    if (options.action.startsWith('risk-') && !options.reason) options.errors.push('--reason is required')
+    if (options.action === 'risk-revoke' && options.expiresAt) options.errors.push('--expires-at is only valid for risk accept')
     return options
   }
 
@@ -75,6 +156,7 @@ function buildCliExecutionCommands(ctx) {
   }
 
   function cmdTask(argv = []) {
+    if (argv[0] === 'verify' || argv[0] === 'risk') return cmdTaskCompletion(argv)
     const options = parseTaskArgs(argv)
     if (options.errors.length) {
       printFailure(
@@ -114,6 +196,83 @@ function buildCliExecutionCommands(ctx) {
       exitCode
     )
     return resolution
+  }
+
+  function renderCompletionFailure(options, operation, code, message, nextStep, details, exitCode) {
+    if (options.json) printCliJson(console, createCliFailure(operation, code, message, nextStep, cliMetadata, details))
+    else {
+      console.log(c.red(`  [${code}] ${message}`))
+      console.log(c.dim(`  ${nextStep}`))
+    }
+    process.exitCode = exitCode
+  }
+
+  function printCompletionHuman(payload) {
+    const projection = payload.completion?.projection
+    console.log()
+    console.log(c.bold('  DevCodex workflow completion'))
+    console.log(`  ${c.cyan('task'.padEnd(18))} ${payload.taskResolution.candidate.displayName}`)
+    console.log(`  ${c.cyan('evidence'.padEnd(18))} ${projection?.workflowEvidenceState || 'UNVERIFIED'}`)
+    console.log(`  ${c.cyan('phase'.padEnd(18))} ${projection?.completionPhase || 'unavailable'}`)
+    console.log(`  ${c.cyan('workflowComplete'.padEnd(18))} ${projection?.workflowComplete === true}`)
+    console.log(`  ${c.cyan('deliveryCommitted'.padEnd(18))} ${projection?.deliveryCommitted === true}`)
+    console.log(`  ${c.cyan('projectionDigest'.padEnd(18))} ${projection?.projectionDigest || '(none)'}`)
+    if (projection?.diagnostics?.firstBlocker) console.log(`  ${c.yellow('firstBlocker'.padEnd(18))} ${projection.diagnostics.firstBlocker.requirementId}`)
+    console.log()
+  }
+
+  function cmdTaskCompletion(argv) {
+    const options = parseCompletionTaskArgs(argv)
+    const operation = options.action === 'verify' ? 'task.verify' : `task.risk.${options.action.split('-')[1] || 'unknown'}`
+    if (options.errors.length) {
+      renderCompletionFailure(options, operation, 'CLI_INVALID_OPTION', options.errors.join('; '),
+        'Use: devcodex task verify [--task <task>] [--project <name>] [--full] [--json] or task risk accept|revoke with explicit --task.',
+        { errors: options.errors }, 2)
+      return null
+    }
+    let taskResolution
+    try {
+      taskResolution = resolveCompletionTask({ cwd: process.cwd(), task: options.task, project: options.project, resolveTask, resolveUniqueTask })
+    } catch (error) {
+      if (!(error instanceof TaskContinuationError)) throw error
+      renderCompletionFailure(options, operation, error.code, error.message, error.nextStep || 'Correct the task selector and retry.', null, 2)
+      return null
+    }
+    const context = completionTaskContext(taskResolution)
+    if (!context) {
+      renderCompletionFailure(options, operation, taskResolution.errorCode || 'TASK_RESOLUTION_FAILED', taskResolution.message || 'Task resolution failed.', taskResolution.nextStep || 'Choose an exact active task.', taskResolution, 2)
+      return taskResolution
+    }
+    if (options.action === 'verify') {
+      const completion = verifyCompletion({ ...context, persist: true, full: options.full })
+      const payload = { taskResolution, completion }
+      const complete = completion.projection?.workflowComplete === true && completion.projection?.deliveryCommitted === true
+      if (options.json) printCliJson(console, createCliSuccess(operation, payload, cliMetadata))
+      else printCompletionHuman(payload)
+      process.exitCode = complete ? 0 : 1
+      return payload
+    }
+    try {
+      const result = appendRisk({
+        taskRoot: context.taskRoot,
+        action: options.action === 'risk-accept' ? 'accept' : 'revoke',
+        requirementId: options.requirementId,
+        receiptDigest: options.receiptDigest,
+        reason: options.reason,
+        expiresAt: options.expiresAt || null,
+        actor: process.env.USERNAME || process.env.USER || 'local-cli-user'
+      })
+      const payload = { taskResolution, risk: result }
+      if (options.json) printCliJson(console, createCliSuccess(operation, payload, cliMetadata))
+      else console.log(c.green(`  ${operation} persisted: ${result.receipt.receiptDigest}`))
+      process.exitCode = 0
+      return payload
+    } catch (error) {
+      if (!(error instanceof WorkflowCompletionLifecycleError)) throw error
+      const exitCode = ['RISK_REQUIREMENT_NON_WAIVABLE', 'RISK_SCOPE_INVALID'].includes(error.code) ? 1 : 2
+      renderCompletionFailure(options, operation, error.code, error.message, 'Correct the risk scope or inspect task completion diagnostics.', { details: error.details }, exitCode)
+      return null
+    }
   }
 
   function parseSkillArgs(argv) {
@@ -248,4 +407,4 @@ function buildCliExecutionCommands(ctx) {
   return { cmdSkill, cmdTask }
 }
 
-module.exports = { buildCliExecutionCommands }
+module.exports = { buildCliExecutionCommands, completionTaskContext, readCompletionForCli, resolveCompletionTask }

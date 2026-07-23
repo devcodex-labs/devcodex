@@ -476,6 +476,49 @@ function descriptorMap(inventory) {
   return new Map(inventory.descriptors.map(descriptor => [descriptor.relativeTaskPath, descriptor]))
 }
 
+function resolveUniqueActiveTaskContinuation({ cwd = process.cwd(), project = '', scope = 'auto', budgets = {}, now = () => Date.now() } = {}) {
+  let rootContext
+  let budget
+  let inventory
+  try {
+    rootContext = resolveRootContext({ cwd, project, scope })
+    budget = createBudget(rootContext.scope, budgets)
+    inventory = collectTaskInventory(rootContext, budget)
+  } catch (error) {
+    if (error instanceof TaskContinuationError && error.code === 'TASK_INDEX_SCALE_BLOCKED') {
+      return {
+        schemaVersion: TASK_RESOLUTION_SCHEMA,
+        status: 'scale-blocked',
+        errorCode: error.code,
+        message: error.message,
+        nextStep: error.nextStep
+      }
+    }
+    throw error
+  }
+  const active = inventory.descriptors.map(descriptor => inspectTaskDescriptor(descriptor, budget)).filter(item => item.status === 'active')
+  if (active.length !== 1) {
+    return {
+      ...baseResolution(rootContext, '', '', { state: 'bounded-unique-active-scan', sourceIdentity: inventory.sourceIdentity }),
+      status: active.length ? 'ambiguous' : 'not-found',
+      errorCode: active.length ? 'TASK_AMBIGUOUS' : 'TASK_SELECTOR_REQUIRED',
+      message: active.length ? `${active.length} active tasks require an explicit --task selector.` : 'No unique active task is available.',
+      candidates: active.slice(0, 5).map(minimalCandidate),
+      nextStep: 'Specify --task with an exact display name, alias, or stable taskId.',
+      scan: { directories: budget.directories, bytes: budget.bytes }
+    }
+  }
+  const selected = active[0]
+  return resolveTaskContinuation({
+    cwd,
+    name: selected.identityValid && selected.taskId ? selected.taskId : selected.displayName,
+    project,
+    scope,
+    budgets,
+    now
+  })
+}
+
 function resolveTaskContinuation({
   cwd = process.cwd(),
   name,
@@ -687,6 +730,7 @@ module.exports = {
   materializeTaskIdentity,
   normalizeTaskName,
   parseContinuationCommand,
+  resolveUniqueActiveTaskContinuation,
   resolveRootContext,
   resolveTaskContinuation,
   validateTaskIdentity

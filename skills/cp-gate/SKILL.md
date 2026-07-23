@@ -121,6 +121,9 @@ CP 门控**不受 ENV_MODE 影响**。dev/prod 均强制保持 CP1→CP2 顺序�
 > 🔴 **ClosureEvidenceGate**：宣称 closed / 可确认下一 CP / 可实施 时，每条 P0 须双列 `designEvidence` + `runtimeOwners(writer|reader|schema|probe)`；仅有设计段落 → 最高 `partial`，禁止写「可确认 CP3 / 可实施」。  
 > 🔴 **ReReviewRuntimeFirstGate**：用户说「已调整 / 再审」时，先绑 hash、先问 runtime 假绿，再做旧 finding 打勾。
 
+> 🔴 **RequiredCandidateEvidenceGate**：CP1/CP2 请求确认前必须检查候选审查包。CP1 要求 `CandidateReviewBundleV1 + phaseKind=CP1 + RQMatrix + DomainRealityMatrix + ClaimEvidenceMatrix + EscapeAbsorptionQueue`；CP2 要求 `CandidateReviewBundleV1 + phaseKind=CP2 + TDMatrix + BlockerSnapshot + ClaimEvidenceMatrix`。缺失、陈旧、存在 open blocker 或软确认绕过时，确认状态必须停在当前 CP 并修订产物。
+> 机器探针：`npm run test:candidate-review-bundle` / `scripts/lib/candidate-review-bundle.js`；分类为 `review-ready` 才能进入确认，`review-incomplete`、`blocked`、`stale`、`confirm-blocked` 均不得包装为用户可确认状态。
+
 控制面推荐写入（digest 扩展表）：
 
 ```markdown

@@ -1,5 +1,10 @@
 'use strict'
 
+const {
+  planAbsorptionCandidates,
+  validateAbsorptionCandidateMatrix
+} = require('./absorption-candidate-planner')
+
 function classifyReleaseEfficiencySample(sample) {
   if (!sample.candidateFrozen || !sample.candidateIdentity || !sample.evidenceDependencyGraph) return 'unfrozen'
   if (sample.budgetMode === 'blocking' && (!sample.budgetAuthority || !sample.baselineComparable)) return 'invalid-budget'
@@ -95,6 +100,14 @@ function classifyDurableBatchSample(sample) {
   return fields.every(field => sample[field] === true) ? 'accepted' : 'partial'
 }
 
+function classifyStructuredAbsorptionPlanSample(sample) {
+  const plan = planAbsorptionCandidates(sample)
+  if (plan.validation.status !== 'valid') return 'invalid'
+  if (plan.summary.blocked > 0 || plan.summary.openBlockers > 0) return 'blocked'
+  if (plan.summary.ready === 0) return 'no-ready-candidate'
+  return 'accepted'
+}
+
 function buildResidualAbsorptionControlChecks(ctx) {
   const { ROOT, fs, path, read, err, console } = ctx
 
@@ -165,6 +178,42 @@ function buildResidualAbsorptionControlChecks(ctx) {
     expect(classifyDurableBatchSample({ applicable: true, sourceExhaustion: true, persistentCheckpoint: true, boundedPacing: true, atomicAggregation: true, durableCompletion: true, coordinatorRecovery: true, workerRecovery: true, backpressure: true, replayEvidence: false }), 'partial', 'durable replay negative')
     expect(classifyDurableBatchSample({ applicable: true, sourceExhaustion: true, persistentCheckpoint: true, boundedPacing: true, atomicAggregation: true, durableCompletion: true, coordinatorRecovery: true, workerRecovery: true, backpressure: true, replayEvidence: true }), 'accepted', 'durable positive')
 
+    const layerChecks = {
+      commonInstruction: { state: 'not-applicable', skipReason: 'skill subgate only' },
+      skill: { state: 'required', evidence: 'skills/spec-absorption/SKILL.md' },
+      promptTemplate: { state: 'not-applicable', skipReason: 'no prompt change' },
+      executionConsumer: { state: 'required', evidence: 'scripts/plan-absorption-candidates.js' },
+      validationProbe: { state: 'required', evidence: 'test:residual-absorption-controls' },
+      publicDocs: { state: 'required', evidence: 'README.md' },
+      deployCopy: { state: 'required', evidence: 'devcodex update --host all' }
+    }
+    const structuredMatrix = {
+      schemaVersion: 'AbsorptionCandidateMatrixV1',
+      phaseKind: 'planning',
+      candidates: [{
+        candidateId: 'PI-STRUCTURED-ABSORB',
+        sourceNamespace: '.devcodex/devcodex-v1/data/process-improvements.md',
+        rawSummary: 'structured absorption candidate planning',
+        backlogClass: 'pure-open',
+        commonDecision: 'absorb',
+        targetOwner: 'spec-absorption',
+        targetLayer: 'existing-skill-subgate',
+        layerChecks,
+        validationRoute: ['npm run test:residual-absorption-controls'],
+        consumerSync: ['README.md']
+      }]
+    }
+    expect(classifyStructuredAbsorptionPlanSample(structuredMatrix), 'accepted', 'structured absorption positive')
+    expect(classifyStructuredAbsorptionPlanSample({
+      ...structuredMatrix,
+      candidates: [{ ...structuredMatrix.candidates[0], targetOwner: '' }]
+    }), 'blocked', 'structured absorption target owner negative')
+    expect(validateAbsorptionCandidateMatrix({
+      schemaVersion: 'AbsorptionCandidateMatrixV1',
+      phaseKind: 'planning',
+      candidates: []
+    }).some(item => item.code === 'candidates-required'), true, 'structured absorption empty matrix negative')
+
     const required = [
       ['skills/release-verification/SKILL.md', ['CandidateFreezeGate', 'ReleaseCriticalPathBudgetGate', 'ValidationEvidenceReuseGate', 'ReleaseReworkIncidentGate', 'IsolatedConsumerCwdGate', 'npm init --prefix']],
       ['skills/audit-release/SKILL.md', ['CandidateFreezeGate', 'ValidationEvidenceReuseGate']],
@@ -177,7 +226,11 @@ function buildResidualAbsorptionControlChecks(ctx) {
       ['skills/audit-user-manual/SKILL.md', ['ScenarioCoverageMatrixProbe', 'DurableBatchOrchestrationProbe']],
       ['skills/distributed-systems-architecture/SKILL.md', ['DurableBatchOrchestrationProbe', '持久化 cursor/checkpoint']],
       ['skills/spec-governance/gate-registry.json', ['release-efficiency', 'batch-scope-rebinding', 'contract-mutation-isolation', 'phase-delivery-semantics', 'scenario-durable-workflow']],
-      ['skills/spec-absorption/SKILL.md', ['BaseImpactAssessmentV1', 'ComplexityDeltaBudgetV1', 'UnaffectedIntentRegression', 'replacementOrRetirementCredit', 'base-neutral', 'base-compatible', 'base-changing']],
+      ['skills/spec-absorption/SKILL.md', ['BaseImpactAssessmentV1', 'ComplexityDeltaBudgetV1', 'UnaffectedIntentRegression', 'replacementOrRetirementCredit', 'base-neutral', 'base-compatible', 'base-changing', 'AbsorptionCandidateMatrixV1', 'LayeredAbsorptionDecisionV1', 'plan-absorption-candidates']],
+      ['skills/spec-absorption/absorption-candidate-matrix.v1.schema.json', ['AbsorptionCandidateMatrixV1', 'backlogClass', 'commonDecision', 'layerChecks', 'prevention']],
+      ['skills/spec-absorption/layered-absorption-decision.v1.schema.json', ['LayeredAbsorptionDecisionV1', 'classification', 'consumerSync', 'status']],
+      ['scripts/lib/absorption-candidate-planner.js', ['planAbsorptionCandidates', 'validateAbsorptionCandidateMatrix', 'readonly', 'sideEffects']],
+      ['scripts/plan-absorption-candidates.js', ['--self-test', '--input', 'read-only']],
       ['skills/spec-governance/SKILL.md', ['base-admission-governance', 'BaseImpactAssessmentV1', 'ComplexityDeltaBudgetV1']],
       ['skills/test-router/SKILL.md', ['baseAdmissionGovernance', 'BaseImpactAssessmentV1', 'V96']],
       ['skills/report/report-schema.json', ['ReleaseEfficiencyControl', 'ConsumerValidationEngineering']],
@@ -210,5 +263,6 @@ module.exports = {
   classifyIsolatedConsumerCwdSample,
   classifyPhaseDeliverySample,
   classifyReleaseEfficiencySample,
-  classifyScenarioCoverageSample
+  classifyScenarioCoverageSample,
+  classifyStructuredAbsorptionPlanSample
 }

@@ -26,6 +26,7 @@ description: 执行契约规范 — 为长流程、多文件、Auto 或控制面
 | `allowedFirstBatch` | 条件 | dev/fix 执行前必填；本批允许立即修改的功能、文件、公开面和验证动作 |
 | `blockedScope` | 条件 | dev/fix 执行前必填；明确排除的后续阶段能力、非目标文件、禁止扩散面和 No-Go |
 | `allowedPaths` | ✅ | 允许修改的路径集合；Auto 不得仅依赖静态白名单 |
+| `parallelLaunchCards` | 条件 | 多需求/子 Agent/worktree 执行前必填；引用 `requirement-parallel-orchestration` 的 `RequirementIndependenceDecisionV1`、`ParallelLaunchCardV1`、`SharedSurfaceLockMapV1` 和 `IntegrationMergeProtocolV1` |
 | `requiredArtifacts` | ✅ | 必须产出的需求、方案、计划、进度、报告、测试、changelog 等 |
 | `consumerScope` | 条件 | 控制面 / 模板-示例-校验链任务必填；列出 `sourceOfTruth`、`currentConsumers`、`historicalMirrors`、`validateProbes`、`deployCopies` |
 | `backlogTruthReview` | 条件 | 当任务/批次直接来源于 `data/*.md` open/partial 项时必填；列出 `candidateIds`、`classification`、`evidence`、`scopeDelta` |

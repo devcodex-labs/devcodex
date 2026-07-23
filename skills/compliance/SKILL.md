@@ -9,7 +9,7 @@ description: 执行入口检查与 FC/SC/RC/T 合规校验。PC0~PC7 入口检�
 | ENV_MODE | 检查策略 |
 |----------|---------|
 | `prod`（默认）| 不执行合规检查（规范已验证，Instructions 直接指导 AI 行为） |
-| `dev` | 全量执行 FC1~FC7 + SC1~SC15 + RC1~RC4 + T1~T9 |
+| `dev` | 全量执行 FC1~FC7 + SC1~SC15 + RC1~RC4 + T1~T13 |
 
 > ⛔ **[S01~S06](../../instructions/00-safety.instructions.md) 安全底线不受 ENV_MODE 影响**，无论 dev/prod 均强制执行；**[S07](../../instructions/00-safety.instructions.md)** 在 instruction-fallback 模式下要求全模式入口检查（致命自修正）。
 >
@@ -54,6 +54,12 @@ dev 模式 PC4 至少输出：
 - FC7 [状态] 决策推荐
 - SCx/RCx/Tx [状态] 仅列适用项
 
+#### 验证摘要
+| 类型 | 命令 | exitCode | runId/计数 |
+|------|------|----------|------------|
+| 权威/实验/skipped | `command or N/A` | `0/N/A` | `runId 或关键计数` |
+WorkspaceSyncStatus：synced/skipped/blocked + reason；dirty boundary：scope + state；Release actions：push/tag/release/publish 执行边界；post-commit replay：commit 任务必填，否则 N/A + reason。
+
 #### 完成交付文件
 - [语义名称](capability-selected-target) — 用途；操作：用户动作
 已列 N / 总计 M；默认隐藏 R
@@ -62,6 +68,7 @@ DevCodexVisibleEnvelopeV1 · completion-check · [状态] · [semanticDigest]
 ```
 
 > ⛔ dev 模式下不输出状态块视为未执行合规检查。
+> ⛔ `completion-check` 只有“全绿/已通过/详见报告”但缺 `FinalValidationSummaryV1` 短矩阵时，视为 `DevModeCompletionCheckDetailGate` 未通过。
 > ⚠️ **FC5 填写规则**：触发 `user-visible-output-contract`。`ArtifactDeliveryManifestV1` 必须 planned=observed=internalDelivered，`UserFacingArtifactSetV1` 必须 required hidden=0 且 `listed+remaining=total`；session/daily/SUMMARY/task/checkpoint/raw ledger 默认 internal-only 但仍参与 ECR。链接按 `LinkCapabilityDecisionV1` 输出；Rich clickable 不重复绝对路径。Hook 未观察 payload 时只能 `unverified`，legacy 格式最多 `unverified-legacy`。
 > ℹ️ prod 模式不执行合规检查，不输出状态块。
 > ℹ️ chat 工作流豁免此输出。
@@ -161,6 +168,7 @@ DevCodexVisibleEnvelopeV1 · completion-check · [状态] · [semanticDigest]
 | SC12 | [C14](../../instructions/01-common.instructions.md) 多任务进度快照验证（每完成子任务有 T{N}进度 标记） | 任务≥2时 🔴 |
 | SC13 | [C15](../../instructions/01-common.instructions.md) 架构质量自检（dev plan-review 三维评估；fix CP2 三维评估） | dev/fix 🔴 |
 | SC14 | analyze/audit（及任何宣称探针/测试结果的工作流）中，所有标注 ✅已验证 的运行时结论须满足 **MeasuredVerificationStandard**：本轮执行**生产入口命令**并记录 exitCode；隔离 harness / 非生产 reader 不得写成 V# 成败；SUMMARY/记忆历史数字必须降级为 ⚠️待验证 | analyze/audit 🔴；dev/fix 宣称测试/validate 时同标 |
+| SC14a | 强主张证据新鲜度：报告、分析、审查、推荐、CP 可确认或完成态声明命中 `evidence-freshness` 时，须有 `StaleEvidenceLintDecisionV1`；summary-only 不得单独支撑 ✅已验证 / 推荐 / 可确认 | analyze/audit/dev/fix/self-fix 🔴 |
 | SC15 | dev/fix 关键产物已完成 ECR 执行闭环复审：覆盖 CP1/CP2/CP3、实施进度（触发时）、ExecutionContract/TestRoute/ReleaseAudit/ReleaseVerification（触发时）、报告、daily tasks、SUMMARY、diff/commit、测试/扫描证据、dirty 边界；最后一次阻断性修正后至少再复审 1 轮且无新增阻断性问题 | dev/fix 🔴 |
 
 ## §4 恢复性检查（RC）— 非阻塞
@@ -201,21 +209,23 @@ DevCodexVisibleEnvelopeV1 · completion-check · [状态] · [semanticDigest]
 
 ## §6 任务完成验证
 
-| # | 检查项 |
-|:-:|--------|
-| T1 | ✅ 需求覆盖（用户所有需求点已处理） |
-| T2 | ✅ 报告存在（chat 豁免） |
-| T3 | ✅ 记忆完整（任务摘要+对话记录+关联报告） |
-| T4 | ✅ CP 完整（dev/fix；其他 N/A） |
-| T5 | ✅ 合规通过（FC+SC 全通过） |
-| T6 | ✅ 约束遵守（C01~C22 + 关联文件已同步 + GovernanceIntakeClosureGate 已终结或明确 unverified/ambiguous） |
-| T7 | ✅ 工作流验证（dev/fix: 扫描/验证 + ECR 已执行；audit/analyze: PCV 与推荐结论已执行）|
-| T8 | ✅ SUMMARY 已更新；若触发上下文交接，daily tasks 或报告已写 `ContextHandoffCard`；若主动建议新会话，同回复已交付 `NewSessionContinuationCard` |
-| T9 | ✅ internal manifest 与用户可见交付均完成；默认隐藏内部记录仍已写入、验证并纳入 ECR |
-| T10 | ✅ 条件：长任务是否记录 `SessionTimingCard`（或 N/A+skipReason）；确认类清单是否含 CoverageMatrix 或 residual 声明（ABS-17/18） |
-| T11 | ✅ 条件：长任务/Auto/多批次是否具备 `ExecutionBudget` + `LongTaskAuthorization`（或 N/A+skipReason）；有等待面时是否分列 external wait（PI-118/PF-137） |
-| T12 | ✅ 条件：触及部署消费者时是否输出 `WorkspaceSyncStatus`；dev/fix/self-fix 宣称完成时是否通过 `CompletionEvidenceGate`（ECR + 同步/验证/dirty 证据） |
-| T13 | ✅ 条件：长任务收口 / 宣称完成 / 用户质疑慢漏时是否执行 `PostDeliverySelfCheck`（或 N/A+skipReason）；不得用自评刷 PI |
+| alias | canonical ID | 检查项 |
+|:---:|---|---|
+| T1 | `requirements.coverage` | ✅ 需求覆盖（用户所有需求点已处理） |
+| T2 | `delivery.report` | ✅ 报告存在（chat 豁免） |
+| T3 | `delivery.memory` | ✅ 记忆完整（任务摘要+对话记录+关联报告） |
+| T4 | `confirmation.cp` | ✅ CP 完整（dev/fix；其他 N/A） |
+| T5 | `governance.compliance` | ✅ 合规通过（FC+SC 全通过） |
+| T6 | `constraints.and-sync` | ✅ 约束遵守（C01~C22 + 关联文件已同步 + GovernanceIntakeClosureGate 已终结或明确 unverified/ambiguous） |
+| T7 | `workflow.verification` | ✅ 工作流验证（dev/fix: 扫描/验证 + ECR 已执行；audit/analyze: PCV 与推荐结论已执行）|
+| T8 | `continuity.summary` | ✅ SUMMARY 已更新；若触发上下文交接，daily tasks 或报告已写 `ContextHandoffCard`；若主动建议新会话，同回复已交付 `NewSessionContinuationCard` |
+| T9 | `delivery.manifest` | ✅ internal manifest 与用户可见交付均完成；默认隐藏内部记录仍已写入、验证并纳入 ECR |
+| T10 | `long-task.timing-and-coverage` | ✅ 条件：长任务是否记录 `SessionTimingCard`（或 N/A+skipReason）；确认类清单是否含 CoverageMatrix 或 residual 声明（ABS-17/18） |
+| T11 | `long-task.budget-and-authorization` | ✅ 条件：长任务/Auto/多批次是否具备 `ExecutionBudget` + `LongTaskAuthorization`（或 N/A+skipReason）；有等待面时是否分列 external wait（PI-118/PF-137） |
+| T12 | `deployment.and-completion-evidence` | ✅ 条件：触及部署消费者时是否输出 `WorkspaceSyncStatus`；dev/fix/self-fix 宣称完成时是否通过 `CompletionEvidenceGate`（ECR + 同步/验证/dirty 证据） |
+| T13 | `post-delivery.self-check` | ✅ 条件：长任务收口 / 宣称完成 / 用户质疑慢漏时是否执行 `PostDeliverySelfCheck`（或 N/A+skipReason）；不得用自评刷 PI |
+
+机器消费者必须使用 canonical ID；T1~T13 只用于现有文档、人工清单与兼容投影，不得作为新状态键。
 
 ## §7 自修复触发
 

@@ -7,13 +7,18 @@ const path = require('path')
 const {
   ACTION_HEADINGS,
   INTERNAL_ARTIFACT_CLASSES,
+  classifyArtifactTruthSource,
+  createArtifactAnchor,
   createArtifactDeliveryManifest,
   buildSimpleGovernanceFastPathDecision,
   classifyArtifactPathColumnSample,
   createLinkCapabilityDecision,
   createVisibleEnvelope,
+  analyzeFinalValidationSummarySample,
+  projectArtifactAnchorsFromManifest,
   projectUserFacingArtifactSet,
   renderVisibleEnvelope,
+  classifyFinalValidationSummarySample,
   shouldUseCompact
 } = require('../hooks/_runtime/visible-output-contract.cjs')
 const ROOT = path.resolve(__dirname, '..')
@@ -109,6 +114,50 @@ assert.strictEqual(defaultSet.heading, ACTION_HEADINGS['final-result'])
 assert.strictEqual(defaultSet.items.some(item => ['session', 'raw-ledger'].includes(item.artifactId)), false)
 assert.strictEqual(INTERNAL_ARTIFACT_CLASSES.has('session'), true)
 
+const requirementTruth = classifyArtifactTruthSource('requirement')
+assert.strictEqual(requirementTruth.schemaVersion, 'ArtifactTruthSourceClassificationV1')
+assert.strictEqual(requirementTruth.truthSourceKind, 'markdown-canonical')
+assert.strictEqual(requirementTruth.humanConfirmationRequired, true)
+const runtimeTruth = classifyArtifactTruthSource('runtime-state')
+assert.strictEqual(runtimeTruth.truthSourceKind, 'json-canonical')
+assert.strictEqual(runtimeTruth.machineValidationRequired, true)
+const anchorProjection = projectArtifactAnchorsFromManifest(deliveryManifest, {
+  generatedAt: '2026-07-19T10:01:00.000Z',
+  owner: 'visible-output-contract'
+})
+assert.strictEqual(anchorProjection.schemaVersion, 'ArtifactAnchorProjectionV1')
+assert.strictEqual(anchorProjection.validation.valid, true, anchorProjection.validation.errors.join(', '))
+assert.strictEqual(anchorProjection.anchors.length, deliveryManifest.entries.length)
+assert.match(anchorProjection.projectionDigest, /^artifact-anchor-projection-[a-f0-9]{64}$/)
+assert.strictEqual(anchorProjection.anchors[0].schemaVersion, 'ArtifactAnchorV1')
+assert.strictEqual(anchorProjection.anchors[0].contentDigest, deliveryManifest.entries[0].contentDigest)
+assert(anchorProjection.anchors[0].evidenceRefs.includes(`manifest:${deliveryManifest.manifestId}`))
+assert.strictEqual(anchorProjection.anchors.some(anchor => String(anchor.summaryLine).includes('REPORT BODY')), false)
+const invalidAnchor = createArtifactAnchor({
+  artifactId: 'invalid-anchor',
+  artifactKind: 'report',
+  canonicalPath: path.join(WORKSPACE, '.devcodex', 'devcodex-v1', 'invalid-anchor.md'),
+  generatedAt: '2026-07-19T10:02:00.000Z',
+  owner: 'visible-output-contract',
+  evidenceRefs: ['negative-probe']
+})
+assert.strictEqual(invalidAnchor.validation.valid, false)
+assert(invalidAnchor.validation.errors.includes('contentDigest-required'))
+const explicitAnchor = createArtifactAnchor({
+  artifactId: 'report-anchor',
+  artifactKind: 'report',
+  canonicalPath: path.join(WORKSPACE, '.devcodex', 'devcodex-v1', 'report-anchor.md'),
+  contentDigest: 'sha256-report-anchor',
+  projectionDigest: 'sha256-short-md',
+  generatedAt: '2026-07-19T10:03:00.000Z',
+  owner: 'visible-output-contract',
+  status: 'fresh',
+  evidenceRefs: ['unit-fixture']
+})
+assert.strictEqual(explicitAnchor.validation.valid, true)
+assert.strictEqual(explicitAnchor.truthSourceKind, 'markdown-canonical')
+assert.strictEqual(explicitAnchor.projectionDigest, 'sha256-short-md')
+
 const allDeliverable = projectUserFacingArtifactSet(deliveryManifest, { scope: 'all-deliverable' })
 assert.deepStrictEqual(allDeliverable.items.map(item => item.artifactId), ['decision', 'result', 'evidence', 'optional', 'renamed'])
 assert.deepStrictEqual(allDeliverable.counts, { listed: 5, remaining: 2, total: 7 })
@@ -120,6 +169,7 @@ const missingObserved = manifest(entries, { observedArtifactIds: entries.slice(1
 assert.strictEqual(missingObserved.validation.valid, false)
 assert.deepStrictEqual(missingObserved.reconciliation.missingObserved, ['decision'])
 assert.strictEqual(projectUserFacingArtifactSet(missingObserved).validation.valid, false)
+assert.strictEqual(projectArtifactAnchorsFromManifest(missingObserved).validation.valid, false)
 assert.strictEqual(manifest([entry('hidden-required', {
   visibility: 'internal-only', deliveryRequirement: 'required', displayName: '错误隐藏的必要交付'
 })]).validation.valid, false)
@@ -241,6 +291,85 @@ assert.strictEqual(
 )
 assert.strictEqual(classifyArtifactPathColumnSample('随便聊聊'), 'not-claimed')
 
+// PF-186 / PI-164: completion-check must carry a short but verifiable validation summary.
+const finalValidationGood = [
+  '### DevCodex · 完成检查',
+  '| 类型 | 命令 | exitCode | runId/计数 |',
+  '| 权威 | `npm run test:visible-output` | exitCode 0 | runId=validation-202607230001 / checks=42 |',
+  'WorkspaceSyncStatus: skipped (无需同步)',
+  'dirty boundary: git status clean; no unrelated dirty',
+  'Release actions: push/tag/release/publish 未执行',
+  '`DevCodexVisibleEnvelopeV1 · completion-check · PASS · ' + 'c'.repeat(64) + '`'
+].join('\n')
+assert.strictEqual(classifyFinalValidationSummarySample(finalValidationGood), 'present')
+assert.strictEqual(analyzeFinalValidationSummarySample(finalValidationGood).status, 'verified-present')
+assert.strictEqual(classifyFinalValidationSummarySample('随便聊聊'), 'not-claimed')
+assert.strictEqual(classifyFinalValidationSummarySample([
+  '### DevCodex · 完成检查',
+  '整体：全部通过',
+  '`DevCodexVisibleEnvelopeV1 · completion-check · PASS · ' + 'd'.repeat(64) + '`'
+].join('\n')), 'thin-green-summary')
+assert.strictEqual(classifyFinalValidationSummarySample([
+  '### DevCodex · 完成检查',
+  '权威命令：`npm run test:visible-output`',
+  'runId=validation-202607230001',
+  'WorkspaceSyncStatus: skipped (无需同步)',
+  'dirty boundary: clean',
+  'Release actions: push/tag/release/publish 未执行'
+].join('\n')), 'exit-code')
+assert.strictEqual(classifyFinalValidationSummarySample([
+  '### DevCodex · 完成检查',
+  '`git status --short` exitCode 0',
+  'runId=status-only-001 / checks=1',
+  'WorkspaceSyncStatus: skipped (无需同步)',
+  'dirty boundary: git status clean',
+  'Release actions: push/tag/release/publish 未执行'
+].join('\n')), 'validation-command')
+assert.strictEqual(classifyFinalValidationSummarySample([
+  '### DevCodex · 完成检查',
+  '[最终报告](reports/analysis/codex/20260723/01--sample.md)',
+  'WorkspaceSyncStatus: skipped (无需同步)',
+  'dirty boundary: clean',
+  'Release actions: push/tag/release/publish 未执行'
+].join('\n')), 'report-link-only')
+assert.strictEqual(classifyFinalValidationSummarySample([
+  '### DevCodex · 完成检查',
+  '| 权威 | `npm run test:visible-output` | exitCode 0 | checks=42 |',
+  'dirty boundary: clean',
+  'Release actions: push/tag/release/publish 未执行'
+].join('\n')), 'workspace-sync')
+assert.strictEqual(classifyFinalValidationSummarySample([
+  '### DevCodex · 完成检查',
+  '| 权威 | `npm run test:visible-output` | exitCode 0 | checks=42 |',
+  'WorkspaceSyncStatus: skipped (无需同步)',
+  'dirty boundary: clean',
+  'Release actions: push/tag/release/publish 未执行',
+  'commit abc1234'
+].join('\n')), 'post-commit-replay')
+
+// F-009 / PF-177: production consumer (lifecycle-visible-reply) must surface missing path column
+{
+  const { buildLifecycleVisibleReplyUtils } = require('../hooks/_runtime/lifecycle-visible-reply.cjs')
+  const replyUtils = buildLifecycleVisibleReplyUtils({})
+  const missingPath = [
+    '#### 完成交付文件',
+    '- [报告](x.md) — 用途说明；操作：查看',
+    'DevCodexVisibleEnvelopeV1 · completion-check · PASS · ' + 'a'.repeat(64)
+  ].join('\n')
+  const withPath = [
+    '#### 完成交付文件',
+    '- [报告](x.md) — 用途说明；路径：`.devcodex/x.md`；操作：查看',
+    'DevCodexVisibleEnvelopeV1 · completion-check · PASS · ' + 'b'.repeat(64)
+  ].join('\n')
+  const missing = replyUtils.analyzeArtifactDelivery(missingPath)
+  assert.strictEqual(missing.pathColumnClass, 'missing-path-column')
+  assert.ok(missing.missingItems.includes('missing-path-column'))
+  assert.strictEqual(missing.status, 'verified-missing')
+  const present = replyUtils.analyzeArtifactDelivery(withPath)
+  assert.strictEqual(present.pathColumnClass, 'present')
+  assert.ok(!present.missingItems.includes('missing-path-column'))
+}
+
 const failedEnvelope = createVisibleEnvelope({ ...baseInput, linkCapability: failed })
 assert.strictEqual(failedEnvelope.status, 'BLOCK')
 const failedForSurface = createLinkCapabilityDecision({
@@ -346,11 +475,22 @@ for (const trigger of ['control-plane', 'source-mutation', 'risk-not-low', 'cp-n
 }
 
 const schema = JSON.parse(fs.readFileSync(path.join(ROOT, 'skills', 'user-visible-output-contract', 'visible-output-contract.schema.json'), 'utf8'))
-for (const definition of ['ArtifactDeliveryManifestV1', 'UserFacingArtifactSetV1', 'LinkCapabilityDecisionV1', 'DevCodexVisibleEnvelopeV1']) {
+for (const definition of [
+  'ArtifactDeliveryManifestV1',
+  'ArtifactTruthSourceClassificationV1',
+  'ArtifactAnchorV1',
+  'ArtifactAnchorProjectionV1',
+  'UserFacingArtifactSetV1',
+  'LinkCapabilityDecisionV1',
+  'FinalValidationSummaryV1',
+  'DevCodexVisibleEnvelopeV1'
+]) {
   assert.ok(schema.$defs[definition], `schema missing ${definition}`)
   assert.strictEqual(schema.$defs[definition].additionalProperties, false, `${definition} must reject sibling fields`)
 }
 assert.ok(schema.$defs.LinkCapabilityDecisionV1.required.includes('evidenceRefs'))
 assert.strictEqual(schema.$defs.ArtifactDeliveryManifestV1.properties.generatedAt.format, 'date-time')
+assert.strictEqual(schema.$defs.ArtifactAnchorV1.properties.generatedAt.format, 'date-time')
+assert.match(schema.$defs.ArtifactAnchorProjectionV1.properties.projectionDigest.pattern, /artifact-anchor-projection/)
 
-console.log('visible output contract passed: manifest/projection/counts/names/links/renderers/message-kinds/compact/fail-closed')
+console.log('visible output contract passed: manifest/projection/anchors/counts/names/links/renderers/message-kinds/compact/fail-closed')

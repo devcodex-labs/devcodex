@@ -94,6 +94,22 @@ applyTo: ".devcodex/**/reports/audit/**, .devcodex/**/reports/self-fix/**"
 - EvidenceLedger / 详细报告链接：
 - ExternalReviewClaimVerificationGate：passed / failed / N/A
 
+### §3.65 EvidenceFreshness（条件）
+
+> 审查报告中出现“已验证 / 推荐 / 可确认 / 完整 / 采纳外部 finding”等 strong claim 时填写；否则 `N/A + skipReason=no-strong-claims`。
+
+| claimGroup | mode | status | indexDigest | downgradeRequired | rerunRequired | evidence |
+|------------|------|--------|-------------|-------------------|---------------|----------|
+| verification / recommendation / external-review / coverage | shadow / warn / enforce | PASS / WARN / BLOCK / UNVERIFIED / N/A | | | | `npm run test:evidence-freshness` exitCode |
+
+### §3.7 EscapeAbsorptionQueue（条件）
+
+> 仅当外部审查、他 Agent finding、再次复审或用户提供报告暴露新问题时填写；否则 `N/A + skipReason=no-external-finding-intake`。不得直接吸纳外部结论。
+
+| sourceClaimId | finding | localEvidence | disposition | targetArtifact | owner | status |
+|---------------|---------|---------------|-------------|----------------|-------|--------|
+| | | | adopt / partial / reject / defer | | | queued / applied / rejected |
+
 ## §4 通过项汇总
 
 > 明确通过的关键维度（无问题或已确认符合标准）：

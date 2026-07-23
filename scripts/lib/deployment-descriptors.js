@@ -53,6 +53,31 @@ function buildDeploymentDescriptors(packageRoot, surfaces, {
     descriptors.push(...CODEX_SOURCES
       .filter(item => item.from !== 'skills')
       .map(item => descriptor('codex', item.from, item.to)))
+    // Shared MCP runtime under .claude/mcp: Claude surface already owns these when both hosts are selected.
+    // Codex-only installs must still declare them so missing/stale can be observed (F-006) without dual ownership.
+    if (!selected.has('claude')) {
+      descriptors.push(descriptor('codex', 'mcp', path.join('.claude', 'mcp'), 'shared-mcp-runtime'))
+      for (const rel of CLAUDE_MCP_RUNTIME_SCRIPT_DEPS) {
+        const portable = String(rel || '').replace(/\\/g, '/')
+        if (!portable) continue
+        descriptors.push(descriptor(
+          'codex',
+          portable,
+          path.join('.claude', ...portable.split('/')),
+          'shared-mcp-runtime-dep'
+        ))
+      }
+    }
+    // Managed-segment observation: package does not own full user .codex/config.toml as a source copy.
+    // role documents ownership boundary for doctor/manifest consumers (F-006).
+    descriptors.push({
+      surface: 'codex',
+      source: null,
+      destination: path.join('.codex', 'config.toml'),
+      role: 'managed-segment-owner',
+      managedSegmentId: 'DEVCODEX-MCP-MANAGED',
+      note: 'User-owned TOML; DevCodex only owns BEGIN/END DEVCODEX-MCP-MANAGED segment via mergeCodexConfigToml'
+    })
   }
   for (const item of projectionDescriptors([...selected], { grokWorkspaceBridge, grokWorkspaceScope })) {
     descriptors.push(descriptor(item.surface, item.source, item.destination, item.role, item.replacesSurfaces))

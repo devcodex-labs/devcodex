@@ -249,12 +249,28 @@ const TOOLS = [
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function today() {
-  return new Date().toISOString().slice(0, 10).replace(/-/g, '')
+function formatLocalDate(date = new Date()) {
+  return [
+    String(date.getFullYear()).padStart(4, '0'),
+    String(date.getMonth() + 1).padStart(2, '0'),
+    String(date.getDate()).padStart(2, '0')
+  ].join('')
 }
 
-function currentTime() {
-  const d = new Date()
+function formatLocalDateTime(date = new Date()) {
+  const compactDate = formatLocalDate(date)
+  const offsetMinutes = -date.getTimezoneOffset()
+  const offsetSign = offsetMinutes >= 0 ? '+' : '-'
+  const absoluteOffset = Math.abs(offsetMinutes)
+  const offset = `${offsetSign}${String(Math.floor(absoluteOffset / 60)).padStart(2, '0')}:${String(absoluteOffset % 60).padStart(2, '0')}`
+  return `${compactDate.slice(0, 4)}-${compactDate.slice(4, 6)}-${compactDate.slice(6, 8)} ${currentTime(date)} ${offset}`
+}
+
+function today() {
+  return formatLocalDate()
+}
+
+function currentTime(d = new Date()) {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
@@ -683,7 +699,9 @@ function elapsedMs(startedAt) {
 }
 
 function yesterday() {
-  return new Date(Date.now() - 86400000).toISOString().slice(0, 10).replace(/-/g, '')
+  const date = new Date()
+  date.setDate(date.getDate() - 1)
+  return formatLocalDate(date)
 }
 
 function compactDateToIso(value) {
@@ -1098,8 +1116,12 @@ function parseDailySessions(content, date) {
     const heading = headings[cursor]
     const end = headings[cursor + 1]?.index ?? lines.length
     const raw = lines.slice(heading.index, end).join('\n').trim()
-    const statusLine = raw.split(/\r?\n/).find(line => /^状态[：:]/.test(line.trim())) || ''
-    const status = statusLine.replace(/^状态[：:]\s*/, '').trim()
+    const statuses = raw.split(/\r?\n/)
+      .map(line => /^\s*(?:-\s*)?(?:\*\*)?状态(?:\*\*)?\s*[：:]\s*(.*)$/.exec(line))
+      .filter(Boolean)
+      .map(match => match[1].trim())
+      .filter(value => normalizedMemoryState(value) !== 'unknown')
+    const status = statuses[statuses.length - 1] || ''
     try {
       sessions.push({
         date,
@@ -1387,7 +1409,7 @@ function handleMemorySessionAllocate(args) {
     const block = [
       `## 会话 ${allocatedId} — ${title}`,
       '',
-      `- **时间**：${new Date().toISOString().slice(0, 16).replace('T', ' ')}`,
+      `- **时间**：${formatLocalDateTime()}`,
       `- **意图**：${intent}`,
       '- **状态**：🔄 reserved / awaiting content',
       `- **sourceMessage**：${sourceMessage}`,
@@ -1500,12 +1522,42 @@ function handleMemorySummaryRead(args) {
 
 function handleMemorySummaryAppend(args) {
   if (!args.row) throw new Error('row is required')
+  if (typeof args.row !== 'string' || args.row !== args.row.trim() || /[\r\n]/.test(args.row)) {
+    throw memoryQueryError('Invalid SUMMARY row: pass one trimmed Markdown table row.')
+  }
+  const cells = splitMarkdownRow(args.row)
+  if (cells.length !== 7) {
+    throw memoryQueryError('Invalid SUMMARY row: exactly seven columns are required; escape literal pipes as \\|.')
+  }
+  const day = String(cells[0] || '').slice(0, 10)
+  validateSince(day)
+  if (!/^\d{4}-\d{2}-\d{2}(?:\s+\d{2}:\d{2})?$/.test(cells[0])) {
+    throw memoryQueryError('Invalid SUMMARY date: use YYYY-MM-DD or YYYY-MM-DD HH:mm.')
+  }
+  if (!normalizeSessionId(cells[1])) {
+    throw memoryQueryError('Invalid SUMMARY row: session is required.')
+  }
+  if (!String(cells[2] || '').trim() || !String(cells[3] || '').trim()) {
+    throw memoryQueryError('Invalid SUMMARY row: type and summary are required.')
+  }
+  if (normalizedMemoryState(cells[6]) === 'unknown') {
+    throw memoryQueryError('Invalid SUMMARY row: status must map to active, completed, or blocked.')
+  }
   const target = resolveMemoryTarget(args)
   const p = memoryClientPath(target, 'SUMMARY.md')
   const receipt = withMemoryTransaction(target, p, existing => {
     if (!existing) return summaryHeader(args.agent || target.agent, args) + args.row + '\n'
     return existing + args.row + '\n'
   })
+  const parsed = parseSummaryRows(readFile(p))
+  const appended = parsed.rows[parsed.rows.length - 1]
+  if (!appended || appended.day !== day || appended.sessionId !== normalizeSessionId(cells[1])) {
+    throw memoryQueryError(
+      'SUMMARY write completed but readback did not reproduce the appended row.',
+      'Inspect SUMMARY.md and retry after repairing the writer-reader contract.',
+      'MEMORY_SUMMARY_READBACK_FAILED'
+    )
+  }
   return { content: [{ type: 'text', text: `已追加到 SUMMARY.md\n${JSON.stringify(receipt)}` }] }
 }
 

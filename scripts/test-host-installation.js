@@ -615,6 +615,34 @@ for (const surface of ['shared-kernel', 'shared-agent-skills', 'full-fallback'])
   assert(workspaceDescriptorSurfaces.has(surface), `workspace descriptor must include ${surface}`)
 }
 
+// F-006: codex-only observes shared MCP; multi-host leaves MCP ownership on claude to avoid dual claim
+const codexOnlyDescriptors = buildDeploymentDescriptors(ROOT, ['codex'], deploymentOptions())
+assert.strictEqual(
+  codexOnlyDescriptors.filter(item => item.surface === 'codex' && item.role === 'shared-mcp-runtime').length,
+  1,
+  'codex-only descriptors must include shared-mcp-runtime'
+)
+assert.strictEqual(
+  defaults.filter(item => item.surface === 'codex' && item.role === 'shared-mcp-runtime').length,
+  0,
+  'multi-host defaults must not dual-own .claude/mcp (claude surface already owns it)'
+)
+assert.ok(
+  defaults.some(item => item.surface === 'codex' && item.role === 'managed-segment-owner'),
+  'codex descriptors must declare managed-segment ownership for config.toml'
+)
+
+// F-007: Codex-only with shared .claude/mcp must not report claude-code
+{
+  const fixture = fs.mkdtempSync(path.join(require('os').tmpdir(), 'devcodex-host-codex-only-'))
+  fs.mkdirSync(path.join(fixture, '.codex'), { recursive: true })
+  fs.mkdirSync(path.join(fixture, '.claude', 'mcp'), { recursive: true })
+  fs.writeFileSync(path.join(fixture, '.claude', 'mcp', 'memory-server.js'), '//\n')
+  const hosts = hostUtils.detectInstalledHostAssets(fixture)
+  assert.deepStrictEqual(hosts, ['codex'], 'shared .claude/mcp alone must not imply Claude')
+  fs.rmSync(fixture, { recursive: true, force: true })
+}
+
 // Claude MCP runtime script deps must land under .claude/scripts/lib (require path from .claude/mcp)
 const claudeMcpScriptDeps = defaults.filter(item =>
   item.surface === 'claude' &&

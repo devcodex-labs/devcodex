@@ -31,6 +31,7 @@ description: 默认分析工作流规范 — 只读多轮分析、代码事实�
 | A3 多轮分析 | 至少 3 轮；连续 2 轮无新发现后才可收敛 |
 | A4 analyze-lite CRS | 建立关联文件集合，收敛前反向联查是否遗漏关键消费者 |
 | A5 PCV 汇总验证 | 对每条结论执行去重、实证核查、三列验证、分级和推荐结论 |
+| A5-ef EvidenceFreshness | 对“已验证 / 推荐 / 可确认 / 完整”等 strong claim 生成或引用 `ClaimEvidenceIndexV1` 与 `StaleEvidenceLintDecisionV1`；summary-only 只能导航，不能支撑最终强结论 |
 | A5a 治理评估 | 完成结论合理性评估后，对当前中性候选执行 `PostAssessmentGovernanceIntakeGate`；复合意图逐项落账，`record.none` 提供 challenge evidence |
 | A6 报告输出 | 结论必须包含合理性、可实施性、收益、验证状态和影响范围；non-small 须 Theme+Detail 双产物；确认清单须 CoverageMatrix |
 | A6b 分批交付 | 若走 `incremental-project-analysis` 分批：每 accepted 批输出 `BatchProgressCard`；全批后 `GlobalOptimizationBacklog` + 双层 ValidationResult |
@@ -99,6 +100,7 @@ analyze 只矫正结论，不修改 Profile。需要修订 Profile 时在 `upgra
 | PCV-1 | 汇总并去重所有轮次发现 |
 | PCV-2 | 对每条结论重新读取对应事实源；运行时数字优先本轮实际执行，不能用记忆历史数字冒充已验证 |
 | PCV-2a | **MeasuredVerificationStandard**：探针/validate/测试结论标 `已验证` 前必须跑生产入口（如 `node scripts/test-spec-governance.js`、`npm run test:core`）；隔离 harness 未复用 `createCanonicalAwareReader` 与 validate 上下文时只能标非权威实验，不得写成 V# 红/绿 |
+| PCV-2b | **EvidenceFreshnessGate**：最终结论、推荐方案、覆盖声明和外部 finding 采纳声明必须有 fresh evidence refs；若 `StaleEvidenceLintDecisionV1.status=WARN/UNVERIFIED/BLOCK`，输出降级措辞或转入 audit/dev/fix，不得继续写强结论 |
 | PCV-3 | 补齐合理性、可实施性、收益 |
 | PCV-4 | 多路径时给出推荐结论和推荐理由；无后续动作时写 `推荐：无后续动作` |
 | PCV-5 | 标注 `已验证` / `待验证` / `排除`；用户可见摘要分列命令、exitCode、权威/实验 |
@@ -114,6 +116,7 @@ analyze 只矫正结论，不修改 Profile。需要修订 Profile 时在 `upgra
 | `evidenceMap` | 结论到文件、命令或事实源的映射 |
 | `profileTruth` | mode、profileTrustState、ProfileTruthMatrix；N/A 时写 skipReason |
 | `pcv` | PCV-1~PCV-6 结果 |
+| `evidenceFreshness` | `ClaimEvidenceIndexV1.indexDigest`、`StaleEvidenceLintDecisionV1.status/mode`、downgrade/rerun 计数；不触发时写 `N/A + skipReason=no-strong-claims` |
 | `recommendation` | 推荐结论、推荐理由或无后续动作 |
 | `upgradeAdvice` | 是否建议切换 audit/dev/fix/research，含理由 |
 | `governanceIntake` | candidate ID、评估结论、泛化范围、现有规范状态、复合 record intents、target ledgers、write requirement/evidence、verification state 或 none challenge |

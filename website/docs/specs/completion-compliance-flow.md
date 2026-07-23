@@ -14,7 +14,7 @@ flowchart TD
     RC_OK{"RC 全通过?"}
     RC_NOTE["标注不通过项\n（非阻塞，可继续）"]
 
-    T["T 任务完成验证\nT1~T9"]
+    T["T 任务完成验证\nT1~T13"]
     T_OK{"T 全通过?"}
     T_FIX["修正不通过项"]
 
@@ -49,17 +49,23 @@ flowchart TD
 
 ## T 任务完成验证
 
-| # | 检查项 |
-|:-:|--------|
-| T1 | ✅ 需求覆盖（用户所有需求点已处理） |
-| T2 | ✅ 报告存在（chat 豁免） |
-| T3 | ✅ 记忆完整（任务摘要+对话记录+关联报告） |
-| T4 | ✅ CP 完整（dev/fix） |
-| T5 | ✅ 合规通过（FC+SC 全通过） |
-| T6 | ✅ 约束遵守（C01~C19 + 关联文件已同步） |
-| T7 | ✅ 工作流验证（fix 三步扫描等） |
-| T8 | ✅ SUMMARY 已更新 |
-| T9 | ✅ 产物路径已输出 |
+| alias | canonical ID | 检查项 |
+|:---:|---|---|
+| T1 | `requirements.coverage` | ✅ 需求覆盖（用户所有需求点已处理） |
+| T2 | `delivery.report` | ✅ 报告存在（chat 豁免） |
+| T3 | `delivery.memory` | ✅ 记忆完整（任务摘要+对话记录+关联报告） |
+| T4 | `confirmation.cp` | ✅ CP 完整（dev/fix） |
+| T5 | `governance.compliance` | ✅ 合规通过（FC+SC 全通过） |
+| T6 | `constraints.and-sync` | ✅ 约束遵守（C01~C22 + 关联文件已同步） |
+| T7 | `workflow.verification` | ✅ 工作流验证（dev/fix 含适用门禁与 ECR） |
+| T8 | `continuity.summary` | ✅ SUMMARY/continuation 已更新 |
+| T9 | `delivery.manifest` | ✅ internal manifest 与用户可见交付已完成 |
+| T10 | `long-task.timing-and-coverage` | ✅ 条件：长任务 timing 与确认类 coverage/residual |
+| T11 | `long-task.budget-and-authorization` | ✅ 条件：预算、授权与 external wait |
+| T12 | `deployment.and-completion-evidence` | ✅ 条件：工作区同步与完成证据 |
+| T13 | `post-delivery.self-check` | ✅ 条件：交付后自检 |
+
+T1~T13 是兼容 alias；运行时状态、receipt 和聚合使用 canonical ID。
 
 ---
 

@@ -49,7 +49,11 @@ TestRoute 的稳定输入、route selector、固定输出与 skip 合同以同�
 
 `visibleOutputContract` 绑定 `user-visible-output-contract`，不新增顶层 selector：任何 `ArtifactDeliveryManifestV1`、`UserFacingArtifactSetV1`、`DevCodexVisibleEnvelopeV1`、renderer 或 visible-reply Hook 变化至少选择 `static + unit-integration + runtime-e2e`，覆盖 planned/observed/internalDelivered 对账、required hidden=0、计数守恒、六 message kinds、compact eligibility、legacy/unobserved ceiling、semanticDigest 和 rich/portable/plain 等价性。触达 README/website/Profile/部署副本时叠加 `profile-deploy`，进入 package public surface 时叠加 `package-release`。宿主 capability 未 direct replay 时必须保持 portable/plain 或 unverified，不得按宿主名推断 clickable。
 
+`evidenceFreshness` 绑定 `report` / `analyze-default` / `audit-report` / `review-checklist`，不新增顶层 selector：强主张新鲜度、summary-only 降级、外部 finding 采纳、artifact anchor 或 final validation summary 绑定变化至少选择 `static + unit-integration`，执行 `npm run test:evidence-freshness` 并在控制面或当前消费者同步时叠加 `node scripts/validate.js` 与 `profile-deploy`。若只是普通报告没有 strong claim，写 `N/A + skipReason=no-strong-claims`。
+
 `expertOutputQuality` 绑定 `expert-output-quality` / V84，不新增顶层 selector：代码、文档、示例、fixture、技术方案或报告命中专家型质量时，至少选择 `static`（并优先 `node scripts/test-spec-governance.js` + 控制面变更时 `npm run test:core`），证据链覆盖 `ExpertOutputQualityGate`、生产推荐路径、fixture 边界与 **MeasuredVerificationStandard**（生产入口命令 + exitCode；隔离 harness 不得冒充 V84 成败）。Owner 字段与完整门禁见 `skills/expert-output-quality/SKILL.md` 与 gate-registry `expert-output-quality`。
+
+`requirementParallelOrchestration` 绑定 `requirement-parallel-orchestration`，不新增顶层 selector：新增或修改多需求并行判定、`SharedSurfaceLockMapV1`、`ParallelLaunchCardV1`、`IntegrationMergeProtocolV1` 或相关消费者时，至少选择 `static + unit-integration`，执行 `npm run test:requirement-parallel-orchestration`。触达 Skill portfolio、validation manifest、package/plugin、README/website/Profile 或部署副本时叠加 `control-plane / profile-deploy` 对应命令；缺负向探针不得声明可并行。
 
 ## TestRoute 输出
 

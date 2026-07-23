@@ -5,12 +5,25 @@ schemaVersion: CandidateReviewBundleV1
 
 ## RQMatrix
 
-RQ-1~RQ-8 evaluated.
+| dimension | status | evidence | gap | disposition | skipReason |
+|---|---|---|---|---|---|
+| RQ-1 | PASS | evidence | none | accept | N/A |
+| RQ-2 | PASS | evidence | none | accept | N/A |
+| RQ-3 | PASS | evidence | none | accept | N/A |
+| RQ-4 | PASS | evidence | none | accept | N/A |
+| RQ-5 | PASS | evidence | none | accept | N/A |
+| RQ-6 | PASS | evidence | none | accept | N/A |
+| RQ-7 | PASS | evidence | none | accept | N/A |
+| RQ-8 | PASS | evidence | none | accept | N/A |
 
 ## ClaimEvidenceMatrix
 
-Claims are mapped to evidence.
+| claim | evidence | status |
+|---|---|---|
+| claim | evidence | PASS |
 
 ## EscapeAbsorptionQueue
 
-External findings are queued.
+| sourceClaimId | finding | localEvidence | disposition | targetArtifact | owner | status |
+|---|---|---|---|---|---|---|
+| N/A | none | scan | reject | N/A | owner | closed |

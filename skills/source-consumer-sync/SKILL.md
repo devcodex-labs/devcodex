@@ -61,6 +61,8 @@ description: 真相源-消费者同步规范 — 为规范源、模板、validat
 5. 定义 `yellowDeviationBoundary`，把允许纳入的额外消费者写入进度或报告。
 6. 实施后做双向联查：正向 grep 真相源，反向 grep 旧口径残留。
 
+能力面新增或变化时，Concept Sync Map 必须把 `skills/spec-governance/capability-surface-decision.v1.schema.json` 与任务目录 `capability-surface-decisions/*.json` 作为中央 schema/record 真相源，记录 `decisionRef + schemaDigest`。Owner Skills、Prompt、TestRoute、report、public docs、Profile 和部署副本只能作为 readers/consumers；任何消费者复制中央选择字段、出现第二 writer，或 decision identity 已失效时均阻断同步。
+
 部署副本同步还必须执行物理所有权复核：以 target root 下规范化绝对 destination 为键，而不是只按 surface 名称去重。同一路径出现多个 current writer/manifest entry 时阻断；宿主专用 adapter 可以位于项目内，但不得被公共 bridge 描述为所有宿主的共享消费者。
 
 ## Registry 驱动的同步面
@@ -75,6 +77,7 @@ description: 真相源-消费者同步规范 — 为规范源、模板、validat
 4. README、website、Profile 和 changelog 等公开消费者。
 5. AGENTS、CLAUDE、Copilot、Codex、plugin package 等部署副本。
 6. 历史镜像及其失效、保留或兼容边界。
+7. 能力面任务的 `decisionRef / schemaDigest / writer / readers` 是否仍与中央记录一致。
 
 跨仓消费者验证、Profile/宿主能力、修复协作、发布凭据、用户文档、派生消费者与返工闭环等专属字段由 registry 指向的 Owner Skill 定义。本 Skill 只保存关系、同步状态和偏离原因，不复制 Owner 的完整门禁正文。
 

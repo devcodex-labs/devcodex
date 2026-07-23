@@ -1,7 +1,12 @@
-# CP2 Candidate
-
+---
 phaseKind: CP2
 schemaVersion: CandidateReviewBundleV1
+openBlockers: 0
+---
+
+# CP2 Technical Design
+
+Upstream CP1 binding: `01-需求确认.md@v0.3.0`; this must not change the candidate phase.
 
 ## TDMatrix
 
@@ -25,10 +30,10 @@ schemaVersion: CandidateReviewBundleV1
 
 | stage | blockerId | evidence | affectedSurface | remediation | skippedChecks | stopReason | openBlockers |
 |---|---|---|---|---|---|---|---|
-| CP2 | RR-1 | failed probe | design | repair | none | blocker open | 1 |
+| CP2 | N/A | full review | design | N/A | none | none | 0 |
 
 ## ClaimEvidenceMatrix
 
 | claim | repoPath | currentBehavior | targetChange | runtimeOwner | validation | status |
 |---|---|---|---|---|---|---|
-| blocker remains | fixture | open | repair | owner | candidate test | BLOCK |
+| CP2 retains its phase | fixture | CP1 is only upstream | keep CP2 | review owner | candidate test | PASS |

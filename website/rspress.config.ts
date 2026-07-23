@@ -68,6 +68,7 @@ export default defineConfig({
                     text: '永久规范',
                     items: [
                         { text: '目录结构规范', link: '/specs/directory-structure' },
+                        { text: 'MCP 能力边界与载体决策', link: '/specs/mcp-capability-boundary' },
                         {
                             text: '主流程图',
                             link: '/specs/flowcharts',

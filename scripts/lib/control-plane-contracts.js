@@ -59,25 +59,103 @@ function validateTestRouteSchema(schema) {
   return errors
 }
 
+function validateCapabilitySurfaceDecisionSchema(schema) {
+  const errors = []
+  const properties = schema.properties || {}
+  if (
+    schema.title !== 'CapabilitySurfaceDecisionV1' ||
+    schema.$id !== 'https://devcodex.dev/schemas/capability-surface-decision.v1.schema.json'
+  ) {
+    errors.push('invalid CapabilitySurfaceDecision schema header')
+  }
+  const required = new Set(schema.required || [])
+  for (const field of [
+    'schemaVersion',
+    'decisionRef',
+    'capabilityId',
+    'preferredSurface',
+    'decisionOwner',
+    'runtimeOwner',
+    'stateOwner',
+    'canonicalRecordPath',
+    'writer',
+    'readers',
+    'identity',
+    'invalidationTriggers',
+    'truthBoundary',
+    'status'
+  ]) {
+    if (!required.has(field)) errors.push(`CapabilitySurfaceDecision missing required field: ${field}`)
+  }
+  if (properties.schemaVersion?.const !== 'CapabilitySurfaceDecisionV1') {
+    errors.push('CapabilitySurfaceDecision schema version mismatch')
+  }
+  if (properties.decisionOwner?.const !== 'spec-governance') {
+    errors.push('CapabilitySurfaceDecision decision owner mismatch')
+  }
+  if (properties.writer?.const !== 'workflow-single-writer') {
+    errors.push('CapabilitySurfaceDecision writer mismatch')
+  }
+  if (
+    properties.truthBoundary?.properties?.canonicalOwner?.const !== 'spec-governance' ||
+    properties.truthBoundary?.properties?.localMetadataOnly?.const !== true ||
+    properties.truthBoundary?.properties?.copiedCentralFields?.maxItems !== 0
+  ) {
+    errors.push('CapabilitySurfaceDecision truth boundary mismatch')
+  }
+  const surfaces = properties.preferredSurface?.enum || []
+  unique(surfaces, 'CapabilitySurfaceDecision surface', errors)
+  for (const surface of [
+    'rule-skill',
+    'prompt',
+    'resource',
+    'resource-template',
+    'tool',
+    'task-augmented-tool',
+    'cli',
+    'hook'
+  ]) {
+    if (!surfaces.includes(surface)) errors.push(`CapabilitySurfaceDecision missing surface: ${surface}`)
+  }
+  const conditionalContract = JSON.stringify(schema.allOf || [])
+  for (const field of ['authority', 'mcpContract', 'taskContract', 'resourceContract']) {
+    if (!conditionalContract.includes(`"${field}"`)) {
+      errors.push(`CapabilitySurfaceDecision missing conditional contract: ${field}`)
+    }
+  }
+  return errors
+}
+
 function loadControlPlaneContracts(root) {
   const plugin = readJson(root, 'plugin.json')
   const workflow = readJson(root, 'skills/routing/workflow-capabilities.json')
   const gateRegistry = readJson(root, 'skills/spec-governance/gate-registry.json')
   const reportSchema = readJson(root, 'skills/report/report-schema.json')
   const testRouteSchema = readJson(root, 'skills/test-router/test-route-schema.json')
+  const capabilitySurfaceDecisionSchema = readJson(root, 'skills/spec-governance/capability-surface-decision.v1.schema.json')
   const registeredSkills = new Set((plugin.skills || []).map(item => item.id))
   const workflowIds = new Set((workflow.workflows || []).map(item => item.id))
   const errors = [
     ...validateGateRegistry(gateRegistry, registeredSkills),
     ...validateReportSchema(reportSchema, workflowIds),
-    ...validateTestRouteSchema(testRouteSchema)
+    ...validateTestRouteSchema(testRouteSchema),
+    ...validateCapabilitySurfaceDecisionSchema(capabilitySurfaceDecisionSchema)
   ]
-  return { plugin, workflow, gateRegistry, reportSchema, testRouteSchema, errors }
+  return {
+    plugin,
+    workflow,
+    gateRegistry,
+    reportSchema,
+    testRouteSchema,
+    capabilitySurfaceDecisionSchema,
+    errors
+  }
 }
 
 module.exports = {
   loadControlPlaneContracts,
   validateGateRegistry,
   validateReportSchema,
-  validateTestRouteSchema
+  validateTestRouteSchema,
+  validateCapabilitySurfaceDecisionSchema
 }

@@ -549,6 +549,17 @@ README / 用户使用文档当前补充四类专项 Skill：`user-manual-authori
 >
 > **MCP 边界**：安装到业务项目根的 `.mcp.json` 由 Claude Code adapter 自动写入，并引用该项目的 `.claude/mcp/*`。Codex adapter 额外向 owner 的 `.codex/config.toml` 合并同名 server（托管块，非 Claude JSON）。DevCodex 源码仓自身受版本控制的 `.mcp.json` 是包开发/插件清单，只引用包内 `mcp/*`；与安装态清单独立。Copilot 仍不自动写 MCP。
 
+### 当前 MCP 清单与新增能力判断
+
+当前实现只有两个 stdio server：
+
+| server | 已实现能力 |
+|---|---|
+| `devcodex-memory` | 10 个 Tools：任务解析、状态/会话/SUMMARY 查询与读写、会话分配、CP 摘要绑定确认 |
+| `devcodex-profile` | 5 个 Tools：context plan、Profile load、Skill plan、mode、入口检查；另有 1 个 Prompt：`devcodex-init` |
+
+两者当前握手协议为 `2024-11-05`，没有实现 MCP Resource、Resource Template 或 Tasks。新增 Rule/Skill、MCP Prompt/Resource/Tool、Task 增强 Tool、CLI 或 Hook 前，统一由 `spec-governance` 生成中央 `CapabilitySurfaceDecisionV1`；领域 Skill 只提供证据并引用 `decisionRef`。语义判断默认留在 Rule/Skill，确定且可调用的操作才考虑 Tool，有界可寻址内容才考虑 Resource，低频维护仍优先 CLI，宿主生命周期仍由 Hook 承担。完整矩阵与验证路线见 [MCP 能力边界与载体决策](./website/docs/specs/mcp-capability-boundary.md)。
+
 ### 用户可见交付与链接兼容
 
 DevCodex 先用 `ArtifactDeliveryManifestV1` 对账所有内部产物；需要续接上下文时，可由同一 manifest 纯投影 `ArtifactAnchorProjectionV1`，只保存 canonical path、`contentDigest`、`projectionDigest`、`truthSourceKind` 与证据引用。用户面则由 `UserFacingArtifactSetV1` 确定性投影真正需要的文件，并通过 `DevCodexVisibleEnvelopeV1` 统一入口检查、确认、进度、完成结果与阻断信息。默认只显示最终报告、实际交付物和影响结论可信度的必要证据；session、daily、SUMMARY、task/checkpoint、raw receipt/manifest/ledger 仍会写入和验证，但不占用用户交付列表。

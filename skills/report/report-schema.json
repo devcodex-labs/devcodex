@@ -10,6 +10,7 @@
     "ReleaseAudit": "release readiness review only",
     "ReleaseVerification": "release workflow only",
     "ConceptSyncMap": "control-plane or source-consumer change",
+    "CapabilitySurfaceDecision": "Rule/Skill, Prompt, MCP Resource/Resource Template/Tool, Task-augmented Tool, CLI or Hook capability surface is added or changed",
     "HostContractVerification": "host, hook, CLI or visible-reply contract change",
     "VisibleOutputContract": "entry/completion/confirmation/progress/final/error output or file delivery is produced or reviewed",
     "EvidenceFreshness": "strong verified, recommended, confirmed, complete, external-review-adopted or completion claim may reuse prior evidence",

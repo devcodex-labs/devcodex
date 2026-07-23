@@ -121,6 +121,8 @@ description: 规范吸纳执行 Skill — 用于检查 data 最新可吸纳项�
 
 `LayeredAbsorptionDecision` 必须包含 `candidateId / classification / targetSkill / triggerTerms / ownedArtifacts / layerChecks / validationRoute / consumerSync`。本 Skill 在 Skill 层还要写 `SkillAbsorptionDecision` 兼容字段。
 
+当候选会新增或改变 Rule/Skill、Prompt、MCP Resource/Resource Template/Tool、Task 增强 Tool、CLI 或 Hook 能力面时，`LayeredAbsorptionDecision` 只负责判定吸纳层级，不得顺带决定能力面。实施前必须消费由 `spec-governance` 的 `CapabilitySurfaceDecisionGate` 生成且通过新鲜度校验的 `decisionRef`；只有 `spec-governance` 可写 canonical decision，目标 Skill 仅保存本域触发、Owner、消费者和 `decisionRef` 等本地元数据。缺少 decision、identity 失效或状态为 `stale/blocked` 时停止能力资产创建并回到中央判定。
+
 | classification | 使用条件 | 处理 |
 |----------------|----------|------|
 | `global-invariant` | 安全底线、入口加载、全模式硬约束、优先级 | 通用 instructions 保留正文，目标 Skill 引用 |

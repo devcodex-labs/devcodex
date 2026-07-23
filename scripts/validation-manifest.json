@@ -26,6 +26,10 @@
     "scripts/lib/candidate-review-bundle.js",
     "scripts/test-candidate-review-bundle.js",
     "scripts/fixtures/candidate-review-bundle/**",
+    "skills/spec-governance/capability-surface-decision.v1.schema.json",
+    "scripts/lib/capability-surface-decision.js",
+    "scripts/test-capability-surface-decision.js",
+    "scripts/fixtures/capability-surface-decision/**",
     "scripts/lib/requirement-parallel-orchestration.js",
     "scripts/test-requirement-parallel-orchestration.js",
     "scripts/fixtures/requirement-parallel-orchestration/**",
@@ -91,6 +95,7 @@
         "readme-governance",
         "requirement-artifacts",
         "candidate-review-bundle",
+        "capability-surface-decision",
         "requirement-parallel-orchestration",
         "evidence-freshness",
         "hooks-runtime",
@@ -160,6 +165,7 @@
         "readme-governance",
         "requirement-artifacts",
         "candidate-review-bundle",
+        "capability-surface-decision",
         "requirement-parallel-orchestration",
         "evidence-freshness",
         "hooks-runtime",
@@ -224,6 +230,8 @@
         "validate-core",
         "validation-dag",
         "readme-governance",
+        "candidate-review-bundle",
+        "capability-surface-decision",
         "always-on-governance",
         "client-contracts",
         "release-metadata",
@@ -2226,6 +2234,63 @@
       },
       "evidenceArtifacts": [
         "CandidateReviewBundleReceiptV1",
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "capability-surface-decision",
+      "owner": "spec-governance",
+      "command": "node",
+      "args": [
+        "scripts/test-capability-surface-decision.js"
+      ],
+      "dependencies": [
+        "spec-governance"
+      ],
+      "inputs": [
+        "skills/spec-governance/capability-surface-decision.v1.schema.json",
+        "skills/spec-governance/gate-registry.json",
+        "skills/spec-governance/SKILL.md",
+        "skills/spec-absorption/SKILL.md",
+        "skills/platform-ecosystem-architecture/SKILL.md",
+        "skills/ai-agent-system-architecture/SKILL.md",
+        "skills/skill-lifecycle-governance/SKILL.md",
+        "skills/source-consumer-sync/SKILL.md",
+        "skills/test-router/SKILL.md",
+        "skills/test-router/test-route-schema.json",
+        "skills/report/SKILL.md",
+        "skills/report/report-schema.json",
+        "prompts/requirement.prompt.md",
+        "prompts/technical-design.prompt.md",
+        "prompts/implementation-plan.prompt.md",
+        "prompts/report-dev.prompt.md",
+        "instructions/10-dev.instructions.md",
+        "scripts/lib/capability-surface-decision.js",
+        "scripts/test-capability-surface-decision.js",
+        "scripts/fixtures/capability-surface-decision/**",
+        "package.json"
+      ],
+      "consumers": [],
+      "invariants": [
+        "central-single-writer",
+        "surface-selection",
+        "identity-freshness",
+        "negative-probes"
+      ],
+      "riskClass": "high",
+      "cachePolicy": "never",
+      "writeScopes": [],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "CapabilitySurfaceDecisionReceiptV1",
         "ValidationExecutionReceiptV1"
       ]
     },

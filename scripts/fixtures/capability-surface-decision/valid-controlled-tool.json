@@ -1,0 +1,104 @@
+{
+  "schemaVersion": "CapabilitySurfaceDecisionV1",
+  "decisionRef": "CSD-controlled-write",
+  "capabilityId": "controlled-write",
+  "capabilityKind": "controlled-write",
+  "semanticJudgement": "none",
+  "contentDelivery": "none",
+  "determinism": "deterministic",
+  "invocationFrequency": "high",
+  "preferredSurface": "tool",
+  "controlParty": "application",
+  "readWriteExecute": [
+    "read",
+    "write"
+  ],
+  "decisionOwner": "spec-governance",
+  "runtimeOwner": "devcodex-memory",
+  "stateOwner": "devcodex-memory",
+  "transactionBoundary": "single memory transaction",
+  "authority": {
+    "confirmationLevel": "explicit",
+    "allowedScope": [
+      "resolved active task"
+    ],
+    "allowlist": [
+      "memory_cp_confirm"
+    ],
+    "idempotencyKey": "decisionRef+candidateDigest",
+    "timeoutOwner": "application",
+    "cancellation": "cancel before transaction commit",
+    "receipt": "MemoryTransactionReceiptV1",
+    "auditTrail": "task memory"
+  },
+  "hostMatrix": [
+    {
+      "host": "codex",
+      "status": "PASS",
+      "testedVersion": "repository-current",
+      "evidence": "direct MCP replay",
+      "fallback": "task memory file"
+    }
+  ],
+  "fallback": {
+    "surface": "cli",
+    "reason": "operator workflow remains available without MCP negotiation"
+  },
+  "consumers": [
+    "cp-gate",
+    "memory"
+  ],
+  "validationRoute": [
+    "test-capability-surface-decision",
+    "test-mcp-servers"
+  ],
+  "decisionEvidence": [
+    {
+      "claim": "bounded state mutation has a stable transaction owner",
+      "evidenceRef": "mcp/memory-server.js",
+      "status": "PASS",
+      "checkedAt": "2026-07-23T10:00:00Z"
+    }
+  ],
+  "canonicalRecordPath": "E:/Worker/.devcodex/devcodex-v1/requirements/example/capability-surface-decisions/CSD-controlled-write.json",
+  "writer": "workflow-single-writer",
+  "readers": [
+    "cp-gate",
+    "test-router",
+    "report"
+  ],
+  "identity": {
+    "schemaDigest": "b78645e5ed316e607c6c9a043d59da51e767ebf9a92c384683ab001c274c0e7c",
+    "sourceHead": "269ac9fadbd3593d42f4481a2436d5b16b45a08a",
+    "checkedAt": "2026-07-23T10:00:00Z",
+    "evidenceDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "invalidationTriggers": [
+    "schema",
+    "source",
+    "evidence",
+    "host",
+    "protocol",
+    "consumer",
+    "runtime-owner"
+  ],
+  "truthBoundary": {
+    "canonicalOwner": "spec-governance",
+    "localMetadataOnly": true,
+    "copiedCentralFields": []
+  },
+  "mcpContract": {
+    "implementedProtocol": "2024-11-05",
+    "referenceProtocol": "2025-11-25",
+    "negotiatedCapabilities": [
+      "tools"
+    ],
+    "serverOwner": "devcodex-memory",
+    "consumerEvidence": [
+      "direct initialize/list/call replay"
+    ],
+    "migration": "additive tool contract only after a separate implementation CP",
+    "rollback": "retain the existing task memory file and CLI path"
+  },
+  "status": "validated"
+}

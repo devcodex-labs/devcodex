@@ -1,12 +1,12 @@
 {
   "schemaVersion": "HostInstructionCoverageReceiptV1",
   "sourceFile": "instructions.md",
-  "sourceDigest": "f65c78d537aac4d1c0dc8c28c6cf5b3c8595746c4ad9109ec78378cc25df05d6",
-  "configDigest": "8904f13e8a089adb698c0c89f1f3105a2202182445e789342369900f3c149a35",
+  "sourceDigest": "01516cd058ccacc6eca8412443594e9b08b7f7aef7c3e6925e7b7b3f3febc029",
+  "configDigest": "2f25649275fcac6b799522b6d8bc459e9f92910b10ca97824eb10e207eeb08c3",
   "mode": "kernel",
   "fallback": {
     "destination": ".agents/devcodex/instructions.full.md",
-    "sourceDigest": "f65c78d537aac4d1c0dc8c28c6cf5b3c8595746c4ad9109ec78378cc25df05d6",
+    "sourceDigest": "01516cd058ccacc6eca8412443594e9b08b7f7aef7c3e6925e7b7b3f3febc029",
     "available": true
   },
   "budgets": {
@@ -203,14 +203,16 @@
         "RecordRouter + SCV",
         "GovernanceIntakeDecision",
         "Improvement Intake",
-        "LedgerWriteEvidenceGate"
+        "LedgerWriteEvidenceGate",
+        "CapabilitySurfaceDecisionGate"
       ],
       "projectionAnchors": [
         "RecordRouter",
         "GovernanceIntakeDecision",
         "Improvement Intake",
         "LedgerWriteEvidenceGate",
-        "SCV"
+        "SCV",
+        "CapabilitySurfaceDecisionV1"
       ],
       "missingSourceAnchors": [],
       "missingProjectionAnchors": [],
@@ -297,14 +299,14 @@
   },
   "outputs": {
     "host-projections/AGENTS.md": {
-      "bytes": 10399,
-      "lines": 87,
-      "digest": "dc1a801c056ae5386263d61c0aea9ee8e6810fc27ee0120497926a6e9832b4bc"
+      "bytes": 10605,
+      "lines": 88,
+      "digest": "1f8396d7329358923f9c6e5a7f3e318e5676790ba920af9ea33399f4e4a074e4"
     },
     "host-projections/copilot-instructions.md": {
-      "bytes": 10385,
-      "lines": 87,
-      "digest": "e84999c312172a2c4808ac5cb4c6026a994340af0cf39e713066a8049d887a9c"
+      "bytes": 10591,
+      "lines": 88,
+      "digest": "973193a1dd695f6c0b4a2ddef85279782fe2341cba3f756d3a48e8200d533094"
     },
     "host-projections/CLAUDE.md": {
       "bytes": 327,
@@ -322,5 +324,5 @@
     "valid": true,
     "errors": []
   },
-  "receiptId": "host-instruction-coverage-8634f7145d40208f82df315b9079b62c95e7bde5c24db8aa4ceab98907036b40"
+  "receiptId": "host-instruction-coverage-2af65e184075ea41ef403705953e9e220bad29557560959323cd36533e784861"
 }

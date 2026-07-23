@@ -73,6 +73,7 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 - 跨会话、多批次、中断或残余风险未关闭时写 `ContextHandoffCard`。
 - dev/fix 改变项目现实且命中 Profile 影响时写 `ProfileImpactCheck`。
 - 只有正式 release workflow 才写 `ReleaseVerification`。
+- 新增或改变 Rule/Skill、Prompt、MCP Resource/Resource Template/Tool、Task 增强 Tool、CLI 或 Hook 时写 `CapabilitySurfaceDecision`：只引用中央 `decisionRef / status / identity / preferredSurface / validationRoute` 和 Owner 证据，不复制判定矩阵；缺失或陈旧时报告必须降级为 `BLOCK/UNVERIFIED`。
 - 所有非空用户消息保留 `GovernanceIntakeDecision`；未命中台账写入时也要给出独立 `skipEvidence`。
 - 命中 `requirementParallelOrchestration` 时写并行编排摘要：`RequirementIndependenceDecisionV1` 分类、`SharedSurfaceLockMapV1` 锁、`ParallelLaunchCardV1` 有效性、汇合协议、单写者和未关闭风险；报告不得把子会话完成冒充最终完成。
 - 命中 `agent-turn-liveness` 时写 `TurnLivenessRecovery`：只引用 Owner 的状态/lease/ACK/terminal/checkpoint、HostContractRoute、fault matrix 与 sidecar lifecycle 证据；必须区分 host-native、Hook-event 和 sidecar，不能把 PostToolUse 落盘冒充模型续接或终态。

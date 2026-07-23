@@ -7,7 +7,8 @@ const {
   loadControlPlaneContracts,
   validateGateRegistry,
   validateReportSchema,
-  validateTestRouteSchema
+  validateTestRouteSchema,
+  validateCapabilitySurfaceDecisionSchema
 } = require('./lib/control-plane-contracts')
 
 const ROOT = path.resolve(__dirname, '..')
@@ -28,15 +29,17 @@ for (const expected of [
   'brand-visual-quality',
   'contract-mutation-isolation',
   'phase-delivery-semantics',
-  'scenario-durable-workflow'
+  'scenario-durable-workflow',
+  'capability-surface-decision'
 ]) {
   assert.ok(gateGroupIds.has(expected), `missing residual absorption gate group: ${expected}`)
 }
 assert.strictEqual(contracts.workflow.workflows.length, 8)
 assert.deepStrictEqual(Object.keys(contracts.reportSchema.overlays).sort(), ['analyze', 'audit', 'dev', 'fix', 'optimization', 'scenario-test'])
 assert.deepStrictEqual(contracts.testRouteSchema.stableInputs, [
-  'workflow', 'changeTypes', 'risk', 'publicSurface', 'runtimeBoundary', 'profileConstraints', 'candidateState', 'requestedClaims'
+  'workflow', 'changeTypes', 'risk', 'publicSurface', 'runtimeBoundary', 'profileConstraints', 'candidateState', 'capabilitySurfaceDecision', 'requestedClaims'
 ])
+assert.strictEqual(contracts.capabilitySurfaceDecisionSchema.title, 'CapabilitySurfaceDecisionV1')
 
 const owners = new Set(contracts.plugin.skills.map(item => item.id))
 const duplicate = JSON.parse(JSON.stringify(contracts.gateRegistry))
@@ -49,5 +52,10 @@ const badReport = { ...contracts.reportSchema, gateRegistryRef: 'wrong.json' }
 assert.ok(validateReportSchema(badReport, new Set(contracts.workflow.workflows.map(item => item.id))).some(error => error.includes('ref mismatch')))
 const badRoute = { ...contracts.testRouteSchema, stableInputs: ['workflow', 'workflow'] }
 assert.ok(validateTestRouteSchema(badRoute).some(error => error.includes('duplicate TestRoute input')))
+const badCapabilitySchema = JSON.parse(JSON.stringify(contracts.capabilitySurfaceDecisionSchema))
+badCapabilitySchema.properties.decisionOwner.const = 'domain-skill'
+assert.ok(
+  validateCapabilitySurfaceDecisionSchema(badCapabilitySchema).some(error => error.includes('decision owner mismatch'))
+)
 
-console.log('✓ governance registry, report schema and TestRoute schema contracts passed')
+console.log('✓ governance registry, report, TestRoute and CapabilitySurfaceDecision schema contracts passed')

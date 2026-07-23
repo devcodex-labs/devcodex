@@ -1,0 +1,596 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://devcodex.dev/schemas/capability-surface-decision.v1.schema.json",
+  "title": "CapabilitySurfaceDecisionV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "decisionRef",
+    "capabilityId",
+    "capabilityKind",
+    "semanticJudgement",
+    "contentDelivery",
+    "determinism",
+    "invocationFrequency",
+    "preferredSurface",
+    "controlParty",
+    "readWriteExecute",
+    "decisionOwner",
+    "runtimeOwner",
+    "stateOwner",
+    "transactionBoundary",
+    "hostMatrix",
+    "fallback",
+    "consumers",
+    "validationRoute",
+    "decisionEvidence",
+    "canonicalRecordPath",
+    "writer",
+    "readers",
+    "identity",
+    "invalidationTriggers",
+    "truthBoundary",
+    "status"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "CapabilitySurfaceDecisionV1"
+    },
+    "decisionRef": {
+      "type": "string",
+      "pattern": "^CSD-[A-Za-z0-9][A-Za-z0-9._-]{2,127}$"
+    },
+    "capabilityId": {
+      "type": "string",
+      "minLength": 3
+    },
+    "capabilityKind": {
+      "enum": [
+        "semantic-judgement",
+        "content-delivery",
+        "user-template",
+        "deterministic-read",
+        "controlled-write",
+        "long-running-operation",
+        "host-event",
+        "low-frequency-operations"
+      ]
+    },
+    "semanticJudgement": {
+      "enum": [
+        "none",
+        "bounded",
+        "open-ended"
+      ]
+    },
+    "contentDelivery": {
+      "enum": [
+        "none",
+        "bounded",
+        "unbounded"
+      ]
+    },
+    "determinism": {
+      "enum": [
+        "deterministic",
+        "mixed",
+        "non-deterministic"
+      ]
+    },
+    "invocationFrequency": {
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "event-driven"
+      ]
+    },
+    "preferredSurface": {
+      "enum": [
+        "rule-skill",
+        "prompt",
+        "resource",
+        "resource-template",
+        "tool",
+        "task-augmented-tool",
+        "cli",
+        "hook"
+      ]
+    },
+    "controlParty": {
+      "enum": [
+        "model",
+        "application",
+        "user",
+        "host",
+        "workflow",
+        "operator"
+      ]
+    },
+    "readWriteExecute": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "read",
+          "write",
+          "execute"
+        ]
+      }
+    },
+    "decisionOwner": {
+      "const": "spec-governance"
+    },
+    "runtimeOwner": {
+      "type": "string",
+      "minLength": 1
+    },
+    "stateOwner": {
+      "type": "string",
+      "minLength": 1
+    },
+    "transactionBoundary": {
+      "type": "string",
+      "minLength": 1
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "confirmationLevel",
+        "allowedScope",
+        "allowlist",
+        "idempotencyKey",
+        "timeoutOwner",
+        "cancellation",
+        "receipt",
+        "auditTrail"
+      ],
+      "properties": {
+        "confirmationLevel": {
+          "enum": [
+            "none",
+            "warn",
+            "explicit",
+            "destructive"
+          ]
+        },
+        "allowedScope": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "allowlist": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 1
+        },
+        "timeoutOwner": {
+          "type": "string",
+          "minLength": 1
+        },
+        "cancellation": {
+          "type": "string",
+          "minLength": 1
+        },
+        "receipt": {
+          "type": "string",
+          "minLength": 1
+        },
+        "auditTrail": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "hostMatrix": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "host",
+          "status",
+          "testedVersion",
+          "evidence",
+          "fallback"
+        ],
+        "properties": {
+          "host": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "enum": [
+              "PASS",
+              "WARN",
+              "BLOCK",
+              "UNVERIFIED",
+              "N/A"
+            ]
+          },
+          "testedVersion": {
+            "type": "string",
+            "minLength": 1
+          },
+          "evidence": {
+            "type": "string",
+            "minLength": 1
+          },
+          "fallback": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "fallback": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "surface",
+        "reason"
+      ],
+      "properties": {
+        "surface": {
+          "enum": [
+            "rule-skill",
+            "prompt",
+            "resource",
+            "resource-template",
+            "tool",
+            "task-augmented-tool",
+            "cli",
+            "hook"
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "consumers": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "validationRoute": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "decisionEvidence": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "claim",
+          "evidenceRef",
+          "status",
+          "checkedAt"
+        ],
+        "properties": {
+          "claim": {
+            "type": "string",
+            "minLength": 1
+          },
+          "evidenceRef": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "enum": [
+              "PASS",
+              "WARN",
+              "BLOCK",
+              "UNVERIFIED",
+              "N/A"
+            ]
+          },
+          "checkedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      }
+    },
+    "canonicalRecordPath": {
+      "type": "string",
+      "pattern": "capability-surface-decisions/.+\\.json$"
+    },
+    "writer": {
+      "const": "workflow-single-writer"
+    },
+    "readers": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaDigest",
+        "sourceHead",
+        "checkedAt",
+        "evidenceDigest"
+      ],
+      "properties": {
+        "schemaDigest": {
+          "type": "string",
+          "pattern": "^[a-fA-F0-9]{64}$"
+        },
+        "sourceHead": {
+          "type": "string",
+          "pattern": "^[a-fA-F0-9]{7,64}$"
+        },
+        "checkedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "evidenceDigest": {
+          "type": "string",
+          "pattern": "^[a-fA-F0-9]{64}$"
+        }
+      }
+    },
+    "invalidationTriggers": {
+      "type": "array",
+      "minItems": 7,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "schema",
+          "source",
+          "evidence",
+          "host",
+          "protocol",
+          "consumer",
+          "runtime-owner"
+        ]
+      }
+    },
+    "truthBoundary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "canonicalOwner",
+        "localMetadataOnly",
+        "copiedCentralFields"
+      ],
+      "properties": {
+        "canonicalOwner": {
+          "const": "spec-governance"
+        },
+        "localMetadataOnly": {
+          "const": true
+        },
+        "copiedCentralFields": {
+          "type": "array",
+          "maxItems": 0
+        }
+      }
+    },
+    "mcpContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "implementedProtocol",
+        "referenceProtocol",
+        "negotiatedCapabilities",
+        "serverOwner",
+        "consumerEvidence",
+        "migration",
+        "rollback"
+      ],
+      "properties": {
+        "implementedProtocol": {
+          "type": "string",
+          "minLength": 1
+        },
+        "referenceProtocol": {
+          "type": "string",
+          "minLength": 1
+        },
+        "negotiatedCapabilities": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "serverOwner": {
+          "type": "string",
+          "minLength": 1
+        },
+        "consumerEvidence": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "migration": {
+          "type": "string",
+          "minLength": 1
+        },
+        "rollback": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "taskContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "negotiatedCapabilities",
+        "cancellation",
+        "ttl",
+        "polling",
+        "fallbackSurface"
+      ],
+      "properties": {
+        "negotiatedCapabilities": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "cancellation": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ttl": {
+          "type": "string",
+          "minLength": 1
+        },
+        "polling": {
+          "type": "string",
+          "minLength": 1
+        },
+        "fallbackSurface": {
+          "enum": [
+            "tool",
+            "cli"
+          ]
+        }
+      }
+    },
+    "resourceContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "payloadBound",
+        "freshness",
+        "uriTemplate"
+      ],
+      "properties": {
+        "payloadBound": {
+          "type": "string",
+          "minLength": 1
+        },
+        "freshness": {
+          "type": "string",
+          "minLength": 1
+        },
+        "uriTemplate": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "status": {
+      "enum": [
+        "draft",
+        "validated",
+        "frozen",
+        "stale",
+        "blocked"
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "readWriteExecute": {
+            "contains": {
+              "enum": [
+                "write",
+                "execute"
+              ]
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "authority"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "preferredSurface": {
+            "enum": [
+              "prompt",
+              "resource",
+              "resource-template",
+              "tool",
+              "task-augmented-tool"
+            ]
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "mcpContract"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "preferredSurface": {
+            "const": "task-augmented-tool"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "taskContract"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "preferredSurface": {
+            "enum": [
+              "resource",
+              "resource-template"
+            ]
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "resourceContract"
+        ]
+      }
+    }
+  ]
+}

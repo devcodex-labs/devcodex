@@ -1,0 +1,44 @@
+[
+  {
+    "name": "tool-without-authority",
+    "base": "controlled-tool",
+    "mutation": "remove-authority",
+    "expectedCode": "authority-required"
+  },
+  {
+    "name": "task-without-negotiation",
+    "base": "controlled-tool",
+    "mutation": "task-without-negotiation",
+    "expectedCode": "tasks-not-negotiated"
+  },
+  {
+    "name": "domain-duplicates-central-truth",
+    "base": "rule-skill",
+    "mutation": "copy-central-field",
+    "expectedCode": "duplicate-truth-source"
+  },
+  {
+    "name": "stale-schema-identity",
+    "base": "rule-skill",
+    "mutation": "stale-schema-digest",
+    "expectedCode": "schema-digest-mismatch"
+  },
+  {
+    "name": "incomplete-invalidation-triggers",
+    "base": "rule-skill",
+    "mutation": "remove-invalidation-trigger",
+    "expectedCode": "array-too-short"
+  },
+  {
+    "name": "semantic-judgement-as-tool",
+    "base": "controlled-tool",
+    "mutation": "semantic-as-tool",
+    "expectedCode": "semantic-judgement-surface"
+  },
+  {
+    "name": "unbounded-content-as-resource",
+    "base": "controlled-tool",
+    "mutation": "unbounded-resource",
+    "expectedCode": "unbounded-mcp-payload"
+  }
+]

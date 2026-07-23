@@ -100,6 +100,7 @@ applyTo: .devcodex/**/requirements/**
 | RepairPreventionAssessment | | repair task accepted 前必经 | active repair-prevention-assessment / RepairPreventionAssessmentV1 | | |
 | TestRoute | | | test-router schema | | |
 | ConceptSyncMap / ProfileImpactCheck | | | source-consumer-sync / load-profile | | |
+| CapabilitySurfaceDecision | | 新增/改变 Rule/Skill、Prompt、MCP、CLI 或 Hook 能力面 | spec-governance / CapabilitySurfaceDecisionV1 | canonical decisionRef + consumers | |
 | ContextAcquisition | | | `context-acquisition` registry group / Owner Skills | | |
 | VisibleOutputContract | | 入口/确认/进度/完成/阻断或文件交付 | user-visible-output-contract | internal manifest / visible set / envelope / renderer | |
 | 其他适用 gateGroup | | | registry ownerSkill | | |
@@ -179,6 +180,7 @@ applyTo: .devcodex/**/requirements/**
 - [ ] 实施任务、影响评估与文档同步均已完成
 - [ ] `test-route-schema.json` 选择的 routes 已执行，命令、exitCode、证据和 skipped 记录完整
 - [ ] 所有适用 `gateGroup` 已由 registry Owner 产出证据；未触发项有聚合 `N/A + skipReason`
+- [ ] 能力面发生变化时，中央 `decisionRef` 新鲜且 consumers 只读引用；缺失/stale/blocked 未被降级跳过
 - [ ] ExecutionContract、RepairCollaboration、RepairPreventionAssessment、ConceptSyncMap、ProfileImpactCheck、ServiceLifecycleCleanup、Backlog/台账回写等条件产物已按触发事实处理
 - [ ] ContextAcquisition 触发时，plan/receipt/hidden-read/bounded-memory/V99 证据与 staged consumer owner 已记录
 - [ ] VisibleOutputContract 触发时，planned=observed=internalDelivered、required hidden=0、计数守恒、semanticDigest 与 renderer parity 已记录；internal-only 文件未默认进入用户列表

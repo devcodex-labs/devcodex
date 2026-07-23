@@ -54,11 +54,12 @@
     {
       "id": "governance",
       "title": "治理与改进",
-      "sourceAnchors": ["RecordRouter + SCV", "GovernanceIntakeDecision", "Improvement Intake", "LedgerWriteEvidenceGate"],
-      "projectionAnchors": ["RecordRouter", "GovernanceIntakeDecision", "Improvement Intake", "LedgerWriteEvidenceGate", "SCV"],
+      "sourceAnchors": ["RecordRouter + SCV", "GovernanceIntakeDecision", "Improvement Intake", "LedgerWriteEvidenceGate", "CapabilitySurfaceDecisionGate"],
+      "projectionAnchors": ["RecordRouter", "GovernanceIntakeDecision", "Improvement Intake", "LedgerWriteEvidenceGate", "SCV", "CapabilitySurfaceDecisionV1"],
       "projectionLines": [
         "- 每条非空消息先中性登记，合理性与归因后形成 GovernanceIntakeDecision；关键词不能决定分类。",
-        "- 可泛化改进/缺口走 Improvement Intake 与 RecordRouter；LedgerWriteEvidenceGate 只接受正确 active-root 的可观察写入；控制面变更执行 SCV。"
+        "- 可泛化改进/缺口走 Improvement Intake 与 RecordRouter；LedgerWriteEvidenceGate 只接受正确 active-root 的可观察写入；控制面变更执行 SCV。",
+        "- 新增或改变 Rule/Skill、Prompt、MCP primitive、CLI 或 Hook 时，由 spec-governance 单写 CapabilitySurfaceDecisionV1；领域 Skill 只供证并引用 decisionRef，缺失或陈旧时阻断。"
       ]
     },
     {

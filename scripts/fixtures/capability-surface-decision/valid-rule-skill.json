@@ -1,0 +1,76 @@
+{
+  "schemaVersion": "CapabilitySurfaceDecisionV1",
+  "decisionRef": "CSD-semantic-routing",
+  "capabilityId": "semantic-routing",
+  "capabilityKind": "semantic-judgement",
+  "semanticJudgement": "open-ended",
+  "contentDelivery": "none",
+  "determinism": "non-deterministic",
+  "invocationFrequency": "medium",
+  "preferredSurface": "rule-skill",
+  "controlParty": "model",
+  "readWriteExecute": [
+    "read"
+  ],
+  "decisionOwner": "spec-governance",
+  "runtimeOwner": "intent",
+  "stateOwner": "none",
+  "transactionBoundary": "none",
+  "hostMatrix": [
+    {
+      "host": "all-instruction-hosts",
+      "status": "PASS",
+      "testedVersion": "repository-current",
+      "evidence": "instruction projection fixtures",
+      "fallback": "text instruction"
+    }
+  ],
+  "fallback": {
+    "surface": "cli",
+    "reason": "operator can inspect the deterministic evidence packet"
+  },
+  "consumers": [
+    "intent",
+    "spec-absorption"
+  ],
+  "validationRoute": [
+    "test-capability-surface-decision",
+    "test-spec-governance"
+  ],
+  "decisionEvidence": [
+    {
+      "claim": "open-ended semantic judgement remains in rules and Skills",
+      "evidenceRef": "skills/intent/SKILL.md",
+      "status": "PASS",
+      "checkedAt": "2026-07-23T10:00:00Z"
+    }
+  ],
+  "canonicalRecordPath": "E:/Worker/.devcodex/devcodex-v1/requirements/example/capability-surface-decisions/CSD-semantic-routing.json",
+  "writer": "workflow-single-writer",
+  "readers": [
+    "spec-absorption",
+    "skill-lifecycle-governance",
+    "test-router"
+  ],
+  "identity": {
+    "schemaDigest": "b78645e5ed316e607c6c9a043d59da51e767ebf9a92c384683ab001c274c0e7c",
+    "sourceHead": "269ac9fadbd3593d42f4481a2436d5b16b45a08a",
+    "checkedAt": "2026-07-23T10:00:00Z",
+    "evidenceDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "invalidationTriggers": [
+    "schema",
+    "source",
+    "evidence",
+    "host",
+    "protocol",
+    "consumer",
+    "runtime-owner"
+  ],
+  "truthBoundary": {
+    "canonicalOwner": "spec-governance",
+    "localMetadataOnly": true,
+    "copiedCentralFields": []
+  },
+  "status": "frozen"
+}

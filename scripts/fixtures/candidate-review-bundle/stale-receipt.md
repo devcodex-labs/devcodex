@@ -6,12 +6,30 @@ receiptFreshness: stale
 
 ## TDMatrix
 
-TD-1~TD-13 evaluated.
+| dimension | priority | status | evidence | blockerId | skipReason | negativeProbe |
+|---|---|---|---|---|---|---|
+| TD-1 | P0 | PASS | evidence | N/A | N/A | negative |
+| TD-2 | P0 | PASS | evidence | N/A | N/A | negative |
+| TD-3 | P0 | PASS | evidence | N/A | N/A | negative |
+| TD-4 | P0 | PASS | evidence | N/A | N/A | negative |
+| TD-5 | P0 | PASS | evidence | N/A | N/A | negative |
+| TD-6 | P0 | PASS | evidence | N/A | N/A | negative |
+| TD-7 | P1 | PASS | evidence | N/A | N/A | negative |
+| TD-8 | P0 | PASS | evidence | N/A | N/A | negative |
+| TD-9 | P0 | PASS | evidence | N/A | N/A | negative |
+| TD-10 | P0 | PASS | evidence | N/A | N/A | negative |
+| TD-11 | P0 | PASS | evidence | N/A | N/A | negative |
+| TD-12 | P0 | PASS | evidence | N/A | N/A | negative |
+| TD-13 | P0 | PASS | evidence | N/A | N/A | negative |
 
 ## BlockerSnapshot
 
-openBlockers: 0
+| stage | blockerId | evidence | affectedSurface | remediation | skippedChecks | stopReason | openBlockers |
+|---|---|---|---|---|---|---|---|
+| CP2 | N/A | stale receipt | design | rerun | none | stale | 0 |
 
 ## ClaimEvidenceMatrix
 
-Evidence exists, but it was bound to an older candidate digest.
+| claim | repoPath | currentBehavior | targetChange | runtimeOwner | validation | status |
+|---|---|---|---|---|---|---|
+| evidence is stale | fixture | old digest | rerun | owner | candidate test | WARN |

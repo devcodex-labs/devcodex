@@ -7,8 +7,12 @@ schemaVersion: CandidateReviewBundleV1
 
 ## BlockerSnapshot
 
-openBlockers: 0
+| stage | blockerId | evidence | affectedSurface | remediation | skippedChecks | stopReason | openBlockers |
+|---|---|---|---|---|---|---|---|
+| CP2 | N/A | incomplete | design | add matrix | none | missing TD | 0 |
 
 ## ClaimEvidenceMatrix
 
-This tries to confirm without the required technical-design matrix.
+| claim | repoPath | currentBehavior | targetChange | runtimeOwner | validation | status |
+|---|---|---|---|---|---|---|
+| confirmation bypass | fixture | missing TD | add TD | review owner | candidate test | BLOCK |

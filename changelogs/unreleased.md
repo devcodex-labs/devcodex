@@ -19,6 +19,7 @@
 - **企业完整流上下文预算与产物锚点优化**：`BundleDecisionV2` 增加 `BudgetDecisionV1`，显式区分 `enforced / fallback-full / blocked / not-requested` 与 `optimizedHit`；`ArtifactDeliveryManifestV1` 可纯投影 `ArtifactAnchorProjectionV1 / ArtifactAnchorV1`，以 `contentDigest + projectionDigest + truthSourceKind` 支撑 schema-first 双产物和上下文锚点，不让短 MD 投影替代 canonical 真相源。
 - **证据新鲜度回执与主张复用门禁**：新增 `ClaimEvidenceIndexV1`、`EvidenceFreshnessReceiptV1`、`StaleEvidenceLintDecisionV1` 与 `test:evidence-freshness`，覆盖强主张抽取、summary-only 降级、dependency/lease 漂移、ArtifactAnchor / ArtifactAnchorProjection 和 `FinalValidationSummaryV1` 绑定；同步 report/analyze/audit/review/test-router/visible output、报告模板、README、website、Profile 与 validation manifest。
 - **多需求并行编排 Skill**：新增 active `requirement-parallel-orchestration`、`RequirementIndependenceDecisionV1`、`SharedSurfaceLockMapV1`、`ParallelLaunchCardV1`、`IntegrationMergeProtocolV1` 与 `test:requirement-parallel-orchestration`，覆盖独立、弱耦合、共享源码冲突、LaunchCard 缺字段、缺汇合协议和 `allowParallelMutations` 负向探针；同步 dev/fix/execution-contract/test-router/report/memory、package/plugin、portfolio、README、website 与 Profile。
+- **MCP 能力边界与中央载体决策**：修复 `CandidateReviewBundleV1` phase/空矩阵假绿；新增 `CapabilitySurfaceDecisionV1` schema、deterministic validator、正负 fixtures、registry/Owner/Prompt/TestRoute/report/validation/package consumers，明确当前仅 memory 10 Tools 与 profile 5 Tools + 1 Prompt，未实现 Resource/Tasks；新增能力统一由 `spec-governance` 单写 decision，领域 Skill 只提供证据和引用 `decisionRef`。
 
 ## 历史锚点索引（已随 v1.15.0 / v1.15.1 / v1.15.2 / v1.15.3 发布或归档）
 

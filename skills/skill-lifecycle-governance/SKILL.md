@@ -45,7 +45,10 @@ mandatory Skill 或其依赖未知、inactive、owner/sourceBytes 缺失、冲�
 - 至少一个 current consumer、正向 fixture、负向 fixture 和回滚计划。
 - 依赖图无循环，冲突/优先级决策可解释。
 - 已通过 `evolution-governance` 授权与 LayeredAbsorptionDecision。
+- 新增或改变能力入口时，已引用 `spec-governance#CapabilitySurfaceDecisionGate` 的新鲜 `decisionRef`；中央状态为 `stale/blocked` 时不得激活或晋级。
 - 声称降低返工或补齐复审逃逸时，已执行 `ReworkReductionValueGate`；新 Skill 先进入 gray，只有 `ReworkEffectivenessLoop` 的前瞻证据达到样本门槛后才可申请 active。
+
+Skill 本地资产只记录触发、Owner、消费者、生命周期和 `decisionRef` 等元数据；不得复制中央 `preferredSurface / controlParty / runtimeOwner / truthBoundary` 字段，也不得因某个领域 Skill 提出能力就绕过中央单写者直接新建 Skill 或 MCP surface。
 
 ### 退役条件
 

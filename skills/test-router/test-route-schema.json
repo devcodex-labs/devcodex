@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "ownerSkill": "test-router",
   "gateRegistryRef": "skills/spec-governance/gate-registry.json",
-  "stableInputs": ["workflow", "changeTypes", "risk", "publicSurface", "runtimeBoundary", "profileConstraints", "candidateState", "requestedClaims"],
+  "stableInputs": ["workflow", "changeTypes", "risk", "publicSurface", "runtimeBoundary", "profileConstraints", "candidateState", "capabilitySurfaceDecision", "requestedClaims"],
   "selectors": [
     { "id": "static", "when": "source or contract changes", "evidence": ["command", "exitCode"] },
     { "id": "unit-integration", "when": "behavior or cross-module changes", "evidence": ["suite", "result", "coverageDecision"] },

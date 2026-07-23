@@ -131,6 +131,86 @@ description: 规范治理生命周期 — 意图驱动记录、RecordRouter 分�
 
 `SkillAbsorptionDecision` 是 `LayeredAbsorptionDecision` 的 Skill 层兼容字段，不能替代完整分层决策。若判定为 `new-skill-required`，不得只把规则追加到通用守门清单后宣告吸纳完成；必须在同批创建 Skill，或把未创建原因写入 PF / ISSUE，并在后续批次优先处理。任何层级判定为 N/A 都必须写 `skipReason`。
 
+## CapabilitySurfaceDecisionGate（能力载体中央决策）
+
+新增或升级规则、Skill、Prompt、Resource、Tool、task-augmented Tool、CLI、Hook 或结构化
+状态能力时，在 `LayeredAbsorptionDecision` 之后、创建/修改具体载体之前，必须执行 registry
+group `capability-surface-decision`。本 Gate 解决“直接写规则还是设计 MCP/CLI/Hook”，
+不替代 platform/Agent architecture 的 primitive、宿主与权限证据。
+
+### 唯一真相源与责任边界
+
+| field | contract |
+|---|---|
+| decision owner | `spec-governance` |
+| canonical schema | `skills/spec-governance/capability-surface-decision.v1.schema.json` |
+| deterministic validator | `scripts/lib/capability-surface-decision.js` |
+| canonical record | `<active-root>/<kind>/<task>/capability-surface-decisions/<decisionRef>.json` |
+| writer | 当前 workflow 的 `workflow-single-writer` |
+| evidence providers | `platform-ecosystem-architecture`、`ai-agent-system-architecture` |
+| readers | CP2/CP3、spec absorption、Skill lifecycle、TestRoute、report、source-consumer-sync、SCV |
+| domain Skill | 仅保存局部能力元数据和 `decisionRef`；不得复制中央 surface/权限/宿主矩阵 |
+
+中央 Gate 不是 MCP server，不持有领域 runtime state，也不改变宿主能力。被选中 surface 的
+既有 owner 继续负责 runtime/state/transaction；新增 server 仍须独立比较 owner、事务、
+信任/故障域、消费者、迁移和回滚。
+
+### 决策路线
+
+| capability reality | preferred surface |
+|---|---|
+| 开放式、非确定性语义判断 | `rule-skill` |
+| 用户主动调用的可复用模板 | `prompt` |
+| 有界只读内容或参数化内容 | `resource` / `resource-template` |
+| 有界、确定性查询或受控操作 | `tool` |
+| 已协商、可取消且有 TTL/轮询/fallback 的长任务 | `task-augmented-tool` |
+| 宿主 lifecycle/event | `hook` |
+| 低频 operator 运维或复杂本地流程 | `cli` |
+
+选择 `tool` 或 `task-augmented-tool` 后必须继续判断 `read/write/execute`、
+control party、runtime/state/transaction owner、scope、confirmation、allowlist、
+idempotency、timeout/cancel、receipt/audit。Tasks 未在 client/server 双侧协商时，
+不得启用 task surface，必须回退同步 Tool 或 CLI。
+
+### CapabilitySurfaceDecisionV1
+
+最低字段由 canonical schema 唯一定义，包含：
+
+`decisionRef / capabilityId / capabilityKind / semanticJudgement / contentDelivery /
+determinism / invocationFrequency / preferredSurface / controlParty / readWriteExecute /
+decisionOwner / runtimeOwner / stateOwner / transactionBoundary / hostMatrix / fallback /
+consumers / validationRoute / decisionEvidence / canonicalRecordPath / writer / readers /
+identity / invalidationTriggers / truthBoundary / status`。
+
+条件字段：
+
+- write/execute → `authority`；
+- Prompt/Resource/Tool/task surface → `mcpContract`；
+- task surface → `taskContract`，且 negotiated capabilities 必含 `tasks`；
+- Resource/Resource Template → `resourceContract` 的 payload/freshness/URI bound。
+
+状态为 `draft / validated / frozen / stale / blocked`。`validated/frozen` 必须通过 schema、
+surface-specific invariants、identity 与负向 fixture；`stale/blocked` 不得被 CP、报告或
+生命周期消费者当作可实施证据。
+
+### Freshness 与失效
+
+`identity` 绑定 `schemaDigest/sourceHead/checkedAt/evidenceDigest`。schema、source、
+evidence、host、protocol、consumer 或 runtime owner 任一变化即重新验证；只更新时间不能
+恢复 freshness。validator receipt 必须暴露 classification、issues、openBlockers、
+decision/schema digest 与 freshness reasons。
+
+### 必要负向探针
+
+- 开放式语义判断被强制做成 Tool；
+- 无界内容作为 MCP payload；
+- write/execute 缺 authority/confirmation/allowlist/idempotency/cancel/receipt；
+- Tasks 未协商仍启用或 fallback 递归；
+- 新 server 无 owner/consumer/migration/rollback；
+- 领域 Skill 复制中央字段或出现第二 writer；
+- decisionRef/path 重复、identity stale、host/decision evidence 为 BLOCK；
+- 只有 `preferredSurface` 字段但没有可重放的完整 decision record。
+
 ## HistoricalCommonNormLayeringGate（历史通用规范分层迁移）
 
 当用户要求“之前吸纳的规范重新分层”“全面逐个文件审查”“不要都堆在通用规范里”，或复审发现通用 instructions / prompt / report 模板持续承载大段执行正文时，必须执行 `HistoricalCommonNormLayeringGate`。

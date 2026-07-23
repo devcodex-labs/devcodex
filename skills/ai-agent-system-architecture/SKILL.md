@@ -45,6 +45,10 @@ description: AI Agent 系统架构专家 Owner — 当任务涉及 Agent 路由�
 
 每个适用能力域必须记录 `owner`、`publicPrivateBoundary`、`runtimeStatus`、`validationRoute`。较窄对象通过不能升级解释为较宽对象完整；报告使用“完整/最终/无需新增域”时，缺少 `completenessObject` 或任一适用域即判 incomplete。
 
+### CapabilitySurfaceDecision 证据提供者
+
+新增或改变 Agent 可调用能力面时，本 Skill 只向 `spec-governance#CapabilitySurfaceDecisionGate` 提供语义判断边界、model/application/user/host 控制方、read/write/execute 权限、状态机、authority、Task 协商、取消/超时/幂等和审计证据。它读取中央 `decisionRef`，不得自行决定或复制 `preferredSurface` 等 canonical 字段；MCP 能力、Tasks 或宿主行为没有 direct evidence 时保持 `UNVERIFIED`，不得由 Agent 名称或概念相似性推断支持。
+
 ### ContextAcquisitionGate
 
 Agent 上下文获取采用以下状态链，任何一步都不得用后一步的推断倒填：
@@ -82,7 +86,7 @@ IntentSeedV1 → unique project/activeRoot → ContextReadPlanV2（V1 兼容）�
 ## 执行步骤
 
 1. 建立 Agent 行为图：用户输入、`IntentSeedV1`、目标、`ContextReadPlanV2`（V1 兼容）、Skill、工具、回执、确认、报告。
-2. 明确工具权限边界和危险操作拦截。
+2. 明确工具权限边界和危险操作拦截；能力面发生变化时向中央 decision 提供控制方、authority、状态与 Task 证据。
 3. 定义上下文、记忆、handoff、summary 和恢复优先级。
 4. 设计状态机和失败恢复：blocked、retry、fallback、handoff。
 5. 用 direct replay、fixture replay、validate 或日志证据验证关键行为。
@@ -103,6 +107,7 @@ IntentSeedV1 → unique project/activeRoot → ContextReadPlanV2（V1 兼容）�
 | observabilityReplay | replay、fixture、日志、validate 证据 |
 | turnLivenessContract | 状态、事件、lease、ACK、终态、双阶段 checkpoint、LocalTaskTrace、能力边界与故障矩阵 |
 | humanInLoopBoundary | 用户确认、auto、人工复核和最终责任边界 |
+| capabilitySurfaceEvidence | `decisionRef`、控制方、read/write/execute、authority、状态/Task 与直接证据边界 |
 | evidenceMatrix | 判断 -> hook / runtime / report / memory / replay / tests |
 | agentCapabilityDomainMatrix | completenessObject -> domain -> owner / boundary / runtime / validation |
 ```

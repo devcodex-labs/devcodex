@@ -14,7 +14,7 @@ TestRoute 的稳定输入、route selector、固定输出与 skip 合同以同�
 
 机器可读输入、selector、输出与跳过字段以同目录 `test-route-schema.json` 为唯一事实源。稳定输入只有：
 
-`workflow / changeTypes / risk / publicSurface / runtimeBoundary / profileConstraints / candidateState / requestedClaims`
+`workflow / changeTypes / risk / publicSurface / runtimeBoundary / profileConstraints / candidateState / capabilitySurfaceDecision / requestedClaims`
 
 领域专属证据不得复制进 TestRoute 输入清单；先从 `../spec-governance/gate-registry.json` 解析适用 `gateGroup`，再由目标 Owner Skill 提供证据字段和阈值。
 
@@ -54,6 +54,8 @@ TestRoute 的稳定输入、route selector、固定输出与 skip 合同以同�
 `expertOutputQuality` 绑定 `expert-output-quality` / V84，不新增顶层 selector：代码、文档、示例、fixture、技术方案或报告命中专家型质量时，至少选择 `static`（并优先 `node scripts/test-spec-governance.js` + 控制面变更时 `npm run test:core`），证据链覆盖 `ExpertOutputQualityGate`、生产推荐路径、fixture 边界与 **MeasuredVerificationStandard**（生产入口命令 + exitCode；隔离 harness 不得冒充 V84 成败）。Owner 字段与完整门禁见 `skills/expert-output-quality/SKILL.md` 与 gate-registry `expert-output-quality`。
 
 `requirementParallelOrchestration` 绑定 `requirement-parallel-orchestration`，不新增顶层 selector：新增或修改多需求并行判定、`SharedSurfaceLockMapV1`、`ParallelLaunchCardV1`、`IntegrationMergeProtocolV1` 或相关消费者时，至少选择 `static + unit-integration`，执行 `npm run test:requirement-parallel-orchestration`。触达 Skill portfolio、validation manifest、package/plugin、README/website/Profile 或部署副本时叠加 `control-plane / profile-deploy` 对应命令；缺负向探针不得声明可并行。
+
+`capabilitySurfaceDecision` 只接受中央 `decisionRef / status / identity / preferredSurface / validationRoute` 的只读投影，不复制判定矩阵。新增或改变 Rule/Skill、Prompt、MCP Resource/Resource Template/Tool、Task 增强 Tool、CLI 或 Hook 时，至少选择 `static + unit-integration` 并执行 `npm run test:capability-surface-decision`；触达 MCP runtime、宿主 adapter、package、Profile、public docs 或部署副本时按 decision 的 `validationRoute` 叠加 `runtime-e2e / package-release / profile-deploy`。decision 缺失、stale、blocked 或 identity 不匹配时不得降级为 skipped。
 
 ## TestRoute 输出
 

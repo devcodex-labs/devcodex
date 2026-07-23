@@ -6,15 +6,15 @@
     "skillsPattern": "skills/*/SKILL.md",
     "optionalSidecar": "skills/*/devcodex.skill.json",
     "registry": "plugin.json",
-    "sourceDigest": "09962639b3a4f654200d2b2d1eb23eb0c733dfbb7173ea41f2ac560071a984d5",
+    "sourceDigest": "c84cd2ab34d791511f61eb9a47cc16f67db6678818546c59478852e5af23d96b",
     "sidecarDigest": "774105d7947b340d15d17115fcb8e37b62ae545cf553f06126d529184fd74872",
     "pluginDigest": "e972de3b30d46966c4f0c19737ceabffbcd48b94cbd7f7bf5e11175c81b815ac",
     "portfolioEvidence": "skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "85229c1463a5068750d5417e5ebf960907532dccf99b1cd3da0a88f7007792b4",
-    "consumerInventoryFileCount": 542,
-    "consumerInventoryDigest": "75c5c49e36a637d8a214eebcd29566cbb4c63034536abd9d60cdc73aa7d15913",
-    "consumerProjectionDigest": "a3de4063d9ddfb914e5ea8b11f8432b756da74c37ebe584adf9558a84907678a",
-    "portfolioInputDigest": "f9ef0cefcc940d8ec5af7cd14c4cfdf469555b762e78818a1c696d2dd2bc042f"
+    "consumerInventoryFileCount": 550,
+    "consumerInventoryDigest": "6b96b61c7e79618324141360dd264142827bef3357f304616ed38d5934827135",
+    "consumerProjectionDigest": "f7048018b724daa0a286f7abfa464745ca5bf559e93d3037452e30d7e53216d4",
+    "portfolioInputDigest": "241bc53540976de400eb58f3d41d9ed8170785305d8e627b060556978d67b2f5"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -651,8 +651,8 @@
         "skills/ai-agent-system-architecture/SKILL.md"
       ],
       "source": "skills/ai-agent-system-architecture/SKILL.md",
-      "hash": "91d6c543f67c28c2bb544378490fd30a423aaf0d4a6bda88a1fac191bb7fb0ac",
-      "sourceBytes": 10370,
+      "hash": "984cae75c5ded3d64937ae296f69181f67c10697918d736cbdefbd9450417dc7",
+      "sourceBytes": 11164,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [],
@@ -708,6 +708,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-capability-surface-decision.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/validation-manifest.json",
           "role": "current"
         },
@@ -725,6 +729,7 @@
         }
       ],
       "validationProfile": [
+        "scripts/test-capability-surface-decision.js",
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
@@ -772,6 +777,7 @@
         ],
         "evolvableUnitRef": "skill:ai-agent-system-architecture",
         "probeSuiteRefs": [
+          "scripts/test-capability-surface-decision.js",
           "scripts/test-skill-portfolio.js",
           "scripts/validate.js"
         ],
@@ -5789,6 +5795,10 @@
         },
         {
           "path": "prompts/cp-checklist.prompt.md",
+          "role": "current"
+        },
+        {
+          "path": "scripts/fixtures/capability-surface-decision/valid-controlled-tool.json",
           "role": "current"
         },
         {
@@ -11441,6 +11451,14 @@
           "role": "current"
         },
         {
+          "path": "scripts/fixtures/candidate-review-bundle/phase-conflict.md",
+          "role": "current"
+        },
+        {
+          "path": "scripts/fixtures/capability-surface-decision/valid-rule-skill.json",
+          "role": "current"
+        },
+        {
           "path": "scripts/fixtures/host-parity/platform-capability-request-xai.md",
           "role": "current"
         },
@@ -12469,6 +12487,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/fixtures/capability-surface-decision/valid-controlled-tool.json",
+          "role": "current"
+        },
+        {
           "path": "scripts/fixtures/evidence-freshness/summary-only-report.md",
           "role": "current"
         },
@@ -12734,6 +12756,10 @@
         },
         {
           "path": "website/docs/specs/flowcharts.md",
+          "role": "current"
+        },
+        {
+          "path": "website/docs/specs/mcp-capability-boundary.md",
           "role": "current"
         },
         {
@@ -13526,10 +13552,6 @@
           "role": "current"
         },
         {
-          "path": "scripts/fixtures/candidate-review-bundle/cp2-ready.md",
-          "role": "current"
-        },
-        {
           "path": "scripts/instruction-fallback-check.js",
           "role": "current"
         },
@@ -13879,6 +13901,10 @@
         },
         {
           "path": "website/docs/specs/flowcharts.md",
+          "role": "current"
+        },
+        {
+          "path": "website/docs/specs/mcp-capability-boundary.md",
           "role": "current"
         },
         {
@@ -14242,8 +14268,8 @@
         "skills/platform-ecosystem-architecture/SKILL.md"
       ],
       "source": "skills/platform-ecosystem-architecture/SKILL.md",
-      "hash": "54728027c4fbccd6486f43c3d2c912920e55cd61f2c03e7553b2cc1499d9285c",
-      "sourceBytes": 4047,
+      "hash": "9b9f348dd84d6774e9a11b5d234cec3e2be9c49e3442d8f60c2a60a5ada7ed62",
+      "sourceBytes": 4811,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [],
@@ -14279,6 +14305,14 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-capability-surface-decision.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/validation-manifest.json",
+          "role": "current"
+        },
+        {
           "path": "website/docs/guide/development.md",
           "role": "current"
         },
@@ -14292,6 +14326,7 @@
         }
       ],
       "validationProfile": [
+        "scripts/test-capability-surface-decision.js",
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
@@ -14340,6 +14375,7 @@
         ],
         "evolvableUnitRef": "skill:platform-ecosystem-architecture",
         "probeSuiteRefs": [
+          "scripts/test-capability-surface-decision.js",
           "scripts/test-skill-portfolio.js",
           "scripts/validate.js"
         ],
@@ -15958,8 +15994,8 @@
         "skills/report/SKILL.md"
       ],
       "source": "skills/report/SKILL.md",
-      "hash": "c909b903de9772bdabc2dab18eec09dd97a65aaeebbc79081bbe47f0f9fb232b",
-      "sourceBytes": 17332,
+      "hash": "9c949e1b802f800ff81a324f89f8253668d42281e2e462994fab7fd489636b41",
+      "sourceBytes": 17671,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [],
@@ -16278,6 +16314,10 @@
         },
         {
           "path": "README.md",
+          "role": "current"
+        },
+        {
+          "path": "scripts/fixtures/capability-surface-decision/valid-controlled-tool.json",
           "role": "current"
         },
         {
@@ -17652,6 +17692,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/fixtures/capability-surface-decision/valid-rule-skill.json",
+          "role": "current"
+        },
+        {
           "path": "scripts/host-instruction-projection.json",
           "role": "current"
         },
@@ -18302,8 +18346,8 @@
         "skills/skill-lifecycle-governance/SKILL.md"
       ],
       "source": "skills/skill-lifecycle-governance/SKILL.md",
-      "hash": "8ba4721920adc33942dd3a0a463201385f90bb96d02714f4c7919921fe237f9a",
-      "sourceBytes": 10223,
+      "hash": "e04446fe43f9e9f034ca57a8c0bc7f2a2ca0ca64772151a2ea1f40d5dc579b6c",
+      "sourceBytes": 10702,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [],
@@ -18335,6 +18379,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/fixtures/capability-surface-decision/valid-rule-skill.json",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/skill-portfolio-utils.js",
           "role": "current"
         },
@@ -18359,6 +18407,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-capability-surface-decision.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-skill-portfolio.js",
           "role": "current"
         },
@@ -18380,6 +18432,7 @@
         }
       ],
       "validationProfile": [
+        "scripts/test-capability-surface-decision.js",
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
@@ -18432,6 +18485,7 @@
         ],
         "evolvableUnitRef": "skill:skill-lifecycle-governance",
         "probeSuiteRefs": [
+          "scripts/test-capability-surface-decision.js",
           "scripts/test-skill-portfolio.js",
           "scripts/validate.js"
         ],
@@ -18494,8 +18548,8 @@
         "skills/source-consumer-sync/SKILL.md"
       ],
       "source": "skills/source-consumer-sync/SKILL.md",
-      "hash": "5e1d2f167573b7c96f041c2ada823d690f399bbe9500f4f6265a6e009afaea9c",
-      "sourceBytes": 5372,
+      "hash": "1943bca05e5ec83c891f1227ae7fc5edf0959fbe02df3c5b0af168f80d64c54b",
+      "sourceBytes": 5965,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [],
@@ -18592,6 +18646,10 @@
         },
         {
           "path": "scripts/lib/validate-optimization-controls.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/validation-manifest.json",
           "role": "current"
         },
         {
@@ -18717,8 +18775,8 @@
         "skills/spec-absorption/SKILL.md"
       ],
       "source": "skills/spec-absorption/SKILL.md",
-      "hash": "8ff6f9ba745c33f180d92647eb816877174e3d8a88942f6c92154aa1e5a39708",
-      "sourceBytes": 16824,
+      "hash": "b76528276a89c81c82902f61f4758f0af2fdf8d1f4573779dafea3c7b1879cd5",
+      "sourceBytes": 17437,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [],
@@ -18779,6 +18837,10 @@
         },
         {
           "path": "README.md",
+          "role": "current"
+        },
+        {
+          "path": "scripts/fixtures/capability-surface-decision/valid-rule-skill.json",
           "role": "current"
         },
         {
@@ -18963,8 +19025,8 @@
         "skills/spec-governance/SKILL.md"
       ],
       "source": "skills/spec-governance/SKILL.md",
-      "hash": "5e6239d7dad729d8a756c09e3910aa45e63a00fb68b311acb426d3efa603bf71",
-      "sourceBytes": 29181,
+      "hash": "96acd32ac736738f77766f963dfb4a978a664be0baccd9400d77fea0cbf9f5ec",
+      "sourceBytes": 33398,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [
@@ -19106,7 +19168,19 @@
           "role": "historical"
         },
         {
+          "path": "changelogs/unreleased.md",
+          "role": "current"
+        },
+        {
           "path": "data/README.md",
+          "role": "current"
+        },
+        {
+          "path": "host-projections/AGENTS.md",
+          "role": "current"
+        },
+        {
+          "path": "host-projections/copilot-instructions.md",
           "role": "current"
         },
         {
@@ -19186,7 +19260,23 @@
           "role": "current"
         },
         {
+          "path": "scripts/fixtures/capability-surface-decision/valid-controlled-tool.json",
+          "role": "current"
+        },
+        {
+          "path": "scripts/fixtures/capability-surface-decision/valid-rule-skill.json",
+          "role": "current"
+        },
+        {
+          "path": "scripts/host-instruction-projection.json",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/canonical-consumer-contracts.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/capability-surface-decision.js",
           "role": "current"
         },
         {
@@ -19270,6 +19360,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-capability-surface-decision.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-control-plane-module-contracts.js",
           "role": "current"
         },
@@ -19295,6 +19389,10 @@
         },
         {
           "path": "website/docs/specs/directory-structure.md",
+          "role": "current"
+        },
+        {
+          "path": "website/docs/specs/mcp-capability-boundary.md",
           "role": "current"
         },
         {
@@ -19327,6 +19425,7 @@
         }
       ],
       "validationProfile": [
+        "scripts/test-capability-surface-decision.js",
         "scripts/test-control-plane-module-contracts.js",
         "scripts/test-governance-intake.js",
         "scripts/test-skill-portfolio.js",
@@ -19380,6 +19479,7 @@
         ],
         "evolvableUnitRef": "skill:spec-governance",
         "probeSuiteRefs": [
+          "scripts/test-capability-surface-decision.js",
           "scripts/test-control-plane-module-contracts.js",
           "scripts/test-governance-intake.js",
           "scripts/test-skill-portfolio.js",
@@ -19778,6 +19878,10 @@
           "role": "current"
         },
         {
+          "path": "website/docs/specs/mcp-capability-boundary.md",
+          "role": "current"
+        },
+        {
           "path": "website/docs/specs/memory-retrieval-flow.md",
           "role": "current"
         },
@@ -20045,8 +20149,8 @@
         "skills/test-router/SKILL.md"
       ],
       "source": "skills/test-router/SKILL.md",
-      "hash": "173f887ab965a876f4d704d7c59a081b4d04f7b300746175f826d5a94e747840",
-      "sourceBytes": 10966,
+      "hash": "a5f172100903388aade08ecbd5b26e9dcd5e92c7cebdc19b104d025f2c129a3d",
+      "sourceBytes": 11629,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [],
@@ -20173,6 +20277,14 @@
         },
         {
           "path": "README.md",
+          "role": "current"
+        },
+        {
+          "path": "scripts/fixtures/capability-surface-decision/valid-controlled-tool.json",
+          "role": "current"
+        },
+        {
+          "path": "scripts/fixtures/capability-surface-decision/valid-rule-skill.json",
           "role": "current"
         },
         {

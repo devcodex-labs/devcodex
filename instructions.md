@@ -231,6 +231,10 @@ S02 不再把“敏感信息、明文密码、连接字符串或硬编码”定�
 
 CP2 / 技术方案 / 报告必须记录 `LayeredAbsorptionDecision`：`candidateId`、`classification`、`targetSkill`、`triggerTerms`、`ownedArtifacts`、`layerChecks`、`validationRoute` 与 `consumerSync`。`SkillAbsorptionDecision` 是其中 Skill 层的兼容字段，不能替代完整分层决策。
 
+### CapabilitySurfaceDecisionGate（能力载体中央判定）
+
+新增或改变 Rule/Skill、Prompt、MCP Resource/Resource Template/Tool、Task 增强 Tool、CLI 或 Hook 时，先由 `spec-governance` 单写 `CapabilitySurfaceDecisionV1`。领域 Skill 只提供语义、宿主、权限、状态、消费者与验证证据，并保存中央 `decisionRef`；不得复制 `preferredSurface` 等中央字段，也不得绕过 decision 直接创建或激活能力资产。缺 decision、identity 因 schema/source/evidence/host/protocol/consumer/runtime owner 变化而失效、状态为 `stale/blocked`，或宿主/协议只有推断没有 direct evidence 时必须阻断。
+
 `layerChecks` 至少覆盖：
 
 | 层级 | 必查内容 |

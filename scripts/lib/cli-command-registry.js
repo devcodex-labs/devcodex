@@ -80,14 +80,24 @@ function runCliCommand({ cmd, argv, registry, runMigrateLayout, process, c, cons
   }
 
   if (cmd === 'init') {
-    if (selection.host) registry.cmdInitHost(selection.host,
-      selection.host === 'codex' && argv.includes('--codex') ? ['--force', ...selection.cleanedArgv] : selection.cleanedArgv)
-    else registry.cmdInit(argv)
+    if (selection.host) {
+      registry.cmdInitHost(selection.host,
+        selection.host === 'codex' && argv.includes('--codex')
+          ? ['--force', ...selection.cleanedArgv]
+          : selection.cleanedArgv)
+    } else {
+      // A2: default five hosts via includeExtended. Do NOT use cmdInitHost('all') —
+      // that path runs hostEntryCollision and hard-fails bare init on kernel drift.
+      registry.cmdInit(selection.cleanedArgv, { includeExtended: true })
+    }
     return 'init'
   }
   if (cmd === 'update') {
-    if (selection.host) registry.cmdInitHost(selection.host, ['--force', ...selection.cleanedArgv])
-    else registry.cmdInit(['--force', ...argv])
+    if (selection.host) {
+      registry.cmdInitHost(selection.host, ['--force', ...selection.cleanedArgv])
+    } else {
+      registry.cmdInit(['--force', ...selection.cleanedArgv], { includeExtended: true })
+    }
     return 'update'
   }
   if (cmd === 'uninstall') {

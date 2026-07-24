@@ -4,7 +4,7 @@ pageType: home
 hero:
   name: DevCodex
   text: AI 开发工作流规范注入器
-  tagline: 默认适配 Copilot / Claude Code / Codex，并可显式扩展 Gemini / Grok 的统一开发工作流
+  tagline: 默认适配 Copilot / Claude Code / Codex / Gemini / Grok 五宿主的统一开发工作流
   actions:
     - theme: brand
       text: 开始使用
@@ -18,8 +18,8 @@ features:
     details: 8 种工作流（dev/fix/audit/analyze/self-fix/resume/plan/chat），执行流程骨架已冻结
   - title: 🛠️ 83 个 Skills
     details: 当前源码维护 80 active + 3 gray；新增 active `host-capability-routing`，以 portable-first 方式把用户意图映射到五宿主 8 个 surface variant，证据不足时不冒充 native；另有 `requirement-parallel-orchestration`，用于多需求并行前的独立性判定、共享面锁图、LaunchCard 与汇合协议；active `repair-prevention-assessment` 负责所有 repair 的完成门禁，gray `rework-prevention-engineering` 只负责长期效果试验，gray `brand-visual-quality` 承接品牌视觉资产质量，其余覆盖开发、修复、审计、规范吸纳执行、跨仓消费者验证、用户侧文档 review 聚合、`expert-output-quality` 专家型产物质量与 21 个专家 Owner Skill，以及宿主契约验证、真相源-消费者同步
-  - title: 🧩 默认三宿主、可选五宿主
-    details: Copilot、Claude Code、Codex 默认部署；v1.15.3 可显式增加 Gemini / Grok。五宿主共用精简 kernel、按需 Skills 与完整回退，Hook 能力按宿主/事件降级并受 direct/fixture/instruction-backed 证据上限约束
+  - title: 🧩 默认五宿主
+    details: `init` / `update` 默认部署 Copilot、Claude Code、Codex、Gemini 与 Grok（含 Grok 用户级 plugin 同步）；也可用 `--host <id>` 只刷单宿主。五宿主共用精简 kernel、按需 Skills 与完整回退，Hook 能力按宿主/事件降级并受 direct/fixture/instruction-backed 证据上限约束
   - title: 🔒 四层合规检查
     details: FC（形式合规）→ SC（实质合规）→ RC（恢复性检查）→ T（任务完成验证）；chat 仅保留记忆与 dev 预检查
   - title: 🧠 跨会话记忆

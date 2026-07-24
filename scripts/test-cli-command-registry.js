@@ -6,9 +6,11 @@ const { createCliCommandRegistry, parseHostSelection, runCliCommand } = require(
 
 const calls = []
 const handlers = Object.fromEntries([
-  'cmdInit', 'cmdInitClaude', 'cmdInitCodex', 'cmdGrok', 'cmdStatus',
+  'cmdInitClaude', 'cmdInitCodex', 'cmdGrok', 'cmdStatus',
   'cmdProfileInit', 'cmdDoctor', 'cmdProbe', 'cmdTrace', 'cmdSkill', 'cmdTask', 'cmdHelp'
 ].map(name => [name, argv => calls.push([name, argv])]))
+// Capture opts so bare five-host routing cannot silently drop includeExtended (V-registry).
+handlers.cmdInit = (argv, opts) => calls.push(['cmdInit', argv, opts])
 handlers.cmdInitHost = (host, argv) => calls.push(['cmdInitHost', host, argv])
 handlers.cmdUninstallHost = (host, argv) => calls.push(['cmdUninstallHost', host, argv])
 const registry = createCliCommandRegistry(handlers)
@@ -27,7 +29,9 @@ assert.deepStrictEqual(calls.pop(), ['cmdInitHost', 'gemini', ['--dry-run']])
 assert.strictEqual(runCliCommand({ cmd: 'update', argv: ['--grok'], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger }), 'update')
 assert.deepStrictEqual(calls.pop(), ['cmdInitHost', 'grok', ['--force']])
 assert.strictEqual(runCliCommand({ cmd: 'init', argv: [], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger }), 'init')
-assert.deepStrictEqual(calls.pop(), ['cmdInit', []])
+assert.deepStrictEqual(calls.pop(), ['cmdInit', [], { includeExtended: true }])
+assert.strictEqual(runCliCommand({ cmd: 'update', argv: ['--dry-run'], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger }), 'update')
+assert.deepStrictEqual(calls.pop(), ['cmdInit', ['--force', '--dry-run'], { includeExtended: true }])
 assert.strictEqual(runCliCommand({ cmd: 'profile', argv: ['init', '--prod'], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger }), 'profile-init')
 assert.deepStrictEqual(calls.pop(), ['cmdProfileInit', ['--prod']])
 assert.strictEqual(runCliCommand({ cmd: 'profile', argv: ['plan', '--tier', 'profile-standard'], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger }), 'profile-plan')

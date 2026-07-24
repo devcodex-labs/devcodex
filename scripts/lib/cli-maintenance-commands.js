@@ -794,11 +794,11 @@ function buildCliMaintenanceCommands(ctx) {
       npx @vextjs/devcodex <command> [options]   ${c.dim('(without npm link)')}
 
     ${c.bold('Commands:')}
-      ${c.cyan('init')}              Install Copilot files, then deploy Claude Code and Codex adapters
+      ${c.cyan('init')}              Install all five hosts (copilot+claude+codex+gemini+grok)
       ${c.cyan('init --claude')}     Install Claude Code adapter only
       ${c.cyan('init --codex')}      Install Codex adapter only
       ${c.cyan('init --host <id>')}  Install copilot|claude|codex|gemini|grok|all
-      ${c.cyan('update')}            Overwrite Copilot files, then deploy Claude Code and Codex adapters
+      ${c.cyan('update')}            Refresh all five hosts (force; includes Grok user plugin sync)
       ${c.cyan('update --claude')}   Overwrite Claude Code adapter only
       ${c.cyan('update --codex')}    Overwrite Codex adapter only
       ${c.cyan('update --host <id>')} Refresh one host or all five hosts
@@ -830,12 +830,13 @@ function buildCliMaintenanceCommands(ctx) {
       ${c.dim('--json')}             Emit one DevCodexCliEnvelopeV1 document for supported commands
 
     ${c.bold('Examples:')}
-      devcodex init                 # First-time three-host install
+      devcodex init                 # First-time five-host install
       devcodex init --claude        # Claude Code adapter only
       devcodex init --codex         # Codex adapter only
-      devcodex init --host gemini   # Gemini CLI adapter only
+      devcodex init --host gemini   # Gemini CLI adapter only (same hosts as bare when using --host all)
       devcodex init --host grok     # Grok Build adapter only
-      devcodex update --host all    # Refresh all five host adapters
+      devcodex update               # Refresh all five hosts (default)
+      devcodex update --host all    # Explicit five-host refresh (same host set as bare update)
       devcodex uninstall --host grok --dry-run # Preview safe Grok deregistration
       devcodex grok                 # Full-evidence Grok launcher for workspace child projects
       devcodex grok -p "Review this diff" --output-format json

@@ -6,7 +6,7 @@
 
 ## DevCodex 是什么
 
-DevCodex 是通过 npm 包和 CLI 分发的 AI 开发规范注入器。默认安装适配 Copilot、Claude Code 与 Codex；v1.15.3 还可显式增加 Gemini CLI / Grok Build adapter。所有宿主从同一真相源生成精简入口，按意图读取 Skills，证据不足时回退完整规范。
+DevCodex 是通过 npm 包和 CLI 分发的 AI 开发规范注入器。默认 `init` / `update` 部署五宿主：Copilot、Claude Code、Codex、Gemini CLI 与 Grok Build（Grok 含用户级 plugin 同步）；也可用 `--host <id>` 只安装或刷新单宿主。所有宿主从同一真相源生成精简入口，按意图读取 Skills，证据不足时回退完整规范。
 
 站点同时保留稳定规范和版本化维护资料；历史版本目录中的旧需求页只代表当时基线，不等同于当前实现。当前安装、命令和宿主支持以仓库 [README](https://github.com/vextjs/devcodex#安装) 与当前发布版本为准。
 
@@ -17,7 +17,7 @@ DevCodex 是通过 npm 包和 CLI 分发的 AI 开发规范注入器。默认安
 > 版本语义：npm package 当前发布版本是 **v1.15.3**；站内 **1.0.1** 是活动需求文档版本。当前版本仅发布到 GitHub Packages，安装需要 `read:packages` 认证；Gemini / Grok 通用宿主选择器随 v1.15.3 发布。
 
 1. 确认 Node.js >=18；按 [安装说明](https://github.com/vextjs/devcodex#5-分钟快速开始) 配置 `@vextjs:registry=https://npm.pkg.github.com` 与当前 shell 的 `NODE_AUTH_TOKEN`。
-2. 安装并从目标项目初始化三宿主规范，然后执行 status：
+2. 安装并从目标项目初始化五宿主规范，然后执行 status：
 
 ```bash
 npm install @vextjs/devcodex
@@ -47,7 +47,7 @@ npx @vextjs/devcodex init --codex
 | 工作流行为可审计 | 通过报告、audit-state 与合规检查形成可追溯闭环 |
 | 规范随代码版本化 | 用版本文档管理规范演进与实现边界 |
 | 跨项目复用 | 普通仓库安装到项目根；workspace-namespace 安装到共享 owner 根，并用 `update` 同步受管规范 |
-| 多宿主一致入口 | 默认 Copilot、Claude Code 与 Codex，显式选择时增加 Gemini / Grok；五宿主共用同一规范源与精简投影，Hook 能力按宿主/事件降级，并按官方输出契约区分顶层 block、`continue:false` 与工具级 deny |
+| 多宿主一致入口 | 默认五宿主（Copilot / Claude Code / Codex / Gemini / Grok）；可用 `--host` 缩到单宿主；共用同一规范源与精简投影，Hook 能力按宿主/事件降级，并按官方输出契约区分顶层 block、`continue:false` 与工具级 deny |
 | 上下文成本可控 | always-on 入口使用有 coverage 与预算约束的精简 kernel；Claude / Gemini 仅保留薄 wrapper，具体流程按意图加载 Skills，完整规范作为 fail-closed fallback |
 | 长任务停滞可诊断 | `TurnLivenessRecoveryGate` 区分运行、等待续接、可疑、可恢复停滞与终态，记录工具租约、continuation ACK 和 checkpoint；Hook 只在事件到达时观察，不承诺自行唤醒宿主或自动重放写操作 |
 | 文件真相源优先 | `MemoryCannotSatisfyBootstrapGate` 要求宿主 Memories、模型长期偏好或交接卡只作为 `navigation-hint`，新线程 / resume / summary 恢复仍读取 Profile、tasks、reports 和源码 / 文档真相源 |

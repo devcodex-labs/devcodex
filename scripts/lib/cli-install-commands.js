@@ -1051,7 +1051,8 @@ function buildCliInstallCommands(ctx) {
     if (normalized === 'grok') return cmdInitGrok(argv)
     const scopedOperation = () => {
       if (normalized === 'all') return cmdInit(argv, { includeExtended: true, ownerResolved: true })
-      if (normalized === 'copilot') return cmdInit(argv, { copilotOnly: true, ownerResolved: true })
+      // Explicit includeExtended:false — never inherit a future default of true (copilot isolation).
+      if (normalized === 'copilot') return cmdInit(argv, { copilotOnly: true, includeExtended: false, ownerResolved: true })
       if (normalized === 'claude') return cmdInitClaude(argv)
       if (normalized === 'codex') return cmdInitCodex(argv)
       return cmdInitGemini(argv)

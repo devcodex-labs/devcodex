@@ -108,7 +108,7 @@ full fallback 是兼容/故障路径，不得与 kernel 同时作为两个 alway
 
 - 公共选择器：`--host <copilot|claude|codex|gemini|grok|all>`。
 - 旧 `--claude`、`--codex` 保留；`--gemini`、`--grok` 为等价 alias。
-- 无 selector 的 init/update 继续部署 Copilot+Claude+Codex；只有 `--host all` 部署五宿主。
+- 无 selector 的 init/update **默认部署五宿主**（copilot+claude+codex+gemini+grok，经 `cmdInit({ includeExtended: true })`）；`--host all` 显式全量（init 无 force 时仍可能 `HOST_INSTRUCTION_COLLISION`，与 bare init 的 soft-skip 路径不同）。
 - 重复或冲突 selector 使用 `CLI_HOST_SELECTION_CONFLICT`；未知 host 使用 `CLI_HOST_UNSUPPORTED`。
 - managed manifest 必须记录 projection source/content digest，并保证规范化物理 destination 单一 current owner；dry-run 零写入；从 source cwd 与目标项目 cwd 分别验证边界。
 - workspace-namespace 从 child project 调用默认、单宿主或 `--host all` install/update 时，所有非 portable target/manifest owner 必须解析为 workspace root；Grok uninstall 与 status/doctor 也消费相同 scope identity。uninstall 不删除 workspace source。

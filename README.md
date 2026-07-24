@@ -1,6 +1,6 @@
 # DevCodex
 
-> AI 开发规范注入器 — 从 Copilot / Claude Code 双主支持升级为 Copilot / Claude Code / Codex 三宿主支持（Hook-First / Instruction-Fallback）
+> AI 开发规范注入器 — 默认五宿主：Copilot / Claude Code / Codex / Gemini / Grok（Hook-First / Instruction-Fallback）
 
 [![npm](https://img.shields.io/badge/npm-%40vextjs%2Fdevcodex-blue)](https://github.com/vextjs/devcodex)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green)](LICENSE)
@@ -169,7 +169,7 @@ export NODE_AUTH_TOKEN=YOUR_GITHUB_PAT
 
 ```bash
 npm install @vextjs/devcodex@1.15.3
-npx @vextjs/devcodex init          # 默认三宿主部署：Copilot + Claude Code adapter + Codex adapter
+npx @vextjs/devcodex init          # 默认五宿主部署：Copilot + Claude + Codex + Gemini + Grok
 npx @vextjs/devcodex init --claude # 仅 Claude Code adapter
 npx @vextjs/devcodex init --codex  # 仅 Codex adapter
 ```
@@ -584,7 +584,7 @@ README / 用户使用文档当前补充四类专项 Skill：`user-manual-authori
 | **OpenAI Codex app/CLI** | `AGENTS.md` + `.agents/skills/` + `.codex/hooks.json`（含 `PreCompact` compaction guardrail） | ⚠️ Codex hook guardrail；阻断输出按事件契约分为顶层 `decision`、`continue:false` 与工具级 `permissionDecision` | ⚠️ Hook + 文本确认 | ✅ `init/update --codex` 向 `.codex/config.toml` merge `devcodex-memory` + `devcodex-profile`（复用 `.claude/mcp/*`）；可手工覆盖 | 🟡 Beta |
 | **ChatGPT 普通对话** | 不读取本地工作区 `AGENTS.md` / `.agents/` / `.codex/`；可手工粘贴规则 | ❌ | ⚠️ 文本 | ❌ | 🔴 Unsupported |
 
-> **安装命令**：v1.15.3 默认三宿主部署 → `npx @vextjs/devcodex init`；仅 Claude Code adapter → `npx @vextjs/devcodex init --claude`；仅 Codex adapter → `npx @vextjs/devcodex init --codex`。需要显式增加 Gemini / Grok 时使用 `npx @vextjs/devcodex init --host <gemini|grok|all>` 或本地源码 `node index.js init --host <gemini|grok|all>`，默认面仍保持三宿主兼容行为。
+> **安装命令**：默认**五宿主**部署 → `npx @vextjs/devcodex init` / `update`（copilot+claude+codex+gemini+grok；Grok 含用户级 plugin 同步）。单宿主 → `npx @vextjs/devcodex init --host <copilot|claude|codex|gemini|grok>` 或 `--claude` / `--codex` 等别名。本地源码可用 `node index.js init|update`。缩范围请用单宿主命令循环，不支持逗号多 host 语法。
 >
 > **Grok workspace 插件**：在 `workspace-namespace` 的工作区或任一子项目执行 `update --host grok`，CLI 都把 kernel、Skills、薄插件和 managed manifest 写到同一工作区 owner。薄插件 source 位于 `.grok/devcodex/plugins/devcodex-workspace`，不会被 project auto-discovery 再发现，只由 Grok 官方本地插件登记形成一个 user identity。旧 `.grok/plugins/devcodex-workspace` 登记会先通过官方 CLI 迁移，新安装 digest 验证后旧 source 才可逆移动到 `.tmp/backups`；失败走旧 source/registration/config 回滚。用户 Grok 配置只维护 DevCodex enabled 项和新旧受管 path 清理，其他设置、注释和插件保持不变，重复执行幂等。`uninstall --host grok` 只解除当前官方登记与受管配置，保留 canonical workspace source。工作区根可直接运行 `grok`；子 Git 项目要获得完整 kernel 保证时运行 `devcodex grok [原 Grok 参数]`。launcher 先消费官方 `--cwd` 决定真实 owner，校验 root kernel，且只在子 Git 边界追加官方 `--rules`；用户额外 rules 会合并，system prompt override 与重复 cwd 会因破坏保证而拒绝。root native、plain child 与 launcher 证据严格分开。
 > `doctor/status` 诊断将 workspace plugin 的 source+registration 可用性与 installed digest 新鲜度分开：digest drift 只作为 warning 和刷新建议，不再把已登记且可用的 adapter 误报为未安装。

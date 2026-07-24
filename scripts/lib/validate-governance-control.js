@@ -186,7 +186,7 @@ function buildGovernanceControlChecks(ctx) {
       const projectedKernel = content.includes('Shared Host Kernel（generated）')
       const needles = projectedKernel
         ? ['强制不变量（S01~S07 / C01~C22）', '完成顺序为 PC0~PC7→FC→SC→RC→报告验证→T1~T13', 'Full fallback: .agents/devcodex/instructions.full.md']
-        : ['强制约束（C01~C22）', '全量 FC1~FC7 + SC1~SC15 + RC1~RC4 + T1~T13', 'canonical ID']
+        : ['强制约束（C01~C22）', '全量 FC1~FC7 + SC1~SC16 + RC1~RC4 + T1~T13', 'canonical ID']
       for (const needle of needles) {
         if (!content.includes(needle)) {
           err(`[V21] workspace AGENTS drift: missing "${needle}" in ../AGENTS.md`)

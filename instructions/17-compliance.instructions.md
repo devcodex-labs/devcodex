@@ -15,7 +15,7 @@ version: 1.15.3
 | ENV_MODE | 检查策略 |
 |----------|---------|
 | `prod`（默认）| 不执行合规检查（规范已验证，Instructions 直接指导 AI 行为） |
-| `dev` | 全量执行 FC1~FC7 + SC1~SC15 + RC1~RC4 + T1~T13 |
+| `dev` | 全量执行 FC1~FC7 + SC1~SC16 + RC1~RC4 + T1~T13 |
 
 > ⛔ S01~S06 安全底线不受 ENV_MODE 影响，无论 dev/prod 均强制；S07（全模式入口检查强制）在 instruction-fallback 模式触发（见 `00-safety.instructions.md` §S07）。dev 模式额外启用 PC4 完整规范雷达与 FC/SC/RC/T 合规检查。
 > ℹ️ ENV_MODE 未注入时，默认按 `prod`（不执行合规检查）。
@@ -170,6 +170,7 @@ version: 1.15.3
 | SC13 | C15 架构质量自检 | dev/fix 🔴 |
 | SC14 | analyze/audit（及任何宣称探针/测试结果的工作流）中，所有标注 ✅已验证 的运行时结论须满足 **MeasuredVerificationStandard**：本轮执行**生产入口命令**（如 `node scripts/test-spec-governance.js`、`npm run test:core` / `node scripts/validate.js`、需要时 `npm test`）并记录 exitCode；隔离 harness / 未复用 `createCanonicalAwareReader` 的脚本不得写成 V# 成败；SUMMARY/记忆历史数字必须降级为 ⚠️待验证。完整字段见 `skills/compliance/SKILL.md` | analyze/audit 🔴；dev/fix 宣称测试/validate 时同标 |
 | SC15 | dev/fix 关键产物已完成 ECR 执行闭环复审：覆盖 CP1/CP2/CP3、实施进度（触发时）、ExecutionContract/TestRoute/ReleaseAudit/ReleaseVerification（触发时）、报告、daily tasks、SUMMARY、diff/commit、测试/探针、dirty 边界；控制面/规范/路径/模板/部署副本/validate 语义变更必须追加 SCV-0~SCV-7 证据；最后一次阻断性修正后至少再复审 1 轮且无新增阻断性问题；未满足前不得宣告完成 | dev/fix 🔴 |
+| SC16 | C16 TTFV + WorkspaceRootScanBan：非 chat 首轮实质回复具备范围卡/首批结论/阻断之一；无 monorepo/workspace 根无界 Recurse inventory（含绝对根路径、`dir /s`、cwd=workspace 根时的相对 `-Recurse`/`-Depth`）；探针 `classifyTtfvOmissionSample` / `classifyWorkspaceRootScanSample`；完整字段见 `skills/compliance/SKILL.md` | 非 chat 🔴；chat N/A |
 
 ## RC 恢复性检查（非阻塞）
 

@@ -14,8 +14,10 @@ const path = require('path')
 const GROK_TURN_EXECUTION_CHECKLIST = Object.freeze([
   { id: 'entry-pc0-pc7', text: 'First user-visible block: full PC0~PC7 (S07); compaction/resume re-emit' },
   { id: 'intent-route', text: 'IntentSeed → final route (dev/fix/analyze/audit/…); chat/resume only when true' },
-  { id: 'skill-bundle', text: 'Load Intent→Skill mandatory bundle before substantive work' },
+  { id: 'skill-bundle', text: 'Load Intent→Skill mandatory bundle before substantive work (minimal-sufficient; no full Skill encyclopedia preload)' },
   { id: 'context-plan', text: 'ContextReadPlanV2 + receipts; no unbounded full Profile read without fullReadReason' },
+  { id: 'scan-hygiene', text: 'C16 WorkspaceRootScanBan: no monorepo/workspace-root Get-ChildItem -Recurse; bind project path; exclude node_modules/dist' },
+  { id: 'ttfv-first-delivery', text: 'C16 TimeToFirstValueGate: same visible turn delivers scope card OR first findings/conclusion OR hard block (non-chat)' },
   { id: 'work-and-gates', text: 'Execute workflow gates (CP/ECR as applicable); no skip for missing inject' },
   { id: 'report-memory', text: 'Non-chat: write report + memory (+ ledger when governance hits); chat exempt' },
   { id: 'honest-ceiling', text: 'Do not claim UserPromptSubmit inject / Stop hard-block / Grok===Codex bootstrap' }
@@ -135,8 +137,90 @@ function classifyGrokTurnOmissionSample(sample) {
   const hasBundle = /Skill bundle|intent\s*\+|compliance|user-visible-output-contract|mandatorySkill/i.test(text)
   const hasReportMemory = /report|memory|报告|记忆|S05/i.test(text)
   const hasCeiling = /cannot claim|不得宣称|inject|Stop hard|platform ceiling|平台上限/i.test(text)
-  const score = [hasPc, hasBundle, hasReportMemory, hasCeiling].filter(Boolean).length
+  const hasTtfvOrScan = /TTFV|TimeToFirstValue|scan-hygiene|WorkspaceRootScanBan|首批 (finding|结论)|范围卡/i.test(text)
+  const score = [hasPc, hasBundle, hasReportMemory, hasCeiling, hasTtfvOrScan].filter(Boolean).length
   return score >= 3 ? 'checklist-ready' : 'checklist-thin'
+}
+
+/**
+ * Detect monorepo/workspace-root recursive inventory anti-pattern (C16 / PI-20260724-01).
+ * @returns {'workspace-root-recurse'|'project-scoped-ok'|'not-inventory-command'}
+ */
+function classifyWorkspaceRootScanSample(sample, options = {}) {
+  const text = String(sample || '')
+  const isInventory = /Get-ChildItem|get-childitem|\bgci\b|\bdir\s+\/s\b|\bfind\s+|list_dir|inventory|递归|Recurse/i.test(text)
+  if (!isInventory) return 'not-inventory-command'
+  const hasRecurse = /-\s*Recurse|\b-Recurse\b|\bdir\s+\/s\b|maxdepth|max-depth|-Depth\s*[1-9]|\b递归\b|\bfind\s+/i.test(text)
+  if (!hasRecurse && !/Find.*Directory.*Filter/i.test(text)) return 'project-scoped-ok'
+  const workspaceRoot = String(options.workspaceRoot || options.root || '').trim()
+  const normalized = text.replace(/\//g, '\\')
+  const cwd = String(options.cwd || '').trim()
+
+  if (workspaceRoot) {
+    const rootNorm = workspaceRoot.replace(/\//g, '\\').replace(/[\\/]+$/, '')
+    const rootEsc = rootNorm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const mentionsRoot = new RegExp(rootEsc, 'i').test(normalized)
+    // R-04: align with Hook — child segment without requiring trailing slash
+    const underChild = new RegExp(rootEsc + '[\\\\/][a-z0-9._-]+', 'i').test(normalized)
+    if (mentionsRoot) {
+      if (underChild) return 'project-scoped-ok'
+      return 'workspace-root-recurse'
+    }
+    // R-03: relative recurse when cwd is workspace root
+    if (cwd) {
+      const cwdNorm = cwd.replace(/\//g, '\\').replace(/[\\/]+$/, '').toLowerCase()
+      if (cwdNorm === rootNorm.toLowerCase()) {
+        // relative child token (not only switches / ".")
+        if (/\b(?:Get-ChildItem|gci|dir)\b\s+([^\s-][^\s]*)/i.test(text)) {
+          const tok = text.match(/\b(?:Get-ChildItem|gci|dir)\b\s+([^\s-][^\s]*)/i)[1]
+            .replace(/^["']|["']$/g, '')
+          if (tok && tok !== '.' && tok !== '.\\' && tok !== './' && !/^-\w/.test(tok)) {
+            return 'project-scoped-ok'
+          }
+        }
+        return 'workspace-root-recurse'
+      }
+    }
+    return 'project-scoped-ok'
+  }
+  // Heuristic without explicit root
+  if (/Get-ChildItem[\s\S]{0,160}-Path\s+["']?[A-Za-z]:\\[^"'\\]*(?:Worker|workspace)?[^"'\\]*["']?[\s\S]{0,120}-Recurse/i.test(text)
+    && !/Get-ChildItem[\s\S]{0,160}-Path\s+["']?[A-Za-z]:\\[^"'\\]+\\[^"'\\]+/i.test(text)) {
+    return 'workspace-root-recurse'
+  }
+  if (/\bdir\s+\/s\b/i.test(text) && /[A-Za-z]:\\/i.test(text) && !/[A-Za-z]:\\[^\\\s"']+\\/i.test(text.replace(/\//g, '\\'))) {
+    return 'workspace-root-recurse'
+  }
+  if (/(?:对|from|at)\s+(?:workspace|monorepo|工作区)\s*根/i.test(text) && hasRecurse) {
+    return 'workspace-root-recurse'
+  }
+  return 'project-scoped-ok'
+}
+
+/**
+ * Non-chat first-turn must deliver value (C16 TTFV).
+ * @returns {'ttfv-pass'|'ttfv-fail'|'ttfv-na-chat'}
+ */
+function classifyTtfvOmissionSample(sample, options = {}) {
+  const text = String(sample || '')
+  const intent = String(options.intent || '').toLowerCase()
+  if (intent === 'chat' || options.chat === true) return 'ttfv-na-chat'
+  if (/^chat\b|纯问答|仅说明/i.test(text) && options.forceNonChat !== true) {
+    // only treat as chat when explicitly marked and no work claim
+    if (!/audit|审查|分析|实现|finding|B1/i.test(text)) return 'ttfv-na-chat'
+  }
+  const hasScopeCard = /范围|Scope|批次\s*B\d|审查范围|ScaleDecision|默认范围|docs\/v01|FileEvidenceLedger/i.test(text)
+  const hasFirstValue = /finding|发现|🔴|🟡|结论|根因|推荐方案|首批|B1|对账|不一致|漂移/i.test(text)
+  const hasBlock = /阻断|BLOCK|无法继续|项目不明|权限|环境缺失|skipReason/i.test(text)
+  const prepOnly = /正在(加载|读取|扫描|准备)|Skill 预读|全量读取规范|请稍候|定位项目中/i.test(text)
+    && !hasScopeCard && !hasFirstValue && !hasBlock
+  if (hasScopeCard || hasFirstValue || hasBlock) return 'ttfv-pass'
+  if (prepOnly || text.trim().length < 40) return 'ttfv-fail'
+  // Long process-only replies without deliverable
+  if (/入口检查|ContextReadPlan|memory_status/i.test(text) && !hasScopeCard && !hasFirstValue && !hasBlock) {
+    return 'ttfv-fail'
+  }
+  return 'ttfv-pass'
 }
 
 function fileExists(filePath) {
@@ -358,8 +442,9 @@ function entryCheckAssistSuffix(options = {}) {
     '--- DevCodex S07 assist (Grok cannot inject this into the model; emit in the user-visible reply) ---',
     composeEntryCheckBlock(options),
     '',
-    'GrokTurnChecklist: PC0~PC7 → Intent→Skill bundle → context plan → work/gates → report+memory → honest ceiling',
+    'GrokTurnChecklist: PC0~PC7 → Intent→Skill → context → scan-hygiene → TTFV → work/gates → report+memory → honest ceiling',
     `Intent→Skill bundle (${bundle.intent}): ${bundle.mandatorySkillIds.join(', ') || '(chat: none mandatory)'}`,
+    'C16: no workspace-root Recurse inventory; same-turn TTFV delivery (scope/findings/block)',
     '--- end S07 assist ---'
   ].join('\n')
 }
@@ -376,6 +461,8 @@ module.exports = {
   buildGrokRepairSteps,
   formatGrokTurnChecklistMarkdown,
   classifyGrokTurnOmissionSample,
+  classifyWorkspaceRootScanSample,
+  classifyTtfvOmissionSample,
   readAdapterDenyContract,
   readBootstrapCapability
 }

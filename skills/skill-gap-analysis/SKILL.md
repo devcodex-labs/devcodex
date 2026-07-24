@@ -18,6 +18,29 @@ description: Skill 缺口与大语料分析 Owner — 当任务涉及项目/工�
 3. 统计 `relevantFileCount / parseableBytes / largestFileBytes / directoryConcentration / derivedArtifactRatio / consumerFanOut`。
 4. 形成 `ScaleDecisionRecord`，再允许内容读取或递归检索。
 
+## WorkspaceRootScanBan（C16 / PI-20260724-01 · 防复发硬规则）
+
+> 🔴 未绑定唯一项目前，**禁止**对 workspace/monorepo 根发起递归 inventory。项目路径已知时，**禁止**再从 workspace 根 `-Recurse` 查找。
+
+| 禁止 | 允许 |
+|------|------|
+| `Get-ChildItem <workspaceRoot> -Recurse`（含 `-Depth ≥1`、按名 Filter 全树搜） | `list_dir` 仅一层；`Test-Path <workspaceRoot>/<project>` |
+| `dir /s <workspaceRoot>`、`find <workspaceRoot>` 无项目前缀 | 在**已绑定** project root 内有界 Recurse，且排除 `node_modules`/`dist` |
+| 为「找项目」扫整个 `E:\Worker` 等 monorepo 根 | 用户 `@path` / 已知子目录名 / Profile inventory |
+| inventory 展开 `node_modules`、文档站 `doc_build`、巨型 `dist` | 显式 `-Exclude` / 工具默认尊重 gitignore 的列表 |
+
+**机器探针**：`scripts/lib/host-parity-scorecard.js` → `classifyWorkspaceRootScanSample`（`workspace-root-recurse` = fail）。Hook 侧对命中 workspace 根 + Recurse 的 shell 可 `neverApprove` 硬拦（见 `lifecycle-dangerous-command`）。
+
+## TimeToFirstValueGate（TTFV · 与 compliance/C16 联防）
+
+非 chat 在入口检查与最小 ContextReadPlan 之后，**同一用户可见回复**必须至少交付其一，否则本轮视为扫描/准备违规：
+
+1. 可确认的半屏范围卡（路径/批次/排除项）；或  
+2. 首批 finding / 分析结论 / 可执行方案要点；或  
+3. 明确阻断（项目不明、权限、环境缺失）+ 恢复动作。
+
+禁止：整轮只读 Skill 百科、只跑全库 inventory、或只写超长需求概括却零交付。用户明确「直接开审/跳过确认」时跳过范围确认，**立即 B1 交付**。
+
 | decision | 默认判定 | 执行 |
 |---|---|---|
 | `single-pass` | 全部满足 ≤50 files、≤2 MiB、largest≤256 KiB、fan-out≤10，且用户未提示大目录 | 一次处理，仍保留排除策略 |
@@ -70,12 +93,14 @@ description: Skill 缺口与大语料分析 Owner — 当任务涉及项目/工�
 ## 反模式
 
 - 未识别项目就从 workspace root 递归扫描。
+- **项目名已知仍对 monorepo 根 `Get-ChildItem -Recurse -Depth N` 找目录（PI-20260724-01 复发样例）**。
 - 先全量扫描超时，再补写“应该分批”。
 - 把备份、安装包、浏览器 Profile、translation cache 或 lockfile 当能力证据。
 - 只按关键词计数，不读代表样本、不反查现有 Skill。
 - 用抽样深读结果宣称“逐字审查所有文件”。
 - 同一批次失败后继续沿用部分输出，或用后续成功命令覆盖前序失败。
 - 做完分批扫描却不调用 incremental Skill，导致无 ProgressCard / 无快照 / 假完整主题清单。
+- 首轮用户可见回复只有流程/Skill 预热、无范围卡/finding/阻断（TTFV 失败）。
 
 ## 验证
 

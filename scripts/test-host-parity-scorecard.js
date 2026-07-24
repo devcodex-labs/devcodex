@@ -14,6 +14,8 @@ const {
   buildGrokRepairSteps,
   formatGrokTurnChecklistMarkdown,
   classifyGrokTurnOmissionSample,
+  classifyWorkspaceRootScanSample,
+  classifyTtfvOmissionSample,
   GROK_TURN_EXECUTION_CHECKLIST,
   GROK_INTENT_SKILL_BUNDLES
 } = require('./lib/host-parity-scorecard.js')
@@ -86,8 +88,11 @@ assert.ok(analyzeBundle.mandatorySkillIds.includes('report'))
 assert.ok(analyzeBundle.mandatorySkillIds.includes('memory'))
 assert.strictEqual(resolveGrokIntentSkillBundle('chat').mandatorySkillIds.length, 0)
 assert.ok(GROK_INTENT_SKILL_BUNDLES.fix.includes('fix-default'))
-assert.ok(GROK_TURN_EXECUTION_CHECKLIST.length >= 6)
+assert.ok(GROK_TURN_EXECUTION_CHECKLIST.length >= 8)
+assert.ok(GROK_TURN_EXECUTION_CHECKLIST.some((i) => i.id === 'scan-hygiene'))
+assert.ok(GROK_TURN_EXECUTION_CHECKLIST.some((i) => i.id === 'ttfv-first-delivery'))
 assert.match(formatGrokTurnChecklistMarkdown(), /GrokTurnChecklist/)
+assert.match(formatGrokTurnChecklistMarkdown(), /scan-hygiene|ttfv-first-delivery/)
 
 // PF-165: repair catalog for registration gap
 const regOnly = buildGrokRepairSteps({
@@ -116,9 +121,56 @@ assert.strictEqual(
 )
 assert.strictEqual(classifyGrokTurnOmissionSample('普通修 bug 完成'), 'not-grok-turn-claim')
 
+// C16 / PI-20260724-01: workspace-root recurse ban + TTFV
+assert.strictEqual(
+  classifyWorkspaceRootScanSample(
+    'Get-ChildItem -Path "E:\\Worker" -Directory -Filter "*queuebit*" -Recurse -Depth 3',
+    { workspaceRoot: 'E:\\Worker' }
+  ),
+  'workspace-root-recurse'
+)
+assert.strictEqual(
+  classifyWorkspaceRootScanSample(
+    'Get-ChildItem -Path "E:\\Worker\\queuebit\\docs" -Recurse -Filter *.md',
+    { workspaceRoot: 'E:\\Worker' }
+  ),
+  'project-scoped-ok'
+)
+// R-04: first-level child without trailing slash must be ok
+assert.strictEqual(
+  classifyWorkspaceRootScanSample(
+    'Get-ChildItem -Path "E:\\Worker\\queuebit" -Recurse',
+    { workspaceRoot: 'E:\\Worker' }
+  ),
+  'project-scoped-ok'
+)
+// R-02 / R-03 probe
+assert.strictEqual(
+  classifyWorkspaceRootScanSample('dir /s E:\\Worker', { workspaceRoot: 'E:\\Worker' }),
+  'workspace-root-recurse'
+)
+assert.strictEqual(
+  classifyWorkspaceRootScanSample('Get-ChildItem -Recurse -Depth 3', {
+    workspaceRoot: 'E:\\Worker',
+    cwd: 'E:\\Worker'
+  }),
+  'workspace-root-recurse'
+)
+assert.strictEqual(classifyWorkspaceRootScanSample('npm test'), 'not-inventory-command')
+assert.strictEqual(
+  classifyTtfvOmissionSample('### 入口检查\n正在加载全部 audit Skill 并扫描工作区，请稍候…', { intent: 'audit' }),
+  'ttfv-fail'
+)
+assert.strictEqual(
+  classifyTtfvOmissionSample('范围：docs/v01 全量；B1 发现：README 与 package version 一致', { intent: 'audit' }),
+  'ttfv-pass'
+)
+assert.strictEqual(classifyTtfvOmissionSample('解释一下 C16 是什么', { intent: 'chat' }), 'ttfv-na-chat')
+
 // S07 assist includes skill bundle line
 assert.match(entryCheckAssistSuffix({ project: 'x', intent: 'fix' }), /Intent→Skill bundle \(fix\)/)
 assert.match(entryCheckAssistSuffix({ project: 'x', intent: 'fix' }), /fix-default/)
+assert.match(entryCheckAssistSuffix({ project: 'x', intent: 'audit' }), /TTFV|workspace-root|scan-hygiene/i)
 
 // Smoke: deny path used by PreToolUse
 const deny = adaptHostOutput('grok', 'PreToolUse', {

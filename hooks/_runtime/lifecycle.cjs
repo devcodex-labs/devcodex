@@ -1071,6 +1071,7 @@ const {
   path,
   crypto,
   CONTEXT_ROOT,
+  WORKSPACE_ROOT,
   APPROVAL_TTL_MS,
   DANGEROUS_PATTERNS,
   getToolName,

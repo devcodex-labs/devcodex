@@ -13,7 +13,7 @@ flowchart TD
     FC["FC 形式合规检查\nFC1~FC7"]
     FC_OK{"FC 全通过?"}
     FC_FIX["立即修正不通过项"]
-    SC["SC 实质合规检查\nSC1~SC15"]
+    SC["SC 实质合规检查\nSC1~SC16"]
     SC_OK{"SC 全通过?"}
     SC_FIX["立即修正不通过项"]
     RETRY{"累计修正 ≥5 次?"}

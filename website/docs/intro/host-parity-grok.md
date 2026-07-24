@@ -58,11 +58,13 @@ Grok **不会**每轮注入 bootstrap。模型必须按下列可扫清单自执�
 |---|----|------|
 | 1 | entry-pc0-pc7 | 首条用户可见输出完整 PC0~PC7；`/compact` `/resume` 后同样视为首条 |
 | 2 | intent-route | IntentSeed → 最终路由；不得把 analyze/audit 误判为 chat |
-| 3 | skill-bundle | 加载 Intent→Skill **强制包**（见下表）后再做实质工作 |
+| 3 | skill-bundle | 加载 Intent→Skill **强制包**（见下表）后再做实质工作；**最小充分**，禁止首轮通读全部 audit 子 Skill 百科 |
 | 4 | context-plan | ContextReadPlanV2 + 回执；无 `fullReadReason` 禁止无界全量读 |
-| 5 | work-and-gates | 按工作流执行 CP/ECR 等门禁；**不得**以「无 Hook 注入」为由省略 |
-| 6 | report-memory | 非 chat：写报告 + 记忆（命中治理时写台账）；chat 豁免 |
-| 7 | honest-ceiling | 不得宣称 inject / Stop 硬拦 / Grok===Codex bootstrap |
+| 5 | scan-hygiene | **C16 WorkspaceRootScanBan**：禁止 monorepo/workspace 根 `Get-ChildItem -Recurse`；项目路径直达；排除 `node_modules`/`dist` |
+| 6 | ttfv-first-delivery | **C16 TimeToFirstValueGate**：同一用户可见回复交付范围卡 **或** 首批 finding/结论 **或** 明确阻断（非 chat） |
+| 7 | work-and-gates | 按工作流执行 CP/ECR 等门禁；**不得**以「无 Hook 注入」为由省略 |
+| 8 | report-memory | 非 chat：写报告 + 记忆（命中治理时写台账）；chat 豁免 |
+| 9 | honest-ceiling | 不得宣称 inject / Stop 硬拦 / Grok===Codex bootstrap |
 
 ### Intent → Skill 强制包（非 chat）
 
@@ -76,7 +78,7 @@ Grok **不会**每轮注入 bootstrap。模型必须按下列可扫清单自执�
 | resume | intent · compliance · memory · user-visible-output-contract（再继承原工作流包） |
 | chat | 无强制包（可选 intent） |
 
-机器真相源：`scripts/lib/host-parity-scorecard.js` → `GROK_TURN_EXECUTION_CHECKLIST` / `GROK_INTENT_SKILL_BUNDLES`；负向探针 `classifyGrokTurnOmissionSample`。
+机器真相源：`scripts/lib/host-parity-scorecard.js` → `GROK_TURN_EXECUTION_CHECKLIST` / `GROK_INTENT_SKILL_BUNDLES`；负向探针 `classifyGrokTurnOmissionSample`、`classifyWorkspaceRootScanSample`、`classifyTtfvOmissionSample`。Hook 对 workspace 根 + Recurse inventory 可 `neverApprove` 硬拦（`lifecycle-dangerous-command` · PI-20260724-01）。
 
 ## 诊断
 

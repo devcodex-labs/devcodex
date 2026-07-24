@@ -35,30 +35,39 @@ assert.match(composeEntryCheckBlock({ project: 'demo', envMode: 'prod' }), /PC4 
 assert.match(composePc4Line({ envMode: 'unexpected' }), /ENV_MODE unknown/)
 assert.match(entryCheckAssistSuffix({ project: 'x' }), /S07 assist/)
 
-// Workspace-like layout for hardReady
+// Isolated user-global layout for hardReady
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-host-parity-'))
-fs.mkdirSync(path.join(root, '.codex', 'hooks', '_runtime'), { recursive: true })
-fs.writeFileSync(path.join(root, 'AGENTS.md'), '# kernel\n')
+const codexRuntime = path.join(root, '.codex', 'devcodex', 'runtime')
+const grokPlugin = path.join(root, '.grok', 'devcodex', 'plugins', 'devcodex-workspace')
+fs.mkdirSync(path.join(codexRuntime, 'hooks', '_runtime'), { recursive: true })
+fs.mkdirSync(path.join(grokPlugin, 'hooks'), { recursive: true })
+fs.writeFileSync(path.join(root, '.codex', 'AGENTS.md'), '# kernel\n')
+fs.writeFileSync(path.join(codexRuntime, 'AGENTS.md'), '# runtime kernel\n')
+fs.writeFileSync(path.join(root, '.grok', 'config.toml'), 'plugins = []\n')
+fs.writeFileSync(path.join(grokPlugin, 'hooks', 'hooks.json'), '{}\n')
 const adapterSrc = fs.readFileSync(path.join(__dirname, '../hooks/_runtime/lifecycle-host-adapters.cjs'), 'utf8')
 const bootstrapSrc = fs.readFileSync(path.join(__dirname, '../hooks/_runtime/lifecycle-bootstrap-state.cjs'), 'utf8')
-fs.writeFileSync(path.join(root, '.codex', 'hooks', '_runtime', 'lifecycle-host-adapters.cjs'), adapterSrc)
-fs.writeFileSync(path.join(root, '.codex', 'hooks', '_runtime', 'lifecycle-bootstrap-state.cjs'), bootstrapSrc)
-fs.writeFileSync(path.join(root, '.codex', 'hooks', '_runtime', 'lifecycle.cjs'), 'module.exports={}\n')
+fs.writeFileSync(path.join(codexRuntime, 'hooks', '_runtime', 'lifecycle-host-adapters.cjs'), adapterSrc)
+fs.writeFileSync(path.join(codexRuntime, 'hooks', '_runtime', 'lifecycle-bootstrap-state.cjs'), bootstrapSrc)
+fs.writeFileSync(path.join(codexRuntime, 'hooks', '_runtime', 'lifecycle.cjs'), 'module.exports={}\n')
+const globalHostConfig = {
+  hosts: [
+    { host: 'codex', ready: true },
+    { host: 'grok', ready: true }
+  ]
+}
+const isolatedEnv = {
+  ...process.env,
+  DEVCODEX_TEST_HOME: root,
+  USERPROFILE: root,
+  HOME: root
+}
 
 const ready = evaluateGrokHostParity({
   cwd: root,
   hostRoot: root,
-  hasAgentsMd: true,
-  hasCodexLifecycle: true,
-  hasGrokWorkspacePlugin: true,
-  hasGrokPluginRegistration: true,
-  instructionProjection: {
-    grokPlugin: {
-      installed: true,
-      registrationCurrent: true,
-      root: path.join(root, '.grok', 'devcodex', 'plugins', 'devcodex-workspace')
-    }
-  }
+  env: isolatedEnv,
+  globalHostConfig
 })
 assert.strictEqual(ready.hardReady, true)
 assert.strictEqual(ready.tier, 'full-capable')
@@ -72,16 +81,18 @@ assert.ok(ready.recommendedEntry.includes('devcodex grok'))
 const partial = evaluateGrokHostParity({
   cwd: root,
   hostRoot: root,
-  hasAgentsMd: false,
-  hasCodexLifecycle: false,
-  hasGrokWorkspacePlugin: false,
-  hasGrokPluginRegistration: false
+  env: isolatedEnv,
+  globalHostConfig,
+  hasGlobalKernel: false,
+  hasGlobalCodexLifecycle: false,
+  hasGlobalGrokPlugin: false,
+  hasGlobalGrokConfig: false
 })
 assert.strictEqual(partial.hardReady, false)
 assert.strictEqual(partial.tier, 'partial')
-assert.ok(Array.isArray(partial.failedChecks) && partial.failedChecks.includes('kernelAgentsMd'))
+assert.ok(Array.isArray(partial.failedChecks) && partial.failedChecks.includes('globalKernelAgentsMd'))
 assert.ok(Array.isArray(partial.repairSteps) && partial.repairSteps.length >= 1)
-assert.ok(partial.repairSteps.some((s) => /devcodex update/.test(s.command)))
+assert.ok(partial.repairSteps.some((s) => /npm install -g devcodex/.test(s.command)))
 assert.match(partial.userVisibleSummary, /partial|failed/i)
 assert.ok(Array.isArray(partial.turnChecklist) && partial.turnChecklist.includes('skill-bundle'))
 assert.ok(partial.intentSkillBundles && partial.intentSkillBundles.analyze)
@@ -101,14 +112,14 @@ assert.match(formatGrokTurnChecklistMarkdown(), /scan-hygiene|ttfv-first-deliver
 
 // PF-165: repair catalog for registration gap
 const regOnly = buildGrokRepairSteps({
-  kernelAgentsMd: true,
-  codexLifecycleReachable: true,
+  globalKernelAgentsMd: true,
+  globalCodexLifecycleReachable: true,
   denyAdapterContract: true,
   pathObservableCapability: true,
-  workspacePluginInstalled: true,
-  workspacePluginRegistered: false
+  globalGrokPluginInstalled: true,
+  globalGrokPluginConfigured: false
 })
-assert.ok(regOnly.some((s) => s.check === 'workspacePluginRegistered' && /update --host grok/.test(s.command)))
+assert.ok(regOnly.some((s) => s.check === 'globalGrokPluginConfigured' && /npm install -g devcodex/.test(s.command)))
 assert.ok(regOnly.some((s) => s.check === 'full-session-entry' && s.command === 'devcodex grok'))
 
 // PF-165 negative: claim full Grok workflow without checklist anchors → thin

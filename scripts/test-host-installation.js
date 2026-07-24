@@ -14,6 +14,10 @@ const {
   syncGrokWorkspacePluginInstallation
 } = require('./lib/host-adapter-scope')
 const { buildGrokLaunchPlan } = require('./lib/grok-workspace-launcher')
+const {
+  applyGlobalHostConfig,
+  inspectGlobalHostConfig
+} = require('./lib/global-host-config')
 
 const ROOT = path.resolve(__dirname, '..')
 const INDEX = path.join(ROOT, 'index.js')
@@ -71,8 +75,10 @@ function deploymentOptions() {
     CLAUDE_MCP_RUNTIME_SCRIPT_DEPS: [
       'scripts/lib/cp-digest.js',
       'scripts/lib/host-parity-scorecard.js',
+      'scripts/lib/global-host-target.js',
       'scripts/lib/derived-index-contract.js',
-      'scripts/lib/memory-index.js'
+      'scripts/lib/memory-index.js',
+      'scripts/lib/summary-type-canon.js'
     ],
     CODEX_SOURCES: [
       { from: 'hooks/_runtime', to: path.join('.codex', 'hooks', '_runtime') },
@@ -81,6 +87,7 @@ function deploymentOptions() {
   }
 }
 
+if (process.env.DEVCODEX_RUN_LEGACY_WORKSPACE_HOST_INSTALLATION === '1') {
 const multilinePluginConfig = [
   '[plugins]',
   'enabled = [',
@@ -650,12 +657,14 @@ const claudeMcpScriptDeps = defaults.filter(item =>
   item.surface === 'claude' &&
   String(item.destination || '').replace(/\\/g, '/').startsWith('.claude/scripts/lib/')
 )
-assert.strictEqual(claudeMcpScriptDeps.length, 4, 'claude descriptors must include MCP scripts/lib runtime deps')
+assert.strictEqual(claudeMcpScriptDeps.length, 6, 'claude descriptors must include MCP scripts/lib runtime deps')
 for (const expected of [
   '.claude/scripts/lib/cp-digest.js',
   '.claude/scripts/lib/host-parity-scorecard.js',
+  '.claude/scripts/lib/global-host-target.js',
   '.claude/scripts/lib/derived-index-contract.js',
-  '.claude/scripts/lib/memory-index.js'
+  '.claude/scripts/lib/memory-index.js',
+  '.claude/scripts/lib/summary-type-canon.js'
 ]) {
   assert(
     claudeMcpScriptDeps.some(item => String(item.destination || '').replace(/\\/g, '/') === expected),
@@ -663,4 +672,68 @@ for (const expected of [
   )
 }
 
-console.log(`host installation tests passed selectors=5 dryRunWrites=0 collision=blocked managedManifest=verified workspacePlugin=verified grokCli=${grokCliAvailable ? 'available' : 'unavailable-honest'} uninstall=verified zeroProjectArtifacts=verified defaultHosts=3 mcpScriptDeps=4`)
+console.log(`legacy host installation tests passed selectors=5 dryRunWrites=0 collision=blocked managedManifest=verified workspacePlugin=verified grokCli=${grokCliAvailable ? 'available' : 'unavailable-honest'} uninstall=verified zeroProjectArtifacts=verified defaultHosts=3 mcpScriptDeps=6`)
+} else {
+  const currentRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-global-only-host-installation-'))
+  const home = path.join(currentRoot, 'home')
+  const workspace = path.join(currentRoot, 'workspace')
+  fs.mkdirSync(home, { recursive: true })
+  fs.mkdirSync(path.join(workspace, '.devcodex'), { recursive: true })
+  fs.writeFileSync(path.join(workspace, 'package.json'), '{"name":"global-only-fixture"}\n')
+  const env = {
+    ...process.env,
+    DEVCODEX_TEST_HOME: home,
+    USERPROFILE: home,
+    HOME: home,
+    CODEX_HOME: path.join(home, '.codex'),
+    CLAUDE_CONFIG_DIR: path.join(home, '.claude'),
+    GEMINI_CLI_HOME: path.join(home, 'gemini-cli-home'),
+    GROK_HOME: path.join(home, '.grok'),
+    COPILOT_HOME: path.join(home, '.copilot')
+  }
+  const install = applyGlobalHostConfig({ packageRoot: ROOT, env, home })
+  assert.strictEqual(install.transaction.status, 'committed')
+  assert.strictEqual(install.workspaceHostDirectoriesWritten, false)
+  const inspection = inspectGlobalHostConfig({ packageRoot: ROOT, env, home })
+  assert.strictEqual(inspection.ready, true)
+  assert.strictEqual(inspection.hosts.length, 5)
+  assert.ok(fs.existsSync(path.join(home, 'gemini-cli-home', '.gemini', 'devcodex', 'global-host-receipt.json')))
+
+  const runtimeInit = spawnSync(process.execPath, [INDEX, 'init', '--json'], {
+    cwd: workspace,
+    encoding: 'utf8',
+    env
+  })
+  assert.strictEqual(runtimeInit.status, 0, runtimeInit.stderr || runtimeInit.stdout)
+  const runtimeEnvelope = JSON.parse(runtimeInit.stdout)
+  assert.strictEqual(runtimeEnvelope.payload.workspaceHostDirectoriesWritten, false)
+  for (const relative of ['.github', '.claude', '.codex', '.gemini', '.grok']) {
+    assert.strictEqual(fs.existsSync(path.join(workspace, relative)), false, `${relative} must remain absent`)
+  }
+
+  for (const host of ['copilot', 'claude', 'codex', 'gemini', 'grok']) {
+    const denied = spawnSync(process.execPath, [INDEX, 'update', '--host', host, '--json'], {
+      cwd: workspace,
+      encoding: 'utf8',
+      env
+    })
+    assert.strictEqual(denied.status, 2)
+    assert.strictEqual(JSON.parse(denied.stdout).errorCode, 'CLI_HOST_CONFIG_GLOBAL_ONLY')
+  }
+
+  const launchPlan = buildGrokLaunchPlan(['--rules', 'fixture-extra', '-p', 'check'], {
+    cwd: workspace,
+    env,
+    home
+  })
+  assert.strictEqual(launchPlan.schemaVersion, 'GrokGlobalLaunchPlanV1')
+  assert.strictEqual(launchPlan.hostScope.scope, 'user-global')
+  assert.strictEqual(launchPlan.kernelRequired, true)
+  assert.strictEqual(launchPlan.evidenceMode, 'global-launcher-rules')
+  assert.ok(launchPlan.kernelPath.startsWith(path.join(home, '.grok')))
+  assert.match(launchPlan.args[1], /DevCodex user-global controlling kernel follows/)
+  assert.match(launchPlan.args[1], /fixture-extra/)
+
+  fs.rmSync(currentRoot, { recursive: true, force: true })
+  console.log('host installation tests passed mode=global-only hosts=5 workspaceHostDirs=0 selectors=blocked grokLauncher=global')
+}

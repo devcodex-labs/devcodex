@@ -24,7 +24,7 @@
 | P0 核心需求 | `requirements/p0/<名称>.md` | 单文件 |
 | P1 基础需求 | `requirements/p1/<名称>/`（5 文件）| 含开发文档 |
 | P2 功能需求 | `requirements/p2/<名称>.md` | 单文件 |
-| 规范文件 | `.github/`（agents/skills/instructions/prompts/hooks/data）| 中文编写 |
+| 包内规范源 | `instructions/`、`skills/`、`prompts/`、`hooks/`、`host-projections/` | 构建用户级宿主投影；不是工作区安装目录 |
 | 产物文件 | `.devcodex/`（记忆/报告/data）| 分类提交 |
 | 维护者指南 | `website/docs/guide/` | 本章节；不作为用户首次安装路径 |
 

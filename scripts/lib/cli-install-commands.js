@@ -1,6 +1,12 @@
 'use strict'
 
 const { DEFAULT_HOSTS, HOST_IDS, hostEntryPairs } = require('./host-surface-descriptors')
+const PACKAGE_JSON = require('../../package.json')
+const {
+  createCliFailure,
+  createCliSuccess,
+  printCliJson
+} = require('./cli-json-contract.js')
 
 function buildCliInstallCommands(ctx) {
   const {
@@ -28,6 +34,89 @@ function buildCliInstallCommands(ctx) {
       process.exitCode = 1
       return undefined
     }
+  }
+
+  const cliMetadata = { packageName: PACKAGE_JSON.name, packageVersion: PACKAGE_JSON.version }
+
+  function operationFromArgs(argv) {
+    const marker = (argv || []).find(arg => String(arg).startsWith('--operation='))
+    return marker ? marker.slice('--operation='.length) : 'host-config'
+  }
+
+  function globalOnlyHostFailure(host, argv = []) {
+    const operation = operationFromArgs(argv)
+    const json = argv.includes('--json')
+    const nextStep = operation === 'update'
+      ? 'Use `npm update -g devcodex` to refresh user-level host adapters.'
+      : (operation === 'uninstall'
+          ? 'Automatic global host-config removal is not supported in the first batch; do not delete user config automatically.'
+          : 'Use `npm install -g devcodex` to install user-level host adapters.')
+    const envelope = createCliFailure(
+      operation,
+      'CLI_HOST_CONFIG_GLOBAL_ONLY',
+      `Host configuration is user-global only; workspace host selection "${host}" is disabled.`,
+      nextStep,
+      cliMetadata,
+      {
+        host: String(host || ''),
+        mode: 'GlobalOnlyHostConfigModeV1',
+        workspaceHostDirectoriesWritten: false
+      }
+    )
+    if (json) printCliJson(console, envelope)
+    else {
+      console.log(c.red(`  ${envelope.errorCode}: ${envelope.message}`))
+      console.log(c.dim(`  ${envelope.nextStep}`))
+    }
+    process.exitCode = 2
+    return envelope
+  }
+
+  function cmdInitWorkspaceRuntime(argv = [], { refresh = false } = {}) {
+    const values = Array.isArray(argv) ? argv : []
+    const json = values.includes('--json')
+    const dryRun = values.includes('--dry-run')
+    const tenantArgs = values.filter(arg =>
+      arg !== '--json' &&
+      arg !== '--dry-run' &&
+      arg !== '--force' &&
+      arg !== '-f'
+    )
+    const tenantId = readTenantSelection(tenantArgs)
+    if (tenantId === undefined) return null
+    const cwd = process.cwd()
+    const runtimeRoot = resolveActiveRuntimeRoot(cwd)
+    if (!dryRun) {
+      ensureRuntimeDirs(cwd, false)
+    }
+    const payload = {
+      schemaVersion: 'WorkspaceRuntimeRefreshV1',
+      operation: refresh ? 'update' : 'init',
+      mode: 'GlobalOnlyHostConfigModeV1',
+      cwd,
+      runtimeRoot,
+      tenantId: tenantId || null,
+      dryRun,
+      gitignoreEntriesAdded: 0,
+      gitignoreModified: false,
+      workspaceHostDirectoriesWritten: false,
+      hostConfigNextStep: refresh
+        ? 'npm update -g devcodex'
+        : 'npm install -g devcodex'
+    }
+    if (json) printCliJson(console, createCliSuccess(payload.operation, payload, cliMetadata))
+    else {
+      console.log()
+      console.log(c.bold('  DevCodex') + c.dim(` — workspace ${refresh ? 'refresh' : 'initialization'}`))
+      console.log(c.dim('  ──────────────────────────────────────'))
+      console.log(`  ${c.cyan('Runtime:')} ${c.dim(runtimeRoot)}`)
+      console.log(`  ${c.cyan('Host config:')} ${c.dim('user-global only')}`)
+      if (dryRun) console.log(c.yellow('  [DRY RUN] No files were written.'))
+      else console.log(c.green('  ✓ Workspace .devcodex runtime is ready.'))
+      console.log(c.dim(`  Host adapters: ${payload.hostConfigNextStep}`))
+      console.log()
+    }
+    return payload
   }
 
   const {
@@ -1029,68 +1118,19 @@ function buildCliInstallCommands(ctx) {
 
   function cmdInitHost(host, argv = []) {
     const normalized = String(host || '').trim().toLowerCase()
-    if (normalized !== 'all' && !HOST_IDS.includes(normalized)) {
-      console.log(c.red(`  CLI_HOST_UNSUPPORTED: Unsupported host "${normalized || '(missing)'}".`))
-      process.exitCode = 2
-      return { ok: false, code: 'CLI_HOST_UNSUPPORTED' }
-    }
-    if (argv.includes('--project-portable') && normalized !== 'grok') {
-      console.log(c.red('  CLI_HOST_SCOPE_CONFLICT: --project-portable is supported only with --host grok.'))
-      process.exitCode = 2
-      return { ok: false, code: 'CLI_HOST_SCOPE_CONFLICT' }
-    }
-    const collision = hostEntryCollision(normalized, argv)
-    if (collision) {
-      console.log(c.red(
-        `  HOST_INSTRUCTION_COLLISION: ${collision.destination} differs from ${collision.expectedSource}; ` +
-        'use devcodex update --host <host> to replace the managed entry.'
-      ))
-      process.exitCode = 2
-      return { ok: false, code: 'HOST_INSTRUCTION_COLLISION', collision }
-    }
-    if (normalized === 'grok') return cmdInitGrok(argv)
-    const scopedOperation = () => {
-      if (normalized === 'all') return cmdInit(argv, { includeExtended: true, ownerResolved: true })
-      // Explicit includeExtended:false — never inherit a future default of true (copilot isolation).
-      if (normalized === 'copilot') return cmdInit(argv, { copilotOnly: true, includeExtended: false, ownerResolved: true })
-      if (normalized === 'claude') return cmdInitClaude(argv)
-      if (normalized === 'codex') return cmdInitCodex(argv)
-      return cmdInitGemini(argv)
-    }
-    return runFromHostOwner('codex', scopedOperation, { dryRun: argv.includes('--dry-run') })
+    return globalOnlyHostFailure(normalized || host, argv)
   }
 
   function cmdUninstallHost(host, argv = []) {
     const normalized = String(host || '').trim().toLowerCase()
-    if (normalized !== 'grok') {
-      console.log(c.red('  CLI_HOST_UNINSTALL_UNSUPPORTED: only the user-registered Grok workspace adapter has an automatic uninstall lifecycle.'))
-      process.exitCode = 2
-      return { ok: false, code: 'CLI_HOST_UNINSTALL_UNSUPPORTED' }
-    }
-    const dryRun = argv.includes('--dry-run')
-    const requestedScope = argv.includes('--project-portable') ? 'project-portable' : null
-    const hostScope = resolveHostAdapterScope(process.cwd(), 'grok', {
-      requestedScope,
-      explicitPortable: requestedScope === 'project-portable'
-    })
-    if (hostScope.scope !== 'user-registered-workspace') {
-      console.log(c.red('  CLI_HOST_UNINSTALL_SCOPE_UNSUPPORTED: project-portable files require an explicit reviewed cleanup plan.'))
-      process.exitCode = 2
-      return { ok: false, code: 'CLI_HOST_UNINSTALL_SCOPE_UNSUPPORTED', hostScope }
-    }
-    const receipt = uninstallGrokPluginInstallation({
-      pluginPath: hostScope.pluginRoot,
-      activeRoot: resolveActiveRuntimeRoot(hostScope.ownerRoot),
-      dryRun,
-      env: process.env
-    })
-    console.log(receipt.status === 'already-absent'
-      ? c.dim('  ~ Grok workspace plugin registration already absent')
-      : c.green(`  ✓ Grok workspace plugin ${dryRun ? 'uninstall planned' : 'unregistered'}; workspace source retained`))
-    return receipt
+    return globalOnlyHostFailure(normalized, ['--operation=uninstall', ...argv])
   }
 
-  return { cmdInit, cmdInitHost, cmdInitClaude, cmdInitCodex, cmdInitGemini, cmdInitGrok, cmdUninstallHost }
+  return {
+    cmdInitWorkspaceRuntime,
+    cmdInitHost,
+    cmdUninstallHost
+  }
 }
 
 module.exports = { buildCliInstallCommands }

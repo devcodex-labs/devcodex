@@ -208,6 +208,7 @@ confirm、compact、resume、host/session/task 变化后必须重新核验 instr
 ```
 - 每次会话结束前追加一行索引（SC6 检查）
 - 格式：`| 日期 | 会话 | 类型 | 摘要 | 关联报告 | 关联记忆 | 状态 |`
+- **SummaryTypeCanonGate**：`类型` 仅允许 `dev|fix|analyze|audit|self-fix|chat|resume|other`，多意图用 `+`；禁止 `/` 与自由标签；MCP `memory_summary_append` 硬拒写（见 `scripts/lib/summary-type-canon.js`）
 - 多任务会话：一行覆盖全部任务，不拆多行
 - 🔴 **纯索引约束**：SUMMARY 仅含表头 + 会话索引行，禁止添加自由文本段落（如"当前状态""关键决策"等非索引内容）；🔄 状态标记仅出现在索引表「状态」列；已有旧格式 SUMMARY 应在下次写入时迁移
 

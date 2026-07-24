@@ -222,9 +222,9 @@ function extractExplicitProfileTiers(text) {
 }
 
 function hasCurrentAgentsDistribution(text) {
-  return /devcodex\/agents\/\s*→\s*\.github\/agents\//.test(text) &&
-    /(Copilot[^\n。]*默认分发|默认分发[^\n。]*Copilot)/.test(text) &&
-    /(Claude Code[^\n。]*不分发|不分发[^\n。]*Claude Code)/.test(text)
+  return /GlobalOnlyHostConfigModeV1/.test(text) &&
+    /npm install -g devcodex/.test(text) &&
+    /(agents[^\n。]*(不向|不再向)[^\n。]*workspace|(不向|不再向)[^\n。]*workspace[^\n。]*agents|workspace[^\n。]*不生成[^\n。]*宿主)/i.test(text)
 }
 
 function checkProjectInfoSemantics(text) {

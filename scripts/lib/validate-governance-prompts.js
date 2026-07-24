@@ -114,7 +114,7 @@ function buildGovernancePromptChecks(ctx) {
     mustInclude('index.js', 'CODEX_HOOK_COMMAND', 'index Codex adapter')
     mustInclude('scripts/lib/cli-maintenance-commands.js', 'readCodexHookCommands', 'CLI Codex hook command diagnostics')
     mustInclude('scripts/lib/cli-maintenance-commands.js', 'Codex trust/config', 'CLI Codex trust/config diagnostics')
-    mustInclude('scripts/lib/cli-maintenance-commands.js', 'hook guardrail (Codex; event-dependent)', 'CLI Codex event-dependent guardrail diagnostics')
+    mustInclude('scripts/lib/cli-maintenance-commands.js', 'Codex hook guardrail: blocking behavior is event-dependent', 'CLI Codex event-dependent guardrail diagnostics')
     mustInclude('scripts/lib/cli-maintenance-commands.js', 'workspace-hooks detected (VS Code Copilot preview; verify target IDE)', 'CLI VS Code hook preview diagnostics')
     mustInclude('scripts/lib/cli-maintenance-commands.js', 'default safety-only warns/continues', 'CLI enforcement default diagnostics')
     mustInclude('codex/hooks.json', 'lifecycle.cjs', 'Codex hook config')

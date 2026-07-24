@@ -1,0 +1,43 @@
+{
+  "schemaVersion": "GlobalHostConfigFixtureV1",
+  "hosts": [
+    {
+      "id": "copilot",
+      "root": ".copilot",
+      "support": "fixture-only"
+    },
+    {
+      "id": "claude",
+      "root": ".claude",
+      "support": "contract-fixture"
+    },
+    {
+      "id": "codex",
+      "root": ".codex",
+      "support": "direct-probe"
+    },
+    {
+      "id": "gemini",
+      "root": ".gemini",
+      "support": "contract-fixture"
+    },
+    {
+      "id": "grok",
+      "root": ".grok",
+      "support": "direct-probe"
+    }
+  ],
+  "workspaceForbidden": [
+    ".github",
+    ".claude",
+    ".codex",
+    ".gemini",
+    ".grok"
+  ],
+  "preservedJson": {
+    "theme": "user-owned",
+    "nested": {
+      "keep": true
+    }
+  }
+}

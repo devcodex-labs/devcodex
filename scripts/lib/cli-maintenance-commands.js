@@ -6,6 +6,7 @@ const { inspectExecutionOptimization } = require('./execution-optimization.js')
 const { buildGovernanceStatusSummary } = require('./governance-status-summary.js')
 const { evaluateGrokHostParity } = require('./host-parity-scorecard.js')
 const { readCompletionForCli } = require('./cli-execution-commands.js')
+const { inspectGlobalHostConfig } = require('./global-host-config.js')
 
 function buildCliMaintenanceCommands(ctx) {
   const {
@@ -21,6 +22,13 @@ function buildCliMaintenanceCommands(ctx) {
   } = ctx
 
   const cliMetadata = { packageName: PACKAGE_JSON.name, packageVersion: PACKAGE_JSON.version }
+  const hostConfigPolicy = Object.freeze({
+    mode: 'GlobalOnlyHostConfigModeV1',
+    workspaceHostConfigWritesAllowed: false,
+    legacyWorkspaceArtifacts: 'diagnostic-read-only',
+    installCommand: 'npm install -g devcodex',
+    updateCommand: 'npm update -g devcodex'
+  })
 
   function parseDiagnosticCommandArgs(command, argv) {
     const values = Array.isArray(argv) ? argv : []
@@ -131,14 +139,12 @@ function buildCliMaintenanceCommands(ctx) {
     const legacy = getLegacyCounts(ghDir)
     const activeRoot = resolveActiveRuntimeRoot(cwd)
     const executionOptimization = inspectExecutionOptimization(cwd)
+    const globalHostConfig = inspectGlobalHostConfig({ env: process.env })
     const hostParity = evaluateGrokHostParity({
       cwd,
       hostRoot,
-      instructionProjection,
-      hasAgentsMd: agentsMdInstalled,
-      hasCodexLifecycle: codexHookFiles > 0 && codexHookJsonInstalled,
-      hasGrokWorkspacePlugin: grokWorkspacePluginInstalled,
-      hasGrokPluginRegistration: grokPluginRegistrationCurrent
+      env: process.env,
+      globalHostConfig
     })
     const governanceSummary = buildGovernanceStatusSummary({
       cwd,
@@ -189,6 +195,8 @@ function buildCliMaintenanceCommands(ctx) {
       },
       executionOptimization,
       governanceSummary,
+      hostConfigPolicy,
+      globalHostConfig,
       legacy
     }
   }
@@ -206,7 +214,7 @@ function buildCliMaintenanceCommands(ctx) {
 
     const {
       cwd, hostRoot, sourceRepository: isSrc, trackedEntryFiles: total, installSurfaces,
-      entryFiles, profile, executionOptimization, governanceSummary, legacy, hostParity
+      entryFiles, profile, executionOptimization, governanceSummary, globalHostConfig, legacy, hostParity
     } = facts
     console.log()
     console.log(c.bold('  DevCodex status') + c.dim(` in ${cwd}`))
@@ -215,25 +223,20 @@ function buildCliMaintenanceCommands(ctx) {
     console.log(c.dim('  ──────────────────────────────────────'))
     console.log()
 
-    for (const surface of installSurfaces) {
-      const label = surface.installed ? c.green(`${surface.fileCount} files`) : c.red('not installed')
-      console.log(`  ${c.cyan(surface.id.padEnd(14))} ${label}`)
+    console.log(c.bold('  User-global host adapters:'))
+    for (const host of globalHostConfig.hosts) {
+      const label = host.ready
+        ? (host.stale ? c.yellow(`stale ${host.packageVersion}`) : c.green(`ready ${host.packageVersion}`))
+        : c.dim(`not configured (${host.support})`)
+      console.log(`  ${c.cyan(host.host.padEnd(14))} ${label}`)
     }
-
-    console.log(`  ${c.cyan('RULES.md'.padEnd(14))} ${entryFiles.rulesInstalled ? c.green('installed') : c.red('not installed')}`)
-    console.log(`  ${c.cyan('copilot-instr'.padEnd(14))} ${entryFiles.copilotInstructionsInstalled ? c.green('installed') : c.red('not installed')}`)
-    console.log(`  ${c.cyan('CLAUDE.md'.padEnd(14))} ${entryFiles.claudeMdInstalled ? c.green('installed') : c.red('not installed')}`)
-    console.log(`  ${c.cyan('.claude/hooks'.padEnd(14))} ${entryFiles.claudeHookFiles ? c.green(`${entryFiles.claudeHookFiles} files`) : c.red('not installed')}`)
-    console.log(`  ${c.cyan('.claude/skills'.padEnd(14))} ${entryFiles.claudeSkills ? c.green(`${entryFiles.claudeSkills} files`) : c.red('not installed')}`)
-    console.log(`  ${c.cyan('AGENTS.md'.padEnd(14))} ${entryFiles.agentsMdInstalled ? c.green('installed') : c.red('not installed')}`)
-    console.log(`  ${c.cyan('.agents/skills'.padEnd(14))} ${entryFiles.agentsSkills ? c.green(`${entryFiles.agentsSkills} files`) : c.red('not installed')}`)
-    console.log(`  ${c.cyan('.codex/hooks'.padEnd(14))} ${entryFiles.codexHookJsonInstalled && entryFiles.codexHookFiles ? c.green(`${entryFiles.codexHookFiles + 1} files`) : c.red('not installed')}`)
-    console.log(`  ${c.cyan('.codex command'.padEnd(14))} ${formatCodexHookCommandStatus(entryFiles.codexHookDiagnostics)}`)
-    console.log(`  ${c.cyan('GEMINI.md'.padEnd(14))} ${entryFiles.geminiMdInstalled ? c.green('installed') : c.dim('not installed')}`)
-    console.log(`  ${c.cyan('.gemini/hooks'.padEnd(14))} ${entryFiles.geminiSettingsInstalled && entryFiles.geminiHookFiles ? c.green(`${entryFiles.geminiHookFiles + 1} files`) : c.dim('not installed')}`)
-    console.log(`  ${c.cyan('Grok adapter'.padEnd(14))} ${entryFiles.grokWorkspacePluginInstalled
-      ? (entryFiles.grokPluginRegistrationCurrent ? c.green('workspace plugin registered') : c.yellow('plugin present; registration stale'))
-      : (entryFiles.grokHookConfigInstalled && entryFiles.grokHookFiles ? c.green(`${entryFiles.grokHookFiles + 1} project files`) : c.dim('not installed'))}`)
+    console.log()
+    console.log()
+    console.log(c.bold('  Workspace state:'))
+    console.log(`  ${c.cyan('.devcodex'.padEnd(14))} ${fs.existsSync(path.join(hostRoot, '.devcodex')) ? c.green('present') : c.dim('not initialized')}`)
+    console.log(`  ${c.cyan('host dirs'.padEnd(14))} ${total
+      ? c.yellow(`${total} legacy artifact(s); not required`)
+      : c.green('none; expected')}`)
     const projectionWarnings = entryFiles.instructionProjection.warnings || []
     console.log(`  ${c.cyan('host kernel'.padEnd(14))} ${entryFiles.instructionProjection.status === 'ready'
       ? (projectionWarnings.length ? c.yellow(`ready; ${projectionWarnings.length} warning(s)`) : c.green('ready'))
@@ -271,12 +274,12 @@ function buildCliMaintenanceCommands(ctx) {
     console.log()
     if (total === 0) {
       if (isSrc) {
-        console.log(`  ${c.dim('No .github/ directory.')} ${c.dim('This is the source repo — use')} ${c.bold('devcodex update')} ${c.dim('from a target project.')}`)
+        console.log(`  ${c.dim('No workspace host directories.')} ${c.dim('This is expected in GlobalOnlyHostConfigModeV1.')}`)
       } else {
-        console.log(`  ${c.yellow('Not initialized.')} Run ${c.bold('devcodex init')} to install.`)
+        console.log(`  ${c.yellow('Workspace runtime not initialized.')} Run ${c.bold('devcodex init')}; host adapters require ${c.bold('npm install -g devcodex')}.`)
       }
     } else {
-      console.log(`  ${c.green(`${total} tracked entry files`)} installed across configured Copilot/Claude/Codex/Gemini/Grok surfaces`)
+      console.log(`  ${c.yellow(`${total} legacy workspace host entry files`)} detected; global receipts above are the installation authority`)
       if (isSrc) {
         console.log(c.dim('  (Source repo: these are development copies, not a target project installation)'))
       }
@@ -494,12 +497,14 @@ function buildCliMaintenanceCommands(ctx) {
     const hasProfile = profileState.complete
     const activeRoot = resolveActiveRuntimeRoot(cwd)
     const executionOptimization = inspectExecutionOptimization(cwd)
+    const globalHostConfig = inspectGlobalHostConfig({ env })
+    const globalReady = host => globalHostConfig.hosts.some(item => item.host === host && item.ready)
 
     let mode = 'instruction-fallback'
-    if (platform === 'claude' && hasClaudeHooks) mode = 'hook-enforced (Claude Code)'
-    else if (platform === 'codex' && hasCodexHooks) mode = 'hook guardrail (Codex; event-dependent)'
-    else if (platform === 'gemini' && hasGeminiHooks) mode = 'hook guardrail (Gemini; PreCompress advisory)'
-    else if (platform === 'grok' && hasGrokHooks) mode = 'hook partial (Grok; only PreToolUse blocking)'
+    if (platform === 'claude' && globalReady('claude')) mode = 'user-global hook adapter (Claude Code)'
+    else if (platform === 'codex' && globalReady('codex')) mode = 'user-global hook adapter (Codex; event-dependent)'
+    else if (platform === 'gemini' && globalReady('gemini')) mode = 'user-global hook adapter (Gemini; fixture-backed)'
+    else if (platform === 'grok' && globalReady('grok')) mode = 'user-global plugin adapter (Grok)'
     else if (platform === 'vscode-copilot' && hasGithubHooks) mode = 'workspace-hooks detected (VS Code Copilot preview; verify target IDE)'
     else if (platform === 'jetbrains-copilot') mode = 'instruction-fallback (JetBrains — Hooks unsupported)'
     else if (platform === 'unknown' && installedHosts.length > 1) mode = 'mixed install (host unresolved; multiple adapters present)'
@@ -507,11 +512,8 @@ function buildCliMaintenanceCommands(ctx) {
     const hostParity = evaluateGrokHostParity({
       cwd,
       hostRoot,
-      instructionProjection,
-      hasAgentsMd,
-      hasCodexLifecycle: hasCodexHooks,
-      hasGrokWorkspacePlugin,
-      hasGrokPluginRegistration,
+      env,
+      globalHostConfig,
       platform
     })
     const governanceSummary = buildGovernanceStatusSummary({
@@ -521,7 +523,6 @@ function buildCliMaintenanceCommands(ctx) {
       executionOptimization,
       hostParity
     })
-
     return {
       schemaVersion: 'DoctorDiagnosticV1',
       cwd,
@@ -533,6 +534,8 @@ function buildCliMaintenanceCommands(ctx) {
       installedHosts,
       mode,
       hostParity,
+      hostConfigPolicy,
+      globalHostConfig,
       enforcement: 'safety-only by default; strict blocks only host-supported events',
       installArtifacts: {
         hasGithubHooks,
@@ -595,7 +598,7 @@ function buildCliMaintenanceCommands(ctx) {
       profile: profileState,
       executionOptimization,
       governanceSummary,
-      hostParity, completion
+      hostParity, globalHostConfig, completion
     } = facts
     const {
       hasGithubHooks, hasClaudeHooks, hasCodexHooksJson, hasCodexHooks,
@@ -606,6 +609,7 @@ function buildCliMaintenanceCommands(ctx) {
     } = installArtifacts
     const profileDir = profileState.directory
     const hasProfile = profileState.complete
+    const globalReady = host => globalHostConfig.hosts.some(item => item.host === host && item.ready)
 
     console.log()
     console.log(c.bold('  DevCodex Doctor') + c.dim(` v1.9.7+ — runtime diagnostics`))
@@ -614,7 +618,8 @@ function buildCliMaintenanceCommands(ctx) {
     console.log(`  host owner:      ${hostRoot}`)
     console.log(`  platform:        ${c.cyan(platform)}  ${c.dim(`(${platformEvidence.source})`)}`)
     console.log(`  agent:           ${c.cyan(agent)}`)
-    console.log(`  installed hosts: ${installedHosts.length ? c.cyan(installedHosts.join(', ')) : c.dim('none detected')}`)
+    console.log(`  workspace hosts: ${installedHosts.length ? c.yellow(`${installedHosts.join(', ')} (legacy)`) : c.dim('none; expected')}`)
+    console.log(`  global hosts:    ${globalHostConfig.hosts.filter(host => host.ready).length}/${globalHostConfig.hosts.length} ready`)
     console.log(`  mode:            ${c.bold(mode)}`)
     console.log(`  optimization:    ${c.bold(executionOptimization.config.effective)} ${c.dim(`(${executionOptimization.config.status}; state=${executionOptimization.stateStatus})`)}`)
     console.log(`  governance:      ${formatGovernanceSummary(governanceSummary)}`)
@@ -632,40 +637,17 @@ function buildCliMaintenanceCommands(ctx) {
       console.log(c.dim(`  Full session entry: ${hostParity.recommendedEntry}`))
     }
     console.log()
-    console.log(c.bold('  Install artifacts:'))
-    console.log(`    CLAUDE.md                            ${hasClaudeMd ? c.green('✅') : c.dim('—')}`)
-    console.log(`    .claude/hooks/_runtime/lifecycle.cjs ${hasClaudeHooks ? c.green('✅') : c.dim('—')}`)
-    console.log(`    AGENTS.md                            ${hasAgentsMd ? c.green('✅') : c.dim('—')}`)
-    console.log(`    .agents/skills/                      ${hasAgentsSkills ? c.green('✅') : c.dim('—')}`)
-    console.log(`    .codex/hooks.json                    ${hasCodexHooksJson ? c.green('✅') : c.dim('—')}`)
-    console.log(`    .codex/hooks/_runtime/lifecycle.cjs  ${hasCodexHooks ? c.green('✅') : c.dim('—')}`)
-    console.log(`    .codex hook command                  ${formatCodexHookCommandStatus(codexHookDiagnostics)}`)
-    console.log(`    Codex config (user/workspace)        ${codexConfigState.hasUserConfig ? c.green('user') : c.dim('user —')} / ${codexConfigState.hasWorkspaceConfig ? c.green('workspace') : c.dim('workspace —')}`)
-    {
-      const mcp = codexConfigState.mcp || { status: 'missing' }
-      const mcpLabel = mcp.status === 'ok'
-        ? c.green('✅ managed memory+profile')
-        : (mcp.status === 'partial'
-            ? c.yellow('⚠️ partial (server path or entry incomplete)')
-            : (mcp.status === 'stale'
-                ? c.yellow('⚠️ stale (entries present; server files missing)')
-                : c.dim('— not configured')))
-      console.log(`    Codex DevCodex MCP                  ${mcpLabel}`)
+    console.log(c.bold('  User-global host adapters:'))
+    for (const host of globalHostConfig.hosts) {
+      const label = host.ready
+        ? (host.stale ? c.yellow(`stale ${host.packageVersion}`) : c.green(`✅ ${host.packageVersion}`))
+        : c.yellow(`⚠️ not configured (${host.support})`)
+      console.log(`    ${host.host.padEnd(10)} ${label}`)
     }
-    console.log(`    .github/copilot-instructions.md      ${hasCopilotMd ? c.green('✅') : c.dim('—')}`)
-    console.log(`    .github/instructions/                ${hasInstructions ? c.green('✅') : c.dim('—')}`)
-    console.log(`    .github/hooks/_runtime/lifecycle.cjs ${hasGithubHooks ? c.green('✅') : c.dim('—')}`)
-    console.log(`    GEMINI.md                            ${hasGeminiMd ? c.green('✅') : c.dim('—')}`)
-    console.log(`    .gemini/settings + hook adapter      ${hasGeminiSettings && hasGeminiHooks ? c.green('✅') : c.dim('—')}`)
-    console.log(`    Grok workspace plugin + registration ${hasGrokWorkspacePlugin && hasGrokPluginRegistration
-      ? c.green('✅')
-      : (hasGrokWorkspacePlugin ? c.yellow('⚠️ plugin present; registration stale') : c.dim('—'))}`)
-    const projectionWarnings = instructionProjection.warnings || []
-    console.log(`    host instruction projection          ${instructionProjection.status === 'ready'
-      ? (projectionWarnings.length ? c.yellow(`✅ ready; ${projectionWarnings.length} warning(s)`) : c.green('✅ ready'))
-      : (instructionProjection.status === 'not-installed'
-          ? c.dim('not installed')
-          : c.yellow(`⚠️ ${instructionProjection.issues.length} issue(s)`))}`)
+    console.log(c.dim('    Repair missing adapters with `npm install -g devcodex`; upgrade with `npm update -g devcodex`.'))
+    console.log(c.bold('  Workspace state:'))
+    console.log(`    .devcodex                             ${fs.existsSync(path.join(hostRoot, '.devcodex')) ? c.green('✅') : c.dim('— initialize with `devcodex init`')}`)
+    console.log(`    legacy host artifacts                 ${installedHosts.length ? c.yellow(installedHosts.join(', ')) : c.green('none; expected')}`)
     const profileDiagnostic = profileState.error
       ? c.red(`❌ invalid — ${profileState.error}`)
       : (hasProfile
@@ -683,14 +665,9 @@ function buildCliMaintenanceCommands(ctx) {
     }
 
     if (platform === 'jetbrains-copilot' || mode.startsWith('instruction-fallback')) {
-      console.log(c.bold('  JetBrains / instruction-fallback verification checklist (P-004):'))
-      console.log('    1. Settings → GitHub Copilot → Custom Instructions → Use Instruction Files: ON')
-      console.log('    2. Open `.github/copilot-instructions.md` — confirm Copilot Chat references "DevCodex"')
-      console.log('    3. Open any `.github/instructions/*.instructions.md` — verify `applyTo:` glob semantics:')
-      console.log('       • Edit a matching file (e.g. `**/*.ts`) → ask Copilot a related question → expect rule cited')
-      console.log('       • JetBrains support for `applyTo` is BETA — fallback is always-on injection')
-      console.log('    4. CP gate (no Hooks): AI must append `⏸ 等待用户确认（CPN）` to every CP output')
-      console.log('    5. Optional: enable `scripts/instruction-fallback-check.js` as git pre-commit hook (CP3 soft-gate)')
+      console.log(c.bold('  Copilot support ceiling:'))
+      console.log('    User-global Copilot CLI instructions are fixture-backed.')
+      console.log('    IDE workspace hooks and per-repository instruction files are not installed in GlobalOnlyHostConfigModeV1.')
       console.log()
     }
 
@@ -699,21 +676,21 @@ function buildCliMaintenanceCommands(ctx) {
       console.log()
     }
 
-    if (platform === 'claude' && !hasClaudeHooks) {
-      console.log(c.yellow('  ⚠️  Claude Code detected but .claude/hooks/ missing — run `devcodex init --claude`'))
+    if (platform === 'claude' && !globalReady('claude')) {
+      console.log(c.yellow('  ⚠️  Claude Code detected without a ready user-global adapter — run `npm install -g devcodex`'))
       console.log()
     }
-    if (platform === 'codex' && !hasCodexHooks) {
-      console.log(c.yellow(`  ⚠️  Codex detected but .codex hooks are missing — run \`devcodex init --codex\``))
+    if (platform === 'codex' && !globalReady('codex')) {
+      console.log(c.yellow('  ⚠️  Codex detected without a ready user-global adapter — run `npm install -g devcodex`'))
       console.log(c.dim(`      Expected hook command: ${CODEX_HOOK_COMMAND}`))
       console.log()
     }
-    if (platform === 'gemini' && !hasGeminiHooks) {
-      console.log(c.yellow('  ⚠️  Gemini CLI detected but project adapter is missing — run `devcodex init --host gemini`'))
+    if (platform === 'gemini' && !globalReady('gemini')) {
+      console.log(c.yellow('  ⚠️  Gemini CLI detected without a ready user-global adapter — run `npm install -g devcodex`'))
       console.log()
     }
-    if (platform === 'grok' && !hasGrokHooks) {
-      console.log(c.yellow('  ⚠️  Grok detected but its resolved adapter is missing — run `devcodex init --host grok` from the current scope'))
+    if (platform === 'grok' && !globalReady('grok')) {
+      console.log(c.yellow('  ⚠️  Grok detected without a ready user-global adapter — run `npm install -g devcodex`'))
       console.log()
     }
     if (hostParity && !hostParity.hardReady) {
@@ -743,7 +720,7 @@ function buildCliMaintenanceCommands(ctx) {
     }
     if (instructionProjection.issues.length) {
       for (const issue of instructionProjection.issues) console.log(c.yellow(`  ⚠️  ${issue.code}`))
-      console.log(c.dim('      Run `devcodex update --host <host>` and use the full fallback until projection is ready.'))
+      console.log(c.dim('      These are legacy workspace artifacts. Repair the user-global adapter with `npm install -g devcodex`.'))
       console.log()
     }
     if ((instructionProjection.warnings || []).length) {
@@ -752,6 +729,7 @@ function buildCliMaintenanceCommands(ctx) {
       console.log()
     }
     if (hasCodexHooksJson) {
+      console.log(c.yellow('  ⚠️  Legacy workspace Codex configuration detected; GlobalOnlyHostConfigModeV1 does not require it.'))
       if (codexHookDiagnostics.error) {
         console.log(c.yellow(`  ⚠️  Codex hooks.json could not be parsed: ${codexHookDiagnostics.error}`))
         console.log()
@@ -764,23 +742,7 @@ function buildCliMaintenanceCommands(ctx) {
       }
       console.log(c.dim('  Codex trust/config: hook changes may require trusting the workspace in Codex and opening a new conversation.'))
       console.log(c.dim('  Codex hook guardrail: blocking behavior is event-dependent (decision / continue:false / permissionDecision).'))
-      {
-        const mcp = codexConfigState.mcp || { status: 'missing' }
-        if (mcp.status === 'ok') {
-          console.log(c.dim('  Codex MCP: init/update --codex writes managed block in workspace .codex/config.toml (devcodex-memory + profile via .claude/mcp/*).'))
-          console.log(c.dim('  Restart Codex (or open a new conversation) after MCP config changes.'))
-        } else if (mcp.status === 'partial' || mcp.status === 'stale') {
-          console.log(c.yellow('  ⚠️  Codex DevCodex MCP is incomplete — run `devcodex update --codex` then restart Codex.'))
-          if (mcp.memoryServerPath && !mcp.memoryServerExists) {
-            console.log(c.dim(`      Missing memory server: ${mcp.memoryServerPath}`))
-          }
-          if (mcp.profileServerPath && !mcp.profileServerExists) {
-            console.log(c.dim(`      Missing profile server: ${mcp.profileServerPath}`))
-          }
-        } else {
-          console.log(c.dim('  Codex MCP: not configured yet. Run `devcodex init --codex` or `devcodex update --codex` to merge managed MCP servers.'))
-        }
-      }
+      console.log(c.dim('  The user-global Codex MCP block and runtime are owned by npm global install/update.'))
       console.log()
     }
   }
@@ -794,16 +756,9 @@ function buildCliMaintenanceCommands(ctx) {
       npx @vextjs/devcodex <command> [options]   ${c.dim('(without npm link)')}
 
     ${c.bold('Commands:')}
-      ${c.cyan('init')}              Install all five hosts (copilot+claude+codex+gemini+grok)
-      ${c.cyan('init --claude')}     Install Claude Code adapter only
-      ${c.cyan('init --codex')}      Install Codex adapter only
-      ${c.cyan('init --host <id>')}  Install copilot|claude|codex|gemini|grok|all
-      ${c.cyan('update')}            Refresh all five hosts (force; includes Grok user plugin sync)
-      ${c.cyan('update --claude')}   Overwrite Claude Code adapter only
-      ${c.cyan('update --codex')}    Overwrite Codex adapter only
-      ${c.cyan('update --host <id>')} Refresh one host or all five hosts
-      ${c.cyan('uninstall --host grok')} Remove the Grok user registration; retain workspace source
-      ${c.cyan('grok')}              Launch Grok with workspace kernel binding when cwd is a child Git project
+      ${c.cyan('init')}              Initialize workspace-owned .devcodex runtime state only
+      ${c.cyan('update')}            Refresh workspace-owned .devcodex runtime state only
+      ${c.cyan('grok')}              Launch Grok with the user-global DevCodex kernel
       ${c.cyan('migrate-layout')}    Plan/apply/rollback centralized .devcodex workspace layout
       ${c.cyan('profile init')}      Auto-generate tiered .devcodex/profile/ drafts
       ${c.cyan('profile plan')}      Preview Profile root/tier/file actions without writing
@@ -819,33 +774,22 @@ function buildCliMaintenanceCommands(ctx) {
     ${c.bold('Options:')}
       ${c.dim('--force,  -f')}       Overwrite existing files
       ${c.dim('--dry-run')}          Preview what would be installed without writing files
-      ${c.dim('--claude')}           Only target Claude Code adapter (skip Copilot .github/)
-      ${c.dim('--codex')}            Only target Codex adapter (skip Copilot .github/ and Claude Code)
-      ${c.dim('--gemini')}           Alias for --host gemini
-      ${c.dim('--grok')}             Alias for --host grok
-      ${c.dim('--host <id>')}        copilot | claude | codex | gemini | grok | all
       ${c.dim('--prod')}             (profile init only) Set mode=prod instead of dev
       ${c.dim('--tier <tier>')}      (profile init only) profile-lite | profile-standard | profile-closed-loop
       ${c.dim('--allow-downgrade')}  (profile init only) Explicitly allow a lower tier; files are retained
       ${c.dim('--json')}             Emit one DevCodexCliEnvelopeV1 document for supported commands
 
     ${c.bold('Examples:')}
-      devcodex init                 # First-time five-host install
-      devcodex init --claude        # Claude Code adapter only
-      devcodex init --codex         # Codex adapter only
-      devcodex init --host gemini   # Gemini CLI adapter only (same hosts as bare when using --host all)
-      devcodex init --host grok     # Grok Build adapter only
-      devcodex update               # Refresh all five hosts (default)
-      devcodex update --host all    # Explicit five-host refresh (same host set as bare update)
-      devcodex uninstall --host grok --dry-run # Preview safe Grok deregistration
-      devcodex grok                 # Full-evidence Grok launcher for workspace child projects
+      npm install -g devcodex       # Install CLI and all user-global host adapters
+      npm update -g devcodex        # Upgrade package and refresh all user-global adapters
+      npm install devcodex          # Dependency only; prints the required -g guidance
+      devcodex init                 # Initialize only this workspace .devcodex
+      devcodex update               # Refresh only this workspace .devcodex
+      devcodex grok                 # Full-evidence Grok launcher using the global kernel
       devcodex grok -p "Review this diff" --output-format json
       devcodex migrate-layout plan  # Generate centralized layout migration manifest
       devcodex profile init --tier profile-standard  # Generate tiered Profile drafts
       devcodex profile plan --tier profile-closed-loop # Preview a safe upgrade
-      devcodex update               # Refresh Copilot + Claude Code + Codex adapters
-      devcodex update --claude      # Refresh Claude Code adapter only
-      devcodex update --codex       # Refresh Codex adapter only
       devcodex status               # Check installation
       devcodex skill plan intent load-profile --max-bytes 32768 --json
       devcodex task resolve "my task" --json # Resolve without loading unrelated task bodies

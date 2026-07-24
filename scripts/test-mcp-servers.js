@@ -164,7 +164,14 @@ function setupConfiguredMcpTarget() {
   fs.copyFileSync(path.join(ROOT, 'mcp', 'profile-section-selector.cjs'), path.join(targetRoot, '.claude', 'mcp', 'profile-section-selector.cjs'))
   fs.copyFileSync(path.join(ROOT, 'mcp', 'agent-identity.cjs'), path.join(targetRoot, '.claude', 'mcp', 'agent-identity.cjs'))
   // Deploy MCP runtime script deps under .claude/scripts/lib
-  for (const rel of ['scripts/lib/cp-digest.js', 'scripts/lib/host-parity-scorecard.js']) {
+  for (const rel of [
+    'scripts/lib/cp-digest.js',
+    'scripts/lib/host-parity-scorecard.js',
+    'scripts/lib/global-host-target.js',
+    'scripts/lib/derived-index-contract.js',
+    'scripts/lib/memory-index.js',
+    'scripts/lib/summary-type-canon.js'
+  ]) {
     const dest = path.join(targetRoot, '.claude', ...rel.split('/'))
     fs.mkdirSync(path.dirname(dest), { recursive: true })
     fs.copyFileSync(path.join(ROOT, ...rel.split('/')), dest)
@@ -573,7 +580,7 @@ function testMemoryDefaultAgent() {
     }),
     rpcRequest(3, 'tools/call', {
       name: 'memory_summary_append',
-      arguments: { row: '| 2026-05-24 | #1 | test | mcp | — | — | ✅ |' }
+      arguments: { row: '| 2026-05-24 | #1 | analyze | mcp | — | — | ✅ |' }
     })
   ], TEMP_ROOT)
 
@@ -1872,7 +1879,7 @@ function testWorkspaceNamespaceMemoryScope() {
     }),
     rpcRequest(3, 'tools/call', {
       name: 'memory_summary_append',
-      arguments: { scope: 'workspace', row: '| 2026-05-24 | #1 | test | workspace | — | — | ✅ |' }
+      arguments: { scope: 'workspace', row: '| 2026-05-24 | #1 | analyze | workspace | — | — | ✅ |' }
     })
   ], projectRoot)
 
@@ -1912,7 +1919,7 @@ function testWorkspaceRootMemoryScopeRequiresExplicitTarget() {
   const explicitWorkspace = runServer('mcp/memory-server.js', [
     rpcRequest(3, 'tools/call', {
       name: 'memory_summary_append',
-      arguments: { scope: 'workspace', row: '| 2026-05-24 | #2 | test | explicit workspace | — | — | ✅ |' }
+      arguments: { scope: 'workspace', row: '| 2026-05-24 | #2 | analyze | explicit workspace | — | — | ✅ |' }
     })
   ], TEMP_ROOT)
   assert.ok(resultById(explicitWorkspace, 3).content[0].text.includes('SUMMARY.md'))
@@ -2036,11 +2043,11 @@ function testMemorySessionAllocationAndTransactions() {
     rpcRequest(2, 'tools/list'),
     rpcRequest(3, 'tools/call', {
       name: 'memory_session_allocate',
-      arguments: { date: '20260524', title: 'first', intent: 'test' }
+      arguments: { date: '20260524', title: 'first', intent: 'analyze' }
     }),
     rpcRequest(4, 'tools/call', {
       name: 'memory_session_allocate',
-      arguments: { date: '20260524', title: 'second', intent: 'test' }
+      arguments: { date: '20260524', title: 'second', intent: 'dev' }
     }),
     rpcRequest(5, 'tools/call', {
       name: 'memory_session_write',
@@ -2048,7 +2055,7 @@ function testMemorySessionAllocationAndTransactions() {
     }),
     rpcRequest(6, 'tools/call', {
       name: 'memory_summary_append',
-      arguments: { row: '| 2026-05-24 | 01 | test | atomic summary | — | — | ✅ |' }
+      arguments: { row: '| 2026-05-24 | 01 | analyze | atomic summary | — | — | ✅ |' }
     }),
     rpcRequest(7, 'tools/call', {
       name: 'memory_session_query',
@@ -2132,7 +2139,7 @@ function testMemoryLocalCalendarAndWriterReaderContract() {
     const responses = runServer('mcp/memory-server.js', [
       rpcRequest(1, 'tools/call', {
         name: 'memory_session_allocate',
-        arguments: { title: `timezone-${timeZone}`, intent: 'test.timezone' }
+        arguments: { title: `timezone-${timeZone}`, intent: 'other' }
       }),
       rpcRequest(2, 'tools/call', {
         name: 'memory_session_query',
@@ -2162,12 +2169,17 @@ function testMemoryLocalCalendarAndWriterReaderContract() {
 
   setupLegacyWorkspace()
   const summaryPath = path.join(TEMP_ROOT, '.devcodex', '.memory', 'clients', 'claude-code', 'SUMMARY.md')
-  const validRow = '| 2026-07-22 16:30 | 01 | test | valid roundtrip | report.md | memory.md | ✅ |'
+  const validRow = '| 2026-07-22 16:30 | 01 | analyze | valid roundtrip | report.md | memory.md | ✅ |'
   const responses = runServer('mcp/memory-server.js', [
     rpcRequest(10, 'tools/call', { name: 'memory_summary_append', arguments: { row: validRow } }),
     rpcRequest(11, 'tools/call', { name: 'memory_summary_query', arguments: { status: 'completed', since: '2026-07-22' } }),
     rpcRequest(12, 'tools/call', { name: 'memory_summary_append', arguments: { row: '| 2026-07-22 | 02 | malformed |' } }),
-    rpcRequest(13, 'tools/call', { name: 'memory_summary_append', arguments: { row: '| 2026-07-22 | 02 | test | unescaped | pipe | report | memory | ✅ |' } })
+    rpcRequest(13, 'tools/call', { name: 'memory_summary_append', arguments: { row: '| 2026-07-22 | 02 | analyze | unescaped | pipe | report | memory | ✅ |' } }),
+    // SummaryTypeCanonGate negatives
+    rpcRequest(14, 'tools/call', { name: 'memory_summary_append', arguments: { row: '| 2026-07-22 | 03 | ops | should reject | r.md | m.md | ✅ |' } }),
+    rpcRequest(15, 'tools/call', { name: 'memory_summary_append', arguments: { row: '| 2026-07-22 | 04 | audit/ECR | should reject | r.md | m.md | ✅ |' } }),
+    rpcRequest(16, 'tools/call', { name: 'memory_summary_append', arguments: { row: '| 2026-07-22 | 05 | fix/ledger | should reject | r.md | m.md | ✅ |' } }),
+    rpcRequest(17, 'tools/call', { name: 'memory_summary_append', arguments: { row: '| 2026-07-22 | 06 | analyze+fix | compound ok | r.md | m.md | ✅ |' } })
   ], TEMP_ROOT)
 
   assert.notStrictEqual(resultById(responses, 10).isError, true)
@@ -2177,8 +2189,13 @@ function testMemoryLocalCalendarAndWriterReaderContract() {
   assert.strictEqual(summary.rows[0].state, 'completed')
   assert.strictEqual(resultById(responses, 12).isError, true)
   assert.strictEqual(resultById(responses, 13).isError, true)
+  assert.strictEqual(resultById(responses, 14).isError, true, 'ops must fail SummaryTypeCanon')
+  assert.strictEqual(resultById(responses, 15).isError, true, 'slash type must fail')
+  assert.strictEqual(resultById(responses, 16).isError, true, 'fix/ledger must fail')
+  assert.notStrictEqual(resultById(responses, 17).isError, true, 'analyze+fix must pass')
   assert.strictEqual(fs.readFileSync(summaryPath, 'utf8').split(validRow).length - 1, 1)
-  assert.doesNotMatch(fs.readFileSync(summaryPath, 'utf8'), /malformed|unescaped/)
+  assert.doesNotMatch(fs.readFileSync(summaryPath, 'utf8'), /malformed|unescaped|\| ops \||audit\/ECR|fix\/ledger/)
+  assert.match(fs.readFileSync(summaryPath, 'utf8'), /analyze\+fix/)
 }
 
 function testMcpJsonLaunchContract() {

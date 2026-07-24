@@ -282,10 +282,10 @@ Hook / CLI / visible reply / sticky project / workspace guard 相关任务还要
 - `devcodex status|doctor --completion ...` 与 `devcodex trace show --completion ...`：读取同一 projection 的只读诊断，不触发 reconcile。`profile/config.json` 的 `extensions.devcodex.workflowCompletion.mode` 当前为 `shadow`；真实 30 天滚动窗口、20 个 eligible 样本且 dev/fix 各 5 之前保持 waiting-external
 - Intent 阶段转换使用 `IntentConsistencyDecisionV1` 核对 proposal/requirement/phase/confidence；短确认无绑定时必须澄清，不能靠历史或 route hint 补猜
 - Skill portfolio schema v2 提供保守 `SkillIndexV2` 和只读 `BundleDecisionV2`；`BudgetDecisionV1` 显式投影预算执行状态、回退原因与 `optimizedHit`。结构证据不得自动改变 active/gray lifecycle。portfolio 会绑定 tracked consumer inventory/projection；所有预期文件 stage 后运行 `npm run test:skill-portfolio:staged`，commit 后在 clean tree 重跑普通 `--check`，两次证据不能互相替代
-- `devcodex help`：查看 CLI 子命令与参数，尤其是 `profile init`、`migrate-layout`、`init/update --claude/--codex`
+- `devcodex help`：查看 CLI 子命令与参数；宿主配置只能由 npm 全局安装/升级管理，bare `init/update` 只管理 workspace `.devcodex`
 - `node scripts/validate-all-profiles.js --workspace <workspace-root>`：校验 `.devcodex/workspace/profile` 与 `.devcodex/<project>/profile` 的三档必需文件和 workspace fallback；发布前可追加 `--strict-warnings`
 - `DEVCODEX_HOOK_ENFORCEMENT`：默认 `safety-only`，仅危险命令硬拦；切到 `strict` 前应先确认宿主确实支持对应 Hook 事件；当前 Codex adapter 已内置 `PreCompact` compaction runtime 兜底
-- `.mcp.json` 由 Claude Code adapter 自动写入（引用项目 `.claude/mcp/*`）。Codex adapter 另向工作区 owner 的 `.codex/config.toml` 幂等 merge 托管块 `BEGIN DEVCODEX-MCP-MANAGED`（`devcodex-memory` + `devcodex-profile`，复用同一套 `.claude/mcp/*`）；`devcodex init/update --codex` 后需重启 Codex。Copilot 仍不自动写 MCP。不能把 Claude 的 `.mcp.json` 当成全宿主通用入口
+- Claude、Codex 与 Grok 的 MCP 配置由 npm 全局安装写入各宿主用户级配置，并指向用户级稳定 runtime；server 从宿主 cwd 发现 workspace `.devcodex`。源码仓 `.mcp.json` 只是包开发清单，Copilot 首批不自动写 MCP
 - Turn Liveness：工具返回后先进入 `awaiting-continuation`，120 秒无后续事件标记 `suspect`，300 秒标记 `stalled-recoverable`；活动工具/Agent 使用更长租约，避免把真实长任务误判为挂起
 - 宿主能力边界：`PostToolUse` 不是 terminal，也不能证明宿主会继续派发事件；Hook 仅在下一次事件到达时生成一次性 `TurnRecoveryCard`，不得自行唤醒宿主、控制进程或重放未知副作用操作
 - 双阶段 CheckpointValidation：response-time 记录当前可见事件；post-execution 缺 Stop terminal evidence 时保持 `unverified`，deadline 到期为 `incomplete-timeout`，不得把等待或 PreCompact 推断为完成

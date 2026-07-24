@@ -60,6 +60,16 @@ function loadMemoryIndexContract() {
 
 const MEMORY_INDEX_CONTRACT = loadMemoryIndexContract()
 
+function loadSummaryTypeCanon() {
+  try {
+    return require('../scripts/lib/summary-type-canon.js')
+  } catch {
+    return null
+  }
+}
+
+const SUMMARY_TYPE_CANON = loadSummaryTypeCanon()
+
 const INPUT_ROOT = process.argv[2]
   ? path.resolve(process.argv[2])
   : process.cwd()
@@ -1640,7 +1650,18 @@ function handleMemorySessionAllocate(args) {
     const maxId = Math.max(0, ...parseExistingSessionNumbers(existing))
     allocatedId = formatSessionId(maxId + 1)
     const title = String(input.title || '未命名任务').trim()
-    const intent = String(input.intent || 'unspecified').trim() || 'unspecified'
+    let intent = String(input.intent || 'unspecified').trim() || 'unspecified'
+    if (SUMMARY_TYPE_CANON) {
+      const intentCheck = SUMMARY_TYPE_CANON.validateAllocateIntent(intent)
+      if (!intentCheck.ok) {
+        throw memoryQueryError(
+          `Invalid allocate intent: ${intentCheck.message}`,
+          'Use canonical workflow intents (dev|fix|analyze|audit|self-fix|chat|resume|other) joined by +, or unspecified.',
+          intentCheck.errorCode || 'SUMMARY_TYPE_NON_CANONICAL'
+        )
+      }
+      intent = intentCheck.normalized
+    }
     const sourceMessage = String(input.sourceMessage || '—').trim() || '—'
     const block = [
       `## 会话 ${allocatedId} — ${title}`,
@@ -1777,14 +1798,31 @@ function handleMemorySummaryAppend(args) {
   if (!String(cells[2] || '').trim() || !String(cells[3] || '').trim()) {
     throw memoryQueryError('Invalid SUMMARY row: type and summary are required.')
   }
+  // SummaryTypeCanonGate：类型列仅允许 canonical 工作流意图（+ 连接）
+  let normalizedType = String(cells[2] || '').trim()
+  if (SUMMARY_TYPE_CANON) {
+    const typeCheck = SUMMARY_TYPE_CANON.validateSummaryType(normalizedType)
+    if (!typeCheck.ok) {
+      throw memoryQueryError(
+        `Invalid SUMMARY type: ${typeCheck.message}`,
+        'Allowed: dev|fix|analyze|audit|self-fix|chat|resume|other joined by + only (no slash/free labels).',
+        typeCheck.errorCode || 'SUMMARY_TYPE_NON_CANONICAL'
+      )
+    }
+    normalizedType = typeCheck.normalized
+  }
   if (normalizedMemoryState(cells[6]) === 'unknown') {
     throw memoryQueryError('Invalid SUMMARY row: status must map to active, completed, or blocked.')
   }
+  // Prefer original row when type already matches normalized form (stable spacing)
+  const finalRow = String(cells[2] || '').trim() === normalizedType
+    ? args.row
+    : `| ${cells[0]} | ${cells[1]} | ${normalizedType} | ${cells[3]} | ${cells[4]} | ${cells[5]} | ${cells[6]} |`
   const target = resolveMemoryTarget(args)
   const p = memoryClientPath(target, 'SUMMARY.md')
   const receipt = withMemoryTransaction(target, p, existing => {
-    if (!existing) return summaryHeader(args.agent || target.agent, args) + args.row + '\n'
-    return existing + args.row + '\n'
+    if (!existing) return summaryHeader(args.agent || target.agent, args) + finalRow + '\n'
+    return existing + finalRow + '\n'
   })
   receipt.indexReceipt = refreshSummaryMemoryIndex(target, p)
   const parsed = parseSummaryRows(readFile(p))

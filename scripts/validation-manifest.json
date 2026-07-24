@@ -9,6 +9,13 @@
     "plugin.json",
     "scripts/validation-manifest.json",
     "scripts/run-validation.js",
+    "scripts/postinstall.js",
+    "scripts/lib/npm-lifecycle-adapter.js",
+    "scripts/test-npm-lifecycle-adapter.js",
+    "scripts/lib/global-host-*.js",
+    "scripts/test-global-host-config.js",
+    "scripts/test-global-install-smoke.js",
+    "scripts/fixtures/global-host-config/**",
     "scripts/lib/validation-dag.js",
     "scripts/lib/validation-orchestration.js",
     "scripts/lib/checked-command.js",
@@ -127,8 +134,11 @@
         "workflow-completion-contract",
         "critical-coverage",
         "host-instruction-projection",
-        "host-adapters",
-        "host-installation",
+      "host-adapters",
+      "npm-lifecycle-adapter",
+      "global-host-config",
+      "global-install-smoke",
+      "host-installation",
         "syntax"
       ]
     },
@@ -201,8 +211,11 @@
         "workflow-completion-contract",
         "critical-coverage",
         "host-instruction-projection",
-        "host-adapters",
-        "host-installation",
+      "host-adapters",
+      "npm-lifecycle-adapter",
+      "global-host-config",
+      "global-install-smoke",
+      "host-installation",
         "syntax",
         "generated-site-precheck",
         "website-build",
@@ -236,8 +249,11 @@
         "workflow-completion-contract",
         "critical-coverage",
         "host-instruction-projection",
-        "host-adapters",
-        "host-installation",
+      "host-adapters",
+      "npm-lifecycle-adapter",
+      "global-host-config",
+      "global-install-smoke",
+      "host-installation",
         "syntax",
         "skill-sidecar-contract"
       ]
@@ -262,8 +278,11 @@
         "workflow-completion-contract",
         "critical-coverage",
         "host-instruction-projection",
-        "host-adapters",
-        "host-installation",
+      "host-adapters",
+      "npm-lifecycle-adapter",
+      "global-host-config",
+      "global-install-smoke",
+      "host-installation",
         "syntax",
         "generated-site-precheck",
         "website-build",
@@ -650,7 +669,9 @@
       ],
       "consumers": [],
       "invariants": [
-        "contract"
+        "contract",
+        "global-only-host-selectors",
+        "workspace-gitignore-zero-write"
       ],
       "riskClass": "normal",
       "cachePolicy": "candidate-bound",
@@ -3461,6 +3482,162 @@
     },
     {
       "schemaVersion": "ValidationNodeV1",
+      "id": "npm-lifecycle-adapter",
+      "owner": "package-lifecycle",
+      "command": "npm",
+      "args": [
+        "run",
+        "test:npm-lifecycle-adapter"
+      ],
+      "dependencies": [],
+      "inputs": [
+        "package.json",
+        "scripts/postinstall.js",
+        "scripts/lib/npm-lifecycle-adapter.js",
+        "scripts/test-npm-lifecycle-adapter.js"
+      ],
+      "consumers": [
+        "global-install-smoke",
+        "host-installation",
+        "pack-clean",
+        "release-metadata"
+      ],
+      "invariants": [
+        "global-install-postinstall",
+        "global-internal-transaction",
+        "workspace-install-global-required-noop",
+        "source-checkout-noop",
+        "ci-noop",
+        "skip-env-noop",
+        "transitive-noop",
+        "npm-update-package-boundary",
+        "per-host-result-summary",
+        "failed-soft-visible-remediation"
+      ],
+      "riskClass": "release",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1",
+        "DevCodexNpmLifecycleAdapterReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "global-host-config",
+      "owner": "host-contract-verification",
+      "command": "npm",
+      "args": [
+        "run",
+        "test:global-host-config"
+      ],
+      "dependencies": [],
+      "inputs": [
+        "package.json",
+        "host-projections/**",
+        "hooks/_runtime/**",
+        "mcp/**",
+        "skills/**",
+        "codex/**",
+        "gemini/**",
+        "grok/plugins/devcodex-workspace/**",
+        "scripts/lib/global-host-*.js",
+        "scripts/fixtures/global-host-config/**",
+        "scripts/test-global-host-config.js"
+      ],
+      "consumers": [
+        "global-install-smoke"
+      ],
+      "invariants": [
+        "five-user-level-targets",
+        "managed-merge-preserves-user-content",
+        "atomic-rollback",
+        "per-host-failure-isolation",
+        "exact-file-and-host-boundaries",
+        "managed-hook-and-mcp-upgrade",
+        "config-drift-detection",
+        "idempotent-refresh",
+        "workspace-host-dirs-zero"
+      ],
+      "riskClass": "release",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 180000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1",
+        "GlobalHostConfigTransactionV1",
+        "GlobalHostConfigReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "global-install-smoke",
+      "owner": "package-lifecycle",
+      "command": "npm",
+      "args": [
+        "run",
+        "test:global-install-smoke"
+      ],
+      "dependencies": [
+        "npm-lifecycle-adapter",
+        "global-host-config"
+      ],
+      "inputs": [
+        "package.json",
+        "scripts/postinstall.js",
+        "scripts/lib/npm-lifecycle-adapter.js",
+        "scripts/lib/global-host-*.js",
+        "scripts/test-global-install-smoke.js"
+      ],
+      "consumers": [
+        "host-installation",
+        "pack-clean"
+      ],
+      "invariants": [
+        "isolated-global-home",
+        "five-global-receipts",
+        "workspace-install-no-host-write",
+        "global-only-guidance"
+      ],
+      "riskClass": "release",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 180000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1",
+        "DevCodexNpmLifecycleAdapterReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
       "id": "host-installation",
       "owner": "host-instruction-projection",
       "command": "npm",
@@ -3469,7 +3646,9 @@
         "test:host-installation"
       ],
       "dependencies": [
-        "host-instruction-projection"
+        "host-instruction-projection",
+        "npm-lifecycle-adapter",
+        "global-install-smoke"
       ],
       "inputs": [
         "index.js",
@@ -3484,6 +3663,8 @@
         "scripts/lib/deployment-descriptors.js",
         "scripts/lib/host-surface-descriptors.js",
         "scripts/lib/host-adapter-scope.js",
+        "scripts/lib/npm-lifecycle-adapter.js",
+        "scripts/lib/global-host-*.js",
         "scripts/lib/grok-workspace-launcher.js",
         "scripts/test-host-installation.js"
       ],

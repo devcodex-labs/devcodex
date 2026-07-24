@@ -19,12 +19,18 @@ function buildHostInstructionControlChecks(ctx) {
       'scripts/host-instruction-projection.json',
       'scripts/lib/host-instruction-projection.js',
       'scripts/lib/host-surface-descriptors.js',
+      'scripts/lib/global-host-target.js',
+      'scripts/lib/global-host-config.js',
+      'scripts/lib/global-host-config-merge.js',
+      'scripts/lib/global-host-config-transaction.js',
       'scripts/lib/host-adapter-scope.js',
       'scripts/lib/grok-workspace-launcher.js',
       'scripts/generate-host-instruction-projections.js',
       'scripts/test-host-instruction-projection.js',
       'scripts/test-host-adapters.js',
       'scripts/test-host-installation.js',
+      'scripts/test-global-host-config.js',
+      'scripts/test-global-install-smoke.js',
       'hooks/_runtime/lifecycle-host-adapters.cjs',
       'host-projections/AGENTS.md',
       'host-projections/copilot-instructions.md',
@@ -109,10 +115,28 @@ function buildHostInstructionControlChecks(ctx) {
     if (fs.existsSync(path.join(ROOT, 'grok', 'rules'))) err('[V103] Grok must not receive a duplicate rules tree')
 
     const pkg = JSON.parse(String(read(path.join(ROOT, 'package.json'))))
-    for (const script of ['test:host-instruction-projection', 'test:host-adapters', 'test:host-installation']) {
+    for (const script of [
+      'test:host-instruction-projection',
+      'test:host-adapters',
+      'test:host-installation',
+      'test:global-host-config',
+      'test:global-install-smoke'
+    ]) {
       if (!pkg.scripts?.[script]) err(`[V103] package script missing: ${script}`)
     }
-    for (const packaged of ['gemini/', 'grok/', 'host-projections/', 'scripts/lib/host-instruction-projection.js', 'scripts/lib/host-surface-descriptors.js', 'scripts/lib/host-adapter-scope.js', 'scripts/lib/grok-workspace-launcher.js']) {
+    for (const packaged of [
+      'gemini/',
+      'grok/',
+      'host-projections/',
+      'scripts/lib/host-instruction-projection.js',
+      'scripts/lib/host-surface-descriptors.js',
+      'scripts/lib/global-host-target.js',
+      'scripts/lib/global-host-config.js',
+      'scripts/lib/global-host-config-merge.js',
+      'scripts/lib/global-host-config-transaction.js',
+      'scripts/lib/host-adapter-scope.js',
+      'scripts/lib/grok-workspace-launcher.js'
+    ]) {
       if (!pkg.files?.includes(packaged)) err(`[V103] package files missing: ${packaged}`)
     }
     const plugin = JSON.parse(String(read(path.join(ROOT, 'plugin.json'))))
@@ -129,41 +153,42 @@ function buildHostInstructionControlChecks(ctx) {
       'scripts/lib/cli-maintenance-commands.js',
       'scripts/lib/cli-host-utils.js',
       'scripts/lib/host-surface-descriptors.js',
+      'scripts/lib/global-host-target.js',
+      'scripts/lib/global-host-config.js',
       'scripts/lib/host-adapter-scope.js',
       'scripts/lib/grok-workspace-launcher.js'
     ].map(relative => String(read(path.join(ROOT, relative)))).join('\n')
     for (const anchor of [
       '--host',
-      'CLI_HOST_UNSUPPORTED',
-      'CLI_HOST_SELECTION_CONFLICT',
-      'CLI_HOST_SCOPE_CONFLICT',
-      'HOST_INSTRUCTION_COLLISION',
-      'DEFAULT_HOSTS',
-      'HostAdapterScopeV1',
-      'user-registered-workspace',
-      'grok-workspace-plugin',
-      'writeGrokPluginRegistration',
-      'inspectGrokPluginInstallation',
-      'uninstallGrokPluginInstallation',
-      'GrokPluginUninstallReceiptV1',
-      'retireWorkspaceProjectHostManifest',
-      'instructionProjection.inspectionRoot',
-      'hostRoot',
-      'GrokWorkspaceLaunchPlanV1',
+      'CLI_HOST_CONFIG_GLOBAL_ONLY',
+      'GlobalOnlyHostConfigModeV1',
+      'GlobalHostTargetV1',
+      'GlobalHostConfigInspectionV1',
+      'workspaceHostDirectoriesWritten',
+      'npm install -g devcodex',
+      'user-global',
+      'legacyWorkspaceProjectionDescriptors',
+      'GrokGlobalLaunchPlanV1',
       'GROK_LAUNCHER_CWD_CONFLICT',
-      'launcher-rules'
+      'global-launcher-rules'
     ]) {
       if (!cliSource.includes(anchor)) err(`[V103] CLI host contract missing: ${anchor}`)
     }
 
     const manifest = JSON.parse(String(read(path.join(ROOT, 'scripts/validation-manifest.json'))))
-    for (const nodeId of ['host-instruction-projection', 'host-adapters', 'host-installation']) {
+    for (const nodeId of [
+      'host-instruction-projection',
+      'host-adapters',
+      'host-installation',
+      'global-host-config',
+      'global-install-smoke'
+    ]) {
       if (!manifest.nodes?.some(node => node.id === nodeId)) err(`[V103] validation node missing: ${nodeId}`)
       for (const route of ['fast', 'full', 'profile-deploy', 'package-release']) {
         if (!manifest.routes?.[route]?.nodes?.includes(nodeId)) err(`[V103] ${route} route omits ${nodeId}`)
       }
     }
-    console.log('[V103] host kernel coverage / budget / five-host distribution / collision closure checked')
+    console.log('[V103] host kernel coverage / global-only five-host distribution / collision closure checked')
   }
 
   return { checkV103 }

@@ -150,12 +150,15 @@ function buildGovernancePackageDeploymentChecks(ctx) {
         err(`[V6] Copilot hook commands must use workspace runtime path: ${invalidCommands.join(', ')}`)
       }
 
+      const packageEntrySrc = read(path.join(ROOT, 'index.js'))
       const indexSrc = [
-        'index.js',
-        'scripts/lib/cli-install-commands.js',
-        'scripts/lib/cli-maintenance-commands.js',
-        'scripts/lib/cli-command-registry.js'
-      ].map(file => read(path.join(ROOT, file))).join('\n')
+        packageEntrySrc,
+        ...[
+          'scripts/lib/cli-install-commands.js',
+          'scripts/lib/cli-maintenance-commands.js',
+          'scripts/lib/cli-command-registry.js'
+        ].map(file => read(path.join(ROOT, file)))
+      ].join('\n')
       if (!/const\s+CLAUDE_HOOK_COMMAND\s*=/.test(indexSrc)) {
         err('[V6] Claude Code adapter missing CLAUDE_HOOK_COMMAND constant in index.js (required for hooks settings.json injection)')
       } else {
@@ -194,10 +197,20 @@ function buildGovernancePackageDeploymentChecks(ctx) {
       } else if (!JSON.stringify(codexPreCompactEntries).includes('manual|auto')) {
         err('[V6] Codex PreCompact hook must match manual|auto compaction triggers')
       }
-      for (const probe of ['CODEX_SOURCES', 'CODEX_HOOK_COMMAND', 'cmdInitCodex', '--codex']) {
+      for (const probe of ['CODEX_SOURCES', 'CODEX_HOOK_COMMAND']) {
         if (!indexSrc.includes(probe)) {
           err(`[V6] Codex adapter missing CLI composition probe: ${probe}`)
         }
+      }
+      const publicExports = packageEntrySrc.slice(packageEntrySrc.indexOf('module.exports ='))
+      for (const legacyWriter of ['cmdInit', 'cmdInitClaude', 'cmdInitCodex', 'cmdInitGemini', 'cmdInitGrok']) {
+        if (new RegExp(`\\b${legacyWriter}\\b`).test(publicExports)) {
+          err(`[V6] GlobalOnly package entry must not export legacy workspace host writer: ${legacyWriter}`)
+        }
+      }
+      const cliInstallSrc = read(path.join(ROOT, 'scripts/lib/cli-install-commands.js'))
+      if (!cliInstallSrc.includes('CLI_HOST_CONFIG_GLOBAL_ONLY')) {
+        err('[V6] Codex adapter missing GlobalOnly host-selector rejection contract')
       }
 
       const combined = files.join('\n') + '\n' + packName + '\n' + packFilename
@@ -332,7 +345,7 @@ function buildGovernancePackageDeploymentChecks(ctx) {
         const dest = path.join(claudeDir, pair.claude)
         if (fs.existsSync(dest)) {
           if (fileHash(dest) !== fileHash(srcPath)) {
-            warn(`[V8] .claude/ stale: ${pair.claude} (run: npx devcodex update --claude)`)
+            warn(`[V8] .claude/ stale: ${pair.claude} (repair user-global adapter: npm update -g devcodex)`)
             stale++
           }
         } else {
@@ -365,8 +378,8 @@ function buildGovernancePackageDeploymentChecks(ctx) {
     }
 
     if (codexExists) {
-      compareDeployment('host-projections/AGENTS.md', path.join(parentRoot, 'AGENTS.md'), 'AGENTS.md', 'npx devcodex update --codex')
-      compareDeployment('codex/hooks.json', path.join(codexDir, 'hooks.json'), '.codex/hooks.json', 'npx devcodex update --codex')
+      compareDeployment('host-projections/AGENTS.md', path.join(parentRoot, 'AGENTS.md'), 'AGENTS.md', 'npm update -g devcodex')
+      compareDeployment('codex/hooks.json', path.join(codexDir, 'hooks.json'), '.codex/hooks.json', 'npm update -g devcodex')
 
       for (const file of walk(path.join(ROOT, 'skills'))) {
         const rel = path.relative(path.join(ROOT, 'skills'), file)
@@ -375,7 +388,7 @@ function buildGovernancePackageDeploymentChecks(ctx) {
           path.join('skills', rel).replace(/\\/g, '/'),
           path.join(agentsDir, 'skills', rel),
           `.agents/skills/${rel.replace(/\\/g, '/')}`,
-          'npx devcodex update --codex'
+          'npm update -g devcodex'
         )
       }
       for (const file of walk(path.join(ROOT, 'hooks', '_runtime'))) {
@@ -384,7 +397,7 @@ function buildGovernancePackageDeploymentChecks(ctx) {
           path.join('hooks/_runtime', rel).replace(/\\/g, '/'),
           path.join(codexDir, 'hooks', '_runtime', rel),
           `.codex/hooks/_runtime/${rel.replace(/\\/g, '/')}`,
-          'npx devcodex update --codex'
+          'npm update -g devcodex'
         )
       }
 

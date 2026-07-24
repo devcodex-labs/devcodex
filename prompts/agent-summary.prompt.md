@@ -24,7 +24,12 @@ applyTo: .devcodex/**/.memory/**
 
 ### 字段规则
 
-- **类型**：工作流意图，多任务用 `+` 连接（如 `fix+audit`）
+- **类型（SummaryTypeCanonGate）**：仅允许顶层工作流意图白名单
+  `dev | fix | analyze | audit | self-fix | chat | resume | other`
+  - 多意图只用 `+` 连接（如 `fix+audit`、`analyze+fix`）
+  - **禁止** `/` 拼接（`fix/dev`、`audit/ECR`）、自由标签（`ops`、`ledger`、`release`、`governance-record`）与状态符号（`✅`）
+  - 映射提示：审查/复审/走查 → `audit`；结论/根因/清单 → `analyze`；SC15 ECR / 实施闭环 → `dev` 或 `self-fix`（不是 audit）；运维命令 → `other` 或并入主工作流
+  - MCP `memory_summary_append` 会硬校验；非法类型写入失败
 - **摘要**：一行 50~100 字，包含做了什么 + 关键数字/结果
 - **多任务会话**：一行覆盖全部任务，不拆多行
 - **排序**：按时间正序追加（最新在最后）

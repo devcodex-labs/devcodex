@@ -14,7 +14,7 @@
 
 | 问题 | 答案 |
 |------|------|
-| Grok 是否「没适配」？ | 否。已具备 PreTool 硬拦契约、`path-observable` 上下文门禁、workspace 插件与 `devcodex grok` Full 入口。 |
+| Grok 是否「没适配」？ | 否。已具备 PreTool 硬拦契约、`path-observable` 上下文门禁、用户级插件与 `devcodex grok` Full 入口。 |
 | 是否与 Codex **完全一样**？ | **否。** Grok 被动 Hook **不能**把预检查块注入模型上下文；Stop **不能**硬拦未完成闭包。 |
 | 日常怎么用？ | 子 Git 项目用 **`devcodex grok`**；用 `devcodex doctor` 看 `HostParity`。 |
 
@@ -34,9 +34,7 @@
 ## 推荐用法
 
 ```bash
-# 工作区子项目：Full 证据入口（绑定共享 AGENTS.md）
-npx @vextjs/devcodex grok
-# 或本地 link 后
+# Full 证据入口（绑定用户级 controlling kernel）
 devcodex grok
 
 # 诊断 HostParityScorecardV1
@@ -52,7 +50,7 @@ devcodex status
 
 ## GrokTurnChecklist（无 inject 时的强制面 · PF-165）
 
-Grok **不会**每轮注入 bootstrap。模型必须按下列可扫清单自执行（Host Kernel `AGENTS.md` 与 workspace Skill 同步摘要）：
+Grok **不会**每轮注入 bootstrap。模型必须按下列可扫清单自执行（用户级 controlling kernel 与 Skill 摘要）：
 
 | # | 项 | 要求 |
 |---|----|------|
@@ -92,11 +90,11 @@ Grok **不会**每轮注入 bootstrap。模型必须按下列可扫清单自执�
 ### partial → 可修复闭环
 
 1. 读 `devcodex doctor` 人类输出的 **Repair steps**，或 `doctor --json` → `payload.hostParity.repairSteps`。
-2. 按每条 `command` 执行（常见：`devcodex update --host grok`、补 Codex lifecycle 源契约）。
+2. 按每条 `command` 执行；缺失时运行 `npm install -g devcodex`，升级时运行 `npm update -g devcodex`。
 3. 再跑 `devcodex doctor`，直到 `tier=full-capable`（或 checks 全绿）。
 4. 日常会话仍用 **`devcodex grok`**，并遵守 **GrokTurnChecklist**（full-capable ≠ 已注入 PC0）。
 
-若 workspace plugin source 与用户级登记都存在，但安装副本 digest 与 source 不一致，`doctor/status` 只把它列为 warning；这表示建议重新执行 `devcodex update --host grok` 刷新安装副本，但不应把当前可用的 workspace adapter 误报为“未安装”。
+`doctor/status` 读取用户级 receipt、plugin 和稳定 runtime；工作区 `.grok` 只作为 legacy 诊断，不参与 ready 判定。receipt 版本落后时使用 `npm update -g devcodex` 刷新。
 
 禁止把 `full-capable` 解读为「UserPromptSubmit 已注入 PC0」。
 

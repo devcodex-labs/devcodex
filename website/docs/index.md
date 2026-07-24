@@ -16,10 +16,12 @@ hero:
 features:
   - title: 🎯 结构化工作流
     details: 8 种工作流（dev/fix/audit/analyze/self-fix/resume/plan/chat），执行流程骨架已冻结
-  - title: 🛠️ 83 个 Skills
-    details: 当前源码维护 80 active + 3 gray；新增 active `host-capability-routing`，以 portable-first 方式把用户意图映射到五宿主 8 个 surface variant，证据不足时不冒充 native；另有 `requirement-parallel-orchestration`，用于多需求并行前的独立性判定、共享面锁图、LaunchCard 与汇合协议；active `repair-prevention-assessment` 负责所有 repair 的完成门禁，gray `rework-prevention-engineering` 只负责长期效果试验，gray `brand-visual-quality` 承接品牌视觉资产质量，其余覆盖开发、修复、审计、规范吸纳执行、跨仓消费者验证、用户侧文档 review 聚合、`expert-output-quality` 专家型产物质量与 21 个专家 Owner Skill，以及宿主契约验证、真相源-消费者同步
+  - title: 🛠️ 84 个 Skills
+    details: 当前源码维护 81 active + 3 gray；新增 active `host-capability-routing`，以 portable-first 方式把用户意图映射到五宿主 8 个 surface variant，证据不足时不冒充 native；另有 `requirement-parallel-orchestration`，用于多需求并行前的独立性判定、共享面锁图、LaunchCard 与汇合协议；active `repair-prevention-assessment` 负责所有 repair 的完成门禁，gray `rework-prevention-engineering` 只负责长期效果试验，gray `brand-visual-quality` 承接品牌视觉资产质量，其余覆盖开发、修复、审计、规范吸纳执行、跨仓消费者验证、用户侧文档 review 聚合、`expert-output-quality` 专家型产物质量与 21 个专家 Owner Skill，以及宿主契约验证、真相源-消费者同步
   - title: 🧩 默认五宿主
-    details: `init` / `update` 默认部署 Copilot、Claude Code、Codex、Gemini 与 Grok（含 Grok 用户级 plugin 同步）；也可用 `--host <id>` 只刷单宿主。五宿主共用精简 kernel、按需 Skills 与完整回退，Hook 能力按宿主/事件降级并受 direct/fixture/instruction-backed 证据上限约束
+    details: npm 全局安装/升级自动配置 Copilot、Claude Code、Codex、Gemini 与 Grok 的用户级 adapter；工作区只保留 `.devcodex`。五宿主共用精简 kernel、按需 Skills 与完整回退，能力声明受 direct/fixture/instruction-backed 证据上限约束
+  - title: 📦 npm 安装自动适配
+    details: `npm install -g devcodex` 安装 CLI 与五宿主用户级 adapter，`npm update -g devcodex` 升级并刷新；`npm install devcodex` 仅安装工作区依赖并提示必须使用 `-g`。`.devcodex` 仍保持 workspace-namespace，发布身份与 registry 事实留到发版前验证
   - title: 🔒 四层合规检查
     details: FC（形式合规）→ SC（实质合规）→ RC（恢复性检查）→ T（任务完成验证）；chat 仅保留记忆与 dev 预检查
   - title: 🧠 跨会话记忆
@@ -31,4 +33,6 @@ features:
 ---
 
 
-> Skill 规模锚点：83 个按需触发；扁平一级 Skill（83 个）。
+> Skill 规模锚点：84 个按需触发；扁平一级 Skill（84 个）。
+>
+> Hook 能力按宿主/事件降级：用户级 adapter 已配置不代表每个宿主事件都具备相同的硬拦能力。

@@ -32,7 +32,12 @@ const HOST_ENV_SCRUB = {
   XAI_AGENT: '',
   DEVCODEX_AGENT: ''
 }
-const { CODEX_HOOK_COMMAND } = require('../index.js')
+const indexApi = require('../index.js')
+const { CODEX_HOOK_COMMAND } = indexApi
+
+for (const legacyWriter of ['cmdInit', 'cmdInitClaude', 'cmdInitCodex', 'cmdInitGemini', 'cmdInitGrok']) {
+  assert.strictEqual(indexApi[legacyWriter], undefined, `${legacyWriter} must not be exported in GlobalOnlyHostConfigModeV1`)
+}
 
 assert.deepStrictEqual(projectFeatureInventoryState('FeatureInventorySchemaV2', []), {
   schemaVersion: 'FeatureInventorySchemaV2',
@@ -304,7 +309,8 @@ function testDoctorAvoidsCodexBiasInMixedHostRepo() {
   const output = runCli(['doctor'], root)
   assert.match(output, /platform:\s+unknown\s+\(unknown\)/)
   assert.match(output, /agent:\s+unknown-agent/)
-  assert.match(output, /installed hosts:\s+codex, claude-code, copilot/)
+  assert.match(output, /workspace hosts:\s+codex, claude-code, copilot \(legacy\)/)
+  assert.match(output, /global hosts:\s+\d\/5 ready/)
 
   fs.rmSync(root, { recursive: true, force: true })
 }
@@ -342,6 +348,13 @@ function testMachineReadableDiagnosticsAndStableErrors() {
   assert.ok(Array.isArray(status.payload.installSurfaces))
   assert.strictEqual(status.payload.executionOptimization.config.effective, 'safe-auto')
   assert.deepStrictEqual(status.payload.executionOptimization.writes, [])
+  assert.deepStrictEqual(status.payload.hostConfigPolicy, {
+    mode: 'GlobalOnlyHostConfigModeV1',
+    workspaceHostConfigWritesAllowed: false,
+    legacyWorkspaceArtifacts: 'diagnostic-read-only',
+    installCommand: 'npm install -g devcodex',
+    updateCommand: 'npm update -g devcodex'
+  })
   assert.strictEqual(status.payload.governanceSummary.schemaVersion, 'GovernanceStatusSummaryV1')
   assert.strictEqual(status.payload.governanceSummary.readOnly, true)
   assert.strictEqual(status.payload.governanceSummary.runtimeState.recordCount, 0)
@@ -354,6 +367,7 @@ function testMachineReadableDiagnosticsAndStableErrors() {
   assert.strictEqual(doctor.command, 'doctor')
   assert.strictEqual(doctor.payload.schemaVersion, 'DoctorDiagnosticV1')
   assert.strictEqual(doctor.payload.executionOptimization.config.effective, 'safe-auto')
+  assert.deepStrictEqual(doctor.payload.hostConfigPolicy, status.payload.hostConfigPolicy)
   assert.strictEqual(doctor.payload.governanceSummary.schemaVersion, 'GovernanceStatusSummaryV1')
   assert.strictEqual(doctor.payload.governanceSummary.gateLifecycle.readOnly, true)
   assert.strictEqual(doctor.payload.governanceSummary.ledgers.mutationAllowed, false)
@@ -391,20 +405,31 @@ function testDefaultInitBootstrapsActiveRootData() {
   runCli(['init'], root)
 
   assertRuntimeDataBootstrap(path.join(root, '.devcodex'))
-  assertDeploymentManifest(path.join(root, '.devcodex'), 'copilot')
-  assert.ok(!fs.existsSync(path.join(root, '.github', 'instructions', 'tenants')), 'default init must not deploy tenant instructions')
-  assert.ok(!fs.existsSync(path.join(root, '.claude', 'instructions', 'tenants')), 'default Claude adapter must not deploy tenant instructions')
+  assert.ok(!fs.existsSync(path.join(root, '.gitignore')), 'default init must not create .gitignore')
+  for (const relative of ['.github', '.claude', '.codex', '.gemini', '.grok']) {
+    assert.ok(!fs.existsSync(path.join(root, relative)), `default init must not create ${relative}`)
+  }
+  const updated = JSON.parse(runCli(['update', '--json'], root))
+  assert.strictEqual(updated.payload.mode, 'GlobalOnlyHostConfigModeV1')
+  assert.strictEqual(updated.payload.workspaceHostDirectoriesWritten, false)
+  assert.strictEqual(updated.payload.gitignoreModified, false)
+  assert.strictEqual(updated.payload.hostConfigNextStep, 'npm update -g devcodex')
   fs.rmSync(root, { recursive: true, force: true })
 }
 
 function testTenantSelectionIsExplicit() {
   const root = createTempRoot('devcodex-cli-tenant-')
   writeFile(root, 'package.json', '{ "name": "tmp-tenant-project" }\n')
+  writeFile(root, '.gitignore', '# user-owned\n')
 
-  runCli(['init', '--tenant', 'example-tenant'], root)
-  assert.ok(fs.existsSync(path.join(root, '.github', 'instructions', 'tenants', 'example-tenant', '10-dev.instructions.md')))
-  assert.ok(fs.existsSync(path.join(root, '.claude', 'instructions', 'tenants', 'example-tenant', '10-dev.instructions.md')))
-  assert.ok(!fs.existsSync(path.join(root, '.github', 'instructions', 'tenants', 'README.md')))
+  const result = JSON.parse(runCli(['init', '--tenant', 'example-tenant', '--json'], root))
+  assert.strictEqual(result.payload.tenantId, 'example-tenant')
+  assert.strictEqual(result.payload.workspaceHostDirectoriesWritten, false)
+  assert.ok(fs.existsSync(path.join(root, '.devcodex')))
+  assert.strictEqual(fs.readFileSync(path.join(root, '.gitignore'), 'utf8'), '# user-owned\n')
+  for (const relative of ['.github', '.claude', '.codex', '.gemini', '.grok']) {
+    assert.ok(!fs.existsSync(path.join(root, relative)), `tenant selection must not create ${relative}`)
+  }
 
   const invalidRoot = createTempRoot('devcodex-cli-tenant-invalid-')
   writeFile(invalidRoot, 'package.json', '{ "name": "tmp-invalid-tenant" }\n')
@@ -413,6 +438,30 @@ function testTenantSelectionIsExplicit() {
 
   fs.rmSync(root, { recursive: true, force: true })
   fs.rmSync(invalidRoot, { recursive: true, force: true })
+}
+
+function testGlobalOnlyHostSelectorsFailClosed() {
+  const root = createTempRoot('devcodex-cli-global-only-')
+  writeFile(root, 'package.json', '{ "name": "tmp-global-only" }\n')
+  for (const host of ['copilot', 'claude', 'codex', 'gemini', 'grok', 'all']) {
+    const result = runCliResult(['init', '--host', host, '--json'], root)
+    assert.strictEqual(result.status, 2)
+    const envelope = JSON.parse(result.stdout)
+    assert.strictEqual(envelope.errorCode, 'CLI_HOST_CONFIG_GLOBAL_ONLY')
+    assert.strictEqual(envelope.details.host, host)
+    assert.strictEqual(envelope.details.workspaceHostDirectoriesWritten, false)
+    assert.match(envelope.nextStep, /npm install -g devcodex/)
+  }
+  const update = JSON.parse(runCliFailure(['update', '--claude', '--json'], root))
+  assert.strictEqual(update.errorCode, 'CLI_HOST_CONFIG_GLOBAL_ONLY')
+  assert.match(update.nextStep, /npm update -g devcodex/)
+  const uninstall = JSON.parse(runCliFailure(['uninstall', '--host', 'grok', '--json'], root))
+  assert.strictEqual(uninstall.errorCode, 'CLI_HOST_CONFIG_GLOBAL_ONLY')
+  assert.match(uninstall.nextStep, /not supported/)
+  for (const relative of ['.github', '.claude', '.codex', '.gemini', '.grok']) {
+    assert.ok(!fs.existsSync(path.join(root, relative)), `selector must not create ${relative}`)
+  }
+  fs.rmSync(root, { recursive: true, force: true })
 }
 
 function testCodexInitBootstrapsWorkspaceNamespaceData() {
@@ -817,17 +866,13 @@ function testCodexMcpPreventionNegatives() {
 }
 
 function main() {
-  testClaudeInitPreservesCustomConfig()
-  testClaudeUpdateBacksUpAndPreservesCustomConfig()
   testDoctorAvoidsCodexBiasInMixedHostRepo()
   testDoctorHonorsExplicitAgentBeforeAmbientHints()
   testMachineReadableDiagnosticsAndStableErrors()
   testDefaultInitBootstrapsActiveRootData()
   testTenantSelectionIsExplicit()
-  testCodexInitBootstrapsWorkspaceNamespaceData()
-  testCodexInitBacksUpManagedFiles()
+  testGlobalOnlyHostSelectorsFailClosed()
   testCodexMcpPreventionNegatives()
-  testCodexUpdateRefreshesAdapterInWorkspaceNamespace()
   testProfileInitUsesNestedNamespaceRoot()
   testProfileInitAndStatusShareTierContract()
   testProfilePlanAndTierTransitionsAreSafe()

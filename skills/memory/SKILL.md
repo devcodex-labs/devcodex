@@ -183,7 +183,7 @@ status/current/month/day byte-range 分区。该索引不是记忆真相源：
 ```
 
 **字段规则**：
-- 类型：工作流意图，多任务用 `+` 连接（如 `fix+audit`）
+- 类型（**SummaryTypeCanonGate**）：仅 `dev|fix|analyze|audit|self-fix|chat|resume|other`；多意图用 `+`（如 `fix+audit`）。禁止 `/`、自由标签（`ops`/`ledger`/`release`/`governance-record`）与把状态写入类型列。审查/复审→`audit`；分析结论→`analyze`；ECR/实施闭环→`dev` 或 `self-fix`。机器真相源：`scripts/lib/summary-type-canon.js`；`memory_summary_append` 硬校验，非法则拒写。`memory_session_allocate.intent` 额外允许 `unspecified`。
 - 摘要：一行 50~100 字，包含做了什么 + 关键数字/结果
 - 多任务会话：一行覆盖全部任务，不拆多行
 - 排序：按时间正序追加（最新在最后）

@@ -129,7 +129,7 @@ function buildCliHostUtils({ fs, path, isPlainObject, claudeMcpJson }) {
     const profileJs = path.join(root, '.claude', 'mcp', 'profile-server.js')
     return [
       CODEX_MCP_MANAGED_BEGIN,
-      '# Reuses .claude/mcp servers (same as Claude). Re-run: devcodex update --codex',
+      '# Legacy workspace MCP block; user-global adapters are refreshed by npm update -g devcodex.',
       '[mcp_servers.devcodex-memory]',
       'command = "node"',
       'args = [',

@@ -6,27 +6,27 @@
     "skillsPattern": "skills/*/SKILL.md",
     "optionalSidecar": "skills/*/devcodex.skill.json",
     "registry": "plugin.json",
-    "sourceDigest": "6a82b2bd1258e9371549838cb6a0271cc0b32ec9aee33d5f3fe269feb8b2e065",
+    "sourceDigest": "468feaa1db8ccd9479e1bbdb919ccee079762a6a88ac594f02a6963a04599c1f",
     "sidecarDigest": "774105d7947b340d15d17115fcb8e37b62ae545cf553f06126d529184fd74872",
-    "pluginDigest": "f293edb3ea6c369b66f9af4190b16b5cd9d86100f0ef9432248e849c0fa2bd95",
+    "pluginDigest": "f85d1fcc1384827999ead09f5ee2051295d2a3890315ce0b2c83ac5a9c63ab82",
     "portfolioEvidence": "skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "8364a73c66ed2ec9787cdb9300223278d128a45b689a2b8deda0d1f03189f42b",
-    "consumerInventoryFileCount": 564,
-    "consumerInventoryDigest": "2bb52151b34b6aac8e3be2beeeb094da3259a710f3cf119cf4cefc9b3f786801",
-    "consumerProjectionDigest": "28e6af69a69fdfa1f84c58ffb1295c9ed7d738b26ee4725520c65b28c4428c8e",
-    "portfolioInputDigest": "1ada7107bd9f965d352f84e43be9d93f6b710bb7e11172919cd4388ad6b90add"
+    "consumerInventoryFileCount": 571,
+    "consumerInventoryDigest": "084199a17dbd42b5915759bf670bc264cf7f2eeced440890ad6bc0260c7df56e",
+    "consumerProjectionDigest": "015e3a862e7bec7ba391e4c23130a4bcf932add703b387ec0726f2a46c02533a",
+    "portfolioInputDigest": "41c85079ae0c5c13f40a5b4fa14ef831269a8a6e95b88a97e7aa23ba390fbb9b"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
-    "skillCount": 83,
-    "registeredSkillCount": 83,
-    "activeSkillCount": 80,
+    "skillCount": 84,
+    "registeredSkillCount": 84,
+    "activeSkillCount": 81,
     "graySkillCount": 3,
     "orphanActiveCount": 0,
     "dependencyCycleCount": 0,
-    "dependencyEdgeCount": 25,
-    "conflictReviewedCount": 83,
-    "operationalEvidenceCompleteCount": 83,
+    "dependencyEdgeCount": 24,
+    "conflictReviewedCount": 84,
+    "operationalEvidenceCompleteCount": 84,
     "triggerPrecisionMeasuredCount": 3,
     "instructionBudgetP95Bytes": 22038,
     "triggerQuality": "mixed",
@@ -88,6 +88,7 @@
       "incremental-project-analysis",
       "intent",
       "load-profile",
+      "maintainer-docs-site-authoring",
       "memory",
       "performance-engineering",
       "plan",
@@ -146,10 +147,6 @@
       {
         "from": "dev-default",
         "to": "test-router"
-      },
-      {
-        "from": "dev-docs",
-        "to": "user-manual-authoring"
       },
       {
         "from": "dev-plan-review",
@@ -470,6 +467,10 @@
       },
       {
         "from": "routing",
+        "to": "maintainer-docs-site-authoring"
+      },
+      {
+        "from": "routing",
         "to": "performance-engineering"
       },
       {
@@ -545,7 +546,7 @@
   "health": {
     "orphanActive": [],
     "lifecycleMutationAllowed": false,
-    "evidenceNote": "Operational evidence complete; trigger precision mixed (3/83 measured via portfolio-evidence.json)."
+    "evidenceNote": "Operational evidence complete; trigger precision mixed (3/84 measured via portfolio-evidence.json)."
   },
   "skills": [
     {
@@ -2082,10 +2083,6 @@
           "role": "current"
         },
         {
-          "path": "website/docs/specs/directory-structure.md",
-          "role": "current"
-        },
-        {
           "path": "website/docs/versions/v1/1.0.0/release/checklist.md",
           "role": "historical"
         },
@@ -2388,8 +2385,8 @@
         "skills/audit-document/SKILL.md"
       ],
       "source": "skills/audit-document/SKILL.md",
-      "hash": "4694646d809177548965c19d14e88c7f7d5601ab21f4847f6fdff9a35e0f73c7",
-      "sourceBytes": 4774,
+      "hash": "cb05839b15258f7585fa2c2b36c425893d28b49ab1bf6503b7de54b1bad44983",
+      "sourceBytes": 5636,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [],
@@ -4266,8 +4263,8 @@
         "skills/audit-user-manual/SKILL.md"
       ],
       "source": "skills/audit-user-manual/SKILL.md",
-      "hash": "d1b4815a80400b537d8138d55f16c86bbf9bcc76263dd3ed5f6daa39915fc08a",
-      "sourceBytes": 7990,
+      "hash": "549da485cf2ec7d8d957a5c1afd6b0a14d7c0107d0becf0e596c7ef38f249223",
+      "sourceBytes": 8323,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [],
@@ -5818,8 +5815,8 @@
         "skills/cp-gate/SKILL.md"
       ],
       "source": "skills/cp-gate/SKILL.md",
-      "hash": "8aa4029e40818bb7a855d843d28b3340ca6a2017a24828f4dff8d3bb6fab1b6e",
-      "sourceBytes": 22786,
+      "hash": "323cbef5facb62c951dfeb2b1194a6e88f4e0ab87132ee28aa1e84fdd10c4ed4",
+      "sourceBytes": 23449,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [],
@@ -6834,10 +6831,6 @@
           "role": "current"
         },
         {
-          "path": "website/docs/specs/directory-structure.md",
-          "role": "current"
-        },
-        {
           "path": "website/docs/versions/v1/1.0.0/release/checklist.md",
           "role": "historical"
         },
@@ -7004,13 +6997,11 @@
         "skills/dev-docs/SKILL.md"
       ],
       "source": "skills/dev-docs/SKILL.md",
-      "hash": "315d6e3b046d28b28c17066da805336df3a2edeee54ccccbc249069525f5317e",
-      "sourceBytes": 8286,
+      "hash": "599956087771df0b721578080b3e5f4b854981309e0e1f44ac64f4b524cfc650",
+      "sourceBytes": 9377,
       "version": "1.15.3",
       "lifecycleState": "active",
-      "dependencies": [
-        "user-manual-authoring"
-      ],
+      "dependencies": [],
       "references": [],
       "conflicts": [],
       "conflictReview": {
@@ -7183,9 +7174,7 @@
           ],
           "ambiguous": []
         },
-        "requires": [
-          "user-manual-authoring"
-        ],
+        "requires": [],
         "conflictsWith": [],
         "priority": 100,
         "visibility": "agent",
@@ -8841,8 +8830,8 @@
         "skills/document-sync/SKILL.md"
       ],
       "source": "skills/document-sync/SKILL.md",
-      "hash": "783750bfb253ca0f9b01b9dd186a56b033b2b8e9898036155eff2828a6dc0fda",
-      "sourceBytes": 8543,
+      "hash": "c186620b0c3dc8a2ebec0e6b71ff4b7e585eeeabe7f6ff0ce585cb5a072f98c1",
+      "sourceBytes": 9429,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [
@@ -10065,10 +10054,6 @@
         },
         {
           "path": "website/docs/intro/host-parity-grok.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/directory-structure.md",
           "role": "current"
         },
         {
@@ -11721,8 +11706,8 @@
         "skills/intent/SKILL.md"
       ],
       "source": "skills/intent/SKILL.md",
-      "hash": "81a3731800574aa20194b739d880367059b7f3335d22c001a9dae616ba4c2f82",
-      "sourceBytes": 10812,
+      "hash": "7ca23ecde201527b99e33552ef60c840d7920043a35a1c1c72f308f5d831ce75",
+      "sourceBytes": 12679,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [],
@@ -11754,6 +11739,10 @@
         {
           "path": "changelogs/releases/v1.5.0.md",
           "role": "historical"
+        },
+        {
+          "path": "changelogs/unreleased.md",
+          "role": "current"
         },
         {
           "path": "grok/plugins/devcodex-workspace/skills/devcodex-workspace/SKILL.md",
@@ -11884,6 +11873,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/fixtures/host-parity/unaligned-ledger.v1.json",
+          "role": "current"
+        },
+        {
           "path": "scripts/host-instruction-projection.json",
           "role": "current"
         },
@@ -11989,6 +11982,10 @@
         },
         {
           "path": "scripts/test-context-read-contract.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-docs-audience-intent.js",
           "role": "current"
         },
         {
@@ -12167,6 +12164,7 @@
         "scripts/test-completion-report-ecr-check.js",
         "scripts/test-context-binding.js",
         "scripts/test-context-read-contract.js",
+        "scripts/test-docs-audience-intent.js",
         "scripts/test-execution-chain-evolution.js",
         "scripts/test-governance-intake.js",
         "scripts/test-host-capability-routing.js",
@@ -12252,6 +12250,7 @@
           "scripts/test-completion-report-ecr-check.js",
           "scripts/test-context-binding.js",
           "scripts/test-context-read-contract.js",
+          "scripts/test-docs-audience-intent.js",
           "scripts/test-execution-chain-evolution.js",
           "scripts/test-governance-intake.js",
           "scripts/test-host-capability-routing.js",
@@ -12273,7 +12272,7 @@
         "registration": "plugin.json",
         "operationalReadiness": {
           "state": "complete",
-          "currentConsumer": "grok/plugins/devcodex-workspace/skills/devcodex-workspace/SKILL.md",
+          "currentConsumer": "changelogs/unreleased.md",
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
@@ -12619,6 +12618,137 @@
       }
     },
     {
+      "id": "maintainer-docs-site-authoring",
+      "name": "maintainer-docs-site-authoring",
+      "description": "维护者/贡献者开发站点文档写作 Owner — 本地开发、贡献、测试、发版 runbook、internals/ADR；与用户使用站不等价；写文档时经 DocsAudienceIntent 路由。",
+      "owner": "maintainer-docs-site-authoring",
+      "triggers": {
+        "terms": [
+          "ADR",
+          "DocsAudienceIntent",
+          "Owner",
+          "internals",
+          "maintainer-docs-site-authoring",
+          "runbook"
+        ],
+        "positive": [
+          {
+            "fixture": "frontmatter-description-resolves",
+            "input": "维护者/贡献者开发站点文档写作 Owner — 本地开发、贡献、测试、发版 runbook、internals/ADR；与用户使用站不等价；写文档时经 DocsAudienceIntent 路由。"
+          }
+        ],
+        "negative": [
+          {
+            "fixture": "empty-or-unregistered-trigger-rejected",
+            "input": ""
+          }
+        ],
+        "ambiguous": []
+      },
+      "ownedArtifacts": [
+        "skills/maintainer-docs-site-authoring/SKILL.md"
+      ],
+      "source": "skills/maintainer-docs-site-authoring/SKILL.md",
+      "hash": "1ea054a1790c1d09c0ed8a9ffb255083dc2b726e2fb202ebd215e81391c30e7c",
+      "sourceBytes": 2962,
+      "version": "1.15.3",
+      "lifecycleState": "active",
+      "dependencies": [],
+      "references": [],
+      "conflicts": [],
+      "conflictReview": {
+        "status": "reviewed-none",
+        "evidence": "scripts/test-skill-portfolio.js#explicit-conflict-review"
+      },
+      "consumers": [
+        {
+          "path": "plugin.json",
+          "role": "current"
+        }
+      ],
+      "validationProfile": [
+        "scripts/test-skill-portfolio.js",
+        "scripts/validate.js"
+      ],
+      "lastEvidenceAt": "2026-07-24",
+      "skillIndex": {
+        "id": "maintainer-docs-site-authoring",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "ADR",
+            "DocsAudienceIntent",
+            "Owner",
+            "internals",
+            "maintainer-docs-site-authoring",
+            "runbook"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "维护者/贡献者开发站点文档写作 Owner — 本地开发、贡献、测试、发版 runbook、internals/ADR；与用户使用站不等价；写文档时经 DocsAudienceIntent 路由。"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:maintainer-docs-site-authoring",
+        "probeSuiteRefs": [
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
+      "sidecar": null,
+      "evidence": {
+        "registration": "plugin.json",
+        "operationalReadiness": {
+          "state": "complete",
+          "currentConsumer": "plugin.json",
+          "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
+          "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
+          "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
+          "lastEvidenceAt": "2026-07-24"
+        },
+        "triggerPrecision": {
+          "state": "structural-only",
+          "sampleCount": 0,
+          "precision": null,
+          "falsePositiveRate": null,
+          "falseNegativeRate": null,
+          "manualCorrectionRate": null,
+          "lastMeasuredAt": null
+        },
+        "lifecycleAuthorization": "plugin.json#skills[].lifecycleState",
+        "stateRationale": "registered source, current consumer and operational fixtures are present",
+        "promotionCriteria": "trigger precision requires real comparable work units; structural evidence alone cannot promote lifecycle state"
+      }
+    },
+    {
       "id": "memory",
       "name": "memory",
       "description": "管理会话记忆的读取与写入。三层记忆体系：Agent 日记 / 需求记忆 / 项目总记忆。",
@@ -12646,8 +12776,8 @@
         "skills/memory/SKILL.md"
       ],
       "source": "skills/memory/SKILL.md",
-      "hash": "b206041d516716e96ce9be41048c5d5989e24b07ad4ccd47efee92753bd5c521",
-      "sourceBytes": 20278,
+      "hash": "530c030ba56840ee3f43170c66731da70b2823916b29894a6ca686f0b4948362",
+      "sourceBytes": 20715,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [],
@@ -13226,10 +13356,6 @@
         },
         {
           "path": "website/docs/specs/completion-compliance-flow.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/directory-structure.md",
           "role": "current"
         },
         {
@@ -14085,10 +14211,6 @@
         },
         {
           "path": "scripts/lib/cli-execution-commands.js",
-          "role": "current"
-        },
-        {
-          "path": "scripts/lib/cli-install-commands.js",
           "role": "current"
         },
         {
@@ -17173,10 +17295,6 @@
           "role": "current"
         },
         {
-          "path": "website/docs/specs/directory-structure.md",
-          "role": "current"
-        },
-        {
           "path": "website/docs/specs/exec-compliance-flow.md",
           "role": "current"
         },
@@ -18122,8 +18240,8 @@
         "skills/routing/SKILL.md"
       ],
       "source": "skills/routing/SKILL.md",
-      "hash": "a4d0dc9e5986fc8a06dda0323915170f3f827a4fd0b120f3ddfef99f2432f15e",
-      "sourceBytes": 16985,
+      "hash": "4e05428e378b10e80889561eff0790232835d496a97744644a86cd2fdefd17f6",
+      "sourceBytes": 17535,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [
@@ -18169,6 +18287,7 @@
         "frontend-architecture",
         "growth-analytics",
         "host-capability-routing",
+        "maintainer-docs-site-authoring",
         "performance-engineering",
         "platform-ecosystem-architecture",
         "privacy-compliance-architecture",
@@ -20269,6 +20388,10 @@
           "role": "current"
         },
         {
+          "path": "index.js",
+          "role": "current"
+        },
+        {
           "path": "instructions.md",
           "role": "current"
         },
@@ -20310,6 +20433,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "prompts/agent-summary.prompt.md",
           "role": "current"
         },
         {
@@ -20486,6 +20613,10 @@
         },
         {
           "path": "scripts/test-host-capability-routing.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-host-installation.js",
           "role": "current"
         },
         {
@@ -20694,6 +20825,7 @@
         "scripts/test-governance-status-summary.js",
         "scripts/test-hooks-runtime.js",
         "scripts/test-host-capability-routing.js",
+        "scripts/test-host-installation.js",
         "scripts/test-mcp-servers.js",
         "scripts/test-memory-index.js",
         "scripts/test-migrate-layout.js",
@@ -20756,6 +20888,7 @@
           "scripts/test-governance-status-summary.js",
           "scripts/test-hooks-runtime.js",
           "scripts/test-host-capability-routing.js",
+          "scripts/test-host-installation.js",
           "scripts/test-mcp-servers.js",
           "scripts/test-memory-index.js",
           "scripts/test-migrate-layout.js",
@@ -21427,20 +21560,24 @@
     {
       "id": "user-manual-authoring",
       "name": "user-manual-authoring",
-      "description": "最终用户使用文档写作规范 — 站点文档、README、quick start、接入手册与 docs-first 用户手册",
+      "description": "开源/公开用户站点与最终用户手册写作 Owner — guide/README/reference/migration/changelog/operations；与维护者开发站不等价；经 DocsAudienceIntent 路由。",
       "owner": "user-manual-authoring",
       "triggers": {
         "terms": [
+          "DocsAudienceIntent",
+          "Owner",
           "README",
-          "docs-first",
-          "quick",
-          "start",
+          "changelog",
+          "guide",
+          "migration",
+          "operations",
+          "reference",
           "user-manual-authoring"
         ],
         "positive": [
           {
             "fixture": "frontmatter-description-resolves",
-            "input": "最终用户使用文档写作规范 — 站点文档、README、quick start、接入手册与 docs-first 用户手册"
+            "input": "开源/公开用户站点与最终用户手册写作 Owner — guide/README/reference/migration/changelog/operations；与维护者开发站不等价；经 DocsAudienceIntent 路由。"
           }
         ],
         "negative": [
@@ -21455,8 +21592,8 @@
         "skills/user-manual-authoring/SKILL.md"
       ],
       "source": "skills/user-manual-authoring/SKILL.md",
-      "hash": "6cf1c701584ad22c4195fbddfaa9e131a0fe155833d6eca4e46741649f19beca",
-      "sourceBytes": 8375,
+      "hash": "63d7c39b1d19405329a3b649f575f97e82f96b7e0dca40be2d59178b0a16b4da",
+      "sourceBytes": 12146,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [],
@@ -21561,16 +21698,20 @@
         "domains": [],
         "triggers": {
           "terms": [
+            "DocsAudienceIntent",
+            "Owner",
             "README",
-            "docs-first",
-            "quick",
-            "start",
+            "changelog",
+            "guide",
+            "migration",
+            "operations",
+            "reference",
             "user-manual-authoring"
           ],
           "positive": [
             {
               "fixture": "frontmatter-description-resolves",
-              "input": "最终用户使用文档写作规范 — 站点文档、README、quick start、接入手册与 docs-first 用户手册"
+              "input": "开源/公开用户站点与最终用户手册写作 Owner — guide/README/reference/migration/changelog/operations；与维护者开发站不等价；经 DocsAudienceIntent 路由。"
             }
           ],
           "negative": [

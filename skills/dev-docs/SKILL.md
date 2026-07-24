@@ -52,7 +52,7 @@ description: 文档开发子类型规范 — 技术文档/API文档/README 编�
 | 维护者开发站、CONTRIBUTING 站区、发版 runbook 主叙事 | **`maintainer-docs-site-authoring`** |
 | light-api / frontend-api / 架构 general-doc（技术读者） | 本 Skill 主入口 |
 
-README 专项仍由 `user-manual-authoring` + `readme-authoring` 承接（默认受众=使用者；开发/贡献后置）。
+README / 最终用户使用文档专项仍由 `user-manual-authoring` + `readme-authoring` 承接（默认受众=使用者；开发/贡献后置），README 专项写作分支完成后由 `audit-readme` / `audit-user-manual` 复审。
 
 ## 文档质量标准
 
@@ -129,7 +129,7 @@ README 专项仍由 `user-manual-authoring` + `readme-authoring` 承接（默认
 - 文档文件（按项目目录结构放置）
 - 契约驱动型文档优先使用 `prompts/light-api-doc.prompt.md` 统一骨架
 - 站点文档 / 用户使用文档 / 最终用户手册优先使用 `user-manual-authoring`
-- README / 主用户使用文档中的 README 专项分支使用 `user-manual-authoring` + `readme-authoring` + `prompts/project-readme.prompt.md`
+- README / 主用户使用文档 / 最终用户使用文档中的 README 专项写作分支使用 `user-manual-authoring` + `readme-authoring` + `prompts/project-readme.prompt.md`；完成后由 `audit-readme` / `audit-user-manual` 承接用户侧复审
 - 用户侧文档 review / 项目文档审查 / 菜单导航审查优先使用 `audit-user-manual`
 - 非契约驱动型 Markdown 文档优先使用 `prompts/general-doc.prompt.md`
 - 若更新 README/CHANGELOG：执行 `document-sync` 确认同步状态

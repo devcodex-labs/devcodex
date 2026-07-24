@@ -15,7 +15,7 @@ function normalizeHostList(hosts) {
   return Array.from(new Set(expanded.filter(host => HOST_IDS.includes(host))))
 }
 
-function projectionDescriptors(hosts, { grokWorkspaceBridge = false, grokWorkspaceScope = false } = {}) {
+function legacyWorkspaceProjectionDescriptors(hosts, { grokWorkspaceBridge = false, grokWorkspaceScope = false } = {}) {
   const selected = new Set(normalizeHostList(hosts))
   const descriptors = []
   if (!selected.size) return descriptors
@@ -85,9 +85,50 @@ function projectionDescriptors(hosts, { grokWorkspaceBridge = false, grokWorkspa
   return descriptors
 }
 
+function projectionDescriptors(hosts) {
+  const selected = new Set(normalizeHostList(hosts))
+  const descriptors = []
+  const add = (surface, destination, role, support) => descriptors.push({
+    schemaVersion: 'GlobalHostSurfaceDescriptorV1',
+    surface,
+    source: 'npm-global-package',
+    destination,
+    role,
+    scope: 'user-global',
+    support,
+    workspaceWrite: false
+  })
+  if (selected.has('copilot')) {
+    add('copilot', 'user://copilot/copilot-instructions.md', 'instruction', 'fixture-only')
+  }
+  if (selected.has('claude')) {
+    add('claude', 'user://claude/CLAUDE.md', 'instruction', 'contract-fixture')
+    add('claude', 'user://claude/settings.json', 'host-config', 'contract-fixture')
+    add('claude', 'user://claude.json', 'mcp-config', 'contract-fixture')
+  }
+  if (selected.has('codex')) {
+    add('codex', 'user://codex/AGENTS.md', 'instruction', 'direct-probe')
+    add('codex', 'user://codex/hooks.json', 'host-config', 'direct-probe')
+    add('codex', 'user://codex/config.toml', 'mcp-config', 'direct-probe')
+    add('codex', 'user://agents/skills', 'skills', 'direct-probe')
+  }
+  if (selected.has('gemini')) {
+    add('gemini', 'user://gemini/GEMINI.md', 'instruction', 'contract-fixture')
+    add('gemini', 'user://gemini/settings.json', 'host-config', 'contract-fixture')
+  }
+  if (selected.has('grok')) {
+    add('grok', 'user://grok/config.toml', 'host-config', 'direct-probe')
+    add('grok', 'user://grok/devcodex/plugins/devcodex-workspace', 'plugin', 'direct-probe')
+  }
+  for (const host of selected) {
+    add(host, `user://${host}/devcodex/runtime`, 'stable-runtime', 'managed')
+  }
+  return descriptors
+}
+
 function hostEntryPairs(host, options = {}) {
   const hosts = host === 'all' ? HOST_IDS : [host]
-  return projectionDescriptors(hosts, options)
+  return legacyWorkspaceProjectionDescriptors(hosts, options)
     .filter(item => ['kernel', 'wrapper'].includes(item.role))
     .map(item => ({ host, source: item.source, destination: item.destination, role: item.role }))
 }
@@ -97,6 +138,7 @@ module.exports = {
   HOST_ALIASES,
   HOST_IDS,
   hostEntryPairs,
+  legacyWorkspaceProjectionDescriptors,
   normalizeHostList,
   projectionDescriptors
 }

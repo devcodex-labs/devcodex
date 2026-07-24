@@ -4,7 +4,7 @@ const crypto = require('crypto')
 const fs = require('fs')
 const path = require('path')
 const { spawnSync } = require('child_process')
-const { HOST_SCOPE, resolveHostAdapterScope } = require('./host-adapter-scope.js')
+const { resolveGlobalHostTarget } = require('./global-host-target.js')
 
 function samePath(left, right) {
   const a = path.resolve(left)
@@ -22,6 +22,16 @@ function findNestedGitRoot(cwd, workspaceRoot) {
     if (parent === current) return null
     const relative = path.relative(boundary, parent)
     if (relative.startsWith('..') || path.isAbsolute(relative)) return null
+    current = parent
+  }
+}
+
+function findWorkspaceRoot(start) {
+  let current = path.resolve(start)
+  while (true) {
+    if (fs.existsSync(path.join(current, '.devcodex'))) return current
+    const parent = path.dirname(current)
+    if (parent === current) return null
     current = parent
   }
 }
@@ -78,35 +88,46 @@ function collectExtraRules(argv) {
 }
 
 function buildGrokLaunchPlan(argv = [], options = {}) {
+  const env = options.env || process.env
   const invocationCwd = path.resolve(options.cwd || process.cwd())
   const parsed = collectExtraRules(argv)
   const cwd = parsed.requestedCwd ? path.resolve(invocationCwd, parsed.requestedCwd) : invocationCwd
-  const hostScope = resolveHostAdapterScope(cwd, 'grok')
-  const workspaceScope = hostScope.scope === HOST_SCOPE.USER_REGISTERED_WORKSPACE
-  const nestedGitRoot = workspaceScope ? findNestedGitRoot(cwd, hostScope.ownerRoot) : null
-  const kernelRequired = Boolean(workspaceScope && nestedGitRoot)
-  const kernelPath = path.join(hostScope.ownerRoot, 'AGENTS.md')
-  if (workspaceScope && !fs.existsSync(kernelPath)) {
-    const error = new Error(`GROK_LAUNCHER_KERNEL_MISSING: ${kernelPath}`)
-    error.code = 'GROK_LAUNCHER_KERNEL_MISSING'
+  const globalTarget = resolveGlobalHostTarget('grok', {
+    env,
+    home: options.home
+  })
+  const workspaceRoot = findWorkspaceRoot(cwd)
+  const nestedGitRoot = workspaceRoot ? findNestedGitRoot(cwd, workspaceRoot) : null
+  const kernelPath = path.join(globalTarget.runtimeRoot, 'AGENTS.md')
+  if (!fs.existsSync(kernelPath)) {
+    const error = new Error(`GROK_GLOBAL_ADAPTER_MISSING: ${kernelPath}; run npm install -g devcodex`)
+    error.code = 'GROK_GLOBAL_ADAPTER_MISSING'
     throw error
   }
-  const kernel = workspaceScope ? fs.readFileSync(kernelPath, 'utf8') : ''
+  const kernel = fs.readFileSync(kernelPath, 'utf8')
   const combinedRules = [
-    kernelRequired ? `DevCodex controlling workspace kernel follows. Apply it before substantive work.\n\n${kernel}` : '',
+    `DevCodex user-global controlling kernel follows. Workspace runtime state remains under .devcodex.\n\n${kernel}`,
     ...parsed.extraRules
   ].filter(Boolean).join('\n\n')
-  const grokArgs = combinedRules ? ['--rules', combinedRules, ...parsed.forwarded] : parsed.forwarded
+  const grokArgs = ['--rules', combinedRules, ...parsed.forwarded]
+  const hostScope = {
+    schemaVersion: 'GlobalGrokHostScopeV1',
+    scope: 'user-global',
+    ownerRoot: globalTarget.root,
+    workspaceRoot,
+    project: workspaceRoot && nestedGitRoot ? path.basename(nestedGitRoot) : null,
+    pluginRoot: globalTarget.files.plugin
+  }
   return {
-    schemaVersion: 'GrokWorkspaceLaunchPlanV1',
+    schemaVersion: 'GrokGlobalLaunchPlanV1',
     invocationCwd,
     cwd,
     hostScope,
     nestedGitRoot,
-    kernelRequired,
-    kernelPath: workspaceScope ? kernelPath : null,
-    kernelDigest: workspaceScope ? crypto.createHash('sha256').update(kernel).digest('hex') : null,
-    evidenceMode: kernelRequired ? 'launcher-rules' : 'plain-native',
+    kernelRequired: true,
+    kernelPath,
+    kernelDigest: crypto.createHash('sha256').update(kernel).digest('hex'),
+    evidenceMode: 'global-launcher-rules',
     executable: options.executable || 'grok',
     args: grokArgs
   }
@@ -135,5 +156,6 @@ module.exports = {
   buildGrokLaunchPlan,
   collectExtraRules,
   findNestedGitRoot,
+  findWorkspaceRoot,
   launchGrok
 }

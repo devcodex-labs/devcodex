@@ -60,9 +60,11 @@ flowchart TD
 3. **PC2** — 检查会话状态（轮次 / 待跟进事项）
 4. **PC3** — 确定产物落点（报告/记忆/需求目录）+ 检查未完成任务
 5. **PC4** — 规范原因识别（**仅 dev 模式**）：判断当前问题是否源于规范缺失/模糊，标记 PF 或 VL 待延迟追加
-6. **PC5** — 部署体状态：检查父链 `.github/`、`.claude/`、`AGENTS.md`、`.agents/`、`.codex/` 与源仓库关键文件是否同步
+6. **PC5** — 宿主配置状态：检查用户级五宿主 receipt/runtime 与 workspace `.devcodex` 是否分离；旧工作区宿主目录不作为安装成功证据
 7. **PC6** — 工作区一致性：检查 git dirty 状态与当前需求目录上下文
 8. **PC7** — 新会话 resume 检测：读取 tasks 文件并比对 SUMMARY，防止截断后误开新任务
+
+PC5 的兼容扫描仍识别 `.github/`、`.claude/`、根 `AGENTS.md`、`.agents/` 与 `.codex/`，用于报告 legacy/source-root deployment；普通 workspace 的当前安装成功证据仅来自用户级 receipt/runtime 与 workspace `.devcodex` 分离状态。
 
 预检查阶段细图见：[① 预检查流程图](/specs/precheck-flow)。
 

@@ -9,6 +9,7 @@
 const crypto = require('crypto')
 const fs = require('fs')
 const path = require('path')
+const { resolveGlobalHostTarget } = require('./global-host-target.js')
 
 /** Scannable always-on checklist for passive-hook hosts (Grok). */
 const GROK_TURN_EXECUTION_CHECKLIST = Object.freeze([
@@ -64,35 +65,35 @@ function assertCannotClaimFloor(cannotClaim) {
 }
 
 const CHECK_REPAIR_CATALOG = Object.freeze({
-  kernelAgentsMd: {
-    check: 'kernelAgentsMd',
-    command: 'devcodex update',
-    detail: 'Workspace root must have AGENTS.md (shared kernel). Run update from workspace root.'
+  globalKernelAgentsMd: {
+    check: 'globalKernelAgentsMd',
+    command: 'npm install -g devcodex',
+    detail: 'Install the user-global controlling kernel and stable runtime copy.'
   },
-  codexLifecycleReachable: {
-    check: 'codexLifecycleReachable',
-    command: 'devcodex update --host codex',
-    detail: 'Codex lifecycle runtime under .codex/hooks/_runtime is the deny/path-observable contract source.'
+  globalCodexLifecycleReachable: {
+    check: 'globalCodexLifecycleReachable',
+    command: 'npm install -g devcodex',
+    detail: 'Install the Codex user-global lifecycle runtime; workspace host directories are not used.'
   },
   denyAdapterContract: {
     check: 'denyAdapterContract',
-    command: 'devcodex update --host codex && devcodex update --host grok',
+    command: 'npm install -g devcodex',
     detail: 'lifecycle-host-adapters must export adaptGrokOutput and decision:deny mapping.'
   },
   pathObservableCapability: {
     check: 'pathObservableCapability',
-    command: 'devcodex update --host codex',
+    command: 'npm install -g devcodex',
     detail: 'lifecycle-bootstrap-state must treat Grok as path-observable (same band as Codex tool-path).'
   },
-  workspacePluginInstalled: {
-    check: 'workspacePluginInstalled',
-    command: 'devcodex update --host grok',
-    detail: 'Install/refresh workspace plugin under .grok/devcodex/plugins/devcodex-workspace.'
+  globalGrokPluginInstalled: {
+    check: 'globalGrokPluginInstalled',
+    command: 'npm install -g devcodex',
+    detail: 'Install the Grok plugin under the user-global Grok configuration root.'
   },
-  workspacePluginRegistered: {
-    check: 'workspacePluginRegistered',
-    command: 'devcodex update --host grok',
-    detail: 'Ensure official user-level plugin registration points at workspace plugin source (doctor registrationCurrent).'
+  globalGrokPluginConfigured: {
+    check: 'globalGrokPluginConfigured',
+    command: 'npm install -g devcodex',
+    detail: 'Ensure the user-global Grok config registers the managed global plugin.'
   }
 })
 
@@ -123,7 +124,7 @@ function buildGrokRepairSteps(checks = {}) {
     } else {
       steps.push({
         check: key,
-        command: 'devcodex update --host grok && devcodex doctor --json',
+        command: 'npm install -g devcodex',
         detail: `Missing HostParity check: ${key}`,
         status: 'failed'
       })
@@ -310,76 +311,66 @@ function composePc4Line(options = {}) {
  * @param {string} input.cwd
  * @param {string} [input.hostRoot]
  * @param {object} [input.instructionProjection]
- * @param {boolean} [input.hasAgentsMd]
- * @param {boolean} [input.hasCodexLifecycle]
- * @param {boolean} [input.hasGrokWorkspacePlugin]
- * @param {boolean} [input.hasGrokPluginRegistration]
+ * @param {object} [input.globalHostConfig]
+ * @param {boolean} [input.hasGlobalKernel]
+ * @param {boolean} [input.hasGlobalCodexLifecycle]
+ * @param {boolean} [input.hasGlobalGrokPlugin]
+ * @param {boolean} [input.hasGlobalGrokConfig]
  * @param {string} [input.platform]
  */
 function evaluateGrokHostParity(input = {}) {
   const cwd = path.resolve(input.cwd || process.cwd())
   const hostRoot = path.resolve(input.hostRoot || cwd)
-  const projection = input.instructionProjection || {}
-  const pluginRoot = projection.grokPlugin?.root
-    || path.join(hostRoot, '.grok', 'devcodex', 'plugins', 'devcodex-workspace')
+  const env = input.env || process.env
+  const codexTarget = resolveGlobalHostTarget('codex', { env, home: input.home })
+  const grokTarget = resolveGlobalHostTarget('grok', { env, home: input.home })
+  const inspection = input.globalHostConfig || { hosts: [] }
+  const hostState = host => (inspection.hosts || []).find(item => item.host === host) || {}
+  const codexState = hostState('codex')
+  const grokState = hostState('grok')
+  const codexRuntime = codexTarget.runtimeRoot
+  const pluginRoot = grokTarget.files.plugin
+  const codexAdapter = path.join(codexRuntime, 'hooks', '_runtime', 'lifecycle-host-adapters.cjs')
+  const codexBootstrap = path.join(codexRuntime, 'hooks', '_runtime', 'lifecycle-bootstrap-state.cjs')
+  const deny = readAdapterDenyContract(codexAdapter)
+  const bootstrap = readBootstrapCapability(codexBootstrap)
 
-  const hasAgentsMd = input.hasAgentsMd !== undefined
-    ? input.hasAgentsMd
-    : fileExists(path.join(hostRoot, 'AGENTS.md'))
-  const hasCodexLifecycle = input.hasCodexLifecycle !== undefined
-    ? input.hasCodexLifecycle
-    : fileExists(path.join(hostRoot, '.codex', 'hooks', '_runtime', 'lifecycle.cjs'))
-  const adapterCandidates = [
-    path.join(hostRoot, '.codex', 'hooks', '_runtime', 'lifecycle-host-adapters.cjs'),
-    path.join(hostRoot, '.claude', 'hooks', '_runtime', 'lifecycle-host-adapters.cjs'),
-    path.join(pluginRoot, 'hooks', 'devcodex-workspace.cjs')
-  ]
-  const adapterPath = adapterCandidates.find(fileExists) || adapterCandidates[0]
-  const bootstrapPath = path.join(path.dirname(adapterPath), 'lifecycle-bootstrap-state.cjs')
-  const denyContract = readAdapterDenyContract(
-    fileExists(path.join(hostRoot, '.codex', 'hooks', '_runtime', 'lifecycle-host-adapters.cjs'))
-      ? path.join(hostRoot, '.codex', 'hooks', '_runtime', 'lifecycle-host-adapters.cjs')
-      : adapterPath.includes('lifecycle-host-adapters')
-        ? adapterPath
-        : path.join(hostRoot, '.codex', 'hooks', '_runtime', 'lifecycle-host-adapters.cjs')
-  )
-  // Prefer workspace codex runtime adapters for contract source
-  const codexAdapter = path.join(hostRoot, '.codex', 'hooks', '_runtime', 'lifecycle-host-adapters.cjs')
-  const codexBootstrap = path.join(hostRoot, '.codex', 'hooks', '_runtime', 'lifecycle-bootstrap-state.cjs')
-  const deny = fileExists(codexAdapter) ? readAdapterDenyContract(codexAdapter) : denyContract
-  const bootstrap = fileExists(codexBootstrap)
-    ? readBootstrapCapability(codexBootstrap)
-    : readBootstrapCapability(path.join(hostRoot, '.claude', 'hooks', '_runtime', 'lifecycle-bootstrap-state.cjs'))
-
-  const hasGrokWorkspacePlugin = input.hasGrokWorkspacePlugin !== undefined
-    ? input.hasGrokWorkspacePlugin
-    : Boolean(projection.grokPlugin?.installed)
-  const hasGrokPluginRegistration = input.hasGrokPluginRegistration !== undefined
-    ? input.hasGrokPluginRegistration
-    : Boolean(projection.grokPlugin?.registrationCurrent)
+  const hasGlobalKernel = input.hasGlobalKernel !== undefined
+    ? input.hasGlobalKernel
+    : Boolean(codexState.ready && fileExists(codexTarget.files.instructions) &&
+      fileExists(path.join(codexRuntime, 'AGENTS.md')))
+  const hasGlobalCodexLifecycle = input.hasGlobalCodexLifecycle !== undefined
+    ? input.hasGlobalCodexLifecycle
+    : Boolean(codexState.ready && fileExists(path.join(codexRuntime, 'hooks', '_runtime', 'lifecycle.cjs')))
+  const hasGlobalGrokPlugin = input.hasGlobalGrokPlugin !== undefined
+    ? input.hasGlobalGrokPlugin
+    : Boolean(grokState.ready && fileExists(path.join(pluginRoot, 'hooks', 'hooks.json')))
+  const hasGlobalGrokConfig = input.hasGlobalGrokConfig !== undefined
+    ? input.hasGlobalGrokConfig
+    : Boolean(grokState.ready && fileExists(grokTarget.files.config))
 
   const checks = {
-    kernelAgentsMd: hasAgentsMd,
-    codexLifecycleReachable: hasCodexLifecycle,
+    globalKernelAgentsMd: hasGlobalKernel,
+    globalCodexLifecycleReachable: hasGlobalCodexLifecycle,
     denyAdapterContract: Boolean(deny.present && deny.hasAdaptGrok && deny.hasDenyDecision),
     pathObservableCapability: Boolean(bootstrap.present && bootstrap.grokPathObservable),
-    workspacePluginInstalled: hasGrokWorkspacePlugin,
-    workspacePluginRegistered: hasGrokPluginRegistration
+    globalGrokPluginInstalled: hasGlobalGrokPlugin,
+    globalGrokPluginConfigured: hasGlobalGrokConfig
   }
 
-  const hardReady = checks.kernelAgentsMd
-    && checks.codexLifecycleReachable
+  const hardReady = checks.globalKernelAgentsMd
+    && checks.globalCodexLifecycleReachable
     && checks.denyAdapterContract
     && checks.pathObservableCapability
-    && checks.workspacePluginInstalled
-    && checks.workspacePluginRegistered
+    && checks.globalGrokPluginInstalled
+    && checks.globalGrokPluginConfigured
 
   // Full requires hardReady + recommendation to use launcher; plain child never auto-Full
   const tier = hardReady ? 'full-capable' : 'partial'
   const repairSteps = buildGrokRepairSteps(checks)
   const recommendedEntry = hardReady
-    ? 'devcodex grok   # Full evidence: --rules binds workspace AGENTS.md'
-    : (repairSteps[0] && repairSteps[0].command) || 'devcodex update --host grok && devcodex grok'
+    ? 'devcodex grok   # Full evidence: --rules binds the user-global controlling kernel'
+    : (repairSteps[0] && repairSteps[0].command) || 'npm install -g devcodex'
 
   const cannotClaim = [...MIN_CANNOT_CLAIM]
   assertCannotClaimFloor(cannotClaim)
@@ -408,7 +399,8 @@ function evaluateGrokHostParity(input = {}) {
     evidence: {
       codexAdapter: fileExists(codexAdapter) ? codexAdapter : null,
       codexBootstrap: fileExists(codexBootstrap) ? codexBootstrap : null,
-      pluginRoot: hasGrokWorkspacePlugin ? pluginRoot : null,
+      pluginRoot: hasGlobalGrokPlugin ? pluginRoot : null,
+      scope: 'user-global',
       deny,
       bootstrap
     },
@@ -416,7 +408,7 @@ function evaluateGrokHostParity(input = {}) {
     cannotClaim,
     userVisibleSummary: hardReady
       ? 'Grok HostParity: full-capable (PreTool deny + path-observable + kernel). Use `devcodex grok` for Full session evidence. Inject/Stop still Partial. Follow GrokTurnChecklist + Intent→Skill bundle.'
-      : `Grok HostParity: partial — failed: ${failedChecks.join(', ') || 'unknown'}. Fix: ${repairPreview || 'devcodex update --host grok'}. Then doctor --json hostParity.repairSteps.`
+      : `Grok HostParity: partial — failed: ${failedChecks.join(', ') || 'unknown'}. Fix: ${repairPreview || 'npm install -g devcodex'}. Then doctor --json hostParity.repairSteps.`
   }
 
   scorecard.digest = crypto

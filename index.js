@@ -76,8 +76,10 @@ const CLAUDE_SOURCES = [
 const CLAUDE_MCP_RUNTIME_SCRIPT_DEPS = Object.freeze([
   'scripts/lib/cp-digest.js',
   'scripts/lib/host-parity-scorecard.js',
+  'scripts/lib/global-host-target.js',
   'scripts/lib/derived-index-contract.js',
-  'scripts/lib/memory-index.js'
+  'scripts/lib/memory-index.js',
+  'scripts/lib/summary-type-canon.js'
 ])
 
 const CODEX_SOURCES = [
@@ -335,7 +337,7 @@ const {
   featureInventoryColumnLabels: FEATURE_INVENTORY_COLUMN_LABELS
 })
 
-const { cmdInit, cmdInitHost, cmdInitClaude, cmdInitCodex, cmdInitGemini, cmdInitGrok, cmdUninstallHost } = buildCliInstallCommands({
+const { cmdInitWorkspaceRuntime, cmdInitHost, cmdUninstallHost } = buildCliInstallCommands({
   fs, path, process, console, c, PKG_ROOT, SOURCES, CLAUDE_SOURCES,
   CLAUDE_MCP_RUNTIME_SCRIPT_DEPS,
   CODEX_SOURCES, CLAUDE_SETTINGS_HOOKS, CLAUDE_SETTINGS_PERMISSIONS,
@@ -401,7 +403,7 @@ function cmdGrok(argv) {
 }
 
 const cliCommandRegistry = createCliCommandRegistry({
-  cmdInit, cmdInitHost, cmdInitClaude, cmdInitCodex, cmdUninstallHost, cmdGrok, cmdStatus, cmdProfileInit, cmdDoctor, cmdProbe, cmdTrace, cmdSkill, cmdTask, cmdHelp
+  cmdInitWorkspaceRuntime, cmdInitHost, cmdUninstallHost, cmdGrok, cmdStatus, cmdProfileInit, cmdDoctor, cmdProbe, cmdTrace, cmdSkill, cmdTask, cmdHelp
 })
 
 if (require.main === module) {
@@ -410,7 +412,7 @@ if (require.main === module) {
 }
 
 module.exports = {
-  walkDir, cmdInit, cmdInitHost, cmdInitClaude, cmdInitCodex, cmdInitGemini, cmdInitGrok,
+  walkDir, cmdInitWorkspaceRuntime, cmdInitHost,
   cmdUninstallHost, cmdGrok, cmdStatus, cmdHelp, cmdProfileInit, cmdDoctor, cmdProbe, cmdTrace,
   cmdSkill, cmdTask, isSourceRepo, findLayoutInfo, inferProjectFromCwd, resolveActiveRuntimeRoot,
   resolveHostAdapterScope, resolveGitignoreRoot, ensureRuntimeDirs, SOURCES, CLAUDE_SOURCES,

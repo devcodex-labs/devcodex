@@ -4,6 +4,8 @@
 
 Profile 用来告诉 DevCodex：当前项目是什么、边界在哪里、如何测试和发布，以及有哪些公开能力。推荐路径始终是先预览，再生成或升级。
 
+GlobalOnlyHostConfigModeV1 下，Profile 与运行态仍位于 workspace `.devcodex`；五宿主用户级 adapter 由 npm 全局安装/升级管理。`profile init` 不创建 `.github/.claude/.codex/.gemini/.grok`。
+
 ## 第一次成功
 
 在目标项目根目录执行：

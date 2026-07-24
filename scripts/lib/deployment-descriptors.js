@@ -2,7 +2,10 @@
 
 const path = require('path')
 const { createSkillDeployFileFilter, isSkillsSource } = require('./skill-deploy-filter')
-const { normalizeHostList, projectionDescriptors } = require('./host-surface-descriptors')
+const {
+  legacyWorkspaceProjectionDescriptors: projectionDescriptors,
+  normalizeHostList
+} = require('./host-surface-descriptors')
 const { shouldIncludeInstructionFile } = require('./tenant-selection')
 
 /**

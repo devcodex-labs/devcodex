@@ -3,7 +3,7 @@
 const { HOST_ALIASES, HOST_IDS } = require('./host-surface-descriptors')
 
 function createCliCommandRegistry(commands) {
-  const required = ['cmdInit', 'cmdInitHost', 'cmdInitClaude', 'cmdInitCodex', 'cmdUninstallHost', 'cmdGrok', 'cmdStatus', 'cmdProfileInit', 'cmdDoctor', 'cmdProbe', 'cmdTrace', 'cmdSkill', 'cmdTask', 'cmdHelp']
+  const required = ['cmdInitWorkspaceRuntime', 'cmdInitHost', 'cmdUninstallHost', 'cmdGrok', 'cmdStatus', 'cmdProfileInit', 'cmdDoctor', 'cmdProbe', 'cmdTrace', 'cmdSkill', 'cmdTask', 'cmdHelp']
   for (const name of required) {
     if (typeof commands[name] !== 'function') throw new TypeError(`missing CLI command handler: ${name}`)
   }
@@ -81,22 +81,19 @@ function runCliCommand({ cmd, argv, registry, runMigrateLayout, process, c, cons
 
   if (cmd === 'init') {
     if (selection.host) {
-      registry.cmdInitHost(selection.host,
-        selection.host === 'codex' && argv.includes('--codex')
-          ? ['--force', ...selection.cleanedArgv]
-          : selection.cleanedArgv)
+      registry.cmdInitHost(selection.host, ['--operation=init', ...selection.cleanedArgv])
+      return 'CLI_HOST_CONFIG_GLOBAL_ONLY'
     } else {
-      // A2: default five hosts via includeExtended. Do NOT use cmdInitHost('all') —
-      // that path runs hostEntryCollision and hard-fails bare init on kernel drift.
-      registry.cmdInit(selection.cleanedArgv, { includeExtended: true })
+      registry.cmdInitWorkspaceRuntime(selection.cleanedArgv, { refresh: false })
     }
     return 'init'
   }
   if (cmd === 'update') {
     if (selection.host) {
-      registry.cmdInitHost(selection.host, ['--force', ...selection.cleanedArgv])
+      registry.cmdInitHost(selection.host, ['--operation=update', ...selection.cleanedArgv])
+      return 'CLI_HOST_CONFIG_GLOBAL_ONLY'
     } else {
-      registry.cmdInit(['--force', ...selection.cleanedArgv], { includeExtended: true })
+      registry.cmdInitWorkspaceRuntime(selection.cleanedArgv, { refresh: true })
     }
     return 'update'
   }
@@ -106,8 +103,8 @@ function runCliCommand({ cmd, argv, registry, runMigrateLayout, process, c, cons
       process.exitCode = 2
       return 'CLI_HOST_REQUIRED'
     }
-    registry.cmdUninstallHost(selection.host, selection.cleanedArgv)
-    return 'uninstall'
+    registry.cmdUninstallHost(selection.host, ['--operation=uninstall', ...selection.cleanedArgv])
+    return 'CLI_HOST_CONFIG_GLOBAL_ONLY'
   }
   if (cmd === 'profile') {
     if (argv[0] === 'init') {

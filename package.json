@@ -73,6 +73,7 @@
     "test:host-installation": "node scripts/test-host-installation.js",
     "benchmark:execution-chain": "node scripts/benchmark-execution-chain.js",
     "benchmark:runtime-indexes": "node scripts/benchmark-runtime-indexes.js",
+    "benchmark:report-index-wide": "node scripts/benchmark-runtime-indexes.js --include-wide",
     "test:validation-dag": "node scripts/test-validation-dag.js",
     "test:changed": "node scripts/run-validation.js --route changed",
     "test:profile-deploy": "node scripts/run-validation.js --route profile-deploy",

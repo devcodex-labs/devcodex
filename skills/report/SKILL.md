@@ -45,8 +45,12 @@ CLI/MCP surface。
   `unknown` 只有显式筛选时才返回，unknown 必须保留 warning。
 - `fresh` 索引可用于 metadata 导航；pointer 损坏、陈旧或出现未登记文件时，
   只做内存中的 path/stat reconcile 并标记 `fallback`，不得隐式写索引。
-- 正文只能在选定具体 pointer 后通过 `hydrateReportEntry` 有界读取；截断正文只
-  能声明 `metadata-reconciled`，不得声明全文内容已验证。
+- 多页宽查询使用返回的 `snapshotCursor` / `snapshotCursorEncoded` 绑定 immutable
+  manifest，下一页同时传 `nextPointer.offset`；旧 offset-only 查询继续兼容。
+- 正文只能在选定具体 pointer 后通过 `hydrateReportEntry` 或
+  `hydrateReportEntries` 有界读取；截断正文只能声明 `metadata-reconciled`，不得
+  声明全文内容已验证。metadata-only 场景可用 `projection: "compact"` 返回瘦身
+  字段。
 - 只有显式维护/benchmark 路径可调用 `rebuildReportIndex`；查询、resume、ECR
   和普通报告写入必须保持 zero-write。
 

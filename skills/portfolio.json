@@ -6,7 +6,7 @@
     "skillsPattern": "skills/*/SKILL.md",
     "optionalSidecar": "skills/*/devcodex.skill.json",
     "registry": "plugin.json",
-    "sourceDigest": "a0556654ebfcb3b96edf7a1e2ba4ea652159ca09bbf8b1f9aa69d80f78646cb3",
+    "sourceDigest": "304e2c41eb4251a66964670539e18f218299e441442a9f6ff11974fcb26a57a2",
     "sidecarDigest": "774105d7947b340d15d17115fcb8e37b62ae545cf553f06126d529184fd74872",
     "pluginDigest": "f293edb3ea6c369b66f9af4190b16b5cd9d86100f0ef9432248e849c0fa2bd95",
     "portfolioEvidence": "skills/portfolio-evidence.json",
@@ -14,7 +14,7 @@
     "consumerInventoryFileCount": 563,
     "consumerInventoryDigest": "1346d7aefcdf019d0dc10c7a2f58a829acf18a41a3facd0202c510cc52575a91",
     "consumerProjectionDigest": "d433f91230a2e5988ddb5a4c2abf76e6b47f1070a8521685f553c8a182dc8eb1",
-    "portfolioInputDigest": "832834341564cd344e0116895b315c86dc9e88b0f1061442d34d9e6fc2c89d0f"
+    "portfolioInputDigest": "6d8732c971f57d1beeef6827a2b0406720c962e887992d44ad17b4fd82225618"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -16312,8 +16312,8 @@
         "skills/report/SKILL.md"
       ],
       "source": "skills/report/SKILL.md",
-      "hash": "212a2f164816cc3fb1116df87afce1640fb43c92126a7e4321dd8de7a878bd52",
-      "sourceBytes": 19199,
+      "hash": "eaecd5a8e5e1980046716701686fb2767be57bc9830f6a685f5b702d34843c51",
+      "sourceBytes": 19489,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [],

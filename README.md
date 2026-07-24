@@ -419,12 +419,18 @@ manifest 和原子 `current.json` pointer 只负责加速。索引位于
   `check-runtime-state --write-index` 继续保留 legacy
   `.runtime-state/runtime-state-index.json`，并同时提交新分区。
 - 报告工作流默认只查询 allowlisted roots 下的 `primary-report` metadata；evidence、
-  artifact、generated copy 和 unknown 默认排除，正文只在选定 pointer 后有界读取。
+  artifact、generated copy 和 unknown 默认排除。宽分页通过 immutable `snapshotCursor`
+  固定 manifest，下一页不重复全目录扫描；正文只在选定 pointer 后通过
+  `hydrateReportEntry` / `hydrateReportEntries` 有界读取，metadata 导航可用
+  `projection: "compact"` 减少交付体积。
 - `npm run benchmark:runtime-indexes -- --root <active-root>` 使用 3 个独立进程、
   每项 5 次预热和 30 次测量。当前真实快照 W1/W3/W4 总读取量分别减少
   91.45% / 90.76% / 98.98%，W2 精确 session 减少 76.32%，公共投影零差异；
   token telemetry 不可见，因此这些结果只声明 bytes/latency 收益，不冒充 token
   实测。
+- `npm run benchmark:report-index-wide -- --root <active-root>` 额外覆盖 W5A~W5D：
+  全目录分页、60 天窗口、全文 hydration 与 compact projection；W2 这类微型精确
+  查询的延迟继续作为观测项输出，不作为宽查询阻断验收。
 
 ## 项目侧执行链性能与稳定回滚（v1.15.3）
 

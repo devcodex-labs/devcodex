@@ -21,9 +21,13 @@ const REPORT_CLASSIFICATIONS = Object.freeze([
 ])
 const REPORT_CATALOG_SCHEMA = 'ReportCatalogPartitionV1'
 const REPORT_ENTRY_SCHEMA = 'ReportEntryPartitionV1'
+const REPORT_ORDERED_SCHEMA = 'ReportOrderedEntryPartitionV1'
+const REPORT_SNAPSHOT_CURSOR_SCHEMA = 'ReportSnapshotCursorV1'
 const DEFAULT_LIMIT = 50
 const MAX_LIMIT = 200
 const MAX_HYDRATE_BYTES = 256 * 1024
+const ORDERED_CHUNK_SIZE = 200
+const REPORT_PROJECTIONS = new Set(['full', 'compact'])
 
 function normalizeRoot(activeRoot) {
   const value = String(activeRoot || '').trim()
@@ -114,6 +118,17 @@ function readBoundedTitle(filePath, maxBytes = 8192) {
 
 function entryId(relativePath) {
   return crypto.createHash('sha256').update(relativePath).digest('hex').slice(0, 24)
+}
+
+function stableDigest(value) {
+  return crypto.createHash('sha256').update(stableStringify(value)).digest('hex')
+}
+
+function sortReportEntries(entries) {
+  return entries.slice().sort((left, right) =>
+    right.date.localeCompare(left.date) ||
+    right.modifiedAt.localeCompare(left.modifiedAt) ||
+    left.path.localeCompare(right.path))
 }
 
 function scanReportCatalog(activeRoot, options = {}) {
@@ -280,6 +295,35 @@ function buildReportPartitions(scan) {
       }
     })
   }
+  for (const classification of REPORT_CLASSIFICATIONS) {
+    const entries = sortReportEntries(scan.entries.filter(entry => entry.classification === classification))
+    for (let index = 0; index < entries.length; index += ORDERED_CHUNK_SIZE) {
+      const chunk = entries.slice(index, index + ORDERED_CHUNK_SIZE)
+      const chunkIndex = String(index / ORDERED_CHUNK_SIZE).padStart(6, '0')
+      partitions.push({
+        key: `ordered:${classification}:${chunkIndex}`,
+        metadata: {
+          classification,
+          chunkIndex: index / ORDERED_CHUNK_SIZE,
+          entryCount: chunk.length,
+          startDate: chunk[0]?.date || null,
+          endDate: chunk[chunk.length - 1]?.date || null,
+          firstSortKey: chunk[0]
+            ? [chunk[0].date, chunk[0].modifiedAt, chunk[0].path]
+            : null,
+          lastSortKey: chunk[chunk.length - 1]
+            ? [chunk[chunk.length - 1].date, chunk[chunk.length - 1].modifiedAt, chunk[chunk.length - 1].path]
+            : null
+        },
+        payload: {
+          schemaVersion: REPORT_ORDERED_SCHEMA,
+          classification,
+          chunkIndex: index / ORDERED_CHUNK_SIZE,
+          entries: chunk
+        }
+      })
+    }
+  }
   return partitions
 }
 
@@ -330,22 +374,180 @@ function normalizeQuery(query = {}) {
     hydrate: query.hydrate === true,
     maxHydrateBytes: query.maxHydrateBytes === undefined
       ? 64 * 1024
-      : Math.min(MAX_HYDRATE_BYTES, Number(query.maxHydrateBytes))
+      : Math.min(MAX_HYDRATE_BYTES, Number(query.maxHydrateBytes)),
+    projection: query.projection === undefined ? 'full' : String(query.projection),
+    snapshotCursor: query.snapshotCursor || null
   }
 }
 
 function filterEntries(entries, query) {
-  return entries
+  return sortReportEntries(entries
     .filter(entry => query.classifications.includes(entry.classification))
     .filter(entry => !query.taskKind || entry.taskKind === query.taskKind)
     .filter(entry => !query.task || entry.task === query.task)
     .filter(entry => !query.dateFrom || entry.date >= query.dateFrom)
     .filter(entry => !query.dateTo || entry.date <= query.dateTo)
-    .filter(entry => !query.text || `${entry.title}\n${entry.path}`.toLowerCase().includes(query.text))
+    .filter(entry => !query.text || `${entry.title}\n${entry.path}`.toLowerCase().includes(query.text)))
+}
+
+function validateProjection(projection) {
+  if (!REPORT_PROJECTIONS.has(projection)) throw new Error('report projection must be full or compact')
+  return projection
+}
+
+function projectReportEntry(entry, projection) {
+  if (projection === 'full') return entry
+  const compact = {
+    id: entry.id,
+    path: entry.path,
+    taskKind: entry.taskKind,
+    task: entry.task,
+    classification: entry.classification,
+    title: entry.title,
+    date: entry.date,
+    bytes: entry.bytes
+  }
+  if (entry.hydration) compact.hydration = entry.hydration
+  return compact
+}
+
+function reportQueryDigest(query) {
+  return stableDigest({
+    classifications: query.classifications,
+    taskKind: query.taskKind,
+    task: query.task,
+    dateFrom: query.dateFrom,
+    dateTo: query.dateTo,
+    text: query.text,
+    projection: query.projection
+  })
+}
+
+function cursorCore(cursor) {
+  return Object.fromEntries(Object.entries(cursor || {}).filter(([key]) => key !== 'cursorDigest'))
+}
+
+function decodeSnapshotCursor(value) {
+  if (!value) return null
+  if (typeof value === 'string') {
+    const normalized = value.replace(/-/g, '+').replace(/_/g, '/')
+    const padded = normalized + '='.repeat((4 - normalized.length % 4) % 4)
+    return JSON.parse(Buffer.from(padded, 'base64').toString('utf8'))
+  }
+  if (typeof value === 'object' && !Array.isArray(value)) return value
+  throw new Error('report snapshotCursor must be an object or base64url string')
+}
+
+function encodeSnapshotCursor(cursor) {
+  return Buffer.from(JSON.stringify(cursor)).toString('base64url')
+}
+
+function validateSnapshotCursor(value, query) {
+  const cursor = decodeSnapshotCursor(value)
+  if (!cursor) return null
+  if (cursor.schemaVersion !== REPORT_SNAPSHOT_CURSOR_SCHEMA) {
+    throw new Error('report snapshotCursor schemaVersion is invalid')
+  }
+  if (cursor.cursorDigest !== stableDigest(cursorCore(cursor))) {
+    throw new Error('report snapshotCursor digest mismatch')
+  }
+  if (cursor.queryDigest !== reportQueryDigest(query)) {
+    throw new Error('report snapshotCursor query mismatch')
+  }
+  if (cursor.pageSize !== query.limit) {
+    throw new Error('report snapshotCursor pageSize mismatch')
+  }
+  if (!cursor.position || cursor.position.offset !== query.offset) {
+    throw new Error('report snapshotCursor offset mismatch')
+  }
+  if (!Array.isArray(cursor.segments)) {
+    throw new Error('report snapshotCursor segments are invalid')
+  }
+  return cursor
+}
+
+function createSnapshotCursor(input) {
+  const core = {
+    schemaVersion: REPORT_SNAPSHOT_CURSOR_SCHEMA,
+    manifestIdentity: input.manifestIdentity,
+    sourceIdentity: input.sourceIdentity,
+    queryDigest: input.queryDigest,
+    position: { offset: input.offset },
+    pageSize: input.pageSize,
+    projection: input.projection,
+    segments: input.segments,
+    totalMatched: input.totalMatched
+  }
+  return { ...core, cursorDigest: stableDigest(core) }
+}
+
+function orderedDescriptorOverlaps(descriptor, query) {
+  const metadata = descriptor.metadata || {}
+  if (query.dateFrom && metadata.startDate && metadata.startDate < query.dateFrom) return false
+  if (query.dateTo && metadata.endDate && metadata.endDate > query.dateTo) return false
+  return true
+}
+
+function canUseOrderedRoute(query) {
+  return !query.taskKind &&
+    !query.task &&
+    !query.text &&
+    query.classifications.length === 1
+}
+
+function selectEntryPartitionDescriptors(manifest, query) {
+  return manifest.partitions.filter(descriptor =>
+    descriptor.key.startsWith('entries:') &&
+    query.classifications.includes(descriptor.metadata?.classification) &&
+    (!query.taskKind || descriptor.metadata?.taskKind === query.taskKind) &&
+    (!query.task || descriptor.metadata?.task === query.task) &&
+    (!query.dateFrom || descriptor.metadata?.month >= query.dateFrom.slice(0, 7)) &&
+    (!query.dateTo || descriptor.metadata?.month <= query.dateTo.slice(0, 7)))
+}
+
+function selectOrderedDescriptors(manifest, query) {
+  return manifest.partitions
+    .filter(descriptor =>
+      descriptor.key.startsWith('ordered:') &&
+      query.classifications.includes(descriptor.metadata?.classification) &&
+      orderedDescriptorOverlaps(descriptor, query))
     .sort((left, right) =>
-      right.date.localeCompare(left.date) ||
-      right.modifiedAt.localeCompare(left.modifiedAt) ||
-      left.path.localeCompare(right.path))
+      String(left.metadata?.classification || '').localeCompare(String(right.metadata?.classification || '')) ||
+      Number(left.metadata?.chunkIndex || 0) - Number(right.metadata?.chunkIndex || 0))
+}
+
+function compactSegmentPlan(segments) {
+  return segments.map(segment => ({
+    key: segment.key,
+    count: segment.count,
+    classification: segment.classification
+  }))
+}
+
+function segmentSliceForOffset(segments, offset, limit) {
+  const needed = []
+  let remainingOffset = offset
+  let remainingLimit = limit
+  for (const segment of segments) {
+    if (remainingOffset >= segment.count) {
+      remainingOffset -= segment.count
+      continue
+    }
+    if (remainingLimit <= 0) break
+    const take = Math.min(segment.count - remainingOffset, remainingLimit)
+    needed.push({
+      key: segment.key,
+      start: remainingOffset,
+      take
+    })
+    remainingLimit -= take
+    remainingOffset = 0
+  }
+  return needed
+}
+
+function manifestEntryCount(manifest) {
+  return manifest.partitions.find(descriptor => descriptor.key === 'catalog')?.metadata?.entryCount || 0
 }
 
 function assertAllowlistedPointer(activeRoot, relativePath) {
@@ -362,12 +564,41 @@ function assertAllowlistedPointer(activeRoot, relativePath) {
   return absolute
 }
 
+function createReportHydrationContext(activeRoot) {
+  const root = normalizeRoot(activeRoot)
+  return {
+    root,
+    realRoot: fs.realpathSync(root),
+    allowedRoots: resolveReportRoots(root).map(item => ({
+      ...item,
+      realPath: fs.realpathSync(item.path)
+    }))
+  }
+}
+
+function assertAllowlistedPointerWithContext(context, relativePath) {
+  const absolute = path.resolve(context.root, relativePath)
+  normalizedRelative(context.root, absolute)
+  const allowed = context.allowedRoots.some(item => isInside(item.path, absolute))
+  if (!allowed) throw new Error(`report pointer is outside allowlisted report roots: ${relativePath}`)
+  const stat = fs.lstatSync(absolute)
+  if (!stat.isFile() || stat.isSymbolicLink()) throw new Error(`report pointer must identify a regular non-symlink file: ${relativePath}`)
+  const realFile = fs.realpathSync(absolute)
+  if (!isInside(context.realRoot, realFile)) throw new Error(`report pointer resolves outside activeRoot: ${relativePath}`)
+  return absolute
+}
+
 function hydrateReportEntry(activeRoot, entry, options = {}) {
+  const context = options.context || createReportHydrationContext(activeRoot)
+  return hydrateReportEntryWithContext(context, entry, options)
+}
+
+function hydrateReportEntryWithContext(context, entry, options = {}) {
   const maxBytes = options.maxBytes === undefined ? 64 * 1024 : Number(options.maxBytes)
   if (!Number.isInteger(maxBytes) || maxBytes < 1 || maxBytes > MAX_HYDRATE_BYTES) {
     throw new Error(`report hydration maxBytes must be 1-${MAX_HYDRATE_BYTES}`)
   }
-  const filePath = assertAllowlistedPointer(activeRoot, entry?.pointer?.path || entry?.path)
+  const filePath = assertAllowlistedPointerWithContext(context, entry?.pointer?.path || entry?.path)
   const stat = fs.statSync(filePath)
   const descriptor = fs.openSync(filePath, 'r')
   try {
@@ -378,14 +609,14 @@ function hydrateReportEntry(activeRoot, entry, options = {}) {
     return {
       schemaVersion: 'ReportHydrationV1',
       status: 'fresh',
-      path: normalizedRelative(activeRoot, filePath),
+      path: normalizedRelative(context.root, filePath),
       freshnessTier: truncated ? 'metadata-reconciled' : 'content-verified',
       content,
       bytesRead,
       totalBytes: stat.size,
       truncated,
       contentIdentity: buildContentIdentity({
-        sourceKey: `report-hydration://${normalizedRelative(activeRoot, filePath)}`,
+        sourceKey: `report-hydration://${normalizedRelative(context.root, filePath)}`,
         content,
         contractVersion: truncated ? '1-partial' : '1'
       })
@@ -395,83 +626,350 @@ function hydrateReportEntry(activeRoot, entry, options = {}) {
   }
 }
 
+function hydrateReportEntries(activeRoot, entries, options = {}) {
+  const context = createReportHydrationContext(activeRoot)
+  let bytesRead = 0
+  const hydrated = entries.map(entry => {
+    const hydration = hydrateReportEntryWithContext(context, entry, {
+      ...options,
+      context
+    })
+    bytesRead += hydration.bytesRead
+    return { ...entry, hydration }
+  })
+  return { entries: hydrated, bytesRead }
+}
+
+function readReportPartition(store, descriptor, current, expectedSchema) {
+  const partition = store.readPartition(descriptor.key, { current })
+  const indexBytes = Math.max(0, (partition.bytesRead || 0) - (current.bytesRead || 0))
+  if (partition.status !== 'fresh' || partition.payload?.schemaVersion !== expectedSchema) {
+    return {
+      status: 'invalid',
+      partition,
+      indexBytes
+    }
+  }
+  return {
+    status: 'fresh',
+    partition,
+    indexBytes,
+    entries: partition.payload.entries || []
+  }
+}
+
+function collectEntriesFromPartitions(store, descriptors, current, query) {
+  const candidates = []
+  let filesRead = 0
+  let indexBytesRead = 0
+  for (const descriptor of descriptors) {
+    const result = readReportPartition(store, descriptor, current, REPORT_ENTRY_SCHEMA)
+    filesRead += 1
+    indexBytesRead += result.indexBytes
+    if (result.status !== 'fresh') {
+      return {
+        status: 'invalid',
+        receipt: result.partition,
+        freshnessTier: result.partition.freshnessTier || 'invalid',
+        filesRead,
+        indexBytesRead
+      }
+    }
+    candidates.push(...result.entries)
+  }
+  return {
+    status: 'fresh',
+    entries: filterEntries(candidates, query),
+    filesRead,
+    indexBytesRead
+  }
+}
+
+function buildOrderedPageFromDescriptors(store, descriptors, current, query) {
+  const segments = []
+  let filesRead = 0
+  let indexBytesRead = 0
+  for (const descriptor of descriptors) {
+    const result = readReportPartition(store, descriptor, current, REPORT_ORDERED_SCHEMA)
+    filesRead += 1
+    indexBytesRead += result.indexBytes
+    if (result.status !== 'fresh') {
+      return {
+        status: 'invalid',
+        receipt: result.partition,
+        freshnessTier: result.partition.freshnessTier || 'invalid',
+        filesRead,
+        indexBytesRead
+      }
+    }
+    const entries = filterEntries(result.entries, query)
+    if (entries.length) {
+      segments.push({
+        key: descriptor.key,
+        classification: descriptor.metadata?.classification || null,
+        count: entries.length,
+        entries
+      })
+    }
+  }
+  const totalMatched = segments.reduce((total, segment) => total + segment.count, 0)
+  const page = []
+  for (const slice of segmentSliceForOffset(segments, query.offset, query.limit)) {
+    const segment = segments.find(item => item.key === slice.key)
+    page.push(...segment.entries.slice(slice.start, slice.start + slice.take))
+  }
+  return {
+    status: 'fresh',
+    route: 'ordered-snapshot',
+    entries: page,
+    totalMatched,
+    segments: compactSegmentPlan(segments),
+    filesRead,
+    indexBytesRead
+  }
+}
+
+function buildOrderedPageFromCursor(store, current, query, cursor) {
+  const totalMatched = cursor.totalMatched
+  const page = []
+  let filesRead = 0
+  let indexBytesRead = 0
+  const segmentMap = new Map(cursor.segments.map(segment => [segment.key, segment]))
+  for (const slice of segmentSliceForOffset(cursor.segments, query.offset, query.limit)) {
+    const descriptor = current.manifest.partitions.find(item => item.key === slice.key)
+    if (!descriptor || !segmentMap.has(slice.key)) {
+      return {
+        status: 'invalid',
+        receipt: { status: 'invalid', errorCode: 'REPORT_CURSOR_SEGMENT_MISSING' },
+        freshnessTier: 'invalid',
+        filesRead,
+        indexBytesRead
+      }
+    }
+    const result = readReportPartition(store, descriptor, current, REPORT_ORDERED_SCHEMA)
+    filesRead += 1
+    indexBytesRead += result.indexBytes
+    if (result.status !== 'fresh') {
+      return {
+        status: 'invalid',
+        receipt: result.partition,
+        freshnessTier: result.partition.freshnessTier || 'invalid',
+        filesRead,
+        indexBytesRead
+      }
+    }
+    const entries = filterEntries(result.entries, query)
+    page.push(...entries.slice(slice.start, slice.start + slice.take))
+  }
+  return {
+    status: 'fresh',
+    route: 'snapshot-cursor',
+    entries: page,
+    totalMatched,
+    segments: cursor.segments,
+    filesRead,
+    indexBytesRead
+  }
+}
+
 function queryReportIndex(activeRoot, input = {}) {
   const root = normalizeRoot(activeRoot)
   const query = normalizeQuery(input)
-  const scan = scanReportCatalog(root)
-  const sourceIdentity = catalogSourceIdentity(scan)
+  validateProjection(query.projection)
   const store = reportStore(root)
-  const current = store.readCurrent({ expectedSourceIdentity: sourceIdentity })
+  const cursor = validateSnapshotCursor(query.snapshotCursor, query)
+  let scan = null
+  let sourceIdentity = null
+  let current
+  if (cursor) {
+    const manifestReceipt = store.readManifest(cursor.manifestIdentity)
+    if (manifestReceipt.status !== 'fresh') {
+      const envelope = buildQueryEnvelope({
+        status: 'invalid',
+        freshnessTier: 'invalid',
+        coverage: {
+          status: 'invalid',
+          route: 'snapshot-cursor',
+          errorCode: 'REPORT_CURSOR_MANIFEST_UNAVAILABLE'
+        },
+        items: [],
+        truncated: false,
+        nextPointer: null,
+        evidencePointers: [],
+        hydrated: query.hydrate,
+        telemetry: {
+          sourceBytes: 0,
+          representedSourceBytes: 0,
+          deliveredBytes: 2,
+          indexBytesRead: manifestReceipt.bytes || 0,
+          filesRead: manifestReceipt.status === 'missing' ? 0 : 1,
+          metadataEntriesStat: 0,
+          tokens: null
+        },
+        receipt: {
+          status: manifestReceipt.status,
+          freshnessTier: 'invalid',
+          manifestIdentity: cursor.manifestIdentity,
+          errorCode: manifestReceipt.errorCode || 'REPORT_CURSOR_MANIFEST_UNAVAILABLE'
+        }
+      })
+      return {
+        ...envelope,
+        domain: 'report',
+        scope: { activeRoot: root },
+        query,
+        warnings: [],
+        warningCount: 0,
+        totalMatched: 0
+      }
+    }
+    current = {
+      schemaVersion: 'DerivedIndexReadReceiptV1',
+      status: 'fresh',
+      freshnessTier: 'metadata-reconciled',
+      attestedFreshnessTier: 'metadata-reconciled',
+      filesRead: 1,
+      bytesRead: manifestReceipt.bytes || 0,
+      pointer: null,
+      pointerIdentity: null,
+      manifest: manifestReceipt.value,
+      manifestIdentity: manifestReceipt.identity
+    }
+    sourceIdentity = current.manifest.sourceIdentity
+  } else {
+    scan = scanReportCatalog(root)
+    sourceIdentity = catalogSourceIdentity(scan)
+    current = store.readCurrent({ expectedSourceIdentity: sourceIdentity })
+  }
   let route = 'derived-index'
   let freshnessTier = 'metadata-reconciled'
-  let candidates
+  let matched
   let filesRead = current.filesRead || 0
   let indexBytesRead = current.bytesRead || 0
   let receipt = current
+  let segments = []
+  let totalMatched = 0
 
   if (current.status === 'fresh') {
-    const descriptors = current.manifest.partitions.filter(descriptor =>
-      descriptor.key.startsWith('entries:') &&
-      query.classifications.includes(descriptor.metadata?.classification) &&
-      (!query.taskKind || descriptor.metadata?.taskKind === query.taskKind) &&
-      (!query.task || descriptor.metadata?.task === query.task) &&
-      (!query.dateFrom || descriptor.metadata?.month >= query.dateFrom.slice(0, 7)) &&
-      (!query.dateTo || descriptor.metadata?.month <= query.dateTo.slice(0, 7)))
-    candidates = []
-    for (const descriptor of descriptors) {
-      const partition = store.readPartition(descriptor.key, { current })
-      if (partition.status !== 'fresh' || partition.payload?.schemaVersion !== REPORT_ENTRY_SCHEMA) {
-        route = 'path-stat-reconcile'
-        freshnessTier = partition.freshnessTier || 'invalid'
-        receipt = partition
-        candidates = scan.entries
-        break
+    if (cursor) {
+      const page = buildOrderedPageFromCursor(store, current, query, cursor)
+      if (page.status === 'fresh') {
+        route = page.route
+        matched = page.entries
+        segments = page.segments
+        totalMatched = page.totalMatched
+        filesRead += page.filesRead
+        indexBytesRead += page.indexBytesRead
+      } else {
+        route = 'snapshot-cursor-invalid'
+        freshnessTier = page.freshnessTier || 'invalid'
+        receipt = page.receipt
+        matched = []
+        totalMatched = 0
+        filesRead += page.filesRead
+        indexBytesRead += page.indexBytesRead
       }
-      candidates.push(...partition.payload.entries)
-      filesRead += 1
-      indexBytesRead += Math.max(0, (partition.bytesRead || 0) - (current.bytesRead || 0))
+    } else if (canUseOrderedRoute(query)) {
+      const page = buildOrderedPageFromDescriptors(store, selectOrderedDescriptors(current.manifest, query), current, query)
+      if (page.status === 'fresh') {
+        route = page.route
+        matched = page.entries
+        segments = page.segments
+        totalMatched = page.totalMatched
+        filesRead += page.filesRead
+        indexBytesRead += page.indexBytesRead
+      } else {
+        route = 'path-stat-reconcile'
+        freshnessTier = page.freshnessTier || 'invalid'
+        receipt = page.receipt
+        matched = filterEntries(scan.entries, query)
+        totalMatched = matched.length
+        filesRead += page.filesRead
+        indexBytesRead += page.indexBytesRead
+      }
+    } else {
+      const collected = collectEntriesFromPartitions(store, selectEntryPartitionDescriptors(current.manifest, query), current, query)
+      if (collected.status === 'fresh') {
+        matched = collected.entries
+        totalMatched = matched.length
+        filesRead += collected.filesRead
+        indexBytesRead += collected.indexBytesRead
+      } else {
+        route = 'path-stat-reconcile'
+        freshnessTier = collected.freshnessTier || 'invalid'
+        receipt = collected.receipt
+        matched = filterEntries(scan.entries, query)
+        totalMatched = matched.length
+        filesRead += collected.filesRead
+        indexBytesRead += collected.indexBytesRead
+      }
     }
   } else {
     route = 'path-stat-reconcile'
     freshnessTier = current.status === 'invalid' ? 'invalid' : 'metadata-reconciled'
-    candidates = scan.entries
+    matched = filterEntries(scan.entries, query)
+    totalMatched = matched.length
   }
 
-  const matched = filterEntries(candidates, query)
-  let items = matched.slice(query.offset, query.offset + query.limit)
+  const pageEntries = cursor || route === 'ordered-snapshot' || route === 'snapshot-cursor'
+    ? matched
+    : matched.slice(query.offset, query.offset + query.limit)
+  let items = pageEntries
   let hydrationBytes = 0
   if (query.hydrate) {
-    items = items.map(entry => {
-      const hydration = hydrateReportEntry(root, entry, { maxBytes: query.maxHydrateBytes })
-      hydrationBytes += hydration.bytesRead
-      return { ...entry, hydration }
-    })
+    const hydrated = hydrateReportEntries(root, items, { maxBytes: query.maxHydrateBytes })
+    hydrationBytes += hydrated.bytesRead
+    items = hydrated.entries
   }
+  items = items.map(entry => projectReportEntry(entry, query.projection))
   const deliveredBytes = Buffer.byteLength(JSON.stringify(items))
-  const status = route === 'derived-index' ? 'fresh' : 'fallback'
+  const status = ['derived-index', 'ordered-snapshot', 'snapshot-cursor'].includes(route)
+    ? 'fresh'
+    : route === 'snapshot-cursor-invalid'
+      ? 'invalid'
+      : 'fallback'
+  const nextOffset = query.offset + items.length
+  const hasMore = nextOffset < totalMatched
+  const nextSnapshotCursor = hasMore && ['ordered-snapshot', 'snapshot-cursor'].includes(route)
+    ? createSnapshotCursor({
+      manifestIdentity: current.manifestIdentity,
+      sourceIdentity,
+      queryDigest: reportQueryDigest(query),
+      offset: nextOffset,
+      pageSize: query.limit,
+      projection: query.projection,
+      segments,
+      totalMatched
+    })
+    : null
   const envelope = buildQueryEnvelope({
     status,
     freshnessTier,
     coverage: {
-      status: route === 'derived-index' ? 'complete' : 'metadata-reconciled',
+      status: ['derived-index', 'ordered-snapshot', 'snapshot-cursor'].includes(route)
+        ? 'complete'
+        : route === 'snapshot-cursor-invalid'
+          ? 'invalid'
+          : 'metadata-reconciled',
       sourceIdentity,
       route,
-      discoveredEntryCount: scan.entries.length
+      discoveredEntryCount: scan ? scan.entries.length : manifestEntryCount(current.manifest),
+      segmentCount: segments.length
     },
     items,
-    truncated: query.offset + items.length < matched.length,
-    nextPointer: query.offset + items.length < matched.length
-      ? { offset: query.offset + items.length }
+    truncated: hasMore,
+    nextPointer: hasMore
+      ? { offset: nextOffset }
       : null,
     evidencePointers: items.map(item => ({ path: item.path, classification: item.classification })),
     hydrated: query.hydrate,
     telemetry: {
-      sourceBytes: scan.sourceBytesRead + hydrationBytes,
-      representedSourceBytes: scan.sourceCorpusBytes,
+      sourceBytes: (scan?.sourceBytesRead || 0) + hydrationBytes,
+      representedSourceBytes: scan?.sourceCorpusBytes || null,
       deliveredBytes,
       indexBytesRead,
       filesRead: filesRead + (query.hydrate ? items.length : 0),
-      metadataEntriesStat: scan.entries.length,
+      metadataEntriesStat: scan ? scan.entries.length : 0,
       tokens: null
     },
     receipt: {
@@ -488,9 +986,11 @@ function queryReportIndex(activeRoot, input = {}) {
     domain: 'report',
     scope: { activeRoot: root },
     query,
-    warnings: scan.warnings,
-    warningCount: scan.warningCount,
-    totalMatched: matched.length
+    warnings: scan?.warnings || [],
+    warningCount: scan?.warningCount || 0,
+    totalMatched,
+    snapshotCursor: nextSnapshotCursor,
+    snapshotCursorEncoded: nextSnapshotCursor ? encodeSnapshotCursor(nextSnapshotCursor) : null
   }
 }
 
@@ -499,7 +999,10 @@ module.exports = {
   REPORT_CLASSIFICATIONS,
   catalogSourceIdentity,
   classifyReportPath,
+  decodeSnapshotCursor,
+  encodeSnapshotCursor,
   hydrateReportEntry,
+  hydrateReportEntries,
   queryReportIndex,
   rebuildReportIndex,
   resolveReportRoots,

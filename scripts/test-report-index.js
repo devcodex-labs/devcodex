@@ -9,6 +9,7 @@ const path = require('path')
 const {
   classifyReportPath,
   hydrateReportEntry,
+  hydrateReportEntries,
   queryReportIndex,
   rebuildReportIndex,
   scanReportCatalog
@@ -99,23 +100,66 @@ try {
   const beforeQueries = snapshot(runtimeRoot)
   const firstPage = queryReportIndex(root, { limit: 1 })
   assert.strictEqual(firstPage.status, 'fresh')
-  assert.strictEqual(firstPage.coverage.route, 'derived-index')
+  assert.strictEqual(firstPage.coverage.route, 'ordered-snapshot')
   assert.strictEqual(firstPage.receipt.freshnessTier, 'metadata-reconciled')
   assert.strictEqual(firstPage.items.length, 1)
   assert.strictEqual(firstPage.totalMatched, 2)
   assert.deepStrictEqual(firstPage.nextPointer, { offset: 1 })
+  assert.ok(firstPage.snapshotCursor)
+  assert.ok(firstPage.snapshotCursorEncoded)
   assert.ok(firstPage.items.every(entry => entry.classification === 'primary-report'))
 
-  const secondPage = queryReportIndex(root, { limit: 1, offset: 1 })
+  const secondPage = queryReportIndex(root, {
+    limit: 1,
+    offset: firstPage.nextPointer.offset,
+    snapshotCursor: firstPage.snapshotCursor
+  })
   assert.strictEqual(secondPage.items.length, 1)
+  assert.strictEqual(secondPage.coverage.route, 'snapshot-cursor')
+  assert.strictEqual(secondPage.telemetry.metadataEntriesStat, 0)
   assert.strictEqual(secondPage.nextPointer, null)
   assert.notStrictEqual(firstPage.items[0].id, secondPage.items[0].id)
+
+  const encodedSecondPage = queryReportIndex(root, {
+    limit: 1,
+    offset: firstPage.nextPointer.offset,
+    snapshotCursor: firstPage.snapshotCursorEncoded
+  })
+  assert.strictEqual(encodedSecondPage.coverage.route, 'snapshot-cursor')
+  assert.strictEqual(encodedSecondPage.items[0].id, secondPage.items[0].id)
+
+  const legacyOffsetPage = queryReportIndex(root, { limit: 1, offset: 1 })
+  assert.strictEqual(legacyOffsetPage.status, 'fresh')
+  assert.strictEqual(legacyOffsetPage.items[0].id, secondPage.items[0].id)
+
+  const tamperedCursor = {
+    ...firstPage.snapshotCursor,
+    pageSize: 2
+  }
+  assert.throws(
+    () => queryReportIndex(root, { limit: 1, offset: 1, snapshotCursor: tamperedCursor }),
+    /snapshotCursor digest mismatch/
+  )
+  assert.throws(
+    () => queryReportIndex(root, { limit: 1, offset: 1, task: 'task-a', snapshotCursor: firstPage.snapshotCursor }),
+    /snapshotCursor query mismatch/
+  )
+
+  const compact = queryReportIndex(root, { limit: 2, projection: 'compact' })
+  const fullProjection = queryReportIndex(root, { limit: 2 })
+  assert.ok(compact.telemetry.deliveredBytes < fullProjection.telemetry.deliveredBytes)
+  assert.ok(!Object.prototype.hasOwnProperty.call(compact.items[0], 'modifiedAt'))
+  assert.ok(!Object.prototype.hasOwnProperty.call(compact.items[0], 'pointer'))
+  assert.strictEqual(compact.items[0].classification, 'primary-report')
 
   const hydrated = queryReportIndex(root, { text: 'primary', hydrate: true, maxHydrateBytes: 10 })
   assert.strictEqual(hydrated.status, 'fresh')
   assert.strictEqual(hydrated.hydrated, true)
   assert.strictEqual(hydrated.items[0].hydration.truncated, true)
   assert.ok(hydrated.items[0].hydration.content.length > 0)
+  const batchHydrated = hydrateReportEntries(root, hydrated.items, { maxBytes: 10 })
+  assert.strictEqual(batchHydrated.entries.length, hydrated.items.length)
+  assert.ok(batchHydrated.bytesRead > 0)
   assert.throws(
     () => hydrateReportEntry(root, { pointer: { path: '../outside.md' } }),
     /escapes activeRoot|outside allowlisted/

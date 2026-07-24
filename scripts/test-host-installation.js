@@ -679,6 +679,11 @@ console.log(`legacy host installation tests passed selectors=5 dryRunWrites=0 co
   const workspace = path.join(currentRoot, 'workspace')
   fs.mkdirSync(home, { recursive: true })
   fs.mkdirSync(path.join(workspace, '.devcodex'), { recursive: true })
+  fs.writeFileSync(
+    path.join(workspace, '.devcodex', 'layout.json'),
+    `${JSON.stringify({ mode: 'workspace-namespace' }, null, 2)}\n`,
+    'utf8'
+  )
   fs.writeFileSync(path.join(workspace, 'package.json'), '{"name":"global-only-fixture"}\n')
   const env = {
     ...process.env,
@@ -698,6 +703,19 @@ console.log(`legacy host installation tests passed selectors=5 dryRunWrites=0 co
   assert.strictEqual(inspection.ready, true)
   assert.strictEqual(inspection.hosts.length, 5)
   assert.ok(fs.existsSync(path.join(home, 'gemini-cli-home', '.gemini', 'devcodex', 'global-host-receipt.json')))
+
+  const statusAfterGlobalInstall = spawnSync(process.execPath, [INDEX, 'status', '--json'], {
+    cwd: workspace,
+    encoding: 'utf8',
+    env
+  })
+  assert.strictEqual(statusAfterGlobalInstall.status, 0, statusAfterGlobalInstall.stderr || statusAfterGlobalInstall.stdout)
+  const statusAfterGlobalInstallFacts = JSON.parse(statusAfterGlobalInstall.stdout).payload
+  assert.strictEqual(statusAfterGlobalInstallFacts.globalHostConfig.ready, true)
+  assert.strictEqual(statusAfterGlobalInstallFacts.entryFiles.instructionProjection.grokPlugin.globalAdapterReady, true)
+  assert(!statusAfterGlobalInstallFacts.entryFiles.instructionProjection.issues.some(item =>
+    item.code === 'HOST_GROK_WORKSPACE_PLUGIN_MISSING'
+  ))
 
   const runtimeInit = spawnSync(process.execPath, [INDEX, 'init', '--json'], {
     cwd: workspace,

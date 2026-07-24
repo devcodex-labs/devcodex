@@ -140,6 +140,18 @@ function buildCliMaintenanceCommands(ctx) {
     const activeRoot = resolveActiveRuntimeRoot(cwd)
     const executionOptimization = inspectExecutionOptimization(cwd)
     const globalHostConfig = inspectGlobalHostConfig({ env: process.env })
+    const globalReady = host => globalHostConfig.hosts.some(item => item.host === host && item.ready)
+    if (globalReady('grok') && instructionProjection.grokPlugin?.sourcePresent === false) {
+      instructionProjection.grokPlugin.globalAdapterReady = true
+      instructionProjection.grokPlugin.workspaceSourceRequired = false
+      instructionProjection.issues = (instructionProjection.issues || [])
+        .filter(item => item.code !== 'HOST_GROK_WORKSPACE_PLUGIN_MISSING')
+      if (!instructionProjection.issues.length) {
+        instructionProjection.status = instructionProjection.entries?.some(item => item.installed)
+          ? 'ready'
+          : 'not-installed'
+      }
+    }
     const hostParity = evaluateGrokHostParity({
       cwd,
       hostRoot,

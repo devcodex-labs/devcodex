@@ -29,8 +29,9 @@ function classifyDocsAudienceSample(prompt, opts = {}) {
   const blob = `${text}\n${pathBlob}`
   const signals = []
 
-  const hasUserPhrase = /用户使用|使用文档|安装|quick\s*start|快速开始|接入|给使用者|开源用户|第一次成功|how to use|getting started/i.test(blob)
-  const hasMaintPhrase = /维护者|贡献|contributing|本地开发|clone|发版\s*runbook|release\s*checklist|internals|ADR|开发站点|给维护/i.test(blob)
+  const hasUserPhrase = /用户使用|用户文档|使用文档|使用者文档|安装|quick\s*start|快速开始|接入|给使用者|开源用户|第一次成功|how to use|getting started/i.test(blob)
+  // 贡献 alone is weak; prefer contributing/维护者/开发站 to avoid over-fire, but 贡献指南 is maintainer
+  const hasMaintPhrase = /维护者|贡献指南|贡献流程|contributing|本地开发|clone|发版\s*runbook|release\s*checklist|internals|ADR|开发站点|给维护|维护者文档/i.test(blob)
   const hasReadme = /\bREADME\b|主入口文档/i.test(blob)
   const hasReference = /\bAPI\b|CLI|Config\s*参考|接口参考|reference/i.test(blob)
   const hasMigrationUser = /升级指南|迁移指南|从\s*v?\d|upgrade\s+guide/i.test(blob) && !/实现迁移|迁移代码|写迁移/i.test(blob)

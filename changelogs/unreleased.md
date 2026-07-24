@@ -125,5 +125,5 @@ WorkspaceDataAbsorptionScopeGate · DocsSiteVisualAcceptanceGate · OmissionOnly
 - 需求：`.devcodex/devcodex-v1/requirements/控制面闭合证据与误放行治理/`。
 
 ## 2026-07-24
-- **[docs-audience]** DocsAudienceIntentGate + user/maintainer site authoring split; 
-pm run test:docs-audience`n
+- **[docs-audience]** DocsAudienceIntentGate + user/maintainer site authoring split；`npm run test:docs-audience`。
+- **[docs-cognitive-altitude]** 用户站 guide 任务语言/认知高度；禁止函数清单式 quick start；问题驱动场景延展（intent）；复审修复「用户文档+贡献指南」须 multi-audience。

@@ -65,6 +65,11 @@ const {
   assert.strictEqual(r.docsAudience, 'multi-audience')
   assert.strictEqual(r.failClosed, true)
 }
+{
+  const r = classifyDocsAudienceSample('写用户文档和贡献指南')
+  assert.strictEqual(r.docsAudience, 'multi-audience', 'user doc + contributing guide must split')
+  assert.strictEqual(r.failClosed, true)
+}
 
 // Disambiguation must carry unique recommendation
 {

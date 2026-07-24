@@ -17,7 +17,9 @@ const {
   classifyWorkspaceRootScanSample,
   classifyTtfvOmissionSample,
   GROK_TURN_EXECUTION_CHECKLIST,
-  GROK_INTENT_SKILL_BUNDLES
+  GROK_INTENT_SKILL_BUNDLES,
+  MIN_CANNOT_CLAIM,
+  assertCannotClaimFloor
 } = require('./lib/host-parity-scorecard.js')
 const { adaptHostOutput } = require('../hooks/_runtime/lifecycle-host-adapters.cjs')
 const { buildLifecyclePayloadUtils } = require('../hooks/_runtime/lifecycle-payload-utils.cjs')
@@ -63,6 +65,9 @@ assert.strictEqual(ready.tier, 'full-capable')
 assert.ok(ready.checks.denyAdapterContract)
 assert.ok(ready.checks.pathObservableCapability)
 assert.ok(Array.isArray(ready.cannotClaim) && ready.cannotClaim.length >= 3)
+assert.strictEqual(MIN_CANNOT_CLAIM.length, 4)
+assertCannotClaimFloor(ready.cannotClaim)
+assert.ok(ready.recommendedEntry.includes('devcodex grok'))
 
 const partial = evaluateGrokHostParity({
   cwd: root,

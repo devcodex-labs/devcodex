@@ -1,0 +1,101 @@
+{
+  "schemaVersion": "UnalignedLedgerV1",
+  "updatedAt": "2026-07-24T00:00:00.000Z",
+  "items": [
+    {
+      "id": "U-A1",
+      "title": "UserPromptSubmit context injection",
+      "status": "open",
+      "closePath": "platform P-GROK-1",
+      "owner": "xai-platform",
+      "evidenceRefs": [],
+      "notes": "Passive stdout ignored on Grok"
+    },
+    {
+      "id": "U-A2",
+      "title": "UserPromptSubmit optional block",
+      "status": "open",
+      "closePath": "platform P-GROK-2",
+      "owner": "xai-platform",
+      "evidenceRefs": [],
+      "notes": "eventSupportsHardBlock(grok, UPS)=false"
+    },
+    {
+      "id": "U-A3",
+      "title": "Stop assistant final text / verified PC0",
+      "status": "open",
+      "closePath": "platform P-GROK-3",
+      "owner": "xai-platform",
+      "evidenceRefs": [],
+      "notes": "Stop payload often lacks assistant body"
+    },
+    {
+      "id": "U-A4",
+      "title": "Stop hard-block incomplete closure",
+      "status": "open",
+      "closePath": "platform P-GROK-4",
+      "owner": "xai-platform",
+      "evidenceRefs": [],
+      "notes": "eventSupportsHardBlock(grok, Stop)=false"
+    },
+    {
+      "id": "U-B1",
+      "title": "Hook mode multi-event vs PreTool-only",
+      "status": "open",
+      "closePath": "platform + honest matrix",
+      "owner": "devcodex",
+      "evidenceRefs": [],
+      "notes": "doctor mode=hook partial"
+    },
+    {
+      "id": "U-B2",
+      "title": "Bootstrap injection path",
+      "status": "open",
+      "closePath": "U-A1 + S07 model duty",
+      "owner": "devcodex",
+      "evidenceRefs": [],
+      "notes": "kernelInjected must stay false on Grok bridge"
+    },
+    {
+      "id": "U-B3",
+      "title": "Auto whitelist runtime weaker than Codex",
+      "status": "open",
+      "closePath": "docs honesty; no false guarantee",
+      "owner": "devcodex",
+      "evidenceRefs": []
+    },
+    {
+      "id": "U-B4",
+      "title": "Passive events strip hard-block (intentional)",
+      "status": "open",
+      "closePath": "keep + regression probes",
+      "owner": "devcodex",
+      "evidenceRefs": [],
+      "notes": "wont-fix for platform parity; keep as intentional residual"
+    },
+    {
+      "id": "U-C1",
+      "title": "Full entry requires devcodex grok; plain child Partial",
+      "status": "open",
+      "closePath": "entry docs + recommendedEntry",
+      "owner": "devcodex",
+      "evidenceRefs": []
+    },
+    {
+      "id": "U-C2",
+      "title": "full-capable != inject",
+      "status": "open",
+      "closePath": "PC5 / cannotClaim copy",
+      "owner": "devcodex",
+      "evidenceRefs": []
+    },
+    {
+      "id": "U-C3",
+      "title": "GrokTurnChecklist model duty heavier",
+      "status": "open",
+      "closePath": "checklist + omission probes",
+      "owner": "devcodex",
+      "evidenceRefs": []
+    }
+  ]
+}

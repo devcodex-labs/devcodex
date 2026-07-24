@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "devcodex://host-parity/unaligned-ledger.v1.schema.json",
+  "title": "UnalignedLedgerV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "updatedAt", "items"],
+  "properties": {
+    "schemaVersion": { "const": "UnalignedLedgerV1" },
+    "updatedAt": { "type": "string", "minLength": 1 },
+    "items": {
+      "type": "array",
+      "minItems": 11,
+      "maxItems": 11,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "title", "status", "closePath", "owner", "evidenceRefs"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "enum": [
+              "U-A1", "U-A2", "U-A3", "U-A4",
+              "U-B1", "U-B2", "U-B3", "U-B4",
+              "U-C1", "U-C2", "U-C3"
+            ]
+          },
+          "title": { "type": "string", "minLength": 1 },
+          "status": { "type": "string", "enum": ["open", "closed", "wont-fix"] },
+          "closePath": { "type": "string", "minLength": 1 },
+          "owner": { "type": "string", "minLength": 1 },
+          "evidenceRefs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["kind", "ref"],
+              "properties": {
+                "kind": { "type": "string", "minLength": 1 },
+                "ref": { "type": "string", "minLength": 1 },
+                "note": { "type": "string" }
+              }
+            }
+          },
+          "closedAt": { "type": ["string", "null"] },
+          "notes": { "type": "string" }
+        }
+      }
+    }
+  }
+}

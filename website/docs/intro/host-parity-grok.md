@@ -100,6 +100,23 @@ Grok **不会**每轮注入 bootstrap。模型必须按下列可扫清单自执�
 
 禁止把 `full-capable` 解读为「UserPromptSubmit 已注入 PC0」。
 
+## 未对齐机器台账（U-\*）
+
+Grok 相对 Codex 的**仍未对齐**残差以机器台账为准（与产品需求 U-A1～U-C3 对齐）：
+
+| 项 | 路径 |
+|----|------|
+| 权威 JSON | 源码仓 `scripts/fixtures/host-parity/unaligned-ledger.v1.json` |
+| Schema | `scripts/fixtures/host-parity/unaligned-ledger.schema.json` |
+| 加载/关闭校验 | `scripts/lib/parity-unaligned-ledger.js` |
+| cannotClaim floor | `MIN_CANNOT_CLAIM` in `scripts/lib/host-parity-scorecard.js` |
+| 升档缩减门禁 | `scripts/lib/parity-upgrade-decision.js`（无决策禁止缩 cannotClaim） |
+| 回归 | `npm run test:host-parity`（含 `test-host-parity-ledger.js`） |
+
+> 关闭台账项必须带 `evidenceRefs`；缩减 inject/Stop 相关 `cannotClaim` 需要 `platform-docs` 或 `direct-host-replay` 级 `ParityUpgradeDecision`。
+
+**validate.js**：默认**不**内嵌 host-parity 套件；质量链以 `test:optimization-controls`（已含 `test:host-parity`）与发布前 `npm run test:host-parity` 为准。
+
 ## 平台上限
 
 下列能力依赖 Grok Build 平台演进，**不在** DevCodex 单独「做完」的范围内：
@@ -109,7 +126,7 @@ Grok **不会**每轮注入 bootstrap。模型必须按下列可扫清单自执�
 3. Stop 携带 assistant 最终可见正文
 4. Stop 可选 block 未完成闭包
 
-跟踪清单见维护者需求：`requirements/20260720-grok-host-parity-codex/03-平台能力需求-xAI.md`（源码仓 / 工作区运行态路径）。
+跟踪清单见维护者需求：`requirements/20260720-grok-host-parity-codex/03-平台能力需求-xAI.md`（源码仓 / 工作区运行态路径）。对应台账 ID：**U-A1～U-A4**。
 
 ## 相关链接
 

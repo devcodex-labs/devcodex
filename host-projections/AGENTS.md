@@ -78,7 +78,8 @@
 ## Passive-hook 宿主（Grok）
 
 - Grok 等 passive-hook 宿主：优先 `devcodex grok` Full 入口；禁止把 full-capable 解读为 UserPromptSubmit 已注入 PC0。
-- GrokTurnChecklist（可扫）：PC0~PC7 → Intent→Skill bundle（非 chat：intent+compliance+user-visible-output-contract+工作流+report+memory）→ 实质任务 → report/memory/台账；不得因无 inject/省 token 省略 S05/S07/C17。
+- GrokTurnChecklist（可扫，权威列表见 `host-parity-scorecard` 共 9 步）：PC0~PC7 → Intent→Skill bundle（非 chat：intent+compliance+user-visible-output-contract+工作流+report+memory）→ context-plan → **scan-hygiene（C16 禁 workspace 根 Recurse inventory）** → **ttfv-first-delivery（同轮首交付）** → work/gates → report/memory/台账 → honest-ceiling；不得因无 inject/省 token 省略 S05/S07/C17。
+- HostParity 残差台账（机器权威）：`scripts/fixtures/host-parity/unaligned-ledger.v1.json`（U-A1～U-C3）；cannotClaim 缩减须 ParityUpgradeDecision。
 
 ## 按需扩展与故障回退
 

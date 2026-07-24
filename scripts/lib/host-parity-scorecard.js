@@ -38,6 +38,31 @@ const GROK_INTENT_SKILL_BUNDLES = Object.freeze({
   other: Object.freeze(['intent', 'compliance', 'user-visible-output-contract', 'plan', 'report', 'memory'])
 })
 
+/** Minimum cannotClaim strings that must remain unless ParityUpgradeDecision allows shrink (E3). */
+const MIN_CANNOT_CLAIM = Object.freeze([
+  'UserPromptSubmit context injection (passive stdout ignored on Grok)',
+  'Stop hard-block of incomplete turns',
+  'verified-present PC0 without assistant payload on Stop',
+  'Grok === Codex hook-enforced bootstrap'
+])
+
+/**
+ * @param {string[]} cannotClaim
+ * @returns {{ ok: true } | never}
+ */
+function assertCannotClaimFloor(cannotClaim) {
+  const list = Array.isArray(cannotClaim) ? cannotClaim.map(String) : []
+  for (const required of MIN_CANNOT_CLAIM) {
+    if (!list.includes(required)) {
+      throw new Error(`CANNOT_CLAIM_FLOOR_VIOLATION: missing required claim: ${required}`)
+    }
+  }
+  if (list.length < MIN_CANNOT_CLAIM.length) {
+    throw new Error(`CANNOT_CLAIM_FLOOR_VIOLATION: length ${list.length} < ${MIN_CANNOT_CLAIM.length}`)
+  }
+  return { ok: true }
+}
+
 const CHECK_REPAIR_CATALOG = Object.freeze({
   kernelAgentsMd: {
     check: 'kernelAgentsMd',
@@ -356,12 +381,8 @@ function evaluateGrokHostParity(input = {}) {
     ? 'devcodex grok   # Full evidence: --rules binds workspace AGENTS.md'
     : (repairSteps[0] && repairSteps[0].command) || 'devcodex update --host grok && devcodex grok'
 
-  const cannotClaim = [
-    'UserPromptSubmit context injection (passive stdout ignored on Grok)',
-    'Stop hard-block of incomplete turns',
-    'verified-present PC0 without assistant payload on Stop',
-    'Grok === Codex hook-enforced bootstrap'
-  ]
+  const cannotClaim = [...MIN_CANNOT_CLAIM]
+  assertCannotClaimFloor(cannotClaim)
 
   const failedChecks = Object.entries(checks).filter(([, ok]) => !ok).map(([k]) => k)
   const repairPreview = repairSteps
@@ -453,6 +474,8 @@ module.exports = {
   GROK_TURN_EXECUTION_CHECKLIST,
   GROK_INTENT_SKILL_BUNDLES,
   CHECK_REPAIR_CATALOG,
+  MIN_CANNOT_CLAIM,
+  assertCannotClaimFloor,
   evaluateGrokHostParity,
   composeEntryCheckBlock,
   entryCheckAssistSuffix,

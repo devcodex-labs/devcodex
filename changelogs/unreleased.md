@@ -5,6 +5,7 @@
 
 ## 当前未发布实现候选
 
+- **HostParity 企业级持续对齐（E1/E3/E5/E7）**：新增 `UnalignedLedgerV1` fixture（U-A1～U-C3）+ `parity-unaligned-ledger` / `parity-upgrade-decision`；`MIN_CANNOT_CLAIM` + floor 断言；`test:host-parity` 串联 `test-host-parity-ledger`；站点/AGENTS 投影补台账与 9 步 checklist；validate 默认不挂 host-parity（以 optimization-controls 为准）。需求：`Grok-Codex未对齐收敛与持续对齐保证` CP3。
 - **CLI 默认五宿主（A2）**：bare `devcodex init` / `update` 经 `cmdInit({ includeExtended: true })` 部署 copilot+claude+codex+gemini+grok（含 Grok `installed-plugins` digest 同步）；**不**绑 `cmdInitHost('all')`（避免 bare init 触发 `HOST_INSTRUCTION_COLLISION`）。`--host copilot` 显式 `includeExtended: false`。`test-cli-command-registry` 断言第二参 opts。help/README/host-instruction-projection 文案同步。需求：`Grok插件随update自动同步` CP1 A2 / CP2 v0.3。
 - **C16 TTFV + WorkspaceRootScanBan（PI-20260724-01）**：GrokTurnChecklist 增加 `scan-hygiene` / `ttfv-first-delivery`；Hook `neverApprove` 拦截 monorepo/workspace 根递归 inventory（绝对根路径、`dir /s`、cwd=根时的相对 `-Recurse`/`-Depth`）；SC16 与 `17-compliance`/`01-common`/website 消费者对齐；探针与 Hook 一级子路径一致；`test:host-parity` 纳入回归矩阵。
 - **意图驱动五宿主能力映射**：新增 active `host-capability-routing`、`CapabilityIntentDecisionV1`、`HostLeverCatalogV1`、`OriginalInstructionRefV1`、8-row local catalog 与纯校验器；薄 Rule 保留原指令权威、portable-first、CP/Auto/S01~S07 边界，5 个逻辑宿主/8 个 variant 在证据未知、过期、重复或 MCP absent 时 fail closed。当前 canonical native eligible=0，Phase 1 不新增 MCP primitive；README/website 明确收益、catalog/证据/消费者维护代价与 MCP Tool 升级阈值。

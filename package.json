@@ -66,6 +66,7 @@
     "test:visible-output": "node scripts/test-visible-output-contract.js",
     "test:external-review-claim": "node scripts/test-external-review-claim-verification.js",
     "test:optimization-backlog-evidence": "node scripts/test-optimization-backlog-evidence.js",
+    "test:docs-audience": "node scripts/test-docs-audience-intent.js",
     "test:discipline-execution": "node scripts/test-discipline-execution-probe.js",
     "test:host-instruction-projection": "node scripts/generate-host-instruction-projections.js --check && node scripts/test-host-instruction-projection.js",
     "test:host-adapters": "node scripts/test-host-adapters.js",

@@ -231,6 +231,11 @@
       "tier": "free"
     },
     {
+      "id": "maintainer-docs-site-authoring",
+      "file": "skills/maintainer-docs-site-authoring/SKILL.md",
+      "tier": "free"
+    },
+    {
       "id": "review-checklist",
       "file": "skills/review-checklist/SKILL.md",
       "tier": "free"

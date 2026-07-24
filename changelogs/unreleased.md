@@ -123,3 +123,7 @@ WorkspaceDataAbsorptionScopeGate · DocsSiteVisualAcceptanceGate · OmissionOnly
 - **HomologousDeploy**：`skill-deploy-filter` 同源过滤 gray；作用于 CLI copy 与 `buildDeploymentDescriptors`。
 - **V100** + `npm run test:closure-evidence`。
 - 需求：`.devcodex/devcodex-v1/requirements/控制面闭合证据与误放行治理/`。
+
+## 2026-07-24
+- **[docs-audience]** DocsAudienceIntentGate + user/maintainer site authoring split; 
+pm run test:docs-audience`n

@@ -59,11 +59,25 @@ description: 通用文档审查维度 DA-1~DA-6 — README/架构文档/开发�
 4. 通用结构/准确性问题留在 `DA-*`
 5. 用户路径、快速开始、示例真实度、开发信息后置与消费链一致性问题留在 `RM-*`
 
+## 维护者站点维（DA-M · 条件）
+
+当审查目标为**维护者/贡献者开发文档站**（`docsAudience=maintainer-dev` 或 CONTRIBUTING/dev/internals 主路径）时，在 DA-1~DA-6 之上追加：
+
+| 检查 | 要求 |
+|------|------|
+| DA-M1 可执行 dev 路径 | 具备 clone/环境/依赖安装与 test 或 build 命令之一；不得仅产品介绍 |
+| DA-M2 受众一致 | 主叙事服务维护者；不得伪装成用户安装手册却无用户第一次成功路径 |
+| DA-M3 命令可信 | 关键命令与 `package.json`/仓库脚本不矛盾，或标明 N/A 理由 |
+| DA-M4 漂移 | `classifyDocsAudienceDriftSample('maintainer-dev', body)` 不得为 `drift-no-dev-path` |
+
+用户站审查仍优先 `audit-user-manual`；本维不替代用户站聚合入口。
+
 ## N/A 规则
 
 - 纯图表/示意图文件无受众概念：DA-5 标 N/A
 - 无关联代码：DA-6 标 N/A
 - 未触发用户手册 / 文档站 / 多语言 / 生成站点 / 示例语义 / 专家产物时：对应条件门禁聚合写 `N/A + skipReason`（完整 Gate 名见 registry / Owner Skill）
+- 未触发维护者站：DA-M 聚合 `N/A + skipReason=not-maintainer-docs`
 - 公开主路径若展示旧兼容路径或 DSL/parser 示例：分别检查副作用兼容边界与最小执行探针（Owner：`user-manual-authoring` / `dev-docs`）
 
 

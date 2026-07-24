@@ -6,18 +6,27 @@ description: 文档开发子类型规范 — 技术文档/API文档/README 编�
 
 ## 触发条件
 
-用户要求编写/更新文档：README、站点文档、用户使用文档、API 文档、架构文档、开发指南、CHANGELOG、迁移指南等。
+用户要求编写/更新**技术类**文档：API/契约说明、架构文档、开发指南、迁移**实现**说明、通用技术 Markdown 等。
+
+> ⛔ **入口分流（DocsAudienceIntent，强制）**  
+> 写文档任务须先判定 `docsAudience` + `docsSurface`（`scripts/lib/docs-audience-intent.js` / registry `docs-audience-intent`）：  
+> - `public-user`（用户使用站 / README / 用户手册 / 用户向 changelog·operations·reference）→ **必须 handoff** `user-manual-authoring`（+ 条件 `readme-authoring`），**不得**以本 Skill 为主写作入口。  
+> - `maintainer-dev`（维护者开发站 / contributing / 发版 runbook / ADR 站）→ **必须 handoff** `maintainer-docs-site-authoring`。  
+> - `ambiguous` / `multi-audience` → **阻断**；ambiguous 须唯一推荐消歧；multi 须拆任务。  
+> - 仅当受众已是技术读者且 surface 为契约/架构/通用技术文时，本 Skill 才作为主入口（light-api / frontend-api / general-doc）。
 
 ## 豁免项
 
-- 豁免 `plan-review`（文档任务不需要实施计划审查）
+- 豁免 `plan-review`（**业务文档内容**任务不需要实施计划审查）
 - 豁免 `impact-review`（文档变更不涉及代码影响评估）
-- 豁免 CP3（无需实施计划）；必须记录 `CP3: N/A（docs 子类型豁免）`，供 hook/fallback 区分合法豁免与漏确认
-- CP2 简化为**文档大纲确认**（不需要完整技术方案）
+- 豁免 CP3（**仅** `dev.docs` 子类型写业务项目文档时）；必须记录 `CP3: N/A（docs 子类型豁免）`  
+- ⚠️ **控制面 / Skill / 规范包变更**（如本仓库改 skills）走 `dev.default`，**不享受**本豁免  
+- CP2 简化为**文档大纲确认**（业务文档内容任务；控制面任务仍完整技术方案）
 
 ## 目标文档分流
 
-当任务属于“契约驱动型文档”时，优先先冻结目标文档，再让后续实现或联动产物围绕它落地。
+当任务属于“契约驱动型文档”且已锁定为技术契约（非用户站 narrative）时，优先先冻结目标文档，再让后续实现或联动产物围绕它落地。  
+用户侧 **reference** 可由 `user-manual-authoring` **编排** 本 Skill 的 light-api，但 Owner 仍是用户站。
 
 ### 何时视为契约驱动型文档
 
@@ -35,16 +44,15 @@ description: 文档开发子类型规范 — 技术文档/API文档/README 编�
 | `frontend-api` | 前端联调、页面/模块接口说明、字段映射说明 | Markdown 前端接口文档 |
 | `general-doc` | 架构文档、开发指南、迁移指南、治理说明、运行手册 | Markdown 通用文档 |
 
-## README 专项写作分支
+## README / 用户站 / 维护者站 handoff（强制）
 
-当目标文档是站点文档、用户使用文档、最终用户使用文档、最终用户手册、README、quick start、接入手册或公开能力页时，优先调用 `user-manual-authoring`，先冻结用户主路径、文档落点和信息架构，再决定是否进入 README 专项分支。
+| 目标 | handoff |
+|------|---------|
+| 用户站、用户手册、README、quick start、接入手册、公开能力页 | **`user-manual-authoring`**（+ 条件 `readme-authoring`） |
+| 维护者开发站、CONTRIBUTING 站区、发版 runbook 主叙事 | **`maintainer-docs-site-authoring`** |
+| light-api / frontend-api / 架构 general-doc（技术读者） | 本 Skill 主入口 |
 
-当目标文档是 `README.md` 或承担主使用入口职责的 README / 项目主文档时，在 `user-manual-authoring` 基础上继续调用 `readme-authoring`：
-
-- 默认第一受众是**用户 / 使用者**
-- 快速开始、常见用法、配置与排错必须早于开发/贡献内容
-- 章节骨架优先使用 `prompts/project-readme.prompt.md`
-- 完成后若需要用户侧文档 review、项目文档审查、菜单导航或信息架构审查，优先叠加 `audit-user-manual`；落点为 README / 主入口文档时再叠加 `audit-readme`
+README 专项仍由 `user-manual-authoring` + `readme-authoring` 承接（默认受众=使用者；开发/贡献后置）。
 
 ## 文档质量标准
 

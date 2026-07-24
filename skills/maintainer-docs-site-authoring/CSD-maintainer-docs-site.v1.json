@@ -1,0 +1,22 @@
+{
+  "schemaVersion": "CapabilitySurfaceDecisionV1",
+  "decisionRef": "CSD-maintainer-docs-site-authoring-20260724",
+  "status": "accepted",
+  "identity": {
+    "capabilityId": "maintainer-docs-site-authoring",
+    "kind": "skill"
+  },
+  "preferredSurface": "rule-skill",
+  "decisionOwner": "spec-governance",
+  "runtimeOwner": "skills/maintainer-docs-site-authoring + scripts/lib/docs-audience-intent.js",
+  "controlParty": "devcodex-core-maintainers",
+  "readWriteExecute": {
+    "read": ["skills", "prompts", "docs paths"],
+    "write": ["project documentation files under task scope"],
+    "execute": ["npm run test:docs-audience"]
+  },
+  "hostMatrix": "portable-all-hosts",
+  "fallback": "instruction-only if skill missing",
+  "validationRoute": ["test-docs-audience", "source-consumer-sync"],
+  "notes": "Paired with user-manual-authoring; DocsAudienceIntentGate fail-closed on ambiguous."
+}

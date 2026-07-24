@@ -75,6 +75,7 @@ description: 识别用户意图类型（dev/fix/analyze/audit/self-fix/chat/resu
 
 - dev 模式默认向用户展示完整 Card；prod、instruction-fallback 宿主或低风险轻任务可退化为 3~5 行摘要。
 - 压缩恢复、resume 或用户明确要求“按文件真相重建”时，必须先按文件真相源重建 Card，再决定最终路由。
+- 🔴 **ProactiveBetterAlternativeGate 联动（PI-20260724-cp1-intent-expansion-proactive）**：请求 CP1/CP2 确认前，须**主动**交付 Expansion 与更优/备选路线（含遗漏场景），**不得**等用户追问「还有没有更合理建议」才补。
 
 | 字段 | 说明 |
 |------|------|
@@ -89,6 +90,20 @@ description: 识别用户意图类型（dev/fix/analyze/audit/self-fix/chat/resu
 | `validation-route` | test/lint/typecheck/validate/direct replay/官方文档 |
 | `confidence` | high/medium/low |
 | `alternatives` | 被排除路线及原因 |
+
+### DocsAudienceIntent（文档写作任务强制）
+
+当用户意图涉及**编写/改写** README、文档站、website docs、用户手册、contributing、API 参考或模糊「写文档」时：
+
+1. **必须**先运行 DocsAudienceIntent（`scripts/lib/docs-audience-intent.js` / Skill 语义等价），得到 `docsAudience` + `docsSurface`。  
+2. **必须**在用户可见回复中写出锁定结果（或 ambiguous 阻断 + **唯一推荐**消歧）；不得静默开写。  
+3. 路由：  
+   - `public-user` → `user-manual-authoring`（+ 条件 `readme-authoring`）  
+   - `maintainer-dev` → `maintainer-docs-site-authoring`  
+   - `ambiguous` → fail closed，推荐置首  
+   - `multi-audience` → 拆任务  
+4. 完成前做受众漂移检查；失败不得宣称文档任务完成。  
+5. 验证：`npm run test:docs-audience`。
 
 ### HostCapabilityRoutingHandoff
 

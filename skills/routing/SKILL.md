@@ -56,8 +56,11 @@ description: 定义意图识别结果到工作流的路由映射。本 Skill 为
 
 | 语义 | Skill | 说明 |
 |------|-------|------|
-| 站点文档、最终用户使用文档、README、quick start、接入手册、docs-first 用户手册 | `skills/user-manual-authoring/SKILL.md` | 用户文档写作入口；README 继续叠加 `readme-authoring` |
+| 开源/公开用户站点、最终用户使用文档、README、quick start、接入手册、docs-first、用户向 reference | `skills/user-manual-authoring/SKILL.md` | 用户站写作入口（`docsAudience=public-user`）；README 继续叠加 `readme-authoring`；先跑 DocsAudienceIntent |
+| 维护者/贡献者开发站点、contributing、本地开发、发版 runbook、internals/ADR 站 | `skills/maintainer-docs-site-authoring/SKILL.md` | 维护者站写作入口（`docsAudience=maintainer-dev`）；与用户站不等价 |
+| 模糊「写文档站/website」 | DocsAudienceIntent → ambiguous 阻断 | 唯一推荐消歧；禁止未锁定开写 |
 | 用户侧文档 review、项目文档审查、文档设计、菜单导航、sidebar、信息架构 | `skills/audit-user-manual/SKILL.md` | 用户文档审查聚合入口；按顺序叠加 `user-manual-authoring`、`audit-document`、条件 `audit-readme`、`review-checklist` |
+| 维护者站文档 review | `skills/audit-document/SKILL.md` | DA-M 维护者站维 + 通用 DA-1~DA-6 |
 | 正式复审、ECR、发布前复审、多轮收敛、冻结清单、外部 finding 批次 | `skills/review-checklist/SKILL.md` | 复审清单创建、冻结、逐项证据、状态新鲜度与收敛关闭 |
 | PC0~PC7、FC/SC/RC/T、确认、进度、最终结果、阻断、产物文件交付 | `skills/user-visible-output-contract/SKILL.md` | internal manifest→visible set→Envelope→capability renderer；默认隐藏 session/SUMMARY/raw ledger |
 | 专家型代码/文档/示例/fixture/方案/报告质量、不专业纠正、生产推荐路径与反模式边界 | `skills/expert-output-quality/SKILL.md` | 执行 `ExpertOutputQualityGate`，区分生产推荐路径、框架原生能力、fixture/mock/demo 边界、反模式和证据矩阵 |

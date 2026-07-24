@@ -18,9 +18,10 @@ description: 文档同步规范 — 代码变更后同步必查与条件文档
 | `.env.example` | 🟡 条件 | 用户 / 项目明确选择共享环境变量方案，或已有共享环境变量发生新增/修改/删除时同步更新示例文件；未指定 env 时不得主动把明文或硬编码改成 `.env.example`、`.env.local`、`.env.test.local`、`*Env`、secretRef 或 secret manager |
 | `.devcodex/profile/README.md` / `01-项目信息.md` / `02-架构约束.md` / `03-代码风格.md` | 🟡 条件 | 命中 `ProfileImpactCheck` 时同步；包括技术栈、框架/SDK、依赖管理、目录/模块边界、脚本/测试/发布路线、分发面、配置项、长期连接、`config.local.json` schema 或当前阶段变化 |
 | `RULES.md` | 🟡 条件 | 当入口路由、工作流说明、当前可用状态或使用方式变更时同步 |
-| `website/docs/guide/*.md` | 🟡 条件 | 当面向使用者的流程指南、开发说明、发布说明变更时同步 |
+| `website/docs/guide/*.md` | 🟡 条件 | 当面向**使用者**的流程指南变更时同步（`audience=public-user`） |
+| `website/docs/**/contributing*` / `docs/dev/**` / maintainer 分区 | 🟡 条件 | 当**维护者**开发/贡献/发版文档变更时同步（`audience=maintainer-dev`） |
 | `website/docs/specs/*.md` | 🟡 条件 | 当永久规范页中的当前行为、流程图、规则说明变更时同步 |
-| website sidebar/nav / README 索引 / 目录页 | 🟡 条件 | 当正文定义阅读顺序、审查顺序、实施顺序或“先看什么”时，同批校验导航、sidebar 与索引页是否按同一顺序呈现 |
+| website sidebar/nav / README 索引 / 目录页 | 🟡 条件 | 当正文定义阅读顺序、审查顺序、实施顺序或“先看什么”时，同批校验导航、sidebar 与索引页是否按同一顺序呈现；**跨受众导航变更须两边各验** |
 | `DocsConsumerSweep` | 🟡 条件 | 文档新增/调整命令、配置项、字段、状态、路径、能力承诺、阅读顺序或用户路径时，扫描 README / website / Profile / prompts / templates / examples / nav/sidebar / validate probes / 部署副本与代码消费位置 |
 | `website/docs/versions/v1/<active-version>/requirements/**` | 🟡 条件 | 当正式需求入口、模板职责边界或活动版本 requirement 口径变更时同步 |
 | `TASK-INDEX.md` | 🟡 条件 | 项目存在任务索引时更新任务状态 |
@@ -30,11 +31,25 @@ description: 文档同步规范 — 代码变更后同步必查与条件文档
 
 所有 dev/fix 工作流在执行阶段完成后**自动触发**文档同步检查。
 
+## audience-aware consumerMap
+
+建立或更新 Concept Sync Map / consumerMap 时，每项建议带：
+
+| 字段 | 说明 |
+|------|------|
+| `audience` | `public-user` \| `maintainer-dev` \| `shared` |
+| `docsSurface` | guide/readme/reference/maintainer/…（可选） |
+| `path` | 消费者路径 |
+
+- 用户站变更默认扫描 `public-user` 消费者（README 主路径、guide、用户向 examples）。  
+- 维护者站变更默认扫描 `maintainer-dev` 消费者（CONTRIBUTING、dev 分区、发版 runbook）。  
+- `shared`（如版本号）两边都可列，但**不得**用维护者 checklist 覆盖用户主路径同步结论。
+
 ## 执行流程
 
 | 步骤 | 动作 |
 |------|------|
-| 1 | 读取本次变更内容（diff 或变更摘要），必要时先建立 Concept Sync Map |
+| 1 | 读取本次变更内容（diff 或变更摘要），必要时先建立 Concept Sync Map（含 audience） |
 | 2 | 区分当前消费者与历史镜像，确认本轮必须同步的当前文档与可保留的历史归档 |
 | 3 | 逐一检查必查文档，并确认条件文档是否存在/启用 |
 | 4 | 更新需要同步的文档 |

@@ -86,6 +86,11 @@ assert.strictEqual(classify({ DEVCODEX_SKIP_POSTINSTALL: '1' }).reason, 'skip-en
 assert.strictEqual(classify({ DEVCODEX_POSTINSTALL_CHILD: '1' }).reason, 'child-process')
 assert.strictEqual(classify({}, transitiveWorkspace).reason, 'transitive-or-indirect')
 
+const sourceGlobalDecision = classify({ npm_config_global: 'true', INIT_CWD: workspace }, workspace, sourceRoot)
+assert.strictEqual(sourceGlobalDecision.action, 'execute')
+assert.strictEqual(sourceGlobalDecision.scope, 'global-install')
+assert.strictEqual(sourceGlobalDecision.reason, 'global-install-postinstall')
+
 const workspaceDecision = classify({ INIT_CWD: workspace })
 assert.strictEqual(workspaceDecision.action, 'noop')
 assert.strictEqual(workspaceDecision.scope, 'workspace-install')

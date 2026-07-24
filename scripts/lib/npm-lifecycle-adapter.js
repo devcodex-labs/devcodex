@@ -110,7 +110,6 @@ function classifyNpmLifecycleInstall(options = {}) {
   if (!isPostinstall) return noOp('not-postinstall')
   if (truthy(env.DEVCODEX_SKIP_POSTINSTALL)) return noOp('skip-env')
   if (truthy(env.DEVCODEX_POSTINSTALL_CHILD)) return noOp('child-process')
-  if (!force && isSourceCheckout(packageRoot, fsImpl, pathImpl)) return noOp('source-checkout')
   if (!force && ci) return noOp('ci')
   if (globalInstall) {
     return {
@@ -122,6 +121,7 @@ function classifyNpmLifecycleInstall(options = {}) {
       command: { internal: GLOBAL_INTERNAL_ACTION }
     }
   }
+  if (!force && isSourceCheckout(packageRoot, fsImpl, pathImpl)) return noOp('source-checkout')
 
   if (!fsImpl.existsSync(initCwd)) return noOp('target-missing')
   if (!declaresDevCodexDependency(initCwd, fsImpl, pathImpl)) {

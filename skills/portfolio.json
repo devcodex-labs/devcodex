@@ -11,10 +11,10 @@
     "pluginDigest": "f85d1fcc1384827999ead09f5ee2051295d2a3890315ce0b2c83ac5a9c63ab82",
     "portfolioEvidence": "skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "8364a73c66ed2ec9787cdb9300223278d128a45b689a2b8deda0d1f03189f42b",
-    "consumerInventoryFileCount": 571,
-    "consumerInventoryDigest": "084199a17dbd42b5915759bf670bc264cf7f2eeced440890ad6bc0260c7df56e",
-    "consumerProjectionDigest": "015e3a862e7bec7ba391e4c23130a4bcf932add703b387ec0726f2a46c02533a",
-    "portfolioInputDigest": "41c85079ae0c5c13f40a5b4fa14ef831269a8a6e95b88a97e7aa23ba390fbb9b"
+    "consumerInventoryFileCount": 583,
+    "consumerInventoryDigest": "f9f3a7c659643326a28a719fece1e53422162b8ea018fe554de2e32cf40a29cb",
+    "consumerProjectionDigest": "caf9280bf2a1ab0f4e5c9776e3fc1354d8a8896a8249ba9b1789bbc5337be71d",
+    "portfolioInputDigest": "a4eb999a892aad1c01f3d6036beba941a545fe9dcad669c0e80de8738d84f622"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -11905,6 +11905,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/summary-type-canon.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/test-hooks-runtime-bootstrap-layout.js",
           "role": "current"
         },
@@ -13135,6 +13139,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/global-host-config.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/host-parity-scorecard.js",
           "role": "current"
         },
@@ -13156,6 +13164,10 @@
         },
         {
           "path": "scripts/lib/skill-portfolio-utils.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/summary-type-canon.js",
           "role": "current"
         },
         {
@@ -13240,6 +13252,10 @@
         },
         {
           "path": "scripts/test-context-read-contract.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-global-host-config.js",
           "role": "current"
         },
         {
@@ -13552,6 +13568,7 @@
         "scripts/test-completion-report-ecr-check.js",
         "scripts/test-context-binding.js",
         "scripts/test-context-read-contract.js",
+        "scripts/test-global-host-config.js",
         "scripts/test-governance-intake.js",
         "scripts/test-governance-status-summary.js",
         "scripts/test-hooks-runtime.js",
@@ -13622,6 +13639,7 @@
           "scripts/test-completion-report-ecr-check.js",
           "scripts/test-context-binding.js",
           "scripts/test-context-read-contract.js",
+          "scripts/test-global-host-config.js",
           "scripts/test-governance-intake.js",
           "scripts/test-governance-status-summary.js",
           "scripts/test-hooks-runtime.js",
@@ -14230,6 +14248,14 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/global-host-config-transaction.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/global-host-config.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/grok-workspace-launcher.js",
           "role": "current"
         },
@@ -14243,6 +14269,10 @@
         },
         {
           "path": "scripts/lib/host-parity-scorecard.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/npm-lifecycle-adapter.js",
           "role": "current"
         },
         {
@@ -14374,6 +14404,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/postinstall.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/project-analysis-state.js",
           "role": "current"
         },
@@ -14434,6 +14468,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-global-host-config.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-governance-intake.js",
           "role": "current"
         },
@@ -14463,6 +14501,10 @@
         },
         {
           "path": "scripts/test-migrate-layout.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-npm-lifecycle-adapter.js",
           "role": "current"
         },
         {
@@ -14752,6 +14794,7 @@
         "scripts/test-discipline-execution-probe.js",
         "scripts/test-evidence-freshness-receipt.js",
         "scripts/test-execution-chain-evolution.js",
+        "scripts/test-global-host-config.js",
         "scripts/test-governance-intake.js",
         "scripts/test-governance-status-summary.js",
         "scripts/test-hooks-runtime.js",
@@ -14760,6 +14803,7 @@
         "scripts/test-markdown-structure.js",
         "scripts/test-mcp-servers.js",
         "scripts/test-migrate-layout.js",
+        "scripts/test-npm-lifecycle-adapter.js",
         "scripts/test-project-knowledge-store.js",
         "scripts/test-project-knowledge-v2.js",
         "scripts/test-repair-prevention-assessment.js",
@@ -14832,6 +14876,7 @@
           "scripts/test-discipline-execution-probe.js",
           "scripts/test-evidence-freshness-receipt.js",
           "scripts/test-execution-chain-evolution.js",
+          "scripts/test-global-host-config.js",
           "scripts/test-governance-intake.js",
           "scripts/test-governance-status-summary.js",
           "scripts/test-hooks-runtime.js",
@@ -14840,6 +14885,7 @@
           "scripts/test-markdown-structure.js",
           "scripts/test-mcp-servers.js",
           "scripts/test-migrate-layout.js",
+          "scripts/test-npm-lifecycle-adapter.js",
           "scripts/test-project-knowledge-store.js",
           "scripts/test-project-knowledge-v2.js",
           "scripts/test-repair-prevention-assessment.js",
@@ -20508,6 +20554,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/global-host-config.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/governance-status-summary.js",
           "role": "current"
         },
@@ -20641,6 +20691,10 @@
         },
         {
           "path": "scripts/test-skill-sidecar-contract.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-summary-type-canon.js",
           "role": "current"
         },
         {
@@ -20832,6 +20886,7 @@
         "scripts/test-runtime-state-index.js",
         "scripts/test-skill-portfolio.js",
         "scripts/test-skill-sidecar-contract.js",
+        "scripts/test-summary-type-canon.js",
         "scripts/test-visible-output-contract.js",
         "scripts/validate-profile.js",
         "scripts/validate.js"
@@ -20895,6 +20950,7 @@
           "scripts/test-runtime-state-index.js",
           "scripts/test-skill-portfolio.js",
           "scripts/test-skill-sidecar-contract.js",
+          "scripts/test-summary-type-canon.js",
           "scripts/test-visible-output-contract.js",
           "scripts/validate-profile.js",
           "scripts/validate.js"

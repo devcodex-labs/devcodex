@@ -235,10 +235,25 @@ function buildLifecycleProjectTargetUtils({
 
   function hasMentionToken(prompt, alias) {
     const escaped = escapeRegExp(alias)
-    return new RegExp(`(^|\\s)${escaped}(?=$|[\\s,.;:!?，。；：！？])`, 'i').test(prompt)
+    // Loose token boundary: allow CJK/punctuation adjacency (请@rocky执行 / （@rocky）),
+    // but reject alias glued to other identifier chars (ok@rocky / @rockyish).
+    return new RegExp(`(?:^|[^A-Za-z0-9_@])${escaped}(?=$|[^A-Za-z0-9_-])`, 'i').test(String(prompt || ''))
   }
 
   const DEFAULT_AUTO_ALIASES = ['@rocky']
+
+  function emptyStickyAuto(reason) {
+    return {
+      active: false,
+      source: '',
+      kind: '',
+      sessionKey: '',
+      updatedAt: '',
+      updatedAtMs: 0,
+      authorityRef: '',
+      reason: reason || ''
+    }
+  }
 
   function getConfiguredAutoAliases(state, target) {
     if (typeof readProjectProfileConfig !== 'function') return DEFAULT_AUTO_ALIASES.slice()
@@ -260,23 +275,128 @@ function buildLifecycleProjectTargetUtils({
     return validAliases
   }
 
-  function hasAutoAuthorizationPrompt(prompt, state, target) {
-    if (hasMentionToken(String(prompt || ''), '@devcodex-auto')) return true
-    for (const alias of getConfiguredAutoAliases(state, target)) {
-      if (hasMentionToken(String(prompt || ''), alias)) return true
+  function resolveAutoAuthorization(prompt, state, target) {
+    const text = String(prompt || '')
+    if (hasMentionToken(text, '@devcodex-auto')) {
+      return { authorized: true, source: '@devcodex-auto', kind: 'explicit' }
     }
-    const normalized = String(prompt || '').replace(/\s+/g, ' ').trim()
+    for (const alias of getConfiguredAutoAliases(state, target)) {
+      if (hasMentionToken(text, alias)) {
+        return { authorized: true, source: alias, kind: 'alias' }
+      }
+    }
+    const normalized = text.replace(/\s+/g, ' ').trim()
     const naturalLanguageAutoPatterns = [
       /(?:进入|启用|开启|使用|切换到)\s*(?:auto|自动|全自动)\s*(?:模式|执行|推进|处理)?/i,
       /(?:auto|自动|全自动)\s*(?:模式)?\s*(?:开始|继续|执行|推进|处理|修复|实施)/i,
       /(?:run|continue|proceed)\s+(?:in\s+)?auto\s+mode/i
     ]
-    return naturalLanguageAutoPatterns.some(pattern => pattern.test(normalized))
+    if (naturalLanguageAutoPatterns.some(pattern => pattern.test(normalized))) {
+      return { authorized: true, source: 'natural-language', kind: 'nl' }
+    }
+    return { authorized: false, source: '', kind: '' }
+  }
+
+  function hasAutoAuthorizationPrompt(prompt, state, target) {
+    return resolveAutoAuthorization(prompt, state, target).authorized === true
+  }
+
+  function hasAutoExitPrompt(prompt) {
+    const normalized = String(prompt || '').replace(/\s+/g, ' ').trim()
+    if (!normalized) return false
+    const exitPatterns = [
+      /(?:退出|关闭|停用|结束)\s*(?:auto|自动|全自动)\s*(?:模式)?/i,
+      /(?:exit|leave|disable|turn\s+off)\s+(?:auto\s+mode|auto)\b/i,
+      /(?:切回|切换到)\s*确认模式/i
+    ]
+    return exitPatterns.some(pattern => pattern.test(normalized))
+  }
+
+  function getValidStickyAuto(state, payload) {
+    const sticky = state?.stickyAuto || {}
+    if (!sticky.active) return null
+    const updatedAtMs = Number(sticky.updatedAtMs || 0)
+    if (!updatedAtMs || Date.now() - updatedAtMs > STICKY_PROJECT_TTL_MS) return null
+    const currentSessionKey = getPayloadSessionKey(payload)
+    const stickySessionKey = String(sticky.sessionKey || '').trim()
+    // Fail only on explicit session mismatch. Allow:
+    // - both empty (file-scoped sticky for hosts without session ids)
+    // - sticky has session but current prompt omits it (common host payload gaps)
+    // Reject when both present and differ.
+    if (currentSessionKey && stickySessionKey && currentSessionKey !== stickySessionKey) {
+      return null
+    }
+    return sticky
+  }
+
+  function setStickyAuto(state, source, kind, payload) {
+    if (!state || typeof state !== 'object') return
+    const sessionKey = getPayloadSessionKey(payload)
+    const now = Date.now()
+    const authorityRef = `auto:${source || 'unknown'}:${sessionKey || 'no-session'}:${now}`
+    state.stickyAuto = {
+      active: true,
+      source: source || 'unknown',
+      kind: kind || 'unknown',
+      sessionKey,
+      updatedAt: new Date().toISOString(),
+      updatedAtMs: now,
+      authorityRef,
+      reason: ''
+    }
+  }
+
+  function clearStickyAuto(state, reason) {
+    if (!state || typeof state !== 'object') return
+    state.stickyAuto = emptyStickyAuto(reason || '')
   }
 
   function detectExecutionMode(payload, state, target) {
     const prompt = extractUserPrompt(payload)
-    return hasAutoAuthorizationPrompt(prompt, state, target) ? EXECUTION_MODE.AUTO : EXECUTION_MODE.CONFIRM
+    if (hasAutoExitPrompt(prompt)) {
+      clearStickyAuto(state, 'user-exit')
+      return EXECUTION_MODE.CONFIRM
+    }
+    const auth = resolveAutoAuthorization(prompt, state, target)
+    if (auth.authorized) {
+      setStickyAuto(state, auth.source, auth.kind, payload)
+      return EXECUTION_MODE.AUTO
+    }
+    const sticky = getValidStickyAuto(state, payload)
+    if (sticky) {
+      // Refresh TTL while the same session keeps working under auto.
+      state.stickyAuto = {
+        ...sticky,
+        updatedAt: new Date().toISOString(),
+        updatedAtMs: Date.now(),
+        reason: ''
+      }
+      return EXECUTION_MODE.AUTO
+    }
+    if (state?.stickyAuto?.active) clearStickyAuto(state, 'sticky-expired')
+    return EXECUTION_MODE.CONFIRM
+  }
+
+  function buildExecutionModeContextMessage(state) {
+    const mode = state?.executionMode === EXECUTION_MODE.AUTO ? EXECUTION_MODE.AUTO : EXECUTION_MODE.CONFIRM
+    const sticky = state?.stickyAuto || {}
+    const stickyActive = mode === EXECUTION_MODE.AUTO && sticky.active === true
+    const source = sticky.source || (mode === EXECUTION_MODE.AUTO ? 'prompt' : 'none')
+    const authority = sticky.authorityRef ? ` authorityRef=${sticky.authorityRef}` : ''
+    if (mode === EXECUTION_MODE.AUTO) {
+      return [
+        `ExecutionModeV1: auto`,
+        `sticky=${stickyActive ? 'true' : 'false'}`,
+        `source=${source}${authority}`,
+        'CP1/CP2/CP3 auto-pass; do not wait for per-gate user confirmation; S01/S03-S07/C01/C10/C18 not waived; auto whitelist boundary unchanged; exit with 退出auto / exit auto mode'
+      ].join(' | ')
+    }
+    return [
+      'ExecutionModeV1: confirm',
+      'sticky=false',
+      'source=none',
+      'confirm mode: wait for explicit CP confirmation'
+    ].join(' | ')
   }
 
   function buildMultiProjectBlockMessage() {
@@ -314,7 +434,13 @@ function buildLifecycleProjectTargetUtils({
     buildMultiProjectWarningKey,
     shouldSuppressMultiProjectWarning,
     hasAutoAuthorizationPrompt,
+    hasAutoExitPrompt,
+    resolveAutoAuthorization,
+    getValidStickyAuto,
+    setStickyAuto,
+    clearStickyAuto,
     detectExecutionMode,
+    buildExecutionModeContextMessage,
     buildMultiProjectBlockMessage
   }
 }

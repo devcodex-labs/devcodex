@@ -242,6 +242,85 @@ function main() {
   runBootstrapReads()
   const defaultAliasState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
   assert.strictEqual(defaultAliasState.executionMode, 'auto')
+  assert.strictEqual(defaultAliasState.stickyAuto?.active, true)
+  assert.strictEqual(defaultAliasState.stickyAuto?.source, '@rocky')
+
+  // Sticky Auto: next turn without @rocky stays auto (same session)
+  cleanState({ mode: 'dev', agent: TEST_AGENT })
+  const stickyAutoOut1 = run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: 'sticky-auto-session',
+    prompt: '@rocky 开始需求'
+  })
+  assert.ok(
+    /ExecutionModeV1:\s*auto/i.test(String(stickyAutoOut1.systemMessage || '')),
+    'UserPromptSubmit should inject ExecutionModeV1: auto'
+  )
+  let stickyAutoState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(stickyAutoState.executionMode, 'auto')
+  run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: 'sticky-auto-session',
+    prompt: '确认'
+  })
+  stickyAutoState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(stickyAutoState.executionMode, 'auto', 'sticky auto must survive follow-up without @rocky')
+  assert.strictEqual(stickyAutoState.stickyAuto?.active, true)
+
+  // Loose CJK adjacency: 请@rocky执行
+  cleanState({ mode: 'dev', agent: TEST_AGENT })
+  run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: 'cjk-auto-session',
+    prompt: '请@rocky执行当前需求'
+  })
+  const cjkAutoState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(cjkAutoState.executionMode, 'auto', 'CJK-adjacent @rocky must enter auto')
+
+  // Explicit exit auto clears sticky
+  cleanState({ mode: 'dev', agent: TEST_AGENT })
+  run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: 'exit-auto-session',
+    prompt: '@rocky 进入任务'
+  })
+  run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: 'exit-auto-session',
+    prompt: '退出 auto 模式'
+  })
+  const exitAutoState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(exitAutoState.executionMode, 'confirm')
+  assert.strictEqual(exitAutoState.stickyAuto?.active, false)
+
+  // Sticky survives host payloads that omit session_id after first auto turn
+  cleanState({ mode: 'dev', agent: TEST_AGENT })
+  run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: 'omit-session-auto',
+    prompt: '@rocky 启动'
+  })
+  run({
+    hookEventName: 'UserPromptSubmit',
+    prompt: '继续推进'
+  })
+  const omitSessionSticky = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(omitSessionSticky.executionMode, 'auto', 'sticky auto must tolerate missing session_id on follow-up')
+
+  // Explicit different session_id drops sticky
+  cleanState({ mode: 'dev', agent: TEST_AGENT })
+  run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: 'session-a-auto',
+    prompt: '@rocky 启动'
+  })
+  run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: 'session-b-auto',
+    prompt: '继续推进'
+  })
+  const crossSessionSticky = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(crossSessionSticky.executionMode, 'confirm', 'different session_id must not inherit sticky auto')
 
   cleanState({
     mode: 'dev',

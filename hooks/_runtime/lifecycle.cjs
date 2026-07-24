@@ -350,6 +350,7 @@ const {
   setStickyProject,
   shouldSuppressMultiProjectWarning,
   detectExecutionMode,
+  buildExecutionModeContextMessage,
   buildMultiProjectBlockMessage
 } = buildLifecycleProjectTargetUtils({
   fs,
@@ -1322,6 +1323,7 @@ async function main() {
       'UserPromptSubmit',
       [
         buildBootstrapMessage(state),
+        buildExecutionModeContextMessage(state),
         continuationResolution
           ? `TaskResolutionV1 resolved-active: ${continuationResolution.candidate.project}/${continuationResolution.candidate.kind}/${continuationResolution.candidate.displayName}. The name only locates the task; rehydrate identity, sessions, and current bound artifacts before continuing.`
           : '',

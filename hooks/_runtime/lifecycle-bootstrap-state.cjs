@@ -442,6 +442,16 @@ function buildLifecycleBootstrapStateUtils(ctx) {
         updatedAt: '',
         updatedAtMs: 0
       },
+      stickyAuto: {
+        active: false,
+        source: '',
+        kind: '',
+        sessionKey: '',
+        updatedAt: '',
+        updatedAtMs: 0,
+        authorityRef: '',
+        reason: ''
+      },
       cp3Runtime: {},
       governanceIntake: emptyGovernanceIntakeState(),
       turnLiveness: createTurnLivenessState(),
@@ -504,6 +514,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       bootstrap: { ...current.bootstrap, ...(saved.bootstrap || {}) },
       visible: { ...current.visible, ...(saved.visible || {}) },
       stickyProject: { ...current.stickyProject, ...(saved.stickyProject || {}), ...(metaState?.stickyProject || {}) },
+      stickyAuto: { ...current.stickyAuto, ...(saved.stickyAuto || {}), ...(metaState?.stickyAuto || {}) },
       cp3Runtime: { ...current.cp3Runtime, ...(saved.cp3Runtime || {}) },
       governanceIntake: normalizeGovernanceIntakeState(saved.governanceIntake),
       turnLiveness: normalizeTurnLivenessState(saved.turnLiveness),
@@ -525,6 +536,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
         bootstrap: { ...(state.bootstrap || {}) },
         visible: { ...(state.visible || {}) },
         stickyProject: { ...(state.stickyProject || {}) },
+        stickyAuto: { ...(state.stickyAuto || {}) },
         dangerousApprovals: { ...(state.dangerousApprovals || {}) }
       }
       fs.mkdirSync(META_STATE_PATHS.dir, { recursive: true })
@@ -540,6 +552,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     state.activeProjectSource = previousState?.activeProjectSource || (CONTEXT_PROJECT ? 'context' : '')
     state.lastMultiProjectWarningKey = previousState?.lastMultiProjectWarningKey || ''
     state.stickyProject = { ...state.stickyProject, ...(previousState?.stickyProject || {}) }
+    state.stickyAuto = { ...state.stickyAuto, ...(previousState?.stickyAuto || {}) }
     state.cp3Runtime = { ...(previousState?.cp3Runtime || {}) }
     state.governanceIntake = normalizeGovernanceIntakeState(previousState?.governanceIntake)
     state.turnLiveness = normalizeTurnLivenessState(previousState?.turnLiveness)

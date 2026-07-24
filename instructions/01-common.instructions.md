@@ -135,6 +135,8 @@ version: 1.15.3
 当用户选择 `@devcodex-auto`、全局默认 `@rocky`、Profile `config.json` 的 `extensions.devcodex.autoAliases` 替换别名，或在文本宿主中明确自然语言授权 auto（如“进入 auto 模式执行”“全自动继续”“run in auto mode”）时：
 
 - Auto v1.1 正式入口包括显式 `@devcodex-auto`、全局默认 `@rocky`、项目 Profile 配置的 `extensions.devcodex.autoAliases` 替换别名与明确自然语言 auto 授权；配置了 `autoAliases` 时该列表替换全局默认别名，空数组表示关闭默认别名；模糊提及、追问 auto 规则、普通“继续”或未生效昵称不等价于 auto 授权
+- **Sticky Auto**：有效入口命中后会话级保持 `executionMode=auto`（与 sticky 项目同量级 TTL）；后续无别名的确认/继续/补充不掉回 confirm；显式 `退出 auto` / `关闭自动模式` / `exit auto mode` / `切回确认模式` 或 sticky 过期/换会话后回到 confirm
+- **别名匹配**：允许中文/标点贴靠（`请@rocky执行`）；`UserPromptSubmit` 注入 `ExecutionModeV1` 供模型消费；**白名单不因 sticky 扩大**
 - 仅在 `hook-enforced` 宿主中，对治理文件 / `.devcodex/` 产物 / README / auto 专属回归脚本等**白名单路径**启用自动推进
 - 非白名单路径默认切回确认模式，不承诺“所有源码任务自动执行”
 - `instruction-fallback` 宿主（如 JetBrains / Cursor）只保留 auto 规则语义，不承诺 runtime 级行为；支持 Hook 的宿主默认采用 `safety-only`：白名单边界输出提醒，`strict` 模式下才形成 runtime 硬拦截
@@ -232,7 +234,7 @@ version: 1.15.3
 | 安全底线 S01~S06 | 🔴 强制（不受 ENV_MODE 影响）| 🔴 强制（不受 ENV_MODE 影响）|
 | S07（入口检查强制）| 🔴 致命自修正（`instruction-fallback` 模式自检触发，自动补输出 PC0~PC7 基础状态）| 🔴 致命自修正（`instruction-fallback` 模式自检触发，自动补输出 PC0~PC7 + dev 扩展诊断）|
 
-> **CP 跳过路径**：显式 `@devcodex-auto`、全局默认 `@rocky`、Profile `extensions.devcodex.autoAliases` 替换别名或明确自然语言 auto 授权（如“进入 auto 模式执行”）；这是 Agent 级行为，与 ENV_MODE 无关。
+> **CP 跳过路径**：显式 `@devcodex-auto`、全局默认 `@rocky`、Profile `extensions.devcodex.autoAliases` 替换别名、明确自然语言 auto 授权，或会话 **Sticky Auto** 仍有效；这是 Agent 级行为，与 ENV_MODE 无关。
 
 ## NODE_META 读取规则
 

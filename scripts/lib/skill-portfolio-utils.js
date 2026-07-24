@@ -67,10 +67,19 @@ function collectReferences(content, knownNames) {
   return Array.from(refs).sort()
 }
 
+/**
+ * Collect hard dependency skill ids from SKILL.md body.
+ * Only mandatory language counts — plain "引用 `memory` Skill" does not.
+ * CR-01 / AUD-038: expand beyond "必须读取" so kernel chains are visible in the graph.
+ */
 function collectDependencies(content, knownNames) {
   const dependencies = new Set()
+  const mandatoryLine =
+    /(?:必须(?:继续|先)?(?:读取|调用|加载|执行)|应当(?:先)?(?:读取|调用|加载)|需要先(?:读取|调用)|先(?:读取|调用)|再(?:读取|调用)|depends?\s+on|must\s+(?:first\s+)?(?:read|load|call|invoke)|required\s+(?:to\s+)?(?:read|load)|依赖)/i
+  const negativeLine = /(?:不得|禁止|不要|不是|无需|不必|not\s+required|do\s+not)/i
   for (const line of content.split(/\r?\n/)) {
-    if (!/(?:必须(?:继续|先)?读取|must\s+(?:first\s+)?read)/i.test(line)) continue
+    if (!mandatoryLine.test(line)) continue
+    if (negativeLine.test(line)) continue
     for (const match of line.matchAll(/`([a-z0-9-]+)`|(?:skills\/|\.\.\/)([a-z0-9-]+)\/SKILL\.md/g)) {
       const name = match[1] || match[2]
       if (knownNames.has(name)) dependencies.add(name)
@@ -79,17 +88,93 @@ function collectDependencies(content, knownNames) {
   return Array.from(dependencies).sort()
 }
 
-function buildTriggerContract(id, description) {
+/**
+ * Merge body-derived deps with optional portfolio-evidence.json overrides (explicit requires).
+ */
+function mergeDependencies(bodyDeps, overrideDeps, knownNames, selfId) {
+  const out = new Set(bodyDeps)
+  for (const name of Array.isArray(overrideDeps) ? overrideDeps : []) {
+    if (typeof name === 'string' && knownNames.has(name) && name !== selfId) out.add(name)
+  }
+  return Array.from(out).sort()
+}
+
+function buildTriggerContract(id, description, override = {}) {
   const terms = new Set([id])
   for (const match of description.matchAll(/`([A-Za-z0-9-]+)`|\b([A-Za-z][A-Za-z0-9-]{2,})\b/g)) {
     terms.add(match[1] || match[2])
   }
+  // Optional evidence terms (do not invent semantics beyond provided strings)
+  for (const term of Array.isArray(override.triggerTerms) ? override.triggerTerms : []) {
+    if (typeof term === 'string' && term.trim()) terms.add(term.trim())
+  }
+  const positive = Array.isArray(override.triggerPositive) && override.triggerPositive.length
+    ? override.triggerPositive.map((item, index) => ({
+        fixture: item.fixture || `evidence-positive-${index + 1}`,
+        input: item.input != null ? String(item.input) : description
+      }))
+    : [{ fixture: 'frontmatter-description-resolves', input: description }]
+  const negative = Array.isArray(override.triggerNegative) && override.triggerNegative.length
+    ? override.triggerNegative.map((item, index) => ({
+        fixture: item.fixture || `evidence-negative-${index + 1}`,
+        input: item.input != null ? String(item.input) : ''
+      }))
+    : [{ fixture: 'empty-or-unregistered-trigger-rejected', input: '' }]
+  const ambiguous = Array.isArray(override.triggerAmbiguous)
+    ? override.triggerAmbiguous.map((item, index) => ({
+        fixture: item.fixture || `evidence-ambiguous-${index + 1}`,
+        input: item.input != null ? String(item.input) : ''
+      }))
+    : []
   return {
     terms: Array.from(terms).sort(),
-    positive: [{ fixture: 'frontmatter-description-resolves', input: description }],
-    negative: [{ fixture: 'empty-or-unregistered-trigger-rejected', input: '' }],
-    ambiguous: []
+    positive,
+    negative,
+    ambiguous
   }
+}
+
+/**
+ * Resolve trigger precision from portfolio-evidence override.
+ * Measured requires sampleCount > 0 and numeric precision in [0, 1].
+ * CR-01 / AUD-039: stop hardcoding structural-only when real evidence is supplied.
+ */
+function resolveTriggerPrecision(override = {}, evidenceDate = null) {
+  const raw = override.triggerPrecision
+  if (raw && raw.state === 'measured') {
+    const sampleCount = Number(raw.sampleCount)
+    const precision = Number(raw.precision)
+    if (Number.isInteger(sampleCount) && sampleCount > 0 && Number.isFinite(precision) && precision >= 0 && precision <= 1) {
+      return {
+        state: 'measured',
+        sampleCount,
+        precision,
+        falsePositiveRate: raw.falsePositiveRate == null ? null : Number(raw.falsePositiveRate),
+        falseNegativeRate: raw.falseNegativeRate == null ? null : Number(raw.falseNegativeRate),
+        manualCorrectionRate: raw.manualCorrectionRate == null ? null : Number(raw.manualCorrectionRate),
+        lastMeasuredAt: raw.lastMeasuredAt || evidenceDate || null
+      }
+    }
+  }
+  const fixtureSampleCount =
+    (Array.isArray(override.triggerPositive) ? override.triggerPositive.length : 0) +
+    (Array.isArray(override.triggerNegative) ? override.triggerNegative.length : 0)
+  return {
+    state: 'structural-only',
+    sampleCount: fixtureSampleCount > 0 ? fixtureSampleCount : 0,
+    precision: null,
+    falsePositiveRate: null,
+    falseNegativeRate: null,
+    manualCorrectionRate: null,
+    lastMeasuredAt: fixtureSampleCount > 0 ? (override.triggerPrecision && override.triggerPrecision.lastMeasuredAt) || evidenceDate || null : null
+  }
+}
+
+function summarizeTriggerQuality(skills) {
+  const measured = skills.filter(skill => skill.evidence && skill.evidence.triggerPrecision && skill.evidence.triggerPrecision.state === 'measured').length
+  if (measured === 0) return 'structural-only'
+  if (measured === skills.length) return 'measured'
+  return 'mixed'
 }
 
 function classifyConsumer(relativePath) {
@@ -527,7 +612,9 @@ function buildPortfolio(root, options = {}) {
       consumerProjectionRows.push(`${id}:${consumer.path}:${consumer.role}`)
     }
     const references = collectReferences(content, knownNames).filter(name => name !== id)
-    const dependencies = collectDependencies(content, knownNames).filter(name => name !== id)
+    const override = portfolioEvidence.skills[id] || {}
+    const bodyDependencies = collectDependencies(content, knownNames).filter(name => name !== id)
+    const dependencies = mergeDependencies(bodyDependencies, override.dependencies, knownNames, id)
     const validationProfile = consumerRows
       .filter(item => item.role === 'current' && /^scripts\/(?:test-|validate)/.test(item.path))
       .map(item => item.path)
@@ -535,7 +622,6 @@ function buildPortfolio(root, options = {}) {
       if (!validationProfile.includes(fixture)) validationProfile.push(fixture)
     }
     validationProfile.sort()
-    const override = portfolioEvidence.skills[id] || {}
     const currentConsumer = consumerRows.find(item => item.role === 'current')
     const operationalReadiness = {
       state: currentConsumer && isRegistered ? 'complete' : 'incomplete',
@@ -549,9 +635,11 @@ function buildPortfolio(root, options = {}) {
     const hash = sha256(canonicalContent)
     const sourceBytes = Buffer.byteLength(canonicalContent, 'utf8')
     sourceRows.push(`${source}:${hash}`)
+    const triggers = buildTriggerContract(id, frontmatter.description, override)
+    const triggerPrecision = resolveTriggerPrecision(override, portfolioEvidence.evidenceDate)
     const skillIndex = buildSkillIndex({
       id,
-      triggers: buildTriggerContract(id, frontmatter.description),
+      triggers,
       dependencies,
       conflicts,
       validationProfile,
@@ -588,15 +676,7 @@ function buildPortfolio(root, options = {}) {
       evidence: {
         registration: isRegistered ? 'plugin.json' : null,
         operationalReadiness,
-        triggerPrecision: {
-          state: 'structural-only',
-          sampleCount: 0,
-          precision: null,
-          falsePositiveRate: null,
-          falseNegativeRate: null,
-          manualCorrectionRate: null,
-          lastMeasuredAt: null
-        },
+        triggerPrecision,
         lifecycleAuthorization: 'plugin.json#skills[].lifecycleState',
         stateRationale: override.stateRationale || portfolioEvidence.defaults.stateRationale,
         promotionCriteria: override.promotionCriteria || portfolioEvidence.defaults.promotionCriteria
@@ -625,6 +705,13 @@ function buildPortfolio(root, options = {}) {
     `consumer-inventory:${consumerInventoryDigest}`,
     `consumer-projection:${consumerProjectionDigest}`
   ].join('\n'))
+  const triggerPrecisionMeasuredCount = skills.filter(skill => skill.evidence.triggerPrecision.state === 'measured').length
+  const triggerQuality = summarizeTriggerQuality(skills)
+  const evidenceNote = triggerQuality === 'structural-only'
+    ? 'Operational lifecycle evidence is complete for registered current consumers; trigger precision remains structural-only until measured samples are supplied via portfolio-evidence.json.'
+    : triggerQuality === 'mixed'
+      ? `Operational evidence complete; trigger precision mixed (${triggerPrecisionMeasuredCount}/${skills.length} measured via portfolio-evidence.json).`
+      : 'Operational evidence complete; all skills carry measured trigger precision samples.'
 
   return {
     schemaVersion: 2,
@@ -655,9 +742,9 @@ function buildPortfolio(root, options = {}) {
       dependencyEdgeCount: edges.length,
       conflictReviewedCount: skills.filter(skill => skill.conflictReview.status === 'reviewed-none' || skill.conflictReview.status === 'declared').length,
       operationalEvidenceCompleteCount: skills.filter(skill => skill.evidence.operationalReadiness.state === 'complete').length,
-      triggerPrecisionMeasuredCount: skills.filter(skill => skill.evidence.triggerPrecision.state === 'measured').length,
+      triggerPrecisionMeasuredCount,
       instructionBudgetP95Bytes: percentile(skillPaths.map(relative => Buffer.byteLength(canonicalizeTextForDigest(readText(relative)), 'utf8')), 0.95),
-      triggerQuality: 'structural-only',
+      triggerQuality,
       sidecarPresentCount: skills.filter(skill => skill.sidecar && skill.sidecar.state === 'valid').length
     },
     dependencyGraph: { nodes, edges, cycles },
@@ -665,7 +752,7 @@ function buildPortfolio(root, options = {}) {
     health: {
       orphanActive,
       lifecycleMutationAllowed: false,
-      evidenceNote: 'Operational lifecycle evidence is complete for registered current consumers; trigger precision remains structural-only until real samples exist.'
+      evidenceNote
     },
     skills
   }
@@ -706,6 +793,9 @@ function validatePortfolio(portfolio) {
     const triggerPrecision = skill.evidence && skill.evidence.triggerPrecision
     if (!triggerPrecision || !['structural-only', 'measured'].includes(triggerPrecision.state)) errors.push(`invalid trigger precision state: ${skill.id}`)
     if (triggerPrecision && triggerPrecision.state === 'measured' && triggerPrecision.sampleCount <= 0) errors.push(`measured trigger precision lacks samples: ${skill.id}`)
+    if (triggerPrecision && triggerPrecision.state === 'measured' && (typeof triggerPrecision.precision !== 'number' || triggerPrecision.precision < 0 || triggerPrecision.precision > 1)) {
+      errors.push(`measured trigger precision missing precision in [0,1]: ${skill.id}`)
+    }
     const index = skill.skillIndex
     if (!index || index.id !== skill.id || index.type !== 'skill') errors.push(`invalid SkillIndexV2 identity: ${skill.id}`)
     for (const field of ['workflow', 'phase', 'domains', 'requires', 'conflictsWith', 'fixtures', 'probeSuiteRefs']) {
@@ -720,6 +810,9 @@ function validatePortfolio(portfolio) {
     errors.push('dependency graph contains cycles')
   }
   if (portfolio.summary && portfolio.summary.skillCount !== ids.size) errors.push('summary skillCount mismatch')
+  if (portfolio.summary && !['structural-only', 'mixed', 'measured'].includes(portfolio.summary.triggerQuality)) {
+    errors.push(`invalid summary triggerQuality: ${portfolio.summary.triggerQuality}`)
+  }
   return errors
 }
 
@@ -735,6 +828,9 @@ module.exports = {
   buildTriggerContract,
   canonicalizeTextForDigest,
   collectDependencies,
+  mergeDependencies,
+  resolveTriggerPrecision,
+  summarizeTriggerQuality,
   detectCycles,
   gitIndexSnapshot,
   gitLsFiles,

@@ -258,22 +258,39 @@ assert.strictEqual(first.skills.find(skill => skill.id === 'user-visible-output-
 assert.strictEqual(first.skills.find(skill => skill.id === 'host-instruction-projection').lifecycleState, 'active')
 assert.strictEqual(first.summary.orphanActiveCount, 0)
 assert.strictEqual(first.summary.dependencyCycleCount, 0)
-assert.strictEqual(first.summary.triggerQuality, 'structural-only')
-assert.strictEqual(first.summary.dependencyEdgeCount, 3)
+assert.ok(['structural-only', 'mixed', 'measured'].includes(first.summary.triggerQuality))
+assert.ok(first.summary.dependencyEdgeCount >= 3, 'dependency graph must retain mandatory-read edges')
+assert.ok(first.summary.dependencyEdgeCount >= 20, 'CR-01 expanded mandatory-language deps should increase edge count')
+assert.strictEqual(first.summary.dependencyCycleCount, 0)
 assert.strictEqual(first.summary.conflictReviewedCount, 83)
 assert.strictEqual(first.summary.operationalEvidenceCompleteCount, 83)
-assert.strictEqual(first.summary.triggerPrecisionMeasuredCount, 0)
-assert.deepStrictEqual(first.dependencyGraph.edges, [
+assert.ok(first.summary.triggerPrecisionMeasuredCount >= 3, 'kernel skills should carry measured trigger samples via portfolio-evidence')
+assert.strictEqual(first.summary.triggerQuality, 'mixed')
+// Core historical edges must remain
+for (const edge of [
   { from: 'dev-testing', to: 'api-verification' },
   { from: 'dev-testing', to: 'dev-scenario-test' },
   { from: 'spec-governance', to: 'spec-absorption' }
-])
+]) {
+  assert.ok(
+    first.dependencyGraph.edges.some(item => item.from === edge.from && item.to === edge.to),
+    `missing required edge ${edge.from}->${edge.to}`
+  )
+}
+// Expanded mandatory call/load language
+assert.ok(first.dependencyGraph.edges.some(item => item.from === 'dev-default' && item.to === 'cp-gate'))
+assert.ok(first.skills.find(skill => skill.id === 'intent').evidence.triggerPrecision.state === 'measured')
+assert.ok(first.skills.find(skill => skill.id === 'routing').dependencies.includes('intent'))
 for (const skill of first.skills.filter(item => item.lifecycleState === 'active')) {
   assert.strictEqual(skill.evidence.operationalReadiness.state, 'complete')
   for (const field of ['currentConsumer', 'positiveFixture', 'negativeFixture', 'rollbackToGray', 'lastEvidenceAt']) {
     assert.ok(skill.evidence.operationalReadiness[field], `${skill.id} missing ${field}`)
   }
-  assert.strictEqual(skill.evidence.triggerPrecision.state, 'structural-only')
+  assert.ok(['structural-only', 'measured'].includes(skill.evidence.triggerPrecision.state), `${skill.id} bad precision state`)
+  if (skill.evidence.triggerPrecision.state === 'measured') {
+    assert.ok(skill.evidence.triggerPrecision.sampleCount > 0)
+    assert.ok(typeof skill.evidence.triggerPrecision.precision === 'number')
+  }
   assert.ok(skill.validationProfile.length > 0)
   assert.ok(['reviewed-none', 'declared'].includes(skill.conflictReview.status))
   assert.strictEqual(skill.skillIndex.id, skill.id)
@@ -291,7 +308,18 @@ assert.deepStrictEqual(
   collectDependencies('必须继续读取 `api-verification`。\n普通引用 `memory` Skill。', new Set(['api-verification', 'memory'])),
   ['api-verification']
 )
+assert.deepStrictEqual(
+  collectDependencies('必须调用 `cp-gate`。\n依赖 `intent`。\n普通引用 `memory` Skill。', new Set(['cp-gate', 'intent', 'memory'])),
+  ['cp-gate', 'intent']
+)
 assert.deepStrictEqual(buildTriggerContract('example', '当任务涉及 API contract 时使用').negative[0].input, '')
+assert.strictEqual(
+  buildTriggerContract('example', 'desc', {
+    triggerPositive: [{ fixture: 'p1', input: 'yes' }],
+    triggerNegative: [{ fixture: 'n1', input: 'no' }]
+  }).positive[0].fixture,
+  'p1'
+)
 
 const invalid = JSON.parse(JSON.stringify(first))
 invalid.skills[0].lifecycleState = 'auto-promoted'

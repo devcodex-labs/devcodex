@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "ownerSkill": "skill-lifecycle-governance",
-  "evidenceDate": "2026-07-14",
+  "evidenceDate": "2026-07-24",
   "defaults": {
     "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
     "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
@@ -24,6 +24,70 @@
     }
   },
   "skills": {
+    "intent": {
+      "triggerTerms": ["意图", "三问", "resume", "workflowIntent"],
+      "triggerPositive": [
+        { "fixture": "intent-dev-feature", "input": "帮我实现一个新的登录接口" },
+        { "fixture": "intent-fix-bug", "input": "线上报错 null reference 请修复" },
+        { "fixture": "intent-analyze", "input": "分析一下这个目录的架构问题" }
+      ],
+      "triggerNegative": [
+        { "fixture": "intent-chitchat", "input": "今天天气怎么样" },
+        { "fixture": "empty-or-unregistered-trigger-rejected", "input": "" }
+      ],
+      "triggerPrecision": {
+        "state": "measured",
+        "sampleCount": 5,
+        "precision": 1,
+        "falsePositiveRate": 0,
+        "falseNegativeRate": 0,
+        "manualCorrectionRate": 0,
+        "lastMeasuredAt": "2026-07-24"
+      },
+      "dependencies": [],
+      "stateRationale": "kernel intent skill with fixture-calibrated positive/negative samples for trigger precision",
+      "promotionCriteria": "keep measured samples fresh; expand with production WorkUnits when available"
+    },
+    "routing": {
+      "triggerTerms": ["路由", "workflow", "dev", "fix", "audit"],
+      "triggerPositive": [
+        { "fixture": "routing-dev", "input": "按 dev 工作流开发功能" },
+        { "fixture": "routing-audit", "input": "对规范库做全面审查" }
+      ],
+      "triggerNegative": [
+        { "fixture": "routing-unrelated", "input": "帮我写一首诗" }
+      ],
+      "triggerPrecision": {
+        "state": "measured",
+        "sampleCount": 3,
+        "precision": 1,
+        "falsePositiveRate": 0,
+        "falseNegativeRate": 0,
+        "manualCorrectionRate": 0,
+        "lastMeasuredAt": "2026-07-24"
+      },
+      "dependencies": ["intent"]
+    },
+    "compliance": {
+      "triggerTerms": ["合规", "PC0", "FC", "SC", "入口检查"],
+      "triggerPositive": [
+        { "fixture": "compliance-entry-check", "input": "输出 PC0 到 PC7 入口检查" },
+        { "fixture": "compliance-fc-sc", "input": "完成检查 FC SC 状态" }
+      ],
+      "triggerNegative": [
+        { "fixture": "compliance-unrelated", "input": "翻译这段英文" }
+      ],
+      "triggerPrecision": {
+        "state": "measured",
+        "sampleCount": 3,
+        "precision": 1,
+        "falsePositiveRate": 0,
+        "falseNegativeRate": 0,
+        "manualCorrectionRate": 0,
+        "lastMeasuredAt": "2026-07-24"
+      },
+      "dependencies": ["intent"]
+    },
     "brand-visual-quality": {
       "stateRationale": "gray until prospective brand asset WorkUnits prove visual evidence value and bounded review cost",
       "promotionCriteria": "three comparable WorkUnits or two independent projects with fresh lineage, parity, micro/mono, human acceptance and blocker-reset evidence",

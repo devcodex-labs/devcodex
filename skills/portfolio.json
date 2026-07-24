@@ -6,15 +6,15 @@
     "skillsPattern": "skills/*/SKILL.md",
     "optionalSidecar": "skills/*/devcodex.skill.json",
     "registry": "plugin.json",
-    "sourceDigest": "304e2c41eb4251a66964670539e18f218299e441442a9f6ff11974fcb26a57a2",
+    "sourceDigest": "6a82b2bd1258e9371549838cb6a0271cc0b32ec9aee33d5f3fe269feb8b2e065",
     "sidecarDigest": "774105d7947b340d15d17115fcb8e37b62ae545cf553f06126d529184fd74872",
     "pluginDigest": "f293edb3ea6c369b66f9af4190b16b5cd9d86100f0ef9432248e849c0fa2bd95",
     "portfolioEvidence": "skills/portfolio-evidence.json",
-    "portfolioEvidenceDigest": "85229c1463a5068750d5417e5ebf960907532dccf99b1cd3da0a88f7007792b4",
-    "consumerInventoryFileCount": 563,
-    "consumerInventoryDigest": "1346d7aefcdf019d0dc10c7a2f58a829acf18a41a3facd0202c510cc52575a91",
-    "consumerProjectionDigest": "d433f91230a2e5988ddb5a4c2abf76e6b47f1070a8521685f553c8a182dc8eb1",
-    "portfolioInputDigest": "6d8732c971f57d1beeef6827a2b0406720c962e887992d44ad17b4fd82225618"
+    "portfolioEvidenceDigest": "8364a73c66ed2ec9787cdb9300223278d128a45b689a2b8deda0d1f03189f42b",
+    "consumerInventoryFileCount": 564,
+    "consumerInventoryDigest": "2bb52151b34b6aac8e3be2beeeb094da3259a710f3cf119cf4cefc9b3f786801",
+    "consumerProjectionDigest": "28e6af69a69fdfa1f84c58ffb1295c9ed7d738b26ee4725520c65b28c4428c8e",
+    "portfolioInputDigest": "1ada7107bd9f965d352f84e43be9d93f6b710bb7e11172919cd4388ad6b90add"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -24,12 +24,12 @@
     "graySkillCount": 3,
     "orphanActiveCount": 0,
     "dependencyCycleCount": 0,
-    "dependencyEdgeCount": 3,
+    "dependencyEdgeCount": 25,
     "conflictReviewedCount": 83,
     "operationalEvidenceCompleteCount": 83,
-    "triggerPrecisionMeasuredCount": 0,
+    "triggerPrecisionMeasuredCount": 3,
     "instructionBudgetP95Bytes": 22038,
-    "triggerQuality": "structural-only",
+    "triggerQuality": "mixed",
     "sidecarPresentCount": 0
   },
   "dependencyGraph": {
@@ -120,12 +120,100 @@
     ],
     "edges": [
       {
+        "from": "analyze-default",
+        "to": "load-profile"
+      },
+      {
+        "from": "compliance",
+        "to": "intent"
+      },
+      {
+        "from": "dev-default",
+        "to": "cp-gate"
+      },
+      {
+        "from": "dev-default",
+        "to": "execution-contract"
+      },
+      {
+        "from": "dev-default",
+        "to": "impact-review"
+      },
+      {
+        "from": "dev-default",
+        "to": "spec-governance"
+      },
+      {
+        "from": "dev-default",
+        "to": "test-router"
+      },
+      {
+        "from": "dev-docs",
+        "to": "user-manual-authoring"
+      },
+      {
+        "from": "dev-plan-review",
+        "to": "impact-review"
+      },
+      {
+        "from": "dev-refactor",
+        "to": "impact-review"
+      },
+      {
         "from": "dev-testing",
         "to": "api-verification"
       },
       {
         "from": "dev-testing",
         "to": "dev-scenario-test"
+      },
+      {
+        "from": "document-sync",
+        "to": "source-consumer-sync"
+      },
+      {
+        "from": "evolution-governance",
+        "to": "skill-lifecycle-governance"
+      },
+      {
+        "from": "fix-default",
+        "to": "impact-review"
+      },
+      {
+        "from": "fix-default",
+        "to": "requirement-parallel-orchestration"
+      },
+      {
+        "from": "fix-default",
+        "to": "spec-governance"
+      },
+      {
+        "from": "incremental-project-analysis",
+        "to": "analyze-default"
+      },
+      {
+        "from": "incremental-project-analysis",
+        "to": "skill-gap-analysis"
+      },
+      {
+        "from": "readme-authoring",
+        "to": "audit-readme"
+      },
+      {
+        "from": "report",
+        "to": "compliance"
+      },
+      {
+        "from": "routing",
+        "to": "intent"
+      },
+      {
+        "from": "routing",
+        "to": "skill-lifecycle-governance"
+      },
+      {
+        "from": "spec-absorption",
+        "to": "skill-gap-analysis"
       },
       {
         "from": "spec-governance",
@@ -457,7 +545,7 @@
   "health": {
     "orphanActive": [],
     "lifecycleMutationAllowed": false,
-    "evidenceNote": "Operational lifecycle evidence is complete for registered current consumers; trigger precision remains structural-only until real samples exist."
+    "evidenceNote": "Operational evidence complete; trigger precision mixed (3/83 measured via portfolio-evidence.json)."
   },
   "skills": [
     {
@@ -551,7 +639,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "accessibility-i18n",
         "type": "skill",
@@ -611,7 +699,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -738,7 +826,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "ai-agent-system-architecture",
         "type": "skill",
@@ -798,7 +886,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -902,7 +990,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "ai-evaluation-engineering",
         "type": "skill",
@@ -963,7 +1051,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -1012,7 +1100,9 @@
       "sourceBytes": 9338,
       "version": "1.15.3",
       "lifecycleState": "active",
-      "dependencies": [],
+      "dependencies": [
+        "load-profile"
+      ],
       "references": [],
       "conflicts": [],
       "conflictReview": {
@@ -1105,7 +1195,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "analyze-default",
         "type": "skill",
@@ -1132,7 +1222,9 @@
           ],
           "ambiguous": []
         },
-        "requires": [],
+        "requires": [
+          "load-profile"
+        ],
         "conflictsWith": [],
         "priority": 100,
         "visibility": "agent",
@@ -1164,7 +1256,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -1292,7 +1384,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "analyze-research",
         "type": "skill",
@@ -1349,7 +1441,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -1460,7 +1552,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "api-contract-architecture",
         "type": "skill",
@@ -1524,7 +1616,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -1749,7 +1841,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "api-verification",
         "type": "skill",
@@ -1811,7 +1903,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -2023,7 +2115,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "audit-common",
         "type": "skill",
@@ -2085,7 +2177,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -2191,7 +2283,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "audit-dimensions",
         "type": "skill",
@@ -2250,7 +2342,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -2394,7 +2486,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "audit-document",
         "type": "skill",
@@ -2455,7 +2547,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -2607,7 +2699,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "audit-execution-guide",
         "type": "skill",
@@ -2665,7 +2757,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -2819,7 +2911,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "audit-project",
         "type": "skill",
@@ -2878,7 +2970,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -3038,7 +3130,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "audit-readme",
         "type": "skill",
@@ -3099,7 +3191,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -3285,7 +3377,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "audit-release",
         "type": "skill",
@@ -3356,7 +3448,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -3478,7 +3570,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "audit-report",
         "type": "skill",
@@ -3537,7 +3629,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -3684,7 +3776,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "audit-requirements",
         "type": "skill",
@@ -3744,7 +3836,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -3880,7 +3972,7 @@
         "scripts/validate-profile.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "audit-session",
         "type": "skill",
@@ -3943,7 +4035,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -4066,7 +4158,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "audit-tech-design",
         "type": "skill",
@@ -4126,7 +4218,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -4267,7 +4359,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "audit-user-manual",
         "type": "skill",
@@ -4329,7 +4421,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -4427,7 +4519,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "backend-domain-architecture",
         "type": "skill",
@@ -4486,7 +4578,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -4634,7 +4726,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "brand-visual-quality",
         "type": "skill",
@@ -4699,7 +4791,7 @@
           "positiveFixture": "scripts/test-brand-visual-quality.js#complete-accepted-evidence",
           "negativeFixture": "scripts/test-brand-visual-quality.js#incomplete-or-unreset-blocker-rejected",
           "rollbackToGray": "remain or return gray when false positives, review cost, recurrence or design-system overlap exceed the accepted boundary",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -4796,7 +4888,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "business-model-review",
         "type": "skill",
@@ -4854,7 +4946,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -4877,23 +4969,31 @@
       "owner": "compliance",
       "triggers": {
         "terms": [
+          "FC",
           "PC0",
           "PC7",
+          "SC",
           "chat",
           "compliance",
           "dev",
-          "prod"
+          "prod",
+          "入口检查",
+          "合规"
         ],
         "positive": [
           {
-            "fixture": "frontmatter-description-resolves",
-            "input": "执行入口检查与 FC/SC/RC/T 合规校验。PC0~PC7 入口检查所有模式启用；仅 dev 模式执行全量合规校验，prod 模式不执行（规范已验证）。chat 豁免合规块。"
+            "fixture": "compliance-entry-check",
+            "input": "输出 PC0 到 PC7 入口检查"
+          },
+          {
+            "fixture": "compliance-fc-sc",
+            "input": "完成检查 FC SC 状态"
           }
         ],
         "negative": [
           {
-            "fixture": "empty-or-unregistered-trigger-rejected",
-            "input": ""
+            "fixture": "compliance-unrelated",
+            "input": "翻译这段英文"
           }
         ],
         "ambiguous": []
@@ -4902,11 +5002,13 @@
         "skills/compliance/SKILL.md"
       ],
       "source": "skills/compliance/SKILL.md",
-      "hash": "7875025fb64f799970666893efa225ec133152c49ab6ea901fa1c8175039b6ee",
-      "sourceBytes": 18908,
+      "hash": "ad4c780873ad6529af679fc6ff233b9fc73e7e17d1ed39c6f590f39695efee48",
+      "sourceBytes": 20469,
       "version": "1.15.3",
       "lifecycleState": "active",
-      "dependencies": [],
+      "dependencies": [
+        "intent"
+      ],
       "references": [
         "load-profile"
       ],
@@ -5409,7 +5511,7 @@
         "scripts/test-workflow-completion-contract.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "compliance",
         "type": "skill",
@@ -5418,28 +5520,38 @@
         "domains": [],
         "triggers": {
           "terms": [
+            "FC",
             "PC0",
             "PC7",
+            "SC",
             "chat",
             "compliance",
             "dev",
-            "prod"
+            "prod",
+            "入口检查",
+            "合规"
           ],
           "positive": [
             {
-              "fixture": "frontmatter-description-resolves",
-              "input": "执行入口检查与 FC/SC/RC/T 合规校验。PC0~PC7 入口检查所有模式启用；仅 dev 模式执行全量合规校验，prod 模式不执行（规范已验证）。chat 豁免合规块。"
+              "fixture": "compliance-entry-check",
+              "input": "输出 PC0 到 PC7 入口检查"
+            },
+            {
+              "fixture": "compliance-fc-sc",
+              "input": "完成检查 FC SC 状态"
             }
           ],
           "negative": [
             {
-              "fixture": "empty-or-unregistered-trigger-rejected",
-              "input": ""
+              "fixture": "compliance-unrelated",
+              "input": "翻译这段英文"
             }
           ],
           "ambiguous": []
         },
-        "requires": [],
+        "requires": [
+          "intent"
+        ],
         "conflictsWith": [],
         "priority": 100,
         "visibility": "agent",
@@ -5475,16 +5587,16 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
-          "state": "structural-only",
-          "sampleCount": 0,
-          "precision": null,
-          "falsePositiveRate": null,
-          "falseNegativeRate": null,
-          "manualCorrectionRate": null,
-          "lastMeasuredAt": null
+          "state": "measured",
+          "sampleCount": 3,
+          "precision": 1,
+          "falsePositiveRate": 0,
+          "falseNegativeRate": 0,
+          "manualCorrectionRate": 0,
+          "lastMeasuredAt": "2026-07-24"
         },
         "lifecycleAuthorization": "plugin.json#skills[].lifecycleState",
         "stateRationale": "registered source, current consumer and operational fixtures are present",
@@ -5593,7 +5705,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "consumer-validation-engineering",
         "type": "skill",
@@ -5660,7 +5772,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -5875,6 +5987,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-skill-portfolio.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-workflow-capabilities.js",
           "role": "current"
         },
@@ -5956,7 +6072,7 @@
         "scripts/test-workflow-capabilities.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "cp-gate",
         "type": "skill",
@@ -6021,7 +6137,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -6119,7 +6235,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "data-architecture",
         "type": "skill",
@@ -6178,7 +6294,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -6285,7 +6401,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "design-system-architecture",
         "type": "skill",
@@ -6345,7 +6461,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -6463,7 +6579,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "dev-database",
         "type": "skill",
@@ -6522,7 +6638,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -6575,7 +6691,13 @@
       "sourceBytes": 14644,
       "version": "1.15.3",
       "lifecycleState": "active",
-      "dependencies": [],
+      "dependencies": [
+        "cp-gate",
+        "execution-contract",
+        "impact-review",
+        "spec-governance",
+        "test-router"
+      ],
       "references": [
         "cp-gate",
         "dev-plan-review",
@@ -6696,6 +6818,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-skill-portfolio.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/validation-manifest.json",
           "role": "current"
         },
@@ -6762,7 +6888,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "dev-default",
         "type": "skill",
@@ -6793,7 +6919,13 @@
           ],
           "ambiguous": []
         },
-        "requires": [],
+        "requires": [
+          "cp-gate",
+          "execution-contract",
+          "impact-review",
+          "spec-governance",
+          "test-router"
+        ],
         "conflictsWith": [],
         "priority": 100,
         "visibility": "agent",
@@ -6827,7 +6959,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -6876,7 +7008,9 @@
       "sourceBytes": 8286,
       "version": "1.15.3",
       "lifecycleState": "active",
-      "dependencies": [],
+      "dependencies": [
+        "user-manual-authoring"
+      ],
       "references": [],
       "conflicts": [],
       "conflictReview": {
@@ -7022,7 +7156,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "dev-docs",
         "type": "skill",
@@ -7049,7 +7183,9 @@
           ],
           "ambiguous": []
         },
-        "requires": [],
+        "requires": [
+          "user-manual-authoring"
+        ],
         "conflictsWith": [],
         "priority": 100,
         "visibility": "agent",
@@ -7082,7 +7218,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -7204,7 +7340,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "dev-init",
         "type": "skill",
@@ -7263,7 +7399,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -7376,7 +7512,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "dev-optimization",
         "type": "skill",
@@ -7434,7 +7570,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -7485,7 +7621,9 @@
       "sourceBytes": 22038,
       "version": "1.15.3",
       "lifecycleState": "active",
-      "dependencies": [],
+      "dependencies": [
+        "impact-review"
+      ],
       "references": [
         "api-verification",
         "dev-database",
@@ -7680,7 +7818,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "dev-plan-review",
         "type": "skill",
@@ -7709,7 +7847,9 @@
           ],
           "ambiguous": []
         },
-        "requires": [],
+        "requires": [
+          "impact-review"
+        ],
         "conflictsWith": [],
         "priority": 100,
         "visibility": "agent",
@@ -7743,7 +7883,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -7790,7 +7930,9 @@
       "sourceBytes": 1736,
       "version": "1.15.3",
       "lifecycleState": "active",
-      "dependencies": [],
+      "dependencies": [
+        "impact-review"
+      ],
       "references": [],
       "conflicts": [],
       "conflictReview": {
@@ -7843,7 +7985,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "dev-refactor",
         "type": "skill",
@@ -7868,7 +8010,9 @@
           ],
           "ambiguous": []
         },
-        "requires": [],
+        "requires": [
+          "impact-review"
+        ],
         "conflictsWith": [],
         "priority": 100,
         "visibility": "agent",
@@ -7900,7 +8044,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -8039,7 +8183,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "dev-scenario-test",
         "type": "skill",
@@ -8099,7 +8243,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -8252,7 +8396,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "dev-testing",
         "type": "skill",
@@ -8316,7 +8460,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -8424,7 +8568,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "developer-experience-architecture",
         "type": "skill",
@@ -8489,7 +8633,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -8595,7 +8739,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "distributed-systems-architecture",
         "type": "skill",
@@ -8654,7 +8798,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -8701,7 +8845,9 @@
       "sourceBytes": 8543,
       "version": "1.15.3",
       "lifecycleState": "active",
-      "dependencies": [],
+      "dependencies": [
+        "source-consumer-sync"
+      ],
       "references": [],
       "conflicts": [],
       "conflictReview": {
@@ -8883,7 +9029,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "document-sync",
         "type": "skill",
@@ -8908,7 +9054,9 @@
           ],
           "ambiguous": []
         },
-        "requires": [],
+        "requires": [
+          "source-consumer-sync"
+        ],
         "conflictsWith": [],
         "priority": 100,
         "visibility": "agent",
@@ -8941,7 +9089,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -8990,7 +9138,9 @@
       "sourceBytes": 10088,
       "version": "1.15.3",
       "lifecycleState": "active",
-      "dependencies": [],
+      "dependencies": [
+        "skill-lifecycle-governance"
+      ],
       "references": [],
       "conflicts": [],
       "conflictReview": {
@@ -9071,7 +9221,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "evolution-governance",
         "type": "skill",
@@ -9098,7 +9248,9 @@
           ],
           "ambiguous": []
         },
-        "requires": [],
+        "requires": [
+          "skill-lifecycle-governance"
+        ],
         "conflictsWith": [],
         "priority": 100,
         "visibility": "agent",
@@ -9130,7 +9282,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -9358,7 +9510,7 @@
         "scripts/test-workflow-completion-contract.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "execution-contract",
         "type": "skill",
@@ -9423,7 +9575,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -9538,7 +9690,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "expert-output-quality",
         "type": "skill",
@@ -9598,7 +9750,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -9700,7 +9852,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "external-integration-architecture",
         "type": "skill",
@@ -9763,7 +9915,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -9811,7 +9963,11 @@
       "sourceBytes": 7006,
       "version": "1.15.3",
       "lifecycleState": "active",
-      "dependencies": [],
+      "dependencies": [
+        "impact-review",
+        "requirement-parallel-orchestration",
+        "spec-governance"
+      ],
       "references": [
         "compliance",
         "cp-gate",
@@ -9963,7 +10119,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "fix-default",
         "type": "skill",
@@ -9989,7 +10145,11 @@
           ],
           "ambiguous": []
         },
-        "requires": [],
+        "requires": [
+          "impact-review",
+          "requirement-parallel-orchestration",
+          "spec-governance"
+        ],
         "conflictsWith": [],
         "priority": 100,
         "visibility": "agent",
@@ -10024,7 +10184,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -10121,7 +10281,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "fix-security",
         "type": "skill",
@@ -10179,7 +10339,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -10282,7 +10442,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "frontend-architecture",
         "type": "skill",
@@ -10346,7 +10506,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -10443,7 +10603,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "growth-analytics",
         "type": "skill",
@@ -10501,7 +10661,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -10656,7 +10816,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "host-capability-routing",
         "type": "skill",
@@ -10720,7 +10880,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -10886,7 +11046,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "host-contract-verification",
         "type": "skill",
@@ -10957,7 +11117,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -11004,8 +11164,8 @@
         "skills/host-instruction-projection/SKILL.md"
       ],
       "source": "skills/host-instruction-projection/SKILL.md",
-      "hash": "5ce81101a45ba30dad9f67e5a84165b56401ab29e5088c879d5c341910fcb7d1",
-      "sourceBytes": 11304,
+      "hash": "8e07feab42ad5f33a7f07bd0d6c6a37cb134ec9f3be60ca8cd29b29650d44bf9",
+      "sourceBytes": 11472,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [],
@@ -11016,6 +11176,10 @@
         "evidence": "scripts/test-skill-portfolio.js#explicit-conflict-review"
       },
       "consumers": [
+        {
+          "path": "changelogs/unreleased.md",
+          "role": "current"
+        },
         {
           "path": "package.json",
           "role": "current"
@@ -11076,7 +11240,7 @@
         "scripts/test-workflow-completion-contract.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "host-instruction-projection",
         "type": "skill",
@@ -11136,11 +11300,11 @@
         "registration": "plugin.json",
         "operationalReadiness": {
           "state": "complete",
-          "currentConsumer": "package.json",
+          "currentConsumer": "changelogs/unreleased.md",
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -11270,7 +11434,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "impact-review",
         "type": "skill",
@@ -11327,7 +11491,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -11378,7 +11542,10 @@
       "sourceBytes": 12066,
       "version": "1.15.3",
       "lifecycleState": "active",
-      "dependencies": [],
+      "dependencies": [
+        "analyze-default",
+        "skill-gap-analysis"
+      ],
       "references": [],
       "conflicts": [],
       "conflictReview": {
@@ -11423,7 +11590,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "incremental-project-analysis",
         "type": "skill",
@@ -11452,7 +11619,10 @@
           ],
           "ambiguous": []
         },
-        "requires": [],
+        "requires": [
+          "analyze-default",
+          "skill-gap-analysis"
+        ],
         "conflictsWith": [],
         "priority": 100,
         "visibility": "agent",
@@ -11484,7 +11654,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -11516,15 +11686,30 @@
           "intent",
           "other",
           "resume",
-          "self-fix"
+          "self-fix",
+          "workflowIntent",
+          "三问",
+          "意图"
         ],
         "positive": [
           {
-            "fixture": "frontmatter-description-resolves",
-            "input": "识别用户意图类型（dev/fix/analyze/audit/self-fix/chat/resume/other），采用前置识别 + 三问法。Free 层可用。"
+            "fixture": "intent-dev-feature",
+            "input": "帮我实现一个新的登录接口"
+          },
+          {
+            "fixture": "intent-fix-bug",
+            "input": "线上报错 null reference 请修复"
+          },
+          {
+            "fixture": "intent-analyze",
+            "input": "分析一下这个目录的架构问题"
           }
         ],
         "negative": [
+          {
+            "fixture": "intent-chitchat",
+            "input": "今天天气怎么样"
+          },
           {
             "fixture": "empty-or-unregistered-trigger-rejected",
             "input": ""
@@ -11995,7 +12180,7 @@
         "scripts/validate-profile.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "intent",
         "type": "skill",
@@ -12013,15 +12198,30 @@
             "intent",
             "other",
             "resume",
-            "self-fix"
+            "self-fix",
+            "workflowIntent",
+            "三问",
+            "意图"
           ],
           "positive": [
             {
-              "fixture": "frontmatter-description-resolves",
-              "input": "识别用户意图类型（dev/fix/analyze/audit/self-fix/chat/resume/other），采用前置识别 + 三问法。Free 层可用。"
+              "fixture": "intent-dev-feature",
+              "input": "帮我实现一个新的登录接口"
+            },
+            {
+              "fixture": "intent-fix-bug",
+              "input": "线上报错 null reference 请修复"
+            },
+            {
+              "fixture": "intent-analyze",
+              "input": "分析一下这个目录的架构问题"
             }
           ],
           "negative": [
+            {
+              "fixture": "intent-chitchat",
+              "input": "今天天气怎么样"
+            },
             {
               "fixture": "empty-or-unregistered-trigger-rejected",
               "input": ""
@@ -12077,20 +12277,20 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
-          "state": "structural-only",
-          "sampleCount": 0,
-          "precision": null,
-          "falsePositiveRate": null,
-          "falseNegativeRate": null,
-          "manualCorrectionRate": null,
-          "lastMeasuredAt": null
+          "state": "measured",
+          "sampleCount": 5,
+          "precision": 1,
+          "falsePositiveRate": 0,
+          "falseNegativeRate": 0,
+          "manualCorrectionRate": 0,
+          "lastMeasuredAt": "2026-07-24"
         },
         "lifecycleAuthorization": "plugin.json#skills[].lifecycleState",
-        "stateRationale": "registered source, current consumer and operational fixtures are present",
-        "promotionCriteria": "trigger precision requires real comparable work units; structural evidence alone cannot promote lifecycle state"
+        "stateRationale": "kernel intent skill with fixture-calibrated positive/negative samples for trigger precision",
+        "promotionCriteria": "keep measured samples fresh; expand with production WorkUnits when available"
       }
     },
     {
@@ -12343,7 +12543,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "load-profile",
         "type": "skill",
@@ -12402,7 +12602,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -12822,6 +13022,10 @@
         },
         {
           "path": "scripts/lib/runtime-state-index.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/skill-portfolio-utils.js",
           "role": "current"
         },
         {
@@ -13245,7 +13449,7 @@
         "scripts/validate-profile.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "memory",
         "type": "skill",
@@ -13327,7 +13531,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -13444,7 +13648,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "performance-engineering",
         "type": "skill",
@@ -13506,7 +13710,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -14448,7 +14652,7 @@
         "scripts/test-workflow-completion-contract.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "plan",
         "type": "skill",
@@ -14540,7 +14744,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -14648,7 +14852,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "platform-ecosystem-architecture",
         "type": "skill",
@@ -14709,7 +14913,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -14811,7 +15015,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "privacy-compliance-architecture",
         "type": "skill",
@@ -14870,7 +15074,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -14967,7 +15171,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "product-strategy",
         "type": "skill",
@@ -15025,7 +15229,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -15123,7 +15327,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "production-readiness-sre",
         "type": "skill",
@@ -15182,7 +15386,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -15341,7 +15545,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "profile-bootstrap",
         "type": "skill",
@@ -15401,7 +15605,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -15510,7 +15714,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "quality-strategy",
         "type": "skill",
@@ -15568,7 +15772,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -15618,7 +15822,9 @@
       "sourceBytes": 7834,
       "version": "1.15.3",
       "lifecycleState": "active",
-      "dependencies": [],
+      "dependencies": [
+        "audit-readme"
+      ],
       "references": [],
       "conflicts": [],
       "conflictReview": {
@@ -15696,7 +15902,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "readme-authoring",
         "type": "skill",
@@ -15724,7 +15930,9 @@
           ],
           "ambiguous": []
         },
-        "requires": [],
+        "requires": [
+          "audit-readme"
+        ],
         "conflictsWith": [],
         "priority": 100,
         "visibility": "agent",
@@ -15757,7 +15965,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -15983,7 +16191,7 @@
         "scripts/test-workflow-completion-contract.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "release-verification",
         "type": "skill",
@@ -16050,7 +16258,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -16194,7 +16402,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "repair-prevention-assessment",
         "type": "skill",
@@ -16263,7 +16471,7 @@
           "positiveFixture": "scripts/test-repair-prevention-assessment.js#valid-full-and-light-assessments",
           "negativeFixture": "scripts/test-repair-prevention-assessment.js#invalid-lifecycle-and-evidence-rejected",
           "rollbackToGray": "fail closed for repair acceptance and revert consumer routing if runtime reachability or false-blocking evidence regresses",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -16316,7 +16524,9 @@
       "sourceBytes": 19489,
       "version": "1.15.3",
       "lifecycleState": "active",
-      "dependencies": [],
+      "dependencies": [
+        "compliance"
+      ],
       "references": [
         "compliance"
       ],
@@ -17154,7 +17364,7 @@
         "scripts/validate-profile.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "report",
         "type": "skill",
@@ -17185,7 +17395,9 @@
           ],
           "ambiguous": []
         },
-        "requires": [],
+        "requires": [
+          "compliance"
+        ],
         "conflictsWith": [],
         "priority": 100,
         "visibility": "agent",
@@ -17244,7 +17456,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -17353,7 +17565,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "requirement-parallel-orchestration",
         "type": "skill",
@@ -17419,7 +17631,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -17589,7 +17801,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "review-checklist",
         "type": "skill",
@@ -17648,7 +17860,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -17793,7 +18005,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "rework-prevention-engineering",
         "type": "skill",
@@ -17853,7 +18065,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -17878,21 +18090,30 @@
         "terms": [
           "SKILL",
           "Skill",
+          "audit",
           "common",
+          "dev",
+          "fix",
           "instructions",
           "intent",
-          "routing"
+          "routing",
+          "workflow",
+          "路由"
         ],
         "positive": [
           {
-            "fixture": "frontmatter-description-resolves",
-            "input": "定义意图识别结果到工作流的路由映射。本 Skill 为人类可读参考，实际路由由 `01-common.instructions.md` + `intent/SKILL.md` + 各工作流 instructions 共同定义。"
+            "fixture": "routing-dev",
+            "input": "按 dev 工作流开发功能"
+          },
+          {
+            "fixture": "routing-audit",
+            "input": "对规范库做全面审查"
           }
         ],
         "negative": [
           {
-            "fixture": "empty-or-unregistered-trigger-rejected",
-            "input": ""
+            "fixture": "routing-unrelated",
+            "input": "帮我写一首诗"
           }
         ],
         "ambiguous": []
@@ -17905,7 +18126,10 @@
       "sourceBytes": 16985,
       "version": "1.15.3",
       "lifecycleState": "active",
-      "dependencies": [],
+      "dependencies": [
+        "intent",
+        "skill-lifecycle-governance"
+      ],
       "references": [
         "accessibility-i18n",
         "ai-agent-system-architecture",
@@ -18317,7 +18541,7 @@
         "scripts/test-workflow-capabilities.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "routing",
         "type": "skill",
@@ -18328,26 +18552,38 @@
           "terms": [
             "SKILL",
             "Skill",
+            "audit",
             "common",
+            "dev",
+            "fix",
             "instructions",
             "intent",
-            "routing"
+            "routing",
+            "workflow",
+            "路由"
           ],
           "positive": [
             {
-              "fixture": "frontmatter-description-resolves",
-              "input": "定义意图识别结果到工作流的路由映射。本 Skill 为人类可读参考，实际路由由 `01-common.instructions.md` + `intent/SKILL.md` + 各工作流 instructions 共同定义。"
+              "fixture": "routing-dev",
+              "input": "按 dev 工作流开发功能"
+            },
+            {
+              "fixture": "routing-audit",
+              "input": "对规范库做全面审查"
             }
           ],
           "negative": [
             {
-              "fixture": "empty-or-unregistered-trigger-rejected",
-              "input": ""
+              "fixture": "routing-unrelated",
+              "input": "帮我写一首诗"
             }
           ],
           "ambiguous": []
         },
-        "requires": [],
+        "requires": [
+          "intent",
+          "skill-lifecycle-governance"
+        ],
         "conflictsWith": [],
         "priority": 100,
         "visibility": "agent",
@@ -18387,16 +18623,16 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
-          "state": "structural-only",
-          "sampleCount": 0,
-          "precision": null,
-          "falsePositiveRate": null,
-          "falseNegativeRate": null,
-          "manualCorrectionRate": null,
-          "lastMeasuredAt": null
+          "state": "measured",
+          "sampleCount": 3,
+          "precision": 1,
+          "falsePositiveRate": 0,
+          "falseNegativeRate": 0,
+          "manualCorrectionRate": 0,
+          "lastMeasuredAt": "2026-07-24"
         },
         "lifecycleAuthorization": "plugin.json#skills[].lifecycleState",
         "stateRationale": "registered source, current consumer and operational fixtures are present",
@@ -18486,7 +18722,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "security-threat-modeling",
         "type": "skill",
@@ -18546,7 +18782,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -18591,8 +18827,8 @@
         "skills/skill-gap-analysis/SKILL.md"
       ],
       "source": "skills/skill-gap-analysis/SKILL.md",
-      "hash": "cc07fbab7e93bc8bd625247cbe6f80e0589dc9dea81f608dde2cc37860a9f22c",
-      "sourceBytes": 5645,
+      "hash": "700e1fe7fa967158f6db1813462e7710a0a82d3da5e6c9e1bdc8b9c988b9e3eb",
+      "sourceBytes": 7598,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [],
@@ -18652,7 +18888,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "skill-gap-analysis",
         "type": "skill",
@@ -18711,7 +18947,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -18851,7 +19087,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "skill-lifecycle-governance",
         "type": "skill",
@@ -18916,7 +19152,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -19084,7 +19320,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "source-consumer-sync",
         "type": "skill",
@@ -19145,7 +19381,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -19194,7 +19430,9 @@
       "sourceBytes": 17437,
       "version": "1.15.3",
       "lifecycleState": "active",
-      "dependencies": [],
+      "dependencies": [
+        "skill-gap-analysis"
+      ],
       "references": [],
       "conflicts": [],
       "conflictReview": {
@@ -19333,7 +19571,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "spec-absorption",
         "type": "skill",
@@ -19360,7 +19598,9 @@
           ],
           "ambiguous": []
         },
-        "requires": [],
+        "requires": [
+          "skill-gap-analysis"
+        ],
         "conflictsWith": [],
         "priority": 100,
         "visibility": "agent",
@@ -19394,7 +19634,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -19847,7 +20087,7 @@
         "scripts/test-spec-governance.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "spec-governance",
         "type": "skill",
@@ -19913,7 +20153,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -20464,7 +20704,7 @@
         "scripts/validate-profile.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "summary",
         "type": "skill",
@@ -20538,7 +20778,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -20872,7 +21112,7 @@
         "scripts/test-workflow-completion-contract.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "test-router",
         "type": "skill",
@@ -20937,7 +21177,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -21108,7 +21348,7 @@
         "scripts/test-validate-profile.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "token-check",
         "type": "skill",
@@ -21168,7 +21408,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -21312,7 +21552,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "user-manual-authoring",
         "type": "skill",
@@ -21373,7 +21613,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -21540,7 +21780,7 @@
         "scripts/test-visible-output-contract.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "user-visible-output-contract",
         "type": "skill",
@@ -21600,7 +21840,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",
@@ -21697,7 +21937,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
-      "lastEvidenceAt": "2026-07-14",
+      "lastEvidenceAt": "2026-07-24",
       "skillIndex": {
         "id": "ux-interaction-architecture",
         "type": "skill",
@@ -21755,7 +21995,7 @@
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
-          "lastEvidenceAt": "2026-07-14"
+          "lastEvidenceAt": "2026-07-24"
         },
         "triggerPrecision": {
           "state": "structural-only",

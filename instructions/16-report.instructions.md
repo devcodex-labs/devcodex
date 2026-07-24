@@ -83,6 +83,8 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 
 当报告对应的任务跨会话、跨 Agent、多批次、summary/compact 前、用户要求“传递上下文”、或最终状态不是 ✅ 已完成时，报告必须包含 `ContextHandoffCard`，字段至少覆盖 `source-of-truth`、`confirmed-decisions`、`open-risks`、`next-action`、`blocked-reason`、`must-not-overwrite`、`validation-state` 与 `artifact-links`。已完成且无需交接时写 `ContextHandoffCard: N/A + skipReason`。
 
+命中 `host-capability-routing` 时，报告在现有治理证据/交接段中只记录 `instructionRefId / decisionId / catalogVersion+digest / selectedPortableDecision / nativeEligibility.status / fallback.reasonCode`。不得复制完整用户原文或 catalog row；不得把 portable `plan_first` 写成宿主 native Plan 已进入，也不得把宿主 approval/permission/YOLO mode 写成 CP 或 Auto authority。MCP 不可用对 Phase 1 是 `MCP_NOT_REQUIRED`，不是能力失败。
+
 ### NewSessionContinuationCard
 
 主动建议或 C08/规模门禁要求新会话时，报告与用户回复必须保留完整内部 Card（targetProject、taskId、displayName、CP 状态、source-of-truth、confirmed-decisions、must-not-overwrite、validation-state、next-action），但用户可复制入口固定为 `继续<displayName>任务`。任务名/派生 index 只定位；接收方仍须复证 `task.json`、sessions 与当前绑定 artifact digest。

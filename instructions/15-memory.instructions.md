@@ -116,6 +116,12 @@ daily/SUMMARY 仍是唯一真相源：受管 writer 在文件提交后刷新索�
 
 `ContextHandoffCard` 只负责交接，不替代 Context Rehydration Contract；恢复方仍须按文件真相源优先级重新核对。
 
+### HostCapabilityRoutingRef
+
+命中 `host-capability-routing` 时，daily tasks、需求级 sessions、summary source 与 `ContextHandoffCard` 必须引用同一个 compact identity：`instructionRefId / decisionId / authority / digestStrength / selectedPortableDecision / nativeEligibility.status / fallback.reasonCode`。只保存 `OriginalInstructionRefV1.controlledSummary` 的 bounded projection，不复制完整用户原文、附件正文或 catalog row。
+
+confirm、compact、resume、host/session/task 变化后必须重新核验 instruction authority；`compat/none`、仅 conversation-visible、readback 未验证或 digest mismatch 均不能单独授权跨轮 mutation。应优先回绑 digest-bound CP/task artifact；无法回绑时停止 mutation，并请求重述或重新确认。Agent `SUMMARY.md` 仍只保存索引，不写这些字段的自由文本副本。
+
 ## 触发规则
 
 | 时机 | 必须动作 |
@@ -126,6 +132,7 @@ daily/SUMMARY 仍是唯一真相源：受管 writer 在文件提交后刷新索�
 | 超 13 轮预警（C08）| 写入编码检查点（📦 字段）|
 | 报告写入后 | 追加报告路径到 📄 关联报告 |
 | 跨会话 / compact / handoff | 写入 `ContextHandoffCard` 到 daily tasks 或报告 |
+| Host capability decision | 追加 compact `HostCapabilityRoutingRef`；禁止复制原文/catalog |
 | 完成回复前 | 确保 📨 对话记录已追加本轮 |
 | 任务结束 | 更新状态为 ✅ |
 

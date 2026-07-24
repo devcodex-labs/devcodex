@@ -69,6 +69,8 @@ applyTo: .devcodex/**/reports/analysis/**
 
 > 命中完整/最终 Agent 架构、用户文档受众与渲染顺序、独立消费者仓/跨仓 100%、逐模块性能维护时，分别追加 V95 的 completenessObject/domain matrix、pageRole/generated sequence、repository identity/denominators/CI/freshness、module applicability/protocol/maintenance 证据；未触发写 `N/A + skipReason`。
 
+> 命中 `host-capability-routing` 时，在本节记录 compact `instructionRefId / decisionId / catalogVersion+digest / selectedPortableDecision / nativeEligibility.status / fallback.reasonCode`；禁止复制完整原文或 catalog row，portable `plan_first` 不得写成 native Plan 已进入。
+
 ### §4.1 ProfileTruthReconciliationGate
 
 > 项目级 analyze 必填；低风险文件级分析可写 `N/A + skipReason`。analyze 只能矫正结论，不能直接修改 Profile。

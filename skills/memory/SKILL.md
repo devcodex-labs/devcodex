@@ -142,8 +142,11 @@ status/current/month/day byte-range 分区。该索引不是记忆真相源：
 | 💡 关键决策 | 本次会话中产生的重要决策 |
 | ⚠️ 待跟进 | 未完成事项或下次需要继续的内容 |
 | 📦 编码检查点 | 编码任务且变更 ≥3 文件时 |
+| 🧭 HostCapabilityRoutingRef | 命中时记录 `instructionRefId / decisionId / authority / digestStrength / selectedPortableDecision / nativeEligibility.status / fallback.reasonCode`；只存 bounded projection |
 | 🧾 Governance Intake | candidate IDs、assessmentVerdict、generalizationScope、existingRuleState、复合 record intents、target ledgers、write requirement/evidence、verification state；只存最小锚点，不复制完整 prompt |
 | 🔎 ReviewState | planId、snapshotDigest、stage、reviewClass、open/blocker/stale/unreviewed、saturation、nextAction；正文以 review checklist/runtime 为准 |
+
+`HostCapabilityRoutingRef` 不得复制完整用户原文、附件正文或 catalog row。confirm、compact、resume、host/session/task 变化后，若只剩 compat/none、conversation-visible 或 readback 未验证 authority，停止自动 mutation 并优先回绑 digest-bound CP/task artifact；无法回绑时请求重述或重新确认。Agent SUMMARY 仍保持纯索引。
 
 ## 格式选择
 

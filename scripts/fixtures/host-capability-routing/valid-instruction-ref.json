@@ -1,0 +1,39 @@
+{
+  "schemaVersion": "OriginalInstructionRefV1",
+  "refId": "instruction-ref-cp3-a9c3db9f",
+  "sourceMessageId": null,
+  "sourceDigest": {
+    "algorithm": "sha256",
+    "value": "a9c3db9f4d2b1b97b0752e3bb8b2ae161dacf0a0cdd855b88fd7acce5228c816",
+    "strength": "strong"
+  },
+  "authority": "digest-bound-cp-artifact",
+  "sourceRef": "requirements/意图驱动五宿主能力映射/04-实施计划.md@v0.1.0-candidate",
+  "capturedAt": "2026-07-24T00:49:00Z",
+  "freshness": {
+    "status": "fresh",
+    "checkedAt": "2026-07-24T00:49:00Z",
+    "lease": "source-bound",
+    "readbackVerified": true
+  },
+  "invalidationTriggers": [
+    "confirm",
+    "compact",
+    "resume",
+    "source-mismatch",
+    "host-change",
+    "session-change"
+  ],
+  "projectionDigest": {
+    "algorithm": "sha256",
+    "value": "9ed32a78b0ca48a948d669b89e3ad220981ba7d7ab92d1e8b1b837fc9f071121",
+    "strength": "strong"
+  },
+  "controlledSummary": "User confirmed the digest-bound CP3 candidate and authorized bounded automatic implementation, convergence review, managed workspace sync, commit, and push.",
+  "fallback": {
+    "stopMutation": false,
+    "requestRestatement": false,
+    "requireReconfirmation": false,
+    "reasonCode": "NOT_REQUIRED"
+  }
+}

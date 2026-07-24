@@ -46,6 +46,25 @@ decision 缺失，或 `identity` 因 schema、source、evidence、host、protoco
 | 安装、升级、诊断、批量维护等低频 operator 操作 | CLI | 不因“能包装成 Tool”就迁入 MCP |
 | UserPromptSubmit、PreToolUse、Stop、PreCompact 等宿主生命周期事件 | Hook | MCP 不替代宿主事件与硬拦能力 |
 
+## 当前 Phase 1：为什么是 Skill + contracts
+
+“意图驱动五宿主能力映射”当前采用三层：
+
+1. 薄 Rule 只声明触发条件、原指令权威、portable-first 与不可越过的 CP/Auto/S01~S07。
+2. active `host-capability-routing` Skill 处理开放式语义判断与多步编排。
+3. `CapabilityIntentDecisionV1`、`HostLeverCatalogV1`、`OriginalInstructionRefV1` 与本地 catalog 提供 variant-aware、可测试、可追溯的事实边界。
+
+| 收益 | 代价 / 限制 |
+|---|---|
+| 同一意图可对照 5 个逻辑宿主、8 个 surface variant，避免按宿主名猜语法 | catalog 需要随宿主版本、协议、权限和证据租约持续维护；过期即降级 |
+| unknown variant、duplicate key、stale evidence、MCP absent 都有稳定 reason code 和 portable fallback | 多出 Skill、3 个 schema、catalog、helper、fixtures 及 package/Profile/docs 消费者同步面 |
+| 原消息只保存 ref/digest/authority，防止摘要或派生 Prompt 覆盖用户原意 | 调试必须解析回被引用的 CP/task artifact，不能依赖一份自包含复制文本 |
+| 不增加 server、协议协商、进程、权限或部署依赖 | 仍由模型做开放式判断；不提供确定性执行、事务或跨进程共享状态 |
+
+当前 canonical catalog 的 native eligible 为 0。这不是“能力不可用”，而是表示直接宿主 replay、完整生命周期和权限证据尚未同时达到 native 准入；portable path 仍可完成原任务。
+
+只有至少两个独立 runtime consumer 需要同一确定性、只读、幂等解析，且 receipt/freshness、权限、取消、回滚、部署版本与无损本地 fallback 全部可冻结时，才重新评估 MCP Tool。若只是有界读取 catalog，Resource / Resource Template 比 Tool 更贴近语义。新增 Tool 还会引入 server owner、协议兼容、宿主协商、权限审计、部署升级、失败恢复和 direct replay 成本。
+
 ## Rule / Skill 与 MCP 的职责边界
 
 - Rule / Skill 表达“如何判断、何时触发、需要哪些证据、何时阻断”。
@@ -74,6 +93,7 @@ decision 缺失，或 `identity` 因 schema、source、evidence、host、protoco
 
 ```bash
 npm run test:capability-surface-decision
+npm run test:host-capability-routing
 npm run test:control-plane-contracts
 npm run test:spec-governance
 ```

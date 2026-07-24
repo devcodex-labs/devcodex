@@ -1,0 +1,207 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://devcodex.dev/schemas/original-instruction-ref.v1.schema.json",
+  "title": "OriginalInstructionRefV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "refId",
+    "sourceMessageId",
+    "sourceDigest",
+    "authority",
+    "sourceRef",
+    "capturedAt",
+    "freshness",
+    "invalidationTriggers",
+    "projectionDigest",
+    "controlledSummary",
+    "fallback"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "OriginalInstructionRefV1"
+    },
+    "refId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "sourceMessageId": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "sourceDigest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "algorithm",
+        "value",
+        "strength"
+      ],
+      "properties": {
+        "algorithm": {
+          "enum": [
+            "sha256",
+            "fnv1a32-compat",
+            "unavailable"
+          ]
+        },
+        "value": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "strength": {
+          "enum": [
+            "strong",
+            "compat",
+            "none"
+          ]
+        }
+      }
+    },
+    "authority": {
+      "enum": [
+        "host-event",
+        "governance-intake-anchor",
+        "digest-bound-cp-artifact",
+        "managed-task-source",
+        "conversation-visible",
+        "unavailable"
+      ]
+    },
+    "sourceRef": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "maxLength": 1024
+    },
+    "capturedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "freshness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "checkedAt",
+        "lease",
+        "readbackVerified"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "fresh",
+            "stale",
+            "unverified",
+            "turn-bound"
+          ]
+        },
+        "checkedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "lease": {
+          "enum": [
+            "source-bound",
+            "P14D",
+            "P30D",
+            "P0D",
+            "turn-bound"
+          ]
+        },
+        "readbackVerified": {
+          "type": "boolean"
+        }
+      }
+    },
+    "invalidationTriggers": {
+      "type": "array",
+      "minItems": 3,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "confirm",
+          "compact",
+          "resume",
+          "source-mismatch",
+          "host-change",
+          "session-change",
+          "task-change",
+          "authority-change"
+        ]
+      }
+    },
+    "projectionDigest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "algorithm",
+        "value",
+        "strength"
+      ],
+      "properties": {
+        "algorithm": {
+          "enum": [
+            "sha256",
+            "unavailable"
+          ]
+        },
+        "value": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "strength": {
+          "enum": [
+            "strong",
+            "none"
+          ]
+        }
+      }
+    },
+    "controlledSummary": {
+      "type": "string",
+      "maxLength": 512
+    },
+    "fallback": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "stopMutation",
+        "requestRestatement",
+        "requireReconfirmation",
+        "reasonCode"
+      ],
+      "properties": {
+        "stopMutation": {
+          "type": "boolean"
+        },
+        "requestRestatement": {
+          "type": "boolean"
+        },
+        "requireReconfirmation": {
+          "type": "boolean"
+        },
+        "reasonCode": {
+          "enum": [
+            "NOT_REQUIRED",
+            "INSTRUCTION_SOURCE_MISSING",
+            "INSTRUCTION_DIGEST_MISMATCH",
+            "INSTRUCTION_AUTHORITY_TOO_WEAK"
+          ]
+        }
+      }
+    }
+  }
+}

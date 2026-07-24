@@ -29,6 +29,16 @@ CP 门控**不受 ENV_MODE 影响**。dev/prod 均强制保持 CP1→CP2 顺序�
 - 可恢复失败：重试 ≤ 2 次
 - 不可恢复失败：切换回确认模式并通知用户 ⚠️
 
+## OriginalInstructionAuthorityGate
+
+当本轮已触发 `host-capability-routing` 时，CP 请求、用户确认、Auto 转换、confirm/compact/resume 后续执行必须引用同一个 `OriginalInstructionRefV1` / `CapabilityIntentDecisionV1` identity：
+
+- 当前 CP 的最终 authority 仍是 digest-bound CP artifact 与 `memory_cp_confirm` readback；受控摘要、宿主 mode、plan 文件和 UI approval 不能替代。
+- `auto_authorized` 必须带非空 `autoAuthorityRef`，且只能引用现有有效 Auto alias/自然语言授权证据；本 Gate 和宿主 mode 都不能创建授权。
+- `compat/none`、conversation-visible turn-bound、readback 未验证或 digest mismatch 不能授权跨轮 mutation；优先回绑已确认 CP/task artifact，失败则停止并要求重述/重新确认。
+- native lever 的 enter/approve/exit 不改变 CP1→CP2→条件 CP3 顺序，也不降低 S01～S07/C01/C10/C18。
+- Phase 1 只消费 portable decision；MCP 缺失不影响 CP，记录 `MCP_NOT_REQUIRED`。
+
 ## CP 定义
 
 | CP | 名称 | dev | fix | 目的 |
@@ -272,4 +282,3 @@ ConfirmationRequest
 ```
 
 > 关联：PI-005（维护态记录按 active-root 写入，例如 `.devcodex/<project>/data/process-improvements.md`） · [FC7](../../instructions/17-compliance.instructions.md)
-

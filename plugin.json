@@ -51,6 +51,11 @@
       "tier": "free"
     },
     {
+      "id": "host-capability-routing",
+      "file": "skills/host-capability-routing/SKILL.md",
+      "tier": "free"
+    },
+    {
       "id": "summary",
       "file": "skills/summary/SKILL.md",
       "tier": "free"

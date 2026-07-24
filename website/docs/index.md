@@ -16,8 +16,8 @@ hero:
 features:
   - title: 🎯 结构化工作流
     details: 8 种工作流（dev/fix/audit/analyze/self-fix/resume/plan/chat），执行流程骨架已冻结
-  - title: 🛠️ 82 个 Skills
-    details: 当前源码维护 79 active + 3 gray；v1.15.3 已发布基线之外新增 `requirement-parallel-orchestration`，用于多需求并行前的独立性判定、共享面锁图、LaunchCard 与汇合协议；active `repair-prevention-assessment` 负责所有 repair 的完成门禁，gray `rework-prevention-engineering` 只负责长期效果试验，gray `brand-visual-quality` 承接品牌视觉资产质量，其余覆盖开发、修复、审计、规范吸纳执行、跨仓消费者验证、用户侧文档 review 聚合、`expert-output-quality` 专家型产物质量与 21 个专家 Owner Skill，以及宿主契约验证、真相源-消费者同步
+  - title: 🛠️ 83 个 Skills
+    details: 当前源码维护 80 active + 3 gray；新增 active `host-capability-routing`，以 portable-first 方式把用户意图映射到五宿主 8 个 surface variant，证据不足时不冒充 native；另有 `requirement-parallel-orchestration`，用于多需求并行前的独立性判定、共享面锁图、LaunchCard 与汇合协议；active `repair-prevention-assessment` 负责所有 repair 的完成门禁，gray `rework-prevention-engineering` 只负责长期效果试验，gray `brand-visual-quality` 承接品牌视觉资产质量，其余覆盖开发、修复、审计、规范吸纳执行、跨仓消费者验证、用户侧文档 review 聚合、`expert-output-quality` 专家型产物质量与 21 个专家 Owner Skill，以及宿主契约验证、真相源-消费者同步
   - title: 🧩 默认三宿主、可选五宿主
     details: Copilot、Claude Code、Codex 默认部署；v1.15.3 可显式增加 Gemini / Grok。五宿主共用精简 kernel、按需 Skills 与完整回退，Hook 能力按宿主/事件降级并受 direct/fixture/instruction-backed 证据上限约束
   - title: 🔒 四层合规检查
@@ -31,4 +31,4 @@ features:
 ---
 
 
-> Skill 规模锚点：82 个按需触发；扁平一级 Skill（82 个）。
+> Skill 规模锚点：83 个按需触发；扁平一级 Skill（83 个）。

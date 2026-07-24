@@ -6,29 +6,29 @@
     "skillsPattern": "skills/*/SKILL.md",
     "optionalSidecar": "skills/*/devcodex.skill.json",
     "registry": "plugin.json",
-    "sourceDigest": "792c3df4cab701caf077da73c9fc1f1705499f6a3a6cd4557089fa7ed4c9f368",
+    "sourceDigest": "a0556654ebfcb3b96edf7a1e2ba4ea652159ca09bbf8b1f9aa69d80f78646cb3",
     "sidecarDigest": "774105d7947b340d15d17115fcb8e37b62ae545cf553f06126d529184fd74872",
-    "pluginDigest": "e972de3b30d46966c4f0c19737ceabffbcd48b94cbd7f7bf5e11175c81b815ac",
+    "pluginDigest": "f293edb3ea6c369b66f9af4190b16b5cd9d86100f0ef9432248e849c0fa2bd95",
     "portfolioEvidence": "skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "85229c1463a5068750d5417e5ebf960907532dccf99b1cd3da0a88f7007792b4",
-    "consumerInventoryFileCount": 557,
-    "consumerInventoryDigest": "905ae03a0758796737e8b829605eef83188e9a5d6c1c0bcb280b5781e19fe20f",
-    "consumerProjectionDigest": "d8b8ff5c5d1633b30697a7f6590683128874a3159f109e63388b6cfb942213df",
-    "portfolioInputDigest": "7e7ff3f218309a3dceb30b67a403f45431cfa0684e4993bca71f7becb2779918"
+    "consumerInventoryFileCount": 563,
+    "consumerInventoryDigest": "1346d7aefcdf019d0dc10c7a2f58a829acf18a41a3facd0202c510cc52575a91",
+    "consumerProjectionDigest": "d433f91230a2e5988ddb5a4c2abf76e6b47f1070a8521685f553c8a182dc8eb1",
+    "portfolioInputDigest": "832834341564cd344e0116895b315c86dc9e88b0f1061442d34d9e6fc2c89d0f"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
-    "skillCount": 82,
-    "registeredSkillCount": 82,
-    "activeSkillCount": 79,
+    "skillCount": 83,
+    "registeredSkillCount": 83,
+    "activeSkillCount": 80,
     "graySkillCount": 3,
     "orphanActiveCount": 0,
     "dependencyCycleCount": 0,
     "dependencyEdgeCount": 3,
-    "conflictReviewedCount": 82,
-    "operationalEvidenceCompleteCount": 82,
+    "conflictReviewedCount": 83,
+    "operationalEvidenceCompleteCount": 83,
     "triggerPrecisionMeasuredCount": 0,
-    "instructionBudgetP95Bytes": 21766,
+    "instructionBudgetP95Bytes": 22038,
     "triggerQuality": "structural-only",
     "sidecarPresentCount": 0
   },
@@ -81,6 +81,7 @@
       "fix-security",
       "frontend-architecture",
       "growth-analytics",
+      "host-capability-routing",
       "host-contract-verification",
       "host-instruction-projection",
       "impact-review",
@@ -374,6 +375,10 @@
       {
         "from": "routing",
         "to": "growth-analytics"
+      },
+      {
+        "from": "routing",
+        "to": "host-capability-routing"
       },
       {
         "from": "routing",
@@ -5701,8 +5706,8 @@
         "skills/cp-gate/SKILL.md"
       ],
       "source": "skills/cp-gate/SKILL.md",
-      "hash": "5e4318bd5fa737cc2e541432005fdd3154919b3b0fa1210f516a21d0a99e7fa4",
-      "sourceBytes": 21766,
+      "hash": "8aa4029e40818bb7a855d843d28b3340ca6a2017a24828f4dff8d3bb6fab1b6e",
+      "sourceBytes": 22786,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [],
@@ -5866,6 +5871,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-host-capability-routing.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-workflow-capabilities.js",
           "role": "current"
         },
@@ -5942,6 +5951,7 @@
         "scripts/test-candidate-review-bundle.js",
         "scripts/test-closure-evidence-controls.js",
         "scripts/test-hooks-runtime.js",
+        "scripts/test-host-capability-routing.js",
         "scripts/test-skill-portfolio.js",
         "scripts/test-workflow-capabilities.js",
         "scripts/validate.js"
@@ -5994,6 +6004,7 @@
           "scripts/test-candidate-review-bundle.js",
           "scripts/test-closure-evidence-controls.js",
           "scripts/test-hooks-runtime.js",
+          "scripts/test-host-capability-routing.js",
           "scripts/test-skill-portfolio.js",
           "scripts/test-workflow-capabilities.js",
           "scripts/validate.js"
@@ -9164,8 +9175,8 @@
         "skills/execution-contract/SKILL.md"
       ],
       "source": "skills/execution-contract/SKILL.md",
-      "hash": "75bcdcea825600aeae9b27a830dd811c8b64b450d001d8654dc825b8b325eb23",
-      "sourceBytes": 18874,
+      "hash": "48c363ecfa761e656343917ee4d0e85829f1fbb7e746bf0a0bee41d178939acf",
+      "sourceBytes": 19710,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [],
@@ -9297,6 +9308,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-host-capability-routing.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-requirement-parallel-orchestration.js",
           "role": "current"
         },
@@ -9335,6 +9350,7 @@
       ],
       "validationProfile": [
         "scripts/test-client-contracts.js",
+        "scripts/test-host-capability-routing.js",
         "scripts/test-requirement-parallel-orchestration.js",
         "scripts/test-review-execution-contract.js",
         "scripts/test-skill-portfolio.js",
@@ -9387,6 +9403,7 @@
         "evolvableUnitRef": "skill:execution-contract",
         "probeSuiteRefs": [
           "scripts/test-client-contracts.js",
+          "scripts/test-host-capability-routing.js",
           "scripts/test-requirement-parallel-orchestration.js",
           "scripts/test-review-execution-contract.js",
           "scripts/test-skill-portfolio.js",
@@ -10501,6 +10518,225 @@
       }
     },
     {
+      "id": "host-capability-routing",
+      "name": "host-capability-routing",
+      "description": "宿主能力路由 Owner — 当已识别工作流意图后，需要在五个逻辑宿主、八个受支持 variant 上选择 direct / plan_first / auto_authorized，核验原始指令 authority，或判断 native lever 是否具备新鲜且安全的直接证据时使用。",
+      "owner": "host-capability-routing",
+      "triggers": {
+        "terms": [
+          "Owner",
+          "authority",
+          "direct",
+          "host-capability-routing",
+          "lever",
+          "native",
+          "variant"
+        ],
+        "positive": [
+          {
+            "fixture": "frontmatter-description-resolves",
+            "input": "宿主能力路由 Owner — 当已识别工作流意图后，需要在五个逻辑宿主、八个受支持 variant 上选择 direct / plan_first / auto_authorized，核验原始指令 authority，或判断 native lever 是否具备新鲜且安全的直接证据时使用。"
+          }
+        ],
+        "negative": [
+          {
+            "fixture": "empty-or-unregistered-trigger-rejected",
+            "input": ""
+          }
+        ],
+        "ambiguous": []
+      },
+      "ownedArtifacts": [
+        "skills/host-capability-routing/SKILL.md"
+      ],
+      "source": "skills/host-capability-routing/SKILL.md",
+      "hash": "42f03fbba286ffabfff91a6e27f047499ab1104c821ec397afde56c19565b7b1",
+      "sourceBytes": 10925,
+      "version": "1.15.3",
+      "lifecycleState": "active",
+      "dependencies": [],
+      "references": [],
+      "conflicts": [],
+      "conflictReview": {
+        "status": "reviewed-none",
+        "evidence": "scripts/test-skill-portfolio.js#explicit-conflict-review"
+      },
+      "consumers": [
+        {
+          "path": "changelogs/unreleased.md",
+          "role": "current"
+        },
+        {
+          "path": "instructions.md",
+          "role": "current"
+        },
+        {
+          "path": "instructions/01-common.instructions.md",
+          "role": "current"
+        },
+        {
+          "path": "instructions/15-memory.instructions.md",
+          "role": "current"
+        },
+        {
+          "path": "instructions/16-report.instructions.md",
+          "role": "current"
+        },
+        {
+          "path": "package.json",
+          "role": "current"
+        },
+        {
+          "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "prompts/report-analysis.prompt.md",
+          "role": "current"
+        },
+        {
+          "path": "prompts/report-audit.prompt.md",
+          "role": "current"
+        },
+        {
+          "path": "prompts/report-dev.prompt.md",
+          "role": "current"
+        },
+        {
+          "path": "prompts/report-fix.prompt.md",
+          "role": "current"
+        },
+        {
+          "path": "prompts/report-optimization.prompt.md",
+          "role": "current"
+        },
+        {
+          "path": "prompts/report-scenario-test.prompt.md",
+          "role": "current"
+        },
+        {
+          "path": "README.md",
+          "role": "current"
+        },
+        {
+          "path": "scripts/fixtures/host-capability-routing/valid-decision.json",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/host-capability-routing.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-host-capability-routing.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/validation-manifest.json",
+          "role": "current"
+        },
+        {
+          "path": "website/docs/index.md",
+          "role": "current"
+        },
+        {
+          "path": "website/docs/intro/index.md",
+          "role": "current"
+        },
+        {
+          "path": "website/docs/specs/mcp-capability-boundary.md",
+          "role": "current"
+        },
+        {
+          "path": "website/docs/specs/workflow-execution-flow.md",
+          "role": "current"
+        }
+      ],
+      "validationProfile": [
+        "scripts/test-host-capability-routing.js",
+        "scripts/test-skill-portfolio.js",
+        "scripts/validate.js"
+      ],
+      "lastEvidenceAt": "2026-07-14",
+      "skillIndex": {
+        "id": "host-capability-routing",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "Owner",
+            "authority",
+            "direct",
+            "host-capability-routing",
+            "lever",
+            "native",
+            "variant"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": "宿主能力路由 Owner — 当已识别工作流意图后，需要在五个逻辑宿主、八个受支持 variant 上选择 direct / plan_first / auto_authorized，核验原始指令 authority，或判断 native lever 是否具备新鲜且安全的直接证据时使用。"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:host-capability-routing",
+        "probeSuiteRefs": [
+          "scripts/test-host-capability-routing.js",
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
+      "sidecar": null,
+      "evidence": {
+        "registration": "plugin.json",
+        "operationalReadiness": {
+          "state": "complete",
+          "currentConsumer": "changelogs/unreleased.md",
+          "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
+          "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
+          "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
+          "lastEvidenceAt": "2026-07-14"
+        },
+        "triggerPrecision": {
+          "state": "structural-only",
+          "sampleCount": 0,
+          "precision": null,
+          "falsePositiveRate": null,
+          "falseNegativeRate": null,
+          "manualCorrectionRate": null,
+          "lastMeasuredAt": null
+        },
+        "lifecycleAuthorization": "plugin.json#skills[].lifecycleState",
+        "stateRationale": "registered source, current consumer and operational fixtures are present",
+        "promotionCriteria": "trigger precision requires real comparable work units; structural evidence alone cannot promote lifecycle state"
+      }
+    },
+    {
       "id": "host-contract-verification",
       "name": "host-contract-verification",
       "description": "宿主契约验证规范 — 为 Hook / CLI / bootstrap / visible envelope / workspace guard / LinkCapabilityDecision / MCP fallback 定义 direct replay、fixture replay、部署同步与证据路线",
@@ -11300,8 +11536,8 @@
         "skills/intent/SKILL.md"
       ],
       "source": "skills/intent/SKILL.md",
-      "hash": "acd66722cb22727762be4e7e0bb349b2e5a60881fc5edf833e6fd1850a18b7f2",
-      "sourceBytes": 10012,
+      "hash": "81a3731800574aa20194b739d880367059b7f3335d22c001a9dae616ba4c2f82",
+      "sourceBytes": 10812,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [],
@@ -11479,6 +11715,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/host-capability-routing.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/host-parity-scorecard.js",
           "role": "current"
         },
@@ -11575,6 +11815,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-host-capability-routing.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-host-parity-scorecard.js",
           "role": "current"
         },
@@ -11624,6 +11868,10 @@
         },
         {
           "path": "website/docs/specs/flowcharts.md",
+          "role": "current"
+        },
+        {
+          "path": "website/docs/specs/workflow-execution-flow.md",
           "role": "current"
         },
         {
@@ -11736,6 +11984,7 @@
         "scripts/test-context-read-contract.js",
         "scripts/test-execution-chain-evolution.js",
         "scripts/test-governance-intake.js",
+        "scripts/test-host-capability-routing.js",
         "scripts/test-host-parity-scorecard.js",
         "scripts/test-intent-consistency.js",
         "scripts/test-mcp-servers.js",
@@ -11805,6 +12054,7 @@
           "scripts/test-context-read-contract.js",
           "scripts/test-execution-chain-evolution.js",
           "scripts/test-governance-intake.js",
+          "scripts/test-host-capability-routing.js",
           "scripts/test-host-parity-scorecard.js",
           "scripts/test-intent-consistency.js",
           "scripts/test-mcp-servers.js",
@@ -12196,8 +12446,8 @@
         "skills/memory/SKILL.md"
       ],
       "source": "skills/memory/SKILL.md",
-      "hash": "7776d8f9adc7a658e0d11290b9b4d305a670698fe09a835928805daefaa16ef0",
-      "sourceBytes": 19680,
+      "hash": "b206041d516716e96ce9be41048c5d5989e24b07ad4ccd47efee92753bd5c521",
+      "sourceBytes": 20278,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [],
@@ -12671,6 +12921,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-host-capability-routing.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-host-installation.js",
           "role": "current"
         },
@@ -12971,6 +13225,7 @@
         "scripts/test-governance-intake.js",
         "scripts/test-governance-status-summary.js",
         "scripts/test-hooks-runtime.js",
+        "scripts/test-host-capability-routing.js",
         "scripts/test-host-installation.js",
         "scripts/test-host-parity-scorecard.js",
         "scripts/test-instruction-fallback-check.js",
@@ -13040,6 +13295,7 @@
           "scripts/test-governance-intake.js",
           "scripts/test-governance-status-summary.js",
           "scripts/test-hooks-runtime.js",
+          "scripts/test-host-capability-routing.js",
           "scripts/test-host-installation.js",
           "scripts/test-host-parity-scorecard.js",
           "scripts/test-instruction-fallback-check.js",
@@ -13504,6 +13760,10 @@
           "role": "current"
         },
         {
+          "path": "instructions/16-report.instructions.md",
+          "role": "current"
+        },
+        {
           "path": "instructions/17-compliance.instructions.md",
           "role": "current"
         },
@@ -13556,11 +13816,27 @@
           "role": "current"
         },
         {
+          "path": "prompts/report-analysis.prompt.md",
+          "role": "current"
+        },
+        {
+          "path": "prompts/report-audit.prompt.md",
+          "role": "current"
+        },
+        {
           "path": "prompts/report-dev.prompt.md",
           "role": "current"
         },
         {
           "path": "prompts/report-fix.prompt.md",
+          "role": "current"
+        },
+        {
+          "path": "prompts/report-optimization.prompt.md",
+          "role": "current"
+        },
+        {
+          "path": "prompts/report-scenario-test.prompt.md",
           "role": "current"
         },
         {
@@ -13573,6 +13849,14 @@
         },
         {
           "path": "RULES.md",
+          "role": "current"
+        },
+        {
+          "path": "scripts/fixtures/host-capability-routing/mcp-absent.json",
+          "role": "current"
+        },
+        {
+          "path": "scripts/fixtures/host-capability-routing/valid-decision.json",
           "role": "current"
         },
         {
@@ -13625,6 +13909,10 @@
         },
         {
           "path": "scripts/lib/host-adapter-scope.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/host-capability-routing.js",
           "role": "current"
         },
         {
@@ -13833,6 +14121,10 @@
         },
         {
           "path": "scripts/test-host-adapters.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-host-capability-routing.js",
           "role": "current"
         },
         {
@@ -14138,6 +14430,7 @@
         "scripts/test-governance-status-summary.js",
         "scripts/test-hooks-runtime.js",
         "scripts/test-host-adapters.js",
+        "scripts/test-host-capability-routing.js",
         "scripts/test-markdown-structure.js",
         "scripts/test-mcp-servers.js",
         "scripts/test-migrate-layout.js",
@@ -14217,6 +14510,7 @@
           "scripts/test-governance-status-summary.js",
           "scripts/test-hooks-runtime.js",
           "scripts/test-host-adapters.js",
+          "scripts/test-host-capability-routing.js",
           "scripts/test-markdown-structure.js",
           "scripts/test-mcp-servers.js",
           "scripts/test-migrate-layout.js",
@@ -16018,8 +16312,8 @@
         "skills/report/SKILL.md"
       ],
       "source": "skills/report/SKILL.md",
-      "hash": "236b646ffc53caa94d631613a18d44b7ad9694292fbef32c05336c8a1627fba1",
-      "sourceBytes": 18782,
+      "hash": "212a2f164816cc3fb1116df87afce1640fb43c92126a7e4321dd8de7a878bd52",
+      "sourceBytes": 19199,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [],
@@ -16565,6 +16859,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-host-capability-routing.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-host-installation.js",
           "role": "current"
         },
@@ -16834,6 +17132,7 @@
         "scripts/test-evidence-freshness-receipt.js",
         "scripts/test-external-review-claim-verification.js",
         "scripts/test-hooks-runtime.js",
+        "scripts/test-host-capability-routing.js",
         "scripts/test-host-installation.js",
         "scripts/test-host-parity-scorecard.js",
         "scripts/test-instruction-fallback-check.js",
@@ -16911,6 +17210,7 @@
           "scripts/test-evidence-freshness-receipt.js",
           "scripts/test-external-review-claim-verification.js",
           "scripts/test-hooks-runtime.js",
+          "scripts/test-host-capability-routing.js",
           "scripts/test-host-installation.js",
           "scripts/test-host-parity-scorecard.js",
           "scripts/test-instruction-fallback-check.js",
@@ -17601,8 +17901,8 @@
         "skills/routing/SKILL.md"
       ],
       "source": "skills/routing/SKILL.md",
-      "hash": "7dbd01b9b6753adef42adb2445594467874dbd4fa5c6b7393c1ddab45b34e8bb",
-      "sourceBytes": 16622,
+      "hash": "a4d0dc9e5986fc8a06dda0323915170f3f827a4fd0b120f3ddfef99f2432f15e",
+      "sourceBytes": 16985,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [],
@@ -17644,6 +17944,7 @@
         "fix-security",
         "frontend-architecture",
         "growth-analytics",
+        "host-capability-routing",
         "performance-engineering",
         "platform-ecosystem-architecture",
         "privacy-compliance-architecture",
@@ -17700,6 +18001,10 @@
           "role": "historical"
         },
         {
+          "path": "changelogs/unreleased.md",
+          "role": "current"
+        },
+        {
           "path": "grok/plugins/devcodex-workspace/skills/devcodex-workspace/SKILL.md",
           "role": "current"
         },
@@ -17716,7 +18021,19 @@
           "role": "current"
         },
         {
+          "path": "instructions.md",
+          "role": "current"
+        },
+        {
           "path": "instructions/01-common.instructions.md",
+          "role": "current"
+        },
+        {
+          "path": "instructions/15-memory.instructions.md",
+          "role": "current"
+        },
+        {
+          "path": "instructions/16-report.instructions.md",
           "role": "current"
         },
         {
@@ -17736,7 +18053,39 @@
           "role": "current"
         },
         {
+          "path": "prompts/report-analysis.prompt.md",
+          "role": "current"
+        },
+        {
+          "path": "prompts/report-audit.prompt.md",
+          "role": "current"
+        },
+        {
+          "path": "prompts/report-dev.prompt.md",
+          "role": "current"
+        },
+        {
+          "path": "prompts/report-fix.prompt.md",
+          "role": "current"
+        },
+        {
+          "path": "prompts/report-optimization.prompt.md",
+          "role": "current"
+        },
+        {
+          "path": "prompts/report-scenario-test.prompt.md",
+          "role": "current"
+        },
+        {
+          "path": "README.md",
+          "role": "current"
+        },
+        {
           "path": "scripts/fixtures/capability-surface-decision/valid-rule-skill.json",
+          "role": "current"
+        },
+        {
+          "path": "scripts/fixtures/host-capability-routing/valid-decision.json",
           "role": "current"
         },
         {
@@ -17753,6 +18102,10 @@
         },
         {
           "path": "scripts/lib/execution-optimization.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/host-capability-routing.js",
           "role": "current"
         },
         {
@@ -17832,6 +18185,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-host-capability-routing.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-mcp-servers.js",
           "role": "current"
         },
@@ -17852,7 +18209,19 @@
           "role": "current"
         },
         {
+          "path": "website/docs/index.md",
+          "role": "current"
+        },
+        {
+          "path": "website/docs/intro/index.md",
+          "role": "current"
+        },
+        {
           "path": "website/docs/specs/flowcharts.md",
+          "role": "current"
+        },
+        {
+          "path": "website/docs/specs/mcp-capability-boundary.md",
           "role": "current"
         },
         {
@@ -17941,6 +18310,7 @@
         "scripts/test-cli-behavior.js",
         "scripts/test-cli-command-registry.js",
         "scripts/test-governance-intake.js",
+        "scripts/test-host-capability-routing.js",
         "scripts/test-mcp-servers.js",
         "scripts/test-review-execution-contract.js",
         "scripts/test-skill-portfolio.js",
@@ -17998,6 +18368,7 @@
           "scripts/test-cli-behavior.js",
           "scripts/test-cli-command-registry.js",
           "scripts/test-governance-intake.js",
+          "scripts/test-host-capability-routing.js",
           "scripts/test-mcp-servers.js",
           "scripts/test-review-execution-contract.js",
           "scripts/test-skill-portfolio.js",
@@ -19587,8 +19958,8 @@
         "skills/summary/SKILL.md"
       ],
       "source": "skills/summary/SKILL.md",
-      "hash": "03d38649db7ae6fca64c6a73bef541f37b90f4a811b281aff9bd5ca7dd5c7bf9",
-      "sourceBytes": 2916,
+      "hash": "e2d6f6eadfb083c7ca9a6262c1bb67405e94bb1bd6733b171ba0063ce6579e50",
+      "sourceBytes": 3322,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [],
@@ -19874,6 +20245,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-host-capability-routing.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-mcp-servers.js",
           "role": "current"
         },
@@ -20078,6 +20453,7 @@
         "scripts/test-external-review-claim-verification.js",
         "scripts/test-governance-status-summary.js",
         "scripts/test-hooks-runtime.js",
+        "scripts/test-host-capability-routing.js",
         "scripts/test-mcp-servers.js",
         "scripts/test-memory-index.js",
         "scripts/test-migrate-layout.js",
@@ -20139,6 +20515,7 @@
           "scripts/test-external-review-claim-verification.js",
           "scripts/test-governance-status-summary.js",
           "scripts/test-hooks-runtime.js",
+          "scripts/test-host-capability-routing.js",
           "scripts/test-mcp-servers.js",
           "scripts/test-memory-index.js",
           "scripts/test-migrate-layout.js",

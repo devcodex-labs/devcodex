@@ -1,0 +1,724 @@
+{
+  "schemaVersion": "HostLeverCatalogV1",
+  "catalogVersion": "1.0.0",
+  "sourceMatrixRef": {
+    "path": "scripts/lib/always-on-governance.js#buildHostAdapterCompatibilityMatrix",
+    "schemaVersion": "HostAdapterCompatibilityMatrixV1",
+    "matrixId": "always-on-host-b38585a2c53b0c24ee67aa7b5d18ae2c9f92e41412bcb647ed28d2b900a6c41c",
+    "sourceHead": "ef60b2b593a232747880b86316bec6f888c7cd89"
+  },
+  "entries": [
+    {
+      "hostId": "copilot",
+      "hostSurfaceOrVariant": "copilot-vscode",
+      "capabilityFamilyId": "planning",
+      "leverVersion": "1.0.0",
+      "leverType": "agent-mode",
+      "invocation": "user-selects-plan-agent; runtime invocation not wired in Phase 1",
+      "automationAuthority": "host-user-action",
+      "eligibility": {
+        "status": "phase2-candidate",
+        "prerequisites": [
+          "exact VS Code Copilot surface",
+          "direct lifecycle replay",
+          "explicit user authority"
+        ],
+        "requiredEvidence": [
+          "official Plan agent documentation",
+          "direct enter/approve/cancel/exit replay"
+        ],
+        "requiresExplicitUserAuthority": true
+      },
+      "evidence": {
+        "evidenceStatus": "PASS",
+        "evidenceRef": [
+          "HostAdapterCompatibilityMatrixV1#copilot-vscode",
+          "GitHub Copilot Plan mode official documentation checked 2026-07-24"
+        ],
+        "evidenceCheckedAt": "2026-07-23T23:00:27Z",
+        "evidenceLease": {
+          "kind": "official-docs",
+          "duration": "P30D",
+          "sourceHead": null
+        }
+      },
+      "permission": {
+        "permissionDelta": "none",
+        "writeBoundary": "Plan agent selection does not grant DevCodex mutation authority or bypass CP."
+      },
+      "lifecycle": {
+        "enter": {
+          "owner": "user/host",
+          "observable": false,
+          "evidenceRef": "official documentation only; no DevCodex direct replay"
+        },
+        "approve": {
+          "owner": "user",
+          "observable": false,
+          "evidenceRef": "host UI approval is not a DevCodex CP receipt"
+        },
+        "cancel": {
+          "owner": "user/host",
+          "observable": false,
+          "evidenceRef": "direct cancellation replay required"
+        },
+        "exit": {
+          "owner": "user/host",
+          "observable": false,
+          "evidenceRef": "direct exit replay required"
+        }
+      },
+      "fallback": {
+        "portableDecision": "plan_first",
+        "reasonCode": "NATIVE_NOT_PHASE1",
+        "retryable": false
+      },
+      "validation": {
+        "negativeProbe": [
+          "do not claim Plan agent was selected from repository instructions",
+          "do not treat host approval as CP confirmation"
+        ],
+        "runtimeOwner": "future/copilot-vscode-native-adapter",
+        "validationOwner": "host-capability-routing"
+      },
+      "freshness": {
+        "invalidationTriggers": [
+          "schema",
+          "source",
+          "host",
+          "protocol",
+          "evidence",
+          "consumer",
+          "runtime-owner"
+        ]
+      }
+    },
+    {
+      "hostId": "copilot",
+      "hostSurfaceOrVariant": "copilot-jetbrains",
+      "capabilityFamilyId": "planning",
+      "leverVersion": "1.0.0",
+      "leverType": "agent-mode",
+      "invocation": "preview surface documented; runtime invocation not wired in Phase 1",
+      "automationAuthority": "host-user-action",
+      "eligibility": {
+        "status": "portable-only",
+        "prerequisites": [
+          "exact JetBrains Copilot surface",
+          "stable non-preview contract",
+          "direct lifecycle replay"
+        ],
+        "requiredEvidence": [
+          "version-specific official documentation",
+          "direct enter/approve/cancel/exit replay"
+        ],
+        "requiresExplicitUserAuthority": true
+      },
+      "evidence": {
+        "evidenceStatus": "WARN",
+        "evidenceRef": [
+          "HostAdapterCompatibilityMatrixV1#copilot-jetbrains",
+          "Copilot JetBrains native planning remains preview/documentation-backed"
+        ],
+        "evidenceCheckedAt": "2026-07-23T23:00:27Z",
+        "evidenceLease": {
+          "kind": "official-docs",
+          "duration": "P30D",
+          "sourceHead": null
+        }
+      },
+      "permission": {
+        "permissionDelta": "unknown",
+        "writeBoundary": "Preview host behavior cannot authorize mutation or lower DevCodex confirmation levels."
+      },
+      "lifecycle": {
+        "enter": {
+          "owner": "user/host",
+          "observable": false,
+          "evidenceRef": "preview documentation is insufficient for direct invocation"
+        },
+        "approve": {
+          "owner": "user",
+          "observable": false,
+          "evidenceRef": "host approval remains separate from CP"
+        },
+        "cancel": {
+          "owner": "user/host",
+          "observable": false,
+          "evidenceRef": "direct cancellation replay absent"
+        },
+        "exit": {
+          "owner": "user/host",
+          "observable": false,
+          "evidenceRef": "direct exit replay absent"
+        }
+      },
+      "fallback": {
+        "portableDecision": "plan_first",
+        "reasonCode": "NATIVE_EVIDENCE_UNVERIFIED",
+        "retryable": false
+      },
+      "validation": {
+        "negativeProbe": [
+          "do not borrow VS Code evidence for JetBrains",
+          "do not upgrade preview documentation to direct replay"
+        ],
+        "runtimeOwner": "future/copilot-jetbrains-native-adapter",
+        "validationOwner": "host-capability-routing"
+      },
+      "freshness": {
+        "invalidationTriggers": [
+          "schema",
+          "source",
+          "host",
+          "protocol",
+          "evidence",
+          "consumer",
+          "runtime-owner"
+        ]
+      }
+    },
+    {
+      "hostId": "claude",
+      "hostSurfaceOrVariant": "claude-code",
+      "capabilityFamilyId": "planning",
+      "leverVersion": "1.0.0",
+      "leverType": "permission-mode",
+      "invocation": "/plan or Shift+Tab behavior documented; runtime invocation not wired in Phase 1",
+      "automationAuthority": "host-user-action",
+      "eligibility": {
+        "status": "phase2-candidate",
+        "prerequisites": [
+          "Claude Code runtime",
+          "permission and lifecycle direct replay",
+          "explicit user authority"
+        ],
+        "requiredEvidence": [
+          "official permission-mode documentation",
+          "direct enter/approve/cancel/exit replay",
+          "shell and subagent negative replay"
+        ],
+        "requiresExplicitUserAuthority": true
+      },
+      "evidence": {
+        "evidenceStatus": "PASS",
+        "evidenceRef": [
+          "HostAdapterCompatibilityMatrixV1#claude-code",
+          "Anthropic permission-mode official documentation checked 2026-07-24"
+        ],
+        "evidenceCheckedAt": "2026-07-23T23:00:27Z",
+        "evidenceLease": {
+          "kind": "official-docs",
+          "duration": "P30D",
+          "sourceHead": null
+        }
+      },
+      "permission": {
+        "permissionDelta": "unknown",
+        "writeBoundary": "Permission mode does not replace DevCodex CP or prove shell/subagent mutation is blocked."
+      },
+      "lifecycle": {
+        "enter": {
+          "owner": "user/host",
+          "observable": false,
+          "evidenceRef": "official command exists; DevCodex direct replay absent"
+        },
+        "approve": {
+          "owner": "user",
+          "observable": false,
+          "evidenceRef": "host approval cannot stand in for CP"
+        },
+        "cancel": {
+          "owner": "user/host",
+          "observable": false,
+          "evidenceRef": "direct cancellation replay absent"
+        },
+        "exit": {
+          "owner": "user/host",
+          "observable": false,
+          "evidenceRef": "direct exit replay absent"
+        }
+      },
+      "fallback": {
+        "portableDecision": "plan_first",
+        "reasonCode": "NATIVE_NOT_PHASE1",
+        "retryable": false
+      },
+      "validation": {
+        "negativeProbe": [
+          "permission mode must not bypass CP",
+          "shell/subagent authority must remain independently bounded"
+        ],
+        "runtimeOwner": "future/claude-code-native-adapter",
+        "validationOwner": "host-capability-routing"
+      },
+      "freshness": {
+        "invalidationTriggers": [
+          "schema",
+          "source",
+          "host",
+          "protocol",
+          "evidence",
+          "consumer",
+          "runtime-owner"
+        ]
+      }
+    },
+    {
+      "hostId": "codex",
+      "hostSurfaceOrVariant": "codex",
+      "capabilityFamilyId": "planning",
+      "leverVersion": "1.0.0",
+      "leverType": "native-plan",
+      "invocation": "/plan is unavailable during active task work; runtime invocation not wired in Phase 1",
+      "automationAuthority": "host-user-action",
+      "eligibility": {
+        "status": "phase2-candidate",
+        "prerequisites": [
+          "Codex runtime outside incompatible active-task state",
+          "direct lifecycle replay",
+          "explicit user authority"
+        ],
+        "requiredEvidence": [
+          "official developer-command documentation",
+          "current runtime invocation authority",
+          "direct enter/approve/cancel/exit replay"
+        ],
+        "requiresExplicitUserAuthority": true
+      },
+      "evidence": {
+        "evidenceStatus": "PASS",
+        "evidenceRef": [
+          "HostAdapterCompatibilityMatrixV1#codex",
+          "OpenAI Codex developer-command documentation checked 2026-07-24"
+        ],
+        "evidenceCheckedAt": "2026-07-23T23:00:27Z",
+        "evidenceLease": {
+          "kind": "official-docs",
+          "duration": "P30D",
+          "sourceHead": null
+        }
+      },
+      "permission": {
+        "permissionDelta": "none",
+        "writeBoundary": "A native plan surface does not alter sandbox, approval policy, CP, or task authority."
+      },
+      "lifecycle": {
+        "enter": {
+          "owner": "user/host",
+          "observable": false,
+          "evidenceRef": "active-task invocation is unavailable in current direct evidence"
+        },
+        "approve": {
+          "owner": "user",
+          "observable": false,
+          "evidenceRef": "host action remains distinct from CP confirmation"
+        },
+        "cancel": {
+          "owner": "user/host",
+          "observable": false,
+          "evidenceRef": "direct cancellation replay absent"
+        },
+        "exit": {
+          "owner": "user/host",
+          "observable": false,
+          "evidenceRef": "direct exit replay absent"
+        }
+      },
+      "fallback": {
+        "portableDecision": "plan_first",
+        "reasonCode": "NATIVE_NOT_PHASE1",
+        "retryable": false
+      },
+      "validation": {
+        "negativeProbe": [
+          "do not claim /plan was entered during an active task",
+          "do not treat plan output as CP confirmation"
+        ],
+        "runtimeOwner": "future/codex-native-adapter",
+        "validationOwner": "host-capability-routing"
+      },
+      "freshness": {
+        "invalidationTriggers": [
+          "schema",
+          "source",
+          "host",
+          "protocol",
+          "evidence",
+          "consumer",
+          "runtime-owner"
+        ]
+      }
+    },
+    {
+      "hostId": "gemini",
+      "hostSurfaceOrVariant": "gemini-cli",
+      "capabilityFamilyId": "planning",
+      "leverVersion": "1.0.0",
+      "leverType": "native-plan",
+      "invocation": "enter_plan_mode is a documented candidate; runtime invocation not wired in Phase 1",
+      "automationAuthority": "host-user-action",
+      "eligibility": {
+        "status": "unverified",
+        "prerequisites": [
+          "Gemini CLI direct replay",
+          "YOLO and hook boundary verification",
+          "explicit user authority"
+        ],
+        "requiredEvidence": [
+          "direct enter/approve/cancel/exit replay",
+          "version and protocol binding",
+          "YOLO negative replay"
+        ],
+        "requiresExplicitUserAuthority": true
+      },
+      "evidence": {
+        "evidenceStatus": "UNVERIFIED",
+        "evidenceRef": [
+          "HostAdapterCompatibilityMatrixV1#gemini-cli",
+          "Gemini CLI official Plan tool documentation exists; local direct replay absent"
+        ],
+        "evidenceCheckedAt": "2026-07-23T23:00:27Z",
+        "evidenceLease": {
+          "kind": "unverified",
+          "duration": "P0D",
+          "sourceHead": null
+        }
+      },
+      "permission": {
+        "permissionDelta": "unknown",
+        "writeBoundary": "YOLO or host mode must never create DevCodex Auto authority or lower CP."
+      },
+      "lifecycle": {
+        "enter": {
+          "owner": "host",
+          "observable": false,
+          "evidenceRef": "local direct replay absent"
+        },
+        "approve": {
+          "owner": "user/host",
+          "observable": false,
+          "evidenceRef": "YOLO semantics require negative replay"
+        },
+        "cancel": {
+          "owner": "user/host",
+          "observable": false,
+          "evidenceRef": "direct cancellation replay absent"
+        },
+        "exit": {
+          "owner": "host",
+          "observable": false,
+          "evidenceRef": "direct exit replay absent"
+        }
+      },
+      "fallback": {
+        "portableDecision": "plan_first",
+        "reasonCode": "NATIVE_EVIDENCE_UNVERIFIED",
+        "retryable": false
+      },
+      "validation": {
+        "negativeProbe": [
+          "generated GEMINI.md must not upgrade native evidence",
+          "YOLO must not imply Auto authority"
+        ],
+        "runtimeOwner": "future/gemini-cli-native-adapter",
+        "validationOwner": "host-capability-routing"
+      },
+      "freshness": {
+        "invalidationTriggers": [
+          "schema",
+          "source",
+          "host",
+          "protocol",
+          "evidence",
+          "consumer",
+          "runtime-owner"
+        ]
+      }
+    },
+    {
+      "hostId": "grok",
+      "hostSurfaceOrVariant": "grok-root-native",
+      "capabilityFamilyId": "planning",
+      "leverVersion": "1.0.0",
+      "leverType": "native-plan",
+      "invocation": "native planning is opt-in; runtime invocation not wired in Phase 1",
+      "automationAuthority": "explicit-user",
+      "eligibility": {
+        "status": "phase2-candidate",
+        "prerequisites": [
+          "Grok root-native runtime",
+          "explicit opt-in",
+          "shell and subagent negative boundary"
+        ],
+        "requiredEvidence": [
+          "direct enter/approve/cancel/exit replay",
+          "bash and subagent authority isolation",
+          "root-native version binding"
+        ],
+        "requiresExplicitUserAuthority": true
+      },
+      "evidence": {
+        "evidenceStatus": "PASS",
+        "evidenceRef": [
+          "HostAdapterCompatibilityMatrixV1#grok-root-native",
+          "xAI Plan mode limitations checked 2026-07-24"
+        ],
+        "evidenceCheckedAt": "2026-07-23T23:00:27Z",
+        "evidenceLease": {
+          "kind": "official-docs",
+          "duration": "P30D",
+          "sourceHead": null
+        }
+      },
+      "permission": {
+        "permissionDelta": "elevated",
+        "writeBoundary": "Edit gates do not prove bash or subagent safety; DevCodex CP and destructive confirmation remain independent."
+      },
+      "lifecycle": {
+        "enter": {
+          "owner": "user/host",
+          "observable": false,
+          "evidenceRef": "direct native-mode entry replay absent"
+        },
+        "approve": {
+          "owner": "user",
+          "observable": false,
+          "evidenceRef": "explicit opt-in is not CP confirmation"
+        },
+        "cancel": {
+          "owner": "user/host",
+          "observable": false,
+          "evidenceRef": "direct cancellation replay absent"
+        },
+        "exit": {
+          "owner": "user/host",
+          "observable": false,
+          "evidenceRef": "direct exit replay absent"
+        }
+      },
+      "fallback": {
+        "portableDecision": "plan_first",
+        "reasonCode": "NATIVE_PERMISSION_UNSAFE",
+        "retryable": false
+      },
+      "validation": {
+        "negativeProbe": [
+          "edit gate must not be described as shell safety",
+          "root-native evidence must not upgrade plain child"
+        ],
+        "runtimeOwner": "future/grok-root-native-adapter",
+        "validationOwner": "host-capability-routing"
+      },
+      "freshness": {
+        "invalidationTriggers": [
+          "schema",
+          "source",
+          "host",
+          "protocol",
+          "evidence",
+          "consumer",
+          "runtime-owner"
+        ]
+      }
+    },
+    {
+      "hostId": "grok",
+      "hostSurfaceOrVariant": "grok-plain-child",
+      "capabilityFamilyId": "planning",
+      "leverVersion": "1.0.0",
+      "leverType": "none",
+      "invocation": "no native lever is available to the plain-child Phase 1 path",
+      "automationAuthority": "none",
+      "eligibility": {
+        "status": "unverified",
+        "prerequisites": [
+          "full kernel visibility",
+          "plain-child-specific direct replay"
+        ],
+        "requiredEvidence": [
+          "plain-child direct lifecycle replay",
+          "proof independent from root and launcher"
+        ],
+        "requiresExplicitUserAuthority": false
+      },
+      "evidence": {
+        "evidenceStatus": "UNVERIFIED",
+        "evidenceRef": [
+          "HostAdapterCompatibilityMatrixV1#grok-plain-child",
+          "current matrix caps plain child at partial Skill discovery"
+        ],
+        "evidenceCheckedAt": "2026-07-23T23:00:27Z",
+        "evidenceLease": {
+          "kind": "unverified",
+          "duration": "P0D",
+          "sourceHead": null
+        }
+      },
+      "permission": {
+        "permissionDelta": "unknown",
+        "writeBoundary": "Plain child cannot borrow root-native or launcher permission claims."
+      },
+      "lifecycle": {
+        "enter": {
+          "owner": "unavailable",
+          "observable": false,
+          "evidenceRef": "no native lever"
+        },
+        "approve": {
+          "owner": "unavailable",
+          "observable": false,
+          "evidenceRef": "no native lever"
+        },
+        "cancel": {
+          "owner": "unavailable",
+          "observable": false,
+          "evidenceRef": "no native lever"
+        },
+        "exit": {
+          "owner": "unavailable",
+          "observable": false,
+          "evidenceRef": "no native lever"
+        }
+      },
+      "fallback": {
+        "portableDecision": "plan_first",
+        "reasonCode": "NATIVE_EVIDENCE_UNVERIFIED",
+        "retryable": false
+      },
+      "validation": {
+        "negativeProbe": [
+          "plain child must not borrow root-native claim",
+          "plain child must not borrow launcher full-kernel claim"
+        ],
+        "runtimeOwner": "future/grok-plain-child-adapter",
+        "validationOwner": "host-capability-routing"
+      },
+      "freshness": {
+        "invalidationTriggers": [
+          "schema",
+          "source",
+          "host",
+          "protocol",
+          "evidence",
+          "consumer",
+          "runtime-owner"
+        ]
+      }
+    },
+    {
+      "hostId": "grok",
+      "hostSurfaceOrVariant": "grok-launcher",
+      "capabilityFamilyId": "planning",
+      "leverVersion": "1.0.0",
+      "leverType": "launcher",
+      "invocation": "devcodex grok binds the portable full kernel; it is not native Plan",
+      "automationAuthority": "none",
+      "eligibility": {
+        "status": "portable-only",
+        "prerequisites": [
+          "workspace launcher installation",
+          "rules and cwd identity match"
+        ],
+        "requiredEvidence": [
+          "launcher rules fixture",
+          "workspace plugin owner parity"
+        ],
+        "requiresExplicitUserAuthority": false
+      },
+      "evidence": {
+        "evidenceStatus": "PASS",
+        "evidenceRef": [
+          "HostAdapterCompatibilityMatrixV1#grok-launcher",
+          "scripts/test-host-installation.js launcher rules fixtures"
+        ],
+        "evidenceCheckedAt": "2026-07-23T23:00:27Z",
+        "evidenceLease": {
+          "kind": "repo-local",
+          "duration": "source-bound",
+          "sourceHead": "ef60b2b593a232747880b86316bec6f888c7cd89"
+        }
+      },
+      "permission": {
+        "permissionDelta": "none",
+        "writeBoundary": "Launcher kernel binding does not create Auto authority or replace CP."
+      },
+      "lifecycle": {
+        "enter": {
+          "owner": "devcodex-grok-launcher",
+          "observable": true,
+          "evidenceRef": "launcher command and bound rules are inspectable"
+        },
+        "approve": {
+          "owner": "DevCodex CP",
+          "observable": true,
+          "evidenceRef": "textual CP remains authoritative"
+        },
+        "cancel": {
+          "owner": "user/process",
+          "observable": true,
+          "evidenceRef": "launcher process cancellation is external to native Plan"
+        },
+        "exit": {
+          "owner": "user/process",
+          "observable": true,
+          "evidenceRef": "launcher process exit is observable"
+        }
+      },
+      "fallback": {
+        "portableDecision": "plan_first",
+        "reasonCode": "NATIVE_NOT_PHASE1",
+        "retryable": false
+      },
+      "validation": {
+        "negativeProbe": [
+          "launcher evidence must not be called native Plan",
+          "launcher evidence must not upgrade plain child"
+        ],
+        "runtimeOwner": "grok-launcher",
+        "validationOwner": "host-capability-routing"
+      },
+      "freshness": {
+        "invalidationTriggers": [
+          "schema",
+          "source",
+          "host",
+          "protocol",
+          "evidence",
+          "consumer",
+          "runtime-owner"
+        ]
+      }
+    }
+  ],
+  "unsupportedSurfaces": [
+    {
+      "hostId": "cursor",
+      "hostSurfaceOrVariant": "cursor",
+      "reasonCode": "HOST_UNSUPPORTED",
+      "fallback": "manual full-instruction paste",
+      "evidenceRef": [
+        "HostAdapterCompatibilityMatrixV1#cursor"
+      ]
+    },
+    {
+      "hostId": "chatgpt-plain",
+      "hostSurfaceOrVariant": "chatgpt-plain",
+      "reasonCode": "HOST_UNSUPPORTED",
+      "fallback": "manual prompt",
+      "evidenceRef": [
+        "HostAdapterCompatibilityMatrixV1#chatgpt-plain"
+      ]
+    }
+  ],
+  "invalidationTriggers": [
+    "schema",
+    "source",
+    "host",
+    "protocol",
+    "evidence",
+    "consumer",
+    "runtime-owner"
+  ],
+  "writer": "host-capability-routing/catalog-maintainer"
+}

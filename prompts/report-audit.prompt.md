@@ -63,6 +63,8 @@ applyTo: ".devcodex/**/reports/audit/**, .devcodex/**/reports/self-fix/**"
 
 > 共享基模读取 `skills/report/report-schema.json`，治理分组读取 `skills/spec-governance/gate-registry.json`。本模板只记录实际触发结果，不复制 Gate 目录或 Owner 专属字段。
 
+命中 `host-capability-routing` 时，在本节现有表中记录 compact `instructionRefId / decisionId / catalogVersion+digest / selectedPortableDecision / nativeEligibility.status / fallback.reasonCode`；禁止复制完整原文或 catalog row，portable `plan_first` 不得写成 native Plan 已进入。
+
 | gateGroup / 条件产物 | result | ownerSkill / schemaRef | evidence | skipReason |
 |----------------------|--------|------------------------|----------|------------|
 | | passed / failed / partial / N/A | | | |

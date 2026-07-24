@@ -128,7 +128,7 @@ DevCodex 当前默认向解析后的宿主 owner 分发以下目录和文件；�
 │   │   ├── 17-compliance.instructions.md
 │   │   └── 18-spec-radar.instructions.md
 │   │
-│   ├── skills/                          ← 第三层：扁平一级 Skill（82 个）
+│   ├── skills/                          ← 第三层：扁平一级 Skill（83 个）
 │   │   ├── dev-default/SKILL.md
 │   │   ├── fix-default/SKILL.md
 │   │   ├── audit-common/SKILL.md
@@ -248,4 +248,4 @@ DevCodex 当前默认注册 `PreCompact`，用于在手动或自动压缩前执�
 > 结论：本页冻结**三层架构原则、分发面与目录职责**；数量类信息需要与 README/profile 同步维护。
 
 
-> Skill 规模锚点：82 个 Skills；82 个按需触发。
+> Skill 规模锚点：83 个 Skills；83 个按需触发。

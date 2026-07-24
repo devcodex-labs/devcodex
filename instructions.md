@@ -137,6 +137,8 @@ S02 不再把“敏感信息、明文密码、连接字符串或硬编码”定�
 - 非 chat 工作流在 CP1 / 问题确认前必须形成 Intent Expansion Card：`semantic`、`project`、`continuity`、`action`、`domain`、`artifact-impact`、`risk`、`host-capability`、`validation-route`、`confidence`、`alternatives`，用于 PC1/PC3、CP1 产物、压缩恢复与错路由复盘。
 - dev 模式默认应向用户展示完整 Intent Expansion Card；prod、instruction-fallback 宿主或低风险场景可退化为 3~5 行摘要，但 CP1 / 问题确认产物中仍必须保留完整字段。
 - 当项目现实扩展导致工作流/子类型修正、命中控制面或宿主能力差异、风险不为 normal、`confidence` 非 high，或处于跨会话 resume 时，用户面必须追加 3~5 行“意图扩展摘要”；摘要只写语义初判、扩展后路由、关键风险、验证路线和备选路径，禁止输出调试 JSON。
+- HostCapabilityRoutingGate：最终工作流意图确定后，若需要在 `direct / plan_first / auto_authorized` 间选择、解释宿主 variant 能力上限或核验跨轮 instruction authority，按需读取 `host-capability-routing`。该 Skill 只输出 portable `CapabilityIntentDecisionV1`，不得覆盖 `intent/routing`、CP、Auto 或 S01～S07；catalog 缺失、重复、过期、variant 未知或证据不足时 fail closed 到 portable fallback。
+- `OriginalInstructionRefV1` 只保存 identity、authority、可回读 locator 与 ≤512 字符受控摘要，不保存完整原文；compat/none 不能单独授权跨轮 mutation。Phase 1 不调用 native lever，也不新增/依赖 MCP Tool/Resource、CLI 或 Hook；宿主 UI、permission/YOLO mode、plan 文件或 approval 均不能冒充 DevCodex CP/Auto/native-applied 证据。
 - Context Rehydration Contract：压缩恢复、resume、summary 恢复或用户明确要求“按文件真相重建”时，必须按 `当前用户消息 > 已确认需求/bug产物 > 任务 sessions.md > 当日 tasks > Agent SUMMARY > compaction/summary 摘要 > AI 当前推断` 的优先级重建上下文；摘要只能作导航提示，不得覆盖文件真相源。
 - ContextHandoffCard：跨会话、跨 Agent、多批次、summary/compact 前、用户明确要求“传递上下文”或即将中断时，交接方必须在报告或 daily tasks 写入 `source-of-truth`、`confirmed-decisions`、`open-risks`、`next-action`、`blocked-reason`、`must-not-overwrite`、`validation-state`、`artifact-links`；恢复方按 Context Rehydration Contract 消费并重新核对文件真相源，禁止用 handoff 覆盖已确认产物、sessions、tasks 或 SUMMARY。
 - Hook Stop/PreCompact 对入口检查块的可见回复验证必须区分 `verified-present` / `verified-missing` / `unverified` 三态；无法解析最终 assistant 内容时只能提示“无法验证最终用户可见回复”并附 payload capture 指引，禁止断言“未输出”。
@@ -617,6 +619,8 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → 
 |------|------|
 | 🎯 任务摘要 | 核心目标和意图 |
 | 📨 对话记录 | 四列表格：`轮次 \| 👤 用户消息 \| 🤖 AI执行 \| 状态` |
+
+命中 HostCapabilityRoutingGate 时，daily tasks、需求级 memory、report 与 handoff 只保存同一个 `instructionRefId` / `decisionId` 及 bounded projection；禁止复制完整用户原文或 catalog row。confirm/compact/resume 前后若只有 compat/none authority，自动 mutation 必须停止并回绑 digest-bound CP/task artifact 或请求重述。
 
 ### SUMMARY 文件
 

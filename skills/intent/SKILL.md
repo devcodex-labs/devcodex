@@ -90,6 +90,15 @@ description: 识别用户意图类型（dev/fix/analyze/audit/self-fix/chat/resu
 | `confidence` | high/medium/low |
 | `alternatives` | 被排除路线及原因 |
 
+### HostCapabilityRoutingHandoff
+
+`intent` 始终拥有 `workflowIntent`。当前消息的 identity 可在入口阶段形成 `OriginalInstructionRefV1`，但只有项目现实扩展和最终 workflow 路由完成后，才按需把 `workflowIntent + instructionRefId + host/variant + scope/risk/confidence` 交给 `host-capability-routing`，由后者选择 `direct / plan_first / auto_authorized`。
+
+- `host-capability-routing` 不得把 portable decision 回写成新的 workflow intent。
+- `direct` 不等于跳过 CP；`plan_first` 不等于 native Plan 已进入；`auto_authorized` 必须引用既有 `autoAuthorityRef`。
+- chat 且无 DevCodex 执行意图时不触发。
+- Skill/catalog 缺失、variant 未知或证据不足时维持当前 workflow route，并使用 portable fallback。
+
 ## IntentConsistencyGuard-lite
 
 当用户消息准备触发确认、继续或阶段转换时，先由语义路由得到 `semanticAction/confidence`，再使用 `IntentConsistencyInputV1 → IntentConsistencyDecisionV1` 核对显式状态证据；不得让本 Guard 用关键词替代语义识别。机器可执行真相源为 `scripts/lib/intent-consistency.js`。

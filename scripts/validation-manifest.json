@@ -30,6 +30,10 @@
     "scripts/lib/capability-surface-decision.js",
     "scripts/test-capability-surface-decision.js",
     "scripts/fixtures/capability-surface-decision/**",
+    "skills/host-capability-routing/**",
+    "scripts/lib/host-capability-routing.js",
+    "scripts/test-host-capability-routing.js",
+    "scripts/fixtures/host-capability-routing/**",
     "scripts/lib/requirement-parallel-orchestration.js",
     "scripts/test-requirement-parallel-orchestration.js",
     "scripts/fixtures/requirement-parallel-orchestration/**",
@@ -105,6 +109,7 @@
         "requirement-artifacts",
         "candidate-review-bundle",
         "capability-surface-decision",
+        "host-capability-routing",
         "requirement-parallel-orchestration",
         "evidence-freshness",
         "hooks-runtime",
@@ -178,6 +183,7 @@
         "requirement-artifacts",
         "candidate-review-bundle",
         "capability-surface-decision",
+        "host-capability-routing",
         "requirement-parallel-orchestration",
         "evidence-freshness",
         "hooks-runtime",
@@ -244,6 +250,7 @@
         "readme-governance",
         "candidate-review-bundle",
         "capability-surface-decision",
+        "host-capability-routing",
         "always-on-governance",
         "client-contracts",
         "release-metadata",
@@ -2450,6 +2457,76 @@
       },
       "evidenceArtifacts": [
         "CapabilitySurfaceDecisionReceiptV1",
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "host-capability-routing",
+      "owner": "host-capability-routing",
+      "command": "node",
+      "args": [
+        "scripts/test-host-capability-routing.js"
+      ],
+      "dependencies": [
+        "capability-surface-decision"
+      ],
+      "inputs": [
+        "skills/host-capability-routing/**",
+        "scripts/lib/host-capability-routing.js",
+        "scripts/test-host-capability-routing.js",
+        "scripts/fixtures/host-capability-routing/**",
+        "scripts/lib/always-on-governance.js",
+        "scripts/lib/host-surface-descriptors.js",
+        "instructions.md",
+        "instructions/01-common.instructions.md",
+        "instructions/15-memory.instructions.md",
+        "instructions/16-report.instructions.md",
+        "skills/intent/SKILL.md",
+        "skills/routing/SKILL.md",
+        "skills/cp-gate/SKILL.md",
+        "skills/memory/SKILL.md",
+        "skills/summary/SKILL.md",
+        "skills/report/SKILL.md",
+        "skills/execution-contract/SKILL.md",
+        "prompts/memory-session.prompt.md",
+        "prompts/report-analysis.prompt.md",
+        "prompts/report-audit.prompt.md",
+        "prompts/report-dev.prompt.md",
+        "prompts/report-fix.prompt.md",
+        "prompts/report-optimization.prompt.md",
+        "prompts/report-scenario-test.prompt.md",
+        "plugin.json",
+        "package.json"
+      ],
+      "consumers": [
+        "host-instruction-projection",
+        "host-adapters"
+      ],
+      "invariants": [
+        "five-logical-hosts",
+        "eight-variant-coverage",
+        "original-instruction-authority",
+        "portable-fallback",
+        "native-false-claim-zero",
+        "mcp-optional"
+      ],
+      "riskClass": "high",
+      "cachePolicy": "never",
+      "writeScopes": [],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "HostCapabilityRoutingTestReceiptV1",
+        "CapabilityIntentDecisionV1",
+        "HostLeverCatalogValidationReceiptV1",
+        "OriginalInstructionRefV1",
         "ValidationExecutionReceiptV1"
       ]
     },

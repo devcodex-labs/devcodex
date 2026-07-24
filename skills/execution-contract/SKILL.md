@@ -49,6 +49,7 @@ description: 执行契约规范 — 为长流程、多文件、Auto 或控制面
 | `executionAttemptLedger` | 条件 | formal command、失败重试、取消/中断或 restart 时必填；作为既有 TurnLiveness state 的 `ExecutionAttemptLedgerV1` 子状态，不得新建平行状态机 |
 | `longTaskAuthorization` | 条件 | 与 `executionBudget` 同触发；记录授权证据与 cycle 身份，见 `LongTaskAuthorizationGate` |
 | `externalWaitAccounting` | 条件 | 存在 CP 等待、CI/鉴权/人工审批/外部系统等待时必填；见 `ExternalWaitAccountingGate` |
+| `instructionAuthority` | 条件 | 命中 `host-capability-routing`、Auto、跨轮或多批次时，引用 `instructionRefId / decisionId / authority / digestStrength / freshness / fallback`；不复制原文 |
 
 ## ExecutionBudgetGate / ExternalWaitAccountingGate / LongTaskAuthorizationGate（PI-118 / PF-137）
 
@@ -92,6 +93,10 @@ description: 执行契约规范 — 为长流程、多文件、Auto 或控制面
 | 第二次 compact/resume 且旧 cycle 未关 | 强制 StopSnapshot 并要求新 cycle |
 
 permission-core 等业务任务级 baseline 只能作样板，不得替代 DevCodex 通用 Contract 字段。
+
+### InstructionAuthorityContract
+
+命中 `host-capability-routing` 时，ExecutionContract 只绑定 compact identity，不保存完整用户原文或 catalog row。`compat/none`、conversation-visible、readback 未验证或 digest mismatch 不能单独支持跨轮 mutation；应优先回绑 digest-bound CP/task artifact，失败则进入 StopSnapshot/重述/重新确认。portable decision 不改变 `allowedPaths`、CP、Auto 或安全确认，Phase 1 也不得新增 native/MCP/CLI/Hook recovery action。
 
 ## OwnIntroducedRegressionSelfFixGate / SharedStateMutationGate（PI-119）
 
@@ -202,6 +207,7 @@ P0/P1、安全、控制面、公共 API/Schema/config、预计 ≥5 文件、多
 | progressArtifact | |
 | safetyInterruptionRecovery | |
 | publisherCredentialTopology | |
+| instructionAuthority | instructionRefId / decisionId / authority / digestStrength / freshness / fallback |
 | turnLivenessContract | state/lease/ACK/terminal + checkpointValidation + LocalTaskTrace/replayBoundary |
 | executionBudget | cycleId / maxWallClock / maxWorkUnits / maxDirtyDelta / maxFullRuns / stopActions / resetPolicy |
 | executionAttemptLedger | qualification / attemptNo / failureSignature / source+evidence delta / timing split / terminal / StopSnapshot |

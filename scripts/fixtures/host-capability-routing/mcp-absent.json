@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "HostCapabilityRuntimeFixtureV1",
+  "hostId": "codex",
+  "hostSurfaceOrVariant": "codex",
+  "capabilityFamilyId": "planning",
+  "runtimeCapabilities": {
+    "mcpAvailable": false,
+    "resourcesAvailable": false,
+    "tasksAvailable": false
+  },
+  "expected": {
+    "classification": "portable",
+    "reasonCode": "NATIVE_NOT_PHASE1",
+    "mcpRequired": false,
+    "safe": true
+  }
+}

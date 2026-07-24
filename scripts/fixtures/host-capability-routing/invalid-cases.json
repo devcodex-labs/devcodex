@@ -1,0 +1,86 @@
+[
+  {
+    "name": "catalog root unknown field",
+    "target": "catalog",
+    "mutation": "unknown-field",
+    "expectedCode": "unknown-field"
+  },
+  {
+    "name": "catalog duplicate key",
+    "target": "catalog",
+    "mutation": "duplicate-key",
+    "expectedCode": "CATALOG_DUPLICATE_KEY"
+  },
+  {
+    "name": "catalog source head stale",
+    "target": "catalog",
+    "mutation": "stale-source",
+    "expectedCode": "CATALOG_SOURCE_STALE"
+  },
+  {
+    "name": "catalog logical host mismatch",
+    "target": "catalog",
+    "mutation": "logical-host-mismatch",
+    "expectedCode": "HOST_VARIANT_OWNER_MISMATCH"
+  },
+  {
+    "name": "decision unknown nested field",
+    "target": "decision",
+    "mutation": "unknown-field",
+    "expectedCode": "unknown-field"
+  },
+  {
+    "name": "direct decision confidence too low",
+    "target": "decision",
+    "mutation": "low-confidence-direct",
+    "expectedCode": "INTENT_CONFIDENCE_LOW"
+  },
+  {
+    "name": "auto decision authority absent",
+    "target": "decision",
+    "mutation": "auto-without-authority",
+    "expectedCode": "AUTO_AUTHORITY_MISSING"
+  },
+  {
+    "name": "decision digest mismatch",
+    "target": "decision",
+    "mutation": "digest-mismatch",
+    "expectedCode": "DECISION_DIGEST_MISMATCH"
+  },
+  {
+    "name": "decision mandatory invariant missing",
+    "target": "decision",
+    "mutation": "mandatory-invariant-missing",
+    "expectedCode": "MANDATORY_INVARIANT_MISSING"
+  },
+  {
+    "name": "direct decision bypasses CP1",
+    "target": "decision",
+    "mutation": "direct-cp-missing",
+    "expectedCode": "MANDATORY_CP_MISSING"
+  },
+  {
+    "name": "instruction projection mismatch",
+    "target": "instruction",
+    "mutation": "projection-mismatch",
+    "expectedCode": "PROJECTION_DIGEST_MISMATCH"
+  },
+  {
+    "name": "compat instruction used across turns",
+    "target": "instruction",
+    "mutation": "compat-cross-turn",
+    "expectedCode": "INSTRUCTION_AUTHORITY_TOO_WEAK"
+  },
+  {
+    "name": "instruction source unavailable without stop",
+    "target": "instruction",
+    "mutation": "unavailable-without-stop",
+    "expectedCode": "INSTRUCTION_STOP_REQUIRED"
+  },
+  {
+    "name": "instruction reread digest mismatch",
+    "target": "instruction",
+    "mutation": "source-digest-mismatch",
+    "expectedCode": "INSTRUCTION_DIGEST_MISMATCH"
+  }
+]

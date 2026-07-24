@@ -47,6 +47,14 @@ applyTo: .devcodex/**/.memory/**
 
 - [决策内容及原因]
 
+### 🧭 HostCapabilityRoutingRef（命中时）
+
+| instructionRefId | decisionId | authority / digestStrength | portableDecision | nativeStatus | fallbackReason |
+|------------------|------------|----------------------------|------------------|--------------|----------------|
+| | | | | | |
+
+> 只记录 compact identity 和 bounded projection；禁止复制完整用户原文、附件正文或 catalog row。compat/none、conversation-visible 或 readback 未验证 authority 不得被摘要升级为跨轮 mutation 授权。
+
 ### ⚠️ 待跟进
 
 | # | 事项 | 优先级 | 状态 |

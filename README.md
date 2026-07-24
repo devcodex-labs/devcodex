@@ -18,6 +18,7 @@ DevCodex 默认通过 `.github/`（Copilot）、`CLAUDE.md + .claude/ + .mcp.jso
 - [安装](#安装)
 - [使用](#使用)
 - [正式需求与执行模板边界](#正式需求与执行模板边界)
+- [意图驱动的五宿主能力选择（Unreleased）](#意图驱动的五宿主能力选择unreleased)
 - [默认执行原则](#默认执行原则)
 - [CLI 命令](#cli-命令)
 - [`.devcodex` 工作区集中布局（v1.10.0+）](#devcodex-工作区集中布局v1100)
@@ -48,6 +49,7 @@ DevCodex 默认通过 `.github/`（Copilot）、`CLAUDE.md + .claude/ + .mcp.jso
 - **证据新鲜度与主张复用门禁（Unreleased Shadow）**: `ClaimEvidenceIndexV1` 抽取“已验证 / 推荐 / 可确认 / 完整”等强主张，`EvidenceFreshnessReceiptV1` 绑定 source/context/dependsOn/lease，`StaleEvidenceLintDecisionV1` 输出 fresh、rerun-required、downgrade-only 或 unverifiable；memory/SUMMARY/历史报告/外部审查文字只能作 navigation hint，不能单独支撑强结论。新增 `npm run test:evidence-freshness` 覆盖 summary-only、dependency drift、lease、ArtifactAnchor 与 FinalValidationSummary 绑定。
 - **全模式入口检查**: 所有模式在实质任务前显示 PC0~PC7；dev 模式额外执行 PC4 规范雷达与完整合规链
 - **项目现实扩展**: 先做语义意图初判，再结合目标项目 Profile、目录与当前任务上下文修正最终路由、产物落点和验证方式
+- **意图驱动五宿主能力选择（Unreleased）**: `HostCapabilityRoutingGate` 将同一用户意图映射到 Copilot / Claude Code / Codex / Gemini / Grok 的 8 个 surface variant；薄 Rule 只保留强不变量，`host-capability-routing` Skill 负责语义判断，版本化 catalog/contracts 负责可测试事实。证据缺失、过期或 variant 未知时 fail closed 到 portable fallback；当前 canonical catalog 的 native eligible 为 0，Phase 1 不新增 MCP primitive
 - **任务名续接与增量执行链（v1.15.3）**: 新会话只需发送 `继续<任务名>任务`；系统通过稳定 task identity 有界定位，再复证 sessions/CP/产物。Context、validation DAG、Profile/Skill 与 ProjectKnowledge 可按内容身份增量执行，并由 `full-only` kill switch 保留完整正确路径
 - **可配置并发策略**: Profile `config.json` 可配置 `extensions.devcodex.concurrency`；默认 `auto` 表示只读准备和隔离验证可并行、共享状态写入保持单写者，保守项目可设为 `serial`
 - **多需求并行编排（Unreleased）**: `requirement-parallel-orchestration` 用 `RequirementIndependenceDecisionV1`、`SharedSurfaceLockMapV1`、`ParallelLaunchCardV1` 与 `IntegrationMergeProtocolV1` 判断多需求、子 Agent、子会话或 worktree 是否可并行；缺证据、共享源码写入或 `allowParallelMutations` 均回到串行
@@ -187,7 +189,7 @@ node index.js init --host all       # 显式部署 Copilot / Claude / Codex / Ge
 ├── copilot-instructions.md  ← 默认 Copilot always-on 总则（新增）
 ├── instructions/   ← Instructions 约束（15 个，含全部工作流规则）
 ├── agents/         ← Copilot 自定义 Agent（v1.9.8 起恢复默认分发）
-├── skills/         ← v1.15.3 Skill 详细检查标准（82 个，按需读取，含 active `repair-prevention-assessment`、默认分析、用户文档、用户侧文档 review 聚合、专家型产物质量、21 个专家 Owner Skill、复审清单、自我进化治理、README 专项能力、spec-governance、spec-absorption 与支撑型 Skill）；其中 79 active，`rework-prevention-engineering`、`consumer-validation-engineering`、`brand-visual-quality` 3 个 gray；用户可见输出、宿主指令投影、修复评估拆分与多需求并行编排能力已纳入当前源码
+├── skills/         ← v1.15.3 Skill 详细检查标准（83 个，按需读取，含 active `host-capability-routing`、`repair-prevention-assessment`、默认分析、用户文档、用户侧文档 review 聚合、专家型产物质量、21 个专家 Owner Skill、复审清单、自我进化治理、README 专项能力、spec-governance、spec-absorption 与支撑型 Skill）；其中 80 active，`rework-prevention-engineering`、`consumer-validation-engineering`、`brand-visual-quality` 3 个 gray；用户可见输出、宿主指令投影、修复评估拆分与多需求并行编排能力已纳入当前源码
 ├── prompts/        ← Prompt 模板（30 个）
 ├── hooks/          ← 宿主生命周期 Hook 配置与运行时
 │   ├── devcodex.lifecycle.json
@@ -263,6 +265,20 @@ workspace-namespace 的共享真相与宿主 adapter 都由工作区拥有。Gro
 - 轻量 API 文档：给调用方看的阅读型接口说明
 - 前端接口文档：给前端联调使用的接口说明，额外包含页面/模块/前置条件与字段映射
 - `api-verification`：给开发与回归使用的归档级接口验证双产物（`.http + .cjs`）
+
+## 意图驱动的五宿主能力选择（Unreleased）
+
+Phase 1 采用“薄 Rule + `host-capability-routing` Skill + 三份 V1 契约/本地 catalog”，不新增 MCP Tool。它解决的是开放式语义判断：先保留原始指令身份与既有 CP/Auto authority，再按 5 个逻辑宿主、8 个 surface variant 选择可证明的能力杠杆；证据不足时继续执行 portable path，而不是猜测 native 语法。
+
+| 维度 | 实际收益 | 对应代价 / 边界 |
+|---|---|---|
+| 跨宿主一致性 | 同一意图使用统一字段、reason code 与 fallback，不再由各 Prompt 临时猜测宿主语法 | 必须长期维护 variant-aware catalog；宿主升级、协议或证据租约变化都会使旧条目 stale |
+| 可验证性 | `CapabilityIntentDecisionV1`、`HostLeverCatalogV1`、`OriginalInstructionRefV1` 可做 schema、重复键、未知 variant、MCP absent 与过期证据负向测试 | 多出 1 个 active Skill、3 个 schema、catalog、helper、fixtures，以及 package/validation/Profile/文档消费者同步成本 |
+| 安全与诚实边界 | native 只有在直接宿主 replay、完整生命周期、权限和用户 authority 同时满足时才 eligible；否则 portable-first | 当前 canonical native eligible=`0`，因此短期收益主要是减少错误声明和路由漂移，不是提高 native 自动化率 |
+| 原指令连续性 | 保存 instruction ref、digest、scope 与 authority ref，避免摘要或派生 Prompt 覆盖用户原意 | 默认不复制完整原文；排查问题时需要回到被引用的 CP/task artifact，调试链更严格 |
+| 运行时复杂度 | 不新增 server、协议协商、部署进程或网络依赖；MCP 缺失不影响主流程 | Skill 仍依赖模型完成开放式语义判断，不提供确定性远程执行、事务或跨进程共享状态 |
+
+只有出现至少两个独立 runtime consumer，并且输入输出已确定、操作只读幂等、receipt/freshness/权限/取消/回滚与无损本地 fallback 都能冻结时，才重新评估 MCP Tool；若需求只是读取有界 catalog，优先评估 Resource / Resource Template。MCP Tool 的额外代价包括 server owner、协议/版本兼容、宿主协商、权限与审计、部署升级、失败恢复和 direct replay，因此不能只因“可以封装成 Tool”就升级。
 
 ## 默认执行原则
 
@@ -520,7 +536,7 @@ devcodex/
 ├── instructions.md # 单源完整规范；确定性生成精简 host kernel、薄 wrapper 与非 always-on full fallback
 ├── agents/        # Agent 源文件；Copilot 端默认分发，Claude Code 端不分发
 ├── instructions/  # 全局 Instructions（15 个，含工作流规则摘要，自动注入）
-├── skills/        # Skill 详细检查标准（82 个，按 01-common §按需读取表 路由读取）
+├── skills/        # Skill 详细检查标准（83 个，按 01-common §按需读取表 路由读取）
 ├── prompts/       # Prompt 模板（30 个）
 ├── hooks/         # Workspace Hooks 配置与分发到 `.github/hooks/_runtime/` 的运行时及 helper 模块
 ├── codex/         # Codex adapter 源模板（分发到 `.codex/hooks.json`，不是工作区部署副本 `.codex/`）

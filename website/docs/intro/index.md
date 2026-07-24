@@ -99,7 +99,7 @@ DevCodex 提供两个 Agent 入口：
 |------|------|
 | Agent | `devcodex.agent.md`（确认模式）+ `devcodex-auto.agent.md`（全自动模式）|
 | Host kernel / Instructions | 宿主自动发现精简 kernel；节点 Instructions 与 Skills 按平台能力和意图加载，完整规范保留非 always-on fallback |
-| Skills | 当前源码维护 82 个按需触发的工作流技能（79 active + 3 gray）；v1.15.3 已发布基线之外新增 `requirement-parallel-orchestration`，用于多需求并行前的独立性判定、共享面锁图、LaunchCard 与汇合协议；active `repair-prevention-assessment` 承担所有 repair 的完成门禁，gray `rework-prevention-engineering` 只承担返工效果试验；`user-visible-output-contract` 与 `host-instruction-projection` 已纳入当前包，`brand-visual-quality` 是 gray 试用能力，另覆盖 `consumer-validation-engineering`、`analyze-default`、`skill-gap-analysis`、`skill-lifecycle-governance`、`spec-absorption`、`user-manual-authoring`、`audit-user-manual`、`expert-output-quality`、`review-checklist`、`evolution-governance`、`readme-authoring`、`audit-readme`、`audit-release`，以及 `execution-contract` / `test-router` / `release-verification` / `host-contract-verification` / `source-consumer-sync`；专家能力保持 21 个专家 Owner Skill |
+| Skills | 当前源码维护 83 个按需触发的工作流技能（80 active + 3 gray）；active `host-capability-routing` 以薄 Rule + Skill + 版本化 catalog/contracts 将原始用户意图映射到五宿主 8 个 surface variant，直接证据不足时保持 portable fallback，当前不新增 MCP Tool；另有 `requirement-parallel-orchestration`、active `repair-prevention-assessment`，gray `rework-prevention-engineering`、`consumer-validation-engineering`、`brand-visual-quality`，以及 `user-visible-output-contract`、`host-instruction-projection`、`analyze-default`、`skill-gap-analysis`、`skill-lifecycle-governance`、`spec-absorption`、`user-manual-authoring`、`audit-user-manual`、`expert-output-quality`、`review-checklist`、`evolution-governance`、`readme-authoring`、`audit-readme`、`audit-release`、`execution-contract` / `test-router` / `release-verification` / `host-contract-verification` / `source-consumer-sync`；专家能力保持 21 个专家 Owner Skill |
 | Prompts | CP 节点输出模板 |
 | Hooks | `UserPromptSubmit` / `PreToolUse` / `Stop` 等生命周期钩子 |
 | Codex adapter | `AGENTS.md` + `.agents/skills/` + `.codex/hooks.json` |
@@ -123,4 +123,4 @@ DevCodex 提供两个 Agent 入口：
 - [商业化规划](/intro/pricing) — v1 免费策略与 v2 商业化方向
 
 
-> Skill 规模锚点：82 个 Skills；扁平一级 Skill（82 个）。
+> Skill 规模锚点：83 个 Skills；扁平一级 Skill（83 个）。

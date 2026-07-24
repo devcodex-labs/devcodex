@@ -204,6 +204,7 @@ version: 1.15.3
 | resume | `memory` |
 
 **按需触发 Skills**（不预读，仅在执行中满足条件时读取）：
+- `host-capability-routing`：最终 workflow intent 已确定，且需要 portable decision、精确宿主 variant 能力上限、native eligibility 解释或 OriginalInstructionRef authority 校验时触发
 - `execution-contract`：Auto、控制面、预计 ≥10 文件、多批次、发布或需要强边界任务触发
 - `repair-collaboration`：AI 判断任务目标是修复 Bug、缺陷、回归、安全问题、规范缺口或已确认 finding 时，至少形成轻量双层修复协作契约；高风险场景由 `execution-contract` 升级完整契约与独立复证。模型名称、宿主或是否切换 Agent 不是触发条件
 - `test-router`：dev/fix 执行前选择验证路线时触发
@@ -264,6 +265,8 @@ version: 1.15.3
 - 前置识别仍保持：存在 🔄 会话的“继续/恢复”走 `resume`；纯问答走 `chat`。
 - 三问判断仍保持：任一指向变更 → `dev/fix/self-fix`；三问全指向分析 → `analyze/audit`。
 - `Intent Expansion Card`、用户可见摘要与恢复契约的详细定义已移动到 [`01c-intent-expansion.instructions.md`](./01c-intent-expansion.instructions.md)。
+- 最终工作流意图确定后，若需选择 `direct / plan_first / auto_authorized`、解释精确宿主 variant 上限或核验跨轮 instruction authority，按需触发 `host-capability-routing`。它不重新分类 workflow intent、不拥有 CP/Auto/S01～S07；catalog 缺失、重复、过期、variant 未知或证据不足时只允许 portable fallback。
+- `OriginalInstructionRefV1` 只保存 identity/authority/locator/受控摘要；compat/none 不得单独授权跨轮 mutation。Phase 1 不调用 native lever，也不依赖 MCP/CLI/Hook；宿主 UI、permission/YOLO mode、plan 文件或 approval 不得写成 CP、Auto 或 native-applied。
 
 ### 任务切换与资料来源优先
 

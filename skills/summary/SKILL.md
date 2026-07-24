@@ -48,6 +48,7 @@ description: 写入会话摘要到记忆日文件。区别于 memory Skill（会
 | 💡 关键决策 | 本次会话中产生的重要决策 |
 | ⚠️ 待跟进 | 未完成事项或下次需要继续的内容 |
 | 📦 编码检查点 | 编码任务且变更 ≥3 文件时 |
+| 🧭 HostCapabilityRoutingRef | 命中时只记录 `instructionRefId / decisionId / authority / digestStrength / portableDecision / nativeStatus / fallbackReason`，不复制原文或 catalog |
 
 ## Token 防护写入
 
@@ -65,6 +66,7 @@ description: 写入会话摘要到记忆日文件。区别于 memory Skill（会
 - 🔴 **禁止询问用户"是否需要写入记忆"**（[C05/S05](../../instructions/00-safety.instructions.md) 强制自动写入）
 - 使用增量编辑追加，禁止覆盖已有内容（[C06/S04](../../instructions/00-safety.instructions.md)）
 - 禁止使用 PowerShell `Set-Content` 等终端命令修改 .md 文件（[C09](../../instructions/01-common.instructions.md)）
+- `HostCapabilityRoutingRef` 只进入 daily/需求级记忆；Agent `SUMMARY.md` 仍是纯索引。compat/none 或 readback 未验证的 instruction authority 不得被摘要升级为跨轮 mutation 授权。
 
 ## 模板引用
 

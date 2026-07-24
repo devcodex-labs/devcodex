@@ -12,6 +12,7 @@ flowchart TD
     IN["接收路由结果\n（工作流类型 + 子类型）"]
     STYLE["读取代码风格\n（dev/fix 必须）"]
     C12["C12 合理性评估\n有更好方案 → 先提出"]
+    HOST_ROUTE["HostCapabilityRoutingGate\n原指令 ref + surface variant\n证据不足 → portable fallback"]
 
     WF{"工作流类型"}
 
@@ -24,7 +25,7 @@ flowchart TD
 
     OUT["进入 ⑨ 执行阶段合规检查"]
 
-    IN --> STYLE --> C12 --> WF
+    IN --> STYLE --> C12 --> HOST_ROUTE --> WF
     WF -->|dev| DEV_FLOW --> OUT
     WF -->|fix| FIX_FLOW --> OUT
     WF -->|audit| AUDIT_FLOW --> OUT
@@ -32,6 +33,30 @@ flowchart TD
     WF -->|self-fix| SELF_FIX_FLOW --> OUT
     WF -->|plan/other| PLAN_FLOW --> OUT
 ```
+
+---
+
+## 宿主能力选择与原指令连续性
+
+当任务需要宿主专属杠杆时，`intent` 仍拥有工作流路由；`host-capability-routing` 只选择宿主能力，不改变 dev/fix/audit/analyze、CP 或 Auto 语义。
+
+```mermaid
+flowchart TD
+    ORIGINAL["OriginalInstructionRefV1\n引用原消息/CP/task artifact"]
+    DECISION["CapabilityIntentDecisionV1\n意图、variant、authority、fallback"]
+    CATALOG["HostLeverCatalogV1\n5 logical hosts / 8 variants"]
+    EVIDENCE{"direct evidence、权限、\n生命周期均 fresh?"}
+    NATIVE["native-eligible\n仍不得越过 CP/Auto/S01~S07"]
+    PORTABLE["portable fallback\n保留原始任务语义"]
+
+    ORIGINAL --> DECISION
+    CATALOG --> DECISION
+    DECISION --> EVIDENCE
+    EVIDENCE -->|"是"| NATIVE
+    EVIDENCE -->|"否/未知/MCP absent"| PORTABLE
+```
+
+Phase 1 的 canonical catalog 当前 `native eligible=0`，所以这条链首先提供可追溯、可测试和不误报的 portable 选择，不承诺提升 native 自动化率，也不新增 MCP primitive。
 
 ---
 
@@ -151,7 +176,8 @@ flowchart TD
 2. dev/fix 编码后必须运行 lint/typecheck/test；TypeScript 项目优先项目既有 `typecheck`，否则至少执行 1 次 `tsc --noEmit` 这类无产物校验（error ≤ 2 次迭代）
 3. 2 次仍失败 → 停止，输出错误摘要标 ⚠️ 等待用户决策
 4. 涉及规范、控制面、路径、模板、部署或校验链语义变更时，ECR 后必须执行 SCV（Spec Change Verification）
-5. 执行完成后进入 ⑨ 执行阶段合规检查
+5. 触发宿主能力选择时必须保留 `OriginalInstructionRefV1` 与 portable fallback；native lever 不得改变 CP/Auto/S01~S07
+6. 执行完成后进入 ⑨ 执行阶段合规检查
 
 ---
 

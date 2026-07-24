@@ -1,0 +1,47 @@
+{
+  "schemaVersion": "CapabilityIntentDecisionV1",
+  "decisionId": "sha256:f0c443481329d231f5ce05096ba922efffacca4b5d4e16be207bf89cfb9b3a3a",
+  "instructionRefId": "instruction-ref-cp3-a9c3db9f",
+  "workflowIntent": "dev",
+  "capabilityClass": "portableDecision",
+  "capabilityFamilyId": "planning",
+  "selectedPortableDecision": "plan_first",
+  "confidence": "high",
+  "reasonCode": "COMPLEXITY_REQUIRES_PLAN",
+  "reason": "The change affects the control plane, host contracts, package consumers, and managed workspace copies.",
+  "autoAuthorityRef": null,
+  "appliedInvariantIds": [
+    "S01",
+    "S02",
+    "S03",
+    "S04",
+    "S05",
+    "S06",
+    "S07",
+    "CP1",
+    "CP2",
+    "CP3"
+  ],
+  "nativeEligibility": {
+    "status": "ineligible",
+    "leverRef": "codex|codex|planning|1.0.0",
+    "evidenceState": "fresh",
+    "permissionState": "safe",
+    "lifecycleState": "incomplete"
+  },
+  "fallback": {
+    "applied": true,
+    "reasonCode": "NATIVE_NOT_PHASE1",
+    "target": "portable",
+    "retryable": false
+  },
+  "receipt": {
+    "hostId": "codex",
+    "hostSurfaceOrVariant": "codex",
+    "catalogVersion": "1.0.0",
+    "catalogFileDigest": "sha256:282f7304b23f16f71d450063a1eb50c14fe64cc63bc0dc73971286abeff972ae",
+    "sourceHead": "ef60b2b593a232747880b86316bec6f888c7cd89",
+    "decidedAt": "2026-07-24T00:55:00Z",
+    "validationOwner": "host-capability-routing"
+  }
+}

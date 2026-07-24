@@ -94,11 +94,48 @@ description: 开源/公开用户站点与最终用户手册写作 Owner — guid
 - `document-sync`：按 `consumerMap`（含 `audience=public-user`）检查当前消费者和部署副本。
 - `DocsAudienceIntentGate`：`scripts/lib/docs-audience-intent.js` + `npm run test:docs-audience`。
 
-## 完成前漂移自检
+## 认知高度与任务语言（L3 · 强制）
+
+> 受众对（public-user）不等于可读。guide/readme 不得做成「完整但全是底层函数」的符号说明书。
+
+### 认知高度三层
+
+| 高度 | 含义 | guide/readme 主路径 | reference |
+|------|------|---------------------|-----------|
+| **Task** | 用户要完成的事、场景、步骤、选择建议 | **必须为主叙事** | 可附「何时用」 |
+| **Concept** | 领域概念、配置含义（白话） | 服务 Task | 可简要 |
+| **Symbol** | 类型名、方法签名、内部模块 | **后置**或链到 reference | 允许密 |
+
+### 写作硬规则
+
+1. **唯一推荐路径**：quick start 只推广一条 `productionRecommendedPath`；底层装配标「高级/扩展」。  
+2. **先任务后符号**：目录与标题优先任务名（「发消息」），不是 `MessageDispatcher`。  
+3. **guide ≠ API inventory**：快速开始若以 ≥3 个未解释的函数调用链为主且无任务句 → **完成失败**。  
+4. **渐进披露**：5 分钟会用 → 30 分钟会选 → 查表 reference；禁止一篇写穿全部 public 函数当使用文档。  
+5. **术语**：内部名首次出现必须白话；配置先默认与选择建议再字段表。  
+6. **reference**：符号可密，每项至少「用途一句话 + 与推荐路径关系/何时不用」。
+
+### 延展失败场景（写作与审查时主动对照）
+
+用户只提一种「看不懂」时，仍应自检相邻风险（问题驱动场景延展）：
+
+| 组 | 场景 |
+|----|------|
+| A 叙事 | 函数清单 guide、概念堆无任务、配置字典、错误码无恢复、多入口无推荐 |
+| B IA | guide/reference 混主路径、源码侧栏、深链才到第一次成功、一篇写穿 |
+| C 示例 | 不可跑、fixture 当生产、无失败路径、版本漂移 |
+| D 伪用户 | 库文档按贡献者写、运维当研发、术语三套 |
+| E 假完整 | TBD、超版承诺、三口径 |
+| F 负担 | 前置未声明、图文不符 |
+| G 元失败 | 受众对高度错、好读但假、单页好整站乱 |
+
+### 完成前漂移自检
 
 - 锁定 `docsAudience=public-user` 后，正文不得以 release checklist / monorepo 内部 / ADR 列表 / 内部台账为**首屏主叙事**。  
-- 机器分类：`classifyDocsAudienceDriftSample('public-user', body)`（`scripts/lib/docs-audience-intent.js`）不得返回 `drift-maintainer-on-user`。  
-- 无安装/第一次成功路径不得宣称用户站完成。
+- `classifyDocsAudienceDriftSample('public-user', body)` 不得为 `drift-maintainer-on-user`。  
+- **`classifyUserDocsCognitiveAltitudeSample(body, { surface })` 不得为 `function-inventory-as-guide` 或 `concept-dump-no-task`**（guide/readme/quick start）。  
+- 无安装/第一次成功路径不得宣称用户站完成。  
+- 验证：`npm run test:docs-audience`。
 
 ## 禁止
 
@@ -109,6 +146,7 @@ description: 开源/公开用户站点与最终用户手册写作 Owner — guid
 - 禁止把当前不可用状态说明冒充目标版本最终用户手册。
 - 禁止把 fixture、mock、demo、硬编码单例或重复 route/middleware/resource 声明写成用户主路径的生产推荐实践；必须标明验证用途和推荐替代。
 - 禁止在单任务内同时写维护者站并宣称双受众完成；多受众须拆任务。
+- **禁止以底层函数/类型调用链作为 quick start 的唯一主叙事**（无任务句、无推荐路径）。
 
 
 ## 同步锚点（validate / consumer）

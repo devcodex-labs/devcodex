@@ -5,7 +5,9 @@ const assert = require('assert')
 const {
   classifyDocsAudienceSample,
   classifyDocsAudienceDriftSample,
-  classifyDocsAudienceDisambiguationSample
+  classifyDocsAudienceDisambiguationSample,
+  classifyUserDocsCognitiveAltitudeSample,
+  classifyProactiveScenarioExtensionSample
 } = require('./lib/docs-audience-intent')
 
 // Positive: user guide
@@ -95,6 +97,68 @@ const {
       '# 开发\n\ngit clone …\nnpm install\nnpm test\n\n## 贡献\n'
     ),
     'ok'
+  )
+}
+
+// Cognitive altitude: function inventory as guide
+{
+  const bad = `# 快速开始
+
+createRuntime(opts)
+registerPlugin(p)
+resolveContext(ctx)
+dispatch(event)
+`
+  assert.strictEqual(
+    classifyUserDocsCognitiveAltitudeSample(bad, { surface: 'guide' }),
+    'function-inventory-as-guide'
+  )
+}
+
+// Cognitive altitude: task language ok
+{
+  const good = `# 快速开始
+
+你要完成：用 SDK 发一条消息。
+
+1. 安装依赖 npm i foo
+2. 使用推荐入口 sendMessage
+3. 看到成功回执
+
+深入装配见 Reference。
+`
+  assert.strictEqual(
+    classifyUserDocsCognitiveAltitudeSample(good, { surface: 'guide' }),
+    'ok'
+  )
+}
+
+// Reference may be denser
+{
+  assert.strictEqual(
+    classifyUserDocsCognitiveAltitudeSample(
+      '## sendMessage\n用途：发送消息\nsendMessage(x)\n',
+      { surface: 'reference' }
+    ),
+    'ok-reference-dense'
+  )
+}
+
+// Proactive scenario extension
+{
+  assert.strictEqual(
+    classifyProactiveScenarioExtensionSample(
+      '文档完整但底层函数看不懂怎么办',
+      '除了函数清单，还有这些场景：A1… B1… 同类失败还包括配置字典当使用说明。'
+    ),
+    'ok'
+  )
+  assert.strictEqual(
+    classifyProactiveScenarioExtensionSample(
+      '文档完整但底层函数看不懂怎么办',
+      '可以写得通俗一点。'
+    ),
+    'missing-extension'
   )
 }
 

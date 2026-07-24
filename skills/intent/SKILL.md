@@ -103,7 +103,15 @@ description: 识别用户意图类型（dev/fix/analyze/audit/self-fix/chat/resu
    - `ambiguous` → fail closed，推荐置首  
    - `multi-audience` → 拆任务  
 4. 完成前做受众漂移检查；失败不得宣称文档任务完成。  
-5. 验证：`npm run test:docs-audience`。
+5. 验证：`npm run test:docs-audience`。  
+6. 用户站 guide 完成前须过认知高度：`classifyUserDocsCognitiveAltitudeSample`（禁止 function-inventory-as-guide）。
+
+### 问题驱动场景延展（强制 · PI-20260724-proactive-scenario-extension）
+
+当用户提出**具体痛点/问题**（文档看不懂、流程缺步、规范歧义、某种失败模式等），助手在正面回答之后，**同一轮**须主动延展 3+ 条相关场景或风险（表格或编号），不得只回一句就结束、等用户再问「还有没有其他场景」。
+
+- 机器抽检：`classifyProactiveScenarioExtensionSample(userMessage, assistantReply)` 不得为 `missing-extension`（在适用痛点句上）。  
+- 与 Intent Expansion / C12 同向：扩展是默认义务。
 
 ### HostCapabilityRoutingHandoff
 

@@ -173,8 +173,73 @@ function classifyDocsAudienceDisambiguationSample(disambiguationText) {
   return 'ok'
 }
 
+/**
+ * Cognitive altitude for public-user guide/readme bodies.
+ * Detects "complete but unreadable" function-inventory quick starts.
+ *
+ * @param {string} body markdown or free text
+ * @param {{ surface?: string }} [opts]
+ * @returns {'ok'|'function-inventory-as-guide'|'concept-dump-no-task'|'ok-reference-dense'|'not-applicable'}
+ */
+function classifyUserDocsCognitiveAltitudeSample(body, opts = {}) {
+  const text = String(body || '')
+  if (!text.trim()) return 'not-applicable'
+
+  const surface = String(opts.surface || 'guide').toLowerCase()
+  const head = text.slice(0, 1200)
+
+  // Identifier-call chains: foo( bar( or a.b.c( density
+  const callLike = (head.match(/\b[A-Za-z_][\w.]*\s*\(/g) || []).length
+  const taskLanguage = /你要|完成|目标是|场景|例如你|第一次|安装后|发一条|创建一个|如何|怎么|步骤\s*[1１一]|推荐路径|适合谁/i.test(head)
+  const conceptOnly = /架构|生命周期|模型|组件|模块|设计|原理/i.test(head) && !taskLanguage && callLike < 2
+
+  if (surface === 'reference') {
+    // Reference may be symbol-dense; still flag pure call lists with zero purpose lines if extreme
+    if (callLike >= 8 && !/用途|何时|用于|use when|purpose/i.test(text) && !taskLanguage) {
+      return 'function-inventory-as-guide'
+    }
+    return 'ok-reference-dense'
+  }
+
+  // guide / readme / quick start
+  if (callLike >= 3 && !taskLanguage) return 'function-inventory-as-guide'
+  // quick-start section that is only chained calls
+  if (/快速开始|quick\s*start|getting started/i.test(head)) {
+    const qs = head.split(/快速开始|quick\s*start|getting started/i)[1] || ''
+    const qsCalls = (qs.slice(0, 500).match(/\b[A-Za-z_][\w.]*\s*\(/g) || []).length
+    if (qsCalls >= 3 && !/安装|install|npm |pnpm |yarn /i.test(qs.slice(0, 500))) {
+      return 'function-inventory-as-guide'
+    }
+  }
+  if (conceptOnly && head.length > 200) return 'concept-dump-no-task'
+  return 'ok'
+}
+
+/**
+ * Whether an assistant reply proactively extended scenarios after a user pain point.
+ * @param {string} userMessage
+ * @param {string} assistantReply
+ * @returns {'ok'|'missing-extension'|'not-applicable'}
+ */
+function classifyProactiveScenarioExtensionSample(userMessage, assistantReply) {
+  const u = String(userMessage || '')
+  const a = String(assistantReply || '')
+  if (!u.trim() || !a.trim()) return 'not-applicable'
+  // User raised a concrete docs/process issue
+  const isPain = /问题|看不懂|复杂|场景|还有|为什么|如何处理|痛点|失败/i.test(u)
+  if (!isPain) return 'not-applicable'
+  // Assistant lists multiple related scenarios (tables, A1/B1, 场景)
+  const extendsScenes = (/场景/.test(a) && (a.match(/场景/g) || []).length >= 2) ||
+    /\|.*场景.*\|/.test(a) ||
+    /A\d|B\d|C\d|同类|延展|还有.*情况|相关失败/i.test(a)
+  if (!extendsScenes) return 'missing-extension'
+  return 'ok'
+}
+
 module.exports = {
   classifyDocsAudienceSample,
   classifyDocsAudienceDriftSample,
-  classifyDocsAudienceDisambiguationSample
+  classifyDocsAudienceDisambiguationSample,
+  classifyUserDocsCognitiveAltitudeSample,
+  classifyProactiveScenarioExtensionSample
 }

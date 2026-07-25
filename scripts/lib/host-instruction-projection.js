@@ -145,7 +145,7 @@ function createProjectionBundle({ source, config }) {
   const ids = Array.isArray(config?.mandatoryRuleIds) ? config.mandatoryRuleIds : []
   const ruleLines = sourceRuleLines(parsed, ids, errors)
   const semanticCoverage = validateSemanticGroups(sourceText, config?.semanticGroups || [], errors)
-  const fallback = config?.fullFallbackDestination || '.agents/devcodex/instructions.full.md'
+  const fallback = config?.fullFallbackDestination || 'user://agents/devcodex/instructions.full.md'
   const sharedKernel = buildKernel({
     title: 'DevCodex — Shared Host Kernel（generated）',
     hostNote: 'Codex / Claude import / Gemini import / Grok native AGENTS.md',
@@ -157,7 +157,7 @@ function createProjectionBundle({ source, config }) {
   })
   const copilotKernel = buildKernel({
     title: 'DevCodex — Copilot Host Kernel（generated）',
-    hostNote: 'GitHub Copilot instruction-fallback projection',
+    hostNote: 'GitHub Copilot CLI user-global instructions; Hooks/MCP/Skills are deployed separately',
     sourceDigest,
     configDigest,
     fallback,
@@ -183,7 +183,7 @@ function createProjectionBundle({ source, config }) {
   for (const name of [config?.outputs?.claudeWrapper, config?.outputs?.geminiWrapper].filter(Boolean)) {
     const metrics = outputMetrics[name]
     if (!metrics || metrics.bytes > config.budgets.wrapperMaxBytes) errors.push(`wrapper-budget-exceeded:${name}`)
-    if (metrics && !files[name].includes('@AGENTS.md')) errors.push(`wrapper-shared-kernel-pointer-missing:${name}`)
+    if (metrics && !files[name].includes('@devcodex/runtime/AGENTS.md')) errors.push(`wrapper-shared-kernel-pointer-missing:${name}`)
   }
   const collisions = detectContentCollisions(files)
   for (const collision of collisions) errors.push(`complete-content-collision:${collision.paths.join(',')}`)

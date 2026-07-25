@@ -14,6 +14,7 @@
     "scripts/test-npm-lifecycle-adapter.js",
     "scripts/lib/global-host-*.js",
     "scripts/test-global-host-config.js",
+    "scripts/test-global-host-runtime-verifier.js",
     "scripts/test-global-install-smoke.js",
     "scripts/fixtures/global-host-config/**",
     "scripts/lib/validation-dag.js",
@@ -3553,7 +3554,8 @@
         "grok/plugins/devcodex-workspace/**",
         "scripts/lib/global-host-*.js",
         "scripts/fixtures/global-host-config/**",
-        "scripts/test-global-host-config.js"
+        "scripts/test-global-host-config.js",
+        "scripts/test-global-host-runtime-verifier.js"
       ],
       "consumers": [
         "global-install-smoke"
@@ -3566,6 +3568,8 @@
         "exact-file-and-host-boundaries",
         "managed-hook-and-mcp-upgrade",
         "config-drift-detection",
+        "adapter-contract-false-green-detection",
+        "configured-contract-native-operational-layering",
         "idempotent-refresh",
         "workspace-host-dirs-zero"
       ],

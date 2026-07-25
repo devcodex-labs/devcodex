@@ -2,8 +2,9 @@
 
 function buildLifecycleHookOutput({ env, enforcementMode }) {
   function detectPlatform(payload) {
-    if (env.DEVCODEX_HOST_PLATFORM === 'gemini' || env.GEMINI_CLI || env.GEMINI_SESSION_ID) return 'gemini'
-    if (env.DEVCODEX_HOST_PLATFORM === 'grok') return 'grok'
+    const explicitHost = String(env.DEVCODEX_HOST_PLATFORM || '').trim().toLowerCase()
+    if (['copilot', 'claude', 'codex', 'gemini', 'grok'].includes(explicitHost)) return explicitHost
+    if (env.GEMINI_CLI || env.GEMINI_SESSION_ID) return 'gemini'
     if (env.CLAUDE_CODE_VERSION || env.CLAUDE_HOOK_COMMAND) return 'claude'
     if (env.CODEX_SANDBOX || env.CODEX_HOME || env.OPENAI_CODEX) return 'codex'
     if (
@@ -88,6 +89,11 @@ function buildLifecycleHookOutput({ env, enforcementMode }) {
       if (event === 'precompact') return { continue: true, systemMessage: message }
       return { decision: 'deny', reason: message }
     }
+    if (platform === 'copilot') {
+      if (event === 'pretooluse') return toolBlockOutput(eventName, reason, detail)
+      if (['stop', 'agentstop', 'subagentstop'].includes(event)) return { decision: 'block', reason: message }
+      return { continue: true, systemMessage: message }
+    }
     return toolBlockOutput(eventName, reason, detail)
   }
 
@@ -122,6 +128,9 @@ function buildLifecycleHookOutput({ env, enforcementMode }) {
       return ['pretooluse', 'permissionrequest', 'userpromptsubmit', 'stop', 'subagentstop', 'agentstop', 'precompact', 'postcompact'].includes(event)
     }
     if (platform === 'gemini') return ['pretooluse', 'userpromptsubmit', 'stop'].includes(event)
+    if (platform === 'copilot') {
+      return ['pretooluse', 'stop', 'agentstop', 'subagentstop'].includes(event)
+    }
     // Grok Build: only PreToolUse is blocking; all other lifecycle events are passive
     // (stdout ignored). Never advertise UserPromptSubmit/Stop hard-block parity with Codex.
     if (platform === 'grok') return event === 'pretooluse' || event === 'permissionrequest'

@@ -3,6 +3,7 @@
 const crypto = require('crypto')
 const fs = require('fs')
 const path = require('path')
+const { isDeepStrictEqual } = require('util')
 const {
   GLOBAL_HOST_IDS,
   resolveGlobalHostTargets,
@@ -14,11 +15,13 @@ const {
   mergeManagedBlock,
   mergeManagedTomlTables,
   parseJsonObject,
-  quoteToml
+  quoteToml,
+  tomlManagedFileMatches
 } = require('./global-host-config-merge.js')
 const {
   executeGlobalHostTransaction
 } = require('./global-host-config-transaction.js')
+const { createSkillDeployFileFilter } = require('./skill-deploy-filter.js')
 const {
   mergeGrokPluginRegistration
 } = require('./host-adapter-scope.js')
@@ -66,16 +69,16 @@ function walkFiles(root, fsImpl = fs) {
   return result.sort()
 }
 
-function addFileOperation(operations, host, destination, content, kind = 'text') {
-  operations.push({ host, path: destination, content, kind })
+function addFileOperation(operations, host, destination, content, kind = 'text', managedContent = content) {
+  operations.push({ host, path: destination, content, kind, managedContent })
 }
 
-function replaceFileOperation(operations, host, destination, content, kind = 'text') {
+function replaceFileOperation(operations, host, destination, content, kind = 'text', managedContent = content) {
   const resolved = path.resolve(destination)
   const index = operations.findIndex(operation =>
     operation.host === host && path.resolve(operation.path) === resolved
   )
-  const next = { host, path: destination, content, kind }
+  const next = { host, path: destination, content, kind, managedContent }
   if (index === -1) operations.push(next)
   else operations[index] = next
 }
@@ -89,20 +92,42 @@ function addSourceFile(operations, host, source, destination, fsImpl = fs) {
   addFileOperation(operations, host, destination, fsImpl.readFileSync(source, 'utf8'))
 }
 
-function addSourceTree(operations, host, sourceRoot, destinationRoot, fsImpl = fs) {
+function addSourceTree(operations, host, sourceRoot, destinationRoot, fsImpl = fs, fileFilter = null) {
   for (const source of walkFiles(sourceRoot, fsImpl)) {
+    const relative = path.relative(sourceRoot, source)
+    if (fileFilter && !fileFilter(relative)) continue
     addSourceFile(
       operations,
       host,
       source,
-      path.join(destinationRoot, path.relative(sourceRoot, source)),
+      path.join(destinationRoot, relative),
       fsImpl
     )
   }
 }
 
+function addSharedRuntime(operations, target, packageRoot, fsImpl = fs) {
+  if (!target.shared || target.sharedRuntimeOwner !== true) return
+  addSourceFile(
+    operations,
+    target.host,
+    path.join(packageRoot, 'instructions.md'),
+    target.shared.fullFallback,
+    fsImpl
+  )
+  addSourceTree(
+    operations,
+    target.host,
+    path.join(packageRoot, 'skills'),
+    target.shared.skills,
+    fsImpl,
+    createSkillDeployFileFilter(packageRoot)
+  )
+}
+
 function addCommonRuntime(operations, target, packageRoot, fsImpl = fs) {
   const runtime = target.runtimeRoot
+  addSharedRuntime(operations, target, packageRoot, fsImpl)
   addSourceFile(operations, target.host, path.join(packageRoot, 'instructions.md'), path.join(runtime, 'instructions.full.md'), fsImpl)
   addSourceFile(operations, target.host, path.join(packageRoot, 'host-projections', 'AGENTS.md'), path.join(runtime, 'AGENTS.md'), fsImpl)
   addSourceTree(operations, target.host, path.join(packageRoot, 'hooks', '_runtime'), path.join(runtime, 'hooks', '_runtime'), fsImpl)
@@ -139,6 +164,26 @@ function hookMap(runtimeFile, host, events) {
   ]))
 }
 
+function copilotHookDocument(runtimeFile) {
+  const command = shellCommand(runtimeFile, 'copilot')
+  const entry = matcher => ({
+    type: 'command',
+    command,
+    ...(matcher ? { matcher } : {}),
+    timeoutSec: 30
+  })
+  return {
+    version: 1,
+    hooks: {
+      UserPromptSubmit: [entry()],
+      PreToolUse: [entry('*')],
+      PostToolUse: [entry('*')],
+      Stop: [entry()],
+      PreCompact: [entry()]
+    }
+  }
+}
+
 function buildMcpServers(runtimeRoot) {
   return {
     'devcodex-memory': {
@@ -154,6 +199,21 @@ function buildMcpServers(runtimeRoot) {
       _note: 'Global DevCodex runtime; workspace Profile remains under .devcodex.'
     }
   }
+}
+
+function buildCopilotMcpServers(runtimeRoot) {
+  return Object.fromEntries(
+    Object.entries(buildMcpServers(runtimeRoot)).map(([name, server]) => [
+      name,
+      {
+        type: 'local',
+        command: server.command,
+        args: server.args,
+        env: {},
+        tools: ['*']
+      }
+    ])
+  )
 }
 
 function codexTomlBlock(target) {
@@ -184,20 +244,64 @@ function transformedHookTemplate(packageRoot, target, sourceRelative, host, fsIm
 
 function addCopilotPlan(operations, target, packageRoot, fsImpl) {
   addCommonRuntime(operations, target, packageRoot, fsImpl)
+  addSourceTree(
+    operations,
+    target.host,
+    path.join(packageRoot, 'skills'),
+    target.files.skills,
+    fsImpl,
+    createSkillDeployFileFilter(packageRoot)
+  )
   const destination = target.files.instructions
   const source = readText(path.join(packageRoot, 'host-projections', 'copilot-instructions.md'), fsImpl)
-  addFileOperation(operations, target.host, destination, managedInstruction(readText(destination, fsImpl), source, 'copilot'))
+  addFileOperation(
+    operations,
+    target.host,
+    destination,
+    managedInstruction(readText(destination, fsImpl), source, 'copilot'),
+    'text',
+    managedInstruction('', source, 'copilot')
+  )
+  const hooks = copilotHookDocument(
+    path.join(target.runtimeRoot, 'hooks', '_runtime', 'lifecycle-host-adapters.cjs')
+  )
+  addFileOperation(
+    operations,
+    target.host,
+    target.files.hooks,
+    mergeHostJsonContent(readText(target.files.hooks, fsImpl), hooks, 'Copilot hooks'),
+    'json',
+    `${JSON.stringify(hooks, null, 2)}\n`
+  )
+  const mcp = { mcpServers: buildCopilotMcpServers(target.runtimeRoot) }
+  addFileOperation(
+    operations,
+    target.host,
+    target.files.mcp,
+    mergeHostJsonContent(readText(target.files.mcp, fsImpl), mcp, 'Copilot user MCP'),
+    'json',
+    `${JSON.stringify(mcp, null, 2)}\n`
+  )
 }
 
 function addClaudePlan(operations, target, packageRoot, fsImpl) {
   addCommonRuntime(operations, target, packageRoot, fsImpl)
-  addSourceTree(operations, target.host, path.join(packageRoot, 'skills'), path.join(target.root, 'skills'), fsImpl)
+  addSourceTree(
+    operations,
+    target.host,
+    path.join(packageRoot, 'skills'),
+    path.join(target.root, 'skills'),
+    fsImpl,
+    createSkillDeployFileFilter(packageRoot)
+  )
   const source = readText(path.join(packageRoot, 'host-projections', 'CLAUDE.md'), fsImpl)
   addFileOperation(
     operations,
     target.host,
     target.files.instructions,
-    managedInstruction(readText(target.files.instructions, fsImpl), source, 'claude')
+    managedInstruction(readText(target.files.instructions, fsImpl), source, 'claude'),
+    'text',
+    managedInstruction('', source, 'claude')
   )
   const managedSettings = {
     $schema: 'https://json.schemastore.org/claude-code-settings.json',
@@ -212,7 +316,8 @@ function addClaudePlan(operations, target, packageRoot, fsImpl) {
     target.host,
     target.files.settings,
     mergeHostJsonContent(readText(target.files.settings, fsImpl), managedSettings, 'Claude settings'),
-    'json'
+    'json',
+    `${JSON.stringify(managedSettings, null, 2)}\n`
   )
   addFileOperation(
     operations,
@@ -223,19 +328,24 @@ function addClaudePlan(operations, target, packageRoot, fsImpl) {
       { mcpServers: buildMcpServers(target.runtimeRoot) },
       'Claude user MCP'
     ),
-    'json'
+    'json',
+    `${JSON.stringify({ mcpServers: buildMcpServers(target.runtimeRoot) }, null, 2)}\n`
   )
 }
 
 function addCodexPlan(operations, target, packageRoot, fsImpl) {
   addCommonRuntime(operations, target, packageRoot, fsImpl)
-  addSourceTree(operations, target.host, path.join(packageRoot, 'skills'), target.files.skills, fsImpl)
+  if (!target.shared || !samePath(target.files.skills, target.shared.skills)) {
+    addSourceTree(operations, target.host, path.join(packageRoot, 'skills'), target.files.skills, fsImpl)
+  }
   const source = readText(path.join(packageRoot, 'host-projections', 'AGENTS.md'), fsImpl)
   addFileOperation(
     operations,
     target.host,
     target.files.instructions,
-    managedInstruction(readText(target.files.instructions, fsImpl), source, 'codex')
+    managedInstruction(readText(target.files.instructions, fsImpl), source, 'codex'),
+    'text',
+    managedInstruction('', source, 'codex')
   )
   const hooks = transformedHookTemplate(packageRoot, target, path.join('codex', 'hooks.json'), 'codex', fsImpl)
   addFileOperation(
@@ -243,13 +353,14 @@ function addCodexPlan(operations, target, packageRoot, fsImpl) {
     target.host,
     target.files.hooks,
     mergeHostJsonContent(readText(target.files.hooks, fsImpl), hooks, 'Codex hooks'),
-    'json'
+    'json',
+    `${JSON.stringify(hooks, null, 2)}\n`
   )
-  addFileOperation(
-    operations,
-    target.host,
-    target.files.config,
-    mergeManagedTomlTables(readText(target.files.config, fsImpl), codexTomlBlock(target), {
+  const managedCodexToml = codexTomlBlock(target)
+  const codexTomlOperation = {
+    host: target.host,
+    path: target.files.config,
+    content: mergeManagedTomlTables(readText(target.files.config, fsImpl), managedCodexToml, {
       id: 'global-codex-mcp',
       tableNames: ['mcp_servers.devcodex-memory', 'mcp_servers.devcodex-profile'],
       legacyMarkers: [{
@@ -257,8 +368,11 @@ function addCodexPlan(operations, target, packageRoot, fsImpl) {
         end: '# END DEVCODEX-MCP-MANAGED'
       }]
     }),
-    'toml'
-  )
+    kind: 'toml',
+    managedContent: managedCodexToml,
+    managedBlockId: 'global-codex-mcp'
+  }
+  operations.push(codexTomlOperation)
 }
 
 function addGeminiPlan(operations, target, packageRoot, fsImpl) {
@@ -268,7 +382,9 @@ function addGeminiPlan(operations, target, packageRoot, fsImpl) {
     operations,
     target.host,
     target.files.instructions,
-    managedInstruction(readText(target.files.instructions, fsImpl), source, 'gemini')
+    managedInstruction(readText(target.files.instructions, fsImpl), source, 'gemini'),
+    'text',
+    managedInstruction('', source, 'gemini')
   )
   const settings = transformedHookTemplate(packageRoot, target, path.join('gemini', 'settings.json'), 'gemini', fsImpl)
   addFileOperation(
@@ -276,7 +392,8 @@ function addGeminiPlan(operations, target, packageRoot, fsImpl) {
     target.host,
     target.files.settings,
     mergeHostJsonContent(readText(target.files.settings, fsImpl), settings, 'Gemini settings'),
-    'json'
+    'json',
+    `${JSON.stringify(settings, null, 2)}\n`
   )
 }
 
@@ -310,7 +427,17 @@ function addGrokPlan(operations, target, packageRoot, fsImpl) {
   const merged = mergeGrokPluginRegistration(readText(target.files.config, fsImpl), target.files.plugin, {
     pluginName: 'devcodex-workspace'
   })
-  addFileOperation(operations, target.host, target.files.config, merged.desired, 'toml')
+  const managedGrokRegistration = mergeGrokPluginRegistration('', target.files.plugin, {
+    pluginName: 'devcodex-workspace'
+  }).desired
+  addFileOperation(
+    operations,
+    target.host,
+    target.files.config,
+    merged.desired,
+    'toml',
+    managedGrokRegistration
+  )
 }
 
 function hostPlanBuilder(host) {
@@ -330,10 +457,44 @@ function digestPlan(operations) {
     hash.update('\0')
     hash.update(path.resolve(operation.path))
     hash.update('\0')
-    hash.update(operation.content)
+    hash.update(operation.managedContent ?? operation.content)
     hash.update('\0')
   }
   return hash.digest('hex')
+}
+
+function operationMatchesCurrent(operation, fsImpl = fs) {
+  if (!fsImpl.existsSync(operation.path)) return false
+  const current = fsImpl.readFileSync(operation.path, 'utf8')
+  if (operation.kind === 'json') {
+    try {
+      return isDeepStrictEqual(JSON.parse(current), JSON.parse(operation.content))
+    } catch {
+      return false
+    }
+  }
+  // Codex (and other TOML managed-marker files): compare DevCodex authority
+  // fields only. Host-owned tool policy subtables inside the managed block are
+  // allowed so legitimate Codex approval_mode writes do not trip drift.
+  if (operation.kind === 'toml' && operation.managedContent != null) {
+    return tomlManagedFileMatches(
+      current,
+      operation.content,
+      operation.managedContent,
+      { id: operation.managedBlockId || 'global-codex-mcp' }
+    )
+  }
+  return current === operation.content
+}
+
+function preserveSemanticallyEquivalentContent(operations, fsImpl = fs) {
+  return operations.map(operation => {
+    if (!operationMatchesCurrent(operation, fsImpl)) return operation
+    return {
+      ...operation,
+      content: fsImpl.readFileSync(operation.path, 'utf8')
+    }
+  })
 }
 
 function digestText(value) {
@@ -370,18 +531,30 @@ function reusableUpdatedAt(previousReceipt, nextReceipt) {
   if (previousReceipt.sourceDigest !== nextReceipt.sourceDigest) return null
   if (previousReceipt.planDigest !== nextReceipt.planDigest) return null
   if (!sameStringArray(previousReceipt.managedPaths, nextReceipt.managedPaths)) return null
+  if (!sameStringArray(
+    previousReceipt.pendingStaleManagedPaths || [],
+    nextReceipt.pendingStaleManagedPaths || []
+  )) return null
   if (previousReceipt.result !== 'committed') return null
   return previousReceipt.updatedAt
 }
 
-function staleManagedPaths(previousReceipt, currentManagedPaths, target, fsImpl = fs) {
-  const previousPaths = Array.isArray(previousReceipt?.managedPaths)
+function staleManagedPaths(previousReceipt, currentManagedPaths, target, fsImpl = fs, globallyManagedPaths = []) {
+  const previousManagedPaths = Array.isArray(previousReceipt?.managedPaths)
     ? previousReceipt.managedPaths
     : (Array.isArray(previousReceipt?.configFiles) ? previousReceipt.configFiles : [])
+  const previousPaths = [
+    ...previousManagedPaths,
+    ...(Array.isArray(previousReceipt?.pendingStaleManagedPaths)
+      ? previousReceipt.pendingStaleManagedPaths
+      : [])
+  ]
   const current = new Set(currentManagedPaths.map(file => portable(file)))
-  return previousPaths
+  const globallyManaged = new Set(globallyManagedPaths.map(file => portable(file)))
+  return Array.from(new Set(previousPaths.map(file => portable(file))))
     .map(file => path.resolve(file))
     .filter(file => !current.has(portable(file)))
+    .filter(file => !globallyManaged.has(portable(file)))
     .filter(file => targetAcceptsPath(target, file, fsImpl))
     .filter(file => !samePath(file, target.receiptFile))
     .filter(file => fsImpl.existsSync(file))
@@ -422,12 +595,18 @@ function buildGlobalHostConfigPlan(options = {}) {
     home: options.home,
     hosts: options.hosts || GLOBAL_HOST_IDS
   })
+  const sharedRuntimeOwnerHost = targets.some(target => target.host === 'codex')
+    ? 'codex'
+    : targets[0]?.host
   const hostPlans = []
 
   for (const target of targets) {
     const hostOperations = []
     try {
-      hostPlanBuilder(target.host)(hostOperations, target, packageRoot, fsImpl)
+      hostPlanBuilder(target.host)(hostOperations, {
+        ...target,
+        sharedRuntimeOwner: target.host === sharedRuntimeOwnerHost
+      }, packageRoot, fsImpl)
       hostPlans.push({
         host: target.host,
         status: 'planned',
@@ -445,6 +624,7 @@ function buildGlobalHostConfigPlan(options = {}) {
   }
 
   const operations = hostPlans.flatMap(hostPlan => hostPlan.operations)
+  const globallyManagedPaths = operations.map(operation => operation.path)
   const preReceiptDigest = digestPlan(operations)
   for (const target of targets) {
     const hostPlan = hostPlans.find(item => item.host === target.host)
@@ -460,6 +640,14 @@ function buildGlobalHostConfigPlan(options = {}) {
       }
     }
     const managedPaths = hostFiles.map(portable)
+    hostPlan.staleManagedPaths = staleManagedPaths(
+      previousReceipt,
+      managedPaths,
+      target,
+      fsImpl,
+      globallyManagedPaths
+    )
+    const pendingStaleManagedPaths = hostPlan.staleManagedPaths.map(portable)
     const previousEquivalent = previousReceipt &&
       previousReceipt.schemaVersion === GLOBAL_HOST_RECEIPT_SCHEMA &&
       previousReceipt.host === target.host &&
@@ -468,19 +656,26 @@ function buildGlobalHostConfigPlan(options = {}) {
       previousReceipt.sourceDigest === preReceiptDigest &&
       previousReceipt.planDigest === preReceiptDigest &&
       sameStringArray(previousReceipt.managedPaths, managedPaths) &&
+      sameStringArray(previousReceipt.pendingStaleManagedPaths || [], pendingStaleManagedPaths) &&
       previousReceipt.result === 'committed'
     const receipt = {
       schemaVersion: GLOBAL_HOST_RECEIPT_SCHEMA,
       mode: GLOBAL_HOST_CONFIG_SCHEMA,
+      workspaceCleanMode: 'GlobalOnlyWorkspaceCleanModeV1',
       host: target.host,
       support: target.support,
       evidenceCeiling: target.evidenceCeiling,
       packageName: packageJson.name || 'devcodex',
       packageVersion: packageJson.version || 'unknown',
-      packageRoot: portable(packageRoot),
+      sourcePackageEvidence: {
+        rootLifetime: 'install-process-only',
+        durableIdentity: false,
+        authority: 'sourceDigest'
+      },
       runtimeRoot: portable(target.runtimeRoot),
       managedPaths,
       configFiles: managedPaths,
+      pendingStaleManagedPaths,
       sourceDigest: preReceiptDigest,
       planDigest: preReceiptDigest,
       previousStateRef: previousEquivalent
@@ -491,7 +686,6 @@ function buildGlobalHostConfigPlan(options = {}) {
       workspaceHostDirectoriesWritten: false
     }
     receipt.updatedAt = reusableUpdatedAt(previousReceipt, receipt) || new Date().toISOString()
-    hostPlan.staleManagedPaths = staleManagedPaths(previousReceipt, managedPaths, target, fsImpl)
     addFileOperation(
       hostPlan.operations,
       target.host,
@@ -504,13 +698,15 @@ function buildGlobalHostConfigPlan(options = {}) {
   const finalOperations = hostPlans.flatMap(hostPlan => hostPlan.operations)
   return {
     schemaVersion: GLOBAL_HOST_CONFIG_SCHEMA,
+    workspaceCleanMode: 'GlobalOnlyWorkspaceCleanModeV1',
     packageRoot,
     packageName: packageJson.name || 'devcodex',
     packageVersion: packageJson.version || 'unknown',
+    sharedRuntimeOwnerHost,
     targets,
     hostPlans,
     operations: finalOperations,
-    planDigest: digestPlan(finalOperations),
+    planDigest: preReceiptDigest,
     workspaceHostDirectoriesWritten: false
   }
 }
@@ -541,8 +737,10 @@ function applyGlobalHostConfig(options = {}) {
           ? options.failAfter
           : undefined)
     try {
-      const hostTransaction = executeGlobalHostTransaction(hostPlan.operations, {
-        fs: options.fs || fs,
+      const fsImpl = options.fs || fs
+      const transactionOperations = preserveSemanticallyEquivalentContent(hostPlan.operations, fsImpl)
+      const hostTransaction = executeGlobalHostTransaction(transactionOperations, {
+        fs: fsImpl,
         allowedRoots: [target.root, ...(target.additionalRoots || [])],
         allowedFiles: target.additionalFiles || [],
         allowedByHost: {
@@ -555,11 +753,48 @@ function applyGlobalHostConfig(options = {}) {
         failAfter
       })
       if (!options.dryRun && hostTransaction.status === 'committed') {
-        const staleCleanup = removeStaleManagedPaths(hostPlan.staleManagedPaths, target, options.fs || fs)
+        const staleCleanup = removeStaleManagedPaths(hostPlan.staleManagedPaths, target, fsImpl)
         hostTransaction.removedStaleManagedPaths = staleCleanup.removed.map(portable)
+        const pendingStaleManagedPaths = staleCleanup.failures.map(failure => failure.path)
         if (staleCleanup.failures.length) {
           hostTransaction.staleCleanupIncomplete = true
           hostTransaction.staleCleanupFailures = staleCleanup.failures
+        }
+        if (hostPlan.staleManagedPaths.length) {
+          const receiptOperation = hostPlan.operations.find(operation =>
+            samePath(operation.path, target.receiptFile)
+          )
+          try {
+            const receipt = parseJsonObject(receiptOperation.content, `${target.host} receipt finalization`)
+            const finalizedReceipt = {
+              ...receipt,
+              pendingStaleManagedPaths,
+              updatedAt: sameStringArray(receipt.pendingStaleManagedPaths || [], pendingStaleManagedPaths)
+                ? receipt.updatedAt
+                : new Date().toISOString()
+            }
+            const finalizedContent = `${JSON.stringify(finalizedReceipt, null, 2)}\n`
+            const receiptFinalization = executeGlobalHostTransaction([{
+              ...receiptOperation,
+              content: finalizedContent,
+              managedContent: finalizedContent
+            }], {
+              fs: fsImpl,
+              allowedRoots: [target.root, ...(target.additionalRoots || [])],
+              allowedFiles: target.additionalFiles || [],
+              allowedByHost: {
+                [target.host]: {
+                  allowedRoots: [target.root, ...(target.additionalRoots || [])],
+                  allowedFiles: target.additionalFiles || []
+                }
+              }
+            })
+            hostTransaction.changed += receiptFinalization.changed || 0
+            hostTransaction.receiptFinalization = receiptFinalization.status
+          } catch (error) {
+            hostTransaction.receiptFinalizationIncomplete = true
+            hostTransaction.receiptFinalizationError = error.message
+          }
         }
       }
       hostTransactions.push({ host: target.host, ...hostTransaction })
@@ -590,6 +825,13 @@ function applyGlobalHostConfig(options = {}) {
     backupCleanupFailures: successful.flatMap(item =>
       (item.backupCleanupFailures || []).map(failure => ({ host: item.host, ...failure }))
     ),
+    receiptFinalizationIncomplete: successful.some(item => item.receiptFinalizationIncomplete === true),
+    receiptFinalizationFailures: successful
+      .filter(item => item.receiptFinalizationIncomplete === true)
+      .map(item => ({
+        host: item.host,
+        error: item.receiptFinalizationError || 'receipt finalization failed'
+      })),
     staleCleanupIncomplete: successful.some(item => item.staleCleanupIncomplete === true),
     staleCleanupFailures: successful.flatMap(item =>
       (item.staleCleanupFailures || []).map(failure => ({ host: item.host, ...failure }))
@@ -599,7 +841,7 @@ function applyGlobalHostConfig(options = {}) {
   return { ...plan, transaction }
 }
 
-function inspectGlobalHostConfig(options = {}) {
+function inspectGlobalHostConfiguration(options = {}) {
   const fsImpl = options.fs || fs
   const packageRoot = path.resolve(options.packageRoot || path.join(__dirname, '..', '..'))
   const packageJson = readPackage(packageRoot, fsImpl)
@@ -629,10 +871,18 @@ function inspectGlobalHostConfig(options = {}) {
     const managedPaths = Array.isArray(receipt?.managedPaths)
       ? receipt.managedPaths.map(file => path.resolve(file))
       : []
+    const pendingStaleManagedPaths = Array.isArray(receipt?.pendingStaleManagedPaths)
+      ? receipt.pendingStaleManagedPaths.map(file => path.resolve(file))
+      : []
     const expectedHostPlan = expectedPlan.hostPlans.find(item => item.host === target.host)
     const expectedReceiptOperation = expectedHostPlan?.operations.find(operation =>
       samePath(operation.path, target.receiptFile)
     )
+    const driftedConfigFiles = (expectedHostPlan?.operations || [])
+      .filter(operation => !samePath(operation.path, target.receiptFile))
+      .filter(operation => fsImpl.existsSync(operation.path))
+      .filter(operation => !operationMatchesCurrent(operation, fsImpl))
+      .map(operation => operation.path)
     let expectedReceipt = null
     try {
       expectedReceipt = expectedReceiptOperation
@@ -642,23 +892,28 @@ function inspectGlobalHostConfig(options = {}) {
       expectedReceipt = null
     }
     const invalidConfigFiles = configFiles.filter(file => !targetAcceptsPath(target, file, fsImpl))
+    const invalidPendingStaleManagedPaths = pendingStaleManagedPaths
+      .filter(file => !targetAcceptsPath(target, file, fsImpl))
     const missingConfigFiles = configFiles
       .filter(file => targetAcceptsPath(target, file, fsImpl))
       .filter(file => !fsImpl.existsSync(file))
     const requiredEntrypoints = [
       runtimeEntry,
-      ...Object.values(target.files || {}).filter(Boolean)
+      ...Object.values(target.files || {}).filter(Boolean),
+      ...Object.values(target.shared || {}).filter(Boolean)
     ]
     const missingEntrypoints = requiredEntrypoints.filter(file => !fsImpl.existsSync(file))
     const runtimeDeclared = configFiles.some(file => samePath(file, runtimeEntry))
     const receiptFieldsComplete = receipt?.schemaVersion === GLOBAL_HOST_RECEIPT_SCHEMA &&
       receipt.mode === GLOBAL_HOST_CONFIG_SCHEMA &&
+      receipt.workspaceCleanMode === 'GlobalOnlyWorkspaceCleanModeV1' &&
       receipt.host === target.host &&
       typeof receipt.packageName === 'string' &&
       typeof receipt.packageVersion === 'string' &&
       typeof receipt.sourceDigest === 'string' &&
       typeof receipt.planDigest === 'string' &&
       Array.isArray(receipt.managedPaths) &&
+      Array.isArray(receipt.pendingStaleManagedPaths) &&
       Object.prototype.hasOwnProperty.call(receipt, 'previousStateRef') &&
       receipt.result === 'committed' &&
       typeof receipt.updatedAt === 'string'
@@ -667,8 +922,84 @@ function inspectGlobalHostConfig(options = {}) {
       receipt?.packageVersion === expectedReceipt.packageVersion &&
       receipt?.sourceDigest === expectedReceipt.sourceDigest &&
       receipt?.planDigest === receipt?.sourceDigest &&
-      sameStringArray(receipt?.managedPaths, expectedReceipt.managedPaths)
+      sameStringArray(receipt?.managedPaths, expectedReceipt.managedPaths) &&
+      sameStringArray(receipt?.pendingStaleManagedPaths, expectedReceipt.pendingStaleManagedPaths)
     const stale = Boolean(receipt) && (!receiptFieldsComplete || !receiptMatchesCurrent)
+    const configured = Boolean(receipt) &&
+      configFiles.length > 0 &&
+      managedPaths.length > 0 &&
+      runtimeDeclared
+    const configurationIssues = []
+    if (error) {
+      configurationIssues.push({
+        code: 'GLOBAL_HOST_RECEIPT_INVALID',
+        phase: 'configuration',
+        evidence: error,
+        nextStep: 'Run npm install -g devcodex to replace the invalid managed receipt.'
+      })
+    } else if (!receipt) {
+      configurationIssues.push({
+        code: 'GLOBAL_HOST_RECEIPT_MISSING',
+        phase: 'configuration',
+        evidence: target.receiptFile,
+        nextStep: 'Run npm install -g devcodex to create the user-global host receipt.'
+      })
+    } else if (stale) {
+      configurationIssues.push({
+        code: 'GLOBAL_HOST_RECEIPT_STALE',
+        phase: 'configuration',
+        evidence: target.receiptFile,
+        nextStep: 'Run npm update -g devcodex to refresh the managed receipt.'
+      })
+    }
+    for (const file of invalidConfigFiles) {
+      configurationIssues.push({
+        code: 'GLOBAL_HOST_CONFIG_PATH_INVALID',
+        phase: 'configuration',
+        evidence: portable(file),
+        nextStep: 'Review the receipt boundary, then reinstall the global package.'
+      })
+    }
+    for (const file of invalidPendingStaleManagedPaths) {
+      configurationIssues.push({
+        code: 'GLOBAL_HOST_STALE_PATH_OUTSIDE_ROOT',
+        phase: 'configuration',
+        evidence: portable(file),
+        nextStep: 'Review the receipt boundary, then reinstall the global package.'
+      })
+    }
+    for (const file of pendingStaleManagedPaths.filter(file => targetAcceptsPath(target, file, fsImpl))) {
+      configurationIssues.push({
+        code: 'GLOBAL_HOST_STALE_CLEANUP_PENDING',
+        phase: 'configuration',
+        evidence: portable(file),
+        nextStep: 'Run npm update -g devcodex to retry removal of the stale managed file.'
+      })
+    }
+    for (const file of missingConfigFiles) {
+      configurationIssues.push({
+        code: 'GLOBAL_HOST_CONFIG_PATH_MISSING',
+        phase: 'configuration',
+        evidence: portable(file),
+        nextStep: 'Run npm install -g devcodex to restore the missing managed file.'
+      })
+    }
+    for (const file of missingEntrypoints) {
+      configurationIssues.push({
+        code: 'GLOBAL_HOST_ENTRYPOINT_MISSING',
+        phase: 'configuration',
+        evidence: portable(file),
+        nextStep: 'Run npm install -g devcodex to restore the missing host entrypoint.'
+      })
+    }
+    for (const file of driftedConfigFiles) {
+      configurationIssues.push({
+        code: 'GLOBAL_HOST_MANAGED_CONFIG_DRIFT',
+        phase: 'configuration',
+        evidence: portable(file),
+        nextStep: 'Run npm update -g devcodex to restore the managed configuration segment.'
+      })
+    }
     const ready = receipt?.schemaVersion === GLOBAL_HOST_RECEIPT_SCHEMA &&
       receipt.host === target.host &&
       receiptFieldsComplete &&
@@ -677,8 +1008,11 @@ function inspectGlobalHostConfig(options = {}) {
       managedPaths.length > 0 &&
       runtimeDeclared &&
       invalidConfigFiles.length === 0 &&
+      invalidPendingStaleManagedPaths.length === 0 &&
+      pendingStaleManagedPaths.length === 0 &&
       missingConfigFiles.length === 0 &&
-      missingEntrypoints.length === 0
+      missingEntrypoints.length === 0 &&
+      driftedConfigFiles.length === 0
     return {
       host: target.host,
       support: target.support,
@@ -687,8 +1021,13 @@ function inspectGlobalHostConfig(options = {}) {
       runtimeEntry,
       configFilesDeclared: configFiles.length,
       invalidConfigFiles: invalidConfigFiles.map(portable),
+      invalidPendingStaleManagedPaths: invalidPendingStaleManagedPaths.map(portable),
+      pendingStaleManagedPaths: pendingStaleManagedPaths.map(portable),
       missingConfigFiles: missingConfigFiles.map(portable),
       missingEntrypoints: missingEntrypoints.map(portable),
+      driftedConfigFiles: driftedConfigFiles.map(portable),
+      configured,
+      configurationIssues,
       receiptFieldsComplete,
       receiptMatchesCurrent,
       ready,
@@ -700,10 +1039,26 @@ function inspectGlobalHostConfig(options = {}) {
   return {
     schemaVersion: 'GlobalHostConfigInspectionV1',
     mode: GLOBAL_HOST_CONFIG_SCHEMA,
+    workspaceCleanMode: 'GlobalOnlyWorkspaceCleanModeV1',
     packageVersion: packageJson.version || 'unknown',
     ready: hosts.every(host => host.ready),
     hosts
   }
+}
+
+function inspectGlobalHostConfig(options = {}) {
+  const configuration = inspectGlobalHostConfiguration(options)
+  const { verifyGlobalHostRuntime } = require('./global-host-runtime-verifier.js')
+  return verifyGlobalHostRuntime({
+    configuration,
+    fs: options.fs || fs,
+    spawnSync: options.spawnSync,
+    env: options.env || process.env,
+    home: options.home,
+    cwd: options.cwd,
+    depth: options.depth,
+    timeoutMs: options.timeoutMs
+  })
 }
 
 module.exports = {
@@ -712,9 +1067,12 @@ module.exports = {
   MCP_RUNTIME_DEPS,
   applyGlobalHostConfig,
   buildGlobalHostConfigPlan,
+  buildCopilotMcpServers,
   buildMcpServers,
+  copilotHookDocument,
   digestPlan,
   inspectGlobalHostConfig,
+  inspectGlobalHostConfiguration,
   portable,
   shellCommand,
   walkFiles

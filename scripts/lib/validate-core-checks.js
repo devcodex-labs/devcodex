@@ -335,10 +335,12 @@ function buildValidateCoreChecks(ctx) {
       return
     }
 
-    const allowedStates = new Set(['active', 'paused', 'resumed', 'converged', 'closed'])
-    const allowedFindingStates = new Set(['open', 'pending', 'in-progress', 'fixed', 'wontfix', 'accepted', 'recorded', 'transferred', 'superseded'])
+    const allowedStates = new Set(['active', 'paused', 'resumed', 'converged', 'closed', 'superseded'])
+    const terminalStates = new Set(['converged', 'closed', 'superseded'])
+    const allowedFindingStates = new Set(['open', 'pending', 'in-progress', 'fixed', 'wontfix', 'accepted', 'recorded', 'transferred', 'superseded', 'fixed-verified'])
     const unresolvedFindingStates = new Set(['open', 'pending', 'in-progress'])
     let violations = 0
+    const parsedStates = []
 
     for (const sf of stateFiles) {
       let state
@@ -347,6 +349,7 @@ function buildValidateCoreChecks(ctx) {
         violations++
         continue
       }
+      parsedStates.push({ file: sf, state })
 
       if (!allowedStates.has(state.state)) {
         warn(`[V15] invalid state in .devcodex/.audit-state/${sf}: ${state.state || 'missing'}`)
@@ -364,6 +367,13 @@ function buildValidateCoreChecks(ctx) {
         }
       }
 
+      if (state.state === 'superseded') {
+        if (!state.supersededBy && !(Array.isArray(state.supersededBySessions) && state.supersededBySessions.length)) {
+          warn(`[V15] superseded audit-state missing supersededBy metadata: .devcodex/.audit-state/${sf}`)
+          violations++
+        }
+      }
+
       if (Array.isArray(state.findings)) {
         for (const finding of state.findings) {
           const status = String(finding.status || '').toLowerCase()
@@ -374,11 +384,12 @@ function buildValidateCoreChecks(ctx) {
         }
       }
 
-      if (state.state === 'converged' || state.state === 'closed') {
+      if (terminalStates.has(state.state)) {
         const unresolved = Array.isArray(state.findings)
           ? state.findings.filter(finding => unresolvedFindingStates.has(String(finding.status || '').toLowerCase()))
           : []
-        if (unresolved.length) {
+        // superseded may retain historical open findings for forensics; they must not be treated as current.
+        if (unresolved.length && state.state !== 'superseded') {
           warn(`[V15] terminal audit-state has unresolved findings: .devcodex/.audit-state/${sf} (${unresolved.length})`)
           violations++
         }
@@ -390,6 +401,33 @@ function buildValidateCoreChecks(ctx) {
           : []
         if (unresolved.length && (!state.linkedReport || !state.lastCheckpoint || !state.lastCheckpoint.reason)) {
           warn(`[V15] paused audit-state with unresolved findings must include linkedReport and lastCheckpoint.reason: .devcodex/.audit-state/${sf}`)
+          violations++
+        }
+      }
+    }
+
+    // PF-212: a closed/converged audit that names prior sessions must not leave those
+    // priors in active/unresolved form without supersession metadata.
+    for (const { file, state } of parsedStates) {
+      if (!(state.state === 'closed' || state.state === 'converged')) continue
+      const priors = []
+        .concat(Array.isArray(state.linkedPriorAudits) ? state.linkedPriorAudits : [])
+        .concat(Array.isArray(state.linkedPriors) ? state.linkedPriors : [])
+        .map(item => String(item || '').replace(/\.json$/i, ''))
+        .filter(Boolean)
+      if (!priors.length) continue
+      for (const priorId of priors) {
+        const prior = parsedStates.find(item =>
+          item.file === `${priorId}.json` ||
+          item.file.startsWith(`${priorId}.`) ||
+          String(item.state.sessionId || '') === priorId
+        )
+        if (!prior) continue
+        if (prior.state.state === 'active' || prior.state.state === 'paused' || prior.state.state === 'resumed') {
+          warn(
+            `[V15] prior audit still non-terminal while successor closed: ` +
+            `.devcodex/.audit-state/${prior.file} referenced by ${file}`
+          )
           violations++
         }
       }

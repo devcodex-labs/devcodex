@@ -6,10 +6,102 @@ const grokHooks = require('../grok/hooks/devcodex.json')
 const {
   EVENT_MAP,
   adaptHostOutput,
-  normalizeHostPayload
+  isGrokImportedClaudePayload,
+  normalizeHostPayload,
+  probeHostAdapterContract,
+  runHostAdapter
 } = require('../hooks/_runtime/lifecycle-host-adapters.cjs')
 
-assert.deepStrictEqual(Object.keys(EVENT_MAP).sort(), ['gemini', 'grok'])
+assert.deepStrictEqual(Object.keys(EVENT_MAP).sort(), ['claude', 'codex', 'copilot', 'gemini', 'grok'])
+
+for (const host of ['copilot', 'claude', 'codex', 'gemini', 'grok']) {
+  const probe = probeHostAdapterContract(host)
+  assert.strictEqual(probe.status, 'passed', `${host} contract probe must pass`)
+  assert.ok(probe.events.length > 0, `${host} contract probe must exercise events`)
+}
+assert.strictEqual(probeHostAdapterContract('unknown').errorCode, 'HOST_ADAPTER_UNSUPPORTED')
+
+const claude = normalizeHostPayload('claude', { hookEventName: 'PreToolUse' })
+assert.strictEqual(claude.mappedEvent, 'PreToolUse')
+assert.strictEqual(claude.payload.devcodexHostSurface, 'claude')
+const codex = normalizeHostPayload('codex', { hook_event_name: 'PreCompact' })
+assert.strictEqual(codex.mappedEvent, 'PreCompact')
+assert.strictEqual(codex.payload.devcodexHostSurface, 'codex')
+const copilot = normalizeHostPayload('copilot', {
+  hookEventName: 'preToolUse',
+  sessionId: 'copilot-session',
+  toolName: 'powershell',
+  toolArgs: { command: 'Get-Date' }
+})
+assert.strictEqual(copilot.mappedEvent, 'PreToolUse')
+assert.strictEqual(copilot.payload.devcodexHostSurface, 'copilot')
+assert.strictEqual(copilot.payload.session_id, 'copilot-session')
+assert.strictEqual(copilot.payload.tool_name, 'powershell')
+assert.deepStrictEqual(copilot.payload.tool_input, { command: 'Get-Date' })
+
+const copilotDeny = adaptHostOutput('copilot', 'preToolUse', {
+  hookSpecificOutput: {
+    permissionDecision: 'deny',
+    permissionDecisionReason: 'policy denied'
+  },
+  modifiedArgs: { command: 'Write-Output safe' }
+})
+assert.deepStrictEqual(copilotDeny, {
+  permissionDecision: 'deny',
+  permissionDecisionReason: 'policy denied',
+  modifiedArgs: { command: 'Write-Output safe' }
+})
+const copilotPost = adaptHostOutput('copilot', 'PostToolUse', {
+  hookSpecificOutput: { additionalContext: 'remember this' },
+  modifiedResult: { resultType: 'success', textResultForLlm: 'safe result' }
+})
+assert.deepStrictEqual(copilotPost, {
+  additionalContext: 'remember this',
+  modifiedResult: { resultType: 'success', textResultForLlm: 'safe result' }
+})
+assert.deepStrictEqual(
+  adaptHostOutput('copilot', 'agentStop', { decision: 'block', reason: 'continue closure' }),
+  { decision: 'block', reason: 'continue closure' }
+)
+assert.deepStrictEqual(
+  adaptHostOutput('copilot', 'UserPromptSubmit', { decision: 'block', reason: 'must be ignored' }),
+  {}
+)
+
+const unknownEvent = runHostAdapter('codex', { hookEventName: 'UnknownEvent' })
+assert.strictEqual(unknownEvent.status, 2)
+assert.match(unknownEvent.error, /Unsupported codex hook event/)
+const spawnFailure = runHostAdapter('claude', { hookEventName: 'PreToolUse' }, {
+  spawnSync: () => ({ status: null, stdout: '', stderr: '', error: { code: 'ENOENT' } })
+})
+assert.strictEqual(spawnFailure.status, 1)
+assert.match(spawnFailure.error, /ENOENT/)
+const childSuccess = runHostAdapter('codex', { hookEventName: 'UserPromptSubmit' }, {
+  spawnSync: () => ({ status: 0, stdout: '{"continue":true}', stderr: '' })
+})
+assert.strictEqual(childSuccess.status, 0)
+assert.strictEqual(childSuccess.output.continue, true)
+
+for (const event of ['user_prompt_submit', 'pre_tool_use', 'post_tool_use', 'stop']) {
+  const payload = { hookEventName: event, cwd: process.cwd() }
+  assert.strictEqual(isGrokImportedClaudePayload('claude', payload, event), true)
+  const imported = runHostAdapter('claude', payload, {
+    spawnSync: () => {
+      throw new Error('Grok-imported Claude hooks must not execute the lifecycle twice')
+    }
+  })
+  assert.strictEqual(imported.status, 0)
+  assert.strictEqual(imported.output.continue, true)
+  assert.strictEqual(imported.output.devcodexCompatibilityBypass, 'grok-imported-claude-hook')
+}
+assert.strictEqual(
+  isGrokImportedClaudePayload('claude', { hook_event_name: 'UserPromptSubmit' }, 'UserPromptSubmit'),
+  false
+)
+assert.strictEqual(
+  runHostAdapter('claude', { hookEventName: 'unknown_foreign_event' }).status,
+  2
+)
 
 const before = normalizeHostPayload('gemini', {
   hook_event_name: 'BeforeAgent',
@@ -189,11 +281,11 @@ const bootstrapApi = buildLifecycleBootstrapStateUtils({
 assert.strictEqual(typeof bootstrapApi.hostCapabilityFor, 'function')
 assert.strictEqual(bootstrapApi.hostCapabilityFor('grok', {}), 'path-observable')
 assert.strictEqual(bootstrapApi.hostCapabilityFor('codex', {}), 'path-observable')
-assert.strictEqual(bootstrapApi.hostCapabilityFor('copilot', {}), 'instruction-only')
+assert.strictEqual(bootstrapApi.hostCapabilityFor('copilot', {}), 'path-observable')
 assert.strictEqual(bootstrapApi.hostCapabilityFor('claude', {}), 'structured-plan')
 assert.strictEqual(bootstrapApi.hostCapabilityFor('grok', { contextCapability: 'structured-plan' }), 'path-observable')
 assert.strictEqual(bootstrapApi.hostCapabilityFor('codex', { devcodexContextCapability: 'structured-plan' }), 'path-observable')
-assert.strictEqual(bootstrapApi.hostCapabilityFor('copilot', { contextCapability: 'structured-plan' }), 'instruction-only')
+assert.strictEqual(bootstrapApi.hostCapabilityFor('copilot', { contextCapability: 'structured-plan' }), 'path-observable')
 assert.strictEqual(bootstrapApi.hostCapabilityFor('claude', { contextCapability: 'instruction-only' }), 'instruction-only')
 
 const {
@@ -278,5 +370,15 @@ assert.strictEqual(hookOut.eventSupportsHardBlock('grok', 'PreToolUse'), true)
 assert.strictEqual(hookOut.eventSupportsHardBlock('grok', 'UserPromptSubmit'), false)
 assert.strictEqual(hookOut.eventSupportsHardBlock('grok', 'Stop'), false)
 assert.strictEqual(hookOut.eventSupportsHardBlock('codex', 'UserPromptSubmit'), true)
+assert.strictEqual(hookOut.eventSupportsHardBlock('copilot', 'PreToolUse'), true)
+assert.strictEqual(hookOut.eventSupportsHardBlock('copilot', 'Stop'), true)
+assert.strictEqual(hookOut.eventSupportsHardBlock('copilot', 'UserPromptSubmit'), false)
+assert.strictEqual(
+  buildLifecycleHookOutput({
+    env: { ...process.env, DEVCODEX_HOST_PLATFORM: 'copilot', CODEX_HOME: 'would-otherwise-win' },
+    enforcementMode: 'safety-only'
+  }).detectPlatform({ hook_event_name: 'PreToolUse' }),
+  'copilot'
+)
 
-console.log('host adapter tests passed gemini/grok mapping, capability ceilings, five-host completion parity')
+console.log('host adapter tests passed five-host mapping, Copilot CLI output contracts, capability ceilings, and completion parity')

@@ -328,6 +328,8 @@ function evaluateGrokHostParity(input = {}) {
   const hostState = host => (inspection.hosts || []).find(item => item.host === host) || {}
   const codexState = hostState('codex')
   const grokState = hostState('grok')
+  const adapterReady = state => state.adapterReady === true ||
+    (state.adapterReady === undefined && state.ready === true)
   const codexRuntime = codexTarget.runtimeRoot
   const pluginRoot = grokTarget.files.plugin
   const codexAdapter = path.join(codexRuntime, 'hooks', '_runtime', 'lifecycle-host-adapters.cjs')
@@ -337,17 +339,17 @@ function evaluateGrokHostParity(input = {}) {
 
   const hasGlobalKernel = input.hasGlobalKernel !== undefined
     ? input.hasGlobalKernel
-    : Boolean(codexState.ready && fileExists(codexTarget.files.instructions) &&
+    : Boolean(adapterReady(codexState) && fileExists(codexTarget.files.instructions) &&
       fileExists(path.join(codexRuntime, 'AGENTS.md')))
   const hasGlobalCodexLifecycle = input.hasGlobalCodexLifecycle !== undefined
     ? input.hasGlobalCodexLifecycle
-    : Boolean(codexState.ready && fileExists(path.join(codexRuntime, 'hooks', '_runtime', 'lifecycle.cjs')))
+    : Boolean(adapterReady(codexState) && fileExists(path.join(codexRuntime, 'hooks', '_runtime', 'lifecycle.cjs')))
   const hasGlobalGrokPlugin = input.hasGlobalGrokPlugin !== undefined
     ? input.hasGlobalGrokPlugin
-    : Boolean(grokState.ready && fileExists(path.join(pluginRoot, 'hooks', 'hooks.json')))
+    : Boolean(adapterReady(grokState) && fileExists(path.join(pluginRoot, 'hooks', 'hooks.json')))
   const hasGlobalGrokConfig = input.hasGlobalGrokConfig !== undefined
     ? input.hasGlobalGrokConfig
-    : Boolean(grokState.ready && fileExists(grokTarget.files.config))
+    : Boolean(adapterReady(grokState) && fileExists(grokTarget.files.config))
 
   const checks = {
     globalKernelAgentsMd: hasGlobalKernel,

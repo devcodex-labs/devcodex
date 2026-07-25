@@ -13,7 +13,7 @@ const {
   removeGrokPluginRegistration,
   syncGrokWorkspacePluginInstallation
 } = require('./lib/host-adapter-scope')
-const { buildGrokLaunchPlan } = require('./lib/grok-workspace-launcher')
+const { buildGrokLaunchPlan, launchGrok } = require('./lib/grok-workspace-launcher')
 const {
   applyGlobalHostConfig,
   inspectGlobalHostConfig
@@ -700,9 +700,89 @@ console.log(`legacy host installation tests passed selectors=5 dryRunWrites=0 co
   assert.strictEqual(install.transaction.status, 'committed')
   assert.strictEqual(install.workspaceHostDirectoriesWritten, false)
   const inspection = inspectGlobalHostConfig({ packageRoot: ROOT, env, home })
-  assert.strictEqual(inspection.ready, true)
+  assert.strictEqual(inspection.ready, false)
+  assert.strictEqual(inspection.overallState, 'degraded')
+  assert.strictEqual(inspection.hosts.find(host => host.host === 'grok').contractStatus, 'unverified')
   assert.strictEqual(inspection.hosts.length, 5)
   assert.ok(fs.existsSync(path.join(home, 'gemini-cli-home', '.gemini', 'devcodex', 'global-host-receipt.json')))
+  assert.ok(fs.existsSync(path.join(home, '.agents', 'devcodex', 'instructions.full.md')))
+  assert.ok(fs.existsSync(path.join(home, '.agents', 'skills', 'routing', 'SKILL.md')))
+
+  const globalPluginRoot = path.join(home, '.grok', 'devcodex', 'plugins', 'devcodex-workspace')
+  const globalPluginHook = require(path.join(globalPluginRoot, 'hooks', 'devcodex-workspace.cjs'))
+  const activeHook = globalPluginHook.runWorkspaceBridge(
+    { hookEventName: 'UserPromptSubmit', cwd: workspace },
+    {
+      cwd: workspace,
+      env,
+      pluginRoot: globalPluginRoot,
+      spawnSync: () => ({ status: 0, stdout: '{"continue":true}', stderr: '' })
+    }
+  )
+  assert.strictEqual(activeHook.status, 0)
+  assert.strictEqual(activeHook.workspaceRoot, workspace)
+  assert.strictEqual(activeHook.reason, 'global-adapter-active')
+  assert.strictEqual(activeHook.evidenceMode, 'passive-hook-no-context-injection')
+  const missingAdapterHook = globalPluginHook.runWorkspaceBridge(
+    { hookEventName: 'PreToolUse', cwd: workspace, toolInput: { command: 'echo ok' } },
+    { cwd: workspace, env, pluginRoot: globalPluginRoot, adapterPath: path.join(home, 'missing-adapter.cjs') }
+  )
+  assert.strictEqual(missingAdapterHook.status, 0)
+  assert.strictEqual(missingAdapterHook.reason, 'global-adapter-missing-degraded')
+  assert.deepStrictEqual(missingAdapterHook.output, { decision: 'allow' })
+  const dangerousWithoutAdapter = globalPluginHook.runWorkspaceBridge(
+    { hookEventName: 'PreToolUse', cwd: workspace, toolInput: { command: 'git reset --hard' } },
+    { cwd: workspace, env, pluginRoot: globalPluginRoot, adapterPath: path.join(home, 'missing-adapter.cjs') }
+  )
+  assert.strictEqual(dangerousWithoutAdapter.status, 0)
+  assert.strictEqual(dangerousWithoutAdapter.output.decision, 'deny')
+  const invalidAdapterOutput = globalPluginHook.runWorkspaceBridge(
+    { hookEventName: 'PreToolUse', cwd: workspace, toolInput: { command: 'echo ok' } },
+    {
+      cwd: workspace,
+      env,
+      pluginRoot: globalPluginRoot,
+      spawnSync: () => ({ status: 0, stdout: 'not-json', stderr: '' })
+    }
+  )
+  assert.strictEqual(invalidAdapterOutput.reason, 'global-adapter-invalid-output-degraded')
+  assert.deepStrictEqual(invalidAdapterOutput.output, { decision: 'allow' })
+  const dangerousWithInvalidAdapterOutput = globalPluginHook.runWorkspaceBridge(
+    { hookEventName: 'PreToolUse', cwd: workspace, toolInput: { command: 'git reset --hard' } },
+    {
+      cwd: workspace,
+      env,
+      pluginRoot: globalPluginRoot,
+      spawnSync: () => ({ status: 0, stdout: 'not-json', stderr: '' })
+    }
+  )
+  assert.strictEqual(
+    dangerousWithInvalidAdapterOutput.reason,
+    'global-adapter-invalid-output-local-danger-deny'
+  )
+  assert.strictEqual(dangerousWithInvalidAdapterOutput.output.decision, 'deny')
+  const outsideHook = globalPluginHook.runWorkspaceBridge(
+    { hookEventName: 'UserPromptSubmit', cwd: home },
+    { cwd: home, env, pluginRoot: globalPluginRoot }
+  )
+  assert.strictEqual(outsideHook.reason, 'outside-workspace')
+
+  const mcpBridge = path.join(globalPluginRoot, 'mcp', 'workspace-bridge.cjs')
+  const mcpBridgeProbe = spawnSync(process.execPath, [mcpBridge, 'memory', workspace], {
+    cwd: workspace,
+    input: `${JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} })}\n`,
+    encoding: 'utf8',
+    env
+  })
+  assert.strictEqual(mcpBridgeProbe.status, 0, mcpBridgeProbe.stderr || mcpBridgeProbe.stdout)
+  assert.strictEqual(JSON.parse(mcpBridgeProbe.stdout.trim().split(/\r?\n/)[0]).id, 1)
+  const mcpOutsideProbe = spawnSync(process.execPath, [mcpBridge, 'memory', home], {
+    cwd: home,
+    encoding: 'utf8',
+    env
+  })
+  assert.strictEqual(mcpOutsideProbe.status, 2)
+  assert.match(mcpOutsideProbe.stderr, /no workspace-namespace/)
 
   const statusAfterGlobalInstall = spawnSync(process.execPath, [INDEX, 'status', '--json'], {
     cwd: workspace,
@@ -711,9 +791,24 @@ console.log(`legacy host installation tests passed selectors=5 dryRunWrites=0 co
   })
   assert.strictEqual(statusAfterGlobalInstall.status, 0, statusAfterGlobalInstall.stderr || statusAfterGlobalInstall.stdout)
   const statusAfterGlobalInstallFacts = JSON.parse(statusAfterGlobalInstall.stdout).payload
-  assert.strictEqual(statusAfterGlobalInstallFacts.globalHostConfig.ready, true)
-  assert.strictEqual(statusAfterGlobalInstallFacts.entryFiles.instructionProjection.grokPlugin.globalAdapterReady, true)
+  assert.strictEqual(statusAfterGlobalInstallFacts.globalHostConfig.ready, false)
+  assert.strictEqual(statusAfterGlobalInstallFacts.globalHostConfig.overallState, 'degraded')
+  assert.strictEqual(statusAfterGlobalInstallFacts.entryFiles.instructionProjection.grokPlugin.globalAdapterReady, false)
+  assert.strictEqual(statusAfterGlobalInstallFacts.entryFiles.instructionProjection.grokPlugin.workspaceSourceRequired, false)
   assert(!statusAfterGlobalInstallFacts.entryFiles.instructionProjection.issues.some(item =>
+    item.code === 'HOST_GROK_WORKSPACE_PLUGIN_MISSING'
+  ))
+  const doctorAfterGlobalInstall = spawnSync(process.execPath, [INDEX, 'doctor', '--json'], {
+    cwd: workspace,
+    encoding: 'utf8',
+    env
+  })
+  assert.strictEqual(doctorAfterGlobalInstall.status, 0, doctorAfterGlobalInstall.stderr || doctorAfterGlobalInstall.stdout)
+  const doctorAfterGlobalInstallFacts = JSON.parse(doctorAfterGlobalInstall.stdout).payload
+  assert.strictEqual(doctorAfterGlobalInstallFacts.globalHostConfig.ready, false)
+  assert.strictEqual(doctorAfterGlobalInstallFacts.installArtifacts.instructionProjection.grokPlugin.globalAdapterReady, false)
+  assert.strictEqual(doctorAfterGlobalInstallFacts.installArtifacts.instructionProjection.grokPlugin.workspaceSourceRequired, false)
+  assert(!doctorAfterGlobalInstallFacts.installArtifacts.instructionProjection.issues.some(item =>
     item.code === 'HOST_GROK_WORKSPACE_PLUGIN_MISSING'
   ))
 
@@ -725,7 +820,7 @@ console.log(`legacy host installation tests passed selectors=5 dryRunWrites=0 co
   assert.strictEqual(runtimeInit.status, 0, runtimeInit.stderr || runtimeInit.stdout)
   const runtimeEnvelope = JSON.parse(runtimeInit.stdout)
   assert.strictEqual(runtimeEnvelope.payload.workspaceHostDirectoriesWritten, false)
-  for (const relative of ['.github', '.claude', '.codex', '.gemini', '.grok']) {
+  for (const relative of ['.github', '.claude', '.codex', '.gemini', '.grok', '.agents', 'AGENTS.md', 'CLAUDE.md', 'GEMINI.md', '.mcp.json']) {
     assert.strictEqual(fs.existsSync(path.join(workspace, relative)), false, `${relative} must remain absent`)
   }
 
@@ -751,6 +846,18 @@ console.log(`legacy host installation tests passed selectors=5 dryRunWrites=0 co
   assert.ok(launchPlan.kernelPath.startsWith(path.join(home, '.grok')))
   assert.match(launchPlan.args[1], /DevCodex user-global controlling kernel follows/)
   assert.match(launchPlan.args[1], /fixture-extra/)
+  let launchedOptions = null
+  const launched = launchGrok(['-p', 'check'], {
+    cwd: workspace,
+    env: { ...env, GROK_HOME: '' },
+    home,
+    spawnSync: (_command, _args, options) => {
+      launchedOptions = options
+      return { status: 0, signal: null }
+    }
+  })
+  assert.strictEqual(launched.status, 0)
+  assert.strictEqual(launchedOptions.env.GROK_HOME, path.join(home, '.grok'))
 
   fs.rmSync(currentRoot, { recursive: true, force: true })
   console.log('host installation tests passed mode=global-only hosts=5 workspaceHostDirs=0 selectors=blocked grokLauncher=global')

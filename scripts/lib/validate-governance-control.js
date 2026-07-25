@@ -1,6 +1,10 @@
 function buildGovernanceControlChecks(ctx) {
   const { ROOT, fs, path, read, err, execSync, activePath, isValidationDelegated = () => false } = ctx
 
+  function globalOnlyWorkspaceCleanModeEnabled() {
+    return read(path.join(ROOT, 'README.md')).includes('GlobalOnlyWorkspaceCleanModeV1')
+  }
+
   function checkV20() {
     const probes = [
       {
@@ -181,11 +185,11 @@ function buildGovernanceControlChecks(ctx) {
     }
 
     const workspaceAgents = path.resolve(ROOT, '..', 'AGENTS.md')
-    if (fs.existsSync(workspaceAgents)) {
+    if (!globalOnlyWorkspaceCleanModeEnabled() && fs.existsSync(workspaceAgents)) {
       const content = read(workspaceAgents)
       const projectedKernel = content.includes('Shared Host Kernel（generated）')
       const needles = projectedKernel
-        ? ['强制不变量（S01~S07 / C01~C22）', '完成顺序为 PC0~PC7→FC→SC→RC→报告验证→T1~T13', 'Full fallback: .agents/devcodex/instructions.full.md']
+        ? ['强制不变量（S01~S07 / C01~C22）', '完成顺序为 PC0~PC7→FC→SC→RC→报告验证→T1~T13', 'Full fallback: user://agents/devcodex/instructions.full.md']
         : ['强制约束（C01~C22）', '全量 FC1~FC7 + SC1~SC16 + RC1~RC4 + T1~T13', 'canonical ID']
       for (const needle of needles) {
         if (!content.includes(needle)) {
@@ -294,11 +298,11 @@ function buildGovernanceControlChecks(ctx) {
     }
 
     const workspaceAgents = path.resolve(ROOT, '..', 'AGENTS.md')
-    if (fs.existsSync(workspaceAgents)) {
+    if (!globalOnlyWorkspaceCleanModeEnabled() && fs.existsSync(workspaceAgents)) {
       const content = read(workspaceAgents)
       const projectedKernel = content.includes('Shared Host Kernel（generated）')
       const needles = projectedKernel
-        ? ['workspace-namespace', '机械唱反调', 'Full fallback: .agents/devcodex/instructions.full.md']
+        ? ['workspace-namespace', '机械唱反调', 'Full fallback: user://agents/devcodex/instructions.full.md']
         : ['workspace-namespace', '机械唱反调']
       for (const needle of needles) {
         if (!content.includes(needle)) {
@@ -330,6 +334,7 @@ function buildGovernanceControlChecks(ctx) {
       'instructions/12-audit.instructions.md',
       'instructions/15-memory.instructions.md',
       'skills/memory/SKILL.md',
+      'skills/user-visible-output-contract/SKILL.md',
       'scripts/validate-profile.js',
       'codex/hooks.json',
       'index.js',
@@ -350,31 +355,37 @@ function buildGovernanceControlChecks(ctx) {
       { file: 'instructions/12-audit.instructions.md', needle: 'data/pending-issues.md' },
       { file: 'data/README.md', needle: 'pending-issues.md' },
       { file: 'data/templates/pending-issues.md', needle: 'ISSUE-000' },
-      { file: 'README.md', needle: 'Copilot / Claude Code 双主支持' },
+      { file: 'README.md', needle: '默认五宿主：Copilot / Claude Code / Codex / Gemini / Grok' },
       { file: 'README.md', needle: 'CLI_HOST_CONFIG_GLOBAL_ONLY' },
       { file: 'README.md', needle: 'npm install -g devcodex' },
       { file: 'README.md', needle: 'AGENTS.md' },
       { file: 'README.md', needle: 'OpenAI Codex app/CLI' },
       { file: 'README.md', needle: 'pending-issues / process-improvements' },
-      { file: 'RULES.md', needle: 'Copilot / Claude Code' },
+      { file: 'RULES.md', needle: 'Copilot / Claude Code / Codex / Gemini / Grok' },
       { file: 'RULES.md', needle: 'CLI_HOST_CONFIG_GLOBAL_ONLY' },
       { file: 'RULES.md', needle: 'npm install -g devcodex' },
       { file: 'RULES.md', needle: 'AGENTS.md' },
-      { file: 'website/rspress.config.ts', needle: 'Copilot / Claude Code' },
-      { file: 'website/docs/index.md', needle: 'Copilot / Claude Code' },
+      { file: 'website/rspress.config.ts', needle: 'Copilot / Claude Code / Codex / Gemini / Grok' },
+      { file: 'website/docs/index.md', needle: 'Copilot / Claude Code / Codex / Gemini / Grok' },
       { file: 'website/docs/index.md', needle: 'Codex' },
       { file: 'website/docs/index.md', needle: 'Hook 能力按宿主/事件降级' },
-      { file: 'website/docs/intro/index.md', needle: 'Copilot / Claude Code' },
+      { file: 'website/docs/intro/index.md', needle: 'Copilot / Claude Code / Codex / Gemini / Grok' },
       { file: 'website/docs/intro/index.md', needle: 'Codex' },
       { file: 'website/docs/intro/index.md', needle: 'Hook 能力按宿主/事件降级' },
       { file: 'package.json', needle: 'Claude Code' },
       { file: 'package.json', needle: 'Codex' },
+      { file: 'package.json', needle: 'Gemini CLI' },
+      { file: 'package.json', needle: 'Grok' },
       { file: 'plugin.json', needle: 'Claude Code' },
+      { file: 'plugin.json', needle: 'Codex' },
+      { file: 'plugin.json', needle: 'Gemini CLI' },
+      { file: 'plugin.json', needle: 'Grok' },
       { file: 'skills/audit-report/SKILL.md', needle: '两层结构' },
       { file: 'skills/report/SKILL.md', needle: '两层问题清单' },
       { file: 'instructions.md', needle: 'jetbrains-copilot' },
       { file: 'instructions/15-memory.instructions.md', needle: 'jetbrains-copilot' },
       { file: 'skills/memory/SKILL.md', needle: 'jetbrains-copilot' },
+      { file: 'skills/user-visible-output-contract/SKILL.md', needle: '五宿主部署副本' },
       { file: 'scripts/validate-profile.js', needle: 'jetbrains-copilot' },
       { file: 'scripts/lib/cli-maintenance-commands.js', needle: 'jetbrains-copilot' }
     ]
@@ -402,7 +413,8 @@ function buildGovernanceControlChecks(ctx) {
     const mustNots = [
       { file: 'README.md', needle: '不使用 GitHub Copilot 的 IDE/Agent' },
       { file: 'instructions/15-memory.instructions.md', needle: 'zed-copilot' },
-      { file: 'skills/memory/SKILL.md', needle: 'zed-copilot' }
+      { file: 'skills/memory/SKILL.md', needle: 'zed-copilot' },
+      { file: 'skills/user-visible-output-contract/SKILL.md', needle: '四宿主部署副本' }
     ]
 
     for (const probe of mustNots) {

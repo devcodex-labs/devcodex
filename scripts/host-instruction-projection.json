@@ -1,7 +1,7 @@
 {
   "schemaVersion": "HostInstructionProjectionConfigV1",
   "sourceFile": "instructions.md",
-  "fullFallbackDestination": ".agents/devcodex/instructions.full.md",
+  "fullFallbackDestination": "user://agents/devcodex/instructions.full.md",
   "budgets": {
     "kernelMaxBytes": 16384,
     "kernelMaxLines": 200,
@@ -107,19 +107,19 @@
     "claude": [
       "# DevCodex — Claude Code Adapter（generated）",
       "",
-      "@AGENTS.md",
+      "@devcodex/runtime/AGENTS.md",
       "",
-      "- 上方 shared kernel 为强制入口；按需读取 `.claude/skills/`。",
-      "- kernel 不足或 coverage/freshness 失败时读取 `.agents/devcodex/instructions.full.md`。",
+      "- 上方 shared kernel 位于用户级 Claude runtime；按需读取用户级 `.claude/skills/`。",
+      "- kernel 不足或 coverage/freshness 失败时读取用户级 `.agents/devcodex/instructions.full.md`。",
       "- Hook direct evidence 缺失时保持 unverified，不得凭配置文件宣称 enforced。"
     ],
     "gemini": [
       "# DevCodex — Gemini CLI Adapter（generated）",
       "",
-      "@AGENTS.md",
+      "@devcodex/runtime/AGENTS.md",
       "",
-      "- 上方 shared kernel 为强制入口；按需读取 `.agents/skills/`。",
-      "- kernel 不足或 coverage/freshness 失败时读取 `.agents/devcodex/instructions.full.md`。",
+      "- 上方 shared kernel 位于用户级 Gemini runtime；按需读取用户级 `.agents/skills/`。",
+      "- kernel 不足或 coverage/freshness 失败时读取用户级 `.agents/devcodex/instructions.full.md`。",
       "- BeforeAgent/AfterAgent/PreCompress 的能力声明必须受 direct replay 证据上限约束。"
     ]
   }

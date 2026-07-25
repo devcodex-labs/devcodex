@@ -10,6 +10,7 @@ const {
   classifyNpmLifecycleInstall,
   runPostinstall
 } = require('./lib/npm-lifecycle-adapter')
+const { syncGrokWorkspacePluginInstallation } = require('./lib/host-adapter-scope')
 
 const root = path.resolve(__dirname, '..')
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-npm-lifecycle-'))
@@ -53,6 +54,112 @@ function writePackageLockRootDependency(dir, dependencyName) {
       }
     }
   })
+}
+
+function readRegistry(grokHome) {
+  return JSON.parse(fs.readFileSync(path.join(grokHome, 'installed-plugins', 'registry.json'), 'utf8'))
+}
+
+function writeRegistry(grokHome, value) {
+  const file = path.join(grokHome, 'installed-plugins', 'registry.json')
+  mkdirp(path.dirname(file))
+  writeJson(file, value)
+}
+
+function pluginListFromRegistry(grokHome) {
+  return Object.entries(readRegistry(grokHome).repos || {}).map(([repoId, entry]) => ({
+    status: 'installed',
+    name: 'devcodex-workspace',
+    repo_key: repoId,
+    version: '1.0.0',
+    path: entry.path,
+    source: entry.kind.source_path,
+    marketplace: null
+  }))
+}
+
+function createGrokDriver(grokHome, options = {}) {
+  let installCount = 0
+  let failedCanonical = false
+  const calls = []
+  const driver = (command, args) => {
+    calls.push([command, ...args])
+    if (command !== 'grok') return { status: null, stdout: '', stderr: '', error: { code: 'ENOENT' } }
+    if (args[0] === 'version') return { status: 0, stdout: 'grok fixture\n', stderr: '' }
+    if (args[0] === 'plugin' && args[1] === 'list') {
+      return { status: 0, stdout: JSON.stringify(pluginListFromRegistry(grokHome)), stderr: '' }
+    }
+    if (args[0] === 'plugin' && args[1] === 'uninstall') {
+      const registry = readRegistry(grokHome)
+      const keys = Object.keys(registry.repos || {})
+      const key = options.uninstallOrder === 'last' ? keys.at(-1) : keys[0]
+      if (key) delete registry.repos[key]
+      writeRegistry(grokHome, registry)
+      return { status: 0, stdout: 'uninstalled\n', stderr: '' }
+    }
+    if (args[0] === 'plugin' && args[1] === 'install') {
+      const source = path.resolve(args[2])
+      if (options.failCanonicalOnce && !failedCanonical && path.resolve(source) === path.resolve(options.canonical)) {
+        failedCanonical = true
+        if (typeof options.onCanonicalFailure === 'function') options.onCanonicalFailure()
+        return { status: 1, stdout: '', stderr: 'fixture canonical install failure' }
+      }
+      installCount += 1
+      const installedPath = path.join(grokHome, 'installed-plugins', `installed-${installCount}`)
+      fs.cpSync(source, installedPath, { recursive: true })
+      if (
+        options.corruptCanonicalAfterInstall &&
+        path.resolve(source) === path.resolve(options.canonical)
+      ) {
+        fs.appendFileSync(
+          path.join(installedPath, 'hooks', 'devcodex-workspace.cjs'),
+          '\n// fixture digest drift\n',
+          'utf8'
+        )
+      }
+      const registry = readRegistry(grokHome)
+      registry.repos[`fixture-${installCount}`] = {
+        kind: { type: 'Local', source_path: source },
+        path: installedPath,
+        plugins: { 'devcodex-workspace': { version: '1.0.0' } }
+      }
+      writeRegistry(grokHome, registry)
+      return { status: 0, stdout: 'installed\n', stderr: '' }
+    }
+    return { status: 2, stdout: '', stderr: `unsupported fixture command: ${args.join(' ')}` }
+  }
+  driver.calls = calls
+  return driver
+}
+
+function createDuplicateGrokFixture(label) {
+  const fixtureRoot = mkdirp(path.join(tmp, label))
+  const grokHome = mkdirp(path.join(fixtureRoot, 'home', '.grok'))
+  const canonical = path.join(grokHome, 'devcodex', 'plugins', 'devcodex-workspace')
+  const legacy = path.join(fixtureRoot, 'workspace', '.grok', 'devcodex', 'plugins', 'devcodex-workspace')
+  fs.cpSync(path.join(root, 'grok', 'plugins', 'devcodex-workspace'), canonical, { recursive: true })
+  fs.cpSync(path.join(root, 'grok', 'plugins', 'devcodex-workspace'), legacy, { recursive: true })
+  const canonicalInstalled = path.join(grokHome, 'installed-plugins', 'canonical')
+  const legacyInstalled = path.join(grokHome, 'installed-plugins', 'legacy')
+  fs.cpSync(canonical, canonicalInstalled, { recursive: true })
+  fs.cpSync(legacy, legacyInstalled, { recursive: true })
+  writeRegistry(grokHome, {
+    version: 1,
+    repos: {
+      canonical: {
+        kind: { type: 'Local', source_path: canonical },
+        path: canonicalInstalled,
+        plugins: { 'devcodex-workspace': { version: '1.0.0' } }
+      },
+      legacy: {
+        kind: { type: 'Local', source_path: legacy },
+        path: legacyInstalled,
+        plugins: { 'devcodex-workspace': { version: '1.0.0' } }
+      }
+    }
+  })
+  fs.writeFileSync(path.join(grokHome, 'config.toml'), '[plugins]\nenabled = ["project-owned"]\n', 'utf8')
+  return { fixtureRoot, grokHome, canonical, legacy }
 }
 
 const packagedRoot = fixturePackageRoot('packaged')
@@ -144,15 +251,17 @@ const executed = runPostinstall({
       }
     }
   },
-  syncGrokPluginInstallation: call => {
+  syncGrokWorkspacePluginInstallation: call => {
     grokSyncCalls.push(call)
-    return { schemaVersion: 'GrokPluginInstallationReceiptV1', status: 'verified' }
+    return { schemaVersion: 'GrokPluginRegistryConvergenceReceiptV2', status: 'verified' }
   }
 })
 assert.strictEqual(executed.status, 'executed')
 assert.strictEqual(path.resolve(calls.at(-1).packageRoot), path.resolve(packagedRoot))
 assert.strictEqual(executed.globalHostConfig.workspaceHostDirectoriesWritten, false)
 assert.strictEqual(executed.globalHostConfig.transactionStatus, 'committed')
+assert.strictEqual(executed.globalHostConfig.maintenanceStatus, 'complete')
+assert.strictEqual(executed.globalHostConfig.maintenanceIncomplete, false)
 assert.deepStrictEqual(executed.globalHostConfig.hosts, ['codex', 'grok'])
 assert.deepStrictEqual(executed.globalHostConfig.hostResults, [
   { host: 'codex', status: 'committed', changed: 1, errorCode: null },
@@ -160,6 +269,36 @@ assert.deepStrictEqual(executed.globalHostConfig.hostResults, [
 ])
 assert.strictEqual(grokSyncCalls.length, 1)
 assert.strictEqual(executed.globalHostConfig.integrations.grok.status, 'verified')
+
+const maintenanceWarning = runPostinstall({
+  env: { npm_lifecycle_event: 'postinstall', npm_config_global: 'true', INIT_CWD: workspace },
+  cwd: workspace,
+  packageRoot: packagedRoot,
+  applyGlobalHostConfig: () => ({
+    schemaVersion: 'GlobalOnlyHostConfigModeV1',
+    planDigest: 'maintenance-warning-fixture',
+    targets: [{ host: 'codex' }],
+    workspaceHostDirectoriesWritten: false,
+    transaction: {
+      status: 'committed',
+      changed: 1,
+      backupCleanupIncomplete: true,
+      backupCleanupFailures: [{ host: 'codex', path: 'backup', error: 'fixture' }],
+      staleCleanupIncomplete: true,
+      staleCleanupFailures: [{ host: 'codex', path: 'stale', error: 'fixture' }],
+      receiptFinalizationIncomplete: true,
+      receiptFinalizationFailures: [{ host: 'codex', error: 'fixture' }],
+      hosts: [{ host: 'codex', status: 'committed', changed: 1 }]
+    }
+  })
+})
+assert.strictEqual(maintenanceWarning.status, 'executed')
+assert.strictEqual(maintenanceWarning.exitCode, 0)
+assert.strictEqual(maintenanceWarning.globalHostConfig.maintenanceStatus, 'incomplete')
+assert.strictEqual(maintenanceWarning.globalHostConfig.maintenanceIncomplete, true)
+assert.strictEqual(maintenanceWarning.globalHostConfig.backupCleanupFailureCount, 1)
+assert.strictEqual(maintenanceWarning.globalHostConfig.staleCleanupFailureCount, 1)
+assert.strictEqual(maintenanceWarning.globalHostConfig.receiptFinalizationFailureCount, 1)
 
 const partial = runPostinstall({
   env: { npm_lifecycle_event: 'postinstall', npm_config_global: 'true', INIT_CWD: workspace },
@@ -200,7 +339,7 @@ const grokFailed = runPostinstall({
       hosts: [{ host: 'grok', status: 'committed', changed: 1 }]
     }
   }),
-  syncGrokPluginInstallation: () => {
+  syncGrokWorkspacePluginInstallation: () => {
     const error = new Error('fixture Grok registration failure')
     error.code = 'GROK_FIXTURE_FAILURE'
     throw error
@@ -210,6 +349,148 @@ assert.strictEqual(grokFailed.status, 'failed-soft')
 assert.strictEqual(grokFailed.errorCode, 'GROK_FIXTURE_FAILURE')
 assert.strictEqual(grokFailed.globalHostConfig.hostResults[0].status, 'committed')
 assert.strictEqual(grokFailed.globalHostConfig.integrations.grok.status, 'failed')
+
+for (const uninstallOrder of ['first', 'last']) {
+  const fixture = createDuplicateGrokFixture(`duplicate-${uninstallOrder}`)
+  const driver = createGrokDriver(fixture.grokHome, { uninstallOrder })
+  const receipt = syncGrokWorkspacePluginInstallation({
+    pluginPath: fixture.canonical,
+    legacyPluginPaths: [fixture.legacy],
+    backupDir: path.join(fixture.fixtureRoot, 'backups'),
+    env: { ...process.env, GROK_HOME: fixture.grokHome },
+    spawnSync: driver
+  })
+  const identities = pluginListFromRegistry(fixture.grokHome)
+  assert.strictEqual(receipt.schemaVersion, 'GrokPluginRegistryConvergenceReceiptV2')
+  assert.strictEqual(receipt.status, 'verified')
+  assert.strictEqual(receipt.refreshMode, 'official-drain-all-install')
+  assert.strictEqual(identities.length, 1)
+  assert.strictEqual(path.resolve(identities[0].source), path.resolve(fixture.canonical))
+  assert(fs.existsSync(fixture.legacy), 'convergence must retain the legacy source')
+  assert(fs.existsSync(receipt.backupRoot), 'convergence must retain recovery snapshots')
+  assert.strictEqual(driver.calls.filter(call => call[1] === 'plugin' && call[2] === 'uninstall').length, 2)
+}
+
+const unknownFixture = createDuplicateGrokFixture('unknown-source')
+const unknownSource = path.join(unknownFixture.fixtureRoot, 'third-party', 'devcodex-workspace')
+fs.cpSync(path.join(root, 'grok', 'plugins', 'devcodex-workspace'), unknownSource, { recursive: true })
+const unknownInstalled = path.join(unknownFixture.grokHome, 'installed-plugins', 'unknown')
+fs.cpSync(unknownSource, unknownInstalled, { recursive: true })
+const unknownRegistry = readRegistry(unknownFixture.grokHome)
+unknownRegistry.repos.unknown = {
+  kind: { type: 'Local', source_path: unknownSource },
+  path: unknownInstalled,
+  plugins: { 'devcodex-workspace': { version: '1.0.0' } }
+}
+writeRegistry(unknownFixture.grokHome, unknownRegistry)
+const unknownDriver = createGrokDriver(unknownFixture.grokHome)
+assert.throws(
+  () => syncGrokWorkspacePluginInstallation({
+    pluginPath: unknownFixture.canonical,
+    legacyPluginPaths: [unknownFixture.legacy],
+    backupDir: path.join(unknownFixture.fixtureRoot, 'backups'),
+    env: { ...process.env, GROK_HOME: unknownFixture.grokHome },
+    spawnSync: unknownDriver
+  }),
+  error => error?.code === 'GROK_PLUGIN_UNKNOWN_SAME_NAME_IDENTITY'
+)
+assert.strictEqual(
+  unknownDriver.calls.some(call => call[1] === 'plugin' && ['install', 'uninstall'].includes(call[2])),
+  false,
+  'unknown same-name identity must block before mutation'
+)
+
+const rollbackFixture = createDuplicateGrokFixture('rollback')
+const rollbackDriver = createGrokDriver(rollbackFixture.grokHome, {
+  canonical: rollbackFixture.canonical,
+  failCanonicalOnce: true
+})
+let rollbackFailure = null
+try {
+  syncGrokWorkspacePluginInstallation({
+    pluginPath: rollbackFixture.canonical,
+    legacyPluginPaths: [rollbackFixture.legacy],
+    backupDir: path.join(rollbackFixture.fixtureRoot, 'backups'),
+    env: { ...process.env, GROK_HOME: rollbackFixture.grokHome },
+    spawnSync: rollbackDriver
+  })
+} catch (error) {
+  rollbackFailure = error
+}
+assert(rollbackFailure, 'fixture install failure must surface')
+assert.strictEqual(rollbackFailure.migrationRollback.registrationRestored, true)
+assert.strictEqual(rollbackFailure.migrationRollback.configRestored, true)
+assert.strictEqual(pluginListFromRegistry(rollbackFixture.grokHome).length, 2)
+
+const firstInstallRollbackFixture = createDuplicateGrokFixture('first-install-rollback')
+writeRegistry(firstInstallRollbackFixture.grokHome, { version: 1, repos: {} })
+const firstInstallRollbackDriver = createGrokDriver(firstInstallRollbackFixture.grokHome, {
+  canonical: firstInstallRollbackFixture.canonical,
+  corruptCanonicalAfterInstall: true
+})
+let firstInstallRollbackFailure = null
+try {
+  syncGrokWorkspacePluginInstallation({
+    pluginPath: firstInstallRollbackFixture.canonical,
+    legacyPluginPaths: [firstInstallRollbackFixture.legacy],
+    backupDir: path.join(firstInstallRollbackFixture.fixtureRoot, 'backups'),
+    env: { ...process.env, GROK_HOME: firstInstallRollbackFixture.grokHome },
+    spawnSync: firstInstallRollbackDriver
+  })
+} catch (error) {
+  firstInstallRollbackFailure = error
+}
+assert(firstInstallRollbackFailure, 'first-install verification failure must surface')
+assert.strictEqual(firstInstallRollbackFailure.migrationRollback.registrationRestored, true)
+assert.strictEqual(firstInstallRollbackFailure.migrationRollback.restoredCount, 0)
+assert.strictEqual(pluginListFromRegistry(firstInstallRollbackFixture.grokHome).length, 0)
+assert(
+  firstInstallRollbackDriver.calls.some(call => call[1] === 'plugin' && call[2] === 'uninstall'),
+  'first-install rollback must remove the failed canonical registration'
+)
+
+const recoveryFixture = createDuplicateGrokFixture('rollback-recovery-source')
+const recoveryBackupRoot = path.join(recoveryFixture.fixtureRoot, '.tmp', 'backups')
+const recoveryBackup = path.join(recoveryBackupRoot, 'first')
+const recoverySecondBackup = path.join(recoveryBackupRoot, 'second')
+const recoveryFailureDriver = createGrokDriver(recoveryFixture.grokHome, {
+  canonical: recoveryFixture.canonical,
+  failCanonicalOnce: true,
+  onCanonicalFailure: () => fs.renameSync(recoveryFixture.legacy, `${recoveryFixture.legacy}.unavailable`)
+})
+let recoveryFailure = null
+try {
+  syncGrokWorkspacePluginInstallation({
+    pluginPath: recoveryFixture.canonical,
+    legacyPluginPaths: [recoveryFixture.legacy],
+    activeRoot: recoveryFixture.fixtureRoot,
+    backupDir: recoveryBackup,
+    env: { ...process.env, GROK_HOME: recoveryFixture.grokHome },
+    spawnSync: recoveryFailureDriver
+  })
+} catch (error) {
+  recoveryFailure = error
+}
+assert(recoveryFailure, 'fixture canonical install failure must surface after recovery-source rollback')
+assert.strictEqual(recoveryFailure.migrationRollback.registrationRestored, true)
+assert.strictEqual(recoveryFailure.migrationRollback.sourceIdentityChanged, true)
+const restoredFromBackup = pluginListFromRegistry(recoveryFixture.grokHome)
+  .find(item => path.resolve(item.source).startsWith(path.resolve(recoveryBackup)))
+assert(restoredFromBackup, 'rollback must retain a signed managed recovery source when legacy source disappears')
+const recoveredReceipt = syncGrokWorkspacePluginInstallation({
+  pluginPath: recoveryFixture.canonical,
+  legacyPluginPaths: [recoveryFixture.legacy],
+  activeRoot: recoveryFixture.fixtureRoot,
+  backupDir: recoverySecondBackup,
+  env: { ...process.env, GROK_HOME: recoveryFixture.grokHome },
+  spawnSync: createGrokDriver(recoveryFixture.grokHome)
+})
+assert.strictEqual(recoveredReceipt.status, 'verified')
+assert(
+  recoveredReceipt.identitiesBefore.some(item => item.classification === 'recovery-managed'),
+  'the next convergence must recognize a signed source under the managed backup root'
+)
+assert.strictEqual(pluginListFromRegistry(recoveryFixture.grokHome).length, 1)
 
 const failedSoft = runPostinstall({
   env: { npm_lifecycle_event: 'postinstall', npm_config_global: 'true', INIT_CWD: workspace },
@@ -243,6 +524,8 @@ const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'))
 const postinstallSource = fs.readFileSync(path.join(root, 'scripts', 'postinstall.js'), 'utf8')
 assert.ok(postinstallSource.includes('global postinstall incomplete'))
 assert.ok(postinstallSource.includes('npm update -g devcodex'))
+assert.ok(postinstallSource.includes('stale managed path(s) remain pending'))
+assert.ok(postinstallSource.includes('receipt finalization step(s) remain pending'))
 assert.strictEqual(pkg.scripts.postinstall, 'node scripts/postinstall.js')
 for (const expected of [
   'scripts/postinstall.js',

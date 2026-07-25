@@ -19,7 +19,7 @@ function buildCliInstallCommands(ctx) {
     writeManagedJsonFile, normalizeStringArray, mergeUniqueStringArrays,
     mergeClaudeHooks, mergeClaudeMcpConfig, mergeCodexConfigToml,
     CODEX_MCP_MANAGED_BEGIN,
-    ensureRuntimeDirs, ensureDevCodexGitignore, getLegacyCounts, isPlainObject,
+    ensureWorkspaceNamespaceLayout, ensureRuntimeDirs, ensureDevCodexGitignore, getLegacyCounts, isPlainObject,
     resolveHostAdapterScope, writeGrokPluginRegistration, syncGrokPluginInstallation,
     syncGrokWorkspacePluginInstallation,
     uninstallGrokPluginInstallation, retireWorkspaceProjectHostManifest,
@@ -60,6 +60,7 @@ function buildCliInstallCommands(ctx) {
       {
         host: String(host || ''),
         mode: 'GlobalOnlyHostConfigModeV1',
+        workspaceCleanMode: 'GlobalOnlyWorkspaceCleanModeV1',
         workspaceHostDirectoriesWritten: false
       }
     )
@@ -85,7 +86,35 @@ function buildCliInstallCommands(ctx) {
     const tenantId = readTenantSelection(tenantArgs)
     if (tenantId === undefined) return null
     const cwd = process.cwd()
-    const runtimeRoot = resolveActiveRuntimeRoot(cwd)
+    let layout
+    try {
+      layout = ensureWorkspaceNamespaceLayout(cwd, dryRun)
+    } catch (error) {
+      const migrationRequired = error.code === 'WORKSPACE_LAYOUT_MIGRATION_REQUIRED'
+      const envelope = createCliFailure(
+        refresh ? 'update' : 'init',
+        error.code || 'WORKSPACE_LAYOUT_INITIALIZATION_FAILED',
+        error.message,
+        migrationRequired
+          ? 'Run `devcodex migrate-layout plan`, review the manifest, then apply the explicit migration before retrying.'
+          : 'Repair or remove the invalid .devcodex/layout.json marker, then retry.',
+        cliMetadata,
+        {
+          cwd,
+          mode: 'workspace-namespace',
+          legacyRuntimeEntries: error.legacyRuntimeEntries || [],
+          workspaceHostDirectoriesWritten: false
+        }
+      )
+      if (json) printCliJson(console, envelope)
+      else {
+        console.log(c.red(`  ${envelope.errorCode}: ${envelope.message}`))
+        console.log(c.dim(`  ${envelope.nextStep}`))
+      }
+      process.exitCode = 2
+      return envelope
+    }
+    const runtimeRoot = layout.runtimeRoot
     if (!dryRun) {
       ensureRuntimeDirs(cwd, false)
     }
@@ -93,8 +122,13 @@ function buildCliInstallCommands(ctx) {
       schemaVersion: 'WorkspaceRuntimeRefreshV1',
       operation: refresh ? 'update' : 'init',
       mode: 'GlobalOnlyHostConfigModeV1',
+      workspaceCleanMode: 'GlobalOnlyWorkspaceCleanModeV1',
       cwd,
       runtimeRoot,
+      workspaceRoot: layout.workspaceRoot,
+      layoutMarker: layout.markerPath,
+      layoutCreated: layout.created,
+      layoutPlanned: layout.planned,
       tenantId: tenantId || null,
       dryRun,
       gitignoreEntriesAdded: 0,
@@ -228,7 +262,7 @@ function buildCliInstallCommands(ctx) {
       backupDir,
       log,
       inlineLog,
-      label: '.agents/devcodex/instructions.full.md'
+      label: 'legacy workspace .agents/devcodex/instructions.full.md'
     }))
     if (includeSkills) {
       addCounts(counts, copyProjectedTree({

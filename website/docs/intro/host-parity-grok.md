@@ -86,15 +86,22 @@ Grok **不会**每轮注入 bootstrap。模型必须按下列可扫清单自执�
 |------|------|
 | `full-capable` | kernel + lifecycle + deny 适配 + path-observable + 插件登记齐全；**仍须** `devcodex grok` 做 Full 会话 |
 | `partial` | 缺检查项；doctor **打印可执行 repairSteps**（命令 + 说明），JSON 见 `hostParity.repairSteps` / `failedChecks` |
+| `source-candidate-comparison` | 当前命令运行于 DevCodex 源码仓，只比较源码候选与已安装 receipt；不能声明已安装健康，`checks/failedChecks/repairSteps` 被抑制 |
 
 ### partial → 可修复闭环
 
+以下步骤只适用于已安装包作用域。源码仓诊断会返回 `installedHealthClaim=false`，候选差异只保留在 `hostParity.withheldChecks/withheldFailedChecks/withheldRepairSteps`；应先打包并全局安装候选，再从源码仓外运行诊断。
+
 1. 读 `devcodex doctor` 人类输出的 **Repair steps**，或 `doctor --json` → `payload.hostParity.repairSteps`。
-2. 按每条 `command` 执行；缺失时运行 `npm install -g devcodex`，升级时运行 `npm update -g devcodex`。
+2. 按每条 `command` 执行；本地候选使用 `npm install -g ./vextjs-devcodex-1.15.3.tgz`，发布后缺失时使用 `npm install -g devcodex`、升级时使用 `npm update -g devcodex`。
 3. 再跑 `devcodex doctor`，直到 `tier=full-capable`（或 checks 全绿）。
 4. 日常会话仍用 **`devcodex grok`**，并遵守 **GrokTurnChecklist**（full-capable ≠ 已注入 PC0）。
 
-`doctor/status` 读取用户级 receipt、plugin 和稳定 runtime；工作区 `.grok` 只作为 legacy 诊断，不参与 ready 判定。receipt 版本落后时使用 `npm update -g devcodex` 刷新。
+receipt、plugin 文件和稳定 runtime 只证明 `configured`。`status` 执行 Grok adapter 与 source 静态合同并单独给出 `adapterReady`；`doctor` 再要求 `grok plugin list --json` 只有一个 canonical identity、`grok inspect --json` 发现一个启用的用户插件及其 Skill/Hook/MCP、已安装 Hook 通过只读合同探针，并完成 MCP `initialize`。JSON 使用 `configured/adapterReady/contractStatus/nativeStatus/operationalState/ready/issues` 分层表达；只有原生深探针通过才是 operational ready，查询成功但健康失败仍为 `ok=true`、exit 0。工作区 `.grok` 只作为 legacy 诊断，不参与 ready 判定。
+
+安装刷新会对受管的 canonical、legacy 和恢复来源先保留快照，再通过 Grok 官方 uninstall/install 收敛；未知同名 source 在 mutation 前阻断。source Hook/MCP 始终从用户级 `$GROK_HOME/devcodex/runtime` 解析，并从当前 cwd 发现 workspace `.devcodex`，不读取工作区 `AGENTS.md/.agents/.claude/.grok`。
+
+Grok 默认还会兼容加载 `~/.claude/settings.json`。当其中的 DevCodex Claude hooks 被 Grok 以 camelCase payload 和 snake_case 事件调用时，Claude adapter 会安全 no-op，避免与 Grok 专用 plugin 重复执行 lifecycle；不会全局禁用用户自己的其他 Claude 兼容 hooks。
 
 禁止把 `full-capable` 解读为「UserPromptSubmit 已注入 PC0」。
 

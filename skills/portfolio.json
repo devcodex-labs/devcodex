@@ -6,15 +6,15 @@
     "skillsPattern": "skills/*/SKILL.md",
     "optionalSidecar": "skills/*/devcodex.skill.json",
     "registry": "plugin.json",
-    "sourceDigest": "468feaa1db8ccd9479e1bbdb919ccee079762a6a88ac594f02a6963a04599c1f",
+    "sourceDigest": "f8d155c23180bfd6bf013fb47a1c57c161754e7956a67f57ec496421420b3838",
     "sidecarDigest": "774105d7947b340d15d17115fcb8e37b62ae545cf553f06126d529184fd74872",
     "pluginDigest": "f85d1fcc1384827999ead09f5ee2051295d2a3890315ce0b2c83ac5a9c63ab82",
     "portfolioEvidence": "skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "8364a73c66ed2ec9787cdb9300223278d128a45b689a2b8deda0d1f03189f42b",
     "consumerInventoryFileCount": 583,
     "consumerInventoryDigest": "f9f3a7c659643326a28a719fece1e53422162b8ea018fe554de2e32cf40a29cb",
-    "consumerProjectionDigest": "caf9280bf2a1ab0f4e5c9776e3fc1354d8a8896a8249ba9b1789bbc5337be71d",
-    "portfolioInputDigest": "a4eb999a892aad1c01f3d6036beba941a545fe9dcad669c0e80de8738d84f622"
+    "consumerProjectionDigest": "03ab8439fa5abb43f50e3260280ca37bdf9b2987567ce88fc88104df0bc26ff3",
+    "portfolioInputDigest": "f2116fa223f6c68f4d8834b9e3e75b34481c8e6ae2a982c51f64e51b5580aa91"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -4682,6 +4682,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-global-host-config.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-governance-status-summary.js",
           "role": "current"
         },
@@ -4718,6 +4722,7 @@
         "scripts/test-brand-visual-quality.js",
         "scripts/test-cli-behavior.js",
         "scripts/test-control-plane-contracts.js",
+        "scripts/test-global-host-config.js",
         "scripts/test-governance-status-summary.js",
         "scripts/test-mcp-servers.js",
         "scripts/test-skill-portfolio.js",
@@ -4771,6 +4776,7 @@
           "scripts/test-brand-visual-quality.js",
           "scripts/test-cli-behavior.js",
           "scripts/test-control-plane-contracts.js",
+          "scripts/test-global-host-config.js",
           "scripts/test-governance-status-summary.js",
           "scripts/test-mcp-servers.js",
           "scripts/test-skill-portfolio.js",
@@ -5689,6 +5695,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-global-host-config.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-skill-portfolio.js",
           "role": "current"
         },
@@ -5699,6 +5709,7 @@
       ],
       "validationProfile": [
         "scripts/test-consumer-evolution-controls.js",
+        "scripts/test-global-host-config.js",
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
@@ -5754,6 +5765,7 @@
         "evolvableUnitRef": "skill:consumer-validation-engineering",
         "probeSuiteRefs": [
           "scripts/test-consumer-evolution-controls.js",
+          "scripts/test-global-host-config.js",
           "scripts/test-skill-portfolio.js",
           "scripts/validate.js"
         ],
@@ -11162,10 +11174,6 @@
       },
       "consumers": [
         {
-          "path": "changelogs/unreleased.md",
-          "role": "current"
-        },
-        {
           "path": "package.json",
           "role": "current"
         },
@@ -11285,7 +11293,7 @@
         "registration": "plugin.json",
         "operationalReadiness": {
           "state": "complete",
-          "currentConsumer": "changelogs/unreleased.md",
+          "currentConsumer": "package.json",
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
@@ -13259,6 +13267,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-global-install-smoke.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-governance-intake.js",
           "role": "current"
         },
@@ -13352,6 +13364,10 @@
         },
         {
           "path": "website/docs/guide/development.md",
+          "role": "current"
+        },
+        {
+          "path": "website/docs/guide/profile.md",
           "role": "current"
         },
         {
@@ -13569,6 +13585,7 @@
         "scripts/test-context-binding.js",
         "scripts/test-context-read-contract.js",
         "scripts/test-global-host-config.js",
+        "scripts/test-global-install-smoke.js",
         "scripts/test-governance-intake.js",
         "scripts/test-governance-status-summary.js",
         "scripts/test-hooks-runtime.js",
@@ -13640,6 +13657,7 @@
           "scripts/test-context-binding.js",
           "scripts/test-context-read-contract.js",
           "scripts/test-global-host-config.js",
+          "scripts/test-global-install-smoke.js",
           "scripts/test-governance-intake.js",
           "scripts/test-governance-status-summary.js",
           "scripts/test-hooks-runtime.js",
@@ -14232,11 +14250,19 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/cli-install-commands.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/cli-maintenance-commands.js",
           "role": "current"
         },
         {
           "path": "scripts/lib/cli-observability-commands.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/cli-runtime-utils.js",
           "role": "current"
         },
         {
@@ -17065,6 +17091,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/cli-runtime-utils.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/completion-report-ecr-check.js",
           "role": "current"
         },
@@ -17322,6 +17352,10 @@
         },
         {
           "path": "website/docs/guide/development.md",
+          "role": "current"
+        },
+        {
+          "path": "website/docs/guide/profile.md",
           "role": "current"
         },
         {
@@ -18140,6 +18174,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-global-host-config.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-host-installation.js",
           "role": "current"
         },
@@ -18165,6 +18203,7 @@
         }
       ],
       "validationProfile": [
+        "scripts/test-global-host-config.js",
         "scripts/test-host-installation.js",
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
@@ -18213,6 +18252,7 @@
         ],
         "evolvableUnitRef": "skill:rework-prevention-engineering",
         "probeSuiteRefs": [
+          "scripts/test-global-host-config.js",
           "scripts/test-host-installation.js",
           "scripts/test-skill-portfolio.js",
           "scripts/validate.js"
@@ -18570,11 +18610,23 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-global-host-config.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-global-install-smoke.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-governance-intake.js",
           "role": "current"
         },
         {
           "path": "scripts/test-host-capability-routing.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-host-installation.js",
           "role": "current"
         },
         {
@@ -18698,8 +18750,11 @@
         "scripts/test-checked-command.js",
         "scripts/test-cli-behavior.js",
         "scripts/test-cli-command-registry.js",
+        "scripts/test-global-host-config.js",
+        "scripts/test-global-install-smoke.js",
         "scripts/test-governance-intake.js",
         "scripts/test-host-capability-routing.js",
+        "scripts/test-host-installation.js",
         "scripts/test-mcp-servers.js",
         "scripts/test-review-execution-contract.js",
         "scripts/test-skill-portfolio.js",
@@ -18768,8 +18823,11 @@
           "scripts/test-checked-command.js",
           "scripts/test-cli-behavior.js",
           "scripts/test-cli-command-registry.js",
+          "scripts/test-global-host-config.js",
+          "scripts/test-global-install-smoke.js",
           "scripts/test-governance-intake.js",
           "scripts/test-host-capability-routing.js",
+          "scripts/test-host-installation.js",
           "scripts/test-mcp-servers.js",
           "scripts/test-review-execution-contract.js",
           "scripts/test-skill-portfolio.js",
@@ -21854,7 +21912,7 @@
         "skills/user-visible-output-contract/SKILL.md"
       ],
       "source": "skills/user-visible-output-contract/SKILL.md",
-      "hash": "eac23f6fcd8fe5fbb8098041c9f2b26bb2daf2c68c0920622f814447d243caed",
+      "hash": "d989a092f3903cf6bd15e24c6c89da2f83daa9c9e5e05237a81dfff11a3a0394",
       "sourceBytes": 15574,
       "version": "1.15.3",
       "lifecycleState": "active",
@@ -21932,6 +21990,10 @@
         },
         {
           "path": "scripts/lib/host-parity-scorecard.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/validate-governance-control.js",
           "role": "current"
         },
         {

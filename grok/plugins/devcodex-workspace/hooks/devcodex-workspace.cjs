@@ -47,32 +47,6 @@ function findWorkspaceRoot(start) {
   }
 }
 
-function workspaceFromPluginRoot(pluginRoot) {
-  const absolute = path.resolve(pluginRoot)
-  const sourceWorkspace = findWorkspaceRoot(absolute)
-  if (sourceWorkspace) {
-    const allowedSources = [
-      path.join(sourceWorkspace, '.grok', 'devcodex', 'plugins', 'devcodex-workspace'),
-      path.join(sourceWorkspace, '.grok', 'plugins', 'devcodex-workspace')
-    ]
-    if (allowedSources.some((candidate) => samePath(candidate, absolute))) return sourceWorkspace
-  }
-  const installedRoot = path.dirname(absolute)
-  if (path.basename(installedRoot).toLowerCase() !== 'installed-plugins') return null
-  try {
-    const registry = JSON.parse(fs.readFileSync(path.join(installedRoot, 'registry.json'), 'utf8'))
-    const entry = Object.values(registry.repos || {}).find((candidate) =>
-      candidate?.kind?.type === 'Local'
-      && samePath(candidate.path || '', absolute)
-      && candidate.kind.source_path
-    )
-    if (!entry) return null
-    return workspaceFromPluginRoot(path.resolve(entry.kind.source_path))
-  } catch {
-    return null
-  }
-}
-
 function readInput() {
   return new Promise((resolve, reject) => {
     let input = ''
@@ -124,16 +98,63 @@ function localDangerDeny(payload) {
   return null
 }
 
-function diagnosticPath(pluginRoot) {
-  const base = process.env.GROK_PLUGIN_DATA
-    || path.join(pluginRoot, '.devcodex-hook-diagnostics')
+function resolveGrokHome(env = process.env, options = {}) {
+  const home = options.home || env.USERPROFILE || env.HOME || os.homedir()
+  return path.resolve(options.grokHome || env.GROK_HOME || path.join(home, '.grok'))
+}
+
+function globalAdapterPath(env = process.env, options = {}) {
+  return path.join(
+    resolveGrokHome(env, options),
+    'devcodex',
+    'runtime',
+    'hooks',
+    '_runtime',
+    'lifecycle-host-adapters.cjs'
+  )
+}
+
+function probeWorkspaceBridgeContract(options = {}) {
+  const env = options.env || process.env
+  const cwd = path.resolve(options.cwd || process.cwd())
+  const workspaceRoot = findWorkspaceRoot(cwd)
+  const adapter = path.resolve(options.adapterPath || globalAdapterPath(env, options))
+  const issues = []
+  let adapterProbe = null
+
+  if (!workspaceRoot) issues.push('workspace-owner-missing')
+  if (!fs.existsSync(adapter)) {
+    issues.push('global-adapter-missing')
+  } else {
+    try {
+      const runtime = require(adapter)
+      adapterProbe = runtime.probeHostAdapterContract?.('grok') || null
+      if (adapterProbe?.status !== 'passed') issues.push('global-adapter-contract-failed')
+    } catch (error) {
+      issues.push(`global-adapter-load-failed:${error.code || error.message}`)
+    }
+  }
+
+  return {
+    schemaVersion: 'GrokWorkspaceHookContractProbeV1',
+    status: issues.length ? 'failed' : 'passed',
+    workspaceRoot,
+    adapter,
+    adapterProbe,
+    issues
+  }
+}
+
+function diagnosticPath(pluginRoot, env = process.env, options = {}) {
+  const base = env.GROK_PLUGIN_DATA
+    || path.join(resolveGrokHome(env, options), 'devcodex', 'diagnostics', 'grok')
     || path.join(os.tmpdir(), 'devcodex-grok-hook-diagnostics')
   return path.join(base, 'pretool-last.json')
 }
 
-function writeDiagnostic(pluginRoot, record) {
+function writeDiagnostic(pluginRoot, record, env = process.env, options = {}) {
   try {
-    const file = diagnosticPath(pluginRoot)
+    const file = diagnosticPath(pluginRoot, env, options)
     fs.mkdirSync(path.dirname(file), { recursive: true })
     fs.writeFileSync(file, `${JSON.stringify({ ...record, at: new Date().toISOString() }, null, 2)}\n`, 'utf8')
   } catch {
@@ -142,120 +163,66 @@ function writeDiagnostic(pluginRoot, record) {
 }
 
 function resolveCwdCandidates(payload, options = {}) {
-  return [
+  const candidates = [
     options.cwd,
     payload?.cwd,
     payload?.workspaceRoot,
     payload?.workspace_root,
-    process.env.GROK_WORKSPACE_ROOT,
-    process.env.CLAUDE_PROJECT_DIR,
-    process.env.DEVCODEX_WORKSPACE_ROOT,
-    process.cwd()
-  ].filter(Boolean).map((value) => path.resolve(String(value)))
+    (options.env || process.env).GROK_WORKSPACE_ROOT,
+    (options.env || process.env).CLAUDE_PROJECT_DIR,
+    (options.env || process.env).DEVCODEX_WORKSPACE_ROOT
+  ].filter(Boolean)
+  return (candidates.length ? candidates : [process.cwd()])
+    .map((value) => path.resolve(String(value)))
 }
 
-function resolveWorkspace(pluginRoot, payload, options = {}) {
-  const expectedWorkspace = workspaceFromPluginRoot(pluginRoot)
+function resolveWorkspace(payload, options = {}) {
   const candidates = resolveCwdCandidates(payload, options)
   const discovered = candidates.map((start) => ({ start, found: findWorkspaceRoot(start) }))
-
-  for (const { start, found } of discovered) {
-    if (found && expectedWorkspace && samePath(found, expectedWorkspace)) {
-      return { expectedWorkspace, discoveredWorkspace: found, cwd: start, via: 'walk-match' }
-    }
-  }
-  const conflictingWorkspace = discovered.find(item =>
-    item.found
-    && expectedWorkspace
-    && !samePath(item.found, expectedWorkspace)
-    && isUnder(expectedWorkspace, item.start)
-  )
-  if (conflictingWorkspace) {
-    return {
-      expectedWorkspace,
-      discoveredWorkspace: conflictingWorkspace.found,
-      cwd: conflictingWorkspace.start,
-      via: 'walk-other'
-    }
-  }
-
-  // Plugin is bound to a workspace: if any candidate is under it, use the bound workspace.
-  if (expectedWorkspace) {
-    const under = candidates.find((start) => isUnder(expectedWorkspace, start))
-    if (under) {
-      return {
-        expectedWorkspace,
-        discoveredWorkspace: expectedWorkspace,
-        cwd: under,
-        via: 'under-expected'
-      }
-    }
-    // Last resort: session still on this plugin → trust bound workspace for PreTool safety.
-    if (isPreTool(payload)) {
-      return {
-        expectedWorkspace,
-        discoveredWorkspace: expectedWorkspace,
-        cwd: candidates[0] || expectedWorkspace,
-        via: 'plugin-bound-fallback'
-      }
-    }
-  }
-
-  const firstFound = discovered.find(item => item.found)?.found || null
+  const firstFound = discovered.find(item => item.found) || null
   return {
-    expectedWorkspace,
-    discoveredWorkspace: firstFound,
-    cwd: candidates[0] || process.cwd(),
-    via: firstFound ? 'walk-other' : 'none'
+    discoveredWorkspace: firstFound?.found || null,
+    cwd: firstFound?.start || candidates[0] || process.cwd(),
+    via: firstFound ? 'nearest-workspace-layout' : 'outside-workspace'
   }
 }
 
 function runWorkspaceBridge(payload, options = {}) {
-  const pluginRoot = path.resolve(options.pluginRoot || process.env.GROK_PLUGIN_ROOT || path.join(__dirname, '..'))
-  const resolved = resolveWorkspace(pluginRoot, payload || {}, options)
-  const { expectedWorkspace, discoveredWorkspace, cwd, via } = resolved
+  const env = options.env || process.env
+  const spawn = options.spawnSync || spawnSync
+  const pluginRoot = path.resolve(options.pluginRoot || env.GROK_PLUGIN_ROOT || path.join(__dirname, '..'))
+  const resolved = resolveWorkspace(payload || {}, { ...options, env })
+  const { discoveredWorkspace, cwd, via } = resolved
 
-  if (!expectedWorkspace || !discoveredWorkspace || !samePath(expectedWorkspace, discoveredWorkspace)) {
+  if (!discoveredWorkspace) {
     const local = localDangerDeny(payload)
     writeDiagnostic(pluginRoot, {
-      phase: 'outside-managed-workspace',
+      phase: 'outside-workspace',
       via,
-      expectedWorkspace,
       discoveredWorkspace,
       cwd,
       command: extractCommand(payload),
       event: eventName(payload),
       localDeny: local
-    })
-    // Outside workspace: still deny known destructive shells (fail closed for safety).
+    }, env, options)
     if (local) {
-      return { status: 0, workspaceRoot: null, output: local, reason: 'outside-managed-local-danger-deny' }
+      return { status: 0, workspaceRoot: null, output: local, reason: 'outside-workspace-local-danger-deny' }
     }
-    return { status: 0, workspaceRoot: null, output: noop(payload), reason: 'outside-managed-workspace' }
+    return { status: 0, workspaceRoot: null, output: noop(payload), reason: 'outside-workspace' }
   }
 
-  const kernelPath = path.join(discoveredWorkspace, 'AGENTS.md')
-  if (!fs.existsSync(kernelPath)) {
-    writeDiagnostic(pluginRoot, { phase: 'kernel-missing', discoveredWorkspace })
-    return { status: 2, workspaceRoot: discoveredWorkspace, output: null, reason: 'workspace-kernel-missing' }
-  }
-
-  const adapterCandidates = [
-    path.join(discoveredWorkspace, '.codex', 'hooks', '_runtime', 'lifecycle-host-adapters.cjs'),
-    path.join(discoveredWorkspace, '.claude', 'hooks', '_runtime', 'lifecycle-host-adapters.cjs')
-  ]
-  const adapter = adapterCandidates.find((file) => fs.existsSync(file))
+  const adapter = path.resolve(options.adapterPath || globalAdapterPath(env, options))
   let output = noop(payload)
-  let adapterNote = 'no-adapter'
+  let adapterNote = 'global-adapter-missing'
 
-  if (adapter) {
-    const child = spawnSync(process.execPath, [adapter, 'grok'], {
+  if (fs.existsSync(adapter)) {
+    const child = spawn(process.execPath, [adapter, 'grok'], {
       cwd,
       input: JSON.stringify(payload || {}),
       encoding: 'utf8',
       maxBuffer: 8 * 1024 * 1024,
       env: {
-        ...process.env,
+        ...env,
         DEVCODEX_WORKSPACE_ROOT: discoveredWorkspace,
         DEVCODEX_HOST_PLATFORM: 'grok'
       }
@@ -275,12 +242,12 @@ function runWorkspaceBridge(payload, options = {}) {
     } else if (child.status !== 0) {
       const local = localDangerDeny(payload)
       writeDiagnostic(pluginRoot, {
-        phase: 'adapter-failed',
+        phase: 'global-adapter-failed',
         status: child.status,
         stderr: String(child.stderr || '').slice(0, 2000),
         stdout: stdout.slice(0, 2000),
         localDeny: local
-      })
+      }, env, options)
       if (local) {
         return {
           status: 0,
@@ -290,11 +257,62 @@ function runWorkspaceBridge(payload, options = {}) {
         }
       }
       return {
-        status: child.status || 1,
+        status: 0,
         workspaceRoot: discoveredWorkspace,
-        output: null,
-        reason: String(child.stderr || child.stdout || 'workspace lifecycle failed').trim()
+        output: noop(payload),
+        reason: 'global-adapter-failed-degraded',
+        diagnostic: String(child.stderr || child.stdout || 'global lifecycle adapter failed').trim()
       }
+    } else {
+      const local = localDangerDeny(payload)
+      writeDiagnostic(pluginRoot, {
+        phase: 'global-adapter-invalid-output',
+        adapter,
+        discoveredWorkspace,
+        cwd,
+        event: eventName(payload),
+        stdout: stdout.slice(0, 2000),
+        localDeny: local
+      }, env, options)
+      if (local) {
+        return {
+          status: 0,
+          workspaceRoot: discoveredWorkspace,
+          output: local,
+          reason: 'global-adapter-invalid-output-local-danger-deny'
+        }
+      }
+      return {
+        status: 0,
+        workspaceRoot: discoveredWorkspace,
+        output: noop(payload),
+        reason: 'global-adapter-invalid-output-degraded'
+      }
+    }
+  } else {
+    const local = localDangerDeny(payload)
+    writeDiagnostic(pluginRoot, {
+      phase: 'global-adapter-missing',
+      adapter,
+      discoveredWorkspace,
+      cwd,
+      event: eventName(payload),
+      command: extractCommand(payload),
+      localDeny: local
+    }, env, options)
+    if (local) {
+      return {
+        status: 0,
+        workspaceRoot: discoveredWorkspace,
+        output: local,
+        reason: 'global-adapter-missing-local-danger-deny'
+      }
+    }
+    return {
+      status: 0,
+      workspaceRoot: discoveredWorkspace,
+      output: noop(payload),
+      reason: 'global-adapter-missing-degraded'
     }
   }
 
@@ -316,7 +334,7 @@ function runWorkspaceBridge(payload, options = {}) {
     toolName: payload?.toolName || payload?.tool_name || '',
     command: extractCommand(payload),
     output
-  })
+  }, env, options)
 
   return {
     status: 0,
@@ -324,12 +342,16 @@ function runWorkspaceBridge(payload, options = {}) {
     output,
     kernelInjected: false,
     evidenceMode: isPreTool(payload) ? 'blocking-tool-hook' : 'passive-hook-no-context-injection',
-    reason: adapter ? 'workspace-active' : 'workspace-kernel-present'
+    reason: 'global-adapter-active'
   }
 }
 
 if (require.main === module) {
-  readInput().then((payload) => {
+  if (process.argv[2] === '--contract-probe') {
+    const probe = probeWorkspaceBridgeContract()
+    process.stdout.write(JSON.stringify(probe))
+    process.exit(probe.status === 'passed' ? 0 : 1)
+  } else readInput().then((payload) => {
     const pluginRoot = path.resolve(process.env.GROK_PLUGIN_ROOT || path.join(__dirname, '..'))
     const result = runWorkspaceBridge(payload)
     if (result.status !== 0) {
@@ -357,7 +379,8 @@ module.exports = {
   findWorkspaceRoot,
   runWorkspaceBridge,
   samePath,
-  workspaceFromPluginRoot,
+  globalAdapterPath,
+  probeWorkspaceBridgeContract,
   localDangerDeny,
   isUnder
 }

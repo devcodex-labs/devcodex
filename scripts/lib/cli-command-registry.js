@@ -98,12 +98,7 @@ function runCliCommand({ cmd, argv, registry, runMigrateLayout, process, c, cons
     return 'update'
   }
   if (cmd === 'uninstall') {
-    if (!selection.host) {
-      console.log(c.red('  CLI_HOST_REQUIRED: uninstall requires --host grok.'))
-      process.exitCode = 2
-      return 'CLI_HOST_REQUIRED'
-    }
-    registry.cmdUninstallHost(selection.host, ['--operation=uninstall', ...selection.cleanedArgv])
+    registry.cmdUninstallHost(selection.host || 'all', selection.cleanedArgv)
     return 'CLI_HOST_CONFIG_GLOBAL_ONLY'
   }
   if (cmd === 'profile') {

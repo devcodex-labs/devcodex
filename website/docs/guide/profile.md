@@ -4,7 +4,7 @@
 
 Profile 用来告诉 DevCodex：当前项目是什么、边界在哪里、如何测试和发布，以及有哪些公开能力。推荐路径始终是先预览，再生成或升级。
 
-GlobalOnlyHostConfigModeV1 下，Profile 与运行态仍位于 workspace `.devcodex`；五宿主用户级 adapter 由 npm 全局安装/升级管理。`profile init` 不创建 `.github/.claude/.codex/.gemini/.grok`。
+GlobalOnlyWorkspaceCleanModeV1 下，Profile 与运行态仍位于 workspace `.devcodex`；五宿主用户级 adapter、共享 full fallback 与 active Skills 由 npm 全局安装/升级管理。`devcodex init/update` 会在 fresh workspace 建立 `workspace-namespace` marker；`profile init` 不创建 `.github/.claude/.codex/.gemini/.grok/.agents`、根级宿主入口或 `.mcp.json`。
 
 ## 第一次成功
 
@@ -103,7 +103,7 @@ devcodex status --json
 devcodex doctor --json
 ```
 
-状态会分开显示 `files`、`semantic` 和 `config`，避免把可选配置混入必需文件计数。`--json` 使用统一 `DevCodexCliEnvelopeV1`，Profile 投影会返回 schema、生命周期计数、证据计数与 `asOf`；`governanceSummary` 会以只读方式汇总 runtime-state、Skill/gray lifecycle、执行优化证据、Gate registry、host truth、dirty boundary 和 fail-closed fast-path 决策；V1 兼容输入保持 `unverified`。维护 workspace-namespace 或 DevCodex 规范仓时，再运行全工作区校验：
+状态会分开显示 `files`、`semantic` 和 `config`，避免把可选配置混入必需文件计数。宿主侧也分开显示 `configured`、`adapterReady`、`contractStatus`、`nativeStatus`、`operationalState`、`ready` 与 `issues`：receipt/文件存在只表示已配置，adapter 合同通过只表示 `adapterReady`，均不能替代原生宿主验证。`status` 使用有界契约探针，`doctor` 再执行可用原生 CLI、Grok registry/list/inspect、已安装 Hook 合同和 MCP initialize；只有深探针通过才可得到 operational `ready`。`--json` 使用统一 `DevCodexCliEnvelopeV1`；查询成功但健康失败时仍为 `ok=true`、exit 0，由 `payload.overall=failed` 表达。若命令从 DevCodex 源码仓运行，作用域会固定为 `source-candidate-vs-installed-receipts`、`installedHealthClaim=false`，只比较候选与已安装 receipt，并抑制面向已安装包的 HostParity 修复动作；真实安装健康度应由全局安装后的候选在源码仓外验证。Profile 投影会返回 schema、生命周期计数、证据计数与 `asOf`；`governanceSummary` 会以只读方式汇总 runtime-state、Skill/gray lifecycle、执行优化证据、Gate registry、host truth、dirty boundary 和 fail-closed fast-path 决策；V1 兼容输入保持 `unverified`。维护 workspace-namespace 或 DevCodex 规范仓时，再运行全工作区校验：
 
 `ProfileTierStandardGate` 检查档位必需文件，`ProfileLifecycleClassificationGate` 检查稳定基线/活文档/条件本地文档，`AllDevCodexProfileValidationGate` 汇总所有 namespace 并区分 error 与 warning。
 
@@ -111,7 +111,7 @@ devcodex doctor --json
 node scripts/validate-all-profiles.js --workspace <workspace-root>
 ```
 
-- 目标根不符合预期：检查 `.devcodex/layout.json`；workspace-namespace 的工作区基线位于 `.devcodex/workspace/profile/`，项目 overlay 位于 `.devcodex/<project>/profile/`。
+- 目标根不符合预期：检查 `.devcodex/layout.json`；bare `init/update` 会复用祖先的有效 marker，真正的 fresh workspace 才创建本地 marker，非法 marker 返回 `WORKSPACE_LAYOUT_INVALID`。若无 marker 但已存在旧版 `.devcodex/profile`、`.memory`、`.audit-state`、`requirements`、`bugs`、`reports` 或 `data` 等运行态，则返回 `WORKSPACE_LAYOUT_MIGRATION_REQUIRED`，必须先执行 `devcodex migrate-layout plan/apply`，不会静默把 active-root 切到新目录。workspace-namespace 的工作区基线位于 `.devcodex/workspace/profile/`，项目 overlay 位于 `.devcodex/<project>/profile/`。
 - standard/closed-loop 显示 semantic 缺失：检查功能清单来源是否真实存在，以及 06 是否为结构化表。
 - closed-loop 校验失败：确认 06 使用完整 `FeatureInventorySchemaV2`（或可兼容读取的 V1），07 存在，并写清稳定基线、活文档和条件/本地文档生命周期。
 - 不确定是否应该升级：重新运行 `profile plan --tier <候选档位>`，对照文件动作和推荐理由后再决定。

@@ -43,7 +43,7 @@ DevCodex 通过 npm 全局安装把 Copilot、Claude Code、Codex、Gemini CLI �
 - **持久记忆**: 每 Agent、每日的会话记录，结构化字段
 - **自动报告**: 每次会话自动写入报告，从不询问 — 直接执行
 - **安全底线**: S01~S07 七条不可覆盖的安全规则
-- **宿主生命周期护栏**: Claude Code 与 OpenAI Codex 在已支持的 Hook 事件上提供 runtime 护栏；保持 Copilot / Claude Code 双主支持，Copilot / JetBrains / Cursor 等无等价本地 Hook 时降级为 instruction-fallback；默认 `safety-only` 仅对危险命令硬拦，流程项提醒放行，`strict` 模式才升级可阻断事件
+- **宿主生命周期护栏**: Copilot CLI、Claude Code、OpenAI Codex、Gemini CLI 与 Grok 在各自已支持的 Hook 事件上提供用户级 runtime adapter；Copilot IDE、JetBrains、Cursor 等未接入等价用户级 Hook 的 surface 仍降级为 instruction-fallback。默认 `safety-only` 仅对危险命令硬拦，流程项提醒放行，`strict` 模式才升级可阻断事件
 - **Codex hook guardrail**: Hook 能力按宿主/事件降级；Codex 的阻断行为取决于当前事件是否支持 `decision`、`continue:false` 或 `permissionDecision`，不能把 adapter 已安装等同为所有事件均可硬拦
 - **长任务 Turn Liveness**: `TurnLivenessRecoveryGate` 记录 `running / awaiting-continuation / suspect / stalled-recoverable / terminal` 状态、工具租约、continuation ACK、双阶段 checkpoint 与当前 turn 的 `LocalTaskTraceV1`；Hook 只能在事件到达时判断历史停滞，trace replay 只返回数据，不能自行唤醒宿主、执行 payload、重放写操作或把 `PostToolUse` 当成任务完成
 - **全过程完成证据（未发布 Shadow）**: `WorkflowCompletionCandidateV1 → Plan/Receipt/Snapshot → Commit → Projection` 将 CP、执行、验证、复审、同步、报告和记忆绑定到同一 candidate；任务输入由 lifecycle 的受管原子写入口生成，`task verify` 只消费通过 schema、候选绑定和回读校验的输入。report-only、marker-only、仅选择测试路线或仅有复审文档都不能标记完成。五宿主共享同一 reducer，direct/portable/fallback 只改变证据上限，不改变完成语义
@@ -146,7 +146,9 @@ devcodex init
 devcodex status
 ```
 
-成功时，五个宿主 adapter 位于用户级配置根；工作区不会新建 `.github/.claude/.codex/.gemini/.grok`。已有工作区宿主目录只作为 legacy 诊断输入，DevCodex 不会自动删除。
+成功时，五个宿主 adapter、共享 full fallback 与 active Skills 均位于用户级配置根；共享 `.agents` 由一个安装事务 Owner 写入，避免五宿主重复拥有同一路径。工作区不会新建 `.github/.claude/.codex/.gemini/.grok/.agents`，也不会新建根级 `AGENTS.md`、`CLAUDE.md`、`GEMINI.md` 或 `.mcp.json`。已有工作区宿主文件只作为 legacy 诊断输入，DevCodex 不会自动删除。
+
+安装 receipt 与目标文件存在只证明 `configured`，不等于宿主已可执行。`devcodex status` 运行有界 adapter 契约探针与 Grok 静态合同检查；`devcodex doctor` 进一步检查宿主原生版本、Grok registry/native list 唯一性、`grok inspect --json` 发现面、已安装 Hook 的只读合同探针和 MCP `initialize`。JSON 中每个宿主分别返回 `configured`、`contractStatus`、`nativeStatus`、`operationalState`、`ready` 与 `issues`。查询本身成功时仍为 `ok=true`、exit 0，健康失败通过 `payload.overall=failed` 和宿主状态表达，避免把诊断结果误当成 CLI 调用错误。
 
 ## 安装
 
@@ -186,22 +188,30 @@ npm update -g devcodex  # 升级全局包，并由 postinstall 刷新五宿主�
 npm install devcodex    # 仅加入当前项目依赖；不配置宿主，并提示必须使用 -g
 ```
 
-GlobalOnlyHostConfigModeV1 将宿主配置与工作区运行态分离；bare `devcodex init/update` 也不会创建或修改工作区 `.gitignore`：
+GlobalOnlyHostConfigModeV1 与 GlobalOnlyWorkspaceCleanModeV1 将宿主配置、共享 full fallback、active Skills 与工作区运行态分离；bare `devcodex init/update` 也不会创建或修改工作区 `.gitignore`：
 
 ```
 <user-home>/
-├── .copilot/       ← Copilot 用户级 instructions（fixture-only ceiling）
+├── .copilot/       ← Copilot CLI 用户级 instructions/hooks/MCP/Skills/runtime
 ├── .claude/        ← Claude 用户级 instructions/settings/runtime
 ├── .codex/         ← Codex 用户级 AGENTS/hooks/config/runtime
 ├── .gemini/        ← Gemini 用户级 instructions/settings/runtime
 ├── .grok/          ← Grok 用户级 plugin/config/runtime
-└── .agents/skills/ ← Codex 共享用户级 Skills
+└── .agents/
+    ├── devcodex/instructions.full.md ← 用户级完整回退规范
+    └── skills/                       ← 共享用户级 Skills
 
 <workspace>/
 └── .devcodex/      ← workspace-namespace 的 Profile、记忆、报告与运行态
 ```
 
-bare `devcodex init/update` 只管理 `.devcodex`。`devcodex init --claude`、`devcodex init --codex`、`--host`、`--gemini`、`--grok` 以及 `uninstall --host grok` 首批均返回结构化错误 `CLI_HOST_CONFIG_GLOBAL_ONLY`，并指向 npm 全局安装/升级。现有工作区宿主文件不会被自动迁移、覆盖或删除。
+bare `devcodex init/update` 只管理 `.devcodex`。若当前路径没有可复用的祖先 workspace marker，且不存在旧版项目运行态，首次执行会原子创建 `.devcodex/layout.json` 并采用 `workspace-namespace`；若祖先已存在有效 marker，则沿用祖先 owner；本地 marker 非法时返回 `WORKSPACE_LAYOUT_INVALID`，旧 `.devcodex/profile`、`.memory` 等运行态存在时返回 `WORKSPACE_LAYOUT_MIGRATION_REQUIRED`，不会静默切换目录，需先执行 `devcodex migrate-layout plan/apply`。`devcodex init --claude`、`devcodex init --codex`、`--host`、`--gemini`、`--grok`、裸 `devcodex uninstall` 以及 `uninstall --host grok` 首批均返回结构化错误 `CLI_HOST_CONFIG_GLOBAL_ONLY`。安装与更新错误会指向 npm 全局命令；卸载错误会明确首批不支持自动删除用户级配置。现有工作区宿主文件不会被自动迁移、覆盖或删除；删除前仍需用户明确确认。
+
+Grok 全局刷新会先识别所有同名 plugin identity：受管 canonical、已知 legacy 与受管恢复来源会经官方 `grok plugin uninstall/install` 收敛为一个 canonical identity；任意未知同名来源会在写入前阻断。收敛前保留配置、registry 证据及 source/installed 字节快照，不直接改写 Grok registry，也不自动删除旧工作区 source。
+
+Grok 默认兼容加载 `~/.claude/settings.json`。其中由 DevCodex 管理的 Claude hooks 若收到 Grok 的 camelCase payload 与 snake_case 事件，会安全跳过重复 lifecycle；Grok 专用 plugin 保持唯一 owner，用户自己的其他 Claude 兼容 hooks 不会被整体禁用。
+
+Claude 默认把用户级 MCP managed segment 写入 `~/.claude.json`；若显式设置 `CLAUDE_CONFIG_DIR`，则跟随 Claude 的配置隔离语义写入 `<CLAUDE_CONFIG_DIR>/.claude.json`，不会把 instructions/hooks 与 MCP 拆到两个配置身份。
 
 ## 使用
 
@@ -305,18 +315,21 @@ Phase 1 采用“薄 Rule + `host-capability-routing` Skill + 三份 V1 契约/�
 
 `.devcodex` 仍采用 workspace-namespace；不会迁移到 npm global prefix。安装期自动适配默认 fail-soft，可用 `DEVCODEX_SKIP_POSTINSTALL=1` 显式跳过，CI、源码仓安装和传递依赖安装默认 no-op。当前阶段只验证本地 CLI / package lifecycle 语义，不验证 npm 包名 owner、registry、dist-tag 或版本唯一性；这些属于发布前验证。首批不新增 `devcodex global init`、`devcodex init --global` 或 `devcodex sync --global`，也不纳入 Enhanced RulePack、`rules.bin`、公开仓同步、反重包保护或 runtime start/stop/restart。
 
+在 DevCodex 源码仓内运行 `status` / `doctor` 时，CLI 只比较“当前源码候选”与用户级已安装 receipt，不把候选差异解释为已安装包故障。JSON 会返回 `payload.globalHostComparison.scope=source-candidate-vs-installed-receipts`、`installedHealthClaim=false` 和 `hostParity.tier=source-candidate-comparison`；此时 `hostParity.checks`、`failedChecks` 与 `repairSteps` 为空，原始候选差异仅保留在 `withheld*` 证据字段。要验证真实全局安装健康度，应先打包并全局安装候选，再从源码仓外运行 `devcodex status` / `doctor`。
+
 | 命令 | 说明 |
 |------|------|
-| `devcodex init` | 初始化当前 workspace 的 `.devcodex`，不创建五宿主目录 |
-| `devcodex update` | 刷新当前 workspace 的 `.devcodex`，不创建五宿主目录 |
+| `devcodex init` | 初始化当前 workspace 的 `.devcodex`；fresh workspace 自动建立 `workspace-namespace` marker，不创建五宿主目录 |
+| `devcodex update` | 刷新当前 workspace 的 `.devcodex`；缺少 owner 时建立 namespace marker，不创建五宿主目录 |
 | `devcodex init/update --host <id>` 及 legacy aliases | 拒绝并返回 `CLI_HOST_CONFIG_GLOBAL_ONLY`；使用 `npm install -g devcodex` 或 `npm update -g devcodex` |
 | `devcodex uninstall --host grok` | 首批禁用；不会自动删除用户级或工作区既有配置 |
+| `devcodex uninstall` | 首批禁用；与带宿主形式返回同一 GlobalOnly 结构化错误 |
 | `devcodex grok [Grok 参数]` | 使用用户级 Grok plugin/runtime 与全局 controlling kernel；从 cwd 发现 workspace `.devcodex` |
 | `devcodex migrate-layout plan` | 生成 `.devcodex` 工作区集中布局迁移清单 |
 | `devcodex migrate-layout apply --manifest <path>` | 按 manifest 执行集中布局切换 |
 | `devcodex migrate-layout rollback --manifest <path>` | 回滚集中布局迁移 |
-| `devcodex status [--json]` | 状态：检查已安装组件；JSON 模式返回 `StatusDiagnosticV1`，含只读 `governanceSummary` |
-| `devcodex doctor [--json]` | 诊断当前宿主、Agent、Hook、Profile 与记忆状态；JSON 模式返回 `DoctorDiagnosticV1`，含同源只读 `governanceSummary` |
+| `devcodex status [--json]` | 浅层状态：有界执行五宿主 adapter 契约探针，并检查 Copilot 投影与 Grok 静态合同；返回分层 readiness 和只读 `governanceSummary` |
+| `devcodex doctor [--json]` | 深层诊断：在 status 基础上检查可用宿主原生版本、Grok canonical 唯一 identity、inspect 发现面、已安装 Hook 合同和 MCP initialize；返回同源分层 readiness |
 | `devcodex probe [id ...] [--json]` | 运行同步、local-only、只读 typed probes；默认包含 host/workspace/profile |
 | `devcodex trace show\|replay [--state <file>] [--json]` | 查看或校验重放当前 turn trace 的只读数据投影；不执行 payload 或 mutation |
 | `devcodex task resolve <任务名> [--project <name>] [--json]` | 有界定位可恢复任务；只返回 identity/session/CP metadata，不执行历史 payload |
@@ -338,7 +351,7 @@ Phase 1 采用“薄 Rule + `host-capability-routing` Skill + 三份 V1 契约/�
 - `config.local.json`：与 `config.json` 采用相同的 `workspace/profile + <project>/profile` overlay 模型，可作为用户 / 项目指定的本地 overlay，承载长期连接、本地明文连接信息、env / secretRef 引用和 `extensions.<namespace>`；不覆盖 `mode` / `agent`；脚本、测试、数据库 / SSH / MongoDB / 数据操作连接信息默认可直写或沿用项目既有模式，只有用户或项目明确指定时才从这里取得
 - Profile 文档：项目命名空间文件优先，缺失回退到 `workspace/profile`
 - CLI / Hook 运行态目录：统一写 active-root；单项目为 `<workspace>/.devcodex/<project>/.memory|.audit-state`，全工作区为 `<workspace>/.devcodex/workspace/.memory|.audit-state`
-- 宿主配置 owner：固定为各宿主的用户级配置根；workspace-namespace 只决定 `.devcodex` active-root。任何子项目执行 bare `init/update` 都不会生成 `.github/.claude/.codex/.gemini/.grok` 或宿主入口文件。
+- 宿主配置 owner：固定为各宿主的用户级配置根；共享 full fallback 与 Skills 固定在用户级 `.agents`；workspace-namespace 只决定 `.devcodex` active-root。任何子项目执行 bare `init/update` 都不会生成 `.github/.claude/.codex/.gemini/.grok/.agents`、`AGENTS.md`、`CLAUDE.md`、`GEMINI.md` 或 `.mcp.json`。
 - 多项目 workspace 根缺少 workspace profile 时，Hook 提示真实路径 `.devcodex/workspace/profile/`；同一宿主会话已识别唯一项目后，后续“继续/确认”会在短 TTL 内沿用该项目和项目 `mode`，新会话、TTL 过期或显式 workspace 请求会重新判断。
 
 配套 CLI：
@@ -349,7 +362,7 @@ devcodex migrate-layout apply --manifest <manifest-path>
 devcodex migrate-layout rollback --manifest <manifest-path>
 ```
 
-> 真相源说明：只有在 `layout.json` 已创建后，runtime / MCP / profile init 才会按 `.devcodex/workspace` 和 `.devcodex/<project>` 解析；未启用时继续兼容旧的 `<project>/.devcodex/`。启用后不得再向 `<project>/.devcodex/.tmp` 等旧项目内运行态目录写入产物。
+> 真相源说明：bare `devcodex init/update` 会先查找当前路径及祖先的有效 `layout.json`。找到时复用其 workspace owner；fresh workspace 未找到时创建 `mode=workspace-namespace` 的 `.devcodex/layout.json`，随后 runtime / MCP / Profile 按 `.devcodex/workspace` 和 `.devcodex/<project>` 解析。`--dry-run` 只预览该 marker 和目标路径，不写文件；非法 marker fail closed。若无 marker 但已存在旧版 `.devcodex/profile`、`.memory`、`.audit-state`、`requirements`、`bugs`、`reports` 或 `data` 等运行态，则同样 fail closed，并要求先走显式 `migrate-layout`，避免旧状态被新 namespace 隐藏。启用后不得再向 `<project>/.devcodex/.tmp` 等旧项目内运行态目录写入产物。
 
 ## Profile 计划、生成与升级
 
@@ -364,7 +377,7 @@ devcodex profile init --tier profile-standard
 devcodex status
 ```
 
-自动化脚本可使用 `devcodex status --json` / `devcodex doctor --json`。两者只输出一个 `DevCodexCliEnvelopeV1` JSON 文档；非法参数返回稳定 `CLI_INVALID_OPTION` 和退出码 2，默认人读输出保持兼容。`payload.governanceSummary` 以 `GovernanceStatusSummaryV1` 只读汇总 runtime-state、Skill 生命周期/灰度状态、执行优化证据、Always-On surface/layer/host/shadow 状态、Gate registry、host truth、dirty boundary 和 fail-closed fast-path 决策，不创建或改写运行态文件。
+自动化脚本可使用 `devcodex status --json` / `devcodex doctor --json`。两者只输出一个 `DevCodexCliEnvelopeV1` JSON 文档；非法参数返回稳定 `CLI_INVALID_OPTION` 和退出码 2，默认人读输出保持兼容。`payload.governanceSummary` 以 `GovernanceStatusSummaryV1` 只读汇总 runtime-state、Skill 生命周期/灰度状态、执行优化证据、Always-On surface/layer/host/shadow 状态、Gate registry、host truth、dirty boundary 和 fail-closed fast-path 决策，不创建或改写运行态文件。源码仓中的 JSON 诊断属于 `source-candidate-vs-installed-receipts` 比较面，明确返回 `installedHealthClaim=false`，不得用来声明已安装全局包健康或生成面向已安装包的修复动作。
 
 本地维护者还可运行 `devcodex probe --json` 获取 host/workspace/profile 的 typed 只读结果，或用 `devcodex trace show|replay --state <lifecycle-state.json> --json` 检查 `LocalTaskTraceV1`。probe 不联网、不监听、不写状态；trace replay 不执行事件 payload，输出会携带源文件 SHA-256 便于 zero-write 对账。
 
@@ -491,7 +504,7 @@ devcodex init --force
 node /path/to/devcodex/index.js status
 
 # 预期输出：
-#   user-global host adapters  5/5 ready
+#   user-global host adapters  configured/adapter/native 分层显示
 #   workspace .devcodex        present
 #   legacy host artifacts      none; expected
 ```
@@ -503,7 +516,7 @@ node /path/to/devcodex/index.js status
 3. 运行 `devcodex doctor`，确认五宿主用户级 receipt 与 workspace `.devcodex` 分别就绪
 4. Codex / Grok：使用隔离 HOME direct probe 验证用户级配置；不得用工作区目录存在冒充成功
 5. Claude / Gemini / Copilot：执行 contract fixture；当前证据上限不得写成 direct verified
-6. 确认目标工作区没有因安装新建 `.github/.claude/.codex/.gemini/.grok`
+6. 确认目标工作区没有因安装新建 `.github/.claude/.codex/.gemini/.grok/.agents`、`AGENTS.md`、`CLAUDE.md`、`GEMINI.md` 或 `.mcp.json`
 
 ### 文档站本地预览
 
@@ -559,7 +572,7 @@ README / 用户使用文档当前补充四类专项 Skill：`user-manual-authori
 
 | AI 客户端 | 注入路径 | Bootstrap / Hook 护栏 | CP 门控 | 记忆/MCP | 等级 |
 |---|---|:---:|:---:|:---:|:---:|
-| **GitHub Copilot (CLI)** | 用户级 Copilot instructions | ⚠️ fixture-only；IDE workspace hooks 不在首批范围 | ⚠️ 文本 fallback | ❌ 未内置 MCP | 🟡 Fixture |
+| **GitHub Copilot CLI** | 用户级 instructions、Hooks、MCP、Skills 与稳定 runtime | ⚠️ contract-fixture；原生 CLI 需 `doctor` 实测 | ⚠️ PreToolUse / Stop + 文本确认 | ✅ 用户级 MCP 配置 | 🟡 Fixture |
 | **Claude Code (CLI/桌面端)** | 用户级 `CLAUDE.md`、settings、MCP 与稳定 runtime | ⚠️ contract-fixture；本机 direct probe 依环境而定 | ✅ Hook + 文本确认契约 | ✅ MCP 契约 | 🟡 Fixture |
 | **Gemini CLI** | 用户级 `GEMINI.md`、settings 与稳定 runtime | ⚠️ contract-fixture；本机无 direct replay | ⚠️ Hook + fallback 契约 | ⚠️ 按宿主配置 | 🟡 Fixture |
 | **Grok Build** | 用户级 plugin/config/runtime；`devcodex grok` 绑定全局 kernel | ✅ isolated direct probe；passive stdout 仍不计注入证据 | ⚠️ 仅 PreToolUse 可阻断 | ✅ 全局 MCP 契约 | 🟢 Direct probe |
@@ -573,7 +586,7 @@ README / 用户使用文档当前补充四类专项 Skill：`user-manual-authori
 >
 > **能力差异**：🟢 Full = 已验证 Hook 事件 + MCP + 自动同步；🟡 Beta/Best-effort = 尚未达到 Full，具体能力以矩阵各列为准；🔴 Unsupported = 不在当前本地 adapter 发布范围。默认 `safety-only` 下，bootstrap / CP / auto 白名单等流程问题为提醒并继续，仅危险命令硬拦；设置 `DEVCODEX_HOOK_ENFORCEMENT=strict` 后，支持硬拦的事件才会停止流程。
 >
-> **MCP 边界**：Claude、Codex 与 Grok 的 MCP 配置指向各自用户级稳定 runtime；server 再从宿主 cwd 发现 workspace `.devcodex`。源码仓受版本控制的 `.mcp.json` 仅是包开发清单。Copilot 首批不自动写 MCP。
+> **MCP 边界**：Copilot CLI、Claude、Codex 与 Grok 的 MCP 配置指向各自用户级稳定 runtime；server 再从宿主 cwd 发现 workspace `.devcodex`。源码仓受版本控制的 `.mcp.json` 仅是包开发清单。Copilot IDE 与 Copilot CLI 是不同 surface，不能用 CLI 配置反推 IDE Hook/MCP 已生效。
 
 ### 当前 MCP 清单与新增能力判断
 
@@ -639,7 +652,8 @@ DevCodex Hook runtime 不再把所有拦截都等同为“停止”。拦截会�
 3. **Codex / Copilot 想用 MCP**
    - 先确认宿主本身是否支持本地 MCP
    - **Codex**：重新执行 `npm install -g devcodex`（首次/修复）或 `npm update -g devcodex`（升级），再重启 Codex。用户其它 `mcp_servers` 会保留
-   - **Copilot**：仍无自动 MCP；需宿主支持时再手工配置
+   - **Copilot CLI**：同一全局安装/升级会维护 `~/.copilot/mcp-config.json` 的 DevCodex managed servers，并保留用户其它 servers；重启 Copilot CLI 后用 `devcodex doctor` 核对原生 CLI 状态
+   - **Copilot IDE**：不继承 Copilot CLI 的用户级 Hooks/MCP 就绪结论，仍按目标 IDE 自身能力验证
    - Claude 使用用户级 MCP 配置，不要求工作区 `.mcp.json`
 4. **Copilot 里 `profile_load` 报 `invoke` undefined**
    - 这通常表示宿主 MCP bridge 没有完成工具调用，而不是 DevCodex profile 文件一定损坏
@@ -716,7 +730,7 @@ DevCodex 的 `plugin.json` 声明 `tier: "free"`，所有 Skill 均标注 `tier:
 
 ## Agent 入口
 
-仓库内保留两个 Agent 文件（`agents/devcodex.agent.md`、`agents/devcodex-auto.agent.md`）作为包源码资产；GlobalOnlyHostConfigModeV1 首批不向工作区 `.github/agents/` 分发。标准使用路径是：
+仓库内保留两个 Agent 文件（`agents/devcodex.agent.md`、`agents/devcodex-auto.agent.md`）作为包源码资产；GlobalOnlyWorkspaceCleanModeV1 首批不向工作区 `.github/agents/`、`.agents/` 或根级宿主入口分发。标准使用路径是：
 
 - **推荐**：通过 `copilot-instructions.md` + `instructions/` 自动注入，直接在 Copilot Chat 对话即可
 - **可选**：宿主自身支持用户级自定义 Agent 时按宿主能力启用；工作区不自动生成 Agent 文件

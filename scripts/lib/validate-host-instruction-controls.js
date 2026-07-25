@@ -75,7 +75,7 @@ function buildHostInstructionControlChecks(ctx) {
     }
     for (const relative of ['host-projections/CLAUDE.md', 'host-projections/GEMINI.md']) {
       const content = String(read(path.join(ROOT, relative)))
-      if (!content.includes('@AGENTS.md')) err(`[V103] wrapper pointer missing: ${relative}`)
+      if (!content.includes('@devcodex/runtime/AGENTS.md')) err(`[V103] wrapper pointer missing: ${relative}`)
       if (Buffer.byteLength(content, 'utf8') > coverage.budgets.wrapperMaxBytes) err(`[V103] wrapper budget exceeded: ${relative}`)
     }
     const grokPluginManifest = JSON.parse(String(read(path.join(ROOT, 'grok/plugins/devcodex-workspace/.claude-plugin/plugin.json'))))
@@ -98,8 +98,8 @@ function buildHostInstructionControlChecks(ctx) {
       }
     }
     const pluginHookRuntime = String(read(path.join(ROOT, 'grok/plugins/devcodex-workspace/hooks/devcodex-workspace.cjs')))
-    for (const anchor of ['outside-managed-workspace', 'workspace-kernel-missing', 'GROK_PLUGIN_ROOT', 'passive-hook-no-context-injection', 'blocking-tool-hook']) {
-      if (!pluginHookRuntime.includes(anchor)) err(`[V103] Grok plugin isolation/kernel contract missing: ${anchor}`)
+    for (const anchor of ['outside-workspace', 'nearest-workspace-layout', 'global-adapter-missing', 'GROK_HOME', 'passive-hook-no-context-injection', 'blocking-tool-hook']) {
+      if (!pluginHookRuntime.includes(anchor)) err(`[V103] Grok user-global plugin contract missing: ${anchor}`)
     }
     for (const relative of [
       'grok/skills/devcodex-workspace/SKILL.md',
@@ -162,6 +162,7 @@ function buildHostInstructionControlChecks(ctx) {
       '--host',
       'CLI_HOST_CONFIG_GLOBAL_ONLY',
       'GlobalOnlyHostConfigModeV1',
+      'GlobalOnlyWorkspaceCleanModeV1',
       'GlobalHostTargetV1',
       'GlobalHostConfigInspectionV1',
       'workspaceHostDirectoriesWritten',

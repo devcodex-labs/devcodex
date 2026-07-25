@@ -3,7 +3,7 @@
 const fs = require('fs')
 const path = require('path')
 const { applyGlobalHostConfig } = require('./global-host-config.js')
-const { syncGrokPluginInstallation } = require('./host-adapter-scope.js')
+const { syncGrokWorkspacePluginInstallation } = require('./host-adapter-scope.js')
 
 const RECEIPT_SCHEMA = 'DevCodexNpmLifecycleAdapterReceiptV1'
 const PACKAGE_NAMES = Object.freeze(['@vextjs/devcodex', 'devcodex'])
@@ -169,14 +169,29 @@ function runPostinstall(options = {}) {
     const grokTransaction = result?.transaction?.hosts?.find(item => item.host === 'grok')
     let grokIntegration = null
     let grokIntegrationError = null
+    const staleCleanupFailureCount = result?.transaction?.staleCleanupFailures?.length || 0
+    const receiptFinalizationFailureCount = result?.transaction?.receiptFinalizationFailures?.length || 0
+    const backupCleanupFailureCount = result?.transaction?.backupCleanupFailures?.length || 0
+    const maintenanceIncomplete = (
+      staleCleanupFailureCount +
+      receiptFinalizationFailureCount +
+      backupCleanupFailureCount
+    ) > 0
     receipt.globalHostConfig = {
       schemaVersion: result?.schemaVersion || null,
+      workspaceCleanMode: result?.workspaceCleanMode || null,
       planDigest: result?.planDigest || null,
       transactionStatus: result?.transaction?.status || null,
       hosts: (result?.targets || []).map(target => target.host),
       changed: result?.transaction?.changed ?? null,
+      maintenanceStatus: maintenanceIncomplete ? 'incomplete' : 'complete',
+      maintenanceIncomplete,
       backupCleanupIncomplete: result?.transaction?.backupCleanupIncomplete === true,
-      backupCleanupFailureCount: result?.transaction?.backupCleanupFailures?.length || 0,
+      backupCleanupFailureCount,
+      staleCleanupIncomplete: result?.transaction?.staleCleanupIncomplete === true,
+      staleCleanupFailureCount,
+      receiptFinalizationIncomplete: result?.transaction?.receiptFinalizationIncomplete === true,
+      receiptFinalizationFailureCount,
       hostResults: (result?.transaction?.hosts || []).map(item => ({
         host: item.host,
         status: item.status,
@@ -190,9 +205,12 @@ function runPostinstall(options = {}) {
     }
     if (grokTransaction?.status === 'committed' && grokTarget?.files?.plugin) {
       try {
-        const syncGrok = options.syncGrokPluginInstallation || syncGrokPluginInstallation
+        const syncGrok = options.syncGrokWorkspacePluginInstallation ||
+          options.syncGrokPluginInstallation ||
+          syncGrokWorkspacePluginInstallation
         grokIntegration = syncGrok({
           pluginPath: grokTarget.files.plugin,
+          activeRoot: result?.activeRoot || null,
           env
         })
       } catch (error) {

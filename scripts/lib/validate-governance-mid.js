@@ -374,7 +374,7 @@ function buildGovernanceMidChecks(ctx) {
       },
       {
         file: 'scripts/lib/cli-maintenance-commands.js',
-        needles: ['User-global host adapters:', 'workspace hosts:', 'global hosts:']
+        needles: ['User-global host adapters:', 'workspace hosts:', 'global adapters:', 'native hosts:']
       },
       {
         file: 'scripts/test-cli-behavior.js',

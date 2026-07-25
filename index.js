@@ -291,6 +291,7 @@ function getCodexConfigState(cwd) {
 
 const {
   resolveGitignoreRoot,
+  ensureWorkspaceNamespaceLayout,
   ensureRuntimeDirs,
   resolveProfileDir,
   ensureDevCodexGitignore,
@@ -345,7 +346,7 @@ const { cmdInitWorkspaceRuntime, cmdInitHost, cmdUninstallHost } = buildCliInsta
   finishManagedDeployment, copyManagedTextFile, readJsonFileWithStatus,
   writeManagedJsonFile, normalizeStringArray, mergeUniqueStringArrays,
   mergeClaudeHooks, mergeClaudeMcpConfig, mergeCodexConfigToml, CODEX_MCP_MANAGED_BEGIN,
-  ensureRuntimeDirs, ensureDevCodexGitignore, walkDir,
+  ensureWorkspaceNamespaceLayout, ensureRuntimeDirs, ensureDevCodexGitignore, walkDir,
   resolveActiveRuntimeRoot, resolveGitignoreRoot, getLegacyCounts, isPlainObject,
   resolveHostAdapterScope, writeGrokPluginRegistration,
   syncGrokPluginInstallation, syncGrokWorkspacePluginInstallation,
@@ -415,7 +416,7 @@ module.exports = {
   walkDir, cmdInitWorkspaceRuntime, cmdInitHost,
   cmdUninstallHost, cmdGrok, cmdStatus, cmdHelp, cmdProfileInit, cmdDoctor, cmdProbe, cmdTrace,
   cmdSkill, cmdTask, isSourceRepo, findLayoutInfo, inferProjectFromCwd, resolveActiveRuntimeRoot,
-  resolveHostAdapterScope, resolveGitignoreRoot, ensureRuntimeDirs, SOURCES, CLAUDE_SOURCES,
+  resolveHostAdapterScope, resolveGitignoreRoot, ensureWorkspaceNamespaceLayout, ensureRuntimeDirs, SOURCES, CLAUDE_SOURCES,
   CLAUDE_MCP_RUNTIME_SCRIPT_DEPS, CODEX_SOURCES, CLAUDE_HOOK_COMMAND, CLAUDE_MCP_JSON,
   CODEX_HOOK_COMMAND, buildDeploymentDescriptors, beginManagedDeployment, finishManagedDeployment,
   runMigrateLayout

@@ -4,7 +4,7 @@
     {
       "id": "copilot",
       "root": ".copilot",
-      "support": "fixture-only"
+      "support": "contract-fixture"
     },
     {
       "id": "claude",
@@ -32,7 +32,12 @@
     ".claude",
     ".codex",
     ".gemini",
-    ".grok"
+    ".grok",
+    ".agents",
+    "AGENTS.md",
+    "CLAUDE.md",
+    "GEMINI.md",
+    ".mcp.json"
   ],
   "preservedJson": {
     "theme": "user-owned",

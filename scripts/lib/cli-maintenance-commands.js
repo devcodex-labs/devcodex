@@ -8,6 +8,66 @@ const { evaluateGrokHostParity } = require('./host-parity-scorecard.js')
 const { readCompletionForCli } = require('./cli-execution-commands.js')
 const { inspectGlobalHostConfig } = require('./global-host-config.js')
 
+const SOURCE_CANDIDATE_COMPARISON_ISSUES = new Set([
+  'GLOBAL_HOST_RECEIPT_STALE',
+  'GLOBAL_HOST_MANAGED_CONFIG_DRIFT'
+])
+
+function isSourceCandidateMismatch(host, sourceRepository) {
+  const issues = Array.isArray(host?.configurationIssues) ? host.configurationIssues : []
+  return sourceRepository === true &&
+    host?.configured === true &&
+    issues.length > 0 &&
+    issues.every(issue => SOURCE_CANDIDATE_COMPARISON_ISSUES.has(issue.code))
+}
+
+function buildGlobalHostComparison(sourceRepository, globalHostConfig) {
+  const hosts = Array.isArray(globalHostConfig?.hosts) ? globalHostConfig.hosts : []
+  const candidateMismatchHosts = hosts
+    .filter(host => isSourceCandidateMismatch(host, sourceRepository))
+    .map(host => host.host)
+  const mismatchSet = new Set(candidateMismatchHosts)
+  return {
+    schemaVersion: 'GlobalHostDiagnosticScopeV1',
+    scope: sourceRepository
+      ? 'source-candidate-vs-installed-receipts'
+      : 'installed-package-vs-user-global-receipts',
+    installedHealthClaim: sourceRepository !== true,
+    candidateMismatchHosts,
+    adapterIssueHosts: hosts
+      .filter(host => host.adapterReady !== true && !mismatchSet.has(host.host))
+      .map(host => host.host)
+  }
+}
+
+function buildScopedHostParity(hostParity, globalHostComparison) {
+  const scoped = {
+    ...hostParity,
+    diagnosticScope: globalHostComparison.scope,
+    installedHealthClaim: globalHostComparison.installedHealthClaim
+  }
+  if (globalHostComparison.installedHealthClaim !== false) return scoped
+
+  return {
+    ...scoped,
+    sourceCandidateOnly: true,
+    hardReady: false,
+    tier: 'source-candidate-comparison',
+    checks: {},
+    failedChecks: [],
+    repairSteps: [],
+    withheldChecks: hostParity?.checks || {},
+    withheldFailedChecks: Array.isArray(hostParity?.failedChecks) ? hostParity.failedChecks : [],
+    withheldRepairSteps: Array.isArray(hostParity?.repairSteps) ? hostParity.repairSteps : [],
+    userVisibleSummary: 'Source candidate comparison only; installed Grok HostParity health is unverified.',
+    recommendedEntry: 'npm install -g <packed candidate> && devcodex doctor --json',
+    cannotClaim: [
+      'Installed Grok HostParity health is unverified in source-candidate scope.',
+      ...(Array.isArray(hostParity?.cannotClaim) ? hostParity.cannotClaim : [])
+    ]
+  }
+}
+
 function buildCliMaintenanceCommands(ctx) {
   const {
     fs, os, path, process, console, c, SOURCES, CODEX_HOOK_COMMAND,
@@ -22,13 +82,78 @@ function buildCliMaintenanceCommands(ctx) {
   } = ctx
 
   const cliMetadata = { packageName: PACKAGE_JSON.name, packageVersion: PACKAGE_JSON.version }
+  const workspaceCleanMode = 'GlobalOnlyWorkspaceCleanModeV1'
   const hostConfigPolicy = Object.freeze({
     mode: 'GlobalOnlyHostConfigModeV1',
+    workspaceCleanMode,
     workspaceHostConfigWritesAllowed: false,
     legacyWorkspaceArtifacts: 'diagnostic-read-only',
+    workspaceManagedArtifactsAllowed: ['.devcodex/**'],
     installCommand: 'npm install -g devcodex',
     updateCommand: 'npm update -g devcodex'
   })
+  const globalOnlyLegacyProjectionIssues = new Set([
+    'HOST_WRAPPER_POINTER_MISSING',
+    'HOST_SHARED_KERNEL_MISSING',
+    'HOST_KERNEL_SOURCE_DRIFT',
+    'HOST_FULL_FALLBACK_MISSING',
+    'HOST_FULL_FALLBACK_DRIFT',
+    'HOST_KERNEL_DUPLICATE_CONTENT'
+  ])
+
+  function demoteLegacyWorkspaceProjectionIssues(instructionProjection, globalHostConfig) {
+    if (!globalHostConfig?.configured || !instructionProjection) return
+    const issues = Array.isArray(instructionProjection.issues) ? instructionProjection.issues : []
+    const demoted = issues.filter(issue => globalOnlyLegacyProjectionIssues.has(issue.code))
+    if (!demoted.length) return
+    instructionProjection.issues = issues.filter(issue => !globalOnlyLegacyProjectionIssues.has(issue.code))
+    instructionProjection.warnings = [
+      ...(Array.isArray(instructionProjection.warnings) ? instructionProjection.warnings : []),
+      ...demoted.map(issue => ({
+        ...issue,
+        legacyWorkspaceResidual: true,
+        workspaceCleanMode
+      }))
+    ]
+    if (!instructionProjection.issues.length) {
+      instructionProjection.status = instructionProjection.entries?.some(item => item.installed)
+        ? 'ready'
+        : 'not-installed'
+    }
+  }
+
+  function applyGlobalOnlyInstructionProjectionPolicy(instructionProjection, globalHostConfig) {
+    demoteLegacyWorkspaceProjectionIssues(instructionProjection, globalHostConfig)
+    const globalAdapterReady = host => globalHostConfig?.hosts?.some(item =>
+      item.host === host && (item.adapterReady === true || item.ready === true)
+    )
+    if (instructionProjection?.grokPlugin?.sourcePresent === false) {
+      instructionProjection.grokPlugin.globalAdapterReady = Boolean(globalAdapterReady('grok'))
+      instructionProjection.grokPlugin.workspaceSourceRequired = false
+      instructionProjection.issues = (instructionProjection.issues || [])
+        .filter(item => item.code !== 'HOST_GROK_WORKSPACE_PLUGIN_MISSING')
+      if (!instructionProjection.issues.length) {
+        instructionProjection.status = instructionProjection.entries?.some(item => item.installed)
+          ? 'ready'
+          : 'not-installed'
+      }
+    }
+  }
+
+  function formatGlobalHostRuntimeState(host, options = {}) {
+    const state = host.operationalState || (host.ready ? 'ready' : 'unavailable')
+    const details = [
+      `configured=${host.configured === true ? 'yes' : 'no'}`,
+      `adapter=${host.adapterReady === true ? 'ready' : 'not-ready'}`,
+      `contract=${host.contractStatus || 'unverified'}`,
+      `native=${host.nativeStatus || 'unverified'}`
+    ].join('; ')
+    const prefix = options.icon ? `${state === 'ready' ? '✅' : '⚠️'} ` : ''
+    const label = `${prefix}${state} (${details})`
+    if (state === 'ready') return c.green(label)
+    if (state === 'failed') return c.red(label)
+    return c.yellow(label)
+  }
 
   function parseDiagnosticCommandArgs(command, argv) {
     const values = Array.isArray(argv) ? argv : []
@@ -139,25 +264,18 @@ function buildCliMaintenanceCommands(ctx) {
     const legacy = getLegacyCounts(ghDir)
     const activeRoot = resolveActiveRuntimeRoot(cwd)
     const executionOptimization = inspectExecutionOptimization(cwd)
-    const globalHostConfig = inspectGlobalHostConfig({ env: process.env })
-    const globalReady = host => globalHostConfig.hosts.some(item => item.host === host && item.ready)
-    if (globalReady('grok') && instructionProjection.grokPlugin?.sourcePresent === false) {
-      instructionProjection.grokPlugin.globalAdapterReady = true
-      instructionProjection.grokPlugin.workspaceSourceRequired = false
-      instructionProjection.issues = (instructionProjection.issues || [])
-        .filter(item => item.code !== 'HOST_GROK_WORKSPACE_PLUGIN_MISSING')
-      if (!instructionProjection.issues.length) {
-        instructionProjection.status = instructionProjection.entries?.some(item => item.installed)
-          ? 'ready'
-          : 'not-installed'
-      }
-    }
-    const hostParity = evaluateGrokHostParity({
-      cwd,
-      hostRoot,
-      env: process.env,
-      globalHostConfig
-    })
+    const globalHostConfig = inspectGlobalHostConfig({ env: process.env, cwd })
+    const globalHostComparison = buildGlobalHostComparison(sourceRepository, globalHostConfig)
+    applyGlobalOnlyInstructionProjectionPolicy(instructionProjection, globalHostConfig)
+    const hostParity = buildScopedHostParity(
+      evaluateGrokHostParity({
+        cwd,
+        hostRoot,
+        env: process.env,
+        globalHostConfig
+      }),
+      globalHostComparison
+    )
     const governanceSummary = buildGovernanceStatusSummary({
       cwd,
       activeRoot,
@@ -173,6 +291,7 @@ function buildCliMaintenanceCommands(ctx) {
       trackedEntryFiles,
       installSurfaces,
       hostParity,
+      globalHostComparison,
       entryFiles: {
         rulesInstalled,
         copilotInstructionsInstalled,
@@ -209,6 +328,7 @@ function buildCliMaintenanceCommands(ctx) {
       governanceSummary,
       hostConfigPolicy,
       globalHostConfig,
+      globalHostRuntime: globalHostConfig,
       legacy
     }
   }
@@ -226,21 +346,24 @@ function buildCliMaintenanceCommands(ctx) {
 
     const {
       cwd, hostRoot, sourceRepository: isSrc, trackedEntryFiles: total, installSurfaces,
-      entryFiles, profile, executionOptimization, governanceSummary, globalHostConfig, legacy, hostParity
+      entryFiles, profile, executionOptimization, governanceSummary, globalHostConfig,
+      globalHostComparison, legacy, hostParity
     } = facts
     console.log()
     console.log(c.bold('  DevCodex status') + c.dim(` in ${cwd}`))
     if (path.resolve(hostRoot) !== path.resolve(cwd)) console.log(c.dim(`  Host owner: ${hostRoot}`))
-    if (isSrc) console.log(c.yellow('  ⚠️  Source repository detected — showing source repo status'))
+    if (isSrc) {
+      console.log(c.yellow('  ⚠️  Source repository detected — comparing this candidate checkout with installed receipts; this is not an installed-package health claim'))
+    }
     console.log(c.dim('  ──────────────────────────────────────'))
     console.log()
 
-    console.log(c.bold('  User-global host adapters:'))
+    console.log(c.bold(`  User-global host adapters${isSrc ? ' (source candidate comparison)' : ''}:`))
     for (const host of globalHostConfig.hosts) {
-      const label = host.ready
-        ? (host.stale ? c.yellow(`stale ${host.packageVersion}`) : c.green(`ready ${host.packageVersion}`))
-        : c.dim(`not configured (${host.support})`)
-      console.log(`  ${c.cyan(host.host.padEnd(14))} ${label}`)
+      const state = globalHostComparison.candidateMismatchHosts.includes(host.host)
+        ? c.yellow('candidate differs from installed receipt; installed health unverified')
+        : formatGlobalHostRuntimeState(host)
+      console.log(`  ${c.cyan(host.host.padEnd(14))} ${state}`)
     }
     console.log()
     console.log()
@@ -256,9 +379,12 @@ function buildCliMaintenanceCommands(ctx) {
           ? c.dim('not installed')
           : c.yellow(`${entryFiles.instructionProjection.issues.length} issue(s)`))}`)
     if (hostParity) {
-      console.log(`  ${c.cyan('Grok parity'.padEnd(14))} ${hostParity.hardReady
-        ? c.green(`${hostParity.tier} — use: devcodex grok`)
-        : c.yellow(`${hostParity.tier} — see doctor --json hostParity.checks`)}`)
+      const parityLabel = isSrc
+        ? c.yellow('source-candidate only — installed health unverified')
+        : (hostParity.hardReady
+            ? c.green(`${hostParity.tier} — use: devcodex grok`)
+            : c.yellow(`${hostParity.tier} — see doctor --json hostParity.checks`))
+      console.log(`  ${c.cyan('Grok parity'.padEnd(14))} ${parityLabel}`)
     }
 
     let profileLabel
@@ -286,7 +412,7 @@ function buildCliMaintenanceCommands(ctx) {
     console.log()
     if (total === 0) {
       if (isSrc) {
-        console.log(`  ${c.dim('No workspace host directories.')} ${c.dim('This is expected in GlobalOnlyHostConfigModeV1.')}`)
+        console.log(`  ${c.dim('No workspace host artifacts.')} ${c.dim(`This is expected in ${workspaceCleanMode}.`)}`)
       } else {
         console.log(`  ${c.yellow('Workspace runtime not initialized.')} Run ${c.bold('devcodex init')}; host adapters require ${c.bold('npm install -g devcodex')}.`)
       }
@@ -509,29 +635,43 @@ function buildCliMaintenanceCommands(ctx) {
     const hasProfile = profileState.complete
     const activeRoot = resolveActiveRuntimeRoot(cwd)
     const executionOptimization = inspectExecutionOptimization(cwd)
-    const globalHostConfig = inspectGlobalHostConfig({ env })
+    const sourceRepository = isSourceRepo(cwd)
+    const globalHostConfig = inspectGlobalHostConfig({ env, cwd, depth: 'deep' })
+    const globalHostComparison = buildGlobalHostComparison(sourceRepository, globalHostConfig)
+    applyGlobalOnlyInstructionProjectionPolicy(instructionProjection, globalHostConfig)
     const globalReady = host => globalHostConfig.hosts.some(item => item.host === host && item.ready)
+    const globalAdapterReady = host => globalHostConfig.hosts.some(item => item.host === host && item.adapterReady)
 
     let mode = 'instruction-fallback'
-    if (platform === 'claude' && globalReady('claude')) mode = 'user-global hook adapter (Claude Code)'
+    if (sourceRepository && globalHostComparison.candidateMismatchHosts.includes(platform)) {
+      mode = `source candidate differs from installed ${platform} receipt (installed health unverified)`
+    }
+    else if (platform === 'copilot' && globalReady('copilot')) mode = 'user-global hook + MCP adapter (Copilot CLI)'
+    else if (platform === 'claude' && globalReady('claude')) mode = 'user-global hook adapter (Claude Code)'
     else if (platform === 'codex' && globalReady('codex')) mode = 'user-global hook adapter (Codex; event-dependent)'
     else if (platform === 'gemini' && globalReady('gemini')) mode = 'user-global hook adapter (Gemini; fixture-backed)'
     else if (platform === 'grok' && globalReady('grok')) mode = 'user-global plugin adapter (Grok)'
+    else if (['copilot', 'claude', 'codex', 'gemini', 'grok'].includes(platform) && globalAdapterReady(platform)) {
+      mode = `user-global ${platform} adapter installed (native CLI unavailable or unverified)`
+    }
     else if (platform === 'vscode-copilot' && hasGithubHooks) mode = 'workspace-hooks detected (VS Code Copilot preview; verify target IDE)'
     else if (platform === 'jetbrains-copilot') mode = 'instruction-fallback (JetBrains — Hooks unsupported)'
     else if (platform === 'unknown' && installedHosts.length > 1) mode = 'mixed install (host unresolved; multiple adapters present)'
 
-    const hostParity = evaluateGrokHostParity({
-      cwd,
-      hostRoot,
-      env,
-      globalHostConfig,
-      platform
-    })
+    const hostParity = buildScopedHostParity(
+      evaluateGrokHostParity({
+        cwd,
+        hostRoot,
+        env,
+        globalHostConfig,
+        platform
+      }),
+      globalHostComparison
+    )
     const governanceSummary = buildGovernanceStatusSummary({
       cwd,
       activeRoot,
-      sourceRepository: isSourceRepo(cwd),
+      sourceRepository,
       executionOptimization,
       hostParity
     })
@@ -539,6 +679,8 @@ function buildCliMaintenanceCommands(ctx) {
       schemaVersion: 'DoctorDiagnosticV1',
       cwd,
       hostRoot,
+      sourceRepository,
+      globalHostComparison,
       platform,
       platformSource: platformEvidence.source,
       platformEvidence,
@@ -548,6 +690,7 @@ function buildCliMaintenanceCommands(ctx) {
       hostParity,
       hostConfigPolicy,
       globalHostConfig,
+      globalHostRuntime: globalHostConfig,
       enforcement: 'safety-only by default; strict blocks only host-supported events',
       installArtifacts: {
         hasGithubHooks,
@@ -610,7 +753,7 @@ function buildCliMaintenanceCommands(ctx) {
       profile: profileState,
       executionOptimization,
       governanceSummary,
-      hostParity, globalHostConfig, completion
+      hostParity, globalHostConfig, globalHostComparison, sourceRepository, completion
     } = facts
     const {
       hasGithubHooks, hasClaudeHooks, hasCodexHooksJson, hasCodexHooks,
@@ -622,16 +765,28 @@ function buildCliMaintenanceCommands(ctx) {
     const profileDir = profileState.directory
     const hasProfile = profileState.complete
     const globalReady = host => globalHostConfig.hosts.some(item => item.host === host && item.ready)
+    const globalAdapterReady = host => globalHostConfig.hosts.some(item => item.host === host && item.adapterReady)
+    const adapterReadyHosts = globalHostConfig.hosts.filter(host => host.adapterReady)
+    const sourceCandidateMismatchSet = new Set(globalHostComparison.candidateMismatchHosts)
+    const missingAdapters = globalHostConfig.hosts
+      .filter(host => !host.adapterReady && !sourceCandidateMismatchSet.has(host.host))
+    const nativeNotReady = globalHostConfig.hosts.filter(host => host.adapterReady && !host.ready)
 
     console.log()
     console.log(c.bold('  DevCodex Doctor') + c.dim(` v1.9.7+ — runtime diagnostics`))
     console.log(c.dim('  ──────────────────────────────────────'))
     console.log(`  cwd:             ${cwd}`)
     console.log(`  host owner:      ${hostRoot}`)
+    if (sourceRepository) {
+      console.log(c.yellow('  diagnostic scope: source candidate vs installed receipts; installed package health is not asserted'))
+    }
     console.log(`  platform:        ${c.cyan(platform)}  ${c.dim(`(${platformEvidence.source})`)}`)
     console.log(`  agent:           ${c.cyan(agent)}`)
     console.log(`  workspace hosts: ${installedHosts.length ? c.yellow(`${installedHosts.join(', ')} (legacy)`) : c.dim('none; expected')}`)
-    console.log(`  global hosts:    ${globalHostConfig.hosts.filter(host => host.ready).length}/${globalHostConfig.hosts.length} ready`)
+    console.log(`  global adapters: ${sourceRepository
+      ? `${globalHostConfig.hosts.length - sourceCandidateMismatchSet.size}/${globalHostConfig.hosts.length} match source candidate`
+      : `${adapterReadyHosts.length}/${globalHostConfig.hosts.length} ready`}`)
+    console.log(`  native hosts:    ${globalHostConfig.hosts.filter(host => host.nativeStatus === 'passed').length}/${globalHostConfig.hosts.length} ready`)
     console.log(`  mode:            ${c.bold(mode)}`)
     console.log(`  optimization:    ${c.bold(executionOptimization.config.effective)} ${c.dim(`(${executionOptimization.config.status}; state=${executionOptimization.stateStatus})`)}`)
     console.log(`  governance:      ${formatGovernanceSummary(governanceSummary)}`)
@@ -642,21 +797,41 @@ function buildCliMaintenanceCommands(ctx) {
       console.log(`  next actions:    ${(projection?.diagnostics?.recommendedActions || []).join(', ') || '(none)'}`)
     }
     console.log(c.dim('  enforcement:     default safety-only warns/continues for bootstrap/CP/auto; strict blocks only host-supported events.'))
-    if (hostParity) {
+    if (hostParity && !sourceRepository) {
       const tierColor = hostParity.hardReady ? c.green : c.yellow
       console.log(`  Grok HostParity: ${tierColor(hostParity.tier)} ${c.dim(`(ref Codex; ${hostParity.hardReady ? 'hard path ready' : 'partial'})`)}`)
       console.log(c.dim(`  ${hostParity.userVisibleSummary}`))
       console.log(c.dim(`  Full session entry: ${hostParity.recommendedEntry}`))
+    } else if (hostParity && sourceRepository) {
+      console.log(c.dim('  Grok HostParity: source-candidate comparison only; installed HostParity health is not asserted here.'))
     }
     console.log()
     console.log(c.bold('  User-global host adapters:'))
     for (const host of globalHostConfig.hosts) {
-      const label = host.ready
-        ? (host.stale ? c.yellow(`stale ${host.packageVersion}`) : c.green(`✅ ${host.packageVersion}`))
-        : c.yellow(`⚠️ not configured (${host.support})`)
-      console.log(`    ${host.host.padEnd(10)} ${label}`)
+      const state = sourceCandidateMismatchSet.has(host.host)
+        ? c.yellow('⚠️ candidate differs from installed receipt; installed health unverified')
+        : formatGlobalHostRuntimeState(host, { icon: true })
+      console.log(`    ${host.host.padEnd(10)} ${state}`)
     }
-    console.log(c.dim('    Repair missing adapters with `npm install -g devcodex`; upgrade with `npm update -g devcodex`.'))
+    if (missingAdapters.length) {
+      console.log(c.yellow(`    Missing adapters: ${missingAdapters.map(host => host.host).join(', ')}. Repair with \`npm install -g devcodex\`.`))
+    } else {
+      console.log(c.green(sourceRepository
+        ? '    No independently missing adapter was found by the source-candidate comparison.'
+        : '    All user-global adapters are installed and their contracts pass.'))
+    }
+    if (globalHostComparison.candidateMismatchHosts.length) {
+      console.log(c.yellow(
+        `    Source candidate differs from installed receipts for: ${globalHostComparison.candidateMismatchHosts.join(', ')}. ` +
+        'This does not prove the installed adapters are broken.'
+      ))
+    }
+    if (nativeNotReady.length) {
+      console.log(c.dim(`    Native host CLIs not operationally ready: ${nativeNotReady.map(host => host.host).join(', ')}. Install or repair those CLIs, then rerun \`devcodex doctor\`.`))
+    }
+    console.log(c.dim(sourceRepository
+      ? '    Validate this candidate with `npm pack`, then install the produced tarball globally before judging installed health.'
+      : '    Upgrade DevCodex and refresh adapters with `npm update -g devcodex`.'))
     console.log(c.bold('  Workspace state:'))
     console.log(`    .devcodex                             ${fs.existsSync(path.join(hostRoot, '.devcodex')) ? c.green('✅') : c.dim('— initialize with `devcodex init`')}`)
     console.log(`    legacy host artifacts                 ${installedHosts.length ? c.yellow(installedHosts.join(', ')) : c.green('none; expected')}`)
@@ -678,8 +853,13 @@ function buildCliMaintenanceCommands(ctx) {
 
     if (platform === 'jetbrains-copilot' || mode.startsWith('instruction-fallback')) {
       console.log(c.bold('  Copilot support ceiling:'))
-      console.log('    User-global Copilot CLI instructions are fixture-backed.')
-      console.log('    IDE workspace hooks and per-repository instruction files are not installed in GlobalOnlyHostConfigModeV1.')
+      console.log(sourceCandidateMismatchSet.has('copilot')
+        ? '    The source candidate differs from the installed Copilot receipt; installed Copilot adapter health is not asserted.'
+        : globalAdapterReady('copilot')
+        ? '    Copilot CLI user-global instructions, Hooks, MCP, and Skills are installed by the global adapter.'
+        : '    Copilot CLI user-global instructions, Hooks, MCP, and Skills require `npm install -g devcodex`.')
+      console.log('    Operational readiness still requires a successful native `copilot --version` deep probe.')
+      console.log(`    IDE workspace hooks and per-repository instruction files are not installed in ${workspaceCleanMode}.`)
       console.log()
     }
 
@@ -688,24 +868,41 @@ function buildCliMaintenanceCommands(ctx) {
       console.log()
     }
 
-    if (platform === 'claude' && !globalReady('claude')) {
-      console.log(c.yellow('  ⚠️  Claude Code detected without a ready user-global adapter — run `npm install -g devcodex`'))
+    if (platform === 'copilot' && !globalReady('copilot') && !sourceCandidateMismatchSet.has('copilot')) {
+      console.log(c.yellow(globalAdapterReady('copilot')
+        ? '  ⚠️  Copilot user-global adapter is ready, but the native `copilot --version` probe did not pass — install or repair Copilot CLI, then rerun `devcodex doctor`.'
+        : '  ⚠️  Copilot CLI detected without a ready user-global adapter — run `npm install -g devcodex`.'))
       console.log()
     }
-    if (platform === 'codex' && !globalReady('codex')) {
-      console.log(c.yellow('  ⚠️  Codex detected without a ready user-global adapter — run `npm install -g devcodex`'))
-      console.log(c.dim(`      Expected hook command: ${CODEX_HOOK_COMMAND}`))
+    if (platform === 'claude' && !globalReady('claude') && !sourceCandidateMismatchSet.has('claude')) {
+      console.log(c.yellow(globalAdapterReady('claude')
+        ? '  ⚠️  Claude user-global adapter is ready, but the native `claude --version` probe did not pass — install or repair Claude Code, then rerun `devcodex doctor`.'
+        : '  ⚠️  Claude Code detected without a ready user-global adapter — run `npm install -g devcodex`.'))
       console.log()
     }
-    if (platform === 'gemini' && !globalReady('gemini')) {
-      console.log(c.yellow('  ⚠️  Gemini CLI detected without a ready user-global adapter — run `npm install -g devcodex`'))
+    if (platform === 'codex' && !globalReady('codex') && !sourceCandidateMismatchSet.has('codex')) {
+      console.log(c.yellow(globalAdapterReady('codex')
+        ? '  ⚠️  Codex user-global adapter is ready, but the native `codex --version` probe did not pass — install or repair Codex, then rerun `devcodex doctor`.'
+        : '  ⚠️  Codex detected without a ready user-global adapter — run `npm install -g devcodex`.'))
+      if (!globalAdapterReady('codex')) console.log(c.dim(`      Expected hook command: ${CODEX_HOOK_COMMAND}`))
       console.log()
     }
-    if (platform === 'grok' && !globalReady('grok')) {
-      console.log(c.yellow('  ⚠️  Grok detected without a ready user-global adapter — run `npm install -g devcodex`'))
+    if (platform === 'gemini' && !globalReady('gemini') && !sourceCandidateMismatchSet.has('gemini')) {
+      console.log(c.yellow(globalAdapterReady('gemini')
+        ? '  ⚠️  Gemini user-global adapter is ready, but the native `gemini --version` probe did not pass — install or repair Gemini CLI, then rerun `devcodex doctor`.'
+        : '  ⚠️  Gemini CLI detected without a ready user-global adapter — run `npm install -g devcodex`.'))
       console.log()
     }
-    if (hostParity && !hostParity.hardReady) {
+    if (platform === 'grok' && !globalReady('grok') && !sourceCandidateMismatchSet.has('grok')) {
+      console.log(c.yellow(globalAdapterReady('grok')
+        ? '  ⚠️  Grok user-global adapter is ready, but the native `grok version` probe did not pass — install or repair Grok, then rerun `devcodex doctor`.'
+        : '  ⚠️  Grok detected without a ready user-global adapter — run `npm install -g devcodex`.'))
+      console.log()
+    }
+    if (hostParity && !hostParity.hardReady && sourceRepository) {
+      console.log(c.dim('  Grok HostParity details are withheld in source-candidate scope; install the packed candidate before evaluating installed repair steps.'))
+      console.log()
+    } else if (hostParity && !hostParity.hardReady) {
       console.log(c.bold('  Grok HostParity checks:'))
       for (const [key, ok] of Object.entries(hostParity.checks || {})) {
         console.log(`    ${key.padEnd(28)} ${ok ? c.green('✅') : c.red('❌')}`)
@@ -732,7 +929,9 @@ function buildCliMaintenanceCommands(ctx) {
     }
     if (instructionProjection.issues.length) {
       for (const issue of instructionProjection.issues) console.log(c.yellow(`  ⚠️  ${issue.code}`))
-      console.log(c.dim('      These are legacy workspace artifacts. Repair the user-global adapter with `npm install -g devcodex`.'))
+      console.log(c.dim(sourceRepository
+        ? '      Source-candidate scope does not establish installed adapter failure; validate the packed candidate first.'
+        : '      These are legacy workspace artifacts. Repair the user-global adapter with `npm install -g devcodex`.'))
       console.log()
     }
     if ((instructionProjection.warnings || []).length) {
@@ -741,7 +940,7 @@ function buildCliMaintenanceCommands(ctx) {
       console.log()
     }
     if (hasCodexHooksJson) {
-      console.log(c.yellow('  ⚠️  Legacy workspace Codex configuration detected; GlobalOnlyHostConfigModeV1 does not require it.'))
+      console.log(c.yellow(`  ⚠️  Legacy workspace Codex configuration detected; ${workspaceCleanMode} does not require it.`))
       if (codexHookDiagnostics.error) {
         console.log(c.yellow(`  ⚠️  Codex hooks.json could not be parsed: ${codexHookDiagnostics.error}`))
         console.log()
@@ -872,4 +1071,9 @@ function buildCliMaintenanceCommands(ctx) {
   return { cmdStatus, cmdProfileInit, cmdDoctor, cmdHelp }
 }
 
-module.exports = { buildCliMaintenanceCommands }
+module.exports = {
+  buildCliMaintenanceCommands,
+  buildGlobalHostComparison,
+  buildScopedHostParity,
+  isSourceCandidateMismatch
+}

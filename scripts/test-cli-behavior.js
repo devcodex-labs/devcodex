@@ -7,6 +7,11 @@ const os = require('os')
 const path = require('path')
 const { spawnSync } = require('child_process')
 const { PROFILE_GENERATION_CONTRACT, projectFeatureInventoryState } = require('../mcp/profile-contract.js')
+const {
+  buildGlobalHostComparison,
+  buildScopedHostParity,
+  isSourceCandidateMismatch
+} = require('./lib/cli-maintenance-commands.js')
 
 const ROOT = path.resolve(__dirname, '..')
 const CLI = path.join(ROOT, 'index.js')
@@ -119,6 +124,69 @@ assert.match(runCli([], ROOT), /Usage:/)
 assert.match(runCli(['help'], ROOT), /Usage:/)
 assert.strictEqual(runCli(['--version'], ROOT).trim(), require('../package.json').version)
 assert.match(runCliFailure(['definitely-unknown-command'], ROOT), /CLI_COMMAND_UNKNOWN/)
+
+const sourceMismatchHost = {
+  host: 'codex',
+  configured: true,
+  adapterReady: false,
+  configurationIssues: [
+    { code: 'GLOBAL_HOST_RECEIPT_STALE' },
+    { code: 'GLOBAL_HOST_MANAGED_CONFIG_DRIFT' }
+  ]
+}
+assert.strictEqual(isSourceCandidateMismatch(sourceMismatchHost, true), true)
+assert.strictEqual(isSourceCandidateMismatch(sourceMismatchHost, false), false)
+assert.deepStrictEqual(buildGlobalHostComparison(true, {
+  hosts: [
+    sourceMismatchHost,
+    {
+      host: 'claude',
+      configured: false,
+      adapterReady: false,
+      configurationIssues: [{ code: 'GLOBAL_HOST_RECEIPT_MISSING' }]
+    },
+    {
+      host: 'grok',
+      configured: true,
+      adapterReady: true,
+      configurationIssues: []
+    }
+  ]
+}), {
+  schemaVersion: 'GlobalHostDiagnosticScopeV1',
+  scope: 'source-candidate-vs-installed-receipts',
+  installedHealthClaim: false,
+  candidateMismatchHosts: ['codex'],
+  adapterIssueHosts: ['claude']
+})
+const sourceScopedParity = buildScopedHostParity({
+  hardReady: true,
+  tier: 'full',
+  checks: { pluginRegistered: false },
+  failedChecks: ['pluginRegistered'],
+  repairSteps: [{ command: 'devcodex update', detail: 'repair plugin registration' }],
+  cannotClaim: ['Original installed-health claim']
+}, {
+  scope: 'source-candidate-vs-installed-receipts',
+  installedHealthClaim: false
+})
+assert.strictEqual(sourceScopedParity.sourceCandidateOnly, true)
+assert.strictEqual(sourceScopedParity.installedHealthClaim, false)
+assert.strictEqual(sourceScopedParity.hardReady, false)
+assert.strictEqual(sourceScopedParity.tier, 'source-candidate-comparison')
+assert.deepStrictEqual(sourceScopedParity.checks, {})
+assert.deepStrictEqual(sourceScopedParity.failedChecks, [])
+assert.deepStrictEqual(sourceScopedParity.repairSteps, [])
+assert.deepStrictEqual(sourceScopedParity.withheldChecks, { pluginRegistered: false })
+assert.deepStrictEqual(sourceScopedParity.withheldFailedChecks, ['pluginRegistered'])
+assert.deepStrictEqual(sourceScopedParity.withheldRepairSteps, [
+  { command: 'devcodex update', detail: 'repair plugin registration' }
+])
+assert.match(sourceScopedParity.cannotClaim[0], /Installed Grok HostParity health is unverified/)
+const maintenanceSource = fs.readFileSync(path.join(ROOT, 'scripts', 'lib', 'cli-maintenance-commands.js'), 'utf8')
+assert.ok(maintenanceSource.includes('installed package health is not asserted'))
+assert.ok(maintenanceSource.includes('This does not prove the installed adapters are broken'))
+assert.ok(maintenanceSource.includes('HostParity details are withheld in source-candidate scope'))
 
 function buildClaudeProject(root) {
   writeFile(root, 'package.json', '{ "name": "tmp-cli-project" }\n')
@@ -310,7 +378,8 @@ function testDoctorAvoidsCodexBiasInMixedHostRepo() {
   assert.match(output, /platform:\s+unknown\s+\(unknown\)/)
   assert.match(output, /agent:\s+unknown-agent/)
   assert.match(output, /workspace hosts:\s+codex, claude-code, copilot \(legacy\)/)
-  assert.match(output, /global hosts:\s+\d\/5 ready/)
+  assert.match(output, /global adapters:\s+\d\/5 ready/)
+  assert.match(output, /native hosts:\s+\d\/5 ready/)
 
   fs.rmSync(root, { recursive: true, force: true })
 }
@@ -346,12 +415,21 @@ function testMachineReadableDiagnosticsAndStableErrors() {
   assert.strictEqual(status.payload.schemaVersion, 'StatusDiagnosticV1')
   assert.strictEqual(status.payload.cwd, root)
   assert.ok(Array.isArray(status.payload.installSurfaces))
+  assert.strictEqual(status.payload.globalHostComparison.schemaVersion, 'GlobalHostDiagnosticScopeV1')
+  assert.strictEqual(status.payload.globalHostComparison.scope, 'installed-package-vs-user-global-receipts')
+  assert.strictEqual(status.payload.globalHostComparison.installedHealthClaim, true)
+  assert.deepStrictEqual(status.payload.globalHostComparison.candidateMismatchHosts, [])
+  assert.ok(Array.isArray(status.payload.globalHostComparison.adapterIssueHosts))
+  assert.strictEqual(status.payload.hostParity.diagnosticScope, 'installed-package-vs-user-global-receipts')
+  assert.strictEqual(status.payload.hostParity.installedHealthClaim, true)
   assert.strictEqual(status.payload.executionOptimization.config.effective, 'safe-auto')
   assert.deepStrictEqual(status.payload.executionOptimization.writes, [])
   assert.deepStrictEqual(status.payload.hostConfigPolicy, {
     mode: 'GlobalOnlyHostConfigModeV1',
+    workspaceCleanMode: 'GlobalOnlyWorkspaceCleanModeV1',
     workspaceHostConfigWritesAllowed: false,
     legacyWorkspaceArtifacts: 'diagnostic-read-only',
+    workspaceManagedArtifactsAllowed: ['.devcodex/**'],
     installCommand: 'npm install -g devcodex',
     updateCommand: 'npm update -g devcodex'
   })
@@ -366,6 +444,11 @@ function testMachineReadableDiagnosticsAndStableErrors() {
   assert.strictEqual(doctor.ok, true)
   assert.strictEqual(doctor.command, 'doctor')
   assert.strictEqual(doctor.payload.schemaVersion, 'DoctorDiagnosticV1')
+  assert.strictEqual(doctor.payload.sourceRepository, false)
+  assert.strictEqual(doctor.payload.globalHostComparison.scope, 'installed-package-vs-user-global-receipts')
+  assert.strictEqual(doctor.payload.globalHostComparison.installedHealthClaim, true)
+  assert.strictEqual(doctor.payload.hostParity.diagnosticScope, 'installed-package-vs-user-global-receipts')
+  assert.strictEqual(doctor.payload.hostParity.installedHealthClaim, true)
   assert.strictEqual(doctor.payload.executionOptimization.config.effective, 'safe-auto')
   assert.deepStrictEqual(doctor.payload.hostConfigPolicy, status.payload.hostConfigPolicy)
   assert.strictEqual(doctor.payload.governanceSummary.schemaVersion, 'GovernanceStatusSummaryV1')
@@ -404,17 +487,78 @@ function testDefaultInitBootstrapsActiveRootData() {
 
   runCli(['init'], root)
 
-  assertRuntimeDataBootstrap(path.join(root, '.devcodex'))
+  assert.deepStrictEqual(readJson(root, '.devcodex/layout.json'), {
+    version: 1,
+    mode: 'workspace-namespace',
+    workspaceDir: 'workspace'
+  })
+  assertRuntimeDataBootstrap(path.join(root, '.devcodex', 'workspace'))
   assert.ok(!fs.existsSync(path.join(root, '.gitignore')), 'default init must not create .gitignore')
-  for (const relative of ['.github', '.claude', '.codex', '.gemini', '.grok']) {
+  for (const relative of ['.github', '.claude', '.codex', '.gemini', '.grok', '.agents', 'AGENTS.md', 'CLAUDE.md', 'GEMINI.md', '.mcp.json']) {
     assert.ok(!fs.existsSync(path.join(root, relative)), `default init must not create ${relative}`)
   }
   const updated = JSON.parse(runCli(['update', '--json'], root))
+  assert.strictEqual(updated.payload.runtimeRoot, path.join(root, '.devcodex', 'workspace'))
+  assert.strictEqual(updated.payload.layoutCreated, false)
+  assert.strictEqual(updated.payload.layoutPlanned, false)
   assert.strictEqual(updated.payload.mode, 'GlobalOnlyHostConfigModeV1')
+  assert.strictEqual(updated.payload.workspaceCleanMode, 'GlobalOnlyWorkspaceCleanModeV1')
   assert.strictEqual(updated.payload.workspaceHostDirectoriesWritten, false)
   assert.strictEqual(updated.payload.gitignoreModified, false)
   assert.strictEqual(updated.payload.hostConfigNextStep, 'npm update -g devcodex')
   fs.rmSync(root, { recursive: true, force: true })
+}
+
+function testDefaultInitLayoutOwnershipGuards() {
+  const dryRunRoot = createTempRoot('devcodex-cli-runtime-dry-')
+  writeFile(dryRunRoot, 'package.json', '{ "name": "tmp-runtime-dry" }\n')
+  const dryRun = JSON.parse(runCli(['init', '--dry-run', '--json'], dryRunRoot))
+  assert.strictEqual(dryRun.payload.layoutCreated, false)
+  assert.strictEqual(dryRun.payload.layoutPlanned, true)
+  assert.strictEqual(dryRun.payload.runtimeRoot, path.join(dryRunRoot, '.devcodex', 'workspace'))
+  assert.strictEqual(fs.existsSync(path.join(dryRunRoot, '.devcodex')), false)
+
+  const parentRoot = createTempRoot('devcodex-cli-runtime-parent-')
+  const childRoot = path.join(parentRoot, 'packages', 'app-a')
+  writeJson(parentRoot, '.devcodex/layout.json', {
+    version: 1,
+    mode: 'workspace-namespace',
+    workspaceDir: 'workspace'
+  })
+  writeFile(childRoot, 'package.json', '{ "name": "app-a" }\n')
+  const child = JSON.parse(runCli(['init', '--json'], childRoot))
+  assert.strictEqual(child.payload.layoutCreated, false)
+  assert.strictEqual(child.payload.workspaceRoot, parentRoot)
+  assert.strictEqual(child.payload.runtimeRoot, path.join(parentRoot, '.devcodex', 'packages', 'app-a'))
+  assert.strictEqual(fs.existsSync(path.join(childRoot, '.devcodex', 'layout.json')), false)
+  assertRuntimeDataBootstrap(path.join(parentRoot, '.devcodex', 'packages', 'app-a'))
+
+  const invalidRoot = createTempRoot('devcodex-cli-runtime-invalid-layout-')
+  writeFile(invalidRoot, 'package.json', '{ "name": "tmp-runtime-invalid-layout" }\n')
+  writeFile(invalidRoot, '.devcodex/layout.json', '{ invalid json }\n')
+  const failure = JSON.parse(runCliFailure(['init', '--json'], invalidRoot))
+  assert.strictEqual(failure.errorCode, 'WORKSPACE_LAYOUT_INVALID')
+  assert.strictEqual(fs.readFileSync(path.join(invalidRoot, '.devcodex', 'layout.json'), 'utf8'), '{ invalid json }\n')
+  assert.strictEqual(fs.existsSync(path.join(invalidRoot, '.devcodex', 'workspace')), false)
+
+  const legacyRoot = createTempRoot('devcodex-cli-runtime-legacy-layout-')
+  writeFile(legacyRoot, 'package.json', '{ "name": "tmp-runtime-legacy-layout" }\n')
+  writeFile(legacyRoot, '.devcodex/profile/sentinel.txt', 'legacy-state\n')
+  const legacyFailure = JSON.parse(runCliFailure(['init', '--json'], legacyRoot))
+  assert.strictEqual(legacyFailure.errorCode, 'WORKSPACE_LAYOUT_MIGRATION_REQUIRED')
+  assert.deepStrictEqual(legacyFailure.details.legacyRuntimeEntries, ['profile'])
+  assert.match(legacyFailure.nextStep, /devcodex migrate-layout plan/)
+  assert.strictEqual(fs.existsSync(path.join(legacyRoot, '.devcodex', 'layout.json')), false)
+  assert.strictEqual(fs.existsSync(path.join(legacyRoot, '.devcodex', 'workspace')), false)
+  assert.strictEqual(
+    fs.readFileSync(path.join(legacyRoot, '.devcodex', 'profile', 'sentinel.txt'), 'utf8'),
+    'legacy-state\n'
+  )
+
+  fs.rmSync(dryRunRoot, { recursive: true, force: true })
+  fs.rmSync(parentRoot, { recursive: true, force: true })
+  fs.rmSync(invalidRoot, { recursive: true, force: true })
+  fs.rmSync(legacyRoot, { recursive: true, force: true })
 }
 
 function testTenantSelectionIsExplicit() {
@@ -427,7 +571,7 @@ function testTenantSelectionIsExplicit() {
   assert.strictEqual(result.payload.workspaceHostDirectoriesWritten, false)
   assert.ok(fs.existsSync(path.join(root, '.devcodex')))
   assert.strictEqual(fs.readFileSync(path.join(root, '.gitignore'), 'utf8'), '# user-owned\n')
-  for (const relative of ['.github', '.claude', '.codex', '.gemini', '.grok']) {
+  for (const relative of ['.github', '.claude', '.codex', '.gemini', '.grok', '.agents', 'AGENTS.md', 'CLAUDE.md', 'GEMINI.md', '.mcp.json']) {
     assert.ok(!fs.existsSync(path.join(root, relative)), `tenant selection must not create ${relative}`)
   }
 
@@ -449,6 +593,7 @@ function testGlobalOnlyHostSelectorsFailClosed() {
     const envelope = JSON.parse(result.stdout)
     assert.strictEqual(envelope.errorCode, 'CLI_HOST_CONFIG_GLOBAL_ONLY')
     assert.strictEqual(envelope.details.host, host)
+    assert.strictEqual(envelope.details.workspaceCleanMode, 'GlobalOnlyWorkspaceCleanModeV1')
     assert.strictEqual(envelope.details.workspaceHostDirectoriesWritten, false)
     assert.match(envelope.nextStep, /npm install -g devcodex/)
   }
@@ -458,6 +603,10 @@ function testGlobalOnlyHostSelectorsFailClosed() {
   const uninstall = JSON.parse(runCliFailure(['uninstall', '--host', 'grok', '--json'], root))
   assert.strictEqual(uninstall.errorCode, 'CLI_HOST_CONFIG_GLOBAL_ONLY')
   assert.match(uninstall.nextStep, /not supported/)
+  const bareUninstall = JSON.parse(runCliFailure(['uninstall', '--json'], root))
+  assert.strictEqual(bareUninstall.errorCode, 'CLI_HOST_CONFIG_GLOBAL_ONLY')
+  assert.strictEqual(bareUninstall.details.host, 'all')
+  assert.match(bareUninstall.nextStep, /not supported/)
   for (const relative of ['.github', '.claude', '.codex', '.gemini', '.grok']) {
     assert.ok(!fs.existsSync(path.join(root, relative)), `selector must not create ${relative}`)
   }
@@ -870,6 +1019,7 @@ function main() {
   testDoctorHonorsExplicitAgentBeforeAmbientHints()
   testMachineReadableDiagnosticsAndStableErrors()
   testDefaultInitBootstrapsActiveRootData()
+  testDefaultInitLayoutOwnershipGuards()
   testTenantSelectionIsExplicit()
   testGlobalOnlyHostSelectorsFailClosed()
   testCodexMcpPreventionNegatives()

@@ -4,7 +4,13 @@ const assert = require('assert')
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
-const { graySkillIdSet, shouldDeploySkillRelative, createSkillDeployFileFilter } = require('./lib/skill-deploy-filter')
+const {
+  graySkillIdSet,
+  isDeployableSkill,
+  nonActiveSkillIdSet,
+  shouldDeploySkillRelative,
+  createSkillDeployFileFilter
+} = require('./lib/skill-deploy-filter')
 const { sha256File, parseCpSessions, verifyArtifactDigest, buildExtendedCpTable } = require('./lib/cp-digest')
 const { buildClosureEvidenceControlChecks } = require('./lib/validate-closure-evidence-controls')
 
@@ -13,6 +19,12 @@ const ROOT = path.resolve(__dirname, '..')
 // gray filter
 const gray = graySkillIdSet(ROOT)
 assert.ok(gray.size >= 3, 'expected >=3 gray skills')
+assert.deepStrictEqual(nonActiveSkillIdSet(ROOT), gray, 'current non-active set should equal the gray set')
+assert.strictEqual(isDeployableSkill({ id: 'default-active' }), true)
+assert.strictEqual(isDeployableSkill({ id: 'explicit-active', lifecycleState: 'active' }), true)
+for (const lifecycleState of ['gray', 'deprecated', 'retired']) {
+  assert.strictEqual(isDeployableSkill({ id: lifecycleState, lifecycleState }), false)
+}
 for (const id of gray) {
   assert.strictEqual(shouldDeploySkillRelative(`${id}/SKILL.md`, gray), false)
 }

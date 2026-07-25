@@ -99,6 +99,7 @@ description: "Use when: ..."   # 必填，AI 靠这个发现 Skill
 - 可配置并发：`extensions.devcodex.concurrency` 默认 `parallel prepare, serial commit`
 - 多需求并行：多个需求、子 Agent、子会话或 worktree 执行前先跑 `requirement-parallel-orchestration`；缺 valid `ParallelLaunchCardV1` 时保持串行
 - 验证卫生：真实 exitCode、消费者异常先查依赖树、收尾清理无关 dirty
+- 依赖审计：`npm run test:audit` 对根生产依赖要求零漏洞；文档站例外必须精确绑定 advisory、静态非 RSC 使用探针和到期日，不能用降级主框架或宽泛忽略替代修复
 - 文档阅读顺序与 website nav/sidebar 同批校验；v2.0.0 规划 MCP `devcodex_getWorkflow()` 替代文件读取
 
 
@@ -273,8 +274,9 @@ Hook / CLI / visible reply / sticky project / workspace guard 相关任务还要
 
 ### 诊断与排错入口
 
-- `devcodex doctor`：查看当前宿主、Hook、Profile、记忆与 adapter 状态，适合先判断“规则到底有没有加载”
-- `devcodex status --json` / `devcodex doctor --json`：输出统一 `DevCodexCliEnvelopeV1`，适合 CI/脚本消费；非法参数为 `CLI_INVALID_OPTION` + exit 2，默认人读输出不变；`payload.governanceSummary` 只读汇总 runtime-state、Skill/gray lifecycle、执行优化证据、Gate registry、host truth、dirty boundary 与 fail-closed fast-path 决策
+- `devcodex status`：执行有界 adapter 契约探针和 Grok 静态合同检查；receipt/文件存在只算 `configured`，不能单独证明 `ready`
+- `devcodex doctor`：在 status 基础上执行可用宿主原生版本、Grok canonical 唯一 identity、`grok inspect --json` 发现面、已安装 Hook 的只读合同探针和 MCP `initialize` 深探针
+- `devcodex status --json` / `devcodex doctor --json`：输出统一 `DevCodexCliEnvelopeV1`，适合 CI/脚本消费；每个宿主含 `configured/adapterReady/contractStatus/nativeStatus/operationalState/ready/issues`。`adapterReady` 只表示配置与 adapter 合同通过，只有 `doctor` 的原生 CLI 深探针通过才可得到 operational `ready`。查询成功但健康失败时仍为 `ok=true`、exit 0，由 `payload.overall=failed` 表达；非法参数才返回 `CLI_INVALID_OPTION` + exit 2。源码仓运行时只形成 `source-candidate-vs-installed-receipts` 候选比较，返回 `installedHealthClaim=false`，并把原始差异放入 `hostParity.withheld*`，不输出已安装包的 `checks/failedChecks/repairSteps`。`payload.governanceSummary` 继续只读汇总 runtime-state、Skill/gray lifecycle、执行优化证据、Gate registry、host truth、dirty boundary 与 fail-closed fast-path 决策
 - `devcodex probe [host workspace profile] --json`：运行同步、local-only、只读 typed probes；依赖失败会 skipped，不联网、不 watch、不写状态或 telemetry
 - `devcodex trace show|replay --state <lifecycle-state.json> --json`：查看/校验当前 `LocalTaskTraceV1`；sequence/duplicate/terminal 失败返回稳定错误，replay 不执行 payload、不改 state、不唤醒或控制进程
 - `devcodex task verify [--task <id|name|current>] [--project <name>] [--full] [--json]`：显式重新汇总 lifecycle 受管、原子写入并回读校验的当前 candidate owner receipts；仅 committed complete/warning 返回 exit 0，未完成或风险返回 1，selector/contract 错误返回 2
@@ -282,10 +284,10 @@ Hook / CLI / visible reply / sticky project / workspace guard 相关任务还要
 - `devcodex status|doctor --completion ...` 与 `devcodex trace show --completion ...`：读取同一 projection 的只读诊断，不触发 reconcile。`profile/config.json` 的 `extensions.devcodex.workflowCompletion.mode` 当前为 `shadow`；真实 30 天滚动窗口、20 个 eligible 样本且 dev/fix 各 5 之前保持 waiting-external
 - Intent 阶段转换使用 `IntentConsistencyDecisionV1` 核对 proposal/requirement/phase/confidence；短确认无绑定时必须澄清，不能靠历史或 route hint 补猜
 - Skill portfolio schema v2 提供保守 `SkillIndexV2` 和只读 `BundleDecisionV2`；`BudgetDecisionV1` 显式投影预算执行状态、回退原因与 `optimizedHit`。结构证据不得自动改变 active/gray lifecycle。portfolio 会绑定 tracked consumer inventory/projection；所有预期文件 stage 后运行 `npm run test:skill-portfolio:staged`，commit 后在 clean tree 重跑普通 `--check`，两次证据不能互相替代
-- `devcodex help`：查看 CLI 子命令与参数；宿主配置只能由 npm 全局安装/升级管理，bare `init/update` 只管理 workspace `.devcodex`
+- `devcodex help`：查看 CLI 子命令与参数；宿主配置只能由 npm 全局安装/升级管理，bare `init/update` 只管理 workspace `.devcodex`。fresh workspace 缺少祖先 marker 时会建立 `workspace-namespace` 的 `.devcodex/layout.json`；非法 marker fail closed
 - `node scripts/validate-all-profiles.js --workspace <workspace-root>`：校验 `.devcodex/workspace/profile` 与 `.devcodex/<project>/profile` 的三档必需文件和 workspace fallback；发布前可追加 `--strict-warnings`
 - `DEVCODEX_HOOK_ENFORCEMENT`：默认 `safety-only`，仅危险命令硬拦；切到 `strict` 前应先确认宿主确实支持对应 Hook 事件；当前 Codex adapter 已内置 `PreCompact` compaction runtime 兜底
-- Claude、Codex 与 Grok 的 MCP 配置由 npm 全局安装写入各宿主用户级配置，并指向用户级稳定 runtime；server 从宿主 cwd 发现 workspace `.devcodex`。源码仓 `.mcp.json` 只是包开发清单，Copilot 首批不自动写 MCP
+- Copilot CLI、Claude、Codex 与 Grok 的 MCP 配置由 npm 全局安装写入各宿主用户级配置，并指向用户级稳定 runtime；Copilot CLI 还部署用户级 Hooks 与 Skills。共享 full fallback 与 active Skills 由单一事务 Owner 写入用户级 `.agents`。per-host receipt 只绑定 DevCodex 管理片段，用户自有配置可独立演进；受管 hook/MCP/instruction 漂移或待重试的 stale cleanup 都会阻断 adapter ready。server 从宿主 cwd 发现 workspace `.devcodex`。Grok plugin 的 Hook/MCP source 只解析用户级 runtime，不依赖 workspace `AGENTS.md/.agents/.claude/.grok`。源码仓 `.mcp.json` 只是包开发清单；Copilot IDE 不继承 Copilot CLI 的用户级就绪结论
 - Turn Liveness：工具返回后先进入 `awaiting-continuation`，120 秒无后续事件标记 `suspect`，300 秒标记 `stalled-recoverable`；活动工具/Agent 使用更长租约，避免把真实长任务误判为挂起
 - 宿主能力边界：`PostToolUse` 不是 terminal，也不能证明宿主会继续派发事件；Hook 仅在下一次事件到达时生成一次性 `TurnRecoveryCard`，不得自行唤醒宿主、控制进程或重放未知副作用操作
 - 双阶段 CheckpointValidation：response-time 记录当前可见事件；post-execution 缺 Stop terminal evidence 时保持 `unverified`，deadline 到期为 `incomplete-timeout`，不得把等待或 PreCompact 推断为完成

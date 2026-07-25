@@ -45,11 +45,11 @@ flowchart TD
 3. **PC2** — 会话状态（轮次 / 待跟进）
 4. **PC3** — 执行准备状态（项目现实扩展结果 / 未完成任务 / 产物落点）
 5. **PC4** — 规范原因识别结果：dev 模式输出 ✅ 无 / ⚠️ PF 标记 / VL 标记；非 dev 模式标注 N/A
-6. **PC5** — 宿主配置状态：用户级五宿主 receipt/runtime 是否就绪，并确认 workspace 只拥有 `.devcodex`；旧工作区宿主目录只作 legacy 诊断
+6. **PC5** — 宿主配置状态：分别报告用户级五宿主 `configured/adapterReady/contract/native/operational/ready`，并确认 workspace 只拥有 `.devcodex`；receipt/runtime 文件或 `adapterReady` 不能单独证明本机原生宿主就绪，旧工作区宿主目录只作 legacy 诊断
 7. **PC6** — 工作区一致性：git 未提交变更、当前需求目录或任务上下文
 8. **PC7** — 新会话 resume 强制检测：今日/昨日 tasks 文件与 SUMMARY 状态是否一致
 
-PC5 仍会扫描 source-root / legacy deployment 表面 `.github/`、`.claude/`、根 `AGENTS.md`、`.agents/` 与 `.codex/`，但这些路径只用于发现旧部署或源码仓异常；GlobalOnlyHostConfigModeV1 不把它们作为普通 workspace 的安装目标。
+PC5 仍会扫描 source-root / legacy deployment 表面 `.github/`、`.claude/`、根 `AGENTS.md`、`.agents/` 与 `.codex/`，但这些路径只用于发现旧部署或源码仓异常；GlobalOnlyWorkspaceCleanModeV1 不把它们作为普通 workspace 的安装目标，普通 workspace 当前只保留 `.devcodex`。
 
 非 chat 工作流在 CP1 / 问题确认前还应形成 Intent Expansion Card，最小字段包括：`semantic`、`project`、`continuity`、`action`、`domain`、`artifact-impact`、`risk`、`host-capability`、`validation-route`、`confidence`、`alternatives`。
 

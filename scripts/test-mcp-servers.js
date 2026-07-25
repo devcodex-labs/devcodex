@@ -494,7 +494,8 @@ function testProfilePrompts() {
 
   const prompt = resultById(responses, 3)
   const text = prompt.messages?.[0]?.content?.text || ''
-  assert.match(text, /CLAUDE\.md/)
+  assert.match(text, /user-global runtime kernel/)
+  assert.doesNotMatch(text, /工作区根目录未找到 CLAUDE\.md/)
   assert.match(text, /01-项目信息/)
   assert.match(text, /config\.local\.json/)
   assert.match(text, /PC0~PC7/)

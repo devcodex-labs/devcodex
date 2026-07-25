@@ -28,6 +28,19 @@ function graySkillIdSet(packageRoot) {
   return new Set(graySkillIds(packageRoot))
 }
 
+function isDeployableSkill(skill) {
+  const state = String(skill?.lifecycleState || '').trim()
+  return Boolean(skill?.id) && (!state || state === 'active')
+}
+
+function nonActiveSkillIdSet(packageRoot) {
+  return new Set(
+    loadPluginSkills(packageRoot)
+      .filter(skill => skill?.id && !isDeployableSkill(skill))
+      .map(skill => String(skill.id))
+  )
+}
+
 /**
  * @param {string} relativePath portable path under skills/
  * @param {Set<string>} grayIds
@@ -42,9 +55,9 @@ function shouldDeploySkillRelative(relativePath, grayIds) {
 }
 
 function createSkillDeployFileFilter(packageRoot) {
-  const grayIds = graySkillIdSet(packageRoot)
+  const excludedIds = nonActiveSkillIdSet(packageRoot)
   return function skillDeployFileFilter(relativePath) {
-    return shouldDeploySkillRelative(relativePath, grayIds)
+    return shouldDeploySkillRelative(relativePath, excludedIds)
   }
 }
 
@@ -57,6 +70,8 @@ module.exports = {
   loadPluginSkills,
   graySkillIds,
   graySkillIdSet,
+  isDeployableSkill,
+  nonActiveSkillIdSet,
   shouldDeploySkillRelative,
   createSkillDeployFileFilter,
   isSkillsSource

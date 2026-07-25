@@ -297,7 +297,9 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     const capabilities = ['instruction-only', 'path-observable', 'structured-plan']
     const ceiling = platform === 'claude'
       ? 'structured-plan'
-      : (platform === 'codex' || platform === 'grok' ? 'path-observable' : 'instruction-only')
+      : (platform === 'codex' || platform === 'grok' || platform === 'copilot'
+          ? 'path-observable'
+          : 'instruction-only')
     if (!capabilities.includes(explicit)) return ceiling
     return capabilities.indexOf(explicit) <= capabilities.indexOf(ceiling) ? explicit : ceiling
   }

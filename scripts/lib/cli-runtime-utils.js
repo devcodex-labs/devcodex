@@ -37,6 +37,78 @@ function buildCliRuntimeUtils({
     return created
   }
 
+  function ensureWorkspaceNamespaceLayout(cwd, dryRun) {
+    const absoluteCwd = path.resolve(cwd)
+    const existingLayout = findLayoutInfo(absoluteCwd)
+    if (existingLayout.enabled) {
+      return {
+        created: false,
+        planned: false,
+        markerPath: existingLayout.markerPath,
+        workspaceRoot: existingLayout.workspaceRoot,
+        runtimeRoot: resolveActiveRuntimeRoot(absoluteCwd)
+      }
+    }
+
+    const markerPath = path.join(absoluteCwd, '.devcodex', 'layout.json')
+    const runtimeRoot = path.join(absoluteCwd, '.devcodex', 'workspace')
+    if (fs.existsSync(markerPath)) {
+      const error = new Error(`workspace layout marker is invalid: ${markerPath}`)
+      error.code = 'WORKSPACE_LAYOUT_INVALID'
+      throw error
+    }
+    const legacyRuntimeRoot = path.join(absoluteCwd, '.devcodex')
+    const legacyRuntimeEntries = [
+      'profile',
+      '.memory',
+      '.audit-state',
+      'requirements',
+      'bugs',
+      'optimizations',
+      'scenario-tests',
+      'reports',
+      'data'
+    ].filter(name => fs.existsSync(path.join(legacyRuntimeRoot, name)))
+    if (legacyRuntimeEntries.length) {
+      const error = new Error(
+        `legacy project runtime requires an explicit workspace layout migration: ${legacyRuntimeEntries.join(', ')}`
+      )
+      error.code = 'WORKSPACE_LAYOUT_MIGRATION_REQUIRED'
+      error.legacyRuntimeEntries = legacyRuntimeEntries
+      throw error
+    }
+    if (dryRun) {
+      return {
+        created: false,
+        planned: true,
+        markerPath,
+        workspaceRoot: absoluteCwd,
+        runtimeRoot
+      }
+    }
+
+    fs.mkdirSync(path.dirname(markerPath), { recursive: true })
+    fs.writeFileSync(markerPath, `${JSON.stringify({
+      version: 1,
+      mode: 'workspace-namespace',
+      workspaceDir: 'workspace'
+    }, null, 2)}\n`, { encoding: 'utf8', flag: 'wx' })
+
+    const createdLayout = findLayoutInfo(absoluteCwd)
+    if (!createdLayout.enabled || path.resolve(createdLayout.workspaceRoot) !== absoluteCwd) {
+      const error = new Error(`workspace layout marker could not be activated: ${markerPath}`)
+      error.code = 'WORKSPACE_LAYOUT_ACTIVATION_FAILED'
+      throw error
+    }
+    return {
+      created: true,
+      planned: false,
+      markerPath,
+      workspaceRoot: createdLayout.workspaceRoot,
+      runtimeRoot: resolveActiveRuntimeRoot(absoluteCwd)
+    }
+  }
+
   function ensureRuntimeDirs(cwd, dryRun) {
     if (dryRun) return resolveActiveRuntimeRoot(cwd)
     const runtimeRoot = resolveActiveRuntimeRoot(cwd)
@@ -140,6 +212,7 @@ function buildCliRuntimeUtils({
 
   return {
     resolveGitignoreRoot,
+    ensureWorkspaceNamespaceLayout,
     ensureRuntimeDirs,
     resolveProfileDir,
     ensureDevCodexGitignore,

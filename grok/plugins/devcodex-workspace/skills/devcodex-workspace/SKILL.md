@@ -1,11 +1,11 @@
 ---
 name: devcodex-workspace
-description: Use for a task whose cwd belongs to the registered DevCodex workspace, or when the user asks for DevCodex workflow behavior; resolve the workspace kernel and load only intent-selected shared Skills without project-local host adapters.
+description: Use when cwd belongs to a DevCodex workspace or the user asks for DevCodex behavior; resolve workspace state from .devcodex and instructions/Skills from user-global DevCodex surfaces.
 ---
 
 # DevCodex Workspace Resolver
 
-Grok passive hooks cannot inject prompt context. When this Skill is selected from a child Git project, read the plugin-owning workspace's `AGENTS.md` before producing substantive task content. The full-evidence route is `devcodex grok`, whose launcher binds that same kernel with Grok's official `--rules` flag; plain `grok` in a child project remains best-effort Skill routing.
+Grok passive hooks cannot inject prompt context. The plugin is user-global and does not own a workspace. Resolve the nearest `workspace-namespace` marker from cwd, keep task state under that workspace's `.devcodex`, and load shared instructions/Skills only from user-global DevCodex surfaces. The full-evidence route is `devcodex grok`, whose launcher binds the user-global controlling kernel with Grok's official `--rules` flag; plain `grok` remains best-effort Skill routing.
 
 ## HostParity (vs Codex) — honesty contract
 
@@ -17,10 +17,10 @@ Grok passive hooks cannot inject prompt context. When this Skill is selected fro
 Platform facts (Grok Build hooks docs): only `PreToolUse` is blocking; passive event stdout is ignored for model context. PC5 must report `Partial` unless Full launcher evidence is present. Do not equate Grok with Codex `hook-enforced` bootstrap.
 
 1. Preserve the semantic intent seed before reading project context.
-2. Bind the nearest valid `workspace-namespace` root to the plugin's owning workspace; fail closed on mismatch. If the controlling kernel is not already present, read `<workspace-root>/AGENTS.md` now.
+2. Bind the nearest valid `workspace-namespace` root from cwd. Do not require or create workspace `AGENTS.md`, `.agents`, `.grok`, `.codex`, `.claude`, `.gemini`, or `.github`.
 3. Resolve the project namespace relative to that workspace and bind runtime state under `.devcodex/<project>/`.
-4. Follow the kernel's intent-first route and read only selected files from `<workspace-root>/.agents/skills/` and the resulting Profile/context plan.
-5. Use `<workspace-root>/.agents/devcodex/instructions.full.md` only for an explicit fail-closed fallback.
+4. Follow the kernel's intent-first route and read only selected files from `~/.agents/skills/` plus the resulting workspace Profile/context plan.
+5. Use `~/.agents/devcodex/instructions.full.md` only for an explicit fallback; workspace `.devcodex` remains the sole workspace-owned DevCodex surface.
 6. Before substantive output, satisfy the parent kernel's visible entry-check (PC0~PC7). Runtime cannot inject that block on Grok; models still own S07 user-visible output.
 7. Optional assist: call MCP `profile_compose_entry_check` to obtain a portable PC0~PC7 block, or rely on PreToolUse deny reasons that embed the same template when context acquisition is incomplete.
 8. Run `devcodex doctor` / `devcodex status` and read `hostParity` (`HostParityScorecardV1`): `full-capable` means hard path is ready; still use `devcodex grok` for Full session kernel evidence. `partial` lists **failedChecks** and **executable repairSteps** (commands); re-run doctor after each fix.
@@ -42,4 +42,4 @@ Platform facts (Grok Build hooks docs): only `PreToolUse` is blocking; passive e
 
 Machine source: `scripts/lib/host-parity-scorecard.js` (`GROK_TURN_EXECUTION_CHECKLIST`, `classifyWorkspaceRootScanSample`, `classifyTtfvOmissionSample`, `repairSteps`). Site doc: `website/docs/intro/host-parity-grok.md`.
 
-The plugin is a discovery adapter, not a second rules source. Its passive Hook output must never be presented as kernel-injection evidence. Do not copy `AGENTS.md`, `.agents`, `.grok`, `.codex`, `.claude`, or `.gemini` into a child project.
+The plugin is a discovery adapter, not a second rules source. Its passive Hook output must never be presented as kernel-injection evidence. Do not copy `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `.agents`, `.github`, `.grok`, `.codex`, `.claude`, or `.gemini` into a workspace.

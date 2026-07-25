@@ -52,8 +52,8 @@ fs.writeFileSync(path.join(codexRuntime, 'hooks', '_runtime', 'lifecycle-bootstr
 fs.writeFileSync(path.join(codexRuntime, 'hooks', '_runtime', 'lifecycle.cjs'), 'module.exports={}\n')
 const globalHostConfig = {
   hosts: [
-    { host: 'codex', ready: true },
-    { host: 'grok', ready: true }
+    { host: 'codex', adapterReady: true, ready: false, nativeStatus: 'unverified' },
+    { host: 'grok', adapterReady: true, ready: false, nativeStatus: 'unverified' }
   ]
 }
 const isolatedEnv = {
@@ -71,6 +71,8 @@ const ready = evaluateGrokHostParity({
 })
 assert.strictEqual(ready.hardReady, true)
 assert.strictEqual(ready.tier, 'full-capable')
+assert.strictEqual(ready.failedChecks.length, 0)
+assert.ok(!ready.repairSteps.some((step) => step.status === 'failed'))
 assert.ok(ready.checks.denyAdapterContract)
 assert.ok(ready.checks.pathObservableCapability)
 assert.ok(Array.isArray(ready.cannotClaim) && ready.cannotClaim.length >= 3)

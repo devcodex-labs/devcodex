@@ -25,6 +25,15 @@ function hostRoot(host, home, env) {
   throw new Error(`GLOBAL_HOST_UNSUPPORTED: ${host}`)
 }
 
+function resolveGlobalSharedTarget(home, env = process.env) {
+  const root = path.resolve(env.DEVCODEX_GLOBAL_SHARED_ROOT || path.join(home, '.agents'))
+  return {
+    root,
+    skills: path.resolve(env.DEVCODEX_GLOBAL_SKILLS_ROOT || path.join(root, 'skills')),
+    fullFallback: path.resolve(env.DEVCODEX_GLOBAL_FULL_FALLBACK || path.join(root, 'devcodex', 'instructions.full.md'))
+  }
+}
+
 function isUnder(root, target) {
   const relative = path.relative(path.resolve(root), path.resolve(target))
   return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))
@@ -72,7 +81,8 @@ function assertTargetBoundary(target, fsImpl = fs) {
   const owned = [
     target.runtimeRoot,
     target.receiptFile,
-    ...Object.values(target.files || {}).filter(Boolean)
+    ...Object.values(target.files || {}).filter(Boolean),
+    ...Object.values(target.shared || {}).filter(Boolean)
   ]
   for (const file of owned) {
     if (!targetAcceptsPath(target, file, fsImpl)) {
@@ -95,28 +105,36 @@ function resolveGlobalHostTarget(host, options = {}) {
   const env = options.env || process.env
   const home = resolveHome({ ...options, env })
   const root = hostRoot(normalized, home, env)
+  const shared = resolveGlobalSharedTarget(home, env)
   const common = {
     schemaVersion: GLOBAL_HOST_TARGET_SCHEMA,
     host: normalized,
     home,
     root,
+    shared,
     runtimeRoot: path.join(root, 'devcodex', 'runtime'),
     receiptFile: path.join(root, 'devcodex', 'global-host-receipt.json'),
-    additionalRoots: [],
+    additionalRoots: [shared.root],
     additionalFiles: []
   }
 
   if (normalized === 'copilot') {
     return assertTargetBoundary({
       ...common,
-      support: 'fixture-only',
-      evidenceCeiling: 'Copilot CLI user instructions; IDE workspace hooks remain unsupported',
+      support: 'contract-fixture',
+      evidenceCeiling: 'Copilot CLI user instructions, Hooks, MCP, and Skills; direct CLI execution is environment-dependent',
       files: {
-        instructions: path.join(root, 'copilot-instructions.md')
+        instructions: path.join(root, 'copilot-instructions.md'),
+        hooks: path.join(root, 'hooks', 'devcodex.json'),
+        mcp: path.join(root, 'mcp-config.json'),
+        skills: path.join(root, 'skills')
       }
     })
   }
   if (normalized === 'claude') {
+    const mcpConfig = env.CLAUDE_CONFIG_DIR
+      ? path.join(root, '.claude.json')
+      : path.join(home, '.claude.json')
     return assertTargetBoundary({
       ...common,
       support: 'contract-fixture',
@@ -124,13 +142,12 @@ function resolveGlobalHostTarget(host, options = {}) {
       files: {
         instructions: path.join(root, 'CLAUDE.md'),
         settings: path.join(root, 'settings.json'),
-        mcp: path.join(home, '.claude.json')
+        mcp: mcpConfig
       },
-      additionalFiles: [path.join(home, '.claude.json')]
+      additionalFiles: env.CLAUDE_CONFIG_DIR ? [] : [mcpConfig]
     })
   }
   if (normalized === 'codex') {
-    const sharedSkillsRoot = path.resolve(env.DEVCODEX_GLOBAL_SKILLS_ROOT || path.join(home, '.agents', 'skills'))
     return assertTargetBoundary({
       ...common,
       support: 'direct-probe',
@@ -139,9 +156,8 @@ function resolveGlobalHostTarget(host, options = {}) {
         instructions: path.join(root, 'AGENTS.md'),
         hooks: path.join(root, 'hooks.json'),
         config: path.join(root, 'config.toml'),
-        skills: sharedSkillsRoot
-      },
-      additionalRoots: [sharedSkillsRoot]
+        skills: shared.skills
+      }
     })
   }
   if (normalized === 'gemini') {
@@ -178,6 +194,7 @@ module.exports = {
   isUnder,
   isUnderPhysical,
   realpathExistingPrefix,
+  resolveGlobalSharedTarget,
   resolveGlobalHostTarget,
   resolveGlobalHostTargets,
   resolveHome,

@@ -1,20 +1,21 @@
 # DevCodex v1.15.3 — 使用入口
 
-> AI workflow injector for Copilot / Claude Code / Codex · publisher: Rocky · version: 1.15.3
+> AI workflow injector for Copilot / Claude Code / Codex / Gemini / Grok · publisher: Rocky · version: 1.15.3
 
 ## 正式主支持客户端
 
-- **Copilot**：从用户级 Copilot instructions 加载；IDE workspace hooks 不在 GlobalOnlyHostConfigModeV1 首批范围。
+- **Copilot CLI**：从用户级 instructions、Hooks、MCP、Skills 与稳定 runtime 加载；Copilot IDE workspace hooks 不在 GlobalOnlyWorkspaceCleanModeV1 首批范围。
 - **Claude Code**：从用户级 `CLAUDE.md`、settings、MCP 与稳定 runtime 加载。
-- **Codex**：从用户级 `.codex/AGENTS.md`、hooks、config 与用户级 `.agents/skills/` 加载。
+- **Codex**：从用户级 `.codex/AGENTS.md`、hooks、config 与用户级 `.agents/skills/` 加载；完整回退规范位于用户级 `.agents/devcodex/instructions.full.md`。
 - **Gemini / Grok**：分别使用用户级 settings/runtime 与用户级 plugin/config/runtime；Grok 完整入口为 `devcodex grok`。
 
 ## 五宿主加载机制
 
 DevCodex 同时支持五宿主的用户级加载路径，规则语义保持一致，由宿主决定实际生效方式：
 
-- **Copilot / Claude / Gemini**：用户级 instruction/settings 投影，能力按 fixture ceiling 声明。
-- **Codex**：用户级 `.codex/AGENTS.md` + hooks/config，并从用户级 `.agents/skills/*` 按需读取 Skill。
+- **Copilot CLI**：用户级 instructions/hooks/MCP/Skills/runtime，adapter 合同按 fixture 验证，原生 CLI 就绪由 `doctor` 深探针判定。
+- **Claude / Gemini**：用户级 instruction/settings 投影，能力按 fixture ceiling 声明。
+- **Codex**：用户级 `.codex/AGENTS.md` + hooks/config，并从用户级 `.agents/skills/*` 按需读取 Skill；不读取工作区 `.agents`。
 - **Grok**：用户级 plugin/config/runtime；`devcodex grok` 用用户级 controlling kernel 启动。
 
 无论哪条路径进入，所有 Instructions 均通过同一 `instructions.md` / instructions 目录派生。工作区只保留 `.devcodex`，不会因安装生成五宿主目录；已有目录也不会被自动删除。
@@ -23,8 +24,12 @@ DevCodex 同时支持五宿主的用户级加载路径，规则语义保持一�
 
 - **Hook-First**：VS Code / Claude Code / Codex Hooks 可用时，通过对应宿主 hooks 承载 bootstrap、危险操作护栏和结束前兜底
 - **Instruction-Fallback**：Hooks 不可用时，继续依赖 instructions / skills 承载软约束
-- **当前实现**：npm 全局安装/升级通过 `postinstall` 更新用户级稳定 runtime；bare `init/update` 只管理 workspace `.devcodex`
+- **当前实现**：npm 全局安装/升级通过 `postinstall` 更新用户级稳定 runtime、共享 full fallback 与 active Skills；共享 `.agents` 由单一事务 Owner 写入。bare `init/update` 只管理 workspace `.devcodex`，fresh workspace 会建立 `workspace-namespace` marker
 - **全局唯一写入口**：`devcodex init --claude`、`devcodex init --codex` 及其他宿主 selector/alias 均返回 `CLI_HOST_CONFIG_GLOBAL_ONLY`；宿主 adapter 通过 `npm install -g devcodex` 或 `npm update -g devcodex` 管理
+- **就绪分层**：receipt 与文件存在只表示 `configured`；`status` 验证 adapter/静态合同，`doctor` 再验证可用原生 CLI、Grok canonical 唯一 identity、inspect 发现面、已安装 Hook 合同与 MCP initialize。任一合同或原生探针失败时不得标记 `ready`。
+- **受管回执**：receipt 只绑定 DevCodex 管理的 instruction、hook、MCP 与 config segment；用户自有主题或其他宿主设置不构成 adapter 漂移，受管字段变化仍必须 fail closed 并由全局安装刷新。
+- **诊断作用域**：源码仓中的 `status/doctor` 只能形成 `source-candidate-vs-installed-receipts` 候选比较，必须声明 `installedHealthClaim=false`，并抑制已安装包的 `checks/failedChecks/repairSteps`；真实全局健康结论只能由打包并安装后的候选在源码仓外形成。
+- **Grok 收敛**：只允许官方 CLI 修改 plugin registry；已知受管 identity 可回滚收敛，未知同名来源必须在 mutation 前阻断。
 
 ## 正式需求与执行模板边界
 

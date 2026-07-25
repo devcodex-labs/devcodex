@@ -2,10 +2,10 @@
   "schemaVersion": "HostInstructionCoverageReceiptV1",
   "sourceFile": "instructions.md",
   "sourceDigest": "396edc68c09cff79bdf632dbb338a55ce3b867dd1d4eced57f380416744531b9",
-  "configDigest": "2f25649275fcac6b799522b6d8bc459e9f92910b10ca97824eb10e207eeb08c3",
+  "configDigest": "88274604f8a6408d277c4d133a17b57c0788e6a827214c683d933ba245351a3a",
   "mode": "kernel",
   "fallback": {
-    "destination": ".agents/devcodex/instructions.full.md",
+    "destination": "user://agents/devcodex/instructions.full.md",
     "sourceDigest": "396edc68c09cff79bdf632dbb338a55ce3b867dd1d4eced57f380416744531b9",
     "available": true
   },
@@ -299,24 +299,24 @@
   },
   "outputs": {
     "host-projections/AGENTS.md": {
-      "bytes": 10605,
+      "bytes": 10617,
       "lines": 88,
-      "digest": "cc50b5ca5418779b8fd6c0670057c66692d34a012f267bd21ffcde6f384500fe"
+      "digest": "89a7429a0081a300dbb347b26de2e8a99dbec33692e5c794926e8da8e23ae97f"
     },
     "host-projections/copilot-instructions.md": {
-      "bytes": 10591,
+      "bytes": 10642,
       "lines": 88,
-      "digest": "c70d4806edd8bde3338a4ff5e2df4506f1556b90d3640f3691d017bdb71757b7"
+      "digest": "49953d170b5ca75c21f82f0ae3feb324637541fc2cd3a4af38082361e216c5c4"
     },
     "host-projections/CLAUDE.md": {
-      "bytes": 327,
+      "bytes": 377,
       "lines": 8,
-      "digest": "616ed533df1f84d10098da6119c42145624d2d086bb67330ac5c2b688a96ebc2"
+      "digest": "a602bfb0f680765cbe99ea504a59303953003adaff6da1b09eb4f5e644910e0d"
     },
     "host-projections/GEMINI.md": {
-      "bytes": 332,
+      "bytes": 382,
       "lines": 8,
-      "digest": "ea925f8679ca53452ef7162ceb19025dd20980f36fa5091aa283888c1a7af91e"
+      "digest": "cdd1c5f675e758c943813eda76dd92b22af281f73d494a08dcb7984073a265dc"
     }
   },
   "collisions": [],
@@ -324,5 +324,5 @@
     "valid": true,
     "errors": []
   },
-  "receiptId": "host-instruction-coverage-534158f195d271f48b50f3cf96346de444765fa888402d3f2d06fe0358d0a002"
+  "receiptId": "host-instruction-coverage-bd5530f67033ec722eeeb5f0a0583c84066d6ee35abf53f86c1eabb923e7f4ae"
 }

@@ -223,6 +223,7 @@ function extractExplicitProfileTiers(text) {
 
 function hasCurrentAgentsDistribution(text) {
   return /GlobalOnlyHostConfigModeV1/.test(text) &&
+    /GlobalOnlyWorkspaceCleanModeV1/.test(text) &&
     /npm install -g devcodex/.test(text) &&
     /(agents[^\n。]*(不向|不再向)[^\n。]*workspace|(不向|不再向)[^\n。]*workspace[^\n。]*agents|workspace[^\n。]*不生成[^\n。]*宿主)/i.test(text)
 }

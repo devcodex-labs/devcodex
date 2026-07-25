@@ -2,7 +2,7 @@
 'use strict'
 
 /**
- * DevCodex MCP Profile Server — local stdio process (deployed to .claude/mcp/; needs .claude/scripts/lib deps)
+ * DevCodex MCP Profile Server — user-global stdio process (deployed under a host runtime; workspace owns only .devcodex state)
  *
  * Implements MCP 2024-11-05 protocol over stdin/stdout (JSON-RPC 2.0).
  *
@@ -285,6 +285,22 @@ const REQUIRED_FILES = new Set(PROFILE_BASE_FILES)
 
 function readFileText(filePath) {
   try { return fs.readFileSync(filePath, 'utf8') } catch { return null }
+}
+
+function readRuntimeKernelText() {
+  const candidates = [
+    path.join(__dirname, '..', 'AGENTS.md'),
+    path.join(__dirname, '..', 'host-projections', 'AGENTS.md'),
+    path.join(__dirname, '..', 'instructions.full.md')
+  ]
+  for (const candidate of candidates) {
+    const content = readFileText(candidate)
+    if (content) return { path: candidate, content }
+  }
+  return {
+    path: null,
+    content: '（⚠️ user-global DevCodex runtime kernel 未找到；请先执行 npm install -g devcodex）'
+  }
 }
 
 function isPlainObject(value) {
@@ -1368,12 +1384,7 @@ function handlePromptsGet(args) {
     throw Object.assign(new Error(`Unknown prompt: ${args.name}`), { code: -32601 })
   }
 
-  // 读取 CLAUDE.md
-  const claudePath = path.join(LAYOUT.workspaceRoot, 'CLAUDE.md')
-  let claudeContent = readFileText(claudePath)
-  if (!claudeContent) {
-    claudeContent = '（⚠️ 工作区根目录未找到 CLAUDE.md）'
-  }
+  const runtimeKernel = readRuntimeKernelText()
 
   const project = args.arguments?.project
   if (LAYOUT.enabled && !project && !CONTEXT_PROJECT) {
@@ -1392,7 +1403,7 @@ function handlePromptsGet(args) {
   }
   const profileText = profileResponse.content[0].text
 
-  const promptText = `请严格遵循以下工作流规范与项目配置执行后续任务：\n\n## 1. 核心规范 (CLAUDE.md)\n\n${claudeContent}\n\n## 2. 项目专属配置 (Profile)\n\n${profileText}\n\n请在充分理解上述规范后，输出预检查块 (PC0~PC7) 并等待我的进一步指示。`
+  const promptText = `请严格遵循以下工作流规范与项目配置执行后续任务：\n\n## 1. 核心规范 (user-global runtime kernel)\n\n来源：${runtimeKernel.path || 'unavailable'}\n\n${runtimeKernel.content}\n\n## 2. 项目专属配置 (Profile)\n\n${profileText}\n\n请在充分理解上述规范后，输出预检查块 (PC0~PC7) 并等待我的进一步指示。`
 
   return {
     description: PROMPTS[0].description,

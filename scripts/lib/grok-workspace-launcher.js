@@ -143,6 +143,7 @@ function launchGrok(argv = [], options = {}) {
     env: {
       ...process.env,
       ...(options.env || {}),
+      GROK_HOME: plan.hostScope.ownerRoot,
       DEVCODEX_GROK_EVIDENCE_MODE: plan.evidenceMode,
       ...(plan.hostScope.workspaceRoot ? { DEVCODEX_WORKSPACE_ROOT: plan.hostScope.workspaceRoot } : {}),
       ...(plan.hostScope.project ? { DEVCODEX_PROJECT: plan.hostScope.project } : {})

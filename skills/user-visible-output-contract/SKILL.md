@@ -187,7 +187,7 @@ compact 仍显示所有 check IDs、状态、整体状态、项目和“状态�
 - `compliance`、`report`、`memory`、`document-sync`、`host-contract-verification`、`test-router`、`execution-contract`；
 - precheck/compliance/progress/delivery/report prompts；
 - lifecycle visible reply、host/client tests、validation manifest、package files；
-- README、website、Profile、四宿主部署副本。
+- README、website、Profile、五宿主部署副本。
 
 ## 验收
 

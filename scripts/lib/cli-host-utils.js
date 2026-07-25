@@ -400,7 +400,9 @@ function buildCliHostUtils({ fs, path, isPlainObject, claudeMcpJson }) {
         sourceDigest,
         workspaceBridge,
         hostNeutralBridge,
-        sharedKernelPointer: definition.role !== 'wrapper' || content.includes('@AGENTS.md')
+        sharedKernelPointer: definition.role !== 'wrapper' ||
+          content.includes('@AGENTS.md') ||
+          content.includes('@devcodex/runtime/AGENTS.md')
       }
     })
     const issues = []

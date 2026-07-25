@@ -10,6 +10,12 @@ try {
     if (receipt.globalHostConfig?.backupCleanupIncomplete) {
       console.warn(`[devcodex] adapter refresh committed, but ${receipt.globalHostConfig.backupCleanupFailureCount} temporary backup(s) could not be removed`)
     }
+    if (receipt.globalHostConfig?.staleCleanupIncomplete) {
+      console.warn(`[devcodex] adapter refresh committed, but ${receipt.globalHostConfig.staleCleanupFailureCount} stale managed path(s) remain pending; the next global install or update will retry`)
+    }
+    if (receipt.globalHostConfig?.receiptFinalizationIncomplete) {
+      console.warn(`[devcodex] adapter refresh committed, but ${receipt.globalHostConfig.receiptFinalizationFailureCount} receipt finalization step(s) remain pending; the next global install or update will reconcile them`)
+    }
   } else if (receipt.status === 'planned') {
     console.log('[devcodex] global postinstall dry-run planned user-level host adapter refresh')
   } else if (receipt.reason === 'workspace-install-global-required') {

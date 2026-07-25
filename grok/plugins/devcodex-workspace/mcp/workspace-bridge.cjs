@@ -2,7 +2,9 @@
 'use strict'
 
 const fs = require('fs')
+const os = require('os')
 const path = require('path')
+const { spawn } = require('child_process')
 
 const kind = String(process.argv[2] || '').trim().toLowerCase()
 const cwd = path.resolve(process.argv[3] || process.cwd())
@@ -11,12 +13,6 @@ if (!['memory', 'profile'].includes(kind)) {
   process.exit(2)
 }
 
-const pluginRoot = path.resolve(process.env.GROK_PLUGIN_ROOT || path.join(__dirname, '..'))
-function samePath(left, right) {
-  const a = path.resolve(left)
-  const b = path.resolve(right)
-  return process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b
-}
 function findWorkspaceRoot(start) {
   let current = path.resolve(start)
   while (true) {
@@ -30,57 +26,40 @@ function findWorkspaceRoot(start) {
     current = parent
   }
 }
-function workspaceFromPluginRoot(root) {
-  const absolute = path.resolve(root)
-  const sourceWorkspace = findWorkspaceRoot(absolute)
-  if (sourceWorkspace) {
-    const allowedSources = [
-      path.join(sourceWorkspace, '.grok', 'devcodex', 'plugins', 'devcodex-workspace'),
-      path.join(sourceWorkspace, '.grok', 'plugins', 'devcodex-workspace')
-    ]
-    if (allowedSources.some(candidate => samePath(candidate, absolute))) return sourceWorkspace
+
+const workspaceRoot = findWorkspaceRoot(cwd)
+if (!workspaceRoot) {
+  process.stderr.write('DevCodex Grok MCP bridge: current directory has no workspace-namespace .devcodex owner.\n')
+  process.exit(2)
+}
+
+const home = process.env.USERPROFILE || process.env.HOME || os.homedir()
+const grokHome = path.resolve(process.env.GROK_HOME || path.join(home, '.grok'))
+const serverPath = path.join(grokHome, 'devcodex', 'runtime', 'mcp', `${kind}-server.js`)
+if (!fs.existsSync(serverPath)) {
+  process.stderr.write(`DevCodex Grok MCP bridge: user-global ${kind} server is missing from ${grokHome}.\n`)
+  process.exit(2)
+}
+
+process.env.DEVCODEX_WORKSPACE_ROOT = workspaceRoot
+const child = spawn(process.execPath, [serverPath, cwd], {
+  cwd,
+  env: process.env,
+  windowsHide: true,
+  stdio: ['pipe', 'pipe', 'pipe']
+})
+process.stdin.pipe(child.stdin)
+child.stdout.pipe(process.stdout)
+child.stderr.pipe(process.stderr)
+child.on('error', error => {
+  process.stderr.write(`DevCodex Grok MCP bridge: failed to start ${kind} server: ${error.message}\n`)
+  process.exitCode = 2
+})
+child.on('exit', (code, signal) => {
+  if (signal) {
+    process.stderr.write(`DevCodex Grok MCP bridge: ${kind} server ended by ${signal}.\n`)
+    process.exitCode = 1
+    return
   }
-  const installedRoot = path.dirname(absolute)
-  if (path.basename(installedRoot).toLowerCase() !== 'installed-plugins') return null
-  try {
-    const registry = JSON.parse(fs.readFileSync(path.join(installedRoot, 'registry.json'), 'utf8'))
-    const entry = Object.values(registry.repos || {}).find(candidate =>
-      candidate?.kind?.type === 'Local' && samePath(candidate.path || '', absolute)
-    )
-    return entry?.kind?.source_path ? workspaceFromPluginRoot(entry.kind.source_path) : null
-  } catch { return null }
-}
-const expectedWorkspace = workspaceFromPluginRoot(pluginRoot)
-let current = cwd
-let workspaceRoot = null
-while (true) {
-  const marker = path.join(current, '.devcodex', 'layout.json')
-  try {
-    const layout = JSON.parse(fs.readFileSync(marker, 'utf8'))
-    if (String(layout.mode || '').trim() === 'workspace-namespace') {
-      workspaceRoot = current
-      break
-    }
-  } catch { }
-  const parent = path.dirname(current)
-  if (parent === current) break
-  current = parent
-}
-
-if (!expectedWorkspace || !workspaceRoot || !samePath(workspaceRoot, expectedWorkspace)) {
-  process.stderr.write('DevCodex Grok MCP bridge: current directory is outside the plugin owning workspace.\n')
-  process.exit(2)
-}
-
-const serverCandidates = [
-  path.join(workspaceRoot, '.claude', 'mcp', `${kind}-server.js`),
-  path.join(workspaceRoot, '.github', 'mcp', `${kind}-server.js`)
-]
-const serverPath = serverCandidates.find(file => fs.existsSync(file))
-if (!serverPath) {
-  process.stderr.write(`DevCodex Grok MCP bridge: shared ${kind} server is missing from ${workspaceRoot}.\n`)
-  process.exit(2)
-}
-
-process.argv = [process.execPath, serverPath, cwd]
-require(serverPath)
+  process.exitCode = Number.isInteger(code) ? code : 1
+})

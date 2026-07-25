@@ -46,7 +46,7 @@ for (const relative of [config.outputs.sharedKernel, config.outputs.copilotKerne
 }
 for (const relative of [config.outputs.claudeWrapper, config.outputs.geminiWrapper]) {
   assert(bundle.receipt.outputs[relative].bytes <= config.budgets.wrapperMaxBytes)
-  assert(bundle.files[relative].includes('@AGENTS.md'))
+  assert(bundle.files[relative].includes('@devcodex/runtime/AGENTS.md'))
 }
 
 const missingRuleSource = source.replace(/^\| S07 \|.*\r?\n/m, '')

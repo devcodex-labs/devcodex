@@ -1,6 +1,6 @@
 # DevCodex 使用介绍
 
-> 本站是 DevCodex 官方文档入口，面向需要在 Copilot / Claude Code / Codex 中统一 AI 开发工作流，并按需接入 Gemini CLI / Grok Build 的使用者和集成开发者。需求、实现和发布材料保留在“维护者指南”与“版本”分区，不占用第一次成功路径。
+> 本站是 DevCodex 官方文档入口，面向需要在 Copilot / Claude Code / Codex / Gemini / Grok 五宿主中统一 AI 开发工作流的使用者和集成开发者。需求、实现和发布材料保留在“维护者指南”与“版本”分区，不占用第一次成功路径。
 
 ---
 

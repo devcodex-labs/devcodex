@@ -98,8 +98,15 @@ function projectionDescriptors(hosts) {
     support,
     workspaceWrite: false
   })
+  if (selected.size) {
+    add('shared-agent-runtime', 'user://agents/devcodex/instructions.full.md', 'full-fallback', 'managed')
+    add('shared-agent-runtime', 'user://agents/skills', 'skills', 'managed')
+  }
   if (selected.has('copilot')) {
-    add('copilot', 'user://copilot/copilot-instructions.md', 'instruction', 'fixture-only')
+    add('copilot', 'user://copilot/copilot-instructions.md', 'instruction', 'contract-fixture')
+    add('copilot', 'user://copilot/hooks/devcodex.json', 'host-config', 'contract-fixture')
+    add('copilot', 'user://copilot/mcp-config.json', 'mcp-config', 'contract-fixture')
+    add('copilot', 'user://copilot/skills', 'skills', 'contract-fixture')
   }
   if (selected.has('claude')) {
     add('claude', 'user://claude/CLAUDE.md', 'instruction', 'contract-fixture')
@@ -110,7 +117,6 @@ function projectionDescriptors(hosts) {
     add('codex', 'user://codex/AGENTS.md', 'instruction', 'direct-probe')
     add('codex', 'user://codex/hooks.json', 'host-config', 'direct-probe')
     add('codex', 'user://codex/config.toml', 'mcp-config', 'direct-probe')
-    add('codex', 'user://agents/skills', 'skills', 'direct-probe')
   }
   if (selected.has('gemini')) {
     add('gemini', 'user://gemini/GEMINI.md', 'instruction', 'contract-fixture')

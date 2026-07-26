@@ -150,15 +150,29 @@ DevCodex 提供两个 Agent 入口：
 
 | 能力面 | 声明（代码/矩阵） | 探针（可重复命令） | 真机 |
 |--------|-------------------|--------------------|------|
-| 8 workflows | `workflow-capabilities.json` | `npm run test:workflow-capabilities` | 不要求 |
+| 8 workflows（含 `other`，无 workflow id=`plan`） | `workflow-capabilities.json` | `npm run test:workflow-capabilities` | 不要求 |
 | Skills 84 | `plugin.json` + 磁盘 SKILL.md | `npm run test:docs-surface-inventory` | 不要求 |
-| MCP 15 tools | `mcp/*-server.js` | `npm run test:mcp-servers` 等 | 不要求 |
+| MCP 15 tools | `mcp/*-server.js` | `test:mcp-servers` / `test:mcp-runtime-closure` | 不要求 |
 | Hooks 五事件 | `hooks/devcodex.lifecycle.json` | `test:hooks-runtime` / 宿主契约 | 按宿主事件降级 |
+| Prompts 30 / Instructions 15 | `prompts/` · `instructions/` | `test:docs-surface-inventory` | 不要求 |
+| npm scripts ≥113 / scripts/lib ≥102 | `package.json` · `scripts/lib` | `test:docs-surface-inventory`（基线 `docs-surface-baseline-20260727.json`） | 不要求 |
+| validation nodes ≥83 / gate groups 51 | `validation-manifest` · gate-registry | 同上 | 不要求 |
 | 流程强制 Mutation/路径 | `process-enforcement` + HostEnforcementMatrix | `test:process-enforcement-e2e` · `test:stop-gate` | L4 非默认 DoD |
-| 五宿主 adapter | host-parity / doctor 分层 | `test:host-parity` · `devcodex doctor` | doctor 可选；人工会话非关站硬条件 |
+| 交付诚实 / ECR 门禁 | process-enforcement + stop-gate | `test:delivery-honesty` · `test:ecr-closure` | 不要求 |
+| 五宿主 adapter | host-parity / doctor 分层 | `test:host-parity` · `devcodex doctor` | doctor 可选；**native 就绪 ≠ 五宿主全绿** |
 | 公开文本 | `public-text-surfaces.json` | `test:public-text-integrity` | 不要求 |
 
-Grok：**无 UPS inject**；Stop 为条件硬拦。Copilot：**CLI 与 IDE 能力不等价**（IDE 常为 instruction-fallback）。
+**宿主诚实（L0 摘要）**：
+
+| 宿主 | PreTool 无 CP2 | Stop | UPS inject | 文档口径 |
+|------|----------------|------|------------|----------|
+| copilot | CLI hard-deny；**IDE fallback** | 事件支持时 | N/A | **CLI 与 IDE 分列** |
+| claude | hard-deny | stop-block | 可 inject | hook-enforced 上限 |
+| codex | hard-deny | stop-block | 可 context | 安装≠全事件硬拦 |
+| gemini | 能则 hard | 能则 stop | **N/A** | 禁止假 inject |
+| grok | PreTool deny | **条件** Stop | **N/A** | 禁止 UPS 假绿 |
+
+Grok：**无 UPS inject**；Stop 为条件硬拦。Copilot：**CLI 与 IDE 能力不等价**（IDE 常为 instruction-fallback）。`devcodex doctor` 的 adapter match 与 native ready **分层**，不得把「adapter 5/5」写成「五宿主 CLI 全就绪」。
 
 ---
 

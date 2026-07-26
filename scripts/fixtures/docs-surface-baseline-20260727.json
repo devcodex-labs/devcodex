@@ -1,0 +1,39 @@
+{
+  "schemaVersion": "DocsSurfaceBaselineV1",
+  "frozenAt": "2026-07-27",
+  "requirement": "maintainer-site-docs-consistency",
+  "note": "Live floors for assertDocsSurfaceInventory; counts from scanDocsSurfaceInventory on package root after MCP/honesty deliveries.",
+  "exact": {
+    "skills": 84,
+    "workflows": 8,
+    "mcpTools": 15,
+    "hookEvents": 5,
+    "prompts": 30,
+    "instructionsMain": 15,
+    "gateGroups": 51
+  },
+  "minima": {
+    "hookRuntime": 26,
+    "websiteMd": 156,
+    "validationNodes": 83,
+    "npmScripts": 113,
+    "scriptsLib": 102
+  },
+  "requiredWorkflows": [
+    "analyze",
+    "audit",
+    "chat",
+    "dev",
+    "fix",
+    "other",
+    "resume",
+    "self-fix"
+  ],
+  "requiredHookEvents": [
+    "UserPromptSubmit",
+    "PreToolUse",
+    "PostToolUse",
+    "PreCompact",
+    "Stop"
+  ]
+}

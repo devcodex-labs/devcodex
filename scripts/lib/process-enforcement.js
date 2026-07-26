@@ -21,7 +21,9 @@ const ERROR_CODES = Object.freeze({
   /** Completion claim without discoverable stage report path */
   STAGE_REPORT_MISSING: 'stage-report-missing',
   /** Over-claim progress without validation evidence rows */
-  PROGRESS_OVERCLAIM: 'progress-overclaim'
+  PROGRESS_OVERCLAIM: 'progress-overclaim',
+  /** Strong completion without ECR / execution-closure review evidence */
+  ECR_MISSING: 'ecr-missing'
 })
 
 /** Paths that use hard-deny for unconfirmed CP even under default safety-only (D1). */
@@ -301,6 +303,51 @@ function classifyDeliveryHonesty (input = {}) {
 }
 
 /**
+ * ECR / N6 execution-closure evidence for strong completion claims.
+ * @param {{ completionClaimed?: boolean, text?: string, mode?: string, workflow?: string }} input
+ */
+function classifyEcrClosure (input = {}) {
+  const text = String(input.text || '')
+  const mode = String(input.mode || '').toLowerCase()
+  const wf = String(input.workflow || mode || '').toLowerCase()
+  const strongClaim =
+    input.completionClaimed === true ||
+    /已完成|任务完成|all work is complete|宣告完成|可关闭需求|本需求.*闭环|DoD.*闭环|只差验收|需求已完成/i.test(
+      text
+    )
+
+  if (!strongClaim) return { ok: true, code: null, gap: null }
+  if (mode === 'chat' || wf === 'chat') return { ok: true, code: null, gap: null }
+  if (isDeliveryHonestyExempt(text)) return { ok: true, code: null, gap: null }
+
+  // Explicit N/A with whitelist skipReason
+  if (/ECR\s*[:：]\s*N\/A/i.test(text) && /skipReason\s*[=:：]\s*(chat|simple-task|simple_task|probe)/i.test(text)) {
+    return { ok: true, code: null, gap: null }
+  }
+
+  const hasEcrHeading = /ECR|执行闭环复审|Execution\s*Closure\s*Review/i.test(text)
+  const hasDodMatrix =
+    /DoD|ECR-[1-7]|对账|ECR\s*矩阵|闭环复审/i.test(text) && /\|/.test(text)
+  const hasEcrReportPath =
+    /reports[/\\][^\s)\]`]+ECR[^\s)\]`]*\.md|ECR[^\n]{0,40}\.md|阶段诚实状态报告|执行闭环/i.test(text)
+
+  if (hasEcrHeading && hasDodMatrix) return { ok: true, code: null, gap: null }
+  if (hasEcrReportPath && (hasEcrHeading || hasDodMatrix || /DoD\s*对账/i.test(text))) {
+    return { ok: true, code: null, gap: null }
+  }
+  // Path alone to a report named ECR is enough if strong claim already requires care
+  if (/reports[/\\][^\s)\]`]*ECR[^\s)\]`]*\.md/i.test(text)) {
+    return { ok: true, code: null, gap: null }
+  }
+
+  return {
+    ok: false,
+    code: ERROR_CODES.ECR_MISSING,
+    gap: ERROR_CODES.ECR_MISSING
+  }
+}
+
+/**
  * Requirement-dir review checklist discoverability (C).
  * @param {{ taskRoot?: string|null, fs?: { readdirSync?: Function }, text?: string }} input
  */
@@ -336,6 +383,7 @@ module.exports = {
   classifyReviewChecklistCompletion,
   classifyProcessArtifactCompleteness,
   classifyDeliveryHonesty,
+  classifyEcrClosure,
   classifyReviewChecklistDiscoverability,
   simpleTaskForbidsPath,
   normalizePath,

@@ -22,16 +22,19 @@ try {
 let classifyReviewChecklistCompletion
 let classifyProcessArtifactCompleteness
 let classifyDeliveryHonesty
+let classifyEcrClosure
 try {
   ;({
     classifyReviewChecklistCompletion,
     classifyProcessArtifactCompleteness,
-    classifyDeliveryHonesty
+    classifyDeliveryHonesty,
+    classifyEcrClosure
   } = require('../../scripts/lib/process-enforcement.js'))
 } catch {
   classifyReviewChecklistCompletion = () => ({ ok: true, code: null, gap: null })
   classifyProcessArtifactCompleteness = () => ({ ok: true, code: null, gap: null, missing: [] })
   classifyDeliveryHonesty = () => ({ ok: true, gaps: [], code: null, gap: null })
+  classifyEcrClosure = () => ({ ok: true, code: null, gap: null })
 }
 
 function extractLastAssistantMessage (payload) {
@@ -283,6 +286,18 @@ function evaluateStopCompletionGate (input = {}) {
       for (const g of honestyGaps.gaps) {
         if (g && !gaps.includes(g)) gaps.push(g)
       }
+    }
+  }
+
+  // ECR / N6 execution-closure evidence (ecr-missing)
+  if (typeof classifyEcrClosure === 'function') {
+    const ecr = classifyEcrClosure({
+      text,
+      mode: modeL || mode,
+      workflow: wf || workflow
+    })
+    if (!ecr.ok && ecr.gap && !gaps.includes(ecr.gap)) {
+      gaps.push(ecr.gap)
     }
   }
 

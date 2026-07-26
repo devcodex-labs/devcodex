@@ -49,6 +49,7 @@ applyTo: .devcodex/**/{requirements,bugs}/**; .devcodex/**/fix/**
 | progressHonest | 是（每行有证据）/ 否 |
 | checklistVisible | 03-复审清单 或 review-checklists 路径 |
 | validationEvidence | 命令 + exitCode |
+| ecrStatus | pending / done + ECR 报告路径（测试绿≠ECR） |
 
 ## 进度总览
 

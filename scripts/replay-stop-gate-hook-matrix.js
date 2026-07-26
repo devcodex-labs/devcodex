@@ -63,6 +63,10 @@ const COMPLETE_BODY = [
   '`DevCodexVisibleEnvelopeV1 · completion-check · PASS · ' + 'c'.repeat(64) + '`',
   '',
   '阶段报告: reports/requirements/grok/20260723/01--stop-gate-replay.md',
+  '## ECR 执行闭环复审',
+  '| DoD | 结果 |',
+  '| D1 | ✅ |',
+  '| ECR-1 | ✅ |',
   '工作已完成并收口。'
 ].join('\n')
 

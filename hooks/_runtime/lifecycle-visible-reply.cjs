@@ -267,6 +267,10 @@ function buildLifecycleVisibleReplyUtils(ctx) {
       state.visible.artifactMissingItems = ['visible-payload-unobserved', 'semantic-artifact-items']
       state.visible.finalValidationSummaryStatus = 'unverified'
       state.visible.finalValidationSummaryMissingItems = ['visible-payload-unobserved', 'final-validation-summary']
+      state.visible.dialogueNarrativeStatus = 'unverified'
+      state.visible.dialogueNarrativeMissingItems = ['visible-payload-unobserved', 'dialogue-narrative']
+      state.visible.analysisDeliveryStatus = 'unverified'
+      state.visible.analysisDeliveryMissingItems = ['visible-payload-unobserved', 'analysis-delivery']
       state.visible.stopProbe = {
         schemaVersion: 'StopPayloadProbeV1',
         observed: false,
@@ -318,6 +322,52 @@ function buildLifecycleVisibleReplyUtils(ctx) {
     } catch {
       state.visible.finalValidationSummaryStatus = 'unverified'
       state.visible.finalValidationSummaryMissingItems = ['classifier-unavailable', 'final-validation-summary']
+    }
+    // DPC B2: dialogue-primary narrative + analysis delivery (link-only-thin) when payload observed
+    try {
+      const { analyzeDialogueNarrativeSample } = require('./visible-output-contract.cjs')
+      const narrativeEvidence = analyzeDialogueNarrativeSample(text)
+      state.visible.dialogueNarrative = narrativeEvidence
+      if (narrativeEvidence.classification === 'not-claimed') {
+        state.visible.dialogueNarrativeStatus = 'not-claimed'
+        state.visible.dialogueNarrativeMissingItems = []
+      } else if (narrativeEvidence.classification === 'narrative-missing') {
+        state.visible.dialogueNarrativeStatus = 'verified-missing'
+        state.visible.dialogueNarrativeMissingItems = ['dialogue-narrative']
+      } else {
+        // present | waived
+        state.visible.dialogueNarrativeStatus = 'verified-present'
+        state.visible.dialogueNarrativeMissingItems = []
+      }
+    } catch {
+      state.visible.dialogueNarrativeStatus = 'unverified'
+      state.visible.dialogueNarrativeMissingItems = ['classifier-unavailable', 'dialogue-narrative']
+    }
+    try {
+      const {
+        classifyAnalysisArtifactDeliverySample
+      } = require('../../scripts/lib/optimization-backlog-evidence.js')
+      const analysisClass = classifyAnalysisArtifactDeliverySample(text)
+      state.visible.analysisDeliveryClass = analysisClass
+      if (analysisClass === 'not-analysis-delivery') {
+        state.visible.analysisDeliveryStatus = 'not-claimed'
+        state.visible.analysisDeliveryMissingItems = []
+      } else if (analysisClass === 'ready') {
+        state.visible.analysisDeliveryStatus = 'verified-present'
+        state.visible.analysisDeliveryMissingItems = []
+      } else if (analysisClass === 'link-only-thin') {
+        state.visible.analysisDeliveryStatus = 'verified-missing'
+        state.visible.analysisDeliveryMissingItems = ['analysis-link-only-thin']
+      } else if (analysisClass === 'chat-only') {
+        state.visible.analysisDeliveryStatus = 'verified-missing'
+        state.visible.analysisDeliveryMissingItems = ['analysis-chat-only']
+      } else {
+        state.visible.analysisDeliveryStatus = 'verified-missing'
+        state.visible.analysisDeliveryMissingItems = [`analysis-delivery:${analysisClass}`]
+      }
+    } catch {
+      state.visible.analysisDeliveryStatus = 'unverified'
+      state.visible.analysisDeliveryMissingItems = ['classifier-unavailable', 'analysis-delivery']
     }
     const artifactEvidence = analyzeArtifactDelivery(text)
     state.visible.artifactStatus = artifactEvidence.status
@@ -405,6 +455,19 @@ function buildLifecycleVisibleReplyUtils(ctx) {
       } else if (summaryStatus === 'unverified') {
         const missing = (state.visible.finalValidationSummaryMissingItems || []).join(', ') || 'final-validation-summary'
         items.push(`无法验证最终验证摘要（DevModeCompletionCheckDetailGate：status=unverified；missingItems=${missing}）`)
+      }
+    }
+    // DPC B2: dialogue narrative + analysis delivery closeout reminders (payload observed only)
+    if (eventName === 'Stop' && state.mode === 'dev' && state.reportTouched) {
+      const narrativeStatus = state.visible?.dialogueNarrativeStatus
+      if (narrativeStatus === 'verified-missing') {
+        const missing = (state.visible.dialogueNarrativeMissingItems || []).join(', ') || 'dialogue-narrative'
+        items.push(`对话内可读收口不完整（Dialogue-Primary：missingItems=${missing}；须结果句+要点，禁止仅详见报告）`)
+      }
+      const analysisStatus = state.visible?.analysisDeliveryStatus
+      if (analysisStatus === 'verified-missing') {
+        const missing = (state.visible.analysisDeliveryMissingItems || []).join(', ') || 'analysis-delivery'
+        items.push(`分析交付不完整（AnalysisArtifactDelivery：missingItems=${missing}；class=${state.visible.analysisDeliveryClass || 'unknown'}）`)
       }
     }
     const artifactStatus = state.visible?.artifactStatus || (state.visible?.artifactPaths ? 'verified-present' : 'unverified')

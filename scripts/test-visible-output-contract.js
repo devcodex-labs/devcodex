@@ -401,6 +401,48 @@ assert.strictEqual(analyzeDialogueNarrativeSample('分析完成。').classificat
   const present = replyUtils.analyzeArtifactDelivery(withPath)
   assert.strictEqual(present.pathColumnClass, 'present')
   assert.ok(!present.missingItems.includes('missing-path-column'))
+
+  // DPC B2: lifecycle wires narrative + analysis delivery into visible state
+  const { buildLifecyclePayloadUtils } = require('../hooks/_runtime/lifecycle-payload-utils.cjs')
+  const payloadUtils = buildLifecyclePayloadUtils({ fs: require('fs') })
+  const replyUtilsWired = buildLifecycleVisibleReplyUtils({
+    fs: require('fs'),
+    getVisibleReplyEvidence: payloadUtils.getVisibleReplyEvidence,
+    collectInterestingStrings: payloadUtils.collectInterestingStrings,
+    getStatePaths: () => ({ dir: '', finalPayloadFlag: '', finalPayloadLog: '' }),
+    buildGovernanceIntakeReminderItem: () => ''
+  })
+  const state = {
+    mode: 'dev',
+    reportTouched: true,
+    visible: {}
+  }
+  const narrativeMissingBody = [
+    '### DevCodex · 完成检查',
+    '详见报告：[r](reports/x.md)',
+    '#### 完成交付文件',
+    '- [报告](x.md) — 用途说明；路径：`.devcodex/x.md`；操作：深读时打开归档报告',
+    '`DevCodexVisibleEnvelopeV1 · completion-check · PASS · ' + 'c'.repeat(64) + '`'
+  ].join('\n')
+  replyUtilsWired.updateVisibleReplyState(state, { assistantMessage: narrativeMissingBody }, 'Stop')
+  assert.strictEqual(state.visible.dialogueNarrativeStatus, 'verified-missing')
+  assert.ok(state.visible.dialogueNarrativeMissingItems.includes('dialogue-narrative'))
+  const reminder = replyUtilsWired.buildClosureReminder(
+    { mode: 'dev', reportTouched: true, visible: state.visible, mutated: false },
+    'Stop'
+  )
+  assert.match(String(reminder || ''), /Dialogue-Primary|对话内可读收口/)
+
+  const analysisThinState = { mode: 'dev', reportTouched: true, visible: {} }
+  const analysisThinBody = '分析完成。[报告](./reports/analysis/grok/20260721/04--审阅.md)'
+  replyUtilsWired.updateVisibleReplyState(
+    analysisThinState,
+    { assistantMessage: analysisThinBody },
+    'Stop'
+  )
+  assert.strictEqual(analysisThinState.visible.analysisDeliveryClass, 'link-only-thin')
+  assert.strictEqual(analysisThinState.visible.analysisDeliveryStatus, 'verified-missing')
+  assert.ok(analysisThinState.visible.analysisDeliveryMissingItems.includes('analysis-link-only-thin'))
 }
 
 const failedEnvelope = createVisibleEnvelope({ ...baseInput, linkCapability: failed })

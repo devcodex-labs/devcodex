@@ -33,7 +33,14 @@ function buildVisibleOutputControlChecks(ctx) {
     requireAnchors('skills/user-visible-output-contract/SKILL.md', ['ArtifactAnchorProjectionV1', 'ArtifactAnchorProjectionGate', 'FinalValidationSummaryGate', 'classifyFinalValidationSummarySample', 'classifyDialogueNarrativeSample', 'Dialogue-Primary'])
     requireAnchors('prompts/precheck-status.prompt.md', ['DevCodexVisibleEnvelopeV1', 'PC0~PC7'])
     requireAnchors('hooks/_runtime/visible-output-contract.cjs', ['ArtifactAnchorV1', 'projectArtifactAnchorsFromManifest', 'analyzeFinalValidationSummarySample', 'classifyFinalValidationSummarySample', 'classifyDialogueNarrativeSample', 'hasReadableNarrativeSnippet'])
-    requireAnchors('hooks/_runtime/lifecycle-visible-reply.cjs', ['finalValidationSummaryStatus', 'DevModeCompletionCheckDetailGate'])
+    requireAnchors('hooks/_runtime/lifecycle-visible-reply.cjs', [
+      'finalValidationSummaryStatus',
+      'DevModeCompletionCheckDetailGate',
+      'dialogueNarrativeStatus',
+      'analysisDeliveryStatus',
+      'analysis-link-only-thin',
+      'Dialogue-Primary'
+    ])
 
     try {
       JSON.parse(read(path.join(ROOT, 'skills/user-visible-output-contract/visible-output-contract.schema.json')))

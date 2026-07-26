@@ -149,7 +149,7 @@ Rich clickable 只显示一个语义 Markdown 链接作为名称主表示，**�
 
 负向：仅报告链接、仅「详见报告」、仅验证矩阵字段。  
 正向：结果句 + 要点；analyze 须同时满足报告落盘（见 PF-169 / `link-only-thin`）。  
-**B1** 提供 classifier + Skill/单测；**B2** 再接线 lifecycle 生产 missingItems（无正文宿主仍 unverified）。
+**B1** classifier + Skill/单测；**B2** `lifecycle-visible-reply` 在 Stop/PreCompact **有正文时**写入 `dialogueNarrativeStatus` / `analysisDeliveryStatus`，dev+reportTouched 时进入 closure reminder；无正文仍 `unverified`（Grok 诚实上限）。
 
 默认 userAction 写「深读时打开归档报告」；**禁止**「请用 Typora/浏览器打开预览」作为默认动作。
 

@@ -203,7 +203,12 @@ GlobalOnlyHostConfigModeV1 与 GlobalOnlyWorkspaceCleanModeV1 将宿主配置、
 
 <workspace>/
 └── .devcodex/      ← workspace-namespace 的 Profile、记忆、报告与运行态
+    └── workspace/
+        ├── profile/   ← 事实 base
+        └── skills/    ← 可选自定义 Skill（W；非 reserved 时 W>G，见 skill-resolution）
 ```
+
+自定义 Skill 只写 `<workspace>/.devcodex/workspace/skills/<id>/SKILL.md`（一次配置，经 DevCodex resolve 五宿主共用）；**不要**改 `~/.agents/skills` 或五宿主 home 树作扩展。强制核 skill（如 `compliance`/`cp-gate`）禁止 W 覆盖。诊断：`devcodex skill resolve <id> --json`；探针：`npm run test:skill-resolve`。
 
 bare `devcodex init/update` 只管理 `.devcodex`。若当前路径没有可复用的祖先 workspace marker，且不存在旧版项目运行态，首次执行会原子创建 `.devcodex/layout.json` 并采用 `workspace-namespace`；若祖先已存在有效 marker，则沿用祖先 owner；本地 marker 非法时返回 `WORKSPACE_LAYOUT_INVALID`，旧 `.devcodex/profile`、`.memory` 等运行态存在时返回 `WORKSPACE_LAYOUT_MIGRATION_REQUIRED`，不会静默切换目录，需先执行 `devcodex migrate-layout plan/apply`。`devcodex init --claude`、`devcodex init --codex`、`--host`、`--gemini`、`--grok`、裸 `devcodex uninstall` 以及 `uninstall --host grok` 首批均返回结构化错误 `CLI_HOST_CONFIG_GLOBAL_ONLY`。安装与更新错误会指向 npm 全局命令；卸载错误会明确首批不支持自动删除用户级配置。现有工作区宿主文件不会被自动迁移、覆盖或删除；删除前仍需用户明确确认。
 

@@ -1000,6 +1000,7 @@ function buildCliMaintenanceCommands(ctx) {
       ${c.cyan('probe')}             Run bounded local-only diagnostics; accepts IDs and --json
       ${c.cyan('trace show|replay')} Read LocalTaskTrace; trace show --completion reads receipt identities
       ${c.cyan('skill plan')}        Plan a dependency-closed whole-SKILL bundle; add --json for BundleDecisionV2
+      ${c.cyan('skill resolve')}     Resolve skill ids W>G (workspace skills vs global); --json
       ${c.cyan('task resolve')}      Resolve an active task by exact name, alias, project, or stable taskId
       ${c.cyan('task verify')}       Reconcile one task; exact --task or unique-active fallback
       ${c.cyan('task risk')}         Accept/revoke explicit, candidate-bound waivable risk
@@ -1029,6 +1030,7 @@ function buildCliMaintenanceCommands(ctx) {
       devcodex profile plan --tier profile-closed-loop # Preview a safe upgrade
       devcodex status                           # Check installation
       devcodex skill plan intent load-profile --max-bytes 32768 --json
+      devcodex skill resolve my-ws-skill --json
       devcodex task resolve "my task" --json    # Resolve without loading unrelated task bodies
   `)
   }

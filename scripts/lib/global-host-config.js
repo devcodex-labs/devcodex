@@ -629,6 +629,23 @@ function buildGlobalHostConfigPlan(options = {}) {
 
   const operations = hostPlans.flatMap(hostPlan => hostPlan.operations)
   const globallyManagedPaths = operations.map(operation => operation.path)
+  try {
+    const {
+      assertApplyDestinationNotWorkspaceSkills
+    } = require('../../hooks/_runtime/skill-resolution.cjs')
+    assertApplyDestinationNotWorkspaceSkills(globallyManagedPaths, {
+      cwd: options.cwd || process.cwd(),
+      env: options.env || process.env
+    })
+  } catch (error) {
+    if (error && error.code === 'GLOBAL_HOST_DEST_IN_WORKSPACE_SKILLS') throw error
+    // Missing resolution module must not hide destination bugs on partial checkouts
+    if (error && /Cannot find module/.test(String(error.message || ''))) {
+      /* optional in incomplete trees */
+    } else {
+      throw error
+    }
+  }
   const preReceiptDigest = digestPlan(operations)
   for (const target of targets) {
     const hostPlan = hostPlans.find(item => item.host === target.host)

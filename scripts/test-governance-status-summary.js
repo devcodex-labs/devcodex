@@ -81,7 +81,12 @@ try {
   assert.ok(summary.skills.skillCount >= 80)
   assert.ok(summary.skills.graySkillCount >= 3)
   assert.ok(summary.skills.graySkills.includes('brand-visual-quality'))
-  assert.strictEqual(summary.skills.evidenceStatus, 'insufficient-trigger-samples')
+  // Portfolio may ship measured trigger samples (triggerQuality=mixed + triggerPrecisionMeasuredCount>0).
+  if (Number(summary.skills.triggerPrecisionMeasuredCount) > 0 && summary.skills.triggerQuality !== 'structural-only') {
+    assert.strictEqual(summary.skills.evidenceStatus, 'measured')
+  } else {
+    assert.strictEqual(summary.skills.evidenceStatus, 'insufficient-trigger-samples')
+  }
   assert.strictEqual(summary.executionOptimization.schemaVersion, 'ExecutionOptimizationEvidenceV1')
   assert.strictEqual(summary.executionOptimization.featureCount, 2)
   assert.strictEqual(summary.executionOptimization.acceleratedCount, 1)

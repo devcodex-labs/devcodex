@@ -620,17 +620,64 @@ function buildBundleDecisionV2(portfolio, input = {}) {
     }
   }
 
+  let resolutionPlan = null
+  const resolutionById = new Map()
+  if (input.applySkillResolution !== false) {
+    try {
+      const {
+        resolveSkillReadPlan
+      } = require('../hooks/_runtime/skill-resolution.cjs')
+      const resolveIds = closureIds.filter(id => !excluded.has(id))
+      resolutionPlan = resolveSkillReadPlan(resolveIds, {
+        cwd: input.cwd || process.cwd(),
+        env: input.env,
+        skippedByUser: input.skippedByUser === true,
+        forceGlobal: input.forceGlobal === true,
+        consumerAuthority: 'profile-skill-plan',
+        includeContent: true
+      })
+      for (const trace of resolutionPlan.traces || []) {
+        resolutionById.set(trace.skillId, trace)
+      }
+    } catch (error) {
+      resolutionPlan = {
+        schemaVersion: 'ResolvedSkillReadPlanV1',
+        error: error.message,
+        traces: [],
+        selected: []
+      }
+    }
+  }
+
   const itemFor = id => {
     const skill = byId.get(id)
+    const trace = resolutionById.get(id)
+    const useResolved = trace && (trace.selectedLayer === 'workspace' || trace.selectedLayer === 'global')
     return {
       id,
       reason: candidateIds.includes(id) ? 'candidate' : 'dependency',
       mandatory: mandatoryClosure.has(id),
       priority: skillPriority(skill),
-      source: skill.source,
-      sourceBytes: skill.sourceBytes,
-      sourceHash: skill.hash,
+      source: useResolved ? trace.selectedPath : skill.source,
+      sourceBytes: useResolved && Number.isInteger(trace.contentBytes) ? trace.contentBytes : skill.sourceBytes,
+      sourceHash: useResolved && trace.digest ? trace.digest : skill.hash,
+      selectedLayer: useResolved ? trace.selectedLayer : 'package',
+      securityDecision: trace ? trace.securityDecision : 'not-applicable',
+      coversGlobal: trace ? trace.coversGlobal === true : false,
       tokenCount: maxTokens === null || !Number.isInteger(tokenCounts[id]) ? null : tokenCounts[id]
+    }
+  }
+  // reserved / missing resolution: keep package identity but mark mandatory missing as blocker later
+  for (const id of closureIds) {
+    if (excluded.has(id) || !mandatoryClosure.has(id)) continue
+    const trace = resolutionById.get(id)
+    if (trace && trace.selectedLayer === 'missing') {
+      blockers.push({
+        code: 'skill-resolution-missing',
+        id,
+        mandatory: true,
+        reasonCode: trace.reasonCode || 'missing'
+      })
     }
   }
   const mandatoryItems = closureIds.filter(id => mandatoryClosure.has(id) && !excluded.has(id)).map(itemFor)
@@ -704,6 +751,7 @@ function buildBundleDecisionV2(portfolio, input = {}) {
     completion,
     hostCapability,
     fallback,
+    resolutionPlan,
     lifecycleMutationAllowed: false,
     writes: [],
     exitCondition: blockers.length

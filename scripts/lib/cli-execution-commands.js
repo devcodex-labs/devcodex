@@ -323,18 +323,62 @@ function buildCliExecutionCommands(ctx) {
       } else if (arg.startsWith('-')) options.errors.push(`unsupported option: ${arg}`)
       else options.candidateIds.push(arg)
     }
-    if (options.action !== 'plan') options.errors.push(`unknown skill subcommand: ${options.action || '(none)'}`)
-    if (options.action === 'plan' && !options.candidateIds.length) options.errors.push('at least one candidate skill id is required')
+    if (!['plan', 'resolve'].includes(options.action)) {
+      options.errors.push(`unknown skill subcommand: ${options.action || '(none)'}`)
+    }
+    if (options.action === 'plan' && !options.candidateIds.length) {
+      options.errors.push('at least one candidate skill id is required')
+    }
+    if (options.action === 'resolve' && !options.candidateIds.length) {
+      options.errors.push('at least one skill id is required for resolve')
+    }
     return options
   }
 
   function printSkillFailure(options, errorCode, message, nextStep, details, exitCode) {
-    if (options.json) printCliJson(console, createCliFailure('skill.plan', errorCode, message, nextStep, cliMetadata, details))
+    const operation = options.action === 'resolve' ? 'skill.resolve' : 'skill.plan'
+    if (options.json) printCliJson(console, createCliFailure(operation, errorCode, message, nextStep, cliMetadata, details))
     else {
       console.log(c.red(`  [${errorCode}] ${message}`))
       console.log(c.dim(`  ${nextStep}`))
     }
     process.exitCode = exitCode
+  }
+
+  function cmdSkillResolve(options) {
+    let resolveSkillReadPlan
+    try {
+      ;({ resolveSkillReadPlan } = require('../../hooks/_runtime/skill-resolution.cjs'))
+    } catch (error) {
+      printSkillFailure(options, 'SKILL_RESOLUTION_UNAVAILABLE', error.message, 'Reinstall DevCodex runtime hooks and retry.', null, 1)
+      return null
+    }
+    const plan = resolveSkillReadPlan(options.candidateIds, {
+      cwd: process.cwd(),
+      consumerAuthority: 'cli',
+      includeContent: false
+    })
+    if (options.json) {
+      printCliJson(console, {
+        schemaVersion: 'DevCodexCliEnvelopeV1',
+        operation: 'skill.resolve',
+        ok: true,
+        result: plan
+      })
+    } else {
+      console.log()
+      console.log(c.bold('  DevCodex Skill resolve'))
+      console.log(`  ${c.cyan('enabled'.padEnd(16))} ${plan.enabled}`)
+      console.log(`  ${c.cyan('workspace'.padEnd(16))} ${plan.workspaceRoot || '(none)'}`)
+      console.log(`  ${c.cyan('global'.padEnd(16))} ${plan.globalSkillsRoot}`)
+      console.log(`  ${c.cyan('covers'.padEnd(16))} ${plan.workspaceCoverCount}`)
+      for (const trace of plan.traces) {
+        console.log(`  ${c.cyan(trace.skillId.padEnd(16))} ${trace.selectedLayer} ${trace.securityDecision} ${trace.selectedPath || ''}`)
+      }
+      console.log()
+    }
+    process.exitCode = 0
+    return plan
   }
 
   function printSkillPlanHuman(decision) {
@@ -357,12 +401,13 @@ function buildCliExecutionCommands(ctx) {
         options,
         'CLI_INVALID_OPTION',
         options.errors.join('; '),
-        'Use: devcodex skill plan <candidate...> [--mandatory <id>] [--max-skills N] [--max-bytes N] [--include-gray] [--json]',
+        'Use: devcodex skill plan <candidate...> [...] | devcodex skill resolve <id...> [--json]',
         { errors: options.errors },
         2
       )
       return null
     }
+    if (options.action === 'resolve') return cmdSkillResolve(options)
     let portfolio
     try {
       portfolio = readSkillPortfolio()

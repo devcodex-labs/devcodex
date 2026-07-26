@@ -56,7 +56,10 @@
     "scripts/test-report-index.js",
     "scripts/validate.js",
     "scripts/lib/probe-registry.js",
-    "scripts/lib/validate-*.js"
+    "scripts/lib/validate-*.js",
+    "hooks/_runtime/skill-resolution.cjs",
+    "scripts/test-skill-resolve.js",
+    "scripts/test-skill-resolution-hook-paths.js"
   ],
   "invariantNodes": [
     "validate-versions",
@@ -72,6 +75,8 @@
         "validate-core",
         "checked-command",
         "skill-sidecar-contract",
+        "skill-resolve",
+        "skill-resolution-hook-paths",
         "skill-portfolio",
         "skill-portfolio-current",
         "profile-section-selector",
@@ -135,11 +140,11 @@
         "workflow-completion-contract",
         "critical-coverage",
         "host-instruction-projection",
-      "host-adapters",
-      "npm-lifecycle-adapter",
-      "global-host-config",
-      "global-install-smoke",
-      "host-installation",
+        "host-adapters",
+        "npm-lifecycle-adapter",
+        "global-host-config",
+        "global-install-smoke",
+        "host-installation",
         "syntax"
       ]
     },
@@ -149,6 +154,8 @@
         "validate-core",
         "checked-command",
         "skill-sidecar-contract",
+        "skill-resolve",
+        "skill-resolution-hook-paths",
         "skill-portfolio",
         "skill-portfolio-current",
         "profile-section-selector",
@@ -212,11 +219,11 @@
         "workflow-completion-contract",
         "critical-coverage",
         "host-instruction-projection",
-      "host-adapters",
-      "npm-lifecycle-adapter",
-      "global-host-config",
-      "global-install-smoke",
-      "host-installation",
+        "host-adapters",
+        "npm-lifecycle-adapter",
+        "global-host-config",
+        "global-install-smoke",
+        "host-installation",
         "syntax",
         "generated-site-precheck",
         "website-build",
@@ -250,13 +257,15 @@
         "workflow-completion-contract",
         "critical-coverage",
         "host-instruction-projection",
-      "host-adapters",
-      "npm-lifecycle-adapter",
-      "global-host-config",
-      "global-install-smoke",
-      "host-installation",
+        "host-adapters",
+        "npm-lifecycle-adapter",
+        "global-host-config",
+        "global-install-smoke",
+        "host-installation",
         "syntax",
-        "skill-sidecar-contract"
+        "skill-sidecar-contract",
+        "skill-resolve",
+        "skill-resolution-hook-paths"
       ]
     },
     "package-release": {
@@ -279,16 +288,18 @@
         "workflow-completion-contract",
         "critical-coverage",
         "host-instruction-projection",
-      "host-adapters",
-      "npm-lifecycle-adapter",
-      "global-host-config",
-      "global-install-smoke",
-      "host-installation",
+        "host-adapters",
+        "npm-lifecycle-adapter",
+        "global-host-config",
+        "global-install-smoke",
+        "host-installation",
         "syntax",
         "generated-site-precheck",
         "website-build",
         "generated-site-postcheck",
-        "skill-sidecar-contract"
+        "skill-sidecar-contract",
+        "skill-resolve",
+        "skill-resolution-hook-paths"
       ]
     }
   },
@@ -584,6 +595,89 @@
         "isolated-temp"
       ],
       "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "skill-resolve",
+      "owner": "workspace-skill-resolve",
+      "command": "node",
+      "args": [
+        "scripts/test-skill-resolve.js"
+      ],
+      "dependencies": [],
+      "inputs": [
+        "hooks/_runtime/skill-resolution.cjs",
+        "hooks/_runtime/workspace-layout.cjs",
+        "hooks/_runtime/lifecycle.cjs",
+        "mcp/profile-contract.js",
+        "scripts/test-skill-resolve.js",
+        "scripts/test-skill-resolution-hook-paths.js",
+        "scripts/lib/cli-execution-commands.js",
+        "scripts/lib/global-host-config.js"
+      ],
+      "consumers": [
+        "hooks-runtime",
+        "cli-behavior",
+        "control-plane-contracts"
+      ],
+      "invariants": [
+        "contract"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "skill-resolution-hook-paths",
+      "owner": "workspace-skill-resolve",
+      "command": "node",
+      "args": [
+        "scripts/test-skill-resolution-hook-paths.js"
+      ],
+      "dependencies": [
+        "skill-resolve"
+      ],
+      "inputs": [
+        "hooks/_runtime/skill-resolution.cjs",
+        "hooks/_runtime/lifecycle.cjs",
+        "scripts/test-skill-resolution-hook-paths.js"
+      ],
+      "consumers": [
+        "hooks-runtime"
+      ],
+      "invariants": [
+        "contract"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 60000,
       "exitMap": {
         "success": [
           0

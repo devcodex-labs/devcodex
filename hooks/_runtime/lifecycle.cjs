@@ -861,6 +861,15 @@ function toControlPlaneRelPath(target) {
 
 function isControlPlaneSourcePath(target, state) {
   if (!target || isDevCodexManagedPath(target, state)) return false
+  // Workspace custom skills must never be treated as package control-plane skills/
+  try {
+    const { isWorkspaceSkillPath } = require('./skill-resolution.cjs')
+    if (isWorkspaceSkillPath(resolveRelativeToContext(target), { cwd: CONTEXT_ROOT || WORKSPACE_ROOT })) {
+      return false
+    }
+  } catch {
+    /* skill-resolution optional during partial deploys */
+  }
   const rel = toControlPlaneRelPath(target)
   return CONTROL_PLANE_SOURCE_RE.test(rel)
 }
@@ -943,6 +952,15 @@ function isActiveDevCodexNamespacePath(target, state) {
 
 function isDevCodexManagedPath(target, state) {
   if (!target) return false
+  // Carve-out: workspace skills are user-editable extensions, not managed G/runtime state
+  try {
+    const { isWorkspaceSkillPath } = require('./skill-resolution.cjs')
+    if (isWorkspaceSkillPath(resolveRelativeToContext(target), { cwd: CONTEXT_ROOT || WORKSPACE_ROOT })) {
+      return false
+    }
+  } catch {
+    /* optional */
+  }
   const rel = toWorkspaceRelativePath(target)
   if (DEVCODEX_DEPLOYMENT_PATH_RE.test(rel)) return true
   return isActiveDevCodexNamespacePath(target, state)

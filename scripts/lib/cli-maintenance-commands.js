@@ -695,6 +695,28 @@ function buildCliMaintenanceCommands(ctx) {
       executionOptimization,
       hostParity
     })
+    // Workspace skill inventory (W layer) for closed-loop diagnostics (PF-213 / AutoMatch)
+    let workspaceSkills = {
+      enabled: true,
+      root: null,
+      count: 0,
+      ids: [],
+      autoMatchModule: false
+    }
+    try {
+      const skillRes = require('../../hooks/_runtime/skill-resolution.cjs')
+      const autoMatch = require('../../hooks/_runtime/workspace-skill-auto-match.cjs')
+      workspaceSkills.autoMatchModule = true
+      workspaceSkills.enabled = skillRes.isWorkspaceSkillsEnabled(env)
+      workspaceSkills.root = skillRes.resolveWorkspaceSkillsRoot(cwd, { cwd, env })
+      if (workspaceSkills.root) {
+        const list = autoMatch.listWorkspaceSkillCandidates({ cwd, env })
+        workspaceSkills.count = list.length
+        workspaceSkills.ids = list.map(item => item.skillId).slice(0, 24)
+      }
+    } catch {
+      workspaceSkills.autoMatchModule = false
+    }
     return {
       schemaVersion: 'DoctorDiagnosticV1',
       cwd,
@@ -711,6 +733,7 @@ function buildCliMaintenanceCommands(ctx) {
       hostConfigPolicy,
       globalHostConfig,
       globalHostRuntime: globalHostConfig,
+      workspaceSkills,
       enforcement: 'safety-only by default; strict blocks only host-supported events',
       installArtifacts: {
         hasGithubHooks,
@@ -773,7 +796,7 @@ function buildCliMaintenanceCommands(ctx) {
       profile: profileState,
       executionOptimization,
       governanceSummary,
-      hostParity, globalHostConfig, globalHostComparison, sourceRepository, completion
+      hostParity, globalHostConfig, globalHostComparison, sourceRepository, completion, workspaceSkills
     } = facts
     const {
       hasGithubHooks, hasClaudeHooks, hasCodexHooksJson, hasCodexHooks,
@@ -824,6 +847,13 @@ function buildCliMaintenanceCommands(ctx) {
       console.log(c.dim(`  Full session entry: ${hostParity.recommendedEntry}`))
     } else if (hostParity && sourceRepository) {
       console.log(c.dim('  Grok HostParity: source-candidate comparison only; installed HostParity health is not asserted here.'))
+    }
+    if (workspaceSkills) {
+      const ids = (workspaceSkills.ids || []).join(', ') || '(none)'
+      const mod = workspaceSkills.autoMatchModule ? 'AutoMatch module OK' : 'AutoMatch module missing'
+      console.log(`  workspace skills: ${c.cyan(String(workspaceSkills.count || 0))}  ${c.dim(`enabled=${workspaceSkills.enabled !== false}; ${mod}`)}`)
+      console.log(c.dim(`  W root: ${workspaceSkills.root || '(none)'} · ids: ${ids}`))
+      console.log(c.dim('  diagnose: devcodex skill match "<prompt>" · skill resolve <id> · npm run test:skill-automatch-accept'))
     }
     console.log()
     console.log(c.bold('  User-global host adapters:'))

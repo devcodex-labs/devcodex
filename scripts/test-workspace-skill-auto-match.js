@@ -186,6 +186,26 @@ function testLiveWorkspaceIfPresent() {
   }
 }
 
+/**
+ * C1.1: short/ambiguous skill ids must not fire from long task sentences.
+ */
+function testC11MisTriggerClosed() {
+  withFixture(({ opts }) => {
+    const longEn = matchWorkspaceSkills('please test the api', opts)
+    assert.strictEqual(longEn.matched, false, 'long EN sentence with test token must not match')
+    const longZh = matchWorkspaceSkills('单元测试 test 覆盖', opts)
+    assert.strictEqual(longZh.matched, false, 'long CN sentence with test token must not match')
+    const safeLong = matchWorkspaceSkills('帮我审查 monSQLize 的缓存策略', opts)
+    assert.strictEqual(safeLong.matched, false, 'unrelated long task must not match')
+
+    // Positive short triggers still work
+    assert.strictEqual(matchWorkspaceSkills('test', opts).matched, true)
+    assert.strictEqual(matchWorkspaceSkills('测试', opts).matched, true)
+    assert.strictEqual(matchWorkspaceSkills('@rocky test', opts).matched, true)
+    assert.strictEqual(matchWorkspaceSkills('用 test skill', opts).matched, true)
+  })
+}
+
 function main() {
   testMatchTriggers()
   testSatisfactionAndStopReason()
@@ -193,6 +213,7 @@ function main() {
   testExtractMustReply()
   testListCandidates()
   testLiveWorkspaceIfPresent()
+  testC11MisTriggerClosed()
   console.log('test-workspace-skill-auto-match: ok')
 }
 

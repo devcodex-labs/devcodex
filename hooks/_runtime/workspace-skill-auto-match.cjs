@@ -192,6 +192,38 @@ function listWorkspaceSkillCandidates(options = {}) {
 }
 
 /**
+ * Short / ambiguous skill ids (e.g. test) must not fire from long task sentences (C1.1).
+ * Allow: exact, short alone prompt, quoted trigger alone, or explicit "use skill X".
+ */
+function isAmbiguousShortToken(token) {
+  const t = String(token || '').trim()
+  if (!t) return false
+  if (t.length <= 4) return true
+  return /^(tests?|demo|tmp|temp|ok|hi|ping|foo|bar|baz|sample)$/i.test(t)
+}
+
+function isShortAlonePrompt(cleaned, id, name) {
+  const text = String(cleaned || '').trim()
+  if (!text) return false
+  const tokens = text.split(/\s+/).filter(Boolean)
+  const maxLen = Math.max(String(name || '').length, String(id || '').length, 4)
+  // 1–2 tokens and not a long sentence; e.g. "test", "测试", "@rocky test" → after normalize "test"
+  if (tokens.length <= 2 && text.length <= maxLen + 16) return true
+  // single CJK trigger phrase
+  if (tokens.length === 1 && /[\u4e00-\u9fff]/.test(text) && text.length <= 8) return true
+  return false
+}
+
+function hasExplicitSkillInvoke(raw, id, name) {
+  const text = String(raw || '')
+  // "用 test skill" / "用 skill test" / "workspace skill test" / "加载 skill X"
+  const invokeShape = /(?:用|加载|执行)\s+(?:workspace\s+)?skill\b|(?:用|加载|执行)\s+\S+\s+skill\b|workspace\s*skill|skill\s*[:=]/i.test(text)
+  if (!invokeShape) return false
+  const cleaned = normalizePrompt(text)
+  return wordBoundaryHit(cleaned, id) || wordBoundaryHit(cleaned, name)
+}
+
+/**
  * Score a single candidate against user prompt.
  * @returns {{ score: number, reasons: string[] }}
  */
@@ -204,37 +236,59 @@ function scoreCandidate(prompt, candidate) {
 
   const id = candidate.skillId
   const name = candidate.name || id
-  const alone = cleaned.length <= Math.max(name.length, id.length) + 12
+  const alone = isShortAlonePrompt(cleaned, id, name)
+  const idAmbiguous = isAmbiguousShortToken(id)
+  const nameAmbiguous = isAmbiguousShortToken(name)
 
   if (cleaned.toLowerCase() === id.toLowerCase() || cleaned === name) {
-    score += 100
+    score = Math.max(score, 100)
     reasons.push('exact-id-or-name')
   } else if (wordBoundaryHit(cleaned, id)) {
-    score += alone ? 90 : 70
-    reasons.push('id-token')
+    // C1.1: short id in long sentences does not auto-match
+    if (alone || !idAmbiguous) {
+      score = Math.max(score, alone ? 90 : (idAmbiguous ? 0 : 55))
+      if (score >= MIN_MATCH_SCORE) reasons.push(alone ? 'id-token-alone' : 'id-token')
+      else if (idAmbiguous && !alone) reasons.push('id-token-suppressed-long-prompt')
+    } else {
+      reasons.push('id-token-suppressed-long-prompt')
+    }
   } else if (wordBoundaryHit(cleaned, name) && name.toLowerCase() !== id.toLowerCase()) {
-    score += alone ? 85 : 65
-    reasons.push('name-token')
+    if (alone || !nameAmbiguous) {
+      score = Math.max(score, alone ? 85 : (nameAmbiguous ? 0 : 50))
+      if (score >= MIN_MATCH_SCORE) reasons.push(alone ? 'name-token-alone' : 'name-token')
+      else if (nameAmbiguous && !alone) reasons.push('name-token-suppressed-long-prompt')
+    } else {
+      reasons.push('name-token-suppressed-long-prompt')
+    }
   }
 
   for (const t of candidate.triggers || []) {
+    const tAmbiguous = isAmbiguousShortToken(t) || t.length <= 4
     if (cleaned === t || cleaned.toLowerCase() === t.toLowerCase()) {
       score = Math.max(score, 95)
       reasons.push(`trigger-exact:${t}`)
     } else if (wordBoundaryHit(cleaned, t)) {
-      score = Math.max(score, alone ? 88 : 60)
-      reasons.push(`trigger-token:${t}`)
+      if (alone || !tAmbiguous) {
+        const next = alone ? 88 : (tAmbiguous ? 0 : 50)
+        if (next >= MIN_MATCH_SCORE) {
+          score = Math.max(score, next)
+          reasons.push(alone ? `trigger-alone:${t}` : `trigger-token:${t}`)
+        } else if (tAmbiguous && !alone) {
+          reasons.push(`trigger-suppressed-long-prompt:${t}`)
+        }
+      } else {
+        reasons.push(`trigger-suppressed-long-prompt:${t}`)
+      }
     }
   }
 
-  // Explicit invoke
-  if (/用\s*(workspace\s*)?skill|workspace\s*skill|加载\s*skill|执行\s*skill/i.test(raw) &&
-      (wordBoundaryHit(cleaned, id) || wordBoundaryHit(cleaned, name))) {
+  // Explicit invoke always allowed when skill id/name present
+  if (hasExplicitSkillInvoke(raw, id, name)) {
     score = Math.max(score, 92)
     reasons.push('explicit-invoke')
   }
 
-  // Description keyword soft match only when prompt is short (avoid false positives)
+  // Description keyword soft match only when prompt is short alone (avoid false positives)
   if (score < MIN_MATCH_SCORE && alone && cleaned.length >= 2 && cleaned.length <= 24) {
     const desc = String(candidate.description || '').toLowerCase()
     if (desc && desc.includes(cleaned.toLowerCase()) && cleaned.length >= 2) {
@@ -436,5 +490,8 @@ module.exports = {
   toStateRecord,
   looksLikeConnectivityPing,
   normalizePrompt,
-  extractLastAssistantMessage
+  extractLastAssistantMessage,
+  isAmbiguousShortToken,
+  isShortAlonePrompt,
+  hasExplicitSkillInvoke
 }

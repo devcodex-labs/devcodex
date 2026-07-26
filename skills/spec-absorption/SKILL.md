@@ -10,17 +10,20 @@ description: 规范吸纳执行 Skill — 用于检查 data 最新可吸纳项�
 
 执行原则：
 
+- **吸纳 ≠ 写进 Skill/台账关闭**。若吸纳后仍可「只写正文、不挂消费者、不按流程执行」，该吸纳 **无效**，不得标 absorbed/closed。
+- **先 source-root 存在性验证，再谈可吸纳**；禁止把台账 `open / pending absorption / active` 字面状态直接写成「可吸纳清单」。
+- **每条 absorb 必须绑定执行面**：Owner Skill/prompt/runtime + 验证路线；并完成 `ProbeNecessityDecision`（必须探针 / 结构门禁 / 清单即可 / 禁止探针）。
 - 先证明是通用规范价值，再决定是否吸纳；不得把业务项目独有规则包装成 DevCodex 通用规范。
 - 先证明 DevCodex 当前消费者存在，再进入规范源修改；不得只因为某个项目出现过一次就改通用规范。
 - 先分层归属，再写实现；不得把成组能力默认追加到通用 instructions、`CrossProjectLearnedGuards` 或 prompts 长清单。
-- 先输出最终待确认清单；用户确认后再实施、验证、回写台账和同步部署副本。
+- 先输出最终待确认清单（含探针决策与执行影响）；用户确认后再实施、验证、回写台账和同步部署副本。
 
 ## 触发语义
 
 | 用户语义 | 必做 |
 |----------|------|
-| “检查 data 是否有可以吸纳的” | 扫描 `.devcodex/*/data/` 全命名空间，输出候选、通用性判断、跳过理由 |
-| “列出仍需吸纳清单” | 执行遗漏过滤，排除已吸纳、已关闭、重复和项目独有项，只列最终仍需吸纳 |
+| “检查 data 是否有可以吸纳的” | 扫描 `.devcodex/*/data/` 全命名空间，**对每条候选先跑 `SourceExistenceVerificationGate`**，再输出候选、通用性判断、跳过理由与可关账项 |
+| “列出仍需吸纳清单” | 执行遗漏过滤，排除已吸纳、已关闭、**source 已覆盖（ledger-stale）**、重复和项目独有项，只列最终仍需吸纳 |
 | “开始吸纳 / 确认执行” | 执行分层决策、消费者同步、验证探针、台账回写、报告和记忆 |
 | “这个也要记录 / 以后要这样” | 先交给 `spec-governance` 做 RecordRouter，再由本 Skill 判断是否进入吸纳 |
 | “之前都吸纳到通用规范了，重新分层” | 叠加 `HistoricalCommonNormLayeringGate`，先建逐文件矩阵 |
@@ -29,15 +32,52 @@ description: 规范吸纳执行 Skill — 用于检查 data 最新可吸纳项�
 
 1. **输入归集**：读取用户消息、相关报告、运行态台账、最新记忆和源码现状。
 2. **规模路由与全命名空间扫描**：先调用 `skill-gap-analysis` 的 `ProjectArtifactScaleRoutingGate` 形成 `ScaleDecisionRecord`，再执行 `WorkspaceDataAbsorptionScopeGate` 覆盖 `.devcodex/*/data/`；大语料必须分批/checkpoint，错误 glob、超时和派生产物污染结果标 invalid/discarded。
-3. **Backlog Intake 真相复核**：把候选分类为 `pure-open / residual-tail / already-fixed / misclassified`，非 `pure-open` 不得原样进入吸纳范围。
-4. **通用性证明**：对每项执行 `CommonNormGeneralizationGate`。
-5. **消费者证明**：对通过通用性证明的项执行 `AbsorptionCandidateConsumerProofGate`。
-6. **返工价值复核**：候选声称降低返工、补复审遗漏或提升首次通过率时，执行 `ReworkReductionValueGate`；文本出现次数不能替代可执行 owner 和效果证据。
-7. **分层归属**：执行 `LayeredAbsorptionGate`，判定 `global-invariant / existing-skill-subgate / new-skill-required / docs-only / case-evidence-only / project-local / already-covered`。
-8. **确认清单**：仅输出仍需吸纳项，列出目标 Skill、层级、验证路线和跳过理由，等待用户确认。
-9. **实施同步**：确认后同步 commonInstruction、Skill、promptTemplate、executionConsumer、validationProbe、publicDocs、deployCopy。
-10. **验证回写**：执行 targeted test、`node scripts/validate.js`、必要的 `npm test` / website / release 验证；回写 PI / PF / GAP / VL / ISSUE 状态。
-11. **报告记忆**：报告必须引用候选矩阵、LayeredAbsorptionDecision、验证证据、台账状态和部署副本同步。
+3. **SourceExistenceVerificationGate（硬前置）**：对每条表面 open 候选，在 **source-root**（通常 `devcodex-v1`）检索同名 Gate / Skill / schema / 探针 / 测试入口；未完成存在性验证的候选不得进入「最终可吸纳清单」。
+4. **Backlog Intake 真相复核**：结合存在性结果分类为 `pure-open / residual-tail / already-fixed / misclassified`，非 `pure-open` 不得原样进入吸纳范围；`already-fixed` / 等价覆盖写入 **可关账清单**。
+5. **通用性证明**：对通过存在性验证且仍为缺口的项执行 `CommonNormGeneralizationGate`。
+6. **消费者证明**：对通过通用性证明的项执行 `AbsorptionCandidateConsumerProofGate`。
+7. **返工价值复核**：候选声称降低返工、补复审遗漏或提升首次通过率时，执行 `ReworkReductionValueGate`；文本出现次数不能替代可执行 owner 和效果证据。
+8. **可执行吸纳与探针必要性**：对拟 absorb 项执行 `ExecutableAbsorptionEffectivenessGate` + `ProbeNecessityDecisionGate`；缺执行面或「该探针却无探针计划」→ 不得进入最终 absorb 清单。
+9. **分层归属**：执行 `LayeredAbsorptionGate`，判定 `global-invariant / existing-skill-subgate / new-skill-required / docs-only / case-evidence-only / project-local / already-covered`。
+10. **确认清单**：仅输出仍需吸纳项（含探针档位与影响）+ 并列 **可关账/已覆盖** 清单，等待用户确认。
+11. **实施同步**：确认后同步 commonInstruction、Skill、promptTemplate、executionConsumer、**validationProbe（按探针决策）**、publicDocs、deployCopy；禁止只改 Markdown 正文。
+12. **验证回写**：执行 targeted test、`node scripts/validate.js`、必要的 `npm test` / website / release 验证；回写 PI / PF / GAP / VL / ISSUE 状态；**无探针/无消费者的不得写 absorbed**。
+13. **报告记忆**：报告必须引用候选矩阵、SourceExistence、ProbeNecessity、LayeredAbsorptionDecision、验证证据、台账状态和部署副本同步。
+
+## SourceExistenceVerificationGate
+
+> 🔴 **防复发（2026-07-26）**：仅扫台账状态输出「可吸纳」属于控制失效。最终确认清单中每条 `commonDecision=absorb` 必须有本门禁证据；`existenceStatus=present|equivalent-covered` 时只能 `already-covered` / `already-fixed` 并进可关账清单，**禁止**再标 absorb。
+
+每个候选在进入通用性证明 / 最终确认清单前必须填写：
+
+| 字段 | 说明 |
+|------|------|
+| `candidateId` | PI / PF / GAP / ISSUE 编号 |
+| `claimedCapability` | 候选声称要新增的能力名（Gate / Skill / 矩阵 / 探针） |
+| `searchAnchors` | 在 source-root 检索的关键词/路径（≥1；含同名与已知近邻等价名） |
+| `sourceRoot` | 规范源码根，例如 `E:/Worker/devcodex-v1` 或仓库相对路径 |
+| `existenceStatus` | `absent` / `partial` / `present` / `equivalent-covered` / `unverified` |
+| `hitEvidence` | 命中文件路径与符号（可空数组，但 `present/partial/equivalent-covered` 时至少 1 条） |
+| `nearNeighborCoverage` | 近邻已有能力说明；无则 `none` |
+| `ledgerDisposition` | `absorb-candidate` / `residual-candidate` / `close-ledger` / `defer` |
+| `verifiedBy` | 检索方式 + 可选生产入口测试命令与 exitCode |
+
+判定规则：
+
+- `existenceStatus=unverified` 或缺少 `searchAnchors` / `sourceRoot` → **阻断**，不得输出为可吸纳。
+- `present` 或 `equivalent-covered` → `backlogClass=already-fixed`（或 `commonDecision=already-covered`），进入 **可关账清单**，禁止 absorb。
+- `partial` → 最多 `residual-tail`；最终 absorb 只能是「补洞切片」，必须写清已有近邻与仍缺字段。
+- `absent` 且检索覆盖 claimedCapability 与主要近邻名 → 才可继续 `CommonNormGeneralizationGate` 并竞逐 `pure-open`。
+- 台账写 `pending absorption` 但 source 已实现 → 记 **ledger-stale**，归可关账，不得重复实施。
+
+### 负向样例
+
+| 负向样例 | 处理 |
+|----------|------|
+| 只根据 `状态：open` / `pending absorption` 列入可吸纳 | invalid：`ledger-status-only` |
+| 未在 source-root 检索同名 Gate 即标 pure-open absorb | invalid：`existence-unverified` |
+| source 已有 `EvidenceFreshnessReceiptV1` + 测试绿，台账仍 residual open 又整包吸纳 | invalid：应 `close-ledger` |
+| 有近邻 TTFV 却把 ProgressReportFastPath 写成「已存在」而不写 partial/absent | invalid：须区分父门禁与特化缺口 |
 
 ## CommonNormGeneralizationGate
 
@@ -84,6 +124,119 @@ description: 规范吸纳执行 Skill — 用于检查 data 最新可吸纳项�
 | `skipReason` | 任一层 N/A 的理由 |
 
 消费者证明失败时，不得实施为 active 规范；最多进入 PF / ISSUE，或作为 case evidence 保留。
+
+## ExecutableAbsorptionEffectivenessGate
+
+> 🔴 **核心不变量**：规范写进 Skill 但流程上仍可不执行 = **假吸纳**。用户确认 absorb 前，每条候选必须证明「不按流程执行时会被发现或阻断」，而不是只证明「文档里有这句话」。
+
+### 什么叫「有效吸纳」
+
+| 条件 | 必须满足 |
+|------|----------|
+| 触发面 | 有明确触发语义（意图/阶段/产物类型），命中时必须加载 Owner |
+| 执行面 | 有 Skill 子门禁 / Hook / CLI / planner 之一真正执行检查 |
+| 验证面 | 有 `validationRoute` 生产入口；按 `ProbeNecessityDecision` 挂探针或结构门禁 |
+| 失败语义 | 违反时有 fail / block / WARN 降级之一，不能静默忽略 |
+| 关闭语义 | 只有执行面+验证面绿才允许台账 `absorbed/closed` |
+
+### 什么叫「无效吸纳」（禁止标 absorbed）
+
+| 反模式 | 说明 |
+|--------|------|
+| text-only | 只改 SKILL.md / instructions 段落，无消费者路径 |
+| checklist-only-as-absorb | 仅靠人工自觉勾选，无结构字段、无样例探针、无 fail 路径 |
+| absorb-without-process | 宣称已吸纳，但同类任务仍可不跑门禁完成 |
+| probe-theater | 有测试文件但不断言本规则的负向逃逸 |
+| ledger-close-without-enforcement | 台账关了，runtime/Skill 仍不执行 |
+
+判定：`enforcementLevel` 必须为下列之一，且与探针决策一致：
+
+| enforcementLevel | 含义 | 可否 absorb 为 active |
+|------------------|------|------------------------|
+| `hard-probe` | 机器探针/schema 负向可阻断或测试红 | 是 |
+| `structural-gate` | 缺字段/矩阵 blocked（planner/candidate-review/CP） | 是 |
+| `conditional-probe` | 仅命中场景挂探针；未命中 N/A+skipReason | 是（须写触发条件） |
+| `checklist-only` | 仅清单提醒 | **否**（active）；最多 docs-only / gray + 明示无效于防复发 |
+| `none` | 无执行 | **否** |
+
+## ProbeNecessityDecisionGate
+
+每条 `commonDecision=absorb` 必须填写 **ProbeNecessityDecision**（可嵌入矩阵 `probeNecessity` 字段）：
+
+| 字段 | 说明 |
+|------|------|
+| `candidateId` | 编号 |
+| `probeClass` | `machine-sample` / `structural-schema` / `fixture-replay` / `extend-existing` / `checklist-only` / `probe-forbidden` |
+| `necessity` | `required` / `conditional` / `not-required` / `forbidden` |
+| `rationale` | 为何必须/不必/禁止探针（假绿成本、可机检性、频率） |
+| `probePlan` | 新建 classifier / 扩展现有探针 / 结构 required 字段 / N/A |
+| `existingProbeReuse` | 可复用的探针名；无则 `none` |
+| `alwaysOnImpact` | `none` / `test-only` / `conditional-path` / `always-on-path` |
+| `complexityDelta` | 维护成本：低/中/高 + 一句话 |
+| `falsePositiveRisk` | 误报风险与缓解 |
+| `skipProbeReason` | `necessity=not-required|forbidden` 时必填 |
+
+### 哪些 **必须** 有探针（necessity=required 或 conditional）
+
+同时满足越多，越应 `required`：
+
+1. **假绿代价高**：会误导完成态、发布、关账、用户可见进度/阶段  
+2. **可机检**：可用样例文本、JSON 字段、路径、exitCode 判定，不靠「是否好懂」主观分  
+3. **重复发生或跨任务**：≥2 次独立上下文或明确跨项目  
+4. **违反后应失败**：应用 fail/block，而不是仅建议  
+
+| 典型必须 | 探针形态 |
+|----------|----------|
+| 进度/TTFV 类执行逃逸 | 扩展 `classifyTtfv*` 或专用 progress 样例 |
+| 多任务阶段/sourceDelivery 误投影 | 最终回复/进度卡 sample classifier |
+| closed 产物复活 | fixture 头状态 + 拟写路径 |
+| 强主张/完成态假绿 | 既有 MeasuredVerification / FinalValidation 类 |
+| 分类/分层字段缺失导致假完成 | structural schema required |
+
+`conditional`：仅特定工作流命中（如 consumer-validation formal、GlobalHost CP2）时强制；其它任务 `N/A + skipReason`。
+
+### 哪些 **没必要** 机器探针（necessity=not-required）
+
+| 类型 | 处理 | 仍须有的执行面 |
+|------|------|----------------|
+| 纯文档口吻/IA 文案 | docs-only 或 checklist | document-sync / 受众检查即可 |
+| 高度主观质量（「是否足够低心智」全文） | 结构矩阵字段 required，**禁止** LLM-as-judge 硬探针 | CP1 缺 `FirstSuccessfulRequest` 等字段 blocked |
+| 极低频且人工确认更安全 | checklist + 用户确认 | 报告写 skipProbeReason |
+| 已有更强探针完全覆盖 | already-covered / extend-existing | 复用，不新建 |
+
+### 哪些 **禁止** 乱加探针（necessity=forbidden）
+
+| 禁止 | 原因 |
+|------|------|
+| always-on 全任务扫全库 | 抬高 token/墙钟，违反 TTFV / 基座中性 |
+| 无负向样例的「探针」 | probe-theater，制造假安全感 |
+| 把项目私有路径写进通用探针 | 泄漏 project-local |
+| 与现有 classifier 重复且更弱 | 规范税 + 漂移 |
+
+### 添加探针的影响（实施前必须写清）
+
+| alwaysOnImpact | 影响 | 默认允许 |
+|----------------|------|----------|
+| `none` | 仅文档 | 不单独作为 absorb 关闭证据 |
+| `test-only` | 只进 `npm test` / targeted，不改默认对话路径 | **推荐** |
+| `conditional-path` | 仅命中意图/Skill 时加载 | **推荐** |
+| `always-on-path` | 每轮或每宿主默认执行 | 须 `base-changing` 或明确 base-compatible + UnaffectedIntentRegression；**单独确认** |
+
+复杂度默认约束：
+
+- 新建 Gate 家族 > 扩展现有 classifier > 结构字段 required（优先后者）  
+- `complexityDelta=高` 且无 `replacementOrRetirementCredit` → 不得 ready  
+- 探针必须至少 1 正 + 1 负样例；disabled/misconfigured 在 base-compatible 及以上必填  
+
+### 负向样例
+
+| 负向 | 处理 |
+|------|------|
+| 清单写 absorb，probeNecessity 缺失 | blocked |
+| necessity=required 但 probePlan=「以后再说」 | blocked |
+| checklist-only 标 active absorbed | invalid 假吸纳 |
+| always-on 新探针无 UnaffectedIntentRegression | blocked |
+| 只同步 Skill 正文，validationProbe 层 N/A 且无 skipReason | layer blocked |
 
 ## BaseImpactAssessmentV1 / ComplexityDeltaBudgetV1
 
@@ -158,6 +311,9 @@ description: 规范吸纳执行 Skill — 用于检查 data 最新可吸纳项�
 | `sourceNamespace` | 来源 active-root 或 workspace data namespace |
 | `backlogClass` | `pure-open / residual-tail / already-fixed / misclassified` |
 | `commonDecision` | `absorb / case-evidence-only / project-local / docs-only / already-covered / reject / defer` |
+| `sourceExistence` | `SourceExistenceVerificationGate` 记录；`commonDecision=absorb` 时必填且不得为 `present/equivalent-covered/unverified` |
+| `probeNecessity` | `ProbeNecessityDecisionGate` 记录；`commonDecision=absorb` 时必填 |
+| `enforcementLevel` | `hard-probe` / `structural-gate` / `conditional-probe` / `checklist-only` / `none`；absorb 不得为后两者 |
 | `targetOwner` | 真实执行 owner，吸纳项缺失 owner 时阻断 |
 | `layerChecks` | `commonInstruction / skill / promptTemplate / executionConsumer / validationProbe / publicDocs / deployCopy` |
 | `validationRoute` | 生产验证入口，不得只写“人工复审” |
@@ -178,8 +334,8 @@ node scripts/plan-absorption-candidates.js --self-test
 
 | status | 进入条件 | 后续 |
 |--------|----------|------|
-| `ready` | `backlogClass=pure-open`、`commonDecision=absorb`、owner/layer/test/docs/deploy 证据齐全 | 进入实施 |
-| `blocked` | owner 缺失、layer blocked、验证路线缺失或 schema 无效 | 修正矩阵或回 CP |
+| `ready` | `backlogClass=pure-open|residual-tail`、`commonDecision=absorb`、存在性合格、**probeNecessity 齐全且 enforcementLevel 非 checklist-only/none**、owner/layer/test/docs/deploy 证据齐全 | 进入实施 |
+| `blocked` | owner 缺失、layer blocked、验证路线缺失、存在性不合格、**缺探针决策/执行面无效**、或 schema 无效 | 修正矩阵或回 CP |
 | `skipped` | `project-local / already-covered / docs-only / case-evidence-only / reject / defer` | 回写 skipReason，不改通用规范 |
 
 防复发闭环只允许声明当前关闭证据；长期有效性必须进入 `repair-prevention-assessment` 的 prospective plan。禁止把本轮 planner self-test 通过写成长期 prevention 已有效。
@@ -193,11 +349,20 @@ node scripts/plan-absorption-candidates.js --self-test
 
 ### 最终确认清单
 
-只列 `commonDecision=absorb` 且尚未完整吸纳的项：
+只列同时满足：`commonDecision=absorb`、SourceExistence 合格、**ExecutableAbsorption + ProbeNecessity 合格**、尚未完整吸纳：
 
 ```markdown
-| ID | 待吸纳规范 | 通用价值证据 | 目标层级 | 目标 owner | 验证路线 |
-|----|------------|--------------|----------|------------|----------|
+| ID | 待吸纳规范 | existence | enforcementLevel | probeClass / necessity | alwaysOnImpact | 目标 owner | 验证路线 |
+|----|------------|-----------|------------------|------------------------|----------------|------------|----------|
+```
+
+确认清单中每条必须能回答：**若不按流程执行，谁会红/阻断？** 答不出则不得列入。
+
+### 可关账清单（并列输出）
+
+```markdown
+| ID | 台账状态 | source 证据 | disposition |
+|----|----------|-------------|------------|
 ```
 
 ### 实施报告字段
@@ -206,6 +371,7 @@ node scripts/plan-absorption-candidates.js --self-test
 
 - `WorkspaceDataAbsorptionScopeGate` 扫描范围。
 - `ProjectArtifactScaleRoutingGate` 的项目/root、六项规模指标、决策、排除策略、batch/checkpoint 与 invalid-run 证据。
+- **`SourceExistenceVerificationGate` 全候选结果（含可关账）**。
 - `Backlog Intake` 分类与范围缩减。
 - `CommonNormGeneralizationGate` 与 `AbsorptionCandidateConsumerProofGate` 证据。
 - `LayeredAbsorptionDecision` 与 `SkillAbsorptionDecision`。

@@ -541,3 +541,9 @@ module.exports = {
   readAdapterDenyContract,
   readBootstrapCapability
 }
+
+// Re-export progress fast-path classifier (R1) for single import site convenience
+const {
+  classifyProgressReportFastPathSample
+} = require('./executable-absorption-gates')
+module.exports.classifyProgressReportFastPathSample = classifyProgressReportFastPathSample

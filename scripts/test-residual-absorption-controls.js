@@ -80,6 +80,16 @@ const layerChecks = {
   publicDocs: { state: 'required', evidence: 'README.md' },
   deployCopy: { state: 'required', evidence: 'devcodex global-adapters apply' }
 }
+const sourceExistence = {
+  claimedCapability: 'SourceExistenceVerificationGate',
+  searchAnchors: ['SourceExistenceVerificationGate'],
+  sourceRoot: 'devcodex-v1',
+  existenceStatus: 'absent',
+  hitEvidence: [],
+  nearNeighborCoverage: 'none',
+  ledgerDisposition: 'absorb-candidate',
+  verifiedBy: 'test-residual-absorption-controls'
+}
 const structured = {
   schemaVersion: 'AbsorptionCandidateMatrixV1',
   phaseKind: 'planning',
@@ -92,7 +102,19 @@ const structured = {
     targetOwner: 'spec-absorption',
     targetLayer: 'existing-skill-subgate',
     layerChecks,
-    validationRoute: ['npm run test:residual-absorption-controls']
+    validationRoute: ['npm run test:residual-absorption-controls'],
+    sourceExistence,
+    probeNecessity: {
+      probeClass: 'extend-existing',
+      necessity: 'required',
+      rationale: 'false-green high',
+      probePlan: 'extend existing residual controls',
+      existingProbeReuse: 'classifyStructuredAbsorptionPlanSample',
+      alwaysOnImpact: 'test-only',
+      complexityDelta: 'low',
+      falsePositiveRisk: 'low'
+    },
+    enforcementLevel: 'hard-probe'
   }]
 }
 assert.strictEqual(classifyStructuredAbsorptionPlanSample(structured), 'accepted')
@@ -100,5 +122,30 @@ assert.strictEqual(classifyStructuredAbsorptionPlanSample({
   ...structured,
   candidates: [{ ...structured.candidates[0], targetOwner: '' }]
 }), 'blocked')
+
+const {
+  classifySourceExistenceVerificationSample
+} = require('./lib/absorption-candidate-planner')
+assert.strictEqual(
+  classifySourceExistenceVerificationSample('状态：pending absorption 列为可吸纳 pure-open'),
+  'ledger-status-only'
+)
+assert.strictEqual(
+  classifySourceExistenceVerificationSample({
+    existenceStatus: 'present',
+    searchAnchors: ['EvidenceFreshnessReceiptV1'],
+    sourceRoot: 'devcodex-v1',
+    hitEvidence: ['scripts/lib/evidence-freshness-receipt.js']
+  }),
+  'close-ledger'
+)
+assert.strictEqual(
+  classifySourceExistenceVerificationSample({
+    existenceStatus: 'absent',
+    searchAnchors: ['ProgressReportFastPath'],
+    sourceRoot: 'devcodex-v1'
+  }),
+  'absorb-ok'
+)
 
 console.log('✓ V96 residual absorption positive and negative controls passed')

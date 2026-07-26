@@ -200,7 +200,28 @@ function buildResidualAbsorptionControlChecks(ctx) {
         targetLayer: 'existing-skill-subgate',
         layerChecks,
         validationRoute: ['npm run test:residual-absorption-controls'],
-        consumerSync: ['README.md']
+        consumerSync: ['README.md'],
+        sourceExistence: {
+          claimedCapability: 'SourceExistenceVerificationGate',
+          searchAnchors: ['SourceExistenceVerificationGate'],
+          sourceRoot: 'devcodex-v1',
+          existenceStatus: 'absent',
+          hitEvidence: [],
+          nearNeighborCoverage: 'none',
+          ledgerDisposition: 'absorb-candidate',
+          verifiedBy: 'validate-residual-absorption-controls'
+        },
+        probeNecessity: {
+          probeClass: 'extend-existing',
+          necessity: 'required',
+          rationale: 'false-green high',
+          probePlan: 'extend residual controls',
+          existingProbeReuse: 'classifyStructuredAbsorptionPlanSample',
+          alwaysOnImpact: 'test-only',
+          complexityDelta: 'low',
+          falsePositiveRisk: 'low'
+        },
+        enforcementLevel: 'hard-probe'
       }]
     }
     expect(classifyStructuredAbsorptionPlanSample(structuredMatrix), 'accepted', 'structured absorption positive')
@@ -226,10 +247,10 @@ function buildResidualAbsorptionControlChecks(ctx) {
       ['skills/audit-user-manual/SKILL.md', ['ScenarioCoverageMatrixProbe', 'DurableBatchOrchestrationProbe']],
       ['skills/distributed-systems-architecture/SKILL.md', ['DurableBatchOrchestrationProbe', '持久化 cursor/checkpoint']],
       ['skills/spec-governance/gate-registry.json', ['release-efficiency', 'batch-scope-rebinding', 'contract-mutation-isolation', 'phase-delivery-semantics', 'scenario-durable-workflow']],
-      ['skills/spec-absorption/SKILL.md', ['BaseImpactAssessmentV1', 'ComplexityDeltaBudgetV1', 'UnaffectedIntentRegression', 'replacementOrRetirementCredit', 'base-neutral', 'base-compatible', 'base-changing', 'AbsorptionCandidateMatrixV1', 'LayeredAbsorptionDecisionV1', 'plan-absorption-candidates']],
-      ['skills/spec-absorption/absorption-candidate-matrix.v1.schema.json', ['AbsorptionCandidateMatrixV1', 'backlogClass', 'commonDecision', 'layerChecks', 'prevention']],
+      ['skills/spec-absorption/SKILL.md', ['BaseImpactAssessmentV1', 'ComplexityDeltaBudgetV1', 'UnaffectedIntentRegression', 'replacementOrRetirementCredit', 'base-neutral', 'base-compatible', 'base-changing', 'AbsorptionCandidateMatrixV1', 'LayeredAbsorptionDecisionV1', 'plan-absorption-candidates', 'SourceExistenceVerificationGate', '可关账清单', 'ExecutableAbsorptionEffectivenessGate', 'ProbeNecessityDecisionGate', 'enforcementLevel']],
+      ['skills/spec-absorption/absorption-candidate-matrix.v1.schema.json', ['AbsorptionCandidateMatrixV1', 'backlogClass', 'commonDecision', 'layerChecks', 'prevention', 'sourceExistence', 'existenceStatus', 'probeNecessity', 'alwaysOnImpact']],
       ['skills/spec-absorption/layered-absorption-decision.v1.schema.json', ['LayeredAbsorptionDecisionV1', 'classification', 'consumerSync', 'status']],
-      ['scripts/lib/absorption-candidate-planner.js', ['planAbsorptionCandidates', 'validateAbsorptionCandidateMatrix', 'readonly', 'sideEffects']],
+      ['scripts/lib/absorption-candidate-planner.js', ['planAbsorptionCandidates', 'validateAbsorptionCandidateMatrix', 'classifySourceExistenceVerificationSample', 'classifyExecutableAbsorptionSample', 'readonly', 'sideEffects']],
       ['scripts/plan-absorption-candidates.js', ['--self-test', '--input', 'read-only']],
       ['skills/spec-governance/SKILL.md', ['base-admission-governance', 'BaseImpactAssessmentV1', 'ComplexityDeltaBudgetV1']],
       ['skills/test-router/SKILL.md', ['baseAdmissionGovernance', 'BaseImpactAssessmentV1', 'V96']],

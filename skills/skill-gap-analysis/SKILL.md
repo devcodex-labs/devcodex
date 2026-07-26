@@ -41,6 +41,19 @@ description: Skill 缺口与大语料分析 Owner — 当任务涉及项目/工�
 
 禁止：整轮只读 Skill 百科、只跑全库 inventory、或只写超长需求概括却零交付。用户明确「直接开审/跳过确认」时跳过范围确认，**立即 B1 交付**。
 
+## ProgressReportFastPath（PI-20260725-01 · TTFV 进度查询特化）
+
+> 🔴 用户问「进度 / 发版到哪了 / 验证状态」且已点名项目时，**禁止** workspace 根 inventory 与模糊 task 名阻塞首答。
+
+| 步骤 | 要求 |
+|------|------|
+| 绑定 | 立即绑定 `.devcodex/<project>/` 与源码目录；路径直达 |
+| 真相源顺序 | ① `verification/issues/README`（或问题总台账）② `fixed-awaiting-rerun-classification`（若有）③ profile 发布/项目检查点 ④ SUMMARY 近行 ⑤ 仅不足时再读 `05-实施进度`/报告 |
+| 首轮交付 | 需求定位 → 进度数字表 → 当前阻断 → 一句话结论 |
+| 失败 | 同 TTFV 违约；探针 `classifyProgressReportFastPathSample` → `progress-fail` |
+
+**机器探针**：`scripts/lib/executable-absorption-gates.js` → `classifyProgressReportFastPathSample`；`npm run test:executable-absorption-gates`。
+
 | decision | 默认判定 | 执行 |
 |---|---|---|
 | `single-pass` | 全部满足 ≤50 files、≤2 MiB、largest≤256 KiB、fan-out≤10，且用户未提示大目录 | 一次处理，仍保留排除策略 |

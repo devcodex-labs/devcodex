@@ -231,19 +231,24 @@ function runSpecGovernanceReviewSuite(ctx) {
   function classifyAbsorptionSample(sample) {
     const projectSpecific = /ServiceSpecReadGate|docs\/services\/<name>|单个业务项目|项目私有/.test(sample)
     const consumerProof = /DevCodex 当前消费者|targetOwner|跨工作流复用|宿主无关/.test(sample)
+    const sourceVerified = /SourceExistence|existenceStatus\s*[:=]\s*absent|source-root|源码检索|searchAnchors/.test(sample)
+    const ledgerOnly = /pending absorption|状态[：:]\s*open|只根据台账/.test(sample) && !sourceVerified
+    if (ledgerOnly) return 'ledger-status-only'
     if (projectSpecific && !consumerProof) return 'project-local'
-    if (consumerProof) return 'absorb'
+    if (consumerProof && sourceVerified) return 'absorb'
+    if (consumerProof && !sourceVerified) return 'existence-unverified'
     return 'case-evidence-only'
   }
   for (const sample of [
     'ServiceSpecReadGate：服务开发进入编码前必须读取 docs/services/<name>/',
-    '单个业务项目的 route/model/schema 命名规范'
+    '单个业务项目的 route/model/schema 命名规范',
+    '状态：open pending absorption 列为可吸纳 pure-open'
   ]) {
     if (classifyAbsorptionSample(sample) === 'absorb') {
       failures.push(`spec-absorption negative sample was incorrectly classified as absorb: ${sample}`)
     }
   }
-  if (classifyAbsorptionSample('跨工作流复用且已有 DevCodex 当前消费者和 targetOwner 的吸纳候选') !== 'absorb') {
+  if (classifyAbsorptionSample('跨工作流复用且已有 DevCodex 当前消费者和 targetOwner 的吸纳候选；SourceExistence existenceStatus=absent searchAnchors 已在 source-root 检索') !== 'absorb') {
     failures.push('spec-absorption positive sample did not classify as absorb')
   }
   for (const [file, needle] of [
@@ -253,6 +258,9 @@ function runSpecGovernanceReviewSuite(ctx) {
     ['skills/spec-absorption/SKILL.md', 'name: spec-absorption'],
     ['skills/spec-absorption/SKILL.md', 'CommonNormGeneralizationGate'],
     ['skills/spec-absorption/SKILL.md', 'AbsorptionCandidateConsumerProofGate'],
+    ['skills/spec-absorption/SKILL.md', 'SourceExistenceVerificationGate'],
+    ['skills/spec-absorption/SKILL.md', 'ExecutableAbsorptionEffectivenessGate'],
+    ['skills/spec-absorption/SKILL.md', 'ProbeNecessityDecisionGate'],
     ['skills/spec-absorption/SKILL.md', 'ServiceSpecReadGate'],
     ['skills/spec-absorption/SKILL.md', 'project-local'],
     ['skills/spec-absorption/SKILL.md', 'case-evidence-only'],

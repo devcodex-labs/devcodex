@@ -87,6 +87,8 @@ CP 门控**不受 ENV_MODE 影响**。dev/prod 均强制保持 CP1→CP2 顺序�
 16. **CpArtifactBeforeConfirmGate（PF-138）**：输出「确认 CP1/CP2/CP3」前，磁盘产物路径必须已写入且出现在确认文案（如 `01-需求确认.md` / `02-技术方案.md` / `artifactPath`）；禁止无路径点选。机器探针：`classifyCpArtifactBeforeConfirmSample` → `missing-cp-artifact` 失败。
 17. **CodeTruthAtCpEntryGate（PF-139）**：控制面 / MCP / Hook / CLI / validate / 分发类任务在写「可确认 CP / 方案定稿 / 可实施」前必须含 `CodeTruthEvidenceMatrix`（或 Gate 名 + repoPath/currentBehavior/negativeProbe）；机器探针：`classifyCodeTruthMatrixAtCpSample` → `missing-code-truth-matrix` 失败。
 18. **ControlPlaneDigest + AuthorSelfReviewBoundary（PF-140）**：控制面确认必须绑定 `artifactPath`+`artifactSha256`/`ConfirmBindingGate`（`classifyControlPlaneDigestSample`）；**禁止**把「作者自审」标成「独立审查」（`classifyAuthorSelfReviewBoundarySample`）。TimeoutOwnership：同步 I/O 不得宣称 wall-clock 硬超时假绿（见 release-verification / MCP 文档边界）。
+19. **ClosedArtifactNoReviveGate（PF-191）**：需求/bug 目录头部为 `closed` / `canceled` / `archived` / `user-canceled` 时，**禁止**把同一目录改回 active/candidate 或增量写 00/01 冒充新开。必须**新建**需求/bug 目录，旧目录仅可追加 superseded/related marker 或被新目录引用。机器探针：`classifyClosedArtifactNoReviveSample` → `revive-allowed-invalid` 失败；`npm run test:executable-absorption-gates`。
+20. **TaskPhaseProjectionGate（PF-183 · 条件）**：多 active 任务、用户只说「继续/刚才/当前」、或出现实施计划/进度投影时，用户可见回复必须含 `activeTask`（或等价任务名）、`phaseKind`/CP 状态、`sourceDelivery=none|started|partial|complete`、唯一 `nextAllowedAction`。禁止把「CP3 候选计划已生成 / 04 已存在」渲染为「源码已在实施」。仅 CP3 confirmed + 05 存在 + 可验证 source mutation 才可 `sourceDelivery=started`。探针：`classifyTaskPhaseProjectionSample` → `phase-fail`。
 
 ## CP 响应处理
 

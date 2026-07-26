@@ -26,6 +26,34 @@ function layerChecks(overrides = {}) {
   ]))
 }
 
+function sourceExistence(overrides = {}) {
+  return {
+    claimedCapability: 'SourceExistenceVerificationGate',
+    searchAnchors: ['SourceExistenceVerificationGate', 'plan-absorption-candidates'],
+    sourceRoot: 'devcodex-v1',
+    existenceStatus: 'absent',
+    hitEvidence: [],
+    nearNeighborCoverage: 'none',
+    ledgerDisposition: 'absorb-candidate',
+    verifiedBy: 'self-test grep anchors in source-root',
+    ...overrides
+  }
+}
+
+function probeNecessity(overrides = {}) {
+  return {
+    probeClass: 'extend-existing',
+    necessity: 'required',
+    rationale: 'false-green high; machine-sampleable; reuse host-parity classifiers',
+    probePlan: 'extend classifyTtfvOmissionSample with progress-query negative fixture',
+    existingProbeReuse: 'classifyTtfvOmissionSample',
+    alwaysOnImpact: 'test-only',
+    complexityDelta: 'low: extend existing classifier',
+    falsePositiveRisk: 'low if chat intent excluded',
+    ...overrides
+  }
+}
+
 function sampleMatrix(overrides = {}) {
   return {
     schemaVersion: 'AbsorptionCandidateMatrixV1',
@@ -46,6 +74,9 @@ function sampleMatrix(overrides = {}) {
         layerChecks: layerChecks(),
         validationRoute: ['npm run test:residual-absorption-controls'],
         consumerSync: ['README.md', 'website/docs/guide/development.md'],
+        sourceExistence: sourceExistence(),
+        probeNecessity: probeNecessity(),
+        enforcementLevel: 'hard-probe',
         prevention: {
           rootCause: 'free-form absorption decisions were hard to verify',
           controlFailure: 'review checklist did not require schema-backed layer decisions',
@@ -71,6 +102,7 @@ function sampleMatrix(overrides = {}) {
 }
 
 function runSelfTest() {
+  const { classifySourceExistenceVerificationSample } = require('./lib/absorption-candidate-planner')
   const matrix = sampleMatrix()
   const before = JSON.stringify(matrix)
   const plan = planAbsorptionCandidates(matrix)
@@ -84,6 +116,50 @@ function runSelfTest() {
   }))
   assert.strictEqual(blocked.summary.blocked, 1)
   assert(blocked.decisions[0].blockers.includes('target-owner-missing'))
+  const missingExistence = validateAbsorptionCandidateMatrix(sampleMatrix({
+    candidates: [{ ...matrix.candidates[0], sourceExistence: undefined }]
+  }))
+  assert(missingExistence.some(item => item.code === 'source-existence-required'))
+  const coveredAbsorb = validateAbsorptionCandidateMatrix(sampleMatrix({
+    candidates: [{
+      ...matrix.candidates[0],
+      sourceExistence: sourceExistence({
+        existenceStatus: 'present',
+        hitEvidence: ['skills/spec-absorption/SKILL.md'],
+        ledgerDisposition: 'close-ledger'
+      })
+    }]
+  }))
+  assert(coveredAbsorb.some(item => item.code === 'existence-already-covered'))
+  assert.strictEqual(
+    classifySourceExistenceVerificationSample('状态：open pending absorption 可吸纳 pure-open'),
+    'ledger-status-only'
+  )
+  assert.strictEqual(
+    classifySourceExistenceVerificationSample({
+      existenceStatus: 'absent',
+      searchAnchors: ['TaskPhaseProjectionGate'],
+      sourceRoot: 'devcodex-v1'
+    }),
+    'absorb-ok'
+  )
+  const { classifyExecutableAbsorptionSample } = require('./lib/absorption-candidate-planner')
+  assert.strictEqual(
+    classifyExecutableAbsorptionSample('只改 Skill 正文 text-only 无消费者 absorbed'),
+    'text-only-fake'
+  )
+  assert.strictEqual(
+    classifyExecutableAbsorptionSample('enforcementLevel=hard-probe probeClass=machine-sample'),
+    'ok-probe'
+  )
+  const weak = validateAbsorptionCandidateMatrix(sampleMatrix({
+    candidates: [{ ...matrix.candidates[0], enforcementLevel: 'checklist-only' }]
+  }))
+  assert(weak.some(item => item.code === 'weak-enforcement'))
+  const noProbe = validateAbsorptionCandidateMatrix(sampleMatrix({
+    candidates: [{ ...matrix.candidates[0], probeNecessity: undefined }]
+  }))
+  assert(noProbe.some(item => item.code === 'probe-necessity-required'))
   const invalid = validateAbsorptionCandidateMatrix({ schemaVersion: 'AbsorptionCandidateMatrixV1', phaseKind: 'planning', candidates: [] })
   assert(invalid.some(item => item.code === 'candidates-required'))
   console.log('absorption candidate planner self-test passed')

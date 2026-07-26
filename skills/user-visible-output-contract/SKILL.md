@@ -23,6 +23,18 @@ description: 用户可见输出契约 Owner — 统一入口检查、完成检�
 | 最终结果与文件交付 | 必须 |
 | 仅内部状态写入且本轮无用户可见消息 | N/A + skipReason |
 
+## TaskPhaseProjectionGate（PF-183 · 条件）
+
+多 active 任务、用户说「继续/刚才/当前」、或投影实施/进度时，用户可见进度/最终回复须含：
+
+- `activeTask`（或等价任务名 + portable path）
+- `phaseKind` 或 CP1～CP3 状态
+- `sourceDelivery=none|started|partial|complete`
+- 唯一 `nextAllowedAction`
+
+禁止：把「04 已有 / CP3 候选」写成「已在实施」。仅 CP3 confirmed + 05 + source mutation 才可 `started`。  
+探针：`classifyTaskPhaseProjectionSample`（`scripts/lib/executable-absorption-gates.js`）。
+
 ## 单向链路
 
 1. `ArtifactDeliveryManifestV1`：记录本任务所有持久化 mutation、恢复证据和审计证据；planned、observed、internalDelivered 必须精确对账。

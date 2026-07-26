@@ -211,6 +211,16 @@ assert.strictEqual(
 )
 assert.strictEqual(classifyTtfvOmissionSample('解释一下 C16 是什么', { intent: 'chat' }), 'ttfv-na-chat')
 
+const { classifyProgressReportFastPathSample } = require('./lib/host-parity-scorecard')
+assert.strictEqual(
+  classifyProgressReportFastPathSample('workspace 根 Get-ChildItem -Recurse 摸底，请稍候', { isProgressQuery: true }),
+  'progress-fail'
+)
+assert.strictEqual(
+  classifyProgressReportFastPathSample('绑定 vext-test；verification/issues/README 总进度；当前阻断；可否发版：否', { isProgressQuery: true }),
+  'progress-pass'
+)
+
 // S07 assist includes skill bundle line
 assert.match(entryCheckAssistSuffix({ project: 'x', intent: 'fix' }), /Intent→Skill bundle \(fix\)/)
 assert.match(entryCheckAssistSuffix({ project: 'x', intent: 'fix' }), /fix-default/)

@@ -32,6 +32,21 @@ const CLASSIFICATIONS = new Set([
   'project-local',
   'already-covered'
 ])
+const EXISTENCE_STATUSES = new Set(['absent', 'partial', 'present', 'equivalent-covered', 'unverified'])
+const LEDGER_DISPOSITIONS = new Set(['absorb-candidate', 'residual-candidate', 'close-ledger', 'defer'])
+const COVERED_EXISTENCE = new Set(['present', 'equivalent-covered'])
+const ENFORCEMENT_LEVELS = new Set(['hard-probe', 'structural-gate', 'conditional-probe', 'checklist-only', 'none'])
+const PROBE_CLASSES = new Set([
+  'machine-sample',
+  'structural-schema',
+  'fixture-replay',
+  'extend-existing',
+  'checklist-only',
+  'probe-forbidden'
+])
+const PROBE_NECESSITIES = new Set(['required', 'conditional', 'not-required', 'forbidden'])
+const ALWAYS_ON_IMPACTS = new Set(['none', 'test-only', 'conditional-path', 'always-on-path'])
+const WEAK_ENFORCEMENT = new Set(['checklist-only', 'none'])
 
 function stableStringify(value) {
   if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`
@@ -70,6 +85,183 @@ function validateLayerChecks(layerChecks, pathPrefix) {
   return issues
 }
 
+function validateSourceExistence(sourceExistence, pathPrefix, commonDecision) {
+  const issues = []
+  if (commonDecision === 'absorb') {
+    if (!sourceExistence || typeof sourceExistence !== 'object' || Array.isArray(sourceExistence)) {
+      return [issue(pathPrefix, 'source-existence-required', 'commonDecision=absorb requires sourceExistence')]
+    }
+  } else if (!sourceExistence) {
+    return issues
+  } else if (typeof sourceExistence !== 'object' || Array.isArray(sourceExistence)) {
+    return [issue(pathPrefix, 'source-existence-invalid', 'sourceExistence must be an object')]
+  }
+
+  const required = [
+    'claimedCapability',
+    'searchAnchors',
+    'sourceRoot',
+    'existenceStatus',
+    'hitEvidence',
+    'nearNeighborCoverage',
+    'ledgerDisposition',
+    'verifiedBy'
+  ]
+  for (const field of required) {
+    if (sourceExistence[field] === undefined || sourceExistence[field] === null || sourceExistence[field] === '') {
+      issues.push(issue(`${pathPrefix}.${field}`, 'source-existence-field-missing', `${field} is required on sourceExistence`))
+    }
+  }
+  if (!EXISTENCE_STATUSES.has(sourceExistence.existenceStatus)) {
+    issues.push(issue(`${pathPrefix}.existenceStatus`, 'existence-status-invalid', 'existenceStatus is invalid'))
+  }
+  if (!LEDGER_DISPOSITIONS.has(sourceExistence.ledgerDisposition)) {
+    issues.push(issue(`${pathPrefix}.ledgerDisposition`, 'ledger-disposition-invalid', 'ledgerDisposition is invalid'))
+  }
+  if (!Array.isArray(sourceExistence.searchAnchors) || sourceExistence.searchAnchors.length === 0) {
+    issues.push(issue(`${pathPrefix}.searchAnchors`, 'search-anchors-required', 'searchAnchors must be non-empty'))
+  }
+  if (!Array.isArray(sourceExistence.hitEvidence)) {
+    issues.push(issue(`${pathPrefix}.hitEvidence`, 'hit-evidence-array', 'hitEvidence must be an array'))
+  } else if (
+    COVERED_EXISTENCE.has(sourceExistence.existenceStatus) ||
+    sourceExistence.existenceStatus === 'partial'
+  ) {
+    if (sourceExistence.hitEvidence.length === 0) {
+      issues.push(issue(`${pathPrefix}.hitEvidence`, 'hit-evidence-required', 'present/partial/equivalent-covered requires hitEvidence'))
+    }
+  }
+  if (commonDecision === 'absorb') {
+    if (sourceExistence.existenceStatus === 'unverified') {
+      issues.push(issue(`${pathPrefix}.existenceStatus`, 'existence-unverified', 'cannot absorb while existenceStatus=unverified'))
+    }
+    if (COVERED_EXISTENCE.has(sourceExistence.existenceStatus)) {
+      issues.push(issue(`${pathPrefix}.existenceStatus`, 'existence-already-covered', 'present/equivalent-covered cannot use commonDecision=absorb'))
+    }
+    if (sourceExistence.ledgerDisposition === 'close-ledger') {
+      issues.push(issue(`${pathPrefix}.ledgerDisposition`, 'close-ledger-not-absorb', 'close-ledger disposition cannot absorb'))
+    }
+  }
+  return issues
+}
+
+/**
+ * Classifier for SourceExistenceVerificationGate free-text / object samples.
+ * @returns {'absorb-ok'|'residual-ok'|'close-ledger'|'ledger-status-only'|'existence-unverified'|'invalid-absorb-covered'}
+ */
+function classifySourceExistenceVerificationSample(sample) {
+  const text = typeof sample === 'string' ? sample : ''
+  const obj = sample && typeof sample === 'object' && !Array.isArray(sample) ? sample : null
+  const status = obj?.existenceStatus ||
+    (/existenceStatus\s*[:=]\s*([a-z-]+)/i.exec(text)?.[1]) ||
+    (/existenceStatus[=:]\s*([a-z-]+)/i.exec(text)?.[1])
+  const hasSearch = (Array.isArray(obj?.searchAnchors) && obj.searchAnchors.length > 0) ||
+    /searchAnchors|sourceRoot|source-root|在 source|源码检索|rg |grep /i.test(text)
+  const ledgerOnly = /状态[：:]\s*(open|active|pending)|pending absorption|只根据台账|ledger-status-only/i.test(text) && !hasSearch
+  if (ledgerOnly || (!hasSearch && /absorb|可吸纳|pure-open/i.test(text))) {
+    return 'ledger-status-only'
+  }
+  if (!hasSearch || status === 'unverified' || (!status && /未验证|unverified/i.test(text))) {
+    return 'existence-unverified'
+  }
+  if (status === 'present' || status === 'equivalent-covered' || /already-covered|already-fixed|可关账|close-ledger/i.test(text)) {
+    if (/commonDecision\s*[:=]\s*absorb|decision\s*=\s*absorb|标 absorb|整包吸纳/i.test(text) &&
+      !/不得|禁止|reject|close-ledger/i.test(text)) {
+      return 'invalid-absorb-covered'
+    }
+    return 'close-ledger'
+  }
+  if (status === 'partial' || /residual-tail|residual-candidate|补洞/i.test(text)) {
+    return 'residual-ok'
+  }
+  if (status === 'absent' || /existenceStatus\s*[:=]\s*absent|absent\b/i.test(text)) {
+    return 'absorb-ok'
+  }
+  return 'existence-unverified'
+}
+
+function validateProbeNecessity(probeNecessity, pathPrefix, commonDecision, enforcementLevel) {
+  const issues = []
+  if (commonDecision !== 'absorb') {
+    return issues
+  }
+  if (!probeNecessity || typeof probeNecessity !== 'object' || Array.isArray(probeNecessity)) {
+    return [issue(pathPrefix, 'probe-necessity-required', 'commonDecision=absorb requires probeNecessity')]
+  }
+  const required = [
+    'probeClass',
+    'necessity',
+    'rationale',
+    'probePlan',
+    'existingProbeReuse',
+    'alwaysOnImpact',
+    'complexityDelta',
+    'falsePositiveRisk'
+  ]
+  for (const field of required) {
+    if (probeNecessity[field] === undefined || probeNecessity[field] === null || probeNecessity[field] === '') {
+      issues.push(issue(`${pathPrefix}.${field}`, 'probe-necessity-field-missing', `${field} is required on probeNecessity`))
+    }
+  }
+  if (!PROBE_CLASSES.has(probeNecessity.probeClass)) {
+    issues.push(issue(`${pathPrefix}.probeClass`, 'probe-class-invalid', 'probeClass is invalid'))
+  }
+  if (!PROBE_NECESSITIES.has(probeNecessity.necessity)) {
+    issues.push(issue(`${pathPrefix}.necessity`, 'probe-necessity-invalid', 'necessity is invalid'))
+  }
+  if (!ALWAYS_ON_IMPACTS.has(probeNecessity.alwaysOnImpact)) {
+    issues.push(issue(`${pathPrefix}.alwaysOnImpact`, 'always-on-impact-invalid', 'alwaysOnImpact is invalid'))
+  }
+  if (
+    (probeNecessity.necessity === 'not-required' || probeNecessity.necessity === 'forbidden') &&
+    !probeNecessity.skipProbeReason
+  ) {
+    issues.push(issue(`${pathPrefix}.skipProbeReason`, 'skip-probe-reason-required', 'not-required/forbidden needs skipProbeReason'))
+  }
+  if (probeNecessity.necessity === 'required' && /以后|后续|待定|TODO|以后再说/i.test(String(probeNecessity.probePlan || ''))) {
+    issues.push(issue(`${pathPrefix}.probePlan`, 'probe-plan-deferred', 'required probe cannot defer probePlan'))
+  }
+  if (probeNecessity.probeClass === 'checklist-only' && commonDecision === 'absorb') {
+    issues.push(issue(`${pathPrefix}.probeClass`, 'checklist-only-not-active-absorb', 'checklist-only cannot absorb as enforceable active'))
+  }
+  if (probeNecessity.alwaysOnImpact === 'always-on-path' && !/UnaffectedIntent|base-changing|单独确认/i.test(String(probeNecessity.rationale || '') + String(probeNecessity.falsePositiveRisk || ''))) {
+    issues.push(issue(`${pathPrefix}.alwaysOnImpact`, 'always-on-needs-base-note', 'always-on-path requires base-impact note in rationale or falsePositiveRisk'))
+  }
+  if (enforcementLevel && WEAK_ENFORCEMENT.has(enforcementLevel)) {
+    issues.push(issue(`${pathPrefix.replace('probeNecessity', 'enforcementLevel')}`, 'weak-enforcement', 'absorb cannot use checklist-only/none enforcementLevel'))
+  }
+  if (enforcementLevel === 'hard-probe' && !['machine-sample', 'fixture-replay', 'extend-existing', 'structural-schema'].includes(probeNecessity.probeClass)) {
+    issues.push(issue(`${pathPrefix}.probeClass`, 'hard-probe-class-mismatch', 'hard-probe requires machine/fixture/extend/structural class'))
+  }
+  return issues
+}
+
+/**
+ * @returns {'enforceable'|'text-only-fake'|'checklist-fake'|'probe-deferred'|'ok-structural'|'ok-probe'}
+ */
+function classifyExecutableAbsorptionSample(sample) {
+  const text = typeof sample === 'string' ? sample : JSON.stringify(sample || {})
+  if (/只改 (Skill|正文|Markdown)|text-only|无消费者|无探针.*absorbed|假吸纳/i.test(text) && !/禁止|invalid|blocked/i.test(text)) {
+    return 'text-only-fake'
+  }
+  if (/checklist-only|仅清单|人工自觉/i.test(text) && /absorb|absorbed|active/i.test(text) && !/不得|禁止|否/i.test(text)) {
+    return 'checklist-fake'
+  }
+  if (/necessity\s*[:=]\s*required/i.test(text) && /以后再说|TODO|待定|后续再补探针/i.test(text)) {
+    return 'probe-deferred'
+  }
+  if (/enforcementLevel\s*[:=]\s*structural-gate|structural-schema/i.test(text)) {
+    return 'ok-structural'
+  }
+  if (/enforcementLevel\s*[:=]\s*(hard-probe|conditional-probe)|probeClass\s*[:=]\s*(machine-sample|extend-existing|fixture-replay)/i.test(text)) {
+    return 'ok-probe'
+  }
+  if (/ExecutableAbsorption|不按流程|谁会红/i.test(text) && /hard-probe|structural-gate|conditional-probe/i.test(text)) {
+    return 'enforceable'
+  }
+  return 'text-only-fake'
+}
+
 function validateCandidate(candidate, index) {
   const pathPrefix = `candidates[${index}]`
   const issues = []
@@ -87,12 +279,38 @@ function validateCandidate(candidate, index) {
   if (candidate.targetLayer && !CLASSIFICATIONS.has(candidate.targetLayer)) {
     issues.push(issue(`${pathPrefix}.targetLayer`, 'target-layer-invalid', 'targetLayer is invalid'))
   }
+  if (candidate.enforcementLevel && !ENFORCEMENT_LEVELS.has(candidate.enforcementLevel)) {
+    issues.push(issue(`${pathPrefix}.enforcementLevel`, 'enforcement-level-invalid', 'enforcementLevel is invalid'))
+  }
   if (!Array.isArray(candidate.validationRoute) || candidate.validationRoute.length === 0) {
     issues.push(issue(`${pathPrefix}.validationRoute`, 'validation-route-required', 'validationRoute must be non-empty'))
   }
   issues.push(...validateLayerChecks(candidate.layerChecks, `${pathPrefix}.layerChecks`))
-  if (candidate.commonDecision === 'absorb' && candidate.backlogClass !== 'pure-open' && !candidate.skipReason) {
-    issues.push(issue(`${pathPrefix}.skipReason`, 'non-pure-open-needs-skip', 'non pure-open candidate cannot be absorbed without skipReason'))
+  issues.push(...validateSourceExistence(candidate.sourceExistence, `${pathPrefix}.sourceExistence`, candidate.commonDecision))
+  issues.push(...validateProbeNecessity(
+    candidate.probeNecessity,
+    `${pathPrefix}.probeNecessity`,
+    candidate.commonDecision,
+    candidate.enforcementLevel
+  ))
+  if (candidate.commonDecision === 'absorb' && !candidate.enforcementLevel) {
+    issues.push(issue(`${pathPrefix}.enforcementLevel`, 'enforcement-level-required', 'absorb requires enforcementLevel'))
+  }
+  if (candidate.commonDecision === 'absorb' && WEAK_ENFORCEMENT.has(candidate.enforcementLevel)) {
+    issues.push(issue(`${pathPrefix}.enforcementLevel`, 'weak-enforcement', 'absorb cannot use checklist-only/none'))
+  }
+  if (candidate.commonDecision === 'absorb' && candidate.backlogClass !== 'pure-open' && candidate.backlogClass !== 'residual-tail' && !candidate.skipReason) {
+    issues.push(issue(`${pathPrefix}.skipReason`, 'non-pure-open-needs-skip', 'non pure-open/residual-tail candidate cannot be absorbed without skipReason'))
+  }
+  if (candidate.commonDecision === 'absorb' && candidate.backlogClass === 'residual-tail') {
+    if (candidate.sourceExistence?.existenceStatus !== 'partial') {
+      issues.push(issue(`${pathPrefix}.sourceExistence.existenceStatus`, 'residual-needs-partial', 'residual-tail absorb requires existenceStatus=partial'))
+    }
+  }
+  if (candidate.commonDecision === 'absorb' && candidate.backlogClass === 'pure-open') {
+    if (candidate.sourceExistence?.existenceStatus && candidate.sourceExistence.existenceStatus !== 'absent') {
+      issues.push(issue(`${pathPrefix}.sourceExistence.existenceStatus`, 'pure-open-needs-absent', 'pure-open absorb requires existenceStatus=absent'))
+    }
   }
   return issues
 }
@@ -153,8 +371,24 @@ function buildLayeredAbsorptionDecision(candidate) {
       prevention: candidate.prevention || null
     }
   }
-  if (candidate.backlogClass !== 'pure-open') blockers.push('backlog-class-not-pure-open')
+  if (candidate.backlogClass !== 'pure-open' && candidate.backlogClass !== 'residual-tail') {
+    blockers.push('backlog-class-not-absorbable')
+  }
   if (!candidate.targetOwner) blockers.push('target-owner-missing')
+  if (!candidate.sourceExistence) blockers.push('source-existence-missing')
+  else {
+    if (candidate.sourceExistence.existenceStatus === 'unverified') blockers.push('existence-unverified')
+    if (COVERED_EXISTENCE.has(candidate.sourceExistence.existenceStatus)) blockers.push('existence-already-covered')
+    if (candidate.backlogClass === 'pure-open' && candidate.sourceExistence.existenceStatus !== 'absent') {
+      blockers.push('pure-open-requires-absent')
+    }
+    if (candidate.backlogClass === 'residual-tail' && candidate.sourceExistence.existenceStatus !== 'partial') {
+      blockers.push('residual-requires-partial')
+    }
+  }
+  if (!candidate.probeNecessity) blockers.push('probe-necessity-missing')
+  if (!candidate.enforcementLevel) blockers.push('enforcement-level-missing')
+  if (WEAK_ENFORCEMENT.has(candidate.enforcementLevel)) blockers.push('weak-enforcement')
   for (const key of LAYER_KEYS) {
     if (candidate.layerChecks?.[key]?.state === 'blocked') blockers.push(`layer-blocked:${key}`)
   }
@@ -204,8 +438,12 @@ function planAbsorptionCandidates(matrix) {
 module.exports = {
   LAYER_KEYS,
   buildLayeredAbsorptionDecision,
+  classifyExecutableAbsorptionSample,
+  classifySourceExistenceVerificationSample,
   planAbsorptionCandidates,
   sha256,
   stableStringify,
-  validateAbsorptionCandidateMatrix
+  validateAbsorptionCandidateMatrix,
+  validateProbeNecessity,
+  validateSourceExistence
 }

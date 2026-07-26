@@ -81,10 +81,25 @@ description: 跨仓消费者验证工程 Owner — 当任务涉及独立 consume
 ## ValidationFindingRepairLoop
 
 1. finding 先绑定 source identity、受影响 denominator、严重度和 authority；validation/audit 本身不越权直接修改 source。
-2. 进入获授权的 dev/fix/self-fix 与双层修复合同，建立 findingToPatchMap。
-3. 任一 source mutation 立即使旧 source identity、artifact 和受影响 evidence 标 `stale`。
-4. 冻结新 identity，重跑原失败探针、同类边界、关联功能、适用性能和风险要求的全量消费者回归。
-5. before/after identity、freshness 与 denominator 均重新 accepted 后才关闭 finding；只重跑原单点不得恢复完整/100% 声明。
+2. **FindingObjectLayer（PI-VEXT-20260717-024 / T2）**：每条 finding 必须声明 `objectLayer=source-product | verification-system`。`source-product` 记录被测产品问题与 source patch；`verification-system` 记录验证脚本/证据链/控制面问题。禁止把 verification-system 修复表述为「产品已修复」。探针：`classifyFindingObjectLayerSample` → 缺分层或混报 `layer-fail`。
+3. 进入获授权的 dev/fix/self-fix 与双层修复合同，建立 findingToPatchMap。
+4. 任一 source mutation 立即使旧 source identity、artifact 和受影响 evidence 标 `stale`。
+5. 冻结新 identity，重跑原失败探针、同类边界、关联功能、适用性能和风险要求的全量消费者回归。
+6. before/after identity、freshness 与 denominator 均重新 accepted 后才关闭 finding；只重跑原单点不得恢复完整/100% 声明。
+
+## FormalRerunLightClassify（PI-20260724-02 · 条件）
+
+进入 **full formal / 长耗时 release rerun** 前必须先轻量分类（读 issue authority、最近 run decision、issue-snapshot）：
+
+| class | 含义 |
+|-------|------|
+| `close-with-fresh` | 可用已有 fresh run 关闭 |
+| `unmet-fresh` | 已有 fresh run 未满足 |
+| `blocked-by-open` | 同批 open blocker 阻断 |
+| `shared-rerun` | 同批多项可共享一次 formal |
+| `need-full-per-finding` | 仅当分类证明需要且无共享收益时（默认 **禁止** 作为首选） |
+
+除非分类显示可关闭候选或同批共享收益，**不得**按 finding 粒度逐项启动 full formal。探针：`classifyFormalRerunLightSample` — `startingFullFormal && !classified` → `rerun-fail`；`npm run test:executable-absorption-gates`。
 
 ## 输出契约
 
@@ -122,6 +137,8 @@ description: 跨仓消费者验证工程 Owner — 当任务涉及独立 consume
 | 运行中 source 或 dist 改变仍沿用结果 | 标 stale，冻结新 identity 后重跑 |
 | 行为测试全绿就认定设计合理 | 执行 DesignFitnessGate，分别判断契约设计和行为实现 |
 | 修源码后只重跑原失败单点 | 执行 ValidationFindingRepairLoop，旧 identity 证据 stale 并按影响矩阵重跑 |
+| 验证系统修好却写「产品已修复」 | 强制 `objectLayer`；混报 `layer-fail` |
+| 未分类就逐 finding full formal | FormalRerunLightClassify 先分类；`rerun-fail` |
 
 ## 与其他 Skill 的关系
 

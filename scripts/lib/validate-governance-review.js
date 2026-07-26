@@ -488,27 +488,35 @@ function buildGovernanceReviewChecks(ctx) {
     const skill = 'spec-absorption'
     const gates = [
       'CommonNormGeneralizationGate',
-      'AbsorptionCandidateConsumerProofGate'
+      'AbsorptionCandidateConsumerProofGate',
+      'SourceExistenceVerificationGate',
+      'ExecutableAbsorptionEffectivenessGate',
+      'ProbeNecessityDecisionGate'
     ]
 
     function classifyAbsorptionSample(sample) {
       const projectSpecific = /ServiceSpecReadGate|docs\/services\/<name>|单个业务项目|项目私有/.test(sample)
       const consumerProof = /DevCodex 当前消费者|targetOwner|跨工作流复用|宿主无关/.test(sample)
+      const sourceVerified = /SourceExistence|existenceStatus\s*[:=]\s*absent|source-root|源码检索|searchAnchors/.test(sample)
+      const ledgerOnly = /pending absorption|状态[：:]\s*open|只根据台账/.test(sample) && !sourceVerified
+      if (ledgerOnly) return 'ledger-status-only'
       if (projectSpecific && !consumerProof) return 'project-local'
-      if (consumerProof) return 'absorb'
+      if (consumerProof && sourceVerified) return 'absorb'
+      if (consumerProof && !sourceVerified) return 'existence-unverified'
       return 'case-evidence-only'
     }
 
     const negativeSamples = [
       'ServiceSpecReadGate：服务开发进入编码前必须读取 docs/services/<name>/',
-      '单个业务项目的 route/model/schema 命名规范'
+      '单个业务项目的 route/model/schema 命名规范',
+      '状态：open pending absorption 列为可吸纳 pure-open'
     ]
     for (const sample of negativeSamples) {
       if (classifyAbsorptionSample(sample) === 'absorb') {
         err(`[V81] ${skill} negative sample was incorrectly classified as absorb: ${sample}`)
       }
     }
-    const positiveSample = '跨工作流复用且已有 DevCodex 当前消费者和 targetOwner 的吸纳候选'
+    const positiveSample = '跨工作流复用且已有 DevCodex 当前消费者和 targetOwner 的吸纳候选；SourceExistence existenceStatus=absent searchAnchors 已在 source-root 检索'
     if (classifyAbsorptionSample(positiveSample) !== 'absorb') {
       err(`[V81] ${skill} positive sample did not classify as absorb`)
     }
@@ -519,7 +527,7 @@ function buildGovernanceReviewChecks(ctx) {
       .join('\n')
 
     const probes = [
-      { file: 'skills/spec-absorption/SKILL.md', needles: ['name: spec-absorption', '.devcodex/*/data', 'ServiceSpecReadGate', 'project-local', 'case-evidence-only', 'targetOwner'].concat(gates) },
+      { file: 'skills/spec-absorption/SKILL.md', needles: ['name: spec-absorption', '.devcodex/*/data', 'ServiceSpecReadGate', 'project-local', 'case-evidence-only', 'targetOwner', '可关账清单', '假吸纳', 'enforcementLevel'].concat(gates) },
       { file: 'plugin.json', needles: ['spec-absorption', 'skills/spec-absorption/SKILL.md'] },
       { file: 'skills/routing/SKILL.md', needles: ['spec-absorption', '最新可吸纳', '仍需吸纳'] },
       { file: 'skills/spec-governance/SKILL.md', needles: ['spec-absorption', 'project-local', 'AbsorptionCandidateConsumerProofGate'] },

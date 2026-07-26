@@ -71,7 +71,85 @@
           "items": { "type": "string", "minLength": 1 }
         },
         "skipReason": { "type": "string" },
+        "sourceExistence": { "$ref": "#/$defs/sourceExistence" },
+        "probeNecessity": { "$ref": "#/$defs/probeNecessity" },
+        "enforcementLevel": {
+          "enum": ["hard-probe", "structural-gate", "conditional-probe", "checklist-only", "none"]
+        },
         "prevention": { "$ref": "#/$defs/prevention" }
+      }
+    },
+    "probeNecessity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "probeClass",
+        "necessity",
+        "rationale",
+        "probePlan",
+        "existingProbeReuse",
+        "alwaysOnImpact",
+        "complexityDelta",
+        "falsePositiveRisk"
+      ],
+      "properties": {
+        "probeClass": {
+          "enum": [
+            "machine-sample",
+            "structural-schema",
+            "fixture-replay",
+            "extend-existing",
+            "checklist-only",
+            "probe-forbidden"
+          ]
+        },
+        "necessity": {
+          "enum": ["required", "conditional", "not-required", "forbidden"]
+        },
+        "rationale": { "type": "string", "minLength": 1 },
+        "probePlan": { "type": "string", "minLength": 1 },
+        "existingProbeReuse": { "type": "string", "minLength": 1 },
+        "alwaysOnImpact": {
+          "enum": ["none", "test-only", "conditional-path", "always-on-path"]
+        },
+        "complexityDelta": { "type": "string", "minLength": 1 },
+        "falsePositiveRisk": { "type": "string", "minLength": 1 },
+        "skipProbeReason": { "type": "string" }
+      }
+    },
+    "sourceExistence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "claimedCapability",
+        "searchAnchors",
+        "sourceRoot",
+        "existenceStatus",
+        "hitEvidence",
+        "nearNeighborCoverage",
+        "ledgerDisposition",
+        "verifiedBy"
+      ],
+      "properties": {
+        "claimedCapability": { "type": "string", "minLength": 1 },
+        "searchAnchors": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "sourceRoot": { "type": "string", "minLength": 1 },
+        "existenceStatus": {
+          "enum": ["absent", "partial", "present", "equivalent-covered", "unverified"]
+        },
+        "hitEvidence": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "nearNeighborCoverage": { "type": "string", "minLength": 1 },
+        "ledgerDisposition": {
+          "enum": ["absorb-candidate", "residual-candidate", "close-ledger", "defer"]
+        },
+        "verifiedBy": { "type": "string", "minLength": 1 }
       }
     },
     "layerChecks": {

@@ -53,14 +53,14 @@ run({
 
 const body = [
   '### DevCodex · 入口检查',
-  '- PC0 [PASS]',
-  '- PC1 [PASS]',
-  '- PC2 [PASS]',
-  '- PC3 [PASS]',
-  '- PC4 [N/A] skipReason=probe',
-  '- PC5 [PASS]',
-  '- PC6 [PASS]',
-  '- PC7 [PASS]',
+  '- PC0 [PASS] ContextReadPlan + receipt（probe）',
+  '- PC1 [PASS] Intent=dev',
+  '- PC2 [PASS] Session bound',
+  '- PC3 [PASS] Project=devcodex-v1',
+  '- PC4 [N/A] skipReason=probe-non-radar',
+  '- PC5 [PASS] Host=grok Full',
+  '- PC6 [PASS] Git clean scope',
+  '- PC7 [PASS] Next=finish',
   '',
   '### DevCodex · 完成检查',
   '| 类型 | 命令 | exitCode | runId/计数 |',
@@ -99,13 +99,17 @@ const ok =
   summary.replyEvidence === 'verified-present' &&
   summary.replySource === 'lastAssistantMessage' &&
   summary.compliance === true &&
+  summary.precheckStatus === 'verified-present' &&
+  summary.fvs === 'verified-present' &&
+  Array.isArray(summary.gaps) &&
+  summary.gaps.length === 0 &&
   summary.stopDecision !== 'block'
 
 if (!ok) {
-  console.error('ACCEPTANCE_FAIL')
+  console.error('ACCEPTANCE_FAIL', summary)
   process.exitCode = 1
 } else {
-  console.log('ACCEPTANCE_PASS mode=dev lastAssistantMessage completion-check recognized')
+  console.log('ACCEPTANCE_PASS mode=dev lastAssistantMessage completion-check + entry + FVS green')
 }
 
 try { fs.unlinkSync(tmp) } catch { /* ignore */ }

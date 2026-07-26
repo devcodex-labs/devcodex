@@ -283,6 +283,8 @@ function buildLifecycleVisibleReplyUtils(ctx) {
     }
     const text = evidence.text
     state.visible.payloadObserved = true
+    // Keep bounded sample for soft reminders / F-08 exemption (Stop path)
+    state.visible.assistantTextSample = String(text || '').slice(0, 12000)
     // Accept both legacy and portable envelope precheck markers (W8).
     // PF-087: presence alone is not enough — require free-text PC0~PC7 column completeness.
     const entryCompleteness = analyzeEntryCheckCompleteness(text, { mode: state.mode })
@@ -432,8 +434,13 @@ function buildLifecycleVisibleReplyUtils(ctx) {
 
   function buildClosureReminder(state, eventName) {
     const items = []
+    const modeL = String(state.mode || '').toLowerCase()
+    const chatIdle = (modeL === 'chat' || String(state.workflow || '').toLowerCase() === 'chat') && !state.mutated
     const precheckStatus = getPrecheckEvidenceStatus(state)
-    if (eventName === 'Stop' && precheckStatus === 'verified-missing') {
+    // Pure chat without mutation: do not soft-spam entry-check (gate already allows).
+    if (eventName === 'Stop' && chatIdle) {
+      // still allow governance intake reminder below
+    } else if (eventName === 'Stop' && precheckStatus === 'verified-missing') {
       const completeness = state.visible?.entryCheckCompleteness
       if (completeness && completeness.claimed && !completeness.complete) {
         const detail = [
@@ -493,8 +500,20 @@ function buildLifecycleVisibleReplyUtils(ctx) {
       const missing = (state.visible.artifactMissingItems || []).join(', ') || 'semantic-artifact-items, visible-payload-unobserved'
       items.push(`无法验证最终用户可见回复的产物交付（Stop/PreCompact 未提供可解析 assistant 内容；状态只能为 unverified；missingItems=${missing}）`)
     }
-    if (state.mutated && !state.memoryTouched) items.push('记忆文件尚未写入（S05：会话结束前必须写入）')
-    if (state.mutated && !state.reportTouched) items.push('报告文件尚未写入（chat 工作流豁免）')
+    // F-08: soft path mirrors stop-gate artifactGapsExempt when final text was observed
+    let artifactExempt = false
+    try {
+      const { artifactGapsExempt } = require('./lifecycle-stop-gate.cjs')
+      artifactExempt = artifactGapsExempt(String(state.visible?.assistantTextSample || ''))
+    } catch {
+      artifactExempt = false
+    }
+    if (state.mutated && !state.memoryTouched && !artifactExempt && !chatIdle) {
+      items.push('记忆文件尚未写入（S05：会话结束前必须写入）')
+    }
+    if (state.mutated && !state.reportTouched && !artifactExempt && !chatIdle) {
+      items.push('报告文件尚未写入（chat 工作流豁免；可用 报告:N/A + skipReason）')
+    }
     if (eventName === 'Stop' && state.visible?.workflowCompletion && !state.visible.workflowCompletion.workflowComplete) {
       items.push(`workflow completion 未提交（phase=${state.visible.workflowCompletion.completionPhase}; firstBlocker=${state.visible.workflowCompletion.firstBlocker || 'none'}）`)
     }

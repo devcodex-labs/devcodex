@@ -30,12 +30,19 @@ assert.strictEqual(
   classifyAnalysisArtifactDeliverySample('技术方案分析完成。总体合理。' + '细节。'.repeat(200)),
   'chat-only'
 )
-// PF-169 positive
+// PF-169 positive: report link + readable narrative
 assert.strictEqual(
   classifyAnalysisArtifactDeliverySample(
-    '方案审阅结论：合理。详细报告：[04--审阅.md](./reports/analysis/grok/20260721/04--审阅.md)'
+    '方案审阅结论：合理，因边界清晰且与仓库实现一致。详细报告：[04--审阅.md](./reports/analysis/grok/20260721/04--审阅.md)'
   ),
   'ready'
+)
+// DPC-009: report link without readable narrative → link-only-thin
+assert.strictEqual(
+  classifyAnalysisArtifactDeliverySample(
+    '分析完成。[报告](./reports/analysis/grok/20260721/04--审阅.md)'
+  ),
+  'link-only-thin'
 )
 
 // PF-170 negative residual without benefit

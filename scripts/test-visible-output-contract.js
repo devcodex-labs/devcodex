@@ -15,10 +15,13 @@ const {
   createLinkCapabilityDecision,
   createVisibleEnvelope,
   analyzeFinalValidationSummarySample,
+  analyzeDialogueNarrativeSample,
   projectArtifactAnchorsFromManifest,
   projectUserFacingArtifactSet,
   renderVisibleEnvelope,
+  classifyDialogueNarrativeSample,
   classifyFinalValidationSummarySample,
+  hasReadableNarrativeSnippet,
   shouldUseCompact
 } = require('../hooks/_runtime/visible-output-contract.cjs')
 const ROOT = path.resolve(__dirname, '..')
@@ -346,6 +349,36 @@ assert.strictEqual(classifyFinalValidationSummarySample([
   'Release actions: push/tag/release/publish 未执行',
   'commit abc1234'
 ].join('\n')), 'post-commit-replay')
+
+// DPC: dialogue-primary narrative (readable closeout without opening report)
+assert.strictEqual(classifyDialogueNarrativeSample('随便聊聊'), 'not-claimed')
+assert.strictEqual(
+  classifyDialogueNarrativeSample([
+    '### DevCodex · 完成检查',
+    '详见报告：[r](reports/x.md)',
+    '`DevCodexVisibleEnvelopeV1 · completion-check · PASS · ' + 'e'.repeat(64) + '`'
+  ].join('\n')),
+  'narrative-missing'
+)
+assert.strictEqual(
+  classifyDialogueNarrativeSample([
+    '### DevCodex · 完成检查',
+    '## 结果',
+    '已完成对话内可读收口 B1：叙事分类器与 link-only-thin 已落地。',
+    '## 要点',
+    '- 扩展既有 FVS/PF-169，未新建平行 Gate',
+    '- 用户默认可在对话内读懂结论',
+    '`DevCodexVisibleEnvelopeV1 · completion-check · PASS · ' + 'f'.repeat(64) + '`'
+  ].join('\n')),
+  'present'
+)
+assert.strictEqual(
+  classifyDialogueNarrativeSample('分析完成。user-override：用户要求只要路径。'),
+  'waived'
+)
+assert.ok(hasReadableNarrativeSnippet('方案审阅结论：合理，因边界清晰且可验证。'))
+assert.ok(!hasReadableNarrativeSnippet('[报告](reports/a.md)'))
+assert.strictEqual(analyzeDialogueNarrativeSample('分析完成。').classification, 'narrative-missing')
 
 // F-009 / PF-177: production consumer (lifecycle-visible-reply) must surface missing path column
 {

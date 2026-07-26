@@ -799,6 +799,109 @@ function unique(items) {
 }
 
 /**
+ * Dialogue-Primary Closeout (DPC): readable narrative without opening the report.
+ * Shared helper — intentionally lenient (DPC-013).
+ */
+function stripMarkdownLinks(text) {
+  return String(text || '')
+    .replace(/\[[^\]]*\]\([^)]+\)/g, ' ')
+    .replace(/https?:\/\/\S+/gi, ' ')
+    .replace(/`[^`]+`/g, ' ')
+}
+
+function hasUserNarrativeOverride(text) {
+  return /user-override|用户要求只要路径|不要摘要|只要路径|全文贴对话|跳过对话摘要/i.test(String(text || ''))
+}
+
+function hasReadableNarrativeSnippet(sample) {
+  const text = String(sample || '')
+  if (!text.trim()) return false
+  if (hasUserNarrativeOverride(text)) return true
+
+  const plain = stripMarkdownLinks(text).replace(/\r\n/g, '\n')
+  const resultSignal =
+    /(?:^|\n)\s*(?:#{1,3}\s*)?(?:结果|结论|推荐|执行结果|分析结论)\s*[:：]/im.test(plain) ||
+    /(?:结果|结论|推荐)\s*[:：].{8,}/m.test(plain) ||
+    /(?:本次完成|做成了|方案审阅结论|分析完成|收口结论)/.test(plain) ||
+    /(?:推荐\s*[:：]|推荐方案|推荐结论)/.test(plain)
+
+  const bulletLines = plain
+    .split('\n')
+    .map(line => line.trim())
+    .filter(line => /^[-*•]|\d+[.)、]/.test(line))
+    .map(line => line.replace(/^[-*•]\s*|\d+[.)、]\s*/, '').trim())
+    .filter(line => line.length >= 6)
+    .filter(line => !/^(?:详见|见)?报告|路径[:：]|reports\//i.test(line))
+
+  const substantiveBullet = bulletLines.length >= 1
+  const reasonInSentence =
+    /(?:因为|原因|关键|包括|变更|结论).{6,}/.test(plain) &&
+    plain.replace(/\s+/g, '').length >= 20
+
+  // Single short verdict with substance (e.g. "方案审阅结论：合理，因边界清晰。")
+  const shortVerdict =
+    /(?:结论|合理|可行|通过|完成)[:：，,\s].{4,}/.test(plain) &&
+    plain.replace(/\s+/g, '').length >= 12
+
+  if (substantiveBullet) return true
+  if (resultSignal && (reasonInSentence || shortVerdict || plain.replace(/\s+/g, '').length >= 16)) return true
+  if (shortVerdict && plain.replace(/\s+/g, '').length >= 16) return true
+  return false
+}
+
+/**
+ * Classify dialogue-primary narrative for final-result / completion / analyze closeout.
+ * @returns {'not-claimed'|'waived'|'present'|'narrative-missing'}
+ */
+function analyzeDialogueNarrativeSample(sample, options = {}) {
+  const textSample = String(sample || '')
+  const forceClaimed = options.forceClaimed === true
+  const claimedCloseout =
+    forceClaimed ||
+    /DevCodexVisibleEnvelopeV1\s*·\s*(?:completion-check|final-result)/i.test(textSample) ||
+    /###\s*DevCodex\s*·\s*(?:完成检查|执行结果)/i.test(textSample) ||
+    /🛡️\s*DEV\s*模式\s*\|\s*合规检查/i.test(textSample) ||
+    /(?:完成检查|completion-check|CompletionEvidenceGate|final-result)/i.test(textSample) ||
+    /(?:分析完成|审阅结论|方案审阅|收敛交付|执行结果|推荐结论|本次完成|已完成交付)/i.test(textSample)
+
+  if (!textSample.trim() || !claimedCloseout) {
+    return {
+      schemaVersion: 'DialogueNarrativeAnalysisV1',
+      claimed: false,
+      status: 'not-claimed',
+      classification: 'not-claimed',
+      hasNarrative: false,
+      waived: false
+    }
+  }
+
+  if (hasUserNarrativeOverride(textSample)) {
+    return {
+      schemaVersion: 'DialogueNarrativeAnalysisV1',
+      claimed: true,
+      status: 'verified-present',
+      classification: 'waived',
+      hasNarrative: true,
+      waived: true
+    }
+  }
+
+  const hasNarrative = hasReadableNarrativeSnippet(textSample)
+  return {
+    schemaVersion: 'DialogueNarrativeAnalysisV1',
+    claimed: true,
+    status: hasNarrative ? 'verified-present' : 'verified-missing',
+    classification: hasNarrative ? 'present' : 'narrative-missing',
+    hasNarrative,
+    waived: false
+  }
+}
+
+function classifyDialogueNarrativeSample(sample, options = {}) {
+  return analyzeDialogueNarrativeSample(sample, options).classification
+}
+
+/**
  * DevModeCompletionCheckDetailGate / FinalValidationSummaryV1 free-text classifier.
  *
  * It keeps the final reply short, but requires enough fields for a reviewer to
@@ -973,9 +1076,13 @@ module.exports = {
   createLinkCapabilityDecision,
   createVisibleEnvelope,
   analyzeFinalValidationSummarySample,
+  analyzeDialogueNarrativeSample,
   buildSimpleGovernanceFastPathDecision,
   classifyArtifactPathColumnSample,
+  classifyDialogueNarrativeSample,
   classifyFinalValidationSummarySample,
+  hasReadableNarrativeSnippet,
+  hasUserNarrativeOverride,
   digest,
   isSemanticDisplayName,
   portableTarget,

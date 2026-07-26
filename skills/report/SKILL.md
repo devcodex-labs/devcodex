@@ -146,6 +146,7 @@ CLI/MCP surface。
 - 控制面报告若出现新增探针、黄色偏离或部署同步，必须单独写出部署同步证据与其他证据来源，不能只在摘要里带过
 - 报告末尾引用本次会话记忆路径
 - 回复末尾由 `user-visible-output-contract` 输出“完成交付文件”：每项使用语义 displayName、purposeText、userAction，并强制 **路径列**（默认 workspace-relative portable，见 PF-175 路径列规则），按 decision→result→evidence→optional 顺序。`ArtifactLinkSet` 只作兼容投影；Rich clickable 不在路径列外重复 `绝对路径：` 行，只有用户要求、链接失败、工作区外、歧义或无法定位时路径列/fallback 用绝对路径（详见 [`02-output-paths.instructions.md`](../../instructions/02-output-paths.instructions.md)）
+- **Dialogue-Primary Closeout（对话内可读收口）**：完成态 / analyze·audit 收敛的**阅读主入口是最终回复**，不是打开报告源码。最终回复须含叙事最小包（结果一句话 + ≥1 实质要点）+（完成态）`FinalValidationSummary` + 唯一步 + 交付清单；报告仍强制落盘（chat 豁免）。禁止仅链接/`详见报告`/纯矩阵收口；analyze 有报告链接但无可读结论 → `link-only-thin`（`classifyAnalysisArtifactDeliverySample`）。userAction 默认「深读时打开归档报告」，禁止默认「请用 Typora/浏览器预览」。机检：`classifyDialogueNarrativeSample` / `hasReadableNarrativeSnippet`
 
 ## 行数与拆分
 

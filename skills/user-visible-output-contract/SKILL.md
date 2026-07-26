@@ -125,9 +125,37 @@ Rich clickable 只显示一个语义 Markdown 链接作为名称主表示，**�
 
 `semanticDigest` 对去展示后的 canonical semantic core 计算；presentation tier、图标、换行、点击形式和本地化 summary 不得改变 digest。
 
+## Dialogue-Primary Closeout（对话内可读收口 / DPC）
+
+完成态 `final-result` / 完成宣称，以及 analyze / audit **收敛交付**时，**阅读主入口是最终回复**（对话内已渲染 Markdown），报告文件是归档/深读/审计面，不是默认阅读路径。
+
+### 叙事最小包（强制，从宽）
+
+| 块 | 要求 |
+|----|------|
+| 结果一句话 | 做成了什么 / 结论是什么 |
+| 关键要点 | ≥1 条实质内容（单句含原因亦可）；禁止为凑条灌水 |
+| 与 FVS | 解耦：有验证矩阵不能代替结论叙事 |
+| 与交付清单 | 路径列仍要（PF-175）；**不得**用「打开 md 预览」作默认 userAction |
+
+机器分类：`analyzeDialogueNarrativeSample` / `classifyDialogueNarrativeSample` / `hasReadableNarrativeSnippet`。
+
+| classification | 含义 |
+|----------------|------|
+| `not-claimed` | 非完成/收敛语境 |
+| `present` | 有可读叙事 |
+| `narrative-missing` | 宣称完成/收敛但只有链接/详见报告/纯矩阵 |
+| `waived` | 用户显式 override（只要路径/不要摘要等） |
+
+负向：仅报告链接、仅「详见报告」、仅验证矩阵字段。  
+正向：结果句 + 要点；analyze 须同时满足报告落盘（见 PF-169 / `link-only-thin`）。  
+**B1** 提供 classifier + Skill/单测；**B2** 再接线 lifecycle 生产 missingItems（无正文宿主仍 unverified）。
+
+默认 userAction 写「深读时打开归档报告」；**禁止**「请用 Typora/浏览器打开预览」作为默认动作。
+
 ## FinalValidationSummaryGate（PF-186 / PI-164）
 
-dev / fix / self-fix 的 `completion-check` 或 dev 模式合规块宣告完成时，最终用户可见回复必须投影 `FinalValidationSummaryV1` 或等价短矩阵。报告可保留长日志，但最终回复不能只写“全绿 / 已通过 / 详见报告”。
+dev / fix / self-fix 的 `completion-check` 或 dev 模式合规块宣告完成时，最终用户可见回复必须投影 `FinalValidationSummaryV1` 或等价短矩阵。报告可保留长日志，但最终回复不能只写“全绿 / 已通过 / 详见报告”。完成态还须满足上方 **Dialogue-Primary** 叙事最小包（与本 Gate 同时适用，不可互相抵消）。
 
 最小字段：
 

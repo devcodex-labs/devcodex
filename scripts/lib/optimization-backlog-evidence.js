@@ -3,7 +3,12 @@
 /**
  * PF-168 / PF-169 / PF-170 — evidence honesty for optimization backlog,
  * analysis artifact delivery, and residual optimization lists.
+ * DPC: analysis delivery requires readable narrative + report link (link-only-thin).
  */
+
+const {
+  hasReadableNarrativeSnippet
+} = require('../../hooks/_runtime/visible-output-contract.cjs')
 
 const EVIDENCE_GRADE = /证据等级|evidence\s*grade|证据档|A\s*\/\s*B\s*\/\s*C|[（(][ABC][）)]|\b[ABC]\s*级/i
 const REPRO_CMD = /可复现|npm run|node scripts\/|exitCode|验证命令|command:/i
@@ -37,17 +42,21 @@ function classifyOptimizationBacklogEvidenceSample(sample) {
 
 /**
  * @param {string} sample
- * @returns {'ready'|'chat-only'|'not-analysis-delivery'}
+ * @returns {'ready'|'chat-only'|'link-only-thin'|'not-analysis-delivery'}
  */
 function classifyAnalysisArtifactDeliverySample(sample) {
   const text = String(sample || '')
   if (!ANALYSIS_CLAIM.test(text) && !/analyze|audit 结论|方案对比/i.test(text)) {
     return 'not-analysis-delivery'
   }
-  if (REPORT_LINK.test(text) || /reports\/analysis|reports\/audit/i.test(text)) return 'ready'
-  // Long analysis body without report path
-  if (text.length > 400 && !REPORT_LINK.test(text)) return 'chat-only'
-  if (ANALYSIS_CLAIM.test(text) && !REPORT_LINK.test(text)) return 'chat-only'
+  const hasReport = REPORT_LINK.test(text) || /reports\/analysis|reports\/audit/i.test(text)
+  if (!hasReport) {
+    if (text.length > 400) return 'chat-only'
+    if (ANALYSIS_CLAIM.test(text)) return 'chat-only'
+    return 'chat-only'
+  }
+  // DPC-009: report link alone is not enough — need dialogue-readable narrative
+  if (!hasReadableNarrativeSnippet(text)) return 'link-only-thin'
   return 'ready'
 }
 

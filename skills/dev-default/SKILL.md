@@ -17,7 +17,7 @@ dev 工作流未匹配其他子类型时的默认路径，适用于：新功能�
 | N3 方案验证 | 调用 `dev-plan-review` Skill（PR-2~PR-7）；PR-5② 触发则继续 `impact-review` | 🔴 阻断时回 CP2 |
 | N4 实施计划 | 任务拆分、顺序、依赖、验证与回滚 | [CP3](../cp-gate/SKILL.md) 确认 |
 | N5 执行 | ExecutionContract/TestRoute 对照 → 编码实现 → 接口变更时 `api-verification` → `document-sync` | — |
-| N6 ECR 执行闭环复审 | 对照 §2 核心设计、关键产物、报告、记忆、SUMMARY、diff/commit 与验证证据做执行后正式复审 | 发现阻断问题须回退修正 |
+| N6 ECR 执行闭环复审 | 对照 §2 核心设计、关键产物、报告、记忆、SUMMARY、diff/commit 与验证证据做执行后正式复审；默认 reviewClass=R2，控制面等高风险升 R3+清单，禁止「永远轻量」口径 | 发现阻断问题须回退修正 |
 
 ### N5 执行阶段补充规则
 

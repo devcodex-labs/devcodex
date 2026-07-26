@@ -332,9 +332,19 @@ function buildGovernanceReviewChecks(ctx) {
     ]
 
     const probes = [
-      { file: 'instructions/01-common.instructions.md', needles: ['PostConfirmationReviewScopeGate', '轻量', '全面复审'] },
-      { file: 'skills/cp-gate/SKILL.md', needles: ['PostConfirmationReviewScopeGate', 'PR-2~PR-7', 'review-checklist'] },
-      { file: 'skills/review-checklist/SKILL.md', needles: ['PostConfirmationReviewScopeGate', '高风险', 'skipReason'] },
+      { file: 'instructions/01-common.instructions.md', needles: ['PostConfirmationReviewScopeGate', '轻量', '全面', 'ReviewGradeCard', 'R2'] },
+      { file: 'instructions/10-dev.instructions.md', needles: ['PostConfirmationReviewScopeGate', 'ReviewGradeCard', 'reviewClass', 'R2', 'R3'] },
+      { file: 'instructions/11-fix.instructions.md', needles: ['PostConfirmationReviewScopeGate', 'ReviewGradeCard', 'reviewClass', 'R2'] },
+      { file: 'skills/cp-gate/SKILL.md', needles: ['PostConfirmationReviewScopeGate', 'PR-2~PR-7', 'review-checklist', 'ReviewGradeCard', 'c19Label', 'reviewClass'] },
+      { file: 'skills/review-checklist/SKILL.md', needles: ['PostConfirmationReviewScopeGate', '高风险', 'skipReason', 'ReviewGradeCard', 'c19Label'] },
+      { file: 'skills/analyze-default/SKILL.md', needles: ['ControlPlaneAdviceInventoryGate', 'ExistingCapabilityInventory'] },
+      { file: 'skills/expert-output-quality/SKILL.md', needles: ['ControlPlaneAdviceInventoryGate', 'ExistingCapabilityInventory'] },
+      { file: 'README.md', needles: ['ReviewGradeCard', '轻量=R1', '标准=R2'] },
+      { file: 'skills/spec-governance/gate-registry.json', needles: ['ReviewGradeCard', 'c19Label', 'reviewClass', 'post-confirmation-review'] },
+      { file: 'skills/report/SKILL.md', needles: ['ReviewGradeCard', 'c19Label', 'reviewClass'] },
+      { file: 'skills/fix-default/SKILL.md', needles: ['ReviewGradeCard', 'reviewClass'] },
+      { file: 'prompts/report-dev.prompt.md', needles: ['ReviewGradeCard', 'reviewClass'] },
+      { file: 'prompts/report-fix.prompt.md', needles: ['ReviewGradeCard', 'reviewClass'] },
       { file: 'skills/dev-default/SKILL.md', needles: ['DevelopmentDriftGate', 'allowedFirstBatch', 'blockedScope', 'driftTriggers'] },
       { file: 'skills/execution-contract/SKILL.md', needles: ['DevelopmentDriftGate', 'allowedFirstBatch', 'blockedScope', 'driftTriggers'] },
       { file: 'skills/dev-plan-review/SKILL.md', needles: ['VerificationPlanMaterializationProbe', 'SidebarPageRoleMaterializationProbe', 'SidebarGroupSemanticModelProbe'] },

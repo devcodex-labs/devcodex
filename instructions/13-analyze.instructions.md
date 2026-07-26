@@ -109,6 +109,7 @@ version: 1.15.3
 
 - analyze.default 的执行细节由 `skills/analyze-default/SKILL.md` 承接；本文件只保留只读边界和工作流索引。
 - non-small / 分批 / 增量 / 精度：加载 `skills/incremental-project-analysis/SKILL.md`（快照、BatchProgress、GlobalBacklog、双层验证）；规模路由仍用 `skill-gap-analysis`。
+- 控制面/复审分级/Gate 体系等**设计建议**路径：必须先走 `ControlPlaneAdviceInventoryGate`（source-root ExistingCapabilityInventory），禁止仅凭对话理想矩阵宣称最优；与 `expert-output-quality` 同向。
 - 项目级 analyze 在形成结论前必须引用 `load-profile` 的 `ProfileTruthReconciliationGate` targeted 模式；低风险文件级分析可 `N/A + skipReason`。发现 Profile 漂移时只矫正当前结论，Profile 源修改必须切换独立 dev/fix/self-fix。
 - 分析发现规范吸纳、完整吸纳补强、历史长清单迁移、复审遗漏、用户文档、前端运行态、发布门禁、Profile/service 规范或自我进化控制面问题时，不在 instructions 展开 Gate 长清单；必须引用 `skills/spec-governance/SKILL.md` 的 `GovernanceGateRegistry`。
 - 分析返工率、兼容/迁移、配置复杂度或交互语义时，分别引用 `rework-prevention`、`contract-release-authority`、`configuration-ergonomics`、`interactive-semantics`；分析结论不得把历史基线、未发布草稿、实现字段存在或截图当作效果/权威/易用/可访问性完成证据。

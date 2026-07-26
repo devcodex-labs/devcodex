@@ -57,7 +57,7 @@ description: 复审清单整理与审查规范 — 创建、冻结、证据执�
 - `ReviewEscapeRecordGate`：二次复审、返修或实施过程中发现新问题逃逸时，必须先追加 escape record，再补清单和重跑证据。
 - `ChecklistStateFreshnessGate`：最终报告前核对清单状态、报告结论、audit-state、sessions、SUMMARY 和 dirty 边界一致。
 - `ReviewDimensionDeltaGate`：R2+ 复审不得机械重复同一维度；重复维度必须有阻断项回归、高风险锚点、新证据或抽样理由。
-- `PostConfirmationReviewScopeGate`：CP1 / CP2 / CP3 确认后先判定轻量复审或全面复审；命中高风险场景时必须创建或复用本清单，低风险降级写 `N/A + skipReason`。
+- `PostConfirmationReviewScopeGate`：CP1 / CP2 / CP3 确认后先按 C19↔R 映射判定强度（轻量=R1 / 标准=R2 / 全面=R3 / 发布安全=R4），输出 **ReviewGradeCard**（`reviewScope`·`stage`·`cpPhase`·`riskClass`·`riskFlags`·`reviewClass`·`c19Label`·`contentPack`·`blockers`·`result`·`skipReason`）；命中 R3/R4 或高风险场景时必须创建或复用本清单，R1 降级写 `N/A + skipReason`。默认 post-confirmation/ECR 不得无理由落在 R1。
 - `FeatureChecklistEvidenceMatrixGate`：需求维度、功能清单或公开能力进入复审时，必须把 capability group × evidence surface 绑定到当前证据；复审清单记录验证状态，不替代稳定 Profile feature inventory。
 - `BatchEvidenceLedgerStateGate`：多批次、矩阵验证、长链路吸纳或发布前检查必须冻结 EvidenceLedger，区分 baseline-confirmed、executed-passed、partial、failed、not-started，且每项有 actualSources、commands、status、finding 或 skipReason。
 - `BatchProgressCardGate`：多批次最终报告、记忆和回复必须同步 Progress Card，覆盖总范围、已完成、当前批、下一批、剩余项、阻塞/风险和证据链接。

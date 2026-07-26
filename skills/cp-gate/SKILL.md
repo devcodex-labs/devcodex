@@ -104,14 +104,23 @@ CP 门控**不受 ENV_MODE 影响**。dev/prod 均强制保持 CP1→CP2 顺序�
 
 - **适用节点**：每次 CP 确认之后、进入下一阶段之前
 - **复审对象**：刚被确认的 CP 产物
-- **强度判定**：
-  - 轻量复审：低风险单文件、纯文案、无公共契约、无多真相源同步、无发布/控制面/安全能力/文档消费者影响。
-  - 全面复审：公共 API/配置、跨模块注册链、运行时安全能力、package/adapter、文档消费者、控制面、多真相源同步、用户要求全面复审、长周期或多轮收敛任务。
-- **轻量最小检查**：
+- **C19 ↔ reviewClass 映射**（禁止第四套等级名；机器细节见 `hooks/_runtime/review-execution-contract.cjs` 的 `selectReviewClass`，lifecycle 未接线前由本表驱动 Agent）：
+
+| c19Label（用户面） | reviewClass | 选用条件 |
+|--------------------|-------------|---------|
+| 轻量 | R1 | 低风险单文件、纯文案、SimpleTaskFastPath；无公共契约/多真相源/发布/控制面/安全/文档消费者；**必须** `skipReason` |
+| 标准 | R2 | **默认** post-confirmation；或 changed>2 / affected>changed |
+| 全面 | R3 | 公共 API/配置、跨模块注册链、运行时安全、package/adapter、文档消费者、控制面、多真相源、用户要求全面、长周期/多轮收敛 |
+| 发布安全 | R4 | security/release 风险、发布阶段、claims 含 full、或输入不全 fail-closed |
+
+- **ReviewGradeCard 最小字段**（确认后必须显式输出）：`reviewScope` · `stage=post-confirmation` · `cpPhase` · `riskClass` · `riskFlags` · `reviewClass` · `c19Label` · `contentPack` · `blockers` · `result` · `skipReason`（仅 R1 降级）· `independentEvidence`（R3/R4）· `negativeEvidence`（R2+）· `authorSelfReviewOnly`
+- **contentPack**：CP1=requirement-bundle；CP2=plan-review-pr（R3 时 PR-2~PR-7）；CP3=implementation-plan
+- **轻量（R1）最小检查**：
   1. 当前产物内部自洽
   2. 与上游已确认内容一致
   3. 不存在会在下一阶段立即触发阻断的缺口
-- **全面复审最小检查**：
+- **标准（R2）最小检查**：R1 + 相关影响面/负向缺口意识 + ReviewGradeCard
+- **全面（R3）最小检查**：
   1. 创建或复用 `review-checklist` 文件并冻结范围、维度、证据路线和状态字段
   2. 对 CP2 技术方案复用 `dev-plan-review` PR-2~PR-7，不能只写“轻量自洽”
   3. 执行 ReviewCoverageDelta、ReviewDimensionDeltaGate、EvidenceExecutionGate 和 ChecklistStateFreshnessGate
@@ -125,9 +134,10 @@ CP 门控**不受 ENV_MODE 影响**。dev/prod 均强制保持 CP1→CP2 顺序�
   2. 上游已确认产物
   3. 相关真相源、联动规则或校验探针
 - **处理规则**：
-  - 无阻断问题：显式输出“前置复审结果：✅ 无阻断，可进入下一阶段”后再推进
+  - 无阻断问题：显式输出 ReviewGradeCard + “前置复审结果：✅ 无阻断，可进入下一阶段”后再推进
   - 发现阻断问题：停止推进，修正当前产物，告知用户，再回到对应 CP 重新确认
   - 连续 2 次仍发现新的阻断问题：提示升级为定向 `audit` 或扩大扫描范围
+- **边界**：作者自审不得标为独立审查；文件少不得压低控制面/公共契约/安全/发布风险
 
 ## ConfirmBindingGate / ClosureEvidenceGate（控制面确认绑定）
 

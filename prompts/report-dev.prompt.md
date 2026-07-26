@@ -86,6 +86,8 @@ dev 中含 repair 切片时追加 `RepairPreventionAssessment`：只引用 Owner
 
 正式复审/ECR 追加 `ReviewExecution`：只投影同一个 `ReviewStateSnapshotV1.snapshotDigest`，列 planId/candidate/stage/class、fresh receipt digests、saturation、nextAction 与 StageTiming；禁止在报告重新计算状态。
 
+ECR/确认后复审追加 **ReviewGradeCard**：`c19Label`（轻量/标准/全面/发布安全）· `reviewClass`（默认 R2）· `riskClass`/`riskFlags` · `contentPack` · `result`；R1 降级须 `skipReason`；禁止「永远轻量」无理由收口。
+
 命中用户可见输出时追加 `VisibleOutputContract`：引用同一 `ArtifactDeliveryManifestV1.manifestDigest`、`UserFacingArtifactSetV1` 计数、`DevCodexVisibleEnvelopeV1.semanticDigest`、`LinkCapabilityDecisionV1` 和 renderer parity；session/daily/SUMMARY/task/checkpoint/raw receipt/manifest/ledger 默认 internal-only，但仍参与 ECR。宿主 capability 未 direct 验证时写 portable/plain/unverified，不得按宿主名推断。
 
 命中 `evidence-freshness` 时追加 `EvidenceFreshness`：记录 `ClaimEvidenceIndexV1.indexDigest`、`StaleEvidenceLintDecisionV1.status/mode`、downgrade/rerun 计数、summary-only 边界、artifact anchor / final validation summary binding 与 `npm run test:evidence-freshness` exitCode。报告只写摘要，不复制内部 receipt 全文。
@@ -122,6 +124,8 @@ TestRoute 选中的路线必须全部出现；覆盖率、视觉、文档、构�
 
 
 ## §7.5 ECR 执行闭环复审
+
+**ReviewGradeCard**：c19Label=____ · reviewClass=R2（默认）/R1|R3|R4 · riskClass=____ · riskFlags=____ · contentPack=____ · result=pass|fail · skipReason=N/A
 
 | ECR 项 | 检查对象 | 结果 | 证据 |
 |--------|----------|:----:|------|

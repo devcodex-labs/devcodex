@@ -36,6 +36,7 @@ description: 专家型产物质量门禁 — 当任务涉及代码、文档、�
 | `MeasuredVerificationStandard` | 将探针/validate/测试标为已验证时，必须走生产入口命令（如 `npm run test:core`、`node scripts/test-spec-governance.js`）并记录 exitCode；隔离 harness 未复用 `createCanonicalAwareReader` 时只能标非权威实验，不得写成 V84/V# 成败 | command、exitCode、authorityPath、parityEvidence |
 | `CodeTruthEvidenceMatrixGate` | 重要需求、技术方案和修复结论必须绑定 repo path、符号/契约、当前行为、反证探针和差距，不能只靠文档自洽 | repoPath、symbol、currentBehavior、negativeProbe、gap |
 | `SolutionFitAgainstRepoGate` | 方案必须说明复用点、消费者、变更面、回滚和保持现状成本，避免凭空设计 | reusePoint、consumer、rollback、statusQuoCost |
+| `ControlPlaneAdviceInventoryGate` | 控制面/复审分级/Gate 体系/规范如何改等**建议路径**，在宣称最优或可实施前必须对 source-root 做 ExistingCapabilityInventory；禁止仅用 user-global 镜像或对话记忆；与 analyze-default 同名门禁同向（PI-176 / PF-181） | inventory 表、reusePoint、gap、禁平行声明 |
 | `UniqueRecommendationBeforeConfirmGate` | 多方案比较收敛后只能有一个推荐方案或一个明确组合推荐；**任何**用户须决策的路径建议（含完成态下一步）均适用 | recommended=1、alternatives、reason |
 | `NoPreferenceMenuAfterConvergenceGate` | 已由证据收敛且用户授予 auto 时，不再要求用户选择无意义偏好菜单 | auto evidence、decisionOwner |
 | `UniqueNextStepRecommendationGate` | 完成态 free-text「下一步/后续建议」仅 1 条主动作；禁止「或/或者」并列双可执行路径（PF-172） | single action、no or-fork、optional 不推荐 block |
@@ -45,6 +46,7 @@ description: 专家型产物质量门禁 — 当任务涉及代码、文档、�
 1. 判断产物类型和目标受众：用户、维护者、调用方、审核人或发布方。
 2. 选择角色基线：技术专家、资深架构师、领域专家或用户文档作者。
 3. 先反查项目和框架：已有 helper、middleware、plugin、types、schema、runtime dispatcher、配置系统、文档约定和官方 API。
+3a. 若任务为控制面/复审等级/Gate 设计建议或「能否按 X 拆体系」：先执行 `ControlPlaneAdviceInventoryGate`（source-root inventory），再给推荐路径；未 inventory 不得写已验证最优。
 4. 给出生产推荐路径：职责边界、使用方式、扩展点、失败处理、验证路线和维护成本。
 5. 再标注非主路径：fixture / mock / demo / legacy / compat 的用途、风险和禁止外推范围。
 6. 对容易误导的示例追加反模式对比：错误写法、为何不推荐、正确替代、如何迁移。
@@ -68,6 +70,7 @@ description: 专家型产物质量门禁 — 当任务涉及代码、文档、�
 | operationExplanation | `OperationExplanationContractV1`，不涉及用户/维护者操作时写 N/A + skipReason |
 | codeTruthEvidence | `CodeTruthEvidenceMatrixGate`，绑定 repo path / symbol / currentBehavior / negativeProbe / gap |
 | solutionFitAndRecommendation | `SolutionFitAgainstRepoGate` + `UniqueRecommendationBeforeConfirmGate` / `NoPreferenceMenuAfterConvergenceGate` / `UniqueNextStepRecommendationGate` |
+| controlPlaneAdviceInventory | 触发时：ExistingCapabilityInventory 摘要；未触发写 N/A + skipReason |
 ```
 
 ## 常见修正

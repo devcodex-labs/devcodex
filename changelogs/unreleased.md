@@ -109,6 +109,16 @@ WorkspaceDataAbsorptionScopeGate · DocsSiteVisualAcceptanceGate · OmissionOnly
 - 支持 `existing-control-restored / new-control-provisional / no-new-control / emergency-active`，高风险或 repeat escape 强制 full；当前事件重跑不得晋级 prevention，控制必须具备 prospective evidence 与 rollback/sunset。
 - fix/security/execution/review/TestRoute/report/Prompt/registry 消费者与 V94、独立正负向验证节点已同步；未新增重复 Prevention Skill。
 
+### 复审等级 C19↔R 现状对齐（2026-07-26）
+
+- 对齐 C19 人读档与 `selectReviewClass`（R0~R4）：**轻量=R1 / 标准=R2 / 全面=R3 / 发布安全=R4**；确认后与 ECR 须输出 **ReviewGradeCard**。
+- 消除 `10-dev` / `11-fix`「确认后前置轻量复审」「ECR 永远 1 轮轻量」漂移；ECR 默认 R2，高风险升 R3+清单。
+- 同步 `cp-gate`、`review-checklist`、`instructions.md`、`01-common`、host-projections、`dev-default`、V78 needles。
+- 关联：VL-085 · VL-086 · PF-181 · PI-176 · 需求 `20260726-复审等级现状对齐`；lifecycle 接线 R 档仍为后续批次。
+- Batch B：`ControlPlaneAdviceInventoryGate` 写入 `analyze-default` / `expert-output-quality` / `13-analyze` 索引（建议路径须 source-root inventory）。
+- Batch C：README / website guide 锚点同步；部署用 `global-adapters apply` 刷新 user-global Skill。
+- 残留 F-01/F-02：`gate-registry` post-confirmation `requiredEvidence` 含 ReviewGradeCard/c19Label/reviewClass；`report` / `fix-default` / report-dev|fix|optimization|scenario-test prompts 写入 ReviewGradeCard 字段。
+
 ### 复审证据与状态单一投影（2026-07-19）
 
 - 新增 `ReviewExecutionPlanV1`、`ReviewEvidenceReceiptV1`、`ReviewStateSnapshotV1`、`EvidenceSaturationResultV1` 与 `StageTimingV1` 确定性运行时。

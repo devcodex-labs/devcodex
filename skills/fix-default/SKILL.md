@@ -38,7 +38,7 @@ description: 默认修复子类型规范 — Bug 修复三步扫描 + CP 流程
 7. `impact-review`（若 PR-5② 跨模块架构依赖变更）
 8. `execution-contract` / `test-router`（full、≥5 文件、高风险、控制面或多批次修复时）
 9. `document-sync`（若修复涉及文档说明）
-10. **ECR 执行闭环复审** — 对照 CP1/CP2/CP3、实施进度（触发时）、报告、daily tasks、SUMMARY、diff/commit、测试/扫描证据和 dirty 边界，确认无假完成、无状态错配、无用户另案变更混入；涉及规范源、Skill、Hook、CLI、MCP、模板、部署副本、路径规则或 validate 语义时必须执行 SCV（`spec-governance`）
+10. **ECR 执行闭环复审** — 对照 CP1/CP2/CP3、实施进度（触发时）、报告、daily tasks、SUMMARY、diff/commit、测试/扫描证据和 dirty 边界，确认无假完成、无状态错配、无用户另案变更混入；输出 **ReviewGradeCard**（默认 reviewClass=R2/标准；控制面等高风险升 R3+清单；禁止无 skipReason 的「永远轻量」收口）；涉及规范源、Skill、Hook、CLI、MCP、模板、部署副本、路径规则或 validate 语义时必须执行 SCV（`spec-governance`）
 
 ## 关键规则
 

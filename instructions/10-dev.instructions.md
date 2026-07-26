@@ -72,7 +72,7 @@ CP1（需求确认）→ PR-1 内部自检 → CP2（方案确认）→ plan-rev
 7. **进度文档触发**：`05-实施进度.md` 不是小任务默认必产物；但当任务跨 2 轮以上会话、存在明确阻塞、用户要求持续跟踪、CP3 计划拆分为多批次、预计修改 ≥10 文件或命中控制面/模板/validate/部署副本联动时，必须在执行前创建并在每批完成后更新。默认前提是已存在 `04-实施计划.md`；docs/init 等 CP3 豁免场景可使用已确认文档大纲、任务切片或 ContextHandoffCard 作为等价计划锚点。
 8. **无 Hooks 宿主软门禁**（v1.9.6+）：当运行宿主为 `jetbrains-copilot`、`cursor` 或其他 `instruction-fallback` 客户端时，`lifecycle.cjs` CP gate 不可执行。AI 必须在每个 CP 输出末尾显式追加 `⏸ 等待用户确认（CP{N}）— 收到"好/继续/ok"前不得进入下一阶段或写源码`，并在用户未明确回复前禁止 source mutation 工具调用。
 9. **CP3 豁免记录**：docs/init/plan-review 子类型被规则明确豁免 CP3 时，须在需求级记忆或报告中记录 `CP3: N/A（<子类型> 子类型豁免）`，供 hook/fallback 区分合法豁免与漏确认。
-10. **确认后前置轻量复审**（C19）：每次用户明确确认 CP1 / CP2 / CP3 后、进入下一阶段前，必须先对当前已确认产物做 1 轮轻量前置复审并显式输出结果；控制面 / 多文件联动 / 真相源同步 / 模板-示例-校验链场景必须追加交叉验证；发现阻断性问题则先修正当前产物、告知用户并重新确认，无阻断问题方可推进。
+10. **确认后前置复审**（C19 / `PostConfirmationReviewScopeGate`）：每次用户明确确认 CP1 / CP2 / CP3 后、进入下一阶段前，必须先输出 **ReviewGradeCard**（`reviewClass` + `c19Label` + `riskClass`/`riskFlags` + `contentPack` + `result`）并按风险执行：默认 **R2（标准）**；低风险单文件/纯文案/SimpleTaskFastPath 可降 **R1（轻量）** 且必须写 `skipReason`；命中控制面/公共契约/多模块/多真相源/package·adapter/文档消费者/安全/用户要求全面/多轮收敛 → **R3（全面）** + `review-checklist`（CP2 复用 PR-2~PR-7）；security/release/`claims` 含 full → **R4**。控制面 / 多文件联动 / 真相源同步 / 模板-示例-校验链必须追加交叉验证；发现阻断性问题则先修正当前产物、告知用户并重新确认，无阻断问题方可推进。不得因文件少压低控制面/契约/安全/发布风险。
 11. **Intent Expansion 可见性**：dev 模式下，CP1 / 需求确认前默认向用户展示完整 Intent Expansion Card；这会覆盖旧的“意图扩展摘要”默认行为，但当命中控制面或宿主能力差异、跨会话 resume、prod、instruction-fallback 宿主或低风险轻任务时，仍允许退化为 3~5 行意图扩展摘要。
 12. **执行期 CP3 回退**：若 N5 执行过程中实际变更范围扩展到 CP3 门槛（如文件数从 <5 增至 ≥5、临时引入高风险操作、命中控制面/模板/validate/部署副本联动），必须暂停执行，回到 N4 / CP3 补做实施计划确认后再继续。
 13. **backlog 来源前置真相复核**：若本轮需求、批次或范围直接来源于 `data/*.md` 的 open/partial 项，CP1 前必须先把候选项分类为 `pure-open` / `residual-tail` / `already-fixed` / `misclassified`；非 `pure-open` 项须先回写状态并修正范围口径，禁止直接按旧 open 计数开做。
@@ -236,11 +236,19 @@ CP1（需求确认）→ PR-1 内部自检 → CP2（方案确认）→ plan-rev
 | ？追问 | 回答后重新输出当前 CP，等待确认 |
 | 🔀 模糊 | **不得推进**，必须明确询问再等待显式响应 |
 
-### 确认后前置轻量复审
+### 确认后前置复审（C19 / PostConfirmationReviewScopeGate）
 
 - **适用节点**：CP1 → CP2、CP2 → plan-review / CP3、CP3 → 执行
 - **复审对象**：刚被确认的需求理解 / 技术方案 / 实施计划
-- **复审目标**：
+- **强度映射（C19 ↔ reviewClass）**：
+  | c19Label | reviewClass | 选用条件 |
+  |----------|-------------|---------|
+  | 轻量 | R1 | 低风险单文件/纯文案/SimpleTaskFastPath；必须 `skipReason` |
+  | 标准 | R2 | **默认**（post-confirmation）；或影响面扩大 |
+  | 全面 | R3 | 控制面/公共契约/多模块/多真相源/package·adapter/文档消费者/安全能力/用户要求全面/多轮收敛 |
+  | 发布安全 | R4 | security/release 风险、发布阶段、或强声称 full |
+- **contentPack**：CP1=需求自洽+验收闭合；CP2=方案包（高风险复用 PR-2~PR-7）；CP3=计划可执行性
+- **复审目标**（R1 最小；R2+ 叠加负向；R3+ 叠加清单与独立证据口径）：
   1. 当前产物内部是否自洽
   2. 与上游已确认内容是否冲突
   3. 是否遗漏会在下一阶段形成阻断的问题
@@ -253,9 +261,10 @@ CP1（需求确认）→ PR-1 内部自检 → CP2（方案确认）→ plan-rev
   2. 上游已确认产物
   3. 相关真相源、联动规则或校验探针
 - **处理规则**：
-  - 无阻断问题：显式输出“前置复审结果：✅ 无阻断，可进入下一阶段”后再推进
+  - 无阻断问题：显式输出 ReviewGradeCard（含 `c19Label`/`reviewClass`）与“前置复审结果：✅ 无阻断，可进入下一阶段”后再推进
   - 发现阻断问题：停止推进，先修正当前产物并告知用户，再回到对应 CP 重新确认
   - 连续 2 次前置复审仍发现新的阻断问题：提示升级为定向 `audit` 或扩大扫描范围
+- **边界**：作者自审不得标为独立审查；机器 `selectReviewClass` 细节见 `hooks/_runtime/review-execution-contract.cjs`（lifecycle 未强制接线前仍由 Agent 按本表执行）
 
 ### 全自动模式（@devcodex-auto / @rocky / Profile autoAliases）
 
@@ -364,11 +373,11 @@ CP1（需求确认）→ PR-1 内部自检 → CP2（方案确认）→ plan-rev
 
 ## ECR 执行闭环复审（执行后强制）
 
-> 适用于 `dev` 工作流的关键产物稳定性确认。ECR（Execution Closure Review）是执行后正式完成阶段，把原“轻量复审收敛”具体化为可检查清单；它不是 audit 的 3 轮零发现重流程。
+> 适用于 `dev` 工作流的关键产物稳定性确认。ECR（Execution Closure Review）是执行后正式完成阶段，把原“轻量复审收敛”具体化为可检查清单（ECR-1~7）。**默认 reviewClass=R2（标准）**；控制面/多文件/模板-校验链/发布相关 → **R3 + review-checklist**；security/release/claim=full → **R4**。它不是 audit 的 3 轮零发现重流程，也**禁止**把 ECR 描述为「永远只需轻量一眼」。
 
 ### 触发时机
 
-- 执行完成后、宣告任务完成前，必须对关键产物与最终实现结果做 1 轮轻量复审
+- 执行完成后、宣告任务完成前，必须对关键产物与最终实现结果做 **1 轮 ECR**（默认 R2；按上表升级），并输出 ReviewGradeCard（`stage=ecr`）
 - 关键产物至少包括：
   - `02-技术方案.md`（若存在）
   - `04-实施计划.md`（若存在）
@@ -411,13 +420,13 @@ CP1（需求确认）→ PR-1 内部自检 → CP2（方案确认）→ plan-rev
 
 ### 收敛条件
 
-- 最后一次阻断性修正后，至少再完成 **1 轮轻量复审**
+- 最后一次阻断性修正后，至少再完成 **同级或更高级** 1 轮复审（不得用更低 `reviewClass` 关闭阻断）
 - 该轮无新增阻断性问题，才可宣告完成
 
 ### 升级条件
 
-- 若连续 2 轮轻量复审仍持续发现新的阻断性问题，必须提示用户：
-  - 升级为定向 `audit`
+- 若连续 2 轮 ECR 复审仍持续发现新的阻断性问题，必须提示用户：
+  - 升级为定向 `audit`（或抬高至 R3/R4 + 冻结清单）
   - 或扩大扫描范围后再继续
 
 ## 代码风格

@@ -48,6 +48,18 @@ description: 默认分析工作流规范 — 只读多轮分析、代码事实�
 
 禁止只对计划文档里的路径执行存在性检查后直接判定未实现。
 
+### ControlPlaneAdviceInventoryGate（建议路径 inventory · PI-176 / PF-181 / PF-178 同簇）
+
+当结论是**设计建议、分级方案、体系拆分、Gate/复审强度/控制面如何改**，或用户问「能否/应该如何」且答案依赖 **DevCodex 或当前仓库如何实现** 时，在输出推荐矩阵或「最优方案」之前必须：
+
+1. 对 **source-root**（规范仓如 `devcodex-v1`，非仅 user-global 镜像）做 **ExistingCapabilityInventory**：既有 Gate 名、Skill Owner、runtime（如 `selectReviewClass`）、探针、相关 PF/PI、文案漂移面。
+2. 输出最小 inventory 表或等价证据：`reusePoint` / `currentBehavior` / `gap` / `禁平行声明`（不得静默发明平行等级名或新 Gate 哲学体系）。
+3. 仅对话记忆、user-global Skill 镜像或未 inventory 时，**禁止**写「已验证最优 / 项目已支持 / 可直接按此实施」。
+
+触发面示例：C19/R 档、ECR、复审清单、Hook/CLI/MCP、validate、host projection、规范吸纳。  
+低风险且与项目实现无关的纯概念解释可写 `N/A + skipReason`，不得把控制面建议降级为 N/A。  
+与 `expert-output-quality` 的 `CodeTruthEvidenceMatrixGate` / `SolutionFitAgainstRepoGate` 同向；chat 路径同样适用，不因未进 CP1 而豁免。
+
 ### ProfileTruthReconciliationGate（targeted）
 
 项目级 analyze 在 A2 事实取证时必须调用 `load-profile` 的 `ProfileTruthReconciliationGate` targeted 模式：先把 Profile 声明当作待核对输入，再用当前代码、配置、package、运行证据和正式需求建立 `ProfileTruthMatrix`。若出现 `stale-profile` 或 `unverifiable`，本轮结论必须采用可验证事实并明确可信度；若出现 `stale-code-or-doc` 或 `intentional-exception`，必须说明目标态/政策依据和消费者影响。

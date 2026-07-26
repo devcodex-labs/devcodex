@@ -104,6 +104,7 @@ CLI/MCP surface。
 - 命中 formal retry/cancel/restart 时写 `ExecutionAttemptLedger`：分列 qualification、failureSignature、source/evidence delta、FirstPassYield、command/external/user/model timing、StopSnapshot 与 terminal/finalizer；不得把等待时间混成执行性能。
 - 任何 repair task 写 `RepairPreventionAssessment`：引用 Owner 的 assessment identity/decision/mode，分列 `immediateClosureEvidence` 与 `prospectiveEvidencePlan`，并记录 rollback/sunset；不得用本次测试通过宣称长期 prevention effective。
 - 正式复审/ECR 写 `ReviewExecution`：引用 `ReviewExecutionPlanV1`、fresh receipt digests、EvidenceSaturation、唯一 `ReviewStateSnapshotV1.snapshotDigest` 与 `StageTimingV1`；报告不得重新推导 review counts 或把 failed/inconclusive receipt 写成可复用。
+- **ReviewGradeCard（C19↔R）**：CP 确认后前置复审与 ECR 在报告中须记录 `c19Label`（轻量/标准/全面/发布安全）与 `reviewClass`（R0~R4）、`riskClass`/`riskFlags`、`contentPack`、`result`；默认 ECR 为 **R2（标准）**，禁止写「永远轻量一眼通过」而无 `skipReason` 的 R1 降级；R3/R4 须引用 checklist 或独立证据口径。
 
 最终回复是独立交付 surface：报告必须先登记到 `ArtifactDeliveryManifestV1`，再由 `UserFacingArtifactSetV1` 投影。默认用户面显示最终报告、直接交付物和 required evidence；session/daily/SUMMARY/task/checkpoint/raw receipt/manifest/ledger 默认 internal-only，但仍写入并参与 ECR。可见回复证据使用 `verified-present / verified-missing / unverified`，legacy 文本最多 `unverified-legacy`，不可观察时不得断言缺失。
 
@@ -127,7 +128,7 @@ CLI/MCP surface。
 - 报告中的治理落账编号必须与当前 active-root 台账和 Hook/人工复证一致；不能仅因正文出现 `PI/PF/VL/GR/ISSUE` 编号就写“已记录”。复合意图逐项列证据，`record.none` 列独立 challenge evidence。
 - audit / analyze / self-fix 的汇总型报告默认采用“两层问题清单”：先列根因级问题，再展开逐文件完整落点；边界/非缺陷结论单独成节，不混入缺陷编号
 - 报告写入后必须执行 [`compliance`](../compliance/SKILL.md) Skill §5 二次验证（V1~V6）
-- `dev` / `fix` 报告在最终宣告完成前，必须显式体现“ECR 执行闭环复审”这一正式阶段，并与 CP1/CP2/CP3、关键产物、报告、daily tasks、SUMMARY、diff/commit、测试/扫描证据和 dirty 边界完成 1 轮复审对照；若发现阻断性问题，不得直接以“已完成”收尾
+- `dev` / `fix` 报告在最终宣告完成前，必须显式体现“ECR 执行闭环复审”这一正式阶段（默认 reviewClass=R2 + ReviewGradeCard），并与 CP1/CP2/CP3、关键产物、报告、daily tasks、SUMMARY、diff/commit、测试/扫描证据和 dirty 边界完成 1 轮复审对照；若发现阻断性问题，不得直接以“已完成”收尾
 - 跨会话、跨 Agent、多批次、summary/compact 前、用户要求“传递上下文”或未完成任务的报告必须包含 `ContextHandoffCard`；已完成且无需交接时写 `ContextHandoffCard: N/A + skipReason`
 - 主动建议或 C08 强制新会话时，最终回复与报告须含 `NewSessionContinuationCard`；内部字段保留 taskId/项目/CP/真相源/风险/验证，用户可复制的 `copyReadyPrompt` 固定为 `继续<displayName>任务`。CP pending 不得写成 confirmed，resolver 命中也不得替代文件复水化
 - 长任务报告附录推荐 `SessionTimingCard`（startedAt/endedAt、阶段耗时、waiting-user / waiting-external 分列；命中预算时附 cycleId 与 budget 消耗）

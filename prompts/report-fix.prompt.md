@@ -97,6 +97,8 @@ HostContractRoute 发生 MCP bridge 降级时记录 `mcpFallback=used`、原始�
 
 ## §5.5 ECR 执行闭环复审
 
+**ReviewGradeCard**：c19Label=____ · reviewClass=R2（默认）/R1|R3|R4 · riskClass=____ · riskFlags=____ · contentPack=____ · result=pass|fail · skipReason=N/A
+
 | ECR 项 | 检查对象 | 结果 | 证据 |
 |--------|----------|:----:|------|
 | ECR-1 | CP1/CP2/CP3、05-实施进度、报告、daily tasks、SUMMARY | ✅/⚠️ | |

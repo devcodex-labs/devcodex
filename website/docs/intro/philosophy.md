@@ -34,9 +34,11 @@ Auto v1.1（`@devcodex-auto`、全局默认 `@rocky`、Profile `extensions.devco
 
 | 宿主 | Auto runtime 保证 |
 |------|-------------------|
-| Claude Code（hooks 齐全） | 可宣称 hook-enforced 白名单自动推进 |
+| Claude Code（hooks 齐全） | 可宣称 hook-enforced 白名单自动推进；UPS 可 inject |
 | Codex（hooks 齐全） | 事件依赖的 hook guardrail；PreTool 等可硬拦 |
-| Grok Build | **仅 PreToolUse 可硬拦**；无 UserPromptSubmit 注入/Stop 硬拦。Auto 语义保留，但 **不得** 宣称与 Claude 同级 hook-enforced 全自动；Full 会话用 `devcodex grok`。详见 [Grok 与 Codex 对齐](/intro/host-parity-grok) |
+| Copilot | **CLI 与 IDE 不等价**：CLI 可 hard-deny；IDE 常为 instruction-fallback / honesty-only |
+| Gemini CLI | PreTool/Stop 视平台事件；**UPS inject = N/A**，禁止假 inject |
+| Grok Build | PreToolUse 可 `decision:deny`；**UPS 无 inject**；Stop 为**条件**硬拦（有 `lastAssistantMessage` 时可 `decision:block`，非无条件、非与 Codex 全等价）。Auto 语义保留，**不得**宣称与 Claude 同级 hook-enforced 全自动；Full 会话用 `devcodex grok`。详见 [Grok 与 Codex 对齐](/intro/host-parity-grok) |
 | JetBrains / 纯 instruction-fallback | 只同步规则语义，无 runtime 硬自动 |
 
 ---

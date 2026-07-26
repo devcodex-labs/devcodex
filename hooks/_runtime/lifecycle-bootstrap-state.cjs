@@ -559,6 +559,8 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     state.governanceIntake = normalizeGovernanceIntakeState(previousState?.governanceIntake)
     state.turnLiveness = normalizeTurnLivenessState(previousState?.turnLiveness)
     state.dangerousApprovals = { ...(previousState?.dangerousApprovals || {}) }
+    // Per-turn only: set after reset on UserPromptSubmit; never inherit prior match/enforceCount
+    state.workspaceSkillAutoMatch = null
     const previousAcquisition = previousState ? normalizeContextAcquisition(previousState) : null
     if (previousAcquisition?.contextEpoch) {
       state.contextAcquisition.handoff = {

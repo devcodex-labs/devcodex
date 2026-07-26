@@ -1001,6 +1001,7 @@ function buildCliMaintenanceCommands(ctx) {
       ${c.cyan('trace show|replay')} Read LocalTaskTrace; trace show --completion reads receipt identities
       ${c.cyan('skill plan')}        Plan a dependency-closed whole-SKILL bundle; add --json for BundleDecisionV2
       ${c.cyan('skill resolve')}     Resolve skill ids W>G (workspace skills vs global); --json
+      ${c.cyan('skill match')}       Auto-match user prompt to workspace skill (P0.5 closed loop); --json
       ${c.cyan('task resolve')}      Resolve an active task by exact name, alias, project, or stable taskId
       ${c.cyan('task verify')}       Reconcile one task; exact --task or unique-active fallback
       ${c.cyan('task risk')}         Accept/revoke explicit, candidate-bound waivable risk

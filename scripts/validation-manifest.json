@@ -58,8 +58,10 @@
     "scripts/lib/probe-registry.js",
     "scripts/lib/validate-*.js",
     "hooks/_runtime/skill-resolution.cjs",
+    "hooks/_runtime/workspace-skill-auto-match.cjs",
     "scripts/test-skill-resolve.js",
-    "scripts/test-skill-resolution-hook-paths.js"
+    "scripts/test-skill-resolution-hook-paths.js",
+    "scripts/test-workspace-skill-auto-match.js"
   ],
   "invariantNodes": [
     "validate-versions",
@@ -77,6 +79,7 @@
         "skill-sidecar-contract",
         "skill-resolve",
         "skill-resolution-hook-paths",
+        "skill-auto-match",
         "skill-portfolio",
         "skill-portfolio-current",
         "profile-section-selector",
@@ -156,6 +159,7 @@
         "skill-sidecar-contract",
         "skill-resolve",
         "skill-resolution-hook-paths",
+        "skill-auto-match",
         "skill-portfolio",
         "skill-portfolio-current",
         "profile-section-selector",
@@ -265,7 +269,8 @@
         "syntax",
         "skill-sidecar-contract",
         "skill-resolve",
-        "skill-resolution-hook-paths"
+        "skill-resolution-hook-paths",
+        "skill-auto-match"
       ]
     },
     "package-release": {
@@ -299,7 +304,8 @@
         "generated-site-postcheck",
         "skill-sidecar-contract",
         "skill-resolve",
-        "skill-resolution-hook-paths"
+        "skill-resolution-hook-paths",
+        "skill-auto-match"
       ]
     }
   },
@@ -668,6 +674,48 @@
       ],
       "consumers": [
         "hooks-runtime"
+      ],
+      "invariants": [
+        "contract"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 60000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "skill-auto-match",
+      "owner": "workspace-skill-auto-match",
+      "command": "node",
+      "args": [
+        "scripts/test-workspace-skill-auto-match.js"
+      ],
+      "dependencies": [
+        "skill-resolve"
+      ],
+      "inputs": [
+        "hooks/_runtime/workspace-skill-auto-match.cjs",
+        "hooks/_runtime/skill-resolution.cjs",
+        "hooks/_runtime/lifecycle.cjs",
+        "hooks/_runtime/lifecycle-host-adapters.cjs",
+        "scripts/test-workspace-skill-auto-match.js"
+      ],
+      "consumers": [
+        "hooks-runtime",
+        "cli-behavior"
       ],
       "invariants": [
         "contract"

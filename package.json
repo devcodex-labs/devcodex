@@ -112,7 +112,7 @@
     "validate": "node scripts/validate.js",
     "prepublishOnly": "npm run test:all:with-audit",
     "test:executable-absorption-gates": "node scripts/test-executable-absorption-gates.js",
-    "test:skill-resolve": "node scripts/test-skill-resolve.js && node scripts/test-skill-resolution-hook-paths.js"
+    "test:skill-resolve": "node scripts/test-skill-resolve.js && node scripts/test-skill-resolution-hook-paths.js && node scripts/test-workspace-skill-auto-match.js"
   },
   "keywords": [
     "copilot",
@@ -221,6 +221,8 @@
     "scripts/test-skill-sidecar-contract.js",
     "scripts/test-skill-resolve.js",
     "scripts/test-skill-resolution-hook-paths.js",
+    "scripts/test-workspace-skill-auto-match.js",
+    "hooks/_runtime/workspace-skill-auto-match.cjs",
     "skills/_schemas/devcodex-skill-contract.v1.schema.json",
     "scripts/lib/project-knowledge-store.js",
     "scripts/lib/execution-optimization.js",

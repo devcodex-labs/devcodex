@@ -323,7 +323,7 @@ function buildCliExecutionCommands(ctx) {
       } else if (arg.startsWith('-')) options.errors.push(`unsupported option: ${arg}`)
       else options.candidateIds.push(arg)
     }
-    if (!['plan', 'resolve'].includes(options.action)) {
+    if (!['plan', 'resolve', 'match'].includes(options.action)) {
       options.errors.push(`unknown skill subcommand: ${options.action || '(none)'}`)
     }
     if (options.action === 'plan' && !options.candidateIds.length) {
@@ -332,17 +332,68 @@ function buildCliExecutionCommands(ctx) {
     if (options.action === 'resolve' && !options.candidateIds.length) {
       options.errors.push('at least one skill id is required for resolve')
     }
+    if (options.action === 'match' && !options.candidateIds.length) {
+      options.errors.push('match requires a user prompt string (quote multi-word prompts)')
+    }
     return options
   }
 
   function printSkillFailure(options, errorCode, message, nextStep, details, exitCode) {
-    const operation = options.action === 'resolve' ? 'skill.resolve' : 'skill.plan'
+    const operation = options.action === 'match'
+      ? 'skill.match'
+      : (options.action === 'resolve' ? 'skill.resolve' : 'skill.plan')
     if (options.json) printCliJson(console, createCliFailure(operation, errorCode, message, nextStep, cliMetadata, details))
     else {
       console.log(c.red(`  [${errorCode}] ${message}`))
       console.log(c.dim(`  ${nextStep}`))
     }
     process.exitCode = exitCode
+  }
+
+  function cmdSkillMatch(options) {
+    let matchWorkspaceSkills
+    try {
+      ;({ matchWorkspaceSkills } = require('../../hooks/_runtime/workspace-skill-auto-match.cjs'))
+    } catch (error) {
+      printSkillFailure(options, 'SKILL_AUTO_MATCH_UNAVAILABLE', error.message, 'Reinstall DevCodex runtime hooks and retry.', null, 1)
+      return null
+    }
+    const prompt = options.candidateIds.join(' ')
+    const result = matchWorkspaceSkills(prompt, {
+      cwd: process.cwd(),
+      consumerAuthority: 'cli'
+    })
+    // Do not dump full skill body in default human output unless --json
+    const publicResult = {
+      ...result,
+      content: options.json ? result.content : undefined,
+      injectionText: options.json ? result.injectionText : (result.matched ? '[present; use --json for full inject text]' : '')
+    }
+    if (options.json) {
+      printCliJson(console, {
+        schemaVersion: 'DevCodexCliEnvelopeV1',
+        operation: 'skill.match',
+        ok: true,
+        result
+      })
+    } else {
+      console.log()
+      console.log(c.bold('  DevCodex WorkspaceSkillAutoMatch'))
+      console.log(`  ${c.cyan('prompt'.padEnd(16))} ${prompt}`)
+      console.log(`  ${c.cyan('matched'.padEnd(16))} ${result.matched}`)
+      console.log(`  ${c.cyan('skillId'.padEnd(16))} ${result.skillId || '(none)'}`)
+      console.log(`  ${c.cyan('score'.padEnd(16))} ${result.score}`)
+      console.log(`  ${c.cyan('layer'.padEnd(16))} ${result.selectedLayer || '(none)'}`)
+      console.log(`  ${c.cyan('mustReply'.padEnd(16))} ${result.mustReply || '(none)'}`)
+      console.log(`  ${c.cyan('reasons'.padEnd(16))} ${(result.reasons || []).join(', ') || '(none)'}`)
+      console.log(`  ${c.cyan('scanned'.padEnd(16))} ${result.candidatesScanned}`)
+      if (result.matched) {
+        console.log(c.dim('  closed-loop: UserPromptSubmit inject (hosts with additionalContext) + Stop force on Grok when reply ignores skill'))
+      }
+      console.log()
+    }
+    process.exitCode = 0
+    return publicResult
   }
 
   function cmdSkillResolve(options) {
@@ -407,13 +458,14 @@ function buildCliExecutionCommands(ctx) {
         options,
         'CLI_INVALID_OPTION',
         options.errors.join('; '),
-        'Use: devcodex skill plan <candidate...> [...] | devcodex skill resolve <id...> [--json]',
+        'Use: devcodex skill plan <candidate...> | skill resolve <id...> | skill match <prompt...> [--json]',
         { errors: options.errors },
         2
       )
       return null
     }
     if (options.action === 'resolve') return cmdSkillResolve(options)
+    if (options.action === 'match') return cmdSkillMatch(options)
     let portfolio
     try {
       portfolio = readSkillPortfolio()

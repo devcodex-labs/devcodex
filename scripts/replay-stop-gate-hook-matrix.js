@@ -62,6 +62,7 @@ const COMPLETE_BODY = [
   'Release actions: push/tag/release/publish 未执行',
   '`DevCodexVisibleEnvelopeV1 · completion-check · PASS · ' + 'c'.repeat(64) + '`',
   '',
+  '阶段报告: reports/requirements/grok/20260723/01--stop-gate-replay.md',
   '工作已完成并收口。'
 ].join('\n')
 

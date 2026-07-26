@@ -21,14 +21,17 @@ try {
 
 let classifyReviewChecklistCompletion
 let classifyProcessArtifactCompleteness
+let classifyDeliveryHonesty
 try {
   ;({
     classifyReviewChecklistCompletion,
-    classifyProcessArtifactCompleteness
+    classifyProcessArtifactCompleteness,
+    classifyDeliveryHonesty
   } = require('../../scripts/lib/process-enforcement.js'))
 } catch {
   classifyReviewChecklistCompletion = () => ({ ok: true, code: null, gap: null })
   classifyProcessArtifactCompleteness = () => ({ ok: true, code: null, gap: null, missing: [] })
+  classifyDeliveryHonesty = () => ({ ok: true, gaps: [], code: null, gap: null })
 }
 
 function extractLastAssistantMessage (payload) {
@@ -265,6 +268,22 @@ function evaluateStopCompletionGate (input = {}) {
   })
   if (!processPkg.ok && processPkg.gap) {
     gaps.push(processPkg.gap)
+  }
+
+  // Delivery honesty (A/B): strong closure claim + report path / over-claim
+  // Note: do not pass completionClaimed=true from mere 完成检查 block — classifier uses strong phrases.
+  if (typeof classifyDeliveryHonesty === 'function') {
+    const honestyGaps = classifyDeliveryHonesty({
+      text,
+      mode: modeL || mode,
+      workflow: wf || workflow,
+      mutated
+    })
+    if (!honestyGaps.ok && Array.isArray(honestyGaps.gaps)) {
+      for (const g of honestyGaps.gaps) {
+        if (g && !gaps.includes(g)) gaps.push(g)
+      }
+    }
   }
 
   const uniqueGaps = [...new Set(gaps)]

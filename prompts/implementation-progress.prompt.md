@@ -38,6 +38,18 @@ applyTo: .devcodex/**/{requirements,bugs}/**; .devcodex/**/fix/**
 - [变更记录](#变更记录)
 ```
 
+## DeliveryHonestyMatrix（强制 · 防过报）
+
+> 进度只能写 **有证据 / 未做 / partial**；禁止「全 ✅ / 5/6 / 只差验收」而无验证表。  
+> 强完成宣称须带阶段报告路径（`reports/...`）。机器 gap：`progress-overclaim` · `stage-report-missing`。
+
+| 字段 | 值 |
+|------|-----|
+| stageReportPath | 有路径 / 无 / N/A+skipReason |
+| progressHonest | 是（每行有证据）/ 否 |
+| checklistVisible | 03-复审清单 或 review-checklists 路径 |
+| validationEvidence | 命令 + exitCode |
+
 ## 进度总览
 
 > 只记录执行推进情况，不重复需求背景、技术方案正文或实施计划的完整任务定义。

@@ -17,7 +17,11 @@ const ERROR_CODES = Object.freeze({
   /** Control-plane / multi-batch completion without 05 progress file path evidence */
   PROGRESS_ARTIFACT_MISSING: 'progress-artifact-missing',
   /** Formal R3 process package incomplete (04/05/checklist triad) */
-  PROCESS_ARTIFACT_INCOMPLETE: 'process-artifact-incomplete'
+  PROCESS_ARTIFACT_INCOMPLETE: 'process-artifact-incomplete',
+  /** Completion claim without discoverable stage report path */
+  STAGE_REPORT_MISSING: 'stage-report-missing',
+  /** Over-claim progress without validation evidence rows */
+  PROGRESS_OVERCLAIM: 'progress-overclaim'
 })
 
 /** Paths that use hard-deny for unconfirmed CP even under default safety-only (D1). */
@@ -228,6 +232,99 @@ function simpleTaskForbidsPath(filePath) {
   return false
 }
 
+function isDeliveryHonestyExempt (text) {
+  return /SimpleTaskFastPath|报告\s*[：:]\s*N\/A|report\s*[：:=]\s*N\/A|skipReason\s*[：:=]\s*(?:simple-task|simple_task|probe|chat)|mode\s*[=:]\s*chat/i.test(
+    String(text || '')
+  )
+}
+
+function hasStageReportPath (text) {
+  return /reports[/\\]|requirements[/\\][^\n]+[/\\]reports[/\\]|阶段.*报告|\d{8}--.+\.md/i.test(
+    String(text || '')
+  )
+}
+
+function hasValidationEvidence (text) {
+  const t = String(text || '')
+  return (
+    /exitCode\s*[:=]?\s*0|验证摘要|FinalValidationSummary|npm run test:/i.test(t) &&
+    /exitCode|exit\s*0|PASS|passed/i.test(t)
+  )
+}
+
+function looksLikeOverclaim (text) {
+  return /5\s*\/\s*6|全部完成|全部✅|全绿|Fix-[0-9A-F].*全\s*✅|只差验收|可关闭需求|需求已完成|100%\s*完成/i.test(
+    String(text || '')
+  )
+}
+
+/**
+ * Delivery honesty: stage report path + progress over-claim (A/B/H).
+ * @param {{ completionClaimed?: boolean, text?: string, mode?: string, workflow?: string, mutated?: boolean }} input
+ */
+function classifyDeliveryHonesty (input = {}) {
+  const text = String(input.text || '')
+  const mode = String(input.mode || '').toLowerCase()
+  const wf = String(input.workflow || mode || '').toLowerCase()
+  // Strong closure claims only — do not treat mere 「完成检查」block as stage-report duty
+  const strongClaim =
+    input.completionClaimed === true ||
+    /已完成|任务完成|all work is complete|宣告完成|可关闭需求|本需求.*闭环|DoD.*闭环|只差验收/i.test(text)
+
+  if (!strongClaim) return { ok: true, gaps: [], code: null, gap: null }
+  if (mode === 'chat' || wf === 'chat') return { ok: true, gaps: [], code: null, gap: null }
+  if (isDeliveryHonestyExempt(text)) return { ok: true, gaps: [], code: null, gap: null }
+
+  const gaps = []
+  const nonChatWork =
+    input.mutated === true ||
+    ['dev', 'fix', 'self-fix'].includes(mode) ||
+    ['dev', 'fix', 'self-fix'].includes(wf) ||
+    /控制面|ECR|实施|Fix-|Phase-|多文件|website\/docs/i.test(text)
+
+  if (nonChatWork && !hasStageReportPath(text)) {
+    gaps.push(ERROR_CODES.STAGE_REPORT_MISSING)
+  }
+  if (looksLikeOverclaim(text) && !hasValidationEvidence(text)) {
+    gaps.push(ERROR_CODES.PROGRESS_OVERCLAIM)
+  }
+
+  if (gaps.length) {
+    return {
+      ok: false,
+      gaps,
+      code: gaps[0],
+      gap: gaps[0]
+    }
+  }
+  return { ok: true, gaps: [], code: null, gap: null }
+}
+
+/**
+ * Requirement-dir review checklist discoverability (C).
+ * @param {{ taskRoot?: string|null, fs?: { readdirSync?: Function }, text?: string }} input
+ */
+function classifyReviewChecklistDiscoverability (input = {}) {
+  const text = String(input.text || '')
+  if (/03-复审清单|review-checklists[/\\]/i.test(text)) {
+    return { ok: true, gap: null }
+  }
+  const root = input.taskRoot
+  const fsys = input.fs
+  if (root && fsys && typeof fsys.readdirSync === 'function') {
+    try {
+      const names = fsys.readdirSync(root)
+      if (names.some((n) => /复审清单|review-checklist/i.test(String(n)))) {
+        return { ok: true, gap: null }
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+  // Only fail when completion claimed + R3 (caller combines with classifyReviewChecklistCompletion)
+  return { ok: true, gap: null, note: 'use-with-checklist-classifier' }
+}
+
 module.exports = {
   ERROR_CODES,
   STRICT_PROTECTED_PATH_RE,
@@ -238,6 +335,11 @@ module.exports = {
   classifyPathsForArtifacts,
   classifyReviewChecklistCompletion,
   classifyProcessArtifactCompleteness,
+  classifyDeliveryHonesty,
+  classifyReviewChecklistDiscoverability,
   simpleTaskForbidsPath,
-  normalizePath
+  normalizePath,
+  hasStageReportPath,
+  looksLikeOverclaim,
+  hasValidationEvidence
 }

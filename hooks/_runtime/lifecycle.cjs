@@ -1502,6 +1502,36 @@ async function main() {
       }
     }
 
+    // 2.7 E: plan without progress forbids control-plane source mutation (delivery honesty H1)
+    if (
+      isSourceCodeMutation(payload, platform, state) &&
+      !(state.simpleTaskFastPath === true || state.taskPathMode === 'simple')
+    ) {
+      const toolPaths = extractToolPaths(payload)
+      const hitsProtected = toolPaths.some(p => isStrictProtectedPath(p))
+      if (hitsProtected) {
+        const task = (typeof findIncompleteTaskForPaths === 'function')
+          ? findIncompleteTaskForPaths(payload, state)
+          : null
+        const bound = task || (typeof findIncompleteTask === 'function' ? findIncompleteTask(state) : null)
+        if (bound && bound.fullPath && hasTaskArtifact(bound, 'CP3')) {
+          const progressPath = path.join(bound.fullPath, '05-实施进度.md')
+          if (!fs.existsSync(progressPath)) {
+            state.lastReason = PROCESS_ENFORCEMENT_CODES.PROGRESS_ARTIFACT_MISSING || 'progress-artifact-missing'
+            saveState(state)
+            writeStdout(buildInterceptionOutput(
+              state, platform, eventName, INTERCEPTION_ACTION.REQUIRE_COMPLETION,
+              'progress-artifact-missing',
+              'Progress artifact required',
+              `控制面 mutation 需要任务目录 05-实施进度.md（已有 04 实施计划）：${bound.name || bound.fullPath}`,
+              'Create 05-实施进度.md under the active requirement before mutating control-plane sources.'
+            ))
+            return
+          }
+        }
+      }
+    }
+
     // 3. CP gate — block source code mutations until checkpoints confirmed
     //    PF-process-enforcement: hard-deny for strict-protected paths even under safety-only (D1)
     //    Non-protected paths: legacy safety-only warning + Honesty cp2-unconfirmed-write

@@ -1,0 +1,295 @@
+'use strict'
+
+/**
+ * Process enforcement E2E-01～10 (isolated pure-function + matrix assertions).
+ * Spec: requirements/全宿主流程强制与产物路径准确/02-技术方案.md §8
+ *
+ * Uses tmp paths only — does not mutate user workspace.
+ */
+
+const assert = require('assert')
+const path = require('path')
+const fs = require('fs')
+
+const {
+  shouldHardDenyCpMutation,
+  classifyRequirementsArtifactPath,
+  classifyPathsForArtifacts,
+  classifyReviewChecklistCompletion,
+  classifyProcessArtifactCompleteness,
+  simpleTaskForbidsPath,
+  isStrictProtectedPath,
+  ERROR_CODES
+} = require('./lib/process-enforcement.js')
+
+const {
+  assertFiveHosts,
+  listHostIds,
+  getHostEnforcement,
+  summarizeMatrix,
+  HOST_ENFORCEMENT_MATRIX_V1
+} = require('./lib/host-enforcement-matrix.js')
+
+const {
+  evaluateStopCompletionGate,
+  askingCp2Confirm
+} = require('../hooks/_runtime/lifecycle-stop-gate.cjs')
+
+const lifecycleSrc = fs.readFileSync(
+  path.join(__dirname, '../hooks/_runtime/lifecycle.cjs'),
+  'utf8'
+)
+const stopSrc = fs.readFileSync(
+  path.join(__dirname, '../hooks/_runtime/lifecycle-stop-gate.cjs'),
+  'utf8'
+)
+
+// ── E2E-01: no CP2 write website/source → hard deny ─────────────────────────
+{
+  const gate = { phase: 'CP2', reqName: 'demo' }
+  const paths = ['website/docs/guide/development.md', 'hooks/_runtime/lifecycle.cjs']
+  for (const p of paths) {
+    const r = shouldHardDenyCpMutation(gate, [p], { strictEnv: false })
+    assert.strictEqual(r.hardDeny, true, `E2E-01 expect hard deny for ${p}`)
+    assert.strictEqual(r.reason, ERROR_CODES.CP2_REQUIRED)
+  }
+  // Non-protected under safety-only: warn path (not hard)
+  const soft = shouldHardDenyCpMutation(gate, ['src/app.js'], { strictEnv: false })
+  assert.strictEqual(soft.hardDeny, false, 'E2E-01 non-protected safety-only soft')
+  // Strict env still hard
+  const strict = shouldHardDenyCpMutation(gate, ['src/app.js'], { strictEnv: true })
+  assert.strictEqual(strict.hardDeny, true, 'E2E-01 strict env hard')
+  console.log('E2E-01 PASS')
+}
+
+// ── E2E-02: orphan control plane ────────────────────────────────────────────
+{
+  const gate = {
+    phase: 'CP3',
+    code: 'cp-gate-orphan-control-plane',
+    reqName: 'no-bound-task'
+  }
+  const r = shouldHardDenyCpMutation(gate, ['hooks/_runtime/lifecycle.cjs'], { strictEnv: false })
+  assert.strictEqual(r.hardDeny, true)
+  assert.strictEqual(r.reason, ERROR_CODES.ORPHAN_CONTROL_PLANE)
+  console.log('E2E-02 PASS')
+}
+
+// ── E2E-03: CP2 confirmed → no gate → no deny ───────────────────────────────
+{
+  const r = shouldHardDenyCpMutation(null, ['hooks/_runtime/lifecycle.cjs'], { strictEnv: false })
+  assert.strictEqual(r.hardDeny, false)
+  console.log('E2E-03 PASS')
+}
+
+// ── E2E-04: SimpleTask forbids docs/control plane; allows ordinary file ──────
+{
+  assert.strictEqual(simpleTaskForbidsPath('website/docs/intro.md'), true)
+  assert.strictEqual(simpleTaskForbidsPath('hooks/_runtime/lifecycle.cjs'), true)
+  assert.strictEqual(simpleTaskForbidsPath('skills/cp-gate/SKILL.md'), true)
+  assert.strictEqual(simpleTaskForbidsPath('src/feature.js'), false)
+  assert.strictEqual(simpleTaskForbidsPath('.devcodex/devcodex-v1/reports/x.md'), false)
+  assert.match(lifecycleSrc, /simpleTaskForbidsPath/)
+  assert.match(lifecycleSrc, /SIMPLE_TASK_PATH_FORBIDDEN|simpleTaskFastPath/)
+  console.log('E2E-04 PASS')
+}
+
+// ── E2E-05: requirements/02-盘点 → ARTIFACT_PATH_INVALID ─────────────────────
+{
+  const bad = classifyRequirementsArtifactPath(
+    'requirements/全宿主流程强制与产物路径准确/02-功能清单盘点.md'
+  )
+  assert.strictEqual(bad.ok, false)
+  assert.strictEqual(bad.code, ERROR_CODES.ARTIFACT_PATH_INVALID)
+
+  const good = classifyRequirementsArtifactPath(
+    'requirements/全宿主流程强制与产物路径准确/02-技术方案.md'
+  )
+  assert.strictEqual(good.ok, true)
+
+  const multi = classifyPathsForArtifacts([
+    'requirements/demo/02-完整功能清单.md',
+    'src/ok.js'
+  ])
+  assert.strictEqual(multi.ok, false)
+  console.log('E2E-05 PASS')
+}
+
+// ── E2E-06: wrong path analysis / 04 slot ───────────────────────────────────
+{
+  const planBad = classifyRequirementsArtifactPath(
+    'requirements/demo/04-遗漏扫盘点.md'
+  )
+  assert.strictEqual(planBad.ok, false)
+  assert.strictEqual(planBad.code, ERROR_CODES.ARTIFACT_PATH_INVALID)
+
+  const planGood = classifyRequirementsArtifactPath(
+    'requirements/demo/04-实施计划.md'
+  )
+  assert.strictEqual(planGood.ok, true)
+
+  // Analysis under reports is not blocked by this classifier
+  const report = classifyRequirementsArtifactPath(
+    'reports/analysis/grok/20260726/01--功能清单.md'
+  )
+  assert.strictEqual(report.ok, true)
+  console.log('E2E-06 PASS')
+}
+
+// ── E2E-07: completion claim R3 without checklist → gap ─────────────────────
+{
+  const missing = classifyReviewChecklistCompletion({
+    completionClaimed: true,
+    reviewClass: 'R3',
+    text: '已完成 控制面任务 ECR R3 收口',
+    hasReviewChecklistPath: false
+  })
+  assert.strictEqual(missing.ok, false)
+  assert.strictEqual(missing.gap, ERROR_CODES.REVIEW_CHECKLIST_MISSING)
+
+  const present = classifyReviewChecklistCompletion({
+    completionClaimed: true,
+    reviewClass: 'R3',
+    text: '已完成 review-checklists/20260726--x.md ECR R3',
+    hasReviewChecklistPath: false
+  })
+  assert.strictEqual(present.ok, true)
+
+  const stop = evaluateStopCompletionGate({
+    mode: 'dev',
+    workflow: 'dev',
+    mutated: true,
+    reportTouched: true,
+    memoryTouched: true,
+    lastAssistantMessage: [
+      '### DevCodex · 入口检查',
+      'PC0 | ok',
+      '### DevCodex · 完成检查',
+      '| 类型 | 命令 | exitCode | runId/计数 |',
+      '| 权威 | `npm run test:process-enforcement-e2e` | exitCode 0 | runId=pe-e2e / checks=10 |',
+      'WorkspaceSyncStatus: skipped (无需同步)',
+      'dirty boundary: git status clean; no unrelated dirty',
+      '已完成 控制面 reviewClass=R3 ECR 任务完成'
+    ].join('\n')
+  })
+  assert.strictEqual(stop.decision, 'block')
+  assert.ok(
+    stop.gaps.includes('review-checklist-missing') || stop.gaps.includes('final-validation-summary'),
+    `E2E-07 gaps=${stop.gaps.join(',')}`
+  )
+  // Prefer explicit checklist gap when FVS is also thin; at least one process gap
+  assert.ok(stop.gaps.length > 0)
+  console.log('E2E-07 PASS')
+}
+
+// ── E2E-08: pr1-skipped still works ─────────────────────────────────────────
+{
+  assert.ok(askingCp2Confirm('请确认技术方案 v1.0'))
+  const tmpRoot = path.join(require('os').tmpdir(), `pe-e2e-pr1-${process.pid}`)
+  fs.mkdirSync(tmpRoot, { recursive: true })
+  fs.writeFileSync(path.join(tmpRoot, '02-技术方案.md'), '# design\n', 'utf8')
+  // no PR-1 evidence
+  const r = evaluateStopCompletionGate({
+    mode: 'dev',
+    workflow: 'dev',
+    mutated: false,
+    lastAssistantMessage: [
+      '### DevCodex · 入口检查',
+      'PC0 | ok',
+      '请确认技术方案',
+      '确认 CP2'
+    ].join('\n'),
+    taskRoot: tmpRoot
+  })
+  assert.ok(r.gaps.includes('pr1-skipped'), `E2E-08 gaps=${r.gaps.join(',')}`)
+  try {
+    fs.rmSync(tmpRoot, { recursive: true, force: true })
+  } catch {
+    /* ignore */
+  }
+  console.log('E2E-08 PASS')
+}
+
+// ── E2E-09: five-host matrix consistent ─────────────────────────────────────
+{
+  assertFiveHosts()
+  const ids = listHostIds()
+  assert.deepStrictEqual(ids.sort(), ['claude', 'codex', 'copilot', 'gemini', 'grok'].sort())
+  for (const id of ids) {
+    const h = getHostEnforcement(id)
+    assert.ok(h, `host ${id}`)
+    assert.ok(
+      ['hard-deny', 'stop-block', 'honesty-only', 'N/A+platform-limit'].some(
+        (v) => h.preToolMutationNoCp2 === v || h.stopCompletion === v || h.upsInject === v
+      ) || h.preToolMutationNoCp2 === 'hard-deny',
+      `host ${id} fields`
+    )
+    // Declared hard-deny hosts must stay hard-deny for PreTool mutation
+    if (h.preToolMutationNoCp2 === 'hard-deny') {
+      const deny = shouldHardDenyCpMutation(
+        { phase: 'CP2' },
+        ['hooks/_runtime/lifecycle.cjs'],
+        { strictEnv: false }
+      )
+      assert.strictEqual(deny.hardDeny, true, `${id} hard-deny policy`)
+    }
+  }
+  const summary = summarizeMatrix()
+  assert.strictEqual(summary.length, 5)
+  assert.strictEqual(HOST_ENFORCEMENT_MATRIX_V1.schemaVersion, 'HostEnforcementMatrixV1')
+  console.log('E2E-09 PASS')
+}
+
+// ── E2E-10: Grok UPS N/A — no fake inject green ─────────────────────────────
+{
+  const grok = getHostEnforcement('grok')
+  assert.strictEqual(grok.upsInject, 'N/A+platform-limit')
+  assert.ok(/UPS|inject|N\/A/i.test(grok.upsNotes || ''), 'Grok ups notes')
+  assert.strictEqual(grok.preToolMutationNoCp2, 'hard-deny')
+  assert.strictEqual(grok.stopCompletion, 'stop-block')
+  // Must not claim UPS inject as hard-deny success path
+  assert.notStrictEqual(grok.upsInject, 'hard-deny')
+  console.log('E2E-10 PASS')
+}
+
+// ── Wiring smoke (lifecycle consumes enforcement modules) ───────────────────
+{
+  assert.match(lifecycleSrc, /process-enforcement\.js/)
+  assert.match(lifecycleSrc, /shouldHardDenyCpMutation/)
+  assert.match(lifecycleSrc, /classifyPathsForArtifacts/)
+  assert.match(stopSrc, /classifyReviewChecklistCompletion/)
+  assert.match(stopSrc, /classifyProcessArtifactCompleteness/)
+  assert.ok(isStrictProtectedPath('website/docs/x.md'))
+  assert.ok(isStrictProtectedPath('scripts/lib/process-enforcement.js'))
+  console.log('WIRING PASS')
+}
+
+// ── Process package: completion without 05/checklist → gap (anti-skip) ─────
+{
+  const incomplete = classifyProcessArtifactCompleteness({
+    completionClaimed: true,
+    controlPlaneTask: true,
+    text: '控制面已完成 任务完成 Phase-A ECR R3 闭环',
+    hasImplementationPlan: true,
+    hasProgressFile: false,
+    hasReviewChecklist: false
+  })
+  assert.strictEqual(incomplete.ok, false, 'process package incomplete')
+  assert.ok(
+    incomplete.missing.includes('05-实施进度') || incomplete.missing.includes('review-checklist'),
+    `missing=${(incomplete.missing || []).join(',')}`
+  )
+
+  const complete = classifyProcessArtifactCompleteness({
+    completionClaimed: true,
+    controlPlaneTask: true,
+    text: '控制面已完成 任务完成',
+    hasImplementationPlan: true,
+    hasProgressFile: true,
+    hasReviewChecklist: true
+  })
+  assert.strictEqual(complete.ok, true)
+  console.log('PROCESS-PKG PASS')
+}
+
+console.log('test-process-enforcement-e2e: all E2E-01～10 passed')

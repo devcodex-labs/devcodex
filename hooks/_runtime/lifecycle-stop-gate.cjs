@@ -19,6 +19,18 @@ try {
   analyzeFinalValidationSummarySample = () => ({ classification: 'not-claimed', status: 'not-claimed' })
 }
 
+let classifyReviewChecklistCompletion
+let classifyProcessArtifactCompleteness
+try {
+  ;({
+    classifyReviewChecklistCompletion,
+    classifyProcessArtifactCompleteness
+  } = require('../../scripts/lib/process-enforcement.js'))
+} catch {
+  classifyReviewChecklistCompletion = () => ({ ok: true, code: null, gap: null })
+  classifyProcessArtifactCompleteness = () => ({ ok: true, code: null, gap: null, missing: [] })
+}
+
 function extractLastAssistantMessage (payload) {
   if (!payload || typeof payload !== 'object') return ''
   const direct = payload.lastAssistantMessage || payload.last_assistant_message || payload.assistantMessage
@@ -225,6 +237,34 @@ function evaluateStopCompletionGate (input = {}) {
   const taskRoot = input.taskRoot || findActiveTaskRoot(input.state)
   if (askingCp2Confirm(text) && hasTechDesign(taskRoot) && !pr1EvidenceOk(taskRoot)) {
     gaps.push('pr1-skipped')
+  }
+
+  // Process-enforcement: R3/R4 completion claim without review-checklist path/status
+  const checklist = classifyReviewChecklistCompletion({
+    completionClaimed: completionClaimed(text) || input.completionClaimed === true,
+    reviewClass: input.reviewClass || '',
+    text,
+    hasReviewChecklistPath: input.hasReviewChecklistPath === true
+  })
+  if (!checklist.ok && checklist.gap) {
+    gaps.push(checklist.gap)
+  }
+
+  // Process package: control-plane / multi-batch must cite or possess 04+05+checklist
+  const processPkg = classifyProcessArtifactCompleteness({
+    completionClaimed: completionClaimed(text) || input.completionClaimed === true,
+    reviewClass: input.reviewClass || '',
+    text,
+    controlPlaneTask: input.controlPlaneTask === true,
+    multiBatch: input.multiBatch === true,
+    hasImplementationPlan: input.hasImplementationPlan === true,
+    hasProgressFile: input.hasProgressFile === true,
+    hasReviewChecklist: input.hasReviewChecklist === true || input.hasReviewChecklistPath === true,
+    taskRoot,
+    fs
+  })
+  if (!processPkg.ok && processPkg.gap) {
+    gaps.push(processPkg.gap)
   }
 
   const uniqueGaps = [...new Set(gaps)]

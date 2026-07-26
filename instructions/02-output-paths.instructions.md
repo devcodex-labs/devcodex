@@ -101,6 +101,7 @@ version: 1.15.3
 | **ExistingRequirementArtifactOverride** | 用户调整/修改/补充既有需求或问题，且已有 `00-需求概况.md`、`00-需求变更概况.md`、`01-需求确认.md`、`01-产品需求.md`、`01-需求变更确认.md`、历史 `01-需求概述.md`、`00-问题概况.md`、`01-问题确认.md`、bug CP 产物、Profile 声明的正式需求文件或 website requirement 时，必须更新已有真相源；SimpleTaskFastPath 只豁免新建完整产物，不能把回复内联摘要当成文件回写 |
 | **ArtifactDecisionMatrix** | CP1/CP2/CP3/ECR 需要按任务规模列出关键产物的 `create` / `update` / `skip` / `N/A` 状态、原因、触发条件和升级回退；判定优先级为“已有真相源回写 > 任务触发条件 > SimpleTaskFastPath > 子类型豁免”，覆盖入口分类、00/01（含 `01-需求确认.md`、`01-产品需求.md`、`01-需求变更确认.md`、`01-问题确认.md`）/02/04/05/06、目标文档、报告和记忆 |
 | **禁止写入源码目录** | 脚本/测试/辅助文件严禁放入项目源码目录 |
+| **ArtifactPathGate（槽位语义）** | `requirements/<任务>/02-*` **仅**技术方案语义（如 `02-技术方案.md`）；`04-*` **仅**实施计划语义。功能清单/盘点/遗漏扫/inventory 等分析报告**禁止**占用 02/04 槽位，须写入 `reports/analysis|audit|…/<agent>/YYYYMMDD/`。Hook 对非法槽位 hard deny（错误码 `ARTIFACT_PATH_INVALID`）；见 `scripts/lib/process-enforcement.js` |
 | **强制产物首轮完成** | 默认 00/01/04 在首轮会话结束前按 ArtifactDecisionMatrix 处理：需要则创建/更新，命中 SimpleTaskFastPath 或子类型豁免则记录 `N/A + skipReason`；PC0~PC7、Profile、报告、记忆、安全底线和必要验证不可省略；02-技术方案.md、实施方案/ 与 `06-关键决策.md` 按条件触发；services/ 在 CP2 后按需创建；强触发条件命中时 `05-实施进度.md` 必须在执行前初始化 |
 | **需求归档（v1.9.3+）** | 已完成且不再活跃的需求目录下创建空文件 `.archived`；CP gate 扫描跳过含此标记的需求，避免历史需求全局阻断 dev 工作流 |
 

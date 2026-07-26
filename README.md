@@ -44,6 +44,7 @@ DevCodex 通过 npm 全局安装把 Copilot、Claude Code、Codex、Gemini CLI �
 - **自动报告**: 每次会话自动写入报告，从不询问 — 直接执行
 - **安全底线**: S01~S07 七条不可覆盖的安全规则
 - **宿主生命周期护栏**: Copilot CLI、Claude Code、OpenAI Codex、Gemini CLI 与 Grok 在各自已支持的 Hook 事件上提供用户级 runtime adapter；Copilot IDE、JetBrains、Cursor 等未接入等价用户级 Hook 的 surface 仍降级为 instruction-fallback。默认 `safety-only` 仅对危险命令硬拦，流程项提醒放行，`strict` 模式才升级可阻断事件
+- **流程强制（MutationCpGate / ArtifactPathGate）**: 无 CP2 时对 `hooks/`、`skills/`、`instructions/`、`website/docs/**` 等受保护路径 **hard deny**（即使默认 safety-only）；`requirements/*/02-*` 仅允许技术方案语义、分析盘点报告须落 `reports/analysis/…`；Stop 对 R3 完成宣称缺复审清单追加 `review-checklist-missing`。五宿主策略真相源：`scripts/lib/host-enforcement-matrix.js`（Grok UPS inject = N/A）。验证：`npm run test:process-enforcement-e2e`
 - **Codex hook guardrail**: Hook 能力按宿主/事件降级；Codex 的阻断行为取决于当前事件是否支持 `decision`、`continue:false` 或 `permissionDecision`，不能把 adapter 已安装等同为所有事件均可硬拦
 - **长任务 Turn Liveness**: `TurnLivenessRecoveryGate` 记录 `running / awaiting-continuation / suspect / stalled-recoverable / terminal` 状态、工具租约、continuation ACK、双阶段 checkpoint 与当前 turn 的 `LocalTaskTraceV1`；Hook 只能在事件到达时判断历史停滞，trace replay 只返回数据，不能自行唤醒宿主、执行 payload、重放写操作或把 `PostToolUse` 当成任务完成
 - **全过程完成证据（未发布 Shadow）**: `WorkflowCompletionCandidateV1 → Plan/Receipt/Snapshot → Commit → Projection` 将 CP、执行、验证、复审、同步、报告和记忆绑定到同一 candidate；任务输入由 lifecycle 的受管原子写入口生成，`task verify` 只消费通过 schema、候选绑定和回读校验的输入。report-only、marker-only、仅选择测试路线或仅有复审文档都不能标记完成。五宿主共享同一 reducer，direct/portable/fallback 只改变证据上限，不改变完成语义

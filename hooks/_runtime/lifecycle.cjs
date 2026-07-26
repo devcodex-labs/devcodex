@@ -60,6 +60,13 @@ const {
   evaluateStopCompletionGate,
   extractLastAssistantMessage
 } = require('./lifecycle-stop-gate.cjs')
+const {
+  shouldHardDenyCpMutation,
+  classifyPathsForArtifacts,
+  isStrictProtectedPath,
+  simpleTaskForbidsPath,
+  ERROR_CODES: PROCESS_ENFORCEMENT_CODES
+} = require('../../scripts/lib/process-enforcement.js')
 
 const CONTEXT_ROOT = process.cwd()
 const PAYLOAD_PREVIEW_LIMIT = 160
@@ -72,9 +79,8 @@ const CP2_FILE = '02-技术方案.md'
 const CP3_FILE = '04-实施计划.md'
 const CP3_RUNTIME_FILE_THRESHOLD = 5
 // Dual-Track Closure (PI-154 / PF-171): control-plane source paths that require a bound task+CP when mutated.
-// Matches package source under repo root (scripts/hooks/skills, host-projections, package.json, host-parity docs).
-// R10 (20260726-grok-stop-enforcement-honesty): extended host-projections + website host-parity intro.
-const CONTROL_PLANE_SOURCE_RE = /(?:^|[/\\])(?:scripts|hooks|instructions|host-projections)(?:[/\\]|$)|(?:^|[/\\])package\.json$|(?:^|[/\\])skills[/\\]|(?:^|[/\\])website[/\\]docs[/\\]intro[/\\]host-parity/i
+// PF-process-enforcement: full website/docs + skills/mcp/prompts (aligned with process-enforcement STRICT_PROTECTED).
+const CONTROL_PLANE_SOURCE_RE = /(?:^|[/\\])(?:scripts|hooks|instructions|host-projections|mcp|prompts|agents)(?:[/\\]|$)|(?:^|[/\\])package\.json$|(?:^|[/\\])plugin\.json$|(?:^|[/\\])skills[/\\]|(?:^|[/\\])website[/\\]docs(?:[/\\]|$)/i
 const EXECUTION_MODE = { CONFIRM: 'confirm', AUTO: 'auto' }
 const ENFORCEMENT_MODE = (() => {
   const mode = String(process.env.DEVCODEX_HOOK_ENFORCEMENT || 'safety-only').trim().toLowerCase()
@@ -933,7 +939,7 @@ function checkCpGate(payload, state) {
 }
 
 // Source file extensions that indicate code/config being written
-const SOURCE_EXT_RE = /\.(js|ts|tsx|jsx|mjs|cjs|py|go|rs|java|cs|rb|php|c|cpp|h|swift|kt|vue|svelte|css|scss|less|html|sql|sh|bash|zsh|ps1|psm1|json|yaml|yml|toml|ini|xml|env)$/i
+const SOURCE_EXT_RE = /\.(js|ts|tsx|jsx|mjs|cjs|py|go|rs|java|cs|rb|php|c|cpp|h|swift|kt|vue|svelte|css|scss|less|html|sql|sh|bash|zsh|ps1|psm1|json|yaml|yml|toml|ini|xml|env|md|mdx)$/i
 // F-001/F-037: only governance deployment paths and the active .devcodex namespace are exempt.
 // This prevents workspace-namespace projects from treating project/.devcodex/.tmp as managed state.
 const DEVCODEX_DEPLOYMENT_PATH_RE = /^(?:\.claude|\.github)\/(?:instructions|skills|hooks|agents|prompts|settings\.json|settings\.local\.json|data)(?:\/|$)|^AGENTS\.md$|^\.agents\/skills(?:\/|$)|^\.codex\/(?:hooks\.json|hooks)(?:\/|$)|^codex\/(?:hooks\.json|hooks)(?:\/|$)/
@@ -1458,13 +1464,54 @@ async function main() {
       return
     }
 
+    // 2.5 ArtifactPathGate — requirements/02|04 slot semantics (always hard when invalid)
+    if (isSourceCodeMutation(payload, platform, state) || isProductArtifactMutation(payload, platform)) {
+      const toolPaths = extractToolPaths(payload)
+      const art = classifyPathsForArtifacts(toolPaths)
+      if (!art.ok) {
+        state.lastReason = art.code || 'ARTIFACT_PATH_INVALID'
+        saveState(state)
+        writeStdout(buildInterceptionOutput(
+          state, platform, eventName, INTERCEPTION_ACTION.REQUIRE_COMPLETION, art.code || 'ARTIFACT_PATH_INVALID',
+          `Artifact path denied: ${art.code}`,
+          art.message || 'Illegal requirements artifact path.',
+          'Place analysis reports under reports/analysis/…; reserve 02- for technical design.'
+        ))
+        return
+      }
+    }
+
+    // 2.6 SimpleTask path forbid — website/docs + control-plane protected paths (D2)
+    if (
+      (state.simpleTaskFastPath === true || state.taskPathMode === 'simple') &&
+      isSourceCodeMutation(payload, platform, state)
+    ) {
+      const toolPaths = extractToolPaths(payload)
+      const forbidden = toolPaths.find(p => simpleTaskForbidsPath(p))
+      if (forbidden) {
+        state.lastReason = PROCESS_ENFORCEMENT_CODES.SIMPLE_TASK_PATH_FORBIDDEN
+        saveState(state)
+        writeStdout(buildInterceptionOutput(
+          state, platform, eventName, INTERCEPTION_ACTION.REQUIRE_COMPLETION,
+          PROCESS_ENFORCEMENT_CODES.SIMPLE_TASK_PATH_FORBIDDEN,
+          'SimpleTask path forbidden',
+          `SimpleTaskFastPath may not mutate protected path: ${forbidden}`,
+          'Upgrade to full CP task, or keep changes outside website/docs and control-plane sources.'
+        ))
+        return
+      }
+    }
+
     // 3. CP gate — block source code mutations until checkpoints confirmed
-    //    payload-aware: when tool paths target specific requirement dirs, only that requirement's CP is checked
-    //    R10: reuse checkCpGate; safety-only allows write but Honesty discloses cp2-unconfirmed-write
+    //    PF-process-enforcement: hard-deny for strict-protected paths even under safety-only (D1)
+    //    Non-protected paths: legacy safety-only warning + Honesty cp2-unconfirmed-write
     const gate = checkCpGate(payload, state)
     if (gate && isSourceCodeMutation(payload, platform, state)) {
-      state.lastReason = `cp-gate-${gate.phase}`
-      if (!isStrictEnforcement() && (gate.phase === 'CP2' || gate.code === 'cp-gate-orphan-control-plane')) {
+      const toolPaths = extractToolPaths(payload)
+      const hard = shouldHardDenyCpMutation(gate, toolPaths, { strictEnv: isStrictEnforcement() })
+      const useHardDeny = hard.hardDeny === true
+      state.lastReason = `cp-gate-${gate.phase}${useHardDeny ? '-hard' : '-warn'}`
+      if (!useHardDeny && (gate.phase === 'CP2' || gate.code === 'cp-gate-orphan-control-plane')) {
         const honesty = state.enforcementHonesty && typeof state.enforcementHonesty === 'object'
           ? { ...state.enforcementHonesty }
           : {}
@@ -1479,8 +1526,21 @@ async function main() {
         }
         state.enforcementHonesty = honesty
       }
+      if (useHardDeny) {
+        const honesty = state.enforcementHonesty && typeof state.enforcementHonesty === 'object'
+          ? { ...state.enforcementHonesty }
+          : {}
+        honesty.thisTurn = {
+          ...(honesty.thisTurn || {}),
+          preToolHardDeny: true,
+          preToolSafetyOnlyAllow: false,
+          cpGatePhase: gate.phase,
+          processEnforcementReason: hard.reason
+        }
+        state.enforcementHonesty = honesty
+      }
       saveState(state)
-      writeStdout(isStrictEnforcement()
+      writeStdout(useHardDeny
         ? buildCpDenyOutput(state, platform, eventName, gate, getToolName(payload) || 'tool')
         : buildCpWarningOutput(state, platform, eventName, gate, getToolName(payload) || 'tool'))
       return

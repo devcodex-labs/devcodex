@@ -21,7 +21,7 @@ flowchart TD
     AUDIT_FLOW["audit 执行流程"]
     ANALYZE_FLOW["analyze 执行流程"]
     SELF_FIX_FLOW["self-fix 执行流程"]
-    PLAN_FLOW["plan 执行流程"]
+    PLAN_FLOW["other → plan Skill 执行流程"]
 
     OUT["进入 ⑨ 执行阶段合规检查"]
 
@@ -31,8 +31,11 @@ flowchart TD
     WF -->|audit| AUDIT_FLOW --> OUT
     WF -->|analyze| ANALYZE_FLOW --> OUT
     WF -->|self-fix| SELF_FIX_FLOW --> OUT
-    WF -->|plan/other| PLAN_FLOW --> OUT
+    WF -->|other (plan Skill)| PLAN_FLOW --> OUT
 ```
+
+> 规范矩阵八个 intent：`dev` / `fix` / `self-fix` / `analyze` / `audit` / `other` / `chat` / `resume`。图中展开主执行支路；`chat` 快路径、`resume` 继承原阶段，见 `workflow-capabilities.json`。
+
 
 ---
 

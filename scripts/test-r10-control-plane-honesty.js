@@ -53,4 +53,9 @@ assert.match(src, /buildCpDenyOutput/)
 assert.match(src, /evaluateStopCompletionGate/)
 assert.match(src, /stop-completion-gate/)
 
+// Process-enforcement D1: hard-deny protected paths under safety-only
+assert.match(src, /shouldHardDenyCpMutation/)
+assert.match(src, /process-enforcement\.js/)
+assert.match(src, /classifyPathsForArtifacts/)
+
 console.log('r10 control-plane honesty / path table tests passed')

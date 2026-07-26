@@ -46,8 +46,7 @@ devcodex status
 | 长任务停滞可诊断 | `TurnLivenessRecoveryGate` 区分运行、等待续接、可疑、可恢复停滞与终态，记录工具租约、continuation ACK 和 checkpoint；Hook 只在事件到达时观察，不承诺自行唤醒宿主或自动重放写操作 |
 | 文件真相源优先 | `MemoryCannotSatisfyBootstrapGate` 要求宿主 Memories、模型长期偏好或交接卡只作为 `navigation-hint`，新线程 / resume / summary 恢复仍读取 Profile、tasks、reports 和源码 / 文档真相源 |
 | Profile 真相对账 | 项目级 analyze/audit 用 `ProfileTruthMatrix` 对照 Profile 声明与当前代码、配置、运行和发布事实；过期 Profile 不覆盖现实，只读工作流不直接改 Profile |
-
-Hook 能力按宿主/事件降级：安装成功只证明用户级 adapter 可发现，具体注入、阻断和回传能力仍受宿主事件契约与验证证据上限约束。
+| Hook 能力按宿主降级 | 安装成功只证明用户级 adapter 可发现；默认注册 `UserPromptSubmit` / `PreToolUse` / `PostToolUse` / `PreCompact` / `Stop`，具体注入、阻断和回传仍受宿主事件契约与证据上限约束 |
 | 双层修复协作契约 | 所有 repair task 至少形成轻量决策/验收层与执行/验证层；高风险升级完整契约和独立复证。模型名称、是否切换模型或 Agent 都不是触发条件 |
 | 授权本地安全审查 | 可见回复保留防御结论和最小必要证据，隔离本地探针保存复现；内容不可见时用 `SafetyInterruptionCard` 恢复，不尝试绕过平台控制 |
 | 发布凭据拓扑 | 首次发布或身份拓扑变化时核对 publisher、repository、package、auth/secret scope、permission 与成功运行；不读取或输出 secret value |
@@ -57,6 +56,7 @@ Hook 能力按宿主/事件降级：安装成功只证明用户级 adapter 可�
 | 分层功能授权 | 商业化能力暂时仅做规划，不视为已实现功能 |
 
 ---
+
 
 ## 工作方式
 
@@ -100,6 +100,9 @@ DevCodex 提供两个 Agent 入口：
 | `npm update -g devcodex` | 已发布：升级全局包，并通过包 `postinstall` 自动刷新全局宿主 adapter |
 | `npm install devcodex` | 仅安装当前项目依赖；不配置宿主，并输出必须使用 `-g` 的指引 |
 | `devcodex update` | 只刷新当前 workspace `.devcodex`，不升级全局包、不写宿主配置 |
+| `devcodex init` | 只初始化当前 workspace `.devcodex`（含 fresh workspace-namespace marker），不写宿主配置 |
+| `devcodex status` / `doctor` | 安装与宿主诊断；可加 `--completion` / `--json` |
+| `devcodex grok` | Full-evidence Grok 入口（用户级 kernel） |
 
 `.devcodex` 仍保持 workspace-namespace，不迁移到 npm global prefix。安装期自动适配默认 fail-soft；`DEVCODEX_SKIP_POSTINSTALL=1` 可显式跳过，CI、源码仓安装与传递依赖默认 no-op。当前阶段只验证本地 CLI / package lifecycle 语义，不验证 npm 包名 owner、registry、dist-tag 或版本唯一性。
 
@@ -112,8 +115,10 @@ DevCodex 提供两个 Agent 入口：
 | Agent | `devcodex.agent.md`（确认模式）+ `devcodex-auto.agent.md`（全自动模式）|
 | Host kernel / Instructions | 宿主自动发现精简 kernel；节点 Instructions 与 Skills 按平台能力和意图加载，完整规范保留非 always-on fallback |
 | Skills | 当前源码维护 84 个按需触发的工作流技能（81 active + 3 gray）；active `host-capability-routing` 以薄 Rule + Skill + 版本化 catalog/contracts 将原始用户意图映射到五宿主 8 个 surface variant，直接证据不足时保持 portable fallback，当前不新增 MCP Tool；另有 `requirement-parallel-orchestration`、active `repair-prevention-assessment`，gray `rework-prevention-engineering`、`consumer-validation-engineering`、`brand-visual-quality`，以及 `user-visible-output-contract`、`host-instruction-projection`、`analyze-default`、`skill-gap-analysis`、`skill-lifecycle-governance`、`spec-absorption`、`user-manual-authoring`、`audit-user-manual`、`expert-output-quality`、`review-checklist`、`evolution-governance`、`readme-authoring`、`audit-readme`、`audit-release`、`execution-contract` / `test-router` / `release-verification` / `host-contract-verification` / `source-consumer-sync`；专家能力保持 21 个专家 Owner Skill |
-| Prompts | CP 节点输出模板 |
-| Hooks | `UserPromptSubmit` / `PreToolUse` / `Stop` 等生命周期钩子 |
+| Prompts | CP 节点输出模板（`prompts/*.prompt.md`，当前 30 个） |
+| Hooks | 默认注册 `UserPromptSubmit` / `PreToolUse` / `PostToolUse` / `PreCompact` / `Stop`（能力按宿主/事件降级） |
+| MCP | 本地 stdio：`devcodex-memory`（10 Tools）+ `devcodex-profile`（5 Tools + Prompt `devcodex-init`）；无 Resource/Tasks |
+| CLI | 见下节与 [维护者指南 · CLI 速查](/guide/development#cli-速查)；含 `global-adapters` / `profile` / `skill` / `task` / `trace` / `grok` 等 |
 | Codex adapter | 用户级 `.codex/AGENTS.md`、hooks/config/runtime 与用户级 `.agents/skills/` |
 | Gemini / Grok adapter | 用户级 Gemini settings/runtime 与 Grok plugin/config/runtime；`devcodex grok` 使用全局 kernel，能力按 direct / fixture 证据分级 |
 
@@ -121,11 +126,23 @@ DevCodex 提供两个 Agent 入口：
 
 ## 合规检查说明
 
-> ⚠️ DevCodex 合规检查采用四层框架（FC / SC / RC / T），用于 AI 自身执行质量与收尾闭环检查，不是对用户业务代码的生产合规校验。
+> ⚠️ DevCodex 合规检查采用 **入口 PC0~PC7** + **四层闭环（FC / SC / RC / T）**，用于 AI 自身执行质量与收尾检查，不是对用户业务代码的生产合规校验。另有安全底线 S01~S07 与规范变更 SCV。
 
 它检查的是 AI 自身的执行质量：记忆文件是否写入、fix 三步扫描是否执行、dev 后是否运行了 lint/typecheck 等。
 
 详细定义见：[合规检查框架](/specs/compliance-framework)。
+
+### 工作流 intent（与代码矩阵一致）
+
+机器真相源：`skills/routing/workflow-capabilities.json`（`npm run test:workflow-capabilities`）。
+
+| intent id | 说明 |
+|-----------|------|
+| `dev` / `fix` / `self-fix` | 可变工作流，需 CP |
+| `analyze` / `audit` | 只读 |
+| `chat` | 问答快路径 |
+| `resume` | 继承原工作流阶段 |
+| `other` | 规划兜底；**plan Skill 走此路由**，不是名为 `plan` 的 workflow id |
 
 ---
 

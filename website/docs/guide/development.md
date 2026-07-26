@@ -4,6 +4,29 @@
 
 ---
 
+## CLI 速查
+
+> 与 `devcodex --help` 及 `scripts/lib/cli-command-registry.js` 对齐；工作区 bare 命令不写用户级宿主配置。
+
+| 命令 | 作用 |
+|------|------|
+| `devcodex init` | 仅初始化当前 workspace `.devcodex` |
+| `devcodex update` | 仅刷新当前 workspace `.devcodex` |
+| `devcodex global-adapters apply` | 从包根刷新用户级五宿主 adapter（`--dry-run` / `--json`） |
+| `devcodex grok` | Full-evidence Grok launcher |
+| `devcodex migrate-layout plan\|apply\|rollback` | 集中布局迁移 |
+| `devcodex profile plan\|init` | Profile 预览 / 分档生成（`--tier` / `--force` / `--prod` / `--allow-downgrade`） |
+| `devcodex status` | 安装状态（`--completion` / `--json`） |
+| `devcodex doctor` | 宿主诊断（`--completion` / `--json`） |
+| `devcodex probe` | 有界本地探针（`--json`） |
+| `devcodex trace show\|replay` | LocalTaskTrace |
+| `devcodex skill plan\|resolve\|match` | Skill bundle 计划 / W>G resolve / 工作区 Skill 匹配 |
+| `devcodex task resolve\|verify\|risk` | 任务名续接 / 对账 / 可放弃风险 |
+
+常用验证（维护者）：`npm run test:core` · `npm run test:workflow-capabilities` · `npm run test:host-parity` · `npm run test:docs-audience`。站点构建见 `website/`（Rspress，Node `^20.19 \|\| >=22.12`）。
+
+---
+
 ## 各组件使用规范
 
 > 遇到新任务时，先判断用哪个组件，再动手创建文件。

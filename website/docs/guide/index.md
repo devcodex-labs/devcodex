@@ -32,6 +32,7 @@
 
 ## 导航
 
+- [Profile 使用指南](./profile) — Profile 分档 plan/init、功能清单 Schema
 - [需求管理](./requirements) — 新建需求、优先级判断、文件模板
-- [开发规范](./development) — 开发文档维护、进度更新、执行上下文草案
+- [开发规范](./development) — CLI 速查、组件使用、进度与条件门禁索引
 - [版本与发布](./release) — 版本规则、CHANGELOG 写入规范

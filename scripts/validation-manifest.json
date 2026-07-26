@@ -148,7 +148,9 @@
         "global-host-config",
         "global-install-smoke",
         "host-installation",
-        "syntax"
+        "syntax",
+        "docs-surface-inventory",
+        "process-enforcement-e2e"
       ]
     },
     "full": {
@@ -231,7 +233,9 @@
         "syntax",
         "generated-site-precheck",
         "website-build",
-        "generated-site-postcheck"
+        "generated-site-postcheck",
+        "docs-surface-inventory",
+        "process-enforcement-e2e"
       ]
     },
     "changed": {
@@ -3982,6 +3986,88 @@
       "riskClass": "release",
       "cachePolicy": "never",
       "writeScopes": [],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "docs-surface-inventory",
+      "owner": "docs-inventory",
+      "command": "node",
+      "args": [
+        "scripts/test-docs-surface-inventory.js"
+      ],
+      "dependencies": [],
+      "inputs": [
+        "skills/**",
+        "plugin.json",
+        "package.json",
+        "hooks/**",
+        "mcp/**",
+        "prompts/**",
+        "instructions/**",
+        "website/docs/**",
+        "scripts/lib/docs-surface-inventory.js",
+        "scripts/test-docs-surface-inventory.js",
+        "scripts/validation-manifest.json",
+        "skills/routing/workflow-capabilities.json",
+        "skills/spec-governance/gate-registry.json"
+      ],
+      "consumers": [],
+      "invariants": [
+        "contract"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "process-enforcement-e2e",
+      "owner": "process-enforcement",
+      "command": "node",
+      "args": [
+        "scripts/test-process-enforcement-e2e.js"
+      ],
+      "dependencies": [],
+      "inputs": [
+        "scripts/lib/process-enforcement.js",
+        "scripts/lib/host-enforcement-matrix.js",
+        "scripts/test-process-enforcement-e2e.js",
+        "hooks/_runtime/lifecycle.cjs",
+        "hooks/_runtime/lifecycle-stop-gate.cjs"
+      ],
+      "consumers": [],
+      "invariants": [
+        "contract"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
       "timeoutMs": 120000,
       "exitMap": {
         "success": [

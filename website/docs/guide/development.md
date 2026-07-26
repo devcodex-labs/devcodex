@@ -23,7 +23,9 @@
 | `devcodex skill plan\|resolve\|match` | Skill bundle 计划 / W>G resolve / 工作区 Skill 匹配 |
 | `devcodex task resolve\|verify\|risk` | 任务名续接 / 对账 / 可放弃风险 |
 
-常用验证（维护者）：`npm run test:core` · `npm run test:workflow-capabilities` · `npm run test:host-parity` · `npm run test:docs-audience`。站点构建见 `website/`（Rspress，Node `^20.19 \|\| >=22.12`）。
+常用验证（维护者）：`npm run test:core` · `npm run test:workflow-capabilities` · `npm run test:docs-surface-inventory` · `npm run test:process-enforcement-e2e` · `npm run test:host-parity` · `npm run test:public-text-integrity` · `npm run test:stop-gate`。站点构建见 `website/`（Rspress，Node `^20.19 \|\| >=22.12`）。
+
+> 能力证据分层（声明 / 探针 / 真机）见 [intro · 能力证据分层](/intro/#能力证据分层声明--探针--真机)。流程强制（无 CP2 受保护路径 hard-deny、02/04 槽位语义、复审清单/过程包缺口）真相源：`scripts/lib/process-enforcement.js` + `host-enforcement-matrix.js`。
 
 ---
 

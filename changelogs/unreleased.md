@@ -5,6 +5,7 @@
 
 ## 当前未发布实现候选
 
+- **维护者站点×完整功能清单对账门（docs-surface-inventory）**：新增 `scripts/lib/docs-surface-inventory.js` + `npm run test:docs-surface-inventory`；校验 Skills84/plugin 双向、workflows×8（含 other）、MCP15、Hooks5/runtime、prompts30、instructions15、website≥156、process-enforcement 文件与 script；挂入 `test:control-plane` 与 validation-manifest 节点 `docs-surface-inventory` / `process-enforcement-e2e`（fast/full）。public-text-surfaces 扩展 guide/index 与 host-parity-grok。intro 增加能力证据三列表。
 - **全宿主流程强制 + 产物路径准确（process-enforcement）**：新增 `scripts/lib/process-enforcement.js`（MutationCpGate 受保护路径 hard-deny、ArtifactPathGate、复审清单/过程包齐套判定）与 `host-enforcement-matrix.js`（五宿主策略真相源）；`lifecycle.cjs` PreTool 接线；`lifecycle-stop-gate.cjs` 追加 `review-checklist-missing` / `process-artifact-incomplete` / `progress-artifact-missing`；`npm run test:process-enforcement-e2e` 并入 `test:stop-gate` 与 `test:control-plane`。文档：`02-output-paths` ArtifactPathGate 行、README 流程强制条；配套 PI-REQ-ASSESS 需求模板评估字段。
 - **需求模板强制项目实况评估（PI-REQ-ASSESS-20260726）**：`requirement-overview.prompt.md` 新增 §10（AI 填写：CodeTruth 锚点 + 合理性/可实施性/收益/验证状态/影响范围 + 推荐）；`requirement.prompt.md` 新增 §2.6 同构字段；与 compliance 五项验证对齐；禁止空表过关。台账 PI-REQ-ASSESS / PI-REQ-NO-SPLIT。需求：`全宿主流程强制与产物路径准确` 概况 v0.4。
 - **Stop 审查修复批（F-01~F-16）**：`lastAssistantMessage` 进入 visible 证据；完成检查识别 `### DevCodex · 完成检查`；PR-1 强证据；R11 gap 命名 + `completion-check-missing`；report/memory 可 N/A 豁免；host-parity 站点条件硬续文案；R10 路径/Honesty 探针；hook 矩阵优先源码 + adapter 保留 block。验证：`npm run test:stop-gate`。

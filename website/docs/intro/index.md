@@ -144,6 +144,22 @@ DevCodex 提供两个 Agent 入口：
 | `resume` | 继承原工作流阶段 |
 | `other` | 规划兜底；**plan Skill 走此路由**，不是名为 `plan` 的 workflow id |
 
+### 能力证据分层（声明 / 探针 / 真机）
+
+维护者文档与站点能力表统一使用三列证据上限，**禁止**把「声明」或「包内探针」写成「五宿主真机已测」：
+
+| 能力面 | 声明（代码/矩阵） | 探针（可重复命令） | 真机 |
+|--------|-------------------|--------------------|------|
+| 8 workflows | `workflow-capabilities.json` | `npm run test:workflow-capabilities` | 不要求 |
+| Skills 84 | `plugin.json` + 磁盘 SKILL.md | `npm run test:docs-surface-inventory` | 不要求 |
+| MCP 15 tools | `mcp/*-server.js` | `npm run test:mcp-servers` 等 | 不要求 |
+| Hooks 五事件 | `hooks/devcodex.lifecycle.json` | `test:hooks-runtime` / 宿主契约 | 按宿主事件降级 |
+| 流程强制 Mutation/路径 | `process-enforcement` + HostEnforcementMatrix | `test:process-enforcement-e2e` · `test:stop-gate` | L4 非默认 DoD |
+| 五宿主 adapter | host-parity / doctor 分层 | `test:host-parity` · `devcodex doctor` | doctor 可选；人工会话非关站硬条件 |
+| 公开文本 | `public-text-surfaces.json` | `test:public-text-integrity` | 不要求 |
+
+Grok：**无 UPS inject**；Stop 为条件硬拦。Copilot：**CLI 与 IDE 能力不等价**（IDE 常为 instruction-fallback）。
+
 ---
 
 ## 延伸阅读

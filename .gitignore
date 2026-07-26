@@ -23,6 +23,10 @@ coverage/
 .tmp-hook-editfiles.json
 .tmp-hook-terminal.json
 
+# Local analysis / inventory scratch (never commit)
+.tmp/
+.tmp/**
+
 source-root-deployment-backup-*/
 tmp-validate*.txt
 package.json.tmp-test

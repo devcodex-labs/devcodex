@@ -8,6 +8,7 @@ applyTo: .devcodex/**/reports/requirements/**
 > **路径**: 优先 `.devcodex/**/requirements/<需求>/reports/<agent>/YYYYMMDD/NN--<name>.md`；无任务上下文时回退到 `.devcodex/**/reports/requirements/<agent>/YYYYMMDD/NN--<name>.md`
 > **触发**: dev 工作流完成后，由 `report/SKILL.md` 驱动生成
 > ⚠️ **测试绿 ≠ ECR**：`npm test` / 探针 exit 0 不能代替 **N6 ECR 执行闭环复审**。强完成/关需求话术须含 ECR 段 + DoD 对账表，否则 Stop gap `ecr-missing`。
+> ⚠️ **PF-175 路径列**：报告/完成回复中的产物表须 `语义名称 | 用途 | 路径 | 操作`；禁止「文件|内容」无路径。Grok 状态条 **N failed** = 工具 outcome 计数（可含已自愈的错路径），≠ 任务失败。
 > **共享基模**: `skills/report/report-schema.json` 的 baseFields + dev overlay；治理结果按 `gateGroup / result / evidence / skipReason` 记录
 > **字段约束**: 每条遗留问题/建议必须附五项验证（合理性 + 可实施性 + 收益 + 验证状态 + 影响范围），详见 [`17-compliance.instructions.md`](../instructions/17-compliance.instructions.md) §1 输出验证
 ---

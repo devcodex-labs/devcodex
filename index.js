@@ -76,6 +76,8 @@ const CLAUDE_SOURCES = [
 const CLAUDE_MCP_RUNTIME_SCRIPT_DEPS = Object.freeze([
   'scripts/lib/cp-digest.js',
   'scripts/lib/host-parity-scorecard.js',
+  // host-parity-scorecard hard-depends on executable-absorption-gates (profile_compose_entry_check)
+  'scripts/lib/executable-absorption-gates.js',
   'scripts/lib/global-adapter-refresh-guidance.js',
   'scripts/lib/global-host-target.js',
   'scripts/lib/derived-index-contract.js',

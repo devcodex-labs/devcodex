@@ -26,6 +26,9 @@ applyTo: "**"
 - [ ] 影响范围初步评估完成
 - [ ] 需求入口文档已按类型创建（`requirement-overview.prompt.md` / `requirement-change-overview.prompt.md` / `bug-overview.prompt.md`，SimpleTaskFastPath 可 N/A）
 - [ ] 需求确认文档已按模板创建（`requirement.prompt.md`）
+- [ ] **真实性门禁**已填（概况/问题概况 authenticityStatus + evidenceRefs；未验证须 gate 明示）
+- [ ] **去重决策**已填（matchResult + candidates 路径 + decision；禁止静默 duplicate）
+- [ ] 用户可见产物表含 **路径列**（PF-175；禁止仅「文件\|内容」短名）
 
 **等待用户确认：** → 用户回复"确认"/"通过"/"OK" 后进入 CP2
 

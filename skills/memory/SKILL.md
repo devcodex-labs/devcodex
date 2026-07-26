@@ -97,6 +97,25 @@ status/current/month/day byte-range 分区。该索引不是记忆真相源：
 > ⛔ **禁止静默回退**：resume 意图检测到当前项目无 🔄 任务时，禁止静默选取历史旧任务继续；必须明确告知用户当前状态并询问意图。
 > ⚠️ **跨项目 resume**：无任务名的普通“继续/恢复”仍只使用当前项目的有界记忆，当前项目无 🔄 时须询问；完整 `继续<任务名>任务` 可通过 workspace 派生索引做有界 exact 定位，但同名、规模超限或非 active 状态必须停止消歧，不能猜测。
 
+## ConfirmBindingGate（CP 确认）
+
+`memory_cp_confirm` 在传入 `artifactPath` + `artifactSha256` 时会对磁盘文件重算 digest：
+
+1. **先完成** 对该 artifact 的全部编辑；
+2. **再** 对当前文件计算 sha256（PowerShell: `Get-FileHash -Algorithm SHA256`）；
+3. 立即 `memory_cp_confirm`，**禁止**使用编辑前的旧 hash。
+
+mismatch 错误含 nextStep：改完 rehash 再 confirm。Grok 状态条因此次失败计 **1 failed** 属工具 outcome，重试成功后任务仍可继续。
+
+### packageRoot vs activeRoot（Track Q）
+
+| 根 | 含义 | 典型内容 |
+|----|------|----------|
+| **packageRoot** | 源码包（如 `devcodex-v1/`） | `package.json`、`mcp/`、`scripts/`、`index.js` |
+| **activeRoot** | `.devcodex/<project>/` | requirements、reports、`.memory` |
+
+读实现代码用 packageRoot；写需求/记忆用 activeRoot。**禁止**默认 `read_file(.devcodex/**/index.js)` 当 package 入口。
+
 ## 写入规则
 
 | 时机 | 动作 |

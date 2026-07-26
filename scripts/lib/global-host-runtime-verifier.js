@@ -208,8 +208,9 @@ function nativeVersionProbe(host, options = {}) {
 }
 
 function mcpInitializeProbe(serverPath, cwd, options = {}) {
+  const spawn = options.spawnSync || spawnSync
   const request = JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} })
-  const result = options.spawnSync(process.execPath, [serverPath, cwd], {
+  const result = spawn(process.execPath, [serverPath, cwd], {
     cwd,
     input: `${request}\n`,
     encoding: 'utf8',
@@ -225,6 +226,107 @@ function mcpInitializeProbe(serverPath, cwd, options = {}) {
     exitCode: result?.status,
     response,
     error: result?.error?.code || String(result?.stderr || '').trim() || null
+  }
+}
+
+/**
+ * Bounded tools/call smoke (M0). Default deadline 8000ms.
+ * @returns {{ passed: boolean, timedOut?: boolean, exitCode?: number|null, textHead?: string, latencyMs?: number|null, error?: string|null }}
+ */
+function mcpToolCallProbe(serverPath, cwd, toolName, toolArgs = {}, options = {}) {
+  const timeoutMs = Number.isFinite(options.timeoutMs) ? options.timeoutMs : 8000
+  const spawn = options.spawnSync || spawnSync
+  if (!serverPath || (options.fs || fs).existsSync?.(serverPath) === false) {
+    if (options.fs && typeof options.fs.existsSync === 'function' && !options.fs.existsSync(serverPath)) {
+      return { passed: false, error: 'server-missing', textHead: '', latencyMs: null }
+    }
+    if (!options.fs && serverPath && !fs.existsSync(serverPath)) {
+      return { passed: false, error: 'server-missing', textHead: '', latencyMs: null }
+    }
+  }
+  const init = JSON.stringify({
+    jsonrpc: '2.0',
+    id: 1,
+    method: 'initialize',
+    params: { protocolVersion: '2024-11-05', capabilities: {}, clientInfo: { name: 'devcodex-mcp-probe', version: '1' } }
+  })
+  const call = JSON.stringify({
+    jsonrpc: '2.0',
+    id: 2,
+    method: 'tools/call',
+    params: { name: toolName, arguments: toolArgs || {} }
+  })
+  const t0 = Date.now()
+  const result = spawn(process.execPath, [serverPath, cwd || process.cwd()], {
+    cwd: cwd || process.cwd(),
+    input: `${init}\n${call}\n`,
+    encoding: 'utf8',
+    windowsHide: true,
+    env: options.env || process.env,
+    timeout: timeoutMs
+  })
+  const latencyMs = Date.now() - t0
+  const timedOut = Boolean(result?.error?.code === 'ETIMEDOUT' || result?.signal === 'SIGTERM')
+  if (timedOut) {
+    return {
+      passed: false,
+      timedOut: true,
+      exitCode: result?.status,
+      textHead: 'timeout',
+      latencyMs,
+      error: 'ETIMEDOUT'
+    }
+  }
+  const lines = String(result?.stdout || '').trim().split(/\r?\n/).filter(Boolean)
+  let toolResponse = null
+  for (const line of lines) {
+    try {
+      const msg = JSON.parse(line)
+      if (msg.id === 2) toolResponse = msg
+    } catch { /* ignore partial */ }
+  }
+  if (!toolResponse) {
+    return {
+      passed: false,
+      timedOut: false,
+      exitCode: result?.status,
+      textHead: String(result?.stdout || result?.stderr || '').slice(0, 200),
+      latencyMs,
+      error: result?.error?.code || 'no-tools-call-response'
+    }
+  }
+  const text = String(toolResponse.result?.content?.[0]?.text || toolResponse.error?.message || '')
+  const isError = Boolean(toolResponse.result?.isError || toolResponse.error)
+  // Deploy health: MODULE_NOT_FOUND is always fail; other isError may be valid business errors
+  if (/Cannot find module|MODULE_NOT_FOUND|executable-absorption-gates/i.test(text)) {
+    return {
+      passed: false,
+      timedOut: false,
+      exitCode: result?.status,
+      textHead: text.slice(0, 300),
+      latencyMs,
+      error: 'module-missing'
+    }
+  }
+  if (options.requireSuccess === true && isError) {
+    return {
+      passed: false,
+      timedOut: false,
+      exitCode: result?.status,
+      textHead: text.slice(0, 300),
+      latencyMs,
+      error: 'tool-is-error'
+    }
+  }
+  // Default: got a tools/call response within deadline and no missing-module → pass (smoke)
+  return {
+    passed: true,
+    timedOut: false,
+    exitCode: result?.status,
+    textHead: text.slice(0, 300),
+    latencyMs,
+    error: null,
+    isError
   }
 }
 
@@ -360,6 +462,36 @@ function deepGrokProbe(target, cwd, options = {}) {
       ))
     }
   }
+  // M0: tools/call smoke — catches missing runtime deps that initialize never loads
+  const toolSmoke = {
+    memory: mcpToolCallProbe(
+      path.join(target.runtimeRoot, 'mcp', 'memory-server.js'),
+      cwd,
+      'memory_status',
+      { agent: 'grok', project: path.basename(cwd) || 'devcodex-v1', limit: 3 },
+      { ...options, timeoutMs: options.toolTimeoutMs || 8000 }
+    ),
+    profile: mcpToolCallProbe(
+      path.join(target.runtimeRoot, 'mcp', 'profile-server.js'),
+      cwd,
+      'profile_compose_entry_check',
+      { project: path.basename(cwd) || 'devcodex-v1', status: 'PASS', nextStep: 'probe' },
+      { ...options, timeoutMs: options.toolTimeoutMs || 8000 }
+    )
+  }
+  for (const [name, smoke] of Object.entries(toolSmoke)) {
+    mcp[`${name}Tool`] = smoke
+    if (!smoke.passed) {
+      issues.push(probeIssue(
+        'GROK_MCP_TOOL_SMOKE_FAILED',
+        'native',
+        `${name}:${smoke.error || smoke.textHead || 'tool-smoke-failed'}`,
+        smoke.error === 'module-missing'
+          ? 'Sync CLAUDE_MCP_RUNTIME_SCRIPT_DEPS (include executable-absorption-gates.js) and re-apply global runtime.'
+          : 'Re-run MCP tools/call smoke after fixing runtime; ensure tool returns within timeout.'
+      ))
+    }
+  }
   return {
     status: issues.length ? 'failed' : 'passed',
     evidence: {
@@ -472,6 +604,7 @@ module.exports = {
   grokPluginIdentities,
   grokStaticContract,
   mcpInitializeProbe,
+  mcpToolCallProbe,
   nativeVersionProbe,
   grokInstalledHookProbe,
   verifyGlobalHostRuntime

@@ -59,4 +59,5 @@ applyTo: .devcodex/**/requirements/**
 6. 可见项必须使用 displayName/purposeText/userAction 与稳定 readingOrder，禁止“主要产物”；
 7. 按当前 surface 的 `LinkCapabilityDecisionV1` 选择 rich/portable/plain/failed；Rich clickable 不在路径列外重复 `绝对路径：` 行；
 8. **ArtifactPathColumnGate（PF-175）**：每项必须有路径列/字段，默认 workspace-relative portable；自由文本表默认列=语义名称\|用途\|路径\|操作；
-9. 完成后在报告中记录 `delivery-checklist: PASS`、manifestId、setId、semanticDigest 与 reconciliation。
+9. **禁止** 交付表只有「文件 \| 内容」+ 短文件名、无路径列（Grok 用户不可定位；与 PF-175 冲突）；
+10. 完成后在报告中记录 `delivery-checklist: PASS`、manifestId、setId、semanticDigest 与 reconciliation。

@@ -201,3 +201,34 @@ applyTo: .devcodex/**/requirements/**
 | **主要风险** | |
 | **开放问题** | 须用户确认后才能进 01/CP2 的点 |
 | **建议验证/E2E** | 若属控制面/流程强制类，须列出防复发测试意图 |
+
+## §11 需求/问题真实性（AI 强制 · 非需求方填写）
+
+> 🔴 交给用户确认概况前必须填写。`§10 验证状态`（是否实读代码）**不等于**本表「主症状是否被问题验证」。
+
+| 字段 | 填写 |
+|------|------|
+| authenticityStatus | `verified` / `partial` / `unverified` / `disputed` |
+| primarySymptom | 用户主诉一句话 |
+| evidenceRefs | 路径 / 命令 / 截图 / 会话（**须带 portable 路径**，PF-175） |
+| verificationMethod | 机测 / 直连探针 / 合成夹具 / 真机 UI / 仅口述 |
+| openGaps | 尚未验证的点 |
+| gate | `pass-to-cp1` / `block-until-evidence` / `proceed-with-risk`（须用户知悉） |
+
+## §12 是否重复（AI 强制 · 非需求方填写）
+
+> 🔴 扫描 `.devcodex/**/requirements` 与 `bugs`（及已知 closed 相关项），禁止静默重复开目录。
+
+| 字段 | 填写 |
+|------|------|
+| scanScope | 扫描范围说明 |
+| matchResult | `new` / `duplicate` / `extend-existing` / `related-parallel` |
+| candidates | 候选路径 + 相似点 + 差异（表格式，含**路径列**） |
+| decision | 新建 / 并入变更 / 扩展已有 / 搁置 |
+| decisionOwner | 用户确认 / AI 建议待确认 |
+
+## §13 路径与工具失败语义（AI 注意 · Track Q）
+
+> - **packageRoot**（如仓库 `devcodex-v1/`）含 `package.json` / `mcp/` / `scripts/`；**activeRoot**（`.devcodex/<project>/`）只含状态与需求产物，**没有** `index.js`。
+> - 读源码用 packageRoot；写需求/报告用 activeRoot。误读 `.devcodex/**/index.js` 会导致 Grok 状态条 **1 failed**（工具 error 计数，≠ 任务失败）。
+> - ConfirmBinding：`memory_cp_confirm` 的 sha256 必须在**最后一次改文件之后**重算。

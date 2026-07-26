@@ -1717,7 +1717,11 @@ function handleMemoryCpConfirm(args) {
       if (!fs.existsSync(candidate) || !fs.statSync(candidate).isFile()) continue
       const actual = crypto.createHash('sha256').update(fs.readFileSync(candidate)).digest('hex').toUpperCase()
       if (actual !== sha) {
-        throw new Error(`ConfirmBindingGate: artifactSha256 mismatch for ${artifactPath} (disk=${actual})`)
+        throw new Error(
+          `ConfirmBindingGate: artifactSha256 mismatch for ${artifactPath} (disk=${actual}). ` +
+          'Re-hash the file on disk AFTER the last edit (sha256 of current bytes), then call memory_cp_confirm again. ' +
+          'Do not reuse a hash computed before subsequent writes.'
+        )
       }
       matched = true
       break

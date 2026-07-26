@@ -50,6 +50,7 @@ applyTo: .devcodex/**/bugs/**
 - [§7 临时绕过方式](#7-临时绕过方式)
 - [§8 不确定问题与补充信息](#8-不确定问题与补充信息)
 - [§9 研发确认状态](#9-研发确认状态)
+- [§10 问题真实性与去重（AI）](#10-问题真实性与去重ai)
 ```
 
 ---
@@ -137,3 +138,15 @@ applyTo: .devcodex/**/bugs/**
 | 是否已确认可重现 | 是 / 否 / 偶发 / 待补充 |
 | 是否已确认根因 | 是 / 否；根因由研发填写 |
 | 是否已确认影响范围 | 是 / 否；说明 |
+
+## §10 问题真实性与去重（AI）
+
+> 非报告方填写。与需求概况 §11/§12 同构最小集。
+
+| 字段 | 填写 |
+|------|------|
+| authenticityStatus | `verified` / `partial` / `unverified` |
+| evidenceRefs | 含 **路径列** 的证据 |
+| matchResult | `new` / `duplicate` / `extend-existing` / `related-parallel` |
+| candidates | 相关 bug/需求 **路径** + 差异 |
+| decision | 新建 bug 目录 / 并入已有 |

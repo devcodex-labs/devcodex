@@ -26,7 +26,7 @@ devcodex init
 devcodex status
 ```
 
-发布后的正式命令为 `npm install -g devcodex`；升级使用 `npm update -g devcodex`。`npm install devcodex` 仅加入项目依赖，不配置宿主，并输出必须使用 `-g` 的指引。
+源码维护者日常刷新用户级 adapter：`devcodex global-adapters apply`（可选 `--dry-run`；或次选 `npm install -g .` / pack+tarball）。发布后的正式命令为 `npm install -g devcodex`；升级使用 `npm update -g devcodex`。`npm install devcodex` 仅加入项目依赖，不配置宿主，并输出必须使用 `-g` 的指引。
 
 执行完成后，宿主 adapter 位于用户级配置根，工作区仅有 `.devcodex`。安装不会新建 `.github/.claude/.codex/.gemini/.grok`，bare `devcodex init/update` 也不会创建或修改 `.gitignore`；已有旧目录只作为 legacy 诊断输入，不会自动删除。`devcodex grok` 使用用户级 plugin/runtime，并从 cwd 发现 workspace `.devcodex`。完整命令和排错步骤见 [README](https://github.com/vextjs/devcodex)。
 
@@ -93,8 +93,11 @@ DevCodex 提供两个 Agent 入口：
 
 | 命令 | 语义 |
 |------|------|
-| `npm install -g devcodex` | 安装全局 CLI，并通过包 `postinstall` 自动刷新全局宿主 adapter |
-| `npm update -g devcodex` | 升级全局包，并通过包 `postinstall` 自动刷新全局宿主 adapter |
+| `devcodex global-adapters apply` | 源码日常：从包根刷新用户级五宿主 adapter（`--dry-run` / `--json`）；不 pack、不 publish |
+| `npm install -g .` | 本地旁路：全局安装当前目录并走 postinstall |
+| `npm pack` + `npm install -g ./vextjs-devcodex-*.tgz` | 预发冒烟 tarball |
+| `npm install -g devcodex` | 已发布：安装全局 CLI，并通过包 `postinstall` 自动刷新全局宿主 adapter |
+| `npm update -g devcodex` | 已发布：升级全局包，并通过包 `postinstall` 自动刷新全局宿主 adapter |
 | `npm install devcodex` | 仅安装当前项目依赖；不配置宿主，并输出必须使用 `-g` 的指引 |
 | `devcodex update` | 只刷新当前 workspace `.devcodex`，不升级全局包、不写宿主配置 |
 

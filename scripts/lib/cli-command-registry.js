@@ -3,7 +3,11 @@
 const { HOST_ALIASES, HOST_IDS } = require('./host-surface-descriptors')
 
 function createCliCommandRegistry(commands) {
-  const required = ['cmdInitWorkspaceRuntime', 'cmdInitHost', 'cmdUninstallHost', 'cmdGrok', 'cmdStatus', 'cmdProfileInit', 'cmdDoctor', 'cmdProbe', 'cmdTrace', 'cmdSkill', 'cmdTask', 'cmdHelp']
+  const required = [
+    'cmdInitWorkspaceRuntime', 'cmdInitHost', 'cmdUninstallHost', 'cmdGrok', 'cmdStatus',
+    'cmdProfileInit', 'cmdDoctor', 'cmdProbe', 'cmdTrace', 'cmdSkill', 'cmdTask',
+    'cmdGlobalAdapters', 'cmdHelp'
+  ]
   for (const name of required) {
     if (typeof commands[name] !== 'function') throw new TypeError(`missing CLI command handler: ${name}`)
   }
@@ -120,6 +124,10 @@ function runCliCommand({ cmd, argv, registry, runMigrateLayout, process, c, cons
     return 'migrate-layout'
   }
   if (cmd === 'grok') { registry.cmdGrok(argv); return 'grok' }
+  if (cmd === 'global-adapters') {
+    registry.cmdGlobalAdapters(argv)
+    return 'global-adapters'
+  }
   if (cmd === 'status') { registry.cmdStatus(argv); return 'status' }
   if (cmd === 'doctor') { registry.cmdDoctor(argv); return 'doctor' }
   if (cmd === 'probe') { registry.cmdProbe(argv); return 'probe' }

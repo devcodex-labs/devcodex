@@ -7,6 +7,9 @@ const {
   createCliSuccess,
   printCliJson
 } = require('./cli-json-contract.js')
+const {
+  describeGlobalAdapterRefreshForPackageRoot
+} = require('./global-adapter-refresh-guidance.js')
 
 function buildCliInstallCommands(ctx) {
   const {
@@ -43,14 +46,23 @@ function buildCliInstallCommands(ctx) {
     return marker ? marker.slice('--operation='.length) : 'host-config'
   }
 
+  function globalRefreshGuidance() {
+    return describeGlobalAdapterRefreshForPackageRoot(PKG_ROOT, {
+      fs,
+      path,
+      packageVersion: PACKAGE_JSON.version
+    })
+  }
+
   function globalOnlyHostFailure(host, argv = []) {
     const operation = operationFromArgs(argv)
     const json = argv.includes('--json')
+    const guidance = globalRefreshGuidance()
     const nextStep = operation === 'update'
-      ? 'Use `npm update -g devcodex` to refresh user-level host adapters.'
+      ? `Use \`${guidance.primary}\` to refresh user-level host adapters${guidance.secondary ? ` (or ${guidance.secondary})` : ''}.`
       : (operation === 'uninstall'
           ? 'Automatic global host-config removal is not supported in the first batch; do not delete user config automatically.'
-          : 'Use `npm install -g devcodex` to install user-level host adapters.')
+          : `Use \`${guidance.installCommand}\` to install user-level host adapters${guidance.secondary ? ` (or ${guidance.secondary})` : ''}.`)
     const envelope = createCliFailure(
       operation,
       'CLI_HOST_CONFIG_GLOBAL_ONLY',
@@ -135,8 +147,8 @@ function buildCliInstallCommands(ctx) {
       gitignoreModified: false,
       workspaceHostDirectoriesWritten: false,
       hostConfigNextStep: refresh
-        ? 'npm update -g devcodex'
-        : 'npm install -g devcodex'
+        ? globalRefreshGuidance().updateCommand
+        : globalRefreshGuidance().installCommand
     }
     if (json) printCliJson(console, createCliSuccess(payload.operation, payload, cliMetadata))
     else {
@@ -493,7 +505,7 @@ function buildCliInstallCommands(ctx) {
       console.log()
       console.log(c.yellow('  ⚠️  No content files installed.'))
       console.log(c.dim('    skills/ instructions/ prompts/ data/ not found in package root.'))
-      console.log(c.dim('    Run  devcodex update  after content files are added.'))
+      console.log(c.dim('    Run  devcodex global-adapters apply  (or npm install -g .) after content files are added.'))
     }
 
     if (!copilotOnly) {

@@ -849,7 +849,7 @@ if (cfgInfo.source !== 'missing') {
   // plugin version drift
   if (cfg.pluginVersion) {
     if (pluginVersion && cfg.pluginVersion !== pluginVersion) {
-      warn(`[profile] pluginVersion drift: profile says ${cfg.pluginVersion}, plugin is ${pluginVersion} (run \`devcodex update\`)`)
+      warn(`[profile] pluginVersion drift: profile says ${cfg.pluginVersion}, plugin is ${pluginVersion} (sync Profile field and/or run \`devcodex global-adapters apply\` for global adapters)`)
     }
   }
   validateProfileConfigExtensions(cfg, 'config.json', projectInfoText, readmeText)

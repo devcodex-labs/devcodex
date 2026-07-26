@@ -88,7 +88,14 @@ npx @vextjs/devcodex status
 ## 📚 迁移指南（如有破坏性变更）
 
 ```bash
-npx @vextjs/devcodex update
+# 源码维护者：刷新用户级全局 adapter（不 pack / 不 publish）
+devcodex global-adapters apply
+# 预发冒烟：
+# npm pack && npm install -g ./vextjs-devcodex-<version>.tgz
+# 已发布用户：
+# npm update -g @vextjs/devcodex
+# workspace 运行态 only：
+# devcodex update
 ```
 
 ---

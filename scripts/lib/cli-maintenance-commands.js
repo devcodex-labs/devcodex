@@ -60,7 +60,7 @@ function buildScopedHostParity(hostParity, globalHostComparison) {
     withheldFailedChecks: Array.isArray(hostParity?.failedChecks) ? hostParity.failedChecks : [],
     withheldRepairSteps: Array.isArray(hostParity?.repairSteps) ? hostParity.repairSteps : [],
     userVisibleSummary: 'Source candidate comparison only; installed Grok HostParity health is unverified.',
-    recommendedEntry: 'npm install -g <packed candidate> && devcodex doctor --json',
+    recommendedEntry: 'devcodex global-adapters apply --dry-run && devcodex global-adapters apply',
     cannotClaim: [
       'Installed Grok HostParity health is unverified in source-candidate scope.',
       ...(Array.isArray(hostParity?.cannotClaim) ? hostParity.cannotClaim : [])
@@ -83,14 +83,34 @@ function buildCliMaintenanceCommands(ctx) {
 
   const cliMetadata = { packageName: PACKAGE_JSON.name, packageVersion: PACKAGE_JSON.version }
   const workspaceCleanMode = 'GlobalOnlyWorkspaceCleanModeV1'
+  const {
+    describeGlobalAdapterRefresh,
+    describeGlobalAdapterRefreshForPackageRoot
+  } = require('./global-adapter-refresh-guidance.js')
+  const PKG_ROOT = path.join(__dirname, '..', '..')
+  function refreshGuidanceForCwd(cwd) {
+    const source = typeof isSourceRepo === 'function' ? isSourceRepo(cwd) : false
+    if (source) {
+      return describeGlobalAdapterRefresh({
+        sourceCheckout: true,
+        packageVersion: PACKAGE_JSON.version
+      })
+    }
+    return describeGlobalAdapterRefreshForPackageRoot(PKG_ROOT, {
+      packageVersion: PACKAGE_JSON.version
+    })
+  }
+  const defaultGuidance = describeGlobalAdapterRefreshForPackageRoot(PKG_ROOT, {
+    packageVersion: PACKAGE_JSON.version
+  })
   const hostConfigPolicy = Object.freeze({
     mode: 'GlobalOnlyHostConfigModeV1',
     workspaceCleanMode,
     workspaceHostConfigWritesAllowed: false,
     legacyWorkspaceArtifacts: 'diagnostic-read-only',
     workspaceManagedArtifactsAllowed: ['.devcodex/**'],
-    installCommand: 'npm install -g devcodex',
-    updateCommand: 'npm update -g devcodex'
+    installCommand: defaultGuidance.installCommand,
+    updateCommand: defaultGuidance.updateCommand
   })
   const globalOnlyLegacyProjectionIssues = new Set([
     'HOST_WRAPPER_POINTER_MISSING',
@@ -829,9 +849,10 @@ function buildCliMaintenanceCommands(ctx) {
     if (nativeNotReady.length) {
       console.log(c.dim(`    Native host CLIs not operationally ready: ${nativeNotReady.map(host => host.host).join(', ')}. Install or repair those CLIs, then rerun \`devcodex doctor\`.`))
     }
+    const guidance = refreshGuidanceForCwd(cwd)
     console.log(c.dim(sourceRepository
-      ? '    Validate this candidate with `npm pack`, then install the produced tarball globally before judging installed health.'
-      : '    Upgrade DevCodex and refresh adapters with `npm update -g devcodex`.'))
+      ? `    ${guidance.doctorHint}`
+      : `    ${guidance.doctorHint}`))
     console.log(c.bold('  Workspace state:'))
     console.log(`    .devcodex                             ${fs.existsSync(path.join(hostRoot, '.devcodex')) ? c.green('✅') : c.dim('— initialize with `devcodex init`')}`)
     console.log(`    legacy host artifacts                 ${installedHosts.length ? c.yellow(installedHosts.join(', ')) : c.green('none; expected')}`)
@@ -969,6 +990,7 @@ function buildCliMaintenanceCommands(ctx) {
     ${c.bold('Commands:')}
       ${c.cyan('init')}              Initialize workspace-owned .devcodex runtime state only
       ${c.cyan('update')}            Refresh workspace-owned .devcodex runtime state only
+      ${c.cyan('global-adapters')}   Apply user-level host adapters from package root (source-friendly)
       ${c.cyan('grok')}              Launch Grok with the user-global DevCodex kernel
       ${c.cyan('migrate-layout')}    Plan/apply/rollback centralized .devcodex workspace layout
       ${c.cyan('profile init')}      Auto-generate tiered .devcodex/profile/ drafts
@@ -991,19 +1013,23 @@ function buildCliMaintenanceCommands(ctx) {
       ${c.dim('--json')}             Emit one DevCodexCliEnvelopeV1 document for supported commands
 
     ${c.bold('Examples:')}
-      npm install -g devcodex       # Install CLI and all user-global host adapters
-      npm update -g devcodex        # Upgrade package and refresh all user-global adapters
-      npm install devcodex          # Dependency only; prints the required -g guidance
-      devcodex init                 # Initialize only this workspace .devcodex
-      devcodex update               # Refresh only this workspace .devcodex
-      devcodex grok                 # Full-evidence Grok launcher using the global kernel
+      devcodex global-adapters apply --dry-run  # R1a: plan user-global adapters from source tree
+      devcodex global-adapters apply            # R1a: refresh user-global adapters without pack/publish
+      npm install -g .                          # R1b: local global install postinstall refresh
+      npm pack && npm install -g ./vextjs-devcodex-*.tgz  # R2: pre-release tarball
+      npm install -g devcodex                   # R3: published install + postinstall adapters
+      npm update -g devcodex                    # R3: published upgrade + postinstall refresh
+      npm install devcodex                      # Dependency only; prints the required -g guidance
+      devcodex init                             # R4: initialize only this workspace .devcodex
+      devcodex update                           # R4: refresh only this workspace .devcodex
+      devcodex grok                             # Full-evidence Grok launcher using the global kernel
       devcodex grok -p "Review this diff" --output-format json
-      devcodex migrate-layout plan  # Generate centralized layout migration manifest
+      devcodex migrate-layout plan              # Generate centralized layout migration manifest
       devcodex profile init --tier profile-standard  # Generate tiered Profile drafts
       devcodex profile plan --tier profile-closed-loop # Preview a safe upgrade
-      devcodex status               # Check installation
+      devcodex status                           # Check installation
       devcodex skill plan intent load-profile --max-bytes 32768 --json
-      devcodex task resolve "my task" --json # Resolve without loading unrelated task bodies
+      devcodex task resolve "my task" --json    # Resolve without loading unrelated task bodies
   `)
   }
 

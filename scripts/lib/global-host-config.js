@@ -25,6 +25,9 @@ const { createSkillDeployFileFilter } = require('./skill-deploy-filter.js')
 const {
   mergeGrokPluginRegistration
 } = require('./host-adapter-scope.js')
+const {
+  describeGlobalAdapterRefreshForPackageRoot
+} = require('./global-adapter-refresh-guidance.js')
 
 const GLOBAL_HOST_CONFIG_SCHEMA = 'GlobalOnlyHostConfigModeV1'
 const GLOBAL_HOST_RECEIPT_SCHEMA = 'GlobalHostConfigReceiptV1'
@@ -929,27 +932,31 @@ function inspectGlobalHostConfiguration(options = {}) {
       configFiles.length > 0 &&
       managedPaths.length > 0 &&
       runtimeDeclared
+    const guidance = describeGlobalAdapterRefreshForPackageRoot(packageRoot, {
+      fs: fsImpl,
+      packageVersion: expectedReceipt?.packageVersion || null
+    })
     const configurationIssues = []
     if (error) {
       configurationIssues.push({
         code: 'GLOBAL_HOST_RECEIPT_INVALID',
         phase: 'configuration',
         evidence: error,
-        nextStep: 'Run npm install -g devcodex to replace the invalid managed receipt.'
+        nextStep: guidance.nextStepInstall
       })
     } else if (!receipt) {
       configurationIssues.push({
         code: 'GLOBAL_HOST_RECEIPT_MISSING',
         phase: 'configuration',
         evidence: target.receiptFile,
-        nextStep: 'Run npm install -g devcodex to create the user-global host receipt.'
+        nextStep: guidance.nextStepInstall
       })
     } else if (stale) {
       configurationIssues.push({
         code: 'GLOBAL_HOST_RECEIPT_STALE',
         phase: 'configuration',
         evidence: target.receiptFile,
-        nextStep: 'Run npm update -g devcodex to refresh the managed receipt.'
+        nextStep: guidance.nextStepRefresh
       })
     }
     for (const file of invalidConfigFiles) {
@@ -973,7 +980,7 @@ function inspectGlobalHostConfiguration(options = {}) {
         code: 'GLOBAL_HOST_STALE_CLEANUP_PENDING',
         phase: 'configuration',
         evidence: portable(file),
-        nextStep: 'Run npm update -g devcodex to retry removal of the stale managed file.'
+        nextStep: guidance.nextStepRefresh
       })
     }
     for (const file of missingConfigFiles) {
@@ -981,7 +988,7 @@ function inspectGlobalHostConfiguration(options = {}) {
         code: 'GLOBAL_HOST_CONFIG_PATH_MISSING',
         phase: 'configuration',
         evidence: portable(file),
-        nextStep: 'Run npm install -g devcodex to restore the missing managed file.'
+        nextStep: guidance.nextStepInstall
       })
     }
     for (const file of missingEntrypoints) {
@@ -989,7 +996,7 @@ function inspectGlobalHostConfiguration(options = {}) {
         code: 'GLOBAL_HOST_ENTRYPOINT_MISSING',
         phase: 'configuration',
         evidence: portable(file),
-        nextStep: 'Run npm install -g devcodex to restore the missing host entrypoint.'
+        nextStep: guidance.nextStepInstall
       })
     }
     for (const file of driftedConfigFiles) {
@@ -997,7 +1004,7 @@ function inspectGlobalHostConfiguration(options = {}) {
         code: 'GLOBAL_HOST_MANAGED_CONFIG_DRIFT',
         phase: 'configuration',
         evidence: portable(file),
-        nextStep: 'Run npm update -g devcodex to restore the managed configuration segment.'
+        nextStep: guidance.nextStepRefresh
       })
     }
     const ready = receipt?.schemaVersion === GLOBAL_HOST_RECEIPT_SCHEMA &&

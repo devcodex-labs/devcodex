@@ -391,6 +391,9 @@ const { cmdProbe, cmdTrace } = buildCliObservabilityCommands({
   fs, process, console, c, resolveProfileDir, inspectProfileState, detectHostPlatform, detectInstalledHostAssets
 })
 const { cmdSkill, cmdTask } = buildCliExecutionCommands({ process, console, c })
+const { cmdGlobalAdapters } = require('./scripts/lib/global-adapters-cli.js').buildHandler({
+  fs, path, process, console, c, packageRoot: PKG_ROOT, packageJson: require('./package.json')
+})
 function cmdGrok(argv) {
   try {
     const result = launchGrok(argv, { cwd: process.cwd() })
@@ -404,7 +407,8 @@ function cmdGrok(argv) {
 }
 
 const cliCommandRegistry = createCliCommandRegistry({
-  cmdInitWorkspaceRuntime, cmdInitHost, cmdUninstallHost, cmdGrok, cmdStatus, cmdProfileInit, cmdDoctor, cmdProbe, cmdTrace, cmdSkill, cmdTask, cmdHelp
+  cmdInitWorkspaceRuntime, cmdInitHost, cmdUninstallHost, cmdGrok, cmdStatus, cmdProfileInit, cmdDoctor,
+  cmdProbe, cmdTrace, cmdSkill, cmdTask, cmdGlobalAdapters, cmdHelp
 })
 
 if (require.main === module) {
@@ -415,7 +419,7 @@ if (require.main === module) {
 module.exports = {
   walkDir, cmdInitWorkspaceRuntime, cmdInitHost,
   cmdUninstallHost, cmdGrok, cmdStatus, cmdHelp, cmdProfileInit, cmdDoctor, cmdProbe, cmdTrace,
-  cmdSkill, cmdTask, isSourceRepo, findLayoutInfo, inferProjectFromCwd, resolveActiveRuntimeRoot,
+  cmdSkill, cmdTask, cmdGlobalAdapters, isSourceRepo, findLayoutInfo, inferProjectFromCwd, resolveActiveRuntimeRoot,
   resolveHostAdapterScope, resolveGitignoreRoot, ensureWorkspaceNamespaceLayout, ensureRuntimeDirs, SOURCES, CLAUDE_SOURCES,
   CLAUDE_MCP_RUNTIME_SCRIPT_DEPS, CODEX_SOURCES, CLAUDE_HOOK_COMMAND, CLAUDE_MCP_JSON,
   CODEX_HOOK_COMMAND, buildDeploymentDescriptors, beginManagedDeployment, finishManagedDeployment,

@@ -185,7 +185,7 @@ function buildResidualAbsorptionControlChecks(ctx) {
       executionConsumer: { state: 'required', evidence: 'scripts/plan-absorption-candidates.js' },
       validationProbe: { state: 'required', evidence: 'test:residual-absorption-controls' },
       publicDocs: { state: 'required', evidence: 'README.md' },
-      deployCopy: { state: 'required', evidence: 'npm install -g devcodex' }
+      deployCopy: { state: 'required', evidence: 'devcodex global-adapters apply' }
     }
     const structuredMatrix = {
       schemaVersion: 'AbsorptionCandidateMatrixV1',

@@ -44,12 +44,18 @@ applyTo: "**"
 ## 激活与部署
 
 ```powershell
+# workspace 运行态（.devcodex）可带 tenant 过滤 instructions 投影到包内 managed set
 devcodex init --tenant example-tenant
-devcodex update --claude --tenant example-tenant
+devcodex update --tenant example-tenant
+
+# 用户级全局 adapter（GlobalOnly）：不要用 update --claude/--host
+devcodex global-adapters apply
+# 或：npm install -g . / npm pack && npm install -g ./vextjs-devcodex-*.tgz
 ```
 
 - 不传 `--tenant`：Copilot/Claude managed set 排除整个 `instructions/tenants/`。
 - 传入已登记 ID：只复制对应子目录，不复制 tenant 总 README 或其他租户。
+- `update --claude` / `--host` 在 GlobalOnly 下 fail closed；全局宿主配置不走 workspace host selector。
 - Codex 当前不消费 `instructions/` 子目录；选择 tenant 不得被表述为 Codex runtime 已注入。
 
 ## 示例租户

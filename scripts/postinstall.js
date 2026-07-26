@@ -25,9 +25,11 @@ try {
       .filter(item => item.status !== 'committed')
       .map(item => `${item.host}:${item.status}`)
       .join(', ')
+    const { describeGlobalAdapterRefreshForPackageRoot } = require('./lib/global-adapter-refresh-guidance')
+    const guidance = describeGlobalAdapterRefreshForPackageRoot(require('path').join(__dirname, '..'))
     console.warn(
       `[devcodex] global postinstall incomplete (${failedHosts || receipt.errorCode || 'unknown'}); ` +
-      'repair with `npm update -g devcodex`'
+      `repair with \`${guidance.primary}\``
     )
   } else if (process.env.DEVCODEX_POSTINSTALL_VERBOSE === '1') {
     console.log(`[devcodex] postinstall skipped: ${receipt.reason}`)

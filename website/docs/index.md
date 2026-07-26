@@ -21,7 +21,7 @@ features:
   - title: 🧩 默认五宿主
     details: npm 全局安装/升级自动配置 Copilot、Claude Code、Codex、Gemini 与 Grok 的用户级 adapter；工作区只保留 `.devcodex`。五宿主共用精简 kernel、按需 Skills 与完整回退，能力声明受 direct/fixture/instruction-backed 证据上限约束
   - title: 📦 npm 安装自动适配
-    details: `npm install -g devcodex` 安装 CLI 与五宿主用户级 adapter，`npm update -g devcodex` 升级并刷新；`npm install devcodex` 仅安装工作区依赖并提示必须使用 `-g`。`.devcodex` 仍保持 workspace-namespace，发布身份与 registry 事实留到发版前验证
+    details: 源码日常 `devcodex global-adapters apply` 刷新用户级五宿主 adapter；`npm install -g .` / pack+tarball 为本地旁路；已发布用 `npm install/update -g devcodex`；`npm install devcodex` 仅工作区依赖。`.devcodex` 保持 workspace-namespace
   - title: 🔒 四层合规检查
     details: FC（形式合规）→ SC（实质合规）→ RC（恢复性检查）→ T（任务完成验证）；chat 仅保留记忆与 dev 预检查
   - title: 🧠 跨会话记忆

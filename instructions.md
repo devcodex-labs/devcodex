@@ -764,4 +764,4 @@ DevCodexVisibleEnvelopeV1 · entry-check · [状态] · [semanticDigest]
 
 ---
 
-*本文件由 DevCodex 管理，请勿手动修改。升级请运行 `devcodex update`（Copilot + Claude Code + Codex）或 `devcodex update --claude` / `devcodex update --codex`（单宿主）。*
+*本文件由 DevCodex 管理，请勿手动修改。源码仓刷新用户级全局 adapter：`devcodex global-adapters apply`（或 `npm install -g .` / pack+tarball）；已发布环境：`npm update -g devcodex`。workspace `.devcodex` 仅用 bare `devcodex update`（不含 `--host`）。*

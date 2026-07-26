@@ -222,7 +222,7 @@ node scripts/plan-absorption-candidates.js --self-test
 2. `node scripts/validate.js` 或 `npm run test:core`（含 V84 `ExpertOutputQualityGate` / expert-output-quality 同步时）
 3. 高风险控制面或 Skill/部署副本变化时执行项目 `npm test`
 4. 若改 README / website / changelog / Profile，执行引用扫描和 V19 资产计数校验
-5. 若改部署副本，执行 `devcodex update` 或项目规定的同步命令，并再次运行 validate
+5. 若改用户级全局部署副本，执行 `devcodex global-adapters apply`（源码）或 `npm install -g .` / pack+tarball / `npm update -g`（按安装来源）；workspace 运行态才用 bare `devcodex update`。然后再次运行 validate
 6. 命中示例/文档/fixture 专家质量时叠加 `expert-output-quality` Owner 与 gate-registry `expert-output-quality`
 
 验证失败时先修复，再更新复审清单状态；不得只在报告中写“后续处理”。

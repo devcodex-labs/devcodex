@@ -308,20 +308,24 @@ Phase 1 采用“薄 Rule + `host-capability-routing` Skill + 三份 V1 契约/�
 
 | 命令 | 语义 |
 |------|------|
-| `npm install -g devcodex` | 安装全局 CLI；包安装后的 `postinstall` 自动刷新全局宿主 adapter |
-| `npm update -g devcodex` | 由 npm 升级全局包；升级后的 `postinstall` 自动刷新全局宿主 adapter |
+| `devcodex global-adapters apply` | **源码维护者日常（R1a）**：从当前包根刷新用户级五宿主 adapter；支持 `--dry-run` / `--json`；不 pack、不 publish |
+| `npm install -g .` | **本地旁路（R1b）**：全局安装当前目录并走 postinstall 刷新 adapter |
+| `npm pack` + `npm install -g ./vextjs-devcodex-*.tgz` | **预发冒烟（R2）**：接近真实 tarball 安装面 |
+| `npm install -g devcodex` | **已发布（R3）**：安装全局 CLI；`postinstall` 自动刷新全局宿主 adapter |
+| `npm update -g devcodex` | **已发布（R3）**：升级全局包并 `postinstall` 刷新 adapter |
 | `npm install devcodex` | 仅安装到当前项目依赖；`postinstall` 不写宿主配置并提示必须使用 `-g` |
-| `devcodex update` | 只刷新当前 workspace 的 `.devcodex` 运行态，不升级全局 npm 包、不写宿主配置 |
+| `devcodex update` | **workspace only（R4）**：只刷新当前 `.devcodex` 运行态，不写用户级宿主配置 |
 
 `.devcodex` 仍采用 workspace-namespace；不会迁移到 npm global prefix。安装期自动适配默认 fail-soft，可用 `DEVCODEX_SKIP_POSTINSTALL=1` 显式跳过，CI、源码仓安装和传递依赖安装默认 no-op。当前阶段只验证本地 CLI / package lifecycle 语义，不验证 npm 包名 owner、registry、dist-tag 或版本唯一性；这些属于发布前验证。首批不新增 `devcodex global init`、`devcodex init --global` 或 `devcodex sync --global`，也不纳入 Enhanced RulePack、`rules.bin`、公开仓同步、反重包保护或 runtime start/stop/restart。
 
-在 DevCodex 源码仓内运行 `status` / `doctor` 时，CLI 只比较“当前源码候选”与用户级已安装 receipt，不把候选差异解释为已安装包故障。JSON 会返回 `payload.globalHostComparison.scope=source-candidate-vs-installed-receipts`、`installedHealthClaim=false` 和 `hostParity.tier=source-candidate-comparison`；此时 `hostParity.checks`、`failedChecks` 与 `repairSteps` 为空，原始候选差异仅保留在 `withheld*` 证据字段。要验证真实全局安装健康度，应先打包并全局安装候选，再从源码仓外运行 `devcodex status` / `doctor`。
+在 DevCodex 源码仓内运行 `status` / `doctor` 时，CLI 只比较“当前源码候选”与用户级已安装 receipt，不把候选差异解释为已安装包故障。JSON 会返回 `payload.globalHostComparison.scope=source-candidate-vs-installed-receipts`、`installedHealthClaim=false` 和 `hostParity.tier=source-candidate-comparison`；此时 `hostParity.checks`、`failedChecks` 与 `repairSteps` 为空，原始候选差异仅保留在 `withheld*` 证据字段。源码仓刷新用户级 adapter 优先 `devcodex global-adapters apply`；要验证「已安装包」健康度，也可 pack/tarball 全局安装后在源码仓外跑 `status` / `doctor`。
 
 | 命令 | 说明 |
 |------|------|
 | `devcodex init` | 初始化当前 workspace 的 `.devcodex`；fresh workspace 自动建立 `workspace-namespace` marker，不创建五宿主目录 |
 | `devcodex update` | 刷新当前 workspace 的 `.devcodex`；缺少 owner 时建立 namespace marker，不创建五宿主目录 |
-| `devcodex init/update --host <id>` 及 legacy aliases | 拒绝并返回 `CLI_HOST_CONFIG_GLOBAL_ONLY`；使用 `npm install -g devcodex` 或 `npm update -g devcodex` |
+| `devcodex global-adapters apply` | 从包根 apply 用户级全局 adapter（源码日常路径） |
+| `devcodex init/update --host <id>` 及 legacy aliases | 拒绝并返回 `CLI_HOST_CONFIG_GLOBAL_ONLY`；请用 `global-adapters apply` 或 npm `-g` 路径 |
 | `devcodex uninstall --host grok` | 首批禁用；不会自动删除用户级或工作区既有配置 |
 | `devcodex uninstall` | 首批禁用；与带宿主形式返回同一 GlobalOnly 结构化错误 |
 | `devcodex grok [Grok 参数]` | 使用用户级 Grok plugin/runtime 与全局 controlling kernel；从 cwd 发现 workspace `.devcodex` |

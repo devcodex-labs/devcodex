@@ -66,15 +66,17 @@ version: 1.15.3
 
 ### PC5 部署体状态（v1.11.0+，全模式基础项）
 
-> 检测条件：当 cwd 是 plugin 源仓库（含 `package.json` 且 `name` 含 `devcodex`），且 cwd 父链上存在 `.github/`、`.claude/`、`AGENTS.md`、`.agents/` 或 `.codex/` 部署体。
+> 检测条件（GlobalOnly）：
+> - **用户级全局 adapter**：`devcodex doctor` / receipt 与源码候选比对（configured / adapterReady / STALE）
+> - **legacy 父链表面**（可选诊断）：cwd 是 plugin 源仓库且父链上仍存在 `.github/`、`.claude/`、`AGENTS.md`、`.agents/` 或 `.codex/` 时，可扫描但不作为普通 workspace 安装目标
 >
 > 触发动作：
-> - 比对源仓库关键文件（instructions/skills/prompts/agents/hooks/入口副本）与父级部署体的 mtime
-> - 落后 → ⚠️ 标记，建议运行 `npx devcodex update`（按宿主需要追加 `--claude` / `--codex`）
+> - 用户级 adapter 相对源码候选落后 / STALE → ⚠️ 标记；源码仓优先运行 **`devcodex global-adapters apply`**（或次选 `npm install -g .` / `npm pack` + tarball）；已发布环境用 `npm update -g devcodex`
+> - bare `devcodex update` **只刷新 workspace `.devcodex`**，不能替代全局 adapter 刷新；`update --claude/--codex/--host` 仍 fail closed（`CLI_HOST_CONFIG_GLOBAL_ONLY`）
 > - 同步 → ✅
-> - 无父级部署体 → N/A
+> - 无用户级 receipt 且无 legacy 父链表面 → N/A 或按 doctor 缺失项提示
 >
-> 与 `scripts/validate.js` §V8 共享算法；PC5 是运行时即时检测，V8 是 CI 静态校验。
+> 与 `scripts/validate.js` §V8 / doctor global-host 检查同源；PC5 是运行时即时检测，V8 是 CI 静态校验。
 
 ### PC6 工作区一致性（v1.9.4+，全模式基础项）
 
@@ -158,7 +160,7 @@ version: 1.15.3
 | SC1 | 报告验证列完整（合理性 + 可实施性 + 收益 + 验证状态 + 影响范围五项） | 全工作流 |
 | SC2 | 代码已诊断（无未处理 error） | dev/fix 🔴 |
 | SC3 | 修复已全局扫描（同类错误模式全局+数据联动+grep零残留） | fix 🔴 |
-| SC4 | 关联文件已同步（含 profile 中定义的 dev 模式专属同步命令，如 `devcodex update`）| dev/fix/self-fix 🔴 |
+| SC4 | 关联文件已同步（workspace 运行态可用 bare `devcodex update`；用户级全局 adapter 用 `devcodex global-adapters apply` 或 npm `-g` 路径）| dev/fix/self-fix 🔴 |
 | SC5 | 后续建议与推荐结论已输出；报告含多个建议/路径时必须有 `推荐结论` / `推荐方案` 且 **唯一主动作**；禁止完成态 free-text「A 或 B」同级推荐；无待跟进时显式标注“推荐：无后续动作” | 全工作流 |
 | SC6 | Agent SUMMARY 已更新（写入动作已发生） | 全工作流 🔴 |
 | SC7 | 全局 SUMMARY 关键决策已追加 | 有关键决策时 🔴 |

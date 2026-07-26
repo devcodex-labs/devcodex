@@ -25,7 +25,7 @@ DevCodex 同时支持五宿主的用户级加载路径，规则语义保持一�
 - **Hook-First**：VS Code / Claude Code / Codex Hooks 可用时，通过对应宿主 hooks 承载 bootstrap、危险操作护栏和结束前兜底
 - **Instruction-Fallback**：Hooks 不可用时，继续依赖 instructions / skills 承载软约束
 - **当前实现**：npm 全局安装/升级通过 `postinstall` 更新用户级稳定 runtime、共享 full fallback 与 active Skills；共享 `.agents` 由单一事务 Owner 写入。bare `init/update` 只管理 workspace `.devcodex`，fresh workspace 会建立 `workspace-namespace` marker
-- **全局唯一写入口**：`devcodex init --claude`、`devcodex init --codex` 及其他宿主 selector/alias 均返回 `CLI_HOST_CONFIG_GLOBAL_ONLY`；宿主 adapter 通过 `npm install -g devcodex` 或 `npm update -g devcodex` 管理
+- **全局唯一写入口**：`devcodex init --claude`、`devcodex init --codex` 及其他宿主 selector/alias 均返回 `CLI_HOST_CONFIG_GLOBAL_ONLY`。用户级宿主 adapter：源码仓优先 `devcodex global-adapters apply`（或 `npm install -g .` / pack+tarball）；已发布环境 `npm install -g` / `npm update -g`（postinstall）
 - **就绪分层**：receipt 与文件存在只表示 `configured`；`status` 验证 adapter/静态合同，`doctor` 再验证可用原生 CLI、Grok canonical 唯一 identity、inspect 发现面、已安装 Hook 合同与 MCP initialize。任一合同或原生探针失败时不得标记 `ready`。
 - **受管回执**：receipt 只绑定 DevCodex 管理的 instruction、hook、MCP 与 config segment；用户自有主题或其他宿主设置不构成 adapter 漂移，受管字段变化仍必须 fail closed 并由全局安装刷新。
 - **诊断作用域**：源码仓中的 `status/doctor` 只能形成 `source-candidate-vs-installed-receipts` 候选比较，必须声明 `installedHealthClaim=false`，并抑制已安装包的 `checks/failedChecks/repairSteps`；真实全局健康结论只能由打包并安装后的候选在源码仓外形成。

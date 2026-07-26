@@ -78,7 +78,7 @@ const layerChecks = {
   executionConsumer: { state: 'required', evidence: 'scripts/plan-absorption-candidates.js' },
   validationProbe: { state: 'required', evidence: 'test:residual-absorption-controls' },
   publicDocs: { state: 'required', evidence: 'README.md' },
-  deployCopy: { state: 'required', evidence: 'devcodex update --host all' }
+  deployCopy: { state: 'required', evidence: 'devcodex global-adapters apply' }
 }
 const structured = {
   schemaVersion: 'AbsorptionCandidateMatrixV1',

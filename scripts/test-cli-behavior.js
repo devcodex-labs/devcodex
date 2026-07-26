@@ -430,8 +430,8 @@ function testMachineReadableDiagnosticsAndStableErrors() {
     workspaceHostConfigWritesAllowed: false,
     legacyWorkspaceArtifacts: 'diagnostic-read-only',
     workspaceManagedArtifactsAllowed: ['.devcodex/**'],
-    installCommand: 'npm install -g devcodex',
-    updateCommand: 'npm update -g devcodex'
+    installCommand: 'devcodex global-adapters apply',
+    updateCommand: 'devcodex global-adapters apply'
   })
   assert.strictEqual(status.payload.governanceSummary.schemaVersion, 'GovernanceStatusSummaryV1')
   assert.strictEqual(status.payload.governanceSummary.readOnly, true)
@@ -505,7 +505,7 @@ function testDefaultInitBootstrapsActiveRootData() {
   assert.strictEqual(updated.payload.workspaceCleanMode, 'GlobalOnlyWorkspaceCleanModeV1')
   assert.strictEqual(updated.payload.workspaceHostDirectoriesWritten, false)
   assert.strictEqual(updated.payload.gitignoreModified, false)
-  assert.strictEqual(updated.payload.hostConfigNextStep, 'npm update -g devcodex')
+  assert.strictEqual(updated.payload.hostConfigNextStep, 'devcodex global-adapters apply')
   fs.rmSync(root, { recursive: true, force: true })
 }
 
@@ -595,11 +595,11 @@ function testGlobalOnlyHostSelectorsFailClosed() {
     assert.strictEqual(envelope.details.host, host)
     assert.strictEqual(envelope.details.workspaceCleanMode, 'GlobalOnlyWorkspaceCleanModeV1')
     assert.strictEqual(envelope.details.workspaceHostDirectoriesWritten, false)
-    assert.match(envelope.nextStep, /npm install -g devcodex/)
+    assert.match(envelope.nextStep, /devcodex global-adapters apply|npm install -g/)
   }
   const update = JSON.parse(runCliFailure(['update', '--claude', '--json'], root))
   assert.strictEqual(update.errorCode, 'CLI_HOST_CONFIG_GLOBAL_ONLY')
-  assert.match(update.nextStep, /npm update -g devcodex/)
+  assert.match(update.nextStep, /devcodex global-adapters apply|npm update -g/)
   const uninstall = JSON.parse(runCliFailure(['uninstall', '--host', 'grok', '--json'], root))
   assert.strictEqual(uninstall.errorCode, 'CLI_HOST_CONFIG_GLOBAL_ONLY')
   assert.match(uninstall.nextStep, /not supported/)

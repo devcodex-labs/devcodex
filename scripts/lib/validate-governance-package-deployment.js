@@ -345,7 +345,7 @@ function buildGovernancePackageDeploymentChecks(ctx) {
         const dest = path.join(claudeDir, pair.claude)
         if (fs.existsSync(dest)) {
           if (fileHash(dest) !== fileHash(srcPath)) {
-            warn(`[V8] .claude/ stale: ${pair.claude} (repair user-global adapter: npm update -g devcodex)`)
+            warn(`[V8] .claude/ stale: ${pair.claude} (repair user-global adapter: devcodex global-adapters apply)`)
             stale++
           }
         } else {
@@ -358,7 +358,7 @@ function buildGovernancePackageDeploymentChecks(ctx) {
         const dest = path.join(githubDir, pair.github)
         if (fs.existsSync(dest)) {
           if (fileHash(dest) !== fileHash(srcPath)) {
-            warn(`[V8] .github/ stale: ${pair.github} (run: npx devcodex update)`)
+            warn(`[V8] .github/ stale: ${pair.github} (legacy parent surface; repair user-global adapter: devcodex global-adapters apply)`)
             stale++
           }
         } else {
@@ -373,13 +373,13 @@ function buildGovernancePackageDeploymentChecks(ctx) {
         'host-projections/copilot-instructions.md',
         path.join(githubDir, 'copilot-instructions.md'),
         '.github/copilot-instructions.md',
-        'npx devcodex update'
+        'devcodex global-adapters apply'
       )
     }
 
     if (codexExists) {
-      compareDeployment('host-projections/AGENTS.md', path.join(parentRoot, 'AGENTS.md'), 'AGENTS.md', 'npm update -g devcodex')
-      compareDeployment('codex/hooks.json', path.join(codexDir, 'hooks.json'), '.codex/hooks.json', 'npm update -g devcodex')
+      compareDeployment('host-projections/AGENTS.md', path.join(parentRoot, 'AGENTS.md'), 'AGENTS.md', 'devcodex global-adapters apply')
+      compareDeployment('codex/hooks.json', path.join(codexDir, 'hooks.json'), '.codex/hooks.json', 'devcodex global-adapters apply')
 
       for (const file of walk(path.join(ROOT, 'skills'))) {
         const rel = path.relative(path.join(ROOT, 'skills'), file)
@@ -388,7 +388,7 @@ function buildGovernancePackageDeploymentChecks(ctx) {
           path.join('skills', rel).replace(/\\/g, '/'),
           path.join(agentsDir, 'skills', rel),
           `.agents/skills/${rel.replace(/\\/g, '/')}`,
-          'npm update -g devcodex'
+          'devcodex global-adapters apply'
         )
       }
       for (const file of walk(path.join(ROOT, 'hooks', '_runtime'))) {
@@ -397,7 +397,7 @@ function buildGovernancePackageDeploymentChecks(ctx) {
           path.join('hooks/_runtime', rel).replace(/\\/g, '/'),
           path.join(codexDir, 'hooks', '_runtime', rel),
           `.codex/hooks/_runtime/${rel.replace(/\\/g, '/')}`,
-          'npm update -g devcodex'
+          'devcodex global-adapters apply'
         )
       }
 

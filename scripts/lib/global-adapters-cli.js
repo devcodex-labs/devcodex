@@ -1,0 +1,282 @@
+'use strict'
+
+const fs = require('fs')
+const path = require('path')
+const {
+  createCliFailure,
+  createCliSuccess,
+  printCliJson
+} = require('./cli-json-contract.js')
+const {
+  applyGlobalHostConfig
+} = require('./global-host-config.js')
+const {
+  describeGlobalAdapterRefresh,
+  isDevCodexPackageRoot,
+  isDevCodexSourceCheckout,
+  readPackageName
+} = require('./global-adapter-refresh-guidance.js')
+const {
+  syncGrokWorkspacePluginInstallation
+} = require('./host-adapter-scope.js')
+
+const COMMAND = 'global-adapters'
+
+function resolvePackageRoot(options = {}) {
+  const pathImpl = options.path || path
+  if (options.packageRoot) return pathImpl.resolve(options.packageRoot)
+  return pathImpl.resolve(options.pkgRoot || pathImpl.join(__dirname, '..', '..'))
+}
+
+function parseGlobalAdaptersArgv(argv = []) {
+  const args = Array.isArray(argv) ? argv.slice() : []
+  const subcommand = args[0] && !String(args[0]).startsWith('-') ? args.shift() : null
+  const options = {
+    subcommand,
+    dryRun: false,
+    json: false,
+    home: null,
+    errors: []
+  }
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i]
+    if (arg === '--dry-run') options.dryRun = true
+    else if (arg === '--json') options.json = true
+    else if (arg === '--home') {
+      const value = args[i + 1]
+      if (!value || String(value).startsWith('-')) {
+        options.errors.push('--home requires a directory path')
+      } else {
+        options.home = value
+        i++
+      }
+    } else if (arg.startsWith('--home=')) {
+      options.home = arg.slice('--home='.length)
+    } else {
+      options.errors.push(`unsupported option: ${arg}`)
+    }
+  }
+  return options
+}
+
+function buildHandler(deps = {}) {
+  const fsImpl = deps.fs || fs
+  const pathImpl = deps.path || path
+  const processImpl = deps.process || process
+  const consoleImpl = deps.console || console
+  const c = deps.c || {
+    red: s => s,
+    dim: s => s,
+    green: s => s,
+    yellow: s => s,
+    cyan: s => s,
+    bold: s => s
+  }
+  const packageJson = deps.packageJson || require('../../package.json')
+  const cliMetadata = {
+    packageName: packageJson.name,
+    packageVersion: packageJson.version
+  }
+  const apply = deps.applyGlobalHostConfig || applyGlobalHostConfig
+  const syncGrok = deps.syncGrokWorkspacePluginInstallation || syncGrokWorkspacePluginInstallation
+  const pkgRoot = resolvePackageRoot({ packageRoot: deps.packageRoot, pkgRoot: deps.pkgRoot, path: pathImpl })
+
+  function printHuman(payload, dryRun) {
+    consoleImpl.log()
+    consoleImpl.log(c.bold('  DevCodex') + c.dim(' — global adapters apply'))
+    consoleImpl.log(c.dim('  ──────────────────────────────────────'))
+    consoleImpl.log(`  ${c.cyan('Package root:')} ${c.dim(payload.packageRoot)}`)
+    consoleImpl.log(`  ${c.cyan('Source kind:')} ${c.dim(payload.sourceKind)}`)
+    consoleImpl.log(`  ${c.cyan('Hosts:')} ${c.dim((payload.hosts || []).join(', ') || '(none)')}`)
+    if (payload.planDigest) {
+      consoleImpl.log(`  ${c.cyan('Plan digest:')} ${c.dim(String(payload.planDigest).slice(0, 16))}…`)
+    }
+    consoleImpl.log(`  ${c.cyan('Transaction:')} ${c.dim(payload.transactionStatus || 'n/a')}`)
+    consoleImpl.log(`  ${c.cyan('Workspace host dirs written:')} ${c.dim(String(payload.workspaceHostDirectoriesWritten))}`)
+    if (dryRun) consoleImpl.log(c.yellow('  [DRY RUN] No files were written.'))
+    else if (payload.transactionStatus === 'committed') {
+      consoleImpl.log(c.green('  ✓ User-level host adapters refreshed from package root.'))
+    } else {
+      consoleImpl.log(c.red(`  ✗ Apply ended with status ${payload.transactionStatus || 'unknown'}.`))
+    }
+    consoleImpl.log()
+  }
+
+  function cmdGlobalAdapters(argv = []) {
+    const parsed = parseGlobalAdaptersArgv(argv)
+    if (parsed.errors.length) {
+      const envelope = createCliFailure(
+        COMMAND,
+        'CLI_GLOBAL_ADAPTERS_BAD_ARGS',
+        parsed.errors.join('; '),
+        'Use: devcodex global-adapters apply [--dry-run] [--json] [--home <dir>]',
+        cliMetadata
+      )
+      if (parsed.json) printCliJson(consoleImpl, envelope)
+      else {
+        consoleImpl.log(c.red(`  ${envelope.errorCode}: ${envelope.message}`))
+        consoleImpl.log(c.dim(`  ${envelope.nextStep}`))
+      }
+      processImpl.exitCode = 2
+      return envelope
+    }
+
+    if (parsed.subcommand !== 'apply') {
+      const envelope = createCliFailure(
+        COMMAND,
+        'CLI_GLOBAL_ADAPTERS_UNKNOWN_SUBCOMMAND',
+        `Unknown global-adapters subcommand: ${parsed.subcommand || '(none)'}`,
+        'Use: devcodex global-adapters apply [--dry-run] [--json]',
+        cliMetadata
+      )
+      if (parsed.json) printCliJson(consoleImpl, envelope)
+      else {
+        consoleImpl.log(c.red(`  ${envelope.errorCode}: ${envelope.message}`))
+        consoleImpl.log(c.dim(`  ${envelope.nextStep}`))
+      }
+      processImpl.exitCode = 2
+      return envelope
+    }
+
+    if (!isDevCodexPackageRoot(pkgRoot, fsImpl, pathImpl)) {
+      const envelope = createCliFailure(
+        COMMAND,
+        'GLOBAL_ADAPTERS_PACKAGE_ROOT_INVALID',
+        `Package root is not a DevCodex package: ${pkgRoot}`,
+        'Run from the @vextjs/devcodex / devcodex package root, or install via npm -g.',
+        cliMetadata,
+        { packageRoot: pkgRoot }
+      )
+      if (parsed.json) printCliJson(consoleImpl, envelope)
+      else {
+        consoleImpl.log(c.red(`  ${envelope.errorCode}: ${envelope.message}`))
+        consoleImpl.log(c.dim(`  ${envelope.nextStep}`))
+      }
+      processImpl.exitCode = 2
+      return envelope
+    }
+
+    const sourceCheckout = isDevCodexSourceCheckout(pkgRoot, fsImpl, pathImpl)
+    const sourceKind = sourceCheckout ? 'source-checkout-live' : 'package-root-apply'
+    const guidance = describeGlobalAdapterRefresh({
+      sourceCheckout,
+      packageVersion: packageJson.version
+    })
+
+    let result
+    try {
+      result = apply({
+        packageRoot: pkgRoot,
+        dryRun: parsed.dryRun === true,
+        home: parsed.home || undefined,
+        fs: fsImpl,
+        env: processImpl.env
+      })
+    } catch (error) {
+      const envelope = createCliFailure(
+        COMMAND,
+        error.code || 'GLOBAL_ADAPTERS_APPLY_FAILED',
+        error.message,
+        guidance.nextStepRefresh,
+        cliMetadata,
+        { packageRoot: pkgRoot, sourceKind }
+      )
+      if (parsed.json) printCliJson(consoleImpl, envelope)
+      else {
+        consoleImpl.log(c.red(`  ${envelope.errorCode}: ${envelope.message}`))
+        consoleImpl.log(c.dim(`  ${envelope.nextStep}`))
+      }
+      processImpl.exitCode = 1
+      return envelope
+    }
+
+    let grokIntegration = null
+    let grokIntegrationError = null
+    const grokTarget = (result?.targets || []).find(target => target.host === 'grok')
+    const grokTransaction = result?.transaction?.hosts?.find(item => item.host === 'grok')
+    if (!parsed.dryRun && grokTransaction?.status === 'committed' && grokTarget?.files?.plugin) {
+      try {
+        grokIntegration = syncGrok({
+          pluginPath: grokTarget.files.plugin,
+          activeRoot: result?.activeRoot || null,
+          env: processImpl.env
+        })
+      } catch (error) {
+        grokIntegrationError = error
+        grokIntegration = {
+          status: 'failed',
+          errorCode: error.code || 'GROK_PLUGIN_INSTALL_FAILED',
+          error: error.message
+        }
+      }
+    }
+
+    const transactionStatus = result?.transaction?.status || (parsed.dryRun ? 'planned' : 'unknown')
+    const committed = parsed.dryRun
+      ? transactionStatus === 'planned'
+      : transactionStatus === 'committed' && !grokIntegrationError
+
+    const payload = {
+      schemaVersion: 'GlobalAdaptersApplyV1',
+      operation: 'apply',
+      packageRoot: pkgRoot,
+      packageName: readPackageName(pkgRoot, fsImpl, pathImpl),
+      packageVersion: packageJson.version,
+      sourceKind,
+      sourceCheckout,
+      dryRun: parsed.dryRun === true,
+      planDigest: result?.planDigest || null,
+      transactionStatus,
+      hosts: (result?.targets || []).map(target => target.host),
+      hostResults: (result?.transaction?.hosts || []).map(item => ({
+        host: item.host,
+        status: item.status,
+        changed: item.changed || 0,
+        errorCode: item.errorCode || null
+      })),
+      workspaceHostDirectoriesWritten: result?.workspaceHostDirectoriesWritten === true,
+      guidance: {
+        primary: guidance.primary,
+        secondary: guidance.secondary
+      },
+      integrations: { grok: grokIntegration }
+    }
+
+    if (!committed) {
+      const envelope = createCliFailure(
+        COMMAND,
+        grokIntegrationError
+          ? (grokIntegration.errorCode || 'GROK_PLUGIN_INSTALL_FAILED')
+          : (transactionStatus === 'partial' ? 'GLOBAL_HOST_CONFIG_PARTIAL' : 'GLOBAL_ADAPTERS_APPLY_FAILED'),
+        grokIntegrationError
+          ? grokIntegration.error
+          : `Global host configuration ended with ${transactionStatus} status`,
+        guidance.nextStepRefresh,
+        cliMetadata,
+        payload
+      )
+      if (parsed.json) printCliJson(consoleImpl, envelope)
+      else {
+        printHuman(payload, parsed.dryRun)
+        consoleImpl.log(c.red(`  ${envelope.errorCode}: ${envelope.message}`))
+      }
+      processImpl.exitCode = 1
+      return envelope
+    }
+
+    const envelope = createCliSuccess(COMMAND, payload, cliMetadata)
+    if (parsed.json) printCliJson(consoleImpl, envelope)
+    else printHuman(payload, parsed.dryRun)
+    processImpl.exitCode = 0
+    return envelope
+  }
+
+  return { cmdGlobalAdapters, parseGlobalAdaptersArgv }
+}
+
+module.exports = {
+  COMMAND,
+  buildHandler,
+  parseGlobalAdaptersArgv,
+  resolvePackageRoot
+}

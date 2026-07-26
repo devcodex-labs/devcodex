@@ -7,7 +7,8 @@ const { createCliCommandRegistry, parseHostSelection, runCliCommand } = require(
 const calls = []
 const handlers = Object.fromEntries([
   'cmdGrok', 'cmdStatus',
-  'cmdProfileInit', 'cmdDoctor', 'cmdProbe', 'cmdTrace', 'cmdSkill', 'cmdTask', 'cmdHelp'
+  'cmdProfileInit', 'cmdDoctor', 'cmdProbe', 'cmdTrace', 'cmdSkill', 'cmdTask',
+  'cmdGlobalAdapters', 'cmdHelp'
 ].map(name => [name, argv => calls.push([name, argv])]))
 handlers.cmdInitWorkspaceRuntime = (argv, opts) => calls.push(['cmdInitWorkspaceRuntime', argv, opts])
 handlers.cmdInitHost = (host, argv) => calls.push(['cmdInitHost', host, argv])
@@ -55,6 +56,8 @@ assert.strictEqual(runCliCommand({ cmd: 'skill', argv: ['plan', 'intent', '--jso
 assert.deepStrictEqual(calls.pop(), ['cmdSkill', ['plan', 'intent', '--json']])
 assert.strictEqual(runCliCommand({ cmd: 'task', argv: ['resolve', 'current', '--json'], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger }), 'task')
 assert.deepStrictEqual(calls.pop(), ['cmdTask', ['resolve', 'current', '--json']])
+assert.strictEqual(runCliCommand({ cmd: 'global-adapters', argv: ['apply', '--dry-run'], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger }), 'global-adapters')
+assert.deepStrictEqual(calls.pop(), ['cmdGlobalAdapters', ['apply', '--dry-run']])
 fakeProcess.exitCode = 0
 assert.strictEqual(runCliCommand({ cmd: undefined, argv: [], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger }), 'help')
 assert.strictEqual(fakeProcess.exitCode, 0)

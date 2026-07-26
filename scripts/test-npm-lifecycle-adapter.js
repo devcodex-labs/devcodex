@@ -523,7 +523,7 @@ assert.strictEqual(workspacePostinstall.reason, 'workspace-install-global-requir
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'))
 const postinstallSource = fs.readFileSync(path.join(root, 'scripts', 'postinstall.js'), 'utf8')
 assert.ok(postinstallSource.includes('global postinstall incomplete'))
-assert.ok(postinstallSource.includes('npm update -g devcodex'))
+assert.ok(postinstallSource.includes('global-adapter-refresh-guidance') || postinstallSource.includes('devcodex global-adapters apply') || postinstallSource.includes('npm update -g devcodex'))
 assert.ok(postinstallSource.includes('stale managed path(s) remain pending'))
 assert.ok(postinstallSource.includes('receipt finalization step(s) remain pending'))
 assert.strictEqual(pkg.scripts.postinstall, 'node scripts/postinstall.js')

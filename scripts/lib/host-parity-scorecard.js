@@ -10,11 +10,17 @@ const crypto = require('crypto')
 const fs = require('fs')
 const path = require('path')
 const { resolveGlobalHostTarget } = require('./global-host-target.js')
-const {
-  describeGlobalAdapterRefreshForPackageRoot
-} = require('./global-adapter-refresh-guidance.js')
 
 const PACKAGE_ROOT = path.join(__dirname, '..', '..')
+
+function loadAdapterRefreshGuidanceModule() {
+  try {
+    return require('./global-adapter-refresh-guidance.js')
+  } catch {
+    // Deployed MCP runtime subsets may lag one file; fail soft with R3 defaults.
+    return null
+  }
+}
 
 /**
  * Repair command for missing/stale user-global adapters.
@@ -25,10 +31,22 @@ function resolveAdapterRefreshGuidance(options = {}) {
   const packageRoot = options.packageRoot
     ? path.resolve(options.packageRoot)
     : PACKAGE_ROOT
-  return describeGlobalAdapterRefreshForPackageRoot(packageRoot, {
-    packageVersion: options.packageVersion || null,
-    fs: options.fs || fs,
-    path: options.path || path
+  const mod = loadAdapterRefreshGuidanceModule()
+  if (mod && typeof mod.describeGlobalAdapterRefreshForPackageRoot === 'function') {
+    return mod.describeGlobalAdapterRefreshForPackageRoot(packageRoot, {
+      packageVersion: options.packageVersion || null,
+      fs: options.fs || fs,
+      path: options.path || path
+    })
+  }
+  return Object.freeze({
+    sourceCheckout: false,
+    primary: 'npm update -g devcodex',
+    installCommand: 'npm install -g devcodex',
+    updateCommand: 'npm update -g devcodex',
+    nextStepShort: 'npm update -g devcodex',
+    nextStepRefresh: 'Run npm update -g devcodex to refresh the managed receipt.',
+    nextStepInstall: 'Run npm install -g devcodex to create the user-global host receipt.'
   })
 }
 

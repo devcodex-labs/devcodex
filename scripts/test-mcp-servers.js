@@ -167,6 +167,7 @@ function setupConfiguredMcpTarget() {
   for (const rel of [
     'scripts/lib/cp-digest.js',
     'scripts/lib/host-parity-scorecard.js',
+    'scripts/lib/global-adapter-refresh-guidance.js',
     'scripts/lib/global-host-target.js',
     'scripts/lib/derived-index-contract.js',
     'scripts/lib/memory-index.js',

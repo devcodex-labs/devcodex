@@ -75,6 +75,7 @@ function deploymentOptions() {
     CLAUDE_MCP_RUNTIME_SCRIPT_DEPS: [
       'scripts/lib/cp-digest.js',
       'scripts/lib/host-parity-scorecard.js',
+      'scripts/lib/global-adapter-refresh-guidance.js',
       'scripts/lib/global-host-target.js',
       'scripts/lib/derived-index-contract.js',
       'scripts/lib/memory-index.js',
@@ -657,10 +658,11 @@ const claudeMcpScriptDeps = defaults.filter(item =>
   item.surface === 'claude' &&
   String(item.destination || '').replace(/\\/g, '/').startsWith('.claude/scripts/lib/')
 )
-assert.strictEqual(claudeMcpScriptDeps.length, 6, 'claude descriptors must include MCP scripts/lib runtime deps')
+assert.strictEqual(claudeMcpScriptDeps.length, 7, 'claude descriptors must include MCP scripts/lib runtime deps')
 for (const expected of [
   '.claude/scripts/lib/cp-digest.js',
   '.claude/scripts/lib/host-parity-scorecard.js',
+  '.claude/scripts/lib/global-adapter-refresh-guidance.js',
   '.claude/scripts/lib/global-host-target.js',
   '.claude/scripts/lib/derived-index-contract.js',
   '.claude/scripts/lib/memory-index.js',

@@ -5,6 +5,7 @@
 
 ## 当前未发布实现候选
 
+- **Agent 交付诚实需求关账**：H0/H1（`8910712`）+ H2 ECR 对账报告；Stop gaps `stage-report-missing` / `progress-overclaim`；与 ecr-missing 串联。需求目录 closed。
 - **ECR 完成宣称强制闭环（ecr-missing）**：`classifyEcrClosure`；强完成/关需求无 ECR/DoD 证据 → Stop gap `ecr-missing`；`npm run test:ecr-closure` 挂 stop-gate 与 control-plane；report-dev 标明测试绿≠ECR。需求：`ECR与完成宣称强制闭环修复`。
 - **Agent 交付诚实门（delivery-honesty）**：`classifyDeliveryHonesty` → gap `stage-report-missing` / `progress-overclaim`；Stop 接线；PreTool 有 04 无 05 时禁控制面写；`npm run test:delivery-honesty` 挂 stop-gate 与 control-plane；进度模板 DeliveryHonestyMatrix。需求：`Agent交付诚实与过程产物强制修复`。
 - **维护者站点×完整功能清单对账门（docs-surface-inventory）**：新增 `scripts/lib/docs-surface-inventory.js` + `npm run test:docs-surface-inventory`；校验 Skills84/plugin 双向、workflows×8（含 other）、MCP15、Hooks5/runtime、prompts30、instructions15、website≥156、process-enforcement 文件与 script；挂入 `test:control-plane` 与 validation-manifest 节点 `docs-surface-inventory` / `process-enforcement-e2e`（fast/full）。public-text-surfaces 扩展 guide/index 与 host-parity-grok。intro 增加能力证据三列表。

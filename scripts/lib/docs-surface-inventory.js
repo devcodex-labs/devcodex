@@ -205,7 +205,7 @@ function assertDocsSurfaceInventory (inv) {
   if (inv.validationNodes < 83) {
     failures.push(`validation nodes expected >=83 got ${inv.validationNodes}`)
   }
-  if (inv.npmScripts < 109) failures.push(`npm scripts expected >=109 got ${inv.npmScripts}`)
+  if (inv.npmScripts < 110) failures.push(`npm scripts expected >=110 got ${inv.npmScripts}`)
   if (inv.scriptsLib < 102) failures.push(`scripts/lib expected >=102 got ${inv.scriptsLib}`)
 
   for (const [f, ok] of Object.entries(inv.processFiles || {})) {

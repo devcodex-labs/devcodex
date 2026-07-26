@@ -14,8 +14,8 @@
 
 | 问题 | 答案 |
 |------|------|
-| Grok 是否「没适配」？ | 否。已具备 PreTool 硬拦契约、`path-observable` 上下文门禁、用户级插件与 `devcodex grok` Full 入口。 |
-| 是否与 Codex **完全一样**？ | **否。** Grok 被动 Hook **不能**把预检查块注入模型上下文；Stop **不能**硬拦未完成闭包。 |
+| Grok 是否「没适配」？ | 否。已具备 PreTool 硬拦契约、`path-observable` 上下文门禁、**条件 Stop 硬续**（有 `lastAssistantMessage` 时可 `decision:block`）、用户级插件与 `devcodex grok` Full 入口。 |
+| 是否与 Codex **完全一样**？ | **否。** Grok 被动 Hook **不能**把预检查块注入模型上下文（UPS 无 inject）。Stop **可以条件硬拦**未完成闭包，但不能宣称与 Codex 全行为等价。 |
 | 日常怎么用？ | 子 Git 项目用 **`devcodex grok`**；用 `devcodex doctor` 看 `HostParity`。 |
 
 ## 能力对照
@@ -27,8 +27,8 @@
 | UserPromptSubmit 阻断 | ✅ | ❌ 平台非 blocking | — |
 | PreToolUse 危险命令硬拦 | ✅ | ✅ `decision:deny` | 与 Grok 官方契约对齐 |
 | 上下文未齐时 PreTool 门禁 | ✅ path-observable | ✅ path-observable | 与 Codex 同档 |
-| Stop 闭包提醒进模型 | 部分 | ❌ 被动 | doctor/报告可复盘 |
-| Stop 核验 PC0 | 有正文时可 verified | 常 unverified | 无 assistant payload 不得谎称 missing |
+| Stop 闭包硬续 | ✅（strict/条件） | ✅ **条件** `decision:block` + reason | 有 `lastAssistantMessage` 且完成门失败时硬续；无正文 → unverified；softCap/平台上限后 fail-open |
+| Stop 核验 PC0 / 完成检查 | 有正文时可 verified | 有 `lastAssistantMessage` 时可 verified | 须识别官方 camelCase 字段；无 payload 不得谎称 missing |
 | Auto 白名单 runtime 硬保证 | hook-enforced 宿主 | **仅 PreTool 路径有限** | 见 [设计理念 · Auto](/intro/philosophy) |
 
 ## 推荐用法
@@ -62,7 +62,7 @@ Grok **不会**每轮注入 bootstrap。模型必须按下列可扫清单自执�
 | 6 | ttfv-first-delivery | **C16 TimeToFirstValueGate**：同一用户可见回复交付范围卡 **或** 首批 finding/结论 **或** 明确阻断（非 chat） |
 | 7 | work-and-gates | 按工作流执行 CP/ECR 等门禁；**不得**以「无 Hook 注入」为由省略 |
 | 8 | report-memory | 非 chat：写报告 + 记忆（命中治理时写台账）；chat 豁免 |
-| 9 | honest-ceiling | 不得宣称 inject / Stop 硬拦 / Grok===Codex bootstrap |
+| 9 | honest-ceiling | 不得宣称 UPS inject / **无条件** Stop 硬拦 / Grok===Codex bootstrap；Stop 硬续是**条件**的（有正文 + 未触 softCap） |
 
 ### Intent → Skill 强制包（非 chat）
 
@@ -124,14 +124,14 @@ Grok 相对 Codex 的**仍未对齐**残差以机器台账为准（与产品需�
 
 ## 平台上限
 
-下列能力依赖 Grok Build 平台演进，**不在** DevCodex 单独「做完」的范围内：
+下列能力依赖 Grok Build 平台演进，或仍属 DevCodex 条件/残余边界：
 
-1. UserPromptSubmit 支持 `additionalContext`（或等价注入）
-2. UserPromptSubmit 可选 block
-3. Stop 携带 assistant 最终可见正文
-4. Stop 可选 block 未完成闭包
+1. UserPromptSubmit 支持 `additionalContext`（或等价注入）— **仍不能宣称**（U-A1）
+2. UserPromptSubmit 可选 block — **仍不能宣称**（U-A2）
+3. Stop **无** `lastAssistantMessage` 时的 verified PC0 / 完成检查 — **unverified，不 hard-block**（U-A3）
+4. Stop **条件** hard-block 未完成闭包 — **DevCodex 已启用**（有正文 + 完成门）；无正文 / softCap fail-open 仍属 cannotClaim 残余（U-A4 partial）
 
-跟踪清单见维护者需求：`requirements/20260720-grok-host-parity-codex/03-平台能力需求-xAI.md`（源码仓 / 工作区运行态路径）。对应台账 ID：**U-A1～U-A4**。
+跟踪清单见维护者需求与 `scripts/fixtures/host-parity/unaligned-ledger.v1.json`。对应台账 ID：**U-A1～U-A4**。
 
 ## 相关链接
 

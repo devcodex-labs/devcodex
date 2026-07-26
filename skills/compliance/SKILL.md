@@ -90,12 +90,14 @@ DevCodexVisibleEnvelopeV1 · completion-check · [状态] · [semanticDigest]
 | evidenceMode | path-observable+stop-conditional / host-native |
 ```
 
-| processGaps 枚举（节选） | 含义 |
-|--------------------------|------|
-| `entry-check` | 缺 PC0~PC7 / 入口检查块 |
-| `final-validation-summary` | 宣称完成但无 FVS 短矩阵 |
-| `pr1-skipped` | 请求确认 CP2 但无 PR-1 通过证据 |
-| `cp2-unconfirmed-write` | safety-only 下控制面/源码写在 CP2 未确认时被放行 |
+| processGaps 枚举（R11 规范名） | 含义 |
+|-------------------------------|------|
+| `entry-check-missing` | 缺 PC0~PC7 / 入口检查块 |
+| `completion-check-missing` | 缺 `### DevCodex · 完成检查`（或 envelope completion-check） |
+| `final-validation-summary` | 宣称完成但 FVS 短矩阵不完整 / thin-green |
+| `report-missing` / `memory-missing` | mutation 后未写报告/记忆（可用 SimpleTask / N/A+skipReason 豁免） |
+| `pr1-skipped` | 请求确认 CP2 但无 **强** PR-1 通过证据（zero-blocker / PR-1 ✅） |
+| `cp2-unconfirmed-write` | safety-only 下控制面/源码写在 CP2 未确认时被放行（strict 为 deny） |
 | `stop-continuation-exhausted` | 达 softCap 后 fail-open |
 
 Grok：**条件 Stop 硬续**（有 `lastAssistantMessage` 可 `decision:block`；无正文 `unverified`；平台/softCap 后 fail-open）。控制面写路径建议 `DEVCODEX_HOOK_ENFORCEMENT=strict`，否则 Honesty 必须披露「未硬拦」。

@@ -113,6 +113,7 @@
     "prepublishOnly": "npm run test:all:with-audit",
     "test:executable-absorption-gates": "node scripts/test-executable-absorption-gates.js",
     "test:skill-resolve": "node scripts/test-skill-resolve.js && node scripts/test-skill-resolution-hook-paths.js && node scripts/test-workspace-skill-auto-match.js",
+    "test:stop-gate": "node scripts/test-lifecycle-stop-gate.js && node scripts/test-r10-control-plane-honesty.js && node scripts/replay-stop-gate-hook-matrix.js",
     "test:skill-automatch-accept": "node scripts/replay-skill-automatch-accept.cjs"
   },
   "keywords": [

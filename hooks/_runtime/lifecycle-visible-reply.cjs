@@ -311,7 +311,15 @@ function buildLifecycleVisibleReplyUtils(ctx) {
       entryCheckCompleteness: entryCompleteness.status,
       textBytes: Buffer.byteLength(String(text || ''), 'utf8')
     }
-    if (/🛡️ DEV 模式 \| 合规检查|FC:\s*FC1|DevCodexVisibleEnvelopeV1\s*·\s*completion-check/.test(text)) state.visible.compliance = true
+    // F-14: Skill-standard heading ### DevCodex · 完成检查 must count as compliance block.
+    if (
+      /###\s*DevCodex\s*·\s*完成检查/i.test(text) ||
+      /🛡️\s*DEV\s*模式\s*\|\s*合规检查/i.test(text) ||
+      /FC:\s*FC1/i.test(text) ||
+      /DevCodexVisibleEnvelopeV1\s*·\s*completion-check/i.test(text)
+    ) {
+      state.visible.compliance = true
+    }
     try {
       const { analyzeFinalValidationSummarySample } = require('./visible-output-contract.cjs')
       const summaryEvidence = analyzeFinalValidationSummarySample(text)
@@ -444,8 +452,15 @@ function buildLifecycleVisibleReplyUtils(ctx) {
     if (eventName === 'Stop' && state.visible?.s07OrderStatus === 'late') {
       items.push('S07 order: product mutation before entry-check evidence（VL-004：文首补 PC 不算先输出；reports/.memory/台账写入须在首次可见 PC0~PC7 之后）')
     }
-    if (eventName === 'Stop' && state.mode === 'dev' && state.reportTouched && state.visible && !state.visible.compliance) {
-      items.push('合规检查状态块未输出（17-compliance：dev 模式非 chat 回复末尾必须含 🛡️ DEV 模式 | 合规检查 状态块）')
+    // F-14/F-16: dev + (report or mutation) must show completion-check; standard heading accepted
+    if (
+      eventName === 'Stop' &&
+      state.mode === 'dev' &&
+      (state.reportTouched || state.mutated) &&
+      state.visible &&
+      !state.visible.compliance
+    ) {
+      items.push('完成检查未输出或未识别（须含 ### DevCodex · 完成检查 或 DevCodexVisibleEnvelopeV1 · completion-check；F-14）')
     }
     if (eventName === 'Stop' && state.mode === 'dev' && state.reportTouched && state.visible?.compliance) {
       const summaryStatus = state.visible.finalValidationSummaryStatus || 'verified-missing'

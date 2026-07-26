@@ -135,6 +135,8 @@ function buildLifecyclePayloadUtils({ fs, path, payloadPreviewLimit, transcriptT
 
   function getVisibleReplyEvidence(payload) {
     const directFieldNames = [
+      // Official Grok/Claude Stop Decision Control field first (F-03).
+      'lastAssistantMessage', 'last_assistant_message',
       'assistantMessage', 'assistant_message', 'response',
       'responseText', 'response_text', 'output', 'reply', 'content', 'message',
       // Extra Grok / harness aliases when hosts expose final turn text (W8).

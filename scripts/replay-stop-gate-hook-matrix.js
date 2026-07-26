@@ -14,6 +14,7 @@ const path = require('path')
 const os = require('os')
 
 const packageRoot = path.resolve(__dirname, '..')
+const packageLifecycle = path.join(packageRoot, 'hooks', '_runtime', 'lifecycle.cjs')
 const deployedLifecycle = path.join(
   process.env.USERPROFILE || process.env.HOME || '',
   '.grok',
@@ -23,9 +24,10 @@ const deployedLifecycle = path.join(
   '_runtime',
   'lifecycle.cjs'
 )
-const lifecycle = fs.existsSync(deployedLifecycle)
+// Prefer package source so local fixes are tested; set DEVCODEX_REPLAY_USE_DEPLOYED=1 for deployed runtime.
+const lifecycle = process.env.DEVCODEX_REPLAY_USE_DEPLOYED === '1' && fs.existsSync(deployedLifecycle)
   ? deployedLifecycle
-  : path.join(packageRoot, 'hooks', '_runtime', 'lifecycle.cjs')
+  : packageLifecycle
 
 const FULL_ENTRY = [
   '### DevCodex · 入口检查',
@@ -188,6 +190,14 @@ function scenarioRt3 () {
   const pass =
     kind === 'block' &&
     /Stop gate|incomplete|entry-check/i.test(reason)
+  // F-13: adapter must preserve block
+  const { adaptHostOutput } = require('../hooks/_runtime/lifecycle-host-adapters.cjs')
+  if (pass && stop.json) {
+    const adapted = adaptHostOutput('grok', 'Stop', stop.json)
+    if (adapted.decision !== 'block') {
+      return { id: 'R-T3', pass: false, kind, decision: adapted.decision, reason: 'adapter-stripped-block', state: readHonesty(cwd), cwd }
+    }
+  }
   return {
     id: 'R-T3',
     pass,

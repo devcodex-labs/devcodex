@@ -182,6 +182,57 @@ function testClassifyAndApplyGuard() {
   })
 }
 
+function testLowercaseSkillMd() {
+  withTemp(base => {
+    const workspaceRoot = path.join(base, 'ws')
+    const home = path.join(base, 'home')
+    const gRoot = path.join(home, '.agents', 'skills')
+    const wRoot = path.join(workspaceRoot, '.devcodex', 'workspace', 'skills')
+    fs.mkdirSync(path.join(workspaceRoot, '.devcodex'), { recursive: true })
+    fs.writeFileSync(
+      path.join(workspaceRoot, '.devcodex', 'layout.json'),
+      JSON.stringify({ version: 1, mode: 'workspace-namespace' })
+    )
+    const dir = path.join(wRoot, 'demo')
+    fs.mkdirSync(dir, { recursive: true })
+    fs.writeFileSync(path.join(dir, 'skill.md'), '# lowercase entry\n', 'utf8')
+    const r = resolveSkillRead('demo', {
+      cwd: workspaceRoot,
+      workspaceRoot,
+      env: { USERPROFILE: home, HOME: home, DEVCODEX_GLOBAL_SKILLS_ROOT: gRoot }
+    })
+    assert.strictEqual(r.trace.selectedLayer, 'workspace')
+    assert.ok(
+      r.trace.reasonCode === 'workspace-accepted' || r.trace.reasonCode === 'workspace-accepted-casefold'
+    )
+    assert.ok(String(r.trace.selectedPath).toLowerCase().endsWith('skill.md'))
+  })
+}
+
+function testMissingSkillMdHint() {
+  withTemp(base => {
+    const workspaceRoot = path.join(base, 'ws')
+    const home = path.join(base, 'home')
+    const gRoot = path.join(home, '.agents', 'skills')
+    const wRoot = path.join(workspaceRoot, '.devcodex', 'workspace', 'skills')
+    fs.mkdirSync(path.join(workspaceRoot, '.devcodex'), { recursive: true })
+    fs.writeFileSync(
+      path.join(workspaceRoot, '.devcodex', 'layout.json'),
+      JSON.stringify({ version: 1, mode: 'workspace-namespace' })
+    )
+    fs.mkdirSync(path.join(wRoot, 'broken'), { recursive: true })
+    fs.writeFileSync(path.join(wRoot, 'broken', 'README.md'), '# wrong file\n', 'utf8')
+    writeSkill(gRoot, 'broken', '# g fallback\n')
+    const r = resolveSkillRead('broken', {
+      cwd: workspaceRoot,
+      workspaceRoot,
+      env: { USERPROFILE: home, HOME: home, DEVCODEX_GLOBAL_SKILLS_ROOT: gRoot }
+    })
+    assert.strictEqual(r.trace.selectedLayer, 'global')
+    assert.strictEqual(r.trace.reasonCode, 'missing-SKILL.md')
+  })
+}
+
 function testOversize() {
   withTemp(base => {
     const workspaceRoot = path.join(base, 'ws')
@@ -274,6 +325,8 @@ function main() {
   testBasicLayers()
   testReservedBlocksW()
   testKillSwitchAndWeaken()
+  testLowercaseSkillMd()
+  testMissingSkillMdHint()
   testOversize()
   testLayoutDisabled()
   testClassifyAndApplyGuard()

@@ -374,6 +374,12 @@ function buildCliExecutionCommands(ctx) {
       console.log(`  ${c.cyan('covers'.padEnd(16))} ${plan.workspaceCoverCount}`)
       for (const trace of plan.traces) {
         console.log(`  ${c.cyan(trace.skillId.padEnd(16))} ${trace.selectedLayer} ${trace.securityDecision} ${trace.selectedPath || ''}`)
+        if (trace.reasonCode === 'missing-SKILL.md' || (trace.fallbackReason && String(trace.fallbackReason).includes('SKILL'))) {
+          console.log(c.yellow(`  hint: put file at .devcodex/workspace/skills/${trace.skillId}/SKILL.md (filename must be SKILL.md, not skill.md)`))
+        }
+        if (trace.reasonCode === 'workspace-accepted-casefold' || (trace.fallbackReason && String(trace.fallbackReason).startsWith('rename-'))) {
+          console.log(c.yellow(`  hint: rename to exact SKILL.md for cross-platform compatibility (${trace.fallbackReason || 'casefold'})`))
+        }
       }
       console.log()
     }

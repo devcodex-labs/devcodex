@@ -197,6 +197,62 @@ function fileExists(filePath, fsImpl) {
 }
 
 /**
+ * Canonical skill entry is <skillDir>/SKILL.md (Agent Skills / Claude shape).
+ * On case-insensitive FS, accept skill.md and return the actual path found.
+ * @returns {{ path: string|null, caseFolded: boolean, dirExists: boolean, hint: string }}
+ */
+function findSkillMarkdown(skillDir, fsImpl = fs) {
+  const preferred = path.join(skillDir, 'SKILL.md')
+  if (!fsImpl.existsSync(skillDir)) {
+    return { path: null, caseFolded: false, dirExists: false, hint: 'skill-dir-missing' }
+  }
+  let isDir = false
+  try {
+    isDir = fsImpl.statSync(skillDir).isDirectory()
+  } catch {
+    return { path: null, caseFolded: false, dirExists: false, hint: 'skill-dir-missing' }
+  }
+  if (!isDir) {
+    return { path: null, caseFolded: false, dirExists: false, hint: 'skill-dir-not-directory' }
+  }
+  // Prefer exact SKILL.md when readdir reports it (case-sensitive correctness)
+  let names = []
+  try {
+    names = fsImpl.readdirSync(skillDir)
+  } catch {
+    return { path: null, caseFolded: false, dirExists: true, hint: 'skill-dir-unreadable' }
+  }
+  if (names.includes('SKILL.md')) {
+    const p = path.join(skillDir, 'SKILL.md')
+    if (fileExists(p, fsImpl)) return { path: p, caseFolded: false, dirExists: true, hint: '' }
+  }
+  const folded = names.find(name => String(name).toLowerCase() === 'skill.md')
+  if (folded) {
+    const p = path.join(skillDir, folded)
+    if (fileExists(p, fsImpl)) {
+      return {
+        path: p,
+        caseFolded: folded !== 'SKILL.md',
+        dirExists: true,
+        hint: folded !== 'SKILL.md' ? `rename-${folded}-to-SKILL.md` : ''
+      }
+    }
+  }
+  // last resort: existsSync(SKILL.md) on case-insensitive FS
+  if (fileExists(preferred, fsImpl)) {
+    return { path: preferred, caseFolded: true, dirExists: true, hint: 'prefer-exact-SKILL.md' }
+  }
+  return {
+    path: null,
+    caseFolded: false,
+    dirExists: true,
+    hint: names.length
+      ? `missing-SKILL.md-found:${names.join(',')}`
+      : 'missing-SKILL.md-empty-dir'
+  }
+}
+
+/**
  * @returns {{ trace: object, content: string|null }}
  */
 function resolveSkillRead(skillId, options = {}) {
@@ -226,9 +282,12 @@ function resolveSkillRead(skillId, options = {}) {
   }
 
   const id = String(skillId).trim()
-  const gPath = path.join(globalSkillsRoot, id, 'SKILL.md')
-  const wPath = workspaceSkillsRoot ? path.join(workspaceSkillsRoot, id, 'SKILL.md') : null
-  const gExists = fileExists(gPath, fsImpl) && isUnderPhysical(globalSkillsRoot, gPath, fsImpl)
+  const gHit = findSkillMarkdown(path.join(globalSkillsRoot, id), fsImpl)
+  const wDir = workspaceSkillsRoot ? path.join(workspaceSkillsRoot, id) : null
+  const wHit = wDir ? findSkillMarkdown(wDir, fsImpl) : { path: null, caseFolded: false, dirExists: false, hint: 'no-workspace-root' }
+  const gPath = gHit.path || path.join(globalSkillsRoot, id, 'SKILL.md')
+  const wPath = wHit.path || (wDir ? path.join(wDir, 'SKILL.md') : null)
+  const gExists = Boolean(gHit.path) && isUnderPhysical(globalSkillsRoot, gPath, fsImpl)
   const reserved = isReservedSkillId(id)
 
   const finishG = (securityDecision, reasonCode, fallbackReason, skippedByUser = false) => {
@@ -289,26 +348,26 @@ function resolveSkillRead(skillId, options = {}) {
     )
   }
 
-  if (wPath && fileExists(wPath, fsImpl)) {
-    if (!isUnderPhysical(workspaceSkillsRoot, wPath, fsImpl)) {
+  if (wHit.path && fileExists(wHit.path, fsImpl)) {
+    if (!isUnderPhysical(workspaceSkillsRoot, wHit.path, fsImpl)) {
       return finishG('rejected-path', 'symlink-escape', 'symlink-escape')
     }
     let stat
     try {
-      stat = fsImpl.statSync(wPath)
+      stat = fsImpl.statSync(wHit.path)
     } catch {
       return finishG('rejected-path', 'stat-failed', 'stat-failed')
     }
     if (stat.size > (options.maxBytes || MAX_SKILL_BYTES)) {
       return finishG('rejected-oversize', 'oversize', 'oversize')
     }
-    const fileText = fsImpl.readFileSync(wPath, 'utf8')
+    const fileText = fsImpl.readFileSync(wHit.path, 'utf8')
     const weaken = detectWeaken(fileText)
     if (weaken) {
       return finishG('rejected-weaken', 'weaken-pattern', `weaken:${weaken}`)
     }
     // relative reference guard: optional listed files under skill dir only
-    const skillDir = path.dirname(wPath)
+    const skillDir = path.dirname(wHit.path)
     const refHits = fileText.match(/(?:scripts|references)\/[A-Za-z0-9._/-]+/g) || []
     for (const rel of refHits) {
       const target = path.resolve(skillDir, rel)
@@ -322,19 +381,30 @@ function resolveSkillRead(skillId, options = {}) {
       content: options.includeContent === false ? null : fileText,
       trace: baseTrace(id, localOpts, {
         selectedLayer: 'workspace',
-        selectedPath: portable(wPath),
+        selectedPath: portable(wHit.path),
         digest,
         contentBytes,
         coversGlobal: gExists,
         securityDecision: 'accepted',
-        reasonCode: 'workspace-accepted',
-        fallbackReason: '',
+        reasonCode: wHit.caseFolded ? 'workspace-accepted-casefold' : 'workspace-accepted',
+        fallbackReason: wHit.hint || '',
         distribution: readDistribution(skillDir, fsImpl),
-        wPath: portable(wPath),
+        wPath: portable(wHit.path),
         gPath: portable(gPath),
-        reserved: false
+        reserved: false,
+        skillFileName: path.basename(wHit.path)
       })
     }
+  }
+
+  // Directory exists but SKILL.md missing/wrong name — clearer diagnostics
+  if (wHit.dirExists && !wHit.path) {
+    return finishG(
+      'not-applicable',
+      'missing-SKILL.md',
+      wHit.hint || 'missing-SKILL.md',
+      false
+    )
   }
 
   return finishG('not-applicable', gExists ? 'w-absent' : 'missing', gExists ? 'w-absent' : 'missing')
@@ -442,5 +512,6 @@ module.exports = {
   assertApplyDestinationNotWorkspaceSkills,
   isWorkspaceSkillPath,
   isUnderPhysical,
+  findSkillMarkdown,
   sha256Text
 }

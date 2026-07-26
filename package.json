@@ -110,7 +110,8 @@
     "release:dry-run:github": "node scripts/publish-dry-run.js --registry github",
     "release:dry-run:all": "node scripts/publish-dry-run.js --registry all",
     "validate": "node scripts/validate.js",
-    "prepublishOnly": "npm run test:all:with-audit"
+    "prepublishOnly": "npm run test:all:with-audit",
+    "test:executable-absorption-gates": "node scripts/test-executable-absorption-gates.js"
   },
   "keywords": [
     "copilot",

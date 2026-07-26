@@ -33,10 +33,10 @@
       "id": "U-A4",
       "title": "Stop hard-block incomplete closure",
       "status": "open",
-      "closePath": "platform P-GROK-4",
-      "owner": "xai-platform",
+      "closePath": "unit+fixture partial; close only after Grok direct-host-replay (Q3) + ParityUpgradeDecision",
+      "owner": "devcodex",
       "evidenceRefs": [],
-      "notes": "eventSupportsHardBlock(grok, Stop)=false"
+      "notes": "Conditional Stop hard-continue implemented in lifecycle-stop-gate + adaptGrokOutput (unit tests green). Keep open until Grok direct-host-replay closes residual cannotClaim (no-body/softCap). Code refs: lifecycle-stop-gate.cjs, lifecycle-host-adapters.cjs, test-host-adapters.js"
     },
     {
       "id": "U-B1",
@@ -71,7 +71,7 @@
       "closePath": "keep + regression probes",
       "owner": "devcodex",
       "evidenceRefs": [],
-      "notes": "wont-fix for platform parity; keep as intentional residual"
+      "notes": "UPS/PreCompact still strip hard deny; Stop no longer stripped (decision:block preserved). Residual = non-Stop passive events only."
     },
     {
       "id": "U-C1",

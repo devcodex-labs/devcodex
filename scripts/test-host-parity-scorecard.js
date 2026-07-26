@@ -250,9 +250,14 @@ const hit = payloadApi.getVisibleReplyEvidence({
 assert.strictEqual(hit.observed, true)
 assert.strictEqual(hit.source, 'finalMessage')
 
-const passive = adaptHostOutput('grok', 'Stop', { decision: 'block', reason: 'x' })
-assert.strictEqual(passive.continue, true)
-assert.strictEqual(Object.prototype.hasOwnProperty.call(passive, 'decision'), false)
+// Stop block is preserved (official Grok Stop Decision Control); UPS remains passive for inject.
+const stopBlock = adaptHostOutput('grok', 'Stop', { decision: 'block', reason: 'x' })
+assert.strictEqual(stopBlock.decision, 'block')
+assert.strictEqual(stopBlock.reason, 'x')
+assert.strictEqual(stopBlock.devcodexGrokEvidenceMode, 'stop-decision-block')
+const upsPassive = adaptHostOutput('grok', 'UserPromptSubmit', { decision: 'block', reason: 'no-ups-block' })
+assert.strictEqual(upsPassive.continue, true)
+assert.strictEqual(Object.prototype.hasOwnProperty.call(upsPassive, 'decision'), false)
 
 // SessionStart stamp script exists and exits 0
 const sessionStart = path.join(__dirname, '../grok/plugins/devcodex-workspace/hooks/session-start.cjs')

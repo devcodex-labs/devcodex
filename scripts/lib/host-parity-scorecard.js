@@ -98,7 +98,7 @@ const GROK_TURN_EXECUTION_CHECKLIST = Object.freeze([
   { id: 'ttfv-first-delivery', text: 'C16 TimeToFirstValueGate: same visible turn delivers scope card OR first findings/conclusion OR hard block (non-chat)' },
   { id: 'work-and-gates', text: 'Execute workflow gates (CP/ECR as applicable); no skip for missing inject' },
   { id: 'report-memory', text: 'Non-chat: write report + memory (+ ledger when governance hits); chat exempt' },
-  { id: 'honest-ceiling', text: 'Do not claim UserPromptSubmit inject / Stop hard-block / Grok===Codex bootstrap' }
+  { id: 'honest-ceiling', text: 'Do not claim UserPromptSubmit inject / unconditional Stop hard-block / Grok===Codex bootstrap; Stop is conditional (body present + softCap)' }
 ])
 
 /**
@@ -119,7 +119,7 @@ const GROK_INTENT_SKILL_BUNDLES = Object.freeze({
 /** Minimum cannotClaim strings that must remain unless ParityUpgradeDecision allows shrink (E3). */
 const MIN_CANNOT_CLAIM = Object.freeze([
   'UserPromptSubmit context injection (passive stdout ignored on Grok)',
-  'Stop hard-block of incomplete turns',
+  'Stop hard-block without lastAssistantMessage (unverified) or after continuation fail-open',
   'verified-present PC0 without assistant payload on Stop',
   'Grok === Codex hook-enforced bootstrap'
 ])

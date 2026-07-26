@@ -69,6 +69,8 @@ CP 门控**不受 ENV_MODE 影响**。dev/prod 均强制保持 CP1→CP2 顺序�
 
 ## 执行规则（[C02](../../instructions/01-common.instructions.md) 约束）
 
+> **R12 顺序索引**：方案 → PR-1 → **确认 CP2** → PR-2~PR-7 → CP3 → 编码。交叉：`dev-plan-review` R9（确认 CP2 前须 PR-1 证据）；lifecycle R10（控制面写复用 `checkCpGate`，默认 safety-only 放行时 Honesty 披露 `cp2-unconfirmed-write`）。
+
 1. **严格按序**：CP1 → CP2 → CP3，不得跳过中间步骤
 2. **禁止合并**：不得将 CP1+CP2 合并为一次输出
 3. **每个 CP 独立确认**：输出后必须等待用户明确响应

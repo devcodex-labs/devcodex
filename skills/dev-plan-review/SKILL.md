@@ -14,6 +14,8 @@ description: 技术方案验证（两阶段质量门禁）— PR-1 CP2 前自检
 ```
 
 > 🔴 不可跳过。`docs` 子类型（豁免）和 `plan-review` 子类型（防递归）除外。
+>
+> **R9 / R12**：顺序「方案 → PR-1 → 确认 CP2 → PR-2~PR-7 → CP3 → 编码」。请求用户「确认 CP2」时磁盘须有 PR-1 通过证据（`03-方案复审*` 或 sessions `PR-1=✅`）；否则 Stop `processGaps+=pr1-skipped`。R10：控制面写路径 CP2 门见 `cp-gate` + lifecycle `checkCpGate`。
 
 > ⚠️ 边界说明：本 Skill 只负责**编码前**的方案质量门禁，不覆盖执行后的关键产物复审；执行后的稳定性确认由 `10-dev.instructions.md` 中的“ECR 执行闭环复审”规则负责。
 

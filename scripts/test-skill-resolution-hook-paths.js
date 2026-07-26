@@ -16,7 +16,7 @@ const {
   resolveWorkspaceSkillsRoot
 } = require('../hooks/_runtime/skill-resolution.cjs')
 
-const CONTROL_PLANE_SOURCE_RE = /(?:^|[/\\])(?:scripts|hooks|instructions)(?:[/\\]|$)|(?:^|[/\\])package\.json$|(?:^|[/\\])skills[/\\]/i
+const CONTROL_PLANE_SOURCE_RE = /(?:^|[/\\])(?:scripts|hooks|instructions|host-projections)(?:[/\\]|$)|(?:^|[/\\])package\.json$|(?:^|[/\\])skills[/\\]|(?:^|[/\\])website[/\\]docs[/\\]intro[/\\]host-parity/i
 
 function writeSkill(root, id, body = '# s\n') {
   const dir = path.join(root, id)

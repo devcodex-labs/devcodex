@@ -94,6 +94,16 @@ function buildLifecycleHookOutput({ env, enforcementMode }) {
       if (['stop', 'agentstop', 'subagentstop'].includes(event)) return { decision: 'block', reason: message }
       return { continue: true, systemMessage: message }
     }
+    if (platform === 'grok') {
+      if (event === 'pretooluse' || event === 'permissionrequest') {
+        return { decision: 'deny', reason: message }
+      }
+      // Official Grok Stop Decision Control: decision:block + reason fed back to the model.
+      if (['stop', 'subagentstop', 'agentstop'].includes(event)) {
+        return { decision: 'block', reason: message }
+      }
+      return { continue: true, systemMessage: message }
+    }
     return toolBlockOutput(eventName, reason, detail)
   }
 
@@ -131,9 +141,11 @@ function buildLifecycleHookOutput({ env, enforcementMode }) {
     if (platform === 'copilot') {
       return ['pretooluse', 'stop', 'agentstop', 'subagentstop'].includes(event)
     }
-    // Grok Build: only PreToolUse is blocking; all other lifecycle events are passive
-    // (stdout ignored). Never advertise UserPromptSubmit/Stop hard-block parity with Codex.
-    if (platform === 'grok') return event === 'pretooluse' || event === 'permissionrequest'
+    // Grok Build: PreToolUse deny + Stop/SubagentStop block (official Stop Decision Control).
+    // UserPromptSubmit remains non-hard for inject; UPS inject still not claimed.
+    if (platform === 'grok') {
+      return ['pretooluse', 'permissionrequest', 'stop', 'subagentstop', 'agentstop'].includes(event)
+    }
     return ['pretooluse', 'permissionrequest'].includes(event)
   }
 

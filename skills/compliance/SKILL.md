@@ -73,6 +73,33 @@ DevCodexVisibleEnvelopeV1 · completion-check · [状态] · [semanticDigest]
 > ℹ️ prod 模式不执行合规检查，不输出状态块。
 > ℹ️ chat 工作流豁免此输出。
 
+### EnforcementHonesty（全宿主完成态 · R5 / R11）
+
+> 完成态 / 被 Stop 续跑后的收尾，用户可见回复或正式报告须披露拦截与流程诚实摘要（**诚实=披露缺口，不是关能力**）。Hook 状态字段：`state.enforcementHonesty`（`EnforcementHonestyV1`）。
+
+```markdown
+### 拦截与流程诚实摘要（EnforcementHonesty）
+| 项 | 值 |
+|----|-----|
+| host | grok / codex / claude / … |
+| hard 事件启用 | PreToolUse, Stop（宿主能力矩阵） |
+| 本轮 PreTool deny | 0 / N（摘要） |
+| 本轮 Stop | block→续跑 / allow / unverified（无正文） |
+| 未能硬拦 | 如：纯文本无 tool；safety-only 下 CP 写控制面 |
+| 流程缺口 | 如：entry-check / pr1-skipped / cp2-unconfirmed-write / final-validation-summary |
+| evidenceMode | path-observable+stop-conditional / host-native |
+```
+
+| processGaps 枚举（节选） | 含义 |
+|--------------------------|------|
+| `entry-check` | 缺 PC0~PC7 / 入口检查块 |
+| `final-validation-summary` | 宣称完成但无 FVS 短矩阵 |
+| `pr1-skipped` | 请求确认 CP2 但无 PR-1 通过证据 |
+| `cp2-unconfirmed-write` | safety-only 下控制面/源码写在 CP2 未确认时被放行 |
+| `stop-continuation-exhausted` | 达 softCap 后 fail-open |
+
+Grok：**条件 Stop 硬续**（有 `lastAssistantMessage` 可 `decision:block`；无正文 `unverified`；平台/softCap 后 fail-open）。控制面写路径建议 `DEVCODEX_HOOK_ENFORCEMENT=strict`，否则 Honesty 必须披露「未硬拦」。
+
 ### GovernanceIntakeClosureGate（全模式语义项）
 
 本项不受 dev/prod 后置合规块开关影响：每条非空用户消息都必须有中性 candidate，并在合理性评估后形成 `GovernanceIntakeDecision`。收尾前检查 candidate ID、评估结论、泛化范围、现有规范状态、复合意图、目标台账、写入要求与证据；required 写入必须满足 `LedgerWriteEvidenceGate`，`record.none` 必须满足 `RecordNoneChallengeGate`，`record.ambiguous` 保持未终结。Hook 证据不可观察时只能标 `unverified`，不能把回复中的自报编号当作落账成功；instruction-fallback 必须在报告/记忆保留相同字段与人工复证路线。

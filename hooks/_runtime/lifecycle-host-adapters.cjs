@@ -152,11 +152,10 @@ function isGrokImportedClaudePayload(host, payload, originalEvent) {
 }
 
 /**
- * Grok Build official PreToolUse contract:
- *   allow → { "decision": "allow" }
- *   deny  → { "decision": "deny", "reason": "..." }
- * PassivePassive events ignore stdout; never emit blocking decisions there.
- * @see ~/.grok/docs/user-guide/10-hooks.md
+ * Grok Build official contracts (see ~/.grok/docs/user-guide/10-hooks.md):
+ *   PreToolUse allow/deny → { "decision": "allow"|"deny", "reason"? }
+ *   Stop/SubagentStop block → { "decision": "block", "reason": "..." } (fed back to model)
+ * UserPromptSubmit / other non-tool events: do not claim context inject; strip hard deny there.
  */
 function adaptGrokOutput(originalEvent, output) {
   const value = output && typeof output === 'object' && !Array.isArray(output) ? { ...output } : { continue: true }
@@ -166,6 +165,7 @@ function adaptGrokOutput(originalEvent, output) {
 
   const event = normalizeEventToken(originalEvent)
   const isPreTool = event === 'pretooluse'
+  const isStop = event === 'stop' || event === 'subagentstop' || event === 'agentstop'
   const permission = value.hookSpecificOutput?.permissionDecision
   const reason = value.reason
     || value.hookSpecificOutput?.permissionDecisionReason
@@ -188,15 +188,34 @@ function adaptGrokOutput(originalEvent, output) {
     return value
   }
 
-  // PassivePassive events (UserPromptSubmit, Stop, PreCompact, …): stdout is ignored for model
-  // context. Strip hard-block decisions so we never pretend inject/block worked.
+  // Stop Decision Control: preserve block so incomplete closure can force another turn.
+  if (isStop) {
+    if (value.decision === 'block' || value.decision === 'deny') {
+      return Object.freeze({
+        decision: 'block',
+        reason: String(reason || 'DevCodex requires another agent turn.'),
+        devcodexGrokEvidenceMode: 'stop-decision-block'
+      })
+    }
+    if (value.decision === 'allow') {
+      return Object.freeze({ decision: 'allow', devcodexGrokEvidenceMode: 'stop-decision-allow' })
+    }
+    // Soft reminder only
+    const soft = { continue: true, devcodexGrokEvidenceMode: 'stop-soft' }
+    if (value.systemMessage) soft.systemMessage = value.systemMessage
+    if (value.hookSpecificOutput && typeof value.hookSpecificOutput === 'object') {
+      soft.hookSpecificOutput = { ...value.hookSpecificOutput }
+    }
+    return Object.freeze(soft)
+  }
+
+  // Other non-tool events: do not claim UPS inject / hard-block parity.
   const next = { ...value, continue: true }
   delete next.decision
   if (next.hookSpecificOutput && typeof next.hookSpecificOutput === 'object') {
     const hso = { ...next.hookSpecificOutput }
     delete hso.permissionDecision
     delete hso.permissionDecisionReason
-    // Keep systemMessage/additionalContext only as possible UI annotations; do not claim injection.
     next.hookSpecificOutput = hso
     next.devcodexGrokEvidenceMode = 'passive-hook-no-context-injection'
   } else {

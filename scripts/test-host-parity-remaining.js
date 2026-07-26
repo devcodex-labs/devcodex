@@ -29,10 +29,10 @@ assert.strictEqual(hookOut.eventSupportsHardBlock('codex', 'Stop'), true)
 assert.strictEqual(hookOut.eventSupportsHardBlock('claude', 'UserPromptSubmit'), true)
 assert.strictEqual(hookOut.eventSupportsHardBlock('claude', 'Stop'), true)
 assert.strictEqual(hookOut.eventSupportsHardBlock('claude', 'PreToolUse'), true)
-// Grok limited
+// Grok: PreTool + conditional Stop; UPS remains non-hard
 assert.strictEqual(hookOut.eventSupportsHardBlock('grok', 'PreToolUse'), true)
 assert.strictEqual(hookOut.eventSupportsHardBlock('grok', 'UserPromptSubmit'), false)
-assert.strictEqual(hookOut.eventSupportsHardBlock('grok', 'Stop'), false)
+assert.strictEqual(hookOut.eventSupportsHardBlock('grok', 'Stop'), true)
 // Copilot / instruction-fallback
 assert.strictEqual(hookOut.eventSupportsHardBlock('copilot', 'PreToolUse'), true)
 assert.strictEqual(hookOut.eventSupportsHardBlock('jetbrains-copilot', 'PreToolUse'), false)

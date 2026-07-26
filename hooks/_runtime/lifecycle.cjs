@@ -56,6 +56,10 @@ const {
   parseContinuationCommand,
   resolveTaskContinuation
 } = require('./task-continuation-contract.cjs')
+const {
+  evaluateStopCompletionGate,
+  extractLastAssistantMessage
+} = require('./lifecycle-stop-gate.cjs')
 
 const CONTEXT_ROOT = process.cwd()
 const PAYLOAD_PREVIEW_LIMIT = 160
@@ -68,8 +72,9 @@ const CP2_FILE = '02-技术方案.md'
 const CP3_FILE = '04-实施计划.md'
 const CP3_RUNTIME_FILE_THRESHOLD = 5
 // Dual-Track Closure (PI-154 / PF-171): control-plane source paths that require a bound task+CP when mutated.
-// Matches package source under repo root (scripts/hooks/skills js, package.json, validation-manifest).
-const CONTROL_PLANE_SOURCE_RE = /(?:^|[/\\])(?:scripts|hooks|instructions)(?:[/\\]|$)|(?:^|[/\\])package\.json$|(?:^|[/\\])skills[/\\]/i
+// Matches package source under repo root (scripts/hooks/skills, host-projections, package.json, host-parity docs).
+// R10 (20260726-grok-stop-enforcement-honesty): extended host-projections + website host-parity intro.
+const CONTROL_PLANE_SOURCE_RE = /(?:^|[/\\])(?:scripts|hooks|instructions|host-projections)(?:[/\\]|$)|(?:^|[/\\])package\.json$|(?:^|[/\\])skills[/\\]|(?:^|[/\\])website[/\\]docs[/\\]intro[/\\]host-parity/i
 const EXECUTION_MODE = { CONFIRM: 'confirm', AUTO: 'auto' }
 const ENFORCEMENT_MODE = (() => {
   const mode = String(process.env.DEVCODEX_HOOK_ENFORCEMENT || 'safety-only').trim().toLowerCase()
@@ -1336,6 +1341,26 @@ async function main() {
         }
       }
     }
+    // P0.5 WorkspaceSkillAutoMatch: message → W skill description/name → inject body
+    let workspaceSkillAutoMatchMsg = ''
+    try {
+      const {
+        matchWorkspaceSkills,
+        toStateRecord
+      } = require('./workspace-skill-auto-match.cjs')
+      const autoMatch = matchWorkspaceSkills(prompt, { cwd: CONTEXT_ROOT })
+      if (autoMatch.matched) {
+        state.workspaceSkillAutoMatch = toStateRecord(autoMatch)
+        workspaceSkillAutoMatchMsg = autoMatch.injectionText
+        state.lastReason = `workspace-skill-auto-match:${autoMatch.skillId}`
+      } else {
+        state.workspaceSkillAutoMatch = null
+      }
+    } catch {
+      /* auto-match optional during partial deploys */
+      state.workspaceSkillAutoMatch = null
+    }
+
     saveState(state)
     writeStdout(contextMessageOutput(
       'UserPromptSubmit',
@@ -1346,8 +1371,9 @@ async function main() {
           ? `TaskResolutionV1 resolved-active: ${continuationResolution.candidate.project}/${continuationResolution.candidate.kind}/${continuationResolution.candidate.displayName}. The name only locates the task; rehydrate identity, sessions, and current bound artifacts before continuing.`
           : '',
         buildGovernanceIntakeContextMessage(state.governanceIntake),
-        formatTurnRecoveryMessage(livenessObservation.recoveryCard)
-      ].filter(Boolean).join(' ')
+        formatTurnRecoveryMessage(livenessObservation.recoveryCard),
+        workspaceSkillAutoMatchMsg
+      ].filter(Boolean).join('\n\n')
     ))
     return
   }
@@ -1434,9 +1460,25 @@ async function main() {
 
     // 3. CP gate — block source code mutations until checkpoints confirmed
     //    payload-aware: when tool paths target specific requirement dirs, only that requirement's CP is checked
+    //    R10: reuse checkCpGate; safety-only allows write but Honesty discloses cp2-unconfirmed-write
     const gate = checkCpGate(payload, state)
     if (gate && isSourceCodeMutation(payload, platform, state)) {
       state.lastReason = `cp-gate-${gate.phase}`
+      if (!isStrictEnforcement() && (gate.phase === 'CP2' || gate.code === 'cp-gate-orphan-control-plane')) {
+        const honesty = state.enforcementHonesty && typeof state.enforcementHonesty === 'object'
+          ? { ...state.enforcementHonesty }
+          : {}
+        const gaps = Array.isArray(honesty.processGaps) ? honesty.processGaps.slice() : []
+        if (!gaps.includes('cp2-unconfirmed-write')) gaps.push('cp2-unconfirmed-write')
+        honesty.processGaps = gaps
+        honesty.thisTurn = {
+          ...(honesty.thisTurn || {}),
+          preToolHardDeny: false,
+          preToolSafetyOnlyAllow: true,
+          cpGatePhase: gate.phase
+        }
+        state.enforcementHonesty = honesty
+      }
       saveState(state)
       writeStdout(isStrictEnforcement()
         ? buildCpDenyOutput(state, platform, eventName, gate, getToolName(payload) || 'tool')
@@ -1508,6 +1550,81 @@ async function main() {
   if (eventName === 'PreCompact' || eventName === 'Stop') {
     if (eventName === 'PreCompact') markContextAcquisitionStale(state, 'compact')
     captureFinalPayloadSample(payload, eventName, state)
+
+    // P0.5: if UserPromptSubmit matched a W skill and reply ignored it, Stop-force one retry.
+    // Inject-capable hosts already got additionalContext; Grok passive UPS needs Stop block.
+    if (eventName === 'Stop' && state.workspaceSkillAutoMatch && state.workspaceSkillAutoMatch.skillId) {
+      try {
+        const {
+          isSkillReplySatisfied,
+          buildStopForceReason,
+          matchWorkspaceSkills,
+          extractLastAssistantMessage
+        } = require('./workspace-skill-auto-match.cjs')
+        const lastAssistant = extractLastAssistantMessage(payload)
+        const stopHookActive = payload.stopHookActive === true || payload.stop_hook_active === true
+        // Rehydrate content for satisfaction check when state only kept meta
+        let matchForCheck = state.workspaceSkillAutoMatch
+        if (!matchForCheck.content && matchForCheck.injectionText) {
+          matchForCheck = {
+            matched: true,
+            skillId: matchForCheck.skillId,
+            mustReply: matchForCheck.mustReply,
+            content: matchForCheck.injectionText,
+            injectionText: matchForCheck.injectionText
+          }
+        } else if (!matchForCheck.injectionText) {
+          const rematch = matchWorkspaceSkills(matchForCheck.skillId, { cwd: CONTEXT_ROOT })
+          if (rematch.matched) {
+            matchForCheck = { ...matchForCheck, ...rematch, matched: true }
+          } else {
+            matchForCheck = { ...matchForCheck, matched: true }
+          }
+        } else {
+          matchForCheck = { ...matchForCheck, matched: true }
+        }
+
+        const satisfied = isSkillReplySatisfied(lastAssistant, matchForCheck)
+        if (satisfied) {
+          state.workspaceSkillAutoMatch = {
+            ...state.workspaceSkillAutoMatch,
+            satisfied: true
+          }
+        } else {
+          const enforceCount = Number(state.workspaceSkillAutoMatch.enforceCount || 0)
+          // At most 2 force rounds; honor platform soft cap via stopHookActive after first force
+          if (enforceCount < 2 && !(stopHookActive && enforceCount >= 1)) {
+            const reason = buildStopForceReason(matchForCheck)
+            state.workspaceSkillAutoMatch = {
+              ...state.workspaceSkillAutoMatch,
+              enforceCount: enforceCount + 1,
+              lastEnforceAt: new Date().toISOString()
+            }
+            state.lastReason = `workspace-skill-auto-match-stop:${state.workspaceSkillAutoMatch.skillId}`
+            const output = decorateHookOutput(
+              blockOutput(platform, 'Stop', 'workspace-skill-auto-match', reason),
+              {
+                devcodexAction: INTERCEPTION_ACTION.FORBID,
+                devcodexCode: 'workspace-skill-auto-match',
+                devcodexEffective: true,
+                devcodexNextStep: 'Reply following the matched workspace skill body.'
+              }
+            )
+            // Also top-level decision for Grok/Codex adapters
+            if (!output.decision) {
+              output.decision = 'block'
+              output.reason = reason
+            }
+            saveState(state)
+            writeStdout(output)
+            return
+          }
+        }
+      } catch {
+        /* stop auto-match force best-effort */
+      }
+    }
+
     const reminder = buildDedupedClosureReminder(state, eventName)
     let output = reminder ? systemMessageOutput(reminder) : noopOutput()
     if (reminder) {
@@ -1520,6 +1637,82 @@ async function main() {
       )
     }
     if (eventName === 'Stop') {
+      // B2: evaluateStopCompletionGate — Grok always hard-blocks when supported; others keep strict-only hard path
+      const lastAssistantMessage =
+        extractLastAssistantMessage(payload) ||
+        getVisibleReplyText(payload) ||
+        ''
+      const stopHookActive = !!(payload.stopHookActive || payload.stop_hook_active)
+      const continuationCount = Number(state.stopContinuationCount || 0)
+      const gateResult = evaluateStopCompletionGate({
+        mode: state.mode || '',
+        workflow: state.workflow || state.mode || '',
+        mutated: !!state.mutated,
+        reportTouched: !!state.reportTouched,
+        memoryTouched: !!state.memoryTouched,
+        lastAssistantMessage,
+        stopHookActive,
+        continuationCount,
+        softCap: 8,
+        state
+      })
+      const hardEvents = ['pretooluse', 'stop'].filter(ev => eventSupportsHardBlock(platform, ev))
+      const priorHonesty = state.enforcementHonesty && typeof state.enforcementHonesty === 'object'
+        ? state.enforcementHonesty
+        : {}
+      state.enforcementHonesty = {
+        ...priorHonesty,
+        ...gateResult.honesty,
+        host: platform,
+        hardBlockEventsEnabled: hardEvents,
+        processGaps: [
+          ...new Set([
+            ...(priorHonesty.processGaps || []),
+            ...(gateResult.gaps || []),
+            ...((gateResult.honesty && gateResult.honesty.processGaps) || [])
+          ])
+        ],
+        evidenceMode: platform === 'grok' ? 'path-observable+stop-conditional' : 'host-native'
+      }
+
+      if (gateResult.decision === 'block') {
+        const forceHard = platform === 'grok' || isStrictEnforcement()
+        if (forceHard && eventSupportsHardBlock(platform, eventName)) {
+          state.stopContinuationCount = continuationCount + 1
+          output = decorateHookOutput(
+            blockOutput(platform, eventName, gateResult.reason, gateResult.reason),
+            {
+              devcodexAction: INTERCEPTION_ACTION.REQUIRE_COMPLETION,
+              devcodexCode: 'stop-completion-gate',
+              devcodexEffective: true,
+              devcodexNextStep: 'Complete missing entry/PR-1/FVS/report/memory then finish.',
+              devcodexProcessGaps: (gateResult.gaps || []).join(',')
+            }
+          )
+          recordInterception(
+            state,
+            eventName,
+            platform,
+            INTERCEPTION_ACTION.REQUIRE_COMPLETION,
+            'stop-completion-gate',
+            gateResult.reason,
+            'Complete missing items then finish.',
+            true
+          )
+        } else if (!reminder) {
+          output = buildInterceptionOutput(
+            state,
+            platform,
+            eventName,
+            INTERCEPTION_ACTION.REQUIRE_COMPLETION,
+            'stop-completion-gate',
+            'DevCodex Stop gate incomplete',
+            gateResult.reason,
+            'Complete missing items then finish.'
+          )
+        }
+      }
+
       const failed = payload.success === false || payload.is_error === true || payload.isError === true || !!payload.error
       state.turnLiveness = markTurnTerminal(
         state.turnLiveness,

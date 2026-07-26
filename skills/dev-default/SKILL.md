@@ -86,6 +86,7 @@ dev 工作流未匹配其他子类型时的默认路径，适用于：新功能�
 
 ## 关键规则
 
+- **强制顺序（R12）**：方案 → **PR-1 自检** → 确认 CP2 → PR-2~PR-7 → CP3 → 编码。禁止跳过 PR-1 直接请确认 CP2（Stop gap `pr1-skipped` / R9）；禁止 CP2 未确认就改 `hooks/`/`skills/`/`instructions/`/`host-projections/` 等控制面（R10 复用 `checkCpGate`，strict deny / safety-only 披露 `cp2-unconfirmed-write`）。
 - 三个 CP 必须按序获得用户确认，禁止合并跳过（[C02](../../instructions/01-common.instructions.md)）
 - PR-1 在 CP2 前做 AI 内部自检，PR-2~PR-7 在 CP2→CP3 之间做详细验证（`dev-plan-review` 两阶段流程）
 - 执行阶段结束后触发：`api-verification`（若涉及接口）→ `document-sync` → **ECR 执行闭环复审**（N6，内部包含方案一致性验证和 ECR-1~ECR-7）

@@ -199,14 +199,27 @@ assert.strictEqual(
   false
 )
 
+// Grok official Stop Decision Control: decision:block is preserved and fed back to the model
 const grokStop = adaptHostOutput('grok', 'Stop', {
   decision: 'block',
   reason: 'closure-incomplete',
   systemMessage: 'DevCodex closure reminder'
 })
-assert.strictEqual(grokStop.continue, true)
-assert.strictEqual(Object.prototype.hasOwnProperty.call(grokStop, 'decision'), false)
-assert.strictEqual(grokStop.devcodexGrokEvidenceMode, 'passive-hook-no-context-injection')
+assert.strictEqual(grokStop.decision, 'block')
+assert.strictEqual(grokStop.reason, 'closure-incomplete')
+assert.strictEqual(grokStop.devcodexGrokEvidenceMode, 'stop-decision-block')
+
+const grokStopAllow = adaptHostOutput('grok', 'Stop', { decision: 'allow' })
+assert.strictEqual(grokStopAllow.decision, 'allow')
+assert.strictEqual(grokStopAllow.devcodexGrokEvidenceMode, 'stop-decision-allow')
+
+const grokStopSoft = adaptHostOutput('grok', 'Stop', {
+  continue: true,
+  systemMessage: 'soft reminder only'
+})
+assert.strictEqual(grokStopSoft.continue, true)
+assert.strictEqual(Object.prototype.hasOwnProperty.call(grokStopSoft, 'decision'), false)
+assert.strictEqual(grokStopSoft.devcodexGrokEvidenceMode, 'stop-soft')
 
 for (const event of ['UserPromptSubmit', 'Stop', 'PreCompact']) {
   for (const group of grokHooks.hooks[event]) {
@@ -368,7 +381,8 @@ const { buildLifecycleHookOutput } = require('../hooks/_runtime/lifecycle-hook-o
 const hookOut = buildLifecycleHookOutput({ env: process.env, enforcementMode: 'safety-only' })
 assert.strictEqual(hookOut.eventSupportsHardBlock('grok', 'PreToolUse'), true)
 assert.strictEqual(hookOut.eventSupportsHardBlock('grok', 'UserPromptSubmit'), false)
-assert.strictEqual(hookOut.eventSupportsHardBlock('grok', 'Stop'), false)
+// Grok official Stop Decision Control: Stop/SubagentStop hard block is supported
+assert.strictEqual(hookOut.eventSupportsHardBlock('grok', 'Stop'), true)
 assert.strictEqual(hookOut.eventSupportsHardBlock('codex', 'UserPromptSubmit'), true)
 assert.strictEqual(hookOut.eventSupportsHardBlock('copilot', 'PreToolUse'), true)
 assert.strictEqual(hookOut.eventSupportsHardBlock('copilot', 'Stop'), true)

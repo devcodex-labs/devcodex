@@ -247,7 +247,6 @@
     "scripts/lib/cli-maintenance-commands.js",
     "scripts/lib/global-adapter-refresh-guidance.js",
     "scripts/lib/global-adapters-cli.js",
-    "scripts/test-global-adapters-cli.js",
     "scripts/lib/host-parity-scorecard.js",
     "scripts/lib/parity-unaligned-ledger.js",
     "scripts/lib/parity-upgrade-decision.js",

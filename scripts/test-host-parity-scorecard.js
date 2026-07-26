@@ -94,8 +94,19 @@ assert.strictEqual(partial.hardReady, false)
 assert.strictEqual(partial.tier, 'partial')
 assert.ok(Array.isArray(partial.failedChecks) && partial.failedChecks.includes('globalKernelAgentsMd'))
 assert.ok(Array.isArray(partial.repairSteps) && partial.repairSteps.length >= 1)
-assert.ok(partial.repairSteps.some((s) => /npm install -g devcodex/.test(s.command)))
+// R1a: source package root must recommend global-adapters apply (not only npm -g)
+assert.ok(
+  partial.repairSteps.some((s) => /devcodex global-adapters apply/.test(s.command)),
+  'source HostParity repairSteps must recommend global-adapters apply'
+)
+assert.ok(
+  !partial.repairSteps.some((s) => s.status === 'failed' && s.command === 'npm install -g devcodex'),
+  'source HostParity failed repair must not hardcode npm install -g only'
+)
 assert.match(partial.userVisibleSummary, /partial|failed/i)
+assert.match(partial.userVisibleSummary, /global-adapters apply/)
+assert.strictEqual(partial.evidence.adapterRefreshSourceCheckout, true)
+assert.match(String(partial.evidence.adapterRefreshPrimary || ''), /global-adapters apply/)
 assert.ok(Array.isArray(partial.turnChecklist) && partial.turnChecklist.includes('skill-bundle'))
 assert.ok(partial.intentSkillBundles && partial.intentSkillBundles.analyze)
 
@@ -121,8 +132,23 @@ const regOnly = buildGrokRepairSteps({
   globalGrokPluginInstalled: true,
   globalGrokPluginConfigured: false
 })
-assert.ok(regOnly.some((s) => s.check === 'globalGrokPluginConfigured' && /npm install -g devcodex/.test(s.command)))
+assert.ok(regOnly.some((s) =>
+  s.check === 'globalGrokPluginConfigured' && /devcodex global-adapters apply/.test(s.command)
+))
 assert.ok(regOnly.some((s) => s.check === 'full-session-entry' && s.command === 'devcodex grok'))
+
+// published-package guidance path (no .git) still uses npm -g primary
+const publishedRepair = buildGrokRepairSteps(
+  { globalKernelAgentsMd: false },
+  {
+    guidance: {
+      primary: 'npm update -g devcodex',
+      nextStepShort: 'npm update -g devcodex',
+      sourceCheckout: false
+    }
+  }
+)
+assert.ok(publishedRepair.some((s) => s.status === 'failed' && /npm update -g devcodex/.test(s.command)))
 
 // PF-165 negative: claim full Grok workflow without checklist anchors → thin
 assert.strictEqual(

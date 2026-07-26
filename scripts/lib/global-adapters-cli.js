@@ -212,9 +212,10 @@ function buildHandler(deps = {}) {
     }
 
     const transactionStatus = result?.transaction?.status || (parsed.dryRun ? 'planned' : 'unknown')
+    const hostsCommitted = transactionStatus === 'committed'
     const committed = parsed.dryRun
       ? transactionStatus === 'planned'
-      : transactionStatus === 'committed' && !grokIntegrationError
+      : hostsCommitted && !grokIntegrationError
 
     const payload = {
       schemaVersion: 'GlobalAdaptersApplyV1',
@@ -227,6 +228,7 @@ function buildHandler(deps = {}) {
       dryRun: parsed.dryRun === true,
       planDigest: result?.planDigest || null,
       transactionStatus,
+      hostsCommitted,
       hosts: (result?.targets || []).map(target => target.host),
       hostResults: (result?.transaction?.hosts || []).map(item => ({
         host: item.host,
@@ -239,25 +241,46 @@ function buildHandler(deps = {}) {
         primary: guidance.primary,
         secondary: guidance.secondary
       },
-      integrations: { grok: grokIntegration }
+      integrations: { grok: grokIntegration },
+      partialState: grokIntegrationError && hostsCommitted
+        ? {
+            schemaVersion: 'GlobalAdaptersPartialStateV1',
+            hostsTransaction: 'committed',
+            grokIntegration: 'failed',
+            note: 'User-global host adapters were written; Grok plugin integration failed afterward.',
+            nextStep: 'Re-run `devcodex global-adapters apply` after fixing Grok home/plugin registration, or repair Grok registration only; do not assume a full rollback of host files.'
+          }
+        : null
     }
 
     if (!committed) {
+      const nextStep = grokIntegrationError && hostsCommitted
+        ? payload.partialState.nextStep
+        : guidance.nextStepRefresh
+      const message = grokIntegrationError && hostsCommitted
+        ? `Host adapters committed, but Grok integration failed: ${grokIntegration.error || grokIntegrationError.message}`
+        : (grokIntegrationError
+          ? (grokIntegration.error || grokIntegrationError.message)
+          : `Global host configuration ended with ${transactionStatus} status`)
       const envelope = createCliFailure(
         COMMAND,
         grokIntegrationError
-          ? (grokIntegration.errorCode || 'GROK_PLUGIN_INSTALL_FAILED')
+          ? (hostsCommitted
+            ? 'GLOBAL_ADAPTERS_HOSTS_COMMITTED_GROK_FAILED'
+            : (grokIntegration.errorCode || 'GROK_PLUGIN_INSTALL_FAILED'))
           : (transactionStatus === 'partial' ? 'GLOBAL_HOST_CONFIG_PARTIAL' : 'GLOBAL_ADAPTERS_APPLY_FAILED'),
-        grokIntegrationError
-          ? grokIntegration.error
-          : `Global host configuration ended with ${transactionStatus} status`,
-        guidance.nextStepRefresh,
+        message,
+        nextStep,
         cliMetadata,
         payload
       )
       if (parsed.json) printCliJson(consoleImpl, envelope)
       else {
         printHuman(payload, parsed.dryRun)
+        if (payload.partialState) {
+          consoleImpl.log(c.yellow(`  ⚠ Host transaction committed; Grok integration failed.`))
+          consoleImpl.log(c.dim(`  ${payload.partialState.nextStep}`))
+        }
         consoleImpl.log(c.red(`  ${envelope.errorCode}: ${envelope.message}`))
       }
       processImpl.exitCode = 1

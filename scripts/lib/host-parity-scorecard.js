@@ -10,6 +10,65 @@ const crypto = require('crypto')
 const fs = require('fs')
 const path = require('path')
 const { resolveGlobalHostTarget } = require('./global-host-target.js')
+const {
+  describeGlobalAdapterRefreshForPackageRoot
+} = require('./global-adapter-refresh-guidance.js')
+
+const PACKAGE_ROOT = path.join(__dirname, '..', '..')
+
+/**
+ * Repair command for missing/stale user-global adapters.
+ * Source checkout → R1a `devcodex global-adapters apply`; published package → npm -g.
+ */
+function resolveAdapterRefreshGuidance(options = {}) {
+  if (options.guidance && typeof options.guidance === 'object') return options.guidance
+  const packageRoot = options.packageRoot
+    ? path.resolve(options.packageRoot)
+    : PACKAGE_ROOT
+  return describeGlobalAdapterRefreshForPackageRoot(packageRoot, {
+    packageVersion: options.packageVersion || null,
+    fs: options.fs || fs,
+    path: options.path || path
+  })
+}
+
+function buildCheckRepairCatalog(guidance) {
+  const command = guidance && guidance.primary
+    ? String(guidance.primary)
+    : 'devcodex global-adapters apply'
+  return Object.freeze({
+    globalKernelAgentsMd: {
+      check: 'globalKernelAgentsMd',
+      command,
+      detail: 'Install/refresh the user-global controlling kernel and stable runtime copy.'
+    },
+    globalCodexLifecycleReachable: {
+      check: 'globalCodexLifecycleReachable',
+      command,
+      detail: 'Install/refresh the Codex user-global lifecycle runtime; workspace host directories are not used.'
+    },
+    denyAdapterContract: {
+      check: 'denyAdapterContract',
+      command,
+      detail: 'lifecycle-host-adapters must export adaptGrokOutput and decision:deny mapping.'
+    },
+    pathObservableCapability: {
+      check: 'pathObservableCapability',
+      command,
+      detail: 'lifecycle-bootstrap-state must treat Grok as path-observable (same band as Codex tool-path).'
+    },
+    globalGrokPluginInstalled: {
+      check: 'globalGrokPluginInstalled',
+      command,
+      detail: 'Install/refresh the Grok plugin under the user-global Grok configuration root.'
+    },
+    globalGrokPluginConfigured: {
+      check: 'globalGrokPluginConfigured',
+      command,
+      detail: 'Ensure the user-global Grok config registers the managed global plugin.'
+    }
+  })
+}
 
 /** Scannable always-on checklist for passive-hook hosts (Grok). */
 const GROK_TURN_EXECUTION_CHECKLIST = Object.freeze([
@@ -64,39 +123,6 @@ function assertCannotClaimFloor(cannotClaim) {
   return { ok: true }
 }
 
-const CHECK_REPAIR_CATALOG = Object.freeze({
-  globalKernelAgentsMd: {
-    check: 'globalKernelAgentsMd',
-    command: 'npm install -g devcodex',
-    detail: 'Install the user-global controlling kernel and stable runtime copy.'
-  },
-  globalCodexLifecycleReachable: {
-    check: 'globalCodexLifecycleReachable',
-    command: 'npm install -g devcodex',
-    detail: 'Install the Codex user-global lifecycle runtime; workspace host directories are not used.'
-  },
-  denyAdapterContract: {
-    check: 'denyAdapterContract',
-    command: 'npm install -g devcodex',
-    detail: 'lifecycle-host-adapters must export adaptGrokOutput and decision:deny mapping.'
-  },
-  pathObservableCapability: {
-    check: 'pathObservableCapability',
-    command: 'npm install -g devcodex',
-    detail: 'lifecycle-bootstrap-state must treat Grok as path-observable (same band as Codex tool-path).'
-  },
-  globalGrokPluginInstalled: {
-    check: 'globalGrokPluginInstalled',
-    command: 'npm install -g devcodex',
-    detail: 'Install the Grok plugin under the user-global Grok configuration root.'
-  },
-  globalGrokPluginConfigured: {
-    check: 'globalGrokPluginConfigured',
-    command: 'npm install -g devcodex',
-    detail: 'Ensure the user-global Grok config registers the managed global plugin.'
-  }
-})
-
 function resolveGrokIntentSkillBundle(intent) {
   const key = String(intent || '').trim().toLowerCase()
   if (Object.prototype.hasOwnProperty.call(GROK_INTENT_SKILL_BUNDLES, key)) {
@@ -114,17 +140,20 @@ function resolveGrokIntentSkillBundle(intent) {
   }
 }
 
-function buildGrokRepairSteps(checks = {}) {
+function buildGrokRepairSteps(checks = {}, options = {}) {
+  const guidance = resolveAdapterRefreshGuidance(options)
+  const catalog = buildCheckRepairCatalog(guidance)
+  const fallbackCommand = guidance.primary || 'devcodex global-adapters apply'
   const steps = []
   for (const [key, ok] of Object.entries(checks || {})) {
     if (ok) continue
-    const catalog = CHECK_REPAIR_CATALOG[key]
-    if (catalog) {
-      steps.push({ ...catalog, status: 'failed' })
+    const entry = catalog[key]
+    if (entry) {
+      steps.push({ ...entry, status: 'failed' })
     } else {
       steps.push({
         check: key,
-        command: 'npm install -g devcodex',
+        command: fallbackCommand,
         detail: `Missing HostParity check: ${key}`,
         status: 'failed'
       })
@@ -369,10 +398,17 @@ function evaluateGrokHostParity(input = {}) {
 
   // Full requires hardReady + recommendation to use launcher; plain child never auto-Full
   const tier = hardReady ? 'full-capable' : 'partial'
-  const repairSteps = buildGrokRepairSteps(checks)
+  const refreshGuidance = resolveAdapterRefreshGuidance({
+    packageRoot: input.packageRoot || PACKAGE_ROOT,
+    packageVersion: input.packageVersion,
+    guidance: input.adapterRefreshGuidance,
+    fs: input.fs,
+    path: input.path
+  })
+  const repairSteps = buildGrokRepairSteps(checks, { guidance: refreshGuidance })
   const recommendedEntry = hardReady
     ? 'devcodex grok   # Full evidence: --rules binds the user-global controlling kernel'
-    : (repairSteps[0] && repairSteps[0].command) || 'npm install -g devcodex'
+    : (repairSteps[0] && repairSteps[0].command) || refreshGuidance.primary || 'devcodex global-adapters apply'
 
   const cannotClaim = [...MIN_CANNOT_CLAIM]
   assertCannotClaimFloor(cannotClaim)
@@ -383,6 +419,7 @@ function evaluateGrokHostParity(input = {}) {
     .slice(0, 3)
     .map((s) => s.command)
     .join(' ; ')
+  const fallbackFix = refreshGuidance.nextStepShort || refreshGuidance.primary || 'devcodex global-adapters apply'
 
   const scorecard = {
     schemaVersion: 'HostParityScorecardV1',
@@ -404,13 +441,15 @@ function evaluateGrokHostParity(input = {}) {
       pluginRoot: hasGlobalGrokPlugin ? pluginRoot : null,
       scope: 'user-global',
       deny,
-      bootstrap
+      bootstrap,
+      adapterRefreshPrimary: refreshGuidance.primary || null,
+      adapterRefreshSourceCheckout: refreshGuidance.sourceCheckout === true
     },
     recommendedEntry,
     cannotClaim,
     userVisibleSummary: hardReady
       ? 'Grok HostParity: full-capable (PreTool deny + path-observable + kernel). Use `devcodex grok` for Full session evidence. Inject/Stop still Partial. Follow GrokTurnChecklist + Intent→Skill bundle.'
-      : `Grok HostParity: partial — failed: ${failedChecks.join(', ') || 'unknown'}. Fix: ${repairPreview || 'npm install -g devcodex'}. Then doctor --json hostParity.repairSteps.`
+      : `Grok HostParity: partial — failed: ${failedChecks.join(', ') || 'unknown'}. Fix: ${repairPreview || fallbackFix}. Then doctor --json hostParity.repairSteps.`
   }
 
   scorecard.digest = crypto
@@ -467,7 +506,6 @@ function entryCheckAssistSuffix(options = {}) {
 module.exports = {
   GROK_TURN_EXECUTION_CHECKLIST,
   GROK_INTENT_SKILL_BUNDLES,
-  CHECK_REPAIR_CATALOG,
   MIN_CANNOT_CLAIM,
   assertCannotClaimFloor,
   evaluateGrokHostParity,
@@ -476,6 +514,8 @@ module.exports = {
   composePc4Line,
   resolveGrokIntentSkillBundle,
   buildGrokRepairSteps,
+  buildCheckRepairCatalog,
+  resolveAdapterRefreshGuidance,
   formatGrokTurnChecklistMarkdown,
   classifyGrokTurnOmissionSample,
   classifyWorkspaceRootScanSample,

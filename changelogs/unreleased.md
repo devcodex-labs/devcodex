@@ -5,6 +5,7 @@
 
 ## 当前未发布实现候选
 - **P0-1 工作区意图 + DEVCODEX.md + ImplementStartGate + e2e（Batch1）**：入口 `.devcodex/workspace/DEVCODEX.md`；`workspace-skill-intent` catalog/意图/lifecycle；控制面 mutation 前 04+05+复审清单门闩（`IMPLEMENT_START_WITHOUT_PROCESS`）；全局 skill `workspace-skill-author`；`npm run test:workspace-skill-intent` / `test:workspace-skill-intent-e2e`（E2E-A～J+K）并入 `test:skill-resolve`。**无 e2e 不算 Batch1 完成**。需求：`开源发布前用户面与文档边界收口`。
+- **P0-1 Batch2**：`init`/`ensureRuntimeDirs` 写入 DEVCODEX.md 模板（不覆盖）；CLI `devcodex skill intent <prompt> [--json]`；help 文案同步。
 - **联系邮箱统一为 `rockyshi1993@gmail.com`**：`package.json` author 与 `SECURITY.md` 漏洞报告邮箱一致（唯一可用邮箱）。
 - **npm 包名为未 scope 的 `devcodex`**：安装入口 `npm install -g devcodex` / `npm update -g devcodex`；GitHub 组织仓与 npm 模块身份分离；`package.json` name=`devcodex`；撤销 `devcodex` 误绑。
 pm install|update -g 对齐 devcodex；alidate-profile 识别 scoped 包名；修复正则字面量中 / 截断；managed deployment-manifest package 字段同步。

@@ -323,7 +323,7 @@ function buildCliExecutionCommands(ctx) {
       } else if (arg.startsWith('-')) options.errors.push(`unsupported option: ${arg}`)
       else options.candidateIds.push(arg)
     }
-    if (!['plan', 'resolve', 'match'].includes(options.action)) {
+    if (!['plan', 'resolve', 'match', 'intent'].includes(options.action)) {
       options.errors.push(`unknown skill subcommand: ${options.action || '(none)'}`)
     }
     if (options.action === 'plan' && !options.candidateIds.length) {
@@ -332,8 +332,8 @@ function buildCliExecutionCommands(ctx) {
     if (options.action === 'resolve' && !options.candidateIds.length) {
       options.errors.push('at least one skill id is required for resolve')
     }
-    if (options.action === 'match' && !options.candidateIds.length) {
-      options.errors.push('match requires a user prompt string (quote multi-word prompts)')
+    if ((options.action === 'match' || options.action === 'intent') && !options.candidateIds.length) {
+      options.errors.push(`${options.action} requires a user prompt string (quote multi-word prompts)`)
     }
     return options
   }
@@ -341,7 +341,9 @@ function buildCliExecutionCommands(ctx) {
   function printSkillFailure(options, errorCode, message, nextStep, details, exitCode) {
     const operation = options.action === 'match'
       ? 'skill.match'
-      : (options.action === 'resolve' ? 'skill.resolve' : 'skill.plan')
+      : (options.action === 'intent'
+        ? 'skill.intent'
+        : (options.action === 'resolve' ? 'skill.resolve' : 'skill.plan'))
     if (options.json) printCliJson(console, createCliFailure(operation, errorCode, message, nextStep, cliMetadata, details))
     else {
       console.log(c.red(`  [${errorCode}] ${message}`))
@@ -390,6 +392,64 @@ function buildCliExecutionCommands(ctx) {
       if (result.matched) {
         console.log(c.dim('  closed-loop: UserPromptSubmit inject (hosts with additionalContext) + Stop force on Grok when reply ignores skill'))
       }
+      console.log()
+    }
+    process.exitCode = 0
+    return publicResult
+  }
+
+  function cmdSkillIntent(options) {
+    let routeWorkspaceSkillIntent
+    try {
+      ;({ routeWorkspaceSkillIntent } = require('../../hooks/_runtime/workspace-skill-intent.cjs'))
+    } catch (error) {
+      printSkillFailure(options, 'SKILL_INTENT_UNAVAILABLE', error.message, 'Reinstall DevCodex runtime hooks and retry.', null, 1)
+      return null
+    }
+    const prompt = options.candidateIds.join(' ')
+    const result = routeWorkspaceSkillIntent(prompt, {
+      cwd: process.cwd(),
+      consumerAuthority: 'cli'
+    })
+    const publicResult = {
+      mode: result.mode,
+      matched: result.matched,
+      skillId: result.skillId,
+      decision: result.decision,
+      mustReply: result.mustReply,
+      selectedLayer: result.selectedLayer,
+      selectedPath: result.selectedPath,
+      digest: result.digest,
+      alwaysOn: result.alwaysOn,
+      catalogDigest: result.catalog && result.catalog.digest,
+      entryExists: result.entry && result.entry.exists,
+      content: options.json ? result.content : undefined,
+      injectionText: options.json
+        ? result.injectionText
+        : (result.injectionText ? '[present; use --json for full inject text]' : '')
+    }
+    if (options.json) {
+      printCliJson(console, {
+        schemaVersion: 'DevCodexCliEnvelopeV1',
+        operation: 'skill.intent',
+        ok: true,
+        result: options.json ? result : publicResult
+      })
+    } else {
+      console.log()
+      console.log(c.bold('  DevCodex WorkspaceSkillIntent'))
+      console.log(`  ${c.cyan('prompt'.padEnd(16))} ${prompt}`)
+      console.log(`  ${c.cyan('mode'.padEnd(16))} ${result.mode}`)
+      console.log(`  ${c.cyan('matched'.padEnd(16))} ${result.matched}`)
+      console.log(`  ${c.cyan('skillId'.padEnd(16))} ${result.skillId || '(none)'}`)
+      console.log(`  ${c.cyan('source'.padEnd(16))} ${(result.decision && result.decision.source) || '(none)'}`)
+      console.log(`  ${c.cyan('score'.padEnd(16))} ${result.decision && result.decision.score != null ? result.decision.score : '(n/a)'}`)
+      console.log(`  ${c.cyan('layer'.padEnd(16))} ${result.selectedLayer || '(none)'}`)
+      console.log(`  ${c.cyan('mustReply'.padEnd(16))} ${result.mustReply || '(none)'}`)
+      console.log(`  ${c.cyan('reasons'.padEnd(16))} ${((result.decision && result.decision.reasons) || []).join(', ') || '(none)'}`)
+      console.log(`  ${c.cyan('entry'.padEnd(16))} ${result.entry && result.entry.exists ? 'DEVCODEX.md ok' : 'missing'}`)
+      console.log(c.dim('  default route: catalog + intent; legacy: DEVCODEX_SKILL_MATCH_MODE=legacy-token'))
+      console.log(c.dim('  closed-loop: UPS inject + Stop force when matched skill ignored'))
       console.log()
     }
     process.exitCode = 0
@@ -458,7 +518,7 @@ function buildCliExecutionCommands(ctx) {
         options,
         'CLI_INVALID_OPTION',
         options.errors.join('; '),
-        'Use: devcodex skill plan <candidate...> | skill resolve <id...> | skill match <prompt...> [--json]',
+        'Use: devcodex skill plan <candidate...> | skill resolve <id...> | skill match <prompt...> | skill intent <prompt...> [--json]',
         { errors: options.errors },
         2
       )
@@ -466,6 +526,7 @@ function buildCliExecutionCommands(ctx) {
     }
     if (options.action === 'resolve') return cmdSkillResolve(options)
     if (options.action === 'match') return cmdSkillMatch(options)
+    if (options.action === 'intent') return cmdSkillIntent(options)
     let portfolio
     try {
       portfolio = readSkillPortfolio()

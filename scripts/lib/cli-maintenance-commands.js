@@ -853,7 +853,7 @@ function buildCliMaintenanceCommands(ctx) {
       const mod = workspaceSkills.autoMatchModule ? 'AutoMatch module OK' : 'AutoMatch module missing'
       console.log(`  workspace skills: ${c.cyan(String(workspaceSkills.count || 0))}  ${c.dim(`enabled=${workspaceSkills.enabled !== false}; ${mod}`)}`)
       console.log(c.dim(`  W root: ${workspaceSkills.root || '(none)'} · ids: ${ids}`))
-      console.log(c.dim('  diagnose: devcodex skill match "<prompt>" · skill resolve <id> · npm run test:skill-automatch-accept'))
+      console.log(c.dim('  diagnose: devcodex skill intent "<prompt>" · skill match "<prompt>" · skill resolve <id> · npm run test:workspace-skill-intent-e2e'))
     }
     console.log()
     console.log(c.bold('  User-global host adapters:'))
@@ -1031,7 +1031,8 @@ function buildCliMaintenanceCommands(ctx) {
       ${c.cyan('trace show|replay')} Read LocalTaskTrace; trace show --completion reads receipt identities
       ${c.cyan('skill plan')}        Plan a dependency-closed whole-SKILL bundle; add --json for BundleDecisionV2
       ${c.cyan('skill resolve')}     Resolve skill ids W>G (workspace skills vs global); --json
-      ${c.cyan('skill match')}       Auto-match user prompt to workspace skill (P0.5 closed loop); --json
+      ${c.cyan('skill intent')}      Intent-route prompt → workspace skill (default catalog path); --json
+      ${c.cyan('skill match')}       Legacy token auto-match (P0.5); prefer skill intent; --json
       ${c.cyan('task resolve')}      Resolve an active task by exact name, alias, project, or stable taskId
       ${c.cyan('task verify')}       Reconcile one task; exact --task or unique-active fallback
       ${c.cyan('task risk')}         Accept/revoke explicit, candidate-bound waivable risk

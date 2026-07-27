@@ -115,6 +115,13 @@ function buildCliRuntimeUtils({
     fs.mkdirSync(path.join(runtimeRoot, '.memory'), { recursive: true })
     fs.mkdirSync(path.join(runtimeRoot, '.audit-state'), { recursive: true })
     ensureRuntimeDataTemplates(runtimeRoot, dryRun)
+    // P0-1: workspace entry + skills dir under .devcodex/workspace/
+    try {
+      const { ensureDevcodexMdTemplate } = require('../../hooks/_runtime/devcodex-md-entry.cjs')
+      ensureDevcodexMdTemplate(cwd, { dryRun: false })
+    } catch {
+      /* layout not ready or optional during partial installs */
+    }
     return runtimeRoot
   }
 

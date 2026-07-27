@@ -20,7 +20,8 @@
 | `devcodex doctor` | 宿主诊断（`--completion` / `--json`） |
 | `devcodex probe` | 有界本地探针（`--json`） |
 | `devcodex trace show\|replay` | LocalTaskTrace |
-| `devcodex skill plan\|resolve\|match` | Skill bundle 计划 / W>G resolve / 工作区 Skill 匹配 |
+| `devcodex skill plan\|resolve\|match\|intent` | Skill bundle 计划 / W>G resolve / 工作区 match / 意图路由（含全局 verify 启发式） |
+| 技能加载怎么验 | 见 [技能加载与验证](/guide/skills-loading)（`验证技能加载` → `SKILL-LOAD-VERIFY-OK`；无强制元行） |
 | `devcodex task resolve\|verify\|risk` | 任务名续接 / 对账 / 可放弃风险 |
 
 常用验证（维护者）：`npm run test:core` · `npm run test:workflow-capabilities` · `npm run test:docs-surface-inventory` · `npm run test:process-enforcement-e2e` · `npm run test:host-parity` · `npm run test:public-text-integrity` · `npm run test:stop-gate`。站点构建见 `website/`（Rspress，Node `^20.19 \|\| >=22.12`）。

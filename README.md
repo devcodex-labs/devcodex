@@ -592,7 +592,7 @@ README / 用户使用文档当前补充四类专项 Skill：`user-manual-authori
 >
 > **能力差异**：🟢 Full = 已验证 Hook 事件 + MCP + 自动同步；🟡 Beta/Best-effort = 尚未达到 Full，具体能力以矩阵各列为准；🔴 Unsupported = 不在当前本地 adapter 发布范围。默认 `safety-only` 下，bootstrap / CP / auto 白名单等流程问题为提醒并继续，仅危险命令硬拦；设置 `DEVCODEX_HOOK_ENFORCEMENT=strict` 后，支持硬拦的事件才会停止流程。
 >
-> **MCP 边界**：Copilot CLI、Claude、Codex 与 Grok 的 MCP 配置指向各自用户级稳定 runtime；server 再从宿主 cwd 发现 workspace `.devcodex`。源码仓受版本控制的 `.mcp.json` 仅是包开发清单。Copilot IDE 与 Copilot CLI 是不同 surface，不能用 CLI 配置反推 IDE Hook/MCP 已生效。
+> **MCP 边界**：Copilot CLI、Claude、Codex 与 Grok 的 MCP 配置指向各自用户级稳定 runtime；server 再从宿主 cwd 发现 workspace `.devcodex`。源码仓受版本控制的 `.mcp.json` 仅是包开发清单。**VS Code 用户级** `mcp.json`（全局，`MCP: Open User Configuration`）在 `global-adapters apply` / 全局安装刷新 **与五宿主同一事务** 中合并写入 `devcodex-memory` / `devcodex-profile`（保留其它 servers/inputs）；这与 Copilot CLI 的 `~/.copilot/mcp-config.json` 是不同文件。Copilot IDE 的 Hooks 能力仍可能弱于 CLI，不能用 CLI Hook 结论反推 IDE 已全量硬拦。
 
 ### 当前 MCP 清单与新增能力判断
 

@@ -274,6 +274,35 @@ assert.strictEqual(copilotHooks.hooks.PreToolUse[0].matcher, '*')
 const copilotMcp = JSON.parse(fs.readFileSync(path.join(home, '.copilot', 'mcp-config.json'), 'utf8'))
 assert.strictEqual(copilotMcp.theme, 'user-owned')
 assert.ok(copilotMcp.mcpServers.custom)
+// VS Code User mcp.json co-refreshed with the same apply (global surface)
+const vscodeMcpPath = path.join(home, 'AppData', 'Roaming', 'Code', 'User', 'mcp.json')
+assert.strictEqual(fs.existsSync(vscodeMcpPath), true, 'apply must write VS Code User mcp.json')
+const vscodeMcp = JSON.parse(fs.readFileSync(vscodeMcpPath, 'utf8'))
+assert.ok(vscodeMcp.servers, 'VS Code mcp.json must have servers')
+for (const name of ['devcodex-memory', 'devcodex-profile']) {
+  assert.ok(vscodeMcp.servers[name], `VS Code servers missing ${name}`)
+  assert.strictEqual(vscodeMcp.servers[name].command, 'node')
+  assert.ok(
+    String(vscodeMcp.servers[name].args[0]).includes('memory-server.js') ||
+    String(vscodeMcp.servers[name].args[0]).includes('profile-server.js') ||
+    name === 'devcodex-memory' || name === 'devcodex-profile'
+  )
+}
+assert.ok(String(vscodeMcp.servers['devcodex-memory'].args[0]).replace(/\\/g, '/').includes('/mcp/memory-server.js'))
+assert.ok(String(vscodeMcp.servers['devcodex-profile'].args[0]).replace(/\\/g, '/').includes('/mcp/profile-server.js'))
+// preserve non-DevCodex keys on re-apply
+fs.writeFileSync(vscodeMcpPath, JSON.stringify({
+  inputs: [{ id: 'KEEP_ME', type: 'promptString' }],
+  servers: {
+    custom: { command: 'echo', args: ['hi'] },
+    'devcodex-memory': { command: 'node', args: ['old'] }
+  }
+}, null, 2))
+assert.strictEqual(applyGlobalHostConfig({ packageRoot, env, home }).transaction.status, 'committed')
+const vscodeMerged = JSON.parse(fs.readFileSync(vscodeMcpPath, 'utf8'))
+assert.strictEqual(vscodeMerged.inputs[0].id, 'KEEP_ME')
+assert.strictEqual(vscodeMerged.servers.custom.command, 'echo')
+assert.ok(String(vscodeMerged.servers['devcodex-memory'].args[0]).includes('memory-server.js'))
 for (const name of ['devcodex-memory', 'devcodex-profile']) {
   assert.strictEqual(copilotMcp.mcpServers[name].type, 'local')
   assert.deepStrictEqual(copilotMcp.mcpServers[name].tools, ['*'])

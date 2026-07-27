@@ -231,6 +231,40 @@ function buildCopilotMcpServers(runtimeRoot) {
   )
 }
 
+/** VS Code user mcp.json "servers" entries (stdio). */
+function buildVscodeMcpServers (runtimeRoot) {
+  return Object.fromEntries(
+    Object.entries(buildMcpServers(runtimeRoot)).map(([name, server]) => [
+      name,
+      {
+        type: 'stdio',
+        command: server.command,
+        args: server.args
+      }
+    ])
+  )
+}
+
+/**
+ * Merge DevCodex servers into VS Code User mcp.json without wiping inputs / other servers.
+ */
+function mergeVscodeUserMcpContent (existingText, runtimeRoot) {
+  let doc = {}
+  try {
+    doc = parseJsonObject(existingText, 'VS Code user mcp.json')
+  } catch {
+    doc = {}
+  }
+  if (!doc.servers || typeof doc.servers !== 'object' || Array.isArray(doc.servers)) {
+    doc.servers = {}
+  }
+  const managed = buildVscodeMcpServers(runtimeRoot)
+  for (const [name, server] of Object.entries(managed)) {
+    doc.servers[name] = server
+  }
+  return `${JSON.stringify(doc, null, 2)}\n`
+}
+
 function codexTomlBlock(target) {
   const servers = buildMcpServers(target.runtimeRoot)
   return [
@@ -299,6 +333,30 @@ function addCopilotPlan(operations, target, packageRoot, fsImpl) {
     'json',
     `${JSON.stringify(mcp, null, 2)}\n`
   )
+  // Co-refresh VS Code User mcp.json (global) on the same apply transaction as Copilot host
+  const vscodePaths = []
+  if (target.files && target.files.vscodeMcp) vscodePaths.push(target.files.vscodeMcp)
+  if (Array.isArray(target.additionalFiles)) {
+    for (const file of target.additionalFiles) {
+      if (file && /mcp\.json$/i.test(file)) vscodePaths.push(file)
+    }
+  }
+  const seenVscode = new Set()
+  for (const vscodeMcpPath of vscodePaths) {
+    const key = portable(vscodeMcpPath)
+    if (seenVscode.has(key)) continue
+    seenVscode.add(key)
+    const existing = readText(vscodeMcpPath, fsImpl)
+    const merged = mergeVscodeUserMcpContent(existing, target.runtimeRoot)
+    addFileOperation(
+      operations,
+      target.host,
+      vscodeMcpPath,
+      merged,
+      'json',
+      merged
+    )
+  }
 }
 
 function addClaudePlan(operations, target, packageRoot, fsImpl) {
@@ -1201,6 +1259,8 @@ module.exports = {
   buildGlobalHostConfigPlan,
   buildCopilotMcpServers,
   buildMcpServers,
+  buildVscodeMcpServers,
+  mergeVscodeUserMcpContent,
   copilotHookDocument,
   digestPlan,
   inspectGlobalHostConfig,

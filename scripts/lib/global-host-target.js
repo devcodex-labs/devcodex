@@ -25,6 +25,45 @@ function hostRoot(host, home, env) {
   throw new Error(`GLOBAL_HOST_UNSUPPORTED: ${host}`)
 }
 
+/**
+ * VS Code user-profile MCP config (global, all workspaces).
+ * Prefer paths under the resolved home so tests with a temp home never touch real APPDATA.
+ * Override: DEVCODEX_VSCODE_MCP_PATH (single file) or DEVCODEX_VSCODE_USER_DIR.
+ */
+function resolveVscodeAppDataRoot (home, env = process.env) {
+  const homeAbs = path.resolve(home)
+  if (process.platform === 'win32') {
+    const appData = env.APPDATA && isUnder(homeAbs, env.APPDATA)
+      ? path.resolve(env.APPDATA)
+      : path.join(homeAbs, 'AppData', 'Roaming')
+    return appData
+  }
+  if (process.platform === 'darwin') {
+    return path.join(homeAbs, 'Library', 'Application Support')
+  }
+  const xdg = env.XDG_CONFIG_HOME && isUnder(homeAbs, env.XDG_CONFIG_HOME)
+    ? path.resolve(env.XDG_CONFIG_HOME)
+    : path.join(homeAbs, '.config')
+  return xdg
+}
+
+function resolveVscodeUserMcpPaths (home, env = process.env, fsImpl = fs) {
+  if (env.DEVCODEX_VSCODE_MCP_PATH) {
+    return [path.resolve(env.DEVCODEX_VSCODE_MCP_PATH)]
+  }
+  if (env.DEVCODEX_VSCODE_USER_DIR) {
+    return [path.join(path.resolve(env.DEVCODEX_VSCODE_USER_DIR), 'mcp.json')]
+  }
+  const appData = resolveVscodeAppDataRoot(home, env)
+  const paths = [path.join(appData, 'Code', 'User', 'mcp.json')]
+  // Also refresh Insiders when that product tree already exists (do not create product shell only for us)
+  const insidersUser = path.join(appData, 'Code - Insiders', 'User')
+  if (fsImpl.existsSync(path.join(appData, 'Code - Insiders')) || fsImpl.existsSync(insidersUser)) {
+    paths.push(path.join(insidersUser, 'mcp.json'))
+  }
+  return paths
+}
+
 function resolveGlobalSharedTarget(home, env = process.env) {
   const root = path.resolve(env.DEVCODEX_GLOBAL_SHARED_ROOT || path.join(home, '.agents'))
   // SCAN root (host L1). Optional DEVCODEX_GLOBAL_SKILLS_ROOT still overrides scan path for legacy tests.
@@ -126,16 +165,22 @@ function resolveGlobalHostTarget(host, options = {}) {
   }
 
   if (normalized === 'copilot') {
+    const vscodeMcpPaths = resolveVscodeUserMcpPaths(home, env)
+    const vscodeUserDirs = [...new Set(vscodeMcpPaths.map(file => path.dirname(file)))]
     return assertTargetBoundary({
       ...common,
       support: 'contract-fixture',
-      evidenceCeiling: 'Copilot CLI user instructions, Hooks, MCP, and Skills; direct CLI execution is environment-dependent',
+      evidenceCeiling: 'Copilot CLI user instructions, Hooks, MCP, and Skills; VS Code user mcp.json is co-refreshed with apply',
       files: {
         instructions: path.join(root, 'copilot-instructions.md'),
         hooks: path.join(root, 'hooks', 'devcodex.json'),
         mcp: path.join(root, 'mcp-config.json'),
-        skills: path.join(root, 'skills')
-      }
+        skills: path.join(root, 'skills'),
+        // Primary VS Code User MCP (first path); extras go via additionalFiles
+        vscodeMcp: vscodeMcpPaths[0]
+      },
+      additionalRoots: [shared.root, ...vscodeUserDirs],
+      additionalFiles: vscodeMcpPaths.slice(1)
     })
   }
   if (normalized === 'claude') {
@@ -205,6 +250,8 @@ module.exports = {
   resolveGlobalHostTarget,
   resolveGlobalHostTargets,
   resolveHome,
+  resolveVscodeAppDataRoot,
+  resolveVscodeUserMcpPaths,
   samePath,
   targetAcceptsPath
 }

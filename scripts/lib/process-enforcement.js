@@ -23,6 +23,16 @@ const ERROR_CODES = Object.freeze({
    * yes-implement / Batch mutation must not skip CP3 materialization (ESC-01 / P0-1 process gate).
    */
   IMPLEMENT_START_WITHOUT_PROCESS: 'implement-start-without-process',
+  /**
+   * Control-plane mutation with no bound requirement/bug task root.
+   * Fail-closed so "do the feature" cannot mutate scripts/hooks without a task package
+   * (promise-to-follow-process then skip was an unbound-task loophole).
+   */
+  IMPLEMENT_START_WITHOUT_TASK_BINDING: 'implement-start-without-task-binding',
+  /**
+   * Control-plane mutation without CP1/CP2 design artifacts (01 需求确认 and/or 02 技术方案方案).
+   */
+  IMPLEMENT_START_WITHOUT_DESIGN: 'implement-start-without-design',
   /** Completion claim without discoverable stage report path */
   STAGE_REPORT_MISSING: 'stage-report-missing',
   /** Over-claim progress without validation evidence rows */
@@ -281,6 +291,43 @@ function probeProcessTriad (taskRoot, fsys = null) {
  * }} input
  * @returns {{ ok: boolean, code: string|null, missing: string[], triad: object|null }}
  */
+function listDirNames (root, fsImpl) {
+  try {
+    if (!fsImpl || typeof fsImpl.readdirSync !== 'function') return []
+    return fsImpl.readdirSync(root)
+  } catch {
+    return []
+  }
+}
+
+function probeDesignArtifacts (taskRoot, fsImpl) {
+  const fsx = fsImpl || { existsSync: () => false, readdirSync: () => [] }
+  const names = listDirNames(taskRoot, fsx)
+  const has01 = names.some(n =>
+    /^01-.*需求确认/i.test(n) ||
+    /^01-.*问题确认/i.test(n) ||
+    /^01-.*产品需求/i.test(n) ||
+    n === '01-需求确认.md' ||
+    n === '01-问题确认.md'
+  ) || (fsx.existsSync && (
+    fsx.existsSync(path.join(taskRoot, '01-需求确认.md')) ||
+    fsx.existsSync(path.join(taskRoot, '01-问题确认.md'))
+  ))
+  const has02 = names.some(n =>
+    /^02-.*技术方案/i.test(n) ||
+    n === '02-技术方案.md'
+  ) || (fsx.existsSync && fsx.existsSync(path.join(taskRoot, '02-技术方案.md')))
+  const has00 = names.some(n =>
+    /^00-.*概况/i.test(n) ||
+    n === '00-需求概况.md' ||
+    n === '00-问题概况.md'
+  ) || (fsx.existsSync && (
+    fsx.existsSync(path.join(taskRoot, '00-需求概况.md')) ||
+    fsx.existsSync(path.join(taskRoot, '00-问题概况.md'))
+  ))
+  return { has00, has01, has02 }
+}
+
 function classifyImplementStartGate (input = {}) {
   if (input.skip === true) {
     return { ok: true, code: null, missing: [], triad: null }
@@ -293,16 +340,42 @@ function classifyImplementStartGate (input = {}) {
   }
   const root = input.taskRoot
   if (!root) {
-    // No bound task: cannot enforce triad; caller may still require task binding elsewhere
-    return { ok: true, code: null, missing: [], triad: null, unbound: true }
+    // Fail-closed: unbound control-plane mutation was the loophole for
+    // "will follow process" then edit scripts/hooks without any requirement dir.
+    return {
+      ok: false,
+      code: ERROR_CODES.IMPLEMENT_START_WITHOUT_TASK_BINDING,
+      missing: ['bound-requirement-or-bug-task'],
+      triad: null,
+      unbound: true
+    }
   }
-  const triad = probeProcessTriad(root, input.fs || null)
+  const fsImpl = input.fs || null
+  const triad = probeProcessTriad(root, fsImpl)
   if (triad.missing.length) {
     return {
       ok: false,
       code: ERROR_CODES.IMPLEMENT_START_WITHOUT_PROCESS,
       missing: triad.missing,
       triad
+    }
+  }
+  // Control-plane / implement-start also need design artifacts (概况/确认/方案 at least 01+02 or 02)
+  const requireDesign = input.requireDesignArtifacts !== false
+  if (requireDesign && input.controlPlaneMutation === true) {
+    const design = probeDesignArtifacts(root, fsImpl)
+    const missingDesign = []
+    if (!design.has02) missingDesign.push('02-技术方案.md')
+    if (!design.has01 && !design.has00) missingDesign.push('00-概况-or-01-确认')
+    // Prefer 02 always; also require 00 or 01 so pure-02 without product intake is not enough alone for full CP story
+    if (!design.has02 || (!design.has01 && !design.has00)) {
+      return {
+        ok: false,
+        code: ERROR_CODES.IMPLEMENT_START_WITHOUT_DESIGN,
+        missing: missingDesign.length ? missingDesign : ['01-需求确认.md', '02-技术方案.md'],
+        triad,
+        design
+      }
     }
   }
   return { ok: true, code: null, missing: [], triad }

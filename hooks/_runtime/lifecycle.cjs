@@ -1521,25 +1521,37 @@ async function main() {
           ? findIncompleteTaskForPaths(payload, state)
           : null
         const bound = task || (typeof findIncompleteTask === 'function' ? findIncompleteTask(state) : null)
-        if (bound && bound.fullPath) {
-          const startGate = classifyImplementStartGate({
-            controlPlaneMutation: true,
-            taskRoot: bound.fullPath,
-            fs
-          })
-          if (!startGate.ok) {
-            const code = startGate.code || PROCESS_ENFORCEMENT_CODES.IMPLEMENT_START_WITHOUT_PROCESS
-            state.lastReason = code
-            saveState(state)
-            writeStdout(buildInterceptionOutput(
-              state, platform, eventName, INTERCEPTION_ACTION.REQUIRE_COMPLETION,
-              code,
-              'Implement process triad required',
-              `控制面 mutation 前须在任务目录齐备 04-实施计划.md + 05-实施进度.md + 复审清单（缺: ${(startGate.missing || []).join(', ')}）：${bound.name || bound.fullPath}`,
-              'Create 04-实施计划.md, 05-实施进度.md, and 03-复审清单*.md under the active requirement before mutating hooks/skills/instructions.'
-            ))
-            return
+        // Fail-closed when no bound task: was the loophole for skip-process after promising 概况/方案
+        const taskRoot = bound && bound.fullPath ? bound.fullPath : null
+        const startGate = classifyImplementStartGate({
+          controlPlaneMutation: true,
+          taskRoot,
+          fs
+        })
+        if (!startGate.ok) {
+          const code = startGate.code || PROCESS_ENFORCEMENT_CODES.IMPLEMENT_START_WITHOUT_PROCESS
+          state.lastReason = code
+          saveState(state)
+          let detail
+          let next
+          if (code === PROCESS_ENFORCEMENT_CODES.IMPLEMENT_START_WITHOUT_TASK_BINDING || startGate.unbound) {
+            detail = '控制面 mutation 必须绑定 active 需求/bug 任务目录（禁止无任务包直接改 hooks/scripts/instructions）。'
+            next = 'Create or resume a requirements/<name>/ package (00/01/02 + 04/05/checklist), bind the task, then retry the edit.'
+          } else if (code === PROCESS_ENFORCEMENT_CODES.IMPLEMENT_START_WITHOUT_DESIGN) {
+            detail = `控制面 mutation 前须有设计产物（缺: ${(startGate.missing || []).join(', ')}）${bound ? `：${bound.name || bound.fullPath}` : ''}`
+            next = 'Write 00-需求概况/01-需求确认 and 02-技术方案 under the bound task, then 04/05/checklist, then mutate control-plane files.'
+          } else {
+            detail = `控制面 mutation 前须在任务目录齐备 04-实施计划.md + 05-实施进度.md + 复审清单（缺: ${(startGate.missing || []).join(', ')}）：${bound ? (bound.name || bound.fullPath) : ''}`
+            next = 'Create 04-实施计划.md, 05-实施进度.md, and 03-复审清单*.md under the active requirement before mutating hooks/skills/instructions.'
           }
+          writeStdout(buildInterceptionOutput(
+            state, platform, eventName, INTERCEPTION_ACTION.REQUIRE_COMPLETION,
+            code,
+            'Implement process gate required',
+            detail,
+            next
+          ))
+          return
         }
       }
     }

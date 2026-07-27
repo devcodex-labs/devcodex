@@ -264,8 +264,18 @@ function testImplementStartGate() {
     fs.writeFileSync(path.join(root, '04-实施计划.md'), '#')
     fs.writeFileSync(path.join(root, '05-实施进度.md'), '#')
     fs.writeFileSync(path.join(root, '03-复审清单-t.md'), '#')
+    // triad alone is not enough for control-plane: need 00/01 + 02 design artifacts
+    const triadOnly = classifyImplementStartGate({ controlPlaneMutation: true, taskRoot: root })
+    assert.strictEqual(triadOnly.ok, false)
+    assert.strictEqual(triadOnly.code, ERROR_CODES.IMPLEMENT_START_WITHOUT_DESIGN)
+    fs.writeFileSync(path.join(root, '00-需求概况.md'), '#')
+    fs.writeFileSync(path.join(root, '01-需求确认.md'), '#')
+    fs.writeFileSync(path.join(root, '02-技术方案.md'), '#')
     const ok = classifyImplementStartGate({ controlPlaneMutation: true, taskRoot: root })
     assert.strictEqual(ok.ok, true)
+    const unbound = classifyImplementStartGate({ controlPlaneMutation: true, taskRoot: null })
+    assert.strictEqual(unbound.ok, false)
+    assert.strictEqual(unbound.code, ERROR_CODES.IMPLEMENT_START_WITHOUT_TASK_BINDING)
     const skip = classifyImplementStartGate({ controlPlaneMutation: false, taskRoot: root })
     assert.strictEqual(skip.ok, true)
   } finally {

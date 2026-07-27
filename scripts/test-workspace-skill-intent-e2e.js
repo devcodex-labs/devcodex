@@ -91,6 +91,9 @@ function makeFixture () {
   writeSkill(gRoot, 'workspace-skill-author', fs.readFileSync(AUTHOR_SRC, 'utf8'))
 
   // triad for implement gate positive
+  fs.writeFileSync(path.join(taskRoot, '00-需求概况.md'), '# overview\n')
+  fs.writeFileSync(path.join(taskRoot, '01-需求确认.md'), '# cp1\n')
+  fs.writeFileSync(path.join(taskRoot, '02-技术方案.md'), '# design\n')
   fs.writeFileSync(path.join(taskRoot, '04-实施计划.md'), '# plan\n')
   fs.writeFileSync(path.join(taskRoot, '05-实施进度.md'), '# progress\n')
   fs.writeFileSync(path.join(taskRoot, '03-复审清单-e2e.md'), '# checklist\n')
@@ -375,6 +378,9 @@ function runLifecycle (fx, payload) {
     const bad = classifyImplementStartGate({ controlPlaneMutation: true, taskRoot: empty })
     assert.strictEqual(bad.ok, false)
     assert.strictEqual(bad.code, ERROR_CODES.IMPLEMENT_START_WITHOUT_PROCESS)
+    const unbound = classifyImplementStartGate({ controlPlaneMutation: true, taskRoot: null })
+    assert.strictEqual(unbound.ok, false)
+    assert.strictEqual(unbound.code, ERROR_CODES.IMPLEMENT_START_WITHOUT_TASK_BINDING)
     const good = classifyImplementStartGate({ controlPlaneMutation: true, taskRoot: fx.taskRoot })
     assert.strictEqual(good.ok, true)
     console.log('E2E-K PASS (implement-start gate)')

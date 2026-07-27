@@ -278,19 +278,6 @@ function probeProcessTriad (taskRoot, fsys = null) {
   return { hasPlan, hasProgress, hasChecklist, missing }
 }
 
-/**
- * Implement-start / control-plane mutation gate (pre-coding, not only completion).
- * When mutating protected control-plane paths for an active task, 04+05+checklist must exist.
- *
- * @param {{
- *   controlPlaneMutation?: boolean,
- *   implementStart?: boolean,
- *   taskRoot?: string|null,
- *   fs?: { existsSync?: Function, readdirSync?: Function },
- *   skip?: boolean
- * }} input
- * @returns {{ ok: boolean, code: string|null, missing: string[], triad: object|null }}
- */
 function listDirNames (root, fsImpl) {
   try {
     if (!fsImpl || typeof fsImpl.readdirSync !== 'function') return []
@@ -301,7 +288,8 @@ function listDirNames (root, fsImpl) {
 }
 
 function probeDesignArtifacts (taskRoot, fsImpl) {
-  const fsx = fsImpl || { existsSync: () => false, readdirSync: () => [] }
+  // Match probeProcessTriad: default to real fs when caller omits fs (tests + lifecycle)
+  const fsx = fsImpl || require('fs')
   const names = listDirNames(taskRoot, fsx)
   const has01 = names.some(n =>
     /^01-.*需求确认/i.test(n) ||
@@ -328,6 +316,20 @@ function probeDesignArtifacts (taskRoot, fsImpl) {
   return { has00, has01, has02 }
 }
 
+/**
+ * Implement-start / control-plane mutation gate (pre-coding, not only completion).
+ * Requires bound task + 04/05/checklist triad + design artifacts (00/01 + 02) for control-plane.
+ *
+ * @param {{
+ *   controlPlaneMutation?: boolean,
+ *   implementStart?: boolean,
+ *   taskRoot?: string|null,
+ *   fs?: { existsSync?: Function, readdirSync?: Function },
+ *   skip?: boolean,
+ *   requireDesignArtifacts?: boolean
+ * }} input
+ * @returns {{ ok: boolean, code: string|null, missing: string[], triad: object|null, unbound?: boolean, design?: object }}
+ */
 function classifyImplementStartGate (input = {}) {
   if (input.skip === true) {
     return { ok: true, code: null, missing: [], triad: null }

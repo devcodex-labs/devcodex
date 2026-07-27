@@ -542,7 +542,7 @@ devcodex/
 ├── instructions.md # 单源完整规范；确定性生成精简 host kernel、薄 wrapper 与非 always-on full fallback
 ├── agents/        # Agent 源文件；Copilot 端默认分发，Claude Code 端不分发
 ├── instructions/  # 全局 Instructions（15 个，含工作流规则摘要，自动注入）
-├── skills/        # Skill 详细检查标准（85 个，按 01-common §按需读取表 路由读取）
+├── skills/        # Skill 详细检查标准（86 个，按 01-common §按需读取表 路由读取）
 ├── prompts/       # Prompt 模板（30 个）
 ├── hooks/         # 包内 Hook 配置与稳定 runtime 源；npm 全局生命周期投影到各宿主用户级目录
 ├── codex/         # Codex adapter 源模板（分发到 `.codex/hooks.json`，不是工作区部署副本 `.codex/`）
@@ -554,7 +554,7 @@ devcodex/
 ```
 
 其中 `instructions.md` 汇总 Instructions 约束（15 个，含全部工作流规则）；宿主始终可见入口只投影受预算约束的精简 kernel。
-Skill 详细检查标准（85 个，按需读取；具体路由仍以 `01-common` 的按需读取表为准）。
+Skill 详细检查标准（86 个，按需读取；具体路由仍以 `01-common` 的按需读取表为准）。
 
 规范治理由 `spec-governance` 与 `spec-absorption` 分工：`spec-governance` 负责 `PostAssessmentGovernanceIntakeGate`、RecordRouter、真实落账验证、SCV 和 `GovernanceGateRegistry`；`spec-absorption` 负责最新可吸纳、仍需吸纳和 `.devcodex/*/data` 候选扫描、通用性证明、`AbsorptionCandidateMatrixV1` 结构化规划与分层实现。所有模式下每条非空用户消息都会先登记中性 candidate，再由 AI 在合理性评估、项目现实扩展和上下文归因后按语义形成 `GovernanceIntakeDecision`；关键词不具有触发或分类权威。复合意图逐项写入 `violations / pending-fixes / process-improvements（优化清单，PI） / pending-issues / gap-registry`，只有成功 PostToolUse 对当前 active-root 的精确台账写入及落盘 ID 复证后才算 verified；`record.none` 也必须提供完整 challenge evidence。
 

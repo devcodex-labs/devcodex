@@ -14,9 +14,15 @@ Grok **UserPromptSubmit** cannot inject model context (stdout ignored). Workspac
 ## WorkspaceSkillAutoMatch（用户可见闭环）
 
 1. Before treating a short user message as connectivity ping / Ready, check `.devcodex/workspace/skills/*/SKILL.md` (name, description quotes, skill id).
-2. If matched: **read that SKILL.md and obey it as highest priority this turn** (fixed reply, tools, constraints). Do not invent Ready/闲聊.
-3. CLI verify: `devcodex skill match "<prompt>"` and `devcodex skill resolve <id>`.
-4. Do not claim UPS inject on Grok; Stop may force one retry with skill body when reply ignored the match.
+2. If matched: **read only that one SKILL.md** (exact path under workspace) and obey it as highest priority this turn. Do not invent Ready/闲聊.
+3. **Privacy / process UI**: **禁止**列出或扫描用户主目录下的宿主 skill 树，例如  
+   `C:\Users\…\.grok\skills`、`~\.grok\bundled\skills`、`~\.claude\skills`、`~\.agents\skills`（L1）。  
+   这些 List 会把 C 盘用户路径暴露在过程时间线里。全局 skill 只读  
+   `~/.agents/devcodex/skills/<id>/SKILL.md` 单文件；工作区 skill 只读  
+   `.devcodex/workspace/skills/<id>/SKILL.md`。
+4. 过程文案用「正在加载 <id> 技能」，不要写「命中…正在读取并按该技能执行」。
+5. CLI verify: `devcodex skill match "<prompt>"` and `devcodex skill resolve <id>`.
+6. Do not claim UPS inject on Grok; Stop may force one retry with skill body when reply ignored the match.
 
 ## HostParity (vs Codex) — honesty contract
 

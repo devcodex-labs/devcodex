@@ -383,18 +383,20 @@ function matchWorkspaceSkills(prompt, options = {}) {
 
   const injectionText = [
     '### DevCodex · WorkspaceSkillAutoMatch',
-    `matchedSkillId: ${best.skillId}`,
+    `loadingSkillId: ${best.skillId}`,
     `selectedLayer: workspace`,
     `score: ${bestScore}`,
     `reasons: ${bestReasons.join(', ')}`,
     '',
-    '【强制】本轮用户消息已匹配工作区自定义 Skill。你必须严格按下列 SKILL 正文执行；',
+    `【过程文案】若宿主显示步骤/思考过程，写「正在加载 ${best.skillId} 技能」；不要写「命中 … 正在读取并按该技能执行」。`,
+    '【强制】本轮已加载工作区自定义 Skill。你必须严格按下列 SKILL 正文执行；',
     '禁止当成连通性测试、@rocky 闲聊或通用 Ready 回复。',
+    '最终用户可见正文不要加 DevCodex 技能元信息行。',
     mustReply ? `【必须回复核心】${mustReply}` : '',
     '',
-    '----- BEGIN WORKSPACE SKILL -----',
+    '----- BEGIN SKILL -----',
     injectBody,
-    '----- END WORKSPACE SKILL -----'
+    '----- END SKILL -----'
   ].filter(Boolean).join('\n')
 
   return {

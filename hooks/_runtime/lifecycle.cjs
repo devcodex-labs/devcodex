@@ -1665,8 +1665,12 @@ async function main() {
     if (eventName === 'PreCompact') markContextAcquisitionStale(state, 'compact')
     captureFinalPayloadSample(payload, eventName, state)
 
-    // P0-1: if UPS matched a W skill via intent and reply ignored it, Stop-force one retry.
-    if (eventName === 'Stop' && state.workspaceSkillAutoMatch && state.workspaceSkillAutoMatch.skillId) {
+    // P0-1: if a workspace/global intent skill matched, enforce mustReply/body — not a user-visible meta line.
+    if (
+      eventName === 'Stop' &&
+      state.workspaceSkillAutoMatch &&
+      state.workspaceSkillAutoMatch.skillId
+    ) {
       try {
         const {
           isIntentReplySatisfied,
@@ -1679,27 +1683,39 @@ async function main() {
         let matchForCheck = state.workspaceSkillAutoMatch
         if (!matchForCheck.content && matchForCheck.injectionText) {
           matchForCheck = {
-            matched: true,
+            matched: Boolean(matchForCheck.skillId),
             skillId: matchForCheck.skillId,
             mustReply: matchForCheck.mustReply,
             content: matchForCheck.injectionText,
-            injectionText: matchForCheck.injectionText
+            injectionText: matchForCheck.injectionText,
+            skillLoadReceiptRequired: false,
+            skillLoadReceipt: ''
           }
         } else if (!matchForCheck.injectionText && matchForCheck.skillId) {
           const rematch = routeWorkspaceSkillIntent(matchForCheck.skillId, { cwd: CONTEXT_ROOT })
           if (rematch.matched) {
             matchForCheck = {
-              matched: true,
+              matched: rematch.matched,
               skillId: rematch.skillId,
               mustReply: rematch.mustReply,
               content: rematch.content,
-              injectionText: rematch.injectionText
+              injectionText: rematch.injectionText,
+              skillLoadReceiptRequired: false,
+              skillLoadReceipt: ''
             }
           } else {
-            matchForCheck = { ...matchForCheck, matched: true }
+            matchForCheck = {
+              ...matchForCheck,
+              matched: Boolean(matchForCheck.skillId),
+              skillLoadReceiptRequired: false
+            }
           }
         } else {
-          matchForCheck = { ...matchForCheck, matched: true }
+          matchForCheck = {
+            ...matchForCheck,
+            matched: Boolean(matchForCheck.skillId),
+            skillLoadReceiptRequired: false
+          }
         }
 
         const satisfied = isIntentReplySatisfied(lastAssistant, matchForCheck)
@@ -1717,14 +1733,14 @@ async function main() {
               enforceCount: enforceCount + 1,
               lastEnforceAt: new Date().toISOString()
             }
-            state.lastReason = `workspace-skill-intent-stop:${state.workspaceSkillAutoMatch.skillId}`
+            state.lastReason = `workspace-skill-intent-stop:${matchForCheck.skillId}`
             const output = decorateHookOutput(
               blockOutput(platform, 'Stop', 'workspace-skill-intent', reason),
               {
                 devcodexAction: INTERCEPTION_ACTION.FORBID,
                 devcodexCode: 'workspace-skill-intent',
                 devcodexEffective: true,
-                devcodexNextStep: 'Reply following the matched workspace skill body.'
+                devcodexNextStep: 'Follow matched skill body / must-reply (no meta skill line required).'
               }
             )
             // Also top-level decision for Grok/Codex adapters

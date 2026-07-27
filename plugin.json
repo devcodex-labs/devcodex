@@ -452,6 +452,11 @@
       "id": "workspace-skill-author",
       "file": "skills/workspace-skill-author/SKILL.md",
       "tier": "free"
+    },
+    {
+      "id": "skill-load-verify",
+      "file": "skills/skill-load-verify/SKILL.md",
+      "tier": "free"
     }
   ],
   "instructions": [

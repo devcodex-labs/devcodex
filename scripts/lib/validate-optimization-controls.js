@@ -164,10 +164,10 @@ function buildOptimizationControlChecks(ctx) {
 
     const portfolio = buildPortfolio(ROOT)
     const portfolioErrors = validatePortfolio(portfolio)
-    if (portfolio.summary.skillCount !== 85) err(`[V92] expected 85 skills, got ${portfolio.summary.skillCount}`)
+    if (portfolio.summary.skillCount !== 86) err(`[V92] expected 86 skills, got ${portfolio.summary.skillCount}`)
     if (portfolio.summary.graySkillCount !== 3) err(`[V92] expected three gray skills, got ${portfolio.summary.graySkillCount}`)
     if (portfolio.summary.dependencyEdgeCount < 1) err('[V92] explicit Skill dependency graph has no edges')
-    if (portfolio.summary.operationalEvidenceCompleteCount !== 85) err('[V92] operational lifecycle evidence is incomplete')
+    if (portfolio.summary.operationalEvidenceCompleteCount !== 86) err('[V92] operational lifecycle evidence is incomplete')
     if (portfolio.summary.triggerQuality !== 'mixed') err('[V92] trigger precision must reflect measured kernel samples')
     if (!Number.isInteger(portfolio.generatedFrom.consumerInventoryFileCount) || portfolio.generatedFrom.consumerInventoryFileCount < 50) {
       err('[V92] portfolio consumer inventory is missing or unexpectedly small')

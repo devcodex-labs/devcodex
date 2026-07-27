@@ -16,8 +16,8 @@ hero:
 features:
   - title: 🎯 结构化工作流
     details: 8 种工作流 intent（dev/fix/audit/analyze/self-fix/resume/other/chat）；plan 由 other 兜底路由 + plan Skill 承接，不是独立 workflow id
-  - title: 🛠️ 85 个 Skills
-    details: 当前源码维护 82 active + 3 gray；新增 active `host-capability-routing`，以 portable-first 方式把用户意图映射到五宿主 8 个 surface variant，证据不足时不冒充 native；另有 `requirement-parallel-orchestration`，用于多需求并行前的独立性判定、共享面锁图、LaunchCard 与汇合协议；active `repair-prevention-assessment` 负责所有 repair 的完成门禁，gray `rework-prevention-engineering` 只负责长期效果试验，gray `brand-visual-quality` 承接品牌视觉资产质量，其余覆盖开发、修复、审计、规范吸纳执行、跨仓消费者验证、用户侧文档 review 聚合、`expert-output-quality` 专家型产物质量与 21 个专家 Owner Skill，以及宿主契约验证、真相源-消费者同步
+  - title: 🛠️ 86 个 Skills
+    details: 当前源码维护 83 active + 3 gray；新增 active `host-capability-routing`，以 portable-first 方式把用户意图映射到五宿主 8 个 surface variant，证据不足时不冒充 native；另有 `requirement-parallel-orchestration`，用于多需求并行前的独立性判定、共享面锁图、LaunchCard 与汇合协议；active `repair-prevention-assessment` 负责所有 repair 的完成门禁，gray `rework-prevention-engineering` 只负责长期效果试验，gray `brand-visual-quality` 承接品牌视觉资产质量，其余覆盖开发、修复、审计、规范吸纳执行、跨仓消费者验证、用户侧文档 review 聚合、`expert-output-quality` 专家型产物质量与 21 个专家 Owner Skill，以及宿主契约验证、真相源-消费者同步
   - title: 🧩 默认五宿主
     details: npm 全局安装/升级自动配置 Copilot、Claude Code、Codex、Gemini 与 Grok 的用户级 adapter；工作区只保留 `.devcodex`。五宿主共用精简 kernel、按需 Skills 与完整回退，能力声明受 direct/fixture/instruction-backed 证据上限约束
   - title: 📦 npm 安装自动适配
@@ -33,6 +33,6 @@ features:
 ---
 
 
-> Skill 规模锚点：85 个按需触发；扁平一级 Skill（85 个）。
+> Skill 规模锚点：86 个按需触发；扁平一级 Skill（86 个）。
 >
 > Hook 能力按宿主/事件降级：默认注册 `UserPromptSubmit` / `PreToolUse` / `PostToolUse` / `PreCompact` / `Stop`。用户级 adapter 已配置不代表每个宿主事件都具备相同的硬拦能力。

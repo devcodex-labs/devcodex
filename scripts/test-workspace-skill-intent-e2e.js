@@ -16,7 +16,8 @@ const {
   selectSkillByIntent,
   isIntentReplySatisfied,
   buildIntentStopForceReason,
-  AUTHOR_SKILL_ID
+  AUTHOR_SKILL_ID,
+  VERIFY_SKILL_ID
 } = require('../hooks/_runtime/workspace-skill-intent.cjs')
 const {
   buildWorkspaceSkillCatalog
@@ -201,6 +202,9 @@ function runLifecycle (fx, payload) {
     const route = routeWorkspaceSkillIntent('随便聊聊', fx.opts)
     assert.ok(route.injectionText.includes('ENTRY-MARKER-E2E'), 'entry marker must appear')
     assert.ok(route.injectionText.includes('Workspace skills catalog') || route.injectionText.includes('catalog'))
+    // No user-visible skill meta line (retired)
+    assert.strictEqual(route.skillLoadReceiptRequired, false)
+    assert.ok(!/【DevCodex 技能】/.test(route.injectionText || ''))
     console.log('E2E-D PASS')
   } finally {
     cleanup(fx)
@@ -276,9 +280,11 @@ function runLifecycle (fx, payload) {
     const force = buildIntentStopForceReason({
       skillId: 'team-release',
       mustReply: 'RELEASE-OK-MARKER',
-      injectionText: 'BEGIN WORKSPACE SKILL\nRELEASE-OK-MARKER'
+      injectionText: 'BEGIN WORKSPACE SKILL\nRELEASE-OK-MARKER',
+      skillLoadReceiptRequired: false
     })
     assert.ok(force.includes('team-release') || force.includes('WorkspaceSkillIntent'))
+    assert.ok(!force.includes('【DevCodex 技能】'))
     assert.ok(!isIntentReplySatisfied('Ready - systems are up', {
       skillId: 'team-release',
       mustReply: 'RELEASE-OK-MARKER',
@@ -389,4 +395,45 @@ function runLifecycle (fx, payload) {
   }
 }
 
-console.log('test-workspace-skill-intent-e2e: all E2E-A～J + K passed')
+// ── E2E-L: no user-visible skill meta line; verify skill must-reply only ───
+{
+  const fx = makeFixture()
+  try {
+    const matched = routeWorkspaceSkillIntent('准备发版 release checklist', fx.opts)
+    assert.ok(matched.matched)
+    assert.strictEqual(matched.skillLoadReceiptRequired, false)
+    assert.ok(!/【DevCodex 技能】/.test(matched.injectionText || ''))
+
+    const catalogOnly = routeWorkspaceSkillIntent('今天天气怎么样', fx.opts)
+    assert.ok(!catalogOnly.matched || !catalogOnly.skillId)
+    assert.strictEqual(catalogOnly.skillLoadReceiptRequired, false)
+    assert.ok(isIntentReplySatisfied('你好', { skillId: null }))
+
+    // author still injects body, no meta line
+    const authorRoute = routeWorkspaceSkillIntent('帮我写一个 workspace skill', fx.opts)
+    assert.strictEqual(authorRoute.skillId, AUTHOR_SKILL_ID)
+    assert.ok(!/【DevCodex 技能】/.test(authorRoute.injectionText || ''))
+
+    // skill-load-verify in global root
+    writeSkill(fx.gRoot, VERIFY_SKILL_ID, fs.readFileSync(
+      path.join(__dirname, '../skills/skill-load-verify/SKILL.md'),
+      'utf8'
+    ))
+    const verify = routeWorkspaceSkillIntent('验证技能加载', fx.opts)
+    assert.strictEqual(verify.skillId, VERIFY_SKILL_ID)
+    assert.ok(verify.matched)
+    assert.strictEqual(verify.selectedLayer, 'global')
+    assert.ok((verify.injectionText || '').includes('SKILL-LOAD-VERIFY-OK'))
+    // inject may mention "meta line" guidance; final reply only needs must-reply
+    assert.ok(isIntentReplySatisfied('SKILL-LOAD-VERIFY-OK — probe ok', {
+      skillId: VERIFY_SKILL_ID,
+      mustReply: 'SKILL-LOAD-VERIFY-OK',
+      content: verify.content
+    }))
+    console.log('E2E-L PASS (no meta line + skill-load-verify)')
+  } finally {
+    cleanup(fx)
+  }
+}
+
+console.log('test-workspace-skill-intent-e2e: all E2E-A～L + K passed')

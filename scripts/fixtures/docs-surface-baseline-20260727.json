@@ -4,7 +4,7 @@
   "requirement": "maintainer-site-docs-consistency",
   "note": "Live floors for assertDocsSurfaceInventory; counts from scanDocsSurfaceInventory on package root after MCP/honesty deliveries.",
   "exact": {
-    "skills": 85,
+    "skills": 86,
     "workflows": 8,
     "mcpTools": 15,
     "hookEvents": 5,

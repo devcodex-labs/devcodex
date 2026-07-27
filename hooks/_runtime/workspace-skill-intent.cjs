@@ -34,6 +34,12 @@ const {
 const MIN_INTENT_SCORE = 12
 const MAX_INJECT_BYTES = 48 * 1024
 const AUTHOR_SKILL_ID = 'workspace-skill-author'
+/** Global probe skill: verify G load + one-line receipt (not reserved). */
+const VERIFY_SKILL_ID = 'skill-load-verify'
+
+function isGlobalInjectableSkillId (skillId) {
+  return skillId === AUTHOR_SKILL_ID || skillId === VERIFY_SKILL_ID
+}
 
 function getSkillMatchMode(env = process.env) {
   const raw = String(env.DEVCODEX_SKILL_MATCH_MODE || 'intent').trim().toLowerCase()
@@ -177,8 +183,8 @@ function validateIntentDecision(decision, catalog) {
   }
   const ids = new Set((catalog.skills || []).map(s => s.skillId))
   if (!ids.has(decision.skillId) && decision.source !== 'forced') {
-    // allow author global id not in W catalog
-    if (decision.skillId === AUTHOR_SKILL_ID) return { ok: true, decision }
+    // allow known global injectables not in W catalog
+    if (isGlobalInjectableSkillId(decision.skillId)) return { ok: true, decision }
     return { ok: false, reason: 'not-in-catalog' }
   }
   return { ok: true, decision }
@@ -192,8 +198,8 @@ function loadSkillBody(skillId, options = {}) {
   if (!content || (trace.selectedLayer !== 'workspace' && trace.selectedLayer !== 'global')) {
     return { ok: false, trace, content: null }
   }
-  // W skills for business; author may be global
-  if (skillId !== AUTHOR_SKILL_ID && trace.selectedLayer !== 'workspace' && options.requireWorkspace) {
+  // W skills for business; author / skill-load-verify may be global
+  if (!isGlobalInjectableSkillId(skillId) && trace.selectedLayer !== 'workspace' && options.requireWorkspace) {
     return { ok: false, trace, content: null }
   }
   const parsed = parseFrontmatter(content)
@@ -209,19 +215,43 @@ function buildSkillBodyInjection(skillId, content, meta = {}) {
   const must = meta.mustReply ? `【必须回复核心】${meta.mustReply}` : ''
   return [
     '### DevCodex · WorkspaceSkillIntent',
-    `matchedSkillId: ${skillId}`,
+    `loadingSkillId: ${skillId}`,
     `source: ${meta.source || 'intent'}`,
     `score: ${meta.score != null ? meta.score : ''}`,
     `reasons: ${(meta.reasons || []).join(', ')}`,
     '',
-    '【强制】本轮已按工作区 skill 意图路由选中下列规程。必须严格按 SKILL 正文执行；',
+    `【过程文案】若宿主显示步骤/思考过程，写「正在加载 ${skillId} 技能」；不要写「命中 … 正在读取并按该技能执行」。`,
+    '【隐私】禁止 List/扫描用户主目录下的 .grok/skills、.grok/bundled/skills、.claude/skills、.agents/skills 等宿主 skill 树（会暴露 C:\\Users\\… 路径）。只读已给出的单文件 SKILL 正文。',
+    '【强制】本轮已加载下列 skill 规程，必须严格按 SKILL 正文执行；',
     '禁止当成连通性测试或通用 Ready 回复。',
+    '最终用户可见正文不要加 DevCodex 技能元信息行。',
     must,
     '',
-    '----- BEGIN WORKSPACE SKILL -----',
+    '----- BEGIN SKILL -----',
     injectBody,
-    '----- END WORKSPACE SKILL -----'
+    '----- END SKILL -----'
   ].filter(Boolean).join('\n')
+}
+
+/**
+ * SkillLoadReceipt user-visible lines are retired.
+ * Visibility: host process timeline (Skill/tool events) + probe skill `skill-load-verify`
+ * (must-reply SKILL-LOAD-VERIFY-OK). Do not force 【DevCodex 技能】 into final replies.
+ */
+function formatSkillLoadLine (_options = {}) {
+  return null
+}
+
+function hasLoadedSkillsForReceipt (_options = {}) {
+  return false
+}
+
+function buildSkillLoadReceipt (_options = {}) {
+  return ''
+}
+
+function hasSkillLoadReceiptInReply (_assistantText) {
+  return false
 }
 
 function buildCatalogOnlyInjection(catalog, entry, decision) {
@@ -238,7 +268,8 @@ function buildCatalogOnlyInjection(catalog, entry, decision) {
       : '5. SuggestedDecision: none (no high-confidence match); proceed without a workspace skill unless user explicit-invokes.',
     decision && decision.skillId
       ? ''
-      : '6. If the user asks to create/edit a workspace skill or DEVCODEX.md, load global skill `workspace-skill-author` via resolve.'
+      : '6. If the user asks to create/edit a workspace skill or DEVCODEX.md, load global skill `workspace-skill-author` via resolve.',
+    '7. Do not print a user-visible DevCodex skill meta receipt line in the final reply. In process/thinking steps prefer wording like「正在加载 <id> 技能」(not「命中…正在读取并按该技能执行」). Probe with global skill `skill-load-verify` (must-reply SKILL-LOAD-VERIFY-OK only).'
   ].filter(Boolean).join('\n\n')
 }
 
@@ -274,6 +305,8 @@ function routeWorkspaceSkillIntent(prompt, options = {}) {
       selectedLayer: legacy.selectedLayer,
       selectedPath: legacy.selectedPath,
       digest: legacy.digest,
+      skillLoadReceiptRequired: false,
+      skillLoadReceipt: '',
       legacy
     }
   }
@@ -297,8 +330,21 @@ function routeWorkspaceSkillIntent(prompt, options = {}) {
     }
   }
 
+  // global verify skill: dedicated probe for load + one-line receipt
+  if (!decision.skillId && /验证\s*(一下)?\s*(技能|skill)|技能\s*加载\s*验证|skill[-\s]?load[-\s]?verify|用\s+skill-load-verify|ping\s+skill-load-verify|验证技能加载/i.test(String(prompt || ''))) {
+    decision = {
+      schemaVersion: 'WorkspaceSkillIntentDecisionV1',
+      skillId: VERIFY_SKILL_ID,
+      confidence: 0.95,
+      reasons: ['verify-intent-heuristic'],
+      source: 'verify-heuristic',
+      catalogDigest: catalog.digest,
+      score: 95
+    }
+  }
+
   const validated = validateIntentDecision(decision, catalog)
-  if (!validated.ok && decision.skillId !== AUTHOR_SKILL_ID) {
+  if (!validated.ok && !isGlobalInjectableSkillId(decision.skillId)) {
     decision = {
       ...decision,
       skillId: null,
@@ -319,7 +365,7 @@ function routeWorkspaceSkillIntent(prompt, options = {}) {
   if (decision.skillId) {
     const loaded = loadSkillBody(decision.skillId, {
       ...options,
-      requireWorkspace: decision.skillId !== AUTHOR_SKILL_ID
+      requireWorkspace: !isGlobalInjectableSkillId(decision.skillId)
     })
     if (loaded.ok) {
       matched = true
@@ -355,7 +401,9 @@ function routeWorkspaceSkillIntent(prompt, options = {}) {
   }
 
   const catalogBlock = buildCatalogOnlyInjection(catalog, entry, decision)
-  const injectionText = [catalogBlock, alwaysOnNote, bodyInjection].filter(Boolean).join('\n\n')
+  const injectionText = [catalogBlock, alwaysOnNote, bodyInjection]
+    .filter(Boolean)
+    .join('\n\n')
 
   return {
     schemaVersion: 'WorkspaceSkillIntentRouteResultV1',
@@ -371,7 +419,9 @@ function routeWorkspaceSkillIntent(prompt, options = {}) {
     selectedLayer,
     selectedPath,
     digest,
-    alwaysOn: alwaysOnIds
+    alwaysOn: alwaysOnIds,
+    skillLoadReceiptRequired: false,
+    skillLoadReceipt: ''
   }
 }
 
@@ -387,6 +437,8 @@ function toIntentStateRecord(routeResult, extra = {}) {
     decision: routeResult.decision || null,
     digest: routeResult.digest || null,
     selectedPath: routeResult.selectedPath || null,
+    skillLoadReceiptRequired: Boolean(routeResult.skillLoadReceiptRequired),
+    skillLoadReceipt: routeResult.skillLoadReceipt || '',
     enforceCount: 0,
     satisfied: false,
     matchedAt: new Date().toISOString(),
@@ -398,6 +450,7 @@ function isIntentReplySatisfied(assistantText, stateOrRoute) {
   const skillId = stateOrRoute.skillId
   const mustReply = stateOrRoute.mustReply
   const content = stateOrRoute.content || stateOrRoute.injectionText
+  // No user-visible skill meta line. Only skill body / mustReply when a skill matched.
   if (!skillId) return true
   return isSkillReplySatisfied(assistantText, {
     matched: true,
@@ -408,6 +461,9 @@ function isIntentReplySatisfied(assistantText, stateOrRoute) {
 }
 
 function buildIntentStopForceReason(stateOrRoute) {
+  if (!stateOrRoute.skillId) {
+    return 'DevCodex WorkspaceSkillIntent: no matched skill to re-enforce.'
+  }
   const matchLike = {
     matched: true,
     skillId: stateOrRoute.skillId,
@@ -425,6 +481,8 @@ module.exports = {
   MIN_INTENT_SCORE,
   MAX_INJECT_BYTES,
   AUTHOR_SKILL_ID,
+  VERIFY_SKILL_ID,
+  isGlobalInjectableSkillId,
   getSkillMatchMode,
   selectSkillByIntent,
   validateIntentDecision,
@@ -432,6 +490,10 @@ module.exports = {
   loadSkillBody,
   buildSkillBodyInjection,
   buildCatalogOnlyInjection,
+  buildSkillLoadReceipt,
+  formatSkillLoadLine,
+  hasLoadedSkillsForReceipt,
+  hasSkillLoadReceiptInReply,
   toIntentStateRecord,
   isIntentReplySatisfied,
   buildIntentStopForceReason,

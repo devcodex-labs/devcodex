@@ -139,7 +139,125 @@ function buildLifecycleDangerousCommandUtils({
     return true
   }
 
+  /**
+   * Host skill inventory roots under the user profile (privacy + UX).
+   * Listing these surfaces absolute home paths (e.g. C:\\Users\\…\\.grok\\skills) in the process UI.
+   * Allow reading a single known SKILL.md under G_RUNTIME; ban directory inventory of host skill trees.
+   */
+  function normalizePathSlash (p) {
+    return String(p || '').replace(/\\/g, '/').toLowerCase()
+  }
+
+  function isHostSkillInventoryTarget (targetPath) {
+    const n = normalizePathSlash(targetPath)
+    if (!n) return false
+    // Single skill body under DevCodex G_RUNTIME is OK
+    if (/\/\.agents\/devcodex\/skills\/[^/]+\/(?:skill\.md)?$/i.test(n) && !n.endsWith('/skills') && !n.endsWith('/skills/')) {
+      if (/\/skill\.md$/i.test(n) || /\/\.agents\/devcodex\/skills\/[^/]+$/i.test(n)) return false
+    }
+    const bans = [
+      /\/\.grok\/skills(?:\/|$)/,
+      /\/\.grok\/bundled\/skills(?:\/|$)/,
+      /\/\.claude\/skills(?:\/|$)/,
+      /\/\.codex\/skills(?:\/|$)/,
+      /\/\.gemini\/skills(?:\/|$)/,
+      /\/\.copilot\/skills(?:\/|$)/,
+      /\/\.agents\/skills(?:\/|$)/,
+      /\/\.agents\/devcodex\/skills\/?$/
+    ]
+    return bans.some(re => re.test(n))
+  }
+
+  function extractListingTargets (payload) {
+    const input = (payload && (payload.tool_input || payload.toolInput)) || {}
+    const out = []
+    for (const key of ['path', 'target_directory', 'targetDirectory', 'directory', 'dir', 'root', 'cwd']) {
+      if (typeof input[key] === 'string' && input[key].trim()) out.push(input[key].trim())
+    }
+    if (Array.isArray(input.paths)) {
+      for (const p of input.paths) if (typeof p === 'string' && p.trim()) out.push(p.trim())
+    }
+    const cmd = typeof input.command === 'string' ? input.command : getCommandText(payload)
+    if (cmd) {
+      const m = String(cmd).match(
+        /(?:Get-ChildItem|gci|dir|ls|list_dir|find)\b[\s\S]{0,200}?([A-Za-z]:\\[^\s"'|]+|~\/[^\s"'|]+|\/(?:Users|home)\/[^\s"'|]+)/i
+      )
+      if (m && m[1]) out.push(m[1])
+      // also catch quoted paths
+      const q = String(cmd).match(/["']([A-Za-z]:\\[^"']+\.?(?:grok|claude|agents|codex)[^"']*)["']/i)
+      if (q && q[1]) out.push(q[1])
+    }
+    return out
+  }
+
+  function isListingStyleTool (payload, platform) {
+    const tn = getToolName(payload).toLowerCase()
+    if (/list|ls|glob|dir|find|scandir|listdir|skill/.test(tn)) return true
+    if (isCommandTool(payload, platform)) {
+      const cmd = getCommandText(payload)
+      return /\b(?:Get-ChildItem|gci|dir|ls|find)\b/i.test(cmd)
+    }
+    return false
+  }
+
+  /**
+   * Block host skill directory inventory so process UI does not leak user-home skill paths.
+   * @returns {null|{reason:string,neverApprove:boolean,code:string,command?:string}}
+   */
+  function checkHostSkillInventoryListing (payload, platform) {
+    if (!payload) return null
+    const tn = getToolName(payload).toLowerCase()
+    // Native Skill tool browsing host catalogs
+    if (/\bskill\b/.test(tn) && !/skill\.md|read/i.test(tn)) {
+      const targets = extractListingTargets(payload)
+      const hay = JSON.stringify(payload.tool_input || payload.toolInput || {}).toLowerCase()
+      if (/[\\/]\.grok[\\/](bundled[\\/])?skills|[\\/]\.agents[\\/]skills|[\\/]\.claude[\\/]skills/.test(hay) ||
+          targets.some(isHostSkillInventoryTarget)) {
+        return {
+          reason: 'Blocked: host skill inventory under user profile (privacy); do not list ~/.grok/skills or bundled skills. Read a single known SKILL.md under .devcodex/workspace/skills/<id> or ~/.agents/devcodex/skills/<id> only.',
+          neverApprove: true,
+          code: 'host-skill-inventory-ban'
+        }
+      }
+    }
+    if (!isListingStyleTool(payload, platform) && !isCommandTool(payload, platform)) {
+      // still check explicit path fields on any tool
+      const targets = extractListingTargets(payload)
+      if (!targets.length) return null
+      if (!targets.some(isHostSkillInventoryTarget)) return null
+      // only ban when action looks like list/inventory
+      if (!isListingStyleTool(payload, platform)) return null
+    }
+    const targets = extractListingTargets(payload)
+    for (const t of targets) {
+      if (isHostSkillInventoryTarget(t)) {
+        return {
+          reason: 'Blocked: host skill inventory under user profile (privacy); process UI must not list C:\\Users\\… skill roots. Use exact path to one SKILL.md (workspace or ~/.agents/devcodex/skills/<id>/SKILL.md).',
+          neverApprove: true,
+          code: 'host-skill-inventory-ban',
+          command: getCommandText(payload) || t
+        }
+      }
+    }
+    // Shell inventory without extracted path but mentioning host skill roots
+    if (isCommandTool(payload, platform)) {
+      const cmd = String(getCommandText(payload) || '')
+      if (/[\\/]\.grok[\\/](?:bundled[\\/])?skills|[\\/]\.agents[\\/]skills(?![\\/]devcodex)|[\\/]\.claude[\\/]skills/i.test(cmd) &&
+          /\b(?:Get-ChildItem|gci|dir|ls|find)\b/i.test(cmd)) {
+        return {
+          reason: 'Blocked: host skill inventory under user profile (privacy); do not list ~/.grok/skills or similar host skill trees.',
+          neverApprove: true,
+          code: 'host-skill-inventory-ban',
+          command: cmd
+        }
+      }
+    }
+    return null
+  }
+
   function checkDangerousCommand(payload, platform) {
+    const hostSkillBan = checkHostSkillInventoryListing(payload, platform)
+    if (hostSkillBan) return hostSkillBan
     if (!isCommandTool(payload, platform)) return null
     const cmd = getCommandText(payload)
     const readOnlySearch = /^\s*(?:rg|grep|Select-String)\b/i.test(cmd)
@@ -251,6 +369,8 @@ function buildLifecycleDangerousCommandUtils({
   return {
     isCommandTool,
     checkDangerousCommand,
+    checkHostSkillInventoryListing,
+    isHostSkillInventoryTarget,
     stripApprovalMarker,
     isWorkspaceRootRecursiveInventory,
     extractApprovalId,

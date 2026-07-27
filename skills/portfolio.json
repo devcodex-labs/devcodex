@@ -6,27 +6,27 @@
     "skillsPattern": "skills/*/SKILL.md",
     "optionalSidecar": "skills/*/devcodex.skill.json",
     "registry": "plugin.json",
-    "sourceDigest": "31fce619aacdfe6d1c16c7b605127bfec448f52f915862ad57bdc9a6ac0f81bd",
+    "sourceDigest": "7a419e9ce63fbb161abde6d4c6bebd0aaf67d6c324fa66fce6c99ec9021a20fd",
     "sidecarDigest": "774105d7947b340d15d17115fcb8e37b62ae545cf553f06126d529184fd74872",
-    "pluginDigest": "d94133579e88bc06a91e06fe020ae7f9ea7258c9a2f2f8ae451a3e8c97dd1b78",
+    "pluginDigest": "705fe7c86c7225b67756749be5bb3b14a1ee3bffa386483a9ab61dc971f419ae",
     "portfolioEvidence": "skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "8364a73c66ed2ec9787cdb9300223278d128a45b689a2b8deda0d1f03189f42b",
-    "consumerInventoryFileCount": 620,
-    "consumerInventoryDigest": "d748fc41bcd843d46b95524dd0ba2e8933af231236807ce64fb5021b7ff4152f",
-    "consumerProjectionDigest": "9df0fdb4c40d83b3111f57aa715bd47965a6424fa0582e15163d2575af2e19bd",
-    "portfolioInputDigest": "37f24ee81f10afe16e78268f48ac0e8e980d914361429db68e53303929c0b67d"
+    "consumerInventoryFileCount": 625,
+    "consumerInventoryDigest": "250e9eb5e95aff17c1825e6f1ffe5ec87f715b6286a2ec79dd85bbd3234fe10b",
+    "consumerProjectionDigest": "f909edf91e0901c4b5f9c29f817844c40e7ff0488bfee86037cef6e4d39c0196",
+    "portfolioInputDigest": "68d3ec6cd7f69a4566e6f001a8bada915f208c2937578511a5d21951e9f79105"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
-    "skillCount": 85,
-    "registeredSkillCount": 85,
-    "activeSkillCount": 82,
+    "skillCount": 86,
+    "registeredSkillCount": 86,
+    "activeSkillCount": 83,
     "graySkillCount": 3,
     "orphanActiveCount": 0,
     "dependencyCycleCount": 0,
     "dependencyEdgeCount": 23,
-    "conflictReviewedCount": 85,
-    "operationalEvidenceCompleteCount": 85,
+    "conflictReviewedCount": 86,
+    "operationalEvidenceCompleteCount": 86,
     "triggerPrecisionMeasuredCount": 3,
     "instructionBudgetP95Bytes": 23127,
     "triggerQuality": "mixed",
@@ -109,6 +109,7 @@
       "security-threat-modeling",
       "skill-gap-analysis",
       "skill-lifecycle-governance",
+      "skill-load-verify",
       "source-consumer-sync",
       "spec-absorption",
       "spec-governance",
@@ -543,7 +544,7 @@
   "health": {
     "orphanActive": [],
     "lifecycleMutationAllowed": false,
-    "evidenceNote": "Operational evidence complete; trigger precision mixed (3/85 measured via portfolio-evidence.json)."
+    "evidenceNote": "Operational evidence complete; trigger precision mixed (3/86 measured via portfolio-evidence.json)."
   },
   "skills": [
     {
@@ -5742,6 +5743,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-skills-deploy-mode.js",
+          "role": "current"
+        },
+        {
           "path": "website/docs/intro/index.md",
           "role": "current"
         }
@@ -5750,6 +5755,7 @@
         "scripts/test-consumer-evolution-controls.js",
         "scripts/test-global-host-config.js",
         "scripts/test-skill-portfolio.js",
+        "scripts/test-skills-deploy-mode.js",
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-24",
@@ -5806,6 +5812,7 @@
           "scripts/test-consumer-evolution-controls.js",
           "scripts/test-global-host-config.js",
           "scripts/test-skill-portfolio.js",
+          "scripts/test-skills-deploy-mode.js",
           "scripts/validate.js"
         ],
         "exitCondition": "work-unit-complete-or-workflow-transition",
@@ -5866,8 +5873,8 @@
         "skills/cp-gate/SKILL.md"
       ],
       "source": "skills/cp-gate/SKILL.md",
-      "hash": "ae7ad5a701be8898e9fc091f7e68cc48d07ed38c305031b08c35905b274c45a2",
-      "sourceBytes": 26569,
+      "hash": "5fac202f905c6bfb9578c04fa17baff8a3bdd0dc4aff1e75dd3824819293ff8c",
+      "sourceBytes": 26801,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [],
@@ -14771,6 +14778,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-implement-start-gate.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-lifecycle-stop-gate.js",
           "role": "current"
         },
@@ -14835,6 +14846,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-skills-deploy-mode.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-validation-dag.js",
           "role": "current"
         },
@@ -14852,6 +14867,10 @@
         },
         {
           "path": "scripts/test-workspace-skill-intent-e2e.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-workspace-skill-intent.js",
           "role": "current"
         },
         {
@@ -15113,6 +15132,7 @@
         "scripts/test-hooks-runtime.js",
         "scripts/test-host-adapters.js",
         "scripts/test-host-capability-routing.js",
+        "scripts/test-implement-start-gate.js",
         "scripts/test-lifecycle-stop-gate.js",
         "scripts/test-markdown-structure.js",
         "scripts/test-mcp-servers.js",
@@ -15130,11 +15150,13 @@
         "scripts/test-skill-portfolio.js",
         "scripts/test-skill-resolution-hook-paths.js",
         "scripts/test-skill-resolve.js",
+        "scripts/test-skills-deploy-mode.js",
         "scripts/test-validation-dag.js",
         "scripts/test-visible-output-contract.js",
         "scripts/test-workflow-capabilities.js",
         "scripts/test-workflow-completion-contract.js",
         "scripts/test-workspace-skill-intent-e2e.js",
+        "scripts/test-workspace-skill-intent.js",
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-24",
@@ -15203,6 +15225,7 @@
           "scripts/test-hooks-runtime.js",
           "scripts/test-host-adapters.js",
           "scripts/test-host-capability-routing.js",
+          "scripts/test-implement-start-gate.js",
           "scripts/test-lifecycle-stop-gate.js",
           "scripts/test-markdown-structure.js",
           "scripts/test-mcp-servers.js",
@@ -15220,11 +15243,13 @@
           "scripts/test-skill-portfolio.js",
           "scripts/test-skill-resolution-hook-paths.js",
           "scripts/test-skill-resolve.js",
+          "scripts/test-skills-deploy-mode.js",
           "scripts/test-validation-dag.js",
           "scripts/test-visible-output-contract.js",
           "scripts/test-workflow-capabilities.js",
           "scripts/test-workflow-completion-contract.js",
           "scripts/test-workspace-skill-intent-e2e.js",
+          "scripts/test-workspace-skill-intent.js",
           "scripts/validate.js"
         ],
         "exitCondition": "work-unit-complete-or-workflow-transition",
@@ -19033,6 +19058,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-skills-deploy-mode.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-workflow-capabilities.js",
           "role": "current"
         },
@@ -19148,6 +19177,7 @@
         "scripts/test-mcp-servers.js",
         "scripts/test-review-execution-contract.js",
         "scripts/test-skill-portfolio.js",
+        "scripts/test-skills-deploy-mode.js",
         "scripts/test-workflow-capabilities.js",
         "scripts/validate.js"
       ],
@@ -19220,6 +19250,7 @@
           "scripts/test-mcp-servers.js",
           "scripts/test-review-execution-contract.js",
           "scripts/test-skill-portfolio.js",
+          "scripts/test-skills-deploy-mode.js",
           "scripts/test-workflow-capabilities.js",
           "scripts/validate.js"
         ],
@@ -19761,6 +19792,147 @@
         "operationalReadiness": {
           "state": "complete",
           "currentConsumer": "CHANGELOG.md",
+          "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
+          "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
+          "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
+          "lastEvidenceAt": "2026-07-24"
+        },
+        "triggerPrecision": {
+          "state": "structural-only",
+          "sampleCount": 0,
+          "precision": null,
+          "falsePositiveRate": null,
+          "falseNegativeRate": null,
+          "manualCorrectionRate": null,
+          "lastMeasuredAt": null
+        },
+        "lifecycleAuthorization": "plugin.json#skills[].lifecycleState",
+        "stateRationale": "registered source, current consumer and operational fixtures are present",
+        "promotionCriteria": "trigger precision requires real comparable work units; structural evidence alone cannot promote lifecycle state"
+      }
+    },
+    {
+      "id": "skill-load-verify",
+      "name": "skill-load-verify",
+      "description": ">",
+      "owner": "skill-load-verify",
+      "triggers": {
+        "terms": [
+          "skill-load-verify"
+        ],
+        "positive": [
+          {
+            "fixture": "frontmatter-description-resolves",
+            "input": ">"
+          }
+        ],
+        "negative": [
+          {
+            "fixture": "empty-or-unregistered-trigger-rejected",
+            "input": ""
+          }
+        ],
+        "ambiguous": []
+      },
+      "ownedArtifacts": [
+        "skills/skill-load-verify/SKILL.md"
+      ],
+      "source": "skills/skill-load-verify/SKILL.md",
+      "hash": "515fb259f444911adefe20cac05140f7533e9d96a3b57d1182716d6696493914",
+      "sourceBytes": 1385,
+      "version": "1.15.3",
+      "lifecycleState": "active",
+      "dependencies": [],
+      "references": [],
+      "conflicts": [],
+      "conflictReview": {
+        "status": "reviewed-none",
+        "evidence": "scripts/test-skill-portfolio.js#explicit-conflict-review"
+      },
+      "consumers": [
+        {
+          "path": "changelogs/unreleased.md",
+          "role": "current"
+        },
+        {
+          "path": "hooks/_runtime/workspace-skill-intent.cjs",
+          "role": "current"
+        },
+        {
+          "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-host-skill-inventory-ban.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-workspace-skill-intent-e2e.js",
+          "role": "current"
+        }
+      ],
+      "validationProfile": [
+        "scripts/test-host-skill-inventory-ban.js",
+        "scripts/test-skill-portfolio.js",
+        "scripts/test-workspace-skill-intent-e2e.js",
+        "scripts/validate.js"
+      ],
+      "lastEvidenceAt": "2026-07-24",
+      "skillIndex": {
+        "id": "skill-load-verify",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "skill-load-verify"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": ">"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:skill-load-verify",
+        "probeSuiteRefs": [
+          "scripts/test-host-skill-inventory-ban.js",
+          "scripts/test-skill-portfolio.js",
+          "scripts/test-workspace-skill-intent-e2e.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
+      "sidecar": null,
+      "evidence": {
+        "registration": "plugin.json",
+        "operationalReadiness": {
+          "state": "complete",
+          "currentConsumer": "changelogs/unreleased.md",
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",

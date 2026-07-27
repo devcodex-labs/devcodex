@@ -4,7 +4,7 @@
 > **当前**: v1.15.3 已归档到 `changelogs/releases/v1.15.3.md`；本文件仅保留历史锚点索引与镜像供 validate 探针消费。发版后新实现再写入下方「当前未发布」。
 
 ## 当前未发布实现候选
-- **作者邮箱统一**：package.json author 改为 Rocky <rockyshi1993@gmail.com>（与 git commit 身份一致）。
+- **联系邮箱统一为 `rockyshi1993@gmail.com`**：`package.json` author 与 `SECURITY.md` 漏洞报告邮箱一致（唯一可用邮箱）。
 - **npm 包名为未 scope 的 `devcodex`**：安装入口 `npm install -g devcodex` / `npm update -g devcodex`；GitHub 组织仓与 npm 模块身份分离；`package.json` name=`devcodex`；撤销 `devcodex` 误绑。
 pm install|update -g 对齐 devcodex；alidate-profile 识别 scoped 包名；修复正则字面量中 / 截断；managed deployment-manifest package 字段同步。
 - **目录与包身份统一为 devcodex（本地/公开）**：源码目录与 active-root 由 devcodex-v1 对齐为 devcodex；npm 包 devcodex、仓库 devcodex-labs/devcodex、npmjs public 发布配置与 probe/fixtures/Skill 示例同步；isSourceRepo 识别新包名；历史 releases 台账不回溯改写。

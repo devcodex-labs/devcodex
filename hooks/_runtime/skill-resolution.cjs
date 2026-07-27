@@ -75,16 +75,37 @@ function resolveHome(options = {}) {
   return path.resolve(options.home || env.DEVCODEX_TEST_HOME || env.USERPROFILE || env.HOME || os.homedir())
 }
 
+function resolveSkillsDeployModeLocal (env = process.env, options = {}) {
+  const raw = String(options.skillsDeployMode || env.DEVCODEX_SKILLS_DEPLOY_MODE || '').trim().toLowerCase()
+  if (raw === 'legacy' || raw === 'legacy-full-tree' || raw === 'visible') return 'legacy'
+  if (raw === 'hidden' || raw === 'hook-only-hidden') return 'hidden'
+  // default hidden (SkillsDeployModeV1)
+  if (!raw) return 'hidden'
+  return 'hidden'
+}
+
 function resolveGlobalSkillsRoot(options = {}) {
   const env = options.env || process.env
+  // Explicit override always wins (tests / advanced users); doctor warns if mode=hidden but this points at scan root.
   if (env.DEVCODEX_GLOBAL_SKILLS_ROOT) {
     return path.resolve(env.DEVCODEX_GLOBAL_SKILLS_ROOT)
+  }
+  if (options.globalSkillsRoot) {
+    return path.resolve(options.globalSkillsRoot)
   }
   const home = resolveHome(options)
   const shared = env.DEVCODEX_GLOBAL_SHARED_ROOT
     ? path.resolve(env.DEVCODEX_GLOBAL_SHARED_ROOT)
     : path.join(home, '.agents')
-  return path.join(shared, 'skills')
+  const mode = resolveSkillsDeployModeLocal(env, options)
+  if (mode === 'legacy') {
+    return path.join(shared, 'skills')
+  }
+  // hidden → G_RUNTIME
+  if (env.DEVCODEX_GLOBAL_SKILLS_RUNTIME) {
+    return path.resolve(env.DEVCODEX_GLOBAL_SKILLS_RUNTIME)
+  }
+  return path.join(shared, 'devcodex', 'skills')
 }
 
 function resolveWorkspaceSkillsRoot(cwdOrRoot, options = {}) {

@@ -66,12 +66,57 @@ function isSkillsSource(source) {
   return normalized === 'skills' || normalized.endsWith('/skills')
 }
 
+/** Active/deployable skill ids from plugin registry (managed set for prune). */
+function listManagedSkillIds (packageRoot) {
+  return loadPluginSkills(packageRoot)
+    .filter(skill => isDeployableSkill(skill))
+    .map(skill => String(skill.id))
+}
+
+/**
+ * Remove package-managed skill directories under a host scan root.
+ * Does NOT use file-only removeStaleManagedPaths (that API only unlinks files).
+ */
+function pruneManagedSkillDirs (scanRoot, managedIds, fsImpl = fs, options = {}) {
+  const removed = []
+  const failures = []
+  const root = path.resolve(scanRoot || '')
+  const ids = Array.isArray(managedIds) ? managedIds : []
+  if (!root || !fsImpl.existsSync(root)) {
+    return { removed, failures }
+  }
+  for (const id of ids) {
+    if (!id || String(id).includes('..') || String(id).includes('/') || String(id).includes('\\')) continue
+    const dir = path.join(root, String(id))
+    try {
+      if (!fsImpl.existsSync(dir)) continue
+      const st = fsImpl.statSync(dir)
+      if (!st.isDirectory()) continue
+      if (options.dryRun === true) {
+        removed.push(dir)
+        continue
+      }
+      fsImpl.rmSync(dir, { recursive: true, force: true })
+      removed.push(dir)
+    } catch (error) {
+      failures.push({
+        path: dir.replace(/\\/g, '/'),
+        errorCode: error.code || 'PRUNE_MANAGED_SKILL_DIR_FAILED',
+        error: error.message
+      })
+    }
+  }
+  return { removed, failures }
+}
+
 module.exports = {
   loadPluginSkills,
   graySkillIds,
   graySkillIdSet,
   isDeployableSkill,
   nonActiveSkillIdSet,
+  listManagedSkillIds,
+  pruneManagedSkillDirs,
   shouldDeploySkillRelative,
   createSkillDeployFileFilter,
   isSkillsSource

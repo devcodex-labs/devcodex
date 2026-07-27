@@ -180,8 +180,10 @@ GlobalOnlyHostConfigModeV1 与 GlobalOnlyWorkspaceCleanModeV1 将宿主配置、
 ├── .gemini/        ← Gemini 用户级 instructions/settings/runtime
 ├── .grok/          ← Grok 用户级 plugin/config/runtime
 └── .agents/
-    ├── devcodex/instructions.full.md ← 用户级完整回退规范
-    └── skills/                       ← 共享用户级 Skills
+    ├── devcodex/
+    │   ├── instructions.full.md ← 用户级完整回退规范
+    │   └── skills/              ← G_RUNTIME：默认 hidden 模式下的全局 Skill 正文（非宿主 L1 菜单主料）
+    └── skills/                  ← 扫描根（legacy 模式全量；hidden 默认不刷 80+）
 
 <workspace>/
 └── .devcodex/      ← workspace-namespace 的 Profile、记忆、报告与运行态
@@ -190,7 +192,9 @@ GlobalOnlyHostConfigModeV1 与 GlobalOnlyWorkspaceCleanModeV1 将宿主配置、
         └── skills/    ← 可选自定义 Skill（W；非 reserved 时 W>G，见 skill-resolution）
 ```
 
-自定义 Skill 只写 `<workspace>/.devcodex/workspace/skills/<id>/SKILL.md`（一次配置，经 DevCodex 五宿主共用）；**不要**改 `~/.agents/skills` 或五宿主 home 树作扩展。强制核 skill（如 `compliance`/`cp-gate`）禁止 W 覆盖。
+默认 **`skillsDeployMode=hidden`**：全局 Skill 部署到 `~/.agents/devcodex/skills`，经 `skill resolve` / Hook 按需加载，避免 IDE skill 列表刷屏；`devcodex global-adapters apply --mode=legacy` 可恢复扫描根全量树。Hooks 配置与磁盘路径仍可见（隐蔽 ≠ 无文件）。Grok 插件列表可能仍显示 residual。
+
+自定义 Skill 只写 `<workspace>/.devcodex/workspace/skills/<id>/SKILL.md`（一次配置，经 DevCodex 五宿主共用）；**不要**改用户级扫描根或五宿主 home 树作扩展。强制核 skill（如 `compliance`/`cp-gate`）禁止 W 覆盖。
 
 **工作区 Skill 用户可见闭环（W）**
 

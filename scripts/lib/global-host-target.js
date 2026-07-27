@@ -27,9 +27,16 @@ function hostRoot(host, home, env) {
 
 function resolveGlobalSharedTarget(home, env = process.env) {
   const root = path.resolve(env.DEVCODEX_GLOBAL_SHARED_ROOT || path.join(home, '.agents'))
+  // SCAN root (host L1). Optional DEVCODEX_GLOBAL_SKILLS_ROOT still overrides scan path for legacy tests.
+  const skills = path.resolve(env.DEVCODEX_GLOBAL_SKILLS_ROOT || path.join(root, 'skills'))
+  // G_RUNTIME — non-scan managed tree for skillsDeployMode=hidden
+  const skillsRuntime = path.resolve(
+    env.DEVCODEX_GLOBAL_SKILLS_RUNTIME || path.join(root, 'devcodex', 'skills')
+  )
   return {
     root,
-    skills: path.resolve(env.DEVCODEX_GLOBAL_SKILLS_ROOT || path.join(root, 'skills')),
+    skills,
+    skillsRuntime,
     fullFallback: path.resolve(env.DEVCODEX_GLOBAL_FULL_FALLBACK || path.join(root, 'devcodex', 'instructions.full.md'))
   }
 }

@@ -14,8 +14,45 @@ const {
   askingCp2Confirm,
   hasEntryCheck,
   hasCompletionCheck,
-  pr1EvidenceOk
+  pr1EvidenceOk,
+  PR1_MIN_BODY_BYTES
 } = require('../hooks/_runtime/lifecycle-stop-gate.cjs')
+
+/** Substantive PR-1 body that meets length + pass + substance ≥2 */
+function makeStrongPr1Body () {
+  const core = [
+    '# 方案复审 PR-1',
+    '',
+    '## BlockerSnapshot',
+    '| blockerId | status |',
+    '| B-sample | closed |',
+    '',
+    '**open blocker = 0**',
+    '',
+    '## 验收映射',
+    '| 需求 | 设计 | 验证 |',
+    '| D1 | path | test |',
+    '',
+    '## 契约矩阵 / runtimeOwners',
+    '| owner | file |',
+    '| gate | lifecycle-stop-gate.cjs |',
+    '',
+    '## CodeTruth',
+    '| repoPath | currentBehavior | negativeProbe |',
+    '| hooks/_runtime/lifecycle-stop-gate.cjs | weak token green | thin body fail |',
+    '',
+    '## 根因',
+    'pr1EvidenceOk thin-green false positive.',
+    '',
+    '**PR-1 ✅ 通过**（作者自审）',
+    ''
+  ].join('\n')
+  // Pad to satisfy PR1_MIN_BODY_BYTES without inventing false claims
+  const pad = '\n<!-- pad for substantive review body length -->\n'
+  let body = core
+  while (Buffer.byteLength(body, 'utf8') < PR1_MIN_BODY_BYTES) body += pad
+  return body
+}
 const { buildLifecycleHookOutput } = require('../hooks/_runtime/lifecycle-hook-output.cjs')
 const { buildLifecyclePayloadUtils } = require('../hooks/_runtime/lifecycle-payload-utils.cjs')
 
@@ -177,18 +214,15 @@ assert.ok(!hasCompletionCheck('已完成但没有标题'))
   }
 }
 
-// T10b strong PR-1 ok
+// T10b strong PR-1 ok (substantive 03 body — not thin open-blocker-only)
 {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'stop-gate-pr1-ok-'))
   try {
     const taskRoot = path.join(tmp, 'requirements', 'ok')
     fs.mkdirSync(taskRoot, { recursive: true })
-    fs.writeFileSync(path.join(taskRoot, '02-技术方案.md'), '# plan\n', 'utf8')
-    fs.writeFileSync(
-      path.join(taskRoot, '03-方案复审-PR1.md'),
-      '# PR-1\nopen blocker = 0\n',
-      'utf8'
-    )
+    fs.writeFileSync(path.join(taskRoot, '02-技术方案.md'), '# plan\n控制面 lifecycle\n', 'utf8')
+    fs.writeFileSync(path.join(taskRoot, '03-方案复审-PR1.md'), makeStrongPr1Body(), 'utf8')
+    assert.strictEqual(pr1EvidenceOk(taskRoot), true)
     const r = evaluateStopCompletionGate({
       mode: 'dev',
       lastAssistantMessage: '请确认技术方案（确认 CP2）。',
@@ -209,6 +243,58 @@ assert.ok(!hasCompletionCheck('已完成但没有标题'))
     fs.writeFileSync(
       path.join(taskRoot, '03-方案复审-PR1.md'),
       '提到 PR-1。\n某某测试通过。\n',
+      'utf8'
+    )
+    assert.strictEqual(pr1EvidenceOk(taskRoot), false)
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true })
+  }
+}
+
+// D-PR1-1: open blocker = 0 alone is thin-green → false
+{
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'stop-gate-pr1-thin-ob-'))
+  try {
+    const taskRoot = path.join(tmp, 't')
+    fs.mkdirSync(taskRoot, { recursive: true })
+    fs.writeFileSync(path.join(taskRoot, '02-技术方案.md'), '# plan\n', 'utf8')
+    fs.writeFileSync(path.join(taskRoot, '03-方案复审-PR1.md'), '# PR-1\nopen blocker = 0\n', 'utf8')
+    assert.strictEqual(pr1EvidenceOk(taskRoot), false)
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true })
+  }
+}
+
+// D-PR1-2: bare PR-1 | ✅ table is not a pass signal → false
+{
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'stop-gate-pr1-table-'))
+  try {
+    const taskRoot = path.join(tmp, 't')
+    fs.mkdirSync(taskRoot, { recursive: true })
+    fs.writeFileSync(path.join(taskRoot, '02-技术方案.md'), '# plan\n', 'utf8')
+    const thin = [
+      '# 复审',
+      '| CP | 状态 |',
+      '| PR-1 | ✅ |',
+      'x'.repeat(1300)
+    ].join('\n')
+    fs.writeFileSync(path.join(taskRoot, '03-方案复审-PR1.md'), thin, 'utf8')
+    assert.strictEqual(pr1EvidenceOk(taskRoot), false)
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true })
+  }
+}
+
+// D-PR1-4: with 02 present, sessions-only PR-1 ✅ is not enough
+{
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'stop-gate-pr1-sess-'))
+  try {
+    const taskRoot = path.join(tmp, 't')
+    fs.mkdirSync(path.join(taskRoot, '.memory'), { recursive: true })
+    fs.writeFileSync(path.join(taskRoot, '02-技术方案.md'), '# plan\n', 'utf8')
+    fs.writeFileSync(
+      path.join(taskRoot, '.memory', 'sessions.md'),
+      '| PR-1 | ✅ |\n',
       'utf8'
     )
     assert.strictEqual(pr1EvidenceOk(taskRoot), false)

@@ -27,6 +27,7 @@ applyTo: .devcodex/**/requirements/**
 > ⚠️ CP2 必须承接 CP1 的平台工程判断和 `ImplementationComplexityLevel`（兼容旧字段 `ImplementationComplexityPreference`）：消费者范围、共享契约边界、模块职责、可维护性成本、非目标和最小实现预算要互相一致；没有真实复用者或演进边界时，不得新增 factory / manager / adapter / registry 等预设抽象。
 > ⚠️ 重要技术结论必须通过 `CodeTruthEvidenceMatrixGate` 绑定 repo path、symbol/contract、currentBehavior、negativeProbe 和 gap；方案推荐还必须通过 `SolutionFitAgainstRepoGate` 说明 reusePoint、consumer、rollback 与 statusQuoCost。
 > ⚠️ CP2 候选在请求确认前必须附 `CandidateReviewBundleV1`：`phaseKind=CP2`、`TDMatrix`、`BlockerSnapshot`、`ClaimEvidenceMatrix`。缺任一项、证据陈旧或存在未关闭 blocker 时，不得写“可确认 CP2 / 可进入 CP3”。
+> ⚠️ **PR-1 实质自审（防假绿）**：在写「请确认 CP2 / 确认技术方案」前，任务目录必须已有独立 `03-*方案复审*`（或等价），含 `open blocker = 0`（或明确 PR-1 通过句）**且**实质章节（验收映射 / 契约矩阵 / CodeTruth / BlockerSnapshot / 根因 等至少 2 类）；禁止仅在 `02` 内嵌薄表 `PR-1 | ✅` 或仅 sessions 一行。Stop 门 `pr1EvidenceOk` 会拒绝 thin green。
 > ⚠️ §7 必须物化验证计划、命令/矩阵路线、验收标准和退出条件；进入编码前，§2.6 写清允许首批、阻断范围、偏移触发、验证路线和消费者同步。
 > ⚠️ 当 AI 判断目标包含修复 Bug/缺陷/回归/安全问题/规范缺口/审查 finding 时，技术方案必须引用 `repair-collaboration`：低风险填写 lightweight 双层字段，高风险填写 full + findingToPatchMap + handoffIntegrity + independentReReview；模型名称不是触发条件。
 > ⚠️ 同一 repair 方案必须引用 active `repair-prevention-assessment#RepairPreventionAssessmentGate`，冻结 `RepairPreventionAssessmentV1` 的 mode/decision、双根因、regression/negative seeds、immediate closure 与 prospective plan、Owner/consumers 和 rollback/sunset；`no-new-control` 必须有标准 reason/evidence，当前修复重跑不能晋级 prevention。

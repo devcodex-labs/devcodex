@@ -8,7 +8,8 @@ const {
   GLOBAL_HOST_IDS,
   resolveGlobalHostTargets,
   samePath,
-  targetAcceptsPath
+  targetAcceptsPath,
+  isUnderPhysical
 } = require('./global-host-target.js')
 const {
   mergeHostJsonContent,
@@ -21,7 +22,12 @@ const {
 const {
   executeGlobalHostTransaction
 } = require('./global-host-config-transaction.js')
-const { createSkillDeployFileFilter } = require('./skill-deploy-filter.js')
+const {
+  createSkillDeployFileFilter,
+  listManagedSkillIds,
+  pruneManagedSkillDirs
+} = require('./skill-deploy-filter.js')
+const { resolveSkillsDeployMode } = require('./skills-deploy-mode.js')
 const {
   mergeGrokPluginRegistration
 } = require('./host-adapter-scope.js')
@@ -106,6 +112,12 @@ function addSourceTree(operations, host, sourceRoot, destinationRoot, fsImpl = f
   }
 }
 
+function skillsDeployDestination (target) {
+  const mode = target.skillsDeployMode || 'hidden'
+  if (mode === 'legacy') return target.shared && target.shared.skills
+  return target.shared && (target.shared.skillsRuntime || path.join(target.shared.root, 'devcodex', 'skills'))
+}
+
 function addSharedRuntime(operations, target, packageRoot, fsImpl = fs) {
   if (!target.shared || target.sharedRuntimeOwner !== true) return
   addSourceFile(
@@ -115,11 +127,13 @@ function addSharedRuntime(operations, target, packageRoot, fsImpl = fs) {
     target.shared.fullFallback,
     fsImpl
   )
+  const skillsDest = skillsDeployDestination(target)
+  if (!skillsDest) return
   addSourceTree(
     operations,
     target.host,
     path.join(packageRoot, 'skills'),
-    target.shared.skills,
+    skillsDest,
     fsImpl,
     createSkillDeployFileFilter(packageRoot)
   )
@@ -244,14 +258,16 @@ function transformedHookTemplate(packageRoot, target, sourceRelative, host, fsIm
 
 function addCopilotPlan(operations, target, packageRoot, fsImpl) {
   addCommonRuntime(operations, target, packageRoot, fsImpl)
-  addSourceTree(
-    operations,
-    target.host,
-    path.join(packageRoot, 'skills'),
-    target.files.skills,
-    fsImpl,
-    createSkillDeployFileFilter(packageRoot)
-  )
+  if ((target.skillsDeployMode || 'hidden') === 'legacy') {
+    addSourceTree(
+      operations,
+      target.host,
+      path.join(packageRoot, 'skills'),
+      target.files.skills,
+      fsImpl,
+      createSkillDeployFileFilter(packageRoot)
+    )
+  }
   const destination = target.files.instructions
   const source = readText(path.join(packageRoot, 'host-projections', 'copilot-instructions.md'), fsImpl)
   addFileOperation(
@@ -286,14 +302,16 @@ function addCopilotPlan(operations, target, packageRoot, fsImpl) {
 
 function addClaudePlan(operations, target, packageRoot, fsImpl) {
   addCommonRuntime(operations, target, packageRoot, fsImpl)
-  addSourceTree(
-    operations,
-    target.host,
-    path.join(packageRoot, 'skills'),
-    path.join(target.root, 'skills'),
-    fsImpl,
-    createSkillDeployFileFilter(packageRoot)
-  )
+  if ((target.skillsDeployMode || 'hidden') === 'legacy') {
+    addSourceTree(
+      operations,
+      target.host,
+      path.join(packageRoot, 'skills'),
+      path.join(target.root, 'skills'),
+      fsImpl,
+      createSkillDeployFileFilter(packageRoot)
+    )
+  }
   const source = readText(path.join(packageRoot, 'host-projections', 'CLAUDE.md'), fsImpl)
   addFileOperation(
     operations,
@@ -335,8 +353,20 @@ function addClaudePlan(operations, target, packageRoot, fsImpl) {
 
 function addCodexPlan(operations, target, packageRoot, fsImpl) {
   addCommonRuntime(operations, target, packageRoot, fsImpl)
-  if (!target.shared || !samePath(target.files.skills, target.shared.skills)) {
-    addSourceTree(operations, target.host, path.join(packageRoot, 'skills'), target.files.skills, fsImpl)
+  // shared skills tree is owned by sharedRuntimeOwner; only write codex-specific skills path in legacy when distinct
+  if (
+    (target.skillsDeployMode || 'hidden') === 'legacy' &&
+    target.files.skills &&
+    (!target.shared || !samePath(target.files.skills, target.shared.skills))
+  ) {
+    addSourceTree(
+      operations,
+      target.host,
+      path.join(packageRoot, 'skills'),
+      target.files.skills,
+      fsImpl,
+      createSkillDeployFileFilter(packageRoot)
+    )
   }
   const source = readText(path.join(packageRoot, 'host-projections', 'AGENTS.md'), fsImpl)
   addFileOperation(
@@ -586,12 +616,23 @@ function removeStaleManagedPaths(paths, target, fsImpl = fs) {
   return { removed, failures }
 }
 
+function collectHiddenPruneRoots (target) {
+  const roots = []
+  if (!target) return roots
+  if (target.shared && target.shared.skills) roots.push(target.shared.skills)
+  if (target.host === 'claude') roots.push(path.join(target.root, 'skills'))
+  if (target.host === 'copilot' && target.files && target.files.skills) roots.push(target.files.skills)
+  return roots
+}
+
 function buildGlobalHostConfigPlan(options = {}) {
   const fsImpl = options.fs || fs
   const packageRoot = path.resolve(options.packageRoot || path.join(__dirname, '..', '..'))
   const packageJson = readPackage(packageRoot, fsImpl)
+  const env = options.env || process.env
+  const skillsDeployMode = resolveSkillsDeployMode(env, options)
   const targets = resolveGlobalHostTargets({
-    env: options.env || process.env,
+    env,
     home: options.home,
     hosts: options.hosts || GLOBAL_HOST_IDS
   })
@@ -599,18 +640,36 @@ function buildGlobalHostConfigPlan(options = {}) {
     ? 'codex'
     : targets[0]?.host
   const hostPlans = []
+  const managedSkillIds = listManagedSkillIds(packageRoot)
+  const pruneRootsSeen = new Set()
 
   for (const target of targets) {
     const hostOperations = []
     try {
       hostPlanBuilder(target.host)(hostOperations, {
         ...target,
-        sharedRuntimeOwner: target.host === sharedRuntimeOwnerHost
+        sharedRuntimeOwner: target.host === sharedRuntimeOwnerHost,
+        skillsDeployMode
       }, packageRoot, fsImpl)
+      const pruneRoots = []
+      if (skillsDeployMode === 'hidden') {
+        for (const root of collectHiddenPruneRoots({ ...target, sharedRuntimeOwner: target.host === sharedRuntimeOwnerHost })) {
+          const key = portable(root)
+          // shared.skills prune once (owner host only)
+          if (target.shared && samePath(root, target.shared.skills) && target.host !== sharedRuntimeOwnerHost) {
+            continue
+          }
+          if (pruneRootsSeen.has(key)) continue
+          pruneRootsSeen.add(key)
+          pruneRoots.push(root)
+        }
+      }
       hostPlans.push({
         host: target.host,
         status: 'planned',
-        operations: hostOperations
+        operations: hostOperations,
+        pruneManagedSkillRoots: pruneRoots,
+        managedSkillIds
       })
     } catch (error) {
       hostPlans.push({
@@ -679,6 +738,10 @@ function buildGlobalHostConfigPlan(options = {}) {
       schemaVersion: GLOBAL_HOST_RECEIPT_SCHEMA,
       mode: GLOBAL_HOST_CONFIG_SCHEMA,
       workspaceCleanMode: 'GlobalOnlyWorkspaceCleanModeV1',
+      skillsDeployMode,
+      skillsRuntimeRoot: target.shared && target.shared.skillsRuntime
+        ? portable(target.shared.skillsRuntime)
+        : null,
       host: target.host,
       support: target.support,
       evidenceCeiling: target.evidenceCeiling,
@@ -716,6 +779,7 @@ function buildGlobalHostConfigPlan(options = {}) {
   return {
     schemaVersion: GLOBAL_HOST_CONFIG_SCHEMA,
     workspaceCleanMode: 'GlobalOnlyWorkspaceCleanModeV1',
+    skillsDeployMode,
     packageRoot,
     packageName: packageJson.name || 'devcodex',
     packageVersion: packageJson.version || 'unknown',
@@ -776,6 +840,30 @@ function applyGlobalHostConfig(options = {}) {
         if (staleCleanup.failures.length) {
           hostTransaction.staleCleanupIncomplete = true
           hostTransaction.staleCleanupFailures = staleCleanup.failures
+        }
+        // Directory prune for hidden mode (must not use file-only stale cleanup)
+        if (Array.isArray(hostPlan.pruneManagedSkillRoots) && hostPlan.pruneManagedSkillRoots.length) {
+          const pruned = []
+          const pruneFailures = []
+          for (const scanRoot of hostPlan.pruneManagedSkillRoots) {
+            if (!targetAcceptsPath(target, scanRoot, fsImpl) &&
+                !(target.shared && isUnderPhysical(target.shared.root, scanRoot, fsImpl))) {
+              continue
+            }
+            const result = pruneManagedSkillDirs(
+              scanRoot,
+              hostPlan.managedSkillIds || [],
+              fsImpl,
+              { dryRun: false }
+            )
+            pruned.push(...result.removed.map(portable))
+            pruneFailures.push(...result.failures)
+          }
+          hostTransaction.prunedManagedSkillDirs = pruned
+          if (pruneFailures.length) {
+            hostTransaction.pruneManagedSkillIncomplete = true
+            hostTransaction.pruneManagedSkillFailures = pruneFailures
+          }
         }
         if (hostPlan.staleManagedPaths.length) {
           const receiptOperation = hostPlan.operations.find(operation =>
@@ -914,10 +1002,29 @@ function inspectGlobalHostConfiguration(options = {}) {
     const missingConfigFiles = configFiles
       .filter(file => targetAcceptsPath(target, file, fsImpl))
       .filter(file => !fsImpl.existsSync(file))
+    // Entrypoints depend on skillsDeployMode: hidden requires G_RUNTIME, not empty L1 scan roots.
+    const modeForInspect = (receipt && receipt.skillsDeployMode) ||
+      resolveSkillsDeployMode(options.env || process.env, options)
+    const sharedEntrypoints = []
+    if (target.shared) {
+      if (target.shared.fullFallback) sharedEntrypoints.push(target.shared.fullFallback)
+      if (modeForInspect === 'legacy') {
+        if (target.shared.skills) sharedEntrypoints.push(target.shared.skills)
+      } else if (target.shared.skillsRuntime) {
+        sharedEntrypoints.push(target.shared.skillsRuntime)
+      }
+    }
+    const fileEntrypoints = Object.entries(target.files || {})
+      .filter(([key, value]) => {
+        if (!value) return false
+        if (modeForInspect !== 'legacy' && key === 'skills') return false
+        return true
+      })
+      .map(([, value]) => value)
     const requiredEntrypoints = [
       runtimeEntry,
-      ...Object.values(target.files || {}).filter(Boolean),
-      ...Object.values(target.shared || {}).filter(Boolean)
+      ...fileEntrypoints,
+      ...sharedEntrypoints
     ]
     const missingEntrypoints = requiredEntrypoints.filter(file => !fsImpl.existsSync(file))
     const runtimeDeclared = configFiles.some(file => samePath(file, runtimeEntry))

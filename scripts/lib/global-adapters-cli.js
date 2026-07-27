@@ -36,6 +36,7 @@ function parseGlobalAdaptersArgv(argv = []) {
     dryRun: false,
     json: false,
     home: null,
+    skillsDeployMode: null,
     errors: []
   }
   for (let i = 0; i < args.length; i++) {
@@ -52,6 +53,16 @@ function parseGlobalAdaptersArgv(argv = []) {
       }
     } else if (arg.startsWith('--home=')) {
       options.home = arg.slice('--home='.length)
+    } else if (arg === '--mode') {
+      const value = args[i + 1]
+      if (!value || String(value).startsWith('-')) {
+        options.errors.push('--mode requires hidden|legacy')
+      } else {
+        options.skillsDeployMode = value
+        i++
+      }
+    } else if (arg.startsWith('--mode=')) {
+      options.skillsDeployMode = arg.slice('--mode='.length)
     } else {
       options.errors.push(`unsupported option: ${arg}`)
     }
@@ -109,7 +120,7 @@ function buildHandler(deps = {}) {
         COMMAND,
         'CLI_GLOBAL_ADAPTERS_BAD_ARGS',
         parsed.errors.join('; '),
-        'Use: devcodex global-adapters apply [--dry-run] [--json] [--home <dir>]',
+        'Use: devcodex global-adapters apply [--mode=hidden|legacy] [--dry-run] [--json] [--home <dir>]',
         cliMetadata
       )
       if (parsed.json) printCliJson(consoleImpl, envelope)
@@ -126,7 +137,7 @@ function buildHandler(deps = {}) {
         COMMAND,
         'CLI_GLOBAL_ADAPTERS_UNKNOWN_SUBCOMMAND',
         `Unknown global-adapters subcommand: ${parsed.subcommand || '(none)'}`,
-        'Use: devcodex global-adapters apply [--dry-run] [--json]',
+        'Use: devcodex global-adapters apply [--mode=hidden|legacy] [--dry-run] [--json]',
         cliMetadata
       )
       if (parsed.json) printCliJson(consoleImpl, envelope)
@@ -170,7 +181,8 @@ function buildHandler(deps = {}) {
         dryRun: parsed.dryRun === true,
         home: parsed.home || undefined,
         fs: fsImpl,
-        env: processImpl.env
+        env: processImpl.env,
+        skillsDeployMode: parsed.skillsDeployMode || undefined
       })
     } catch (error) {
       const envelope = createCliFailure(

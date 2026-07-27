@@ -103,30 +103,88 @@ function findActiveTaskRoot (state) {
   }
 }
 
+/** Minimum UTF-8 bytes for a substantive PR-1 review body (blocks two-line green). */
+const PR1_MIN_BODY_BYTES = 1200
+
 /**
- * F-04: PR-1 pass evidence must be strong (zero-blocker / explicit pass row).
- * Rejects loose "某某通过" alone.
+ * F-04 / SkillsDeployMode PR-1 strengthen:
+ * When 02-技术方案 exists, require an independent 03 review file with
+ * pass signal AND substance (mapping/contract/CodeTruth/blocker/root-cause).
+ * Rejects: open-blocker-only, table-only PR-1 ✅, sessions-only with 02 present.
  */
+function findPr1ReviewFileName (taskRoot) {
+  if (!taskRoot || !fs.existsSync(taskRoot)) return null
+  try {
+    const files = fs.readdirSync(taskRoot)
+    return files.find(f =>
+      /^03-.*方案复审/i.test(f) ||
+      /^03-.*方案自审/i.test(f) ||
+      /^04-.*方案复审/i.test(f) ||
+      /方案复审/i.test(f)
+    ) || null
+  } catch {
+    return null
+  }
+}
+
+function controlPlaneHint (taskRoot) {
+  try {
+    const tech = path.join(taskRoot, '02-技术方案.md')
+    if (!fs.existsSync(tech)) return false
+    const text = fs.readFileSync(tech, 'utf8')
+    return /hook|lifecycle|skillsDeploy|applyGlobalHost|control.?plane|控制面|global-host-config|pr1EvidenceOk/i.test(text)
+  } catch {
+    return false
+  }
+}
+
+function countPr1Substance (body) {
+  let substance = 0
+  if (/BlockerSnapshot|阻断项|blockerId/i.test(body)) substance += 1
+  if (/验收映射|需求[^\n]{0,12}映射|产品事实源|§0\.5/i.test(body)) substance += 1
+  if (/契约矩阵|ContractMatrix|Current\s*→\s*Target|runtimeOwners/i.test(body)) substance += 1
+  if (/CodeTruth|currentBehavior|negativeProbe|repoPath/i.test(body)) substance += 1
+  if (/根因|Root\s*cause|假绿|pr1EvidenceOk/i.test(body)) substance += 1
+  return substance
+}
+
+function pr1ReviewBodyOk (body, taskRoot) {
+  const text = String(body || '')
+  if (!/PR-1/i.test(text)) return false
+  if (/PR-1[^\n]{0,40}(?:不通过|阻断|fail|❌)/i.test(text)) return false
+  if (Buffer.byteLength(text, 'utf8') < PR1_MIN_BODY_BYTES) return false
+
+  const hasPass =
+    /open\s*blocker\s*=\s*0|zero\s*blocker|blockers?\s*=\s*0/i.test(text) ||
+    /PR-1[^\n]{0,40}(?:✅\s*通过|通过\s*✅|=\s*pass|:\s*pass)/i.test(text) ||
+    /阶段一[^\n]{0,30}PR-1[^\n]{0,30}✅/i.test(text)
+  // Bare "| PR-1 | ✅ |" table rows alone are NOT a pass signal (thin-green).
+  if (!hasPass) return false
+
+  const substance = countPr1Substance(text)
+  const minSubstance = controlPlaneHint(taskRoot) ? 2 : 2
+  return substance >= minSubstance
+}
+
 function pr1EvidenceOk (taskRoot) {
   if (!taskRoot || !fs.existsSync(taskRoot)) return false
   try {
-    const files = fs.readdirSync(taskRoot)
-    const review = files.find(f =>
-      /^03-.*方案复审/i.test(f) ||
-      /^04-.*方案复审/i.test(f) ||
-      /方案复审/i.test(f)
-    )
+    const hasTech = hasTechDesign(taskRoot)
+    const review = findPr1ReviewFileName(taskRoot)
+
+    // With a tech design, sessions-only is never enough — require independent 03 review.
+    if (hasTech) {
+      if (!review) return false
+      const body = fs.readFileSync(path.join(taskRoot, review), 'utf8')
+      return pr1ReviewBodyOk(body, taskRoot)
+    }
+
     if (review) {
       const body = fs.readFileSync(path.join(taskRoot, review), 'utf8')
-      if (!/PR-1/i.test(body)) return false
-      // Strong pass signals only
-      if (/open\s*blocker\s*=\s*0|zero\s*blocker|blockers?\s*=\s*0/i.test(body)) return true
-      if (/PR-1[^\n]{0,40}(?:✅\s*通过|通过\s*✅|=\s*pass|:\s*pass)/i.test(body)) return true
-      if (/阶段一[^\n]{0,30}PR-1[^\n]{0,30}✅/i.test(body)) return true
-      if (/PR-1\s*[|：:]\s*✅/i.test(body)) return true
-      // Explicit fail
-      if (/PR-1[^\n]{0,40}(?:不通过|阻断|fail|❌)/i.test(body)) return false
+      return pr1ReviewBodyOk(body, taskRoot)
     }
+
+    // Legacy: no 02 present — sessions row may still count for non-CP2 callers.
     const sessions = path.join(taskRoot, '.memory', 'sessions.md')
     if (fs.existsSync(sessions)) {
       const s = fs.readFileSync(sessions, 'utf8')
@@ -320,6 +378,11 @@ module.exports = {
   extractLastAssistantMessage,
   askingCp2Confirm,
   pr1EvidenceOk,
+  pr1ReviewBodyOk,
+  countPr1Substance,
+  findPr1ReviewFileName,
+  controlPlaneHint,
+  PR1_MIN_BODY_BYTES,
   completionClaimed,
   hasEntryCheck,
   hasCompletionCheck,

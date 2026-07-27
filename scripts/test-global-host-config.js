@@ -176,11 +176,34 @@ assert.deepStrictEqual(
 assert.ok(plan.operations.some(operation => operation.path.endsWith(path.join('.codex', 'AGENTS.md'))))
 assert.ok(plan.operations.some(operation => operation.path.endsWith(path.join('.claude', 'settings.json'))))
 assert.ok(plan.operations.some(operation => operation.path.endsWith(path.join('.agents', 'devcodex', 'instructions.full.md'))))
-assert.ok(plan.operations.some(operation => operation.path.endsWith(path.join('.agents', 'skills', 'routing', 'SKILL.md'))))
+// Default skillsDeployMode=hidden → G_RUNTIME under .agents/devcodex/skills (not L1 scan roots)
+assert.ok(
+  plan.operations.some(operation =>
+    operation.path.endsWith(path.join('.agents', 'devcodex', 'skills', 'routing', 'SKILL.md'))
+  ),
+  'hidden mode must deploy active skills to G_RUNTIME'
+)
+assert.ok(
+  !plan.operations.some(operation =>
+    operation.path.includes(path.join('.agents', 'skills', 'routing'))
+  ),
+  'hidden mode must not deploy skills into scan root .agents/skills'
+)
+assert.ok(
+  !plan.operations.some(operation =>
+    operation.path.includes(path.join('.claude', 'skills', 'routing'))
+  ),
+  'hidden mode must not deploy skills into Claude scan root'
+)
+assert.strictEqual(plan.skillsDeployMode, 'hidden')
 for (const graySkill of ['brand-visual-quality', 'consumer-validation-engineering', 'rework-prevention-engineering']) {
   assert.ok(
     !plan.operations.some(operation => operation.path.includes(path.join('.agents', 'skills', graySkill))),
-    `gray Skill must not enter shared global deployment: ${graySkill}`
+    `gray Skill must not enter shared scan deployment: ${graySkill}`
+  )
+  assert.ok(
+    !plan.operations.some(operation => operation.path.includes(path.join('devcodex', 'skills', graySkill))),
+    `gray Skill must not enter G_RUNTIME deployment: ${graySkill}`
   )
   assert.ok(
     !plan.operations.some(operation => operation.path.includes(path.join('.claude', 'skills', graySkill))),
@@ -224,10 +247,20 @@ for (const target of targets) {
   }
 }
 assert.strictEqual(fs.existsSync(path.join(home, '.agents', 'devcodex', 'instructions.full.md')), true)
-assert.strictEqual(fs.existsSync(path.join(home, '.agents', 'skills', 'routing', 'SKILL.md')), true)
+assert.strictEqual(
+  fs.existsSync(path.join(home, '.agents', 'devcodex', 'skills', 'routing', 'SKILL.md')),
+  true,
+  'hidden apply must materialize skills under G_RUNTIME'
+)
+assert.strictEqual(fs.existsSync(path.join(home, '.agents', 'skills', 'routing', 'SKILL.md')), false)
 assert.strictEqual(fs.existsSync(path.join(home, '.agents', 'skills', 'brand-visual-quality')), false)
 assert.strictEqual(fs.existsSync(path.join(home, '.claude', 'skills', 'brand-visual-quality')), false)
-assert.strictEqual(fs.existsSync(path.join(home, '.copilot', 'skills', 'routing', 'SKILL.md')), true)
+assert.strictEqual(
+  fs.existsSync(path.join(home, '.copilot', 'skills', 'routing', 'SKILL.md')),
+  false,
+  'hidden mode must not fill Copilot scan skills tree'
+)
+assert.strictEqual(fs.existsSync(path.join(home, '.claude', 'skills', 'routing', 'SKILL.md')), false)
 
 const copilotHooks = JSON.parse(fs.readFileSync(path.join(home, '.copilot', 'hooks', 'devcodex.json'), 'utf8'))
 assert.strictEqual(copilotHooks.version, 1)

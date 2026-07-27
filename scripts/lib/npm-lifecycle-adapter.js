@@ -163,7 +163,8 @@ function runPostinstall(options = {}) {
       packageRoot,
       env,
       home: options.home,
-      dryRun: false
+      dryRun: false,
+      skillsDeployMode: options.skillsDeployMode || env.DEVCODEX_SKILLS_DEPLOY_MODE || undefined
     })
     const grokTarget = (result?.targets || []).find(target => target.host === 'grok')
     const grokTransaction = result?.transaction?.hosts?.find(item => item.host === 'grok')

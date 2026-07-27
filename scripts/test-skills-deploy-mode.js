@@ -49,10 +49,13 @@ assert.strictEqual(resolveSkillsDeployMode({}, { skillsDeployMode: 'legacy' }), 
   assert.ok(managed.includes('routing'), 'fixture package should manage routing skill')
   for (const scan of [
     path.join(home, '.agents', 'skills', 'routing'),
-    path.join(home, '.claude', 'skills', 'routing')
+    path.join(home, '.claude', 'skills', 'routing'),
+    // gray residue must also be pruned in hidden mode
+    path.join(home, '.agents', 'skills', 'consumer-validation-engineering'),
+    path.join(home, '.claude', 'skills', 'consumer-validation-engineering')
   ]) {
     fs.mkdirSync(scan, { recursive: true })
-    fs.writeFileSync(path.join(scan, 'SKILL.md'), '---\nname: routing\n---\nlegacy\n', 'utf8')
+    fs.writeFileSync(path.join(scan, 'SKILL.md'), '---\nname: stub\n---\nlegacy\n', 'utf8')
   }
 
   const plan = buildGlobalHostConfigPlan({ packageRoot, env, home })
@@ -69,6 +72,16 @@ assert.strictEqual(resolveSkillsDeployMode({}, { skillsDeployMode: 'legacy' }), 
   )
   assert.strictEqual(fs.existsSync(path.join(home, '.agents', 'skills', 'routing')), false)
   assert.strictEqual(fs.existsSync(path.join(home, '.claude', 'skills', 'routing')), false)
+  assert.strictEqual(
+    fs.existsSync(path.join(home, '.agents', 'skills', 'consumer-validation-engineering')),
+    false,
+    'gray package skill must be pruned from agents scan root'
+  )
+  assert.strictEqual(
+    fs.existsSync(path.join(home, '.claude', 'skills', 'consumer-validation-engineering')),
+    false,
+    'gray package skill must be pruned from claude scan root'
+  )
 
   // legacy re-fills scan roots
   const legacy = applyGlobalHostConfig({

@@ -25,6 +25,7 @@ const {
 const {
   createSkillDeployFileFilter,
   listManagedSkillIds,
+  listPrunableSkillIds,
   pruneManagedSkillDirs
 } = require('./skill-deploy-filter.js')
 const { resolveSkillsDeployMode } = require('./skills-deploy-mode.js')
@@ -641,6 +642,8 @@ function buildGlobalHostConfigPlan(options = {}) {
     : targets[0]?.host
   const hostPlans = []
   const managedSkillIds = listManagedSkillIds(packageRoot)
+  // Hidden mode must also remove gray/historical package skill dirs from L1 scan roots
+  const prunableSkillIds = listPrunableSkillIds(packageRoot)
   const pruneRootsSeen = new Set()
 
   for (const target of targets) {
@@ -669,7 +672,8 @@ function buildGlobalHostConfigPlan(options = {}) {
         status: 'planned',
         operations: hostOperations,
         pruneManagedSkillRoots: pruneRoots,
-        managedSkillIds
+        managedSkillIds,
+        prunableSkillIds
       })
     } catch (error) {
       hostPlans.push({
@@ -852,7 +856,7 @@ function applyGlobalHostConfig(options = {}) {
             }
             const result = pruneManagedSkillDirs(
               scanRoot,
-              hostPlan.managedSkillIds || [],
+              hostPlan.prunableSkillIds || hostPlan.managedSkillIds || [],
               fsImpl,
               { dryRun: false }
             )

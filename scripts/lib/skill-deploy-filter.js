@@ -66,11 +66,25 @@ function isSkillsSource(source) {
   return normalized === 'skills' || normalized.endsWith('/skills')
 }
 
-/** Active/deployable skill ids from plugin registry (managed set for prune). */
+/** Active/deployable skill ids from plugin registry (deploy set). */
 function listManagedSkillIds (packageRoot) {
   return loadPluginSkills(packageRoot)
     .filter(skill => isDeployableSkill(skill))
     .map(skill => String(skill.id))
+}
+
+/**
+ * Ids that must not remain on host L1 scan roots in hidden mode:
+ * all package-registered skills (active + gray + other non-orphan registry rows).
+ * Gray was previously copyable or left as residue when only active ids were pruned.
+ */
+function listPrunableSkillIds (packageRoot) {
+  const fromPlugin = loadPluginSkills(packageRoot)
+    .filter(skill => skill && skill.id)
+    .map(skill => String(skill.id))
+  // Always include known gray set even if plugin row missing during partial checkout
+  const gray = graySkillIds(packageRoot)
+  return Array.from(new Set([...fromPlugin, ...gray]))
 }
 
 /**
@@ -116,6 +130,7 @@ module.exports = {
   isDeployableSkill,
   nonActiveSkillIdSet,
   listManagedSkillIds,
+  listPrunableSkillIds,
   pruneManagedSkillDirs,
   shouldDeploySkillRelative,
   createSkillDeployFileFilter,

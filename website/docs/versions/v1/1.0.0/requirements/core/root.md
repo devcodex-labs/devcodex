@@ -11,7 +11,7 @@
 
 | 文件 | 说明 |
 |------|------|
-| `package.json` | 包名 `@devcodex/devcodex`，版本 `1.0.0`，AGPL-3.0 |
+| `package.json` | 包名 `devcodex`，版本 `1.0.0`，AGPL-3.0 |
 | `plugin.json` | 插件元数据，agents/skills/instructions 注册表 |
 | `index.js` | CLI 入口（init / update / status），零依赖 |
 | `.mcp.json` | MCP Server 占位（全部 disabled，v1.1.0 启用）|

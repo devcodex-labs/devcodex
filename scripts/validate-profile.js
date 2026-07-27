@@ -134,7 +134,11 @@ function checkProfileReleaseTruthAuthorityMatrix(projectInfoText) {
   if (!pluginVersion) return
   const directProjectInfoPath = path.join(profileDir, '01-项目信息.md')
   const directProjectInfo = readFileIfExists(directProjectInfoPath)
-  const devcodexProject = isSourceRepoProfileTarget() || /@vextjs\/devcodex/.test(directProjectInfo)
+  // Real DevCodex project profiles declare npm package name `devcodex` (unscoped).
+  // Keep legacy @vextjs/devcodex match for old fixtures; do not match bare "devcodex" words alone.
+  const devcodexProject = isSourceRepoProfileTarget() ||
+    /\|\s*\*\*npm 包名\*\*\s*\|\s*`devcodex`/.test(directProjectInfo) ||
+    /@vextjs\/devcodex/.test(directProjectInfo)
   const checked = new Set()
 
   function checkClaim(source, label, version) {
@@ -224,7 +228,7 @@ function extractExplicitProfileTiers(text) {
 function hasCurrentAgentsDistribution(text) {
   return /GlobalOnlyHostConfigModeV1/.test(text) &&
     /GlobalOnlyWorkspaceCleanModeV1/.test(text) &&
-    /npm install -g (?:@devcodex\/)?devcodex/.test(text) &&
+    /npm install -g devcodex/.test(text) &&
     /(agents[^\n。]*(不向|不再向)[^\n。]*workspace|(不向|不再向)[^\n。]*workspace[^\n。]*agents|workspace[^\n。]*不生成[^\n。]*宿主)/i.test(text)
 }
 

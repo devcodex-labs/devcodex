@@ -93,7 +93,7 @@ Grok **不会**每轮注入 bootstrap。模型必须按下列可扫清单自执�
 以下步骤只适用于已安装包作用域。源码仓诊断会返回 `installedHealthClaim=false`，候选差异只保留在 `hostParity.withheldChecks/withheldFailedChecks/withheldRepairSteps`；应先打包并全局安装候选，再从源码仓外运行诊断。
 
 1. 读 `devcodex doctor` 人类输出的 **Repair steps**，或 `doctor --json` → `payload.hostParity.repairSteps`。
-2. 按每条 `command` 执行；源码候选优先 `devcodex global-adapters apply`，或 `npm install -g .` / `npm install -g ./devcodex-devcodex-1.15.3.tgz`；发布后缺失时使用 `npm install -g @devcodex/devcodex`、升级时使用 `npm update -g @devcodex/devcodex`。
+2. 按每条 `command` 执行；源码候选优先 `devcodex global-adapters apply`，或 `npm install -g .` / `npm install -g ./devcodex-1.15.3.tgz`；发布后缺失时使用 `npm install -g devcodex`、升级时使用 `npm update -g devcodex`。
 3. 再跑 `devcodex doctor`，直到 `tier=full-capable`（或 checks 全绿）。
 4. 日常会话仍用 **`devcodex grok`**，并遵守 **GrokTurnChecklist**（full-capable ≠ 已注入 PC0）。
 

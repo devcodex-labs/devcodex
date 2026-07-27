@@ -100,7 +100,7 @@ function buildGrokLaunchPlan(argv = [], options = {}) {
   const nestedGitRoot = workspaceRoot ? findNestedGitRoot(cwd, workspaceRoot) : null
   const kernelPath = path.join(globalTarget.runtimeRoot, 'AGENTS.md')
   if (!fs.existsSync(kernelPath)) {
-    const error = new Error(`GROK_GLOBAL_ADAPTER_MISSING: ${kernelPath}; run npm install -g @devcodex/devcodex`)
+    const error = new Error(`GROK_GLOBAL_ADAPTER_MISSING: ${kernelPath}; run npm install -g devcodex`)
     error.code = 'GROK_GLOBAL_ADAPTER_MISSING'
     throw error
   }

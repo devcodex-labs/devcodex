@@ -2,7 +2,7 @@
 
 > AI 开发规范注入器 — 默认五宿主：Copilot / Claude Code / Codex / Gemini / Grok（Hook-First / Instruction-Fallback）
 
-[![npm](https://img.shields.io/npm/v/@devcodex/devcodex.svg)](https://www.npmjs.com/package/@devcodex/devcodex)
+[![npm](https://img.shields.io/npm/v/devcodex.svg)](https://www.npmjs.com/package/devcodex)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green)](LICENSE)
 
 ## DevCodex 是什么？
@@ -126,17 +126,17 @@ node --version # CLI 需要 Node.js >=18
 2. 安装 CLI：
 
 ```bash
-npm install -g @devcodex/devcodex
+npm install -g devcodex
 ```
 
 3. 本地验证当前候选：
 
 ```bash
 npm pack
-npm install -g ./devcodex-devcodex-1.15.3.tgz
+npm install -g ./devcodex-1.15.3.tgz
 ```
 
-发布后的正式入口为 `npm install -g @devcodex/devcodex`；本阶段只验证本地 tarball 和 CLI 行为，不验证 registry dist-tag 或版本唯一性。
+发布后的正式入口为 `npm install -g devcodex`；本阶段只验证本地 tarball 和 CLI 行为，不验证 registry dist-tag 或版本唯一性。
 
 4. 在目标工作区初始化 `.devcodex` 并验证：
 
@@ -151,13 +151,13 @@ devcodex status
 
 ## 安装
 
-以下是当前 v1.15.3 的完整安装说明。新 canonical 包名为 `@devcodex/devcodex`，发布目标为 npmjs。
+以下是当前 v1.15.3 的完整安装说明。新 canonical 包名为 `devcodex`，发布目标为 npmjs。
 
 ### 1. 安装并初始化
 
 ```bash
 npm pack
-npm install -g ./devcodex-devcodex-1.15.3.tgz # 本地候选：安装 CLI 并自动配置五宿主用户级 adapter
+npm install -g ./devcodex-1.15.3.tgz # 本地候选：安装 CLI 并自动配置五宿主用户级 adapter
 devcodex init                              # 只初始化当前 workspace 的 .devcodex
 devcodex status
 ```
@@ -165,8 +165,8 @@ devcodex status
 发布后的命令语义：
 
 ```bash
-npm install -g @devcodex/devcodex # 安装全局 CLI，并由 postinstall 配置五宿主用户级 adapter
-npm update -g @devcodex/devcodex  # 升级全局包，并由 postinstall 刷新五宿主用户级 adapter
+npm install -g devcodex # 安装全局 CLI，并由 postinstall 配置五宿主用户级 adapter
+npm update -g devcodex  # 升级全局包，并由 postinstall 刷新五宿主用户级 adapter
 npm install devcodex    # 仅加入当前项目依赖；不配置宿主，并提示必须使用 -g
 ```
 
@@ -308,9 +308,9 @@ Phase 1 采用“薄 Rule + `host-capability-routing` Skill + 三份 V1 契约/�
 |------|------|
 | `devcodex global-adapters apply` | **源码维护者日常（R1a）**：从当前包根刷新用户级五宿主 adapter；支持 `--dry-run` / `--json`；不 pack、不 publish |
 | `npm install -g .` | **本地旁路（R1b）**：全局安装当前目录并走 postinstall 刷新 adapter |
-| `npm pack` + `npm install -g ./devcodex-devcodex-*.tgz` | **预发冒烟（R2）**：接近真实 tarball 安装面 |
-| `npm install -g @devcodex/devcodex` | **已发布（R3）**：安装全局 CLI；`postinstall` 自动刷新全局宿主 adapter |
-| `npm update -g @devcodex/devcodex` | **已发布（R3）**：升级全局包并 `postinstall` 刷新 adapter |
+| `npm pack` + `npm install -g ./devcodex-*.tgz` | **预发冒烟（R2）**：接近真实 tarball 安装面 |
+| `npm install -g devcodex` | **已发布（R3）**：安装全局 CLI；`postinstall` 自动刷新全局宿主 adapter |
+| `npm update -g devcodex` | **已发布（R3）**：升级全局包并 `postinstall` 刷新 adapter |
 | `npm install devcodex` | 仅安装到当前项目依赖；`postinstall` 不写宿主配置并提示必须使用 `-g` |
 | `devcodex update` | **workspace only（R4）**：只刷新当前 `.devcodex` 运行态，不写用户级宿主配置 |
 
@@ -582,7 +582,7 @@ README / 用户使用文档当前补充四类专项 Skill：`user-manual-authori
 | **OpenAI Codex app/CLI** | 用户级 `.codex/AGENTS.md`、hooks、config 与 `.agents/skills/` | ⚠️ isolated direct probe；阻断输出按事件契约分级 | ⚠️ Hook + 文本确认 | ✅ 用户级 MCP managed block | 🟢 Direct probe |
 | **ChatGPT 普通对话** | 不读取本地工作区 `AGENTS.md` / `.agents/` / `.codex/`；可手工粘贴规则 | ❌ | ⚠️ 文本 | ❌ | 🔴 Unsupported |
 
-> **安装命令**：`npm install -g @devcodex/devcodex` 安装 CLI 并配置五宿主用户级 adapter；`npm update -g @devcodex/devcodex` 升级并刷新。当前候选用本地 tarball 验证，不代表 npm registry 已发布。
+> **安装命令**：`npm install -g devcodex` 安装 CLI 并配置五宿主用户级 adapter；`npm update -g devcodex` 升级并刷新。当前候选用本地 tarball 验证，不代表 npm registry 已发布。
 >
 > **Grok 全局插件**：plugin source、配置和稳定 runtime 均位于用户级 Grok 根；`devcodex grok` 从当前 cwd 发现 workspace `.devcodex`，不依赖工作区 `.grok` 或 `AGENTS.md`。`doctor/status` 读取全局 receipt；工作区旧插件只报告为 legacy。
 >
@@ -653,7 +653,7 @@ DevCodex Hook runtime 不再把所有拦截都等同为“停止”。拦截会�
    - 维护 DevCodex 源仓或 workspace-namespace 时，运行 `node scripts/validate-all-profiles.js --workspace <workspace-root>` 校验所有 Profile；发布前需要严格处理 warning 时追加 `--strict-warnings`
 3. **Codex / Copilot 想用 MCP**
    - 先确认宿主本身是否支持本地 MCP
-   - **Codex**：重新执行 `npm install -g @devcodex/devcodex`（首次/修复）或 `npm update -g @devcodex/devcodex`（升级），再重启 Codex。用户其它 `mcp_servers` 会保留
+   - **Codex**：重新执行 `npm install -g devcodex`（首次/修复）或 `npm update -g devcodex`（升级），再重启 Codex。用户其它 `mcp_servers` 会保留
    - **Copilot CLI**：同一全局安装/升级会维护 `~/.copilot/mcp-config.json` 的 DevCodex managed servers，并保留用户其它 servers；重启 Copilot CLI 后用 `devcodex doctor` 核对原生 CLI 状态
    - **Copilot IDE**：不继承 Copilot CLI 的用户级 Hooks/MCP 就绪结论，仍按目标 IDE 自身能力验证
    - Claude 使用用户级 MCP 配置，不要求工作区 `.mcp.json`
@@ -679,7 +679,7 @@ DevCodex Hook runtime 不再把所有拦截都等同为“停止”。拦截会�
    - `CheckpointValidationResultV1` 分开记录 response-time 与 post-execution；PostToolUse/PreCompact 或缺失证据不能让 post-execution 通过，只有实际 Stop terminal evidence 才能完成
    - `devcodex trace show|replay --state <lifecycle-state.json> --json` 可检查当前 turn 的 sequence/duplicate/terminal；replay 只读且不会执行 payload
    - 工具或 Agent 仍持有有效长租约时不会按 120/300 秒误判；任何恢复都不得自动重放未知副作用的写操作
-   - gray sidecar 可执行 `npm run check:turn-liveness -- --state <lifecycle-state.json> --json`；安装包消费者可直接运行 `node node_modules/@devcodex/devcodex/scripts/check-turn-liveness.js --state <lifecycle-state.json> --json`
+   - gray sidecar 可执行 `npm run check:turn-liveness -- --state <lifecycle-state.json> --json`；安装包消费者可直接运行 `node node_modules/devcodex/scripts/check-turn-liveness.js --state <lifecycle-state.json> --json`
    - sidecar 只做一次读取和分类，不 watch、不写状态、不唤醒宿主、不重放操作、不控制进程；输出 `sidecar-observed` 不能冒充 `host-native-verified`
 
 ## IDE 兼容性

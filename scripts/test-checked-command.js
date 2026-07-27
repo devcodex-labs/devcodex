@@ -58,17 +58,22 @@ try {
     /allowShellReason/
   )
 
+  // package is unscoped `devcodex` (org owns GitHub repo; npm module is not scoped)
+  assert.strictEqual(packageScope('devcodex'), null)
   assert.strictEqual(packageScope('@devcodex/devcodex'), '@devcodex')
   assert.strictEqual(packageScope('unscoped-package'), null)
   const npmjsPublishArgs = buildPublishArgs('npmjs')
   const githubPublishArgs = buildPublishArgs('github')
   assert.ok(npmjsPublishArgs.includes('--registry=https://registry.npmjs.org/'))
-  assert.ok(npmjsPublishArgs.includes('--@devcodex:registry=https://registry.npmjs.org/'), 'npmjs must override scoped .npmrc routing')
+  assert.ok(!npmjsPublishArgs.some((a) => a.startsWith('--@') && a.includes(':registry=')), 'unscoped package must not emit scope registry override')
   assert.ok(githubPublishArgs.includes('--registry=https://npm.pkg.github.com/'))
-  assert.ok(githubPublishArgs.includes('--@devcodex:registry=https://npm.pkg.github.com/'), 'GitHub Packages target must bind the package scope explicitly')
+  assert.ok(!githubPublishArgs.some((a) => a.startsWith('--@') && a.includes(':registry=')), 'unscoped package must not emit scope registry override')
+  // scoped packageName still binds --@scope:registry when provided explicitly
+  const scopedNpmjs = buildPublishArgs('npmjs', '@devcodex/devcodex')
+  assert.ok(scopedNpmjs.includes('--@devcodex:registry=https://registry.npmjs.org/'))
   assert.throws(() => buildPublishArgs('unknown'), /Unknown registry target/)
 
-  console.log('✓ checked-command fail-fast, literal-glob and scoped registry fixtures passed')
+  console.log('✓ checked-command fail-fast, literal-glob and registry fixtures passed')
 } finally {
   fs.rmSync(root, { recursive: true, force: true })
 }

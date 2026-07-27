@@ -518,7 +518,7 @@ assert(missingCopilotRuntimeHost.issues.some(issue =>
   issue.code === 'GLOBAL_HOST_CONFIG_PATH_MISSING'
 ))
 const missingAdapterDoctor = runDoctorHuman()
-assert.match(missingAdapterDoctor, /Missing adapters: copilot\. Repair with `npm install -g @devcodex\/devcodex`\./)
+assert.match(missingAdapterDoctor, /Missing adapters: copilot\. Repair with `npm install -g devcodex`\./)
 const repaired = applyGlobalHostConfig({ packageRoot, env, home })
 assert.strictEqual(repaired.transaction.changed, 1)
 assert.strictEqual(applyGlobalHostConfig({ packageRoot, env, home }).transaction.changed, 0)

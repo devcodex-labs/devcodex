@@ -9,12 +9,12 @@ const {
   parseJsonArgs
 } = require('./lib/cli-json-contract')
 
-const metadata = { packageName: '@devcodex/devcodex', packageVersion: '1.15.0' }
+const metadata = { packageName: 'devcodex', packageVersion: '1.15.0' }
 assert.deepStrictEqual(createCliSuccess('status', { ready: true }, metadata), {
   schemaVersion: CLI_ENVELOPE_SCHEMA_VERSION,
   ok: true,
   command: 'status',
-  packageName: '@devcodex/devcodex',
+  packageName: 'devcodex',
   packageVersion: '1.15.0',
   payload: { ready: true }
 })
@@ -25,7 +25,7 @@ assert.deepStrictEqual(
     schemaVersion: CLI_ENVELOPE_SCHEMA_VERSION,
     ok: false,
     command: 'doctor',
-    packageName: '@devcodex/devcodex',
+    packageName: 'devcodex',
     packageVersion: '1.15.0',
     errorCode: 'CLI_INVALID_OPTION',
     message: 'unsupported option: --bad',

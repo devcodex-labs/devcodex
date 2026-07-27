@@ -79,8 +79,8 @@
 ## ✅ 验证
 
 ```bash
-npx @devcodex/devcodex init --dry-run
-npx @devcodex/devcodex status
+npx devcodex init --dry-run
+npx devcodex status
 ```
 
 ---
@@ -91,9 +91,9 @@ npx @devcodex/devcodex status
 # 源码维护者：刷新用户级全局 adapter（不 pack / 不 publish）
 devcodex global-adapters apply
 # 预发冒烟：
-# npm pack && npm install -g ./devcodex-devcodex-<version>.tgz
+# npm pack && npm install -g ./devcodex-<version>.tgz
 # 已发布用户：
-# npm update -g @devcodex/devcodex
+# npm update -g devcodex
 # workspace 运行态 only：
 # devcodex update
 ```

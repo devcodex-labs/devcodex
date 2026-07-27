@@ -35,7 +35,7 @@ try {
     targetRoot,
     manifestFile,
     descriptors,
-    packageName: '@devcodex/devcodex',
+    packageName: 'devcodex',
     packageVersion: '1.12.0'
   })
   assert.strictEqual(session.preview.add.length, 2)
@@ -53,7 +53,7 @@ try {
     targetRoot,
     manifestFile,
     descriptors,
-    packageName: '@devcodex/devcodex',
+    packageName: 'devcodex',
     packageVersion: '1.12.0'
   })
   assert.deepStrictEqual(session.preview.stale.map(entry => entry.destination), ['.github/skills/two.md'])
@@ -67,7 +67,7 @@ try {
     targetRoot,
     manifestFile,
     descriptors,
-    packageName: '@devcodex/devcodex',
+    packageName: 'devcodex',
     packageVersion: '1.12.0'
   })
   assert.ok(session.preview.unowned.includes('.github/skills/custom.md'))
@@ -78,7 +78,7 @@ try {
   write(path.join(legacyTarget, 'AGENTS.md'), '# bridge owner\n')
   write(legacyManifestFile, JSON.stringify({
     schemaVersion: 1,
-    package: '@devcodex/devcodex',
+    package: 'devcodex',
     packageVersion: '1.15.1',
     targetRoot: legacyTarget,
     generatedAt: '2026-07-19T00:00:00.000Z',
@@ -104,7 +104,7 @@ try {
       source: 'host-projections/AGENTS.workspace-bridge.md',
       destination: 'AGENTS.md'
     }],
-    packageName: '@devcodex/devcodex',
+    packageName: 'devcodex',
     packageVersion: '1.15.1'
   })
   assert.deepStrictEqual(
@@ -125,7 +125,7 @@ try {
       { surface: 'bridge-a', source: 'host-projections/AGENTS.workspace-bridge.md', destination: 'AGENTS.md' },
       { surface: 'bridge-b', source: 'host-projections/AGENTS.alternate.md', destination: './AGENTS.md' }
     ],
-    packageName: '@devcodex/devcodex',
+    packageName: 'devcodex',
     packageVersion: '1.15.1'
   }), /Deployment descriptor ownership conflict/)
 

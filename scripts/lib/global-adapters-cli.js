@@ -143,7 +143,7 @@ function buildHandler(deps = {}) {
         COMMAND,
         'GLOBAL_ADAPTERS_PACKAGE_ROOT_INVALID',
         `Package root is not a DevCodex package: ${pkgRoot}`,
-        'Run from the @devcodex/devcodex / devcodex package root, or install via npm -g.',
+        'Run from the devcodex / devcodex package root, or install via npm -g.',
         cliMetadata,
         { packageRoot: pkgRoot }
       )

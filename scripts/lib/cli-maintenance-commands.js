@@ -434,7 +434,7 @@ function buildCliMaintenanceCommands(ctx) {
       if (isSrc) {
         console.log(`  ${c.dim('No workspace host artifacts.')} ${c.dim(`This is expected in ${workspaceCleanMode}.`)}`)
       } else {
-        console.log(`  ${c.yellow('Workspace runtime not initialized.')} Run ${c.bold('devcodex init')}; host adapters require ${c.bold('npm install -g @devcodex/devcodex')}.`)
+        console.log(`  ${c.yellow('Workspace runtime not initialized.')} Run ${c.bold('devcodex init')}; host adapters require ${c.bold('npm install -g devcodex')}.`)
       }
     } else {
       console.log(`  ${c.yellow(`${total} legacy workspace host entry files`)} detected; global receipts above are the installation authority`)
@@ -864,7 +864,7 @@ function buildCliMaintenanceCommands(ctx) {
       console.log(`    ${host.host.padEnd(10)} ${state}`)
     }
     if (missingAdapters.length) {
-      console.log(c.yellow(`    Missing adapters: ${missingAdapters.map(host => host.host).join(', ')}. Repair with \`npm install -g @devcodex/devcodex\`.`))
+      console.log(c.yellow(`    Missing adapters: ${missingAdapters.map(host => host.host).join(', ')}. Repair with \`npm install -g devcodex\`.`))
     } else {
       console.log(c.green(sourceRepository
         ? '    No independently missing adapter was found by the source-candidate comparison.'
@@ -908,7 +908,7 @@ function buildCliMaintenanceCommands(ctx) {
         ? '    The source candidate differs from the installed Copilot receipt; installed Copilot adapter health is not asserted.'
         : globalAdapterReady('copilot')
         ? '    Copilot CLI user-global instructions, Hooks, MCP, and Skills are installed by the global adapter.'
-        : '    Copilot CLI user-global instructions, Hooks, MCP, and Skills require `npm install -g @devcodex/devcodex`.')
+        : '    Copilot CLI user-global instructions, Hooks, MCP, and Skills require `npm install -g devcodex`.')
       console.log('    Operational readiness still requires a successful native `copilot --version` deep probe.')
       console.log(`    IDE workspace hooks and per-repository instruction files are not installed in ${workspaceCleanMode}.`)
       console.log()
@@ -922,32 +922,32 @@ function buildCliMaintenanceCommands(ctx) {
     if (platform === 'copilot' && !globalReady('copilot') && !sourceCandidateMismatchSet.has('copilot')) {
       console.log(c.yellow(globalAdapterReady('copilot')
         ? '  ⚠️  Copilot user-global adapter is ready, but the native `copilot --version` probe did not pass — install or repair Copilot CLI, then rerun `devcodex doctor`.'
-        : '  ⚠️  Copilot CLI detected without a ready user-global adapter — run `npm install -g @devcodex/devcodex`.'))
+        : '  ⚠️  Copilot CLI detected without a ready user-global adapter — run `npm install -g devcodex`.'))
       console.log()
     }
     if (platform === 'claude' && !globalReady('claude') && !sourceCandidateMismatchSet.has('claude')) {
       console.log(c.yellow(globalAdapterReady('claude')
         ? '  ⚠️  Claude user-global adapter is ready, but the native `claude --version` probe did not pass — install or repair Claude Code, then rerun `devcodex doctor`.'
-        : '  ⚠️  Claude Code detected without a ready user-global adapter — run `npm install -g @devcodex/devcodex`.'))
+        : '  ⚠️  Claude Code detected without a ready user-global adapter — run `npm install -g devcodex`.'))
       console.log()
     }
     if (platform === 'codex' && !globalReady('codex') && !sourceCandidateMismatchSet.has('codex')) {
       console.log(c.yellow(globalAdapterReady('codex')
         ? '  ⚠️  Codex user-global adapter is ready, but the native `codex --version` probe did not pass — install or repair Codex, then rerun `devcodex doctor`.'
-        : '  ⚠️  Codex detected without a ready user-global adapter — run `npm install -g @devcodex/devcodex`.'))
+        : '  ⚠️  Codex detected without a ready user-global adapter — run `npm install -g devcodex`.'))
       if (!globalAdapterReady('codex')) console.log(c.dim(`      Expected hook command: ${CODEX_HOOK_COMMAND}`))
       console.log()
     }
     if (platform === 'gemini' && !globalReady('gemini') && !sourceCandidateMismatchSet.has('gemini')) {
       console.log(c.yellow(globalAdapterReady('gemini')
         ? '  ⚠️  Gemini user-global adapter is ready, but the native `gemini --version` probe did not pass — install or repair Gemini CLI, then rerun `devcodex doctor`.'
-        : '  ⚠️  Gemini CLI detected without a ready user-global adapter — run `npm install -g @devcodex/devcodex`.'))
+        : '  ⚠️  Gemini CLI detected without a ready user-global adapter — run `npm install -g devcodex`.'))
       console.log()
     }
     if (platform === 'grok' && !globalReady('grok') && !sourceCandidateMismatchSet.has('grok')) {
       console.log(c.yellow(globalAdapterReady('grok')
         ? '  ⚠️  Grok user-global adapter is ready, but the native `grok version` probe did not pass — install or repair Grok, then rerun `devcodex doctor`.'
-        : '  ⚠️  Grok detected without a ready user-global adapter — run `npm install -g @devcodex/devcodex`.'))
+        : '  ⚠️  Grok detected without a ready user-global adapter — run `npm install -g devcodex`.'))
       console.log()
     }
     if (hostParity && !hostParity.hardReady && sourceRepository) {
@@ -982,7 +982,7 @@ function buildCliMaintenanceCommands(ctx) {
       for (const issue of instructionProjection.issues) console.log(c.yellow(`  ⚠️  ${issue.code}`))
       console.log(c.dim(sourceRepository
         ? '      Source-candidate scope does not establish installed adapter failure; validate the packed candidate first.'
-        : '      These are legacy workspace artifacts. Repair the user-global adapter with `npm install -g @devcodex/devcodex`.'))
+        : '      These are legacy workspace artifacts. Repair the user-global adapter with `npm install -g devcodex`.'))
       console.log()
     }
     if ((instructionProjection.warnings || []).length) {
@@ -1015,7 +1015,7 @@ function buildCliMaintenanceCommands(ctx) {
 
     ${c.bold('Usage:')}
       devcodex <command> [options]
-      npx @devcodex/devcodex <command> [options]   ${c.dim('(without npm link)')}
+      npx devcodex <command> [options]   ${c.dim('(without npm link)')}
 
     ${c.bold('Commands:')}
       ${c.cyan('init')}              Initialize workspace-owned .devcodex runtime state only
@@ -1048,9 +1048,9 @@ function buildCliMaintenanceCommands(ctx) {
       devcodex global-adapters apply --dry-run  # R1a: plan user-global adapters from source tree
       devcodex global-adapters apply            # R1a: refresh user-global adapters without pack/publish
       npm install -g .                          # R1b: local global install postinstall refresh
-      npm pack && npm install -g ./devcodex-devcodex-*.tgz  # R2: pre-release tarball
-      npm install -g @devcodex/devcodex                   # R3: published install + postinstall adapters
-      npm update -g @devcodex/devcodex                    # R3: published upgrade + postinstall refresh
+      npm pack && npm install -g ./devcodex-*.tgz  # R2: pre-release tarball
+      npm install -g devcodex                   # R3: published install + postinstall adapters
+      npm update -g devcodex                    # R3: published upgrade + postinstall refresh
       npm install devcodex                      # Dependency only; prints the required -g guidance
       devcodex init                             # R4: initialize only this workspace .devcodex
       devcodex update                           # R4: refresh only this workspace .devcodex

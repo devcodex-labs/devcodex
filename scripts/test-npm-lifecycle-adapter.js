@@ -25,8 +25,8 @@ function writeJson(file, value) {
 }
 
 function fixturePackageRoot(label, { source = false } = {}) {
-  const dir = mkdirp(path.join(tmp, label, 'node_modules', '@vextjs', 'devcodex'))
-  writeJson(path.join(dir, 'package.json'), { name: '@devcodex/devcodex', version: '0.0.0-test' })
+  const dir = mkdirp(path.join(tmp, label, 'node_modules', 'devcodex'))
+  writeJson(path.join(dir, 'package.json'), { name: 'devcodex', version: '0.0.0-test' })
   fs.writeFileSync(path.join(dir, 'index.js'), '#!/usr/bin/env node\n', 'utf8')
   if (source) mkdirp(path.join(dir, '.git'))
   return dir
@@ -166,7 +166,7 @@ const packagedRoot = fixturePackageRoot('packaged')
 const sourceRoot = fixturePackageRoot('source', { source: true })
 const workspace = fixtureWorkspace('workspace', {
   name: 'consumer',
-  dependencies: { '@devcodex/devcodex': 'file:../pkg.tgz' }
+  dependencies: { 'devcodex': 'file:../pkg.tgz' }
 })
 const aliasWorkspace = fixtureWorkspace('alias-workspace', {
   name: 'consumer-alias',
@@ -177,7 +177,7 @@ const firstInstallWorkspace = fixtureWorkspace('first-install', {
   version: '1.0.0',
   private: true
 })
-writePackageLockRootDependency(firstInstallWorkspace, '@devcodex/devcodex')
+writePackageLockRootDependency(firstInstallWorkspace, 'devcodex')
 const transitiveWorkspace = fixtureWorkspace('transitive', {
   name: 'consumer-transitive',
   dependencies: { other: '1.0.0' }
@@ -202,7 +202,7 @@ const workspaceDecision = classify({ INIT_CWD: workspace })
 assert.strictEqual(workspaceDecision.action, 'noop')
 assert.strictEqual(workspaceDecision.scope, 'workspace-install')
 assert.strictEqual(workspaceDecision.reason, 'workspace-install-global-required')
-assert.ok(workspaceDecision.guidance.includes('npm install -g @devcodex/devcodex'))
+assert.ok(workspaceDecision.guidance.includes('npm install -g devcodex'))
 
 const aliasDecision = classify({ INIT_CWD: aliasWorkspace })
 assert.strictEqual(aliasDecision.action, 'noop')
@@ -523,7 +523,7 @@ assert.strictEqual(workspacePostinstall.reason, 'workspace-install-global-requir
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'))
 const postinstallSource = fs.readFileSync(path.join(root, 'scripts', 'postinstall.js'), 'utf8')
 assert.ok(postinstallSource.includes('global postinstall incomplete'))
-assert.ok(postinstallSource.includes('global-adapter-refresh-guidance') || postinstallSource.includes('devcodex global-adapters apply') || postinstallSource.includes('npm update -g @devcodex/devcodex'))
+assert.ok(postinstallSource.includes('global-adapter-refresh-guidance') || postinstallSource.includes('devcodex global-adapters apply') || postinstallSource.includes('npm update -g devcodex'))
 assert.ok(postinstallSource.includes('stale managed path(s) remain pending'))
 assert.ok(postinstallSource.includes('receipt finalization step(s) remain pending'))
 assert.strictEqual(pkg.scripts.postinstall, 'node scripts/postinstall.js')

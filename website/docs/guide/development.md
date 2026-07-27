@@ -317,7 +317,7 @@ Hook / CLI / visible reply / sticky project / workspace guard 相关任务还要
 - 宿主能力边界：`PostToolUse` 不是 terminal，也不能证明宿主会继续派发事件；Hook 仅在下一次事件到达时生成一次性 `TurnRecoveryCard`，不得自行唤醒宿主、控制进程或重放未知副作用操作
 - 双阶段 CheckpointValidation：response-time 记录当前可见事件；post-execution 缺 Stop terminal evidence 时保持 `unverified`，deadline 到期为 `incomplete-timeout`，不得把等待或 PreCompact 推断为完成
 - LocalTaskTrace：当前 turn 记录严格递增 sequence、唯一 eventId 和唯一末尾 terminal；历史 turn 只保留 TurnLiveness 摘要，CLI replay 是只读数据投影
-- gray sidecar：源码仓运行 `npm run check:turn-liveness -- --state <lifecycle-state.json> --json`；安装包运行 `node node_modules/@devcodex/devcodex/scripts/check-turn-liveness.js --state <lifecycle-state.json> --json`。它只做 one-shot 读取/分类，证据状态为 `sidecar-observed`，不 watch、不写状态、不唤醒、不重放、不控制进程
+- gray sidecar：源码仓运行 `npm run check:turn-liveness -- --state <lifecycle-state.json> --json`；安装包运行 `node node_modules/devcodex/scripts/check-turn-liveness.js --state <lifecycle-state.json> --json`。它只做 one-shot 读取/分类，证据状态为 `sidecar-observed`，不 watch、不写状态、不唤醒、不重放、不控制进程
 
 ### 用户可见交付与 MCP fallback
 

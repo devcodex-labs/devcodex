@@ -308,7 +308,7 @@ const legacyBridgeManifest = path.join(bridgeWorkspace, '.devcodex', 'project-a'
 fs.mkdirSync(path.dirname(legacyBridgeManifest), { recursive: true })
 fs.writeFileSync(legacyBridgeManifest, JSON.stringify({
   schemaVersion: 1,
-  package: '@devcodex/devcodex',
+  package: 'devcodex',
   packageVersion: '1.15.1',
   targetRoot: bridgeProject,
   generatedAt: '2026-07-19T00:00:00.000Z',

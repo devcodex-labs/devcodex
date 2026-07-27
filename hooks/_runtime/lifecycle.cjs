@@ -65,6 +65,7 @@ const {
   classifyPathsForArtifacts,
   isStrictProtectedPath,
   simpleTaskForbidsPath,
+  classifyImplementStartGate,
   ERROR_CODES: PROCESS_ENFORCEMENT_CODES
 } = require('../../scripts/lib/process-enforcement.js')
 
@@ -1347,23 +1348,28 @@ async function main() {
         }
       }
     }
-    // P0.5 WorkspaceSkillAutoMatch: message → W skill description/name → inject body
-    let workspaceSkillAutoMatchMsg = ''
+    // P0-1 WorkspaceSkillIntent (default) or legacy AutoMatch via DEVCODEX_SKILL_MATCH_MODE
+    let workspaceSkillRouteMsg = ''
     try {
       const {
-        matchWorkspaceSkills,
-        toStateRecord
-      } = require('./workspace-skill-auto-match.cjs')
-      const autoMatch = matchWorkspaceSkills(prompt, { cwd: CONTEXT_ROOT })
-      if (autoMatch.matched) {
-        state.workspaceSkillAutoMatch = toStateRecord(autoMatch)
-        workspaceSkillAutoMatchMsg = autoMatch.injectionText
-        state.lastReason = `workspace-skill-auto-match:${autoMatch.skillId}`
+        routeWorkspaceSkillIntent,
+        toIntentStateRecord,
+        getSkillMatchMode
+      } = require('./workspace-skill-intent.cjs')
+      const route = routeWorkspaceSkillIntent(prompt, { cwd: CONTEXT_ROOT })
+      const mode = getSkillMatchMode()
+      if (route.injectionText) {
+        state.workspaceSkillAutoMatch = toIntentStateRecord(route)
+        // keep legacy field name for Stop path compatibility
+        workspaceSkillRouteMsg = route.injectionText
+        state.lastReason = route.matched
+          ? `workspace-skill-intent:${route.skillId}`
+          : (mode === 'legacy-token' ? 'workspace-skill-catalog-only' : 'workspace-skill-intent-catalog')
       } else {
         state.workspaceSkillAutoMatch = null
       }
     } catch {
-      /* auto-match optional during partial deploys */
+      /* intent/auto-match optional during partial deploys */
       state.workspaceSkillAutoMatch = null
     }
 
@@ -1378,7 +1384,7 @@ async function main() {
           : '',
         buildGovernanceIntakeContextMessage(state.governanceIntake),
         formatTurnRecoveryMessage(livenessObservation.recoveryCard),
-        workspaceSkillAutoMatchMsg
+        workspaceSkillRouteMsg
       ].filter(Boolean).join('\n\n')
     ))
     return
@@ -1502,7 +1508,8 @@ async function main() {
       }
     }
 
-    // 2.7 E: plan without progress forbids control-plane source mutation (delivery honesty H1)
+    // 2.7 E: implement-start gate — control-plane mutation needs 04+05+复审清单 triad
+    // (P0-1 / ESC-01: yes-implement must not skip CP3 materialization)
     if (
       isSourceCodeMutation(payload, platform, state) &&
       !(state.simpleTaskFastPath === true || state.taskPathMode === 'simple')
@@ -1514,17 +1521,22 @@ async function main() {
           ? findIncompleteTaskForPaths(payload, state)
           : null
         const bound = task || (typeof findIncompleteTask === 'function' ? findIncompleteTask(state) : null)
-        if (bound && bound.fullPath && hasTaskArtifact(bound, 'CP3')) {
-          const progressPath = path.join(bound.fullPath, '05-实施进度.md')
-          if (!fs.existsSync(progressPath)) {
-            state.lastReason = PROCESS_ENFORCEMENT_CODES.PROGRESS_ARTIFACT_MISSING || 'progress-artifact-missing'
+        if (bound && bound.fullPath) {
+          const startGate = classifyImplementStartGate({
+            controlPlaneMutation: true,
+            taskRoot: bound.fullPath,
+            fs
+          })
+          if (!startGate.ok) {
+            const code = startGate.code || PROCESS_ENFORCEMENT_CODES.IMPLEMENT_START_WITHOUT_PROCESS
+            state.lastReason = code
             saveState(state)
             writeStdout(buildInterceptionOutput(
               state, platform, eventName, INTERCEPTION_ACTION.REQUIRE_COMPLETION,
-              'progress-artifact-missing',
-              'Progress artifact required',
-              `控制面 mutation 需要任务目录 05-实施进度.md（已有 04 实施计划）：${bound.name || bound.fullPath}`,
-              'Create 05-实施进度.md under the active requirement before mutating control-plane sources.'
+              code,
+              'Implement process triad required',
+              `控制面 mutation 前须在任务目录齐备 04-实施计划.md + 05-实施进度.md + 复审清单（缺: ${(startGate.missing || []).join(', ')}）：${bound.name || bound.fullPath}`,
+              'Create 04-实施计划.md, 05-实施进度.md, and 03-复审清单*.md under the active requirement before mutating hooks/skills/instructions.'
             ))
             return
           }
@@ -1641,19 +1653,17 @@ async function main() {
     if (eventName === 'PreCompact') markContextAcquisitionStale(state, 'compact')
     captureFinalPayloadSample(payload, eventName, state)
 
-    // P0.5: if UserPromptSubmit matched a W skill and reply ignored it, Stop-force one retry.
-    // Inject-capable hosts already got additionalContext; Grok passive UPS needs Stop block.
+    // P0-1: if UPS matched a W skill via intent and reply ignored it, Stop-force one retry.
     if (eventName === 'Stop' && state.workspaceSkillAutoMatch && state.workspaceSkillAutoMatch.skillId) {
       try {
         const {
-          isSkillReplySatisfied,
-          buildStopForceReason,
-          matchWorkspaceSkills,
-          extractLastAssistantMessage
-        } = require('./workspace-skill-auto-match.cjs')
+          isIntentReplySatisfied,
+          buildIntentStopForceReason,
+          extractLastAssistantMessage,
+          routeWorkspaceSkillIntent
+        } = require('./workspace-skill-intent.cjs')
         const lastAssistant = extractLastAssistantMessage(payload)
         const stopHookActive = payload.stopHookActive === true || payload.stop_hook_active === true
-        // Rehydrate content for satisfaction check when state only kept meta
         let matchForCheck = state.workspaceSkillAutoMatch
         if (!matchForCheck.content && matchForCheck.injectionText) {
           matchForCheck = {
@@ -1663,10 +1673,16 @@ async function main() {
             content: matchForCheck.injectionText,
             injectionText: matchForCheck.injectionText
           }
-        } else if (!matchForCheck.injectionText) {
-          const rematch = matchWorkspaceSkills(matchForCheck.skillId, { cwd: CONTEXT_ROOT })
+        } else if (!matchForCheck.injectionText && matchForCheck.skillId) {
+          const rematch = routeWorkspaceSkillIntent(matchForCheck.skillId, { cwd: CONTEXT_ROOT })
           if (rematch.matched) {
-            matchForCheck = { ...matchForCheck, ...rematch, matched: true }
+            matchForCheck = {
+              matched: true,
+              skillId: rematch.skillId,
+              mustReply: rematch.mustReply,
+              content: rematch.content,
+              injectionText: rematch.injectionText
+            }
           } else {
             matchForCheck = { ...matchForCheck, matched: true }
           }
@@ -1674,7 +1690,7 @@ async function main() {
           matchForCheck = { ...matchForCheck, matched: true }
         }
 
-        const satisfied = isSkillReplySatisfied(lastAssistant, matchForCheck)
+        const satisfied = isIntentReplySatisfied(lastAssistant, matchForCheck)
         if (satisfied) {
           state.workspaceSkillAutoMatch = {
             ...state.workspaceSkillAutoMatch,
@@ -1682,20 +1698,19 @@ async function main() {
           }
         } else {
           const enforceCount = Number(state.workspaceSkillAutoMatch.enforceCount || 0)
-          // At most 2 force rounds; honor platform soft cap via stopHookActive after first force
           if (enforceCount < 2 && !(stopHookActive && enforceCount >= 1)) {
-            const reason = buildStopForceReason(matchForCheck)
+            const reason = buildIntentStopForceReason(matchForCheck)
             state.workspaceSkillAutoMatch = {
               ...state.workspaceSkillAutoMatch,
               enforceCount: enforceCount + 1,
               lastEnforceAt: new Date().toISOString()
             }
-            state.lastReason = `workspace-skill-auto-match-stop:${state.workspaceSkillAutoMatch.skillId}`
+            state.lastReason = `workspace-skill-intent-stop:${state.workspaceSkillAutoMatch.skillId}`
             const output = decorateHookOutput(
-              blockOutput(platform, 'Stop', 'workspace-skill-auto-match', reason),
+              blockOutput(platform, 'Stop', 'workspace-skill-intent', reason),
               {
                 devcodexAction: INTERCEPTION_ACTION.FORBID,
-                devcodexCode: 'workspace-skill-auto-match',
+                devcodexCode: 'workspace-skill-intent',
                 devcodexEffective: true,
                 devcodexNextStep: 'Reply following the matched workspace skill body.'
               }

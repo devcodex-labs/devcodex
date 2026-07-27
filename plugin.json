@@ -447,6 +447,11 @@
       "id": "host-instruction-projection",
       "file": "skills/host-instruction-projection/SKILL.md",
       "tier": "free"
+    },
+    {
+      "id": "workspace-skill-author",
+      "file": "skills/workspace-skill-author/SKILL.md",
+      "tier": "free"
     }
   ],
   "instructions": [

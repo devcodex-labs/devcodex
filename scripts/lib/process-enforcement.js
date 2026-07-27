@@ -18,6 +18,11 @@ const ERROR_CODES = Object.freeze({
   PROGRESS_ARTIFACT_MISSING: 'progress-artifact-missing',
   /** Formal R3 process package incomplete (04/05/checklist triad) */
   PROCESS_ARTIFACT_INCOMPLETE: 'process-artifact-incomplete',
+  /**
+   * Control-plane mutation (hooks/skills/…) started without 04/05/review-checklist triad.
+   * yes-implement / Batch mutation must not skip CP3 materialization (ESC-01 / P0-1 process gate).
+   */
+  IMPLEMENT_START_WITHOUT_PROCESS: 'implement-start-without-process',
   /** Completion claim without discoverable stage report path */
   STAGE_REPORT_MISSING: 'stage-report-missing',
   /** Over-claim progress without validation evidence rows */
@@ -227,6 +232,82 @@ function classifyProcessArtifactCompleteness(input = {}) {
   return { ok: true, code: null, gap: null, missing: [] }
 }
 
+/**
+ * Probe 04 + 05 + review checklist under a requirement/bug task root.
+ * @param {string} taskRoot
+ * @param {{ existsSync?: Function, readdirSync?: Function }} [fsys]
+ * @returns {{ hasPlan: boolean, hasProgress: boolean, hasChecklist: boolean, missing: string[] }}
+ */
+function probeProcessTriad (taskRoot, fsys = null) {
+  const pathMod = require('path')
+  const fsImpl = fsys || require('fs')
+  const root = String(taskRoot || '')
+  const missing = []
+  let hasPlan = false
+  let hasProgress = false
+  let hasChecklist = false
+  if (!root) {
+    return { hasPlan: false, hasProgress: false, hasChecklist: false, missing: ['taskRoot'] }
+  }
+  try {
+    if (fsImpl.existsSync(pathMod.join(root, '04-实施计划.md'))) hasPlan = true
+    else missing.push('04-实施计划')
+    if (fsImpl.existsSync(pathMod.join(root, '05-实施进度.md'))) hasProgress = true
+    else missing.push('05-实施进度')
+    const names = fsImpl.readdirSync ? fsImpl.readdirSync(root) : []
+    if (names.some((n) => /复审清单|review-checklist/i.test(String(n)))) hasChecklist = true
+    else missing.push('review-checklist')
+  } catch {
+    return {
+      hasPlan: false,
+      hasProgress: false,
+      hasChecklist: false,
+      missing: ['taskRoot-unreadable']
+    }
+  }
+  return { hasPlan, hasProgress, hasChecklist, missing }
+}
+
+/**
+ * Implement-start / control-plane mutation gate (pre-coding, not only completion).
+ * When mutating protected control-plane paths for an active task, 04+05+checklist must exist.
+ *
+ * @param {{
+ *   controlPlaneMutation?: boolean,
+ *   implementStart?: boolean,
+ *   taskRoot?: string|null,
+ *   fs?: { existsSync?: Function, readdirSync?: Function },
+ *   skip?: boolean
+ * }} input
+ * @returns {{ ok: boolean, code: string|null, missing: string[], triad: object|null }}
+ */
+function classifyImplementStartGate (input = {}) {
+  if (input.skip === true) {
+    return { ok: true, code: null, missing: [], triad: null }
+  }
+  const needsGate =
+    input.controlPlaneMutation === true ||
+    input.implementStart === true
+  if (!needsGate) {
+    return { ok: true, code: null, missing: [], triad: null }
+  }
+  const root = input.taskRoot
+  if (!root) {
+    // No bound task: cannot enforce triad; caller may still require task binding elsewhere
+    return { ok: true, code: null, missing: [], triad: null, unbound: true }
+  }
+  const triad = probeProcessTriad(root, input.fs || null)
+  if (triad.missing.length) {
+    return {
+      ok: false,
+      code: ERROR_CODES.IMPLEMENT_START_WITHOUT_PROCESS,
+      missing: triad.missing,
+      triad
+    }
+  }
+  return { ok: true, code: null, missing: [], triad }
+}
+
 function simpleTaskForbidsPath(filePath) {
   const n = normalizePath(filePath)
   if (/website[/\\]docs/i.test(n)) return true
@@ -382,6 +463,8 @@ module.exports = {
   classifyPathsForArtifacts,
   classifyReviewChecklistCompletion,
   classifyProcessArtifactCompleteness,
+  probeProcessTriad,
+  classifyImplementStartGate,
   classifyDeliveryHonesty,
   classifyEcrClosure,
   classifyReviewChecklistDiscoverability,

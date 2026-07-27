@@ -163,7 +163,10 @@ const deepSpawn = (command, args) => {
   if (command === process.execPath && args.some(value => /(?:memory|profile)-server\.js$/.test(value))) {
     return {
       status: 0,
-      stdout: `${JSON.stringify({ jsonrpc: '2.0', id: 1, result: { capabilities: {} } })}\n`,
+      stdout: [
+        JSON.stringify({ jsonrpc: '2.0', id: 1, result: { capabilities: {} } }),
+        JSON.stringify({ jsonrpc: '2.0', id: 2, result: { content: [{ type: 'text', text: 'ok' }] } })
+      ].join('\n') + '\n',
       stderr: ''
     }
   }

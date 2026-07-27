@@ -38,7 +38,7 @@ description: 规范吸纳执行 Skill — 用于检查 data 最新可吸纳项�
 6. **消费者证明**：对通过通用性证明的项执行 `AbsorptionCandidateConsumerProofGate`。
 7. **返工价值复核**：候选声称降低返工、补复审遗漏或提升首次通过率时，执行 `ReworkReductionValueGate`；文本出现次数不能替代可执行 owner 和效果证据。
 8. **可执行吸纳与探针必要性**：对拟 absorb 项执行 `ExecutableAbsorptionEffectivenessGate` + `ProbeNecessityDecisionGate`；缺执行面或「该探针却无探针计划」→ 不得进入最终 absorb 清单。
-9. **分层归属**：执行 `LayeredAbsorptionGate`，判定 `global-invariant / existing-skill-subgate / new-skill-required / docs-only / case-evidence-only / project-local / already-covered`。
+9. **分层归属**：形成 `LayeredAbsorptionDecision`，判定 `global-invariant / existing-skill-subgate / new-skill-required / docs-only / case-evidence-only / project-local / already-covered`。
 10. **确认清单**：仅输出仍需吸纳项（含探针档位与影响）+ 并列 **可关账/已覆盖** 清单，等待用户确认。
 11. **实施同步**：确认后同步 commonInstruction、Skill、promptTemplate、executionConsumer、**validationProbe（按探针决策）**、publicDocs、deployCopy；禁止只改 Markdown 正文。
 12. **验证回写**：执行 targeted test、`node scripts/validate.js`、必要的 `npm test` / website / release 验证；回写 PI / PF / GAP / VL / ISSUE 状态；**无探针/无消费者的不得写 absorbed**。
@@ -106,7 +106,7 @@ description: 规范吸纳执行 Skill — 用于检查 data 最新可吸纳项�
 
 | 负向样例 | 处理 |
 |----------|------|
-| `ServiceSpecReadGate`、`docs/services/<name>/` 服务开发读取链 | 项目或框架私有，不吸纳为 DevCodex 通用规范；可作为“先证明通用价值”的反例 |
+| `ServiceSpecRead`、`docs/services/<name>/` 服务开发读取链 | 项目或框架私有，不吸纳为 DevCodex 通用规范；可作为“先证明通用价值”的反例 |
 | 单个业务项目的 service / route / model / schema 命名 | `project-local`，除非证明 DevCodex 多项目 Profile/服务规范消费者需要 |
 | 单个库的 `cacheControl`、adapter 配置或返回值习惯 | `case-evidence-only` 或并入对应库本地规范 |
 | 某个项目私有数据目录、导航层级、脚本名 | 不直接进入通用层；只能抽象为“消费者同步 / 产物边界 / 验证链”类规则 |

@@ -6,15 +6,15 @@
     "skillsPattern": "skills/*/SKILL.md",
     "optionalSidecar": "skills/*/devcodex.skill.json",
     "registry": "plugin.json",
-    "sourceDigest": "f8d155c23180bfd6bf013fb47a1c57c161754e7956a67f57ec496421420b3838",
+    "sourceDigest": "d7fa02eb2a61c5f696548b73c0d7a319b5d14d9d840b0ca9aefba6f3d0b4eb43",
     "sidecarDigest": "774105d7947b340d15d17115fcb8e37b62ae545cf553f06126d529184fd74872",
     "pluginDigest": "f85d1fcc1384827999ead09f5ee2051295d2a3890315ce0b2c83ac5a9c63ab82",
     "portfolioEvidence": "skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "8364a73c66ed2ec9787cdb9300223278d128a45b689a2b8deda0d1f03189f42b",
-    "consumerInventoryFileCount": 583,
-    "consumerInventoryDigest": "f9f3a7c659643326a28a719fece1e53422162b8ea018fe554de2e32cf40a29cb",
-    "consumerProjectionDigest": "03ab8439fa5abb43f50e3260280ca37bdf9b2987567ce88fc88104df0bc26ff3",
-    "portfolioInputDigest": "f2116fa223f6c68f4d8834b9e3e75b34481c8e6ae2a982c51f64e51b5580aa91"
+    "consumerInventoryFileCount": 614,
+    "consumerInventoryDigest": "ae7421e9835a88b02a9bfb539439bfdbeb00e095af6175f226660e289ef9794a",
+    "consumerProjectionDigest": "2340f98f5d8357f4a9f8b137710f370b34c3c3a25db284398d4138c13e32b355",
+    "portfolioInputDigest": "54a729cc7804893395221ad8e9d29583cb08306baa08d8ef616e369248e456d3"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -24,11 +24,11 @@
     "graySkillCount": 3,
     "orphanActiveCount": 0,
     "dependencyCycleCount": 0,
-    "dependencyEdgeCount": 24,
+    "dependencyEdgeCount": 23,
     "conflictReviewedCount": 84,
     "operationalEvidenceCompleteCount": 84,
     "triggerPrecisionMeasuredCount": 3,
-    "instructionBudgetP95Bytes": 22038,
+    "instructionBudgetP95Bytes": 23127,
     "triggerQuality": "mixed",
     "sidecarPresentCount": 0
   },
@@ -179,10 +179,6 @@
       {
         "from": "fix-default",
         "to": "requirement-parallel-orchestration"
-      },
-      {
-        "from": "fix-default",
-        "to": "spec-governance"
       },
       {
         "from": "incremental-project-analysis",
@@ -1097,8 +1093,8 @@
         "skills/analyze-default/SKILL.md"
       ],
       "source": "skills/analyze-default/SKILL.md",
-      "hash": "0a441e3116caa9773cda7ff187943b354c1cc7983c2160780b0d3d4b75b412a1",
-      "sourceBytes": 9338,
+      "hash": "7d8bbf63629cf9b6d76a1fcdc48ab4c011c8840dd5f2c3bed6c265f9334d2fdb",
+      "sourceBytes": 10648,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [
@@ -1126,6 +1122,10 @@
         {
           "path": "changelogs/releases/v1.15.3.md",
           "role": "historical"
+        },
+        {
+          "path": "changelogs/unreleased.md",
+          "role": "current"
         },
         {
           "path": "instructions/13-analyze.instructions.md",
@@ -1165,6 +1165,10 @@
         },
         {
           "path": "scripts/lib/validate-governance-intake.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/validate-governance-review.js",
           "role": "current"
         },
         {
@@ -1951,8 +1955,8 @@
         "skills/audit-common/SKILL.md"
       ],
       "source": "skills/audit-common/SKILL.md",
-      "hash": "80992e5c8099ac2bc4911be09854b2a25e76b50061557dea7df128632a14ed7d",
-      "sourceBytes": 30038,
+      "hash": "dea8e78dfecdd193597f65b311d10e3f8734af02f7cc05b54a3bf9941b42b317",
+      "sourceBytes": 30192,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [],
@@ -5005,8 +5009,8 @@
         "skills/compliance/SKILL.md"
       ],
       "source": "skills/compliance/SKILL.md",
-      "hash": "ad4c780873ad6529af679fc6ff233b9fc73e7e17d1ed39c6f590f39695efee48",
-      "sourceBytes": 20469,
+      "hash": "a5d970fe724c71292074e47c2eb7fd50b629f60c438da99e30b2e7f50003b943",
+      "sourceBytes": 22588,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [
@@ -5130,6 +5134,10 @@
           "role": "current"
         },
         {
+          "path": "hooks/_runtime/skill-resolution.cjs",
+          "role": "current"
+        },
+        {
           "path": "host-projections/AGENTS.md",
           "role": "current"
         },
@@ -5195,6 +5203,14 @@
         },
         {
           "path": "prompts/report-scenario-test.prompt.md",
+          "role": "current"
+        },
+        {
+          "path": "prompts/requirement-overview.prompt.md",
+          "role": "current"
+        },
+        {
+          "path": "prompts/requirement.prompt.md",
           "role": "current"
         },
         {
@@ -5266,6 +5282,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/probe-mode-dev-completion.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-client-contracts.js",
           "role": "current"
         },
@@ -5278,7 +5298,15 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-skill-resolve.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-workflow-completion-contract.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-workspace-skill-auto-match.js",
           "role": "current"
         },
         {
@@ -5511,7 +5539,9 @@
         "scripts/test-hooks-runtime.js",
         "scripts/test-host-parity-scorecard.js",
         "scripts/test-skill-portfolio.js",
+        "scripts/test-skill-resolve.js",
         "scripts/test-workflow-completion-contract.js",
+        "scripts/test-workspace-skill-auto-match.js",
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-24",
@@ -5575,7 +5605,9 @@
           "scripts/test-hooks-runtime.js",
           "scripts/test-host-parity-scorecard.js",
           "scripts/test-skill-portfolio.js",
+          "scripts/test-skill-resolve.js",
           "scripts/test-workflow-completion-contract.js",
+          "scripts/test-workspace-skill-auto-match.js",
           "scripts/validate.js"
         ],
         "exitCondition": "work-unit-complete-or-workflow-transition",
@@ -5642,8 +5674,8 @@
         "skills/consumer-validation-engineering/SKILL.md"
       ],
       "source": "skills/consumer-validation-engineering/SKILL.md",
-      "hash": "0210c52b30eada03d68d9cdaed204aa24c03542e64fd9f60bad439286fdafb91",
-      "sourceBytes": 9604,
+      "hash": "253b1762b96bdf9035360415300c00f0909cc18769549cab06dd298372a189d0",
+      "sourceBytes": 11031,
       "version": "1.15.3",
       "lifecycleState": "gray",
       "dependencies": [],
@@ -5827,8 +5859,8 @@
         "skills/cp-gate/SKILL.md"
       ],
       "source": "skills/cp-gate/SKILL.md",
-      "hash": "323cbef5facb62c951dfeb2b1194a6e88f4e0ab87132ee28aa1e84fdd10c4ed4",
-      "sourceBytes": 23449,
+      "hash": "ae7ad5a701be8898e9fc091f7e68cc48d07ed38c305031b08c35905b274c45a2",
+      "sourceBytes": 26569,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [],
@@ -5896,6 +5928,10 @@
           "role": "current"
         },
         {
+          "path": "hooks/_runtime/skill-resolution.cjs",
+          "role": "current"
+        },
+        {
           "path": "instructions.md",
           "role": "current"
         },
@@ -5924,6 +5960,10 @@
           "role": "current"
         },
         {
+          "path": "README.md",
+          "role": "current"
+        },
+        {
           "path": "scripts/fixtures/capability-surface-decision/valid-controlled-tool.json",
           "role": "current"
         },
@@ -5933,6 +5973,10 @@
         },
         {
           "path": "scripts/lib/host-parity-scorecard.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/process-enforcement.js",
           "role": "current"
         },
         {
@@ -5993,6 +6037,14 @@
         },
         {
           "path": "scripts/test-host-capability-routing.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-process-enforcement-e2e.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-r10-control-plane-honesty.js",
           "role": "current"
         },
         {
@@ -6077,6 +6129,8 @@
         "scripts/test-closure-evidence-controls.js",
         "scripts/test-hooks-runtime.js",
         "scripts/test-host-capability-routing.js",
+        "scripts/test-process-enforcement-e2e.js",
+        "scripts/test-r10-control-plane-honesty.js",
         "scripts/test-skill-portfolio.js",
         "scripts/test-workflow-capabilities.js",
         "scripts/validate.js"
@@ -6130,6 +6184,8 @@
           "scripts/test-closure-evidence-controls.js",
           "scripts/test-hooks-runtime.js",
           "scripts/test-host-capability-routing.js",
+          "scripts/test-process-enforcement-e2e.js",
+          "scripts/test-r10-control-plane-honesty.js",
           "scripts/test-skill-portfolio.js",
           "scripts/test-workflow-capabilities.js",
           "scripts/validate.js"
@@ -6696,8 +6752,8 @@
         "skills/dev-default/SKILL.md"
       ],
       "source": "skills/dev-default/SKILL.md",
-      "hash": "b59fb605e2a495534ef10c4e1220e319c436cb70eeedee6bb4988eae135bd2cd",
-      "sourceBytes": 14644,
+      "hash": "88160fee77b7bba90d15d0b46360204e2002c0c3372301b67b629d6e39ee7049",
+      "sourceBytes": 15105,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [
@@ -6765,6 +6821,10 @@
         {
           "path": "changelogs/releases/v1.9.13.md",
           "role": "historical"
+        },
+        {
+          "path": "changelogs/unreleased.md",
+          "role": "current"
         },
         {
           "path": "instructions.md",
@@ -7618,8 +7678,8 @@
         "skills/dev-plan-review/SKILL.md"
       ],
       "source": "skills/dev-plan-review/SKILL.md",
-      "hash": "27aee3e7bbdd841be84843c552a99142502b35a1ee4b5decf083da7f00973a00",
-      "sourceBytes": 22038,
+      "hash": "cf4b95a30824932a38e5d940d197d93eb2fb96bd2ce7395fd5fa61351e47497d",
+      "sourceBytes": 22363,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [
@@ -9365,6 +9425,10 @@
           "role": "current"
         },
         {
+          "path": "hooks/_runtime/skill-resolution.cjs",
+          "role": "current"
+        },
+        {
           "path": "instructions.md",
           "role": "current"
         },
@@ -9622,8 +9686,8 @@
         "skills/expert-output-quality/SKILL.md"
       ],
       "source": "skills/expert-output-quality/SKILL.md",
-      "hash": "b3376ac14d1ee1a4452e8c66d42dbb0d3e04b2753c1b58940f502ce8ade77341",
-      "sourceBytes": 9075,
+      "hash": "bf3030e293d6f8253bdaac3e3ab82c066d90d1fe2615030703f5353040dea7ee",
+      "sourceBytes": 9773,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [],
@@ -9651,6 +9715,14 @@
           "role": "historical"
         },
         {
+          "path": "changelogs/unreleased.md",
+          "role": "current"
+        },
+        {
+          "path": "instructions/13-analyze.instructions.md",
+          "role": "current"
+        },
+        {
           "path": "plugin.json",
           "role": "current"
         },
@@ -9664,6 +9736,10 @@
         },
         {
           "path": "scripts/lib/validate-governance-expert.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/validate-governance-review.js",
           "role": "current"
         },
         {
@@ -9960,14 +10036,13 @@
         "skills/fix-default/SKILL.md"
       ],
       "source": "skills/fix-default/SKILL.md",
-      "hash": "73e718524b40213958ffb3832f985ee1958dbf12cf6b0d1146b9ed955baba9cf",
-      "sourceBytes": 7006,
+      "hash": "9c76a916447da0ad155e9b49e3a5656ccaa1361781976686d326a1f6f5f4eab2",
+      "sourceBytes": 7157,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [
         "impact-review",
-        "requirement-parallel-orchestration",
-        "spec-governance"
+        "requirement-parallel-orchestration"
       ],
       "references": [
         "compliance",
@@ -9999,6 +10074,10 @@
         {
           "path": "changelogs/releases/v1.4.0.md",
           "role": "historical"
+        },
+        {
+          "path": "changelogs/unreleased.md",
+          "role": "current"
         },
         {
           "path": "instructions/01-common.instructions.md",
@@ -10038,6 +10117,10 @@
         },
         {
           "path": "scripts/lib/validate-governance-quality.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/validate-governance-review.js",
           "role": "current"
         },
         {
@@ -10144,8 +10227,7 @@
         },
         "requires": [
           "impact-review",
-          "requirement-parallel-orchestration",
-          "spec-governance"
+          "requirement-parallel-orchestration"
         ],
         "conflictsWith": [],
         "priority": 100,
@@ -10177,7 +10259,7 @@
         "registration": "plugin.json",
         "operationalReadiness": {
           "state": "complete",
-          "currentConsumer": "instructions/01-common.instructions.md",
+          "currentConsumer": "changelogs/unreleased.md",
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
@@ -10721,6 +10803,10 @@
       "consumers": [
         {
           "path": "changelogs/unreleased.md",
+          "role": "current"
+        },
+        {
+          "path": "hooks/_runtime/skill-resolution.cjs",
           "role": "current"
         },
         {
@@ -11777,6 +11863,10 @@
           "role": "current"
         },
         {
+          "path": "hooks/_runtime/skill-resolution.cjs",
+          "role": "current"
+        },
+        {
           "path": "hooks/_runtime/visible-output-contract.cjs",
           "role": "current"
         },
@@ -11973,6 +12063,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/plan-absorption-candidates.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-always-on-governance.js",
           "role": "current"
         },
@@ -12033,6 +12127,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-skill-resolve.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-visible-output-contract.js",
           "role": "current"
         },
@@ -12053,7 +12151,15 @@
           "role": "current"
         },
         {
+          "path": "website/docs/index.md",
+          "role": "current"
+        },
+        {
           "path": "website/docs/intro/host-parity-grok.md",
+          "role": "current"
+        },
+        {
+          "path": "website/docs/intro/index.md",
           "role": "current"
         },
         {
@@ -12185,6 +12291,7 @@
         "scripts/test-mcp-servers.js",
         "scripts/test-review-execution-contract.js",
         "scripts/test-skill-portfolio.js",
+        "scripts/test-skill-resolve.js",
         "scripts/test-visible-output-contract.js",
         "scripts/test-workflow-completion-contract.js",
         "scripts/validate-profile.js",
@@ -12271,6 +12378,7 @@
           "scripts/test-mcp-servers.js",
           "scripts/test-review-execution-contract.js",
           "scripts/test-skill-portfolio.js",
+          "scripts/test-skill-resolve.js",
           "scripts/test-visible-output-contract.js",
           "scripts/test-workflow-completion-contract.js",
           "scripts/validate-profile.js",
@@ -12788,8 +12896,8 @@
         "skills/memory/SKILL.md"
       ],
       "source": "skills/memory/SKILL.md",
-      "hash": "530c030ba56840ee3f43170c66731da70b2823916b29894a6ca686f0b4948362",
-      "sourceBytes": 20715,
+      "hash": "3d7fa85f37f08a8956125125a61203a2f310c25d0be72bbbb097921818bd3b2b",
+      "sourceBytes": 21668,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [],
@@ -12924,6 +13032,10 @@
         },
         {
           "path": "hooks/_runtime/lifecycle-namespace-state.cjs",
+          "role": "current"
+        },
+        {
+          "path": "hooks/_runtime/lifecycle-stop-gate.cjs",
           "role": "current"
         },
         {
@@ -13067,6 +13179,10 @@
           "role": "current"
         },
         {
+          "path": "prompts/requirement-overview.prompt.md",
+          "role": "current"
+        },
+        {
           "path": "prompts/requirement-session.prompt.md",
           "role": "current"
         },
@@ -13143,11 +13259,27 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/docs-surface-inventory.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/evidence-freshness-receipt.js",
           "role": "current"
         },
         {
+          "path": "scripts/lib/executable-absorption-gates.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/global-host-config-merge.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/global-host-config.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/global-host-runtime-verifier.js",
           "role": "current"
         },
         {
@@ -13247,6 +13379,14 @@
           "role": "current"
         },
         {
+          "path": "scripts/probe-mode-dev-completion.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/replay-stop-gate-hook-matrix.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-cli-behavior.js",
           "role": "current"
         },
@@ -13263,7 +13403,19 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-delivery-honesty.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-ecr-closure.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-global-host-config.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-global-host-runtime-verifier.js",
           "role": "current"
         },
         {
@@ -13299,6 +13451,14 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-lifecycle-stop-gate.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-mcp-runtime-closure.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-mcp-servers.js",
           "role": "current"
         },
@@ -13312,6 +13472,10 @@
         },
         {
           "path": "scripts/test-pack-clean.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-process-enforcement-e2e.js",
           "role": "current"
         },
         {
@@ -13584,7 +13748,10 @@
         "scripts/test-completion-report-ecr-check.js",
         "scripts/test-context-binding.js",
         "scripts/test-context-read-contract.js",
+        "scripts/test-delivery-honesty.js",
+        "scripts/test-ecr-closure.js",
         "scripts/test-global-host-config.js",
+        "scripts/test-global-host-runtime-verifier.js",
         "scripts/test-global-install-smoke.js",
         "scripts/test-governance-intake.js",
         "scripts/test-governance-status-summary.js",
@@ -13593,10 +13760,13 @@
         "scripts/test-host-installation.js",
         "scripts/test-host-parity-scorecard.js",
         "scripts/test-instruction-fallback-check.js",
+        "scripts/test-lifecycle-stop-gate.js",
+        "scripts/test-mcp-runtime-closure.js",
         "scripts/test-mcp-servers.js",
         "scripts/test-memory-index.js",
         "scripts/test-migrate-layout.js",
         "scripts/test-pack-clean.js",
+        "scripts/test-process-enforcement-e2e.js",
         "scripts/test-report-index.js",
         "scripts/test-requirement-artifacts.js",
         "scripts/test-requirement-parallel-orchestration.js",
@@ -13656,7 +13826,10 @@
           "scripts/test-completion-report-ecr-check.js",
           "scripts/test-context-binding.js",
           "scripts/test-context-read-contract.js",
+          "scripts/test-delivery-honesty.js",
+          "scripts/test-ecr-closure.js",
           "scripts/test-global-host-config.js",
+          "scripts/test-global-host-runtime-verifier.js",
           "scripts/test-global-install-smoke.js",
           "scripts/test-governance-intake.js",
           "scripts/test-governance-status-summary.js",
@@ -13665,10 +13838,13 @@
           "scripts/test-host-installation.js",
           "scripts/test-host-parity-scorecard.js",
           "scripts/test-instruction-fallback-check.js",
+          "scripts/test-lifecycle-stop-gate.js",
+          "scripts/test-mcp-runtime-closure.js",
           "scripts/test-mcp-servers.js",
           "scripts/test-memory-index.js",
           "scripts/test-migrate-layout.js",
           "scripts/test-pack-clean.js",
+          "scripts/test-process-enforcement-e2e.js",
           "scripts/test-report-index.js",
           "scripts/test-requirement-artifacts.js",
           "scripts/test-requirement-parallel-orchestration.js",
@@ -14078,6 +14254,10 @@
           "role": "current"
         },
         {
+          "path": "hooks/_runtime/lifecycle-stop-gate.cjs",
+          "role": "current"
+        },
+        {
           "path": "hooks/_runtime/lifecycle-visible-reply.cjs",
           "role": "current"
         },
@@ -14274,6 +14454,14 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/docs-surface-inventory.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/global-adapters-cli.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/global-host-config-transaction.js",
           "role": "current"
         },
@@ -14299,6 +14487,10 @@
         },
         {
           "path": "scripts/lib/npm-lifecycle-adapter.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/process-enforcement.js",
           "role": "current"
         },
         {
@@ -14438,6 +14630,14 @@
           "role": "current"
         },
         {
+          "path": "scripts/replay-stop-gate-hook-matrix.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/review-maintainer-site-20round.cjs",
+          "role": "current"
+        },
+        {
           "path": "scripts/run-validation.js",
           "role": "current"
         },
@@ -14482,6 +14682,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-delivery-honesty.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-discipline-execution-probe.js",
           "role": "current"
         },
@@ -14491,6 +14695,10 @@
         },
         {
           "path": "scripts/test-execution-chain-evolution.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-global-adapters-cli.js",
           "role": "current"
         },
         {
@@ -14518,6 +14726,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-lifecycle-stop-gate.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-markdown-structure.js",
           "role": "current"
         },
@@ -14534,11 +14746,19 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-process-enforcement-e2e.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-project-knowledge-store.js",
           "role": "current"
         },
         {
           "path": "scripts/test-project-knowledge-v2.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-r10-control-plane-honesty.js",
           "role": "current"
         },
         {
@@ -14559,6 +14779,14 @@
         },
         {
           "path": "scripts/test-review-execution-contract.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-skill-resolution-hook-paths.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-skill-resolve.js",
           "role": "current"
         },
         {
@@ -14590,6 +14818,10 @@
           "role": "current"
         },
         {
+          "path": "website/docs/guide/index.md",
+          "role": "current"
+        },
+        {
           "path": "website/docs/guide/profile.md",
           "role": "current"
         },
@@ -14603,6 +14835,10 @@
         },
         {
           "path": "website/docs/intro/host-parity-grok.md",
+          "role": "current"
+        },
+        {
+          "path": "website/docs/intro/index.md",
           "role": "current"
         },
         {
@@ -14817,27 +15053,34 @@
         "scripts/test-context-read-contract.js",
         "scripts/test-control-plane-contracts.js",
         "scripts/test-control-plane-module-contracts.js",
+        "scripts/test-delivery-honesty.js",
         "scripts/test-discipline-execution-probe.js",
         "scripts/test-evidence-freshness-receipt.js",
         "scripts/test-execution-chain-evolution.js",
+        "scripts/test-global-adapters-cli.js",
         "scripts/test-global-host-config.js",
         "scripts/test-governance-intake.js",
         "scripts/test-governance-status-summary.js",
         "scripts/test-hooks-runtime.js",
         "scripts/test-host-adapters.js",
         "scripts/test-host-capability-routing.js",
+        "scripts/test-lifecycle-stop-gate.js",
         "scripts/test-markdown-structure.js",
         "scripts/test-mcp-servers.js",
         "scripts/test-migrate-layout.js",
         "scripts/test-npm-lifecycle-adapter.js",
+        "scripts/test-process-enforcement-e2e.js",
         "scripts/test-project-knowledge-store.js",
         "scripts/test-project-knowledge-v2.js",
+        "scripts/test-r10-control-plane-honesty.js",
         "scripts/test-repair-prevention-assessment.js",
         "scripts/test-requirement-artifacts.js",
         "scripts/test-requirement-parallel-orchestration.js",
         "scripts/test-residual-absorption-controls.js",
         "scripts/test-review-execution-contract.js",
         "scripts/test-skill-portfolio.js",
+        "scripts/test-skill-resolution-hook-paths.js",
+        "scripts/test-skill-resolve.js",
         "scripts/test-validation-dag.js",
         "scripts/test-visible-output-contract.js",
         "scripts/test-workflow-capabilities.js",
@@ -14899,27 +15142,34 @@
           "scripts/test-context-read-contract.js",
           "scripts/test-control-plane-contracts.js",
           "scripts/test-control-plane-module-contracts.js",
+          "scripts/test-delivery-honesty.js",
           "scripts/test-discipline-execution-probe.js",
           "scripts/test-evidence-freshness-receipt.js",
           "scripts/test-execution-chain-evolution.js",
+          "scripts/test-global-adapters-cli.js",
           "scripts/test-global-host-config.js",
           "scripts/test-governance-intake.js",
           "scripts/test-governance-status-summary.js",
           "scripts/test-hooks-runtime.js",
           "scripts/test-host-adapters.js",
           "scripts/test-host-capability-routing.js",
+          "scripts/test-lifecycle-stop-gate.js",
           "scripts/test-markdown-structure.js",
           "scripts/test-mcp-servers.js",
           "scripts/test-migrate-layout.js",
           "scripts/test-npm-lifecycle-adapter.js",
+          "scripts/test-process-enforcement-e2e.js",
           "scripts/test-project-knowledge-store.js",
           "scripts/test-project-knowledge-v2.js",
+          "scripts/test-r10-control-plane-honesty.js",
           "scripts/test-repair-prevention-assessment.js",
           "scripts/test-requirement-artifacts.js",
           "scripts/test-requirement-parallel-orchestration.js",
           "scripts/test-residual-absorption-controls.js",
           "scripts/test-review-execution-contract.js",
           "scripts/test-skill-portfolio.js",
+          "scripts/test-skill-resolution-hook-paths.js",
+          "scripts/test-skill-resolve.js",
           "scripts/test-validation-dag.js",
           "scripts/test-visible-output-contract.js",
           "scripts/test-workflow-capabilities.js",
@@ -16521,6 +16771,10 @@
           "role": "current"
         },
         {
+          "path": "hooks/_runtime/skill-resolution.cjs",
+          "role": "current"
+        },
+        {
           "path": "instructions.md",
           "role": "current"
         },
@@ -16714,8 +16968,8 @@
         "skills/report/SKILL.md"
       ],
       "source": "skills/report/SKILL.md",
-      "hash": "eaecd5a8e5e1980046716701686fb2767be57bc9830f6a685f5b702d34843c51",
-      "sourceBytes": 19489,
+      "hash": "bf205291ec6a9389ca3ee605dd0fe76b8918cb14efa507b142e946bc39780358",
+      "sourceBytes": 21304,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [
@@ -16919,6 +17173,10 @@
           "role": "current"
         },
         {
+          "path": "hooks/_runtime/lifecycle-stop-gate.cjs",
+          "role": "current"
+        },
+        {
           "path": "hooks/_runtime/lifecycle-visible-reply.cjs",
           "role": "current"
         },
@@ -16928,6 +17186,10 @@
         },
         {
           "path": "hooks/_runtime/review-execution-contract.cjs",
+          "role": "current"
+        },
+        {
+          "path": "hooks/_runtime/skill-resolution.cjs",
           "role": "current"
         },
         {
@@ -16979,6 +17241,10 @@
           "role": "current"
         },
         {
+          "path": "instructions/13-analyze.instructions.md",
+          "role": "current"
+        },
+        {
           "path": "instructions/16-report.instructions.md",
           "role": "current"
         },
@@ -17004,6 +17270,10 @@
         },
         {
           "path": "prompts/delivery-checklist.prompt.md",
+          "role": "current"
+        },
+        {
+          "path": "prompts/implementation-progress.prompt.md",
           "role": "current"
         },
         {
@@ -17107,6 +17377,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/executable-absorption-gates.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/external-review-claim-verification.js",
           "role": "current"
         },
@@ -17116,6 +17390,10 @@
         },
         {
           "path": "scripts/lib/optimization-backlog-evidence.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/process-enforcement.js",
           "role": "current"
         },
         {
@@ -17235,6 +17513,18 @@
           "role": "current"
         },
         {
+          "path": "scripts/replay-skill-automatch-accept.cjs",
+          "role": "current"
+        },
+        {
+          "path": "scripts/replay-stop-gate-hook-matrix.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/review-maintainer-site-20round.cjs",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-candidate-review-bundle.js",
           "role": "current"
         },
@@ -17252,6 +17542,14 @@
         },
         {
           "path": "scripts/test-control-plane-contracts.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-delivery-honesty.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-ecr-closure.js",
           "role": "current"
         },
         {
@@ -17283,6 +17581,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-lifecycle-stop-gate.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-mcp-servers.js",
           "role": "current"
         },
@@ -17296,6 +17598,10 @@
         },
         {
           "path": "scripts/test-optimization-backlog-evidence.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-process-enforcement-e2e.js",
           "role": "current"
         },
         {
@@ -17537,6 +17843,8 @@
         "scripts/test-client-contracts.js",
         "scripts/test-completion-report-ecr-check.js",
         "scripts/test-control-plane-contracts.js",
+        "scripts/test-delivery-honesty.js",
+        "scripts/test-ecr-closure.js",
         "scripts/test-evidence-freshness-receipt.js",
         "scripts/test-external-review-claim-verification.js",
         "scripts/test-hooks-runtime.js",
@@ -17544,10 +17852,12 @@
         "scripts/test-host-installation.js",
         "scripts/test-host-parity-scorecard.js",
         "scripts/test-instruction-fallback-check.js",
+        "scripts/test-lifecycle-stop-gate.js",
         "scripts/test-mcp-servers.js",
         "scripts/test-memory-index.js",
         "scripts/test-migrate-layout.js",
         "scripts/test-optimization-backlog-evidence.js",
+        "scripts/test-process-enforcement-e2e.js",
         "scripts/test-project-knowledge-store.js",
         "scripts/test-repair-prevention-assessment.js",
         "scripts/test-report-index.js",
@@ -17617,6 +17927,8 @@
           "scripts/test-client-contracts.js",
           "scripts/test-completion-report-ecr-check.js",
           "scripts/test-control-plane-contracts.js",
+          "scripts/test-delivery-honesty.js",
+          "scripts/test-ecr-closure.js",
           "scripts/test-evidence-freshness-receipt.js",
           "scripts/test-external-review-claim-verification.js",
           "scripts/test-hooks-runtime.js",
@@ -17624,10 +17936,12 @@
           "scripts/test-host-installation.js",
           "scripts/test-host-parity-scorecard.js",
           "scripts/test-instruction-fallback-check.js",
+          "scripts/test-lifecycle-stop-gate.js",
           "scripts/test-mcp-servers.js",
           "scripts/test-memory-index.js",
           "scripts/test-migrate-layout.js",
           "scripts/test-optimization-backlog-evidence.js",
+          "scripts/test-process-enforcement-e2e.js",
           "scripts/test-project-knowledge-store.js",
           "scripts/test-repair-prevention-assessment.js",
           "scripts/test-report-index.js",
@@ -17872,8 +18186,8 @@
         "skills/review-checklist/SKILL.md"
       ],
       "source": "skills/review-checklist/SKILL.md",
-      "hash": "00a698a696219bb7f241bf1c6c3d6d92557de12e95b3591317a3bdfb3bd6688e",
-      "sourceBytes": 15499,
+      "hash": "568134154307261e0a6765dba4ccd048fdfb68a3ecdbe20e3adc4bde10fe6073",
+      "sourceBytes": 15785,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [],
@@ -17901,7 +18215,15 @@
           "role": "historical"
         },
         {
+          "path": "changelogs/unreleased.md",
+          "role": "current"
+        },
+        {
           "path": "hooks/_runtime/lifecycle-bootstrap-state.cjs",
+          "role": "current"
+        },
+        {
+          "path": "hooks/_runtime/lifecycle-stop-gate.cjs",
           "role": "current"
         },
         {
@@ -17913,11 +18235,23 @@
           "role": "current"
         },
         {
+          "path": "instructions/11-fix.instructions.md",
+          "role": "current"
+        },
+        {
           "path": "plugin.json",
           "role": "current"
         },
         {
+          "path": "prompts/implementation-progress.prompt.md",
+          "role": "current"
+        },
+        {
           "path": "README.md",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/process-enforcement.js",
           "role": "current"
         },
         {
@@ -17965,6 +18299,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-process-enforcement-e2e.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-repair-prevention-assessment.js",
           "role": "current"
         },
@@ -17995,6 +18333,7 @@
       ],
       "validationProfile": [
         "scripts/test-candidate-review-bundle.js",
+        "scripts/test-process-enforcement-e2e.js",
         "scripts/test-repair-prevention-assessment.js",
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
@@ -18042,6 +18381,7 @@
         "evolvableUnitRef": "skill:review-checklist",
         "probeSuiteRefs": [
           "scripts/test-candidate-review-bundle.js",
+          "scripts/test-process-enforcement-e2e.js",
           "scripts/test-repair-prevention-assessment.js",
           "scripts/test-skill-portfolio.js",
           "scripts/validate.js"
@@ -18054,7 +18394,7 @@
         "registration": "plugin.json",
         "operationalReadiness": {
           "state": "complete",
-          "currentConsumer": "hooks/_runtime/lifecycle-bootstrap-state.cjs",
+          "currentConsumer": "changelogs/unreleased.md",
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
@@ -18434,11 +18774,11 @@
           "role": "current"
         },
         {
-          "path": "grok/plugins/devcodex-workspace/skills/devcodex-workspace/SKILL.md",
+          "path": "hooks/_runtime/review-execution-contract.cjs",
           "role": "current"
         },
         {
-          "path": "hooks/_runtime/review-execution-contract.cjs",
+          "path": "hooks/_runtime/skill-resolution.cjs",
           "role": "current"
         },
         {
@@ -18527,6 +18867,10 @@
         },
         {
           "path": "scripts/lib/control-plane-contracts.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/docs-surface-inventory.js",
           "role": "current"
         },
         {
@@ -19050,8 +19394,8 @@
         "skills/skill-gap-analysis/SKILL.md"
       ],
       "source": "skills/skill-gap-analysis/SKILL.md",
-      "hash": "700e1fe7fa967158f6db1813462e7710a0a82d3da5e6c9e1bdc8b9c988b9e3eb",
-      "sourceBytes": 7598,
+      "hash": "aff2c4b089957c3b9a43a51a134f52150ba3a5c52f4df4729ee160a6e0f1dcd2",
+      "sourceBytes": 8519,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [],
@@ -19422,8 +19766,8 @@
         "skills/source-consumer-sync/SKILL.md"
       ],
       "source": "skills/source-consumer-sync/SKILL.md",
-      "hash": "1943bca05e5ec83c891f1227ae7fc5edf0959fbe02df3c5b0af168f80d64c54b",
-      "sourceBytes": 5965,
+      "hash": "851fb46b0700a4ab0f826e80f918a63b5c0ba3e58a90afd56cd0f06b2a107dae",
+      "sourceBytes": 6066,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [],
@@ -19649,8 +19993,8 @@
         "skills/spec-absorption/SKILL.md"
       ],
       "source": "skills/spec-absorption/SKILL.md",
-      "hash": "b76528276a89c81c82902f61f4758f0af2fdf8d1f4573779dafea3c7b1879cd5",
-      "sourceBytes": 17437,
+      "hash": "effae2715e0a7630080c87fdcde7ff405ed39060472270fda05f86b63b115bd2",
+      "sourceBytes": 28704,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [
@@ -20162,6 +20506,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/docs-surface-inventory.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/governance-status-summary.js",
           "role": "current"
         },
@@ -20472,6 +20820,10 @@
           "role": "current"
         },
         {
+          "path": "hooks/_runtime/lifecycle-stop-gate.cjs",
+          "role": "current"
+        },
+        {
           "path": "hooks/_runtime/lifecycle-visible-reply.cjs",
           "role": "current"
         },
@@ -20692,6 +21044,14 @@
           "role": "current"
         },
         {
+          "path": "scripts/probe-mode-dev-completion.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/review-maintainer-site-20round.cjs",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-always-on-governance.js",
           "role": "current"
         },
@@ -20704,11 +21064,19 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-delivery-honesty.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-evidence-freshness-receipt.js",
           "role": "current"
         },
         {
           "path": "scripts/test-external-review-claim-verification.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-global-host-config.js",
           "role": "current"
         },
         {
@@ -20737,6 +21105,10 @@
         },
         {
           "path": "scripts/test-migrate-layout.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-process-enforcement-e2e.js",
           "role": "current"
         },
         {
@@ -20932,8 +21304,10 @@
         "scripts/test-always-on-governance.js",
         "scripts/test-cli-behavior.js",
         "scripts/test-context-read-contract.js",
+        "scripts/test-delivery-honesty.js",
         "scripts/test-evidence-freshness-receipt.js",
         "scripts/test-external-review-claim-verification.js",
+        "scripts/test-global-host-config.js",
         "scripts/test-governance-status-summary.js",
         "scripts/test-hooks-runtime.js",
         "scripts/test-host-capability-routing.js",
@@ -20941,6 +21315,7 @@
         "scripts/test-mcp-servers.js",
         "scripts/test-memory-index.js",
         "scripts/test-migrate-layout.js",
+        "scripts/test-process-enforcement-e2e.js",
         "scripts/test-runtime-state-index.js",
         "scripts/test-skill-portfolio.js",
         "scripts/test-skill-sidecar-contract.js",
@@ -20996,8 +21371,10 @@
           "scripts/test-always-on-governance.js",
           "scripts/test-cli-behavior.js",
           "scripts/test-context-read-contract.js",
+          "scripts/test-delivery-honesty.js",
           "scripts/test-evidence-freshness-receipt.js",
           "scripts/test-external-review-claim-verification.js",
+          "scripts/test-global-host-config.js",
           "scripts/test-governance-status-summary.js",
           "scripts/test-hooks-runtime.js",
           "scripts/test-host-capability-routing.js",
@@ -21005,6 +21382,7 @@
           "scripts/test-mcp-servers.js",
           "scripts/test-memory-index.js",
           "scripts/test-migrate-layout.js",
+          "scripts/test-process-enforcement-e2e.js",
           "scripts/test-runtime-state-index.js",
           "scripts/test-skill-portfolio.js",
           "scripts/test-skill-sidecar-contract.js",
@@ -21490,6 +21868,10 @@
           "role": "historical"
         },
         {
+          "path": "hooks/_runtime/skill-resolution.cjs",
+          "role": "current"
+        },
+        {
           "path": "plugin.json",
           "role": "current"
         },
@@ -21651,7 +22033,7 @@
         "registration": "plugin.json",
         "operationalReadiness": {
           "state": "complete",
-          "currentConsumer": "plugin.json",
+          "currentConsumer": "hooks/_runtime/skill-resolution.cjs",
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
@@ -21912,8 +22294,8 @@
         "skills/user-visible-output-contract/SKILL.md"
       ],
       "source": "skills/user-visible-output-contract/SKILL.md",
-      "hash": "d989a092f3903cf6bd15e24c6c89da2f83daa9c9e5e05237a81dfff11a3a0394",
-      "sourceBytes": 15574,
+      "hash": "ba4babcf45dae9064f0ec0e0427d0a6df4052644f52c8b4a4067451f532175ad",
+      "sourceBytes": 17936,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [],
@@ -21941,6 +22323,10 @@
           "role": "current"
         },
         {
+          "path": "hooks/_runtime/skill-resolution.cjs",
+          "role": "current"
+        },
+        {
           "path": "host-projections/AGENTS.md",
           "role": "current"
         },
@@ -21962,6 +22348,10 @@
         },
         {
           "path": "instructions/02-output-paths.instructions.md",
+          "role": "current"
+        },
+        {
+          "path": "instructions/16-report.instructions.md",
           "role": "current"
         },
         {

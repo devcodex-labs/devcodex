@@ -384,25 +384,31 @@ assert.strictEqual(overBudgetMandatory.selected.length, 3)
 assert(overBudgetMandatory.stages.length >= 3)
 assert.strictEqual(overBudgetMandatory.exitCondition, 'read-stages-in-order')
 
-const inactiveGray = buildBundleDecisionV2(first, { candidateIds: ['brand-visual-quality'] })
+const inactiveGray = buildBundleDecisionV2(first, {
+  candidateIds: ['brand-visual-quality'],
+  applySkillResolution: false
+})
 assert.strictEqual(inactiveGray.completion, 'blocked')
 assert(inactiveGray.blockers.some(item => item.code === 'inactive'))
 const explicitGray = buildBundleDecisionV2(first, {
   candidateIds: ['brand-visual-quality'],
-  includeGray: true
+  includeGray: true,
+  applySkillResolution: false
 })
 assert.strictEqual(explicitGray.completion, 'complete')
 
 const mandatoryConflict = buildBundleDecisionV2(first, {
   candidateIds: ['brand-visual-quality', 'design-system-architecture'],
-  includeGray: true
+  includeGray: true,
+  applySkillResolution: false
 })
 assert.strictEqual(mandatoryConflict.completion, 'blocked')
 assert(mandatoryConflict.blockers.some(item => item.code === 'mandatory-conflict'))
 const optionalConflict = buildBundleDecisionV2(first, {
   candidateIds: ['brand-visual-quality', 'design-system-architecture'],
   mandatoryIds: ['design-system-architecture'],
-  includeGray: true
+  includeGray: true,
+  applySkillResolution: false
 })
 assert.strictEqual(optionalConflict.completion, 'complete')
 assert.deepStrictEqual(optionalConflict.selected.map(item => item.id), ['design-system-architecture'])
@@ -415,7 +421,8 @@ optionalRoot.skillIndex.requires = ['intent']
 const orphanDependency = buildBundleDecisionV2(orphanDependencyPortfolio, {
   candidateIds: ['brand-visual-quality', 'design-system-architecture'],
   mandatoryIds: ['design-system-architecture'],
-  includeGray: true
+  includeGray: true,
+  applySkillResolution: false
 })
 assert.deepStrictEqual(orphanDependency.selected.map(item => item.id), ['design-system-architecture'])
 assert(orphanDependency.ignored.some(item => item.id === 'intent' && item.reason === 'orphaned-dependency'))

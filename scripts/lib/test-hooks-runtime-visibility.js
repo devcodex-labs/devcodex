@@ -186,12 +186,14 @@ function runHooksRuntimeVisibilityScenarios(context) {
     hookEventName: 'Stop',
     assistantMessage: 'All work is complete.'
   })
-  assert.match(missingPrecheckReminder.systemMessage || '', /entry check block/i)
+  assert.match(missingPrecheckReminder.systemMessage || '', /closure incomplete|entry check block/i)
   const duplicateMissingPrecheckReminder = run({
     hookEventName: 'Stop',
     assistantMessage: 'All work is complete.'
   })
-  assert.ok(!duplicateMissingPrecheckReminder.systemMessage)
+  const duplicateMessage = duplicateMissingPrecheckReminder.systemMessage || ''
+  assert.ok(!/entry check block/i.test(duplicateMessage))
+  assert.match(duplicateMessage, /Stop gate incomplete|incomplete closure/i)
   captureEntries = fs.readFileSync(CAPTURE_LOG, 'utf8').trim().split(/\r?\n/).map(line => JSON.parse(line))
   assert.strictEqual(captureEntries.length, 2)
   assert.strictEqual(captureEntries[1].eventName, 'Stop')
@@ -204,7 +206,7 @@ function runHooksRuntimeVisibilityScenarios(context) {
     assistantMessage: 'All work is complete.'
   }, TEMP_ROOT, { DEVCODEX_HOOK_ENFORCEMENT: 'strict', CODEX_HOME: '1' })
   assert.strictEqual(strictStopBlock.decision, 'block')
-  assert.match(strictStopBlock.reason || '', /entry check block/i)
+  assert.match(strictStopBlock.reason || '', /Stop gate incomplete|incomplete closure|entry-check-missing/i)
   assert.ok(!strictStopBlock.hookSpecificOutput?.decision)
   assert.ok(readInterceptionEntries().some(entry => entry.eventName === 'Stop' && entry.code === 'closure-incomplete' && entry.effective === true))
 
@@ -273,7 +275,7 @@ function runHooksRuntimeVisibilityScenarios(context) {
     hookEventName: 'Stop',
     assistantMessage: 'Final answer without compliance block or artifact paths.'
   })
-  assert.match(missingComplianceAndPathsReminder.systemMessage || '', /合规检查状态块未输出/)
+  assert.match(missingComplianceAndPathsReminder.systemMessage || '', /合规检查状态块未输出|完成检查未输出/)
   assert.match(missingComplianceAndPathsReminder.systemMessage || '', /用户可见交付不完整.*VisibleOutputHostEvidenceGate/)
   assert.match(missingComplianceAndPathsReminder.systemMessage || '', /missingItems=.*artifact-section/)
 
@@ -659,7 +661,7 @@ function runHooksRuntimeVisibilityScenarios(context) {
       { type: 'text', text: '### DevCodex · 入口检查\n- PC0 [PASS] Context plan\n- PC1 [PASS] Intent\n- PC2 [PASS] Session\n- PC3 [PASS] Project\n- PC4 [N/A] skipReason=non-dev\n- PC5 [PASS] Host\n- PC6 [PASS] Git\n- PC7 [PASS] Next' }
     ]
   })
-  assert.ok(!contentPartsStop.systemMessage)
+  assert.ok(!/entry check block 未输出|entry-check-missing/i.test(contentPartsStop.systemMessage || ''))
   let visibleState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
   assert.strictEqual(visibleState.visible.precheckStatus, 'verified-present')
 
@@ -675,7 +677,7 @@ function runHooksRuntimeVisibilityScenarios(context) {
       { role: 'assistant', content: [{ type: 'text', text: '### DevCodex · 入口检查\n- PC0 [PASS] Context plan\n- PC1 [PASS] Intent\n- PC2 [PASS] Session\n- PC3 [PASS] Project\n- PC4 [N/A] skipReason=non-dev\n- PC5 [PASS] Host\n- PC6 [PASS] Git\n- PC7 [PASS] Next' }] }
     ]
   })
-  assert.ok(!messagesStop.systemMessage)
+  assert.ok(!/entry check block 未输出|entry-check-missing/i.test(messagesStop.systemMessage || ''))
 
   cleanState()
   run({
@@ -688,7 +690,7 @@ function runHooksRuntimeVisibilityScenarios(context) {
       { message: { role: 'assistant', content: [{ text: '### DevCodex · 入口检查\n- PC0 [PASS] Context plan\n- PC1 [PASS] Intent\n- PC2 [PASS] Session\n- PC3 [PASS] Project\n- PC4 [N/A] skipReason=non-dev\n- PC5 [PASS] Host\n- PC6 [PASS] Git\n- PC7 [PASS] Next' }] } }
     ]
   })
-  assert.ok(!choicesStop.systemMessage)
+  assert.ok(!/entry check block 未输出|entry-check-missing/i.test(choicesStop.systemMessage || ''))
 
   cleanState()
   run({
@@ -703,7 +705,7 @@ function runHooksRuntimeVisibilityScenarios(context) {
     hookEventName: 'Stop',
     transcript_path: variantTranscriptPath
   })
-  assert.ok(!variantTranscriptStop.systemMessage)
+  assert.ok(!/entry check block 未输出|entry-check-missing/i.test(variantTranscriptStop.systemMessage || ''))
 
   cleanState()
   run({

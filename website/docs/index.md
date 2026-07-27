@@ -35,5 +35,4 @@ features:
 
 > Skill 规模锚点：84 个按需触发；扁平一级 Skill（84 个）。
 >
-> Hook 默认注册：`UserPromptSubmit` / `PreToolUse` / `PostToolUse` / `PreCompact` / `Stop`。能力按宿主/事件降级：用户级 adapter 已配置不代表每个宿主事件都具备相同的硬拦能力。
-
+> Hook 能力按宿主/事件降级：默认注册 `UserPromptSubmit` / `PreToolUse` / `PostToolUse` / `PreCompact` / `Stop`。用户级 adapter 已配置不代表每个宿主事件都具备相同的硬拦能力。

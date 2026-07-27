@@ -34,6 +34,7 @@ const GLOBAL_HOST_RECEIPT_SCHEMA = 'GlobalHostConfigReceiptV1'
 const MCP_RUNTIME_DEPS = Object.freeze([
   'scripts/lib/cp-digest.js',
   'scripts/lib/host-parity-scorecard.js',
+  'scripts/lib/executable-absorption-gates.js',
   'scripts/lib/global-adapter-refresh-guidance.js',
   'scripts/lib/global-host-target.js',
   'scripts/lib/derived-index-contract.js',

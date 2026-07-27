@@ -275,6 +275,7 @@
     "scripts/lib/global-adapters-cli.js",
     "scripts/lib/host-parity-scorecard.js",
     "scripts/lib/executable-absorption-gates.js",
+    "scripts/lib/optimization-backlog-evidence.js",
     "scripts/lib/parity-unaligned-ledger.js",
     "scripts/lib/parity-upgrade-decision.js",
     "scripts/fixtures/host-parity/",

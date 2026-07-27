@@ -9,6 +9,7 @@ const { spawnSync } = require('child_process')
 const {
   applyGlobalHostConfig,
   buildGlobalHostConfigPlan,
+  MCP_RUNTIME_DEPS,
   inspectGlobalHostConfig,
   inspectGlobalHostConfiguration
 } = require('./lib/global-host-config.js')
@@ -39,6 +40,10 @@ fs.writeFileSync(path.join(workspace, 'package.json'), '{ "name": "global-host-d
 
 const fixture = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'global-host-config', 'cases.json'), 'utf8'))
 assert.deepStrictEqual(fixture.hosts.map(item => item.id), GLOBAL_HOST_IDS)
+assert.ok(
+  MCP_RUNTIME_DEPS.includes('scripts/lib/executable-absorption-gates.js'),
+  'global host runtime deps must include host-parity hard dependency: executable-absorption-gates.js'
+)
 
 const env = {
   ...process.env,

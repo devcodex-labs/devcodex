@@ -50,8 +50,8 @@ function buildOptimizationControlChecks(ctx) {
     required.forEach(requireFile)
 
     const pkg = JSON.parse(read(path.join(ROOT, 'package.json')))
-    if (pkg.publishConfig?.registry !== 'https://npm.pkg.github.com/' || pkg.publishConfig?.access !== 'restricted') {
-      err('[V92] GitHub Packages publishConfig candidate is not canonical')
+    if (pkg.name !== 'devcodex' || pkg.publishConfig?.registry !== 'https://registry.npmjs.org/' || pkg.publishConfig?.access !== 'public') {
+      err('[V92] npmjs public publishConfig candidate is not canonical')
     }
     for (const script of [
       'test:optimization-controls',
@@ -188,7 +188,7 @@ function buildOptimizationControlChecks(ctx) {
     }
 
     const readme = read(path.join(ROOT, 'README.md'))
-    for (const needle of ['5 分钟快速开始', 'GitHub Packages', 'npm.pkg.github.com', 'NODE_AUTH_TOKEN', 'read:packages', '当前唯一发布通道', '1.0.1']) {
+    for (const needle of ['5 分钟快速开始', 'npmjs', 'npm install -g devcodex', 'GitHub Packages', '历史包', '1.0.1']) {
       if (!readme.includes(needle)) err(`[V92] README product path missing: ${needle}`)
     }
     console.log(`[V92] optimization controls checked: skills=85 gray=3 runtimeAlerts=${runtimeState.summary.alertCount}`)

@@ -114,8 +114,8 @@ DevCodex 通过 npm 全局安装把 Copilot、Claude Code、Codex、Gemini CLI �
 
 | 通道 | 当前状态 | 用途 |
 |---|---|---|
-| npmjs | 待发布 v1.15.3 | 新 canonical 发布通道；发布后可直接安装 |
-| GitHub Packages | 历史包 `@devcodex-labs/devcodex@1.15.3` | 组织改名后转移的历史兼容包；不作为新安装主路径 |
+| npmjs public | v1.15.3 | 默认公开安装通道；发布后可直接 `npm install -g devcodex` |
+| GitHub Packages | 历史/镜像通道 `@devcodex-labs/devcodex@1.15.3` | 组织改名后转移的历史兼容包；不作为新安装主路径 |
 
 1. 确认 CLI 运行时（文档站维护另需 Node `^20.19.0 || >=22.12.0`）：
 
@@ -726,7 +726,7 @@ DevCodex Hook runtime 不再把所有拦截都等同为“停止”。拦截会�
 
 DevCodex 的 `plugin.json` 声明 `tier: "free"`，所有 Skill 均标注 `tier: "free"`。这些 tier 字段是**面向未来的 prompt-level 声明**（供 `token-check` Skill 在 Agent 侧做软门控），**CLI 不做任何授权校验**：
 
-- CLI 本身不做额外 license/tier 授权校验；当前 v1.15.3 通过 GitHub Packages 分发，registry 读取认证仍按平台规则执行
+- CLI 本身不做额外 license/tier 授权校验；当前 v1.15.3 候选以 npmjs public 通道为 canonical，GitHub Packages 历史包仅作兼容说明，registry 读取认证仍按平台规则执行
 - 未来接入服务端 token 校验时，tier 字段才会生效
 - 当前阶段 tier 仅作为规划信息，不影响功能使用
 

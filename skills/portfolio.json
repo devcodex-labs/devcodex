@@ -13,8 +13,8 @@
     "portfolioEvidenceDigest": "8364a73c66ed2ec9787cdb9300223278d128a45b689a2b8deda0d1f03189f42b",
     "consumerInventoryFileCount": 620,
     "consumerInventoryDigest": "d748fc41bcd843d46b95524dd0ba2e8933af231236807ce64fb5021b7ff4152f",
-    "consumerProjectionDigest": "8ce5881ebf4c00bb71ad3f2206933dcfe5ad851634aa4455aa1940e41b53dda2",
-    "portfolioInputDigest": "7d60e848605d95130340019daf55059384512b321dfedff1f9fe69c659a5543c"
+    "consumerProjectionDigest": "9df0fdb4c40d83b3111f57aa715bd47965a6424fa0582e15163d2575af2e19bd",
+    "portfolioInputDigest": "37f24ee81f10afe16e78268f48ac0e8e980d914361429db68e53303929c0b67d"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -12122,6 +12122,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-global-host-config.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-governance-intake.js",
           "role": "current"
         },
@@ -12315,6 +12319,7 @@
         "scripts/test-context-read-contract.js",
         "scripts/test-docs-audience-intent.js",
         "scripts/test-execution-chain-evolution.js",
+        "scripts/test-global-host-config.js",
         "scripts/test-governance-intake.js",
         "scripts/test-host-capability-routing.js",
         "scripts/test-host-parity-scorecard.js",
@@ -12404,6 +12409,7 @@
           "scripts/test-context-read-contract.js",
           "scripts/test-docs-audience-intent.js",
           "scripts/test-execution-chain-evolution.js",
+          "scripts/test-global-host-config.js",
           "scripts/test-governance-intake.js",
           "scripts/test-host-capability-routing.js",
           "scripts/test-host-parity-scorecard.js",
@@ -20891,10 +20897,6 @@
           "role": "current"
         },
         {
-          "path": "index.js",
-          "role": "current"
-        },
-        {
           "path": "instructions.md",
           "role": "current"
         },
@@ -21008,10 +21010,6 @@
         },
         {
           "path": "scripts/lib/external-review-claim-verification.js",
-          "role": "current"
-        },
-        {
-          "path": "scripts/lib/global-host-config.js",
           "role": "current"
         },
         {
@@ -21136,10 +21134,6 @@
         },
         {
           "path": "scripts/test-host-capability-routing.js",
-          "role": "current"
-        },
-        {
-          "path": "scripts/test-host-installation.js",
           "role": "current"
         },
         {
@@ -21358,7 +21352,6 @@
         "scripts/test-governance-status-summary.js",
         "scripts/test-hooks-runtime.js",
         "scripts/test-host-capability-routing.js",
-        "scripts/test-host-installation.js",
         "scripts/test-mcp-servers.js",
         "scripts/test-memory-index.js",
         "scripts/test-migrate-layout.js",
@@ -21425,7 +21418,6 @@
           "scripts/test-governance-status-summary.js",
           "scripts/test-hooks-runtime.js",
           "scripts/test-host-capability-routing.js",
-          "scripts/test-host-installation.js",
           "scripts/test-mcp-servers.js",
           "scripts/test-memory-index.js",
           "scripts/test-migrate-layout.js",

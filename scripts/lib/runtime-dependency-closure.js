@@ -54,6 +54,40 @@ function collectRequireRequests(source) {
   return requests
 }
 
+/**
+ * Capture path.join(__dirname, '..', '..', 'scripts', 'lib', 'file.js') style
+ * runtime deps used when require() is dynamic after existsSync.
+ * Returns portable package-relative paths under scripts/lib.
+ */
+function collectPathJoinScriptLibDeps(source) {
+  const deps = []
+  const patterns = [
+    /path\.join\(\s*__dirname\s*,\s*(?:['"]\.\.['"]\s*,\s*){2}['"]scripts['"]\s*,\s*['"]lib['"]\s*,\s*['"]([^'"]+)['"]\s*\)/g,
+    /path\.join\(\s*__dirname\s*,\s*['"]\.\.\/\.\.\/scripts\/lib\/([^'"]+)['"]\s*\)/g
+  ]
+  for (const re of patterns) {
+    let match
+    while ((match = re.exec(source)) !== null) {
+      const name = String(match[1] || '').replace(/\\/g, '/')
+      if (!name) continue
+      deps.push(portable(path.posix.join('scripts/lib', name)))
+    }
+  }
+  return deps
+}
+
+function collectEdgesFromSource(packageRoot, fromRelative, source, fsImpl) {
+  const edges = []
+  for (const request of collectRequireRequests(source)) {
+    const resolved = resolveRelativeModule(packageRoot, fromRelative, request, fsImpl)
+    if (resolved) edges.push(resolved)
+  }
+  for (const dep of collectPathJoinScriptLibDeps(source)) {
+    if (fsImpl.existsSync(path.join(packageRoot, ...dep.split('/')))) edges.push(dep)
+  }
+  return edges
+}
+
 function collectRuntimeScriptDeps(packageRoot, options = {}) {
   const fsImpl = options.fs || fs
   const roots = Array.isArray(options.roots) && options.roots.length
@@ -74,18 +108,16 @@ function collectRuntimeScriptDeps(packageRoot, options = {}) {
 
   for (const entry of entryFiles) {
     const source = readPackageText(packageRoot, entry, fsImpl)
-    for (const request of collectRequireRequests(source)) {
-      const resolved = resolveRelativeModule(packageRoot, entry, request, fsImpl)
-      if (resolved) enqueue(resolved)
+    for (const edge of collectEdgesFromSource(packageRoot, entry, source, fsImpl)) {
+      enqueue(edge)
     }
   }
 
   for (let index = 0; index < queue.length; index += 1) {
     const current = queue[index]
     const source = readPackageText(packageRoot, current, fsImpl)
-    for (const request of collectRequireRequests(source)) {
-      const resolved = resolveRelativeModule(packageRoot, current, request, fsImpl)
-      if (resolved) enqueue(resolved)
+    for (const edge of collectEdgesFromSource(packageRoot, current, source, fsImpl)) {
+      enqueue(edge)
     }
   }
 
@@ -114,6 +146,8 @@ function assertRuntimeClosureCovered(packageRoot, allowlist, options = {}) {
 
 module.exports = {
   DEFAULT_RUNTIME_ROOTS,
+  collectRequireRequests,
+  collectPathJoinScriptLibDeps,
   collectRuntimeScriptDeps,
   runtimeClosureCoverage,
   assertRuntimeClosureCovered

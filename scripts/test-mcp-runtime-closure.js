@@ -132,21 +132,44 @@ function fakeRuntimeSeed() {
     ['scripts/lib/fake-runtime-only.js'],
     'new runtime-only require must enter closure'
   )
+
+  // Dynamic path.join(__dirname, '..', '..', 'scripts', 'lib', ...) must also enter closure.
+  const tmpJoin = fs.mkdtempSync(path.join(os.tmpdir(), 'runtime-closure-join-'))
+  fs.mkdirSync(path.join(tmpJoin, 'hooks', '_runtime'), { recursive: true })
+  fs.mkdirSync(path.join(tmpJoin, 'scripts', 'lib'), { recursive: true })
+  fs.writeFileSync(
+    path.join(tmpJoin, 'hooks', '_runtime', 'join-fixture.cjs'),
+    "const p = path.join(__dirname, '..', '..', 'scripts', 'lib', 'join-only-dep.js')\nrequire(p)\n"
+  )
+  fs.writeFileSync(path.join(tmpJoin, 'scripts', 'lib', 'join-only-dep.js'), "'use strict'\nmodule.exports = {}\n")
+  assert.deepStrictEqual(
+    collectRuntimeScriptDeps(tmpJoin, { roots: ['hooks/_runtime'] }),
+    ['scripts/lib/join-only-dep.js'],
+    'path.join scripts/lib dep must enter closure'
+  )
 }
 
-function sourcePackageToolSmoke() {
-  const mem = path.join(ROOT, 'mcp', 'memory-server.js')
-  const prof = path.join(ROOT, 'mcp', 'profile-server.js')
-  const memR = mcpToolCallProbe(mem, ROOT, 'memory_status', { agent: 'grok', project: 'devcodex', limit: 2 }, {
+function allowlistOnlyMcpSmoke() {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'runtime-closure-mcp-'))
+  // MCP servers resolve ../hooks/_runtime and ../scripts/lib from package-shaped layout.
+  copyDir(path.join(ROOT, 'mcp'), path.join(tmp, 'mcp'))
+  copyDir(path.join(ROOT, 'hooks', '_runtime'), path.join(tmp, 'hooks', '_runtime'))
+  copyRuntimeDeps(tmp, CLAUDE_MCP_RUNTIME_SCRIPT_DEPS)
+
+  const mem = path.join(tmp, 'mcp', 'memory-server.js')
+  const prof = path.join(tmp, 'mcp', 'profile-server.js')
+  const initR = mcpInitializeProbe(mem, tmp, { timeoutMs: 5000 })
+  assert.strictEqual(initR.passed, true, `allowlist-only initialize failed: ${initR.error}`)
+  const memR = mcpToolCallProbe(mem, tmp, 'memory_status', { agent: 'grok', project: 'devcodex', limit: 2 }, {
     timeoutMs: 8000
   })
-  assert.strictEqual(memR.passed, true, `memory smoke failed: ${memR.error} ${memR.textHead}`)
-  const profR = mcpToolCallProbe(prof, ROOT, 'profile_compose_entry_check', {
+  assert.strictEqual(memR.passed, true, `allowlist-only memory smoke failed: ${memR.error} ${memR.textHead}`)
+  const profR = mcpToolCallProbe(prof, tmp, 'profile_compose_entry_check', {
     project: 'devcodex',
     status: 'PASS',
     nextStep: 'test'
   }, { timeoutMs: 8000 })
-  assert.strictEqual(profR.passed, true, `profile smoke failed: ${profR.error} ${profR.textHead}`)
+  assert.strictEqual(profR.passed, true, `allowlist-only profile smoke failed: ${profR.error} ${profR.textHead}`)
 }
 
 function packlistContainsRuntimeClosure() {
@@ -165,15 +188,9 @@ function packlistContainsRuntimeClosure() {
   assert.ok(files.has('scripts/lib/runtime-dependency-closure.js'), 'npm package must include runtime closure owner')
 }
 
-function initStillWorks() {
-  const r = mcpInitializeProbe(path.join(ROOT, 'mcp', 'memory-server.js'), ROOT, { timeoutMs: 5000 })
-  assert.strictEqual(r.passed, true, `initialize failed: ${r.error}`)
-}
-
 closureCoverage()
 fakeRuntimeSeed()
 layoutReplaySmoke()
-sourcePackageToolSmoke()
+allowlistOnlyMcpSmoke()
 packlistContainsRuntimeClosure()
-initStillWorks()
 console.log('test-mcp-runtime-closure: PASS')

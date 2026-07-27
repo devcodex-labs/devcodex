@@ -33,6 +33,7 @@ console.log(
       hookRuntime: inv.hookRuntimeCount,
       prompts: inv.prompts,
       instructions: inv.instructionsMain,
+      websitePresent: inv.websitePresent,
       websiteMd: inv.websiteMd,
       npmScripts: inv.npmScripts,
       scriptsLib: inv.scriptsLib,

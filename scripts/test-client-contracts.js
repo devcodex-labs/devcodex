@@ -52,12 +52,16 @@ const clientContractProbes = [
   ['README.md', '用户可见交付与链接兼容'],
   ['README.md', 'profile_load'],
   ['README.md', 'invoke'],
-  ['website/docs/guide/development.md', 'DevCodexVisibleEnvelopeV1'],
-  ['website/docs/guide/development.md', 'mcpFallback=used'],
   ['scripts/test-mcp-servers.js', 'testProfileLoadWithoutArguments']
 ]
 
 for (const [file, needle] of clientContractProbes) mustInclude(file, needle)
+
+// website/ is optional on public clones (maintainer-only docs site).
+if (fs.existsSync(path.join(ROOT, 'website', 'docs', 'guide', 'development.md'))) {
+  mustInclude('website/docs/guide/development.md', 'DevCodexVisibleEnvelopeV1')
+  mustInclude('website/docs/guide/development.md', 'mcpFallback=used')
+}
 
 mustMatch(
   'instructions/02-output-paths.instructions.md',

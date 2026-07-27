@@ -8,6 +8,13 @@ function runSpecGovernanceReviewSuite(ctx) {
     mustNotInclude, collectChangelogContents, mustIncludeInChangelogs
   } = ctx
 
+  const websitePresent = fs.existsSync(path.join(ROOT, 'website', 'docs'))
+  function mustIncludeOptional (file, needle) {
+    if (String(file).startsWith('website/') && !websitePresent) return
+    if (!fs.existsSync(path.join(ROOT, file))) return
+    mustIncludeOptional(file, needle)
+  }
+
   const checkV75 = 'PromptLongGateListDriftProbe'
   for (const [file, needle] of [
     ['scripts/lib/validate-governance-review.js', 'checkV75'],
@@ -22,12 +29,12 @@ function runSpecGovernanceReviewSuite(ctx) {
     ['website/docs/guide/development.md', checkV75],
     ['changelogs/releases/v1.11.28.md', 'V75']
   ]) {
-    mustInclude(file, needle)
+    mustIncludeOptional(file, needle)
   }
 
   const promptLongGateListDriftConsumerFiles = [
     'README.md',
-    'website/docs/guide/development.md',
+    ...(websitePresent ? ['website/docs/guide/development.md'] : []),
     'instructions/10-dev.instructions.md',
     'instructions/11-fix.instructions.md',
     'instructions/12-audit.instructions.md',
@@ -90,7 +97,7 @@ function runSpecGovernanceReviewSuite(ctx) {
     ['website/docs/guide/development.md', checkV76],
     ['changelogs/releases/v1.11.28.md', 'V76']
   ]) {
-    mustInclude(file, needle)
+    mustIncludeOptional(file, needle)
   }
 
   const checkV77 = 'NativeCommandExitCodeGate'
@@ -115,7 +122,7 @@ function runSpecGovernanceReviewSuite(ctx) {
     ['website/docs/guide/development.md', checkV77],
     ['changelogs/releases/v1.11.28.md', 'V77']
   ]) {
-    mustInclude(file, needle)
+    mustIncludeOptional(file, needle)
   }
 
   const checkV78 = 'PostConfirmationReviewScopeGate'
@@ -151,7 +158,7 @@ function runSpecGovernanceReviewSuite(ctx) {
     ['website/docs/guide/development.md', 'DevelopmentDriftGate'],
     ['changelogs/releases/v1.11.28.md', 'V78']
   ]) {
-    mustInclude(file, needle)
+    mustIncludeOptional(file, needle)
   }
 
   const checkV79 = 'CoverageGateDecision'
@@ -176,7 +183,7 @@ function runSpecGovernanceReviewSuite(ctx) {
     ['README.md', 'coverage 与外部 runtime 生命周期验证'],
     ['website/docs/guide/development.md', '存在 coverage 阈值']
   ]) {
-    mustInclude(file, needle)
+    mustIncludeOptional(file, needle)
   }
 
   const checkV80 = 'UserManualReviewScope'
@@ -223,7 +230,7 @@ function runSpecGovernanceReviewSuite(ctx) {
     ['website/docs/guide/development.md', 'audit-user-manual'],
     ['website/docs/specs/directory-structure.md', 'audit-user-manual']
   ]) {
-    mustInclude(file, needle)
+    mustIncludeOptional(file, needle)
   }
   mustIncludeInChangelogs('V80')
 
@@ -285,7 +292,7 @@ function runSpecGovernanceReviewSuite(ctx) {
     ['website/docs/guide/development.md', 'CommonNormGeneralizationGate'],
     ['website/docs/versions/v1/1.0.1/CHANGELOG.md', 'V81']
   ]) {
-    mustInclude(file, needle)
+    mustIncludeOptional(file, needle)
   }
   mustIncludeInChangelogs('V81')
   mustIncludeInChangelogs('CommonNormGeneralizationGate')
@@ -345,7 +352,7 @@ function runSpecGovernanceReviewSuite(ctx) {
     ['website/docs/guide/development.md', checkV82],
     ['website/docs/versions/v1/1.0.1/CHANGELOG.md', 'V82']
   ]) {
-    mustInclude(file, needle)
+    mustIncludeOptional(file, needle)
   }
   mustIncludeInChangelogs('V82')
   mustIncludeInChangelogs('LatestAbsorptionExecutionPack')

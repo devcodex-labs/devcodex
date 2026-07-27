@@ -9,6 +9,8 @@
 - **技能过程文案**：inject 引导过程侧写「正在加载 <id> 技能」，避免「命中 … 正在读取并按该技能执行」。
 - **宿主 skill 目录隐私**：PreToolUse 拦截 List/扫描 `~/.grok/skills`、`bundled/skills` 等用户主目录 skill 树，避免过程 UI 暴露 `C:\\Users\\…`；只允许读单个已知 SKILL.md。
 - **过程关账回填（B1–B3）**：ECR `reports/requirements/grok/20260727/01–03`；需求目录 `技能加载可见性收敛与验证` 00–05；用户站 `website/docs/guide/skills-loading.md`；Profile **N/A**。
+- **website 不进公开仓**：`.gitignore` 忽略 `website/*`（保留 `website/README.md` 指针）；npm `files` 本就不含 website；docs-surface / public-text / 相关探针在 website 缺省时 optional。
+- **README 用户向重写**：安装、验证 skill、语言诚实、宿主 Partial、仓库边界；去掉 Gate 百科式长清单。
 - **控制面 ImplementStartGate 防过程跳过**：`classifyImplementStartGate` 对控制面 mutation **禁止 unbound 放行**（`implement-start-without-task-binding`）；绑定任务后除 04/05/复审清单外还须 **00/01 + 02 技术方案**（`implement-start-without-design`）；lifecycle PreTool 无任务也 enforce。探针 `test-implement-start-gate.js`。需求：`VSCode全局MCP与五宿主同刷`（过程事故：承诺按流程却直接改码）。
 - **VS Code 全局 MCP 与五宿主同刷**：`global-adapters apply` / 全局安装在 Copilot host 事务中合并写入用户级 `Code/User/mcp.json`（及已存在的 Code - Insiders）的 `servers.devcodex-memory|profile`（stdio→copilot runtime mcp），保留既有 `inputs`/其它 server；测试与边界见 `global-host-target.resolveVscodeUserMcpPaths`。
 - **SkillsDeployModeV1（隐蔽运行时 + PR-1 防假绿）**：默认 `skillsDeployMode=hidden` 将 active skills 部署到 `~/.agents/devcodex/skills`（G_RUNTIME），停写/目录 prune `~/.agents/skills`、`~/.claude/skills`、`~/.copilot/skills` 中的包 managed id；`resolveGlobalSkillsRoot` 随 mode 切换（ENV `DEVCODEX_GLOBAL_SKILLS_ROOT` 仍最高优先）；`global-adapters apply --mode=hidden|legacy` 与 npm lifecycle 透传；receipt 记录 mode。强化 `pr1EvidenceOk`：有 `02` 须独立实质 `03` 复审（长度+blocker=0+实质章节），拒绝 thin open-blocker / sessions-only；改写 stop-gate 负向探针。需求：`全局Skill与插件隐蔽运行时`。

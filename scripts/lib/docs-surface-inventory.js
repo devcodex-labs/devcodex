@@ -110,7 +110,10 @@ function scanDocsSurfaceInventory (root) {
   const scriptsLib = listFiles(root, 'scripts/lib', /\.js$/i)
   const scriptsTop = listFiles(root, 'scripts', /\.(js|cjs|mjs)$/i)
   const npmScripts = Object.keys(pkg.scripts || {}).sort()
-  const websiteMd = walkMd(root, 'website/docs').sort()
+  // website/ is maintainer-only and may be absent from public clones (not shipped in npm / public git).
+  const websiteDocsRoot = path.join(root, 'website', 'docs')
+  const websitePresent = fs.existsSync(websiteDocsRoot)
+  const websiteMd = websitePresent ? walkMd(root, 'website/docs').sort() : []
 
   const gates = JSON.parse(
     fs.readFileSync(path.join(root, 'skills/spec-governance/gate-registry.json'), 'utf8')
@@ -151,6 +154,7 @@ function scanDocsSurfaceInventory (root) {
     scriptsLib: scriptsLib.length,
     scriptsTop: scriptsTop.length,
     npmScripts: npmScripts.length,
+    websitePresent,
     websiteMd: websiteMd.length,
     gateGroups,
     validationNodes: validationNodes.length,
@@ -200,7 +204,10 @@ function assertDocsSurfaceInventory (inv) {
   if (inv.instructionsMain !== 15) {
     failures.push(`instructions main expected 15 got ${inv.instructionsMain}`)
   }
-  if (inv.websiteMd < 156) failures.push(`website md expected >=156 got ${inv.websiteMd}`)
+  // Public tree policy: website is optional. When present (maintainer checkout), enforce floor.
+  if (inv.websitePresent && inv.websiteMd < 156) {
+    failures.push(`website md expected >=156 got ${inv.websiteMd}`)
+  }
   if (inv.gateGroups !== 51) failures.push(`gate groups expected 51 got ${inv.gateGroups}`)
   if (inv.validationNodes < 83) {
     failures.push(`validation nodes expected >=83 got ${inv.validationNodes}`)

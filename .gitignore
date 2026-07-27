@@ -11,6 +11,12 @@ coverage/
 .env
 .env.local
 
+# Maintainer docs site (Rspress) — NOT in public git / NOT in npm pack.
+# Keep a local copy for maintainers; public users use README only.
+# Ignore all website content except a short public pointer README.
+website/*
+!website/README.md
+
 # DevCodex AI context data (session memory, reports, profile, etc. - do not commit)
 .devcodex/
 

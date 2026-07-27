@@ -77,8 +77,17 @@ try {
   fs.rmSync(tempRoot, { recursive: true, force: true })
 }
 
-const current = checkPublicTextSurfaces(ROOT, config)
-assert.ok(current.surfaceCount > config.surfaces.length, 'normative/public root expansion must be active')
+// website/ is maintainer-only; public clones may omit it. Drop website surfaces/roots when absent.
+const websitePresent = fs.existsSync(path.join(ROOT, 'website', 'docs'))
+const runtimeConfig = websitePresent
+  ? config
+  : {
+      ...config,
+      surfaces: (config.surfaces || []).filter((s) => !String(s.path || '').startsWith('website/')),
+      roots: (config.roots || []).filter((r) => !String(r.path || '').startsWith('website/'))
+    }
+const current = checkPublicTextSurfaces(ROOT, runtimeConfig)
+assert.ok(current.surfaceCount > runtimeConfig.surfaces.length, 'normative/public root expansion must be active')
 assert.ok(!current.results.some(item => item.path.startsWith('website/docs/versions/')), 'historical version docs must not be current public-text surfaces')
 assert.ok(!current.results.some(item => item.path.startsWith('changelogs/releases/')), 'historical release notes must not be current public-text surfaces')
 if (current.blockers.length) {
@@ -87,5 +96,8 @@ if (current.blockers.length) {
   }
   process.exitCode = 1
 } else {
-  console.log(`public text integrity passed: surfaces=${current.surfaceCount} warnings=${current.warnings.length}`)
+  console.log(
+    `public text integrity passed: surfaces=${current.surfaceCount} warnings=${current.warnings.length}` +
+      (websitePresent ? '' : ' website=optional-absent')
+  )
 }

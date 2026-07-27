@@ -289,9 +289,9 @@ function buildTestHooksRuntimeFixtures({
     if (fs.existsSync(TEMP_ROOT)) {
       fs.rmSync(TEMP_ROOT, { recursive: true, force: true })
     }
-    fs.mkdirSync(path.join(TEMP_ROOT, 'devcodex-v1'), { recursive: true })
+    fs.mkdirSync(path.join(TEMP_ROOT, 'devcodex'), { recursive: true })
     fs.mkdirSync(path.join(TEMP_ROOT, 'payment'), { recursive: true })
-    fs.writeFileSync(path.join(TEMP_ROOT, 'devcodex-v1', 'package.json'), '{}')
+    fs.writeFileSync(path.join(TEMP_ROOT, 'devcodex', 'package.json'), '{}')
     fs.writeFileSync(path.join(TEMP_ROOT, 'payment', 'package.json'), '{}')
   }
 
@@ -299,17 +299,17 @@ function buildTestHooksRuntimeFixtures({
     if (fs.existsSync(TEMP_ROOT)) {
       fs.rmSync(TEMP_ROOT, { recursive: true, force: true })
     }
-    fs.mkdirSync(path.join(TEMP_ROOT, 'devcodex-v1'), { recursive: true })
+    fs.mkdirSync(path.join(TEMP_ROOT, 'devcodex'), { recursive: true })
     fs.mkdirSync(path.join(TEMP_ROOT, 'payment'), { recursive: true })
     fs.mkdirSync(path.join(TEMP_ROOT, 'user'), { recursive: true })
     fs.mkdirSync(path.join(TEMP_ROOT, 'vext'), { recursive: true })
     fs.mkdirSync(path.join(TEMP_ROOT, 'vext-test'), { recursive: true })
-    fs.mkdirSync(path.join(TEMP_ROOT, '.devcodex', 'devcodex-v1', 'profile'), { recursive: true })
+    fs.mkdirSync(path.join(TEMP_ROOT, '.devcodex', 'devcodex', 'profile'), { recursive: true })
     fs.mkdirSync(path.join(TEMP_ROOT, '.devcodex', 'payment', 'profile'), { recursive: true })
     fs.mkdirSync(path.join(TEMP_ROOT, '.devcodex', 'user', 'profile'), { recursive: true })
     fs.mkdirSync(path.join(TEMP_ROOT, '.devcodex', 'vext', 'profile'), { recursive: true })
     fs.mkdirSync(path.join(TEMP_ROOT, '.devcodex', 'vext-test', 'profile'), { recursive: true })
-    fs.writeFileSync(path.join(TEMP_ROOT, 'devcodex-v1', 'package.json'), '{}')
+    fs.writeFileSync(path.join(TEMP_ROOT, 'devcodex', 'package.json'), '{}')
     fs.writeFileSync(path.join(TEMP_ROOT, 'payment', 'package.json'), '{}')
     fs.writeFileSync(path.join(TEMP_ROOT, 'user', 'package.json'), '{}')
     fs.writeFileSync(path.join(TEMP_ROOT, 'vext', 'package.json'), '{}')
@@ -319,7 +319,7 @@ function buildTestHooksRuntimeFixtures({
       JSON.stringify({ version: 1, mode: 'workspace-namespace' })
     )
     fs.writeFileSync(
-      path.join(TEMP_ROOT, '.devcodex', 'devcodex-v1', 'profile', 'config.json'),
+      path.join(TEMP_ROOT, '.devcodex', 'devcodex', 'profile', 'config.json'),
       JSON.stringify({ mode: 'dev', agent: TEST_AGENT })
     )
     fs.writeFileSync(

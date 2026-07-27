@@ -153,9 +153,9 @@ assert(finalSummaryFailed.reasons.includes('final-validation-summary-command-fai
 const refs = extractEvidenceRefsFromLine('已验证：`node scripts/test-evidence-freshness-receipt.js` exitCode 0 and FinalValidationSummaryV1.')
 assert(refs.some((ref) => ref.kind === 'command'))
 assert(refs.some((ref) => ref.kind === 'final-validation-summary'))
-const windowsRef = normalizeEvidenceRef('E:\\Worker\\devcodex-v1\\reports\\fresh.md')
+const windowsRef = normalizeEvidenceRef('E:\\Worker\\devcodex\\reports\\fresh.md')
 assert.strictEqual(windowsRef.kind, 'file')
-assert.strictEqual(windowsRef.ref, 'E:\\Worker\\devcodex-v1\\reports\\fresh.md')
+assert.strictEqual(windowsRef.ref, 'E:\\Worker\\devcodex\\reports\\fresh.md')
 
 const lint = buildStaleEvidenceLintDecision({
   index: freshIndex,

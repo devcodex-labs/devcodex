@@ -31,7 +31,7 @@ const observedAt = '2026-07-22T08:00:00Z'
 const generatedAt = '2026-07-22T08:01:00Z'
 const nowMs = Date.parse('2026-07-22T08:02:00Z')
 const taskScope = {
-  project: 'devcodex-v1', kind: 'requirements', taskId: 'ecr-fixture',
+  project: 'devcodex', kind: 'requirements', taskId: 'ecr-fixture',
   relativeTaskPath: 'requirements/ecr-fixture', legacyKey: sha256('legacy:ecr-fixture'),
   sourceIdentity: buildContentIdentity({ sourceKey: 'task:ecr-fixture', content: 'ecr-fixture', contractVersion: '1' })
 }

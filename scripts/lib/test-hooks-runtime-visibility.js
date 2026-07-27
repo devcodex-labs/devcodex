@@ -313,8 +313,8 @@ function runHooksRuntimeVisibilityScenarios(context) {
       '整体：✅ 全通过',
       '',
       '参考文件：',
-      '- [01--sample.md](devcodex-v1/.devcodex/reports/analysis/claude-code/20260525/01--sample.md)',
-      '  E:\\Worker\\devcodex-v1\\.devcodex\\reports\\analysis\\claude-code\\20260525\\01--sample.md'
+      '- [01--sample.md](devcodex/.devcodex/reports/analysis/claude-code/20260525/01--sample.md)',
+      '  E:\\Worker\\devcodex\\.devcodex\\reports\\analysis\\claude-code\\20260525\\01--sample.md'
     ].join('\n')
   })
   const artifactSectionRequiredReminder = run({
@@ -354,7 +354,7 @@ function runHooksRuntimeVisibilityScenarios(context) {
       '整体：✅ 全通过',
       '',
       '#### 完成交付文件',
-      '- [最终执行与验证报告](/E:/Worker/devcodex-v1/.devcodex/reports/analysis/claude-code/20260525/01--sample.md) — 说明本次执行与验证结论；路径：`.devcodex/reports/analysis/claude-code/20260525/01--sample.md`；操作：查看结论',
+      '- [最终执行与验证报告](/E:/Worker/devcodex/.devcodex/reports/analysis/claude-code/20260525/01--sample.md) — 说明本次执行与验证结论；路径：`.devcodex/reports/analysis/claude-code/20260525/01--sample.md`；操作：查看结论',
       '`DevCodexVisibleEnvelopeV1 · completion-check · PASS · cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc`'
     ].join('\n')
   })
@@ -399,7 +399,7 @@ function runHooksRuntimeVisibilityScenarios(context) {
       ...FINAL_VALIDATION_SUMMARY_LINES,
       '',
       '#### 完成交付文件',
-      '- [最终执行与验证报告](/E:/Worker/devcodex-v1/.devcodex/reports/analysis/claude-code/20260525/01--sample.md) — 说明本次执行与验证结论；路径：`.devcodex/reports/analysis/claude-code/20260525/01--sample.md`；操作：查看结论',
+      '- [最终执行与验证报告](/E:/Worker/devcodex/.devcodex/reports/analysis/claude-code/20260525/01--sample.md) — 说明本次执行与验证结论；路径：`.devcodex/reports/analysis/claude-code/20260525/01--sample.md`；操作：查看结论',
       '`DevCodexVisibleEnvelopeV1 · final-result · PASS · aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`'
     ].join('\n')
   })
@@ -410,7 +410,7 @@ function runHooksRuntimeVisibilityScenarios(context) {
       'FC: FC1 [✅] FC2 [✅] FC3 [✅] FC4 [✅] FC5 [✅] FC6 [✅]',
       ...FINAL_VALIDATION_SUMMARY_LINES,
       '#### 完成交付文件',
-      '- [最终执行与验证报告](/E:/Worker/devcodex-v1/.devcodex/reports/analysis/claude-code/20260525/01--sample.md) — 说明本次执行与验证结论；路径：`.devcodex/reports/analysis/claude-code/20260525/01--sample.md`；操作：查看结论',
+      '- [最终执行与验证报告](/E:/Worker/devcodex/.devcodex/reports/analysis/claude-code/20260525/01--sample.md) — 说明本次执行与验证结论；路径：`.devcodex/reports/analysis/claude-code/20260525/01--sample.md`；操作：查看结论',
       '`DevCodexVisibleEnvelopeV1 · final-result · PASS · aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`'
     ].join('\n')
   })
@@ -458,7 +458,7 @@ function runHooksRuntimeVisibilityScenarios(context) {
       '',
       '📂 本次会话产物：',
       '主要产物：',
-      '- [01--sample.md](/E:/Worker/devcodex-v1/.devcodex/reports/analysis/claude-code/20260525/01--sample.md)'
+      '- [01--sample.md](/E:/Worker/devcodex/.devcodex/reports/analysis/claude-code/20260525/01--sample.md)'
     ].join('\n')
   })
   const singleLineArtifactClosureReply = run({
@@ -468,7 +468,7 @@ function runHooksRuntimeVisibilityScenarios(context) {
       'FC: FC1 [✅] FC2 [✅] FC3 [✅] FC4 [✅] FC5 [✅] FC6 [✅]',
       '📂 本次会话产物：',
       '主要产物：',
-      '- [01--sample.md](/E:/Worker/devcodex-v1/.devcodex/reports/analysis/claude-code/20260525/01--sample.md)'
+      '- [01--sample.md](/E:/Worker/devcodex/.devcodex/reports/analysis/claude-code/20260525/01--sample.md)'
     ].join('\n')
   })
   assert.match(singleLineArtifactClosureReply.systemMessage || '', /无法验证最终用户可见回复的产物交付/)
@@ -507,7 +507,7 @@ function runHooksRuntimeVisibilityScenarios(context) {
       '',
       '核心文件：',
       '- reports/analysis/claude-code/20260525/02--bare.md',
-      '- E:\\Worker\\devcodex-v1\\.devcodex\\reports\\analysis\\claude-code\\20260525\\02--bare.md'
+      '- E:\\Worker\\devcodex\\.devcodex\\reports\\analysis\\claude-code\\20260525\\02--bare.md'
     ].join('\n')
   })
   assert.match(barePathListReply.systemMessage || '', /用户可见交付不完整|无法验证最终用户可见回复的产物交付/)
@@ -551,7 +551,7 @@ function runHooksRuntimeVisibilityScenarios(context) {
       'FC: FC1 [✅]',
       '',
       '#### 完成交付文件',
-      '- E:\\Worker\\devcodex-v1\\.devcodex\\reports\\analysis\\claude-code\\20260525\\03--abs.md',
+      '- E:\\Worker\\devcodex\\.devcodex\\reports\\analysis\\claude-code\\20260525\\03--abs.md',
       '`DevCodexVisibleEnvelopeV1 · final-result · PASS · aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`'
     ].join('\n')
   })
@@ -629,7 +629,7 @@ function runHooksRuntimeVisibilityScenarios(context) {
     ...FINAL_VALIDATION_SUMMARY_LINES,
     '',
     '#### 完成交付文件',
-    '- [最终执行与验证报告](/E:/Worker/devcodex-v1/.devcodex/reports/analysis/claude-code/20260525/01--sample.md) — 说明本次执行与验证结论；路径：`.devcodex/reports/analysis/claude-code/20260525/01--sample.md`；操作：查看结论',
+    '- [最终执行与验证报告](/E:/Worker/devcodex/.devcodex/reports/analysis/claude-code/20260525/01--sample.md) — 说明本次执行与验证结论；路径：`.devcodex/reports/analysis/claude-code/20260525/01--sample.md`；操作：查看结论',
     '`DevCodexVisibleEnvelopeV1 · final-result · PASS · bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb`'
   ].join('\n'))
   const transcriptBackedClosureReply = run({

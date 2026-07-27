@@ -821,20 +821,20 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
   const attachmentPrompt = run({
     hookEventName: 'UserPromptSubmit',
     prompt: '审查这个项目',
-    attachments: [{ folderPath: path.join(TEMP_ROOT, 'devcodex-v1') }]
+    attachments: [{ folderPath: path.join(TEMP_ROOT, 'devcodex') }]
   })
   assert.strictEqual(attachmentPrompt.continue, true)
   let multiProjectState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
-  assert.strictEqual(multiProjectState.activeProject, 'devcodex-v1')
+  assert.strictEqual(multiProjectState.activeProject, 'devcodex')
 
   cleanMultiProjectState()
   const bareProjectPrompt = run({
     hookEventName: 'UserPromptSubmit',
-    prompt: '审查 devcodex-v1 项目'
+    prompt: '审查 devcodex 项目'
   })
   assert.strictEqual(bareProjectPrompt.continue, true)
   multiProjectState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
-  assert.strictEqual(multiProjectState.activeProject, 'devcodex-v1')
+  assert.strictEqual(multiProjectState.activeProject, 'devcodex')
 
   cleanLayoutMultiProjectState()
   const workspaceAmbiguity = run({
@@ -895,17 +895,17 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
   const layoutExplicitProject = run({
     hookEventName: 'UserPromptSubmit',
     session_id: 'sticky-session',
-    prompt: '继续 devcodex-v1 的修复'
+    prompt: '继续 devcodex 的修复'
   })
   assert.strictEqual(layoutExplicitProject.continue, true)
   assert.ok(!/multi-project-workspace/.test(layoutExplicitProject.systemMessage || ''))
   let workspaceLayoutState = JSON.parse(fs.readFileSync(getWorkspaceLayoutStateFile(), 'utf8'))
-  assert.strictEqual(workspaceLayoutState.activeProject, 'devcodex-v1')
+  assert.strictEqual(workspaceLayoutState.activeProject, 'devcodex')
   assert.strictEqual(workspaceLayoutState.activeScope, 'project')
   assert.strictEqual(workspaceLayoutState.mode, 'dev')
-  assert.strictEqual(workspaceLayoutState.stickyProject.project, 'devcodex-v1')
+  assert.strictEqual(workspaceLayoutState.stickyProject.project, 'devcodex')
   assert.strictEqual(workspaceLayoutState.activeProjectSource, 'prompt')
-  assert.ok(fs.existsSync(getLayoutStateFile('devcodex-v1')))
+  assert.ok(fs.existsSync(getLayoutStateFile('devcodex')))
 
   const stickyFollowup = run({
     hookEventName: 'UserPromptSubmit',
@@ -915,7 +915,7 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
   assert.strictEqual(stickyFollowup.continue, true)
   assert.ok(!/multi-project-workspace/.test(stickyFollowup.systemMessage || ''))
   workspaceLayoutState = JSON.parse(fs.readFileSync(getWorkspaceLayoutStateFile(), 'utf8'))
-  assert.strictEqual(workspaceLayoutState.activeProject, 'devcodex-v1')
+  assert.strictEqual(workspaceLayoutState.activeProject, 'devcodex')
   assert.strictEqual(workspaceLayoutState.activeProjectSource, 'sticky')
   assert.strictEqual(workspaceLayoutState.mode, 'dev')
 
@@ -927,7 +927,7 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
   assert.strictEqual(stickyPromptUserWordFollowup.continue, true)
   assert.ok(!/multi-project-workspace/.test(stickyPromptUserWordFollowup.systemMessage || ''))
   workspaceLayoutState = JSON.parse(fs.readFileSync(getWorkspaceLayoutStateFile(), 'utf8'))
-  assert.strictEqual(workspaceLayoutState.activeProject, 'devcodex-v1')
+  assert.strictEqual(workspaceLayoutState.activeProject, 'devcodex')
   assert.strictEqual(workspaceLayoutState.activeProjectSource, 'sticky')
 
   const stickyRoleUserPayloadFollowup = run({
@@ -939,7 +939,7 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
   assert.strictEqual(stickyRoleUserPayloadFollowup.continue, true)
   assert.ok(!/multi-project-workspace/.test(stickyRoleUserPayloadFollowup.systemMessage || ''))
   workspaceLayoutState = JSON.parse(fs.readFileSync(getWorkspaceLayoutStateFile(), 'utf8'))
-  assert.strictEqual(workspaceLayoutState.activeProject, 'devcodex-v1')
+  assert.strictEqual(workspaceLayoutState.activeProject, 'devcodex')
   assert.strictEqual(workspaceLayoutState.activeProjectSource, 'sticky')
 
   const stickyFuzzyPayloadFollowup = run({
@@ -956,7 +956,7 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
   assert.strictEqual(stickyFuzzyPayloadFollowup.continue, true)
   assert.ok(!/multi-project-workspace/.test(stickyFuzzyPayloadFollowup.systemMessage || ''))
   workspaceLayoutState = JSON.parse(fs.readFileSync(getWorkspaceLayoutStateFile(), 'utf8'))
-  assert.strictEqual(workspaceLayoutState.activeProject, 'devcodex-v1')
+  assert.strictEqual(workspaceLayoutState.activeProject, 'devcodex')
   assert.strictEqual(workspaceLayoutState.activeProjectSource, 'sticky')
 
   const workspaceExemption = run({
@@ -975,7 +975,7 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
   run({
     hookEventName: 'UserPromptSubmit',
     session_id: 'old-session',
-    prompt: '修复 devcodex-v1 项目'
+    prompt: '修复 devcodex 项目'
   })
   const newSessionFollowup = run({
     hookEventName: 'UserPromptSubmit',
@@ -987,7 +987,7 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
   cleanLayoutMultiProjectState()
   run({
     hookEventName: 'UserPromptSubmit',
-    prompt: '修复 devcodex-v1 项目'
+    prompt: '修复 devcodex 项目'
   })
   const noSessionFollowup = run({
     hookEventName: 'UserPromptSubmit',
@@ -998,7 +998,7 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
   cleanLayoutMultiProjectState()
   run({
     hookEventName: 'UserPromptSubmit',
-    prompt: '修复 devcodex-v1 项目'
+    prompt: '修复 devcodex 项目'
   })
   workspaceLayoutState = JSON.parse(fs.readFileSync(getWorkspaceLayoutStateFile(), 'utf8'))
   workspaceLayoutState.stickyProject.updatedAtMs = 1

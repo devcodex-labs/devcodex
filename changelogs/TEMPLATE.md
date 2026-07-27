@@ -79,8 +79,8 @@
 ## ✅ 验证
 
 ```bash
-npx @vextjs/devcodex init --dry-run
-npx @vextjs/devcodex status
+npx @devcodex/devcodex init --dry-run
+npx @devcodex/devcodex status
 ```
 
 ---
@@ -93,7 +93,7 @@ devcodex global-adapters apply
 # 预发冒烟：
 # npm pack && npm install -g ./vextjs-devcodex-<version>.tgz
 # 已发布用户：
-# npm update -g @vextjs/devcodex
+# npm update -g @devcodex/devcodex
 # workspace 运行态 only：
 # devcodex update
 ```

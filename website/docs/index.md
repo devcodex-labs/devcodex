@@ -11,7 +11,7 @@ hero:
       link: /intro/#快速开始
     - theme: alt
       text: GitHub 与安装说明
-      link: https://github.com/vextjs/devcodex#安装
+      link: https://github.com/devcodex-labs/devcodex#安装
 
 features:
   - title: 🎯 结构化工作流

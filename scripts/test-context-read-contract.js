@@ -28,8 +28,8 @@ const {
 } = contract
 
 const BASE_MS = Date.parse('2026-07-17T02:00:00.000Z')
-const ACTIVE_ROOT = 'E:/Worker/devcodex-v1'
-const PROFILE_ROOT = 'E:/Worker/.devcodex/devcodex-v1/profile'
+const ACTIVE_ROOT = 'E:/Worker/devcodex'
+const PROFILE_ROOT = 'E:/Worker/.devcodex/devcodex/profile'
 const STANDARD_FILES = [
   '01-项目信息.md',
   '02-架构约束.md',
@@ -61,7 +61,7 @@ function makeBaseline(options = {}) {
   const catalogFiles = options.catalogFiles || STANDARD_FILES
   return {
     layout: 'workspace-namespace',
-    project: 'devcodex-v1',
+    project: 'devcodex',
     mode: 'dev',
     agent: 'rocky',
     profileTier: 'full',
@@ -94,7 +94,7 @@ function makeInput(intent, changeTypes, extras = {}) {
       schemaVersion: 'IntentSeedV1',
       contextEpoch: extras.contextEpoch || 'epoch-context-read-1',
       semantic: intent,
-      targetHint: 'devcodex-v1',
+      targetHint: 'devcodex',
       continuationHint: intent === 'resume',
       riskHint: extras.riskHint || 'normal',
       confidence: extras.confidence === undefined ? 0.95 : extras.confidence,
@@ -102,7 +102,7 @@ function makeInput(intent, changeTypes, extras = {}) {
     },
     identity: {
       activeRoot: ACTIVE_ROOT,
-      project: 'devcodex-v1',
+      project: 'devcodex',
       host: extras.host || 'claude-hook-full',
       finalIntent: intent
     },

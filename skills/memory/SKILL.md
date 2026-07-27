@@ -111,7 +111,7 @@ mismatch 错误含 nextStep：改完 rehash 再 confirm。Grok 状态条因此�
 
 | 根 | 含义 | 典型内容 |
 |----|------|----------|
-| **packageRoot** | 源码包（如 `devcodex-v1/`） | `package.json`、`mcp/`、`scripts/`、`index.js` |
+| **packageRoot** | 源码包（如 `devcodex/`） | `package.json`、`mcp/`、`scripts/`、`index.js` |
 | **activeRoot** | `.devcodex/<project>/` | requirements、reports、`.memory` |
 
 读实现代码用 packageRoot；写需求/记忆用 activeRoot。**禁止**默认 `read_file(.devcodex/**/index.js)` 当 package 入口。

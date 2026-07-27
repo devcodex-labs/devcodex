@@ -72,12 +72,12 @@ function hangBound () {
 function sourcePackageToolSmoke () {
   const mem = path.join(ROOT, 'mcp', 'memory-server.js')
   const prof = path.join(ROOT, 'mcp', 'profile-server.js')
-  const memR = mcpToolCallProbe(mem, ROOT, 'memory_status', { agent: 'grok', project: 'devcodex-v1', limit: 2 }, {
+  const memR = mcpToolCallProbe(mem, ROOT, 'memory_status', { agent: 'grok', project: 'devcodex', limit: 2 }, {
     timeoutMs: 8000
   })
   assert.strictEqual(memR.passed, true, `memory smoke failed: ${memR.error} ${memR.textHead}`)
   const profR = mcpToolCallProbe(prof, ROOT, 'profile_compose_entry_check', {
-    project: 'devcodex-v1',
+    project: 'devcodex',
     status: 'PASS',
     nextStep: 'test'
   }, { timeoutMs: 8000 })

@@ -52,7 +52,7 @@ description: 默认分析工作流规范 — 只读多轮分析、代码事实�
 
 当结论是**设计建议、分级方案、体系拆分、Gate/复审强度/控制面如何改**，或用户问「能否/应该如何」且答案依赖 **DevCodex 或当前仓库如何实现** 时，在输出推荐矩阵或「最优方案」之前必须：
 
-1. 对 **source-root**（规范仓如 `devcodex-v1`，非仅 user-global 镜像）做 **ExistingCapabilityInventory**：既有 Gate 名、Skill Owner、runtime（如 `selectReviewClass`）、探针、相关 PF/PI、文案漂移面。
+1. 对 **source-root**（规范仓如 `devcodex`，非仅 user-global 镜像）做 **ExistingCapabilityInventory**：既有 Gate 名、Skill Owner、runtime（如 `selectReviewClass`）、探针、相关 PF/PI、文案漂移面。
 2. 输出最小 inventory 表或等价证据：`reusePoint` / `currentBehavior` / `gap` / `禁平行声明`（不得静默发明平行等级名或新 Gate 哲学体系）。
 3. 仅对话记忆、user-global Skill 镜像或未 inventory 时，**禁止**写「已验证最优 / 项目已支持 / 可直接按此实施」。
 

@@ -6,7 +6,7 @@ const { applyGlobalHostConfig } = require('./global-host-config.js')
 const { syncGrokWorkspacePluginInstallation } = require('./host-adapter-scope.js')
 
 const RECEIPT_SCHEMA = 'DevCodexNpmLifecycleAdapterReceiptV1'
-const PACKAGE_NAMES = Object.freeze(['@vextjs/devcodex', 'devcodex'])
+const PACKAGE_NAMES = Object.freeze(['@devcodex/devcodex', 'devcodex'])
 const GLOBAL_INTERNAL_ACTION = 'apply-global-host-config'
 
 function truthy(value) {
@@ -32,7 +32,7 @@ function packageRootFrom(baseDir, pathImpl = path) {
 function isSourceCheckout(packageRoot, fsImpl = fs, pathImpl = path) {
   const root = packageRootFrom(packageRoot, pathImpl)
   return fsImpl.existsSync(pathImpl.join(root, '.git')) &&
-    readJson(pathImpl.join(root, 'package.json'), fsImpl)?.name === '@vextjs/devcodex'
+    readJson(pathImpl.join(root, 'package.json'), fsImpl)?.name === '@devcodex/devcodex'
 }
 
 function directDependencyNames(targetRoot, fsImpl = fs, pathImpl = path) {

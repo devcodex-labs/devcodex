@@ -23,7 +23,7 @@ function source(relativePath) {
   return fs.readFileSync(path.join(ROOT, relativePath), 'utf8')
 }
 
-assert.strictEqual(normalizePathFragment('E:\\Worker\\devcodex-v1\\skills\\a\\'), 'e:/worker/devcodex-v1/skills/a')
+assert.strictEqual(normalizePathFragment('E:\\Worker\\devcodex\\skills\\a\\'), 'e:/worker/devcodex/skills/a')
 assert.strictEqual(pathsOverlap('skills/a', 'skills/a/SKILL.md'), true)
 assert.strictEqual(pathsOverlap('skills/a', 'skills/alpha/SKILL.md'), false)
 

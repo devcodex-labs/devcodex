@@ -58,14 +58,14 @@ try {
     /allowShellReason/
   )
 
-  assert.strictEqual(packageScope('@vextjs/devcodex'), '@vextjs')
+  assert.strictEqual(packageScope('@devcodex/devcodex'), '@devcodex')
   assert.strictEqual(packageScope('unscoped-package'), null)
   const npmjsPublishArgs = buildPublishArgs('npmjs')
   const githubPublishArgs = buildPublishArgs('github')
   assert.ok(npmjsPublishArgs.includes('--registry=https://registry.npmjs.org/'))
-  assert.ok(npmjsPublishArgs.includes('--@vextjs:registry=https://registry.npmjs.org/'), 'npmjs must override scoped .npmrc routing')
+  assert.ok(npmjsPublishArgs.includes('--@devcodex:registry=https://registry.npmjs.org/'), 'npmjs must override scoped .npmrc routing')
   assert.ok(githubPublishArgs.includes('--registry=https://npm.pkg.github.com/'))
-  assert.ok(githubPublishArgs.includes('--@vextjs:registry=https://npm.pkg.github.com/'), 'GitHub Packages target must bind the package scope explicitly')
+  assert.ok(githubPublishArgs.includes('--@devcodex:registry=https://npm.pkg.github.com/'), 'GitHub Packages target must bind the package scope explicitly')
   assert.throws(() => buildPublishArgs('unknown'), /Unknown registry target/)
 
   console.log('✓ checked-command fail-fast, literal-glob and scoped registry fixtures passed')

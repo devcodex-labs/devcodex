@@ -468,14 +468,14 @@ function deepGrokProbe(target, cwd, options = {}) {
       path.join(target.runtimeRoot, 'mcp', 'memory-server.js'),
       cwd,
       'memory_status',
-      { agent: 'grok', project: path.basename(cwd) || 'devcodex-v1', limit: 3 },
+      { agent: 'grok', project: path.basename(cwd) || 'devcodex', limit: 3 },
       { ...options, timeoutMs: options.toolTimeoutMs || 8000 }
     ),
     profile: mcpToolCallProbe(
       path.join(target.runtimeRoot, 'mcp', 'profile-server.js'),
       cwd,
       'profile_compose_entry_check',
-      { project: path.basename(cwd) || 'devcodex-v1', status: 'PASS', nextStep: 'probe' },
+      { project: path.basename(cwd) || 'devcodex', status: 'PASS', nextStep: 'probe' },
       { ...options, timeoutMs: options.toolTimeoutMs || 8000 }
     )
   }

@@ -11,7 +11,7 @@
 
 | 文件 | 说明 |
 |------|------|
-| `package.json` | 包名 `@vextjs/devcodex`，版本 `1.0.0`，AGPL-3.0 |
+| `package.json` | 包名 `@devcodex/devcodex`，版本 `1.0.0`，AGPL-3.0 |
 | `index.js` | CLI 入口（init / update / status），零依赖 |
 | `.mcp.json` | MCP Server 占位（全部 disabled，v1.1.0 启用）|
 | `.npmrc` | GitHub Packages 注册表配置 |

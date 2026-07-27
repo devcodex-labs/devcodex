@@ -4,7 +4,7 @@
     "schemaVersion": "ParallelLaunchCardV1",
     "requirementId": "REQ-MISSING",
     "displayName": "缺字段卡片",
-    "activeRoot": "E:/Worker/.devcodex/devcodex-v1",
+    "activeRoot": "E:/Worker/.devcodex/devcodex",
     "sessionPrompt": "Only work on this task.",
     "isolationMode": "same-active-root-disjoint-paths",
     "mergeProtocol": {

@@ -44,5 +44,5 @@
 - `node scripts/test-spec-governance.js`
 - `node scripts/validate.js`
 - `npm test`
-- `node .\devcodex-v1\index.js update`
+- `node .\devcodex\index.js update`
 - `git diff --check`

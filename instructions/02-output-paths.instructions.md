@@ -173,7 +173,7 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 
 ```markdown
 #### 完成交付文件
-- [最终执行与验证报告](E:/Worker/.devcodex/devcodex-v1/reports/.../12--最终执行报告.md) — 汇总完成范围、验证结果和残余风险；路径：`.devcodex/devcodex-v1/reports/.../12--最终执行报告.md`；操作：查看结论
+- [最终执行与验证报告](E:/Worker/.devcodex/devcodex/reports/.../12--最终执行报告.md) — 汇总完成范围、验证结果和残余风险；路径：`.devcodex/devcodex/reports/.../12--最终执行报告.md`；操作：查看结论
 ```
 
 自由文本表示例：
@@ -183,13 +183,13 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 
 | 语义名称 | 用途 | 路径 | 操作 |
 |----------|------|------|------|
-| 最终执行与验证报告 | 汇总完成范围与残余风险 | `.devcodex/devcodex-v1/reports/.../12--最终执行报告.md` | 查看结论 |
+| 最终执行与验证报告 | 汇总完成范围与残余风险 | `.devcodex/devcodex/reports/.../12--最终执行报告.md` | 查看结论 |
 ```
 
 Portable 示例保持同一语义项，链接 target 与路径列均为工作区相对路径：
 
 ```markdown
-- [最终执行与验证报告](.devcodex/devcodex-v1/reports/requirements/codex/20260719/12--最终执行报告.md) — 汇总完成范围、验证结果和残余风险；路径：`.devcodex/devcodex-v1/reports/requirements/codex/20260719/12--最终执行报告.md`；操作：查看结论
+- [最终执行与验证报告](.devcodex/devcodex/reports/requirements/codex/20260719/12--最终执行报告.md) — 汇总完成范围、验证结果和残余风险；路径：`.devcodex/devcodex/reports/requirements/codex/20260719/12--最终执行报告.md`；操作：查看结论
 ```
 
 Portable/Plain 在同一 semanticDigest 下只改变链接形式，不改变文件集合、顺序、状态、动作或路径列语义。legacy “主要产物 + 绝对路径”文本最多识别为 `unverified-legacy`，不能作为 verified delivery receipt。当且仅当 fallback 激活时，可追加 `绝对路径：E:/...` 并记录 reason。

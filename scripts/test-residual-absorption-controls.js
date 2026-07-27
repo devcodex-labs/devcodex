@@ -83,7 +83,7 @@ const layerChecks = {
 const sourceExistence = {
   claimedCapability: 'SourceExistenceVerificationGate',
   searchAnchors: ['SourceExistenceVerificationGate'],
-  sourceRoot: 'devcodex-v1',
+  sourceRoot: 'devcodex',
   existenceStatus: 'absent',
   hitEvidence: [],
   nearNeighborCoverage: 'none',
@@ -95,7 +95,7 @@ const structured = {
   phaseKind: 'planning',
   candidates: [{
     candidateId: 'PI-STRUCTURED-ABSORB',
-    sourceNamespace: '.devcodex/devcodex-v1/data/process-improvements.md',
+    sourceNamespace: '.devcodex/devcodex/data/process-improvements.md',
     rawSummary: 'structured absorption candidate planning',
     backlogClass: 'pure-open',
     commonDecision: 'absorb',
@@ -134,7 +134,7 @@ assert.strictEqual(
   classifySourceExistenceVerificationSample({
     existenceStatus: 'present',
     searchAnchors: ['EvidenceFreshnessReceiptV1'],
-    sourceRoot: 'devcodex-v1',
+    sourceRoot: 'devcodex',
     hitEvidence: ['scripts/lib/evidence-freshness-receipt.js']
   }),
   'close-ledger'
@@ -143,7 +143,7 @@ assert.strictEqual(
   classifySourceExistenceVerificationSample({
     existenceStatus: 'absent',
     searchAnchors: ['ProgressReportFastPath'],
-    sourceRoot: 'devcodex-v1'
+    sourceRoot: 'devcodex'
   }),
   'absorb-ok'
 )

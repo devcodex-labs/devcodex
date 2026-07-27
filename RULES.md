@@ -62,6 +62,6 @@ DevCodex 同时支持五宿主的用户级加载路径，规则语义保持一�
 
 ## 相关链接
 
-- [GitHub 仓库](https://github.com/vextjs/devcodex)
+- [GitHub 仓库](https://github.com/devcodex-labs/devcodex)
 - [变更日志](CHANGELOG.md)
 

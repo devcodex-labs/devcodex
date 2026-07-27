@@ -4,6 +4,7 @@
 > **当前**: v1.15.3 已归档到 `changelogs/releases/v1.15.3.md`；本文件仅保留历史锚点索引与镜像供 validate 探针消费。发版后新实现再写入下方「当前未发布」。
 
 ## 当前未发布实现候选
+- **目录与包身份统一为 devcodex（本地/公开）**：源码目录与 active-root 由 devcodex-v1 对齐为 devcodex；npm 包 @devcodex/devcodex、仓库 devcodex-labs/devcodex、npmjs public 发布配置与 probe/fixtures/Skill 示例同步；isSourceRepo 识别新包名；历史 releases 台账不回溯改写。
 
 - **维护者站点×清单一致性（Fix-1 分母重冻）**：`docs-surface-inventory` npm scripts 下限 **≥113**、scripts/lib **≥102**；基线 `scripts/fixtures/docs-surface-baseline-20260727.json`；intro 能力证据表补 scripts/lib/validation/delivery-honesty 与五宿主 L0 摘要表。需求：`maintainer-site-docs-consistency`。
 - **跨宿主 MCP runtime 闭包 + tools/call 烟雾 + hang 有界 + 模板真/重/路径列 + Track Q**：`CLAUDE_MCP_RUNTIME_SCRIPT_DEPS` 补 `executable-absorption-gates.js`；`mcpToolCallProbe` 进 Grok runtime verify；`test:mcp-runtime-closure` 挂 host-parity；ConfirmBinding mismatch nextStep；概况 §11/§12 真实性/去重；delivery/report 禁无路径短名表；memory Skill package vs activeRoot。需求：`跨宿主MCP卡死与Runtime依赖不全修复`（L4 真机仍待执行）。

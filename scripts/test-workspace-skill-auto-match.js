@@ -163,7 +163,7 @@ function testListCandidates() {
 
 function testLiveWorkspaceIfPresent() {
   const root = path.resolve(__dirname, '..', '..')
-  // When running from package root E:\Worker\devcodex-v1, workspace is E:\Worker
+  // When running from package root E:\Worker\devcodex, workspace is E:\Worker
   const workspaceRoot = path.resolve(__dirname, '..', '..')
   const skillPath = path.join(workspaceRoot, '.devcodex', 'workspace', 'skills', 'test')
   if (!fs.existsSync(skillPath)) {

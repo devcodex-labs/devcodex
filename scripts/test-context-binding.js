@@ -108,7 +108,7 @@ function evidence(plan, source, overrides = {}) {
 }
 
 const plan = assertPlan(buildContextReadPlan(
-  makeInput('devcodex-v1', 'E:/Worker/devcodex-v1'),
+  makeInput('devcodex', 'E:/Worker/devcodex'),
   { nowMs: BASE_MS }
 ))
 const otherPlan = assertPlan(buildContextReadPlan(

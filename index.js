@@ -113,7 +113,7 @@ function beginManagedDeployment(cwd, surfaces, { tenantId = null, grokWorkspaceB
     targetRoot: cwd,
     manifestFile,
     descriptors: buildDeploymentDescriptors(surfaces, { tenantId, grokWorkspaceBridge, grokWorkspaceScope }),
-    packageName: packageJson.name || '@vextjs/devcodex',
+    packageName: packageJson.name || '@devcodex/devcodex',
     packageVersion: packageJson.version || 'unknown'
   })
   const preview = session.preview
@@ -144,7 +144,7 @@ const LEGACY_TARGETS = []
 function isSourceRepo(dir) {
   try {
     const pkg = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'))
-    return pkg.name === '@vextjs/devcodex'
+    return pkg.name === '@devcodex/devcodex'
   } catch { return false }
 }
 

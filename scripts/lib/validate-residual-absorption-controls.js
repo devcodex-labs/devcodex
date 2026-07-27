@@ -192,7 +192,7 @@ function buildResidualAbsorptionControlChecks(ctx) {
       phaseKind: 'planning',
       candidates: [{
         candidateId: 'PI-STRUCTURED-ABSORB',
-        sourceNamespace: '.devcodex/devcodex-v1/data/process-improvements.md',
+        sourceNamespace: '.devcodex/devcodex/data/process-improvements.md',
         rawSummary: 'structured absorption candidate planning',
         backlogClass: 'pure-open',
         commonDecision: 'absorb',
@@ -204,7 +204,7 @@ function buildResidualAbsorptionControlChecks(ctx) {
         sourceExistence: {
           claimedCapability: 'SourceExistenceVerificationGate',
           searchAnchors: ['SourceExistenceVerificationGate'],
-          sourceRoot: 'devcodex-v1',
+          sourceRoot: 'devcodex',
           existenceStatus: 'absent',
           hitEvidence: [],
           nearNeighborCoverage: 'none',

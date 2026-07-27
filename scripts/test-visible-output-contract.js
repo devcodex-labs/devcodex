@@ -30,7 +30,7 @@ const WORKSPACE = path.dirname(ROOT)
 function entry(id, overrides = {}) {
   return {
     artifactId: id,
-    canonicalPath: path.join(WORKSPACE, '.devcodex', 'devcodex-v1', `${id}.md`),
+    canonicalPath: path.join(WORKSPACE, '.devcodex', 'devcodex', `${id}.md`),
     previousPath: null,
     lifecycleOperation: 'update',
     origin: 'execution-contract',
@@ -139,7 +139,7 @@ assert.strictEqual(anchorProjection.anchors.some(anchor => String(anchor.summary
 const invalidAnchor = createArtifactAnchor({
   artifactId: 'invalid-anchor',
   artifactKind: 'report',
-  canonicalPath: path.join(WORKSPACE, '.devcodex', 'devcodex-v1', 'invalid-anchor.md'),
+  canonicalPath: path.join(WORKSPACE, '.devcodex', 'devcodex', 'invalid-anchor.md'),
   generatedAt: '2026-07-19T10:02:00.000Z',
   owner: 'visible-output-contract',
   evidenceRefs: ['negative-probe']
@@ -149,7 +149,7 @@ assert(invalidAnchor.validation.errors.includes('contentDigest-required'))
 const explicitAnchor = createArtifactAnchor({
   artifactId: 'report-anchor',
   artifactKind: 'report',
-  canonicalPath: path.join(WORKSPACE, '.devcodex', 'devcodex-v1', 'report-anchor.md'),
+  canonicalPath: path.join(WORKSPACE, '.devcodex', 'devcodex', 'report-anchor.md'),
   contentDigest: 'sha256-report-anchor',
   projectionDigest: 'sha256-short-md',
   generatedAt: '2026-07-19T10:03:00.000Z',
@@ -186,10 +186,10 @@ assert.strictEqual(manifest([entry('bad-name', { displayName: 'bad-name.md', can
 assert.strictEqual(manifest([entry('filename-name', { displayName: '01-需求确认.md' })]).validation.valid, false)
 assert.strictEqual(manifest([entry('bad-rename', { lifecycleOperation: 'rename', previousPath: null })]).validation.valid, false)
 assert.strictEqual(manifest([entry('same-rename', {
-  lifecycleOperation: 'rename', previousPath: path.join(WORKSPACE, '.devcodex', 'devcodex-v1', 'same-rename.md')
+  lifecycleOperation: 'rename', previousPath: path.join(WORKSPACE, '.devcodex', 'devcodex', 'same-rename.md')
 })]).validation.valid, false)
 assert.strictEqual(manifest([entry('duplicate-a'), entry('duplicate-b', {
-  canonicalPath: path.join(WORKSPACE, '.devcodex', 'devcodex-v1', 'duplicate-a.md')
+  canonicalPath: path.join(WORKSPACE, '.devcodex', 'devcodex', 'duplicate-a.md')
 })]).validation.valid, false)
 assert.strictEqual(manifest([entry('candidate-array')], { candidateIdentity: [] }).validation.valid, false)
 assert.strictEqual(manifest([entry('invalid-time')], { generatedAt: 'not-a-time' }).validation.valid, false)
@@ -233,7 +233,7 @@ const entrySet = projectUserFacingArtifactSet(deliveryManifest, { messageKind: '
 const baseInput = {
   messageKind: 'entry-check',
   context: {
-    project: 'devcodex-v1', taskId: 'visible-output-fixture', mode: 'dev', intentRoute: 'dev.optimization',
+    project: 'devcodex', taskId: 'visible-output-fixture', mode: 'dev', intentRoute: 'dev.optimization',
     phase: 'implementation', contextEpoch: 'epoch-1', hostSurface: 'codex-app-fixture'
   },
   checks: checks(),
@@ -266,7 +266,7 @@ for (const output of [richText, portableText, plainText]) {
   assert.doesNotMatch(output, /核心文件|路径列表/)
   // PF-175: path column required on all presentation tiers
   assert.match(output, /路径[:：]/)
-  assert.match(output, /\.devcodex[\\/]devcodex-v1/)
+  assert.match(output, /\.devcodex[\\/]devcodex/)
 }
 assert.doesNotMatch(richText, /绝对路径[:：]/)
 assert.doesNotMatch(portableText, /绝对路径[:：]/)

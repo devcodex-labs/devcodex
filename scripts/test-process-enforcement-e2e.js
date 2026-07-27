@@ -88,7 +88,7 @@ const stopSrc = fs.readFileSync(
   assert.strictEqual(simpleTaskForbidsPath('hooks/_runtime/lifecycle.cjs'), true)
   assert.strictEqual(simpleTaskForbidsPath('skills/cp-gate/SKILL.md'), true)
   assert.strictEqual(simpleTaskForbidsPath('src/feature.js'), false)
-  assert.strictEqual(simpleTaskForbidsPath('.devcodex/devcodex-v1/reports/x.md'), false)
+  assert.strictEqual(simpleTaskForbidsPath('.devcodex/devcodex/reports/x.md'), false)
   assert.match(lifecycleSrc, /simpleTaskForbidsPath/)
   assert.match(lifecycleSrc, /SIMPLE_TASK_PATH_FORBIDDEN|simpleTaskFastPath/)
   console.log('E2E-04 PASS')

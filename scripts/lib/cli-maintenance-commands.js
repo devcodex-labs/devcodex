@@ -1015,7 +1015,7 @@ function buildCliMaintenanceCommands(ctx) {
 
     ${c.bold('Usage:')}
       devcodex <command> [options]
-      npx @vextjs/devcodex <command> [options]   ${c.dim('(without npm link)')}
+      npx @devcodex/devcodex <command> [options]   ${c.dim('(without npm link)')}
 
     ${c.bold('Commands:')}
       ${c.cyan('init')}              Initialize workspace-owned .devcodex runtime state only

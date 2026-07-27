@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "package": "@vextjs/devcodex",
+  "package": "@devcodex/devcodex",
   "packageVersion": "1.15.3",
   "generatedFrom": {
     "skillsPattern": "skills/*/SKILL.md",

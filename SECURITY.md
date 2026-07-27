@@ -21,5 +21,5 @@
 ## Security Disclosure Policy
 
 - 我们遵循 90 天披露政策
-- 修复后会在 [Releases](https://github.com/vextjs/devcodex/releases) 发布安全公告
+- 修复后会在 [Releases](https://github.com/devcodex-labs/devcodex/releases) 发布安全公告
 - CVE 编号申请视严重程度决定

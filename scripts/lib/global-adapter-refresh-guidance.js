@@ -3,7 +3,7 @@
 const fs = require('fs')
 const path = require('path')
 
-const PACKAGE_NAMES = Object.freeze(['@vextjs/devcodex', 'devcodex'])
+const PACKAGE_NAMES = Object.freeze(['@devcodex/devcodex', 'devcodex'])
 
 function readPackageName(packageRoot, fsImpl = fs, pathImpl = path) {
   try {

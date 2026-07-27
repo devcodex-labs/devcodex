@@ -330,7 +330,7 @@ function main() {
 
         const samePackageNonSourceRoot = createWorkspace(currentProjectInfo().replaceAll(VERSION, '2.0.0'))
         writeFile(samePackageNonSourceRoot, 'package.json', JSON.stringify({
-            name: '@vextjs/devcodex',
+            name: '@devcodex/devcodex',
             version: '1.7.0'
         }, null, 2))
         const samePackageNonSourceResult = runValidateWithArgs(samePackageNonSourceRoot, ['--project-root', samePackageNonSourceRoot])

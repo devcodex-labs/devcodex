@@ -9,10 +9,10 @@ const cwd = path.resolve(__dirname, '..')
 const statePath = path.join(
   path.dirname(cwd),
   '.devcodex',
-  'devcodex-v1',
+  'devcodex',
   '.memory',
   'hooks',
-  'devcodex-v1',
+  'devcodex',
   'lifecycle-state.json'
 )
 const env = {
@@ -56,7 +56,7 @@ const body = [
   '- PC0 [PASS] ContextReadPlan + receipt（probe）',
   '- PC1 [PASS] Intent=dev',
   '- PC2 [PASS] Session bound',
-  '- PC3 [PASS] Project=devcodex-v1',
+  '- PC3 [PASS] Project=devcodex',
   '- PC4 [N/A] skipReason=probe-non-radar',
   '- PC5 [PASS] Host=grok Full',
   '- PC6 [PASS] Git clean scope',

@@ -45,7 +45,7 @@
       "checkedAt": "2026-07-23T10:00:00Z"
     }
   ],
-  "canonicalRecordPath": "E:/Worker/.devcodex/devcodex-v1/requirements/example/capability-surface-decisions/CSD-semantic-routing.json",
+  "canonicalRecordPath": "E:/Worker/.devcodex/devcodex/requirements/example/capability-surface-decisions/CSD-semantic-routing.json",
   "writer": "workflow-single-writer",
   "readers": [
     "spec-absorption",

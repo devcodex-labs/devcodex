@@ -4,7 +4,7 @@
     "schemaVersion": "ParallelLaunchCardV1",
     "requirementId": "REQ-NO-MERGE",
     "displayName": "缺汇合协议",
-    "activeRoot": "E:/Worker/.devcodex/devcodex-v1",
+    "activeRoot": "E:/Worker/.devcodex/devcodex",
     "allowedPaths": ["requirements/no-merge"],
     "forbiddenSharedSurfaces": ["cp-state", "memory", "report", "ledger", "source-mutation"],
     "sessionPrompt": "Only work on the allowed path.",

@@ -75,9 +75,9 @@ function clone(value) {
 }
 
 function taskScope(suffix = 'alpha') {
-  const source = JSON.stringify({ project: 'devcodex-v1', task: suffix })
+  const source = JSON.stringify({ project: 'devcodex', task: suffix })
   return {
-    project: 'devcodex-v1',
+    project: 'devcodex',
     kind: 'requirements',
     taskId: suffix,
     relativeTaskPath: `requirements/${suffix}`,
@@ -1064,7 +1064,7 @@ assert.strictEqual(invalidDerivedState.errorCode, 'WORKFLOW_DERIVED_STATE_SCOPE_
   const fakeC = { red: identityColor, dim: identityColor, bold: identityColor, cyan: identityColor, yellow: identityColor, green: identityColor }
   const taskResolution = {
     status: 'resolved-active',
-    candidate: { displayName: 'CLI Fixture', project: 'devcodex-v1', kind: 'requirements', taskId: 'cli-id', taskRoot: 'C:/fixture/.devcodex/devcodex-v1/requirements/cli-fixture' }
+    candidate: { displayName: 'CLI Fixture', project: 'devcodex', kind: 'requirements', taskId: 'cli-id', taskRoot: 'C:/fixture/.devcodex/devcodex/requirements/cli-fixture' }
   }
   let verifyProjection = committedProjection
   let riskCalls = 0

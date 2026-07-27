@@ -1,5 +1,5 @@
 {
-  "name": "@vextjs/devcodex",
+  "name": "@devcodex/devcodex",
   "version": "1.15.3",
   "description": "DevCodex — AI-powered development workflow rules for Copilot, Claude Code, Codex, Gemini CLI and Grok",
   "main": "index.js",
@@ -133,22 +133,22 @@
     "codex",
     "grok"
   ],
-  "author": "Rocky <rocky@vextjs.com> (https://github.com/vextjs)",
+  "author": "Rocky <rocky@vextjs.com> (https://github.com/devcodex-labs)",
   "license": "AGPL-3.0-or-later",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/vextjs/devcodex.git"
+    "url": "git+https://github.com/devcodex-labs/devcodex.git"
   },
   "homepage": "https://devcodex.dev",
   "bugs": {
-    "url": "https://github.com/vextjs/devcodex/issues"
+    "url": "https://github.com/devcodex-labs/devcodex/issues"
   },
   "engines": {
     "node": ">=18"
   },
   "publishConfig": {
-    "registry": "https://npm.pkg.github.com/",
-    "access": "restricted"
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
   },
   "files": [
     "index.js",
@@ -321,4 +321,3 @@
     "c8": "10.1.3"
   }
 }
-

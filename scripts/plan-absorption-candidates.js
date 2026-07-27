@@ -30,7 +30,7 @@ function sourceExistence(overrides = {}) {
   return {
     claimedCapability: 'SourceExistenceVerificationGate',
     searchAnchors: ['SourceExistenceVerificationGate', 'plan-absorption-candidates'],
-    sourceRoot: 'devcodex-v1',
+    sourceRoot: 'devcodex',
     existenceStatus: 'absent',
     hitEvidence: [],
     nearNeighborCoverage: 'none',
@@ -58,12 +58,12 @@ function sampleMatrix(overrides = {}) {
   return {
     schemaVersion: 'AbsorptionCandidateMatrixV1',
     phaseKind: 'planning',
-    sourceRoot: '.devcodex/devcodex-v1/data',
+    sourceRoot: '.devcodex/devcodex/data',
     generatedBy: 'self-test',
     candidates: [
       {
         candidateId: 'PI-STRUCTURED-ABSORB',
-        sourceNamespace: '.devcodex/devcodex-v1/data/process-improvements.md',
+        sourceNamespace: '.devcodex/devcodex/data/process-improvements.md',
         rawSummary: 'candidate needs structured absorption and prevention evidence',
         backlogClass: 'pure-open',
         commonDecision: 'absorb',
@@ -139,7 +139,7 @@ function runSelfTest() {
     classifySourceExistenceVerificationSample({
       existenceStatus: 'absent',
       searchAnchors: ['TaskPhaseProjectionGate'],
-      sourceRoot: 'devcodex-v1'
+      sourceRoot: 'devcodex'
     }),
     'absorb-ok'
   )

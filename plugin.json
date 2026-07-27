@@ -9,7 +9,7 @@
   "description": "Standardized AI-assisted development workflow system for Copilot, Claude Code, Codex, Gemini CLI and Grok.",
   "icon": "assets/icon-512.png",
   "license": "AGPL-3.0-or-later",
-  "repository": "https://github.com/vextjs/devcodex",
+  "repository": "https://github.com/devcodex-labs/devcodex",
   "homepage": "https://devcodex.dev",
   "tier": "free",
   "agents": [

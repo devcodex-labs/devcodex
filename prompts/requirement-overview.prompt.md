@@ -229,6 +229,6 @@ applyTo: .devcodex/**/requirements/**
 
 ## §13 路径与工具失败语义（AI 注意 · Track Q）
 
-> - **packageRoot**（如仓库 `devcodex-v1/`）含 `package.json` / `mcp/` / `scripts/`；**activeRoot**（`.devcodex/<project>/`）只含状态与需求产物，**没有** `index.js`。
+> - **packageRoot**（如仓库 `devcodex/`）含 `package.json` / `mcp/` / `scripts/`；**activeRoot**（`.devcodex/<project>/`）只含状态与需求产物，**没有** `index.js`。
 > - 读源码用 packageRoot；写需求/报告用 activeRoot。误读 `.devcodex/**/index.js` 会导致 Grok 状态条 **1 failed**（工具 error 计数，≠ 任务失败）。
 > - ConfirmBinding：`memory_cp_confirm` 的 sha256 必须在**最后一次改文件之后**重算。

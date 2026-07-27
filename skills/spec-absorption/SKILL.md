@@ -32,7 +32,7 @@ description: 规范吸纳执行 Skill — 用于检查 data 最新可吸纳项�
 
 1. **输入归集**：读取用户消息、相关报告、运行态台账、最新记忆和源码现状。
 2. **规模路由与全命名空间扫描**：先调用 `skill-gap-analysis` 的 `ProjectArtifactScaleRoutingGate` 形成 `ScaleDecisionRecord`，再执行 `WorkspaceDataAbsorptionScopeGate` 覆盖 `.devcodex/*/data/`；大语料必须分批/checkpoint，错误 glob、超时和派生产物污染结果标 invalid/discarded。
-3. **SourceExistenceVerificationGate（硬前置）**：对每条表面 open 候选，在 **source-root**（通常 `devcodex-v1`）检索同名 Gate / Skill / schema / 探针 / 测试入口；未完成存在性验证的候选不得进入「最终可吸纳清单」。
+3. **SourceExistenceVerificationGate（硬前置）**：对每条表面 open 候选，在 **source-root**（通常 `devcodex`）检索同名 Gate / Skill / schema / 探针 / 测试入口；未完成存在性验证的候选不得进入「最终可吸纳清单」。
 4. **Backlog Intake 真相复核**：结合存在性结果分类为 `pure-open / residual-tail / already-fixed / misclassified`，非 `pure-open` 不得原样进入吸纳范围；`already-fixed` / 等价覆盖写入 **可关账清单**。
 5. **通用性证明**：对通过存在性验证且仍为缺口的项执行 `CommonNormGeneralizationGate`。
 6. **消费者证明**：对通过通用性证明的项执行 `AbsorptionCandidateConsumerProofGate`。
@@ -55,7 +55,7 @@ description: 规范吸纳执行 Skill — 用于检查 data 最新可吸纳项�
 | `candidateId` | PI / PF / GAP / ISSUE 编号 |
 | `claimedCapability` | 候选声称要新增的能力名（Gate / Skill / 矩阵 / 探针） |
 | `searchAnchors` | 在 source-root 检索的关键词/路径（≥1；含同名与已知近邻等价名） |
-| `sourceRoot` | 规范源码根，例如 `E:/Worker/devcodex-v1` 或仓库相对路径 |
+| `sourceRoot` | 规范源码根，例如 `E:/Worker/devcodex` 或仓库相对路径 |
 | `existenceStatus` | `absent` / `partial` / `present` / `equivalent-covered` / `unverified` |
 | `hitEvidence` | 命中文件路径与符号（可空数组，但 `present/partial/equivalent-covered` 时至少 1 条） |
 | `nearNeighborCoverage` | 近邻已有能力说明；无则 `none` |

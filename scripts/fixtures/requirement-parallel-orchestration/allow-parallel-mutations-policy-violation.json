@@ -1,7 +1,7 @@
 {
   "name": "allow-parallel-mutations-policy-violation",
   "input": {
-    "activeRoot": "E:/Worker/.devcodex/devcodex-v1",
+    "activeRoot": "E:/Worker/.devcodex/devcodex",
     "concurrency": {
       "mode": "auto",
       "allowParallelMutations": true

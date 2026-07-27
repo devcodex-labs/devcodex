@@ -26,7 +26,7 @@ function writeJson(file, value) {
 
 function fixturePackageRoot(label, { source = false } = {}) {
   const dir = mkdirp(path.join(tmp, label, 'node_modules', '@vextjs', 'devcodex'))
-  writeJson(path.join(dir, 'package.json'), { name: '@vextjs/devcodex', version: '0.0.0-test' })
+  writeJson(path.join(dir, 'package.json'), { name: '@devcodex/devcodex', version: '0.0.0-test' })
   fs.writeFileSync(path.join(dir, 'index.js'), '#!/usr/bin/env node\n', 'utf8')
   if (source) mkdirp(path.join(dir, '.git'))
   return dir
@@ -166,7 +166,7 @@ const packagedRoot = fixturePackageRoot('packaged')
 const sourceRoot = fixturePackageRoot('source', { source: true })
 const workspace = fixtureWorkspace('workspace', {
   name: 'consumer',
-  dependencies: { '@vextjs/devcodex': 'file:../pkg.tgz' }
+  dependencies: { '@devcodex/devcodex': 'file:../pkg.tgz' }
 })
 const aliasWorkspace = fixtureWorkspace('alias-workspace', {
   name: 'consumer-alias',
@@ -177,7 +177,7 @@ const firstInstallWorkspace = fixtureWorkspace('first-install', {
   version: '1.0.0',
   private: true
 })
-writePackageLockRootDependency(firstInstallWorkspace, '@vextjs/devcodex')
+writePackageLockRootDependency(firstInstallWorkspace, '@devcodex/devcodex')
 const transitiveWorkspace = fixtureWorkspace('transitive', {
   name: 'consumer-transitive',
   dependencies: { other: '1.0.0' }

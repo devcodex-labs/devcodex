@@ -4,7 +4,7 @@ const CLI_ENVELOPE_SCHEMA_VERSION = 'DevCodexCliEnvelopeV1'
 
 function normalizeMetadata(metadata = {}) {
   return {
-    packageName: String(metadata.packageName || '@vextjs/devcodex'),
+    packageName: String(metadata.packageName || '@devcodex/devcodex'),
     packageVersion: String(metadata.packageVersion || 'unknown')
   }
 }

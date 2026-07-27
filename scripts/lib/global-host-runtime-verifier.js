@@ -487,7 +487,7 @@ function deepGrokProbe(target, cwd, options = {}) {
         'native',
         `${name}:${smoke.error || smoke.textHead || 'tool-smoke-failed'}`,
         smoke.error === 'module-missing'
-          ? 'Sync CLAUDE_MCP_RUNTIME_SCRIPT_DEPS (include executable-absorption-gates.js) and re-apply global runtime.'
+          ? 'Sync runtime dependency closure allowlists and re-apply global runtime.'
           : 'Re-run MCP tools/call smoke after fixing runtime; ensure tool returns within timeout.'
       ))
     }

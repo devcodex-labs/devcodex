@@ -13,8 +13,10 @@
     "scripts/lib/npm-lifecycle-adapter.js",
     "scripts/test-npm-lifecycle-adapter.js",
     "scripts/lib/global-host-*.js",
+    "scripts/lib/runtime-dependency-closure.js",
     "scripts/test-global-host-config.js",
     "scripts/test-global-host-runtime-verifier.js",
+    "scripts/test-mcp-runtime-closure.js",
     "scripts/test-global-install-smoke.js",
     "scripts/fixtures/global-host-config/**",
     "scripts/lib/validation-dag.js",
@@ -144,6 +146,7 @@
         "critical-coverage",
         "host-instruction-projection",
         "host-adapters",
+        "mcp-runtime-closure",
         "npm-lifecycle-adapter",
         "global-host-config",
         "global-install-smoke",
@@ -226,6 +229,7 @@
         "critical-coverage",
         "host-instruction-projection",
         "host-adapters",
+        "mcp-runtime-closure",
         "npm-lifecycle-adapter",
         "global-host-config",
         "global-install-smoke",
@@ -266,6 +270,7 @@
         "critical-coverage",
         "host-instruction-projection",
         "host-adapters",
+        "mcp-runtime-closure",
         "npm-lifecycle-adapter",
         "global-host-config",
         "global-install-smoke",
@@ -298,6 +303,7 @@
         "critical-coverage",
         "host-instruction-projection",
         "host-adapters",
+        "mcp-runtime-closure",
         "npm-lifecycle-adapter",
         "global-host-config",
         "global-install-smoke",
@@ -3629,6 +3635,57 @@
     },
     {
       "schemaVersion": "ValidationNodeV1",
+      "id": "mcp-runtime-closure",
+      "owner": "host-contract-verification",
+      "command": "npm",
+      "args": [
+        "run",
+        "test:mcp-runtime-closure"
+      ],
+      "dependencies": [
+        "host-adapters"
+      ],
+      "inputs": [
+        "index.js",
+        "package.json",
+        ".npmignore",
+        "hooks/_runtime/**",
+        "mcp/**",
+        "scripts/lib/runtime-dependency-closure.js",
+        "scripts/lib/global-host-config.js",
+        "scripts/lib/global-host-runtime-verifier.js",
+        "scripts/test-mcp-runtime-closure.js"
+      ],
+      "consumers": [
+        "global-host-config",
+        "host-installation",
+        "pack-clean"
+      ],
+      "invariants": [
+        "runtime-dependency-closure",
+        "allowlist-only-project-layout",
+        "package-runtime-closure"
+      ],
+      "riskClass": "release",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 180000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1",
+        "RuntimeDependencyClosureV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
       "id": "npm-lifecycle-adapter",
       "owner": "package-lifecycle",
       "command": "npm",
@@ -3699,6 +3756,7 @@
         "gemini/**",
         "grok/plugins/devcodex-workspace/**",
         "scripts/lib/global-host-*.js",
+        "scripts/lib/runtime-dependency-closure.js",
         "scripts/fixtures/global-host-config/**",
         "scripts/test-global-host-config.js",
         "scripts/test-global-host-runtime-verifier.js"
@@ -3756,6 +3814,7 @@
         "scripts/postinstall.js",
         "scripts/lib/npm-lifecycle-adapter.js",
         "scripts/lib/global-host-*.js",
+        "scripts/lib/runtime-dependency-closure.js",
         "scripts/test-global-install-smoke.js"
       ],
       "consumers": [
@@ -3815,6 +3874,7 @@
         "scripts/lib/host-adapter-scope.js",
         "scripts/lib/npm-lifecycle-adapter.js",
         "scripts/lib/global-host-*.js",
+        "scripts/lib/runtime-dependency-closure.js",
         "scripts/lib/grok-workspace-launcher.js",
         "scripts/test-host-installation.js"
       ],

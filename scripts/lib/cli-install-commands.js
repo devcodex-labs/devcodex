@@ -85,6 +85,39 @@ function buildCliInstallCommands(ctx) {
     return envelope
   }
 
+  function copyRuntimeScriptDeps({ targetRoot, shownRoot, force, dryRun, log, inlineLog = log }) {
+    const counts = { added: 0, updated: 0, skipped: 0 }
+    for (const relRaw of CLAUDE_MCP_RUNTIME_SCRIPT_DEPS) {
+      const rel = String(relRaw || '').replace(/\\/g, '/')
+      if (!rel) continue
+      const srcFile = path.join(PKG_ROOT, ...rel.split('/'))
+      if (!fs.existsSync(srcFile)) {
+        inlineLog(c.yellow(`  ⚠ missing project runtime dep source: ${rel}`))
+        continue
+      }
+      const destFile = path.join(targetRoot, ...rel.split('/'))
+      const existed = fs.existsSync(destFile)
+      const shown = `${shownRoot}/${rel}`
+      if (existed && filesContentEqual(srcFile, destFile)) {
+        counts.skipped++
+        log(c.dim(`  ~ ${shown}`))
+        continue
+      }
+      if (existed && !force) {
+        counts.skipped++
+        log(c.dim(`  ~ ${shown} (outdated; use --force)`))
+        continue
+      }
+      if (!dryRun) {
+        fs.mkdirSync(path.dirname(destFile), { recursive: true })
+        fs.copyFileSync(srcFile, destFile)
+      }
+      if (existed) { counts.updated++; log(c.yellow(`  ↺ ${shown}`)) }
+      else { counts.added++; log(c.green(`  ✓ ${shown}`)) }
+    }
+    return counts
+  }
+
   function cmdInitWorkspaceRuntime(argv = [], { refresh = false } = {}) {
     const values = Array.isArray(argv) ? argv : []
     const json = values.includes('--json')
@@ -620,35 +653,10 @@ function buildCliInstallCommands(ctx) {
       }
     }
 
-    // 2b. MCP runtime script deps: copy scripts/lib helpers for Claude MCP (mcp/*.js relative require path)
-    for (const relRaw of CLAUDE_MCP_RUNTIME_SCRIPT_DEPS) {
-      const rel = String(relRaw || '').replace(/\\/g, '/')
-      if (!rel) continue
-      const srcFile = path.join(PKG_ROOT, ...rel.split('/'))
-      if (!fs.existsSync(srcFile)) {
-        inlineLog(c.yellow(`  ⚠ missing MCP runtime dep source: ${rel}`))
-        continue
-      }
-      const destFile = path.join(clDir, ...rel.split('/'))
-      const existed = fs.existsSync(destFile)
-      const shown = `.claude/${rel}`
-
-      if (existed && filesContentEqual(srcFile, destFile)) {
-        skipped++
-        log(c.dim(`  ~ ${shown}`))
-        continue
-      }
-      if (existed && !force) {
-        skipped++
-        log(c.dim(`  ~ ${shown} (outdated; use --force)`))
-        continue
-      }
-      if (!dryRun) {
-        fs.mkdirSync(path.dirname(destFile), { recursive: true })
-        fs.copyFileSync(srcFile, destFile)
-      }
-      if (existed) { updated++; log(c.yellow(`  ↺ ${shown}`)) }
-      else { added++; log(c.green(`  ✓ ${shown}`)) }
+    // 2b. Project runtime script deps for Claude hooks and shared MCP.
+    {
+      const counts = copyRuntimeScriptDeps({ targetRoot: clDir, shownRoot: '.claude', force, dryRun, log, inlineLog })
+      added += counts.added; updated += counts.updated; skipped += counts.skipped
     }
 
     // 3. Write / merge .claude/settings.json
@@ -832,6 +840,11 @@ function buildCliInstallCommands(ctx) {
       }
     }
 
+    {
+      const counts = copyRuntimeScriptDeps({ targetRoot: path.join(cwd, '.codex'), shownRoot: '.codex', force, dryRun, log, inlineLog })
+      added += counts.added; updated += counts.updated; skipped += counts.skipped
+    }
+
     // Deploy shared MCP runtime under .claude/mcp (reused by Claude + Codex)
     {
       const mcpSrc = path.join(PKG_ROOT, 'mcp')
@@ -860,31 +873,8 @@ function buildCliInstallCommands(ctx) {
           else { added++; log(c.green(`  ✓ ${shown}`)) }
         }
       }
-      for (const relRaw of CLAUDE_MCP_RUNTIME_SCRIPT_DEPS) {
-        const rel = String(relRaw || '').replace(/\\/g, '/')
-        if (!rel) continue
-        const srcFile = path.join(PKG_ROOT, ...rel.split('/'))
-        if (!fs.existsSync(srcFile)) continue
-        const destFile = path.join(cwd, '.claude', ...rel.split('/'))
-        const existed = fs.existsSync(destFile)
-        const shown = `.claude/${rel}`
-        if (existed && filesContentEqual(srcFile, destFile)) {
-          skipped++
-          log(c.dim(`  ~ ${shown}`))
-          continue
-        }
-        if (existed && !force) {
-          skipped++
-          log(c.dim(`  ~ ${shown} (outdated; use --force)`))
-          continue
-        }
-        if (!dryRun) {
-          fs.mkdirSync(path.dirname(destFile), { recursive: true })
-          fs.copyFileSync(srcFile, destFile)
-        }
-        if (existed) { updated++; log(c.yellow(`  ↺ ${shown}`)) }
-        else { added++; log(c.green(`  ✓ ${shown}`)) }
-      }
+      const counts = copyRuntimeScriptDeps({ targetRoot: path.join(cwd, '.claude'), shownRoot: '.claude', force, dryRun, log, inlineLog })
+      added += counts.added; updated += counts.updated; skipped += counts.skipped
     }
 
     // Merge Codex config.toml MCP servers (managed block; fail-closed; does not wipe user keys)

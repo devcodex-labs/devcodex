@@ -39,6 +39,9 @@ const {
   resolveActiveRuntimeRoot: sharedResolveActiveRuntimeRoot,
   resolveProfileDir: sharedResolveProfileDir
 } = require('./hooks/_runtime/workspace-layout.cjs')
+const {
+  collectRuntimeScriptDeps
+} = require('./scripts/lib/runtime-dependency-closure.js')
 const { createAnsiHelpers, walkDir: walkDirFs } = require('./scripts/lib/cli-console-utils.js')
 const c = createAnsiHelpers()
 const walkDir = dir => walkDirFs(fs, dir)
@@ -69,21 +72,11 @@ const CLAUDE_SOURCES = [
 ]
 
 /**
- * Allowlist of scripts/lib modules deployed next to Claude MCP servers.
- * Keep tight: only modules actually required by mcp/*.js (today: memory + profile).
- * Do not ship the entire package scripts/lib tree into consumer projects.
+ * Tight allowlist of scripts/lib modules deployed next to project hook/MCP runtimes.
+ * The list is derived from real runtime roots instead of hand-maintained file names.
  */
-const CLAUDE_MCP_RUNTIME_SCRIPT_DEPS = Object.freeze([
-  'scripts/lib/cp-digest.js',
-  'scripts/lib/host-parity-scorecard.js',
-  // host-parity-scorecard hard-depends on executable-absorption-gates (profile_compose_entry_check)
-  'scripts/lib/executable-absorption-gates.js',
-  'scripts/lib/global-adapter-refresh-guidance.js',
-  'scripts/lib/global-host-target.js',
-  'scripts/lib/derived-index-contract.js',
-  'scripts/lib/memory-index.js',
-  'scripts/lib/summary-type-canon.js'
-])
+const PROJECT_RUNTIME_SCRIPT_DEPS = Object.freeze(collectRuntimeScriptDeps(PKG_ROOT))
+const CLAUDE_MCP_RUNTIME_SCRIPT_DEPS = PROJECT_RUNTIME_SCRIPT_DEPS
 
 const CODEX_SOURCES = [
   { from: 'hooks/_runtime', to: path.join('.codex', 'hooks', '_runtime') },
@@ -424,7 +417,7 @@ module.exports = {
   cmdUninstallHost, cmdGrok, cmdStatus, cmdHelp, cmdProfileInit, cmdDoctor, cmdProbe, cmdTrace,
   cmdSkill, cmdTask, cmdGlobalAdapters, isSourceRepo, findLayoutInfo, inferProjectFromCwd, resolveActiveRuntimeRoot,
   resolveHostAdapterScope, resolveGitignoreRoot, ensureWorkspaceNamespaceLayout, ensureRuntimeDirs, SOURCES, CLAUDE_SOURCES,
-  CLAUDE_MCP_RUNTIME_SCRIPT_DEPS, CODEX_SOURCES, CLAUDE_HOOK_COMMAND, CLAUDE_MCP_JSON,
+  PROJECT_RUNTIME_SCRIPT_DEPS, CLAUDE_MCP_RUNTIME_SCRIPT_DEPS, CODEX_SOURCES, CLAUDE_HOOK_COMMAND, CLAUDE_MCP_JSON,
   CODEX_HOOK_COMMAND, buildDeploymentDescriptors, beginManagedDeployment, finishManagedDeployment,
   runMigrateLayout
 }

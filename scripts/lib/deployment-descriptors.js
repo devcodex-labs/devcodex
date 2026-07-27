@@ -45,7 +45,7 @@ function buildDeploymentDescriptors(packageRoot, surfaces, {
   }
   if (selected.has('claude')) {
     descriptors.push(...CLAUDE_SOURCES.map(item => descriptor('claude', item.from, path.join('.claude', item.to))))
-    // MCP runtime script deps for Claude: map package scripts/lib into .claude/scripts/lib
+    // Project runtime script deps for Claude hooks + shared MCP: map package scripts/lib into .claude/scripts/lib.
     for (const rel of CLAUDE_MCP_RUNTIME_SCRIPT_DEPS) {
       const portable = String(rel || '').replace(/\\/g, '/')
       if (!portable) continue
@@ -70,6 +70,17 @@ function buildDeploymentDescriptors(packageRoot, surfaces, {
           'shared-mcp-runtime-dep'
         ))
       }
+    }
+    // Codex project hooks resolve ../../scripts/lib from .codex/hooks/_runtime.
+    for (const rel of CLAUDE_MCP_RUNTIME_SCRIPT_DEPS) {
+      const portable = String(rel || '').replace(/\\/g, '/')
+      if (!portable) continue
+      descriptors.push(descriptor(
+        'codex',
+        portable,
+        path.join('.codex', ...portable.split('/')),
+        'codex-hook-runtime-dep'
+      ))
     }
     // Managed-segment observation: package does not own full user .codex/config.toml as a source copy.
     // role documents ownership boundary for doctor/manifest consumers (F-006).

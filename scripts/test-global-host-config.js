@@ -28,6 +28,9 @@ const {
   resolveGlobalHostTargets
 } = require('./lib/global-host-target.js')
 const { projectionDescriptors } = require('./lib/host-surface-descriptors.js')
+const {
+  assertRuntimeClosureCovered
+} = require('./lib/runtime-dependency-closure.js')
 
 const packageRoot = path.resolve(__dirname, '..')
 const cliEntry = path.join(packageRoot, 'index.js')
@@ -37,13 +40,26 @@ const workspace = path.join(tmp, 'workspace')
 fs.mkdirSync(home, { recursive: true })
 fs.mkdirSync(workspace, { recursive: true })
 fs.writeFileSync(path.join(workspace, 'package.json'), '{ "name": "global-host-doctor-fixture" }\n')
+fs.mkdirSync(path.join(workspace, '.devcodex', 'workspace', 'skills', 'test'), { recursive: true })
+fs.writeFileSync(path.join(workspace, '.devcodex', 'layout.json'), `${JSON.stringify({
+  version: 1,
+  mode: 'workspace-namespace'
+}, null, 2)}\n`)
+fs.writeFileSync(path.join(workspace, '.devcodex', 'workspace', 'skills', 'test', 'SKILL.md'), [
+  '---',
+  'name: test',
+  'description: 当用户发送「test」时使用。',
+  '---',
+  '# test',
+  '',
+  '## 必须回复',
+  '- 小朋友真可爱',
+  ''
+].join('\n'))
 
 const fixture = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'global-host-config', 'cases.json'), 'utf8'))
 assert.deepStrictEqual(fixture.hosts.map(item => item.id), GLOBAL_HOST_IDS)
-assert.ok(
-  MCP_RUNTIME_DEPS.includes('scripts/lib/executable-absorption-gates.js'),
-  'global host runtime deps must include host-parity hard dependency: executable-absorption-gates.js'
-)
+assertRuntimeClosureCovered(packageRoot, MCP_RUNTIME_DEPS, { label: 'global host runtime deps' })
 
 const env = {
   ...process.env,
@@ -179,6 +195,34 @@ assert.strictEqual(fs.existsSync(path.join(home, '.grok', 'devcodex', 'global-ho
 const applied = applyGlobalHostConfig({ packageRoot, env, home })
 assert.strictEqual(applied.transaction.status, 'committed')
 assert.strictEqual(applied.workspaceHostDirectoriesWritten, false)
+const promptEventByHost = {
+  copilot: 'UserPromptSubmit',
+  claude: 'UserPromptSubmit',
+  codex: 'UserPromptSubmit',
+  gemini: 'BeforeAgent',
+  grok: 'user_prompt_submit'
+}
+for (const target of targets) {
+  const adapter = path.join(target.runtimeRoot, 'hooks', '_runtime', 'lifecycle-host-adapters.cjs')
+  const result = spawnSync(process.execPath, [adapter, target.host], {
+    cwd: workspace,
+    encoding: 'utf8',
+    env,
+    input: JSON.stringify({
+      hookEventName: promptEventByHost[target.host],
+      prompt: 'test',
+      session_id: `global-host-workspace-skill-${target.host}`
+    })
+  })
+  assert.strictEqual(result.status, 0, `${target.host} UserPromptSubmit replay failed: ${result.stderr || result.stdout}`)
+  const output = JSON.parse(result.stdout || '{}')
+  assert.strictEqual(typeof output, 'object', `${target.host} replay must return JSON object`)
+  if (['claude', 'codex', 'gemini'].includes(target.host)) {
+    const context = `${output.systemMessage || ''}\n${output.hookSpecificOutput?.additionalContext || ''}`
+    assert.match(context, /WorkspaceSkillIntent/, `${target.host} replay must expose workspace skill intent context`)
+    assert.match(context, /小朋友真可爱/, `${target.host} replay must expose workspace skill body`)
+  }
+}
 assert.strictEqual(fs.existsSync(path.join(home, '.agents', 'devcodex', 'instructions.full.md')), true)
 assert.strictEqual(fs.existsSync(path.join(home, '.agents', 'skills', 'routing', 'SKILL.md')), true)
 assert.strictEqual(fs.existsSync(path.join(home, '.agents', 'skills', 'brand-visual-quality')), false)

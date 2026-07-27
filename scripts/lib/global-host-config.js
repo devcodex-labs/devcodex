@@ -28,19 +28,14 @@ const {
 const {
   describeGlobalAdapterRefreshForPackageRoot
 } = require('./global-adapter-refresh-guidance.js')
+const {
+  collectRuntimeScriptDeps
+} = require('./runtime-dependency-closure.js')
 
 const GLOBAL_HOST_CONFIG_SCHEMA = 'GlobalOnlyHostConfigModeV1'
 const GLOBAL_HOST_RECEIPT_SCHEMA = 'GlobalHostConfigReceiptV1'
-const MCP_RUNTIME_DEPS = Object.freeze([
-  'scripts/lib/cp-digest.js',
-  'scripts/lib/host-parity-scorecard.js',
-  'scripts/lib/executable-absorption-gates.js',
-  'scripts/lib/global-adapter-refresh-guidance.js',
-  'scripts/lib/global-host-target.js',
-  'scripts/lib/derived-index-contract.js',
-  'scripts/lib/memory-index.js',
-  'scripts/lib/summary-type-canon.js'
-])
+const PACKAGE_ROOT = path.resolve(__dirname, '..', '..')
+const MCP_RUNTIME_DEPS = Object.freeze(collectRuntimeScriptDeps(PACKAGE_ROOT))
 
 function portable(filePath) {
   return path.resolve(filePath).replace(/\\/g, '/')

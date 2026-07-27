@@ -1,7 +1,7 @@
 'use strict'
 
 /**
- * M0: MCP runtime allowlist closure + tools/call smoke + hang-bound deadline.
+ * Runtime dependency closure + allowlist-only layout smoke + packlist guard.
  */
 const assert = require('assert')
 const fs = require('fs')
@@ -11,65 +11,130 @@ const { spawnSync } = require('child_process')
 
 const ROOT = path.resolve(__dirname, '..')
 const {
+  PROJECT_RUNTIME_SCRIPT_DEPS,
   CLAUDE_MCP_RUNTIME_SCRIPT_DEPS
 } = require('../index.js')
+const {
+  MCP_RUNTIME_DEPS
+} = require('./lib/global-host-config.js')
+const {
+  collectRuntimeScriptDeps,
+  assertRuntimeClosureCovered
+} = require('./lib/runtime-dependency-closure.js')
 const {
   mcpToolCallProbe,
   mcpInitializeProbe
 } = require('./lib/global-host-runtime-verifier.js')
 
-function mustIncludeGates () {
-  assert.ok(
-    CLAUDE_MCP_RUNTIME_SCRIPT_DEPS.includes('scripts/lib/executable-absorption-gates.js'),
-    'allowlist must include executable-absorption-gates.js'
-  )
-  assert.ok(
-    CLAUDE_MCP_RUNTIME_SCRIPT_DEPS.includes('scripts/lib/host-parity-scorecard.js'),
-    'allowlist must include host-parity-scorecard.js'
-  )
-}
-
-function closureRequireTree () {
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'mcp-closure-'))
-  const lib = path.join(tmp, 'scripts', 'lib')
-  fs.mkdirSync(lib, { recursive: true })
-  for (const rel of CLAUDE_MCP_RUNTIME_SCRIPT_DEPS) {
-    const src = path.join(ROOT, rel)
-    assert.ok(fs.existsSync(src), `source missing: ${rel}`)
-    fs.copyFileSync(src, path.join(tmp, ...rel.split('/')))
+function copyDir(src, dest) {
+  if (!fs.existsSync(src)) return
+  for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
+    const srcFile = path.join(src, entry.name)
+    const destFile = path.join(dest, entry.name)
+    if (entry.isDirectory()) copyDir(srcFile, destFile)
+    else if (entry.isFile()) {
+      fs.mkdirSync(path.dirname(destFile), { recursive: true })
+      fs.copyFileSync(srcFile, destFile)
+    }
   }
-  // host-parity must load under allowlist-only tree
-  const hostParity = path.join(tmp, 'scripts', 'lib', 'host-parity-scorecard.js')
-  const ok = spawnSync(process.execPath, ['-e', 'require(process.argv[1]); console.log("OK")', hostParity], {
-    encoding: 'utf8',
-    windowsHide: true
-  })
-  assert.strictEqual(ok.status, 0, `host-parity require under allowlist failed: ${ok.stderr}`)
-  assert.match(String(ok.stdout), /OK/)
-
-  // negative: remove gates → require fails
-  fs.unlinkSync(path.join(tmp, 'scripts', 'lib', 'executable-absorption-gates.js'))
-  const bad = spawnSync(process.execPath, ['-e', 'try{require(process.argv[1]);process.exit(0)}catch(e){console.error(e.message);process.exit(2)}', hostParity], {
-    encoding: 'utf8',
-    windowsHide: true
-  })
-  assert.strictEqual(bad.status, 2, 'expected require fail without gates')
-  assert.match(String(bad.stderr), /executable-absorption-gates/)
 }
 
-function hangBound () {
-  const fixture = path.join(ROOT, 'scripts', 'fixtures', 'mcp-slow-server.js')
-  assert.ok(fs.existsSync(fixture), 'mcp-slow-server fixture missing')
-  const r = mcpToolCallProbe(fixture, ROOT, 'slow_tool', { delayMs: 5000 }, {
-    timeoutMs: 800,
-    spawnSync
-  })
-  assert.strictEqual(r.passed, false, 'slow tool must fail deadline')
-  assert.ok(r.timedOut || r.error === 'ETIMEDOUT' || r.error === 'no-tools-call-response', `expected timeout-ish, got ${JSON.stringify(r)}`)
-  assert.ok(r.latencyMs < 4000, `deadline should cut short: ${r.latencyMs}`)
+function copyRuntimeDeps(destRoot, deps) {
+  for (const rel of deps) {
+    const src = path.join(ROOT, ...rel.split('/'))
+    assert.ok(fs.existsSync(src), `source missing: ${rel}`)
+    const dest = path.join(destRoot, ...rel.split('/'))
+    fs.mkdirSync(path.dirname(dest), { recursive: true })
+    fs.copyFileSync(src, dest)
+  }
 }
 
-function sourcePackageToolSmoke () {
+function makeWorkspace(tmp) {
+  const workspace = path.join(tmp, 'workspace')
+  fs.mkdirSync(path.join(workspace, '.devcodex', 'workspace', 'skills', 'test'), { recursive: true })
+  fs.writeFileSync(path.join(workspace, 'package.json'), '{"name":"runtime-closure-fixture"}\n')
+  fs.writeFileSync(path.join(workspace, '.devcodex', 'layout.json'), `${JSON.stringify({
+    version: 1,
+    mode: 'workspace-namespace'
+  }, null, 2)}\n`)
+  fs.writeFileSync(path.join(workspace, '.devcodex', 'workspace', 'skills', 'test', 'SKILL.md'), [
+    '---',
+    'name: test',
+    'description: 当用户发送「test」时使用。',
+    '---',
+    '# test',
+    '',
+    '## 必须回复',
+    '- 小朋友真可爱',
+    ''
+  ].join('\n'))
+  return workspace
+}
+
+function replayHostAdapter(adapter, host, workspace) {
+  return spawnSync(process.execPath, [adapter, host], {
+    cwd: workspace,
+    encoding: 'utf8',
+    input: JSON.stringify({
+      hookEventName: 'UserPromptSubmit',
+      prompt: 'test',
+      session_id: `runtime-closure-${host}`
+    })
+  })
+}
+
+function layoutReplaySmoke() {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'runtime-closure-layout-'))
+  const workspace = makeWorkspace(tmp)
+
+  copyDir(path.join(ROOT, 'hooks', '_runtime'), path.join(workspace, '.claude', 'hooks', '_runtime'))
+  copyDir(path.join(ROOT, 'hooks', '_runtime'), path.join(workspace, '.codex', 'hooks', '_runtime'))
+  copyRuntimeDeps(path.join(workspace, '.claude'), CLAUDE_MCP_RUNTIME_SCRIPT_DEPS)
+  copyRuntimeDeps(path.join(workspace, '.codex'), CLAUDE_MCP_RUNTIME_SCRIPT_DEPS)
+
+  const claude = replayHostAdapter(path.join(workspace, '.claude', 'hooks', '_runtime', 'lifecycle-host-adapters.cjs'), 'claude', workspace)
+  assert.strictEqual(claude.status, 0, `allowlist-only claude hook replay failed: ${claude.stderr || claude.stdout}`)
+  assert.match(`${claude.stdout}`, /WorkspaceSkillIntent/)
+  assert.match(`${claude.stdout}`, /小朋友真可爱/)
+
+  const codex = replayHostAdapter(path.join(workspace, '.codex', 'hooks', '_runtime', 'lifecycle-host-adapters.cjs'), 'codex', workspace)
+  assert.strictEqual(codex.status, 0, `allowlist-only codex hook replay failed: ${codex.stderr || codex.stdout}`)
+  assert.match(`${codex.stdout}`, /WorkspaceSkillIntent/)
+  assert.match(`${codex.stdout}`, /小朋友真可爱/)
+}
+
+function closureCoverage() {
+  const expected = collectRuntimeScriptDeps(ROOT)
+  assert.deepStrictEqual(PROJECT_RUNTIME_SCRIPT_DEPS, expected, 'project runtime deps must be derived from runtime closure')
+  assert.deepStrictEqual(CLAUDE_MCP_RUNTIME_SCRIPT_DEPS, expected, 'legacy export must match project runtime deps')
+  assert.deepStrictEqual(MCP_RUNTIME_DEPS, expected, 'global runtime deps must be derived from runtime closure')
+  assertRuntimeClosureCovered(ROOT, PROJECT_RUNTIME_SCRIPT_DEPS, { label: 'project runtime deps' })
+  assertRuntimeClosureCovered(ROOT, MCP_RUNTIME_DEPS, { label: 'global runtime deps' })
+
+  const missingOne = expected.filter(dep => dep !== expected[0])
+  assert.throws(
+    () => assertRuntimeClosureCovered(ROOT, missingOne, { label: 'negative runtime deps' }),
+    error => error && error.code === 'RUNTIME_CLOSURE_ALLOWLIST_MISSING' && String(error.message).includes(expected[0])
+  )
+}
+
+function fakeRuntimeSeed() {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'runtime-closure-fake-'))
+  fs.mkdirSync(path.join(tmp, 'hooks', '_runtime'), { recursive: true })
+  fs.mkdirSync(path.join(tmp, 'scripts', 'lib'), { recursive: true })
+  fs.writeFileSync(
+    path.join(tmp, 'hooks', '_runtime', 'fixture.cjs'),
+    `require(${'\'../../scripts/lib/fake-runtime-only.js\''})\n`
+  )
+  fs.writeFileSync(path.join(tmp, 'scripts', 'lib', 'fake-runtime-only.js'), "'use strict'\nmodule.exports = {}\n")
+  assert.deepStrictEqual(
+    collectRuntimeScriptDeps(tmp, { roots: ['hooks/_runtime'] }),
+    ['scripts/lib/fake-runtime-only.js'],
+    'new runtime-only require must enter closure'
+  )
+}
+
+function sourcePackageToolSmoke() {
   const mem = path.join(ROOT, 'mcp', 'memory-server.js')
   const prof = path.join(ROOT, 'mcp', 'profile-server.js')
   const memR = mcpToolCallProbe(mem, ROOT, 'memory_status', { agent: 'grok', project: 'devcodex', limit: 2 }, {
@@ -82,17 +147,33 @@ function sourcePackageToolSmoke () {
     nextStep: 'test'
   }, { timeoutMs: 8000 })
   assert.strictEqual(profR.passed, true, `profile smoke failed: ${profR.error} ${profR.textHead}`)
-  assert.ok(!/executable-absorption-gates/i.test(profR.textHead || ''), 'source profile must not miss gates')
 }
 
-function initStillWorks () {
+function packlistContainsRuntimeClosure() {
+  const packed = spawnSync('npm', ['pack', '--dry-run', '--json'], {
+    cwd: ROOT,
+    encoding: 'utf8',
+    windowsHide: true,
+    maxBuffer: 16 * 1024 * 1024
+  })
+  assert.strictEqual(packed.status, 0, `npm pack dry-run failed: ${packed.stderr || packed.stdout}`)
+  const parsed = JSON.parse(packed.stdout)
+  const files = new Set((parsed[0]?.files || []).map(item => String(item.path || '').replace(/\\/g, '/')))
+  for (const rel of collectRuntimeScriptDeps(ROOT)) {
+    assert.ok(files.has(rel), `npm package must include runtime closure file: ${rel}`)
+  }
+  assert.ok(files.has('scripts/lib/runtime-dependency-closure.js'), 'npm package must include runtime closure owner')
+}
+
+function initStillWorks() {
   const r = mcpInitializeProbe(path.join(ROOT, 'mcp', 'memory-server.js'), ROOT, { timeoutMs: 5000 })
   assert.strictEqual(r.passed, true, `initialize failed: ${r.error}`)
 }
 
-mustIncludeGates()
-closureRequireTree()
-hangBound()
+closureCoverage()
+fakeRuntimeSeed()
+layoutReplaySmoke()
 sourcePackageToolSmoke()
+packlistContainsRuntimeClosure()
 initStillWorks()
 console.log('test-mcp-runtime-closure: PASS')

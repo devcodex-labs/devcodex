@@ -18,6 +18,9 @@ const {
   applyGlobalHostConfig,
   inspectGlobalHostConfig
 } = require('./lib/global-host-config')
+const {
+  collectRuntimeScriptDeps
+} = require('./lib/runtime-dependency-closure')
 
 const ROOT = path.resolve(__dirname, '..')
 const INDEX = path.join(ROOT, 'index.js')
@@ -72,15 +75,7 @@ function deploymentOptions() {
       { from: 'prompts', to: 'prompts' },
       { from: 'data/templates', to: 'data' }
     ],
-    CLAUDE_MCP_RUNTIME_SCRIPT_DEPS: [
-      'scripts/lib/cp-digest.js',
-      'scripts/lib/host-parity-scorecard.js',
-      'scripts/lib/global-adapter-refresh-guidance.js',
-      'scripts/lib/global-host-target.js',
-      'scripts/lib/derived-index-contract.js',
-      'scripts/lib/memory-index.js',
-      'scripts/lib/summary-type-canon.js'
-    ],
+    CLAUDE_MCP_RUNTIME_SCRIPT_DEPS: collectRuntimeScriptDeps(ROOT),
     CODEX_SOURCES: [
       { from: 'hooks/_runtime', to: path.join('.codex', 'hooks', '_runtime') },
       { from: 'codex', to: '.codex' }
@@ -149,6 +144,10 @@ fs.mkdirSync(noCliPlugin, { recursive: true })
 fs.mkdirSync(noCliLegacy, { recursive: true })
 fs.mkdirSync(noCliGrokHome, { recursive: true })
 fs.writeFileSync(path.join(noCliPlugin, 'plugin.json'), '{"name":"devcodex-workspace"}\n', 'utf8')
+fs.mkdirSync(path.join(noCliPlugin, 'hooks'), { recursive: true })
+fs.mkdirSync(path.join(noCliPlugin, 'skills', 'devcodex-workspace'), { recursive: true })
+fs.writeFileSync(path.join(noCliPlugin, 'hooks', 'devcodex-workspace.cjs'), "'use strict'\n", 'utf8')
+fs.writeFileSync(path.join(noCliPlugin, 'skills', 'devcodex-workspace', 'SKILL.md'), '---\nname: devcodex-workspace\n---\n# devcodex-workspace\n', 'utf8')
 fs.writeFileSync(path.join(noCliLegacy, 'plugin.json'), '{"name":"devcodex-workspace-legacy"}\n', 'utf8')
 fs.writeFileSync(path.join(noCliGrokHome, 'config.toml'), '[plugins]\nenabled = ["project-owned"]\n', 'utf8')
 const noCliReceipt = syncGrokWorkspacePluginInstallation({
@@ -653,29 +652,75 @@ assert.ok(
   fs.rmSync(fixture, { recursive: true, force: true })
 }
 
-// Claude MCP runtime script deps must land under .claude/scripts/lib (require path from .claude/mcp)
+const expectedRuntimeDeps = collectRuntimeScriptDeps(ROOT)
+
+// Project runtime script deps must land under .claude/scripts/lib for Claude hooks + shared MCP.
 const claudeMcpScriptDeps = defaults.filter(item =>
   item.surface === 'claude' &&
   String(item.destination || '').replace(/\\/g, '/').startsWith('.claude/scripts/lib/')
 )
-assert.strictEqual(claudeMcpScriptDeps.length, 7, 'claude descriptors must include MCP scripts/lib runtime deps')
-for (const expected of [
-  '.claude/scripts/lib/cp-digest.js',
-  '.claude/scripts/lib/host-parity-scorecard.js',
-  '.claude/scripts/lib/global-adapter-refresh-guidance.js',
-  '.claude/scripts/lib/global-host-target.js',
-  '.claude/scripts/lib/derived-index-contract.js',
-  '.claude/scripts/lib/memory-index.js',
-  '.claude/scripts/lib/summary-type-canon.js'
-]) {
+assert.strictEqual(claudeMcpScriptDeps.length, expectedRuntimeDeps.length, 'claude descriptors must include project scripts/lib runtime deps')
+for (const rel of expectedRuntimeDeps) {
+  const expected = `.claude/${rel}`
   assert(
     claudeMcpScriptDeps.some(item => String(item.destination || '').replace(/\\/g, '/') === expected),
-    `missing claude MCP runtime descriptor: ${expected}`
+    `missing claude runtime descriptor: ${expected}`
   )
 }
 
-console.log(`legacy host installation tests passed selectors=5 dryRunWrites=0 collision=blocked managedManifest=verified workspacePlugin=verified grokCli=${grokCliAvailable ? 'available' : 'unavailable-honest'} uninstall=verified zeroProjectArtifacts=verified defaultHosts=3 mcpScriptDeps=6`)
+const codexHookScriptDeps = defaults.filter(item =>
+  item.surface === 'codex' &&
+  String(item.destination || '').replace(/\\/g, '/').startsWith('.codex/scripts/lib/')
+)
+assert.strictEqual(codexHookScriptDeps.length, expectedRuntimeDeps.length, 'codex descriptors must include hook scripts/lib runtime deps')
+for (const rel of expectedRuntimeDeps) {
+  const expected = `.codex/${rel}`
+  assert(
+    codexHookScriptDeps.some(item => String(item.destination || '').replace(/\\/g, '/') === expected),
+    `missing codex hook runtime descriptor: ${expected}`
+  )
+}
+
+console.log(`legacy host installation tests passed selectors=5 dryRunWrites=0 collision=blocked managedManifest=verified workspacePlugin=verified grokCli=${grokCliAvailable ? 'available' : 'unavailable-honest'} uninstall=verified zeroProjectArtifacts=verified defaultHosts=3 runtimeScriptDeps=${expectedRuntimeDeps.length}`)
 } else {
+  // Always-on descriptor contract (legacy branch is opt-in via env).
+  {
+    const expectedRuntimeDeps = collectRuntimeScriptDeps(ROOT)
+    const defaults = buildDeploymentDescriptors(ROOT, ['copilot', 'claude', 'codex'], deploymentOptions())
+    const claudeRuntimeDeps = defaults.filter(item =>
+      item.surface === 'claude' &&
+      String(item.destination || '').replace(/\\/g, '/').startsWith('.claude/scripts/lib/')
+    )
+    assert.strictEqual(
+      claudeRuntimeDeps.length,
+      expectedRuntimeDeps.length,
+      'claude descriptors must include project scripts/lib runtime deps'
+    )
+    for (const rel of expectedRuntimeDeps) {
+      const expected = `.claude/${rel}`
+      assert(
+        claudeRuntimeDeps.some(item => String(item.destination || '').replace(/\\/g, '/') === expected),
+        `missing claude runtime descriptor: ${expected}`
+      )
+    }
+    const codexHookRuntimeDeps = defaults.filter(item =>
+      item.surface === 'codex' &&
+      String(item.destination || '').replace(/\\/g, '/').startsWith('.codex/scripts/lib/')
+    )
+    assert.strictEqual(
+      codexHookRuntimeDeps.length,
+      expectedRuntimeDeps.length,
+      'codex descriptors must include hook scripts/lib runtime deps'
+    )
+    for (const rel of expectedRuntimeDeps) {
+      const expected = `.codex/${rel}`
+      assert(
+        codexHookRuntimeDeps.some(item => String(item.destination || '').replace(/\\/g, '/') === expected),
+        `missing codex hook runtime descriptor: ${expected}`
+      )
+    }
+  }
+
   const currentRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-global-only-host-installation-'))
   const home = path.join(currentRoot, 'home')
   const workspace = path.join(currentRoot, 'workspace')

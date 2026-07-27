@@ -4,6 +4,7 @@
 > **当前**: v1.15.3 已归档到 `changelogs/releases/v1.15.3.md`；本文件仅保留历史锚点索引与镜像供 validate 探针消费。发版后新实现再写入下方「当前未发布」。
 
 ## 当前未发布实现候选
+- **Runtime 白名单闭包防复发**：新增 `scripts/lib/runtime-dependency-closure.js` 作为统一 runtime require 闭包 Owner；`MCP_RUNTIME_DEPS` / `PROJECT_RUNTIME_SCRIPT_DEPS`（兼容 `CLAUDE_MCP_RUNTIME_SCRIPT_DEPS`）改为派生；Codex project hook 复制到 `.codex/scripts/lib`；`test:mcp-runtime-closure` 覆盖 allowlist-only layout/MCP smoke/负向/packlist；validation 节点 `mcp-runtime-closure` 接入 fast/full/profile-deploy/package-release。需求：`bugs/runtime白名单闭包防复发修复`。
 - **P0-1 工作区意图 + DEVCODEX.md + ImplementStartGate + e2e（Batch1）**：入口 `.devcodex/workspace/DEVCODEX.md`；`workspace-skill-intent` catalog/意图/lifecycle；控制面 mutation 前 04+05+复审清单门闩（`IMPLEMENT_START_WITHOUT_PROCESS`）；全局 skill `workspace-skill-author`；`npm run test:workspace-skill-intent` / `test:workspace-skill-intent-e2e`（E2E-A～J+K）并入 `test:skill-resolve`。**无 e2e 不算 Batch1 完成**。需求：`开源发布前用户面与文档边界收口`。
 - **P0-1 Batch2**：`init`/`ensureRuntimeDirs` 写入 DEVCODEX.md 模板（不覆盖）；CLI `devcodex skill intent <prompt> [--json]`；help 文案同步。
 - **P0-1 ECR 计数同步**：新增 `workspace-skill-author` 后 Skill 规模 84→**85**（82 active + 3 gray）；重生 `skills/portfolio.json`；同步 test-skill-portfolio / docs-surface-inventory / V92/V95 / README / website 规模锚点。

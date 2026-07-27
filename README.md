@@ -3,19 +3,23 @@
 > 把可执行的 AI 开发流程装进 Copilot / Claude Code / Codex / Gemini / **Grok**  
 > **用户级全局 adapter** + 工作区 `.devcodex` 运行态 · Hook 优先 · Instruction 回退
 
-[![npm](https://img.shields.io/npm/v/devcodex.svg)](https://www.npmjs.com/package/devcodex)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green)](LICENSE)
+
+> **安装真相（请先读）**  
+> - **当前主路径**：从源码根 `npm install -g .` + `npm run global-adapters:apply`（未发版或要最新时用这个）。  
+> - **npm 公开包** `npm install -g devcodex`：仅当你确认 registry 上的版本与本文档/源码一致时再使用；**不要**假设 npm 上一定是本仓库最新提交。  
+> - 历史包名 `@vextjs/devcodex` 请卸载，避免 PATH 指到旧 CLI。
 
 ---
 
 ## DevCodex 是什么？
 
-DevCodex 通过 **npm 全局安装**（或源码 `npm install -g .`）把五宿主的配置、Hooks、Skills 与指令投影写到各 AI 宿主的**用户级目录**；你的业务仓库里只需要工作区运行态 **`.devcodex/`**。
+DevCodex 把五宿主的配置、Hooks、Skills 与指令投影写到各 AI 宿主的**用户级目录**；业务仓库里主要保留工作区运行态 **`.devcodex/`**。
 
 它帮助 AI：
 
 - 按意图走 `dev` / `fix` / `analyze` / `audit` 等流程  
-- 在支持 Hooks 的宿主上拦截危险命令、补全收口检查  
+- 在支持 Hooks 的宿主上拦截危险命令、做收口检查  
 - 把报告与会话记忆落到工作区，而不是只留在聊天窗口  
 
 **不是**通用聊天机器人，也不是替代你的业务框架。
@@ -24,60 +28,61 @@ DevCodex 通过 **npm 全局安装**（或源码 `npm install -g .`）把五宿�
 
 ## 5 分钟开始
 
-### 1. 安装
+### 1. 环境
 
-**已发布到 npm 时：**
+- **Node.js**：建议 `>=18`（维护者本地文档站另需 `^20.19 || >=22.12`，见下文）  
+- 装完或刷新 adapter 后，请在宿主里 **新开一轮会话**
+
+### 2. 安装（推荐：源码全局）
+
+在 **本仓库源码根**（含 `package.json` / `skills/` 的目录）：
+
+```bash
+npm install -g .
+npm run global-adapters:apply
+devcodex --version
+devcodex doctor
+```
+
+Windows + Volta 若仍指向旧包：
+
+```bash
+npm uninstall -g @vextjs/devcodex
+npm install -g .
+```
+
+**仅当 npm 上版本可信时：**
 
 ```bash
 npm install -g devcodex
 ```
 
-**当前若以源码为准（未发版或需最新）：**
+### 3. 打开业务项目
 
 ```bash
-git clone <本仓库>
-cd devcodex
-npm install -g .
-npm run global-adapters:apply
+cd <你的业务仓库根>
+devcodex init    # 只初始化工作区 .devcodex，不写全局宿主
 ```
 
-> Windows + Volta：若 PATH 上仍是旧包 `@vextjs/devcodex`，请先 `npm uninstall -g @vextjs/devcodex` 再装。
+再在 Codex / Claude / Copilot / Gemini / Grok 中打开该目录对话。
 
-验证：
+### 4. 验证技能是否加载（可选）
 
-```bash
-devcodex --version
-devcodex doctor
-```
-
-### 2. 打开业务项目
-
-在业务仓库根目录（或 monorepo 工作区根）：
-
-```bash
-devcodex init          # 仅初始化工作区 .devcodex（不写全局宿主）
-```
-
-然后在 **已配置好的宿主**（Codex / Claude / Copilot / Gemini / Grok）中打开该目录开始对话。
-
-### 3. 验证技能是否加载（可选）
-
-对话中发送：
+对话发送：
 
 ```text
 验证技能加载
 ```
 
-期望回复中出现固定句：
+期望用户可见固定句：
 
 ```text
 SKILL-LOAD-VERIFY-OK
 ```
 
-说明全局验证 skill 可读。  
-**不会**强制在正文显示 `【DevCodex 技能】…` 元信息行；加载过程看宿主时间线即可。
+**不会**强制正文出现 `【DevCodex 技能】…` 元行；过程看宿主时间线即可。
 
-CLI 等价：
+CLI：
 
 ```bash
 devcodex skill intent "验证技能加载" --json
@@ -86,17 +91,20 @@ devcodex skill resolve skill-load-verify
 
 ---
 
-## 安装与刷新（重要）
+## 安装与刷新（必读）
 
 | 命令 | 作用 |
 |------|------|
-| `npm install -g devcodex` | 全局安装；postinstall 可刷新用户级宿主 adapter |
-| `npm install -g .` | 从**源码根**装全局（未发版时的主路径） |
-| `npm run global-adapters:apply` | 用当前包根刷新五宿主用户级配置（不发版） |
-| `devcodex init` / `devcodex update` | **只**管当前工作区 `.devcodex`，**不**写全局宿主 |
-| `devcodex status` / `doctor` | 诊断安装与宿主就绪度 |
+| `npm install -g .` | **源码全局安装**（未发版/最新主路径） |
+| `npm run global-adapters:apply` | 用当前包根刷新**用户级五宿主**（改 hooks/MCP 后必跑） |
+| `npm install -g devcodex` | 仅 registry 版本可信时使用 |
+| `devcodex init` / `update` | **只**管当前工作区 `.devcodex`，**不**写全局宿主 |
+| `devcodex status` / `doctor` | 诊断安装与宿主就绪 |
 
-`.devcodex` **不会**装到 npm global prefix；始终在你的项目/工作区里。
+规则：**改宿主配置 → `global-adapters apply`；改业务工作区 → `init`/`update`。**  
+`.devcodex` 始终在项目/工作区，不会装进 npm global prefix。
+
+`apply` 时还可能合并写入 VS Code 用户级 `mcp.json`（memory/profile MCP，若路径存在）。
 
 ---
 
@@ -110,7 +118,7 @@ devcodex skill plan <id...>
 devcodex skill resolve <id...>
 devcodex skill match "<prompt>"
 devcodex skill intent "<prompt>" [--json]
-devcodex grok                    # Grok Full 入口（有边界）
+devcodex grok                 # Grok Full 入口（有边界）
 devcodex profile plan|init
 ```
 
@@ -123,13 +131,15 @@ devcodex profile plan|init
 ```text
 <workspace>/
   .devcodex/
-    layout.json                 # workspace-namespace
-    workspace/                  # 工作区级入口、skills、DEVCODEX.md
-    <project>/                  # 项目命名空间：profile / reports / .memory / requirements
+    layout.json              # workspace-namespace
+    workspace/               # 工作区 skills、DEVCODEX.md
+    <project>/               # profile / reports / .memory / requirements
 ```
 
-- **工作区 skill**：`.devcodex/workspace/skills/<id>/SKILL.md`（W 优先）  
-- **全局 skill（hidden）**：`~/.agents/devcodex/skills/<id>/`（UI 菜单可能不显示，仍可 resolve/加载）  
+| 类型 | 路径 |
+|------|------|
+| 工作区 skill（W 优先） | `.devcodex/workspace/skills/<id>/SKILL.md` |
+| 全局 skill（hidden） | `~/.agents/devcodex/skills/<id>/`（菜单可能不显示，仍可加载） |
 
 ---
 
@@ -138,68 +148,40 @@ devcodex profile plan|init
 | 宿主 | 大致能力 |
 |------|----------|
 | Claude Code / Codex / Copilot CLI 等 | Hook 较完整时可硬拦危险命令、Stop 收口 |
-| **Grok** | **Partial**：UserPromptSubmit **不能**可靠注入上下文；依赖模型读 skill + 条件 Stop |
+| **Grok** | **Partial**：UserPromptSubmit **不能**可靠注入；靠读 skill + 条件 Stop |
 | 仅 Instruction 的 surface | 语义约束，不保证硬拦 |
 
-不要把「adapter 已安装」理解成「五宿主能力完全一致」。
+「adapter 已安装」≠「五宿主能力完全一致」。
 
 ---
 
-## 语言策略（诚实声明）
+## 语言策略（约定，非绝对保证）
 
-| 项 | 当前约定 |
-|----|----------|
-| **对话回复** | 跟随用户语言 |
-| **工作区过程产物文件名** | 默认 **中文** 标准名（如 `00-需求概况.md`） |
-| **完整多语言 i18n / 中英产物双文件名** | **未承诺**本阶段交付 |
-
----
-
-## 默认执行原则（用户能感知的）
-
-- **确认优先**：大改动、发版、危险命令前应得到你的确认（Auto 模式另有白名单边界）  
-- **危险命令**：可被 Hook 拦截（如 `rm -rf` 根路径等）  
-- **入口检查**：实质任务前可见 PC0～PC7 状态块（宿主能力允许时）  
-- **报告与记忆**：非闲聊任务会写入工作区报告 / 会话记忆  
-
-细节 Gate 名与探针编号是维护者资产；**日常使用不必背**。
+| 项 | 约定 |
+|----|------|
+| 对话回复 | **目标**跟随用户语言 |
+| 工作区过程产物文件名 | 默认 **中文** 标准名（如 `00-需求概况.md`） |
+| 完整多语言 i18n / 中英产物双文件名 | **本阶段未承诺** |
 
 ---
 
-## 技能加载说明
+## 你能感知到的默认行为
 
-1. **最终回复**不强制技能元行。  
-2. **过程时间线**可出现「正在加载 &lt;id&gt; 技能」。  
-3. 不要 List `~/.grok/skills` 等用户主目录 skill 树（会暴露本机路径）；只读单个已知 `SKILL.md`。  
-4. 验证：对话「验证技能加载」或见上文 CLI。
+- **确认优先**：大改动、发版、危险命令前应得到确认（Auto 另有白名单边界）  
+- **危险命令**：可被 Hook 拦截  
+- **入口检查**：实质任务前尽量有 PC0～PC7（视宿主能力）  
+- **报告与记忆**：非闲聊任务写入工作区  
 
----
-
-## 文档与仓库边界
-
-| 内容 | 在哪里 |
-|------|--------|
-| **用户文档** | 本 **README**（公开仓主入口） |
-| **维护者文档站** `website/` | **不进入公开 Git 默认跟踪**、**不进 npm 包**；本机可保留完整拷贝 |
-| 变更未发布说明 | `changelogs/unreleased.md` |
-| 已发布说明 | `changelogs/releases/` |
-
-npm 包 `files` 字段**不包含** `website/`。
+Gate/探针编号是维护者资产，日常使用不必背。
 
 ---
 
-## 本地开发（贡献者）
+## 技能加载
 
-```bash
-git clone <repo>
-cd devcodex
-npm install
-npm run test:stop-gate
-npm run test:docs-surface-inventory
-npm run global-adapters:apply   # 刷新本机五宿主
-```
-
-维护者若需文档站：在已有完整 `website/` 的本机目录执行 `cd website && npm install && npm run dev`（Rspress；Node `^20.19 || >=22.12`）。
+1. 最终回复 **不强制** 技能元行  
+2. 过程侧可用「正在加载 `<id>` 技能」  
+3. **不要** List `~/.grok/skills` 等主目录 skill 树（会暴露本机路径）；只读单个已知 `SKILL.md`  
+4. 验证：对话「验证技能加载」或上文 CLI  
 
 ---
 
@@ -207,19 +189,50 @@ npm run global-adapters:apply   # 刷新本机五宿主
 
 ```text
 npm 全局包 / 源码 install -g
-  → 用户级：各宿主 hooks / instructions / skills 投影 / VS Code mcp.json（apply 时）
+  → 用户级：宿主 hooks / instructions / skills 投影 / VS Code mcp.json（apply）
   → 工作区：.devcodex（profile、reports、memory、requirements、workspace skills）
   → 运行时：hooks/_runtime/lifecycle.cjs + MCP memory/profile
 ```
 
 ---
 
-## 边界声明
+## 边界
 
-- 默认 **safety-only**：危险命令硬拦；流程类多为提醒，**strict** 才全面升级阻断。  
-- **不**替代业务项目的 CI、安全审计与人工评审。  
-- Grok 等宿主存在 **Partial** 能力上限，见上文矩阵。  
-- 敏感信息策略以项目与用户要求为准；未禁止时不强制脱敏。
+- 默认 **safety-only**：危险命令硬拦；流程项多为提醒，**strict** 才全面升级阻断  
+- **不**替代业务 CI、安全审计与人工评审  
+- Grok 等存在 **Partial** 上限  
+- 敏感信息：以项目与你的要求为准；未禁止时不强制脱敏  
+
+---
+
+## 文档与仓库边界
+
+| 内容 | 位置 |
+|------|------|
+| **用户文档** | 本 README（公开仓主入口） |
+| **维护者文档站** `website/` | **默认不进公开 Git 跟踪**、**不进 npm**；本机可保留完整拷贝（见 `website/README.md`） |
+| 未发布变更 | `changelogs/unreleased.md` |
+| 已发布说明 | `changelogs/releases/` |
+
+---
+
+## 本地开发（贡献者）
+
+```bash
+cd <devcodex-source-root>
+npm install
+npm run test:stop-gate
+npm run test:docs-surface-inventory
+npm run global-adapters:apply
+```
+
+维护者文档站（需本机已有完整 `website/`）：
+
+```bash
+cd website && npm install && npm run dev
+```
+
+Node：`^20.19 || >=22.12`（仅文档站）。
 
 ---
 
@@ -232,13 +245,11 @@ npm 全局包 / 源码 install -g
 ## 用户可见交付与链接兼容
 
 用户可见交付物应带可定位路径（工作区相对路径优先）；宿主证据不足时用 portable 链接，不假装全宿主可点。  
-MCP 侧常见入口含 `profile_load`；工作流技能按意图 **invoke**（按需读取，非整库预载）。
+MCP 侧常见入口含 `profile_load`；工作流技能按意图 **invoke**（按需读取，非整库预载）。  
+用户侧文档 review 聚合见 skill `audit-user-manual`。  
+规范侧：`PromptLongGateListDriftProbe`（V75）。
 
-用户侧文档 review 聚合见 skill `audit-user-manual`（文档站/README/quick start 路径审查）。  
-规范侧防 prompt 长 Gate 清单回流：`PromptLongGateListDriftProbe`（V75）。
+## 维护者备注
 
-## 维护者备注（非用户路径）
-
-- 公开仓策略：**website 内容默认不跟踪**（仅 `website/README.md` 指针）。  
-- 过程关账 ECR 示例：工作区 `.devcodex/devcodex/reports/requirements/…`（运行态，默认不进本包）。  
-- 未发布变更见 `changelogs/unreleased.md`。
+- 公开仓：`website/*` 忽略，仅跟踪 `website/README.md` 指针。  
+- 过程 ECR 等常在工作区 `.devcodex/`（运行态，默认不进本 npm 包）。  

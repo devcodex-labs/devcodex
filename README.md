@@ -166,7 +166,7 @@ devcodex status
 
 ```bash
 npm install -g @devcodex/devcodex # 安装全局 CLI，并由 postinstall 配置五宿主用户级 adapter
-npm update -g devcodex  # 升级全局包，并由 postinstall 刷新五宿主用户级 adapter
+npm update -g @devcodex/devcodex  # 升级全局包，并由 postinstall 刷新五宿主用户级 adapter
 npm install devcodex    # 仅加入当前项目依赖；不配置宿主，并提示必须使用 -g
 ```
 
@@ -310,7 +310,7 @@ Phase 1 采用“薄 Rule + `host-capability-routing` Skill + 三份 V1 契约/�
 | `npm install -g .` | **本地旁路（R1b）**：全局安装当前目录并走 postinstall 刷新 adapter |
 | `npm pack` + `npm install -g ./devcodex-devcodex-*.tgz` | **预发冒烟（R2）**：接近真实 tarball 安装面 |
 | `npm install -g @devcodex/devcodex` | **已发布（R3）**：安装全局 CLI；`postinstall` 自动刷新全局宿主 adapter |
-| `npm update -g devcodex` | **已发布（R3）**：升级全局包并 `postinstall` 刷新 adapter |
+| `npm update -g @devcodex/devcodex` | **已发布（R3）**：升级全局包并 `postinstall` 刷新 adapter |
 | `npm install devcodex` | 仅安装到当前项目依赖；`postinstall` 不写宿主配置并提示必须使用 `-g` |
 | `devcodex update` | **workspace only（R4）**：只刷新当前 `.devcodex` 运行态，不写用户级宿主配置 |
 
@@ -763,4 +763,4 @@ Auto v1.1 当前只在支持 Hook 的宿主里，对显式 `@devcodex-auto`、�
 
 ## 许可证
 
-AGPL-3.0-or-later © Rocky / [vextjs](https://github.com/vextjs)
+AGPL-3.0-or-later © Rocky / [DevCodex Labs](https://github.com/devcodex-labs)

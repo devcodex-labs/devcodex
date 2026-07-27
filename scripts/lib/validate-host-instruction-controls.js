@@ -166,7 +166,7 @@ function buildHostInstructionControlChecks(ctx) {
       'GlobalHostTargetV1',
       'GlobalHostConfigInspectionV1',
       'workspaceHostDirectoriesWritten',
-      'npm install -g devcodex',
+      'npm install -g @devcodex/devcodex',
       'user-global',
       'legacyWorkspaceProjectionDescriptors',
       'GrokGlobalLaunchPlanV1',

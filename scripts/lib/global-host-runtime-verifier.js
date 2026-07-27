@@ -51,7 +51,7 @@ function adapterContractProbe(host, runtimeEntry, options = {}) {
         'HOST_ADAPTER_ENTRY_MISSING',
         'contract',
         runtimeEntry || '(missing)',
-        'Run npm install -g devcodex to restore the user-global runtime.'
+        'Run npm install -g @devcodex/devcodex to restore the user-global runtime.'
       )]
     }
   }
@@ -124,7 +124,7 @@ function grokStaticContract(target, options = {}) {
       'GROK_PLUGIN_REGISTRY_UNVERIFIED',
       'contract',
       registry.registryFile,
-      'Run npm install -g devcodex with Grok CLI available, then re-run doctor.'
+      'Run npm install -g @devcodex/devcodex with Grok CLI available, then re-run doctor.'
     ))
   } else if (registry.identities.length !== 1 || canonical.length !== 1) {
     registryStatus = 'failed'
@@ -132,7 +132,7 @@ function grokStaticContract(target, options = {}) {
       'GROK_PLUGIN_DUPLICATE_MANAGED_IDENTITY',
       'contract',
       JSON.stringify(registry.identities),
-      'Run npm install -g devcodex to converge the managed Grok plugin identity.'
+      'Run npm install -g @devcodex/devcodex to converge the managed Grok plugin identity.'
     ))
   }
 

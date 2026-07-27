@@ -131,7 +131,7 @@ function classifyNpmLifecycleInstall(options = {}) {
   return noOp('workspace-install-global-required', {
     scope: 'workspace-install',
     targetRoot: initCwd,
-    guidance: 'Host config requires a global install: npm install -g devcodex'
+    guidance: 'Host config requires a global install: npm install -g @devcodex/devcodex'
   })
 }
 

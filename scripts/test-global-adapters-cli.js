@@ -22,7 +22,7 @@ assert.strictEqual(sourceGuidance.primary, 'devcodex global-adapters apply')
 assert.match(sourceGuidance.secondary, /npm install -g \./)
 
 const publishedGuidance = describeGlobalAdapterRefresh({ sourceCheckout: false })
-assert.strictEqual(publishedGuidance.primary, 'npm update -g devcodex')
+assert.strictEqual(publishedGuidance.primary, 'npm update -g @devcodex/devcodex')
 
 const logs = []
 const logger = {

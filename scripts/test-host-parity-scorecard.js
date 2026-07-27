@@ -100,7 +100,7 @@ assert.ok(
   'source HostParity repairSteps must recommend global-adapters apply'
 )
 assert.ok(
-  !partial.repairSteps.some((s) => s.status === 'failed' && s.command === 'npm install -g devcodex'),
+  !partial.repairSteps.some((s) => s.status === 'failed' && s.command === 'npm install -g @devcodex/devcodex'),
   'source HostParity failed repair must not hardcode npm install -g only'
 )
 assert.match(partial.userVisibleSummary, /partial|failed/i)
@@ -142,13 +142,13 @@ const publishedRepair = buildGrokRepairSteps(
   { globalKernelAgentsMd: false },
   {
     guidance: {
-      primary: 'npm update -g devcodex',
-      nextStepShort: 'npm update -g devcodex',
+      primary: 'npm update -g @devcodex/devcodex',
+      nextStepShort: 'npm update -g @devcodex/devcodex',
       sourceCheckout: false
     }
   }
 )
-assert.ok(publishedRepair.some((s) => s.status === 'failed' && /npm update -g devcodex/.test(s.command)))
+assert.ok(publishedRepair.some((s) => s.status === 'failed' && /npm update -g (?:@devcodex\/)?devcodex/.test(s.command)))
 
 // PF-165 negative: claim full Grok workflow without checklist anchors → thin
 assert.strictEqual(

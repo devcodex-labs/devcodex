@@ -32,8 +32,8 @@ function describeGlobalAdapterRefresh(options = {}) {
   const sourceCheckout = options.sourceCheckout === true
   const version = options.packageVersion ? String(options.packageVersion) : null
   const tarballHint = version
-    ? `npm pack && npm install -g ./vextjs-devcodex-${version}.tgz`
-    : 'npm pack && npm install -g ./vextjs-devcodex-<version>.tgz'
+    ? `npm pack && npm install -g ./devcodex-devcodex-${version}.tgz`
+    : 'npm pack && npm install -g ./devcodex-devcodex-<version>.tgz'
 
   if (sourceCheckout) {
     return Object.freeze({
@@ -56,15 +56,15 @@ function describeGlobalAdapterRefresh(options = {}) {
 
   return Object.freeze({
     sourceCheckout: false,
-    primary: 'npm update -g devcodex',
+    primary: 'npm update -g @devcodex/devcodex',
     secondary: null,
-    installCommand: 'npm install -g devcodex',
-    updateCommand: 'npm update -g devcodex',
-    nextStepRefresh: 'Run npm update -g devcodex to refresh the managed receipt.',
-    nextStepInstall: 'Run npm install -g devcodex to create the user-global host receipt.',
-    nextStepShort: 'npm update -g devcodex',
-    recommendedEntry: 'npm update -g devcodex && devcodex doctor --json',
-    doctorHint: 'Upgrade DevCodex and refresh adapters with `npm update -g devcodex`.',
+    installCommand: 'npm install -g @devcodex/devcodex',
+    updateCommand: 'npm update -g @devcodex/devcodex',
+    nextStepRefresh: 'Run npm update -g @devcodex/devcodex to refresh the managed receipt.',
+    nextStepInstall: 'Run npm install -g @devcodex/devcodex to create the user-global host receipt.',
+    nextStepShort: 'npm update -g @devcodex/devcodex',
+    recommendedEntry: 'npm update -g @devcodex/devcodex && devcodex doctor --json',
+    doctorHint: 'Upgrade DevCodex and refresh adapters with `npm update -g @devcodex/devcodex`.',
     tarballHint
   })
 }

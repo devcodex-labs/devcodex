@@ -41,12 +41,12 @@ function resolveAdapterRefreshGuidance(options = {}) {
   }
   return Object.freeze({
     sourceCheckout: false,
-    primary: 'npm update -g devcodex',
-    installCommand: 'npm install -g devcodex',
-    updateCommand: 'npm update -g devcodex',
-    nextStepShort: 'npm update -g devcodex',
-    nextStepRefresh: 'Run npm update -g devcodex to refresh the managed receipt.',
-    nextStepInstall: 'Run npm install -g devcodex to create the user-global host receipt.'
+    primary: 'npm update -g @devcodex/devcodex',
+    installCommand: 'npm install -g @devcodex/devcodex',
+    updateCommand: 'npm update -g @devcodex/devcodex',
+    nextStepShort: 'npm update -g @devcodex/devcodex',
+    nextStepRefresh: 'Run npm update -g @devcodex/devcodex to refresh the managed receipt.',
+    nextStepInstall: 'Run npm install -g @devcodex/devcodex to create the user-global host receipt.'
   })
 }
 

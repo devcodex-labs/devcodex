@@ -299,7 +299,7 @@ function readRuntimeKernelText() {
   }
   return {
     path: null,
-    content: '（⚠️ user-global DevCodex runtime kernel 未找到；请先执行 npm install -g devcodex）'
+    content: '（⚠️ user-global DevCodex runtime kernel 未找到；请先执行 npm install -g @devcodex/devcodex）'
   }
 }
 

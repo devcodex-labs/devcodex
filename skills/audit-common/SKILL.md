@@ -102,7 +102,7 @@ full 模式还必须执行 repo-shape 反查：当仓库已具备 SDK/CLI、文�
    - **触发动作**：
      a. 将工作区根的 `.claude/{instructions,skills,prompts,agents,hooks}/`、`.github/{instructions,skills,prompts,agents,hooks}/`、`AGENTS.md`、`.agents/`、`.codex/` 也纳入 grep 范围
      b. 对每个命中文件做 G3 外部一致性检查（与源仓库对应文件是否一致）
-     c. 若发现部署体 / 用户级 adapter 与源仓库不一致 → 标注 `⚠️ 部署滞后`（源码仓优先 `devcodex global-adapters apply`，或 `npm install -g .` / pack+tarball；已发布用 `npm update -g devcodex`；**不要**用 bare `devcodex update` 或 `update --claude/--codex` 冒充刷全局；并运行 `node scripts/validate.js` V8 / `devcodex doctor`）
+     c. 若发现部署体 / 用户级 adapter 与源仓库不一致 → 标注 `⚠️ 部署滞后`（源码仓优先 `devcodex global-adapters apply`，或 `npm install -g .` / pack+tarball；已发布用 `npm update -g @devcodex/devcodex`；**不要**用 bare `devcodex update` 或 `update --claude/--codex` 冒充刷全局；并运行 `node scripts/validate.js` V8 / `devcodex doctor`）
    - **目的**：避免源仓库与工作区根部署体并存时 CRS 仅扫源仓库导致误判（GAP-019 案例：F-03/F-04 因未扫父级 `e:\Worker\.claude/` 而误判为"hooks 不生效"）
    - **跳过条件**：当 cwd 即工作区根（无父链部署体）→ 跳过本步骤
   - **⚠️ V8 与 CRS 职责不可互替（PI-006，v1.9.5+）**：`scripts/validate.js` 的 V8 checkPairs 已覆盖 instructions/skills/hooks/CLAUDE.md/prompts/agents 等关键部署面，但仍只是 CI 快速门禁；CRS 手动 grep 仍是收敛前全量同步的必要补充——V8 ✅ ≠ 全量部署同步

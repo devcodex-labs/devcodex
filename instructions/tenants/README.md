@@ -50,7 +50,7 @@ devcodex update --tenant example-tenant
 
 # 用户级全局 adapter（GlobalOnly）：不要用 update --claude/--host
 devcodex global-adapters apply
-# 或：npm install -g . / npm pack && npm install -g ./vextjs-devcodex-*.tgz
+# 或：npm install -g . / npm pack && npm install -g ./devcodex-devcodex-*.tgz
 ```
 
 - 不传 `--tenant`：Copilot/Claude managed set 排除整个 `instructions/tenants/`。

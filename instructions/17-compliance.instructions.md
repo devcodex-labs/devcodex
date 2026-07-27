@@ -71,7 +71,7 @@ version: 1.15.3
 > - **legacy 父链表面**（可选诊断）：cwd 是 plugin 源仓库且父链上仍存在 `.github/`、`.claude/`、`AGENTS.md`、`.agents/` 或 `.codex/` 时，可扫描但不作为普通 workspace 安装目标
 >
 > 触发动作：
-> - 用户级 adapter 相对源码候选落后 / STALE → ⚠️ 标记；源码仓优先运行 **`devcodex global-adapters apply`**（或次选 `npm install -g .` / `npm pack` + tarball）；已发布环境用 `npm update -g devcodex`
+> - 用户级 adapter 相对源码候选落后 / STALE → ⚠️ 标记；源码仓优先运行 **`devcodex global-adapters apply`**（或次选 `npm install -g .` / `npm pack` + tarball）；已发布环境用 `npm update -g @devcodex/devcodex`
 > - bare `devcodex update` **只刷新 workspace `.devcodex`**，不能替代全局 adapter 刷新；`update --claude/--codex/--host` 仍 fail closed（`CLI_HOST_CONFIG_GLOBAL_ONLY`）
 > - 同步 → ✅
 > - 无用户级 receipt 且无 legacy 父链表面 → N/A 或按 doctor 缺失项提示

@@ -55,7 +55,7 @@ dev / fix / audit 等工作流的执行细节，只有在用户或 Agent 实际�
 |------|------|---------|-----------------|
 | 第一层 | **copilot-instructions.md / CLAUDE.md / GEMINI.md / AGENTS.md** | 始终可发现的宿主入口 | 生成的精简内核或指向共享内核的薄入口 |
 | 第二层 | **Instructions** | 按需加载的规范约束（`description` 语义匹配）| 主流程节点执行规范（预检查/摘要/记忆/合规等）|
-| 第三层 | **Skills** | 按需触发的工作流能力入口 | 扁平一级 Skill（84 个）；工作流 intent 为 dev / fix / audit / analyze / self-fix / resume / other / chat（`plan` 为 Skill，由 other 兜底路由，不是独立 workflow id），含 `analyze-default` 默认分析与 `analyze-research` 技术调研，以及 `spec-absorption` 规范吸纳执行、`user-manual-authoring` 最终用户文档、`audit-user-manual` 用户侧文档 review 聚合、`expert-output-quality` 专家型产物质量、产品策略/DX/UX/前端/后端/SRE/API/数据/安全/质量/设计系统/无障碍国际化/增长/商业模型专家 Owner Skill、`review-checklist` 复审清单、`evolution-governance` 自我进化治理、`readme-authoring` / `audit-readme` README 专项能力、`audit-release` 发布前审查和 execution-contract / test-router / release-verification / host-contract-verification / source-consumer-sync / requirement-parallel-orchestration 等支撑能力 |
+| 第三层 | **Skills** | 按需触发的工作流能力入口 | 扁平一级 Skill（85 个）；工作流 intent 为 dev / fix / audit / analyze / self-fix / resume / other / chat（`plan` 为 Skill，由 other 兜底路由，不是独立 workflow id），含 `analyze-default` 默认分析与 `analyze-research` 技术调研，以及 `spec-absorption` 规范吸纳执行、`user-manual-authoring` 最终用户文档、`audit-user-manual` 用户侧文档 review 聚合、`expert-output-quality` 专家型产物质量、产品策略/DX/UX/前端/后端/SRE/API/数据/安全/质量/设计系统/无障碍国际化/增长/商业模型专家 Owner Skill、`review-checklist` 复审清单、`evolution-governance` 自我进化治理、`readme-authoring` / `audit-readme` README 专项能力、`audit-release` 发布前审查和 execution-contract / test-router / release-verification / host-contract-verification / source-consumer-sync / requirement-parallel-orchestration 等支撑能力 |
 | 配套 | **Prompts** | 有参数的结构化输出模板 | CP 节点输出模板（CP1/CP2/CP3）|
 | 包内资产 | **Agents** | Copilot 自定义 Agent 源 | GlobalOnlyWorkspaceCleanModeV1 首批不向工作区 `.github/agents`、`.agents` 或根级宿主入口分发 |
 
@@ -201,4 +201,4 @@ DevCodex 当前默认注册 `PreCompact`，用于在手动或自动压缩前执�
 > 结论：本页冻结**三层架构原则、分发面与目录职责**；数量类信息需要与 README/profile 同步维护。
 
 
-> Skill 规模锚点：84 个 Skills；84 个按需触发。
+> Skill 规模锚点：85 个 Skills；85 个按需触发。

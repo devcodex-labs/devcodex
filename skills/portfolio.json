@@ -6,27 +6,27 @@
     "skillsPattern": "skills/*/SKILL.md",
     "optionalSidecar": "skills/*/devcodex.skill.json",
     "registry": "plugin.json",
-    "sourceDigest": "d7fa02eb2a61c5f696548b73c0d7a319b5d14d9d840b0ca9aefba6f3d0b4eb43",
+    "sourceDigest": "31fce619aacdfe6d1c16c7b605127bfec448f52f915862ad57bdc9a6ac0f81bd",
     "sidecarDigest": "774105d7947b340d15d17115fcb8e37b62ae545cf553f06126d529184fd74872",
-    "pluginDigest": "f85d1fcc1384827999ead09f5ee2051295d2a3890315ce0b2c83ac5a9c63ab82",
+    "pluginDigest": "d94133579e88bc06a91e06fe020ae7f9ea7258c9a2f2f8ae451a3e8c97dd1b78",
     "portfolioEvidence": "skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "8364a73c66ed2ec9787cdb9300223278d128a45b689a2b8deda0d1f03189f42b",
-    "consumerInventoryFileCount": 614,
-    "consumerInventoryDigest": "ae7421e9835a88b02a9bfb539439bfdbeb00e095af6175f226660e289ef9794a",
-    "consumerProjectionDigest": "2340f98f5d8357f4a9f8b137710f370b34c3c3a25db284398d4138c13e32b355",
-    "portfolioInputDigest": "54a729cc7804893395221ad8e9d29583cb08306baa08d8ef616e369248e456d3"
+    "consumerInventoryFileCount": 620,
+    "consumerInventoryDigest": "d748fc41bcd843d46b95524dd0ba2e8933af231236807ce64fb5021b7ff4152f",
+    "consumerProjectionDigest": "8ce5881ebf4c00bb71ad3f2206933dcfe5ad851634aa4455aa1940e41b53dda2",
+    "portfolioInputDigest": "7d60e848605d95130340019daf55059384512b321dfedff1f9fe69c659a5543c"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
-    "skillCount": 84,
-    "registeredSkillCount": 84,
-    "activeSkillCount": 81,
+    "skillCount": 85,
+    "registeredSkillCount": 85,
+    "activeSkillCount": 82,
     "graySkillCount": 3,
     "orphanActiveCount": 0,
     "dependencyCycleCount": 0,
     "dependencyEdgeCount": 23,
-    "conflictReviewedCount": 84,
-    "operationalEvidenceCompleteCount": 84,
+    "conflictReviewedCount": 85,
+    "operationalEvidenceCompleteCount": 85,
     "triggerPrecisionMeasuredCount": 3,
     "instructionBudgetP95Bytes": 23127,
     "triggerQuality": "mixed",
@@ -117,7 +117,8 @@
       "token-check",
       "user-manual-authoring",
       "user-visible-output-contract",
-      "ux-interaction-architecture"
+      "ux-interaction-architecture",
+      "workspace-skill-author"
     ],
     "edges": [
       {
@@ -542,7 +543,7 @@
   "health": {
     "orphanActive": [],
     "lifecycleMutationAllowed": false,
-    "evidenceNote": "Operational evidence complete; trigger precision mixed (3/84 measured via portfolio-evidence.json)."
+    "evidenceNote": "Operational evidence complete; trigger precision mixed (3/85 measured via portfolio-evidence.json)."
   },
   "skills": [
     {
@@ -1093,8 +1094,8 @@
         "skills/analyze-default/SKILL.md"
       ],
       "source": "skills/analyze-default/SKILL.md",
-      "hash": "7d8bbf63629cf9b6d76a1fcdc48ab4c011c8840dd5f2c3bed6c265f9334d2fdb",
-      "sourceBytes": 10648,
+      "hash": "cbea857f22562c4f95585022e5dc48902af4e201143d3c939301f0d92c08ece8",
+      "sourceBytes": 10645,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [
@@ -5310,6 +5311,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-workspace-skill-intent.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/validate.js",
           "role": "current"
         },
@@ -5542,6 +5547,7 @@
         "scripts/test-skill-resolve.js",
         "scripts/test-workflow-completion-contract.js",
         "scripts/test-workspace-skill-auto-match.js",
+        "scripts/test-workspace-skill-intent.js",
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-24",
@@ -5608,6 +5614,7 @@
           "scripts/test-skill-resolve.js",
           "scripts/test-workflow-completion-contract.js",
           "scripts/test-workspace-skill-auto-match.js",
+          "scripts/test-workspace-skill-intent.js",
           "scripts/validate.js"
         ],
         "exitCondition": "work-unit-complete-or-workflow-transition",
@@ -11859,6 +11866,10 @@
           "role": "current"
         },
         {
+          "path": "hooks/_runtime/lifecycle.cjs",
+          "role": "current"
+        },
+        {
           "path": "hooks/_runtime/review-execution-contract.cjs",
           "role": "current"
         },
@@ -11872,6 +11883,14 @@
         },
         {
           "path": "hooks/_runtime/workflow-completion-contract.cjs",
+          "role": "current"
+        },
+        {
+          "path": "hooks/_runtime/workspace-skill-catalog.cjs",
+          "role": "current"
+        },
+        {
+          "path": "hooks/_runtime/workspace-skill-intent.cjs",
           "role": "current"
         },
         {
@@ -11980,6 +11999,10 @@
         },
         {
           "path": "scripts/lib/always-on-governance.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/cli-execution-commands.js",
           "role": "current"
         },
         {
@@ -12139,6 +12162,14 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-workspace-skill-intent-e2e.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-workspace-skill-intent.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/validate-profile.js",
           "role": "current"
         },
@@ -12294,6 +12325,8 @@
         "scripts/test-skill-resolve.js",
         "scripts/test-visible-output-contract.js",
         "scripts/test-workflow-completion-contract.js",
+        "scripts/test-workspace-skill-intent-e2e.js",
+        "scripts/test-workspace-skill-intent.js",
         "scripts/validate-profile.js",
         "scripts/validate.js"
       ],
@@ -12381,6 +12414,8 @@
           "scripts/test-skill-resolve.js",
           "scripts/test-visible-output-contract.js",
           "scripts/test-workflow-completion-contract.js",
+          "scripts/test-workspace-skill-intent-e2e.js",
+          "scripts/test-workspace-skill-intent.js",
           "scripts/validate-profile.js",
           "scripts/validate.js"
         ],
@@ -12896,8 +12931,8 @@
         "skills/memory/SKILL.md"
       ],
       "source": "skills/memory/SKILL.md",
-      "hash": "3d7fa85f37f08a8956125125a61203a2f310c25d0be72bbbb097921818bd3b2b",
-      "sourceBytes": 21668,
+      "hash": "eed3f7e0050c4c25f8d8fa0cd382b8a7ed34f33e5072e83b14e4fb308555cdb1",
+      "sourceBytes": 21665,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [],
@@ -14246,6 +14281,10 @@
           "role": "current"
         },
         {
+          "path": "hooks/_runtime/devcodex-md-entry.cjs",
+          "role": "current"
+        },
+        {
           "path": "hooks/_runtime/lifecycle-bootstrap-state.cjs",
           "role": "current"
         },
@@ -14806,6 +14845,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-workspace-skill-intent-e2e.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/validate.js",
           "role": "current"
         },
@@ -15085,6 +15128,7 @@
         "scripts/test-visible-output-contract.js",
         "scripts/test-workflow-capabilities.js",
         "scripts/test-workflow-completion-contract.js",
+        "scripts/test-workspace-skill-intent-e2e.js",
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-24",
@@ -15174,6 +15218,7 @@
           "scripts/test-visible-output-contract.js",
           "scripts/test-workflow-capabilities.js",
           "scripts/test-workflow-completion-contract.js",
+          "scripts/test-workspace-skill-intent-e2e.js",
           "scripts/validate.js"
         ],
         "exitCondition": "work-unit-complete-or-workflow-transition",
@@ -18942,10 +18987,6 @@
           "role": "current"
         },
         {
-          "path": "scripts/test-checked-command.js",
-          "role": "current"
-        },
-        {
           "path": "scripts/test-cli-behavior.js",
           "role": "current"
         },
@@ -19091,7 +19132,6 @@
         }
       ],
       "validationProfile": [
-        "scripts/test-checked-command.js",
         "scripts/test-cli-behavior.js",
         "scripts/test-cli-command-registry.js",
         "scripts/test-global-host-config.js",
@@ -19164,7 +19204,6 @@
         ],
         "evolvableUnitRef": "skill:routing",
         "probeSuiteRefs": [
-          "scripts/test-checked-command.js",
           "scripts/test-cli-behavior.js",
           "scripts/test-cli-command-registry.js",
           "scripts/test-global-host-config.js",
@@ -19993,8 +20032,8 @@
         "skills/spec-absorption/SKILL.md"
       ],
       "source": "skills/spec-absorption/SKILL.md",
-      "hash": "effae2715e0a7630080c87fdcde7ff405ed39060472270fda05f86b63b115bd2",
-      "sourceBytes": 28704,
+      "hash": "d8c24015565b5c81642b30b0c077d4fba327bf74c680290e77b222a3cd549f83",
+      "sourceBytes": 28698,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [
@@ -20833,6 +20872,14 @@
         },
         {
           "path": "hooks/_runtime/visible-output-contract.cjs",
+          "role": "current"
+        },
+        {
+          "path": "hooks/_runtime/workspace-skill-catalog.cjs",
+          "role": "current"
+        },
+        {
+          "path": "hooks/_runtime/workspace-skill-intent.cjs",
           "role": "current"
         },
         {
@@ -22641,6 +22688,147 @@
         "operationalReadiness": {
           "state": "complete",
           "currentConsumer": "plugin.json",
+          "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
+          "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
+          "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
+          "lastEvidenceAt": "2026-07-24"
+        },
+        "triggerPrecision": {
+          "state": "structural-only",
+          "sampleCount": 0,
+          "precision": null,
+          "falsePositiveRate": null,
+          "falseNegativeRate": null,
+          "manualCorrectionRate": null,
+          "lastMeasuredAt": null
+        },
+        "lifecycleAuthorization": "plugin.json#skills[].lifecycleState",
+        "stateRationale": "registered source, current consumer and operational fixtures are present",
+        "promotionCriteria": "trigger precision requires real comparable work units; structural evidence alone cannot promote lifecycle state"
+      }
+    },
+    {
+      "id": "workspace-skill-author",
+      "name": "workspace-skill-author",
+      "description": ">",
+      "owner": "workspace-skill-author",
+      "triggers": {
+        "terms": [
+          "workspace-skill-author"
+        ],
+        "positive": [
+          {
+            "fixture": "frontmatter-description-resolves",
+            "input": ">"
+          }
+        ],
+        "negative": [
+          {
+            "fixture": "empty-or-unregistered-trigger-rejected",
+            "input": ""
+          }
+        ],
+        "ambiguous": []
+      },
+      "ownedArtifacts": [
+        "skills/workspace-skill-author/SKILL.md"
+      ],
+      "source": "skills/workspace-skill-author/SKILL.md",
+      "hash": "53eaf601943c794458754ea3bc7d22799c8921c63c4a4f400757b36f97ce1a57",
+      "sourceBytes": 1649,
+      "version": "1.15.3",
+      "lifecycleState": "active",
+      "dependencies": [],
+      "references": [],
+      "conflicts": [],
+      "conflictReview": {
+        "status": "reviewed-none",
+        "evidence": "scripts/test-skill-portfolio.js#explicit-conflict-review"
+      },
+      "consumers": [
+        {
+          "path": "changelogs/unreleased.md",
+          "role": "current"
+        },
+        {
+          "path": "hooks/_runtime/workspace-skill-intent.cjs",
+          "role": "current"
+        },
+        {
+          "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-workspace-skill-intent-e2e.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-workspace-skill-intent.js",
+          "role": "current"
+        }
+      ],
+      "validationProfile": [
+        "scripts/test-skill-portfolio.js",
+        "scripts/test-workspace-skill-intent-e2e.js",
+        "scripts/test-workspace-skill-intent.js",
+        "scripts/validate.js"
+      ],
+      "lastEvidenceAt": "2026-07-24",
+      "skillIndex": {
+        "id": "workspace-skill-author",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "workspace-skill-author"
+          ],
+          "positive": [
+            {
+              "fixture": "frontmatter-description-resolves",
+              "input": ">"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "empty-or-unregistered-trigger-rejected",
+              "input": ""
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:workspace-skill-author",
+        "probeSuiteRefs": [
+          "scripts/test-skill-portfolio.js",
+          "scripts/test-workspace-skill-intent-e2e.js",
+          "scripts/test-workspace-skill-intent.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
+      "sidecar": null,
+      "evidence": {
+        "registration": "plugin.json",
+        "operationalReadiness": {
+          "state": "complete",
+          "currentConsumer": "changelogs/unreleased.md",
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",

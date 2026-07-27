@@ -114,7 +114,7 @@ DevCodex 提供两个 Agent 入口：
 |------|------|
 | Agent | `devcodex.agent.md`（确认模式）+ `devcodex-auto.agent.md`（全自动模式）|
 | Host kernel / Instructions | 宿主自动发现精简 kernel；节点 Instructions 与 Skills 按平台能力和意图加载，完整规范保留非 always-on fallback |
-| Skills | 当前源码维护 84 个按需触发的工作流技能（81 active + 3 gray）；active `host-capability-routing` 以薄 Rule + Skill + 版本化 catalog/contracts 将原始用户意图映射到五宿主 8 个 surface variant，直接证据不足时保持 portable fallback，当前不新增 MCP Tool；另有 `requirement-parallel-orchestration`、active `repair-prevention-assessment`，gray `rework-prevention-engineering`、`consumer-validation-engineering`、`brand-visual-quality`，以及 `user-visible-output-contract`、`host-instruction-projection`、`analyze-default`、`skill-gap-analysis`、`skill-lifecycle-governance`、`spec-absorption`、`user-manual-authoring`、`audit-user-manual`、`expert-output-quality`、`review-checklist`、`evolution-governance`、`readme-authoring`、`audit-readme`、`audit-release`、`execution-contract` / `test-router` / `release-verification` / `host-contract-verification` / `source-consumer-sync`；专家能力保持 21 个专家 Owner Skill |
+| Skills | 当前源码维护 85 个按需触发的工作流技能（82 active + 3 gray）；active `host-capability-routing` 以薄 Rule + Skill + 版本化 catalog/contracts 将原始用户意图映射到五宿主 8 个 surface variant，直接证据不足时保持 portable fallback，当前不新增 MCP Tool；另有 `requirement-parallel-orchestration`、active `repair-prevention-assessment`，gray `rework-prevention-engineering`、`consumer-validation-engineering`、`brand-visual-quality`，以及 `user-visible-output-contract`、`host-instruction-projection`、`analyze-default`、`skill-gap-analysis`、`skill-lifecycle-governance`、`spec-absorption`、`user-manual-authoring`、`audit-user-manual`、`expert-output-quality`、`review-checklist`、`evolution-governance`、`readme-authoring`、`audit-readme`、`audit-release`、`execution-contract` / `test-router` / `release-verification` / `host-contract-verification` / `source-consumer-sync`；专家能力保持 21 个专家 Owner Skill |
 | Prompts | CP 节点输出模板（`prompts/*.prompt.md`，当前 30 个） |
 | Hooks | 默认注册 `UserPromptSubmit` / `PreToolUse` / `PostToolUse` / `PreCompact` / `Stop`（能力按宿主/事件降级） |
 | MCP | 本地 stdio：`devcodex-memory`（10 Tools）+ `devcodex-profile`（5 Tools + Prompt `devcodex-init`）；无 Resource/Tasks |
@@ -151,7 +151,7 @@ DevCodex 提供两个 Agent 入口：
 | 能力面 | 声明（代码/矩阵） | 探针（可重复命令） | 真机 |
 |--------|-------------------|--------------------|------|
 | 8 workflows（含 `other`，无 workflow id=`plan`） | `workflow-capabilities.json` | `npm run test:workflow-capabilities` | 不要求 |
-| Skills 84 | `plugin.json` + 磁盘 SKILL.md | `npm run test:docs-surface-inventory` | 不要求 |
+| Skills 85 | `plugin.json` + 磁盘 SKILL.md | `npm run test:docs-surface-inventory` | 不要求 |
 | MCP 15 tools | `mcp/*-server.js` | `test:mcp-servers` / `test:mcp-runtime-closure` | 不要求 |
 | Hooks 五事件 | `hooks/devcodex.lifecycle.json` | `test:hooks-runtime` / 宿主契约 | 按宿主事件降级 |
 | Prompts 30 / Instructions 15 | `prompts/` · `instructions/` | `test:docs-surface-inventory` | 不要求 |
@@ -182,4 +182,4 @@ Grok：**无 UPS inject**；Stop 为条件硬拦。Copilot：**CLI 与 IDE 能�
 - [商业化规划](/intro/pricing) — v1 免费策略与 v2 商业化方向
 
 
-> Skill 规模锚点：84 个 Skills；扁平一级 Skill（84 个）。
+> Skill 规模锚点：85 个 Skills；扁平一级 Skill（85 个）。

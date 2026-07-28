@@ -101,6 +101,7 @@
         "skill-intents",
         "skill-route-contracts",
         "skill-route-state",
+        "skill-route-retirement",
         "skill-route-lifecycle",
         "profile-section-selector",
         "project-knowledge-store",
@@ -188,6 +189,7 @@
         "skill-intents",
         "skill-route-contracts",
         "skill-route-state",
+        "skill-route-retirement",
         "skill-route-lifecycle",
         "profile-section-selector",
         "project-knowledge-store",
@@ -984,7 +986,7 @@
         "scripts/test-skill-route-state.js"
       ],
       "consumers": [
-        "skill-route-lifecycle",
+        "skill-route-retirement",
         "mcp-servers"
       ],
       "invariants": [
@@ -1013,6 +1015,50 @@
     },
     {
       "schemaVersion": "ValidationNodeV1",
+      "id": "skill-route-retirement",
+      "owner": "progressive-skill-route",
+      "command": "node",
+      "args": [
+        "scripts/test-skill-route-retirement.js"
+      ],
+      "dependencies": [
+        "skill-route-state"
+      ],
+      "inputs": [
+        "hooks/_runtime/host-adapter-identity.cjs",
+        "hooks/_runtime/host-skill-route-capabilities.v1.json",
+        "hooks/_runtime/skill-route-retirement-gate.cjs",
+        "hooks/_runtime/skill-route-retirement-policy.v1.json",
+        "scripts/test-skill-route-retirement.js"
+      ],
+      "consumers": [
+        "skill-route-lifecycle"
+      ],
+      "invariants": [
+        "exact-host-evidence",
+        "stable-window",
+        "digest-reset",
+        "zero-tolerance"
+      ],
+      "riskClass": "high",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
       "id": "skill-route-lifecycle",
       "owner": "progressive-skill-route",
       "command": "node",
@@ -1020,12 +1066,13 @@
         "scripts/test-skill-route-lifecycle.js"
       ],
       "dependencies": [
-        "skill-route-state"
+        "skill-route-retirement"
       ],
       "inputs": [
         "hooks/_runtime/lifecycle.cjs",
         "hooks/_runtime/lifecycle-host-adapters.cjs",
         "hooks/_runtime/lifecycle-bootstrap-state.cjs",
+        "hooks/_runtime/host-adapter-identity.cjs",
         "hooks/_runtime/context-plan-observation.cjs",
         "hooks/_runtime/skill-route-tool.cjs",
         "mcp/profile-server.js",

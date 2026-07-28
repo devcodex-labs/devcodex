@@ -21,6 +21,7 @@ const CODEX_EVENT_MAP = Object.freeze({
 })
 
 const COPILOT_EVENT_MAP = Object.freeze({
+  userPromptTransformed: 'UserPromptSubmit',
   userPromptSubmitted: 'UserPromptSubmit',
   UserPromptSubmit: 'UserPromptSubmit',
   preToolUse: 'PreToolUse',
@@ -232,6 +233,10 @@ function normalizeHostPayload(host, payload) {
     if (normalized.transcriptPath && !normalized.transcript_path) normalized.transcript_path = normalized.transcriptPath
     if (normalized.stopReason && !normalized.stop_reason) normalized.stop_reason = normalized.stopReason
     if (normalized.toolResult && !normalized.tool_result) normalized.tool_result = normalized.toolResult
+    if (originalEvent === 'userPromptTransformed' &&
+        /^Progressive Skill route is incomplete:/i.test(String(normalized.prompt || '').trim())) {
+      normalized.devcodex_host_continuation = true
+    }
   }
   if (host === 'gemini' && typeof payload?.prompt_response === 'string') normalized.response = payload.prompt_response
   return { originalEvent, mappedEvent, payload: normalized }
@@ -331,7 +336,7 @@ function adaptGrokOutput(originalEvent, output) {
   return next
 }
 
-function adaptCopilotOutput(originalEvent, output) {
+function adaptCopilotOutput(originalEvent, output, input = {}) {
   const value = output && typeof output === 'object' && !Array.isArray(output) ? { ...output } : {}
   const event = normalizeEventToken(originalEvent)
   const specific = value.hookSpecificOutput && typeof value.hookSpecificOutput === 'object'
@@ -371,6 +376,24 @@ function adaptCopilotOutput(originalEvent, output) {
     }
   }
 
+  if (event === 'userprompttransformed') {
+    const additionalContext = [
+      value.systemMessage,
+      specific.additionalContext,
+      value.additionalContext
+    ].filter(item => typeof item === 'string' && item.trim()).join('\n\n')
+    const transformedPrompt = String(
+      input.transformedPrompt || input.transformed_prompt || input.prompt || ''
+    )
+    return additionalContext
+      ? {
+          modifiedTransformedPrompt: [transformedPrompt, additionalContext]
+            .filter(Boolean)
+            .join('\n\n')
+        }
+      : {}
+  }
+
   if (event === 'agentstop' || event === 'stop') {
     if (value.decision === 'block') {
       return {
@@ -385,7 +408,7 @@ function adaptCopilotOutput(originalEvent, output) {
   return {}
 }
 
-function adaptHostOutput(host, originalEvent, output) {
+function adaptHostOutput(host, originalEvent, output, input = {}) {
   const value = output && typeof output === 'object' && !Array.isArray(output) ? { ...output } : { continue: true }
   if (value.hookSpecificOutput && typeof value.hookSpecificOutput === 'object') {
     value.hookSpecificOutput = { ...value.hookSpecificOutput, hookEventName: originalEvent }
@@ -394,7 +417,7 @@ function adaptHostOutput(host, originalEvent, output) {
     return adaptGrokOutput(originalEvent, value)
   }
   if (host === 'copilot') {
-    return adaptCopilotOutput(originalEvent, value)
+    return adaptCopilotOutput(originalEvent, value, input)
   }
   if (host !== 'gemini') return value
 
@@ -469,7 +492,11 @@ function runHostAdapter(host, input, options = {}) {
   try { output = child.stdout.trim() ? JSON.parse(child.stdout) : { continue: true } } catch (error) {
     return { status: 1, error: `invalid lifecycle output: ${error.message}`, output: null }
   }
-  const result = { status: 0, error: '', output: adaptHostOutput(host, normalized.originalEvent, output) }
+  const result = {
+    status: 0,
+    error: '',
+    output: adaptHostOutput(host, normalized.originalEvent, output, input)
+  }
   appendAdapterTrace(host, 'output', input, normalized, result, options.env || process.env)
   return result
 }
@@ -503,6 +530,30 @@ function probeHostAdapterContract(host) {
   }
 }
 
+function applyCliEnvironmentOverrides (argv, env = process.env) {
+  const authorityIndex = argv.indexOf('--skill-route-probe-authority')
+  if (authorityIndex >= 0 && argv[authorityIndex + 1]) {
+    env.DEVCODEX_SKILL_ROUTE_PROBE_AUTHORITY = path.resolve(argv[authorityIndex + 1])
+  }
+  const routeTraceIndex = argv.indexOf('--skill-route-trace')
+  if (routeTraceIndex >= 0 && argv[routeTraceIndex + 1]) {
+    env.DEVCODEX_SKILL_ROUTE_TRACE = path.resolve(argv[routeTraceIndex + 1])
+  }
+  const lifecycleTraceIndex = argv.indexOf('--lifecycle-trace')
+  if (lifecycleTraceIndex >= 0 && argv[lifecycleTraceIndex + 1]) {
+    env.DEVCODEX_LIFECYCLE_TRACE = path.resolve(argv[lifecycleTraceIndex + 1])
+  }
+  const workspaceRootIndex = argv.indexOf('--workspace-root')
+  if (workspaceRootIndex >= 0 && argv[workspaceRootIndex + 1]) {
+    env.DEVCODEX_WORKSPACE_ROOT = path.resolve(argv[workspaceRootIndex + 1])
+  }
+  const eventIndex = argv.indexOf('--event')
+  if (eventIndex >= 0 && argv[eventIndex + 1]) {
+    env.DEVCODEX_HOST_EVENT = String(argv[eventIndex + 1]).trim()
+  }
+  return env
+}
+
 if (require.main === module) {
   const host = String(process.argv[2] || '').trim().toLowerCase()
   if (!Object.prototype.hasOwnProperty.call(EVENT_MAP, host)) {
@@ -514,6 +565,7 @@ if (require.main === module) {
     process.stdout.write(JSON.stringify(probe))
     process.exit(probe.status === 'passed' ? 0 : 1)
   }
+  applyCliEnvironmentOverrides(process.argv.slice(3))
   let input = ''
   process.stdin.setEncoding('utf8')
   process.stdin.on('data', chunk => { input += chunk })
@@ -523,6 +575,10 @@ if (require.main === module) {
       process.stderr.write(`Invalid host hook payload: ${error.message}\n`)
       process.exit(2)
       return
+    }
+    if (!payload.hookEventName && !payload.hook_event_name &&
+        process.env.DEVCODEX_HOST_EVENT) {
+      payload.hookEventName = process.env.DEVCODEX_HOST_EVENT
     }
     const result = runHostAdapter(host, payload)
     if (result.status !== 0) {
@@ -536,6 +592,7 @@ if (require.main === module) {
 
 module.exports = {
   EVENT_MAP,
+  applyCliEnvironmentOverrides,
   adaptCopilotOutput,
   adaptHostOutput,
   adaptGrokOutput,

@@ -4,7 +4,11 @@
 const assert = require('assert')
 const grokHooks = require('../grok/hooks/devcodex.json')
 const {
+  parseContextToolIdentity
+} = require('../hooks/_runtime/lifecycle-bootstrap-state.cjs')
+const {
   EVENT_MAP,
+  applyCliEnvironmentOverrides,
   adaptHostOutput,
   isGrokImportedClaudePayload,
   normalizeHostPayload,
@@ -12,7 +16,33 @@ const {
   runHostAdapter
 } = require('../hooks/_runtime/lifecycle-host-adapters.cjs')
 
+const cliOverrideEnv = {}
+applyCliEnvironmentOverrides([
+  '--skill-route-probe-authority', './probe-authority.json',
+  '--skill-route-trace', './route-trace.jsonl',
+  '--lifecycle-trace', './lifecycle-trace.jsonl',
+  '--workspace-root', '.',
+  '--event', 'userPromptTransformed'
+], cliOverrideEnv)
+assert.ok(cliOverrideEnv.DEVCODEX_SKILL_ROUTE_PROBE_AUTHORITY.endsWith('probe-authority.json'))
+assert.ok(cliOverrideEnv.DEVCODEX_SKILL_ROUTE_TRACE.endsWith('route-trace.jsonl'))
+assert.ok(cliOverrideEnv.DEVCODEX_LIFECYCLE_TRACE.endsWith('lifecycle-trace.jsonl'))
+assert.strictEqual(cliOverrideEnv.DEVCODEX_WORKSPACE_ROOT, process.cwd())
+assert.strictEqual(cliOverrideEnv.DEVCODEX_HOST_EVENT, 'userPromptTransformed')
+
 assert.deepStrictEqual(Object.keys(EVENT_MAP).sort(), ['claude', 'codex', 'copilot', 'gemini', 'grok'])
+assert.deepStrictEqual(
+  parseContextToolIdentity('mcp__devcodex_profile__profile_context_plan'),
+  {
+    raw: 'mcp__devcodex_profile__profile_context_plan',
+    server: 'devcodex-profile',
+    tool: 'profile_context_plan'
+  }
+)
+assert.strictEqual(
+  parseContextToolIdentity('mcp__devcodex_memory__memory_status').server,
+  'devcodex-memory'
+)
 
 for (const host of ['copilot', 'claude', 'codex', 'gemini', 'grok']) {
   const probe = probeHostAdapterContract(host)
@@ -38,6 +68,12 @@ assert.strictEqual(copilot.payload.devcodexHostSurface, 'copilot')
 assert.strictEqual(copilot.payload.session_id, 'copilot-session')
 assert.strictEqual(copilot.payload.tool_name, 'powershell')
 assert.deepStrictEqual(copilot.payload.tool_input, { command: 'Get-Date' })
+const copilotContinuation = normalizeHostPayload('copilot', {
+  hookEventName: 'userPromptTransformed',
+  prompt: 'Progressive Skill route is incomplete: PLAN_NOT_COMMITTED.',
+  transformedPrompt: 'continuation'
+})
+assert.strictEqual(copilotContinuation.payload.devcodex_host_continuation, true)
 
 const copilotDeny = adaptHostOutput('copilot', 'preToolUse', {
   hookSpecificOutput: {
@@ -67,6 +103,15 @@ assert.deepStrictEqual(
   adaptHostOutput('copilot', 'UserPromptSubmit', { decision: 'block', reason: 'must be ignored' }),
   {}
 )
+const copilotTransformed = adaptHostOutput('copilot', 'userPromptTransformed', {
+  systemMessage: 'system route',
+  hookSpecificOutput: { additionalContext: 'skill bootstrap' }
+}, {
+  transformedPrompt: 'original transformed prompt'
+})
+assert.match(copilotTransformed.modifiedTransformedPrompt, /original transformed prompt/)
+assert.match(copilotTransformed.modifiedTransformedPrompt, /system route/)
+assert.match(copilotTransformed.modifiedTransformedPrompt, /skill bootstrap/)
 
 const unknownEvent = runHostAdapter('codex', { hookEventName: 'UnknownEvent' })
 assert.strictEqual(unknownEvent.status, 2)

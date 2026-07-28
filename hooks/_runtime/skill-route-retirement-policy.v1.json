@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "SkillRouteRetirementPolicyV1",
+  "policyId": "b4-five-host-unified-default",
+  "requiredHostVariants": [
+    "claude-code/print-user-global-local-stdio",
+    "codex-cli/exec-user-global-local-stdio",
+    "copilot-cli/print-user-global-local-stdio",
+    "gemini-cli/headless-user-global-local-stdio",
+    "grok-cli-single/global-launcher-local-stdio"
+  ],
+  "minimumWindowHours": 72,
+  "minimumDistinctRunsPerHost": 20,
+  "minimumDistinctRunsTotal": 100,
+  "requiredAuthorizationSource": "capability-pass",
+  "requiredEffectiveMode": "unified",
+  "requireCurrentContractBinding": true,
+  "zeroTolerance": [
+    "legacyFallback",
+    "doubleBody",
+    "crossRootOrContext",
+    "stateCorruption",
+    "missingRequiredStage",
+    "missingCloseout"
+  ],
+  "resetOnDigestChange": true
+}

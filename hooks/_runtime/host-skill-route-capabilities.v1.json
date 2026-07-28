@@ -2,35 +2,28 @@
   "schemaVersion": "HostSkillRouteCapabilityV1",
   "capabilities": [
     {
-      "hostVariant": "claude-code/user-global-local-stdio",
+      "hostVariant": "claude-code/print-user-global-local-stdio",
       "status": "UNVERIFIED",
       "testedVersion": "2.1.197",
       "protocol": "MCP 2024-11-05",
       "evidenceRef": null
     },
     {
-      "hostVariant": "codex/user-global-local-stdio",
+      "hostVariant": "codex-cli/exec-user-global-local-stdio",
       "status": "UNVERIFIED",
       "testedVersion": "unverified",
       "protocol": "MCP 2024-11-05",
       "evidenceRef": null
     },
     {
-      "hostVariant": "copilot/user-global-local-stdio",
+      "hostVariant": "copilot-cli/print-user-global-local-stdio",
       "status": "UNVERIFIED",
       "testedVersion": "unverified",
       "protocol": "MCP 2024-11-05",
       "evidenceRef": null
     },
     {
-      "hostVariant": "gemini-cli/user-global-local-stdio",
-      "status": "UNVERIFIED",
-      "testedVersion": "unverified",
-      "protocol": "MCP 2024-11-05",
-      "evidenceRef": null
-    },
-    {
-      "hostVariant": "grok/user-global-local-stdio",
+      "hostVariant": "gemini-cli/headless-user-global-local-stdio",
       "status": "UNVERIFIED",
       "testedVersion": "unverified",
       "protocol": "MCP 2024-11-05",
@@ -41,10 +34,10 @@
       "status": "PASS",
       "testedVersion": "grok 0.2.112 (9bbd559437)",
       "protocol": "MCP 2024-11-05",
-      "runtimeContractDigest": "3b2e25d1a1b65050943ea08de5d7348907666ab9a0691d169f953d4e196081f5",
+      "runtimeContractDigest": "a9772e7f30b2b40f72c16f70ffbcb82844d5a59546b0bdf6a3068eda53794141",
       "hostAdapterDigest": "b2ab490df9c881a1a8b67c8391f72c615d05a64aab1db9e4bd6ec8a5f0a99385",
-      "evidenceDigest": "b18ea51c81782239ab60a685ee9a995c13490e719a04004995f6920ee2e176be",
-      "evidenceRef": "E:/Worker/.devcodex/devcodex/.audit-state/skill-route-s15-grok-launcher-production-converged-20260728.json",
+      "evidenceDigest": "667c4481e6cc2634c67a276b724306ae2c77170b10dbf41ca20d18832a6766f4",
+      "evidenceRef": "E:/Worker/.devcodex/devcodex/.audit-state/skill-route-s15-grok-20260729-final-production.json",
       "entrySurface": "devcodex grok -p/--single",
       "bootstrapDelivery": "global launcher --rules",
       "defaultEligible": true

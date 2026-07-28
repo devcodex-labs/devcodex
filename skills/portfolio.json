@@ -11,10 +11,10 @@
     "pluginDigest": "705fe7c86c7225b67756749be5bb3b14a1ee3bffa386483a9ab61dc971f419ae",
     "portfolioEvidence": "skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "8364a73c66ed2ec9787cdb9300223278d128a45b689a2b8deda0d1f03189f42b",
-    "consumerInventoryFileCount": 487,
-    "consumerInventoryDigest": "ec9f943f99f15fb1d6f7de1f98a6c132e460bab8adc9f6edd3c80f3c962d466d",
-    "consumerProjectionDigest": "fff6e781867bc1f7466b43560af773c6c830a9f167d99b66ae629cbbd561870b",
-    "portfolioInputDigest": "9415ff5b3e9e493dfd917357a29a268841f0b0e72b5128dacec93063bab9c527"
+    "consumerInventoryFileCount": 493,
+    "consumerInventoryDigest": "5738458b362b0de48bd8be338adf6966fa17a699528e608ff878b299fa3fe6ab",
+    "consumerProjectionDigest": "dd703c608bc275e01c81b45b9752b94fa23cb8291a657fce0f6880b26cfa1333",
+    "portfolioInputDigest": "db3613690bea12b6597adad1db8ee08921088621b67dfa65f767a024b73028b6"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -10891,6 +10891,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/probe-skill-route-s15-host.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-always-on-governance.js",
           "role": "current"
         },
@@ -12071,6 +12075,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/probe-skill-route-s15-host.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/replay-stop-gate-hook-matrix.js",
           "role": "current"
         },
@@ -12120,6 +12128,10 @@
         },
         {
           "path": "scripts/test-hooks-runtime.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-host-adapters.js",
           "role": "current"
         },
         {
@@ -12240,6 +12252,7 @@
         "scripts/test-governance-intake.js",
         "scripts/test-governance-status-summary.js",
         "scripts/test-hooks-runtime.js",
+        "scripts/test-host-adapters.js",
         "scripts/test-host-capability-routing.js",
         "scripts/test-host-installation.js",
         "scripts/test-host-parity-scorecard.js",
@@ -12321,6 +12334,7 @@
           "scripts/test-governance-intake.js",
           "scripts/test-governance-status-summary.js",
           "scripts/test-hooks-runtime.js",
+          "scripts/test-host-adapters.js",
           "scripts/test-host-capability-routing.js",
           "scripts/test-host-installation.js",
           "scripts/test-host-parity-scorecard.js",
@@ -13137,6 +13151,10 @@
         },
         {
           "path": "scripts/probe-skill-route-s15-grok.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/probe-skill-route-s15-host.js",
           "role": "current"
         },
         {
@@ -16916,6 +16934,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/probe-skill-route-s15-host.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/project-analysis-state.js",
           "role": "current"
         },
@@ -18777,6 +18799,10 @@
           "role": "current"
         },
         {
+          "path": "hooks/_runtime/skill-route-retirement-gate.cjs",
+          "role": "current"
+        },
+        {
           "path": "hooks/_runtime/skill-route-tool.cjs",
           "role": "current"
         },
@@ -18914,6 +18940,10 @@
         },
         {
           "path": "scripts/lib/external-review-claim-verification.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/global-host-config.js",
           "role": "current"
         },
         {
@@ -19077,6 +19107,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-skill-route-retirement.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-skill-sidecar-contract.js",
           "role": "current"
         },
@@ -19119,6 +19153,7 @@
         "scripts/test-runtime-state-index.js",
         "scripts/test-skill-portfolio.js",
         "scripts/test-skill-route-contracts.js",
+        "scripts/test-skill-route-retirement.js",
         "scripts/test-skill-sidecar-contract.js",
         "scripts/test-skills-deploy-mode.js",
         "scripts/test-summary-type-canon.js",
@@ -19187,6 +19222,7 @@
           "scripts/test-runtime-state-index.js",
           "scripts/test-skill-portfolio.js",
           "scripts/test-skill-route-contracts.js",
+          "scripts/test-skill-route-retirement.js",
           "scripts/test-skill-sidecar-contract.js",
           "scripts/test-skills-deploy-mode.js",
           "scripts/test-summary-type-canon.js",

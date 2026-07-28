@@ -7,6 +7,29 @@ const {
 } = require('./content-identity.cjs')
 const { readContextPlanObservation } = require('./context-plan-observation.cjs')
 
+function parseContextToolIdentity (rawName, explicitServer = '') {
+  const raw = String(rawName || '').trim()
+  const lower = raw.toLowerCase()
+  let server = String(explicitServer || '').trim().toLowerCase()
+  let tool = lower
+  const mcp = lower.match(/^mcp__(.+)__([a-z0-9_]+)$/)
+  const doubleUnderscore = lower.match(/^([^_]+(?:-[^_]+)*)__([a-z0-9_]+)$/)
+  const pair = lower.match(/^([^/]+)\/([a-z0-9_]+)$/)
+  if (mcp) {
+    server = mcp[1]
+    tool = mcp[2]
+  } else if (doubleUnderscore) {
+    server = doubleUnderscore[1]
+    tool = doubleUnderscore[2]
+  } else if (pair) {
+    server = pair[1]
+    tool = pair[2]
+  }
+  if (server === 'devcodex_profile') server = 'devcodex-profile'
+  if (server === 'devcodex_memory') server = 'devcodex-memory'
+  return { raw, server, tool }
+}
+
 function buildLifecycleBootstrapStateUtils(ctx) {
   const {
     fs,
@@ -104,23 +127,10 @@ function buildLifecycleBootstrapStateUtils(ctx) {
   }
 
   function canonicalContextTool(payload) {
-    const raw = getToolName(payload)
-    const lower = raw.toLowerCase()
-    let server = String(payload?.server_name || payload?.serverName || '').trim().toLowerCase()
-    let tool = lower
-    const claude = lower.match(/^mcp__([^_]+(?:-[^_]+)*)__([a-z0-9_]+)$/)
-    const grok = lower.match(/^([^_]+(?:-[^_]+)*)__([a-z0-9_]+)$/)
-    const pair = lower.match(/^([^/]+)\/([a-z0-9_]+)$/)
-    if (claude) {
-      server = claude[1]
-      tool = claude[2]
-    } else if (grok) {
-      server = grok[1]
-      tool = grok[2]
-    } else if (pair) {
-      server = pair[1]
-      tool = pair[2]
-    }
+    const { raw, server, tool } = parseContextToolIdentity(
+      getToolName(payload),
+      payload?.server_name || payload?.serverName
+    )
     if (!server && (PROFILE_TOOLS.has(tool) || PROFILE_ROUTE_TOOLS.has(tool) || MEMORY_READ_TOOLS.has(tool))) {
       return { raw, server: '', tool, canonical: '', recognizedName: true }
     }
@@ -1546,4 +1556,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
   }
 }
 
-module.exports = { buildLifecycleBootstrapStateUtils }
+module.exports = {
+  buildLifecycleBootstrapStateUtils,
+  parseContextToolIdentity
+}

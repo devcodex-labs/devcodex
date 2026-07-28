@@ -304,22 +304,46 @@ try {
     item.hostVariant === 'grok-cli-single/global-launcher-local-stdio'
   )
   assert(grokSingleCapability)
+  const currentCapabilityPath = path.join(fixture.root, 'current-capabilities.json')
+  const currentCapabilities = JSON.parse(JSON.stringify(capabilities))
+  const currentGrokSingleCapability = currentCapabilities.capabilities.find(item =>
+    item.hostVariant === 'grok-cli-single/global-launcher-local-stdio'
+  )
+  currentGrokSingleCapability.runtimeContractDigest = getRuntimeContractDigest()
+  fs.writeFileSync(
+    currentCapabilityPath,
+    `${JSON.stringify(currentCapabilities, null, 2)}\n`,
+    'utf8'
+  )
   const grokSingle = resolveSkillRouteMode({
     project: fixture.project,
     host: 'grok-cli-single',
     env: { DEVCODEX_SKILL_ROUTE_MODE: 'unified' },
-    hostAdapterDigest: grokSingleCapability.hostAdapterDigest
+    capabilityPath: currentCapabilityPath,
+    hostAdapterDigest: currentGrokSingleCapability.hostAdapterDigest
   })
   assert.strictEqual(grokSingle.effective, 'unified')
   assert.strictEqual(grokSingle.hostEligibility, 'PASS')
   assert.strictEqual(grokSingle.capabilityRuntimeCurrent, true)
   assert.strictEqual(grokSingle.capabilityAdapterCurrent, true)
+  assert.strictEqual(grokSingle.probeAuthorityReason, 'probe-authority-missing')
 
+  const staleCapabilityPath = path.join(fixture.root, 'stale-capabilities.json')
+  const staleCapabilities = JSON.parse(JSON.stringify(capabilities))
+  staleCapabilities.capabilities.find(item =>
+    item.hostVariant === 'grok-cli-single/global-launcher-local-stdio'
+  ).runtimeContractDigest = 'f'.repeat(64)
+  fs.writeFileSync(
+    staleCapabilityPath,
+    `${JSON.stringify(staleCapabilities, null, 2)}\n`,
+    'utf8'
+  )
   const staleGrokSingle = resolveSkillRouteMode({
     project: fixture.project,
     host: 'grok-cli-single',
     env: { DEVCODEX_SKILL_ROUTE_MODE: 'unified' },
-    hostAdapterDigest: '0'.repeat(64)
+    capabilityPath: staleCapabilityPath,
+    hostAdapterDigest: grokSingleCapability.hostAdapterDigest
   })
   assert.strictEqual(staleGrokSingle.effective, 'legacy')
   assert.strictEqual(staleGrokSingle.reason, 'host-variant-evidence-stale')
@@ -366,13 +390,15 @@ try {
   assert.strictEqual(duplicateCapabilityMode.effective, 'legacy')
   assert.strictEqual(duplicateCapabilityMode.reason, 'capability-document-invalid')
 
-  const genericGrok = resolveSkillRouteMode({
+  const grokAlias = resolveSkillRouteMode({
     project: fixture.project,
     host: 'grok',
-    env: { DEVCODEX_SKILL_ROUTE_MODE: 'unified' }
+    env: { DEVCODEX_SKILL_ROUTE_MODE: 'unified' },
+    capabilityPath: currentCapabilityPath,
+    hostAdapterDigest: currentGrokSingleCapability.hostAdapterDigest
   })
-  assert.strictEqual(genericGrok.effective, 'legacy')
-  assert.strictEqual(genericGrok.reason, 'host-variant-not-eligible')
+  assert.strictEqual(grokAlias.effective, 'unified')
+  assert.strictEqual(grokAlias.hostVariant, currentGrokSingleCapability.hostVariant)
 
   const invalid = resolveSkillRouteMode({
     project: fixture.project,

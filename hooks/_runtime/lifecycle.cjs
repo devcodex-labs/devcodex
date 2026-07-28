@@ -1241,6 +1241,12 @@ async function main() {
 
   // ── UserPromptSubmit ───────────────────────────────────────────────────────
   if (eventName === 'UserPromptSubmit') {
+    if (payload.devcodex_host_continuation === true) {
+      state.lastReason = 'host-route-continuation'
+      saveState(state)
+      writeStdout(noopOutput())
+      return
+    }
     const workflowCompletionLifecycle = state.workflowCompletionLifecycle
     state = resetState(mode, state)
     state.workflowCompletionLifecycle = workflowCompletionLifecycle
@@ -1355,6 +1361,9 @@ async function main() {
     let progressiveSkillRouteMode = 'legacy'
     try {
       const { bootstrapSkillRouteForTurn } = require('./skill-route-tool.cjs')
+      const {
+        getLifecycleHostAdapterDigest
+      } = require('./host-adapter-identity.cjs')
       const route = bootstrapSkillRouteForTurn({
         project: state.contextAcquisition?.project,
         contextEpoch: state.contextAcquisition?.contextEpoch,
@@ -1363,7 +1372,8 @@ async function main() {
         cwd: CONTEXT_ROOT
       }, {
         inputRoot: CONTEXT_ROOT,
-        env: process.env
+        env: process.env,
+        hostAdapterDigest: getLifecycleHostAdapterDigest(platform)
       })
       progressiveSkillRouteMode = route.modeReceipt?.effective || 'legacy'
       progressiveSkillRouteMsg = route.injectionText || ''

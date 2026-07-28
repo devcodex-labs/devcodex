@@ -143,8 +143,20 @@ const installedCopilotHooks = JSON.parse(fs.readFileSync(
   'utf8'
 ))
 assert.strictEqual(installedCopilotHooks.version, 1)
-for (const event of ['UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'Stop', 'PreCompact']) {
+for (const event of [
+  'userPromptTransformed',
+  'preToolUse',
+  'postToolUse',
+  'agentStop',
+  'preCompact'
+]) {
   assert.ok(Array.isArray(installedCopilotHooks.hooks[event]), `packed Copilot hook missing ${event}`)
+  assert.ok(
+    installedCopilotHooks.hooks[event].some(hook =>
+      String(hook.command || '').includes(`--event ${event}`)
+    ),
+    `packed Copilot hook event binding missing ${event}`
+  )
 }
 const installedCopilotMcp = JSON.parse(fs.readFileSync(
   path.join(globalHome, '.copilot', 'mcp-config.json'),

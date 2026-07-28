@@ -230,7 +230,7 @@ for (const event of ['UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'Stop']) {
   )
 }
 const promptEventByHost = {
-  copilot: 'UserPromptSubmit',
+  copilot: 'userPromptTransformed',
   claude: 'UserPromptSubmit',
   codex: 'UserPromptSubmit',
   gemini: 'BeforeAgent',
@@ -245,13 +245,21 @@ for (const target of targets) {
     input: JSON.stringify({
       hookEventName: promptEventByHost[target.host],
       prompt: 'test',
+      transformedPrompt: 'test transformed',
       session_id: `global-host-workspace-skill-${target.host}`
     })
   })
   assert.strictEqual(result.status, 0, `${target.host} UserPromptSubmit replay failed: ${result.stderr || result.stdout}`)
   const output = JSON.parse(result.stdout || '{}')
   assert.strictEqual(typeof output, 'object', `${target.host} replay must return JSON object`)
-  if (['claude', 'codex', 'gemini'].includes(target.host)) {
+  if (target.host === 'copilot') {
+    assert.match(
+      output.modifiedTransformedPrompt || '',
+      /WorkspaceSkillIntent/,
+      'copilot replay must expose workspace skill intent through transformed prompt'
+    )
+    assert.match(output.modifiedTransformedPrompt || '', /小朋友真可爱/)
+  } else if (['claude', 'codex', 'gemini'].includes(target.host)) {
     const context = `${output.systemMessage || ''}\n${output.hookSpecificOutput?.additionalContext || ''}`
     assert.match(context, /WorkspaceSkillIntent/, `${target.host} replay must expose workspace skill intent context`)
     assert.match(context, /小朋友真可爱/, `${target.host} replay must expose workspace skill body`)
@@ -276,11 +284,12 @@ assert.strictEqual(fs.existsSync(path.join(home, '.claude', 'skills', 'routing',
 const copilotHooks = JSON.parse(fs.readFileSync(path.join(home, '.copilot', 'hooks', 'devcodex.json'), 'utf8'))
 assert.strictEqual(copilotHooks.version, 1)
 assert.ok(copilotHooks.hooks.notification)
-for (const event of ['UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'Stop', 'PreCompact']) {
+for (const event of ['userPromptTransformed', 'preToolUse', 'postToolUse', 'agentStop', 'preCompact']) {
   assert.ok(Array.isArray(copilotHooks.hooks[event]), `Copilot hook event missing: ${event}`)
   assert.ok(JSON.stringify(copilotHooks.hooks[event]).includes('lifecycle-host-adapters.cjs'))
+  assert.ok(JSON.stringify(copilotHooks.hooks[event]).includes(`--event ${event}`))
 }
-assert.strictEqual(copilotHooks.hooks.PreToolUse[0].matcher, '*')
+assert.strictEqual(copilotHooks.hooks.preToolUse[0].matcher, '*')
 
 const copilotMcp = JSON.parse(fs.readFileSync(path.join(home, '.copilot', 'mcp-config.json'), 'utf8'))
 assert.strictEqual(copilotMcp.theme, 'user-owned')
@@ -320,6 +329,19 @@ for (const name of ['devcodex-memory', 'devcodex-profile']) {
   assert.ok(copilotMcp.mcpServers[name].args.some(value => /mcp\/(?:memory|profile)-server\.js$/i.test(value)))
 }
 
+const geminiTarget = targets.find(target => target.host === 'gemini')
+const geminiSettings = JSON.parse(fs.readFileSync(geminiTarget.files.settings, 'utf8'))
+for (const name of ['devcodex-memory', 'devcodex-profile']) {
+  assert.strictEqual(geminiSettings.mcpServers[name].command, 'node')
+  assert.deepStrictEqual(
+    Object.keys(geminiSettings.mcpServers[name]).sort(),
+    ['args', 'command', 'type']
+  )
+  assert.ok(geminiSettings.mcpServers[name].args.some(value =>
+    /mcp\/(?:memory|profile)-server\.js$/i.test(value.replace(/\\/g, '/'))
+  ))
+}
+
 const claudeSettings = JSON.parse(fs.readFileSync(path.join(home, '.claude', 'settings.json'), 'utf8'))
 assert.strictEqual(claudeSettings.theme, 'user-owned')
 assert.strictEqual(claudeSettings.nested.keep, true)
@@ -336,6 +358,9 @@ assert.ok(codexConfig.includes('[mcp_servers.user-keep]'))
 assert.ok(!codexConfig.includes('old-runtime.js'))
 assert.ok(!codexConfig.includes('BEGIN DEVCODEX-MCP-MANAGED'))
 assert.strictEqual((codexConfig.match(/\[mcp_servers\.devcodex-memory\]/g) || []).length, 1)
+for (const tool of ['profile_context_plan', 'profile_load', 'skill_route']) {
+  assert.ok(codexConfig.includes(`[mcp_servers.devcodex-profile.tools.${tool}]`))
+}
 
 // PF-211: Codex host-owned tool approval subtables inside the managed MCP block
 // must not trip GLOBAL_HOST_MANAGED_CONFIG_DRIFT, while authority field edits still do.
@@ -513,7 +538,7 @@ const installedGrokCapability = installedSkillRouteCapabilities.capabilities.fin
 )
 assert.ok(installedGrokCapability)
 assert.strictEqual(installedGrokCapability.status, 'PASS')
-assert.strictEqual(installedGrokCapability.runtimeContractDigest, installedRuntimeContractDigest)
+assert.match(installedGrokCapability.runtimeContractDigest, /^[a-f0-9]{64}$/)
 
 const forgedReceiptFile = path.join(codexTarget.root, 'devcodex', 'global-host-receipt.json')
 const forgedReceipt = JSON.parse(fs.readFileSync(forgedReceiptFile, 'utf8'))

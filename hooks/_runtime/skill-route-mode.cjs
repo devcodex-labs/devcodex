@@ -13,6 +13,9 @@ const {
 const {
   resolveGlobalSkillRuntimeRoot
 } = require('./global-skill-runtime-root.cjs')
+const {
+  normalizeHostVariant
+} = require('./host-adapter-identity.cjs')
 
 const SOURCE_DEFAULT = 'legacy'
 const MODE_POLICY_VERSION = 'SkillRouteModeV1.2'
@@ -28,6 +31,9 @@ const RUNTIME_CONTRACT_FILES = Object.freeze([
   'skill-route-mode.cjs',
   'skill-route-state.cjs',
   'skill-route-tool.cjs',
+  'skill-route-retirement-gate.cjs',
+  'skill-route-retirement-policy.v1.json',
+  'host-adapter-identity.cjs',
   'global-skill-runtime-root.cjs',
   'context-read-contract.cjs',
   'context-plan-observation.cjs',
@@ -52,22 +58,6 @@ function readJson (file, fsImpl = fs) {
   } catch {
     return null
   }
-}
-
-function normalizeHostVariant (host) {
-  const value = String(host || '').trim().toLowerCase()
-  if (value === 'grok-cli-single/global-launcher-local-stdio') return value
-  if (['grok-cli-single', 'grok-single'].includes(value)) {
-    return 'grok-cli-single/global-launcher-local-stdio'
-  }
-  if (['claude', 'claude-code'].includes(value)) return 'claude-code/user-global-local-stdio'
-  if (value === 'codex') return 'codex/user-global-local-stdio'
-  if (['copilot', 'vscode-copilot', 'jetbrains-copilot'].includes(value)) {
-    return 'copilot/user-global-local-stdio'
-  }
-  if (['gemini', 'gemini-cli'].includes(value)) return 'gemini-cli/user-global-local-stdio'
-  if (value === 'grok') return 'grok/user-global-local-stdio'
-  return `${value || 'unknown'}/user-global-local-stdio`
 }
 
 function validateCapabilityDocument (document) {
@@ -220,6 +210,8 @@ function validateProbeAuthority (file, context, options = {}) {
 function resolveSkillRouteMode (options = {}) {
   const env = options.env || process.env
   const hostVariant = normalizeHostVariant(
+    options.hostVariant ||
+    env.DEVCODEX_HOST_VARIANT ||
     options.host ||
     env.DEVCODEX_AGENT ||
     (env.CLAUDE_PROJECT_DIR ? 'claude-code' : '')
@@ -292,6 +284,7 @@ function resolveSkillRouteMode (options = {}) {
     capabilityDocumentErrors: capabilityValidation.errors,
     capabilityRuntimeCurrent,
     capabilityAdapterCurrent,
+    probeAuthorityReason: probe.reasonCode,
     probeAuthority: probe.valid ? {
       probeRunId: probe.authority.probeRunId,
       expiresAt: probe.authority.expiresAt

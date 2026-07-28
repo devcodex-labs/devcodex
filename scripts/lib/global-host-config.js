@@ -183,21 +183,20 @@ function hookMap(runtimeFile, host, events) {
 }
 
 function copilotHookDocument(runtimeFile) {
-  const command = shellCommand(runtimeFile, 'copilot')
-  const entry = matcher => ({
+  const entry = (event, matcher) => ({
     type: 'command',
-    command,
+    command: `${shellCommand(runtimeFile, 'copilot')} --event ${event}`,
     ...(matcher ? { matcher } : {}),
     timeoutSec: 30
   })
   return {
     version: 1,
     hooks: {
-      UserPromptSubmit: [entry()],
-      PreToolUse: [entry('*')],
-      PostToolUse: [entry('*')],
-      Stop: [entry()],
-      PreCompact: [entry()]
+      userPromptTransformed: [entry('userPromptTransformed')],
+      preToolUse: [entry('preToolUse', '*')],
+      postToolUse: [entry('postToolUse', '*')],
+      agentStop: [entry('agentStop')],
+      preCompact: [entry('preCompact')]
     }
   }
 }
@@ -207,14 +206,12 @@ function buildMcpServers(runtimeRoot) {
     'devcodex-memory': {
       type: 'stdio',
       command: 'node',
-      args: [portable(path.join(runtimeRoot, 'mcp', 'memory-server.js')), '.'],
-      _note: 'Global DevCodex runtime; workspace state is discovered from the host cwd.'
+      args: [portable(path.join(runtimeRoot, 'mcp', 'memory-server.js')), '.']
     },
     'devcodex-profile': {
       type: 'stdio',
       command: 'node',
-      args: [portable(path.join(runtimeRoot, 'mcp', 'profile-server.js')), '.'],
-      _note: 'Global DevCodex runtime; workspace Profile remains under .devcodex.'
+      args: [portable(path.join(runtimeRoot, 'mcp', 'profile-server.js')), '.']
     }
   }
 }
@@ -268,9 +265,36 @@ function mergeVscodeUserMcpContent (existingText, runtimeRoot) {
   return `${JSON.stringify(doc, null, 2)}\n`
 }
 
+const CODEX_MCP_APPROVED_TOOLS = Object.freeze({
+  'devcodex-memory': Object.freeze([
+    'memory_cp_confirm',
+    'memory_session_allocate',
+    'memory_session_query',
+    'memory_session_read',
+    'memory_session_write',
+    'memory_status',
+    'memory_summary_append',
+    'memory_summary_query',
+    'memory_summary_read',
+    'memory_task_resolve'
+  ]),
+  'devcodex-profile': Object.freeze([
+    'profile_context_plan',
+    'profile_load',
+    'skill_route'
+  ])
+})
+
+function codexMcpTableNames () {
+  return Object.entries(CODEX_MCP_APPROVED_TOOLS).flatMap(([server, tools]) => [
+    `mcp_servers.${server}`,
+    ...tools.map(tool => `mcp_servers.${server}.tools.${tool}`)
+  ])
+}
+
 function codexTomlBlock(target) {
   const servers = buildMcpServers(target.runtimeRoot)
-  return [
+  const lines = [
     '# Managed by npm install/update -g devcodex.',
     '[mcp_servers.devcodex-memory]',
     'command = "node"',
@@ -281,7 +305,17 @@ function codexTomlBlock(target) {
     'command = "node"',
     `args = [${servers['devcodex-profile'].args.map(quoteToml).join(', ')}]`,
     'startup_timeout_sec = 30'
-  ].join('\n')
+  ]
+  for (const [server, tools] of Object.entries(CODEX_MCP_APPROVED_TOOLS)) {
+    for (const tool of tools) {
+      lines.push(
+        '',
+        `[mcp_servers.${server}.tools.${tool}]`,
+        'approval_mode = "approve"'
+      )
+    }
+  }
+  return lines.join('\n')
 }
 
 function transformedHookTemplate(packageRoot, target, sourceRelative, host, fsImpl = fs) {
@@ -454,7 +488,7 @@ function addCodexPlan(operations, target, packageRoot, fsImpl) {
     path: target.files.config,
     content: mergeManagedTomlTables(readText(target.files.config, fsImpl), managedCodexToml, {
       id: 'global-codex-mcp',
-      tableNames: ['mcp_servers.devcodex-memory', 'mcp_servers.devcodex-profile'],
+      tableNames: codexMcpTableNames(),
       legacyMarkers: [{
         begin: '# BEGIN DEVCODEX-MCP-MANAGED',
         end: '# END DEVCODEX-MCP-MANAGED'
@@ -479,6 +513,7 @@ function addGeminiPlan(operations, target, packageRoot, fsImpl) {
     managedInstruction('', source, 'gemini')
   )
   const settings = transformedHookTemplate(packageRoot, target, path.join('gemini', 'settings.json'), 'gemini', fsImpl)
+  settings.mcpServers = buildMcpServers(target.runtimeRoot)
   addFileOperation(
     operations,
     target.host,

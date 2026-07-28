@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "review-checklist",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "复审清单整理与审查规范",
+      "include": [
+        "review-checklist",
+        "review",
+        "checklist"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "复审清单整理与审查规范领域任务",
+      "复审清单整理与审查规范专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "复审清单整理与审查规范 — 创建、冻结、证据执行、状态更新与收敛关闭"
+}

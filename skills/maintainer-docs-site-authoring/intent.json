@@ -1,0 +1,30 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "maintainer-docs-site-authoring",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "维护者/贡献者开发站点文档写作",
+      "include": [
+        "ADR",
+        "internals",
+        "runbook",
+        "maintainer",
+        "docs",
+        "site",
+        "authoring"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "维护者/贡献者开发站点文档写作领域任务",
+      "维护者/贡献者开发站点文档写作专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "维护者/贡献者开发站点文档写作 Owner — 本地开发、贡献、测试、发版 runbook、internals/ADR；与用户使用站不等价；写文档时经 DocsAudienceIntent 路由。"
+}

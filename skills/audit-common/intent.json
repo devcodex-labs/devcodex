@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "audit-common",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "审查公共维度 G0~G5 + Profile Freshness Check",
+      "include": [
+        "Check",
+        "Freshness",
+        "Profile",
+        "audit",
+        "audit-common",
+        "common"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "审查公共维度 G0~G5 + Profile Freshn...领域任务",
+      "审查公共维度 G0~G5 + Profile Freshn...专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "审查公共维度 G0~G5 + Profile Freshness Check — 所有 audit 子类型必先执行的基础维度层"
+}

@@ -1,0 +1,31 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "api-contract-architecture",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "API 契约架构专家",
+      "include": [
+        "API",
+        "CLI",
+        "HTTP",
+        "SDK",
+        "Schema",
+        "public",
+        "contract",
+        "architecture"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "API 契约架构专家领域任务",
+      "API 契约架构专家专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "API 契约架构专家 Owner — 当任务涉及 public API、HTTP/SDK/CLI 契约、版本兼容、错误模型、分页过滤、幂等、Schema、类型、迁移或消费者影响时使用；要求先冻结消费者契约，再设计实现与验证。"
+}

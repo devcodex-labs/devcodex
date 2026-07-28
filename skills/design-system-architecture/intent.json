@@ -1,0 +1,28 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "design-system-architecture",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "设计系统架构专家",
+      "include": [
+        "Figma",
+        "Token",
+        "design",
+        "system",
+        "architecture"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "设计系统架构专家领域任务",
+      "设计系统架构专家专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "设计系统架构专家 Owner — 当任务涉及设计系统、主题、Token、组件变体、Figma/代码同步、UI 一致性、可访问性、国际化、品牌视觉或组件库治理时使用；要求把视觉规则沉淀为可复用、可验证的系统契约。"
+}

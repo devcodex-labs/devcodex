@@ -1,0 +1,31 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "audit-session",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "审计工作流的跨会话状态机",
+      "include": [
+        "Token",
+        "audit-root",
+        "audit-session",
+        "audit-state",
+        "json",
+        "session-id",
+        "audit",
+        "session"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "审计工作流的跨会话状态机领域任务",
+      "审计工作流的跨会话状态机专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "审计工作流的跨会话状态机 — 在 <audit-root>/.audit-state/<session-id>.json 持久化轮次/发现项/收敛状态，支持 Token 中断后精准恢复"
+}

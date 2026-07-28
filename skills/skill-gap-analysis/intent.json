@@ -1,0 +1,25 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "skill-gap-analysis",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "Skill 缺口与大语料分析",
+      "include": [
+        "gap",
+        "analysis"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "Skill 缺口与大语料分析领域任务",
+      "Skill 缺口与大语料分析专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "Skill 缺口与大语料分析 Owner — 当任务涉及项目/工作区产物扫描、能力盘点、缺少哪些 Skill、全量审查前规模判断、大目录分批、抽样深读、扫描恢复或自我进化候选发现时使用；要求先识别项目并形成规模决策，再进行有边界的证据扫描。"
+}

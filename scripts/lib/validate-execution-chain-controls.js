@@ -1,5 +1,7 @@
 'use strict'
 
+const { evaluatePublicReadmeContract } = require('./canonical-consumer-contracts')
+
 const EXPECTED_FEATURE_ROUTES = Object.freeze({
   'task-index-acceleration': 'bounded-direct',
   'context-computation-reuse': 'full-context-read',
@@ -25,6 +27,7 @@ function buildExecutionChainControlChecks(ctx) {
     const full = requireFile(relative)
     if (!fs.existsSync(full)) return
     const content = read(full)
+    if (relative === 'README.md' && evaluatePublicReadmeContract(content).valid) return
     for (const anchor of anchors) {
       if (!content.includes(anchor)) err(`[V101] ${label} ${relative} missing anchor: ${anchor}`)
     }

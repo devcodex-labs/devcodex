@@ -141,6 +141,10 @@ devcodex profile plan|init
 | 工作区 skill（W 优先） | `.devcodex/workspace/skills/<id>/SKILL.md` |
 | 全局 skill（hidden） | `~/.agents/devcodex/skills/<id>/`（菜单可能不显示，仍可加载） |
 
+**未发布源码候选**：渐进式 Skill 路由会在每轮建立 W + managed G 动态快照，再按 catalog → commit → stage 分页加载正文；全程使用宿主按需启动的本地 stdio MCP 子进程，不监听端口，也不需要服务端。新增或修改 `.devcodex/workspace/skills/<id>/SKILL.md` 会让旧快照失效，并在下一轮重新发现。
+
+Codex/Claude 等宿主自己的 `AGENTS.md`、`CLAUDE.md`、原生个人/项目 Skill 仍由宿主负责发现。DevCodex 不扫描、复制、合并、覆盖或删除这些用户资产；同名也不视为 DevCodex 所有权。Codex 项目指令使用 `AGENTS.md`（不是 `codex.md`），Claude 项目指令使用精确文件名 `CLAUDE.md`，Skill 入口使用精确文件名 `SKILL.md`。
+
 ---
 
 ## 宿主能力（诚实上限）
@@ -148,7 +152,7 @@ devcodex profile plan|init
 | 宿主 | 大致能力 |
 |------|----------|
 | Claude Code / Codex / Copilot CLI 等 | Hook 较完整时可硬拦危险命令、Stop 收口 |
-| **Grok** | **Partial**：UserPromptSubmit **不能**可靠注入；靠读 skill + 条件 Stop |
+| **Grok** | **Partial**：UserPromptSubmit **不能**可靠注入；`devcodex grok` 的 exact global-launcher + local-stdio 变体通过新鲜 S15 时可使用渐进式 Skill 路由，其他入口回退 legacy |
 | 仅 Instruction 的 surface | 语义约束，不保证硬拦 |
 
 「adapter 已安装」≠「五宿主能力完全一致」。
@@ -245,7 +249,7 @@ Node：`^20.19 || >=22.12`（仅文档站）。
 ## 用户可见交付与链接兼容
 
 用户可见交付物应带可定位路径（工作区相对路径优先）；宿主证据不足时用 portable 链接，不假装全宿主可点。  
-MCP 侧常见入口含 `profile_load`；工作流技能按意图 **invoke**（按需读取，非整库预载）。  
+MCP 侧先用 `profile_context_plan` 生成有界计划，再由 `profile_load` 完成选定正文；记忆侧先用 `memory_status` 定位，再按需查询。完成状态以绑定的 `ContextReadReceiptV2` 为准，V1 receipt 只作兼容读取。工作流技能按意图 **invoke**（按需读取，非整库预载）。
 用户侧文档 review 聚合见 skill `audit-user-manual`。  
 规范侧：`PromptLongGateListDriftProbe`（V75）。
 

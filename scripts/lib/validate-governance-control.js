@@ -419,7 +419,7 @@ function buildGovernanceControlChecks(ctx) {
 
     for (const probe of mustNots) {
       const content = read(path.join(ROOT, probe.file))
-      if (content.includes(probe.needle)) {
+      if (String(content).includes(probe.needle)) {
         err(`[V24] governance/client drift in ${probe.file}: contains legacy text "${probe.needle}"`)
       }
     }

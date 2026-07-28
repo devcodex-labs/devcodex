@@ -1,0 +1,31 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "dev-plan-review",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "技术方案验证（两阶段质量门禁）",
+      "include": [
+        "CP2",
+        "PR-1",
+        "PR-2",
+        "PR-7",
+        "dev-plan-review",
+        "dev",
+        "plan",
+        "review"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "技术方案验证（两阶段质量门禁）领域任务",
+      "技术方案验证（两阶段质量门禁）专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "技术方案验证（两阶段质量门禁）— PR-1 CP2 前自检 + PR-2～PR-7 详细验证，阻断不合格方案进入编码"
+}

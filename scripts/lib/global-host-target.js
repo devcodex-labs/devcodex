@@ -229,6 +229,7 @@ function resolveGlobalHostTarget(host, options = {}) {
     evidenceCeiling: 'Grok user plugin/config plus global launcher',
     files: {
       config: path.join(root, 'config.toml'),
+      hooks: path.join(root, 'hooks', 'devcodex.json'),
       plugin: path.join(root, 'devcodex', 'plugins', 'devcodex-workspace')
     }
   })

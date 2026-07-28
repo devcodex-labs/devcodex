@@ -2,6 +2,7 @@
 
 const fs = require('fs')
 const path = require('path')
+const { evaluatePublicReadmeContract } = require('./canonical-consumer-contracts')
 
 const REQUIRED_DEFINITIONS = [
   'WorkflowCompletionCandidateV1',
@@ -158,6 +159,13 @@ function inspectWorkflowCompletionControls(root, io = {}) {
   }
   for (const [relative, anchors] of publicConsumers) {
     const content = read(relative)
+    if (relative === 'README.md') {
+      const contract = evaluatePublicReadmeContract(content)
+      if (!contract.valid) {
+        issues.push(`completion-public-consumer-drift:README.md:PublicReadmeContractV1:${contract.missing.join('|')}`)
+      }
+      continue
+    }
     for (const anchor of anchors) if (!content.includes(anchor)) issues.push(`completion-public-consumer-drift:${relative}:${anchor}`)
   }
 

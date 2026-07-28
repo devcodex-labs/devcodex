@@ -199,12 +199,23 @@ const devPlan = assertPlan(buildContextReadPlan(makeInput('dev', ['source-code']
 assert.strictEqual(devPlan.executionOptimization.schemaVersion, CONTEXT_READ_CONTRACT.schemas.executionOptimizationBinding)
 assert.strictEqual(devPlan.executionOptimization.mode, 'safe-auto')
 assert.strictEqual(devPlan.executionOptimization.status, 'defaulted')
+assert.deepStrictEqual(devPlan.contextBinding, {
+  schemaVersion: 'ContextReadBindingV1',
+  contextEpoch: devPlan.identity.contextEpoch,
+  planId: devPlan.planId,
+  planContentId: devPlan.planContentId,
+  activeRoot: devPlan.identity.activeRoot,
+  project: devPlan.identity.project
+})
 assert.deepStrictEqual(devPlan.profile.selectedFiles, STANDARD_FILES.slice(0, 3))
 assert(devPlan.selectedSources.some(source => source.sourceId === 'profile:README.md' && source.kind === 'profile-baseline'))
 assert(devPlan.selectedSources.some(source => source.sourceId === 'profile:config.json' && source.kind === 'profile-baseline'))
 assert.deepStrictEqual(devPlan.memory.requiredQueries, ['memory_status'])
 assert(devPlan.actionEnvelope.allowedActionClasses.includes('source-mutation'))
 assert.strictEqual(devPlan.catalogCoverage.unclassifiedIds.length, 0)
+const forgedContextBindingPlan = clone(devPlan)
+forgedContextBindingPlan.contextBinding.planId = 'plan-forged'
+assert.strictEqual(validateContextReadPlan(forgedContextBindingPlan).valid, false)
 
 const stablePlan = assertPlan(buildContextReadPlan(makeInput('dev', ['source-code'], {
   planningTelemetry: { latencyMs: 999, inputTokens: 17 }
@@ -700,7 +711,7 @@ assert.strictEqual(sourceDecision.delivery.reuse, false)
 assert.strictEqual(sourceDecision.delivery.reasonCode, 'source-identity-mismatch')
 
 const legacyPlan = clone(devPlan)
-  for (const field of ['planContentId', 'identityInputs', 'executionOptimization', 'reusePolicy', 'stageTiming', 'cacheDecision']) delete legacyPlan[field]
+for (const field of ['planContentId', 'contextBinding', 'identityInputs', 'executionOptimization', 'reusePolicy', 'stageTiming', 'cacheDecision']) delete legacyPlan[field]
 legacyPlan.schemaVersion = CONTEXT_READ_CONTRACT.schemas.planV1
 legacyPlan.freshness = {
   strategy: 'size+mtimeMs+metadataDigest',

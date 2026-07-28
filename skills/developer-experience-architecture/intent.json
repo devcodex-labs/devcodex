@@ -1,0 +1,31 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "developer-experience-architecture",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "开发者体验架构专家",
+      "include": [
+        "API",
+        "CLI",
+        "Hook",
+        "README",
+        "SDK",
+        "quick",
+        "start",
+        "developer"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "开发者体验架构专家领域任务",
+      "开发者体验架构专家专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "开发者体验架构专家 Owner — 当任务涉及 CLI、SDK、API、Hook、插件、框架、README、quick start、示例、错误信息、迁移、贡献路径或开发者接入体验时使用；要求验证第一次成功路径、真实示例、错误恢复和维护者消费链。"
+}

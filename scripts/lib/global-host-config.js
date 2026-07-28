@@ -26,7 +26,10 @@ const {
   createSkillDeployFileFilter,
   listManagedSkillIds,
   listPrunableSkillIds,
-  pruneManagedSkillDirs
+  MANAGED_SKILL_MARKER,
+  pruneManagedSkillDirs,
+  verifyManagedSkillDirOwnership,
+  buildPreservedCollision
 } = require('./skill-deploy-filter.js')
 const { resolveSkillsDeployMode } = require('./skills-deploy-mode.js')
 const {
@@ -488,6 +491,25 @@ function addGeminiPlan(operations, target, packageRoot, fsImpl) {
 
 function addGrokPlan(operations, target, packageRoot, fsImpl) {
   addCommonRuntime(operations, target, packageRoot, fsImpl)
+  const globalHooks = transformedHookTemplate(
+    packageRoot,
+    target,
+    path.join('grok', 'hooks', 'devcodex.json'),
+    'grok',
+    fsImpl
+  )
+  addFileOperation(
+    operations,
+    target.host,
+    target.files.hooks,
+    mergeHostJsonContent(
+      readText(target.files.hooks, fsImpl),
+      globalHooks,
+      'Grok global hooks'
+    ),
+    'json',
+    `${JSON.stringify(globalHooks, null, 2)}\n`
+  )
   const pluginSource = path.join(packageRoot, 'grok', 'plugins', 'devcodex-workspace')
   addSourceTree(operations, target.host, pluginSource, target.files.plugin, fsImpl)
 
@@ -620,6 +642,10 @@ function reusableUpdatedAt(previousReceipt, nextReceipt) {
   if (previousReceipt.sourceDigest !== nextReceipt.sourceDigest) return null
   if (previousReceipt.planDigest !== nextReceipt.planDigest) return null
   if (!sameStringArray(previousReceipt.managedPaths, nextReceipt.managedPaths)) return null
+  if (!isDeepStrictEqual(
+    previousReceipt.managedFileDigests || {},
+    nextReceipt.managedFileDigests || {}
+  )) return null
   if (!sameStringArray(
     previousReceipt.pendingStaleManagedPaths || [],
     nextReceipt.pendingStaleManagedPaths || []
@@ -649,9 +675,10 @@ function staleManagedPaths(previousReceipt, currentManagedPaths, target, fsImpl 
     .filter(file => fsImpl.existsSync(file))
 }
 
-function removeStaleManagedPaths(paths, target, fsImpl = fs) {
+function removeStaleManagedPaths(paths, target, fsImpl = fs, options = {}) {
   const removed = []
   const failures = []
+  const requiredDigests = options.requiredDigests || {}
   for (const file of paths || []) {
     try {
       if (!targetAcceptsPath(target, file, fsImpl) || samePath(file, target.receiptFile)) {
@@ -662,6 +689,21 @@ function removeStaleManagedPaths(paths, target, fsImpl = fs) {
       if (!fsImpl.existsSync(file)) continue
       const stat = fsImpl.statSync(file)
       if (!stat.isFile()) continue
+      const key = portable(file)
+      if (Object.prototype.hasOwnProperty.call(requiredDigests, key)) {
+        const expected = String(requiredDigests[key] || '')
+        if (!/^[a-f0-9]{64}$/.test(expected)) {
+          const error = new Error(`GLOBAL_HOST_STALE_OWNERSHIP_PROOF_MISSING: ${file}`)
+          error.code = 'GLOBAL_HOST_STALE_OWNERSHIP_PROOF_MISSING'
+          throw error
+        }
+        const actual = digestText(fsImpl.readFileSync(file, 'utf8'))
+        if (actual !== expected) {
+          const error = new Error(`GLOBAL_HOST_STALE_MANAGED_MODIFIED: ${file}`)
+          error.code = 'GLOBAL_HOST_STALE_MANAGED_MODIFIED'
+          throw error
+        }
+      }
       fsImpl.unlinkSync(file)
       removed.push(file)
     } catch (error) {
@@ -675,13 +717,139 @@ function removeStaleManagedPaths(paths, target, fsImpl = fs) {
   return { removed, failures }
 }
 
-function collectHiddenPruneRoots (target) {
+function collectHostNativeSkillRoots (target) {
   const roots = []
   if (!target) return roots
-  if (target.shared && target.shared.skills) roots.push(target.shared.skills)
+  if (target.shared && target.shared.skills && target.sharedRuntimeOwner !== false) roots.push(target.shared.skills)
   if (target.host === 'claude') roots.push(path.join(target.root, 'skills'))
   if (target.host === 'copilot' && target.files && target.files.skills) roots.push(target.files.skills)
-  return roots
+  return Array.from(new Set(roots.map(root => path.resolve(root))))
+}
+
+function pathIsInside (root, target) {
+  const rel = path.relative(path.resolve(root), path.resolve(target))
+  return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel))
+}
+
+function receiptManagedDigest (receipt, file) {
+  for (const [candidate, digest] of Object.entries(receipt?.managedFileDigests || {})) {
+    if (samePath(candidate, file)) return String(digest)
+  }
+  return null
+}
+
+function addNativeSkillOwnershipMarkers (operations, roots, skillIds) {
+  const allowedIds = new Set(skillIds || [])
+  for (const root of roots || []) {
+    const bySkill = new Map()
+    for (const operation of operations) {
+      const rel = path.relative(root, path.resolve(operation.path))
+      if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) continue
+      const [skillId] = rel.split(path.sep)
+      if (!allowedIds.has(skillId) ||
+          path.basename(operation.path) === MANAGED_SKILL_MARKER) continue
+      if (!bySkill.has(skillId)) bySkill.set(skillId, [])
+      bySkill.get(skillId).push(operation)
+    }
+    for (const [skillId, skillOperations] of bySkill) {
+      const skillDir = path.join(root, skillId)
+      const files = skillOperations
+        .map(operation => ({
+          path: path.relative(skillDir, operation.path).replace(/\\/g, '/'),
+          digest: digestText(
+            Object.prototype.hasOwnProperty.call(operation, 'managedContent')
+              ? operation.managedContent
+              : operation.content
+          )
+        }))
+        .sort((left, right) => left.path.localeCompare(right.path))
+      const marker = {
+        schemaVersion: 'DevCodexManagedSkillOwnershipV1',
+        owner: 'devcodex',
+        skillId,
+        files
+      }
+      addFileOperation(
+        operations,
+        skillOperations[0].host,
+        path.join(skillDir, MANAGED_SKILL_MARKER),
+        `${JSON.stringify(marker, null, 2)}\n`,
+        'json'
+      )
+    }
+  }
+}
+
+function previousReceiptSkillDirOwnership (previousReceipt, skillDir, fsImpl = fs) {
+  return verifyManagedSkillDirOwnership(skillDir, fsImpl, {
+    ownershipPaths: previousReceipt?.managedPaths || [],
+    ownershipDigests: previousReceipt?.managedFileDigests || {}
+  })
+}
+
+function resolveNativeSkillOperation (operation, roots, skillIds) {
+  const ids = skillIds instanceof Set ? skillIds : new Set(skillIds || [])
+  for (const root of roots) {
+    const rel = path.relative(root, path.resolve(operation.path))
+    if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) continue
+    const skillId = rel.split(path.sep)[0]
+    if (!ids.has(skillId)) continue
+    return { root, skillId, skillDir: path.join(root, skillId) }
+  }
+  return null
+}
+
+function preserveUnownedNativeSkillOperations (
+  operations,
+  roots,
+  skillIds,
+  previousReceipt,
+  fsImpl = fs
+) {
+  const blockedDirs = new Map()
+  const idSet = new Set(skillIds || [])
+  for (const operation of operations) {
+    const match = resolveNativeSkillOperation(operation, roots, idSet)
+    if (!match || !fsImpl.existsSync(match.skillDir)) continue
+    const ownership = previousReceiptSkillDirOwnership(previousReceipt, match.skillDir, fsImpl)
+    if (ownership.owned) continue
+    blockedDirs.set(portable(match.skillDir), {
+      ...match,
+      reasonCode: ownership.reasonCode
+    })
+  }
+  const filtered = operations.filter(operation => {
+    const match = resolveNativeSkillOperation(operation, roots, idSet)
+    return !match || !blockedDirs.has(portable(match.skillDir))
+  })
+  const preservedCollisions = [...blockedDirs.values()].map(match =>
+    buildPreservedCollision(match.skillDir, match.skillId, match.reasonCode, fsImpl)
+  )
+  return { operations: filtered, preservedCollisions }
+}
+
+function collectUnownedNativeSkillCollisions (
+  roots,
+  skillIds,
+  previousReceipt,
+  fsImpl = fs
+) {
+  const collisions = []
+  for (const root of roots) {
+    for (const skillId of skillIds || []) {
+      const skillDir = path.join(root, skillId)
+      if (!fsImpl.existsSync(skillDir)) continue
+      const ownership = previousReceiptSkillDirOwnership(previousReceipt, skillDir, fsImpl)
+      if (ownership.owned) continue
+      collisions.push(buildPreservedCollision(
+        skillDir,
+        skillId,
+        ownership.reasonCode,
+        fsImpl
+      ))
+    }
+  }
+  return collisions
 }
 
 function buildGlobalHostConfigPlan(options = {}) {
@@ -707,14 +875,45 @@ function buildGlobalHostConfigPlan(options = {}) {
   for (const target of targets) {
     const hostOperations = []
     try {
-      hostPlanBuilder(target.host)(hostOperations, {
+      const targetWithOwner = {
         ...target,
         sharedRuntimeOwner: target.host === sharedRuntimeOwnerHost,
         skillsDeployMode
-      }, packageRoot, fsImpl)
+      }
+      hostPlanBuilder(target.host)(hostOperations, targetWithOwner, packageRoot, fsImpl)
+      const nativeRoots = collectHostNativeSkillRoots(targetWithOwner)
+      addNativeSkillOwnershipMarkers(hostOperations, nativeRoots, prunableSkillIds)
+      const previousReceiptText = options.ignoreExistingReceipts ? '' : readText(target.receiptFile, fsImpl)
+      let previousReceipt = null
+      if (previousReceiptText) {
+        try {
+          previousReceipt = parseJsonObject(previousReceiptText, `${target.host} previous receipt`)
+        } catch {
+          previousReceipt = null
+        }
+      }
+      const ownershipFilter = preserveUnownedNativeSkillOperations(
+        hostOperations,
+        nativeRoots,
+        prunableSkillIds,
+        previousReceipt,
+        fsImpl
+      )
+      hostOperations.splice(0, hostOperations.length, ...ownershipFilter.operations)
+      const preservedNativeSkillCollisions = [
+        ...ownershipFilter.preservedCollisions,
+        ...collectUnownedNativeSkillCollisions(
+          nativeRoots,
+          prunableSkillIds,
+          previousReceipt,
+          fsImpl
+        )
+      ].filter((item, index, all) =>
+        all.findIndex(other => other.path === item.path) === index
+      )
       const pruneRoots = []
       if (skillsDeployMode === 'hidden') {
-        for (const root of collectHiddenPruneRoots({ ...target, sharedRuntimeOwner: target.host === sharedRuntimeOwnerHost })) {
+        for (const root of nativeRoots) {
           const key = portable(root)
           // shared.skills prune once (owner host only)
           if (target.shared && samePath(root, target.shared.skills) && target.host !== sharedRuntimeOwnerHost) {
@@ -730,8 +929,23 @@ function buildGlobalHostConfigPlan(options = {}) {
         status: 'planned',
         operations: hostOperations,
         pruneManagedSkillRoots: pruneRoots,
+        pruneManagedSkillRequests: pruneRoots.map(root => ({
+          root,
+          skillIds: [...prunableSkillIds]
+        })),
+        nativeSkillRoots: nativeRoots,
         managedSkillIds,
-        prunableSkillIds
+        prunableSkillIds,
+        previousManagedPaths: Array.isArray(previousReceipt?.managedPaths)
+          ? previousReceipt.managedPaths.slice()
+          : [],
+        previousManagedFileDigests: previousReceipt?.managedFileDigests &&
+          typeof previousReceipt.managedFileDigests === 'object'
+          ? { ...previousReceipt.managedFileDigests }
+          : {},
+        preservedNativeSkillCollisions,
+        previousReceipt,
+        previousReceiptText
       })
     } catch (error) {
       hostPlans.push({
@@ -768,23 +982,70 @@ function buildGlobalHostConfigPlan(options = {}) {
     const hostPlan = hostPlans.find(item => item.host === target.host)
     if (hostPlan.status !== 'planned') continue
     const hostFiles = hostPlan.operations.map(operation => operation.path)
-    const previousReceiptText = options.ignoreExistingReceipts ? '' : readText(target.receiptFile, fsImpl)
-    let previousReceipt = null
-    if (previousReceiptText) {
-      try {
-        previousReceipt = parseJsonObject(previousReceiptText, `${target.host} previous receipt`)
-      } catch {
-        previousReceipt = null
-      }
-    }
+    const previousReceiptText = hostPlan.previousReceiptText || ''
+    const previousReceipt = hostPlan.previousReceipt || null
     const managedPaths = hostFiles.map(portable)
-    hostPlan.staleManagedPaths = staleManagedPaths(
+    const managedFileDigests = Object.fromEntries(
+      hostPlan.operations.map(operation => [
+        portable(operation.path),
+        digestText(
+          Object.prototype.hasOwnProperty.call(operation, 'managedContent')
+            ? operation.managedContent
+            : operation.content
+        )
+      ])
+    )
+    const allStaleManagedPaths = staleManagedPaths(
       previousReceipt,
       managedPaths,
       target,
       fsImpl,
       globallyManagedPaths
     )
+    const nativeStaleByRoot = new Map()
+    hostPlan.nativeStaleFileDigests = {}
+    hostPlan.staleManagedPaths = allStaleManagedPaths.filter(file => {
+      const root = (hostPlan.nativeSkillRoots || []).find(candidate =>
+        pathIsInside(candidate, file)
+      )
+      if (!root) return true
+      const rel = path.relative(root, file)
+      const skillId = rel.split(path.sep)[0]
+      if (!skillId || skillId === '..') return true
+      const skillDir = path.join(root, skillId)
+      const stillManagedInNativeRoot = hostPlan.operations.some(operation =>
+        pathIsInside(skillDir, operation.path)
+      )
+      if (stillManagedInNativeRoot) {
+        hostPlan.nativeStaleFileDigests[portable(file)] =
+          receiptManagedDigest(previousReceipt, file)
+        return true
+      }
+      const key = portable(root)
+      if (!nativeStaleByRoot.has(key)) {
+        nativeStaleByRoot.set(key, { root, skillIds: new Set() })
+      }
+      nativeStaleByRoot.get(key).skillIds.add(skillId)
+      return false
+    })
+    for (const request of nativeStaleByRoot.values()) {
+      const existing = (hostPlan.pruneManagedSkillRequests || []).find(item =>
+        samePath(item.root, request.root)
+      )
+      if (existing) {
+        existing.skillIds = [...new Set([
+          ...(existing.skillIds || []),
+          ...request.skillIds
+        ])]
+      } else {
+        hostPlan.pruneManagedSkillRequests.push({
+          root: request.root,
+          skillIds: [...request.skillIds]
+        })
+      }
+    }
+    hostPlan.pruneManagedSkillRoots = (hostPlan.pruneManagedSkillRequests || [])
+      .map(request => request.root)
     const pendingStaleManagedPaths = hostPlan.staleManagedPaths.map(portable)
     const previousEquivalent = previousReceipt &&
       previousReceipt.schemaVersion === GLOBAL_HOST_RECEIPT_SCHEMA &&
@@ -794,7 +1055,12 @@ function buildGlobalHostConfigPlan(options = {}) {
       previousReceipt.sourceDigest === preReceiptDigest &&
       previousReceipt.planDigest === preReceiptDigest &&
       sameStringArray(previousReceipt.managedPaths, managedPaths) &&
+      isDeepStrictEqual(previousReceipt.managedFileDigests || {}, managedFileDigests) &&
       sameStringArray(previousReceipt.pendingStaleManagedPaths || [], pendingStaleManagedPaths) &&
+      isDeepStrictEqual(
+        previousReceipt.preservedNativeSkillCollisions || [],
+        hostPlan.preservedNativeSkillCollisions || []
+      ) &&
       previousReceipt.result === 'committed'
     const receipt = {
       schemaVersion: GLOBAL_HOST_RECEIPT_SCHEMA,
@@ -816,8 +1082,10 @@ function buildGlobalHostConfigPlan(options = {}) {
       },
       runtimeRoot: portable(target.runtimeRoot),
       managedPaths,
+      managedFileDigests,
       configFiles: managedPaths,
       pendingStaleManagedPaths,
+      preservedNativeSkillCollisions: hostPlan.preservedNativeSkillCollisions || [],
       sourceDigest: preReceiptDigest,
       planDigest: preReceiptDigest,
       previousStateRef: previousEquivalent
@@ -895,8 +1163,16 @@ function applyGlobalHostConfig(options = {}) {
         dryRun: options.dryRun === true,
         failAfter
       })
+      hostTransaction.preservedNativeSkillCollisions = [
+        ...(hostPlan.preservedNativeSkillCollisions || [])
+      ]
       if (!options.dryRun && hostTransaction.status === 'committed') {
-        const staleCleanup = removeStaleManagedPaths(hostPlan.staleManagedPaths, target, fsImpl)
+        const staleCleanup = removeStaleManagedPaths(
+          hostPlan.staleManagedPaths,
+          target,
+          fsImpl,
+          { requiredDigests: hostPlan.nativeStaleFileDigests || {} }
+        )
         hostTransaction.removedStaleManagedPaths = staleCleanup.removed.map(portable)
         const pendingStaleManagedPaths = staleCleanup.failures.map(failure => failure.path)
         if (staleCleanup.failures.length) {
@@ -904,30 +1180,51 @@ function applyGlobalHostConfig(options = {}) {
           hostTransaction.staleCleanupFailures = staleCleanup.failures
         }
         // Directory prune for hidden mode (must not use file-only stale cleanup)
-        if (Array.isArray(hostPlan.pruneManagedSkillRoots) && hostPlan.pruneManagedSkillRoots.length) {
+        const pruneRequests = Array.isArray(hostPlan.pruneManagedSkillRequests)
+          ? hostPlan.pruneManagedSkillRequests
+          : (hostPlan.pruneManagedSkillRoots || []).map(root => ({
+              root,
+              skillIds: hostPlan.prunableSkillIds || hostPlan.managedSkillIds || []
+            }))
+        if (pruneRequests.length) {
           const pruned = []
           const pruneFailures = []
-          for (const scanRoot of hostPlan.pruneManagedSkillRoots) {
+          for (const request of pruneRequests) {
+            const scanRoot = request.root
             if (!targetAcceptsPath(target, scanRoot, fsImpl) &&
                 !(target.shared && isUnderPhysical(target.shared.root, scanRoot, fsImpl))) {
               continue
             }
             const result = pruneManagedSkillDirs(
               scanRoot,
-              hostPlan.prunableSkillIds || hostPlan.managedSkillIds || [],
+              request.skillIds || [],
               fsImpl,
-              { dryRun: false }
+              {
+                dryRun: false,
+                ownershipPaths: hostPlan.previousManagedPaths || [],
+                ownershipDigests: hostPlan.previousManagedFileDigests || {}
+              }
             )
             pruned.push(...result.removed.map(portable))
             pruneFailures.push(...result.failures)
+            hostTransaction.preservedNativeSkillCollisions = [
+              ...(hostTransaction.preservedNativeSkillCollisions || []),
+              ...(result.preservedCollisions || [])
+            ]
           }
           hostTransaction.prunedManagedSkillDirs = pruned
+          hostTransaction.preservedNativeSkillCollisions = [
+            ...(hostPlan.preservedNativeSkillCollisions || []),
+            ...(hostTransaction.preservedNativeSkillCollisions || [])
+          ].filter((item, index, all) =>
+            all.findIndex(other => other.path === item.path) === index
+          )
           if (pruneFailures.length) {
             hostTransaction.pruneManagedSkillIncomplete = true
             hostTransaction.pruneManagedSkillFailures = pruneFailures
           }
         }
-        if (hostPlan.staleManagedPaths.length) {
+        if (hostPlan.staleManagedPaths.length || pruneRequests.length) {
           const receiptOperation = hostPlan.operations.find(operation =>
             samePath(operation.path, target.receiptFile)
           )
@@ -936,7 +1233,15 @@ function applyGlobalHostConfig(options = {}) {
             const finalizedReceipt = {
               ...receipt,
               pendingStaleManagedPaths,
-              updatedAt: sameStringArray(receipt.pendingStaleManagedPaths || [], pendingStaleManagedPaths)
+              preservedNativeSkillCollisions:
+                hostTransaction.preservedNativeSkillCollisions || [],
+              updatedAt: sameStringArray(
+                receipt.pendingStaleManagedPaths || [],
+                pendingStaleManagedPaths
+              ) && isDeepStrictEqual(
+                receipt.preservedNativeSkillCollisions || [],
+                hostTransaction.preservedNativeSkillCollisions || []
+              )
                 ? receipt.updatedAt
                 : new Date().toISOString()
             }
@@ -1099,6 +1404,9 @@ function inspectGlobalHostConfiguration(options = {}) {
       typeof receipt.sourceDigest === 'string' &&
       typeof receipt.planDigest === 'string' &&
       Array.isArray(receipt.managedPaths) &&
+      receipt.managedFileDigests &&
+      typeof receipt.managedFileDigests === 'object' &&
+      !Array.isArray(receipt.managedFileDigests) &&
       Array.isArray(receipt.pendingStaleManagedPaths) &&
       Object.prototype.hasOwnProperty.call(receipt, 'previousStateRef') &&
       receipt.result === 'committed' &&
@@ -1109,6 +1417,10 @@ function inspectGlobalHostConfiguration(options = {}) {
       receipt?.sourceDigest === expectedReceipt.sourceDigest &&
       receipt?.planDigest === receipt?.sourceDigest &&
       sameStringArray(receipt?.managedPaths, expectedReceipt.managedPaths) &&
+      isDeepStrictEqual(
+        receipt?.managedFileDigests || {},
+        expectedReceipt.managedFileDigests || {}
+      ) &&
       sameStringArray(receipt?.pendingStaleManagedPaths, expectedReceipt.pendingStaleManagedPaths)
     const stale = Boolean(receipt) && (!receiptFieldsComplete || !receiptMatchesCurrent)
     const configured = Boolean(receipt) &&

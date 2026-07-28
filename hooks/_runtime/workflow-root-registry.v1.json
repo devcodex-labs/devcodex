@@ -1,0 +1,654 @@
+{
+  "schemaVersion": "WorkflowRootRegistryV1",
+  "sourceEvidence": [
+    {
+      "ref": "instructions/01-common.instructions.md",
+      "digest": "a70e9a1cb6a16e54a9c712ba00e3e19eab5e748ccd64c9f2a2855fa527ccbdd8"
+    },
+    {
+      "ref": "scripts/lib/host-parity-scorecard.js",
+      "digest": "4e4fabceba316db62aeb564f060933a4f2d61e1420ac4978103853c7f2d369a2"
+    },
+    {
+      "ref": "skills/routing/SKILL.md",
+      "digest": "4e05428e378b10e80889561eff0790232835d496a97744644a86cd2fdefd17f6"
+    }
+  ],
+  "sourceDigest": "0ab497cef225c716f5d9f30479fcf6ceb17b553089024538016a0c9bcfed29e9",
+  "baseBundles": {
+    "chat": [],
+    "resume": [
+      {
+        "skillId": "intent",
+        "budgetClass": "hard",
+        "loadStage": "entry"
+      },
+      {
+        "skillId": "compliance",
+        "budgetClass": "hard",
+        "loadStage": "entry"
+      },
+      {
+        "skillId": "user-visible-output-contract",
+        "budgetClass": "hard",
+        "loadStage": "entry"
+      },
+      {
+        "skillId": "memory",
+        "budgetClass": "hard",
+        "loadStage": "closeout"
+      }
+    ],
+    "analyze": [
+      {
+        "skillId": "intent",
+        "budgetClass": "hard",
+        "loadStage": "entry"
+      },
+      {
+        "skillId": "compliance",
+        "budgetClass": "hard",
+        "loadStage": "entry"
+      },
+      {
+        "skillId": "user-visible-output-contract",
+        "budgetClass": "hard",
+        "loadStage": "entry"
+      },
+      {
+        "skillId": "report",
+        "budgetClass": "hard",
+        "loadStage": "closeout"
+      },
+      {
+        "skillId": "memory",
+        "budgetClass": "hard",
+        "loadStage": "closeout"
+      }
+    ],
+    "audit": [
+      {
+        "skillId": "intent",
+        "budgetClass": "hard",
+        "loadStage": "entry"
+      },
+      {
+        "skillId": "compliance",
+        "budgetClass": "hard",
+        "loadStage": "entry"
+      },
+      {
+        "skillId": "user-visible-output-contract",
+        "budgetClass": "hard",
+        "loadStage": "entry"
+      },
+      {
+        "skillId": "report",
+        "budgetClass": "hard",
+        "loadStage": "closeout"
+      },
+      {
+        "skillId": "memory",
+        "budgetClass": "hard",
+        "loadStage": "closeout"
+      }
+    ],
+    "dev": [
+      {
+        "skillId": "intent",
+        "budgetClass": "hard",
+        "loadStage": "entry"
+      },
+      {
+        "skillId": "compliance",
+        "budgetClass": "hard",
+        "loadStage": "entry"
+      },
+      {
+        "skillId": "user-visible-output-contract",
+        "budgetClass": "hard",
+        "loadStage": "entry"
+      },
+      {
+        "skillId": "report",
+        "budgetClass": "hard",
+        "loadStage": "closeout"
+      },
+      {
+        "skillId": "memory",
+        "budgetClass": "hard",
+        "loadStage": "closeout"
+      }
+    ],
+    "fix": [
+      {
+        "skillId": "intent",
+        "budgetClass": "hard",
+        "loadStage": "entry"
+      },
+      {
+        "skillId": "compliance",
+        "budgetClass": "hard",
+        "loadStage": "entry"
+      },
+      {
+        "skillId": "user-visible-output-contract",
+        "budgetClass": "hard",
+        "loadStage": "entry"
+      },
+      {
+        "skillId": "report",
+        "budgetClass": "hard",
+        "loadStage": "closeout"
+      },
+      {
+        "skillId": "memory",
+        "budgetClass": "hard",
+        "loadStage": "closeout"
+      }
+    ],
+    "self-fix": [
+      {
+        "skillId": "intent",
+        "budgetClass": "hard",
+        "loadStage": "entry"
+      },
+      {
+        "skillId": "compliance",
+        "budgetClass": "hard",
+        "loadStage": "entry"
+      },
+      {
+        "skillId": "user-visible-output-contract",
+        "budgetClass": "hard",
+        "loadStage": "entry"
+      },
+      {
+        "skillId": "report",
+        "budgetClass": "hard",
+        "loadStage": "closeout"
+      },
+      {
+        "skillId": "memory",
+        "budgetClass": "hard",
+        "loadStage": "closeout"
+      }
+    ],
+    "other": [
+      {
+        "skillId": "intent",
+        "budgetClass": "hard",
+        "loadStage": "entry"
+      },
+      {
+        "skillId": "compliance",
+        "budgetClass": "hard",
+        "loadStage": "entry"
+      },
+      {
+        "skillId": "user-visible-output-contract",
+        "budgetClass": "hard",
+        "loadStage": "entry"
+      },
+      {
+        "skillId": "report",
+        "budgetClass": "hard",
+        "loadStage": "closeout"
+      },
+      {
+        "skillId": "memory",
+        "budgetClass": "hard",
+        "loadStage": "closeout"
+      }
+    ]
+  },
+  "routes": [
+    {
+      "routeKey": "dev.default",
+      "roots": [
+        {
+          "skillId": "dev-default",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        },
+        {
+          "skillId": "cp-gate",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        },
+        {
+          "skillId": "dev-plan-review",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        }
+      ]
+    },
+    {
+      "routeKey": "dev.refactor",
+      "roots": [
+        {
+          "skillId": "dev-refactor",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        },
+        {
+          "skillId": "cp-gate",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        },
+        {
+          "skillId": "dev-plan-review",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        }
+      ]
+    },
+    {
+      "routeKey": "dev.database",
+      "roots": [
+        {
+          "skillId": "dev-database",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        },
+        {
+          "skillId": "cp-gate",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        },
+        {
+          "skillId": "dev-plan-review",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        }
+      ]
+    },
+    {
+      "routeKey": "dev.init",
+      "roots": [
+        {
+          "skillId": "dev-init",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        }
+      ]
+    },
+    {
+      "routeKey": "dev.optimization",
+      "roots": [
+        {
+          "skillId": "dev-optimization",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        },
+        {
+          "skillId": "cp-gate",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        },
+        {
+          "skillId": "dev-plan-review",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        }
+      ]
+    },
+    {
+      "routeKey": "dev.scenario-test",
+      "roots": [
+        {
+          "skillId": "dev-scenario-test",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        },
+        {
+          "skillId": "cp-gate",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        }
+      ]
+    },
+    {
+      "routeKey": "dev.docs",
+      "roots": [
+        {
+          "skillId": "dev-docs",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        },
+        {
+          "skillId": "cp-gate",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        }
+      ]
+    },
+    {
+      "routeKey": "dev.plan-review",
+      "roots": [
+        {
+          "skillId": "audit-common",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        },
+        {
+          "skillId": "dev-plan-review",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        }
+      ]
+    },
+    {
+      "routeKey": "fix.default",
+      "roots": [
+        {
+          "skillId": "fix-default",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        },
+        {
+          "skillId": "cp-gate",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        }
+      ]
+    },
+    {
+      "routeKey": "fix.security",
+      "roots": [
+        {
+          "skillId": "fix-security",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        },
+        {
+          "skillId": "cp-gate",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        }
+      ]
+    },
+    {
+      "routeKey": "fix.incident",
+      "roots": []
+    },
+    {
+      "routeKey": "audit.规范文件",
+      "roots": [
+        {
+          "skillId": "audit-common",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        },
+        {
+          "skillId": "audit-dimensions",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        },
+        {
+          "skillId": "audit-execution-guide",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        },
+        {
+          "skillId": "audit-session",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        }
+      ]
+    },
+    {
+      "routeKey": "audit.技术方案",
+      "roots": [
+        {
+          "skillId": "audit-common",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        },
+        {
+          "skillId": "audit-tech-design",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        },
+        {
+          "skillId": "audit-session",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        }
+      ]
+    },
+    {
+      "routeKey": "audit.需求文档",
+      "roots": [
+        {
+          "skillId": "audit-common",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        },
+        {
+          "skillId": "audit-requirements",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        },
+        {
+          "skillId": "audit-session",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        }
+      ]
+    },
+    {
+      "routeKey": "audit.项目工程",
+      "roots": [
+        {
+          "skillId": "audit-common",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        },
+        {
+          "skillId": "audit-project",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        },
+        {
+          "skillId": "audit-session",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        }
+      ]
+    },
+    {
+      "routeKey": "audit.报告",
+      "roots": [
+        {
+          "skillId": "audit-common",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        },
+        {
+          "skillId": "audit-report",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        },
+        {
+          "skillId": "audit-session",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        }
+      ]
+    },
+    {
+      "routeKey": "audit.通用文档",
+      "roots": [
+        {
+          "skillId": "audit-common",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        },
+        {
+          "skillId": "audit-document",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        },
+        {
+          "skillId": "audit-session",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        },
+        {
+          "skillId": "audit-user-manual",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        },
+        {
+          "skillId": "audit-readme",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        }
+      ]
+    },
+    {
+      "routeKey": "audit.发布前审查",
+      "roots": [
+        {
+          "skillId": "audit-common",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        },
+        {
+          "skillId": "audit-release",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        },
+        {
+          "skillId": "audit-session",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        }
+      ]
+    },
+    {
+      "routeKey": "analyze.default",
+      "roots": []
+    },
+    {
+      "routeKey": "analyze.research",
+      "roots": [
+        {
+          "skillId": "analyze-research",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        }
+      ]
+    },
+    {
+      "routeKey": "self-fix",
+      "roots": []
+    },
+    {
+      "routeKey": "other",
+      "roots": [
+        {
+          "skillId": "plan",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        }
+      ]
+    },
+    {
+      "routeKey": "chat",
+      "roots": []
+    },
+    {
+      "routeKey": "resume",
+      "roots": [
+        {
+          "skillId": "memory",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        }
+      ]
+    }
+  ],
+  "conditionals": [
+    {
+      "conditionId": "control-plane",
+      "intents": [
+        "dev",
+        "fix",
+        "self-fix"
+      ],
+      "roots": [
+        {
+          "skillId": "spec-governance",
+          "budgetClass": "hard",
+          "loadStage": "execution:control-plane"
+        }
+      ],
+      "activationAuthority": "model",
+      "mutualExclusionGroup": null,
+      "sourceRef": "skills/routing/SKILL.md#按需触发-Skills"
+    },
+    {
+      "conditionId": "test-validation",
+      "intents": [
+        "dev",
+        "fix",
+        "self-fix"
+      ],
+      "roots": [
+        {
+          "skillId": "test-router",
+          "budgetClass": "hard",
+          "loadStage": "execution:test-validation"
+        }
+      ],
+      "activationAuthority": "model",
+      "mutualExclusionGroup": null,
+      "sourceRef": "skills/routing/SKILL.md#按需触发-Skills"
+    },
+    {
+      "conditionId": "host-contract",
+      "intents": [
+        "dev",
+        "fix",
+        "audit",
+        "analyze"
+      ],
+      "roots": [
+        {
+          "skillId": "host-contract-verification",
+          "budgetClass": "hard",
+          "loadStage": "execution:host-contract"
+        }
+      ],
+      "activationAuthority": "model",
+      "mutualExclusionGroup": null,
+      "sourceRef": "skills/routing/SKILL.md#按需触发-Skills"
+    },
+    {
+      "conditionId": "release",
+      "intents": [
+        "dev",
+        "fix",
+        "audit"
+      ],
+      "roots": [
+        {
+          "skillId": "audit-release",
+          "budgetClass": "hard",
+          "loadStage": "execution:release"
+        },
+        {
+          "skillId": "release-verification",
+          "budgetClass": "hard",
+          "loadStage": "execution:release"
+        }
+      ],
+      "activationAuthority": "model",
+      "mutualExclusionGroup": null,
+      "sourceRef": "skills/routing/SKILL.md#按需触发-Skills"
+    }
+  ],
+  "registryDigest": "afe4e29f762444ee728ce61ef3a9d9ae6e25350cc7b8d0b4ac0b3271b6fe3913"
+}

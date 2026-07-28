@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 'use strict'
 
+const fs = require('fs')
 const path = require('path')
 const { spawnSync } = require('child_process')
 
@@ -76,6 +77,61 @@ const EVENT_MAP = Object.freeze({
   grok: GROK_EVENT_MAP
 })
 
+function adapterTracePath(env = process.env) {
+  const raw = String(env.DEVCODEX_LIFECYCLE_TRACE || '').trim()
+  if (!raw) return ''
+  const target = path.resolve(raw)
+  const workspaceRoot = String(env.DEVCODEX_WORKSPACE_ROOT || '').trim()
+  if (!workspaceRoot) return ''
+  const relative = path.relative(path.resolve(workspaceRoot), target)
+  if (relative.startsWith('..') || path.isAbsolute(relative)) return ''
+  return target
+}
+
+function appendAdapterTrace(host, phase, input, normalized, result, env = process.env) {
+  const target = adapterTracePath(env)
+  if (!target) return
+  try {
+    const payload = input && typeof input === 'object' && !Array.isArray(input) ? input : {}
+    const toolInput = payload.toolInput || payload.tool_input || payload.toolArgs || {}
+    const toolResult = payload.toolResult || payload.tool_result || payload.toolResponse || payload.tool_response || {}
+    const entry = {
+      schemaVersion: 'LifecycleHostAdapterTraceV1',
+      observedAt: new Date().toISOString(),
+      host,
+      phase,
+      originalEvent: normalized?.originalEvent || null,
+      mappedEvent: normalized?.mappedEvent || null,
+      payloadKeys: Object.keys(payload).sort().slice(0, 64),
+      toolName: String(payload.toolName || payload.tool_name || ''),
+      toolUseId: String(payload.toolUseId || payload.tool_use_id || ''),
+      toolInputKeys: toolInput && typeof toolInput === 'object'
+        ? Object.keys(toolInput).sort().slice(0, 64)
+        : [],
+      dispatchedServer: String(
+        toolInput?.server || toolInput?.serverName || toolInput?.server_name || ''
+      ),
+      dispatchedTool: String(
+        toolInput?.tool || toolInput?.toolName || toolInput?.tool_name || toolInput?.name || ''
+      ),
+      toolResultKeys: toolResult && typeof toolResult === 'object'
+        ? Object.keys(toolResult).sort().slice(0, 64)
+        : [],
+      status: result?.status ?? null,
+      outputKeys: result?.output && typeof result.output === 'object'
+        ? Object.keys(result.output).sort().slice(0, 32)
+        : []
+    }
+    fs.mkdirSync(path.dirname(target), { recursive: true })
+    const prior = fs.existsSync(target)
+      ? fs.readFileSync(target, 'utf8').split(/\r?\n/).filter(Boolean).slice(-127)
+      : []
+    fs.writeFileSync(target, `${[...prior, JSON.stringify(entry)].join('\n')}\n`, 'utf8')
+  } catch {
+    // Diagnostics are opt-in and must never change Hook enforcement.
+  }
+}
+
 function mapGrokishEventName(raw) {
   const original = String(raw || '').trim()
   if (!original) return ''
@@ -101,6 +157,37 @@ function mapGrokishEventName(raw) {
   return byToken[token] || ''
 }
 
+function parseToolInputEnvelope(value) {
+  if (value && typeof value === 'object' && !Array.isArray(value)) return value
+  if (typeof value !== 'string') return null
+  try {
+    const parsed = JSON.parse(value)
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? parsed
+      : null
+  } catch {
+    return null
+  }
+}
+
+function normalizeGrokToolResult(value) {
+  const output = value && typeof value === 'object' && !Array.isArray(value) &&
+    Object.prototype.hasOwnProperty.call(value, 'output')
+    ? value.output
+    : value
+  if (!output || typeof output !== 'object' || Array.isArray(output)) return output
+  if (Object.prototype.hasOwnProperty.call(output, 'OkayOutput')) {
+    return output.OkayOutput
+  }
+  if (Object.prototype.hasOwnProperty.call(output, 'ErrorOutput')) {
+    return {
+      success: false,
+      error: output.ErrorOutput
+    }
+  }
+  return output
+}
+
 function normalizeHostPayload(host, payload) {
   const originalEvent = String(
     payload?.hookEventName || payload?.hook_event_name || payload?.eventName || payload?.event || ''
@@ -119,6 +206,26 @@ function normalizeHostPayload(host, payload) {
     if (normalized.toolName && !normalized.tool_name) normalized.tool_name = normalized.toolName
     if (normalized.toolInput && !normalized.tool_input) normalized.tool_input = normalized.toolInput
     if (normalized.toolArgs && !normalized.tool_input) normalized.tool_input = normalized.toolArgs
+  }
+  if (host === 'grok') {
+    const envelope = normalized.tool_input
+    const envelopeName = envelope && typeof envelope === 'object'
+      ? String(envelope.tool_name || envelope.toolName || '')
+      : ''
+    if (
+      envelopeName &&
+      envelopeName === String(normalized.tool_name || '') &&
+      Object.prototype.hasOwnProperty.call(envelope, 'tool_input')
+    ) {
+      const inner = parseToolInputEnvelope(envelope.tool_input)
+      if (inner) {
+        normalized.tool_input = inner
+        normalized.toolInput = inner
+      }
+    }
+    if (normalized.toolResult && !normalized.tool_result) {
+      normalized.tool_result = normalizeGrokToolResult(normalized.toolResult)
+    }
   }
   if (host === 'copilot') {
     if (normalized.sessionId && !normalized.session_id) normalized.session_id = normalized.sessionId
@@ -316,11 +423,12 @@ function runHostAdapter(host, input, options = {}) {
     return { status: 2, error: `Unsupported DevCodex host adapter: ${host || '(missing)'}`, output: null }
   }
   const normalized = normalizeHostPayload(host, input)
+  appendAdapterTrace(host, 'input', input, normalized, null, options.env || process.env)
   // Grok imports ~/.claude/settings.json hooks by default and invokes them with
   // camelCase payload keys plus Grok event values. Its dedicated DevCodex plugin
   // owns the lifecycle, so the imported Claude copy must not execute it twice.
   if (isGrokImportedClaudePayload(host, input, normalized.originalEvent)) {
-    return {
+    const bypass = {
       status: 0,
       error: '',
       output: {
@@ -328,6 +436,8 @@ function runHostAdapter(host, input, options = {}) {
         devcodexCompatibilityBypass: 'grok-imported-claude-hook'
       }
     }
+    appendAdapterTrace(host, 'output', input, normalized, bypass, options.env || process.env)
+    return bypass
   }
   if (!normalized.originalEvent || !normalized.mappedEvent) {
     return {
@@ -359,7 +469,9 @@ function runHostAdapter(host, input, options = {}) {
   try { output = child.stdout.trim() ? JSON.parse(child.stdout) : { continue: true } } catch (error) {
     return { status: 1, error: `invalid lifecycle output: ${error.message}`, output: null }
   }
-  return { status: 0, error: '', output: adaptHostOutput(host, normalized.originalEvent, output) }
+  const result = { status: 0, error: '', output: adaptHostOutput(host, normalized.originalEvent, output) }
+  appendAdapterTrace(host, 'output', input, normalized, result, options.env || process.env)
+  return result
 }
 
 function probeHostAdapterContract(host) {

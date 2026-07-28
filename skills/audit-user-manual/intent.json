@@ -1,0 +1,31 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "audit-user-manual",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "用户侧文档专项审查聚合入口",
+      "include": [
+        "README",
+        "quick",
+        "review",
+        "sidebar",
+        "start",
+        "audit",
+        "user",
+        "manual"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "用户侧文档专项审查聚合入口领域任务",
+      "用户侧文档专项审查聚合入口专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "用户侧文档专项审查聚合入口 — 用于审查最终用户文档、站点文档、文档站、README、quick start、接入手册、项目文档、菜单导航、sidebar、信息架构、文档设计、用户路径、配置排错、真实工作流、生成站点和维护者内容边界；当用户要求 review/审查/复审/检查用户侧文档或项目文档可用性时使用。"
+}

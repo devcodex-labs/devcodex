@@ -1,0 +1,27 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "distributed-systems-architecture",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "分布式系统架构专家",
+      "include": [
+        "RPC",
+        "distributed",
+        "systems",
+        "architecture"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "分布式系统架构专家领域任务",
+      "分布式系统架构专家专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "分布式系统架构专家 Owner — 当任务涉及消息队列、RPC、事件驱动、跨服务一致性、分布式锁/租约、交付语义、顺序、幂等、重试、补偿、分区、背压或故障注入时使用；要求把网络与重复执行视为常态并冻结可验证的不变量。"
+}

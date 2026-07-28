@@ -1,0 +1,30 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "report",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "生成并写入工作流执行报告。适用于 dev/fix/analyze/audi...",
+      "include": [
+        "analyze",
+        "audit",
+        "chat",
+        "dev",
+        "fix",
+        "report",
+        "self-fix"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "生成并写入工作流执行报告。适用于 dev/fix/anal...领域任务",
+      "生成并写入工作流执行报告。适用于 dev/fix/anal...专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "生成并写入工作流执行报告。适用于 dev/fix/analyze/audit/self-fix（chat 豁免）。"
+}

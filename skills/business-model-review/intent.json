@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "business-model-review",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "商业模型审查专家",
+      "include": [
+        "business",
+        "model",
+        "review"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "商业模型审查专家领域任务",
+      "商业模型审查专家专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "商业模型审查专家 Owner — 当任务涉及商业化、定价、套餐、成本收益、收入模型、运营负担、市场渠道、付费路径、商业风险或长期可持续性时使用；要求把技术方案和产品范围绑定到价值交换、成本结构和可持续运营。"
+}

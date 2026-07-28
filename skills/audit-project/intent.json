@@ -1,0 +1,28 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "audit-project",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "项目工程审查维度 PE-1~PE-12",
+      "include": [
+        "PE-1",
+        "PE-12",
+        "audit-project",
+        "audit",
+        "project"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "项目工程审查维度 PE-1~PE-12领域任务",
+      "项目工程审查维度 PE-1~PE-12专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "项目工程审查维度 PE-1~PE-12 — 代码质量/项目结构/依赖安全/资源泄漏专属审查层"
+}

@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "load-profile",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "项目 Profile 加载规范",
+      "include": [
+        "Profile",
+        "load-profile",
+        "load"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "项目 Profile 加载规范领域任务",
+      "项目 Profile 加载规范专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "项目 Profile 加载规范 — 先形成语义意图种子与唯一目标，再按计划加载最小充分配置"
+}

@@ -1,0 +1,31 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "host-contract-verification",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "宿主契约验证规范",
+      "include": [
+        "CLI",
+        "Hook",
+        "MCP",
+        "bootstrap",
+        "direct",
+        "envelope",
+        "fallback",
+        "fixture"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "宿主契约验证规范领域任务",
+      "宿主契约验证规范专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "宿主契约验证规范 — 为 Hook / CLI / bootstrap / visible envelope / workspace guard / LinkCapabilityDecision / MCP fallback 定义 direct replay、fixture replay、部署同步与证据路线"
+}

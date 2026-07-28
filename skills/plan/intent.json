@@ -1,0 +1,27 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "plan",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "制定结构化执行计划。当用户请求不匹配任何已有工作流（other 路由）时，...",
+      "include": [
+        "agent",
+        "devcodex",
+        "other",
+        "plan"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "制定结构化执行计划。当用户请求不匹配任何已有工作流（oth...领域任务",
+      "制定结构化执行计划。当用户请求不匹配任何已有工作流（oth...专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "制定结构化执行计划。当用户请求不匹配任何已有工作流（other 路由）时，由 devcodex.agent.md 的 plan 兜底路由触发。"
+}

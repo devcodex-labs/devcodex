@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "source-consumer-sync",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "真相源-消费者同步规范",
+      "include": [
+        "Concept",
+        "Map",
+        "Sync",
+        "validate",
+        "source",
+        "consumer"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "真相源-消费者同步规范领域任务",
+      "真相源-消费者同步规范专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "真相源-消费者同步规范 — 为规范源、模板、validate、文档站与部署副本变更建立 Concept Sync Map，区分当前消费者与历史镜像"
+}

@@ -3,6 +3,7 @@
 
 const fs = require('fs')
 const path = require('path')
+const { evaluatePublicReadmeContract } = require('./lib/canonical-consumer-contracts')
 
 const ROOT = path.resolve(__dirname, '..')
 const failures = []
@@ -12,7 +13,9 @@ function read(file) {
 }
 
 function mustInclude(file, needle) {
-  if (!read(file).includes(needle)) failures.push(`${file} missing "${needle}"`)
+  const content = read(file)
+  if (file === 'README.md' && evaluatePublicReadmeContract(content).valid) return
+  if (!content.includes(needle)) failures.push(`${file} missing "${needle}"`)
 }
 
 function mustExist(file) {
@@ -37,6 +40,10 @@ function assertOrder(file, headings) {
 }
 
 const plugin = JSON.parse(read('plugin.json'))
+const publicReadmeContract = evaluatePublicReadmeContract(read('README.md'))
+if (!publicReadmeContract.valid) {
+  failures.push(`README.md public contract missing: ${publicReadmeContract.missing.join(', ')}`)
+}
 for (const [id, file] of [
   ['readme-authoring', 'skills/readme-authoring/SKILL.md'],
   ['audit-readme', 'skills/audit-readme/SKILL.md']

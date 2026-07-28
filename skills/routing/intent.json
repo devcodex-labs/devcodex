@@ -1,0 +1,31 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "routing",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "定义意图识别结果到工作流的路由映射。本 Skill 为人类可读参考，实际路...",
+      "include": [
+        "audit",
+        "common",
+        "dev",
+        "fix",
+        "instructions",
+        "intent",
+        "routing",
+        "路由"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "定义意图识别结果到工作流的路由映射。本 Skill 为人类...领域任务",
+      "定义意图识别结果到工作流的路由映射。本 Skill 为人类...专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "定义意图识别结果到工作流的路由映射。本 Skill 为人类可读参考，实际路由由 `01-common.instructions.md` + `intent/SKILL.md` + 各工作流 instructions 共同定义。"
+}

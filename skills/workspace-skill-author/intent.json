@@ -1,0 +1,25 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "workspace-skill-author",
+  "intents": [
+    {
+      "id": "primary",
+      "label": ">",
+      "include": [
+        "workspace",
+        "author"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      ">领域任务",
+      ">专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": ">"
+}

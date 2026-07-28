@@ -12,7 +12,7 @@ function runSpecGovernanceReviewSuite(ctx) {
   function mustIncludeOptional (file, needle) {
     if (String(file).startsWith('website/') && !websitePresent) return
     if (!fs.existsSync(path.join(ROOT, file))) return
-    mustIncludeOptional(file, needle)
+    mustInclude(file, needle)
   }
 
   const checkV75 = 'PromptLongGateListDriftProbe'

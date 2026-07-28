@@ -1,0 +1,31 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "intent",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "识别用户意图类型（dev/fix/analyze/audit/self-f...",
+      "include": [
+        "Free",
+        "analyze",
+        "audit",
+        "chat",
+        "dev",
+        "fix",
+        "intent",
+        "other"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "识别用户意图类型（dev/fix/analyze/audi...领域任务",
+      "识别用户意图类型（dev/fix/analyze/audi...专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "识别用户意图类型（dev/fix/analyze/audit/self-fix/chat/resume/other），采用前置识别 + 三问法。Free 层可用。"
+}

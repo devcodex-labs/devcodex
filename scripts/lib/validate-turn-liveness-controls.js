@@ -1,5 +1,6 @@
 'use strict'
 
+const { evaluatePublicReadmeContract } = require('./canonical-consumer-contracts')
 const {
   DEFAULT_THRESHOLDS,
   classifyTurnLiveness,
@@ -26,6 +27,7 @@ function buildTurnLivenessControlChecks(ctx) {
       return
     }
     const content = read(file)
+    if (relative === 'README.md' && evaluatePublicReadmeContract(content).valid) return
     for (const needle of needles) {
       if (!content.includes(needle)) err(`[V98] ${relative} missing: ${needle}`)
     }

@@ -1,0 +1,25 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "memory",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "管理会话记忆的读取与写入。三层记忆体系：Agent 日记 / 需求记忆 /...",
+      "include": [
+        "Agent",
+        "memory"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "管理会话记忆的读取与写入。三层记忆体系：Agent 日记...领域任务",
+      "管理会话记忆的读取与写入。三层记忆体系：Agent 日记...专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "管理会话记忆的读取与写入。三层记忆体系：Agent 日记 / 需求记忆 / 项目总记忆。"
+}

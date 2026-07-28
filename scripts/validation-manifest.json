@@ -63,7 +63,21 @@
     "hooks/_runtime/workspace-skill-auto-match.cjs",
     "scripts/test-skill-resolve.js",
     "scripts/test-skill-resolution-hook-paths.js",
-    "scripts/test-workspace-skill-auto-match.js"
+    "scripts/test-workspace-skill-auto-match.js",
+    "hooks/_runtime/*skill-route*.cjs",
+    "hooks/_runtime/runtime-skill-identity-index.cjs",
+    "hooks/_runtime/model-skill-catalog.cjs",
+    "hooks/_runtime/progressive-skill-plan.cjs",
+    "hooks/_runtime/context-plan-observation.cjs",
+    "hooks/_runtime/workflow-root-registry.v1.json",
+    "skills/_schemas/skill-intent.v1.schema.json",
+    "skills/_schemas/workflow-root-registry.v1.schema.json",
+    "skills/_schemas/progressive-skill-route.v1.schema.json",
+    "skills/*/intent.json",
+    "scripts/test-skill-intents.js",
+    "scripts/test-skill-route-contracts.js",
+    "scripts/test-skill-route-state.js",
+    "scripts/test-skill-route-lifecycle.js"
   ],
   "invariantNodes": [
     "validate-versions",
@@ -84,6 +98,10 @@
         "skill-auto-match",
         "skill-portfolio",
         "skill-portfolio-current",
+        "skill-intents",
+        "skill-route-contracts",
+        "skill-route-state",
+        "skill-route-lifecycle",
         "profile-section-selector",
         "project-knowledge-store",
         "runtime-state-index",
@@ -167,6 +185,10 @@
         "skill-auto-match",
         "skill-portfolio",
         "skill-portfolio-current",
+        "skill-intents",
+        "skill-route-contracts",
+        "skill-route-state",
+        "skill-route-lifecycle",
         "profile-section-selector",
         "project-knowledge-store",
         "runtime-state-index",
@@ -279,7 +301,11 @@
         "skill-sidecar-contract",
         "skill-resolve",
         "skill-resolution-hook-paths",
-        "skill-auto-match"
+        "skill-auto-match",
+        "skill-intents",
+        "skill-route-contracts",
+        "skill-route-state",
+        "skill-route-lifecycle"
       ]
     },
     "package-release": {
@@ -315,7 +341,11 @@
         "skill-sidecar-contract",
         "skill-resolve",
         "skill-resolution-hook-paths",
-        "skill-auto-match"
+        "skill-auto-match",
+        "skill-intents",
+        "skill-route-contracts",
+        "skill-route-state",
+        "skill-route-lifecycle"
       ]
     }
   },
@@ -829,6 +859,194 @@
       "riskClass": "normal",
       "cachePolicy": "candidate-bound",
       "writeScopes": [],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "skill-intents",
+      "owner": "progressive-skill-route",
+      "command": "node",
+      "args": [
+        "scripts/test-skill-intents.js"
+      ],
+      "dependencies": [
+        "skill-portfolio-current"
+      ],
+      "inputs": [
+        "skills/*/SKILL.md",
+        "skills/*/intent.json",
+        "skills/_schemas/skill-intent.v1.schema.json",
+        "scripts/generate-skill-intents.js",
+        "scripts/test-skill-intents.js"
+      ],
+      "consumers": [
+        "skill-route-contracts"
+      ],
+      "invariants": [
+        "contract",
+        "deterministic",
+        "active-coverage-complete"
+      ],
+      "riskClass": "high",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "skill-route-contracts",
+      "owner": "progressive-skill-route",
+      "command": "node",
+      "args": [
+        "scripts/test-skill-route-contracts.js"
+      ],
+      "dependencies": [
+        "skill-intents"
+      ],
+      "inputs": [
+        "hooks/_runtime/global-skill-runtime-root.cjs",
+        "hooks/_runtime/runtime-skill-identity-index.cjs",
+        "hooks/_runtime/model-skill-catalog.cjs",
+        "hooks/_runtime/progressive-skill-plan.cjs",
+        "hooks/_runtime/progressive-skill-route-contract.cjs",
+        "hooks/_runtime/skill-route-mode.cjs",
+        "hooks/_runtime/host-skill-route-capabilities.v1.json",
+        "hooks/_runtime/workflow-root-registry.cjs",
+        "hooks/_runtime/workflow-root-registry.v1.json",
+        "skills/_schemas/**",
+        "scripts/test-skill-route-contracts.js"
+      ],
+      "consumers": [
+        "skill-route-state"
+      ],
+      "invariants": [
+        "contract",
+        "bounded-delivery",
+        "complete-catalog",
+        "capability-freshness"
+      ],
+      "riskClass": "high",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "skill-route-state",
+      "owner": "progressive-skill-route",
+      "command": "node",
+      "args": [
+        "scripts/test-skill-route-state.js"
+      ],
+      "dependencies": [
+        "skill-route-contracts"
+      ],
+      "inputs": [
+        "hooks/_runtime/skill-route-state.cjs",
+        "hooks/_runtime/skill-route-tool.cjs",
+        "hooks/_runtime/context-read-contract.cjs",
+        "hooks/_runtime/workflow-root-registry.v1.json",
+        "scripts/lib/skill-route-test-fixture.js",
+        "scripts/test-skill-route-state.js"
+      ],
+      "consumers": [
+        "skill-route-lifecycle",
+        "mcp-servers"
+      ],
+      "invariants": [
+        "contract",
+        "atomic-replay",
+        "bounded-state",
+        "gc-quarantine",
+        "no-false-complete"
+      ],
+      "riskClass": "high",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "skill-route-lifecycle",
+      "owner": "progressive-skill-route",
+      "command": "node",
+      "args": [
+        "scripts/test-skill-route-lifecycle.js"
+      ],
+      "dependencies": [
+        "skill-route-state"
+      ],
+      "inputs": [
+        "hooks/_runtime/lifecycle.cjs",
+        "hooks/_runtime/lifecycle-host-adapters.cjs",
+        "hooks/_runtime/lifecycle-bootstrap-state.cjs",
+        "hooks/_runtime/context-plan-observation.cjs",
+        "hooks/_runtime/skill-route-tool.cjs",
+        "mcp/profile-server.js",
+        "scripts/test-skill-route-lifecycle.js"
+      ],
+      "consumers": [
+        "hooks-runtime",
+        "mcp-servers",
+        "global-host-config"
+      ],
+      "invariants": [
+        "contract",
+        "host-observable",
+        "no-double-body",
+        "context-binding"
+      ],
+      "riskClass": "high",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
       "timeoutMs": 120000,
       "exitMap": {
         "success": [

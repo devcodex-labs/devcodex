@@ -1,0 +1,31 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "external-integration-architecture",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "外部集成架构专家",
+      "include": [
+        "API",
+        "OAuth",
+        "Webhook",
+        "connector",
+        "provider",
+        "external",
+        "integration",
+        "architecture"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "外部集成架构专家领域任务",
+      "外部集成架构专家专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "外部集成架构专家 Owner — 当任务涉及第三方 API、Webhook、OAuth、回调、provider/connector、配额、重试、降级、供应商锁定、外部故障或集成文档时使用；要求隔离外部边界并设计失败恢复。"
+}

@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://devcodex.dev/schemas/workflow-root-registry.v1.schema.json",
+  "title": "WorkflowRootRegistryV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "sourceEvidence",
+    "sourceDigest",
+    "baseBundles",
+    "routes",
+    "conditionals",
+    "registryDigest"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "WorkflowRootRegistryV1" },
+    "sourceEvidence": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 16,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["ref", "digest"],
+        "properties": {
+          "ref": { "type": "string", "minLength": 1 },
+          "digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+        }
+      }
+    },
+    "sourceDigest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "baseBundles": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "maxItems": 16,
+        "items": { "$ref": "#/$defs/root" }
+      }
+    },
+    "routes": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 64,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["routeKey", "roots"],
+        "properties": {
+          "routeKey": { "type": "string", "minLength": 1 },
+          "roots": {
+            "type": "array",
+            "maxItems": 16,
+            "items": { "$ref": "#/$defs/root" }
+          }
+        }
+      }
+    },
+    "conditionals": {
+      "type": "array",
+      "maxItems": 16,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "conditionId",
+          "intents",
+          "roots",
+          "activationAuthority",
+          "sourceRef"
+        ],
+        "properties": {
+          "conditionId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+          },
+          "intents": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 16,
+            "uniqueItems": true,
+            "items": { "type": "string", "minLength": 1 }
+          },
+          "roots": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "$ref": "#/$defs/root" }
+          },
+          "activationAuthority": {
+            "const": "model"
+          },
+          "mutualExclusionGroup": {
+            "type": ["string", "null"]
+          },
+          "sourceRef": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "registryDigest": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+  },
+  "$defs": {
+    "root": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["skillId", "budgetClass", "loadStage"],
+      "properties": {
+        "skillId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        },
+        "budgetClass": { "enum": ["hard", "optional"] },
+        "loadStage": {
+          "type": "string",
+          "pattern": "^(entry|closeout|execution:[A-Za-z0-9._-]+)$"
+        }
+      }
+    }
+  }
+}

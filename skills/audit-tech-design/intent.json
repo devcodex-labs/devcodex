@@ -1,0 +1,28 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "audit-tech-design",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "技术方案审查维度 TD-1~TD-13",
+      "include": [
+        "TD-1",
+        "TD-13",
+        "audit",
+        "tech",
+        "design"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "技术方案审查维度 TD-1~TD-13领域任务",
+      "技术方案审查维度 TD-1~TD-13专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "技术方案审查维度 TD-1~TD-13 — 架构/技术选型/实施方案专属审查层"
+}

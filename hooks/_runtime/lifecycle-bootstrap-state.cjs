@@ -5,12 +5,14 @@ const {
   buildJsonContentIdentity,
   validateContentIdentity
 } = require('./content-identity.cjs')
+const { readContextPlanObservation } = require('./context-plan-observation.cjs')
 
 function buildLifecycleBootstrapStateUtils(ctx) {
   const {
     fs,
     path,
     crypto,
+    env,
     CONTEXT_ROOT,
     LAYOUT,
     CONTEXT_PROJECT,
@@ -59,6 +61,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
   const PROFILE_SERVER = 'devcodex-profile'
   const MEMORY_SERVER = 'devcodex-memory'
   const PROFILE_TOOLS = new Set(['profile_context_plan', 'profile_load'])
+  const PROFILE_ROUTE_TOOLS = new Set(['skill_route'])
   const MEMORY_READ_TOOLS = new Set([
     'memory_status',
     'memory_session_query',
@@ -76,7 +79,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     'schemaVersion', 'contextEpoch', 'planId', 'planContentId', 'activeRoot', 'project'
   ])
   const MUTATION_TOOL_RE = /^(?:apply[_-]?patch|create[_-]?file|write|edit|str[_-]?replace|insert[_-]?code|rewrite[_-]?file)$/i
-  const READ_TOOL_RE = /^(?:read(?:[_-]?file)?|list[_-]?dir|file[_-]?search|grep(?:[_-]?search)?|semantic[_-]?search|glob)$/i
+  const READ_TOOL_RE = /^(?:read(?:[_-]?file)?|list[_-]?dir|file[_-]?search|grep(?:[_-]?search)?|semantic[_-]?search|glob|search[_-]?tool|tool[_-]?search)$/i
 
   function normalizePath(value) {
     return String(value || '').trim().replace(/\\/g, '/')
@@ -106,18 +109,22 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     let server = String(payload?.server_name || payload?.serverName || '').trim().toLowerCase()
     let tool = lower
     const claude = lower.match(/^mcp__([^_]+(?:-[^_]+)*)__([a-z0-9_]+)$/)
+    const grok = lower.match(/^([^_]+(?:-[^_]+)*)__([a-z0-9_]+)$/)
     const pair = lower.match(/^([^/]+)\/([a-z0-9_]+)$/)
     if (claude) {
       server = claude[1]
       tool = claude[2]
+    } else if (grok) {
+      server = grok[1]
+      tool = grok[2]
     } else if (pair) {
       server = pair[1]
       tool = pair[2]
     }
-    if (!server && (PROFILE_TOOLS.has(tool) || MEMORY_READ_TOOLS.has(tool))) {
+    if (!server && (PROFILE_TOOLS.has(tool) || PROFILE_ROUTE_TOOLS.has(tool) || MEMORY_READ_TOOLS.has(tool))) {
       return { raw, server: '', tool, canonical: '', recognizedName: true }
     }
-    const recognized = (server === PROFILE_SERVER && PROFILE_TOOLS.has(tool)) ||
+    const recognized = (server === PROFILE_SERVER && (PROFILE_TOOLS.has(tool) || PROFILE_ROUTE_TOOLS.has(tool))) ||
       (server === MEMORY_SERVER && MEMORY_READ_TOOLS.has(tool))
     return {
       raw,
@@ -148,6 +155,16 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       activeRoot: plan.identity.activeRoot,
       project: plan.identity.project
     }
+  }
+
+  function isRouteContextReceiptReady(acquisition) {
+    if (!acquisition?.plan || !acquisition?.receipt) return false
+    if (['relevant-complete', 'escalated-full', 'completed'].includes(
+      acquisition.receipt.status
+    )) return true
+    return acquisition.receipt.status === 'baseline-ready' &&
+      !(acquisition.plan.selectedSources?.length ||
+        acquisition.plan.mandatorySourceIds?.length)
   }
 
   function validateContextReadBinding(binding, expected, { response = false } = {}) {
@@ -319,9 +336,13 @@ function buildLifecycleBootstrapStateUtils(ctx) {
           project: previous.project
         }
       : previous.handoff
+    const launcherEpoch = env?.DEVCODEX_GROK_SINGLE_TURN === '1' &&
+      /^ctx-[A-Za-z0-9-]{8,251}$/.test(String(env.DEVCODEX_CONTEXT_EPOCH || ''))
+      ? String(env.DEVCODEX_CONTEXT_EPOCH)
+      : ''
     state.contextAcquisition = {
       schemaVersion: CONTEXT_READ_CONTRACT.schemas.state,
-      contextEpoch: `ctx-${crypto.randomUUID()}`,
+      contextEpoch: launcherEpoch || `ctx-${crypto.randomUUID()}`,
       activeRoot: normalizePath(getActiveNamespaceRoot(state)),
       project,
       targetResolved,
@@ -378,7 +399,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       return true
     }
     const directMutation = /^(?:write|edit|apply[_-]?patch|create[_-]?file|str[_-]?replace(?:[_-].*)?|insert[_-]?code(?:[_-].*)?|rewrite[_-]?file)$/i.test(rawTool)
-    const shellMutation = /^(?:bash|powershell|shell[_-]?command|run[_-]?in[_-]?terminal)$/i.test(rawTool) &&
+    const shellMutation = /^(?:bash|powershell|shell[_-]?command|run[_-]?in[_-]?terminal|run[_-]?terminal[_-]?command)$/i.test(rawTool) &&
       /(?:>{1,2}|\btee\b|\bSet-Content\b|\bOut-File\b|\b(?:cp|mv|rm|touch)\b)/i.test(getCommandText(payload))
     if (!directMutation && !shellMutation) return false
     const selectedPaths = acquisition.plan.selectedSources
@@ -613,6 +634,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       /^shell[_-]?command$/,
       /^run[_-]?in[_-]?terminal$/,
       /^send[_-]?to[_-]?terminal$/,
+      /^run[_-]?terminal[_-]?command$/,
       /^bash$/,
       /^powershell$/
     ]
@@ -651,6 +673,33 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     if (identity.canonical) {
       if (!targetMatches(args, state)) {
         return { allowed: false, suspicious: true, reason: 'context tool target does not match the active project' }
+      }
+      if (identity.tool === 'skill_route') {
+        const op = String(args.op || '').trim()
+        const epoch = String(args.contextEpoch || '').trim()
+        if (!['catalog', 'commit', 'load_stage', 'status'].includes(op)) {
+          return { allowed: false, suspicious: true, reason: 'skill_route requires a published route operation' }
+        }
+        if (epoch && epoch !== acquisition.contextEpoch) {
+          return { allowed: false, suspicious: true, reason: 'skill_route contextEpoch does not match the active acquisition' }
+        }
+        if (op === 'commit') {
+          if (!isRouteContextReceiptReady(acquisition)) {
+            return { allowed: false, suspicious: true, reason: 'skill_route commit requires a completed bound context receipt' }
+          }
+          const binding = validateContextReadBinding(args.contextBinding, expectedContextReadBinding(acquisition))
+          if (!binding.valid) {
+            return { allowed: false, suspicious: true, errorCode: binding.errorCode, reason: binding.reason }
+          }
+        }
+        return {
+          allowed: true,
+          kind: 'route-control',
+          ...identity,
+          args,
+          argsDigest: stableDigest(args),
+          sourceIds: []
+        }
       }
       if (identity.tool === 'profile_context_plan') {
         const epoch = String(args.contextEpoch || '').trim()
@@ -774,7 +823,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     }
     const mutationTool = MUTATION_TOOL_RE.test(tool) || isSourceCodeMutation(payload, platform, state)
     if (mutationTool) return docsOnlyPaths(payload) ? 'docs-mutation' : 'source-mutation'
-    if (/^(?:shell[_-]?command|run[_-]?in[_-]?terminal|send[_-]?to[_-]?terminal|bash|powershell)$/i.test(tool)) {
+    if (/^(?:shell[_-]?command|run[_-]?in[_-]?terminal|send[_-]?to[_-]?terminal|run[_-]?terminal[_-]?command|bash|powershell)$/i.test(tool)) {
       if (isReadOnlyBootstrapShellCommand(payload) ||
         /^\s*(?:git\s+(?:status|diff|show|log)|npm\s+(?:ls|view)|node\s+-[pev]|rg\b|get-|ls\b|dir\b)/i.test(command)) {
         return 'analysis-read'
@@ -809,7 +858,10 @@ function buildLifecycleBootstrapStateUtils(ctx) {
           acquisition.planAttemptKeys.push(classified.planKey)
           acquisition.planAttemptKeys = acquisition.planAttemptKeys.slice(-10)
         }
-      } else if (acquisition.plan && acquisition.receipt && !classified.legacyFull) {
+      } else if (acquisition.plan &&
+          acquisition.receipt &&
+          !classified.legacyFull &&
+          classified.kind !== 'route-control') {
         acquisition.receipt = recordContextReadAttempt(acquisition.receipt, acquisition.plan, {
           toolCallId: getToolCallId(payload),
           actionClass,
@@ -1180,8 +1232,36 @@ function buildLifecycleBootstrapStateUtils(ctx) {
   }
 
   function installObservedPlan(acquisition, attempt, payload) {
-    const extracted = extractContextPlanBody(payload)
-    const plan = extracted.plan
+    let extracted = extractContextPlanBody(payload)
+    let plan = extracted.plan
+    const inlineBody = extracted.outcome?.transportSuccess
+      ? parseExactJson(extracted.outcome.payload)
+      : null
+    if (!plan && extracted.outcome?.transportSuccess && typeof extracted.outcome.payload === 'string' && !inlineBody) {
+      const recovered = readContextPlanObservation({
+        activeRoot: acquisition.activeRoot,
+        project: acquisition.project,
+        contextEpoch: acquisition.contextEpoch,
+        notBefore: attempt.startedAt
+      })
+      if (recovered.status === 'fresh') {
+        plan = recovered.plan
+        extracted = {
+          ...extracted,
+          plan,
+          error: null,
+          recoveredFrom: 'workspace-context-plan-observation'
+        }
+      } else {
+        extracted = {
+          ...extracted,
+          error: contextError(
+            'CONTEXT_PLAN_INVALID',
+            `Truncated plan result has no matching exact workspace observation: ${recovered.errorCode || recovered.status}.`
+          )
+        }
+      }
+    }
     const identityMatches = !!plan && plan.identity.contextEpoch === acquisition.contextEpoch &&
       normalizePath(plan.identity.activeRoot) === acquisition.activeRoot &&
       plan.identity.project === acquisition.project &&
@@ -1309,6 +1389,10 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       }
     } else if (attempt.kind === 'memory-query' && acquisition.plan && acquisition.receipt) {
       applySourceResults(acquisition, attempt, payload, memorySourceResults(acquisition, attempt, outcome))
+    } else if (attempt.kind === 'route-control' &&
+        outcome.transportSuccess &&
+        !outcome.error) {
+      state.progressiveSkillRouteStopCount = 0
     }
     acquisition.inFlight = acquisition.inFlight.filter(item => item.attemptId !== attempt.attemptId)
     acquisition.postHistory = [...acquisition.postHistory, {
@@ -1457,7 +1541,8 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     buildBootstrapWarningOutput,
     buildBootstrapWarningKey,
     buildDedupedBootstrapWarningOutput,
-    hostCapabilityFor
+    hostCapabilityFor,
+    isRouteContextReceiptReady
   }
 }
 

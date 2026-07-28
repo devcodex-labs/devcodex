@@ -1,0 +1,31 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "user-manual-authoring",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "开源/公开用户站点与最终用户手册写作",
+      "include": [
+        "README",
+        "changelog",
+        "guide",
+        "migration",
+        "operations",
+        "reference",
+        "user",
+        "manual"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "开源/公开用户站点与最终用户手册写作领域任务",
+      "开源/公开用户站点与最终用户手册写作专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "开源/公开用户站点与最终用户手册写作 Owner — guide/README/reference/migration/changelog/operations；与维护者开发站不等价；经 DocsAudienceIntent 路由。"
+}

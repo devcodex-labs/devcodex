@@ -1,0 +1,31 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "dev-default",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "默认开发子类型规范",
+      "include": [
+        "CP1",
+        "CP2",
+        "CP3",
+        "ECR",
+        "PR-1",
+        "dev-default",
+        "plan-review",
+        "dev"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "默认开发子类型规范领域任务",
+      "默认开发子类型规范专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "默认开发子类型规范 — 通用功能开发六阶段流程（CP1→PR-1自检→CP2→plan-review→CP3→执行→ECR执行闭环复审）"
+}

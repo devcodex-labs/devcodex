@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "impact-review",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "影响评估规范",
+      "include": [
+        "impact-review",
+        "impact",
+        "review"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "影响评估规范领域任务",
+      "影响评估规范专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "影响评估规范 — 代码变更六维影响框架 + 回归风险评级"
+}

@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "performance-engineering",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "性能工程专家",
+      "include": [
+        "benchmark",
+        "p95",
+        "p99",
+        "profiling",
+        "performance",
+        "engineering"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "性能工程专家领域任务",
+      "性能工程专家专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "性能工程专家 Owner — 当任务涉及性能优化、性能预算、benchmark、profiling、p95/p99、吞吐、延迟、资源效率、容量规划、压测或性能回归时使用；要求先建立可比较基线，再定位瓶颈、评估容量并形成统计可信的回归结论。"
+}

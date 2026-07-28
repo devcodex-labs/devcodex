@@ -11,6 +11,7 @@
  *   profile_load     — Read whole Profile files or explicitly selected whole Markdown sections
  *   profile_skill_plan — Build a dependency-closed, whole-SKILL read plan
  *   profile_get_mode — Return ENV_MODE (dev/prod) and resolved runtime agent
+ *   skill_route      — Serve the bounded progressive Skill routing protocol
  */
 
 const crypto = require('crypto')
@@ -36,7 +37,10 @@ const {
 } = require('../hooks/_runtime/context-read-contract.cjs')
 const { buildJsonContentIdentity, validateContentIdentity } = require('../hooks/_runtime/content-identity.cjs')
 const { createDerivedStateStore } = require('../hooks/_runtime/derived-state-store.cjs')
+const { persistContextPlanObservation } = require('../hooks/_runtime/context-plan-observation.cjs')
 const { resolveExecutionFeatureDecisionForCwd } = require('../hooks/_runtime/execution-optimization-routing.cjs')
+const { resolveGlobalSkillRuntimeRoot } = require('../hooks/_runtime/global-skill-runtime-root.cjs')
+const { handleSkillRoute } = require('../hooks/_runtime/skill-route-tool.cjs')
 const {
   findLayoutInfo,
   inferProjectFromCwd,
@@ -50,6 +54,32 @@ const {
 const INPUT_ROOT = process.argv[2]
   ? path.resolve(process.argv[2])
   : process.cwd()
+
+function traceSkillRouteCall(args, result) {
+  const configured = String(process.env.DEVCODEX_SKILL_ROUTE_TRACE || '').trim()
+  if (!configured) return
+  const target = path.resolve(configured)
+  const relative = path.relative(INPUT_ROOT, target)
+  if (relative.startsWith('..') || path.isAbsolute(relative)) return
+  try {
+    if (fs.existsSync(target) && fs.statSync(target).size > 256 * 1024) return
+    fs.mkdirSync(path.dirname(target), { recursive: true })
+    fs.appendFileSync(target, `${JSON.stringify({
+      schemaVersion: 'SkillRouteCallTraceV1',
+      observedAt: new Date().toISOString(),
+      request: args,
+      response: {
+        ok: result?.ok === true,
+        op: result?.op || args?.op || null,
+        errorCode: result?.errorCode || null,
+        receiptSchema: result?.receipt?.schemaVersion || null,
+        serializedBytes: result?.delivery?.serializedBytes || null
+      }
+    })}\n`, 'utf8')
+  } catch {
+    // Diagnostics must never alter Tool behavior.
+  }
+}
 
 // ─── Server metadata ──────────────────────────────────────────────────────────
 
@@ -70,20 +100,7 @@ const DEFAULT_AGENT = detectRuntimeAgent()
 const EXECUTION_OPTIMIZATION_BINDING_SCHEMA = {
   type: 'object',
   required: ['schemaVersion', 'requested', 'mode', 'status', 'errorCode', 'configIdentity', 'bindingDigest'],
-  properties: {
-    schemaVersion: { const: CONTEXT_READ_CONTRACT.schemas.executionOptimizationBinding },
-    requested: { anyOf: [{ type: 'string' }, { type: 'null' }] },
-    mode: { type: 'string', enum: ['safe-auto', 'full-only'] },
-    status: { type: 'string', enum: ['defaulted', 'configured', 'fail-closed'] },
-    errorCode: { anyOf: [{ type: 'string' }, { type: 'null' }] },
-    configIdentity: {
-      type: 'object',
-      required: ['schemaVersion', 'algorithm', 'sourceKey', 'contractVersion', 'digest', 'bytes'],
-      additionalProperties: false
-    },
-    bindingDigest: { type: 'string', pattern: '^[a-f0-9]{64}$' }
-  },
-  additionalProperties: false
+  description: 'Copy the exact ExecutionOptimizationPlanBindingV1 returned by the plan.'
 }
 
 const CONTEXT_READ_BINDING_SCHEMA = {
@@ -91,16 +108,69 @@ const CONTEXT_READ_BINDING_SCHEMA = {
   required: ['schemaVersion', 'contextEpoch', 'planId', 'planContentId', 'activeRoot', 'project'],
   properties: {
     schemaVersion: { const: 'ContextReadBindingV1' },
-    contextEpoch: { type: 'string', minLength: 1 },
-    planId: { type: 'string', minLength: 1 },
-    planContentId: { type: 'string', minLength: 1 },
-    activeRoot: { type: 'string', minLength: 1 },
-    project: { type: 'string' }
+    contextEpoch: { type: 'string', minLength: 1, maxLength: 256 },
+    planId: { type: 'string', minLength: 1, maxLength: 256 },
+    planContentId: { type: 'string', minLength: 1, maxLength: 256 },
+    activeRoot: { type: 'string', minLength: 1, maxLength: 4096 },
+    project: {
+      type: 'string',
+      minLength: 1,
+      maxLength: 255,
+      pattern: '^[A-Za-z0-9][A-Za-z0-9._-]*$'
+    }
   },
   additionalProperties: false
 }
 
 const TOOLS = [
+  {
+    name: 'skill_route',
+    description: '本地渐进式 Skill 路由。catalog 仅用 project/turn/context/cursor；commit 追加 catalogDigest/skillId/contextBinding/条件重规划字段；load_stage 使用 generation/planDigest/stageId/cursor/triggerRef；status 仅用 project/turn/context。',
+    inputSchema: {
+      type: 'object',
+      required: ['op', 'project', 'turnBinding'],
+      properties: {
+        op: { type: 'string', enum: ['catalog', 'commit', 'load_stage', 'status'] },
+        project: {
+          type: 'string',
+          minLength: 1,
+          maxLength: 255,
+          pattern: '^[A-Za-z0-9][A-Za-z0-9._-]*$'
+        },
+        turnBinding: { type: 'string', pattern: '^turn-[a-f0-9]{40}$' },
+        contextEpoch: { type: 'string', minLength: 1, maxLength: 256 },
+        cursor: {
+          type: 'string',
+          minLength: 1,
+          maxLength: 2048,
+          pattern: '^[A-Za-z0-9_-]+\\.[a-f0-9]{24}$'
+        },
+        catalogDigest: { type: 'string', pattern: '^[a-f0-9]{64}$' },
+        skillId: {
+          anyOf: [{
+            type: 'string',
+            minLength: 1,
+            maxLength: 128,
+            pattern: '^[A-Za-z0-9][A-Za-z0-9._-]*$'
+          }, { type: 'null' }]
+        },
+        contextBinding: CONTEXT_READ_BINDING_SCHEMA,
+        previousPlanDigest: { type: 'string', pattern: '^[a-f0-9]{64}$' },
+        lateConditionId: {
+          type: 'string',
+          pattern: '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$'
+        },
+        generation: { type: 'integer', minimum: 0 },
+        planDigest: { type: 'string', pattern: '^[a-f0-9]{64}$' },
+        stageId: {
+          type: 'string',
+          pattern: '^(entry|closeout|execution:[A-Za-z0-9][A-Za-z0-9._-]{0,63})$'
+        },
+        triggerRef: { type: 'string', minLength: 1, maxLength: 512 }
+      },
+      additionalProperties: false
+    }
+  },
   {
     name: 'profile_context_plan',
     description: '按 canonical intent 与 changeTypes 生成 ContextReadPlanV2。稳定 planContentId 与单次 planId 分离；计划无损返回 README/index 与 effective non-local config，其余 Profile 文件仅收集顶层 metadata，不预读正文。',
@@ -148,30 +218,24 @@ const TOOLS = [
   },
   {
     name: 'profile_load',
-    description: '按需加载 Profile 文件正文或完整 Markdown section。默认有 maxFiles/maxBytes 硬预算；不在段落中间截断，partial/fallback 状态显式返回。',
+    description: '按计划、文件或 Markdown section 有界加载 Profile 正文。',
     inputSchema: {
       type: 'object',
       properties: {
-        project: {
-          type: 'string',
-          description: '可选。指定目标项目命名空间。旧布局下仅允许当前项目；集中布局下命中 <workspace>/.devcodex/<project-namespace>/profile 并按 workspace base + project overlay 解析。'
-        },
+        project: { type: 'string' },
         files: {
           type: 'array',
-          items: { type: 'string' },
-          description: '指定要加载的文件名列表（如 ["01-项目信息.md"]）；省略时须 explicitFull'
+          items: { type: 'string' }
         },
         maxFiles: {
           type: 'integer',
           minimum: 1,
-          maximum: 50,
-          description: '单次最多加载文件数，默认 2（explicitFull 时放宽到档位全集）'
+          maximum: 50
         },
         maxBytes: {
           type: 'integer',
           minimum: 1024,
-          maximum: 2000000,
-          description: '单次拼接正文最大字节，默认 32768；只在完整文件/section 边界切分'
+          maximum: 2000000
         },
         sectionSelectors: {
           type: 'array',
@@ -190,17 +254,10 @@ const TOOLS = [
               parser: { type: 'string', enum: ['atx-v1'] }
             },
             additionalProperties: false
-          },
-          description: '仅可选择 files 中已请求的文件；required 缺失/歧义、低置信或 parser 不支持时自动回退整文件。'
+          }
         },
-        explicitFull: {
-          type: 'boolean',
-          description: 'true 时允许无 files 的档位全量 load（仍受 maxBytes）'
-        },
-        fullReadReason: {
-          type: 'string',
-          description: 'explicitFull=true 时必填原因'
-        },
+        explicitFull: { type: 'boolean' },
+        fullReadReason: { type: 'string' },
         executionOptimization: EXECUTION_OPTIMIZATION_BINDING_SCHEMA,
         contextBinding: CONTEXT_READ_BINDING_SCHEMA
       },
@@ -209,12 +266,12 @@ const TOOLS = [
   },
   {
     name: 'profile_skill_plan',
-    description: '基于 current Skill portfolio 生成 BundleDecisionV2：先校验 lifecycle，再做 transitive requires、mandatory conflict 与完整 SKILL.md bytes 预算；只读且不改变 lifecycle。',
+    description: '按 Skill portfolio、依赖和预算生成只读 BundleDecisionV2。',
     inputSchema: {
       type: 'object',
       required: ['candidateIds'],
       properties: {
-        project: { type: 'string', description: '可选。指定目标项目命名空间。' },
+        project: { type: 'string' },
         candidateIds: { type: 'array', minItems: 1, uniqueItems: true, items: { type: 'string', minLength: 1 } },
         mandatoryIds: { type: 'array', uniqueItems: true, items: { type: 'string', minLength: 1 } },
         includeGray: { type: 'boolean' },
@@ -234,25 +291,22 @@ const TOOLS = [
   },
   {
     name: 'profile_get_mode',
-    description: '从 .devcodex/profile/config.json 读取 ENV_MODE（dev 或 prod），并返回当前实际宿主 agent；config.json 的 agent 仅作为兜底提示。',
+    description: '读取 ENV_MODE 与当前宿主。',
     inputSchema: {
       type: 'object',
       properties: {
-        project: {
-          type: 'string',
-          description: '可选。指定目标项目命名空间。旧布局下仅允许当前项目；集中布局下命中 <workspace>/.devcodex/<project-namespace>/profile 并按 workspace base + project overlay 解析。'
-        }
+        project: { type: 'string' }
       }
     }
   },
   {
     name: 'profile_compose_entry_check',
-    description: '生成规范 ### DevCodex · 入口检查 (PC0~PC7) portable 块，供模型粘贴到用户可见回复。不替代 S07；Grok 无法注入该块。',
+    description: '生成 PC0~PC7 portable 入口检查块。',
     inputSchema: {
       type: 'object',
       properties: {
-        project: { type: 'string', description: '项目名；默认未识别' },
-        status: { type: 'string', description: 'PASS/WARN/BLOCK/UNVERIFIED/N/A' },
+        project: { type: 'string' },
+        status: { type: 'string' },
         nextStep: { type: 'string' },
         semanticDigest: { type: 'string' }
       },
@@ -671,7 +725,7 @@ function getContextPlanEpoch(requestedEpoch) {
 function contextPlanStableProjection(plan) {
   const projection = {}
   for (const [key, value] of Object.entries(plan)) {
-    if (['planId', 'identity', 'planningTelemetry', 'stageTiming', 'cacheDecision'].includes(key)) continue
+    if (['planId', 'contextBinding', 'identity', 'planningTelemetry', 'stageTiming', 'cacheDecision'].includes(key)) continue
     projection[key] = value
   }
   return projection
@@ -1067,11 +1121,25 @@ function handleProfileContextPlan(args = {}) {
     })
     if (candidate.schemaVersion === CONTEXT_READ_CONTRACT.schemas.error) return contextPlanResult(candidate)
     const optimizationMode = resolveExecutionOptimizationBinding(candidate.executionOptimization)
-    return contextPlanResult(applyContextPlanComputationCache(
+    const plan = applyContextPlanComputationCache(
       candidate,
       target,
       resolveProfileOptimizationFeature(target.project, optimizationMode, 'context-computation-reuse')
-    ))
+    )
+    const observation = persistContextPlanObservation({
+      activeRoot: target.activeRoot,
+      project: target.project,
+      contextEpoch: epoch.contextEpoch,
+      plan
+    })
+    if (observation.status !== 'persisted') {
+      return contextPlanResult(buildContextReadError(
+        'CONTEXT_PLAN_INVALID',
+        `Exact context plan observation could not be persisted: ${observation.errorCode || observation.status}.`,
+        'Repair the workspace runtime-state path or reduce the bounded Profile catalog, then retry once.'
+      ))
+    }
+    return contextPlanResult(plan)
   } catch (error) {
     return contextPlanResult(buildContextReadError(
       'CONTEXT_PLAN_INVALID',
@@ -1299,9 +1367,20 @@ function handleProfileSkillPlan(args = {}) {
       isError: true
     }
   }
-  const portfolioPath = path.resolve(__dirname, '..', 'skills', 'portfolio.json')
+  const globalSkillRuntime = resolveGlobalSkillRuntimeRoot({
+    runtimeRoot: path.resolve(__dirname, '..'),
+    packageRoot: path.resolve(__dirname, '..')
+  })
+  const portfolioPath = globalSkillRuntime.portfolioPath
+    ? path.resolve(globalSkillRuntime.portfolioPath)
+    : null
   let portfolio
   try {
+    if (!portfolioPath) {
+      const error = new Error(globalSkillRuntime.errorCode || 'GLOBAL_SKILL_RUNTIME_ROOT_UNRESOLVED')
+      error.code = globalSkillRuntime.errorCode || 'GLOBAL_SKILL_RUNTIME_ROOT_UNRESOLVED'
+      throw error
+    }
     portfolio = JSON.parse(fs.readFileSync(portfolioPath, 'utf8'))
   } catch (error) {
     return {
@@ -1311,6 +1390,7 @@ function handleProfileSkillPlan(args = {}) {
           schemaVersion: 'BundleDecisionErrorV1',
           errorCode: 'SKILL_PORTFOLIO_READ_FAILED',
           message: error.message,
+          globalSkillRuntime,
           nextStep: 'Regenerate or deploy skills/portfolio.json, then retry profile_skill_plan.'
         }, null, 2)
       }],
@@ -1333,6 +1413,7 @@ function handleProfileSkillPlan(args = {}) {
       reasonCode: featureDecision.reasonCode,
       optimizationAllowed: featureDecision.optimizationAllowed
     },
+    globalSkillRuntime,
     contextBinding
   }
   return { content: [{ type: 'text', text: JSON.stringify(response, null, 2) }] }
@@ -1435,6 +1516,18 @@ function dispatch(method, params) {
       const args = params?.arguments || {}
       try {
         switch (name) {
+          case 'skill_route': {
+            const result = handleSkillRoute(args, {
+              inputRoot: INPUT_ROOT,
+              env: process.env
+            })
+            traceSkillRouteCall(args, result)
+            return {
+              content: [{ type: 'text', text: JSON.stringify(result) }],
+              structuredContent: result,
+              isError: result.ok !== true
+            }
+          }
           case 'profile_context_plan': return handleProfileContextPlan(args)
           case 'profile_load': return handleProfileLoad(args)
           case 'profile_skill_plan': return handleProfileSkillPlan(args)

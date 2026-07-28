@@ -1,0 +1,27 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "token-check",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "授权占位规范",
+      "include": [
+        "Tier",
+        "token-check",
+        "token",
+        "check"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "授权占位规范领域任务",
+      "授权占位规范专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "授权占位规范 — 当前所有功能全量开放，无 tier 限制。Tier 门控为预留功能。"
+}

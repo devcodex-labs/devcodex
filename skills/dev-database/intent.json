@@ -1,0 +1,28 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "dev-database",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "数据库开发子类型规范",
+      "include": [
+        "Migration",
+        "Schema",
+        "dev-database",
+        "dev",
+        "database"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "数据库开发子类型规范领域任务",
+      "数据库开发子类型规范专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "数据库开发子类型规范 — Migration 安全策略 + Schema 变更审查"
+}

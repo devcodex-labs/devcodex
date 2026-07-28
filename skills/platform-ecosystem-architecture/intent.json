@@ -1,0 +1,28 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "platform-ecosystem-architecture",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "平台生态架构专家",
+      "include": [
+        "CLI",
+        "Hook",
+        "platform",
+        "ecosystem",
+        "architecture"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "平台生态架构专家领域任务",
+      "平台生态架构专家专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "平台生态架构专家 Owner — 当任务涉及 CLI、Hook、多宿主、插件、扩展点、能力发现、部署副本、兼容矩阵、迁移、版本分发或生态治理时使用；要求把平台能力设计成可发现、可扩展、可兼容、可发布。"
+}

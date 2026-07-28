@@ -1,0 +1,31 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "host-capability-routing",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "宿主能力路由",
+      "include": [
+        "authority",
+        "direct",
+        "lever",
+        "native",
+        "variant",
+        "host",
+        "capability",
+        "routing"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "宿主能力路由领域任务",
+      "宿主能力路由专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "宿主能力路由 Owner — 当已识别工作流意图后，需要在五个逻辑宿主、八个受支持 variant 上选择 direct / plan_first / auto_authorized，核验原始指令 authority，或判断 native lever 是否具备新鲜且安全的直接证据时使用。"
+}

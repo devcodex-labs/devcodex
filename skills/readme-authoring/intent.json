@@ -1,0 +1,28 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "readme-authoring",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "README 写作规范",
+      "include": [
+        "README",
+        "consumer",
+        "map",
+        "readme-authoring",
+        "authoring"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "README 写作规范领域任务",
+      "README 写作规范专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "README 写作规范 — 为 README / 用户使用文档收口用户视角、章节顺序、示例策略与 consumer map"
+}

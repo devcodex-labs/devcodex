@@ -1,0 +1,27 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "fix-default",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "默认修复子类型规范",
+      "include": [
+        "Bug",
+        "fix-default",
+        "fix",
+        "default"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "默认修复子类型规范领域任务",
+      "默认修复子类型规范专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "默认修复子类型规范 — Bug 修复三步扫描 + CP 流程"
+}

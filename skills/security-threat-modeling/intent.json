@@ -1,0 +1,28 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "security-threat-modeling",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "安全威胁建模专家",
+      "include": [
+        "OAuth",
+        "Webhook",
+        "security",
+        "threat",
+        "modeling"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "安全威胁建模专家领域任务",
+      "安全威胁建模专家专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "安全威胁建模专家 Owner — 当任务涉及权限、认证、授权、输入输出信任边界、密钥策略、审计、攻击面、Webhook/OAuth、敏感操作或用户要求安全专家视角时使用；要求识别滥用路径并绑定缓解验证。"
+}

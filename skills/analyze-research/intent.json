@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "analyze-research",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "技术调研子类型规范",
+      "include": [
+        "analyze-research",
+        "analyze",
+        "research"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "技术调研子类型规范领域任务",
+      "技术调研子类型规范专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "技术调研子类型规范 — 技术选型/可行性评估/根因调查，只读工作流"
+}

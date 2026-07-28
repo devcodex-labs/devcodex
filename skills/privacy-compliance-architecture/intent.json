@@ -1,0 +1,27 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "privacy-compliance-architecture",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "隐私与合规架构专家",
+      "include": [
+        "PII",
+        "privacy",
+        "compliance",
+        "architecture"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "隐私与合规架构专家领域任务",
+      "隐私与合规架构专家专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "隐私与合规架构专家 Owner — 当任务涉及个人信息/PII、数据分类、目的限制、同意、最小化、保留删除、数据驻留、跨境、日志脱敏、主体访问导出删除权或隐私审计时使用；要求把数据生命周期和用户权利映射到真实系统路径与证据。"
+}

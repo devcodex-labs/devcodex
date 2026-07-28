@@ -1,0 +1,31 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "repair-prevention-assessment",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "修复防复发完成门禁",
+      "include": [
+        "accepted",
+        "active",
+        "dev",
+        "fix",
+        "gray",
+        "repair",
+        "self-fix",
+        "prevention"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "修复防复发完成门禁领域任务",
+      "修复防复发完成门禁专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "修复防复发完成门禁 Owner — 任何 fix、self-fix 或 dev 中的 repair 切片在 accepted 前使用；形成可机器验证的 RepairPreventionAssessmentV1，分离当前关闭证据与长期前瞻有效性，避免 active 工作流依赖未部署的 gray 能力。"
+}

@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "data-architecture",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "数据架构专家",
+      "include": [
+        "Schema",
+        "data",
+        "architecture"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "数据架构专家领域任务",
+      "数据架构专家专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "数据架构专家 Owner — 当任务涉及数据模型、Schema、迁移、索引、查询、生命周期、数据质量、派生指标、分析消费者、跨环境数据或持久化状态时使用；要求把数据结构、演进和消费链设计清楚。"
+}

@@ -75,7 +75,7 @@ const PLAN_V1_FIELDS = new Set([
 ])
 const PLAN_FIELDS = new Set([
   ...PLAN_V1_FIELDS,
-  'planContentId', 'identityInputs', 'executionOptimization', 'reusePolicy', 'stageTiming', 'cacheDecision'
+  'planContentId', 'contextBinding', 'identityInputs', 'executionOptimization', 'reusePolicy', 'stageTiming', 'cacheDecision'
 ])
 const SEED_FIELDS = new Set([
   'schemaVersion', 'contextEpoch', 'semantic', 'intent', 'targetHint', 'continuationHint',
@@ -420,6 +420,17 @@ function buildPlanIdentityInputs(plan) {
       configLocalRequested: plan.profile.configLocalRequested
     },
     versions: normalizeIdentityVersions()
+  }
+}
+
+function buildContextReadBinding(plan) {
+  return {
+    schemaVersion: 'ContextReadBindingV1',
+    contextEpoch: plan.identity.contextEpoch,
+    planId: plan.planId,
+    planContentId: plan.planContentId,
+    activeRoot: plan.identity.activeRoot,
+    project: plan.identity.project
   }
 }
 
@@ -883,6 +894,17 @@ function buildContextReadPlan(input = {}, options = {}) {
       finalIntent,
       invocationNonce
     },
+    contextBinding: null,
+    exitCondition: blocked ? 'blocked' : (fullRead ? 'escalated-full' : 'relevant-complete'),
+    profile: {
+      selectedFiles: [...selectedFiles].sort(),
+      configLocalRequested: input.configLocalRequested === true
+    },
+    memory: {
+      requiredQueries: selectedSources.filter(source => source.kind === 'memory').map(source => source.selector).sort()
+    },
+    fullRead,
+    fullReadReason: fullRead ? automaticFullReason : null,
     baselineContext: baseline,
     actionEnvelope: deriveActionEnvelope(finalIntent, changeTypes, seed.riskHint),
     changeTypes,
@@ -915,16 +937,6 @@ function buildContextReadPlan(input = {}, options = {}) {
     },
     escalationTriggers: uniqueSorted(CONTEXT_READ_CONTRACT.escalationTriggers),
     triggeredEscalations: [...triggerSet].sort(),
-    exitCondition: blocked ? 'blocked' : (fullRead ? 'escalated-full' : 'relevant-complete'),
-    profile: {
-      selectedFiles: [...selectedFiles].sort(),
-      configLocalRequested: input.configLocalRequested === true
-    },
-    memory: {
-      requiredQueries: selectedSources.filter(source => source.kind === 'memory').map(source => source.selector).sort()
-    },
-    fullRead,
-    fullReadReason: fullRead ? automaticFullReason : null,
     planningTelemetry: {
       bytes: planningMeasure.bytes,
       chars: planningMeasure.chars,
@@ -952,6 +964,7 @@ function buildContextReadPlan(input = {}, options = {}) {
     contextEpoch: seed.contextEpoch,
     invocationNonce
   }).slice(0, 24)}`
+  plan.contextBinding = buildContextReadBinding(plan)
   refreshPlannerResponseBytes(plan)
   const validation = validateContextReadPlan(plan)
   return validation.valid ? plan : validation.error
@@ -1109,6 +1122,9 @@ function validateContextReadPlan(raw) {
         invocationNonce: identity.invocationNonce
       }).slice(0, 24)}`
       if (raw.planId !== expectedPlanId) errors.push('planId invocation digest mismatch')
+      if (stableDigest(raw.contextBinding) !== stableDigest(buildContextReadBinding(raw))) {
+        errors.push('contextBinding is not derived from plan identity')
+      }
     } catch (error) {
       errors.push(`identityInputs validation failed: ${error.message}`)
     }

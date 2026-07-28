@@ -114,11 +114,16 @@ for (const host of ['.copilot', '.claude', '.codex', path.join('gemini-cli-home'
   assert.strictEqual(receipt.workspaceCleanMode, 'GlobalOnlyWorkspaceCleanModeV1')
 }
 assert.strictEqual(fs.existsSync(path.join(globalHome, '.agents', 'devcodex', 'instructions.full.md')), true)
-assert.strictEqual(fs.existsSync(path.join(globalHome, '.agents', 'skills', 'routing', 'SKILL.md')), true)
+assert.strictEqual(fs.existsSync(path.join(globalHome, '.agents', 'devcodex', 'skills', 'routing', 'SKILL.md')), true)
+assert.strictEqual(
+  fs.existsSync(path.join(globalHome, '.agents', 'skills', 'routing', 'SKILL.md')),
+  false,
+  'managed DevCodex Skills must not occupy the host-native .agents/skills root'
+)
 const skillPortfolio = JSON.parse(fs.readFileSync(path.join(packageRoot, 'skills', 'portfolio.json'), 'utf8'))
 for (const graySkill of skillPortfolio.skills.filter(skill => skill.lifecycleState === 'gray')) {
   assert.strictEqual(
-    fs.existsSync(path.join(globalHome, '.agents', 'skills', graySkill.id)),
+    fs.existsSync(path.join(globalHome, '.agents', 'devcodex', 'skills', graySkill.id)),
     false,
     `gray Skill must not deploy to shared user-global skills: ${graySkill.id}`
   )
@@ -149,7 +154,11 @@ for (const name of ['devcodex-memory', 'devcodex-profile']) {
   assert.strictEqual(installedCopilotMcp.mcpServers[name].type, 'local')
   assert.deepStrictEqual(installedCopilotMcp.mcpServers[name].tools, ['*'])
 }
-assert.strictEqual(fs.existsSync(path.join(globalHome, '.copilot', 'skills', 'routing', 'SKILL.md')), true)
+assert.strictEqual(
+  fs.existsSync(path.join(globalHome, '.copilot', 'skills', 'routing', 'SKILL.md')),
+  false,
+  'Copilot native Skill root must remain host-owned'
+)
 
 const installedEnv = isolatedHostEnv(globalHome)
 runCommand(binPath, ['init'], { cwd: workspace, env: installedEnv })

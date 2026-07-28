@@ -175,6 +175,7 @@ assert.deepStrictEqual(
 )
 assert.ok(plan.operations.some(operation => operation.path.endsWith(path.join('.codex', 'AGENTS.md'))))
 assert.ok(plan.operations.some(operation => operation.path.endsWith(path.join('.claude', 'settings.json'))))
+assert.ok(plan.operations.some(operation => operation.path.endsWith(path.join('.grok', 'hooks', 'devcodex.json'))))
 assert.ok(plan.operations.some(operation => operation.path.endsWith(path.join('.agents', 'devcodex', 'instructions.full.md'))))
 // Default skillsDeployMode=hidden → G_RUNTIME under .agents/devcodex/skills (not L1 scan roots)
 assert.ok(
@@ -218,6 +219,16 @@ assert.strictEqual(fs.existsSync(path.join(home, '.grok', 'devcodex', 'global-ho
 const applied = applyGlobalHostConfig({ packageRoot, env, home })
 assert.strictEqual(applied.transaction.status, 'committed')
 assert.strictEqual(applied.workspaceHostDirectoriesWritten, false)
+const grokGlobalHooks = JSON.parse(fs.readFileSync(
+  path.join(home, '.grok', 'hooks', 'devcodex.json'),
+  'utf8'
+))
+for (const event of ['UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'Stop']) {
+  assert.match(
+    grokGlobalHooks.hooks[event][0].hooks[0].command,
+    /lifecycle-host-adapters\.cjs" grok$/
+  )
+}
 const promptEventByHost = {
   copilot: 'UserPromptSubmit',
   claude: 'UserPromptSubmit',
@@ -478,6 +489,31 @@ const codexTarget = targets.find(target => target.host === 'codex')
 const codexRuntime = path.join(codexTarget.root, 'devcodex', 'runtime')
 require(path.join(codexRuntime, 'scripts', 'lib', 'host-parity-scorecard.js'))
 require(path.join(codexRuntime, 'mcp', 'memory-server.js'))
+const sourceSkillRouteMode = require(path.join(packageRoot, 'hooks', '_runtime', 'skill-route-mode.cjs'))
+const installedSkillRouteMode = require(path.join(codexRuntime, 'hooks', '_runtime', 'skill-route-mode.cjs'))
+const sourceRuntimeContractDigest = sourceSkillRouteMode.getRuntimeContractDigest({
+  globalRuntime: {
+    status: 'resolved',
+    root: path.join(packageRoot, 'skills')
+  }
+})
+const installedRuntimeContractDigest = installedSkillRouteMode.getRuntimeContractDigest({
+  globalRuntime: {
+    status: 'resolved',
+    root: codexTarget.shared.skillsRuntime
+  }
+})
+assert.strictEqual(installedRuntimeContractDigest, sourceRuntimeContractDigest)
+const installedSkillRouteCapabilities = JSON.parse(fs.readFileSync(
+  path.join(codexRuntime, 'hooks', '_runtime', 'host-skill-route-capabilities.v1.json'),
+  'utf8'
+))
+const installedGrokCapability = installedSkillRouteCapabilities.capabilities.find(item =>
+  item.hostVariant === 'grok-cli-single/global-launcher-local-stdio'
+)
+assert.ok(installedGrokCapability)
+assert.strictEqual(installedGrokCapability.status, 'PASS')
+assert.strictEqual(installedGrokCapability.runtimeContractDigest, installedRuntimeContractDigest)
 
 const forgedReceiptFile = path.join(codexTarget.root, 'devcodex', 'global-host-receipt.json')
 const forgedReceipt = JSON.parse(fs.readFileSync(forgedReceiptFile, 'utf8'))

@@ -13,7 +13,14 @@ const {
   removeGrokPluginRegistration,
   syncGrokWorkspacePluginInstallation
 } = require('./lib/host-adapter-scope')
-const { buildGrokLaunchPlan, launchGrok } = require('./lib/grok-workspace-launcher')
+const {
+  GROK_ROUTE_CONTEXT_EPOCH_RE,
+  GROK_ROUTE_PROMPT_MAX_BYTES,
+  buildGrokLaunchPlan,
+  extractSinglePrompt,
+  getGrokLauncherAdapterDigest,
+  launchGrok
+} = require('./lib/grok-workspace-launcher')
 const {
   applyGlobalHostConfig,
   inspectGlobalHostConfig
@@ -753,7 +760,21 @@ console.log(`legacy host installation tests passed selectors=5 dryRunWrites=0 co
   assert.strictEqual(inspection.hosts.length, 5)
   assert.ok(fs.existsSync(path.join(home, 'gemini-cli-home', '.gemini', 'devcodex', 'global-host-receipt.json')))
   assert.ok(fs.existsSync(path.join(home, '.agents', 'devcodex', 'instructions.full.md')))
-  assert.ok(fs.existsSync(path.join(home, '.agents', 'skills', 'routing', 'SKILL.md')))
+  const codexReceipt = JSON.parse(fs.readFileSync(
+    path.join(home, '.codex', 'devcodex', 'global-host-receipt.json'),
+    'utf8'
+  ))
+  assert.strictEqual(codexReceipt.skillsDeployMode, 'hidden')
+  assert.strictEqual(
+    path.resolve(codexReceipt.skillsRuntimeRoot),
+    path.resolve(home, '.agents', 'devcodex', 'skills')
+  )
+  assert.ok(fs.existsSync(path.join(codexReceipt.skillsRuntimeRoot, 'routing', 'SKILL.md')))
+  assert.strictEqual(
+    fs.existsSync(path.join(home, '.agents', 'skills', 'routing', 'SKILL.md')),
+    false,
+    'hidden install must not project DevCodex skills into the host-native scan root'
+  )
 
   const globalPluginRoot = path.join(home, '.grok', 'devcodex', 'plugins', 'devcodex-workspace')
   const globalPluginHook = require(path.join(globalPluginRoot, 'hooks', 'devcodex-workspace.cjs'))
@@ -896,7 +917,11 @@ console.log(`legacy host installation tests passed selectors=5 dryRunWrites=0 co
   let launchedOptions = null
   const launched = launchGrok(['-p', 'check'], {
     cwd: workspace,
-    env: { ...env, GROK_HOME: '' },
+    env: {
+      ...env,
+      GROK_HOME: '',
+      DEVCODEX_CONTEXT_EPOCH: '../../invalid-epoch'
+    },
     home,
     spawnSync: (_command, _args, options) => {
       launchedOptions = options
@@ -905,6 +930,46 @@ console.log(`legacy host installation tests passed selectors=5 dryRunWrites=0 co
   })
   assert.strictEqual(launched.status, 0)
   assert.strictEqual(launchedOptions.env.GROK_HOME, path.join(home, '.grok'))
+  assert.match(launchedOptions.env.DEVCODEX_CONTEXT_EPOCH, GROK_ROUTE_CONTEXT_EPOCH_RE)
+  assert.notStrictEqual(
+    launchedOptions.env.DEVCODEX_CONTEXT_EPOCH,
+    '../../invalid-epoch'
+  )
+  assert.match(getGrokLauncherAdapterDigest(), /^[a-f0-9]{64}$/)
+  const digestFixtureRoot = path.join(workspace, 'launcher-digest-fixture')
+  fs.mkdirSync(digestFixtureRoot, { recursive: true })
+  const digestLauncher = path.join(digestFixtureRoot, 'grok-workspace-launcher.js')
+  const digestTarget = path.join(digestFixtureRoot, 'global-host-target.js')
+  fs.copyFileSync(
+    path.join(ROOT, 'scripts', 'lib', 'grok-workspace-launcher.js'),
+    digestLauncher
+  )
+  fs.copyFileSync(
+    path.join(ROOT, 'scripts', 'lib', 'global-host-target.js'),
+    digestTarget
+  )
+  const adapterDigestBefore = getGrokLauncherAdapterDigest({
+    launcherPath: digestLauncher,
+    globalHostTargetPath: digestTarget
+  })
+  fs.appendFileSync(digestTarget, '\n// digest fixture change\n', 'utf8')
+  assert.notStrictEqual(
+    getGrokLauncherAdapterDigest({
+      launcherPath: digestLauncher,
+      globalHostTargetPath: digestTarget
+    }),
+    adapterDigestBefore
+  )
+  const oversizedPrompt = path.join(workspace, 'oversized-route-prompt.txt')
+  fs.writeFileSync(
+    oversizedPrompt,
+    Buffer.alloc(GROK_ROUTE_PROMPT_MAX_BYTES + 1, 0x61)
+  )
+  assert.strictEqual(
+    extractSinglePrompt(['--prompt-file', oversizedPrompt], workspace),
+    ''
+  )
+  fs.unlinkSync(oversizedPrompt)
 
   fs.rmSync(currentRoot, { recursive: true, force: true })
   console.log('host installation tests passed mode=global-only hosts=5 workspaceHostDirs=0 selectors=blocked grokLauncher=global')

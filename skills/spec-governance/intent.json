@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "spec-governance",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "规范治理生命周期",
+      "include": [
+        "RecordRouter",
+        "SCV",
+        "spec-absorption",
+        "spec-governance",
+        "spec",
+        "governance"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "规范治理生命周期领域任务",
+      "规范治理生命周期专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "规范治理生命周期 — 意图驱动记录、RecordRouter 分流、SCV 规范变更验证；规范吸纳执行细节由 spec-absorption 承接"
+}

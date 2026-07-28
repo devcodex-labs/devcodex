@@ -1,0 +1,31 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "frontend-architecture",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "前端架构专家",
+      "include": [
+        "Nuxt",
+        "SSE",
+        "SSR",
+        "config",
+        "i18n",
+        "runtime",
+        "frontend",
+        "architecture"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "前端架构专家领域任务",
+      "前端架构专家专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "前端架构专家 Owner — 当任务涉及页面、组件、状态管理、数据获取、异步缓存、SSR/Nuxt、runtime config、i18n、SSE、空白页、性能、可访问性或前端验证路线时使用；要求优先保证旧数据可见、异步刷新、渲染稳定和用户主路径不断线。"
+}

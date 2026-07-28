@@ -1,0 +1,30 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "skill-lifecycle-governance",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "Skill 生命周期治理",
+      "include": [
+        "active",
+        "deprecated",
+        "gray",
+        "portfolio",
+        "retired",
+        "lifecycle",
+        "governance"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "Skill 生命周期治理领域任务",
+      "Skill 生命周期治理专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "Skill 生命周期治理 Owner — 当任务涉及 Skill 组合、重叠冲突、依赖关系、误触发/漏触发、active/gray/deprecated/retired 状态、合并拆分、废弃退役、质量指标或自我进化后的 Skill portfolio 健康度时使用。"
+}

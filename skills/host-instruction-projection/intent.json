@@ -1,0 +1,28 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "host-instruction-projection",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "宿主指令投影",
+      "include": [
+        "Host",
+        "Kernel",
+        "instructions",
+        "instruction",
+        "projection"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "宿主指令投影领域任务",
+      "宿主指令投影专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "宿主指令投影 Owner — 从统一 instructions 真相源确定性生成精简 Host Kernel、薄包装、覆盖回执与完整回退"
+}

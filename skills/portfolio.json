@@ -6,15 +6,15 @@
     "skillsPattern": "skills/*/SKILL.md",
     "optionalSidecar": "skills/*/devcodex.skill.json",
     "registry": "plugin.json",
-    "sourceDigest": "7a419e9ce63fbb161abde6d4c6bebd0aaf67d6c324fa66fce6c99ec9021a20fd",
+    "sourceDigest": "e98f615b5875e71817f07f79e609bd0b81803afd0bf7320efe8061836c3b618f",
     "sidecarDigest": "774105d7947b340d15d17115fcb8e37b62ae545cf553f06126d529184fd74872",
     "pluginDigest": "705fe7c86c7225b67756749be5bb3b14a1ee3bffa386483a9ab61dc971f419ae",
     "portfolioEvidence": "skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "8364a73c66ed2ec9787cdb9300223278d128a45b689a2b8deda0d1f03189f42b",
-    "consumerInventoryFileCount": 625,
-    "consumerInventoryDigest": "250e9eb5e95aff17c1825e6f1ffe5ec87f715b6286a2ec79dd85bbd3234fe10b",
-    "consumerProjectionDigest": "f909edf91e0901c4b5f9c29f817844c40e7ff0488bfee86037cef6e4d39c0196",
-    "portfolioInputDigest": "68d3ec6cd7f69a4566e6f001a8bada915f208c2937578511a5d21951e9f79105"
+    "consumerInventoryFileCount": 487,
+    "consumerInventoryDigest": "ec9f943f99f15fb1d6f7de1f98a6c132e460bab8adc9f6edd3c80f3c962d466d",
+    "consumerProjectionDigest": "fff6e781867bc1f7466b43560af773c6c830a9f167d99b66ae629cbbd561870b",
+    "portfolioInputDigest": "9415ff5b3e9e493dfd917357a29a268841f0b0e72b5128dacec93063bab9c527"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -602,10 +602,6 @@
           "role": "current"
         },
         {
-          "path": "README.md",
-          "role": "current"
-        },
-        {
           "path": "scripts/lib/test-spec-governance-expert.js",
           "role": "current"
         },
@@ -619,18 +615,6 @@
         },
         {
           "path": "scripts/test-skill-portfolio.js",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/guide/development.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/directory-structure.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/CHANGELOG.md",
           "role": "current"
         }
       ],
@@ -776,10 +760,6 @@
           "role": "current"
         },
         {
-          "path": "README.md",
-          "role": "current"
-        },
-        {
           "path": "scripts/lib/test-spec-governance-expert.js",
           "role": "current"
         },
@@ -805,18 +785,6 @@
         },
         {
           "path": "scripts/validation-manifest.json",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/guide/development.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/directory-structure.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/CHANGELOG.md",
           "role": "current"
         }
       ],
@@ -957,10 +925,6 @@
           "role": "current"
         },
         {
-          "path": "README.md",
-          "role": "current"
-        },
-        {
           "path": "scripts/lib/test-spec-governance-expert.js",
           "role": "current"
         },
@@ -970,18 +934,6 @@
         },
         {
           "path": "scripts/lib/validate-governance-expert.js",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/guide/development.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/directory-structure.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/CHANGELOG.md",
           "role": "current"
         }
       ],
@@ -1138,10 +1090,6 @@
           "role": "current"
         },
         {
-          "path": "README.md",
-          "role": "current"
-        },
-        {
           "path": "scripts/lib/host-parity-scorecard.js",
           "role": "current"
         },
@@ -1175,26 +1123,6 @@
         },
         {
           "path": "scripts/validation-manifest.json",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/guide/development.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/intro/host-parity-grok.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/intro/index.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/directory-structure.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/CHANGELOG.md",
           "role": "current"
         }
       ],
@@ -1323,6 +1251,10 @@
           "role": "historical"
         },
         {
+          "path": "hooks/_runtime/workflow-root-registry.v1.json",
+          "role": "current"
+        },
+        {
           "path": "instructions/01-common.instructions.md",
           "role": "current"
         },
@@ -1332,10 +1264,6 @@
         },
         {
           "path": "plugin.json",
-          "role": "current"
-        },
-        {
-          "path": "README.md",
           "role": "current"
         },
         {
@@ -1357,34 +1285,6 @@
         {
           "path": "scripts/lib/validate-governance-support.js",
           "role": "current"
-        },
-        {
-          "path": "website/docs/specs/directory-structure.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/release/checklist.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/features/skills-analyze.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/02--stage7-终审报告.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-5.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-7.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p2/skills-analyze.md",
-          "role": "historical"
         }
       ],
       "validationProfile": [
@@ -1444,7 +1344,7 @@
         "registration": "plugin.json",
         "operationalReadiness": {
           "state": "complete",
-          "currentConsumer": "instructions/01-common.instructions.md",
+          "currentConsumer": "hooks/_runtime/workflow-root-registry.v1.json",
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
@@ -1523,10 +1423,6 @@
           "role": "current"
         },
         {
-          "path": "README.md",
-          "role": "current"
-        },
-        {
           "path": "scripts/lib/test-spec-governance-expert.js",
           "role": "current"
         },
@@ -1540,18 +1436,6 @@
         },
         {
           "path": "scripts/lib/validate-rework-trust-controls.js",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/guide/development.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/directory-structure.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/CHANGELOG.md",
           "role": "current"
         }
       ],
@@ -1741,10 +1625,6 @@
           "role": "current"
         },
         {
-          "path": "README.md",
-          "role": "current"
-        },
-        {
           "path": "scripts/lib/test-spec-governance-base.js",
           "role": "current"
         },
@@ -1786,58 +1666,6 @@
         },
         {
           "path": "scripts/validation-manifest.json",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/flowcharts.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/workflow-execution-flow.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/features/skills-self-fix.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/02--stage7-终审报告.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/audit-report.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-5.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-7.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/exec-compliance/index.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/workflow-execution/design.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/workflow-execution/index.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p2/skills-self-fix.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/requirements/p1/template-flow-alignment/design.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/requirements/p1/template-flow-alignment/index.md",
           "role": "current"
         }
       ],
@@ -2017,6 +1845,10 @@
           "role": "current"
         },
         {
+          "path": "hooks/_runtime/workflow-root-registry.v1.json",
+          "role": "current"
+        },
+        {
           "path": "instructions.md",
           "role": "current"
         },
@@ -2083,34 +1915,6 @@
         {
           "path": "scripts/validation-manifest.json",
           "role": "current"
-        },
-        {
-          "path": "website/docs/intro/host-parity-grok.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/release/checklist.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/features/skills-audit.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/02--stage7-终审报告.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-5.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-7.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p2/skills-audit.md",
-          "role": "historical"
         }
       ],
       "validationProfile": [
@@ -2246,6 +2050,10 @@
           "role": "historical"
         },
         {
+          "path": "hooks/_runtime/workflow-root-registry.v1.json",
+          "role": "current"
+        },
+        {
           "path": "instructions.md",
           "role": "current"
         },
@@ -2260,26 +2068,6 @@
         {
           "path": "scripts/lib/validate-governance-intake.js",
           "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/features/skills-audit.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/02--stage7-终审报告.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-5.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-7.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p2/skills-audit.md",
-          "role": "historical"
         }
       ],
       "validationProfile": [
@@ -2341,7 +2129,7 @@
         "registration": "plugin.json",
         "operationalReadiness": {
           "state": "complete",
-          "currentConsumer": "instructions.md",
+          "currentConsumer": "hooks/_runtime/workflow-root-registry.v1.json",
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
@@ -2416,6 +2204,10 @@
           "role": "historical"
         },
         {
+          "path": "hooks/_runtime/workflow-root-registry.v1.json",
+          "role": "current"
+        },
+        {
           "path": "instructions.md",
           "role": "current"
         },
@@ -2462,26 +2254,6 @@
         {
           "path": "scripts/test-readme-governance.js",
           "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/features/skills-audit.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/02--stage7-终审报告.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-5.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-7.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p2/skills-audit.md",
-          "role": "historical"
         }
       ],
       "validationProfile": [
@@ -2546,7 +2318,7 @@
         "registration": "plugin.json",
         "operationalReadiness": {
           "state": "complete",
-          "currentConsumer": "instructions.md",
+          "currentConsumer": "hooks/_runtime/workflow-root-registry.v1.json",
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
@@ -2637,6 +2409,10 @@
           "role": "historical"
         },
         {
+          "path": "hooks/_runtime/workflow-root-registry.v1.json",
+          "role": "current"
+        },
+        {
           "path": "instructions/01-common.instructions.md",
           "role": "current"
         },
@@ -2675,26 +2451,6 @@
         {
           "path": "scripts/validation-manifest.json",
           "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/features/skills-audit.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/02--stage7-终审报告.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-5.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-7.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p2/skills-audit.md",
-          "role": "historical"
         }
       ],
       "validationProfile": [
@@ -2830,6 +2586,10 @@
           "role": "historical"
         },
         {
+          "path": "hooks/_runtime/workflow-root-registry.v1.json",
+          "role": "current"
+        },
+        {
           "path": "instructions.md",
           "role": "current"
         },
@@ -2875,38 +2635,6 @@
         },
         {
           "path": "scripts/lib/validate-governance-review.js",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/guide/development.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/cross-cutting/storage-spec.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/features/skills-audit.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/02--stage7-终审报告.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-5.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-7.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p2/skills-audit.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/CHANGELOG.md",
           "role": "current"
         }
       ],
@@ -2969,7 +2697,7 @@
         "registration": "plugin.json",
         "operationalReadiness": {
           "state": "complete",
-          "currentConsumer": "instructions.md",
+          "currentConsumer": "hooks/_runtime/workflow-root-registry.v1.json",
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
@@ -3056,6 +2784,10 @@
           "role": "historical"
         },
         {
+          "path": "hooks/_runtime/workflow-root-registry.v1.json",
+          "role": "current"
+        },
+        {
           "path": "instructions.md",
           "role": "current"
         },
@@ -3069,10 +2801,6 @@
         },
         {
           "path": "plugin.json",
-          "role": "current"
-        },
-        {
-          "path": "README.md",
           "role": "current"
         },
         {
@@ -3113,18 +2841,6 @@
         },
         {
           "path": "scripts/validate.js",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/guide/development.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/intro/index.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/directory-structure.md",
           "role": "current"
         }
       ],
@@ -3280,6 +2996,10 @@
           "role": "historical"
         },
         {
+          "path": "hooks/_runtime/workflow-root-registry.v1.json",
+          "role": "current"
+        },
+        {
           "path": "instructions.md",
           "role": "current"
         },
@@ -3308,7 +3028,7 @@
           "role": "current"
         },
         {
-          "path": "README.md",
+          "path": "scripts/generate-workflow-root-registry.js",
           "role": "current"
         },
         {
@@ -3353,26 +3073,6 @@
         },
         {
           "path": "scripts/validate.js",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/guide/development.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/guide/release.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/intro/index.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/directory-structure.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/CHANGELOG.md",
           "role": "current"
         }
       ],
@@ -3509,6 +3209,10 @@
       },
       "consumers": [
         {
+          "path": "hooks/_runtime/workflow-root-registry.v1.json",
+          "role": "current"
+        },
+        {
           "path": "instructions.md",
           "role": "current"
         },
@@ -3539,34 +3243,6 @@
         {
           "path": "scripts/validation-manifest.json",
           "role": "current"
-        },
-        {
-          "path": "website/docs/guide/development.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/features/skills-audit.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/01--stage5-6-审查报告.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/02--stage7-终审报告.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-5.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-7.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p2/skills-audit.md",
-          "role": "historical"
         }
       ],
       "validationProfile": [
@@ -3628,7 +3304,7 @@
         "registration": "plugin.json",
         "operationalReadiness": {
           "state": "complete",
-          "currentConsumer": "instructions.md",
+          "currentConsumer": "hooks/_runtime/workflow-root-registry.v1.json",
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
@@ -3706,6 +3382,10 @@
           "role": "historical"
         },
         {
+          "path": "hooks/_runtime/workflow-root-registry.v1.json",
+          "role": "current"
+        },
+        {
           "path": "instructions.md",
           "role": "current"
         },
@@ -3752,26 +3432,6 @@
         {
           "path": "scripts/validation-manifest.json",
           "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/features/skills-audit.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/02--stage7-终审报告.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-5.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-7.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p2/skills-audit.md",
-          "role": "historical"
         }
       ],
       "validationProfile": [
@@ -3922,6 +3582,10 @@
           "role": "historical"
         },
         {
+          "path": "hooks/_runtime/workflow-root-registry.v1.json",
+          "role": "current"
+        },
+        {
           "path": "instructions.md",
           "role": "current"
         },
@@ -3963,10 +3627,6 @@
         },
         {
           "path": "scripts/validate-profile.js",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/requirements/p1/concurrency-policy/design.md",
           "role": "current"
         }
       ],
@@ -4100,6 +3760,10 @@
           "role": "historical"
         },
         {
+          "path": "hooks/_runtime/workflow-root-registry.v1.json",
+          "role": "current"
+        },
+        {
           "path": "instructions.md",
           "role": "current"
         },
@@ -4134,26 +3798,6 @@
         {
           "path": "scripts/validation-manifest.json",
           "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/features/skills-audit.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/02--stage7-终审报告.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-5.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-7.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p2/skills-audit.md",
-          "role": "historical"
         }
       ],
       "validationProfile": [
@@ -4217,7 +3861,7 @@
         "registration": "plugin.json",
         "operationalReadiness": {
           "state": "complete",
-          "currentConsumer": "instructions.md",
+          "currentConsumer": "hooks/_runtime/workflow-root-registry.v1.json",
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
@@ -4294,6 +3938,10 @@
           "role": "historical"
         },
         {
+          "path": "hooks/_runtime/workflow-root-registry.v1.json",
+          "role": "current"
+        },
+        {
           "path": "instructions.md",
           "role": "current"
         },
@@ -4343,18 +3991,6 @@
         },
         {
           "path": "scripts/validate.js",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/guide/development.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/intro/index.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/directory-structure.md",
           "role": "current"
         }
       ],
@@ -4494,27 +4130,11 @@
           "role": "current"
         },
         {
-          "path": "README.md",
-          "role": "current"
-        },
-        {
           "path": "scripts/lib/test-spec-governance-expert.js",
           "role": "current"
         },
         {
           "path": "scripts/lib/validate-governance-expert.js",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/guide/development.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/directory-structure.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/CHANGELOG.md",
           "role": "current"
         }
       ],
@@ -4664,10 +4284,6 @@
           "role": "current"
         },
         {
-          "path": "README.md",
-          "role": "current"
-        },
-        {
           "path": "scripts/lib/governance-status-summary.js",
           "role": "current"
         },
@@ -4709,18 +4325,6 @@
         },
         {
           "path": "scripts/validation-manifest.json",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/guide/development.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/index.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/intro/index.md",
           "role": "current"
         }
       ],
@@ -4869,27 +4473,11 @@
           "role": "current"
         },
         {
-          "path": "README.md",
-          "role": "current"
-        },
-        {
           "path": "scripts/lib/test-spec-governance-expert.js",
           "role": "current"
         },
         {
           "path": "scripts/lib/validate-governance-expert.js",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/guide/development.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/directory-structure.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/CHANGELOG.md",
           "role": "current"
         }
       ],
@@ -5140,6 +4728,10 @@
           "role": "current"
         },
         {
+          "path": "hooks/_runtime/workflow-root-registry.v1.json",
+          "role": "current"
+        },
+        {
           "path": "host-projections/AGENTS.md",
           "role": "current"
         },
@@ -5216,7 +4808,7 @@
           "role": "current"
         },
         {
-          "path": "README.md",
+          "path": "scripts/generate-workflow-root-registry.js",
           "role": "current"
         },
         {
@@ -5304,6 +4896,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-skills-deploy-mode.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-workflow-completion-contract.js",
           "role": "current"
         },
@@ -5322,222 +4918,6 @@
         {
           "path": "scripts/validation-manifest.json",
           "role": "current"
-        },
-        {
-          "path": "website/docs/guide/development.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/intro/host-parity-grok.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/intro/index.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/completion-compliance-flow.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/compliance-framework.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/dev-compliance-flow.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/directory-structure.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/exec-compliance-flow.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/flowcharts.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/memory-update-flow.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/pre-state-summary-flow.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/precheck-flow.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/report-output-flow.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/routing-flow.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/spec-radar-flow.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/workflow-execution-flow.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/index.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/release/checklist.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/release/validation.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/cross-cutting/agent-modes.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/cross-cutting/storage-spec.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/features/instructions.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/features/skills-core.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/index.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/01--stage5-6-审查报告.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/02--stage7-终审报告.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/audit-report.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-1.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-2.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-4.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-6.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/index.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p0/execution-flow.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/dev-compliance/design.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/dev-compliance/index.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/dev-compliance/progress.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/exec-compliance/design.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/exec-compliance/index.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/exec-compliance/progress.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/host-lifecycle-gates/design.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/host-lifecycle-gates/index.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/host-lifecycle-gates/plan.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/memory-update/index.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/pre-state-summary/design.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/pre-state-summary/index.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/precheck/design.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/report-output/index.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/routing/index.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/workflow-execution/index.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p2/instructions.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p2/skills-core.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/CHANGELOG.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/requirements/p1/concurrency-policy/design.md",
-          "role": "current"
-        },
-        {
-          "path": "website/rspress.config.ts",
-          "role": "current"
         }
       ],
       "validationProfile": [
@@ -5546,6 +4926,7 @@
         "scripts/test-host-parity-scorecard.js",
         "scripts/test-skill-portfolio.js",
         "scripts/test-skill-resolve.js",
+        "scripts/test-skills-deploy-mode.js",
         "scripts/test-workflow-completion-contract.js",
         "scripts/test-workspace-skill-auto-match.js",
         "scripts/test-workspace-skill-intent.js",
@@ -5613,6 +4994,7 @@
           "scripts/test-host-parity-scorecard.js",
           "scripts/test-skill-portfolio.js",
           "scripts/test-skill-resolve.js",
+          "scripts/test-skills-deploy-mode.js",
           "scripts/test-workflow-completion-contract.js",
           "scripts/test-workspace-skill-auto-match.js",
           "scripts/test-workspace-skill-intent.js",
@@ -5719,10 +5101,6 @@
           "role": "current"
         },
         {
-          "path": "README.md",
-          "role": "current"
-        },
-        {
           "path": "scripts/lib/governance-status-summary.js",
           "role": "current"
         },
@@ -5744,10 +5122,6 @@
         },
         {
           "path": "scripts/test-skills-deploy-mode.js",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/intro/index.md",
           "role": "current"
         }
       ],
@@ -5946,6 +5320,10 @@
           "role": "current"
         },
         {
+          "path": "hooks/_runtime/workflow-root-registry.v1.json",
+          "role": "current"
+        },
+        {
           "path": "instructions.md",
           "role": "current"
         },
@@ -5971,10 +5349,6 @@
         },
         {
           "path": "prompts/cp-checklist.prompt.md",
-          "role": "current"
-        },
-        {
-          "path": "README.md",
           "role": "current"
         },
         {
@@ -6076,66 +5450,6 @@
         {
           "path": "scripts/validation-manifest.json",
           "role": "current"
-        },
-        {
-          "path": "website/docs/guide/development.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/intro/host-parity-grok.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/release/checklist.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/cross-cutting/agent-modes.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/features/skills-core.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/01--stage5-6-审查报告.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/02--stage7-终审报告.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/audit-report.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-5.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-6.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-7.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/agent-modes/index.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/workflow-execution/design.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/workflow-execution/progress.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p2/skills-core.md",
-          "role": "historical"
         }
       ],
       "validationProfile": [
@@ -6286,27 +5600,11 @@
           "role": "current"
         },
         {
-          "path": "README.md",
-          "role": "current"
-        },
-        {
           "path": "scripts/lib/test-spec-governance-expert.js",
           "role": "current"
         },
         {
           "path": "scripts/lib/validate-governance-expert.js",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/guide/development.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/directory-structure.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/CHANGELOG.md",
           "role": "current"
         }
       ],
@@ -6444,10 +5742,6 @@
           "role": "current"
         },
         {
-          "path": "README.md",
-          "role": "current"
-        },
-        {
           "path": "scripts/lib/test-spec-governance-expert.js",
           "role": "current"
         },
@@ -6461,18 +5755,6 @@
         },
         {
           "path": "scripts/test-skill-portfolio.js",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/guide/development.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/directory-structure.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/CHANGELOG.md",
           "role": "current"
         }
       ],
@@ -6610,6 +5892,10 @@
           "role": "historical"
         },
         {
+          "path": "hooks/_runtime/workflow-root-registry.v1.json",
+          "role": "current"
+        },
+        {
           "path": "instructions.md",
           "role": "current"
         },
@@ -6632,26 +5918,6 @@
         {
           "path": "scripts/lib/validate-governance-quality.js",
           "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/features/skills-dev.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/02--stage7-终审报告.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-5.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-7.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p2/skills-dev.md",
-          "role": "historical"
         }
       ],
       "validationProfile": [
@@ -6713,7 +5979,7 @@
         "registration": "plugin.json",
         "operationalReadiness": {
           "state": "complete",
-          "currentConsumer": "instructions.md",
+          "currentConsumer": "hooks/_runtime/workflow-root-registry.v1.json",
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
@@ -6841,6 +6107,10 @@
           "role": "current"
         },
         {
+          "path": "hooks/_runtime/workflow-root-registry.v1.json",
+          "role": "current"
+        },
+        {
           "path": "instructions.md",
           "role": "current"
         },
@@ -6906,58 +6176,6 @@
         },
         {
           "path": "scripts/validation-manifest.json",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/guide/development.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/intro/host-parity-grok.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/release/checklist.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/features/skills-dev.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/01--stage5-6-审查报告.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/02--stage7-终审报告.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/audit-report.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-5.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-6.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/workflow-execution/design.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/workflow-execution/progress.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p2/skills-dev.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/requirements/p1/concurrency-policy/design.md",
           "role": "current"
         }
       ],
@@ -7128,6 +6346,10 @@
           "role": "historical"
         },
         {
+          "path": "hooks/_runtime/workflow-root-registry.v1.json",
+          "role": "current"
+        },
+        {
           "path": "instructions.md",
           "role": "current"
         },
@@ -7194,38 +6416,6 @@
         {
           "path": "scripts/test-readme-governance.js",
           "role": "current"
-        },
-        {
-          "path": "website/docs/guide/development.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/release/checklist.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/features/skills-dev.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/02--stage7-终审报告.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-1.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-5.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-7.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p2/skills-dev.md",
-          "role": "historical"
         }
       ],
       "validationProfile": [
@@ -7354,6 +6544,10 @@
           "role": "historical"
         },
         {
+          "path": "hooks/_runtime/workflow-root-registry.v1.json",
+          "role": "current"
+        },
+        {
           "path": "instructions.md",
           "role": "current"
         },
@@ -7388,26 +6582,6 @@
         {
           "path": "scripts/test-readme-governance.js",
           "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/features/skills-dev.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/02--stage7-终审报告.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-5.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-7.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p2/skills-dev.md",
-          "role": "historical"
         }
       ],
       "validationProfile": [
@@ -7470,7 +6644,7 @@
         "registration": "plugin.json",
         "operationalReadiness": {
           "state": "complete",
-          "currentConsumer": "instructions.md",
+          "currentConsumer": "hooks/_runtime/workflow-root-registry.v1.json",
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
@@ -7539,6 +6713,10 @@
           "role": "historical"
         },
         {
+          "path": "hooks/_runtime/workflow-root-registry.v1.json",
+          "role": "current"
+        },
+        {
           "path": "instructions.md",
           "role": "current"
         },
@@ -7561,26 +6739,6 @@
         {
           "path": "scripts/lib/validate-governance-support.js",
           "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/features/skills-dev.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/02--stage7-终审报告.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-5.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-7.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p2/skills-dev.md",
-          "role": "historical"
         }
       ],
       "validationProfile": [
@@ -7641,7 +6799,7 @@
         "registration": "plugin.json",
         "operationalReadiness": {
           "state": "complete",
-          "currentConsumer": "instructions.md",
+          "currentConsumer": "hooks/_runtime/workflow-root-registry.v1.json",
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
@@ -7779,6 +6937,10 @@
           "role": "current"
         },
         {
+          "path": "hooks/_runtime/workflow-root-registry.v1.json",
+          "role": "current"
+        },
+        {
           "path": "instructions.md",
           "role": "current"
         },
@@ -7844,46 +7006,6 @@
         },
         {
           "path": "scripts/validation-manifest.json",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/guide/development.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/release/checklist.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/features/skills-dev.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/02--stage7-终审报告.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/audit-report.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-5.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-7.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p2/skills-dev.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/requirements/p1/template-flow-alignment/design.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/requirements/p1/template-flow-alignment/index.md",
           "role": "current"
         }
       ],
@@ -8020,6 +7142,10 @@
           "role": "historical"
         },
         {
+          "path": "hooks/_runtime/workflow-root-registry.v1.json",
+          "role": "current"
+        },
+        {
           "path": "instructions.md",
           "role": "current"
         },
@@ -8030,30 +7156,6 @@
         {
           "path": "plugin.json",
           "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/release/checklist.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/features/skills-dev.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/02--stage7-终审报告.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-5.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-7.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p2/skills-dev.md",
-          "role": "historical"
         }
       ],
       "validationProfile": [
@@ -8115,7 +7217,7 @@
         "registration": "plugin.json",
         "operationalReadiness": {
           "state": "complete",
-          "currentConsumer": "instructions.md",
+          "currentConsumer": "hooks/_runtime/workflow-root-registry.v1.json",
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
@@ -8180,6 +7282,10 @@
           "role": "historical"
         },
         {
+          "path": "hooks/_runtime/workflow-root-registry.v1.json",
+          "role": "current"
+        },
+        {
           "path": "instructions.md",
           "role": "current"
         },
@@ -8221,34 +7327,6 @@
         },
         {
           "path": "scripts/test-skill-portfolio.js",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/features/skills-dev.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/02--stage7-终审报告.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-5.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-7.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p2/skills-dev.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/CHANGELOG.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/requirements/p1/leak-risk-stability-pressure/index.md",
           "role": "current"
         }
       ],
@@ -8314,7 +7392,7 @@
         "registration": "plugin.json",
         "operationalReadiness": {
           "state": "complete",
-          "currentConsumer": "instructions.md",
+          "currentConsumer": "hooks/_runtime/workflow-root-registry.v1.json",
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
@@ -8454,14 +7532,6 @@
         },
         {
           "path": "scripts/test-skill-portfolio.js",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/CHANGELOG.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/requirements/p1/leak-risk-stability-pressure/index.md",
           "role": "current"
         }
       ],
@@ -8611,10 +7681,6 @@
           "role": "current"
         },
         {
-          "path": "README.md",
-          "role": "current"
-        },
-        {
           "path": "scripts/lib/test-spec-governance-expert.js",
           "role": "current"
         },
@@ -8624,18 +7690,6 @@
         },
         {
           "path": "scripts/lib/validate-rework-trust-controls.js",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/guide/development.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/directory-structure.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/CHANGELOG.md",
           "role": "current"
         }
       ],
@@ -8778,10 +7832,6 @@
           "role": "current"
         },
         {
-          "path": "README.md",
-          "role": "current"
-        },
-        {
           "path": "scripts/lib/test-spec-governance-expert.js",
           "role": "current"
         },
@@ -8795,18 +7845,6 @@
         },
         {
           "path": "scripts/lib/validate-residual-absorption-controls.js",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/guide/development.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/directory-structure.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/CHANGELOG.md",
           "role": "current"
         }
       ],
@@ -9061,42 +8099,6 @@
         {
           "path": "scripts/validation-manifest.json",
           "role": "current"
-        },
-        {
-          "path": "website/docs/specs/flowcharts.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/workflow-execution-flow.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/features/skills-self-fix.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/02--stage7-终审报告.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-5.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-7.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/workflow-execution/design.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/workflow-execution/index.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p2/skills-self-fix.md",
-          "role": "historical"
         }
       ],
       "validationProfile": [
@@ -9252,10 +8254,6 @@
           "role": "current"
         },
         {
-          "path": "README.md",
-          "role": "current"
-        },
-        {
           "path": "scripts/lib/test-spec-governance-base.js",
           "role": "current"
         },
@@ -9269,26 +8267,6 @@
         },
         {
           "path": "scripts/lib/validate-rework-trust-controls.js",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/guide/development.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/intro/index.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/directory-structure.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/CHANGELOG.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/requirements/p1/latest-data-absorption-guards/index.md",
           "role": "current"
         }
       ],
@@ -9479,10 +8457,6 @@
           "role": "current"
         },
         {
-          "path": "README.md",
-          "role": "current"
-        },
-        {
           "path": "scripts/fixtures/requirement-parallel-orchestration/serial-shared-source-mutation.json",
           "role": "current"
         },
@@ -9564,18 +8538,6 @@
         },
         {
           "path": "scripts/validation-manifest.json",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/guide/development.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/intro/index.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/directory-structure.md",
           "role": "current"
         }
       ],
@@ -9741,10 +8703,6 @@
           "role": "current"
         },
         {
-          "path": "README.md",
-          "role": "current"
-        },
-        {
           "path": "scripts/lib/test-spec-governance-expert.js",
           "role": "current"
         },
@@ -9754,26 +8712,6 @@
         },
         {
           "path": "scripts/lib/validate-governance-review.js",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/guide/development.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/index.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/intro/index.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/directory-structure.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/CHANGELOG.md",
           "role": "current"
         }
       ],
@@ -9915,27 +8853,11 @@
           "role": "current"
         },
         {
-          "path": "README.md",
-          "role": "current"
-        },
-        {
           "path": "scripts/lib/test-spec-governance-expert.js",
           "role": "current"
         },
         {
           "path": "scripts/lib/validate-governance-expert.js",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/guide/development.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/directory-structure.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/CHANGELOG.md",
           "role": "current"
         }
       ],
@@ -10094,6 +9016,10 @@
           "role": "current"
         },
         {
+          "path": "hooks/_runtime/workflow-root-registry.v1.json",
+          "role": "current"
+        },
+        {
           "path": "instructions/01-common.instructions.md",
           "role": "current"
         },
@@ -10160,50 +9086,6 @@
         {
           "path": "scripts/validation-manifest.json",
           "role": "current"
-        },
-        {
-          "path": "website/docs/intro/host-parity-grok.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/release/checklist.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/features/skills-fix.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/01--stage5-6-审查报告.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/02--stage7-终审报告.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/audit-report.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-5.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-6.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/workflow-execution/design.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/workflow-execution/progress.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p2/skills-fix.md",
-          "role": "historical"
         }
       ],
       "validationProfile": [
@@ -10334,6 +9216,10 @@
       },
       "consumers": [
         {
+          "path": "hooks/_runtime/workflow-root-registry.v1.json",
+          "role": "current"
+        },
+        {
           "path": "instructions/01-common.instructions.md",
           "role": "current"
         },
@@ -10348,26 +9234,6 @@
         {
           "path": "scripts/validation-manifest.json",
           "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/features/skills-fix.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/02--stage7-终审报告.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-5.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-7.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p2/skills-fix.md",
-          "role": "historical"
         }
       ],
       "validationProfile": [
@@ -10428,7 +9294,7 @@
         "registration": "plugin.json",
         "operationalReadiness": {
           "state": "complete",
-          "currentConsumer": "instructions/01-common.instructions.md",
+          "currentConsumer": "hooks/_runtime/workflow-root-registry.v1.json",
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
@@ -10507,27 +9373,11 @@
           "role": "current"
         },
         {
-          "path": "README.md",
-          "role": "current"
-        },
-        {
           "path": "scripts/lib/test-spec-governance-expert.js",
           "role": "current"
         },
         {
           "path": "scripts/lib/validate-governance-expert.js",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/guide/development.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/directory-structure.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/CHANGELOG.md",
           "role": "current"
         }
       ],
@@ -10668,27 +9518,11 @@
           "role": "current"
         },
         {
-          "path": "README.md",
-          "role": "current"
-        },
-        {
           "path": "scripts/lib/test-spec-governance-expert.js",
           "role": "current"
         },
         {
           "path": "scripts/lib/validate-governance-expert.js",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/guide/development.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/directory-structure.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/CHANGELOG.md",
           "role": "current"
         }
       ],
@@ -10872,10 +9706,6 @@
           "role": "current"
         },
         {
-          "path": "README.md",
-          "role": "current"
-        },
-        {
           "path": "scripts/fixtures/host-capability-routing/valid-decision.json",
           "role": "current"
         },
@@ -10889,22 +9719,6 @@
         },
         {
           "path": "scripts/validation-manifest.json",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/index.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/intro/index.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/mcp-capability-boundary.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/workflow-execution-flow.md",
           "role": "current"
         }
       ],
@@ -11058,6 +9872,10 @@
           "role": "current"
         },
         {
+          "path": "hooks/_runtime/workflow-root-registry.v1.json",
+          "role": "current"
+        },
+        {
           "path": "instructions/01-common.instructions.md",
           "role": "current"
         },
@@ -11074,7 +9892,7 @@
           "role": "current"
         },
         {
-          "path": "README.md",
+          "path": "scripts/generate-workflow-root-registry.js",
           "role": "current"
         },
         {
@@ -11123,18 +9941,6 @@
         },
         {
           "path": "scripts/validation-manifest.json",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/guide/development.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/intro/index.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/directory-structure.md",
           "role": "current"
         }
       ],
@@ -11320,10 +10126,6 @@
         {
           "path": "scripts/validation-manifest.json",
           "role": "current"
-        },
-        {
-          "path": "website/docs/intro/index.md",
-          "role": "current"
         }
       ],
       "validationProfile": [
@@ -11477,50 +10279,6 @@
         {
           "path": "prompts/report-dev.prompt.md",
           "role": "current"
-        },
-        {
-          "path": "website/docs/specs/flowcharts.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/workflow-execution-flow.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/features/skills-self-fix.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/02--stage7-终审报告.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/audit-report.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-1.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-5.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-7.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/workflow-execution/design.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/workflow-execution/index.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p2/skills-self-fix.md",
-          "role": "historical"
         }
       ],
       "validationProfile": [
@@ -11672,10 +10430,6 @@
         },
         {
           "path": "scripts/validation-manifest.json",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/requirements/p0/project-execution-chain-performance.md",
           "role": "current"
         }
       ],
@@ -11877,11 +10631,23 @@
           "role": "current"
         },
         {
+          "path": "hooks/_runtime/progressive-skill-route-contract.cjs",
+          "role": "current"
+        },
+        {
           "path": "hooks/_runtime/review-execution-contract.cjs",
           "role": "current"
         },
         {
+          "path": "hooks/_runtime/runtime-skill-identity-index.cjs",
+          "role": "current"
+        },
+        {
           "path": "hooks/_runtime/skill-resolution.cjs",
+          "role": "current"
+        },
+        {
+          "path": "hooks/_runtime/skill-route-mode.cjs",
           "role": "current"
         },
         {
@@ -11890,6 +10656,14 @@
         },
         {
           "path": "hooks/_runtime/workflow-completion-contract.cjs",
+          "role": "current"
+        },
+        {
+          "path": "hooks/_runtime/workflow-root-registry.cjs",
+          "role": "current"
+        },
+        {
+          "path": "hooks/_runtime/workflow-root-registry.v1.json",
           "role": "current"
         },
         {
@@ -11985,6 +10759,10 @@
           "role": "current"
         },
         {
+          "path": "README.md",
+          "role": "current"
+        },
+        {
           "path": "scripts/fixtures/candidate-review-bundle/phase-conflict.md",
           "role": "current"
         },
@@ -11998,6 +10776,14 @@
         },
         {
           "path": "scripts/fixtures/host-parity/unaligned-ledger.v1.json",
+          "role": "current"
+        },
+        {
+          "path": "scripts/generate-skill-intents.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/generate-workflow-root-registry.js",
           "role": "current"
         },
         {
@@ -12030,6 +10816,10 @@
         },
         {
           "path": "scripts/lib/intent-consistency.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/skill-route-test-fixture.js",
           "role": "current"
         },
         {
@@ -12097,6 +10887,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/probe-skill-route-s15-grok.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-always-on-governance.js",
           "role": "current"
         },
@@ -12157,11 +10951,23 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-skill-intents.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-skill-portfolio.js",
           "role": "current"
         },
         {
           "path": "scripts/test-skill-resolve.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-skill-route-contracts.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-skill-route-state.js",
           "role": "current"
         },
         {
@@ -12191,130 +10997,6 @@
         {
           "path": "scripts/validation-manifest.json",
           "role": "current"
-        },
-        {
-          "path": "website/docs/index.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/intro/host-parity-grok.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/intro/index.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/directory-structure.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/flowcharts.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/workflow-execution-flow.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/release/checklist.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/features/agents.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/features/skills-core.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/02--stage7-终审报告.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/audit-report.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-1.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-3.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-4.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-5.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-6.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p0/execution-flow.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/change-guardrails/design.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/memory-resume/index.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/pre-state-summary/design.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/precheck/design.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/precheck/index.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/precheck/progress.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/routing/design.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p2/agents.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p2/skills-core.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/requirements/index.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/requirements/p1/concurrency-policy/design.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v2/2.0.0/formal-solution-package.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v2/2.0.0/index.md",
-          "role": "current"
-        },
-        {
-          "path": "website/rspress.config.ts",
-          "role": "current"
         }
       ],
       "validationProfile": [
@@ -12333,8 +11015,11 @@
         "scripts/test-intent-consistency.js",
         "scripts/test-mcp-servers.js",
         "scripts/test-review-execution-contract.js",
+        "scripts/test-skill-intents.js",
         "scripts/test-skill-portfolio.js",
         "scripts/test-skill-resolve.js",
+        "scripts/test-skill-route-contracts.js",
+        "scripts/test-skill-route-state.js",
         "scripts/test-visible-output-contract.js",
         "scripts/test-workflow-completion-contract.js",
         "scripts/test-workspace-skill-intent-e2e.js",
@@ -12423,8 +11108,11 @@
           "scripts/test-intent-consistency.js",
           "scripts/test-mcp-servers.js",
           "scripts/test-review-execution-contract.js",
+          "scripts/test-skill-intents.js",
           "scripts/test-skill-portfolio.js",
           "scripts/test-skill-resolve.js",
+          "scripts/test-skill-route-contracts.js",
+          "scripts/test-skill-route-state.js",
           "scripts/test-visible-output-contract.js",
           "scripts/test-workflow-completion-contract.js",
           "scripts/test-workspace-skill-intent-e2e.js",
@@ -12569,10 +11257,6 @@
           "role": "current"
         },
         {
-          "path": "README.md",
-          "role": "current"
-        },
-        {
           "path": "scripts/lib/cli-maintenance-commands.js",
           "role": "current"
         },
@@ -12634,74 +11318,6 @@
         },
         {
           "path": "scripts/validation-manifest.json",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/guide/development.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/release/checklist.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/features/skills-routing.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/02--stage7-终审报告.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/audit-report.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-1.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-6.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-7.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p0/execution-flow.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p0/profile.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/change-guardrails/design.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/pre-state-summary/design.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/precheck/design.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/precheck/progress.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p2/skills-routing.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/CHANGELOG.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/requirements/p1/concurrency-policy/design.md",
           "role": "current"
         }
       ],
@@ -13103,6 +11719,10 @@
           "role": "current"
         },
         {
+          "path": "hooks/_runtime/skill-route-tool.cjs",
+          "role": "current"
+        },
+        {
           "path": "hooks/_runtime/task-continuation-contract.cjs",
           "role": "current"
         },
@@ -13112,6 +11732,10 @@
         },
         {
           "path": "hooks/_runtime/workflow-completion-contract.cjs",
+          "role": "current"
+        },
+        {
+          "path": "hooks/_runtime/workflow-root-registry.v1.json",
           "role": "current"
         },
         {
@@ -13263,6 +11887,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/generate-workflow-root-registry.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/host-instruction-projection.json",
           "role": "current"
         },
@@ -13272,6 +11900,10 @@
         },
         {
           "path": "scripts/lib/always-on-governance.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/canonical-consumer-contracts.js",
           "role": "current"
         },
         {
@@ -13355,6 +11987,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/skill-route-test-fixture.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/summary-type-canon.js",
           "role": "current"
         },
@@ -13428,6 +12064,10 @@
         },
         {
           "path": "scripts/probe-mode-dev-completion.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/probe-skill-route-s15-grok.js",
           "role": "current"
         },
         {
@@ -13551,6 +12191,18 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-skill-route-lifecycle.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-skill-route-state.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-skills-deploy-mode.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-task-continuation.js",
           "role": "current"
         },
@@ -13572,222 +12224,6 @@
         },
         {
           "path": "scripts/validation-manifest.json",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/guide/development.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/guide/profile.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/guide/release.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/intro/host-parity-grok.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/intro/index.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/intro/philosophy.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/completion-compliance-flow.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/flowcharts.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/mcp-capability-boundary.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/memory-update-flow.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/pre-state-summary-flow.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/report-output-flow.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/CHANGELOG.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/release/checklist.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/release/validation.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/cross-cutting/memory-resume.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/cross-cutting/storage-spec.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/features/instructions.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/features/skills-core.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/index.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/01--stage5-6-审查报告.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/02--stage7-终审报告.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/audit-report.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-1.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-3.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-5.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-6.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-7.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/index.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p0/execution-flow.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/exec-compliance/design.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/memory-resume/index.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/memory-retrieval/design.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/memory-retrieval/index.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/memory-retrieval/progress.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/memory-update/design.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/memory-update/index.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/memory-update/progress.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/pre-state-summary/design.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/pre-state-summary/index.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/precheck/design.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/report-output/index.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/storage-spec/index.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/summary/design.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/summary/index.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/workflow-execution/design.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p2/instructions.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p2/skills-core.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/CHANGELOG.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/requirements/p0/intent-driven-context-loading.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/requirements/p0/project-execution-chain-performance.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/requirements/p1/concurrency-policy/design.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v2/2.0.0/index.md",
-          "role": "current"
-        },
-        {
-          "path": "website/rspress.config.ts",
           "role": "current"
         }
       ],
@@ -13821,6 +12257,9 @@
         "scripts/test-review-execution-contract.js",
         "scripts/test-runtime-state-index.js",
         "scripts/test-skill-portfolio.js",
+        "scripts/test-skill-route-lifecycle.js",
+        "scripts/test-skill-route-state.js",
+        "scripts/test-skills-deploy-mode.js",
         "scripts/test-task-continuation.js",
         "scripts/test-validate-profile.js",
         "scripts/test-workflow-completion-contract.js",
@@ -13899,6 +12338,9 @@
           "scripts/test-review-execution-contract.js",
           "scripts/test-runtime-state-index.js",
           "scripts/test-skill-portfolio.js",
+          "scripts/test-skill-route-lifecycle.js",
+          "scripts/test-skill-route-state.js",
+          "scripts/test-skills-deploy-mode.js",
           "scripts/test-task-continuation.js",
           "scripts/test-validate-profile.js",
           "scripts/test-workflow-completion-contract.js",
@@ -13994,10 +12436,6 @@
           "role": "current"
         },
         {
-          "path": "README.md",
-          "role": "current"
-        },
-        {
           "path": "scripts/lib/test-spec-governance-expert.js",
           "role": "current"
         },
@@ -14015,18 +12453,6 @@
         },
         {
           "path": "scripts/lib/validate-governance-expert.js",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/guide/development.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/directory-structure.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/CHANGELOG.md",
           "role": "current"
         }
       ],
@@ -14290,6 +12716,10 @@
           "role": "current"
         },
         {
+          "path": "hooks/_runtime/context-plan-observation.cjs",
+          "role": "current"
+        },
+        {
           "path": "hooks/_runtime/context-read-contract.cjs",
           "role": "current"
         },
@@ -14322,7 +12752,23 @@
           "role": "current"
         },
         {
+          "path": "hooks/_runtime/progressive-skill-plan.cjs",
+          "role": "current"
+        },
+        {
           "path": "hooks/_runtime/review-execution-contract.cjs",
+          "role": "current"
+        },
+        {
+          "path": "hooks/_runtime/skill-route-mode.cjs",
+          "role": "current"
+        },
+        {
+          "path": "hooks/_runtime/skill-route-state.cjs",
+          "role": "current"
+        },
+        {
+          "path": "hooks/_runtime/skill-route-tool.cjs",
           "role": "current"
         },
         {
@@ -14331,6 +12777,10 @@
         },
         {
           "path": "hooks/_runtime/workflow-completion-contract.cjs",
+          "role": "current"
+        },
+        {
+          "path": "hooks/_runtime/workflow-root-registry.v1.json",
           "role": "current"
         },
         {
@@ -14458,6 +12908,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/generate-workflow-root-registry.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/instruction-fallback-check.js",
           "role": "current"
         },
@@ -14555,6 +13009,10 @@
         },
         {
           "path": "scripts/lib/requirement-artifact-check.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/skill-route-test-fixture.js",
           "role": "current"
         },
         {
@@ -14675,6 +13133,10 @@
         },
         {
           "path": "scripts/postinstall.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/probe-skill-route-s15-grok.js",
           "role": "current"
         },
         {
@@ -14846,6 +13308,14 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-skill-route-contracts.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-skill-route-state.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-skills-deploy-mode.js",
           "role": "current"
         },
@@ -14879,234 +13349,6 @@
         },
         {
           "path": "scripts/validation-manifest.json",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/guide/development.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/guide/index.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/guide/profile.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/guide/requirements.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/index.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/intro/host-parity-grok.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/intro/index.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/directory-structure.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/flowcharts.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/mcp-capability-boundary.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/precheck-flow.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/routing-flow.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/spec-radar-flow.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/workflow-execution-flow.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/release/checklist.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/features/agents.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/features/prompts.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/features/skills-core.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/features/skills-dev.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/01--stage5-6-审查报告.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/02--stage7-终审报告.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/audit-report.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-1.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-4.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-5.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-6.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-7.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p0/execution-flow.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/agent-modes/decisions.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/agent-modes/design.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/agent-modes/index.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/agent-modes/progress.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/change-guardrails/index.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/dev-compliance/index.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/host-lifecycle-gates/index.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/memory-resume/decisions.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/memory-resume/design.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/memory-resume/index.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/memory-resume/progress.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/routing/index.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/storage-spec/decisions.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/storage-spec/design.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/storage-spec/index.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/storage-spec/progress.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/workflow-execution/design.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/workflow-execution/index.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p2/agents.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p2/prompts.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p2/skills-core.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p2/skills-dev.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/CHANGELOG.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/requirements/p0/intent-driven-context-loading.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/requirements/p0/project-execution-chain-performance.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/requirements/p1/latest-data-absorption-guards/index.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/requirements/p1/template-flow-alignment/design.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/requirements/p1/template-flow-alignment/index.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v2/2.0.0/index.md",
           "role": "current"
         }
       ],
@@ -15150,6 +13392,8 @@
         "scripts/test-skill-portfolio.js",
         "scripts/test-skill-resolution-hook-paths.js",
         "scripts/test-skill-resolve.js",
+        "scripts/test-skill-route-contracts.js",
+        "scripts/test-skill-route-state.js",
         "scripts/test-skills-deploy-mode.js",
         "scripts/test-validation-dag.js",
         "scripts/test-visible-output-contract.js",
@@ -15243,6 +13487,8 @@
           "scripts/test-skill-portfolio.js",
           "scripts/test-skill-resolution-hook-paths.js",
           "scripts/test-skill-resolve.js",
+          "scripts/test-skill-route-contracts.js",
+          "scripts/test-skill-route-state.js",
           "scripts/test-skills-deploy-mode.js",
           "scripts/test-validation-dag.js",
           "scripts/test-visible-output-contract.js",
@@ -15335,10 +13581,6 @@
           "role": "current"
         },
         {
-          "path": "README.md",
-          "role": "current"
-        },
-        {
           "path": "scripts/lib/test-spec-governance-expert.js",
           "role": "current"
         },
@@ -15352,18 +13594,6 @@
         },
         {
           "path": "scripts/validation-manifest.json",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/guide/development.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/directory-structure.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/CHANGELOG.md",
           "role": "current"
         }
       ],
@@ -15503,10 +13733,6 @@
           "role": "current"
         },
         {
-          "path": "README.md",
-          "role": "current"
-        },
-        {
           "path": "scripts/lib/test-spec-governance-expert.js",
           "role": "current"
         },
@@ -15516,18 +13742,6 @@
         },
         {
           "path": "scripts/lib/validate-governance-expert.js",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/guide/development.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/directory-structure.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/CHANGELOG.md",
           "role": "current"
         }
       ],
@@ -15663,27 +13877,11 @@
           "role": "current"
         },
         {
-          "path": "README.md",
-          "role": "current"
-        },
-        {
           "path": "scripts/lib/test-spec-governance-expert.js",
           "role": "current"
         },
         {
           "path": "scripts/lib/validate-governance-expert.js",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/guide/development.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/directory-structure.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/CHANGELOG.md",
           "role": "current"
         }
       ],
@@ -15819,27 +14017,11 @@
           "role": "current"
         },
         {
-          "path": "README.md",
-          "role": "current"
-        },
-        {
           "path": "scripts/lib/test-spec-governance-expert.js",
           "role": "current"
         },
         {
           "path": "scripts/lib/validate-governance-expert.js",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/guide/development.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/directory-structure.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/CHANGELOG.md",
           "role": "current"
         }
       ],
@@ -16051,14 +14233,6 @@
         {
           "path": "scripts/validation-manifest.json",
           "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/CHANGELOG.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/requirements/p1/data-absorption-guard-extensions/index.md",
-          "role": "current"
         }
       ],
       "validationProfile": [
@@ -16194,10 +14368,6 @@
           "role": "current"
         },
         {
-          "path": "README.md",
-          "role": "current"
-        },
-        {
           "path": "scripts/lib/test-spec-governance-expert.js",
           "role": "current"
         },
@@ -16215,18 +14385,6 @@
         },
         {
           "path": "scripts/validation-manifest.json",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/guide/development.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/directory-structure.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/CHANGELOG.md",
           "role": "current"
         }
       ],
@@ -16377,10 +14535,6 @@
           "role": "current"
         },
         {
-          "path": "README.md",
-          "role": "current"
-        },
-        {
           "path": "scripts/lib/test-spec-governance-base.js",
           "role": "current"
         },
@@ -16402,18 +14556,6 @@
         },
         {
           "path": "scripts/validation-manifest.json",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/guide/development.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/intro/index.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/directory-structure.md",
           "role": "current"
         }
       ],
@@ -16590,6 +14732,10 @@
           "role": "current"
         },
         {
+          "path": "hooks/_runtime/workflow-root-registry.v1.json",
+          "role": "current"
+        },
+        {
           "path": "instructions.md",
           "role": "current"
         },
@@ -16618,7 +14764,7 @@
           "role": "current"
         },
         {
-          "path": "README.md",
+          "path": "scripts/generate-workflow-root-registry.js",
           "role": "current"
         },
         {
@@ -16679,30 +14825,6 @@
         },
         {
           "path": "scripts/test-workflow-completion-contract.js",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/guide/development.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/guide/release.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/intro/index.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/directory-structure.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/CHANGELOG.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/requirements/p1/concurrency-policy/design.md",
           "role": "current"
         }
       ],
@@ -16875,10 +14997,6 @@
           "role": "current"
         },
         {
-          "path": "README.md",
-          "role": "current"
-        },
-        {
           "path": "scripts/lib/test-rework-trust-controls.js",
           "role": "current"
         },
@@ -16904,18 +15022,6 @@
         },
         {
           "path": "scripts/validation-manifest.json",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/guide/development.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/index.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/intro/index.md",
           "role": "current"
         }
       ],
@@ -17269,11 +15375,19 @@
           "role": "current"
         },
         {
+          "path": "hooks/_runtime/skill-route-tool.cjs",
+          "role": "current"
+        },
+        {
           "path": "hooks/_runtime/visible-output-contract.cjs",
           "role": "current"
         },
         {
           "path": "hooks/_runtime/workflow-completion-contract.cjs",
+          "role": "current"
+        },
+        {
+          "path": "hooks/_runtime/workflow-root-registry.v1.json",
           "role": "current"
         },
         {
@@ -17406,6 +15520,10 @@
         },
         {
           "path": "scripts/fixtures/requirement-parallel-orchestration/missing-merge-protocol.json",
+          "role": "current"
+        },
+        {
+          "path": "scripts/generate-workflow-root-registry.js",
           "role": "current"
         },
         {
@@ -17589,6 +15707,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/probe-skill-route-s15-grok.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/replay-skill-automatch-accept.cjs",
           "role": "current"
         },
@@ -17701,7 +15823,15 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-skill-route-state.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-skill-sidecar-contract.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-skills-deploy-mode.js",
           "role": "current"
         },
         {
@@ -17730,186 +15860,6 @@
         },
         {
           "path": "scripts/validation-manifest.json",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/guide/development.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/guide/profile.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/index.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/intro/host-parity-grok.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/intro/index.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/completion-compliance-flow.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/exec-compliance-flow.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/flowcharts.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/memory-update-flow.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/report-output-flow.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/release/checklist.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/release/validation.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/cross-cutting/storage-spec.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/features/instructions.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/features/prompts.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/features/skills-audit.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/features/skills-core.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/01--stage5-6-审查报告.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/02--stage7-终审报告.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/audit-report.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-1.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-5.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-6.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-7.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/index.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p0/execution-flow.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/exec-compliance/index.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/memory-update/index.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/report-output/design.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/report-output/index.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/report-output/progress.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/storage-spec/index.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/workflow-execution/design.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p2/instructions.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p2/prompts.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p2/skills-audit.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p2/skills-core.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/CHANGELOG.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/requirements/p0/intent-driven-context-loading.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/requirements/p1/concurrency-policy/design.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/requirements/p1/latest-data-absorption-guards/index.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/requirements/p1/leak-risk-stability-pressure/index.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v2/2.0.0/index.md",
-          "role": "current"
-        },
-        {
-          "path": "website/package-lock.json",
-          "role": "current"
-        },
-        {
-          "path": "website/rspress.config.ts",
           "role": "current"
         }
       ],
@@ -17940,7 +15890,9 @@
         "scripts/test-requirement-parallel-orchestration.js",
         "scripts/test-review-execution-contract.js",
         "scripts/test-skill-portfolio.js",
+        "scripts/test-skill-route-state.js",
         "scripts/test-skill-sidecar-contract.js",
+        "scripts/test-skills-deploy-mode.js",
         "scripts/test-validate-profile.js",
         "scripts/test-validation-dag.js",
         "scripts/test-visible-output-contract.js",
@@ -18024,7 +15976,9 @@
           "scripts/test-requirement-parallel-orchestration.js",
           "scripts/test-review-execution-contract.js",
           "scripts/test-skill-portfolio.js",
+          "scripts/test-skill-route-state.js",
           "scripts/test-skill-sidecar-contract.js",
+          "scripts/test-skills-deploy-mode.js",
           "scripts/test-validate-profile.js",
           "scripts/test-validation-dag.js",
           "scripts/test-visible-output-contract.js",
@@ -18120,31 +16074,11 @@
           "role": "current"
         },
         {
-          "path": "README.md",
-          "role": "current"
-        },
-        {
           "path": "scripts/test-requirement-parallel-orchestration.js",
           "role": "current"
         },
         {
           "path": "scripts/validation-manifest.json",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/guide/development.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/index.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/intro/index.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/directory-structure.md",
           "role": "current"
         }
       ],
@@ -18323,10 +16257,6 @@
           "role": "current"
         },
         {
-          "path": "README.md",
-          "role": "current"
-        },
-        {
           "path": "scripts/lib/process-enforcement.js",
           "role": "current"
         },
@@ -18384,26 +16314,6 @@
         },
         {
           "path": "scripts/validation-manifest.json",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/guide/development.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/intro/index.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/directory-structure.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/CHANGELOG.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/requirements/p1/latest-data-absorption-guards/index.md",
           "role": "current"
         }
       ],
@@ -18566,10 +16476,6 @@
           "role": "current"
         },
         {
-          "path": "README.md",
-          "role": "current"
-        },
-        {
           "path": "scripts/lib/governance-status-summary.js",
           "role": "current"
         },
@@ -18603,18 +16509,6 @@
         },
         {
           "path": "scripts/validation-manifest.json",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/guide/development.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/index.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/intro/index.md",
           "role": "current"
         }
       ],
@@ -18862,6 +16756,10 @@
           "role": "current"
         },
         {
+          "path": "hooks/_runtime/workflow-root-registry.v1.json",
+          "role": "current"
+        },
+        {
           "path": "host-projections/coverage.json",
           "role": "current"
         },
@@ -18922,15 +16820,15 @@
           "role": "current"
         },
         {
-          "path": "README.md",
-          "role": "current"
-        },
-        {
           "path": "scripts/fixtures/capability-surface-decision/valid-rule-skill.json",
           "role": "current"
         },
         {
           "path": "scripts/fixtures/host-capability-routing/valid-decision.json",
+          "role": "current"
+        },
+        {
+          "path": "scripts/generate-workflow-root-registry.js",
           "role": "current"
         },
         {
@@ -18959,6 +16857,10 @@
         },
         {
           "path": "scripts/lib/host-instruction-projection.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/skill-route-test-fixture.js",
           "role": "current"
         },
         {
@@ -19010,6 +16912,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/probe-skill-route-s15-grok.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/project-analysis-state.js",
           "role": "current"
         },
@@ -19058,6 +16964,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-skill-route-lifecycle.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-skills-deploy-mode.js",
           "role": "current"
         },
@@ -19067,102 +16977,6 @@
         },
         {
           "path": "scripts/validation-manifest.json",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/index.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/intro/index.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/flowcharts.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/mcp-capability-boundary.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/routing-flow.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/workflow-execution-flow.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/release/checklist.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/features/skills-routing.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/01--stage5-6-审查报告.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/02--stage7-终审报告.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/audit-report.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-4.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-6.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/index.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p0/execution-flow.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/dev-compliance/index.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/routing/design.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/routing/index.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/routing/progress.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/workflow-execution/design.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/workflow-execution/index.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p2/skills-routing.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/requirements/p1/concurrency-policy/design.md",
-          "role": "current"
-        },
-        {
-          "path": "website/rspress.config.ts",
           "role": "current"
         }
       ],
@@ -19177,6 +16991,7 @@
         "scripts/test-mcp-servers.js",
         "scripts/test-review-execution-contract.js",
         "scripts/test-skill-portfolio.js",
+        "scripts/test-skill-route-lifecycle.js",
         "scripts/test-skills-deploy-mode.js",
         "scripts/test-workflow-capabilities.js",
         "scripts/validate.js"
@@ -19250,6 +17065,7 @@
           "scripts/test-mcp-servers.js",
           "scripts/test-review-execution-contract.js",
           "scripts/test-skill-portfolio.js",
+          "scripts/test-skill-route-lifecycle.js",
           "scripts/test-skills-deploy-mode.js",
           "scripts/test-workflow-capabilities.js",
           "scripts/validate.js"
@@ -19337,27 +17153,11 @@
           "role": "current"
         },
         {
-          "path": "README.md",
-          "role": "current"
-        },
-        {
           "path": "scripts/lib/test-spec-governance-expert.js",
           "role": "current"
         },
         {
           "path": "scripts/lib/validate-governance-expert.js",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/guide/development.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/directory-structure.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/CHANGELOG.md",
           "role": "current"
         }
       ],
@@ -19507,23 +17307,11 @@
           "role": "current"
         },
         {
-          "path": "README.md",
-          "role": "current"
-        },
-        {
           "path": "scripts/lib/test-spec-governance-scale.js",
           "role": "current"
         },
         {
           "path": "scripts/lib/validate-governance-expert.js",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/intro/index.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/CHANGELOG.md",
           "role": "current"
         }
       ],
@@ -19669,10 +17457,6 @@
           "role": "current"
         },
         {
-          "path": "README.md",
-          "role": "current"
-        },
-        {
           "path": "scripts/fixtures/capability-surface-decision/valid-rule-skill.json",
           "role": "current"
         },
@@ -19710,18 +17494,6 @@
         },
         {
           "path": "scripts/validation-manifest.json",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/guide/development.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/intro/index.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/CHANGELOG.md",
           "role": "current"
         }
       ],
@@ -19860,6 +17632,14 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "README.md",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/canonical-consumer-contracts.js",
           "role": "current"
         },
         {
@@ -20036,10 +17816,6 @@
           "role": "current"
         },
         {
-          "path": "README.md",
-          "role": "current"
-        },
-        {
           "path": "scripts/lib/canonical-consumer-contracts.js",
           "role": "current"
         },
@@ -20085,18 +17861,6 @@
         },
         {
           "path": "scripts/validation-manifest.json",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/guide/development.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/intro/index.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/directory-structure.md",
           "role": "current"
         }
       ],
@@ -20273,10 +18037,6 @@
           "role": "current"
         },
         {
-          "path": "README.md",
-          "role": "current"
-        },
-        {
           "path": "scripts/fixtures/capability-surface-decision/valid-rule-skill.json",
           "role": "current"
         },
@@ -20330,22 +18090,6 @@
         },
         {
           "path": "scripts/validation-manifest.json",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/guide/development.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/intro/index.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/directory-structure.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/CHANGELOG.md",
           "role": "current"
         }
       ],
@@ -20615,6 +18359,10 @@
           "role": "current"
         },
         {
+          "path": "hooks/_runtime/workflow-root-registry.v1.json",
+          "role": "current"
+        },
+        {
           "path": "host-projections/AGENTS.md",
           "role": "current"
         },
@@ -20695,15 +18443,15 @@
           "role": "current"
         },
         {
-          "path": "README.md",
-          "role": "current"
-        },
-        {
           "path": "scripts/fixtures/capability-surface-decision/valid-controlled-tool.json",
           "role": "current"
         },
         {
           "path": "scripts/fixtures/capability-surface-decision/valid-rule-skill.json",
+          "role": "current"
+        },
+        {
+          "path": "scripts/generate-workflow-root-registry.js",
           "role": "current"
         },
         {
@@ -20819,51 +18567,19 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-skill-route-contracts.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-skill-route-state.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-spec-governance.js",
           "role": "current"
         },
         {
           "path": "scripts/validation-manifest.json",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/guide/development.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/directory-structure.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/mcp-capability-boundary.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/spec-radar-flow.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/features/skills-self-fix.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p2/skills-self-fix.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/CHANGELOG.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/requirements/p1/concurrency-policy/design.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/requirements/p1/latest-data-absorption-guards/index.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/requirements/p1/leak-risk-stability-pressure/index.md",
           "role": "current"
         }
       ],
@@ -20872,6 +18588,8 @@
         "scripts/test-control-plane-module-contracts.js",
         "scripts/test-governance-intake.js",
         "scripts/test-skill-portfolio.js",
+        "scripts/test-skill-route-contracts.js",
+        "scripts/test-skill-route-state.js",
         "scripts/test-spec-governance.js",
         "scripts/validate.js"
       ],
@@ -20926,6 +18644,8 @@
           "scripts/test-control-plane-module-contracts.js",
           "scripts/test-governance-intake.js",
           "scripts/test-skill-portfolio.js",
+          "scripts/test-skill-route-contracts.js",
+          "scripts/test-skill-route-state.js",
           "scripts/test-spec-governance.js",
           "scripts/validate.js"
         ],
@@ -21049,6 +18769,18 @@
           "role": "current"
         },
         {
+          "path": "hooks/_runtime/progressive-skill-route-contract.cjs",
+          "role": "current"
+        },
+        {
+          "path": "hooks/_runtime/runtime-skill-identity-index.cjs",
+          "role": "current"
+        },
+        {
+          "path": "hooks/_runtime/skill-route-tool.cjs",
+          "role": "current"
+        },
+        {
           "path": "hooks/_runtime/visible-output-contract.cjs",
           "role": "current"
         },
@@ -21137,10 +18869,6 @@
           "role": "current"
         },
         {
-          "path": "README.md",
-          "role": "current"
-        },
-        {
           "path": "scripts/benchmark-runtime-indexes.js",
           "role": "current"
         },
@@ -21150,6 +18878,10 @@
         },
         {
           "path": "scripts/check-runtime-state.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/generate-skill-intents.js",
           "role": "current"
         },
         {
@@ -21198,6 +18930,10 @@
         },
         {
           "path": "scripts/lib/skill-portfolio-utils.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/skill-route-test-fixture.js",
           "role": "current"
         },
         {
@@ -21262,6 +18998,10 @@
         },
         {
           "path": "scripts/probe-mode-dev-completion.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/probe-skill-route-s15-grok.js",
           "role": "current"
         },
         {
@@ -21333,7 +19073,15 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-skill-route-contracts.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-skill-sidecar-contract.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-skills-deploy-mode.js",
           "role": "current"
         },
         {
@@ -21350,166 +19098,6 @@
         },
         {
           "path": "scripts/validation-manifest.json",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/guide/development.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/intro/index.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/completion-compliance-flow.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/dev-compliance-flow.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/exec-compliance-flow.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/flowcharts.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/mcp-capability-boundary.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/memory-retrieval-flow.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/precheck-flow.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/report-output-flow.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/release/checklist.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/features/prompts.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/features/skills-core.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/index.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/01--stage5-6-审查报告.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/02--stage7-终审报告.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/audit-report.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-2.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-3.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-4.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-6.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-7.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/index.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p0/execution-flow.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/block-op/index.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/dev-compliance/index.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/memory-retrieval/index.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/memory-update/design.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/memory-update/progress.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/pre-state-summary/index.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/precheck/index.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/safety-check/index.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/summary/design.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/summary/index.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/summary/progress.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p2/prompts.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p2/skills-core.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/requirements/p0/intent-driven-context-loading.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/requirements/p0/project-execution-chain-performance.md",
-          "role": "current"
-        },
-        {
-          "path": "website/rspress.config.ts",
           "role": "current"
         }
       ],
@@ -21530,7 +19118,9 @@
         "scripts/test-process-enforcement-e2e.js",
         "scripts/test-runtime-state-index.js",
         "scripts/test-skill-portfolio.js",
+        "scripts/test-skill-route-contracts.js",
         "scripts/test-skill-sidecar-contract.js",
+        "scripts/test-skills-deploy-mode.js",
         "scripts/test-summary-type-canon.js",
         "scripts/test-visible-output-contract.js",
         "scripts/validate-profile.js",
@@ -21596,7 +19186,9 @@
           "scripts/test-process-enforcement-e2e.js",
           "scripts/test-runtime-state-index.js",
           "scripts/test-skill-portfolio.js",
+          "scripts/test-skill-route-contracts.js",
           "scripts/test-skill-sidecar-contract.js",
+          "scripts/test-skills-deploy-mode.js",
           "scripts/test-summary-type-canon.js",
           "scripts/test-visible-output-contract.js",
           "scripts/validate-profile.js",
@@ -21755,6 +19347,10 @@
           "role": "current"
         },
         {
+          "path": "hooks/_runtime/workflow-root-registry.v1.json",
+          "role": "current"
+        },
+        {
           "path": "instructions.md",
           "role": "current"
         },
@@ -21787,15 +19383,15 @@
           "role": "current"
         },
         {
-          "path": "README.md",
-          "role": "current"
-        },
-        {
           "path": "scripts/fixtures/capability-surface-decision/valid-controlled-tool.json",
           "role": "current"
         },
         {
           "path": "scripts/fixtures/capability-surface-decision/valid-rule-skill.json",
+          "role": "current"
+        },
+        {
+          "path": "scripts/generate-workflow-root-registry.js",
           "role": "current"
         },
         {
@@ -21899,43 +19495,19 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-skill-route-contracts.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-skill-route-state.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-workflow-completion-contract.js",
           "role": "current"
         },
         {
           "path": "scripts/validation-manifest.json",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/guide/development.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/intro/index.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/directory-structure.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/CHANGELOG.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/requirements/p1/concurrency-policy/design.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/requirements/p1/data-absorption-guard-extensions/index.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/requirements/p1/frontend-experience-quality/index.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/requirements/p1/leak-risk-stability-pressure/index.md",
           "role": "current"
         }
       ],
@@ -21945,6 +19517,8 @@
         "scripts/test-repair-prevention-assessment.js",
         "scripts/test-requirement-parallel-orchestration.js",
         "scripts/test-skill-portfolio.js",
+        "scripts/test-skill-route-contracts.js",
+        "scripts/test-skill-route-state.js",
         "scripts/test-workflow-completion-contract.js",
         "scripts/validate.js"
       ],
@@ -21998,6 +19572,8 @@
           "scripts/test-repair-prevention-assessment.js",
           "scripts/test-requirement-parallel-orchestration.js",
           "scripts/test-skill-portfolio.js",
+          "scripts/test-skill-route-contracts.js",
+          "scripts/test-skill-route-state.js",
           "scripts/test-workflow-completion-contract.js",
           "scripts/validate.js"
         ],
@@ -22087,100 +19663,12 @@
           "role": "current"
         },
         {
-          "path": "README.md",
-          "role": "current"
-        },
-        {
           "path": "RULES.md",
           "role": "current"
         },
         {
           "path": "scripts/test-validate-profile.js",
           "role": "current"
-        },
-        {
-          "path": "website/docs/specs/routing-flow.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/release/checklist.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/features/agents.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/features/instructions.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/features/skills-analyze.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/features/skills-audit.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/features/skills-self-fix.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/02--stage7-终审报告.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/audit-report.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-1.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-4.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-5.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/implementation/stages/stage-7.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/routing/design.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/routing/index.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p1/routing/progress.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p2/agents.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p2/instructions.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p2/skills-analyze.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p2/skills-audit.md",
-          "role": "historical"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.0/requirements/p2/skills-self-fix.md",
-          "role": "historical"
         }
       ],
       "validationProfile": [
@@ -22336,10 +19824,6 @@
           "role": "current"
         },
         {
-          "path": "README.md",
-          "role": "current"
-        },
-        {
           "path": "scripts/lib/test-spec-governance-base.js",
           "role": "current"
         },
@@ -22369,26 +19853,6 @@
         },
         {
           "path": "scripts/validation-manifest.json",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/guide/development.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/intro/index.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/directory-structure.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/CHANGELOG.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/requirements/p1/latest-data-absorption-guards/index.md",
           "role": "current"
         }
       ],
@@ -22538,6 +20002,10 @@
           "role": "current"
         },
         {
+          "path": "hooks/_runtime/workflow-root-registry.v1.json",
+          "role": "current"
+        },
+        {
           "path": "host-projections/AGENTS.md",
           "role": "current"
         },
@@ -22586,6 +20054,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/generate-workflow-root-registry.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/host-instruction-projection.json",
           "role": "current"
         },
@@ -22619,18 +20091,6 @@
         },
         {
           "path": "scripts/validation-manifest.json",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/guide/development.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/intro/host-parity-grok.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/intro/index.md",
           "role": "current"
         }
       ],
@@ -22769,27 +20229,11 @@
           "role": "current"
         },
         {
-          "path": "README.md",
-          "role": "current"
-        },
-        {
           "path": "scripts/lib/test-spec-governance-expert.js",
           "role": "current"
         },
         {
           "path": "scripts/lib/validate-governance-expert.js",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/guide/development.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/specs/directory-structure.md",
-          "role": "current"
-        },
-        {
-          "path": "website/docs/versions/v1/1.0.1/CHANGELOG.md",
           "role": "current"
         }
       ],
@@ -22898,8 +20342,8 @@
         "skills/workspace-skill-author/SKILL.md"
       ],
       "source": "skills/workspace-skill-author/SKILL.md",
-      "hash": "53eaf601943c794458754ea3bc7d22799c8921c63c4a4f400757b36f97ce1a57",
-      "sourceBytes": 1649,
+      "hash": "b7d5230ee6ef579c8adefc5ed6307d865105619af3e384df57feff282e891760",
+      "sourceBytes": 2828,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [],

@@ -1,0 +1,25 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "summary",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "写入会话摘要到记忆日文件。区别于 memory Skill（会话记录读写）...",
+      "include": [
+        "memory",
+        "summary"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "写入会话摘要到记忆日文件。区别于 memory Skill...领域任务",
+      "写入会话摘要到记忆日文件。区别于 memory Skill...专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "写入会话摘要到记忆日文件。区别于 memory Skill（会话记录读写）。任务结束前与 memory Skill 配合完成记忆持久化。"
+}

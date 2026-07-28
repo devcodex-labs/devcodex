@@ -1,0 +1,28 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "analyze-default",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "默认分析工作流规范",
+      "include": [
+        "PCV",
+        "analyze-default",
+        "analyze-lite",
+        "analyze",
+        "default"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "默认分析工作流规范领域任务",
+      "默认分析工作流规范专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "默认分析工作流规范 — 只读多轮分析、代码事实优先、analyze-lite 关联联查与 PCV 收敛验证"
+}

@@ -3,6 +3,7 @@
 
 const fs = require('fs')
 const path = require('path')
+const { evaluatePublicReadmeContract } = require('./lib/canonical-consumer-contracts')
 
 const ROOT = path.resolve(__dirname, '..')
 const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
@@ -10,6 +11,7 @@ const plugin = JSON.parse(fs.readFileSync(path.join(ROOT, 'plugin.json'), 'utf8'
 const readme = fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8')
 
 const errors = []
+const publicReadmeContract = evaluatePublicReadmeContract(readme)
 
 function expect(condition, message) {
   if (!condition) errors.push(message)
@@ -65,6 +67,10 @@ expect(nonEmptyString(plugin.homepage), 'plugin.json homepage 不能为空')
 expect(nonEmptyString(plugin.license), 'plugin.json license 不能为空')
 expect(pluginKeywords.length >= 3, 'plugin.json keywords 至少需要 3 个非空条目')
 expect(pluginCategories.length > 0, 'plugin.json categories 不能为空')
+expect(
+  publicReadmeContract.valid,
+  `README 公共安装契约不完整：${publicReadmeContract.missing.join(', ')}`
+)
 
 if ((pkg.publishConfig.registry || '').includes('npm.pkg.github.com') || pkg.publishConfig.access === 'restricted') {
   for (const needle of ['GitHub Packages', 'npm.pkg.github.com', 'NODE_AUTH_TOKEN', `v${pkg.version}`, '当前唯一发布通道']) {
@@ -74,10 +80,13 @@ if ((pkg.publishConfig.registry || '').includes('npm.pkg.github.com') || pkg.pub
 }
 
 if ((pkg.publishConfig.registry || '').includes('registry.npmjs.org') || pkg.publishConfig.access === 'public') {
-  for (const needle of ['npmjs public', `v${pkg.version}`, '默认公开安装通道', 'GitHub Packages', '镜像通道']) {
-    expect(readme.includes(needle), `README 必须说明 npmjs public 主通道与 GitHub Packages 镜像：${needle}`)
+  for (const needle of [`npm install -g ${pkg.name}`, 'registry 上的版本', '不要']) {
+    expect(readme.includes(needle), `README 必须提供不夸大发布状态的 npmjs 安装说明：${needle}`)
   }
-  expect(!readme.includes('npmjs public 尚处于下一版本候选'), 'README 不得把已发布 npmjs public 通道继续描述为下一版本候选')
+  expect(
+    !readme.includes(`npmjs public | ✅ v${pkg.version} 已发布`),
+    'README 不得仅依据本地 package metadata 宣称 npmjs 版本已发布'
+  )
 }
 
 if (errors.length) {

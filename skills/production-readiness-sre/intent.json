@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "production-readiness-sre",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "生产可用性 / SRE 专家",
+      "include": [
+        "SRE",
+        "production",
+        "readiness"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "生产可用性 / SRE 专家领域任务",
+      "生产可用性 / SRE 专家专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "生产可用性 / SRE 专家 Owner — 当任务涉及发布风险、运行稳定性、可观测性、容量、资源生命周期、内存泄漏、回滚、故障恢复、运行手册、长连接、队列、缓存或生产验收时使用；要求把实现映射到可运行、可监控、可恢复、可回滚。"
+}

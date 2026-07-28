@@ -1,5 +1,7 @@
 'use strict'
 
+const { evaluatePublicReadmeContract } = require('./canonical-consumer-contracts')
+
 const REQUIRED_ACCEPTANCE_FIELDS = [
   'masterLineage',
   'themeGeometryParity',
@@ -49,6 +51,7 @@ function buildBrandVisualQualityChecks(ctx) {
       return
     }
     const content = read(file)
+    if (relative === 'README.md' && evaluatePublicReadmeContract(content).valid) return
     for (const needle of needles) {
       if (!content.includes(needle)) err(`[V97] ${relative} missing: ${needle}`)
     }

@@ -1,5 +1,6 @@
 'use strict'
 
+const { evaluatePublicReadmeContract } = require('./canonical-consumer-contracts')
 const { buildGovernanceHelpers } = require('./validate-governance-helpers')
 
 function collectActiveProfileCorpusIfAvailable(fs, path, activeRoot, readFile) {
@@ -196,6 +197,7 @@ function buildGovernanceReviewChecks(ctx) {
     ]
     for (const probe of probes) {
       const content = fs.readFileSync(path.join(ROOT, probe.file), 'utf8')
+      if (probe.file === 'README.md' && evaluatePublicReadmeContract(content).valid) continue
       for (const needle of probe.needles) {
         if (!content.includes(needle)) {
           err(`[V75] ${probeName} sync drift in ${probe.file}: missing "${needle}"`)

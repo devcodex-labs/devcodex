@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "incremental-project-analysis",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "增量项目分析",
+      "include": [
+        "changed",
+        "digest",
+        "impact",
+        "incremental",
+        "project",
+        "analysis"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "增量项目分析领域任务",
+      "增量项目分析专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "增量项目分析 Owner — 知识快照、内容 digest、分析视角覆盖、changed→impact 选择性失效、智能分批可见交付、全局优先级综合、分析精度合同与双层验证；大型/逐文件分析禁止只缓存自然语言总结。"
+}

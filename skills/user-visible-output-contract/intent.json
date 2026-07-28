@@ -1,0 +1,27 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "user-visible-output-contract",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "用户可见输出契约",
+      "include": [
+        "user",
+        "visible",
+        "output",
+        "contract"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "用户可见输出契约领域任务",
+      "用户可见输出契约专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "用户可见输出契约 Owner — 统一入口检查、完成检查、确认、进度、结果、阻断及内部产物到用户交付的确定性投影"
+}

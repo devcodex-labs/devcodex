@@ -1,0 +1,30 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "requirement-parallel-orchestration",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "多需求并行编排 Skill",
+      "include": [
+        "Agent",
+        "active",
+        "work",
+        "worktree",
+        "requirement",
+        "parallel",
+        "orchestration"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "多需求并行编排 Skill领域任务",
+      "多需求并行编排 Skill专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "多需求并行编排 Skill — 当任务涉及多个需求/问题/优化并行推进、子会话、子 Agent、worktree 或多 active work 执行前判定时，生成 RequirementIndependenceGate、SharedSurfaceLockMap 与 ParallelLaunchCard。"
+}

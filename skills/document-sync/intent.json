@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "document-sync",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "文档同步规范",
+      "include": [
+        "document-sync",
+        "document",
+        "sync"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "文档同步规范领域任务",
+      "文档同步规范专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "文档同步规范 — 代码变更后同步必查与条件文档"
+}

@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "audit-document",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "通用文档审查维度 DA-1~DA-6",
+      "include": [
+        "DA-1",
+        "DA-6",
+        "README",
+        "audit-document",
+        "audit",
+        "document"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "通用文档审查维度 DA-1~DA-6领域任务",
+      "通用文档审查维度 DA-1~DA-6专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "通用文档审查维度 DA-1~DA-6 — README/架构文档/开发指南专属审查层"
+}

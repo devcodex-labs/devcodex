@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "ux-interaction-architecture",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "UX 交互架构专家",
+      "include": [
+        "ux",
+        "interaction",
+        "architecture"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "UX 交互架构专家领域任务",
+      "UX 交互架构专家专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "UX 交互架构专家 Owner — 当任务涉及页面流程、信息架构、任务路径、交互状态、空/错/加载/恢复、可理解性、操作成本、键盘/无障碍触点或用户要求补充交互设计规范时使用；要求从用户任务和状态反馈闭环审查体验。"
+}

@@ -1,5 +1,9 @@
 'use strict'
 
+const {
+  contextPlanObservationRelativePath
+} = require('../../hooks/_runtime/context-plan-observation.cjs')
+
 function runHooksRuntimeBootstrapLayoutScenarios(context) {
   const {
     assert,
@@ -437,6 +441,107 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
     tool_input: { project: allowlistState.contextAcquisition.project, files: ['../01-项目信息.md'] }
   }, TEMP_ROOT, { DEVCODEX_HOOK_ENFORCEMENT: 'strict', CLAUDE_CODE_VERSION: 'test' })
   assert.strictEqual(blockedTraversal.hookSpecificOutput.permissionDecision, 'deny')
+
+  // Grok can truncate a successful MCP result before PostToolUse. Recover only
+  // from the exact, current workspace observation written by the planner.
+  cleanState()
+  run({ hookEventName: 'UserPromptSubmit', prompt: 'truncated plan observation' })
+  const truncatedState = readLegacyState()
+  const truncatedArgs = {
+    intent: 'dev',
+    changeTypes: ['source-code'],
+    contextEpoch: truncatedState.contextAcquisition.contextEpoch,
+    project: truncatedState.contextAcquisition.project
+  }
+  run({
+    hookEventName: 'PreToolUse',
+    tool_use_id: 'truncated-plan',
+    tool_name: 'devcodex-profile/profile_context_plan',
+    tool_input: truncatedArgs
+  })
+  const fullPlanResult = callProfileTool(TEMP_ROOT, 'profile_context_plan', truncatedArgs)
+  const fullPlanText = fullPlanResult.content[0].text
+  const truncatedPlanText = fullPlanText.slice(0, Math.min(20 * 1024, fullPlanText.length - 1))
+  assert.throws(() => JSON.parse(truncatedPlanText))
+  run({
+    hookEventName: 'PostToolUse',
+    tool_use_id: 'truncated-plan',
+    tool_name: 'devcodex-profile/profile_context_plan',
+    tool_input: truncatedArgs,
+    tool_response: truncatedPlanText
+  })
+  const recoveredPlanState = readLegacyState()
+  assert.strictEqual(recoveredPlanState.contextAcquisition.plan.schemaVersion, 'ContextReadPlanV2')
+  assert.strictEqual(recoveredPlanState.contextAcquisition.verificationMode, 'structured-plan')
+  assert(
+    recoveredPlanState.contextAcquisition.stageTiming.hostDeliveredBytes <
+      recoveredPlanState.contextAcquisition.stageTiming.plannerResponseBytes
+  )
+  for (const [toolName, toolInput] of [
+    ['search_tool', { query: 'profile_load', limit: 5 }],
+    ['run_terminal_command', { command: 'Get-Content package.json', description: 'Read package metadata' }],
+    ['devcodex-profile/skill_route', {
+      op: 'catalog',
+      project: recoveredPlanState.contextAcquisition.project,
+      turnBinding: 'turn-hook-route-control',
+      contextEpoch: recoveredPlanState.contextAcquisition.contextEpoch
+    }]
+  ]) {
+    const callId = `grok-read-${toolName}`
+    run({
+      hookEventName: 'PreToolUse',
+      tool_use_id: callId,
+      tool_name: toolName,
+      tool_input: toolInput
+    })
+    run({
+      hookEventName: 'PostToolUse',
+      tool_use_id: callId,
+      tool_name: toolName,
+      tool_input: toolInput,
+      tool_response: { success: true }
+    })
+    assert.notStrictEqual(readLegacyState().contextAcquisition.receipt.status, 'stale')
+  }
+
+  for (const invalidObservation of ['stale', 'epoch', 'digest']) {
+    cleanState()
+    run({ hookEventName: 'UserPromptSubmit', prompt: `invalid ${invalidObservation} plan observation` })
+    const state = readLegacyState()
+    const args = {
+      intent: 'chat',
+      contextEpoch: state.contextAcquisition.contextEpoch,
+      project: state.contextAcquisition.project
+    }
+    run({
+      hookEventName: 'PreToolUse',
+      tool_use_id: `invalid-observation-${invalidObservation}`,
+      tool_name: 'devcodex-profile/profile_context_plan',
+      tool_input: args
+    })
+    const result = callProfileTool(TEMP_ROOT, 'profile_context_plan', args)
+    const observationPath = path.join(
+      state.contextAcquisition.activeRoot,
+      contextPlanObservationRelativePath(args.contextEpoch)
+    )
+    const observation = JSON.parse(fs.readFileSync(observationPath, 'utf8'))
+    if (invalidObservation === 'stale') observation.observedAt = '2000-01-01T00:00:00.000Z'
+    if (invalidObservation === 'epoch') observation.contextEpoch = 'ctx-wrong-observation'
+    if (invalidObservation === 'digest') observation.planDigest = '0'.repeat(64)
+    fs.writeFileSync(observationPath, JSON.stringify(observation, null, 2) + '\n', 'utf8')
+    const text = result.content[0].text
+    run({
+      hookEventName: 'PostToolUse',
+      tool_use_id: `invalid-observation-${invalidObservation}`,
+      tool_name: 'devcodex-profile/profile_context_plan',
+      tool_input: args,
+      tool_response: text.slice(0, text.length - 1)
+    })
+    const invalidState = readLegacyState()
+    assert.strictEqual(invalidState.contextAcquisition.plan, null)
+    assert.strictEqual(invalidState.contextAcquisition.fallbackActive, true)
+    assert.match(invalidState.contextAcquisition.lastError.message, /no matching exact workspace observation/i)
+  }
 
   // Plan ingestion accepts host result variants, verifies the full identity,
   // and Profile aggregate reads satisfy each selected source independently.

@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "audit-execution-guide",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "审查执行指南",
+      "include": [
+        "audit",
+        "execution",
+        "guide"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "审查执行指南领域任务",
+      "审查执行指南专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "审查执行指南 — 维度优先级分批、定向审查子集、联动检查清单"
+}

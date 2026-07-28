@@ -1,0 +1,28 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "api-verification",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "接口验证规范",
+      "include": [
+        "api-verification",
+        "cjs",
+        "http",
+        "api",
+        "verification"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "接口验证规范领域任务",
+      "接口验证规范专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "接口验证规范 — 双产物（.http + .cjs）生成 + 自动化执行脚本"
+}

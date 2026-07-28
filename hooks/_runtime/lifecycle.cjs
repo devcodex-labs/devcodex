@@ -475,6 +475,7 @@ const {
   fs,
   path,
   crypto,
+  env: process.env,
   CONTEXT_ROOT,
   LAYOUT,
   CONTEXT_PROJECT,
@@ -1023,7 +1024,7 @@ function isSourceCodeMutation(payload, platform, state) {
   }
 
   // Copilot / Codex / instruction-fallback shell tools
-  if (['bash', 'shell_command', 'run_in_terminal', 'powershell'].includes(lower)) {
+  if (['bash', 'shell_command', 'run_in_terminal', 'run_terminal_command', 'powershell'].includes(lower)) {
     return bashWritesToSourceCode(getCommandText(payload), state)
   }
 
@@ -1348,28 +1349,67 @@ async function main() {
         }
       }
     }
-    // P0-1 WorkspaceSkillIntent (default) or legacy AutoMatch via DEVCODEX_SKILL_MATCH_MODE
-    let workspaceSkillRouteMsg = ''
+    // Progressive route owns catalog/body only in an eligible mode. Any bootstrap
+    // failure falls back to the existing route without suppressing legacy delivery.
+    let progressiveSkillRouteMsg = ''
+    let progressiveSkillRouteMode = 'legacy'
     try {
-      const {
-        routeWorkspaceSkillIntent,
-        toIntentStateRecord,
-        getSkillMatchMode
-      } = require('./workspace-skill-intent.cjs')
-      const route = routeWorkspaceSkillIntent(prompt, { cwd: CONTEXT_ROOT })
-      const mode = getSkillMatchMode()
-      if (route.injectionText) {
-        state.workspaceSkillAutoMatch = toIntentStateRecord(route)
-        // keep legacy field name for Stop path compatibility
-        workspaceSkillRouteMsg = route.injectionText
-        state.lastReason = route.matched
-          ? `workspace-skill-intent:${route.skillId}`
-          : (mode === 'legacy-token' ? 'workspace-skill-catalog-only' : 'workspace-skill-intent-catalog')
-      } else {
+      const { bootstrapSkillRouteForTurn } = require('./skill-route-tool.cjs')
+      const route = bootstrapSkillRouteForTurn({
+        project: state.contextAcquisition?.project,
+        contextEpoch: state.contextAcquisition?.contextEpoch,
+        prompt,
+        host: platform,
+        cwd: CONTEXT_ROOT
+      }, {
+        inputRoot: CONTEXT_ROOT,
+        env: process.env
+      })
+      progressiveSkillRouteMode = route.modeReceipt?.effective || 'legacy'
+      progressiveSkillRouteMsg = route.injectionText || ''
+      state.progressiveSkillRoute = {
+        schemaVersion: 'LifecycleSkillRouteStateV1',
+        modeReceipt: route.modeReceipt,
+        bootstrap: route.bootstrap,
+        active: route.active === true,
+        errorCode: null
+      }
+    } catch (error) {
+      state.progressiveSkillRoute = {
+        schemaVersion: 'LifecycleSkillRouteStateV1',
+        modeReceipt: null,
+        bootstrap: null,
+        active: false,
+        errorCode: String(error.code || error.message || 'SKILL_ROUTE_BOOTSTRAP_FAILED')
+      }
+    }
+
+    // P0-1 WorkspaceSkillIntent (legacy/shadow) or unified progressive delivery.
+    let workspaceSkillRouteMsg = ''
+    if (progressiveSkillRouteMode !== 'unified') {
+      try {
+        const {
+          routeWorkspaceSkillIntent,
+          toIntentStateRecord,
+          getSkillMatchMode
+        } = require('./workspace-skill-intent.cjs')
+        const route = routeWorkspaceSkillIntent(prompt, { cwd: CONTEXT_ROOT })
+        const mode = getSkillMatchMode()
+        if (route.injectionText) {
+          state.workspaceSkillAutoMatch = toIntentStateRecord(route)
+          // keep legacy field name for Stop path compatibility
+          workspaceSkillRouteMsg = route.injectionText
+          state.lastReason = route.matched
+            ? `workspace-skill-intent:${route.skillId}`
+            : (mode === 'legacy-token' ? 'workspace-skill-catalog-only' : 'workspace-skill-intent-catalog')
+        } else {
+          state.workspaceSkillAutoMatch = null
+        }
+      } catch {
+        /* intent/auto-match optional during partial deploys */
         state.workspaceSkillAutoMatch = null
       }
-    } catch {
-      /* intent/auto-match optional during partial deploys */
+    } else {
       state.workspaceSkillAutoMatch = null
     }
 
@@ -1384,7 +1424,8 @@ async function main() {
           : '',
         buildGovernanceIntakeContextMessage(state.governanceIntake),
         formatTurnRecoveryMessage(livenessObservation.recoveryCard),
-        workspaceSkillRouteMsg
+        workspaceSkillRouteMsg,
+        progressiveSkillRouteMsg
       ].filter(Boolean).join('\n\n')
     ))
     return
@@ -1664,6 +1705,70 @@ async function main() {
   if (eventName === 'PreCompact' || eventName === 'Stop') {
     if (eventName === 'PreCompact') markContextAcquisitionStale(state, 'compact')
     captureFinalPayloadSample(payload, eventName, state)
+
+    if (eventName === 'Stop' && state.contextAcquisition?.contextEpoch) {
+      try {
+        const {
+          evaluateProgressiveSkillRouteStop
+        } = require('./skill-route-tool.cjs')
+        const {
+          extractLastAssistantMessage
+        } = require('./workspace-skill-intent.cjs')
+        const routeStop = evaluateProgressiveSkillRouteStop({
+          project: state.contextAcquisition.project,
+          contextEpoch: state.contextAcquisition.contextEpoch,
+          assistantText:
+            extractLastAssistantMessage(payload) ||
+            getVisibleReplyText(payload) ||
+            ''
+        }, {
+          inputRoot: CONTEXT_ROOT,
+          env: process.env
+        })
+        state.progressiveSkillRouteStop = routeStop
+        if (routeStop.present && !routeStop.complete) {
+          const enforceCount = Number(state.progressiveSkillRouteStopCount || 0)
+          if (enforceCount < 2) {
+            state.progressiveSkillRouteStopCount = enforceCount + 1
+            const reason = routeStop.pendingStageIds?.length
+              ? `Progressive Skill route stages remain pending: ${routeStop.pendingStageIds.join(', ')}.`
+              : (routeStop.mustReplyCore && !routeStop.businessSatisfied
+                  ? `The selected Skill requires this core reply: ${routeStop.mustReplyCore}`
+                  : `Progressive Skill route is incomplete: ${routeStop.errorCode || 'unknown'}.`)
+            const output = eventSupportsHardBlock(platform, eventName)
+              ? decorateHookOutput(
+                  blockOutput(platform, eventName, 'progressive-skill-route', reason),
+                  {
+                    devcodexAction: INTERCEPTION_ACTION.REQUIRE_COMPLETION,
+                    devcodexCode: 'progressive-skill-route',
+                    devcodexEffective: true,
+                    devcodexNextStep: reason
+                  }
+                )
+              : buildInterceptionOutput(
+                  state,
+                  platform,
+                  eventName,
+                  INTERCEPTION_ACTION.REQUIRE_COMPLETION,
+                  'progressive-skill-route',
+                  'Progressive Skill route incomplete',
+                  reason,
+                  reason
+                )
+            saveState(state)
+            writeStdout(output)
+            return
+          }
+        }
+      } catch (error) {
+        state.progressiveSkillRouteStop = {
+          schemaVersion: 'ProgressiveSkillRouteStopV1',
+          present: false,
+          complete: false,
+          errorCode: String(error.code || error.message || 'STOP_GATE_FAILED')
+        }
+      }
+    }
 
     // P0-1: if a workspace/global intent skill matched, enforce mustReply/body — not a user-visible meta line.
     if (

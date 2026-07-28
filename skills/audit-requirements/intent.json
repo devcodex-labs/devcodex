@@ -1,0 +1,27 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "audit-requirements",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "需求文档审查维度 RQ-1~RQ-8",
+      "include": [
+        "RQ-1",
+        "RQ-8",
+        "audit",
+        "requirements"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "需求文档审查维度 RQ-1~RQ-8领域任务",
+      "需求文档审查维度 RQ-1~RQ-8专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "需求文档审查维度 RQ-1~RQ-8 — 需求定义/功能描述/产品事实源与可派生验证边界专属审查层"
+}

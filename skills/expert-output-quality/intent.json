@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "expert-output-quality",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "专家型产物质量门禁",
+      "include": [
+        "fixture",
+        "quick",
+        "start",
+        "expert",
+        "output",
+        "quality"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "专家型产物质量门禁领域任务",
+      "专家型产物质量门禁专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "专家型产物质量门禁 — 当任务涉及代码、文档、示例、fixture、quick start、技术方案、报告或用户指出“不专业 / 像初级 / 示例误导 / 没有资深架构视角”时使用；要求区分生产推荐路径、框架原生能力、测试夹具边界、反模式与证据矩阵。"
+}

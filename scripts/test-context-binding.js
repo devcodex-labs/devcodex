@@ -141,7 +141,7 @@ rejectedOutcome(memorySource, { targetMatch: false })
 rejectedOutcome(memorySource, { schemaMatch: false })
 
 const legacyPlan = JSON.parse(JSON.stringify(plan))
-for (const field of ['planContentId', 'identityInputs', 'executionOptimization', 'reusePolicy', 'stageTiming', 'cacheDecision']) {
+for (const field of ['planContentId', 'contextBinding', 'identityInputs', 'executionOptimization', 'reusePolicy', 'stageTiming', 'cacheDecision']) {
   delete legacyPlan[field]
 }
 legacyPlan.schemaVersion = CONTEXT_READ_CONTRACT.schemas.planV1
@@ -155,7 +155,8 @@ legacyPlan.planId = `plan-${stableDigest({
   planId: undefined,
   planningTelemetry: undefined
 }).slice(0, 24)}`
-assert.strictEqual(validateContextReadPlan(legacyPlan).valid, true)
+const legacyValidation = validateContextReadPlan(legacyPlan)
+assert.strictEqual(legacyValidation.valid, true, legacyValidation.errors.join('; '))
 const legacyReceipt = createContextReadReceipt(legacyPlan, { nowMs: BASE_MS })
 assert.strictEqual(legacyReceipt.schemaVersion, CONTEXT_READ_CONTRACT.schemas.receiptV1)
 assert.notStrictEqual(legacyReceipt.status, 'relevant-complete')

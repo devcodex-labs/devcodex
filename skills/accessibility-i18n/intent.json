@@ -1,0 +1,27 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "accessibility-i18n",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "无障碍与国际化专家",
+      "include": [
+        "ARIA",
+        "RTL",
+        "accessibility",
+        "i18n"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "无障碍与国际化专家领域任务",
+      "无障碍与国际化专家专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "无障碍与国际化专家 Owner — 当任务涉及可访问性、键盘操作、焦点、屏幕阅读器、ARIA、语言地区、本地化、RTL、翻译资源、用户可见文案或多语言文档时使用；要求把包容性体验和本地化验证绑定到真实用户路径。"
+}

@@ -1,0 +1,28 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "audit-readme",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "README / 用户使用文档专项审查维度 RM-1~RM-6",
+      "include": [
+        "README",
+        "RM-1",
+        "RM-6",
+        "audit-readme",
+        "audit"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "README / 用户使用文档专项审查维度 RM-1~RM-6领域任务",
+      "README / 用户使用文档专项审查维度 RM-1~RM-6专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "README / 用户使用文档专项审查维度 RM-1~RM-6 — 聚焦用户路径、快速开始、示例真实度、配置排错与消费链一致性"
+}

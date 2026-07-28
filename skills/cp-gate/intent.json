@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "cp-gate",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "执行 CP1（需求确认）/ CP2（方案确认）与条件 CP3（实施计划确认...",
+      "include": [
+        "CP1",
+        "CP2",
+        "CP3",
+        "cp-gate",
+        "cp",
+        "gate"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "执行 CP1（需求确认）/ CP2（方案确认）与条件 CP...领域任务",
+      "执行 CP1（需求确认）/ CP2（方案确认）与条件 CP...专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "执行 CP1（需求确认）/ CP2（方案确认）与条件 CP3（实施计划确认）。CP1→CP2 强制按序，CP3 按工作流能力矩阵判定。"
+}

@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "product-strategy",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "产品策略专家",
+      "include": [
+        "product-strategy",
+        "product",
+        "strategy"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "产品策略专家领域任务",
+      "产品策略专家专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "产品策略专家 Owner — 当任务涉及需求价值、目标用户、范围取舍、优先级、路线图、成功指标、产品化文档或用户要求从产品专家角度审查时使用；要求把方案绑定用户问题、业务价值、阶段边界和可验证信号。"
+}

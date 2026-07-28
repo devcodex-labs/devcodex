@@ -1,0 +1,31 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "release-verification",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "发布验证规范",
+      "include": [
+        "changelog",
+        "commit",
+        "install",
+        "pack",
+        "publish",
+        "push",
+        "registry",
+        "smoke"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "发布验证规范领域任务",
+      "发布验证规范专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "发布验证规范 — 覆盖版本、changelog、测试、pack、install smoke、commit/tag/push/publish 前确认与发布后 registry/tag 验收"
+}

@@ -1,0 +1,28 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "dev-testing",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "测试规范",
+      "include": [
+        "API",
+        "E2E",
+        "dev-testing",
+        "dev",
+        "testing"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "测试规范领域任务",
+      "测试规范专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "测试规范 — 单元测试/集成测试/API测试/E2E测试四类覆盖标准与触发条件"
+}

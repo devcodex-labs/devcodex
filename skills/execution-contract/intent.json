@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "execution-contract",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "执行契约规范",
+      "include": [
+        "Auto",
+        "execution",
+        "contract"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "执行契约规范领域任务",
+      "执行契约规范专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "执行契约规范 — 为长流程、多文件、Auto 或控制面任务生成/校验 ExecutionContract，约束范围、路径、产物、验证路线、偏离分级与恢复策略"
+}

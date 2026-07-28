@@ -95,7 +95,8 @@ function runConfiguredServer(server, requests, cwd = ROOT) {
     cwd,
     input,
     encoding: 'utf8',
-    shell: false
+    shell: false,
+    env: { ...process.env, ...(server.env || {}) }
   })
 
   if (result.status !== 0) {
@@ -153,9 +154,13 @@ function setupConfiguredMcpTarget() {
   for (const file of ['01-项目信息.md', '02-架构约束.md', '03-代码风格.md']) {
     fs.writeFileSync(path.join(profileRoot, file), `# ${file}\n`)
   }
+  const configuredMcp = JSON.parse(JSON.stringify(CLAUDE_MCP_JSON))
+  configuredMcp.mcpServers['devcodex-profile'].env = {
+    DEVCODEX_GLOBAL_SKILLS_RUNTIME: path.join(targetRoot, '.claude', 'skills')
+  }
   fs.writeFileSync(
     path.join(targetRoot, '.mcp.json'),
-    `${JSON.stringify(CLAUDE_MCP_JSON, null, 2)}\n`
+    `${JSON.stringify(configuredMcp, null, 2)}\n`
   )
   fs.copyFileSync(path.join(ROOT, 'mcp', 'memory-server.js'), path.join(targetRoot, '.claude', 'mcp', 'memory-server.js'))
   fs.copyFileSync(path.join(ROOT, 'mcp', 'profile-server.js'), path.join(targetRoot, '.claude', 'mcp', 'profile-server.js'))
@@ -163,6 +168,11 @@ function setupConfiguredMcpTarget() {
   fs.copyFileSync(path.join(ROOT, 'mcp', 'profile-contract.js'), path.join(targetRoot, '.claude', 'mcp', 'profile-contract.js'))
   fs.copyFileSync(path.join(ROOT, 'mcp', 'profile-section-selector.cjs'), path.join(targetRoot, '.claude', 'mcp', 'profile-section-selector.cjs'))
   fs.copyFileSync(path.join(ROOT, 'mcp', 'agent-identity.cjs'), path.join(targetRoot, '.claude', 'mcp', 'agent-identity.cjs'))
+  fs.cpSync(
+    path.join(ROOT, 'hooks', '_runtime'),
+    path.join(targetRoot, '.claude', 'hooks', '_runtime'),
+    { recursive: true }
+  )
   // Deploy MCP runtime script deps under .claude/scripts/lib
   for (const rel of [
     'scripts/lib/cp-digest.js',
@@ -177,7 +187,11 @@ function setupConfiguredMcpTarget() {
     fs.mkdirSync(path.dirname(dest), { recursive: true })
     fs.copyFileSync(path.join(ROOT, ...rel.split('/')), dest)
   }
-  fs.copyFileSync(path.join(ROOT, 'skills', 'portfolio.json'), path.join(targetRoot, '.claude', 'skills', 'portfolio.json'))
+  fs.cpSync(
+    path.join(ROOT, 'skills'),
+    path.join(targetRoot, '.claude', 'skills'),
+    { recursive: true }
+  )
   fs.copyFileSync(
     path.join(ROOT, 'hooks', '_runtime', 'workspace-layout.cjs'),
     path.join(targetRoot, '.claude', 'hooks', '_runtime', 'workspace-layout.cjs')
@@ -192,6 +206,10 @@ function setupConfiguredMcpTarget() {
       path.join(targetRoot, '.claude', 'hooks', '_runtime', file)
     )
   }
+  fs.copyFileSync(
+    path.join(ROOT, 'hooks', '_runtime', 'global-skill-runtime-root.cjs'),
+    path.join(targetRoot, '.claude', 'hooks', '_runtime', 'global-skill-runtime-root.cjs')
+  )
   return targetRoot
 }
 
@@ -1290,7 +1308,17 @@ function testContextReadBindingContract() {
       arguments: { files: ['01-项目信息.md'] }
     })
   ], TEMP_ROOT)
-  const listed = resultById(profileResponses, 2).tools
+  const listedResult = resultById(profileResponses, 2)
+  const listed = listedResult.tools
+  const toolsListBytes = Buffer.byteLength(JSON.stringify({
+    jsonrpc: '2.0',
+    id: 2,
+    result: listedResult
+  }))
+  assert(
+    toolsListBytes <= 7680,
+    `profile tools/list exceeds Grok local-stdio safety budget: ${toolsListBytes} bytes`
+  )
   assert.ok(listed.find(tool => tool.name === 'profile_load').inputSchema.properties.contextBinding)
   assert.ok(listed.find(tool => tool.name === 'profile_skill_plan').inputSchema.properties.contextBinding)
   const profileText = resultById(profileResponses, 3).content[0].text

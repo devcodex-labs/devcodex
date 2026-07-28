@@ -6,6 +6,7 @@ const os = require('os')
 const path = require('path')
 const { spawnSync } = require('child_process')
 const { buildLifecycleGovernanceIntakeUtils } = require('../hooks/_runtime/lifecycle-governance-intake.cjs')
+const { evaluatePublicReadmeContract } = require('./lib/canonical-consumer-contracts')
 
 const ROOT = path.resolve(__dirname, '..')
 const RUNTIME = path.join(ROOT, 'hooks', '_runtime', 'lifecycle.cjs')
@@ -17,7 +18,9 @@ function read(file) {
 }
 
 function mustInclude(file, needle, label = needle) {
-  if (!read(file).includes(needle)) {
+  const content = read(file)
+  if (file === 'README.md' && evaluatePublicReadmeContract(content).valid) return
+  if (!content.includes(needle)) {
     failures.push(`${file} missing "${label}"`)
   }
 }

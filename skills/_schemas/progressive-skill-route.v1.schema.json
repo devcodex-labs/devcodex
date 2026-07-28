@@ -1,0 +1,203 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://devcodex.dev/schemas/progressive-skill-route.v1.schema.json",
+  "title": "SkillRouteInputV1",
+  "oneOf": [
+    { "$ref": "#/$defs/catalog" },
+    { "$ref": "#/$defs/commit" },
+    { "$ref": "#/$defs/loadStage" },
+    { "$ref": "#/$defs/status" }
+  ],
+  "$defs": {
+    "base": {
+      "type": "object",
+      "required": ["op", "project", "turnBinding"],
+      "properties": {
+        "op": {
+          "enum": ["catalog", "commit", "load_stage", "status"]
+        },
+        "project": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        },
+        "turnBinding": {
+          "type": "string",
+          "pattern": "^turn-[a-f0-9]{40}$"
+        },
+        "contextEpoch": { "type": "string", "minLength": 1, "maxLength": 256 }
+      }
+    },
+    "catalog": {
+      "allOf": [
+        { "$ref": "#/$defs/base" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["op", "project", "turnBinding", "contextEpoch"],
+          "properties": {
+            "op": { "const": "catalog" },
+            "project": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+            },
+            "turnBinding": {
+              "type": "string",
+              "pattern": "^turn-[a-f0-9]{40}$"
+            },
+            "contextEpoch": { "type": "string", "minLength": 1, "maxLength": 256 },
+            "cursor": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2048,
+              "pattern": "^[A-Za-z0-9_-]+\\.[a-f0-9]{24}$"
+            }
+          }
+        }
+      ]
+    },
+    "commit": {
+      "allOf": [
+        { "$ref": "#/$defs/base" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "op",
+            "project",
+            "turnBinding",
+            "contextEpoch",
+            "catalogDigest",
+            "skillId",
+            "contextBinding"
+          ],
+          "properties": {
+            "op": { "const": "commit" },
+            "project": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+            },
+            "turnBinding": {
+              "type": "string",
+              "pattern": "^turn-[a-f0-9]{40}$"
+            },
+            "contextEpoch": { "type": "string", "minLength": 1, "maxLength": 256 },
+            "catalogDigest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+            "skillId": {
+              "type": ["string", "null"],
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+            },
+            "contextBinding": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "schemaVersion",
+                "contextEpoch",
+                "planId",
+                "planContentId",
+                "activeRoot",
+                "project"
+              ],
+              "properties": {
+                "schemaVersion": { "const": "ContextReadBindingV1" },
+                "contextEpoch": { "type": "string", "minLength": 1, "maxLength": 256 },
+                "planId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                "planContentId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                "activeRoot": { "type": "string", "minLength": 1, "maxLength": 4096 },
+                "project": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 255,
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                }
+              }
+            },
+            "previousPlanDigest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "lateConditionId": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+            }
+          }
+        }
+      ]
+    },
+    "loadStage": {
+      "allOf": [
+        { "$ref": "#/$defs/base" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "op",
+            "project",
+            "turnBinding",
+            "contextEpoch",
+            "generation",
+            "planDigest",
+            "stageId"
+          ],
+          "properties": {
+            "op": { "const": "load_stage" },
+            "project": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+            },
+            "turnBinding": {
+              "type": "string",
+              "pattern": "^turn-[a-f0-9]{40}$"
+            },
+            "contextEpoch": { "type": "string", "minLength": 1, "maxLength": 256 },
+            "generation": { "type": "integer", "minimum": 0 },
+            "planDigest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+            "stageId": {
+              "type": "string",
+              "pattern": "^(entry|closeout|execution:[A-Za-z0-9][A-Za-z0-9._-]{0,63})$"
+            },
+            "cursor": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2048,
+              "pattern": "^[A-Za-z0-9_-]+\\.[a-f0-9]{24}$"
+            },
+            "triggerRef": { "type": "string", "minLength": 1, "maxLength": 512 }
+          }
+        }
+      ]
+    },
+    "status": {
+      "allOf": [
+        { "$ref": "#/$defs/base" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["op", "project", "turnBinding"],
+          "properties": {
+            "op": { "const": "status" },
+            "project": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+            },
+            "turnBinding": {
+              "type": "string",
+              "pattern": "^turn-[a-f0-9]{40}$"
+            },
+            "contextEpoch": { "type": "string", "minLength": 1, "maxLength": 256 }
+          }
+        }
+      ]
+    }
+  }
+}

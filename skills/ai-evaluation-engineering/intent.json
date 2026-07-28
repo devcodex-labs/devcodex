@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "ai-evaluation-engineering",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "AI 评测工程专家",
+      "include": [
+        "Judge",
+        "LLM-as-judge",
+        "Prompt",
+        "ai",
+        "evaluation",
+        "engineering"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "AI 评测工程专家领域任务",
+      "AI 评测工程专家专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "AI 评测工程专家 Owner — 当任务涉及模型/Prompt 评测、模型选择、黄金集、评分量表、LLM-as-judge、Judge 校准、重复采样、方差、质量-成本-延迟权衡、提示词回归或模型升级回归时使用；要求把概率性结果转化为可复现、可比较且防污染的评测证据。"
+}

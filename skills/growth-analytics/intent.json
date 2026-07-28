@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "growth-analytics",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "增长分析专家",
+      "include": [
+        "growth-analytics",
+        "growth",
+        "analytics"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "增长分析专家领域任务",
+      "增长分析专家专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "增长分析专家 Owner — 当任务涉及增长指标、埋点、漏斗、转化、留存、实验、产品数据决策、增长看板或数据驱动优化时使用；要求把事件、指标、隐私边界和决策闭环绑定到真实用户行为。"
+}

@@ -3,11 +3,37 @@
 
 const fs = require('fs')
 const path = require('path')
-const { hasValidCanonicalContract } = require('./lib/canonical-consumer-contracts')
+const {
+  evaluatePublicReadmeContract,
+  hasValidCanonicalContract
+} = require('./lib/canonical-consumer-contracts')
 const { createLinkCapabilityDecision } = require('../hooks/_runtime/visible-output-contract.cjs')
 
 const ROOT = path.resolve(__dirname, '..')
 const failures = []
+const publicReadme = fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8')
+const publicReadmeContract = evaluatePublicReadmeContract(publicReadme)
+if (!publicReadmeContract.valid) {
+  failures.push(`public README contract missing: ${publicReadmeContract.missing.join(', ')}`)
+}
+if (!hasValidCanonicalContract(
+  ROOT,
+  'README.md',
+  publicReadme,
+  'HistoricalCommonNormLayeringGate'
+)) {
+  failures.push('valid public README must retire legacy internal-anchor projection')
+}
+const damagedPublicReadme = publicReadme.replaceAll('npm run global-adapters:apply', '')
+if (evaluatePublicReadmeContract(damagedPublicReadme).valid ||
+    hasValidCanonicalContract(
+      ROOT,
+      'README.md',
+      damagedPublicReadme,
+      'HistoricalCommonNormLayeringGate'
+    )) {
+  failures.push('incomplete public README must not bypass legacy consumer checks')
+}
 
 function read(file) {
   return fs.readFileSync(path.join(ROOT, file), 'utf8')

@@ -152,6 +152,35 @@ assert.strictEqual(grokSnake.mappedEvent, 'PreToolUse')
 assert.strictEqual(grokSnake.payload.hookEventName, 'PreToolUse')
 assert.strictEqual(grokSnake.payload.tool_name, 'run_terminal_command')
 assert.deepStrictEqual(grokSnake.payload.tool_input, { command: 'rm -rf /tmp/x' })
+const grokMcp = normalizeHostPayload('grok', {
+  hookEventName: 'pre_tool_use',
+  toolName: 'devcodex-profile__profile_context_plan',
+  toolInput: {
+    tool_name: 'devcodex-profile__profile_context_plan',
+    tool_input: {
+      project: 'sample',
+      contextEpoch: 'ctx-12345678'
+    }
+  }
+})
+assert.deepStrictEqual(grokMcp.payload.tool_input, {
+  project: 'sample',
+  contextEpoch: 'ctx-12345678'
+})
+const grokMcpPost = normalizeHostPayload('grok', {
+  hookEventName: 'post_tool_use',
+  toolName: 'devcodex-profile__profile_context_plan',
+  toolResult: {
+    output: {
+      OkayOutput: {
+        schemaVersion: 'ContextReadPlanV2'
+      }
+    }
+  }
+})
+assert.deepStrictEqual(grokMcpPost.payload.tool_result, {
+  schemaVersion: 'ContextReadPlanV2'
+})
 // Grok PreToolUse: official decision:allow / decision:deny contract
 assert.deepStrictEqual(adaptHostOutput('grok', 'PreToolUse', { continue: true }), { decision: 'allow' })
 
@@ -300,6 +329,18 @@ assert.strictEqual(bootstrapApi.hostCapabilityFor('grok', { contextCapability: '
 assert.strictEqual(bootstrapApi.hostCapabilityFor('codex', { devcodexContextCapability: 'structured-plan' }), 'path-observable')
 assert.strictEqual(bootstrapApi.hostCapabilityFor('copilot', { contextCapability: 'structured-plan' }), 'path-observable')
 assert.strictEqual(bootstrapApi.hostCapabilityFor('claude', { contextCapability: 'instruction-only' }), 'instruction-only')
+assert.strictEqual(bootstrapApi.isRouteContextReceiptReady({
+  plan: { selectedSources: [{}], mandatorySourceIds: ['profile'] },
+  receipt: { status: 'escalated-full' }
+}), true)
+assert.strictEqual(bootstrapApi.isRouteContextReceiptReady({
+  plan: { selectedSources: [], mandatorySourceIds: [] },
+  receipt: { status: 'baseline-ready' }
+}), true)
+assert.strictEqual(bootstrapApi.isRouteContextReceiptReady({
+  plan: { selectedSources: [{}], mandatorySourceIds: ['profile'] },
+  receipt: { status: 'baseline-ready' }
+}), false)
 
 const {
   HOST_COMPLETION_ROUTES,

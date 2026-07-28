@@ -23,6 +23,52 @@ const CONTRACTS = new Map([
   ['prompts/report-analysis.prompt.md', ['skills/report/report-schema.json']]
 ])
 
+const PUBLIC_README_REQUIRED_MARKERS = Object.freeze([
+  '# DevCodex',
+  '用户级全局 adapter',
+  'npm install -g .',
+  'npm install -g devcodex',
+  'registry 上的版本',
+  'npm run global-adapters:apply',
+  'devcodex doctor',
+  'devcodex init',
+  'Codex / Claude / Copilot / Gemini / Grok',
+  'devcodex skill resolve skill-load-verify',
+  'profile / reports / .memory / requirements',
+  '.devcodex/workspace/skills/<id>/SKILL.md',
+  '~/.agents/devcodex/skills/<id>/',
+  'W + managed G 动态快照',
+  '本地 stdio MCP 子进程',
+  '不监听端口',
+  'DevCodex 不扫描、复制、合并、覆盖或删除这些用户资产',
+  'AGENTS.md',
+  'CLAUDE.md',
+  'SKILL.md',
+  'Partial',
+  'safety-only',
+  '用户文档',
+  'website/README.md',
+  '用户可见交付与链接兼容',
+  'profile_context_plan',
+  'profile_load',
+  'memory_status',
+  'ContextReadReceiptV2',
+  'V1 receipt 只作兼容读取',
+  'invoke',
+  'npm run test:stop-gate',
+  'npm run test:docs-surface-inventory'
+])
+
+function evaluatePublicReadmeContract (content) {
+  const text = String(content || '')
+  const missing = PUBLIC_README_REQUIRED_MARKERS.filter(marker => !text.includes(marker))
+  return {
+    schemaVersion: 'PublicReadmeContractV1',
+    valid: missing.length === 0,
+    missing
+  }
+}
+
 function isLegacyDerivedNeedle(needle) {
   return /\b[A-Za-z][A-Za-z0-9]+(?:Gate|Probe|Guard|Guards)\b/.test(needle) ||
     /^[a-z][A-Za-z0-9]+$/.test(needle) ||
@@ -30,7 +76,11 @@ function isLegacyDerivedNeedle(needle) {
 }
 
 function hasValidCanonicalContract(root, file, content) {
-  const refs = CONTRACTS.get(file.replace(/\\/g, '/'))
+  const relative = file.replace(/\\/g, '/')
+  if (relative === 'README.md') {
+    return evaluatePublicReadmeContract(content).valid
+  }
+  const refs = CONTRACTS.get(relative)
   if (!refs) return false
   for (const ref of refs) {
     if (!content.includes(path.basename(ref))) return false
@@ -55,4 +105,11 @@ function createCanonicalAwareReader(root, readRaw) {
   }
 }
 
-module.exports = { CONTRACTS, createCanonicalAwareReader, hasValidCanonicalContract, isLegacyDerivedNeedle }
+module.exports = {
+  CONTRACTS,
+  PUBLIC_README_REQUIRED_MARKERS,
+  createCanonicalAwareReader,
+  evaluatePublicReadmeContract,
+  hasValidCanonicalContract,
+  isLegacyDerivedNeedle
+}

@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "test-router",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "测试路由规范",
+      "include": [
+        "API",
+        "E2E",
+        "pack",
+        "test-router",
+        "test",
+        "router"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "测试路由规范领域任务",
+      "测试路由规范专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "测试路由规范 — 根据变更类型、影响范围与风险选择静态、单元、集成、API、E2E、场景/负载、pack 或发布验证，并记录跳过理由"
+}

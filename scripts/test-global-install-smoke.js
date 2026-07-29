@@ -144,6 +144,7 @@ const installedCopilotHooks = JSON.parse(fs.readFileSync(
 ))
 assert.strictEqual(installedCopilotHooks.version, 1)
 for (const event of [
+  'userPromptSubmitted',
   'userPromptTransformed',
   'preToolUse',
   'postToolUse',

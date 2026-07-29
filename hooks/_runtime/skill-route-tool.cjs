@@ -1197,6 +1197,22 @@ function handleSkillRoute (input, options = {}) {
   }
 }
 
+function formatSkillRouteBootstrapInjection (bootstrap) {
+  const injectionText = [
+    '### DevCodex · SkillRouteBootstrapV1',
+    JSON.stringify(bootstrap),
+    '',
+    'Use the local `skill_route` Tool. For a non-explicit task, read every catalog page before one `commit` choice (`skillId` is one id or null).',
+    'Do not infer workflow roots, paths, dependencies, or body content. After a complete plan, call `load_stage` only when entering that stage.'
+  ].join('\n')
+  if (byteLength(injectionText) > 4 * 1024) {
+    const error = new Error('SKILL_ROUTE_BOOTSTRAP_BUDGET_BLOCKED')
+    error.code = 'SKILL_ROUTE_BOOTSTRAP_BUDGET_BLOCKED'
+    throw error
+  }
+  return injectionText
+}
+
 function bootstrapSkillRouteForTurn (input, options = {}) {
   const target = resolveProjectTarget(options.inputRoot || input.cwd || process.cwd(), input.project)
   const modeReceipt = resolveSkillRouteMode({
@@ -1229,18 +1245,7 @@ function bootstrapSkillRouteForTurn (input, options = {}) {
     runtimeRoot: options.runtimeRoot,
     packageRoot: options.packageRoot
   })
-  const injectionText = [
-    '### DevCodex · SkillRouteBootstrapV1',
-    JSON.stringify(outcome.bootstrap),
-    '',
-    'Use the local `skill_route` Tool. For a non-explicit task, read every catalog page before one `commit` choice (`skillId` is one id or null).',
-    'Do not infer workflow roots, paths, dependencies, or body content. After a complete plan, call `load_stage` only when entering that stage.'
-  ].join('\n')
-  if (byteLength(injectionText) > 4 * 1024) {
-    const error = new Error('SKILL_ROUTE_BOOTSTRAP_BUDGET_BLOCKED')
-    error.code = 'SKILL_ROUTE_BOOTSTRAP_BUDGET_BLOCKED'
-    throw error
-  }
+  const injectionText = formatSkillRouteBootstrapInjection(outcome.bootstrap)
   return {
     schemaVersion: 'SkillRouteBootstrapOutcomeV1',
     active: true,
@@ -1260,6 +1265,7 @@ module.exports = {
   finalizeResponse,
   handleSkillRoute,
   evaluateProgressiveSkillRouteStop,
+  formatSkillRouteBootstrapInjection,
   bootstrapSkillRouteForTurn,
   summarizePlan,
   buildObligationLedger,

@@ -142,7 +142,12 @@ function createSkillRouteFixture (options = {}) {
     globalRuntime: fixture.globalRuntime,
     env: {}
   }
-  fixture.cleanup = () => fs.rmSync(root, { recursive: true, force: true })
+  fixture.cleanup = () => fs.rmSync(root, {
+    recursive: true,
+    force: true,
+    maxRetries: 10,
+    retryDelay: 250
+  })
   if (options.workspaceSkill !== false) {
     writeWorkspaceSkill(root, options.skillId || 'workspace-probe')
   }

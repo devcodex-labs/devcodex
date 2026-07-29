@@ -11,10 +11,10 @@
     "pluginDigest": "705fe7c86c7225b67756749be5bb3b14a1ee3bffa386483a9ab61dc971f419ae",
     "portfolioEvidence": "skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "8364a73c66ed2ec9787cdb9300223278d128a45b689a2b8deda0d1f03189f42b",
-    "consumerInventoryFileCount": 493,
-    "consumerInventoryDigest": "5738458b362b0de48bd8be338adf6966fa17a699528e608ff878b299fa3fe6ab",
-    "consumerProjectionDigest": "dd703c608bc275e01c81b45b9752b94fa23cb8291a657fce0f6880b26cfa1333",
-    "portfolioInputDigest": "db3613690bea12b6597adad1db8ee08921088621b67dfa65f767a024b73028b6"
+    "consumerInventoryFileCount": 494,
+    "consumerInventoryDigest": "31cdb77818d74bcfb51ba1f2b109170bb2ea2c7a7f6f727a28586ac7e547ae36",
+    "consumerProjectionDigest": "e077267cb9b1d33709f1458bcd20118bd744ea7100004d9e9e5c9e92a61daa80",
+    "portfolioInputDigest": "93fce36543301d7977b04c833932bdfde28a1b8510ea05d861ca2e38645692b1"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -11699,6 +11699,10 @@
           "role": "current"
         },
         {
+          "path": "hooks/_runtime/lifecycle-host-adapters.cjs",
+          "role": "current"
+        },
+        {
           "path": "hooks/_runtime/lifecycle-namespace-state.cjs",
           "role": "current"
         },
@@ -12747,6 +12751,10 @@
         },
         {
           "path": "hooks/_runtime/lifecycle-governance-intake.cjs",
+          "role": "current"
+        },
+        {
+          "path": "hooks/_runtime/lifecycle-host-adapters.cjs",
           "role": "current"
         },
         {
@@ -19063,10 +19071,6 @@
           "role": "current"
         },
         {
-          "path": "scripts/test-global-host-config.js",
-          "role": "current"
-        },
-        {
           "path": "scripts/test-governance-status-summary.js",
           "role": "current"
         },
@@ -19142,7 +19146,6 @@
         "scripts/test-delivery-honesty.js",
         "scripts/test-evidence-freshness-receipt.js",
         "scripts/test-external-review-claim-verification.js",
-        "scripts/test-global-host-config.js",
         "scripts/test-governance-status-summary.js",
         "scripts/test-hooks-runtime.js",
         "scripts/test-host-capability-routing.js",
@@ -19211,7 +19214,6 @@
           "scripts/test-delivery-honesty.js",
           "scripts/test-evidence-freshness-receipt.js",
           "scripts/test-external-review-claim-verification.js",
-          "scripts/test-global-host-config.js",
           "scripts/test-governance-status-summary.js",
           "scripts/test-hooks-runtime.js",
           "scripts/test-host-capability-routing.js",

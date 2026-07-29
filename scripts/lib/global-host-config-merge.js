@@ -213,9 +213,9 @@ function removeLegacyManagedBlock(content, markers) {
 }
 
 /**
- * Codex may write tool-policy subtables under DevCodex MCP servers inside the
- * managed block (for example approval_mode). Those tables are host-owned and must
- * survive re-merge / not trip GLOBAL_HOST_MANAGED_CONFIG_DRIFT.
+ * Codex may write additional tool-policy subtables under DevCodex MCP servers.
+ * Tables declared by the generated authority body are managed by DevCodex;
+ * unknown tables are host-owned and must survive a re-merge.
  */
 const CODEX_MCP_AUTHORITY_TABLES = Object.freeze([
   'mcp_servers.devcodex-memory',
@@ -286,12 +286,18 @@ function extractCodexHostOwnedMcpTables(body) {
   return serializeTomlSections(owned)
 }
 
-function codexManagedAuthorityBody(body) {
+function codexManagedAuthorityBody(body, authorityTemplate = body) {
   const sections = parseTomlSections(body)
+  const authorityNames = parseTomlSections(authorityTemplate)
+    .filter(section =>
+      section.name &&
+      (isCodexAuthorityMcpTable(section.name) || isCodexHostOwnedMcpTable(section.name))
+    )
+    .map(section => section.name)
   const preamble = sections.find(section => section.header == null)
   const authority = []
   if (preamble) authority.push(preamble)
-  for (const tableName of CODEX_MCP_AUTHORITY_TABLES) {
+  for (const tableName of authorityNames) {
     const section = sections.find(item => item.name === tableName)
     if (section) authority.push(section)
   }
@@ -300,9 +306,20 @@ function codexManagedAuthorityBody(body) {
 
 function composeCodexManagedBody(authorityBody, existingManagedBody) {
   const authority = String(authorityBody || '').trim()
-  const owned = extractCodexHostOwnedMcpTables(existingManagedBody || '')
-  if (!owned) return authority
-  return `${authority}\n\n${owned}`
+  const authorityNames = new Set(
+    parseTomlSections(authority)
+      .filter(section => section.name)
+      .map(section => section.name)
+  )
+  const preservedNames = new Set()
+  const preserved = parseTomlSections(existingManagedBody || '').filter(section => {
+    if (!section.name || !isCodexHostOwnedMcpTable(section.name)) return false
+    if (authorityNames.has(section.name) || preservedNames.has(section.name)) return false
+    preservedNames.add(section.name)
+    return true
+  })
+  const owned = serializeTomlSections(preserved)
+  return owned ? `${authority}\n\n${owned}` : authority
 }
 
 function unexpectedManagedTomlTables(body) {
@@ -320,7 +337,12 @@ function tomlManagedFileMatches(current, expectedFull, authorityBody, options = 
     return String(current) === String(expectedFull)
   }
   if (unexpectedManagedTomlTables(currentBody).length) return false
-  if (codexManagedAuthorityBody(currentBody) !== codexManagedAuthorityBody(authorityBody || expectedBody)) {
+  const currentTableNames = parseTomlSections(currentBody)
+    .filter(section => section.name)
+    .map(section => section.name)
+  if (new Set(currentTableNames).size !== currentTableNames.length) return false
+  const authority = authorityBody || expectedBody
+  if (codexManagedAuthorityBody(currentBody, authority) !== codexManagedAuthorityBody(authority, authority)) {
     return false
   }
   const markers = markerTokens('toml', id)

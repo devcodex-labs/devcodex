@@ -192,9 +192,10 @@ function copilotHookDocument(runtimeFile) {
   return {
     version: 1,
     hooks: {
+      userPromptSubmitted: [entry('userPromptSubmitted')],
       userPromptTransformed: [entry('userPromptTransformed')],
-      preToolUse: [entry('preToolUse', '*')],
-      postToolUse: [entry('postToolUse', '*')],
+      preToolUse: [entry('preToolUse', '.*')],
+      postToolUse: [entry('postToolUse', '.*')],
       agentStop: [entry('agentStop')],
       preCompact: [entry('preCompact')]
     }

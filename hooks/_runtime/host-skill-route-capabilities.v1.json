@@ -34,10 +34,10 @@
       "status": "PASS",
       "testedVersion": "grok 0.2.112 (9bbd559437)",
       "protocol": "MCP 2024-11-05",
-      "runtimeContractDigest": "a9772e7f30b2b40f72c16f70ffbcb82844d5a59546b0bdf6a3068eda53794141",
+      "runtimeContractDigest": "2eb23345d426d870b2f45f0c585bc341c87c110612d357efaa79d39c14af3489",
       "hostAdapterDigest": "b2ab490df9c881a1a8b67c8391f72c615d05a64aab1db9e4bd6ec8a5f0a99385",
-      "evidenceDigest": "667c4481e6cc2634c67a276b724306ae2c77170b10dbf41ca20d18832a6766f4",
-      "evidenceRef": "E:/Worker/.devcodex/devcodex/.audit-state/skill-route-s15-grok-20260729-final-production.json",
+      "evidenceDigest": "771a886ffc0606ac08429fa4e27675422083b864df76e2d1c43819fac7333c95",
+      "evidenceRef": "E:/Worker/.devcodex/devcodex/.audit-state/skill-route-s15-grok-20260729-current-candidate.json",
       "entrySurface": "devcodex grok -p/--single",
       "bootstrapDelivery": "global launcher --rules",
       "defaultEligible": true

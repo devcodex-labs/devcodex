@@ -65,7 +65,48 @@ function optionValue (name) {
   return index >= 0 ? process.argv[index + 1] : ''
 }
 
+function hasOption (name) {
+  return process.argv.includes(name)
+}
+
+function modelTimeoutMs () {
+  const requested = Number.parseInt(optionValue('--timeout-ms'), 10)
+  if (!Number.isFinite(requested)) return 600000
+  return Math.min(1800000, Math.max(60000, requested))
+}
+
 function resolveExecutable (hostId) {
+  if (hostId === 'codex' && process.platform === 'win32') {
+    const resolved = spawnSync('volta', ['which', 'codex'], {
+      encoding: 'utf8',
+      timeout: 30000
+    })
+    const commandRoot = resolved.status === 0
+      ? path.dirname(String(resolved.stdout || '').trim())
+      : ''
+    const platformPackage = process.arch === 'arm64'
+      ? 'codex-win32-arm64'
+      : 'codex-win32-x64'
+    const targetTriple = process.arch === 'arm64'
+      ? 'aarch64-pc-windows-msvc'
+      : 'x86_64-pc-windows-msvc'
+    const nativeExecutable = path.join(
+      commandRoot,
+      'node_modules',
+      '@openai',
+      'codex',
+      'node_modules',
+      '@openai',
+      platformPackage,
+      'vendor',
+      targetTriple,
+      'bin',
+      'codex.exe'
+    )
+    if (commandRoot && fs.existsSync(nativeExecutable)) {
+      return { command: nativeExecutable, prefix: [] }
+    }
+  }
   if (hostId !== 'copilot') return { command: 'volta', prefix: ['run', hostId] }
   const explicit = process.env.DEVCODEX_COPILOT_CLI
   if (explicit && fs.existsSync(explicit)) return { command: explicit, prefix: [] }
@@ -136,9 +177,11 @@ function resultSchema () {
   }
 }
 
-function buildPrompt ({ contextEpoch, hostId, project }) {
+function buildPrompt ({ contextEpoch, hostId, project, skillId }) {
   return [
     'This is an isolated direct-observation acceptance probe.',
+    `Project ${project}.`,
+    'Treat the task as audit/testing. The probe operator has authorized its temporary internal route-state writes; do not request confirmation.',
     'You MUST make the MCP tool calls below before producing any final answer.',
     'A JSON-only answer without actual tool calls is a failed probe, even if it matches the schema.',
     'Every final field is independently compared with persisted MCP state; never estimate, shorten, or invent a digest, stage id, marker, or receipt.',
@@ -146,8 +189,8 @@ function buildPrompt ({ contextEpoch, hostId, project }) {
     'Use only the devcodex-profile and devcodex-memory MCP tools for the workflow below.',
     'First call profile_context_plan with:',
     JSON.stringify({
-      intent: 'dev',
-      changeTypes: ['source-code', 'testing'],
+      intent: 'audit',
+      changeTypes: ['testing'],
       contextEpoch,
       project,
       host: hostId,
@@ -155,16 +198,17 @@ function buildPrompt ({ contextEpoch, hostId, project }) {
       confidence: 1
     }),
     'Use the exact ContextReadBindingV1 returned by that plan for profile_load, memory_status, and the skill_route commit operation only.',
-    'Call profile_load for every selected Profile file.',
+    'Call profile_load once with files equal to plan.profile.selectedFiles verbatim; do not pass paths, README.md, config.json, or any baseline source.',
     `Call memory_status with agent=${hostId}, scope=project, project=${project}, limit=5.`,
     'Do not start Skill routing until the lifecycle receipt is relevant-complete.',
     'The UserPromptSubmit hook injects a SkillRouteBootstrapV1 block containing the exact turnBinding.',
     'Copy that exact turnBinding from the injected block; never invent, derive, or guess one.',
     'Call skill_route catalog with only op, project, turnBinding, contextEpoch, and cursor when present.',
     'Read every catalog page by following nextCursor until null.',
-    'Choose exactly one top-level Skill for this task: run the named-host progressive routing probe.',
-    'Commit that choice with the exact catalogDigest and ContextReadBindingV1.',
-    'Immediately replan the same choice with previousPlanDigest and lateConditionId=test-validation.',
+    `Choose exactly the top-level Skill whose skillId is ${skillId}; do not substitute another acceptance or probe Skill.`,
+    'For the first commit call use exactly these fields and no others: op, project, turnBinding, contextEpoch, catalogDigest, skillId, contextBinding.',
+    'Immediately replan the same choice. Use exactly: op, project, turnBinding, contextEpoch, catalogDigest, skillId, contextBinding, previousPlanDigest, lateConditionId; set lateConditionId=test-validation.',
+    'For load_stage use exactly: op, project, turnBinding, contextEpoch, generation, planDigest, stageId, and cursor only when the prior page returned one.',
     'Load every page of every stage in dependency order: entry, execution:test-validation, then closeout.',
     'Call status and require processComplete=true with every required stage loaded.',
     'Copy the exact marker line beginning S15_BODY_ from the loaded Skill body. Do not guess it.',
@@ -177,7 +221,7 @@ function hostArgs (hostId, prompt, schemaPath, outputPath) {
     return [
       '-a', 'never',
       '-s', 'workspace-write',
-      '-c', 'model_reasoning_effort="high"',
+      '-c', 'model_reasoning_effort="medium"',
       '--dangerously-bypass-hook-trust',
       'exec',
       '--skip-git-repo-check',
@@ -196,7 +240,7 @@ function hostArgs (hostId, prompt, schemaPath, outputPath) {
       '--no-remote',
       '--no-remote-export',
       '--disable-builtin-mcps',
-      '--output-format', 'json',
+      '--output-format', 'text',
       '--stream', 'off'
     ]
   }
@@ -234,13 +278,15 @@ function parseHostResult (hostId, result, outputPath) {
       .filter(event => event?.type === 'assistant.message')
       .map(event => event.data?.content)
       .filter(value => typeof value === 'string' && value.trim())
-    assert(messages.length, 'Copilot assistant.message event missing')
-    return parseModelResult(JSON.stringify({ result: messages[messages.length - 1] })).final
+    const finalText = messages.length
+      ? messages[messages.length - 1]
+      : String(result.stdout || '')
+    return parseModelResult(JSON.stringify({ result: finalText })).final
   }
   return parseModelResult(result.stdout).final
 }
 
-function findEnvelope (fixture) {
+function findEnvelope (fixture, expected = {}) {
   const root = path.join(
     fixture.activeRoot,
     '.runtime-state',
@@ -248,6 +294,27 @@ function findEnvelope (fixture) {
     'turns'
   )
   assert(fs.existsSync(root), 'S15 route turns directory missing')
+  const lifecycleFile = path.join(
+    fixture.activeRoot,
+    '.memory',
+    'hooks',
+    fixture.project,
+    'lifecycle-state.json'
+  )
+  if (fs.existsSync(lifecycleFile)) {
+    const lifecycleState = JSON.parse(fs.readFileSync(lifecycleFile, 'utf8'))
+    const turnBinding = lifecycleState.progressiveSkillRoute?.bootstrap?.turnBinding
+    if (turnBinding) {
+      return {
+        turnBinding,
+        envelope: loadEnvelope(
+          fixture.activeRoot,
+          turnBinding,
+          fixture.runtimeOptions
+        ).envelope
+      }
+    }
+  }
   const candidates = fs.readdirSync(root, { withFileTypes: true })
     .filter(entry => entry.isDirectory())
     .map(entry => ({
@@ -258,14 +325,28 @@ function findEnvelope (fixture) {
     .map(item => ({ ...item, mtimeMs: fs.statSync(item.file).mtimeMs }))
     .sort((left, right) => right.mtimeMs - left.mtimeMs)
   assert(candidates.length, 'S15 route envelope missing')
-  const selected = candidates[0]
-  return {
-    turnBinding: selected.turnBinding,
+  const loaded = candidates.map(candidate => ({
+    ...candidate,
     envelope: loadEnvelope(
       fixture.activeRoot,
-      selected.turnBinding,
+      candidate.turnBinding,
       fixture.runtimeOptions
     ).envelope
+  }))
+  const selected = loaded.find(candidate => {
+    const state = candidate.envelope.state
+    if (expected.planDigest && state.plan?.planDigest !== expected.planDigest) return false
+    if (
+      Number.isInteger(expected.planGeneration) &&
+      state.plan?.generation !== expected.planGeneration
+    ) return false
+    if (expected.decisionSkillId && state.decision?.skillId !== expected.decisionSkillId) return false
+    return true
+  })
+  assert(selected, 'S15 authoritative envelope matching final result missing')
+  return {
+    turnBinding: selected.turnBinding,
+    envelope: selected.envelope
   }
 }
 
@@ -314,12 +395,53 @@ function readLifecycleSnapshot (fixture) {
   }
 }
 
+function discoverFixtureState (fixture) {
+  const pending = [fixture.activeRoot]
+  const found = []
+  let visited = 0
+  while (pending.length && visited < 512 && found.length < 32) {
+    const current = pending.pop()
+    visited += 1
+    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+      const target = path.join(current, entry.name)
+      if (entry.isDirectory()) {
+        pending.push(target)
+        continue
+      }
+      if (!['lifecycle-state.json', 'route-envelope.json'].includes(entry.name)) continue
+      try {
+        const value = JSON.parse(fs.readFileSync(target, 'utf8'))
+        const state = value.state || value
+        found.push({
+          file: path.relative(fixture.activeRoot, target).replace(/\\/g, '/'),
+          project: state.project || state.contextAcquisition?.project || null,
+          contextEpoch: state.contextEpoch ||
+            state.contextAcquisition?.contextEpoch ||
+            state.progressiveSkillRoute?.bootstrap?.contextEpoch ||
+            null,
+          turnBinding: state.turnBinding ||
+            state.progressiveSkillRoute?.bootstrap?.turnBinding ||
+            null,
+          mode: state.mode || state.progressiveSkillRoute?.modeReceipt?.effective || null,
+          receiptStatus: state.contextAcquisition?.receipt?.status || null,
+          decisionSkillId: state.decision?.skillId || null,
+          planDigest: state.plan?.planDigest || null,
+          planGeneration: state.plan?.generation ?? null
+        })
+      } catch {}
+    }
+  }
+  return found
+}
+
 function patchProbeHookCommand (
   hostId,
   authorityPath,
   routeTracePath,
   lifecycleTracePath,
-  workspaceRoot
+  workspaceRoot,
+  contextEpoch,
+  productionEligible = false
 ) {
   const home = process.env.USERPROFILE || process.env.HOME
   assert(home, 'S15 host probe requires a user home')
@@ -331,12 +453,16 @@ function patchProbeHookCommand (
   assert(configPath && fs.existsSync(configPath), `${hostId} global hook config missing`)
   const original = fs.readFileSync(configPath, 'utf8')
   const config = JSON.parse(original)
-  const suffix = [
-    '--skill-route-probe-authority', `"${authorityPath}"`,
+  const suffixParts = [
     '--skill-route-trace', `"${routeTracePath}"`,
     '--lifecycle-trace', `"${lifecycleTracePath}"`,
-    '--workspace-root', `"${workspaceRoot}"`
-  ].join(' ')
+    '--workspace-root', `"${workspaceRoot}"`,
+    '--context-epoch', `"${contextEpoch}"`
+  ]
+  if (!productionEligible) {
+    suffixParts.unshift('--skill-route-probe-authority', `"${authorityPath}"`)
+  }
+  const suffix = suffixParts.join(' ')
   let patchedCommands = 0
   function visit (value) {
     if (!value || typeof value !== 'object') return
@@ -364,6 +490,7 @@ function patchProbeHookCommand (
 function main () {
   const hostId = optionValue('--host')
   const evidenceOutput = optionValue('--evidence-output')
+  const productionEligible = hasOption('--production-eligible')
   const descriptor = HOSTS[hostId]
   if (!descriptor) {
     throw new Error(`--host must be one of: ${Object.keys(HOSTS).join(', ')}`)
@@ -374,7 +501,7 @@ function main () {
     workspaceSkill: false
   })
   const startedAt = new Date().toISOString()
-  const probeRunId = `s15-${hostId}-probe-${crypto.randomUUID()}`
+  const probeRunId = `s15-${hostId}-${productionEligible ? 'production' : 'probe'}-${crypto.randomUUID()}`
   const contextEpoch = `ctx-${crypto.randomUUID()}`
   const marker = `S15_BODY_${crypto.randomUUID().toUpperCase()}`
   const skillId = 'workspace-s15-probe'
@@ -401,25 +528,29 @@ function main () {
   try {
     writeProbeSkill(fixture, skillId, marker)
     writeJson(schemaPath, resultSchema())
-    const now = Date.now()
-    writeJson(authorityPath, {
-      schemaVersion: 'SkillRouteProbeAuthorityV1',
-      probeRunId,
-      project: fixture.project,
-      hostVariant,
-      runtimeDigest,
-      issuerPid: process.pid,
-      issuedAt: new Date(now - 1000).toISOString(),
-      expiresAt: new Date(now + 12 * 60 * 1000).toISOString(),
-      allowedMode: 'unified',
-      probeOnly: true
-    })
+    if (!productionEligible) {
+      const now = Date.now()
+      writeJson(authorityPath, {
+        schemaVersion: 'SkillRouteProbeAuthorityV1',
+        probeRunId,
+        project: fixture.project,
+        hostVariant,
+        runtimeDigest,
+        issuerPid: process.pid,
+        issuedAt: new Date(now - 1000).toISOString(),
+        expiresAt: new Date(now + 12 * 60 * 1000).toISOString(),
+        allowedMode: 'unified',
+        probeOnly: true
+      })
+    }
     restoreHookCommand = patchProbeHookCommand(
       hostId,
       authorityPath,
       routeTracePath,
       lifecycleTracePath,
-      fixture.root
+      fixture.root,
+      contextEpoch,
+      productionEligible
     )
     const childEnv = {
       ...process.env,
@@ -430,7 +561,9 @@ function main () {
       DEVCODEX_LIFECYCLE_TRACE: lifecycleTracePath,
       DEVCODEX_SKILL_ROUTE_TRACE: routeTracePath,
       DEVCODEX_SKILL_ROUTE_MODE: 'unified',
-      DEVCODEX_SKILL_ROUTE_PROBE_AUTHORITY: authorityPath
+      ...(!productionEligible
+        ? { DEVCODEX_SKILL_ROUTE_PROBE_AUTHORITY: authorityPath }
+        : {})
     }
     const versionRun = run(
       executable.command,
@@ -442,7 +575,8 @@ function main () {
     const prompt = buildPrompt({
       contextEpoch,
       hostId: descriptor.lifecycleHost,
-      project: fixture.project
+      project: fixture.project,
+      skillId
     })
     modelRun = run(
       executable.command,
@@ -450,7 +584,7 @@ function main () {
         ...executable.prefix,
         ...hostArgs(hostId, prompt, schemaPath, outputPath)
       ],
-      { cwd: fixture.projectRoot, env: childEnv, timeout: 600000 }
+      { cwd: fixture.projectRoot, env: childEnv, timeout: modelTimeoutMs() }
     )
     if (modelRun.status !== 0) {
       const error = new Error(modelRun.stderr || modelRun.stdout)
@@ -459,7 +593,11 @@ function main () {
     }
 
     const final = parseHostResult(hostId, modelRun, outputPath)
-    const located = findEnvelope(fixture)
+    const located = findEnvelope(fixture, {
+      planDigest: final.planDigest,
+      planGeneration: final.planGeneration,
+      decisionSkillId: final.decisionSkillId
+    })
     const state = located.envelope.state
     const lifecycleFile = path.join(
       fixture.activeRoot,
@@ -471,6 +609,7 @@ function main () {
     assert(fs.existsSync(lifecycleFile), 'S15 lifecycle state missing')
     const lifecycleState = JSON.parse(fs.readFileSync(lifecycleFile, 'utf8'))
     const contextAcquisition = lifecycleState.contextAcquisition
+    const modeReceipt = lifecycleState.progressiveSkillRoute?.modeReceipt
     const selectedChunk = state.plan?.baseResolution?.selected.find(item =>
       item.skillId === skillId
     )
@@ -497,6 +636,19 @@ function main () {
     assert.strictEqual(contextAcquisition.contextEpoch, contextEpoch)
     assert.strictEqual(contextAcquisition.project, fixture.project)
     assert.strictEqual(contextAcquisition.receipt.status, 'relevant-complete')
+    if (productionEligible) {
+      assert.strictEqual(modeReceipt?.hostEligibility, 'PASS')
+      assert.strictEqual(modeReceipt?.capabilityRuntimeCurrent, true)
+      assert.strictEqual(modeReceipt?.capabilityAdapterCurrent, true)
+      assert.strictEqual(modeReceipt?.probeAuthority, null)
+      assert.strictEqual(
+        Object.prototype.hasOwnProperty.call(
+          childEnv,
+          'DEVCODEX_SKILL_ROUTE_PROBE_AUTHORITY'
+        ),
+        false
+      )
+    }
 
     const evidence = {
       schemaVersion: 'SkillRouteS15EvidenceV1',
@@ -508,13 +660,20 @@ function main () {
       protocolVersion: '2024-11-05',
       runtimeDigest,
       hostAdapterDigest,
-      authorizationSource: 'isolated-probe-authority',
+      authorizationSource: productionEligible
+        ? 'capability-pass'
+        : 'isolated-probe-authority',
       routeActivation: {
-        requested: 'unified',
-        source: 'operator-override',
-        effective: 'unified',
-        reason: 'isolated-probe-authority',
-        probeAuthorityUsed: true
+        requested: modeReceipt?.requested || 'unified',
+        source: modeReceipt?.source || null,
+        effective: modeReceipt?.effective || 'unified',
+        reason: modeReceipt?.reason || null,
+        hostEligibility: modeReceipt?.hostEligibility || null,
+        capabilityRuntimeCurrent:
+          modeReceipt?.capabilityRuntimeCurrent === true,
+        capabilityAdapterCurrent:
+          modeReceipt?.capabilityAdapterCurrent === true,
+        probeAuthorityUsed: modeReceipt?.probeAuthority != null
       },
       project: fixture.project,
       contextEpoch,
@@ -568,16 +727,18 @@ function main () {
       evidenceDigest: ''
     }
     evidence.evidenceDigest = sha256({ ...evidence, evidenceDigest: null })
-    recordSkillRouteProbeObservation(
-      fixture.activeRoot,
-      located.turnBinding,
-      evidence,
-      {
-        ...fixture.runtimeOptions,
-        authorityPath,
-        env: childEnv
-      }
-    )
+    if (!productionEligible) {
+      recordSkillRouteProbeObservation(
+        fixture.activeRoot,
+        located.turnBinding,
+        evidence,
+        {
+          ...fixture.runtimeOptions,
+          authorityPath,
+          env: childEnv
+        }
+      )
+    }
     if (evidenceOutput) {
       fs.mkdirSync(path.dirname(path.resolve(evidenceOutput)), { recursive: true })
       fs.writeFileSync(
@@ -611,7 +772,8 @@ function main () {
       stderr: String(modelRun?.stderr || '').slice(-12000),
       routeTrace: readTraceTail(routeTracePath),
       lifecycleTrace: readTraceTail(lifecycleTracePath),
-      lifecycleState: readLifecycleSnapshot(fixture)
+      lifecycleState: readLifecycleSnapshot(fixture),
+      discoveredState: discoverFixtureState(fixture)
     })
     error.code = errorCode
     throw error

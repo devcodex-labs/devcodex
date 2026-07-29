@@ -22,12 +22,15 @@ applyCliEnvironmentOverrides([
   '--skill-route-trace', './route-trace.jsonl',
   '--lifecycle-trace', './lifecycle-trace.jsonl',
   '--workspace-root', '.',
+  '--context-epoch', 'ctx-probe',
   '--event', 'userPromptTransformed'
 ], cliOverrideEnv)
 assert.ok(cliOverrideEnv.DEVCODEX_SKILL_ROUTE_PROBE_AUTHORITY.endsWith('probe-authority.json'))
 assert.ok(cliOverrideEnv.DEVCODEX_SKILL_ROUTE_TRACE.endsWith('route-trace.jsonl'))
 assert.ok(cliOverrideEnv.DEVCODEX_LIFECYCLE_TRACE.endsWith('lifecycle-trace.jsonl'))
 assert.strictEqual(cliOverrideEnv.DEVCODEX_WORKSPACE_ROOT, process.cwd())
+assert.strictEqual(cliOverrideEnv.DEVCODEX_CONTEXT_EPOCH, 'ctx-probe')
+assert.strictEqual(cliOverrideEnv.DEVCODEX_CONTEXT_EPOCH_SOURCE, 'host-adapter-cli')
 assert.strictEqual(cliOverrideEnv.DEVCODEX_HOST_EVENT, 'userPromptTransformed')
 
 assert.deepStrictEqual(Object.keys(EVENT_MAP).sort(), ['claude', 'codex', 'copilot', 'gemini', 'grok'])
@@ -42,6 +45,14 @@ assert.deepStrictEqual(
 assert.strictEqual(
   parseContextToolIdentity('mcp__devcodex_memory__memory_status').server,
   'devcodex-memory'
+)
+assert.deepStrictEqual(
+  parseContextToolIdentity('devcodex-profile-profile_context_plan'),
+  {
+    raw: 'devcodex-profile-profile_context_plan',
+    server: 'devcodex-profile',
+    tool: 'profile_context_plan'
+  }
 )
 
 for (const host of ['copilot', 'claude', 'codex', 'gemini', 'grok']) {
@@ -68,12 +79,62 @@ assert.strictEqual(copilot.payload.devcodexHostSurface, 'copilot')
 assert.strictEqual(copilot.payload.session_id, 'copilot-session')
 assert.strictEqual(copilot.payload.tool_name, 'powershell')
 assert.deepStrictEqual(copilot.payload.tool_input, { command: 'Get-Date' })
+const copilotMcp = normalizeHostPayload('copilot', {
+  hookEventName: 'postToolUse',
+  toolName: 'devcodex-profile-profile_context_plan',
+  toolArgs: '{"project":"sample","contextEpoch":"ctx-1"}',
+  toolResult: {
+    resultType: 'success',
+    textResultForLlm: '{"schemaVersion":"ContextReadPlanV2"}'
+  }
+})
+assert.deepStrictEqual(copilotMcp.payload.tool_input, {
+  project: 'sample',
+  contextEpoch: 'ctx-1'
+})
+assert.deepStrictEqual(copilotMcp.payload.tool_result, {
+  success: true,
+  result: '{"schemaVersion":"ContextReadPlanV2"}'
+})
+const copilotMcpPre = normalizeHostPayload('copilot', {
+  hookEventName: 'preToolUse',
+  sessionId: 'copilot-mcp-session',
+  toolName: 'devcodex-profile-profile_load',
+  toolArgs: '{"project":"sample","files":["README.md"]}'
+})
+const copilotMcpPost = normalizeHostPayload('copilot', {
+  hookEventName: 'postToolUse',
+  sessionId: 'copilot-mcp-session',
+  toolName: 'devcodex-profile-profile_load',
+  toolArgs: '{"files":["README.md"],"project":"sample"}',
+  toolResult: {
+    resultType: 'success',
+    textResultForLlm: 'profile body'
+  }
+})
+assert.match(copilotMcpPre.payload.tool_call_id, /^copilot-[a-f0-9]{32}$/)
+assert.strictEqual(
+  copilotMcpPost.payload.tool_call_id,
+  copilotMcpPre.payload.tool_call_id
+)
 const copilotContinuation = normalizeHostPayload('copilot', {
   hookEventName: 'userPromptTransformed',
   prompt: 'Progressive Skill route is incomplete: PLAN_NOT_COMMITTED.',
   transformedPrompt: 'continuation'
 })
 assert.strictEqual(copilotContinuation.payload.devcodex_host_continuation, true)
+const copilotSubmittedContinuation = normalizeHostPayload('copilot', {
+  hookEventName: 'userPromptSubmitted',
+  prompt: 'Progressive Skill route is incomplete: PLAN_NOT_COMMITTED.'
+})
+assert.strictEqual(copilotSubmittedContinuation.payload.devcodex_host_continuation, true)
+const copilotTransformedContinuation = normalizeHostPayload('copilot', {
+  hookEventName: 'userPromptTransformed',
+  prompt: 'original user prompt',
+  transformedPrompt: 'Progressive Skill route is incomplete: PLAN_NOT_COMMITTED.'
+})
+assert.strictEqual(copilotTransformedContinuation.payload.devcodex_host_continuation, true)
+assert.strictEqual(copilotTransformedContinuation.payload.devcodex_host_transform_only, true)
 
 const copilotDeny = adaptHostOutput('copilot', 'preToolUse', {
   hookSpecificOutput: {
@@ -126,6 +187,19 @@ const childSuccess = runHostAdapter('codex', { hookEventName: 'UserPromptSubmit'
 })
 assert.strictEqual(childSuccess.status, 0)
 assert.strictEqual(childSuccess.output.continue, true)
+let observedLifecycleCwd = null
+const childWithPayloadCwd = runHostAdapter('copilot', {
+  hookEventName: 'userPromptSubmitted',
+  cwd: process.cwd(),
+  prompt: 'Project sample.'
+}, {
+  spawnSync: (_command, _args, spawnOptions) => {
+    observedLifecycleCwd = spawnOptions.cwd
+    return { status: 0, stdout: '{"continue":true}', stderr: '' }
+  }
+})
+assert.strictEqual(childWithPayloadCwd.status, 0)
+assert.strictEqual(observedLifecycleCwd, process.cwd())
 
 for (const event of ['user_prompt_submit', 'pre_tool_use', 'post_tool_use', 'stop']) {
   const payload = { hookEventName: event, cwd: process.cwd() }

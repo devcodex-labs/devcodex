@@ -1247,6 +1247,32 @@ async function main() {
       writeStdout(noopOutput())
       return
     }
+    if (payload.devcodex_host_transform_only === true &&
+        state.contextAcquisition?.contextEpoch) {
+      let progressiveSkillRouteMsg = ''
+      try {
+        const {
+          formatSkillRouteBootstrapInjection
+        } = require('./skill-route-tool.cjs')
+        if (state.progressiveSkillRoute?.bootstrap) {
+          progressiveSkillRouteMsg = formatSkillRouteBootstrapInjection(
+            state.progressiveSkillRoute.bootstrap
+          )
+        }
+      } catch {}
+      state.lastReason = 'copilot-transform-projection'
+      saveState(state)
+      writeStdout(contextMessageOutput(
+        'UserPromptSubmit',
+        [
+          buildBootstrapMessage(state),
+          buildExecutionModeContextMessage(state),
+          buildGovernanceIntakeContextMessage(state.governanceIntake),
+          progressiveSkillRouteMsg
+        ].filter(Boolean).join('\n\n')
+      ))
+      return
+    }
     const workflowCompletionLifecycle = state.workflowCompletionLifecycle
     state = resetState(mode, state)
     state.workflowCompletionLifecycle = workflowCompletionLifecycle

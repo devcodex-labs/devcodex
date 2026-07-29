@@ -15,6 +15,7 @@ function parseContextToolIdentity (rawName, explicitServer = '') {
   const mcp = lower.match(/^mcp__(.+)__([a-z0-9_]+)$/)
   const doubleUnderscore = lower.match(/^([^_]+(?:-[^_]+)*)__([a-z0-9_]+)$/)
   const pair = lower.match(/^([^/]+)\/([a-z0-9_]+)$/)
+  const copilotFlat = lower.match(/^(devcodex-(?:profile|memory))-([a-z0-9_]+)$/)
   if (mcp) {
     server = mcp[1]
     tool = mcp[2]
@@ -24,6 +25,9 @@ function parseContextToolIdentity (rawName, explicitServer = '') {
   } else if (pair) {
     server = pair[1]
     tool = pair[2]
+  } else if (copilotFlat) {
+    server = copilotFlat[1]
+    tool = copilotFlat[2]
   }
   if (server === 'devcodex_profile') server = 'devcodex-profile'
   if (server === 'devcodex_memory') server = 'devcodex-memory'
@@ -350,9 +354,13 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       /^ctx-[A-Za-z0-9-]{8,251}$/.test(String(env.DEVCODEX_CONTEXT_EPOCH || ''))
       ? String(env.DEVCODEX_CONTEXT_EPOCH)
       : ''
+    const adapterEpoch = env?.DEVCODEX_CONTEXT_EPOCH_SOURCE === 'host-adapter-cli' &&
+      /^ctx-[A-Za-z0-9-]{8,251}$/.test(String(env.DEVCODEX_CONTEXT_EPOCH || ''))
+      ? String(env.DEVCODEX_CONTEXT_EPOCH)
+      : ''
     state.contextAcquisition = {
       schemaVersion: CONTEXT_READ_CONTRACT.schemas.state,
-      contextEpoch: launcherEpoch || `ctx-${crypto.randomUUID()}`,
+      contextEpoch: launcherEpoch || adapterEpoch || `ctx-${crypto.randomUUID()}`,
       activeRoot: normalizePath(getActiveNamespaceRoot(state)),
       project,
       targetResolved,

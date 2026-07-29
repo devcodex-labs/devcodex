@@ -1076,6 +1076,17 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
   assert.strictEqual(workspaceLayoutState.activeScope, 'workspace')
   assert.strictEqual(workspaceLayoutState.stickyProject.project, '')
 
+  const explicitProjectWithWorkspaceToken = run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: 'explicit-workspace-token-session',
+    prompt: 'Project devcodex. Use workspace-s15-probe.'
+  })
+  assert.strictEqual(explicitProjectWithWorkspaceToken.continue, true)
+  workspaceLayoutState = JSON.parse(fs.readFileSync(getWorkspaceLayoutStateFile(), 'utf8'))
+  assert.strictEqual(workspaceLayoutState.activeProject, 'devcodex')
+  assert.strictEqual(workspaceLayoutState.activeScope, 'project')
+  assert.strictEqual(workspaceLayoutState.activeProjectSource, 'prompt')
+
   cleanLayoutMultiProjectState()
   run({
     hookEventName: 'UserPromptSubmit',

@@ -170,11 +170,11 @@ function buildLifecycleProjectTargetUtils({
   }
 
   function resolvePromptTarget(previousState, payload, prompt, projectCandidate) {
-    if (hasMultiProjectExemption(prompt)) {
-      return { activeProject: '', activeScope: LAYOUT.enabled ? 'workspace' : 'project', source: 'workspace-exemption', clearSticky: true }
-    }
     if (projectCandidate.project) {
       return { activeProject: projectCandidate.project, activeScope: 'project', source: projectCandidate.source || 'explicit' }
+    }
+    if (hasMultiProjectExemption(prompt)) {
+      return { activeProject: '', activeScope: LAYOUT.enabled ? 'workspace' : 'project', source: 'workspace-exemption', clearSticky: true }
     }
     if (CONTEXT_PROJECT) {
       return { activeProject: CONTEXT_PROJECT, activeScope: 'project', source: 'context' }

@@ -17,7 +17,8 @@ const {
   mergeHostJsonContent,
   mergeJsonContent,
   mergeManagedBlock,
-  mergeManagedTomlTables
+  mergeManagedTomlTables,
+  tomlManagedFileMatches
 } = require('./lib/global-host-config-merge.js')
 const {
   executeGlobalHostTransaction
@@ -284,12 +285,13 @@ assert.strictEqual(fs.existsSync(path.join(home, '.claude', 'skills', 'routing',
 const copilotHooks = JSON.parse(fs.readFileSync(path.join(home, '.copilot', 'hooks', 'devcodex.json'), 'utf8'))
 assert.strictEqual(copilotHooks.version, 1)
 assert.ok(copilotHooks.hooks.notification)
-for (const event of ['userPromptTransformed', 'preToolUse', 'postToolUse', 'agentStop', 'preCompact']) {
+for (const event of ['userPromptSubmitted', 'userPromptTransformed', 'preToolUse', 'postToolUse', 'agentStop', 'preCompact']) {
   assert.ok(Array.isArray(copilotHooks.hooks[event]), `Copilot hook event missing: ${event}`)
   assert.ok(JSON.stringify(copilotHooks.hooks[event]).includes('lifecycle-host-adapters.cjs'))
   assert.ok(JSON.stringify(copilotHooks.hooks[event]).includes(`--event ${event}`))
 }
-assert.strictEqual(copilotHooks.hooks.preToolUse[0].matcher, '*')
+assert.strictEqual(copilotHooks.hooks.preToolUse[0].matcher, '.*')
+assert.strictEqual(copilotHooks.hooks.postToolUse[0].matcher, '.*')
 
 const copilotMcp = JSON.parse(fs.readFileSync(path.join(home, '.copilot', 'mcp-config.json'), 'utf8'))
 assert.strictEqual(copilotMcp.theme, 'user-owned')
@@ -362,16 +364,13 @@ for (const tool of ['profile_context_plan', 'profile_load', 'skill_route']) {
   assert.ok(codexConfig.includes(`[mcp_servers.devcodex-profile.tools.${tool}]`))
 }
 
-// PF-211: Codex host-owned tool approval subtables inside the managed MCP block
-// must not trip GLOBAL_HOST_MANAGED_CONFIG_DRIFT, while authority field edits still do.
+// PF-211: unknown Codex host-owned tool approval subtables inside the managed MCP
+// block must survive re-merge, while generated authority tables remain managed.
 const codexWithHostTools = codexConfig.replace(
   '[mcp_servers.devcodex-profile]',
   [
-    '[mcp_servers.devcodex-memory.tools.memory_session_write]',
-    'approval_mode = "approve"',
-    '',
-    '[mcp_servers.devcodex-memory.tools.memory_summary_query]',
-    'approval_mode = "approve"',
+    '[mcp_servers.devcodex-profile.tools.user_keep_policy]',
+    'approval_mode = "ask"',
     '',
     '[mcp_servers.devcodex-profile]'
   ].join('\n')
@@ -386,10 +385,20 @@ const reapplyHostTools = applyGlobalHostConfig({ packageRoot, env, home })
 assert.strictEqual(reapplyHostTools.transaction.status, 'committed')
 const codexAfterReapply = fs.readFileSync(path.join(home, '.codex', 'config.toml'), 'utf8')
 assert.ok(
-  codexAfterReapply.includes('[mcp_servers.devcodex-memory.tools.memory_session_write]'),
+  codexAfterReapply.includes('[mcp_servers.devcodex-profile.tools.user_keep_policy]'),
   're-apply must preserve Codex host-owned tool approval subtables'
 )
-assert.ok(codexAfterReapply.includes('approval_mode = "approve"'))
+assert.ok(codexAfterReapply.includes('approval_mode = "ask"'))
+const authorityToolTamper = codexAfterReapply.replace(
+  /\[mcp_servers\.devcodex-profile\.tools\.skill_route\]\napproval_mode = "approve"/,
+  '[mcp_servers.devcodex-profile.tools.skill_route]\napproval_mode = "ask"'
+)
+fs.writeFileSync(path.join(home, '.codex', 'config.toml'), authorityToolTamper)
+const afterAuthorityToolTamper = inspectGlobalHostConfiguration({ packageRoot, env, home })
+const codexAuthorityToolTamper = afterAuthorityToolTamper.hosts.find(host => host.host === 'codex')
+assert.strictEqual(afterAuthorityToolTamper.ready, false)
+assert.ok(codexAuthorityToolTamper.driftedConfigFiles.some(file => /config\.toml$/.test(file)))
+fs.writeFileSync(path.join(home, '.codex', 'config.toml'), codexAfterReapply)
 const authorityTamper = codexAfterReapply.replace(
   /\[mcp_servers\.devcodex-memory\]\ncommand = "node"/,
   '[mcp_servers.devcodex-memory]\ncommand = "node-tampered"'
@@ -770,6 +779,91 @@ assert.throws(
     }
   ),
   /GLOBAL_HOST_MARKER_CONFLICT/
+)
+
+// A real-world old managed block may contain only a subset of the now-managed
+// approval tables. Re-merge must add every declared table exactly once, retain
+// unknown host policy, and detect the old block as stale.
+const codexAuthorityFixture = [
+  '# Managed by DevCodex.',
+  '[mcp_servers.devcodex-memory]',
+  'command = "node"',
+  '',
+  '[mcp_servers.devcodex-profile]',
+  'command = "node"',
+  '',
+  '[mcp_servers.devcodex-memory.tools.memory_session_write]',
+  'approval_mode = "approve"',
+  '',
+  '[mcp_servers.devcodex-memory.tools.memory_status]',
+  'approval_mode = "approve"',
+  '',
+  '[mcp_servers.devcodex-profile.tools.profile_context_plan]',
+  'approval_mode = "approve"',
+  '',
+  '[mcp_servers.devcodex-profile.tools.profile_load]',
+  'approval_mode = "approve"',
+  '',
+  '[mcp_servers.devcodex-profile.tools.skill_route]',
+  'approval_mode = "approve"'
+].join('\n')
+const codexTruncatedFixture = [
+  '# BEGIN DEVCODEX MANAGED: global-codex-mcp',
+  '# Managed by DevCodex.',
+  '[mcp_servers.devcodex-memory]',
+  'command = "node"',
+  '',
+  '[mcp_servers.devcodex-profile]',
+  'command = "node"',
+  '',
+  '[mcp_servers.devcodex-memory.tools.memory_session_write]',
+  'approval_mode = "approve"',
+  '',
+  '[mcp_servers.devcodex-profile.tools.user_keep_policy]',
+  'approval_mode = "ask"',
+  '# END DEVCODEX MANAGED: global-codex-mcp',
+  ''
+].join('\n')
+const codexAuthorityTables = [
+  'mcp_servers.devcodex-memory',
+  'mcp_servers.devcodex-profile',
+  'mcp_servers.devcodex-memory.tools.memory_session_write',
+  'mcp_servers.devcodex-memory.tools.memory_status',
+  'mcp_servers.devcodex-profile.tools.profile_context_plan',
+  'mcp_servers.devcodex-profile.tools.profile_load',
+  'mcp_servers.devcodex-profile.tools.skill_route'
+]
+const upgradedCodexFixture = mergeManagedTomlTables(
+  codexTruncatedFixture,
+  codexAuthorityFixture,
+  { id: 'global-codex-mcp', tableNames: codexAuthorityTables }
+)
+for (const tableName of codexAuthorityTables) {
+  assert.strictEqual(
+    (upgradedCodexFixture.match(new RegExp(`\\[${tableName.replace(/\./g, '\\.')}\\]`, 'g')) || []).length,
+    1,
+    `${tableName} must be present exactly once after upgrade`
+  )
+}
+assert.ok(upgradedCodexFixture.includes('[mcp_servers.devcodex-profile.tools.user_keep_policy]'))
+assert.strictEqual(tomlManagedFileMatches(
+  codexTruncatedFixture,
+  upgradedCodexFixture,
+  codexAuthorityFixture,
+  { id: 'global-codex-mcp' }
+), false)
+assert.strictEqual(tomlManagedFileMatches(
+  upgradedCodexFixture,
+  upgradedCodexFixture,
+  codexAuthorityFixture,
+  { id: 'global-codex-mcp' }
+), true)
+assert.strictEqual(
+  mergeManagedTomlTables(upgradedCodexFixture, codexAuthorityFixture, {
+    id: 'global-codex-mcp',
+    tableNames: codexAuthorityTables
+  }),
+  upgradedCodexFixture
 )
 
 const rollbackRoot = path.join(tmp, 'rollback')

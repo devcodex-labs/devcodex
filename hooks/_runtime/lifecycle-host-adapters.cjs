@@ -3,6 +3,7 @@
 
 const fs = require('fs')
 const path = require('path')
+const crypto = require('crypto')
 const { spawnSync } = require('child_process')
 
 const CLAUDE_EVENT_MAP = Object.freeze({
@@ -89,13 +90,81 @@ function adapterTracePath(env = process.env) {
   return target
 }
 
+function lifecycleStateTraceSummary(env = process.env) {
+  const workspaceRoot = String(env.DEVCODEX_WORKSPACE_ROOT || '').trim()
+  if (!workspaceRoot) return null
+  const namespaceRoot = path.join(path.resolve(workspaceRoot), '.devcodex')
+  if (!fs.existsSync(namespaceRoot)) return null
+  const candidates = []
+  for (const projectEntry of fs.readdirSync(namespaceRoot, { withFileTypes: true }).slice(0, 32)) {
+    if (!projectEntry.isDirectory()) continue
+    const hooksRoot = path.join(namespaceRoot, projectEntry.name, '.memory', 'hooks')
+    if (!fs.existsSync(hooksRoot)) continue
+    for (const hookEntry of fs.readdirSync(hooksRoot, { withFileTypes: true }).slice(0, 32)) {
+      if (!hookEntry.isDirectory()) continue
+      const file = path.join(hooksRoot, hookEntry.name, 'lifecycle-state.json')
+      if (fs.existsSync(file)) {
+        candidates.push({
+          file,
+          workspaceMeta: projectEntry.name.toLowerCase() === 'workspace'
+        })
+      }
+    }
+  }
+  if (!candidates.length) return null
+  const expectedEpoch = String(env.DEVCODEX_CONTEXT_EPOCH || '').trim()
+  const parsedCandidates = candidates.map(candidate => ({
+    ...candidate,
+    state: JSON.parse(fs.readFileSync(candidate.file, 'utf8')),
+    mtimeMs: fs.statSync(candidate.file).mtimeMs
+  }))
+  const selected = parsedCandidates.sort((left, right) => {
+    const leftEpochMatch = left.state.contextAcquisition?.contextEpoch === expectedEpoch ? 1 : 0
+    const rightEpochMatch = right.state.contextAcquisition?.contextEpoch === expectedEpoch ? 1 : 0
+    if (leftEpochMatch !== rightEpochMatch) return rightEpochMatch - leftEpochMatch
+    if (left.workspaceMeta !== right.workspaceMeta) return left.workspaceMeta ? 1 : -1
+    return right.mtimeMs - left.mtimeMs
+  })[0]
+  const file = selected.file
+  const state = selected.state
+  const acquisition = state.contextAcquisition || {}
+  const receipt = acquisition.receipt || {}
+  return {
+    file: path.relative(path.resolve(workspaceRoot), file).replace(/\\/g, '/'),
+    activeProject: state.activeProject || null,
+    project: acquisition.project || state.activeProject || null,
+    contextEpoch: acquisition.contextEpoch || null,
+    planId: acquisition.plan?.planId || null,
+    receiptStatus: receipt.status || null,
+    satisfiedSourceIds: receipt.satisfiedSourceIds || [],
+    missingSourceIds: receipt.missingSourceIds || [],
+    inFlight: (acquisition.inFlight || []).map(item => ({
+      canonical: item.canonical,
+      toolCallId: item.toolCallId
+    })),
+    postHistory: (acquisition.postHistory || []).slice(-8).map(item => ({
+      canonical: item.canonical,
+      toolCallId: item.toolCallId,
+      outcome: item.outcome
+    })),
+    lastError: acquisition.lastError || receipt.lastError || null
+  }
+}
+
 function appendAdapterTrace(host, phase, input, normalized, result, env = process.env) {
   const target = adapterTracePath(env)
   if (!target) return
   try {
     const payload = input && typeof input === 'object' && !Array.isArray(input) ? input : {}
+    const normalizedPayload = normalized?.payload &&
+      typeof normalized.payload === 'object' &&
+      !Array.isArray(normalized.payload)
+      ? normalized.payload
+      : {}
     const toolInput = payload.toolInput || payload.tool_input || payload.toolArgs || {}
     const toolResult = payload.toolResult || payload.tool_result || payload.toolResponse || payload.tool_response || {}
+    const normalizedToolInput = normalizedPayload.tool_input || normalizedPayload.toolInput || {}
+    const normalizedToolResult = normalizedPayload.tool_result || normalizedPayload.toolResult || {}
     const entry = {
       schemaVersion: 'LifecycleHostAdapterTraceV1',
       observedAt: new Date().toISOString(),
@@ -104,11 +173,23 @@ function appendAdapterTrace(host, phase, input, normalized, result, env = proces
       originalEvent: normalized?.originalEvent || null,
       mappedEvent: normalized?.mappedEvent || null,
       payloadKeys: Object.keys(payload).sort().slice(0, 64),
+      adapterCwd: process.cwd(),
+      payloadCwd: String(payload.cwd || payload.workingDirectory || ''),
+      promptPreview: String(
+        payload.prompt || payload.userPrompt || payload.user_prompt || ''
+      ).slice(0, 512),
       toolName: String(payload.toolName || payload.tool_name || ''),
       toolUseId: String(payload.toolUseId || payload.tool_use_id || ''),
+      normalizedToolCallId: String(
+        normalizedPayload.tool_call_id || normalizedPayload.toolCallId || ''
+      ),
       toolInputKeys: toolInput && typeof toolInput === 'object'
         ? Object.keys(toolInput).sort().slice(0, 64)
         : [],
+      normalizedToolInputDigest: crypto.createHash('sha256')
+        .update(JSON.stringify(stableJsonValue(normalizedToolInput)))
+        .digest('hex'),
+      normalizedToolInputPreview: JSON.stringify(stableJsonValue(normalizedToolInput)).slice(0, 1024),
       dispatchedServer: String(
         toolInput?.server || toolInput?.serverName || toolInput?.server_name || ''
       ),
@@ -118,10 +199,17 @@ function appendAdapterTrace(host, phase, input, normalized, result, env = proces
       toolResultKeys: toolResult && typeof toolResult === 'object'
         ? Object.keys(toolResult).sort().slice(0, 64)
         : [],
+      normalizedToolResultPreview: (() => {
+        const value = typeof normalizedToolResult === 'string'
+          ? normalizedToolResult
+          : JSON.stringify(normalizedToolResult)
+        return String(value || '').slice(0, 512)
+      })(),
       status: result?.status ?? null,
       outputKeys: result?.output && typeof result.output === 'object'
         ? Object.keys(result.output).sort().slice(0, 32)
-        : []
+        : [],
+      lifecycleState: phase === 'output' ? lifecycleStateTraceSummary(env) : null
     }
     fs.mkdirSync(path.dirname(target), { recursive: true })
     const prior = fs.existsSync(target)
@@ -169,6 +257,23 @@ function parseToolInputEnvelope(value) {
   } catch {
     return null
   }
+}
+
+function stableJsonValue(value) {
+  if (Array.isArray(value)) return value.map(stableJsonValue)
+  if (!value || typeof value !== 'object') return value
+  return Object.fromEntries(
+    Object.keys(value).sort().map(key => [key, stableJsonValue(value[key])])
+  )
+}
+
+function copilotToolCallId(payload) {
+  const material = JSON.stringify(stableJsonValue({
+    sessionId: payload.session_id || payload.sessionId || '',
+    toolName: payload.tool_name || payload.toolName || '',
+    toolInput: payload.tool_input || payload.toolInput || {}
+  }))
+  return `copilot-${crypto.createHash('sha256').update(material).digest('hex').slice(0, 32)}`
 }
 
 function normalizeGrokToolResult(value) {
@@ -232,10 +337,39 @@ function normalizeHostPayload(host, payload) {
     if (normalized.sessionId && !normalized.session_id) normalized.session_id = normalized.sessionId
     if (normalized.transcriptPath && !normalized.transcript_path) normalized.transcript_path = normalized.transcriptPath
     if (normalized.stopReason && !normalized.stop_reason) normalized.stop_reason = normalized.stopReason
-    if (normalized.toolResult && !normalized.tool_result) normalized.tool_result = normalized.toolResult
-    if (originalEvent === 'userPromptTransformed' &&
-        /^Progressive Skill route is incomplete:/i.test(String(normalized.prompt || '').trim())) {
+    if (typeof normalized.tool_input === 'string') {
+      normalized.tool_input = parseToolInputEnvelope(normalized.tool_input) || normalized.tool_input
+    }
+    if (!normalized.tool_call_id && !normalized.toolCallId) {
+      normalized.tool_call_id = copilotToolCallId(normalized)
+      normalized.toolCallId = normalized.tool_call_id
+    }
+    if (normalized.toolResult && !normalized.tool_result) {
+      const result = normalized.toolResult
+      normalized.tool_result = typeof result.textResultForLlm === 'string'
+        ? {
+            success: result.resultType === 'success',
+            result: result.textResultForLlm,
+            ...(result.resultType === 'success'
+              ? {}
+              : { error: result.textResultForLlm || 'Copilot tool call failed.' })
+          }
+        : result
+    }
+    const continuationPrompts = [
+      normalized.prompt,
+      normalized.transformedPrompt,
+      normalized.transformed_prompt
+    ]
+    if ((originalEvent === 'userPromptSubmitted' ||
+         originalEvent === 'userPromptTransformed') &&
+        continuationPrompts.some(value =>
+          /^Progressive Skill route is incomplete:/i.test(String(value || '').trim())
+        )) {
       normalized.devcodex_host_continuation = true
+    }
+    if (originalEvent === 'userPromptTransformed') {
+      normalized.devcodex_host_transform_only = true
     }
   }
   if (host === 'gemini' && typeof payload?.prompt_response === 'string') normalized.response = payload.prompt_response
@@ -471,10 +605,20 @@ function runHostAdapter(host, input, options = {}) {
   }
   const lifecycle = options.lifecycle || path.join(__dirname, 'lifecycle.cjs')
   const spawn = options.spawnSync || spawnSync
+  const payloadCwd = String(input?.cwd || input?.workingDirectory || '').trim()
+  const lifecycleCwd = (() => {
+    if (!payloadCwd) return undefined
+    try {
+      return fs.statSync(payloadCwd).isDirectory() ? path.resolve(payloadCwd) : undefined
+    } catch {
+      return undefined
+    }
+  })()
   const child = spawn(process.execPath, [lifecycle], {
     input: JSON.stringify(normalized.payload),
     encoding: 'utf8',
     maxBuffer: 8 * 1024 * 1024,
+    ...(lifecycleCwd ? { cwd: lifecycleCwd } : {}),
     env: { ...(options.env || process.env), DEVCODEX_HOST_PLATFORM: host }
   })
   if (child.error) {
@@ -546,6 +690,11 @@ function applyCliEnvironmentOverrides (argv, env = process.env) {
   const workspaceRootIndex = argv.indexOf('--workspace-root')
   if (workspaceRootIndex >= 0 && argv[workspaceRootIndex + 1]) {
     env.DEVCODEX_WORKSPACE_ROOT = path.resolve(argv[workspaceRootIndex + 1])
+  }
+  const contextEpochIndex = argv.indexOf('--context-epoch')
+  if (contextEpochIndex >= 0 && argv[contextEpochIndex + 1]) {
+    env.DEVCODEX_CONTEXT_EPOCH = String(argv[contextEpochIndex + 1]).trim()
+    env.DEVCODEX_CONTEXT_EPOCH_SOURCE = 'host-adapter-cli'
   }
   const eventIndex = argv.indexOf('--event')
   if (eventIndex >= 0 && argv[eventIndex + 1]) {

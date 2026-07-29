@@ -139,7 +139,7 @@ devcodex profile plan|init
 | 工作区 skill（W 优先） | `.devcodex/workspace/skills/<id>/SKILL.md` |
 | 全局 skill（hidden） | `~/.agents/devcodex/skills/<id>/`（菜单可能不显示，仍可加载） |
 
-**未发布源码候选**：渐进式 Skill 路由是五宿主唯一默认路由。它会在每轮建立 W + managed G 动态快照，再按 catalog → commit → stage 分页加载正文；全程使用宿主按需启动的本地 stdio MCP 子进程，不监听端口，也不需要服务端。新增或修改 `.devcodex/workspace/skills/<id>/SKILL.md` 会让旧快照失效，并在下一轮重新发现。宿主生产证据继续作为发布后的可观测性材料，不再控制源码路由模式，也不阻塞功能完成。
+**未发布源码候选**：渐进式 Skill 路由是五宿主唯一默认路由。它会在每轮建立 W + managed G 动态快照，再按 catalog → commit → stage 分页加载正文；全程使用宿主按需启动的本地 stdio MCP 子进程，不监听端口，也不需要服务端。多项目工作区尚未解析出目标时先等待 Profile plan 绑定真实项目，不会把工作区目录名当成项目创建运行态。新增或修改 `.devcodex/workspace/skills/<id>/SKILL.md` 会让旧快照失效，并在下一轮重新发现。宿主生产证据继续作为发布后的可观测性材料，不再控制源码路由模式，也不阻塞功能完成。
 
 Codex/Claude 等宿主自己的 `AGENTS.md`、`CLAUDE.md`、原生个人/项目 Skill 仍由宿主负责发现。DevCodex 不扫描、复制、合并、覆盖或删除这些用户资产；同名也不视为 DevCodex 所有权。Codex 项目指令使用 `AGENTS.md`（不是 `codex.md`），Claude 项目指令使用精确文件名 `CLAUDE.md`，Skill 入口使用精确文件名 `SKILL.md`。
 

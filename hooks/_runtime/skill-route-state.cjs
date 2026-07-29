@@ -554,7 +554,9 @@ function bootstrapSkillRoute (input, options = {}) {
     turnBinding,
     contextEpoch
   })
-  const explicitSkillId = parseExplicitSkillId(input.prompt)
+  const explicitSkillId = Object.prototype.hasOwnProperty.call(input, 'explicitSkillId')
+    ? (String(input.explicitSkillId || '').trim() || null)
+    : parseExplicitSkillId(input.prompt)
   const explicitEntry = explicitSkillId
     ? index.entries.find(entry => entry.skillId === explicitSkillId && entry.lifecycle === 'green')
     : null

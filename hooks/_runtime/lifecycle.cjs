@@ -488,6 +488,7 @@ const {
   getStatePaths,
   getActiveScope,
   getActiveNamespaceRoot,
+  listWorkspaceProjects,
   getBootstrapAgent,
   getWorkspaceNamespaceRoot,
   readProfileMode,
@@ -1390,25 +1391,52 @@ async function main() {
       const {
         getLifecycleHostAdapterDigest
       } = require('./host-adapter-identity.cjs')
-      const route = bootstrapSkillRouteForTurn({
-        project: state.contextAcquisition?.project,
-        contextEpoch: state.contextAcquisition?.contextEpoch,
-        prompt,
-        host: platform,
-        cwd: CONTEXT_ROOT
-      }, {
-        inputRoot: CONTEXT_ROOT,
-        env: process.env,
-        hostAdapterDigest: getLifecycleHostAdapterDigest(platform)
-      })
-      progressiveSkillRouteMode = route.modeReceipt?.effective || 'unified'
-      progressiveSkillRouteMsg = route.injectionText || ''
-      state.progressiveSkillRoute = {
-        schemaVersion: 'LifecycleSkillRouteStateV1',
-        modeReceipt: route.modeReceipt,
-        bootstrap: route.bootstrap,
-        active: route.active === true,
-        errorCode: null
+      if (!state.contextAcquisition?.targetResolved) {
+        const { parseExplicitSkillId } = require('./skill-route-state.cjs')
+        const requestedSkillId = parseExplicitSkillId(prompt)
+        const pending = {
+          schemaVersion: 'SkillRouteBootstrapPendingV1',
+          contextEpoch: state.contextAcquisition?.contextEpoch,
+          targetResolved: false,
+          explicitStatus: requestedSkillId ? 'pending-target' : 'none',
+          explicitSkillId: requestedSkillId
+        }
+        progressiveSkillRouteMsg = [
+          '### DevCodex · SkillRouteBootstrapPendingV1',
+          JSON.stringify(pending),
+          '',
+          'Resolve one real project with `profile_context_plan` using this contextEpoch. After the observed plan binds the active-root, the lifecycle will inject the project-bound SkillRouteBootstrapV1.',
+          'Do not call `skill_route` with the workspace directory name and do not create a synthetic project namespace.'
+        ].join('\n')
+        state.progressiveSkillRoute = {
+          schemaVersion: 'LifecycleSkillRouteStateV1',
+          modeReceipt: null,
+          bootstrap: null,
+          pending,
+          active: false,
+          errorCode: null
+        }
+      } else {
+        const route = bootstrapSkillRouteForTurn({
+          project: state.contextAcquisition?.project,
+          contextEpoch: state.contextAcquisition?.contextEpoch,
+          prompt,
+          host: platform,
+          cwd: CONTEXT_ROOT
+        }, {
+          inputRoot: CONTEXT_ROOT,
+          env: process.env,
+          hostAdapterDigest: getLifecycleHostAdapterDigest(platform)
+        })
+        progressiveSkillRouteMode = route.modeReceipt?.effective || 'unified'
+        progressiveSkillRouteMsg = route.injectionText || ''
+        state.progressiveSkillRoute = {
+          schemaVersion: 'LifecycleSkillRouteStateV1',
+          modeReceipt: route.modeReceipt,
+          bootstrap: route.bootstrap,
+          active: route.active === true,
+          errorCode: null
+        }
       }
     } catch (error) {
       state.progressiveSkillRoute = {
@@ -1698,7 +1726,7 @@ async function main() {
 
   // ── PostToolUse ────────────────────────────────────────────────────────────
   if (eventName === 'PostToolUse') {
-    recordContextPostToolUse(state, payload)
+    const contextPost = recordContextPostToolUse(state, payload)
     markContextPostMutationStale(state, payload, platform)
     observeGovernanceLedgerWrite(state, payload, {
       activeRoot: getActiveNamespaceRoot(state),
@@ -1709,6 +1737,46 @@ async function main() {
     markProductMutationOrder(state, payload, platform)
     updateArtifactTouches(state, payload, platform)
     state.turnLiveness = completeToolLease(state.turnLiveness, payload)
+    if (contextPost?.targetRebound) {
+      try {
+        const { bootstrapSkillRouteForTurn } = require('./skill-route-tool.cjs')
+        const {
+          getLifecycleHostAdapterDigest
+        } = require('./host-adapter-identity.cjs')
+        const route = bootstrapSkillRouteForTurn({
+          project: state.contextAcquisition.project,
+          contextEpoch: state.contextAcquisition.contextEpoch,
+          explicitSkillId: state.progressiveSkillRoute?.pending?.explicitSkillId || null,
+          host: platform,
+          cwd: CONTEXT_ROOT
+        }, {
+          inputRoot: CONTEXT_ROOT,
+          env: process.env,
+          hostAdapterDigest: getLifecycleHostAdapterDigest(platform)
+        })
+        state.progressiveSkillRoute = {
+          schemaVersion: 'LifecycleSkillRouteStateV1',
+          modeReceipt: route.modeReceipt,
+          bootstrap: route.bootstrap,
+          active: route.active === true,
+          errorCode: null
+        }
+        saveState(state)
+        writeStdout(contextMessageOutput(
+          'PostToolUse',
+          route.injectionText || ''
+        ))
+        return
+      } catch (error) {
+        state.progressiveSkillRoute = {
+          schemaVersion: 'LifecycleSkillRouteStateV1',
+          modeReceipt: null,
+          bootstrap: null,
+          active: false,
+          errorCode: String(error.code || error.message || 'SKILL_ROUTE_BOOTSTRAP_FAILED')
+        }
+      }
+    }
     saveState(state)
     writeStdout(noopOutput())
     return

@@ -1254,6 +1254,9 @@ function bootstrapSkillRouteForTurn (input, options = {}) {
     activeRoot: target.activeRoot,
     contextEpoch: input.contextEpoch,
     prompt: input.prompt,
+    ...(Object.prototype.hasOwnProperty.call(input, 'explicitSkillId')
+      ? { explicitSkillId: input.explicitSkillId }
+      : {}),
     mode: modeReceipt.effective,
     modeReceipt,
     runtimeContractDigest: modeReceipt.runtimeContractDigest,

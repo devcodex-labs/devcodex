@@ -34,7 +34,7 @@
     "S10": ["C06"],
     "S11": ["P02"],
     "S12": ["C07", "P10", "M05"],
-    "S13": ["M02", "M05", "M08a"],
+    "S13": ["M02", "M05", "M08a", "M08b"],
     "S14": ["M01", "M03"],
     "S15": ["M05"],
     "S16": ["C01", "C03"],
@@ -91,6 +91,7 @@
     "M07": {"owner": "README.md", "anchor": "global-adapters apply"},
     "M08": {"owner": "scripts/test-skill-route-state.js", "anchor": "MODE_CAPABILITY_STALE"},
     "M08a": {"owner": "scripts/test-skill-route-lifecycle.js", "anchor": "MODE_CAPABILITY_STALE"},
+    "M08b": {"owner": "scripts/lib/test-hooks-runtime-bootstrap-layout.js", "anchor": "pending-project-rebind"},
     "M09": {"owner": "scripts/test-global-install-smoke.js", "anchor": "host-native .agents/skills root"},
     "M10": {"owner": "scripts/test-skill-route-state.js", "anchor": "Acceptance T01a / T07 / M10"}
   }

@@ -122,6 +122,85 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
   assert.strictEqual(multiProjectPromptWarning.hookSpecificOutput?.hookEventName, 'UserPromptSubmit')
   assert.match(multiProjectPromptWarning.hookSpecificOutput?.additionalContext || '', /Multi-project workspace|多项目|目标项目/)
 
+  cleanLayoutMultiProjectState({ workspaceProfile: true })
+  const reboundProfileRoot = path.join(TEMP_ROOT, '.devcodex', 'devcodex', 'profile')
+  fs.writeFileSync(path.join(reboundProfileRoot, 'README.md'), [
+    '# Rebound project Profile',
+    '',
+    '> Profile 档位：`profile-lite`。',
+    '',
+    '| 文件 | 说明 | 必须 |',
+    '|------|------|:----:|',
+    '| `01-项目信息.md` | project | 是 |',
+    '| `02-架构约束.md` | architecture | 是 |',
+    '| `03-代码风格.md` | style | 是 |'
+  ].join('\n'))
+  for (const file of ['01-项目信息.md', '02-架构约束.md', '03-代码风格.md']) {
+    fs.writeFileSync(path.join(reboundProfileRoot, file), `# ${file}\n\nREBOUND-PROFILE-BODY\n`)
+  }
+  const pendingSession = 'pending-project-rebind'
+  const pendingPrompt = run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: pendingSession,
+    prompt: '请使用 audit-project skill 检查当前状态'
+  }, TEMP_ROOT, {
+    DEVCODEX_HOST_PLATFORM: 'codex'
+  })
+  assert.match(pendingPrompt.systemMessage || '', /SkillRouteBootstrapPendingV1/)
+  const pendingState = JSON.parse(fs.readFileSync(getWorkspaceLayoutStateFile(), 'utf8'))
+  assert.strictEqual(pendingState.contextAcquisition.targetResolved, false)
+  assert.strictEqual(pendingState.progressiveSkillRoute.pending.explicitSkillId, 'audit-project')
+  const pendingArgs = {
+    intent: 'audit',
+    changeTypes: ['testing'],
+    contextEpoch: pendingState.contextAcquisition.contextEpoch,
+    project: 'devcodex'
+  }
+  const pendingCallId = 'pending-project-plan'
+  run({
+    hookEventName: 'PreToolUse',
+    session_id: pendingSession,
+    tool_use_id: pendingCallId,
+    tool_name: 'mcp__devcodex-profile__profile_context_plan',
+    tool_input: pendingArgs
+  }, TEMP_ROOT, {
+    DEVCODEX_HOST_PLATFORM: 'codex'
+  })
+  const pendingPlanResult = callProfileTool(TEMP_ROOT, 'profile_context_plan', pendingArgs)
+  const reboundPost = run({
+    hookEventName: 'PostToolUse',
+    session_id: pendingSession,
+    tool_use_id: pendingCallId,
+    tool_name: 'mcp__devcodex-profile__profile_context_plan',
+    tool_input: pendingArgs,
+    tool_response: pendingPlanResult
+  }, TEMP_ROOT, {
+    DEVCODEX_HOST_PLATFORM: 'codex'
+  })
+  assert.match(reboundPost.systemMessage || '', /SkillRouteBootstrapV1/)
+  const reboundState = JSON.parse(fs.readFileSync(getLayoutStateFile('devcodex'), 'utf8'))
+  assert.strictEqual(reboundState.activeProject, 'devcodex')
+  assert.strictEqual(reboundState.activeProjectSource, 'context-plan')
+  assert.strictEqual(reboundState.contextAcquisition.targetResolved, true)
+  assert.strictEqual(reboundState.contextAcquisition.project, 'devcodex')
+  assert.strictEqual(reboundState.progressiveSkillRoute.bootstrap.project, 'devcodex')
+  assert.strictEqual(reboundState.progressiveSkillRoute.bootstrap.explicitStatus, 'ready')
+  assert(fs.existsSync(path.join(
+    TEMP_ROOT,
+    '.devcodex',
+    'devcodex',
+    '.runtime-state',
+    'skill-route',
+    'turns',
+    reboundState.progressiveSkillRoute.bootstrap.turnBinding,
+    'route-envelope.json'
+  )))
+  assert.strictEqual(
+    fs.existsSync(path.join(TEMP_ROOT, '.devcodex', path.basename(TEMP_ROOT))),
+    false,
+    'an unresolved workspace target must not create a synthetic project namespace'
+  )
+
   cleanState()
 
   const promptOutput = run({

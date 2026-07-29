@@ -13,8 +13,8 @@
     "portfolioEvidenceDigest": "8364a73c66ed2ec9787cdb9300223278d128a45b689a2b8deda0d1f03189f42b",
     "consumerInventoryFileCount": 484,
     "consumerInventoryDigest": "b41848c7674010854bda6ef9503b8a0ad3d725b7beabe021c9b7cc618bdcb727",
-    "consumerProjectionDigest": "536f496032116a06bc8598c46deb39d8d06b7794de0589c39ed2e23b13b90ea0",
-    "portfolioInputDigest": "388dfc88d475e57d9274319ee838caa8fab7b7ba66b0c1f83d54eafb5eb1689f"
+    "consumerProjectionDigest": "7526ef908db7c2e9e4093de1610434c2dc902df18e83a15fc1d652d665010281",
+    "portfolioInputDigest": "a56114e24a08e9f1ae1f9c8b2c8257557abc2cbc381cf5ced2a7b9d75d2c0a79"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -2613,6 +2613,10 @@
         },
         {
           "path": "scripts/lib/canonical-consumer-contracts.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/test-hooks-runtime-bootstrap-layout.js",
           "role": "current"
         },
         {

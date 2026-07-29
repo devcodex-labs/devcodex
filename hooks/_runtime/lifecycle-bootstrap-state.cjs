@@ -52,6 +52,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     getStatePaths,
     getActiveScope,
     getActiveNamespaceRoot,
+    listWorkspaceProjects,
     getBootstrapAgent,
     getWorkspaceNamespaceRoot,
     readProfileMode,
@@ -733,7 +734,12 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       return { allowed: false, suspicious: true, reason: 'context tool requires an exact server/tool identity' }
     }
     if (identity.canonical) {
-      if (!targetMatches(args, state)) {
+      const requestedProject = String(args.project || '').trim()
+      const pendingPlanTarget = identity.tool === 'profile_context_plan' &&
+        !acquisition.targetResolved &&
+        requestedProject &&
+        listWorkspaceProjects().includes(requestedProject)
+      if (!targetMatches(args, state) && !pendingPlanTarget) {
         return { allowed: false, suspicious: true, reason: 'context tool target does not match the active project' }
       }
       if (identity.tool === 'skill_route') {
@@ -766,7 +772,9 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       if (identity.tool === 'profile_context_plan') {
         const epoch = String(args.contextEpoch || '').trim()
         const planKey = stableDigest({ contextEpoch: acquisition.contextEpoch, canonical: identity.canonical, args })
-        if (!acquisition.targetResolved || !epoch || epoch !== acquisition.contextEpoch) {
+        if ((!acquisition.targetResolved && !pendingPlanTarget) ||
+            !epoch ||
+            epoch !== acquisition.contextEpoch) {
           return { allowed: false, suspicious: true, reason: 'profile plan must use the current bound contextEpoch' }
         }
         if (acquisition.failedPlanKeys.includes(planKey)) {
@@ -782,6 +790,10 @@ function buildLifecycleBootstrapStateUtils(ctx) {
           args,
           argsDigest: stableDigest(args),
           planKey,
+          targetProject: pendingPlanTarget ? requestedProject : acquisition.project,
+          targetActiveRoot: pendingPlanTarget
+            ? normalizePath(getActiveNamespaceRoot(state, requestedProject, 'project'))
+            : acquisition.activeRoot,
           sourceIds: []
         }
       }
@@ -936,8 +948,8 @@ function buildLifecycleBootstrapStateUtils(ctx) {
         attemptId: `pre-${crypto.randomUUID()}`,
         toolCallId: getToolCallId(payload),
         contextEpoch: acquisition.contextEpoch,
-        activeRoot: acquisition.activeRoot,
-        project: acquisition.project,
+        activeRoot: classified.targetActiveRoot || acquisition.activeRoot,
+        project: classified.targetProject || acquisition.project,
         canonical: classified.canonical,
         server: classified.server,
         tool: classified.tool,
@@ -1301,8 +1313,8 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       : null
     if (!plan && extracted.outcome?.transportSuccess && typeof extracted.outcome.payload === 'string' && !inlineBody) {
       const recovered = readContextPlanObservation({
-        activeRoot: acquisition.activeRoot,
-        project: acquisition.project,
+        activeRoot: attempt.activeRoot,
+        project: attempt.project,
         contextEpoch: acquisition.contextEpoch,
         notBefore: attempt.startedAt
       })
@@ -1325,8 +1337,8 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       }
     }
     const identityMatches = !!plan && plan.identity.contextEpoch === acquisition.contextEpoch &&
-      normalizePath(plan.identity.activeRoot) === acquisition.activeRoot &&
-      plan.identity.project === acquisition.project &&
+      normalizePath(plan.identity.activeRoot) === normalizePath(attempt.activeRoot) &&
+      plan.identity.project === attempt.project &&
       String(attempt.args.contextEpoch || '') === acquisition.contextEpoch
     if (!identityMatches) {
       if (!acquisition.failedPlanKeys.includes(attempt.planKey)) acquisition.failedPlanKeys.push(attempt.planKey)
@@ -1390,6 +1402,9 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     }
     acquisition.plan = plan
     acquisition.receipt = receipt
+    acquisition.activeRoot = normalizePath(plan.identity.activeRoot)
+    acquisition.project = plan.identity.project
+    acquisition.targetResolved = true
     acquisition.stageTiming = {
       ...plan.stageTiming,
       hostDeliveredBytes: extracted.outcome?.telemetry?.bytes ?? null
@@ -1404,6 +1419,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
   /** Correlate an observable PostToolUse result and advance only independently proven sources. */
   function recordContextPostToolUse(state, payload) {
     const acquisition = syncContextProjection(state)
+    const targetWasResolved = acquisition.targetResolved === true
     const identity = canonicalContextTool(payload)
     if (!identity.canonical && !isBootstrapReadTool(payload, state)) {
       return { observed: false, ignored: true }
@@ -1440,7 +1456,20 @@ function buildLifecycleBootstrapStateUtils(ctx) {
         acquisition.lastError = contextError('CONTEXT_PLAN_INVALID', 'PostToolUse input does not match the correlated PreToolUse attempt.')
       }
     } else if (attempt.kind === 'plan') {
-      installObservedPlan(acquisition, attempt, payload)
+      const installed = installObservedPlan(acquisition, attempt, payload)
+      if (installed && !targetWasResolved) {
+        state.activeProject = acquisition.project
+        state.activeScope = 'project'
+        state.activeProjectSource = 'context-plan'
+        state.mode = readProfileMode(state, acquisition.project)
+        state.stickyProject = {
+          project: acquisition.project,
+          source: 'context-plan',
+          sessionKey: acquisition.hostSessionId,
+          updatedAt: new Date().toISOString(),
+          updatedAtMs: Date.now()
+        }
+      }
     } else if (attempt.kind === 'profile-load' && acquisition.plan && acquisition.receipt) {
       const parsed = profileSourceResults(acquisition, attempt, outcome)
       if (parsed.drift) {
@@ -1468,7 +1497,14 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     }].slice(-40)
     state.contextAcquisition = acquisition
     syncContextProjection(state)
-    return { observed: true, attempt, outcome }
+    return {
+      observed: true,
+      attempt,
+      outcome,
+      targetRebound: !targetWasResolved && acquisition.targetResolved === true,
+      project: acquisition.project,
+      activeRoot: acquisition.activeRoot
+    }
   }
 
   function updateBootstrapState(state, payload) {

@@ -58,6 +58,7 @@ const expectedTests = [
   'M02a',
   ...range('M0', 3, 9),
   'M08a',
+  'M08b',
   'M10'
 ]
 

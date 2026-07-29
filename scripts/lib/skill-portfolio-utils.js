@@ -356,6 +356,7 @@ function isPortfolioConsumerExcluded(relativePath) {
     'dist/',
     '.git/',
     '.devcodex/',
+    'scripts/fixtures/retired-workspace-skill-route/',
     'website/doc_build/',
     'website/dist/'
   ]

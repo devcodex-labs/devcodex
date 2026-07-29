@@ -94,13 +94,13 @@ function layoutReplaySmoke() {
 
   const claude = replayHostAdapter(path.join(workspace, '.claude', 'hooks', '_runtime', 'lifecycle-host-adapters.cjs'), 'claude', workspace)
   assert.strictEqual(claude.status, 0, `allowlist-only claude hook replay failed: ${claude.stderr || claude.stdout}`)
-  assert.match(`${claude.stdout}`, /WorkspaceSkillIntent/)
-  assert.match(`${claude.stdout}`, /小朋友真可爱/)
+  assert.match(`${claude.stdout}`, /SkillRouteBootstrapV1/)
+  assert.doesNotMatch(`${claude.stdout}`, /小朋友真可爱/)
 
   const codex = replayHostAdapter(path.join(workspace, '.codex', 'hooks', '_runtime', 'lifecycle-host-adapters.cjs'), 'codex', workspace)
   assert.strictEqual(codex.status, 0, `allowlist-only codex hook replay failed: ${codex.stderr || codex.stdout}`)
-  assert.match(`${codex.stdout}`, /WorkspaceSkillIntent/)
-  assert.match(`${codex.stdout}`, /小朋友真可爱/)
+  assert.match(`${codex.stdout}`, /SkillRouteBootstrapV1/)
+  assert.doesNotMatch(`${codex.stdout}`, /小朋友真可爱/)
 }
 
 function closureCoverage() {

@@ -11,10 +11,10 @@
     "pluginDigest": "705fe7c86c7225b67756749be5bb3b14a1ee3bffa386483a9ab61dc971f419ae",
     "portfolioEvidence": "skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "8364a73c66ed2ec9787cdb9300223278d128a45b689a2b8deda0d1f03189f42b",
-    "consumerInventoryFileCount": 494,
-    "consumerInventoryDigest": "31cdb77818d74bcfb51ba1f2b109170bb2ea2c7a7f6f727a28586ac7e547ae36",
-    "consumerProjectionDigest": "e077267cb9b1d33709f1458bcd20118bd744ea7100004d9e9e5c9e92a61daa80",
-    "portfolioInputDigest": "93fce36543301d7977b04c833932bdfde28a1b8510ea05d861ca2e38645692b1"
+    "consumerInventoryFileCount": 482,
+    "consumerInventoryDigest": "4e64bbe16c22c73b0b4510c7ca628e0a3b32dad24b45f74ee6864990c3fc3ddd",
+    "consumerProjectionDigest": "0e593a0187e193a112721cfeb3e7b35cd923702f4e10724bbcd19d48cedbab7a",
+    "portfolioInputDigest": "00b90469840efd6e9084e5a6c3c2f559bcd2cd8175f1e0664d351737cc5d1f82"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -4904,14 +4904,6 @@
           "role": "current"
         },
         {
-          "path": "scripts/test-workspace-skill-auto-match.js",
-          "role": "current"
-        },
-        {
-          "path": "scripts/test-workspace-skill-intent.js",
-          "role": "current"
-        },
-        {
           "path": "scripts/validate.js",
           "role": "current"
         },
@@ -4928,8 +4920,6 @@
         "scripts/test-skill-resolve.js",
         "scripts/test-skills-deploy-mode.js",
         "scripts/test-workflow-completion-contract.js",
-        "scripts/test-workspace-skill-auto-match.js",
-        "scripts/test-workspace-skill-intent.js",
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-24",
@@ -4996,8 +4986,6 @@
           "scripts/test-skill-resolve.js",
           "scripts/test-skills-deploy-mode.js",
           "scripts/test-workflow-completion-contract.js",
-          "scripts/test-workspace-skill-auto-match.js",
-          "scripts/test-workspace-skill-intent.js",
           "scripts/validate.js"
         ],
         "exitCondition": "work-unit-complete-or-workflow-transition",
@@ -10627,10 +10615,6 @@
           "role": "current"
         },
         {
-          "path": "hooks/_runtime/lifecycle.cjs",
-          "role": "current"
-        },
-        {
           "path": "hooks/_runtime/progressive-skill-route-contract.cjs",
           "role": "current"
         },
@@ -10651,6 +10635,10 @@
           "role": "current"
         },
         {
+          "path": "hooks/_runtime/skill-route-tool.cjs",
+          "role": "current"
+        },
+        {
           "path": "hooks/_runtime/visible-output-contract.cjs",
           "role": "current"
         },
@@ -10664,14 +10652,6 @@
         },
         {
           "path": "hooks/_runtime/workflow-root-registry.v1.json",
-          "role": "current"
-        },
-        {
-          "path": "hooks/_runtime/workspace-skill-catalog.cjs",
-          "role": "current"
-        },
-        {
-          "path": "hooks/_runtime/workspace-skill-intent.cjs",
           "role": "current"
         },
         {
@@ -10759,10 +10739,6 @@
           "role": "current"
         },
         {
-          "path": "README.md",
-          "role": "current"
-        },
-        {
           "path": "scripts/fixtures/candidate-review-bundle/phase-conflict.md",
           "role": "current"
         },
@@ -10792,10 +10768,6 @@
         },
         {
           "path": "scripts/lib/always-on-governance.js",
-          "role": "current"
-        },
-        {
-          "path": "scripts/lib/cli-execution-commands.js",
           "role": "current"
         },
         {
@@ -10927,10 +10899,6 @@
           "role": "current"
         },
         {
-          "path": "scripts/test-global-host-config.js",
-          "role": "current"
-        },
-        {
           "path": "scripts/test-governance-intake.js",
           "role": "current"
         },
@@ -10983,14 +10951,6 @@
           "role": "current"
         },
         {
-          "path": "scripts/test-workspace-skill-intent-e2e.js",
-          "role": "current"
-        },
-        {
-          "path": "scripts/test-workspace-skill-intent.js",
-          "role": "current"
-        },
-        {
           "path": "scripts/validate-profile.js",
           "role": "current"
         },
@@ -11012,7 +10972,6 @@
         "scripts/test-context-read-contract.js",
         "scripts/test-docs-audience-intent.js",
         "scripts/test-execution-chain-evolution.js",
-        "scripts/test-global-host-config.js",
         "scripts/test-governance-intake.js",
         "scripts/test-host-capability-routing.js",
         "scripts/test-host-parity-scorecard.js",
@@ -11026,8 +10985,6 @@
         "scripts/test-skill-route-state.js",
         "scripts/test-visible-output-contract.js",
         "scripts/test-workflow-completion-contract.js",
-        "scripts/test-workspace-skill-intent-e2e.js",
-        "scripts/test-workspace-skill-intent.js",
         "scripts/validate-profile.js",
         "scripts/validate.js"
       ],
@@ -11105,7 +11062,6 @@
           "scripts/test-context-read-contract.js",
           "scripts/test-docs-audience-intent.js",
           "scripts/test-execution-chain-evolution.js",
-          "scripts/test-global-host-config.js",
           "scripts/test-governance-intake.js",
           "scripts/test-host-capability-routing.js",
           "scripts/test-host-parity-scorecard.js",
@@ -11119,8 +11075,6 @@
           "scripts/test-skill-route-state.js",
           "scripts/test-visible-output-contract.js",
           "scripts/test-workflow-completion-contract.js",
-          "scripts/test-workspace-skill-intent-e2e.js",
-          "scripts/test-workspace-skill-intent.js",
           "scripts/validate-profile.js",
           "scripts/validate.js"
         ],
@@ -13362,14 +13316,6 @@
           "role": "current"
         },
         {
-          "path": "scripts/test-workspace-skill-intent-e2e.js",
-          "role": "current"
-        },
-        {
-          "path": "scripts/test-workspace-skill-intent.js",
-          "role": "current"
-        },
-        {
           "path": "scripts/validate.js",
           "role": "current"
         },
@@ -13425,8 +13371,6 @@
         "scripts/test-visible-output-contract.js",
         "scripts/test-workflow-capabilities.js",
         "scripts/test-workflow-completion-contract.js",
-        "scripts/test-workspace-skill-intent-e2e.js",
-        "scripts/test-workspace-skill-intent.js",
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-24",
@@ -13520,8 +13464,6 @@
           "scripts/test-visible-output-contract.js",
           "scripts/test-workflow-capabilities.js",
           "scripts/test-workflow-completion-contract.js",
-          "scripts/test-workspace-skill-intent-e2e.js",
-          "scripts/test-workspace-skill-intent.js",
           "scripts/validate.js"
         ],
         "exitCondition": "work-unit-complete-or-workflow-transition",
@@ -15737,10 +15679,6 @@
           "role": "current"
         },
         {
-          "path": "scripts/replay-skill-automatch-accept.cjs",
-          "role": "current"
-        },
-        {
           "path": "scripts/replay-stop-gate-hook-matrix.js",
           "role": "current"
         },
@@ -16770,6 +16708,10 @@
           "role": "current"
         },
         {
+          "path": "hooks/_runtime/lifecycle.cjs",
+          "role": "current"
+        },
+        {
           "path": "hooks/_runtime/review-execution-contract.cjs",
           "role": "current"
         },
@@ -17657,10 +17599,6 @@
           "role": "current"
         },
         {
-          "path": "hooks/_runtime/workspace-skill-intent.cjs",
-          "role": "current"
-        },
-        {
           "path": "plugin.json",
           "role": "current"
         },
@@ -17675,16 +17613,11 @@
         {
           "path": "scripts/test-host-skill-inventory-ban.js",
           "role": "current"
-        },
-        {
-          "path": "scripts/test-workspace-skill-intent-e2e.js",
-          "role": "current"
         }
       ],
       "validationProfile": [
         "scripts/test-host-skill-inventory-ban.js",
         "scripts/test-skill-portfolio.js",
-        "scripts/test-workspace-skill-intent-e2e.js",
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-24",
@@ -17731,7 +17664,6 @@
         "probeSuiteRefs": [
           "scripts/test-host-skill-inventory-ban.js",
           "scripts/test-skill-portfolio.js",
-          "scripts/test-workspace-skill-intent-e2e.js",
           "scripts/validate.js"
         ],
         "exitCondition": "work-unit-complete-or-workflow-transition",
@@ -18807,23 +18739,11 @@
           "role": "current"
         },
         {
-          "path": "hooks/_runtime/skill-route-retirement-gate.cjs",
-          "role": "current"
-        },
-        {
           "path": "hooks/_runtime/skill-route-tool.cjs",
           "role": "current"
         },
         {
           "path": "hooks/_runtime/visible-output-contract.cjs",
-          "role": "current"
-        },
-        {
-          "path": "hooks/_runtime/workspace-skill-catalog.cjs",
-          "role": "current"
-        },
-        {
-          "path": "hooks/_runtime/workspace-skill-intent.cjs",
           "role": "current"
         },
         {
@@ -19111,10 +19031,6 @@
           "role": "current"
         },
         {
-          "path": "scripts/test-skill-route-retirement.js",
-          "role": "current"
-        },
-        {
           "path": "scripts/test-skill-sidecar-contract.js",
           "role": "current"
         },
@@ -19156,7 +19072,6 @@
         "scripts/test-runtime-state-index.js",
         "scripts/test-skill-portfolio.js",
         "scripts/test-skill-route-contracts.js",
-        "scripts/test-skill-route-retirement.js",
         "scripts/test-skill-sidecar-contract.js",
         "scripts/test-skills-deploy-mode.js",
         "scripts/test-summary-type-canon.js",
@@ -19224,7 +19139,6 @@
           "scripts/test-runtime-state-index.js",
           "scripts/test-skill-portfolio.js",
           "scripts/test-skill-route-contracts.js",
-          "scripts/test-skill-route-retirement.js",
           "scripts/test-skill-sidecar-contract.js",
           "scripts/test-skills-deploy-mode.js",
           "scripts/test-summary-type-canon.js",
@@ -20397,26 +20311,12 @@
           "role": "current"
         },
         {
-          "path": "hooks/_runtime/workspace-skill-intent.cjs",
-          "role": "current"
-        },
-        {
           "path": "plugin.json",
-          "role": "current"
-        },
-        {
-          "path": "scripts/test-workspace-skill-intent-e2e.js",
-          "role": "current"
-        },
-        {
-          "path": "scripts/test-workspace-skill-intent.js",
           "role": "current"
         }
       ],
       "validationProfile": [
         "scripts/test-skill-portfolio.js",
-        "scripts/test-workspace-skill-intent-e2e.js",
-        "scripts/test-workspace-skill-intent.js",
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-24",
@@ -20462,8 +20362,6 @@
         "evolvableUnitRef": "skill:workspace-skill-author",
         "probeSuiteRefs": [
           "scripts/test-skill-portfolio.js",
-          "scripts/test-workspace-skill-intent-e2e.js",
-          "scripts/test-workspace-skill-intent.js",
           "scripts/validate.js"
         ],
         "exitCondition": "work-unit-complete-or-workflow-transition",

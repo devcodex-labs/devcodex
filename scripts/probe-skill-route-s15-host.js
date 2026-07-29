@@ -601,7 +601,6 @@ function main () {
       DEVCODEX_CONTEXT_EPOCH: contextEpoch,
       DEVCODEX_LIFECYCLE_TRACE: lifecycleTracePath,
       DEVCODEX_SKILL_ROUTE_TRACE: routeTracePath,
-      DEVCODEX_SKILL_ROUTE_MODE: 'unified',
       ...(!productionEligible
         ? { DEVCODEX_SKILL_ROUTE_PROBE_AUTHORITY: authorityPath }
         : {})

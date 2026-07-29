@@ -8,6 +8,7 @@ const path = require('path')
 const { spawnSync } = require('child_process')
 const { buildDeploymentDescriptors } = require('./lib/deployment-descriptors')
 const { buildCliHostUtils } = require('./lib/cli-host-utils')
+const { DEFAULT_HOSTS } = require('./lib/host-surface-descriptors')
 const {
   mergeGrokPluginRegistration,
   removeGrokPluginRegistration,
@@ -603,8 +604,8 @@ assert.throws(
   'a nested workspace with spaces and no kernel must fail closed instead of borrowing its parent kernel'
 )
 
-// The legacy default remains the three original hosts; explicit all adds Gemini and Grok.
-const defaults = buildDeploymentDescriptors(ROOT, ['copilot', 'claude', 'codex'], deploymentOptions())
+// B4: the default deployment covers all five supported hosts.
+const defaults = buildDeploymentDescriptors(ROOT, DEFAULT_HOSTS, deploymentOptions())
 const all = buildDeploymentDescriptors(ROOT, ['all'], deploymentOptions())
 const workspaceDescriptors = buildDeploymentDescriptors(ROOT, ['grok'], {
   ...deploymentOptions(),
@@ -618,9 +619,7 @@ const defaultSurfaces = new Set(defaults.map(item => item.surface))
 const allSurfaces = new Set(all.map(item => item.surface))
 const workspaceDescriptorSurfaces = new Set(workspaceDescriptors.map(item => item.surface))
 const workspaceAllDescriptorSurfaces = new Set(workspaceAllDescriptors.map(item => item.surface))
-assert(!defaultSurfaces.has('gemini'))
-assert(!defaultSurfaces.has('grok'))
-for (const surface of ['copilot', 'claude', 'codex', 'shared-kernel', 'full-fallback']) {
+for (const surface of ['copilot', 'claude', 'codex', 'gemini', 'grok', 'shared-kernel', 'full-fallback']) {
   assert(defaultSurfaces.has(surface), `default descriptor missing ${surface}`)
 }
 for (const surface of ['gemini', 'grok']) assert(allSurfaces.has(surface), `all descriptor missing ${surface}`)
@@ -688,12 +687,12 @@ for (const rel of expectedRuntimeDeps) {
   )
 }
 
-console.log(`legacy host installation tests passed selectors=5 dryRunWrites=0 collision=blocked managedManifest=verified workspacePlugin=verified grokCli=${grokCliAvailable ? 'available' : 'unavailable-honest'} uninstall=verified zeroProjectArtifacts=verified defaultHosts=3 runtimeScriptDeps=${expectedRuntimeDeps.length}`)
+console.log(`host installation tests passed selectors=5 dryRunWrites=0 collision=blocked managedManifest=verified workspacePlugin=verified grokCli=${grokCliAvailable ? 'available' : 'unavailable-honest'} uninstall=verified zeroProjectArtifacts=verified defaultHosts=5 runtimeScriptDeps=${expectedRuntimeDeps.length}`)
 } else {
   // Always-on descriptor contract (legacy branch is opt-in via env).
   {
     const expectedRuntimeDeps = collectRuntimeScriptDeps(ROOT)
-    const defaults = buildDeploymentDescriptors(ROOT, ['copilot', 'claude', 'codex'], deploymentOptions())
+    const defaults = buildDeploymentDescriptors(ROOT, DEFAULT_HOSTS, deploymentOptions())
     const claudeRuntimeDeps = defaults.filter(item =>
       item.surface === 'claude' &&
       String(item.destination || '').replace(/\\/g, '/').startsWith('.claude/scripts/lib/')

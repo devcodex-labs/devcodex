@@ -503,6 +503,12 @@ function collectExpiredTurns (activeRoot, options = {}) {
 
 function parseExplicitSkillId (prompt) {
   const text = String(prompt || '')
+  if (/(?:不要|别|无需|不需要|禁止|拒绝)\s*(?:使用|用|加载|执行)/i.test(text)) {
+    return null
+  }
+  if (/(?:为什么|为何|怎么|如何|误触发|触发到|截图|日志|报告|提到|讨论|说明).{0,32}(?:workspace\s+)?skill/i.test(text)) {
+    return null
+  }
   const match =
     text.match(/(?:使用|用|加载|执行)\s+(?:workspace\s+)?skill\s*[:=]?\s*([A-Za-z0-9][A-Za-z0-9._-]*)/i) ||
     text.match(/(?:使用|用|加载|执行)\s+([A-Za-z0-9][A-Za-z0-9._-]*)\s+(?:skill\b|技能)/i) ||
@@ -907,6 +913,7 @@ module.exports = {
   routeRootForActiveRoot,
   turnPaths,
   atomicWriteJson,
+  parseExplicitSkillId,
   bootstrapSkillRoute,
   loadEnvelope,
   transactEnvelope,

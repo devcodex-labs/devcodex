@@ -87,6 +87,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
 
   const PROFILE_SERVER = 'devcodex-profile'
   const MEMORY_SERVER = 'devcodex-memory'
+  const MAX_SESSION_STATE_FILES = 64
   const PROFILE_TOOLS = new Set(['profile_context_plan', 'profile_load'])
   const PROFILE_ROUTE_TOOLS = new Set(['skill_route'])
   const MEMORY_READ_TOOLS = new Set([
@@ -530,7 +531,33 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     return state
   }
 
-  function loadState(modeHint) {
+  function sessionStateFile(state, sessionKey) {
+    const key = String(sessionKey || '').trim()
+    if (!key) return ''
+    const dir = path.join(getStatePaths(state).dir, 'sessions')
+    const digest = crypto.createHash('sha256').update(key).digest('hex')
+    return path.join(dir, `${digest}.json`)
+  }
+
+  function pruneSessionStates(dir) {
+    let entries
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true })
+        .filter(entry => entry.isFile() && /^[a-f0-9]{64}\.json$/.test(entry.name))
+        .map(entry => {
+          const file = path.join(dir, entry.name)
+          return { file, mtimeMs: fs.statSync(file).mtimeMs }
+        })
+        .sort((left, right) => right.mtimeMs - left.mtimeMs)
+    } catch {
+      return
+    }
+    for (const entry of entries.slice(MAX_SESSION_STATE_FILES)) {
+      try { fs.unlinkSync(entry.file) } catch {}
+    }
+  }
+
+  function loadState(modeHint, sessionKey = '') {
     const metaState = readJsonFile(META_STATE_PATHS.file)
     let saved = metaState
     if (LAYOUT.enabled) {
@@ -542,6 +569,16 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       } else if (CONTEXT_PROJECT) {
         const contextState = readJsonFile(getStatePathsFor(CONTEXT_PROJECT, 'project').file)
         if (contextState && typeof contextState === 'object') saved = contextState
+      }
+    }
+    const sessionFile = sessionStateFile(saved || metaState || buildDefaultState(modeHint), sessionKey)
+    const sessionState = sessionFile ? readJsonFile(sessionFile) : null
+    if (sessionState && typeof sessionState === 'object') {
+      const sharedSessionKey = String(saved?.contextAcquisition?.hostSessionId || '')
+      const sharedUpdatedAt = Date.parse(saved?.updatedAt || '') || 0
+      const sessionUpdatedAt = Date.parse(sessionState.updatedAt || '') || 0
+      if (sharedSessionKey !== sessionKey || sessionUpdatedAt >= sharedUpdatedAt) {
+        saved = sessionState
       }
     }
     const mode = modeHint || readProfileMode(saved || metaState || null, saved?.activeProject || metaState?.activeProject || '')
@@ -582,6 +619,13 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       }
       fs.mkdirSync(META_STATE_PATHS.dir, { recursive: true })
       fs.writeFileSync(META_STATE_PATHS.file, JSON.stringify(metaState, null, 2))
+    }
+    const sessionKey = state.contextAcquisition?.hostSessionId
+    const sessionFile = sessionStateFile(state, sessionKey)
+    if (sessionFile) {
+      fs.mkdirSync(path.dirname(sessionFile), { recursive: true })
+      fs.writeFileSync(sessionFile, JSON.stringify(state, null, 2))
+      pruneSessionStates(path.dirname(sessionFile))
     }
   }
 

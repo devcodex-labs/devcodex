@@ -1203,6 +1203,7 @@ function formatSkillRouteBootstrapInjection (bootstrap) {
     JSON.stringify(bootstrap),
     '',
     'Use the local `skill_route` Tool. For a non-explicit task, read every catalog page before one `commit` choice (`skillId` is one id or null).',
+    'A quoted, negated, diagnostic, screenshot, log, report, or explanatory mention of a skill id is not an invocation. Choose null unless the user positively asks to use that skill or its intent clearly matches the actual task.',
     'Do not infer workflow roots, paths, dependencies, or body content. After a complete plan, call `load_stage` only when entering that stage.'
   ].join('\n')
   if (byteLength(injectionText) > 4 * 1024) {
@@ -1220,7 +1221,7 @@ function bootstrapSkillRouteForTurn (input, options = {}) {
     project: target.project,
     host: input.host
   })
-  if (!['shadow', 'unified'].includes(modeReceipt.effective)) {
+  if (modeReceipt.effective !== 'unified') {
     return {
       schemaVersion: 'SkillRouteBootstrapOutcomeV1',
       active: false,

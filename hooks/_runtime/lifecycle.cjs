@@ -1214,12 +1214,13 @@ async function main() {
   const projectCandidate = eventName === 'UserPromptSubmit'
     ? detectProjectCandidate(prompt, payload)
     : { project: '', source: '' }
-  let state = loadState()
+  const eventSessionKey = getPayloadSessionKey(payload)
+  let state = loadState(undefined, eventSessionKey)
   const promptTarget = eventName === 'UserPromptSubmit'
     ? resolvePromptTarget(state, payload, prompt, projectCandidate)
     : null
   if (eventName === 'UserPromptSubmit') {
-    state = loadState(readModeForPromptTarget(state, promptTarget))
+    state = loadState(readModeForPromptTarget(state, promptTarget), eventSessionKey)
   }
   const mode = state.mode
 
@@ -1381,10 +1382,9 @@ async function main() {
         }
       }
     }
-    // Progressive route owns catalog/body only in an eligible mode. Any bootstrap
-    // failure falls back to the existing route without suppressing legacy delivery.
+    // The progressive route is the only catalog/body owner after B4 cutover.
     let progressiveSkillRouteMsg = ''
-    let progressiveSkillRouteMode = 'legacy'
+    let progressiveSkillRouteMode = 'unified'
     try {
       const { bootstrapSkillRouteForTurn } = require('./skill-route-tool.cjs')
       const {
@@ -1401,7 +1401,7 @@ async function main() {
         env: process.env,
         hostAdapterDigest: getLifecycleHostAdapterDigest(platform)
       })
-      progressiveSkillRouteMode = route.modeReceipt?.effective || 'legacy'
+      progressiveSkillRouteMode = route.modeReceipt?.effective || 'unified'
       progressiveSkillRouteMsg = route.injectionText || ''
       state.progressiveSkillRoute = {
         schemaVersion: 'LifecycleSkillRouteStateV1',
@@ -1418,36 +1418,14 @@ async function main() {
         active: false,
         errorCode: String(error.code || error.message || 'SKILL_ROUTE_BOOTSTRAP_FAILED')
       }
+      progressiveSkillRouteMsg = [
+        '### DevCodex · SkillRouteBootstrapErrorV1',
+        `errorCode: ${state.progressiveSkillRoute.errorCode}`,
+        'Do not fall back to legacy WorkspaceSkillIntent or preload a skill body. Continue without a free-route skill and report the routing error.'
+      ].join('\n')
     }
 
-    // P0-1 WorkspaceSkillIntent (legacy/shadow) or unified progressive delivery.
-    let workspaceSkillRouteMsg = ''
-    if (progressiveSkillRouteMode !== 'unified') {
-      try {
-        const {
-          routeWorkspaceSkillIntent,
-          toIntentStateRecord,
-          getSkillMatchMode
-        } = require('./workspace-skill-intent.cjs')
-        const route = routeWorkspaceSkillIntent(prompt, { cwd: CONTEXT_ROOT })
-        const mode = getSkillMatchMode()
-        if (route.injectionText) {
-          state.workspaceSkillAutoMatch = toIntentStateRecord(route)
-          // keep legacy field name for Stop path compatibility
-          workspaceSkillRouteMsg = route.injectionText
-          state.lastReason = route.matched
-            ? `workspace-skill-intent:${route.skillId}`
-            : (mode === 'legacy-token' ? 'workspace-skill-catalog-only' : 'workspace-skill-intent-catalog')
-        } else {
-          state.workspaceSkillAutoMatch = null
-        }
-      } catch {
-        /* intent/auto-match optional during partial deploys */
-        state.workspaceSkillAutoMatch = null
-      }
-    } else {
-      state.workspaceSkillAutoMatch = null
-    }
+    state.workspaceSkillAutoMatch = null
 
     saveState(state)
     writeStdout(contextMessageOutput(
@@ -1460,7 +1438,6 @@ async function main() {
           : '',
         buildGovernanceIntakeContextMessage(state.governanceIntake),
         formatTurnRecoveryMessage(livenessObservation.recoveryCard),
-        workspaceSkillRouteMsg,
         progressiveSkillRouteMsg
       ].filter(Boolean).join('\n\n')
     ))
@@ -1747,22 +1724,22 @@ async function main() {
         const {
           evaluateProgressiveSkillRouteStop
         } = require('./skill-route-tool.cjs')
-        const {
-          extractLastAssistantMessage
-        } = require('./workspace-skill-intent.cjs')
         const routeStop = evaluateProgressiveSkillRouteStop({
           project: state.contextAcquisition.project,
           contextEpoch: state.contextAcquisition.contextEpoch,
-          assistantText:
-            extractLastAssistantMessage(payload) ||
-            getVisibleReplyText(payload) ||
-            ''
+          assistantText: getVisibleReplyText(payload) || ''
         }, {
           inputRoot: CONTEXT_ROOT,
           env: process.env
         })
         state.progressiveSkillRouteStop = routeStop
-        if (routeStop.present && !routeStop.complete) {
+        const explicitRoutePending =
+          state.progressiveSkillRoute?.bootstrap?.explicitStatus === 'ready'
+        if (
+          routeStop.present &&
+          !routeStop.complete &&
+          (routeStop.errorCode !== 'PLAN_NOT_COMMITTED' || explicitRoutePending)
+        ) {
           const enforceCount = Number(state.progressiveSkillRouteStopCount || 0)
           if (enforceCount < 2) {
             state.progressiveSkillRouteStopCount = enforceCount + 1
@@ -1803,99 +1780,6 @@ async function main() {
           complete: false,
           errorCode: String(error.code || error.message || 'STOP_GATE_FAILED')
         }
-      }
-    }
-
-    // P0-1: if a workspace/global intent skill matched, enforce mustReply/body — not a user-visible meta line.
-    if (
-      eventName === 'Stop' &&
-      state.workspaceSkillAutoMatch &&
-      state.workspaceSkillAutoMatch.skillId
-    ) {
-      try {
-        const {
-          isIntentReplySatisfied,
-          buildIntentStopForceReason,
-          extractLastAssistantMessage,
-          routeWorkspaceSkillIntent
-        } = require('./workspace-skill-intent.cjs')
-        const lastAssistant = extractLastAssistantMessage(payload)
-        const stopHookActive = payload.stopHookActive === true || payload.stop_hook_active === true
-        let matchForCheck = state.workspaceSkillAutoMatch
-        if (!matchForCheck.content && matchForCheck.injectionText) {
-          matchForCheck = {
-            matched: Boolean(matchForCheck.skillId),
-            skillId: matchForCheck.skillId,
-            mustReply: matchForCheck.mustReply,
-            content: matchForCheck.injectionText,
-            injectionText: matchForCheck.injectionText,
-            skillLoadReceiptRequired: false,
-            skillLoadReceipt: ''
-          }
-        } else if (!matchForCheck.injectionText && matchForCheck.skillId) {
-          const rematch = routeWorkspaceSkillIntent(matchForCheck.skillId, { cwd: CONTEXT_ROOT })
-          if (rematch.matched) {
-            matchForCheck = {
-              matched: rematch.matched,
-              skillId: rematch.skillId,
-              mustReply: rematch.mustReply,
-              content: rematch.content,
-              injectionText: rematch.injectionText,
-              skillLoadReceiptRequired: false,
-              skillLoadReceipt: ''
-            }
-          } else {
-            matchForCheck = {
-              ...matchForCheck,
-              matched: Boolean(matchForCheck.skillId),
-              skillLoadReceiptRequired: false
-            }
-          }
-        } else {
-          matchForCheck = {
-            ...matchForCheck,
-            matched: Boolean(matchForCheck.skillId),
-            skillLoadReceiptRequired: false
-          }
-        }
-
-        const satisfied = isIntentReplySatisfied(lastAssistant, matchForCheck)
-        if (satisfied) {
-          state.workspaceSkillAutoMatch = {
-            ...state.workspaceSkillAutoMatch,
-            satisfied: true
-          }
-        } else {
-          const enforceCount = Number(state.workspaceSkillAutoMatch.enforceCount || 0)
-          if (enforceCount < 2 && !(stopHookActive && enforceCount >= 1)) {
-            const reason = buildIntentStopForceReason(matchForCheck)
-            state.workspaceSkillAutoMatch = {
-              ...state.workspaceSkillAutoMatch,
-              enforceCount: enforceCount + 1,
-              lastEnforceAt: new Date().toISOString()
-            }
-            state.lastReason = `workspace-skill-intent-stop:${matchForCheck.skillId}`
-            const output = decorateHookOutput(
-              blockOutput(platform, 'Stop', 'workspace-skill-intent', reason),
-              {
-                devcodexAction: INTERCEPTION_ACTION.FORBID,
-                devcodexCode: 'workspace-skill-intent',
-                devcodexEffective: true,
-                devcodexNextStep: 'Follow matched skill body / must-reply (no meta skill line required).'
-              }
-            )
-            // Also top-level decision for Grok/Codex adapters
-            if (!output.decision) {
-              output.decision = 'block'
-              output.reason = reason
-            }
-            saveState(state)
-            writeStdout(output)
-            return
-          }
-        }
-      } catch {
-        /* stop auto-match force best-effort */
       }
     }
 

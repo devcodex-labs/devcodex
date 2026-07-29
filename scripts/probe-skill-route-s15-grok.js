@@ -325,8 +325,7 @@ function main () {
         'grok-plugin-data'
       ),
       DEVCODEX_LIFECYCLE_TRACE: lifecycleTracePath,
-      DEVCODEX_GLOBAL_SKILLS_RUNTIME: globalTarget.shared.skillsRuntime,
-      DEVCODEX_SKILL_ROUTE_MODE: 'unified'
+      DEVCODEX_GLOBAL_SKILLS_RUNTIME: globalTarget.shared.skillsRuntime
     }
     if (!productionEligible) {
       childEnv.DEVCODEX_SKILL_ROUTE_PROBE_AUTHORITY = authorityPath

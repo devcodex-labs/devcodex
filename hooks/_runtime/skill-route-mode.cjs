@@ -17,8 +17,8 @@ const {
   normalizeHostVariant
 } = require('./host-adapter-identity.cjs')
 
-const SOURCE_DEFAULT = 'legacy'
-const MODE_POLICY_VERSION = 'SkillRouteModeV1.2'
+const SOURCE_DEFAULT = 'unified'
+const MODE_POLICY_VERSION = 'SkillRouteModeV2'
 const PROTOCOL_VERSION = '2024-11-05'
 const CAPABILITY_PATH = path.join(__dirname, 'host-skill-route-capabilities.v1.json')
 const RUNTIME_CONTRACT_FILES = Object.freeze([
@@ -31,8 +31,6 @@ const RUNTIME_CONTRACT_FILES = Object.freeze([
   'skill-route-mode.cjs',
   'skill-route-state.cjs',
   'skill-route-tool.cjs',
-  'skill-route-retirement-gate.cjs',
-  'skill-route-retirement-policy.v1.json',
   'host-adapter-identity.cjs',
   'global-skill-runtime-root.cjs',
   'context-read-contract.cjs',
@@ -222,11 +220,7 @@ function resolveSkillRouteMode (options = {}) {
   const capability = capabilityValidation.valid && capabilityDoc.capabilities.find(item =>
     item.hostVariant === hostVariant
   ) || null
-  const requestedRaw = String(env.DEVCODEX_SKILL_ROUTE_MODE || '').trim().toLowerCase()
-  const requested = ['legacy', 'shadow', 'unified'].includes(requestedRaw)
-    ? requestedRaw
-    : SOURCE_DEFAULT
-  const invalidOverride = !!requestedRaw && !['legacy', 'shadow', 'unified'].includes(requestedRaw)
+  const requested = SOURCE_DEFAULT
   const probe = validateProbeAuthority(
     env.DEVCODEX_SKILL_ROUTE_PROBE_AUTHORITY,
     { project, hostVariant },
@@ -243,26 +237,13 @@ function resolveSkillRouteMode (options = {}) {
   const capabilityEligible = capability?.status === 'PASS' &&
     capabilityRuntimeCurrent &&
     capabilityAdapterCurrent
-  let effective = requested
-  let source = requestedRaw ? 'operator-override' : 'source-default'
-  let reason = requestedRaw ? 'operator-request' : 'source-default'
+  let effective = SOURCE_DEFAULT
+  let source = 'source-default'
+  let reason = 'unified-default'
   if (probe.valid) {
     effective = 'unified'
     source = 's15-probe-authority'
     reason = probe.reasonCode
-  } else if (invalidOverride) {
-    effective = 'legacy'
-    reason = 'invalid-operator-override'
-  } else if (requested === 'unified' && !capabilityEligible) {
-    effective = 'legacy'
-    reason = !capabilityValidation.valid
-      ? 'capability-document-invalid'
-      : (capability?.status === 'PASS'
-          ? 'host-variant-evidence-stale'
-          : 'host-variant-not-eligible')
-  } else if (requested === 'shadow' && options.toolReachable === false) {
-    effective = 'legacy'
-    reason = 'skill-route-tool-unreachable'
   }
   return {
     schemaVersion: 'SkillRouteModeReceiptV1',
@@ -275,7 +256,7 @@ function resolveSkillRouteMode (options = {}) {
       ? 'PASS'
       : (capability?.status === 'PASS' ? 'STALE' : (capability?.status || 'UNVERIFIED')),
     sourceDefault: SOURCE_DEFAULT,
-    operatorOverride: requestedRaw || null,
+    operatorOverride: null,
     runtimeContractDigest,
     hookRuntimeDigest: runtimeContractDigest,
     mcpRuntimeDigest: runtimeContractDigest,

@@ -256,14 +256,14 @@ for (const target of targets) {
   if (target.host === 'copilot') {
     assert.match(
       output.modifiedTransformedPrompt || '',
-      /WorkspaceSkillIntent/,
-      'copilot replay must expose workspace skill intent through transformed prompt'
+      /SkillRouteBootstrapV1/,
+      'copilot replay must expose unified skill route bootstrap through transformed prompt'
     )
-    assert.match(output.modifiedTransformedPrompt || '', /小朋友真可爱/)
+    assert.doesNotMatch(output.modifiedTransformedPrompt || '', /小朋友真可爱/)
   } else if (['claude', 'codex', 'gemini'].includes(target.host)) {
     const context = `${output.systemMessage || ''}\n${output.hookSpecificOutput?.additionalContext || ''}`
-    assert.match(context, /WorkspaceSkillIntent/, `${target.host} replay must expose workspace skill intent context`)
-    assert.match(context, /小朋友真可爱/, `${target.host} replay must expose workspace skill body`)
+    assert.match(context, /SkillRouteBootstrapV1/, `${target.host} replay must expose unified skill route context`)
+    assert.doesNotMatch(context, /小朋友真可爱/, `${target.host} replay must not preload a skill body`)
   }
 }
 assert.strictEqual(fs.existsSync(path.join(home, '.agents', 'devcodex', 'instructions.full.md')), true)

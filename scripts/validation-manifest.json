@@ -60,10 +60,8 @@
     "scripts/lib/probe-registry.js",
     "scripts/lib/validate-*.js",
     "hooks/_runtime/skill-resolution.cjs",
-    "hooks/_runtime/workspace-skill-auto-match.cjs",
     "scripts/test-skill-resolve.js",
     "scripts/test-skill-resolution-hook-paths.js",
-    "scripts/test-workspace-skill-auto-match.js",
     "hooks/_runtime/*skill-route*.cjs",
     "hooks/_runtime/runtime-skill-identity-index.cjs",
     "hooks/_runtime/model-skill-catalog.cjs",
@@ -95,13 +93,11 @@
         "skill-sidecar-contract",
         "skill-resolve",
         "skill-resolution-hook-paths",
-        "skill-auto-match",
         "skill-portfolio",
         "skill-portfolio-current",
         "skill-intents",
         "skill-route-contracts",
         "skill-route-state",
-        "skill-route-retirement",
         "skill-route-lifecycle",
         "profile-section-selector",
         "project-knowledge-store",
@@ -183,13 +179,11 @@
         "skill-sidecar-contract",
         "skill-resolve",
         "skill-resolution-hook-paths",
-        "skill-auto-match",
         "skill-portfolio",
         "skill-portfolio-current",
         "skill-intents",
         "skill-route-contracts",
         "skill-route-state",
-        "skill-route-retirement",
         "skill-route-lifecycle",
         "profile-section-selector",
         "project-knowledge-store",
@@ -303,7 +297,6 @@
         "skill-sidecar-contract",
         "skill-resolve",
         "skill-resolution-hook-paths",
-        "skill-auto-match",
         "skill-intents",
         "skill-route-contracts",
         "skill-route-state",
@@ -343,7 +336,6 @@
         "skill-sidecar-contract",
         "skill-resolve",
         "skill-resolution-hook-paths",
-        "skill-auto-match",
         "skill-intents",
         "skill-route-contracts",
         "skill-route-state",
@@ -739,48 +731,6 @@
     },
     {
       "schemaVersion": "ValidationNodeV1",
-      "id": "skill-auto-match",
-      "owner": "workspace-skill-auto-match",
-      "command": "node",
-      "args": [
-        "scripts/test-workspace-skill-auto-match.js"
-      ],
-      "dependencies": [
-        "skill-resolve"
-      ],
-      "inputs": [
-        "hooks/_runtime/workspace-skill-auto-match.cjs",
-        "hooks/_runtime/skill-resolution.cjs",
-        "hooks/_runtime/lifecycle.cjs",
-        "hooks/_runtime/lifecycle-host-adapters.cjs",
-        "scripts/test-workspace-skill-auto-match.js"
-      ],
-      "consumers": [
-        "hooks-runtime",
-        "cli-behavior"
-      ],
-      "invariants": [
-        "contract"
-      ],
-      "riskClass": "normal",
-      "cachePolicy": "never",
-      "writeScopes": [
-        "isolated-temp"
-      ],
-      "timeoutMs": 60000,
-      "exitMap": {
-        "success": [
-          0
-        ],
-        "failure": "nonzero-or-signal",
-        "timeout": "ETIMEDOUT"
-      },
-      "evidenceArtifacts": [
-        "ValidationExecutionReceiptV1"
-      ]
-    },
-    {
-      "schemaVersion": "ValidationNodeV1",
       "id": "skill-portfolio",
       "owner": "skill-lifecycle",
       "command": "node",
@@ -986,7 +936,7 @@
         "scripts/test-skill-route-state.js"
       ],
       "consumers": [
-        "skill-route-retirement",
+        "skill-route-lifecycle",
         "mcp-servers"
       ],
       "invariants": [
@@ -1015,50 +965,6 @@
     },
     {
       "schemaVersion": "ValidationNodeV1",
-      "id": "skill-route-retirement",
-      "owner": "progressive-skill-route",
-      "command": "node",
-      "args": [
-        "scripts/test-skill-route-retirement.js"
-      ],
-      "dependencies": [
-        "skill-route-state"
-      ],
-      "inputs": [
-        "hooks/_runtime/host-adapter-identity.cjs",
-        "hooks/_runtime/host-skill-route-capabilities.v1.json",
-        "hooks/_runtime/skill-route-retirement-gate.cjs",
-        "hooks/_runtime/skill-route-retirement-policy.v1.json",
-        "scripts/test-skill-route-retirement.js"
-      ],
-      "consumers": [
-        "skill-route-lifecycle"
-      ],
-      "invariants": [
-        "exact-host-evidence",
-        "stable-window",
-        "digest-reset",
-        "zero-tolerance"
-      ],
-      "riskClass": "high",
-      "cachePolicy": "never",
-      "writeScopes": [
-        "isolated-temp"
-      ],
-      "timeoutMs": 120000,
-      "exitMap": {
-        "success": [
-          0
-        ],
-        "failure": "nonzero-or-signal",
-        "timeout": "ETIMEDOUT"
-      },
-      "evidenceArtifacts": [
-        "ValidationExecutionReceiptV1"
-      ]
-    },
-    {
-      "schemaVersion": "ValidationNodeV1",
       "id": "skill-route-lifecycle",
       "owner": "progressive-skill-route",
       "command": "node",
@@ -1066,7 +972,7 @@
         "scripts/test-skill-route-lifecycle.js"
       ],
       "dependencies": [
-        "skill-route-retirement"
+        "skill-route-state"
       ],
       "inputs": [
         "hooks/_runtime/lifecycle.cjs",

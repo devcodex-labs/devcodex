@@ -208,9 +208,7 @@ function prepareGrokSingleTurnSkillRoute(plan, argv = [], options = {}) {
     DEVCODEX_AGENT: 'grok-cli-single',
     DEVCODEX_HOST_PLATFORM: 'grok',
     DEVCODEX_CONTEXT_EPOCH: contextEpoch,
-    DEVCODEX_GROK_SINGLE_TURN: '1',
-    DEVCODEX_SKILL_ROUTE_MODE:
-      String(env.DEVCODEX_SKILL_ROUTE_MODE || '').trim() || 'unified'
+    DEVCODEX_GROK_SINGLE_TURN: '1'
   }
   const hostAdapterDigest = getGrokLauncherAdapterDigest()
   let outcome = null

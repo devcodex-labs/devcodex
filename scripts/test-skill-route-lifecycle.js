@@ -1,28 +1,25 @@
 'use strict'
 
 const assert = require('assert')
+const crypto = require('crypto')
 const fs = require('fs')
 const path = require('path')
 const { spawnSync } = require('child_process')
 
 const {
-  getRuntimeContractDigest,
-  normalizeHostVariant
-} = require('../hooks/_runtime/skill-route-mode.cjs')
-const {
-  createSkillRouteFixture,
-  writeJson
+  createSkillRouteFixture
 } = require('./lib/skill-route-test-fixture')
 
 const RUNTIME = path.resolve(__dirname, '..', 'hooks', '_runtime', 'lifecycle.cjs')
 
-function runLifecycle (fixture, env = {}) {
+function runLifecycle (fixture, payload = {}, env = {}) {
   const result = spawnSync(process.execPath, [RUNTIME], {
     cwd: fixture.projectRoot,
     input: JSON.stringify({
       hookEventName: 'UserPromptSubmit',
       session_id: `skill-route-${Date.now()}`,
-      prompt: 'Run the isolated routing probe'
+      prompt: 'Run the isolated routing probe',
+      ...payload
     }),
     encoding: 'utf8',
     env: {
@@ -40,83 +37,75 @@ function runLifecycle (fixture, env = {}) {
 }
 
 {
-  const fixture = createSkillRouteFixture({ project: 'legacy' })
+  const fixture = createSkillRouteFixture({ project: 'five-host-default' })
   try {
-    const result = runLifecycle(fixture, {
-      DEVCODEX_SKILL_ROUTE_MODE: 'legacy'
-    })
-    assert.match(result.text, /WorkspaceSkillIntent/)
-    assert.doesNotMatch(result.text, /SkillRouteBootstrapV1/)
-  } finally {
-    fixture.cleanup()
-  }
-}
+    for (const host of ['claude', 'codex', 'copilot', 'gemini', 'grok']) {
+      const sessionId = `default-${host}`
+      const result = runLifecycle(fixture, {
+        session_id: sessionId
+      }, {
+        DEVCODEX_HOST_PLATFORM: host
+      })
+      assert.match(result.text, /SkillRouteBootstrapV1/)
+      assert.doesNotMatch(result.text, /WorkspaceSkillIntent/)
+      const sessionDigest = crypto.createHash('sha256').update(sessionId).digest('hex')
+      const sessionFile = path.join(
+        fixture.activeRoot,
+        '.memory',
+        'hooks',
+        fixture.project,
+        'sessions',
+        `${sessionDigest}.json`
+      )
+      const state = JSON.parse(fs.readFileSync(sessionFile, 'utf8'))
+      assert.strictEqual(state.progressiveSkillRoute.modeReceipt.effective, 'unified')
+      assert.strictEqual(state.progressiveSkillRoute.modeReceipt.sourceDefault, 'unified')
+      assert.strictEqual(state.workspaceSkillAutoMatch, null)
+      const turnBinding = state.progressiveSkillRoute.bootstrap.turnBinding
+      assert(fs.existsSync(path.join(
+        fixture.activeRoot,
+        '.runtime-state',
+        'skill-route',
+        'turns',
+        turnBinding,
+        'route-envelope.json'
+      )))
+    }
 
-{
-  const fixture = createSkillRouteFixture({ project: 'shadow' })
-  try {
-    const result = runLifecycle(fixture, {
-      DEVCODEX_SKILL_ROUTE_MODE: 'shadow'
-    })
-    assert.match(result.text, /WorkspaceSkillIntent/)
-    assert.match(result.text, /SkillRouteBootstrapV1/)
-    const stateFile = path.join(
+    const parentSession = 'parent-session'
+    const childSession = 'child-session'
+    runLifecycle(fixture, { session_id: parentSession, prompt: 'Parent task' })
+    runLifecycle(fixture, { session_id: childSession, prompt: '请使用 routing skill' })
+    const sessionFile = sessionId => path.join(
       fixture.activeRoot,
       '.memory',
       'hooks',
       fixture.project,
-      'lifecycle-state.json'
+      'sessions',
+      `${crypto.createHash('sha256').update(sessionId).digest('hex')}.json`
     )
-    const state = JSON.parse(fs.readFileSync(stateFile, 'utf8'))
-    assert.strictEqual(state.progressiveSkillRoute.modeReceipt.effective, 'shadow')
-    assert.strictEqual(state.progressiveSkillRoute.active, true)
-  } finally {
-    fixture.cleanup()
-  }
-}
-
-{
-  const fixture = createSkillRouteFixture({ project: 'unified' })
-  try {
-    const now = Date.now()
-    const authorityPath = path.join(fixture.root, 'probe-authority.json')
-    writeJson(authorityPath, {
-      schemaVersion: 'SkillRouteProbeAuthorityV1',
-      probeRunId: 'lifecycle-fixture',
-      project: fixture.project,
-      hostVariant: normalizeHostVariant('claude'),
-      runtimeDigest: getRuntimeContractDigest(),
-      issuerPid: process.pid,
-      issuedAt: new Date(now - 1000).toISOString(),
-      expiresAt: new Date(now + 5 * 60 * 1000).toISOString(),
-      allowedMode: 'unified',
-      probeOnly: true
-    })
-    const result = runLifecycle(fixture, {
-      DEVCODEX_SKILL_ROUTE_MODE: 'unified',
-      DEVCODEX_SKILL_ROUTE_PROBE_AUTHORITY: authorityPath
-    })
-    assert.match(result.text, /SkillRouteBootstrapV1/)
-    assert.doesNotMatch(result.text, /WorkspaceSkillIntent/)
-    const stateFile = path.join(
-      fixture.activeRoot,
-      '.memory',
-      'hooks',
-      fixture.project,
-      'lifecycle-state.json'
+    const parentBefore = JSON.parse(fs.readFileSync(sessionFile(parentSession), 'utf8'))
+    const childBefore = JSON.parse(fs.readFileSync(sessionFile(childSession), 'utf8'))
+    assert.notStrictEqual(
+      parentBefore.contextAcquisition.contextEpoch,
+      childBefore.contextAcquisition.contextEpoch
     )
-    const state = JSON.parse(fs.readFileSync(stateFile, 'utf8'))
-    assert.strictEqual(state.progressiveSkillRoute.modeReceipt.effective, 'unified')
-    assert.strictEqual(state.workspaceSkillAutoMatch, null)
-    const turnBinding = state.progressiveSkillRoute.bootstrap.turnBinding
-    assert(fs.existsSync(path.join(
-      fixture.activeRoot,
-      '.runtime-state',
-      'skill-route',
-      'turns',
-      turnBinding,
-      'route-envelope.json'
-    )))
+    runLifecycle(fixture, {
+      hookEventName: 'Stop',
+      session_id: parentSession,
+      lastAssistantMessage: 'Parent task result'
+    })
+    const parentAfter = JSON.parse(fs.readFileSync(sessionFile(parentSession), 'utf8'))
+    const childAfter = JSON.parse(fs.readFileSync(sessionFile(childSession), 'utf8'))
+    assert.strictEqual(
+      parentAfter.contextAcquisition.contextEpoch,
+      parentBefore.contextAcquisition.contextEpoch
+    )
+    assert.strictEqual(
+      childAfter.contextAcquisition.contextEpoch,
+      childBefore.contextAcquisition.contextEpoch
+    )
+    assert.strictEqual(childAfter.progressiveSkillRouteStopCount || 0, 0)
   } finally {
     fixture.cleanup()
   }

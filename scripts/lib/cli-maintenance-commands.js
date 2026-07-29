@@ -695,27 +695,28 @@ function buildCliMaintenanceCommands(ctx) {
       executionOptimization,
       hostParity
     })
-    // Workspace skill inventory (W layer) for closed-loop diagnostics (PF-213 / AutoMatch)
+    // Workspace skill inventory (W layer) from the unified runtime identity index.
     let workspaceSkills = {
       enabled: true,
       root: null,
       count: 0,
       ids: [],
-      autoMatchModule: false
+      routeModule: false
     }
     try {
       const skillRes = require('../../hooks/_runtime/skill-resolution.cjs')
-      const autoMatch = require('../../hooks/_runtime/workspace-skill-auto-match.cjs')
-      workspaceSkills.autoMatchModule = true
+      const { buildRuntimeSkillIdentityIndex } = require('../../hooks/_runtime/runtime-skill-identity-index.cjs')
+      workspaceSkills.routeModule = true
       workspaceSkills.enabled = skillRes.isWorkspaceSkillsEnabled(env)
       workspaceSkills.root = skillRes.resolveWorkspaceSkillsRoot(cwd, { cwd, env })
       if (workspaceSkills.root) {
-        const list = autoMatch.listWorkspaceSkillCandidates({ cwd, env })
+        const index = buildRuntimeSkillIdentityIndex({ cwd, activeRoot, env })
+        const list = index.entries.filter(item => item.effectiveLayer === 'workspace')
         workspaceSkills.count = list.length
         workspaceSkills.ids = list.map(item => item.skillId).slice(0, 24)
       }
     } catch {
-      workspaceSkills.autoMatchModule = false
+      workspaceSkills.routeModule = false
     }
     return {
       schemaVersion: 'DoctorDiagnosticV1',
@@ -850,10 +851,10 @@ function buildCliMaintenanceCommands(ctx) {
     }
     if (workspaceSkills) {
       const ids = (workspaceSkills.ids || []).join(', ') || '(none)'
-      const mod = workspaceSkills.autoMatchModule ? 'AutoMatch module OK' : 'AutoMatch module missing'
+      const mod = workspaceSkills.routeModule ? 'Unified route module OK' : 'Unified route module missing'
       console.log(`  workspace skills: ${c.cyan(String(workspaceSkills.count || 0))}  ${c.dim(`enabled=${workspaceSkills.enabled !== false}; ${mod}`)}`)
       console.log(c.dim(`  W root: ${workspaceSkills.root || '(none)'} · ids: ${ids}`))
-      console.log(c.dim('  diagnose: devcodex skill intent "<prompt>" · skill match "<prompt>" · skill resolve <id> · npm run test:workspace-skill-intent-e2e'))
+      console.log(c.dim('  diagnose: devcodex skill resolve <id> · npm run test:skill-route'))
     }
     console.log()
     console.log(c.bold('  User-global host adapters:'))
@@ -1031,8 +1032,6 @@ function buildCliMaintenanceCommands(ctx) {
       ${c.cyan('trace show|replay')} Read LocalTaskTrace; trace show --completion reads receipt identities
       ${c.cyan('skill plan')}        Plan a dependency-closed whole-SKILL bundle; add --json for BundleDecisionV2
       ${c.cyan('skill resolve')}     Resolve skill ids W>G (workspace skills vs global); --json
-      ${c.cyan('skill intent')}      Intent-route prompt → workspace skill (default catalog path); --json
-      ${c.cyan('skill match')}       Legacy token auto-match (P0.5); prefer skill intent; --json
       ${c.cyan('task resolve')}      Resolve an active task by exact name, alias, project, or stable taskId
       ${c.cyan('task verify')}       Reconcile one task; exact --task or unique-active fallback
       ${c.cyan('task risk')}         Accept/revoke explicit, candidate-bound waivable risk

@@ -1,7 +1,7 @@
 'use strict'
 
 const HOST_IDS = Object.freeze(['copilot', 'claude', 'codex', 'gemini', 'grok'])
-const DEFAULT_HOSTS = Object.freeze(['copilot', 'claude', 'codex'])
+const DEFAULT_HOSTS = HOST_IDS
 const HOST_ALIASES = Object.freeze({
   '--claude': 'claude',
   '--codex': 'codex',

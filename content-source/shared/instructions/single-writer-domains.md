@@ -1,0 +1,1 @@
+核心单写者域固定为：`active-root`、`memory`、`report`、`ledger`、`audit-session`、`cp-state`、`source-mutation`、`package-boundary`、`dangerous-operation`。首期不支持 `parallel` 模式、`allowParallelMutations` 或任何并行 mutation 配置。

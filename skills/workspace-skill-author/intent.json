@@ -4,8 +4,10 @@
   "intents": [
     {
       "id": "primary",
-      "label": ">",
+      "label": "编写、生成、修改工作区 skill（SKILL.md）或 .devcode...",
       "include": [
+        "DEVCODEX",
+        "description",
         "workspace",
         "author"
       ]
@@ -13,13 +15,13 @@
   ],
   "examples": {
     "positive": [
-      ">领域任务",
-      ">专项审查"
+      "编写、生成、修改工作区 skill（SKILL.md）或...领域任务",
+      "编写、生成、修改工作区 skill（SKILL.md）或...专项审查"
     ],
     "negative": [
       "无关闲聊或通用问答",
       "由其他领域 Skill 明确负责的任务"
     ]
   },
-  "summary": ">"
+  "summary": "编写、生成、修改工作区 skill（SKILL.md）或 .devcodex/workspace/DEVCODEX.md 时使用。 触发：「写 skill」「创建 workspace skill」「改 DEVCODEX.md」「优化 skill description」、 「帮我写一个…skill」。不要用于普通..."
 }

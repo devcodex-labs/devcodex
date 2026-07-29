@@ -1,0 +1,207 @@
+{
+  "schemaVersion": "ControlContentDuplicationDispositionV1",
+  "rules": [
+    {
+      "id": "DP-001",
+      "candidateIds": ["exact-00c02fddc98a"],
+      "decision": "must-retain",
+      "reason": "代码示例分别属于 Prompt 与 Skill 的就地可执行说明，抽离会降低单文件可读性。"
+    },
+    {
+      "id": "DP-002",
+      "candidateIds": ["exact-072e721fa31b"],
+      "decision": "extract",
+      "fragment": "shared/report/host-capability-routing-record.md",
+      "reason": "五个报告模板使用完全相同的宿主能力记录合同。"
+    },
+    {
+      "id": "DP-003",
+      "candidateIds": ["exact-11eb37c0cd8b"],
+      "decision": "extract",
+      "fragment": "shared/report/issue-suggestion-validation-table.md",
+      "reason": "三个开发类报告共享同一问题建议验证表。"
+    },
+    {
+      "id": "DP-004",
+      "candidateIds": ["exact-1384a5bbaa79"],
+      "decision": "extract",
+      "fragment": "shared/report/evidence-freshness-table.md",
+      "reason": "报告模板共享同一 EvidenceFreshness 表合同。"
+    },
+    {
+      "id": "DP-005",
+      "candidateIds": ["exact-16e52ddb101d"],
+      "decision": "extract",
+      "fragment": "shared/instructions/sensitive-data-policy-table.md",
+      "reason": "完整 instructions 与安全模块共享同一强制策略表。"
+    },
+    {
+      "id": "DP-006",
+      "candidateIds": ["exact-2e4b0a3ec0e7"],
+      "decision": "extract",
+      "fragment": "shared/instructions/concurrency-config-contract.md",
+      "reason": "完整 instructions 与 common 模块共享同一并发配置合同。"
+    },
+    {
+      "id": "DP-007",
+      "candidateIds": ["exact-3ed14b010f82"],
+      "decision": "extract",
+      "fragment": "shared/memory/active-root-layout.md",
+      "reason": "instruction 与两个 memory Skill 共享同一 active-root 定义。"
+    },
+    {
+      "id": "DP-008",
+      "candidateIds": ["exact-58890abb3ff3"],
+      "decision": "extract",
+      "fragment": "shared/compliance/env-mode-table.md",
+      "reason": "compliance instruction 与 Skill 共享同一环境模式表。"
+    },
+    {
+      "id": "DP-009",
+      "candidateIds": ["exact-5ee0c1300203"],
+      "decision": "extract",
+      "fragment": "shared/report/context-handoff-condition.md",
+      "reason": "五个报告模板共享同一 ContextHandoffCard 触发合同。"
+    },
+    {
+      "id": "DP-010",
+      "candidateIds": ["exact-647b517a00b9"],
+      "decision": "extract",
+      "fragment": "shared/memory/ambiguous-workspace-error.md",
+      "reason": "memory instruction 与 Skill 共享同一歧义错误语义。"
+    },
+    {
+      "id": "DP-011",
+      "candidateIds": ["exact-64cf3fe0744c"],
+      "decision": "extract",
+      "fragment": "shared/instructions/question-evidence-gate.md",
+      "reason": "完整 instructions 与 common 模块共享同一推荐证据门禁。"
+    },
+    {
+      "id": "DP-012",
+      "candidateIds": ["exact-74b4a887d580"],
+      "decision": "extract",
+      "fragment": "shared/compliance/validation-summary.md",
+      "reason": "compliance instruction 与 Skill 共享同一验证摘要合同。"
+    },
+    {
+      "id": "DP-013",
+      "candidateIds": ["exact-7800f1897e98"],
+      "decision": "extract",
+      "fragment": "shared/instructions/sensitive-data-default-policy.md",
+      "reason": "完整 instructions 与安全模块共享同一 S02 默认策略。"
+    },
+    {
+      "id": "DP-014",
+      "candidateIds": ["exact-7e32f7357215"],
+      "decision": "must-retain",
+      "reason": "一个是索引模板、一个是 Skill 输出示例，局部角色不同且需保持单文件完整。"
+    },
+    {
+      "id": "DP-015",
+      "candidateIds": ["exact-904be7e09270"],
+      "decision": "extract",
+      "fragment": "shared/instructions/single-writer-domains.md",
+      "reason": "完整 instructions 与 common 模块共享同一单写者域合同。"
+    },
+    {
+      "id": "DP-016",
+      "candidateIds": ["exact-931970a6d292"],
+      "decision": "extract",
+      "fragment": "shared/report/shared-schema-note.md",
+      "reason": "五个报告模板共享同一 schema/registry 说明。"
+    },
+    {
+      "id": "DP-017",
+      "candidateIds": ["exact-a6436187b327"],
+      "decision": "extract",
+      "fragment": "shared/report/mcp-fallback-recording.md",
+      "reason": "dev/fix 报告共享同一 MCP fallback 记录合同。"
+    },
+    {
+      "id": "DP-018",
+      "candidateIds": ["exact-b07517d8bac0"],
+      "decision": "extract",
+      "fragment": "shared/report/review-grade-card-template.md",
+      "reason": "四个执行类报告共享同一 ReviewGradeCard 模板。"
+    },
+    {
+      "id": "DP-019",
+      "candidateIds": ["exact-b1a52321ef03"],
+      "decision": "extract",
+      "fragment": "shared/report/task-continuation-record.md",
+      "reason": "两个开发类报告共享同一续接记录合同。"
+    },
+    {
+      "id": "DP-020",
+      "candidateIds": ["exact-b25391184ad9"],
+      "decision": "extract",
+      "fragment": "shared/intent/three-question-table.md",
+      "reason": "完整 instructions 与 intent 模块共享同一路由三问。"
+    },
+    {
+      "id": "DP-021",
+      "candidateIds": ["exact-d42f24fce99c"],
+      "decision": "extract",
+      "fragment": "shared/intent/routing-table.md",
+      "reason": "完整 instructions 与 intent 模块共享同一意图路由表。"
+    },
+    {
+      "id": "DP-022",
+      "candidateIds": ["exact-dc20351a252b"],
+      "decision": "extract",
+      "fragment": "shared/memory/workspace-selection.md",
+      "reason": "memory instruction 与 Skill 共享同一 workspace namespace 选择合同。"
+    },
+    {
+      "id": "DP-023",
+      "candidateIds": ["exact-e5250d20569e"],
+      "decision": "must-retain",
+      "reason": "两个模块中的优先级列表分别约束 intent 与 memory 恢复，上下文角色不同。"
+    },
+    {
+      "id": "DP-024",
+      "candidateIds": ["exact-ee12e8a45a36"],
+      "decision": "extract",
+      "fragment": "shared/profile/profile-read-chain.md",
+      "reason": "profile instruction 与 Skill 共享同一读取链门禁。"
+    },
+    {
+      "id": "DP-025",
+      "candidateIds": ["exact-f93be1be0dd5"],
+      "decision": "extract",
+      "fragment": "shared/report/gate-result-table.md",
+      "reason": "五个报告模板共享同一 gate result 表。"
+    },
+    {
+      "id": "DP-026",
+      "candidateIds": ["exact-fb49a4ef9dcc"],
+      "decision": "must-retain",
+      "reason": "common 与 intent 模块的段落语义相同，但 intent 文件内部保留历史 mixed-EOL 字节；抽离会破坏 byte parity。"
+    },
+    {
+      "id": "DP-027",
+      "candidateIds": ["near-084bc14794b9"],
+      "decision": "structural-only",
+      "reason": "章节主题相同但完整 instructions 与模块投影包含不同边界，不可按相似度合并。"
+    },
+    {
+      "id": "DP-028",
+      "candidateIds": ["near-4dc1a579045e"],
+      "decision": "structural-only",
+      "reason": "并发章节存在完整源与模块投影差异，只抽离已确认的 exact contracts。"
+    },
+    {
+      "id": "DP-029",
+      "candidateIds": ["near-c64f2a915392"],
+      "decision": "structural-only",
+      "reason": "dev 与 fix 的 ECR 语义和责任不同，保留工作流专属章节。"
+    },
+    {
+      "id": "DP-030",
+      "candidateIds": ["near-fcf6cda19ef4"],
+      "decision": "structural-only",
+      "reason": "S02 章节包含不同上下文，只抽离两段完全一致的合同。"
+    }
+  ]
+}

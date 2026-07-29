@@ -35,7 +35,7 @@ function truncateText (value, maxChars) {
 function acceptedText (value, maxChars, fallback) {
   const candidate = truncateText(value, maxChars)
   const checked = sanitizeModelText(candidate, { maxChars })
-  if (checked.ok && checked.value) return checked.value
+  if (checked.ok && checked.value && /[\p{L}\p{N}]/u.test(checked.value)) return checked.value
   return fallback
 }
 

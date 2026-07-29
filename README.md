@@ -223,11 +223,14 @@ npm 全局包 / 源码 install -g
 ```bash
 cd <devcodex-source-root>
 npm install
+npm run check:control-content
 npm run test:stop-gate
 npm run test:docs-surface-inventory
 npm run test:skill-route
 npm run global-adapters:apply
 ```
+
+源码仓中的 instruction、prompt 与 Skill Markdown 维护入口统一位于 `content-source/`。修改 authoring source 后先运行 `npm run check:control-content`；需要更新既有 delivery 路径时显式运行 `npm run generate:control-content`。运行时和 npm 安装包继续读取原路径，不读取或携带 `content-source/`。
 
 维护者文档站（需本机已有完整 `website/`）：
 

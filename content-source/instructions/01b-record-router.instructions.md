@@ -1,0 +1,113 @@
+---
+applyTo: "**"
+description: 任务切换边界、RecordRouter 分流、Improvement Intake 与提交发布边界的通用规范
+priority: P5
+version: 1.15.3
+---
+# 任务边界与 RecordRouter
+
+> 本文件是 `01-common` 的分拆视图，承载新需求切换、问题池、Improvement Intake、提交边界与官方文档优先级细节。
+
+## 新需求切换判断顺序
+
+- 当当前请求与本会话已执行内容明显不一致，或看起来可能进入新需求时，必须优先基于上下文做意图判断，不能先按关键词机械判定。
+- 只有在上下文不足、意图无法稳定判断时，才允许使用关键词、措辞变化、主题漂移等弱信号作为降级辅助。
+- 若判断结果为“新需求切换”，且当前工作区存在未提交变更，应先提醒用户确认边界：
+  - 先提交当前变更后再切换
+  - 明确确认继续并行处理
+  - 明确说明本次仍属于同一需求的后续
+- 该提醒属于边界护栏，不替代 S01 / C10 等强制确认规则。
+
+## Commit Subject 简洁化
+
+- 当用户明确要求 `git commit` 或“提交当前变更”时，commit subject 必须压缩为一句简洁描述。
+- subject 只描述本次主变更，不得直接复用长段会话摘要，不得堆叠背景、验证步骤或风险说明。
+- 若需要补充上下文，应放在回复正文、报告文件或 commit body 中；本规则默认只约束 subject。
+
+## 未发布变更与提交边界
+
+- 当本次开发/修复形成一个已验证的语义变更批次，且用户未明确要求 `tag` / `release` / `publish` 时，默认更新 `changelogs/unreleased.md`，不默认进入正式发版流程。
+- `commit` 默认不自动执行；在满足上述条件后，默认建议执行本地 `commit` 作为回滚锚点，但不默认 `push`。
+- `commit` 不按“问题个数”切分；应按语义批次提交。
+- `ExplicitCommitAuthorizationGate`：只有用户当前会话明确要求提交当前变更时，才可实际执行本地 `git commit`；需要独立回滚点或当前语义批次边界清晰且已验证闭环，只能作为建议提交或请求确认的理由。
+- 以下场景适合建议或执行 `commit`：
+  - 用户明确要求提交当前变更（可执行）
+  - 需要独立回滚点（仅建议 / 请求确认）
+  - 当前语义批次边界清晰且已验证闭环（仅建议 / 请求确认）
+- `push` / `tag` / `publish` 仍须用户明确确认；本地 `commit` 不是正式发版动作。
+- `commit` 时仍适用 Commit Subject 简洁化规则。
+
+## 自我进化与问题池
+
+- 当执行中发现阻断当前任务的规范/流程问题时，可直接进入修复或规范调整流程。
+- 当发现的问题不阻断当前任务，且本质属于流程优化、规则补强、模板体验或治理改进时，默认先进入问题池，避免在当前主任务中途穿插修复。
+- 问题池条目应满足：
+  - 有明确问题描述
+  - 有影响范围或适用范围
+  - 能在后续按批次进入需求/bug 修复流程
+- `data/process-improvements.md`（优化清单，PI）只记录“已确认更优且可泛化的执行策略”，不替代问题池本身。
+- 若建议针对 DevCodex 规范自身、Hook、Skill、模板、validate 或宿主适配链路，而不是当前业务项目，则 PI/PF 必须写回承载 DevCodex 规范资产的 active-root。
+
+## Improvement Intake（优化清单）
+
+- `PostAssessmentGovernanceIntakeGate`：每条非空用户消息都登记中性候选，完成合理性评估和上下文归因后再形成 `GovernanceIntakeDecision`；关键词仅可作检索线索，不得触发、分类或免除评估。多个未终结候选必须保留并通过精确 candidate ID 分别决策，不能被新消息覆盖。
+- 所有模式下，每条用户消息完成合理性评估后，都要额外检查是否命中“可泛化更优策略”或“规范缺口暴露”。
+- 命中后即使用户没有显式说“记录一下”，也要主动分流：
+  - 仅更优策略 → PI
+  - 仅规范缺口 → PF
+  - 二者并存 → PI + PF
+  - 已有规则未执行 → VL
+  - 一次性偏好或业务局部诉求 → 不写台账
+- 所有模式命中后都必须显式回执 `已记录 PI-xxx`、`已记录 PF-xxx` 或 `已记录 PI-xxx / PF-xxx`。
+- 支持 Hook 的宿主只维护中性 `ContextualCandidateSet`、最小锚点和验证状态，不负责语义分类或自动写台账。最终必须由 AI 输出包含候选锚点、评估结论、泛化范围、现有规范状态、规范化意图、置信度、依据、目标台账、写入要求、写入证据与 `skipEvidence` 的结构化决策；复合意图逐项 all-of 验证。
+- 候选状态必须保留 `detected → assessed → generalized → routed → write-observed → acknowledged` 的阶段历史和每个 intent 的 `targetLedger/claimedIds/observationIds/status`；`uncertain/record.ambiguous` 停在 assessed，写入缺证据停在 routed，禁止直接跳到终态。
+- `LedgerWriteEvidenceGate`：required 写入只接受成功 PostToolUse 对当前 active-root 精确台账的观察，并要求工具输入 ID 与落盘文件 ID 一致；错误 root、失败/不可观察结果、只在回复声称编号均为 unverified。already-recorded 必须重新读取当前 active-root 正确台账找到精确 ID。
+- `RecordNoneChallengeGate`：`record.none` 必须独占意图，证明 no-governance-impact；`project-local|none` 需证明局部性/不可泛化，更广范围只允许由 `exists-complete` 与精确既有规则证据关闭；同时给出独立具体依据与 skipEvidence。缺项或与实质写入意图混合时不得终结；`uncertain/record.ambiguous` 始终先澄清。
+- PI / PF / GAP / ISSUE 或用户确认“值得吸纳 / 未完整吸纳 / 半覆盖 / 仍需吸纳”的策略进入规范源前，必须先读取 `spec-absorption`，执行 `CommonNormGeneralizationGate` 与 `AbsorptionCandidateConsumerProofGate`，证明通用规范价值、剔除项目独有残留并绑定 DevCodex 当前消费者；随后执行 `LayeredAbsorptionGate`。若是半覆盖补强，追加 `ConfirmedAbsorptionCompletenessGates`，逐项检查 Gate 名、目标 Skill、Prompt、执行消费者、validate 探针、公开文档和部署副本是否闭环。自我进化、自动吸纳或模型辅助治理候选必须进入 `evolution-governance`。
+
+## Backlog Intake 真相复核
+
+- 若新的需求、bug 或批次计划直接来源于 `data/*.md` 的 open/partial 项，进入 CP1 / 问题确认前必须先做 Backlog Intake 真相复核。
+- 每个候选条目至少要分成 `pure-open`、`residual-tail`、`already-fixed`、`misclassified` 四类之一，并据此决定：
+  - 继续纳入本轮
+  - 缩减为尾项
+  - 先回写状态后剔除
+  - 先修正分类/计数再继续
+- 不得把“已修但未回写”的条目继续按纯 open 统计组织新需求。
+- 命中本规则时，用户面必须说明候选编号、分类结果和范围是否缩减。
+
+## 台账状态回写闭环
+
+- 若实施、复审或范围收紧改变了 VL / PF / PI / ISSUE / GAP 的真实状态，必须在本轮结束前回写目标台账。
+- 回写至少包含：状态、验证证据、验证时间，以及关闭时间或“部分完成”说明。
+- VL/PF 关闭链时间顺序必须满足 `登记时间 ≤ 修复时间 ≤ 验证时间/关闭时间`；不得写入未来时间、倒填精确时间，或让关闭/验证早于登记。
+- 回写后必须再次核对 open 计数、实施进度、报告和 SUMMARY，避免“源码已修 / 台账仍 open”。
+
+## 官方文档优先级
+
+- 当任务涉及外部事实判断时，应优先读取官方文档或官方参考资料，再继续分析或实施。
+- 新增/升级第三方依赖、引入框架、SDK、平台 API、外部模块或需要依据外部平台能力设计方案时，必须在 CP2 前形成 `OfficialDocsEvidence`，不得凭经验猜测 API、配置或命令语义。
+- `OfficialDocsEvidence` 至少包含：官方文档来源、版本或发布日期、关键用法、限制条件、兼容性 / 弃用 / Breaking Change 判断，以及本方案采用的具体 API / 配置依据。
+- 适用场景包括：
+  - 平台 / 宿主能力判断
+  - 框架 API / SDK 行为
+  - 版本兼容性、弃用项、Breaking Change
+  - 第三方工具参数、命令语义、限制条件
+- 若官方文档不存在，再按顺序降级到官方源码 / 官方仓库说明、项目内已确认文档、社区资料，并在方案与报告中记录降级原因和风险。
+- 本地纯实现问题、已在仓库内可闭环验证且不新增/升级外部依赖的问题，可标 `OfficialDocsEvidence: N/A`，但必须写明 N/A 理由。
+
+### 依赖升级与兼容修复口径
+
+- 依赖升级、框架升级、SDK 替换或平台 API 兼容性分析必须拆分输出：
+  - `业务源码平滑性`：当前业务源码、调用方、配置和公开契约是否需要适配。
+  - `依赖层落地条件`：版本、Node / peer dependency、lockfile、安装面、CI / runner、发布与文档要求。
+  - 当用户明确要求判断“是否只升级依赖即可”时，追加 `纯依赖层零附加动作` 结论，不得把工程前提误报成业务源码阻断。
+- 依赖升级、兼容修复、批量适配类任务默认采用“先记录问题清单与归因，再统一确认后修复”的节奏；仅当用户明确授权即时修复或 auto 执行时，才允许边发现边处理。
+- 根因位于内部共享库、中间件、SDK 或 adapter 抽象层时，CP2 前必须评估“修共享库 + 消费项目升级”是否优于单项目临时补丁；若选择单项目补丁，须说明为何不改共享库及后续风险。
+
+## ProfileImpactCheck
+
+- dev/fix 修改项目事实后必须执行 `ProfileImpactCheck`，不能只等 audit 的 `Profile Freshness Check` 事后发现漂移。
+- 触发项包括：技术栈/框架/SDK/依赖管理器、目录结构/模块边界/分发面、脚本/测试/构建/发布命令、共享配置/用户指定环境变量、长期连接、`config.json` extensions、`config.local.json` schema、`extensions.<namespace>`、当前阶段/活跃版本/发布状态。
+- 命中触发项时必须更新 Profile：`01-项目信息.md`（技术栈、脚本、验证/发布路线、当前阶段）、`02-架构约束.md`（目录/边界/分发面）、`03-代码风格.md`（代码风格/工具链），或 Profile README / config 说明。
+- 若判断无需更新 Profile，必须在 CP2 / CP3 / ECR / 报告中写明 `ProfileImpactCheck: N/A` 与 `skipReason`。

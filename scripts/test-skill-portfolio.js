@@ -14,6 +14,7 @@ const {
   collectDependencies,
   detectCycles,
   gitIndexSnapshot,
+  isPortfolioConsumerExcluded,
   listConsumerDocuments,
   readRepositoryText,
   serializePortfolio,
@@ -22,6 +23,8 @@ const {
 } = require('./lib/skill-portfolio-utils')
 
 const ROOT = path.resolve(__dirname, '..')
+assert.strictEqual(isPortfolioConsumerExcluded('content-source/skills/intent/SKILL.md'), true)
+assert.strictEqual(isPortfolioConsumerExcluded('content-source/prompts/report-dev.prompt.md'), true)
 const first = buildPortfolio(ROOT)
 const second = buildPortfolio(ROOT)
 

@@ -39,6 +39,10 @@ function normalizeText (value) {
   return String(value ?? '').replace(/\r\n?/g, '\n').normalize('NFC').trim()
 }
 
+function hasSemanticText (value) {
+  return /[\p{L}\p{N}]/u.test(normalizeText(value))
+}
+
 function sanitizeModelText (value, options = {}) {
   const text = normalizeText(value).replace(/\s+/g, ' ')
   const maxChars = Number.isInteger(options.maxChars) ? options.maxChars : 160
@@ -136,7 +140,7 @@ function validateSkillIntent (raw, options = {}) {
     ids.add(id)
     const label = sanitizeModelText(item.label, { maxChars: 40 })
     const include = validateStringArray(item.include, { max: 8, maxChars: 16 })
-    if (!label.ok || !label.value || !include.ok) {
+    if (!label.ok || !label.value || !hasSemanticText(label.value) || !include.ok) {
       return { ok: false, reasonCode: label.reasonCode || include.reasonCode || 'schema-invalid' }
     }
     intents.push({ id, label: label.value, include: include.value })
@@ -157,7 +161,7 @@ function validateSkillIntent (raw, options = {}) {
     maxChars: 48
   })
   const summary = sanitizeModelText(raw.summary, { maxChars: 160 })
-  if (!positive.ok || !negative.ok || !summary.ok) {
+  if (!positive.ok || !negative.ok || !summary.ok || !hasSemanticText(summary.value)) {
     return {
       ok: false,
       reasonCode: positive.reasonCode || negative.reasonCode || summary.reasonCode || 'schema-invalid'
@@ -204,6 +208,7 @@ module.exports = {
   byteLength,
   portable,
   normalizeText,
+  hasSemanticText,
   sanitizeModelText,
   parseFrontmatter,
   validateSkillIntent,

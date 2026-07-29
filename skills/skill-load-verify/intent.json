@@ -4,22 +4,24 @@
   "intents": [
     {
       "id": "primary",
-      "label": ">",
+      "label": "仅用于验证 DevCodex 全局 skill 是否能被加载。 触发：「验...",
       "include": [
+        "DevCodex",
         "load",
+        "ping",
         "verify"
       ]
     }
   ],
   "examples": {
     "positive": [
-      ">领域任务",
-      ">专项审查"
+      "仅用于验证 DevCodex 全局 skill 是否能被加...领域任务",
+      "仅用于验证 DevCodex 全局 skill 是否能被加...专项审查"
     ],
     "negative": [
       "无关闲聊或通用问答",
       "由其他领域 Skill 明确负责的任务"
     ]
   },
-  "summary": ">"
+  "summary": "仅用于验证 DevCodex 全局 skill 是否能被加载。 触发：「验证技能」「验证技能加载」「skill load verify」「用 skill-load-verify skill」、 「技能加载验证」「ping skill-load-verify」。 不要用于业务开发、分析项目、写代码或发版。"
 }

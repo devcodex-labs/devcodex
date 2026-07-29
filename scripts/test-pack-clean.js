@@ -54,6 +54,7 @@ const forbidden = [
   /data\/gap-registry\.md/,
   /skills\/portfolio\.json/,
   /skills\/portfolio-evidence\.json/,
+  /content-source\//,
   /schema-dsl/i,
   /vext-test/i,
 ]

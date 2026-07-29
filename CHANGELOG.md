@@ -1,7 +1,8 @@
 # 变更日志 (CHANGELOG)
 
 > **说明**: 版本概览摘要。最新版本的详细变更见下方表格首行的 `changelogs/releases/vX.Y.Z.md` 链接；历史版本见对应详细变更文件
-> **最后更新**: 2026-07-21
+> **最后更新**: 2026-07-29
+> **当前未发布**: 控制面 Markdown 已建立统一 authoring source、确定性物化、重复处置与 intent semantic quality 门禁；详见 [`changelogs/unreleased.md`](./changelogs/unreleased.md)。
 
 ---
 

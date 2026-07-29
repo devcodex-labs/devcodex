@@ -1,0 +1,1 @@
+`config.json` 可通过 `extensions.devcodex.concurrency` 配置并发策略。缺省为 `mode=auto`：只读上下文收集、只读子 Agent 分析和互不写同一输出的隔离验证可按通道上限并行；`mode=serial` 表示全部通道按串行执行。项目只能追加更保守的 `locks.additionalSingleWriterScopes`，不得删除或覆盖核心单写者域。

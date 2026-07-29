@@ -1,0 +1,87 @@
+---
+name: audit-project
+description: 项目工程审查维度 PE-1~PE-12 — 代码质量/项目结构/依赖安全/资源泄漏专属审查层
+---
+# Audit Project Skill
+
+## 适用范围
+
+审查目标为**项目工程**（源码质量、目录结构、依赖健康、测试覆盖）时，叠加本 Skill（在 G1~G5 之后）。
+
+## 维度总览（PE-1~PE-12）
+
+| 分组 | 维度 | 优先级 |
+|------|------|:------:|
+| A — 结构与可维护性 | PE-1 项目结构合理性 · PE-5 可维护性 | 🔴/🟡 |
+| B — 健壮性 | PE-2 错误处理完整性 · PE-3 安全性 · PE-4 性能隐患 · PE-12 资源生命周期与泄漏风险 | 🔴/🟡 |
+| C — 接口与配置 | PE-8 接口一致性 · PE-10 配置管理 | 🔴/🟡 |
+| D — 质量保障 | PE-6 测试覆盖 · PE-7 依赖健康度 | 🟡/💡 |
+| E — 可观测性与数据 | PE-9 日志与可观测性 · PE-11 数据层质量 | 🟡 |
+
+## 核心检查维度
+
+**PE-0 Profile Freshness 衔接 🔴**
+- 先执行 `audit-common` 的 `Profile Freshness Check（PFresh）`
+- 不只检查“项目是否符合 Profile”，还要反向检查 Profile 是否仍符合当前 package、目录结构、脚本清单、发布状态、宿主能力和当前任务现实
+- 若 Profile 过期，项目工程审查结论不得直接标注收敛；需先记录漂移或同步要求
+
+**PE-1 项目结构合理性 🔴**
+- 目录结构与 profile `02-架构约束.md` 一致
+- 模块/文件职责单一（不混合路由/业务/数据层）
+- 函数/方法长度 ≤50 行，嵌套深度 ≤4 层
+- 无循环依赖
+- 简单业务 service 不重复 route validate、model/schema、数据导入或框架已承担的校验、归一化、配置兜底和二次治理
+
+**PE-2 错误处理完整性 🔴**
+- 异步操作有 catch 处理
+- 外部依赖调用有超时和重试策略
+- 错误信息不暴露内部细节
+
+**PE-3 安全性 🔴**
+- 敏感信息、密钥、密码和硬编码处理符合用户 / 项目显式策略；未指定禁止时不把直写本身列为问题
+- 输入验证覆盖边界条件
+- SQL/NoSQL 查询无注入风险
+- 用户自有/明确授权的本地安全审查执行 `security-threat-modeling` 的 `AuthorizedLocalSecurityAuditPresentationGate`：核对 authorizationContext、defensiveObjective、用户可见最小证据、隔离探针、SafetyInterruptionCard 与恢复路线；禁止把“优化表达”写成绕过宿主安全控制
+
+**PE-4 性能隐患 🟡**
+- 算法复杂度、查询次数、同步阻塞、重复序列化或大对象复制不会在目标数据规模下造成明显退化
+- 缓存、队列、批处理和并发限制有边界，避免把性能优化变成无界内存占用
+- 若性能风险来自资源生命周期或清理缺失，必须同时按 `PE-12` 判定
+
+**PE-6 测试覆盖与验证门禁 🟡**
+- 从 `../spec-governance/gate-registry.json` 选择与变更事实匹配的 `gateGroup`，核对 Owner Skill 的必需证据和 `test-router` 生成的路线；本维度不复制 coverage、runtime/plugin、fingerprint、风险簇或派生消费者的完整门禁正文
+- 审查必须区分“测试断言通过”“覆盖率/跨边界路线通过”“跳过但有权威替代证据”；不满足时按实际状态降级
+
+**PE-7 依赖健康度 🟡**
+- Node.js 项目默认 `engines.node`、CI matrix、Profile 与 README 不低于 `>=18`；低于 v18 有业务理由、风险和验证证据
+- 依赖升级 / 兼容修复已区分 `业务源码平滑性` 与 `依赖层落地条件`
+- 根因位于内部共享库、中间件、SDK 或 adapter 抽象层时，已评估“修共享库 + 消费项目升级”是否优于单项目补丁
+
+**PE-8 接口一致性 🔴**
+- provider / connector / SDK 接入具备 provider metadata、内部 payload、上游 request 映射、标准化 result、错误 detail 字段级合同
+- JavaScript / Node.js 中命中必要注释的导出函数、核心业务函数、类、复杂对象契约、参数/返回/异常说明使用标准 JSDoc
+
+**PE-12 资源生命周期与泄漏风险 🔴**
+- 必查内存泄露 / 资源泄漏风险：长生命周期集合、缓存、队列、订阅表、全局单例或闭包引用不得无界增长
+- 连接、事务、文件句柄、流、游标、socket、worker、定时器、interval、事件监听器和外部 SDK client 必须有明确释放、取消订阅或关闭路径
+- 前端 / UI 代码必须在组件卸载、路由切换、effect 重新执行或异步任务取消时清理监听器、定时器、订阅、AbortController 和外部引用
+- 异常分支、早返回、重试失败、超时、取消和测试 teardown 场景必须同样释放资源；不能只检查 happy path
+- 若项目语言或框架提供专用工具（heap snapshot、profiler、leak detector、lint rule、test teardown hook 等），审查报告应说明是否执行或标注 `N/A + skipReason`
+- 高风险资源泄漏修复、公开库/adapter/SDK、连接池、监听器、定时器、worker、cache 或公开方法生命周期风险命中时，应检查 `MethodLevelLeakPressureProbe` 是否有重复调用/生命周期压测证据；低风险纯函数可写 `N/A + skipReason`
+
+**条件 Owner 审查索引**
+- 涉及前端/UI、发布、数据、安全、文档、外部消费者、性能、资源生命周期或治理控制面时，读取 `../spec-governance/gate-registry.json`，按 `gateGroup` 触发对应 Owner Skill
+- 本 Skill 只核对项目工程事实、Owner 是否正确触发、证据是否存在、TestRoute 是否充分以及报告结果是否与证据一致；专属字段和执行语义归 Owner
+- 未命中的分组写 `N/A + skipReason`；命中却缺少 Owner 证据时不得用通用审查表述代替
+
+
+## N/A 规则
+
+- 纯前端项目无 DB：PE-11 标 N/A
+- 纯库项目无日志需求：PE-9 标 N/A
+- 无长生命周期资源、订阅、连接、定时器、缓存或 UI 生命周期的纯静态内容变更：PE-12 可标 `N/A + skipReason`
+- 无用户可见 UI、交互流或视觉呈现的后端 / CLI / 文档变更：`FrontendExperienceQualityGate` 可标 `N/A + skipReason`
+- 未触发跨项目已吸纳守门时，`CrossProjectLearnedGuards` 可标 `N/A + skipReason`
+- 未涉及代码/文档/示例/fixture/quick start/技术方案/报告产物，且用户未指出“不专业 / 像初级 / 示例误导”时，`ExpertOutputQualityGate` 可标 `N/A + skipReason`
+- 未触发审查发现 intake 时，`ReviewFindingIntakeGate` 可标 `N/A + skipReason`
+- 未触发资源生命周期或公开方法泄漏风险时，`MethodLevelLeakPressureProbe` 可标 `N/A + skipReason`

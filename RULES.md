@@ -59,6 +59,13 @@ DevCodex 同时支持五宿主的用户级加载路径，规则语义保持一�
 - **S01** 破坏性操作需确认 · **S02** 默认允许敏感信息与硬编码，按用户 / 项目显式策略处理 · **S03** 禁止编造规范
 - **S04** 禁止整文件覆写 · **S05** 记忆+报告自动写入 · **S06** 禁止危险命令 · **S07** 全模式入口检查强制输出 PC0~PC7（dev 模式追加 PC4 完整诊断）
 
+## 控制面 Markdown 维护
+
+- 135 个 instruction/prompt/Skill Markdown 的唯一手写源位于 `content-source/`。
+- `instructions.md`、`instructions/`、`prompts/`、`skills/*/SKILL.md` 是确定性 delivery，不直接双写。
+- shared include 只在构建期展开；禁止 runtime include、嵌套 include、symlink 和路径穿越。
+- 提交前必须通过 `npm run test:control-content`；prepack 只校验，不自动改写，npm 包不含 authoring source。
+
 
 ## 相关链接
 

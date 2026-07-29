@@ -1,0 +1,1 @@
+**ReviewGradeCard**：c19Label=____ · reviewClass=R2（默认）/R1|R3|R4 · riskClass=____ · riskFlags=____ · contentPack=____ · result=pass|fail · skipReason=N/A

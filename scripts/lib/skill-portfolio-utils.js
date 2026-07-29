@@ -6,6 +6,9 @@ const fs = require('fs')
 const path = require('path')
 const { buildBundleDecisionV2 } = require('../../mcp/profile-contract')
 const {
+  parseFrontmatter: parseRuntimeFrontmatter
+} = require('../../hooks/_runtime/progressive-skill-route-contract.cjs')
+const {
   loadSkillSidecarWithReader,
   sidecarRelativePath
 } = require('./skill-sidecar-contract')
@@ -38,15 +41,7 @@ function normalizePath(root, file) {
 }
 
 function parseFrontmatter(content, fallbackName) {
-  const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---/)
-  const values = {}
-  if (match) {
-    for (const line of match[1].split(/\r?\n/)) {
-      const separator = line.indexOf(':')
-      if (separator < 0) continue
-      values[line.slice(0, separator).trim()] = line.slice(separator + 1).trim()
-    }
-  }
+  const values = parseRuntimeFrontmatter(content).frontmatter
   return {
     name: values.name || fallbackName,
     description: values.description || ''
@@ -351,6 +346,7 @@ function isPortfolioConsumerExcluded(relativePath) {
   const rel = relativePath.replace(/\\/g, '/')
   const excludedPrefixes = [
     'skills/',
+    'content-source/',
     'node_modules/',
     'coverage/',
     'dist/',
@@ -778,6 +774,9 @@ function validatePortfolio(portfolio) {
     ids.add(skill.id)
     if (!LEGAL_STATES.has(skill.lifecycleState)) errors.push(`illegal lifecycle state: ${skill.id}=${skill.lifecycleState}`)
     if (!skill.source || !skill.hash || !skill.version) errors.push(`missing source/hash/version: ${skill.id}`)
+    if (!/[\p{L}\p{N}]/u.test(String(skill.description || ''))) {
+      errors.push(`missing semantic description: ${skill.id}`)
+    }
     if (!Number.isInteger(skill.sourceBytes) || skill.sourceBytes < 1) errors.push(`missing sourceBytes: ${skill.id}`)
     if (!skill.triggers || !Array.isArray(skill.triggers.terms) || !skill.triggers.terms.length) errors.push(`missing structured triggers: ${skill.id}`)
     if (!skill.conflictReview || !['reviewed-none', 'declared'].includes(skill.conflictReview.status)) errors.push(`missing conflict review: ${skill.id}`)

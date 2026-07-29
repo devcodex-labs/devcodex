@@ -11,10 +11,10 @@
     "pluginDigest": "705fe7c86c7225b67756749be5bb3b14a1ee3bffa386483a9ab61dc971f419ae",
     "portfolioEvidence": "skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "8364a73c66ed2ec9787cdb9300223278d128a45b689a2b8deda0d1f03189f42b",
-    "consumerInventoryFileCount": 484,
-    "consumerInventoryDigest": "b41848c7674010854bda6ef9503b8a0ad3d725b7beabe021c9b7cc618bdcb727",
-    "consumerProjectionDigest": "7526ef908db7c2e9e4093de1610434c2dc902df18e83a15fc1d652d665010281",
-    "portfolioInputDigest": "a56114e24a08e9f1ae1f9c8b2c8257557abc2cbc381cf5ced2a7b9d75d2c0a79"
+    "consumerInventoryFileCount": 492,
+    "consumerInventoryDigest": "9778c00c6d95d8d835d7df6275e5b7e56be266150ae1f2b6b2be665cb657d758",
+    "consumerProjectionDigest": "e64da5fb9ef49c9ffa3caeb8fedbab6e8233f98eb5fed4fd2764f8e7ac5d84d2",
+    "portfolioInputDigest": "0e88add49ac599fec04fa97348bd75632bfa73920b2f5d38ee7a787ecebe030e"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -10581,6 +10581,10 @@
       },
       "consumers": [
         {
+          "path": "CHANGELOG.md",
+          "role": "current"
+        },
+        {
           "path": "changelogs/releases/v1.11.0.md",
           "role": "historical"
         },
@@ -11112,7 +11116,7 @@
         "registration": "plugin.json",
         "operationalReadiness": {
           "state": "complete",
-          "currentConsumer": "changelogs/unreleased.md",
+          "currentConsumer": "CHANGELOG.md",
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
@@ -12899,6 +12903,10 @@
         },
         {
           "path": "RULES.md",
+          "role": "current"
+        },
+        {
+          "path": "scripts/extract-control-content-fragments.js",
           "role": "current"
         },
         {
@@ -15813,6 +15821,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-skill-portfolio.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-skill-route-state.js",
           "role": "current"
         },
@@ -17584,16 +17596,21 @@
     {
       "id": "skill-load-verify",
       "name": "skill-load-verify",
-      "description": ">",
+      "description": "仅用于验证 DevCodex 全局 skill 是否能被加载。\n触发：「验证技能」「验证技能加载」「skill load verify」「用 skill-load-verify skill」、\n「技能加载验证」「ping skill-load-verify」。\n不要用于业务开发、分析项目、写代码或发版。",
       "owner": "skill-load-verify",
       "triggers": {
         "terms": [
-          "skill-load-verify"
+          "DevCodex",
+          "load",
+          "ping",
+          "skill",
+          "skill-load-verify",
+          "verify"
         ],
         "positive": [
           {
             "fixture": "frontmatter-description-resolves",
-            "input": ">"
+            "input": "仅用于验证 DevCodex 全局 skill 是否能被加载。\n触发：「验证技能」「验证技能加载」「skill load verify」「用 skill-load-verify skill」、\n「技能加载验证」「ping skill-load-verify」。\n不要用于业务开发、分析项目、写代码或发版。"
           }
         ],
         "negative": [
@@ -17655,12 +17672,17 @@
         "domains": [],
         "triggers": {
           "terms": [
-            "skill-load-verify"
+            "DevCodex",
+            "load",
+            "ping",
+            "skill",
+            "skill-load-verify",
+            "verify"
           ],
           "positive": [
             {
               "fixture": "frontmatter-description-resolves",
-              "input": ">"
+              "input": "仅用于验证 DevCodex 全局 skill 是否能被加载。\n触发：「验证技能」「验证技能加载」「skill load verify」「用 skill-load-verify skill」、\n「技能加载验证」「ping skill-load-verify」。\n不要用于业务开发、分析项目、写代码或发版。"
             }
           ],
           "negative": [
@@ -19049,6 +19071,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-skill-intents.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-skill-portfolio.js",
           "role": "current"
         },
@@ -19096,6 +19122,7 @@
         "scripts/test-migrate-layout.js",
         "scripts/test-process-enforcement-e2e.js",
         "scripts/test-runtime-state-index.js",
+        "scripts/test-skill-intents.js",
         "scripts/test-skill-portfolio.js",
         "scripts/test-skill-route-contracts.js",
         "scripts/test-skill-sidecar-contract.js",
@@ -19163,6 +19190,7 @@
           "scripts/test-migrate-layout.js",
           "scripts/test-process-enforcement-e2e.js",
           "scripts/test-runtime-state-index.js",
+          "scripts/test-skill-intents.js",
           "scripts/test-skill-portfolio.js",
           "scripts/test-skill-route-contracts.js",
           "scripts/test-skill-sidecar-contract.js",
@@ -20296,16 +20324,22 @@
     {
       "id": "workspace-skill-author",
       "name": "workspace-skill-author",
-      "description": ">",
+      "description": "编写、生成、修改工作区 skill（SKILL.md）或 .devcodex/workspace/DEVCODEX.md 时使用。\n触发：「写 skill」「创建 workspace skill」「改 DEVCODEX.md」「优化 skill description」、\n「帮我写一个…skill」。不要用于普通业务开发任务。",
       "owner": "workspace-skill-author",
       "triggers": {
         "terms": [
+          "DEVCODEX",
+          "SKILL",
+          "description",
+          "devcodex",
+          "skill",
+          "workspace",
           "workspace-skill-author"
         ],
         "positive": [
           {
             "fixture": "frontmatter-description-resolves",
-            "input": ">"
+            "input": "编写、生成、修改工作区 skill（SKILL.md）或 .devcodex/workspace/DEVCODEX.md 时使用。\n触发：「写 skill」「创建 workspace skill」「改 DEVCODEX.md」「优化 skill description」、\n「帮我写一个…skill」。不要用于普通业务开发任务。"
           }
         ],
         "negative": [
@@ -20354,12 +20388,18 @@
         "domains": [],
         "triggers": {
           "terms": [
+            "DEVCODEX",
+            "SKILL",
+            "description",
+            "devcodex",
+            "skill",
+            "workspace",
             "workspace-skill-author"
           ],
           "positive": [
             {
               "fixture": "frontmatter-description-resolves",
-              "input": ">"
+              "input": "编写、生成、修改工作区 skill（SKILL.md）或 .devcodex/workspace/DEVCODEX.md 时使用。\n触发：「写 skill」「创建 workspace skill」「改 DEVCODEX.md」「优化 skill description」、\n「帮我写一个…skill」。不要用于普通业务开发任务。"
             }
           ],
           "negative": [

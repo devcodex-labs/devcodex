@@ -1,7 +1,9 @@
 # Normalize line endings to LF on checkout
 * text=auto eol=lf
 
+# Authoring sources preserve legacy delivery whitespace; materialization owns parity.
+content-source/** whitespace=-trailing-space,-blank-at-eof
+
 # Binary files
 *.png binary
 *.ico binary
-

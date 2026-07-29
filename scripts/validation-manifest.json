@@ -36,6 +36,15 @@
     "scripts/lib/candidate-review-bundle.js",
     "scripts/test-candidate-review-bundle.js",
     "scripts/fixtures/candidate-review-bundle/**",
+    "content-source/**",
+    "scripts/generate-control-content.js",
+    "scripts/prepack-control-content.js",
+    "scripts/extract-control-content-fragments.js",
+    "scripts/analyze-control-content-duplication.js",
+    "scripts/lib/control-content-source.js",
+    "scripts/lib/control-content-duplication.js",
+    "scripts/test-control-content-source.js",
+    "scripts/test-control-content-duplication.js",
     "skills/spec-governance/capability-surface-decision.v1.schema.json",
     "scripts/lib/capability-surface-decision.js",
     "scripts/test-capability-surface-decision.js",
@@ -83,6 +92,7 @@
     "validate-versions",
     "validate-core",
     "validation-dag",
+    "control-content-source",
     "pack-clean",
     "syntax"
   ],
@@ -143,6 +153,7 @@
         "profile-governance",
         "readme-governance",
         "requirement-artifacts",
+        "control-content-source",
         "candidate-review-bundle",
         "capability-surface-decision",
         "host-capability-routing",
@@ -230,6 +241,7 @@
         "profile-governance",
         "readme-governance",
         "requirement-artifacts",
+        "control-content-source",
         "candidate-review-bundle",
         "capability-surface-decision",
         "host-capability-routing",
@@ -283,6 +295,7 @@
         "mcp-servers",
         "client-contracts",
         "migrate-layout",
+        "control-content-source",
         "pack-clean",
         "public-text-integrity",
         "review-execution-contract",
@@ -314,6 +327,7 @@
         "validate-core",
         "validation-dag",
         "readme-governance",
+        "control-content-source",
         "candidate-review-bundle",
         "capability-surface-decision",
         "host-capability-routing",
@@ -2758,6 +2772,63 @@
     },
     {
       "schemaVersion": "ValidationNodeV1",
+      "id": "control-content-source",
+      "owner": "spec-governance",
+      "command": "npm",
+      "args": [
+        "run",
+        "test:control-content"
+      ],
+      "dependencies": [
+        "skill-intents"
+      ],
+      "inputs": [
+        "content-source/**",
+        "instructions.md",
+        "instructions/**",
+        "prompts/**",
+        "skills/*/SKILL.md",
+        "skills/*/intent.json",
+        "skills/repair-prevention-assessment/repair-prevention-assessment.schema.json",
+        "skills/rework-prevention-engineering/repair-prevention-assessment.schema.json",
+        "scripts/generate-control-content.js",
+        "scripts/prepack-control-content.js",
+        "scripts/extract-control-content-fragments.js",
+        "scripts/analyze-control-content-duplication.js",
+        "scripts/lib/control-content-source.js",
+        "scripts/lib/control-content-duplication.js",
+        "scripts/test-control-content-source.js",
+        "scripts/test-control-content-duplication.js"
+      ],
+      "consumers": [
+        "pack-clean"
+      ],
+      "invariants": [
+        "source-output-parity",
+        "duplicate-disposition-complete",
+        "zero-write-check"
+      ],
+      "riskClass": "high",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ControlContentReceiptV1",
+        "ControlContentDuplicationReceiptV1",
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
       "id": "candidate-review-bundle",
       "owner": "candidate-review-bundle",
       "command": "node",
@@ -3286,7 +3357,8 @@
         "scripts/test-release-metadata.js"
       ],
       "dependencies": [
-        "validate-versions"
+        "validate-versions",
+        "control-content-source"
       ],
       "inputs": [
         "package.json",
@@ -3327,7 +3399,8 @@
         "scripts/test-pack-clean.js"
       ],
       "dependencies": [
-        "validate-versions"
+        "validate-versions",
+        "control-content-source"
       ],
       "inputs": [
         "package.json",

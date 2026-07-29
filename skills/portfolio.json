@@ -13,8 +13,8 @@
     "portfolioEvidenceDigest": "8364a73c66ed2ec9787cdb9300223278d128a45b689a2b8deda0d1f03189f42b",
     "consumerInventoryFileCount": 482,
     "consumerInventoryDigest": "4e64bbe16c22c73b0b4510c7ca628e0a3b32dad24b45f74ee6864990c3fc3ddd",
-    "consumerProjectionDigest": "0e593a0187e193a112721cfeb3e7b35cd923702f4e10724bbcd19d48cedbab7a",
-    "portfolioInputDigest": "00b90469840efd6e9084e5a6c3c2f559bcd2cd8175f1e0664d351737cc5d1f82"
+    "consumerProjectionDigest": "2cf58088304bebaf95c778266bb663dda2b6dc934f08810e70247a9665604065",
+    "portfolioInputDigest": "02e808b3092e5f8e37a8f4168e5581e2918429cb839c97930718af3eef813cf6"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -1122,12 +1122,17 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-skill-route-contracts.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/validation-manifest.json",
           "role": "current"
         }
       ],
       "validationProfile": [
         "scripts/test-skill-portfolio.js",
+        "scripts/test-skill-route-contracts.js",
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-24",
@@ -1177,6 +1182,7 @@
         "evolvableUnitRef": "skill:analyze-default",
         "probeSuiteRefs": [
           "scripts/test-skill-portfolio.js",
+          "scripts/test-skill-route-contracts.js",
           "scripts/validate.js"
         ],
         "exitCondition": "work-unit-complete-or-workflow-transition",

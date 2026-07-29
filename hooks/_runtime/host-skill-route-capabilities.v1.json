@@ -13,10 +13,10 @@
       "status": "PASS",
       "testedVersion": "codex-cli 0.145.0",
       "protocol": "MCP 2024-11-05",
-      "runtimeContractDigest": "78b04aeb54897ea111fb20697b7031695eafd11fc089708734ab8fee132c43ac",
-      "hostAdapterDigest": "7db6ee0f7b46dee235ec7bd38c1930f44f55b1cb7b31c6b31f280d3c786ee131",
-      "evidenceDigest": "c8a57c368a2d7d464ed13ca47f51fe704f413cecba76445e3d10025e555eb734",
-      "evidenceRef": "E:/Worker/.devcodex/devcodex/.audit-state/skill-route-s15-codex-20260729-candidate-r5.json",
+      "runtimeContractDigest": "e1f1f244e0fc7cb6bb789abc18f11fe4e0e762ff611488de341277866b2142bb",
+      "hostAdapterDigest": "b2693a7aad1643fd7d21be90b7f73ba42b6c79f1eac405d3919bbb28a316ad20",
+      "evidenceDigest": "203c109eb4b9208035bc67c08ca632896428de795752c150773daa4f959b2b86",
+      "evidenceRef": "E:/Worker/.devcodex/devcodex/.audit-state/skill-route-s15-codex-20260729-full-closure-production.json",
       "entrySurface": "codex exec --ephemeral",
       "bootstrapDelivery": "user-global hooks.json UserPromptSubmit",
       "defaultEligible": true
@@ -37,16 +37,13 @@
     },
     {
       "hostVariant": "grok-cli-single/global-launcher-local-stdio",
-      "status": "PASS",
+      "status": "UNVERIFIED",
       "testedVersion": "grok 0.2.112 (9bbd559437)",
       "protocol": "MCP 2024-11-05",
-      "runtimeContractDigest": "2eb23345d426d870b2f45f0c585bc341c87c110612d357efaa79d39c14af3489",
-      "hostAdapterDigest": "b2ab490df9c881a1a8b67c8391f72c615d05a64aab1db9e4bd6ec8a5f0a99385",
-      "evidenceDigest": "771a886ffc0606ac08429fa4e27675422083b864df76e2d1c43819fac7333c95",
-      "evidenceRef": "E:/Worker/.devcodex/devcodex/.audit-state/skill-route-s15-grok-20260729-current-candidate.json",
+      "evidenceRef": null,
       "entrySurface": "devcodex grok -p/--single",
       "bootstrapDelivery": "global launcher --rules",
-      "defaultEligible": true
+      "defaultEligible": false
     }
   ]
 }

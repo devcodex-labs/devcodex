@@ -542,12 +542,17 @@ const installedSkillRouteCapabilities = JSON.parse(fs.readFileSync(
   path.join(codexRuntime, 'hooks', '_runtime', 'host-skill-route-capabilities.v1.json'),
   'utf8'
 ))
-const installedGrokCapability = installedSkillRouteCapabilities.capabilities.find(item =>
-  item.hostVariant === 'grok-cli-single/global-launcher-local-stdio'
+const installedCodexCapability = installedSkillRouteCapabilities.capabilities.find(item =>
+  item.hostVariant === 'codex-cli/exec-user-global-local-stdio'
 )
-assert.ok(installedGrokCapability)
-assert.strictEqual(installedGrokCapability.status, 'PASS')
-assert.match(installedGrokCapability.runtimeContractDigest, /^[a-f0-9]{64}$/)
+assert.ok(installedCodexCapability)
+assert.strictEqual(installedCodexCapability.status, 'PASS')
+assert.strictEqual(
+  installedCodexCapability.runtimeContractDigest,
+  installedRuntimeContractDigest
+)
+assert.match(installedCodexCapability.hostAdapterDigest, /^[a-f0-9]{64}$/)
+assert.match(installedCodexCapability.evidenceDigest, /^[a-f0-9]{64}$/)
 
 const forgedReceiptFile = path.join(codexTarget.root, 'devcodex', 'global-host-receipt.json')
 const forgedReceipt = JSON.parse(fs.readFileSync(forgedReceiptFile, 'utf8'))

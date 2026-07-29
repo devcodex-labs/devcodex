@@ -75,7 +75,9 @@
     "scripts/test-skill-intents.js",
     "scripts/test-skill-route-contracts.js",
     "scripts/test-skill-route-state.js",
-    "scripts/test-skill-route-lifecycle.js"
+    "scripts/test-skill-route-lifecycle.js",
+    "scripts/test-skill-route-closure.js",
+    "scripts/fixtures/skill-route-closure-trace.v1.json"
   ],
   "invariantNodes": [
     "validate-versions",
@@ -99,6 +101,7 @@
         "skill-route-contracts",
         "skill-route-state",
         "skill-route-lifecycle",
+        "skill-route-closure",
         "profile-section-selector",
         "project-knowledge-store",
         "runtime-state-index",
@@ -185,6 +188,7 @@
         "skill-route-contracts",
         "skill-route-state",
         "skill-route-lifecycle",
+        "skill-route-closure",
         "profile-section-selector",
         "project-knowledge-store",
         "runtime-state-index",
@@ -300,7 +304,8 @@
         "skill-intents",
         "skill-route-contracts",
         "skill-route-state",
-        "skill-route-lifecycle"
+        "skill-route-lifecycle",
+        "skill-route-closure"
       ]
     },
     "package-release": {
@@ -339,7 +344,8 @@
         "skill-intents",
         "skill-route-contracts",
         "skill-route-state",
-        "skill-route-lifecycle"
+        "skill-route-lifecycle",
+        "skill-route-closure"
       ]
     }
   },
@@ -985,6 +991,7 @@
         "scripts/test-skill-route-lifecycle.js"
       ],
       "consumers": [
+        "skill-route-closure",
         "hooks-runtime",
         "mcp-servers",
         "global-host-config"
@@ -999,6 +1006,52 @@
       "cachePolicy": "never",
       "writeScopes": [
         "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "skill-route-closure",
+      "owner": "progressive-skill-route",
+      "command": "node",
+      "args": [
+        "scripts/test-skill-route-closure.js"
+      ],
+      "dependencies": [
+        "skill-route-lifecycle"
+      ],
+      "inputs": [
+        "package.json",
+        "hooks/_runtime/host-skill-route-capabilities.v1.json",
+        "hooks/_runtime/skill-route-mode.cjs",
+        "scripts/fixtures/skill-route-closure-trace.v1.json",
+        "scripts/test-skill-route-closure.js"
+      ],
+      "consumers": [
+        "global-host-config",
+        "global-install-smoke",
+        "pack-clean"
+      ],
+      "invariants": [
+        "requirement-trace-complete",
+        "terminal-contract-consistent",
+        "legacy-active-consumers-zero",
+        "current-s15-capability"
+      ],
+      "riskClass": "high",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "none"
       ],
       "timeoutMs": 120000,
       "exitMap": {

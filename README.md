@@ -150,7 +150,7 @@ Codex/Claude 等宿主自己的 `AGENTS.md`、`CLAUDE.md`、原生个人/项目 
 | 宿主 | 大致能力 |
 |------|----------|
 | Claude Code / Codex / Copilot CLI 等 | Hook 较完整时可硬拦危险命令、Stop 收口 |
-| **Grok** | **Partial**：UserPromptSubmit **不能**可靠注入；`devcodex grok` 的 exact global-launcher + local-stdio 变体通过新鲜 S15 时可使用渐进式 Skill 路由，其他入口回退 legacy |
+| **Grok** | **Partial enforcement**：UserPromptSubmit 不能可靠注入完整入口块；`devcodex grok` 仍使用统一 local-stdio Skill 路由，但当前精确 variant direct evidence 为 UNVERIFIED，不据此声称与 Codex 的宿主观察能力等价 |
 | 仅 Instruction 的 surface | 语义约束，不保证硬拦 |
 
 「adapter 已安装」≠「五宿主能力完全一致」。

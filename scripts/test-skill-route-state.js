@@ -97,6 +97,7 @@ try {
   assert.strictEqual(parseExplicitSkillId('使用 report Skill'), 'report')
   assert.strictEqual(parseExplicitSkillId('skill:report'), 'report')
 
+  // Acceptance R02 / T01: invalid identities fail before any route mutation.
   const invalidProject = handleSkillRoute({
     op: 'status',
     project: '../escape',
@@ -204,6 +205,43 @@ try {
   assert.strictEqual(forgedCursor.ok, false)
   assert.strictEqual(forgedCursor.errorCode, 'CATALOG_CURSOR_INVALID')
 
+  // Acceptance R01 / R05: choice is exactly null-or-one catalog id and the
+  // public Tool schema rejects caller-authored workflow fields.
+  const unknownChoice = handleSkillRoute({
+    op: 'commit',
+    project: fixture.project,
+    turnBinding: boot.bootstrap.turnBinding,
+    contextEpoch,
+    catalogDigest: boot.bootstrap.catalogDigest,
+    skillId: 'not-in-this-catalog',
+    contextBinding
+  }, fixture.runtimeOptions)
+  assert.strictEqual(unknownChoice.ok, false)
+  assert.strictEqual(unknownChoice.errorCode, 'SKILL_NOT_AUTO_SELECTABLE')
+  const multipleChoice = handleSkillRoute({
+    op: 'commit',
+    project: fixture.project,
+    turnBinding: boot.bootstrap.turnBinding,
+    contextEpoch,
+    catalogDigest: boot.bootstrap.catalogDigest,
+    skillId: ['workspace-probe', 'report'],
+    contextBinding
+  }, fixture.runtimeOptions)
+  assert.strictEqual(multipleChoice.ok, false)
+  assert.strictEqual(multipleChoice.errorCode, 'SKILL_CHOICE_INVALID')
+  const callerWorkflow = handleSkillRoute({
+    op: 'commit',
+    project: fixture.project,
+    turnBinding: boot.bootstrap.turnBinding,
+    contextEpoch,
+    catalogDigest: boot.bootstrap.catalogDigest,
+    skillId: 'workspace-probe',
+    contextBinding,
+    mandatoryIds: ['report']
+  }, fixture.runtimeOptions)
+  assert.strictEqual(callerWorkflow.ok, false)
+  assert.strictEqual(callerWorkflow.errorCode, 'REQUEST_FIELD_UNSUPPORTED')
+
   const contextBindingWithUnknownField = {
     ...contextBinding,
     unexpected: true
@@ -229,6 +267,7 @@ try {
     skillId: 'workspace-probe',
     contextBinding
   }
+  // Acceptance P09: commit returns a complete plan but no Skill body.
   const commit = handleSkillRoute(commitRequest, fixture.runtimeOptions)
   assert.strictEqual(commit.ok, true, JSON.stringify(commit))
   assert.strictEqual(commit.bodyChunks.length, 0)
@@ -281,6 +320,7 @@ try {
   lifecycle.contextAcquisition.receipt.status = 'relevant-complete'
   fs.writeFileSync(lifecyclePath, `${JSON.stringify(lifecycle, null, 2)}\n`, 'utf8')
 
+  // Acceptance P05: stage DAG order is enforced.
   const earlyCloseout = handleSkillRoute({
     op: 'load_stage',
     project: fixture.project,
@@ -312,6 +352,7 @@ try {
     contextEpoch
   }, fixture.runtimeOptions)
   const consumedAfterEntry = statusAfterEntry.receipt.budget.bodyBytesConsumed
+  // Acceptance T04: replay returns the exact body response without recharging.
   const entryReplay = handleSkillRoute({
     op: 'load_stage',
     project: fixture.project,
@@ -344,6 +385,8 @@ try {
   assert.strictEqual(conditionBeforeReplan.ok, false)
   assert.strictEqual(conditionBeforeReplan.errorCode, 'STAGE_NOT_FOUND')
 
+  // Acceptance P07: late conditions create a new generation and preserve only
+  // fully loaded compatible progress.
   const replan = handleSkillRoute({
     ...commitRequest,
     previousPlanDigest: commit.receipt.plan.planDigest,
@@ -440,6 +483,7 @@ try {
   )
   assert.strictEqual(persisted.envelope.state.stageProgress.closeout.status, 'loaded')
 
+  // Acceptance P11: process completion and must-reply are both required.
   const missingBusinessReply = evaluateProgressiveSkillRouteStop({
     project: fixture.project,
     contextEpoch,
@@ -539,6 +583,272 @@ try {
     authorityFixture.cleanup()
   }
 
+  // Acceptance P10: a body changed after planning is rejected without leaking
+  // either the old or the new body.
+  const bodyStaleFixture = createSkillRouteFixture({ project: 'body-stale' })
+  try {
+    const bodyStaleEpoch = 'ctx-body-stale'
+    const bodyStaleBinding = writeContextBindingState(
+      bodyStaleFixture,
+      bodyStaleEpoch,
+      'dev'
+    )
+    const bodyStaleBoot = bootstrapSkillRoute({
+      project: bodyStaleFixture.project,
+      activeRoot: bodyStaleFixture.activeRoot,
+      contextEpoch: bodyStaleEpoch,
+      prompt: 'Run the body stale probe',
+      mode: 'unified',
+      cwd: bodyStaleFixture.projectRoot
+    }, bodyStaleFixture.runtimeOptions)
+    requestCatalogAll(bodyStaleFixture, bodyStaleBoot.bootstrap)
+    const bodyStaleCommit = handleSkillRoute({
+      op: 'commit',
+      project: bodyStaleFixture.project,
+      turnBinding: bodyStaleBoot.bootstrap.turnBinding,
+      contextEpoch: bodyStaleEpoch,
+      catalogDigest: bodyStaleBoot.bootstrap.catalogDigest,
+      skillId: 'workspace-probe',
+      contextBinding: bodyStaleBinding
+    }, bodyStaleFixture.runtimeOptions)
+    assert.strictEqual(bodyStaleCommit.ok, true)
+    fs.appendFileSync(
+      path.join(
+        bodyStaleFixture.root,
+        '.devcodex',
+        'workspace',
+        'skills',
+        'workspace-probe',
+        'SKILL.md'
+      ),
+      '\nBODY_CHANGED_AFTER_PLAN\n',
+      'utf8'
+    )
+    const bodyStaleLoad = handleSkillRoute({
+      op: 'load_stage',
+      project: bodyStaleFixture.project,
+      turnBinding: bodyStaleBoot.bootstrap.turnBinding,
+      contextEpoch: bodyStaleEpoch,
+      generation: bodyStaleCommit.receipt.plan.generation,
+      planDigest: bodyStaleCommit.receipt.plan.planDigest,
+      stageId: 'entry'
+    }, bodyStaleFixture.runtimeOptions)
+    assert.strictEqual(bodyStaleLoad.ok, false)
+    assert.strictEqual(bodyStaleLoad.errorCode, 'SKILL_BODY_STALE')
+    assert.deepStrictEqual(bodyStaleLoad.bodyChunks, [])
+  } finally {
+    bodyStaleFixture.cleanup()
+  }
+
+  // Acceptance R03: explicit selection suppresses the free choice but still
+  // produces the complete workflow/budget plan.
+  const explicitFixture = createSkillRouteFixture({ project: 'explicit-route' })
+  try {
+    const explicitEpoch = 'ctx-explicit-route'
+    const explicitBinding = writeContextBindingState(
+      explicitFixture,
+      explicitEpoch,
+      'dev'
+    )
+    const explicitBoot = bootstrapSkillRoute({
+      project: explicitFixture.project,
+      activeRoot: explicitFixture.activeRoot,
+      contextEpoch: explicitEpoch,
+      prompt: 'skill: workspace-probe',
+      mode: 'unified',
+      cwd: explicitFixture.projectRoot
+    }, explicitFixture.runtimeOptions)
+    assert.strictEqual(explicitBoot.bootstrap.explicitStatus, 'ready')
+    const explicitCommit = handleSkillRoute({
+      op: 'commit',
+      project: explicitFixture.project,
+      turnBinding: explicitBoot.bootstrap.turnBinding,
+      contextEpoch: explicitEpoch,
+      catalogDigest: explicitBoot.bootstrap.catalogDigest,
+      skillId: null,
+      contextBinding: explicitBinding
+    }, explicitFixture.runtimeOptions)
+    assert.strictEqual(explicitCommit.ok, true)
+    assert.strictEqual(explicitCommit.receipt.decision.source, 'explicit')
+    assert.strictEqual(explicitCommit.receipt.decision.skillId, null)
+    assert(explicitCommit.receipt.plan.selectedIds.includes('workspace-probe'))
+
+    const explicitWithFree = handleSkillRoute({
+      op: 'commit',
+      project: explicitFixture.project,
+      turnBinding: explicitBoot.bootstrap.turnBinding,
+      contextEpoch: explicitEpoch,
+      catalogDigest: explicitBoot.bootstrap.catalogDigest,
+      skillId: 'workspace-probe',
+      contextBinding: explicitBinding
+    }, explicitFixture.runtimeOptions)
+    assert.strictEqual(explicitWithFree.ok, false)
+    assert.strictEqual(explicitWithFree.errorCode, 'FREE_WITH_EXPLICIT')
+  } finally {
+    explicitFixture.cleanup()
+  }
+
+  // Acceptance R08: disabling W removes W cards; a workspace-only always-on
+  // root becomes an explicit blocked receipt instead of being ignored.
+  const killSwitchFixture = createSkillRouteFixture({ project: 'kill-switch' })
+  try {
+    fs.writeFileSync(
+      path.join(
+        killSwitchFixture.root,
+        '.devcodex',
+        'workspace',
+        'DEVCODEX.md'
+      ),
+      '# Workspace\n\n- always-on: workspace-probe\n',
+      'utf8'
+    )
+    const disabledOptions = {
+      ...killSwitchFixture.runtimeOptions,
+      env: { DEVCODEX_WORKSPACE_SKILLS: '0' }
+    }
+    const killEpoch = 'ctx-kill-switch'
+    const killBinding = writeContextBindingState(
+      killSwitchFixture,
+      killEpoch,
+      'dev'
+    )
+    const killBoot = bootstrapSkillRoute({
+      project: killSwitchFixture.project,
+      activeRoot: killSwitchFixture.activeRoot,
+      contextEpoch: killEpoch,
+      prompt: 'Run the kill switch probe',
+      mode: 'unified',
+      cwd: killSwitchFixture.projectRoot
+    }, disabledOptions)
+    const killPages = requestCatalogAll(
+      killSwitchFixture,
+      killBoot.bootstrap,
+      disabledOptions
+    )
+    assert.strictEqual(
+      killPages.some(response => response.receipt.cards.some(card =>
+        card.skillId === 'workspace-probe'
+      )),
+      false
+    )
+    const killCommit = handleSkillRoute({
+      op: 'commit',
+      project: killSwitchFixture.project,
+      turnBinding: killBoot.bootstrap.turnBinding,
+      contextEpoch: killEpoch,
+      catalogDigest: killBoot.bootstrap.catalogDigest,
+      skillId: null,
+      contextBinding: killBinding
+    }, disabledOptions)
+    assert.strictEqual(killCommit.ok, false, JSON.stringify(killCommit))
+    assert.strictEqual(killCommit.errorCode, 'ROOT_PLAN_BLOCKED')
+    assert.strictEqual(killCommit.receipt.plan.status, 'blocked')
+    assert(killCommit.receipt.plan.blockedCodes.includes(
+      'WORKSPACE_ALWAYS_ON_DISABLED'
+    ))
+    const killEnvelope = loadEnvelope(
+      killSwitchFixture.activeRoot,
+      killBoot.bootstrap.turnBinding,
+      disabledOptions
+    )
+    assert(killEnvelope.envelope.state.plan.baseResolution.blocked.some(item =>
+      item.code === 'WORKSPACE_ALWAYS_ON_DISABLED' &&
+      item.skillId === 'workspace-probe'
+    ))
+  } finally {
+    killSwitchFixture.cleanup()
+  }
+
+  // Acceptance T01a / T07 / M10: bootstrap identity is idempotent per epoch,
+  // a new epoch gets a new snapshot, and changed W content cannot rewrite an
+  // existing turn.
+  const snapshotFixture = createSkillRouteFixture({ project: 'snapshot' })
+  try {
+    const firstEpoch = 'ctx-snapshot-first'
+    const firstBinding = writeContextBindingState(snapshotFixture, firstEpoch, 'dev')
+    const firstBoot = bootstrapSkillRoute({
+      project: snapshotFixture.project,
+      activeRoot: snapshotFixture.activeRoot,
+      contextEpoch: firstEpoch,
+      prompt: 'Run snapshot probe',
+      mode: 'unified',
+      cwd: snapshotFixture.projectRoot
+    }, snapshotFixture.runtimeOptions)
+    const firstReuse = bootstrapSkillRoute({
+      project: snapshotFixture.project,
+      activeRoot: snapshotFixture.activeRoot,
+      contextEpoch: firstEpoch,
+      prompt: 'Run snapshot probe',
+      mode: 'unified',
+      cwd: snapshotFixture.projectRoot
+    }, snapshotFixture.runtimeOptions)
+    assert.strictEqual(firstReuse.reused, true)
+    requestCatalogAll(snapshotFixture, firstBoot.bootstrap)
+    const firstCommit = handleSkillRoute({
+      op: 'commit',
+      project: snapshotFixture.project,
+      turnBinding: firstBoot.bootstrap.turnBinding,
+      contextEpoch: firstEpoch,
+      catalogDigest: firstBoot.bootstrap.catalogDigest,
+      skillId: 'workspace-probe',
+      contextBinding: firstBinding
+    }, snapshotFixture.runtimeOptions)
+    const firstEntry = loadStageAll(snapshotFixture, {
+      turnBinding: firstBoot.bootstrap.turnBinding,
+      contextEpoch: firstEpoch,
+      generation: firstCommit.receipt.plan.generation,
+      planDigest: firstCommit.receipt.plan.planDigest
+    }, 'entry')
+    assert(firstEntry.some(response => response.bodyChunks.length > 0))
+
+    const secondEpoch = 'ctx-snapshot-second'
+    const secondBinding = writeContextBindingState(snapshotFixture, secondEpoch, 'dev')
+    const secondBoot = bootstrapSkillRoute({
+      project: snapshotFixture.project,
+      activeRoot: snapshotFixture.activeRoot,
+      contextEpoch: secondEpoch,
+      prompt: 'Run snapshot probe',
+      mode: 'unified',
+      cwd: snapshotFixture.projectRoot
+    }, snapshotFixture.runtimeOptions)
+    assert.notStrictEqual(
+      secondBoot.bootstrap.turnBinding,
+      firstBoot.bootstrap.turnBinding
+    )
+    requestCatalogAll(snapshotFixture, secondBoot.bootstrap)
+    const secondCommit = handleSkillRoute({
+      op: 'commit',
+      project: snapshotFixture.project,
+      turnBinding: secondBoot.bootstrap.turnBinding,
+      contextEpoch: secondEpoch,
+      catalogDigest: secondBoot.bootstrap.catalogDigest,
+      skillId: 'workspace-probe',
+      contextBinding: secondBinding
+    }, snapshotFixture.runtimeOptions)
+    const secondEntry = loadStageAll(snapshotFixture, {
+      turnBinding: secondBoot.bootstrap.turnBinding,
+      contextEpoch: secondEpoch,
+      generation: secondCommit.receipt.plan.generation,
+      planDigest: secondCommit.receipt.plan.planDigest
+    }, 'entry')
+    assert(secondEntry.some(response => response.bodyChunks.length > 0))
+
+    writeWorkspaceSkill(snapshotFixture.root, 'workspace-probe', '-changed')
+    assert.throws(
+      () => bootstrapSkillRoute({
+        project: snapshotFixture.project,
+        activeRoot: snapshotFixture.activeRoot,
+        contextEpoch: firstEpoch,
+        prompt: 'Run snapshot probe',
+        mode: 'unified',
+        cwd: snapshotFixture.projectRoot
+      }, snapshotFixture.runtimeOptions),
+      error => error && error.code === 'BOOTSTRAP_IDENTITY_COLLISION'
+    )
+  } finally {
+    snapshotFixture.cleanup()
+  }
+
   const replayBudgetFixture = createSkillRouteFixture({ project: 'replay-budget' })
   try {
     const replayBoot = bootstrapSkillRoute({
@@ -574,6 +884,114 @@ try {
       fs.readFileSync(replayBoot.paths.envelope, 'utf8'),
       envelopeBefore
     )
+
+    // Acceptance T03 / T06: a reused idempotency key with a different request
+    // is rejected, while a dead stale lock is recoverable.
+    const collisionKey = 'a'.repeat(64)
+    const firstTransaction = transactEnvelope(
+      replayBudgetFixture.activeRoot,
+      replayBoot.bootstrap.turnBinding,
+      {
+        op: 'collision-probe',
+        project: replayBudgetFixture.project,
+        contextEpoch: 'ctx-replay-budget',
+        value: 1
+      },
+      envelope => ({
+        envelope,
+        response: { schemaVersion: 'CollisionProbeV1', value: 1 }
+      }),
+      {
+        ...replayBudgetFixture.runtimeOptions,
+        idempotencyKey: collisionKey
+      }
+    )
+    assert.strictEqual(firstTransaction.replayed, false)
+    assert.throws(
+      () => transactEnvelope(
+        replayBudgetFixture.activeRoot,
+        replayBoot.bootstrap.turnBinding,
+        {
+          op: 'collision-probe',
+          project: replayBudgetFixture.project,
+          contextEpoch: 'ctx-replay-budget',
+          value: 2
+        },
+        () => {
+          throw new Error('collision must not mutate')
+        },
+        {
+          ...replayBudgetFixture.runtimeOptions,
+          idempotencyKey: collisionKey
+        }
+      ),
+      error => error && error.code === 'IDEMPOTENCY_COLLISION'
+    )
+
+    // Acceptance T05: the active-root mutation lock serializes different
+    // turns/operations and fails without mutating when the owner is live.
+    const rootMutationLock = path.join(
+      routeRootForActiveRoot(replayBudgetFixture.activeRoot),
+      'skill-route-mutation.lock'
+    )
+    const beforeRootLockProbe = fs.readFileSync(replayBoot.paths.envelope, 'utf8')
+    fs.writeFileSync(rootMutationLock, `${JSON.stringify({
+      schemaVersion: 'SkillRouteRootMutationLockV1',
+      pid: process.pid,
+      op: 'live-root-lock',
+      key: 'live-root-lock',
+      startedAt: new Date().toISOString()
+    })}\n`, 'utf8')
+    assert.throws(
+      () => transactEnvelope(
+        replayBudgetFixture.activeRoot,
+        replayBoot.bootstrap.turnBinding,
+        {
+          op: 'root-lock-probe',
+          project: replayBudgetFixture.project,
+          contextEpoch: 'ctx-replay-budget'
+        },
+        () => {
+          throw new Error('live root lock must prevent mutation')
+        },
+        {
+          ...replayBudgetFixture.runtimeOptions,
+          rootLockTimeoutMs: 20
+        }
+      ),
+      error => error && error.code === 'ROOT_MUTATION_LOCK_TIMEOUT'
+    )
+    assert.strictEqual(
+      fs.readFileSync(replayBoot.paths.envelope, 'utf8'),
+      beforeRootLockProbe
+    )
+    fs.unlinkSync(rootMutationLock)
+
+    fs.writeFileSync(replayBoot.paths.lock, `${JSON.stringify({
+      schemaVersion: 'SkillRouteLockV1',
+      pid: 2147483647,
+      op: 'stale-probe',
+      key: 'stale-probe',
+      startedAt: '2000-01-01T00:00:00.000Z'
+    })}\n`, 'utf8')
+    const staleRecovered = transactEnvelope(
+      replayBudgetFixture.activeRoot,
+      replayBoot.bootstrap.turnBinding,
+      {
+        op: 'stale-lock-probe',
+        project: replayBudgetFixture.project,
+        contextEpoch: 'ctx-replay-budget'
+      },
+      envelope => ({
+        envelope,
+        response: { schemaVersion: 'StaleLockProbeV1', ok: true }
+      }),
+      {
+        ...replayBudgetFixture.runtimeOptions,
+        lockStaleMs: 1
+      }
+    )
+    assert.strictEqual(staleRecovered.response.ok, true)
   } finally {
     replayBudgetFixture.cleanup()
   }

@@ -11,6 +11,9 @@ const {
 const {
   HOST_VARIANTS
 } = require('../hooks/_runtime/host-adapter-identity.cjs')
+const {
+  usage: retirementSampleUsage
+} = require('./run-skill-route-retirement-sample.js')
 
 const policy = require(POLICY_PATH)
 const runtimeDigest = crypto.createHash('sha256').update('runtime').digest('hex')
@@ -145,5 +148,7 @@ const unboundCurrentContract = evaluateSkillRouteRetirement({
 })
 assert.strictEqual(unboundCurrentContract.status, 'BLOCK')
 assert(unboundCurrentContract.reasons.includes('current-runtime-digest-unbound'))
+assert(retirementSampleUsage().includes('--help'))
+assert(retirementSampleUsage().includes('--host <name[,name...]>'))
 
-console.log('skill route retirement gate passed: hosts=5 runs=100 windowHours=72 negativeProbes=5')
+console.log('skill route retirement gate passed: hosts=5 runs=100 windowHours=72 negativeProbes=5 samplerHelp=PASS')

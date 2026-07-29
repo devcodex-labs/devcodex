@@ -14,6 +14,22 @@ const SOURCE_ROOT = path.resolve(__dirname, '..')
 const HOSTS = ['claude', 'codex', 'copilot', 'gemini', 'grok']
 const argv = process.argv.slice(2)
 
+function usage () {
+  return [
+    'Usage: node scripts/run-skill-route-retirement-sample.js [options]',
+    '',
+    'Options:',
+    '  --host <name[,name...]>  Exact hosts to sample (default: all)',
+    '  --root <path>             DevCodex active-root',
+    '  --evidence-dir <path>     Evidence output directory',
+    '  --timeout-ms <ms>         Per-host probe timeout (default: 900000)',
+    '  --max-turns <count>       Grok probe turn limit (default: 32)',
+    '  --candidate               Run candidate probes instead of production-eligible probes',
+    '  --strict                  Exit non-zero when a probe or the retirement gate blocks',
+    '  --help                    Show this help without running probes'
+  ].join('\n')
+}
+
 function argument (name, fallback = '') {
   const index = argv.indexOf(name)
   return index >= 0 && argv[index + 1] ? argv[index + 1] : fallback
@@ -56,6 +72,10 @@ function runProbe (host, evidenceFile, candidate) {
 }
 
 function main () {
+  if (argv.includes('--help')) {
+    process.stdout.write(`${usage()}\n`)
+    return
+  }
   const candidate = argv.includes('--candidate')
   const activeRoot = path.resolve(
     argument(
@@ -139,5 +159,6 @@ if (require.main === module) main()
 module.exports = {
   HOSTS,
   safeStamp,
-  selectedHosts
+  selectedHosts,
+  usage
 }

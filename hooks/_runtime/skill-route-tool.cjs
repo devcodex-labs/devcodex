@@ -1172,6 +1172,25 @@ function evaluateProgressiveSkillRouteStop (input, options = {}) {
   }
 }
 
+const NON_RECOVERABLE_ROUTE_IDENTITY_ERRORS = new Set([
+  'MODE_CAPABILITY_STALE',
+  'RUNTIME_CONTRACT_STALE'
+])
+
+function shouldEnforceProgressiveSkillRouteStop (routeStop, explicitRoutePending) {
+  if (!routeStop?.present || routeStop.complete) return false
+  if (routeStop.errorCode === 'PLAN_NOT_COMMITTED') {
+    return explicitRoutePending === true
+  }
+  if (NON_RECOVERABLE_ROUTE_IDENTITY_ERRORS.has(routeStop.errorCode)) {
+    // A runtime/capability refresh invalidates the frozen turn identity. A
+    // non-explicit route has no body obligation, so fail closed without
+    // trapping Stop in a continuation that cannot repair the old envelope.
+    return explicitRoutePending === true
+  }
+  return true
+}
+
 function handleSkillRoute (input, options = {}) {
   const shapeError = validateRequestShape(input)
   if (shapeError) return makeToolError(input?.op || 'unknown', shapeError)
@@ -1266,6 +1285,7 @@ module.exports = {
   finalizeResponse,
   handleSkillRoute,
   evaluateProgressiveSkillRouteStop,
+  shouldEnforceProgressiveSkillRouteStop,
   formatSkillRouteBootstrapInjection,
   bootstrapSkillRouteForTurn,
   summarizePlan,

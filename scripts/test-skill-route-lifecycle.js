@@ -9,6 +9,9 @@ const { spawnSync } = require('child_process')
 const {
   createSkillRouteFixture
 } = require('./lib/skill-route-test-fixture')
+const {
+  shouldEnforceProgressiveSkillRouteStop
+} = require('../hooks/_runtime/skill-route-tool.cjs')
 
 const RUNTIME = path.resolve(__dirname, '..', 'hooks', '_runtime', 'lifecycle.cjs')
 
@@ -106,6 +109,64 @@ function runLifecycle (fixture, payload = {}, env = {}) {
       childBefore.contextAcquisition.contextEpoch
     )
     assert.strictEqual(childAfter.progressiveSkillRouteStopCount || 0, 0)
+
+    assert.strictEqual(
+      shouldEnforceProgressiveSkillRouteStop({
+        present: true,
+        complete: false,
+        errorCode: 'MODE_CAPABILITY_STALE'
+      }, false),
+      false
+    )
+    assert.strictEqual(
+      shouldEnforceProgressiveSkillRouteStop({
+        present: true,
+        complete: false,
+        errorCode: 'MODE_CAPABILITY_STALE'
+      }, true),
+      true
+    )
+
+    const staleSession = 'non-explicit-runtime-refresh'
+    runLifecycle(fixture, {
+      session_id: staleSession,
+      prompt: 'Summarize the current implementation status'
+    })
+    const alternateSkillsRoot = path.join(fixture.root, 'alternate-skills')
+    fs.mkdirSync(path.join(alternateSkillsRoot, '_schemas'), { recursive: true })
+    fs.copyFileSync(
+      path.join(fixture.packageRoot, 'skills', 'portfolio.json'),
+      path.join(alternateSkillsRoot, 'portfolio.json')
+    )
+    for (const schema of [
+      'skill-intent.v1.schema.json',
+      'workflow-root-registry.v1.schema.json',
+      'progressive-skill-route.v1.schema.json'
+    ]) {
+      fs.copyFileSync(
+        path.join(fixture.packageRoot, 'skills', '_schemas', schema),
+        path.join(alternateSkillsRoot, '_schemas', schema)
+      )
+    }
+    fs.appendFileSync(
+      path.join(alternateSkillsRoot, '_schemas', 'skill-intent.v1.schema.json'),
+      '\n',
+      'utf8'
+    )
+    const staleStop = runLifecycle(fixture, {
+      hookEventName: 'Stop',
+      session_id: staleSession,
+      lastAssistantMessage: 'Implementation status summarized.'
+    }, {
+      DEVCODEX_GLOBAL_SKILLS_RUNTIME: alternateSkillsRoot
+    })
+    assert.doesNotMatch(staleStop.text, /Progressive Skill route is incomplete/)
+    const staleState = JSON.parse(fs.readFileSync(sessionFile(staleSession), 'utf8'))
+    assert.strictEqual(
+      staleState.progressiveSkillRouteStop.errorCode,
+      'RUNTIME_CONTRACT_STALE'
+    )
+    assert.strictEqual(staleState.progressiveSkillRouteStopCount || 0, 0)
   } finally {
     fixture.cleanup()
   }

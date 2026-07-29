@@ -11,10 +11,10 @@
     "pluginDigest": "705fe7c86c7225b67756749be5bb3b14a1ee3bffa386483a9ab61dc971f419ae",
     "portfolioEvidence": "skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "8364a73c66ed2ec9787cdb9300223278d128a45b689a2b8deda0d1f03189f42b",
-    "consumerInventoryFileCount": 482,
-    "consumerInventoryDigest": "4e64bbe16c22c73b0b4510c7ca628e0a3b32dad24b45f74ee6864990c3fc3ddd",
-    "consumerProjectionDigest": "2cf58088304bebaf95c778266bb663dda2b6dc934f08810e70247a9665604065",
-    "portfolioInputDigest": "02e808b3092e5f8e37a8f4168e5581e2918429cb839c97930718af3eef813cf6"
+    "consumerInventoryFileCount": 484,
+    "consumerInventoryDigest": "b41848c7674010854bda6ef9503b8a0ad3d725b7beabe021c9b7cc618bdcb727",
+    "consumerProjectionDigest": "536f496032116a06bc8598c46deb39d8d06b7794de0589c39ed2e23b13b90ea0",
+    "portfolioInputDigest": "388dfc88d475e57d9274319ee838caa8fab7b7ba66b0c1f83d54eafb5eb1689f"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -10761,6 +10761,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/fixtures/skill-route-closure-trace.v1.json",
+          "role": "current"
+        },
+        {
           "path": "scripts/generate-skill-intents.js",
           "role": "current"
         },
@@ -10941,7 +10945,15 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-skill-route-closure.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-skill-route-contracts.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-skill-route-lifecycle.js",
           "role": "current"
         },
         {
@@ -10987,7 +10999,9 @@
         "scripts/test-skill-intents.js",
         "scripts/test-skill-portfolio.js",
         "scripts/test-skill-resolve.js",
+        "scripts/test-skill-route-closure.js",
         "scripts/test-skill-route-contracts.js",
+        "scripts/test-skill-route-lifecycle.js",
         "scripts/test-skill-route-state.js",
         "scripts/test-visible-output-contract.js",
         "scripts/test-workflow-completion-contract.js",
@@ -11077,7 +11091,9 @@
           "scripts/test-skill-intents.js",
           "scripts/test-skill-portfolio.js",
           "scripts/test-skill-resolve.js",
+          "scripts/test-skill-route-closure.js",
           "scripts/test-skill-route-contracts.js",
+          "scripts/test-skill-route-lifecycle.js",
           "scripts/test-skill-route-state.js",
           "scripts/test-visible-output-contract.js",
           "scripts/test-workflow-completion-contract.js",

@@ -1722,7 +1722,8 @@ async function main() {
     if (eventName === 'Stop' && state.contextAcquisition?.contextEpoch) {
       try {
         const {
-          evaluateProgressiveSkillRouteStop
+          evaluateProgressiveSkillRouteStop,
+          shouldEnforceProgressiveSkillRouteStop
         } = require('./skill-route-tool.cjs')
         const routeStop = evaluateProgressiveSkillRouteStop({
           project: state.contextAcquisition.project,
@@ -1736,9 +1737,10 @@ async function main() {
         const explicitRoutePending =
           state.progressiveSkillRoute?.bootstrap?.explicitStatus === 'ready'
         if (
-          routeStop.present &&
-          !routeStop.complete &&
-          (routeStop.errorCode !== 'PLAN_NOT_COMMITTED' || explicitRoutePending)
+          shouldEnforceProgressiveSkillRouteStop(
+            routeStop,
+            explicitRoutePending
+          )
         ) {
           const enforceCount = Number(state.progressiveSkillRouteStopCount || 0)
           if (enforceCount < 2) {

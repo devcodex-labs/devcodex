@@ -68,6 +68,17 @@ assert.strictEqual(claude.payload.devcodexHostSurface, 'claude')
 const codex = normalizeHostPayload('codex', { hook_event_name: 'PreCompact' })
 assert.strictEqual(codex.mappedEvent, 'PreCompact')
 assert.strictEqual(codex.payload.devcodexHostSurface, 'codex')
+const codexPost = normalizeHostPayload('codex', {
+  hook_event_name: 'PostToolUse',
+  tool_response: {
+    success: false,
+    error: { code: 'CONDITIONAL_UNAVAILABLE' }
+  }
+})
+assert.deepStrictEqual(codexPost.payload.tool_result, {
+  success: false,
+  error: { code: 'CONDITIONAL_UNAVAILABLE' }
+})
 const copilot = normalizeHostPayload('copilot', {
   hookEventName: 'preToolUse',
   sessionId: 'copilot-session',

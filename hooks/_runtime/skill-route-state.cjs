@@ -838,6 +838,12 @@ function recordSkillRouteProbeObservation (activeRoot, turnBinding, evidence, op
     error.code = 'PROBE_EVIDENCE_DIGEST_INVALID'
     throw error
   }
+  const marker = String(evidence.marker || '')
+  if (!marker || String(evidence.markerDigest || '') !== sha256(marker)) {
+    const error = new Error('PROBE_MARKER_DIGEST_INVALID')
+    error.code = 'PROBE_MARKER_DIGEST_INVALID'
+    throw error
+  }
   const request = {
     op: 'probe_observation',
     project: evidence.project,
@@ -872,7 +878,7 @@ function recordSkillRouteProbeObservation (activeRoot, turnBinding, evidence, op
         hostVariant,
         evidenceDigest,
         observedOps: [...observedOps].sort(),
-        markerDigest: sha256(evidence.marker),
+        markerDigest: evidence.markerDigest,
         observedAt: new Date().toISOString()
       }
       const response = {

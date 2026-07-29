@@ -14,6 +14,11 @@ const {
 const {
   usage: retirementSampleUsage
 } = require('./run-skill-route-retirement-sample.js')
+const {
+  buildPrompt: buildHostProbePrompt,
+  hostArgs: buildHostProbeArgs,
+  stripProbeHookArgs
+} = require('./probe-skill-route-s15-host.js')
 
 const policy = require(POLICY_PATH)
 const runtimeDigest = crypto.createHash('sha256').update('runtime').digest('hex')
@@ -150,5 +155,25 @@ assert.strictEqual(unboundCurrentContract.status, 'BLOCK')
 assert(unboundCurrentContract.reasons.includes('current-runtime-digest-unbound'))
 assert(retirementSampleUsage().includes('--help'))
 assert(retirementSampleUsage().includes('--host <name[,name...]>'))
+const hostProbePrompt = buildHostProbePrompt({
+  contextEpoch: 'ctx-probe',
+  hostId: 'codex',
+  project: 's15-codex',
+  skillId: 'workspace-s15-probe'
+})
+assert(hostProbePrompt.includes('"intent":"dev"'))
+assert(hostProbePrompt.includes('"changeTypes":["source-code","testing"]'))
+assert(hostProbePrompt.includes('lateConditionId=test-validation'))
+assert(hostProbePrompt.includes('generation=1'))
+assert(buildHostProbeArgs('codex', 'probe', 'schema.json', 'output.json').includes('--json'))
+assert.strictEqual(
+  stripProbeHookArgs(
+    'node "C:\\runtime\\lifecycle-host-adapters.cjs" codex ' +
+    '--skill-route-probe-authority "C:\\stale\\authority.json" ' +
+    '--skill-route-trace "C:\\stale\\route.jsonl" ' +
+    '--context-epoch "ctx-stale"'
+  ),
+  'node "C:\\runtime\\lifecycle-host-adapters.cjs" codex'
+)
 
 console.log('skill route retirement gate passed: hosts=5 runs=100 windowHours=72 negativeProbes=5 samplerHelp=PASS')

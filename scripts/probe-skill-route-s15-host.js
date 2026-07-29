@@ -134,7 +134,10 @@ function run (command, args, options = {}) {
     timeout: options.timeout || 120000,
     maxBuffer: 24 * 1024 * 1024
   })
-  if (result.error) throw result.error
+  if (result.error) {
+    result.error.spawnResult = result
+    throw result.error
+  }
   return result
 }
 
@@ -181,7 +184,7 @@ function buildPrompt ({ contextEpoch, hostId, project, skillId }) {
   return [
     'This is an isolated direct-observation acceptance probe.',
     `Project ${project}.`,
-    'Treat the task as audit/testing. The probe operator has authorized its temporary internal route-state writes; do not request confirmation.',
+    'Treat the task as isolated development/testing. The probe operator has authorized its temporary internal route-state writes; do not request confirmation.',
     'You MUST make the MCP tool calls below before producing any final answer.',
     'A JSON-only answer without actual tool calls is a failed probe, even if it matches the schema.',
     'Every final field is independently compared with persisted MCP state; never estimate, shorten, or invent a digest, stage id, marker, or receipt.',
@@ -189,8 +192,8 @@ function buildPrompt ({ contextEpoch, hostId, project, skillId }) {
     'Use only the devcodex-profile and devcodex-memory MCP tools for the workflow below.',
     'First call profile_context_plan with:',
     JSON.stringify({
-      intent: 'audit',
-      changeTypes: ['testing'],
+      intent: 'dev',
+      changeTypes: ['source-code', 'testing'],
       contextEpoch,
       project,
       host: hostId,
@@ -208,6 +211,8 @@ function buildPrompt ({ contextEpoch, hostId, project, skillId }) {
     `Choose exactly the top-level Skill whose skillId is ${skillId}; do not substitute another acceptance or probe Skill.`,
     'For the first commit call use exactly these fields and no others: op, project, turnBinding, contextEpoch, catalogDigest, skillId, contextBinding.',
     'Immediately replan the same choice. Use exactly: op, project, turnBinding, contextEpoch, catalogDigest, skillId, contextBinding, previousPlanDigest, lateConditionId; set lateConditionId=test-validation.',
+    'Wait for that conditional replan call to return successfully. Do not call load_stage unless its returned plan has generation=1 and activatedConditionIds contains test-validation.',
+    'Run every skill_route call serially. If a required call returns an error, do not retry it or continue with an older plan.',
     'For load_stage use exactly: op, project, turnBinding, contextEpoch, generation, planDigest, stageId, and cursor only when the prior page returned one.',
     'Load every page of every stage in dependency order: entry, execution:test-validation, then closeout.',
     'Call status and require processComplete=true with every required stage loaded.',
@@ -226,6 +231,7 @@ function hostArgs (hostId, prompt, schemaPath, outputPath) {
       'exec',
       '--skip-git-repo-check',
       '--ephemeral',
+      '--json',
       '--output-schema', schemaPath,
       '--output-last-message', outputPath,
       '--color', 'never',
@@ -434,6 +440,22 @@ function discoverFixtureState (fixture) {
   return found
 }
 
+const PROBE_HOOK_FLAGS = Object.freeze([
+  '--skill-route-probe-authority',
+  '--skill-route-trace',
+  '--lifecycle-trace',
+  '--workspace-root',
+  '--context-epoch'
+])
+
+function stripProbeHookArgs (command) {
+  const value = String(command || '')
+  const offsets = PROBE_HOOK_FLAGS
+    .map(flag => value.indexOf(` ${flag} `))
+    .filter(offset => offset >= 0)
+  return offsets.length ? value.slice(0, Math.min(...offsets)).trimEnd() : value
+}
+
 function patchProbeHookCommand (
   hostId,
   authorityPath,
@@ -469,7 +491,7 @@ function patchProbeHookCommand (
     for (const [key, child] of Object.entries(value)) {
       if (key === 'command' && typeof child === 'string' &&
           child.includes('lifecycle-host-adapters.cjs')) {
-        value[key] = `${child} ${suffix}`
+        value[key] = `${stripProbeHookArgs(child)} ${suffix}`
         patchedCommands += 1
       } else {
         visit(child)
@@ -481,8 +503,27 @@ function patchProbeHookCommand (
   const patched = `${JSON.stringify(config, null, 2)}\n`
   fs.writeFileSync(configPath, patched, 'utf8')
   return () => {
-    if (fs.existsSync(configPath) && fs.readFileSync(configPath, 'utf8') === patched) {
-      fs.writeFileSync(configPath, original, 'utf8')
+    if (!fs.existsSync(configPath)) return
+    const current = JSON.parse(fs.readFileSync(configPath, 'utf8'))
+    let restoredCommands = 0
+    function restore (value) {
+      if (!value || typeof value !== 'object') return
+      for (const [key, child] of Object.entries(value)) {
+        if (key === 'command' && typeof child === 'string' &&
+            child.includes('lifecycle-host-adapters.cjs')) {
+          const clean = stripProbeHookArgs(child)
+          if (clean !== child) {
+            value[key] = clean
+            restoredCommands += 1
+          }
+        } else {
+          restore(child)
+        }
+      }
+    }
+    restore(current)
+    if (restoredCommands > 0) {
+      fs.writeFileSync(configPath, `${JSON.stringify(current, null, 2)}\n`, 'utf8')
     }
   }
 }
@@ -690,6 +731,7 @@ function main () {
       loadedStageIds,
       processComplete: loadedStageIds.length === requiredStageIds.length,
       bodyDigest: selectedChunk.bodyDigest,
+      marker,
       markerDigest: sha256(marker),
       contextAcquisition: {
         source: 'host-hooks',
@@ -756,7 +798,8 @@ function main () {
       evidenceOutput: evidenceOutput ? path.resolve(evidenceOutput) : null
     })}\n`)
   } catch (error) {
-    const errorCode = classifyFailure(descriptor, modelRun, error)
+    const failedRun = modelRun || error.spawnResult || null
+    const errorCode = classifyFailure(descriptor, failedRun, error)
     writeFailure(evidenceOutput, {
       errorCode,
       host: descriptor.lifecycleHost,
@@ -766,10 +809,10 @@ function main () {
       hostAdapterDigest,
       startedAt,
       failedAt: new Date().toISOString(),
-      exitCode: modelRun?.status ?? null,
+      exitCode: failedRun?.status ?? null,
       error: error.message,
-      stdout: String(modelRun?.stdout || '').slice(-12000),
-      stderr: String(modelRun?.stderr || '').slice(-12000),
+      stdout: String(failedRun?.stdout || '').slice(-12000),
+      stderr: String(failedRun?.stderr || '').slice(-12000),
       routeTrace: readTraceTail(routeTracePath),
       lifecycleTrace: readTraceTail(lifecycleTracePath),
       lifecycleState: readLifecycleSnapshot(fixture),
@@ -792,5 +835,6 @@ module.exports = {
   hostArgs,
   patchProbeHookCommand,
   resolveExecutable,
-  resultSchema
+  resultSchema,
+  stripProbeHookArgs
 }

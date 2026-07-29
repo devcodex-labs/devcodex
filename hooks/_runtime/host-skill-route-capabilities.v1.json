@@ -10,10 +10,16 @@
     },
     {
       "hostVariant": "codex-cli/exec-user-global-local-stdio",
-      "status": "UNVERIFIED",
-      "testedVersion": "unverified",
+      "status": "PASS",
+      "testedVersion": "codex-cli 0.145.0",
       "protocol": "MCP 2024-11-05",
-      "evidenceRef": null
+      "runtimeContractDigest": "78b04aeb54897ea111fb20697b7031695eafd11fc089708734ab8fee132c43ac",
+      "hostAdapterDigest": "7db6ee0f7b46dee235ec7bd38c1930f44f55b1cb7b31c6b31f280d3c786ee131",
+      "evidenceDigest": "c8a57c368a2d7d464ed13ca47f51fe704f413cecba76445e3d10025e555eb734",
+      "evidenceRef": "E:/Worker/.devcodex/devcodex/.audit-state/skill-route-s15-codex-20260729-candidate-r5.json",
+      "entrySurface": "codex exec --ephemeral",
+      "bootstrapDelivery": "user-global hooks.json UserPromptSubmit",
+      "defaultEligible": true
     },
     {
       "hostVariant": "copilot-cli/print-user-global-local-stdio",

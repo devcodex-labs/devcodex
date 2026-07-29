@@ -307,6 +307,12 @@ function normalizeHostPayload(host, payload) {
     devcodexHostSurface: host,
     devcodexHostEventName: originalEvent
   }
+  if (normalized.toolResponse !== undefined && normalized.tool_result === undefined) {
+    normalized.tool_result = normalized.toolResponse
+  }
+  if (normalized.tool_response !== undefined && normalized.tool_result === undefined) {
+    normalized.tool_result = normalized.tool_response
+  }
   // Grok and Copilot camelCase payloads are normalized to the lifecycle field names.
   if (host === 'grok' || host === 'copilot') {
     if (normalized.toolName && !normalized.tool_name) normalized.tool_name = normalized.toolName

@@ -127,15 +127,32 @@ function isOptionalMaintainerWebsiteNegativeNeedle(needle) {
 
 function createCanonicalAwareReader(root, readRaw, existsRaw = file => fs.existsSync(file)) {
   let deliveryFiles = null
+  let maintainerWebsiteIgnorePolicy
+  function hasMaintainerWebsiteIgnorePolicyForReader() {
+    if (maintainerWebsiteIgnorePolicy != null) return maintainerWebsiteIgnorePolicy
+    try {
+      const ignore = readRaw(path.join(root, '.gitignore'))
+      maintainerWebsiteIgnorePolicy = String(ignore).includes('website/*') && String(ignore).includes('!website/README.md')
+    } catch {
+      maintainerWebsiteIgnorePolicy = false
+    }
+    return maintainerWebsiteIgnorePolicy
+  }
+  function isOptionalMaintainerWebsiteAssetForReader(relative) {
+    const normalized = String(relative || '').replace(/\\/g, '/')
+    return normalized.startsWith('website/') &&
+      normalized !== 'website/README.md' &&
+      hasMaintainerWebsiteIgnorePolicyForReader()
+  }
   function readCanonicalDelivery(relative) {
     if (!/^(?:instructions\.md|(?:instructions|prompts)\/.+|skills\/.+)$/.test(relative)) {
       return null
     }
-    if (!fs.existsSync(path.join(root, 'content', 'manifest.json'))) return null
+    if (!existsRaw(path.join(root, 'content', 'manifest.json'))) return null
     const canonicalAsset = resolveControlAsset(root, relative)
-    if (canonicalAsset !== path.join(root, relative) && fs.existsSync(canonicalAsset) &&
+    if (canonicalAsset !== path.join(root, relative) && existsRaw(canonicalAsset) &&
         !/^(?:instructions\.md|(?:instructions|prompts)\/.+\.md|skills\/[^/]+\/SKILL\.md)$/.test(relative)) {
-      return fs.readFileSync(canonicalAsset, 'utf8')
+      return readRaw(canonicalAsset)
     }
     if (!deliveryFiles) {
       deliveryFiles = new Map(
@@ -154,7 +171,7 @@ function createCanonicalAwareReader(root, readRaw, existsRaw = file => fs.exists
     } catch (error) {
       const canonical = error?.code === 'ENOENT' ? readCanonicalDelivery(relative) : null
       if (canonical == null) {
-        if (!isOptionalMaintainerWebsiteAsset(root, relative)) throw error
+        if (!isOptionalMaintainerWebsiteAssetForReader(relative)) throw error
         optionalMaintainerWebsite = true
         value = ''
       } else {
@@ -175,7 +192,7 @@ function createCanonicalAwareReader(root, readRaw, existsRaw = file => fs.exists
   read.exists = function exists(file) {
     if (existsRaw(file)) return true
     const relative = path.relative(root, file).replace(/\\/g, '/')
-    if (isOptionalMaintainerWebsiteAsset(root, relative)) return true
+    if (isOptionalMaintainerWebsiteAssetForReader(relative)) return true
     return readCanonicalDelivery(relative) != null
   }
 

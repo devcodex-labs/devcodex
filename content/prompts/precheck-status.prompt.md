@@ -7,23 +7,24 @@ applyTo: "**"
 
 输出当前会话的头部信息，格式如下：
 
-## 全模式入口检查（推荐格式）
+## 全模式入口检查（推荐格式 · UserVisibleReplyLayoutV1 · 五宿主同源）
 
 ```markdown
 ### DevCodex · 入口检查
 `[PASS/WARN/BLOCK/UNVERIFIED]` · `[项目名/未识别]`
 
-- PC0 [状态] ContextReadPlan 与必要来源回执
-- PC1 [状态] 语义初判 → 项目现实扩展后的最终路由
-- PC2 [状态] 会话/Token 防护/待跟进
-- PC3 [状态] 唯一项目、任务连续性与产物落点
-- PC4 [状态] dev 规范雷达 group/owner/validation；非 dev 为 N/A
-- PC5 [状态] 当前宿主部署、同步与实际加载证据
-- PC6 [状态] git dirty、active task 与工作区一致性
-- PC7 [状态] 新会话/resume 的 bounded continuation 检测
+| 项 | 内容（人话；禁止进度缩写） |
+|----|----------------------------|
+| PC0 | 上下文：项目 · 语言 · ContextReadPlan + 必要来源回执 |
+| PC1 | 意图：本轮要做什么 → 扩展后工作流 |
+| PC2 | 会话：轮次/Token · 待跟进 |
+| PC3 | 执行准备：唯一项目 · 连续性 · 产物落点（禁止「写报告 02」式施工日志） |
+| PC4 | 规范雷达：dev 完整；非 dev=`N/A` + skipReason |
+| PC5 | 宿主：名称 + Full/Partial · 部署/同步证据 |
+| PC6 | 工作区：git dirty 范围 · 任务目录 |
+| PC7 | 续接：新会话/resume 有界检测 |
 
-下一步：[必要动作]
-
+下一步：[一句人话]
 `DevCodexVisibleEnvelopeV1 · entry-check · [状态] · [semanticDigest]`
 ```
 
@@ -45,9 +46,11 @@ applyTo: "**"
 - 待跟进事项：来自记忆中的 `⚠️ 待跟进`
 - 产物落点：仅输出状态（已确定 / 无需产物 / 待确定），不要直接输出内部 filePath
 - PC0：与 `instructions.md` / `17-compliance.instructions.md` **同源**：写 ContextReadPlan + 必要来源回执，**禁止**再用「Profile ✅ 已加载」单字段冒充上下文完整
+- PC 表必须**分列 PC0~PC7**（表格或列表）；禁止 `PC2–PC7` 折叠；单元格写人话，禁止施工进度缩写
 - PC5~PC7：与 `instructions/17-compliance.instructions.md` 保持一致；无法执行时必须标注 N/A 或 ⚠️ 原因，禁止省略
-- PC5 部署面必须显式覆盖 `.github/`、`.claude/`、根 `AGENTS.md`、`.agents/` 与 `.codex/`；只检查某一宿主副本不得写“全部同步”
+- PC5 部署面：GlobalOnly 优先 doctor/receipt；legacy 父链仅作诊断；只检查某一宿主不得写「全部同步」；须写当前宿主 Full/Partial 诚实上限
 - PC7 新会话首步 resume 强制检测：新任务、compact/summary 恢复或 `继续<任务名>任务` 首次响应必须重建 bounded continuation，并核对文件真相源后再继续
+- 五宿主（Copilot / Claude Code / Codex / Gemini / Grok）共用本模板；Grok 无 inject 时仍由模型输出本块
 - 先用 `user-visible-output-contract` 形成完整 Envelope，再渲染为 rich/portable/plain；状态词固定为 PASS/WARN/BLOCK/UNVERIFIED/N/A
 - 新会话、resume/compact、target/intent/risk/CP/dirty/receipt 变化或存在 WARN/BLOCK/UNVERIFIED 时必须 expanded；同 epoch + semanticDigest 不变且全 PASS/N/A 才可 compact，compact 仍保留 PC0~PC7
 - 若主动建议或因 C08 要求新会话：同回复附内部完整 `NewSessionContinuationCard`，用户可复制入口固定为 `继续<displayName>任务`；长任务在记忆/报告记 `SessionTimingCard`（开始/结束/阶段，等人与执行分列）

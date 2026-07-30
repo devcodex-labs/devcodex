@@ -612,26 +612,33 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → 
 
 执行顺序：`预检查 PC0~PC7 → FC → SC → RC → 报告验证 V1~V6 → 任务完成验证 T1~T13`
 
-### 入口检查输出格式（所有模式，所有工作流前置，chat 也须执行）
+### 入口检查输出格式（所有模式，所有工作流前置，chat 也须执行 · 五宿主同源）
 
-```text
+> **UserVisibleReplyLayoutV1（人话优先）**：入口检查、正文、复审验证白话、完成检查/`FinalValidationSummaryV1` 对 **Copilot / Claude Code / Codex / Gemini / Grok** 使用**同一套**可见结构；宿主只影响硬拦/注入能力，不改变 PC 语义与人话规则。
+
+```markdown
 ### DevCodex · 入口检查
-`[PASS/WARN/BLOCK/UNVERIFIED]` · `[项目名]`
+`[PASS/WARN/BLOCK/UNVERIFIED]` · `[项目名/未识别]`
 
-- PC0 [状态] ContextReadPlan 与必要来源回执
-- PC1 [状态] 语义初判 → 项目现实扩展后最终路由
-- PC2 [状态] 会话/Token 防护/待跟进
-- PC3 [状态] 唯一项目、连续性与产物落点
-- PC4 [状态] dev 规范雷达；非 dev 为 N/A
-- PC5 [状态] 当前宿主部署、同步与实际加载证据
-- PC6 [状态] git dirty、active task 与工作区一致性
-- PC7 [状态] 新会话或 resume 的 bounded continuation 检测
+| 项 | 内容（人话；禁止进度缩写） |
+|----|----------------------------|
+| PC0 | 上下文：项目 · 语言 · ContextReadPlan + 必要来源回执（禁止只写「Profile 已加载」） |
+| PC1 | 意图：你这轮要做什么 → 扩展后工作流（如有修正须写明） |
+| PC2 | 会话：轮次/Token 防护 · 待跟进 |
+| PC3 | 执行准备：唯一项目 · 连续性 · 产物落点（禁止写成「写报告 02」类施工日志） |
+| PC4 | 规范雷达：dev 完整；非 dev 必须 `N/A` + skipReason |
+| PC5 | 宿主：当前宿主 + Full/Partial 诚实上限 · 部署/同步证据 |
+| PC6 | 工作区：git dirty 范围 · 当前任务目录 |
+| PC7 | 续接：新会话/resume 有界检测结果 |
 
-下一步：[必要动作]
-DevCodexVisibleEnvelopeV1 · entry-check · [状态] · [semanticDigest]
+下一步：[必要动作，一句人话]
+`DevCodexVisibleEnvelopeV1 · entry-check · [状态] · [semanticDigest]`
 ```
 
-入口检查、完成检查、确认、进度、最终结果与阻断统一由 `user-visible-output-contract` 投影；状态词固定为 `PASS / WARN / BLOCK / UNVERIFIED / N/A`。dev/fix/self-fix 的 completion-check 必须投影 `FinalValidationSummaryV1` 或等价短矩阵，列出命令/exitCode、runId 或关键计数、WorkspaceSyncStatus、dirty boundary、release action boundary；commit 声明还要列 post-commit replay。未知能力或缺证据不得用图标冒充 PASS；新会话、resume/compact、scope/risk/dirty/receipt 变化或存在非 PASS/N/A 时必须 expanded。
+**禁止**：`PC2–PC7` 折叠行；PC3/PC6 写成内部进度条；用图标冒充 PASS 且无证据。  
+**兼容**：列表形式 `- PC0 [状态] …` 仍可识别，但**推荐表格**；PC0~PC7 必须分列可数（FreeTextEntryCheckCompletenessGate）。
+
+入口检查、完成检查、确认、进度、最终结果与阻断统一由 `user-visible-output-contract` 投影；状态词固定为 `PASS / WARN / BLOCK / UNVERIFIED / N/A`。dev/fix/self-fix 的 completion-check 必须：① 可选「复审验证（白话）」三行结论；② 投影 `FinalValidationSummaryV1`（**白话在上、命令+exitCode 证据在下**），含关键计数、WorkspaceSyncStatus、dirty boundary、release action boundary；commit 声明还要列 post-commit replay。未知能力或缺证据不得用图标冒充 PASS；新会话、resume/compact、scope/risk/dirty/receipt 变化或存在非 PASS/N/A 时必须 expanded。
 
 ### FC 形式合规（必须全通过）
 
@@ -702,7 +709,7 @@ DevCodexVisibleEnvelopeV1 · entry-check · [状态] · [semanticDigest]
 - 仅在用户明确追问内部分类/机制时才展开内部术语，且最小化展开
 - 涉及文件产物时，先形成内部 `ArtifactDeliveryManifestV1`，再由 `UserFacingArtifactSetV1` 确定性投影；默认不展示 session、daily、SUMMARY、task state、checkpoint、raw receipt/manifest/ledger
 - 可见项必须使用语义名称、用途、路径列、用户动作和稳定阅读顺序（ArtifactPathColumnGate：路径默认 workspace-relative portable）。Rich 点击能力已验证时名称用一个语义链接，可与 portable 路径列并存，不在路径列外重复 `绝对路径：` 行。绝对路径仅在用户要求、链接失败、工作区外、歧义或无法定位时进入路径列/fallback
-- 完成态最终回复不能只写“全绿 / 已通过 / 详见报告”；必须用 `FinalValidationSummaryV1` 短矩阵列出权威命令与边界证据，长日志仍放报告
+- 完成态最终回复不能只写“全绿 / 已通过 / 详见报告”；必须用 `FinalValidationSummaryV1`：**先白话结论，再证据行（命令+exitCode）**，并写清同步/脏边界/发布边界；长日志仍放报告
 - Copilot / Codex 等非 Claude Code 宿主调用 DevCodex MCP 出现 `invoke` undefined 或工具桥接失败时，按宿主 MCP bridge 失败处理：停止重试同一 MCP，只执行一次 path-observable / instruction-fallback 的同计划有界读取，记录 `mcpFallback=used`；无法取得 Post 成功证据时保持 `unverified`，不得退化为整目录或整文件默认读取
 - Commit subject 只描述主变更，不堆叠背景/验证步骤
 

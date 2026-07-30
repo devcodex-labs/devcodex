@@ -30,17 +30,22 @@ version: 1.15.3
 
 > 🔴 **跨会话恢复硬约束**：当上下文来自会话摘要（summary/checkpoint）时，**不免除预检查**。摘要内容不构成 Profile 已加载的证明，也不构成记忆已读取的证明。每条新用户消息到达后，必须重新执行完整 PC0~PC7；若宿主 Hooks 已完成 bootstrap，可复用宿主结果并补齐可见状态；若处于 fallback 模式，则必须在进入任务前重新读取 Profile + 记忆，不得直接进入任务执行。
 
-```text
----
-🔍 入口检查（[DEV/PROD] 模式）
-- PC0 上下文：项目 [项目名/未识别] · 输出语言 [中/英] · ContextReadPlan [✅已形成/⚠️降级] · 必要来源回执 [✅verified/⚠️partial/❌missing]
-- PC1 意图：语义初判 [用户意图] → 项目现实扩展后 [工作流名称/子类型]
-- PC2 会话状态：第 N 轮（>10 关注 / >13 预警 / >15 防护） · 待跟进事项 ✅ 无 / ⚠️ [简述]
-- PC3 执行准备：项目现实扩展 [已完成/待澄清] · 未完成任务 ✅ 无 / ⚠️ 存在 🔄 会话：[简述] → 建议先 resume · 产物落点 [已确定/无需产物/待确定]
-- PC4 规范雷达：dev 模式见 `18-spec-radar.instructions.md` §输出格式；非 dev 模式 N/A（dev 扩展诊断未启用）
-- PC5 部署体状态（v1.11.0+）：cwd 父链 `.github/`、`.claude/`、`AGENTS.md`、`.agents/`、`.codex/` ✅ 存在 / N/A 无父级 · 与源仓库同步 ✅ / ⚠️ [N 文件滞后] / N/A
-- PC6 工作区一致性（v1.9.4+）：git 未提交变更 ✅ 无 / ⚠️ [N 文件 dirty] · 当前任务目录 [requirements/<X>/ / bugs/<Y>/ / 无关联]
-- PC7 新会话首步 resume 强制检测（v1.9.4+，仅首条用户消息触发）：✅ `memory_status` + 有界 session/SUMMARY query 回执一致 / ⚠️ 数据不一致或证据不足需处理 / N/A（非首条）
+```markdown
+### DevCodex · 入口检查
+`[PASS/WARN/BLOCK/UNVERIFIED]` · `[项目名/未识别]` · `[DEV/PROD]`
+
+| 项 | 内容（人话；禁止进度缩写 · 五宿主同源） |
+|----|----------------------------------------|
+| PC0 | 上下文：项目 · 语言 · ContextReadPlan [已形成/降级] · 必要来源回执 [verified/partial/missing] |
+| PC1 | 意图：语义初判 → 扩展后工作流（有修正须写明） |
+| PC2 | 会话：第 N 轮 · Token 防护 · 待跟进 ✅无 / ⚠️简述 |
+| PC3 | 执行准备：唯一项目 · 未完成任务 · 产物落点（禁止「写报告 02」式施工日志） |
+| PC4 | 规范雷达：dev 见 18-spec-radar；非 dev=`N/A` + skipReason |
+| PC5 | 宿主：名称 + Full/Partial · 用户级 adapter/receipt 或 legacy 父链诊断 |
+| PC6 | 工作区：git dirty 范围 · 任务目录 requirements/… 或 bugs/… |
+| PC7 | 续接：首条须 memory_status + 有界 query；非首条可 N/A |
+
+下一步：[一句人话]
 ```
 
 > ⚠️ PC0 检查失败时（ContextReadPlan 未形成或必要来源回执 missing）不得跳过 — 必须立即形成计划并取得可验证回执后才能继续；ENV_MODE 由 Profile 的 `config.json` 决定（未加载时默认 prod）。**禁止**仅用「Profile ✅ 已加载」替代 ContextReadPlan + 回执语义。
@@ -227,7 +232,7 @@ version: 1.15.3
 
 > ⚠️ chat 豁免的是**合规检查状态块**（FC/SC/RC/T），不豁免**入口检查块**（PC0~PC7）。chat 在所有模式下仍需在实质回答前输出入口检查结果，但回复末尾无需输出合规状态块。
 
-**dev 模式**（回复末尾必须输出）：
+**dev 模式**（回复末尾必须输出 · UserVisibleReplyLayoutV1 · 五宿主同源）：
 ```text
 ### DevCodex · 完成检查
 `PASS/WARN/BLOCK/UNVERIFIED` · `[project]`
@@ -235,17 +240,23 @@ version: 1.15.3
 - FC1~FC7 [状态] 固定 ID 与实际证据
 - SCx/RCx/Tx [状态] 仅列适用项
 
+### 复审验证（白话）
+- 结论：通过 / 未通过 / 仅说明
+- 做了什么检查：……
+- 结果与是否改代码/提交：……
+
 <!-- devcodex:include shared/compliance/validation-summary.md -->
 
 #### 完成交付文件
-- [语义名称](capability-selected-target) — 用途；操作：用户动作
+- [语义名称](capability-selected-target) — 用途；路径：…；操作：用户动作
 已列 N / 总计 M；默认隐藏 R
 
 DevCodexVisibleEnvelopeV1 · completion-check · [状态] · [semanticDigest]
 ```
 
 > ⚠️ **FC5 填写规则**：触发 `user-visible-output-contract`。internal manifest 必须 planned=observed=internalDelivered；visible set 必须 required hidden=0 且 `listed+remaining=total`。默认隐藏 session/daily/SUMMARY/task/checkpoint/raw receipt/manifest/ledger，但继续写入和 ECR。链接必须由 `LinkCapabilityDecisionV1` 按当前 surface 证据选择；Rich clickable 不重复绝对路径，只有用户要求、链接失败、工作区外、歧义或无法定位时追加 fallback。Hook 未观察 payload时只能 `unverified`，legacy 格式最多 `unverified-legacy`。
-> ⚠️ **DevModeCompletionCheckDetailGate**：completion-check 只写“全绿 / 已通过 / 详见报告”不合格；必须投影 `FinalValidationSummaryV1` 或等价短矩阵，并由 `classifyFinalValidationSummarySample` 负向样例守门。
+> ⚠️ **DevModeCompletionCheckDetailGate**：completion-check 只写“全绿 / 已通过 / 详见报告”不合格；必须投影 `FinalValidationSummaryV1`（**白话在上、命令+exitCode 在下**），并由 `classifyFinalValidationSummarySample` 负向样例守门。
+> ⚠️ **fix/self-fix 完成态**同样须有完成检查标题 + FVS；chat 豁免完成检查块但入口检查不豁免。
 
 ## 自修复触发（不进入 self-fix 工作流）
 

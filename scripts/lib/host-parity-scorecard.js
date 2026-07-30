@@ -488,18 +488,23 @@ function composeEntryCheckBlock(options = {}) {
   const overall = String(options.status || 'UNVERIFIED').trim() || 'UNVERIFIED'
   const next = String(options.nextStep || '完成 ContextReadPlan 与有界 Profile/memory 读取后继续').trim()
   const digest = String(options.semanticDigest || 'pending-entry-check').trim()
+  // UserVisibleReplyLayoutV1: plain-language table for all five hosts.
+  // Cell keeps "PC4 [STATUS] …" so parsers matching /PC4 \[STATUS\]/ still work.
+  const pc4Cell = composePc4Line(options).replace(/^- /, '').trim()
   return [
     '### DevCodex · 入口检查',
     `\`${overall}\` · \`${project}\``,
     '',
-    '- PC0 [UNVERIFIED] ContextReadPlan 与必要来源回执（填写 plan + 回执）',
-    '- PC1 [UNVERIFIED] 语义初判 → 项目现实扩展后最终路由',
-    '- PC2 [UNVERIFIED] 会话/Token 防护/待跟进',
-    '- PC3 [UNVERIFIED] 唯一项目、连续性与产物落点',
-    composePc4Line(options),
-    '- PC5 [UNVERIFIED] 宿主部署/同步/加载证据（Grok: Partial unless Full launcher）',
-    '- PC6 [UNVERIFIED] git dirty、active task 与工作区一致性',
-    '- PC7 [UNVERIFIED] 新会话或 resume 的 bounded continuation',
+    '| 项 | 内容（人话；禁止进度缩写） |',
+    '|----|----------------------------|',
+    '| PC0 | 上下文：ContextReadPlan + 必要来源回执（填写 plan + 回执） |',
+    '| PC1 | 意图：语义初判 → 扩展后工作流 |',
+    '| PC2 | 会话：轮次 / Token 防护 / 待跟进 |',
+    '| PC3 | 执行准备：唯一项目 · 连续性 · 产物落点 |',
+    `| PC4 | ${pc4Cell} |`,
+    '| PC5 | 宿主：部署/同步/加载证据（Grok: Partial unless Full launcher） |',
+    '| PC6 | 工作区：git dirty · active task |',
+    '| PC7 | 续接：新会话或 resume 有界检测 |',
     '',
     `下一步：${next}`,
     `DevCodexVisibleEnvelopeV1 · entry-check · ${overall} · ${digest}`

@@ -103,7 +103,7 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 - ⛔ **禁止覆盖已有报告**，每次会话独立新建文件
 - 每条建议/问题必须附五项验证（合理性 + 可实施性 + 收益 + 验证状态 + 影响范围）— 与 [`17-compliance.instructions.md`](./17-compliance.instructions.md) §1 输出验证保持一致
 - 报告写入后必须执行二次验证（V1~V6，见 `17-compliance.instructions.md`）
-- dev/fix/self-fix 宣告完成时，最终回复必须投影 `FinalValidationSummaryV1` 或等价短矩阵：权威验证命令与 exitCode、runId 或关键计数、WorkspaceSyncStatus、dirty boundary、release action boundary；若声明 commit，必须追加 post-commit replay。长日志留在报告中，用户面不得只写“全绿 / 已通过 / 详见报告”。
+- dev/fix/self-fix 宣告完成时，最终回复必须投影 `FinalValidationSummaryV1`：**先白话结论，再证据**（权威命令与 exitCode、runId 或关键计数、WorkspaceSyncStatus、dirty boundary、release action boundary）；若声明 commit，必须追加 post-commit replay。推荐先写 `### 复审验证（白话）` 三行。长日志留在报告中，用户面不得只写“全绿 / 已通过 / 详见报告”。五宿主同源见 `user-visible-output-contract` · UserVisibleReplyLayoutV1。
 - **Dialogue-Primary**：完成态最终回复还须含可读叙事（结果 + 要点），见 `user-visible-output-contract` 的 `classifyDialogueNarrativeSample`；分析收敛禁止报告链接 alone（`link-only-thin`）。
 - 跨会话/未完成/多批次任务不得缺少 `ContextHandoffCard`；SUMMARY 只能作为索引，不得替代交接卡
 - 报告必须登记到 `ArtifactDeliveryManifestV1`，最终用户面由 `UserFacingArtifactSetV1` 投影为语义链接（详见 [`02-output-paths.instructions.md`](./02-output-paths.instructions.md) §产物路径输出格式）：

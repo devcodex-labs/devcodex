@@ -165,19 +165,36 @@ Rich clickable 只显示一个语义 Markdown 链接作为名称主表示，**�
 
 默认 userAction 写「深读时打开归档报告」；**禁止**「请用 Typora/浏览器打开预览」作为默认动作。
 
+## UserVisibleReplyLayoutV1（五宿主同源 · 人话优先）
+
+对 **Copilot / Claude Code / Codex / Gemini / Grok** 用户可见完成态与入口态使用同一布局；宿主只改变硬拦/注入，不改变语义字段。
+
+推荐顺序：
+
+1. `### DevCodex · 入口检查`（表格 PC0~PC7 人话；禁止进度缩写 / 折叠行）
+2. 正文结论（Dialogue-Primary）
+3. `### 复审验证（白话）`（结论 / 做了什么 / 结果；可选但强烈推荐）
+4. `### DevCodex · 完成检查` + `### FinalValidationSummaryV1`
+5. 交付文件路径列
+
+禁止：入口检查写成施工日志；FVS 只有命令墙无白话；分析阶段失败证据冒充修复成功。
+
 ## FinalValidationSummaryGate（PF-186 / PI-164）
 
 dev / fix / self-fix 的 `completion-check` 或 dev 模式合规块宣告完成时，最终用户可见回复必须投影 `FinalValidationSummaryV1` 或等价短矩阵。报告可保留长日志，但最终回复不能只写“全绿 / 已通过 / 详见报告”。完成态还须满足上方 **Dialogue-Primary** 叙事最小包（与本 Gate 同时适用，不可互相抵消）。
+
+**呈现顺序（强制）**：先 **白话 1～3 句**，再证据表/命令行（须含 `exitCode`）。共享模板：`content/shared/compliance/validation-summary.md`。
 
 最小字段：
 
 | 字段 | 要求 |
 |---|---|
+| `plainSummary` | 白话结论（推荐以 `**白话**` / `白话：` 起笔） |
 | `commands` | 至少一条权威验证命令或明确 `skipped + reason`；执行过的命令必须列 `exitCode` |
 | `runId/keyCount` | `runId`、V 范围、关键计数或检查项数量至少一类 |
 | `postCommitReplay` | 出现 commit / 提交声明时必须列 post-commit replay；未提交时可写 `N/A + reason` |
-| `workspaceSyncStatus` | 写明 synced / skipped / blocked 及理由 |
-| `dirtyBoundary` | 写明 source-root / active-root dirty 边界，不得只写“干净”无范围 |
+| `workspaceSyncStatus` | 写明 synced / skipped / blocked / **N/A 未触发** 及理由 |
+| `dirtyBoundary` | 写明 source-root / active-root dirty 边界；推荐含 `git status clean-tree` 等范围词 |
 | `releaseActionBoundary` | 明确 push / tag / release / publish 是否执行；未执行也必须写 |
 | `reportRefs` | 指向报告/清单等 required evidence，路径列仍受 `ArtifactPathColumnGate` 约束 |
 
@@ -193,10 +210,12 @@ dev / fix / self-fix 的 `completion-check` 或 dev 模式合规块宣告完成�
 
 | 规则 | 说明 |
 |------|------|
-| 分列必齐 | 须能识别 **PC0…PC7 各自独立** 行/单元格；缺任一 → incomplete |
+| 分列必齐 | 须能识别 **PC0…PC7 各自独立** 行/单元格（表格 `| PC0 | … |` 或列表 `- PC0 …`）；缺任一 → incomplete |
 | 禁止折叠 | `PC2–PC7` / `PC2-7` / `PC2~PC7` 等合并范围 → `pc-folded-range`，precheck=`verified-missing` |
-| PC0 上下文 | PC0 行须含上下文/计划/项目等实质内容，不得空壳 |
+| 禁止施工日志 | PC3/PC6 等单元格禁止「写报告 02 / 见下清单 / 只读+复现」等进度缩写冒充语义 |
+| PC0 上下文 | PC0 行须含上下文/计划/项目等实质内容，不得空壳；禁止仅「Profile 已加载」 |
 | PC4 | **dev** 下 `N/A` 必须带 skipReason/跳过理由；不得无理由伪 N/A |
+| 五宿主 | 模板同源；Grok 无 inject 仍须模型输出完整 PC0~PC7 |
 | Owner | 本 Skill + `hooks/_runtime/lifecycle-visible-reply.cjs`（`analyzeEntryCheckCompleteness`）；**禁止**平行新 Gate 命名体系 |
 
 机器分类：`complete` / `incomplete` / `not-claimed`。负向 fixture：折叠行、缺 PC、dev PC4 无 skipReason。

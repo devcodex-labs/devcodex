@@ -51,17 +51,23 @@ dev 模式 PC4 至少输出：
 - FC7 [状态] 决策推荐
 - SCx/RCx/Tx [状态] 仅列适用项
 
+### 复审验证（白话）
+- 结论：通过 / 未通过 / 仅说明
+- 做了什么检查：……
+- 结果与是否改代码/提交：……
+
 <!-- devcodex:include shared/compliance/validation-summary.md -->
 
 #### 完成交付文件
-- [语义名称](capability-selected-target) — 用途；操作：用户动作
+- [语义名称](capability-selected-target) — 用途；路径：…；操作：用户动作
 已列 N / 总计 M；默认隐藏 R
 
 DevCodexVisibleEnvelopeV1 · completion-check · [状态] · [semanticDigest]
 ```
 
 > ⛔ dev 模式下不输出状态块视为未执行合规检查。
-> ⛔ `completion-check` 只有“全绿/已通过/详见报告”但缺 `FinalValidationSummaryV1` 短矩阵时，视为 `DevModeCompletionCheckDetailGate` 未通过。
+> ⛔ `completion-check` 只有“全绿/已通过/详见报告”但缺 `FinalValidationSummaryV1`（白话+命令 exitCode）时，视为 `DevModeCompletionCheckDetailGate` 未通过。
+> ℹ️ 入口检查 / 完成检查 / FVS 对五宿主同源，见 `user-visible-output-contract` · UserVisibleReplyLayoutV1。
 > ⚠️ **FC5 填写规则**：触发 `user-visible-output-contract`。`ArtifactDeliveryManifestV1` 必须 planned=observed=internalDelivered，`UserFacingArtifactSetV1` 必须 required hidden=0 且 `listed+remaining=total`；session/daily/SUMMARY/task/checkpoint/raw ledger 默认 internal-only 但仍参与 ECR。链接按 `LinkCapabilityDecisionV1` 输出；Rich clickable 不重复绝对路径。Hook 未观察 payload 时只能 `unverified`，legacy 格式最多 `unverified-legacy`。
 > ℹ️ prod 模式不执行合规检查，不输出状态块。
 > ℹ️ chat 工作流豁免此输出。

@@ -89,16 +89,7 @@ const rootAudit = npmAudit(ROOT)
 assert.strictEqual(rootAudit.metadata?.vulnerabilities?.total, 0, 'root production dependency audit must remain clean')
 assert.deepStrictEqual(advisoryIds(rootAudit), policy.rootAllowedAdvisories)
 
-const websiteAudit = npmAudit(WEBSITE)
 const allowedAdvisories = policy.websiteExceptions.map(item => item.advisoryId).sort()
-assert.deepStrictEqual(advisoryIds(websiteAudit), allowedAdvisories, 'website advisory set changed; review before updating policy')
-const vulnerabilityPackages = Object.keys(websiteAudit.vulnerabilities || {}).sort()
-assert.deepStrictEqual(
-  vulnerabilityPackages,
-  [...policy.websiteAllowedPackages].sort(),
-  'website vulnerability dependency chain changed'
-)
-
 const today = new Date().toISOString().slice(0, 10)
 for (const exception of policy.websiteExceptions) {
   assert.ok(today <= exception.expiresOn, `${exception.advisoryId} exception expired on ${exception.expiresOn}`)
@@ -106,25 +97,45 @@ for (const exception of policy.websiteExceptions) {
   assert.ok(exception.replacementTrigger)
 }
 
-for (const [packageName, minimum] of Object.entries(policy.minimumVersions)) {
-  const installed = installedVersion(packageName)
-  assert.ok(
-    compareVersion(installed, minimum) >= 0,
-    `${packageName}@${installed} is below the security floor ${minimum}`
+const websitePackage = path.join(WEBSITE, 'package.json')
+if (fs.existsSync(websitePackage)) {
+  const websiteAudit = npmAudit(WEBSITE)
+  assert.deepStrictEqual(advisoryIds(websiteAudit), allowedAdvisories, 'website advisory set changed; review before updating policy')
+  const vulnerabilityPackages = Object.keys(websiteAudit.vulnerabilities || {}).sort()
+  assert.deepStrictEqual(
+    vulnerabilityPackages,
+    [...policy.websiteAllowedPackages].sort(),
+    'website vulnerability dependency chain changed'
+  )
+
+  for (const [packageName, minimum] of Object.entries(policy.minimumVersions)) {
+    const installed = installedVersion(packageName)
+    assert.ok(
+      compareVersion(installed, minimum) >= 0,
+      `${packageName}@${installed} is below the security floor ${minimum}`
+    )
+  }
+
+  const sourceRecords = websiteRuntimeSources().map(file => ({
+    file,
+    content: fs.readFileSync(file, 'utf8')
+  }))
+  for (const pattern of policy.forbiddenWebsiteRuntimePatterns) {
+    const match = sourceRecords.find(record => record.content.includes(pattern))
+    assert.ok(!match, `website runtime source enables unsupported RSC surface ${pattern}: ${match?.file}`)
+  }
+
+  console.log(
+    `security audit passed root=0 websiteExceptions=${allowedAdvisories.join(',')} ` +
+    `expires=${policy.websiteExceptions[0].expiresOn} rspress=${installedVersion('@rspress/core')} ` +
+    `reactRouter=${installedVersion('react-router')} braceExpansion=${installedVersion('brace-expansion')}`
+  )
+} else {
+  const websiteReadme = fs.readFileSync(path.join(WEBSITE, 'README.md'), 'utf8')
+  assert.match(websiteReadme, /不进入公开 Git 默认跟踪/)
+  assert.match(websiteReadme, /website 视为 optional/)
+  console.log(
+    `security audit passed root=0 website=optional-absent ` +
+    `policyExceptions=${allowedAdvisories.join(',')} expires=${policy.websiteExceptions[0].expiresOn}`
   )
 }
-
-const sourceRecords = websiteRuntimeSources().map(file => ({
-  file,
-  content: fs.readFileSync(file, 'utf8')
-}))
-for (const pattern of policy.forbiddenWebsiteRuntimePatterns) {
-  const match = sourceRecords.find(record => record.content.includes(pattern))
-  assert.ok(!match, `website runtime source enables unsupported RSC surface ${pattern}: ${match?.file}`)
-}
-
-console.log(
-  `security audit passed root=0 websiteExceptions=${allowedAdvisories.join(',')} ` +
-  `expires=${policy.websiteExceptions[0].expiresOn} rspress=${installedVersion('@rspress/core')} ` +
-  `reactRouter=${installedVersion('react-router')} braceExpansion=${installedVersion('brace-expansion')}`
-)

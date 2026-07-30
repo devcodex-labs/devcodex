@@ -11,10 +11,10 @@
     "pluginDigest": "705fe7c86c7225b67756749be5bb3b14a1ee3bffa386483a9ab61dc971f419ae",
     "portfolioEvidence": "content/skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "8364a73c66ed2ec9787cdb9300223278d128a45b689a2b8deda0d1f03189f42b",
-    "consumerInventoryFileCount": 452,
-    "consumerInventoryDigest": "4bff1789c614560a001695289a679296d9a6196f74df525f5ff10c7289ad5d8b",
-    "consumerProjectionDigest": "7e75b3e64ad0fbf4eae7abb29f6a02b2c4c4be211f3ee3819504309ba284ddfb",
-    "portfolioInputDigest": "1fb0d07e5a48f16917afc1a990bd1c9b4cf43e11c490471b91886a55d8dae750"
+    "consumerInventoryFileCount": 454,
+    "consumerInventoryDigest": "2c4a1c119386da62a33c92b9c9141e3cfab88a3030af139ff2783fdee21b8504",
+    "consumerProjectionDigest": "2d4430b8767d7d7f568f29e9edeaf81712e081f9aed2777e224d964007e2b0b1",
+    "portfolioInputDigest": "48bb91f0135396079a90b0a00caf33818259c7354d18ad02452c1b4f2c5c012a"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -17910,6 +17910,10 @@
         },
         {
           "path": "scripts/review-maintainer-site-20round.cjs",
+          "role": "current"
+        },
+        {
+          "path": "scripts/run-website-build-if-present.js",
           "role": "current"
         },
         {

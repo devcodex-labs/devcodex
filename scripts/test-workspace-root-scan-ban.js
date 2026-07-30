@@ -9,7 +9,9 @@ const {
 } = require('./lib/host-parity-scorecard.js')
 const { buildLifecycleDangerousCommandUtils } = require('../hooks/_runtime/lifecycle-dangerous-command.cjs')
 
-const ROOT = 'E:\\Worker'
+const ROOT = process.platform === 'win32' ? 'E:\\Worker' : '/home/runner/work'
+const PROJECT = path.join(ROOT, 'queuebit')
+const DOCS = path.join(PROJECT, 'docs')
 
 function makeUtils(contextRoot = ROOT) {
   return buildLifecycleDangerousCommandUtils({
@@ -45,24 +47,24 @@ function expectAllow(cmd, label, payloadExtra = {}) {
 
 // R-01 sample / original relapse
 expectBan(
-  'Get-ChildItem -Path "E:\\Worker" -Directory -Filter "*queuebit*" -Recurse -Depth 3',
+  `Get-ChildItem -Path "${ROOT}" -Directory -Filter "*queuebit*" -Recurse -Depth 3`,
   'absolute root recurse depth'
 )
 // project scoped allow
 expectAllow(
-  'Get-ChildItem -Path "E:\\Worker\\queuebit\\docs" -Recurse -Filter *.md',
+  `Get-ChildItem -Path "${DOCS}" -Recurse -Filter *.md`,
   'project docs recurse'
 )
 // R-04: first-level child without trailing slash
 expectAllow(
-  'Get-ChildItem -Path "E:\\Worker\\queuebit" -Recurse',
+  `Get-ChildItem -Path "${PROJECT}" -Recurse`,
   'first-level project path'
 )
 // R-02: dir /s
-expectBan('dir /s E:\\Worker', 'dir /s workspace root')
+expectBan(`dir /s "${ROOT}"`, 'dir /s workspace root')
 expectBan('dir /s', 'dir /s relative at workspace cwd')
 // find at workspace root (C16)
-expectBan('find E:\\Worker -type f', 'find workspace root')
+expectBan(`find "${ROOT}" -type f`, 'find workspace root')
 // R-03: relative recurse at workspace cwd
 expectBan('Get-ChildItem -Recurse -Depth 3', 'relative recurse at workspace cwd')
 expectBan('Get-ChildItem -Recurse', 'relative recurse bare')
@@ -70,10 +72,10 @@ expectBan('Get-ChildItem -Recurse', 'relative recurse bare')
 expectAllow('Get-ChildItem queuebit -Recurse', 'relative child name')
 expectAllow('Get-ChildItem -Path queuebit -Recurse', 'relative -Path child')
 // project cwd relative recurse allowed (CONTEXT_ROOT = project)
-const projectUtils = makeUtils('E:\\Worker\\queuebit')
+const projectUtils = makeUtils(PROJECT)
 assert.strictEqual(
   projectUtils.checkDangerousCommand({
-    tool_input: { command: 'Get-ChildItem -Recurse', cwd: 'E:\\Worker\\queuebit' }
+    tool_input: { command: 'Get-ChildItem -Recurse', cwd: PROJECT }
   }, 'grok'),
   null,
   'relative recurse inside project cwd'
@@ -82,20 +84,20 @@ assert.strictEqual(
 // Probe parity with Hook (R-04)
 assert.strictEqual(
   classifyWorkspaceRootScanSample(
-    'Get-ChildItem -Path "E:\\Worker\\queuebit" -Recurse',
+    `Get-ChildItem -Path "${PROJECT}" -Recurse`,
     { workspaceRoot: ROOT }
   ),
   'project-scoped-ok'
 )
 assert.strictEqual(
   classifyWorkspaceRootScanSample(
-    'Get-ChildItem -Path "E:\\Worker" -Recurse -Depth 3',
+    `Get-ChildItem -Path "${ROOT}" -Recurse -Depth 3`,
     { workspaceRoot: ROOT }
   ),
   'workspace-root-recurse'
 )
 assert.strictEqual(
-  classifyWorkspaceRootScanSample('dir /s E:\\Worker', { workspaceRoot: ROOT }),
+  classifyWorkspaceRootScanSample(`dir /s "${ROOT}"`, { workspaceRoot: ROOT }),
   'workspace-root-recurse'
 )
 assert.strictEqual(
@@ -115,10 +117,10 @@ assert.strictEqual(
 
 // direct inventory helpers
 assert.strictEqual(utils.isWorkspaceRootRecursiveInventory(
-  'Get-ChildItem -Path "E:\\Worker" -Recurse', ROOT, { cwd: ROOT }
+  `Get-ChildItem -Path "${ROOT}" -Recurse`, ROOT, { cwd: ROOT }
 ), true)
 assert.strictEqual(utils.isWorkspaceRootRecursiveInventory(
-  'Get-ChildItem -Path "E:\\Worker\\queuebit" -Recurse', ROOT, { cwd: ROOT }
+  `Get-ChildItem -Path "${PROJECT}" -Recurse`, ROOT, { cwd: ROOT }
 ), false)
 
 console.log('workspace-root-scan-ban unit OK (R-01..R-04 matrix)')

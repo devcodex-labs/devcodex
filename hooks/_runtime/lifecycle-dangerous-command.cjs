@@ -50,7 +50,8 @@ function buildLifecycleDangerousCommandUtils({
    * e.g. E:\Worker\queuebit or E:\Worker\queuebit\docs (R-04: no trailing slash required).
    */
   function commandTargetsWorkspaceChild(cmdLower, rootLower) {
-    const escaped = rootLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const rootInCommand = rootLower.replace(/\//g, '\\')
+    const escaped = rootInCommand.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
     return new RegExp(escaped + '[\\\\/][a-z0-9._-]+', 'i').test(cmdLower)
   }
 

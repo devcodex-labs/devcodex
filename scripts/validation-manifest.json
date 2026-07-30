@@ -4285,12 +4285,9 @@
       "schemaVersion": "ValidationNodeV1",
       "id": "website-build",
       "owner": "website-build",
-      "command": "npm",
+      "command": "node",
       "args": [
-        "--prefix",
-        "website",
-        "run",
-        "build"
+        "scripts/run-website-build-if-present.js"
       ],
       "dependencies": [
         "generated-site-precheck",
@@ -4300,6 +4297,7 @@
         "website/**",
         "README.md",
         "scripts/test-generated-site-links.js",
+        "scripts/run-website-build-if-present.js",
         "scripts/check-generated-site-links.js"
       ],
       "consumers": [
@@ -4331,7 +4329,7 @@
       "owner": "website-validation",
       "command": "node",
       "args": [
-        "scripts/check-generated-site-links.js"
+        "scripts/check-generated-site-links-if-present.js"
       ],
       "dependencies": [
         "generated-site-precheck",
@@ -4340,6 +4338,7 @@
       "inputs": [
         "website/**",
         "README.md",
+        "scripts/check-generated-site-links-if-present.js",
         "scripts/check-generated-site-links.js"
       ],
       "consumers": [],

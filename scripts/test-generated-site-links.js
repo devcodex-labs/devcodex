@@ -7,8 +7,11 @@ const fs = require('fs')
 const os = require('os')
 const path = require('path')
 const { scanGeneratedSite } = require('./check-generated-site-links')
+const { main: checkGeneratedSiteLinksIfPresent } = require('./check-generated-site-links-if-present')
+const { main: runWebsiteBuildIfPresent } = require('./run-website-build-if-present')
 
 const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-generated-links-'))
+const cleanRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-generated-links-clean-'))
 
 try {
   fs.mkdirSync(path.join(rootDir, 'guide'), { recursive: true })
@@ -30,7 +33,11 @@ try {
   assert.strictEqual(broken.missing[0].target, 'missing')
   assert.deepStrictEqual(broken.uniqueTargets, ['missing'])
 
+  assert.strictEqual(runWebsiteBuildIfPresent({ root: cleanRoot }), 0)
+  assert.strictEqual(checkGeneratedSiteLinksIfPresent({ root: cleanRoot }), 0)
+
   console.log('Generated site link checker tests passed')
 } finally {
   fs.rmSync(rootDir, { recursive: true, force: true })
+  fs.rmSync(cleanRoot, { recursive: true, force: true })
 }

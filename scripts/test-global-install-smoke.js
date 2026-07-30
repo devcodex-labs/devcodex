@@ -71,8 +71,15 @@ function runCommand(command, args, options = {}) {
 }
 
 function isolatedHostEnv(home) {
+  // Global postinstall skips when CI/GITHUB_ACTIONS is truthy (see npm-lifecycle-adapter).
+  // Smoke inherits process.env from GHA; force + clear CI vars so isolated receipts are written.
   return {
     DEVCODEX_TEST_HOME: home,
+    DEVCODEX_POSTINSTALL_FORCE: '1',
+    CI: '',
+    GITHUB_ACTIONS: '',
+    BUILDKITE: '',
+    TF_BUILD: '',
     CODEX_HOME: path.join(home, '.codex'),
     CLAUDE_CONFIG_DIR: path.join(home, '.claude'),
     GEMINI_CLI_HOME: path.join(home, 'gemini-cli-home'),

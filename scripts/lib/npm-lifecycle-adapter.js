@@ -110,6 +110,9 @@ function classifyNpmLifecycleInstall(options = {}) {
   if (!isPostinstall) return noOp('not-postinstall')
   if (truthy(env.DEVCODEX_SKIP_POSTINSTALL)) return noOp('skip-env')
   if (truthy(env.DEVCODEX_POSTINSTALL_CHILD)) return noOp('child-process')
+  // CI skip is intentional for workspace/CI jobs so runners do not mutate host homes.
+  // Real global install on CI is also skipped unless DEVCODEX_POSTINSTALL_FORCE=1
+  // (global-install-smoke must set force + clear CI vars in its isolated env).
   if (!force && ci) return noOp('ci')
   if (globalInstall) {
     return {

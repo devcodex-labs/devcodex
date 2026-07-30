@@ -193,6 +193,34 @@ assert.strictEqual(classify({ DEVCODEX_SKIP_POSTINSTALL: '1' }).reason, 'skip-en
 assert.strictEqual(classify({ DEVCODEX_POSTINSTALL_CHILD: '1' }).reason, 'child-process')
 assert.strictEqual(classify({}, transitiveWorkspace).reason, 'transitive-or-indirect')
 
+// CI skip runs before globalInstall (S-a): real GHA postinstall stays no-op unless forced.
+// Prevents global-install-smoke from going green locally while red under GITHUB_ACTIONS.
+const ciGlobalDecision = classify({ CI: 'true', npm_config_global: 'true', INIT_CWD: workspace })
+assert.strictEqual(ciGlobalDecision.action, 'noop')
+assert.strictEqual(ciGlobalDecision.reason, 'ci')
+assert.strictEqual(ciGlobalDecision.globalInstall, true)
+const ghaGlobalDecision = classify({ GITHUB_ACTIONS: 'true', npm_config_global: 'true', INIT_CWD: workspace })
+assert.strictEqual(ghaGlobalDecision.action, 'noop')
+assert.strictEqual(ghaGlobalDecision.reason, 'ci')
+const ciGlobalWithTestHome = classify({
+  CI: 'true',
+  npm_config_global: 'true',
+  DEVCODEX_TEST_HOME: path.join(tmp, 'isolated-home'),
+  INIT_CWD: workspace
+})
+assert.strictEqual(ciGlobalWithTestHome.action, 'noop', 'DEVCODEX_TEST_HOME alone must not bypass CI skip')
+assert.strictEqual(ciGlobalWithTestHome.reason, 'ci')
+const ciGlobalForced = classify({
+  CI: 'true',
+  GITHUB_ACTIONS: 'true',
+  npm_config_global: 'true',
+  DEVCODEX_POSTINSTALL_FORCE: '1',
+  INIT_CWD: workspace
+})
+assert.strictEqual(ciGlobalForced.action, 'execute')
+assert.strictEqual(ciGlobalForced.reason, 'global-install-postinstall')
+assert.strictEqual(ciGlobalForced.scope, 'global-install')
+
 const sourceGlobalDecision = classify({ npm_config_global: 'true', INIT_CWD: workspace }, workspace, sourceRoot)
 assert.strictEqual(sourceGlobalDecision.action, 'execute')
 assert.strictEqual(sourceGlobalDecision.scope, 'global-install')

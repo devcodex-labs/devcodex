@@ -330,12 +330,14 @@ for (const name of ['devcodex-memory', 'devcodex-profile']) {
   assert.strictEqual(copilotMcp.mcpServers[name].type, 'local')
   assert.deepStrictEqual(copilotMcp.mcpServers[name].tools, ['*'])
   assert.ok(copilotMcp.mcpServers[name].args.some(value => /mcp\/(?:memory|profile)-server\.js$/i.test(value)))
+  assert.strictEqual(copilotMcp.mcpServers[name].env?.DEVCODEX_AGENT, 'copilot')
 }
 
 const geminiTarget = targets.find(target => target.host === 'gemini')
 const geminiSettings = JSON.parse(fs.readFileSync(geminiTarget.files.settings, 'utf8'))
 for (const name of ['devcodex-memory', 'devcodex-profile']) {
   assert.strictEqual(geminiSettings.mcpServers[name].command, 'node')
+  // gemini has no VALID_AGENTS mapping; do not inject DEVCODEX_AGENT
   assert.deepStrictEqual(
     Object.keys(geminiSettings.mcpServers[name]).sort(),
     ['args', 'command', 'type']
@@ -357,6 +359,7 @@ assert.ok(!JSON.stringify(claudeSettings.hooks).includes('.claude/hooks/_runtime
 const codexConfig = fs.readFileSync(path.join(home, '.codex', 'config.toml'), 'utf8')
 assert.ok(codexConfig.includes('model = "user-choice"'))
 assert.ok(codexConfig.includes('BEGIN DEVCODEX MANAGED: global-codex-mcp'))
+assert.ok(codexConfig.includes('DEVCODEX_AGENT') && codexConfig.includes('codex'))
 assert.ok(codexConfig.includes('[mcp_servers.user-keep]'))
 assert.ok(!codexConfig.includes('old-runtime.js'))
 assert.ok(!codexConfig.includes('BEGIN DEVCODEX-MCP-MANAGED'))

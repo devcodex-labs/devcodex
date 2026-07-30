@@ -23,8 +23,7 @@
 - **P0-1 Batch2 历史实现（已由统一路由替代）**：`init`/`ensureRuntimeDirs` 写入 DEVCODEX.md 模板（不覆盖）；旧 intent CLI 已退役。
 - **P0-1 ECR 计数同步**：新增 `workspace-skill-author` 后 Skill 规模 84→**85**（82 active + 3 gray）；重生 `skills/portfolio.json`；同步 test-skill-portfolio / docs-surface-inventory / V92/V95 / README / website 规模锚点。
 - **联系邮箱统一为 `rockyshi1993@gmail.com`**：`package.json` author 与 `SECURITY.md` 漏洞报告邮箱一致（唯一可用邮箱）。
-- **npm 包名为未 scope 的 `devcodex`**：安装入口 `npm install -g devcodex` / `npm update -g devcodex`；GitHub 组织仓与 npm 模块身份分离；`package.json` name=`devcodex`；撤销 `devcodex` 误绑。
-pm install|update -g 对齐 devcodex；alidate-profile 识别 scoped 包名；修复正则字面量中 / 截断；managed deployment-manifest package 字段同步。
+- **npm 包名为未 scope 的 `devcodex`**：安装入口 `npm install -g devcodex` / `npm update -g devcodex`；GitHub 组织仓与 npm 模块身份分离；`package.json` name=`devcodex`；撤销 `devcodex` 误绑。文档与命令示例中 `npm install|update -g` 对齐 `devcodex`；`validate-profile` 识别 scoped 包名；修复正则字面量中 `/` 截断；managed deployment-manifest package 字段同步。
 - **目录与包身份统一为 devcodex（本地/公开）**：源码目录与 active-root 由 devcodex-v1 对齐为 devcodex；npm 包 devcodex、仓库 devcodex-labs/devcodex、npmjs public 发布配置与 probe/fixtures/Skill 示例同步；isSourceRepo 识别新包名；历史 releases 台账不回溯改写。
 
 - **维护者站点×清单一致性（Fix-1 分母重冻）**：`docs-surface-inventory` npm scripts 下限 **≥113**、scripts/lib **≥102**；基线 `scripts/fixtures/docs-surface-baseline-20260727.json`；intro 能力证据表补 scripts/lib/validation/delivery-honesty 与五宿主 L0 摘要表。需求：`maintainer-site-docs-consistency`。

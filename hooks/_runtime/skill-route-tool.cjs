@@ -134,6 +134,95 @@ function readJson (file, fsImpl = fs) {
   }
 }
 
+function writeJsonAtomic (file, value, fsImpl = fs) {
+  const dir = path.dirname(file)
+  fsImpl.mkdirSync(dir, { recursive: true })
+  const tmp = `${file}.tmp.${process.pid}.${Date.now()}`
+  fsImpl.writeFileSync(tmp, `${JSON.stringify(value, null, 2)}\n`, 'utf8')
+  fsImpl.renameSync(tmp, file)
+}
+
+/**
+ * When MCP plan observation advanced but Hook PostToolUse never installed the
+ * plan into lifecycle-state, skill_route would see MISMATCH/stale against the
+ * caller's contextBinding. Rebind from the exact observation when identities match.
+ */
+function tryRebindLifecycleFromPlanObservation (binding, target, lifecycle, options = {}) {
+  const fsImpl = options.fs || fs
+  const acquisition = lifecycle?.contextAcquisition
+  if (!acquisition || typeof acquisition !== 'object') return { rebound: false, lifecycle }
+
+  const plan = acquisition.plan
+  const receipt = acquisition.receipt
+  const identityMatches = !!(
+    plan &&
+    receipt &&
+    binding.contextEpoch === acquisition.contextEpoch &&
+    binding.contextEpoch === plan.identity?.contextEpoch &&
+    binding.planId === plan.planId &&
+    binding.planContentId === plan.planContentId &&
+    path.resolve(binding.activeRoot) === path.resolve(target.activeRoot) &&
+    binding.project === target.project &&
+    receipt.contextEpoch === binding.contextEpoch &&
+    receipt.planId === binding.planId &&
+    receipt.planContentId === binding.planContentId
+  )
+  if (identityMatches && ACCEPTED_CONTEXT_RECEIPT_STATUSES.has(receipt.status)) {
+    return { rebound: false, lifecycle }
+  }
+
+  let readContextPlanObservation
+  let createContextReadReceipt
+  let validateContextReadPlan
+  try {
+    ;({ readContextPlanObservation } = require('./context-plan-observation.cjs'))
+    ;({ createContextReadReceipt, validateContextReadPlan } = require('./context-read-contract.cjs'))
+  } catch {
+    return { rebound: false, lifecycle }
+  }
+
+  const observed = readContextPlanObservation({
+    activeRoot: target.activeRoot,
+    project: target.project,
+    contextEpoch: binding.contextEpoch
+  })
+  if (observed.status !== 'fresh' || !observed.plan) return { rebound: false, lifecycle }
+  if (observed.plan.planId !== binding.planId || observed.plan.planContentId !== binding.planContentId) {
+    return { rebound: false, lifecycle }
+  }
+  const validation = validateContextReadPlan(observed.plan)
+  if (!validation.valid) return { rebound: false, lifecycle }
+
+  const priorReceipt = acquisition.receipt
+  const nextReceipt = createContextReadReceipt(observed.plan, {
+    verificationMode: 'structured-plan',
+    planObserved: true,
+    hostSessionId: acquisition.hostSessionId
+  })
+  if (priorReceipt && Number.isFinite(Number(priorReceipt.replanCount))) {
+    nextReceipt.replanCount = Number(priorReceipt.replanCount)
+  }
+
+  acquisition.plan = observed.plan
+  acquisition.receipt = nextReceipt
+  acquisition.contextEpoch = binding.contextEpoch
+  acquisition.activeRoot = path.resolve(target.activeRoot).replace(/\\/g, '/')
+  acquisition.project = target.project
+  acquisition.targetResolved = true
+  acquisition.fallbackActive = false
+  acquisition.lastError = null
+  acquisition.verificationMode = 'structured-plan'
+
+  lifecycle.contextAcquisition = acquisition
+  const statePath = lifecycleStatePath(target)
+  try {
+    writeJsonAtomic(statePath, lifecycle, fsImpl)
+  } catch {
+    // Still use in-memory rebinding for this call even if persist fails.
+  }
+  return { rebound: true, lifecycle }
+}
+
 function validateTrustedContextBinding (binding, target, options = {}) {
   if (options.trustedContext) return options.trustedContext
   if (!binding ||
@@ -152,7 +241,14 @@ function validateTrustedContextBinding (binding, target, options = {}) {
     throw error
   }
   const statePath = lifecycleStatePath(target)
-  const lifecycle = readJson(statePath, options.fs || fs)
+  let lifecycle = readJson(statePath, options.fs || fs)
+  if (!lifecycle || typeof lifecycle !== 'object') lifecycle = {}
+  if (!lifecycle.contextAcquisition || typeof lifecycle.contextAcquisition !== 'object') {
+    lifecycle.contextAcquisition = {}
+  }
+
+  const rebound = tryRebindLifecycleFromPlanObservation(binding, target, lifecycle, options)
+  lifecycle = rebound.lifecycle
   const acquisition = lifecycle?.contextAcquisition
   const plan = acquisition?.plan
   const receipt = acquisition?.receipt
@@ -199,7 +295,8 @@ function validateTrustedContextBinding (binding, target, options = {}) {
     receiptId: receipt.receiptId,
     receiptStatus: receipt.status,
     hostSessionId: String(acquisition.hostSessionId || ''),
-    statePath: portable(statePath)
+    statePath: portable(statePath),
+    reboundFromObservation: rebound.rebound === true
   }
   value.bindingDigest = sha256(value)
   return value

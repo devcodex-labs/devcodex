@@ -881,6 +881,12 @@ function resolveMemoryAgent(agent, activeRoot) {
     }
     if (candidates.length === 1) return candidates[0]
     if (candidates.length > 1) {
+      // Prefer runtime-detected host when multi-client dirs exist (common in monorepos).
+      // Only fail closed when inference is unknown or not among candidates.
+      const inferred = normalizeAgent(DEFAULT_AGENT) || detectRuntimeAgent()
+      if (inferred && inferred !== 'unknown-agent' && candidates.includes(inferred)) {
+        return inferred
+      }
       throw memoryQueryError(
         `memory agent is ambiguous; available clients: ${candidates.join(', ')}.`,
         'Pass the current actual host in agent.',

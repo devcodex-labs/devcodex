@@ -240,30 +240,48 @@ function copilotHookDocument(runtimeFile) {
   }
 }
 
-function buildMcpServers(runtimeRoot) {
+/**
+ * Map global host id → memory/profile agent identity (VALID_AGENTS).
+ * Claude host root is `.claude` but agent id is `claude-code`.
+ */
+function hostToRuntimeAgent (host) {
+  const normalized = String(host || '').trim().toLowerCase()
+  if (normalized === 'claude') return 'claude-code'
+  if (normalized === 'copilot' || normalized === 'codex' || normalized === 'grok') return normalized
+  // gemini / unknown: leave unset so detectRuntimeAgent can still apply
+  return ''
+}
+
+function buildMcpServers(runtimeRoot, options = {}) {
+  const agent = hostToRuntimeAgent(options.agent || options.host)
+  const env = agent ? { DEVCODEX_AGENT: agent } : undefined
+  const base = {
+    type: 'stdio',
+    command: 'node'
+  }
   return {
     'devcodex-memory': {
-      type: 'stdio',
-      command: 'node',
-      args: [portable(path.join(runtimeRoot, 'mcp', 'memory-server.js')), '.']
+      ...base,
+      args: [portable(path.join(runtimeRoot, 'mcp', 'memory-server.js')), '.'],
+      ...(env ? { env } : {})
     },
     'devcodex-profile': {
-      type: 'stdio',
-      command: 'node',
-      args: [portable(path.join(runtimeRoot, 'mcp', 'profile-server.js')), '.']
+      ...base,
+      args: [portable(path.join(runtimeRoot, 'mcp', 'profile-server.js')), '.'],
+      ...(env ? { env } : {})
     }
   }
 }
 
-function buildCopilotMcpServers(runtimeRoot) {
+function buildCopilotMcpServers(runtimeRoot, options = {}) {
   return Object.fromEntries(
-    Object.entries(buildMcpServers(runtimeRoot)).map(([name, server]) => [
+    Object.entries(buildMcpServers(runtimeRoot, options)).map(([name, server]) => [
       name,
       {
         type: 'local',
         command: server.command,
         args: server.args,
-        env: {},
+        env: server.env && typeof server.env === 'object' ? { ...server.env } : {},
         tools: ['*']
       }
     ])
@@ -271,14 +289,15 @@ function buildCopilotMcpServers(runtimeRoot) {
 }
 
 /** VS Code user mcp.json "servers" entries (stdio). */
-function buildVscodeMcpServers (runtimeRoot) {
+function buildVscodeMcpServers (runtimeRoot, options = {}) {
   return Object.fromEntries(
-    Object.entries(buildMcpServers(runtimeRoot)).map(([name, server]) => [
+    Object.entries(buildMcpServers(runtimeRoot, { agent: options.agent || options.host || 'copilot' })).map(([name, server]) => [
       name,
       {
         type: 'stdio',
         command: server.command,
-        args: server.args
+        args: server.args,
+        ...(server.env ? { env: server.env } : {})
       }
     ])
   )
@@ -287,7 +306,7 @@ function buildVscodeMcpServers (runtimeRoot) {
 /**
  * Merge DevCodex servers into VS Code User mcp.json without wiping inputs / other servers.
  */
-function mergeVscodeUserMcpContent (existingText, runtimeRoot) {
+function mergeVscodeUserMcpContent (existingText, runtimeRoot, options = {}) {
   let doc = {}
   try {
     doc = parseJsonObject(existingText, 'VS Code user mcp.json')
@@ -297,7 +316,7 @@ function mergeVscodeUserMcpContent (existingText, runtimeRoot) {
   if (!doc.servers || typeof doc.servers !== 'object' || Array.isArray(doc.servers)) {
     doc.servers = {}
   }
-  const managed = buildVscodeMcpServers(runtimeRoot)
+  const managed = buildVscodeMcpServers(runtimeRoot, options)
   for (const [name, server] of Object.entries(managed)) {
     doc.servers[name] = server
   }
@@ -332,17 +351,21 @@ function codexMcpTableNames () {
 }
 
 function codexTomlBlock(target) {
-  const servers = buildMcpServers(target.runtimeRoot)
+  const servers = buildMcpServers(target.runtimeRoot, { host: target.host || 'codex' })
+  const agent = hostToRuntimeAgent(target.host || 'codex')
+  const envLine = agent ? `env = { DEVCODEX_AGENT = ${quoteToml(agent)} }` : null
   const lines = [
     '# Managed by npm install/update -g devcodex.',
     '[mcp_servers.devcodex-memory]',
     'command = "node"',
     `args = [${servers['devcodex-memory'].args.map(quoteToml).join(', ')}]`,
+    ...(envLine ? [envLine] : []),
     'startup_timeout_sec = 30',
     '',
     '[mcp_servers.devcodex-profile]',
     'command = "node"',
     `args = [${servers['devcodex-profile'].args.map(quoteToml).join(', ')}]`,
+    ...(envLine ? [envLine] : []),
     'startup_timeout_sec = 30'
   ]
   for (const [server, tools] of Object.entries(CODEX_MCP_APPROVED_TOOLS)) {
@@ -393,7 +416,7 @@ function addCopilotPlan(operations, target, packageRoot, fsImpl) {
     'json',
     `${JSON.stringify(hooks, null, 2)}\n`
   )
-  const mcp = { mcpServers: buildCopilotMcpServers(target.runtimeRoot) }
+  const mcp = { mcpServers: buildCopilotMcpServers(target.runtimeRoot, { host: 'copilot' }) }
   addFileOperation(
     operations,
     target.host,
@@ -416,7 +439,7 @@ function addCopilotPlan(operations, target, packageRoot, fsImpl) {
     if (seenVscode.has(key)) continue
     seenVscode.add(key)
     const existing = readText(vscodeMcpPath, fsImpl)
-    const merged = mergeVscodeUserMcpContent(existing, target.runtimeRoot)
+    const merged = mergeVscodeUserMcpContent(existing, target.runtimeRoot, { host: 'copilot' })
     addFileOperation(
       operations,
       target.host,
@@ -464,11 +487,11 @@ function addClaudePlan(operations, target, packageRoot, fsImpl) {
     target.files.mcp,
     mergeHostJsonContent(
       readText(target.files.mcp, fsImpl),
-      { mcpServers: buildMcpServers(target.runtimeRoot) },
+      { mcpServers: buildMcpServers(target.runtimeRoot, { host: 'claude' }) },
       'Claude user MCP'
     ),
     'json',
-    `${JSON.stringify({ mcpServers: buildMcpServers(target.runtimeRoot) }, null, 2)}\n`
+    `${JSON.stringify({ mcpServers: buildMcpServers(target.runtimeRoot, { host: 'claude' }) }, null, 2)}\n`
   )
 }
 
@@ -531,7 +554,7 @@ function addGeminiPlan(operations, target, packageRoot, fsImpl) {
     managedInstruction('', source, 'gemini')
   )
   const settings = transformedHookTemplate(packageRoot, target, path.join('gemini', 'settings.json'), 'gemini', fsImpl)
-  settings.mcpServers = buildMcpServers(target.runtimeRoot)
+  settings.mcpServers = buildMcpServers(target.runtimeRoot, { host: 'gemini' })
   addFileOperation(
     operations,
     target.host,
@@ -584,7 +607,7 @@ function addGrokPlan(operations, target, packageRoot, fsImpl) {
     operations,
     target.host,
     path.join(target.files.plugin, '.mcp.json'),
-    `${JSON.stringify({ mcpServers: buildMcpServers(target.runtimeRoot) }, null, 2)}\n`,
+    `${JSON.stringify({ mcpServers: buildMcpServers(target.runtimeRoot, { host: 'grok' }) }, null, 2)}\n`,
     'json'
   )
 
@@ -1628,6 +1651,7 @@ module.exports = {
   buildCopilotMcpServers,
   buildMcpServers,
   buildVscodeMcpServers,
+  hostToRuntimeAgent,
   mergeVscodeUserMcpContent,
   copilotHookDocument,
   digestPlan,

@@ -13,7 +13,7 @@
       "status": "PASS",
       "testedVersion": "codex-cli 0.145.0",
       "protocol": "MCP 2024-11-05",
-      "runtimeContractDigest": "1c727701a1ae4f3a8699a932066994098402744b99ed81ba2ec32f1929bf5d6a",
+      "runtimeContractDigest": "8e6fd2aa9f8dd4f865ff76b670f3f4a2f61b8ccd4c37546d84579c5d6efd8b41",
       "hostAdapterDigest": "6ba881f7fd7eba6297e1fcb8c55da09abbd5f47a42661fb2269f38d05e014139",
       "evidenceDigest": "ce8fb9c145934bb59f2ce1f5d253a21fb9ba33218a728d4b23b7a0c45fe2cc53",
       "evidenceRef": "E:/Worker/devcodex/.audit-state/content-root-s15-codex-production-20260730.json",

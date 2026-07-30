@@ -146,9 +146,17 @@ function summaryConflicts(rows) {
 }
 
 function latestUniqueActiveSessionIds(rows) {
+  // Prefer completed truth for the same day#sessionId so a later ✅ row
+  // does not leave a stale 🔄 row forever in activeSessionIds.
+  const completedKeys = new Set(
+    rows
+      .filter(row => row.state === 'completed' && row.sessionIdCanonical)
+      .map(row => `${row.day}#${row.sessionId}`)
+  )
   return [...new Set(rows.slice().reverse()
     .filter(row => row.state === 'active' && row.sessionIdCanonical)
-    .map(row => `${row.day}#${row.sessionId}`))]
+    .map(row => `${row.day}#${row.sessionId}`)
+    .filter(key => !completedKeys.has(key)))]
 }
 
 function buildSummaryPartitions(document, parsed) {

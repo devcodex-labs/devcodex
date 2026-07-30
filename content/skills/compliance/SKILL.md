@@ -167,7 +167,7 @@ chat / 纯确认短答：TTFV 可 `N/A + skipReason=chat-or-ack`。
 | FC2 | 报告文件已写入（chat 豁免） |
 | FC3 | CP 按序执行（dev/fix；其他 N/A） |
 | FC4 | 文件名/路径合规（`NN--` 双横杠开头） |
-| FC5 | `ArtifactDeliveryManifestV1` 完整对账；`UserFacingArtifactSetV1` required hidden=0、计数守恒；semantic name/action/order 与 capability renderer 有效 |
+| FC5 | `ArtifactDeliveryManifestV1` 完整对账；`UserFacingArtifactSetV1` required hidden=0、计数守恒；semantic name/action/order 与 `LinkCapabilityDecisionV1` capability renderer 有效 |
 | FC6 | 新增 DevCodex 规范资产 `.md` 行数检查（instructions / skills / prompts / templates / 规范源等超 500 行须按 [C13](../../instructions/01-common.instructions.md) 拆分；业务项目需求、技术方案、报告和正式项目文档不因 C13 强制拆分） |
 | FC7 | 用户决策选项与报告决策点必带推荐 + 理由：所有 AskUserQuestion / 多选项呈现 / CP 选项 / 方案对比 / analyze-audit 报告决策点必须有且仅有 1 个推荐项，推荐项置首且说明推荐理由；**完成态「下一步/后续建议」适用 UniqueNextStepRecommendationGate**（禁止「或」并列双主动作）；无后续动作时写明 `推荐：无后续动作` |
 
@@ -257,4 +257,3 @@ chat / 纯确认短答：TTFV 可 `N/A + skipReason=chat-or-ack`。
 | 连续 2 次同类偏差 | 升级分析（追加记忆 `⚠️连续违规` + 报告增加「规范偏差分析」章节）；**不自动进入 self-fix**（防递归） |
 | 文件路径不符合 [`02-output-paths.instructions.md`](../../instructions/02-output-paths.instructions.md) | 立即停止创建，迁移到正确路径 |
 | 规范文件修改后引用未同步 | 交叉验证后修正 |
-

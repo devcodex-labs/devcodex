@@ -911,11 +911,13 @@ function classifyDialogueNarrativeSample(sample, options = {}) {
  */
 function analyzeFinalValidationSummarySample(sample, options = {}) {
   const textSample = String(sample || '')
+  // NoisePolicy: short FVS alone is a valid completion scaffold (no full FC table required).
   const claimedCompletion =
+    /FinalValidationSummaryV1|###\s*FinalValidationSummary/i.test(textSample) ||
     /DevCodexVisibleEnvelopeV1\s*·\s*completion-check/i.test(textSample) ||
     /###\s*DevCodex\s*·\s*完成检查/i.test(textSample) ||
     /🛡️\s*DEV\s*模式\s*\|\s*合规检查/i.test(textSample) ||
-    /(?:完成检查|completion-check|CompletionEvidenceGate)/i.test(textSample)
+    /####\s*验证摘要|权威验证命令与\s*exitCode/i.test(textSample)
 
   if (!textSample.trim() || !claimedCompletion) {
     return {

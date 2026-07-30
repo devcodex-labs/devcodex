@@ -638,7 +638,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → 
 **禁止**：`PC2–PC7` 折叠行；PC3/PC6 写成内部进度条；用图标冒充 PASS 且无证据。  
 **兼容**：列表形式 `- PC0 [状态] …` 仍可识别，但**推荐表格**；PC0~PC7 必须分列可数（FreeTextEntryCheckCompletenessGate）。
 
-入口检查、完成检查、确认、进度、最终结果与阻断统一由 `user-visible-output-contract` 投影；状态词固定为 `PASS / WARN / BLOCK / UNVERIFIED / N/A`。dev/fix/self-fix 的 completion-check 必须：① 可选「复审验证（白话）」三行结论；② 投影 `FinalValidationSummaryV1`（**白话在上、命令+exitCode 证据在下**），含关键计数、WorkspaceSyncStatus、dirty boundary、release action boundary；commit 声明还要列 post-commit replay。未知能力或缺证据不得用图标冒充 PASS；新会话、resume/compact、scope/risk/dirty/receipt 变化或存在非 PASS/N/A 时必须 expanded。
+入口检查、完成检查、确认、进度、最终结果与阻断统一由 `user-visible-output-contract` 投影；状态词固定为 `PASS / WARN / BLOCK / UNVERIFIED / N/A`。**UserVisibleNoisePolicyV1**：入口始终必出；未宣称工作完成时用户面不贴完成检查/FVS/FC 全表；宣称完成且全绿用 **短 FVS**（白话+命令 exitCode+边界）；失败/缺口才展开全量。合规执行证据进报告/记忆。未知能力或缺证据不得用图标冒充 PASS；新会话、resume/compact、scope/risk/dirty/receipt 变化或存在非 PASS/N/A 时入口仍须 expanded。
 
 ### FC 形式合规（必须全通过）
 

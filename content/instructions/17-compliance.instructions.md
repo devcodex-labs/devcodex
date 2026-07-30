@@ -232,31 +232,26 @@ version: 1.15.3
 
 > ⚠️ chat 豁免的是**合规检查状态块**（FC/SC/RC/T），不豁免**入口检查块**（PC0~PC7）。chat 在所有模式下仍需在实质回答前输出入口检查结果，但回复末尾无需输出合规状态块。
 
-**dev 模式**（回复末尾必须输出 · UserVisibleReplyLayoutV1 · 五宿主同源）：
+**dev 模式完成态**（UserVisibleNoisePolicyV1 · 五宿主同源）：
+
+| 时机 | 用户面 |
+|------|--------|
+| 进行中 / 未宣称完成 | **只保留入口检查 + 正文**；FC/SC/T/FVS/产物表默认不贴 |
+| 宣称完成且全绿 | **短 FVS**（白话 + 命令 exitCode + 边界）；不默认 FC 全表 |
+| 宣称完成有缺口 / 用户要详情 | 展开完成检查失败项 + 全量 FVS + 相关产物 |
+
 ```text
-### DevCodex · 完成检查
-`PASS/WARN/BLOCK/UNVERIFIED` · `[project]`
-
-- FC1~FC7 [状态] 固定 ID 与实际证据
-- SCx/RCx/Tx [状态] 仅列适用项
-
-### 复审验证（白话）
-- 结论：通过 / 未通过 / 仅说明
-- 做了什么检查：……
-- 结果与是否改代码/提交：……
-
-<!-- devcodex:include shared/compliance/validation-summary.md -->
-
-#### 完成交付文件
-- [语义名称](capability-selected-target) — 用途；路径：…；操作：用户动作
-已列 N / 总计 M；默认隐藏 R
-
-DevCodexVisibleEnvelopeV1 · completion-check · [状态] · [semanticDigest]
+### FinalValidationSummaryV1
+**白话：** …
+**证据：** `command` exitCode 0 · 关键计数 a/b
+WorkspaceSyncStatus: … · dirty boundary: … · Release actions: …
 ```
 
-> ⚠️ **FC5 填写规则**：触发 `user-visible-output-contract`。internal manifest 必须 planned=observed=internalDelivered；visible set 必须 required hidden=0 且 `listed+remaining=total`。默认隐藏 session/daily/SUMMARY/task/checkpoint/raw receipt/manifest/ledger，但继续写入和 ECR。链接必须由 `LinkCapabilityDecisionV1` 按当前 surface 证据选择；Rich clickable 不重复绝对路径，只有用户要求、链接失败、工作区外、歧义或无法定位时追加 fallback。Hook 未观察 payload时只能 `unverified`，legacy 格式最多 `unverified-legacy`。
-> ⚠️ **DevModeCompletionCheckDetailGate**：completion-check 只写“全绿 / 已通过 / 详见报告”不合格；必须投影 `FinalValidationSummaryV1`（**白话在上、命令+exitCode 在下**），并由 `classifyFinalValidationSummarySample` 负向样例守门。
-> ⚠️ **fix/self-fix 完成态**同样须有完成检查标题 + FVS；chat 豁免完成检查块但入口检查不豁免。
+完整 FC/SC/RC/T 矩阵仍须在 **报告/记忆** 中可追溯；用户面不默认复读。
+
+> ⚠️ **FC5**：internal manifest 与 visible set 对账仍强制（进报告）；用户面交付表仅在有用户可见产物或缺口时投影。
+> ⚠️ **DevModeCompletionCheckDetailGate**：宣称完成却只有「全绿/详见报告」不合格；短 FVS 须含命令+exitCode+边界字段。
+> ⚠️ chat 豁免完成块；入口检查不豁免。
 
 ## 自修复触发（不进入 self-fix 工作流）
 

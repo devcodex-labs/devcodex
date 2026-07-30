@@ -80,6 +80,7 @@
       "projectionLines": [
         "- 入口、确认、进度、完成与阻断由 user-visible-output-contract 投影；首条和恢复首条必须显示 PC0~PC7。",
         "- UserVisibleReplyLayoutV1（五宿主同源）：入口用 PC0~PC7 人话表（禁止进度缩写/折叠行）；FinalValidationSummaryV1 白话在上、命令+exitCode 在下。",
+        "- UserVisibleNoisePolicyV1：入口常显；未宣称完成不贴完成检查/FVS；宣称完成且全绿用短 FVS；失败才展开。",
         "- 状态仅 PASS/WARN/BLOCK/UNVERIFIED/N/A；ArtifactDeliveryManifestV1 内部完整，默认用户面仅显示需要决策、结果和 required evidence。"
       ]
     },

@@ -48,8 +48,21 @@ function extractLastAssistantMessage (payload) {
   return ''
 }
 
+/**
+ * UserVisibleNoisePolicyV1:
+ * - Scaffold (完成检查 / FVS 标题) is structural chrome — does NOT mean work is done.
+ * - workDoneClaimed is a strong completion / closure claim for users.
+ */
+function workDoneClaimed (text) {
+  return /已完成|任务完成|all work is complete|宣告完成|可关闭需求|本需求.*闭环|DoD.*闭环|只差验收|需求已完成|关账完成|实施交付收尾|版式规范关账|修复已验证通过并已提交/i.test(
+    text || ''
+  )
+}
+
+/** @deprecated prefer workDoneClaimed; export keeps name for older callers */
 function completionClaimed (text) {
-  return /完成检查|completion-check|CompletionEvidenceGate|已完成|已收口|宣告完成|任务完成|FinalValidationSummary|全绿|SC15/i.test(text || '')
+  // Strong work-done only (NoisePolicy). Mere "### 完成检查" / FVS heading is NOT enough.
+  return workDoneClaimed(text)
 }
 
 function askingCp2Confirm (text) {
@@ -61,13 +74,18 @@ function hasEntryCheck (text) {
   return /###\s*DevCodex\s*·\s*入口检查|PC0\s*[|：:]|PC0~PC7|入口检查块|DevCodexVisibleEnvelopeV1\s*·\s*entry-check/i.test(text || '')
 }
 
-/** F-14/F-16: standard completion-check block present */
+/** F-14/F-16: completion-check OR short FinalValidationSummary scaffold */
 function hasCompletionCheck (text) {
   return (
     /###\s*DevCodex\s*·\s*完成检查/i.test(text || '') ||
     /DevCodexVisibleEnvelopeV1\s*·\s*completion-check/i.test(text || '') ||
-    /🛡️\s*DEV\s*模式\s*\|\s*合规检查/i.test(text || '')
+    /🛡️\s*DEV\s*模式\s*\|\s*合规检查/i.test(text || '') ||
+    /###\s*FinalValidationSummaryV1/i.test(text || '')
   )
+}
+
+function hasFinalValidationSummary (text) {
+  return /FinalValidationSummaryV1|####\s*验证摘要|权威验证命令与\s*exitCode/i.test(text || '')
 }
 
 /**
@@ -258,37 +276,34 @@ function evaluateStopCompletionGate (input = {}) {
     || ['dev', 'fix', 'self-fix'].includes(wf)
     || mutated
     || reportTouched
+  const done = workDoneClaimed(text) || input.completionClaimed === true
 
   if (nonChatWork) {
-    // F-07: R11 canonical names
+    // F-07: entry always required for non-chat (NoisePolicy P1)
     if (!hasEntryCheck(text)) gaps.push('entry-check-missing')
 
-    // F-16: completion-check block required for non-chat work that claims complete or mutates under dev/fix
-    const needCompletionBlock = completionClaimed(text)
-      || reportTouched
-      || ['dev', 'fix', 'self-fix'].includes(modeL)
-      || ['dev', 'fix', 'self-fix'].includes(wf)
-      || mutated
-    if (needCompletionBlock && !hasCompletionCheck(text)) {
-      gaps.push('completion-check-missing')
-    }
-
-    const summary = analyzeFinalValidationSummarySample(text)
-    const classif = summary.classification || summary.status || 'not-claimed'
-    if (
-      (completionClaimed(text) || reportTouched || mutated)
-      && (classif === 'not-claimed' || classif === 'thin-green-summary' || classif === 'report-link-only' || summary.status === 'verified-missing')
-    ) {
-      if (classif === 'not-claimed' && !completionClaimed(text) && !reportTouched && mutated) {
-        // mutated without completion claim: entry + completion-check cover Q1; FVS optional until claim
-      } else if (completionClaimed(text) || reportTouched) {
-        gaps.push('final-validation-summary')
-      } else if (mutated && summary.status === 'verified-missing' && hasCompletionCheck(text)) {
+    // NoisePolicy P3/P5: completion scaffold + FVS only when work is claimed done
+    // (not merely because mode=dev or mutation occurred mid-task).
+    if (done) {
+      if (!hasCompletionCheck(text) && !hasFinalValidationSummary(text)) {
+        gaps.push('completion-check-missing')
+      }
+      const summary = analyzeFinalValidationSummarySample(text)
+      const classif = summary.classification || summary.status || 'not-claimed'
+      if (
+        classif === 'not-claimed' ||
+        classif === 'thin-green-summary' ||
+        classif === 'report-link-only' ||
+        summary.status === 'verified-missing'
+      ) {
         gaps.push('final-validation-summary')
       }
-    }
-    if (completionClaimed(text) && (classif === 'not-claimed' || classif === 'thin-green-summary' || summary.status === 'verified-missing')) {
-      if (!gaps.includes('final-validation-summary')) gaps.push('final-validation-summary')
+    } else if (hasCompletionCheck(text) || hasFinalValidationSummary(text)) {
+      // Optional scaffold present without work-done claim: if FVS body is incomplete, still flag.
+      const summary = analyzeFinalValidationSummarySample(text)
+      if (summary.claimed && summary.status === 'verified-missing') {
+        gaps.push('final-validation-summary')
+      }
     }
 
     // F-08: report/memory with explicit N/A / SimpleTask / probe exemption
@@ -303,9 +318,9 @@ function evaluateStopCompletionGate (input = {}) {
     gaps.push('pr1-skipped')
   }
 
-  // Process-enforcement: R3/R4 completion claim without review-checklist path/status
+  // Process-enforcement: only when strong work-done claim (NoisePolicy)
   const checklist = classifyReviewChecklistCompletion({
-    completionClaimed: completionClaimed(text) || input.completionClaimed === true,
+    completionClaimed: done,
     reviewClass: input.reviewClass || '',
     text,
     hasReviewChecklistPath: input.hasReviewChecklistPath === true
@@ -316,7 +331,7 @@ function evaluateStopCompletionGate (input = {}) {
 
   // Process package: control-plane / multi-batch must cite or possess 04+05+checklist
   const processPkg = classifyProcessArtifactCompleteness({
-    completionClaimed: completionClaimed(text) || input.completionClaimed === true,
+    completionClaimed: done,
     reviewClass: input.reviewClass || '',
     text,
     controlPlaneTask: input.controlPlaneTask === true,
@@ -377,6 +392,8 @@ module.exports = {
   evaluateStopCompletionGate,
   extractLastAssistantMessage,
   askingCp2Confirm,
+  workDoneClaimed,
+  hasFinalValidationSummary,
   pr1EvidenceOk,
   pr1ReviewBodyOk,
   countPr1Substance,

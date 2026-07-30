@@ -106,7 +106,7 @@ assert.strictEqual(extractLastAssistantMessage({ last_assistant_message: 'snake'
   assert.ok(!r.gaps.includes('entry-check-missing'))
 }
 
-// T3: mutation + no entry → block (R11 names)
+// T3: mutation + work-done claim + no entry → block (R11 names)
 {
   const r = evaluateStopCompletionGate({
     mode: 'dev',
@@ -116,6 +116,69 @@ assert.strictEqual(extractLastAssistantMessage({ last_assistant_message: 'snake'
   assert.strictEqual(r.decision, 'block')
   assert.ok(r.gaps.includes('entry-check-missing'), `gaps=${r.gaps.join(',')}`)
   assert.ok(r.gaps.includes('completion-check-missing'), `gaps=${r.gaps.join(',')}`)
+  assert.ok(r.gaps.includes('final-validation-summary'), `gaps=${r.gaps.join(',')}`)
+}
+
+// NoisePolicy: mid-task mutation + entry + report/memory, no work-done claim → allow without completion/FVS
+{
+  const mid = [
+    '### DevCodex · 入口检查',
+    '- PC0 [PASS] Context plan',
+    '- PC1 [PASS] Intent',
+    '- PC2 [PASS] Session',
+    '- PC3 [PASS] Project',
+    '- PC4 [N/A] skipReason=non-dev',
+    '- PC5 [PASS] Host',
+    '- PC6 [PASS] Git',
+    '- PC7 [PASS] Next',
+    '',
+    'Still implementing; not done yet.'
+  ].join('\n')
+  const r = evaluateStopCompletionGate({
+    mode: 'dev',
+    mutated: true,
+    reportTouched: true,
+    memoryTouched: true,
+    lastAssistantMessage: mid
+  })
+  assert.strictEqual(r.decision, 'allow', `gaps=${r.gaps.join(',')}`)
+  assert.ok(!r.gaps.includes('completion-check-missing'))
+  assert.ok(!r.gaps.includes('final-validation-summary'))
+}
+
+// NoisePolicy: work-done claim + entry + short FVS only (no FC table) → allow
+{
+  const shortDone = [
+    '### DevCodex · 入口检查',
+    '- PC0 [PASS] Context plan',
+    '- PC1 [PASS] Intent',
+    '- PC2 [PASS] Session',
+    '- PC3 [PASS] Project',
+    '- PC4 [N/A] skipReason=non-dev',
+    '- PC5 [PASS] Host',
+    '- PC6 [PASS] Git',
+    '- PC7 [PASS] Next',
+    '',
+    '任务完成。',
+    'ECR: N/A',
+    'skipReason=simple-task',
+    '报告: N/A',
+    '',
+    '### FinalValidationSummaryV1',
+    '**白话：** 修复已验证通过。',
+    '**证据：** `npm run test:visible-output` exitCode 0 · 关键计数 1/1',
+    'WorkspaceSyncStatus: N/A 未触发',
+    'dirty boundary: git status clean-tree; 工作树干净',
+    'Release actions: push/tag/publish 未执行'
+  ].join('\n')
+  const r = evaluateStopCompletionGate({
+    mode: 'dev',
+    mutated: true,
+    reportTouched: true,
+    memoryTouched: true,
+    lastAssistantMessage: shortDone
+  })
+  assert.strictEqual(r.decision, 'allow', `gaps=${r.gaps.join(',')}`)
 }
 
 // F-14/F-16: hasCompletionCheck

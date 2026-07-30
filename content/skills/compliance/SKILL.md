@@ -34,40 +34,25 @@ dev 模式 PC4 至少输出：
 
 当 PC4 命中新规范吸纳、历史长清单迁移、复审遗漏、用户文档、发布或前端运行态相关 gateGroup 时，后续报告必须引用对应 owner Skill 的证据，而不是只写“已检查规范雷达”。
 
-### 🔴 强制可见输出（仅 dev 模式合规块，chat 豁免）
+### 🔴 合规执行 vs 用户面可见（UserVisibleNoisePolicyV1 · chat 豁免完成块）
 
-每次回复末尾**必须**输出合规检查状态块：
+| 层 | 要求 |
+|----|------|
+| **执行** | dev 模式仍须在内部完成 FC/SC/RC/T；证据写入报告/记忆 |
+| **用户面默认** | **未宣称完成** → 不贴完成检查/FVS/产物全表（只保留入口检查 + 正文） |
+| **宣称完成且全绿** | 贴 **短 FVS**（见 shared validation-summary）；不默认 FC 全表 |
+| **失败/缺口/用户要详情** | 展开失败项 + 全量 FVS / 相关产物 |
 
 ```text
-### DevCodex · 完成检查
-`PASS/WARN/BLOCK/UNVERIFIED` · `[project]`
-
-- FC1 [状态] 记忆写入
-- FC2 [状态] 报告写入
-- FC3 [状态] CP 顺序
-- FC4 [状态] 文件名/路径
-- FC5 [状态] internal manifest 与 visible set 对账
-- FC6 [状态] 规范资产行数
-- FC7 [状态] 决策推荐
-- SCx/RCx/Tx [状态] 仅列适用项
-
-### 复审验证（白话）
-- 结论：通过 / 未通过 / 仅说明
-- 做了什么检查：……
-- 结果与是否改代码/提交：……
-
-<!-- devcodex:include shared/compliance/validation-summary.md -->
-
-#### 完成交付文件
-- [语义名称](capability-selected-target) — 用途；路径：…；操作：用户动作
-已列 N / 总计 M；默认隐藏 R
-
-DevCodexVisibleEnvelopeV1 · completion-check · [状态] · [semanticDigest]
+### FinalValidationSummaryV1
+**白话：** …
+**证据：** `command` exitCode 0 · 关键计数 a/b
+WorkspaceSyncStatus: … · dirty boundary: … · Release actions: …
 ```
 
-> ⛔ dev 模式下不输出状态块视为未执行合规检查。
-> ⛔ `completion-check` 只有“全绿/已通过/详见报告”但缺 `FinalValidationSummaryV1`（白话+命令 exitCode）时，视为 `DevModeCompletionCheckDetailGate` 未通过。
-> ℹ️ 入口检查 / 完成检查 / FVS 对五宿主同源，见 `user-visible-output-contract` · UserVisibleReplyLayoutV1。
+> ⛔ 宣称完成却只有“全绿/详见报告” → `DevModeCompletionCheckDetailGate` 未通过。
+> ⛔ 未宣称完成时 **不得** 为过 Stop 而硬贴长完成检查（Stop 以 `workDoneClaimed` 为准）。
+> ℹ️ 五宿主同源：`user-visible-output-contract` · UserVisibleReplyLayoutV1 + UserVisibleNoisePolicyV1。
 > ⚠️ **FC5 填写规则**：触发 `user-visible-output-contract`。`ArtifactDeliveryManifestV1` 必须 planned=observed=internalDelivered，`UserFacingArtifactSetV1` 必须 required hidden=0 且 `listed+remaining=total`；session/daily/SUMMARY/task/checkpoint/raw ledger 默认 internal-only 但仍参与 ECR。链接按 `LinkCapabilityDecisionV1` 输出；Rich clickable 不重复绝对路径。Hook 未观察 payload 时只能 `unverified`，legacy 格式最多 `unverified-legacy`。
 > ℹ️ prod 模式不执行合规检查，不输出状态块。
 > ℹ️ chat 工作流豁免此输出。

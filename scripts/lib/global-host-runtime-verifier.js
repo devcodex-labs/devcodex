@@ -552,7 +552,6 @@ function verifyGlobalHostRuntime(options = {}) {
       probes.grokStatic = staticGrok
       issues.push(...staticGrok.issues)
       if (staticGrok.status === 'failed') contractStatus = 'failed'
-      else if (staticGrok.status === 'unverified' && contractStatus === 'passed') contractStatus = 'unverified'
     }
 
     const native = nativeVersionProbe(configurationHost.host, common)

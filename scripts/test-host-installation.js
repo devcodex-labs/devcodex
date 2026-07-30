@@ -755,7 +755,11 @@ console.log(`host installation tests passed selectors=5 dryRunWrites=0 collision
   const inspection = inspectGlobalHostConfig({ packageRoot: ROOT, env, home })
   assert.strictEqual(inspection.ready, false)
   assert.strictEqual(inspection.overallState, 'degraded')
-  assert.strictEqual(inspection.hosts.find(host => host.host === 'grok').contractStatus, 'unverified')
+  const grokInspection = inspection.hosts.find(host => host.host === 'grok')
+  assert.strictEqual(grokInspection.adapterReady, true)
+  assert.strictEqual(grokInspection.contractStatus, 'passed')
+  assert.strictEqual(grokInspection.nativeStatus, 'unverified')
+  assert(grokInspection.issues.some(issue => issue.code === 'GROK_PLUGIN_REGISTRY_UNVERIFIED'))
   assert.strictEqual(inspection.hosts.length, 5)
   assert.ok(fs.existsSync(path.join(home, 'gemini-cli-home', '.gemini', 'devcodex', 'global-host-receipt.json')))
   assert.ok(fs.existsSync(path.join(home, '.agents', 'devcodex', 'instructions.full.md')))
@@ -860,7 +864,7 @@ console.log(`host installation tests passed selectors=5 dryRunWrites=0 collision
   const statusAfterGlobalInstallFacts = JSON.parse(statusAfterGlobalInstall.stdout).payload
   assert.strictEqual(statusAfterGlobalInstallFacts.globalHostConfig.ready, false)
   assert.strictEqual(statusAfterGlobalInstallFacts.globalHostConfig.overallState, 'degraded')
-  assert.strictEqual(statusAfterGlobalInstallFacts.entryFiles.instructionProjection.grokPlugin.globalAdapterReady, false)
+  assert.strictEqual(statusAfterGlobalInstallFacts.entryFiles.instructionProjection.grokPlugin.globalAdapterReady, true)
   assert.strictEqual(statusAfterGlobalInstallFacts.entryFiles.instructionProjection.grokPlugin.workspaceSourceRequired, false)
   assert(!statusAfterGlobalInstallFacts.entryFiles.instructionProjection.issues.some(item =>
     item.code === 'HOST_GROK_WORKSPACE_PLUGIN_MISSING'
@@ -873,7 +877,7 @@ console.log(`host installation tests passed selectors=5 dryRunWrites=0 collision
   assert.strictEqual(doctorAfterGlobalInstall.status, 0, doctorAfterGlobalInstall.stderr || doctorAfterGlobalInstall.stdout)
   const doctorAfterGlobalInstallFacts = JSON.parse(doctorAfterGlobalInstall.stdout).payload
   assert.strictEqual(doctorAfterGlobalInstallFacts.globalHostConfig.ready, false)
-  assert.strictEqual(doctorAfterGlobalInstallFacts.installArtifacts.instructionProjection.grokPlugin.globalAdapterReady, false)
+  assert.strictEqual(doctorAfterGlobalInstallFacts.installArtifacts.instructionProjection.grokPlugin.globalAdapterReady, true)
   assert.strictEqual(doctorAfterGlobalInstallFacts.installArtifacts.instructionProjection.grokPlugin.workspaceSourceRequired, false)
   assert(!doctorAfterGlobalInstallFacts.installArtifacts.instructionProjection.issues.some(item =>
     item.code === 'HOST_GROK_WORKSPACE_PLUGIN_MISSING'

@@ -104,6 +104,28 @@ assert.strictEqual(healthy.hosts.find(host => host.host === 'copilot').contractS
 assert.strictEqual(healthy.hosts.find(host => host.host === 'copilot').nativeStatus, 'unverified')
 assert.strictEqual(healthy.hosts.find(host => host.host === 'grok').nativeStatus, 'unverified')
 
+const missingRegistryFile = path.join(grokRoot, 'installed-plugins', 'registry.json')
+const missingRegistryContent = fs.readFileSync(missingRegistryFile, 'utf8')
+fs.unlinkSync(missingRegistryFile)
+const missingGrokRegistry = verifyGlobalHostRuntime({
+  configuration: {
+    mode: 'GlobalOnlyHostConfigModeV1',
+    workspaceCleanMode: 'GlobalOnlyWorkspaceCleanModeV1',
+    packageVersion: 'test',
+    hosts
+  },
+  env,
+  home,
+  fs,
+  spawnSync: spawnProbe
+})
+const missingRegistryGrok = missingGrokRegistry.hosts.find(host => host.host === 'grok')
+assert.strictEqual(missingRegistryGrok.adapterReady, true)
+assert.strictEqual(missingRegistryGrok.contractStatus, 'passed')
+assert.strictEqual(missingRegistryGrok.nativeStatus, 'unverified')
+assert(missingRegistryGrok.issues.some(issue => issue.code === 'GROK_PLUGIN_REGISTRY_UNVERIFIED'))
+fs.writeFileSync(missingRegistryFile, missingRegistryContent, 'utf8')
+
 const deepSpawn = (command, args) => {
   if (
     command === process.execPath &&

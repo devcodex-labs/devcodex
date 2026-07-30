@@ -451,10 +451,13 @@ assert(managedDriftRuntimeClaude.issues.some(issue =>
 assert.strictEqual(applyGlobalHostConfig({ packageRoot, env, home }).transaction.status, 'committed')
 const beforeGrokRegistration = inspectGlobalHostConfig({ packageRoot, env, home })
 assert.strictEqual(beforeGrokRegistration.ready, false)
-assert.strictEqual(
-  beforeGrokRegistration.hosts.find(host => host.host === 'grok').contractStatus,
-  'unverified'
-)
+const beforeGrokRegistrationHost = beforeGrokRegistration.hosts.find(host => host.host === 'grok')
+assert.strictEqual(beforeGrokRegistrationHost.adapterReady, true)
+assert.strictEqual(beforeGrokRegistrationHost.contractStatus, 'passed')
+assert.strictEqual(beforeGrokRegistrationHost.nativeStatus, 'unverified')
+assert(beforeGrokRegistrationHost.issues.some(issue =>
+  issue.code === 'GROK_PLUGIN_REGISTRY_UNVERIFIED'
+))
 const grokTarget = targets.find(target => target.host === 'grok')
 const registryFile = path.join(grokTarget.root, 'installed-plugins', 'registry.json')
 fs.mkdirSync(path.dirname(registryFile), { recursive: true })

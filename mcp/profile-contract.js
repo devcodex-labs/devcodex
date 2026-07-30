@@ -667,11 +667,13 @@ function buildBundleDecisionV2(portfolio, input = {}) {
       tokenCount: maxTokens === null || !Number.isInteger(tokenCounts[id]) ? null : tokenCounts[id]
     }
   }
-  // reserved / missing resolution: keep package identity but mark mandatory missing as blocker later
+  // W/G resolution is an overlay. The package portfolio remains the fallback
+  // identity unless a caller explicitly requires a resolved external Skill.
+  const requireResolvedSkills = input.requireResolvedSkills === true
   for (const id of closureIds) {
     if (excluded.has(id) || !mandatoryClosure.has(id)) continue
     const trace = resolutionById.get(id)
-    if (trace && trace.selectedLayer === 'missing') {
+    if (requireResolvedSkills && trace && trace.selectedLayer === 'missing') {
       blockers.push({
         code: 'skill-resolution-missing',
         id,

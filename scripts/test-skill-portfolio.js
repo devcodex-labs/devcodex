@@ -387,6 +387,34 @@ assert.strictEqual(v2Decision.budget.selected.bytes,
 assert.strictEqual(v2Decision.budget.tokens.status, 'N/A')
 assert.deepStrictEqual(v2Decision.writes, [])
 
+const missingResolutionRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-portfolio-resolution-'))
+try {
+  const missingResolutionEnv = {
+    HOME: path.join(missingResolutionRoot, 'home'),
+    USERPROFILE: path.join(missingResolutionRoot, 'home'),
+    DEVCODEX_GLOBAL_SKILLS_ROOT: path.join(missingResolutionRoot, 'empty-global-skills')
+  }
+  const packageFallbackDecision = buildBundleDecisionV2(first, {
+    candidateIds: ['dev-testing'],
+    maxBytes: 1024 * 1024,
+    cwd: missingResolutionRoot,
+    env: missingResolutionEnv
+  })
+  assert.strictEqual(packageFallbackDecision.completion, 'complete')
+  assert(packageFallbackDecision.selected.every(item => item.selectedLayer === 'package'))
+  const requiredResolutionDecision = buildBundleDecisionV2(first, {
+    candidateIds: ['dev-testing'],
+    maxBytes: 1024 * 1024,
+    cwd: missingResolutionRoot,
+    env: missingResolutionEnv,
+    requireResolvedSkills: true
+  })
+  assert.strictEqual(requiredResolutionDecision.completion, 'blocked')
+  assert(requiredResolutionDecision.blockers.some(item => item.code === 'skill-resolution-missing'))
+} finally {
+  fs.rmSync(missingResolutionRoot, { recursive: true, force: true })
+}
+
 const overBudgetMandatory = buildBundleDecisionV2(first, {
   candidateIds: ['dev-testing'],
   maxSkills: 1,

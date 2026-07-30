@@ -26,7 +26,8 @@ const {
 const {
   GLOBAL_HOST_IDS,
   resolveGlobalHostTarget,
-  resolveGlobalHostTargets
+  resolveGlobalHostTargets,
+  resolveVscodeUserMcpPaths
 } = require('./lib/global-host-target.js')
 const { projectionDescriptors } = require('./lib/host-surface-descriptors.js')
 const {
@@ -297,7 +298,7 @@ const copilotMcp = JSON.parse(fs.readFileSync(path.join(home, '.copilot', 'mcp-c
 assert.strictEqual(copilotMcp.theme, 'user-owned')
 assert.ok(copilotMcp.mcpServers.custom)
 // VS Code User mcp.json co-refreshed with the same apply (global surface)
-const vscodeMcpPath = path.join(home, 'AppData', 'Roaming', 'Code', 'User', 'mcp.json')
+const vscodeMcpPath = resolveVscodeUserMcpPaths(home, env)[0]
 assert.strictEqual(fs.existsSync(vscodeMcpPath), true, 'apply must write VS Code User mcp.json')
 const vscodeMcp = JSON.parse(fs.readFileSync(vscodeMcpPath, 'utf8'))
 assert.ok(vscodeMcp.servers, 'VS Code mcp.json must have servers')

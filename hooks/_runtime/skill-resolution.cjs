@@ -154,6 +154,39 @@ function sha256Text(text) {
   return crypto.createHash('sha256').update(String(text), 'utf8').digest('hex')
 }
 
+function renderSourceSkillContent(filePath, rawContent, fsImpl = fs) {
+  const skillRoot = path.dirname(path.dirname(filePath))
+  const contentRoot = path.dirname(skillRoot)
+  if (path.basename(skillRoot) !== 'skills' || path.basename(contentRoot) !== 'content') {
+    return rawContent
+  }
+  const includeRe = /^<!-- devcodex:include (shared\/[A-Za-z0-9._/-]+\.md) -->[ \t]*(\r?\n|$)/gm
+  const rendered = String(rawContent).replace(includeRe, (directive, fragmentRelative, lineEnding) => {
+    if (fragmentRelative.includes('..') || path.isAbsolute(fragmentRelative)) {
+      throw new Error(`unsafe source Skill include: ${fragmentRelative}`)
+    }
+    const fragmentPath = path.resolve(contentRoot, fragmentRelative)
+    const sharedRoot = path.resolve(contentRoot, 'shared')
+    if (!isUnderPhysical(sharedRoot, fragmentPath, fsImpl) || !fileExists(fragmentPath, fsImpl)) {
+      throw new Error(`missing or unsafe source Skill include: ${fragmentRelative}`)
+    }
+    const body = fsImpl.readFileSync(fragmentPath, 'utf8')
+    includeRe.lastIndex = 0
+    if (/<!--\s*devcodex:include\b/.test(body)) {
+      throw new Error(`nested source Skill include forbidden: ${fragmentRelative}`)
+    }
+    const outputEol = lineEnding || '\n'
+    const adapted = body.replace(/\r\n?/g, '\n').replace(/\n/g, outputEol)
+    if (!lineEnding || /(?:\r?\n)$/.test(adapted)) return adapted
+    return `${adapted}${lineEnding}`
+  })
+  includeRe.lastIndex = 0
+  if (/<!--\s*devcodex:include\b/.test(rendered)) {
+    throw new Error('invalid source Skill include directive')
+  }
+  return rendered
+}
+
 function detectWeaken(content) {
   const text = String(content || '')
   for (const pattern of WEAKEN_PATTERNS) {
@@ -328,7 +361,7 @@ function resolveSkillRead(skillId, options = {}) {
       }
     }
     // Always read for digest identity; omit body only when includeContent===false
-    const fileText = fsImpl.readFileSync(gPath, 'utf8')
+    const fileText = renderSourceSkillContent(gPath, fsImpl.readFileSync(gPath, 'utf8'), fsImpl)
     const digest = sha256Text(fileText)
     const contentBytes = Buffer.byteLength(fileText, 'utf8')
     const content = options.includeContent === false ? null : fileText
@@ -477,7 +510,7 @@ function classifySkillPath(absPath, options = {}) {
   const packageRoot = options.packageRoot
     ? path.resolve(options.packageRoot)
     : path.resolve(__dirname, '..', '..')
-  const packageSkills = path.join(packageRoot, 'skills')
+  const packageSkills = path.join(packageRoot, 'content', 'skills')
   const globalSkillsRoot = resolveGlobalSkillsRoot(options)
   const workspaceSkillsRoot = resolveWorkspaceSkillsRoot(options.cwd, options)
 
@@ -534,5 +567,6 @@ module.exports = {
   isWorkspaceSkillPath,
   isUnderPhysical,
   findSkillMarkdown,
+  renderSourceSkillContent,
   sha256Text
 }

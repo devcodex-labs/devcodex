@@ -6,6 +6,7 @@ const { spawnSync } = require('child_process')
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
+const { resolveControlAsset } = require('./lib/control-content-delivery')
 
 const packageRoot = path.resolve(__dirname, '..')
 const packageJson = JSON.parse(fs.readFileSync(path.join(packageRoot, 'package.json'), 'utf8'))
@@ -120,7 +121,7 @@ assert.strictEqual(
   false,
   'managed DevCodex Skills must not occupy the host-native .agents/skills root'
 )
-const skillPortfolio = JSON.parse(fs.readFileSync(path.join(packageRoot, 'skills', 'portfolio.json'), 'utf8'))
+const skillPortfolio = JSON.parse(fs.readFileSync(resolveControlAsset(packageRoot, 'skills/portfolio.json'), 'utf8'))
 for (const graySkill of skillPortfolio.skills.filter(skill => skill.lifecycleState === 'gray')) {
   assert.strictEqual(
     fs.existsSync(path.join(globalHome, '.agents', 'devcodex', 'skills', graySkill.id)),

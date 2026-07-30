@@ -3,6 +3,7 @@
 const fs = require('fs')
 const path = require('path')
 const { CONTEXT_READ_CONTRACT } = require('../../hooks/_runtime/context-read-contract.cjs')
+const { createCanonicalAwareReader } = require('./canonical-consumer-contracts')
 
 const EXPECTED_SCHEMAS = Object.freeze({
   intentSeed: 'IntentSeedV1',
@@ -170,10 +171,14 @@ function extractTopLevelFunctionSource(source, name) {
 
 function buildContextReadControlChecks(ctx) {
   const { ROOT, ACTIVE_DEVCODEX_ROOT, fs: fileSystem, path: pathApi, err, console } = ctx
+  const readFile = ctx.read || (file => fileSystem.readFileSync(file, 'utf8'))
+  const exists = file => typeof readFile.exists === 'function'
+    ? readFile.exists(file)
+    : fileSystem.existsSync(file)
 
   function readRelative(relative) {
     const file = pathApi.join(ROOT, relative)
-    return fileSystem.existsSync(file) ? fileSystem.readFileSync(file, 'utf8') : null
+    return exists(file) ? readFile(file) : null
   }
 
   function checkFile(relative, needles) {
@@ -438,12 +443,13 @@ function runStandalone() {
   const ROOT = path.resolve(__dirname, '../..')
   const { resolveActiveRuntimeRoot } = require('../../hooks/_runtime/workspace-layout.cjs')
   const errors = []
+  const read = createCanonicalAwareReader(ROOT, file => fs.readFileSync(file, 'utf8'))
   const checks = buildContextReadControlChecks({
     ROOT,
     ACTIVE_DEVCODEX_ROOT: resolveActiveRuntimeRoot(ROOT),
     fs,
     path,
-    read: file => fs.readFileSync(file, 'utf8'),
+    read,
     err: message => errors.push(message),
     console
   })

@@ -528,7 +528,8 @@ const installedSkillRouteMode = require(path.join(codexRuntime, 'hooks', '_runti
 const sourceRuntimeContractDigest = sourceSkillRouteMode.getRuntimeContractDigest({
   globalRuntime: {
     status: 'resolved',
-    root: path.join(packageRoot, 'skills')
+    root: path.join(packageRoot, 'content', 'skills'),
+    companionRoot: path.join(packageRoot, 'content', 'skills')
   }
 })
 const installedRuntimeContractDigest = installedSkillRouteMode.getRuntimeContractDigest({

@@ -21,12 +21,18 @@ const {
   validateStagedCandidateSnapshot,
   validatePortfolio
 } = require('./lib/skill-portfolio-utils')
+const { listControlDeliveryEntries } = require('./lib/control-content-delivery')
 
 const ROOT = path.resolve(__dirname, '..')
-assert.strictEqual(isPortfolioConsumerExcluded('content-source/skills/intent/SKILL.md'), true)
-assert.strictEqual(isPortfolioConsumerExcluded('content-source/prompts/report-dev.prompt.md'), true)
+assert.strictEqual(isPortfolioConsumerExcluded('content/skills/intent/SKILL.md'), true)
+assert.strictEqual(isPortfolioConsumerExcluded('content/prompts/report-dev.prompt.md'), true)
 const first = buildPortfolio(ROOT)
 const second = buildPortfolio(ROOT)
+const deliverySkillBodies = new Map(
+  listControlDeliveryEntries(ROOT, 'skills')
+    .filter(entry => entry.relative.endsWith('/SKILL.md'))
+    .map(entry => [entry.relative, entry.content])
+)
 
 assert.strictEqual(serializePortfolio(first), serializePortfolio(second), 'portfolio generation must be byte-identical')
 // V92 parity: consumers must come from git-tracked paths only when git is available.
@@ -75,7 +81,7 @@ try {
   writeJson(path.join(stagedFixtureRoot, 'plugin.json'), {
     skills: [{ id: 'intent', file: 'skills/intent/SKILL.md', lifecycleState: 'active' }]
   })
-  writeJson(path.join(stagedFixtureRoot, 'skills', 'portfolio-evidence.json'), {
+  writeJson(path.join(stagedFixtureRoot, 'content', 'skills', 'portfolio-evidence.json'), {
     schemaVersion: 2,
     ownerSkill: 'skill-lifecycle-governance',
     evidenceDate: '2026-07-19',
@@ -94,8 +100,8 @@ try {
     },
     skills: {}
   })
-  fs.mkdirSync(path.join(stagedFixtureRoot, 'skills', 'intent'), { recursive: true })
-  fs.writeFileSync(path.join(stagedFixtureRoot, 'skills', 'intent', 'SKILL.md'), [
+  fs.mkdirSync(path.join(stagedFixtureRoot, 'content', 'skills', 'intent'), { recursive: true })
+  fs.writeFileSync(path.join(stagedFixtureRoot, 'content', 'skills', 'intent', 'SKILL.md'), [
     '---',
     'name: intent',
     'description: Use for intent routing.',
@@ -106,8 +112,8 @@ try {
   fs.writeFileSync(path.join(stagedFixtureRoot, 'scripts', 'test-intent.js'), '// intent fixture\n', 'utf8')
   git(stagedFixtureRoot, ['add', '.'])
   const baselinePortfolio = serializePortfolio(buildPortfolio(stagedFixtureRoot, { repositoryView: 'index' }))
-  fs.writeFileSync(path.join(stagedFixtureRoot, 'skills', 'portfolio.json'), baselinePortfolio, 'utf8')
-  git(stagedFixtureRoot, ['add', 'skills/portfolio.json'])
+  fs.writeFileSync(path.join(stagedFixtureRoot, 'content', 'skills', 'portfolio.json'), baselinePortfolio, 'utf8')
+  git(stagedFixtureRoot, ['add', 'content/skills/portfolio.json'])
   git(stagedFixtureRoot, ['commit', '--quiet', '-m', 'baseline'])
   assert.deepStrictEqual(
     validateStagedCandidateSnapshot(gitIndexSnapshot(stagedFixtureRoot)),
@@ -126,7 +132,7 @@ try {
   const stagedCandidate = buildPortfolio(stagedFixtureRoot, { repositoryView: 'index' })
   assert.notStrictEqual(
     serializePortfolio(stagedCandidate),
-    readRepositoryText(stagedFixtureRoot, 'skills/portfolio.json', 'index'),
+    readRepositoryText(stagedFixtureRoot, 'content/skills/portfolio.json', 'index'),
     'consumer staged after generation must stale the staged portfolio candidate'
   )
   assert.strictEqual(stagedCandidate.generatedFrom.consumerInventoryFileCount, 4)
@@ -139,10 +145,10 @@ try {
   assert.match(stagedSnapshot.indexTreeIdentity, /^[a-f0-9]{64}$/)
   assert.deepStrictEqual(validateStagedCandidateSnapshot(stagedSnapshot), [])
 
-  fs.writeFileSync(path.join(stagedFixtureRoot, 'skills', 'portfolio.json'), serializePortfolio(stagedCandidate), 'utf8')
-  git(stagedFixtureRoot, ['add', 'skills/portfolio.json'])
+  fs.writeFileSync(path.join(stagedFixtureRoot, 'content', 'skills', 'portfolio.json'), serializePortfolio(stagedCandidate), 'utf8')
+  git(stagedFixtureRoot, ['add', 'content/skills/portfolio.json'])
   assert.strictEqual(
-    readRepositoryText(stagedFixtureRoot, 'skills/portfolio.json', 'index'),
+    readRepositoryText(stagedFixtureRoot, 'content/skills/portfolio.json', 'index'),
     serializePortfolio(buildPortfolio(stagedFixtureRoot, { repositoryView: 'index' })),
     'regenerated and staged portfolio must match the exact index candidate'
   )
@@ -152,13 +158,13 @@ try {
   const renamedCandidate = buildPortfolio(stagedFixtureRoot, { repositoryView: 'index' })
   assert.notStrictEqual(
     serializePortfolio(renamedCandidate),
-    readRepositoryText(stagedFixtureRoot, 'skills/portfolio.json', 'index'),
+    readRepositoryText(stagedFixtureRoot, 'content/skills/portfolio.json', 'index'),
     'staged consumer rename must stale the old consumer projection'
   )
-  fs.writeFileSync(path.join(stagedFixtureRoot, 'skills', 'portfolio.json'), serializePortfolio(renamedCandidate), 'utf8')
-  git(stagedFixtureRoot, ['add', 'skills/portfolio.json'])
+  fs.writeFileSync(path.join(stagedFixtureRoot, 'content', 'skills', 'portfolio.json'), serializePortfolio(renamedCandidate), 'utf8')
+  git(stagedFixtureRoot, ['add', 'content/skills/portfolio.json'])
   assert.strictEqual(
-    readRepositoryText(stagedFixtureRoot, 'skills/portfolio.json', 'index'),
+    readRepositoryText(stagedFixtureRoot, 'content/skills/portfolio.json', 'index'),
     serializePortfolio(buildPortfolio(stagedFixtureRoot, { repositoryView: 'index' })),
     'regenerated portfolio must bind the renamed staged path'
   )
@@ -168,13 +174,13 @@ try {
   const deletedCandidate = buildPortfolio(stagedFixtureRoot, { repositoryView: 'index' })
   assert.notStrictEqual(
     serializePortfolio(deletedCandidate),
-    readRepositoryText(stagedFixtureRoot, 'skills/portfolio.json', 'index'),
+    readRepositoryText(stagedFixtureRoot, 'content/skills/portfolio.json', 'index'),
     'staged consumer deletion must stale the old inventory and projection'
   )
-  fs.writeFileSync(path.join(stagedFixtureRoot, 'skills', 'portfolio.json'), serializePortfolio(deletedCandidate), 'utf8')
-  git(stagedFixtureRoot, ['add', 'skills/portfolio.json'])
+  fs.writeFileSync(path.join(stagedFixtureRoot, 'content', 'skills', 'portfolio.json'), serializePortfolio(deletedCandidate), 'utf8')
+  git(stagedFixtureRoot, ['add', 'content/skills/portfolio.json'])
   assert.strictEqual(
-    readRepositoryText(stagedFixtureRoot, 'skills/portfolio.json', 'index'),
+    readRepositoryText(stagedFixtureRoot, 'content/skills/portfolio.json', 'index'),
     serializePortfolio(buildPortfolio(stagedFixtureRoot, { repositoryView: 'index' })),
     'regenerated portfolio must bind the staged deletion'
   )
@@ -186,16 +192,16 @@ try {
   const amendedCandidate = buildPortfolio(stagedFixtureRoot, { repositoryView: 'index' })
   assert.notStrictEqual(
     serializePortfolio(amendedCandidate),
-    readRepositoryText(stagedFixtureRoot, 'skills/portfolio.json', 'index'),
+    readRepositoryText(stagedFixtureRoot, 'content/skills/portfolio.json', 'index'),
     'a newly staged consumer in an amended candidate must stale the prior commit artifact'
   )
-  fs.writeFileSync(path.join(stagedFixtureRoot, 'skills', 'portfolio.json'), serializePortfolio(amendedCandidate), 'utf8')
-  git(stagedFixtureRoot, ['add', 'skills/portfolio.json'])
+  fs.writeFileSync(path.join(stagedFixtureRoot, 'content', 'skills', 'portfolio.json'), serializePortfolio(amendedCandidate), 'utf8')
+  git(stagedFixtureRoot, ['add', 'content/skills/portfolio.json'])
   assert.deepStrictEqual(validateStagedCandidateSnapshot(gitIndexSnapshot(stagedFixtureRoot)), [])
   git(stagedFixtureRoot, ['commit', '--quiet', '--amend', '--no-edit'])
   assert.strictEqual(git(stagedFixtureRoot, ['status', '--porcelain']), '', 'amended target tree must be clean')
   assert.strictEqual(
-    fs.readFileSync(path.join(stagedFixtureRoot, 'skills', 'portfolio.json'), 'utf8'),
+    fs.readFileSync(path.join(stagedFixtureRoot, 'content', 'skills', 'portfolio.json'), 'utf8'),
     serializePortfolio(buildPortfolio(stagedFixtureRoot)),
     'post-amend clean worktree replay must remain current'
   )
@@ -208,7 +214,7 @@ try {
     git(targetRoot, ['checkout', '--quiet', targetSha])
     assert.strictEqual(git(targetRoot, ['status', '--porcelain']), '', 'target-SHA checkout must be clean')
     assert.strictEqual(
-      readRepositoryText(targetRoot, 'skills/portfolio.json', 'index'),
+      readRepositoryText(targetRoot, 'content/skills/portfolio.json', 'index'),
       serializePortfolio(buildPortfolio(targetRoot, { repositoryView: 'index' })),
       'detached target-SHA index replay must reproduce the committed portfolio blobs'
     )
@@ -302,7 +308,11 @@ for (const skill of first.skills.filter(item => item.lifecycleState === 'active'
   assert.deepStrictEqual(skill.skillIndex.conflictsWith, skill.conflicts)
   assert.strictEqual(skill.skillIndex.evidenceState, 'source-backed')
   assert.strictEqual(skill.skillIndex.maxTokens, null)
-  assert.strictEqual(skill.sourceBytes, Buffer.byteLength(canonicalizeTextForDigest(fs.readFileSync(path.join(ROOT, skill.source), 'utf8')), 'utf8'))
+  assert.strictEqual(
+    skill.sourceBytes,
+    Buffer.byteLength(canonicalizeTextForDigest(deliverySkillBodies.get(`${skill.id}/SKILL.md`)), 'utf8'),
+    `${skill.id} rendered source must remain byte-equivalent to the public compatibility body`
+  )
   assert.deepStrictEqual(skill.skillIndex.domains, [], `${skill.id} must not infer a semantic domain from its id`)
 }
 assert.deepStrictEqual(validatePortfolio(first), [])

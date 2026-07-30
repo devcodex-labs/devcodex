@@ -342,7 +342,7 @@ function buildGovernanceControlChecks(ctx) {
       'plugin.json'
     ]
 
-    const missingFiles = requiredFiles.filter(file => !fs.existsSync(path.isAbsolute(file) ? file : path.join(ROOT, file)))
+    const missingFiles = requiredFiles.filter(file => !read.exists(path.isAbsolute(file) ? file : path.join(ROOT, file)))
     if (missingFiles.length) {
       err(`[V24] missing governance/client/template files: ${missingFiles.map(file => path.isAbsolute(file) ? path.relative(ROOT, file) : file).join(', ')}`)
       return

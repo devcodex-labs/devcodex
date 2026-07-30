@@ -5,9 +5,10 @@ const { buildRuntimeStateIndex } = require('./runtime-state-index')
 
 function buildOptimizationControlChecks(ctx) {
   const { ROOT, ACTIVE_DEVCODEX_ROOT, fs, path, read, err, console } = ctx
+  const logicalExists = file => typeof read.exists === 'function' ? read.exists(file) : fs.existsSync(file)
 
   function requireFile(relative) {
-    if (!fs.existsSync(path.join(ROOT, relative))) err(`[V92] missing required artifact: ${relative}`)
+    if (!logicalExists(path.join(ROOT, relative))) err(`[V92] missing required artifact: ${relative}`)
   }
 
   function checkV92() {
@@ -119,7 +120,7 @@ function buildOptimizationControlChecks(ctx) {
     for (const needle of ['ProfileSectionSelectorV1', 'ProfileSectionLoadReceiptV1', 'fallback-full']) {
       if (!profileSelector.includes(needle)) err(`[V92] Profile section selector Owner missing: ${needle}`)
     }
-    const lifecycleSkill = read(path.join(ROOT, 'skills/skill-lifecycle-governance/SKILL.md'))
+    const lifecycleSkill = read(path.join(ROOT, 'content/skills/skill-lifecycle-governance/SKILL.md'))
     for (const needle of ['BundleDecisionV2', 'sourceBytes', 'full-skill-read', 'PostStageDerivedArtifactFreshnessGate', '--check-staged', 'consumerInventoryDigest']) {
       if (!lifecycleSkill.includes(needle)) err(`[V92] Skill lifecycle V2 consumer missing: ${needle}`)
     }
@@ -127,7 +128,7 @@ function buildOptimizationControlChecks(ctx) {
     for (const needle of ['ProjectKnowledgeSnapshotV2', 'FileKnowledgeRecordV2', 'SemanticClaimV1', 'ProjectKnowledgeBindingV1', 'IncrementalAnalysisPlanV2', 'IncrementalAnalysisReceiptV2', 'selectDeterministicReuseSample', 'observeProjectKnowledge', 'bootstrapProjectKnowledge', 'persistAcceptedKnowledge', 'KNOWLEDGE_V1_READ_ONLY']) {
       if (!knowledgeStore.includes(needle)) err(`[V92] ProjectKnowledge runtime missing: ${needle}`)
     }
-    const analysisOwner = read(path.join(ROOT, 'skills/incremental-project-analysis/SKILL.md'))
+    const analysisOwner = read(path.join(ROOT, 'content/skills/incremental-project-analysis/SKILL.md'))
     for (const needle of ['project-analysis-state.js status|plan|observe|bootstrap|accept', '5%', 'full-required', 'BatchValidationResultV1=pass', 'SemanticClaimV1', 'V1 只读兼容']) {
       if (!analysisOwner.includes(needle)) err(`[V92] incremental analysis consumer missing: ${needle}`)
     }

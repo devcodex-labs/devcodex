@@ -170,7 +170,8 @@ assert.strictEqual(
   getRuntimeContractDigest({
     globalRuntime: {
       status: 'resolved',
-      root: path.join(ROOT, 'skills')
+      root: path.join(ROOT, 'content', 'skills'),
+      companionRoot: path.join(ROOT, 'content', 'skills')
     }
   })
 )

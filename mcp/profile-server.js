@@ -125,12 +125,12 @@ const CONTEXT_READ_BINDING_SCHEMA = {
 const TOOLS = [
   {
     name: 'skill_route',
-    description: '本地渐进式 Skill 路由。catalog 仅用 project/turn/context/cursor；commit 追加 catalogDigest/skillId/contextBinding/条件重规划字段；load_stage 使用 generation/planDigest/stageId/cursor/triggerRef；status 仅用 project/turn/context。',
+    description: '渐进式 Skill 路由：catalog 建目录，commit 选 Skill，rebind 换绑，load_stage 分阶段加载，status 查状态；参数以 input schema 为准。',
     inputSchema: {
       type: 'object',
       required: ['op', 'project', 'turnBinding'],
       properties: {
-        op: { type: 'string', enum: ['catalog', 'commit', 'load_stage', 'status'] },
+        op: { type: 'string', enum: ['catalog', 'commit', 'rebind', 'load_stage', 'status'] },
         project: {
           type: 'string',
           minLength: 1,

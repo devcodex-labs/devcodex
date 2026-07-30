@@ -2,19 +2,19 @@
   "schemaVersion": "WorkflowRootRegistryV1",
   "sourceEvidence": [
     {
-      "ref": "instructions/01-common.instructions.md",
-      "digest": "a70e9a1cb6a16e54a9c712ba00e3e19eab5e748ccd64c9f2a2855fa527ccbdd8"
+      "ref": "content:instructions/01-common.instructions.md",
+      "digest": "23c07d57acacae34fb5cd065ce784ea8de2d61a85faa769cf1fdf990500ffd84"
+    },
+    {
+      "ref": "content:skills/routing/SKILL.md",
+      "digest": "4e05428e378b10e80889561eff0790232835d496a97744644a86cd2fdefd17f6"
     },
     {
       "ref": "scripts/lib/host-parity-scorecard.js",
       "digest": "4e4fabceba316db62aeb564f060933a4f2d61e1420ac4978103853c7f2d369a2"
-    },
-    {
-      "ref": "skills/routing/SKILL.md",
-      "digest": "4e05428e378b10e80889561eff0790232835d496a97744644a86cd2fdefd17f6"
     }
   ],
-  "sourceDigest": "0ab497cef225c716f5d9f30479fcf6ceb17b553089024538016a0c9bcfed29e9",
+  "sourceDigest": "b7aea8693be3781cdd63bbc3ab6764f0005240c3c592fc76c4e432419d64d4bb",
   "baseBundles": {
     "chat": [],
     "resume": [
@@ -587,7 +587,7 @@
       ],
       "activationAuthority": "model",
       "mutualExclusionGroup": null,
-      "sourceRef": "skills/routing/SKILL.md#按需触发-Skills"
+      "sourceRef": "content:skills/routing/SKILL.md#按需触发-Skills"
     },
     {
       "conditionId": "test-validation",
@@ -605,7 +605,7 @@
       ],
       "activationAuthority": "model",
       "mutualExclusionGroup": null,
-      "sourceRef": "skills/routing/SKILL.md#按需触发-Skills"
+      "sourceRef": "content:skills/routing/SKILL.md#按需触发-Skills"
     },
     {
       "conditionId": "host-contract",
@@ -624,7 +624,7 @@
       ],
       "activationAuthority": "model",
       "mutualExclusionGroup": null,
-      "sourceRef": "skills/routing/SKILL.md#按需触发-Skills"
+      "sourceRef": "content:skills/routing/SKILL.md#按需触发-Skills"
     },
     {
       "conditionId": "release",
@@ -647,8 +647,8 @@
       ],
       "activationAuthority": "model",
       "mutualExclusionGroup": null,
-      "sourceRef": "skills/routing/SKILL.md#按需触发-Skills"
+      "sourceRef": "content:skills/routing/SKILL.md#按需触发-Skills"
     }
   ],
-  "registryDigest": "afe4e29f762444ee728ce61ef3a9d9ae6e25350cc7b8d0b4ac0b3271b6fe3913"
+  "registryDigest": "b5948af92b20d03720330c1aeea39c0614308abd8af0452ee0e3b6716c186eb0"
 }

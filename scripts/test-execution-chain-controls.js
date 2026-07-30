@@ -4,6 +4,7 @@ const assert = require('assert')
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
+const { createCanonicalAwareReader } = require('./lib/canonical-consumer-contracts')
 const { buildExecutionChainControlChecks } = require('./lib/validate-execution-chain-controls')
 
 const ROOT = path.resolve(__dirname, '..')
@@ -27,12 +28,13 @@ function createProfileFixture(root, valid) {
 function runCheck(root, activeRoot, loadExecutionOptimization) {
   const errors = []
   const logs = []
+  const read = createCanonicalAwareReader(root, file => fs.readFileSync(file, 'utf8'))
   const checks = buildExecutionChainControlChecks({
     ROOT: root,
     ACTIVE_DEVCODEX_ROOT: activeRoot,
     fs,
     path,
-    read: file => fs.readFileSync(file, 'utf8'),
+    read,
     err: message => errors.push(message),
     console: { log: message => logs.push(message) },
     ...(loadExecutionOptimization ? { loadExecutionOptimization } : {})

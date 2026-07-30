@@ -2,6 +2,7 @@
 
 const fs = require('fs')
 const path = require('path')
+const { resolveControlAsset } = require('./control-content-delivery')
 
 function parseTenantOption(argv) {
   const values = []
@@ -23,7 +24,7 @@ function parseTenantOption(argv) {
 }
 
 function readTenantManifest(packageRoot) {
-  const file = path.join(packageRoot, 'instructions', 'tenants', 'manifest.json')
+  const file = resolveControlAsset(packageRoot, 'instructions/tenants/manifest.json')
   const manifest = JSON.parse(fs.readFileSync(file, 'utf8'))
   if (manifest.schemaVersion !== 1 || !Array.isArray(manifest.tenants)) {
     throw new Error(`unsupported tenant manifest schema: ${file}`)
@@ -46,7 +47,7 @@ function resolveTenantSelection(argv, packageRoot) {
   if (tenantId === null) return { tenantId: null, manifest }
   const tenant = manifest.tenants.find(item => item.id === tenantId)
   if (!tenant || tenant.selectable === false) throw new Error(`unknown or non-selectable tenant: ${tenantId}`)
-  const directory = path.join(packageRoot, 'instructions', 'tenants', tenant.directory)
+  const directory = resolveControlAsset(packageRoot, `instructions/tenants/${tenant.directory}`)
   if (!fs.existsSync(directory) || !fs.statSync(directory).isDirectory()) {
     throw new Error(`tenant directory missing: ${tenant.directory}`)
   }

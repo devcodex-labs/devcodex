@@ -80,9 +80,9 @@ try {
   )
   fs.unlinkSync(path.join(fallbackRoot, 'intent.json'))
   for (const relative of [
-    'skills/_schemas/skill-intent.v1.schema.json',
-    'skills/_schemas/workflow-root-registry.v1.schema.json',
-    'skills/_schemas/progressive-skill-route.v1.schema.json',
+    'content/skills/_schemas/skill-intent.v1.schema.json',
+    'content/skills/_schemas/workflow-root-registry.v1.schema.json',
+    'content/skills/_schemas/progressive-skill-route.v1.schema.json',
     'hooks/_runtime/host-skill-route-capabilities.v1.json'
   ]) {
     assert.doesNotThrow(() => JSON.parse(

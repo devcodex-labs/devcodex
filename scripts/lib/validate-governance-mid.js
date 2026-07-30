@@ -1,5 +1,6 @@
 function buildGovernanceMidChecks(ctx) {
   const { ROOT, fs, path, read, err } = ctx
+  const logicalExists = file => typeof read.exists === 'function' ? read.exists(file) : fs.existsSync(file)
 
   function checkV29() {
     const probes = [
@@ -132,12 +133,12 @@ function buildGovernanceMidChecks(ctx) {
       }
     }
 
-    const complianceContent = read(path.join(ROOT, 'instructions/17-compliance.instructions.md'))
+    const complianceContent = read(path.join(ROOT, 'content/instructions/17-compliance.instructions.md'))
     if (!complianceContent.includes('### PC5 部署体状态（v1.11.0+，全模式基础项）')) {
       err('[V31] PC5 section heading in instructions/17-compliance.instructions.md must be v1.11.0+')
     }
 
-    const auditCommonContent = read(path.join(ROOT, 'skills/audit-common/SKILL.md'))
+    const auditCommonContent = read(path.join(ROOT, 'content/skills/audit-common/SKILL.md'))
     if (!auditCommonContent.includes('【v1.11.0+ 父链部署体扫描】')) {
       err('[V31] audit-common parent deployment heading must be v1.11.0+')
     }
@@ -431,7 +432,7 @@ function buildGovernanceMidChecks(ctx) {
         err(`[V38] plugin.json ${id} has wrong file: ${entry.file}`)
       }
       const filePath = path.join(ROOT, file)
-      if (!fs.existsSync(filePath)) {
+      if (!logicalExists(filePath)) {
         err(`[V38] README governance skill file missing: ${file}`)
         continue
       }

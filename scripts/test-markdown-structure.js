@@ -4,6 +4,7 @@
 const assert = require('assert')
 const fs = require('fs')
 const path = require('path')
+const { buildBundle } = require('./lib/control-content-source')
 const { validateMarkdownStructure } = require('./lib/markdown-structure')
 
 const ROOT = path.resolve(__dirname, '..')
@@ -23,17 +24,25 @@ function collectMarkdownFiles(relativeDir) {
   })
 }
 
-const consumers = ['agents', 'instructions', 'skills', 'prompts'].flatMap(collectMarkdownFiles).sort()
-const errors = consumers.flatMap(file => validateMarkdownStructure(fs.readFileSync(path.join(ROOT, file), 'utf8'), file))
+const staticConsumers = collectMarkdownFiles('agents').map(file => ({
+  file,
+  content: fs.readFileSync(path.join(ROOT, file), 'utf8')
+}))
+const controlConsumers = buildBundle(ROOT).files
+  .filter(file => file.relative.endsWith('.md') && file.relative !== 'instructions.md')
+  .map(file => ({ file: `content/${file.relative}`, content: String(file.content) }))
+const consumers = [...staticConsumers, ...controlConsumers].sort((left, right) =>
+  left.file.localeCompare(right.file)
+)
+const errors = consumers.flatMap(({ file, content }) => validateMarkdownStructure(content, file))
 assert.deepStrictEqual(errors, [])
 
-for (const file of collectMarkdownFiles('skills').filter(file => file.endsWith('/SKILL.md'))) {
-  const content = fs.readFileSync(path.join(ROOT, file), 'utf8')
+for (const { file, content } of controlConsumers.filter(entry => entry.file.endsWith('/SKILL.md'))) {
   const description = content.match(/^description:\s*(.+)$/m)?.[1]?.trim() || ''
   assert.ok(description.length > 0 && Array.from(description).length <= 250, `${file} description must contain 1..250 characters`)
 }
 
-const planReview = fs.readFileSync(path.join(ROOT, 'skills/dev-plan-review/SKILL.md'), 'utf8')
+const planReview = fs.readFileSync(path.join(ROOT, 'content/skills/dev-plan-review/SKILL.md'), 'utf8')
 for (const required of ['BlockerSnapshot', '安全独立检查', 'invalid-premise', 'destructive-side-effect', 'evidence-contamination']) {
   assert.ok(planReview.includes(required), `plan review must define aggregate blocker contract: ${required}`)
 }

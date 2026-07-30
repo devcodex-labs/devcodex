@@ -18,7 +18,9 @@ const packageRoot = path.resolve(__dirname, '..')
   })
   assert.strictEqual(result.status, 'resolved')
   assert.strictEqual(result.source, 'source-package')
-  assert.ok(result.portfolioPath.endsWith('/skills/portfolio.json'))
+  assert.ok(result.root.endsWith('/content/skills'))
+  assert.ok(result.portfolioPath.endsWith('/content/skills/portfolio.json'))
+  assert.ok(result.companionRoot.endsWith('/content/skills'))
 }
 
 {

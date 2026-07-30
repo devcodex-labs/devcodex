@@ -6,16 +6,18 @@ const crypto = require('crypto')
 const childProcess = require('child_process')
 const fs = require('fs')
 const path = require('path')
+const { createCanonicalAwareReader } = require('./lib/canonical-consumer-contracts')
 const { buildTurnLivenessControlChecks } = require('./lib/validate-turn-liveness-controls')
 
 const root = path.resolve(__dirname, '..')
+const read = createCanonicalAwareReader(root, file => fs.readFileSync(file, 'utf8'))
 const errors = []
 const checks = buildTurnLivenessControlChecks({
   ROOT: root,
   ACTIVE_DEVCODEX_ROOT: path.join(root, '.nonexistent-active-root'),
   fs,
   path,
-  read: file => fs.readFileSync(file, 'utf8'),
+  read,
   err: message => errors.push(message),
   console: { log() {} }
 })

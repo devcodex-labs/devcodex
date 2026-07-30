@@ -136,7 +136,7 @@ function getRuntimeContractDigest (options = {}) {
         throw new Error('global Skill runtime unresolved')
       }
       runtimeFileDigests[key] = sha256(
-        fsImpl.readFileSync(path.join(skillRuntime.root, '_schemas', file), 'utf8')
+        fsImpl.readFileSync(path.join(skillRuntime.companionRoot || skillRuntime.root, '_schemas', file), 'utf8')
       )
     } catch {
       runtimeFileDigests[key] = 'missing'
@@ -158,7 +158,7 @@ function getRuntimeContractDigest (options = {}) {
     modePolicyVersion: MODE_POLICY_VERSION,
     protocolVersion: PROTOCOL_VERSION,
     tool: 'skill_route',
-    ops: ['catalog', 'commit', 'load_stage', 'status'],
+    ops: ['catalog', 'commit', 'rebind', 'load_stage', 'status'],
     schemas: [
       'SkillIntentV1',
       'WorkflowRootRegistryV1',

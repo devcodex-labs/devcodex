@@ -1,14 +1,19 @@
 'use strict'
 
 const crypto = require('crypto')
+const fs = require('fs')
 const path = require('path')
 const { HOST_IDS } = require('./host-surface-descriptors')
+const { resolveControlAsset } = require('./control-content-delivery')
 
-const SKILL_ROOT = path.resolve(__dirname, '..', '..', 'skills', 'host-capability-routing')
+const PACKAGE_ROOT = path.resolve(__dirname, '..', '..')
+function readSchema(relativePath) {
+  return JSON.parse(fs.readFileSync(resolveControlAsset(PACKAGE_ROOT, relativePath), 'utf8'))
+}
 const SCHEMAS = Object.freeze({
-  capabilityIntentDecision: require(path.join(SKILL_ROOT, 'capability-intent-decision.v1.schema.json')),
-  hostLeverCatalog: require(path.join(SKILL_ROOT, 'host-lever-catalog.v1.schema.json')),
-  originalInstructionRef: require(path.join(SKILL_ROOT, 'original-instruction-ref.v1.schema.json'))
+  capabilityIntentDecision: readSchema('skills/host-capability-routing/capability-intent-decision.v1.schema.json'),
+  hostLeverCatalog: readSchema('skills/host-capability-routing/host-lever-catalog.v1.schema.json'),
+  originalInstructionRef: readSchema('skills/host-capability-routing/original-instruction-ref.v1.schema.json')
 })
 const REQUIRED_INVALIDATION_TRIGGERS = Object.freeze([
   'schema',

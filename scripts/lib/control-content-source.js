@@ -4,7 +4,7 @@ const crypto = require('crypto')
 const fs = require('fs')
 const path = require('path')
 
-const MANIFEST_FILE = 'content-source/manifest.json'
+const MANIFEST_FILE = 'content/manifest.json'
 const INCLUDE_RE = /^<!-- devcodex:include (shared\/[A-Za-z0-9._/-]+\.md) -->[ \t]*(\r?\n|$)/gm
 
 function portable (value) {
@@ -101,10 +101,16 @@ function assertSafeFragment (sourceRoot, fragmentRelative) {
 
 function renderContent (content, options) {
   const sourceRoot = options.sourceRoot
+  const readFragment = typeof options.readFragment === 'function'
+    ? options.readFragment
+    : fragmentRelative => fs.readFileSync(assertSafeFragment(sourceRoot, fragmentRelative), 'utf8')
   const fragments = []
   const rendered = String(content).replace(INCLUDE_RE, (directive, fragmentRelative, lineEnding) => {
-    const fragment = assertSafeFragment(sourceRoot, fragmentRelative)
-    const body = fs.readFileSync(fragment, 'utf8')
+    const normalized = portable(fragmentRelative)
+    if (!normalized.startsWith('shared/') || normalized.includes('..') || path.isAbsolute(fragmentRelative)) {
+      throw new Error(`unsafe include path: ${fragmentRelative}`)
+    }
+    const body = readFragment(normalized)
     if (INCLUDE_RE.test(body)) {
       INCLUDE_RE.lastIndex = 0
       throw new Error(`nested include forbidden: ${fragmentRelative}`)
@@ -134,7 +140,9 @@ function buildBundle (root, options = {}) {
     for (const fragment of rendered.fragments) {
       usedFragments.set(fragment, (usedFragments.get(fragment) || 0) + 1)
     }
-    const actual = fs.existsSync(entry.target) ? fs.readFileSync(entry.target, 'utf8') : null
+    const actual = options.compareDelivery === false
+      ? rendered.content
+      : (fs.existsSync(entry.target) ? fs.readFileSync(entry.target, 'utf8') : null)
     files.push({
       ...entry,
       content: rendered.content,

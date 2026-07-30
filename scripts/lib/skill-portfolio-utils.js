@@ -12,6 +12,7 @@ const {
   loadSkillSidecarWithReader,
   sidecarRelativePath
 } = require('./skill-sidecar-contract')
+const { renderContent } = require('./control-content-source')
 
 const LEGAL_STATES = new Set(['draft', 'gray', 'active', 'deprecated', 'retired', 'blocked'])
 const SKILL_INDEX_EVIDENCE_STATES = new Set(['unverified', 'source-backed', 'validated'])
@@ -346,7 +347,10 @@ function isPortfolioConsumerExcluded(relativePath) {
   const rel = relativePath.replace(/\\/g, '/')
   const excludedPrefixes = [
     'skills/',
+    'content/',
     'content-source/',
+    'instructions/',
+    'prompts/',
     'node_modules/',
     'coverage/',
     'dist/',
@@ -357,6 +361,7 @@ function isPortfolioConsumerExcluded(relativePath) {
     'website/dist/'
   ]
   if (excludedPrefixes.some(prefix => rel === prefix.slice(0, -1) || rel.startsWith(prefix))) return true
+  if (rel === 'instructions.md') return true
   const base = path.posix.basename(rel)
   if (base === 'portfolio.json' || base === 'portfolio-evidence.json') return true
   return !TEXT_EXTENSIONS.has(path.extname(rel).toLowerCase())
@@ -412,10 +417,17 @@ function listConsumerDocuments(root, options = {}) {
 function listSkillMarkdownPaths(root, options = {}) {
   const repositoryView = options.repositoryView || 'worktree'
   const repositorySnapshot = options.repositorySnapshot || null
-  const tracked = repositorySnapshot?.paths.filter(rel => rel.startsWith('skills/')) || gitLsFiles(root, ['skills'])
+  if (repositoryView === 'worktree') {
+    return walk(path.join(root, 'content', 'skills'))
+      .filter(file => path.basename(file) === 'SKILL.md')
+      .map(file => normalizePath(root, file))
+      .sort((a, b) => a.localeCompare(b))
+  }
+  const tracked = repositorySnapshot?.paths.filter(rel => rel.startsWith('content/skills/')) ||
+    gitLsFiles(root, ['content/skills'])
   if (tracked && tracked.length) {
     return tracked
-      .filter(rel => rel.replace(/\\/g, '/').endsWith('/SKILL.md') || /^skills\/[^/]+\/SKILL\.md$/.test(rel.replace(/\\/g, '/')))
+      .filter(rel => /^content\/skills\/[^/]+\/SKILL\.md$/.test(rel.replace(/\\/g, '/')))
       .filter(rel => repositoryView === 'index' || (fs.existsSync(path.join(root, rel)) && fs.statSync(path.join(root, rel)).isFile()))
       .map(rel => rel.replace(/\\/g, '/'))
       .sort((a, b) => a.localeCompare(b))
@@ -423,10 +435,7 @@ function listSkillMarkdownPaths(root, options = {}) {
   if (repositoryView === 'index') {
     throw new Error('Git index is unavailable; staged Skill sources cannot be verified')
   }
-  return walk(path.join(root, 'skills'))
-    .filter(file => path.basename(file) === 'SKILL.md')
-    .map(file => normalizePath(root, file))
-    .sort((a, b) => a.localeCompare(b))
+  return []
 }
 
 function percentile(values, ratio) {
@@ -552,10 +561,10 @@ function buildPortfolio(root, options = {}) {
   const packageJson = JSON.parse(readText('package.json'))
   const pluginPath = 'plugin.json'
   const plugin = JSON.parse(readText(pluginPath))
-  const portfolioEvidencePath = 'skills/portfolio-evidence.json'
+  const portfolioEvidencePath = 'content/skills/portfolio-evidence.json'
   const portfolioEvidence = JSON.parse(readText(portfolioEvidencePath))
   if (portfolioEvidence.schemaVersion !== 2 || portfolioEvidence.ownerSkill !== 'skill-lifecycle-governance') {
-    throw new Error('invalid skills/portfolio-evidence.json header')
+    throw new Error('invalid content/skills/portfolio-evidence.json header')
   }
   const registered = new Map((plugin.skills || []).map(item => [item.id, item]))
   const skillPaths = listSkillMarkdownPaths(root, { repositoryView, repositorySnapshot })
@@ -567,7 +576,11 @@ function buildPortfolio(root, options = {}) {
 
   const skills = skillPaths.map(source => {
     const id = path.posix.basename(path.posix.dirname(source))
-    const content = readText(source)
+    const rawContent = readText(source)
+    const content = renderContent(rawContent, {
+      sourceRoot: path.join(root, 'content'),
+      readFragment: fragment => readText(`content/${fragment}`)
+    }).content
     const canonicalContent = canonicalizeTextForDigest(content)
     const frontmatter = parseFrontmatter(content, id)
     let sidecarProjection = null
@@ -599,7 +612,8 @@ function buildPortfolio(root, options = {}) {
       .filter(item => item.content.includes(id))
       .map(item => ({ path: item.path, role: classifyConsumer(item.path) }))
     const registration = registered.get(id)
-    const isRegistered = registration?.file === source
+    const publicSource = `skills/${id}/SKILL.md`
+    const isRegistered = registration?.file === publicSource || registration?.file === source
     const lifecycleState = isRegistered ? (registration.lifecycleState || 'active') : 'draft'
     if (isRegistered && !consumerRows.some(item => item.path === 'plugin.json')) {
       consumerRows.push({ path: 'plugin.json', role: 'current' })
@@ -715,13 +729,13 @@ function buildPortfolio(root, options = {}) {
     package: packageJson.name,
     packageVersion: packageJson.version,
     generatedFrom: {
-      skillsPattern: 'skills/*/SKILL.md',
-      optionalSidecar: 'skills/*/devcodex.skill.json',
+      skillsPattern: 'content/skills/*/SKILL.md',
+      optionalSidecar: 'content/skills/*/devcodex.skill.json',
       registry: 'plugin.json',
       sourceDigest,
       sidecarDigest,
       pluginDigest,
-      portfolioEvidence: 'skills/portfolio-evidence.json',
+      portfolioEvidence: portfolioEvidencePath,
       portfolioEvidenceDigest,
       consumerInventoryFileCount: consumers.length,
       consumerInventoryDigest,

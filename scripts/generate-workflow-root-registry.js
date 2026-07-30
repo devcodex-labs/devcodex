@@ -5,14 +5,15 @@ const assert = require('assert')
 const crypto = require('crypto')
 const fs = require('fs')
 const path = require('path')
+const { buildBundle } = require('./lib/control-content-source')
 
 const ROOT = path.resolve(__dirname, '..')
 const OUTPUT = path.join(ROOT, 'hooks', '_runtime', 'workflow-root-registry.v1.json')
-const SOURCES = [
+const CONTENT_SOURCES = [
   'instructions/01-common.instructions.md',
-  'scripts/lib/host-parity-scorecard.js',
   'skills/routing/SKILL.md'
 ]
+const CODE_SOURCES = ['scripts/lib/host-parity-scorecard.js']
 
 function sha256 (value) {
   return crypto.createHash('sha256').update(String(value), 'utf8').digest('hex')
@@ -67,14 +68,17 @@ function commonBase (includeCloseout = true) {
 }
 
 function buildRegistry () {
-  const sourceEvidence = SOURCES.map(relative => {
+  const contentBundle = buildBundle(ROOT)
+  const contentByRelative = new Map(contentBundle.files.map(file => [file.relative, file]))
+  const sourceEvidence = CONTENT_SOURCES.map(relative => {
+    const entry = contentByRelative.get(relative)
+    if (!entry) throw new Error(`missing content asset: ${relative}`)
+    return { ref: `content:${relative}`, digest: entry.outputDigest }
+  }).concat(CODE_SOURCES.map(relative => {
     const content = fs.readFileSync(path.join(ROOT, relative), 'utf8')
     return { ref: relative, digest: sha256(content) }
-  })
-  const instructionText = fs.readFileSync(
-    path.join(ROOT, 'instructions', '01-common.instructions.md'),
-    'utf8'
-  )
+  }))
+  const instructionText = contentByRelative.get('instructions/01-common.instructions.md').content
   const routes = parseInstructionRoutes(instructionText)
   assert(routes.length >= 20, `expected workflow table coverage, got ${routes.length}`)
   assert.strictEqual(
@@ -105,7 +109,7 @@ function buildRegistry () {
       roots: [root('spec-governance', 'execution:control-plane')],
       activationAuthority: 'model',
       mutualExclusionGroup: null,
-      sourceRef: 'skills/routing/SKILL.md#按需触发-Skills'
+      sourceRef: 'content:skills/routing/SKILL.md#按需触发-Skills'
     },
     {
       conditionId: 'test-validation',
@@ -113,7 +117,7 @@ function buildRegistry () {
       roots: [root('test-router', 'execution:test-validation')],
       activationAuthority: 'model',
       mutualExclusionGroup: null,
-      sourceRef: 'skills/routing/SKILL.md#按需触发-Skills'
+      sourceRef: 'content:skills/routing/SKILL.md#按需触发-Skills'
     },
     {
       conditionId: 'host-contract',
@@ -121,7 +125,7 @@ function buildRegistry () {
       roots: [root('host-contract-verification', 'execution:host-contract')],
       activationAuthority: 'model',
       mutualExclusionGroup: null,
-      sourceRef: 'skills/routing/SKILL.md#按需触发-Skills'
+      sourceRef: 'content:skills/routing/SKILL.md#按需触发-Skills'
     },
     {
       conditionId: 'release',
@@ -132,7 +136,7 @@ function buildRegistry () {
       ],
       activationAuthority: 'model',
       mutualExclusionGroup: null,
-      sourceRef: 'skills/routing/SKILL.md#按需触发-Skills'
+      sourceRef: 'content:skills/routing/SKILL.md#按需触发-Skills'
     }
   ]
 

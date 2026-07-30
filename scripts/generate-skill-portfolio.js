@@ -13,7 +13,8 @@ const {
 } = require('./lib/skill-portfolio-utils')
 
 const ROOT = path.resolve(__dirname, '..')
-const OUTPUT = path.join(ROOT, 'skills', 'portfolio.json')
+const OUTPUT_RELATIVE = 'content/skills/portfolio.json'
+const OUTPUT = path.join(ROOT, OUTPUT_RELATIVE)
 const stagedCheck = process.argv.includes('--check-staged')
 const check = process.argv.includes('--check') || stagedCheck
 const repositoryView = stagedCheck ? 'index' : 'worktree'
@@ -42,13 +43,13 @@ if (check) {
   let current = ''
   try {
     current = stagedCheck
-      ? repositorySnapshot.readText('skills/portfolio.json')
+      ? repositorySnapshot.readText(OUTPUT_RELATIVE)
       : (fs.existsSync(OUTPUT) ? fs.readFileSync(OUTPUT, 'utf8') : '')
   } catch {}
   if (current !== desired) {
     if (stagedCheck) {
       console.error('Staged Skill portfolio is stale for the current Git index candidate.')
-      console.error('Recovery: stage intended inputs, regenerate, stage skills/portfolio.json, then rerun --check-staged.')
+      console.error(`Recovery: stage intended inputs, regenerate, stage ${OUTPUT_RELATIVE}, then rerun --check-staged.`)
     } else {
       console.error('Skill portfolio is stale. Run: node scripts/generate-skill-portfolio.js')
       console.error('V92 parity: consumers/skills are git-tracked only (untracked files ignored).')

@@ -8,15 +8,17 @@ const { runSpecGovernanceReviewSuite } = require('./lib/test-spec-governance-rev
 const { runSpecGovernanceExpertSuite } = require('./lib/test-spec-governance-expert')
 const { runSpecGovernanceScaleSuite } = require('./lib/test-spec-governance-scale')
 const { runReworkTrustControlSuite } = require('./lib/test-rework-trust-controls')
-const { hasValidCanonicalContract } = require('./lib/canonical-consumer-contracts')
+const {
+  createCanonicalAwareReader,
+  hasValidCanonicalContract
+} = require('./lib/canonical-consumer-contracts')
 
 const ROOT = path.resolve(__dirname, '..')
 const failures = []
 const SOURCE_PROJECT_NAME = ['devcodex', 'v1'].join('-')
 
-function read(file) {
-  return fs.readFileSync(path.join(ROOT, file), 'utf8')
-}
+const readAbsolute = createCanonicalAwareReader(ROOT, file => fs.readFileSync(file, 'utf8'))
+const read = file => readAbsolute(path.join(ROOT, file))
 
 const skillCount = JSON.parse(read('plugin.json')).skills.length
 
@@ -26,7 +28,7 @@ function mustInclude(file, needle) {
 }
 
 function mustNotInclude(file, needle, reason) {
-  if (read(file).includes(needle)) failures.push(`${file} must not include "${needle}" (${reason})`)
+  if (String(read(file)).includes(needle)) failures.push(`${file} must not include "${needle}" (${reason})`)
 }
 
 function collectChangelogContents() {

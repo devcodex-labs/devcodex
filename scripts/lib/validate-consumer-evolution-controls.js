@@ -56,6 +56,7 @@ function classifyModulePerformanceSample(sample) {
 
 function buildConsumerEvolutionControlChecks(ctx) {
   const { ROOT, fs, path, read, err, console } = ctx
+  const logicalExists = file => typeof read.exists === 'function' ? read.exists(file) : fs.existsSync(file)
 
   function expect(actual, expected, label) {
     if (actual !== expected) err(`[V95] ${label}: expected ${expected}, got ${actual}`)
@@ -63,7 +64,7 @@ function buildConsumerEvolutionControlChecks(ctx) {
 
   function checkFile(file, needles) {
     const absolute = path.join(ROOT, file)
-    if (!fs.existsSync(absolute)) {
+    if (!logicalExists(absolute)) {
       err(`[V95] missing required artifact: ${file}`)
       return
     }
@@ -73,7 +74,7 @@ function buildConsumerEvolutionControlChecks(ctx) {
 
   function checkCurrentChangeRecord(version, needles) {
     const files = ['changelogs/unreleased.md', `changelogs/releases/v${version}.md`]
-    const combined = files.filter(file => fs.existsSync(path.join(ROOT, file)))
+    const combined = files.filter(file => logicalExists(path.join(ROOT, file)))
       .map(file => read(path.join(ROOT, file))).join('\n')
     for (const needle of needles) if (!combined.includes(needle)) err(`[V95] current changelog corpus missing "${needle}"`)
   }

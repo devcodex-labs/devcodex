@@ -202,14 +202,19 @@ function buildCliInstallCommands(ctx) {
     createSkillDeployFileFilter,
     isSkillsSource
   } = require('./skill-deploy-filter')
+  const {
+    listControlDeliveryEntries,
+    listControlSourceEntries,
+    sourceEntryContentEqual,
+    writeSourceEntry,
+    readControlInstructionRoot
+  } = require('./control-content-delivery')
   const skillDeployFilter = createSkillDeployFileFilter(PKG_ROOT)
 
   function sourceFiles(srcDir, from, tenantId) {
-    return walkDir(srcDir).filter(srcFile => {
-      const rel = path.relative(srcDir, srcFile).replace(/\\/g, '/')
-      if (from === 'instructions' && !shouldIncludeInstructionFile(rel, tenantId)) return false
-      if (isSkillsSource(from) && !skillDeployFilter(rel)) return false
-      return true
+    return listControlSourceEntries(PKG_ROOT, srcDir, from, {
+      includeInstructionFile: relative => shouldIncludeInstructionFile(relative, tenantId),
+      includeSkillFile: relative => !isSkillsSource(from) || skillDeployFilter(relative)
     })
   }
 
@@ -234,13 +239,17 @@ function buildCliInstallCommands(ctx) {
     return target
   }
 
-  function copyProjectedFile({ cwd, source, destination, force, dryRun, backupDir, log, inlineLog, label }) {
+  function copyProjectedFile({ cwd, source, destination, force, dryRun, backupDir, log, inlineLog, label, content = null }) {
     const srcFile = path.join(PKG_ROOT, source)
     const destFile = path.join(cwd, destination)
     const counts = { added: 0, updated: 0, skipped: 0 }
-    if (!fs.existsSync(srcFile)) return counts
+    const projectedContent = content == null && source === 'instructions.md'
+      ? readControlInstructionRoot(PKG_ROOT)
+      : content
+    if (projectedContent == null && !fs.existsSync(srcFile)) return counts
     const existed = fs.existsSync(destFile)
-    if (existed && filesContentEqual(srcFile, destFile)) {
+    const entry = { srcFile, content: projectedContent }
+    if (existed && sourceEntryContentEqual(entry, destFile)) {
       counts.skipped++
       log(c.dim(`  ~ ${label}`))
       return counts
@@ -250,7 +259,17 @@ function buildCliInstallCommands(ctx) {
       log(c.dim(`  ~ ${label} (outdated; use --force)`))
       return counts
     }
-    const result = copyManagedTextFile(srcFile, destFile, { dryRun, backup: true, backupDir })
+    let result
+    if (projectedContent == null) {
+      result = copyManagedTextFile(srcFile, destFile, { dryRun, backup: true, backupDir })
+    } else {
+      result = copyManagedTextFile(null, destFile, {
+        dryRun,
+        backup: true,
+        backupDir,
+        desiredContent: projectedContent
+      })
+    }
     if (result.backupPath) inlineLog(c.yellow(`  ⚠ backed up existing ${label} to ${path.relative(cwd, result.backupPath)}`))
     if (existed) {
       counts.updated++
@@ -265,19 +284,21 @@ function buildCliInstallCommands(ctx) {
   function copyProjectedTree({ cwd, source, destination, force, dryRun, backupDir, log, inlineLog, tenantId = null }) {
     const counts = { added: 0, updated: 0, skipped: 0 }
     const srcDir = path.join(PKG_ROOT, source)
-    if (!fs.existsSync(srcDir)) return counts
-    for (const srcFile of sourceFiles(srcDir, source, tenantId)) {
-      const rel = path.relative(srcDir, srcFile)
+    const entries = sourceFiles(srcDir, source, tenantId)
+    if (!entries.length) return counts
+    for (const entry of entries) {
+      const rel = entry.relative
       addCounts(counts, copyProjectedFile({
         cwd,
-        source: path.join(source, rel),
+        source: entry.source,
         destination: path.join(destination, rel),
         force,
         dryRun,
         backupDir,
         log,
         inlineLog,
-        label: path.join(destination, rel).replace(/\\/g, '/')
+        label: path.join(destination, rel).replace(/\\/g, '/'),
+        content: entry.content
       }))
     }
     return counts
@@ -412,7 +433,10 @@ function buildCliInstallCommands(ctx) {
     if (dryRun) console.log(c.yellow('  [DRY RUN] No files will be written.\n'))
 
     // Guard: detect missing content dirs before copying
-    const anySrcExists = SOURCES.some(({ from }) => fs.existsSync(path.join(PKG_ROOT, from)))
+    const anySrcExists = SOURCES.some(({ from }) =>
+      fs.existsSync(path.join(PKG_ROOT, from)) ||
+      Boolean(listControlDeliveryEntries(PKG_ROOT, from))
+    )
 
     let added = 0, updated = 0, skipped = 0
 
@@ -420,15 +444,16 @@ function buildCliInstallCommands(ctx) {
       const srcDir = path.join(PKG_ROOT, from)
       const destDir = path.join(ghDir, to)
 
-      if (!fs.existsSync(srcDir)) continue
+      const entries = sourceFiles(srcDir, from, tenantId)
+      if (!entries.length) continue
 
-      for (const srcFile of sourceFiles(srcDir, from, tenantId)) {
-        const rel = path.relative(srcDir, srcFile)
+      for (const entry of entries) {
+        const rel = entry.relative
         const destFile = path.join(destDir, rel)
         const existed = fs.existsSync(destFile)
         const shown = `.github/${to}/${rel.replace(/\\/g, '/')}`
 
-        if (existed && filesContentEqual(srcFile, destFile)) {
+        if (existed && sourceEntryContentEqual(entry, destFile)) {
           skipped++
           console.log(c.dim(`  ~ ${shown}`))
           continue
@@ -440,8 +465,7 @@ function buildCliInstallCommands(ctx) {
         }
 
         if (!dryRun) {
-          fs.mkdirSync(path.dirname(destFile), { recursive: true })
-          fs.copyFileSync(srcFile, destFile)
+          writeSourceEntry(entry, destFile)
         }
 
         if (existed) { updated++; console.log(c.yellow(`  ↺ ${shown}`)) }
@@ -626,15 +650,16 @@ function buildCliInstallCommands(ctx) {
     for (const { from, to } of CLAUDE_SOURCES) {
       const srcDir = path.join(PKG_ROOT, from)
       const destDir = path.join(clDir, to)
-      if (!fs.existsSync(srcDir)) continue
+      const entries = sourceFiles(srcDir, from, tenantId)
+      if (!entries.length) continue
 
-      for (const srcFile of sourceFiles(srcDir, from, tenantId)) {
-        const rel = path.relative(srcDir, srcFile)
+      for (const entry of entries) {
+        const rel = entry.relative
         const destFile = path.join(destDir, rel)
         const existed = fs.existsSync(destFile)
         const shown = `.claude/${to}/${rel.replace(/\\/g, '/')}`
 
-        if (existed && filesContentEqual(srcFile, destFile)) {
+        if (existed && sourceEntryContentEqual(entry, destFile)) {
           skipped++
           log(c.dim(`  ~ ${shown}`))
           continue
@@ -645,8 +670,7 @@ function buildCliInstallCommands(ctx) {
           continue
         }
         if (!dryRun) {
-          fs.mkdirSync(path.dirname(destFile), { recursive: true })
-          fs.copyFileSync(srcFile, destFile)
+          writeSourceEntry(entry, destFile)
         }
         if (existed) { updated++; log(c.yellow(`  ↺ ${shown}`)) }
         else { added++; log(c.green(`  ✓ ${shown}`)) }

@@ -29,7 +29,7 @@ if (!rules.includes(`# DevCodex v${pkg.version}`) || !rules.includes(`version: $
   mismatches.push(`RULES.md does not reference version ${pkg.version}`)
 }
 
-for (const file of walk(path.join(ROOT, 'instructions')).filter(item => item.endsWith('.md'))) {
+for (const file of walk(path.join(ROOT, 'content', 'instructions')).filter(item => item.endsWith('.md'))) {
   const content = fs.readFileSync(file, 'utf8')
   const match = content.match(/^version:\s*([^\r\n]+)/m)
   if (match && match[1].trim() !== pkg.version) {

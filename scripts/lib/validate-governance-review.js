@@ -152,7 +152,7 @@ function buildGovernanceReviewChecks(ctx) {
     }
 
     for (const file of consumerFiles) {
-      const content = fs.readFileSync(path.join(ROOT, file), 'utf8')
+      const content = read(path.join(ROOT, file))
       const lines = content.split(/\r?\n/)
       lines.forEach((line, index) => {
         const drift = findDrift(line)
@@ -180,7 +180,7 @@ function buildGovernanceReviewChecks(ctx) {
       { file: 'skills/document-sync/SKILL.md', needles: ['gate-registry.json', 'Concept Sync Map'] }
     ]
     for (const consumer of canonicalConsumers) {
-      const content = fs.readFileSync(path.join(ROOT, consumer.file), 'utf8')
+      const content = read(path.join(ROOT, consumer.file))
       for (const needle of consumer.needles) {
         if (!content.includes(needle)) err(`[V75] ${probeName} canonical consumer drift in ${consumer.file}: missing "${needle}"`)
       }
@@ -196,7 +196,7 @@ function buildGovernanceReviewChecks(ctx) {
       { file: 'scripts/validate.js', needles: ['createProbeRegistry', 'expectedProbeIds', 'runProbeRegistry'] }
     ]
     for (const probe of probes) {
-      const content = fs.readFileSync(path.join(ROOT, probe.file), 'utf8')
+      const content = read(path.join(ROOT, probe.file))
       if (probe.file === 'README.md' && evaluatePublicReadmeContract(content).valid) continue
       for (const needle of probe.needles) {
         if (!content.includes(needle)) {

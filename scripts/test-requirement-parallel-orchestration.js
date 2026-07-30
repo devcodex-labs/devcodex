@@ -11,16 +11,18 @@ const {
   pathsOverlap,
   validateParallelLaunchCard
 } = require('./lib/requirement-parallel-orchestration')
+const { createCanonicalAwareReader } = require('./lib/canonical-consumer-contracts')
 
 const ROOT = path.resolve(__dirname, '..')
 const FIXTURE_ROOT = path.join(__dirname, 'fixtures', 'requirement-parallel-orchestration')
+const readSource = createCanonicalAwareReader(ROOT, file => fs.readFileSync(file, 'utf8'))
 
 function fixture(name) {
   return JSON.parse(fs.readFileSync(path.join(FIXTURE_ROOT, name), 'utf8'))
 }
 
 function source(relativePath) {
-  return fs.readFileSync(path.join(ROOT, relativePath), 'utf8')
+  return readSource(path.join(ROOT, relativePath))
 }
 
 assert.strictEqual(normalizePathFragment('E:\\Worker\\devcodex\\skills\\a\\'), 'e:/worker/devcodex/skills/a')

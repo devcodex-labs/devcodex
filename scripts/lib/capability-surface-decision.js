@@ -3,14 +3,12 @@
 const crypto = require('crypto')
 const fs = require('fs')
 const path = require('path')
+const { resolveControlAsset } = require('./control-content-delivery')
 
-const SCHEMA_PATH = path.resolve(
-  __dirname,
-  '..',
-  '..',
-  'skills',
-  'spec-governance',
-  'capability-surface-decision.v1.schema.json'
+const PACKAGE_ROOT = path.resolve(__dirname, '..', '..')
+const SCHEMA_PATH = resolveControlAsset(
+  PACKAGE_ROOT,
+  'skills/spec-governance/capability-surface-decision.v1.schema.json'
 )
 const SCHEMA = JSON.parse(fs.readFileSync(SCHEMA_PATH, 'utf8'))
 const MCP_SURFACES = new Set(['prompt', 'resource', 'resource-template', 'tool', 'task-augmented-tool'])

@@ -6,8 +6,8 @@ const fs = require('fs')
 const path = require('path')
 
 const ROOT = path.resolve(__dirname, '..')
-const prompt = fs.readFileSync(path.join(ROOT, 'prompts/api-verification.prompt.md'), 'utf8')
-const skill = fs.readFileSync(path.join(ROOT, 'skills/api-verification/SKILL.md'), 'utf8')
+const prompt = fs.readFileSync(path.join(ROOT, 'content/prompts/api-verification.prompt.md'), 'utf8')
+const skill = fs.readFileSync(path.join(ROOT, 'content/skills/api-verification/SKILL.md'), 'utf8')
 
 for (const content of [prompt, skill]) {
   for (const needle of ['process.env.API_BASE_URL', 'Endpoint matrix is empty', 'ENDPOINTS.length', 'runTests()', 'getPath']) {

@@ -163,7 +163,7 @@ function testClassifyAndApplyGuard() {
     )
     const wFile = writeSkill(wRoot, 'demo', '# w\n')
     const gFile = writeSkill(gRoot, 'demo', '# g\n')
-    const packageSkill = writeSkill(path.join(base, 'pkg', 'skills'), 'demo', '# p\n')
+    const packageSkill = writeSkill(path.join(base, 'pkg', 'content', 'skills'), 'demo', '# p\n')
     const opts = {
       cwd: workspaceRoot,
       workspaceRoot,
@@ -179,6 +179,28 @@ function testClassifyAndApplyGuard() {
       /GLOBAL_HOST_DEST_IN_WORKSPACE_SKILLS/
     )
     assertApplyDestinationNotWorkspaceSkills([gFile], opts)
+  })
+}
+
+function testSourceContentIncludes() {
+  withTemp(base => {
+    const contentRoot = path.join(base, 'pkg', 'content')
+    const globalSkillsRoot = path.join(contentRoot, 'skills')
+    fs.mkdirSync(path.join(contentRoot, 'shared'), { recursive: true })
+    fs.writeFileSync(path.join(contentRoot, 'shared', 'common.md'), 'shared body\n', 'utf8')
+    writeSkill(
+      globalSkillsRoot,
+      'demo',
+      '# Demo\n<!-- devcodex:include shared/common.md -->\nafter\n'
+    )
+    const result = resolveSkillRead('demo', {
+      cwd: base,
+      globalSkillsRoot,
+      env: { DEVCODEX_WORKSPACE_SKILLS: '0' }
+    })
+    assert.strictEqual(result.content, '# Demo\nshared body\nafter\n')
+    assert.strictEqual(result.trace.digest, sha(result.content))
+    assert.ok(!result.content.includes('devcodex:include'))
   })
 }
 
@@ -330,6 +352,7 @@ function main() {
   testOversize()
   testLayoutDisabled()
   testClassifyAndApplyGuard()
+  testSourceContentIncludes()
   testInvalidIdAndPlan()
   testBundleIdentityHook()
   console.log('test-skill-resolve: ok')

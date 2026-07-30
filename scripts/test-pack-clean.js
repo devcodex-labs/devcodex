@@ -3,6 +3,7 @@
 const { execSync } = require('child_process')
 const fs = require('fs')
 const path = require('path')
+const { listControlDeliveryEntries } = require('./lib/control-content-delivery')
 
 const ROOT = path.resolve(__dirname, '..')
 const out = execSync('npm pack --dry-run --json', { cwd: ROOT, encoding: 'utf8' })
@@ -55,6 +56,7 @@ const forbidden = [
   /skills\/portfolio\.json/,
   /skills\/portfolio-evidence\.json/,
   /content-source\//,
+  /^content\//,
   /schema-dsl/i,
   /vext-test/i,
 ]
@@ -80,9 +82,9 @@ const packageFiles = (pkg.files || []).filter(item => (
 const pluginFiles = (plugin.skills || []).map(item => item.file).filter(Boolean)
 const packagedScripts = packageFiles.filter(file => file.startsWith('scripts/') && file.endsWith('.js'))
 const packagedScriptDeps = packagedScripts.flatMap(file => collectRuntimeDependencies(file))
-const promptFiles = walk(path.join(ROOT, 'prompts'))
-  .filter(file => file.endsWith('.prompt.md'))
-  .map(file => path.relative(ROOT, file).replace(/\\/g, '/'))
+const promptFiles = listControlDeliveryEntries(ROOT, 'prompts')
+  .filter(entry => entry.relative.endsWith('.prompt.md'))
+  .map(entry => `prompts/${entry.relative}`)
 const dataTemplateFiles = walk(path.join(ROOT, 'data', 'templates'))
   .filter(file => file.endsWith('.md'))
   .map(file => path.relative(ROOT, file).replace(/\\/g, '/'))

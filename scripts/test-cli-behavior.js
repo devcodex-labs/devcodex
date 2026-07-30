@@ -12,6 +12,7 @@ const {
   buildScopedHostParity,
   isSourceCandidateMismatch
 } = require('./lib/cli-maintenance-commands.js')
+const { readControlInstructionRoot, resolveControlAsset } = require('./lib/control-content-delivery')
 
 const ROOT = path.resolve(__dirname, '..')
 const CLI = path.join(ROOT, 'index.js')
@@ -238,12 +239,15 @@ function assertDeploymentManifest(runtimeRoot, expectedSurface) {
 }
 
 function assertCodexAdapterState(root) {
-  const sourceInstructions = fs.readFileSync(path.join(ROOT, 'instructions.md'), 'utf8')
+  const sourceInstructions = readControlInstructionRoot(ROOT).toString('utf8')
   const sourceKernel = fs.readFileSync(path.join(ROOT, 'host-projections', 'AGENTS.md'), 'utf8')
   const agentsMd = fs.readFileSync(path.join(root, 'AGENTS.md'), 'utf8')
   const fullFallback = fs.readFileSync(path.join(root, '.agents', 'devcodex', 'instructions.full.md'), 'utf8')
   const hooks = readJson(root, '.codex/hooks.json')
-  const portfolio = JSON.parse(fs.readFileSync(path.join(ROOT, 'skills', 'portfolio.json'), 'utf8'))
+  const portfolio = JSON.parse(fs.readFileSync(
+    resolveControlAsset(ROOT, 'skills/portfolio.json'),
+    'utf8'
+  ))
   const installedSkillFiles = walk(path.join(root, '.agents', 'skills')).filter(file => path.basename(file) === 'SKILL.md')
 
   assert.strictEqual(agentsMd, sourceKernel)
@@ -294,7 +298,7 @@ function assertClaudeMergeState(root, { claudeMdManaged }) {
   const agentsMd = fs.readFileSync(path.join(root, 'AGENTS.md'), 'utf8')
   const fullFallback = fs.readFileSync(path.join(root, '.agents', 'devcodex', 'instructions.full.md'), 'utf8')
   const sourceKernel = fs.readFileSync(path.join(ROOT, 'host-projections', 'AGENTS.md'), 'utf8')
-  const sourceInstructions = fs.readFileSync(path.join(ROOT, 'instructions.md'), 'utf8')
+  const sourceInstructions = readControlInstructionRoot(ROOT).toString('utf8')
 
   if (claudeMdManaged) {
     const sourceWrapper = fs.readFileSync(path.join(ROOT, 'host-projections', 'CLAUDE.md'), 'utf8')

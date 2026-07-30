@@ -229,7 +229,7 @@ function buildGovernanceExpertChecks(ctx) {
       ['skills/spec-governance/gate-registry.json', ['measuredVerification', 'MeasuredVerificationStandard', 'expert-output-quality']]
     ]
     for (const [rel, needles] of rawMinima) {
-      const raw = fs.readFileSync(path.join(ROOT, rel), 'utf8')
+      const raw = read(path.join(ROOT, rel))
       for (const needle of needles) {
         if (!raw.includes(needle)) {
           err(`[V84] raw-text expert/MVS anchor missing in ${rel}: "${needle}"`)

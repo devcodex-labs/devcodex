@@ -10,9 +10,10 @@
     { "path": "website/docs/intro/host-parity-grok.md", "role": "website-host-parity-grok" }
   ],
   "roots": [
-    { "path": "instructions", "role": "normative-instructions", "extensions": [".md"] },
-    { "path": "skills", "role": "normative-skills", "fileNames": ["SKILL.md"] },
-    { "path": "prompts", "role": "normative-prompts", "extensions": [".md"] },
+    { "path": "content/instructions", "role": "normative-instructions", "extensions": [".md"] },
+    { "path": "content/skills", "role": "normative-skills", "fileNames": ["SKILL.md"] },
+    { "path": "content/prompts", "role": "normative-prompts", "extensions": [".md"] },
+    { "path": "content/shared", "role": "normative-shared-fragments", "extensions": [".md"] },
     { "path": "host-projections", "role": "generated-host-contracts", "extensions": [".md"] },
     { "path": "codex", "role": "codex-host-contracts", "extensions": [".md"] },
     { "path": "agents", "role": "agent-host-contracts", "extensions": [".md"] },

@@ -13,6 +13,7 @@ const {
 } = require('./devcodex-md-entry.cjs')
 const {
   isWorkspaceSkillsEnabled,
+  renderSourceSkillContent,
   resolveWorkspaceSkillsRoot
 } = require('./skill-resolution.cjs')
 const {
@@ -197,6 +198,7 @@ function validateTrustedContextBinding (binding, target, options = {}) {
     changeTypes: plan.changeTypes || [],
     receiptId: receipt.receiptId,
     receiptStatus: receipt.status,
+    hostSessionId: String(acquisition.hostSessionId || ''),
     statePath: portable(statePath)
   }
   value.bindingDigest = sha256(value)
@@ -211,6 +213,10 @@ function validateRequestShape (input) {
     commit: [
       'op', 'project', 'turnBinding', 'contextEpoch', 'catalogDigest', 'skillId',
       'contextBinding', 'previousPlanDigest', 'lateConditionId'
+    ],
+    rebind: [
+      'op', 'project', 'turnBinding', 'contextEpoch', 'generation', 'planDigest',
+      'contextBinding'
     ],
     load_stage: [
       'op', 'project', 'turnBinding', 'contextEpoch', 'generation', 'planDigest',
@@ -256,6 +262,13 @@ function validateRequestShape (input) {
         !STAGE_ID_RE.test(String(input.stageId || ''))) return 'PLAN_BINDING_INVALID'
     if (input.triggerRef !== undefined &&
         !isBoundedText(input.triggerRef, 512)) return 'TRIGGER_REF_INVALID'
+  }
+  if (op === 'rebind') {
+    if (!Number.isInteger(input.generation) || input.generation < 0) return 'GENERATION_INVALID'
+    if (!DIGEST_RE.test(String(input.planDigest || ''))) return 'PLAN_BINDING_INVALID'
+    if (!input.contextBinding || typeof input.contextBinding !== 'object') {
+      return 'CONTEXT_BINDING_REQUIRED'
+    }
   }
   return null
 }
@@ -631,6 +644,7 @@ function handleCommit (input, target, options) {
       )
       state.contextBinding = JSON.parse(JSON.stringify(input.contextBinding))
       state.trustedContextBindingDigest = trustedContext.bindingDigest
+      state.hostSessionId = trustedContext.hostSessionId || state.hostSessionId || ''
       state.obligationLedger = buildObligationLedger(plan, state.stageProgress)
       const summary = summarizePlan(plan)
       const response = bindResponseToTransaction(plan.status === 'complete'
@@ -661,6 +675,141 @@ function handleCommit (input, target, options) {
       16 * 1024)
       appendLedger(state, {
         op: 'commit',
+        stageId: null,
+        sourceBytes: 0,
+        serializedBytes: response.delivery.serializedBytes,
+        bodyBytes: 0,
+        runtimeServedPages: state.servedCatalogPages.length,
+        expectedPages: state.catalog.pages.length,
+        contextEpoch: input.contextEpoch,
+        generation: plan.generation,
+        responseDigest: sha256(response),
+        replayed: false,
+        idempotencyKey: tx.idempotencyKey
+      })
+      return { envelope, response }
+    },
+    options
+  ).response
+}
+
+function rebindSemanticDigest (plan) {
+  if (!plan) return null
+  const {
+    generation: _generation,
+    contextBindingDigest: _contextBindingDigest,
+    planSemanticDigest: _planSemanticDigest,
+    planDigest: _planDigest,
+    ...semantic
+  } = plan
+  return sha256(semantic)
+}
+
+function handleRebind (input, target, options) {
+  return transactEnvelope(
+    target.activeRoot,
+    input.turnBinding,
+    input,
+    (envelope, tx) => {
+      const state = envelope.state
+      const fsImpl = options.fs || fs
+      assertEnvelopeBinding(state, input, target, options)
+      if (!state.plan || state.plan.status !== 'complete' ||
+          state.plan.planDigest !== input.planDigest ||
+          state.plan.generation !== input.generation) {
+        const error = new Error('PLAN_BINDING_INVALID')
+        error.code = 'PLAN_BINDING_INVALID'
+        throw error
+      }
+      const priorPlan = state.plan
+      const trustedContext = validateTrustedContextBinding(
+        input.contextBinding,
+        target,
+        options
+      )
+      const currentIndex = rebuildIndex(target, options)
+      if (currentIndex.indexDigest !== state.index.indexDigest) {
+        const error = new Error('CATALOG_STALE')
+        error.code = 'CATALOG_STALE'
+        throw error
+      }
+      const selectedEntry = state.decision?.skillId
+        ? currentIndex.entries.find(entry =>
+            entry.skillId === state.decision.skillId &&
+            entry.autoSelectable &&
+            entry.cardDigest === state.decision.cardDigest &&
+            entry.effectiveLayer === state.decision.effectiveLayer
+          )
+        : null
+      if (state.decision?.skillId && !selectedEntry) {
+        const error = new Error('REBIND_DECISION_STALE')
+        error.code = 'REBIND_DECISION_STALE'
+        throw error
+      }
+      const workflow = resolveWorkflowRoots(trustedContext, options)
+      const workspaceEntry = readDevcodexMdEntry(target.projectRoot, {
+        ...options,
+        cwd: target.projectRoot
+      })
+      const workspaceSkillsRoot = resolveWorkspaceSkillsRoot(target.projectRoot, {
+        ...options,
+        cwd: target.projectRoot
+      })
+      const workspaceAlwaysOnDisabledIds = !isWorkspaceSkillsEnabled(options.env)
+        ? (workspaceEntry.alwaysOn || []).filter(skillId => {
+          const hasGlobal = currentIndex.entries.some(entry =>
+            entry.skillId === skillId && entry.effectiveLayer === 'global'
+          )
+          return !hasGlobal && workspaceSkillsRoot &&
+            fsImpl.existsSync(path.join(workspaceSkillsRoot, skillId, 'SKILL.md'))
+        })
+        : []
+      const plan = buildProgressiveSkillPlan({
+        project: input.project,
+        turnBinding: input.turnBinding,
+        contextEpoch: input.contextEpoch,
+        generation: priorPlan.generation + 1,
+        catalogDigest: priorPlan.catalogDigest,
+        decisionDigest: state.decision.decisionDigest,
+        contextBindingDigest: trustedContext.bindingDigest,
+        workflowResolution: workflow,
+        index: currentIndex,
+        workspaceAlwaysOn: workspaceEntry.alwaysOn || [],
+        workspaceAlwaysOnDisabledIds,
+        explicitSkillId: state.explicit?.status === 'ready'
+          ? state.explicit.skillId
+          : null,
+        freeSkillId: selectedEntry?.skillId || null,
+        lateConditionId: null,
+        activatedConditionIds: priorPlan.activatedConditionIds || []
+      })
+      if (rebindSemanticDigest(priorPlan) !== rebindSemanticDigest(plan)) {
+        const error = new Error('REBIND_SEMANTIC_DRIFT')
+        error.code = 'REBIND_SEMANTIC_DRIFT'
+        throw error
+      }
+      assertReplanProgressCompatible(priorPlan, plan, state.stageProgress)
+      state.plan = plan
+      state.stageProgress = preserveCompatibleStageProgress(
+        priorPlan,
+        plan,
+        state.stageProgress
+      )
+      state.contextBinding = JSON.parse(JSON.stringify(input.contextBinding))
+      state.trustedContextBindingDigest = trustedContext.bindingDigest
+      state.hostSessionId = trustedContext.hostSessionId || state.hostSessionId || ''
+      state.obligationLedger = buildObligationLedger(plan, state.stageProgress)
+      const response = bindResponseToTransaction(successResponse('rebind', {
+        schemaVersion: 'SkillRouteRebindReceiptV1',
+        priorGeneration: priorPlan.generation,
+        priorPlanDigest: priorPlan.planDigest,
+        plan: summarizePlan(plan),
+        contextBindingDigest: trustedContext.bindingDigest,
+        obligations: state.obligationLedger,
+        preservedStageProgress: summarizeStageProgress(state.stageProgress)
+      }, [], 16 * 1024), tx, 16 * 1024)
+      appendLedger(state, {
+        op: 'rebind',
         stageId: null,
         sourceBytes: 0,
         serializedBytes: response.delivery.serializedBytes,
@@ -749,7 +898,8 @@ function buildStagePages (state, stageId, options = {}) {
     throw error
   }
   const chunks = items.map(item => {
-    const content = fsImpl.readFileSync(item.resolvedPath, 'utf8')
+    const rawContent = fsImpl.readFileSync(item.resolvedPath, 'utf8')
+    const content = renderSourceSkillContent(item.resolvedPath, rawContent, fsImpl)
     const digest = sha256(content)
     if (digest !== item.bodyDigest) {
       const error = new Error('SKILL_BODY_STALE')
@@ -1142,6 +1292,18 @@ function evaluateProgressiveSkillRouteStop (input, options = {}) {
     }
   }
   const state = envelope.state
+  const requestedHostSessionId = String(input.hostSessionId || '')
+  if (requestedHostSessionId &&
+      state.hostSessionId &&
+      requestedHostSessionId !== state.hostSessionId) {
+    return {
+      schemaVersion: 'ProgressiveSkillRouteStopV1',
+      present: false,
+      complete: true,
+      turnBinding,
+      ignoredReason: 'HOST_SESSION_MISMATCH'
+    }
+  }
   const requiredStageIds = state.obligationLedger?.requiredStageIds || []
   const pendingStageIds = requiredStageIds.filter(stageId =>
     state.stageProgress[stageId]?.status !== 'loaded'
@@ -1151,8 +1313,21 @@ function evaluateProgressiveSkillRouteStop (input, options = {}) {
   ) || null
   const businessSatisfied = !business ||
     String(input.assistantText || '').includes(business.mustReplyCore)
+  let contextErrorCode = null
+  if (state.plan && pendingStageIds.length && state.contextBinding) {
+    try {
+      validateTrustedContextBinding(state.contextBinding, target, options)
+    } catch (error) {
+      if (['CONTEXT_BINDING_PENDING', 'CONTEXT_BINDING_MISMATCH'].includes(error.code)) {
+        contextErrorCode = error.code
+      } else {
+        throw error
+      }
+    }
+  }
   const processComplete = !!state.plan &&
     state.plan.status === 'complete' &&
+    !contextErrorCode &&
     pendingStageIds.length === 0
   return {
     schemaVersion: 'ProgressiveSkillRouteStopV1',
@@ -1166,9 +1341,10 @@ function evaluateProgressiveSkillRouteStop (input, options = {}) {
     selectedBusinessSkillId: business?.skillId || null,
     mustReplyCore: business?.mustReplyCore || null,
     businessSatisfied,
-    errorCode: state.plan
+    errorCode: contextErrorCode || (state.plan
       ? (state.plan.status === 'complete' ? null : 'ROOT_PLAN_BLOCKED')
-      : 'PLAN_NOT_COMMITTED'
+      : 'PLAN_NOT_COMMITTED'),
+    nextOp: contextErrorCode ? 'rebind' : null
   }
 }
 
@@ -1204,6 +1380,7 @@ function handleSkillRoute (input, options = {}) {
     }
     if (input.op === 'catalog') return handleCatalog(input, target, options)
     if (input.op === 'commit') return handleCommit(input, target, options)
+    if (input.op === 'rebind') return handleRebind(input, target, options)
     if (input.op === 'load_stage') return handleLoadStage(input, target, options)
     return handleStatus(input, target, options)
   } catch (error) {
@@ -1223,7 +1400,8 @@ function formatSkillRouteBootstrapInjection (bootstrap) {
     '',
     'Use the local `skill_route` Tool. For a non-explicit task, read every catalog page before one `commit` choice (`skillId` is one id or null).',
     'A quoted, negated, diagnostic, screenshot, log, report, or explanatory mention of a skill id is not an invocation. Choose null unless the user positively asks to use that skill or its intent clearly matches the actual task.',
-    'Do not infer workflow roots, paths, dependencies, or body content. After a complete plan, call `load_stage` only when entering that stage.'
+    'Do not infer workflow roots, paths, dependencies, or body content. After a complete plan, call `load_stage` only when entering that stage.',
+    'If ContextRead becomes stale while stages remain pending, refresh ContextRead and call `rebind` with the current generation/planDigest and fresh contextBinding before retrying `load_stage`.'
   ].join('\n')
   if (byteLength(injectionText) > 4 * 1024) {
     const error = new Error('SKILL_ROUTE_BOOTSTRAP_BUDGET_BLOCKED')
@@ -1298,5 +1476,6 @@ module.exports = {
   preserveCompatibleStageProgress,
   assertReplanProgressCompatible,
   summarizeStageProgress,
-  stageIdentityKeys
+  stageIdentityKeys,
+  rebindSemanticDigest
 }

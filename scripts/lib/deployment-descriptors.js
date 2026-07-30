@@ -7,6 +7,10 @@ const {
   normalizeHostList
 } = require('./host-surface-descriptors')
 const { shouldIncludeInstructionFile } = require('./tenant-selection')
+const {
+  listControlDeliveryEntries,
+  readControlInstructionRoot
+} = require('./control-content-delivery')
 
 /**
  * Build managed-deployment descriptors for copilot/claude/codex surfaces.
@@ -30,10 +34,18 @@ function buildDeploymentDescriptors(packageRoot, surfaces, {
       filters.push(relative => shouldIncludeInstructionFile(relative, tenantId))
     }
     if (isSkillsSource(source)) filters.push(skillFilter)
+    const virtualEntries = listControlDeliveryEntries(packageRoot, source)
+    const instructionRoot = source === 'instructions.md'
+      ? readControlInstructionRoot(packageRoot)
+      : null
     return {
       surface,
       source,
       destination,
+      ...(virtualEntries ? { virtualEntries } : {}),
+      ...(instructionRoot != null
+        ? { virtualEntries: [{ source: 'content/instructions.md', relative: '', content: instructionRoot }] }
+        : {}),
       ...(role ? { role } : {}),
       ...(Array.isArray(replacesSurfaces) && replacesSurfaces.length ? { replacesSurfaces } : {}),
       ...(filters.length ? { fileFilter: relative => filters.every(fn => fn(relative)) } : {})

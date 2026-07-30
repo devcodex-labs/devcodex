@@ -2,7 +2,10 @@
 
 const fs = require('fs')
 const path = require('path')
-const { evaluatePublicReadmeContract } = require('./canonical-consumer-contracts')
+const {
+  createCanonicalAwareReader,
+  evaluatePublicReadmeContract
+} = require('./canonical-consumer-contracts')
 
 const REQUIRED_DEFINITIONS = [
   'WorkflowCompletionCandidateV1',
@@ -41,8 +44,13 @@ function inspectWorkflowCompletionControls(root, io = {}) {
   const pathApi = io.path || path
   const activeRoot = io.activeRoot || null
   const issues = []
-  const read = relative => fileSystem.readFileSync(pathApi.join(root, relative), 'utf8')
-  const exists = relative => fileSystem.existsSync(pathApi.join(root, relative))
+  const readAbsolute = createCanonicalAwareReader(
+    root,
+    file => fileSystem.readFileSync(file, 'utf8'),
+    file => fileSystem.existsSync(file)
+  )
+  const read = relative => readAbsolute(pathApi.join(root, relative))
+  const exists = relative => readAbsolute.exists(pathApi.join(root, relative))
   const requiredFiles = [
     'hooks/_runtime/workflow-completion-contract.cjs',
     'hooks/_runtime/lifecycle-workflow-completion.cjs',
@@ -243,7 +251,7 @@ function inspectWorkflowCompletionControls(root, io = {}) {
   }
   const legacyRange = ['T1', 'T9'].join('~')
   for (const relative of aliasConsumers) {
-    if (read(relative).includes(legacyRange)) issues.push(`legacy-completion-range:${relative}`)
+    if (String(read(relative)).includes(legacyRange)) issues.push(`legacy-completion-range:${relative}`)
   }
   for (const relative of ['instructions.md', 'instructions/17-compliance.instructions.md', 'skills/compliance/SKILL.md']) {
     const content = read(relative)

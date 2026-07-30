@@ -57,7 +57,7 @@ assert.strictEqual(validateSkillIntent({
 
 assert.strictEqual(activeSkills.length, 83)
 for (const skill of activeSkills) {
-  const target = path.join(ROOT, 'skills', skill.id, 'intent.json')
+  const target = path.join(ROOT, 'content', 'skills', skill.id, 'intent.json')
   assert(fs.existsSync(target), `missing intent sidecar: ${skill.id}`)
   const raw = JSON.parse(fs.readFileSync(target, 'utf8'))
   const validation = validateSkillIntent(raw, { skillId: skill.id })

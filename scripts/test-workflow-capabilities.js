@@ -4,9 +4,15 @@
 const assert = require('assert')
 const fs = require('fs')
 const path = require('path')
+const { createCanonicalAwareReader } = require('./lib/canonical-consumer-contracts')
+const { resolveControlAsset } = require('./lib/control-content-delivery')
 
 const ROOT = path.resolve(__dirname, '..')
-const matrix = JSON.parse(fs.readFileSync(path.join(ROOT, 'skills/routing/workflow-capabilities.json'), 'utf8'))
+const read = createCanonicalAwareReader(ROOT, file => fs.readFileSync(file, 'utf8'))
+const matrix = JSON.parse(fs.readFileSync(
+  resolveControlAsset(ROOT, 'skills/routing/workflow-capabilities.json'),
+  'utf8'
+))
 const byId = new Map(matrix.workflows.map(item => [item.id, item]))
 
 assert.strictEqual(matrix.schemaVersion, 1)
@@ -30,7 +36,7 @@ const consumers = {
   'instructions/18-spec-radar.instructions.md': ['独立授权', '不触发任何修复动作']
 }
 for (const [file, needles] of Object.entries(consumers)) {
-  const content = fs.readFileSync(path.join(ROOT, file), 'utf8')
+  const content = read(path.join(ROOT, file))
   for (const needle of needles) assert.ok(content.includes(needle), `${file} missing ${needle}`)
 }
 

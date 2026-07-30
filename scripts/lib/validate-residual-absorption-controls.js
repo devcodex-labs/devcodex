@@ -110,6 +110,7 @@ function classifyStructuredAbsorptionPlanSample(sample) {
 
 function buildResidualAbsorptionControlChecks(ctx) {
   const { ROOT, fs, path, read, err, console } = ctx
+  const logicalExists = file => typeof read.exists === 'function' ? read.exists(file) : fs.existsSync(file)
 
   function expect(actual, expected, label) {
     if (actual !== expected) err(`[V96] ${label}: expected ${expected}, got ${actual}`)
@@ -117,7 +118,7 @@ function buildResidualAbsorptionControlChecks(ctx) {
 
   function checkFile(file, needles) {
     const absolute = path.join(ROOT, file)
-    if (!fs.existsSync(absolute)) {
+    if (!logicalExists(absolute)) {
       err(`[V96] missing required artifact: ${file}`)
       return
     }

@@ -25,10 +25,10 @@ function runLifecycle (fixture, payload = {}, env = {}) {
       ...payload
     }),
     encoding: 'utf8',
-    env: {
+      env: {
       ...process.env,
       DEVCODEX_HOST_PLATFORM: 'claude',
-      DEVCODEX_GLOBAL_SKILLS_RUNTIME: path.join(fixture.packageRoot, 'skills'),
+      DEVCODEX_GLOBAL_SKILLS_RUNTIME: path.join(fixture.packageRoot, 'content', 'skills'),
       ...env
     }
   })
@@ -135,7 +135,7 @@ function runLifecycle (fixture, payload = {}, env = {}) {
     const alternateSkillsRoot = path.join(fixture.root, 'alternate-skills')
     fs.mkdirSync(path.join(alternateSkillsRoot, '_schemas'), { recursive: true })
     fs.copyFileSync(
-      path.join(fixture.packageRoot, 'skills', 'portfolio.json'),
+      path.join(fixture.packageRoot, 'content', 'skills', 'portfolio.json'),
       path.join(alternateSkillsRoot, 'portfolio.json')
     )
     for (const schema of [
@@ -144,7 +144,7 @@ function runLifecycle (fixture, payload = {}, env = {}) {
       'progressive-skill-route.v1.schema.json'
     ]) {
       fs.copyFileSync(
-        path.join(fixture.packageRoot, 'skills', '_schemas', schema),
+        path.join(fixture.packageRoot, 'content', 'skills', '_schemas', schema),
         path.join(alternateSkillsRoot, '_schemas', schema)
       )
     }

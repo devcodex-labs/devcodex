@@ -3,13 +3,17 @@
 
 const fs = require('fs')
 const path = require('path')
-const { evaluatePublicReadmeContract } = require('./lib/canonical-consumer-contracts')
+const {
+  createCanonicalAwareReader,
+  evaluatePublicReadmeContract
+} = require('./lib/canonical-consumer-contracts')
 
 const ROOT = path.resolve(__dirname, '..')
 const failures = []
+const readAbsolute = createCanonicalAwareReader(ROOT, file => fs.readFileSync(file, 'utf8'))
 
 function read(file) {
-  return fs.readFileSync(path.join(ROOT, file), 'utf8')
+  return readAbsolute(path.join(ROOT, file))
 }
 
 function mustInclude(file, needle) {
@@ -19,7 +23,7 @@ function mustInclude(file, needle) {
 }
 
 function mustExist(file) {
-  if (!fs.existsSync(path.join(ROOT, file))) failures.push(`missing file: ${file}`)
+  if (!readAbsolute.exists(path.join(ROOT, file))) failures.push(`missing file: ${file}`)
 }
 
 function assertOrder(file, headings) {

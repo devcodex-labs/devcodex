@@ -17,6 +17,7 @@ const {
 const { buildBundleDecisionV2 } = require('../../mcp/profile-contract.js')
 const { resolveExecutionFeatureDecisionForCwd } = require('../../hooks/_runtime/execution-optimization-routing.cjs')
 const { createCliFailure, createCliSuccess, printCliJson } = require('./cli-json-contract.js')
+const { resolveControlAsset } = require('./control-content-delivery')
 
 function resolveCompletionTask({ cwd, task, project, resolveTask = resolveTaskContinuation, resolveUniqueTask = resolveUniqueActiveTaskContinuation }) {
   const resolution = task
@@ -66,7 +67,13 @@ function buildCliExecutionCommands(ctx) {
     appendRisk = appendRiskAcceptanceDecision,
     buildSkillBundle = buildBundleDecisionV2,
     resolveExecutionFeature = resolveExecutionFeatureDecisionForCwd,
-    readSkillPortfolio = () => JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', '..', 'skills', 'portfolio.json'), 'utf8'))
+    readSkillPortfolio = () => {
+      const packageRoot = path.resolve(__dirname, '..', '..')
+      return JSON.parse(fs.readFileSync(
+        resolveControlAsset(packageRoot, 'skills/portfolio.json'),
+        'utf8'
+      ))
+    }
   } = ctx
   const cliMetadata = { packageName: PACKAGE_JSON.name, packageVersion: PACKAGE_JSON.version }
 

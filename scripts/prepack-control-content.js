@@ -3,6 +3,7 @@
 
 const { execFileSync } = require('child_process')
 const path = require('path')
+const { preparePackageProjection } = require('./lib/package-compatibility-projection')
 
 const ROOT = path.resolve(__dirname, '..')
 const checks = [
@@ -25,3 +26,8 @@ for (const [script, flag] of checks) {
     process.exit(error.status || 1)
   }
 }
+
+const projection = preparePackageProjection(ROOT)
+process.stderr.write(
+  `[package-projection] ${projection.mode} entries=${projection.entryCount} plan=${projection.planDigest.slice(0, 12)}\n`
+)

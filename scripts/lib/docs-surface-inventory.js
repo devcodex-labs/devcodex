@@ -7,6 +7,7 @@
 
 const fs = require('fs')
 const path = require('path')
+const { resolveControlAsset } = require('./control-content-delivery')
 
 const REQUIRED_WORKFLOWS = Object.freeze([
   'analyze',
@@ -88,13 +89,13 @@ function scanDocsSurfaceInventory (root) {
     .map((s) => (typeof s === 'string' ? s : s.id))
     .filter(Boolean)
     .sort()
-  const skillDirs = listDirs(root, 'skills')
+  const skillDirs = listDirs(root, 'content/skills')
   const skillWithMd = skillDirs.filter((d) =>
-    fs.existsSync(path.join(root, 'skills', d, 'SKILL.md'))
+    fs.existsSync(path.join(root, 'content', 'skills', d, 'SKILL.md'))
   )
 
   const wf = JSON.parse(
-    fs.readFileSync(path.join(root, 'skills/routing/workflow-capabilities.json'), 'utf8')
+    fs.readFileSync(resolveControlAsset(root, 'skills/routing/workflow-capabilities.json'), 'utf8')
   )
   const workflowIds = (Array.isArray(wf.workflows) ? wf.workflows : [])
     .map((w) => w.id)
@@ -105,8 +106,8 @@ function scanDocsSurfaceInventory (root) {
   const hookEvents = Object.keys(life.hooks || {}).sort()
 
   const hookRuntime = listFiles(root, 'hooks/_runtime', /\.cjs$/i)
-  const prompts = listFiles(root, 'prompts', /\.prompt\.md$/i)
-  const instructionsMain = listFiles(root, 'instructions', /\.instructions\.md$/i)
+  const prompts = listFiles(root, 'content/prompts', /\.prompt\.md$/i)
+  const instructionsMain = listFiles(root, 'content/instructions', /\.instructions\.md$/i)
   const scriptsLib = listFiles(root, 'scripts/lib', /\.js$/i)
   const scriptsTop = listFiles(root, 'scripts', /\.(js|cjs|mjs)$/i)
   const npmScripts = Object.keys(pkg.scripts || {}).sort()
@@ -116,7 +117,7 @@ function scanDocsSurfaceInventory (root) {
   const websiteMd = websitePresent ? walkMd(root, 'website/docs').sort() : []
 
   const gates = JSON.parse(
-    fs.readFileSync(path.join(root, 'skills/spec-governance/gate-registry.json'), 'utf8')
+    fs.readFileSync(resolveControlAsset(root, 'skills/spec-governance/gate-registry.json'), 'utf8')
   )
   let gateGroups = 0
   if (Array.isArray(gates.groups)) gateGroups = gates.groups.length

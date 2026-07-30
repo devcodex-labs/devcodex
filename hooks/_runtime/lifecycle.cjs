@@ -1796,6 +1796,7 @@ async function main() {
         const routeStop = evaluateProgressiveSkillRouteStop({
           project: state.contextAcquisition.project,
           contextEpoch: state.contextAcquisition.contextEpoch,
+          hostSessionId: state.contextAcquisition.hostSessionId,
           assistantText: getVisibleReplyText(payload) || ''
         }, {
           inputRoot: CONTEXT_ROOT,
@@ -1813,7 +1814,9 @@ async function main() {
           const enforceCount = Number(state.progressiveSkillRouteStopCount || 0)
           if (enforceCount < 2) {
             state.progressiveSkillRouteStopCount = enforceCount + 1
-            const reason = routeStop.pendingStageIds?.length
+            const reason = routeStop.nextOp === 'rebind'
+              ? `Progressive Skill route context is stale; refresh ContextRead and call skill_route rebind before loading pending stages: ${routeStop.pendingStageIds.join(', ')}.`
+              : routeStop.pendingStageIds?.length
               ? `Progressive Skill route stages remain pending: ${routeStop.pendingStageIds.join(', ')}.`
               : (routeStop.mustReplyCore && !routeStop.businessSatisfied
                   ? `The selected Skill requires this core reply: ${routeStop.mustReplyCore}`

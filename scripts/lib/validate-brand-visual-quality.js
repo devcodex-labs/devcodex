@@ -43,10 +43,11 @@ function classifyBrandVisualEvidence(sample) {
 
 function buildBrandVisualQualityChecks(ctx) {
   const { ROOT, ACTIVE_DEVCODEX_ROOT, fs, path, read, err, console } = ctx
+  const logicalExists = file => typeof read.exists === 'function' ? read.exists(file) : fs.existsSync(file)
 
   function checkFile(relative, needles) {
     const file = path.join(ROOT, relative)
-    if (!fs.existsSync(file)) {
+    if (!logicalExists(file)) {
       err(`[V97] missing required artifact: ${relative}`)
       return
     }

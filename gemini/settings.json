@@ -9,7 +9,7 @@
             "name": "devcodex-before-agent",
             "type": "command",
             "command": "node .gemini/hooks/_runtime/lifecycle-host-adapters.cjs gemini",
-            "timeout": 10000,
+            "timeout": 30000,
             "description": "Inject the DevCodex entry and context contract."
           }
         ]
@@ -24,7 +24,7 @@
             "name": "devcodex-before-tool",
             "type": "command",
             "command": "node .gemini/hooks/_runtime/lifecycle-host-adapters.cjs gemini",
-            "timeout": 10000
+            "timeout": 30000
           }
         ]
       }
@@ -38,7 +38,7 @@
             "name": "devcodex-after-tool",
             "type": "command",
             "command": "node .gemini/hooks/_runtime/lifecycle-host-adapters.cjs gemini",
-            "timeout": 10000
+            "timeout": 30000
           }
         ]
       }
@@ -52,7 +52,7 @@
             "name": "devcodex-after-agent",
             "type": "command",
             "command": "node .gemini/hooks/_runtime/lifecycle-host-adapters.cjs gemini",
-            "timeout": 10000,
+            "timeout": 30000,
             "description": "Validate DevCodex completion output; retry only when the runtime returns deny."
           }
         ]
@@ -67,7 +67,7 @@
             "name": "devcodex-pre-compress",
             "type": "command",
             "command": "node .gemini/hooks/_runtime/lifecycle-host-adapters.cjs gemini",
-            "timeout": 10000,
+            "timeout": 30000,
             "description": "Advisory-only persistence reminder before compression."
           }
         ]

@@ -156,14 +156,23 @@ function buildCliRuntimeUtils({
     return new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14)
   }
 
-  function copyManagedTextFile(src, dest, { dryRun = false, backup = false, backupDir = null } = {}) {
-    const desired = fs.readFileSync(src, 'utf8')
+  function copyManagedTextFile(src, dest, {
+    dryRun = false,
+    backup = false,
+    backupDir = null,
+    desiredContent = null
+  } = {}) {
+    const binary = Buffer.isBuffer(desiredContent)
+    const desired = desiredContent == null
+      ? fs.readFileSync(src, 'utf8')
+      : (binary ? desiredContent : String(desiredContent))
     const exists = fs.existsSync(dest)
-    const current = exists ? fs.readFileSync(dest, 'utf8') : ''
-    if (exists && current === desired) return { copied: false, backupPath: null, unchanged: true }
+    const current = exists ? fs.readFileSync(dest, binary ? null : 'utf8') : (binary ? Buffer.alloc(0) : '')
+    const unchanged = exists && (binary ? current.equals(desired) : current === desired)
+    if (unchanged) return { copied: false, backupPath: null, unchanged: true }
 
     let backupPath = null
-    if (backup && exists && current.trim().length > 0) {
+    if (backup && exists && (binary ? current.length > 0 : current.trim().length > 0)) {
       backupPath = path.join(backupDir || path.dirname(dest), `${path.basename(dest)}.bak.${backupSuffix()}`)
       if (!dryRun) {
         fs.mkdirSync(path.dirname(backupPath), { recursive: true })

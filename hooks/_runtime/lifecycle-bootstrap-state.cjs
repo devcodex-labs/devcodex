@@ -745,15 +745,15 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       if (identity.tool === 'skill_route') {
         const op = String(args.op || '').trim()
         const epoch = String(args.contextEpoch || '').trim()
-        if (!['catalog', 'commit', 'load_stage', 'status'].includes(op)) {
+        if (!['catalog', 'commit', 'rebind', 'load_stage', 'status'].includes(op)) {
           return { allowed: false, suspicious: true, reason: 'skill_route requires a published route operation' }
         }
         if (epoch && epoch !== acquisition.contextEpoch) {
           return { allowed: false, suspicious: true, reason: 'skill_route contextEpoch does not match the active acquisition' }
         }
-        if (op === 'commit') {
+        if (op === 'commit' || op === 'rebind') {
           if (!isRouteContextReceiptReady(acquisition)) {
-            return { allowed: false, suspicious: true, reason: 'skill_route commit requires a completed bound context receipt' }
+            return { allowed: false, suspicious: true, reason: `skill_route ${op} requires a completed bound context receipt` }
           }
           const binding = validateContextReadBinding(args.contextBinding, expectedContextReadBinding(acquisition))
           if (!binding.valid) {

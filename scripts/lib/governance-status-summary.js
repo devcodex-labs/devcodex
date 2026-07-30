@@ -6,6 +6,7 @@ const path = require('path')
 const { loadRuntimeStateIndex, resolveDefaultActiveRoot } = require('./runtime-state-index.js')
 const { inspectExecutionOptimization } = require('./execution-optimization.js')
 const { buildAlwaysOnGovernanceSummary } = require('./always-on-governance.js')
+const { resolveControlAsset } = require('./control-content-delivery.js')
 const { buildSimpleGovernanceFastPathDecision } = require('../../hooks/_runtime/visible-output-contract.cjs')
 
 function readJsonSafe(file) {
@@ -127,7 +128,7 @@ function summarizeLedgerRetirement(runtimeState) {
 }
 
 function summarizeSkills(packageRoot, warnings) {
-  const portfolioPath = path.join(packageRoot, 'skills', 'portfolio.json')
+  const portfolioPath = resolveControlAsset(packageRoot, 'skills/portfolio.json')
   const pluginPath = path.join(packageRoot, 'plugin.json')
   const portfolio = readJsonSafe(portfolioPath)
   const plugin = readJsonSafe(pluginPath)
@@ -135,7 +136,9 @@ function summarizeSkills(packageRoot, warnings) {
   if (plugin?.__readError) warnings.push(`plugin-read-error: ${plugin.__readError}`)
   const pluginSkills = Array.isArray(plugin?.skills) ? plugin.skills : []
   const portfolioSkills = Array.isArray(portfolio?.skills) ? portfolio.skills : null
-  const source = portfolioSkills ? 'skills/portfolio.json' : 'plugin.json'
+  const source = portfolioSkills
+    ? path.relative(packageRoot, portfolioPath).replace(/\\/g, '/')
+    : 'plugin.json'
   const skills = portfolioSkills || pluginSkills
   const lifecycleCounts = countBy(skills, skill => skill.lifecycleState || 'active')
   const summary = portfolio?.summary || {}
@@ -216,7 +219,7 @@ function summarizeExecutionOptimization(cwd, activeRoot, executionOptimization, 
 }
 
 function summarizeGateLifecycle(packageRoot, warnings) {
-  const file = path.join(packageRoot, 'skills', 'spec-governance', 'gate-registry.json')
+  const file = resolveControlAsset(packageRoot, 'skills/spec-governance/gate-registry.json')
   const registry = readJsonSafe(file)
   if (registry?.__readError) warnings.push(`gate-registry-read-error: ${registry.__readError}`)
   const groups = Array.isArray(registry?.groups) ? registry.groups : []
@@ -225,7 +228,7 @@ function summarizeGateLifecycle(packageRoot, warnings) {
   return {
     schemaVersion: 'GateLifecycleMetadataV1',
     readOnly: true,
-    source: 'skills/spec-governance/gate-registry.json',
+    source: path.relative(packageRoot, file).replace(/\\/g, '/'),
     registryAvailable: Array.isArray(registry?.groups),
     groupCount: groups.length,
     ownerSkillCount: ownerSkills.length,

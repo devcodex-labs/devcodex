@@ -90,6 +90,12 @@ function run() {
   try {
     const manifest = readValidationManifest(MANIFEST_PATH)
     assert.ok(manifest.nodes.length >= 56, 'canonical manifest unexpectedly lost validation nodes')
+    assert.ok(manifest.criticalInputs.includes('content/**'))
+    assert.ok(!manifest.criticalInputs.includes('content-source/**'))
+    const controlContentNode = manifest.nodes.find(node => node.id === 'control-content-source')
+    assert.ok(controlContentNode, 'control-content-source node missing')
+    assert.ok(controlContentNode.inputs.includes('content/**'))
+    assert.ok(!controlContentNode.inputs.includes('content-source/**'))
     let fallbackInvocations = 0
     const fallbackErrors = []
     const standaloneOrchestration = createValidationOrchestration({

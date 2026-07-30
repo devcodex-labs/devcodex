@@ -25,9 +25,15 @@ function validatePathBoundary(destination, scopedRoots, scopedFiles, fsImpl, opt
 }
 
 function validateOperation(operation, allowedRoots, allowedFiles = [], allowedByHost = {}, fsImpl = fs) {
-  if (!operation || !operation.path || typeof operation.content !== 'string') {
+  const validContent = typeof operation?.content === 'string' || Buffer.isBuffer(operation?.content)
+  if (!operation || !operation.path || !validContent) {
     const error = new Error('GLOBAL_HOST_OPERATION_INVALID')
     error.code = 'GLOBAL_HOST_OPERATION_INVALID'
+    throw error
+  }
+  if (Buffer.isBuffer(operation.content) && operation.kind !== 'binary') {
+    const error = new Error('GLOBAL_HOST_BINARY_KIND_REQUIRED')
+    error.code = 'GLOBAL_HOST_BINARY_KIND_REQUIRED'
     throw error
   }
   const destination = path.resolve(operation.path)
@@ -91,9 +97,15 @@ function executeGlobalHostTransaction(operations, options = {}) {
   }
 
   for (const item of receipt.operations) {
-    const current = fsImpl.existsSync(item.path) ? fsImpl.readFileSync(item.path, 'utf8') : null
-    const desired = validated.find(operation => operation.path === item.path).content
-    item.changed = current !== desired
+    const operation = validated.find(candidate => candidate.path === item.path)
+    const binary = operation.kind === 'binary'
+    const current = fsImpl.existsSync(item.path)
+      ? fsImpl.readFileSync(item.path, binary ? null : 'utf8')
+      : null
+    const desired = operation.content
+    item.changed = binary
+      ? !(Buffer.isBuffer(current) && current.equals(desired))
+      : current !== desired
   }
   receipt.changed = receipt.operations.filter(item => item.changed).length
 
@@ -108,8 +120,11 @@ function executeGlobalHostTransaction(operations, options = {}) {
     for (const operation of validated) {
       const destination = operation.path
       const existing = fsImpl.existsSync(destination)
-      const current = existing ? fsImpl.readFileSync(destination, 'utf8') : null
-      if (current === operation.content) continue
+      const binary = operation.kind === 'binary'
+      const current = existing ? fsImpl.readFileSync(destination, binary ? null : 'utf8') : null
+      if (binary
+        ? Buffer.isBuffer(current) && current.equals(operation.content)
+        : current === operation.content) continue
 
       const suffix = `${process.pid}.${Date.now()}.${changedIndex}`
       const staged = `${destination}.devcodex-stage.${suffix}`
@@ -119,7 +134,7 @@ function executeGlobalHostTransaction(operations, options = {}) {
       let backupCreated = false
       try {
         fsImpl.mkdirSync(path.dirname(destination), { recursive: true })
-        fsImpl.writeFileSync(staged, operation.content, 'utf8')
+        fsImpl.writeFileSync(staged, operation.content, binary ? undefined : 'utf8')
         if (operation.kind === 'json') JSON.parse(fsImpl.readFileSync(staged, 'utf8'))
         if (existing) {
           fsImpl.renameSync(destination, backup)

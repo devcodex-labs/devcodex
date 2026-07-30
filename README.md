@@ -230,7 +230,7 @@ npm run test:skill-route
 npm run global-adapters:apply
 ```
 
-源码仓中的 instruction、prompt 与 Skill Markdown 维护入口统一位于 `content-source/`。修改 authoring source 后先运行 `npm run check:control-content`；需要更新既有 delivery 路径时显式运行 `npm run generate:control-content`。运行时和 npm 安装包继续读取原路径，不读取或携带 `content-source/`。
+源码仓中的 instruction、prompt 与 Skill Markdown 唯一维护入口统一位于 `content/`。修改 canonical content 后先运行 `npm run check:control-content`；仓库兼容路径由 `npm run generate:control-content` 确定性投影，npm 打包则通过带锁和回执的 prepack/postpack 临时投影旧 delivery 路径。运行时和 npm 安装包继续读取 standalone delivery，不读取或携带 `content/`。
 
 维护者文档站（需本机已有完整 `website/`）：
 

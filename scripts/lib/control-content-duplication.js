@@ -144,7 +144,7 @@ function ruleMatches (rule, candidate) {
 }
 
 function validateDispositions (root, inventory) {
-  const file = path.join(root, 'content-source', 'duplication-dispositions.json')
+  const file = path.join(root, 'content', 'duplication-dispositions.json')
   if (!fs.existsSync(file)) {
     return { ok: false, errors: ['missing duplication-dispositions.json'], assignments: [] }
   }
@@ -181,7 +181,7 @@ function validateDispositions (root, inventory) {
 }
 
 function inventoryPath (root) {
-  return path.join(root, 'content-source', 'duplication-inventory.json')
+  return path.join(root, 'content', 'duplication-inventory.json')
 }
 
 function serializeInventory (inventory) {

@@ -44,10 +44,16 @@ function writeWorkspaceSkill (root, skillId, suffix = '') {
   return skillRoot
 }
 
-function writeContextBindingState (fixture, contextEpoch, finalIntent = 'dev') {
-  const planId = `plan-${contextEpoch}`
-  const planContentId = `content-${contextEpoch}`
-  const receiptId = `receipt-${contextEpoch}`
+function writeContextBindingState (
+  fixture,
+  contextEpoch,
+  finalIntent = 'dev',
+  hostSessionId = `session-${contextEpoch}`,
+  identitySuffix = ''
+) {
+  const planId = `plan-${contextEpoch}${identitySuffix}`
+  const planContentId = `content-${contextEpoch}${identitySuffix}`
+  const receiptId = `receipt-${contextEpoch}${identitySuffix}`
   const statePath = path.join(
     fixture.activeRoot,
     '.memory',
@@ -60,6 +66,7 @@ function writeContextBindingState (fixture, contextEpoch, finalIntent = 'dev') {
       contextEpoch,
       activeRoot: fixture.activeRoot.replace(/\\/g, '/'),
       project: fixture.project,
+      hostSessionId,
       plan: {
         schemaVersion: 'ContextReadPlanV2',
         planId,
@@ -131,8 +138,9 @@ function createSkillRouteFixture (options = {}) {
     packageRoot: PACKAGE_ROOT,
     globalRuntime: {
       status: 'resolved',
-      root: path.join(PACKAGE_ROOT, 'skills'),
-      portfolioPath: path.join(PACKAGE_ROOT, 'skills', 'portfolio.json')
+      root: path.join(PACKAGE_ROOT, 'content', 'skills'),
+      companionRoot: path.join(PACKAGE_ROOT, 'content', 'skills'),
+      portfolioPath: path.join(PACKAGE_ROOT, 'content', 'skills', 'portfolio.json')
     }
   }
   fixture.runtimeOptions = {

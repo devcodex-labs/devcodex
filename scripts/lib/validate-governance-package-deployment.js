@@ -2,9 +2,12 @@
 
 const { readManifest, verifyManifest } = require('./deployment-manifest-utils')
 const { createSkillDeployFileFilter } = require('./skill-deploy-filter')
+const { listControlDeliveryEntries } = require('./control-content-delivery')
 
 function shouldCheckBaseDeploymentSource(relativePath) {
-  return !String(relativePath).replace(/\\/g, '/').startsWith('instructions/tenants/')
+  return !/^(?:content\/)?instructions\/tenants\//.test(
+    String(relativePath).replace(/\\/g, '/')
+  )
 }
 
 function isExactWorkspaceBridge(root, fsImpl, pathImpl) {
@@ -104,9 +107,14 @@ function buildGovernancePackageDeploymentChecks(ctx) {
       }
       const packagedScripts = [...packageFiles].filter(file => file.startsWith('scripts/') && file.endsWith('.js'))
       const packagedScriptDeps = packagedScripts.flatMap(file => collectRuntimeDependencies(file))
-      const promptFiles = walk(path.join(ROOT, 'prompts'))
-        .filter(file => file.endsWith('.prompt.md'))
-        .map(file => path.relative(ROOT, file).replace(/\\/g, '/'))
+      const promptEntries = listControlDeliveryEntries(ROOT, 'prompts')
+      const promptFiles = promptEntries
+        ? promptEntries
+            .filter(entry => entry.relative.endsWith('.prompt.md'))
+            .map(entry => `prompts/${entry.relative}`)
+        : walk(path.join(ROOT, 'prompts'))
+            .filter(file => file.endsWith('.prompt.md'))
+            .map(file => path.relative(ROOT, file).replace(/\\/g, '/'))
       const dataTemplateFiles = walk(path.join(ROOT, 'data', 'templates'))
         .filter(file => file.endsWith('.md'))
         .map(file => path.relative(ROOT, file).replace(/\\/g, '/'))
@@ -299,8 +307,20 @@ function buildGovernancePackageDeploymentChecks(ctx) {
       checkPairs.push({ src, claude, github })
     }
 
-    for (const dir of ['instructions', 'skills', 'prompts']) {
-      for (const file of walk(path.join(ROOT, dir)).filter(file => file.endsWith('.md'))) {
+    const virtualControlContent = new Map()
+    for (const surface of ['instructions', 'skills', 'prompts']) {
+      const entries = listControlDeliveryEntries(ROOT, surface)
+      if (entries) {
+        for (const entry of entries.filter(entry => entry.relative.endsWith('.md'))) {
+          const rel = `${surface}/${entry.relative}`
+          if (!shouldCheckBaseDeploymentSource(rel)) continue
+          if (surface === 'skills' && !skillDeployFileFilter(entry.relative)) continue
+          virtualControlContent.set(rel, entry.content)
+          addPair(rel)
+        }
+        continue
+      }
+      for (const file of walk(path.join(ROOT, surface)).filter(file => file.endsWith('.md'))) {
         const rel = path.relative(ROOT, file).replace(/\\/g, '/')
         if (!shouldCheckBaseDeploymentSource(rel)) continue
         if (rel.startsWith('skills/') && !skillDeployFileFilter(rel.slice('skills/'.length))) continue
@@ -337,14 +357,30 @@ function buildGovernancePackageDeploymentChecks(ctx) {
       }
     }
 
+    function compareDeploymentContent(content, destPath, label, fixHint) {
+      if (!fs.existsSync(destPath)) {
+        warn(`[V8] ${label} missing (run: ${fixHint})`)
+        stale++
+        return
+      }
+      if (read(destPath) !== String(content)) {
+        warn(`[V8] ${label} stale (run: ${fixHint})`)
+        stale++
+      }
+    }
+
     for (const pair of checkPairs) {
       const srcPath = path.join(ROOT, pair.src)
-      if (!fs.existsSync(srcPath)) continue
+      const virtualContent = virtualControlContent.get(pair.src)
+      if (virtualContent === undefined && !fs.existsSync(srcPath)) continue
 
       if (claudeExists && pair.claude) {
         const dest = path.join(claudeDir, pair.claude)
         if (fs.existsSync(dest)) {
-          if (fileHash(dest) !== fileHash(srcPath)) {
+          const equal = virtualContent === undefined
+            ? fileHash(dest) === fileHash(srcPath)
+            : read(dest) === String(virtualContent)
+          if (!equal) {
             warn(`[V8] .claude/ stale: ${pair.claude} (repair user-global adapter: devcodex global-adapters apply)`)
             stale++
           }
@@ -357,7 +393,10 @@ function buildGovernancePackageDeploymentChecks(ctx) {
       if (githubExists && pair.github) {
         const dest = path.join(githubDir, pair.github)
         if (fs.existsSync(dest)) {
-          if (fileHash(dest) !== fileHash(srcPath)) {
+          const equal = virtualContent === undefined
+            ? fileHash(dest) === fileHash(srcPath)
+            : read(dest) === String(virtualContent)
+          if (!equal) {
             warn(`[V8] .github/ stale: ${pair.github} (legacy parent surface; repair user-global adapter: devcodex global-adapters apply)`)
             stale++
           }
@@ -381,15 +420,28 @@ function buildGovernancePackageDeploymentChecks(ctx) {
       compareDeployment('host-projections/AGENTS.md', path.join(parentRoot, 'AGENTS.md'), 'AGENTS.md', 'devcodex global-adapters apply')
       compareDeployment('codex/hooks.json', path.join(codexDir, 'hooks.json'), '.codex/hooks.json', 'devcodex global-adapters apply')
 
-      for (const file of walk(path.join(ROOT, 'skills'))) {
-        const rel = path.relative(path.join(ROOT, 'skills'), file)
-        if (!skillDeployFileFilter(rel)) continue
-        compareDeployment(
-          path.join('skills', rel).replace(/\\/g, '/'),
-          path.join(agentsDir, 'skills', rel),
-          `.agents/skills/${rel.replace(/\\/g, '/')}`,
-          'devcodex global-adapters apply'
-        )
+      const skillEntries = listControlDeliveryEntries(ROOT, 'skills')
+      if (skillEntries) {
+        for (const entry of skillEntries) {
+          if (!skillDeployFileFilter(entry.relative)) continue
+          compareDeploymentContent(
+            entry.content,
+            path.join(agentsDir, 'skills', ...entry.relative.split('/')),
+            `.agents/skills/${entry.relative}`,
+            'devcodex global-adapters apply'
+          )
+        }
+      } else {
+        for (const file of walk(path.join(ROOT, 'skills'))) {
+          const rel = path.relative(path.join(ROOT, 'skills'), file)
+          if (!skillDeployFileFilter(rel)) continue
+          compareDeployment(
+            path.join('skills', rel).replace(/\\/g, '/'),
+            path.join(agentsDir, 'skills', rel),
+            `.agents/skills/${rel.replace(/\\/g, '/')}`,
+            'devcodex global-adapters apply'
+          )
+        }
       }
       for (const file of walk(path.join(ROOT, 'hooks', '_runtime'))) {
         const rel = path.relative(path.join(ROOT, 'hooks', '_runtime'), file)

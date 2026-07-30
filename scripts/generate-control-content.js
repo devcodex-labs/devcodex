@@ -30,7 +30,7 @@ try {
   } else if (flags.has('--write')) {
     receipt = materialize(ROOT)
   } else {
-    receipt = buildBundle(ROOT, { mode: 'check' }).receipt
+    receipt = buildBundle(ROOT, { mode: 'check', compareDelivery: false }).receipt
   }
   if (flags.has('--json')) {
     process.stdout.write(`${JSON.stringify(receipt, null, 2)}\n`)

@@ -2,6 +2,8 @@
 
 const fs = require('fs')
 const path = require('path')
+const { buildBundle } = require('./control-content-source')
+const { resolveControlAsset } = require('./control-content-delivery')
 
 const CONTRACTS = new Map([
   ['skills/spec-governance/SKILL.md', ['skills/spec-governance/gate-registry.json']],
@@ -84,7 +86,7 @@ function hasValidCanonicalContract(root, file, content) {
   if (!refs) return false
   for (const ref of refs) {
     if (!content.includes(path.basename(ref))) return false
-    const fullPath = path.join(root, ref)
+    const fullPath = resolveControlAsset(root, ref)
     if (!fs.existsSync(fullPath)) return false
     const parsed = JSON.parse(fs.readFileSync(fullPath, 'utf8'))
     if (parsed.schemaVersion !== 1 || !parsed.ownerSkill) return false
@@ -92,10 +94,36 @@ function hasValidCanonicalContract(root, file, content) {
   return true
 }
 
-function createCanonicalAwareReader(root, readRaw) {
-  return function read(file) {
-    const value = readRaw(file)
+function createCanonicalAwareReader(root, readRaw, existsRaw = file => fs.existsSync(file)) {
+  let deliveryFiles = null
+  function readCanonicalDelivery(relative) {
+    if (!/^(?:instructions\.md|(?:instructions|prompts)\/.+|skills\/.+)$/.test(relative)) {
+      return null
+    }
+    if (!fs.existsSync(path.join(root, 'content', 'manifest.json'))) return null
+    const canonicalAsset = resolveControlAsset(root, relative)
+    if (canonicalAsset !== path.join(root, relative) && fs.existsSync(canonicalAsset) &&
+        !/^(?:instructions\.md|(?:instructions|prompts)\/.+\.md|skills\/[^/]+\/SKILL\.md)$/.test(relative)) {
+      return fs.readFileSync(canonicalAsset, 'utf8')
+    }
+    if (!deliveryFiles) {
+      deliveryFiles = new Map(
+        buildBundle(root).files.map(file => [file.relative.replace(/\\/g, '/'), file.content])
+      )
+    }
+    return deliveryFiles.has(relative) ? deliveryFiles.get(relative) : null
+  }
+
+  function read(file) {
     const relative = path.relative(root, file).replace(/\\/g, '/')
+    let value
+    try {
+      value = readRaw(file)
+    } catch (error) {
+      const canonical = error?.code === 'ENOENT' ? readCanonicalDelivery(relative) : null
+      if (canonical == null) throw error
+      value = canonical
+    }
     return new class extends String {
       includes(needle, position) {
         if (String.prototype.includes.call(this, needle, position)) return true
@@ -103,6 +131,14 @@ function createCanonicalAwareReader(root, readRaw) {
       }
     }(value)
   }
+
+  read.exists = function exists(file) {
+    if (existsRaw(file)) return true
+    const relative = path.relative(root, file).replace(/\\/g, '/')
+    return readCanonicalDelivery(relative) != null
+  }
+
+  return read
 }
 
 module.exports = {

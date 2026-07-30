@@ -500,6 +500,161 @@ try {
   }, fixture.runtimeOptions)
   assert.strictEqual(completedStop.complete, true)
 
+  // B0 recovery: a fresh ContextRead binding may replace only the binding and
+  // generation of an otherwise identical route plan.
+  const rebindFixture = createSkillRouteFixture({ project: 'rebind' })
+  try {
+    const rebindEpoch = 'ctx-rebind'
+    const rebindSession = 'session-rebind'
+    const firstBinding = writeContextBindingState(
+      rebindFixture,
+      rebindEpoch,
+      'dev',
+      rebindSession,
+      '-first'
+    )
+    const rebindBoot = bootstrapSkillRoute({
+      project: rebindFixture.project,
+      activeRoot: rebindFixture.activeRoot,
+      contextEpoch: rebindEpoch,
+      prompt: 'Run the rebind probe',
+      mode: 'unified',
+      cwd: rebindFixture.projectRoot
+    }, rebindFixture.runtimeOptions)
+    requestCatalogAll(rebindFixture, rebindBoot.bootstrap)
+    const firstCommit = handleSkillRoute({
+      op: 'commit',
+      project: rebindFixture.project,
+      turnBinding: rebindBoot.bootstrap.turnBinding,
+      contextEpoch: rebindEpoch,
+      catalogDigest: rebindBoot.bootstrap.catalogDigest,
+      skillId: 'workspace-probe',
+      contextBinding: firstBinding
+    }, rebindFixture.runtimeOptions)
+    assert.strictEqual(firstCommit.ok, true, JSON.stringify(firstCommit))
+    loadStageAll(
+      rebindFixture,
+      {
+        turnBinding: rebindBoot.bootstrap.turnBinding,
+        contextEpoch: rebindEpoch,
+        generation: firstCommit.receipt.plan.generation,
+        planDigest: firstCommit.receipt.plan.planDigest
+      },
+      'entry'
+    )
+    const rebindLifecyclePath = path.join(
+      rebindFixture.activeRoot,
+      '.memory',
+      'hooks',
+      rebindFixture.project,
+      'lifecycle-state.json'
+    )
+    const staleLifecycle = JSON.parse(
+      fs.readFileSync(rebindLifecyclePath, 'utf8')
+    )
+    staleLifecycle.contextAcquisition.receipt.status = 'stale'
+    fs.writeFileSync(
+      rebindLifecyclePath,
+      `${JSON.stringify(staleLifecycle, null, 2)}\n`,
+      'utf8'
+    )
+    const recoverableStop = evaluateProgressiveSkillRouteStop({
+      project: rebindFixture.project,
+      contextEpoch: rebindEpoch,
+      hostSessionId: rebindSession,
+      assistantText: 'Still working.'
+    }, rebindFixture.runtimeOptions)
+    assert.strictEqual(recoverableStop.complete, false)
+    assert.strictEqual(recoverableStop.errorCode, 'CONTEXT_BINDING_PENDING')
+    assert.strictEqual(recoverableStop.nextOp, 'rebind')
+    const foreignSessionStop = evaluateProgressiveSkillRouteStop({
+      project: rebindFixture.project,
+      contextEpoch: rebindEpoch,
+      hostSessionId: 'another-session',
+      assistantText: 'Unrelated task.'
+    }, rebindFixture.runtimeOptions)
+    assert.strictEqual(foreignSessionStop.present, false)
+    assert.strictEqual(foreignSessionStop.complete, true)
+    assert.strictEqual(foreignSessionStop.ignoredReason, 'HOST_SESSION_MISMATCH')
+
+    const driftBinding = writeContextBindingState(
+      rebindFixture,
+      rebindEpoch,
+      'fix',
+      rebindSession,
+      '-drift'
+    )
+    const semanticDrift = handleSkillRoute({
+      op: 'rebind',
+      project: rebindFixture.project,
+      turnBinding: rebindBoot.bootstrap.turnBinding,
+      contextEpoch: rebindEpoch,
+      generation: firstCommit.receipt.plan.generation,
+      planDigest: firstCommit.receipt.plan.planDigest,
+      contextBinding: driftBinding
+    }, rebindFixture.runtimeOptions)
+    assert.strictEqual(semanticDrift.ok, false)
+    assert.strictEqual(semanticDrift.errorCode, 'REBIND_SEMANTIC_DRIFT')
+
+    const freshBinding = writeContextBindingState(
+      rebindFixture,
+      rebindEpoch,
+      'dev',
+      rebindSession,
+      '-fresh'
+    )
+    const wrongPlan = handleSkillRoute({
+      op: 'rebind',
+      project: rebindFixture.project,
+      turnBinding: rebindBoot.bootstrap.turnBinding,
+      contextEpoch: rebindEpoch,
+      generation: firstCommit.receipt.plan.generation,
+      planDigest: '0'.repeat(64),
+      contextBinding: freshBinding
+    }, rebindFixture.runtimeOptions)
+    assert.strictEqual(wrongPlan.ok, false)
+    assert.strictEqual(wrongPlan.errorCode, 'PLAN_BINDING_INVALID')
+    const rebound = handleSkillRoute({
+      op: 'rebind',
+      project: rebindFixture.project,
+      turnBinding: rebindBoot.bootstrap.turnBinding,
+      contextEpoch: rebindEpoch,
+      generation: firstCommit.receipt.plan.generation,
+      planDigest: firstCommit.receipt.plan.planDigest,
+      contextBinding: freshBinding
+    }, rebindFixture.runtimeOptions)
+    assert.strictEqual(rebound.ok, true, JSON.stringify(rebound))
+    assert.strictEqual(
+      rebound.receipt.plan.generation,
+      firstCommit.receipt.plan.generation + 1
+    )
+    assert.strictEqual(
+      rebound.receipt.preservedStageProgress.entry.status,
+      'loaded'
+    )
+    assert(rebound.receipt.plan.selectedIds.includes('workspace-probe'))
+    assert.strictEqual(
+      loadEnvelope(
+        rebindFixture.activeRoot,
+        rebindBoot.bootstrap.turnBinding,
+        rebindFixture.runtimeOptions
+      ).envelope.state.decision.skillId,
+      'workspace-probe'
+    )
+    loadStageAll(
+      rebindFixture,
+      {
+        turnBinding: rebindBoot.bootstrap.turnBinding,
+        contextEpoch: rebindEpoch,
+        generation: rebound.receipt.plan.generation,
+        planDigest: rebound.receipt.plan.planDigest
+      },
+      'closeout'
+    )
+  } finally {
+    rebindFixture.cleanup()
+  }
+
   const staleFixture = createSkillRouteFixture({ project: 'stale' })
   try {
     const staleEpoch = 'ctx-stale'

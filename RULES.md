@@ -61,8 +61,8 @@ DevCodex 同时支持五宿主的用户级加载路径，规则语义保持一�
 
 ## 控制面 Markdown 维护
 
-- 135 个 instruction/prompt/Skill Markdown 的唯一手写源位于 `content-source/`。
-- `instructions.md`、`instructions/`、`prompts/`、`skills/*/SKILL.md` 是确定性 delivery，不直接双写。
+- 135 个 instruction/prompt/Skill Markdown 的唯一手写源位于 `content/`。
+- `instructions.md`、`instructions/`、`prompts/`、`skills/*/SKILL.md` 是确定性兼容 delivery，不直接双写；发布时由带锁和回执的 projection 事务临时物化。
 - shared include 只在构建期展开；禁止 runtime include、嵌套 include、symlink 和路径穿越。
 - 提交前必须通过 `npm run test:control-content`；prepack 只校验，不自动改写，npm 包不含 authoring source。
 

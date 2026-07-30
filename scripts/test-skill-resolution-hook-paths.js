@@ -84,7 +84,7 @@ function withFixture(run) {
     )
     const wFile = writeSkill(wRoot, 'demo-w')
     const gFile = writeSkill(gRoot, 'demo-g')
-    const pFile = writeSkill(path.join(packageRoot, 'skills'), 'demo-p')
+    const pFile = writeSkill(path.join(packageRoot, 'content', 'skills'), 'demo-p')
     const ctx = {
       cwd: workspaceRoot,
       workspaceRoot,
@@ -129,7 +129,7 @@ function testMatrix() {
 function testRelativePathDoesNotFalsePositiveWorkspace() {
   // A path that merely contains the string skills/ but is under package
   withFixture(({ packageRoot, ctx }) => {
-    const nested = writeSkill(path.join(packageRoot, 'skills', 'nested-more'), 'x')
+    const nested = writeSkill(path.join(packageRoot, 'content', 'skills', 'nested-more'), 'x')
     const d = lifecycleDecisions(nested, { ...ctx, packageRoot })
     assert.strictEqual(d.layer, 'package-source-skill')
     assert.strictEqual(d.controlPlane, true)

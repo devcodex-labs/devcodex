@@ -49,7 +49,7 @@ function canonicalizeText (value) {
 }
 
 function sidecarRelativePath (skillId) {
-  return `skills/${skillId}/${SIDECAR_BASENAME}`
+  return `content/skills/${skillId}/${SIDECAR_BASENAME}`
 }
 
 function isSafeRelativePath (rel) {
@@ -333,7 +333,7 @@ function loadSkillSidecarFromDisk (repoRootAbs, skillId) {
   const rel = sidecarRelativePath(skillId)
   const abs = path.join(repoRootAbs, rel)
   if (!fs.existsSync(abs)) return null
-  const skillRootAbs = path.join(repoRootAbs, 'skills', skillId)
+  const skillRootAbs = path.join(repoRootAbs, 'content', 'skills', skillId)
   const rawText = fs.readFileSync(abs, 'utf8')
   return parseAndValidateSidecar({ skillId, skillRootAbs, rawText })
 }
@@ -352,7 +352,7 @@ function loadSkillSidecarWithReader (repoRootAbs, skillId, readText) {
     return null
   }
   if (rawText == null || rawText === '') return null
-  const skillRootAbs = path.join(repoRootAbs, 'skills', skillId)
+  const skillRootAbs = path.join(repoRootAbs, 'content', 'skills', skillId)
   return parseAndValidateSidecar({ skillId, skillRootAbs, rawText })
 }
 

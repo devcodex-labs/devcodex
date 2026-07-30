@@ -33,13 +33,10 @@ function directive (fragment) {
 }
 
 try {
-  const before = buildBundle(ROOT, { mode: 'extract-plan' })
-  if (!before.receipt.fresh) {
-    throw new Error(`delivery must be fresh before extraction: ${before.receipt.stale.join(', ')}`)
-  }
+  const before = buildBundle(ROOT, { mode: 'extract-plan', compareDelivery: false })
   const inventory = analyzeDuplication(ROOT)
   const dispositionDocument = JSON.parse(
-    fs.readFileSync(path.join(ROOT, 'content-source', 'duplication-dispositions.json'), 'utf8')
+    fs.readFileSync(path.join(ROOT, 'content', 'duplication-dispositions.json'), 'utf8')
   )
   const validated = validateDispositions(ROOT, inventory)
   if (!validated.ok) throw new Error(validated.errors.join(' | '))
@@ -59,12 +56,12 @@ try {
     }
     const expectedDirective = directive(rule.fragment)
     let fragmentContent = null
-    const fragmentPath = path.join(ROOT, 'content-source', rule.fragment)
+    const fragmentPath = path.join(ROOT, 'content', rule.fragment)
     if (fs.existsSync(fragmentPath)) fragmentContent = fs.readFileSync(fragmentPath, 'utf8')
     let consumerCount = 0
 
     for (const relative of candidate.files) {
-      const sourcePath = path.join(ROOT, 'content-source', relative)
+      const sourcePath = path.join(ROOT, 'content', relative)
       const original = plans.has(sourcePath)
         ? plans.get(sourcePath)
         : fs.readFileSync(sourcePath, 'utf8')
@@ -99,7 +96,7 @@ try {
     }
     fragments.set(fragmentPath, fragmentContent)
     if (!fs.existsSync(fragmentPath) || candidate.files.some(relative => {
-      const sourcePath = path.join(ROOT, 'content-source', relative)
+      const sourcePath = path.join(ROOT, 'content', relative)
       const content = plans.get(sourcePath) || fs.readFileSync(sourcePath, 'utf8')
       return !content.includes(expectedDirective)
     })) {
@@ -112,7 +109,9 @@ try {
     for (const [sourcePath, content] of plans) atomicWrite(sourcePath, content)
   }
 
-  const after = flags.has('--write') ? buildBundle(ROOT, { mode: 'extract-write' }) : before
+  const after = flags.has('--write')
+    ? buildBundle(ROOT, { mode: 'extract-write', compareDelivery: false })
+    : before
   const receipt = {
     schemaVersion: 'ControlContentExtractionReceiptV1',
     mode: flags.has('--write') ? 'write' : 'check',
@@ -120,11 +119,11 @@ try {
     fragmentCount: fragments.size,
     sourceFilesChanged: plans.size,
     pending: flags.has('--write') ? [] : pending,
-    outputFresh: after.receipt.fresh,
+    outputFresh: after.receipt.bundleDigest === before.receipt.bundleDigest,
     outputBundleDigest: after.receipt.bundleDigest
   }
   if (!receipt.outputFresh) {
-    throw new Error(`extraction changed delivery output: ${after.receipt.stale.join(', ')}`)
+    throw new Error('extraction changed rendered bundle output')
   }
   if (flags.has('--check') && pending.length) {
     if (flags.has('--json')) process.stdout.write(`${JSON.stringify(receipt, null, 2)}\n`)

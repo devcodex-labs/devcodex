@@ -37,9 +37,15 @@ function hasPortfolio (root, fsImpl = fs) {
 
 function sourceSkillsRoot (packageRoot, fsImpl = fs) {
   const packageJson = readJson(path.join(packageRoot, 'package.json'), fsImpl)
-  const root = path.join(packageRoot, 'skills')
-  if (packageJson?.name !== 'devcodex' || !hasPortfolio(root, fsImpl)) return null
-  return root
+  const contentRoot = path.join(packageRoot, 'content', 'skills')
+  if (
+    packageJson?.name !== 'devcodex' ||
+    !hasPortfolio(contentRoot, fsImpl)
+  ) return null
+  return {
+    root: contentRoot,
+    portfolioPath: path.join(contentRoot, 'portfolio.json')
+  }
 }
 
 function inferredManagedRoot (options = {}) {
@@ -125,8 +131,9 @@ function resolveGlobalSkillRuntimeRoot (options = {}) {
       schemaVersion: 'GlobalSkillRuntimeRootV1',
       status: 'resolved',
       source: 'source-package',
-      root: portable(sourceRoot),
-      portfolioPath: portable(path.join(sourceRoot, 'portfolio.json')),
+      root: portable(sourceRoot.root),
+      portfolioPath: portable(sourceRoot.portfolioPath),
+      companionRoot: portable(sourceRoot.root),
       receiptPath: null,
       sourceDigest: null,
       attempts
@@ -134,7 +141,7 @@ function resolveGlobalSkillRuntimeRoot (options = {}) {
   }
   attempts.push({
     source: 'source-package',
-    root: portable(path.join(packageRoot, 'skills')),
+    root: portable(path.join(packageRoot, 'content', 'skills')),
     reasonCode: 'source-package-unbound'
   })
 
@@ -151,6 +158,7 @@ function resolveGlobalSkillRuntimeRoot (options = {}) {
       source: 'committed-receipt',
       root: portable(receiptResult.root),
       portfolioPath: portable(path.join(receiptResult.root, 'portfolio.json')),
+      companionRoot: portable(receiptResult.root),
       receiptPath: portable(receiptPath),
       sourceDigest: receiptResult.sourceDigest,
       packageVersion: receiptResult.packageVersion,
@@ -172,6 +180,7 @@ function resolveGlobalSkillRuntimeRoot (options = {}) {
       source: 'managed-root-recovery',
       root: portable(inferred),
       portfolioPath: portable(path.join(inferred, 'portfolio.json')),
+      companionRoot: portable(inferred),
       receiptPath: fsImpl.existsSync(receiptPath) ? portable(receiptPath) : null,
       sourceDigest: null,
       attempts

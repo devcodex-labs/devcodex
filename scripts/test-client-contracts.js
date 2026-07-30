@@ -4,6 +4,7 @@
 const fs = require('fs')
 const path = require('path')
 const {
+  createCanonicalAwareReader,
   evaluatePublicReadmeContract,
   hasValidCanonicalContract
 } = require('./lib/canonical-consumer-contracts')
@@ -35,9 +36,8 @@ if (evaluatePublicReadmeContract(damagedPublicReadme).valid ||
   failures.push('incomplete public README must not bypass legacy consumer checks')
 }
 
-function read(file) {
-  return fs.readFileSync(path.join(ROOT, file), 'utf8')
-}
+const readAbsolute = createCanonicalAwareReader(ROOT, file => fs.readFileSync(file, 'utf8'))
+const read = file => readAbsolute(path.join(ROOT, file))
 
 function mustInclude(file, needle) {
   const content = read(file)
@@ -82,6 +82,15 @@ const clientContractProbes = [
 ]
 
 for (const [file, needle] of clientContractProbes) mustInclude(file, needle)
+
+const forcedCanonicalFallback = createCanonicalAwareReader(ROOT, file => {
+  const error = new Error(`synthetic missing legacy delivery: ${file}`)
+  error.code = 'ENOENT'
+  throw error
+})
+if (!forcedCanonicalFallback(path.join(ROOT, 'prompts', 'report-dev.prompt.md')).includes('DevCodexVisibleEnvelopeV1')) {
+  failures.push('canonical-aware reader did not resolve rendered content delivery')
+}
 
 // website/ is optional on public clones (maintainer-only docs site).
 if (fs.existsSync(path.join(ROOT, 'website', 'docs', 'guide', 'development.md'))) {

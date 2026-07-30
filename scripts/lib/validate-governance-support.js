@@ -262,8 +262,8 @@ function buildGovernanceSupportChecks(ctx) {
   function checkV28() {
     const supportSkills = ['execution-contract', 'test-router', 'release-verification', 'host-contract-verification', 'source-consumer-sync']
     const plugin = JSON.parse(read(path.join(ROOT, 'plugin.json')))
-    const skillFiles = fs.readdirSync(path.join(ROOT, 'skills'), { recursive: true })
-      .map(name => path.join(ROOT, 'skills', name))
+    const skillFiles = fs.readdirSync(path.join(ROOT, 'content', 'skills'), { recursive: true })
+      .map(name => path.join(ROOT, 'content', 'skills', name))
       .filter(file => path.basename(file) === 'SKILL.md')
     const pluginSkillIds = new Set((plugin.skills || []).map(skill => skill.id))
 
@@ -281,7 +281,7 @@ function buildGovernanceSupportChecks(ctx) {
       if (skill.file !== expectedFile) {
         err(`[V28] plugin.json support skill ${id} has wrong file: ${skill.file}`)
       }
-      const filePath = path.join(ROOT, expectedFile)
+      const filePath = path.join(ROOT, 'content', 'skills', id, 'SKILL.md')
       if (!fs.existsSync(filePath)) {
         err(`[V28] support skill file missing: ${expectedFile}`)
         continue

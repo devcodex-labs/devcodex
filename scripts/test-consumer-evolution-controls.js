@@ -4,6 +4,7 @@
 const assert = require('assert')
 const fs = require('fs')
 const path = require('path')
+const { createCanonicalAwareReader } = require('./lib/canonical-consumer-contracts')
 const {
   classifyAgentCompletenessSample,
   classifyConsumerValidationSample,
@@ -37,8 +38,9 @@ assert.strictEqual(classifyModulePerformanceSample({ features: [fullModule], mai
 assert.strictEqual(classifyModulePerformanceSample({ features: [{ ...fullModule, recovery: false }], maintenanceTriggers: true, evidenceGovernance: true }), 'partial')
 
 const root = path.resolve(__dirname, '..')
+const read = createCanonicalAwareReader(root, file => fs.readFileSync(file, 'utf8'))
 for (const file of ['skills/consumer-validation-engineering/SKILL.md', 'skills/consumer-validation-engineering/agents/openai.yaml']) {
-  assert.ok(fs.existsSync(path.join(root, file)), `missing ${file}`)
+  assert.ok(read.exists(path.join(root, file)), `missing ${file}`)
 }
 
 console.log('✓ V95 consumer evolution positive and negative controls passed')

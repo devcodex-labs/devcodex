@@ -36,15 +36,18 @@
     "scripts/lib/candidate-review-bundle.js",
     "scripts/test-candidate-review-bundle.js",
     "scripts/fixtures/candidate-review-bundle/**",
-    "content-source/**",
+    "content/**",
     "scripts/generate-control-content.js",
     "scripts/prepack-control-content.js",
     "scripts/extract-control-content-fragments.js",
     "scripts/analyze-control-content-duplication.js",
     "scripts/lib/control-content-source.js",
     "scripts/lib/control-content-duplication.js",
+    "scripts/lib/content-root-delete-transaction.js",
+    "scripts/content-root-delete-transaction.js",
     "scripts/test-control-content-source.js",
     "scripts/test-control-content-duplication.js",
+    "scripts/test-content-root-delete-transaction.js",
     "skills/spec-governance/capability-surface-decision.v1.schema.json",
     "scripts/lib/capability-surface-decision.js",
     "scripts/test-capability-surface-decision.js",
@@ -2783,7 +2786,7 @@
         "skill-intents"
       ],
       "inputs": [
-        "content-source/**",
+        "content/**",
         "instructions.md",
         "instructions/**",
         "prompts/**",
@@ -2797,8 +2800,11 @@
         "scripts/analyze-control-content-duplication.js",
         "scripts/lib/control-content-source.js",
         "scripts/lib/control-content-duplication.js",
+        "scripts/lib/content-root-delete-transaction.js",
+        "scripts/content-root-delete-transaction.js",
         "scripts/test-control-content-source.js",
-        "scripts/test-control-content-duplication.js"
+        "scripts/test-control-content-duplication.js",
+        "scripts/test-content-root-delete-transaction.js"
       ],
       "consumers": [
         "pack-clean"

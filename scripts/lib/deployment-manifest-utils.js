@@ -8,6 +8,10 @@ function fileHash(file) {
   return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex')
 }
 
+function contentHash(content) {
+  return crypto.createHash('sha256').update(content).digest('hex')
+}
+
 function walk(root) {
   if (!fs.existsSync(root)) return []
   const out = []
@@ -51,6 +55,22 @@ function expandDescriptors(packageRoot, targetRoot, descriptors) {
   for (const descriptor of descriptors) {
     // Skip observation-only / managed-segment metadata (no package source file to copy).
     if (!descriptor.source) continue
+    if (Array.isArray(descriptor.virtualEntries)) {
+      for (const virtual of descriptor.virtualEntries) {
+        const relative = portable(virtual.relative || '')
+        if (descriptor.fileFilter && !descriptor.fileFilter(relative)) continue
+        const destination = relative
+          ? path.join(descriptor.destination, ...relative.split('/'))
+          : descriptor.destination
+        entries.push({
+          source: virtual.source || descriptor.source,
+          destination: portable(destination),
+          surface: descriptor.surface,
+          hash: contentHash(virtual.content)
+        })
+      }
+      continue
+    }
     const sourcePath = path.join(packageRoot, descriptor.source)
     if (!fs.existsSync(sourcePath)) continue
     const stat = fs.statSync(sourcePath)

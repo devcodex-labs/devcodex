@@ -4,35 +4,35 @@
       {
         "type": "command",
         "command": "node ./.github/hooks/_runtime/lifecycle.cjs",
-        "timeout": 10
+        "timeout": 30
       }
     ],
     "PreToolUse": [
       {
         "type": "command",
         "command": "node ./.github/hooks/_runtime/lifecycle.cjs",
-        "timeout": 10
+        "timeout": 30
       }
     ],
     "PostToolUse": [
       {
         "type": "command",
         "command": "node ./.github/hooks/_runtime/lifecycle.cjs",
-        "timeout": 10
+        "timeout": 30
       }
     ],
     "PreCompact": [
       {
         "type": "command",
         "command": "node ./.github/hooks/_runtime/lifecycle.cjs",
-        "timeout": 10
+        "timeout": 30
       }
     ],
     "Stop": [
       {
         "type": "command",
         "command": "node ./.github/hooks/_runtime/lifecycle.cjs",
-        "timeout": 10
+        "timeout": 30
       }
     ]
   }

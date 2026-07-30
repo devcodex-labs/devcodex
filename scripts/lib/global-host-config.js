@@ -41,6 +41,10 @@ const {
 const {
   collectRuntimeScriptDeps
 } = require('./runtime-dependency-closure.js')
+const {
+  listControlDeliveryEntries,
+  readControlInstructionRoot
+} = require('./control-content-delivery.js')
 
 const GLOBAL_HOST_CONFIG_SCHEMA = 'GlobalOnlyHostConfigModeV1'
 const GLOBAL_HOST_RECEIPT_SCHEMA = 'GlobalHostConfigReceiptV1'
@@ -116,6 +120,42 @@ function addSourceTree(operations, host, sourceRoot, destinationRoot, fsImpl = f
   }
 }
 
+function addInstructionRoot(operations, host, packageRoot, destination, fsImpl = fs) {
+  const content = readControlInstructionRoot(packageRoot, fsImpl)
+  if (content == null) {
+    const error = new Error('GLOBAL_HOST_SOURCE_MISSING: content/instructions.md')
+    error.code = 'GLOBAL_HOST_SOURCE_MISSING'
+    throw error
+  }
+  addFileOperation(operations, host, destination, content)
+}
+
+function addSkillRuntimeTree(operations, host, packageRoot, destinationRoot, fsImpl = fs) {
+  const deployFilter = createSkillDeployFileFilter(packageRoot)
+  const contentEntries = listControlDeliveryEntries(packageRoot, 'skills', fsImpl)
+  if (!contentEntries) {
+    addSourceTree(
+      operations,
+      host,
+      path.join(packageRoot, 'skills'),
+      destinationRoot,
+      fsImpl,
+      deployFilter
+    )
+    return
+  }
+  for (const entry of contentEntries) {
+    if (!deployFilter(entry.relative)) continue
+    addFileOperation(
+      operations,
+      host,
+      path.join(destinationRoot, entry.relative),
+      entry.content,
+      Buffer.isBuffer(entry.content) ? 'binary' : 'text'
+    )
+  }
+}
+
 function skillsDeployDestination (target) {
   const mode = target.skillsDeployMode || 'hidden'
   if (mode === 'legacy') return target.shared && target.shared.skills
@@ -124,29 +164,16 @@ function skillsDeployDestination (target) {
 
 function addSharedRuntime(operations, target, packageRoot, fsImpl = fs) {
   if (!target.shared || target.sharedRuntimeOwner !== true) return
-  addSourceFile(
-    operations,
-    target.host,
-    path.join(packageRoot, 'instructions.md'),
-    target.shared.fullFallback,
-    fsImpl
-  )
+  addInstructionRoot(operations, target.host, packageRoot, target.shared.fullFallback, fsImpl)
   const skillsDest = skillsDeployDestination(target)
   if (!skillsDest) return
-  addSourceTree(
-    operations,
-    target.host,
-    path.join(packageRoot, 'skills'),
-    skillsDest,
-    fsImpl,
-    createSkillDeployFileFilter(packageRoot)
-  )
+  addSkillRuntimeTree(operations, target.host, packageRoot, skillsDest, fsImpl)
 }
 
 function addCommonRuntime(operations, target, packageRoot, fsImpl = fs) {
   const runtime = target.runtimeRoot
   addSharedRuntime(operations, target, packageRoot, fsImpl)
-  addSourceFile(operations, target.host, path.join(packageRoot, 'instructions.md'), path.join(runtime, 'instructions.full.md'), fsImpl)
+  addInstructionRoot(operations, target.host, packageRoot, path.join(runtime, 'instructions.full.md'), fsImpl)
   addSourceFile(operations, target.host, path.join(packageRoot, 'host-projections', 'AGENTS.md'), path.join(runtime, 'AGENTS.md'), fsImpl)
   addSourceTree(operations, target.host, path.join(packageRoot, 'hooks', '_runtime'), path.join(runtime, 'hooks', '_runtime'), fsImpl)
   addSourceTree(operations, target.host, path.join(packageRoot, 'mcp'), path.join(runtime, 'mcp'), fsImpl)
@@ -171,13 +198,24 @@ function managedInstruction(existing, source, label) {
   ].join('\n'), { kind: 'markdown', id: `global-${label}` })
 }
 
+/**
+ * Per-host command-hook wall clock.
+ * Claude / Codex / Grok: seconds. Gemini CLI: milliseconds. Copilot uses timeoutSec separately.
+ * Unified product target: 30s (heavy UPS: digest + skill bootstrap + heuristic).
+ */
+function hookCommandTimeout(host) {
+  if (host === 'gemini') return 30000
+  return 30
+}
+
 function hookMap(runtimeFile, host, events) {
   const command = shellCommand(runtimeFile, host)
+  const timeout = hookCommandTimeout(host)
   return Object.fromEntries(events.map(event => [
     event,
     [{
       ...(event.includes('Tool') ? { matcher: '' } : {}),
-      hooks: [{ type: 'command', command }]
+      hooks: [{ type: 'command', command, timeout }]
     }]
   ]))
 }
@@ -332,14 +370,7 @@ function transformedHookTemplate(packageRoot, target, sourceRelative, host, fsIm
 function addCopilotPlan(operations, target, packageRoot, fsImpl) {
   addCommonRuntime(operations, target, packageRoot, fsImpl)
   if ((target.skillsDeployMode || 'hidden') === 'legacy') {
-    addSourceTree(
-      operations,
-      target.host,
-      path.join(packageRoot, 'skills'),
-      target.files.skills,
-      fsImpl,
-      createSkillDeployFileFilter(packageRoot)
-    )
+    addSkillRuntimeTree(operations, target.host, packageRoot, target.files.skills, fsImpl)
   }
   const destination = target.files.instructions
   const source = readText(path.join(packageRoot, 'host-projections', 'copilot-instructions.md'), fsImpl)
@@ -400,14 +431,7 @@ function addCopilotPlan(operations, target, packageRoot, fsImpl) {
 function addClaudePlan(operations, target, packageRoot, fsImpl) {
   addCommonRuntime(operations, target, packageRoot, fsImpl)
   if ((target.skillsDeployMode || 'hidden') === 'legacy') {
-    addSourceTree(
-      operations,
-      target.host,
-      path.join(packageRoot, 'skills'),
-      path.join(target.root, 'skills'),
-      fsImpl,
-      createSkillDeployFileFilter(packageRoot)
-    )
+    addSkillRuntimeTree(operations, target.host, packageRoot, path.join(target.root, 'skills'), fsImpl)
   }
   const source = readText(path.join(packageRoot, 'host-projections', 'CLAUDE.md'), fsImpl)
   addFileOperation(
@@ -456,14 +480,7 @@ function addCodexPlan(operations, target, packageRoot, fsImpl) {
     target.files.skills &&
     (!target.shared || !samePath(target.files.skills, target.shared.skills))
   ) {
-    addSourceTree(
-      operations,
-      target.host,
-      path.join(packageRoot, 'skills'),
-      target.files.skills,
-      fsImpl,
-      createSkillDeployFileFilter(packageRoot)
-    )
+    addSkillRuntimeTree(operations, target.host, packageRoot, target.files.skills, fsImpl)
   }
   const source = readText(path.join(packageRoot, 'host-projections', 'AGENTS.md'), fsImpl)
   addFileOperation(
@@ -612,7 +629,10 @@ function digestPlan(operations) {
 
 function operationMatchesCurrent(operation, fsImpl = fs) {
   if (!fsImpl.existsSync(operation.path)) return false
-  const current = fsImpl.readFileSync(operation.path, 'utf8')
+  const current = fsImpl.readFileSync(operation.path, operation.kind === 'binary' ? null : 'utf8')
+  if (operation.kind === 'binary') {
+    return Buffer.isBuffer(operation.content) && current.equals(operation.content)
+  }
   if (operation.kind === 'json') {
     try {
       return isDeepStrictEqual(JSON.parse(current), JSON.parse(operation.content))
@@ -639,7 +659,7 @@ function preserveSemanticallyEquivalentContent(operations, fsImpl = fs) {
     if (!operationMatchesCurrent(operation, fsImpl)) return operation
     return {
       ...operation,
-      content: fsImpl.readFileSync(operation.path, 'utf8')
+      content: fsImpl.readFileSync(operation.path, operation.kind === 'binary' ? null : 'utf8')
     }
   })
 }

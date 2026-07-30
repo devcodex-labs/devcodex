@@ -6,16 +6,18 @@ const os = require('os')
 const path = require('path')
 const { spawnSync } = require('child_process')
 const { buildLifecycleGovernanceIntakeUtils } = require('../hooks/_runtime/lifecycle-governance-intake.cjs')
-const { evaluatePublicReadmeContract } = require('./lib/canonical-consumer-contracts')
+const {
+  createCanonicalAwareReader,
+  evaluatePublicReadmeContract
+} = require('./lib/canonical-consumer-contracts')
 
 const ROOT = path.resolve(__dirname, '..')
 const RUNTIME = path.join(ROOT, 'hooks', '_runtime', 'lifecycle.cjs')
 const failures = []
 const tempRoots = []
 
-function read(file) {
-  return fs.readFileSync(path.join(ROOT, file), 'utf8')
-}
+const readAbsolute = createCanonicalAwareReader(ROOT, file => fs.readFileSync(file, 'utf8'))
+const read = file => readAbsolute(path.join(ROOT, file))
 
 function mustInclude(file, needle, label = needle) {
   const content = read(file)
@@ -26,7 +28,7 @@ function mustInclude(file, needle, label = needle) {
 }
 
 function mustNotInclude(file, needle, reason) {
-  if (read(file).includes(needle)) {
+  if (String(read(file)).includes(needle)) {
     failures.push(`${file} must not include "${needle}" (${reason})`)
   }
 }

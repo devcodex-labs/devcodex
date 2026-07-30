@@ -2,9 +2,10 @@
 
 const fs = require('fs')
 const path = require('path')
+const { resolveControlAsset } = require('./control-content-delivery')
 
 function readJson(root, relativePath) {
-  return JSON.parse(fs.readFileSync(path.join(root, relativePath), 'utf8'))
+  return JSON.parse(fs.readFileSync(resolveControlAsset(root, relativePath), 'utf8'))
 }
 
 function unique(values, label, errors) {

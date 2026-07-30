@@ -57,6 +57,7 @@ const {
   buildWorkflowCompletionControlChecks,
   inspectWorkflowCompletionControls
 } = require('./lib/validate-workflow-completion-controls')
+const { createCanonicalAwareReader } = require('./lib/canonical-consumer-contracts')
 const { buildCliExecutionCommands } = require('./lib/cli-execution-commands')
 
 const NOW = Date.parse('2026-07-22T08:00:00Z')
@@ -1192,6 +1193,7 @@ assert.deepStrictEqual(validatorErrors, [])
 
 const nodeFs = require('fs')
 const nodePath = require('path')
+const readVirtualBaseline = createCanonicalAwareReader(root, file => nodeFs.readFileSync(file, 'utf8'))
 const virtualRelatives = [
   'hooks/_runtime/workflow-completion-contract.cjs',
   'hooks/_runtime/lifecycle-workflow-completion.cjs',
@@ -1219,7 +1221,7 @@ const virtualRelatives = [
   'changelogs/unreleased.md',
   'website/docs/guide/development.md'
 ]
-const virtualBaseline = Object.fromEntries(virtualRelatives.map(relative => [relative, nodeFs.readFileSync(nodePath.join(root, relative), 'utf8')]))
+const virtualBaseline = Object.fromEntries(virtualRelatives.map(relative => [relative, readVirtualBaseline(nodePath.join(root, relative))]))
 
 function virtualContext(mutate) {
   const files = { ...virtualBaseline }

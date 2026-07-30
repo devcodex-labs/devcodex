@@ -1,0 +1,376 @@
+{
+  "schemaVersion": "ControlContentDuplicationInventoryV1",
+  "sourceBundleDigest": "98379cfcf9359006fb34c1a76b650acb4592bf5c3f3a2802e0332f1c6eedf012",
+  "thresholds": {
+    "minParagraphChars": 100,
+    "sectionThreshold": 0.94,
+    "minSectionChars": 180,
+    "minSectionLengthRatio": 0.85
+  },
+  "counts": {
+    "exactParagraph": 26,
+    "nearSection": 4,
+    "total": 30
+  },
+  "candidates": [
+    {
+      "id": "exact-00c02fddc98a",
+      "kind": "exact-paragraph",
+      "digest": "00c02fddc98a7cf135f814dfa9c6e584cbe027e252602933f450a809e3fe530d",
+      "similarity": 1,
+      "files": [
+        "prompts/api-verification.prompt.md",
+        "skills/api-verification/SKILL.md"
+      ],
+      "excerpt": "function getPath(value, dottedPath) {\n return dottedPath.split('.').reduce((current, key) => current == null ? undefined : current[key], value)\n}"
+    },
+    {
+      "id": "exact-072e721fa31b",
+      "kind": "exact-paragraph",
+      "digest": "072e721fa31be640040af9ded4172faf7fe90bf474cdea89a8860e0af4b26a1d",
+      "similarity": 1,
+      "files": [
+        "prompts/report-audit.prompt.md",
+        "prompts/report-dev.prompt.md",
+        "prompts/report-fix.prompt.md",
+        "prompts/report-optimization.prompt.md",
+        "prompts/report-scenario-test.prompt.md"
+      ],
+      "excerpt": "命中 `host-capability-routing` 时，在本节现有表中记录 compact `instructionRefId / decisionId / catalogVersion+digest / selectedPortableDecision / nativeEligibility.status / fallback.reasonCode`"
+    },
+    {
+      "id": "exact-11eb37c0cd8b",
+      "kind": "exact-paragraph",
+      "digest": "11eb37c0cd8b0e7d18a186f9b7c1629ac0f30daaccba2df43a1cd767a1a31549",
+      "similarity": 1,
+      "files": [
+        "prompts/report-dev.prompt.md",
+        "prompts/report-optimization.prompt.md",
+        "prompts/report-scenario-test.prompt.md"
+      ],
+      "excerpt": "| 问题/建议 | 优先级 | 合理性 | 可实施性 | 收益 | 验证状态 | 影响范围 | 后续处理 |\n|-----------|:------:|--------|----------|------|----------|----------|----------|\n| | | | | | ✅已验证 / ⚠️待验证 | | |"
+    },
+    {
+      "id": "exact-1384a5bbaa79",
+      "kind": "exact-paragraph",
+      "digest": "1384a5bbaa795ea71123b0c549b012bc4f21b8265653f49ce5fa3d6c8a249a8e",
+      "similarity": 1,
+      "files": [
+        "prompts/report-dev.prompt.md",
+        "prompts/report-optimization.prompt.md"
+      ],
+      "excerpt": "| mode | status | indexDigest | strongClaims | downgradeRequired | rerunRequired | evidence |\n|------|--------|-------------|--------------|-------------------|---------------|----"
+    },
+    {
+      "id": "exact-16e52ddb101d",
+      "kind": "exact-paragraph",
+      "digest": "16e52ddb101d2152b6a67426e48cb139e6525ac616a717e9c8194adb5d1c6641",
+      "similarity": 1,
+      "files": [
+        "instructions.md",
+        "instructions/00-safety.instructions.md"
+      ],
+      "excerpt": "| 分类 | 处理 |\n|------|------|\n| 默认允许 | 真实密码、Token、API Key、私钥、连接字符串、host、port、database、username、内部 URL、租户 ID、测试账号等可按用户要求直接写入代码、脚本、配置、文档、测试、报告、示例或 Profile；AI 不得默认改成占位符、假值、env、`secretRe"
+    },
+    {
+      "id": "exact-2e4b0a3ec0e7",
+      "kind": "exact-paragraph",
+      "digest": "2e4b0a3ec0e7118b3ae893ac76eaae6f9b42b58e28440aae76fb49c686fa7f57",
+      "similarity": 1,
+      "files": [
+        "instructions.md",
+        "instructions/01-common.instructions.md"
+      ],
+      "excerpt": "`config.json` 可通过 `extensions.devcodex.concurrency` 配置并发策略。缺省为 `mode=auto`：只读上下文收集、只读子 Agent 分析和互不写同一输出的隔离验证可按通道上限并行；`mode=serial` 表示全部通道按串行执行。项目只能追加更保守的 `locks.additionalSingleWri"
+    },
+    {
+      "id": "exact-3ed14b010f82",
+      "kind": "exact-paragraph",
+      "digest": "3ed14b010f820766e028b2596dfa831b5077bb4691e71ca66633f1e07420d8bf",
+      "similarity": 1,
+      "files": [
+        "instructions.md",
+        "instructions/15-memory.instructions.md",
+        "skills/memory/SKILL.md",
+        "skills/summary/SKILL.md"
+      ],
+      "excerpt": "`<active-root>` 取值：\n- 旧布局：`<项目根>/.devcodex`\n- 集中布局单项目：`<工作区根>/.devcodex/<project>`\n- 集中布局全工作区：`<工作区根>/.devcodex/workspace`"
+    },
+    {
+      "id": "exact-58890abb3ff3",
+      "kind": "exact-paragraph",
+      "digest": "58890abb3ff3558ed026db9b055dea2ed37655016572661683ee1be5dc2f3058",
+      "similarity": 1,
+      "files": [
+        "instructions/17-compliance.instructions.md",
+        "skills/compliance/SKILL.md"
+      ],
+      "excerpt": "| ENV_MODE | 检查策略 |\n|----------|---------|\n| `prod`（默认）| 不执行合规检查（规范已验证，Instructions 直接指导 AI 行为） |\n| `dev` | 全量执行 FC1~FC7 + SC1~SC16 + RC1~RC4 + T1~T13 |"
+    },
+    {
+      "id": "exact-5ee0c1300203",
+      "kind": "exact-paragraph",
+      "digest": "5ee0c1300203e372884204feba6c925902a4a54a2354bcb43b80ffc0b99936b6",
+      "similarity": 1,
+      "files": [
+        "prompts/report-audit.prompt.md",
+        "prompts/report-dev.prompt.md",
+        "prompts/report-fix.prompt.md",
+        "prompts/report-optimization.prompt.md",
+        "prompts/report-scenario-test.prompt.md"
+      ],
+      "excerpt": "跨会话、多批次、中断或残余风险未关闭时追加 `ContextHandoffCard`；Profile、release、service lifecycle 等条件段按 schema 与 Owner Skill 生成。"
+    },
+    {
+      "id": "exact-647b517a00b9",
+      "kind": "exact-paragraph",
+      "digest": "647b517a00b930751b58ce8ddc759db4a7f47132ae60379a17f6b09ac71d40f0",
+      "similarity": 1,
+      "files": [
+        "instructions/15-memory.instructions.md",
+        "skills/memory/SKILL.md"
+      ],
+      "excerpt": "若 cwd 位于工作区根且未传 `project` / `scope`，必须返回 `workspace-namespace memory scope is ambiguous` 错误，禁止误读/误写 workspace 级 SUMMARY 或 tasks。"
+    },
+    {
+      "id": "exact-64cf3fe0744c",
+      "kind": "exact-paragraph",
+      "digest": "64cf3fe0744cdc162f5594edbc83f981153c3f8aaf14e448292b02819c91c712",
+      "similarity": 1,
+      "files": [
+        "instructions.md",
+        "instructions/01-common.instructions.md"
+      ],
+      "excerpt": "- 当用户询问“是否应该”“哪个更好”“有没有更好建议”“推荐方案/工具/产品/架构/技术选型”，或 AI 的回答会影响用户投入明显时间、金钱、迁移成本、公共契约、长期维护成本时，必须先执行 `QuestionEvidenceGate`，选择合适证据深度后再给推荐。\n- `ComparativeResearchGate` 只在推荐、选型、产品/项目路线、架构"
+    },
+    {
+      "id": "exact-74b4a887d580",
+      "kind": "exact-paragraph",
+      "digest": "74b4a887d580cc902a1db85ec1af1f83502b296cc11b073bef7ebb21569f4848",
+      "similarity": 1,
+      "files": [
+        "instructions/17-compliance.instructions.md",
+        "skills/compliance/SKILL.md"
+      ],
+      "excerpt": "#### 验证摘要\n| 类型 | 命令 | exitCode | runId/计数 |\n|------|------|----------|------------|\n| 权威/实验/skipped | `command or N/A` | `0/N/A` | `runId 或关键计数` |\nWorkspaceSyncStatus：synced/skippe"
+    },
+    {
+      "id": "exact-7800f1897e98",
+      "kind": "exact-paragraph",
+      "digest": "7800f1897e98fc1a5060ec429388c8a9dbe5f7c133559bb0f2f9538cd1297766",
+      "similarity": 1,
+      "files": [
+        "instructions.md",
+        "instructions/00-safety.instructions.md"
+      ],
+      "excerpt": "S02 不再把“敏感信息、明文密码、连接字符串或硬编码”定义为默认违规。默认行为是：用户让写在哪里，就可以写在哪里；目标文件是否可提交、是否会传播，不自动触发禁止。只有用户当前指令、项目 Profile/README/仓库策略或用户指定的发布流程明确提出“禁止明文 / 必须脱敏 / 必须占位 / 必须使用 env / 必须使用 `secretRef` / 必"
+    },
+    {
+      "id": "exact-7e32f7357215",
+      "kind": "exact-paragraph",
+      "digest": "7e32f7357215dccd0d575de27ceaf2e39492e3eea3484f2d9a9fea9efe7a2c3f",
+      "similarity": 1,
+      "files": [
+        "prompts/agent-summary.prompt.md",
+        "skills/memory/SKILL.md"
+      ],
+      "excerpt": "| 日期 | 会话 | 类型 | 摘要 | 关联报告 | 关联记忆 | 状态 |\n|------|:----:|------|------|---------|---------|:----:|\n| YYYY-MM-DD HH:MM | NN | dev/fix/... | [50~100字摘要，含关键数字/结果] | [NN--简述.md](workspa"
+    },
+    {
+      "id": "exact-904be7e09270",
+      "kind": "exact-paragraph",
+      "digest": "904be7e092708d09ae3eb99ce0ca03dd68299896c39d984a692f9466c5533c01",
+      "similarity": 1,
+      "files": [
+        "instructions.md",
+        "instructions/01-common.instructions.md"
+      ],
+      "excerpt": "核心单写者域固定为：`active-root`、`memory`、`report`、`ledger`、`audit-session`、`cp-state`、`source-mutation`、`package-boundary`、`dangerous-operation`。首期不支持 `parallel` 模式、`allowParallelMutations"
+    },
+    {
+      "id": "exact-931970a6d292",
+      "kind": "exact-paragraph",
+      "digest": "931970a6d29263c160f448e219b0b6c0a48b3b331c6890275ef32c1862d5e6df",
+      "similarity": 1,
+      "files": [
+        "prompts/report-audit.prompt.md",
+        "prompts/report-dev.prompt.md",
+        "prompts/report-fix.prompt.md",
+        "prompts/report-optimization.prompt.md",
+        "prompts/report-scenario-test.prompt.md"
+      ],
+      "excerpt": "> 共享基模读取 `skills/report/report-schema.json`，治理分组读取 `skills/spec-governance/gate-registry.json`。本模板只记录实际触发结果，不复制 Gate 目录或 Owner 专属字段。"
+    },
+    {
+      "id": "exact-a6436187b327",
+      "kind": "exact-paragraph",
+      "digest": "a6436187b327e5c67cef8320cf30383259016f3e3ab211691f3505fa2e00098f",
+      "similarity": 1,
+      "files": [
+        "prompts/report-dev.prompt.md",
+        "prompts/report-fix.prompt.md"
+      ],
+      "excerpt": "HostContractRoute 发生 MCP bridge 降级时记录 `mcpFallback=used`、原始错误、单次有界 fallback 与最终证据状态；不得把 fallback 尝试写成已加载或反复重试同一 MCP 调用。"
+    },
+    {
+      "id": "exact-b07517d8bac0",
+      "kind": "exact-paragraph",
+      "digest": "b07517d8bac0a8d03d531d6b8ae792ee9383bcf242ec4af736fccb997234d7d7",
+      "similarity": 1,
+      "files": [
+        "prompts/report-dev.prompt.md",
+        "prompts/report-fix.prompt.md",
+        "prompts/report-optimization.prompt.md",
+        "prompts/report-scenario-test.prompt.md"
+      ],
+      "excerpt": "**ReviewGradeCard**：c19Label=____ · reviewClass=R2（默认）/R1|R3|R4 · riskClass=____ · riskFlags=____ · contentPack=____ · result=pass|fail · skipReason=N/A"
+    },
+    {
+      "id": "exact-b1a52321ef03",
+      "kind": "exact-paragraph",
+      "digest": "b1a52321ef03f21bc447793992fe21386025d910d2f3c3e3792356b7443e20d3",
+      "similarity": 1,
+      "files": [
+        "prompts/report-dev.prompt.md",
+        "prompts/report-optimization.prompt.md"
+      ],
+      "excerpt": "命中任务名续接或主动建议新会话时记录 taskId/displayName、resolver 状态、sessions/当前 artifact digest 复证与 `copyReadyPrompt=继续<displayName>任务`；不得把 index/Hook 命中写成 CP 或正文已恢复。"
+    },
+    {
+      "id": "exact-b25391184ad9",
+      "kind": "exact-paragraph",
+      "digest": "b25391184ad9e5f39bb323b2ec1f3899c0412eeadd22045698e458d5b473baa8",
+      "similarity": 1,
+      "files": [
+        "instructions.md",
+        "instructions/01c-intent-expansion.instructions.md"
+      ],
+      "excerpt": "| 问题 | 指向变更 | 指向分析 |\n|------|---------|---------|\n| Q1：最终目的是变更还是结论？ | 变更 | 结论 |\n| Q2：分析是手段还是目的？ | 手段 | 目的 |\n| Q3：是否需要修改/创建/删除文件？ | 是 | 否 |"
+    },
+    {
+      "id": "exact-d42f24fce99c",
+      "kind": "exact-paragraph",
+      "digest": "d42f24fce99cd0305b80834452577be1f25e1b44261284ea3824bf633cde0e77",
+      "similarity": 1,
+      "files": [
+        "instructions.md",
+        "instructions/01c-intent-expansion.instructions.md"
+      ],
+      "excerpt": "| 意图 | 工作流 |\n|------|--------|\n| `dev` | 开发（8 子类型）|\n| `fix` | 修复（3 子类型）|\n| `analyze` | 分析（多轮收敛，≥3 轮）|\n| `audit` | 审计（多轮收敛，≥3 轮）|\n| `self-fix` | 规范自修复 |\n| `resume` | 恢复中断任务 |\n| `oth"
+    },
+    {
+      "id": "exact-dc20351a252b",
+      "kind": "exact-paragraph",
+      "digest": "dc20351a252b6ef6d6ecfae5b3ca30176bcc80fb38973d5e18793a5311fafd53",
+      "similarity": 1,
+      "files": [
+        "instructions/15-memory.instructions.md",
+        "skills/memory/SKILL.md"
+      ],
+      "excerpt": "当 `<工作区根>/.devcodex/layout.json` 启用 `workspace-namespace` 时，MCP memory 工具从工作区根调用不得静默回退到 workspace 记忆。调用方必须二选一：\n- 传入 `project`，写入 `<工作区根>/.devcodex/<project>/.memory/...`\n- 显式传入 `sc"
+    },
+    {
+      "id": "exact-e5250d20569e",
+      "kind": "exact-paragraph",
+      "digest": "e5250d20569e133db629ec45de5118f7bbb838f036582893d91276cad3c4b7ad",
+      "similarity": 1,
+      "files": [
+        "instructions/01c-intent-expansion.instructions.md",
+        "instructions/15-memory.instructions.md"
+      ],
+      "excerpt": "1. 当前用户消息\n2. 已确认需求/bug 产物\n3. 当前任务 `sessions.md`\n4. 当日 `tasks/YYYYMMDD.md`\n5. Agent `SUMMARY.md`\n6. compaction / summary 摘要\n7. AI 当前推断"
+    },
+    {
+      "id": "exact-ee12e8a45a36",
+      "kind": "exact-paragraph",
+      "digest": "ee12e8a45a360251808f176f96a4fed9e690f9ec16ecfa308dd6a2894af06fc1",
+      "similarity": 1,
+      "files": [
+        "instructions/01a-profile-loading.instructions.md",
+        "skills/load-profile/SKILL.md"
+      ],
+      "excerpt": "所有工作流的 Profile 获取都必须执行 `ProfileReadChainGate`；服务 / 框架规范复审、跨服务需求、workspace-namespace 或 Profile 同步任务还必须执行 `ServiceNormCoverageGate`："
+    },
+    {
+      "id": "exact-f93be1be0dd5",
+      "kind": "exact-paragraph",
+      "digest": "f93be1be0dd584827ebb0b3878b7feef72c50130cb244aaf9910a8a3911ac1d6",
+      "similarity": 1,
+      "files": [
+        "prompts/report-audit.prompt.md",
+        "prompts/report-dev.prompt.md",
+        "prompts/report-fix.prompt.md",
+        "prompts/report-optimization.prompt.md",
+        "prompts/report-scenario-test.prompt.md"
+      ],
+      "excerpt": "| gateGroup / 条件产物 | result | ownerSkill / schemaRef | evidence | skipReason |\n|----------------------|--------|------------------------|----------|------------|\n| | passed / faile"
+    },
+    {
+      "id": "exact-fb49a4ef9dcc",
+      "kind": "exact-paragraph",
+      "digest": "fb49a4ef9dccf423a08b6aa5f5a8e1b962c9e7b5f89fd2d7cdc1a0eab4308e52",
+      "similarity": 1,
+      "files": [
+        "instructions/01-common.instructions.md",
+        "instructions/01c-intent-expansion.instructions.md"
+      ],
+      "excerpt": "| 术语 | 含义 |\n|------|------|\n| **工作流** | 路由级完整执行路径（dev/fix/analyze/audit/self-fix/resume/plan/chat）|\n| **流程** | 步骤级执行序列（某个功能的具体操作步骤）|\n| **约束** | C01~C22 编号的强制/执行规则 |\n| **规则** | 更宽泛的"
+    },
+    {
+      "id": "near-084bc14794b9",
+      "kind": "near-section",
+      "similarity": 0.96,
+      "files": [
+        "instructions.md",
+        "instructions/01c-intent-expansion.instructions.md"
+      ],
+      "headings": [
+        "意图路由表",
+        "意图路由表"
+      ],
+      "excerpt": "意图路由表 <> 意图路由表"
+    },
+    {
+      "id": "near-4dc1a579045e",
+      "kind": "near-section",
+      "similarity": 0.9737,
+      "files": [
+        "instructions.md",
+        "instructions/01-common.instructions.md"
+      ],
+      "headings": [
+        "ConcurrencyPolicy（C07）",
+        "ConcurrencyPolicy（C07）"
+      ],
+      "excerpt": "ConcurrencyPolicy（C07） <> ConcurrencyPolicy（C07）"
+    },
+    {
+      "id": "near-c64f2a915392",
+      "kind": "near-section",
+      "similarity": 0.9412,
+      "files": [
+        "instructions/10-dev.instructions.md",
+        "instructions/11-fix.instructions.md"
+      ],
+      "headings": [
+        "ECR 执行闭环复审（执行后强制）",
+        "ECR 执行闭环复审（执行后正式阶段）"
+      ],
+      "excerpt": "ECR 执行闭环复审（执行后强制） <> ECR 执行闭环复审（执行后正式阶段）"
+    },
+    {
+      "id": "near-fcf6cda19ef4",
+      "kind": "near-section",
+      "similarity": 0.9913,
+      "files": [
+        "instructions.md",
+        "instructions/00-safety.instructions.md"
+      ],
+      "headings": [
+        "S02 用户策略优先的敏感信息与硬编码模型",
+        "S02 用户策略优先的敏感信息与硬编码模型"
+      ],
+      "excerpt": "S02 用户策略优先的敏感信息与硬编码模型 <> S02 用户策略优先的敏感信息与硬编码模型"
+    }
+  ]
+}

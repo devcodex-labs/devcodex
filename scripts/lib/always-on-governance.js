@@ -165,7 +165,7 @@ function buildAlwaysOnSurfaceMatrix(options = {}) {
   const sourceInstructions = instructionSurface({
     id: 'source-instructions',
     host: 'shared-source',
-    root: path.join(packageRoot, 'instructions'),
+    root: path.join(packageRoot, 'content', 'instructions'),
     owner: 'instructions',
     loadMode: 'source-applyTo',
     required: true
@@ -217,7 +217,7 @@ function buildAlwaysOnSurfaceMatrix(options = {}) {
     singleFileSurface({
       id: 'full-fallback-source',
       host: 'shared',
-      file: path.join(packageRoot, 'instructions.md'),
+      file: path.join(packageRoot, 'content', 'instructions.md'),
       owner: 'instructions',
       loadMode: 'full-fallback-source',
       required: true,

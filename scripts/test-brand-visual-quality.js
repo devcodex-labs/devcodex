@@ -4,6 +4,7 @@
 const assert = require('assert')
 const fs = require('fs')
 const path = require('path')
+const { createCanonicalAwareReader } = require('./lib/canonical-consumer-contracts')
 const {
   buildBrandVisualQualityChecks,
   classifyBrandVisualEvidence,
@@ -44,13 +45,14 @@ assert.strictEqual(classifyComponentTransparencyTopology({
 }), 'pass')
 
 const root = path.resolve(__dirname, '..')
+const read = createCanonicalAwareReader(root, file => fs.readFileSync(file, 'utf8'))
 const cleanCheckoutErrors = []
 const cleanCheckoutChecks = buildBrandVisualQualityChecks({
   ROOT: root,
   ACTIVE_DEVCODEX_ROOT: path.join(root, '.nonexistent-active-root'),
   fs,
   path,
-  read: file => fs.readFileSync(file, 'utf8'),
+  read,
   err: message => cleanCheckoutErrors.push(message),
   console: { log() {} }
 })

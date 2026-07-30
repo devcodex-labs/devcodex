@@ -4,6 +4,7 @@
  * V100 — ClosureEvidence + ControlPlaneContract-First + HomologousDeployFilter anchors
  */
 function buildClosureEvidenceControlChecks({ ROOT, fs, path, read, err, console }) {
+  const logicalExists = file => typeof read.exists === 'function' ? read.exists(file) : fs.existsSync(file)
   const requiredSkillAnchors = [
     ['skills/cp-gate/SKILL.md', [
       'ConfirmBindingGate',
@@ -40,7 +41,7 @@ function buildClosureEvidenceControlChecks({ ROOT, fs, path, read, err, console 
   function assertAnchors(pairs, label) {
     for (const [relative, needles] of pairs) {
       const full = path.join(ROOT, relative)
-      if (!fs.existsSync(full)) {
+      if (!logicalExists(full)) {
         err(`[V100] missing ${label}: ${relative}`)
         continue
       }

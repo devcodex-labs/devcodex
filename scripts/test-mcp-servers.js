@@ -7,6 +7,7 @@ const fs = require('fs')
 const os = require('os')
 const path = require('path')
 const { spawnSync } = require('child_process')
+const { listControlDeliveryEntries } = require('./lib/control-content-delivery')
 const {
   buildExtendedCpTable,
   parseCpSessions
@@ -187,11 +188,11 @@ function setupConfiguredMcpTarget() {
     fs.mkdirSync(path.dirname(dest), { recursive: true })
     fs.copyFileSync(path.join(ROOT, ...rel.split('/')), dest)
   }
-  fs.cpSync(
-    path.join(ROOT, 'skills'),
-    path.join(targetRoot, '.claude', 'skills'),
-    { recursive: true }
-  )
+  for (const entry of listControlDeliveryEntries(ROOT, 'skills')) {
+    const destination = path.join(targetRoot, '.claude', 'skills', ...entry.relative.split('/'))
+    fs.mkdirSync(path.dirname(destination), { recursive: true })
+    fs.writeFileSync(destination, entry.content, 'utf8')
+  }
   fs.copyFileSync(
     path.join(ROOT, 'hooks', '_runtime', 'workspace-layout.cjs'),
     path.join(targetRoot, '.claude', 'hooks', '_runtime', 'workspace-layout.cjs')

@@ -26,9 +26,11 @@ function buildValidateCoreChecks(ctx) {
     mustNotInclude,
     isValidationDelegated = () => false
   } = ctx
+  const contentRoot = path.join(ROOT, 'content')
+  const contentPath = relative => path.join(contentRoot, ...String(relative).split('/'))
 
   function checkV1() {
-    const instructionFiles = walk(path.join(ROOT, 'instructions'))
+    const instructionFiles = walk(path.join(contentRoot, 'instructions'))
       .filter(f => f.endsWith('.instructions.md'))
     for (const f of instructionFiles) {
       const content = read(f)
@@ -50,7 +52,7 @@ function buildValidateCoreChecks(ctx) {
         err(`[V1] Missing or invalid version in: ${path.relative(ROOT, f)}`)
       }
     }
-    const skillFiles = walk(path.join(ROOT, 'skills'))
+    const skillFiles = walk(path.join(contentRoot, 'skills'))
       .filter(f => path.basename(f) === 'SKILL.md')
     for (const f of skillFiles) {
       const content = read(f)
@@ -70,7 +72,7 @@ function buildValidateCoreChecks(ctx) {
   }
 
   function checkV2() {
-    const roots = ['instructions', 'skills', 'prompts', 'website/docs', 'changelogs']
+    const roots = ['content', 'website/docs', 'changelogs']
     const topFiles = ['README.md', 'CHANGELOG.md', 'RULES.md']
     const files = roots.flatMap(r => walk(path.join(ROOT, r))).filter(f => f.endsWith('.md'))
       .concat(topFiles.map(f => path.join(ROOT, f)).filter(f => fs.existsSync(f)))
@@ -104,8 +106,8 @@ function buildValidateCoreChecks(ctx) {
   }
 
   function checkV3() {
-    const commonContent = read(path.join(ROOT, 'instructions/01-common.instructions.md'))
-    const routingContent = read(path.join(ROOT, 'skills/routing/SKILL.md'))
+    const commonContent = read(contentPath('instructions/01-common.instructions.md'))
+    const routingContent = read(contentPath('skills/routing/SKILL.md'))
     const probes = [
       { token: 'dev.default', files: ['instructions/01-common.instructions.md', 'skills/routing/SKILL.md', 'instructions/10-dev.instructions.md'] },
       { token: 'dev.docs', files: ['instructions/01-common.instructions.md', 'skills/routing/SKILL.md', 'instructions/10-dev.instructions.md'] },
@@ -125,7 +127,7 @@ function buildValidateCoreChecks(ctx) {
           ? commonContent
           : file === 'skills/routing/SKILL.md'
             ? routingContent
-            : read(path.join(ROOT, file))
+            : read(contentPath(file))
         if (!content.includes(probe.token)) warn(`[V3] ${file} missing subtype token: ${probe.token}`)
       }
     }
@@ -162,7 +164,7 @@ function buildValidateCoreChecks(ctx) {
   }
 
   function checkV5() {
-    const files = walk(path.join(ROOT, 'instructions')).filter(f => f.endsWith('.md'))
+    const files = walk(path.join(contentRoot, 'instructions')).filter(f => f.endsWith('.md'))
     let defCount = 0
     const hits = []
     for (const f of files) {
@@ -539,11 +541,11 @@ function buildValidateCoreChecks(ctx) {
   }
 
   function checkV19() {
-    const promptCount = walk(path.join(ROOT, 'prompts')).filter(f => f.endsWith('.prompt.md')).length
+    const promptCount = walk(path.join(contentRoot, 'prompts')).filter(f => f.endsWith('.prompt.md')).length
     const dataTemplateCount = walk(path.join(ROOT, 'data', 'templates')).filter(f => f.endsWith('.md')).length
     const scriptCount = walk(path.join(ROOT, 'scripts')).filter(f => f.endsWith('.js')).length
-    const skillCount = walk(path.join(ROOT, 'skills')).filter(f => path.basename(f) === 'SKILL.md').length
-    const instructionCount = fs.readdirSync(path.join(ROOT, 'instructions')).filter(f => f.endsWith('.instructions.md')).length
+    const skillCount = walk(path.join(contentRoot, 'skills')).filter(f => path.basename(f) === 'SKILL.md').length
+    const instructionCount = fs.readdirSync(path.join(contentRoot, 'instructions')).filter(f => f.endsWith('.instructions.md')).length
     const hookRuntimeFiles = walk(path.join(ROOT, 'hooks', '_runtime')).filter(f => f.endsWith('.cjs'))
     const hookRuntimeCount = hookRuntimeFiles.length
     const checks = [
@@ -578,7 +580,7 @@ function buildValidateCoreChecks(ctx) {
         optionalActiveProfileChecksSkipped++
         continue
       }
-      if (!fs.existsSync(filePath)) {
+      if (!read.exists(filePath)) {
         if (check.rawPath === false && !activeProfileDirAvailable) {
           optionalActiveProfileChecksSkipped++
           continue
@@ -598,7 +600,7 @@ function buildValidateCoreChecks(ctx) {
         const featureInventory = read(featureInventoryPath)
         const sourcePathPattern = /`((?:(?:scripts|skills|instructions|prompts|hooks|mcp|website)\/[^`*<>]+\.(?:js|cjs|md|json|ts))|(?:(?:README|package|plugin|index)\.(?:md|json|js)))`/g
         for (const match of featureInventory.matchAll(sourcePathPattern)) {
-          if (!fs.existsSync(path.join(ROOT, match[1]))) {
+          if (!read.exists(path.join(ROOT, match[1]))) {
             err(`[V19] Profile feature inventory references missing source fact: ${match[1]}`)
           }
         }

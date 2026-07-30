@@ -33,11 +33,13 @@ assert.strictEqual(shouldIncludeInstructionFile('tenants/example-tenant/10-dev.i
 assert.strictEqual(shouldIncludeInstructionFile('tenants/other/10-dev.instructions.md', 'example-tenant'), false)
 
 const defaultEntries = expandDescriptors(ROOT, ROOT, buildDeploymentDescriptors(['copilot']))
-assert.ok(!defaultEntries.some(entry => entry.source.startsWith('instructions/tenants/')), 'default deployment must exclude all tenant files')
+assert.ok(!defaultEntries.some(entry => entry.source.includes('/instructions/tenants/')), 'default deployment must exclude all tenant files')
 const selectedEntries = expandDescriptors(ROOT, ROOT, buildDeploymentDescriptors(['copilot'], { tenantId: 'example-tenant' }))
-assert.ok(selectedEntries.some(entry => entry.source === 'instructions/tenants/example-tenant/10-dev.instructions.md'))
-assert.ok(!selectedEntries.some(entry => entry.source === 'instructions/tenants/README.md'))
+assert.ok(selectedEntries.some(entry => entry.source === 'content/instructions/tenants/example-tenant/10-dev.instructions.md'))
+assert.ok(!selectedEntries.some(entry => entry.source === 'content/instructions/tenants/README.md'))
 assert.strictEqual(shouldCheckBaseDeploymentSource('instructions/10-dev.instructions.md'), true)
 assert.strictEqual(shouldCheckBaseDeploymentSource('instructions/tenants/example-tenant/10-dev.instructions.md'), false)
+assert.strictEqual(shouldCheckBaseDeploymentSource('content/instructions/10-dev.instructions.md'), true)
+assert.strictEqual(shouldCheckBaseDeploymentSource('content/instructions/tenants/example-tenant/10-dev.instructions.md'), false)
 
 console.log('✓ tenant selection is explicit, fail-closed and deployment-filtered')

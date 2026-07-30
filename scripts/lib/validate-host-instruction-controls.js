@@ -1,12 +1,14 @@
 'use strict'
 
 const crypto = require('crypto')
+const { readControlInstructionRoot } = require('./control-content-delivery')
 
 function buildHostInstructionControlChecks(ctx) {
   const { ROOT, fs, path, read, err, console } = ctx
+  const logicalExists = file => typeof read.exists === 'function' ? read.exists(file) : fs.existsSync(file)
 
   function requireFile(relative) {
-    if (!fs.existsSync(path.join(ROOT, relative))) err(`[V103] missing host projection artifact: ${relative}`)
+    if (!logicalExists(path.join(ROOT, relative))) err(`[V103] missing host projection artifact: ${relative}`)
   }
 
   function digest(content) {
@@ -51,10 +53,10 @@ function buildHostInstructionControlChecks(ctx) {
       'host-projections/AGENTS.workspace-bridge.md'
     ]
     required.forEach(requireFile)
-    if (required.some(relative => !fs.existsSync(path.join(ROOT, relative)))) return
+    if (required.some(relative => !logicalExists(path.join(ROOT, relative)))) return
 
     const coverage = JSON.parse(String(read(path.join(ROOT, 'host-projections/coverage.json'))))
-    const source = String(read(path.join(ROOT, 'instructions.md')))
+    const source = readControlInstructionRoot(ROOT).toString('utf8')
     if (coverage.schemaVersion !== 'HostInstructionCoverageReceiptV1') err('[V103] coverage schema drift')
     if (coverage.sourceDigest !== digest(source)) err('[V103] projection source digest is stale')
     if (coverage.mode !== 'kernel') err(`[V103] projection unexpectedly fell back: ${coverage.mode}`)

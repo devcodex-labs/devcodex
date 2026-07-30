@@ -1,0 +1,102 @@
+{
+  "schemaVersion": "SkillRouteS15EvidenceV1",
+  "status": "PASS",
+  "probeRunId": "s15-codex-production-68bb76ae-7315-4273-b77b-d06bdf13233d",
+  "host": "codex",
+  "hostVariant": "codex-cli/exec-user-global-local-stdio",
+  "testedVersion": "codex-cli 0.145.0",
+  "protocolVersion": "2024-11-05",
+  "runtimeDigest": "1c727701a1ae4f3a8699a932066994098402744b99ed81ba2ec32f1929bf5d6a",
+  "hostAdapterDigest": "6ba881f7fd7eba6297e1fcb8c55da09abbd5f47a42661fb2269f38d05e014139",
+  "authorizationSource": "capability-pass",
+  "routeActivation": {
+    "requested": "unified",
+    "source": "source-default",
+    "effective": "unified",
+    "reason": "unified-default",
+    "hostEligibility": "PASS",
+    "capabilityRuntimeCurrent": true,
+    "capabilityAdapterCurrent": true,
+    "probeAuthorityUsed": false
+  },
+  "project": "s15-codex",
+  "contextEpoch": "ctx-75b75233-2b41-4c53-a260-a9f9108c03d7",
+  "turnBinding": "turn-82fd7e7a1f4cb26569f59ce22b2a13a447dc58fd",
+  "catalogDigest": "133df96e2aa7aa402b915a760c96d2eecd184a452211c188dcb4448452ae24d5",
+  "catalogPages": 6,
+  "candidateCount": 76,
+  "decisionSkillId": "workspace-s15-probe",
+  "decisionDigest": "34d888ab11e42f55c2ad9b344d3884478ac7c55625860422ef38d6dacfc3a569",
+  "planDigest": "e93c5115c7cd0e9916c0a1ff3bebed6fed531df70ea4188d70fc595b1eae6547",
+  "planGeneration": 1,
+  "activatedConditionIds": [
+    "test-validation"
+  ],
+  "requiredStageIds": [
+    "entry",
+    "execution:test-validation",
+    "closeout"
+  ],
+  "loadedStageIds": [
+    "entry",
+    "execution:test-validation",
+    "closeout"
+  ],
+  "processComplete": true,
+  "bodyDigest": "2057dfd1a53010720efa6d18ca2bcec1371431c928d2767fb86afc39f82c2e3e",
+  "marker": "S15_BODY_3D05FD2B-92C1-4979-8CC2-E965680191E0",
+  "markerDigest": "5e205a7df655f5583586665053e3907ca03150c99b8122df7defd79ec2abfc91",
+  "contextAcquisition": {
+    "source": "host-hooks",
+    "prewritten": false,
+    "receiptStatus": "relevant-complete",
+    "observedTools": [
+      "devcodex-profile/profile_context_plan",
+      "devcodex-profile/profile_load",
+      "devcodex-memory/memory_status",
+      "devcodex-profile/skill_route",
+      "devcodex-profile/skill_route",
+      "devcodex-profile/skill_route",
+      "devcodex-profile/skill_route",
+      "devcodex-profile/skill_route",
+      "devcodex-profile/skill_route",
+      "devcodex-profile/skill_route",
+      "devcodex-profile/skill_route",
+      "devcodex-profile/skill_route",
+      "devcodex-profile/skill_route",
+      "devcodex-profile/skill_route",
+      "devcodex-profile/skill_route"
+    ]
+  },
+  "observedOps": [
+    "profile_context_plan",
+    "profile_load",
+    "memory_status",
+    "catalog",
+    "commit",
+    "conditional-replan",
+    "load_stage",
+    "status"
+  ],
+  "retirementAnomalies": {
+    "legacyFallback": 0,
+    "doubleBody": 0,
+    "crossRoot": 0,
+    "stateCorruption": 0,
+    "missingStage": 0,
+    "missingCloseout": 0
+  },
+  "transport": {
+    "kind": "local-stdio",
+    "servers": [
+      "devcodex-profile",
+      "devcodex-memory"
+    ],
+    "networkListener": false,
+    "longRunningServiceStarted": false,
+    "childExitedWithHost": true
+  },
+  "startedAt": "2026-07-30T10:01:51.233Z",
+  "completedAt": "2026-07-30T10:04:23.337Z",
+  "evidenceDigest": "ce8fb9c145934bb59f2ce1f5d253a21fb9ba33218a728d4b23b7a0c45fe2cc53"
+}

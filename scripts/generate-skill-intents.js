@@ -10,7 +10,7 @@ const {
 } = require('../hooks/_runtime/progressive-skill-route-contract.cjs')
 
 const ROOT = path.resolve(__dirname, '..')
-const PORTFOLIO_PATH = path.join(ROOT, 'skills', 'portfolio.json')
+const PORTFOLIO_PATH = path.join(ROOT, 'content', 'skills', 'portfolio.json')
 
 function optionNumber (name, fallback) {
   const index = process.argv.indexOf(name)
@@ -113,7 +113,7 @@ function loadActiveSkills () {
 }
 
 function intentPath (skillId) {
-  return path.join(ROOT, 'skills', skillId, 'intent.json')
+  return path.join(ROOT, 'content', 'skills', skillId, 'intent.json')
 }
 
 function processSkillIntents (options = {}) {

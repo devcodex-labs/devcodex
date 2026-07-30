@@ -107,10 +107,11 @@ function classifyChecklistStateSample(sample) {
 
 function buildReworkTrustControlChecks(ctx) {
   const { ROOT, fs, path, read, err, console } = ctx
+  const logicalExists = file => typeof read.exists === 'function' ? read.exists(file) : fs.existsSync(file)
 
   function checkFile(file, needles) {
     const absolute = path.join(ROOT, file)
-    if (!fs.existsSync(absolute)) {
+    if (!logicalExists(absolute)) {
       err(`[V94] missing required artifact: ${file}`)
       return
     }
@@ -120,7 +121,7 @@ function buildReworkTrustControlChecks(ctx) {
 
   function checkCurrentChangeRecord(version, needles) {
     const files = ['changelogs/unreleased.md', `changelogs/releases/v${version}.md`]
-    const combined = files.filter(file => fs.existsSync(path.join(ROOT, file)))
+    const combined = files.filter(file => logicalExists(path.join(ROOT, file)))
       .map(file => read(path.join(ROOT, file))).join('\n')
     for (const needle of needles) if (!combined.includes(needle)) err(`[V94] current changelog corpus missing "${needle}"`)
   }

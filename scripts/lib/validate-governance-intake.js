@@ -9,6 +9,7 @@ function buildGovernanceIntakeChecks(ctx) {
     fs, path, execSync, read, err, mustInclude,
     isValidationDelegated = () => false
   } = ctx
+  const logicalExists = file => typeof read.exists === 'function' ? read.exists(file) : fs.existsSync(file)
   const { collectChangelogSources, hasChangelogEvidence } = buildGovernanceHelpers(ctx)
 
   function checkV39() {
@@ -281,10 +282,10 @@ function buildGovernanceIntakeChecks(ctx) {
   function checkV42() {
     const pkg = JSON.parse(read(path.join(ROOT, 'package.json')))
     const scripts = pkg.scripts || {}
-    const releaseSkill = read(path.join(ROOT, 'skills', 'release-verification', 'SKILL.md'))
+    const releaseSkill = read(path.join(ROOT, 'content', 'skills', 'release-verification', 'SKILL.md'))
     const releaseGuide = read(path.join(ROOT, 'website', 'docs', 'guide', 'release.md'))
     const readme = read(path.join(ROOT, 'README.md'))
-    const testRouter = read(path.join(ROOT, 'skills', 'test-router', 'SKILL.md'))
+    const testRouter = read(path.join(ROOT, 'content', 'skills', 'test-router', 'SKILL.md'))
 
     const scriptExpectations = [
       ['test', 'node scripts/run-validation.js --route full'],
@@ -417,7 +418,7 @@ function buildGovernanceIntakeChecks(ctx) {
     ]
 
     for (const file of requiredFiles) {
-      if (!fs.existsSync(path.join(ROOT, file))) err(`[V46] missing tenant example file: ${file}`)
+      if (!logicalExists(path.join(ROOT, file))) err(`[V46] missing tenant example file: ${file}`)
     }
 
     mustInclude('instructions/tenants/README.md', 'example-tenant', 'tenant README example directory')
@@ -463,7 +464,7 @@ function buildGovernanceIntakeChecks(ctx) {
     ]
 
     for (const file of requiredFiles) {
-      if (!fs.existsSync(path.join(ROOT, file))) err(`[V48] missing split common instruction file: ${file}`)
+      if (!logicalExists(path.join(ROOT, file))) err(`[V48] missing split common instruction file: ${file}`)
     }
 
     const probes = [

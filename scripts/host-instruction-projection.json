@@ -1,6 +1,6 @@
 {
   "schemaVersion": "HostInstructionProjectionConfigV1",
-  "sourceFile": "instructions.md",
+  "sourceFile": "content/instructions.md",
   "fullFallbackDestination": "user://agents/devcodex/instructions.full.md",
   "budgets": {
     "kernelMaxBytes": 16384,

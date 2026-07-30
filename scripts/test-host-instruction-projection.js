@@ -9,9 +9,10 @@ const {
   detectContentCollisions,
   parseMandatoryRules
 } = require('./lib/host-instruction-projection.js')
+const { readControlInstructionRoot } = require('./lib/control-content-delivery.js')
 
 const ROOT = path.resolve(__dirname, '..')
-const source = fs.readFileSync(path.join(ROOT, 'instructions.md'), 'utf8')
+const source = readControlInstructionRoot(ROOT)
 const config = JSON.parse(fs.readFileSync(path.join(ROOT, 'scripts', 'host-instruction-projection.json'), 'utf8'))
 const gitignoreLines = fs.readFileSync(path.join(ROOT, '.gitignore'), 'utf8').split(/\r?\n/)
 const clone = value => JSON.parse(JSON.stringify(value))

@@ -4,6 +4,7 @@ const assert = require('assert')
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
+const { createCanonicalAwareReader } = require('./lib/canonical-consumer-contracts')
 const {
   graySkillIdSet,
   isDeployableSkill,
@@ -15,6 +16,7 @@ const { sha256File, parseCpSessions, verifyArtifactDigest, buildExtendedCpTable 
 const { buildClosureEvidenceControlChecks } = require('./lib/validate-closure-evidence-controls')
 
 const ROOT = path.resolve(__dirname, '..')
+const read = createCanonicalAwareReader(ROOT, file => fs.readFileSync(file, 'utf8'))
 
 // gray filter
 const gray = graySkillIdSet(ROOT)
@@ -68,7 +70,7 @@ const checks = buildClosureEvidenceControlChecks({
   ROOT,
   fs,
   path,
-  read: file => fs.readFileSync(file, 'utf8'),
+  read,
   err: msg => errors.push(msg),
   console
 })

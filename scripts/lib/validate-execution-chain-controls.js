@@ -16,16 +16,17 @@ function buildExecutionChainControlChecks(ctx) {
     ROOT, ACTIVE_DEVCODEX_ROOT, fs, path, read, err, console,
     loadExecutionOptimization = () => require('./execution-optimization')
   } = ctx
+  const logicalExists = file => typeof read.exists === 'function' ? read.exists(file) : fs.existsSync(file)
 
   function requireFile(relative) {
     const full = path.join(ROOT, relative)
-    if (!fs.existsSync(full)) err(`[V101] missing execution-chain artifact: ${relative}`)
+    if (!logicalExists(full)) err(`[V101] missing execution-chain artifact: ${relative}`)
     return full
   }
 
   function assertAnchors(relative, anchors, label = 'consumer') {
     const full = requireFile(relative)
-    if (!fs.existsSync(full)) return
+    if (!logicalExists(full)) return
     const content = read(full)
     if (relative === 'README.md' && evaluatePublicReadmeContract(content).valid) return
     for (const anchor of anchors) {

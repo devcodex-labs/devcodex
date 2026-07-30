@@ -33,7 +33,14 @@ website/*
 .tmp/
 .tmp/**
 
+# Generated npm compatibility projection; tracked authoring source lives under content/.
+/instructions.md
+/instructions/**/*.md
+/prompts/**/*.md
+/skills/*/SKILL.md
+/skills/*/intent.json
+/content-source/
+
 source-root-deployment-backup-*/
 tmp-validate*.txt
 package.json.tmp-test
-

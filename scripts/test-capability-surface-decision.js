@@ -11,13 +11,14 @@ const {
   schemaDigest,
   validateCapabilitySurfaceDecisionBatch
 } = require('./lib/capability-surface-decision')
+const { resolveControlAsset } = require('./lib/control-content-delivery')
 
 const ROOT = path.resolve(__dirname, '..')
 const FIXTURE_ROOT = path.join(__dirname, 'fixtures', 'capability-surface-decision')
 const SOURCE_HEAD = '269ac9fadbd3593d42f4481a2436d5b16b45a08a'
 
 function readJson(relativePath) {
-  return JSON.parse(fs.readFileSync(path.join(ROOT, relativePath), 'utf8'))
+  return JSON.parse(fs.readFileSync(resolveControlAsset(ROOT, relativePath), 'utf8'))
 }
 
 function fixture(name) {
@@ -204,7 +205,7 @@ assert.deepStrictEqual(group.ownerSkills, [
 ])
 assert(group.validationRoute.includes('test-capability-surface-decision'))
 
-const skill = fs.readFileSync(path.join(ROOT, 'skills', 'spec-governance', 'SKILL.md'), 'utf8')
+const skill = fs.readFileSync(path.join(ROOT, 'content', 'skills', 'spec-governance', 'SKILL.md'), 'utf8')
 for (const anchor of [
   'CapabilitySurfaceDecisionGate',
   'capability-surface-decision.v1.schema.json',

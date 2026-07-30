@@ -2,14 +2,15 @@
 
 function buildVisibleOutputControlChecks(ctx) {
   const { ROOT, fs, path, read, err, console } = ctx
+  const logicalExists = file => typeof read.exists === 'function' ? read.exists(file) : fs.existsSync(file)
 
   function requireFile(relative) {
-    if (!fs.existsSync(path.join(ROOT, relative))) err(`[V102] missing visible/review artifact: ${relative}`)
+    if (!logicalExists(path.join(ROOT, relative))) err(`[V102] missing visible/review artifact: ${relative}`)
   }
 
   function requireAnchors(relative, anchors) {
     requireFile(relative)
-    if (!fs.existsSync(path.join(ROOT, relative))) return
+    if (!logicalExists(path.join(ROOT, relative))) return
     const content = read(path.join(ROOT, relative))
     for (const anchor of anchors) {
       if (!content.includes(anchor)) err(`[V102] ${relative} missing anchor: ${anchor}`)

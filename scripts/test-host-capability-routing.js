@@ -5,6 +5,8 @@ const assert = require('assert')
 const fs = require('fs')
 const path = require('path')
 const { buildHostAdapterCompatibilityMatrix } = require('./lib/always-on-governance')
+const { buildBundle } = require('./lib/control-content-source')
+const { resolveControlAsset } = require('./lib/control-content-delivery')
 const {
   REQUIRED_SECURITY_INVARIANTS,
   SCHEMAS,
@@ -26,7 +28,7 @@ const FIXTURE_ROOT = path.join(__dirname, 'fixtures', 'host-capability-routing')
 const NOW = '2026-07-24T01:00:00Z'
 
 function readJson(relativePath) {
-  return JSON.parse(fs.readFileSync(path.join(ROOT, relativePath), 'utf8'))
+  return JSON.parse(fs.readFileSync(resolveControlAsset(ROOT, relativePath), 'utf8'))
 }
 
 function fixture(name) {
@@ -457,7 +459,7 @@ assert(helperSource.includes(`require('${hostDescriptorRequest}')`), 'helper mus
 for (const forbidden of ['child_process', 'writeFile', 'appendFile', 'fetch(', 'http.request', 'https.request']) {
   assert(!helperSource.includes(forbidden), `pure helper must not contain ${forbidden}`)
 }
-const skillSource = fs.readFileSync(path.join(ROOT, 'skills', 'host-capability-routing', 'SKILL.md'), 'utf8')
+const skillSource = fs.readFileSync(path.join(ROOT, 'content', 'skills', 'host-capability-routing', 'SKILL.md'), 'utf8')
 for (const anchor of [
   'CSD-host-capability-routing',
   'CapabilityIntentDecisionV1',
@@ -529,8 +531,12 @@ const consumerAnchors = {
     '禁止复制完整用户原文'
   ]
 }
+const renderedControlContent = new Map(
+  buildBundle(ROOT).files.map(file => [file.relative, file.content.toString('utf8')])
+)
 for (const [relativePath, anchors] of Object.entries(consumerAnchors)) {
-  const source = fs.readFileSync(path.join(ROOT, relativePath), 'utf8')
+  const source = renderedControlContent.get(relativePath)
+  assert(source, `${relativePath} missing from rendered control content`)
   for (const anchor of anchors) {
     assert(source.includes(anchor), `${relativePath} missing ${anchor}`)
   }
@@ -543,12 +549,13 @@ for (const reportPrompt of [
   'report-optimization.prompt.md',
   'report-scenario-test.prompt.md'
 ]) {
-  const source = fs.readFileSync(path.join(ROOT, 'prompts', reportPrompt), 'utf8')
+  const source = renderedControlContent.get(`prompts/${reportPrompt}`)
+  assert(source, `${reportPrompt} missing from rendered control content`)
   for (const anchor of ['host-capability-routing', 'instructionRefId', '禁止复制完整原文或 catalog row']) {
     assert(source.includes(anchor), `${reportPrompt} missing ${anchor}`)
   }
 }
-const cpGateSource = fs.readFileSync(path.join(ROOT, 'skills', 'cp-gate', 'SKILL.md'), 'utf8')
+const cpGateSource = fs.readFileSync(path.join(ROOT, 'content', 'skills', 'cp-gate', 'SKILL.md'), 'utf8')
 for (const invariant of [
   'CP1 → CP2 → CP3',
   'CP1 / CP2 / CP3 确认**自动通过**',

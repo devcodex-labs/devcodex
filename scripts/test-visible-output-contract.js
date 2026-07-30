@@ -4,6 +4,7 @@
 const assert = require('assert')
 const fs = require('fs')
 const path = require('path')
+const { resolveControlAsset } = require('./lib/control-content-delivery')
 const {
   ACTION_HEADINGS,
   INTERNAL_ARTIFACT_CLASSES,
@@ -549,7 +550,10 @@ for (const trigger of ['control-plane', 'source-mutation', 'risk-not-low', 'cp-n
   assert.ok(fastPathBlocked.upgradeTriggers.includes(trigger), `missing trigger: ${trigger}`)
 }
 
-const schema = JSON.parse(fs.readFileSync(path.join(ROOT, 'skills', 'user-visible-output-contract', 'visible-output-contract.schema.json'), 'utf8'))
+const schema = JSON.parse(fs.readFileSync(
+  resolveControlAsset(ROOT, 'skills/user-visible-output-contract/visible-output-contract.schema.json'),
+  'utf8'
+))
 for (const definition of [
   'ArtifactDeliveryManifestV1',
   'ArtifactTruthSourceClassificationV1',

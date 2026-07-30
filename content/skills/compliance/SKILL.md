@@ -43,12 +43,7 @@ dev 模式 PC4 至少输出：
 | **宣称完成且全绿** | 贴 **短 FVS**（见 shared validation-summary）；不默认 FC 全表 |
 | **失败/缺口/用户要详情** | 展开失败项 + 全量 FVS / 相关产物 |
 
-```text
-### FinalValidationSummaryV1
-**白话：** …
-**证据：** `command` exitCode 0 · 关键计数 a/b
-WorkspaceSyncStatus: … · dirty boundary: … · Release actions: …
-```
+<!-- devcodex:include shared/compliance/validation-summary.md -->
 
 > ⛔ 宣称完成却只有“全绿/详见报告” → `DevModeCompletionCheckDetailGate` 未通过。
 > ⛔ 未宣称完成时 **不得** 为过 Stop 而硬贴长完成检查（Stop 以 `workDoneClaimed` 为准）。

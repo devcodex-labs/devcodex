@@ -1,6 +1,6 @@
 {
   "schemaVersion": "ControlContentDuplicationInventoryV1",
-  "sourceBundleDigest": "659f6d2cff943b6825d48c355d9587e30ae3474f6418cea74a613eb0d6f4211d",
+  "sourceBundleDigest": "72853602cb110e69065c248c4f12410ca3e4f491c9828a121b82e562b64261a9",
   "thresholds": {
     "minParagraphChars": 100,
     "sectionThreshold": 0.94,
@@ -8,9 +8,9 @@
     "minSectionLengthRatio": 0.85
   },
   "counts": {
-    "exactParagraph": 26,
+    "exactParagraph": 28,
     "nearSection": 4,
-    "total": 30
+    "total": 32
   },
   "candidates": [
     {
@@ -144,15 +144,15 @@
       "excerpt": "- 当用户询问“是否应该”“哪个更好”“有没有更好建议”“推荐方案/工具/产品/架构/技术选型”，或 AI 的回答会影响用户投入明显时间、金钱、迁移成本、公共契约、长期维护成本时，必须先执行 `QuestionEvidenceGate`，选择合适证据深度后再给推荐。\n- `ComparativeResearchGate` 只在推荐、选型、产品/项目路线、架构"
     },
     {
-      "id": "exact-74b4a887d580",
+      "id": "exact-67594848c341",
       "kind": "exact-paragraph",
-      "digest": "74b4a887d580cc902a1db85ec1af1f83502b296cc11b073bef7ebb21569f4848",
+      "digest": "67594848c341028cd71d97217aa68b78448086353a56d71012a0ac18b226ebd0",
       "similarity": 1,
       "files": [
         "instructions/17-compliance.instructions.md",
         "skills/compliance/SKILL.md"
       ],
-      "excerpt": "#### 验证摘要\n| 类型 | 命令 | exitCode | runId/计数 |\n|------|------|----------|------------|\n| 权威/实验/skipped | `command or N/A` | `0/N/A` | `runId 或关键计数` |\nWorkspaceSyncStatus：synced/skippe"
+      "excerpt": "> **UserVisibleNoisePolicyV1**：未宣称「工作完成」时，用户面**默认不贴**本块。宣称完成且全绿 → **短证**；失败/缺口/用户要详情 → **全量**。完整 FC/SC/T 仍进报告，不默认刷对话。"
     },
     {
       "id": "exact-7800f1897e98",
@@ -200,6 +200,17 @@
         "prompts/report-scenario-test.prompt.md"
       ],
       "excerpt": "> 共享基模读取 `skills/report/report-schema.json`，治理分组读取 `skills/spec-governance/gate-registry.json`。本模板只记录实际触发结果，不复制 Gate 目录或 Owner 专属字段。"
+    },
+    {
+      "id": "exact-a564c2ab2589",
+      "kind": "exact-paragraph",
+      "digest": "a564c2ab258912d819942f4a5e92441717858f7f69f76271b38b75d044a73f36",
+      "similarity": 1,
+      "files": [
+        "instructions/17-compliance.instructions.md",
+        "skills/compliance/SKILL.md"
+      ],
+      "excerpt": "| 字段 | 填写 |\n|------|------|\n| 白话 | 1～3 句；禁止只写「全绿 / 已通过 / 详见报告」 |\n| 权威命令 + exitCode | `command` exitCode N（可多行） |\n| 关键计数 | 如 `3/3 checks passed` 或 runId / V 范围 |\n| WorkspaceSyncStat"
     },
     {
       "id": "exact-a6436187b327",
@@ -268,6 +279,17 @@
         "skills/memory/SKILL.md"
       ],
       "excerpt": "当 `<工作区根>/.devcodex/layout.json` 启用 `workspace-namespace` 时，MCP memory 工具从工作区根调用不得静默回退到 workspace 记忆。调用方必须二选一：\n- 传入 `project`，写入 `<工作区根>/.devcodex/<project>/.memory/...`\n- 显式传入 `sc"
+    },
+    {
+      "id": "exact-e4a19e4b12c9",
+      "kind": "exact-paragraph",
+      "digest": "e4a19e4b12c95bd70c44f3437254dfadaedcdd19d5a5bf7463a13fbd1cc0cd2b",
+      "similarity": 1,
+      "files": [
+        "instructions/17-compliance.instructions.md",
+        "skills/compliance/SKILL.md"
+      ],
+      "excerpt": "```markdown\n### FinalValidationSummaryV1\n**白话：** 一句结论（是否通过、是否改码/提交）。\n**证据：** `command` exitCode 0 · 关键计数 a/b\nWorkspaceSyncStatus: N/A 未触发 · dirty boundary: git status clean-tree · "
     },
     {
       "id": "exact-e5250d20569e",

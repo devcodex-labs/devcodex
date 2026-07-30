@@ -240,12 +240,7 @@ version: 1.15.3
 | 宣称完成且全绿 | **短 FVS**（白话 + 命令 exitCode + 边界）；不默认 FC 全表 |
 | 宣称完成有缺口 / 用户要详情 | 展开完成检查失败项 + 全量 FVS + 相关产物 |
 
-```text
-### FinalValidationSummaryV1
-**白话：** …
-**证据：** `command` exitCode 0 · 关键计数 a/b
-WorkspaceSyncStatus: … · dirty boundary: … · Release actions: …
-```
+<!-- devcodex:include shared/compliance/validation-summary.md -->
 
 完整 FC/SC/RC/T 矩阵仍须在 **报告/记忆** 中可追溯；用户面不默认复读。
 

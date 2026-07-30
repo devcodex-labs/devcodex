@@ -79,10 +79,14 @@
     },
     {
       "id": "DP-012",
-      "candidateIds": ["exact-74b4a887d580"],
+      "candidateIds": [
+        "exact-67594848c341",
+        "exact-a564c2ab2589",
+        "exact-e4a19e4b12c9"
+      ],
       "decision": "extract",
       "fragment": "shared/compliance/validation-summary.md",
-      "reason": "compliance instruction 与 Skill 共享同一验证摘要合同。"
+      "reason": "compliance instruction 与 Skill 共享同一验证摘要合同（UserVisibleNoisePolicyV1 短证/全量）。"
     },
     {
       "id": "DP-013",

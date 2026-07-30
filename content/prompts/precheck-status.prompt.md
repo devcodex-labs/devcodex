@@ -16,11 +16,11 @@ applyTo: "**"
 | 项 | 内容（人话；禁止进度缩写） |
 |----|----------------------------|
 | PC0 | 上下文：项目 · 语言 · ContextReadPlan + 必要来源回执 |
-| PC1 | 意图：本轮要做什么 → 扩展后工作流 |
+| PC1 | 意图：语义初判 → 项目现实扩展后的最终路由/工作流 |
 | PC2 | 会话：轮次/Token · 待跟进 |
 | PC3 | 执行准备：唯一项目 · 连续性 · 产物落点（禁止「写报告 02」式施工日志） |
 | PC4 | 规范雷达：dev 完整；非 dev=`N/A` + skipReason |
-| PC5 | 宿主：名称 + Full/Partial · 部署/同步证据 |
+| PC5 | 宿主：名称 + Full/Partial · 部署/同步证据（legacy 诊断可覆盖 `.github/`、`.claude/`、根 `AGENTS.md`、`.agents/`、`.codex/`；GlobalOnly 以 doctor/receipt 为准） |
 | PC6 | 工作区：git dirty 范围 · 任务目录 |
 | PC7 | 续接：新会话/resume 有界检测 |
 
@@ -38,9 +38,9 @@ applyTo: "**"
 - **时序（S07）**：本入口检查块必须作为**用户首次可见**内容先于实质正文；**禁止**先写报告/记忆/台账等产物 mutation，再在最终回复文首补 PC（文首补丁 ≠ 合规）
 - 项目：通过 `load-profile/SKILL.md` 确定，无法识别时写“未识别”
 - 输出语言：根据用户消息主要语言判断
-- 意图：先通过 `intent/SKILL.md` 做语义初判，再结合已加载 Profile、项目目录、当前需求上下文执行项目现实扩展；扩展后如需修正路由，应在 PC1 明示修正结果
+- 意图：先通过 `intent/SKILL.md` 做语义初判，再结合已加载 Profile、项目目录、当前需求上下文执行项目现实扩展；**项目现实扩展后**如需修正路由，应在 PC1 明示修正结果
 - 非 chat 工作流：在 CP1 / 问题确认前形成 Intent Expansion Card（semantic、project、continuity、action、domain、artifact-impact、risk、host-capability、validation-route、confidence、alternatives），用于 PC1/PC3 与压缩恢复复核；dev 模式默认向用户展示完整 Card
-- 意图扩展摘要：若扩展后路由变化、命中控制面/宿主差异、风险不为 normal、confidence 非 high 或跨会话 resume，且当前不是 dev 模式完整 Card 展示场景时，入口检查后、CP1/问题确认前追加 3~5 行用户可见摘要；只写语义初判、扩展后路由、关键风险、验证路线、备选路径
+- 意图扩展摘要：若**项目现实扩展后**路由变化、命中控制面/宿主差异、风险不为 normal、confidence 非 high 或跨会话 resume，且当前不是 dev 模式完整 Card 展示场景时，入口检查后、CP1/问题确认前追加 3~5 行用户可见摘要；只写语义初判、扩展后路由、关键风险、验证路线、备选路径
 - Context Rehydration Contract：压缩恢复、summary 恢复或用户要求按文件真相重建时，按“当前用户消息 → 已确认产物 → sessions → tasks → SUMMARY → 摘要 → AI 推断”的优先级重建上下文
 - ContextHandoffCard：跨会话、跨 Agent、多批次、summary/compact 前或用户要求“传递上下文”时，由交接方输出 source-of-truth / confirmed-decisions / open-risks / next-action / must-not-overwrite / validation-state / artifact-links；恢复方仍按 Context Rehydration Contract 核对文件真相源
 - 待跟进事项：来自记忆中的 `⚠️ 待跟进`
@@ -48,7 +48,7 @@ applyTo: "**"
 - PC0：与 `instructions.md` / `17-compliance.instructions.md` **同源**：写 ContextReadPlan + 必要来源回执，**禁止**再用「Profile ✅ 已加载」单字段冒充上下文完整
 - PC 表必须**分列 PC0~PC7**（表格或列表）；禁止 `PC2–PC7` 折叠；单元格写人话，禁止施工进度缩写
 - PC5~PC7：与 `instructions/17-compliance.instructions.md` 保持一致；无法执行时必须标注 N/A 或 ⚠️ 原因，禁止省略
-- PC5 部署面：GlobalOnly 优先 doctor/receipt；legacy 父链仅作诊断；只检查某一宿主不得写「全部同步」；须写当前宿主 Full/Partial 诚实上限
+- PC5 部署面：GlobalOnly 优先 doctor/receipt；legacy 父链诊断须能覆盖 `.github/`、`.claude/`、根 `AGENTS.md`、`.agents/` 与 `.codex/`（只检查某一宿主副本不得写「全部同步」）；须写当前宿主 Full/Partial 诚实上限
 - PC7 新会话首步 resume 强制检测：新任务、compact/summary 恢复或 `继续<任务名>任务` 首次响应必须重建 bounded continuation，并核对文件真相源后再继续
 - 五宿主（Copilot / Claude Code / Codex / Gemini / Grok）共用本模板；Grok 无 inject 时仍由模型输出本块
 - 先用 `user-visible-output-contract` 形成完整 Envelope，再渲染为 rich/portable/plain；状态词固定为 PASS/WARN/BLOCK/UNVERIFIED/N/A

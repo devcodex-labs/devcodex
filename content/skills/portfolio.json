@@ -6,15 +6,15 @@
     "skillsPattern": "content/skills/*/SKILL.md",
     "optionalSidecar": "content/skills/*/devcodex.skill.json",
     "registry": "plugin.json",
-    "sourceDigest": "610f2f84b6a9bcd628540256ec5fd5fae138e55861ff113ed209a8635cdae8dd",
+    "sourceDigest": "8156f518f1fc788a191ac72e4536d1771b25b1c28163c5034ad7280567d82af8",
     "sidecarDigest": "774105d7947b340d15d17115fcb8e37b62ae545cf553f06126d529184fd74872",
     "pluginDigest": "705fe7c86c7225b67756749be5bb3b14a1ee3bffa386483a9ab61dc971f419ae",
     "portfolioEvidence": "content/skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "8364a73c66ed2ec9787cdb9300223278d128a45b689a2b8deda0d1f03189f42b",
     "consumerInventoryFileCount": 454,
     "consumerInventoryDigest": "2c4a1c119386da62a33c92b9c9141e3cfab88a3030af139ff2783fdee21b8504",
-    "consumerProjectionDigest": "2d4430b8767d7d7f568f29e9edeaf81712e081f9aed2777e224d964007e2b0b1",
-    "portfolioInputDigest": "48bb91f0135396079a90b0a00caf33818259c7354d18ad02452c1b4f2c5c012a"
+    "consumerProjectionDigest": "c35460a60f21bf352ddac0144e8ee4db59581a7d39f4f548f3ce599ed6cc9a55",
+    "portfolioInputDigest": "4b4d34eb222086fb14ffe92f1956eb9dade5304215293e00ea3d6d98b050687a"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -4417,8 +4417,8 @@
         "content/skills/compliance/SKILL.md"
       ],
       "source": "content/skills/compliance/SKILL.md",
-      "hash": "a5d970fe724c71292074e47c2eb7fd50b629f60c438da99e30b2e7f50003b943",
-      "sourceBytes": 22588,
+      "hash": "5cbea606761a52d3fe0958fb1ba07c0cd61c2913a2ea170599b6d8d3931dc274",
+      "sourceBytes": 23431,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [
@@ -4550,23 +4550,11 @@
           "role": "current"
         },
         {
-          "path": "host-projections/AGENTS.md",
-          "role": "current"
-        },
-        {
-          "path": "host-projections/copilot-instructions.md",
-          "role": "current"
-        },
-        {
           "path": "plugin.json",
           "role": "current"
         },
         {
           "path": "scripts/generate-workflow-root-registry.js",
-          "role": "current"
-        },
-        {
-          "path": "scripts/host-instruction-projection.json",
           "role": "current"
         },
         {
@@ -10113,15 +10101,7 @@
           "role": "current"
         },
         {
-          "path": "host-projections/AGENTS.md",
-          "role": "current"
-        },
-        {
           "path": "host-projections/AGENTS.workspace-bridge.md",
-          "role": "current"
-        },
-        {
-          "path": "host-projections/copilot-instructions.md",
           "role": "current"
         },
         {
@@ -10169,10 +10149,6 @@
           "role": "current"
         },
         {
-          "path": "scripts/host-instruction-projection.json",
-          "role": "current"
-        },
-        {
           "path": "scripts/lib/always-on-governance.js",
           "role": "current"
         },
@@ -10198,6 +10174,10 @@
         },
         {
           "path": "scripts/lib/intent-consistency.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/npm-lifecycle-adapter.js",
           "role": "current"
         },
         {
@@ -15353,10 +15333,6 @@
           "role": "current"
         },
         {
-          "path": "hooks/_runtime/lifecycle-stop-gate.cjs",
-          "role": "current"
-        },
-        {
           "path": "plugin.json",
           "role": "current"
         },
@@ -17953,6 +17929,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-lifecycle-stop-gate.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-mcp-servers.js",
           "role": "current"
         },
@@ -18019,6 +17999,7 @@
         "scripts/test-governance-status-summary.js",
         "scripts/test-hooks-runtime.js",
         "scripts/test-host-capability-routing.js",
+        "scripts/test-lifecycle-stop-gate.js",
         "scripts/test-mcp-servers.js",
         "scripts/test-memory-index.js",
         "scripts/test-migrate-layout.js",
@@ -18087,6 +18068,7 @@
           "scripts/test-governance-status-summary.js",
           "scripts/test-hooks-runtime.js",
           "scripts/test-host-capability-routing.js",
+          "scripts/test-lifecycle-stop-gate.js",
           "scripts/test-mcp-servers.js",
           "scripts/test-memory-index.js",
           "scripts/test-migrate-layout.js",
@@ -18845,8 +18827,8 @@
         "content/skills/user-visible-output-contract/SKILL.md"
       ],
       "source": "content/skills/user-visible-output-contract/SKILL.md",
-      "hash": "ba4babcf45dae9064f0ec0e0427d0a6df4052644f52c8b4a4067451f532175ad",
-      "sourceBytes": 17936,
+      "hash": "c88f9f98e0a952b79bc874cc9b6c8563c7375e1203d3b0a24570b17001c01234",
+      "sourceBytes": 20344,
       "version": "1.15.3",
       "lifecycleState": "active",
       "dependencies": [],

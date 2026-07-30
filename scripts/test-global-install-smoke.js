@@ -244,12 +244,37 @@ const statusPayload = JSON.parse(runCommand(binPath, ['status', '--json'], {
   cwd: workspace,
   env: installedEnv
 }).stdout)
+function summarizeHostRuntime(hosts) {
+  return JSON.stringify(
+    hosts.map(host => ({
+      host: host.host,
+      configured: host.configured,
+      adapterReady: host.adapterReady,
+      contractStatus: host.contractStatus,
+      nativeStatus: host.nativeStatus,
+      ready: host.ready,
+      issues: host.issues
+    })),
+    null,
+    2
+  )
+}
+
 assert.strictEqual(statusPayload.ok, true)
 assert.strictEqual(statusPayload.payload.globalHostRuntime.schemaVersion, 'GlobalHostRuntimeVerificationV2')
 assert.strictEqual(statusPayload.payload.globalHostRuntime.hosts.length, 5)
-assert(statusPayload.payload.globalHostRuntime.hosts.every(host => host.configured === true))
-assert(statusPayload.payload.globalHostRuntime.hosts.every(host => host.adapterReady === true))
-assert(statusPayload.payload.globalHostRuntime.hosts.every(host => host.contractStatus === 'passed'))
+assert(
+  statusPayload.payload.globalHostRuntime.hosts.every(host => host.configured === true),
+  summarizeHostRuntime(statusPayload.payload.globalHostRuntime.hosts)
+)
+assert(
+  statusPayload.payload.globalHostRuntime.hosts.every(host => host.adapterReady === true),
+  summarizeHostRuntime(statusPayload.payload.globalHostRuntime.hosts)
+)
+assert(
+  statusPayload.payload.globalHostRuntime.hosts.every(host => host.contractStatus === 'passed'),
+  summarizeHostRuntime(statusPayload.payload.globalHostRuntime.hosts)
+)
 assert(statusPayload.payload.globalHostRuntime.hosts.every(host => host.ready === false))
 assert.strictEqual(statusPayload.payload.globalHostRuntime.overallState, 'degraded')
 assert.strictEqual(

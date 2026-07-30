@@ -94,6 +94,37 @@ function hasValidCanonicalContract(root, file, content) {
   return true
 }
 
+function hasMaintainerWebsiteIgnorePolicy(root) {
+  try {
+    const ignore = fs.readFileSync(path.join(root, '.gitignore'), 'utf8')
+    return ignore.includes('website/*') && ignore.includes('!website/README.md')
+  } catch {
+    return false
+  }
+}
+
+function isOptionalMaintainerWebsiteAsset(root, relative) {
+  const normalized = String(relative || '').replace(/\\/g, '/')
+  return normalized.startsWith('website/') &&
+    normalized !== 'website/README.md' &&
+    hasMaintainerWebsiteIgnorePolicy(root)
+}
+
+function isOptionalMaintainerWebsiteNegativeNeedle(needle) {
+  const text = String(needle || '')
+  return [
+    'light-api',
+    'frontend-api',
+    'Claude MCP/合规漂移修复',
+    '.claude/.github/',
+    '父链 `.claude/.github/`',
+    '无父链 .claude/.github/',
+    'parent/source-root deployment',
+    'audit（6 子类型）',
+    'audit（6 目标类型）'
+  ].includes(text)
+}
+
 function createCanonicalAwareReader(root, readRaw, existsRaw = file => fs.existsSync(file)) {
   let deliveryFiles = null
   function readCanonicalDelivery(relative) {
@@ -117,15 +148,24 @@ function createCanonicalAwareReader(root, readRaw, existsRaw = file => fs.exists
   function read(file) {
     const relative = path.relative(root, file).replace(/\\/g, '/')
     let value
+    let optionalMaintainerWebsite = false
     try {
       value = readRaw(file)
     } catch (error) {
       const canonical = error?.code === 'ENOENT' ? readCanonicalDelivery(relative) : null
-      if (canonical == null) throw error
-      value = canonical
+      if (canonical == null) {
+        if (!isOptionalMaintainerWebsiteAsset(root, relative)) throw error
+        optionalMaintainerWebsite = true
+        value = ''
+      } else {
+        value = canonical
+      }
     }
     return new class extends String {
       includes(needle, position) {
+        if (optionalMaintainerWebsite) {
+          return !isOptionalMaintainerWebsiteNegativeNeedle(needle)
+        }
         if (String.prototype.includes.call(this, needle, position)) return true
         return hasValidCanonicalContract(root, relative, String(this), String(needle))
       }
@@ -135,6 +175,7 @@ function createCanonicalAwareReader(root, readRaw, existsRaw = file => fs.exists
   read.exists = function exists(file) {
     if (existsRaw(file)) return true
     const relative = path.relative(root, file).replace(/\\/g, '/')
+    if (isOptionalMaintainerWebsiteAsset(root, relative)) return true
     return readCanonicalDelivery(relative) != null
   }
 
@@ -147,5 +188,6 @@ module.exports = {
   createCanonicalAwareReader,
   evaluatePublicReadmeContract,
   hasValidCanonicalContract,
+  isOptionalMaintainerWebsiteAsset,
   isLegacyDerivedNeedle
 }

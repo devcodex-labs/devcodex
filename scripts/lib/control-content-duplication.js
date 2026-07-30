@@ -74,6 +74,14 @@ function jaccard (left, right) {
   return intersection / (a.size + b.size - intersection)
 }
 
+function stableInventorySourceDigest (files) {
+  const digestInput = files.map(file => ({
+    path: file.relative,
+    contentDigest: sha256(String(file.content).replace(/\r\n?/g, '\n'))
+  }))
+  return sha256(JSON.stringify(digestInput))
+}
+
 function nearSectionCandidates (files, options = {}) {
   const threshold = options.sectionThreshold || 0.94
   const sections = []
@@ -114,7 +122,7 @@ function analyzeDuplication (root, options = {}) {
   ].sort((left, right) => left.id.localeCompare(right.id))
   return {
     schemaVersion: 'ControlContentDuplicationInventoryV1',
-    sourceBundleDigest: bundle.receipt.bundleDigest,
+    sourceBundleDigest: stableInventorySourceDigest(bundle.files),
     thresholds: {
       minParagraphChars: options.minParagraphChars || 100,
       sectionThreshold: options.sectionThreshold || 0.94,

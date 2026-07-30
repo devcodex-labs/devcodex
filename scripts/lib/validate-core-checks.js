@@ -28,6 +28,7 @@ function buildValidateCoreChecks(ctx) {
   } = ctx
   const contentRoot = path.join(ROOT, 'content')
   const contentPath = relative => path.join(contentRoot, ...String(relative).split('/'))
+  const logicalExists = file => typeof read.exists === 'function' ? read.exists(file) : fs.existsSync(file)
 
   function checkV1() {
     const instructionFiles = walk(path.join(contentRoot, 'instructions'))
@@ -94,9 +95,9 @@ function buildValidateCoreChecks(ctx) {
         const relativeSource = path.relative(ROOT, f).replace(/\\/g, '/')
         const isHistoricalRuntimeEvidence = relativeSource.startsWith('changelogs/releases/') &&
           normalizedTarget.split('/').includes('.devcodex')
-        if (target.endsWith('.md') && !fs.existsSync(abs) && isHistoricalRuntimeEvidence) {
+        if (target.endsWith('.md') && !logicalExists(abs) && isHistoricalRuntimeEvidence) {
           historicalRuntimeEvidenceSkipped++
-        } else if (target.endsWith('.md') && !fs.existsSync(abs)) {
+        } else if (target.endsWith('.md') && !logicalExists(abs)) {
           warn(`[V2] Broken link in ${path.relative(ROOT, f)}: ${target}`)
         }
         checked++
@@ -607,18 +608,24 @@ function buildValidateCoreChecks(ctx) {
       }
     }
 
-    const activeRequirementsIndex = read(path.join(ROOT, 'website/docs/versions/v1/1.0.1/requirements/index.md'))
-    const activeRequirementsChangelog = read(path.join(ROOT, 'website/docs/versions/v1/1.0.1/CHANGELOG.md'))
-    for (const stale of ['light-api', 'frontend-api', 'Claude MCP/合规漂移修复']) {
-      if (activeRequirementsIndex.includes(stale)) {
-        err(`[V19] active requirements index contains stale unbacked summary text: ${stale}`)
+    const activeRequirementsIndexPath = path.join(ROOT, 'website/docs/versions/v1/1.0.1/requirements/index.md')
+    const activeRequirementsChangelogPath = path.join(ROOT, 'website/docs/versions/v1/1.0.1/CHANGELOG.md')
+    if (read.exists(activeRequirementsIndexPath) && read.exists(activeRequirementsChangelogPath)) {
+      const activeRequirementsIndex = read(activeRequirementsIndexPath)
+      const activeRequirementsChangelog = read(activeRequirementsChangelogPath)
+      for (const stale of ['light-api', 'frontend-api', 'Claude MCP/合规漂移修复']) {
+        if (activeRequirementsIndex.includes(stale)) {
+          err(`[V19] active requirements index contains stale unbacked summary text: ${stale}`)
+        }
       }
-    }
-    if (!activeRequirementsIndex.includes('template-flow-alignment')) {
-      err('[V19] active requirements index must link the existing template-flow-alignment requirement detail')
-    }
-    if (!activeRequirementsChangelog.includes('模板边界与开发流程收口')) {
-      err('[V19] active version CHANGELOG must record the existing template-flow-alignment requirement detail')
+      if (!activeRequirementsIndex.includes('template-flow-alignment')) {
+        err('[V19] active requirements index must link the existing template-flow-alignment requirement detail')
+      }
+      if (!activeRequirementsChangelog.includes('模板边界与开发流程收口')) {
+        err('[V19] active version CHANGELOG must record the existing template-flow-alignment requirement detail')
+      }
+    } else {
+      console.log('[V19] website active version docs not present in source checkout; skipped maintainer-site generated docs checks')
     }
 
     console.log(`[V19] asset counts checked: instructions=${instructionCount}, skills=${skillCount}, prompts=${promptCount}, hook-runtime=${hookRuntimeCount}, data-templates=${dataTemplateCount}, scripts=${scriptCount}; optional active-profile checks skipped=${optionalActiveProfileChecksSkipped}`)

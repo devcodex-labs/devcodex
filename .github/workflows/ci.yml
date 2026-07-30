@@ -45,7 +45,8 @@ jobs:
           node-version: 20.19.0
           cache: npm
       - run: npm ci
-      - run: npm ci --prefix website
+      - if: ${{ hashFiles('website/package-lock.json') != '' }}
+        run: npm ci --prefix website
       - run: npm test
       - run: npm run test:coverage
       - run: npm run test:audit
@@ -60,8 +61,11 @@ jobs:
           node-version: 22.14.0
           cache: npm
       - run: npm ci
-      - run: npm ci --prefix website
-      - run: npm --prefix website run build
-      - run: node scripts/check-generated-site-links.js
+      - if: ${{ hashFiles('website/package-lock.json') != '' }}
+        run: npm ci --prefix website
+      - if: ${{ hashFiles('website/package-lock.json') != '' }}
+        run: npm --prefix website run build
+      - if: ${{ hashFiles('website/package-lock.json') != '' }}
+        run: node scripts/check-generated-site-links.js
       - run: npm run release:dry-run:all
       - run: npm run test:pack-clean

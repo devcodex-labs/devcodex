@@ -11,10 +11,10 @@
     "pluginDigest": "705fe7c86c7225b67756749be5bb3b14a1ee3bffa386483a9ab61dc971f419ae",
     "portfolioEvidence": "content/skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "8364a73c66ed2ec9787cdb9300223278d128a45b689a2b8deda0d1f03189f42b",
-    "consumerInventoryFileCount": 442,
-    "consumerInventoryDigest": "259d57155259dfd132c661974a9bc9bec03089f454eec116b77974020f3e0505",
-    "consumerProjectionDigest": "bf1a32d8c77d2307a7a40f44994bc5ff5cb55245da13594a14e00b423482e32d",
-    "portfolioInputDigest": "d779aa5e8e6d52f5521ed808d5aab18018e1838565d63fff9a0a4103edc9fbdc"
+    "consumerInventoryFileCount": 452,
+    "consumerInventoryDigest": "4bff1789c614560a001695289a679296d9a6196f74df525f5ff10c7289ad5d8b",
+    "consumerProjectionDigest": "7e75b3e64ad0fbf4eae7abb29f6a02b2c4c4be211f3ee3819504309ba284ddfb",
+    "portfolioInputDigest": "1fb0d07e5a48f16917afc1a990bd1c9b4cf43e11c490471b91886a55d8dae750"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -10185,6 +10185,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/content-root-delete-transaction.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/host-capability-routing.js",
           "role": "current"
         },
@@ -10289,6 +10293,14 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-content-root-delete-transaction.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-content-root-isolation.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-context-binding.js",
           "role": "current"
         },
@@ -10322,6 +10334,10 @@
         },
         {
           "path": "scripts/test-mcp-servers.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-package-compatibility-projection.js",
           "role": "current"
         },
         {
@@ -10382,6 +10398,8 @@
         "scripts/test-cli-behavior.js",
         "scripts/test-cli-command-registry.js",
         "scripts/test-completion-report-ecr-check.js",
+        "scripts/test-content-root-delete-transaction.js",
+        "scripts/test-content-root-isolation.js",
         "scripts/test-context-binding.js",
         "scripts/test-context-read-contract.js",
         "scripts/test-docs-audience-intent.js",
@@ -10391,6 +10409,7 @@
         "scripts/test-host-parity-scorecard.js",
         "scripts/test-intent-consistency.js",
         "scripts/test-mcp-servers.js",
+        "scripts/test-package-compatibility-projection.js",
         "scripts/test-review-execution-contract.js",
         "scripts/test-skill-intents.js",
         "scripts/test-skill-portfolio.js",
@@ -10474,6 +10493,8 @@
           "scripts/test-cli-behavior.js",
           "scripts/test-cli-command-registry.js",
           "scripts/test-completion-report-ecr-check.js",
+          "scripts/test-content-root-delete-transaction.js",
+          "scripts/test-content-root-isolation.js",
           "scripts/test-context-binding.js",
           "scripts/test-context-read-contract.js",
           "scripts/test-docs-audience-intent.js",
@@ -10483,6 +10504,7 @@
           "scripts/test-host-parity-scorecard.js",
           "scripts/test-intent-consistency.js",
           "scripts/test-mcp-servers.js",
+          "scripts/test-package-compatibility-projection.js",
           "scripts/test-review-execution-contract.js",
           "scripts/test-skill-intents.js",
           "scripts/test-skill-portfolio.js",
@@ -10934,6 +10956,10 @@
         "evidence": "scripts/test-skill-portfolio.js#explicit-conflict-review"
       },
       "consumers": [
+        {
+          "path": ".audit-state/content-root-s15-codex-production-20260730.json",
+          "role": "current"
+        },
         {
           "path": ".mcp.json",
           "role": "current"
@@ -11641,7 +11667,7 @@
         "registration": "plugin.json",
         "operationalReadiness": {
           "state": "complete",
-          "currentConsumer": ".mcp.json",
+          "currentConsumer": ".audit-state/content-root-s15-codex-production-20260730.json",
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
@@ -11865,6 +11891,10 @@
         "evidence": "scripts/test-skill-portfolio.js#explicit-conflict-review"
       },
       "consumers": [
+        {
+          "path": ".audit-state/content-root-s15-codex-production-20260730.json",
+          "role": "current"
+        },
         {
           "path": "CHANGELOG.md",
           "role": "current"
@@ -12198,6 +12228,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/package-compatibility-projection.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/process-enforcement.js",
           "role": "current"
         },
@@ -12474,6 +12508,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-package-compatibility-projection.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-process-enforcement-e2e.js",
           "role": "current"
         },
@@ -12582,6 +12620,7 @@
         "scripts/test-mcp-servers.js",
         "scripts/test-migrate-layout.js",
         "scripts/test-npm-lifecycle-adapter.js",
+        "scripts/test-package-compatibility-projection.js",
         "scripts/test-process-enforcement-e2e.js",
         "scripts/test-project-knowledge-store.js",
         "scripts/test-project-knowledge-v2.js",
@@ -12675,6 +12714,7 @@
           "scripts/test-mcp-servers.js",
           "scripts/test-migrate-layout.js",
           "scripts/test-npm-lifecycle-adapter.js",
+          "scripts/test-package-compatibility-projection.js",
           "scripts/test-process-enforcement-e2e.js",
           "scripts/test-project-knowledge-store.js",
           "scripts/test-project-knowledge-v2.js",
@@ -12704,7 +12744,7 @@
         "registration": "plugin.json",
         "operationalReadiness": {
           "state": "complete",
-          "currentConsumer": "CHANGELOG.md",
+          "currentConsumer": ".audit-state/content-root-s15-codex-production-20260730.json",
           "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
           "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
           "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
@@ -14869,6 +14909,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-package-compatibility-projection.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-process-enforcement-e2e.js",
           "role": "current"
         },
@@ -14957,6 +15001,7 @@
         "scripts/test-memory-index.js",
         "scripts/test-migrate-layout.js",
         "scripts/test-optimization-backlog-evidence.js",
+        "scripts/test-package-compatibility-projection.js",
         "scripts/test-process-enforcement-e2e.js",
         "scripts/test-project-knowledge-store.js",
         "scripts/test-repair-prevention-assessment.js",
@@ -15043,6 +15088,7 @@
           "scripts/test-memory-index.js",
           "scripts/test-migrate-layout.js",
           "scripts/test-optimization-backlog-evidence.js",
+          "scripts/test-package-compatibility-projection.js",
           "scripts/test-process-enforcement-e2e.js",
           "scripts/test-project-knowledge-store.js",
           "scripts/test-repair-prevention-assessment.js",
@@ -15946,6 +15992,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-content-root-isolation.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-global-host-config.js",
           "role": "current"
         },
@@ -15967,6 +16017,10 @@
         },
         {
           "path": "scripts/test-mcp-servers.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-package-compatibility-projection.js",
           "role": "current"
         },
         {
@@ -15997,12 +16051,14 @@
       "validationProfile": [
         "scripts/test-cli-behavior.js",
         "scripts/test-cli-command-registry.js",
+        "scripts/test-content-root-isolation.js",
         "scripts/test-global-host-config.js",
         "scripts/test-global-install-smoke.js",
         "scripts/test-governance-intake.js",
         "scripts/test-host-capability-routing.js",
         "scripts/test-host-installation.js",
         "scripts/test-mcp-servers.js",
+        "scripts/test-package-compatibility-projection.js",
         "scripts/test-review-execution-contract.js",
         "scripts/test-skill-portfolio.js",
         "scripts/test-skill-route-lifecycle.js",
@@ -16071,12 +16127,14 @@
         "probeSuiteRefs": [
           "scripts/test-cli-behavior.js",
           "scripts/test-cli-command-registry.js",
+          "scripts/test-content-root-isolation.js",
           "scripts/test-global-host-config.js",
           "scripts/test-global-install-smoke.js",
           "scripts/test-governance-intake.js",
           "scripts/test-host-capability-routing.js",
           "scripts/test-host-installation.js",
           "scripts/test-mcp-servers.js",
+          "scripts/test-package-compatibility-projection.js",
           "scripts/test-review-execution-contract.js",
           "scripts/test-skill-portfolio.js",
           "scripts/test-skill-route-lifecycle.js",

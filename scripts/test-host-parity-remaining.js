@@ -17,8 +17,11 @@ const path = require('path')
 const { spawnSync } = require('child_process')
 const { adaptHostOutput, runHostAdapter } = require('../hooks/_runtime/lifecycle-host-adapters.cjs')
 const { buildLifecycleHookOutput } = require('../hooks/_runtime/lifecycle-hook-output.cjs')
-const { composeEntryCheckBlock } = require('./lib/host-parity-scorecard.js')
-const { evaluateGrokHostParity } = require('./lib/host-parity-scorecard.js')
+const {
+  composeEntryCheckBlock,
+  evaluateGrokHostParity,
+  formatGrokTurnChecklistMarkdown
+} = require('./lib/host-parity-scorecard.js')
 
 const hookOut = buildLifecycleHookOutput({ env: {}, enforcementMode: 'safety-only' })
 
@@ -63,19 +66,33 @@ const codexOut = adaptHostOutput('codex', 'PreToolUse', {
 })
 assert.strictEqual(codexOut.hookSpecificOutput.permissionDecision, 'deny')
 
-// Compose entry check + website page exists
+function readIfExists(file) {
+  return fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null
+}
+
+// Compose entry check + HostParity public/source surface.
+// website/ is a maintainer-local optional doc site (see website/README.md);
+// clean GitHub Actions checkouts must validate source-contained semantics rather
+// than requiring untracked generated website docs to exist.
 const block = composeEntryCheckBlock({ project: 'demo', status: 'PASS' })
 assert.match(block, /### DevCodex · 入口检查/)
 const sitePage = path.join(__dirname, '../website/docs/intro/host-parity-grok.md')
-assert.ok(fs.existsSync(sitePage), 'website intro host-parity-grok.md must exist')
-const siteText = fs.readFileSync(sitePage, 'utf8')
-assert.match(siteText, /devcodex grok/)
-assert.match(siteText, /HostParity/)
-assert.match(siteText, /GrokTurnChecklist/)
-assert.match(siteText, /repairSteps/)
-assert.match(siteText, /Skill 强制包|Skill bundle|Intent → Skill/i)
-assert.match(siteText, /scan-hygiene|ttfv-first-delivery/)
-assert.match(siteText, /UnalignedLedger|U-A1|未对齐|cannotClaim/i)
+const siteText = readIfExists(sitePage)
+const checklistText = formatGrokTurnChecklistMarkdown()
+const hostParitySurface = siteText || checklistText
+assert.match(hostParitySurface, /HostParity|GrokTurnChecklist/)
+assert.match(hostParitySurface, /GrokTurnChecklist/)
+assert.match(hostParitySurface, /scan-hygiene|ttfv-first-delivery/)
+if (siteText) {
+  assert.match(siteText, /devcodex grok/)
+  assert.match(siteText, /repairSteps/)
+  assert.match(siteText, /Skill 强制包|Skill bundle|Intent → Skill/i)
+  assert.match(siteText, /UnalignedLedger|U-A1|未对齐|cannotClaim/i)
+} else {
+  const websiteReadme = fs.readFileSync(path.join(__dirname, '../website/README.md'), 'utf8')
+  assert.match(websiteReadme, /不进入公开 Git 默认跟踪/)
+  assert.match(websiteReadme, /website 视为 optional/)
+}
 assert.ok(fs.existsSync(path.join(__dirname, 'fixtures/host-parity/unaligned-ledger.v1.json')))
 
 // Platform request semantic fixture (source-contained for clean checkout / CI)
@@ -124,13 +141,17 @@ if (fs.existsSync(path.join(workspaceRoot, 'AGENTS.md'))) {
   assert.ok(['full-capable', 'partial'].includes(card.tier))
 }
 
-// philosophy Auto honesty
+// Optional maintainer website surfaces.
 const philosophy = path.join(__dirname, '../website/docs/intro/philosophy.md')
-assert.match(fs.readFileSync(philosophy, 'utf8'), /宿主诚实分列（Auto）/)
-assert.match(fs.readFileSync(philosophy, 'utf8'), /Grok Build/)
+const philosophyText = readIfExists(philosophy)
+if (philosophyText) {
+  assert.match(philosophyText, /宿主诚实分列（Auto）/)
+  assert.match(philosophyText, /Grok Build/)
+}
 
-// rspress sidebar link
-const rspress = fs.readFileSync(path.join(__dirname, '../website/rspress.config.ts'), 'utf8')
-assert.match(rspress, /host-parity-grok/)
+const rspress = readIfExists(path.join(__dirname, '../website/rspress.config.ts'))
+if (rspress) {
+  assert.match(rspress, /host-parity-grok/)
+}
 
 console.log('host parity remaining deliverables smoke passed')

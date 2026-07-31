@@ -11,10 +11,10 @@
     "pluginDigest": "ed06d6f6e05399fb20791ddce1b7234f8016720bf7f1f6a6931b4fd2947084c6",
     "portfolioEvidence": "content/skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "8364a73c66ed2ec9787cdb9300223278d128a45b689a2b8deda0d1f03189f42b",
-    "consumerInventoryFileCount": 454,
-    "consumerInventoryDigest": "2c4a1c119386da62a33c92b9c9141e3cfab88a3030af139ff2783fdee21b8504",
-    "consumerProjectionDigest": "cf598a884933ed397b977d4f3f61bf806950a1d3fd33760abf4e9aeb392a6c77",
-    "portfolioInputDigest": "c86d1444a3e9d6ad61fd6efe742b5ddab3bab78650cf2207f395ec366cb63263"
+    "consumerInventoryFileCount": 455,
+    "consumerInventoryDigest": "b2fa9e1c5e76b9451e2974801621a74994e61604a55d973c3946a351226f39c0",
+    "consumerProjectionDigest": "6bdeece8879b3b87ca62cedbb160edfdfda18d4efe4f8403ee4c751ba5f7ff09",
+    "portfolioInputDigest": "787e2d05aeed7b571a3678ffee18e81ad3ebdee035f9c532141a42bd453372c5"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -10998,6 +10998,10 @@
         },
         {
           "path": "changelogs/releases/v1.15.3.md",
+          "role": "historical"
+        },
+        {
+          "path": "changelogs/releases/v1.15.4.md",
           "role": "historical"
         },
         {

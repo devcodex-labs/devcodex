@@ -24,6 +24,7 @@ const {
 const { buildContentIdentity } = require('../hooks/_runtime/content-identity.cjs')
 const {
   buildContextReadPlan,
+  createContextReadReceipt,
   stableDigest: contextStableDigest,
   validateContextReadPlan
 } = require('../hooks/_runtime/context-read-contract.cjs')
@@ -396,6 +397,75 @@ try {
     contextBinding: mcpObservedPlan.contextBinding
   }, fixture.runtimeOptions)
   assert.strictEqual(mcpRecoveredCommit.ok, true, JSON.stringify(mcpRecoveredCommit))
+  writeContextBindingState(fixture, contextEpoch, 'dev')
+
+  const staleReceiptEpoch = 'ctx-mcp-stale-source-observation-fixture'
+  const staleReceiptPlan = buildFixtureContextPlan(fixture, staleReceiptEpoch)
+  const stalePlanObservation = persistContextPlanObservation({
+    activeRoot: fixture.activeRoot,
+    project: fixture.project,
+    contextEpoch: staleReceiptEpoch,
+    plan: staleReceiptPlan,
+    nowMs: BASE_MS + 30
+  })
+  assert.strictEqual(stalePlanObservation.status, 'persisted', JSON.stringify(stalePlanObservation))
+  const staleBoot = bootstrapSkillRoute({
+    project: fixture.project,
+    activeRoot: fixture.activeRoot,
+    contextEpoch: staleReceiptEpoch,
+    prompt: 'Implement the workspace route probe',
+    mode: 'unified',
+    cwd: fixture.projectRoot
+  }, fixture.runtimeOptions)
+  requestCatalogAll(fixture, staleBoot.bootstrap)
+  const staleReceipt = createContextReadReceipt(staleReceiptPlan, {
+    verificationMode: 'structured-plan',
+    planObserved: true,
+    hostSessionId: 'session-mcp-stale-source-observation'
+  })
+  staleReceipt.status = 'stale'
+  staleReceipt.satisfiedSourceIds = []
+  staleReceipt.missingSourceIds = [...staleReceiptPlan.mandatorySourceIds]
+  fs.writeFileSync(
+    lifecyclePath,
+    `${JSON.stringify({
+      contextAcquisition: {
+        schemaVersion: 'ContextReadStateV2',
+        contextEpoch: staleReceiptEpoch,
+        activeRoot: fixture.activeRoot.replace(/\\/g, '/'),
+        project: fixture.project,
+        hostSessionId: 'session-mcp-stale-source-observation',
+        plan: staleReceiptPlan,
+        receipt: staleReceipt,
+        targetResolved: true,
+        fallbackActive: false,
+        lastError: null,
+        verificationMode: 'structured-plan'
+      }
+    }, null, 2)}\n`,
+    'utf8'
+  )
+  const staleBridge = recordMcpContextSourceObservations({
+    activeRoot: fixture.activeRoot,
+    project: fixture.project,
+    workspaceNamespace: true,
+    contextBinding: staleReceiptPlan.contextBinding,
+    hostSessionId: 'session-mcp-stale-source-observation',
+    sourceResults: staleReceiptPlan.mandatorySourceIds.map(sourceId => observedMcpSourceResult(staleReceiptPlan, sourceId))
+  }, { nowMs: BASE_MS + 40 })
+  assert.strictEqual(staleBridge.status, 'persisted', JSON.stringify(staleBridge))
+  assert.deepStrictEqual(staleBridge.missingSourceIds, [])
+  assert.strictEqual(staleBridge.receiptStatus, 'relevant-complete')
+  const staleRecoveredCommit = handleSkillRoute({
+    op: 'commit',
+    project: fixture.project,
+    turnBinding: staleBoot.bootstrap.turnBinding,
+    contextEpoch: staleReceiptEpoch,
+    catalogDigest: staleBoot.bootstrap.catalogDigest,
+    skillId: 'workspace-probe',
+    contextBinding: staleReceiptPlan.contextBinding
+  }, fixture.runtimeOptions)
+  assert.strictEqual(staleRecoveredCommit.ok, true, JSON.stringify(staleRecoveredCommit))
   writeContextBindingState(fixture, contextEpoch, 'dev')
 
   // Acceptance R01 / R05: choice is exactly null-or-one catalog id and the

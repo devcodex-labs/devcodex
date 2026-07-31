@@ -160,7 +160,12 @@ function installObservedPlan(lifecycle, plan, binding, target, hostSessionId) {
     ? acquisition.receipt
     : null
   const effectiveHostSessionId = String(hostSessionId || acquisition.hostSessionId || '')
-  if (!receipt || receipt.verificationMode !== 'structured-plan') {
+  const reusableReceipt = !!(
+    receipt &&
+    receipt.verificationMode === 'structured-plan' &&
+    !['stale', 'blocked'].includes(receipt.status)
+  )
+  if (!reusableReceipt) {
     receipt = createContextReadReceipt(plan, {
       verificationMode: 'structured-plan',
       planObserved: true,

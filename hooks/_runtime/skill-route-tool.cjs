@@ -277,6 +277,21 @@ function validateTrustedContextBinding (binding, target, options = {}) {
     error.code = 'CONTEXT_BINDING_PENDING'
     throw error
   }
+  if (Array.isArray(receipt.missingSourceIds) && receipt.missingSourceIds.length > 0) {
+    const error = new Error('CONTEXT_BINDING_PENDING')
+    error.code = 'CONTEXT_BINDING_PENDING'
+    throw error
+  }
+  if (Array.isArray(plan.mandatorySourceIds) && plan.mandatorySourceIds.length > 0) {
+    const satisfiedSourceIds = Array.isArray(receipt.satisfiedSourceIds)
+      ? new Set(receipt.satisfiedSourceIds)
+      : new Set()
+    if (plan.mandatorySourceIds.some(sourceId => !satisfiedSourceIds.has(sourceId))) {
+      const error = new Error('CONTEXT_BINDING_PENDING')
+      error.code = 'CONTEXT_BINDING_PENDING'
+      throw error
+    }
+  }
   if (receipt.status === 'baseline-ready' &&
       (plan.selectedSources?.length || plan.mandatorySourceIds?.length)) {
     const error = new Error('CONTEXT_BINDING_PENDING')

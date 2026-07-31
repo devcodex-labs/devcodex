@@ -13,8 +13,8 @@
     "portfolioEvidenceDigest": "8364a73c66ed2ec9787cdb9300223278d128a45b689a2b8deda0d1f03189f42b",
     "consumerInventoryFileCount": 454,
     "consumerInventoryDigest": "2c4a1c119386da62a33c92b9c9141e3cfab88a3030af139ff2783fdee21b8504",
-    "consumerProjectionDigest": "c35460a60f21bf352ddac0144e8ee4db59581a7d39f4f548f3ce599ed6cc9a55",
-    "portfolioInputDigest": "f82d4eee26cbc18dfb3545b2053f165b5319e9f6cf76130a385bfe2969772e0a"
+    "consumerProjectionDigest": "cf598a884933ed397b977d4f3f61bf806950a1d3fd33760abf4e9aeb392a6c77",
+    "portfolioInputDigest": "ae225b55d1a2a6dfb4e3f7866e45b25c7e6eed0cc60c53b65835e7c9735d48ad"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -3781,10 +3781,6 @@
         },
         {
           "path": "plugin.json",
-          "role": "current"
-        },
-        {
-          "path": "README.md",
           "role": "current"
         },
         {
@@ -10121,6 +10117,10 @@
           "role": "current"
         },
         {
+          "path": "README.md",
+          "role": "current"
+        },
+        {
           "path": "scripts/fixtures/candidate-review-bundle/phase-conflict.md",
           "role": "current"
         },
@@ -10150,6 +10150,10 @@
         },
         {
           "path": "scripts/lib/always-on-governance.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/canonical-consumer-contracts.js",
           "role": "current"
         },
         {
@@ -11145,10 +11149,6 @@
           "role": "current"
         },
         {
-          "path": "README.md",
-          "role": "current"
-        },
-        {
           "path": "scripts/benchmark-runtime-indexes.js",
           "role": "current"
         },
@@ -11182,10 +11182,6 @@
         },
         {
           "path": "scripts/lib/always-on-governance.js",
-          "role": "current"
-        },
-        {
-          "path": "scripts/lib/canonical-consumer-contracts.js",
           "role": "current"
         },
         {
@@ -12097,10 +12093,6 @@
         },
         {
           "path": "plugin.json",
-          "role": "current"
-        },
-        {
-          "path": "README.md",
           "role": "current"
         },
         {
@@ -14589,10 +14581,6 @@
           "role": "current"
         },
         {
-          "path": "README.md",
-          "role": "current"
-        },
-        {
           "path": "scripts/benchmark-runtime-indexes.js",
           "role": "current"
         },
@@ -16676,14 +16664,6 @@
           "role": "current"
         },
         {
-          "path": "README.md",
-          "role": "current"
-        },
-        {
-          "path": "scripts/lib/canonical-consumer-contracts.js",
-          "role": "current"
-        },
-        {
           "path": "scripts/test-host-skill-inventory-ban.js",
           "role": "current"
         }
@@ -17742,6 +17722,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "README.md",
           "role": "current"
         },
         {

@@ -205,6 +205,35 @@ try {
   assert.strictEqual(forgedCursor.ok, false)
   assert.strictEqual(forgedCursor.errorCode, 'CATALOG_CURSOR_INVALID')
 
+  const lifecyclePath = path.join(
+    fixture.activeRoot,
+    '.memory',
+    'hooks',
+    fixture.project,
+    'lifecycle-state.json'
+  )
+  const incompleteMandatoryLifecycle = JSON.parse(fs.readFileSync(lifecyclePath, 'utf8'))
+  incompleteMandatoryLifecycle.contextAcquisition.plan.mandatorySourceIds = [
+    'profile:README.md',
+    'memory:memory_status'
+  ]
+  incompleteMandatoryLifecycle.contextAcquisition.receipt.status = 'relevant-complete'
+  incompleteMandatoryLifecycle.contextAcquisition.receipt.satisfiedSourceIds = ['profile:README.md']
+  incompleteMandatoryLifecycle.contextAcquisition.receipt.missingSourceIds = ['memory:memory_status']
+  fs.writeFileSync(lifecyclePath, `${JSON.stringify(incompleteMandatoryLifecycle, null, 2)}\n`, 'utf8')
+  const missingMandatoryContextSource = handleSkillRoute({
+    op: 'commit',
+    project: fixture.project,
+    turnBinding: boot.bootstrap.turnBinding,
+    contextEpoch,
+    catalogDigest: boot.bootstrap.catalogDigest,
+    skillId: 'workspace-probe',
+    contextBinding
+  }, fixture.runtimeOptions)
+  assert.strictEqual(missingMandatoryContextSource.ok, false)
+  assert.strictEqual(missingMandatoryContextSource.errorCode, 'CONTEXT_BINDING_PENDING')
+  writeContextBindingState(fixture, contextEpoch, 'dev')
+
   // Acceptance R01 / R05: choice is exactly null-or-one catalog id and the
   // public Tool schema rejects caller-authored workflow fields.
   const unknownChoice = handleSkillRoute({
@@ -296,13 +325,6 @@ try {
   assert.strictEqual(staleCapability.ok, false)
   assert.strictEqual(staleCapability.errorCode, 'MODE_CAPABILITY_STALE')
 
-  const lifecyclePath = path.join(
-    fixture.activeRoot,
-    '.memory',
-    'hooks',
-    fixture.project,
-    'lifecycle-state.json'
-  )
   const lifecycle = JSON.parse(fs.readFileSync(lifecyclePath, 'utf8'))
   lifecycle.contextAcquisition.receipt.status = 'planned'
   fs.writeFileSync(lifecyclePath, `${JSON.stringify(lifecycle, null, 2)}\n`, 'utf8')

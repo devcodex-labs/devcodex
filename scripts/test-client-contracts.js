@@ -25,7 +25,7 @@ if (!hasValidCanonicalContract(
 )) {
   failures.push('valid public README must retire legacy internal-anchor projection')
 }
-const damagedPublicReadme = publicReadme.replaceAll('npm run global-adapters:apply', '')
+const damagedPublicReadme = publicReadme.replaceAll('npm install -g devcodex', '')
 if (evaluatePublicReadmeContract(damagedPublicReadme).valid ||
     hasValidCanonicalContract(
       ROOT,

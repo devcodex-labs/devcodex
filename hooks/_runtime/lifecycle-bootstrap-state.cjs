@@ -1536,6 +1536,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     return [
       'DevCodex intent-driven context acquisition is active for this user message.',
       'Classify the canonical intent first, then obtain ContextReadPlanV2 and load only its selected Profile files and bounded memory queries.',
+      'If this host exposes DevCodex MCP tools only after deferred tool discovery/search, perform that discovery first; hidden tools are not a reason to skip ContextReadPlanV2, profile_load, memory_status, or SkillRoute.',
       'Resolve the active target against legacy .devcodex/profile/ or workspace-namespace base + project overlay roots before reading.',
       targetHandoff,
       'A full Profile/SUMMARY/tasks read is a legacy or explicit escalation path, not the normal bootstrap default.',

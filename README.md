@@ -1,261 +1,181 @@
 # DevCodex
 
-> 把可执行的 AI 开发流程装进 Copilot / Claude Code / Codex / Gemini / **Grok**  
-> **用户级全局 adapter** + 工作区 `.devcodex` 运行态 · Hook 优先 · Instruction 回退
-
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green)](LICENSE)
 
-> **安装真相（请先读）**  
-> - **当前主路径**：从源码根 `npm install -g .` + `npm run global-adapters:apply`（未发版或要最新时用这个）。  
-> - **npm 公开包** `npm install -g devcodex`：仅当你确认 registry 上的版本与本文档/源码一致时再使用；**不要**假设 npm 上一定是本仓库最新提交。  
-> - 历史包名 `@vextjs/devcodex` 请卸载，避免 PATH 指到旧 CLI。
+DevCodex 是面向 AI 编程宿主的工作流运行时和宿主适配包。它通过 npm 安装到用户环境，将同一套任务路由、Skill 加载、Hook / 指令适配、报告和记忆写入机制接入 Codex、Claude Code、GitHub Copilot、Gemini CLI 和 Grok。
 
----
+安装完成后，DevCodex 在新会话中按用户请求的意图进入开发、修复、分析、审计等流程，并按需加载内置 Skill 或工作区 Skill。不同宿主的 Hook、指令和插件能力不完全相同；DevCodex 会按宿主能力使用可用的执行方式，并在能力不足时退回指令约束。
+
+DevCodex 不替代业务框架、GitHub CI、安全审计或人工评审。它也不接管 Codex、Claude Code 等宿主原有的个人 Skill、项目指令或配置文件。
 
 ## DevCodex 是什么？
 
-DevCodex 把五宿主的配置、Hooks、Skills 与指令投影写到各 AI 宿主的**用户级目录**；业务仓库里主要保留工作区运行态 **`.devcodex/`**。
+DevCodex 给五个宿主提供同一套开发工作流入口：
 
-它帮助 AI：
+- Codex
+- Claude Code
+- GitHub Copilot
+- Gemini CLI
+- Grok
 
-- 按意图走 `dev` / `fix` / `analyze` / `audit` 等流程  
-- 在支持 Hooks 的宿主上拦截危险命令、做收口检查  
-- 把报告与会话记忆落到工作区，而不是只留在聊天窗口  
+它主要处理四件事：
 
-**不是**通用聊天机器人，也不是替代你的业务框架。
+1. 按用户请求识别任务意图，例如开发、修复、分析、审计。
+2. 按需加载 DevCodex 内置 Skill 或当前项目的工作区 Skill。
+3. 在宿主支持时使用 Hook；宿主能力不足时使用指令约束作为回退。
+4. 将关键过程写入当前项目的报告和记忆。
 
----
+## 系统要求
 
-## 5 分钟开始
+- Node.js `>=18`
+- npm
+- 至少一个受支持的 AI 编程宿主：Codex、Claude Code、GitHub Copilot、Gemini CLI 或 Grok
 
-### 1. 环境
+## 安装 Node.js
 
-- **Node.js**：建议 `>=18`（维护者本地文档站另需 `^20.19 || >=22.12`，见下文）  
-- 装完或刷新 adapter 后，请在宿主里 **新开一轮会话**
-
-### 2. 安装（推荐：源码全局）
-
-在 **本仓库源码根**（含 `package.json` / `skills/` 的目录）：
-
-```bash
-npm install -g .
-npm run global-adapters:apply
-devcodex --version
-devcodex doctor
-```
-
-Windows + Volta 若仍指向旧包：
+先确认本机是否已有 Node.js 和 npm：
 
 ```bash
-npm uninstall -g @vextjs/devcodex
-npm install -g .
+node -v
+npm -v
 ```
 
-**仅当 npm 上版本可信时：**
+如果命令不存在，安装 Node.js LTS：
+
+- Windows / macOS：从 [Node.js 官方下载页](https://nodejs.org/en/download)安装 LTS 版本。
+- macOS / Linux：也可以使用 nvm、fnm、asdf 等版本管理器安装 LTS 版本。
+
+安装后重新打开终端，再确认：
+
+```bash
+node -v
+npm -v
+```
+
+如果 Node.js 版本低于 18，请先升级 Node.js。
+
+## 安装
+
+安装前请确认 npm registry 上的版本与本文档对应；如果 registry 上的版本不是当前文档对应版本，不要把下面命令当作当前版本安装。
 
 ```bash
 npm install -g devcodex
+devcodex --version
 ```
 
-### 3. 打开业务项目
+安装完成后，重新打开 Codex、Claude Code、GitHub Copilot、Gemini CLI 或 Grok 的新会话。
+
+## 更新
 
 ```bash
-cd <你的业务仓库根>
-devcodex init    # 只初始化工作区 .devcodex，不写全局宿主
+npm update -g devcodex
+devcodex --version
 ```
 
-再在 Codex / Claude / Copilot / Gemini / Grok 中打开该目录对话。
+更新完成后，重新打开宿主的新会话。
 
-### 4. 验证技能是否加载（可选）
-
-对话发送：
-
-```text
-验证技能加载
-```
-
-期望用户可见固定句：
-
-```text
-SKILL-LOAD-VERIFY-OK
-```
-
-**不会**强制正文出现 `【DevCodex 技能】…` 元行；过程看宿主时间线即可。
-
-CLI：
+## 卸载
 
 ```bash
-devcodex skill resolve skill-load-verify
-npm run test:skill-route
+npm uninstall -g devcodex
 ```
 
----
+## 生效方式
 
-## 安装与刷新（必读）
+安装或更新 DevCodex 后，npm 会在安装生命周期中刷新用户级宿主适配。已打开的宿主会话通常不会回读刚更新的配置，因此需要重新打开一个新会话。
 
-| 命令 | 作用 |
-|------|------|
-| `npm install -g .` | **源码全局安装**（未发版/最新主路径） |
-| `npm run global-adapters:apply` | 用当前包根刷新**用户级五宿主**（改 hooks/MCP 后必跑） |
-| `npm install -g devcodex` | 仅 registry 版本可信时使用 |
-| `devcodex init` / `update` | **只**管当前工作区 `.devcodex`，**不**写全局宿主 |
-| `devcodex status` / `doctor` | 诊断安装与宿主就绪 |
+DevCodex 内置 Skill 随安装包一起提供。普通使用者不需要手动配置内置 Skill；新会话开始后，DevCodex 会按请求意图自动选择需要的 Skill。
 
-规则：**改宿主配置 → `global-adapters apply`；改业务工作区 → `init`/`update`。**  
-`.devcodex` 始终在项目/工作区，不会装进 npm global prefix。
+## 添加自己的 Skill
 
-`apply` 时还可能合并写入 VS Code 用户级 `mcp.json`（memory/profile MCP，若路径存在）。
+如果你希望为某个项目增加自己的流程、检查清单或团队约定，在这个项目根目录下创建工作区 Skill。
 
----
-
-## 常用 CLI
-
-```bash
-devcodex doctor
-devcodex status
-devcodex global-adapters apply
-devcodex skill plan <id...>
-devcodex skill resolve <id...>
-devcodex grok                 # Grok Full 入口（有边界）
-devcodex profile plan|init
-```
-
-完整列表：`devcodex --help`。
-
----
-
-## 工作区布局（简）
+这里的“项目根目录”就是你用 Codex、Claude Code、GitHub Copilot、Gemini CLI 或 Grok 打开的业务项目目录。
 
 ```text
-<workspace>/
+<你的项目根目录>/
   .devcodex/
-    layout.json              # workspace-namespace
-    workspace/               # 工作区 skills、DEVCODEX.md
-    <project>/               # profile / reports / .memory / requirements
+    workspace/
+      skills/
+        <id>/
+          SKILL.md
+          intent.json
 ```
 
-| 类型 | 路径 |
-|------|------|
-| 工作区 skill（W 优先） | `.devcodex/workspace/skills/<id>/SKILL.md` |
-| 全局 skill（hidden） | `~/.agents/devcodex/skills/<id>/`（菜单可能不显示，仍可加载） |
-
-**未发布源码候选**：渐进式 Skill 路由是五宿主唯一默认路由。它会在每轮建立 W + managed G 动态快照，再按 catalog → commit → stage 分页加载正文；全程使用宿主按需启动的本地 stdio MCP 子进程，不监听端口，也不需要服务端。多项目工作区尚未解析出目标时先等待 Profile plan 绑定真实项目，不会把工作区目录名当成项目创建运行态。新增或修改 `.devcodex/workspace/skills/<id>/SKILL.md` 会让旧快照失效，并在下一轮重新发现。宿主生产证据继续作为发布后的可观测性材料，不再控制源码路由模式，也不阻塞功能完成。
-
-Codex/Claude 等宿主自己的 `AGENTS.md`、`CLAUDE.md`、原生个人/项目 Skill 仍由宿主负责发现。DevCodex 不扫描、复制、合并、覆盖或删除这些用户资产；同名也不视为 DevCodex 所有权。Codex 项目指令使用 `AGENTS.md`（不是 `codex.md`），Claude 项目指令使用精确文件名 `CLAUDE.md`，Skill 入口使用精确文件名 `SKILL.md`。
-
----
-
-## 宿主能力（诚实上限）
-
-| 宿主 | 大致能力 |
-|------|----------|
-| Claude Code / Codex / Copilot CLI 等 | Hook 较完整时可硬拦危险命令、Stop 收口 |
-| **Grok** | **Partial enforcement**：UserPromptSubmit 不能可靠注入完整入口块；`devcodex grok` 仍使用统一 local-stdio Skill 路由，但当前精确 variant direct evidence 为 UNVERIFIED，不据此声称与 Codex 的宿主观察能力等价 |
-| 仅 Instruction 的 surface | 语义约束，不保证硬拦 |
-
-「adapter 已安装」≠「五宿主能力完全一致」。
-
----
-
-## 语言策略（约定，非绝对保证）
-
-| 项 | 约定 |
-|----|------|
-| 对话回复 | **目标**跟随用户语言 |
-| 工作区过程产物文件名 | 默认 **中文** 标准名（如 `00-需求概况.md`） |
-| 完整多语言 i18n / 中英产物双文件名 | **本阶段未承诺** |
-
----
-
-## 你能感知到的默认行为
-
-- **确认优先**：大改动、发版、危险命令前应得到确认（Auto 另有白名单边界）  
-- **危险命令**：可被 Hook 拦截  
-- **入口检查**：实质任务前尽量有 PC0～PC7（视宿主能力）  
-- **报告与记忆**：非闲聊任务写入工作区  
-
-Gate/探针编号是维护者资产，日常使用不必背。
-
----
-
-## 技能加载
-
-1. 最终回复 **不强制** 技能元行  
-2. 过程侧可用「正在加载 `<id>` 技能」  
-3. **不要** List `~/.grok/skills` 等主目录 skill 树（会暴露本机路径）；只读单个已知 `SKILL.md`  
-4. 验证：对话「验证技能加载」或上文 CLI  
-
----
-
-## 架构一览
+例如：
 
 ```text
-npm 全局包 / 源码 install -g
-  → 用户级：宿主 hooks / instructions / skills 投影 / VS Code mcp.json（apply）
-  → 工作区：.devcodex（profile、reports、memory、requirements、workspace skills）
-  → 运行时：hooks/_runtime/lifecycle.cjs + MCP memory/profile
+my-app/
+  .devcodex/
+    workspace/
+      skills/
+        release-check/
+          SKILL.md
+          intent.json
 ```
 
+`SKILL.md`：
+
+```md
 ---
+name: release-check
+description: >
+  当用户准备发布版本、检查 changelog、tag、npm publish 或 GitHub release 时使用。
+---
+# release-check
+
+## 步骤
+1. 检查版本号、变更记录和发布分支。
+2. 运行项目约定的测试与打包命令。
+3. 输出发布前风险和下一步。
+```
+
+`intent.json`：
+
+```json
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "release-check",
+  "intents": [
+    {
+      "id": "release",
+      "label": "发布检查",
+      "include": ["发布", "release", "tag", "npm"]
+    }
+  ],
+  "examples": {
+    "positive": ["帮我发版前检查", "准备 npm publish"],
+    "negative": ["修复登录 bug", "解释这个函数"]
+  },
+  "summary": "发布前检查版本、changelog、tag、测试、打包和发布风险。"
+}
+```
+
+新建或修改后，重新打开会话，或在后续请求中自然触发相关意图。
+
+## 与宿主原生 Skill 共存
+
+Codex、Claude Code 等宿主自己的项目指令、个人 Skill 和配置文件继续按宿主原有规则生效。
+
+DevCodex 不扫描、复制、合并、覆盖或删除这些用户资产。即使名称相同，宿主原生 Skill 也不视为 DevCodex 所有。
+
+如果希望五个宿主通过 DevCodex 使用同一套能力，写 DevCodex 工作区 Skill：
+
+```text
+<你的项目根目录>/.devcodex/workspace/skills/<id>/SKILL.md
+```
+
+如果只希望某个宿主单独使用，继续使用该宿主自己的 Skill 或指令机制。
 
 ## 边界
 
-- 默认 **safety-only**：危险命令硬拦；流程项多为提醒，**strict** 才全面升级阻断  
-- **不**替代业务 CI、安全审计与人工评审  
-- Grok 等存在 **Partial** 上限  
-- 敏感信息：以项目与你的要求为准；未禁止时不强制脱敏  
-
----
-
-## 文档与仓库边界
-
-| 内容 | 位置 |
-|------|------|
-| **用户文档** | 本 README（公开仓主入口） |
-| **维护者文档站** `website/` | **默认不进公开 Git 跟踪**、**不进 npm**；本机可保留完整拷贝（见 `website/README.md`） |
-| 未发布变更 | `changelogs/unreleased.md` |
-| 已发布说明 | `changelogs/releases/` |
-
----
-
-## 本地开发（贡献者）
-
-```bash
-cd <devcodex-source-root>
-npm install
-npm run check:control-content
-npm run test:stop-gate
-npm run test:docs-surface-inventory
-npm run test:skill-route
-npm run global-adapters:apply
-```
-
-源码仓中的 instruction、prompt 与 Skill Markdown 唯一维护入口统一位于 `content/`。修改 canonical content 后先运行 `npm run check:control-content`；仓库兼容路径由 `npm run generate:control-content` 确定性投影，npm 打包则通过带锁和回执的 prepack/postpack 临时投影旧 delivery 路径。运行时和 npm 安装包继续读取 standalone delivery，不读取或携带 `content/`。
-
-维护者文档站（需本机已有完整 `website/`）：
-
-```bash
-cd website && npm install && npm run dev
-```
-
-Node：`^20.19 || >=22.12`（仅文档站）。
+- DevCodex 不替代业务框架、GitHub CI、安全审计或人工评审。
+- 不同宿主的 Hook、指令和插件能力不同；同一工作流在不同宿主中的强制能力可能不同。
+- DevCodex 不接管宿主原生 Skill、个人配置或项目指令文件。
+- 工作区 Skill 只影响创建它的项目目录。
 
 ---
 
 ## 许可证
 
 [AGPL-3.0](LICENSE)
-
----
-
-## 用户可见交付与链接兼容
-
-用户可见交付物应带可定位路径（工作区相对路径优先）；宿主证据不足时用 portable 链接，不假装全宿主可点。  
-MCP 侧先用 `profile_context_plan` 生成有界计划，再由 `profile_load` 完成选定正文；记忆侧先用 `memory_status` 定位，再按需查询。完成状态以绑定的 `ContextReadReceiptV2` 为准，V1 receipt 只作兼容读取。工作流技能按意图 **invoke**（按需读取，非整库预载）。
-用户侧文档 review 聚合见 skill `audit-user-manual`。  
-规范侧：`PromptLongGateListDriftProbe`（V75）。
-
-## 维护者备注
-
-- 公开仓：`website/*` 忽略，仅跟踪 `website/README.md` 指针。  
-- 过程 ECR 等常在工作区 `.devcodex/`（运行态，默认不进本 npm 包）。  

@@ -100,6 +100,8 @@ function layoutReplaySmoke() {
   const codex = replayHostAdapter(path.join(workspace, '.codex', 'hooks', '_runtime', 'lifecycle-host-adapters.cjs'), 'codex', workspace)
   assert.strictEqual(codex.status, 0, `allowlist-only codex hook replay failed: ${codex.stderr || codex.stdout}`)
   assert.match(`${codex.stdout}`, /SkillRouteBootstrapV1/)
+  assert.match(`${codex.stdout}`, /deferred tool discovery\/search/)
+  assert.match(`${codex.stdout}`, /profile_load, memory_status, or SkillRoute/)
   assert.doesNotMatch(`${codex.stdout}`, /小朋友真可爱/)
 }
 

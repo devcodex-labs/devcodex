@@ -2,7 +2,7 @@
 
 > **说明**: 版本概览摘要。最新版本的详细变更见下方表格首行的 `changelogs/releases/vX.Y.Z.md` 链接；历史版本见对应详细变更文件
 > **最后更新**: 2026-07-31
-> **当前未发布**: 控制面 Markdown 已建立统一 authoring source、确定性物化、重复处置与 intent semantic quality 门禁；详见 [`changelogs/unreleased.md`](./changelogs/unreleased.md)。
+> **当前未发布**: v1.15.5 已归档；后续未发布实现继续记录到 [`changelogs/unreleased.md`](./changelogs/unreleased.md)。
 
 ---
 
@@ -10,6 +10,7 @@
 
 | 版本 | 日期 | 变更摘要 | 详细 |
 |------|------|---------|------|
+| [v1.15.5](./changelogs/releases/v1.15.5.md) | 2026-07-31 | 🔧 **README 自动推进说明 + SkillRoute MCP 来源观测修复 + package runtime 闭包**：补齐 `@rocky` / `autoAliases` 用户配置说明，修复 MCP-only 路径下已读 profile/memory 但 `skill_route commit` pending 的阻断，并确保 npm 包内置 Skill portfolio 与 runtime contract digest 同步 | [查看](./changelogs/releases/v1.15.5.md) |
 | [v1.15.4](./changelogs/releases/v1.15.4.md) | 2026-07-31 | 🔧 **SkillRoute Context Binding 防复发 + 用户 README 收口 + npmjs 发布候选**：ContextRead mandatory source 硬闸门、deferred MCP tool discovery 提示、用户向 README 简化安装/更新/卸载与工作区 Skill 路径，CI 全绿后进入 npmjs public 发布链 | [查看](./changelogs/releases/v1.15.4.md) |
 | [v1.15.3](./changelogs/releases/v1.15.3.md) | 2026-07-21 | 🔧 **治理诊断 + 纪律探针 + Skill 侧车与 Dual-Track 门禁**：AlwaysOn/GovernanceStatus、MeasuredVerification/V84、PF-148~165/087 簇、S1 sidecar、M1/M2 process gates、Claude MCP lib 部署与 CVE 卫生 | [查看](./changelogs/releases/v1.15.3.md) |
 | [v1.15.2](./changelogs/releases/v1.15.2.md) | 2026-07-21 | 🔧 **意图驱动上下文 + 执行链优化 + 发布真相纠偏**：ContextRead V2、任务名续接、validation DAG、ProjectKnowledge、Grok/Gemini 显式宿主、S07/Turn Liveness/可见输出、基座准入与 residual F 闭环 | [查看](./changelogs/releases/v1.15.2.md) |
@@ -128,7 +129,8 @@
 
 ## 相关文档
 
-- [`changelogs/releases/v1.15.4.md`](./changelogs/releases/v1.15.4.md) — 最新版本详细变更文档
+- [`changelogs/releases/v1.15.5.md`](./changelogs/releases/v1.15.5.md) — 最新版本详细变更文档
+- [`changelogs/releases/v1.15.4.md`](./changelogs/releases/v1.15.4.md) — 上一版本详细变更文档
 - [`changelogs/releases/v1.15.0.md`](./changelogs/releases/v1.15.0.md) — 上一版本详细变更文档
 - [`changelogs/releases/v1.14.0.md`](./changelogs/releases/v1.14.0.md) — 历史版本详细变更文档
 - [`changelogs/releases/v1.11.21.md`](./changelogs/releases/v1.11.21.md) — 历史版本详细变更文档

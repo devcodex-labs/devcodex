@@ -1,9 +1,10 @@
 # 未发布变更（Unreleased）
 
 > **用途**: 记录尚未正式发版的实现级变更。
-> **当前**: v1.15.3 已归档到 `changelogs/releases/v1.15.3.md`；本文件仅保留历史锚点索引与镜像供 validate 探针消费。发版后新实现再写入下方「当前未发布」。
+> **当前**: v1.15.5 已归档到 `changelogs/releases/v1.15.5.md`；本文件仅保留历史锚点索引与镜像供 validate 探针消费。发版后新实现再写入下方「当前未发布」。
 
 ## 当前未发布实现候选
+- **v1.15.5 已归档**：README 产品入口与 `@rocky` 自动推进说明、SkillRoute package runtime portfolio、MCP 来源观测桥接和 runtime contract digest 已进入 `changelogs/releases/v1.15.5.md`。
 - **README 产品入口改版**：公共 README 从最低安装说明升级为面向使用者的产品入口；首屏补充问题、价值和 `npm install -g devcodex` CTA，突出上下文、记忆、80+ 内置 Skill、五宿主、报告验证闭环、工作区 Skill 与宿主原生资产共存边界；安装、更新、卸载仍保持一个命令，内置 Skill 新会话自动按意图生效。
 - **UserVisibleReplyLayoutV1（五宿主同源 · 人话优先）**：入口检查推荐 PC0~PC7 表格人话（禁止进度缩写/折叠行）；完成态增加「复审验证（白话）」；`FinalValidationSummaryV1` 强制白话在上、命令+exitCode 证据在下（共享 `shared/compliance/validation-summary.md`）；`composeEntryCheckBlock` / `precheck-status` / `17-compliance` / `user-visible-output-contract` / compliance Skill / 01-common / 16-report 同源；host-projections 重生。
 - **UserVisibleNoisePolicyV1（降噪）**：入口检查始终必出；未宣称工作完成时用户面不贴完成检查/FVS/FC 全表/产物表；宣称完成且全绿用短 FVS；失败/缺口才展开。Stop 以 `workDoneClaimed` 替代「出现完成检查标题即完成」；`lifecycle-stop-gate` / FVS classifier / compliance 同步。

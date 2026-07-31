@@ -35,6 +35,7 @@ const {
   buildContextReadError
 } = require('../hooks/_runtime/context-read-contract.cjs')
 const { buildJsonContentIdentity } = require('../hooks/_runtime/content-identity.cjs')
+const { recordMcpContextSourceObservations } = require('../hooks/_runtime/context-source-observation.cjs')
 const {
   TaskContinuationError,
   resolveTaskContinuation
@@ -1287,6 +1288,34 @@ function withProjectionIdentity(projection, toolName, target, sourceDocuments, s
   }).identity
   const identified = { ...projection, contentIdentity }
   const telemetry = projectionTelemetry(identified, sourceDocuments, startedAt)
+  try {
+    recordMcpContextSourceObservations({
+      activeRoot: target.activeRoot,
+      project: target.project,
+      workspaceNamespace: LAYOUT.enabled,
+      contextBinding: projection.contextBinding,
+      hostSessionId: String(process.env.DEVCODEX_HOST_SESSION_ID || ''),
+      sourceResults: [{
+        sourceId: `memory:${toolName}`,
+        sourceLayer: 'memory-query',
+        outcome: 'observed-success',
+        successful: true,
+        observable: true,
+        transportSuccess: true,
+        sourceRefsMatch: true,
+        schemaMatch: true,
+        targetMatch: true,
+        contentIdentity,
+        bodyObserved: true,
+        bytes: contentIdentity.bytes,
+        chars: contentIdentity.bytes,
+        hostDeliveredBytes: telemetry.bytes
+      }]
+    })
+  } catch {
+    // Context-source observation is a best-effort runtime bridge for MCP-only hosts;
+    // the memory projection body remains the caller-visible source of truth.
+  }
   return {
     ...identified,
     telemetry: telemetryOverride

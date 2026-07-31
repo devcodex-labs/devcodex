@@ -131,6 +131,38 @@ devcodex --version
 
 DevCodex 会按任务意图选择流程和 Skill。普通使用者不需要手动配置内置 Skill。
 
+### 自动推进：`@rocky`
+
+如果你希望 DevCodex 在明确任务范围内自动继续执行，可以在请求里带上 `@rocky`：
+
+```text
+@rocky 阅读当前项目，修复失败的 CI，完成后提交。
+```
+
+`@rocky` 是全局默认 `@rocky` 自动推进别名。进入自动推进后，DevCodex 会在当前会话里尽量连续完成需求、实现、验证、报告等步骤；如果你想退出，直接说“退出 auto”或“exit auto mode”即可。
+
+自动推进不等于无限授权：删除文件、不可逆操作、越过项目范围、需要外部确认的发布动作等仍会遵守 DevCodex 的安全边界。当前只有 Hook 支持且白名单路径提供 runtime 级硬保证；在只依赖指令回退的宿主中，DevCodex 会尽量按语义继续推进，但不承诺完全等价的自动放行。
+
+如果你想改成自己的别名，在项目根目录创建或修改：
+
+```text
+<你的项目根目录>/.devcodex/workspace/profile/config.json
+```
+
+示例：
+
+```json
+{
+  "extensions": {
+    "devcodex": {
+      "autoAliases": ["@team-auto"]
+    }
+  }
+}
+```
+
+`extensions.devcodex.autoAliases` 用于替换全局默认别名；省略该字段表示继续使用默认 `@rocky`，设置为空数组 `[]` 表示关闭默认自动推进别名。
+
 ## 更新
 
 ```bash

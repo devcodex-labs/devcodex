@@ -1,6 +1,6 @@
-# DevCodex v1.15.4 — 使用入口
+# DevCodex v1.15.5 — 使用入口
 
-> AI workflow injector for Copilot / Claude Code / Codex / Gemini / Grok · publisher: Rocky · version: 1.15.4
+> AI workflow injector for Copilot / Claude Code / Codex / Gemini / Grok · publisher: Rocky · version: 1.15.5
 
 ## 正式主支持客户端
 
@@ -71,4 +71,3 @@ DevCodex 同时支持五宿主的用户级加载路径，规则语义保持一�
 
 - [GitHub 仓库](https://github.com/devcodex-labs/devcodex)
 - [变更日志](CHANGELOG.md)
-

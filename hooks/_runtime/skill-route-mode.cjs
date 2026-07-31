@@ -35,6 +35,7 @@ const RUNTIME_CONTRACT_FILES = Object.freeze([
   'global-skill-runtime-root.cjs',
   'context-read-contract.cjs',
   'context-plan-observation.cjs',
+  'context-source-observation.cjs',
   'derived-state-store.cjs',
   'skill-resolution.cjs',
   'workspace-layout.cjs',
@@ -152,6 +153,17 @@ function getRuntimeContractDigest (options = {}) {
     )
   } catch {
     runtimeFileDigests['mcp/profile-server.js'] = 'missing'
+  }
+  const memoryAdapterPath = path.resolve(
+    options.memoryAdapterPath ||
+    path.join(__dirname, '..', '..', 'mcp', 'memory-server.js')
+  )
+  try {
+    runtimeFileDigests['mcp/memory-server.js'] = sha256(
+      fsImpl.readFileSync(memoryAdapterPath, 'utf8')
+    )
+  } catch {
+    runtimeFileDigests['mcp/memory-server.js'] = 'missing'
   }
   return sha256({
     schemaVersion: 'ProgressiveSkillRouteRuntimeContractV1',

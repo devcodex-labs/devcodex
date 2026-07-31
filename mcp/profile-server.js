@@ -35,9 +35,10 @@ const {
   stableDigest,
   validateContextReadPlan
 } = require('../hooks/_runtime/context-read-contract.cjs')
-const { buildJsonContentIdentity, validateContentIdentity } = require('../hooks/_runtime/content-identity.cjs')
+const { buildContentIdentity, buildJsonContentIdentity, validateContentIdentity } = require('../hooks/_runtime/content-identity.cjs')
 const { createDerivedStateStore } = require('../hooks/_runtime/derived-state-store.cjs')
 const { persistContextPlanObservation } = require('../hooks/_runtime/context-plan-observation.cjs')
+const { recordMcpContextSourceObservations } = require('../hooks/_runtime/context-source-observation.cjs')
 const { resolveExecutionFeatureDecisionForCwd } = require('../hooks/_runtime/execution-optimization-routing.cjs')
 const { resolveGlobalSkillRuntimeRoot } = require('../hooks/_runtime/global-skill-runtime-root.cjs')
 const { handleSkillRoute } = require('../hooks/_runtime/skill-route-tool.cjs')
@@ -575,6 +576,25 @@ function getProfilePlanLayers(project) {
     layer: dir === primary ? `project:${project}` : 'workspace-fallback',
     authority: dir === primary ? `project-profile:${project}` : 'workspace-profile-fallback'
   }))
+}
+
+function profileLayerForPath(project, sourcePath) {
+  const normalized = path.resolve(sourcePath)
+  const layers = getProfilePlanLayers(project)
+  const match = layers.find(item => {
+    const dir = path.resolve(item.dir)
+    const relative = path.relative(dir, normalized)
+    return relative && !relative.startsWith('..') && !path.isAbsolute(relative)
+  })
+  return match?.layer || ''
+}
+
+function combineProfileLayers(project, sourcePaths) {
+  const layers = [...new Set(sourcePaths.map(sourcePath => profileLayerForPath(project, sourcePath)).filter(Boolean))]
+  if (layers.length <= 1) return layers[0] || ''
+  const projectLayer = `project:${project}`
+  if (layers.includes(projectLayer) && layers.includes('workspace')) return `${projectLayer}+workspace`
+  return layers.sort().join('+')
 }
 
 function statProfileRef(filePath, layer) {
@@ -1240,6 +1260,7 @@ function handleProfileLoad(args = {}) {
   let truncatedBySections = false
   const loaded = []
   const sectionReceipts = []
+  const deliveredProfiles = []
 
   for (let selectedIndex = 0; selectedIndex < selected.length; selectedIndex += 1) {
     const name = selected[selectedIndex]
@@ -1283,6 +1304,12 @@ function handleProfileLoad(args = {}) {
       usedBytes += blockBytes
       parts.push(block)
       loaded.push(name)
+      deliveredProfiles.push({
+        file: name,
+        body,
+        sourcePaths: resolved.sourcePaths || [],
+        missing: false
+      })
       if (selection) {
         sectionReceipts.push({ ...selection.receipt, bodyDelivered: true, deliveryCompletion: selection.receipt.completion })
         if (selection.receipt.completion === 'partial') {
@@ -1305,6 +1332,12 @@ function handleProfileLoad(args = {}) {
       parts.push(placeholder)
       if (REQUIRED_FILES.has(name)) missing.push(name)
       loaded.push(name)
+      deliveredProfiles.push({
+        file: name,
+        body: '',
+        sourcePaths: [],
+        missing: true
+      })
     }
   }
 
@@ -1340,6 +1373,44 @@ function handleProfileLoad(args = {}) {
     text = `⚠️ 必需 Profile 文件缺失，AI 将以保守降级模式运行：${missing.join('、')}\n\n---\n\n` + text
   }
   text = metaBlock + text
+
+  try {
+    recordMcpContextSourceObservations({
+      activeRoot: contextBinding.activeRoot,
+      project: contextBinding.project,
+      workspaceNamespace: LAYOUT.enabled,
+      contextBinding,
+      hostSessionId: String(process.env.DEVCODEX_HOST_SESSION_ID || ''),
+      sourceResults: deliveredProfiles.map(item => {
+        const contentIdentity = item.missing
+          ? null
+          : buildContentIdentity({
+              sourceKey: `profile://${contextBinding.project}/${item.file}#delivered`,
+              content: item.body,
+              contractVersion: 'ProfileBodyV1'
+            })
+        return {
+          sourceId: `profile:${item.file}`,
+          sourceLayer: combineProfileLayers(contextBinding.project, item.sourcePaths),
+          outcome: item.missing ? 'missing' : 'observed-success',
+          successful: !item.missing,
+          observable: true,
+          transportSuccess: true,
+          sourceRefsMatch: !item.missing && item.sourcePaths.length > 0,
+          schemaMatch: contextBinding.bindingStatus === 'verified',
+          targetMatch: contextBinding.bindingStatus === 'verified',
+          contentIdentity,
+          bodyObserved: !item.missing,
+          bytes: Buffer.byteLength(item.body, 'utf8'),
+          chars: item.body.length,
+          hostDeliveredBytes: Buffer.byteLength(item.body, 'utf8')
+        }
+      })
+    })
+  } catch {
+    // Context-source observation is a best-effort runtime bridge for MCP-only hosts;
+    // the profile_load response remains the source of truth for the caller.
+  }
 
   return {
     content: [{

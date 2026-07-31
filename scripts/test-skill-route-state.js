@@ -21,6 +21,14 @@ const {
   evaluateProgressiveSkillRouteStop,
   handleSkillRoute
 } = require('../hooks/_runtime/skill-route-tool.cjs')
+const { buildContentIdentity } = require('../hooks/_runtime/content-identity.cjs')
+const {
+  buildContextReadPlan,
+  stableDigest: contextStableDigest,
+  validateContextReadPlan
+} = require('../hooks/_runtime/context-read-contract.cjs')
+const { persistContextPlanObservation } = require('../hooks/_runtime/context-plan-observation.cjs')
+const { recordMcpContextSourceObservations } = require('../hooks/_runtime/context-source-observation.cjs')
 const {
   encodeCursor
 } = require('../hooks/_runtime/model-skill-catalog.cjs')
@@ -35,6 +43,109 @@ const {
   writeContextBindingState,
   writeWorkspaceSkill
 } = require('./lib/skill-route-test-fixture')
+
+const BASE_MS = Date.parse('2026-07-31T00:00:00.000Z')
+
+function fixtureProfileRef (fixture, file, layer = `project:${fixture.project}`) {
+  const filePath = path.join(fixture.activeRoot, 'profile', file)
+  const stat = fs.statSync(filePath)
+  return {
+    path: filePath.replace(/\\/g, '/'),
+    layer,
+    exists: true,
+    size: stat.size,
+    mtimeMs: stat.mtimeMs
+  }
+}
+
+function buildFixtureBaseline (fixture) {
+  const files = ['01-项目信息.md', '02-架构约束.md', '03-代码风格.md']
+  return {
+    layout: 'workspace-namespace',
+    project: fixture.project,
+    mode: 'dev',
+    agent: 'codex',
+    profileTier: 'profile-lite',
+    effectiveConfig: { mode: 'dev', agent: 'codex' },
+    readme: {
+      content: '# Skill route fixture Profile\n',
+      sourceRefs: [fixtureProfileRef(fixture, 'README.md')]
+    },
+    configSourceRefs: [fixtureProfileRef(fixture, 'config.json')],
+    catalog: files.map(file => ({
+      file,
+      requiredToExist: true,
+      authority: 'fixture-profile-readme'
+    })),
+    inventory: ['README.md', 'config.json', ...files, 'config.local.json'].map(file => ({
+      file,
+      sourceRefs: file === 'config.local.json'
+        ? [{
+            path: path.join(fixture.activeRoot, 'profile', file).replace(/\\/g, '/'),
+            layer: `project:${fixture.project}`,
+            exists: false,
+            size: null,
+            mtimeMs: null
+          }]
+        : [fixtureProfileRef(fixture, file)],
+      authority: 'fixture-bounded-profile-inventory'
+    }))
+  }
+}
+
+function buildFixtureContextPlan (fixture, contextEpoch) {
+  const plan = buildContextReadPlan({
+    intentSeed: {
+      schemaVersion: 'IntentSeedV1',
+      contextEpoch,
+      semantic: 'dev',
+      targetHint: fixture.project,
+      continuationHint: false,
+      riskHint: 'normal',
+      confidence: 0.95,
+      createdAt: '2026-07-31T00:00:00.000Z'
+    },
+    identity: {
+      activeRoot: fixture.activeRoot,
+      project: fixture.project,
+      host: 'codex',
+      finalIntent: 'dev'
+    },
+    changeTypes: ['source-code'],
+    baselineContext: buildFixtureBaseline(fixture),
+    planningTelemetry: { latencyMs: 1.5 }
+  }, { nowMs: BASE_MS })
+  const validation = validateContextReadPlan(plan)
+  assert.strictEqual(validation.valid, true, validation.errors?.join(' | '))
+  return plan
+}
+
+function observedMcpSourceResult (plan, sourceId) {
+  const source = plan.selectedSources.find(item => item.sourceId === sourceId)
+  assert(source, `missing selected source for ${sourceId}`)
+  const body = JSON.stringify({ sourceId, body: 'mcp-direct-fixture' })
+  return {
+    sourceId,
+    sourceLayer: source.sourceLayer,
+    outcome: 'observed-success',
+    successful: true,
+    observable: true,
+    transportSuccess: true,
+    sourceRefsMatch: true,
+    schemaMatch: true,
+    targetMatch: true,
+    resultDigest: contextStableDigest({ sourceId, body }),
+    contentIdentity: buildContentIdentity({
+      sourceKey: `fixture://${sourceId}`,
+      content: body,
+      contractVersion: source.kind === 'memory' ? 'MemoryStatusV1' : 'ProfileBodyV1'
+    }),
+    bodyObserved: true,
+    bytes: Buffer.byteLength(body, 'utf8'),
+    chars: body.length,
+    hostDeliveredBytes: Buffer.byteLength(body, 'utf8')
+  }
+}
 
 function requestCatalogAll (fixture, bootstrap, options = fixture.runtimeOptions) {
   const responses = []
@@ -232,6 +343,59 @@ try {
   }, fixture.runtimeOptions)
   assert.strictEqual(missingMandatoryContextSource.ok, false)
   assert.strictEqual(missingMandatoryContextSource.errorCode, 'CONTEXT_BINDING_PENDING')
+  writeContextBindingState(fixture, contextEpoch, 'dev')
+
+  const mcpObservationEpoch = 'ctx-mcp-source-observation-fixture'
+  const mcpObservedPlan = buildFixtureContextPlan(fixture, mcpObservationEpoch)
+  const planObservation = persistContextPlanObservation({
+    activeRoot: fixture.activeRoot,
+    project: fixture.project,
+    contextEpoch: mcpObservationEpoch,
+    plan: mcpObservedPlan,
+    nowMs: BASE_MS + 10
+  })
+  assert.strictEqual(planObservation.status, 'persisted', JSON.stringify(planObservation))
+  const mcpBoot = bootstrapSkillRoute({
+    project: fixture.project,
+    activeRoot: fixture.activeRoot,
+    contextEpoch: mcpObservationEpoch,
+    prompt: 'Implement the workspace route probe',
+    mode: 'unified',
+    cwd: fixture.projectRoot
+  }, fixture.runtimeOptions)
+  requestCatalogAll(fixture, mcpBoot.bootstrap)
+  fs.writeFileSync(
+    lifecyclePath,
+    `${JSON.stringify({
+      contextAcquisition: {
+        contextEpoch: mcpObservationEpoch,
+        activeRoot: fixture.activeRoot.replace(/\\/g, '/'),
+        project: fixture.project
+      }
+    }, null, 2)}\n`,
+    'utf8'
+  )
+  const bridgedSources = recordMcpContextSourceObservations({
+    activeRoot: fixture.activeRoot,
+    project: fixture.project,
+    workspaceNamespace: true,
+    contextBinding: mcpObservedPlan.contextBinding,
+    hostSessionId: 'session-mcp-source-observation',
+    sourceResults: mcpObservedPlan.mandatorySourceIds.map(sourceId => observedMcpSourceResult(mcpObservedPlan, sourceId))
+  }, { nowMs: BASE_MS + 20 })
+  assert.strictEqual(bridgedSources.status, 'persisted', JSON.stringify(bridgedSources))
+  assert.deepStrictEqual(bridgedSources.missingSourceIds, [])
+  assert.strictEqual(bridgedSources.receiptStatus, 'relevant-complete')
+  const mcpRecoveredCommit = handleSkillRoute({
+    op: 'commit',
+    project: fixture.project,
+    turnBinding: mcpBoot.bootstrap.turnBinding,
+    contextEpoch: mcpObservationEpoch,
+    catalogDigest: mcpBoot.bootstrap.catalogDigest,
+    skillId: 'workspace-probe',
+    contextBinding: mcpObservedPlan.contextBinding
+  }, fixture.runtimeOptions)
+  assert.strictEqual(mcpRecoveredCommit.ok, true, JSON.stringify(mcpRecoveredCommit))
   writeContextBindingState(fixture, contextEpoch, 'dev')
 
   // Acceptance R01 / R05: choice is exactly null-or-one catalog id and the

@@ -123,54 +123,57 @@ const CONTEXT_READ_BINDING_SCHEMA = {
   additionalProperties: false
 }
 
+const SKILL_ROUTE_VALUE_SCHEMA_BY_FIELD = Object.freeze({
+  project: { type: 'string' },
+  turnBinding: { type: 'string' },
+  contextEpoch: { type: 'string' },
+  cursor: { type: 'string' },
+  catalogDigest: { type: 'string' },
+  skillId: {},
+  contextBinding: { type: 'object' },
+  previousPlanDigest: { type: 'string' },
+  lateConditionId: { type: 'string' },
+  generation: { type: 'integer', minimum: 0 },
+  planDigest: { type: 'string' },
+  stageId: { type: 'string' },
+  triggerRef: { type: 'string' }
+})
+
+function skillRouteOpSchema (op, required, optional = []) {
+  const properties = { op: { const: op } }
+  for (const field of [...required, ...optional]) {
+    if (field !== 'op') properties[field] = SKILL_ROUTE_VALUE_SCHEMA_BY_FIELD[field] || {}
+  }
+  return {
+    type: 'object',
+    additionalProperties: false,
+    required,
+    properties
+  }
+}
+
+const SKILL_ROUTE_INPUT_SCHEMA = {
+  type: 'object',
+  oneOf: [
+    skillRouteOpSchema('catalog', ['op', 'project', 'turnBinding', 'contextEpoch'], ['cursor']),
+    skillRouteOpSchema('commit', [
+      'op', 'project', 'turnBinding', 'contextEpoch', 'catalogDigest', 'skillId', 'contextBinding'
+    ], ['previousPlanDigest', 'lateConditionId']),
+    skillRouteOpSchema('rebind', [
+      'op', 'project', 'turnBinding', 'contextEpoch', 'generation', 'planDigest', 'contextBinding'
+    ]),
+    skillRouteOpSchema('load_stage', [
+      'op', 'project', 'turnBinding', 'contextEpoch', 'generation', 'planDigest', 'stageId'
+    ], ['cursor', 'triggerRef']),
+    skillRouteOpSchema('status', ['op', 'project', 'turnBinding'], ['contextEpoch'])
+  ]
+}
+
 const TOOLS = [
   {
     name: 'skill_route',
     description: '渐进式 Skill 路由：catalog 建目录，commit 选 Skill，rebind 换绑，load_stage 分阶段加载，status 查状态；参数以 input schema 为准。',
-    inputSchema: {
-      type: 'object',
-      required: ['op', 'project', 'turnBinding'],
-      properties: {
-        op: { type: 'string', enum: ['catalog', 'commit', 'rebind', 'load_stage', 'status'] },
-        project: {
-          type: 'string',
-          minLength: 1,
-          maxLength: 255,
-          pattern: '^[A-Za-z0-9][A-Za-z0-9._-]*$'
-        },
-        turnBinding: { type: 'string', pattern: '^turn-[a-f0-9]{40}$' },
-        contextEpoch: { type: 'string', minLength: 1, maxLength: 256 },
-        cursor: {
-          type: 'string',
-          minLength: 1,
-          maxLength: 2048,
-          pattern: '^[A-Za-z0-9_-]+\\.[a-f0-9]{24}$'
-        },
-        catalogDigest: { type: 'string', pattern: '^[a-f0-9]{64}$' },
-        skillId: {
-          anyOf: [{
-            type: 'string',
-            minLength: 1,
-            maxLength: 128,
-            pattern: '^[A-Za-z0-9][A-Za-z0-9._-]*$'
-          }, { type: 'null' }]
-        },
-        contextBinding: CONTEXT_READ_BINDING_SCHEMA,
-        previousPlanDigest: { type: 'string', pattern: '^[a-f0-9]{64}$' },
-        lateConditionId: {
-          type: 'string',
-          pattern: '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$'
-        },
-        generation: { type: 'integer', minimum: 0 },
-        planDigest: { type: 'string', pattern: '^[a-f0-9]{64}$' },
-        stageId: {
-          type: 'string',
-          pattern: '^(entry|closeout|execution:[A-Za-z0-9][A-Za-z0-9._-]{0,63})$'
-        },
-        triggerRef: { type: 'string', minLength: 1, maxLength: 512 }
-      },
-      additionalProperties: false
-    }
+    inputSchema: SKILL_ROUTE_INPUT_SCHEMA
   },
   {
     name: 'profile_context_plan',

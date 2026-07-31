@@ -78,6 +78,18 @@ function runServer(script, requests, cwd = ROOT, env = {}) {
   return result.stdout.trim().split(/\r?\n/).filter(Boolean).map(line => JSON.parse(line))
 }
 
+function findToolSchema(listed, name) {
+  const tool = listed.find(item => item.name === name)
+  assert.ok(tool, `${name} tool must be listed`)
+  return tool.inputSchema
+}
+
+function findSkillRouteOpSchema(schema, op) {
+  const variant = (schema.oneOf || []).find(item => item.properties?.op?.const === op)
+  assert.ok(variant, `skill_route schema must include ${op} operation`)
+  return variant
+}
+
 function compactDateInTimeZone(timeZone, date = new Date()) {
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone,
@@ -1319,6 +1331,39 @@ function testContextReadBindingContract() {
   assert(
     toolsListBytes <= 7680,
     `profile tools/list exceeds Grok local-stdio safety budget: ${toolsListBytes} bytes`
+  )
+  const skillRouteSchema = findToolSchema(listed, 'skill_route')
+  assert.ok(Array.isArray(skillRouteSchema.oneOf), 'skill_route inputSchema must be per-op oneOf')
+  assert.strictEqual(
+    skillRouteSchema.properties?.contextBinding,
+    undefined,
+    'skill_route must not expose a top-level contextBinding property'
+  )
+  for (const op of ['catalog', 'commit', 'rebind', 'load_stage', 'status']) {
+    findSkillRouteOpSchema(skillRouteSchema, op)
+  }
+  assert.strictEqual(
+    findSkillRouteOpSchema(skillRouteSchema, 'catalog').properties.contextBinding,
+    undefined,
+    'catalog must not accept contextBinding'
+  )
+  assert.strictEqual(
+    findSkillRouteOpSchema(skillRouteSchema, 'load_stage').properties.contextBinding,
+    undefined,
+    'load_stage must not accept contextBinding'
+  )
+  assert.strictEqual(
+    findSkillRouteOpSchema(skillRouteSchema, 'status').properties.contextBinding,
+    undefined,
+    'status must not accept contextBinding'
+  )
+  assert.ok(
+    findSkillRouteOpSchema(skillRouteSchema, 'commit').required.includes('contextBinding'),
+    'commit must require contextBinding'
+  )
+  assert.ok(
+    findSkillRouteOpSchema(skillRouteSchema, 'rebind').required.includes('contextBinding'),
+    'rebind must require contextBinding'
   )
   assert.ok(listed.find(tool => tool.name === 'profile_load').inputSchema.properties.contextBinding)
   assert.ok(listed.find(tool => tool.name === 'profile_skill_plan').inputSchema.properties.contextBinding)

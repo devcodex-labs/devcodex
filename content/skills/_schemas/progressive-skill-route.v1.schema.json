@@ -5,6 +5,7 @@
   "oneOf": [
     { "$ref": "#/$defs/catalog" },
     { "$ref": "#/$defs/commit" },
+    { "$ref": "#/$defs/rebind" },
     { "$ref": "#/$defs/loadStage" },
     { "$ref": "#/$defs/status" }
   ],
@@ -14,7 +15,7 @@
       "required": ["op", "project", "turnBinding"],
       "properties": {
         "op": {
-          "enum": ["catalog", "commit", "load_stage", "status"]
+          "enum": ["catalog", "commit", "rebind", "load_stage", "status"]
         },
         "project": {
           "type": "string",
@@ -125,6 +126,65 @@
             "lateConditionId": {
               "type": "string",
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+            }
+          }
+        }
+      ]
+    },
+    "rebind": {
+      "allOf": [
+        { "$ref": "#/$defs/base" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "op",
+            "project",
+            "turnBinding",
+            "contextEpoch",
+            "generation",
+            "planDigest",
+            "contextBinding"
+          ],
+          "properties": {
+            "op": { "const": "rebind" },
+            "project": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+            },
+            "turnBinding": {
+              "type": "string",
+              "pattern": "^turn-[a-f0-9]{40}$"
+            },
+            "contextEpoch": { "type": "string", "minLength": 1, "maxLength": 256 },
+            "generation": { "type": "integer", "minimum": 0 },
+            "planDigest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+            "contextBinding": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "schemaVersion",
+                "contextEpoch",
+                "planId",
+                "planContentId",
+                "activeRoot",
+                "project"
+              ],
+              "properties": {
+                "schemaVersion": { "const": "ContextReadBindingV1" },
+                "contextEpoch": { "type": "string", "minLength": 1, "maxLength": 256 },
+                "planId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                "planContentId": { "type": "string", "minLength": 1, "maxLength": 256 },
+                "activeRoot": { "type": "string", "minLength": 1, "maxLength": 4096 },
+                "project": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 255,
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                }
+              }
             }
           }
         }

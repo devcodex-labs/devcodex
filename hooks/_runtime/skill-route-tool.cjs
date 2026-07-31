@@ -71,6 +71,23 @@ const CONTEXT_BINDING_FIELDS = new Set([
   'activeRoot',
   'project'
 ])
+const SKILL_ROUTE_FIELDS_BY_OP = Object.freeze({
+  catalog: ['op', 'project', 'turnBinding', 'contextEpoch', 'cursor'],
+  commit: [
+    'op', 'project', 'turnBinding', 'contextEpoch', 'catalogDigest', 'skillId',
+    'contextBinding', 'previousPlanDigest', 'lateConditionId'
+  ],
+  rebind: [
+    'op', 'project', 'turnBinding', 'contextEpoch', 'generation', 'planDigest',
+    'contextBinding'
+  ],
+  load_stage: [
+    'op', 'project', 'turnBinding', 'contextEpoch', 'generation', 'planDigest',
+    'stageId', 'cursor', 'triggerRef'
+  ],
+  status: ['op', 'project', 'turnBinding', 'contextEpoch']
+})
+const SKILL_ROUTE_CONTEXT_BINDING_OPS = new Set(['commit', 'rebind'])
 
 function isBoundedText (value, maxLength) {
   return typeof value === 'string' &&
@@ -223,6 +240,76 @@ function tryRebindLifecycleFromPlanObservation (binding, target, lifecycle, opti
   return { rebound: true, lifecycle }
 }
 
+function uniqueSorted (items = []) {
+  return [...new Set(items.filter(item => typeof item === 'string' && item.length > 0))].sort()
+}
+
+function buildMissingMandatorySourceIds (plan, receipt) {
+  const explicitMissing = Array.isArray(receipt?.missingSourceIds)
+    ? receipt.missingSourceIds
+    : []
+  const mandatory = Array.isArray(plan?.mandatorySourceIds)
+    ? plan.mandatorySourceIds
+    : []
+  const satisfied = new Set(Array.isArray(receipt?.satisfiedSourceIds)
+    ? receipt.satisfiedSourceIds
+    : [])
+  return uniqueSorted([
+    ...explicitMissing,
+    ...mandatory.filter(sourceId => !satisfied.has(sourceId))
+  ])
+}
+
+function buildContextRecoveryDetails (reasonCode, input = {}) {
+  const binding = input.binding || {}
+  const target = input.target || {}
+  const acquisition = input.acquisition || {}
+  const plan = input.plan || acquisition.plan || null
+  const receipt = input.receipt || acquisition.receipt || null
+  const missingSourceIds = buildMissingMandatorySourceIds(plan, receipt)
+  return {
+    schemaVersion: 'SkillRouteContextRecoveryV1',
+    status: 'refresh-context-required',
+    reasonCode,
+    project: target.project || binding.project || acquisition.project || null,
+    activeRoot: portable(target.activeRoot || binding.activeRoot || acquisition.activeRoot || ''),
+    contextEpoch: binding.contextEpoch || acquisition.contextEpoch || plan?.identity?.contextEpoch || null,
+    binding: binding && typeof binding === 'object'
+      ? {
+          planId: binding.planId || null,
+          planContentId: binding.planContentId || null,
+          project: binding.project || null,
+          activeRoot: portable(binding.activeRoot || '')
+        }
+      : null,
+    observed: {
+      planId: plan?.planId || null,
+      planContentId: plan?.planContentId || null,
+      receiptStatus: receipt?.status || null,
+      missingSourceIds,
+      satisfiedSourceIds: uniqueSorted(receipt?.satisfiedSourceIds || []),
+      mandatorySourceIds: uniqueSorted(plan?.mandatorySourceIds || []),
+      lastError: acquisition.lastError || null
+    },
+    nextOperation: {
+      refreshContext: [
+        'profile_context_plan',
+        'memory_status',
+        'profile_load'
+      ],
+      retry: 'retry the same skill_route operation after fresh ContextRead observation; use rebind for an existing committed plan'
+    },
+    hint: 'Refresh ContextRead with the same project/contextEpoch, observe all mandatory sources, then retry commit or call skill_route rebind before loading pending stages.'
+  }
+}
+
+function contextBindingErrorForSkillRoute (code, reasonCode, recoveryInput = {}) {
+  const error = new Error(code)
+  error.code = code
+  error.details = buildContextRecoveryDetails(reasonCode, recoveryInput)
+  return error
+}
+
 function validateTrustedContextBinding (binding, target, options = {}) {
   if (options.trustedContext) return options.trustedContext
   if (!binding ||
@@ -236,9 +323,11 @@ function validateTrustedContextBinding (binding, target, options = {}) {
       !isBoundedText(binding.activeRoot, 4096) ||
       !PROJECT_RE.test(String(binding.project || '')) ||
       String(binding.project).length > 255) {
-    const error = new Error('CONTEXT_BINDING_INVALID')
-    error.code = 'CONTEXT_BINDING_INVALID'
-    throw error
+    throw contextBindingErrorForSkillRoute(
+      'CONTEXT_BINDING_INVALID',
+      'binding-schema-invalid',
+      { binding, target }
+    )
   }
   const statePath = lifecycleStatePath(target)
   let lifecycle = readJson(statePath, options.fs || fs)
@@ -253,9 +342,11 @@ function validateTrustedContextBinding (binding, target, options = {}) {
   const plan = acquisition?.plan
   const receipt = acquisition?.receipt
   if (!plan || !receipt) {
-    const error = new Error('CONTEXT_BINDING_PENDING')
-    error.code = 'CONTEXT_BINDING_PENDING'
-    throw error
+    throw contextBindingErrorForSkillRoute(
+      'CONTEXT_BINDING_PENDING',
+      'observed-plan-or-receipt-missing',
+      { binding, target, acquisition, plan, receipt }
+    )
   }
   const identityMatches =
     binding.contextEpoch === acquisition.contextEpoch &&
@@ -268,35 +359,45 @@ function validateTrustedContextBinding (binding, target, options = {}) {
     receipt.planId === binding.planId &&
     receipt.planContentId === binding.planContentId
   if (!identityMatches) {
-    const error = new Error('CONTEXT_BINDING_MISMATCH')
-    error.code = 'CONTEXT_BINDING_MISMATCH'
-    throw error
+    throw contextBindingErrorForSkillRoute(
+      'CONTEXT_BINDING_MISMATCH',
+      'binding-identity-mismatch',
+      { binding, target, acquisition, plan, receipt }
+    )
   }
   if (!ACCEPTED_CONTEXT_RECEIPT_STATUSES.has(receipt.status)) {
-    const error = new Error('CONTEXT_BINDING_PENDING')
-    error.code = 'CONTEXT_BINDING_PENDING'
-    throw error
+    throw contextBindingErrorForSkillRoute(
+      'CONTEXT_BINDING_PENDING',
+      `receipt-status-${String(receipt.status || 'missing')}`,
+      { binding, target, acquisition, plan, receipt }
+    )
   }
   if (Array.isArray(receipt.missingSourceIds) && receipt.missingSourceIds.length > 0) {
-    const error = new Error('CONTEXT_BINDING_PENDING')
-    error.code = 'CONTEXT_BINDING_PENDING'
-    throw error
+    throw contextBindingErrorForSkillRoute(
+      'CONTEXT_BINDING_PENDING',
+      'receipt-missing-source-ids',
+      { binding, target, acquisition, plan, receipt }
+    )
   }
   if (Array.isArray(plan.mandatorySourceIds) && plan.mandatorySourceIds.length > 0) {
     const satisfiedSourceIds = Array.isArray(receipt.satisfiedSourceIds)
       ? new Set(receipt.satisfiedSourceIds)
       : new Set()
     if (plan.mandatorySourceIds.some(sourceId => !satisfiedSourceIds.has(sourceId))) {
-      const error = new Error('CONTEXT_BINDING_PENDING')
-      error.code = 'CONTEXT_BINDING_PENDING'
-      throw error
+      throw contextBindingErrorForSkillRoute(
+        'CONTEXT_BINDING_PENDING',
+        'mandatory-source-unsatisfied',
+        { binding, target, acquisition, plan, receipt }
+      )
     }
   }
   if (receipt.status === 'baseline-ready' &&
       (plan.selectedSources?.length || plan.mandatorySourceIds?.length)) {
-    const error = new Error('CONTEXT_BINDING_PENDING')
-    error.code = 'CONTEXT_BINDING_PENDING'
-    throw error
+    throw contextBindingErrorForSkillRoute(
+      'CONTEXT_BINDING_PENDING',
+      'baseline-ready-with-selected-sources',
+      { binding, target, acquisition, plan, receipt }
+    )
   }
   const value = {
     schemaVersion: 'TrustedContextBindingV1',
@@ -320,24 +421,8 @@ function validateTrustedContextBinding (binding, target, options = {}) {
 function validateRequestShape (input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return 'REQUEST_INVALID'
   const op = input.op
-  const allowedByOp = {
-    catalog: ['op', 'project', 'turnBinding', 'contextEpoch', 'cursor'],
-    commit: [
-      'op', 'project', 'turnBinding', 'contextEpoch', 'catalogDigest', 'skillId',
-      'contextBinding', 'previousPlanDigest', 'lateConditionId'
-    ],
-    rebind: [
-      'op', 'project', 'turnBinding', 'contextEpoch', 'generation', 'planDigest',
-      'contextBinding'
-    ],
-    load_stage: [
-      'op', 'project', 'turnBinding', 'contextEpoch', 'generation', 'planDigest',
-      'stageId', 'cursor', 'triggerRef'
-    ],
-    status: ['op', 'project', 'turnBinding', 'contextEpoch']
-  }
-  if (!Object.prototype.hasOwnProperty.call(allowedByOp, op)) return 'OP_INVALID'
-  if (Object.keys(input).some(key => !allowedByOp[op].includes(key))) return 'REQUEST_FIELD_UNSUPPORTED'
+  if (!Object.prototype.hasOwnProperty.call(SKILL_ROUTE_FIELDS_BY_OP, op)) return 'OP_INVALID'
+  if (Object.keys(input).some(key => !SKILL_ROUTE_FIELDS_BY_OP[op].includes(key))) return 'REQUEST_FIELD_UNSUPPORTED'
   if (!input.project || !input.turnBinding) return 'REQUEST_BINDING_REQUIRED'
   if (!PROJECT_RE.test(String(input.project)) || String(input.project).length > 255) {
     return 'PROJECT_BINDING_INVALID'
@@ -383,6 +468,92 @@ function validateRequestShape (input) {
     }
   }
   return null
+}
+
+function buildRequestShapeDetails (input, errorCode) {
+  const op = Object.prototype.hasOwnProperty.call(SKILL_ROUTE_FIELDS_BY_OP, input?.op)
+    ? input.op
+    : 'unknown'
+  const allowedFields = SKILL_ROUTE_FIELDS_BY_OP[op] || ['op', 'project', 'turnBinding']
+  const unsupportedFields = input && typeof input === 'object' && !Array.isArray(input)
+    ? Object.keys(input).filter(key => !allowedFields.includes(key)).sort()
+    : []
+  const contextBindingHint = SKILL_ROUTE_CONTEXT_BINDING_OPS.has(op)
+    ? '`contextBinding` is required for this operation.'
+    : '`contextBinding` is only accepted by commit and rebind; never send it to catalog, load_stage, or status.'
+  return {
+    schemaVersion: 'SkillRouteRequestShapeErrorV1',
+    errorCode,
+    op,
+    unsupportedFields,
+    allowedFields,
+    contextBindingOps: [...SKILL_ROUTE_CONTEXT_BINDING_OPS].sort(),
+    hint: errorCode === 'REQUEST_FIELD_UNSUPPORTED'
+      ? `Remove unsupported fields for skill_route ${op}. ${contextBindingHint}`
+      : `Retry skill_route ${op} with the published operation schema. ${contextBindingHint}`
+  }
+}
+
+function requestShapeNextStep (input, errorCode) {
+  const details = buildRequestShapeDetails(input, errorCode)
+  if (errorCode === 'REQUEST_FIELD_UNSUPPORTED') {
+    return `${details.hint} Allowed fields: ${details.allowedFields.join(', ')}.`
+  }
+  return details.hint
+}
+
+function cloneJsonObject (value) {
+  if (!value || typeof value !== 'object') return null
+  return JSON.parse(JSON.stringify(value))
+}
+
+function buildSkillRouteErrorDetails (input, error, target) {
+  const details = cloneJsonObject(error?.details)
+  if (!details) return null
+  details.request = {
+    op: input?.op || null,
+    project: input?.project || target?.project || null,
+    turnBinding: input?.turnBinding || null,
+    contextEpoch: input?.contextEpoch || null,
+    generation: Number.isInteger(input?.generation) ? input.generation : null,
+    planDigest: input?.planDigest || null,
+    stageId: input?.stageId || null
+  }
+  if (details.schemaVersion === 'SkillRouteContextRecoveryV1') {
+    if (input?.op === 'load_stage' || input?.op === 'rebind') {
+      details.nextOperation.rebind = {
+        op: 'rebind',
+        project: input.project,
+        turnBinding: input.turnBinding,
+        contextEpoch: input.contextEpoch,
+        generation: input.generation,
+        planDigest: input.planDigest,
+        contextBinding: '<fresh ContextReadBindingV1 from refreshed ContextRead>'
+      }
+      details.nextOperation.loadStageAfterRebind = input?.stageId
+        ? {
+            op: 'load_stage',
+            project: input.project,
+            turnBinding: input.turnBinding,
+            contextEpoch: input.contextEpoch,
+            stageId: input.stageId,
+            generation: '<generation from rebind receipt>',
+            planDigest: '<planDigest from rebind receipt>'
+          }
+        : null
+    } else if (input?.op === 'commit') {
+      details.nextOperation.retryCommit = {
+        op: 'commit',
+        project: input.project,
+        turnBinding: input.turnBinding,
+        contextEpoch: input.contextEpoch,
+        catalogDigest: input.catalogDigest || null,
+        skillId: Object.prototype.hasOwnProperty.call(input, 'skillId') ? input.skillId : null,
+        contextBinding: '<fresh ContextReadBindingV1 from refreshed ContextRead>'
+      }
+    }
+  }
+  return details
 }
 
 function finalizeResponse (response, limitBytes) {
@@ -1141,6 +1312,21 @@ function handleLoadStage (input, target, options) {
           liveContext.bindingDigest !== state.plan.contextBindingDigest) {
         const error = new Error('CONTEXT_BINDING_STALE')
         error.code = 'CONTEXT_BINDING_STALE'
+        error.details = {
+          ...buildContextRecoveryDetails('route-context-binding-digest-stale', {
+            binding: state.contextBinding,
+            target
+          }),
+          observed: {
+            planId: state.contextBinding?.planId || null,
+            planContentId: state.contextBinding?.planContentId || null,
+            receiptStatus: liveContext.receiptStatus || null,
+            missingSourceIds: [],
+            satisfiedSourceIds: [],
+            mandatorySourceIds: [],
+            lastError: null
+          }
+        }
         throw error
       }
       const stageId = input.stageId
@@ -1297,9 +1483,37 @@ function handleStatus (input, target, options) {
   const satisfiedStageIds = requiredStageIds.filter(stageId =>
     state.stageProgress[stageId]?.status === 'loaded'
   )
+  const pendingStageIds = requiredStageIds.filter(stageId =>
+    state.stageProgress[stageId]?.status !== 'loaded'
+  )
+  let contextErrorCode = null
+  let contextRecovery = null
+  if (state.plan && pendingStageIds.length && state.contextBinding) {
+    try {
+      validateTrustedContextBinding(state.contextBinding, target, options)
+    } catch (error) {
+      if (['CONTEXT_BINDING_PENDING', 'CONTEXT_BINDING_MISMATCH', 'CONTEXT_BINDING_STALE'].includes(error.code)) {
+        contextErrorCode = error.code
+        contextRecovery = buildSkillRouteErrorDetails({
+          op: 'load_stage',
+          project: target.project,
+          turnBinding: state.turnBinding,
+          contextEpoch: state.contextEpoch,
+          generation: state.plan.generation,
+          planDigest: state.plan.planDigest,
+          stageId: pendingStageIds[0] || null
+        }, error, target)
+      } else {
+        throw error
+      }
+    }
+  }
   const processComplete = !!state.plan &&
     state.plan.status === 'complete' &&
     requiredStageIds.length === satisfiedStageIds.length
+  const nextOp = contextErrorCode
+    ? 'rebind'
+    : (pendingStageIds.length ? 'load_stage' : null)
   const selectedBusiness = state.obligationLedger?.items?.find(item =>
     item.skillId === state.obligationLedger.selectedBusinessSkillId
   ) || null
@@ -1331,6 +1545,34 @@ function handleStatus (input, target, options) {
       satisfiedStageIds,
       processComplete,
       selectedBusiness
+    },
+    nextAction: {
+      schemaVersion: 'SkillRouteNextActionV1',
+      nextOp,
+      pendingStageIds,
+      errorCode: contextErrorCode,
+      nextCall: nextOp === 'rebind' && state.plan
+        ? {
+            op: 'rebind',
+            project: state.project,
+            turnBinding: state.turnBinding,
+            contextEpoch: state.contextEpoch,
+            generation: state.plan.generation,
+            planDigest: state.plan.planDigest,
+            contextBinding: '<fresh ContextReadBindingV1 from refreshed ContextRead>'
+          }
+        : (nextOp === 'load_stage' && state.plan
+            ? {
+                op: 'load_stage',
+                project: state.project,
+                turnBinding: state.turnBinding,
+                contextEpoch: state.contextEpoch,
+                generation: state.plan.generation,
+                planDigest: state.plan.planDigest,
+                stageId: pendingStageIds[0] || null
+              }
+            : null),
+      recovery: contextRecovery
     },
     ledgerSummary: {
       calls: state.contributionLedger.items.length,
@@ -1426,12 +1668,22 @@ function evaluateProgressiveSkillRouteStop (input, options = {}) {
   const businessSatisfied = !business ||
     String(input.assistantText || '').includes(business.mustReplyCore)
   let contextErrorCode = null
+  let contextRecovery = null
   if (state.plan && pendingStageIds.length && state.contextBinding) {
     try {
       validateTrustedContextBinding(state.contextBinding, target, options)
     } catch (error) {
-      if (['CONTEXT_BINDING_PENDING', 'CONTEXT_BINDING_MISMATCH'].includes(error.code)) {
+      if (['CONTEXT_BINDING_PENDING', 'CONTEXT_BINDING_MISMATCH', 'CONTEXT_BINDING_STALE'].includes(error.code)) {
         contextErrorCode = error.code
+        contextRecovery = buildSkillRouteErrorDetails({
+          op: 'load_stage',
+          project: target.project,
+          turnBinding,
+          contextEpoch: state.contextEpoch,
+          generation: state.plan.generation,
+          planDigest: state.plan.planDigest,
+          stageId: pendingStageIds[0] || null
+        }, error, target)
       } else {
         throw error
       }
@@ -1441,6 +1693,30 @@ function evaluateProgressiveSkillRouteStop (input, options = {}) {
     state.plan.status === 'complete' &&
     !contextErrorCode &&
     pendingStageIds.length === 0
+  const nextOp = contextErrorCode
+    ? 'rebind'
+    : (pendingStageIds.length ? 'load_stage' : null)
+  const nextCall = nextOp === 'rebind' && state.plan
+    ? {
+        op: 'rebind',
+        project: target.project,
+        turnBinding,
+        contextEpoch: state.contextEpoch,
+        generation: state.plan.generation,
+        planDigest: state.plan.planDigest,
+        contextBinding: '<fresh ContextReadBindingV1 from refreshed ContextRead>'
+      }
+    : (nextOp === 'load_stage' && state.plan
+        ? {
+            op: 'load_stage',
+            project: target.project,
+            turnBinding,
+            contextEpoch: state.contextEpoch,
+            generation: state.plan.generation,
+            planDigest: state.plan.planDigest,
+            stageId: pendingStageIds[0] || null
+          }
+        : null)
   return {
     schemaVersion: 'ProgressiveSkillRouteStopV1',
     present: true,
@@ -1456,7 +1732,9 @@ function evaluateProgressiveSkillRouteStop (input, options = {}) {
     errorCode: contextErrorCode || (state.plan
       ? (state.plan.status === 'complete' ? null : 'ROOT_PLAN_BLOCKED')
       : 'PLAN_NOT_COMMITTED'),
-    nextOp: contextErrorCode ? 'rebind' : null
+    nextOp,
+    nextCall,
+    recovery: contextRecovery
   }
 }
 
@@ -1481,7 +1759,14 @@ function shouldEnforceProgressiveSkillRouteStop (routeStop, explicitRoutePending
 
 function handleSkillRoute (input, options = {}) {
   const shapeError = validateRequestShape(input)
-  if (shapeError) return makeToolError(input?.op || 'unknown', shapeError)
+  if (shapeError) {
+    return makeToolError(
+      input?.op || 'unknown',
+      shapeError,
+      requestShapeNextStep(input, shapeError),
+      { details: buildRequestShapeDetails(input, shapeError) }
+    )
+  }
   let target
   try {
     target = resolveProjectTarget(options.inputRoot || process.cwd(), input.project)
@@ -1500,7 +1785,10 @@ function handleSkillRoute (input, options = {}) {
       input.op,
       error.code || error.message || 'SKILL_ROUTE_FAILED',
       'Refresh the bound bootstrap/catalog/context state and retry the same logical operation.',
-      { limitBytes: input.op === 'catalog' ? 8 * 1024 : (input.op === 'load_stage' ? 48 * 1024 : 16 * 1024) }
+      {
+        limitBytes: input.op === 'catalog' ? 8 * 1024 : (input.op === 'load_stage' ? 48 * 1024 : 16 * 1024),
+        details: buildSkillRouteErrorDetails(input, error, target)
+      }
     )
   }
 }

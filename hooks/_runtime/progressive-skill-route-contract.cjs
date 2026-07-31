@@ -196,6 +196,9 @@ function makeToolError (op, errorCode, nextStep, extra = {}) {
       modelObserved: 'unverified'
     }
   }
+  if (extra.details && typeof extra.details === 'object') {
+    response.details = extra.details
+  }
   response.delivery.serializedBytes = byteLength(response)
   return response
 }

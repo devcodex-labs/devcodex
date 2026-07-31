@@ -504,6 +504,20 @@ try {
   }, fixture.runtimeOptions)
   assert.strictEqual(callerWorkflow.ok, false)
   assert.strictEqual(callerWorkflow.errorCode, 'REQUEST_FIELD_UNSUPPORTED')
+  assert.strictEqual(callerWorkflow.details.schemaVersion, 'SkillRouteRequestShapeErrorV1')
+  assert.deepStrictEqual(callerWorkflow.details.unsupportedFields, ['mandatoryIds'])
+  assert.deepStrictEqual(callerWorkflow.details.allowedFields, [
+    'op',
+    'project',
+    'turnBinding',
+    'contextEpoch',
+    'catalogDigest',
+    'skillId',
+    'contextBinding',
+    'previousPlanDigest',
+    'lateConditionId'
+  ])
+  assert.match(callerWorkflow.nextStep, /Allowed fields/)
 
   const contextBindingWithUnknownField = {
     ...contextBinding,
@@ -540,6 +554,19 @@ try {
     commit.receipt.obligations.selectedBusinessSkillId,
     'workspace-probe'
   )
+  const pendingStatus = handleSkillRoute({
+    op: 'status',
+    project: fixture.project,
+    turnBinding: boot.bootstrap.turnBinding,
+    contextEpoch
+  }, fixture.runtimeOptions)
+  assert.strictEqual(pendingStatus.ok, true)
+  assert.strictEqual(pendingStatus.receipt.nextAction.nextOp, 'load_stage')
+  assert.strictEqual(pendingStatus.receipt.nextAction.nextCall.stageId, 'entry')
+  assert.strictEqual(
+    pendingStatus.receipt.nextAction.nextCall.planDigest,
+    commit.receipt.plan.planDigest
+  )
 
   const alternateCapabilityPath = path.join(fixture.root, 'capabilities.json')
   fs.writeFileSync(
@@ -573,6 +600,15 @@ try {
   }, fixture.runtimeOptions)
   assert.strictEqual(staleContextLoad.ok, false)
   assert.strictEqual(staleContextLoad.errorCode, 'CONTEXT_BINDING_PENDING')
+  assert.strictEqual(staleContextLoad.details.schemaVersion, 'SkillRouteContextRecoveryV1')
+  assert.strictEqual(staleContextLoad.details.reasonCode, 'receipt-status-planned')
+  assert.deepStrictEqual(staleContextLoad.details.nextOperation.refreshContext, [
+    'profile_context_plan',
+    'memory_status',
+    'profile_load'
+  ])
+  assert.strictEqual(staleContextLoad.details.nextOperation.rebind.op, 'rebind')
+  assert.strictEqual(staleContextLoad.details.nextOperation.loadStageAfterRebind.stageId, 'entry')
   lifecycle.contextAcquisition.receipt.status = 'relevant-complete'
   fs.writeFileSync(lifecyclePath, `${JSON.stringify(lifecycle, null, 2)}\n`, 'utf8')
 
@@ -798,6 +834,19 @@ try {
       },
       'entry'
     )
+    const pendingCloseoutStop = evaluateProgressiveSkillRouteStop({
+      project: rebindFixture.project,
+      contextEpoch: rebindEpoch,
+      hostSessionId: rebindSession,
+      assistantText: 'Still working.'
+    }, rebindFixture.runtimeOptions)
+    assert.strictEqual(pendingCloseoutStop.complete, false)
+    assert.strictEqual(pendingCloseoutStop.nextOp, 'load_stage')
+    assert.strictEqual(pendingCloseoutStop.nextCall.stageId, 'closeout')
+    assert.strictEqual(
+      pendingCloseoutStop.nextCall.planDigest,
+      firstCommit.receipt.plan.planDigest
+    )
     const rebindLifecyclePath = path.join(
       rebindFixture.activeRoot,
       '.memory',
@@ -823,6 +872,12 @@ try {
     assert.strictEqual(recoverableStop.complete, false)
     assert.strictEqual(recoverableStop.errorCode, 'CONTEXT_BINDING_PENDING')
     assert.strictEqual(recoverableStop.nextOp, 'rebind')
+    assert.strictEqual(recoverableStop.nextCall.op, 'rebind')
+    assert.strictEqual(recoverableStop.nextCall.generation, firstCommit.receipt.plan.generation)
+    assert.strictEqual(recoverableStop.nextCall.planDigest, firstCommit.receipt.plan.planDigest)
+    assert.strictEqual(recoverableStop.recovery.schemaVersion, 'SkillRouteContextRecoveryV1')
+    assert.strictEqual(recoverableStop.recovery.reasonCode, 'receipt-status-stale')
+    assert.strictEqual(recoverableStop.recovery.nextOperation.rebind.op, 'rebind')
     const foreignSessionStop = evaluateProgressiveSkillRouteStop({
       project: rebindFixture.project,
       contextEpoch: rebindEpoch,

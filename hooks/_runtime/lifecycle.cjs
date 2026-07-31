@@ -1816,6 +1816,8 @@ async function main() {
             state.progressiveSkillRouteStopCount = enforceCount + 1
             const reason = routeStop.nextOp === 'rebind'
               ? `Progressive Skill route context is stale; refresh ContextRead and call skill_route rebind before loading pending stages: ${routeStop.pendingStageIds.join(', ')}.`
+              : routeStop.nextOp === 'load_stage' && routeStop.nextCall
+              ? `Progressive Skill route stages remain pending: ${routeStop.pendingStageIds.join(', ')}. Call skill_route load_stage with generation=${routeStop.nextCall.generation}, planDigest=${routeStop.nextCall.planDigest}, stageId=${routeStop.nextCall.stageId}.`
               : routeStop.pendingStageIds?.length
               ? `Progressive Skill route stages remain pending: ${routeStop.pendingStageIds.join(', ')}.`
               : (routeStop.mustReplyCore && !routeStop.businessSatisfied

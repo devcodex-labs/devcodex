@@ -306,17 +306,18 @@ function preparePackageProjection (root, options = {}) {
     }
 
     const existing = plan.files.filter(file => fs.existsSync(path.join(root, file.target)))
+    const existingMismatches = existing.filter(file =>
+      sha256(fs.readFileSync(path.join(root, file.target))) !== file.digest
+    )
     const foreignExisting = existing.filter(file => !tracked.has(file.target))
-    if (foreignExisting.length) {
+    const foreignMismatches = existingMismatches.filter(file => !tracked.has(file.target))
+    if (foreignMismatches.length) {
       const error = new Error(
-        `PACKAGE_PROJECTION_COLLISION: ${foreignExisting.map(file => file.target).join(', ')}`
+        `PACKAGE_PROJECTION_COLLISION: ${foreignMismatches.map(file => file.target).join(', ')}`
       )
       error.code = 'PACKAGE_PROJECTION_COLLISION'
       throw error
     }
-    const existingMismatches = existing.filter(file =>
-      sha256(fs.readFileSync(path.join(root, file.target))) !== file.digest
-    )
     if (existingMismatches.length) {
       const error = new Error(
         `PACKAGE_PROJECTION_VERIFY_FAILED: ${existingMismatches.map(file => file.target).join(', ')}`
@@ -325,7 +326,10 @@ function preparePackageProjection (root, options = {}) {
       throw error
     }
     const missing = plan.files.filter(file => !fs.existsSync(path.join(root, file.target)))
-    if (missing.length === 0) {
+    const reusableForeignExisting = foreignExisting.filter(file =>
+      sha256(fs.readFileSync(path.join(root, file.target))) === file.digest
+    )
+    if (missing.length === 0 && reusableForeignExisting.length === 0) {
       return {
         schemaVersion: SCHEMA_VERSION,
         mode: 'verify-existing',
@@ -338,13 +342,14 @@ function preparePackageProjection (root, options = {}) {
 
     for (const file of missing) writeAtomic(path.join(root, file.target), file.content)
     const receiptPath = path.join(root, options.receiptFile || DEFAULT_RECEIPT)
+    const receiptFiles = [...missing, ...reusableForeignExisting]
     const receipt = {
       schemaVersion: RECEIPT_SCHEMA,
       owner: 'devcodex',
       createdAt: new Date().toISOString(),
       root: path.resolve(root),
       planDigest: plan.planDigest,
-      files: missing.map(file => ({
+      files: receiptFiles.map(file => ({
         target: file.target,
         digest: file.digest,
         trackedAtMaterialize: tracked.has(file.target)
@@ -358,6 +363,7 @@ function preparePackageProjection (root, options = {}) {
       planDigest: plan.planDigest,
       trackedTargetCount: existing.filter(file => tracked.has(file.target)).length,
       materializedCount: missing.length,
+      adoptedExistingCount: reusableForeignExisting.length,
       reusedExistingCount: existing.length,
       receiptWritten: true,
       receiptPath

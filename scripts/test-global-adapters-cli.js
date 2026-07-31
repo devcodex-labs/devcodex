@@ -16,7 +16,7 @@ assert.strictEqual(isDevCodexSourceCheckout(ROOT), true)
 
 const sourceGuidance = describeGlobalAdapterRefresh({
   sourceCheckout: true,
-  packageVersion: '1.15.3'
+  packageVersion: '1.15.4'
 })
 assert.strictEqual(sourceGuidance.primary, 'devcodex global-adapters apply')
 assert.match(sourceGuidance.secondary, /npm install -g \./)

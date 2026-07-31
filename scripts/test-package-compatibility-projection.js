@@ -43,11 +43,18 @@ function fixture () {
 const currentPlan = buildPackageProjectionPlan(ROOT)
 assert.strictEqual(currentPlan.entryCount, EXPECTED_ENTRY_COUNT)
 assert.strictEqual(new Set(currentPlan.files.map(file => file.target)).size, EXPECTED_ENTRY_COUNT)
+const currentTracked = new Set(git(ROOT, ['ls-files', '-z', '--'])
+  .split('\0')
+  .filter(Boolean)
+  .map(file => file.replace(/\\/g, '/')))
 const currentMissingCount = currentPlan.files.filter(file =>
   !fs.existsSync(path.join(ROOT, file.target))
 ).length
+const currentReusableForeignCount = currentPlan.files.filter(file =>
+  fs.existsSync(path.join(ROOT, file.target)) && !currentTracked.has(file.target)
+).length
 const current = preparePackageProjection(ROOT)
-if (currentMissingCount === 0) {
+if (currentMissingCount === 0 && currentReusableForeignCount === 0) {
   assert.strictEqual(current.mode, 'verify-existing')
   assert.strictEqual(current.trackedTargetCount, EXPECTED_ENTRY_COUNT)
   assert.strictEqual(current.receiptWritten, false)
@@ -55,10 +62,11 @@ if (currentMissingCount === 0) {
 } else {
   assert.strictEqual(current.mode, 'materialize')
   assert.strictEqual(current.materializedCount, currentMissingCount)
+  assert.strictEqual(current.adoptedExistingCount, currentReusableForeignCount)
   assert.strictEqual(current.receiptWritten, true)
   const currentCleanup = cleanupPackageProjection(ROOT)
   assert.strictEqual(currentCleanup.status, 'cleaned')
-  assert.strictEqual(currentCleanup.removed.length, currentMissingCount)
+  assert.strictEqual(currentCleanup.removed.length, currentMissingCount + currentReusableForeignCount)
 }
 
 {
@@ -169,6 +177,26 @@ if (currentMissingCount === 0) {
     )
     assert.strictEqual(fs.existsSync(modified), true)
     assert.strictEqual(fs.existsSync(path.join(root, DEFAULT_RECEIPT)), true)
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+}
+
+{
+  const root = fixture()
+  try {
+    const first = preparePackageProjection(root)
+    assert.strictEqual(first.materializedCount, EXPECTED_ENTRY_COUNT)
+    fs.unlinkSync(path.join(root, DEFAULT_RECEIPT))
+
+    const adopted = preparePackageProjection(root)
+    assert.strictEqual(adopted.mode, 'materialize')
+    assert.strictEqual(adopted.materializedCount, 0)
+    assert.strictEqual(adopted.adoptedExistingCount, EXPECTED_ENTRY_COUNT)
+    assert.strictEqual(adopted.receiptWritten, true)
+    const cleaned = cleanupPackageProjection(root)
+    assert.strictEqual(cleaned.status, 'cleaned')
+    assert.strictEqual(cleaned.removed.length, EXPECTED_ENTRY_COUNT)
   } finally {
     fs.rmSync(root, { recursive: true, force: true })
   }

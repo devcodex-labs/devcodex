@@ -1,6 +1,6 @@
 # DevCodex — 项目规范（统一规范源）
 
-> DevCodex v1.15.3 · 单源规范文件
+> DevCodex v1.15.4 · 单源规范文件
 > 本文件是 DevCodex 唯一的规范源文件。`devcodex init` 先通过 `HostAdapterScopeV1` 解析唯一宿主 owner：普通仓库为项目根，workspace-namespace 为工作区根；再在该 owner 投影 Copilot、Claude Code 与 Codex 入口。`devcodex init --claude` 仅安装 Claude Code 入口；`devcodex init --codex` 仅安装 Codex 入口。`CLAUDE.md` 与 `AGENTS.md` 都是本文件的部署副本，由本文件持续覆盖。
 
 ---

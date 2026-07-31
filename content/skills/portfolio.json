@@ -11,10 +11,10 @@
     "pluginDigest": "e9944aab9ba3456e174ea6408112274967d6fa5ea45a015f2dc22cb4db4be161",
     "portfolioEvidence": "content/skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "8364a73c66ed2ec9787cdb9300223278d128a45b689a2b8deda0d1f03189f42b",
-    "consumerInventoryFileCount": 455,
-    "consumerInventoryDigest": "b2fa9e1c5e76b9451e2974801621a74994e61604a55d973c3946a351226f39c0",
-    "consumerProjectionDigest": "92353555b8126240cc7395d997d3d0cee5321658a1b584d2db07d06d8fdd677a",
-    "portfolioInputDigest": "1c530a86f5b185943e373c6a0099d1f1ec80af6cd58bedf09a2ab7a84f48b5e7"
+    "consumerInventoryFileCount": 457,
+    "consumerInventoryDigest": "cc990f0cdec810dfe381601c830882c2e81bb7b30775b57cbecd91c27332b380",
+    "consumerProjectionDigest": "103f384855473bc75a568734543c4bc26c22f191c6b848dd6b3dfc8207307c09",
+    "portfolioInputDigest": "5753b4200211e14de82d7badcacecaab85466bce215a59b8f4764caa19983e47"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -11001,6 +11001,10 @@
           "role": "historical"
         },
         {
+          "path": "changelogs/releases/v1.15.5.md",
+          "role": "historical"
+        },
+        {
           "path": "changelogs/releases/v1.3.5.md",
           "role": "historical"
         },
@@ -11058,6 +11062,10 @@
         },
         {
           "path": "hooks/_runtime/context-read-contract.cjs",
+          "role": "current"
+        },
+        {
+          "path": "hooks/_runtime/context-source-observation.cjs",
           "role": "current"
         },
         {
@@ -11980,6 +11988,10 @@
           "role": "historical"
         },
         {
+          "path": "changelogs/releases/v1.15.5.md",
+          "role": "historical"
+        },
+        {
           "path": "changelogs/releases/v1.3.5.md",
           "role": "historical"
         },
@@ -12013,6 +12025,10 @@
         },
         {
           "path": "hooks/_runtime/context-read-contract.cjs",
+          "role": "current"
+        },
+        {
+          "path": "hooks/_runtime/context-source-observation.cjs",
           "role": "current"
         },
         {
@@ -17654,6 +17670,10 @@
         },
         {
           "path": "changelogs/releases/v1.15.0.md",
+          "role": "historical"
+        },
+        {
+          "path": "changelogs/releases/v1.15.5.md",
           "role": "historical"
         },
         {

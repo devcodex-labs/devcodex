@@ -53,7 +53,6 @@ const forbidden = [
   /data\/process-improvements\.md/,
   /data\/pending-issues\.md/,
   /data\/gap-registry\.md/,
-  /skills\/portfolio\.json/,
   /skills\/portfolio-evidence\.json/,
   /content-source\//,
   /^content\//,
@@ -106,6 +105,7 @@ const required = [
   'scripts/instruction-fallback-check.js',
   'scripts/migrate-layout.js',
   'assets/icon-512.png',
+  'skills/portfolio.json',
 ].concat(packageFiles, pluginFiles, promptFiles, dataTemplateFiles, indexRuntimeRequires, packagedScriptDeps)
   .filter(Boolean)
   .filter(file => !file.endsWith('/'))
@@ -131,8 +131,8 @@ if (skillPackFiles.length < 10) {
   console.error(`  found ${skillPackFiles.length} skills/*/SKILL.md`)
   process.exit(1)
 }
-if (files.some(file => file === 'skills/portfolio.json' || file === 'skills/portfolio-evidence.json')) {
-  console.error('\x1b[31m✗ Pack must exclude skills/portfolio.json and skills/portfolio-evidence.json\x1b[0m')
+if (files.some(file => file === 'skills/portfolio-evidence.json')) {
+  console.error('\x1b[31m✗ Pack must exclude skills/portfolio-evidence.json\x1b[0m')
   process.exit(1)
 }
 if (npmignore.includes('tests/')) {

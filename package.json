@@ -176,6 +176,7 @@
     "instructions.md",
     "plugin.json",
     ".mcp.json",
+    "skills/portfolio.json",
     "agents/",
     "skills/*/**",
     "instructions/",

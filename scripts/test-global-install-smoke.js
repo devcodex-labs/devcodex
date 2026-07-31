@@ -122,6 +122,11 @@ for (const host of ['.copilot', '.claude', '.codex', path.join('gemini-cli-home'
   assert.strictEqual(receipt.workspaceCleanMode, 'GlobalOnlyWorkspaceCleanModeV1')
 }
 assert.strictEqual(fs.existsSync(path.join(globalHome, '.agents', 'devcodex', 'instructions.full.md')), true)
+assert.strictEqual(
+  fs.existsSync(path.join(globalHome, '.agents', 'devcodex', 'skills', 'portfolio.json')),
+  true,
+  'shared Skill runtime must include portfolio.json for installed SkillRoute bootstrap'
+)
 assert.strictEqual(fs.existsSync(path.join(globalHome, '.agents', 'devcodex', 'skills', 'routing', 'SKILL.md')), true)
 assert.strictEqual(
   fs.existsSync(path.join(globalHome, '.agents', 'skills', 'routing', 'SKILL.md')),
@@ -218,6 +223,33 @@ const importedClaudeHook = JSON.parse(runCommand(process.execPath, [installedCla
 }).stdout)
 assert.strictEqual(importedClaudeHook.continue, true)
 assert.strictEqual(importedClaudeHook.devcodexCompatibilityBypass, 'grok-imported-claude-hook')
+
+const installedCodexAdapter = path.join(
+  globalHome,
+  '.codex',
+  'devcodex',
+  'runtime',
+  'hooks',
+  '_runtime',
+  'lifecycle-host-adapters.cjs'
+)
+const installedCodexHook = JSON.parse(runCommand(process.execPath, [installedCodexAdapter, 'codex'], {
+  cwd: workspace,
+  env: installedEnv,
+  shell: false,
+  input: JSON.stringify({
+    hookEventName: 'UserPromptSubmit',
+    cwd: workspace,
+    prompt: 'routing installed package smoke',
+    session_id: 'installed-package-skill-route'
+  })
+}).stdout)
+const installedCodexContext = `${installedCodexHook.systemMessage || ''}\n${installedCodexHook.hookSpecificOutput?.additionalContext || ''}`
+assert.match(
+  installedCodexContext,
+  /SkillRouteBootstrapV1/,
+  'installed Codex hook must expose SkillRoute bootstrap from packed global runtime'
+)
 
 for (const host of ['copilot', 'claude', 'codex', 'gemini', 'grok']) {
   const installedAdapter = path.join(

@@ -43,6 +43,7 @@ function walkFiles (root) {
 function assertSafeTarget (relative) {
   const value = portable(relative)
   const safe = value === 'instructions.md' ||
+    value === 'skills/portfolio.json' ||
     /^instructions\/[^/].+$/.test(value) ||
     /^prompts\/[^/].*\.md$/.test(value) ||
     /^skills\/(?:_schemas\/[^/].+|[^/]+\/[^/].*)$/.test(value)
@@ -66,7 +67,7 @@ function buildPackageProjectionPlan (root) {
   for (const file of walkFiles(contentSkillsRoot)) {
     const relative = portable(path.relative(contentSkillsRoot, file))
     if (relative.endsWith('/SKILL.md') || relative.endsWith('/devcodex.skill.json')) continue
-    if (relative === 'portfolio.json' || relative === 'portfolio-evidence.json') continue
+    if (relative === 'portfolio-evidence.json') continue
     const target = assertSafeTarget(`skills/${relative}`)
     if (entries.has(target)) throw new Error(`duplicate package projection target: ${target}`)
     const content = fs.readFileSync(file)

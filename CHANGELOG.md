@@ -2,7 +2,7 @@
 
 > **说明**: 版本概览摘要。最新版本的详细变更见下方表格首行的 `changelogs/releases/vX.Y.Z.md` 链接；历史版本见对应详细变更文件
 > **最后更新**: 2026-08-03
-> **当前未发布**: v1.15.8 已归档；后续未发布实现继续记录到 [`changelogs/unreleased.md`](./changelogs/unreleased.md)。
+> **当前未发布**: v1.15.9 已归档；后续未发布实现继续记录到 [`changelogs/unreleased.md`](./changelogs/unreleased.md)。
 
 ---
 
@@ -10,6 +10,7 @@
 
 | 版本 | 日期 | 变更摘要 | 详细 |
 |------|------|---------|------|
+| [v1.15.9](./changelogs/releases/v1.15.9.md) | 2026-08-03 | 🔧 **SkillRoute 部分阶段 rebind 恢复防死锁**：相同语义的 ContextRead 刷新可安全迁移未完成阶段进度并重新签发新 plan cursor；rebind、status 与 Stop 返回同一可执行续页调用，语义或依赖漂移仍 fail closed | [查看](./changelogs/releases/v1.15.9.md) |
 | [v1.15.8](./changelogs/releases/v1.15.8.md) | 2026-08-03 | 🔧 **新电脑 Profile 初始化与 MCP source observation 防复发**：MCP 直接调用会从 workspace-namespace activeRoot 推断项目 hook state，避免已读 Profile/memory 后 `skill_route commit` 仍 `CONTEXT_BINDING_PENDING`；Profile README 缺失与 `status` 输出给出完整 `profile plan/init` 命令 | [查看](./changelogs/releases/v1.15.8.md) |
 | [v1.15.7](./changelogs/releases/v1.15.7.md) | 2026-07-31 | 🔧 **SkillRoute MCP schema + closeout/rebind 防复发**：`skill_route` schema 改为 per-op `oneOf`，禁止 `catalog/load_stage/status` 接收 `contextBinding`；`CONTEXT_BINDING_PENDING/STALE` 返回结构化恢复建议，Stop closeout 阻断给出可执行 `load_stage` 调用 | [查看](./changelogs/releases/v1.15.7.md) |
 | [v1.15.6](./changelogs/releases/v1.15.6.md) | 2026-07-31 | 🔧 **README 目录导航 + SkillRoute stale receipt 防复发**：README 增加用户章节目录导航并纳入公共 README 契约；修复 MCP source observation 遇到 stale receipt 时复用旧 receipt 导致 `skill_route commit` 继续 pending 的复发路径 | [查看](./changelogs/releases/v1.15.6.md) |
@@ -132,9 +133,9 @@
 
 ## 相关文档
 
-- [`changelogs/releases/v1.15.8.md`](./changelogs/releases/v1.15.8.md) — 最新版本详细变更文档
-- [`changelogs/releases/v1.15.7.md`](./changelogs/releases/v1.15.7.md) — 上一版本详细变更文档
-- [`changelogs/releases/v1.15.6.md`](./changelogs/releases/v1.15.6.md) — 历史版本详细变更文档
+- [`changelogs/releases/v1.15.9.md`](./changelogs/releases/v1.15.9.md) — 最新版本详细变更文档
+- [`changelogs/releases/v1.15.8.md`](./changelogs/releases/v1.15.8.md) — 上一版本详细变更文档
+- [`changelogs/releases/v1.15.7.md`](./changelogs/releases/v1.15.7.md) — 历史版本详细变更文档
 - [`changelogs/releases/v1.15.0.md`](./changelogs/releases/v1.15.0.md) — 上一版本详细变更文档
 - [`changelogs/releases/v1.14.0.md`](./changelogs/releases/v1.14.0.md) — 历史版本详细变更文档
 - [`changelogs/releases/v1.11.21.md`](./changelogs/releases/v1.11.21.md) — 历史版本详细变更文档

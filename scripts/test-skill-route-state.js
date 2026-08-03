@@ -971,6 +971,185 @@ try {
     rebindFixture.cleanup()
   }
 
+  // F-010 regression: a ContextRead refresh must resume a partially loaded
+  // compatible stage with a cursor signed for the rebound plan.
+  const partialRebindFixture = createSkillRouteFixture({ project: 'rebind-partial' })
+  try {
+    const partialEpoch = 'ctx-rebind-partial'
+    const partialSession = 'session-rebind-partial'
+    const partialBinding = writeContextBindingState(
+      partialRebindFixture,
+      partialEpoch,
+      'dev',
+      partialSession,
+      '-first'
+    )
+    const partialBoot = bootstrapSkillRoute({
+      project: partialRebindFixture.project,
+      activeRoot: partialRebindFixture.activeRoot,
+      contextEpoch: partialEpoch,
+      prompt: 'Run the partial rebind probe',
+      mode: 'unified',
+      cwd: partialRebindFixture.projectRoot
+    }, partialRebindFixture.runtimeOptions)
+    requestCatalogAll(partialRebindFixture, partialBoot.bootstrap)
+    const partialCommit = handleSkillRoute({
+      op: 'commit',
+      project: partialRebindFixture.project,
+      turnBinding: partialBoot.bootstrap.turnBinding,
+      contextEpoch: partialEpoch,
+      catalogDigest: partialBoot.bootstrap.catalogDigest,
+      skillId: 'workspace-probe',
+      contextBinding: partialBinding
+    }, partialRebindFixture.runtimeOptions)
+    assert.strictEqual(partialCommit.ok, true, JSON.stringify(partialCommit))
+    const controlPlaneCommit = handleSkillRoute({
+      op: 'commit',
+      project: partialRebindFixture.project,
+      turnBinding: partialBoot.bootstrap.turnBinding,
+      contextEpoch: partialEpoch,
+      catalogDigest: partialBoot.bootstrap.catalogDigest,
+      skillId: 'workspace-probe',
+      contextBinding: partialBinding,
+      previousPlanDigest: partialCommit.receipt.plan.planDigest,
+      lateConditionId: 'control-plane'
+    }, partialRebindFixture.runtimeOptions)
+    assert.strictEqual(controlPlaneCommit.ok, true, JSON.stringify(controlPlaneCommit))
+    const controlPlan = {
+      turnBinding: partialBoot.bootstrap.turnBinding,
+      contextEpoch: partialEpoch,
+      generation: controlPlaneCommit.receipt.plan.generation,
+      planDigest: controlPlaneCommit.receipt.plan.planDigest
+    }
+    loadStageAll(partialRebindFixture, controlPlan, 'entry')
+    const firstControlPage = handleSkillRoute({
+      op: 'load_stage',
+      project: partialRebindFixture.project,
+      ...controlPlan,
+      stageId: 'execution:control-plane',
+      triggerRef: 'test:partial-before-rebind'
+    }, partialRebindFixture.runtimeOptions)
+    assert.strictEqual(firstControlPage.ok, true, JSON.stringify(firstControlPage))
+    assert.strictEqual(firstControlPage.receipt.stageStatus, 'loading')
+    assert(firstControlPage.receipt.nextCursor)
+
+    const partialLifecyclePath = path.join(
+      partialRebindFixture.activeRoot,
+      '.memory',
+      'hooks',
+      partialRebindFixture.project,
+      'lifecycle-state.json'
+    )
+    const partialLifecycle = JSON.parse(
+      fs.readFileSync(partialLifecyclePath, 'utf8')
+    )
+    partialLifecycle.contextAcquisition.receipt.status = 'stale'
+    fs.writeFileSync(
+      partialLifecyclePath,
+      `${JSON.stringify(partialLifecycle, null, 2)}\n`,
+      'utf8'
+    )
+    const partialStop = evaluateProgressiveSkillRouteStop({
+      project: partialRebindFixture.project,
+      contextEpoch: partialEpoch,
+      hostSessionId: partialSession,
+      assistantText: 'Still working.'
+    }, partialRebindFixture.runtimeOptions)
+    assert.strictEqual(partialStop.complete, false)
+    assert.strictEqual(partialStop.nextOp, 'rebind')
+
+    const partialFreshBinding = writeContextBindingState(
+      partialRebindFixture,
+      partialEpoch,
+      'dev',
+      partialSession,
+      '-fresh'
+    )
+    const partialRebindRequest = {
+      op: 'rebind',
+      project: partialRebindFixture.project,
+      turnBinding: partialBoot.bootstrap.turnBinding,
+      contextEpoch: partialEpoch,
+      generation: controlPlan.generation,
+      planDigest: controlPlan.planDigest,
+      contextBinding: partialFreshBinding
+    }
+    const partialRebound = handleSkillRoute(
+      partialRebindRequest,
+      partialRebindFixture.runtimeOptions
+    )
+    assert.strictEqual(partialRebound.ok, true, JSON.stringify(partialRebound))
+    assert.strictEqual(
+      partialRebound.receipt.preservedStageProgress['execution:control-plane'].status,
+      'loading'
+    )
+    assert.strictEqual(partialRebound.receipt.nextAction.nextOp, 'load_stage')
+    assert.strictEqual(
+      partialRebound.receipt.nextAction.nextCall.stageId,
+      'execution:control-plane'
+    )
+    assert(partialRebound.receipt.nextAction.nextCall.cursor)
+    assert.notStrictEqual(
+      partialRebound.receipt.nextAction.nextCall.cursor,
+      firstControlPage.receipt.nextCursor
+    )
+    const reboundPendingStatus = handleSkillRoute({
+      op: 'status',
+      project: partialRebindFixture.project,
+      turnBinding: partialBoot.bootstrap.turnBinding,
+      contextEpoch: partialEpoch
+    }, partialRebindFixture.runtimeOptions)
+    assert.strictEqual(reboundPendingStatus.ok, true)
+    assert.deepStrictEqual(
+      reboundPendingStatus.receipt.nextAction.nextCall,
+      partialRebound.receipt.nextAction.nextCall
+    )
+    const reboundPendingStop = evaluateProgressiveSkillRouteStop({
+      project: partialRebindFixture.project,
+      contextEpoch: partialEpoch,
+      hostSessionId: partialSession,
+      assistantText: 'Still working.'
+    }, partialRebindFixture.runtimeOptions)
+    assert.strictEqual(reboundPendingStop.complete, false)
+    assert.deepStrictEqual(
+      reboundPendingStop.nextCall,
+      partialRebound.receipt.nextAction.nextCall
+    )
+    assert.deepStrictEqual(
+      handleSkillRoute(partialRebindRequest, partialRebindFixture.runtimeOptions),
+      partialRebound
+    )
+
+    let resumedCall = partialRebound.receipt.nextAction.nextCall
+    let resumedPage
+    do {
+      resumedPage = handleSkillRoute(resumedCall, partialRebindFixture.runtimeOptions)
+      assert.strictEqual(resumedPage.ok, true, JSON.stringify(resumedPage))
+      resumedCall = resumedPage.receipt.nextCursor
+        ? { ...resumedCall, cursor: resumedPage.receipt.nextCursor }
+        : null
+    } while (resumedCall)
+    assert.strictEqual(resumedPage.receipt.stageStatus, 'loaded')
+
+    const reboundPlan = {
+      turnBinding: partialBoot.bootstrap.turnBinding,
+      contextEpoch: partialEpoch,
+      generation: partialRebound.receipt.plan.generation,
+      planDigest: partialRebound.receipt.plan.planDigest
+    }
+    loadStageAll(partialRebindFixture, reboundPlan, 'closeout')
+    const completedPartialStatus = handleSkillRoute({
+      op: 'status',
+      project: partialRebindFixture.project,
+      turnBinding: partialBoot.bootstrap.turnBinding,
+      contextEpoch: partialEpoch
+    }, partialRebindFixture.runtimeOptions)
+    assert.strictEqual(completedPartialStatus.ok, true)
+    assert.strictEqual(completedPartialStatus.receipt.obligations.processComplete, true)
+  } finally {
+    partialRebindFixture.cleanup()
+  }
+
   const staleFixture = createSkillRouteFixture({ project: 'stale' })
   try {
     const staleEpoch = 'ctx-stale'

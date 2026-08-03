@@ -1082,6 +1082,9 @@ function handleRebind (input, target, options) {
       state.trustedContextBindingDigest = trustedContext.bindingDigest
       state.hostSessionId = trustedContext.hostSessionId || state.hostSessionId || ''
       state.obligationLedger = buildObligationLedger(plan, state.stageProgress)
+      const pendingStageIds = (state.obligationLedger.requiredStageIds || []).filter(stageId =>
+        state.stageProgress[stageId]?.status !== 'loaded'
+      )
       const response = bindResponseToTransaction(successResponse('rebind', {
         schemaVersion: 'SkillRouteRebindReceiptV1',
         priorGeneration: priorPlan.generation,
@@ -1089,7 +1092,17 @@ function handleRebind (input, target, options) {
         plan: summarizePlan(plan),
         contextBindingDigest: trustedContext.bindingDigest,
         obligations: state.obligationLedger,
-        preservedStageProgress: summarizeStageProgress(state.stageProgress)
+        preservedStageProgress: summarizeStageProgress(state.stageProgress),
+        nextAction: {
+          schemaVersion: 'SkillRouteNextActionV1',
+          nextOp: pendingStageIds.length ? 'load_stage' : null,
+          pendingStageIds,
+          errorCode: null,
+          nextCall: pendingStageIds.length
+            ? buildLoadStageNextCall(state, pendingStageIds[0])
+            : null,
+          recovery: null
+        }
       }, [], 16 * 1024), tx, 16 * 1024)
       appendLedger(state, {
         op: 'rebind',
@@ -1122,14 +1135,40 @@ function stageIdentityKeys (plan, stageId) {
     .sort()
 }
 
+function stageCompatibilitySignature (plan, stageId) {
+  const stage = plan?.stages?.find(item => item.stageId === stageId)
+  if (!stage) return null
+  return {
+    identityKeys: stageIdentityKeys(plan, stageId),
+    dependsOn: [...(stage.dependsOn || [])].sort()
+  }
+}
+
+function compatibleStageDefinition (priorPlan, nextPlan, stageId) {
+  const before = stageCompatibilitySignature(priorPlan, stageId)
+  const after = stageCompatibilitySignature(nextPlan, stageId)
+  return !!before &&
+    before.identityKeys.length > 0 &&
+    JSON.stringify(before) === JSON.stringify(after)
+}
+
+function validProgressPrefix (value) {
+  const servedPages = Array.isArray(value?.servedPages) ? value.servedPages : []
+  const loadedKeys = Array.isArray(value?.loadedKeys) ? value.loadedKeys : []
+  return servedPages.length > 0 &&
+    loadedKeys.length > 0 &&
+    servedPages.every((pageIndex, index) =>
+      Number.isInteger(pageIndex) && pageIndex === index
+    )
+}
+
 function preserveCompatibleStageProgress (priorPlan, nextPlan, progress = {}) {
   if (!priorPlan) return {}
   const preserved = {}
   for (const [stageId, value] of Object.entries(progress || {})) {
-    if (value?.status !== 'loaded') continue
-    const before = stageIdentityKeys(priorPlan, stageId)
-    const after = stageIdentityKeys(nextPlan, stageId)
-    if (before.length && JSON.stringify(before) === JSON.stringify(after)) {
+    if (!['loading', 'loaded'].includes(value?.status)) continue
+    if (compatibleStageDefinition(priorPlan, nextPlan, stageId) &&
+        validProgressPrefix(value)) {
       preserved[stageId] = JSON.parse(JSON.stringify(value))
     }
   }
@@ -1140,20 +1179,44 @@ function assertReplanProgressCompatible (priorPlan, nextPlan, progress = {}) {
   if (!priorPlan) return
   for (const [stageId, value] of Object.entries(progress || {})) {
     if (!value?.loadedKeys?.length) continue
-    if (value.status !== 'loaded') {
+    if (!validProgressPrefix(value)) {
       const error = new Error('LATE_REPLAN_STAGE_INCOMPLETE')
       error.code = 'LATE_REPLAN_STAGE_INCOMPLETE'
       error.stageId = stageId
       throw error
     }
-    const before = stageIdentityKeys(priorPlan, stageId)
-    const after = stageIdentityKeys(nextPlan, stageId)
-    if (JSON.stringify(before) !== JSON.stringify(after)) {
+    if (!compatibleStageDefinition(priorPlan, nextPlan, stageId)) {
       const error = new Error('LATE_REPLAN_LOADED_EVICTION')
       error.code = 'LATE_REPLAN_LOADED_EVICTION'
       error.stageId = stageId
       throw error
     }
+  }
+}
+
+function buildLoadStageNextCall (state, stageId) {
+  const servedPageCount = state.stageProgress[stageId]?.servedPages?.length || 0
+  return {
+    op: 'load_stage',
+    project: state.project,
+    turnBinding: state.turnBinding,
+    contextEpoch: state.contextEpoch,
+    generation: state.plan.generation,
+    planDigest: state.plan.planDigest,
+    stageId,
+    ...(servedPageCount > 0
+      ? {
+          cursor: encodeCursor({
+            schemaVersion: 'StageLoadCursorV1',
+            project: state.project,
+            turnBinding: state.turnBinding,
+            contextEpoch: state.contextEpoch,
+            planDigest: state.plan.planDigest,
+            stageId,
+            pageIndex: servedPageCount
+          })
+        }
+      : {})
   }
 }
 
@@ -1562,15 +1625,7 @@ function handleStatus (input, target, options) {
             contextBinding: '<fresh ContextReadBindingV1 from refreshed ContextRead>'
           }
         : (nextOp === 'load_stage' && state.plan
-            ? {
-                op: 'load_stage',
-                project: state.project,
-                turnBinding: state.turnBinding,
-                contextEpoch: state.contextEpoch,
-                generation: state.plan.generation,
-                planDigest: state.plan.planDigest,
-                stageId: pendingStageIds[0] || null
-              }
+            ? buildLoadStageNextCall(state, pendingStageIds[0] || null)
             : null),
       recovery: contextRecovery
     },
@@ -1707,15 +1762,7 @@ function evaluateProgressiveSkillRouteStop (input, options = {}) {
         contextBinding: '<fresh ContextReadBindingV1 from refreshed ContextRead>'
       }
     : (nextOp === 'load_stage' && state.plan
-        ? {
-            op: 'load_stage',
-            project: target.project,
-            turnBinding,
-            contextEpoch: state.contextEpoch,
-            generation: state.plan.generation,
-            planDigest: state.plan.planDigest,
-            stageId: pendingStageIds[0] || null
-          }
+        ? buildLoadStageNextCall(state, pendingStageIds[0] || null)
         : null)
   return {
     schemaVersion: 'ProgressiveSkillRouteStopV1',
@@ -1877,5 +1924,7 @@ module.exports = {
   assertReplanProgressCompatible,
   summarizeStageProgress,
   stageIdentityKeys,
+  stageCompatibilitySignature,
+  buildLoadStageNextCall,
   rebindSemanticDigest
 }

@@ -472,13 +472,16 @@ try {
       ]
     }
   }
-  assert.throws(
+  assert.doesNotThrow(
     () => assertReplanProgressCompatible(
       plan,
       activatedPlan,
       partialProgress
-    ),
-    error => error && error.code === 'LATE_REPLAN_STAGE_INCOMPLETE'
+    )
+  )
+  assert.deepStrictEqual(
+    preserveCompatibleStageProgress(plan, activatedPlan, partialProgress),
+    partialProgress
   )
   const loadedProgress = {
     entry: {
@@ -489,6 +492,27 @@ try {
   assert.deepStrictEqual(
     preserveCompatibleStageProgress(plan, activatedPlan, loadedProgress),
     loadedProgress
+  )
+  const firstCloseout = plan.baseResolution.selected.find(item =>
+    item.loadStage === 'closeout'
+  )
+  const partialCloseoutProgress = {
+    closeout: {
+      status: 'loading',
+      servedPages: [0],
+      loadedKeys: [
+        `${firstCloseout.skillId}|${firstCloseout.effectiveLayer}|` +
+        `${firstCloseout.bodyDigest}|${turnIdentity.contextEpoch}`
+      ]
+    }
+  }
+  assert.throws(
+    () => assertReplanProgressCompatible(
+      plan,
+      activatedPlan,
+      partialCloseoutProgress
+    ),
+    error => error && error.code === 'LATE_REPLAN_LOADED_EVICTION'
   )
   const planWithEntryEvicted = JSON.parse(JSON.stringify(activatedPlan))
   planWithEntryEvicted.baseResolution.selected =

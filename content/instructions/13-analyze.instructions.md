@@ -2,7 +2,7 @@
 applyTo: "**"
 description: analyze 工作流规则，覆盖只读分析、代码取证顺序、多轮收敛与推荐结论
 priority: P4
-version: 1.15.8
+version: 1.15.9
 ---
 # 分析工作流规则（13-analyze）
 

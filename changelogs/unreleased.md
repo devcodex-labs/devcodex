@@ -1,9 +1,10 @@
 # 未发布变更（Unreleased）
 
 > **用途**: 记录尚未正式发版的实现级变更。
-> **当前**: v1.15.7 已归档到 `changelogs/releases/v1.15.7.md`；本文件仅保留历史锚点索引与镜像供 validate 探针消费。发版后新实现再写入下方「当前未发布」。
+> **当前**: v1.15.8 已归档到 `changelogs/releases/v1.15.8.md`；本文件仅保留历史锚点索引与镜像供 validate 探针消费。发版后新实现再写入下方「当前未发布」。
 
 ## 当前未发布实现候选
+- **v1.15.8 已归档**：新电脑 Profile 初始化提示、MCP source observation workspace-namespace 推断与 `skill_route commit` pending 防复发已进入 `changelogs/releases/v1.15.8.md`。
 - **README 首次信任与 workspace 初始化说明 + status 初始化误报修复**：公共 README 补充 `devcodex init`、多项目 workspace `.devcodex/layout.json` 基线、首次宿主 trust/allow 提示、工作区 Skill 路径、Profile missing 不是安装失败以及可选 `profile plan/init`；`devcodex status` 改为基于 workspace layout/runtime 证据判断 `.devcodex` 是否 ready，避免 fresh workspace 已初始化后仍提示 “Workspace runtime not initialized”；CLI 行为测试增加防复发断言。
 - **v1.15.7 已归档**：SkillRoute MCP schema 与 closeout/rebind 防复发已进入 `changelogs/releases/v1.15.7.md`。
 - **v1.15.6 已归档**：README 目录导航与 SkillRoute stale receipt 防复发修复已进入 `changelogs/releases/v1.15.6.md`。

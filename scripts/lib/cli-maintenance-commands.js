@@ -427,7 +427,7 @@ function buildCliMaintenanceCommands(ctx) {
     if (profile.error) profileLabel = c.red(`invalid   (${profile.error})`)
     else if (profile.complete) profileLabel = c.green(`complete  (${profile.tier}; ${profileDetails})`)
     else if (profile.present > 0) profileLabel = c.yellow(`partial   (${profile.tier}; ${profileDetails})`)
-    else profileLabel = c.red(`missing   (${profileDetails} — run: devcodex profile plan)`)
+    else profileLabel = c.red(`missing   (${profileDetails} — run: devcodex profile plan --tier profile-lite && devcodex profile init --tier profile-lite)`)
     console.log(`  ${c.cyan('profile'.padEnd(14))} ${profileLabel}`)
     console.log(`  ${c.cyan('optimization'.padEnd(14))} ${executionOptimization.config.effective} (${executionOptimization.stateStatus}; ${executionOptimization.features.filter(item => item.decision.optimizationAllowed).length}/${executionOptimization.features.length} accelerated)`)
     console.log(`  ${c.cyan('governance'.padEnd(14))} ${formatGovernanceSummary(governanceSummary)}`)

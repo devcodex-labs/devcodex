@@ -1164,10 +1164,14 @@ function handleProfileContextPlan(args = {}) {
     }
     return contextPlanResult(plan)
   } catch (error) {
+    const message = String(error?.message || '')
+    const profileMissing = /Profile README\.md is missing/i.test(message)
     return contextPlanResult(buildContextReadError(
       'CONTEXT_PLAN_INVALID',
-      error.message,
-      'Repair the Profile README/config baseline and retry once.'
+      message,
+      profileMissing
+        ? 'Run devcodex init in the workspace root, then run devcodex profile plan --tier profile-lite and devcodex profile init --tier profile-lite for the active workspace/project. After that, open a new host session and retry.'
+        : 'Repair the Profile README/config baseline and retry once.'
     ))
   }
 }

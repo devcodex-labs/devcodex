@@ -379,7 +379,7 @@ try {
   const bridgedSources = recordMcpContextSourceObservations({
     activeRoot: fixture.activeRoot,
     project: fixture.project,
-    workspaceNamespace: true,
+    workspaceNamespace: false,
     contextBinding: mcpObservedPlan.contextBinding,
     hostSessionId: 'session-mcp-source-observation',
     sourceResults: mcpObservedPlan.mandatorySourceIds.map(sourceId => observedMcpSourceResult(mcpObservedPlan, sourceId))
@@ -387,6 +387,11 @@ try {
   assert.strictEqual(bridgedSources.status, 'persisted', JSON.stringify(bridgedSources))
   assert.deepStrictEqual(bridgedSources.missingSourceIds, [])
   assert.strictEqual(bridgedSources.receiptStatus, 'relevant-complete')
+  assert.strictEqual(
+    bridgedSources.statePath.replace(/\\/g, '/').endsWith(`/.memory/hooks/${fixture.project}/lifecycle-state.json`),
+    true,
+    'workspace-namespace activeRoot must infer the project hook lifecycle path even when MCP omits workspaceNamespace'
+  )
   const mcpRecoveredCommit = handleSkillRoute({
     op: 'commit',
     project: fixture.project,
@@ -448,7 +453,7 @@ try {
   const staleBridge = recordMcpContextSourceObservations({
     activeRoot: fixture.activeRoot,
     project: fixture.project,
-    workspaceNamespace: true,
+    workspaceNamespace: false,
     contextBinding: staleReceiptPlan.contextBinding,
     hostSessionId: 'session-mcp-stale-source-observation',
     sourceResults: staleReceiptPlan.mandatorySourceIds.map(sourceId => observedMcpSourceResult(staleReceiptPlan, sourceId))

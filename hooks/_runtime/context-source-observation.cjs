@@ -41,6 +41,16 @@ function lifecycleStatePath({ activeRoot, project, workspaceNamespace }) {
   )
 }
 
+function looksLikeWorkspaceNamespaceActiveRoot(activeRoot, project) {
+  const resolved = path.resolve(String(activeRoot || ''))
+  const projectName = String(project || '').trim()
+  return !!(
+    projectName &&
+    path.basename(resolved) === projectName &&
+    path.basename(path.dirname(resolved)) === '.devcodex'
+  )
+}
+
 function waitSync(milliseconds) {
   if (milliseconds <= 0) return
   const signal = new Int32Array(new SharedArrayBuffer(4))
@@ -234,10 +244,13 @@ function normalizeSourceResult(raw, plan, binding, target, hostSessionId) {
 }
 
 function recordMcpContextSourceObservations(input = {}, options = {}) {
+  const activeRoot = portableRoot(input.activeRoot)
+  const project = String(input.project || '').trim()
   const target = {
-    activeRoot: portableRoot(input.activeRoot),
-    project: String(input.project || '').trim(),
-    workspaceNamespace: input.workspaceNamespace === true
+    activeRoot,
+    project,
+    workspaceNamespace: input.workspaceNamespace === true ||
+      looksLikeWorkspaceNamespaceActiveRoot(activeRoot, project)
   }
   if (!target.activeRoot || !target.project) return { status: 'skipped', reasonCode: 'target-incomplete' }
   const binding = normalizeVerifiedBinding(input.contextBinding, target)

@@ -1,11 +1,10 @@
 # 未发布变更（Unreleased）
 
 > **用途**: 记录尚未正式发版的实现级变更。
-> **当前**: v1.16.1 已归档到 `changelogs/releases/v1.16.1.md`；本文件仅保留历史锚点索引与镜像供 validate 探针消费。发版后新实现再写入下方「当前未发布」。
+> **当前**: v1.16.2 已归档到 `changelogs/releases/v1.16.2.md`；本文件仅保留历史锚点索引与镜像供 validate 探针消费。发版后新实现再写入下方「当前未发布」。
 
 ## 当前未发布实现候选
-- **ContextRead / SkillRoute receipt 持久化修复（PF-256 / PI-216）**：MCP Profile/memory 正文观察新增 128-slot、单 slot 512KiB 的 `ContextSourceObservationLedgerV1`，以 locked read-modify-write 合并分片/并发 writer；SkillRoute 在 commit/rebind/load_stage/status/Stop 前按 contextEpoch + planId + planContentId + activeRoot + project 精确重放，抵御 Hook/lifecycle 旧快照把 receipt 覆盖回 baseline。重放保留 MCP 证据显式空 hostSessionId，防止同 observationId 被误判语义冲突；source metadata 漂移、`stale/blocked`、lock timeout 和错绑仍 fail closed，未放宽任何 MCP/ContextBinding 参数校验。
-- **README 常见任务与 CLI 帮助防误写**：公共 README 新增可直接复制的分析、需求确认、Bug 诊断、`@rocky` 自动修复、深度审查、任务续接和发布请求教程；`devcodex help <command>` 与 `<command> --help` 现统一进入只读帮助，不再误执行 `init` 或进入子命令解析。`PublicReadmeContractV1` 和 CLI registry 负向探针防止教程或零写入语义回归。
+- **v1.16.2 已归档**：ContextRead 来源回执耐久化、空会话标识重放修复、README 常见任务教程与 CLI 只读帮助已进入 `changelogs/releases/v1.16.2.md`。
 - **v1.16.1 已归档**：长会话提示有界化、会话治理状态隔离、项目绑定稳定性与唯一短名解析修复已进入 `changelogs/releases/v1.16.1.md`。
 - **v1.16.0 已归档**：首次初始化、项目 Profile、用户语言与 workspace runtime-state 一致性已进入 `changelogs/releases/v1.16.0.md`。
 - **v1.15.9 已归档**：SkillRoute 相同语义 rebind 现在可迁移未完成阶段前缀、重新签发新 plan cursor，并让 rebind/status/Stop 返回一致且可执行的恢复调用；语义、阶段内容或依赖漂移仍 fail closed。

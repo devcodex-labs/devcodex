@@ -3,6 +3,7 @@
 const {
   contextPlanObservationRelativePath
 } = require('../../hooks/_runtime/context-plan-observation.cjs')
+const { resolveRuntimeStateRoot } = require('../../hooks/_runtime/workspace-layout.cjs')
 
 function runHooksRuntimeBootstrapLayoutScenarios(context) {
   const {
@@ -188,8 +189,10 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
   assert(fs.existsSync(path.join(
     TEMP_ROOT,
     '.devcodex',
-    'devcodex',
+    'workspace',
     '.runtime-state',
+    'projects',
+    'devcodex',
     'skill-route',
     'turns',
     reboundState.progressiveSkillRoute.bootstrap.turnBinding,
@@ -600,7 +603,7 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
     })
     const result = callProfileTool(TEMP_ROOT, 'profile_context_plan', args)
     const observationPath = path.join(
-      state.contextAcquisition.activeRoot,
+      resolveRuntimeStateRoot(state.contextAcquisition.activeRoot, state.contextAcquisition.project).root,
       contextPlanObservationRelativePath(args.contextEpoch)
     )
     const observation = JSON.parse(fs.readFileSync(observationPath, 'utf8'))

@@ -4,6 +4,7 @@ const fs = require('fs')
 const path = require('path')
 const { buildJsonContentIdentity, sha256, stableStringify } = require('./content-identity.cjs')
 const { createDerivedStateStore } = require('./derived-state-store.cjs')
+const { createRuntimeStateStore } = require('./runtime-state-store.cjs')
 const {
   createCommitValidationResult,
   createRiskAcceptanceReceipt,
@@ -102,7 +103,7 @@ function taskKeyDigest(taskKey) {
 }
 
 function derivedStateRelativePath(taskKey) {
-  return path.posix.join('.runtime-state', 'workflow-completion', `${taskKeyDigest(taskKey)}.json`)
+  return path.posix.join('workflow-completion', `${taskKeyDigest(taskKey)}.json`)
 }
 
 function normalizeLifecycleState(raw) {
@@ -236,8 +237,8 @@ function adaptSourceRefs(sourceRefs, candidate, plan) {
 
 function createCompletionStore({ activeRoot, taskKey, now, maxBytes = MAX_DERIVED_STATE_BYTES, lockWaitMs = 2000, maxWrites = 1 }) {
   if (!text(activeRoot)) throw new WorkflowCompletionLifecycleError('WORKFLOW_ACTIVE_ROOT_REQUIRED', 'activeRoot is required')
-  return createDerivedStateStore({
-    root: activeRoot,
+  return createRuntimeStateStore({
+    activeRoot,
     relativePath: derivedStateRelativePath(taskKey),
     maxBytes,
     lockWaitMs,
@@ -402,7 +403,7 @@ function readWorkflowCompletionRollout(activeRoot, inputRollout = {}) {
 }
 
 function shadowWindowRelativePath() {
-  return path.posix.join('.runtime-state', 'workflow-completion', 'shadow-window.json')
+  return path.posix.join('workflow-completion', 'shadow-window.json')
 }
 
 function shadowRuleSetIdentity(ruleSetDigest) {
@@ -414,8 +415,8 @@ function shadowRuleSetIdentity(ruleSetDigest) {
 }
 
 function createShadowWindowStore({ activeRoot, now = Date.now, maxWrites = 1 } = {}) {
-  return createDerivedStateStore({
-    root: activeRoot,
+  return createRuntimeStateStore({
+    activeRoot,
     relativePath: shadowWindowRelativePath(),
     maxBytes: SHADOW_STATE_MAX_BYTES,
     maxWrites,

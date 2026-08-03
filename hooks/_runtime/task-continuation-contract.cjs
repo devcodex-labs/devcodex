@@ -9,7 +9,7 @@ const {
   sha256,
   stableStringify
 } = require('./content-identity.cjs')
-const { createDerivedStateStore } = require('./derived-state-store.cjs')
+const { createRuntimeStateStore } = require('./runtime-state-store.cjs')
 const { resolveExecutionFeatureDecisionForCwd } = require('./execution-optimization-routing.cjs')
 const {
   collectWorkspaceProjectNamespaces,
@@ -23,7 +23,7 @@ const TASK_IDENTITY_SCHEMA = 'TaskIdentityV1'
 const TASK_INDEX_SCHEMA = 'TaskContinuationIndexV1'
 const TASK_RESOLUTION_SCHEMA = 'TaskResolutionV1'
 const TASK_KINDS = Object.freeze(['requirements', 'bugs', 'optimizations', 'scenario-tests'])
-const TASK_INDEX_RELATIVE_PATH = path.join('.runtime-state', 'task-continuation-index.json')
+const TASK_INDEX_RELATIVE_PATH = 'task-continuation-index.json'
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 class TaskContinuationError extends Error {
@@ -192,7 +192,7 @@ function resolveRootContext({ cwd, project = '', scope = 'auto' }) {
       project: String(project || path.basename(absoluteCwd)),
       roots: [{ project: String(project || path.basename(absoluteCwd)), activeRoot }],
       relativeBase: activeRoot,
-      storeRoot: activeRoot,
+      storeActiveRoot: activeRoot,
       storeRelativePath: TASK_INDEX_RELATIVE_PATH
     }
   }
@@ -212,8 +212,8 @@ function resolveRootContext({ cwd, project = '', scope = 'auto' }) {
       project: normalized,
       roots: [{ project: normalized, activeRoot: namespaceRootPath(layout.workspaceRoot, normalized) }],
       relativeBase: layout.workspaceRoot,
-      storeRoot: layout.workspaceRoot,
-      storeRelativePath: path.join('.devcodex', 'workspace', TASK_INDEX_RELATIVE_PATH)
+      storeActiveRoot: path.join(layout.workspaceRoot, '.devcodex', 'workspace'),
+      storeRelativePath: TASK_INDEX_RELATIVE_PATH
     }
   }
 
@@ -228,8 +228,8 @@ function resolveRootContext({ cwd, project = '', scope = 'auto' }) {
       ...projects.map(namespace => ({ project: namespace, activeRoot: namespaceRootPath(layout.workspaceRoot, namespace) }))
     ],
     relativeBase: layout.workspaceRoot,
-    storeRoot: layout.workspaceRoot,
-    storeRelativePath: path.join('.devcodex', 'workspace', TASK_INDEX_RELATIVE_PATH)
+    storeActiveRoot: workspaceNamespaceRoot,
+    storeRelativePath: TASK_INDEX_RELATIVE_PATH
   }
 }
 
@@ -568,8 +568,9 @@ function resolveTaskContinuation({
     featureId: 'task-index-acceleration'
   })
   const indexEnabled = useIndex !== false && featureDecision.optimizationAllowed
-  const store = createDerivedStateStore({
-    root: rootContext.storeRoot,
+  const store = createRuntimeStateStore({
+    activeRoot: rootContext.storeActiveRoot,
+    project: rootContext.scope === 'workspace' ? 'workspace' : rootContext.project,
     relativePath: rootContext.storeRelativePath,
     maxBytes: rootContext.scope === 'workspace' ? 16 * 1024 * 1024 : 4 * 1024 * 1024,
     lockWaitMs: 2000,

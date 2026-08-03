@@ -534,13 +534,14 @@ function buildCliMaintenanceCommands(ctx) {
     process.exitCode = 1
   }
 
-  function cmdProfileInit(argv) {
+  function cmdProfileInit(argv, runtimeOptions = {}) {
+    const log = runtimeOptions.silent ? () => {} : (...args) => console.log(...args)
     const options = parseProfileInitArgs(argv)
     if (options.errors.length) {
       printProfileArgErrors(options.errors)
       return { ok: false, reason: 'invalid-arguments' }
     }
-    const cwd = process.cwd()
+    const cwd = runtimeOptions.cwdOverride ? path.resolve(runtimeOptions.cwdOverride) : process.cwd()
     const dir = path.join(resolveActiveRuntimeRoot(cwd), 'profile')
     const ctx = buildProfileContext(cwd)
     let detectedTier
@@ -551,25 +552,25 @@ function buildCliMaintenanceCommands(ctx) {
       return { ok: false, reason: 'invalid-existing-tier' }
     }
     const recommendation = recommendProfileTier(ctx)
-    const tier = options.requestedTier || detectedTier || 'profile-lite'
+    const tier = options.requestedTier || detectedTier || (runtimeOptions.useRecommendedTier ? recommendation.tier : 'profile-lite')
     if (detectedTier && compareProfileTiers(tier, detectedTier) < 0 && !options.allowDowngrade) {
       printProfileArgErrors([`refusing profile downgrade: ${detectedTier} → ${tier}; add --allow-downgrade to confirm`])
       return { ok: false, reason: 'downgrade-not-authorized' }
     }
     const mode = options.prod ? 'prod' : 'dev'
-    console.log()
-    console.log(c.bold(`  DevCodex profile ${options.dryRun ? 'plan' : 'init'}`) + c.dim(` (${tier}) in ${cwd}`))
-    console.log(c.dim('  ──────────────────────────────────────'))
+    log()
+    log(c.bold(`  DevCodex profile ${options.dryRun ? 'plan' : 'init'}`) + c.dim(` (${tier}) in ${cwd}`))
+    log(c.dim('  ──────────────────────────────────────'))
     const agent = detectAgent(cwd)
-    console.log(`  target root:      ${dir}`)
-    console.log(`  detected tier:    ${detectedTier || '(none)'}`)
-    console.log(`  requested tier:   ${options.tierExplicit ? tier : '(not explicit)'}`)
-    console.log(`  recommended tier: ${recommendation.tier}`)
-    for (const reason of recommendation.reasons) console.log(c.dim(`    - ${reason}`))
-    console.log(`  target tier:      ${tier}`)
-    console.log(`  mode:             ${mode}`)
-    if (options.dryRun) console.log(c.yellow('  dry-run:          no directories, files or backups will be written'))
-    console.log()
+    log(`  target root:      ${dir}`)
+    log(`  detected tier:    ${detectedTier || '(none)'}`)
+    log(`  requested tier:   ${options.tierExplicit ? tier : '(not explicit)'}`)
+    log(`  recommended tier: ${recommendation.tier}`)
+    for (const reason of recommendation.reasons) log(c.dim(`    - ${reason}`))
+    log(`  target tier:      ${tier}`)
+    log(`  mode:             ${mode}`)
+    if (options.dryRun) log(c.yellow('  dry-run:          no directories, files or backups will be written'))
+    log()
 
     const generators = {
       'README.md': () => genProfileReadme(tier),
@@ -591,17 +592,17 @@ function buildCliMaintenanceCommands(ctx) {
       const shouldUpdateTier = file === 'README.md' && exists && detectedTier && tier !== detectedTier && !options.force
       if (shouldUpdateTier) {
         actions.push({ file, action: 'update-tier', dest })
-        console.log(`  ${c.cyan('[tier]')} ${file} ${c.dim(`(${detectedTier} → ${tier}; preserve body)`)}`)
+        log(`  ${c.cyan('[tier]')} ${file} ${c.dim(`(${detectedTier} → ${tier}; preserve body)`)}`)
         continue
       }
       if (exists && !options.force) {
         actions.push({ file, action: 'skip', dest })
-        console.log(`  ${c.dim('[skip]')}  ${file} ${c.dim('(existing)')}`)
+        log(`  ${c.dim('[skip]')}  ${file} ${c.dim('(existing)')}`)
         skipped++
         continue
       }
       actions.push({ file, action: exists ? 'backup-and-generate' : 'generate', dest })
-      console.log(`  ${exists ? c.yellow('[force]') : c.green('[gen]')} ${file}${exists ? c.dim(' (backup first)') : ''}`)
+      log(`  ${exists ? c.yellow('[force]') : c.green('[gen]')} ${file}${exists ? c.dim(' (backup first)') : ''}`)
       generated++
     }
 
@@ -624,14 +625,14 @@ function buildCliMaintenanceCommands(ctx) {
       }
     }
 
-    console.log()
+    log()
     const plannedTierUpdates = actions.filter(item => item.action === 'update-tier').length
-    console.log(`  ${options.dryRun ? 'Planned generate' : 'Generated'}: ${generated}  Skipped: ${skipped}  Tier updates: ${plannedTierUpdates}  Backed up: ${backedUp}`)
-    if (generated > 0 || plannedTierUpdates > 0) console.log(c.yellow('  ⚠️  Generated content is an evidence-backed draft; review every unverified field before relying on it.'))
+    log(`  ${options.dryRun ? 'Planned generate' : 'Generated'}: ${generated}  Skipped: ${skipped}  Tier updates: ${plannedTierUpdates}  Backed up: ${backedUp}`)
+    if (generated > 0 || plannedTierUpdates > 0) log(c.yellow('  ⚠️  Generated content is an evidence-backed draft; review every unverified field before relying on it.'))
     if (!options.tierExplicit && recommendation.tier !== tier) {
-      console.log(c.yellow(`  Recommendation: run \`devcodex profile plan --tier ${recommendation.tier}\` before upgrading.`))
+      log(c.yellow(`  Recommendation: run \`devcodex profile plan --tier ${recommendation.tier}\` before upgrading.`))
     }
-    console.log()
+    log()
     return { ok: true, dryRun: options.dryRun, detectedTier, recommendedTier: recommendation.tier, targetTier: tier, actions }
   }
 
@@ -1037,6 +1038,8 @@ function buildCliMaintenanceCommands(ctx) {
       ${c.cyan('global-adapters')}   Apply user-level host adapters from package root (source-friendly)
       ${c.cyan('grok')}              Launch Grok with the user-global DevCodex kernel
       ${c.cyan('migrate-layout')}    Plan/apply/rollback centralized .devcodex workspace layout
+      ${c.cyan('runtime status')}    Inspect runtime-state owners, size and last-use timestamps
+      ${c.cyan('runtime prune')}     Preview safe stale-temp cleanup; add --apply to remove
       ${c.cyan('profile init')}      Auto-generate tiered .devcodex/profile/ drafts
       ${c.cyan('profile plan')}      Preview Profile root/tier/file actions without writing
       ${c.cyan('status')}            Show installed files; add --completion for workflow state
@@ -1070,6 +1073,8 @@ function buildCliMaintenanceCommands(ctx) {
       devcodex grok                             # Full-evidence Grok launcher using the global kernel
       devcodex grok -p "Review this diff" --output-format json
       devcodex migrate-layout plan              # Generate centralized layout migration manifest
+      devcodex runtime status                    # Inspect canonical and legacy runtime state
+      devcodex runtime prune --dry-run           # Preview safe cleanup without writing
       devcodex profile init --tier profile-standard  # Generate tiered Profile drafts
       devcodex profile plan --tier profile-closed-loop # Preview a safe upgrade
       devcodex status                           # Check installation

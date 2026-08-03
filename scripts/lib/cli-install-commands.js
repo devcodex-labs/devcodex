@@ -4,12 +4,13 @@ const { DEFAULT_HOSTS, HOST_IDS, hostEntryPairs } = require('./host-surface-desc
 const PACKAGE_JSON = require('../../package.json')
 const {
   createCliFailure,
-  createCliSuccess,
   printCliJson
 } = require('./cli-json-contract.js')
 const {
   describeGlobalAdapterRefreshForPackageRoot
 } = require('./global-adapter-refresh-guidance.js')
+const { operationFromArgs } = require('./cli-workspace-init-args.js')
+const { buildWorkspaceInitCommand } = require('./cli-workspace-init-command.js')
 
 function buildCliInstallCommands(ctx) {
   const {
@@ -26,7 +27,8 @@ function buildCliInstallCommands(ctx) {
     resolveHostAdapterScope, writeGrokPluginRegistration, syncGrokPluginInstallation,
     syncGrokWorkspacePluginInstallation,
     uninstallGrokPluginInstallation, retireWorkspaceProjectHostManifest,
-    resolveTenantSelection, shouldIncludeInstructionFile
+    resolveTenantSelection, shouldIncludeInstructionFile,
+    findLayoutInfo, resolveWorkspaceProjectTarget, initializeProfile
   } = ctx
 
   function readTenantSelection(argv) {
@@ -41,18 +43,25 @@ function buildCliInstallCommands(ctx) {
 
   const cliMetadata = { packageName: PACKAGE_JSON.name, packageVersion: PACKAGE_JSON.version }
 
-  function operationFromArgs(argv) {
-    const marker = (argv || []).find(arg => String(arg).startsWith('--operation='))
-    return marker ? marker.slice('--operation='.length) : 'host-config'
+  function initArgumentFailure(operation, json, errorCode, message, details = {}) {
+    const envelope = createCliFailure(
+      operation,
+      errorCode,
+      message,
+      'Run `devcodex init --profile <project>` from the workspace root, using an existing unique project name or namespace.',
+      cliMetadata,
+      details
+    )
+    if (json) printCliJson(console, envelope)
+    else {
+      console.log(c.red(`  ${envelope.errorCode}: ${envelope.message}`))
+      console.log(c.dim(`  ${envelope.nextStep}`))
+    }
+    process.exitCode = 2
+    return envelope
   }
 
-  function globalRefreshGuidance() {
-    return describeGlobalAdapterRefreshForPackageRoot(PKG_ROOT, {
-      fs,
-      path,
-      packageVersion: PACKAGE_JSON.version
-    })
-  }
+  const globalRefreshGuidance = () => describeGlobalAdapterRefreshForPackageRoot(PKG_ROOT, { fs, path, packageVersion: PACKAGE_JSON.version })
 
   function globalOnlyHostFailure(host, argv = []) {
     const operation = operationFromArgs(argv)
@@ -118,85 +127,11 @@ function buildCliInstallCommands(ctx) {
     return counts
   }
 
-  function cmdInitWorkspaceRuntime(argv = [], { refresh = false } = {}) {
-    const values = Array.isArray(argv) ? argv : []
-    const json = values.includes('--json')
-    const dryRun = values.includes('--dry-run')
-    const tenantArgs = values.filter(arg =>
-      arg !== '--json' &&
-      arg !== '--dry-run' &&
-      arg !== '--force' &&
-      arg !== '-f'
-    )
-    const tenantId = readTenantSelection(tenantArgs)
-    if (tenantId === undefined) return null
-    const cwd = process.cwd()
-    let layout
-    try {
-      layout = ensureWorkspaceNamespaceLayout(cwd, dryRun)
-    } catch (error) {
-      const migrationRequired = error.code === 'WORKSPACE_LAYOUT_MIGRATION_REQUIRED'
-      const envelope = createCliFailure(
-        refresh ? 'update' : 'init',
-        error.code || 'WORKSPACE_LAYOUT_INITIALIZATION_FAILED',
-        error.message,
-        migrationRequired
-          ? 'Run `devcodex migrate-layout plan`, review the manifest, then apply the explicit migration before retrying.'
-          : 'Repair or remove the invalid .devcodex/layout.json marker, then retry.',
-        cliMetadata,
-        {
-          cwd,
-          mode: 'workspace-namespace',
-          legacyRuntimeEntries: error.legacyRuntimeEntries || [],
-          workspaceHostDirectoriesWritten: false
-        }
-      )
-      if (json) printCliJson(console, envelope)
-      else {
-        console.log(c.red(`  ${envelope.errorCode}: ${envelope.message}`))
-        console.log(c.dim(`  ${envelope.nextStep}`))
-      }
-      process.exitCode = 2
-      return envelope
-    }
-    const runtimeRoot = layout.runtimeRoot
-    if (!dryRun) {
-      ensureRuntimeDirs(cwd, false)
-    }
-    const payload = {
-      schemaVersion: 'WorkspaceRuntimeRefreshV1',
-      operation: refresh ? 'update' : 'init',
-      mode: 'GlobalOnlyHostConfigModeV1',
-      workspaceCleanMode: 'GlobalOnlyWorkspaceCleanModeV1',
-      cwd,
-      runtimeRoot,
-      workspaceRoot: layout.workspaceRoot,
-      layoutMarker: layout.markerPath,
-      layoutCreated: layout.created,
-      layoutPlanned: layout.planned,
-      tenantId: tenantId || null,
-      dryRun,
-      gitignoreEntriesAdded: 0,
-      gitignoreModified: false,
-      workspaceHostDirectoriesWritten: false,
-      hostConfigNextStep: refresh
-        ? globalRefreshGuidance().updateCommand
-        : globalRefreshGuidance().installCommand
-    }
-    if (json) printCliJson(console, createCliSuccess(payload.operation, payload, cliMetadata))
-    else {
-      console.log()
-      console.log(c.bold('  DevCodex') + c.dim(` — workspace ${refresh ? 'refresh' : 'initialization'}`))
-      console.log(c.dim('  ──────────────────────────────────────'))
-      console.log(`  ${c.cyan('Runtime:')} ${c.dim(runtimeRoot)}`)
-      console.log(`  ${c.cyan('Host config:')} ${c.dim('user-global only')}`)
-      if (dryRun) console.log(c.yellow('  [DRY RUN] No files were written.'))
-      else console.log(c.green('  ✓ Workspace .devcodex runtime is ready.'))
-      console.log(c.dim(`  Host adapters: ${payload.hostConfigNextStep}`))
-      console.log()
-    }
-    return payload
-  }
+  const cmdInitWorkspaceRuntime = buildWorkspaceInitCommand({
+    process, console, c, cliMetadata, initArgumentFailure, readTenantSelection,
+    findLayoutInfo, resolveWorkspaceProjectTarget, ensureWorkspaceNamespaceLayout,
+    ensureRuntimeDirs, initializeProfile, globalRefreshGuidance
+  })
 
   const {
     createSkillDeployFileFilter,

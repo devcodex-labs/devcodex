@@ -14,13 +14,15 @@ const {
   resolveUniqueActiveTaskContinuation,
   validateTaskIdentity
 } = require('../hooks/_runtime/task-continuation-contract.cjs')
+const { resolveRuntimeStateRoot } = require('../hooks/_runtime/workspace-layout.cjs')
 const {
   createOptimizationState,
   persistOptimizationState
 } = require('./lib/execution-optimization')
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), `devcodex-task-continuation-${process.pid}-`))
-const indexPath = path.join(root, '.devcodex', 'workspace', '.runtime-state', 'task-continuation-index.json')
+const workspaceActiveRoot = path.join(root, '.devcodex', 'workspace')
+let indexPath
 
 function digest(text) {
   return crypto.createHash('sha256').update(text).digest('hex')
@@ -61,6 +63,7 @@ function resolve(name, extra = {}) {
 try {
   fs.mkdirSync(path.join(root, '.devcodex'), { recursive: true })
   fs.writeFileSync(path.join(root, '.devcodex', 'layout.json'), JSON.stringify({ mode: 'workspace-namespace' }) + '\n')
+  indexPath = path.join(resolveRuntimeStateRoot(workspaceActiveRoot, 'workspace').root, 'task-continuation-index.json')
   for (const project of ['alpha', 'beta']) fs.mkdirSync(path.join(root, '.devcodex', project, 'profile'), { recursive: true })
 
   assert.strictEqual(parseContinuationCommand(' 继续长期优化任务 ').displayQuery, '长期优化')
@@ -107,14 +110,14 @@ try {
   assert.strictEqual(fs.existsSync(indexPath), false, 'full-only resolver must not read or write the derived index')
   fs.writeFileSync(path.join(root, '.devcodex', 'workspace', 'profile', 'config.json'), JSON.stringify({ mode: 'dev' }, null, 2) + '\n')
 
-  const optimizationRoot = path.join(root, '.devcodex', 'workspace')
+  const optimizationRoot = workspaceActiveRoot
   const rolledBackIndex = createOptimizationState({ featureStates: { 'task-index-acceleration': 'rolled-back' } })
   assert.strictEqual(persistOptimizationState(optimizationRoot, rolledBackIndex).status, 'persisted')
   const lifecycleDisabled = resolve('Current Performance Task')
   assert.strictEqual(lifecycleDisabled.index.state, 'disabled-feature-lifecycle')
   assert.strictEqual(lifecycleDisabled.index.featureDecision.lifecycleState, 'rolled-back')
   assert.strictEqual(lifecycleDisabled.index.featureDecision.reasonCode, 'feature-rolled-back')
-  fs.rmSync(path.join(optimizationRoot, '.runtime-state', 'execution-optimization'), { recursive: true, force: true })
+  fs.rmSync(path.join(resolveRuntimeStateRoot(optimizationRoot, 'workspace').root, 'execution-optimization'), { recursive: true, force: true })
 
   writeTask('alpha', 'requirements', 'legacy-only', { legacy: true, withCp: false })
   const legacy = resolve('legacy-only')

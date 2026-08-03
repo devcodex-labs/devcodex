@@ -2,6 +2,7 @@
 
 const fs = require('fs')
 const path = require('path')
+const { resolveRuntimeStateRoot } = require('./workspace-layout.cjs')
 
 const {
   buildRuntimeSkillIdentityIndex
@@ -53,7 +54,7 @@ function ensureTurnBinding (turnBinding) {
 }
 
 function routeRootForActiveRoot (activeRoot) {
-  return path.join(path.resolve(activeRoot), '.runtime-state', 'skill-route')
+  return path.join(resolveRuntimeStateRoot(activeRoot).root, 'skill-route')
 }
 
 function turnPaths (activeRoot, turnBinding) {

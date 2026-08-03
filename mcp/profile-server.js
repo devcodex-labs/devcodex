@@ -36,7 +36,7 @@ const {
   validateContextReadPlan
 } = require('../hooks/_runtime/context-read-contract.cjs')
 const { buildContentIdentity, buildJsonContentIdentity, validateContentIdentity } = require('../hooks/_runtime/content-identity.cjs')
-const { createDerivedStateStore } = require('../hooks/_runtime/derived-state-store.cjs')
+const { createRuntimeStateStore } = require('../hooks/_runtime/runtime-state-store.cjs')
 const { persistContextPlanObservation } = require('../hooks/_runtime/context-plan-observation.cjs')
 const { recordMcpContextSourceObservations } = require('../hooks/_runtime/context-source-observation.cjs')
 const { resolveExecutionFeatureDecisionForCwd } = require('../hooks/_runtime/execution-optimization-routing.cjs')
@@ -49,7 +49,8 @@ const {
   normalizeExecutionOptimizationMode,
   normalizeProjectNamespace,
   readJsonFile,
-  resolveLegacyProjectRoot
+  resolveLegacyProjectRoot,
+  resolveRuntimeStateRoot
 } = require('../hooks/_runtime/workspace-layout.cjs')
 
 const INPUT_ROOT = process.argv[2]
@@ -755,7 +756,7 @@ function contextPlanStableProjection(plan) {
 }
 
 function contextCacheUsage(activeRoot) {
-  const cacheDir = path.join(activeRoot, '.runtime-state', 'context-plan-cache')
+  const cacheDir = path.join(resolveRuntimeStateRoot(activeRoot).root, 'context-plan-cache')
   let entries
   try { entries = fs.readdirSync(cacheDir, { withFileTypes: true }) } catch (error) {
     if (error?.code === 'ENOENT') return { cacheDir, entries: 0, bytes: 0, exceeded: false }
@@ -827,9 +828,10 @@ function applyContextPlanComputationCache(candidate, target, featureDecision) {
     value: candidate.identityInputs,
     contractVersion: candidate.schemaVersion
   }).identity
-  const relativePath = path.join('.runtime-state', 'context-plan-cache', `${candidate.planContentId}.json`)
-  const store = createDerivedStateStore({
-    root: target.activeRoot,
+  const relativePath = path.join('context-plan-cache', `${candidate.planContentId}.json`)
+  const store = createRuntimeStateStore({
+    activeRoot: target.activeRoot,
+    project: target.project,
     relativePath,
     maxBytes: CONTEXT_CACHE_MAX_BYTES,
     lockWaitMs: 2000,

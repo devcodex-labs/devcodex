@@ -1727,7 +1727,7 @@ function testProfileContextPlanContract() {
   assert.strictEqual(crossProcessPlan.cacheDecision.status, 'hit',
     'equivalent content must reuse computation metadata across server processes')
 
-  const cacheDir = path.join(TEMP_ROOT, '.devcodex', 'chat', '.runtime-state', 'context-plan-cache')
+  const cacheDir = path.join(TEMP_ROOT, '.devcodex', 'workspace', '.runtime-state', 'projects', 'chat', 'context-plan-cache')
   const cacheFile = path.join(cacheDir, `${devPlan.planContentId}.json`)
   fs.writeFileSync(cacheFile, '{invalid-json', 'utf8')
   const corruptResponse = runServer('mcp/profile-server.js', [
@@ -2193,7 +2193,7 @@ function testMemorySessionAllocationAndTransactions() {
   const activeRoot = path.join(TEMP_ROOT, '.devcodex', 'chat')
   const lockedFile = path.join(activeRoot, '.memory', 'clients', 'claude-code', 'tasks', `${lockedDate}.md`)
   const lockKey = crypto.createHash('sha256').update(`${activeRoot}\0${path.resolve(lockedFile)}`).digest('hex')
-  const lockDir = path.join(activeRoot, '.runtime-state', 'memory-locks', lockKey)
+  const lockDir = path.join(TEMP_ROOT, '.devcodex', 'workspace', '.runtime-state', 'projects', 'chat', 'memory-locks', lockKey)
   fs.mkdirSync(lockDir, { recursive: true })
   fs.writeFileSync(path.join(lockDir, 'owner.json'), '{"pid":999999}\n', 'utf8')
 

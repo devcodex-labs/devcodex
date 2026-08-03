@@ -520,6 +520,45 @@ function testDefaultInitBootstrapsActiveRootData() {
   fs.rmSync(root, { recursive: true, force: true })
 }
 
+function testInitBootstrapsWorkspaceProfileAndOneNamedProject() {
+  const root = createTempRoot('devcodex-cli-init-profile-target-')
+  writeFile(root, 'apps/api/package.json', '{ "name": "api", "scripts": { "test": "node test.js" } }\n')
+  writeFile(root, 'apps/web/package.json', '{ "name": "web" }\n')
+
+  const result = JSON.parse(runCli(['init', '--profile', 'api', '--json'], root))
+  const workspaceProfile = path.join(root, '.devcodex', 'workspace', 'profile')
+  const apiProfile = path.join(root, '.devcodex', 'apps', 'api', 'profile')
+  for (const file of ['README.md', '01-项目信息.md', '02-架构约束.md', '03-代码风格.md', 'config.json']) {
+    assert.ok(fs.existsSync(path.join(workspaceProfile, file)), `init must create workspace profile baseline ${file}`)
+  }
+  assert.ok(fs.existsSync(path.join(apiProfile, 'README.md')), 'init --profile must initialize the requested project only')
+  assert.ok(fs.existsSync(path.join(apiProfile, '06-功能清单.md')), 'init --profile must use the project recommendation instead of forcing profile-lite')
+  assert.ok(!fs.existsSync(path.join(root, '.devcodex', 'apps', 'web', 'profile')), 'init --profile must not initialize siblings')
+  assert.strictEqual(result.payload.projectProfile.namespace, 'apps/api')
+
+  const apiReadme = path.join(apiProfile, 'README.md')
+  fs.appendFileSync(apiReadme, '\nmanual-profile-content\n', 'utf8')
+  runCli(['init', '--profile=apps/api'], root)
+  assert.match(fs.readFileSync(apiReadme, 'utf8'), /manual-profile-content/, 'repeated init must preserve project Profile content')
+
+  fs.rmSync(root, { recursive: true, force: true })
+
+  const missingRoot = createTempRoot('devcodex-cli-init-profile-missing-')
+  writeFile(missingRoot, 'apps/api/package.json', '{ "name": "api" }\n')
+  const missing = JSON.parse(runCliFailure(['init', '--profile', 'missing', '--json'], missingRoot))
+  assert.strictEqual(missing.errorCode, 'PROFILE_TARGET_NOT_FOUND')
+  assert.ok(!fs.existsSync(path.join(missingRoot, '.devcodex')), 'invalid project target must not write runtime or Profile files')
+  fs.rmSync(missingRoot, { recursive: true, force: true })
+
+  const ambiguousRoot = createTempRoot('devcodex-cli-init-profile-ambiguous-')
+  writeFile(ambiguousRoot, 'apps/api/package.json', '{ "name": "apps-api" }\n')
+  writeFile(ambiguousRoot, 'packages/api/package.json', '{ "name": "packages-api" }\n')
+  const ambiguous = JSON.parse(runCliFailure(['init', '--profile', 'api', '--json'], ambiguousRoot))
+  assert.strictEqual(ambiguous.errorCode, 'PROFILE_TARGET_AMBIGUOUS')
+  assert.ok(!fs.existsSync(path.join(ambiguousRoot, '.devcodex')), 'ambiguous project target must not write runtime or Profile files')
+  fs.rmSync(ambiguousRoot, { recursive: true, force: true })
+}
+
 function testDefaultInitLayoutOwnershipGuards() {
   const dryRunRoot = createTempRoot('devcodex-cli-runtime-dry-')
   writeFile(dryRunRoot, 'package.json', '{ "name": "tmp-runtime-dry" }\n')
@@ -570,6 +609,52 @@ function testDefaultInitLayoutOwnershipGuards() {
   fs.rmSync(parentRoot, { recursive: true, force: true })
   fs.rmSync(invalidRoot, { recursive: true, force: true })
   fs.rmSync(legacyRoot, { recursive: true, force: true })
+}
+
+function testUpdateNeverCreatesOrUpgradesProfiles() {
+  const root = createTempRoot('devcodex-cli-update-profile-')
+  writeFile(root, 'package.json', '{ "name": "update-profile" }\n')
+
+  const updated = JSON.parse(runCli(['update', '--json'], root))
+  assert.strictEqual(updated.payload.workspaceProfile.status, 'unchanged-by-update')
+  assert.ok(!fs.existsSync(path.join(root, '.devcodex', 'workspace', 'profile')), 'update must not create a workspace Profile')
+
+  const targeted = JSON.parse(runCliFailure(['update', '--profile', 'api', '--json'], root))
+  assert.strictEqual(targeted.errorCode, 'CLI_INVALID_OPTION')
+  assert.ok(!fs.existsSync(path.join(root, '.devcodex', 'workspace', 'profile')), 'rejected update --profile must remain zero-write for Profile')
+
+  fs.rmSync(root, { recursive: true, force: true })
+}
+
+function testRuntimeStatusAndPruneAreBounded() {
+  const root = createTempRoot('devcodex-cli-runtime-observe-')
+  writeFile(root, 'package.json', '{ "name": "runtime-observe" }\n')
+  runCli(['init'], root)
+  const runtimeRoot = path.join(root, '.devcodex', 'workspace', '.runtime-state', 'workspace')
+  const staleTemp = path.join(runtimeRoot, 'context-plan-cache', 'probe.json.tmp-old')
+  const activeLock = path.join(runtimeRoot, 'skill-route', 'active.lock')
+  fs.mkdirSync(path.dirname(staleTemp), { recursive: true })
+  fs.mkdirSync(path.dirname(activeLock), { recursive: true })
+  fs.writeFileSync(staleTemp, 'stale\n')
+  fs.writeFileSync(activeLock, 'active\n')
+  const old = new Date(Date.now() - 48 * 60 * 60 * 1000)
+  fs.utimesSync(staleTemp, old, old)
+
+  const status = JSON.parse(runCli(['runtime', 'status', '--json'], root))
+  assert.strictEqual(status.payload.schemaVersion, 'RuntimeStateStatusV1')
+  assert.strictEqual(status.payload.canonicalRoot, runtimeRoot)
+  assert.strictEqual(status.payload.totals.pruneCandidates, 1)
+  assert.strictEqual(status.payload.totals.blockedLocks, 1)
+
+  const preview = JSON.parse(runCli(['runtime', 'prune', '--dry-run', '--json'], root))
+  assert.strictEqual(preview.payload.mode, 'dry-run')
+  assert.ok(fs.existsSync(staleTemp), 'runtime prune preview must be zero-write')
+  const applied = JSON.parse(runCli(['runtime', 'prune', '--apply', '--json'], root))
+  assert.strictEqual(applied.payload.removed.length, 1)
+  assert.ok(!fs.existsSync(staleTemp), 'runtime prune --apply must remove only the selected stale temp file')
+  assert.ok(fs.existsSync(activeLock), 'runtime prune must never auto-delete lock files')
+
+  fs.rmSync(root, { recursive: true, force: true })
 }
 
 function testTenantSelectionIsExplicit() {
@@ -1030,7 +1115,10 @@ function main() {
   testDoctorHonorsExplicitAgentBeforeAmbientHints()
   testMachineReadableDiagnosticsAndStableErrors()
   testDefaultInitBootstrapsActiveRootData()
+  testInitBootstrapsWorkspaceProfileAndOneNamedProject()
   testDefaultInitLayoutOwnershipGuards()
+  testUpdateNeverCreatesOrUpgradesProfiles()
+  testRuntimeStatusAndPruneAreBounded()
   testTenantSelectionIsExplicit()
   testGlobalOnlyHostSelectorsFailClosed()
   testCodexMcpPreventionNegatives()

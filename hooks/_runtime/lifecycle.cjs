@@ -45,6 +45,7 @@ const {
   startToolLease
 } = require('./lifecycle-turn-liveness.cjs')
 const { buildLifecycleVisibleReplyUtils } = require('./lifecycle-visible-reply.cjs')
+const { formatLanguageContextInstruction, resolveLanguageContext } = require('./language-context.cjs')
 const { observeWorkflowCompletionEvent } = require('./lifecycle-workflow-completion.cjs')
 const {
   collectWorkspaceProjectNamespaces,
@@ -1276,8 +1277,14 @@ async function main() {
       return
     }
     const workflowCompletionLifecycle = state.workflowCompletionLifecycle
+    const priorLanguageContext = state.languageContext
     state = resetState(mode, state)
     state.workflowCompletionLifecycle = workflowCompletionLifecycle
+    state.languageContext = resolveLanguageContext({
+      prompt,
+      carrier: priorLanguageContext,
+      locale: process.env.LC_ALL || process.env.LANG || process.env.LANGUAGE || ''
+    })
     livenessObservation = observeTurnEvent(state.turnLiveness, eventName, payload)
     state.turnLiveness = livenessObservation.state
     applyPromptTarget(state, promptTarget, payload)
@@ -1461,6 +1468,7 @@ async function main() {
       [
         buildBootstrapMessage(state),
         buildExecutionModeContextMessage(state),
+        formatLanguageContextInstruction(state.languageContext),
         continuationResolution
           ? `TaskResolutionV1 resolved-active: ${continuationResolution.candidate.project}/${continuationResolution.candidate.kind}/${continuationResolution.candidate.displayName}. The name only locates the task; rehydrate identity, sessions, and current bound artifacts before continuing.`
           : '',

@@ -8,6 +8,7 @@
 
 const fs = require('fs')
 const path = require('path')
+const { resolveRuntimeStateRoots } = require('../../hooks/_runtime/workspace-layout.cjs')
 const {
   createCommitValidationResult,
   createWorkflowCompletionCommit,
@@ -132,20 +133,22 @@ function validateCommittedMemoryRefs(activeRoot, commit) {
 
 function findSnapshot(activeRoot, ref, suppliedSnapshot = null) {
   if (suppliedSnapshot) return suppliedSnapshot
-  const stateRoot = path.join(activeRoot, '.runtime-state', 'workflow-completion')
-  if (!fs.existsSync(stateRoot)) return null
-  const files = fs.readdirSync(stateRoot).filter(file => file.endsWith('.json')).sort().slice(0, MAX_DERIVED_FILES)
-  let totalBytes = 0
-  for (const file of files) {
-    const filePath = path.join(stateRoot, file)
-    const stats = fs.statSync(filePath)
-    totalBytes += stats.size
-    if (totalBytes > MAX_DERIVED_BYTES) return null
-    let value
-    try { value = readJsonBounded(filePath) } catch { continue }
-    const snapshots = [value.current, value.previous].filter(Boolean)
-    const match = snapshots.find(item => item.candidateId === ref.candidateId && item.coreSnapshotDigest === ref.coreSnapshotDigest)
-    if (match) return match
+  for (const runtimeRoot of resolveRuntimeStateRoots(activeRoot).readRoots) {
+    const stateRoot = path.join(runtimeRoot, 'workflow-completion')
+    if (!fs.existsSync(stateRoot)) continue
+    const files = fs.readdirSync(stateRoot).filter(file => file.endsWith('.json')).sort().slice(0, MAX_DERIVED_FILES)
+    let totalBytes = 0
+    for (const file of files) {
+      const filePath = path.join(stateRoot, file)
+      const stats = fs.statSync(filePath)
+      totalBytes += stats.size
+      if (totalBytes > MAX_DERIVED_BYTES) return null
+      let value
+      try { value = readJsonBounded(filePath) } catch { continue }
+      const snapshots = [value.current, value.previous].filter(Boolean)
+      const match = snapshots.find(item => item.candidateId === ref.candidateId && item.coreSnapshotDigest === ref.coreSnapshotDigest)
+      if (match) return match
+    }
   }
   return null
 }

@@ -249,6 +249,49 @@ function collectWorkspaceProjectNamespaces(workspaceRoot, { maxDepth = 3 } = {})
   return [...namespaces].sort((left, right) => left.localeCompare(right))
 }
 
+/**
+ * Resolve one existing workspace project without turning an arbitrary CLI value
+ * into a directory write target. A full namespace wins; a single-segment value
+ * may match one unique project leaf. Windows matching is case-insensitive while
+ * the discovered namespace keeps its on-disk spelling.
+ */
+function resolveWorkspaceProjectTarget(workspaceRoot, requestedTarget, options = {}) {
+  const root = path.resolve(workspaceRoot)
+  const layout = { enabled: true, workspaceRoot: root }
+  const requested = normalizeProjectNamespace(requestedTarget, layout, { allowEmpty: false })
+  const candidates = collectWorkspaceProjectNamespaces(root, options)
+  const folded = value => String(value || '').toLocaleLowerCase('en-US')
+  const exact = candidates.filter(candidate => folded(candidate) === folded(requested))
+  const requestedSegments = splitNamespace(requested)
+  const leaf = requestedSegments.length === 1
+    ? candidates.filter(candidate => folded(splitNamespace(candidate).at(-1)) === folded(requested))
+    : []
+  const matches = exact.length ? exact : leaf
+
+  if (matches.length === 0) {
+    const error = new Error(`project target not found in this workspace: ${requestedTarget}`)
+    error.code = 'PROFILE_TARGET_NOT_FOUND'
+    error.candidates = candidates
+    throw error
+  }
+  if (matches.length > 1) {
+    const error = new Error(`project target is ambiguous: ${requestedTarget} (${matches.join(', ')})`)
+    error.code = 'PROFILE_TARGET_AMBIGUOUS'
+    error.candidates = matches
+    throw error
+  }
+
+  const namespace = matches[0]
+  const projectRoot = path.join(root, ...splitNamespace(namespace))
+  if (!fs.existsSync(projectRoot) || !fs.statSync(projectRoot).isDirectory()) {
+    const error = new Error(`project target has no workspace directory: ${namespace}`)
+    error.code = 'PROFILE_TARGET_DIRECTORY_MISSING'
+    error.candidates = matches
+    throw error
+  }
+  return { namespace, projectRoot, candidates }
+}
+
 function inferProjectFromCwd(cwd, layout) {
   if (!layout?.enabled) return ''
   const absoluteCwd = path.resolve(cwd)
@@ -326,6 +369,51 @@ function resolveActiveRuntimeRoot(cwd) {
     : path.join(layout.workspaceRoot, '.devcodex', 'workspace')
 }
 
+/**
+ * Return the physical derived-state partition for an active DevCodex root.
+ * Workspace layouts keep project state beneath the workspace-owned runtime
+ * partition; legacy projects retain their existing local state root.
+ */
+function resolveRuntimeStateRoot(activeRoot, explicitProject = '') {
+  const root = path.resolve(activeRoot)
+  const layout = findLayoutInfo(root)
+  if (!layout.enabled) {
+    return { root: path.join(root, '.runtime-state'), legacy: true, project: String(explicitProject || '').trim() || null }
+  }
+  const stateBase = path.join(layout.workspaceRoot, '.devcodex', 'workspace', '.runtime-state')
+  const namespaceBase = path.join(layout.workspaceRoot, '.devcodex')
+  const relative = path.relative(namespaceBase, root)
+  const derivedNamespace = relative && !relative.startsWith('..') && !path.isAbsolute(relative)
+    ? joinNamespaceSegments(relative.split(path.sep).filter(Boolean))
+    : ''
+  const project = String(explicitProject || '').trim() || (derivedNamespace === 'workspace' ? '' : derivedNamespace)
+  if (!project || project === 'workspace') {
+    return { root: path.join(stateBase, 'workspace'), legacy: false, project: null }
+  }
+  const normalized = normalizeProjectNamespace(project, layout, { allowEmpty: false })
+  return { root: path.join(stateBase, 'projects', ...splitNamespace(normalized)), legacy: false, project: normalized }
+}
+
+/**
+ * Resolve the canonical write root plus read-only compatibility roots. New
+ * writes always target `primaryRoot`; callers may read legacy roots only when
+ * the canonical entry is missing.
+ */
+function resolveRuntimeStateRoots(activeRoot, explicitProject = '') {
+  const absoluteActiveRoot = path.resolve(activeRoot)
+  const resolved = resolveRuntimeStateRoot(absoluteActiveRoot, explicitProject)
+  const localLegacyRoot = path.join(absoluteActiveRoot, '.runtime-state')
+  const legacyReadRoots = path.resolve(localLegacyRoot) === path.resolve(resolved.root)
+    ? []
+    : [localLegacyRoot]
+  return {
+    ...resolved,
+    primaryRoot: resolved.root,
+    legacyReadRoots,
+    readRoots: [resolved.root, ...legacyReadRoots]
+  }
+}
+
 function resolveProfileDir(cwd) {
   const layout = findLayoutInfo(cwd)
   if (!layout.enabled) return path.join(path.resolve(cwd), '.devcodex', 'profile')
@@ -348,11 +436,14 @@ module.exports = {
   joinNamespaceSegments,
   namespaceRootPath,
   normalizeProjectNamespace,
+  resolveWorkspaceProjectTarget,
   normalizeExecutionOptimizationMode,
   readJsonFile,
   resolveExecutionOptimizationModeForCwd,
   resolveActiveRuntimeRoot,
   resolveLegacyProjectRoot,
   resolveProfileDir,
+  resolveRuntimeStateRoot,
+  resolveRuntimeStateRoots,
   splitNamespace
 }

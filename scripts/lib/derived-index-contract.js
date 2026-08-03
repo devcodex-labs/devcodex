@@ -12,8 +12,9 @@ const {
   resolveInside,
   sameIdentity
 } = require('../../hooks/_runtime/derived-state-store.cjs')
+const { resolveRuntimeStateRoot } = require('../../hooks/_runtime/workspace-layout.cjs')
 
-const DERIVED_INDEX_ROOT = '.runtime-state/derived-indexes/v1'
+const DERIVED_INDEX_ROOT = 'derived-indexes/v1'
 const POINTER_SCHEMA = 'DerivedIndexPointerV1'
 const MANIFEST_SCHEMA = 'DerivedIndexManifestV1'
 const PARTITION_SCHEMA = 'DerivedIndexPartitionV1'
@@ -180,7 +181,7 @@ function createDerivedIndexStore(options = {}) {
     throw new DerivedIndexError('DERIVED_INDEX_INVALID_LOCK_WAIT', 'lockWaitMs must be an integer from 0 to 2000')
   }
 
-  const root = resolveInside(activeRoot, DERIVED_INDEX_ROOT)
+  const root = resolveInside(resolveRuntimeStateRoot(activeRoot).root, DERIVED_INDEX_ROOT)
   const domainRoot = `${domain}/${scopeDigest}`
   const pointerRelativePath = `${domainRoot}/current.json`
   const lockPath = resolveInside(root, `${domainRoot}/write.lock`)

@@ -2,7 +2,7 @@
 
 const crypto = require('crypto')
 const path = require('path')
-const { createDerivedStateStore } = require('./derived-state-store.cjs')
+const { createRuntimeStateStore } = require('./runtime-state-store.cjs')
 const { stableDigest, validateContextReadPlan } = require('./context-read-contract.cjs')
 
 const CONTEXT_PLAN_OBSERVATION_SCHEMA = 'ContextPlanObservationV1'
@@ -35,7 +35,6 @@ function contextPlanObservationRelativePath(contextEpoch) {
   const digest = contextEpochDigest(contextEpoch)
   const slot = Number.parseInt(digest.slice(0, 8), 16) % CONTEXT_PLAN_OBSERVATION_SLOT_COUNT
   return path.join(
-    '.runtime-state',
     'context-plan-observations',
     'v1',
     `slot-${String(slot).padStart(3, '0')}.json`
@@ -103,9 +102,10 @@ function validateContextPlanObservation(value, expected = {}) {
   return { valid: errors.length === 0, errors, plan }
 }
 
-function observationStore(activeRoot, contextEpoch, maxWrites) {
-  return createDerivedStateStore({
-    root: activeRoot,
+function observationStore(activeRoot, project, contextEpoch, maxWrites) {
+  return createRuntimeStateStore({
+    activeRoot,
+    project,
     relativePath: contextPlanObservationRelativePath(contextEpoch),
     maxBytes: CONTEXT_PLAN_OBSERVATION_MAX_BYTES,
     lockWaitMs: 2000,
@@ -129,7 +129,7 @@ function persistContextPlanObservation(input) {
     }
   }
 
-  const store = observationStore(input.activeRoot, input.contextEpoch, 1)
+  const store = observationStore(input.activeRoot, input.project, input.contextEpoch, 1)
   const write = store.write(observation)
   if (write.status !== 'persisted') return write
 
@@ -159,7 +159,7 @@ function persistContextPlanObservation(input) {
 }
 
 function readContextPlanObservation({ activeRoot, project, contextEpoch, notBefore, nowMs }) {
-  const store = observationStore(activeRoot, contextEpoch, 0)
+  const store = observationStore(activeRoot, project, contextEpoch, 0)
   const read = store.read()
   if (read.status !== 'fresh') return { ...read, plan: null }
   const validation = validateContextPlanObservation(read.value, {

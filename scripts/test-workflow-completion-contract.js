@@ -849,7 +849,7 @@ expectNegative('lifecycle-source-cap', () => observeWorkflowCompletionEvent(full
 }, { observedAt: OBSERVED_AT }).overflow)
 
 assert.strictEqual(taskKeyDigest(' task\\alpha '), taskKeyDigest('task/alpha'))
-assert(derivedStateRelativePath('task/alpha').startsWith('.runtime-state/workflow-completion/'))
+assert(derivedStateRelativePath('task/alpha').startsWith('workflow-completion/'))
 assert.throws(() => taskKeyDigest(' '), error => error.code === 'WORKFLOW_TASK_KEY_REQUIRED')
 assert.throws(() => taskKeyDigest(), error => error.code === 'WORKFLOW_TASK_KEY_REQUIRED')
 assert.strictEqual(
@@ -1033,7 +1033,7 @@ assert.strictEqual(invalidDerivedState.errorCode, 'WORKFLOW_DERIVED_STATE_SCOPE_
     }
 
     const shadowStore = createShadowWindowStore({ activeRoot: tempRoot, now: () => NOW })
-    assert.strictEqual(shadowStore.filePath, path.join(tempRoot, ...shadowWindowRelativePath().split('/')))
+    assert.strictEqual(shadowStore.filePath, path.join(tempRoot, '.runtime-state', ...shadowWindowRelativePath().split('/')))
     const firstShadow = shadowSample(70, { observedAt: '2026-07-22T07:00:00Z' })
     const shadowRecorded = recordShadowEvidenceSample({ activeRoot: tempRoot, sample: firstShadow, startedAt: '2026-06-22T08:00:00Z', nowMs: NOW })
     assert.strictEqual(shadowRecorded.status, 'recorded')

@@ -23,9 +23,11 @@ DevCodex 不替代业务框架、GitHub CI、安全审计或人工评审。它�
 - [它如何工作？](#它如何工作)
 - [适合谁？](#适合谁)
 - [5 分钟开始](#5-分钟开始)
+- [项目 Profile](#项目-profile)
 - [首次信任提示](#首次信任提示)
 - [更新](#更新)
 - [卸载](#卸载)
+- [运行态检查](#运行态检查)
 - [生效方式](#生效方式)
 - [添加自己的 Skill](#添加自己的-skill)
 - [与宿主原生 Skill 共存](#与宿主原生-skill-共存)
@@ -64,6 +66,7 @@ DevCodex 把这些能力组合成一个本地工作流入口：先理解当前�
 | 文件记忆与长任务恢复 | 将关键过程写入当前项目的报告和记忆，减少“上一轮做到哪了”的断层。 |
 | 80+ 内置 Skill | 覆盖开发、修复、审计、发布、文档、架构、质量、安全、SRE、平台生态、产品与体验等专业场景。 |
 | 报告与验证闭环 | 任务结束时沉淀结果、验证命令和剩余风险，让交付不是只靠一句“完成了”。 |
+| 用户语言一致 | 回复、报告标题和面向用户的产物内容默认跟随当前用户消息；稳定命令、配置键、协议字段和默认文件名保持英文，便于跨语言兼容。 |
 | 工作区 Skill | 用户可以在项目下添加自己的 Skill，让项目流程跨五宿主复用。 |
 | 本地优先 | 安装包刷新本地用户级宿主适配；普通使用不需要启动额外后台服务。 |
 | 原生资产共存 | DevCodex 不扫描、复制、合并、覆盖或删除这些用户资产。宿主自己的 Skill、项目指令和个人配置继续按原宿主规则生效。 |
@@ -140,18 +143,21 @@ cd <你的项目或工作区根目录>
 devcodex init
 ```
 
-如果你使用的是 `D:\Worker\v2` 这类多项目 workspace，建议在 workspace 根目录执行一次 `devcodex init`，而不是分别在子项目里猜目录。DevCodex 会在 workspace 根目录创建 `.devcodex/layout.json` 与 `.devcodex/workspace/` 基线；后续子项目的报告、记忆会按项目名稳定落到 `.devcodex/<project>/`，Profile 配置会先查项目 overlay，缺失时回退到 workspace 层。
+如果你使用的是 `D:\Worker` 这类多项目 workspace，建议在 workspace 根目录执行一次 `devcodex init`，而不是分别在子项目里猜目录。DevCodex 会创建 `.devcodex/layout.json`、`.devcodex/workspace/` 和一份不会覆盖已有内容的 workspace Profile 基线；后续子项目的报告、记忆会按项目名稳定落到 `.devcodex/<project>/`，项目 Profile 缺失时回退到 workspace 层。
 
 安装和初始化完成后，重新打开 Codex、Claude Code、GitHub Copilot、Gemini CLI 或 Grok 的新会话。
 
-如果 `devcodex status` 提示 `profile missing`，这不代表安装失败，只是当前项目还没有生成 Profile 文档。需要完整 Profile 基线时，可以先预览再生成：
+## 项目 Profile
+
+普通单项目只需执行 `devcodex init`，无需再运行 Profile 命令。多项目 workspace 中，如果某个子项目需要独立于 workspace 基线的 Profile，可在 workspace 根目录按项目名初始化：
 
 ```bash
-devcodex profile plan --tier profile-lite
-devcodex profile init --tier profile-lite
+devcodex init --profile api
 ```
 
-多项目 workspace 中，如果希望所有子项目共用一份基础 Profile，请在 workspace 根目录执行上面两条命令；如果某个子项目需要自己的覆盖配置，再进入该子项目执行。
+`api` 必须能唯一匹配 workspace 中已经存在的项目；如果重名，请使用完整相对名称，例如 `apps/api`。DevCodex 会根据该项目已有的包、测试、构建与公开接口选择合适的 Profile 档位，并且只生成缺失文件，不覆盖已经编辑过的内容。
+
+`devcodex update` 只刷新运行态，不会自动创建、升级或降级 Profile。需要手动预览或指定档位时，才使用高级命令 `devcodex profile plan` / `devcodex profile init`。
 
 ## 首次信任提示
 
@@ -230,6 +236,17 @@ devcodex --version
 npm uninstall -g devcodex
 ```
 
+## 运行态检查
+
+需要排查空间占用或旧电脑遗留的运行态时，可以查看各类状态的负责人、文件数、体积和最后使用时间：
+
+```bash
+devcodex runtime status
+devcodex runtime prune --dry-run
+```
+
+清理命令默认只预览。确认列表后使用 `devcodex runtime prune --apply`；它只清理达到保留期限的原子写入临时文件，不会自动删除锁文件、当前任务状态或无法识别的文件。
+
 ## 生效方式
 
 安装或更新 DevCodex 后，npm 会在安装生命周期中刷新用户级宿主适配。已打开的宿主会话通常不会回读刚更新的配置，因此需要重新打开一个新会话。
@@ -255,7 +272,8 @@ DevCodex 分两层生效：
 <workspace根目录>/.devcodex/
   layout.json
   workspace/
-    profile/    # 按需创建：workspace 级 Profile 配置
+    profile/    # init 自动创建：workspace 级 Profile 基线
+    .runtime-state/ # DevCodex 管理的派生状态；不要手动编辑
     skills/     # 按需创建：workspace Skill
   <project>/
     profile/    # 按需创建：项目 overlay

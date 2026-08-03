@@ -12,6 +12,9 @@ const { runHooksRuntimeVisibilityScenarios } = require('./lib/test-hooks-runtime
 const { runHooksRuntimeGovernanceIntakeScenarios } = require('./lib/test-hooks-runtime-governance-intake')
 const { DEFAULT_THRESHOLDS } = require('../hooks/_runtime/lifecycle-turn-liveness.cjs')
 const { stableDigest } = require('../hooks/_runtime/context-read-contract.cjs')
+const { resolveLanguageContext } = require('../hooks/_runtime/language-context.cjs')
+const { createRuntimeStateStore } = require('../hooks/_runtime/runtime-state-store.cjs')
+const { resolveRuntimeStateRoots } = require('../hooks/_runtime/workspace-layout.cjs')
 
 const ROOT = path.resolve(__dirname, '..')
 const RUNTIME = path.join(ROOT, 'hooks', '_runtime', 'lifecycle.cjs')
@@ -102,6 +105,51 @@ const runtimeScenarioContext = {
 }
 
 function main() {
+  const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-runtime-store-'))
+  const projectA = path.join(stateRoot, '.devcodex', 'apps', 'api')
+  const projectB = path.join(stateRoot, '.devcodex', 'apps', 'web')
+  fs.mkdirSync(projectA, { recursive: true })
+  fs.mkdirSync(projectB, { recursive: true })
+  fs.writeFileSync(path.join(stateRoot, '.devcodex', 'layout.json'), JSON.stringify({ version: 1, mode: 'workspace-namespace' }))
+  const rootsA = resolveRuntimeStateRoots(projectA, 'apps/api')
+  const rootsB = resolveRuntimeStateRoots(projectB, 'apps/web')
+  assert.notStrictEqual(rootsA.primaryRoot, rootsB.primaryRoot, 'projects must receive isolated runtime partitions')
+  assert.ok(!fs.existsSync(rootsA.primaryRoot), 'runtime resolution must remain read-only')
+
+  const legacyFile = path.join(projectA, '.runtime-state', 'compat', 'state.json')
+  fs.mkdirSync(path.dirname(legacyFile), { recursive: true })
+  fs.writeFileSync(legacyFile, JSON.stringify({ schemaVersion: 'CompatibilityProbeV1', value: 'legacy' }))
+  const stateStore = createRuntimeStateStore({
+    activeRoot: projectA,
+    project: 'apps/api',
+    relativePath: path.join('compat', 'state.json'),
+    maxWrites: 1
+  })
+  const compatibilityRead = stateStore.read()
+  assert.strictEqual(compatibilityRead.status, 'fresh')
+  assert.strictEqual(compatibilityRead.stateSource, 'legacy-read-only')
+  assert.strictEqual(stateStore.write({ schemaVersion: 'CompatibilityProbeV1', value: 'canonical' }).status, 'persisted')
+  assert.strictEqual(stateStore.read().value.value, 'canonical', 'canonical state must win after the first new write')
+  assert.strictEqual(JSON.parse(fs.readFileSync(legacyFile, 'utf8')).value, 'legacy', 'new writes must never mutate the legacy compatibility entry')
+  fs.rmSync(stateRoot, { recursive: true, force: true })
+
+  assert.deepStrictEqual(
+    resolveLanguageContext({ prompt: '请用中文分析这个项目' }),
+    { schemaVersion: 'LanguageContextV1', language: 'zh-CN', source: 'explicit-current-turn', confidence: 'high' }
+  )
+  assert.deepStrictEqual(
+    resolveLanguageContext({ prompt: 'Please inspect the project.' }),
+    { schemaVersion: 'LanguageContextV1', language: 'en', source: 'current-user-message', confidence: 'high' }
+  )
+  assert.deepStrictEqual(
+    resolveLanguageContext({ carrier: { language: 'ja' } }),
+    { schemaVersion: 'LanguageContextV1', language: 'ja', source: 'turn-bound-carrier', confidence: 'medium' }
+  )
+  assert.deepStrictEqual(
+    resolveLanguageContext({}),
+    { schemaVersion: 'LanguageContextV1', language: 'en', source: 'und-en-fallback', confidence: 'low' }
+  )
+
   runHooksRuntimeBootstrapLayoutScenarios(runtimeScenarioContext)
   runHooksRuntimeGovernanceIntakeScenarios(runtimeScenarioContext)
   runHooksRuntimeVisibilityScenarios(runtimeScenarioContext)
@@ -128,6 +176,8 @@ function main() {
   })
   const continuationContext = resolvedContinuation.hookSpecificOutput?.additionalContext || resolvedContinuation.systemMessage || ''
   assert.match(continuationContext, /TaskResolutionV1 resolved-active/)
+  assert.match(continuationContext, /LanguageContextV1/)
+  assert.match(continuationContext, /language: zh-CN/)
   const continuationState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
   assert.strictEqual(continuationState.taskContinuation.status, 'resolved-active')
   assert.strictEqual(continuationState.taskContinuation.candidate.taskId, '6b31500b-f2c4-4f50-9067-d59ad1f806f1')

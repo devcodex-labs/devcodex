@@ -2,7 +2,7 @@
 applyTo: "**"
 description: 产物输出路径与命名规范，定义 active-root 下的 requirements、bugs、reports 与记忆落点
 priority: P5
-version: 1.15.9
+version: 1.16.0
 ---
 # 产物输出路径规范
 
@@ -17,7 +17,7 @@ version: 1.15.9
 
 ## 语言规则
 
-> 目录名（`<描述>`）和产物文件名以**用户输入的主要语言**为准。下方示例使用中文；英文用户应使用对应英文命名（如 `requirements/add-login-feature/` → `01-requirements.md`）。语言检测规则见 [`00-safety.instructions.md`](./00-safety.instructions.md) §输出语言规则。
+> 人类可读正文和标题跟随当前 `LanguageContextV1` 决策；默认 canonical 目录名、文件名、编号槽位和稳定 ID 使用 English（例如 `requirements/add-login-feature/01-requirements.md`）。历史中文路径继续可读。只有用户明确要求本地化磁盘文件名时，才可创建受控 alias；语言优先级见 [`00-safety.instructions.md`](./00-safety.instructions.md) §输出语言规则。
 
 ## 路径映射说明（v4 ↔ v1）
 

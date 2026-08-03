@@ -2,6 +2,7 @@
 
 const fs = require('fs')
 const path = require('path')
+const { resolveRuntimeStateRoot } = require('../../hooks/_runtime/workspace-layout.cjs')
 const {
   buildContentIdentity,
   stableStringify
@@ -523,7 +524,7 @@ function loadRuntimeStateIndex(activeRoot, options = {}) {
 }
 
 function writeDerivedIndex(activeRoot, index) {
-  const outputDir = path.join(activeRoot, '.runtime-state')
+  const outputDir = resolveRuntimeStateRoot(activeRoot).root
   const output = path.join(outputDir, 'runtime-state-index.json')
   const temp = `${output}.tmp-${process.pid}`
   fs.mkdirSync(outputDir, { recursive: true })

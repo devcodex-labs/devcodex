@@ -9,6 +9,7 @@ const {
   stableStringify
 } = require('../../hooks/_runtime/content-identity.cjs')
 const { createDerivedStateStore } = require('../../hooks/_runtime/derived-state-store.cjs')
+const { createRuntimeStateStore } = require('../../hooks/_runtime/runtime-state-store.cjs')
 
 const LEGACY_SNAPSHOT_SCHEMA = 'ProjectKnowledgeSnapshotV1'
 const LEGACY_FILE_RECORD_SCHEMA = 'FileKnowledgeRecordV1'
@@ -1183,10 +1184,14 @@ function knowledgeSnapshotRelativePath(repoId, version = 'v2') {
   return `.runtime-state/project-knowledge/${version}/${repoId}/snapshot.json`
 }
 
+function knowledgeSnapshotStoreRelativePath(repoId, version = 'v2') {
+  return knowledgeSnapshotRelativePath(repoId, version).replace(/^\.runtime-state[\\/]/, '')
+}
+
 function readKnowledgeSnapshot(activeRoot, repoId) {
-  const store = createDerivedStateStore({
-    root: activeRoot,
-    relativePath: knowledgeSnapshotRelativePath(repoId),
+  const store = createRuntimeStateStore({
+    activeRoot,
+    relativePath: knowledgeSnapshotStoreRelativePath(repoId),
     maxBytes: 32 * 1024 * 1024,
     maxWrites: 0
   })
@@ -1195,9 +1200,9 @@ function readKnowledgeSnapshot(activeRoot, repoId) {
     return { ...receipt, status: 'invalid', errorCode: 'KNOWLEDGE_SNAPSHOT_IDENTITY_INVALID' }
   }
   if (receipt.status !== 'missing') return receipt
-  const legacyStore = createDerivedStateStore({
-    root: activeRoot,
-    relativePath: knowledgeSnapshotRelativePath(repoId, 'v1'),
+  const legacyStore = createRuntimeStateStore({
+    activeRoot,
+    relativePath: knowledgeSnapshotStoreRelativePath(repoId, 'v1'),
     maxBytes: 32 * 1024 * 1024,
     maxWrites: 0
   })
@@ -1229,9 +1234,9 @@ function persistAcceptedKnowledge({ activeRoot, taskRoot, runId, plan, snapshot,
     if (written.status !== 'persisted') throw new ProjectKnowledgeError('KNOWLEDGE_ARTIFACT_WRITE_FAILED', JSON.stringify(written))
     artifactWrites.push(written.filePath)
   }
-  const runtimeStore = createDerivedStateStore({
-    root: activeRoot,
-    relativePath: knowledgeSnapshotRelativePath(snapshot.repoIdentity.repoId),
+  const runtimeStore = createRuntimeStateStore({
+    activeRoot,
+    relativePath: knowledgeSnapshotStoreRelativePath(snapshot.repoIdentity.repoId),
     maxBytes: 32 * 1024 * 1024,
     maxWrites: 1
   })

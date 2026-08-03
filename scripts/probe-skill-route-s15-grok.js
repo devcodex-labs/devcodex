@@ -18,6 +18,7 @@ const {
 const {
   sha256
 } = require('../hooks/_runtime/progressive-skill-route-contract.cjs')
+const { resolveRuntimeStateRoot } = require('../hooks/_runtime/workspace-layout.cjs')
 const {
   launchGrok
 } = require('./lib/grok-workspace-launcher')
@@ -169,8 +170,7 @@ function writeProbeSkill (fixture, skillId, marker) {
 function writeFailureSnapshot (fixture, evidenceOutput, error, debugOutput) {
   if (!evidenceOutput) return
   const turnsRoot = path.join(
-    fixture.activeRoot,
-    '.runtime-state',
+    resolveRuntimeStateRoot(fixture.activeRoot, fixture.project).root,
     'skill-route',
     'turns'
   )

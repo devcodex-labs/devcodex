@@ -6,7 +6,7 @@ const {
   stableStringify,
   validateContentIdentity
 } = require('./content-identity.cjs')
-const { createDerivedStateStore } = require('./derived-state-store.cjs')
+const { createRuntimeStateStore } = require('./runtime-state-store.cjs')
 const {
   normalizeExecutionOptimizationMode,
   resolveActiveRuntimeRoot,
@@ -166,9 +166,9 @@ function decideFeatureRoute({ mode = 'safe-auto', state, featureId }) {
 }
 
 function optimizationStateStore(activeRoot, options = {}) {
-  return createDerivedStateStore({
-    root: activeRoot,
-    relativePath: path.join('.runtime-state', 'execution-optimization', 'v2', 'state.json'),
+  return createRuntimeStateStore({
+    activeRoot,
+    relativePath: path.join('execution-optimization', 'v2', 'state.json'),
     maxBytes: options.maxBytes || 256 * 1024,
     maxWrites: options.maxWrites === undefined ? 1 : options.maxWrites,
     identityField: 'stateIdentity'

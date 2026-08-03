@@ -13,6 +13,8 @@ const {
   stableStringify
 } = require('../../hooks/_runtime/content-identity.cjs')
 const { createDerivedStateStore } = require('../../hooks/_runtime/derived-state-store.cjs')
+const { createRuntimeStateStore } = require('../../hooks/_runtime/runtime-state-store.cjs')
+const { resolveRuntimeStateRoot } = require('../../hooks/_runtime/workspace-layout.cjs')
 
 const VALIDATION_MANIFEST_SCHEMA = 'ValidationManifestV1'
 const VALIDATION_NODE_SCHEMA = 'ValidationNodeV1'
@@ -767,10 +769,14 @@ function cacheRelativePath(cacheKey) {
   return path.join('.runtime-state', 'validation-evidence', 'v1', 'cache', cacheKey + '.json')
 }
 
+function cacheStoreRelativePath(cacheKey) {
+  return cacheRelativePath(cacheKey).replace(/^\.runtime-state[\\/]/, '')
+}
+
 function readNodeCache({ activeRoot, descriptor }) {
-  const store = createDerivedStateStore({
-    root: activeRoot,
-    relativePath: cacheRelativePath(descriptor.cacheKey),
+  const store = createRuntimeStateStore({
+    activeRoot,
+    relativePath: cacheStoreRelativePath(descriptor.cacheKey),
     maxBytes: 1024 * 1024,
     maxWrites: 0,
     identityField: 'cacheIdentity'
@@ -817,15 +823,15 @@ function writeNodeCache({ activeRoot, descriptor, nodeEvidence, maxCacheBytes = 
     invariantCoverage: nodeEvidence.invariantCoverage,
     nodeEvidence
   }
-  const evidenceRoot = path.join(activeRoot, '.runtime-state', 'validation-evidence', 'v1')
+  const evidenceRoot = path.join(resolveRuntimeStateRoot(activeRoot).root, 'validation-evidence', 'v1')
   const usage = directoryUsage(evidenceRoot)
   const pendingBytes = Buffer.byteLength(JSON.stringify(value, null, 2) + '\n')
   if (!usage.bounded || usage.bytes + pendingBytes > maxCacheBytes) {
     return { status: 'bypassed', errorCode: 'VALIDATION_CACHE_CAPACITY_REACHED', usage, pendingBytes }
   }
-  const store = createDerivedStateStore({
-    root: activeRoot,
-    relativePath: cacheRelativePath(descriptor.cacheKey),
+  const store = createRuntimeStateStore({
+    activeRoot,
+    relativePath: cacheStoreRelativePath(descriptor.cacheKey),
     maxBytes: 1024 * 1024,
     maxWrites: 1,
     identityField: 'cacheIdentity'
@@ -834,8 +840,8 @@ function writeNodeCache({ activeRoot, descriptor, nodeEvidence, maxCacheBytes = 
 }
 
 function persistReceipt(activeRoot, receipt, maxCacheBytes = VALIDATION_CACHE_MAX_BYTES) {
-  const evidenceRoot = path.join(activeRoot, '.runtime-state', 'validation-evidence', 'v1')
-  const relativePath = path.join('.runtime-state', 'validation-evidence', 'v1', 'receipts', receipt.runId + '.json')
+  const evidenceRoot = path.join(resolveRuntimeStateRoot(activeRoot).root, 'validation-evidence', 'v1')
+  const relativePath = path.join('validation-evidence', 'v1', 'receipts', receipt.runId + '.json')
   const receiptText = stableStringify(receipt)
   const receiptIdentity = buildContentIdentity({
     sourceKey: 'validation-receipt/' + receipt.runId,
@@ -848,8 +854,8 @@ function persistReceipt(activeRoot, receipt, maxCacheBytes = VALIDATION_CACHE_MA
   if (!usage.bounded || usage.bytes + pendingBytes > maxCacheBytes) {
     return { status: 'bypassed', errorCode: 'VALIDATION_CACHE_CAPACITY_REACHED', usage, pendingBytes }
   }
-  const store = createDerivedStateStore({
-    root: activeRoot,
+  const store = createRuntimeStateStore({
+    activeRoot,
     relativePath,
     maxBytes: 4 * 1024 * 1024,
     maxWrites: 1,

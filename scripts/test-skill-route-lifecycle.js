@@ -12,6 +12,7 @@ const {
 const {
   shouldEnforceProgressiveSkillRouteStop
 } = require('../hooks/_runtime/skill-route-tool.cjs')
+const { resolveRuntimeStateRoot } = require('../hooks/_runtime/workspace-layout.cjs')
 
 const RUNTIME = path.resolve(__dirname, '..', 'hooks', '_runtime', 'lifecycle.cjs')
 
@@ -66,8 +67,7 @@ function runLifecycle (fixture, payload = {}, env = {}) {
       assert.strictEqual(state.workspaceSkillAutoMatch, null)
       const turnBinding = state.progressiveSkillRoute.bootstrap.turnBinding
       assert(fs.existsSync(path.join(
-        fixture.activeRoot,
-        '.runtime-state',
+        resolveRuntimeStateRoot(fixture.activeRoot, fixture.project).root,
         'skill-route',
         'turns',
         turnBinding,

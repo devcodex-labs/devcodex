@@ -28,7 +28,8 @@ const {
   inferProjectFromCwd,
   namespaceRootPath,
   normalizeProjectNamespace,
-  resolveLegacyProjectRoot
+  resolveLegacyProjectRoot,
+  resolveRuntimeStateRoot
 } = require('../hooks/_runtime/workspace-layout.cjs')
 const {
   CONTEXT_READ_CONTRACT,
@@ -616,7 +617,7 @@ function memoryLockDir(target, filePath) {
     .createHash('sha256')
     .update(`${target.activeRoot}\0${path.resolve(filePath)}`)
     .digest('hex')
-  return resolveInside(target.activeRoot, '.runtime-state', 'memory-locks', key)
+  return resolveInside(resolveRuntimeStateRoot(target.activeRoot, target.project).root, 'memory-locks', key)
 }
 
 function acquireMemoryLock(target, filePath) {

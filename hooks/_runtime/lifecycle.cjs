@@ -50,7 +50,8 @@ const { observeWorkflowCompletionEvent } = require('./lifecycle-workflow-complet
 const {
   collectWorkspaceProjectNamespaces,
   findLayoutInfo,
-  inferProjectFromCwd
+  inferProjectFromCwd,
+  resolveWorkspaceProjectTarget
 } = require('./workspace-layout.cjs')
 const {
   TaskContinuationError,
@@ -376,6 +377,7 @@ const {
   EXECUTION_MODE,
   MULTI_PROJECT_EXEMPTION_KEYWORDS,
   collectWorkspaceProjectNamespaces,
+  resolveWorkspaceProjectTarget,
   escapeRegExp,
   collectProjectPayloadStrings,
   normalizeText,

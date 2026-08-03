@@ -2,7 +2,7 @@
 applyTo: "**"
 description: 意图驱动的 Profile 加载、active-root 路径、目标项目识别与项目现实扩展规范
 priority: P5
-version: 1.16.0
+version: 1.16.1
 ---
 # Profile 加载与项目现实扩展
 

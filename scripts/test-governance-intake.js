@@ -91,12 +91,13 @@ function runGovernanceIntakeBehaviorReplay() {
     createdAt: '2026-07-13T06:40:02.000Z'
   })
   const promptLeakContext = utils.buildGovernanceIntakeContextMessage(state)
-  if (state.candidates.length !== 2 || promptLeakContext.includes(keywordlessPrompt)) {
-    failures.push('ContextualCandidateSet should retain multiple candidates and expose only minimal anchors')
+  if (state.candidates.length !== 1 || state.compactedUnresolved.count !== 1 ||
+      promptLeakContext.includes(keywordlessPrompt) || promptLeakContext.length > 1024) {
+    failures.push('ContextualCandidateSet should retain only the current candidate and a bounded compacted summary')
   }
 
   const compound = utils.parseGovernanceIntakeDecision([
-    `候选锚点：${state.candidates[0].id}`,
+    `候选锚点：${state.activeCandidateId}`,
     '评估结论：accepted',
     '泛化范围：devcodex-control-plane',
     '现有规范状态：partial',
@@ -113,10 +114,9 @@ function runGovernanceIntakeBehaviorReplay() {
   }
   const compoundState = { governanceIntake: state }
   utils.updateGovernanceIntakeResolutionState(compoundState, compound.raw, 'instruction-fallback')
-  const routedCandidate = compoundState.governanceIntake.candidates.find(candidate => candidate.id === state.candidates[0].id)
-  const untouchedCandidate = compoundState.governanceIntake.candidates.find(candidate => candidate.id === state.candidates[1].id)
-  if (routedCandidate?.phase !== 'routed' || untouchedCandidate?.phase !== 'detected') {
-    failures.push('an exact candidate anchor should route only the referenced unresolved candidate')
+  const routedCandidate = compoundState.governanceIntake.candidates.find(candidate => candidate.id === state.activeCandidateId)
+  if (routedCandidate?.phase !== 'routed' || compoundState.governanceIntake.candidates.length !== 1) {
+    failures.push('an exact candidate anchor should route only the current unresolved candidate')
   }
   const compoundEvidenceOmitted = compound.raw.replace('写入证据：PI-101 + PF-102 + GR-103', '写入证据：PI-101 + PF-102')
   if (utils.requiresCoupledRecordRouterEvidence(compoundEvidenceOmitted)) {
@@ -130,8 +130,8 @@ function runGovernanceIntakeBehaviorReplay() {
     promptPreview: 'legacy pending candidate',
     createdAt: '2026-07-12T00:00:00.000Z'
   })
-  if (migrated.version !== 2 || migrated.candidates.length !== 1 || migrated.candidates[0].terminal) {
-    failures.push('governance intake v1 pending state should migrate to a non-terminal v2 candidate')
+  if (migrated.version !== 3 || migrated.candidates.length !== 1 || migrated.candidates[0].terminal) {
+    failures.push('governance intake v1 pending state should migrate to a non-terminal v3 candidate')
   }
 
   const crossTurnRoot = setupRuntimeTempRoot()
@@ -142,8 +142,30 @@ function runGovernanceIntakeBehaviorReplay() {
   runRuntime({ hookEventName: 'UserPromptSubmit', prompt: '这是一条普通的后续问题' }, crossTurnRoot)
   runRuntime({ hookEventName: 'UserPromptSubmit', prompt: '这是一条普通的后续问题' }, crossTurnRoot)
   const runtimeState = readRuntimeState(crossTurnRoot).governanceIntake
-  if (runtimeState.candidates.length !== 2 || runtimeState.candidates[1].seenCount !== 2) {
-    failures.push('resetState should preserve cross-turn candidates and dedupe repeat delivery')
+  if (runtimeState.candidates.length !== 1 || runtimeState.candidates[0].seenCount !== 2 ||
+      runtimeState.compactedUnresolved.count !== 1) {
+    failures.push('resetState should retain only the current candidate, compact prior turns and dedupe repeat delivery')
+  }
+
+  const sessionIsolationRoot = setupRuntimeTempRoot()
+  const priorSessionIds = []
+  for (let index = 0; index < 20; index += 1) {
+    const output = runRuntime({
+      hookEventName: 'UserPromptSubmit',
+      session_id: `governance-isolation-${index}`,
+      prompt: `isolated session ${index}`
+    }, sessionIsolationRoot)
+    const text = JSON.stringify(output)
+    const ids = text.match(/GI-[A-F0-9]+-[0-9]+-[0-9]+/g) || []
+    if (new Set(ids).size !== 1 || priorSessionIds.some(id => text.includes(id))) {
+      failures.push(`session ${index} should expose only its own governance candidate`)
+      break
+    }
+    priorSessionIds.push(ids[0])
+  }
+  const isolatedState = readRuntimeState(sessionIsolationRoot).governanceIntake
+  if (isolatedState.candidates.length !== 1 || isolatedState.compactedUnresolved.count !== 0) {
+    failures.push('20 new sessions should not inherit or compact candidates from prior sessions')
   }
 
   const unresolvedStop = runRuntime({
@@ -168,8 +190,39 @@ function runGovernanceIntakeBehaviorReplay() {
   ].join('\n')
   const fallbackState = { governanceIntake: state }
   utils.updateGovernanceIntakeResolutionState(fallbackState, multiPendingDecision, 'instruction-fallback')
-  if (!/exact candidate anchor/.test(fallbackState.governanceIntake.lastDecisionError)) {
-    failures.push('multiple unresolved candidates should reject a decision without an exact candidate anchor')
+  if (!fallbackState.governanceIntake.candidates[0].terminal ||
+      fallbackState.governanceIntake.candidates[0].verificationState !== 'verified-none') {
+    failures.push('a decision without an anchor should resolve the sole current candidate')
+  }
+
+  let stressState = utils.emptyGovernanceIntakeState()
+  for (let index = 0; index < 300; index += 1) {
+    stressState = utils.registerGovernanceIntakeCandidate(stressState, `stress prompt ${index}`, {
+      createdAt: new Date(Date.UTC(2026, 7, 3, 7, 0, index)).toISOString()
+    })
+  }
+  const stressContext = utils.buildGovernanceIntakeContextMessage(stressState)
+  if (stressState.candidates.length !== 1 || stressState.compactedUnresolved.count !== 299 ||
+      (stressContext.match(/GI-[A-F0-9-]+/g) || []).length !== 1 || stressContext.length > 1024 ||
+      JSON.stringify(stressState).length > 16 * 1024) {
+    failures.push('300-turn governance state and prompt projection must remain bounded')
+  }
+
+  const legacyMany = utils.normalizeGovernanceIntakeState({
+    version: 2,
+    candidates: Array.from({ length: 250 }, (_, index) => ({
+      id: `GI-LEGACY-${String(index + 1).padStart(3, '0')}`,
+      sourceDigest: `legacy-${index + 1}`,
+      promptPreview: `legacy prompt ${index + 1}`,
+      createdAt: new Date(Date.UTC(2026, 6, 26, 0, index)).toISOString(),
+      updatedAt: new Date(Date.UTC(2026, 6, 26, 0, index)).toISOString(),
+      phase: 'detected',
+      terminal: false
+    }))
+  })
+  if (legacyMany.version !== 3 || legacyMany.candidates.length !== 1 ||
+      legacyMany.compactedUnresolved.count !== 249 || !legacyMany.compactedUnresolved.digest) {
+    failures.push('legacy 250-candidate state should migrate to one active candidate plus a deterministic summary')
   }
 
   const evidenceRoot = setupRuntimeTempRoot()

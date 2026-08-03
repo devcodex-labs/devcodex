@@ -1,9 +1,10 @@
 # 未发布变更（Unreleased）
 
 > **用途**: 记录尚未正式发版的实现级变更。
-> **当前**: v1.16.0 已归档到 `changelogs/releases/v1.16.0.md`；本文件仅保留历史锚点索引与镜像供 validate 探针消费。发版后新实现再写入下方「当前未发布」。
+> **当前**: v1.16.1 已归档到 `changelogs/releases/v1.16.1.md`；本文件仅保留历史锚点索引与镜像供 validate 探针消费。发版后新实现再写入下方「当前未发布」。
 
 ## 当前未发布实现候选
+- **v1.16.1 已归档**：长会话提示有界化、会话治理状态隔离、项目绑定稳定性与唯一短名解析修复已进入 `changelogs/releases/v1.16.1.md`。
 - **v1.16.0 已归档**：首次初始化、项目 Profile、用户语言与 workspace runtime-state 一致性已进入 `changelogs/releases/v1.16.0.md`。
 - **v1.15.9 已归档**：SkillRoute 相同语义 rebind 现在可迁移未完成阶段前缀、重新签发新 plan cursor，并让 rebind/status/Stop 返回一致且可执行的恢复调用；语义、阶段内容或依赖漂移仍 fail closed。
 - **v1.15.8 已归档**：新电脑 Profile 初始化提示、MCP source observation workspace-namespace 推断与 `skill_route commit` pending 防复发已进入 `changelogs/releases/v1.15.8.md`。

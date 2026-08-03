@@ -11,6 +11,7 @@ function buildLifecycleProjectTargetUtils({
   EXECUTION_MODE,
   MULTI_PROJECT_EXEMPTION_KEYWORDS,
   collectWorkspaceProjectNamespaces,
+  resolveWorkspaceProjectTarget,
   escapeRegExp,
   collectProjectPayloadStrings,
   normalizeText,
@@ -65,9 +66,16 @@ function buildLifecycleProjectTargetUtils({
 
   function detectPromptProjectMentions(prompt) {
     if (!prompt) return []
+    const projects = listWorkspaceProjects()
     const matches = []
-    for (const projectName of listWorkspaceProjects()) {
-      const escaped = escapeRegExp(projectName)
+    const aliases = [...new Set(projects.flatMap(projectName => {
+      const leaf = String(projectName).split('/').filter(Boolean).at(-1)
+      return leaf && leaf.toLowerCase() !== String(projectName).toLowerCase()
+        ? [projectName, leaf]
+        : [projectName]
+    }))]
+    for (const alias of aliases) {
+      const escaped = escapeRegExp(alias)
       const boundary = '(?=$|[\\s,.;:，。；：])'
       const patterns = [
         new RegExp(`\\bin\\s+${escaped}(?:[\\\\/]|${boundary})`, 'i'),
@@ -79,7 +87,13 @@ function buildLifecycleProjectTargetUtils({
         new RegExp(`${escaped}\\s+project\\b`, 'i'),
         new RegExp(`${escaped}(?:/|\\\\)`, 'i')
       ]
-      if (patterns.some(pattern => pattern.test(prompt))) matches.push(projectName)
+      if (!patterns.some(pattern => pattern.test(prompt))) continue
+      try {
+        const resolved = resolveWorkspaceProjectTarget(WORKSPACE_ROOT, alias)
+        matches.push(resolved.namespace)
+      } catch (error) {
+        if (error?.code === 'PROFILE_TARGET_AMBIGUOUS') matches.push(...(error.candidates || []))
+      }
     }
     return [...new Set(matches)]
   }
@@ -144,9 +158,6 @@ function buildLifecycleProjectTargetUtils({
     const sticky = previousState?.stickyProject || {}
     const project = String(sticky.project || '').trim()
     if (!project) return null
-    const now = Date.now()
-    const updatedAtMs = Number(sticky.updatedAtMs || 0)
-    if (!updatedAtMs || now - updatedAtMs > STICKY_PROJECT_TTL_MS) return null
     const currentSessionKey = getPayloadSessionKey(payload)
     const stickySessionKey = String(sticky.sessionKey || '').trim()
     if (!currentSessionKey || !stickySessionKey) return null

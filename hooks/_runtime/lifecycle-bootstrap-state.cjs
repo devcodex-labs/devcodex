@@ -574,6 +574,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     }
     const sessionFile = sessionStateFile(saved || metaState || buildDefaultState(modeHint), sessionKey)
     const sessionState = sessionFile ? readJsonFile(sessionFile) : null
+    const startsFreshGovernanceSession = !!sessionKey && !(sessionState && typeof sessionState === 'object')
     if (sessionState && typeof sessionState === 'object') {
       const sharedSessionKey = String(saved?.contextAcquisition?.hostSessionId || '')
       const sharedUpdatedAt = Date.parse(saved?.updatedAt || '') || 0
@@ -595,7 +596,9 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       stickyProject: { ...current.stickyProject, ...(saved.stickyProject || {}), ...(metaState?.stickyProject || {}) },
       stickyAuto: { ...current.stickyAuto, ...(saved.stickyAuto || {}), ...(metaState?.stickyAuto || {}) },
       cp3Runtime: { ...current.cp3Runtime, ...(saved.cp3Runtime || {}) },
-      governanceIntake: normalizeGovernanceIntakeState(saved.governanceIntake),
+      governanceIntake: normalizeGovernanceIntakeState(
+        startsFreshGovernanceSession ? emptyGovernanceIntakeState() : saved.governanceIntake
+      ),
       turnLiveness: normalizeTurnLivenessState(saved.turnLiveness),
       dangerousApprovals: { ...current.dangerousApprovals, ...(saved.dangerousApprovals || {}) }
     }

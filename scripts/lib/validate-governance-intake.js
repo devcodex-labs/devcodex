@@ -44,7 +44,7 @@ function buildGovernanceIntakeChecks(ctx) {
       },
       {
         file: 'hooks/_runtime/lifecycle-governance-intake.cjs',
-        needles: ['GOVERNANCE_INTAKE_STATE_VERSION', 'registerGovernanceIntakeCandidate', 'parseGovernanceIntakeDecision', 'observeGovernanceLedgerWrite', 'validateNoneChallenge', 'activeRootMatch', 'transitionCandidatePhase', 'phaseHistory', 'observationIds']
+        needles: ['GOVERNANCE_INTAKE_STATE_VERSION', 'MAX_ACTIVE_UNRESOLVED_CANDIDATES', 'MAX_CONTEXT_MESSAGE_CHARS', 'compactedUnresolved', 'registerGovernanceIntakeCandidate', 'parseGovernanceIntakeDecision', 'observeGovernanceLedgerWrite', 'validateNoneChallenge', 'activeRootMatch', 'transitionCandidatePhase', 'phaseHistory', 'observationIds']
       },
       {
         file: 'hooks/_runtime/lifecycle-visible-reply.cjs',
@@ -52,11 +52,11 @@ function buildGovernanceIntakeChecks(ctx) {
       },
       {
         file: 'scripts/test-governance-intake.js',
-        needles: ['runGovernanceIntakeBehaviorReplay', 'every non-empty prompt', 'CompoundRecordRouterGate', 'wrong-root ledger write', 'record.none should terminate', 'cleanupRuntimeTempRoots']
+        needles: ['runGovernanceIntakeBehaviorReplay', 'every non-empty prompt', '300-turn governance state and prompt projection must remain bounded', '20 new sessions should not inherit', 'legacy 250-candidate state', 'CompoundRecordRouterGate', 'wrong-root ledger write', 'record.none should terminate', 'cleanupRuntimeTempRoots']
       },
       {
         file: 'scripts/lib/test-hooks-runtime-governance-intake.js',
-        needles: ['Neutral candidate anchors', 'multiple unresolved candidates', 'record.process-improvement + record.spec-defect + record.audit-gap', 'Wrong-root evidence', 'Unobservable evidence']
+        needles: ['Neutral candidate anchors', 'compactedUnresolved', 'governance-session-a', 'record.process-improvement + record.spec-defect + record.audit-gap', 'Wrong-root evidence', 'Unobservable evidence']
       },
       {
         file: 'scripts/test-hooks-runtime.js',

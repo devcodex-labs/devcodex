@@ -4,8 +4,10 @@ const fs = require('fs')
 const path = require('path')
 
 function buildLifecycleGovernanceIntakeUtils() {
-  const GOVERNANCE_INTAKE_STATE_VERSION = 2
+  const GOVERNANCE_INTAKE_STATE_VERSION = 3
   const MAX_TERMINAL_CANDIDATES = 20
+  const MAX_ACTIVE_UNRESOLVED_CANDIDATES = 1
+  const MAX_CONTEXT_MESSAGE_CHARS = 1024
   const RECORD_INTENT_RE = /record\.(?:violation|spec-defect|process-improvement|pending-issue|audit-gap|none|ambiguous)/gi
   const LEDGER_PATH_RE = /data\/(?:violations|pending-fixes|process-improvements|pending-issues|gap-registry)\.md/gi
   const LEDGER_ID_RE = /\b(?:PI|PF|VL|GR|ISSUE)-\d{3,}\b/gi
@@ -37,6 +39,51 @@ function buildLifecycleGovernanceIntakeUtils() {
 
   function unique(values) {
     return [...new Set((values || []).filter(Boolean))]
+  }
+
+  function emptyCompactedUnresolved() {
+    return { count: 0, digest: '', oldestAt: '', latestAt: '' }
+  }
+
+  function normalizeCompactedUnresolved(value) {
+    const raw = value && typeof value === 'object' ? value : {}
+    return {
+      count: Number.isFinite(Number(raw.count)) ? Math.max(0, Number(raw.count)) : 0,
+      digest: compactText(raw.digest),
+      oldestAt: compactText(raw.oldestAt),
+      latestAt: compactText(raw.latestAt)
+    }
+  }
+
+  function mergeCompactedUnresolved(summary, candidates) {
+    const current = normalizeCompactedUnresolved(summary)
+    const values = (candidates || []).filter(candidate => candidate && !candidate.terminal)
+    if (!values.length) return current
+    const timestamps = values.flatMap(candidate => [candidate.createdAt, candidate.updatedAt]).filter(Boolean).sort()
+    const digestInput = values.map(candidate => [
+      candidate.id,
+      candidate.sourceDigest,
+      candidate.phase,
+      candidate.verificationState,
+      candidate.createdAt,
+      candidate.updatedAt
+    ].join('|'))
+    return {
+      count: current.count + values.length,
+      digest: stableDigest([current.digest, ...digestInput].filter(Boolean).join('|')),
+      oldestAt: [current.oldestAt, timestamps[0]].filter(Boolean).sort()[0] || '',
+      latestAt: [current.latestAt, timestamps.at(-1)].filter(Boolean).sort().at(-1) || ''
+    }
+  }
+
+  function boundGovernanceCandidates(state) {
+    const terminal = state.candidates.filter(candidate => candidate.terminal).slice(-MAX_TERMINAL_CANDIDATES)
+    const unresolved = state.candidates.filter(candidate => !candidate.terminal)
+    const keep = unresolved.slice(-MAX_ACTIVE_UNRESOLVED_CANDIDATES)
+    const compact = unresolved.slice(0, Math.max(0, unresolved.length - keep.length))
+    state.compactedUnresolved = mergeCompactedUnresolved(state.compactedUnresolved, compact)
+    state.candidates = [...terminal, ...keep]
+    return state
   }
 
   function labelValue(text, labelPattern) {
@@ -77,6 +124,7 @@ function buildLifecycleGovernanceIntakeUtils() {
     return {
       version: GOVERNANCE_INTAKE_STATE_VERSION,
       candidates: [],
+      compactedUnresolved: emptyCompactedUnresolved(),
       activeCandidateId: '',
       ledgerObservations: [],
       governanceIntakeCandidate: false,
@@ -147,12 +195,13 @@ function buildLifecycleGovernanceIntakeUtils() {
     const state = emptyGovernanceIntakeState()
     if (!input || typeof input !== 'object') return state
 
-    if (Number(input.version) === GOVERNANCE_INTAKE_STATE_VERSION && Array.isArray(input.candidates)) {
+    if ([2, GOVERNANCE_INTAKE_STATE_VERSION].includes(Number(input.version)) && Array.isArray(input.candidates)) {
       state.candidates = input.candidates.map(normalizeCandidate)
+      state.compactedUnresolved = normalizeCompactedUnresolved(input.compactedUnresolved)
       state.activeCandidateId = compactText(input.activeCandidateId)
       state.ledgerObservations = Array.isArray(input.ledgerObservations) ? input.ledgerObservations : []
       state.lastDecisionError = compactText(input.lastDecisionError)
-      return syncCompatibilityMirrors(state)
+      return syncCompatibilityMirrors(boundGovernanceCandidates(state))
     }
 
     if (input.governanceIntakeCandidate || input.pending || input.handled) {
@@ -174,7 +223,7 @@ function buildLifecycleGovernanceIntakeUtils() {
       }, 0))
       state.activeCandidateId = input.handled ? '' : state.candidates[0].id
     }
-    return syncCompatibilityMirrors(state)
+    return syncCompatibilityMirrors(boundGovernanceCandidates(state))
   }
 
   function buildGovernanceIntakeCandidate(prompt, metadata = {}) {
@@ -208,6 +257,10 @@ function buildLifecycleGovernanceIntakeUtils() {
       return syncCompatibilityMirrors(state)
     }
 
+    const priorUnresolved = state.candidates.filter(candidate => !candidate.terminal)
+    state.compactedUnresolved = mergeCompactedUnresolved(state.compactedUnresolved, priorUnresolved)
+    state.candidates = state.candidates.filter(candidate => candidate.terminal)
+
     const candidate = buildGovernanceIntakeCandidate(text, {
       ...metadata,
       ordinal: state.candidates.length + 1
@@ -216,26 +269,29 @@ function buildLifecycleGovernanceIntakeUtils() {
       state.candidates.push(candidate)
       state.activeCandidateId = candidate.id
     }
-    const unresolved = state.candidates.filter(item => !item.terminal)
-    const terminal = state.candidates.filter(item => item.terminal).slice(-MAX_TERMINAL_CANDIDATES)
-    state.candidates = [...terminal, ...unresolved]
     state.lastDecisionError = ''
-    return syncCompatibilityMirrors(state)
+    return syncCompatibilityMirrors(boundGovernanceCandidates(state))
   }
 
   function buildGovernanceIntakeContextMessage(input) {
     const state = normalizeGovernanceIntakeState(input)
     const unresolved = state.candidates.filter(candidate => !candidate.terminal)
     if (!unresolved.length) return ''
-    const anchors = unresolved.map(candidate => (
+    const active = unresolved.find(candidate => candidate.id === state.activeCandidateId) || unresolved.at(-1)
+    const anchors = [active].filter(Boolean).map(candidate => (
       `${candidate.id}[phase=${candidate.phase};seen=${candidate.seenCount};source=${candidate.sourceMessageAnchor}]`
     ))
-    return [
+    const compacted = normalizeCompactedUnresolved(state.compactedUnresolved)
+    const message = [
       'Governance Intake post-assessment is required for every non-empty user message.',
       `Neutral candidate anchors: ${anchors.join(', ')}.`,
+      compacted.count > 0
+        ? `Prior unresolved candidates were compacted outside the prompt: count=${compacted.count}; digest=${compacted.digest}.`
+        : '',
       'Classify only after semantic/context/evidence assessment; keywords are non-authoritative.',
-      'When multiple candidates remain, the structured decision must cite the exact candidate ID.'
-    ].join(' ')
+      'A structured decision applies to the current candidate only; cite its exact ID when an anchor is required.'
+    ].filter(Boolean).join(' ')
+    return message.slice(0, MAX_CONTEXT_MESSAGE_CHARS)
   }
 
   function parseGovernanceIntakeDecision(content) {

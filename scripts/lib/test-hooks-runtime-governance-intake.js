@@ -74,12 +74,31 @@ function runHooksRuntimeGovernanceIntakeScenarios(context) {
   assert.strictEqual(state.governanceIntake.candidates[0].seenCount, 2)
   run({ hookEventName: 'UserPromptSubmit', prompt: 'A second ordinary message needs its own assessment.' })
   state = readState()
-  assert.strictEqual(state.governanceIntake.candidates.length, 2)
+  assert.strictEqual(state.governanceIntake.candidates.length, 1)
+  assert.strictEqual(state.governanceIntake.compactedUnresolved.count, 1)
   const missingAnchorStop = run({
     hookEventName: 'Stop',
     assistantMessage: `PC0 上下文：fixture\n${noneDecision('current-user-message').replace('候选锚点：current-user-message\n', '')}`
   })
-  assert.match(missingAnchorStop.systemMessage || '', /multiple unresolved candidates require an exact candidate anchor/)
+  assert.doesNotMatch(missingAnchorStop.systemMessage || '', /治理 intake 候选/)
+
+  cleanState()
+  const sessionAOutput = run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: 'governance-session-a',
+    prompt: 'Session A current candidate.'
+  })
+  const sessionAId = readState().governanceIntake.candidates[0].id
+  const sessionBOutput = run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: 'governance-session-b',
+    prompt: 'Session B current candidate.'
+  })
+  state = readState()
+  assert.strictEqual(state.governanceIntake.candidates.length, 1)
+  assert.notStrictEqual(state.governanceIntake.candidates[0].id, sessionAId)
+  assert.doesNotMatch(sessionBOutput.systemMessage || '', new RegExp(sessionAId))
+  assert.ok((sessionBOutput.systemMessage || '').length <= (sessionAOutput.systemMessage || '').length + 256)
 
   cleanState()
   run({ hookEventName: 'UserPromptSubmit', prompt: 'Read one stable local fact.' })

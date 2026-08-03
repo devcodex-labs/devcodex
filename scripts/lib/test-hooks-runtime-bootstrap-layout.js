@@ -1185,6 +1185,25 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
   cleanLayoutMultiProjectState()
   run({
     hookEventName: 'UserPromptSubmit',
+    session_id: 'aged-sticky-session',
+    prompt: '修复 devcodex 项目'
+  })
+  workspaceLayoutState = JSON.parse(fs.readFileSync(getWorkspaceLayoutStateFile(), 'utf8'))
+  workspaceLayoutState.stickyProject.updatedAtMs = 1
+  fs.writeFileSync(getWorkspaceLayoutStateFile(), JSON.stringify(workspaceLayoutState, null, 2))
+  const agedSameSessionFollowup = run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: 'aged-sticky-session',
+    prompt: '继续'
+  })
+  assert.ok(!/multi-project-workspace/.test(agedSameSessionFollowup.systemMessage || ''))
+  workspaceLayoutState = JSON.parse(fs.readFileSync(getWorkspaceLayoutStateFile(), 'utf8'))
+  assert.strictEqual(workspaceLayoutState.activeProject, 'devcodex')
+  assert.strictEqual(workspaceLayoutState.activeProjectSource, 'sticky')
+
+  cleanLayoutMultiProjectState()
+  run({
+    hookEventName: 'UserPromptSubmit',
     prompt: '修复 devcodex 项目'
   })
   const noSessionFollowup = run({
@@ -1242,6 +1261,33 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
   assert.match(misplacedTmpWrite.systemMessage || '', /Auto v1\.1/)
 
   cleanNestedLayoutMultiProjectState()
+  const nestedLeafProject = run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: 'nested-leaf-session',
+    prompt: '检查 app-a 项目'
+  })
+  assert.strictEqual(nestedLeafProject.continue, true)
+  assert.ok(!/multi-project-workspace/.test(nestedLeafProject.systemMessage || ''))
+  let nestedLayoutState = JSON.parse(fs.readFileSync(getWorkspaceLayoutStateFile(), 'utf8'))
+  assert.strictEqual(nestedLayoutState.activeProject, 'packages/app-a')
+  assert.strictEqual(nestedLayoutState.activeProjectSource, 'prompt')
+
+  cleanNestedLayoutMultiProjectState()
+  fs.mkdirSync(path.join(TEMP_ROOT, 'services', 'app-a'), { recursive: true })
+  fs.mkdirSync(path.join(TEMP_ROOT, '.devcodex', 'services', 'app-a', 'profile'), { recursive: true })
+  fs.writeFileSync(path.join(TEMP_ROOT, 'services', 'app-a', 'package.json'), '{}')
+  fs.writeFileSync(
+    path.join(TEMP_ROOT, '.devcodex', 'services', 'app-a', 'profile', 'config.json'),
+    JSON.stringify({ mode: 'prod', agent: TEST_AGENT })
+  )
+  const ambiguousLeafProject = run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: 'nested-leaf-ambiguous-session',
+    prompt: '检查 app-a 项目'
+  })
+  assert.match(ambiguousLeafProject.systemMessage || '', /multi-project-workspace/)
+
+  cleanNestedLayoutMultiProjectState()
   const nestedWorkspaceAmbiguity = run({
     hookEventName: 'UserPromptSubmit',
     session_id: 'nested-layout-session',
@@ -1257,7 +1303,7 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
   })
   assert.strictEqual(nestedPayloadProject.continue, true)
   assert.ok(!/multi-project-workspace/.test(nestedPayloadProject.systemMessage || ''))
-  const nestedLayoutState = JSON.parse(fs.readFileSync(getWorkspaceLayoutStateFile(), 'utf8'))
+  nestedLayoutState = JSON.parse(fs.readFileSync(getWorkspaceLayoutStateFile(), 'utf8'))
   assert.strictEqual(nestedLayoutState.activeProject, 'packages/app-a')
   assert.strictEqual(nestedLayoutState.activeProjectSource, 'payload')
   assert.ok(fs.existsSync(getLayoutStateFile(path.join('packages', 'app-a'))))

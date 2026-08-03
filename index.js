@@ -372,7 +372,7 @@ function inspectProfileState(profileDir) {
 
 const { cmdStatus, cmdProfileInit, cmdDoctor, cmdHelp } = buildCliMaintenanceCommands({
   fs, os, path, process, console, c, SOURCES, CODEX_HOOK_COMMAND,
-  walkDir, isSourceRepo, resolveActiveRuntimeRoot, resolveProfileDir, getLegacyCounts,
+  walkDir, isSourceRepo, findLayoutInfo, resolveActiveRuntimeRoot, resolveProfileDir, getLegacyCounts,
   getCodexConfigState, inspectProfileState, detectProfileTier,
   inspectProfileContract, normalizeProfileTier, filesForProfileTier,
   compareProfileTiers, updateProfileTierDeclaration,

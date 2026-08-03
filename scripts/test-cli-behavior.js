@@ -501,6 +501,13 @@ function testDefaultInitBootstrapsActiveRootData() {
   for (const relative of ['.github', '.claude', '.codex', '.gemini', '.grok', '.agents', 'AGENTS.md', 'CLAUDE.md', 'GEMINI.md', '.mcp.json']) {
     assert.ok(!fs.existsSync(path.join(root, relative)), `default init must not create ${relative}`)
   }
+  const statusAfterInit = runCli(['status'], root)
+  assert.match(statusAfterInit, /\.devcodex\s+.*present/)
+  assert.doesNotMatch(statusAfterInit, /Workspace runtime not initialized/)
+  const statusAfterInitJson = JSON.parse(runCli(['status', '--json'], root))
+  assert.strictEqual(statusAfterInitJson.payload.workspaceRuntimeReady, true)
+  assert.strictEqual(statusAfterInitJson.payload.workspaceLayoutReady, true)
+  assert.strictEqual(statusAfterInitJson.payload.activeRoot, path.join(root, '.devcodex', 'workspace'))
   const updated = JSON.parse(runCli(['update', '--json'], root))
   assert.strictEqual(updated.payload.runtimeRoot, path.join(root, '.devcodex', 'workspace'))
   assert.strictEqual(updated.payload.layoutCreated, false)

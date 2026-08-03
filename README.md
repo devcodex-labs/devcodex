@@ -23,11 +23,13 @@ DevCodex 不替代业务框架、GitHub CI、安全审计或人工评审。它�
 - [它如何工作？](#它如何工作)
 - [适合谁？](#适合谁)
 - [5 分钟开始](#5-分钟开始)
+- [首次信任提示](#首次信任提示)
 - [更新](#更新)
 - [卸载](#卸载)
 - [生效方式](#生效方式)
 - [添加自己的 Skill](#添加自己的-skill)
 - [与宿主原生 Skill 共存](#与宿主原生-skill-共存)
+- [用户可见交付与链接兼容](#用户可见交付与链接兼容)
 - [边界](#边界)
 - [许可证](#许可证)
 
@@ -131,7 +133,41 @@ npm install -g devcodex
 devcodex --version
 ```
 
-安装完成后，重新打开 Codex、Claude Code、GitHub Copilot、Gemini CLI 或 Grok 的新会话。
+然后进入你要使用的项目或工作区根目录，初始化 DevCodex 运行态：
+
+```bash
+cd <你的项目或工作区根目录>
+devcodex init
+```
+
+如果你使用的是 `D:\Worker\v2` 这类多项目 workspace，建议在 workspace 根目录执行一次 `devcodex init`，而不是分别在子项目里猜目录。DevCodex 会在 workspace 根目录创建 `.devcodex/layout.json` 与 `.devcodex/workspace/` 基线；后续子项目的报告、记忆会按项目名稳定落到 `.devcodex/<project>/`，Profile 配置会先查项目 overlay，缺失时回退到 workspace 层。
+
+安装和初始化完成后，重新打开 Codex、Claude Code、GitHub Copilot、Gemini CLI 或 Grok 的新会话。
+
+如果 `devcodex status` 提示 `profile missing`，这不代表安装失败，只是当前项目还没有生成 Profile 文档。需要完整 Profile 基线时，可以先预览再生成：
+
+```bash
+devcodex profile plan --tier profile-lite
+devcodex profile init --tier profile-lite
+```
+
+多项目 workspace 中，如果希望所有子项目共用一份基础 Profile，请在 workspace 根目录执行上面两条命令；如果某个子项目需要自己的覆盖配置，再进入该子项目执行。
+
+## 首次信任提示
+
+第一次在宿主里打开新会话时，宿主可能会提示是否信任或允许 DevCodex 管理的 Hooks、MCP、插件或本地命令。请允许 DevCodex-managed 项，然后重新打开一个新会话。
+
+不同宿主的提示形式不完全一样：
+
+| 宿主 | 可能看到的提示 | 建议 |
+|------|----------------|------|
+| Codex | Hooks、commands、MCP server、trust / allow | 允许 DevCodex-managed 配置 |
+| Claude Code | settings、hooks、MCP 或本地命令确认 | 允许 DevCodex-managed 配置 |
+| GitHub Copilot | MCP、工具或命令确认 | 允许 DevCodex-managed 配置 |
+| Gemini CLI | settings、hooks 或命令确认 | 允许 DevCodex-managed 配置 |
+| Grok | plugin、workspace 或本地命令确认 | 允许 DevCodex-managed 配置 |
+
+如果拒绝这些提示，DevCodex 仍可能通过普通指令语义生效，但依赖 Hook、MCP 或插件的能力不会完整。DevCodex 只要求信任它自己管理的配置，不要求接管宿主原生 Skill、个人配置或业务项目指令。
 
 ### 第一次怎么用
 
@@ -200,14 +236,57 @@ npm uninstall -g devcodex
 
 DevCodex 内置 Skill 随安装包一起提供。普通使用者不需要手动配置内置 Skill；新会话开始后，DevCodex 会按请求意图自动选择需要的 Skill。
 
+DevCodex 分两层生效：
+
+| 层 | 位置 | 用途 |
+|----|------|------|
+| 用户级宿主适配 | 用户 HOME 下的 Codex、Claude Code、GitHub Copilot、Gemini CLI、Grok 配置目录 | 让五个宿主知道 DevCodex 的入口、指令、Hook、MCP 或插件配置 |
+| 工作区运行态 | 当前项目或 workspace 根目录下的 `.devcodex/` | 保存当前项目的 Profile、报告、记忆、任务状态和工作区 Skill |
+
+单项目时，运行态通常在：
+
+```text
+<项目根目录>/.devcodex/
+```
+
+多项目 workspace 推荐在 workspace 根目录执行 `devcodex init`。初始化后，运行态通常是：
+
+```text
+<workspace根目录>/.devcodex/
+  layout.json
+  workspace/
+    profile/    # 按需创建：workspace 级 Profile 配置
+    skills/     # 按需创建：workspace Skill
+  <project>/
+    profile/    # 按需创建：项目 overlay
+    reports/
+    .memory/
+```
+
+这样你在 `<workspace根目录>/<project>` 中开启会话时，DevCodex 有一个清晰、可验证的目录基线，不会把报告、记忆或 Profile 写到不稳定的 legacy 位置。
+
 ## 添加自己的 Skill
 
-如果你希望为某个项目增加自己的流程、检查清单或团队约定，在这个项目根目录下创建工作区 Skill。
+如果你希望为某个项目增加自己的流程、检查清单或团队约定，可以创建 DevCodex 工作区 Skill。
 
-这里的“项目根目录”就是你用 Codex、Claude Code、GitHub Copilot、Gemini CLI 或 Grok 打开的业务项目目录。
+这里的 Skill 属于 DevCodex 工作区层，不是某个宿主的原生 Skill。新会话开始后，DevCodex 会读取它，并可在 Codex、Claude Code、GitHub Copilot、Gemini CLI 和 Grok 中按意图触发。
+
+单项目时，可以放在项目根目录：
 
 ```text
 <你的项目根目录>/
+  .devcodex/
+    workspace/
+      skills/
+        <id>/
+          SKILL.md
+          intent.json
+```
+
+多项目 workspace 时，请放在 workspace 根目录：
+
+```text
+<workspace根目录>/
   .devcodex/
     workspace/
       skills/
@@ -279,14 +358,23 @@ DevCodex 不扫描、复制、合并、覆盖或删除这些用户资产。即�
 <你的项目根目录>/.devcodex/workspace/skills/<id>/SKILL.md
 ```
 
+多项目 workspace 时，把上面的 `<你的项目根目录>` 换成 workspace 根目录。
+
 如果只希望某个宿主单独使用，继续使用该宿主自己的 Skill 或指令机制。
+
+## 用户可见交付与链接兼容
+
+DevCodex 会尽量按当前宿主支持的方式输出报告、记忆和产物链接：宿主支持点击时给出可点击链接，不支持时给出可复制路径。
+
+如果你在宿主日志或调试输出中看到 `profile_load`、`invoke` 等字样，通常表示 DevCodex 正在通过本地工具读取项目 Profile 或调用本地能力；普通使用者不需要手动执行这些内部动作。
 
 ## 边界
 
 - DevCodex 不替代业务框架、GitHub CI、安全审计或人工评审。
 - 不同宿主的 Hook、指令和插件能力不同；同一工作流在不同宿主中的强制能力可能不同。
 - DevCodex 不接管宿主原生 Skill、个人配置或项目指令文件。
-- 工作区 Skill 只影响创建它的项目目录。
+- DevCodex 安装不会把 `.codex/`、`.claude/`、`.gemini/`、`.grok/`、`.agents/` 或宿主项目指令文件写进业务 workspace；宿主适配写在用户 HOME，workspace 侧只保留 `.devcodex/` 运行态。
+- 工作区 Skill 只影响创建它的项目或 workspace。
 
 ---
 

@@ -71,7 +71,7 @@ function buildScopedHostParity(hostParity, globalHostComparison) {
 function buildCliMaintenanceCommands(ctx) {
   const {
     fs, os, path, process, console, c, SOURCES, CODEX_HOOK_COMMAND,
-    walkDir, isSourceRepo, resolveActiveRuntimeRoot, resolveProfileDir, getLegacyCounts,
+    walkDir, isSourceRepo, findLayoutInfo, resolveActiveRuntimeRoot, resolveProfileDir, getLegacyCounts,
     getCodexConfigState, inspectProfileState,
     detectProfileTier, inspectProfileContract, normalizeProfileTier,
     filesForProfileTier, readJsonSafe, safeFirstLine, detectArch, listTopDirs,
@@ -283,6 +283,16 @@ function buildCliMaintenanceCommands(ctx) {
     const profileState = inspectProfileState(profileDir)
     const legacy = getLegacyCounts(ghDir)
     const activeRoot = resolveActiveRuntimeRoot(cwd)
+    const layoutInfo = typeof findLayoutInfo === 'function'
+      ? findLayoutInfo(cwd)
+      : { enabled: false, workspaceRoot: cwd }
+    const workspaceLayoutReady = Boolean(
+      layoutInfo?.enabled &&
+      layoutInfo.workspaceRoot &&
+      fs.existsSync(path.join(layoutInfo.workspaceRoot, '.devcodex', 'layout.json')) &&
+      fs.existsSync(path.join(layoutInfo.workspaceRoot, '.devcodex', 'workspace'))
+    )
+    const workspaceRuntimeReady = fs.existsSync(activeRoot) || workspaceLayoutReady
     const executionOptimization = inspectExecutionOptimization(cwd)
     const globalHostConfig = inspectGlobalHostConfig({ env: process.env, cwd })
     const globalHostComparison = buildGlobalHostComparison(sourceRepository, globalHostConfig)
@@ -307,6 +317,9 @@ function buildCliMaintenanceCommands(ctx) {
       schemaVersion: 'StatusDiagnosticV1',
       cwd,
       hostRoot,
+      activeRoot,
+      workspaceLayoutReady,
+      workspaceRuntimeReady,
       sourceRepository,
       trackedEntryFiles,
       installSurfaces,
@@ -388,7 +401,7 @@ function buildCliMaintenanceCommands(ctx) {
     console.log()
     console.log()
     console.log(c.bold('  Workspace state:'))
-    console.log(`  ${c.cyan('.devcodex'.padEnd(14))} ${fs.existsSync(path.join(hostRoot, '.devcodex')) ? c.green('present') : c.dim('not initialized')}`)
+    console.log(`  ${c.cyan('.devcodex'.padEnd(14))} ${facts.workspaceRuntimeReady ? c.green('present') : c.dim('not initialized')}`)
     console.log(`  ${c.cyan('host dirs'.padEnd(14))} ${total
       ? c.yellow(`${total} legacy artifact(s); not required`)
       : c.green('none; expected')}`)
@@ -431,7 +444,7 @@ function buildCliMaintenanceCommands(ctx) {
 
     console.log()
     if (total === 0) {
-      if (isSrc) {
+      if (isSrc || facts.workspaceRuntimeReady) {
         console.log(`  ${c.dim('No workspace host artifacts.')} ${c.dim(`This is expected in ${workspaceCleanMode}.`)}`)
       } else {
         console.log(`  ${c.yellow('Workspace runtime not initialized.')} Run ${c.bold('devcodex init')}; host adapters require ${c.bold('npm install -g devcodex')}.`)

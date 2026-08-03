@@ -13,10 +13,10 @@
       "status": "PASS",
       "testedVersion": "codex-cli 0.145.0",
       "protocol": "MCP 2024-11-05",
-      "runtimeContractDigest": "86d0c12d9ccc65a127e95b4405b3ae1dacb8a5722333c8c46e756e0afe499911",
+      "runtimeContractDigest": "2453a7ee9024ec046188edbe7e0bb2354f7dbc64af074a27f1fb7de0693884b7",
       "hostAdapterDigest": "39f18f77c0060b14b1b005d5a30b63ef33fe419cb27ed26790bfc60e61e43fe6",
-      "evidenceDigest": "5757cc0f0789efd79abb8b80c7587a74f572e31b66849ce007bd88e9ff6afeb2",
-      "evidenceRef": "E:/Worker/devcodex/.audit-state/skill-route-v161-codex-candidate-20260803.json",
+      "evidenceDigest": "16906258d08fa8074f1a2a32e02ab3e562e72603bb59f53da2da379e4f499018",
+      "evidenceRef": "E:/Worker/devcodex/.audit-state/skill-route-v162-codex-candidate-r2-20260803.json",
       "entrySurface": "codex exec --ephemeral",
       "bootstrapDelivery": "user-global hooks.json UserPromptSubmit",
       "defaultEligible": true

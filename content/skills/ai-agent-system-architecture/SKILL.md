@@ -60,6 +60,7 @@ IntentSeedV1 → unique project/activeRoot → ContextReadPlanV2（V1 兼容）�
 - `IntentSeedV1` 仅来自当前消息语义和已观察到的 continuity，不得先全文读取 Profile / memory 再“识别”意图；关键词不是 canonical intent。
 - `ContextReadPlanV2` 必须显式区分 baseline、selected、excluded、unclassified 与 `fullReadReason`，并把稳定 `planContentId` 与 invocation `planId` 分离；`ContextReadPlanV1` 仅保留读取兼容。默认读取最小充分来源；Profile 规划阶段不得 hidden full read，记忆使用 bounded status/session/summary query。
 - `ContextReadReceiptV2` 只接受 planId、planContentId、contextEpoch、activeRoot、source identity/query 和结果精确关联的 `PostToolUse` 成功证据。PreToolUse、计算 cache hit、旧全文工具返回或 fallback 文案都不能声明 complete；V1 receipt 不具备跨 epoch delivery reuse 资格。
+- MCP 本地 stdio 正文观察先写入有界 `ContextSourceObservationLedgerV1`，lifecycle receipt 只作可重建投影；SkillRoute 仅在 epoch/plan/root/project 全同且 source metadata 新鲜时重放。旧快照覆盖不得丢失已交付证据，`stale/blocked`、source-digest 或 profile-drift 不得被 ledger 绕过。
 - 用户/项目明确要求、audit/migration、低置信或必要来源缺失可升级全量；目标、scope/action/risk、source digest 或 compact/resume 发生实质漂移时重新规划。不得每个动作都重复加载。
 - 宿主缺少结构化工具时可走一次 path-observable / instruction fallback；证据不足保持 `partial/unverified`，后续安全、CP、治理和验证门禁不得因节流而降低。
 

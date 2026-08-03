@@ -37,6 +37,7 @@ const {
   getRuntimeContractDigest,
   resolveSkillRouteMode
 } = require('./skill-route-mode.cjs')
+const { replayMcpContextSourceObservations } = require('./context-source-observation.cjs')
 const {
   bootstrapSkillRoute,
   collectExpiredTurns,
@@ -184,8 +185,10 @@ function tryRebindLifecycleFromPlanObservation (binding, target, lifecycle, opti
     receipt.planId === binding.planId &&
     receipt.planContentId === binding.planContentId
   )
-  if (identityMatches && ACCEPTED_CONTEXT_RECEIPT_STATUSES.has(receipt.status)) {
-    return { rebound: false, lifecycle }
+  if (identityMatches) {
+    if (['stale', 'blocked'].includes(receipt.status) || ACCEPTED_CONTEXT_RECEIPT_STATUSES.has(receipt.status)) {
+      return { rebound: false, lifecycle }
+    }
   }
 
   let readContextPlanObservation
@@ -340,7 +343,25 @@ function validateTrustedContextBinding (binding, target, options = {}) {
   lifecycle = rebound.lifecycle
   const acquisition = lifecycle?.contextAcquisition
   const plan = acquisition?.plan
-  const receipt = acquisition?.receipt
+  let receipt = acquisition?.receipt
+  if (plan && receipt && !['stale', 'blocked'].includes(receipt.status)) {
+    const replayed = replayMcpContextSourceObservations(receipt, plan, {
+      activeRoot: target.activeRoot,
+      project: target.project,
+      contextBinding: binding,
+      hostSessionId: acquisition.hostSessionId
+    }, options)
+    if (replayed.status === 'replayed') {
+      receipt = replayed.receipt
+      acquisition.receipt = receipt
+      lifecycle.contextAcquisition = acquisition
+      try {
+        writeJsonAtomic(statePath, lifecycle, options.fs || fs)
+      } catch {
+        // The durable source ledger remains authoritative recovery evidence.
+      }
+    }
+  }
   if (!plan || !receipt) {
     throw contextBindingErrorForSkillRoute(
       'CONTEXT_BINDING_PENDING',

@@ -371,7 +371,8 @@ try {
       contextAcquisition: {
         contextEpoch: mcpObservationEpoch,
         activeRoot: fixture.activeRoot.replace(/\\/g, '/'),
-        project: fixture.project
+        project: fixture.project,
+        hostSessionId: 'session-mcp-source-observation'
       }
     }, null, 2)}\n`,
     'utf8'
@@ -381,7 +382,7 @@ try {
     project: fixture.project,
     workspaceNamespace: false,
     contextBinding: mcpObservedPlan.contextBinding,
-    hostSessionId: 'session-mcp-source-observation',
+    hostSessionId: '',
     sourceResults: mcpObservedPlan.mandatorySourceIds.map(sourceId => observedMcpSourceResult(mcpObservedPlan, sourceId))
   }, { nowMs: BASE_MS + 20 })
   assert.strictEqual(bridgedSources.status, 'persisted', JSON.stringify(bridgedSources))
@@ -392,6 +393,18 @@ try {
     true,
     'workspace-namespace activeRoot must infer the project hook lifecycle path even when MCP omits workspaceNamespace'
   )
+  fs.writeFileSync(`${bridgedSources.ledgerPath}.lock`, '{"fixture":true}\n', 'utf8')
+  const lockedLedgerBridge = recordMcpContextSourceObservations({
+    activeRoot: fixture.activeRoot,
+    project: fixture.project,
+    contextBinding: mcpObservedPlan.contextBinding,
+    hostSessionId: '',
+    sourceResults: [observedMcpSourceResult(mcpObservedPlan, mcpObservedPlan.mandatorySourceIds[0])]
+  }, { nowMs: BASE_MS + 20, lockWaitMs: 0 })
+  assert.strictEqual(lockedLedgerBridge.status, 'degraded')
+  assert.strictEqual(lockedLedgerBridge.ledgerStatus, 'bypassed')
+  assert.strictEqual(lockedLedgerBridge.errorCode, 'CONTEXT_SOURCE_OBSERVATION_LOCK_TIMEOUT')
+  fs.unlinkSync(`${bridgedSources.ledgerPath}.lock`)
   const mcpRecoveredCommit = handleSkillRoute({
     op: 'commit',
     project: fixture.project,
@@ -402,6 +415,134 @@ try {
     contextBinding: mcpObservedPlan.contextBinding
   }, fixture.runtimeOptions)
   assert.strictEqual(mcpRecoveredCommit.ok, true, JSON.stringify(mcpRecoveredCommit))
+
+  // Regression PF-256: a Hook writer may replace the shared lifecycle receipt
+  // with a baseline-only snapshot after MCP already delivered every body. Stage
+  // loading must recover from the independent durable source ledger.
+  const overwrittenAfterCommit = JSON.parse(fs.readFileSync(lifecyclePath, 'utf8'))
+  overwrittenAfterCommit.contextAcquisition.receipt = createContextReadReceipt(mcpObservedPlan, {
+    verificationMode: 'structured-plan',
+    planObserved: true,
+    hostSessionId: 'session-mcp-source-observation'
+  })
+  fs.writeFileSync(lifecyclePath, `${JSON.stringify(overwrittenAfterCommit, null, 2)}\n`, 'utf8')
+  const recoveredStageAfterOverwrite = handleSkillRoute({
+    op: 'load_stage',
+    project: fixture.project,
+    turnBinding: mcpBoot.bootstrap.turnBinding,
+    contextEpoch: mcpObservationEpoch,
+    generation: mcpRecoveredCommit.receipt.plan.generation,
+    planDigest: mcpRecoveredCommit.receipt.plan.planDigest,
+    stageId: 'entry'
+  }, fixture.runtimeOptions)
+  assert.strictEqual(recoveredStageAfterOverwrite.ok, true, JSON.stringify(recoveredStageAfterOverwrite))
+
+  const driftSource = mcpObservedPlan.selectedSources.find(source =>
+    source.kind !== 'memory' && !['profile:README.md', 'profile:config.json'].includes(source.sourceId)
+  )
+  assert(driftSource?.sourceRefs?.[0]?.path, 'fixture must expose a non-baseline Profile source')
+  const driftPath = driftSource.sourceRefs[0].path
+  const driftStat = fs.statSync(driftPath)
+  const driftOriginal = fs.readFileSync(driftPath, 'utf8')
+  fs.writeFileSync(lifecyclePath, `${JSON.stringify(overwrittenAfterCommit, null, 2)}\n`, 'utf8')
+  fs.writeFileSync(driftPath, `${driftOriginal}\nchanged-after-context-read\n`, 'utf8')
+  const driftedLedgerStatus = handleSkillRoute({
+    op: 'status',
+    project: fixture.project,
+    turnBinding: mcpBoot.bootstrap.turnBinding,
+    contextEpoch: mcpObservationEpoch
+  }, fixture.runtimeOptions)
+  assert.strictEqual(driftedLedgerStatus.ok, true, JSON.stringify(driftedLedgerStatus))
+  assert.strictEqual(driftedLedgerStatus.receipt.nextAction.nextOp, 'rebind')
+  assert.strictEqual(driftedLedgerStatus.receipt.nextAction.errorCode, 'CONTEXT_BINDING_PENDING')
+  fs.writeFileSync(driftPath, driftOriginal, 'utf8')
+  fs.utimesSync(driftPath, driftStat.atime, driftStat.mtime)
+  fs.writeFileSync(lifecyclePath, `${JSON.stringify(overwrittenAfterCommit, null, 2)}\n`, 'utf8')
+  const staleWithLedger = JSON.parse(fs.readFileSync(lifecyclePath, 'utf8'))
+  staleWithLedger.contextAcquisition.receipt.status = 'stale'
+  staleWithLedger.contextAcquisition.receipt.satisfiedSourceIds = []
+  staleWithLedger.contextAcquisition.receipt.missingSourceIds = [...mcpObservedPlan.mandatorySourceIds]
+  fs.writeFileSync(lifecyclePath, `${JSON.stringify(staleWithLedger, null, 2)}\n`, 'utf8')
+  const staleWithLedgerStatus = handleSkillRoute({
+    op: 'status',
+    project: fixture.project,
+    turnBinding: mcpBoot.bootstrap.turnBinding,
+    contextEpoch: mcpObservationEpoch
+  }, fixture.runtimeOptions)
+  assert.strictEqual(staleWithLedgerStatus.ok, true, JSON.stringify(staleWithLedgerStatus))
+  assert.strictEqual(staleWithLedgerStatus.receipt.nextAction.nextOp, 'rebind')
+  assert.strictEqual(staleWithLedgerStatus.receipt.nextAction.errorCode, 'CONTEXT_BINDING_PENDING')
+
+  // Two MCP writers can each start from a different lifecycle snapshot. The
+  // durable ledger is a locked monotonic union, so the later SkillRoute commit
+  // still observes every mandatory source instead of only the last writer.
+  const splitEpoch = 'ctx-mcp-split-writer-observation-fixture'
+  const splitPlan = buildFixtureContextPlan(fixture, splitEpoch)
+  assert.strictEqual(persistContextPlanObservation({
+    activeRoot: fixture.activeRoot,
+    project: fixture.project,
+    contextEpoch: splitEpoch,
+    plan: splitPlan,
+    nowMs: BASE_MS + 21
+  }).status, 'persisted')
+  const splitBoot = bootstrapSkillRoute({
+    project: fixture.project,
+    activeRoot: fixture.activeRoot,
+    contextEpoch: splitEpoch,
+    prompt: 'Implement the split writer route probe',
+    mode: 'unified',
+    cwd: fixture.projectRoot
+  }, fixture.runtimeOptions)
+  requestCatalogAll(fixture, splitBoot.bootstrap)
+  const splitBaseline = () => ({
+    contextAcquisition: {
+      schemaVersion: 'ContextReadStateV2',
+      contextEpoch: splitEpoch,
+      activeRoot: fixture.activeRoot.replace(/\\/g, '/'),
+      project: fixture.project,
+      hostSessionId: 'session-mcp-split-writer',
+      plan: splitPlan,
+      receipt: createContextReadReceipt(splitPlan, {
+        verificationMode: 'structured-plan',
+        planObserved: true,
+        hostSessionId: 'session-mcp-split-writer'
+      }),
+      targetResolved: true,
+      fallbackActive: false,
+      lastError: null,
+      verificationMode: 'structured-plan'
+    }
+  })
+  const splitSourceResults = splitPlan.mandatorySourceIds
+    .filter(sourceId => !['profile:README.md', 'profile:config.json'].includes(sourceId))
+    .map(sourceId => observedMcpSourceResult(splitPlan, sourceId))
+  const splitAt = Math.max(1, Math.ceil(splitSourceResults.length / 2))
+  fs.writeFileSync(lifecyclePath, `${JSON.stringify(splitBaseline(), null, 2)}\n`, 'utf8')
+  assert.strictEqual(recordMcpContextSourceObservations({
+    activeRoot: fixture.activeRoot,
+    project: fixture.project,
+    contextBinding: splitPlan.contextBinding,
+    hostSessionId: 'session-mcp-split-writer',
+    sourceResults: splitSourceResults.slice(0, splitAt)
+  }, { nowMs: BASE_MS + 22 }).ledgerStatus, 'persisted')
+  fs.writeFileSync(lifecyclePath, `${JSON.stringify(splitBaseline(), null, 2)}\n`, 'utf8')
+  assert.strictEqual(recordMcpContextSourceObservations({
+    activeRoot: fixture.activeRoot,
+    project: fixture.project,
+    contextBinding: splitPlan.contextBinding,
+    hostSessionId: 'session-mcp-split-writer',
+    sourceResults: splitSourceResults.slice(splitAt)
+  }, { nowMs: BASE_MS + 23 }).ledgerStatus, 'persisted')
+  const splitRecoveredCommit = handleSkillRoute({
+    op: 'commit',
+    project: fixture.project,
+    turnBinding: splitBoot.bootstrap.turnBinding,
+    contextEpoch: splitEpoch,
+    catalogDigest: splitBoot.bootstrap.catalogDigest,
+    skillId: 'workspace-probe',
+    contextBinding: splitPlan.contextBinding
+  }, fixture.runtimeOptions)
+  assert.strictEqual(splitRecoveredCommit.ok, true, JSON.stringify(splitRecoveredCommit))
   writeContextBindingState(fixture, contextEpoch, 'dev')
 
   const staleReceiptEpoch = 'ctx-mcp-stale-source-observation-fixture'

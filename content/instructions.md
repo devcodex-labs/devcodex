@@ -102,6 +102,7 @@
 - 目标唯一后调用 `profile_context_plan` 形成 `ContextReadPlanV2`（兼容读取 V1）：baseline 只返回 README/index、effective non-local config 与顶层 metadata inventory；`01~09-*`、`config.local.json` 和记忆正文必须进入 selected / excluded / unclassified 决策，禁止 hidden full read。
 - `ContextReadPlanV2` 必须从已经读取的 effective config 生成身份绑定的 `ExecutionOptimizationPlanBindingV1`。`profile_load` / `profile_skill_plan` 消费该绑定，禁止为了判断优化模式再次隐式读取 `config.json`；绑定缺失、损坏或未知时必须 fail-closed 到 `full-only`，不得继续 section/bundle 优化。
 - 按计划使用 `profile_load(files)`、`memory_status`、`memory_session_query`、`memory_summary_query` 获取最小必要正文；只有与 plan / epoch / target / source 精确关联且被 `PostToolUse` 观察为成功的结果，才能形成 `ContextReadReceiptV2`（兼容 V1）。`PreToolUse` 只代表 attempted，不代表 loaded / verified / complete。
+- MCP 本地 stdio 直接交付的 Profile/memory 正文观察必须先进入有界、原子、单调合并的 `ContextSourceObservationLedgerV1`；共享 lifecycle receipt 只是可重建投影。SkillRoute 只能在 contextEpoch / planId / planContentId / activeRoot / project 全部相同且 source metadata 未漂移时重放 ledger；`stale/blocked`、source-digest 或 profile-drift 仍必须 fail closed。
 - 全量读取仅在用户 / 项目明确要求、audit / migration 确需全量、低置信无法安全裁剪、或必要真相源缺失且定向升级不足时允许，并记录 `fullReadReason`。`config.local.json` 仍只在用户或项目明确指定时读取。
 - Profile 缺失时 ENV_MODE 默认为 `prod`（保守降级）；resume / compact / summary 恢复必须重建 seed 与计划并精确查询当前 handoff、sessions、报告或清单，摘要不能替代文件真相源，但也不构成整目录重读理由。
 - 旧 no-args 全量 MCP 工具保留兼容性，不得作为正常生产路径，也不得单独证明上下文完整。

@@ -9,6 +9,12 @@ const {
   validateContextReadPlan
 } = require('./context-read-contract.cjs')
 const { readContextPlanObservation } = require('./context-plan-observation.cjs')
+const { createRuntimeStateStore } = require('./runtime-state-store.cjs')
+
+const CONTEXT_SOURCE_LEDGER_SCHEMA = 'ContextSourceObservationLedgerV1'
+const CONTEXT_SOURCE_LEDGER_SLOT_COUNT = 128
+const CONTEXT_SOURCE_LEDGER_MAX_BYTES = 512 * 1024
+const CONTEXT_SOURCE_LEDGER_MAX_OBSERVATIONS = 128
 
 const CONTEXT_BINDING_FIELDS = new Set([
   'schemaVersion',
@@ -38,6 +44,49 @@ function lifecycleStatePath({ activeRoot, project, workspaceNamespace }) {
     'hooks',
     workspaceNamespace ? String(project || '__workspace__') : '__workspace__',
     'lifecycle-state.json'
+  )
+}
+
+function contextSourceLedgerRelativePath(contextEpoch) {
+  const digest = stableDigest(String(contextEpoch || '').trim())
+  const slot = Number.parseInt(digest.slice(0, 8), 16) % CONTEXT_SOURCE_LEDGER_SLOT_COUNT
+  return path.join(
+    'context-source-observations',
+    'v1',
+    `slot-${String(slot).padStart(3, '0')}.json`
+  )
+}
+
+function contextSourceLedgerStore(target, contextEpoch) {
+  return createRuntimeStateStore({
+    activeRoot: target.activeRoot,
+    project: target.project,
+    relativePath: contextSourceLedgerRelativePath(contextEpoch),
+    maxBytes: CONTEXT_SOURCE_LEDGER_MAX_BYTES,
+    lockWaitMs: 2000,
+    maxWrites: 0
+  })
+}
+
+function ledgerIdentity(binding, target) {
+  return {
+    contextEpoch: binding.contextEpoch,
+    planId: binding.planId,
+    planContentId: binding.planContentId,
+    activeRoot: portableRoot(target.activeRoot),
+    project: target.project
+  }
+}
+
+function ledgerIdentityMatches(value, binding, target) {
+  const identity = value?.identity
+  return !!(
+    identity &&
+    identity.contextEpoch === binding.contextEpoch &&
+    identity.planId === binding.planId &&
+    identity.planContentId === binding.planContentId &&
+    comparableRoot(identity.activeRoot) === comparableRoot(target.activeRoot) &&
+    identity.project === target.project
   )
 }
 
@@ -202,7 +251,25 @@ function boundedNumber(value) {
   return Number.isFinite(number) && number >= 0 ? number : null
 }
 
-function normalizeSourceResult(raw, plan, binding, target, hostSessionId) {
+function selectedSourceRefsStillMatch(selected, fsImpl = fs) {
+  if (selected?.kind === 'memory') return true
+  const refs = Array.isArray(selected?.sourceRefs) ? selected.sourceRefs : []
+  if (!refs.length) return false
+  return refs.every(ref => {
+    let stat = null
+    try { stat = fsImpl.statSync(ref.path) } catch { }
+    const actual = {
+      path: portableRoot(ref.path),
+      layer: String(ref.layer || ''),
+      exists: !!stat?.isFile(),
+      size: stat?.isFile() ? stat.size : null,
+      mtimeMs: stat?.isFile() ? stat.mtimeMs : null
+    }
+    return stableDigest(actual) === ref.metadataDigest
+  })
+}
+
+function normalizeSourceResult(raw, plan, binding, target, hostSessionId, fsImpl = fs) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
   const sourceId = String(raw.sourceId || '').trim()
   const selected = plan.selectedSources.find(source => source.sourceId === sourceId)
@@ -217,8 +284,16 @@ function normalizeSourceResult(raw, plan, binding, target, hostSessionId) {
     bytes: raw.bytes ?? null,
     chars: raw.chars ?? null
   }))
+  const effectiveHostSessionId = Object.prototype.hasOwnProperty.call(raw, 'hostSessionId')
+    ? String(raw.hostSessionId || '')
+    : String(hostSessionId || '')
   return {
-    observationId: String(raw.observationId || `mcp-${stableDigest({ sourceId, resultDigest, contextEpoch: binding.contextEpoch }).slice(0, 20)}`),
+    observationId: String(raw.observationId || `mcp-${stableDigest({
+      sourceId,
+      resultDigest,
+      contextEpoch: binding.contextEpoch,
+      hostSessionId: effectiveHostSessionId
+    }).slice(0, 20)}`),
     toolCallId: String(raw.toolCallId || 'mcp-direct'),
     sourceId,
     contextEpoch: binding.contextEpoch,
@@ -229,17 +304,98 @@ function normalizeSourceResult(raw, plan, binding, target, hostSessionId) {
     successful,
     observable: raw.observable !== false,
     transportSuccess: raw.transportSuccess !== false,
-    sourceRefsMatch: raw.sourceRefsMatch === true,
+    sourceRefsMatch: raw.sourceRefsMatch === true && selectedSourceRefsStillMatch(selected, fsImpl),
     schemaMatch: raw.schemaMatch !== false,
     targetMatch: raw.targetMatch !== false,
     resultDigest,
     contentIdentity: raw.contentIdentity || null,
     bodyObserved,
-    hostSessionId: String(raw.hostSessionId || hostSessionId || ''),
+    hostSessionId: effectiveHostSessionId,
     bytes: boundedNumber(raw.bytes),
     chars: boundedNumber(raw.chars),
     hostDeliveredBytes: boundedNumber(raw.hostDeliveredBytes),
     cache: raw.cache === true
+  }
+}
+
+function persistContextSourceLedger(target, binding, sourceResults, options = {}) {
+  const store = contextSourceLedgerStore(target, binding.contextEpoch)
+  const write = updateJsonLocked(store.filePath, current => {
+    const reusable = current?.schemaVersion === CONTEXT_SOURCE_LEDGER_SCHEMA &&
+      ledgerIdentityMatches(current, binding, target)
+    const observations = reusable && Array.isArray(current.observations)
+      ? current.observations.filter(item => item && typeof item === 'object' && !Array.isArray(item))
+      : []
+    const byId = new Map(observations.map(item => [String(item.observationId || ''), item]))
+    for (const result of sourceResults) {
+      const observationId = String(result.observationId || '')
+      const prior = observationId ? byId.get(observationId) : null
+      if (prior && stableDigest(prior) === stableDigest(result)) continue
+      if (observationId) byId.set(observationId, result)
+    }
+    return {
+      schemaVersion: CONTEXT_SOURCE_LEDGER_SCHEMA,
+      identity: ledgerIdentity(binding, target),
+      observations: [...byId.values()].slice(-CONTEXT_SOURCE_LEDGER_MAX_OBSERVATIONS),
+      updatedAt: new Date(options.nowMs || Date.now()).toISOString()
+    }
+  }, options)
+  return { ...write, filePath: store.filePath }
+}
+
+function readMcpContextSourceObservations(input = {}, options = {}) {
+  const activeRoot = portableRoot(input.activeRoot)
+  const project = String(input.project || '').trim()
+  const target = { activeRoot, project }
+  if (!activeRoot || !project) return { status: 'skipped', reasonCode: 'target-incomplete', sourceResults: [] }
+  const binding = normalizeVerifiedBinding(input.contextBinding, target)
+  if (!binding) return { status: 'skipped', reasonCode: 'binding-unverified', sourceResults: [] }
+  const plan = input.plan
+  const validation = validateContextReadPlan(plan)
+  if (!validation.valid || plan.planId !== binding.planId || plan.planContentId !== binding.planContentId) {
+    return { status: 'skipped', reasonCode: 'plan-binding-mismatch', sourceResults: [] }
+  }
+  const store = contextSourceLedgerStore(target, binding.contextEpoch)
+  const read = store.read()
+  if (read.status !== 'fresh') {
+    return { status: read.status, reasonCode: read.errorCode || 'ledger-unavailable', sourceResults: [], filePath: store.filePath }
+  }
+  const ledger = read.value
+  if (ledger?.schemaVersion !== CONTEXT_SOURCE_LEDGER_SCHEMA || !ledgerIdentityMatches(ledger, binding, target)) {
+    return { status: 'stale', reasonCode: 'ledger-identity-mismatch', sourceResults: [], filePath: store.filePath }
+  }
+  const sourceResults = (Array.isArray(ledger.observations) ? ledger.observations : [])
+    .map(item => normalizeSourceResult(item, plan, binding, target, input.hostSessionId, options.fs || fs))
+    .filter(Boolean)
+  return {
+    status: 'fresh',
+    sourceResults,
+    filePath: store.filePath,
+    observationCount: sourceResults.length
+  }
+}
+
+function replayMcpContextSourceObservations(receipt, plan, input = {}, options = {}) {
+  if (!receipt || ['stale', 'blocked'].includes(receipt.status)) {
+    return { status: 'skipped', reasonCode: `receipt-${receipt?.status || 'missing'}`, receipt }
+  }
+  const durable = readMcpContextSourceObservations({ ...input, plan }, options)
+  if (durable.status !== 'fresh' || !durable.sourceResults.length) {
+    return { ...durable, receipt }
+  }
+  let nextReceipt = receipt
+  for (const result of durable.sourceResults) {
+    nextReceipt = recordContextReadOutcome(nextReceipt, plan, result, {
+      hostSessionId: input.hostSessionId,
+      nowMs: options.nowMs
+    })
+  }
+  return {
+    status: 'replayed',
+    receipt: nextReceipt,
+    sourceResults: durable.sourceResults,
+    filePath: durable.filePath,
+    observationCount: durable.observationCount
   }
 }
 
@@ -273,9 +429,11 @@ function recordMcpContextSourceObservations(input = {}, options = {}) {
     return { status: 'skipped', reasonCode: 'plan-observation-invalid', errors: validation.errors }
   }
   const sourceResults = (Array.isArray(input.sourceResults) ? input.sourceResults : [])
-    .map(item => normalizeSourceResult(item, observed.plan, binding, target, input.hostSessionId))
+    .map(item => normalizeSourceResult(item, observed.plan, binding, target, input.hostSessionId, options.fs || fs))
     .filter(Boolean)
   if (!sourceResults.length) return { status: 'skipped', reasonCode: 'source-results-empty' }
+
+  const ledgerWrite = persistContextSourceLedger(target, binding, sourceResults, options)
 
   const statePath = lifecycleStatePath(target)
   const write = updateJsonLocked(statePath, lifecycle => {
@@ -294,9 +452,14 @@ function recordMcpContextSourceObservations(input = {}, options = {}) {
 
   const refreshed = readJson(statePath, options.fs || fs)
   const receipt = refreshed.contextAcquisition?.receipt || null
+  const durable = ledgerWrite.status === 'persisted'
   return {
-    status: 'persisted',
+    status: durable ? 'persisted' : 'degraded',
+    ...(durable ? {} : { errorCode: ledgerWrite.errorCode || 'CONTEXT_SOURCE_LEDGER_NOT_PERSISTED' }),
     statePath,
+    ledgerPath: ledgerWrite.filePath,
+    ledgerStatus: ledgerWrite.status,
+    lifecycleStatus: 'persisted',
     satisfiedSourceIds: Array.isArray(receipt?.satisfiedSourceIds) ? receipt.satisfiedSourceIds : [],
     missingSourceIds: Array.isArray(receipt?.missingSourceIds) ? receipt.missingSourceIds : [],
     receiptStatus: receipt?.status || 'unknown'
@@ -304,6 +467,10 @@ function recordMcpContextSourceObservations(input = {}, options = {}) {
 }
 
 module.exports = {
+  CONTEXT_SOURCE_LEDGER_SCHEMA,
+  contextSourceLedgerRelativePath,
   lifecycleStatePath,
+  readMcpContextSourceObservations,
+  replayMcpContextSourceObservations,
   recordMcpContextSourceObservations
 }

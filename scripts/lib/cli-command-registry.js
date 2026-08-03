@@ -66,14 +66,23 @@ function isVersionCommand(cmd) {
   return cmd === 'version' || cmd === '--version' || cmd === '-v'
 }
 
+function isHelpFlag(value) {
+  return value === '--help' || value === '-h'
+}
+
 function runCliCommand({ cmd, argv, registry, runMigrateLayout, process, c, console, packageVersion = null }) {
   if (isHelpCommand(cmd)) {
-    registry.cmdHelp()
+    registry.cmdHelp(cmd === 'help' && argv.length ? argv : undefined)
     return 'help'
   }
   if (isVersionCommand(cmd)) {
     console.log(packageVersion || 'unknown')
     return 'version'
+  }
+
+  if (argv.some(isHelpFlag)) {
+    registry.cmdHelp([cmd, ...argv.filter(item => !isHelpFlag(item))])
+    return 'help'
   }
 
   const selection = parseHostSelection(argv)

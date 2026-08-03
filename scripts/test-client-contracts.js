@@ -35,6 +35,10 @@ if (evaluatePublicReadmeContract(damagedPublicReadme).valid ||
     )) {
   failures.push('incomplete public README must not bypass legacy consumer checks')
 }
+const missingTaskTutorial = publicReadme.replace('## 常见任务怎么说', '## 任务示例')
+if (evaluatePublicReadmeContract(missingTaskTutorial).valid) {
+  failures.push('public README without the common-task tutorial must fail its contract')
+}
 
 const readAbsolute = createCanonicalAwareReader(ROOT, file => fs.readFileSync(file, 'utf8'))
 const read = file => readAbsolute(path.join(ROOT, file))

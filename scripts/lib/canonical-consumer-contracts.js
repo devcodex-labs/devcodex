@@ -50,10 +50,15 @@ const PUBLIC_README_REQUIRED_MARKERS = Object.freeze([
   '<你的项目根目录>/.devcodex/workspace/skills/<id>/SKILL.md',
   'DevCodex 不扫描、复制、合并、覆盖或删除这些用户资产',
   '不替代业务框架、GitHub CI、安全审计或人工评审',
+  '## 常见任务怎么说',
+  '只分析，不修改文件',
+  '继续<任务名>任务',
+  'push、tag、GitHub Release 和 npm publish',
   '[AGPL-3.0](LICENSE)',
   '## 目录',
   '[为什么需要 DevCodex？](#为什么需要-devcodex)',
   '[5 分钟开始](#5-分钟开始)',
+  '[常见任务怎么说](#常见任务怎么说)',
   '[添加自己的 Skill](#添加自己的-skill)',
   '[许可证](#许可证)'
 ])

@@ -1024,7 +1024,43 @@ function buildCliMaintenanceCommands(ctx) {
     }
   }
 
-  function cmdHelp() {
+  function cmdHelp(topicInput) {
+    const topicParts = Array.isArray(topicInput)
+      ? topicInput.map(item => String(item || '').trim()).filter(Boolean)
+      : (topicInput ? [String(topicInput).trim()] : [])
+    const topic = topicParts[0] || null
+    const detail = {
+      init: ['devcodex init [--profile <project>] [--dry-run]', 'Initialize the current workspace .devcodex state and Profile baseline.'],
+      update: ['devcodex update [--dry-run]', 'Refresh only the current workspace .devcodex runtime state.'],
+      status: ['devcodex status [--completion] [--json]', 'Show workspace and user-global adapter readiness.'],
+      doctor: ['devcodex doctor [--completion] [--json]', 'Diagnose adapter, native host and workflow readiness.'],
+      profile: ['devcodex profile plan|init [--tier <tier>] [--dry-run] [--force] [--prod]', 'Preview or create an advanced project Profile. Ordinary workspaces only need `devcodex init`.'],
+      runtime: ['devcodex runtime status|prune [--dry-run|--apply] [--json]', 'Inspect runtime-state usage or preview safe stale-temp cleanup.'],
+      uninstall: ['npm uninstall -g devcodex', 'Remove the published global package.'],
+      'global-adapters': ['devcodex global-adapters apply [--dry-run] [--json]', 'Advanced: refresh user-global host adapters from the current package root.'],
+      grok: ['devcodex grok [Grok CLI options]', 'Launch Grok with the user-global DevCodex kernel.'],
+      'migrate-layout': ['devcodex migrate-layout plan|apply|rollback', 'Advanced: manage centralized workspace layout migration.'],
+      probe: ['devcodex probe <id> [--json]', 'Advanced: run bounded local-only diagnostics.'],
+      trace: ['devcodex trace show|replay [options]', 'Advanced: inspect or replay LocalTaskTrace evidence.'],
+      skill: ['devcodex skill plan|resolve [options]', 'Advanced: inspect Skill resolution; ordinary users do not configure built-in Skills.'],
+      task: ['devcodex task resolve|verify|risk [options]', 'Advanced: inspect task identity, reconciliation or explicit risk decisions.']
+    }[topic]
+
+    if (topic && detail) {
+      console.log(`
+    ${c.bold(`DevCodex ${topic} help`)}
+
+    ${c.bold('Usage:')}
+      ${detail[0]}
+
+    ${detail[1]}
+
+    Run ${c.cyan('devcodex help')} for the command overview.
+    User guide: https://github.com/devcodex-labs/devcodex#readme
+  `)
+      return
+    }
+
     console.log(`
     ${c.bold('DevCodex')} — AI-powered development workflow rules for Copilot, Claude, Codex, Gemini & Grok
 
@@ -1032,18 +1068,21 @@ function buildCliMaintenanceCommands(ctx) {
       devcodex <command> [options]
       npx devcodex <command> [options]   ${c.dim('(without npm link)')}
 
-    ${c.bold('Commands:')}
+    ${c.bold('Everyday commands:')}
       ${c.cyan('init')}              Initialize workspace-owned .devcodex runtime state only
       ${c.cyan('update')}            Refresh workspace-owned .devcodex runtime state only
-      ${c.cyan('global-adapters')}   Apply user-level host adapters from package root (source-friendly)
-      ${c.cyan('grok')}              Launch Grok with the user-global DevCodex kernel
-      ${c.cyan('migrate-layout')}    Plan/apply/rollback centralized .devcodex workspace layout
+      ${c.cyan('status')}            Check workspace and host adapter readiness
+      ${c.cyan('doctor')}            Diagnose installation or workflow problems
       ${c.cyan('runtime status')}    Inspect runtime-state owners, size and last-use timestamps
       ${c.cyan('runtime prune')}     Preview safe stale-temp cleanup; add --apply to remove
       ${c.cyan('profile init')}      Auto-generate tiered .devcodex/profile/ drafts
       ${c.cyan('profile plan')}      Preview Profile root/tier/file actions without writing
-      ${c.cyan('status')}            Show installed files; add --completion for workflow state
-      ${c.cyan('doctor')}            Diagnose host/agent/mode; add --completion for blockers/actions
+      ${c.cyan('help <command>')}    Show read-only help for one command
+
+    ${c.bold('Advanced commands:')}
+      ${c.cyan('global-adapters')}   Apply user-level host adapters from package root
+      ${c.cyan('grok')}              Launch Grok with the user-global DevCodex kernel
+      ${c.cyan('migrate-layout')}    Plan/apply/rollback centralized .devcodex workspace layout
       ${c.cyan('probe')}             Run bounded local-only diagnostics; accepts IDs and --json
       ${c.cyan('trace show|replay')} Read LocalTaskTrace; trace show --completion reads receipt identities
       ${c.cyan('skill plan')}        Plan a dependency-closed whole-SKILL bundle; add --json for BundleDecisionV2
@@ -1060,27 +1099,18 @@ function buildCliMaintenanceCommands(ctx) {
       ${c.dim('--allow-downgrade')}  (profile init only) Explicitly allow a lower tier; files are retained
       ${c.dim('--json')}             Emit one DevCodexCliEnvelopeV1 document for supported commands
 
-    ${c.bold('Examples:')}
-      devcodex global-adapters apply --dry-run  # R1a: plan user-global adapters from source tree
-      devcodex global-adapters apply            # R1a: refresh user-global adapters without pack/publish
-      npm install -g .                          # R1b: local global install postinstall refresh
-      npm pack && npm install -g ./devcodex-*.tgz  # R2: pre-release tarball
-      npm install -g devcodex                   # R3: published install + postinstall adapters
-      npm update -g devcodex                    # R3: published upgrade + postinstall refresh
-      npm install devcodex                      # Dependency only; prints the required -g guidance
-      devcodex init                             # R4: initialize only this workspace .devcodex
-      devcodex update                           # R4: refresh only this workspace .devcodex
-      devcodex grok                             # Full-evidence Grok launcher using the global kernel
-      devcodex grok -p "Review this diff" --output-format json
-      devcodex migrate-layout plan              # Generate centralized layout migration manifest
-      devcodex runtime status                    # Inspect canonical and legacy runtime state
-      devcodex runtime prune --dry-run           # Preview safe cleanup without writing
-      devcodex profile init --tier profile-standard  # Generate tiered Profile drafts
-      devcodex profile plan --tier profile-closed-loop # Preview a safe upgrade
-      devcodex status                           # Check installation
-      devcodex skill plan intent load-profile --max-bytes 32768 --json
-      devcodex skill resolve my-ws-skill --json
-      devcodex task resolve "my task" --json    # Resolve without loading unrelated task bodies
+    ${c.bold('First use:')}
+      npm install -g devcodex
+      cd <your-project-or-workspace>
+      devcodex init
+      devcodex status
+
+    ${c.bold('Update / uninstall:')}
+      npm update -g devcodex
+      npm uninstall -g devcodex
+
+    Every command supports ${c.cyan('<command> --help')} and ${c.cyan('help <command>')} without writing files.
+    User guide: https://github.com/devcodex-labs/devcodex#readme
   `)
   }
 

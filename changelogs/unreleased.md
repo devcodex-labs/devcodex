@@ -5,7 +5,7 @@
 
 ## 当前未发布实现候选
 
-- **Profile 目标、ContextRead/SkillRoute 与发布真相闭环修复（F1～F14）**：定向 `init --profile` 只解析真实项目且 `--dry-run` 全程零写入；生命周期改为 session-first 主动协调，ContextRead observation、阶段义务与 status/execute 共用身份和前置条件；memory 索引区分 freshness/trust/coverage/repair，report index 诚实降级为维护预览；Codex PASS 改用包内可复算真实宿主证据，相关组合负例接入 changed/full/package-release；F14 审计阻断将 website 已有 `brace-expansion` override 从 5.0.8 提升到官方修复版 5.0.9，不新增审计例外。当前为本地未发布候选，不代表 npm、GitHub、tag 或远端 CI 已更新。
+- **Profile 目标、ContextRead/SkillRoute 与发布真相闭环修复（F1～F14）**：定向 `init --profile` 只解析真实项目且 `--dry-run` 全程零写入；生命周期改为 session-first 主动协调，ContextRead observation、阶段义务与 status/execute 共用身份和前置条件；memory 索引区分 freshness/trust/coverage/repair，且 daily 会话通过 `sessionId + sessionBinding` 绑定后续正文写入，错绑和无目标均零写入失败，旧版无绑定会话保持只读并自动续接到新 allocation；report index 诚实降级为维护预览；Codex PASS 改用包内可复算真实宿主证据，相关组合负例接入 changed/full/package-release；`hooks-runtime` 的 298 次隔离子进程回放保留原测试强度并使用 240 秒专属预算，避免 120 秒边界将真实 PASS 误判为超时；F14 审计阻断将 website 已有 `brace-expansion` override 从 5.0.8 提升到官方修复版 5.0.9，不新增审计例外。当前为本地未发布候选，不代表 npm、GitHub、tag 或远端 CI 已更新。
 - **v1.16.2 已归档**：ContextRead 来源回执耐久化、空会话标识重放修复、README 常见任务教程与 CLI 只读帮助已进入 `changelogs/releases/v1.16.2.md`。
 - **v1.16.1 已归档**：长会话提示有界化、会话治理状态隔离、项目绑定稳定性与唯一短名解析修复已进入 `changelogs/releases/v1.16.1.md`。
 - **v1.16.0 已归档**：首次初始化、项目 Profile、用户语言与 workspace runtime-state 一致性已进入 `changelogs/releases/v1.16.0.md`。

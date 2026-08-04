@@ -241,6 +241,27 @@ function toolJson(result) {
   return JSON.parse(text)
 }
 
+function memoryTransactionJson(result) {
+  const text = result.content?.[0]?.text || ''
+  const jsonLine = text.split(/\r?\n/).filter(Boolean).at(-1)
+  assert(jsonLine, 'expected a memory transaction JSON receipt')
+  return JSON.parse(jsonLine)
+}
+
+function allocateMemorySession(cwd, argumentsValue, env = {}) {
+  const responses = runServer('mcp/memory-server.js', [
+    rpcRequest(9000, 'tools/call', {
+      name: 'memory_session_allocate',
+      arguments: argumentsValue
+    })
+  ], cwd, env)
+  const result = resultById(responses, 9000)
+  assert.notStrictEqual(result.isError, true, result.content?.[0]?.text || 'allocation failed')
+  const allocation = toolJson(result)
+  assert.deepStrictEqual(result.structuredContent, allocation)
+  return allocation
+}
+
 function profileReadBasenames(reads) {
   const profileSegment = `${path.sep}profile${path.sep}`.toLowerCase()
   return reads
@@ -629,11 +650,19 @@ function testProfileAgentUsesRuntimeBeforeProfileFallback() {
 
 function testMemoryDefaultAgent() {
   setupLegacyWorkspace()
+  const allocation = allocateMemorySession(TEMP_ROOT, {
+    date: '20260524', title: 'default-agent', intent: 'analyze'
+  })
   const responses = runServer('mcp/memory-server.js', [
     rpcRequest(1, 'initialize'),
     rpcRequest(2, 'tools/call', {
       name: 'memory_session_write',
-      arguments: { date: '20260524', content: '# session\n' }
+      arguments: {
+        date: '20260524',
+        sessionId: allocation.sessionId,
+        sessionBinding: allocation.sessionBinding,
+        content: '# session\n'
+      }
     }),
     rpcRequest(3, 'tools/call', {
       name: 'memory_summary_append',
@@ -689,13 +718,22 @@ function testMemoryTaskResolveContract() {
 
 function testMemoryActualHostEnvAgent() {
   setupLegacyWorkspace()
+  const env = { DEVCODEX_AGENT: 'codex' }
+  const allocation = allocateMemorySession(TEMP_ROOT, {
+    date: '20260524', title: 'actual-host', intent: 'analyze'
+  }, env)
   const responses = runServer('mcp/memory-server.js', [
     rpcRequest(1, 'initialize'),
     rpcRequest(2, 'tools/call', {
       name: 'memory_session_write',
-      arguments: { date: '20260524', content: '# session\n' }
+      arguments: {
+        date: '20260524',
+        sessionId: allocation.sessionId,
+        sessionBinding: allocation.sessionBinding,
+        content: '# session\n'
+      }
     })
-  ], TEMP_ROOT, { DEVCODEX_AGENT: 'codex' })
+  ], TEMP_ROOT, env)
 
   assert.ok(resultById(responses, 1).capabilities.tools)
   assert.ok(resultById(responses, 2).content[0].text.includes('codex'))
@@ -1218,16 +1256,26 @@ function testMemoryProjectionAgentAmbiguity() {
 function testGrokAgentMemoryWrite() {
   setupMemoryProjectionFixture()
   const day = compactDateInTimeZone(Intl.DateTimeFormat().resolvedOptions().timeZone)
+  const env = { DEVCODEX_AGENT: 'grok' }
+  const allocation = allocateMemorySession(TEMP_ROOT, {
+    date: day, title: 'grok-agent', intent: 'analyze', agent: 'grok'
+  }, env)
   const responses = runServer('mcp/memory-server.js', [
     rpcRequest(1, 'tools/call', {
       name: 'memory_session_write',
-      arguments: { date: day, content: '# grok session\n', agent: 'grok' }
+      arguments: {
+        date: day,
+        sessionId: allocation.sessionId,
+        sessionBinding: allocation.sessionBinding,
+        content: '# grok session\n',
+        agent: 'grok'
+      }
     }),
     rpcRequest(2, 'tools/call', {
       name: 'memory_status',
       arguments: { agent: 'grok' }
     })
-  ], TEMP_ROOT, { DEVCODEX_AGENT: 'grok' })
+  ], TEMP_ROOT, env)
 
   const writeResult = resultById(responses, 1)
   assert.notStrictEqual(writeResult.isError, true, writeResult.content?.[0]?.text || 'write failed')
@@ -1982,11 +2030,19 @@ function testProfileContextPlanReadTrace() {
 function testWorkspaceNamespaceMemoryScope() {
   setupLayoutWorkspace()
   const projectRoot = path.join(TEMP_ROOT, 'chat')
+  const allocation = allocateMemorySession(projectRoot, {
+    date: '20260524', title: 'workspace-scope', intent: 'analyze'
+  })
   const responses = runServer('mcp/memory-server.js', [
     rpcRequest(1, 'initialize'),
     rpcRequest(2, 'tools/call', {
       name: 'memory_session_write',
-      arguments: { date: '20260524', content: '# session\n' }
+      arguments: {
+        date: '20260524',
+        sessionId: allocation.sessionId,
+        sessionBinding: allocation.sessionBinding,
+        content: '# session\n'
+      }
     }),
     rpcRequest(3, 'tools/call', {
       name: 'memory_summary_append',
@@ -2038,10 +2094,19 @@ function testWorkspaceRootMemoryScopeRequiresExplicitTarget() {
     TEMP_ROOT, '.devcodex', 'workspace', '.memory', 'clients', 'claude-code', 'SUMMARY.md'
   )))
 
+  const projectAllocation = allocateMemorySession(TEMP_ROOT, {
+    project: 'chat', date: '20260524', title: 'explicit-project', intent: 'analyze'
+  })
   const explicitProject = runServer('mcp/memory-server.js', [
     rpcRequest(4, 'tools/call', {
       name: 'memory_session_write',
-      arguments: { project: 'chat', date: '20260524', content: '# project\n' }
+      arguments: {
+        project: 'chat',
+        date: '20260524',
+        sessionId: projectAllocation.sessionId,
+        sessionBinding: projectAllocation.sessionBinding,
+        content: '# project\n'
+      }
     })
   ], TEMP_ROOT)
   assert.ok(resultById(explicitProject, 4).content[0].text.includes('chat'))
@@ -2061,10 +2126,18 @@ function testWorkspaceNamespaceNestedProjectInference() {
   assert.strictEqual(profilePayload.project, 'packages/app-a')
   assert.strictEqual(profilePayload.mode, 'dev')
 
+  const allocation = allocateMemorySession(projectRoot, {
+    date: '20260524', title: 'nested-project', intent: 'analyze'
+  })
   const memoryResponses = runServer('mcp/memory-server.js', [
     rpcRequest(3, 'tools/call', {
       name: 'memory_session_write',
-      arguments: { date: '20260524', content: '# nested\n' }
+      arguments: {
+        date: '20260524',
+        sessionId: allocation.sessionId,
+        sessionBinding: allocation.sessionBinding,
+        content: '# nested\n'
+      }
     })
   ], projectRoot)
   assert.ok(fs.existsSync(path.join(
@@ -2149,7 +2222,7 @@ function testAdjacentMcpPathArgumentsRejected() {
 function testMemorySessionAllocationAndTransactions() {
   setupLayoutWorkspace()
   const projectRoot = path.join(TEMP_ROOT, 'chat')
-  const responses = runServer('mcp/memory-server.js', [
+  const allocations = runServer('mcp/memory-server.js', [
     rpcRequest(1, 'initialize'),
     rpcRequest(2, 'tools/list'),
     rpcRequest(3, 'tools/call', {
@@ -2159,41 +2232,212 @@ function testMemorySessionAllocationAndTransactions() {
     rpcRequest(4, 'tools/call', {
       name: 'memory_session_allocate',
       arguments: { date: '20260524', title: 'second', intent: 'dev' }
-    }),
+    })
+  ], projectRoot)
+
+  const listedTools = resultById(allocations, 2).tools
+  assert(listedTools.some(tool => tool.name === 'memory_session_allocate'))
+  const writeSchema = findToolSchema(listedTools, 'memory_session_write')
+  assert.strictEqual(writeSchema.additionalProperties, false)
+  assert.strictEqual(writeSchema.properties.content.maxLength, 262144)
+  assert.strictEqual(writeSchema.properties.sessionId.maxLength, 64)
+  assert.strictEqual(writeSchema.properties.sessionBinding.pattern, '^[a-f0-9]{64}$')
+  const first = JSON.parse(resultById(allocations, 3).content[0].text)
+  const second = JSON.parse(resultById(allocations, 4).content[0].text)
+  assert.deepStrictEqual(resultById(allocations, 3).structuredContent, first)
+  assert.deepStrictEqual(resultById(allocations, 4).structuredContent, second)
+  assert.strictEqual(first.schemaVersion, 'MemorySessionAllocationReceiptV1')
+  assert.strictEqual(first.sessionId, '01')
+  assert.strictEqual(second.sessionId, '02')
+  assert.strictEqual(first.sessionBindingSchemaVersion, 'MemorySessionBindingV1')
+  assert.match(first.sessionBinding, /^[a-f0-9]{64}$/)
+  assert.match(second.sessionBinding, /^[a-f0-9]{64}$/)
+  assert.notStrictEqual(first.sessionBinding, second.sessionBinding)
+  assert.strictEqual(first.transaction.schemaVersion, 'MemoryTransactionReceiptV1')
+  assert.strictEqual(first.transaction.indexReceipt.status, 'persisted')
+  assert.strictEqual(second.transaction.indexReceipt.status, 'persisted')
+  assert.strictEqual(second.transaction.indexReceipt.generation, 2)
+
+  const dailyPath = path.join(TEMP_ROOT, '.devcodex', 'chat', '.memory', 'clients', 'claude-code', 'tasks', '20260524.md')
+  const beforeRejectedWrites = fs.readFileSync(dailyPath, 'utf8')
+  const rejected = runServer('mcp/memory-server.js', [
     rpcRequest(5, 'tools/call', {
       name: 'memory_session_write',
-      arguments: { date: '20260524', content: '追加内容\n' }
+      arguments: { date: '20260524', content: 'unbound-must-not-land\n' }
     }),
     rpcRequest(6, 'tools/call', {
+      name: 'memory_session_write',
+      arguments: { date: '20260524', sessionId: first.sessionId, content: 'missing-binding-must-not-land\n' }
+    }),
+    rpcRequest(7, 'tools/call', {
+      name: 'memory_session_write',
+      arguments: {
+        date: '20260524',
+        sessionId: first.sessionId,
+        sessionBinding: second.sessionBinding,
+        content: 'cross-task-must-not-land\n'
+      }
+    }),
+    rpcRequest(8, 'tools/call', {
+      name: 'memory_session_write',
+      arguments: { date: '20260524', sessionBinding: first.sessionBinding, content: 'binding-only-must-not-land\n' }
+    }),
+    rpcRequest(18, 'tools/call', {
+      name: 'memory_session_write',
+      arguments: {
+        date: '20260524',
+        sessionId: '99',
+        sessionBinding: first.sessionBinding,
+        content: 'missing-target-must-not-land\n'
+      }
+    }),
+    rpcRequest(19, 'tools/call', {
+      name: 'memory_session_write',
+      arguments: {
+        date: '20260524',
+        sessionId: first.sessionId,
+        sessionBinding: first.sessionBinding,
+        content: '## 会话 77 — injected-must-not-land\n'
+      }
+    }),
+    rpcRequest(20, 'tools/call', {
+      name: 'memory_session_write',
+      arguments: {
+        date: '20260524',
+        sessionId: first.sessionId,
+        sessionBinding: first.sessionBinding,
+        content: `<!-- devcodex:memory-session-binding v1 session=${first.sessionId} token=${first.sessionBinding} -->\nmarker-must-not-land\n`
+      }
+    }),
+    rpcRequest(21, 'tools/call', {
+      name: 'memory_session_write',
+      arguments: {
+        date: '20260524',
+        sessionId: first.sessionId,
+        sessionBinding: first.sessionBinding,
+        content: 'unknown-field-must-not-land\n',
+        legacyMode: true
+      }
+    }),
+    rpcRequest(22, 'tools/call', {
+      name: 'memory_session_write',
+      arguments: {
+        date: '20260524',
+        sessionId: first.sessionId,
+        sessionBinding: first.sessionBinding,
+        content: { invalid: true }
+      }
+    }),
+    rpcRequest(23, 'tools/call', {
+      name: 'memory_session_write',
+      arguments: {
+        date: '20260524',
+        sessionId: first.sessionId,
+        sessionBinding: first.sessionBinding,
+        content: 'x'.repeat(262145)
+      }
+    })
+  ], projectRoot)
+  assert.match(resultById(rejected, 5).content?.[0]?.text || '', /MEMORY_SESSION_BINDING_REQUIRED/)
+  assert.match(resultById(rejected, 6).content?.[0]?.text || '', /MEMORY_SESSION_BINDING_REQUIRED/)
+  assert.match(resultById(rejected, 7).content?.[0]?.text || '', /MEMORY_SESSION_BINDING_MISMATCH/)
+  assert.match(resultById(rejected, 8).content?.[0]?.text || '', /MEMORY_SESSION_BINDING_INVALID/)
+  assert.match(resultById(rejected, 18).content?.[0]?.text || '', /MEMORY_SESSION_NOT_FOUND/)
+  assert.match(resultById(rejected, 19).content?.[0]?.text || '', /MEMORY_SESSION_WRITE_VERIFICATION_FAILED/)
+  assert.match(resultById(rejected, 20).content?.[0]?.text || '', /MEMORY_SESSION_LAYOUT_INVALID/)
+  for (const id of [21, 22, 23]) {
+    assert.match(resultById(rejected, id).content?.[0]?.text || '', /MEMORY_WRITER_ARGUMENT_INVALID/)
+  }
+  assert.strictEqual(resultById(rejected, 5).structuredContent.errorCode, 'MEMORY_SESSION_BINDING_REQUIRED')
+  assert.strictEqual(resultById(rejected, 7).structuredContent.errorCode, 'MEMORY_SESSION_BINDING_MISMATCH')
+  for (const id of [5, 6, 7, 8, 18, 19, 20, 21, 22, 23]) {
+    assert.strictEqual(resultById(rejected, id).isError, true)
+  }
+  assert.strictEqual(
+    fs.readFileSync(dailyPath, 'utf8'),
+    beforeRejectedWrites,
+    'rejected or cross-task writes must be zero-mutation'
+  )
+
+  const invalidAllocationDate = '20260528'
+  const invalidAllocationPath = path.join(path.dirname(dailyPath), `${invalidAllocationDate}.md`)
+  const invalidAllocations = runServer('mcp/memory-server.js', [
+    rpcRequest(24, 'tools/call', {
+      name: 'memory_session_allocate',
+      arguments: { date: invalidAllocationDate, title: 'bad\n## 会话 99 — injected', intent: 'analyze' }
+    }),
+    rpcRequest(25, 'tools/call', {
+      name: 'memory_session_allocate',
+      arguments: {
+        date: invalidAllocationDate,
+        title: 'reserved-marker',
+        intent: 'analyze',
+        sourceMessage: 'devcodex:memory-session-binding v1 session=99 token=forged'
+      }
+    }),
+    rpcRequest(26, 'tools/call', {
+      name: 'memory_session_allocate',
+      arguments: { date: invalidAllocationDate, title: 'x'.repeat(161), intent: 'analyze' }
+    }),
+    rpcRequest(27, 'tools/call', {
+      name: 'memory_session_allocate',
+      arguments: { date: invalidAllocationDate, title: 'unknown-field', intent: 'analyze', legacyMode: true }
+    })
+  ], projectRoot)
+  for (const id of [24, 25, 26, 27]) {
+    assert.strictEqual(resultById(invalidAllocations, id).isError, true)
+    assert.match(resultById(invalidAllocations, id).content?.[0]?.text || '', /MEMORY_WRITER_ARGUMENT_INVALID/)
+  }
+  assert.strictEqual(fs.existsSync(invalidAllocationPath), false, 'invalid allocations must be zero-mutation')
+
+  const responses = runServer('mcp/memory-server.js', [
+    rpcRequest(9, 'tools/call', {
+      name: 'memory_session_write',
+      arguments: {
+        date: '20260524',
+        sessionId: first.sessionId,
+        sessionBinding: first.sessionBinding,
+        content: 'first-session-only\n'
+      }
+    }),
+    rpcRequest(10, 'tools/call', {
+      name: 'memory_session_write',
+      arguments: {
+        date: '20260524',
+        sessionId: second.sessionId,
+        sessionBinding: second.sessionBinding,
+        content: 'second-session-only\n'
+      }
+    }),
+    rpcRequest(11, 'tools/call', {
       name: 'memory_summary_append',
       arguments: { row: '| 2026-05-24 | 01 | analyze | atomic summary | — | — | ✅ |' }
     }),
-    rpcRequest(7, 'tools/call', {
+    rpcRequest(12, 'tools/call', {
       name: 'memory_session_query',
       arguments: { date: '20260524', status: 'all', limit: 10 }
     }),
-    rpcRequest(8, 'tools/call', {
+    rpcRequest(13, 'tools/call', {
       name: 'memory_summary_query',
       arguments: { status: 'completed', limit: 10 }
     })
   ], projectRoot)
 
-  assert(resultById(responses, 2).tools.some(tool => tool.name === 'memory_session_allocate'))
-  const first = JSON.parse(resultById(responses, 3).content[0].text)
-  const second = JSON.parse(resultById(responses, 4).content[0].text)
-  assert.strictEqual(first.schemaVersion, 'MemorySessionAllocationReceiptV1')
-  assert.strictEqual(first.sessionId, '01')
-  assert.strictEqual(second.sessionId, '02')
-  assert.strictEqual(first.transaction.schemaVersion, 'MemoryTransactionReceiptV1')
-  assert.strictEqual(first.transaction.indexReceipt.status, 'persisted')
-  assert.strictEqual(second.transaction.indexReceipt.status, 'persisted')
-  assert.strictEqual(second.transaction.indexReceipt.generation, 2)
-  assert.match(resultById(responses, 5).content[0].text, /MemoryTransactionReceiptV1/)
-  assert.match(resultById(responses, 6).content[0].text, /MemoryTransactionReceiptV1/)
-  assert.match(resultById(responses, 5).content[0].text, /MemoryIndexReceiptV1/)
-  assert.match(resultById(responses, 6).content[0].text, /MemoryIndexReceiptV1/)
-  const indexedDaily = toolJson(resultById(responses, 7))
-  const indexedSummary = toolJson(resultById(responses, 8))
+  for (const id of [9, 10, 11]) {
+    assert.match(resultById(responses, id).content[0].text, /MemoryTransactionReceiptV1/)
+    assert.match(resultById(responses, id).content[0].text, /MemoryIndexReceiptV1/)
+  }
+  for (const id of [9, 10]) {
+    const receipt = memoryTransactionJson(resultById(responses, id))
+    assert.deepStrictEqual(resultById(responses, id).structuredContent, receipt)
+    assert.strictEqual(receipt.sessionWrite.schemaVersion, 'MemorySessionWriteReceiptV1')
+    assert.strictEqual(receipt.sessionWrite.mode, 'bound-session')
+    assert.strictEqual(receipt.sessionWrite.bindingStatus, 'verified')
+    assert.strictEqual(receipt.sessionWrite.nonTargetStable, true)
+    assert.strictEqual(receipt.sessionWrite.readbackVerified, true)
+  }
+  const indexedDaily = toolJson(resultById(responses, 12))
+  const indexedSummary = toolJson(resultById(responses, 13))
   assert.strictEqual(indexedDaily.indexReceipt.status, 'fresh')
   assert.strictEqual(indexedDaily.coverage.status, 'complete')
   assert.strictEqual(indexedDaily.derivedIndexFreshness.status, 'fresh')
@@ -2204,13 +2448,114 @@ function testMemorySessionAllocationAndTransactions() {
   assert.strictEqual(indexedSummary.indexReceipt.status, 'fresh')
   assert.strictEqual(indexedSummary.coverage.status, 'complete')
 
-  const dailyPath = path.join(TEMP_ROOT, '.devcodex', 'chat', '.memory', 'clients', 'claude-code', 'tasks', '20260524.md')
   const daily = fs.readFileSync(dailyPath, 'utf8')
   assert.match(daily, /## 会话 01 — first/)
   assert.match(daily, /## 会话 02 — second/)
-  assert.match(daily, /追加内容/)
+  const secondHeading = daily.indexOf('## 会话 02 — second')
+  const firstBlock = daily.slice(0, secondHeading)
+  const secondBlock = daily.slice(secondHeading)
+  assert.match(firstBlock, /first-session-only/)
+  assert.doesNotMatch(firstBlock, /second-session-only/)
+  assert.match(secondBlock, /second-session-only/)
+  assert.doesNotMatch(secondBlock, /first-session-only/)
+  assert.doesNotMatch(daily, /must-not-land/)
   const summary = fs.readFileSync(path.join(TEMP_ROOT, '.devcodex', 'chat', '.memory', 'clients', 'claude-code', 'SUMMARY.md'), 'utf8')
   assert.match(summary, /atomic summary/)
+
+  const legacyDate = '20260526'
+  const legacyPath = path.join(path.dirname(dailyPath), `${legacyDate}.md`)
+  fs.writeFileSync(legacyPath, [
+    '## 会话 01 — legacy first',
+    '',
+    '- **状态**：🔄 active',
+    '',
+    '## 会话 02 — legacy second',
+    '',
+    '- **状态**：🔄 active',
+    ''
+  ].join('\n'), 'utf8')
+  const legacyBefore = fs.readFileSync(legacyPath, 'utf8')
+  const rejectedLegacyWrite = runServer('mcp/memory-server.js', [
+    rpcRequest(14, 'tools/call', {
+      name: 'memory_session_write',
+      arguments: { date: legacyDate, content: 'legacy-unbound-must-not-land\n' }
+    }),
+    rpcRequest(15, 'tools/call', {
+      name: 'memory_session_write',
+      arguments: { date: legacyDate, sessionId: '01', content: 'legacy-explicit-must-not-land\n' }
+    }),
+    rpcRequest(16, 'tools/call', {
+      name: 'memory_session_write',
+      arguments: {
+        date: legacyDate,
+        sessionId: '01',
+        sessionBinding: 'a'.repeat(64),
+        content: 'legacy-forged-binding-must-not-land\n'
+      }
+    })
+  ], projectRoot)
+  assert.strictEqual(resultById(rejectedLegacyWrite, 14).isError, true)
+  assert.strictEqual(resultById(rejectedLegacyWrite, 15).isError, true)
+  assert.strictEqual(resultById(rejectedLegacyWrite, 16).isError, true)
+  assert.match(resultById(rejectedLegacyWrite, 14).content?.[0]?.text || '', /MEMORY_SESSION_BINDING_REQUIRED/)
+  assert.match(resultById(rejectedLegacyWrite, 15).content?.[0]?.text || '', /MEMORY_SESSION_BINDING_REQUIRED/)
+  assert.match(resultById(rejectedLegacyWrite, 16).content?.[0]?.text || '', /MEMORY_SESSION_BINDING_UNAVAILABLE/)
+  assert.strictEqual(fs.readFileSync(legacyPath, 'utf8'), legacyBefore, 'legacy write rejection must be zero-mutation')
+  const legacyContinuation = allocateMemorySession(projectRoot, {
+    date: legacyDate, title: 'legacy continuation', intent: 'resume'
+  })
+  assert.strictEqual(legacyContinuation.sessionId, '03')
+  const legacyWrites = runServer('mcp/memory-server.js', [
+    rpcRequest(17, 'tools/call', {
+      name: 'memory_session_write',
+      arguments: {
+        date: legacyDate,
+        sessionId: legacyContinuation.sessionId,
+        sessionBinding: legacyContinuation.sessionBinding,
+        content: 'legacy-continuation-bound\n'
+      }
+    })
+  ], projectRoot)
+  const legacyReceipt = memoryTransactionJson(resultById(legacyWrites, 17))
+  assert.strictEqual(legacyReceipt.sessionWrite.mode, 'bound-session')
+  const legacyAfter = fs.readFileSync(legacyPath, 'utf8')
+  const legacyContinuationHeading = legacyAfter.indexOf('## 会话 03 — legacy continuation')
+  assert.strictEqual(legacyAfter.slice(0, legacyContinuationHeading).trimEnd(), legacyBefore.trimEnd())
+  assert.match(legacyAfter.slice(legacyContinuationHeading), /legacy-continuation-bound/)
+  assert.doesNotMatch(legacyAfter, /must-not-land/)
+
+  const rawLegacyDate = '20260527'
+  const rawLegacyPath = path.join(path.dirname(dailyPath), `${rawLegacyDate}.md`)
+  const rawLegacyBefore = '# legacy raw daily\n\nold content\n'
+  fs.writeFileSync(rawLegacyPath, rawLegacyBefore, 'utf8')
+  const rejectedRawLegacy = runServer('mcp/memory-server.js', [
+    rpcRequest(18, 'tools/call', {
+      name: 'memory_session_write',
+      arguments: { date: rawLegacyDate, content: 'raw-unbound-must-not-land\n' }
+    })
+  ], projectRoot)
+  assert.strictEqual(resultById(rejectedRawLegacy, 18).isError, true)
+  assert.match(resultById(rejectedRawLegacy, 18).content?.[0]?.text || '', /MEMORY_SESSION_BINDING_REQUIRED/)
+  assert.strictEqual(fs.readFileSync(rawLegacyPath, 'utf8'), rawLegacyBefore)
+  const rawContinuation = allocateMemorySession(projectRoot, {
+    date: rawLegacyDate, title: 'raw legacy continuation', intent: 'resume'
+  })
+  const rawContinuationWrite = runServer('mcp/memory-server.js', [
+    rpcRequest(19, 'tools/call', {
+      name: 'memory_session_write',
+      arguments: {
+        date: rawLegacyDate,
+        sessionId: rawContinuation.sessionId,
+        sessionBinding: rawContinuation.sessionBinding,
+        content: 'raw-legacy-continuation-bound\n'
+      }
+    })
+  ], projectRoot)
+  assert.notStrictEqual(resultById(rawContinuationWrite, 19).isError, true)
+  const rawLegacyAfter = fs.readFileSync(rawLegacyPath, 'utf8')
+  assert.ok(rawLegacyAfter.startsWith(rawLegacyBefore))
+  assert.match(rawLegacyAfter, /raw-legacy-continuation-bound/)
+  assert.doesNotMatch(rawLegacyAfter, /raw-unbound-must-not-land/)
 
   const derivedRoot = path.join(TEMP_ROOT, '.devcodex', 'chat', '.runtime-state', 'derived-indexes')
   const beforeQueryOnly = snapshotTree(derivedRoot)
@@ -2283,18 +2628,28 @@ function testMemoryLocalCalendarAndWriterReaderContract() {
   for (const timeZone of ['Pacific/Kiritimati', 'Etc/GMT+12']) {
     setupLegacyWorkspace()
     const day = compactDateInTimeZone(timeZone)
-    const responses = runServer('mcp/memory-server.js', [
+    const allocationResponses = runServer('mcp/memory-server.js', [
       rpcRequest(1, 'tools/call', {
         name: 'memory_session_allocate',
         arguments: { title: `timezone-${timeZone}`, intent: 'other' }
-      }),
+      })
+    ], TEMP_ROOT, { TZ: timeZone })
+    const allocation = toolJson(resultById(allocationResponses, 1))
+    assert.strictEqual(allocation.sessionId, '01')
+
+    const responses = runServer('mcp/memory-server.js', [
       rpcRequest(2, 'tools/call', {
         name: 'memory_session_query',
         arguments: { date: day, status: 'all' }
       }),
       rpcRequest(3, 'tools/call', {
         name: 'memory_session_write',
-        arguments: { date: day, content: '\n状态：✅ 已完成\n' }
+        arguments: {
+          date: day,
+          sessionId: allocation.sessionId,
+          sessionBinding: allocation.sessionBinding,
+          content: '\n状态：✅ 已完成\n'
+        }
       }),
       rpcRequest(4, 'tools/call', {
         name: 'memory_session_query',
@@ -2302,8 +2657,6 @@ function testMemoryLocalCalendarAndWriterReaderContract() {
       })
     ], TEMP_ROOT, { TZ: timeZone })
 
-    const allocation = toolJson(resultById(responses, 1))
-    assert.strictEqual(allocation.sessionId, '01')
     const active = toolJson(resultById(responses, 2))
     assert.strictEqual(active.matches.length, 1)
     assert.strictEqual(active.matches[0].state, 'active')

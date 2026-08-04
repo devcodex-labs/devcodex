@@ -13,7 +13,7 @@
  *   memory_session_allocate — Atomically reserve the next daily session section
  *   memory_task_resolve   — Resolve an exact task identity without loading task bodies
  *   memory_session_read   — Read today's/yesterday's session memory file
- *   memory_session_write  — Append a block to the session memory file
+ *   memory_session_write  — Append a block to one allocation-bound daily session
  *   memory_cp_confirm     — Record CP checkpoint confirmation in sessions.md
  *   memory_summary_read   — Read agent SUMMARY.md
  *   memory_summary_append — Append one index row to agent SUMMARY.md
@@ -93,6 +93,7 @@ const {
 const EXPLICIT_RUNTIME_AGENT = normalizeAgent(process.env.DEVCODEX_AGENT)
 const DEFAULT_AGENT = detectRuntimeAgent()
 const TASK_KINDS = new Set(['requirements', 'bugs', 'optimizations', 'scenario-tests'])
+const MAX_MEMORY_SESSION_WRITE_CHARS = 262144
 
 const CONTEXT_READ_BINDING_SCHEMA = {
   type: 'object',
@@ -178,7 +179,7 @@ const TOOLS = [
   },
   {
     name: 'memory_session_allocate',
-    description: '在 active-root/agent/date 作用域内原子分配下一会话编号，并写入一个 reserved daily memory 段，避免多写者通过读尾号产生重复编号。',
+    description: '在 active-root/agent/date 作用域内原子分配下一会话编号与不透明 sessionBinding，并写入 reserved daily memory 段；后续写入必须回传二者，避免多写者串写。',
     inputSchema: {
       type: 'object',
       additionalProperties: false,
@@ -208,14 +209,17 @@ const TOOLS = [
   },
   {
     name: 'memory_session_write',
-    description: '追加内容到会话记忆文件（不覆盖已有内容）。文件不存在时自动创建。',
+    description: '把内容追加到已分配的精确会话段。必须传 memory_session_allocate 返回的 sessionId 与 sessionBinding；旧版无绑定会话保持只读，需先分配新的绑定会话。',
     inputSchema: {
       type: 'object',
+      additionalProperties: false,
       required: ['content'],
       properties: {
         agent: { type: 'string', description: 'Agent 标识，默认当前实际宿主' },
         date: { type: 'string', description: 'YYYYMMDD 日期，默认今日' },
-        content: { type: 'string', description: '追加的 Markdown 内容' },
+        content: { type: 'string', minLength: 1, maxLength: MAX_MEMORY_SESSION_WRITE_CHARS, description: '追加的 Markdown 内容，最多 262144 字符' },
+        sessionId: { type: 'string', minLength: 1, maxLength: 64, description: 'memory_session_allocate 返回的精确会话编号。每次写入必填。' },
+        sessionBinding: { type: 'string', pattern: '^[a-f0-9]{64}$', description: 'memory_session_allocate 返回的不透明绑定值。每次写入必填且必须原样回传。' },
         scope: { type: 'string', enum: ['project', 'workspace'], description: '可选。集中布局下指定写入域；默认按当前 cwd 推断。若 cwd 在 workspace 根，必须显式传 project 或 scope:"workspace"。' },
         project: { type: 'string', description: '可选。集中布局下显式指定项目命名空间；旧布局下仅允许当前项目，避免 workspace 根误写项目记忆。' }
       }
@@ -673,6 +677,9 @@ function withMemoryTransaction(target, filePath, operation) {
     const next = operation(before)
     atomicReplaceFile(filePath, next)
     const after = readFile(filePath)
+    if (after !== next) {
+      throw new Error(`MEMORY_TRANSACTION_READBACK_MISMATCH: ${relativeToActiveRoot(target, filePath)} did not persist the exact transaction payload`)
+    }
     const receipt = {
       schemaVersion: 'MemoryTransactionReceiptV1',
       transactionId: crypto.randomBytes(8).toString('hex'),
@@ -704,6 +711,245 @@ function parseExistingSessionNumbers(content) {
 
 function formatSessionId(number) {
   return number < 100 ? String(number).padStart(2, '0') : String(number)
+}
+
+const MEMORY_SESSION_BINDING_RE = /^[a-f0-9]{64}$/
+const MEMORY_SESSION_BINDING_MARKER_RE = /<!--\s*devcodex:memory-session-binding\s+v1\s+session=([^\s]+)\s+token=([a-f0-9]{64})\s*-->/gi
+const MEMORY_SESSION_ALLOCATE_FIELDS = new Set([
+  'agent', 'scope', 'project', 'date', 'title', 'intent', 'sourceMessage'
+])
+const MEMORY_SESSION_WRITE_FIELDS = new Set([
+  'agent', 'scope', 'project', 'date', 'content', 'sessionId', 'sessionBinding'
+])
+
+function memorySessionBindingMarker(sessionId, sessionBinding) {
+  return `<!-- devcodex:memory-session-binding v1 session=${sessionId} token=${sessionBinding} -->`
+}
+
+function parseDailySessionBlocks(content) {
+  const source = String(content || '')
+  const headingRe = /^##[ \t]+会话[ \t]+([^\s—-]+)(?:[ \t]*[-—][ \t]*([^\r\n]*))?[ \t]*\r?$/gm
+  const headings = []
+  let match
+  while ((match = headingRe.exec(source)) !== null) {
+    let sessionId
+    try {
+      sessionId = normalizeSessionId(match[1])
+    } catch (error) {
+      throw memoryQueryError(
+        `Daily memory contains an invalid session heading: ${match[1]}.`,
+        'Repair the malformed daily session heading before retrying the write.',
+        'MEMORY_SESSION_LAYOUT_INVALID'
+      )
+    }
+    headings.push({ start: match.index, sessionId, title: String(match[2] || '').trim() })
+  }
+  const candidateHeadings = source.match(/^##[ \t]+会话(?:[ \t]|$).*$/gm) || []
+  if (candidateHeadings.length !== headings.length) {
+    throw memoryQueryError(
+      'Daily memory contains a malformed canonical session heading.',
+      'Repair the malformed daily session heading before retrying the write.',
+      'MEMORY_SESSION_LAYOUT_INVALID'
+    )
+  }
+  return headings.map((heading, index) => {
+    const end = headings[index + 1]?.start ?? source.length
+    const raw = source.slice(heading.start, end)
+    const bindings = []
+    MEMORY_SESSION_BINDING_MARKER_RE.lastIndex = 0
+    let bindingMatch
+    while ((bindingMatch = MEMORY_SESSION_BINDING_MARKER_RE.exec(raw)) !== null) {
+      let markerSessionId
+      try {
+        markerSessionId = normalizeSessionId(bindingMatch[1])
+      } catch (error) {
+        throw memoryQueryError(
+          `Daily memory session ${heading.sessionId} contains an invalid binding marker identity.`,
+          'Repair the invalid session binding marker before retrying the write.',
+          'MEMORY_SESSION_LAYOUT_INVALID'
+        )
+      }
+      if (markerSessionId !== heading.sessionId) {
+        throw memoryQueryError(
+          `Daily memory session ${heading.sessionId} contains a binding marker for session ${markerSessionId}.`,
+          'Repair the cross-session binding marker before retrying the write.',
+          'MEMORY_SESSION_LAYOUT_INVALID'
+        )
+      }
+      bindings.push(bindingMatch[2])
+    }
+    if (bindings.length > 1) {
+      throw memoryQueryError(
+        `Daily memory session ${heading.sessionId} contains multiple binding markers.`,
+        'Repair the duplicate session binding markers before retrying the write.',
+        'MEMORY_SESSION_LAYOUT_INVALID'
+      )
+    }
+    return {
+      ...heading,
+      end,
+      raw,
+      binding: bindings[0] || null,
+      digest: fileDigest(raw)
+    }
+  })
+}
+
+function normalizeMemorySessionWriteBinding(args) {
+  const hasSessionId = args.sessionId !== undefined && args.sessionId !== null
+  const hasSessionBinding = args.sessionBinding !== undefined && args.sessionBinding !== null
+  if (hasSessionBinding && !hasSessionId) {
+    throw memoryQueryError(
+      'sessionBinding cannot be used without sessionId.',
+      'Pass the exact sessionId and sessionBinding returned by memory_session_allocate.',
+      'MEMORY_SESSION_BINDING_INVALID'
+    )
+  }
+  const sessionId = hasSessionId ? normalizeSessionId(args.sessionId) : null
+  if (hasSessionId && !sessionId) {
+    throw memoryQueryError(
+      'sessionId must not be empty.',
+      'Pass the exact sessionId returned by memory_session_allocate.',
+      'MEMORY_SESSION_BINDING_INVALID'
+    )
+  }
+  if (hasSessionBinding && !MEMORY_SESSION_BINDING_RE.test(String(args.sessionBinding))) {
+    throw memoryQueryError(
+      'sessionBinding must be the exact 64-character lowercase value returned by memory_session_allocate.',
+      'Pass the allocation receipt values without editing them.',
+      'MEMORY_SESSION_BINDING_INVALID'
+    )
+  }
+  return {
+    sessionId,
+    sessionBinding: hasSessionBinding ? String(args.sessionBinding) : null
+  }
+}
+
+function validateMemoryWriterArgs(args, allowedFields, toolName) {
+  if (!args || typeof args !== 'object' || Array.isArray(args)) {
+    throw memoryQueryError(
+      `${toolName} arguments must be an object.`,
+      `Pass only the published ${toolName} fields.`,
+      'MEMORY_WRITER_ARGUMENT_INVALID'
+    )
+  }
+  const unknown = Object.keys(args).filter(field => !allowedFields.has(field))
+  if (unknown.length) {
+    throw memoryQueryError(
+      `${toolName} received unsupported fields: ${unknown.join(', ')}.`,
+      `Remove unsupported fields and pass only the published ${toolName} schema.`,
+      'MEMORY_WRITER_ARGUMENT_INVALID'
+    )
+  }
+}
+
+function normalizeMemoryAllocationLine(value, fallback, field, maxLength) {
+  if (value === undefined || value === null || value === '') return fallback
+  if (typeof value !== 'string') {
+    throw memoryQueryError(
+      `${field} must be a string.`,
+      `Pass one bounded single-line ${field} value.`,
+      'MEMORY_WRITER_ARGUMENT_INVALID'
+    )
+  }
+  const normalized = value.trim()
+  if (!normalized) return fallback
+  if (normalized.length > maxLength) {
+    throw memoryQueryError(
+      `${field} exceeds the ${maxLength}-character limit.`,
+      `Shorten ${field} and retry the allocation.`,
+      'MEMORY_WRITER_ARGUMENT_INVALID'
+    )
+  }
+  if (/[\r\n\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(normalized) ||
+      /devcodex:memory-session-binding/i.test(normalized)) {
+    throw memoryQueryError(
+      `${field} must be a safe single line and cannot contain reserved memory binding syntax.`,
+      `Remove line breaks, control characters, or reserved binding text from ${field}.`,
+      'MEMORY_WRITER_ARGUMENT_INVALID'
+    )
+  }
+  return normalized
+}
+
+function insertMemorySessionContent(existing, content, binding) {
+  const blocks = parseDailySessionBlocks(existing)
+  if (!binding.sessionId || !binding.sessionBinding) {
+    throw memoryQueryError(
+      'A memory write requires an allocated sessionId and sessionBinding.',
+      'Pass the exact sessionId and sessionBinding returned by memory_session_allocate.',
+      'MEMORY_SESSION_BINDING_REQUIRED'
+    )
+  }
+  const matches = blocks.filter(block => block.sessionId === binding.sessionId)
+  if (!matches.length) {
+    throw memoryQueryError(
+      `Memory session ${binding.sessionId} was not found in the selected daily file.`,
+      'Reallocate or query the exact date/project/agent session before retrying.',
+      'MEMORY_SESSION_NOT_FOUND'
+    )
+  }
+  if (matches.length > 1) {
+    throw memoryQueryError(
+      `Memory session ${binding.sessionId} is ambiguous in the selected daily file.`,
+      'Repair duplicate session headings before retrying.',
+      'MEMORY_SESSION_AMBIGUOUS'
+    )
+  }
+  const target = matches[0]
+  if (!target.binding) {
+    throw memoryQueryError(
+      `Legacy memory session ${target.sessionId} has no allocation binding and is read-only.`,
+      'Allocate a new managed session and write using its returned sessionId and sessionBinding.',
+      'MEMORY_SESSION_BINDING_UNAVAILABLE'
+    )
+  }
+  if (binding.sessionBinding !== target.binding) {
+    throw memoryQueryError(
+      `Memory session ${target.sessionId} rejected a mismatched allocation binding.`,
+      'Use the sessionBinding from the same allocation receipt as sessionId.',
+      'MEMORY_SESSION_BINDING_MISMATCH'
+    )
+  }
+
+  const targetPrefix = existing.slice(0, target.end).replace(/[ \t]*$/, '')
+  const suffix = existing.slice(target.end)
+  const separator = targetPrefix.endsWith('\n') ? '' : '\n'
+  const contentSuffix = String(content).endsWith('\n') ? '' : '\n'
+  const next = `${targetPrefix}${separator}${content}${contentSuffix}${suffix}`
+
+  const afterBlocks = parseDailySessionBlocks(next)
+  const targetAfter = afterBlocks.find(block => block.sessionId === target.sessionId)
+  const nonTargetBefore = blocks.filter(block => block.start !== target.start)
+  const nonTargetAfter = afterBlocks.filter(block => block.start !== targetAfter?.start)
+  const nonTargetStable = nonTargetBefore.length === nonTargetAfter.length && nonTargetBefore.every((block, index) => (
+    block.sessionId === nonTargetAfter[index]?.sessionId && block.raw === nonTargetAfter[index]?.raw
+  ))
+  const targetChanged = Boolean(targetAfter && targetAfter.raw !== target.raw)
+  const targetContainsWrite = Boolean(targetAfter && targetAfter.raw.includes(String(content)))
+  if (!nonTargetStable || !targetChanged || !targetContainsWrite) {
+    throw memoryQueryError(
+      'Memory session write isolation verification failed before persistence.',
+      'Do not retry blindly; inspect the daily session layout and writer contract.',
+      'MEMORY_SESSION_WRITE_VERIFICATION_FAILED'
+    )
+  }
+
+  return {
+    content: next,
+    receipt: {
+      schemaVersion: 'MemorySessionWriteReceiptV1',
+      mode: 'bound-session',
+      sessionId: target.sessionId,
+      bindingStatus: 'verified',
+      writeDigest: fileDigest(content),
+      targetBeforeDigest: target.digest,
+      targetAfterDigest: targetAfter.digest,
+      nonTargetStable,
+      readbackVerified: true
+    }
+  }
 }
 
 // ─── Bounded read-only projection helpers ───────────────────────────────────
@@ -1737,34 +1983,55 @@ function handleMemorySessionRead(args) {
 }
 
 function handleMemorySessionWrite(args) {
-  if (!args.content) throw new Error('content is required')
+  validateMemoryWriterArgs(args, MEMORY_SESSION_WRITE_FIELDS, 'memory_session_write')
+  if (typeof args.content !== 'string' || !args.content.length) {
+    throw memoryQueryError(
+      'content must be a non-empty string.',
+      'Pass bounded Markdown content from the current task.',
+      'MEMORY_WRITER_ARGUMENT_INVALID'
+    )
+  }
+  if (args.content.length > MAX_MEMORY_SESSION_WRITE_CHARS) {
+    throw memoryQueryError(
+      `content exceeds the ${MAX_MEMORY_SESSION_WRITE_CHARS}-character limit.`,
+      'Split the memory update into bounded writes using the same allocation binding.',
+      'MEMORY_WRITER_ARGUMENT_INVALID'
+    )
+  }
   validateDate(args.date)
+  const binding = normalizeMemorySessionWriteBinding(args)
   const target = resolveMemoryTarget(args)
   const p = memoryClientPath(target, 'tasks', `${args.date || today()}.md`)
+  let sessionWriteReceipt = null
   const receipt = withMemoryTransaction(target, p, existing => {
-    const separator = existing ? '\n' : ''
-    return existing + separator + args.content
+    const rendered = insertMemorySessionContent(existing, args.content, binding)
+    sessionWriteReceipt = rendered.receipt
+    return rendered.content
   })
+  receipt.sessionWrite = sessionWriteReceipt
   receipt.indexReceipt = refreshDailyMemoryIndex(target, p, args.date || today())
   return {
     content: [{
       type: 'text',
       text: `已追加到 ${relativeToActiveRoot(target, p)}\n${JSON.stringify(receipt)}`
-    }]
+    }],
+    structuredContent: receipt
   }
 }
 
 function handleMemorySessionAllocate(args) {
+  validateMemoryWriterArgs(args, MEMORY_SESSION_ALLOCATE_FIELDS, 'memory_session_allocate')
   validateDate(args.date)
   const input = { ...args, date: args.date || today() }
   const target = resolveMemoryTarget(input)
   const p = memoryClientPath(target, 'tasks', `${input.date}.md`)
   let allocatedId = null
+  const sessionBinding = crypto.randomBytes(32).toString('hex')
   const receipt = withMemoryTransaction(target, p, existing => {
     const maxId = Math.max(0, ...parseExistingSessionNumbers(existing))
     allocatedId = formatSessionId(maxId + 1)
-    const title = String(input.title || '未命名任务').trim()
-    let intent = String(input.intent || 'unspecified').trim() || 'unspecified'
+    const title = normalizeMemoryAllocationLine(input.title, '未命名任务', 'title', 160)
+    let intent = normalizeMemoryAllocationLine(input.intent, 'unspecified', 'intent', 120)
     if (SUMMARY_TYPE_CANON) {
       const intentCheck = SUMMARY_TYPE_CANON.validateAllocateIntent(intent)
       if (!intentCheck.ok) {
@@ -1776,7 +2043,7 @@ function handleMemorySessionAllocate(args) {
       }
       intent = intentCheck.normalized
     }
-    const sourceMessage = String(input.sourceMessage || '—').trim() || '—'
+    const sourceMessage = normalizeMemoryAllocationLine(input.sourceMessage, '—', 'sourceMessage', 300)
     const block = [
       `## 会话 ${allocatedId} — ${title}`,
       '',
@@ -1784,6 +2051,7 @@ function handleMemorySessionAllocate(args) {
       `- **意图**：${intent}`,
       '- **状态**：🔄 reserved / awaiting content',
       `- **sourceMessage**：${sourceMessage}`,
+      memorySessionBindingMarker(allocatedId, sessionBinding),
       '',
       '### 📨 对话记录',
       '',
@@ -1798,9 +2066,14 @@ function handleMemorySessionAllocate(args) {
   const allocation = {
     schemaVersion: 'MemorySessionAllocationReceiptV1',
     sessionId: allocatedId,
+    sessionBinding,
+    sessionBindingSchemaVersion: 'MemorySessionBindingV1',
     transaction: receipt
   }
-  return { content: [{ type: 'text', text: JSON.stringify(allocation) }] }
+  return {
+    content: [{ type: 'text', text: JSON.stringify(allocation) }],
+    structuredContent: allocation
+  }
 }
 
 function handleMemoryCpConfirm(args) {
@@ -2004,8 +2277,17 @@ function dispatch(method, params) {
             throw Object.assign(new Error(`Unknown tool: ${name}`), { code: -32601 })
         }
       } catch (err) {
+        const errorCode = err.contextReadCode || null
         return {
-          content: [{ type: 'text', text: `Error: ${err.message}` }],
+          content: [{ type: 'text', text: `Error: ${errorCode ? `${errorCode}: ` : ''}${err.message}` }],
+          ...(errorCode ? {
+            structuredContent: {
+              schemaVersion: 'MemoryWriterErrorV1',
+              errorCode,
+              message: err.message,
+              nextStep: err.nextStep || 'Correct the memory writer request and retry once.'
+            }
+          } : {}),
           isError: true
         }
       }

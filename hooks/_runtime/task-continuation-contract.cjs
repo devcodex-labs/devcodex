@@ -13,6 +13,7 @@ const { createRuntimeStateStore } = require('./runtime-state-store.cjs')
 const { resolveExecutionFeatureDecisionForCwd } = require('./execution-optimization-routing.cjs')
 const {
   collectWorkspaceProjectNamespaces,
+  collectWorkspaceRuntimeNamespaces,
   findLayoutInfo,
   inferProjectFromCwd,
   namespaceRootPath,
@@ -217,7 +218,10 @@ function resolveRootContext({ cwd, project = '', scope = 'auto' }) {
     }
   }
 
-  const projects = collectWorkspaceProjectNamespaces(layout.workspaceRoot)
+  const projects = [...new Set([
+    ...collectWorkspaceProjectNamespaces(layout.workspaceRoot),
+    ...collectWorkspaceRuntimeNamespaces(layout.workspaceRoot)
+  ])].sort((left, right) => left.localeCompare(right))
   const workspaceNamespaceRoot = path.join(layout.workspaceRoot, '.devcodex', 'workspace')
   return {
     layout,

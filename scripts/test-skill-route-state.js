@@ -19,7 +19,8 @@ const {
 } = require('../hooks/_runtime/skill-route-state.cjs')
 const {
   evaluateProgressiveSkillRouteStop,
-  handleSkillRoute
+  handleSkillRoute,
+  shouldEnforceProgressiveSkillRouteStop
 } = require('../hooks/_runtime/skill-route-tool.cjs')
 const { buildContentIdentity } = require('../hooks/_runtime/content-identity.cjs')
 const {
@@ -29,7 +30,10 @@ const {
   validateContextReadPlan
 } = require('../hooks/_runtime/context-read-contract.cjs')
 const { persistContextPlanObservation } = require('../hooks/_runtime/context-plan-observation.cjs')
-const { recordMcpContextSourceObservations } = require('../hooks/_runtime/context-source-observation.cjs')
+const {
+  readMcpContextSourceObservations,
+  recordMcpContextSourceObservations
+} = require('../hooks/_runtime/context-source-observation.cjs')
 const {
   encodeCursor
 } = require('../hooks/_runtime/model-skill-catalog.cjs')
@@ -393,6 +397,28 @@ try {
     true,
     'workspace-namespace activeRoot must infer the project hook lifecycle path even when MCP omits workspaceNamespace'
   )
+  const emptyCarrierResults = mcpObservedPlan.mandatorySourceIds.map(sourceId => ({
+    ...observedMcpSourceResult(mcpObservedPlan, sourceId),
+    hostSessionId: ''
+  }))
+  assert.strictEqual(recordMcpContextSourceObservations({
+    activeRoot: fixture.activeRoot,
+    project: fixture.project,
+    contextBinding: mcpObservedPlan.contextBinding,
+    hostSessionId: 'session-mcp-source-observation',
+    sourceResults: emptyCarrierResults
+  }, { nowMs: BASE_MS + 20 }).ledgerStatus, 'persisted')
+  const carriedObservations = readMcpContextSourceObservations({
+    activeRoot: fixture.activeRoot,
+    project: fixture.project,
+    contextBinding: mcpObservedPlan.contextBinding,
+    hostSessionId: 'session-mcp-source-observation',
+    plan: mcpObservedPlan
+  })
+  assert.strictEqual(carriedObservations.status, 'fresh')
+  assert(carriedObservations.sourceResults.every(item =>
+    item.hostSessionId === 'session-mcp-source-observation'
+  ), 'empty durable observation carriers must adopt the exact current session during replay')
   fs.writeFileSync(`${bridgedSources.ledgerPath}.lock`, '{"fixture":true}\n', 'utf8')
   const lockedLedgerBridge = recordMcpContextSourceObservations({
     activeRoot: fixture.activeRoot,
@@ -415,6 +441,19 @@ try {
     contextBinding: mcpObservedPlan.contextBinding
   }, fixture.runtimeOptions)
   assert.strictEqual(mcpRecoveredCommit.ok, true, JSON.stringify(mcpRecoveredCommit))
+  const statusBeforeEntry = handleSkillRoute({
+    op: 'status',
+    project: fixture.project,
+    turnBinding: mcpBoot.bootstrap.turnBinding,
+    contextEpoch: mcpObservationEpoch
+  }, fixture.runtimeOptions)
+  assert.strictEqual(statusBeforeEntry.ok, true, JSON.stringify(statusBeforeEntry))
+  assert.strictEqual(statusBeforeEntry.receipt.nextAction.nextOp, 'load_stage')
+  const entryFromStatus = handleSkillRoute(
+    statusBeforeEntry.receipt.nextAction.nextCall,
+    fixture.runtimeOptions
+  )
+  assert.strictEqual(entryFromStatus.ok, true, 'status nextCall must be executable without a hidden precondition mismatch')
 
   // Regression PF-256: a Hook writer may replace the shared lifecycle receipt
   // with a baseline-only snapshot after MCP already delivered every body. Stage
@@ -426,16 +465,53 @@ try {
     hostSessionId: 'session-mcp-source-observation'
   })
   fs.writeFileSync(lifecyclePath, `${JSON.stringify(overwrittenAfterCommit, null, 2)}\n`, 'utf8')
-  const recoveredStageAfterOverwrite = handleSkillRoute({
-    op: 'load_stage',
+  const recoveredStatusAfterOverwrite = handleSkillRoute({
+    op: 'status',
     project: fixture.project,
     turnBinding: mcpBoot.bootstrap.turnBinding,
-    contextEpoch: mcpObservationEpoch,
-    generation: mcpRecoveredCommit.receipt.plan.generation,
-    planDigest: mcpRecoveredCommit.receipt.plan.planDigest,
-    stageId: 'entry'
+    contextEpoch: mcpObservationEpoch
   }, fixture.runtimeOptions)
-  assert.strictEqual(recoveredStageAfterOverwrite.ok, true, JSON.stringify(recoveredStageAfterOverwrite))
+  assert.strictEqual(recoveredStatusAfterOverwrite.ok, true, JSON.stringify(recoveredStatusAfterOverwrite))
+  assert.strictEqual(recoveredStatusAfterOverwrite.receipt.nextAction.nextOp, 'rebind')
+  assert.strictEqual(recoveredStatusAfterOverwrite.receipt.nextAction.errorCode, 'CONTEXT_BINDING_STALE')
+  const recoveredRebind = handleSkillRoute({
+    ...recoveredStatusAfterOverwrite.receipt.nextAction.nextCall,
+    contextBinding: mcpObservedPlan.contextBinding
+  }, fixture.runtimeOptions)
+  assert.strictEqual(recoveredRebind.ok, true, JSON.stringify(recoveredRebind))
+  const recoveredStatusAfterRebind = handleSkillRoute({
+    op: 'status',
+    project: fixture.project,
+    turnBinding: mcpBoot.bootstrap.turnBinding,
+    contextEpoch: mcpObservationEpoch
+  }, fixture.runtimeOptions)
+  assert.strictEqual(recoveredStatusAfterRebind.receipt.nextAction.nextOp, 'load_stage')
+  assert.strictEqual(recoveredStatusAfterRebind.receipt.nextAction.nextCall.stageId, 'closeout')
+
+  const writerStaleLifecycle = JSON.parse(fs.readFileSync(lifecyclePath, 'utf8'))
+  writerStaleLifecycle.contextAcquisition.receipt.status = 'stale'
+  writerStaleLifecycle.contextAcquisition.receipt.satisfiedSourceIds = []
+  writerStaleLifecycle.contextAcquisition.receipt.missingSourceIds = [...mcpObservedPlan.mandatorySourceIds]
+  writerStaleLifecycle.contextAcquisition.receipt.escalations = [{
+    trigger: 'scope-drift',
+    reason: 'writer-drift',
+    observedAt: new Date(BASE_MS + 25).toISOString(),
+    action: 'replan-required'
+  }]
+  fs.writeFileSync(lifecyclePath, `${JSON.stringify(writerStaleLifecycle, null, 2)}\n`, 'utf8')
+  const writerRecoveredStatus = handleSkillRoute({
+    op: 'status',
+    project: fixture.project,
+    turnBinding: mcpBoot.bootstrap.turnBinding,
+    contextEpoch: mcpObservationEpoch
+  }, fixture.runtimeOptions)
+  assert.strictEqual(writerRecoveredStatus.ok, true, JSON.stringify(writerRecoveredStatus))
+  assert.strictEqual(writerRecoveredStatus.receipt.nextAction.nextOp, 'load_stage')
+  assert.strictEqual(writerRecoveredStatus.receipt.nextAction.errorCode, null)
+  const writerRecoveredLifecycle = JSON.parse(fs.readFileSync(lifecyclePath, 'utf8'))
+  assert.strictEqual(writerRecoveredLifecycle.contextAcquisition.receipt.status, 'relevant-complete')
+  assert.deepStrictEqual(writerRecoveredLifecycle.contextAcquisition.receipt.missingSourceIds, [])
+  const stableLifecycleAfterWriterRecovery = JSON.parse(fs.readFileSync(lifecyclePath, 'utf8'))
 
   const driftSource = mcpObservedPlan.selectedSources.find(source =>
     source.kind !== 'memory' && !['profile:README.md', 'profile:config.json'].includes(source.sourceId)
@@ -457,21 +533,7 @@ try {
   assert.strictEqual(driftedLedgerStatus.receipt.nextAction.errorCode, 'CONTEXT_BINDING_PENDING')
   fs.writeFileSync(driftPath, driftOriginal, 'utf8')
   fs.utimesSync(driftPath, driftStat.atime, driftStat.mtime)
-  fs.writeFileSync(lifecyclePath, `${JSON.stringify(overwrittenAfterCommit, null, 2)}\n`, 'utf8')
-  const staleWithLedger = JSON.parse(fs.readFileSync(lifecyclePath, 'utf8'))
-  staleWithLedger.contextAcquisition.receipt.status = 'stale'
-  staleWithLedger.contextAcquisition.receipt.satisfiedSourceIds = []
-  staleWithLedger.contextAcquisition.receipt.missingSourceIds = [...mcpObservedPlan.mandatorySourceIds]
-  fs.writeFileSync(lifecyclePath, `${JSON.stringify(staleWithLedger, null, 2)}\n`, 'utf8')
-  const staleWithLedgerStatus = handleSkillRoute({
-    op: 'status',
-    project: fixture.project,
-    turnBinding: mcpBoot.bootstrap.turnBinding,
-    contextEpoch: mcpObservationEpoch
-  }, fixture.runtimeOptions)
-  assert.strictEqual(staleWithLedgerStatus.ok, true, JSON.stringify(staleWithLedgerStatus))
-  assert.strictEqual(staleWithLedgerStatus.receipt.nextAction.nextOp, 'rebind')
-  assert.strictEqual(staleWithLedgerStatus.receipt.nextAction.errorCode, 'CONTEXT_BINDING_PENDING')
+  fs.writeFileSync(lifecyclePath, `${JSON.stringify(stableLifecycleAfterWriterRecovery, null, 2)}\n`, 'utf8')
 
   // Two MCP writers can each start from a different lifecycle snapshot. The
   // durable ledger is a locked monotonic union, so the later SkillRoute commit
@@ -733,8 +795,42 @@ try {
   assert.strictEqual(staleCapability.errorCode, 'MODE_CAPABILITY_STALE')
 
   const lifecycle = JSON.parse(fs.readFileSync(lifecyclePath, 'utf8'))
+  const digestDriftLifecycle = JSON.parse(JSON.stringify(lifecycle))
+  digestDriftLifecycle.contextAcquisition.receipt.receiptId = 'receipt-live-digest-drift'
+  fs.writeFileSync(lifecyclePath, `${JSON.stringify(digestDriftLifecycle, null, 2)}\n`, 'utf8')
+  const digestDriftStatus = handleSkillRoute({
+    op: 'status',
+    project: fixture.project,
+    turnBinding: boot.bootstrap.turnBinding,
+    contextEpoch
+  }, fixture.runtimeOptions)
+  assert.strictEqual(digestDriftStatus.ok, true, JSON.stringify(digestDriftStatus))
+  assert.strictEqual(digestDriftStatus.receipt.nextAction.nextOp, 'rebind')
+  assert.strictEqual(digestDriftStatus.receipt.nextAction.errorCode, 'CONTEXT_BINDING_STALE')
+  const digestDriftLoad = handleSkillRoute({
+    op: 'load_stage',
+    project: fixture.project,
+    turnBinding: boot.bootstrap.turnBinding,
+    contextEpoch,
+    generation: commit.receipt.plan.generation,
+    planDigest: commit.receipt.plan.planDigest,
+    stageId: 'entry'
+  }, fixture.runtimeOptions)
+  assert.strictEqual(digestDriftLoad.ok, false)
+  assert.strictEqual(digestDriftLoad.errorCode, 'CONTEXT_BINDING_STALE', 'status and execution must share the live binding digest precondition')
+  fs.writeFileSync(lifecyclePath, `${JSON.stringify(lifecycle, null, 2)}\n`, 'utf8')
+
   lifecycle.contextAcquisition.receipt.status = 'planned'
   fs.writeFileSync(lifecyclePath, `${JSON.stringify(lifecycle, null, 2)}\n`, 'utf8')
+  const staleContextStatus = handleSkillRoute({
+    op: 'status',
+    project: fixture.project,
+    turnBinding: boot.bootstrap.turnBinding,
+    contextEpoch
+  }, fixture.runtimeOptions)
+  assert.strictEqual(staleContextStatus.ok, true)
+  assert.strictEqual(staleContextStatus.receipt.nextAction.nextOp, 'rebind')
+  assert.strictEqual(staleContextStatus.receipt.nextAction.errorCode, 'CONTEXT_BINDING_PENDING')
   const staleContextLoad = handleSkillRoute({
     op: 'load_stage',
     project: fixture.project,
@@ -2013,6 +2109,57 @@ try {
     )
   } finally {
     projectedCapacityFixture.cleanup()
+  }
+
+  const nonExplicitFixture = createSkillRouteFixture({ project: 'non-explicit-obligation' })
+  try {
+    const nonExplicitEpoch = 'ctx-non-explicit-obligation'
+    const nonExplicitBinding = writeContextBindingState(
+      nonExplicitFixture,
+      nonExplicitEpoch,
+      'fix',
+      'session-non-explicit-obligation'
+    )
+    const nonExplicitBoot = bootstrapSkillRoute({
+      project: nonExplicitFixture.project,
+      activeRoot: nonExplicitFixture.activeRoot,
+      contextEpoch: nonExplicitEpoch,
+      prompt: 'Inspect the implementation state',
+      mode: 'unified',
+      cwd: nonExplicitFixture.projectRoot
+    }, nonExplicitFixture.runtimeOptions)
+    requestCatalogAll(nonExplicitFixture, nonExplicitBoot.bootstrap)
+    const nonExplicitCommit = handleSkillRoute({
+      op: 'commit',
+      project: nonExplicitFixture.project,
+      turnBinding: nonExplicitBoot.bootstrap.turnBinding,
+      contextEpoch: nonExplicitEpoch,
+      catalogDigest: nonExplicitBoot.bootstrap.catalogDigest,
+      skillId: null,
+      contextBinding: nonExplicitBinding
+    }, nonExplicitFixture.runtimeOptions)
+    assert.strictEqual(nonExplicitCommit.ok, true, JSON.stringify(nonExplicitCommit))
+    const alternateCapabilityPath = path.join(nonExplicitFixture.root, 'capabilities-stale.json')
+    fs.writeFileSync(alternateCapabilityPath, '{"schemaVersion":"HostSkillRouteCapabilityV1","capabilities":[]}\n')
+    const nonExplicitStaleStop = evaluateProgressiveSkillRouteStop({
+      project: nonExplicitFixture.project,
+      contextEpoch: nonExplicitEpoch,
+      hostSessionId: 'session-non-explicit-obligation',
+      assistantText: 'Finished.'
+    }, {
+      ...nonExplicitFixture.runtimeOptions,
+      capabilityPath: alternateCapabilityPath
+    })
+    assert.strictEqual(nonExplicitStaleStop.errorCode, 'MODE_CAPABILITY_STALE')
+    assert.strictEqual(nonExplicitStaleStop.planDigest, nonExplicitCommit.receipt.plan.planDigest)
+    assert(nonExplicitStaleStop.pendingStageIds.length > 0)
+    assert.strictEqual(
+      shouldEnforceProgressiveSkillRouteStop(nonExplicitStaleStop, false),
+      true,
+      'committed model-free obligations must survive runtime/capability drift'
+    )
+  } finally {
+    nonExplicitFixture.cleanup()
   }
 
   const gcFixture = createSkillRouteFixture({ project: 'gc' })

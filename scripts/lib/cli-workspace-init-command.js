@@ -86,8 +86,9 @@ function buildWorkspaceInitCommand(ctx) {
     }
     let projectProfile = null
     if (profileTarget) {
-      projectProfile = initializeProfile([], {
+      projectProfile = initializeProfile(profileArgv, {
         cwdOverride: profileTarget.projectRoot,
+        profileDirOverride: `${profileTarget.runtimeRoot}/profile`,
         source: 'workspace-init-profile-target',
         silent: json,
         useRecommendedTier: true

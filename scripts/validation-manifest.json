@@ -75,6 +75,7 @@
     "scripts/test-skill-resolve.js",
     "scripts/test-skill-resolution-hook-paths.js",
     "hooks/_runtime/*skill-route*.cjs",
+    "hooks/_runtime/evidence/*.json",
     "hooks/_runtime/runtime-skill-identity-index.cjs",
     "hooks/_runtime/model-skill-catalog.cjs",
     "hooks/_runtime/progressive-skill-plan.cjs",
@@ -329,12 +330,25 @@
         "validate-versions",
         "validate-core",
         "validation-dag",
+        "profile-governance",
         "readme-governance",
         "control-content-source",
         "candidate-review-bundle",
         "capability-surface-decision",
         "host-capability-routing",
         "always-on-governance",
+        "derived-index-contract",
+        "memory-index",
+        "report-index",
+        "task-continuation",
+        "cli-command-registry",
+        "cli-json-contract",
+        "context-read",
+        "context-binding",
+        "context-read-controls",
+        "hooks-runtime",
+        "mcp-servers",
+        "cli-behavior",
         "client-contracts",
         "release-metadata",
         "pack-clean",
@@ -908,6 +922,7 @@
         "hooks/_runtime/progressive-skill-route-contract.cjs",
         "hooks/_runtime/skill-route-mode.cjs",
         "hooks/_runtime/host-skill-route-capabilities.v1.json",
+        "hooks/_runtime/evidence/*.json",
         "hooks/_runtime/workflow-root-registry.cjs",
         "hooks/_runtime/workflow-root-registry.v1.json",
         "skills/_schemas/**",
@@ -1050,6 +1065,7 @@
       "inputs": [
         "package.json",
         "hooks/_runtime/host-skill-route-capabilities.v1.json",
+        "hooks/_runtime/evidence/*.json",
         "hooks/_runtime/skill-route-mode.cjs",
         "scripts/fixtures/skill-route-closure-trace.v1.json",
         "scripts/test-skill-route-closure.js"
@@ -1447,7 +1463,7 @@
     {
       "schemaVersion": "ValidationNodeV1",
       "id": "report-index",
-      "owner": "report",
+      "owner": "report-maintenance-preview",
       "command": "node",
       "args": [
         "scripts/test-report-index.js"
@@ -1459,19 +1475,17 @@
         "scripts/lib/derived-index-contract.js",
         "scripts/lib/report-index.js",
         "scripts/test-report-index.js",
-        "skills/report/SKILL.md"
+        "content/skills/report/SKILL.md"
       ],
-      "consumers": [
-        "requirement-artifacts",
-        "review-execution-contract"
-      ],
+      "consumers": [],
       "invariants": [
         "allowlisted-roots",
         "classification-default-primary",
         "metadata-reconciliation",
         "lazy-hydration",
         "legacy-fallback",
-        "zero-write-query"
+        "zero-write-query",
+        "maintenance-preview-only"
       ],
       "riskClass": "high",
       "cachePolicy": "never",

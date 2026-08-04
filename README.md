@@ -157,7 +157,15 @@ devcodex init
 devcodex init --profile api
 ```
 
-`api` 必须能唯一匹配 workspace 中已经存在的项目；如果重名，请使用完整相对名称，例如 `apps/api`。DevCodex 会根据该项目已有的包、测试、构建与公开接口选择合适的 Profile 档位，并且只生成缺失文件，不覆盖已经编辑过的内容。
+`api` 必须能唯一匹配 workspace 中已经存在的项目目录；`.devcodex` 尚不存在并不影响首次执行。如果多个项目使用相同末段名称，请改用从 workspace 根目录开始的相对名称，例如 `apps/api`。DevCodex 只从真实项目目录解析目标，不会把旧运行记录或构建产物误认成项目；目标不存在或不唯一时会直接报错，并且不会创建 `.devcodex`。
+
+需要先确认目标和计划路径时，可加 `--dry-run`：
+
+```bash
+devcodex init --profile api --dry-run
+```
+
+这个预览不会创建目录、Profile、备份或运行态文件。确认后去掉 `--dry-run` 即可；正式执行会根据项目已有的包、测试、构建与公开接口选择合适的 Profile 档位，并且只生成缺失文件，不覆盖已经编辑过的内容。
 
 `devcodex update` 只刷新运行态，不会自动创建、升级或降级 Profile。需要手动预览或指定档位时，才使用高级命令 `devcodex profile plan` / `devcodex profile init`。
 

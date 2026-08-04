@@ -106,6 +106,11 @@ function createSkillRouteFixture (options = {}) {
   const activeRoot = path.join(root, '.devcodex', project)
   fs.mkdirSync(projectRoot, { recursive: true })
   fs.mkdirSync(activeRoot, { recursive: true })
+  writeJson(path.join(projectRoot, 'package.json'), {
+    name: project,
+    private: true,
+    version: '0.0.0-fixture'
+  })
   writeJson(path.join(root, '.devcodex', 'layout.json'), {
     schemaVersion: 'WorkspaceLayoutV1',
     mode: 'workspace-namespace'

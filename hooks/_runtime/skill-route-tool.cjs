@@ -344,7 +344,7 @@ function validateTrustedContextBinding (binding, target, options = {}) {
   const acquisition = lifecycle?.contextAcquisition
   const plan = acquisition?.plan
   let receipt = acquisition?.receipt
-  if (plan && receipt && !['stale', 'blocked'].includes(receipt.status)) {
+  if (plan && receipt) {
     const replayed = replayMcpContextSourceObservations(receipt, plan, {
       activeRoot: target.activeRoot,
       project: target.project,
@@ -1367,6 +1367,41 @@ function resolveStagePageIndex (state, stageId, cursor, pageCount) {
   return parsed.pageIndex
 }
 
+function validateRouteContextPrecondition (state, target, options = {}) {
+  if (!state.contextBinding) {
+    const error = new Error('CONTEXT_BINDING_PENDING')
+    error.code = 'CONTEXT_BINDING_PENDING'
+    throw error
+  }
+  const liveContext = validateTrustedContextBinding(
+    state.contextBinding,
+    target,
+    options
+  )
+  if (liveContext.bindingDigest !== state.trustedContextBindingDigest ||
+      liveContext.bindingDigest !== state.plan?.contextBindingDigest) {
+    const error = new Error('CONTEXT_BINDING_STALE')
+    error.code = 'CONTEXT_BINDING_STALE'
+    error.details = {
+      ...buildContextRecoveryDetails('route-context-binding-digest-stale', {
+        binding: state.contextBinding,
+        target
+      }),
+      observed: {
+        planId: state.contextBinding?.planId || null,
+        planContentId: state.contextBinding?.planContentId || null,
+        receiptStatus: liveContext.receiptStatus || null,
+        missingSourceIds: [],
+        satisfiedSourceIds: [],
+        mandatorySourceIds: [],
+        lastError: null
+      }
+    }
+    throw error
+  }
+  return liveContext
+}
+
 function handleLoadStage (input, target, options) {
   return transactEnvelope(
     target.activeRoot,
@@ -1387,32 +1422,7 @@ function handleLoadStage (input, target, options) {
         error.code = 'PLAN_BINDING_INVALID'
         throw error
       }
-      const liveContext = validateTrustedContextBinding(
-        state.contextBinding,
-        target,
-        options
-      )
-      if (liveContext.bindingDigest !== state.trustedContextBindingDigest ||
-          liveContext.bindingDigest !== state.plan.contextBindingDigest) {
-        const error = new Error('CONTEXT_BINDING_STALE')
-        error.code = 'CONTEXT_BINDING_STALE'
-        error.details = {
-          ...buildContextRecoveryDetails('route-context-binding-digest-stale', {
-            binding: state.contextBinding,
-            target
-          }),
-          observed: {
-            planId: state.contextBinding?.planId || null,
-            planContentId: state.contextBinding?.planContentId || null,
-            receiptStatus: liveContext.receiptStatus || null,
-            missingSourceIds: [],
-            satisfiedSourceIds: [],
-            mandatorySourceIds: [],
-            lastError: null
-          }
-        }
-        throw error
-      }
+      validateRouteContextPrecondition(state, target, options)
       const stageId = input.stageId
       const stage = state.plan.stages.find(item => item.stageId === stageId)
       if (!stage) {
@@ -1572,9 +1582,9 @@ function handleStatus (input, target, options) {
   )
   let contextErrorCode = null
   let contextRecovery = null
-  if (state.plan && pendingStageIds.length && state.contextBinding) {
+  if (state.plan && pendingStageIds.length) {
     try {
-      validateTrustedContextBinding(state.contextBinding, target, options)
+      validateRouteContextPrecondition(state, target, options)
     } catch (error) {
       if (['CONTEXT_BINDING_PENDING', 'CONTEXT_BINDING_MISMATCH', 'CONTEXT_BINDING_STALE'].includes(error.code)) {
         contextErrorCode = error.code
@@ -1594,6 +1604,7 @@ function handleStatus (input, target, options) {
   }
   const processComplete = !!state.plan &&
     state.plan.status === 'complete' &&
+    !contextErrorCode &&
     requiredStageIds.length === satisfiedStageIds.length
   const nextOp = contextErrorCode
     ? 'rebind'
@@ -1706,22 +1717,33 @@ function evaluateProgressiveSkillRouteStop (input, options = {}) {
       errorCode: error.code || 'SKILL_ROUTE_STOP_READ_FAILED'
     }
   }
+  const state = envelope.state
   try {
-    assertEnvelopeBinding(envelope.state, {
+    assertEnvelopeBinding(state, {
       project: target.project,
       turnBinding,
       contextEpoch: input.contextEpoch
     }, target, options)
   } catch (error) {
+    const requiredStageIds = state.obligationLedger?.requiredStageIds || []
+    const pendingStageIds = requiredStageIds.filter(stageId =>
+      state.stageProgress[stageId]?.status !== 'loaded'
+    )
     return {
       schemaVersion: 'ProgressiveSkillRouteStopV1',
       present: true,
       complete: false,
       turnBinding,
-      errorCode: error.code || 'SKILL_ROUTE_STOP_BINDING_FAILED'
+      contextEpoch: state.contextEpoch,
+      planDigest: state.plan?.planDigest || null,
+      processComplete: false,
+      pendingStageIds,
+      businessSatisfied: true,
+      errorCode: error.code || 'SKILL_ROUTE_STOP_BINDING_FAILED',
+      nextOp: null,
+      nextCall: null
     }
   }
-  const state = envelope.state
   const requestedHostSessionId = String(input.hostSessionId || '')
   if (requestedHostSessionId &&
       state.hostSessionId &&
@@ -1745,9 +1767,9 @@ function evaluateProgressiveSkillRouteStop (input, options = {}) {
     String(input.assistantText || '').includes(business.mustReplyCore)
   let contextErrorCode = null
   let contextRecovery = null
-  if (state.plan && pendingStageIds.length && state.contextBinding) {
+  if (state.plan && pendingStageIds.length) {
     try {
-      validateTrustedContextBinding(state.contextBinding, target, options)
+      validateRouteContextPrecondition(state, target, options)
     } catch (error) {
       if (['CONTEXT_BINDING_PENDING', 'CONTEXT_BINDING_MISMATCH', 'CONTEXT_BINDING_STALE'].includes(error.code)) {
         contextErrorCode = error.code
@@ -1817,10 +1839,13 @@ function shouldEnforceProgressiveSkillRouteStop (routeStop, explicitRoutePending
     return explicitRoutePending === true
   }
   if (NON_RECOVERABLE_ROUTE_IDENTITY_ERRORS.has(routeStop.errorCode)) {
-    // A runtime/capability refresh invalidates the frozen turn identity. A
-    // non-explicit route has no body obligation, so fail closed without
-    // trapping Stop in a continuation that cannot repair the old envelope.
-    return explicitRoutePending === true
+    // Once a plan exists, its required stages are obligations regardless of
+    // whether selection was explicit or model-free. Runtime/capability drift
+    // must surface a recovery boundary instead of silently discarding them.
+    return Boolean(
+      routeStop.planDigest ||
+      (routeStop.pendingStageIds || []).length
+    ) || explicitRoutePending === true
   }
   return true
 }

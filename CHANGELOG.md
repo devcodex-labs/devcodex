@@ -1,8 +1,8 @@
 # 变更日志 (CHANGELOG)
 
 > **说明**: 版本概览摘要。最新版本的详细变更见下方表格首行的 `changelogs/releases/vX.Y.Z.md` 链接；历史版本见对应详细变更文件
-> **最后更新**: 2026-08-03
-> **当前未发布**: v1.16.2 已归档；后续未发布实现继续记录到 [`changelogs/unreleased.md`](./changelogs/unreleased.md)。
+> **最后更新**: 2026-08-04
+> **当前未发布**: v1.16.2 已归档；F1～F14 的 Profile 目标、ContextRead/SkillRoute、索引证据与发布门禁修复仍是本地候选，详见 [`changelogs/unreleased.md`](./changelogs/unreleased.md)。
 
 ---
 

@@ -1184,6 +1184,64 @@ function memoryIndexFallbackReceipt(kind, result) {
   }
 }
 
+function memoryIndexProjectionState(kind, result, canonicalDocument = null) {
+  const fresh = result?.status === 'fresh'
+  const reason = fresh ? null : (result?.reason || 'index-unavailable')
+  const freshnessTier = fresh
+    ? (result?.envelope?.freshnessTier || 'content-verified')
+    : (result?.envelope?.freshnessTier || (reason === 'index-module-unavailable' ? 'invalid' : 'stale'))
+  const canonicalMetadata = canonicalDocument
+    ? publicSourceMetadata(canonicalDocument)
+    : indexedSourceMetadata(result?.source)
+  const missingIndexAndSource = reason === 'index-missing' && canonicalDocument?.exists === false
+  const runtimeUnavailable = reason === 'index-module-unavailable'
+  const repairNeeded = !fresh && !missingIndexAndSource && !runtimeUnavailable
+  const repairFingerprint = repairNeeded
+    ? fileDigest(JSON.stringify({
+        schemaVersion: 'MemoryIndexRepairDiagnosticV1',
+        kind,
+        reason,
+        canonicalSource: canonicalMetadata,
+        canonicalContentDigest: canonicalDocument
+          ? fileDigest(canonicalDocument.content)
+          : null,
+        observedIndexSource: result?.envelope?.receipt?.observedSource || null
+      }))
+    : null
+
+  return {
+    derivedIndexFreshness: {
+      status: fresh
+        ? 'fresh'
+        : (runtimeUnavailable ? 'unavailable' : (freshnessTier === 'invalid' ? 'invalid' : 'stale')),
+      freshnessTier,
+      reason
+    },
+    canonicalSourceTrust: {
+      status: 'trusted',
+      authority: 'canonical-markdown',
+      basis: canonicalDocument
+        ? (canonicalDocument.exists ? 'complete-content-read' : 'source-absence-observed')
+        : 'writer-attested-metadata-reconciled',
+      source: canonicalMetadata
+    },
+    fallbackCoverage: {
+      status: fresh ? 'not-used' : 'complete',
+      source: fresh ? null : 'canonical-markdown',
+      reason
+    },
+    repairState: {
+      status: runtimeUnavailable
+        ? 'blocked'
+        : (repairNeeded ? 'repair-needed' : 'not-needed'),
+      owner: runtimeUnavailable ? 'runtime-package' : 'memory-mcp-writer',
+      mode: repairNeeded ? 'next-specialized-write' : null,
+      diagnosticFingerprint: repairFingerprint,
+      dedupeKey: repairFingerprint ? `memory-index-repair:${repairFingerprint}` : null
+    }
+  }
+}
+
 function queryStatusIndex(target, sourcePath, limit) {
   if (!MEMORY_INDEX_CONTRACT) return { status: 'fallback', reason: 'index-module-unavailable' }
   return MEMORY_INDEX_CONTRACT.queryStatusIndex({ target, sourcePath, limit })
@@ -1289,8 +1347,9 @@ function withProjectionIdentity(projection, toolName, target, sourceDocuments, s
   }).identity
   const identified = { ...projection, contentIdentity }
   const telemetry = projectionTelemetry(identified, sourceDocuments, startedAt)
+  let contextObservation
   try {
-    recordMcpContextSourceObservations({
+    contextObservation = recordMcpContextSourceObservations({
       activeRoot: target.activeRoot,
       project: target.project,
       workspaceNamespace: LAYOUT.enabled,
@@ -1313,12 +1372,25 @@ function withProjectionIdentity(projection, toolName, target, sourceDocuments, s
         hostDeliveredBytes: telemetry.bytes
       }]
     })
-  } catch {
-    // Context-source observation is a best-effort runtime bridge for MCP-only hosts;
-    // the memory projection body remains the caller-visible source of truth.
+  } catch (error) {
+    contextObservation = {
+      status: 'degraded',
+      errorCode: error.code || 'CONTEXT_SOURCE_OBSERVATION_FAILED',
+      message: error.message
+    }
   }
   return {
     ...identified,
+    contextObservation: {
+      schemaVersion: 'ContextSourceObservationWriteReceiptV1',
+      status: contextObservation?.status || 'degraded',
+      errorCode: contextObservation?.errorCode || null,
+      ledgerStatus: contextObservation?.ledgerStatus || null,
+      lifecycleStatus: contextObservation?.lifecycleStatus || null,
+      receiptStatus: contextObservation?.receiptStatus || null,
+      satisfiedSourceIds: (contextObservation?.satisfiedSourceIds || []).slice(0, 20),
+      missingSourceIds: (contextObservation?.missingSourceIds || []).slice(0, 20)
+    },
     telemetry: telemetryOverride
       ? {
           ...telemetry,
@@ -1399,6 +1471,7 @@ function handleMemoryStatus(args) {
         warnings: [...boundWarnings, ...indexed.warnings].slice(0, 20),
         indexReceipt: indexed.envelope.receipt,
         coverage: indexed.envelope.coverage,
+        ...memoryIndexProjectionState('summary', indexed),
         contextBinding
       }
       return withProjectionIdentity(
@@ -1445,6 +1518,7 @@ function handleMemoryStatus(args) {
       warnings: [...boundWarnings, ...parsed.warnings].slice(0, 20),
       indexReceipt: memoryIndexFallbackReceipt('summary', indexed),
       coverage: { status: 'legacy-complete', reason: indexed.reason || 'index-fallback' },
+      ...memoryIndexProjectionState('summary', indexed, summaryDocument),
       contextBinding
     }
     return withProjectionIdentity(projection, 'memory_status', target, [summaryDocument], startedAt)
@@ -1509,6 +1583,7 @@ function handleMemorySessionQuery(args) {
         warnings: indexed.warnings,
         indexReceipt: indexed.envelope.receipt,
         coverage: indexed.envelope.coverage,
+        ...memoryIndexProjectionState('daily', indexed),
         contextBinding
       }
       return withProjectionIdentity(
@@ -1571,6 +1646,7 @@ function handleMemorySessionQuery(args) {
       warnings: parsed.warnings,
       indexReceipt: memoryIndexFallbackReceipt('daily', indexed),
       coverage: { status: 'legacy-complete', reason: indexed.reason || 'index-fallback' },
+      ...memoryIndexProjectionState('daily', indexed, document),
       contextBinding
     }
     return withProjectionIdentity(projection, 'memory_session_query', target, [document], startedAt)
@@ -1611,6 +1687,7 @@ function handleMemorySummaryQuery(args) {
         warnings: indexed.warnings,
         indexReceipt: indexed.envelope.receipt,
         coverage: indexed.envelope.coverage,
+        ...memoryIndexProjectionState('summary', indexed),
         contextBinding
       }
       return withProjectionIdentity(
@@ -1645,6 +1722,7 @@ function handleMemorySummaryQuery(args) {
       warnings: parsed.warnings,
       indexReceipt: memoryIndexFallbackReceipt('summary', indexed),
       coverage: { status: 'legacy-complete', reason: indexed.reason || 'index-fallback' },
+      ...memoryIndexProjectionState('summary', indexed, document),
       contextBinding
     }
     return withProjectionIdentity(projection, 'memory_summary_query', target, [document], startedAt)

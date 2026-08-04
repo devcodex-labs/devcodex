@@ -5,7 +5,8 @@ const fs = require('fs')
 const path = require('path')
 
 const {
-  getRuntimeContractDigest
+  getRuntimeContractDigest,
+  validateCapabilityDocument
 } = require('../hooks/_runtime/skill-route-mode.cjs')
 const {
   getLifecycleHostAdapterDigest
@@ -160,6 +161,8 @@ const capabilities = JSON.parse(read(path.join(
   'host-skill-route-capabilities.v1.json'
 )))
 const pass = capabilities.capabilities.filter(item => item.status === 'PASS')
+const capabilityValidation = validateCapabilityDocument(capabilities, { packageRoot: ROOT })
+assert.strictEqual(capabilityValidation.valid, true, capabilityValidation.errors.join(', '))
 assert.strictEqual(pass.length, 1)
 assert.strictEqual(
   pass[0].hostVariant,
@@ -180,6 +183,9 @@ assert.strictEqual(
   getLifecycleHostAdapterDigest('codex')
 )
 assert.match(pass[0].evidenceDigest, /^[a-f0-9]{64}$/)
+assert.strictEqual(path.isAbsolute(pass[0].evidenceRef), false)
+assert.strictEqual(path.win32.isAbsolute(pass[0].evidenceRef), false)
+assert(fs.existsSync(path.join(ROOT, pass[0].evidenceRef)))
 assert.strictEqual(pass[0].defaultEligible, true)
 
 console.log(

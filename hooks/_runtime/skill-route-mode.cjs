@@ -1,5 +1,6 @@
 'use strict'
 
+const crypto = require('crypto')
 const fs = require('fs')
 const path = require('path')
 
@@ -50,6 +51,15 @@ const RUNTIME_CONTRACT_SKILL_SCHEMAS = Object.freeze([
   'progressive-skill-route.v1.schema.json'
 ])
 const CAPABILITY_STATUSES = new Set(['PASS', 'WARN', 'BLOCK', 'UNVERIFIED', 'N/A'])
+const REQUIRED_PROBE_OPS = Object.freeze([
+  'profile_context_plan',
+  'profile_load',
+  'memory_status',
+  'catalog',
+  'commit',
+  'load_stage',
+  'status'
+])
 
 function readJson (file, fsImpl = fs) {
   try {
@@ -59,10 +69,92 @@ function readJson (file, fsImpl = fs) {
   }
 }
 
-function validateCapabilityDocument (document) {
+function rawSha256 (value) {
+  return crypto.createHash('sha256').update(value).digest('hex')
+}
+
+function packageRelativeEvidencePath (evidenceRef, options = {}) {
+  const value = String(evidenceRef || '').trim()
+  const packageRoot = path.resolve(
+    options.packageRoot || path.join(__dirname, '..', '..')
+  )
+  if (!value || value.includes('\\') || path.isAbsolute(value) ||
+      path.win32.isAbsolute(value) || path.posix.isAbsolute(value)) {
+    return { valid: false, reasonCode: 'evidence-ref-not-package-relative' }
+  }
+  const resolved = path.resolve(packageRoot, ...value.split('/'))
+  const relative = path.relative(packageRoot, resolved)
+  if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) {
+    return { valid: false, reasonCode: 'evidence-ref-escapes-package' }
+  }
+  return { valid: true, packageRoot, evidencePath: resolved, evidenceRef: value }
+}
+
+function validateCapabilityEvidence (capability, options = {}) {
+  const located = packageRelativeEvidencePath(capability?.evidenceRef, options)
+  if (!located.valid) return located
+  const fsImpl = options.fs || fs
+  let raw
+  let evidence
+  try {
+    const stat = fsImpl.lstatSync(located.evidencePath)
+    if (!stat.isFile() || stat.isSymbolicLink()) {
+      return { valid: false, reasonCode: 'evidence-file-not-regular' }
+    }
+    raw = fsImpl.readFileSync(located.evidencePath)
+    evidence = JSON.parse(raw.toString('utf8'))
+  } catch {
+    return { valid: false, reasonCode: 'evidence-file-unreadable' }
+  }
+  const evidenceDigest = rawSha256(raw)
+  if (evidenceDigest !== capability.evidenceDigest) {
+    return { valid: false, reasonCode: 'evidence-raw-digest-mismatch', evidenceDigest }
+  }
+  const observedOps = new Set(Array.isArray(evidence?.probe?.observedOps)
+    ? evidence.probe.observedOps
+    : [])
+  const requiredStages = Array.isArray(evidence?.probe?.requiredStageIds)
+    ? evidence.probe.requiredStageIds
+    : []
+  const loadedStages = new Set(Array.isArray(evidence?.probe?.loadedStageIds)
+    ? evidence.probe.loadedStageIds
+    : [])
+  const retirementAnomalies = evidence?.probe?.retirementAnomalies
+  const evidenceValid = evidence?.schemaVersion === 'HostSkillRouteEvidenceV1' &&
+    evidence.status === 'PASS' &&
+    evidence.portable === true &&
+    evidence.hostVariant === capability.hostVariant &&
+    evidence.testedVersion === capability.testedVersion &&
+    evidence.protocol === capability.protocol &&
+    evidence.runtimeContractDigest === capability.runtimeContractDigest &&
+    evidence.hostAdapterDigest === capability.hostAdapterDigest &&
+    evidence.probe?.schemaVersion === 'SkillRouteProbeSummaryV1' &&
+    evidence.probe?.processComplete === true &&
+    REQUIRED_PROBE_OPS.every(op => observedOps.has(op)) &&
+    requiredStages.includes('entry') &&
+    requiredStages.includes('closeout') &&
+    requiredStages.every(stage => loadedStages.has(stage)) &&
+    retirementAnomalies &&
+    Object.values(retirementAnomalies).every(value => value === 0) &&
+    evidence.probe?.transport?.kind === 'local-stdio' &&
+    evidence.probe.transport.networkListener === false &&
+    evidence.probe.transport.longRunningServiceStarted === false
+  return evidenceValid
+    ? {
+        valid: true,
+        reasonCode: 'evidence-valid',
+        evidenceRef: located.evidenceRef,
+        evidenceDigest,
+        evidence
+      }
+    : { valid: false, reasonCode: 'evidence-contract-mismatch', evidenceDigest }
+}
+
+function validateCapabilityDocument (document, options = {}) {
   const errors = []
+  const evidenceByVariant = {}
   if (!document || typeof document !== 'object' || Array.isArray(document)) {
-    return { valid: false, errors: ['capability-document-object-required'] }
+    return { valid: false, errors: ['capability-document-object-required'], evidenceByVariant }
   }
   if (document.schemaVersion !== 'HostSkillRouteCapabilityV1') {
     errors.push('capability-schema-version')
@@ -71,7 +163,7 @@ function validateCapabilityDocument (document) {
       !document.capabilities.length ||
       document.capabilities.length > 32) {
     errors.push('capability-list')
-    return { valid: false, errors }
+    return { valid: false, errors, evidenceByVariant }
   }
   const variants = new Set()
   for (const item of document.capabilities) {
@@ -95,9 +187,15 @@ function validateCapabilityDocument (document) {
           !item.evidenceRef.trim() ||
           item.defaultEligible !== true)) {
       errors.push(`capability-pass-evidence:${variant}`)
+    } else if (item.status === 'PASS') {
+      const evidence = validateCapabilityEvidence(item, options)
+      evidenceByVariant[variant] = evidence
+      if (!evidence.valid) {
+        errors.push(`capability-evidence:${variant}:${evidence.reasonCode}`)
+      }
     }
   }
-  return { valid: errors.length === 0, errors }
+  return { valid: errors.length === 0, errors, evidenceByVariant }
 }
 
 function getCapabilityDocumentDigest (options = {}) {
@@ -228,7 +326,7 @@ function resolveSkillRouteMode (options = {}) {
   )
   const project = String(options.project || '').trim()
   const capabilityDoc = readJson(options.capabilityPath || CAPABILITY_PATH, options.fs || fs)
-  const capabilityValidation = validateCapabilityDocument(capabilityDoc)
+  const capabilityValidation = validateCapabilityDocument(capabilityDoc, options)
   const capability = capabilityValidation.valid && capabilityDoc.capabilities.find(item =>
     item.hostVariant === hostVariant
   ) || null
@@ -246,9 +344,14 @@ function resolveSkillRouteMode (options = {}) {
     DIGEST_RE.test(String(capability.hostAdapterDigest || '')) &&
     DIGEST_RE.test(String(options.hostAdapterDigest || '')) &&
     capability.hostAdapterDigest === options.hostAdapterDigest
+  const capabilityEvidence = capability
+    ? capabilityValidation.evidenceByVariant[capability.hostVariant]
+    : null
+  const capabilityEvidenceValid = capabilityEvidence?.valid === true
   const capabilityEligible = capability?.status === 'PASS' &&
     capabilityRuntimeCurrent &&
-    capabilityAdapterCurrent
+    capabilityAdapterCurrent &&
+    capabilityEvidenceValid
   let effective = SOURCE_DEFAULT
   let source = 'source-default'
   let reason = 'unified-default'
@@ -256,6 +359,16 @@ function resolveSkillRouteMode (options = {}) {
     effective = 'unified'
     source = 's15-probe-authority'
     reason = probe.reasonCode
+  }
+  const processRuntimeIdentityMaterial = {
+    schemaVersion: 'SkillRouteRuntimeProcessIdentityV1',
+    processId: process.pid,
+    nodeVersion: process.version,
+    runtimeContractDigest,
+    hostAdapterDigest: DIGEST_RE.test(String(options.hostAdapterDigest || ''))
+      ? options.hostAdapterDigest
+      : null,
+    capabilityEvidenceDigest: capabilityEvidence?.evidenceDigest || null
   }
   return {
     schemaVersion: 'SkillRouteModeReceiptV1',
@@ -277,6 +390,13 @@ function resolveSkillRouteMode (options = {}) {
     capabilityDocumentErrors: capabilityValidation.errors,
     capabilityRuntimeCurrent,
     capabilityAdapterCurrent,
+    capabilityEvidenceValid,
+    capabilityEvidenceReason: capabilityEvidence?.reasonCode || 'evidence-unavailable',
+    capabilityEvidenceDigest: capabilityEvidence?.evidenceDigest || null,
+    processRuntimeIdentity: {
+      ...processRuntimeIdentityMaterial,
+      identityDigest: sha256(processRuntimeIdentityMaterial)
+    },
     probeAuthorityReason: probe.reasonCode,
     probeAuthority: probe.valid ? {
       probeRunId: probe.authority.probeRunId,
@@ -294,6 +414,7 @@ module.exports = {
   getCapabilityDocumentDigest,
   getRuntimeContractDigest,
   validateCapabilityDocument,
+  validateCapabilityEvidence,
   validateProbeAuthority,
   resolveSkillRouteMode
 }

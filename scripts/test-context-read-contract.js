@@ -212,6 +212,7 @@ assert(devPlan.selectedSources.some(source => source.sourceId === 'profile:READM
 assert(devPlan.selectedSources.some(source => source.sourceId === 'profile:config.json' && source.kind === 'profile-baseline'))
 assert.deepStrictEqual(devPlan.memory.requiredQueries, ['memory_status'])
 assert(devPlan.actionEnvelope.allowedActionClasses.includes('source-mutation'))
+assert(devPlan.actionEnvelope.allowedActionClasses.includes('workflow-closeout'))
 assert.strictEqual(devPlan.catalogCoverage.unclassifiedIds.length, 0)
 const forgedContextBindingPlan = clone(devPlan)
 forgedContextBindingPlan.contextBinding.planId = 'plan-forged'
@@ -248,6 +249,7 @@ missingReadmeBaseline.readme.sourceRefs = [sourceRef('README.md', { exists: fals
 assert.strictEqual(buildContextReadPlan(makeInput('chat', [], { baseline: missingReadmeBaseline })).errorCode, 'CONTEXT_PLAN_INVALID')
 const analyzeDocsPlan = assertPlan(buildContextReadPlan(makeInput('analyze', ['docs']), { nowMs: BASE_MS }))
 assert(!analyzeDocsPlan.actionEnvelope.allowedActionClasses.includes('docs-mutation'), 'analysis intent must remain read-only')
+assert(analyzeDocsPlan.actionEnvelope.allowedActionClasses.includes('workflow-closeout'), 'non-chat workflows must be able to close report and memory obligations')
 
 const lowConfidencePlan = assertPlan(buildContextReadPlan(makeInput('dev', [], { confidence: 0.4 }), { nowMs: BASE_MS }))
 assert.strictEqual(lowConfidencePlan.fullRead, true)
@@ -330,6 +332,26 @@ for (const variant of validPlanVariants) {
   assert.strictEqual(extracted.plan.planId, devPlan.planId)
 }
 assert.strictEqual(normalizeContextToolOutcome({ success: true }).observable, false)
+const rawRouteFailure = normalizeContextToolOutcome({
+  schemaVersion: 'SkillRouteToolResultV1',
+  ok: false,
+  errorCode: 'CONTEXT_BINDING_STALE',
+  stateChanged: false
+})
+assert.strictEqual(rawRouteFailure.success, false)
+assert.strictEqual(rawRouteFailure.errorCode, 'CONTEXT_BINDING_STALE')
+assert.strictEqual(rawRouteFailure.stateChanged, false)
+const wrappedRouteFailure = normalizeContextToolOutcome({
+  success: true,
+  structuredContent: {
+    schemaVersion: 'SkillRouteToolResultV1',
+    ok: false,
+    errorCode: 'STAGE_ORDER_VIOLATION',
+    stateChanged: false
+  }
+})
+assert.strictEqual(wrappedRouteFailure.transportSuccess, false, 'wrapped ok=false must never count as a successful route-control outcome')
+assert.strictEqual(wrappedRouteFailure.errorCode, 'STAGE_ORDER_VIOLATION')
 assert.strictEqual(normalizeContextToolOutcome({
   success: true,
   result: { isError: true, error: { message: 'nested failure' } }
@@ -417,6 +439,10 @@ const analyzeMutation = recordContextReadAttempt(analyzeReceipt, analyzeDocsPlan
   toolCallId: 'unexpected-doc-write', actionClass: 'docs-mutation', activeRoot: ACTIVE_ROOT
 }, { nowMs: BASE_MS + 1 })
 assert.strictEqual(analyzeMutation.status, 'stale')
+const analyzeCloseout = recordContextReadAttempt(analyzeReceipt, analyzeDocsPlan, {
+  toolCallId: 'analysis-closeout', actionClass: 'workflow-closeout', activeRoot: ACTIVE_ROOT
+}, { nowMs: BASE_MS + 2 })
+assert.notStrictEqual(analyzeCloseout.status, 'stale', 'valid report/memory closeout must not invalidate an analysis receipt')
 
 const completeReceipt = satisfyAll(devPlan)
 assert.strictEqual(completeReceipt.status, 'relevant-complete')

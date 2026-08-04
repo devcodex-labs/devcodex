@@ -1,0 +1,61 @@
+{
+  "schemaVersion": "HostSkillRouteEvidenceV1",
+  "status": "PASS",
+  "portable": true,
+  "hostVariant": "codex-cli/exec-user-global-local-stdio",
+  "testedVersion": "codex-cli 0.145.0",
+  "protocol": "MCP 2024-11-05",
+  "runtimeContractDigest": "6fdc272fe3d8fc2ebc23168bed959c9576c8d5d07800315ffb6f4b3b85894896",
+  "hostAdapterDigest": "c73bcd90196689cddc015dc88837c7a35d7f6f94731c04ce8be2e0b21e428733",
+  "sourceEvidenceDigest": "c70e83c9903574f4cc6231f2efb46d0f35802b0880548f256d6c05eede07171a",
+  "sourceProbe": {
+    "schemaVersion": "SkillRouteS15EvidenceV1",
+    "probeRunId": "s15-codex-production-5f63016c-c186-4e97-8c88-249281ada94a",
+    "authorizationSource": "capability-pass",
+    "contextSource": "host-hooks",
+    "receiptStatus": "relevant-complete",
+    "completedAt": "2026-08-04T07:16:50.692Z"
+  },
+  "probe": {
+    "schemaVersion": "SkillRouteProbeSummaryV1",
+    "processComplete": true,
+    "observedOps": [
+      "profile_context_plan",
+      "profile_load",
+      "memory_status",
+      "catalog",
+      "commit",
+      "conditional-replan",
+      "load_stage",
+      "status"
+    ],
+    "requiredStageIds": [
+      "entry",
+      "execution:test-validation",
+      "closeout"
+    ],
+    "loadedStageIds": [
+      "entry",
+      "execution:test-validation",
+      "closeout"
+    ],
+    "retirementAnomalies": {
+      "legacyFallback": 0,
+      "doubleBody": 0,
+      "crossRoot": 0,
+      "stateCorruption": 0,
+      "missingStage": 0,
+      "missingCloseout": 0
+    },
+    "transport": {
+      "kind": "local-stdio",
+      "servers": [
+        "devcodex-profile",
+        "devcodex-memory"
+      ],
+      "networkListener": false,
+      "longRunningServiceStarted": false,
+      "childExitedWithHost": true
+    }
+  }
+}

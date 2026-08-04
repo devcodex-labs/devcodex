@@ -6,15 +6,15 @@
     "skillsPattern": "content/skills/*/SKILL.md",
     "optionalSidecar": "content/skills/*/devcodex.skill.json",
     "registry": "plugin.json",
-    "sourceDigest": "1d59afaa9a6de34be4f108b2935d8b8fc09be3eac5601b3e5d3fc7773167b0f8",
+    "sourceDigest": "bcbcb34c670c6c52b180bfb44929c5bc0e5c7eb2fada6d62d660f48f61019192",
     "sidecarDigest": "774105d7947b340d15d17115fcb8e37b62ae545cf553f06126d529184fd74872",
     "pluginDigest": "b305f2e18310fc9ee6eca5a13f5454c463dc98ca2add76bf39e78e4a32085a11",
     "portfolioEvidence": "content/skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "8364a73c66ed2ec9787cdb9300223278d128a45b689a2b8deda0d1f03189f42b",
-    "consumerInventoryFileCount": 469,
-    "consumerInventoryDigest": "816035cd3178ee7a0333aa017434c7f9188af86c095534040b95cff30cb6a400",
-    "consumerProjectionDigest": "b241444bd8b6ece6591a9519ba98a65105b7cc587986d7ea8aa75a35ded938f0",
-    "portfolioInputDigest": "ede35889bd2d9f3e59b9a7d5fac9a7185221a4dba5f3b5d8977161dca8814ca0"
+    "consumerInventoryFileCount": 471,
+    "consumerInventoryDigest": "395741c255efa9c452af5af40a62a66db1ee7defc65d55bd25e0e6fc0dedfd45",
+    "consumerProjectionDigest": "33a51834e6b78df70ca18492538a95856c7cfc68b054d48da4debec40cc1be37",
+    "portfolioInputDigest": "243d91c7c40fa6da5db81d7216b851ec70f2b538ec0ee3397056e080d97bb456"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -11073,6 +11073,10 @@
           "role": "current"
         },
         {
+          "path": "hooks/_runtime/evidence/codex-skill-route-pass.v1.json",
+          "role": "current"
+        },
+        {
           "path": "hooks/_runtime/lifecycle-bootstrap-state.cjs",
           "role": "current"
         },
@@ -11082,6 +11086,10 @@
         },
         {
           "path": "hooks/_runtime/lifecycle-namespace-state.cjs",
+          "role": "current"
+        },
+        {
+          "path": "hooks/_runtime/lifecycle-skill-route-coordinator.cjs",
           "role": "current"
         },
         {
@@ -11521,6 +11529,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-validation-dag.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-workflow-completion-contract.js",
           "role": "current"
         },
@@ -11573,6 +11585,7 @@
         "scripts/test-skills-deploy-mode.js",
         "scripts/test-task-continuation.js",
         "scripts/test-validate-profile.js",
+        "scripts/test-validation-dag.js",
         "scripts/test-workflow-completion-contract.js",
         "scripts/validate-profile.js",
         "scripts/validate.js"
@@ -11655,6 +11668,7 @@
           "scripts/test-skills-deploy-mode.js",
           "scripts/test-task-continuation.js",
           "scripts/test-validate-profile.js",
+          "scripts/test-validation-dag.js",
           "scripts/test-workflow-completion-contract.js",
           "scripts/validate-profile.js",
           "scripts/validate.js"
@@ -12060,6 +12074,10 @@
           "role": "current"
         },
         {
+          "path": "hooks/_runtime/evidence/codex-skill-route-pass.v1.json",
+          "role": "current"
+        },
+        {
           "path": "hooks/_runtime/lifecycle-bootstrap-state.cjs",
           "role": "current"
         },
@@ -12069,6 +12087,10 @@
         },
         {
           "path": "hooks/_runtime/lifecycle-host-adapters.cjs",
+          "role": "current"
+        },
+        {
+          "path": "hooks/_runtime/lifecycle-skill-route-coordinator.cjs",
           "role": "current"
         },
         {
@@ -12584,6 +12606,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-skill-route-lifecycle.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-skill-route-state.js",
           "role": "current"
         },
@@ -12658,6 +12684,7 @@
         "scripts/test-skill-resolution-hook-paths.js",
         "scripts/test-skill-resolve.js",
         "scripts/test-skill-route-contracts.js",
+        "scripts/test-skill-route-lifecycle.js",
         "scripts/test-skill-route-state.js",
         "scripts/test-skills-deploy-mode.js",
         "scripts/test-validation-dag.js",
@@ -12752,6 +12779,7 @@
           "scripts/test-skill-resolution-hook-paths.js",
           "scripts/test-skill-resolve.js",
           "scripts/test-skill-route-contracts.js",
+          "scripts/test-skill-route-lifecycle.js",
           "scripts/test-skill-route-state.js",
           "scripts/test-skills-deploy-mode.js",
           "scripts/test-validation-dag.js",
@@ -14360,8 +14388,8 @@
         "content/skills/report/SKILL.md"
       ],
       "source": "content/skills/report/SKILL.md",
-      "hash": "bf205291ec6a9389ca3ee605dd0fe76b8918cb14efa507b142e946bc39780358",
-      "sourceBytes": 21304,
+      "hash": "002dcfdaff342f0a0bf296b0678a9fbf2403e0155d6b8f73174d8884f80aa39a",
+      "sourceBytes": 21360,
       "version": "1.16.2",
       "lifecycleState": "active",
       "dependencies": [
@@ -14741,6 +14769,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/test-hooks-runtime-bootstrap-layout.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/test-hooks-runtime-visibility.js",
           "role": "current"
         },
@@ -14870,6 +14902,10 @@
         },
         {
           "path": "scripts/test-completion-report-ecr-check.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-context-read-contract.js",
           "role": "current"
         },
         {
@@ -15010,6 +15046,7 @@
         "scripts/test-cli-behavior.js",
         "scripts/test-client-contracts.js",
         "scripts/test-completion-report-ecr-check.js",
+        "scripts/test-context-read-contract.js",
         "scripts/test-control-plane-contracts.js",
         "scripts/test-delivery-honesty.js",
         "scripts/test-ecr-closure.js",
@@ -15097,6 +15134,7 @@
           "scripts/test-cli-behavior.js",
           "scripts/test-client-contracts.js",
           "scripts/test-completion-report-ecr-check.js",
+          "scripts/test-context-read-contract.js",
           "scripts/test-control-plane-contracts.js",
           "scripts/test-delivery-honesty.js",
           "scripts/test-ecr-closure.js",
@@ -17738,6 +17776,10 @@
         },
         {
           "path": "hooks/_runtime/lifecycle-governance-intake.cjs",
+          "role": "current"
+        },
+        {
+          "path": "hooks/_runtime/lifecycle-skill-route-coordinator.cjs",
           "role": "current"
         },
         {

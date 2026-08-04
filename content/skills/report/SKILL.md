@@ -32,27 +32,28 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 > 路径详细规范见 [`02-output-paths.instructions.md`](../../instructions/02-output-paths.instructions.md)。
 > 当 `<工作区根>/.devcodex/layout.json` 启用 `workspace-namespace` 时，本文中的任务目录与项目级 `reports/...` 均以当前 **`<active-root>`** 为根。
 
-## 报告索引导航
+## 报告索引维护预览
 
-需要按任务、日期或类别发现历史报告时，优先使用
-`scripts/lib/report-index.js#queryReportIndex` 的 metadata/pointer 结果，禁止先把整个
-report corpus 正文装入上下文。该索引不改变报告 Markdown 真相源，也不新增
-CLI/MCP surface。
+`scripts/lib/report-index.js` 当前只有测试与 benchmark 消费者，尚未接入正式的
+CLI/MCP reader 或 writer，因此属于 **maintenance/preview**，不能作为普通报告、
+resume、ECR 或 ContextRead 的已发布依赖，也不能据其状态要求用户刷新上下文。
 
-- discovery 只允许 `<active-root>/reports/**` 与
-  `<active-root>/{requirements,bugs,optimizations,scenario-tests}/<task>/reports/**`。
-- 默认只返回 `primary-report`；`evidence`、`artifact`、`generated-copy` 与
-  `unknown` 只有显式筛选时才返回，unknown 必须保留 warning。
-- `fresh` 索引可用于 metadata 导航；pointer 损坏、陈旧或出现未登记文件时，
-  只做内存中的 path/stat reconcile 并标记 `fallback`，不得隐式写索引。
-- 多页宽查询使用返回的 `snapshotCursor` / `snapshotCursorEncoded` 绑定 immutable
-  manifest，下一页同时传 `nextPointer.offset`；旧 offset-only 查询继续兼容。
-- 正文只能在选定具体 pointer 后通过 `hydrateReportEntry` 或
-  `hydrateReportEntries` 有界读取；截断正文只能声明 `metadata-reconciled`，不得
-  声明全文内容已验证。metadata-only 场景可用 `projection: "compact"` 返回瘦身
-  字段。
-- 只有显式维护/benchmark 路径可调用 `rebuildReportIndex`；查询、resume、ECR
-  和普通报告写入必须保持 zero-write。
+普通工作流应在下列白名单根内做有界的 canonical Markdown 路径盘点，选定具体文件后
+再读取正文：`<active-root>/reports/**` 与
+`<active-root>/{requirements,bugs,optimizations,scenario-tests}/<task>/reports/**`。
+不得先把整个 report corpus 正文装入上下文。
+
+只有显式的索引维护、测试或 benchmark 可以直接调用内部模块，并遵守以下预览契约：
+
+- 默认只发现 `primary-report`；`evidence`、`artifact`、`generated-copy` 与
+  `unknown` 必须显式筛选，unknown 保留 warning。
+- 查询和 hydration 保持 zero-write；只有维护路径可调用 `rebuildReportIndex`。
+- `fresh` 仅表示 metadata 路径已协调，不代表正文已验证；pointer 损坏、陈旧或
+  出现未登记文件时，只允许内存中的 path/stat reconcile。
+- 多页查询必须绑定 `snapshotCursor`；截断正文只能声明
+  `metadata-reconciled`，不得声明全文内容已验证。
+- 在正式 reader、writer、repair owner、宿主契约与 package 验证全部落地前，
+  Profile 和用户文档只能把该能力标为 maintenance/preview。
 
 ## 头部必填
 

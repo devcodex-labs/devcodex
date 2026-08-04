@@ -294,6 +294,68 @@ function normalizeGrokToolResult(value) {
   return output
 }
 
+const PROGRESSIVE_SKILL_ROUTE_CONTINUATION_RE = /^(?:<hook_prompt\b[^>]*>)?\s*Progressive Skill route (?:is incomplete:|context is stale;|stages remain pending:)/i
+
+function progressiveSkillRouteContinuationMetadata (payload = {}) {
+  const containers = [
+    payload,
+    payload.metadata,
+    payload.hookSpecificOutput,
+    payload.hook_specific_output
+  ].filter(value => value && typeof value === 'object')
+  for (const value of containers) {
+    const code = String(value.devcodexCode || value.devcodex_code || '').trim()
+    if (code === 'progressive-skill-route') {
+      return {
+        structured: true,
+        hookRunId: String(value.devcodexHookRunId || value.hookRunId || value.hook_run_id || ''),
+        stateFingerprint: String(value.devcodexStateFingerprint || value.stateFingerprint || '')
+      }
+    }
+    const envelope = value.devcodexNextAction || value.nextActionEnvelope
+    if (envelope?.schemaVersion === 'NextActionEnvelopeV1' &&
+        envelope.devcodexCode === 'progressive-skill-route') {
+      return {
+        structured: true,
+        hookRunId: String(envelope.hookRunId || ''),
+        stateFingerprint: String(envelope.stateFingerprint || '')
+      }
+    }
+  }
+  return { structured: false, hookRunId: '', stateFingerprint: '' }
+}
+
+function isProgressiveSkillRouteContinuation (host, originalEvent, payload = {}) {
+  const metadata = progressiveSkillRouteContinuationMetadata(payload)
+  if (metadata.structured) return { matched: true, ...metadata }
+  const prompts = [
+    payload.prompt,
+    payload.transformedPrompt,
+    payload.transformed_prompt,
+    payload.message,
+    payload.reason
+  ]
+  const legacyMatch = prompts.some(value =>
+    PROGRESSIVE_SKILL_ROUTE_CONTINUATION_RE.test(String(value || '').trim())
+  )
+  if (!legacyMatch) return { matched: false, ...metadata }
+  const hasHookCarrier = Boolean(
+    payload.hookRunId || payload.hook_run_id ||
+    payload.devcodexHookRunId || payload.devcodex_hook_run_id ||
+    payload.stopHookActive || payload.stop_hook_active
+  )
+  const copilotContinuationEvent = host === 'copilot' && [
+    'userPromptSubmitted',
+    'userPromptTransformed'
+  ].includes(originalEvent)
+  return {
+    matched: hasHookCarrier || copilotContinuationEvent,
+    structured: false,
+    hookRunId: String(payload.hookRunId || payload.hook_run_id || ''),
+    stateFingerprint: ''
+  }
+}
+
 function normalizeHostPayload(host, payload) {
   const originalEvent = String(
     payload?.hookEventName || payload?.hook_event_name || payload?.eventName || payload?.event || ''
@@ -362,20 +424,20 @@ function normalizeHostPayload(host, payload) {
           }
         : result
     }
-    const continuationPrompts = [
-      normalized.prompt,
-      normalized.transformedPrompt,
-      normalized.transformed_prompt
-    ]
-    if ((originalEvent === 'userPromptSubmitted' ||
-         originalEvent === 'userPromptTransformed') &&
-        continuationPrompts.some(value =>
-          /^Progressive Skill route is incomplete:/i.test(String(value || '').trim())
-        )) {
-      normalized.devcodex_host_continuation = true
-    }
     if (originalEvent === 'userPromptTransformed') {
       normalized.devcodex_host_transform_only = true
+    }
+  }
+  if (mappedEvent === 'UserPromptSubmit') {
+    const continuation = isProgressiveSkillRouteContinuation(host, originalEvent, normalized)
+    if (continuation.matched) {
+      normalized.devcodex_host_continuation = true
+      normalized.devcodex_route_continuation = {
+        schemaVersion: 'SkillRouteContinuationCarrierV1',
+        structured: continuation.structured,
+        hookRunId: continuation.hookRunId,
+        stateFingerprint: continuation.stateFingerprint
+      }
     }
   }
   if (host === 'gemini' && typeof payload?.prompt_response === 'string') normalized.response = payload.prompt_response
@@ -752,6 +814,7 @@ module.exports = {
   adaptHostOutput,
   adaptGrokOutput,
   isGrokImportedClaudePayload,
+  isProgressiveSkillRouteContinuation,
   normalizeHostPayload,
   probeHostAdapterContract,
   runHostAdapter

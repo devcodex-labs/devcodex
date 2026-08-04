@@ -1,6 +1,7 @@
 'use strict'
 
 const assert = require('assert')
+const crypto = require('crypto')
 const fs = require('fs')
 const path = require('path')
 
@@ -51,6 +52,9 @@ const {
   parseExplicitSkillId
 } = require('../hooks/_runtime/skill-route-state.cjs')
 const {
+  collectWorkspaceProjectNamespaces
+} = require('../hooks/_runtime/workspace-layout.cjs')
+const {
   createSkillRouteFixture,
   writeWorkspaceSkill
 } = require('./lib/skill-route-test-fixture')
@@ -58,6 +62,10 @@ const {
 const fixture = createSkillRouteFixture()
 
 try {
+  assert(
+    collectWorkspaceProjectNamespaces(fixture.root).includes(fixture.project),
+    'the real-host fixture must have a physical project marker so UserPromptSubmit can bind its target'
+  )
   // Acceptance C08: executable/support assets under a Skill are not candidates.
   const nestedScriptSkill = path.join(
     fixture.root,
@@ -555,7 +563,9 @@ try {
     ),
     'utf8'
   ))
-  assert.strictEqual(validateCapabilityDocument(capabilities).valid, true)
+  assert.strictEqual(validateCapabilityDocument(capabilities, {
+    packageRoot: fixture.packageRoot
+  }).valid, true)
   const productionCapability = capabilities.capabilities.find(item =>
     item.hostVariant === 'codex-cli/exec-user-global-local-stdio'
   )
@@ -575,19 +585,41 @@ try {
     project: fixture.project,
     host: 'codex',
     capabilityPath: currentCapabilityPath,
-    hostAdapterDigest: currentProductionCapability.hostAdapterDigest
+    hostAdapterDigest: currentProductionCapability.hostAdapterDigest,
+    packageRoot: fixture.packageRoot
   })
   assert.strictEqual(productionMode.effective, 'unified')
   assert.strictEqual(productionMode.hostEligibility, 'PASS')
   assert.strictEqual(productionMode.capabilityRuntimeCurrent, true)
   assert.strictEqual(productionMode.capabilityAdapterCurrent, true)
+  assert.strictEqual(productionMode.capabilityEvidenceValid, true)
+  assert.match(productionMode.capabilityEvidenceDigest, /^[a-f0-9]{64}$/)
+  assert.strictEqual(productionMode.processRuntimeIdentity.processId, process.pid)
+  assert.strictEqual(
+    productionMode.processRuntimeIdentity.runtimeContractDigest,
+    productionMode.runtimeContractDigest
+  )
+  assert.match(productionMode.processRuntimeIdentity.identityDigest, /^[a-f0-9]{64}$/)
   assert.strictEqual(productionMode.probeAuthorityReason, 'probe-authority-missing')
 
   const staleCapabilityPath = path.join(fixture.root, 'stale-capabilities.json')
   const staleCapabilities = JSON.parse(JSON.stringify(capabilities))
-  staleCapabilities.capabilities.find(item =>
+  const staleCapability = staleCapabilities.capabilities.find(item =>
     item.hostVariant === 'codex-cli/exec-user-global-local-stdio'
-  ).runtimeContractDigest = 'f'.repeat(64)
+  )
+  staleCapability.runtimeContractDigest = 'f'.repeat(64)
+  const sourceEvidencePath = path.join(fixture.packageRoot, staleCapability.evidenceRef)
+  const staleEvidence = JSON.parse(fs.readFileSync(sourceEvidencePath, 'utf8'))
+  staleEvidence.runtimeContractDigest = staleCapability.runtimeContractDigest
+  const staleEvidenceRef = 'evidence/stale-codex.json'
+  const staleEvidencePath = path.join(fixture.root, staleEvidenceRef)
+  fs.mkdirSync(path.dirname(staleEvidencePath), { recursive: true })
+  const staleEvidenceRaw = `${JSON.stringify(staleEvidence, null, 2)}\n`
+  fs.writeFileSync(staleEvidencePath, staleEvidenceRaw, 'utf8')
+  staleCapability.evidenceRef = staleEvidenceRef
+  staleCapability.evidenceDigest = crypto.createHash('sha256')
+    .update(staleEvidenceRaw, 'utf8')
+    .digest('hex')
   fs.writeFileSync(
     staleCapabilityPath,
     `${JSON.stringify(staleCapabilities, null, 2)}\n`,
@@ -597,10 +629,29 @@ try {
     project: fixture.project,
     host: 'codex',
     capabilityPath: staleCapabilityPath,
-    hostAdapterDigest: productionCapability.hostAdapterDigest
+    hostAdapterDigest: productionCapability.hostAdapterDigest,
+    packageRoot: fixture.root
   })
   assert.strictEqual(staleProductionMode.effective, 'unified')
   assert.strictEqual(staleProductionMode.hostEligibility, 'STALE')
+  assert.strictEqual(staleProductionMode.capabilityEvidenceValid, true)
+
+  fs.appendFileSync(staleEvidencePath, ' ')
+  const tamperedValidation = validateCapabilityDocument(staleCapabilities, {
+    packageRoot: fixture.root
+  })
+  assert.strictEqual(tamperedValidation.valid, false)
+  assert(tamperedValidation.errors.some(error => error.includes('evidence-raw-digest-mismatch')))
+
+  const absoluteEvidenceCapabilities = JSON.parse(JSON.stringify(capabilities))
+  absoluteEvidenceCapabilities.capabilities.find(item =>
+    item.hostVariant === 'codex-cli/exec-user-global-local-stdio'
+  ).evidenceRef = sourceEvidencePath
+  const absoluteEvidenceValidation = validateCapabilityDocument(absoluteEvidenceCapabilities, {
+    packageRoot: fixture.packageRoot
+  })
+  assert.strictEqual(absoluteEvidenceValidation.valid, false)
+  assert(absoluteEvidenceValidation.errors.some(error => error.includes('evidence-ref-not-package-relative')))
 
   const malformedCapabilityPath = path.join(fixture.root, 'malformed-capabilities.json')
   const malformedCapabilities = JSON.parse(JSON.stringify(capabilities))
@@ -612,7 +663,9 @@ try {
     `${JSON.stringify(malformedCapabilities, null, 2)}\n`,
     'utf8'
   )
-  assert.strictEqual(validateCapabilityDocument(malformedCapabilities).valid, false)
+  assert.strictEqual(validateCapabilityDocument(malformedCapabilities, {
+    packageRoot: fixture.packageRoot
+  }).valid, false)
   const malformedProductionMode = resolveSkillRouteMode({
     project: fixture.project,
     host: 'codex',
@@ -632,7 +685,9 @@ try {
     `${JSON.stringify(duplicateCapabilities, null, 2)}\n`,
     'utf8'
   )
-  assert.strictEqual(validateCapabilityDocument(duplicateCapabilities).valid, false)
+  assert.strictEqual(validateCapabilityDocument(duplicateCapabilities, {
+    packageRoot: fixture.packageRoot
+  }).valid, false)
   const duplicateCapabilityMode = resolveSkillRouteMode({
     project: fixture.project,
     host: 'codex',

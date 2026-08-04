@@ -55,6 +55,34 @@ const UTILITY_ROOT_DIR_NAMES = new Set([
   'test'
 ])
 
+const DERIVED_DIR_NAMES = new Set([
+  'node_modules',
+  'dist',
+  'build',
+  'coverage',
+  'out',
+  '.cache',
+  '.next',
+  '.nuxt',
+  '.turbo',
+  '.output',
+  'target'
+])
+
+const RUNTIME_CONTENT_DIR_NAMES = new Set([
+  'profile',
+  '.memory',
+  '.audit-state',
+  '.runtime-state',
+  'requirements',
+  'bugs',
+  'optimizations',
+  'scenario-tests',
+  'reports',
+  'data',
+  'migrations'
+])
+
 function readJsonFile(filePath) {
   try { return JSON.parse(fs.readFileSync(filePath, 'utf8')) } catch { return null }
 }
@@ -95,7 +123,10 @@ function resolveExecutionOptimizationModeForCwd(cwd, explicitProject = '') {
   } else {
     records.push(readExecutionOptimizationConfig(path.join(layout.workspaceRoot, '.devcodex', 'workspace', 'profile', 'config.json')))
     const project = explicitProject
-      ? normalizeProjectNamespace(explicitProject, layout, { contextProject: inferProjectFromCwd(absoluteCwd, layout) || '' })
+      ? normalizeProjectNamespace(explicitProject, {
+          layout,
+          contextProject: inferProjectFromCwd(absoluteCwd, layout) || ''
+        })
       : inferProjectFromCwd(absoluteCwd, layout)
     if (project) records.push(readExecutionOptimizationConfig(path.join(namespaceRootPath(layout.workspaceRoot, project), 'profile', 'config.json')))
   }
@@ -195,27 +226,9 @@ function hasProjectRootMarker(dir) {
   return PROJECT_ROOT_MARKERS.some(marker => fs.existsSync(path.join(dir, marker)))
 }
 
-function collectWorkspaceProjectNamespaces(workspaceRoot, { maxDepth = 3 } = {}) {
+/** Discover physical projects only; runtime history is a separate concern. */
+function collectActiveWorkspaceProjectNamespaces(workspaceRoot, { maxDepth = 4 } = {}) {
   const namespaces = new Set()
-  const devcodexRoot = path.join(workspaceRoot, '.devcodex')
-
-  function scanExistingNamespaces(root, relativeSegments = [], depth = 5) {
-    if (depth < 0 || !fs.existsSync(root)) return
-    let entries
-    try { entries = fs.readdirSync(root, { withFileTypes: true }) } catch { return }
-    for (const entry of entries) {
-      if (!entry.isDirectory()) continue
-      const name = String(entry.name || '').trim()
-      if (!name) continue
-      if (relativeSegments.length === 0 && RESERVED_NAMESPACE_ROOTS.has(name.toLowerCase())) continue
-      const nextSegments = [...relativeSegments, name]
-      const fullPath = path.join(root, name)
-      if (fs.existsSync(path.join(fullPath, 'profile'))) {
-        namespaces.add(joinNamespaceSegments(nextSegments))
-      }
-      scanExistingNamespaces(fullPath, nextSegments, depth - 1)
-    }
-  }
 
   function scanWorkspaceDirs(root, relativeSegments = [], depth = maxDepth) {
     if (depth < 0 || !fs.existsSync(root)) return
@@ -224,29 +237,79 @@ function collectWorkspaceProjectNamespaces(workspaceRoot, { maxDepth = 3 } = {})
     for (const entry of entries) {
       if (!entry.isDirectory()) continue
       const name = String(entry.name || '').trim()
-      if (!name || name.startsWith('.') || name === 'node_modules') continue
+      if (!name || name.startsWith('.') || DERIVED_DIR_NAMES.has(name.toLowerCase())) continue
       const fullPath = path.join(root, name)
       const nextSegments = [...relativeSegments, name]
       const namespace = joinNamespaceSegments(nextSegments)
       const lowerName = name.toLowerCase()
       const isContainer = CONTAINER_DIR_NAMES.has(lowerName)
       const isUtilityRoot = relativeSegments.length === 0 && UTILITY_ROOT_DIR_NAMES.has(lowerName)
-      const hasLegacyProfile = fs.existsSync(path.join(fullPath, '.devcodex', 'profile'))
-      const hasNamespaceProfile = fs.existsSync(path.join(devcodexRoot, ...nextSegments, 'profile'))
       const hasMarker = hasProjectRootMarker(fullPath)
       const markerBackedProject = hasMarker && !isContainer && !isUtilityRoot
-      if ((hasLegacyProfile || hasNamespaceProfile || markerBackedProject) && !isUtilityRoot) {
+      if (markerBackedProject) {
         namespaces.add(namespace)
       }
-      if (depth > 0 && (isContainer || isUtilityRoot || relativeSegments.length === 0)) {
+      // Descend through workspace group/container directories, but do not walk
+      // arbitrary source trees after a project marker has been found.
+      if (depth > 0 && (isContainer || isUtilityRoot || relativeSegments.length <= 1) && !markerBackedProject) {
         scanWorkspaceDirs(fullPath, nextSegments, depth - 1)
       }
     }
   }
 
-  scanExistingNamespaces(devcodexRoot)
   scanWorkspaceDirs(workspaceRoot)
   return [...namespaces].sort((left, right) => left.localeCompare(right))
+}
+
+/** Enumerate historical runtime namespaces without scanning their contents. */
+function collectWorkspaceRuntimeNamespaces(workspaceRoot, { maxDepth = 8 } = {}) {
+  const root = path.join(path.resolve(workspaceRoot), '.devcodex')
+  const namespaces = new Set()
+
+  function scan(current, relativeSegments = [], depth = maxDepth) {
+    if (depth < 0 || !fs.existsSync(current)) return
+    let entries
+    try { entries = fs.readdirSync(current, { withFileTypes: true }) } catch { return }
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue
+      const name = String(entry.name || '').trim()
+      if (!name) continue
+      const lower = name.toLowerCase()
+      if (relativeSegments.length === 0 && RESERVED_NAMESPACE_ROOTS.has(lower)) continue
+      if (RUNTIME_CONTENT_DIR_NAMES.has(lower)) continue
+      const fullPath = path.join(current, name)
+      const nextSegments = [...relativeSegments, name]
+      if (fs.existsSync(path.join(fullPath, 'profile'))) {
+        namespaces.add(joinNamespaceSegments(nextSegments))
+      }
+      scan(fullPath, nextSegments, depth - 1)
+    }
+  }
+
+  scan(root)
+  return [...namespaces].sort((left, right) => left.localeCompare(right))
+}
+
+function collectWorkspaceProjectNamespaces(workspaceRoot, options = {}) {
+  return collectActiveWorkspaceProjectNamespaces(workspaceRoot, options)
+}
+
+function resolvePhysicalNamespace(workspaceRoot, namespaceValue) {
+  const requested = splitNamespace(namespaceValue)
+  const actual = []
+  let current = path.resolve(workspaceRoot)
+  for (const segment of requested) {
+    let entries
+    try { entries = fs.readdirSync(current, { withFileTypes: true }) } catch { return null }
+    const match = entries.find(entry => entry.isDirectory() && (
+      entry.name === segment ||
+      (process.platform === 'win32' && entry.name.toLocaleLowerCase('en-US') === segment.toLocaleLowerCase('en-US'))
+    ))
+    if (!match) return null
+    actual.push(match.name)
+    current = path.join(current, match.name)
+  }
+  return { namespace: joinNamespaceSegments(actual), projectRoot: current }
 }
 
 /**
@@ -258,8 +321,18 @@ function collectWorkspaceProjectNamespaces(workspaceRoot, { maxDepth = 3 } = {})
 function resolveWorkspaceProjectTarget(workspaceRoot, requestedTarget, options = {}) {
   const root = path.resolve(workspaceRoot)
   const layout = { enabled: true, workspaceRoot: root }
-  const requested = normalizeProjectNamespace(requestedTarget, layout, { allowEmpty: false })
-  const candidates = collectWorkspaceProjectNamespaces(root, options)
+  const requested = normalizeProjectNamespace(requestedTarget, { layout, allowEmpty: false })
+  const physical = resolvePhysicalNamespace(root, requested)
+  if (physical && hasProjectRootMarker(physical.projectRoot)) {
+    return {
+      namespace: physical.namespace,
+      projectRoot: physical.projectRoot,
+      runtimeRoot: namespaceRootPath(root, physical.namespace),
+      candidates: [physical.namespace]
+    }
+  }
+
+  const candidates = collectActiveWorkspaceProjectNamespaces(root, options)
   const folded = value => String(value || '').toLocaleLowerCase('en-US')
   const exact = candidates.filter(candidate => folded(candidate) === folded(requested))
   const requestedSegments = splitNamespace(requested)
@@ -289,7 +362,18 @@ function resolveWorkspaceProjectTarget(workspaceRoot, requestedTarget, options =
     error.candidates = matches
     throw error
   }
-  return { namespace, projectRoot, candidates }
+  if (!hasProjectRootMarker(projectRoot)) {
+    const error = new Error(`project target has no project marker: ${namespace}`)
+    error.code = 'PROFILE_TARGET_NOT_FOUND'
+    error.candidates = candidates
+    throw error
+  }
+  return {
+    namespace,
+    projectRoot,
+    runtimeRoot: namespaceRootPath(root, namespace),
+    candidates
+  }
 }
 
 function inferProjectFromCwd(cwd, layout) {
@@ -390,7 +474,7 @@ function resolveRuntimeStateRoot(activeRoot, explicitProject = '') {
   if (!project || project === 'workspace') {
     return { root: path.join(stateBase, 'workspace'), legacy: false, project: null }
   }
-  const normalized = normalizeProjectNamespace(project, layout, { allowEmpty: false })
+  const normalized = normalizeProjectNamespace(project, { layout, allowEmpty: false })
   return { root: path.join(stateBase, 'projects', ...splitNamespace(normalized)), legacy: false, project: normalized }
 }
 
@@ -430,7 +514,10 @@ module.exports = {
   RESERVED_NAMESPACE_ROOTS,
   CONTAINER_DIR_NAMES,
   UTILITY_ROOT_DIR_NAMES,
+  DERIVED_DIR_NAMES,
+  collectActiveWorkspaceProjectNamespaces,
   collectWorkspaceProjectNamespaces,
+  collectWorkspaceRuntimeNamespaces,
   findLayoutInfo,
   inferProjectFromCwd,
   joinNamespaceSegments,

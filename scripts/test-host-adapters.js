@@ -147,6 +147,50 @@ const copilotTransformedContinuation = normalizeHostPayload('copilot', {
 assert.strictEqual(copilotTransformedContinuation.payload.devcodex_host_continuation, true)
 assert.strictEqual(copilotTransformedContinuation.payload.devcodex_host_transform_only, true)
 
+for (const [host, eventName] of [
+  ['claude', 'UserPromptSubmit'],
+  ['codex', 'UserPromptSubmit'],
+  ['gemini', 'BeforeAgent'],
+  ['grok', 'user_prompt_submit']
+]) {
+  for (const prompt of [
+    'Progressive Skill route is incomplete: PLAN_NOT_COMMITTED.',
+    'Progressive Skill route context is stale; refresh ContextRead and call skill_route rebind before loading pending stages: closeout.',
+    'Progressive Skill route stages remain pending: closeout.'
+  ]) {
+    const normalized = normalizeHostPayload(host, {
+      hookEventName: eventName,
+      hook_run_id: `${host}-route-continuation`,
+      prompt
+    })
+    assert.strictEqual(
+      normalized.payload.devcodex_host_continuation,
+      true,
+      `${host} must preserve route continuation carrier for ${prompt}`
+    )
+  }
+}
+
+const pastedRouteText = normalizeHostPayload('codex', {
+  hookEventName: 'UserPromptSubmit',
+  prompt: 'Progressive Skill route stages remain pending: closeout.'
+})
+assert.notStrictEqual(
+  pastedRouteText.payload.devcodex_host_continuation,
+  true,
+  'ordinary user-pasted text without a hook carrier must remain a user message'
+)
+
+const structuredContinuation = normalizeHostPayload('codex', {
+  hookEventName: 'UserPromptSubmit',
+  devcodexCode: 'progressive-skill-route',
+  devcodexHookRunId: 'structured-hook',
+  devcodexStateFingerprint: 'a'.repeat(64),
+  prompt: 'continue'
+})
+assert.strictEqual(structuredContinuation.payload.devcodex_host_continuation, true)
+assert.strictEqual(structuredContinuation.payload.devcodex_route_continuation.structured, true)
+
 const copilotDeny = adaptHostOutput('copilot', 'preToolUse', {
   hookSpecificOutput: {
     permissionDecision: 'deny',

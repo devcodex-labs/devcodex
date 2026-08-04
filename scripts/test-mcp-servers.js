@@ -36,13 +36,15 @@ function rpcRequest(id, method, params = {}) {
 function assertMemoryProjectionIdentity(value, toolName) {
   assert.strictEqual(validateContentIdentity(value.contentIdentity).valid, true)
   const projection = Object.fromEntries(Object.entries(value)
-    .filter(([key]) => !['contentIdentity', 'telemetry'].includes(key)))
+    .filter(([key]) => !['contentIdentity', 'telemetry', 'contextObservation'].includes(key)))
   const expected = buildJsonContentIdentity({
     sourceKey: `memory://${value.project || value.source?.project}/${toolName}#delivered`,
     value: projection,
     contractVersion: value.schemaVersion
   }).identity
   assert.deepStrictEqual(value.contentIdentity, expected)
+  assert.strictEqual(value.contextObservation.schemaVersion, 'ContextSourceObservationWriteReceiptV1')
+  assert(['persisted', 'degraded', 'skipped'].includes(value.contextObservation.status))
 }
 
 function runServer(script, requests, cwd = ROOT, env = {}) {
@@ -557,6 +559,28 @@ function testProfilePromptRequiresProjectAtWorkspaceRoot() {
   assert.strictEqual(toolJson(traversalPlanTarget).errorCode, 'CONTEXT_ACTIVE_TARGET_MISMATCH')
 }
 
+function testMissingProfileRecoveryUsesCanonicalInitCommand() {
+  setupContextPlanWorkspace()
+  fs.rmSync(path.join(TEMP_ROOT, '.devcodex', 'workspace', 'profile', 'README.md'))
+  fs.rmSync(path.join(TEMP_ROOT, '.devcodex', 'chat', 'profile', 'README.md'))
+  const responses = runServer('mcp/profile-server.js', [
+    rpcRequest(1, 'tools/call', {
+      name: 'profile_context_plan',
+      arguments: {
+        intent: 'chat',
+        project: 'chat',
+        contextEpoch: 'epoch-missing-profile-recovery'
+      }
+    })
+  ], path.join(TEMP_ROOT, 'chat'))
+  const result = resultById(responses, 1)
+  const error = toolJson(result)
+  assert.strictEqual(result.isError, true)
+  assert.strictEqual(error.errorCode, 'CONTEXT_PLAN_INVALID')
+  assert.match(error.nextStep, /Run devcodex init in the workspace root/)
+  assert.doesNotMatch(error.nextStep, /profile plan|profile init/)
+}
+
 function testProfileTierConflictRejected() {
   setupLegacyWorkspace()
   fs.appendFileSync(path.join(TEMP_ROOT, '.devcodex', 'profile', 'README.md'), '\nProfile 档位：profile-lite。\n', 'utf8')
@@ -984,6 +1008,12 @@ function testMemoryProjectionQueriesAndZeroWrite() {
   assert.deepStrictEqual(status.conflicts, [{ sessionKey: '2026-07-17#03', states: ['active', 'completed'] }])
   assert.strictEqual(status.telemetry.filesRead, 1)
   assert.strictEqual(status.telemetry.tokens, null)
+  assert.strictEqual(status.derivedIndexFreshness.status, 'stale')
+  assert.strictEqual(status.canonicalSourceTrust.status, 'trusted')
+  assert.strictEqual(status.canonicalSourceTrust.basis, 'complete-content-read')
+  assert.strictEqual(status.fallbackCoverage.status, 'complete')
+  assert.strictEqual(status.repairState.status, 'repair-needed')
+  assert.match(status.repairState.dedupeKey, /^memory-index-repair:[a-f0-9]{64}$/)
   assertMemoryProjectionIdentity(status, 'memory_status')
 
   const exact = toolJson(resultById(responses, 3))
@@ -1028,6 +1058,11 @@ function testMemoryProjectionQueriesAndZeroWrite() {
   assert.strictEqual(defaultSummary.totalMatched, 1)
   assert.strictEqual(defaultSummary.rows[0].state, 'active')
   assert.strictEqual(defaultSummary.rows[0].summary, 'active fixture with `manual|auto` mode')
+  assert.strictEqual(
+    defaultSummary.repairState.diagnosticFingerprint,
+    status.repairState.diagnosticFingerprint,
+    'the same stale summary state must expose one stable dedupe fingerprint'
+  )
   assertMemoryProjectionIdentity(defaultSummary, 'memory_summary_query')
 
   const unresolved = toolJson(resultById(responses, 9))
@@ -2161,6 +2196,10 @@ function testMemorySessionAllocationAndTransactions() {
   const indexedSummary = toolJson(resultById(responses, 8))
   assert.strictEqual(indexedDaily.indexReceipt.status, 'fresh')
   assert.strictEqual(indexedDaily.coverage.status, 'complete')
+  assert.strictEqual(indexedDaily.derivedIndexFreshness.status, 'fresh')
+  assert.strictEqual(indexedDaily.canonicalSourceTrust.basis, 'writer-attested-metadata-reconciled')
+  assert.strictEqual(indexedDaily.fallbackCoverage.status, 'not-used')
+  assert.strictEqual(indexedDaily.repairState.status, 'not-needed')
   assert(indexedDaily.telemetry.indexBytesRead > 0)
   assert.strictEqual(indexedSummary.indexReceipt.status, 'fresh')
   assert.strictEqual(indexedSummary.coverage.status, 'complete')
@@ -2188,6 +2227,38 @@ function testMemorySessionAllocationAndTransactions() {
   assert.strictEqual(toolJson(resultById(queryOnly, 20)).indexReceipt.status, 'fresh')
   assert.strictEqual(toolJson(resultById(queryOnly, 21)).indexReceipt.status, 'fresh')
   assert.deepStrictEqual(snapshotTree(derivedRoot), beforeQueryOnly, 'index-backed MCP query must be zero-write')
+
+  fs.appendFileSync(dailyPath, '\nnon-special writer edit\n', 'utf8')
+  const beforeFallback = snapshotTree(derivedRoot)
+  const fallbackQueries = runServer('mcp/memory-server.js', [
+    rpcRequest(30, 'tools/call', {
+      name: 'memory_session_query',
+      arguments: { date: '20260524', status: 'all', limit: 10 }
+    }),
+    rpcRequest(31, 'tools/call', {
+      name: 'memory_session_query',
+      arguments: { date: '20260524', status: 'all', limit: 10 }
+    })
+  ], projectRoot)
+  const firstFallback = toolJson(resultById(fallbackQueries, 30))
+  const repeatedFallback = toolJson(resultById(fallbackQueries, 31))
+  assert.strictEqual(firstFallback.indexReceipt.status, 'fallback')
+  assert.strictEqual(firstFallback.indexReceipt.reason, 'source-metadata-drift')
+  assert.strictEqual(firstFallback.derivedIndexFreshness.status, 'stale')
+  assert.strictEqual(firstFallback.canonicalSourceTrust.status, 'trusted')
+  assert.strictEqual(firstFallback.canonicalSourceTrust.basis, 'complete-content-read')
+  assert.strictEqual(firstFallback.fallbackCoverage.status, 'complete')
+  assert.strictEqual(firstFallback.repairState.status, 'repair-needed')
+  assert.strictEqual(
+    repeatedFallback.repairState.diagnosticFingerprint,
+    firstFallback.repairState.diagnosticFingerprint,
+    'non-special writer fallback diagnostics must dedupe by stable state fingerprint'
+  )
+  assert.deepStrictEqual(
+    snapshotTree(derivedRoot),
+    beforeFallback,
+    'canonical fallback and repair diagnostics must remain zero-write'
+  )
 
   const lockedDate = '20260525'
   const activeRoot = path.join(TEMP_ROOT, '.devcodex', 'chat')
@@ -2359,6 +2430,7 @@ function testMcpJsonLaunchContract() {
 
 testProfilePrompts()
 testProfilePromptRequiresProjectAtWorkspaceRoot()
+testMissingProfileRecoveryUsesCanonicalInitCommand()
 testProfileTierConflictRejected()
 testProfileModeFallbackAgent()
 testProfileAgentUsesRuntimeBeforeProfileFallback()

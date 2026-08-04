@@ -311,6 +311,9 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       lastReuseDecision: raw.lastReuseDecision && typeof raw.lastReuseDecision === 'object'
         ? raw.lastReuseDecision
         : null,
+      sourceRefreshPending: raw.sourceRefreshPending && typeof raw.sourceRefreshPending === 'object'
+        ? raw.sourceRefreshPending
+        : null,
       handoff: raw.handoff && typeof raw.handoff === 'object' ? raw.handoff : null,
       legacyObserved,
       bootstrap: normalized.bootstrap
@@ -390,6 +393,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
         : contextError('CONTEXT_ACTIVE_TARGET_MISMATCH', 'A unique active project is required before context planning.'),
       blockedReason: targetResolved ? '' : 'active-target-ambiguous',
       lastReuseDecision: null,
+      sourceRefreshPending: null,
       legacyObserved: { profileRead: false, summaryRead: false, tasksRead: false, bootstrapComplete: false },
       handoff
     }
@@ -413,11 +417,19 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     const acquisition = syncContextProjection(state)
     if (!acquisition.plan || !acquisition.receipt || ['stale', 'blocked'].includes(acquisition.receipt.status)) return false
     if (!normalizeContextToolOutcome(payload).success) return false
-    const rawTool = getToolName(payload).toLowerCase()
-    if (/memory_(?:session_write|summary_append|cp_confirm)|memory-(?:session-write|summary-append|cp-confirm)/.test(rawTool)) {
-      markContextAcquisitionStale(state, 'source-digest')
-      return true
+    if (classifyContextAction(payload, platform, state) === 'workflow-closeout') {
+      acquisition.sourceRefreshPending = {
+        schemaVersion: 'ContextSourceRefreshPendingV1',
+        required: true,
+        reasonCode: 'workflow-closeout-write',
+        actionClass: 'workflow-closeout',
+        observedAt: new Date().toISOString()
+      }
+      state.contextAcquisition = acquisition
+      syncContextProjection(state)
+      return false
     }
+    const rawTool = getToolName(payload).toLowerCase()
     const directMutation = /^(?:write|edit|apply[_-]?patch|create[_-]?file|str[_-]?replace(?:[_-].*)?|insert[_-]?code(?:[_-].*)?|rewrite[_-]?file)$/i.test(rawTool)
     const shellMutation = /^(?:bash|powershell|shell[_-]?command|run[_-]?in[_-]?terminal|run[_-]?terminal[_-]?command)$/i.test(rawTool) &&
       /(?:>{1,2}|\btee\b|\bSet-Content\b|\bOut-File\b|\b(?:cp|mv|rm|touch)\b)/i.test(getCommandText(payload))
@@ -498,6 +510,18 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       cp3Runtime: {},
       governanceIntake: emptyGovernanceIntakeState(),
       turnLiveness: createTurnLivenessState(),
+      progressiveSkillRouteCoordinator: {
+        schemaVersion: 'ActiveReconciliationCoordinatorV1',
+        stateFingerprint: '',
+        lastHookRunId: '',
+        noProgressCount: 0,
+        progressCount: 0,
+        circuitOpen: false,
+        lastTrigger: '',
+        lastAction: '',
+        lastNoticeFingerprint: '',
+        updatedAt: ''
+      },
       mutated: false,
       reportTouched: false,
       memoryTouched: false,
@@ -527,6 +551,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       planAttemptKeys: [],
       failedPlanKeys: [],
       lastReuseDecision: null,
+      sourceRefreshPending: null,
       legacyObserved: { profileRead: false, summaryRead: false, tasksRead: false, bootstrapComplete: false }
     }
     return state
@@ -535,9 +560,26 @@ function buildLifecycleBootstrapStateUtils(ctx) {
   function sessionStateFile(state, sessionKey) {
     const key = String(sessionKey || '').trim()
     if (!key) return ''
-    const dir = path.join(getStatePaths(state).dir, 'sessions')
+    // Workspace sessions are indexed independently of the last active project;
+    // otherwise meta-project drift makes a valid session snapshot unreachable.
+    const owner = LAYOUT.enabled ? META_STATE_PATHS : getStatePaths(state)
+    const dir = path.join(owner.dir, 'sessions')
     const digest = crypto.createHash('sha256').update(key).digest('hex')
     return path.join(dir, `${digest}.json`)
+  }
+
+  function legacySessionStateFiles(sessionKey, metaState) {
+    const key = String(sessionKey || '').trim()
+    if (!key || !LAYOUT.enabled) return []
+    const digest = crypto.createHash('sha256').update(key).digest('hex')
+    const projects = new Set([
+      String(metaState?.activeProject || '').trim(),
+      String(CONTEXT_PROJECT || '').trim(),
+      ...listWorkspaceProjects()
+    ])
+    return [...projects]
+      .filter(Boolean)
+      .map(project => path.join(getStatePathsFor(project, 'project').dir, 'sessions', `${digest}.json`))
   }
 
   function pruneSessionStates(dir) {
@@ -560,29 +602,34 @@ function buildLifecycleBootstrapStateUtils(ctx) {
 
   function loadState(modeHint, sessionKey = '') {
     const metaState = readJsonFile(META_STATE_PATHS.file)
-    let saved = metaState
-    if (LAYOUT.enabled) {
-      const preferredProject = String(metaState?.activeProject || CONTEXT_PROJECT || '').trim()
-      const preferredScope = metaState?.activeScope || (preferredProject ? 'project' : DEFAULT_SCOPE)
-      const activeState = readJsonFile(getStatePathsFor(preferredProject, preferredScope).file)
-      if (activeState && typeof activeState === 'object') {
-        saved = activeState
-      } else if (CONTEXT_PROJECT) {
-        const contextState = readJsonFile(getStatePathsFor(CONTEXT_PROJECT, 'project').file)
-        if (contextState && typeof contextState === 'object') saved = contextState
+    const canonicalSessionFile = sessionStateFile(metaState || buildDefaultState(modeHint), sessionKey)
+    let sessionState = canonicalSessionFile ? readJsonFile(canonicalSessionFile) : null
+    if (!(sessionState && typeof sessionState === 'object')) {
+      for (const legacyFile of legacySessionStateFiles(sessionKey, metaState)) {
+        const legacy = readJsonFile(legacyFile)
+        if (legacy && typeof legacy === 'object') {
+          sessionState = legacy
+          break
+        }
       }
     }
-    const sessionFile = sessionStateFile(saved || metaState || buildDefaultState(modeHint), sessionKey)
-    const sessionState = sessionFile ? readJsonFile(sessionFile) : null
+    let saved = sessionState
+    if (!(saved && typeof saved === 'object')) {
+      saved = metaState
+      if (LAYOUT.enabled) {
+        const preferredProject = String(metaState?.activeProject || CONTEXT_PROJECT || '').trim()
+        const preferredScope = metaState?.activeScope || (preferredProject ? 'project' : DEFAULT_SCOPE)
+        const activeState = readJsonFile(getStatePathsFor(preferredProject, preferredScope).file)
+        if (activeState && typeof activeState === 'object') {
+          saved = activeState
+        } else if (CONTEXT_PROJECT) {
+          const contextState = readJsonFile(getStatePathsFor(CONTEXT_PROJECT, 'project').file)
+          if (contextState && typeof contextState === 'object') saved = contextState
+        }
+      }
+    }
     const startsFreshGovernanceSession = !!sessionKey && !(sessionState && typeof sessionState === 'object')
-    if (sessionState && typeof sessionState === 'object') {
-      const sharedSessionKey = String(saved?.contextAcquisition?.hostSessionId || '')
-      const sharedUpdatedAt = Date.parse(saved?.updatedAt || '') || 0
-      const sessionUpdatedAt = Date.parse(sessionState.updatedAt || '') || 0
-      if (sharedSessionKey !== sessionKey || sessionUpdatedAt >= sharedUpdatedAt) {
-        saved = sessionState
-      }
-    }
+    const sessionBound = !!(sessionState && typeof sessionState === 'object')
     const mode = modeHint || readProfileMode(saved || metaState || null, saved?.activeProject || metaState?.activeProject || '')
     const current = buildDefaultState(mode)
     if (!saved || typeof saved !== 'object') return current
@@ -593,13 +640,25 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       mode,
       bootstrap: { ...current.bootstrap, ...(saved.bootstrap || {}) },
       visible: { ...current.visible, ...(saved.visible || {}) },
-      stickyProject: { ...current.stickyProject, ...(saved.stickyProject || {}), ...(metaState?.stickyProject || {}) },
-      stickyAuto: { ...current.stickyAuto, ...(saved.stickyAuto || {}), ...(metaState?.stickyAuto || {}) },
+      stickyProject: {
+        ...current.stickyProject,
+        ...(saved.stickyProject || {}),
+        ...(sessionBound ? {} : (metaState?.stickyProject || {}))
+      },
+      stickyAuto: {
+        ...current.stickyAuto,
+        ...(saved.stickyAuto || {}),
+        ...(sessionBound ? {} : (metaState?.stickyAuto || {}))
+      },
       cp3Runtime: { ...current.cp3Runtime, ...(saved.cp3Runtime || {}) },
       governanceIntake: normalizeGovernanceIntakeState(
         startsFreshGovernanceSession ? emptyGovernanceIntakeState() : saved.governanceIntake
       ),
       turnLiveness: normalizeTurnLivenessState(saved.turnLiveness),
+      progressiveSkillRouteCoordinator: {
+        ...current.progressiveSkillRouteCoordinator,
+        ...(saved.progressiveSkillRouteCoordinator || {})
+      },
       dangerousApprovals: { ...current.dangerousApprovals, ...(saved.dangerousApprovals || {}) }
     }
     syncContextProjection(state)
@@ -667,16 +726,23 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     const command = getCommandText(payload)
     if (!command || !command.trim()) return false
     const lowerCommand = command.toLowerCase()
-    if (/[;&|`]/.test(command) || /\$\(|\b(?:&&|\|\|)\b/.test(command)) return false
     if (
+      /[`]|\$\(/.test(command) ||
       />{1,2}/.test(command) ||
       /\b(set-content|add-content|out-file|tee|copy-item|move-item|remove-item|new-item|rename-item)\b/i.test(command) ||
       /\b(sc|ac|ni|ri|mi)\b/i.test(command) ||
-      /\b(cp|mv|rm|del|erase|touch|mkdir|rmdir|git\s+add|git\s+commit|npm\s+install)\b/i.test(command)
+      /\b(cp|mv|rm|del|erase|touch|mkdir|rmdir|git\s+(?:add|commit|push|tag|checkout|switch|reset|clean)|npm\s+(?:install|publish)|pnpm\s+(?:install|publish)|yarn\s+(?:add|publish))\b/i.test(command)
     ) {
       return false
     }
-    return /\b(get-content|cat|type|get-childitem|ls|dir|rg|findstr|select-string|head|tail|more|echo)\b/.test(lowerCommand)
+    const segments = command
+      .split(/\s*(?:;|&&|\|\||\|)\s*/)
+      .map(value => value.trim())
+      .filter(Boolean)
+    if (!segments.length) return false
+    const safeSegment = /^(?:get-content|cat|type|get-childitem|ls|dir|rg|findstr|select-string|head|tail|more|echo|write-output|test-path|resolve-path|select-object|sort-object|where-object|measure-object|format-(?:table|list)|out-string|convertto-json|git\s+(?:status|diff|show|log|rev-parse|branch)|npm\s+(?:ls|view)|pnpm\s+ls|yarn\s+list|node\s+(?:--check|-[pev]))\b/i
+    return segments.every(segment => safeSegment.test(segment)) &&
+      /\b(get-content|cat|type|get-childitem|ls|dir|rg|findstr|select-string|head|tail|more|echo|write-output|test-path|resolve-path|git\s+(?:status|diff|show|log|rev-parse|branch)|npm\s+(?:ls|view)|node\s+(?:--check|-[pev]))\b/.test(lowerCommand)
   }
 
   function isBootstrapReadTool(payload, state) {
@@ -702,7 +768,8 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       /^send[_-]?to[_-]?terminal$/,
       /^run[_-]?terminal[_-]?command$/,
       /^bash$/,
-      /^powershell$/
+      /^powershell$/,
+      /^exec[_-]?command$/
     ]
     if (!shellReadPatterns.some(pattern => pattern.test(toolName))) return false
     if (!isReadOnlyBootstrapShellCommand(payload)) return false
@@ -887,6 +954,26 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     })
   }
 
+  function workflowCloseoutPaths(payload, state) {
+    const rawTool = getToolName(payload).toLowerCase()
+    if (/memory_(?:session_write|summary_append|cp_confirm)|memory-(?:session-write|summary-append|cp-confirm)/.test(rawTool)) {
+      return true
+    }
+    const paths = [...new Set(extractToolPaths(payload) || [])]
+    if (!paths.length) return false
+    const activeRoot = normalizePath(path.resolve(getActiveNamespaceRoot(state))).toLowerCase()
+    return paths.every(file => {
+      const absolute = normalizePath(path.isAbsolute(file)
+        ? path.resolve(file)
+        : path.resolve(CONTEXT_ROOT, file)).toLowerCase()
+      if (absolute !== activeRoot && !absolute.startsWith(`${activeRoot}/`)) return false
+      const relative = absolute.slice(activeRoot.length).replace(/^\/+/, '')
+      if (/^(?:profile|skills|prompts|instructions|\.runtime-state)(?:\/|$)/.test(relative)) return false
+      return /^(?:\.memory|reports?|data)(?:\/|$)/.test(relative) ||
+        /^(?:requirements|bugs|optimizations|scenario-tests)\/[^/]+\/(?:reports?|\.memory|data)(?:\/|$)/.test(relative)
+    })
+  }
+
   function classifyContextAction(payload, platform, state, knownAcquisition) {
     const acquisition = knownAcquisition || classifyContextAcquisitionTool(payload, state)
     if (acquisition.allowed) return 'context-read'
@@ -899,8 +986,11 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       return 'release'
     }
     const mutationTool = MUTATION_TOOL_RE.test(tool) || isSourceCodeMutation(payload, platform, state)
+    if (workflowCloseoutPaths(payload, state) && (mutationTool || /memory_(?:session_write|summary_append|cp_confirm)/.test(tool))) {
+      return 'workflow-closeout'
+    }
     if (mutationTool) return docsOnlyPaths(payload) ? 'docs-mutation' : 'source-mutation'
-    if (/^(?:shell[_-]?command|run[_-]?in[_-]?terminal|send[_-]?to[_-]?terminal|run[_-]?terminal[_-]?command|bash|powershell)$/i.test(tool)) {
+    if (/^(?:shell[_-]?command|run[_-]?in[_-]?terminal|send[_-]?to[_-]?terminal|run[_-]?terminal[_-]?command|bash|powershell|exec[_-]?command)$/i.test(tool)) {
       if (isReadOnlyBootstrapShellCommand(payload) ||
         /^\s*(?:git\s+(?:status|diff|show|log)|npm\s+(?:ls|view)|node\s+-[pev]|rg\b|get-|ls\b|dir\b)/i.test(command)) {
         return 'analysis-read'
@@ -1245,7 +1335,11 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     )
     if (!binding.valid) acquisition.lastError = contextError(binding.errorCode, binding.reason)
     const identityProjection = body && typeof body === 'object'
-      ? Object.fromEntries(Object.entries(body).filter(([key]) => !['contentIdentity', 'telemetry'].includes(key)))
+      ? Object.fromEntries(Object.entries(body).filter(([key]) => ![
+          'contentIdentity',
+          'contextObservation',
+          'telemetry'
+        ].includes(key)))
       : null
     const computedProjectionIdentity = identityProjection
       ? buildJsonContentIdentity({
@@ -1483,10 +1577,6 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       }
     } else if (attempt.kind === 'memory-query' && acquisition.plan && acquisition.receipt) {
       applySourceResults(acquisition, attempt, payload, memorySourceResults(acquisition, attempt, outcome))
-    } else if (attempt.kind === 'route-control' &&
-        outcome.transportSuccess &&
-        !outcome.error) {
-      state.progressiveSkillRouteStopCount = 0
     }
     acquisition.inFlight = acquisition.inFlight.filter(item => item.attemptId !== attempt.attemptId)
     acquisition.postHistory = [...acquisition.postHistory, {

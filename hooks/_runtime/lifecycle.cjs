@@ -46,6 +46,9 @@ const {
 } = require('./lifecycle-turn-liveness.cjs')
 const { buildLifecycleVisibleReplyUtils } = require('./lifecycle-visible-reply.cjs')
 const { formatLanguageContextInstruction, resolveLanguageContext } = require('./language-context.cjs')
+const {
+  reconcileProgressiveSkillRoute
+} = require('./lifecycle-skill-route-coordinator.cjs')
 const { observeWorkflowCompletionEvent } = require('./lifecycle-workflow-completion.cjs')
 const {
   collectWorkspaceProjectNamespaces,
@@ -1201,6 +1204,90 @@ const {
   buildGovernanceIntakeReminderItem
 })
 
+function evaluateCurrentProgressiveSkillRoute (state, payload, platform, trigger, contextPost = null) {
+  if (!state.contextAcquisition?.contextEpoch || !state.contextAcquisition?.project) return null
+  const {
+    evaluateProgressiveSkillRouteStop,
+    shouldEnforceProgressiveSkillRouteStop
+  } = require('./skill-route-tool.cjs')
+  const routeStop = evaluateProgressiveSkillRouteStop({
+    project: state.contextAcquisition.project,
+    contextEpoch: state.contextAcquisition.contextEpoch,
+    hostSessionId: state.contextAcquisition.hostSessionId,
+    assistantText: getVisibleReplyText(payload) || ''
+  }, {
+    inputRoot: CONTEXT_ROOT,
+    env: process.env
+  })
+  state.progressiveSkillRouteStop = routeStop
+  const explicitRoutePending =
+    state.progressiveSkillRoute?.bootstrap?.explicitStatus === 'ready'
+  const enforce = shouldEnforceProgressiveSkillRouteStop(
+    routeStop,
+    explicitRoutePending
+  )
+  const effectiveRouteStop = enforce
+    ? routeStop
+    : {
+        ...routeStop,
+        processComplete: true,
+        businessSatisfied: true,
+        complete: true
+      }
+  return reconcileProgressiveSkillRoute(state, effectiveRouteStop, {
+    trigger,
+    payload,
+    contextPost,
+    sessionKey: state.contextAcquisition.hostSessionId || getPayloadSessionKey(payload),
+    requireBusiness: trigger === 'Stop'
+  })
+}
+
+function formatProgressiveSkillRouteEnvelope (coordination) {
+  return [
+    coordination.message || 'Progressive Skill route reconciliation is required.',
+    `NextActionEnvelopeV1: ${JSON.stringify(coordination.envelope)}`
+  ].join('\n')
+}
+
+function buildProgressiveSkillRouteBlockOutput (state, platform, eventName, coordination) {
+  const reason = formatProgressiveSkillRouteEnvelope(coordination)
+  if (eventSupportsHardBlock(platform, eventName)) {
+    recordInterception(
+      state,
+      eventName,
+      platform,
+      INTERCEPTION_ACTION.REQUIRE_COMPLETION,
+      'progressive-skill-route',
+      reason,
+      reason,
+      true
+    )
+    return decorateHookOutput(
+      blockOutput(platform, eventName, 'progressive-skill-route', reason),
+      {
+        devcodexAction: INTERCEPTION_ACTION.REQUIRE_COMPLETION,
+        devcodexCode: 'progressive-skill-route',
+        devcodexEffective: true,
+        devcodexHookRunId: coordination.envelope.hookRunId,
+        devcodexStateFingerprint: coordination.envelope.stateFingerprint,
+        devcodexNextAction: coordination.envelope,
+        devcodexNextStep: reason
+      }
+    )
+  }
+  return buildInterceptionOutput(
+    state,
+    platform,
+    eventName,
+    INTERCEPTION_ACTION.REQUIRE_COMPLETION,
+    'progressive-skill-route',
+    'Progressive Skill route reconciliation required',
+    reason,
+    reason
+  )
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -1513,6 +1600,34 @@ async function main() {
       saveState(state)
     }
 
+    // Active reconciliation runs before ordinary work. Exact route/context
+    // recovery calls remain allowed; unrelated tools cannot defer a known
+    // stage obligation until Stop.
+    try {
+      const routeCoordination = evaluateCurrentProgressiveSkillRoute(
+        state,
+        payload,
+        platform,
+        'PreToolUse'
+      )
+      if (routeCoordination?.required && !routeCoordination.allowAction) {
+        state.lastReason = 'progressive-skill-route'
+        const output = buildProgressiveSkillRouteBlockOutput(
+          state,
+          platform,
+          eventName,
+          routeCoordination
+        )
+        saveState(state)
+        writeStdout(output)
+        return
+      }
+    } catch (error) {
+      state.progressiveSkillRouteCoordinatorError = String(
+        error.code || error.message || 'SKILL_ROUTE_COORDINATOR_FAILED'
+      )
+    }
+
     // 2. Context acquisition: PreToolUse records an attempt only. A compatible
     // action reuses the current plan; a broader/unknown action makes it stale.
     // Fallback warnings are carried forward so Auto/CP/permission gates still run.
@@ -1787,6 +1902,34 @@ async function main() {
         }
       }
     }
+    try {
+      const routeCoordination = evaluateCurrentProgressiveSkillRoute(
+        state,
+        payload,
+        platform,
+        'PostToolUse',
+        contextPost
+      )
+      const observedKind = contextPost?.attempt?.kind || ''
+      if (routeCoordination?.required && [
+        'route-control',
+        'plan',
+        'profile-load',
+        'memory-query'
+      ].includes(observedKind)) {
+        state.lastReason = 'progressive-skill-route-next-action'
+        saveState(state)
+        writeStdout(contextMessageOutput(
+          'PostToolUse',
+          formatProgressiveSkillRouteEnvelope(routeCoordination)
+        ))
+        return
+      }
+    } catch (error) {
+      state.progressiveSkillRouteCoordinatorError = String(
+        error.code || error.message || 'SKILL_ROUTE_COORDINATOR_FAILED'
+      )
+    }
     saveState(state)
     writeStdout(noopOutput())
     return
@@ -1797,74 +1940,35 @@ async function main() {
     if (eventName === 'PreCompact') markContextAcquisitionStale(state, 'compact')
     captureFinalPayloadSample(payload, eventName, state)
 
-    if (eventName === 'Stop' && state.contextAcquisition?.contextEpoch) {
+    if (state.contextAcquisition?.contextEpoch) {
       try {
-        const {
-          evaluateProgressiveSkillRouteStop,
-          shouldEnforceProgressiveSkillRouteStop
-        } = require('./skill-route-tool.cjs')
-        const routeStop = evaluateProgressiveSkillRouteStop({
-          project: state.contextAcquisition.project,
-          contextEpoch: state.contextAcquisition.contextEpoch,
-          hostSessionId: state.contextAcquisition.hostSessionId,
-          assistantText: getVisibleReplyText(payload) || ''
-        }, {
-          inputRoot: CONTEXT_ROOT,
-          env: process.env
-        })
-        state.progressiveSkillRouteStop = routeStop
-        const explicitRoutePending =
-          state.progressiveSkillRoute?.bootstrap?.explicitStatus === 'ready'
-        if (
-          shouldEnforceProgressiveSkillRouteStop(
-            routeStop,
-            explicitRoutePending
-          )
-        ) {
-          const enforceCount = Number(state.progressiveSkillRouteStopCount || 0)
-          if (enforceCount < 2) {
-            state.progressiveSkillRouteStopCount = enforceCount + 1
-            const reason = routeStop.nextOp === 'rebind'
-              ? `Progressive Skill route context is stale; refresh ContextRead and call skill_route rebind before loading pending stages: ${routeStop.pendingStageIds.join(', ')}.`
-              : routeStop.nextOp === 'load_stage' && routeStop.nextCall
-              ? `Progressive Skill route stages remain pending: ${routeStop.pendingStageIds.join(', ')}. Call skill_route load_stage with generation=${routeStop.nextCall.generation}, planDigest=${routeStop.nextCall.planDigest}, stageId=${routeStop.nextCall.stageId}.`
-              : routeStop.pendingStageIds?.length
-              ? `Progressive Skill route stages remain pending: ${routeStop.pendingStageIds.join(', ')}.`
-              : (routeStop.mustReplyCore && !routeStop.businessSatisfied
-                  ? `The selected Skill requires this core reply: ${routeStop.mustReplyCore}`
-                  : `Progressive Skill route is incomplete: ${routeStop.errorCode || 'unknown'}.`)
-            const output = eventSupportsHardBlock(platform, eventName)
-              ? decorateHookOutput(
-                  blockOutput(platform, eventName, 'progressive-skill-route', reason),
-                  {
-                    devcodexAction: INTERCEPTION_ACTION.REQUIRE_COMPLETION,
-                    devcodexCode: 'progressive-skill-route',
-                    devcodexEffective: true,
-                    devcodexNextStep: reason
-                  }
-                )
-              : buildInterceptionOutput(
-                  state,
-                  platform,
-                  eventName,
-                  INTERCEPTION_ACTION.REQUIRE_COMPLETION,
-                  'progressive-skill-route',
-                  'Progressive Skill route incomplete',
-                  reason,
-                  reason
-                )
-            saveState(state)
-            writeStdout(output)
-            return
-          }
+        const routeCoordination = evaluateCurrentProgressiveSkillRoute(
+          state,
+          payload,
+          platform,
+          eventName
+        )
+        if (routeCoordination?.required) {
+          state.lastReason = 'progressive-skill-route'
+          const output = eventName === 'Stop'
+            ? buildProgressiveSkillRouteBlockOutput(
+                state,
+                platform,
+                eventName,
+                routeCoordination
+              )
+            : contextMessageOutput(
+                'PreCompact',
+                formatProgressiveSkillRouteEnvelope(routeCoordination)
+              )
+          saveState(state)
+          writeStdout(output)
+          return
         }
       } catch (error) {
-        state.progressiveSkillRouteStop = {
-          schemaVersion: 'ProgressiveSkillRouteStopV1',
-          present: false,
-          complete: false,
-          errorCode: String(error.code || error.message || 'STOP_GATE_FAILED')
-        }
+        state.progressiveSkillRouteCoordinatorError = String(
+          error.code || error.message || 'SKILL_ROUTE_COORDINATOR_FAILED'
+        )
       }
     }
 

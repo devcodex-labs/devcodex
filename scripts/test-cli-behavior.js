@@ -559,6 +559,54 @@ function testInitBootstrapsWorkspaceProfileAndOneNamedProject() {
   fs.rmSync(ambiguousRoot, { recursive: true, force: true })
 }
 
+function testExplicitProfileTargetsAndDryRunStayPhysicalAndZeroWrite() {
+  const dryRunRoot = createTempRoot('devcodex-cli-explicit-target-dry-')
+  writeFile(dryRunRoot, 'docs/package.json', '{ "name": "docs" }\n')
+  writeFile(dryRunRoot, 'clients/acme/api/package.json', '{ "name": "deep-api" }\n')
+  writeFile(dryRunRoot, 'dist/fake/package.json', '{ "name": "derived-fake" }\n')
+  const before = walk(dryRunRoot).map(file => path.relative(dryRunRoot, file)).sort()
+  const dry = JSON.parse(runCli(['init', '--profile', 'docs', '--dry-run', '--json'], dryRunRoot))
+  const after = walk(dryRunRoot).map(file => path.relative(dryRunRoot, file)).sort()
+  assert.deepStrictEqual(after, before, 'targeted dry-run must not create layout, Profile, backup, or runtime files')
+  assert.strictEqual(dry.payload.projectProfile.namespace, 'docs')
+  assert.ok(dry.payload.projectProfile.actions.length > 0)
+  assert.ok(dry.payload.projectProfile.actions.every(item =>
+    path.resolve(item.dest).startsWith(path.join(dryRunRoot, '.devcodex', 'docs', 'profile') + path.sep)
+  ), 'targeted dry-run actions must use the future workspace namespace path')
+
+  const deep = JSON.parse(runCli(['init', '--profile', 'clients/acme/api', '--json'], dryRunRoot))
+  assert.strictEqual(deep.payload.projectProfile.namespace, 'clients/acme/api')
+  assert.ok(fs.existsSync(path.join(dryRunRoot, '.devcodex', 'clients', 'acme', 'api', 'profile', 'README.md')))
+  assert.ok(!fs.existsSync(path.join(dryRunRoot, 'clients', 'acme', 'api', '.devcodex')), 'project-local legacy runtime must not be written')
+  fs.rmSync(dryRunRoot, { recursive: true, force: true })
+
+  const containerRoot = createTempRoot('devcodex-cli-explicit-container-')
+  writeFile(containerRoot, 'apps/package.json', '{ "name": "apps-project" }\n')
+  const container = JSON.parse(runCli(['init', '--profile', 'apps', '--json'], containerRoot))
+  assert.strictEqual(container.payload.projectProfile.namespace, 'apps')
+  assert.ok(fs.existsSync(path.join(containerRoot, '.devcodex', 'apps', 'profile', 'README.md')))
+  fs.rmSync(containerRoot, { recursive: true, force: true })
+
+  const derivedRoot = createTempRoot('devcodex-cli-derived-target-')
+  writeFile(derivedRoot, 'dist/fake/package.json', '{ "name": "derived-fake" }\n')
+  const derived = JSON.parse(runCliFailure(['init', '--profile', 'fake', '--json'], derivedRoot))
+  assert.strictEqual(derived.errorCode, 'PROFILE_TARGET_NOT_FOUND')
+  assert.deepStrictEqual(derived.details.candidates, [])
+  assert.ok(!fs.existsSync(path.join(derivedRoot, '.devcodex')))
+  fs.rmSync(derivedRoot, { recursive: true, force: true })
+
+  const runtimeOnlyRoot = createTempRoot('devcodex-cli-runtime-only-target-')
+  writeFile(runtimeOnlyRoot, '.devcodex/history/profile/README.md', '# historical runtime only\n')
+  const runtimeOnly = JSON.parse(runCliFailure(['init', '--profile', 'history', '--json'], runtimeOnlyRoot))
+  assert.strictEqual(runtimeOnly.errorCode, 'PROFILE_TARGET_NOT_FOUND')
+  assert.ok(!fs.existsSync(path.join(runtimeOnlyRoot, '.devcodex', 'layout.json')))
+  assert.strictEqual(
+    fs.readFileSync(path.join(runtimeOnlyRoot, '.devcodex', 'history', 'profile', 'README.md'), 'utf8'),
+    '# historical runtime only\n'
+  )
+  fs.rmSync(runtimeOnlyRoot, { recursive: true, force: true })
+}
+
 function testDefaultInitLayoutOwnershipGuards() {
   const dryRunRoot = createTempRoot('devcodex-cli-runtime-dry-')
   writeFile(dryRunRoot, 'package.json', '{ "name": "tmp-runtime-dry" }\n')
@@ -1110,18 +1158,30 @@ function testCodexMcpPreventionNegatives() {
   fs.rmSync(badRoot, { recursive: true, force: true })
 }
 
+function testInitHelpMatchesZeroWriteTargetContract() {
+  const root = createTempRoot('devcodex-cli-init-help-')
+  const output = runCli(['help', 'init'], root)
+  assert.match(output, /existing physical project/)
+  assert.match(output, /unique name or workspace-relative namespace/)
+  assert.match(output, /--dry-run writes nothing/)
+  assert.strictEqual(fs.existsSync(path.join(root, '.devcodex')), false, 'read-only init help must not create workspace state')
+  fs.rmSync(root, { recursive: true, force: true })
+}
+
 function main() {
   testDoctorAvoidsCodexBiasInMixedHostRepo()
   testDoctorHonorsExplicitAgentBeforeAmbientHints()
   testMachineReadableDiagnosticsAndStableErrors()
   testDefaultInitBootstrapsActiveRootData()
   testInitBootstrapsWorkspaceProfileAndOneNamedProject()
+  testExplicitProfileTargetsAndDryRunStayPhysicalAndZeroWrite()
   testDefaultInitLayoutOwnershipGuards()
   testUpdateNeverCreatesOrUpgradesProfiles()
   testRuntimeStatusAndPruneAreBounded()
   testTenantSelectionIsExplicit()
   testGlobalOnlyHostSelectorsFailClosed()
   testCodexMcpPreventionNegatives()
+  testInitHelpMatchesZeroWriteTargetContract()
   testProfileInitUsesNestedNamespaceRoot()
   testProfileInitAndStatusShareTierContract()
   testProfilePlanAndTierTransitionsAreSafe()

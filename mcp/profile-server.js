@@ -1172,7 +1172,7 @@ function handleProfileContextPlan(args = {}) {
       'CONTEXT_PLAN_INVALID',
       message,
       profileMissing
-        ? 'Run devcodex init in the workspace root, then run devcodex profile plan --tier profile-lite and devcodex profile init --tier profile-lite for the active workspace/project. After that, open a new host session and retry.'
+        ? 'Run devcodex init in the workspace root. After initialization completes, open a new host session and retry.'
         : 'Repair the Profile README/config baseline and retry once.'
     ))
   }
@@ -1374,17 +1374,15 @@ function handleProfileLoad(args = {}) {
     sectionReceipts,
     contextBinding
   }
-  const metaBlock = `<!-- profile_load_budget ${JSON.stringify(meta)} -->\n\n`
   if (meta.truncated) {
     text = `⚠️ profile_load 边界预算生效：已加载 ${loaded.length} 文件 / ${usedBytes} bytes（maxFiles=${maxFiles}, maxBytes=${maxBytes}）。待补读：${meta.deferredFiles.join('、') || 'section query'}。正文未在段落中间截断；请按 receipt 补读 deferred section 或整文件。\n\n---\n\n` + text
   }
   if (missing.length > 0) {
     text = `⚠️ 必需 Profile 文件缺失，AI 将以保守降级模式运行：${missing.join('、')}\n\n---\n\n` + text
   }
-  text = metaBlock + text
-
+  let contextObservation
   try {
-    recordMcpContextSourceObservations({
+    contextObservation = recordMcpContextSourceObservations({
       activeRoot: contextBinding.activeRoot,
       project: contextBinding.project,
       workspaceNamespace: LAYOUT.enabled,
@@ -1416,10 +1414,24 @@ function handleProfileLoad(args = {}) {
         }
       })
     })
-  } catch {
-    // Context-source observation is a best-effort runtime bridge for MCP-only hosts;
-    // the profile_load response remains the source of truth for the caller.
+  } catch (error) {
+    contextObservation = {
+      status: 'degraded',
+      errorCode: error.code || 'CONTEXT_SOURCE_OBSERVATION_FAILED',
+      message: error.message
+    }
   }
+  meta.contextObservation = {
+    schemaVersion: 'ContextSourceObservationWriteReceiptV1',
+    status: contextObservation?.status || 'degraded',
+    errorCode: contextObservation?.errorCode || null,
+    ledgerStatus: contextObservation?.ledgerStatus || null,
+    lifecycleStatus: contextObservation?.lifecycleStatus || null,
+    receiptStatus: contextObservation?.receiptStatus || null,
+    satisfiedSourceIds: (contextObservation?.satisfiedSourceIds || []).slice(0, 20),
+    missingSourceIds: (contextObservation?.missingSourceIds || []).slice(0, 20)
+  }
+  text = `<!-- profile_load_budget ${JSON.stringify(meta)} -->\n\n` + text
 
   return {
     content: [{

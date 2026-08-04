@@ -427,7 +427,7 @@ function buildCliMaintenanceCommands(ctx) {
     if (profile.error) profileLabel = c.red(`invalid   (${profile.error})`)
     else if (profile.complete) profileLabel = c.green(`complete  (${profile.tier}; ${profileDetails})`)
     else if (profile.present > 0) profileLabel = c.yellow(`partial   (${profile.tier}; ${profileDetails})`)
-    else profileLabel = c.red(`missing   (${profileDetails} — run: devcodex profile plan --tier profile-lite && devcodex profile init --tier profile-lite)`)
+    else profileLabel = c.red(`missing   (${profileDetails} — run: devcodex init)`)
     console.log(`  ${c.cyan('profile'.padEnd(14))} ${profileLabel}`)
     console.log(`  ${c.cyan('optimization'.padEnd(14))} ${executionOptimization.config.effective} (${executionOptimization.stateStatus}; ${executionOptimization.features.filter(item => item.decision.optimizationAllowed).length}/${executionOptimization.features.length} accelerated)`)
     console.log(`  ${c.cyan('governance'.padEnd(14))} ${formatGovernanceSummary(governanceSummary)}`)
@@ -542,7 +542,9 @@ function buildCliMaintenanceCommands(ctx) {
       return { ok: false, reason: 'invalid-arguments' }
     }
     const cwd = runtimeOptions.cwdOverride ? path.resolve(runtimeOptions.cwdOverride) : process.cwd()
-    const dir = path.join(resolveActiveRuntimeRoot(cwd), 'profile')
+    const dir = runtimeOptions.profileDirOverride
+      ? path.resolve(runtimeOptions.profileDirOverride)
+      : path.join(resolveActiveRuntimeRoot(cwd), 'profile')
     const ctx = buildProfileContext(cwd)
     let detectedTier
     try {
@@ -905,7 +907,7 @@ function buildCliMaintenanceCommands(ctx) {
       ? c.red(`❌ invalid — ${profileState.error}`)
       : (hasProfile
           ? c.green(`✅ ${profileState.tier}`)
-          : c.yellow(`⚠️  incomplete ${profileState.tier} — run \`devcodex profile init --tier ${profileState.tier}\``))
+          : c.yellow(`⚠️  incomplete ${profileState.tier} — run \`devcodex init\``))
     console.log(`    profile (${path.relative(cwd, profileDir) || '.devcodex/profile'}) ${profileDiagnostic}`)
     console.log()
 
@@ -1030,7 +1032,7 @@ function buildCliMaintenanceCommands(ctx) {
       : (topicInput ? [String(topicInput).trim()] : [])
     const topic = topicParts[0] || null
     const detail = {
-      init: ['devcodex init [--profile <project>] [--dry-run]', 'Initialize the current workspace .devcodex state and Profile baseline.'],
+      init: ['devcodex init [--profile <project>] [--dry-run]', 'Initialize the current workspace and Profile baseline. --profile selects an existing physical project by unique name or workspace-relative namespace; --dry-run writes nothing.'],
       update: ['devcodex update [--dry-run]', 'Refresh only the current workspace .devcodex runtime state.'],
       status: ['devcodex status [--completion] [--json]', 'Show workspace and user-global adapter readiness.'],
       doctor: ['devcodex doctor [--completion] [--json]', 'Diagnose adapter, native host and workflow readiness.'],

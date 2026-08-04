@@ -173,7 +173,7 @@ function buildLifecyclePayloadUtils({ fs, path, payloadPreviewLimit, transcriptT
 
   function getCommandText(payload) {
     const input = payload.tool_input || payload.toolInput || {}
-    return [input.command, input.commandLine, input.text, input.script]
+    return [input.command, input.cmd, input.commandLine, input.text, input.script]
       .filter(v => typeof v === 'string')
       .join('\n')
   }

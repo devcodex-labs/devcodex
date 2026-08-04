@@ -91,7 +91,31 @@ function run() {
     const manifest = readValidationManifest(MANIFEST_PATH)
     assert.ok(manifest.nodes.length >= 56, 'canonical manifest unexpectedly lost validation nodes')
     assert.ok(manifest.criticalInputs.includes('content/**'))
+    assert.ok(manifest.criticalInputs.includes('hooks/_runtime/evidence/*.json'))
     assert.ok(!manifest.criticalInputs.includes('content-source/**'))
+    const packageReleaseNodes = new Set(manifest.routes['package-release'].nodes)
+    for (const required of [
+      'cli-behavior',
+      'task-continuation',
+      'context-read',
+      'context-binding',
+      'context-read-controls',
+      'hooks-runtime',
+      'mcp-servers',
+      'memory-index',
+      'report-index',
+      'profile-governance',
+      'skill-route-contracts',
+      'skill-route-state',
+      'skill-route-lifecycle',
+      'skill-route-closure'
+    ]) {
+      assert(packageReleaseNodes.has(required), `package-release missing F1-F14 gate: ${required}`)
+    }
+    const reportIndexNode = manifest.nodes.find(node => node.id === 'report-index')
+    assert.strictEqual(reportIndexNode.owner, 'report-maintenance-preview')
+    assert.deepStrictEqual(reportIndexNode.consumers, [])
+    assert(reportIndexNode.invariants.includes('maintenance-preview-only'))
     const controlContentNode = manifest.nodes.find(node => node.id === 'control-content-source')
     assert.ok(controlContentNode, 'control-content-source node missing')
     assert.ok(controlContentNode.inputs.includes('content/**'))
@@ -298,6 +322,38 @@ function run() {
     })
     for (const required of ['profile-section-selector', 'context-read-controls', 'mcp-servers']) {
       assert(profileSelectorChanged.selectedNodes.some(node => node.id === required), 'Profile selector closure missing ' + required)
+    }
+
+    const capabilityEvidenceChanged = planValidation({
+      manifest,
+      route: 'changed',
+      changedFiles: ['hooks/_runtime/evidence/codex-skill-route-pass.v1.json'],
+      changedSource: 'explicit',
+      riskClass: 'high',
+      candidateStable: true,
+      candidateId: 'fixture-capability-evidence'
+    })
+    for (const required of ['skill-route-contracts', 'skill-route-lifecycle', 'skill-route-closure']) {
+      assert(
+        capabilityEvidenceChanged.selectedNodes.some(node => node.id === required),
+        `portable capability evidence closure missing ${required}`
+      )
+    }
+
+    const memoryServerChanged = planValidation({
+      manifest,
+      route: 'changed',
+      changedFiles: ['mcp/memory-server.js'],
+      changedSource: 'explicit',
+      riskClass: 'high',
+      candidateStable: true,
+      candidateId: 'fixture-memory-trust-state'
+    })
+    for (const required of ['memory-index', 'mcp-servers', 'context-read']) {
+      assert(
+        memoryServerChanged.selectedNodes.some(node => node.id === required),
+        `memory trust/coverage closure missing ${required}`
+      )
     }
 
     const attemptChanged = planValidation({

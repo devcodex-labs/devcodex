@@ -46,7 +46,7 @@ const CONTEXT_READ_CONTRACT = Object.freeze({
   risks: Object.freeze(['normal', 'high', 'critical']),
   actionClasses: Object.freeze([
     'context-read', 'analysis-read', 'test-execution', 'docs-mutation',
-    'source-mutation', 'release', 'dangerous'
+    'source-mutation', 'workflow-closeout', 'release', 'dangerous'
   ]),
   verificationModes: Object.freeze(['structured-plan', 'path-observable', 'instruction-only']),
   receiptStatuses: Object.freeze([
@@ -702,7 +702,10 @@ function selectProfilePrefixes(intent, changeTypes) {
 
 function deriveActionEnvelope(intent, changeTypes, riskHint) {
   const allowed = new Set(['context-read', 'analysis-read'])
-  if (intent !== 'chat') allowed.add('test-execution')
+  if (intent !== 'chat') {
+    allowed.add('test-execution')
+    allowed.add('workflow-closeout')
+  }
   const mutationIntent = ['dev', 'fix', 'self-fix', 'other'].includes(intent)
   const docsMutation = mutationIntent && changeTypes.some(item => ['docs', 'public-contract'].includes(item))
   const sourceMutation = mutationIntent &&
@@ -713,7 +716,7 @@ function deriveActionEnvelope(intent, changeTypes, riskHint) {
   if (changeTypes.includes('destructive')) allowed.add('dangerous')
   return {
     allowedActionClasses: [...allowed].sort(),
-    mutationExpected: allowed.has('docs-mutation') || allowed.has('source-mutation') || allowed.has('release') || allowed.has('dangerous'),
+    mutationExpected: allowed.has('docs-mutation') || allowed.has('source-mutation') || allowed.has('workflow-closeout') || allowed.has('release') || allowed.has('dangerous'),
     riskCeiling: riskHint
   }
 }
@@ -1162,8 +1165,10 @@ function outcomePayload(raw, path = 'root', depth = 0) {
       : { payload: raw, variant: path, observable: raw.length > 0 }
   }
   if (typeof raw !== 'object') return { payload: raw, variant: path, observable: true }
-  const localFailed = raw.success === false || raw.is_error === true || raw.isError === true || !!raw.error
-  const localError = localFailed ? String(raw.error?.message || raw.error || 'tool outcome failed') : null
+  const localFailed = raw.success === false || raw.ok === false || raw.is_error === true || raw.isError === true || !!raw.error
+  const localError = localFailed
+    ? String(raw.errorCode || raw.error?.message || raw.error || 'tool outcome failed')
+    : null
   if ([CONTEXT_READ_CONTRACT.schemas.plan, CONTEXT_READ_CONTRACT.schemas.planV1].includes(raw.schemaVersion) ||
       /^Memory.+V1$/.test(String(raw.schemaVersion || ''))) {
     return { payload: raw, variant: path, observable: true, failed: localFailed, error: localError }
@@ -1186,7 +1191,15 @@ function outcomePayload(raw, path = 'root', depth = 0) {
 function normalizeContextToolOutcome(raw = {}) {
   const extracted = outcomePayload(raw)
   const source = raw && typeof raw === 'object' ? raw : {}
-  const failed = source.success === false || source.is_error === true || source.isError === true || !!source.error || extracted.failed === true
+  const semantic = parseExactJson(extracted.payload) ||
+    (extracted.payload && typeof extracted.payload === 'object' && !Array.isArray(extracted.payload)
+      ? extracted.payload
+      : {})
+  const failed = source.success === false || source.ok === false ||
+    source.is_error === true || source.isError === true || !!source.error ||
+    semantic.ok === false || semantic.success === false ||
+    semantic.is_error === true || semantic.isError === true || !!semantic.error ||
+    extracted.failed === true
   let serialized = ''
   if (extracted.observable) {
     try {
@@ -1207,7 +1220,19 @@ function normalizeContextToolOutcome(raw = {}) {
     payload: extracted.payload,
     text: typeof extracted.payload === 'string' ? extracted.payload : serialized,
     resultDigest: extracted.observable ? stableDigest(extracted.payload) : null,
-    error: failed ? String(source.error?.message || source.error || extracted.error || 'tool outcome failed') : null,
+    ok: typeof semantic.ok === 'boolean'
+      ? semantic.ok
+      : (typeof source.ok === 'boolean' ? source.ok : null),
+    errorCode: String(semantic.errorCode || source.errorCode || '') || null,
+    stateChanged: typeof semantic.stateChanged === 'boolean'
+      ? semantic.stateChanged
+      : (typeof source.stateChanged === 'boolean' ? source.stateChanged : null),
+    error: failed
+      ? String(
+          semantic.errorCode || source.errorCode || semantic.error?.message || semantic.error ||
+          source.error?.message || source.error || extracted.error || 'tool outcome failed'
+        )
+      : null,
     telemetry
   }
 }

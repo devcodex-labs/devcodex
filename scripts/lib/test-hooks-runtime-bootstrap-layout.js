@@ -3,6 +3,9 @@
 const {
   contextPlanObservationRelativePath
 } = require('../../hooks/_runtime/context-plan-observation.cjs')
+const {
+  buildJsonContentIdentity
+} = require('../../hooks/_runtime/content-identity.cjs')
 const { resolveRuntimeStateRoot } = require('../../hooks/_runtime/workspace-layout.cjs')
 
 function runHooksRuntimeBootstrapLayoutScenarios(context) {
@@ -82,14 +85,31 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
 
   function observeMemoryStatus(callId = 'memory-status-call', resultOverrides = {}) {
     const state = readLegacyState()
-    const args = { agent: TEST_AGENT, project: state.contextAcquisition.project }
+    const contextBinding = {
+      schemaVersion: 'ContextReadBindingV1',
+      contextEpoch: state.contextAcquisition.contextEpoch,
+      planId: state.contextAcquisition.plan.planId,
+      planContentId: state.contextAcquisition.plan.planContentId,
+      activeRoot: state.contextAcquisition.activeRoot,
+      project: state.contextAcquisition.project
+    }
+    const responseContextBinding = {
+      ...contextBinding,
+      bindingStatus: 'verified',
+      verificationMode: 'request-bound'
+    }
+    const args = { agent: TEST_AGENT, project: state.contextAcquisition.project, contextBinding }
     run({
       hookEventName: 'PreToolUse',
       tool_use_id: callId,
       tool_name: 'devcodex-memory/memory_status',
       tool_input: args
     })
-    const result = {
+    const operational = new Set(['contentIdentity', 'contextObservation', 'telemetry'])
+    const projectionOverrides = Object.fromEntries(
+      Object.entries(resultOverrides).filter(([key]) => !operational.has(key))
+    )
+    const projection = {
       schemaVersion: 'MemoryStatusV1',
       activeRoot: state.contextAcquisition.activeRoot,
       project: state.contextAcquisition.project,
@@ -100,8 +120,25 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
       latestRows: [],
       activeSessionIds: [],
       conflicts: [],
-      telemetry: { bytes: 0, chars: 0, latencyMs: 0, tokens: null },
-      ...resultOverrides
+      contextBinding: responseContextBinding,
+      ...projectionOverrides
+    }
+    const contentIdentity = buildJsonContentIdentity({
+      sourceKey: `memory://${state.contextAcquisition.project}/memory_status#delivered`,
+      value: projection,
+      contractVersion: 'MemoryStatusV1'
+    }).identity
+    const result = {
+      ...projection,
+      contentIdentity: resultOverrides.contentIdentity || contentIdentity,
+      contextObservation: resultOverrides.contextObservation || {
+        schemaVersion: 'ContextSourceObservationWriteReceiptV1',
+        status: 'persisted',
+        receiptStatus: 'relevant-complete',
+        satisfiedSourceIds: state.contextAcquisition.plan.mandatorySourceIds,
+        missingSourceIds: []
+      },
+      telemetry: resultOverrides.telemetry || { bytes: 0, chars: 0, latencyMs: 0, tokens: null }
     }
     run({
       hookEventName: 'PostToolUse',
@@ -686,6 +723,35 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
   let compatibleState = readLegacyState()
   assert.strictEqual(compatibleState.contextAcquisition.planCallCount, planCountBeforeCompatibleRead)
   assert.strictEqual(compatibleState.contextAcquisition.receipt.status, 'relevant-complete')
+
+  run({
+    hookEventName: 'PreToolUse',
+    tool_use_id: 'codex-composite-read',
+    tool_name: 'exec_command',
+    tool_input: {
+      cmd: 'rg -n "ContextRead" hooks/_runtime | Select-Object -First 20; git status --short'
+    }
+  })
+  const compositeReadState = readLegacyState()
+  assert.notStrictEqual(
+    compositeReadState.contextAcquisition.receipt.status,
+    'stale',
+    'bounded composite Codex read commands must remain analysis-read'
+  )
+
+  const closeoutReport = path.join(TEMP_ROOT, '.devcodex', 'reports', 'context-closeout.md')
+  run({
+    hookEventName: 'PostToolUse',
+    tool_use_id: 'workflow-closeout-write',
+    tool_name: 'Write',
+    tool_input: { file_path: closeoutReport, content: '# Closeout\n' },
+    success: true,
+    tool_response: { content: [{ type: 'text', text: 'updated' }] }
+  })
+  const closeoutState = readLegacyState()
+  assert.strictEqual(closeoutState.contextAcquisition.receipt.status, 'relevant-complete')
+  assert.strictEqual(closeoutState.contextAcquisition.sourceRefreshPending.required, true)
+  assert.strictEqual(closeoutState.contextAcquisition.sourceRefreshPending.actionClass, 'workflow-closeout')
 
   const selectedProfilePath = compatibleState.contextAcquisition.plan.selectedSources
     .find(source => source.sourceId === 'profile:01-项目信息.md').sourceRefs[0].path

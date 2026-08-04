@@ -284,11 +284,11 @@ function normalizeSourceResult(raw, plan, binding, target, hostSessionId, fsImpl
     bytes: raw.bytes ?? null,
     chars: raw.chars ?? null
   }))
-  const effectiveHostSessionId = Object.prototype.hasOwnProperty.call(raw, 'hostSessionId')
-    ? String(raw.hostSessionId || '')
-    : String(hostSessionId || '')
+  const rawHostSessionId = String(raw.hostSessionId || '')
+  const effectiveHostSessionId = String(rawHostSessionId || hostSessionId || '')
+  const carrierAdopted = !rawHostSessionId && !!effectiveHostSessionId
   return {
-    observationId: String(raw.observationId || `mcp-${stableDigest({
+    observationId: String((carrierAdopted ? '' : raw.observationId) || `mcp-${stableDigest({
       sourceId,
       resultDigest,
       contextEpoch: binding.contextEpoch,
@@ -376,14 +376,36 @@ function readMcpContextSourceObservations(input = {}, options = {}) {
 }
 
 function replayMcpContextSourceObservations(receipt, plan, input = {}, options = {}) {
-  if (!receipt || ['stale', 'blocked'].includes(receipt.status)) {
+  if (!receipt || receipt.status === 'blocked') {
     return { status: 'skipped', reasonCode: `receipt-${receipt?.status || 'missing'}`, receipt }
+  }
+  let baseReceipt = receipt
+  if (receipt.status === 'stale') {
+    const lastEscalation = Array.isArray(receipt.escalations)
+      ? receipt.escalations[receipt.escalations.length - 1]
+      : null
+    const staleReason = String(lastEscalation?.reason || lastEscalation?.trigger || '')
+    const recoverableReasons = new Set([
+      'projection-drift',
+      'writer-drift',
+      'observation-orphaned',
+      'observation-write-failed',
+      'delivery-unobserved'
+    ])
+    if (!recoverableReasons.has(staleReason)) {
+      return { status: 'skipped', reasonCode: `receipt-stale-${staleReason || 'unknown'}`, receipt }
+    }
+    baseReceipt = createContextReadReceipt(plan, {
+      verificationMode: 'structured-plan',
+      planObserved: true,
+      hostSessionId: String(input.hostSessionId || '')
+    })
   }
   const durable = readMcpContextSourceObservations({ ...input, plan }, options)
   if (durable.status !== 'fresh' || !durable.sourceResults.length) {
     return { ...durable, receipt }
   }
-  let nextReceipt = receipt
+  let nextReceipt = baseReceipt
   for (const result of durable.sourceResults) {
     nextReceipt = recordContextReadOutcome(nextReceipt, plan, result, {
       hostSessionId: input.hostSessionId,
@@ -392,6 +414,7 @@ function replayMcpContextSourceObservations(receipt, plan, input = {}, options =
   }
   return {
     status: 'replayed',
+    recoveredFrom: receipt.status === 'stale' ? 'recoverable-stale' : 'current-receipt',
     receipt: nextReceipt,
     sourceResults: durable.sourceResults,
     filePath: durable.filePath,

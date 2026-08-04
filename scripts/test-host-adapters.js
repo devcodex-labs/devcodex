@@ -2,7 +2,11 @@
 'use strict'
 
 const assert = require('assert')
+const fs = require('fs')
 const grokHooks = require('../grok/hooks/devcodex.json')
+const {
+  buildPrompt: buildS15HostPrompt
+} = require('./probe-skill-route-s15-host')
 const {
   parseContextToolIdentity
 } = require('../hooks/_runtime/lifecycle-bootstrap-state.cjs')
@@ -34,6 +38,25 @@ assert.strictEqual(cliOverrideEnv.DEVCODEX_CONTEXT_EPOCH_SOURCE, 'host-adapter-c
 assert.strictEqual(cliOverrideEnv.DEVCODEX_HOST_EVENT, 'userPromptTransformed')
 
 assert.deepStrictEqual(Object.keys(EVENT_MAP).sort(), ['claude', 'codex', 'copilot', 'gemini', 'grok'])
+const hostProbePrompt = buildS15HostPrompt({
+  contextEpoch: 'ctx-prompt-contract',
+  hostId: 'codex',
+  project: 's15-codex',
+  skillId: 'workspace-s15-probe'
+})
+assert.match(
+  hostProbePrompt,
+  /For entryBodyDigest, copy only the bodyDigest from the loaded bodyChunks item whose skillId is workspace-s15-probe;/
+)
+const grokProbeSource = fs.readFileSync(
+  require.resolve('./probe-skill-route-s15-grok'),
+  'utf8'
+)
+assert.match(
+  grokProbeSource,
+  /For entryBodyDigest, copy only the bodyDigest from the loaded bodyChunks item whose skillId is \$\{skillId\};/
+)
+assert.doesNotMatch(grokProbeSource, /and entry bodyDigest from Tool results/)
 assert.deepStrictEqual(
   parseContextToolIdentity('mcp__devcodex_profile__profile_context_plan'),
   {
@@ -156,7 +179,10 @@ for (const [host, eventName] of [
   for (const prompt of [
     'Progressive Skill route is incomplete: PLAN_NOT_COMMITTED.',
     'Progressive Skill route context is stale; refresh ContextRead and call skill_route rebind before loading pending stages: closeout.',
-    'Progressive Skill route stages remain pending: closeout.'
+    'Progressive Skill route stages remain pending: closeout.',
+    'Progressive Skill route requires completion before unrelated work. Use the exact NextActionEnvelopeV1 below.',
+    'Progressive Skill route requires satisfy_business before unrelated work. Use the exact NextActionEnvelopeV1 below.',
+    'Progressive Skill route made no durable progress after 3 reconciliation attempts. Keep the route blocked and execute the exact NextActionEnvelopeV1 recovery; do not replay an older hook instruction.'
   ]) {
     const normalized = normalizeHostPayload(host, {
       hookEventName: eventName,
@@ -171,15 +197,21 @@ for (const [host, eventName] of [
   }
 }
 
-const pastedRouteText = normalizeHostPayload('codex', {
-  hookEventName: 'UserPromptSubmit',
-  prompt: 'Progressive Skill route stages remain pending: closeout.'
-})
-assert.notStrictEqual(
-  pastedRouteText.payload.devcodex_host_continuation,
-  true,
-  'ordinary user-pasted text without a hook carrier must remain a user message'
-)
+for (const prompt of [
+  'Progressive Skill route stages remain pending: closeout.',
+  'Progressive Skill route requires completion before unrelated work. Use the exact NextActionEnvelopeV1 below.',
+  'Progressive Skill route made no durable progress after 3 reconciliation attempts. Keep the route blocked and execute the exact NextActionEnvelopeV1 recovery; do not replay an older hook instruction.'
+]) {
+  const pastedRouteText = normalizeHostPayload('codex', {
+    hookEventName: 'UserPromptSubmit',
+    prompt
+  })
+  assert.notStrictEqual(
+    pastedRouteText.payload.devcodex_host_continuation,
+    true,
+    'ordinary user-pasted text without a hook carrier must remain a user message'
+  )
+}
 
 const structuredContinuation = normalizeHostPayload('codex', {
   hookEventName: 'UserPromptSubmit',

@@ -1226,7 +1226,7 @@ function evaluateCurrentProgressiveSkillRoute (state, payload, platform, trigger
     routeStop,
     explicitRoutePending
   )
-  const effectiveRouteStop = enforce
+  const effectiveRouteStop = (enforce || routeStop?.retired === true)
     ? routeStop
     : {
         ...routeStop,

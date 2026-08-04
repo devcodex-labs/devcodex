@@ -1687,6 +1687,101 @@ function handleStatus (input, target, options) {
   return finalizeResponse(response, 16 * 1024)
 }
 
+const ROUTE_RETIREMENT_IDENTITY_ERRORS = new Set([
+  'PROJECT_BINDING_MISMATCH',
+  'CONTEXT_BINDING_MISMATCH',
+  'MODE_CAPABILITY_STALE',
+  'RUNTIME_CONTRACT_STALE',
+  'TURN_EXPIRED'
+])
+
+const TRUSTED_BUSINESS_RETIREMENT_ERRORS = new Set([
+  'MODE_CAPABILITY_STALE',
+  'RUNTIME_CONTRACT_STALE'
+])
+
+/**
+ * Summarize immutable process obligations and the selected business reply for
+ * Stop evaluation without mutating the durable route envelope.
+ *
+ * @param {object} state persisted route state
+ * @param {object} input lifecycle Stop input
+ * @param {object} [options] trust controls for a misbound envelope
+ * @returns {{pendingStageIds: string[], business: object|null, businessSatisfied: boolean}}
+ */
+function summarizeStopObligations (state, input, options = {}) {
+  const requiredStageIds = state.obligationLedger?.requiredStageIds || []
+  const stageProgress = state.stageProgress || {}
+  const pendingStageIds = requiredStageIds.filter(stageId =>
+    stageProgress[stageId]?.status !== 'loaded'
+  )
+  const business = options.trustBusiness === false
+    ? null
+    : (state.obligationLedger?.items?.find(item =>
+        item.skillId === state.obligationLedger.selectedBusinessSkillId
+      ) || null)
+  const mustReplyCore = String(business?.mustReplyCore || '')
+  const businessSatisfied = !business || (
+    mustReplyCore.length > 0 &&
+    String(input.assistantText || '').includes(mustReplyCore)
+  )
+  return { pendingStageIds, business, businessSatisfied }
+}
+
+/**
+ * Project a route that cannot execute under the current identity as retired.
+ * Retirement preserves incomplete process evidence; it only ends obligations
+ * that no current-runtime operation can satisfy.
+ *
+ * @param {object} state persisted route state
+ * @param {object} input lifecycle Stop input
+ * @param {string} turnBinding active turn binding
+ * @param {Error} error binding failure
+ * @returns {object|null} retired Stop projection or null for other failures
+ */
+function buildRetiredRouteStop (state, input, turnBinding, error) {
+  const errorCode = error.code || 'SKILL_ROUTE_STOP_BINDING_FAILED'
+  if (!ROUTE_RETIREMENT_IDENTITY_ERRORS.has(errorCode)) return null
+  const trustBusiness = TRUSTED_BUSINESS_RETIREMENT_ERRORS.has(errorCode)
+  const { pendingStageIds, business, businessSatisfied } = summarizeStopObligations(
+    state,
+    input,
+    { trustBusiness }
+  )
+  const businessActionRequired = businessSatisfied === false
+  return {
+    schemaVersion: 'ProgressiveSkillRouteStopV1',
+    present: true,
+    complete: !businessActionRequired,
+    turnBinding,
+    contextEpoch: state.contextEpoch,
+    planDigest: state.plan?.planDigest || null,
+    processComplete: false,
+    retired: true,
+    retirementReason: errorCode,
+    completionDisposition: 'retired-stale-identity',
+    pendingStageIds,
+    selectedBusinessSkillId: business?.skillId || null,
+    mustReplyCore: business?.mustReplyCore || null,
+    businessSatisfied,
+    businessEvaluation: trustBusiness
+      ? 'trusted-bound-route'
+      : 'not-applicable-untrusted-route-identity',
+    errorCode,
+    nextOp: businessActionRequired ? 'satisfy_business' : null,
+    nextCall: null,
+    recovery: {
+      schemaVersion: 'SkillRouteRetirementRecoveryV1',
+      automatic: !businessActionRequired,
+      action: businessActionRequired
+        ? 'reply-selected-business-core'
+        : 'retire-and-allow-stop',
+      mustReplyCore: business?.mustReplyCore || null,
+      rebootstrapOnNextUserPrompt: true
+    }
+  }
+}
+
 function evaluateProgressiveSkillRouteStop (input, options = {}) {
   const target = resolveProjectTarget(
     options.inputRoot || input.cwd || process.cwd(),
@@ -1709,6 +1804,23 @@ function evaluateProgressiveSkillRouteStop (input, options = {}) {
         turnBinding
       }
     }
+    if (error.code === 'TURN_EXPIRED' && error.routeEnvelope?.state) {
+      const expiredState = error.routeEnvelope.state
+      const requestedHostSessionId = String(input.hostSessionId || '')
+      if (requestedHostSessionId &&
+          expiredState.hostSessionId &&
+          requestedHostSessionId !== expiredState.hostSessionId) {
+        return {
+          schemaVersion: 'ProgressiveSkillRouteStopV1',
+          present: false,
+          complete: true,
+          turnBinding,
+          ignoredReason: 'HOST_SESSION_MISMATCH'
+        }
+      }
+      const retired = buildRetiredRouteStop(expiredState, input, turnBinding, error)
+      if (retired) return retired
+    }
     return {
       schemaVersion: 'ProgressiveSkillRouteStopV1',
       present: true,
@@ -1718,32 +1830,6 @@ function evaluateProgressiveSkillRouteStop (input, options = {}) {
     }
   }
   const state = envelope.state
-  try {
-    assertEnvelopeBinding(state, {
-      project: target.project,
-      turnBinding,
-      contextEpoch: input.contextEpoch
-    }, target, options)
-  } catch (error) {
-    const requiredStageIds = state.obligationLedger?.requiredStageIds || []
-    const pendingStageIds = requiredStageIds.filter(stageId =>
-      state.stageProgress[stageId]?.status !== 'loaded'
-    )
-    return {
-      schemaVersion: 'ProgressiveSkillRouteStopV1',
-      present: true,
-      complete: false,
-      turnBinding,
-      contextEpoch: state.contextEpoch,
-      planDigest: state.plan?.planDigest || null,
-      processComplete: false,
-      pendingStageIds,
-      businessSatisfied: true,
-      errorCode: error.code || 'SKILL_ROUTE_STOP_BINDING_FAILED',
-      nextOp: null,
-      nextCall: null
-    }
-  }
   const requestedHostSessionId = String(input.hostSessionId || '')
   if (requestedHostSessionId &&
       state.hostSessionId &&
@@ -1756,15 +1842,41 @@ function evaluateProgressiveSkillRouteStop (input, options = {}) {
       ignoredReason: 'HOST_SESSION_MISMATCH'
     }
   }
-  const requiredStageIds = state.obligationLedger?.requiredStageIds || []
-  const pendingStageIds = requiredStageIds.filter(stageId =>
-    state.stageProgress[stageId]?.status !== 'loaded'
+  try {
+    assertEnvelopeBinding(state, {
+      project: target.project,
+      turnBinding,
+      contextEpoch: input.contextEpoch
+    }, target, options)
+  } catch (error) {
+    const retired = buildRetiredRouteStop(state, input, turnBinding, error)
+    if (retired) return retired
+    const { pendingStageIds, business, businessSatisfied } = summarizeStopObligations(
+      state,
+      input
+    )
+    return {
+      schemaVersion: 'ProgressiveSkillRouteStopV1',
+      present: true,
+      complete: false,
+      turnBinding,
+      contextEpoch: state.contextEpoch,
+      planDigest: state.plan?.planDigest || null,
+      processComplete: false,
+      pendingStageIds,
+      selectedBusinessSkillId: business?.skillId || null,
+      mustReplyCore: business?.mustReplyCore || null,
+      businessSatisfied,
+      errorCode: error.code || 'SKILL_ROUTE_STOP_BINDING_FAILED',
+      nextOp: null,
+      nextCall: null,
+      recovery: null
+    }
+  }
+  const { pendingStageIds, business, businessSatisfied } = summarizeStopObligations(
+    state,
+    input
   )
-  const business = state.obligationLedger?.items?.find(item =>
-    item.skillId === state.obligationLedger.selectedBusinessSkillId
-  ) || null
-  const businessSatisfied = !business ||
-    String(input.assistantText || '').includes(business.mustReplyCore)
   let contextErrorCode = null
   let contextRecovery = null
   if (state.plan && pendingStageIds.length) {
@@ -1828,20 +1940,17 @@ function evaluateProgressiveSkillRouteStop (input, options = {}) {
   }
 }
 
-const NON_RECOVERABLE_ROUTE_IDENTITY_ERRORS = new Set([
-  'MODE_CAPABILITY_STALE',
-  'RUNTIME_CONTRACT_STALE'
-])
-
 function shouldEnforceProgressiveSkillRouteStop (routeStop, explicitRoutePending) {
   if (!routeStop?.present || routeStop.complete) return false
+  if (routeStop.retired === true) {
+    return routeStop.businessSatisfied === false
+  }
   if (routeStop.errorCode === 'PLAN_NOT_COMMITTED') {
     return explicitRoutePending === true
   }
-  if (NON_RECOVERABLE_ROUTE_IDENTITY_ERRORS.has(routeStop.errorCode)) {
-    // Once a plan exists, its required stages are obligations regardless of
-    // whether selection was explicit or model-free. Runtime/capability drift
-    // must surface a recovery boundary instead of silently discarding them.
+  if (ROUTE_RETIREMENT_IDENTITY_ERRORS.has(routeStop.errorCode)) {
+    // Legacy projections without an explicit retirement disposition remain
+    // fail-closed. Only the current evaluator may retire a bound route.
     return Boolean(
       routeStop.planDigest ||
       (routeStop.pendingStageIds || []).length

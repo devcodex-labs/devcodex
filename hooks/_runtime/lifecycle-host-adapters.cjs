@@ -294,7 +294,7 @@ function normalizeGrokToolResult(value) {
   return output
 }
 
-const PROGRESSIVE_SKILL_ROUTE_CONTINUATION_RE = /^(?:<hook_prompt\b[^>]*>)?\s*Progressive Skill route (?:is incomplete:|context is stale;|stages remain pending:)/i
+const PROGRESSIVE_SKILL_ROUTE_CONTINUATION_RE = /^(?:<hook_prompt\b[^>]*>)?\s*Progressive Skill route (?:is incomplete:|context is stale;|stages remain pending:|requires [^\r\n]* before unrelated work\.|made no durable progress after \d+ reconciliation attempts\.)/i
 
 function progressiveSkillRouteContinuationMetadata (payload = {}) {
   const containers = [

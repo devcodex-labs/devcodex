@@ -507,7 +507,8 @@ function main () {
       'Immediately replan the same choice with previousPlanDigest and lateConditionId=test-validation.',
       'From the replanned result, load every page of every stage in dependency order: entry, execution:test-validation, then closeout.',
       'Call status and require processComplete=true with every required stage loaded.',
-      'Your final JSON must copy the context receipt status, catalogDigest/pageCount, selected skill, replanned planDigest/generation, loaded stage ids, processComplete, and entry bodyDigest from Tool results.',
+      'Your final JSON must copy the context receipt status, catalogDigest/pageCount, selected skill, replanned planDigest/generation, loaded stage ids, and processComplete from Tool results.',
+      `For entryBodyDigest, copy only the bodyDigest from the loaded bodyChunks item whose skillId is ${skillId}; never use a stage, page, chunk, selected-set, dependency Skill, or status digest.`,
       'Copy the exact marker line beginning S15_BODY_ from the loaded Skill body. Do not guess it.'
     ].join('\n')
     let modelRun

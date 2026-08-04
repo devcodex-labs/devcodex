@@ -7,9 +7,11 @@ const path = require('path')
 const { spawnSync } = require('child_process')
 
 const {
-  createSkillRouteFixture
+  createSkillRouteFixture,
+  writeContextBindingState
 } = require('./lib/skill-route-test-fixture')
 const {
+  handleSkillRoute,
   shouldEnforceProgressiveSkillRouteStop
 } = require('../hooks/_runtime/skill-route-tool.cjs')
 const {
@@ -114,6 +116,92 @@ function runLifecycle (fixture, payload = {}, env = {}, cwd = fixture.projectRoo
   })
   assert.strictEqual(progressed.progressObserved, true)
   assert.strictEqual(progressed.coordinator.noProgressCount, 0)
+}
+
+{
+  const exactRetiredRoute = {
+    present: true,
+    complete: true,
+    turnBinding: 'turn-retired-runtime',
+    contextEpoch: 'ctx-retired-runtime',
+    planDigest: 'plan-retired-runtime',
+    processComplete: false,
+    retired: true,
+    retirementReason: 'RUNTIME_CONTRACT_STALE',
+    completionDisposition: 'retired-stale-identity',
+    businessSatisfied: true,
+    errorCode: 'RUNTIME_CONTRACT_STALE',
+    pendingStageIds: ['closeout'],
+    nextOp: null,
+    nextCall: null,
+    recovery: {
+      schemaVersion: 'SkillRouteRetirementRecoveryV1',
+      automatic: true,
+      action: 'retire-and-allow-stop',
+      mustReplyCore: null,
+      rebootstrapOnNextUserPrompt: true
+    }
+  }
+  assert.strictEqual(
+    shouldEnforceProgressiveSkillRouteStop(exactRetiredRoute, true),
+    false,
+    'a retired route with satisfied business must not replay impossible stage work'
+  )
+  const retiredState = {
+    progressiveSkillRouteCoordinator: {
+      noProgressCount: 2,
+      stateFingerprint: 'prior-stale-fingerprint'
+    }
+  }
+  const retiredStop = reconcileProgressiveSkillRoute(retiredState, exactRetiredRoute, {
+    trigger: 'Stop',
+    sessionKey: 'session-retired-runtime',
+    payload: {},
+    requireBusiness: true
+  })
+  assert.strictEqual(retiredStop.required, false)
+  assert.strictEqual(retiredStop.allowAction, true)
+  assert.strictEqual(retiredStop.envelope.status, 'retired')
+  assert.strictEqual(retiredStop.envelope.processComplete, false)
+  assert.strictEqual(retiredStop.envelope.retired, true)
+  assert.deepStrictEqual(retiredStop.envelope.pendingStageIds, ['closeout'])
+  assert.strictEqual(retiredStop.coordinator.noProgressCount, 0)
+  assert.strictEqual(retiredStop.coordinator.lastAction, 'retired')
+
+  const businessPendingRoute = {
+    ...exactRetiredRoute,
+    complete: false,
+    businessSatisfied: false,
+    mustReplyCore: 'Deliver the selected business result.',
+    nextOp: 'satisfy_business',
+    recovery: {
+      ...exactRetiredRoute.recovery,
+      automatic: false,
+      action: 'reply-selected-business-core',
+      mustReplyCore: 'Deliver the selected business result.'
+    }
+  }
+  const preTool = reconcileProgressiveSkillRoute({}, businessPendingRoute, {
+    trigger: 'PreToolUse',
+    sessionKey: 'session-retired-business',
+    payload: { tool_name: 'exec_command', tool_input: { cmd: 'git status' } },
+    requireBusiness: false
+  })
+  assert.strictEqual(preTool.required, false, 'retired process work must not block PreToolUse')
+  const businessStop = reconcileProgressiveSkillRoute({}, businessPendingRoute, {
+    trigger: 'Stop',
+    sessionKey: 'session-retired-business',
+    payload: {},
+    requireBusiness: true
+  })
+  assert.strictEqual(businessStop.required, true)
+  assert.strictEqual(businessStop.envelope.status, 'action-required')
+  assert.strictEqual(businessStop.envelope.nextOp, 'satisfy_business')
+  assert.strictEqual(
+    businessStop.envelope.mustReplyCore,
+    'Deliver the selected business result.'
+  )
+  assert.strictEqual(businessStop.envelope.recovery.action, 'reply-selected-business-core')
 }
 
 {
@@ -258,6 +346,33 @@ function runLifecycle (fixture, payload = {}, env = {}, cwd = fixture.projectRoo
     assert.strictEqual(
       shouldEnforceProgressiveSkillRouteStop({
         present: true,
+        complete: true,
+        retired: true,
+        retirementReason: 'MODE_CAPABILITY_STALE',
+        errorCode: 'MODE_CAPABILITY_STALE',
+        planDigest: 'committed-plan',
+        processComplete: false,
+        pendingStageIds: ['closeout'],
+        businessSatisfied: true
+      }, true),
+      false
+    )
+    assert.strictEqual(
+      shouldEnforceProgressiveSkillRouteStop({
+        present: true,
+        complete: false,
+        retired: true,
+        retirementReason: 'MODE_CAPABILITY_STALE',
+        errorCode: 'MODE_CAPABILITY_STALE',
+        processComplete: false,
+        pendingStageIds: ['closeout'],
+        businessSatisfied: false
+      }, false),
+      true
+    )
+    assert.strictEqual(
+      shouldEnforceProgressiveSkillRouteStop({
+        present: true,
         complete: false,
         errorCode: 'MODE_CAPABILITY_STALE'
       }, true),
@@ -269,6 +384,37 @@ function runLifecycle (fixture, payload = {}, env = {}, cwd = fixture.projectRoo
       session_id: staleSession,
       prompt: 'Summarize the current implementation status'
     })
+    const staleBeforeCommit = JSON.parse(fs.readFileSync(sessionFile(staleSession), 'utf8'))
+    const staleBootstrap = staleBeforeCommit.progressiveSkillRoute.bootstrap
+    const staleContextBinding = writeContextBindingState(
+      fixture,
+      staleBeforeCommit.contextAcquisition.contextEpoch,
+      'analyze',
+      staleSession
+    )
+    let staleCatalogCursor = null
+    do {
+      const page = handleSkillRoute({
+        op: 'catalog',
+        project: fixture.project,
+        turnBinding: staleBootstrap.turnBinding,
+        contextEpoch: staleBootstrap.contextEpoch,
+        ...(staleCatalogCursor ? { cursor: staleCatalogCursor } : {})
+      }, fixture.runtimeOptions)
+      assert.strictEqual(page.ok, true, JSON.stringify(page))
+      staleCatalogCursor = page.receipt.nextCursor
+    } while (staleCatalogCursor)
+    const staleCommit = handleSkillRoute({
+      op: 'commit',
+      project: fixture.project,
+      turnBinding: staleBootstrap.turnBinding,
+      contextEpoch: staleBootstrap.contextEpoch,
+      catalogDigest: staleBootstrap.catalogDigest,
+      skillId: null,
+      contextBinding: staleContextBinding
+    }, fixture.runtimeOptions)
+    assert.strictEqual(staleCommit.ok, true, JSON.stringify(staleCommit))
+    assert(staleCommit.receipt.obligations.requiredStageIds.length > 0)
     const alternateSkillsRoot = path.join(fixture.root, 'alternate-skills')
     fs.mkdirSync(path.join(alternateSkillsRoot, '_schemas'), { recursive: true })
     fs.copyFileSync(
@@ -298,12 +444,42 @@ function runLifecycle (fixture, payload = {}, env = {}, cwd = fixture.projectRoo
       DEVCODEX_GLOBAL_SKILLS_RUNTIME: alternateSkillsRoot
     })
     assert.doesNotMatch(staleStop.text, /Progressive Skill route is incomplete/)
+    assert.doesNotMatch(staleStop.text, /Progressive Skill route requires/)
+    assert.doesNotMatch(staleStop.text, /NextActionEnvelopeV1/)
+    assert.notStrictEqual(staleStop.output.decision, 'block')
+    assert.notStrictEqual(staleStop.output.continue, false)
     const staleState = JSON.parse(fs.readFileSync(sessionFile(staleSession), 'utf8'))
     assert.strictEqual(
       staleState.progressiveSkillRouteStop.errorCode,
       'RUNTIME_CONTRACT_STALE'
     )
+    assert.strictEqual(staleState.progressiveSkillRouteStop.retired, true)
+    assert.strictEqual(staleState.progressiveSkillRouteStop.processComplete, false)
+    assert.strictEqual(staleState.progressiveSkillRouteStop.complete, true)
+    assert(staleState.progressiveSkillRouteStop.pendingStageIds.length > 0)
+    assert.strictEqual(
+      staleState.progressiveSkillRouteStop.completionDisposition,
+      'retired-stale-identity'
+    )
     assert.strictEqual(staleState.progressiveSkillRouteCoordinator.noProgressCount, 0)
+    assert.strictEqual(staleState.progressiveSkillRouteCoordinator.lastAction, 'retired')
+
+    const staleTurnBinding = staleState.progressiveSkillRouteStop.turnBinding
+    const staleContextEpoch = staleState.contextAcquisition.contextEpoch
+    runLifecycle(fixture, {
+      hookEventName: 'UserPromptSubmit',
+      session_id: staleSession,
+      prompt: 'Start the next real task with the current runtime'
+    }, {
+      DEVCODEX_GLOBAL_SKILLS_RUNTIME: alternateSkillsRoot
+    })
+    const refreshedState = JSON.parse(fs.readFileSync(sessionFile(staleSession), 'utf8'))
+    assert.notStrictEqual(refreshedState.contextAcquisition.contextEpoch, staleContextEpoch)
+    assert.notStrictEqual(
+      refreshedState.progressiveSkillRoute.bootstrap.turnBinding,
+      staleTurnBinding
+    )
+    assert.strictEqual(refreshedState.progressiveSkillRoute.errorCode, null)
   } finally {
     fixture.cleanup()
   }

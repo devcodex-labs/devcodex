@@ -704,6 +704,7 @@ function loadEnvelope (activeRoot, turnBinding, options = {}) {
   if (Date.parse(envelope.expiresAt) <= now) {
     const error = new Error('TURN_EXPIRED')
     error.code = 'TURN_EXPIRED'
+    error.routeEnvelope = envelope
     throw error
   }
   return { envelope, paths }

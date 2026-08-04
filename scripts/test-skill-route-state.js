@@ -794,6 +794,80 @@ try {
   assert.strictEqual(staleCapability.ok, false)
   assert.strictEqual(staleCapability.errorCode, 'MODE_CAPABILITY_STALE')
 
+  const staleBusinessStop = evaluateProgressiveSkillRouteStop({
+    project: fixture.project,
+    contextEpoch,
+    hostSessionId: `session-${contextEpoch}`,
+    assistantText: 'The selected business result is not present.'
+  }, {
+    ...fixture.runtimeOptions,
+    capabilityPath: alternateCapabilityPath
+  })
+  assert.strictEqual(staleBusinessStop.errorCode, 'MODE_CAPABILITY_STALE')
+  assert.strictEqual(staleBusinessStop.retired, true)
+  assert.strictEqual(staleBusinessStop.processComplete, false)
+  assert(staleBusinessStop.pendingStageIds.length > 0)
+  assert.strictEqual(staleBusinessStop.businessSatisfied, false)
+  assert.strictEqual(staleBusinessStop.complete, false)
+  assert.strictEqual(staleBusinessStop.nextOp, 'satisfy_business')
+  assert.strictEqual(staleBusinessStop.nextCall, null)
+  assert.strictEqual(
+    staleBusinessStop.recovery.action,
+    'reply-selected-business-core'
+  )
+  const satisfiedStaleBusinessStop = evaluateProgressiveSkillRouteStop({
+    project: fixture.project,
+    contextEpoch,
+    hostSessionId: `session-${contextEpoch}`,
+    assistantText: `Completed: ${staleBusinessStop.mustReplyCore}`
+  }, {
+    ...fixture.runtimeOptions,
+    capabilityPath: alternateCapabilityPath
+  })
+  assert.strictEqual(satisfiedStaleBusinessStop.retired, true)
+  assert.strictEqual(satisfiedStaleBusinessStop.businessSatisfied, true)
+  assert.strictEqual(satisfiedStaleBusinessStop.complete, true)
+  assert.strictEqual(satisfiedStaleBusinessStop.processComplete, false)
+  assert.strictEqual(satisfiedStaleBusinessStop.nextOp, null)
+  assert.strictEqual(
+    shouldEnforceProgressiveSkillRouteStop(satisfiedStaleBusinessStop, true),
+    false
+  )
+  const foreignSessionStaleStop = evaluateProgressiveSkillRouteStop({
+    project: fixture.project,
+    contextEpoch,
+    hostSessionId: 'foreign-session',
+    assistantText: staleBusinessStop.mustReplyCore
+  }, {
+    ...fixture.runtimeOptions,
+    capabilityPath: alternateCapabilityPath
+  })
+  assert.strictEqual(foreignSessionStaleStop.present, false)
+  assert.strictEqual(foreignSessionStaleStop.complete, true)
+  assert.strictEqual(foreignSessionStaleStop.ignoredReason, 'HOST_SESSION_MISMATCH')
+  assert.strictEqual(foreignSessionStaleStop.retired, undefined)
+  const expiredPendingStop = evaluateProgressiveSkillRouteStop({
+    project: fixture.project,
+    contextEpoch,
+    hostSessionId: `session-${contextEpoch}`,
+    assistantText: staleBusinessStop.mustReplyCore
+  }, {
+    ...fixture.runtimeOptions,
+    now: '2100-01-01T00:00:00.000Z'
+  })
+  assert.strictEqual(expiredPendingStop.errorCode, 'TURN_EXPIRED')
+  assert.strictEqual(expiredPendingStop.retired, true)
+  assert.strictEqual(expiredPendingStop.retirementReason, 'TURN_EXPIRED')
+  assert.strictEqual(expiredPendingStop.processComplete, false)
+  assert(expiredPendingStop.pendingStageIds.length > 0)
+  assert.strictEqual(expiredPendingStop.businessSatisfied, true)
+  assert.strictEqual(expiredPendingStop.complete, true)
+  assert.strictEqual(expiredPendingStop.nextOp, null)
+  assert.strictEqual(
+    expiredPendingStop.recovery.action,
+    'retire-and-allow-stop'
+  )
+
   const lifecycle = JSON.parse(fs.readFileSync(lifecyclePath, 'utf8'))
   const digestDriftLifecycle = JSON.parse(JSON.stringify(lifecycle))
   digestDriftLifecycle.contextAcquisition.receipt.receiptId = 'receipt-live-digest-drift'
@@ -2153,10 +2227,13 @@ try {
     assert.strictEqual(nonExplicitStaleStop.errorCode, 'MODE_CAPABILITY_STALE')
     assert.strictEqual(nonExplicitStaleStop.planDigest, nonExplicitCommit.receipt.plan.planDigest)
     assert(nonExplicitStaleStop.pendingStageIds.length > 0)
+    assert.strictEqual(nonExplicitStaleStop.retired, true)
+    assert.strictEqual(nonExplicitStaleStop.processComplete, false)
+    assert.strictEqual(nonExplicitStaleStop.complete, true)
     assert.strictEqual(
       shouldEnforceProgressiveSkillRouteStop(nonExplicitStaleStop, false),
-      true,
-      'committed model-free obligations must survive runtime/capability drift'
+      false,
+      'retired model-free obligations remain auditable without replaying impossible work'
     )
   } finally {
     nonExplicitFixture.cleanup()

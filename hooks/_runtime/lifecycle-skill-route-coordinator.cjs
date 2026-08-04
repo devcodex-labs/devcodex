@@ -94,11 +94,15 @@ function buildRouteStateFingerprint (routeStop = {}, input = {}) {
     generation: routeStop.nextCall?.generation ?? null,
     planDigest: String(routeStop.planDigest || routeStop.nextCall?.planDigest || ''),
     processComplete: routeStop.processComplete === true,
+    retired: routeStop.retired === true,
+    retirementReason: routeStop.retirementReason || null,
+    completionDisposition: routeStop.completionDisposition || null,
     pendingStageIds: [...(routeStop.pendingStageIds || [])].sort(),
     errorCode: routeStop.errorCode || null,
     nextOp: routeStop.nextOp || null,
     nextCall: routeStop.nextCall || null,
     selectedBusinessSkillId: routeStop.selectedBusinessSkillId || null,
+    mustReplyCore: routeStop.mustReplyCore || null,
     businessSatisfied: routeStop.businessSatisfied !== false
   })
 }
@@ -159,17 +163,24 @@ function isExpectedRouteAction (routeStop, payload, contextPost = null) {
 }
 
 function buildNextActionEnvelope (routeStop, input = {}) {
+  const required = input.required !== false
   return {
     schemaVersion: NEXT_ACTION_SCHEMA,
     devcodexCode: 'progressive-skill-route',
     hookRunId: String(input.hookRunId || ''),
     stateFingerprint: String(input.stateFingerprint || ''),
     trigger: String(input.trigger || ''),
-    status: input.circuitOpen ? 'blocked-no-progress' : 'action-required',
+    status: required
+      ? (input.circuitOpen ? 'blocked-no-progress' : 'action-required')
+      : (routeStop?.retired === true ? 'retired' : 'complete'),
     circuitOpen: input.circuitOpen === true,
     noProgressCount: Number(input.noProgressCount || 0),
     processComplete: routeStop?.processComplete === true,
+    retired: routeStop?.retired === true,
+    retirementReason: routeStop?.retirementReason || null,
+    completionDisposition: routeStop?.completionDisposition || null,
     businessSatisfied: routeStop?.businessSatisfied !== false,
+    mustReplyCore: routeStop?.mustReplyCore || null,
     errorCode: routeStop?.errorCode || null,
     pendingStageIds: routeStop?.pendingStageIds || [],
     nextOp: routeStop?.nextOp || null,
@@ -186,7 +197,9 @@ function reconcileProgressiveSkillRoute (state, routeStop, input = {}) {
     sessionKey: input.sessionKey || ''
   })
   const requiresBusiness = input.requireBusiness === true
-  const processPending = !!routeStop?.present && routeStop.processComplete !== true
+  const processPending = !!routeStop?.present &&
+    routeStop.retired !== true &&
+    routeStop.processComplete !== true
   const businessPending = requiresBusiness && routeStop?.businessSatisfied === false
   const required = processPending || businessPending
   const expected = isExpectedRouteAction(routeStop, input.payload || {}, input.contextPost)
@@ -205,7 +218,7 @@ function reconcileProgressiveSkillRoute (state, routeStop, input = {}) {
       noProgressCount: 0,
       circuitOpen: false,
       lastTrigger: trigger,
-      lastAction: 'complete',
+      lastAction: routeStop?.retired === true ? 'retired' : 'complete',
       lastNoticeFingerprint: '',
       updatedAt: new Date().toISOString()
     })
@@ -221,7 +234,8 @@ function reconcileProgressiveSkillRoute (state, routeStop, input = {}) {
         stateFingerprint: fingerprint,
         trigger,
         noProgressCount: 0,
-        circuitOpen: false
+        circuitOpen: false,
+        required: false
       })
     }
   }
@@ -249,7 +263,8 @@ function reconcileProgressiveSkillRoute (state, routeStop, input = {}) {
     stateFingerprint: fingerprint,
     trigger,
     noProgressCount,
-    circuitOpen
+    circuitOpen,
+    required: true
   })
   return {
     required: true,

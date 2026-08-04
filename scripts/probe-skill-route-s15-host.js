@@ -217,6 +217,7 @@ function buildPrompt ({ contextEpoch, hostId, project, skillId }) {
     'For load_stage use exactly: op, project, turnBinding, contextEpoch, generation, planDigest, stageId, and cursor only when the prior page returned one.',
     'Load every page of every stage in dependency order: entry, execution:test-validation, then closeout.',
     'Call status and require processComplete=true with every required stage loaded.',
+    `For entryBodyDigest, copy only the bodyDigest from the loaded bodyChunks item whose skillId is ${skillId}; never use a stage, page, chunk, selected-set, dependency Skill, or status digest.`,
     'Copy the exact marker line beginning S15_BODY_ from the loaded Skill body. Do not guess it.',
     'Return only one JSON object matching the requested output schema.'
   ].join('\n')

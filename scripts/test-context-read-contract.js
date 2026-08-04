@@ -21,6 +21,7 @@ const {
   normalizeContextReadState,
   normalizeContextToolOutcome,
   normalizeIntentSeed,
+  normalizeCompatibleContextReadPlan,
   recordContextReadAttempt,
   recordContextReadOutcome,
   stableDigest,
@@ -172,8 +173,8 @@ function satisfyAll(plan, verificationMode = 'structured-plan') {
   return completeContextReadReceipt(receipt, plan, { nowMs: BASE_MS + 100 })
 }
 
-assert(Object.keys(contract).length >= 12 && Object.keys(contract).length <= 18,
-  'A0 export budget must remain within the frozen 12-18 range')
+assert(Object.keys(contract).length >= 12 && Object.keys(contract).length <= 19,
+  'A0 export budget must remain within the frozen 12-19 range after the N-1 compatibility owner was added')
 const moduleSource = fs.readFileSync(path.join(__dirname, '..', 'hooks', '_runtime', 'context-read-contract.cjs'), 'utf8')
 for (const forbidden of ["require('fs')", "require('http')", "require('https')", "require('net')", 'writeFile', 'appendFile']) {
   assert(!moduleSource.includes(forbidden), `pure contract contains forbidden I/O token: ${forbidden}`)
@@ -217,6 +218,91 @@ assert.strictEqual(devPlan.catalogCoverage.unclassifiedIds.length, 0)
 const forgedContextBindingPlan = clone(devPlan)
 forgedContextBindingPlan.contextBinding.planId = 'plan-forged'
 assert.strictEqual(validateContextReadPlan(forgedContextBindingPlan).valid, false)
+
+function legacyN1PlanFrom (current, extraRemovedAction = null) {
+  const legacy = clone(current)
+  legacy.actionEnvelope.allowedActionClasses = legacy.actionEnvelope.allowedActionClasses
+    .filter(action => action !== 'workflow-closeout' && action !== extraRemovedAction)
+  legacy.actionEnvelope.mutationExpected = legacy.actionEnvelope.allowedActionClasses.some(action => [
+    'docs-mutation', 'source-mutation', 'release', 'dangerous'
+  ].includes(action))
+  legacy.identityInputs.intent.actionEnvelope = clone(legacy.actionEnvelope)
+  legacy.planContentId = `plan-content-${stableDigest(legacy.identityInputs)}`
+  legacy.planId = `plan-${stableDigest({
+    planContentId: legacy.planContentId,
+    contextEpoch: legacy.identity.contextEpoch,
+    invocationNonce: legacy.identity.invocationNonce
+  }).slice(0, 24)}`
+  legacy.contextBinding.planId = legacy.planId
+  legacy.contextBinding.planContentId = legacy.planContentId
+  let observed = 0
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    legacy.stageTiming.plannerResponseBytes = observed
+    const next = Buffer.byteLength(JSON.stringify(legacy, null, 2), 'utf8')
+    if (next === observed) break
+    observed = next
+  }
+  legacy.stageTiming.plannerResponseBytes = Buffer.byteLength(JSON.stringify(legacy, null, 2), 'utf8')
+  return legacy
+}
+
+const legacyN1Plan = legacyN1PlanFrom(devPlan)
+assert.deepStrictEqual(validateContextReadPlan(legacyN1Plan).errors, [
+  'actionEnvelope is not derived from intent scope'
+])
+const compatibleLegacy = normalizeCompatibleContextReadPlan(legacyN1Plan)
+assert.strictEqual(compatibleLegacy.valid, true)
+assert.strictEqual(compatibleLegacy.status, 'legacy-n-1')
+assert.strictEqual(compatibleLegacy.receipt.legacyProducerAssumed, true)
+assert.strictEqual(validateContextReadPlan(compatibleLegacy.plan).valid, true)
+assert(compatibleLegacy.plan.actionEnvelope.allowedActionClasses.includes('workflow-closeout'))
+assert.notStrictEqual(compatibleLegacy.plan.planId, legacyN1Plan.planId)
+
+const unknownLegacy = normalizeCompatibleContextReadPlan(
+  legacyN1PlanFrom(devPlan, 'analysis-read')
+)
+assert.strictEqual(unknownLegacy.valid, false)
+assert.strictEqual(unknownLegacy.status, 'refresh-required')
+
+function producerIdentity (runtimeContractVersion) {
+  const material = {
+    schemaVersion: 'RuntimeProcessIdentityV2',
+    role: 'profile-mcp',
+    processId: process.pid,
+    nodeVersion: process.version,
+    generationId: `legacy-contract-${runtimeContractVersion}`,
+    packageVersion: '1.16.2',
+    runtimeContractVersion,
+    bootRuntimeContractDigest: 'a'.repeat(64),
+    generationRuntimeContractDigest: null,
+    runtimeContractAligned: true,
+    generationSourceDigest: null,
+    manifestStatus: 'source-fallback'
+  }
+  return { ...material, identityDigest: stableDigest(material) }
+}
+
+const identityBoundLegacy = normalizeCompatibleContextReadPlan(legacyN1Plan, {
+  producerIdentity: producerIdentity(1)
+})
+assert.strictEqual(identityBoundLegacy.status, 'migrated-n-1')
+assert.strictEqual(identityBoundLegacy.receipt.producerRuntimeContractVersion, 1)
+const n2Legacy = normalizeCompatibleContextReadPlan(legacyN1Plan, {
+  producerIdentity: producerIdentity(0)
+})
+assert.strictEqual(n2Legacy.valid, false)
+assert.strictEqual(n2Legacy.status, 'refresh-required')
+const forgedProducer = producerIdentity(1)
+forgedProducer.identityDigest = 'b'.repeat(64)
+assert.strictEqual(normalizeCompatibleContextReadPlan(legacyN1Plan, {
+  producerIdentity: forgedProducer
+}).status, 'refresh-required')
+assert.strictEqual(normalizeCompatibleContextReadPlan(devPlan, {
+  producerIdentity: producerIdentity(0)
+}).status, 'refresh-required')
+assert.strictEqual(normalizeCompatibleContextReadPlan(devPlan, {
+  producerIdentity: forgedProducer
+}).status, 'refresh-required')
 
 const stablePlan = assertPlan(buildContextReadPlan(makeInput('dev', ['source-code'], {
   planningTelemetry: { latencyMs: 999, inputTokens: 17 }

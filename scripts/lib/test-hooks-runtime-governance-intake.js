@@ -164,7 +164,7 @@ function runHooksRuntimeGovernanceIntakeScenarios(context) {
     hookEventName: 'Stop',
     assistantMessage: `PC0 上下文：fixture\n${writeDecision(candidateId, 'record.spec-defect', 'data/pending-fixes.md', 'PF-304')}`
   })
-  assert.match(wrongRootStop.systemMessage || '', /no successful exact active-root PostToolUse observation/)
+  assert.match(wrongRootStop.systemMessage || '', /active-root ledger integrity failed: read-failed/)
   assert.strictEqual(readState().governanceIntake.candidates[0].terminal, false)
 
   cleanState()
@@ -179,6 +179,24 @@ function runHooksRuntimeGovernanceIntakeScenarios(context) {
   })
   assert.match(unobservableStop.systemMessage || '', /no successful exact active-root PostToolUse observation/)
   assert.strictEqual(readState().governanceIntake.candidates[0].verificationState, 'unverified')
+
+  cleanState()
+  run({ hookEventName: 'UserPromptSubmit', prompt: 'A corrupted active-root ledger must remain unresolved.' })
+  candidateId = readState().governanceIntake.candidates[0].id
+  const corruptedLedger = path.join(TEMP_ROOT, '.devcodex', 'data', 'process-improvements.md')
+  fs.mkdirSync(path.dirname(corruptedLedger), { recursive: true })
+  fs.writeFileSync(corruptedLedger, Buffer.concat([
+    Buffer.from('## PI-306\ncorrupted '),
+    Buffer.from([0]),
+    Buffer.from(' ledger\n')
+  ]))
+  runPostToolLedger('process-improvements.md', 'PI-306', { success: true })
+  const corruptedStop = run({
+    hookEventName: 'Stop',
+    assistantMessage: `PC0 上下文：fixture\n${writeDecision(candidateId, 'record.process-improvement', 'data/process-improvements.md', 'PI-306')}`
+  })
+  assert.match(corruptedStop.systemMessage || '', /active-root ledger integrity failed: nul-byte/)
+  assert.strictEqual(readState().governanceIntake.candidates[0].terminal, false)
 
   cleanState()
 }

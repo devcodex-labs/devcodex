@@ -42,6 +42,8 @@ const { recordMcpContextSourceObservations } = require('../hooks/_runtime/contex
 const { resolveExecutionFeatureDecisionForCwd } = require('../hooks/_runtime/execution-optimization-routing.cjs')
 const { resolveGlobalSkillRuntimeRoot } = require('../hooks/_runtime/global-skill-runtime-root.cjs')
 const { handleSkillRoute } = require('../hooks/_runtime/skill-route-tool.cjs')
+const { getBootRuntimeContractDigest } = require('../hooks/_runtime/skill-route-mode.cjs')
+const { captureRuntimeProcessIdentity } = require('../hooks/_runtime/runtime-generation-identity.cjs')
 const {
   findLayoutInfo,
   inferProjectFromCwd,
@@ -56,6 +58,12 @@ const {
 const INPUT_ROOT = process.argv[2]
   ? path.resolve(process.argv[2])
   : process.cwd()
+
+const PROFILE_PROCESS_IDENTITY = captureRuntimeProcessIdentity({
+  role: 'profile-mcp',
+  runtimeRoot: path.resolve(__dirname, '..'),
+  bootRuntimeContractDigest: getBootRuntimeContractDigest()
+})
 
 function traceSkillRouteCall(args, result) {
   const configured = String(process.env.DEVCODEX_SKILL_ROUTE_TRACE || '').trim()
@@ -1028,6 +1036,9 @@ function contextPlanResult(value) {
   const isError = value?.schemaVersion === CONTEXT_READ_CONTRACT.schemas.error
   return {
     content: [{ type: 'text', text: JSON.stringify(value, null, 2) }],
+    _meta: {
+      devcodexRuntimeProcessIdentity: PROFILE_PROCESS_IDENTITY
+    },
     ...(isError ? { isError: true } : {})
   }
 }
@@ -1155,7 +1166,8 @@ function handleProfileContextPlan(args = {}) {
       activeRoot: target.activeRoot,
       project: target.project,
       contextEpoch: epoch.contextEpoch,
-      plan
+      plan,
+      producerIdentity: PROFILE_PROCESS_IDENTITY
     })
     if (observation.status !== 'persisted') {
       return contextPlanResult(buildContextReadError(

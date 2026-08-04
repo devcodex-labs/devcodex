@@ -781,6 +781,51 @@ console.log(`host installation tests passed selectors=5 dryRunWrites=0 collision
 
   const globalPluginRoot = path.join(home, '.grok', 'devcodex', 'plugins', 'devcodex-workspace')
   const globalPluginHook = require(path.join(globalPluginRoot, 'hooks', 'devcodex-workspace.cjs'))
+  const grokReceiptFile = path.join(home, '.grok', 'devcodex', 'global-host-receipt.json')
+  const grokReceiptText = fs.readFileSync(grokReceiptFile, 'utf8')
+  const grokReceipt = JSON.parse(grokReceiptText)
+  assert.strictEqual(
+    path.resolve(globalPluginHook.globalAdapterPath(env)),
+    path.resolve(grokReceipt.runtimeRoot, 'hooks', '_runtime', 'lifecycle-host-adapters.cjs')
+  )
+  const installedRuntimeResolver = require(path.join(globalPluginRoot, 'lib', 'runtime-root.cjs'))
+  const grokRuntimeManifestFile = path.join(grokReceipt.runtimeRoot, 'runtime-generation.json')
+  const grokRuntimeManifestText = fs.readFileSync(grokRuntimeManifestFile, 'utf8')
+  const grokRuntimeManifest = JSON.parse(grokRuntimeManifestText)
+  fs.writeFileSync(grokRuntimeManifestFile, `${JSON.stringify({
+    ...grokRuntimeManifest,
+    sourceDigest: '0'.repeat(64)
+  }, null, 2)}\n`, 'utf8')
+  assert.strictEqual(
+    path.resolve(installedRuntimeResolver.resolveGrokRuntimeRoot(env)),
+    path.resolve(home, '.grok', 'devcodex', 'runtime'),
+    'Grok plugin must reject a generation manifest whose source identity differs from the receipt'
+  )
+  fs.writeFileSync(grokRuntimeManifestFile, grokRuntimeManifestText, 'utf8')
+  const physicalEscapeFs = {
+    existsSync: fs.existsSync,
+    readFileSync: fs.readFileSync,
+    realpathSync(value) {
+      return path.resolve(value) === path.resolve(grokReceipt.runtimeRoot)
+        ? path.join(home, 'outside-managed-runtime')
+        : fs.realpathSync(value)
+    }
+  }
+  assert.strictEqual(
+    path.resolve(installedRuntimeResolver.resolveGrokRuntimeRoot(env, { fs: physicalEscapeFs })),
+    path.resolve(home, '.grok', 'devcodex', 'runtime'),
+    'Grok plugin must reject a managed-path junction whose physical target escapes the managed root'
+  )
+  fs.writeFileSync(grokReceiptFile, `${JSON.stringify({
+    ...grokReceipt,
+    runtimeRoot: path.join(home, 'outside-managed-runtime')
+  }, null, 2)}\n`, 'utf8')
+  assert.strictEqual(
+    path.resolve(installedRuntimeResolver.resolveGrokRuntimeRoot(env)),
+    path.resolve(home, '.grok', 'devcodex', 'runtime'),
+    'Grok plugin must not follow a receipt runtime outside its managed root'
+  )
+  fs.writeFileSync(grokReceiptFile, grokReceiptText, 'utf8')
   const activeHook = globalPluginHook.runWorkspaceBridge(
     { hookEventName: 'UserPromptSubmit', cwd: workspace },
     {

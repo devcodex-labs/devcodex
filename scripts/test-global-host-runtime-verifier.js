@@ -8,13 +8,26 @@ const path = require('path')
 const {
   verifyGlobalHostRuntime
 } = require('./lib/global-host-runtime-verifier.js')
+const {
+  resolveGlobalHostTarget
+} = require('./lib/global-host-target.js')
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-global-runtime-verifier-'))
 const home = path.join(root, 'home')
 const grokRoot = path.join(home, '.grok')
+const env = {
+  ...process.env,
+  USERPROFILE: home,
+  HOME: home,
+  GROK_HOME: grokRoot,
+  CLAUDE_CONFIG_DIR: path.join(home, '.claude'),
+  CODEX_HOME: path.join(home, '.codex'),
+  GEMINI_CLI_HOME: home,
+  COPILOT_HOME: path.join(home, '.copilot')
+}
 const canonicalPlugin = path.join(grokRoot, 'devcodex', 'plugins', 'devcodex-workspace')
 const installedPlugin = path.join(grokRoot, 'installed-plugins', 'canonical')
-const grokRuntime = path.join(grokRoot, 'devcodex', 'runtime')
+const grokRuntime = resolveGlobalHostTarget('grok', { env, home }).runtimeRoot
 fs.mkdirSync(path.join(grokRoot, 'installed-plugins'), { recursive: true })
 fs.cpSync(path.join(__dirname, '..', 'grok', 'plugins', 'devcodex-workspace'), canonicalPlugin, { recursive: true })
 fs.cpSync(canonicalPlugin, installedPlugin, { recursive: true })
@@ -48,23 +61,18 @@ fs.writeFileSync(path.join(grokRoot, 'installed-plugins', 'registry.json'), JSON
 const hosts = ['copilot', 'claude', 'codex', 'gemini', 'grok'].map(host => ({
   host,
   ready: true,
-  runtimeEntry: path.join(home, `.${host}`, 'devcodex', 'runtime', 'hooks', '_runtime', 'lifecycle-host-adapters.cjs')
+  runtimeEntry: path.join(
+    resolveGlobalHostTarget(host, { env, home }).runtimeRoot,
+    'hooks',
+    '_runtime',
+    'lifecycle-host-adapters.cjs'
+  )
 }))
 for (const host of hosts) {
   fs.mkdirSync(path.dirname(host.runtimeEntry), { recursive: true })
   fs.writeFileSync(host.runtimeEntry, '// fixture\n', 'utf8')
 }
 
-const env = {
-  ...process.env,
-  USERPROFILE: home,
-  HOME: home,
-  GROK_HOME: grokRoot,
-  CLAUDE_CONFIG_DIR: path.join(home, '.claude'),
-  CODEX_HOME: path.join(home, '.codex'),
-  GEMINI_CLI_HOME: home,
-  COPILOT_HOME: path.join(home, '.copilot')
-}
 const spawnProbe = (command, args) => {
   if (command === process.execPath && args.includes('--contract-probe')) {
     const host = args[1]

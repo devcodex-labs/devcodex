@@ -517,9 +517,20 @@ for (const target of targets) {
   assert.strictEqual(receipt.workspaceHostDirectoriesWritten, false)
   assert.deepStrictEqual(receipt.sourcePackageEvidence, {
     rootLifetime: 'install-process-only',
-    durableIdentity: false,
-    authority: 'sourceDigest'
+    durableIdentity: true,
+    authority: 'RuntimeGenerationManifestV1'
   })
+  assert.strictEqual(receipt.runtimeGeneration.schemaVersion, 'RuntimeGenerationManifestV1')
+  assert.strictEqual(receipt.runtimeGeneration.generationId, target.runtimeGeneration.generationId)
+  assert.match(receipt.runtimeGeneration.runtimeContractDigest, /^[a-f0-9]{64}$/)
+  assert.match(receipt.runtimeGeneration.filesDigest, /^[a-f0-9]{64}$/)
+  assert.match(receipt.runtimeGeneration.createdAt, /^\d{4}-\d{2}-\d{2}T00:00:00\.000Z$/)
+  assert.strictEqual(receipt.runtimeGeneration.runtimeRoot, '.')
+  assert.strictEqual(path.resolve(receipt.runtimeRoot), path.resolve(target.runtimeRoot))
+  assert.deepStrictEqual(
+    JSON.parse(fs.readFileSync(path.join(target.runtimeRoot, 'runtime-generation.json'), 'utf8')),
+    receipt.runtimeGeneration
+  )
   assert.strictEqual(Object.prototype.hasOwnProperty.call(receipt, 'packageRoot'), false)
   assert.strictEqual(Object.prototype.hasOwnProperty.call(receipt.sourcePackageEvidence, 'observedRoot'), false)
   assert.ok(Array.isArray(receipt.managedPaths))
@@ -527,7 +538,7 @@ for (const target of targets) {
 }
 
 const codexTarget = targets.find(target => target.host === 'codex')
-const codexRuntime = path.join(codexTarget.root, 'devcodex', 'runtime')
+const codexRuntime = codexTarget.runtimeRoot
 require(path.join(codexRuntime, 'scripts', 'lib', 'host-parity-scorecard.js'))
 require(path.join(codexRuntime, 'mcp', 'memory-server.js'))
 const sourceSkillRouteMode = require(path.join(packageRoot, 'hooks', '_runtime', 'skill-route-mode.cjs'))
@@ -546,6 +557,24 @@ const installedRuntimeContractDigest = installedSkillRouteMode.getRuntimeContrac
   }
 })
 assert.strictEqual(installedRuntimeContractDigest, sourceRuntimeContractDigest)
+const installedGeneration = JSON.parse(fs.readFileSync(
+  path.join(codexRuntime, 'runtime-generation.json'),
+  'utf8'
+))
+assert.strictEqual(installedGeneration.runtimeContractDigest, installedRuntimeContractDigest)
+const installedProcessIdentity = require(path.join(
+  codexRuntime,
+  'hooks',
+  '_runtime',
+  'runtime-generation-identity.cjs'
+)).captureRuntimeProcessIdentity({
+  role: 'test-installed-runtime',
+  runtimeRoot: codexRuntime,
+  bootRuntimeContractDigest: installedRuntimeContractDigest,
+  noCache: true
+})
+assert.strictEqual(installedProcessIdentity.generationId, installedGeneration.generationId)
+assert.strictEqual(installedProcessIdentity.runtimeContractAligned, true)
 const installedSkillRouteCapabilities = JSON.parse(fs.readFileSync(
   path.join(codexRuntime, 'hooks', '_runtime', 'host-skill-route-capabilities.v1.json'),
   'utf8'

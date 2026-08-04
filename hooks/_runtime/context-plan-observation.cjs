@@ -3,9 +3,13 @@
 const crypto = require('crypto')
 const path = require('path')
 const { createRuntimeStateStore } = require('./runtime-state-store.cjs')
-const { stableDigest, validateContextReadPlan } = require('./context-read-contract.cjs')
+const {
+  normalizeCompatibleContextReadPlan,
+  stableDigest
+} = require('./context-read-contract.cjs')
 
-const CONTEXT_PLAN_OBSERVATION_SCHEMA = 'ContextPlanObservationV1'
+const CONTEXT_PLAN_OBSERVATION_SCHEMA = 'ContextPlanObservationV2'
+const LEGACY_CONTEXT_PLAN_OBSERVATION_SCHEMA = 'ContextPlanObservationV1'
 const CONTEXT_PLAN_OBSERVATION_SLOT_COUNT = 128
 const CONTEXT_PLAN_OBSERVATION_MAX_BYTES = 256 * 1024
 const CONTEXT_PLAN_OBSERVATION_FUTURE_SKEW_MS = 5 * 60 * 1000
@@ -19,6 +23,7 @@ const OBSERVATION_FIELDS = new Set([
   'planId',
   'planContentId',
   'planDigest',
+  'producerIdentity',
   'plan'
 ])
 
@@ -41,9 +46,11 @@ function contextPlanObservationRelativePath(contextEpoch) {
   )
 }
 
-function buildContextPlanObservation({ activeRoot, project, contextEpoch, plan, nowMs = Date.now() }) {
+function buildContextPlanObservation({ activeRoot, project, contextEpoch, plan, producerIdentity = null, nowMs = Date.now() }) {
   return {
-    schemaVersion: CONTEXT_PLAN_OBSERVATION_SCHEMA,
+    schemaVersion: producerIdentity
+      ? CONTEXT_PLAN_OBSERVATION_SCHEMA
+      : LEGACY_CONTEXT_PLAN_OBSERVATION_SCHEMA,
     contextEpochDigest: contextEpochDigest(contextEpoch),
     contextEpoch: String(contextEpoch || '').trim(),
     project: String(project || '').trim(),
@@ -52,6 +59,7 @@ function buildContextPlanObservation({ activeRoot, project, contextEpoch, plan, 
     planId: String(plan?.planId || '').trim(),
     planContentId: String(plan?.planContentId || '').trim(),
     planDigest: stableDigest(plan),
+    ...(producerIdentity ? { producerIdentity } : {}),
     plan
   }
 }
@@ -63,7 +71,16 @@ function validateContextPlanObservation(value, expected = {}) {
 
   const unknown = Object.keys(observation).filter(field => !OBSERVATION_FIELDS.has(field))
   if (unknown.length) errors.push(`unsupported observation fields: ${unknown.join(', ')}`)
-  if (observation.schemaVersion !== CONTEXT_PLAN_OBSERVATION_SCHEMA) errors.push('invalid observation schema')
+  const currentSchema = observation.schemaVersion === CONTEXT_PLAN_OBSERVATION_SCHEMA
+  const legacySchema = observation.schemaVersion === LEGACY_CONTEXT_PLAN_OBSERVATION_SCHEMA
+  if (!currentSchema && !legacySchema) errors.push('invalid observation schema')
+  if (currentSchema) {
+    const identity = require('./runtime-generation-identity.cjs')
+      .validateRuntimeProcessIdentity(observation.producerIdentity)
+    if (!identity.valid) errors.push(`invalid producer identity: ${identity.reasonCode}`)
+  } else if (Object.prototype.hasOwnProperty.call(observation, 'producerIdentity')) {
+    errors.push('legacy observation must not contain producerIdentity')
+  }
 
   const epoch = String(observation.contextEpoch || '').trim()
   const project = String(observation.project || '').trim()
@@ -84,22 +101,32 @@ function validateContextPlanObservation(value, expected = {}) {
     errors.push('observation timestamp is too far in the future')
   }
 
-  const planValidation = validateContextReadPlan(observation.plan)
+  const planValidation = normalizeCompatibleContextReadPlan(observation.plan, {
+    producerIdentity: observation.producerIdentity || null
+  })
   if (!planValidation.valid) errors.push(planValidation.error.message)
-  const plan = planValidation.valid ? observation.plan : null
+  const rawPlan = planValidation.valid ? observation.plan : null
+  const plan = planValidation.valid ? planValidation.plan : null
   if (plan) {
-    if (observation.planDigest !== stableDigest(plan)) errors.push('plan digest mismatch')
-    if (observation.planId !== plan.planId || observation.planContentId !== plan.planContentId) {
+    if (observation.planDigest !== stableDigest(rawPlan)) errors.push('plan digest mismatch')
+    if (observation.planId !== rawPlan.planId || observation.planContentId !== rawPlan.planContentId) {
       errors.push('plan identity mirror mismatch')
     }
-    if (plan.identity.contextEpoch !== epoch ||
-        plan.identity.project !== project ||
-        portableRoot(plan.identity.activeRoot) !== activeRoot) {
+    if (rawPlan.identity.contextEpoch !== epoch ||
+        rawPlan.identity.project !== project ||
+        portableRoot(rawPlan.identity.activeRoot) !== activeRoot) {
       errors.push('plan target does not match the observation envelope')
     }
   }
 
-  return { valid: errors.length === 0, errors, plan }
+  return {
+    valid: errors.length === 0,
+    errors,
+    plan,
+    originalPlan: rawPlan,
+    originalContextBinding: rawPlan?.contextBinding || null,
+    compatibilityReceipt: planValidation.receipt || null
+  }
 }
 
 function observationStore(activeRoot, project, contextEpoch, maxWrites) {
@@ -183,12 +210,17 @@ function readContextPlanObservation({ activeRoot, project, contextEpoch, notBefo
     filePath: store.filePath,
     bytes: read.bytes,
     observation: read.value,
-    plan: validation.plan
+    plan: validation.plan,
+    originalPlan: validation.originalPlan,
+    originalContextBinding: validation.originalContextBinding,
+    producerIdentity: read.value.producerIdentity || null,
+    compatibilityReceipt: validation.compatibilityReceipt
   }
 }
 
 module.exports = {
   CONTEXT_PLAN_OBSERVATION_SCHEMA,
+  LEGACY_CONTEXT_PLAN_OBSERVATION_SCHEMA,
   CONTEXT_PLAN_OBSERVATION_SLOT_COUNT,
   CONTEXT_PLAN_OBSERVATION_MAX_BYTES,
   buildContextPlanObservation,

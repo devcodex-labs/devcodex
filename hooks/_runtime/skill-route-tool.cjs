@@ -614,7 +614,8 @@ function bindResponseToTransaction (response, transaction, limitBytes) {
 }
 
 function assertRuntimeBinding (state, options = {}) {
-  const runtimeContractDigest = getRuntimeContractDigest(options)
+  const { getBootRuntimeContractDigest } = require('./skill-route-mode.cjs')
+  const runtimeContractDigest = getBootRuntimeContractDigest(options)
   if (!state.runtimeContractDigest ||
       state.runtimeContractDigest !== runtimeContractDigest) {
     const error = new Error('RUNTIME_CONTRACT_STALE')
@@ -1692,6 +1693,8 @@ const ROUTE_RETIREMENT_IDENTITY_ERRORS = new Set([
   'CONTEXT_BINDING_MISMATCH',
   'MODE_CAPABILITY_STALE',
   'RUNTIME_CONTRACT_STALE',
+  'RUNTIME_REFRESH_REQUIRED',
+  'TURN_ENVELOPE_READBACK_FAILED',
   'TURN_EXPIRED'
 ])
 
@@ -1824,9 +1827,23 @@ function evaluateProgressiveSkillRouteStop (input, options = {}) {
     return {
       schemaVersion: 'ProgressiveSkillRouteStopV1',
       present: true,
-      complete: false,
+      complete: true,
       turnBinding,
-      errorCode: error.code || 'SKILL_ROUTE_STOP_READ_FAILED'
+      processComplete: false,
+      retired: true,
+      retirementReason: error.code || 'SKILL_ROUTE_STOP_READ_FAILED',
+      completionDisposition: 'retired-unreadable-route',
+      pendingStageIds: [],
+      businessSatisfied: true,
+      errorCode: error.code || 'SKILL_ROUTE_STOP_READ_FAILED',
+      nextOp: null,
+      nextCall: null,
+      recovery: {
+        schemaVersion: 'SkillRouteRetirementRecoveryV1',
+        automatic: true,
+        action: 'retire-and-rebootstrap-next-user-prompt',
+        rebootstrapOnNextUserPrompt: true
+      }
     }
   }
   const state = envelope.state
@@ -1858,19 +1875,30 @@ function evaluateProgressiveSkillRouteStop (input, options = {}) {
     return {
       schemaVersion: 'ProgressiveSkillRouteStopV1',
       present: true,
-      complete: false,
+      complete: businessSatisfied,
       turnBinding,
       contextEpoch: state.contextEpoch,
       planDigest: state.plan?.planDigest || null,
       processComplete: false,
+      retired: true,
+      retirementReason: error.code || 'SKILL_ROUTE_STOP_BINDING_FAILED',
+      completionDisposition: 'refresh-required',
       pendingStageIds,
       selectedBusinessSkillId: business?.skillId || null,
       mustReplyCore: business?.mustReplyCore || null,
       businessSatisfied,
       errorCode: error.code || 'SKILL_ROUTE_STOP_BINDING_FAILED',
-      nextOp: null,
+      nextOp: businessSatisfied ? null : 'satisfy_business',
       nextCall: null,
-      recovery: null
+      recovery: {
+        schemaVersion: 'SkillRouteRetirementRecoveryV1',
+        automatic: businessSatisfied,
+        action: businessSatisfied
+          ? 'retire-and-rebootstrap-next-user-prompt'
+          : 'reply-selected-business-core',
+        mustReplyCore: business?.mustReplyCore || null,
+        rebootstrapOnNextUserPrompt: true
+      }
     }
   }
   const { pendingStageIds, business, businessSatisfied } = summarizeStopObligations(
@@ -1903,9 +1931,46 @@ function evaluateProgressiveSkillRouteStop (input, options = {}) {
     state.plan.status === 'complete' &&
     !contextErrorCode &&
     pendingStageIds.length === 0
+  const rootPlanBlocked = !!state.plan && state.plan.status === 'blocked' &&
+    !contextErrorCode
+  if (rootPlanBlocked) {
+    return {
+      schemaVersion: 'ProgressiveSkillRouteStopV1',
+      present: true,
+      complete: businessSatisfied,
+      turnBinding,
+      contextEpoch: state.contextEpoch,
+      planDigest: state.plan.planDigest || null,
+      processComplete: false,
+      retired: true,
+      retirementReason: 'ROOT_PLAN_BLOCKED',
+      completionDisposition: 'retired-root-plan-blocked',
+      pendingStageIds: [],
+      selectedBusinessSkillId: business?.skillId || null,
+      mustReplyCore: business?.mustReplyCore || null,
+      businessSatisfied,
+      errorCode: 'ROOT_PLAN_BLOCKED',
+      nextOp: businessSatisfied ? null : 'satisfy_business',
+      nextCall: null,
+      recovery: {
+        schemaVersion: 'SkillRouteRetirementRecoveryV1',
+        automatic: businessSatisfied,
+        action: businessSatisfied
+          ? 'retire-and-rebootstrap-next-user-prompt'
+          : 'reply-selected-business-core',
+        mustReplyCore: business?.mustReplyCore || null,
+        rebootstrapOnNextUserPrompt: true
+      }
+    }
+  }
+  const planMissingNextOp = !state.plan && state.explicit?.status === 'ready'
+    ? 'commit'
+    : 'catalog'
   const nextOp = contextErrorCode
     ? 'rebind'
-    : (pendingStageIds.length ? 'load_stage' : null)
+    : (pendingStageIds.length
+        ? 'load_stage'
+        : (!state.plan ? planMissingNextOp : (!businessSatisfied ? 'satisfy_business' : null)))
   const nextCall = nextOp === 'rebind' && state.plan
     ? {
         op: 'rebind',
@@ -1918,7 +1983,25 @@ function evaluateProgressiveSkillRouteStop (input, options = {}) {
       }
     : (nextOp === 'load_stage' && state.plan
         ? buildLoadStageNextCall(state, pendingStageIds[0] || null)
-        : null)
+        : (nextOp === 'commit'
+            ? {
+                op: 'commit',
+                project: target.project,
+                turnBinding,
+                contextEpoch: state.contextEpoch,
+                catalogDigest: state.catalog.catalogDigest,
+                skillId: null,
+                contextBinding: '<current verified ContextReadBindingV1>'
+              }
+            : (nextOp === 'catalog'
+            ? {
+                op: 'catalog',
+                project: target.project,
+                turnBinding,
+                contextEpoch: state.contextEpoch,
+                cursor: null
+              }
+            : null)))
   return {
     schemaVersion: 'ProgressiveSkillRouteStopV1',
     present: true,

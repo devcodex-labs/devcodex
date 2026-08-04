@@ -22,6 +22,7 @@ const {
   extractContextPlanBody,
   extractContextSourceEvidence,
   markContextReadReceiptStale,
+  normalizeCompatibleContextReadPlan,
   normalizeContextReadState,
   normalizeContextToolOutcome,
   recordContextReadAttempt,
@@ -518,6 +519,7 @@ const {
   extractContextPlanBody,
   extractContextSourceEvidence,
   markContextReadReceiptStale,
+  normalizeCompatibleContextReadPlan,
   normalizeContextReadState,
   normalizeContextToolOutcome,
   recordContextReadAttempt,
@@ -1244,6 +1246,9 @@ function evaluateCurrentProgressiveSkillRoute (state, payload, platform, trigger
 }
 
 function formatProgressiveSkillRouteEnvelope (coordination) {
+  if (coordination.noticeSuppressed) {
+    return 'Progressive Skill route remains blocked with no state change; continue with the previously emitted NextActionEnvelopeV1.'
+  }
   return [
     coordination.message || 'Progressive Skill route reconciliation is required.',
     `NextActionEnvelopeV1: ${JSON.stringify(coordination.envelope)}`

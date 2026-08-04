@@ -48,6 +48,7 @@ const {
 
 const GLOBAL_HOST_CONFIG_SCHEMA = 'GlobalOnlyHostConfigModeV1'
 const GLOBAL_HOST_RECEIPT_SCHEMA = 'GlobalHostConfigReceiptV1'
+const { buildRuntimeGeneration } = require('./runtime-generation.js')
 const PACKAGE_ROOT = path.resolve(__dirname, '..', '..')
 const MCP_RUNTIME_DEPS = Object.freeze(collectRuntimeScriptDeps(PACKAGE_ROOT))
 
@@ -184,6 +185,15 @@ function addCommonRuntime(operations, target, packageRoot, fsImpl = fs) {
       path.join(packageRoot, ...relative.split('/')),
       path.join(runtime, ...relative.split('/')),
       fsImpl
+    )
+  }
+  if (target.runtimeGeneration) {
+    addFileOperation(
+      operations,
+      target.host,
+      path.join(runtime, 'runtime-generation.json'),
+      `${JSON.stringify(target.runtimeGeneration, null, 2)}\n`,
+      'json'
     )
   }
 }
@@ -935,12 +945,16 @@ function buildGlobalHostConfigPlan(options = {}) {
   const fsImpl = options.fs || fs
   const packageRoot = path.resolve(options.packageRoot || path.join(__dirname, '..', '..'))
   const packageJson = readPackage(packageRoot, fsImpl)
+  const runtimeGeneration = buildRuntimeGeneration(packageRoot, fsImpl)
   const env = options.env || process.env
   const skillsDeployMode = resolveSkillsDeployMode(env, options)
   const targets = resolveGlobalHostTargets({
     env,
     home: options.home,
-    hosts: options.hosts || GLOBAL_HOST_IDS
+    hosts: options.hosts || GLOBAL_HOST_IDS,
+    packageRoot,
+    fs: fsImpl,
+    runtimeGeneration
   })
   const sharedRuntimeOwnerHost = targets.some(target => target.host === 'codex')
     ? 'codex'
@@ -1081,9 +1095,21 @@ function buildGlobalHostConfigPlan(options = {}) {
       fsImpl,
       globallyManagedPaths
     )
+    const previousRuntimeRoot = previousReceipt?.runtimeRoot
+      ? path.resolve(previousReceipt.runtimeRoot)
+      : null
+    const retainPreviousRuntime = previousRuntimeRoot &&
+      !samePath(previousRuntimeRoot, target.runtimeRoot) &&
+      pathIsInside(target.runtimeBaseRoot, previousRuntimeRoot)
+    const generationSafeStaleManagedPaths = retainPreviousRuntime
+      ? allStaleManagedPaths.filter(file => !pathIsInside(previousRuntimeRoot, file))
+      : allStaleManagedPaths
+    hostPlan.retainedRuntimeRoots = retainPreviousRuntime
+      ? [portable(previousRuntimeRoot)]
+      : []
     const nativeStaleByRoot = new Map()
     hostPlan.nativeStaleFileDigests = {}
-    hostPlan.staleManagedPaths = allStaleManagedPaths.filter(file => {
+    hostPlan.staleManagedPaths = generationSafeStaleManagedPaths.filter(file => {
       const root = (hostPlan.nativeSkillRoots || []).find(candidate =>
         pathIsInside(candidate, file)
       )
@@ -1154,10 +1180,12 @@ function buildGlobalHostConfigPlan(options = {}) {
       evidenceCeiling: target.evidenceCeiling,
       packageName: packageJson.name || 'devcodex',
       packageVersion: packageJson.version || 'unknown',
+      runtimeGeneration: target.runtimeGeneration || null,
+      retainedRuntimeRoots: hostPlan.retainedRuntimeRoots || [],
       sourcePackageEvidence: {
         rootLifetime: 'install-process-only',
-        durableIdentity: false,
-        authority: 'sourceDigest'
+        durableIdentity: true,
+        authority: 'RuntimeGenerationManifestV1'
       },
       runtimeRoot: portable(target.runtimeRoot),
       managedPaths,
@@ -1396,10 +1424,14 @@ function inspectGlobalHostConfiguration(options = {}) {
   const fsImpl = options.fs || fs
   const packageRoot = path.resolve(options.packageRoot || path.join(__dirname, '..', '..'))
   const packageJson = readPackage(packageRoot, fsImpl)
+  const runtimeGeneration = buildRuntimeGeneration(packageRoot, fsImpl)
   const targets = resolveGlobalHostTargets({
     env: options.env || process.env,
     home: options.home,
-    hosts: options.hosts || GLOBAL_HOST_IDS
+    hosts: options.hosts || GLOBAL_HOST_IDS,
+    packageRoot,
+    fs: fsImpl,
+    runtimeGeneration
   })
   const expectedPlan = buildGlobalHostConfigPlan({
     ...options,
@@ -1469,6 +1501,7 @@ function inspectGlobalHostConfiguration(options = {}) {
       .map(([, value]) => value)
     const requiredEntrypoints = [
       runtimeEntry,
+      path.join(target.runtimeRoot, 'runtime-generation.json'),
       ...fileEntrypoints,
       ...sharedEntrypoints
     ]
@@ -1480,6 +1513,9 @@ function inspectGlobalHostConfiguration(options = {}) {
       receipt.host === target.host &&
       typeof receipt.packageName === 'string' &&
       typeof receipt.packageVersion === 'string' &&
+      receipt.runtimeGeneration?.schemaVersion === 'RuntimeGenerationManifestV1' &&
+      receipt.runtimeGeneration?.generationId === target.runtimeGeneration?.generationId &&
+      samePath(receipt.runtimeRoot, target.runtimeRoot) &&
       typeof receipt.sourceDigest === 'string' &&
       typeof receipt.planDigest === 'string' &&
       Array.isArray(receipt.managedPaths) &&
@@ -1493,6 +1529,8 @@ function inspectGlobalHostConfiguration(options = {}) {
     const receiptMatchesCurrent = Boolean(expectedReceipt) &&
       receipt?.packageName === expectedReceipt.packageName &&
       receipt?.packageVersion === expectedReceipt.packageVersion &&
+      receipt?.runtimeGeneration?.generationId === expectedReceipt.runtimeGeneration?.generationId &&
+      samePath(receipt?.runtimeRoot, expectedReceipt.runtimeRoot) &&
       receipt?.sourceDigest === expectedReceipt.sourceDigest &&
       receipt?.planDigest === receipt?.sourceDigest &&
       sameStringArray(receipt?.managedPaths, expectedReceipt.managedPaths) &&

@@ -105,6 +105,7 @@ const CONTEXT_IDENTITY_VERSIONS = Object.freeze({
   route: 'context-acquisition@2',
   consumers: 'profile-memory-hook@2'
 })
+const CONTEXT_RUNTIME_CONTRACT_VERSION = 2
 
 function canonicalize(value, seen = new WeakSet()) {
   if (value === null || value === undefined) return value === undefined ? null : value
@@ -1155,6 +1156,158 @@ function validateContextReadPlan(raw) {
     : { valid: true, errors: [], value: raw }
 }
 
+function legacyN1ActionEnvelope (plan) {
+  const current = deriveActionEnvelope(
+    plan.identity.finalIntent,
+    uniqueSorted(plan.changeTypes, CHANGE_TYPES),
+    plan.identity.intentSeed?.riskHint
+  )
+  const allowedActionClasses = current.allowedActionClasses
+    .filter(item => item !== 'workflow-closeout')
+  return {
+    allowedActionClasses,
+    mutationExpected: allowedActionClasses.some(item => [
+      'docs-mutation',
+      'source-mutation',
+      'release',
+      'dangerous'
+    ].includes(item)),
+    riskCeiling: current.riskCeiling
+  }
+}
+
+function rebuildContextPlanIdentity (plan) {
+  plan.identityInputs = buildPlanIdentityInputs(plan)
+  plan.planContentId = `plan-content-${stableDigest(plan.identityInputs)}`
+  plan.planId = `plan-${stableDigest({
+    planContentId: plan.planContentId,
+    contextEpoch: plan.identity.contextEpoch,
+    invocationNonce: plan.identity.invocationNonce
+  }).slice(0, 24)}`
+  plan.contextBinding = buildContextReadBinding(plan)
+  plan.cacheDecision = normalizeCacheDecision(plan.cacheDecision, plan.planContentId)
+  refreshPlannerResponseBytes(plan)
+  return plan
+}
+
+/**
+ * Accept the current contract exactly, or migrate the single registered N-1
+ * ContextReadPlan signature. This is intentionally not a general repair path.
+ */
+function normalizeCompatibleContextReadPlan (raw, options = {}) {
+  const producerIdentity = options.producerIdentity || null
+  let identityValidation = null
+  if (producerIdentity) {
+    try {
+      identityValidation = require('./runtime-generation-identity.cjs')
+        .validateRuntimeProcessIdentity(producerIdentity)
+    } catch {
+      identityValidation = { valid: false, reasonCode: 'process-identity-validator-unavailable' }
+    }
+    const producerVersion = producerIdentity.runtimeContractVersion
+    const supportedVersion = producerVersion === CONTEXT_RUNTIME_CONTRACT_VERSION ||
+      producerVersion === CONTEXT_RUNTIME_CONTRACT_VERSION - 1
+    if (!identityValidation.valid || !supportedVersion) {
+      return {
+        valid: false,
+        plan: null,
+        status: 'refresh-required',
+        receipt: null,
+        error: buildContextReadError(
+          'CONTEXT_PLAN_INVALID',
+          `Runtime producer identity is outside the supported N-1 window: ${identityValidation.reasonCode || producerVersion}.`,
+          'Start a new host session so Hook and MCP use the same installed runtime generation.'
+        )
+      }
+    }
+  }
+  const exact = validateContextReadPlan(raw)
+  if (exact.valid) {
+    return {
+      valid: true,
+      plan: raw,
+      status: 'exact',
+      receipt: {
+        schemaVersion: 'RuntimeCompatibilityReceiptV1',
+        status: 'exact',
+        producerRuntimeContractVersion: options.producerIdentity?.runtimeContractVersion ?? null,
+        consumerRuntimeContractVersion: CONTEXT_RUNTIME_CONTRACT_VERSION,
+        originalPlanDigest: stableDigest(raw),
+        normalizedPlanDigest: stableDigest(raw),
+        legacyProducerAssumed: false
+      },
+      error: null
+    }
+  }
+  if (producerIdentity) {
+    if (producerIdentity.runtimeContractVersion !== CONTEXT_RUNTIME_CONTRACT_VERSION - 1) {
+      return {
+        valid: false,
+        plan: null,
+        status: 'refresh-required',
+        receipt: null,
+        error: buildContextReadError(
+          'CONTEXT_PLAN_INVALID',
+          `Runtime producer identity is outside the supported N-1 window: ${identityValidation.reasonCode || producerIdentity.runtimeContractVersion}.`,
+          'Start a new host session so Hook and MCP use the same installed runtime generation.'
+        )
+      }
+    }
+  }
+  let legacyEnvelope = null
+  try {
+    legacyEnvelope = raw && typeof raw === 'object' && raw.identity?.intentSeed
+      ? legacyN1ActionEnvelope(raw)
+      : null
+  } catch {}
+  const onlyRegisteredEnvelopeDifference = exact.errors.length === 1 &&
+    exact.errors[0] === 'actionEnvelope is not derived from intent scope' &&
+    stableDigest(raw.actionEnvelope) === stableDigest(legacyEnvelope)
+  if (!onlyRegisteredEnvelopeDifference) {
+    return {
+      valid: false,
+      plan: null,
+      status: 'refresh-required',
+      receipt: null,
+      error: exact.error
+    }
+  }
+  const migrated = deepClone(raw)
+  migrated.actionEnvelope = deriveActionEnvelope(
+    migrated.identity.finalIntent,
+    migrated.changeTypes,
+    migrated.identity.intentSeed?.riskHint
+  )
+  rebuildContextPlanIdentity(migrated)
+  const migratedValidation = validateContextReadPlan(migrated)
+  if (!migratedValidation.valid) {
+    return {
+      valid: false,
+      plan: null,
+      status: 'refresh-required',
+      receipt: null,
+      error: migratedValidation.error
+    }
+  }
+  const status = producerIdentity ? 'migrated-n-1' : 'legacy-n-1'
+  return {
+    valid: true,
+    plan: migrated,
+    status,
+    receipt: {
+      schemaVersion: 'RuntimeCompatibilityReceiptV1',
+      status,
+      producerRuntimeContractVersion: producerIdentity?.runtimeContractVersion ?? 1,
+      consumerRuntimeContractVersion: CONTEXT_RUNTIME_CONTRACT_VERSION,
+      originalPlanDigest: stableDigest(raw),
+      normalizedPlanDigest: stableDigest(migrated),
+      legacyProducerAssumed: !producerIdentity,
+      migratedFields: ['actionEnvelope', 'identityInputs', 'planContentId', 'planId', 'contextBinding', 'cacheDecision', 'stageTiming']
+    },
+    error: null
+  }
+}
+
 function outcomePayload(raw, path = 'root', depth = 0) {
   if (depth > 8 || raw === null || raw === undefined) return { payload: null, variant: path, observable: false }
   if (typeof raw === 'string') return { payload: raw, variant: path, observable: true }
@@ -1251,6 +1404,20 @@ function parseExactJson(value) {
   }
 }
 
+function extractRuntimeProducerIdentity (raw, depth = 0, seen = new WeakSet()) {
+  if (!raw || typeof raw !== 'object' || depth > 8 || seen.has(raw)) return null
+  seen.add(raw)
+  const direct = raw._meta?.devcodexRuntimeProcessIdentity ||
+    raw.meta?.devcodexRuntimeProcessIdentity ||
+    raw.devcodexRuntimeProcessIdentity
+  if (direct && typeof direct === 'object') return direct
+  for (const key of ['tool_response', 'toolResponse', 'tool_result', 'toolResult', 'result', 'output', 'structuredContent']) {
+    const found = extractRuntimeProducerIdentity(raw[key], depth + 1, seen)
+    if (found) return found
+  }
+  return null
+}
+
 function extractContextPlanBody(raw) {
   const outcome = normalizeContextToolOutcome(raw)
   if (!outcome.transportSuccess) {
@@ -1261,10 +1428,27 @@ function extractContextPlanBody(raw) {
     }
   }
   const plan = parseExactJson(outcome.payload)
-  const validation = validateContextReadPlan(plan)
-  return validation.valid
-    ? { plan, outcome, error: null }
-    : { plan: null, outcome, error: validation.error }
+  const producerIdentity = extractRuntimeProducerIdentity(raw)
+  const compatibility = normalizeCompatibleContextReadPlan(plan, { producerIdentity })
+  return compatibility.valid
+    ? {
+        plan: compatibility.plan,
+        originalPlan: plan,
+        originalContextBinding: plan?.contextBinding || null,
+        producerIdentity,
+        compatibilityReceipt: compatibility.receipt,
+        outcome,
+        error: null
+      }
+    : {
+        plan: null,
+        originalPlan: plan,
+        originalContextBinding: plan?.contextBinding || null,
+        producerIdentity,
+        compatibilityReceipt: null,
+        outcome,
+        error: compatibility.error
+      }
 }
 
 function extractContextSourceEvidence(plan, rawOutcome, options = {}) {
@@ -1990,8 +2174,10 @@ function deriveLegacyBootstrapProjection(receipt, legacy = {}) {
 function normalizeContextReadState(raw = {}, options = {}) {
   const source = raw.contextAcquisition && typeof raw.contextAcquisition === 'object' ? raw.contextAcquisition : raw
   const planCandidate = source.plan || source.currentPlan || null
-  const planValidation = validateContextReadPlan(planCandidate)
-  const plan = planValidation.valid ? deepClone(planCandidate) : null
+  const planValidation = normalizeCompatibleContextReadPlan(planCandidate, {
+    producerIdentity: source.producerRuntimeIdentity || null
+  })
+  const plan = planValidation.valid ? deepClone(planValidation.plan) : null
   let receipt = null
   if (plan && source.receipt) {
     const normalized = normalizeReceipt(source.receipt, plan, options)
@@ -2031,6 +2217,7 @@ module.exports = {
   normalizeContextReadState,
   normalizeContextToolOutcome,
   normalizeIntentSeed,
+  normalizeCompatibleContextReadPlan,
   recordContextReadAttempt,
   recordContextReadOutcome,
   stableDigest,

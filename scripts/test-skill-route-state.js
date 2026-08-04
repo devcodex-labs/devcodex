@@ -1620,6 +1620,16 @@ try {
       cwd: explicitFixture.projectRoot
     }, explicitFixture.runtimeOptions)
     assert.strictEqual(explicitBoot.bootstrap.explicitStatus, 'ready')
+    const explicitNotCommitted = evaluateProgressiveSkillRouteStop({
+      project: explicitFixture.project,
+      contextEpoch: explicitEpoch,
+      hostSessionId: null,
+      assistantText: ''
+    }, explicitFixture.runtimeOptions)
+    assert.strictEqual(explicitNotCommitted.errorCode, 'PLAN_NOT_COMMITTED')
+    assert.strictEqual(explicitNotCommitted.nextOp, 'commit')
+    assert.strictEqual(explicitNotCommitted.nextCall.op, 'commit')
+    assert.strictEqual(explicitNotCommitted.nextCall.catalogDigest, explicitBoot.bootstrap.catalogDigest)
     const explicitCommit = handleSkillRoute({
       op: 'commit',
       project: explicitFixture.project,
@@ -1716,6 +1726,16 @@ try {
       item.code === 'WORKSPACE_ALWAYS_ON_DISABLED' &&
       item.skillId === 'workspace-probe'
     ))
+    const blockedStop = evaluateProgressiveSkillRouteStop({
+      project: killSwitchFixture.project,
+      contextEpoch: killEpoch,
+      hostSessionId: null,
+      assistantText: ''
+    }, disabledOptions)
+    assert.strictEqual(blockedStop.errorCode, 'ROOT_PLAN_BLOCKED')
+    assert.strictEqual(blockedStop.completionDisposition, 'retired-root-plan-blocked', JSON.stringify(blockedStop))
+    assert.strictEqual(blockedStop.retired, true)
+    assert.strictEqual(blockedStop.recovery.action, 'retire-and-rebootstrap-next-user-prompt')
   } finally {
     killSwitchFixture.cleanup()
   }

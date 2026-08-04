@@ -127,7 +127,7 @@ function projectionDescriptors(hosts) {
     add('grok', 'user://grok/devcodex/plugins/devcodex-workspace', 'plugin', 'direct-probe')
   }
   for (const host of selected) {
-    add(host, `user://${host}/devcodex/runtime`, 'stable-runtime', 'managed')
+    add(host, `user://${host}/devcodex/runtime-<generation>`, 'immutable-runtime-generation', 'managed')
   }
   return descriptors
 }

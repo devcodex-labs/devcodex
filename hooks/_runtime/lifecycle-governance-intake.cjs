@@ -2,6 +2,7 @@
 
 const fs = require('fs')
 const path = require('path')
+const { inspectGovernanceLedgerFile } = require('./governance-ledger-integrity.cjs')
 
 function buildLifecycleGovernanceIntakeUtils() {
   const GOVERNANCE_INTAKE_STATE_VERSION = 3
@@ -381,12 +382,11 @@ function buildLifecycleGovernanceIntakeUtils() {
     return { observable: true, successful: !failed }
   }
 
-  function readLedgerIds(file) {
-    try {
-      if (!fs.statSync(file).isFile()) return []
-      return unique((fs.readFileSync(file, 'utf8').match(LEDGER_ID_RE) || []).map(value => value.toUpperCase()))
-    } catch {
-      return []
+  function readLedgerSnapshot(file, contract) {
+    const integrity = inspectGovernanceLedgerFile(file, { expectedPrefix: contract?.prefix })
+    return {
+      integrity,
+      ids: integrity.valid ? unique(integrity.primaryIds || []) : []
     }
   }
 
@@ -415,7 +415,10 @@ function buildLifecycleGovernanceIntakeUtils() {
         resolvedPaths.find(item => item.resolved.endsWith(path.normalize(path.join('data', contract.file)).toLowerCase()))
       if (!target) continue
       const activeRootMatch = target.resolved === expectedPath
-      const fileIds = activeRootMatch ? readLedgerIds(path.join(activeRoot, 'data', contract.file)) : []
+      const snapshot = activeRootMatch
+        ? readLedgerSnapshot(path.join(activeRoot, 'data', contract.file), contract)
+        : { integrity: null, ids: [] }
+      const fileIds = snapshot.ids
       const evidenceIds = activeRootMatch && outcome.observable && outcome.successful
         ? inputIds.filter(id => fileIds.includes(id))
         : []
@@ -431,7 +434,8 @@ function buildLifecycleGovernanceIntakeUtils() {
         successful: outcome.observable && outcome.successful,
         inputIds,
         fileIds,
-        evidenceIds
+        evidenceIds,
+        ledgerIntegrity: snapshot.integrity
       })
     }
 
@@ -490,15 +494,24 @@ function buildLifecycleGovernanceIntakeUtils() {
     const ids = decision.writeEvidence.filter(id => id.startsWith(contract.prefix))
     if (!ids.length || !activeRoot) return { verified: false, ids: [], observationIds: [], reason: 'missing evidence IDs or active root' }
     if (decision.writeRequirement === 'already-recorded') {
-      const fileIds = readLedgerIds(path.join(activeRoot, 'data', contract.file))
+      const snapshot = readLedgerSnapshot(path.join(activeRoot, 'data', contract.file), contract)
+      const fileIds = snapshot.ids
       const attemptedIds = new Set(governanceIntake.ledgerObservations
         .filter(observation => observation.ledger === contract.ledger && observationAfterCandidate(observation, candidate))
         .flatMap(observation => observation.inputIds || []))
       const verifiedIds = ids.filter(id => fileIds.includes(id) && !attemptedIds.has(id))
       const verified = verifiedIds.length === ids.length
-      return { verified, ids: verifiedIds, observationIds: [], reason: verified ? '' : 'not every existing ID was found in the active-root ledger' }
+      return {
+        verified,
+        ids: verifiedIds,
+        observationIds: [],
+        reason: verified ? '' : (snapshot.integrity.valid
+          ? 'not every existing ID was found in the active-root ledger'
+          : `active-root ledger integrity failed: ${snapshot.integrity.issues.join(',')}`)
+      }
     }
-    const currentFileIds = readLedgerIds(path.join(activeRoot, 'data', contract.file))
+    const snapshot = readLedgerSnapshot(path.join(activeRoot, 'data', contract.file), contract)
+    const currentFileIds = snapshot.ids
     const matchingObservations = governanceIntake.ledgerObservations.filter(observation => (
       observation.ledger === contract.ledger &&
       observation.activeRootMatch === true &&
@@ -515,7 +528,9 @@ function buildLifecycleGovernanceIntakeUtils() {
       verified,
       ids: verifiedIds,
       observationIds,
-      reason: verified ? '' : 'no successful exact active-root PostToolUse observation for every claimed ID'
+      reason: verified ? '' : (snapshot.integrity.valid
+        ? 'no successful exact active-root PostToolUse observation for every claimed ID'
+        : `active-root ledger integrity failed: ${snapshot.integrity.issues.join(',')}`)
     }
   }
 

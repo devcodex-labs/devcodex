@@ -1756,6 +1756,18 @@ function testProfileContextPlanContract() {
 
   const chatResult = resultById(responses, 2)
   assert.notStrictEqual(chatResult.isError, true)
+  assert.strictEqual(
+    chatResult._meta?.devcodexRuntimeProcessIdentity?.schemaVersion,
+    'RuntimeProcessIdentityV2'
+  )
+  assert.strictEqual(
+    chatResult._meta.devcodexRuntimeProcessIdentity.role,
+    'profile-mcp'
+  )
+  assert.match(
+    chatResult._meta.devcodexRuntimeProcessIdentity.bootRuntimeContractDigest,
+    /^[a-f0-9]{64}$/
+  )
   const chatPlan = toolJson(chatResult)
   const chatValidation = validateContextReadPlan(chatPlan)
   assert.strictEqual(chatValidation.valid, true,

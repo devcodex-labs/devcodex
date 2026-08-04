@@ -202,11 +202,22 @@ assert.ok(
   'workspace init must bootstrap the workspace namespace runtime'
 )
 
+function installedRuntimeRoot(host) {
+  const hostRoot = host === 'gemini'
+    ? path.join(globalHome, 'gemini-cli-home', '.gemini')
+    : path.join(globalHome, `.${host}`)
+  const receipt = JSON.parse(fs.readFileSync(
+    path.join(hostRoot, 'devcodex', 'global-host-receipt.json'),
+    'utf8'
+  ))
+  assert.strictEqual(receipt.schemaVersion, 'GlobalHostConfigReceiptV1')
+  assert.strictEqual(receipt.runtimeGeneration?.schemaVersion, 'RuntimeGenerationManifestV1')
+  assert.strictEqual(path.resolve(receipt.runtimeRoot).startsWith(path.resolve(hostRoot)), true)
+  return path.resolve(receipt.runtimeRoot)
+}
+
 const installedClaudeAdapter = path.join(
-  globalHome,
-  '.claude',
-  'devcodex',
-  'runtime',
+  installedRuntimeRoot('claude'),
   'hooks',
   '_runtime',
   'lifecycle-host-adapters.cjs'
@@ -225,10 +236,7 @@ assert.strictEqual(importedClaudeHook.continue, true)
 assert.strictEqual(importedClaudeHook.devcodexCompatibilityBypass, 'grok-imported-claude-hook')
 
 const installedCodexAdapter = path.join(
-  globalHome,
-  '.codex',
-  'devcodex',
-  'runtime',
+  installedRuntimeRoot('codex'),
   'hooks',
   '_runtime',
   'lifecycle-host-adapters.cjs'
@@ -253,11 +261,7 @@ assert.match(
 
 for (const host of ['copilot', 'claude', 'codex', 'gemini', 'grok']) {
   const installedAdapter = path.join(
-    globalHome,
-    host === 'gemini' ? 'gemini-cli-home' : '',
-    `.${host}`,
-    'devcodex',
-    'runtime',
+    installedRuntimeRoot(host),
     'hooks',
     '_runtime',
     'lifecycle-host-adapters.cjs'
@@ -359,7 +363,11 @@ if (grokAvailable) {
   const grokDoctor = doctorPayload.payload.globalHostRuntime.hosts.find(host => host.host === 'grok')
   assert.strictEqual(doctorPayload.ok, true)
   assert.strictEqual(grokDoctor.contractStatus, 'passed')
-  assert.strictEqual(grokDoctor.nativeStatus, 'passed')
+  assert.strictEqual(
+    grokDoctor.nativeStatus,
+    'passed',
+    `Grok doctor did not reach native PASS:\n${JSON.stringify(grokDoctor, null, 2)}`
+  )
   assert.strictEqual(grokDoctor.ready, true)
   assert.strictEqual(grokDoctor.probes.grokDeep.inspectSummary.plugins, 1)
   assert.strictEqual(grokDoctor.probes.grokDeep.inspectSummary.skills, 1)

@@ -2,7 +2,7 @@
 
 > **说明**: 版本概览摘要。最新版本的详细变更见下方表格首行的 `changelogs/releases/vX.Y.Z.md` 链接；历史版本见对应详细变更文件
 > **最后更新**: 2026-08-04
-> **当前未发布**: v1.16.2 已归档；F1～F14 的 Profile 目标、ContextRead/SkillRoute、不可执行旧路由退役、索引证据与发布门禁修复仍是本地候选，详见 [`changelogs/unreleased.md`](./changelogs/unreleased.md)。
+> **当前未发布**: v1.16.3 已归档；后续未发布实现继续记录到 [`changelogs/unreleased.md`](./changelogs/unreleased.md)。
 
 ---
 
@@ -10,6 +10,7 @@
 
 | 版本 | 日期 | 变更摘要 | 详细 |
 |------|------|---------|------|
+| [v1.16.3](./changelogs/releases/v1.16.3.md) | 2026-08-04 | 🔧 **SkillRoute 无恢复循环与滚动升级修复**：不可执行旧路由自动退役并在下一轮重建；运行中会话与更新后新会话安全分流，ContextRead 仅迁移受支持的上一版本契约；Profile、memory、索引和治理台账同步加固 | [查看](./changelogs/releases/v1.16.3.md) |
 | [v1.16.2](./changelogs/releases/v1.16.2.md) | 2026-08-03 | 🔧 **ContextRead 回执耐久化与用户任务教程**：独立来源观察账本抵御 Hook/MCP 交错覆盖，修复空会话标识重放冲突；README 增加常见任务提示词与只读 CLI 帮助 | [查看](./changelogs/releases/v1.16.2.md) |
 | [v1.16.1](./changelogs/releases/v1.16.1.md) | 2026-08-03 | 🔧 **长会话提示有界化与项目绑定稳定性修复**：治理候选仅投影当前消息，历史状态有界压缩且新会话隔离；同会话项目绑定不再超时，唯一项目短名与 CLI 解析保持一致 | [查看](./changelogs/releases/v1.16.1.md) |
 | [v1.16.0](./changelogs/releases/v1.16.0.md) | 2026-08-03 | ✨ **首次初始化、用户语言与多项目运行态统一**：`init` 自动生成非覆盖式 workspace Profile，`init --profile` 一步初始化唯一目标项目；用户回复与产物正文跟随消息语言，派生状态集中隔离并提供 runtime status/prune | [查看](./changelogs/releases/v1.16.0.md) |
@@ -136,8 +137,8 @@
 
 ## 相关文档
 
-- [`changelogs/releases/v1.16.2.md`](./changelogs/releases/v1.16.2.md) — 最新版本详细变更文档
-- [`changelogs/releases/v1.16.0.md`](./changelogs/releases/v1.16.0.md) — 上一版本详细变更文档
+- [`changelogs/releases/v1.16.3.md`](./changelogs/releases/v1.16.3.md) — 最新版本详细变更文档
+- [`changelogs/releases/v1.16.2.md`](./changelogs/releases/v1.16.2.md) — 上一版本详细变更文档
 - [`changelogs/releases/v1.15.7.md`](./changelogs/releases/v1.15.7.md) — 历史版本详细变更文档
 - [`changelogs/releases/v1.15.0.md`](./changelogs/releases/v1.15.0.md) — 上一版本详细变更文档
 - [`changelogs/releases/v1.14.0.md`](./changelogs/releases/v1.14.0.md) — 历史版本详细变更文档

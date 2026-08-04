@@ -659,6 +659,10 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
     const invalidState = readLegacyState()
     assert.strictEqual(invalidState.contextAcquisition.plan, null)
     assert.strictEqual(invalidState.contextAcquisition.fallbackActive, true)
+    assert.strictEqual(invalidState.contextAcquisition.targetResolved, state.contextAcquisition.targetResolved)
+    assert.strictEqual(invalidState.contextAcquisition.activeRoot, state.contextAcquisition.activeRoot)
+    assert.strictEqual(invalidState.contextAcquisition.project, state.contextAcquisition.project)
+    assert(invalidState.contextAcquisition.failedPlanKeys.length > 0)
     assert.match(invalidState.contextAcquisition.lastError.message, /no matching exact workspace observation/i)
   }
 

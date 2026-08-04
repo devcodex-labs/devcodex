@@ -24,6 +24,9 @@
     "scripts/lib/checked-command.js",
     "scripts/lib/always-on-governance.js",
     "scripts/test-always-on-governance.js",
+    "hooks/_runtime/governance-ledger-integrity.cjs",
+    "scripts/validate-governance-ledgers.js",
+    "scripts/test-governance-ledger-integrity.js",
     "scripts/host-instruction-projection.json",
     "scripts/lib/host-instruction-projection.js",
     "scripts/lib/host-surface-descriptors.js",
@@ -89,6 +92,8 @@
     "scripts/test-skill-route-contracts.js",
     "scripts/test-skill-route-state.js",
     "scripts/test-skill-route-lifecycle.js",
+    "scripts/test-runtime-rolling-upgrade.js",
+    "scripts/fixtures/runtime-rolling-upgrade/**",
     "scripts/test-skill-route-closure.js",
     "scripts/fixtures/skill-route-closure-trace.v1.json"
   ],
@@ -115,6 +120,7 @@
         "skill-route-contracts",
         "skill-route-state",
         "skill-route-lifecycle",
+        "runtime-rolling-upgrade",
         "skill-route-closure",
         "profile-section-selector",
         "project-knowledge-store",
@@ -154,6 +160,7 @@
         "closure-evidence",
         "spec-governance",
         "governance-intake",
+        "governance-ledger-integrity",
         "profile-governance",
         "readme-governance",
         "requirement-artifacts",
@@ -203,6 +210,7 @@
         "skill-route-contracts",
         "skill-route-state",
         "skill-route-lifecycle",
+        "runtime-rolling-upgrade",
         "skill-route-closure",
         "profile-section-selector",
         "project-knowledge-store",
@@ -242,6 +250,7 @@
         "closure-evidence",
         "spec-governance",
         "governance-intake",
+        "governance-ledger-integrity",
         "profile-governance",
         "readme-governance",
         "requirement-artifacts",
@@ -292,6 +301,7 @@
         "context-binding",
         "context-read-controls",
         "always-on-governance",
+        "governance-ledger-integrity",
         "profile-section-selector",
         "execution-chain-evolution",
         "profile-governance",
@@ -322,6 +332,7 @@
         "skill-route-contracts",
         "skill-route-state",
         "skill-route-lifecycle",
+        "runtime-rolling-upgrade",
         "skill-route-closure"
       ]
     },
@@ -337,6 +348,7 @@
         "capability-surface-decision",
         "host-capability-routing",
         "always-on-governance",
+        "governance-ledger-integrity",
         "derived-index-contract",
         "memory-index",
         "report-index",
@@ -376,6 +388,7 @@
         "skill-route-contracts",
         "skill-route-state",
         "skill-route-lifecycle",
+        "runtime-rolling-upgrade",
         "skill-route-closure"
       ]
     }
@@ -1053,6 +1066,56 @@
     },
     {
       "schemaVersion": "ValidationNodeV1",
+      "id": "runtime-rolling-upgrade",
+      "owner": "progressive-skill-route",
+      "command": "node",
+      "args": [
+        "scripts/test-runtime-rolling-upgrade.js"
+      ],
+      "dependencies": [
+        "skill-route-lifecycle"
+      ],
+      "inputs": [
+        "package.json",
+        "hooks/_runtime/context-read-contract.cjs",
+        "hooks/_runtime/runtime-generation-identity.cjs",
+        "mcp/profile-server.js",
+        "scripts/lib/global-host-config.js",
+        "scripts/lib/global-host-target.js",
+        "scripts/lib/runtime-generation.js",
+        "scripts/fixtures/runtime-rolling-upgrade/**",
+        "scripts/test-runtime-rolling-upgrade.js"
+      ],
+      "consumers": [
+        "skill-route-closure",
+        "pack-clean"
+      ],
+      "invariants": [
+        "old-process-survives-candidate-activation",
+        "immutable-runtime-generation",
+        "registered-n-minus-one-migration",
+        "unknown-difference-refresh-required"
+      ],
+      "riskClass": "release",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 180000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1",
+        "RuntimeRollingUpgradeReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
       "id": "skill-route-closure",
       "owner": "progressive-skill-route",
       "command": "node",
@@ -1060,7 +1123,7 @@
         "scripts/test-skill-route-closure.js"
       ],
       "dependencies": [
-        "skill-route-lifecycle"
+        "runtime-rolling-upgrade"
       ],
       "inputs": [
         "package.json",
@@ -2674,6 +2737,49 @@
     },
     {
       "schemaVersion": "ValidationNodeV1",
+      "id": "governance-ledger-integrity",
+      "owner": "spec-governance",
+      "command": "node",
+      "args": [
+        "scripts/test-governance-ledger-integrity.js"
+      ],
+      "dependencies": [],
+      "inputs": [
+        "hooks/_runtime/governance-ledger-integrity.cjs",
+        "hooks/_runtime/lifecycle-governance-intake.cjs",
+        "scripts/validate-governance-ledgers.js",
+        "scripts/test-governance-ledger-integrity.js"
+      ],
+      "consumers": [
+        "hooks-runtime",
+        "pack-clean"
+      ],
+      "invariants": [
+        "strict-utf8",
+        "nul-free",
+        "canonical-id-unique",
+        "full-file-tail-observed"
+      ],
+      "riskClass": "high",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1",
+        "GovernanceLedgerIntegrityV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
       "id": "profile-governance",
       "owner": "profile-governance",
       "command": "node",
@@ -4073,6 +4179,7 @@
         "gemini/**",
         "grok/plugins/devcodex-workspace/**",
         "scripts/lib/global-host-*.js",
+        "scripts/lib/runtime-generation.js",
         "scripts/lib/runtime-dependency-closure.js",
         "scripts/fixtures/global-host-config/**",
         "scripts/test-global-host-config.js",
@@ -4092,7 +4199,9 @@
         "adapter-contract-false-green-detection",
         "configured-contract-native-operational-layering",
         "idempotent-refresh",
-        "workspace-host-dirs-zero"
+        "workspace-host-dirs-zero",
+        "immutable-runtime-generation",
+        "runtime-process-identity-handshake"
       ],
       "riskClass": "release",
       "cachePolicy": "never",

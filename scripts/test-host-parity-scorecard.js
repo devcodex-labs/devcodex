@@ -23,6 +23,7 @@ const {
 } = require('./lib/host-parity-scorecard.js')
 const { adaptHostOutput } = require('../hooks/_runtime/lifecycle-host-adapters.cjs')
 const { buildLifecyclePayloadUtils } = require('../hooks/_runtime/lifecycle-payload-utils.cjs')
+const { resolveGlobalHostTarget } = require('./lib/global-host-target.js')
 
 // --- scorecard pure helpers ---
 const block = composeEntryCheckBlock({ project: 'demo', status: 'PASS', nextStep: 'go' })
@@ -37,7 +38,18 @@ assert.match(entryCheckAssistSuffix({ project: 'x' }), /S07 assist/)
 
 // Isolated user-global layout for hardReady
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-host-parity-'))
-const codexRuntime = path.join(root, '.codex', 'devcodex', 'runtime')
+const isolatedEnv = {
+  ...process.env,
+  DEVCODEX_TEST_HOME: root,
+  USERPROFILE: root,
+  HOME: root
+}
+const codexTarget = resolveGlobalHostTarget('codex', {
+  env: isolatedEnv,
+  home: root,
+  packageRoot: path.resolve(__dirname, '..')
+})
+const codexRuntime = codexTarget.runtimeRoot
 const grokPlugin = path.join(root, '.grok', 'devcodex', 'plugins', 'devcodex-workspace')
 fs.mkdirSync(path.join(codexRuntime, 'hooks', '_runtime'), { recursive: true })
 fs.mkdirSync(path.join(grokPlugin, 'hooks'), { recursive: true })
@@ -50,19 +62,16 @@ const bootstrapSrc = fs.readFileSync(path.join(__dirname, '../hooks/_runtime/lif
 fs.writeFileSync(path.join(codexRuntime, 'hooks', '_runtime', 'lifecycle-host-adapters.cjs'), adapterSrc)
 fs.writeFileSync(path.join(codexRuntime, 'hooks', '_runtime', 'lifecycle-bootstrap-state.cjs'), bootstrapSrc)
 fs.writeFileSync(path.join(codexRuntime, 'hooks', '_runtime', 'lifecycle.cjs'), 'module.exports={}\n')
+fs.writeFileSync(
+  path.join(codexRuntime, 'runtime-generation.json'),
+  `${JSON.stringify(codexTarget.runtimeGeneration, null, 2)}\n`
+)
 const globalHostConfig = {
   hosts: [
     { host: 'codex', adapterReady: true, ready: false, nativeStatus: 'unverified' },
     { host: 'grok', adapterReady: true, ready: false, nativeStatus: 'unverified' }
   ]
 }
-const isolatedEnv = {
-  ...process.env,
-  DEVCODEX_TEST_HOME: root,
-  USERPROFILE: root,
-  HOME: root
-}
-
 const ready = evaluateGrokHostParity({
   cwd: root,
   hostRoot: root,

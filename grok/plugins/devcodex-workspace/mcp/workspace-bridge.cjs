@@ -2,9 +2,12 @@
 'use strict'
 
 const fs = require('fs')
-const os = require('os')
 const path = require('path')
 const { spawn } = require('child_process')
+const {
+  resolveGrokHome,
+  resolveGrokRuntimeRoot
+} = require('../lib/runtime-root.cjs')
 
 const kind = String(process.argv[2] || '').trim().toLowerCase()
 const cwd = path.resolve(process.argv[3] || process.cwd())
@@ -33,9 +36,8 @@ if (!workspaceRoot) {
   process.exit(2)
 }
 
-const home = process.env.USERPROFILE || process.env.HOME || os.homedir()
-const grokHome = path.resolve(process.env.GROK_HOME || path.join(home, '.grok'))
-const serverPath = path.join(grokHome, 'devcodex', 'runtime', 'mcp', `${kind}-server.js`)
+const grokHome = resolveGrokHome(process.env)
+const serverPath = path.join(resolveGrokRuntimeRoot(process.env), 'mcp', `${kind}-server.js`)
 if (!fs.existsSync(serverPath)) {
   process.stderr.write(`DevCodex Grok MCP bridge: user-global ${kind} server is missing from ${grokHome}.\n`)
   process.exit(2)

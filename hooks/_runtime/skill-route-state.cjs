@@ -520,7 +520,7 @@ function parseExplicitSkillId (prompt) {
 function bootstrapSkillRoute (input, options = {}) {
   const {
     getCapabilityDocumentDigest,
-    getRuntimeContractDigest
+    getBootRuntimeContractDigest
   } = require('./skill-route-mode.cjs')
   const fsImpl = options.fs || fs
   const project = ensureProject(input.project)
@@ -565,7 +565,7 @@ function bootstrapSkillRoute (input, options = {}) {
     ? (explicitEntry ? 'ready' : 'rejected')
     : 'none'
   const runtimeContractDigest = input.runtimeContractDigest ||
-    getRuntimeContractDigest(options)
+    getBootRuntimeContractDigest(options)
   const modeReceipt = input.modeReceipt || {
     schemaVersion: 'SkillRouteModeReceiptV1',
     effective: input.mode,

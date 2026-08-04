@@ -3,6 +3,10 @@
 const os = require('os')
 const fs = require('fs')
 const path = require('path')
+const {
+  buildRuntimeGeneration,
+  runtimeGenerationDirectoryName
+} = require('./runtime-generation.js')
 
 const GLOBAL_HOST_TARGET_SCHEMA = 'GlobalHostTargetV1'
 const GLOBAL_HOST_IDS = Object.freeze(['copilot', 'claude', 'codex', 'gemini', 'grok'])
@@ -152,13 +156,22 @@ function resolveGlobalHostTarget(host, options = {}) {
   const home = resolveHome({ ...options, env })
   const root = hostRoot(normalized, home, env)
   const shared = resolveGlobalSharedTarget(home, env)
+  const packageRoot = path.resolve(options.packageRoot || path.join(__dirname, '..', '..'))
+  const runtimeGeneration = options.runtimeGeneration === false
+    ? null
+    : (options.runtimeGeneration || buildRuntimeGeneration(packageRoot, options.fs || fs))
+  const runtimeBaseRoot = path.join(root, 'devcodex')
   const common = {
     schemaVersion: GLOBAL_HOST_TARGET_SCHEMA,
     host: normalized,
     home,
     root,
     shared,
-    runtimeRoot: path.join(root, 'devcodex', 'runtime'),
+    runtimeBaseRoot,
+    runtimeGeneration,
+    runtimeRoot: runtimeGeneration
+      ? path.join(runtimeBaseRoot, runtimeGenerationDirectoryName(runtimeGeneration))
+      : path.join(runtimeBaseRoot, 'runtime'),
     receiptFile: path.join(root, 'devcodex', 'global-host-receipt.json'),
     additionalRoots: [shared.root],
     additionalFiles: []

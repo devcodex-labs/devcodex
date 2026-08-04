@@ -96,6 +96,7 @@ function runLifecycle (fixture, payload = {}, env = {}, cwd = fixture.projectRoo
   })
   assert.strictEqual(firstStop.coordinator.noProgressCount, 1)
   assert.strictEqual(duplicateStop.coordinator.noProgressCount, 1, 'same hookRunId + fingerprint must be idempotent')
+  assert.strictEqual(duplicateStop.noticeSuppressed, true, 'duplicate Stop must not replay the same envelope')
   reconcileProgressiveSkillRoute(state, pending, {
     trigger: 'Stop', sessionKey: 'session-coordinator', payload: { hook_run_id: 'hook-stop-2' }
   })
@@ -104,6 +105,18 @@ function runLifecycle (fixture, payload = {}, env = {}, cwd = fixture.projectRoo
   })
   assert.strictEqual(circuit.coordinator.circuitOpen, true)
   assert.strictEqual(circuit.allowAction, false, 'circuit breaker must not fail open')
+  let saturated = circuit
+  for (let index = 4; index <= 100; index += 1) {
+    saturated = reconcileProgressiveSkillRoute(state, pending, {
+      trigger: 'Stop',
+      sessionKey: 'session-coordinator',
+      payload: { hook_run_id: `hook-stop-${index}` }
+    })
+  }
+  assert.strictEqual(saturated.coordinator.noProgressCount, 3, 'no-progress counter must saturate')
+  assert.strictEqual(saturated.envelope.noProgressCount, 3)
+  assert.strictEqual(saturated.noticeSuppressed, true, 'saturated identical Stop must suppress repeated envelope injection')
+  assert.match(saturated.message, /actionable field/)
 
   const progressed = reconcileProgressiveSkillRoute(state, {
     ...pending,
@@ -116,6 +129,30 @@ function runLifecycle (fixture, payload = {}, env = {}, cwd = fixture.projectRoo
   })
   assert.strictEqual(progressed.progressObserved, true)
   assert.strictEqual(progressed.coordinator.noProgressCount, 0)
+
+  const impossible = reconcileProgressiveSkillRoute({}, {
+    present: true,
+    complete: false,
+    processComplete: false,
+    businessSatisfied: true,
+    turnBinding: 'turn-impossible',
+    contextEpoch: 'ctx-impossible',
+    pendingStageIds: [],
+    errorCode: 'TURN_ENVELOPE_READBACK_FAILED',
+    nextOp: null,
+    nextCall: null,
+    recovery: null
+  }, {
+    trigger: 'Stop',
+    sessionKey: 'session-impossible',
+    payload: { hook_run_id: 'hook-impossible' },
+    requireBusiness: true
+  })
+  assert.strictEqual(impossible.required, false)
+  assert.strictEqual(impossible.allowAction, true)
+  assert.strictEqual(impossible.envelope.status, 'retired')
+  assert.strictEqual(impossible.envelope.retirementReason, 'TURN_ENVELOPE_READBACK_FAILED')
+  assert.strictEqual(impossible.envelope.recovery.action, 'retire-and-rebootstrap-next-user-prompt')
 }
 
 {

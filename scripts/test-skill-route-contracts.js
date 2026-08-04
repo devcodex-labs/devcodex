@@ -576,6 +576,19 @@ try {
     item.hostVariant === 'codex-cli/exec-user-global-local-stdio'
   )
   currentProductionCapability.runtimeContractDigest = getRuntimeContractDigest()
+  const currentEvidenceSource = path.join(
+    fixture.packageRoot,
+    currentProductionCapability.evidenceRef
+  )
+  const currentEvidence = JSON.parse(fs.readFileSync(currentEvidenceSource, 'utf8'))
+  currentEvidence.runtimeContractDigest = currentProductionCapability.runtimeContractDigest
+  const currentEvidencePath = path.join(fixture.root, 'current-codex-evidence.json')
+  const currentEvidenceRaw = `${JSON.stringify(currentEvidence, null, 2)}\n`
+  fs.writeFileSync(currentEvidencePath, currentEvidenceRaw, 'utf8')
+  currentProductionCapability.evidenceRef = path.basename(currentEvidencePath)
+  currentProductionCapability.evidenceDigest = crypto.createHash('sha256')
+    .update(currentEvidenceRaw, 'utf8')
+    .digest('hex')
   fs.writeFileSync(
     currentCapabilityPath,
     `${JSON.stringify(currentCapabilities, null, 2)}\n`,
@@ -585,20 +598,24 @@ try {
     project: fixture.project,
     host: 'codex',
     capabilityPath: currentCapabilityPath,
+    evidenceRoot: fixture.root,
     hostAdapterDigest: currentProductionCapability.hostAdapterDigest,
     packageRoot: fixture.packageRoot
   })
   assert.strictEqual(productionMode.effective, 'unified')
-  assert.strictEqual(productionMode.hostEligibility, 'PASS')
+  assert.strictEqual(productionMode.hostEligibility, 'PASS', JSON.stringify(productionMode, null, 2))
   assert.strictEqual(productionMode.capabilityRuntimeCurrent, true)
   assert.strictEqual(productionMode.capabilityAdapterCurrent, true)
   assert.strictEqual(productionMode.capabilityEvidenceValid, true)
   assert.match(productionMode.capabilityEvidenceDigest, /^[a-f0-9]{64}$/)
+  assert.strictEqual(productionMode.processRuntimeIdentity.schemaVersion, 'RuntimeProcessIdentityV2')
   assert.strictEqual(productionMode.processRuntimeIdentity.processId, process.pid)
   assert.strictEqual(
-    productionMode.processRuntimeIdentity.runtimeContractDigest,
+    productionMode.processRuntimeIdentity.bootRuntimeContractDigest,
     productionMode.runtimeContractDigest
   )
+  assert.strictEqual(productionMode.processRuntimeIdentity.runtimeContractVersion, 2)
+  assert.strictEqual(productionMode.processRuntimeIdentity.runtimeContractAligned, true)
   assert.match(productionMode.processRuntimeIdentity.identityDigest, /^[a-f0-9]{64}$/)
   assert.strictEqual(productionMode.probeAuthorityReason, 'probe-authority-missing')
 

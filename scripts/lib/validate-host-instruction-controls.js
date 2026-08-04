@@ -45,6 +45,7 @@ function buildHostInstructionControlChecks(ctx) {
       'grok/plugins/devcodex-workspace/.mcp.json',
       'grok/plugins/devcodex-workspace/hooks/hooks.json',
       'grok/plugins/devcodex-workspace/hooks/devcodex-workspace.cjs',
+      'grok/plugins/devcodex-workspace/lib/runtime-root.cjs',
       'grok/plugins/devcodex-workspace/skills/devcodex-workspace/SKILL.md',
       'grok/plugins/devcodex-workspace/mcp/workspace-bridge.cjs',
       'grok/skills/devcodex-workspace/SKILL.md',
@@ -100,8 +101,16 @@ function buildHostInstructionControlChecks(ctx) {
       }
     }
     const pluginHookRuntime = String(read(path.join(ROOT, 'grok/plugins/devcodex-workspace/hooks/devcodex-workspace.cjs')))
-    for (const anchor of ['outside-workspace', 'nearest-workspace-layout', 'global-adapter-missing', 'GROK_HOME', 'passive-hook-no-context-injection', 'blocking-tool-hook']) {
+    for (const anchor of ['outside-workspace', 'nearest-workspace-layout', 'global-adapter-missing', '../lib/runtime-root.cjs', 'passive-hook-no-context-injection', 'blocking-tool-hook']) {
       if (!pluginHookRuntime.includes(anchor)) err(`[V103] Grok user-global plugin contract missing: ${anchor}`)
+    }
+    const pluginMcpRuntime = String(read(path.join(ROOT, 'grok/plugins/devcodex-workspace/mcp/workspace-bridge.cjs')))
+    if (!pluginMcpRuntime.includes('../lib/runtime-root.cjs')) {
+      err('[V103] Grok MCP bridge must share the receipt-bound runtime resolver')
+    }
+    const pluginRuntimeResolver = String(read(path.join(ROOT, 'grok/plugins/devcodex-workspace/lib/runtime-root.cjs')))
+    for (const anchor of ['GROK_HOME', 'global-host-receipt.json', 'RuntimeGenerationManifestV1', 'runtime-generation.json', 'isUnderPhysical']) {
+      if (!pluginRuntimeResolver.includes(anchor)) err(`[V103] Grok runtime resolver contract missing: ${anchor}`)
     }
     for (const relative of [
       'grok/skills/devcodex-workspace/SKILL.md',

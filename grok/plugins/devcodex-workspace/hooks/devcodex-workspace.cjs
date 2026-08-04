@@ -7,8 +7,11 @@
  */
 const fs = require('fs')
 const path = require('path')
-const os = require('os')
 const { spawnSync } = require('child_process')
+const {
+  resolveGrokHome,
+  resolveGrokRuntimeRoot
+} = require('../lib/runtime-root.cjs')
 
 function samePath(left, right) {
   const a = path.resolve(left)
@@ -98,16 +101,9 @@ function localDangerDeny(payload) {
   return null
 }
 
-function resolveGrokHome(env = process.env, options = {}) {
-  const home = options.home || env.USERPROFILE || env.HOME || os.homedir()
-  return path.resolve(options.grokHome || env.GROK_HOME || path.join(home, '.grok'))
-}
-
 function globalAdapterPath(env = process.env, options = {}) {
   return path.join(
-    resolveGrokHome(env, options),
-    'devcodex',
-    'runtime',
+    resolveGrokRuntimeRoot(env, options),
     'hooks',
     '_runtime',
     'lifecycle-host-adapters.cjs'

@@ -76,6 +76,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     extractContextPlanBody,
     extractContextSourceEvidence,
     markContextReadReceiptStale,
+    normalizeCompatibleContextReadPlan,
     normalizeContextReadState,
     normalizeContextToolOutcome,
     recordContextReadAttempt,
@@ -169,7 +170,8 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       planId: plan.planId,
       planContentId: plan.planContentId,
       activeRoot: plan.identity.activeRoot,
-      project: plan.identity.project
+      project: plan.identity.project,
+      compatibleAliases: acquisition.compatibleContextBindings || []
     }
   }
 
@@ -204,11 +206,14 @@ function buildLifecycleBootstrapStateUtils(ctx) {
         typeof binding.project !== 'string') {
       return { valid: false, errorCode: 'CONTEXT_BINDING_INVALID', reason: 'contextBinding contains an invalid schema or empty identity field' }
     }
-    const identityMatches = binding.contextEpoch === expected.contextEpoch &&
-      binding.planId === expected.planId &&
-      binding.planContentId === expected.planContentId &&
-      normalizePath(binding.activeRoot) === normalizePath(expected.activeRoot) &&
-      binding.project === expected.project
+    const candidates = [expected, ...(expected.compatibleAliases || [])]
+    const identityMatches = candidates.some(candidate =>
+      binding.contextEpoch === candidate.contextEpoch &&
+      binding.planId === candidate.planId &&
+      binding.planContentId === candidate.planContentId &&
+      normalizePath(binding.activeRoot) === normalizePath(candidate.activeRoot) &&
+      binding.project === candidate.project
+    )
     if (!identityMatches) {
       return { valid: false, errorCode: 'CONTEXT_BINDING_MISMATCH', reason: 'contextBinding does not match the live plan identity' }
     }
@@ -311,6 +316,15 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       lastReuseDecision: raw.lastReuseDecision && typeof raw.lastReuseDecision === 'object'
         ? raw.lastReuseDecision
         : null,
+      runtimeCompatibility: raw.runtimeCompatibility && typeof raw.runtimeCompatibility === 'object'
+        ? raw.runtimeCompatibility
+        : null,
+      producerRuntimeIdentity: raw.producerRuntimeIdentity && typeof raw.producerRuntimeIdentity === 'object'
+        ? raw.producerRuntimeIdentity
+        : null,
+      compatibleContextBindings: Array.isArray(raw.compatibleContextBindings)
+        ? raw.compatibleContextBindings.filter(item => item && typeof item === 'object').slice(0, 2)
+        : [],
       sourceRefreshPending: raw.sourceRefreshPending && typeof raw.sourceRefreshPending === 'object'
         ? raw.sourceRefreshPending
         : null,
@@ -1420,6 +1434,10 @@ function buildLifecycleBootstrapStateUtils(ctx) {
         extracted = {
           ...extracted,
           plan,
+          originalPlan: recovered.originalPlan,
+          originalContextBinding: recovered.originalContextBinding,
+          producerIdentity: recovered.producerIdentity,
+          compatibilityReceipt: recovered.compatibilityReceipt,
           error: null,
           recoveredFrom: 'workspace-context-plan-observation'
         }
@@ -1433,7 +1451,23 @@ function buildLifecycleBootstrapStateUtils(ctx) {
         }
       }
     }
-    const identityMatches = !!plan && plan.identity.contextEpoch === acquisition.contextEpoch &&
+    const compatibility = plan
+      ? normalizeCompatibleContextReadPlan(plan, {
+          producerIdentity: extracted.producerIdentity || null
+        })
+      : null
+    if (compatibility && !compatibility.valid) {
+      if (!acquisition.failedPlanKeys.includes(attempt.planKey)) acquisition.failedPlanKeys.push(attempt.planKey)
+      activateFallback(acquisition, compatibility.error.message)
+      acquisition.lastError = compatibility.error
+      return false
+    }
+    if (compatibility?.valid) {
+      plan = compatibility.plan
+      extracted.compatibilityReceipt = extracted.compatibilityReceipt || compatibility.receipt
+    }
+    const identityMatches = !!plan && !!plan.identity &&
+      plan.identity.contextEpoch === acquisition.contextEpoch &&
       normalizePath(plan.identity.activeRoot) === normalizePath(attempt.activeRoot) &&
       plan.identity.project === attempt.project &&
       String(attempt.args.contextEpoch || '') === acquisition.contextEpoch
@@ -1507,6 +1541,12 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       hostDeliveredBytes: extracted.outcome?.telemetry?.bytes ?? null
     }
     acquisition.lastReuseDecision = reuseDecision
+    acquisition.runtimeCompatibility = extracted.compatibilityReceipt || null
+    acquisition.producerRuntimeIdentity = extracted.producerIdentity || null
+    acquisition.compatibleContextBindings = extracted.originalContextBinding &&
+      stableDigest(extracted.originalContextBinding) !== stableDigest(plan.contextBinding)
+      ? [extracted.originalContextBinding]
+      : []
     acquisition.verificationMode = 'structured-plan'
     acquisition.fallbackActive = false
     acquisition.lastError = null

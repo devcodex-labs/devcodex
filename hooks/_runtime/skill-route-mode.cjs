@@ -3,6 +3,9 @@
 const crypto = require('crypto')
 const fs = require('fs')
 const path = require('path')
+const {
+  captureRuntimeProcessIdentity
+} = require('./runtime-generation-identity.cjs')
 
 const {
   loadWorkflowRootRegistry
@@ -30,6 +33,7 @@ const RUNTIME_CONTRACT_FILES = Object.freeze([
   'workflow-root-registry.v1.json',
   'progressive-skill-plan.cjs',
   'skill-route-mode.cjs',
+  'runtime-generation-identity.cjs',
   'skill-route-state.cjs',
   'skill-route-tool.cjs',
   'host-adapter-identity.cjs',
@@ -76,7 +80,7 @@ function rawSha256 (value) {
 function packageRelativeEvidencePath (evidenceRef, options = {}) {
   const value = String(evidenceRef || '').trim()
   const packageRoot = path.resolve(
-    options.packageRoot || path.join(__dirname, '..', '..')
+    options.evidenceRoot || options.packageRoot || path.join(__dirname, '..', '..')
   )
   if (!value || value.includes('\\') || path.isAbsolute(value) ||
       path.win32.isAbsolute(value) || path.posix.isAbsolute(value)) {
@@ -208,6 +212,8 @@ function getCapabilityDocumentDigest (options = {}) {
 
 function getRuntimeContractDigest (options = {}) {
   const fsImpl = options.fs || fs
+  const runtimeRoot = path.resolve(options.runtimeRoot || __dirname)
+  const packageRoot = path.resolve(options.packageRoot || path.join(runtimeRoot, '..', '..'))
   let registryDigest = 'missing'
   try {
     registryDigest = loadWorkflowRootRegistry(options).registry.registryDigest
@@ -218,7 +224,7 @@ function getRuntimeContractDigest (options = {}) {
   for (const file of RUNTIME_CONTRACT_FILES) {
     try {
       runtimeFileDigests[file] = sha256(
-        fsImpl.readFileSync(path.join(__dirname, file), 'utf8')
+        fsImpl.readFileSync(path.join(runtimeRoot, file), 'utf8')
       )
     } catch {
       runtimeFileDigests[file] = 'missing'
@@ -243,7 +249,7 @@ function getRuntimeContractDigest (options = {}) {
   }
   const mcpAdapterPath = path.resolve(
     options.mcpAdapterPath ||
-    path.join(__dirname, '..', '..', 'mcp', 'profile-server.js')
+    path.join(packageRoot, 'mcp', 'profile-server.js')
   )
   try {
     runtimeFileDigests['mcp/profile-server.js'] = sha256(
@@ -254,7 +260,7 @@ function getRuntimeContractDigest (options = {}) {
   }
   const memoryAdapterPath = path.resolve(
     options.memoryAdapterPath ||
-    path.join(__dirname, '..', '..', 'mcp', 'memory-server.js')
+    path.join(packageRoot, 'mcp', 'memory-server.js')
   )
   try {
     runtimeFileDigests['mcp/memory-server.js'] = sha256(
@@ -279,6 +285,18 @@ function getRuntimeContractDigest (options = {}) {
     registryDigest,
     runtimeFileDigests
   })
+}
+
+let cachedBootRuntimeContractDigest = null
+
+function getBootRuntimeContractDigest (options = {}) {
+  const customized = options.fs || options.runtimeRoot || options.packageRoot ||
+    options.globalRuntime || options.mcpAdapterPath || options.memoryAdapterPath
+  if (customized) return getRuntimeContractDigest(options)
+  if (!cachedBootRuntimeContractDigest) {
+    cachedBootRuntimeContractDigest = getRuntimeContractDigest(options)
+  }
+  return cachedBootRuntimeContractDigest
 }
 
 function pidAlive (pid) {
@@ -336,7 +354,7 @@ function resolveSkillRouteMode (options = {}) {
     { project, hostVariant },
     options
   )
-  const runtimeContractDigest = getRuntimeContractDigest(options)
+  const runtimeContractDigest = getBootRuntimeContractDigest(options)
   const capabilityRuntimeCurrent = !!capability &&
     DIGEST_RE.test(String(capability.runtimeContractDigest || '')) &&
     capability.runtimeContractDigest === runtimeContractDigest
@@ -360,16 +378,13 @@ function resolveSkillRouteMode (options = {}) {
     source = 's15-probe-authority'
     reason = probe.reasonCode
   }
-  const processRuntimeIdentityMaterial = {
-    schemaVersion: 'SkillRouteRuntimeProcessIdentityV1',
-    processId: process.pid,
-    nodeVersion: process.version,
-    runtimeContractDigest,
-    hostAdapterDigest: DIGEST_RE.test(String(options.hostAdapterDigest || ''))
-      ? options.hostAdapterDigest
-      : null,
-    capabilityEvidenceDigest: capabilityEvidence?.evidenceDigest || null
-  }
+  const runtimeRole = String(options.runtimeRole || env.DEVCODEX_RUNTIME_ROLE || 'hook').trim()
+  const processRuntimeIdentity = captureRuntimeProcessIdentity({
+    role: runtimeRole,
+    runtimeRoot: options.runtimeRoot || path.resolve(__dirname, '..', '..'),
+    bootRuntimeContractDigest: runtimeContractDigest,
+    fs: options.fs
+  })
   return {
     schemaVersion: 'SkillRouteModeReceiptV1',
     requested,
@@ -383,8 +398,8 @@ function resolveSkillRouteMode (options = {}) {
     sourceDefault: SOURCE_DEFAULT,
     operatorOverride: null,
     runtimeContractDigest,
-    hookRuntimeDigest: runtimeContractDigest,
-    mcpRuntimeDigest: runtimeContractDigest,
+    hookRuntimeDigest: runtimeRole.includes('hook') ? runtimeContractDigest : null,
+    mcpRuntimeDigest: runtimeRole.includes('mcp') ? runtimeContractDigest : null,
     capabilityDigest: capabilityDoc ? sha256(capabilityDoc) : null,
     capabilityDocumentValid: capabilityValidation.valid,
     capabilityDocumentErrors: capabilityValidation.errors,
@@ -393,10 +408,7 @@ function resolveSkillRouteMode (options = {}) {
     capabilityEvidenceValid,
     capabilityEvidenceReason: capabilityEvidence?.reasonCode || 'evidence-unavailable',
     capabilityEvidenceDigest: capabilityEvidence?.evidenceDigest || null,
-    processRuntimeIdentity: {
-      ...processRuntimeIdentityMaterial,
-      identityDigest: sha256(processRuntimeIdentityMaterial)
-    },
+    processRuntimeIdentity,
     probeAuthorityReason: probe.reasonCode,
     probeAuthority: probe.valid ? {
       probeRunId: probe.authority.probeRunId,
@@ -412,6 +424,7 @@ module.exports = {
   CAPABILITY_PATH,
   normalizeHostVariant,
   getCapabilityDocumentDigest,
+  getBootRuntimeContractDigest,
   getRuntimeContractDigest,
   validateCapabilityDocument,
   validateCapabilityEvidence,

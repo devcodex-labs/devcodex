@@ -162,6 +162,44 @@ function isExpectedRouteAction (routeStop, payload, contextPost = null) {
   return { expected: false, action }
 }
 
+function hasExecutableRouteAction (routeStop) {
+  if (!routeStop || routeStop.complete === true || routeStop.retired === true) return false
+  if (routeStop.nextCall && typeof routeStop.nextCall === 'object' &&
+      typeof routeStop.nextCall.op === 'string' && routeStop.nextCall.op.trim()) {
+    return true
+  }
+  if (routeStop.recovery?.automatic === true &&
+      typeof routeStop.recovery.action === 'string' && routeStop.recovery.action.trim()) {
+    return true
+  }
+  return routeStop.businessSatisfied === false &&
+    typeof routeStop.mustReplyCore === 'string' && routeStop.mustReplyCore.trim().length > 0
+}
+
+function retireUnexecutableRoute (routeStop) {
+  if (!routeStop?.present || routeStop.complete === true || routeStop.retired === true ||
+      hasExecutableRouteAction(routeStop)) {
+    return routeStop
+  }
+  const reason = routeStop.errorCode || 'NO_EXECUTABLE_NEXT_ACTION'
+  return {
+    ...routeStop,
+    complete: true,
+    processComplete: false,
+    retired: true,
+    retirementReason: reason,
+    completionDisposition: 'retired-no-executable-action',
+    nextOp: null,
+    nextCall: null,
+    recovery: {
+      schemaVersion: 'SkillRouteRetirementRecoveryV1',
+      automatic: true,
+      action: 'retire-and-rebootstrap-next-user-prompt',
+      rebootstrapOnNextUserPrompt: true
+    }
+  }
+}
+
 function buildNextActionEnvelope (routeStop, input = {}) {
   const required = input.required !== false
   return {
@@ -172,7 +210,9 @@ function buildNextActionEnvelope (routeStop, input = {}) {
     trigger: String(input.trigger || ''),
     status: required
       ? (input.circuitOpen ? 'blocked-no-progress' : 'action-required')
-      : (routeStop?.retired === true ? 'retired' : 'complete'),
+      : (routeStop?.completionDisposition === 'refresh-required'
+          ? 'refresh-required'
+          : (routeStop?.retired === true ? 'retired' : 'complete')),
     circuitOpen: input.circuitOpen === true,
     noProgressCount: Number(input.noProgressCount || 0),
     processComplete: routeStop?.processComplete === true,
@@ -190,6 +230,7 @@ function buildNextActionEnvelope (routeStop, input = {}) {
 }
 
 function reconcileProgressiveSkillRoute (state, routeStop, input = {}) {
+  routeStop = retireUnexecutableRoute(routeStop)
   const coordinator = normalizeCoordinatorState(state?.progressiveSkillRouteCoordinator)
   const trigger = String(input.trigger || '')
   const hookRunId = getHookRunId(input.payload || {})
@@ -245,9 +286,20 @@ function reconcileProgressiveSkillRoute (state, routeStop, input = {}) {
     noProgressCount = 0
     coordinator.progressCount += 1
   } else if (!duplicate && (terminalCheck || attemptedExpectedAction)) {
-    noProgressCount += 1
+    noProgressCount = Math.min(NO_PROGRESS_LIMIT, noProgressCount + 1)
   }
   const circuitOpen = noProgressCount >= NO_PROGRESS_LIMIT
+  const noticeFingerprint = terminalCheck
+    ? digest({
+        stateFingerprint: fingerprint,
+        circuitOpen,
+        noProgressCount,
+        nextOp: routeStop?.nextOp || null,
+        errorCode: routeStop?.errorCode || null
+      })
+    : ''
+  const noticeSuppressed = terminalCheck &&
+    coordinator.lastNoticeFingerprint === noticeFingerprint
   Object.assign(coordinator, {
     stateFingerprint: fingerprint,
     lastHookRunId: hookRunId || coordinator.lastHookRunId,
@@ -255,6 +307,9 @@ function reconcileProgressiveSkillRoute (state, routeStop, input = {}) {
     circuitOpen,
     lastTrigger: trigger,
     lastAction: expected.expected ? 'expected-route-action' : 'blocked-unrelated-action',
+    lastNoticeFingerprint: terminalCheck
+      ? noticeFingerprint
+      : coordinator.lastNoticeFingerprint,
     updatedAt: new Date().toISOString()
   })
   state.progressiveSkillRouteCoordinator = coordinator
@@ -270,12 +325,13 @@ function reconcileProgressiveSkillRoute (state, routeStop, input = {}) {
     required: true,
     allowAction: expected.expected && !businessPending,
     duplicate,
+    noticeSuppressed,
     progressObserved,
     coordinator,
     envelope,
     action: expected.action,
     message: circuitOpen
-      ? `Progressive Skill route made no durable progress after ${noProgressCount} reconciliation attempts. Keep the route blocked and execute the exact NextActionEnvelopeV1 recovery; do not replay an older hook instruction.`
+      ? `Progressive Skill route made no durable progress after ${noProgressCount} reconciliation attempts. Execute the exact actionable field in this NextActionEnvelopeV1; do not replay an older hook instruction.`
       : `Progressive Skill route requires ${routeStop?.nextOp || 'completion'} before unrelated work. Use the exact NextActionEnvelopeV1 below.`
   }
 }
@@ -287,8 +343,10 @@ module.exports = {
   buildNextActionEnvelope,
   buildRouteStateFingerprint,
   getHookRunId,
+  hasExecutableRouteAction,
   isExpectedRouteAction,
   normalizeCoordinatorState,
   reconcileProgressiveSkillRoute,
+  retireUnexecutableRoute,
   routeActionFromPayload
 }

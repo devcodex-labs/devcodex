@@ -1169,7 +1169,7 @@ assert.deepStrictEqual(inspectWorkflowCompletionControls(root), [])
       '01-项目信息.md': 'workflowCompletion.mode\nB5a shadow readiness\n',
       '02-架构约束.md': 'workflow-completion-contract.cjs\nlifecycle-workflow-completion.cjs\n',
       '04-测试规范.md': 'test:workflow-completion\nWorkflow completion / ECR\n',
-      '06-功能清单.md': 'workflow-completion\nunreleased-shadow-after-v1.15.3\n',
+      '06-功能清单.md': 'workflow-completion\nreleased-shadow-v1.15.4\n',
       '07-用户文档与契约规范.md': 'Workflow completion 契约\nwaiting-external\n'
     }
     for (const [file, content] of Object.entries(profileAnchors)) fs.writeFileSync(path.join(profileDir, file), content, 'utf8')

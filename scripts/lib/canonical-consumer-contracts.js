@@ -29,7 +29,7 @@ const PUBLIC_README_REQUIRED_MARKERS = Object.freeze([
   '# DevCodex',
   '工作流运行时和宿主适配包',
   'Codex、Claude Code、GitHub Copilot、Gemini CLI 和 Grok',
-  'Node.js `>=18`',
+  'Node.js `>=18.17.0`',
   'node -v',
   'npm -v',
   'npm install -g devcodex',

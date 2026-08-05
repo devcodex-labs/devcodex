@@ -5,6 +5,11 @@ const fs = require('fs')
 const path = require('path')
 const crypto = require('crypto')
 const { spawnSync } = require('child_process')
+const {
+  STDIO_CHILD_TIMEOUT_MS,
+  STDIO_MAX_FRAME_BYTES,
+  createBoundedTextAccumulator
+} = require('./stdio-bounds.cjs')
 
 const CLAUDE_EVENT_MAP = Object.freeze({
   PreToolUse: 'PreToolUse',
@@ -686,13 +691,17 @@ function runHostAdapter(host, input, options = {}) {
     input: JSON.stringify(normalized.payload),
     encoding: 'utf8',
     maxBuffer: 8 * 1024 * 1024,
+    timeout: Number.isInteger(options.timeoutMs) ? options.timeoutMs : STDIO_CHILD_TIMEOUT_MS,
     ...(lifecycleCwd ? { cwd: lifecycleCwd } : {}),
     env: { ...(options.env || process.env), DEVCODEX_HOST_PLATFORM: host }
   })
   if (child.error) {
+    const reasonCode = child.error.code === 'ETIMEDOUT'
+      ? 'HOST_LIFECYCLE_TIMEOUT'
+      : (child.error.code === 'ENOBUFS' ? 'HOST_LIFECYCLE_OUTPUT_TOO_LARGE' : 'HOST_LIFECYCLE_SPAWN_FAILED')
     return {
       status: 1,
-      error: `lifecycle spawn failed: ${child.error.code || child.error.message}`,
+      error: `${reasonCode}: ${child.error.code || child.error.message}`,
       output: null
     }
   }
@@ -783,12 +792,18 @@ if (require.main === module) {
     process.exit(probe.status === 'passed' ? 0 : 1)
   }
   applyCliEnvironmentOverrides(process.argv.slice(3))
-  let input = ''
+  const input = createBoundedTextAccumulator({ maxBytes: STDIO_MAX_FRAME_BYTES })
   process.stdin.setEncoding('utf8')
-  process.stdin.on('data', chunk => { input += chunk })
+  process.stdin.on('data', chunk => { input.push(chunk) })
   process.stdin.on('end', () => {
+    if (input.overflowed) {
+      process.stderr.write(`HOST_ADAPTER_INPUT_TOO_LARGE: maximum ${input.maxBytes} bytes\n`)
+      process.exit(2)
+      return
+    }
     let payload
-    try { payload = input.trim() ? JSON.parse(input) : {} } catch (error) {
+    const inputText = input.snapshot()
+    try { payload = inputText.trim() ? JSON.parse(inputText) : {} } catch (error) {
       process.stderr.write(`Invalid host hook payload: ${error.message}\n`)
       process.exit(2)
       return
@@ -809,6 +824,8 @@ if (require.main === module) {
 
 module.exports = {
   EVENT_MAP,
+  STDIO_CHILD_TIMEOUT_MS,
+  STDIO_MAX_FRAME_BYTES,
   applyCliEnvironmentOverrides,
   adaptCopilotOutput,
   adaptHostOutput,

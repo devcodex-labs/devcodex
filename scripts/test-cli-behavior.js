@@ -276,6 +276,7 @@ function assertCodexAdapterState(root) {
   // Codex MCP managed block (devcodex-memory + profile via .claude/mcp)
   assert.ok(fs.existsSync(path.join(root, '.claude', 'mcp', 'memory-server.js')), 'Codex init must deploy memory-server.js')
   assert.ok(fs.existsSync(path.join(root, '.claude', 'mcp', 'profile-server.js')), 'Codex init must deploy profile-server.js')
+  assert.ok(fs.existsSync(path.join(root, '.claude', 'mcp', 'stdio-jsonrpc.cjs')), 'Codex init must deploy bounded stdio transport')
   const codexConfig = fs.readFileSync(path.join(root, '.codex', 'config.toml'), 'utf8')
   assert.ok(codexConfig.includes('BEGIN DEVCODEX-MCP-MANAGED'), 'Codex config.toml must include managed MCP block')
   assert.ok(codexConfig.includes('mcp_servers.devcodex-memory'), 'Codex config.toml must register devcodex-memory')
@@ -681,10 +682,19 @@ function testRuntimeStatusAndPruneAreBounded() {
   const runtimeRoot = path.join(root, '.devcodex', 'workspace', '.runtime-state', 'workspace')
   const staleTemp = path.join(runtimeRoot, 'context-plan-cache', 'probe.json.tmp-old')
   const activeLock = path.join(runtimeRoot, 'skill-route', 'active.lock')
+  const memoryOwner = path.join(runtimeRoot, 'memory-locks', 'fixture-lock', 'owner.json')
   fs.mkdirSync(path.dirname(staleTemp), { recursive: true })
   fs.mkdirSync(path.dirname(activeLock), { recursive: true })
+  fs.mkdirSync(path.dirname(memoryOwner), { recursive: true })
   fs.writeFileSync(staleTemp, 'stale\n')
   fs.writeFileSync(activeLock, 'active\n')
+  fs.writeFileSync(memoryOwner, JSON.stringify({
+    schemaVersion: 'MemoryWriterLockV2',
+    pid: process.pid,
+    host: os.hostname(),
+    file: '.memory/clients/codex/tasks/20260805.md',
+    acquiredAt: new Date().toISOString()
+  }) + '\n')
   const old = new Date(Date.now() - 48 * 60 * 60 * 1000)
   fs.utimesSync(staleTemp, old, old)
 
@@ -692,7 +702,12 @@ function testRuntimeStatusAndPruneAreBounded() {
   assert.strictEqual(status.payload.schemaVersion, 'RuntimeStateStatusV1')
   assert.strictEqual(status.payload.canonicalRoot, runtimeRoot)
   assert.strictEqual(status.payload.totals.pruneCandidates, 1)
-  assert.strictEqual(status.payload.totals.blockedLocks, 1)
+  assert.strictEqual(status.payload.totals.blockedLocks, 2)
+  const memoryLock = status.payload.partitions
+    .flatMap(partition => partition.blocked)
+    .find(item => item.reason === 'memory-writer-lock-never-auto-pruned')
+  assert.strictEqual(memoryLock.owner.pid, process.pid)
+  assert.strictEqual(memoryLock.owner.file, '.memory/clients/codex/tasks/20260805.md')
 
   const preview = JSON.parse(runCli(['runtime', 'prune', '--dry-run', '--json'], root))
   assert.strictEqual(preview.payload.mode, 'dry-run')
@@ -701,6 +716,7 @@ function testRuntimeStatusAndPruneAreBounded() {
   assert.strictEqual(applied.payload.removed.length, 1)
   assert.ok(!fs.existsSync(staleTemp), 'runtime prune --apply must remove only the selected stale temp file')
   assert.ok(fs.existsSync(activeLock), 'runtime prune must never auto-delete lock files')
+  assert.ok(fs.existsSync(memoryOwner), 'runtime prune must never auto-delete memory writer locks')
 
   fs.rmSync(root, { recursive: true, force: true })
 }

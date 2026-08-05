@@ -363,10 +363,44 @@ function main() {
         assert.strictEqual(staleCurrentConsumerResult.status, 2, staleCurrentConsumerOutput)
         assert.match(staleCurrentConsumerOutput, /ProfileReleaseTruthAuthorityMatrixGate 07-用户文档与契约规范\.md 当前发布基线漂移/)
 
+        const staleCurrentFactsRoot = createWorkspace(`${currentProjectInfo()}\n## 发布关键字段\n\n| 字段 | 当前事实 |\n|---|---|\n| **tag/publish 触发链** | v0.0.0 已发布 |\n| **registry/tag 验收** | v0.0.0 R7 已验证 |\n`)
+        const staleCurrentFactsResult = runValidateWithArgs(staleCurrentFactsRoot, ['--source-repo-profile'])
+        const staleCurrentFactsOutput = `${staleCurrentFactsResult.stdout}\n${staleCurrentFactsResult.stderr}`
+        assert.strictEqual(staleCurrentFactsResult.status, 2, staleCurrentFactsOutput)
+        assert.match(staleCurrentFactsOutput, /01-项目信息\.md tag\/publish 触发链漂移/)
+        assert.match(staleCurrentFactsOutput, /01-项目信息\.md registry\/tag 验收漂移/)
+
+        const duplicateCurrentFactsRoot = createWorkspace(`${currentProjectInfo()}\n| **tag/publish 触发链** | v${VERSION} 已发布 |\n| **tag/publish 触发链** | v${VERSION} 重复事实 |\n`)
+        const duplicateCurrentFactsResult = runValidateWithArgs(duplicateCurrentFactsRoot, ['--source-repo-profile'])
+        const duplicateCurrentFactsOutput = `${duplicateCurrentFactsResult.stdout}\n${duplicateCurrentFactsResult.stderr}`
+        assert.strictEqual(duplicateCurrentFactsResult.status, 2, duplicateCurrentFactsOutput)
+        assert.match(duplicateCurrentFactsOutput, /duplicates current claim tag\/publish 触发链: 2/)
+
         const alignedCurrentConsumerRoot = createWorkspace(currentProjectInfo())
         writeFile(alignedCurrentConsumerRoot, '.devcodex/profile/07-用户文档与契约规范.md', `# 07\n\n> 当前发布基线：v${VERSION}。\n`)
         const alignedCurrentConsumerResult = runValidateWithArgs(alignedCurrentConsumerRoot, ['--source-repo-profile'])
         assert.strictEqual(alignedCurrentConsumerResult.status, 0, `${alignedCurrentConsumerResult.stdout}\n${alignedCurrentConsumerResult.stderr}`)
+
+        const staleFeatureReleaseRoot = createClosedLoopWorkspace('stable baseline / living document / conditional-required local docs')
+        writeFile(staleFeatureReleaseRoot, '.devcodex/profile/06-功能清单.md', featureInventoryDocument({
+            releaseState: 'unreleased-after-v0.0.0',
+            lifecycleState: 'validated',
+            evidenceState: 'validated'
+        }))
+        const staleFeatureReleaseResult = runValidateWithArgs(staleFeatureReleaseRoot, ['--source-repo-profile'])
+        const staleFeatureReleaseOutput = `${staleFeatureReleaseResult.stdout}\n${staleFeatureReleaseResult.stderr}`
+        assert.strictEqual(staleFeatureReleaseResult.status, 2, staleFeatureReleaseOutput)
+        assert.match(staleFeatureReleaseOutput, /release state lags current package for cli-main/)
+
+        const staleValidationCountsRoot = createClosedLoopWorkspace('stable baseline / living document / conditional-required local docs')
+        writeFile(staleValidationCountsRoot, '.devcodex/profile/06-功能清单.md', featureInventoryDocument({
+            featureId: 'validation-execution',
+            validationRoute: 'DAG negatives；89 nodes / full 87'
+        }))
+        const staleValidationCountsResult = runValidateWithArgs(staleValidationCountsRoot, ['--source-repo-profile'])
+        const staleValidationCountsOutput = `${staleValidationCountsResult.stdout}\n${staleValidationCountsResult.stderr}`
+        assert.strictEqual(staleValidationCountsResult.status, 2, staleValidationCountsOutput)
+        assert.match(staleValidationCountsOutput, /ValidationRouteTruthGate validation-execution uses a legacy or missing count claim/)
 
         const historicalReleaseRoot = createWorkspace(currentProjectInfo())
         writeFile(historicalReleaseRoot, '.devcodex/profile/07-用户文档与契约规范.md', '# 07\n\n- 历史发布：package 0.0.0 release truth。\n')
@@ -591,7 +625,7 @@ function main() {
 
         const releaseStateConflictRoot = createWorkspace(currentProjectInfo())
         writeFile(releaseStateConflictRoot, '.devcodex/profile/README.md', '# README\n\n- Profile 档位：profile-closed-loop。\n- 生命周期：stable baseline / living document / conditional-required local docs。\n')
-        writeFile(releaseStateConflictRoot, '.devcodex/profile/01-项目信息.md', '# 01\n\n- cli-main: unreleased\n')
+        writeFile(releaseStateConflictRoot, '.devcodex/profile/01-项目信息.md', '# 01\n\n- cli-main：未发布\n')
         writeFile(releaseStateConflictRoot, '.devcodex/profile/04-测试规范.md', '# 04\n')
         writeFile(releaseStateConflictRoot, '.devcodex/profile/05-发布规范.md', '# 05\n')
         writeFile(releaseStateConflictRoot, '.devcodex/profile/06-功能清单.md', featureInventoryDocument({ releaseState: 'v1.0.0' }))

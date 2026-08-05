@@ -179,6 +179,7 @@ function setupConfiguredMcpTarget() {
   )
   fs.copyFileSync(path.join(ROOT, 'mcp', 'memory-server.js'), path.join(targetRoot, '.claude', 'mcp', 'memory-server.js'))
   fs.copyFileSync(path.join(ROOT, 'mcp', 'profile-server.js'), path.join(targetRoot, '.claude', 'mcp', 'profile-server.js'))
+  fs.copyFileSync(path.join(ROOT, 'mcp', 'stdio-jsonrpc.cjs'), path.join(targetRoot, '.claude', 'mcp', 'stdio-jsonrpc.cjs'))
   fs.copyFileSync(path.join(ROOT, 'mcp', 'path-guard.js'), path.join(targetRoot, '.claude', 'mcp', 'path-guard.js'))
   fs.copyFileSync(path.join(ROOT, 'mcp', 'profile-contract.js'), path.join(targetRoot, '.claude', 'mcp', 'profile-contract.js'))
   fs.copyFileSync(path.join(ROOT, 'mcp', 'profile-section-selector.cjs'), path.join(targetRoot, '.claude', 'mcp', 'profile-section-selector.cjs'))
@@ -1176,6 +1177,37 @@ function testMemoryProjectionErrorsAndMalformedSources() {
   const malformedSession = toolJson(resultById(responses, 10))
   assert.deepStrictEqual(malformedSession.matches, [])
   assert(malformedSession.warnings.some(item => /No canonical session headings/.test(item)))
+
+  const invalidLegacyDate = '20260231'
+  const invalidLegacyPath = path.join(
+    TEMP_ROOT,
+    '.devcodex',
+    '.memory',
+    'clients',
+    'claude-code',
+    'tasks',
+    `${invalidLegacyDate}.md`
+  )
+  const invalidLegacyResponses = runServer('mcp/memory-server.js', [
+    rpcRequest(20, 'tools/call', {
+      name: 'memory_session_read',
+      arguments: { date: invalidLegacyDate }
+    }),
+    rpcRequest(21, 'tools/call', {
+      name: 'memory_session_write',
+      arguments: { date: invalidLegacyDate, content: '# must not be written\n' }
+    }),
+    rpcRequest(22, 'tools/call', {
+      name: 'memory_session_allocate',
+      arguments: { date: invalidLegacyDate, title: 'must-not-allocate', intent: 'fix' }
+    })
+  ], TEMP_ROOT)
+  for (const id of [20, 21, 22]) {
+    const result = resultById(invalidLegacyResponses, id)
+    assert.strictEqual(result.isError, true)
+    assert.match(result.content[0].text, /not a real calendar date/)
+  }
+  assert.strictEqual(fs.existsSync(invalidLegacyPath), false, 'invalid dates must remain zero-write')
 }
 
 function testMemoryProjectionLayoutTargets() {
@@ -1311,6 +1343,21 @@ function testWorkspaceNamespaceProfileMerge() {
   assert.match(profileText, /项目命名空间（chat）/)
   assert.match(profileText, /"tags": \[/)
   assert.match(profileText, /connectionString/)
+}
+
+function testWorkspaceNamespaceInvalidProfileFailsClosed() {
+  setupLayoutWorkspace()
+  const projectRoot = path.join(TEMP_ROOT, 'chat')
+  const projectConfig = path.join(TEMP_ROOT, '.devcodex', 'chat', 'profile', 'config.json')
+  fs.writeFileSync(projectConfig, '{"mode":"dev", broken}\n', 'utf8')
+  const responses = runServer('mcp/profile-server.js', [
+    rpcRequest(1, 'tools/call', { name: 'profile_get_mode', arguments: {} })
+  ], projectRoot, { DEVCODEX_AGENT: 'claude-code' })
+  const result = resultById(responses, 1)
+  assert.strictEqual(result.isError, true)
+  assert.match(result.content?.[0]?.text || '', /PROFILE_CONFIG_INVALID/)
+  assert.match(result.content?.[0]?.text || '', /config\.json/)
+  assert.doesNotMatch(result.content?.[0]?.text || '', /"mode"\s*:\s*"prod"/)
 }
 
 function testProfileLoadWithoutArguments() {
@@ -2623,17 +2670,48 @@ function testMemorySessionAllocationAndTransactions() {
   const lockKey = crypto.createHash('sha256').update(`${activeRoot}\0${path.resolve(lockedFile)}`).digest('hex')
   const lockDir = path.join(TEMP_ROOT, '.devcodex', 'workspace', '.runtime-state', 'projects', 'chat', 'memory-locks', lockKey)
   fs.mkdirSync(lockDir, { recursive: true })
-  fs.writeFileSync(path.join(lockDir, 'owner.json'), '{"pid":999999}\n', 'utf8')
+  fs.writeFileSync(path.join(lockDir, 'owner.json'), `${JSON.stringify({
+    schemaVersion: 'MemoryWriterLockV2',
+    pid: 999999,
+    host: os.hostname(),
+    token: 'stale-owner-token',
+    file: path.relative(activeRoot, lockedFile).replace(/\\/g, '/'),
+    acquiredAt: '2000-01-01T00:00:00.000Z'
+  })}\n`, 'utf8')
 
-  const blocked = runServer('mcp/memory-server.js', [
+  const recovered = runServer('mcp/memory-server.js', [
     rpcRequest(7, 'tools/call', {
-      name: 'memory_session_write',
-      arguments: { date: lockedDate, content: '# should-not-write\n' }
+      name: 'memory_session_allocate',
+      arguments: { date: lockedDate, title: 'stale-lock-recovered', intent: 'fix' }
     })
   ], projectRoot)
-  assert.strictEqual(resultById(blocked, 7).isError, true)
-  assert.match(resultById(blocked, 7).content?.[0]?.text || '', /MEMORY_TRANSACTION_LOCKED/)
-  assert.strictEqual(fs.existsSync(lockedFile), false, 'locked memory write must not half-write the target')
+  assert.notStrictEqual(resultById(recovered, 7).isError, true)
+  assert.strictEqual(toolJson(resultById(recovered, 7)).sessionId, '01')
+  assert.strictEqual(fs.existsSync(lockedFile), true, 'same-host dead-pid lock must be recovered atomically')
+  assert.strictEqual(fs.existsSync(lockDir), false, 'recovered writer lock must release after the transaction')
+
+  const liveDate = '20260528'
+  const liveFile = path.join(activeRoot, '.memory', 'clients', 'claude-code', 'tasks', `${liveDate}.md`)
+  const liveKey = crypto.createHash('sha256').update(`${activeRoot}\0${path.resolve(liveFile)}`).digest('hex')
+  const liveLockDir = path.join(TEMP_ROOT, '.devcodex', 'workspace', '.runtime-state', 'projects', 'chat', 'memory-locks', liveKey)
+  fs.mkdirSync(liveLockDir, { recursive: true })
+  fs.writeFileSync(path.join(liveLockDir, 'owner.json'), `${JSON.stringify({
+    schemaVersion: 'MemoryWriterLockV2',
+    pid: process.pid,
+    host: os.hostname(),
+    token: 'live-owner-token',
+    file: path.relative(activeRoot, liveFile).replace(/\\/g, '/'),
+    acquiredAt: new Date().toISOString()
+  })}\n`, 'utf8')
+  const blocked = runServer('mcp/memory-server.js', [
+    rpcRequest(8, 'tools/call', {
+      name: 'memory_session_allocate',
+      arguments: { date: liveDate, title: 'must-not-write', intent: 'fix' }
+    })
+  ], projectRoot)
+  assert.strictEqual(resultById(blocked, 8).isError, true)
+  assert.match(resultById(blocked, 8).content?.[0]?.text || '', /MEMORY_TRANSACTION_LOCKED/)
+  assert.strictEqual(fs.existsSync(liveFile), false, 'live writer lock must remain fail-closed')
 }
 
 function testMemoryLocalCalendarAndWriterReaderContract() {
@@ -2813,6 +2891,7 @@ testAgentIdentitySharedModule()
 testMemoryProjectionAgentAmbiguity()
 testGrokAgentMemoryWrite()
 testWorkspaceNamespaceProfileMerge()
+testWorkspaceNamespaceInvalidProfileFailsClosed()
 testProfileLoadWithoutArguments()
 testContextReadBindingContract()
 testProfileSectionSelectorsAndSkillPlan()

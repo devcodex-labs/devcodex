@@ -4,6 +4,7 @@ const assert = require('assert')
 const fs = require('fs')
 const path = require('path')
 const { spawnSync } = require('child_process')
+const { advisoryIds, runAuditWithBoundedRecheck } = require('./lib/security-audit-runner')
 
 const ROOT = path.resolve(__dirname, '..')
 const WEBSITE = path.join(ROOT, 'website')
@@ -11,42 +12,45 @@ const POLICY_FILE = path.join(__dirname, 'fixtures', 'security-audit', 'policy.j
 const policy = JSON.parse(fs.readFileSync(POLICY_FILE, 'utf8'))
 const registryArg = process.argv.find(argument => argument.startsWith('--registry='))
 const registry = registryArg ? registryArg.slice('--registry='.length) : policy.registry
+const evidenceArg = process.argv.find(argument => argument.startsWith('--evidence-out='))
+const evidencePath = evidenceArg ? path.resolve(evidenceArg.slice('--evidence-out='.length)) : ''
+const auditEvidence = []
 
-function npmAudit(cwd) {
+process.on('exit', () => {
+  if (!evidencePath) return
+  fs.mkdirSync(path.dirname(evidencePath), { recursive: true })
+  fs.writeFileSync(evidencePath, `${JSON.stringify({
+    schemaVersion: 'DevCodexSecurityAuditEvidenceV1',
+    registry,
+    policyReviewedAt: policy.reviewedAt,
+    generatedAt: new Date().toISOString(),
+    audits: auditEvidence
+  }, null, 2)}\n`)
+})
+
+function npmAudit(cwd, expectedAdvisories) {
   const command = process.platform === 'win32' ? 'npm.cmd' : 'npm'
-  const result = spawnSync(command, [
-    'audit',
-    '--omit=dev',
-    '--json',
-    `--registry=${registry}`
-  ], {
+  const audit = runAuditWithBoundedRecheck({
     cwd,
-    encoding: 'utf8',
-    windowsHide: true,
-    shell: process.platform === 'win32',
-    timeout: 120000,
-    maxBuffer: 16 * 1024 * 1024
+    registry,
+    expectedAdvisories,
+    maxAttempts: 3,
+    runAttempt: () => spawnSync(command, [
+      'audit',
+      '--omit=dev',
+      '--json',
+      `--registry=${registry}`
+    ], {
+      cwd,
+      encoding: 'utf8',
+      windowsHide: true,
+      shell: process.platform === 'win32',
+      timeout: 120000,
+      maxBuffer: 16 * 1024 * 1024
+    })
   })
-  assert.ok([0, 1].includes(result.status), `npm audit could not complete in ${cwd}: ${result.stderr || result.error?.message}`)
-  let payload
-  try {
-    payload = JSON.parse(String(result.stdout || ''))
-  } catch (error) {
-    assert.fail(`npm audit returned invalid JSON in ${cwd}: ${error.message}\n${result.stdout}\n${result.stderr}`)
-  }
-  return payload
-}
-
-function advisoryIds(payload) {
-  const ids = new Set()
-  for (const vulnerability of Object.values(payload.vulnerabilities || {})) {
-    for (const via of vulnerability.via || []) {
-      if (!via || typeof via !== 'object' || typeof via.url !== 'string') continue
-      const match = via.url.match(/\/(GHSA-[A-Za-z0-9-]+)$/)
-      if (match) ids.add(match[1])
-    }
-  }
-  return [...ids].sort()
+  auditEvidence.push(audit.evidence)
+  return audit.payload
 }
 
 function compareVersion(left, right) {
@@ -84,8 +88,19 @@ function websiteRuntimeSources() {
 assert.strictEqual(policy.schemaVersion, 'DevCodexSecurityAuditPolicyV1')
 assert.strictEqual(registry, policy.registry, 'CLI registry must match the committed security audit policy')
 assert.ok(/^\d{4}-\d{2}-\d{2}$/.test(policy.websiteExceptions[0].expiresOn))
+assert.ok(Number.isFinite(Date.parse(policy.reviewedAt)), 'security exception must record a review timestamp')
+assert.strictEqual(policy.officialEvidence.advisoryUrl, 'https://github.com/advisories/GHSA-qwww-vcr4-c8h2')
+assert.strictEqual(policy.officialEvidence.patchedReactRouterVersion, '8.3.0')
+assert.strictEqual(policy.officialEvidence.affectedSurface, 'unstable RSC APIs')
+assert.strictEqual(policy.registryEvidence.registry, registry)
+assert.ok(Number.isFinite(Date.parse(policy.registryEvidence.checkedAt)), 'registry evidence must record a timestamp')
+assert.strictEqual(policy.registryEvidence.rspressCore.version, '2.0.19')
+assert.strictEqual(policy.registryEvidence.rspressCore.reactRouterDomRange, '^7.18.1')
+assert.strictEqual(policy.registryEvidence.patchedReactRouter.version, '8.3.0')
+assert.strictEqual(policy.registryEvidence.patchedReactRouter.nodeEngine, '>=22.22.0')
+assert.strictEqual(policy.registryEvidence.reactRouterDomPatchedVersionAvailable, false)
 
-const rootAudit = npmAudit(ROOT)
+const rootAudit = npmAudit(ROOT, policy.rootAllowedAdvisories)
 assert.strictEqual(rootAudit.metadata?.vulnerabilities?.total, 0, 'root production dependency audit must remain clean')
 assert.deepStrictEqual(advisoryIds(rootAudit), policy.rootAllowedAdvisories)
 
@@ -93,13 +108,16 @@ const allowedAdvisories = policy.websiteExceptions.map(item => item.advisoryId).
 const today = new Date().toISOString().slice(0, 10)
 for (const exception of policy.websiteExceptions) {
   assert.ok(today <= exception.expiresOn, `${exception.advisoryId} exception expired on ${exception.expiresOn}`)
+  const reviewDate = new Date(policy.reviewedAt)
+  const expiryDate = new Date(`${exception.expiresOn}T23:59:59.999Z`)
+  assert.ok(expiryDate - reviewDate <= 30 * 24 * 60 * 60 * 1000, `${exception.advisoryId} exception exceeds the 30-day review horizon`)
   assert.strictEqual(exception.disposition, 'not-applicable-to-static-rspress-site')
   assert.ok(exception.replacementTrigger)
 }
 
 const websitePackage = path.join(WEBSITE, 'package.json')
 if (fs.existsSync(websitePackage)) {
-  const websiteAudit = npmAudit(WEBSITE)
+  const websiteAudit = npmAudit(WEBSITE, allowedAdvisories)
   assert.deepStrictEqual(advisoryIds(websiteAudit), allowedAdvisories, 'website advisory set changed; review before updating policy')
   const vulnerabilityPackages = Object.keys(websiteAudit.vulnerabilities || {}).sort()
   assert.deepStrictEqual(

@@ -8,7 +8,9 @@ const { evaluatePublicReadmeContract } = require('./lib/canonical-consumer-contr
 const ROOT = path.resolve(__dirname, '..')
 const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
 const plugin = JSON.parse(fs.readFileSync(path.join(ROOT, 'plugin.json'), 'utf8'))
+const lock = JSON.parse(fs.readFileSync(path.join(ROOT, 'package-lock.json'), 'utf8'))
 const readme = fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8')
+const publicCi = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'ci.yml'), 'utf8')
 
 const errors = []
 const publicReadmeContract = evaluatePublicReadmeContract(readme)
@@ -49,6 +51,11 @@ expect(nonEmptyString(readUrl(pkg.repository)), 'package.json repository.url 不
 expect(nonEmptyString(readUrl(pkg.bugs)), 'package.json bugs.url 不能为空')
 expect(nonEmptyString(pkg.homepage), 'package.json homepage 不能为空')
 expect(nonEmptyString(pkg.engines && pkg.engines.node), 'package.json engines.node 不能为空')
+expect(pkg.engines.node === '>=18.17.0', 'package.json engines.node 必须匹配 recursive fs API 的精确最低版本 >=18.17.0')
+expect(lock.packages?.['']?.engines?.node === pkg.engines.node, 'package-lock 根 engines.node 必须与 package.json 一致')
+expect(publicCi.includes('node: 18.17.0'), '公共 CI 必须验证精确最低 Node 18.17.0')
+expect(publicCi.includes('name: Package boundary (Node 22.14)'), '公共 CI package job 必须只声明实际执行的 package boundary')
+expect(!publicCi.includes('Website and package'), '公共 CI 不得把条件缺席的网站构建表述为绿色证据')
 expect(nonEmptyString(pkg.publishConfig && pkg.publishConfig.registry), 'package.json publishConfig.registry 不能为空')
 expect(nonEmptyString(pkg.publishConfig && pkg.publishConfig.access), 'package.json publishConfig.access 不能为空')
 expect(files.length > 0, 'package.json files 不能为空')

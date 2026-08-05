@@ -234,6 +234,7 @@ function tryRebindLifecycleFromPlanObservation (binding, target, lifecycle, opti
   acquisition.verificationMode = 'structured-plan'
 
   lifecycle.contextAcquisition = acquisition
+  lifecycle.updatedAt = new Date(options.nowMs || Date.now()).toISOString()
   const statePath = lifecycleStatePath(target)
   try {
     writeJsonAtomic(statePath, lifecycle, fsImpl)
@@ -355,6 +356,7 @@ function validateTrustedContextBinding (binding, target, options = {}) {
       receipt = replayed.receipt
       acquisition.receipt = receipt
       lifecycle.contextAcquisition = acquisition
+      lifecycle.updatedAt = new Date(options.nowMs || Date.now()).toISOString()
       try {
         writeJsonAtomic(statePath, lifecycle, options.fs || fs)
       } catch {
@@ -879,11 +881,6 @@ function handleCommit (input, target, options) {
         error.code = 'PREVIOUS_PLAN_UNEXPECTED'
         throw error
       }
-      if (isReplan && state.stageProgress.closeout?.status === 'loaded') {
-        const error = new Error('LATE_CONDITION_AFTER_CLOSEOUT')
-        error.code = 'LATE_CONDITION_AFTER_CLOSEOUT'
-        throw error
-      }
       const activatedConditionIds = [...new Set([
         ...(priorPlan?.activatedConditionIds || []),
         ...(input.lateConditionId ? [input.lateConditionId] : [])
@@ -939,13 +936,22 @@ function handleCommit (input, target, options) {
         lateConditionId: input.lateConditionId || null,
         activatedConditionIds
       })
-      assertReplanProgressCompatible(priorPlan, plan, state.stageProgress)
+      const replanProgressOptions = isReplan
+        ? { reopenStageIds: ['closeout'] }
+        : {}
+      assertReplanProgressCompatible(
+        priorPlan,
+        plan,
+        state.stageProgress,
+        replanProgressOptions
+      )
       state.decision = decision
       state.plan = plan
       state.stageProgress = preserveCompatibleStageProgress(
         priorPlan,
         plan,
-        state.stageProgress
+        state.stageProgress,
+        replanProgressOptions
       )
       state.contextBinding = JSON.parse(JSON.stringify(input.contextBinding))
       state.trustedContextBindingDigest = trustedContext.bindingDigest
@@ -1184,11 +1190,13 @@ function validProgressPrefix (value) {
     )
 }
 
-function preserveCompatibleStageProgress (priorPlan, nextPlan, progress = {}) {
+function preserveCompatibleStageProgress (priorPlan, nextPlan, progress = {}, options = {}) {
   if (!priorPlan) return {}
+  const reopenStageIds = new Set(options.reopenStageIds || [])
   const preserved = {}
   for (const [stageId, value] of Object.entries(progress || {})) {
     if (!['loading', 'loaded'].includes(value?.status)) continue
+    if (reopenStageIds.has(stageId)) continue
     if (compatibleStageDefinition(priorPlan, nextPlan, stageId) &&
         validProgressPrefix(value)) {
       preserved[stageId] = JSON.parse(JSON.stringify(value))
@@ -1197,8 +1205,9 @@ function preserveCompatibleStageProgress (priorPlan, nextPlan, progress = {}) {
   return preserved
 }
 
-function assertReplanProgressCompatible (priorPlan, nextPlan, progress = {}) {
+function assertReplanProgressCompatible (priorPlan, nextPlan, progress = {}, options = {}) {
   if (!priorPlan) return
+  const reopenStageIds = new Set(options.reopenStageIds || [])
   for (const [stageId, value] of Object.entries(progress || {})) {
     if (!value?.loadedKeys?.length) continue
     if (!validProgressPrefix(value)) {
@@ -1207,6 +1216,7 @@ function assertReplanProgressCompatible (priorPlan, nextPlan, progress = {}) {
       error.stageId = stageId
       throw error
     }
+    if (reopenStageIds.has(stageId)) continue
     if (!compatibleStageDefinition(priorPlan, nextPlan, stageId)) {
       const error = new Error('LATE_REPLAN_LOADED_EVICTION')
       error.code = 'LATE_REPLAN_LOADED_EVICTION'

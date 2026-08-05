@@ -15,6 +15,13 @@ function buildOptimizationControlChecks(ctx) {
     const required = [
       '.github/workflows/ci.yml',
       'scripts/lib/checked-command.js',
+      'hooks/_runtime/stdio-bounds.cjs',
+      'mcp/stdio-jsonrpc.cjs',
+      'scripts/test-mcp-stdio-transport.js',
+      'scripts/critical-risk-coverage.json',
+      'scripts/check-critical-risk-coverage.js',
+      'scripts/lib/security-audit-runner.js',
+      'scripts/test-security-audit-runner.js',
       'scripts/validation-manifest.json',
       'scripts/lib/validation-dag.js',
       'scripts/run-validation.js',
@@ -70,6 +77,9 @@ function buildOptimizationControlChecks(ctx) {
       'test:host-installation',
       'test:context-binding',
       'test:coverage',
+      'test:mcp-stdio',
+      'test:critical-risk-coverage',
+      'test:audit-runner',
       'release:dry-run:npmjs',
       'release:dry-run:github'
     ]) {
@@ -107,7 +117,12 @@ function buildOptimizationControlChecks(ctx) {
       'scripts/lib/project-knowledge-store.js',
       'scripts/lib/validation-dag.js',
       'scripts/lib/host-instruction-projection.js',
-      'scripts/lib/host-surface-descriptors.js'
+      'scripts/lib/host-surface-descriptors.js',
+      'scripts/test-mcp-stdio-transport.js',
+      'scripts/critical-risk-coverage.json',
+      'scripts/check-critical-risk-coverage.js',
+      'scripts/lib/security-audit-runner.js',
+      'scripts/test-security-audit-runner.js'
     ]
     for (const relative of requiredPackageFiles) {
       if (!pkg.files?.includes(relative)) err(`[V92] package files missing validation DAG consumer: ${relative}`)
@@ -135,13 +150,27 @@ function buildOptimizationControlChecks(ctx) {
     if (pkg.devDependencies?.c8 !== '10.1.3') err('[V92] c8 must stay pinned to Node18-compatible 10.1.3')
 
     const workflow = read(path.join(ROOT, '.github/workflows/ci.yml'))
-    for (const needle of ['18.x', '20.x', '22.x', 'windows-latest', 'test:coverage', 'release:dry-run:all']) {
+    for (const needle of ['18.17.0', '20.x', '22.x', 'windows-latest', 'Package boundary', 'test:coverage', 'release:dry-run:all']) {
       if (!workflow.includes(needle)) err(`[V92] CI matrix missing: ${needle}`)
     }
+    if (workflow.includes('Website and package')) err('[V92] public CI must not claim a website build that can be conditionally absent')
 
     const publishDryRun = read(path.join(ROOT, 'scripts/publish-dry-run.js'))
-    for (const needle of ['packageScope', 'buildPublishArgs', '--${scope}:registry=${target.registry}', 'require.main === module']) {
+    for (const needle of ['packageScope', 'supportedTargets', 'createCandidateTarball', 'buildPublishArgs', 'packageArtifact', 'REGISTRY_TARGET_UNSUPPORTED', '--${scope}:registry=${target.registry}', 'require.main === module']) {
       if (!publishDryRun.includes(needle)) err(`[V92] scoped registry resolution missing: ${needle}`)
+    }
+    if (publishDryRun.includes("'--ignore-scripts'")) err('[V92] registry dry-run must use the native candidate tarball rather than metadata-only pack semantics')
+    const stdioTransport = read(path.join(ROOT, 'mcp/stdio-jsonrpc.cjs'))
+    for (const needle of ['MCP_STDIO_FRAME_TOO_LARGE', 'MCP_STDIO_MESSAGE_TOO_LARGE', 'MCP_STDIO_REQUEST_TIMEOUT', 'discardingOversizeFrame']) {
+      if (!stdioTransport.includes(needle)) err(`[V92] bounded MCP stdio contract missing: ${needle}`)
+    }
+    const hostAdapter = read(path.join(ROOT, 'hooks/_runtime/lifecycle-host-adapters.cjs'))
+    for (const needle of ['STDIO_CHILD_TIMEOUT_MS', 'HOST_LIFECYCLE_TIMEOUT', 'HOST_ADAPTER_INPUT_TOO_LARGE']) {
+      if (!hostAdapter.includes(needle)) err(`[V92] bounded host adapter contract missing: ${needle}`)
+    }
+    const securityRunner = read(path.join(ROOT, 'scripts/lib/security-audit-runner.js'))
+    for (const needle of ['maxAttempts', 'inconsistent-empty-advisories', 'SECURITY_AUDIT_RECHECK_EXHAUSTED', 'rawStdout']) {
+      if (!securityRunner.includes(needle)) err(`[V92] bounded security audit recheck missing: ${needle}`)
     }
     const scopedRegistryConsumers = [
       'skills/release-verification/SKILL.md',
@@ -192,7 +221,7 @@ function buildOptimizationControlChecks(ctx) {
     for (const needle of ['5 分钟快速开始', 'npmjs', 'npm install -g devcodex', 'GitHub Packages', '历史包', '1.0.1']) {
       if (!readme.includes(needle)) err(`[V92] README product path missing: ${needle}`)
     }
-    console.log(`[V92] optimization controls checked: skills=85 gray=3 runtimeAlerts=${runtimeState.summary.alertCount}`)
+    console.log(`[V92] optimization controls checked: skills=86 gray=3 runtimeAlerts=${runtimeState.summary.alertCount}`)
   }
 
   return { checkV92 }

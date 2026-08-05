@@ -78,6 +78,10 @@ function modelTimeoutMs () {
 
 function resolveExecutable (hostId) {
   if (hostId === 'codex' && process.platform === 'win32') {
+    const explicit = process.env.DEVCODEX_CODEX_CLI
+    if (explicit && fs.existsSync(explicit)) {
+      return { command: explicit, prefix: [] }
+    }
     const resolved = spawnSync('volta', ['which', 'codex'], {
       encoding: 'utf8',
       timeout: 30000
@@ -142,7 +146,7 @@ function run (command, args, options = {}) {
   return result
 }
 
-function resultSchema () {
+function resultSchema (exerciseContextRebind = false) {
   return {
     type: 'object',
     additionalProperties: false,
@@ -154,7 +158,7 @@ function resultSchema () {
       'decisionSkillId',
       'planDigest',
       'planGeneration',
-      'activatedConditionId',
+      ...(exerciseContextRebind ? ['rebindObserved'] : ['activatedConditionId']),
       'loadedStages',
       'processComplete',
       'entryBodyDigest',
@@ -168,10 +172,17 @@ function resultSchema () {
       decisionSkillId: { type: 'string' },
       planDigest: { type: 'string', pattern: '^[a-f0-9]{64}$' },
       planGeneration: { type: 'integer', minimum: 1 },
-      activatedConditionId: { type: 'string', enum: ['test-validation'] },
+      ...(exerciseContextRebind
+        ? { rebindObserved: { type: 'boolean', const: true } }
+        : {
+            activatedConditionId: {
+              type: 'string',
+              enum: ['test-validation']
+            }
+          }),
       loadedStages: {
         type: 'array',
-        minItems: 3,
+        minItems: exerciseContextRebind ? 2 : 3,
         items: { type: 'string' }
       },
       processComplete: { type: 'boolean' },
@@ -181,7 +192,35 @@ function resultSchema () {
   }
 }
 
-function buildPrompt ({ contextEpoch, hostId, project, skillId }) {
+function buildPrompt ({ contextEpoch, hostId, project, skillId, exerciseContextRebind = false }) {
+  const afterCommitSteps = exerciseContextRebind
+    ? [
+        'CONTEXT REBIND MODE: conditional replan is forbidden in this probe. Do not use lateConditionId and do not load any stage from generation=0.',
+        'Immediately after the first commit, refresh ContextRead inside this same host session so the candidate crosses the real MCP → PostToolUse → SkillRoute rebind boundary.',
+        'Call profile_context_plan a second time with:',
+        JSON.stringify({
+          intent: 'dev',
+          changeTypes: ['source-code', 'testing', 'docs'],
+          contextEpoch,
+          project,
+          host: hostId,
+          risk: 'normal',
+          confidence: 1
+        }),
+        'The second profile_context_plan is not a terminal action. Its immediate next MCP calls must be profile_load, memory_status, then skill_route rebind; do not attempt a final answer between them.',
+        'Use only the second plan binding for profile_load with its selectedFiles verbatim and memory_status with the same non-binding arguments as before.',
+        'Require the refreshed lifecycle receipt to be relevant-complete, then call skill_route rebind with exactly: op, project, turnBinding, contextEpoch, generation, planDigest, contextBinding. Use generation and planDigest from the first committed plan and contextBinding from the second ContextRead plan.',
+        'Require rebind to succeed with generation=1. Never retry rebind, never continue with the pre-rebind plan, and never call load_stage or status while the authoritative plan is generation=0.',
+        'From the rebound generation=1 plan, load every page of every stage in dependency order: entry, then closeout. No execution:test-validation stage is expected in this mode.',
+        'Call status and require processComplete=true with every required stage loaded.',
+        'Set rebindObserved=true only after the rebind Tool result succeeds and the final status reports generation=1.'
+      ]
+    : [
+        'Immediately replan the same choice from the first committed plan. Use exactly: op, project, turnBinding, contextEpoch, catalogDigest, skillId, contextBinding, previousPlanDigest, lateConditionId; set lateConditionId=test-validation.',
+        'Wait for that conditional replan call to return successfully. Do not call load_stage unless its returned plan has generation=1 and activatedConditionIds contains test-validation; treat any other generation as failure.',
+        'Load every page of every stage in dependency order: entry, execution:test-validation, then closeout.',
+        'Call status and require processComplete=true with every required stage loaded.'
+      ]
   return [
     'This is an isolated direct-observation acceptance probe.',
     `Project ${project}.`,
@@ -211,12 +250,9 @@ function buildPrompt ({ contextEpoch, hostId, project, skillId }) {
     'Read every catalog page by following nextCursor until null.',
     `Choose exactly the top-level Skill whose skillId is ${skillId}; do not substitute another acceptance or probe Skill.`,
     'For the first commit call use exactly these fields and no others: op, project, turnBinding, contextEpoch, catalogDigest, skillId, contextBinding.',
-    'Immediately replan the same choice. Use exactly: op, project, turnBinding, contextEpoch, catalogDigest, skillId, contextBinding, previousPlanDigest, lateConditionId; set lateConditionId=test-validation.',
-    'Wait for that conditional replan call to return successfully. Do not call load_stage unless its returned plan has generation=1 and activatedConditionIds contains test-validation.',
+    ...afterCommitSteps,
     'Run every skill_route call serially. If a required call returns an error, do not retry it or continue with an older plan.',
     'For load_stage use exactly: op, project, turnBinding, contextEpoch, generation, planDigest, stageId, and cursor only when the prior page returned one.',
-    'Load every page of every stage in dependency order: entry, execution:test-validation, then closeout.',
-    'Call status and require processComplete=true with every required stage loaded.',
     `For entryBodyDigest, copy only the bodyDigest from the loaded bodyChunks item whose skillId is ${skillId}; never use a stage, page, chunk, selected-set, dependency Skill, or status digest.`,
     'Copy the exact marker line beginning S15_BODY_ from the loaded Skill body. Do not guess it.',
     'Return only one JSON object matching the requested output schema.'
@@ -533,6 +569,7 @@ function main () {
   const hostId = optionValue('--host')
   const evidenceOutput = optionValue('--evidence-output')
   const productionEligible = hasOption('--production-eligible')
+  const exerciseContextRebind = hasOption('--exercise-context-rebind')
   const descriptor = HOSTS[hostId]
   if (!descriptor) {
     throw new Error(`--host must be one of: ${Object.keys(HOSTS).join(', ')}`)
@@ -569,7 +606,7 @@ function main () {
 
   try {
     writeProbeSkill(fixture, skillId, marker)
-    writeJson(schemaPath, resultSchema())
+    writeJson(schemaPath, resultSchema(exerciseContextRebind))
     if (!productionEligible) {
       const now = Date.now()
       writeJson(authorityPath, {
@@ -617,7 +654,8 @@ function main () {
       contextEpoch,
       hostId: descriptor.lifecycleHost,
       project: fixture.project,
-      skillId
+      skillId,
+      exerciseContextRebind
     })
     modelRun = run(
       executable.command,
@@ -659,6 +697,8 @@ function main () {
     const loadedStageIds = requiredStageIds.filter(stageId =>
       state.stageProgress[stageId]?.status === 'loaded'
     )
+    const rebindLedgerEntries = (state.contributionLedger?.items || [])
+      .filter(item => item.op === 'rebind')
 
     assert.strictEqual(final.status, 'PASS')
     assert.strictEqual(final.contextReceiptStatus, 'relevant-complete')
@@ -668,11 +708,20 @@ function main () {
     assert.strictEqual(final.decisionSkillId, skillId)
     assert.strictEqual(final.planDigest, state.plan.planDigest)
     assert.strictEqual(final.planGeneration, state.plan.generation)
-    assert.strictEqual(final.activatedConditionId, 'test-validation')
+    if (exerciseContextRebind) {
+      assert.strictEqual(final.rebindObserved, true)
+      assert.deepStrictEqual(state.plan.activatedConditionIds, [])
+    } else {
+      assert.strictEqual(final.activatedConditionId, 'test-validation')
+    }
     assert.deepStrictEqual([...final.loadedStages].sort(), [...requiredStageIds].sort())
     assert.strictEqual(final.processComplete, true)
     assert.strictEqual(final.entryBodyDigest, selectedChunk.bodyDigest)
     assert.deepStrictEqual(loadedStageIds, requiredStageIds)
+    if (exerciseContextRebind) {
+      assert(rebindLedgerEntries.length >= 1, 'S15 real context rebind ledger entry missing')
+      assert.strictEqual(state.plan.generation, 1, 'S15 context rebind did not advance plan generation')
+    }
     assert.strictEqual(state.mode, 'unified')
     assert.strictEqual(contextAcquisition.contextEpoch, contextEpoch)
     assert.strictEqual(contextAcquisition.project, fixture.project)
@@ -745,10 +794,17 @@ function main () {
         'memory_status',
         'catalog',
         'commit',
-        'conditional-replan',
+        ...(exerciseContextRebind
+          ? ['context-refresh', 'rebind']
+          : ['conditional-replan']),
         'load_stage',
         'status'
       ],
+      contextRebind: {
+        exercised: exerciseContextRebind,
+        ledgerEntries: rebindLedgerEntries.length,
+        finalGeneration: state.plan.generation
+      },
       retirementAnomalies: {
         legacyFallback: 0,
         doubleBody: 0,

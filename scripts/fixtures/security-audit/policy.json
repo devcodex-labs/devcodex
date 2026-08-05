@@ -1,6 +1,27 @@
 {
   "schemaVersion": "DevCodexSecurityAuditPolicyV1",
   "registry": "https://registry.npmjs.org",
+  "reviewedAt": "2026-08-05T04:33:43.000Z",
+  "officialEvidence": {
+    "advisoryUrl": "https://github.com/advisories/GHSA-qwww-vcr4-c8h2",
+    "affectedVersions": ">=7.12.0 <8.3.0",
+    "patchedReactRouterVersion": "8.3.0",
+    "affectedSurface": "unstable RSC APIs"
+  },
+  "registryEvidence": {
+    "registry": "https://registry.npmjs.org",
+    "checkedAt": "2026-08-05T04:33:43.000Z",
+    "rspressCore": {
+      "version": "2.0.19",
+      "reactRouterDomRange": "^7.18.1",
+      "nodeEngine": "^20.19.0 || >=22.12.0"
+    },
+    "patchedReactRouter": {
+      "version": "8.3.0",
+      "nodeEngine": ">=22.22.0"
+    },
+    "reactRouterDomPatchedVersionAvailable": false
+  },
   "rootAllowedAdvisories": [],
   "websiteAllowedPackages": [
     "@rspress/core",

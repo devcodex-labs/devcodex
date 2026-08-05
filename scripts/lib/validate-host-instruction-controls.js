@@ -188,6 +188,8 @@ function buildHostInstructionControlChecks(ctx) {
     }
 
     const manifest = JSON.parse(String(read(path.join(ROOT, 'scripts/validation-manifest.json'))))
+    const riskCoverage = JSON.parse(String(read(path.join(ROOT, 'scripts/critical-risk-coverage.json'))))
+    const fastExclusions = new Set(riskCoverage.fastRoutePolicy?.excludedReleaseIntegrationNodes || [])
     for (const nodeId of [
       'host-instruction-projection',
       'host-adapters',
@@ -197,7 +199,12 @@ function buildHostInstructionControlChecks(ctx) {
     ]) {
       if (!manifest.nodes?.some(node => node.id === nodeId)) err(`[V103] validation node missing: ${nodeId}`)
       for (const route of ['fast', 'full', 'profile-deploy', 'package-release']) {
-        if (!manifest.routes?.[route]?.nodes?.includes(nodeId)) err(`[V103] ${route} route omits ${nodeId}`)
+        const included = manifest.routes?.[route]?.nodes?.includes(nodeId)
+        if (route === 'fast' && fastExclusions.has(nodeId)) {
+          if (included) err(`[V103] fast route unexpectedly includes release integration node ${nodeId}`)
+        } else if (!included) {
+          err(`[V103] ${route} route omits ${nodeId}`)
+        }
       }
     }
     console.log('[V103] host kernel coverage / global-only five-host distribution / collision closure checked')

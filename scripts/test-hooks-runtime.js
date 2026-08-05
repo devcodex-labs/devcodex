@@ -15,6 +15,7 @@ const { stableDigest } = require('../hooks/_runtime/context-read-contract.cjs')
 const { resolveLanguageContext } = require('../hooks/_runtime/language-context.cjs')
 const { createRuntimeStateStore } = require('../hooks/_runtime/runtime-state-store.cjs')
 const { resolveRuntimeStateRoots } = require('../hooks/_runtime/workspace-layout.cjs')
+const { buildLifecycleNamespaceStateUtils } = require('../hooks/_runtime/lifecycle-namespace-state.cjs')
 
 const ROOT = path.resolve(__dirname, '..')
 const RUNTIME = path.join(ROOT, 'hooks', '_runtime', 'lifecycle.cjs')
@@ -115,6 +116,38 @@ function main() {
   const rootsB = resolveRuntimeStateRoots(projectB, 'apps/web')
   assert.notStrictEqual(rootsA.primaryRoot, rootsB.primaryRoot, 'projects must receive isolated runtime partitions')
   assert.ok(!fs.existsSync(rootsA.primaryRoot), 'runtime resolution must remain read-only')
+
+  const invalidProfileRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-lifecycle-invalid-profile-'))
+  const invalidProjectRoot = path.join(invalidProfileRoot, 'chat')
+  fs.mkdirSync(path.join(invalidProfileRoot, '.devcodex', 'workspace', 'profile'), { recursive: true })
+  fs.mkdirSync(path.join(invalidProfileRoot, '.devcodex', 'chat', 'profile'), { recursive: true })
+  fs.mkdirSync(invalidProjectRoot, { recursive: true })
+  fs.writeFileSync(
+    path.join(invalidProfileRoot, '.devcodex', 'workspace', 'profile', 'config.json'),
+    '{"mode":"prod"}\n'
+  )
+  fs.writeFileSync(
+    path.join(invalidProfileRoot, '.devcodex', 'chat', 'profile', 'config.json'),
+    '{"mode":"dev", broken}\n'
+  )
+  const invalidProfileUtils = buildLifecycleNamespaceStateUtils({
+    fs,
+    path,
+    CONTEXT_ROOT: invalidProjectRoot,
+    WORKSPACE_ROOT: invalidProfileRoot,
+    LAYOUT: { enabled: true },
+    CONTEXT_PROJECT: 'chat',
+    DEFAULT_SCOPE: 'project',
+    META_STATE_SCOPE_KEY: 'workspace',
+    mergeConfig: (base, overlay) => ({ ...(base || {}), ...(overlay || {}) }),
+    detectPlatform: () => 'codex'
+  })
+  assert.throws(
+    () => invalidProfileUtils.readResolvedProfileConfig({ activeProject: 'chat' }),
+    error => error?.code === 'PROFILE_CONFIG_INVALID' && error.filePath.endsWith(path.join('chat', 'profile', 'config.json')),
+    'lifecycle must not downgrade a malformed project Profile to workspace config'
+  )
+  fs.rmSync(invalidProfileRoot, { recursive: true, force: true })
 
   const legacyFile = path.join(projectA, '.runtime-state', 'compat', 'state.json')
   fs.mkdirSync(path.dirname(legacyFile), { recursive: true })

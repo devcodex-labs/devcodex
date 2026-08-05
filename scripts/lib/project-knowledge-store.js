@@ -28,6 +28,21 @@ const EVIDENCE_STRENGTH = new Set(['agent-semantic', 'content-structured', 'inve
 const COVERAGE_LEVEL = new Set(['deep', 'standard', 'light', 'inventory'])
 const EDGE_TYPES = new Set(['dependency', 'consumer', 'config', 'contract', 'generated', 'test', 'docs'])
 const CLAIM_TYPES = new Set(['inventory', 'structure', 'responsibility', 'symbol', 'import', 'config', 'contract', 'test', 'profile', 'dependency', 'risk', 'recommendation'])
+const INVENTORY_EXCLUDED_ROOTS = new Set([
+  '.audit-state',
+  '.devcodex',
+  '.devcodex-runlogs-final',
+  '.git',
+  '.nyc_output',
+  '.runtime-state',
+  'coverage',
+  'node_modules'
+])
+const FALLBACK_TRAVERSAL_EXCLUDED_ROOTS = new Set([
+  ...INVENTORY_EXCLUDED_ROOTS,
+  'build',
+  'dist'
+])
 
 class ProjectKnowledgeError extends Error {
   constructor(code, message, nextStep = '') {
@@ -44,6 +59,39 @@ function normalizeRelative(value) {
     throw new ProjectKnowledgeError('KNOWLEDGE_PATH_INVALID', `invalid project-relative path: ${value}`)
   }
   return normalized
+}
+
+function inventoryPathExcluded(relativePath) {
+  const normalized = normalizeRelative(relativePath)
+  return INVENTORY_EXCLUDED_ROOTS.has(normalized.split('/')[0].toLowerCase())
+}
+
+function fallbackTraversalPathExcluded(relativePath) {
+  const normalized = normalizeRelative(relativePath)
+  return FALLBACK_TRAVERSAL_EXCLUDED_ROOTS.has(normalized.split('/')[0].toLowerCase())
+}
+
+function comparableRealPath(value) {
+  const resolved = path.resolve(value)
+  return process.platform === 'win32' ? resolved.toLowerCase() : resolved
+}
+
+function realPathContained(rootRealPath, candidateRealPath) {
+  const relative = path.relative(
+    comparableRealPath(rootRealPath),
+    comparableRealPath(candidateRealPath)
+  )
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))
+}
+
+function resolveContainedRealPath(rootRealPath, candidatePath) {
+  let candidateRealPath
+  try {
+    candidateRealPath = fs.realpathSync.native(candidatePath)
+  } catch {
+    return null
+  }
+  return realPathContained(rootRealPath, candidateRealPath) ? candidateRealPath : null
 }
 
 function normalizeStringList(values) {
@@ -234,7 +282,12 @@ function buildInventoryFromFiles(files, options = {}) {
 }
 
 function listProjectFiles(repoRoot, options = {}) {
-  if (Array.isArray(options.files)) return options.files.map(normalizeRelative).sort()
+  if (Array.isArray(options.files)) {
+    return options.files
+      .map(normalizeRelative)
+      .filter(relativePath => !inventoryPathExcluded(relativePath))
+      .sort()
+  }
   const git = childProcess.spawnSync('git', ['ls-files', '-z', '--cached', '--others', '--exclude-standard'], {
     cwd: repoRoot,
     encoding: 'buffer',
@@ -243,19 +296,45 @@ function listProjectFiles(repoRoot, options = {}) {
     maxBuffer: 16 * 1024 * 1024
   })
   if (git.status === 0) {
-    return git.stdout.toString('utf8').split('\0').filter(Boolean).map(normalizeRelative).sort()
+    return git.stdout.toString('utf8')
+      .split('\0')
+      .filter(Boolean)
+      .map(normalizeRelative)
+      .filter(relativePath => !inventoryPathExcluded(relativePath))
+      .sort()
   }
-  const ignored = new Set(['.git', 'node_modules', '.devcodex', 'dist', 'build'])
+  const rootRealPath = fs.realpathSync.native(repoRoot)
   const output = []
+  const visitedDirectories = new Set()
   const maxCandidates = Number.isInteger(options.maxFiles) && options.maxFiles > 0 ? options.maxFiles + 1 : 20001
   const visit = current => {
     if (output.length >= maxCandidates) return
-    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+    const currentRealPath = resolveContainedRealPath(rootRealPath, current)
+    if (!currentRealPath) return
+    const directoryIdentity = comparableRealPath(currentRealPath)
+    if (visitedDirectories.has(directoryIdentity)) return
+    visitedDirectories.add(directoryIdentity)
+    const entries = fs.readdirSync(current, { withFileTypes: true })
+      .sort((left, right) =>
+        Number(left.isSymbolicLink()) - Number(right.isSymbolicLink()) ||
+        left.name.localeCompare(right.name)
+      )
+    for (const entry of entries) {
       if (output.length >= maxCandidates) break
-      if (ignored.has(entry.name)) continue
       const absolute = path.join(current, entry.name)
-      if (entry.isDirectory()) visit(absolute)
-      else if (entry.isFile()) output.push(normalizeRelative(path.relative(repoRoot, absolute)))
+      const relativePath = normalizeRelative(path.relative(repoRoot, absolute))
+      if (fallbackTraversalPathExcluded(relativePath)) continue
+      let stats
+      try {
+        stats = entry.isSymbolicLink() ? fs.statSync(absolute) : null
+      } catch {
+        continue
+      }
+      if (entry.isDirectory() || stats?.isDirectory()) {
+        visit(absolute)
+      } else if (entry.isFile() || stats?.isFile()) {
+        if (resolveContainedRealPath(rootRealPath, absolute)) output.push(relativePath)
+      }
     }
   }
   visit(repoRoot)
@@ -264,6 +343,7 @@ function listProjectFiles(repoRoot, options = {}) {
 
 function scanProjectInventory(repoRoot, options = {}) {
   const root = path.resolve(repoRoot)
+  const rootRealPath = fs.realpathSync.native(root)
   const files = listProjectFiles(root, options)
   const entries = []
   const maxFiles = Number.isInteger(options.maxFiles) && options.maxFiles > 0 ? options.maxFiles : 20000
@@ -275,17 +355,18 @@ function scanProjectInventory(repoRoot, options = {}) {
       overflowReason = 'max-files-exceeded'
       break
     }
+    if (inventoryPathExcluded(relativePath)) continue
     const absolute = path.resolve(root, relativePath)
-    const boundary = path.relative(root, absolute)
-    if (boundary.startsWith('..') || path.isAbsolute(boundary)) continue
+    const containedRealPath = resolveContainedRealPath(rootRealPath, absolute)
+    if (!containedRealPath) continue
     let stats
-    try { stats = fs.statSync(absolute) } catch { continue }
+    try { stats = fs.statSync(containedRealPath) } catch { continue }
     if (!stats.isFile()) continue
     if (totalBytes + stats.size > maxBytes) {
       overflowReason = 'max-bytes-exceeded'
       break
     }
-    const content = fs.readFileSync(absolute)
+    const content = fs.readFileSync(containedRealPath)
     entries.push({ path: relativePath, content })
     totalBytes += content.length
   }

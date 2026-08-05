@@ -36,6 +36,24 @@
         "functions": 100,
         "branches": 85
       }
+    },
+    {
+      "path": "mcp/stdio-jsonrpc.cjs",
+      "thresholds": {
+        "lines": 85,
+        "statements": 85,
+        "functions": 90,
+        "branches": 75
+      }
+    },
+    {
+      "path": "hooks/_runtime/stdio-bounds.cjs",
+      "thresholds": {
+        "lines": 90,
+        "statements": 90,
+        "functions": 100,
+        "branches": 80
+      }
     }
   ]
 }

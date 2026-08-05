@@ -100,7 +100,7 @@ DevCodex 把这些能力组合成一个本地工作流入口：先理解当前�
 
 ### 系统要求
 
-- Node.js `>=18`
+- Node.js `>=18.17.0`
 - npm
 - 至少一个受支持的 AI 编程宿主：Codex、Claude Code、GitHub Copilot、Gemini CLI 或 Grok
 

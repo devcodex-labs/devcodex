@@ -88,6 +88,40 @@ function runLifecycle (fixture, payload = {}, env = {}, cwd = fixture.projectRoo
   })
   assert.strictEqual(expected.allowAction, true)
 
+  const proactiveContextRefresh = reconcileProgressiveSkillRoute(state, pending, {
+    trigger: 'PreToolUse',
+    sessionKey: 'session-coordinator',
+    payload: {
+      hook_run_id: 'hook-pre-context-refresh',
+      tool_name: 'mcp__devcodex_profile__profile_context_plan',
+      tool_input: {
+        intent: 'dev',
+        changeTypes: ['source-code', 'testing', 'docs'],
+        contextEpoch: 'ctx-coordinator',
+        project: 'sample'
+      }
+    }
+  })
+  assert.strictEqual(
+    proactiveContextRefresh.allowAction,
+    true,
+    'the read-only ContextRead planner must be able to make a pending route stale before rebind'
+  )
+  const prematureProfileLoad = reconcileProgressiveSkillRoute(state, pending, {
+    trigger: 'PreToolUse',
+    sessionKey: 'session-coordinator',
+    payload: {
+      hook_run_id: 'hook-pre-premature-profile-load',
+      tool_name: 'mcp__devcodex_profile__profile_load',
+      tool_input: { project: 'sample', files: ['01-项目信息.md'] }
+    }
+  })
+  assert.strictEqual(
+    prematureProfileLoad.allowAction,
+    false,
+    'only the planner is a proactive refresh entry; remaining reads wait for the rebind recovery state'
+  )
+
   const firstStop = reconcileProgressiveSkillRoute(state, pending, {
     trigger: 'Stop', sessionKey: 'session-coordinator', payload: { hook_run_id: 'hook-stop-1' }
   })

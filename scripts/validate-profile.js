@@ -111,22 +111,90 @@ function readFileIfExists(filePath) {
 
 function extractCurrentReleaseClaims(fileName, text) {
   const claims = []
-  const patterns = fileName === '05-发布规范.md'
+  const patterns = fileName === '01-项目信息.md'
     ? [
-        ['当前发布事实', /当前发布事实[：:][^\r\n]*?\bv?(\d+\.\d+\.\d+)/]
+        ['tag/publish 触发链', /\|\s*(?:\*\*)?tag\/publish 触发链(?:\*\*)?\s*\|\s*v?(\d+\.\d+\.\d+)/],
+        ['registry/tag 验收', /\|\s*(?:\*\*)?registry\/tag 验收(?:\*\*)?\s*\|\s*v?(\d+\.\d+\.\d+)/]
       ]
-    : fileName === '07-用户文档与契约规范.md'
+    : fileName === '05-发布规范.md'
       ? [
-          ['当前发布基线', /当前发布基线[：:][^\r\n]*?\bv?(\d+\.\d+\.\d+)/],
-          ['版本语义契约', /\|\s*版本语义契约\s*\|[^\r\n]*?package\s+`?v?(\d+\.\d+\.\d+)/],
-          ['当前发布分发', /\|\s*v?(\d+\.\d+\.\d+)\s+发布分发\s*\|/]
+          ['当前发布事实', /当前发布事实[：:][^\r\n]*?\bv?(\d+\.\d+\.\d+)/]
         ]
-      : []
+      : fileName === '07-用户文档与契约规范.md'
+        ? [
+            ['当前发布基线', /当前发布基线[：:][^\r\n]*?\bv?(\d+\.\d+\.\d+)/],
+            ['版本语义契约', /\|\s*版本语义契约\s*\|[^\r\n]*?package\s+`?v?(\d+\.\d+\.\d+)/],
+            ['当前发布分发', /\|\s*v?(\d+\.\d+\.\d+)\s+发布分发\s*\|/]
+          ]
+        : []
   for (const [label, pattern] of patterns) {
-    const match = String(text || '').match(pattern)
-    if (match) claims.push({ label, version: match[1] })
+    const globalPattern = new RegExp(pattern.source, `${pattern.flags.replace(/g/g, '')}g`)
+    for (const match of String(text || '').matchAll(globalPattern)) {
+      claims.push({ label, version: match[1] })
+    }
   }
   return claims
+}
+
+function compareSemver(left, right) {
+  const a = String(left || '').split('.').map(Number)
+  const b = String(right || '').split('.').map(Number)
+  if (a.length !== 3 || b.length !== 3 || [...a, ...b].some(value => !Number.isInteger(value))) return 0
+  for (let index = 0; index < 3; index += 1) {
+    if (a[index] !== b[index]) return a[index] < b[index] ? -1 : 1
+  }
+  return 0
+}
+
+function expectedValidationRouteCounts() {
+  const manifestPath = path.join(PLUGIN_ROOT, 'scripts', 'validation-manifest.json')
+  if (!fs.existsSync(manifestPath)) return null
+  const { planValidation } = require('./lib/validation-dag')
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
+  const counts = { manifest: manifest.nodes.length }
+  for (const route of ['fast', 'full', 'profile-deploy', 'package-release']) {
+    counts[route] = planValidation({ manifest, route }).selectedNodeCount
+  }
+  return counts
+}
+
+function validationRouteCountSummary(counts) {
+  return `validation-manifest ${counts.manifest} nodes / fast ${counts.fast} / full ${counts.full} / profile-deploy ${counts['profile-deploy']} / package-release ${counts['package-release']}`
+}
+
+/** ValidationRouteTruthGate binds the Profile claim to the executable DAG instead of historical receipts. */
+function checkValidationRouteTruth(inventoryResult) {
+  if (!isSourceRepoProfileTarget() || !inventoryResult || !inventoryResult.valid) return
+  const row = (inventoryResult.validRows || []).find(entry => entry.featureId === 'validation-execution')
+  if (!row) return
+  const rowText = Object.values(row).join(' ')
+  let expected
+  try {
+    expected = expectedValidationRouteCounts()
+  } catch (error) {
+    err(`[profile] ValidationRouteTruthGate cannot read executable validation DAG: ${error.message}`)
+    return
+  }
+  if (!expected) {
+    err('[profile] ValidationRouteTruthGate missing scripts/validation-manifest.json')
+    return
+  }
+  const summary = validationRouteCountSummary(expected)
+  const claim = rowText.match(/validation-manifest\s+(\d+)\s+nodes\s*\/\s*fast\s+(\d+)\s*\/\s*full\s+(\d+)\s*\/\s*profile-deploy\s+(\d+)\s*\/\s*package-release\s+(\d+)/i)
+  if (!claim) {
+    warn(`[profile] ValidationRouteTruthGate validation-execution uses a legacy or missing count claim; expected: ${summary}`)
+    return
+  }
+  const actual = {
+    manifest: Number(claim[1]),
+    fast: Number(claim[2]),
+    full: Number(claim[3]),
+    'profile-deploy': Number(claim[4]),
+    'package-release': Number(claim[5])
+  }
+  if (Object.keys(actual).some(key => actual[key] !== expected[key])) {
+    warn(`[profile] ValidationRouteTruthGate validation-execution count drift: ${validationRouteCountSummary(actual)} → ${summary}`)
+  }
 }
 
 /** ProfileReleaseTruthAuthorityMatrixGate checks explicit current consumers only; historical release text is intentionally ignored. */
@@ -154,10 +222,18 @@ function checkProfileReleaseTruthAuthorityMatrix(projectInfoText) {
   if (devcodexProject) {
     checkClaim('01-项目信息.md', '当前版本', extractVersion('当前版本', projectInfoText))
     checkClaim('01-项目信息.md', '当前阶段', extractVersion('当前阶段', projectInfoText))
-    for (const fileName of ['05-发布规范.md', '07-用户文档与契约规范.md']) {
-      const directText = readFileIfExists(path.join(profileDir, fileName))
-      for (const claim of extractCurrentReleaseClaims(fileName, directText)) {
+    for (const fileName of ['01-项目信息.md', '05-发布规范.md', '07-用户文档与契约规范.md']) {
+      const directText = fileName === '01-项目信息.md'
+        ? projectInfoText
+        : readFileIfExists(path.join(profileDir, fileName))
+      const claims = extractCurrentReleaseClaims(fileName, directText)
+      const counts = new Map()
+      for (const claim of claims) {
+        counts.set(claim.label, (counts.get(claim.label) || 0) + 1)
         checkClaim(fileName, claim.label, claim.version)
+      }
+      for (const [label, count] of counts) {
+        if (count > 1) warn(`[profile] ProfileReleaseTruthAuthorityMatrixGate ${fileName} duplicates current claim ${label}: ${count}`)
       }
     }
   }
@@ -782,14 +858,19 @@ function validateCanonicalFeatureInventory(projectInfo, inventoryResult) {
   }
   const stateFamily = value => {
     const text = String(value || '').toLowerCase()
-    if (/\bunreleased\b|\bpreview\b/.test(text)) return 'unreleased'
-    if (/\breleased(?:-[a-z0-9._-]+)?\b|\bv?\d+\.\d+\.\d+(?:-[a-z0-9._-]+)?\b/.test(text)) return 'released'
+    if (/\bunreleased\b|\bpreview\b|未发布|候选|预览/.test(text)) return 'unreleased'
+    if (/\breleased(?:-[a-z0-9._-]+)?\b|\bv?\d+\.\d+\.\d+(?:-[a-z0-9._-]+)?\b|已发布|正式发布/.test(text)) return 'released'
     return ''
   }
   const projectLines = String(projectInfo || '').split(/\r?\n/)
   for (const row of inventoryResult.validRows || []) {
     const canonicalFamily = stateFamily(row.releaseState)
     if (!canonicalFamily) continue
+    const staleAnchor = String(row.releaseState || '').match(/\bunreleased(?:-[a-z0-9._-]+)?-after-v(\d+\.\d+\.\d+)\b/i)
+    if (isSourceRepoProfileTarget() && staleAnchor && compareSemver(staleAnchor[1], pluginVersion) < 0 &&
+        ['implemented', 'validated', 'released', 'historical'].includes(String(row.lifecycleState || '').toLowerCase())) {
+      warn(`[profile] 06-功能清单.md release state lags current package for ${row.featureId}: ${row.releaseState} vs v${pluginVersion}`)
+    }
     for (const line of projectLines) {
       if (!line.includes(row.featureId) && !line.includes(row.capabilityGroup)) continue
       const summaryFamily = stateFamily(line)
@@ -798,6 +879,7 @@ function validateCanonicalFeatureInventory(projectInfo, inventoryResult) {
       }
     }
   }
+  checkValidationRouteTruth(inventoryResult)
 }
 
 function validateProfileTier(tier, combined) {

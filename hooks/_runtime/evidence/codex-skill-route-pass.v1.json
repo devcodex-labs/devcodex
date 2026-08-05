@@ -5,16 +5,16 @@
   "hostVariant": "codex-cli/exec-user-global-local-stdio",
   "testedVersion": "codex-cli 0.145.0",
   "protocol": "MCP 2024-11-05",
-  "runtimeContractDigest": "600ca8f35b1a48a0a81f35b0ad59044132d90175c1af4013ffa891d3f05c87d5",
-  "hostAdapterDigest": "29abc29f7076c61d719537e1b398a0917ad18e8199fc6138429d68a32f268537",
-  "sourceEvidenceDigest": "9376f9c563d50aec829a0b8563e4bd40e19bfb3aac94fa376f96f166bd0d3af5",
+  "runtimeContractDigest": "fc3c5297bee6dd43bc4d017a12b21531d3ad10ca45461a26806fc8528b3fa08e",
+  "hostAdapterDigest": "dc1f1047276bf78ed2dc8341d6e07db8320b00e346c253b4862204abca584edd",
+  "sourceEvidenceDigest": "5982b0f5c208c46fad16b8a8220f1f07c49b7cc4e068b7df5b32e1287edf1644",
   "sourceProbe": {
     "schemaVersion": "SkillRouteS15EvidenceV1",
-    "probeRunId": "s15-codex-probe-6a38c1ab-cb31-4c02-ba69-193eb5995b44",
+    "probeRunId": "s15-codex-probe-ccd4e82d-8212-45d6-a9a0-a177d9929ae8",
     "authorizationSource": "isolated-probe-authority",
     "contextSource": "host-hooks",
     "receiptStatus": "relevant-complete",
-    "completedAt": "2026-08-04T16:49:34.203Z"
+    "completedAt": "2026-08-05T06:39:51.181Z"
   },
   "probe": {
     "schemaVersion": "SkillRouteProbeSummaryV1",

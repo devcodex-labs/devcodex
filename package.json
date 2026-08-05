@@ -1,6 +1,6 @@
 {
   "name": "devcodex",
-  "version": "1.16.3",
+  "version": "1.16.4",
   "description": "DevCodex — AI-powered development workflow rules for Copilot, Claude Code, Codex, Gemini CLI and Grok",
   "main": "index.js",
   "bin": {
@@ -18,6 +18,7 @@
     "test:core": "node scripts/validate-versions.js && node scripts/validate.js",
     "test:all:with-audit": "npm run test:all && npm run test:audit",
     "test:audit": "node scripts/test-security-audit.js --registry=https://registry.npmjs.org",
+    "test:audit-runner": "node scripts/test-security-audit-runner.js",
     "test:cli-behavior": "node scripts/test-cli-behavior.js",
     "test:init": "node index.js init --dry-run",
     "test:hooks-runtime": "node scripts/test-hooks-runtime.js",
@@ -62,8 +63,10 @@
     "test:execution-attempt-ledger": "node scripts/test-execution-attempt-ledger.js",
     "test:execution-chain-evolution": "node scripts/test-execution-chain-evolution.js",
     "test:execution-chain-controls": "node scripts/test-execution-chain-controls.js",
-    "test:critical-coverage-target": "node scripts/test-execution-chain-controls.js && node scripts/test-workflow-completion-contract.js && node scripts/test-host-adapters.js && node scripts/lib/validate-workflow-completion-controls.js",
-    "test:critical-coverage": "c8 --clean --include scripts/lib/validate-execution-chain-controls.js --include hooks/_runtime/workflow-completion-contract.cjs --include hooks/_runtime/lifecycle-workflow-completion.cjs --include scripts/lib/validate-workflow-completion-controls.js --reporter=text --reporter=json-summary --reports-dir coverage/critical npm run test:critical-coverage-target && node scripts/check-critical-coverage.js",
+    "test:critical-risk-coverage": "node scripts/check-critical-risk-coverage.js",
+    "test:mcp-stdio": "node scripts/test-mcp-stdio-transport.js",
+    "test:critical-coverage-target": "node scripts/test-execution-chain-controls.js && node scripts/test-workflow-completion-contract.js && node scripts/test-host-adapters.js && node scripts/test-mcp-stdio-transport.js && node scripts/check-critical-risk-coverage.js && node scripts/lib/validate-workflow-completion-controls.js",
+    "test:critical-coverage": "c8 --clean --include scripts/lib/validate-execution-chain-controls.js --include hooks/_runtime/workflow-completion-contract.cjs --include hooks/_runtime/lifecycle-workflow-completion.cjs --include scripts/lib/validate-workflow-completion-controls.js --include mcp/stdio-jsonrpc.cjs --include hooks/_runtime/stdio-bounds.cjs --reporter=text --reporter=json-summary --reports-dir coverage/critical npm run test:critical-coverage-target && node scripts/check-critical-coverage.js",
     "test:public-text-integrity": "node scripts/test-public-text-integrity.js",
     "test:repair-prevention": "node scripts/test-repair-prevention-assessment.js",
     "test:review-execution": "node scripts/test-review-execution-contract.js",
@@ -167,7 +170,7 @@
     "url": "https://github.com/devcodex-labs/devcodex/issues"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=18.17.0"
   },
   "publishConfig": {
     "registry": "https://registry.npmjs.org/",
@@ -230,6 +233,8 @@
     "scripts/test-mcp-runtime-closure.js",
     "scripts/fixtures/global-host-config/",
     "scripts/test-security-audit.js",
+    "scripts/lib/security-audit-runner.js",
+    "scripts/test-security-audit-runner.js",
     "scripts/fixtures/security-audit/",
     "scripts/test-validation-dag.js",
     "scripts/test-profile-section-selector.js",
@@ -263,6 +268,9 @@
     "scripts/test-visible-output-contract.js",
     "scripts/check-critical-coverage.js",
     "scripts/critical-coverage.json",
+    "scripts/check-critical-risk-coverage.js",
+    "scripts/critical-risk-coverage.json",
+    "scripts/test-mcp-stdio-transport.js",
     "scripts/public-text-surfaces.json",
     "scripts/benchmark-execution-chain.js",
     "scripts/lib/validation-dag.js",

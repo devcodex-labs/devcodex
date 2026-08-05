@@ -614,6 +614,34 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     }
   }
 
+  function preferNewerSameSessionContext(sessionState, activeState, sessionKey) {
+    if (!sessionState || typeof sessionState !== 'object' ||
+        !activeState || typeof activeState !== 'object') return sessionState
+
+    const key = String(sessionKey || '').trim()
+    const sessionAcquisition = sessionState.contextAcquisition
+    const activeAcquisition = activeState.contextAcquisition
+    if (!key || !sessionAcquisition || typeof sessionAcquisition !== 'object' ||
+        !activeAcquisition || typeof activeAcquisition !== 'object' ||
+        String(sessionAcquisition.hostSessionId || '').trim() !== key ||
+        String(activeAcquisition.hostSessionId || '').trim() !== key) return sessionState
+
+    const sessionProject = String(sessionState.activeProject || sessionAcquisition.project || '').trim()
+    const activeProject = String(activeState.activeProject || activeAcquisition.project || '').trim()
+    if (!sessionProject || activeProject !== sessionProject) return sessionState
+
+    const activeUpdatedAt = Date.parse(String(activeState.updatedAt || ''))
+    const sessionUpdatedAt = Date.parse(String(sessionState.updatedAt || ''))
+    if (!Number.isFinite(activeUpdatedAt) ||
+        (Number.isFinite(sessionUpdatedAt) && activeUpdatedAt <= sessionUpdatedAt)) return sessionState
+
+    return {
+      ...sessionState,
+      updatedAt: activeState.updatedAt,
+      contextAcquisition: JSON.parse(JSON.stringify(activeAcquisition))
+    }
+  }
+
   function loadState(modeHint, sessionKey = '') {
     const metaState = readJsonFile(META_STATE_PATHS.file)
     const canonicalSessionFile = sessionStateFile(metaState || buildDefaultState(modeHint), sessionKey)
@@ -628,6 +656,14 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       }
     }
     let saved = sessionState
+    if (saved && typeof saved === 'object' && LAYOUT.enabled) {
+      const preferredProject = String(
+        saved.activeProject || saved.contextAcquisition?.project || CONTEXT_PROJECT || ''
+      ).trim()
+      const preferredScope = saved.activeScope || (preferredProject ? 'project' : DEFAULT_SCOPE)
+      const activeState = readJsonFile(getStatePathsFor(preferredProject, preferredScope).file)
+      saved = preferNewerSameSessionContext(saved, activeState, sessionKey)
+    }
     if (!(saved && typeof saved === 'object')) {
       saved = metaState
       if (LAYOUT.enabled) {

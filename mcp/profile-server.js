@@ -18,6 +18,7 @@ const crypto = require('crypto')
 const fs = require('fs')
 const path = require('path')
 const { assertSingleSegment, resolveInside } = require('./path-guard')
+const { createJsonLineServer } = require('./stdio-jsonrpc.cjs')
 const {
   PROFILE_BASE_FILES,
   PROFILE_RELEASE_FILES,
@@ -50,7 +51,6 @@ const {
   namespaceRootPath,
   normalizeExecutionOptimizationMode,
   normalizeProjectNamespace,
-  readJsonFile,
   resolveLegacyProjectRoot,
   resolveRuntimeStateRoot
 } = require('../hooks/_runtime/workspace-layout.cjs')
@@ -374,6 +374,34 @@ function isPlainObject(value) {
   return !!value && typeof value === 'object' && !Array.isArray(value)
 }
 
+function profileConfigError(filePath, reason) {
+  const error = new Error(`PROFILE_CONFIG_INVALID: ${filePath}: ${reason}`)
+  error.code = 'PROFILE_CONFIG_INVALID'
+  error.filePath = filePath
+  return error
+}
+
+function readProfileConfigFile(filePath) {
+  if (!fs.existsSync(filePath)) return null
+  let content
+  try {
+    content = fs.readFileSync(filePath, 'utf8')
+  } catch (error) {
+    if (error?.code === 'ENOENT') return null
+    throw error
+  }
+  let config
+  try {
+    config = JSON.parse(content)
+  } catch (error) {
+    throw profileConfigError(filePath, error.message)
+  }
+  if (!isPlainObject(config)) {
+    throw profileConfigError(filePath, 'root value must be a JSON object')
+  }
+  return { content, config }
+}
+
 function mergeConfig(workspaceConfig, projectConfig) {
   const merged = {}
   for (const source of [workspaceConfig, projectConfig]) {
@@ -506,15 +534,15 @@ function resolveConfigFile(projectName) {
   if (!LAYOUT.enabled) {
     for (const dir of getLegacyProfileDirs(projectName)) {
       const fullPath = path.join(dir, 'config.json')
-      const content = readFileText(fullPath)
-      if (content !== null) {
+      const loaded = readProfileConfigFile(fullPath)
+      if (loaded !== null) {
         return {
           exists: true,
-          content,
+          content: loaded.content,
           fullPath,
           sourceLabel: getLegacySourceLabel(dir, projectName),
           sourcePaths: [fullPath],
-          config: readJsonFile(fullPath) || {}
+          config: loaded.config
         }
       }
     }
@@ -525,8 +553,10 @@ function resolveConfigFile(projectName) {
   const projectDir = getProjectNamespaceProfileDir(projectName)
   const workspacePath = path.join(workspaceDir, 'config.json')
   const projectPath = projectDir ? path.join(projectDir, 'config.json') : null
-  const workspaceConfig = readJsonFile(workspacePath)
-  const projectConfig = projectPath ? readJsonFile(projectPath) : null
+  const workspaceLoaded = readProfileConfigFile(workspacePath)
+  const projectLoaded = projectPath ? readProfileConfigFile(projectPath) : null
+  const workspaceConfig = workspaceLoaded?.config || null
+  const projectConfig = projectLoaded?.config || null
   const exists = workspaceConfig !== null || projectConfig !== null
   const merged = mergeConfig(workspaceConfig, projectConfig)
   const sourcePaths = []
@@ -1684,40 +1714,8 @@ function dispatch(method, params) {
   }
 }
 
-// ─── stdio transport ──────────────────────────────────────────────────────────
+// ─── bounded stdio transport ──────────────────────────────────────────────────
 
-function sendResponse(id, result) {
-  process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id, result }) + '\n')
-}
-
-function sendError(id, code, message) {
-  process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id, error: { code, message } }) + '\n')
-}
-
-let buffer = ''
-
-process.stdin.setEncoding('utf8')
-process.stdin.on('data', chunk => {
-  buffer += chunk
-  const lines = buffer.split('\n')
-  buffer = lines.pop()
-  for (const line of lines) {
-    const trimmed = line.trim()
-    if (!trimmed) continue
-    let req
-    try { req = JSON.parse(trimmed) } catch {
-      sendError(null, -32700, 'Parse error')
-      continue
-    }
-    try {
-      const result = dispatch(req.method, req.params)
-      if (req.id !== undefined) sendResponse(req.id, result)
-    } catch (err) {
-      if (req.id !== undefined) sendError(req.id, err.code || -32603, err.message)
-    }
-  }
-})
-
-process.stdin.on('end', () => process.exit(0))
+createJsonLineServer({ dispatch, onEnd: () => process.exit(0) })
 process.on('SIGINT', () => process.exit(0))
 process.on('SIGTERM', () => process.exit(0))

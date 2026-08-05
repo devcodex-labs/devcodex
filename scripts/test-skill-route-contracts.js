@@ -781,7 +781,32 @@ try {
   assert.strictEqual(noCapability.effective, 'unified')
   assert.strictEqual(noCapability.reason, 'unified-default')
   assert.strictEqual(noCapability.hostEligibility, 'UNVERIFIED')
-  assert.match(getRuntimeContractDigest(), /^[a-f0-9]{64}$/)
+  const currentRuntimeDigest = getRuntimeContractDigest()
+  assert.match(currentRuntimeDigest, /^[a-f0-9]{64}$/)
+  for (const runtimeFile of [
+    'lifecycle-skill-route-coordinator.cjs',
+    'lifecycle-namespace-state.cjs'
+  ]) {
+    const mutatedFs = new Proxy(fs, {
+      get (target, property) {
+        if (property === 'readFileSync') {
+          return (file, ...args) => {
+            const value = target.readFileSync(file, ...args)
+            return path.basename(String(file)) === runtimeFile && typeof value === 'string'
+              ? `${value}\n// digest-sensitivity-probe`
+              : value
+          }
+        }
+        const value = target[property]
+        return typeof value === 'function' ? value.bind(target) : value
+      }
+    })
+    assert.notStrictEqual(
+      getRuntimeContractDigest({ fs: mutatedFs }),
+      currentRuntimeDigest,
+      `${runtimeFile} must participate in the runtime contract digest`
+    )
+  }
 } finally {
   fixture.cleanup()
 }

@@ -23,6 +23,24 @@ function summarize(value, limit = DEFAULT_SUMMARY_LIMIT) {
   return `${text.slice(0, limit)}\n…[truncated ${text.length - limit} chars]`
 }
 
+function isJsonArrayLiteral(value) {
+  const text = String(value || '').trim()
+  if (!text.startsWith('[') || !text.endsWith(']')) return false
+  try {
+    return Array.isArray(JSON.parse(text))
+  } catch {
+    return false
+  }
+}
+
+function hasBracketPathGlob(value) {
+  const text = String(value || '')
+  if (isJsonArrayLiteral(text)) return false
+  const hasCharacterClass = /\[(?:[!^])?[^\]\r\n]+\]/.test(text)
+  const hasPathSemantics = /[\\/]/.test(text) || /\.[A-Za-z0-9_-]{1,16}(?:$|[?#])/.test(text)
+  return hasCharacterClass && hasPathSemantics
+}
+
 function assertNoLiteralPathGlob(args) {
   let expectGlobValue = false
   for (const raw of args) {
@@ -37,7 +55,7 @@ function assertNoLiteralPathGlob(args) {
     }
     if (Array.from(GLOB_VALUE_FLAGS).some(flag => arg.startsWith(`${flag}=`))) continue
     if (arg.startsWith('-')) continue
-    if (/[*?[]/.test(arg)) {
+    if (/[*?]/.test(arg) || hasBracketPathGlob(arg)) {
       throw new CheckedCommandError(`Literal glob is not allowed as a positional path: ${arg}`, {
         code: 'ELITERALGLOB',
         command: null,
@@ -131,6 +149,7 @@ function runSequenceChecked(steps, options = {}) {
 module.exports = {
   CheckedCommandError,
   assertNoLiteralPathGlob,
+  hasBracketPathGlob,
   runChecked,
   runSequenceChecked
 }

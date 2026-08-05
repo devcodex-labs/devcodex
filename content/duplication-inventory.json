@@ -1,6 +1,6 @@
 {
   "schemaVersion": "ControlContentDuplicationInventoryV1",
-  "sourceBundleDigest": "065674a2dcb5e9fcc54a0e121d676beed074fd450db1d2c7fcc2728216273ac3",
+  "sourceBundleDigest": "89392aa90356d8f75c56d9cbf38117da6457231764f98caea0934b75abd6899a",
   "thresholds": {
     "minParagraphChars": 100,
     "sectionThreshold": 0.94,

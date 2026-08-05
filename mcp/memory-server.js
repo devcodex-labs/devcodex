@@ -21,8 +21,10 @@
 
 const crypto = require('crypto')
 const fs = require('fs')
+const os = require('os')
 const path = require('path')
 const { assertSingleSegment, resolveInside } = require('./path-guard')
+const { createJsonLineServer } = require('./stdio-jsonrpc.cjs')
 const {
   findLayoutInfo,
   inferProjectFromCwd,
@@ -300,8 +302,18 @@ function currentTime(d = new Date()) {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
+function isRealCompactDate(value) {
+  const text = String(value || '')
+  if (!/^\d{8}$/.test(text)) return false
+  const iso = `${text.slice(0, 4)}-${text.slice(4, 6)}-${text.slice(6, 8)}`
+  const parsed = new Date(`${iso}T00:00:00.000Z`)
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === iso
+}
+
 function validateDate(date) {
-  if (date && !/^\d{8}$/.test(date)) throw new Error(`date must be YYYYMMDD, got: ${date}`)
+  if (!date) return
+  if (!/^\d{8}$/.test(String(date))) throw new Error(`date must be YYYYMMDD, got: ${date}`)
+  if (!isRealCompactDate(date)) throw new Error(`date is not a real calendar date: ${date}`)
 }
 
 function readFile(filePath) {
@@ -624,30 +636,128 @@ function memoryLockDir(target, filePath) {
   return resolveInside(resolveRuntimeStateRoot(target.activeRoot, target.project).root, 'memory-locks', key)
 }
 
+const MEMORY_LOCK_LEGACY_STALE_MS = 30 * 60 * 1000
+
+function readMemoryLockOwner(lockDir) {
+  try {
+    const owner = JSON.parse(fs.readFileSync(path.join(lockDir, 'owner.json'), 'utf8'))
+    return owner && typeof owner === 'object' && !Array.isArray(owner) ? owner : null
+  } catch {
+    return null
+  }
+}
+
+function memoryLockAgeMs(lockDir) {
+  try {
+    return Math.max(0, Date.now() - fs.statSync(lockDir).mtimeMs)
+  } catch {
+    return 0
+  }
+}
+
+function memoryLockProcessState(pid) {
+  if (!Number.isInteger(pid) || pid <= 0) return 'unknown'
+  try {
+    process.kill(pid, 0)
+    return 'alive'
+  } catch (error) {
+    if (error?.code === 'ESRCH') return 'dead'
+    return 'unknown'
+  }
+}
+
+function assessMemoryLockRecovery(lockDir) {
+  const owner = readMemoryLockOwner(lockDir)
+  const processState = memoryLockProcessState(owner?.pid)
+  if (owner?.schemaVersion === 'MemoryWriterLockV2') {
+    if (owner.host !== os.hostname()) {
+      return { recoverable: false, reason: 'cross-host-owner', owner, processState }
+    }
+    return {
+      recoverable: processState === 'dead',
+      reason: processState === 'dead' ? 'same-host-dead-pid' : 'same-host-owner-not-proven-dead',
+      owner,
+      processState
+    }
+  }
+  const ageMs = memoryLockAgeMs(lockDir)
+  const oldEnough = ageMs >= MEMORY_LOCK_LEGACY_STALE_MS
+  const ownerAllowsRecovery = owner?.pid
+    ? processState === 'dead'
+    : true
+  return {
+    recoverable: oldEnough && ownerAllowsRecovery,
+    reason: !oldEnough
+      ? 'legacy-lock-within-safety-window'
+      : (ownerAllowsRecovery ? 'legacy-stale-owner' : 'legacy-owner-not-proven-dead'),
+    owner,
+    processState,
+    ageMs
+  }
+}
+
+function quarantineRecoverableMemoryLock(lockDir) {
+  const assessment = assessMemoryLockRecovery(lockDir)
+  if (!assessment.recoverable) return { reclaimed: false, raced: false, assessment }
+  const quarantineDir = `${lockDir}.stale.${process.pid}.${Date.now()}.${crypto.randomBytes(4).toString('hex')}`
+  try {
+    fs.renameSync(lockDir, quarantineDir)
+    return { reclaimed: true, raced: false, quarantineDir, assessment }
+  } catch (error) {
+    if (error?.code === 'ENOENT') return { reclaimed: false, raced: true, assessment }
+    throw error
+  }
+}
+
 function acquireMemoryLock(target, filePath) {
   const lockDir = memoryLockDir(target, filePath)
   fs.mkdirSync(path.dirname(lockDir), { recursive: true })
-  try {
-    fs.mkdirSync(lockDir)
-  } catch (error) {
-    if (error.code === 'EEXIST') {
-      throw new Error(`MEMORY_TRANSACTION_LOCKED: ${relativeToActiveRoot(target, filePath)} is locked by another writer`)
+  const quarantines = []
+  let acquired = false
+  for (let attempt = 0; attempt < 3 && !acquired; attempt += 1) {
+    try {
+      fs.mkdirSync(lockDir)
+      acquired = true
+    } catch (error) {
+      if (error.code !== 'EEXIST') throw error
+      const recovery = quarantineRecoverableMemoryLock(lockDir)
+      if (recovery.reclaimed) {
+        quarantines.push(recovery.quarantineDir)
+        continue
+      }
+      if (recovery.raced) continue
+      throw new Error(`MEMORY_TRANSACTION_LOCKED: ${relativeToActiveRoot(target, filePath)} is locked by another writer (${recovery.assessment.reason})`)
     }
-    throw error
   }
+  if (!acquired) {
+    throw new Error(`MEMORY_TRANSACTION_LOCKED: ${relativeToActiveRoot(target, filePath)} lock acquisition raced repeatedly`)
+  }
+  const token = crypto.randomBytes(16).toString('hex')
   const owner = {
-    schemaVersion: 'MemoryWriterLockV1',
+    schemaVersion: 'MemoryWriterLockV2',
     pid: process.pid,
+    host: os.hostname(),
+    token,
     file: relativeToActiveRoot(target, filePath),
     acquiredAt: new Date().toISOString()
   }
-  fs.writeFileSync(path.join(lockDir, 'owner.json'), `${JSON.stringify(owner, null, 2)}\n`, 'utf8')
-  return lockDir
+  try {
+    fs.writeFileSync(path.join(lockDir, 'owner.json'), `${JSON.stringify(owner, null, 2)}\n`, { encoding: 'utf8', flag: 'wx' })
+  } catch (error) {
+    try { fs.rmSync(lockDir, { recursive: true, force: true }) } catch { /* leave fail-closed */ }
+    throw error
+  }
+  for (const quarantineDir of quarantines) {
+    try { fs.rmSync(quarantineDir, { recursive: true, force: true }) } catch { /* status exposes residual quarantine */ }
+  }
+  return { lockDir, token }
 }
 
-function releaseMemoryLock(lockDir) {
+function releaseMemoryLock(lock) {
+  const owner = readMemoryLockOwner(lock.lockDir)
+  if (!owner || owner.schemaVersion !== 'MemoryWriterLockV2' || owner.token !== lock.token) return
   try {
-    fs.rmSync(lockDir, { recursive: true, force: true })
+    fs.rmSync(lock.lockDir, { recursive: true, force: true })
   } catch {
     // Best-effort cleanup. A stale lock is safer than deleting an unknown path.
   }
@@ -669,7 +779,7 @@ function atomicReplaceFile(filePath, content) {
 }
 
 function withMemoryTransaction(target, filePath, operation) {
-  const lockDir = acquireMemoryLock(target, filePath)
+  const lock = acquireMemoryLock(target, filePath)
   const startedAt = new Date().toISOString()
   try {
     const before = readFile(filePath)
@@ -695,7 +805,7 @@ function withMemoryTransaction(target, filePath, operation) {
     }
     return receipt
   } finally {
-    releaseMemoryLock(lockDir)
+    releaseMemoryLock(lock)
   }
 }
 
@@ -972,17 +1082,11 @@ function yesterday() {
   return formatLocalDate(date)
 }
 
-function compactDateToIso(value) {
-  return `${value.slice(0, 4)}-${value.slice(4, 6)}-${value.slice(6, 8)}`
-}
-
 function validateQueryDate(value, field = 'date') {
   if (!/^\d{8}$/.test(String(value || ''))) {
     throw memoryQueryError(`${field} must be YYYYMMDD.`)
   }
-  const iso = compactDateToIso(String(value))
-  const parsed = new Date(`${iso}T00:00:00.000Z`)
-  if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== iso) {
+  if (!isRealCompactDate(value)) {
     throw memoryQueryError(`${field} is not a real calendar date.`)
   }
 }
@@ -2298,43 +2402,8 @@ function dispatch(method, params) {
   }
 }
 
-// ─── stdio transport ──────────────────────────────────────────────────────────
-
-function sendResponse(id, result) {
-  const msg = JSON.stringify({ jsonrpc: '2.0', id, result })
-  process.stdout.write(msg + '\n')
-}
-
-function sendError(id, code, message) {
-  const msg = JSON.stringify({ jsonrpc: '2.0', id, error: { code, message } })
-  process.stdout.write(msg + '\n')
-}
-
 if (require.main === module) {
-  let buffer = ''
-  process.stdin.setEncoding('utf8')
-  process.stdin.on('data', chunk => {
-    buffer += chunk
-    const lines = buffer.split('\n')
-    buffer = lines.pop() // keep incomplete line
-    for (const line of lines) {
-      const trimmed = line.trim()
-      if (!trimmed) continue
-      let req
-      try { req = JSON.parse(trimmed) } catch {
-        sendError(null, -32700, 'Parse error')
-        continue
-      }
-      try {
-        const result = dispatch(req.method, req.params)
-        if (req.id !== undefined) sendResponse(req.id, result)
-      } catch (err) {
-        if (req.id !== undefined) sendError(req.id, err.code || -32603, err.message)
-      }
-    }
-  })
-
-  process.stdin.on('end', () => process.exit(0))
+  createJsonLineServer({ dispatch, onEnd: () => process.exit(0) })
   process.on('SIGINT', () => process.exit(0))
   process.on('SIGTERM', () => process.exit(0))
 }

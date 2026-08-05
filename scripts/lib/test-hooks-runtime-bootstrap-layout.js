@@ -1,5 +1,6 @@
 'use strict'
 
+const crypto = require('crypto')
 const {
   contextPlanObservationRelativePath
 } = require('../../hooks/_runtime/context-plan-observation.cjs')
@@ -240,6 +241,57 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
     false,
     'an unresolved workspace target must not create a synthetic project namespace'
   )
+
+  // PF-256: MCP and SkillRoute update the project lifecycle state outside the
+  // Hook process. The next Hook boundary must adopt a newer projection from the
+  // same host session instead of replaying its older session snapshot forever.
+  const pendingSessionDigest = crypto.createHash('sha256').update(pendingSession).digest('hex')
+  const pendingSessionFile = path.join(
+    path.dirname(getWorkspaceLayoutStateFile()),
+    'sessions',
+    `${pendingSessionDigest}.json`
+  )
+  const newerActiveState = JSON.parse(fs.readFileSync(getLayoutStateFile('devcodex'), 'utf8'))
+  const newerPlanId = newerActiveState.contextAcquisition.plan.planId
+  const olderSessionState = JSON.parse(JSON.stringify(newerActiveState))
+  olderSessionState.updatedAt = '2026-08-05T00:00:00.000Z'
+  olderSessionState.contextAcquisition.plan = null
+  olderSessionState.contextAcquisition.receipt = null
+  newerActiveState.updatedAt = '2026-08-05T00:00:01.000Z'
+  fs.writeFileSync(pendingSessionFile, `${JSON.stringify(olderSessionState, null, 2)}\n`)
+  fs.writeFileSync(getLayoutStateFile('devcodex'), `${JSON.stringify(newerActiveState, null, 2)}\n`)
+  run({
+    hookEventName: 'PostToolUse',
+    session_id: pendingSession,
+    tool_use_id: 'same-session-newer-context-probe',
+    tool_name: 'Read',
+    tool_input: { file_path: path.join(TEMP_ROOT, 'devcodex', 'package.json') },
+    tool_response: { ok: true }
+  }, TEMP_ROOT, { DEVCODEX_HOST_PLATFORM: 'codex' })
+  const reconciledActiveState = JSON.parse(fs.readFileSync(getLayoutStateFile('devcodex'), 'utf8'))
+  const reconciledSessionState = JSON.parse(fs.readFileSync(pendingSessionFile, 'utf8'))
+  assert.strictEqual(reconciledActiveState.contextAcquisition.plan.planId, newerPlanId)
+  assert.strictEqual(reconciledSessionState.contextAcquisition.plan.planId, newerPlanId)
+
+  const foreignActiveState = JSON.parse(JSON.stringify(reconciledActiveState))
+  const isolatedSessionState = JSON.parse(JSON.stringify(reconciledSessionState))
+  foreignActiveState.updatedAt = '2030-08-05T00:00:00.000Z'
+  foreignActiveState.contextAcquisition.hostSessionId = 'foreign-session'
+  isolatedSessionState.updatedAt = '2026-08-05T00:00:00.000Z'
+  isolatedSessionState.contextAcquisition.plan = null
+  isolatedSessionState.contextAcquisition.receipt = null
+  fs.writeFileSync(pendingSessionFile, `${JSON.stringify(isolatedSessionState, null, 2)}\n`)
+  fs.writeFileSync(getLayoutStateFile('devcodex'), `${JSON.stringify(foreignActiveState, null, 2)}\n`)
+  run({
+    hookEventName: 'PostToolUse',
+    session_id: pendingSession,
+    tool_use_id: 'foreign-session-context-probe',
+    tool_name: 'Read',
+    tool_input: { file_path: path.join(TEMP_ROOT, 'devcodex', 'package.json') },
+    tool_response: { ok: true }
+  }, TEMP_ROOT, { DEVCODEX_HOST_PLATFORM: 'codex' })
+  const isolatedAfterForeignState = JSON.parse(fs.readFileSync(pendingSessionFile, 'utf8'))
+  assert.strictEqual(isolatedAfterForeignState.contextAcquisition.plan, null)
 
   cleanState()
 

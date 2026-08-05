@@ -980,6 +980,16 @@ try {
   }, fixture.runtimeOptions)
   assert.strictEqual(statusAfterReplay.receipt.budget.bodyBytesConsumed, consumedAfterEntry)
 
+  loadStageAll(fixture, planBinding, 'closeout')
+  const statusAfterInitialCloseout = handleSkillRoute({
+    op: 'status',
+    project: fixture.project,
+    turnBinding: boot.bootstrap.turnBinding,
+    contextEpoch
+  }, fixture.runtimeOptions)
+  assert.strictEqual(statusAfterInitialCloseout.receipt.obligations.processComplete, true)
+  assert.strictEqual(statusAfterInitialCloseout.receipt.stageProgress.closeout.status, 'loaded')
+
   const conditionBeforeReplan = handleSkillRoute({
     op: 'load_stage',
     project: fixture.project,
@@ -1006,6 +1016,18 @@ try {
   assert(replan.receipt.plan.stages.some(stage =>
     stage.stageId === 'execution:test-validation'
   ))
+  const statusAfterLateCloseoutReplan = handleSkillRoute({
+    op: 'status',
+    project: fixture.project,
+    turnBinding: boot.bootstrap.turnBinding,
+    contextEpoch
+  }, fixture.runtimeOptions)
+  assert.strictEqual(statusAfterLateCloseoutReplan.receipt.stageProgress.entry.status, 'loaded')
+  assert.strictEqual(statusAfterLateCloseoutReplan.receipt.stageProgress.closeout, undefined)
+  assert.strictEqual(
+    statusAfterLateCloseoutReplan.receipt.nextAction.nextCall.stageId,
+    'execution:test-validation'
+  )
 
   const changedChoice = handleSkillRoute({
     ...commitRequest,

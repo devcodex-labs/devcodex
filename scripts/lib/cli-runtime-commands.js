@@ -69,7 +69,32 @@ function summarizeRoot(root, role, nowMs) {
 
     const name = path.basename(entry.path)
     const ageMs = Math.max(0, nowMs - entry.modifiedMs)
-    if (name.endsWith('.lock')) {
+    if (category === 'memory-locks' && name === 'owner.json') {
+      let owner = null
+      if (entry.bytes <= 64 * 1024) {
+        try {
+          const rawOwner = JSON.parse(fs.readFileSync(entry.path, 'utf8'))
+          if (rawOwner && typeof rawOwner === 'object' && !Array.isArray(rawOwner)) {
+            owner = {
+              schemaVersion: rawOwner.schemaVersion || null,
+              pid: Number.isInteger(rawOwner.pid) ? rawOwner.pid : null,
+              host: typeof rawOwner.host === 'string' ? rawOwner.host : null,
+              file: typeof rawOwner.file === 'string' ? rawOwner.file : null,
+              acquiredAt: typeof rawOwner.acquiredAt === 'string' ? rawOwner.acquiredAt : null
+            }
+          }
+        } catch {
+          owner = null
+        }
+      }
+      blocked.push({
+        path: path.dirname(entry.path),
+        ownerFile: entry.path,
+        reason: 'memory-writer-lock-never-auto-pruned',
+        ageMs,
+        owner
+      })
+    } else if (name.endsWith('.lock')) {
       blocked.push({ path: entry.path, reason: 'lock-file-never-auto-pruned', ageMs })
     } else if (/\.tmp-[A-Za-z0-9._-]+$/.test(name) && ageMs >= TEMP_TTL_MS) {
       candidates.push({ path: entry.path, reason: 'expired-atomic-write-temp', ageMs, bytes: entry.bytes })

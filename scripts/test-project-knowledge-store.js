@@ -357,6 +357,32 @@ assert.throws(
   }),
   error => error instanceof ProjectKnowledgeError && error.code === 'KNOWLEDGE_ACCEPT_INVENTORY_INCOMPLETE'
 )
+
+const boundaryRepo = path.join(tempRoot, 'boundary-repo')
+const externalRoot = path.join(tempRoot, 'external')
+fs.mkdirSync(path.join(boundaryRepo, 'src'), { recursive: true })
+fs.mkdirSync(externalRoot, { recursive: true })
+fs.writeFileSync(path.join(boundaryRepo, 'src', 'inside.js'), 'inside\n')
+fs.writeFileSync(path.join(externalRoot, 'secret.txt'), 'outside-secret\n')
+for (const runtimeRoot of ['.audit-state', '.devcodex-runlogs-final', '.runtime-state', 'coverage', '.nyc_output']) {
+  fs.mkdirSync(path.join(boundaryRepo, runtimeRoot), { recursive: true })
+  fs.writeFileSync(path.join(boundaryRepo, runtimeRoot, 'runtime.txt'), runtimeRoot + '\n')
+}
+const outsideLink = path.join(boundaryRepo, 'outside-link')
+const insideLink = path.join(boundaryRepo, 'inside-link')
+fs.symlinkSync(externalRoot, outsideLink, process.platform === 'win32' ? 'junction' : 'dir')
+fs.symlinkSync(path.join(boundaryRepo, 'src'), insideLink, process.platform === 'win32' ? 'junction' : 'dir')
+const boundaryScan = scanProjectInventory(boundaryRepo, { maxFiles: 100, maxBytes: 1024 * 1024 })
+assert(boundaryScan.records.some(record => record.path === 'src/inside.js'))
+assert(!boundaryScan.records.some(record => record.path.startsWith('outside-link/')), 'root-external links must not enter inventory')
+assert(!boundaryScan.records.some(record => /\.audit-state|\.devcodex-runlogs-final|\.runtime-state|coverage|\.nyc_output/.test(record.path)))
+const explicitBoundaryScan = scanProjectInventory(boundaryRepo, {
+  files: ['outside-link/secret.txt', '.audit-state/runtime.txt', 'inside-link/inside.js', 'src/inside.js'],
+  maxFiles: 100,
+  maxBytes: 1024 * 1024
+})
+assert.deepStrictEqual(explicitBoundaryScan.records.map(record => record.path), ['inside-link/inside.js', 'src/inside.js'])
+
 const cliActive = path.join(tempRoot, 'cli-active')
 const cli = spawnSync(process.execPath, [
   path.join(ROOT, 'scripts', 'project-analysis-state.js'), 'plan', '--repo', cliRepo, '--active-root', cliActive,

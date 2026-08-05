@@ -26,6 +26,7 @@ const MODE_POLICY_VERSION = 'SkillRouteModeV2'
 const PROTOCOL_VERSION = '2024-11-05'
 const CAPABILITY_PATH = path.join(__dirname, 'host-skill-route-capabilities.v1.json')
 const RUNTIME_CONTRACT_FILES = Object.freeze([
+  'content-identity.cjs',
   'progressive-skill-route-contract.cjs',
   'runtime-skill-identity-index.cjs',
   'model-skill-catalog.cjs',
@@ -34,6 +35,7 @@ const RUNTIME_CONTRACT_FILES = Object.freeze([
   'progressive-skill-plan.cjs',
   'skill-route-mode.cjs',
   'runtime-generation-identity.cjs',
+  'runtime-state-store.cjs',
   'skill-route-state.cjs',
   'skill-route-tool.cjs',
   'host-adapter-identity.cjs',
@@ -42,11 +44,31 @@ const RUNTIME_CONTRACT_FILES = Object.freeze([
   'context-plan-observation.cjs',
   'context-source-observation.cjs',
   'derived-state-store.cjs',
+  'execution-optimization-routing.cjs',
+  'governance-ledger-integrity.cjs',
   'skill-resolution.cjs',
   'workspace-layout.cjs',
   'devcodex-md-entry.cjs',
+  'language-context.cjs',
   'lifecycle-bootstrap-state.cjs',
+  'lifecycle-checkpoint-validation.cjs',
+  'lifecycle-dangerous-command.cjs',
+  'lifecycle-governance-intake.cjs',
+  'lifecycle-hook-output.cjs',
   'lifecycle-host-adapters.cjs',
+  'lifecycle-namespace-state.cjs',
+  'lifecycle-payload-utils.cjs',
+  'lifecycle-project-target.cjs',
+  'lifecycle-skill-route-coordinator.cjs',
+  'lifecycle-stop-gate.cjs',
+  'lifecycle-task-trace.cjs',
+  'lifecycle-turn-liveness.cjs',
+  'lifecycle-visible-reply.cjs',
+  'lifecycle-workflow-completion.cjs',
+  'stdio-bounds.cjs',
+  'task-continuation-contract.cjs',
+  'visible-output-contract.cjs',
+  'workflow-completion-contract.cjs',
   'lifecycle.cjs'
 ])
 const RUNTIME_CONTRACT_SKILL_SCHEMAS = Object.freeze([
@@ -268,6 +290,17 @@ function getRuntimeContractDigest (options = {}) {
     )
   } catch {
     runtimeFileDigests['mcp/memory-server.js'] = 'missing'
+  }
+  const stdioTransportPath = path.resolve(
+    options.stdioTransportPath ||
+    path.join(packageRoot, 'mcp', 'stdio-jsonrpc.cjs')
+  )
+  try {
+    runtimeFileDigests['mcp/stdio-jsonrpc.cjs'] = sha256(
+      fsImpl.readFileSync(stdioTransportPath, 'utf8')
+    )
+  } catch {
+    runtimeFileDigests['mcp/stdio-jsonrpc.cjs'] = 'missing'
   }
   return sha256({
     schemaVersion: 'ProgressiveSkillRouteRuntimeContractV1',

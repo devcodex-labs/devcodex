@@ -1,0 +1,172 @@
+{
+  "schemaVersion": "CriticalRiskCoverageMapV1",
+  "findings": [
+    {
+      "id": "BUG-01",
+      "risk": "P1",
+      "modules": ["scripts/lib/project-knowledge-store.js"],
+      "validationNode": "project-knowledge-store",
+      "testCommand": "node scripts/test-project-knowledge-store.js",
+      "probeSource": "scripts/test-project-knowledge-store.js",
+      "negativeProbeMarker": "root-external links must not enter inventory",
+      "platforms": ["windows-junction", "unix-symlink"]
+    },
+    {
+      "id": "BUG-02",
+      "risk": "P1",
+      "modules": ["hooks/_runtime/skill-route-tool.cjs", "hooks/_runtime/skill-route-state.cjs"],
+      "validationNode": "skill-route-state",
+      "testCommand": "node scripts/test-skill-route-state.js",
+      "probeSource": "scripts/test-skill-route-state.js",
+      "negativeProbeMarker": "statusAfterLateCloseoutReplan",
+      "platforms": ["all"]
+    },
+    {
+      "id": "BUG-03",
+      "risk": "P1",
+      "modules": ["mcp/memory-server.js", "scripts/lib/cli-runtime-commands.js"],
+      "validationNode": "mcp-servers",
+      "testCommand": "node scripts/test-mcp-servers.js",
+      "probeSource": "scripts/test-mcp-servers.js",
+      "negativeProbeMarker": "same-host dead-pid lock must be recovered atomically",
+      "platforms": ["all"]
+    },
+    {
+      "id": "BUG-04",
+      "risk": "P2",
+      "modules": ["scripts/lib/project-knowledge-store.js"],
+      "validationNode": "project-knowledge-store",
+      "testCommand": "node scripts/test-project-knowledge-store.js",
+      "probeSource": "scripts/test-project-knowledge-store.js",
+      "negativeProbeMarker": ".devcodex-runlogs-final",
+      "platforms": ["all"]
+    },
+    {
+      "id": "BUG-05",
+      "risk": "P2",
+      "modules": ["scripts/lib/checked-command.js"],
+      "validationNode": "checked-command",
+      "testCommand": "node scripts/test-checked-command.js",
+      "probeSource": "scripts/test-checked-command.js",
+      "negativeProbeMarker": "[1,2]",
+      "platforms": ["all"]
+    },
+    {
+      "id": "BUG-06",
+      "risk": "P2",
+      "modules": ["mcp/profile-server.js", "hooks/_runtime/lifecycle-namespace-state.cjs"],
+      "validationNode": "mcp-servers",
+      "testCommand": "node scripts/test-mcp-servers.js",
+      "probeSource": "scripts/test-mcp-servers.js",
+      "negativeProbeMarker": "PROFILE_CONFIG_INVALID",
+      "platforms": ["all"]
+    },
+    {
+      "id": "BUG-07",
+      "risk": "P3",
+      "modules": ["mcp/memory-server.js"],
+      "validationNode": "mcp-servers",
+      "testCommand": "node scripts/test-mcp-servers.js",
+      "probeSource": "scripts/test-mcp-servers.js",
+      "negativeProbeMarker": "20260231",
+      "platforms": ["all"]
+    },
+    {
+      "id": "BUG-08",
+      "risk": "P2",
+      "modules": ["scripts/validate-profile.js"],
+      "validationNode": "profile-governance",
+      "testCommand": "node scripts/test-validate-profile.js",
+      "probeSource": "scripts/test-validate-profile.js",
+      "negativeProbeMarker": "ValidationRouteTruthGate",
+      "platforms": ["all"]
+    },
+    {
+      "id": "BUG-09",
+      "risk": "P2",
+      "modules": ["package.json", ".github/workflows/ci.yml"],
+      "validationNode": "release-metadata",
+      "testCommand": "node scripts/test-release-metadata.js",
+      "probeSource": "scripts/test-release-metadata.js",
+      "negativeProbeMarker": ">=18.17.0",
+      "platforms": ["linux-node-18.17.0"]
+    },
+    {
+      "id": "BUG-10",
+      "risk": "P2",
+      "modules": [".github/workflows/ci.yml"],
+      "validationNode": "release-metadata",
+      "testCommand": "node scripts/test-release-metadata.js",
+      "probeSource": "scripts/test-release-metadata.js",
+      "negativeProbeMarker": "Website and package",
+      "platforms": ["public-checkout"]
+    },
+    {
+      "id": "BUG-11",
+      "risk": "P2",
+      "modules": ["scripts/publish-dry-run.js"],
+      "validationNode": "checked-command",
+      "testCommand": "node scripts/test-checked-command.js",
+      "probeSource": "scripts/test-checked-command.js",
+      "negativeProbeMarker": "REGISTRY_TARGET_UNSUPPORTED",
+      "platforms": ["all"]
+    },
+    {
+      "id": "BUG-12",
+      "risk": "P1",
+      "modules": ["hooks/_runtime/lifecycle-bootstrap-state.cjs", "hooks/_runtime/skill-route-tool.cjs"],
+      "validationNode": "hooks-runtime",
+      "testCommand": "node scripts/test-hooks-runtime.js",
+      "probeSource": "scripts/lib/test-hooks-runtime-bootstrap-layout.js",
+      "negativeProbeMarker": "same-session-newer-context-probe",
+      "platforms": ["all"]
+    },
+    {
+      "id": "BUG-13",
+      "risk": "P1",
+      "modules": ["hooks/_runtime/lifecycle-skill-route-coordinator.cjs", "hooks/_runtime/lifecycle.cjs"],
+      "validationNode": "skill-route-lifecycle",
+      "testCommand": "node scripts/test-skill-route-lifecycle.js",
+      "probeSource": "scripts/test-skill-route-lifecycle.js",
+      "negativeProbeMarker": "the read-only ContextRead planner must be able to make a pending route stale before rebind",
+      "platforms": ["all"]
+    },
+    {
+      "id": "BUG-14",
+      "risk": "P1",
+      "modules": ["hooks/_runtime/skill-route-mode.cjs", "hooks/_runtime/lifecycle-skill-route-coordinator.cjs", "hooks/_runtime/lifecycle-namespace-state.cjs"],
+      "validationNode": "skill-route-contracts",
+      "testCommand": "node scripts/test-skill-route-contracts.js",
+      "probeSource": "scripts/test-skill-route-contracts.js",
+      "negativeProbeMarker": "must participate in the runtime contract digest",
+      "platforms": ["all"]
+    }
+  ],
+  "fastRoutePolicy": {
+    "excludedReleaseIntegrationNodes": [
+      "runtime-rolling-upgrade",
+      "critical-coverage",
+      "mcp-runtime-closure",
+      "npm-lifecycle-adapter",
+      "global-host-config",
+      "global-install-smoke",
+      "host-installation"
+    ],
+    "minimumDirectNodeDelta": 7,
+    "requiredReleaseRoutes": ["full", "package-release"],
+    "rationale": "Fast keeps authoritative bug probes and canonical invariants while release/install/coverage integrations remain mandatory in full and package-release."
+  },
+  "directCoverageModules": [
+    {
+      "path": "mcp/stdio-jsonrpc.cjs",
+      "testCommand": "node scripts/test-mcp-stdio-transport.js",
+      "coverageMode": "direct-branch-threshold"
+    },
+    {
+      "path": "hooks/_runtime/stdio-bounds.cjs",
+      "testCommand": "node scripts/test-mcp-stdio-transport.js",
+      "coverageMode": "direct-branch-threshold"
+    }
+  ],
+  "subprocessCoveragePolicy": "Large MCP and lifecycle owners use authoritative negative probes; no line-coverage claim is made from parent-process execution."
+}

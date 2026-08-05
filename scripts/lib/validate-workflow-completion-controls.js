@@ -227,7 +227,7 @@ function inspectWorkflowCompletionControls(root, io = {}) {
       ['01-项目信息.md', ['workflowCompletion.mode', 'B5a shadow readiness']],
       ['02-架构约束.md', ['workflow-completion-contract.cjs', 'lifecycle-workflow-completion.cjs']],
       ['04-测试规范.md', ['test:workflow-completion', 'Workflow completion / ECR']],
-      ['06-功能清单.md', ['workflow-completion', 'unreleased-shadow-after-v1.15.3']],
+      ['06-功能清单.md', ['workflow-completion', 'released-shadow-v1.15.4']],
       ['07-用户文档与契约规范.md', ['Workflow completion 契约', 'waiting-external']]
     ]) {
       const profilePath = pathApi.join(activeRoot, 'profile', file)

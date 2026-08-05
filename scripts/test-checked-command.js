@@ -10,7 +10,13 @@ const {
   runChecked,
   runSequenceChecked
 } = require('./lib/checked-command')
-const { buildPublishArgs, packageScope } = require('./publish-dry-run')
+const {
+  assertTargetSupported,
+  buildPublishArgs,
+  packageScope,
+  parsePackJson,
+  supportedTargets
+} = require('./publish-dry-run')
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-checked-command-'))
 const marker = path.join(root, 'should-not-exist.txt')
@@ -53,6 +59,18 @@ try {
   const legalGlob = runChecked(process.execPath, ['-e', 'process.exit(0)', '--', '--glob', '*.js'], { cwd: root })
   assert.strictEqual(legalGlob.exitCode, 0)
 
+  for (const expression of ['[1,2]', '["alpha","beta"]', '[unclosed']) {
+    const legalExpression = runChecked(process.execPath, ['-e', 'process.exit(0)', '--', expression], { cwd: root })
+    assert.strictEqual(legalExpression.exitCode, 0, `${expression} must not be treated as a path glob`)
+  }
+  for (const pathGlob of ['src/[ab].js', 'src/[!a].js', 'src\\[a-z].cjs']) {
+    expectFailure(
+      () => runChecked(process.execPath, [pathGlob], { cwd: root }),
+      error => error.code === 'ELITERALGLOB',
+      `bracket path glob ${pathGlob} must fail before spawn`
+    )
+  }
+
   assert.throws(
     () => runChecked(process.execPath, ['-e', 'process.exit(0)'], { cwd: root, shell: true }),
     /allowShellReason/
@@ -62,16 +80,28 @@ try {
   assert.strictEqual(packageScope('devcodex'), null)
   assert.strictEqual(packageScope('@devcodex/devcodex'), '@devcodex')
   assert.strictEqual(packageScope('unscoped-package'), null)
-  const npmjsPublishArgs = buildPublishArgs('npmjs')
-  const githubPublishArgs = buildPublishArgs('github')
+  assert.deepStrictEqual(supportedTargets('devcodex'), ['npmjs'])
+  assert.deepStrictEqual(supportedTargets('@devcodex/devcodex'), ['npmjs', 'github'])
+  assert.throws(
+    () => assertTargetSupported('github', 'devcodex'),
+    error => error?.code === 'REGISTRY_TARGET_UNSUPPORTED' && /scoped npm package/.test(error.message)
+  )
+  const candidateTarball = path.join(root, 'devcodex-1.16.4.tgz')
+  const npmjsPublishArgs = buildPublishArgs('npmjs', 'devcodex', candidateTarball)
+  const githubPublishArgs = buildPublishArgs('github', '@devcodex/devcodex', candidateTarball)
   assert.ok(npmjsPublishArgs.includes('--registry=https://registry.npmjs.org/'))
+  assert.strictEqual(npmjsPublishArgs[1], candidateTarball)
+  assert.ok(!npmjsPublishArgs.includes('--ignore-scripts'))
   assert.ok(!npmjsPublishArgs.some((a) => a.startsWith('--@') && a.includes(':registry=')), 'unscoped package must not emit scope registry override')
   assert.ok(githubPublishArgs.includes('--registry=https://npm.pkg.github.com/'))
-  assert.ok(!githubPublishArgs.some((a) => a.startsWith('--@') && a.includes(':registry=')), 'unscoped package must not emit scope registry override')
-  // scoped packageName still binds --@scope:registry when provided explicitly
-  const scopedNpmjs = buildPublishArgs('npmjs', '@devcodex/devcodex')
+  assert.ok(githubPublishArgs.includes('--@devcodex:registry=https://npm.pkg.github.com/'))
+  const scopedNpmjs = buildPublishArgs('npmjs', '@devcodex/devcodex', candidateTarball)
   assert.ok(scopedNpmjs.includes('--@devcodex:registry=https://registry.npmjs.org/'))
   assert.throws(() => buildPublishArgs('unknown'), /Unknown registry target/)
+  assert.deepStrictEqual(
+    parsePackJson('npm notice ignored\n[{"filename":"devcodex-1.16.4.tgz"}]\n'),
+    { filename: 'devcodex-1.16.4.tgz' }
+  )
 
   console.log('✓ checked-command fail-fast, literal-glob and registry fixtures passed')
 } finally {

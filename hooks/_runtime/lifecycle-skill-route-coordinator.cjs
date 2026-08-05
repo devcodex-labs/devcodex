@@ -139,6 +139,13 @@ function isExpectedRouteAction (routeStop, payload, contextPost = null) {
   const action = routeActionFromPayload(payload, contextPost)
   if (!routeStop?.present || routeStop.complete) return { expected: true, action }
   if (callsMatch(action, routeStop.nextCall)) return { expected: true, action }
+  // ContextRead owns the binding that every committed route consumes. Allow
+  // its read-only planner to refresh that binding before the route has had a
+  // chance to project nextOp=rebind; otherwise load_stage and ContextRead form
+  // a deadlock where neither side can make the route observably stale.
+  if (action.tool === 'profile_context_plan') {
+    return { expected: true, action }
+  }
   if (routeStop.nextOp === 'rebind') {
     const refreshTools = new Set([
       'profile_context_plan',

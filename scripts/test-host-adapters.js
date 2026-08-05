@@ -5,13 +5,16 @@ const assert = require('assert')
 const fs = require('fs')
 const grokHooks = require('../grok/hooks/devcodex.json')
 const {
-  buildPrompt: buildS15HostPrompt
+  buildPrompt: buildS15HostPrompt,
+  resultSchema: buildS15HostResultSchema
 } = require('./probe-skill-route-s15-host')
 const {
   parseContextToolIdentity
 } = require('../hooks/_runtime/lifecycle-bootstrap-state.cjs')
 const {
   EVENT_MAP,
+  STDIO_CHILD_TIMEOUT_MS,
+  STDIO_MAX_FRAME_BYTES,
   applyCliEnvironmentOverrides,
   adaptHostOutput,
   isGrokImportedClaudePayload,
@@ -19,6 +22,19 @@ const {
   probeHostAdapterContract,
   runHostAdapter
 } = require('../hooks/_runtime/lifecycle-host-adapters.cjs')
+const { createBoundedTextAccumulator } = require('../hooks/_runtime/stdio-bounds.cjs')
+
+assert.strictEqual(STDIO_CHILD_TIMEOUT_MS, 30000)
+assert.strictEqual(STDIO_MAX_FRAME_BYTES, 4 * 1024 * 1024)
+const boundedHostInput = createBoundedTextAccumulator({ maxBytes: 4 })
+assert.strictEqual(boundedHostInput.push('1234'), true)
+assert.strictEqual(boundedHostInput.push('5'), false)
+assert.strictEqual(boundedHostInput.push('6'), false)
+assert.strictEqual(boundedHostInput.overflowed, true)
+assert.strictEqual(boundedHostInput.snapshot(), '')
+const defaultBoundedHostInput = createBoundedTextAccumulator()
+assert.strictEqual(defaultBoundedHostInput.push(null), true)
+assert.strictEqual(defaultBoundedHostInput.snapshot(), '')
 
 const cliOverrideEnv = {}
 applyCliEnvironmentOverrides([
@@ -48,6 +64,32 @@ assert.match(
   hostProbePrompt,
   /For entryBodyDigest, copy only the bodyDigest from the loaded bodyChunks item whose skillId is workspace-s15-probe;/
 )
+assert.doesNotMatch(hostProbePrompt, /Call profile_context_plan a second time/)
+const contextRebindProbePrompt = buildS15HostPrompt({
+  contextEpoch: 'ctx-rebind-contract',
+  hostId: 'codex',
+  project: 's15-codex',
+  skillId: 'workspace-s15-probe',
+  exerciseContextRebind: true
+})
+assert.match(contextRebindProbePrompt, /Call profile_context_plan a second time/)
+assert.match(contextRebindProbePrompt, /call skill_route rebind/)
+assert.match(contextRebindProbePrompt, /conditional replan is forbidden/)
+assert.match(contextRebindProbePrompt, /"docs"/)
+assert.doesNotMatch(contextRebindProbePrompt, /"documentation"/)
+assert.match(contextRebindProbePrompt, /generation=1/)
+assert.doesNotMatch(contextRebindProbePrompt, /lateConditionId=test-validation/)
+assert.doesNotMatch(contextRebindProbePrompt, /execution:test-validation, then closeout/)
+assert.deepStrictEqual(
+  buildS15HostResultSchema(true).required.includes('rebindObserved'),
+  true
+)
+assert.deepStrictEqual(
+  buildS15HostResultSchema(true).required.includes('activatedConditionId'),
+  false
+)
+assert.strictEqual(buildS15HostResultSchema(true).properties.loadedStages.minItems, 2)
+assert.strictEqual(buildS15HostResultSchema().properties.loadedStages.minItems, 3)
 const grokProbeSource = fs.readFileSync(
   require.resolve('./probe-skill-route-s15-grok'),
   'utf8'
@@ -269,12 +311,18 @@ const spawnFailure = runHostAdapter('claude', { hookEventName: 'PreToolUse' }, {
 })
 assert.strictEqual(spawnFailure.status, 1)
 assert.match(spawnFailure.error, /ENOENT/)
+const timeoutFailure = runHostAdapter('claude', { hookEventName: 'PreToolUse' }, {
+  spawnSync: () => ({ status: null, stdout: '', stderr: '', error: { code: 'ETIMEDOUT' } })
+})
+assert.strictEqual(timeoutFailure.status, 1)
+assert.match(timeoutFailure.error, /HOST_LIFECYCLE_TIMEOUT/)
 const childSuccess = runHostAdapter('codex', { hookEventName: 'UserPromptSubmit' }, {
   spawnSync: () => ({ status: 0, stdout: '{"continue":true}', stderr: '' })
 })
 assert.strictEqual(childSuccess.status, 0)
 assert.strictEqual(childSuccess.output.continue, true)
 let observedLifecycleCwd = null
+let observedLifecycleTimeout = null
 const childWithPayloadCwd = runHostAdapter('copilot', {
   hookEventName: 'userPromptSubmitted',
   cwd: process.cwd(),
@@ -282,11 +330,13 @@ const childWithPayloadCwd = runHostAdapter('copilot', {
 }, {
   spawnSync: (_command, _args, spawnOptions) => {
     observedLifecycleCwd = spawnOptions.cwd
+    observedLifecycleTimeout = spawnOptions.timeout
     return { status: 0, stdout: '{"continue":true}', stderr: '' }
   }
 })
 assert.strictEqual(childWithPayloadCwd.status, 0)
 assert.strictEqual(observedLifecycleCwd, process.cwd())
+assert.strictEqual(observedLifecycleTimeout, STDIO_CHILD_TIMEOUT_MS)
 
 for (const event of ['user_prompt_submit', 'pre_tool_use', 'post_tool_use', 'stop']) {
   const payload = { hookEventName: event, cwd: process.cwd() }

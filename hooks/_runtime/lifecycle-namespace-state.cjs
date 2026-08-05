@@ -10,7 +10,6 @@ function buildLifecycleNamespaceStateUtils(ctx) {
     CONTEXT_PROJECT,
     DEFAULT_SCOPE,
     META_STATE_SCOPE_KEY,
-    readJsonFile,
     mergeConfig,
     detectPlatform
   } = ctx
@@ -104,6 +103,33 @@ function buildLifecycleNamespaceStateUtils(ctx) {
     return getProjectNamespaceRoot(projectName)
   }
 
+  function readProfileConfigFile(filePath) {
+    if (!fs.existsSync(filePath)) return null
+    let raw
+    try {
+      raw = fs.readFileSync(filePath, 'utf8')
+    } catch (error) {
+      if (error?.code === 'ENOENT') return null
+      throw error
+    }
+    let config
+    try {
+      config = JSON.parse(raw)
+    } catch (error) {
+      const invalid = new Error(`PROFILE_CONFIG_INVALID: ${filePath}: ${error.message}`)
+      invalid.code = 'PROFILE_CONFIG_INVALID'
+      invalid.filePath = filePath
+      throw invalid
+    }
+    if (!config || typeof config !== 'object' || Array.isArray(config)) {
+      const invalid = new Error(`PROFILE_CONFIG_INVALID: ${filePath}: root value must be a JSON object`)
+      invalid.code = 'PROFILE_CONFIG_INVALID'
+      invalid.filePath = filePath
+      throw invalid
+    }
+    return config
+  }
+
   function readResolvedProfileConfig(state, explicitProject) {
     if (!LAYOUT.enabled) {
       const roots = []
@@ -111,15 +137,15 @@ function buildLifecycleNamespaceStateUtils(ctx) {
       roots.push(projectRoot)
       if (projectRoot !== WORKSPACE_ROOT) roots.push(WORKSPACE_ROOT)
       for (const root of roots) {
-        const cfg = readJsonFile(path.join(root, '.devcodex', 'profile', 'config.json'))
+        const cfg = readProfileConfigFile(path.join(root, '.devcodex', 'profile', 'config.json'))
         if (cfg) return cfg
       }
       return null
     }
-    const workspaceCfg = readJsonFile(path.join(getWorkspaceNamespaceRoot(), 'profile', 'config.json'))
+    const workspaceCfg = readProfileConfigFile(path.join(getWorkspaceNamespaceRoot(), 'profile', 'config.json'))
     const projectName = resolveProjectName(explicitProject || state?.activeProject || '')
     const projectCfg = projectName
-      ? readJsonFile(path.join(getProjectNamespaceRoot(projectName), 'profile', 'config.json'))
+      ? readProfileConfigFile(path.join(getProjectNamespaceRoot(projectName), 'profile', 'config.json'))
       : null
     if (!workspaceCfg && !projectCfg) return null
     return mergeConfig(workspaceCfg, projectCfg)

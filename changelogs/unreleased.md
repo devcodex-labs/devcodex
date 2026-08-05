@@ -1,10 +1,11 @@
 # 未发布变更（Unreleased）
 
 > **用途**: 记录尚未正式发版的实现级变更。
-> **当前**: v1.16.3 已归档到 `changelogs/releases/v1.16.3.md`；本文件仅保留历史锚点索引与镜像供 validate 探针消费。发版后新实现再写入下方「当前未发布」。
+> **当前**: v1.16.4 已形成发布候选并归档到 `changelogs/releases/v1.16.4.md`；本文件仅保留历史锚点索引与镜像供 validate 探针消费。发版后新实现再写入下方「当前未发布」。
 
 ## 当前未发布实现候选
 
+- **v1.16.4 发布候选已归档**：14 个审计与候选实机验证缺陷、8 项运行时/验证优化、截图所示 ContextRead/SkillRoute 三次无进展恢复修复，以及有界 MCP/宿主 I/O 与安全审计证据闭环已进入 `changelogs/releases/v1.16.4.md`；远端发布事实仍以 tag、npm registry 和最终回读为准。
 - **v1.16.3 已归档**：Profile 目标解析、memory 会话写入绑定、SkillRoute 不可执行旧路由退役、ContextRead 上一版本兼容、宿主运行态滚动升级、索引证据和治理台账完整性修复已进入 `changelogs/releases/v1.16.3.md`。
 - **v1.16.2 已归档**：ContextRead 来源回执耐久化、空会话标识重放修复、README 常见任务教程与 CLI 只读帮助已进入 `changelogs/releases/v1.16.2.md`。
 - **v1.16.1 已归档**：长会话提示有界化、会话治理状态隔离、项目绑定稳定性与唯一短名解析修复已进入 `changelogs/releases/v1.16.1.md`。

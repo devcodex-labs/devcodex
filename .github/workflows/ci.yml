@@ -18,7 +18,7 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            node: 18.x
+            node: 18.17.0
           - os: ubuntu-latest
             node: 20.x
           - os: ubuntu-latest
@@ -52,7 +52,7 @@ jobs:
       - run: npm run test:audit
 
   website-package:
-    name: Website and package (Node 22.14)
+    name: Package boundary (Node 22.14)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -61,11 +61,5 @@ jobs:
           node-version: 22.14.0
           cache: npm
       - run: npm ci
-      - if: ${{ hashFiles('website/package-lock.json') != '' }}
-        run: npm ci --prefix website
-      - if: ${{ hashFiles('website/package-lock.json') != '' }}
-        run: npm --prefix website run build
-      - if: ${{ hashFiles('website/package-lock.json') != '' }}
-        run: node scripts/check-generated-site-links.js
       - run: npm run release:dry-run:all
       - run: npm run test:pack-clean

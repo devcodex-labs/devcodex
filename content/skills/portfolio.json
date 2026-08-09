@@ -11,10 +11,10 @@
     "pluginDigest": "9ec5508f72fd4fd43126707cf56002d7d87d781a60d39194ea1982190cfd004d",
     "portfolioEvidence": "content/skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "8364a73c66ed2ec9787cdb9300223278d128a45b689a2b8deda0d1f03189f42b",
-    "consumerInventoryFileCount": 488,
-    "consumerInventoryDigest": "4ea0e24b2ee71a621ca84c4531c3ce66c239113d0051e04fb6e458a993af96eb",
-    "consumerProjectionDigest": "96b94ab1aa4c0a6cb4cc1a69d98ed951a13a1980dcbfa08ba1a10aaff929523a",
-    "portfolioInputDigest": "e295ab5a44752541db8c45648b276c1414f2e991006de33f4954289a9e7096c4"
+    "consumerInventoryFileCount": 491,
+    "consumerInventoryDigest": "d80b96364465132a8d8b901af85dcb7a22e1355f55193493f629a3b28210f45e",
+    "consumerProjectionDigest": "840682be58e5aa9462c715e87fd26b0eef204e922a3905eda3e2e8c97bc68903",
+    "portfolioInputDigest": "26110de20834fa4de6f235b2bc5c63d79f14c5ed84e79193c37110892c9bdc7b"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -10025,6 +10025,10 @@
           "role": "historical"
         },
         {
+          "path": "changelogs/releases/v1.16.5.md",
+          "role": "historical"
+        },
+        {
           "path": "changelogs/releases/v1.5.0.md",
           "role": "historical"
         },
@@ -12052,6 +12056,10 @@
           "role": "historical"
         },
         {
+          "path": "changelogs/releases/v1.16.5.md",
+          "role": "historical"
+        },
+        {
           "path": "changelogs/releases/v1.3.5.md",
           "role": "historical"
         },
@@ -12137,6 +12145,10 @@
         },
         {
           "path": "hooks/_runtime/review-execution-contract.cjs",
+          "role": "current"
+        },
+        {
+          "path": "hooks/_runtime/skill-route-budget.cjs",
           "role": "current"
         },
         {
@@ -12640,6 +12652,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-skill-route-budget.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-skill-route-contracts.js",
           "role": "current"
         },
@@ -12726,6 +12742,7 @@
         "scripts/test-skill-portfolio.js",
         "scripts/test-skill-resolution-hook-paths.js",
         "scripts/test-skill-resolve.js",
+        "scripts/test-skill-route-budget.js",
         "scripts/test-skill-route-contracts.js",
         "scripts/test-skill-route-lifecycle.js",
         "scripts/test-skill-route-state.js",
@@ -12823,6 +12840,7 @@
           "scripts/test-skill-portfolio.js",
           "scripts/test-skill-resolution-hook-paths.js",
           "scripts/test-skill-resolve.js",
+          "scripts/test-skill-route-budget.js",
           "scripts/test-skill-route-contracts.js",
           "scripts/test-skill-route-lifecycle.js",
           "scripts/test-skill-route-state.js",

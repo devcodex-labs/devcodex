@@ -5,6 +5,10 @@ const crypto = require('crypto')
 const COORDINATOR_SCHEMA = 'ActiveReconciliationCoordinatorV1'
 const NEXT_ACTION_SCHEMA = 'NextActionEnvelopeV1'
 const NO_PROGRESS_LIMIT = 3
+const BUDGET_TERMINAL_ERRORS = new Set([
+  'BUDGET_BLOCKED',
+  'BUDGET_RESERVATION_BLOCKED'
+])
 
 function stableValue (value) {
   if (Array.isArray(value)) return value.map(stableValue)
@@ -169,8 +173,17 @@ function isExpectedRouteAction (routeStop, payload, contextPost = null) {
   return { expected: false, action }
 }
 
+function isBudgetTerminalRoute (routeStop) {
+  const errorCode = String(routeStop?.errorCode || routeStop?.retirementReason || '')
+  return BUDGET_TERMINAL_ERRORS.has(errorCode) || errorCode.startsWith('BODY_CHARGE_')
+}
+
 function hasExecutableRouteAction (routeStop) {
   if (!routeStop || routeStop.complete === true || routeStop.retired === true) return false
+  if (isBudgetTerminalRoute(routeStop)) {
+    return routeStop.businessSatisfied === false &&
+      typeof routeStop.mustReplyCore === 'string' && routeStop.mustReplyCore.trim().length > 0
+  }
   if (routeStop.nextCall && typeof routeStop.nextCall === 'object' &&
       typeof routeStop.nextCall.op === 'string' && routeStop.nextCall.op.trim()) {
     return true
@@ -184,6 +197,39 @@ function hasExecutableRouteAction (routeStop) {
 }
 
 function retireUnexecutableRoute (routeStop) {
+  if (routeStop?.present && isBudgetTerminalRoute(routeStop)) {
+    const businessActionRequired = routeStop.businessSatisfied === false &&
+      typeof routeStop.mustReplyCore === 'string' && routeStop.mustReplyCore.trim().length > 0
+    const reason = routeStop.errorCode || routeStop.retirementReason || 'BUDGET_BLOCKED'
+    return {
+      ...routeStop,
+      complete: !businessActionRequired,
+      processComplete: false,
+      retired: true,
+      retirementReason: reason,
+      completionDisposition: reason === 'BUDGET_BLOCKED'
+        ? 'retired-budget-exhausted'
+        : (reason === 'BUDGET_RESERVATION_BLOCKED'
+            ? 'retired-budget-reservation-blocked'
+            : 'retired-budget-state-invalid'),
+      nextOp: businessActionRequired ? 'satisfy_business' : null,
+      nextCall: null,
+      recovery: {
+        schemaVersion: 'SkillRouteBudgetRecoveryV1',
+        terminal: true,
+        stateChanged: false,
+        retrySameCall: false,
+        automatic: !businessActionRequired,
+        action: businessActionRequired
+          ? 'reply-selected-business-core'
+          : 'retire-and-rebootstrap-next-user-prompt',
+        mustReplyCore: routeStop.mustReplyCore || null,
+        rebootstrapOnNextUserPrompt: true,
+        budgetProjection: routeStop.budgetProjection ||
+          routeStop.recovery?.budgetProjection || null
+      }
+    }
+  }
   if (!routeStop?.present || routeStop.complete === true || routeStop.retired === true ||
       hasExecutableRouteAction(routeStop)) {
     return routeStop
@@ -344,6 +390,7 @@ function reconcileProgressiveSkillRoute (state, routeStop, input = {}) {
 }
 
 module.exports = {
+  BUDGET_TERMINAL_ERRORS,
   COORDINATOR_SCHEMA,
   NEXT_ACTION_SCHEMA,
   NO_PROGRESS_LIMIT,
@@ -351,6 +398,7 @@ module.exports = {
   buildRouteStateFingerprint,
   getHookRunId,
   hasExecutableRouteAction,
+  isBudgetTerminalRoute,
   isExpectedRouteAction,
   normalizeCoordinatorState,
   reconcileProgressiveSkillRoute,

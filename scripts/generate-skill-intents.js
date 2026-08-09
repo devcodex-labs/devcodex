@@ -10,7 +10,24 @@ const {
 } = require('../hooks/_runtime/progressive-skill-route-contract.cjs')
 
 const ROOT = path.resolve(__dirname, '..')
-const PORTFOLIO_PATH = path.join(ROOT, 'content', 'skills', 'portfolio.json')
+
+function resolveSkillRoot (packageRoot = ROOT) {
+  const candidates = [
+    path.join(packageRoot, 'content', 'skills'),
+    path.join(packageRoot, 'skills')
+  ]
+  const root = candidates.find(candidate => fs.existsSync(path.join(candidate, 'portfolio.json')))
+  if (!root) {
+    const error = new Error('SKILL_INTENT_PORTFOLIO_MISSING')
+    error.code = 'SKILL_INTENT_PORTFOLIO_MISSING'
+    error.candidates = candidates
+    throw error
+  }
+  return root
+}
+
+const SKILLS_ROOT = resolveSkillRoot()
+const PORTFOLIO_PATH = path.join(SKILLS_ROOT, 'portfolio.json')
 
 function optionNumber (name, fallback) {
   const index = process.argv.indexOf(name)
@@ -113,7 +130,7 @@ function loadActiveSkills () {
 }
 
 function intentPath (skillId) {
-  return path.join(ROOT, 'content', 'skills', skillId, 'intent.json')
+  return path.join(SKILLS_ROOT, skillId, 'intent.json')
 }
 
 function processSkillIntents (options = {}) {
@@ -164,7 +181,9 @@ if (require.main === module) main()
 
 module.exports = {
   buildSkillIntent,
+  intentPath,
   loadActiveSkills,
   processSkillIntents,
+  resolveSkillRoot,
   serializeIntent
 }

@@ -1,10 +1,11 @@
 # 未发布变更（Unreleased）
 
 > **用途**: 记录尚未正式发版的实现级变更。
-> **当前**: v1.16.4 已形成发布候选并归档到 `changelogs/releases/v1.16.4.md`；本文件仅保留历史锚点索引与镜像供 validate 探针消费。发版后新实现再写入下方「当前未发布」。
+> **当前**: v1.16.5 已形成发布候选并归档到 `changelogs/releases/v1.16.5.md`；本文件保留候选索引与历史镜像供 validate 探针消费，远端发布事实仍以 tag、npm registry 和最终回读为准。
 
 ## 当前未发布实现候选
 
+- **v1.16.5 发布候选已归档**：SkillRoute 累计正文预算循环修复已进入 `changelogs/releases/v1.16.5.md`。新增 `SkillRouteBodyChargeLedgerV1`、`SkillRouteBudgetProjectionV1` 与结构化预算 recovery；commit/rebind 全计划预留，load_stage 首次交付原子计费，跨 generation/cache reopen 去重；预算不足、预留不足或账本不一致时 fail closed、零写入并投影 `nextCall=null` 的有限退役终态。在线发布审计另将维护者本地站点 Mermaid、DOMPurify 与 React Router 安全下限分别提升至 10.9.8、3.4.13 与 7.18.2，移除旧 RSC 临时例外并恢复零 advisory；npm 包资格验证同步修复 SkillRoute 测试、intent/registry 生成器与 closure owner 的 source/package 布局闭环，隔离安装包内完整七段路由链已通过；最终 tarball production S15、远端 CI、tag/Release、npm publish 与 fresh-install R7 仍待发布阶段完成。
 - **v1.16.4 发布候选已归档**：14 个审计与候选实机验证缺陷、8 项运行时/验证优化、截图所示 ContextRead/SkillRoute 三次无进展恢复修复，以及有界 MCP/宿主 I/O 与安全审计证据闭环已进入 `changelogs/releases/v1.16.4.md`；远端发布事实仍以 tag、npm registry 和最终回读为准。
 - **v1.16.3 已归档**：Profile 目标解析、memory 会话写入绑定、SkillRoute 不可执行旧路由退役、ContextRead 上一版本兼容、宿主运行态滚动升级、索引证据和治理台账完整性修复已进入 `changelogs/releases/v1.16.3.md`。
 - **v1.16.2 已归档**：ContextRead 来源回执耐久化、空会话标识重放修复、README 常见任务教程与 CLI 只读帮助已进入 `changelogs/releases/v1.16.2.md`。
@@ -61,7 +62,7 @@
 - **R1a 复审收口**：`host-parity-scorecard` repairSteps / recommendedEntry / userVisibleSummary 接入 `describeGlobalAdapterRefresh*`（源码 → `global-adapters apply`，已发布 → `npm -g`）；`global-adapters apply` 在主机事务已提交但 Grok 集成失败时返回 `GLOBAL_ADAPTERS_HOSTS_COMMITTED_GROK_FAILED` + `partialState`；npm pack `files` 不再包含 `test-global-adapters-cli.js`。
 - **MCP runtime dep 防断**：将 `global-adapter-refresh-guidance.js` 纳入 `MCP_RUNTIME_DEPS` / `CLAUDE_MCP_RUNTIME_SCRIPT_DEPS`；`host-parity-scorecard` 对 guidance 模块 soft-require，避免精简 runtime 缺文件时 `MODULE_NOT_FOUND`。
 - **Dialogue-Primary Closeout B1+B2**：新增 `classifyDialogueNarrativeSample` / `hasReadableNarrativeSnippet`；`classifyAnalysisArtifactDeliverySample` 返回 `link-only-thin`；`lifecycle-visible-reply` Stop/PreCompact 有正文时写入 `dialogueNarrativeStatus`/`analysisDeliveryStatus` 并在 dev+reportTouched 时 reminder；无正文仍 unverified。同步 Skill/13-analyze/16-report/prompt/V102/单测。需求：`完成态对话内可读收口` CP2。
-- **文档站依赖审计加固**：Rspress 提升到 2.0.18，`brace-expansion` 提升到 5.0.8；`test:audit` 改为 fail-closed 结构化审计。当前唯一例外为仅影响 unstable RSC 的 `GHSA-qwww-vcr4-c8h2`，本站静态运行面禁止 RSC 标记，例外于 2026-08-15 到期；任何新 advisory、依赖链变化、RSC 使用或到期都会重新阻断。
+- **文档站依赖审计加固**：Rspress 提升到 2.0.18，`brace-expansion` 提升到 5.0.9；`test:audit` 改为 fail-closed 结构化审计。v1.16.5 进一步将 React Router、DOMPurify 与 Mermaid 锁定到已修复版本，原 unstable RSC 临时例外已取消；任何新 advisory、依赖链变化或安全下限回退都会重新阻断。
 - **Grok 兼容导入去重**：Grok 原生会话兼容加载 `~/.claude/settings.json` 时，DevCodex Claude adapter 识别 Grok 的 camelCase payload 与 snake_case 事件并安全跳过重复 lifecycle；Grok 专用 plugin 保持唯一生命周期 owner，消除 `user_prompt_submit` / `stop` hook 报错和双重状态写入。
 - **五宿主全局 adapter 运行态修复**：`status`/`doctor` 从 receipt/files 假就绪升级为 `configured/adapterReady/contractStatus/nativeStatus/operationalState/ready/issues` 分层；五个可执行 adapter 均增加有界契约探针，只有原生 CLI 深探针通过才可标记 operational ready。doctor 增加原生版本与 Grok list/inspect、installed Hook contract、MCP initialize。Grok plugin source 改为用户级 runtime + cwd workspace 发现，同名受管 identity 经官方 CLI drain-all 后收敛到唯一 canonical；未知来源 mutation 前阻断，首次安装与多 identity 失败均保留/恢复原注册状态，受管恢复来源可继续收敛。Copilot CLI 按官方用户级目录部署 instructions、Hooks、MCP 与 Skills；Copilot IDE 仍保持独立 instruction-fallback ceiling。
 - **全局 adapter 终审防假绿**：stale managed 文件清理失败会写入 receipt 的 `pendingStaleManagedPaths` 并由后续全局升级重试，不能因首轮事务已提交而丢失；Copilot CLI 的 PascalCase Hook 输入与原生输出合同已接入共享 lifecycle，`PreToolUse` 与 `Stop` 的阻断能力按宿主事件分别声明。

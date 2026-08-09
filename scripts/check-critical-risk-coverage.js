@@ -14,7 +14,7 @@ const coverage = JSON.parse(fs.readFileSync(path.join(__dirname, 'critical-cover
 assert.strictEqual(map.schemaVersion, 'CriticalRiskCoverageMapV1')
 assert.deepStrictEqual(
   map.findings.map(item => item.id),
-  Array.from({ length: 14 }, (_, index) => `BUG-${String(index + 1).padStart(2, '0')}`),
+  Array.from({ length: 15 }, (_, index) => `BUG-${String(index + 1).padStart(2, '0')}`),
   'risk map must cover every accepted bug, including the complete screenshot recovery chain'
 )
 assert.match(map.subprocessCoveragePolicy, /no line-coverage claim/i)

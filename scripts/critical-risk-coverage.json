@@ -140,6 +140,22 @@
       "probeSource": "scripts/test-skill-route-contracts.js",
       "negativeProbeMarker": "must participate in the runtime contract digest",
       "platforms": ["all"]
+    },
+    {
+      "id": "BUG-15",
+      "risk": "P1",
+      "governanceRefs": ["PI-224", "PF-267"],
+      "modules": [
+        "hooks/_runtime/skill-route-budget.cjs",
+        "hooks/_runtime/skill-route-state.cjs",
+        "hooks/_runtime/skill-route-tool.cjs",
+        "hooks/_runtime/lifecycle-skill-route-coordinator.cjs"
+      ],
+      "validationNode": "skill-route-budget",
+      "testCommand": "node scripts/test-skill-route-budget.js",
+      "probeSource": "scripts/test-skill-route-budget.js",
+      "negativeProbeMarker": "PF-267: cumulative budget must retire without replaying load_stage",
+      "platforms": ["all"]
     }
   ],
   "fastRoutePolicy": {

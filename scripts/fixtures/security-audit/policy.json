@@ -1,49 +1,66 @@
 {
   "schemaVersion": "DevCodexSecurityAuditPolicyV1",
   "registry": "https://registry.npmjs.org",
-  "reviewedAt": "2026-08-05T04:33:43.000Z",
+  "reviewedAt": "2026-08-09T06:26:49.534Z",
   "officialEvidence": {
     "advisoryUrl": "https://github.com/advisories/GHSA-qwww-vcr4-c8h2",
-    "affectedVersions": ">=7.12.0 <8.3.0",
-    "patchedReactRouterVersion": "8.3.0",
+    "affectedVersions": ">=7.12.0 <7.18.2 || >=8.0.0 <8.3.0",
+    "patchedReactRouterVersion": "7.18.2",
+    "patchedReactRouterMajor8Version": "8.3.0",
     "affectedSurface": "unstable RSC APIs"
+  },
+  "dompurifyEvidence": {
+    "advisoryUrl": "https://github.com/advisories/GHSA-55q2-fjhq-7xh7",
+    "affectedVersions": "<=3.4.12",
+    "patchedVersion": "3.4.13",
+    "affectedSurface": "IN_PLACE sanitization combined with a removal hook",
+    "integrity": "sha512-2vmYIoqjze2d+kakP8S/nS5shfsl587kzwEjcGlTdiksUVgFHnFCsLYDVj/JNqJVOQZGSYBTmuycv0PodwmnMQ=="
+  },
+  "mermaidEvidence": {
+    "checkedAt": "2026-08-07T10:58:31.598Z",
+    "advisoryUrls": [
+      "https://github.com/advisories/GHSA-2v8p-3f2j-5mp7",
+      "https://github.com/advisories/GHSA-6x64-9x62-f2gx",
+      "https://github.com/advisories/GHSA-c4c3-pg64-4m4v"
+    ],
+    "affectedVersions": "<10.9.8",
+    "patchedVersion": "10.9.8",
+    "pluginVersion": "1.0.1",
+    "pluginDependencyRange": "^10.9.0",
+    "integrity": "sha512-gmIhmkmD/3DL5lErDV71E/cFUkEbBW4VTFpsJH1HSYjeBICRKOoc4AZem+RNz/FhhCXKBMZiD75bIfBlb2A4yA=="
   },
   "registryEvidence": {
     "registry": "https://registry.npmjs.org",
-    "checkedAt": "2026-08-05T04:33:43.000Z",
+    "checkedAt": "2026-08-09T06:26:49.534Z",
     "rspressCore": {
       "version": "2.0.19",
       "reactRouterDomRange": "^7.18.1",
       "nodeEngine": "^20.19.0 || >=22.12.0"
     },
     "patchedReactRouter": {
-      "version": "8.3.0",
-      "nodeEngine": ">=22.22.0"
+      "version": "7.18.2",
+      "nodeEngine": ">=20.0.0",
+      "integrity": "sha512-aUVMjFm3GAPTTZL7oYr5E7ETiqfQCHRLH+B+5afnICvf0r7kkK4eR6SMuwbSTJw/7t+12khT/Kahij49fqOCIg=="
     },
-    "reactRouterDomPatchedVersionAvailable": false
+    "patchedReactRouterDom": {
+      "version": "7.18.2",
+      "nodeEngine": ">=20.0.0",
+      "reactPeerRange": ">=18",
+      "reactDomPeerRange": ">=18",
+      "integrity": "sha512-AIKJ/jgGlFb3EbfCXk5Gzshiwt+l3mqbCrNjmEWMMjqQxNJ3svBa6bgzFyCC2Sw3RA0VWF1kg3uQf2OFhxb8hw=="
+    },
+    "reactRouterDomPatchedVersionAvailable": true
   },
   "rootAllowedAdvisories": [],
-  "websiteAllowedPackages": [
-    "@rspress/core",
-    "react-router",
-    "react-router-dom"
-  ],
-  "websiteExceptions": [
-    {
-      "advisoryId": "GHSA-qwww-vcr4-c8h2",
-      "package": "react-router",
-      "affectedMode": "unstable-rsc",
-      "disposition": "not-applicable-to-static-rspress-site",
-      "expiresOn": "2026-08-15",
-      "minimumInstalledVersion": "7.18.0",
-      "replacementTrigger": "Upgrade when Rspress supports a patched React Router line without violating its declared dependency and Node engine contracts."
-    }
-  ],
+  "websiteAllowedPackages": [],
+  "websiteExceptions": [],
   "minimumVersions": {
     "@rspress/core": "2.0.18",
-    "react-router": "7.18.0",
-    "react-router-dom": "7.18.0",
-    "brace-expansion": "5.0.9"
+    "react-router": "7.18.2",
+    "react-router-dom": "7.18.2",
+    "brace-expansion": "5.0.9",
+    "dompurify": "3.4.13",
+    "mermaid": "10.9.8"
   },
   "forbiddenWebsiteRuntimePatterns": [
     "unstable_RSC",

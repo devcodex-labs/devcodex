@@ -980,7 +980,8 @@ try {
   }, fixture.runtimeOptions)
   assert.strictEqual(statusAfterReplay.receipt.budget.bodyBytesConsumed, consumedAfterEntry)
 
-  loadStageAll(fixture, planBinding, 'closeout')
+  const initialCloseoutPages = loadStageAll(fixture, planBinding, 'closeout')
+  assert(initialCloseoutPages.some(page => page.receipt.chargedBodyBytes > 0))
   const statusAfterInitialCloseout = handleSkillRoute({
     op: 'status',
     project: fixture.project,
@@ -1095,7 +1096,9 @@ try {
   )
   loadStageAll(fixture, replannedBinding, 'execution:test-validation')
   loadStageAll(fixture, replannedBinding, 'execution:control-plane')
-  loadStageAll(fixture, replannedBinding, 'closeout')
+  const reopenedCloseoutPages = loadStageAll(fixture, replannedBinding, 'closeout')
+  assert(reopenedCloseoutPages.every(page => page.receipt.chargedBodyBytes === 0))
+  assert(reopenedCloseoutPages.every(page => page.receipt.chargedIdentityCount === 0))
 
   const persisted = loadEnvelope(
     fixture.activeRoot,

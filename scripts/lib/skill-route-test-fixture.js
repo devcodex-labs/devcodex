@@ -6,6 +6,26 @@ const path = require('path')
 
 const PACKAGE_ROOT = path.resolve(__dirname, '..', '..')
 
+function resolveFixtureGlobalRuntime (packageRoot = PACKAGE_ROOT) {
+  const skillRoots = [
+    path.join(packageRoot, 'content', 'skills'),
+    path.join(packageRoot, 'skills')
+  ]
+  const root = skillRoots.find(candidate => fs.existsSync(path.join(candidate, 'portfolio.json')))
+  if (!root) {
+    const error = new Error('SKILL_ROUTE_FIXTURE_PORTFOLIO_MISSING')
+    error.code = 'SKILL_ROUTE_FIXTURE_PORTFOLIO_MISSING'
+    error.candidates = skillRoots
+    throw error
+  }
+  return {
+    status: 'resolved',
+    root,
+    companionRoot: root,
+    portfolioPath: path.join(root, 'portfolio.json')
+  }
+}
+
 function writeJson (file, value) {
   fs.mkdirSync(path.dirname(file), { recursive: true })
   fs.writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`, 'utf8')
@@ -141,12 +161,7 @@ function createSkillRouteFixture (options = {}) {
     projectRoot,
     activeRoot,
     packageRoot: PACKAGE_ROOT,
-    globalRuntime: {
-      status: 'resolved',
-      root: path.join(PACKAGE_ROOT, 'content', 'skills'),
-      companionRoot: path.join(PACKAGE_ROOT, 'content', 'skills'),
-      portfolioPath: path.join(PACKAGE_ROOT, 'content', 'skills', 'portfolio.json')
-    }
+    globalRuntime: resolveFixtureGlobalRuntime()
   }
   fixture.runtimeOptions = {
     inputRoot: root,
@@ -170,6 +185,7 @@ function createSkillRouteFixture (options = {}) {
 module.exports = {
   PACKAGE_ROOT,
   createSkillRouteFixture,
+  resolveFixtureGlobalRuntime,
   writeContextBindingState,
   writeWorkspaceSkill,
   writeJson

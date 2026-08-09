@@ -67,15 +67,34 @@ function commonBase (includeCloseout = true) {
   return roots
 }
 
-function buildRegistry () {
-  const contentBundle = buildBundle(ROOT)
-  const contentByRelative = new Map(contentBundle.files.map(file => [file.relative, file]))
+function loadContentByRelative (rootDir = ROOT) {
+  const manifestPath = path.join(rootDir, 'content', 'manifest.json')
+  if (fs.existsSync(manifestPath)) {
+    const contentBundle = buildBundle(rootDir)
+    return new Map(contentBundle.files.map(file => [file.relative, file]))
+  }
+
+  // npm packages contain the rendered control-content projection, not its source manifest.
+  return new Map(CONTENT_SOURCES.map(relative => {
+    const file = path.join(rootDir, relative)
+    if (!fs.existsSync(file)) throw new Error(`missing packaged content asset: ${relative}`)
+    const content = fs.readFileSync(file, 'utf8')
+    return [relative, {
+      relative,
+      content,
+      outputDigest: sha256(content)
+    }]
+  }))
+}
+
+function buildRegistry (rootDir = ROOT) {
+  const contentByRelative = loadContentByRelative(rootDir)
   const sourceEvidence = CONTENT_SOURCES.map(relative => {
     const entry = contentByRelative.get(relative)
     if (!entry) throw new Error(`missing content asset: ${relative}`)
     return { ref: `content:${relative}`, digest: entry.outputDigest }
   }).concat(CODE_SOURCES.map(relative => {
-    const content = fs.readFileSync(path.join(ROOT, relative), 'utf8')
+    const content = fs.readFileSync(path.join(rootDir, relative), 'utf8')
     return { ref: relative, digest: sha256(content) }
   }))
   const instructionText = contentByRelative.get('instructions/01-common.instructions.md').content
@@ -178,6 +197,7 @@ if (require.main === module) main()
 
 module.exports = {
   buildRegistry,
+  loadContentByRelative,
   parseInstructionRoutes,
   stableStringify
 }

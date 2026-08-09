@@ -81,6 +81,43 @@ const packageFiles = (pkg.files || []).filter(item => (
 const pluginFiles = (plugin.skills || []).map(item => item.file).filter(Boolean)
 const packagedScripts = packageFiles.filter(file => file.startsWith('scripts/') && file.endsWith('.js'))
 const packagedScriptDeps = packagedScripts.flatMap(file => collectRuntimeDependencies(file))
+const prefixedSkillRouteTargets = Object.entries(pkg.scripts || {})
+  .filter(([name]) => name.startsWith('test:skill-route'))
+  .flatMap(([, command]) => Array.from(
+    String(command).matchAll(/(?:^|&&\s*)node\s+(scripts\/[^\s]+\.js)/g),
+    match => match[1]
+  ))
+
+function collectNpmScriptNodeTargets(scriptName, seen = new Set()) {
+  if (seen.has(scriptName)) return []
+  seen.add(scriptName)
+  const command = String((pkg.scripts || {})[scriptName] || '')
+  const direct = Array.from(
+    command.matchAll(/(?:^|&&\s*)node\s+(scripts\/[^\s]+\.js)/g),
+    match => match[1]
+  )
+  const nested = Array.from(
+    command.matchAll(/npm\s+run\s+([^\s&]+)/g),
+    match => match[1]
+  ).flatMap(name => collectNpmScriptNodeTargets(name, seen))
+  return Array.from(new Set(direct.concat(nested)))
+}
+
+const skillRouteScriptTargets = Array.from(new Set(
+  prefixedSkillRouteTargets.concat(collectNpmScriptNodeTargets('test:skill-route'))
+))
+const sourceOnlySkillPathTargets = skillRouteScriptTargets.filter(file => {
+  const content = fs.readFileSync(path.join(ROOT, file), 'utf8')
+  return content.includes('content/skills') ||
+    /path\.join\([^\r\n]*['"]content['"]\s*,\s*['"]skills['"]/.test(content)
+})
+const closureTrace = JSON.parse(fs.readFileSync(
+  path.join(ROOT, 'scripts', 'fixtures', 'skill-route-closure-trace.v1.json'),
+  'utf8'
+))
+const closureOwnerFiles = Array.from(new Set(
+  Object.values(closureTrace.testCases || {}).map(testCase => testCase.owner).filter(Boolean)
+))
 const promptFiles = listControlDeliveryEntries(ROOT, 'prompts')
   .filter(entry => entry.relative.endsWith('.prompt.md'))
   .map(entry => `prompts/${entry.relative}`)
@@ -106,7 +143,16 @@ const required = [
   'scripts/migrate-layout.js',
   'assets/icon-512.png',
   'skills/portfolio.json',
-].concat(packageFiles, pluginFiles, promptFiles, dataTemplateFiles, indexRuntimeRequires, packagedScriptDeps)
+].concat(
+  packageFiles,
+  pluginFiles,
+  promptFiles,
+  dataTemplateFiles,
+  indexRuntimeRequires,
+  packagedScriptDeps,
+  skillRouteScriptTargets,
+  closureOwnerFiles
+)
   .filter(Boolean)
   .filter(file => !file.endsWith('/'))
 
@@ -133,6 +179,11 @@ if (skillPackFiles.length < 10) {
 }
 if (files.some(file => file === 'skills/portfolio-evidence.json')) {
   console.error('\x1b[31m✗ Pack must exclude skills/portfolio-evidence.json\x1b[0m')
+  process.exit(1)
+}
+if (sourceOnlySkillPathTargets.length) {
+  console.error('\x1b[31m✗ Packaged SkillRoute tests hard-code the source-only content/skills layout:\x1b[0m')
+  sourceOnlySkillPathTargets.forEach(file => console.error('  ' + file))
   process.exit(1)
 }
 if (npmignore.includes('tests/')) {

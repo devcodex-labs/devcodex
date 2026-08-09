@@ -37,6 +37,11 @@ const {
   getRuntimeContractDigest,
   resolveSkillRouteMode
 } = require('./skill-route-mode.cjs')
+const {
+  applyBodyCharges,
+  projectPlanReservation,
+  projectPendingStages
+} = require('./skill-route-budget.cjs')
 const { replayMcpContextSourceObservations } = require('./context-source-observation.cjs')
 const {
   bootstrapSkillRoute,
@@ -579,6 +584,40 @@ function buildSkillRouteErrorDetails (input, error, target) {
   return details
 }
 
+function buildBudgetRecovery (errorCode, budgetProjection) {
+  return {
+    schemaVersion: 'SkillRouteBudgetRecoveryV1',
+    errorCode,
+    terminal: true,
+    stateChanged: false,
+    retrySameCall: false,
+    automatic: true,
+    action: 'retire-and-rebootstrap-next-user-prompt',
+    rebootstrapOnNextUserPrompt: true,
+    budgetProjection
+  }
+}
+
+function throwBudgetBlocked (errorCode, projection) {
+  const error = new Error(errorCode)
+  error.code = errorCode
+  error.details = buildBudgetRecovery(errorCode, projection)
+  throw error
+}
+
+function skillRouteErrorNextStep (error) {
+  if (error?.code === 'BUDGET_BLOCKED') {
+    return 'Do not retry this load_stage call. The pending mandatory bodies cannot fit in the remaining turn budget; retire this route and rebootstrap on the next user prompt.'
+  }
+  if (error?.code === 'BUDGET_RESERVATION_BLOCKED') {
+    return 'Do not retry this commit or rebind unchanged. The candidate plan was not installed because its mandatory worst case cannot fit in the remaining turn budget.'
+  }
+  if (String(error?.code || '').startsWith('BODY_CHARGE_')) {
+    return 'Do not continue this route. Its body charge state failed validation; retire it and rebootstrap on the next user prompt.'
+  }
+  return 'Refresh the bound bootstrap/catalog/context state and retry the same logical operation.'
+}
+
 function finalizeResponse (response, limitBytes) {
   response.delivery.serializedBytes = 0
   for (let index = 0; index < 3; index += 1) {
@@ -945,6 +984,12 @@ function handleCommit (input, target, options) {
         state.stageProgress,
         replanProgressOptions
       )
+      const budgetReservation = plan.status === 'complete'
+        ? projectPlanReservation(envelope, plan)
+        : null
+      if (budgetReservation && !budgetReservation.projection.executable) {
+        throwBudgetBlocked('BUDGET_RESERVATION_BLOCKED', budgetReservation.projection)
+      }
       state.decision = decision
       state.plan = plan
       state.stageProgress = preserveCompatibleStageProgress(
@@ -956,6 +1001,7 @@ function handleCommit (input, target, options) {
       state.contextBinding = JSON.parse(JSON.stringify(input.contextBinding))
       state.trustedContextBindingDigest = trustedContext.bindingDigest
       state.hostSessionId = trustedContext.hostSessionId || state.hostSessionId || ''
+      if (budgetReservation) state.bodyChargeLedger = budgetReservation.ledger
       state.obligationLedger = buildObligationLedger(plan, state.stageProgress)
       const summary = summarizePlan(plan)
       const response = bindResponseToTransaction(plan.status === 'complete'
@@ -964,7 +1010,8 @@ function handleCommit (input, target, options) {
           decision,
            plan: summary,
            contextBindingDigest: trustedContext.bindingDigest,
-           obligations: state.obligationLedger
+           obligations: state.obligationLedger,
+           budgetReservation: budgetReservation?.projection || null
         }, [], 16 * 1024)
         : makeToolError(
           'commit',
@@ -977,7 +1024,8 @@ function handleCommit (input, target, options) {
               decision,
                plan: summary,
                contextBindingDigest: trustedContext.bindingDigest,
-               obligations: state.obligationLedger
+               obligations: state.obligationLedger,
+               budgetReservation: budgetReservation?.projection || null
             },
             limitBytes: 16 * 1024
           }
@@ -1100,6 +1148,10 @@ function handleRebind (input, target, options) {
         throw error
       }
       assertReplanProgressCompatible(priorPlan, plan, state.stageProgress)
+      const budgetReservation = projectPlanReservation(envelope, plan)
+      if (!budgetReservation.projection.executable) {
+        throwBudgetBlocked('BUDGET_RESERVATION_BLOCKED', budgetReservation.projection)
+      }
       state.plan = plan
       state.stageProgress = preserveCompatibleStageProgress(
         priorPlan,
@@ -1109,6 +1161,7 @@ function handleRebind (input, target, options) {
       state.contextBinding = JSON.parse(JSON.stringify(input.contextBinding))
       state.trustedContextBindingDigest = trustedContext.bindingDigest
       state.hostSessionId = trustedContext.hostSessionId || state.hostSessionId || ''
+      state.bodyChargeLedger = budgetReservation.ledger
       state.obligationLedger = buildObligationLedger(plan, state.stageProgress)
       const pendingStageIds = (state.obligationLedger.requiredStageIds || []).filter(stageId =>
         state.stageProgress[stageId]?.status !== 'loaded'
@@ -1120,6 +1173,7 @@ function handleRebind (input, target, options) {
         plan: summarizePlan(plan),
         contextBindingDigest: trustedContext.bindingDigest,
         obligations: state.obligationLedger,
+        budgetReservation: budgetReservation.projection,
         preservedStageProgress: summarizeStageProgress(state.stageProgress),
         nextAction: {
           schemaVersion: 'SkillRouteNextActionV1',
@@ -1491,6 +1545,19 @@ function handleLoadStage (input, target, options) {
       const loadedKeys = chunks.map(chunk =>
         `${chunk.skillId}|${chunk.effectiveLayer}|${chunk.bodyDigest}|${state.contextEpoch}`
       )
+      let chargeResult
+      try {
+        chargeResult = applyBodyCharges(envelope, chunks, {
+          scope: 'load-stage-page',
+          stageIds: [stageId],
+          errorCode: 'BUDGET_BLOCKED'
+        })
+      } catch (error) {
+        if (error.code === 'BUDGET_BLOCKED') {
+          throwBudgetBlocked('BUDGET_BLOCKED', error.details?.budgetProjection || null)
+        }
+        throw error
+      }
       const progress = state.stageProgress[stageId] || {
         status: 'loading',
         servedPages: [],
@@ -1503,19 +1570,8 @@ function handleLoadStage (input, target, options) {
       progress.servedPages.sort((left, right) => left - right)
       progress.status = progress.servedPages.length === pages.length ? 'loaded' : 'loading'
       state.stageProgress[stageId] = progress
-      const newlyCharged = loadedKeys.filter(key =>
-        !Object.values(state.stageProgress)
-          .some(other => other !== progress && (other.loadedKeys || []).includes(key))
-      )
-      const chargedBytes = chunks
-        .filter(chunk => newlyCharged.some(key => key.startsWith(`${chunk.skillId}|`)))
-        .reduce((sum, chunk) => sum + chunk.bytes, 0)
-      if (state.budget.bodyBytesConsumed + chargedBytes > state.budget.bodyLimitBytes) {
-        const error = new Error('BUDGET_BLOCKED')
-        error.code = 'BUDGET_BLOCKED'
-        throw error
-      }
-      state.budget.bodyBytesConsumed += chargedBytes
+      state.bodyChargeLedger = chargeResult.ledger
+      state.budget = chargeResult.budget
       state.obligationLedger = buildObligationLedger(
         state.plan,
         state.stageProgress
@@ -1543,6 +1599,9 @@ function handleLoadStage (input, target, options) {
         nextCursor,
         loadedKeys,
         bodyBytes: chunks.reduce((sum, chunk) => sum + chunk.bytes, 0),
+        chargedBodyBytes: chargeResult.projection.incrementalBodyBytes,
+        chargedIdentityCount: chargeResult.projection.newIdentityCount,
+        budgetProjection: chargeResult.projection,
         stageStatus: progress.status,
         replayed: false,
         receiptDigest: ''
@@ -1558,7 +1617,7 @@ function handleLoadStage (input, target, options) {
         stageId,
         sourceBytes: receipt.bodyBytes,
         serializedBytes: response.delivery.serializedBytes,
-        bodyBytes: chargedBytes,
+        bodyBytes: chargeResult.projection.incrementalBodyBytes,
         runtimeServedPages: progress.servedPages.length,
         expectedPages: pages.length,
         contextEpoch: input.contextEpoch,
@@ -1591,9 +1650,18 @@ function handleStatus (input, target, options) {
   const pendingStageIds = requiredStageIds.filter(stageId =>
     state.stageProgress[stageId]?.status !== 'loaded'
   )
+  const budgetResult = projectPendingStages(envelope, pendingStageIds)
+  const budgetErrorCode = state.plan?.status === 'complete' &&
+    pendingStageIds.length > 0 &&
+    !budgetResult.projection.executable
+    ? 'BUDGET_BLOCKED'
+    : null
+  const budgetRecovery = budgetErrorCode
+    ? buildBudgetRecovery(budgetErrorCode, budgetResult.projection)
+    : null
   let contextErrorCode = null
   let contextRecovery = null
-  if (state.plan && pendingStageIds.length) {
+  if (!budgetErrorCode && state.plan && pendingStageIds.length) {
     try {
       validateRouteContextPrecondition(state, target, options)
     } catch (error) {
@@ -1615,11 +1683,14 @@ function handleStatus (input, target, options) {
   }
   const processComplete = !!state.plan &&
     state.plan.status === 'complete' &&
+    !budgetErrorCode &&
     !contextErrorCode &&
     requiredStageIds.length === satisfiedStageIds.length
-  const nextOp = contextErrorCode
-    ? 'rebind'
-    : (pendingStageIds.length ? 'load_stage' : null)
+  const nextOp = budgetErrorCode
+    ? null
+    : (contextErrorCode
+        ? 'rebind'
+        : (pendingStageIds.length ? 'load_stage' : null))
   const selectedBusiness = state.obligationLedger?.items?.find(item =>
     item.skillId === state.obligationLedger.selectedBusinessSkillId
   ) || null
@@ -1644,7 +1715,10 @@ function handleStatus (input, target, options) {
       : null,
     plan: state.plan ? summarizePlan(state.plan) : null,
     stageProgress: summarizeStageProgress(state.stageProgress),
-    budget: state.budget,
+    budget: {
+      ...state.budget,
+      projection: budgetResult.projection
+    },
     obligations: {
       schemaVersion: 'ObligationStatusV1',
       requiredStageIds,
@@ -1656,7 +1730,7 @@ function handleStatus (input, target, options) {
       schemaVersion: 'SkillRouteNextActionV1',
       nextOp,
       pendingStageIds,
-      errorCode: contextErrorCode,
+      errorCode: budgetErrorCode || contextErrorCode,
       nextCall: nextOp === 'rebind' && state.plan
         ? {
             op: 'rebind',
@@ -1670,7 +1744,7 @@ function handleStatus (input, target, options) {
         : (nextOp === 'load_stage' && state.plan
             ? buildLoadStageNextCall(state, pendingStageIds[0] || null)
             : null),
-      recovery: contextRecovery
+      recovery: budgetRecovery || contextRecovery
     },
     ledgerSummary: {
       calls: state.contributionLedger.items.length,
@@ -1739,6 +1813,56 @@ function summarizeStopObligations (state, input, options = {}) {
     String(input.assistantText || '').includes(mustReplyCore)
   )
   return { pendingStageIds, business, businessSatisfied }
+}
+
+function buildBudgetRetiredRouteStop (
+  state,
+  input,
+  turnBinding,
+  budgetResult,
+  errorCode = 'BUDGET_BLOCKED'
+) {
+  const { pendingStageIds, business, businessSatisfied } = summarizeStopObligations(
+    state,
+    input
+  )
+  const businessActionRequired = businessSatisfied === false
+  const budgetProjection = budgetResult?.projection || null
+  return {
+    schemaVersion: 'ProgressiveSkillRouteStopV1',
+    present: true,
+    complete: !businessActionRequired,
+    turnBinding,
+    contextEpoch: state.contextEpoch,
+    planDigest: state.plan?.planDigest || null,
+    processComplete: false,
+    retired: true,
+    retirementReason: errorCode,
+    completionDisposition: errorCode === 'BUDGET_BLOCKED'
+      ? 'retired-budget-exhausted'
+      : 'retired-budget-state-invalid',
+    pendingStageIds,
+    selectedBusinessSkillId: business?.skillId || null,
+    mustReplyCore: business?.mustReplyCore || null,
+    businessSatisfied,
+    errorCode,
+    nextOp: businessActionRequired ? 'satisfy_business' : null,
+    nextCall: null,
+    budgetProjection,
+    recovery: {
+      schemaVersion: 'SkillRouteBudgetRecoveryV1',
+      terminal: true,
+      stateChanged: false,
+      retrySameCall: false,
+      automatic: !businessActionRequired,
+      action: businessActionRequired
+        ? 'reply-selected-business-core'
+        : 'retire-and-rebootstrap-next-user-prompt',
+      mustReplyCore: business?.mustReplyCore || null,
+      rebootstrapOnNextUserPrompt: true,
+      budgetProjection
+    }
+  }
 }
 
 /**
@@ -1915,6 +2039,32 @@ function evaluateProgressiveSkillRouteStop (input, options = {}) {
     state,
     input
   )
+  if (state.plan?.status === 'complete' && pendingStageIds.length) {
+    let budgetResult
+    try {
+      budgetResult = projectPendingStages(envelope, pendingStageIds)
+    } catch (error) {
+      if (String(error.code || '').startsWith('BODY_CHARGE_')) {
+        return buildBudgetRetiredRouteStop(
+          state,
+          input,
+          turnBinding,
+          null,
+          error.code
+        )
+      }
+      throw error
+    }
+    if (!budgetResult.projection.executable) {
+      return buildBudgetRetiredRouteStop(
+        state,
+        input,
+        turnBinding,
+        budgetResult,
+        'BUDGET_BLOCKED'
+      )
+    }
+  }
   let contextErrorCode = null
   let contextRecovery = null
   if (state.plan && pendingStageIds.length) {
@@ -2079,7 +2229,7 @@ function handleSkillRoute (input, options = {}) {
     return makeToolError(
       input.op,
       error.code || error.message || 'SKILL_ROUTE_FAILED',
-      'Refresh the bound bootstrap/catalog/context state and retry the same logical operation.',
+      skillRouteErrorNextStep(error),
       {
         limitBytes: input.op === 'catalog' ? 8 * 1024 : (input.op === 'load_stage' ? 48 * 1024 : 16 * 1024),
         details: buildSkillRouteErrorDetails(input, error, target)

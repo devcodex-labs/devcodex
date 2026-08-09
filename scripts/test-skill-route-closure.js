@@ -11,8 +11,12 @@ const {
 const {
   getLifecycleHostAdapterDigest
 } = require('../hooks/_runtime/host-adapter-identity.cjs')
+const {
+  resolveFixtureGlobalRuntime
+} = require('./lib/skill-route-test-fixture')
 
 const ROOT = path.resolve(__dirname, '..')
+const GLOBAL_RUNTIME = resolveFixtureGlobalRuntime(ROOT)
 const REQUIREMENTS_ROOT = process.env.DEVCODEX_SKILL_ROUTE_REQUIREMENTS_ROOT
   ? path.resolve(process.env.DEVCODEX_SKILL_ROUTE_REQUIREMENTS_ROOT)
   : path.resolve(
@@ -171,11 +175,7 @@ assert.strictEqual(
 assert.strictEqual(
   pass[0].runtimeContractDigest,
   getRuntimeContractDigest({
-    globalRuntime: {
-      status: 'resolved',
-      root: path.join(ROOT, 'content', 'skills'),
-      companionRoot: path.join(ROOT, 'content', 'skills')
-    }
+    globalRuntime: GLOBAL_RUNTIME
   })
 )
 assert.strictEqual(

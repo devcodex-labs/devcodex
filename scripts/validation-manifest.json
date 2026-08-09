@@ -127,6 +127,7 @@
         "skill-portfolio-current",
         "skill-intents",
         "skill-route-contracts",
+        "skill-route-budget",
         "skill-route-state",
         "skill-route-lifecycle",
         "skill-route-closure",
@@ -213,6 +214,7 @@
         "skill-portfolio-current",
         "skill-intents",
         "skill-route-contracts",
+        "skill-route-budget",
         "skill-route-state",
         "skill-route-lifecycle",
         "runtime-rolling-upgrade",
@@ -336,6 +338,7 @@
         "skill-resolution-hook-paths",
         "skill-intents",
         "skill-route-contracts",
+        "skill-route-budget",
         "skill-route-state",
         "skill-route-lifecycle",
         "runtime-rolling-upgrade",
@@ -395,6 +398,7 @@
         "skill-resolution-hook-paths",
         "skill-intents",
         "skill-route-contracts",
+        "skill-route-budget",
         "skill-route-state",
         "skill-route-lifecycle",
         "runtime-rolling-upgrade",
@@ -1075,6 +1079,7 @@
         "scripts/test-skill-route-contracts.js"
       ],
       "consumers": [
+        "skill-route-budget",
         "skill-route-state"
       ],
       "invariants": [
@@ -1102,6 +1107,57 @@
     },
     {
       "schemaVersion": "ValidationNodeV1",
+      "id": "skill-route-budget",
+      "owner": "progressive-skill-route",
+      "command": "node",
+      "args": [
+        "scripts/test-skill-route-budget.js"
+      ],
+      "dependencies": [
+        "skill-route-contracts"
+      ],
+      "inputs": [
+        "hooks/_runtime/skill-route-budget.cjs",
+        "hooks/_runtime/skill-route-state.cjs",
+        "hooks/_runtime/skill-route-tool.cjs",
+        "hooks/_runtime/lifecycle-skill-route-coordinator.cjs",
+        "hooks/_runtime/skill-route-mode.cjs",
+        "scripts/lib/skill-route-test-fixture.js",
+        "scripts/test-skill-route-budget.js"
+      ],
+      "consumers": [
+        "skill-route-state",
+        "skill-route-lifecycle",
+        "mcp-runtime-closure"
+      ],
+      "invariants": [
+        "cumulative-budget-executability",
+        "atomic-budget-failure",
+        "cross-generation-charge-deduplication",
+        "legacy-charge-migration",
+        "budget-terminal-retirement",
+        "bounded-budget-projection"
+      ],
+      "riskClass": "release",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1",
+        "SkillRouteBudgetProjectionV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
       "id": "skill-route-state",
       "owner": "progressive-skill-route",
       "command": "node",
@@ -1109,9 +1165,10 @@
         "scripts/test-skill-route-state.js"
       ],
       "dependencies": [
-        "skill-route-contracts"
+        "skill-route-budget"
       ],
       "inputs": [
+        "hooks/_runtime/skill-route-budget.cjs",
         "hooks/_runtime/skill-route-state.cjs",
         "hooks/_runtime/skill-route-tool.cjs",
         "hooks/_runtime/context-read-contract.cjs",
@@ -1162,8 +1219,10 @@
         "hooks/_runtime/lifecycle.cjs",
         "hooks/_runtime/lifecycle-host-adapters.cjs",
         "hooks/_runtime/lifecycle-bootstrap-state.cjs",
+        "hooks/_runtime/lifecycle-skill-route-coordinator.cjs",
         "hooks/_runtime/host-adapter-identity.cjs",
         "hooks/_runtime/context-plan-observation.cjs",
+        "hooks/_runtime/skill-route-budget.cjs",
         "hooks/_runtime/skill-route-tool.cjs",
         "mcp/profile-server.js",
         "scripts/test-skill-route-lifecycle.js"

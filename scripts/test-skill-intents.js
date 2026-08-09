@@ -3,6 +3,7 @@
 
 const assert = require('assert')
 const fs = require('fs')
+const os = require('os')
 const path = require('path')
 
 const {
@@ -13,8 +14,10 @@ const {
 } = require('./lib/skill-portfolio-utils')
 const {
   buildSkillIntent,
+  intentPath,
   loadActiveSkills,
   processSkillIntents,
+  resolveSkillRoot,
   serializeIntent
 } = require('./generate-skill-intents')
 
@@ -57,7 +60,7 @@ assert.strictEqual(validateSkillIntent({
 
 assert.strictEqual(activeSkills.length, 83)
 for (const skill of activeSkills) {
-  const target = path.join(ROOT, 'content', 'skills', skill.id, 'intent.json')
+  const target = intentPath(skill.id)
   assert(fs.existsSync(target), `missing intent sidecar: ${skill.id}`)
   const raw = JSON.parse(fs.readFileSync(target, 'utf8'))
   const validation = validateSkillIntent(raw, { skillId: skill.id })
@@ -71,6 +74,15 @@ for (const skill of activeSkills) {
     serializeIntent(buildSkillIntent(skill)),
     `stale generated intent sidecar: ${skill.id}`
   )
+}
+
+const packagedLayoutRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-packaged-intents-'))
+try {
+  fs.mkdirSync(path.join(packagedLayoutRoot, 'skills'), { recursive: true })
+  fs.writeFileSync(path.join(packagedLayoutRoot, 'skills', 'portfolio.json'), '{"skills":[]}\n', 'utf8')
+  assert.strictEqual(resolveSkillRoot(packagedLayoutRoot), path.join(packagedLayoutRoot, 'skills'))
+} finally {
+  fs.rmSync(packagedLayoutRoot, { recursive: true, force: true })
 }
 
 const check = processSkillIntents()

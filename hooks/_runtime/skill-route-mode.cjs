@@ -36,6 +36,7 @@ const RUNTIME_CONTRACT_FILES = Object.freeze([
   'skill-route-mode.cjs',
   'runtime-generation-identity.cjs',
   'runtime-state-store.cjs',
+  'skill-route-budget.cjs',
   'skill-route-state.cjs',
   'skill-route-tool.cjs',
   'host-adapter-identity.cjs',
@@ -313,6 +314,8 @@ function getRuntimeContractDigest (options = {}) {
       'WorkflowRootRegistryV1',
       'ProgressiveSkillPlanV1',
       'StageLoadReceiptV1',
+      'SkillRouteBodyChargeLedgerV1',
+      'SkillRouteBudgetProjectionV1',
       'TurnRouteEnvelopeV1'
     ],
     registryDigest,

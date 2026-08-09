@@ -87,18 +87,43 @@ function websiteRuntimeSources() {
 
 assert.strictEqual(policy.schemaVersion, 'DevCodexSecurityAuditPolicyV1')
 assert.strictEqual(registry, policy.registry, 'CLI registry must match the committed security audit policy')
-assert.ok(/^\d{4}-\d{2}-\d{2}$/.test(policy.websiteExceptions[0].expiresOn))
-assert.ok(Number.isFinite(Date.parse(policy.reviewedAt)), 'security exception must record a review timestamp')
+assert.ok(Number.isFinite(Date.parse(policy.reviewedAt)), 'security policy must record a review timestamp')
 assert.strictEqual(policy.officialEvidence.advisoryUrl, 'https://github.com/advisories/GHSA-qwww-vcr4-c8h2')
-assert.strictEqual(policy.officialEvidence.patchedReactRouterVersion, '8.3.0')
+assert.strictEqual(policy.officialEvidence.affectedVersions, '>=7.12.0 <7.18.2 || >=8.0.0 <8.3.0')
+assert.strictEqual(policy.officialEvidence.patchedReactRouterVersion, '7.18.2')
+assert.strictEqual(policy.officialEvidence.patchedReactRouterMajor8Version, '8.3.0')
 assert.strictEqual(policy.officialEvidence.affectedSurface, 'unstable RSC APIs')
+assert.strictEqual(policy.dompurifyEvidence.advisoryUrl, 'https://github.com/advisories/GHSA-55q2-fjhq-7xh7')
+assert.strictEqual(policy.dompurifyEvidence.affectedVersions, '<=3.4.12')
+assert.strictEqual(policy.dompurifyEvidence.patchedVersion, '3.4.13')
+assert.strictEqual(policy.dompurifyEvidence.affectedSurface, 'IN_PLACE sanitization combined with a removal hook')
+assert.match(policy.dompurifyEvidence.integrity, /^sha512-/)
+assert.deepStrictEqual(policy.mermaidEvidence.advisoryUrls, [
+  'https://github.com/advisories/GHSA-2v8p-3f2j-5mp7',
+  'https://github.com/advisories/GHSA-6x64-9x62-f2gx',
+  'https://github.com/advisories/GHSA-c4c3-pg64-4m4v'
+])
+assert.strictEqual(policy.mermaidEvidence.affectedVersions, '<10.9.8')
+assert.strictEqual(policy.mermaidEvidence.patchedVersion, '10.9.8')
+assert.strictEqual(policy.mermaidEvidence.pluginVersion, '1.0.1')
+assert.strictEqual(policy.mermaidEvidence.pluginDependencyRange, '^10.9.0')
+assert.match(policy.mermaidEvidence.integrity, /^sha512-/)
+assert.ok(Number.isFinite(Date.parse(policy.mermaidEvidence.checkedAt)), 'Mermaid evidence must record a check timestamp')
 assert.strictEqual(policy.registryEvidence.registry, registry)
 assert.ok(Number.isFinite(Date.parse(policy.registryEvidence.checkedAt)), 'registry evidence must record a timestamp')
 assert.strictEqual(policy.registryEvidence.rspressCore.version, '2.0.19')
 assert.strictEqual(policy.registryEvidence.rspressCore.reactRouterDomRange, '^7.18.1')
-assert.strictEqual(policy.registryEvidence.patchedReactRouter.version, '8.3.0')
-assert.strictEqual(policy.registryEvidence.patchedReactRouter.nodeEngine, '>=22.22.0')
-assert.strictEqual(policy.registryEvidence.reactRouterDomPatchedVersionAvailable, false)
+assert.strictEqual(policy.registryEvidence.patchedReactRouter.version, '7.18.2')
+assert.strictEqual(policy.registryEvidence.patchedReactRouter.nodeEngine, '>=20.0.0')
+assert.match(policy.registryEvidence.patchedReactRouter.integrity, /^sha512-/)
+assert.strictEqual(policy.registryEvidence.patchedReactRouterDom.version, '7.18.2')
+assert.strictEqual(policy.registryEvidence.patchedReactRouterDom.nodeEngine, '>=20.0.0')
+assert.strictEqual(policy.registryEvidence.patchedReactRouterDom.reactPeerRange, '>=18')
+assert.strictEqual(policy.registryEvidence.patchedReactRouterDom.reactDomPeerRange, '>=18')
+assert.match(policy.registryEvidence.patchedReactRouterDom.integrity, /^sha512-/)
+assert.strictEqual(policy.registryEvidence.reactRouterDomPatchedVersionAvailable, true)
+assert.deepStrictEqual(policy.websiteAllowedPackages, [])
+assert.deepStrictEqual(policy.websiteExceptions, [])
 
 const rootAudit = npmAudit(ROOT, policy.rootAllowedAdvisories)
 assert.strictEqual(rootAudit.metadata?.vulnerabilities?.total, 0, 'root production dependency audit must remain clean')
@@ -144,9 +169,9 @@ if (fs.existsSync(websitePackage)) {
   }
 
   console.log(
-    `security audit passed root=0 websiteExceptions=${allowedAdvisories.join(',')} ` +
-    `expires=${policy.websiteExceptions[0].expiresOn} rspress=${installedVersion('@rspress/core')} ` +
-    `reactRouter=${installedVersion('react-router')} braceExpansion=${installedVersion('brace-expansion')}`
+    `security audit passed root=0 websiteAdvisories=${allowedAdvisories.length ? allowedAdvisories.join(',') : 'none'} ` +
+    `rspress=${installedVersion('@rspress/core')} reactRouter=${installedVersion('react-router')} ` +
+    `dompurify=${installedVersion('dompurify')} braceExpansion=${installedVersion('brace-expansion')}`
   )
 } else {
   const websiteReadme = fs.readFileSync(path.join(WEBSITE, 'README.md'), 'utf8')
@@ -154,6 +179,6 @@ if (fs.existsSync(websitePackage)) {
   assert.match(websiteReadme, /website 视为 optional/)
   console.log(
     `security audit passed root=0 website=optional-absent ` +
-    `policyExceptions=${allowedAdvisories.join(',')} expires=${policy.websiteExceptions[0].expiresOn}`
+    `policyExceptions=${allowedAdvisories.length ? allowedAdvisories.join(',') : 'none'}`
   )
 }

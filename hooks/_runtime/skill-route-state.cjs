@@ -658,6 +658,11 @@ function bootstrapSkillRoute (input, options = {}) {
           bodyBytesConsumed: 0,
           bodyLimitBytes: TURN_BODY_LIMIT_BYTES
         },
+        bodyChargeLedger: {
+          schemaVersion: 'SkillRouteBodyChargeLedgerV1',
+          items: [],
+          unattributedBodyBytes: 0
+        },
         contributionLedger: {
           schemaVersion: 'ContributionLedgerV1',
           items: []

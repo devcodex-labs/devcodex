@@ -1,9 +1,9 @@
 # 变更日志 (CHANGELOG)
 
 > **说明**: 版本概览摘要；历史版本见对应详细变更文件。
-> **最新版本详细变更文档**: [`changelogs/releases/v1.16.4.md`](./changelogs/releases/v1.16.4.md)
-> **最后更新**: 2026-08-05
-> **当前未发布**: v1.16.4 已形成发布候选并归档到版本详情；后续未发布实现继续记录到 [`changelogs/unreleased.md`](./changelogs/unreleased.md)。
+> **最新版本详细变更文档**: [`changelogs/releases/v1.16.5.md`](./changelogs/releases/v1.16.5.md)
+> **最后更新**: 2026-08-09
+> **当前未发布**: v1.16.5 已形成发布候选并归档到版本详情；远端发布事实仍以 tag、npm registry 与最终回读为准，后续实现继续记录到 [`changelogs/unreleased.md`](./changelogs/unreleased.md)。
 
 ---
 
@@ -11,6 +11,7 @@
 
 | 版本 | 日期 | 变更摘要 | 详细 |
 |------|------|---------|------|
+| [v1.16.5](./changelogs/releases/v1.16.5.md) | 2026-08-09 | 🔧 **SkillRoute 累计预算与有限退休修复**：持久化正文计费账本、全计划预算预留、原子计费和 cache 去重；预算不足时零写入、无 `nextCall` 有限退役；npm 包内完整路由验证与 Mermaid/DOMPurify/React Router 安全下限同步收敛 | [查看](./changelogs/releases/v1.16.5.md) |
 | [v1.16.4](./changelogs/releases/v1.16.4.md) | 2026-08-05 | 🔧 **审计缺陷收敛与上下文恢复修复**：修复 ProjectKnowledge 越界、SkillRoute/ContextRead 三次无进展循环、Memory 与 Profile 边界；增加 MCP/宿主有界 I/O、关键风险映射、验证 DAG 分层和安全审计证据闭环 | [查看](./changelogs/releases/v1.16.4.md) |
 | [v1.16.3](./changelogs/releases/v1.16.3.md) | 2026-08-04 | 🔧 **SkillRoute 无恢复循环与滚动升级修复**：不可执行旧路由自动退役并在下一轮重建；运行中会话与更新后新会话安全分流，ContextRead 仅迁移受支持的上一版本契约；Profile、memory、索引和治理台账同步加固 | [查看](./changelogs/releases/v1.16.3.md) |
 | [v1.16.2](./changelogs/releases/v1.16.2.md) | 2026-08-03 | 🔧 **ContextRead 回执耐久化与用户任务教程**：独立来源观察账本抵御 Hook/MCP 交错覆盖，修复空会话标识重放冲突；README 增加常见任务提示词与只读 CLI 帮助 | [查看](./changelogs/releases/v1.16.2.md) |

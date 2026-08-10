@@ -5,6 +5,7 @@
 
 ## 当前未发布实现候选
 
+- **新电脑工作流未激活 FAQ 与防回归合同**：公共 README 新增“安装最新版后没有需求概况、PC0~PC7 或 CP 流程”的状态分流，区分用户级 adapter contract、当前 cwd 的 workspace/Profile、Codex 新任务指令加载、Desktop 可接受的 `native=unverified` 与 GlobalOnly 下非故障的 `host kernel not installed`；提供 `global-adapters apply`、`init`、`status`、`doctor --json` 及 Windows 多 Node 根核对命令。公共 README 合同和负向测试同步要求 FAQ 与适配器修复入口不可回退。
 - **v1.16.5 发布候选已归档**：SkillRoute 累计正文预算循环修复已进入 `changelogs/releases/v1.16.5.md`。新增 `SkillRouteBodyChargeLedgerV1`、`SkillRouteBudgetProjectionV1` 与结构化预算 recovery；commit/rebind 全计划预留，load_stage 首次交付原子计费，跨 generation/cache reopen 去重；预算不足、预留不足或账本不一致时 fail closed、零写入并投影 `nextCall=null` 的有限退役终态。在线发布审计另将维护者本地站点 Mermaid、DOMPurify 与 React Router 安全下限分别提升至 10.9.8、3.4.13 与 7.18.2，移除旧 RSC 临时例外并恢复零 advisory；npm 包资格验证同步修复 SkillRoute 测试、intent/registry 生成器与 closure owner 的 source/package 布局闭环，隔离安装包内完整七段路由链已通过；最终 tarball production S15、远端 CI、tag/Release、npm publish 与 fresh-install R7 仍待发布阶段完成。
 - **v1.16.4 发布候选已归档**：14 个审计与候选实机验证缺陷、8 项运行时/验证优化、截图所示 ContextRead/SkillRoute 三次无进展恢复修复，以及有界 MCP/宿主 I/O 与安全审计证据闭环已进入 `changelogs/releases/v1.16.4.md`；远端发布事实仍以 tag、npm registry 和最终回读为准。
 - **v1.16.3 已归档**：Profile 目标解析、memory 会话写入绑定、SkillRoute 不可执行旧路由退役、ContextRead 上一版本兼容、宿主运行态滚动升级、索引证据和治理台账完整性修复已进入 `changelogs/releases/v1.16.3.md`。

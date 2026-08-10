@@ -39,6 +39,14 @@ const missingTaskTutorial = publicReadme.replace('## 常见任务怎么说', '##
 if (evaluatePublicReadmeContract(missingTaskTutorial).valid) {
   failures.push('public README without the common-task tutorial must fail its contract')
 }
+const missingTroubleshooting = publicReadme.replace('## 常见问题与排错', '## 排错')
+if (evaluatePublicReadmeContract(missingTroubleshooting).valid) {
+  failures.push('public README without the troubleshooting entry must fail its contract')
+}
+const missingAdapterRepair = publicReadme.replaceAll('devcodex global-adapters apply', '')
+if (evaluatePublicReadmeContract(missingAdapterRepair).valid) {
+  failures.push('public README without the global adapter repair command must fail its contract')
+}
 
 const readAbsolute = createCanonicalAwareReader(ROOT, file => fs.readFileSync(file, 'utf8'))
 const read = file => readAbsolute(path.join(ROOT, file))

@@ -51,6 +51,14 @@ const PUBLIC_README_REQUIRED_MARKERS = Object.freeze([
   'DevCodex 不扫描、复制、合并、覆盖或删除这些用户资产',
   '不替代业务框架、GitHub CI、安全审计或人工评审',
   '## 常见任务怎么说',
+  '## 常见问题与排错',
+  '安装最新版后，为什么没有需求概况、PC0~PC7 或 CP 流程？',
+  'devcodex status',
+  'devcodex global-adapters apply',
+  'adapter=not-ready',
+  'contract=failed',
+  'native=unverified',
+  'host kernel not installed',
   '只分析，不修改文件',
   '继续<任务名>任务',
   'push、tag、GitHub Release 和 npm publish',
@@ -59,6 +67,7 @@ const PUBLIC_README_REQUIRED_MARKERS = Object.freeze([
   '[为什么需要 DevCodex？](#为什么需要-devcodex)',
   '[5 分钟开始](#5-分钟开始)',
   '[常见任务怎么说](#常见任务怎么说)',
+  '[常见问题与排错](#常见问题与排错)',
   '[添加自己的 Skill](#添加自己的-skill)',
   '[许可证](#许可证)'
 ])

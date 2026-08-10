@@ -11,7 +11,7 @@ npm install -g devcodex
 devcodex --version
 ```
 
-安装或更新后，重新打开宿主的新会话即可开始使用。
+安装或更新后，先在目标项目或工作区完成下方初始化与状态检查，再完全退出并重新打开宿主的新会话。
 
 DevCodex 不替代业务框架、GitHub CI、安全审计或人工评审。它也不接管 Codex、Claude Code 等宿主原有的个人 Skill、项目指令或配置文件。
 
@@ -26,6 +26,7 @@ DevCodex 不替代业务框架、GitHub CI、安全审计或人工评审。它�
 - [项目 Profile](#项目-profile)
 - [首次信任提示](#首次信任提示)
 - [常见任务怎么说](#常见任务怎么说)
+- [常见问题与排错](#常见问题与排错)
 - [更新](#更新)
 - [卸载](#卸载)
 - [运行态检查](#运行态检查)
@@ -302,6 +303,60 @@ DevCodex 会按任务意图选择流程和 Skill。普通使用者不需要手�
 - 写明必须运行的测试，或要求 DevCodex 根据影响范围选择验证。
 - “完成”不自动等于 commit、push 或发布；这些动作需要在当前请求中明确写出。
 - `@rocky` 只负责在已授权范围内自动推进，不会扩大删除、越界访问或发布权限。
+
+## 常见问题与排错
+
+### 安装最新版后，为什么没有需求概况、PC0~PC7 或 CP 流程？
+
+这通常不是版本缺少流程，而是以下某一层尚未就绪：npm 包、用户级宿主适配器、当前 workspace 运行态，或者宿主新会话加载。
+
+先进入真正要使用 DevCodex 的项目或 workspace 根目录，再检查状态：
+
+```bash
+cd <你的项目或 workspace 根目录>
+devcodex status
+```
+
+按输出处理：
+
+| `devcodex status` 输出 | 含义与处理 |
+|------------------------|------------|
+| Codex 显示 `adapter=not-ready` 或 `contract=failed` | 用户级 Codex 适配器未通过合同检查。完全退出 Codex Desktop 或 CLI 会话，然后执行下方的适配器刷新命令。 |
+| `.devcodex not initialized` 或 Profile `missing` | 只表示当前终端所在目录没有 workspace 运行态。先确认目录正确；只有该目录确实是目标项目或 workspace 根时才执行 `devcodex init`。 |
+| Codex 为 `adapter=ready; contract=passed`，且 `.devcodex present`、Profile `complete` | 安装与 workspace 已就绪。完全退出并重新打开宿主，在同一项目目录新建任务；不要继续使用修复前已经打开的旧任务。 |
+| `native=unverified` | 只表示对应宿主的原生 CLI 探针未验证。若你使用的是 Codex Desktop，且 adapter/contract 已通过，这不是工作流阻断。 |
+| workspace 显示 `host kernel not installed` | 当前版本的宿主入口安装在用户 HOME，不要求项目目录再保存一套宿主文件；只要上方用户级 adapter/contract 已通过，这不是故障。 |
+
+修复用户级适配器：
+
+```bash
+devcodex global-adapters apply
+devcodex status
+```
+
+初始化正确的项目或 workspace：
+
+```bash
+devcodex init
+devcodex status
+```
+
+`devcodex status` 只检查当前目录。若你在用户 HOME 中运行它，看到 `.devcodex not initialized` 或 Profile `missing`，并不能说明另一个项目目录未初始化；除非 HOME 本身就是目标 workspace，否则不要在那里执行 `devcodex init`。
+
+`devcodex update` 只刷新 workspace 运行态，不能替代 `devcodex global-adapters apply` 修复用户级适配器。Codex 会在每次新任务开始时构建一次指令链，因此适配器修复后必须新建任务，已打开的任务不会中途重新加载。参见 [OpenAI Codex 的 AGENTS.md 官方说明](https://learn.chatgpt.com/docs/agent-configuration/agents-md)。
+
+如果刷新后仍然失败，再运行：
+
+```bash
+devcodex doctor --json
+```
+
+Windows 使用 Scoop、NVM 或多套 Node.js 时，还应确认 `devcodex` 与 npm 全局目录属于同一套 Node.js：
+
+```powershell
+Get-Command devcodex
+npm root -g
+```
 
 ## 更新
 

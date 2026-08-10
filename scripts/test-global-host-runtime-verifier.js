@@ -11,6 +11,9 @@ const {
 const {
   resolveGlobalHostTarget
 } = require('./lib/global-host-target.js')
+const {
+  inspectNodeRuntimeReadiness
+} = require('./lib/node-runtime-readiness.js')
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-global-runtime-verifier-'))
 const home = path.join(root, 'home')
@@ -25,6 +28,73 @@ const env = {
   GEMINI_CLI_HOME: home,
   COPILOT_HOME: path.join(home, '.copilot')
 }
+
+const nodeSystemBin = path.join(root, 'Program Files', 'nodejs')
+fs.mkdirSync(nodeSystemBin, { recursive: true })
+const nodeSystemLauncher = path.join(nodeSystemBin, 'node.exe')
+fs.writeFileSync(nodeSystemLauncher, 'fixture\n', 'utf8')
+const nodePass = inspectNodeRuntimeReadiness({
+  fs,
+  env: { PATH: nodeSystemBin, PATHEXT: '.EXE;.CMD' },
+  platform: 'win32',
+  processExecPath: nodeSystemLauncher,
+  processVersion: 'v20.20.2',
+  spawnSync: (command, args) => {
+    assert.strictEqual(path.resolve(command), path.resolve(nodeSystemLauncher))
+    assert.deepStrictEqual(args, ['--version'])
+    return { status: 0, stdout: 'v20.20.2\n', stderr: '' }
+  }
+})
+assert.strictEqual(nodePass.schemaVersion, 'NodeRuntimeReadinessV1')
+assert.strictEqual(nodePass.status, 'PASS')
+assert.strictEqual(nodePass.ambientCommand, 'node')
+assert.strictEqual(path.resolve(nodePass.ambientPath), path.resolve(nodeSystemLauncher))
+assert.strictEqual(nodePass.provider, 'system')
+assert.strictEqual(nodePass.launcherKind, 'binary')
+assert.strictEqual(nodePass.smoke.version, 'v20.20.2')
+
+const voltaBin = path.join(root, '.volta', 'bin')
+fs.mkdirSync(voltaBin, { recursive: true })
+const voltaLauncher = path.join(voltaBin, 'node.exe')
+fs.writeFileSync(voltaLauncher, 'fixture\n', 'utf8')
+const voltaReadiness = inspectNodeRuntimeReadiness({
+  fs,
+  env: { PATH: voltaBin, PATHEXT: '.EXE' },
+  platform: 'win32',
+  spawnSync: () => ({ status: 0, stdout: 'v22.1.0\n', stderr: '' })
+})
+assert.strictEqual(voltaReadiness.status, 'PASS')
+assert.strictEqual(voltaReadiness.provider, 'volta')
+assert.strictEqual(voltaReadiness.launcherKind, 'shim')
+
+const emptyNodePath = path.join(root, 'empty-node-path')
+fs.mkdirSync(emptyNodePath, { recursive: true })
+let missingNodeSpawned = false
+const missingNode = inspectNodeRuntimeReadiness({
+  fs,
+  env: { PATH: emptyNodePath, PATHEXT: '.EXE' },
+  platform: 'win32',
+  spawnSync: () => { missingNodeSpawned = true }
+})
+assert.strictEqual(missingNode.status, 'BLOCK')
+assert.strictEqual(missingNode.reasonCode, 'ambient-node-missing')
+assert.strictEqual(missingNodeSpawned, false)
+
+const deniedNode = inspectNodeRuntimeReadiness({
+  fs,
+  env: { PATH: nodeSystemBin, PATHEXT: '.EXE' },
+  platform: 'win32',
+  spawnSync: () => ({
+    status: null,
+    stdout: '',
+    stderr: '',
+    error: { code: 'EPERM', message: 'sandbox execution denied' }
+  })
+})
+assert.strictEqual(deniedNode.status, 'BLOCK')
+assert.strictEqual(deniedNode.reasonCode, 'sandbox-exec-denied')
+assert.match(deniedNode.nextStep, /Approve this Node launcher once in Codex/)
+assert.match(deniedNode.startupBoundary, /before DevCodex JavaScript starts/)
 const canonicalPlugin = path.join(grokRoot, 'devcodex', 'plugins', 'devcodex-workspace')
 const installedPlugin = path.join(grokRoot, 'installed-plugins', 'canonical')
 const grokRuntime = resolveGlobalHostTarget('grok', { env, home }).runtimeRoot
@@ -103,6 +173,7 @@ const healthy = verifyGlobalHostRuntime({
   spawnSync: spawnProbe
 })
 assert.strictEqual(healthy.schemaVersion, 'GlobalHostRuntimeVerificationV2')
+assert.strictEqual(healthy.nodeRuntime.schemaVersion, 'NodeRuntimeReadinessV1')
 assert.strictEqual(healthy.ready, false)
 assert.strictEqual(healthy.overallState, 'degraded')
 assert(healthy.hosts.every(host => host.adapterReady))
@@ -111,6 +182,59 @@ assert(healthy.hosts.every(host => host.operationalState === 'unverified'))
 assert.strictEqual(healthy.hosts.find(host => host.host === 'copilot').contractStatus, 'passed')
 assert.strictEqual(healthy.hosts.find(host => host.host === 'copilot').nativeStatus, 'unverified')
 assert.strictEqual(healthy.hosts.find(host => host.host === 'grok').nativeStatus, 'unverified')
+
+const deniedCodexRoot = path.resolve(env.CODEX_HOME)
+const deniedCodexFs = Object.create(fs)
+deniedCodexFs.realpathSync = targetPath => {
+  const resolved = path.resolve(targetPath)
+  if (resolved === deniedCodexRoot || resolved.startsWith(`${deniedCodexRoot}${path.sep}`)) {
+    const error = new Error('runtime verifier must not resolve an unverified configuration target')
+    error.code = 'EPERM'
+    throw error
+  }
+  return fs.realpathSync(targetPath)
+}
+deniedCodexFs.realpathSync.native = deniedCodexFs.realpathSync
+let permissionIsolatedAdapterProbes = 0
+const permissionIsolated = verifyGlobalHostRuntime({
+  configuration: {
+    mode: 'GlobalOnlyHostConfigModeV1',
+    workspaceCleanMode: 'GlobalOnlyWorkspaceCleanModeV1',
+    packageVersion: 'test',
+    hosts: hosts.map(host => host.host === 'codex'
+      ? {
+          ...host,
+          ready: false,
+          configured: false,
+          inspectionStatus: 'UNVERIFIED',
+          configurationIssues: [{
+            code: 'GLOBAL_HOST_TARGET_UNVERIFIED',
+            reasonCode: 'sandbox-read-denied',
+            errorCode: 'EPERM'
+          }]
+        }
+      : host)
+  },
+  env,
+  home,
+  fs: deniedCodexFs,
+  spawnSync: (command, args) => {
+    if (command === process.execPath && args.includes('--contract-probe')) {
+      assert.notStrictEqual(args[1], 'codex')
+      permissionIsolatedAdapterProbes += 1
+    }
+    return spawnProbe(command, args)
+  }
+})
+const permissionIsolatedCodex = permissionIsolated.hosts.find(host => host.host === 'codex')
+assert.strictEqual(permissionIsolated.overallState, 'degraded')
+assert.strictEqual(permissionIsolatedAdapterProbes, 4)
+assert.strictEqual(permissionIsolatedCodex.adapterReady, false)
+assert.strictEqual(permissionIsolatedCodex.contractStatus, 'unverified')
+assert.strictEqual(permissionIsolatedCodex.nativeStatus, 'unverified')
+assert.strictEqual(permissionIsolatedCodex.operationalState, 'unverified')
+assert.strictEqual(permissionIsolatedCodex.probes.adapter.status, 'skipped')
+assert.strictEqual(permissionIsolatedCodex.issues[0].code, 'GLOBAL_HOST_TARGET_UNVERIFIED')
 
 const missingRegistryFile = path.join(grokRoot, 'installed-plugins', 'registry.json')
 const missingRegistryContent = fs.readFileSync(missingRegistryFile, 'utf8')

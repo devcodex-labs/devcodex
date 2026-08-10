@@ -7,6 +7,10 @@ const { buildGovernanceStatusSummary } = require('./governance-status-summary.js
 const { evaluateGrokHostParity } = require('./host-parity-scorecard.js')
 const { readCompletionForCli } = require('./cli-execution-commands.js')
 const { inspectGlobalHostConfig } = require('./global-host-config.js')
+const {
+  formatGlobalHostRuntimeState,
+  formatNodeRuntimeReadiness
+} = require('./cli-runtime-diagnostics.js')
 
 const SOURCE_CANDIDATE_COMPARISON_ISSUES = new Set([
   'GLOBAL_HOST_RECEIPT_STALE',
@@ -158,21 +162,6 @@ function buildCliMaintenanceCommands(ctx) {
           : 'not-installed'
       }
     }
-  }
-
-  function formatGlobalHostRuntimeState(host, options = {}) {
-    const state = host.operationalState || (host.ready ? 'ready' : 'unavailable')
-    const details = [
-      `configured=${host.configured === true ? 'yes' : 'no'}`,
-      `adapter=${host.adapterReady === true ? 'ready' : 'not-ready'}`,
-      `contract=${host.contractStatus || 'unverified'}`,
-      `native=${host.nativeStatus || 'unverified'}`
-    ].join('; ')
-    const prefix = options.icon ? `${state === 'ready' ? '✅' : '⚠️'} ` : ''
-    const label = `${prefix}${state} (${details})`
-    if (state === 'ready') return c.green(label)
-    if (state === 'failed') return c.red(label)
-    return c.yellow(label)
   }
 
   function parseDiagnosticCommandArgs(command, argv) {
@@ -395,9 +384,10 @@ function buildCliMaintenanceCommands(ctx) {
     for (const host of globalHostConfig.hosts) {
       const state = globalHostComparison.candidateMismatchHosts.includes(host.host)
         ? c.yellow('candidate differs from installed receipt; installed health unverified')
-        : formatGlobalHostRuntimeState(host)
+        : formatGlobalHostRuntimeState(host, c)
       console.log(`  ${c.cyan(host.host.padEnd(14))} ${state}`)
     }
+    console.log(`  ${c.cyan('node runtime'.padEnd(14))} ${formatNodeRuntimeReadiness(globalHostConfig.nodeRuntime, c)}`)
     console.log()
     console.log()
     console.log(c.bold('  Workspace state:'))
@@ -828,8 +818,12 @@ function buildCliMaintenanceCommands(ctx) {
     const globalAdapterReady = host => globalHostConfig.hosts.some(item => item.host === host && item.adapterReady)
     const adapterReadyHosts = globalHostConfig.hosts.filter(host => host.adapterReady)
     const sourceCandidateMismatchSet = new Set(globalHostComparison.candidateMismatchHosts)
+    const unverifiedAdapters = globalHostConfig.hosts
+      .filter(host => host.inspectionStatus === 'UNVERIFIED')
     const missingAdapters = globalHostConfig.hosts
-      .filter(host => !host.adapterReady && !sourceCandidateMismatchSet.has(host.host))
+      .filter(host => !host.adapterReady &&
+        host.inspectionStatus !== 'UNVERIFIED' &&
+        !sourceCandidateMismatchSet.has(host.host))
     const nativeNotReady = globalHostConfig.hosts.filter(host => host.adapterReady && !host.ready)
 
     console.log()
@@ -847,6 +841,7 @@ function buildCliMaintenanceCommands(ctx) {
       ? `${globalHostConfig.hosts.length - sourceCandidateMismatchSet.size}/${globalHostConfig.hosts.length} match source candidate`
       : `${adapterReadyHosts.length}/${globalHostConfig.hosts.length} ready`}`)
     console.log(`  native hosts:    ${globalHostConfig.hosts.filter(host => host.nativeStatus === 'passed').length}/${globalHostConfig.hosts.length} ready`)
+    console.log(`  node runtime:    ${formatNodeRuntimeReadiness(globalHostConfig.nodeRuntime, c)}`)
     console.log(`  mode:            ${c.bold(mode)}`)
     console.log(`  optimization:    ${c.bold(executionOptimization.config.effective)} ${c.dim(`(${executionOptimization.config.status}; state=${executionOptimization.stateStatus})`)}`)
     console.log(`  governance:      ${formatGovernanceSummary(governanceSummary)}`)
@@ -877,11 +872,16 @@ function buildCliMaintenanceCommands(ctx) {
     for (const host of globalHostConfig.hosts) {
       const state = sourceCandidateMismatchSet.has(host.host)
         ? c.yellow('⚠️ candidate differs from installed receipt; installed health unverified')
-        : formatGlobalHostRuntimeState(host, { icon: true })
+        : formatGlobalHostRuntimeState(host, c, { icon: true })
       console.log(`    ${host.host.padEnd(10)} ${state}`)
     }
     if (missingAdapters.length) {
       console.log(c.yellow(`    Missing adapters: ${missingAdapters.map(host => host.host).join(', ')}. Repair with \`npm install -g devcodex\`.`))
+    } else if (unverifiedAdapters.length) {
+      console.log(c.yellow(
+        `    Adapter health is unverified for: ${unverifiedAdapters.map(host => host.host).join(', ')}. ` +
+        'No installation failure is proven; grant the requested read access and rerun the diagnostic.'
+      ))
     } else {
       console.log(c.green(sourceRepository
         ? '    No independently missing adapter was found by the source-candidate comparison.'
@@ -893,8 +893,15 @@ function buildCliMaintenanceCommands(ctx) {
         'This does not prove the installed adapters are broken.'
       ))
     }
+    for (const host of unverifiedAdapters) {
+      const nextStep = host.issues?.find(issue => issue.code === 'GLOBAL_HOST_TARGET_UNVERIFIED')?.nextStep
+      if (nextStep) console.log(c.dim(`    ${host.host}: ${nextStep}`))
+    }
     if (nativeNotReady.length) {
       console.log(c.dim(`    Native host CLIs not operationally ready: ${nativeNotReady.map(host => host.host).join(', ')}. Install or repair those CLIs, then rerun \`devcodex doctor\`.`))
+    }
+    if (globalHostConfig.nodeRuntime?.status !== 'PASS' && globalHostConfig.nodeRuntime?.nextStep) {
+      console.log(c.yellow(`    Node startup recovery: ${globalHostConfig.nodeRuntime.nextStep}`))
     }
     const guidance = refreshGuidanceForCwd(cwd)
     console.log(c.dim(sourceRepository

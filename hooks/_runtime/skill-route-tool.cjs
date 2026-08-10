@@ -598,6 +598,56 @@ function buildBudgetRecovery (errorCode, budgetProjection) {
   }
 }
 
+function terminalRouteRetirement (state) {
+  const retirement = state?.routeRetirement
+  if (!retirement || retirement.terminal !== true ||
+      retirement.schemaVersion !== 'SkillRouteRetirementStateV1') {
+    return null
+  }
+  return retirement
+}
+
+function buildRouteRetirementRecovery (retirement, stateChanged = false) {
+  return {
+    schemaVersion: 'SkillRouteRetirementRecoveryV1',
+    reasonCode: retirement.reasonCode,
+    terminal: true,
+    stateChanged,
+    retrySameCall: false,
+    automatic: true,
+    action: 'retire-and-rebootstrap-next-user-prompt',
+    rebootstrapOnNextUserPrompt: true
+  }
+}
+
+function buildRouteRetirementToolError (
+  op,
+  state,
+  retirement,
+  transaction,
+  stateChanged = false
+) {
+  const recovery = buildRouteRetirementRecovery(retirement, stateChanged)
+  return bindResponseToTransaction(makeToolError(
+    op,
+    retirement.reasonCode,
+    skillRouteErrorNextStep({ code: retirement.reasonCode }),
+    {
+      stateChanged,
+      receipt: {
+        schemaVersion: 'SkillRouteRetirementReceiptV1',
+        project: state.project,
+        turnBinding: state.turnBinding,
+        contextEpoch: state.contextEpoch,
+        generation: state.plan?.generation ?? null,
+        planDigest: state.plan?.planDigest || null,
+        retirement
+      },
+      details: recovery
+    }
+  ), transaction, 16 * 1024)
+}
+
 function throwBudgetBlocked (errorCode, projection) {
   const error = new Error(errorCode)
   error.code = errorCode
@@ -614,6 +664,9 @@ function skillRouteErrorNextStep (error) {
   }
   if (String(error?.code || '').startsWith('BODY_CHARGE_')) {
     return 'Do not continue this route. Its body charge state failed validation; retire it and rebootstrap on the next user prompt.'
+  }
+  if (error?.code === 'REBIND_SEMANTIC_DRIFT') {
+    return 'Do not retry this rebind or continue the old plan. The refreshed ContextRead changed route semantics; retire this route and rebootstrap on the next user prompt.'
   }
   return 'Refresh the bound bootstrap/catalog/context state and retry the same logical operation.'
 }
@@ -846,6 +899,19 @@ function handleCommit (input, target, options) {
       const state = envelope.state
       const fsImpl = options.fs || fs
       assertEnvelopeBinding(state, input, target, options)
+      const routeRetirement = terminalRouteRetirement(state)
+      if (routeRetirement) {
+        return {
+          envelope,
+          response: buildRouteRetirementToolError(
+            'commit',
+            state,
+            routeRetirement,
+            tx,
+            false
+          )
+        }
+      }
       const trustedContext = validateTrustedContextBinding(
         input.contextBinding,
         target,
@@ -1073,6 +1139,19 @@ function handleRebind (input, target, options) {
       const state = envelope.state
       const fsImpl = options.fs || fs
       assertEnvelopeBinding(state, input, target, options)
+      const existingRetirement = terminalRouteRetirement(state)
+      if (existingRetirement) {
+        return {
+          envelope,
+          response: buildRouteRetirementToolError(
+            'rebind',
+            state,
+            existingRetirement,
+            tx,
+            false
+          )
+        }
+      }
       if (!state.plan || state.plan.status !== 'complete' ||
           state.plan.planDigest !== input.planDigest ||
           state.plan.generation !== input.generation) {
@@ -1143,9 +1222,43 @@ function handleRebind (input, target, options) {
         activatedConditionIds: priorPlan.activatedConditionIds || []
       })
       if (rebindSemanticDigest(priorPlan) !== rebindSemanticDigest(plan)) {
-        const error = new Error('REBIND_SEMANTIC_DRIFT')
-        error.code = 'REBIND_SEMANTIC_DRIFT'
-        throw error
+        const retirement = {
+          schemaVersion: 'SkillRouteRetirementStateV1',
+          reasonCode: 'REBIND_SEMANTIC_DRIFT',
+          terminal: true,
+          retrySameCall: false,
+          rebootstrapOnNextUserPrompt: true,
+          priorGeneration: priorPlan.generation,
+          priorPlanDigest: priorPlan.planDigest,
+          attemptedGeneration: plan.generation,
+          attemptedPlanDigest: plan.planDigest,
+          attemptedContextBindingDigest: trustedContext.bindingDigest,
+          recordedAt: new Date(options.now == null ? Date.now() : options.now).toISOString()
+        }
+        state.routeRetirement = retirement
+        const response = buildRouteRetirementToolError(
+          'rebind',
+          state,
+          retirement,
+          tx,
+          true
+        )
+        appendLedger(state, {
+          op: 'rebind',
+          stageId: null,
+          sourceBytes: 0,
+          serializedBytes: response.delivery.serializedBytes,
+          bodyBytes: 0,
+          runtimeServedPages: state.servedCatalogPages.length,
+          expectedPages: state.catalog.pages.length,
+          contextEpoch: input.contextEpoch,
+          generation: priorPlan.generation,
+          responseDigest: sha256(response),
+          replayed: false,
+          idempotencyKey: tx.idempotencyKey,
+          outcome: 'retired-semantic-drift'
+        })
+        return { envelope, response }
       }
       assertReplanProgressCompatible(priorPlan, plan, state.stageProgress)
       const budgetReservation = projectPlanReservation(envelope, plan)
@@ -1475,6 +1588,19 @@ function handleLoadStage (input, target, options) {
     (envelope, tx) => {
       const state = envelope.state
       assertEnvelopeBinding(state, input, target, options)
+      const routeRetirement = terminalRouteRetirement(state)
+      if (routeRetirement) {
+        return {
+          envelope,
+          response: buildRouteRetirementToolError(
+            'load_stage',
+            state,
+            routeRetirement,
+            tx,
+            false
+          )
+        }
+      }
       if (state.mode !== 'unified') {
         const error = new Error('MODE_SHADOW_BODY_DISABLED')
         error.code = 'MODE_SHADOW_BODY_DISABLED'
@@ -1643,6 +1769,11 @@ function handleStatus (input, target, options) {
   const { envelope } = loadEnvelope(target.activeRoot, input.turnBinding, options)
   const state = envelope.state
   assertEnvelopeBinding(state, input, target, options)
+  const routeRetirement = terminalRouteRetirement(state)
+  const retirementErrorCode = routeRetirement?.reasonCode || null
+  const retirementRecovery = routeRetirement
+    ? buildRouteRetirementRecovery(routeRetirement, false)
+    : null
   const requiredStageIds = state.obligationLedger?.requiredStageIds || []
   const satisfiedStageIds = requiredStageIds.filter(stageId =>
     state.stageProgress[stageId]?.status === 'loaded'
@@ -1650,8 +1781,10 @@ function handleStatus (input, target, options) {
   const pendingStageIds = requiredStageIds.filter(stageId =>
     state.stageProgress[stageId]?.status !== 'loaded'
   )
-  const budgetResult = projectPendingStages(envelope, pendingStageIds)
-  const budgetErrorCode = state.plan?.status === 'complete' &&
+  const budgetResult = routeRetirement
+    ? { projection: null }
+    : projectPendingStages(envelope, pendingStageIds)
+  const budgetErrorCode = !routeRetirement && state.plan?.status === 'complete' &&
     pendingStageIds.length > 0 &&
     !budgetResult.projection.executable
     ? 'BUDGET_BLOCKED'
@@ -1661,7 +1794,7 @@ function handleStatus (input, target, options) {
     : null
   let contextErrorCode = null
   let contextRecovery = null
-  if (!budgetErrorCode && state.plan && pendingStageIds.length) {
+  if (!routeRetirement && !budgetErrorCode && state.plan && pendingStageIds.length) {
     try {
       validateRouteContextPrecondition(state, target, options)
     } catch (error) {
@@ -1683,14 +1816,17 @@ function handleStatus (input, target, options) {
   }
   const processComplete = !!state.plan &&
     state.plan.status === 'complete' &&
+    !routeRetirement &&
     !budgetErrorCode &&
     !contextErrorCode &&
     requiredStageIds.length === satisfiedStageIds.length
-  const nextOp = budgetErrorCode
+  const nextOp = routeRetirement
     ? null
-    : (contextErrorCode
-        ? 'rebind'
-        : (pendingStageIds.length ? 'load_stage' : null))
+    : (budgetErrorCode
+        ? null
+        : (contextErrorCode
+            ? 'rebind'
+            : (pendingStageIds.length ? 'load_stage' : null)))
   const selectedBusiness = state.obligationLedger?.items?.find(item =>
     item.skillId === state.obligationLedger.selectedBusinessSkillId
   ) || null
@@ -1726,11 +1862,14 @@ function handleStatus (input, target, options) {
       processComplete,
       selectedBusiness
     },
+    retired: Boolean(routeRetirement),
+    retirementReason: retirementErrorCode,
+    completionDisposition: routeRetirement ? 'retired-semantic-drift' : null,
     nextAction: {
       schemaVersion: 'SkillRouteNextActionV1',
       nextOp,
       pendingStageIds,
-      errorCode: budgetErrorCode || contextErrorCode,
+      errorCode: retirementErrorCode || budgetErrorCode || contextErrorCode,
       nextCall: nextOp === 'rebind' && state.plan
         ? {
             op: 'rebind',
@@ -1744,7 +1883,7 @@ function handleStatus (input, target, options) {
         : (nextOp === 'load_stage' && state.plan
             ? buildLoadStageNextCall(state, pendingStageIds[0] || null)
             : null),
-      recovery: budgetRecovery || contextRecovery
+      recovery: retirementRecovery || budgetRecovery || contextRecovery
     },
     ledgerSummary: {
       calls: state.contributionLedger.items.length,
@@ -1919,6 +2058,35 @@ function buildRetiredRouteStop (state, input, turnBinding, error) {
   }
 }
 
+function buildPersistedRetiredRouteStop (state, turnBinding, retirement) {
+  const { pendingStageIds } = summarizeStopObligations(
+    state,
+    {},
+    { trustBusiness: false }
+  )
+  return {
+    schemaVersion: 'ProgressiveSkillRouteStopV1',
+    present: true,
+    complete: true,
+    turnBinding,
+    contextEpoch: state.contextEpoch,
+    planDigest: state.plan?.planDigest || null,
+    processComplete: false,
+    retired: true,
+    retirementReason: retirement.reasonCode,
+    completionDisposition: 'retired-semantic-drift',
+    pendingStageIds,
+    selectedBusinessSkillId: null,
+    mustReplyCore: null,
+    businessSatisfied: true,
+    businessEvaluation: 'not-applicable-semantic-drift',
+    errorCode: retirement.reasonCode,
+    nextOp: null,
+    nextCall: null,
+    recovery: buildRouteRetirementRecovery(retirement, false)
+  }
+}
+
 function evaluateProgressiveSkillRouteStop (input, options = {}) {
   const target = resolveProjectTarget(
     options.inputRoot || input.cwd || process.cwd(),
@@ -2034,6 +2202,10 @@ function evaluateProgressiveSkillRouteStop (input, options = {}) {
         rebootstrapOnNextUserPrompt: true
       }
     }
+  }
+  const routeRetirement = terminalRouteRetirement(state)
+  if (routeRetirement) {
+    return buildPersistedRetiredRouteStop(state, turnBinding, routeRetirement)
   }
   const { pendingStageIds, business, businessSatisfied } = summarizeStopObligations(
     state,

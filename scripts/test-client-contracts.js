@@ -47,6 +47,12 @@ const missingAdapterRepair = publicReadme.replaceAll('devcodex global-adapters a
 if (evaluatePublicReadmeContract(missingAdapterRepair).valid) {
   failures.push('public README without the global adapter repair command must fail its contract')
 }
+const missingSandboxRecovery = publicReadme
+  .replaceAll('sandbox-exec-denied', '')
+  .replaceAll('GLOBAL_HOST_TARGET_UNVERIFIED', '')
+if (evaluatePublicReadmeContract(missingSandboxRecovery).valid) {
+  failures.push('public README without Windows sandbox/runtime recovery diagnostics must fail its contract')
+}
 
 const readAbsolute = createCanonicalAwareReader(ROOT, file => fs.readFileSync(file, 'utf8'))
 const read = file => readAbsolute(path.join(ROOT, file))

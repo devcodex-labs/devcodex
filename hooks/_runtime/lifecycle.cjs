@@ -254,6 +254,7 @@ const {
   blockOutput,
   systemMessageOutput,
   contextMessageOutput,
+  formatProgressiveSkillRouteRecoveryCard,
   warningOutput,
   eventSupportsHardBlock
 } = buildLifecycleHookOutput({
@@ -1245,18 +1246,31 @@ function evaluateCurrentProgressiveSkillRoute (state, payload, platform, trigger
   })
 }
 
-function formatProgressiveSkillRouteEnvelope (coordination) {
-  if (coordination.noticeSuppressed) {
-    return 'Progressive Skill route remains blocked with no state change; continue with the previously emitted NextActionEnvelopeV1.'
+function progressiveSkillRouteOutputMeta (coordination, nextStep) {
+  const envelope = coordination.envelope || {}
+  return {
+    devcodexAction: INTERCEPTION_ACTION.REQUIRE_COMPLETION,
+    devcodexCode: 'progressive-skill-route',
+    devcodexEffective: true,
+    devcodexHookRunId: envelope.hookRunId,
+    devcodexStateFingerprint: envelope.stateFingerprint,
+    devcodexNextAction: envelope,
+    devcodexNextStep: nextStep
   }
-  return [
-    coordination.message || 'Progressive Skill route reconciliation is required.',
-    `NextActionEnvelopeV1: ${JSON.stringify(coordination.envelope)}`
-  ].join('\n')
+}
+
+function buildProgressiveSkillRouteContextOutput (eventName, coordination) {
+  const recoveryCard = formatProgressiveSkillRouteRecoveryCard(coordination)
+  return contextMessageOutput(
+    eventName,
+    recoveryCard,
+    progressiveSkillRouteOutputMeta(coordination, recoveryCard)
+  )
 }
 
 function buildProgressiveSkillRouteBlockOutput (state, platform, eventName, coordination) {
-  const reason = formatProgressiveSkillRouteEnvelope(coordination)
+  const reason = formatProgressiveSkillRouteRecoveryCard(coordination)
+  const meta = progressiveSkillRouteOutputMeta(coordination, reason)
   if (eventSupportsHardBlock(platform, eventName)) {
     recordInterception(
       state,
@@ -1270,26 +1284,21 @@ function buildProgressiveSkillRouteBlockOutput (state, platform, eventName, coor
     )
     return decorateHookOutput(
       blockOutput(platform, eventName, 'progressive-skill-route', reason),
-      {
-        devcodexAction: INTERCEPTION_ACTION.REQUIRE_COMPLETION,
-        devcodexCode: 'progressive-skill-route',
-        devcodexEffective: true,
-        devcodexHookRunId: coordination.envelope.hookRunId,
-        devcodexStateFingerprint: coordination.envelope.stateFingerprint,
-        devcodexNextAction: coordination.envelope,
-        devcodexNextStep: reason
-      }
+      meta
     )
   }
-  return buildInterceptionOutput(
-    state,
-    platform,
-    eventName,
-    INTERCEPTION_ACTION.REQUIRE_COMPLETION,
-    'progressive-skill-route',
-    'Progressive Skill route reconciliation required',
-    reason,
-    reason
+  return decorateHookOutput(
+    buildInterceptionOutput(
+      state,
+      platform,
+      eventName,
+      INTERCEPTION_ACTION.REQUIRE_COMPLETION,
+      'progressive-skill-route',
+      'Progressive Skill route reconciliation required',
+      reason,
+      reason
+    ),
+    meta
   )
 }
 
@@ -1924,10 +1933,7 @@ async function main() {
       ].includes(observedKind)) {
         state.lastReason = 'progressive-skill-route-next-action'
         saveState(state)
-        writeStdout(contextMessageOutput(
-          'PostToolUse',
-          formatProgressiveSkillRouteEnvelope(routeCoordination)
-        ))
+        writeStdout(buildProgressiveSkillRouteContextOutput('PostToolUse', routeCoordination))
         return
       }
     } catch (error) {
@@ -1962,10 +1968,7 @@ async function main() {
                 eventName,
                 routeCoordination
               )
-            : contextMessageOutput(
-                'PreCompact',
-                formatProgressiveSkillRouteEnvelope(routeCoordination)
-              )
+            : buildProgressiveSkillRouteContextOutput('PreCompact', routeCoordination)
           saveState(state)
           writeStdout(output)
           return

@@ -75,8 +75,13 @@ const contextRebindProbePrompt = buildS15HostPrompt({
 assert.match(contextRebindProbePrompt, /Call profile_context_plan a second time/)
 assert.match(contextRebindProbePrompt, /call skill_route rebind/)
 assert.match(contextRebindProbePrompt, /conditional replan is forbidden/)
-assert.match(contextRebindProbePrompt, /"docs"/)
+assert.strictEqual(
+  (contextRebindProbePrompt.match(/"changeTypes":\["source-code","testing"\]/g) || []).length,
+  2
+)
+assert.doesNotMatch(contextRebindProbePrompt, /"docs"/)
 assert.doesNotMatch(contextRebindProbePrompt, /"documentation"/)
+assert.match(contextRebindProbePrompt, /deliberately preserves the first plan semantics/)
 assert.match(contextRebindProbePrompt, /generation=1/)
 assert.doesNotMatch(contextRebindProbePrompt, /lateConditionId=test-validation/)
 assert.doesNotMatch(contextRebindProbePrompt, /execution:test-validation, then closeout/)
@@ -265,6 +270,24 @@ const structuredContinuation = normalizeHostPayload('codex', {
 assert.strictEqual(structuredContinuation.payload.devcodex_host_continuation, true)
 assert.strictEqual(structuredContinuation.payload.devcodex_route_continuation.structured, true)
 
+const structuredNextActionContinuation = normalizeHostPayload('codex', {
+  hookEventName: 'UserPromptSubmit',
+  devcodexNextAction: {
+    schemaVersion: 'NextActionEnvelopeV1',
+    devcodexCode: 'progressive-skill-route',
+    hookRunId: 'structured-envelope-hook',
+    stateFingerprint: 'b'.repeat(64),
+    nextCall: { op: 'load_stage', stageId: 'closeout' }
+  },
+  prompt: 'continue without a legacy text marker'
+})
+assert.strictEqual(structuredNextActionContinuation.payload.devcodex_host_continuation, true)
+assert.strictEqual(structuredNextActionContinuation.payload.devcodex_route_continuation.structured, true)
+assert.strictEqual(
+  structuredNextActionContinuation.payload.devcodex_route_continuation.hookRunId,
+  'structured-envelope-hook'
+)
+
 const copilotDeny = adaptHostOutput('copilot', 'preToolUse', {
   hookSpecificOutput: {
     permissionDecision: 'deny',
@@ -289,6 +312,14 @@ assert.deepStrictEqual(
   adaptHostOutput('copilot', 'agentStop', { decision: 'block', reason: 'continue closure' }),
   { decision: 'block', reason: 'continue closure' }
 )
+const copilotStructuredStop = adaptHostOutput('copilot', 'agentStop', {
+  decision: 'block',
+  reason: 'continue route',
+  devcodexCode: 'progressive-skill-route',
+  devcodexNextAction: { schemaVersion: 'NextActionEnvelopeV1', nextCall: { op: 'load_stage' } }
+})
+assert.strictEqual(copilotStructuredStop.devcodexCode, 'progressive-skill-route')
+assert.strictEqual(copilotStructuredStop.devcodexNextAction.nextCall.op, 'load_stage')
 assert.deepStrictEqual(
   adaptHostOutput('copilot', 'UserPromptSubmit', { decision: 'block', reason: 'must be ignored' }),
   {}
@@ -488,11 +519,15 @@ assert.strictEqual(
 const grokStop = adaptHostOutput('grok', 'Stop', {
   decision: 'block',
   reason: 'closure-incomplete',
-  systemMessage: 'DevCodex closure reminder'
+  systemMessage: 'DevCodex closure reminder',
+  devcodexCode: 'progressive-skill-route',
+  devcodexNextAction: { schemaVersion: 'NextActionEnvelopeV1', nextCall: { op: 'load_stage' } }
 })
 assert.strictEqual(grokStop.decision, 'block')
 assert.strictEqual(grokStop.reason, 'closure-incomplete')
 assert.strictEqual(grokStop.devcodexGrokEvidenceMode, 'stop-decision-block')
+assert.strictEqual(grokStop.devcodexCode, 'progressive-skill-route')
+assert.strictEqual(grokStop.devcodexNextAction.nextCall.op, 'load_stage')
 
 const grokStopAllow = adaptHostOutput('grok', 'Stop', { decision: 'allow' })
 assert.strictEqual(grokStopAllow.decision, 'allow')
@@ -676,6 +711,60 @@ assert.throws(() => completionRouteForHost('unknown'), error => error instanceof
 
 const { buildLifecycleHookOutput } = require('../hooks/_runtime/lifecycle-hook-output.cjs')
 const hookOut = buildLifecycleHookOutput({ env: process.env, enforcementMode: 'safety-only' })
+const structuredStopOutput = hookOut.decorateHookOutput(
+  hookOut.blockOutput('codex', 'Stop', 'progressive-skill-route', 'compact recovery card'),
+  {
+    devcodexCode: 'progressive-skill-route',
+    devcodexNextAction: { schemaVersion: 'NextActionEnvelopeV1', nextCall: { op: 'load_stage' } }
+  }
+)
+assert.strictEqual(structuredStopOutput.devcodexCode, 'progressive-skill-route')
+assert.strictEqual(structuredStopOutput.devcodexNextAction.nextCall.op, 'load_stage')
+assert.strictEqual(structuredStopOutput.hookSpecificOutput, undefined)
+const structuredToolOutput = hookOut.decorateHookOutput(
+  hookOut.blockOutput('codex', 'PreToolUse', 'progressive-skill-route', 'compact recovery card'),
+  { devcodexCode: 'progressive-skill-route' }
+)
+assert.strictEqual(structuredToolOutput.hookSpecificOutput.devcodexCode, 'progressive-skill-route')
+assert.strictEqual(structuredToolOutput.devcodexCode, undefined)
+const structuredContextOutput = hookOut.contextMessageOutput(
+  'PostToolUse',
+  'compact recovery card',
+  { devcodexCode: 'progressive-skill-route', devcodexNextAction: { nextCall: { op: 'load_stage' } } }
+)
+assert.strictEqual(structuredContextOutput.hookSpecificOutput.devcodexCode, 'progressive-skill-route')
+assert.strictEqual(structuredContextOutput.hookSpecificOutput.devcodexNextAction.nextCall.op, 'load_stage')
+const exactNextCall = { op: 'load_stage', project: 'sample', stageId: 'closeout' }
+const recoveryCard = hookOut.formatProgressiveSkillRouteRecoveryCard({
+  message: 'Progressive Skill route requires load_stage before unrelated work.',
+  envelope: {
+    schemaVersion: 'NextActionEnvelopeV1',
+    status: 'action-required',
+    nextOp: 'load_stage',
+    nextCall: exactNextCall,
+    contextBinding: { intentionally: 'not visible in fallback text' }
+  }
+})
+assert.match(recoveryCard, /Next call \(exact\): /)
+assert.ok(recoveryCard.includes(JSON.stringify(exactNextCall)))
+assert.doesNotMatch(recoveryCard, /NextActionEnvelopeV1:\s*\{/)
+assert.doesNotMatch(recoveryCard, /intentionally/)
+const noCallRecoveryCard = hookOut.formatProgressiveSkillRouteRecoveryCard({
+  message: 'Progressive Skill route reconciliation is required.',
+  envelope: {
+    status: 'blocked',
+    nextOp: null,
+    nextCall: null,
+    errorCode: 'CONTEXT_BINDING_MISMATCH'
+  }
+})
+assert.match(noCallRecoveryCard, /Route status: blocked; nextOp: none; errorCode: CONTEXT_BINDING_MISMATCH\./)
+const duplicateRecoveryCard = hookOut.formatProgressiveSkillRouteRecoveryCard({
+  noticeSuppressed: true,
+  envelope: { schemaVersion: 'NextActionEnvelopeV1', nextCall: exactNextCall }
+})
+assert.strictEqual(duplicateRecoveryCard.split(/\r?\n/).length, 1)
+assert.doesNotMatch(duplicateRecoveryCard, /NextActionEnvelopeV1/)
 assert.strictEqual(hookOut.eventSupportsHardBlock('grok', 'PreToolUse'), true)
 assert.strictEqual(hookOut.eventSupportsHardBlock('grok', 'UserPromptSubmit'), false)
 // Grok official Stop Decision Control: Stop/SubagentStop hard block is supported

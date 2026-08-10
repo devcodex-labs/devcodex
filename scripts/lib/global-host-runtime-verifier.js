@@ -4,6 +4,7 @@ const fs = require('fs')
 const path = require('path')
 const { spawnSync } = require('child_process')
 const { resolveGlobalHostTarget, samePath } = require('./global-host-target.js')
+const { inspectNodeRuntimeReadiness } = require('./node-runtime-readiness.js')
 
 const EXECUTABLE_ADAPTER_HOSTS = Object.freeze(['copilot', 'claude', 'codex', 'gemini', 'grok'])
 const NATIVE_COMMANDS = Object.freeze({
@@ -530,8 +531,34 @@ function verifyGlobalHostRuntime(options = {}) {
   const configuration = options.configuration || { hosts: [] }
   const cwd = path.resolve(options.cwd || process.cwd())
   const common = { fs: fsImpl, spawnSync: spawn, env, depth, timeoutMs: options.timeoutMs || 15000 }
+  const nodeRuntime = options.nodeRuntime || inspectNodeRuntimeReadiness({
+    fs: fsImpl,
+    spawnSync: spawn,
+    env,
+    timeoutMs: options.timeoutMs,
+    ...(options.nodeRuntimeOptions || {})
+  })
 
   const hosts = (configuration.hosts || []).map(configurationHost => {
+    if (configurationHost.inspectionStatus === 'UNVERIFIED') {
+      const configurationIssues = Array.isArray(configurationHost.configurationIssues)
+        ? configurationHost.configurationIssues
+        : []
+      return {
+        ...configurationHost,
+        configured: false,
+        adapterReady: false,
+        contractStatus: 'unverified',
+        nativeStatus: 'unverified',
+        operationalState: 'unverified',
+        ready: false,
+        issues: configurationIssues,
+        probes: {
+          adapter: { status: 'skipped', reasonCode: 'configuration-unverified' },
+          native: { status: 'skipped', reasonCode: 'configuration-unverified' }
+        }
+      }
+    }
     const target = resolveGlobalHostTarget(configurationHost.host, {
       env,
       home: options.home,
@@ -593,6 +620,7 @@ function verifyGlobalHostRuntime(options = {}) {
     configured: hosts.every(host => host.configured),
     ready: hosts.every(host => host.ready),
     overallState,
+    nodeRuntime,
     hosts
   }
 }

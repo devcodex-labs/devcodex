@@ -153,13 +153,15 @@ function resolveGlobalHostTarget(host, options = {}) {
   }
 
   const env = options.env || process.env
+  const fsImpl = options.fs || fs
   const home = resolveHome({ ...options, env })
   const root = hostRoot(normalized, home, env)
   const shared = resolveGlobalSharedTarget(home, env)
   const packageRoot = path.resolve(options.packageRoot || path.join(__dirname, '..', '..'))
   const runtimeGeneration = options.runtimeGeneration === false
     ? null
-    : (options.runtimeGeneration || buildRuntimeGeneration(packageRoot, options.fs || fs))
+    : (options.runtimeGeneration || buildRuntimeGeneration(packageRoot, fsImpl))
+  const finalizeTarget = target => assertTargetBoundary(target, fsImpl)
   const runtimeBaseRoot = path.join(root, 'devcodex')
   const common = {
     schemaVersion: GLOBAL_HOST_TARGET_SCHEMA,
@@ -180,7 +182,7 @@ function resolveGlobalHostTarget(host, options = {}) {
   if (normalized === 'copilot') {
     const vscodeMcpPaths = resolveVscodeUserMcpPaths(home, env)
     const vscodeUserDirs = [...new Set(vscodeMcpPaths.map(file => path.dirname(file)))]
-    return assertTargetBoundary({
+    return finalizeTarget({
       ...common,
       support: 'contract-fixture',
       evidenceCeiling: 'Copilot CLI user instructions, Hooks, MCP, and Skills; VS Code user mcp.json is co-refreshed with apply',
@@ -200,7 +202,7 @@ function resolveGlobalHostTarget(host, options = {}) {
     const mcpConfig = env.CLAUDE_CONFIG_DIR
       ? path.join(root, '.claude.json')
       : path.join(home, '.claude.json')
-    return assertTargetBoundary({
+    return finalizeTarget({
       ...common,
       support: 'contract-fixture',
       evidenceCeiling: 'user settings and MCP contract; direct Claude binary probe is environment-dependent',
@@ -213,7 +215,7 @@ function resolveGlobalHostTarget(host, options = {}) {
     })
   }
   if (normalized === 'codex') {
-    return assertTargetBoundary({
+    return finalizeTarget({
       ...common,
       support: 'direct-probe',
       evidenceCeiling: 'Codex CLI/app user configuration and global instruction projection',
@@ -226,7 +228,7 @@ function resolveGlobalHostTarget(host, options = {}) {
     })
   }
   if (normalized === 'gemini') {
-    return assertTargetBoundary({
+    return finalizeTarget({
       ...common,
       support: 'contract-fixture',
       evidenceCeiling: 'Gemini user settings contract; direct binary probe is environment-dependent',
@@ -236,7 +238,7 @@ function resolveGlobalHostTarget(host, options = {}) {
       }
     })
   }
-  return assertTargetBoundary({
+  return finalizeTarget({
     ...common,
     support: 'direct-probe',
     evidenceCeiling: 'Grok user plugin/config plus global launcher',

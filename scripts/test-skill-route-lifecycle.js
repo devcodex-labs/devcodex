@@ -326,6 +326,64 @@ function runLifecycle (fixture, payload = {}, env = {}, cwd = fixture.projectRoo
       'sessions',
       `${crypto.createHash('sha256').update(sessionId).digest('hex')}.json`
     )
+
+    const recoverySession = 'structured-recovery-card-session'
+    runLifecycle(fixture, {
+      session_id: recoverySession,
+      prompt: 'Inspect the current project with the progressive route'
+    }, {
+      DEVCODEX_HOST_PLATFORM: 'codex'
+    })
+    const recoveryState = JSON.parse(fs.readFileSync(sessionFile(recoverySession), 'utf8'))
+    const recoveryBootstrap = recoveryState.progressiveSkillRoute.bootstrap
+    const recoveryContextBinding = writeContextBindingState(
+      fixture,
+      recoveryState.contextAcquisition.contextEpoch,
+      'analyze',
+      recoverySession
+    )
+    let recoveryCatalogCursor = null
+    do {
+      const page = handleSkillRoute({
+        op: 'catalog',
+        project: fixture.project,
+        turnBinding: recoveryBootstrap.turnBinding,
+        contextEpoch: recoveryBootstrap.contextEpoch,
+        ...(recoveryCatalogCursor ? { cursor: recoveryCatalogCursor } : {})
+      }, fixture.runtimeOptions)
+      assert.strictEqual(page.ok, true, JSON.stringify(page))
+      recoveryCatalogCursor = page.receipt.nextCursor
+    } while (recoveryCatalogCursor)
+    const recoveryCommit = handleSkillRoute({
+      op: 'commit',
+      project: fixture.project,
+      turnBinding: recoveryBootstrap.turnBinding,
+      contextEpoch: recoveryBootstrap.contextEpoch,
+      catalogDigest: recoveryBootstrap.catalogDigest,
+      skillId: null,
+      contextBinding: recoveryContextBinding
+    }, fixture.runtimeOptions)
+    assert.strictEqual(recoveryCommit.ok, true, JSON.stringify(recoveryCommit))
+    assert(recoveryCommit.receipt.obligations.requiredStageIds.length > 0)
+
+    const recoveryStop = runLifecycle(fixture, {
+      hookEventName: 'Stop',
+      hook_run_id: 'structured-recovery-stop-1',
+      session_id: recoverySession,
+      lastAssistantMessage: 'The route is still pending.'
+    }, {
+      DEVCODEX_HOST_PLATFORM: 'codex'
+    })
+    assert.strictEqual(recoveryStop.output.decision, 'block')
+    assert.strictEqual(recoveryStop.output.devcodexCode, 'progressive-skill-route')
+    assert.strictEqual(recoveryStop.output.devcodexNextAction.schemaVersion, 'NextActionEnvelopeV1')
+    assert(recoveryStop.output.devcodexNextAction.nextCall)
+    assert.match(recoveryStop.output.reason, /Next call \(exact\): /)
+    assert.ok(recoveryStop.output.reason.includes(
+      JSON.stringify(recoveryStop.output.devcodexNextAction.nextCall)
+    ))
+    assert.doesNotMatch(recoveryStop.output.reason, /NextActionEnvelopeV1:\s*\{/)
+
     const parentBefore = JSON.parse(fs.readFileSync(sessionFile(parentSession), 'utf8'))
     const childBefore = JSON.parse(fs.readFileSync(sessionFile(childSession), 'utf8'))
     assert.notStrictEqual(

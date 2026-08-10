@@ -200,13 +200,14 @@ function buildPrompt ({ contextEpoch, hostId, project, skillId, exerciseContextR
         'Call profile_context_plan a second time with:',
         JSON.stringify({
           intent: 'dev',
-          changeTypes: ['source-code', 'testing', 'docs'],
+          changeTypes: ['source-code', 'testing'],
           contextEpoch,
           project,
           host: hostId,
           risk: 'normal',
           confidence: 1
         }),
+        'The second profile_context_plan deliberately preserves the first plan semantics. Semantic-drift rejection is covered by a separate negative test and must never be weakened for this probe.',
         'The second profile_context_plan is not a terminal action. Its immediate next MCP calls must be profile_load, memory_status, then skill_route rebind; do not attempt a final answer between them.',
         'Use only the second plan binding for profile_load with its selectedFiles verbatim and memory_status with the same non-binding arguments as before.',
         'Require the refreshed lifecycle receipt to be relevant-complete, then call skill_route rebind with exactly: op, project, turnBinding, contextEpoch, generation, planDigest, contextBinding. Use generation and planDigest from the first committed plan and contextBinding from the second ContextRead plan.',

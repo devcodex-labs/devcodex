@@ -1016,6 +1016,62 @@ if (physicalEscapeProbeCreated) {
   }), /GLOBAL_HOST_OPERATION_OUTSIDE_ROOT/)
 }
 
+const deniedCodexRoot = path.resolve(env.CODEX_HOME)
+const deniedCodexFs = Object.create(fs)
+deniedCodexFs.realpathSync = targetPath => {
+  const resolved = path.resolve(targetPath)
+  if (resolved === deniedCodexRoot || resolved.startsWith(`${deniedCodexRoot}${path.sep}`)) {
+    const error = new Error(`sandbox denied realpath for ${resolved}`)
+    error.code = 'EPERM'
+    throw error
+  }
+  return fs.realpathSync(targetPath)
+}
+deniedCodexFs.realpathSync.native = deniedCodexFs.realpathSync
+const permissionIsolatedInspection = inspectGlobalHostConfiguration({
+  packageRoot,
+  env,
+  home,
+  fs: deniedCodexFs
+})
+const permissionDeniedCodex = permissionIsolatedInspection.hosts.find(item => item.host === 'codex')
+assert.strictEqual(permissionIsolatedInspection.ready, false)
+assert.strictEqual(permissionDeniedCodex.inspectionStatus, 'UNVERIFIED')
+assert.strictEqual(permissionDeniedCodex.configured, false)
+assert.strictEqual(permissionDeniedCodex.ready, false)
+assert.strictEqual(permissionDeniedCodex.configurationIssues.length, 1)
+assert.strictEqual(permissionDeniedCodex.configurationIssues[0].code, 'GLOBAL_HOST_TARGET_UNVERIFIED')
+assert.strictEqual(permissionDeniedCodex.configurationIssues[0].reasonCode, 'sandbox-read-denied')
+assert.strictEqual(permissionDeniedCodex.configurationIssues[0].errorCode, 'EPERM')
+assert.ok(permissionDeniedCodex.configurationIssues[0].evidence.length <= 512)
+assert.ok(permissionIsolatedInspection.hosts
+  .filter(item => item.host !== 'codex')
+  .every(item => item.inspectionStatus === 'PASS'))
+assert.throws(
+  () => buildGlobalHostConfigPlan({ packageRoot, env, home, fs: deniedCodexFs }),
+  error => error && error.code === 'EPERM'
+)
+assert.throws(
+  () => applyGlobalHostConfig({ packageRoot, env, home, fs: deniedCodexFs, dryRun: true }),
+  error => error && error.code === 'EPERM'
+)
+
+const unexpectedTargetFailureFs = Object.create(fs)
+unexpectedTargetFailureFs.realpathSync = targetPath => {
+  const resolved = path.resolve(targetPath)
+  if (resolved === deniedCodexRoot || resolved.startsWith(`${deniedCodexRoot}${path.sep}`)) {
+    const error = new Error('injected non-permission realpath failure')
+    error.code = 'EIO'
+    throw error
+  }
+  return fs.realpathSync(targetPath)
+}
+unexpectedTargetFailureFs.realpathSync.native = unexpectedTargetFailureFs.realpathSync
+assert.throws(
+  () => inspectGlobalHostConfiguration({ packageRoot, env, home, fs: unexpectedTargetFailureFs }),
+  error => error && error.code === 'EIO'
+)
+
 const cleanupRoot = path.join(tmp, 'cleanup')
 fs.mkdirSync(cleanupRoot, { recursive: true })
 const cleanupFirst = path.join(cleanupRoot, 'first.txt')

@@ -6,6 +6,7 @@ const path = require('path')
 const { isDeepStrictEqual } = require('util')
 const {
   GLOBAL_HOST_IDS,
+  resolveGlobalHostTarget,
   resolveGlobalHostTargets,
   samePath,
   targetAcceptsPath,
@@ -51,6 +52,54 @@ const GLOBAL_HOST_RECEIPT_SCHEMA = 'GlobalHostConfigReceiptV1'
 const { buildRuntimeGeneration } = require('./runtime-generation.js')
 const PACKAGE_ROOT = path.resolve(__dirname, '..', '..')
 const MCP_RUNTIME_DEPS = Object.freeze(collectRuntimeScriptDeps(PACKAGE_ROOT))
+const INSPECTION_RESOLVED_TARGETS = Symbol('inspectionResolvedTargets')
+const INSPECTION_SHARED_RUNTIME_OWNER = Symbol('inspectionSharedRuntimeOwner')
+
+function isHostTargetPermissionError(error) {
+  return error && (error.code === 'EPERM' || error.code === 'EACCES')
+}
+
+function boundedHostTargetEvidence(error) {
+  const message = String(error?.message || error?.code || 'Host target access was denied.')
+  return message.length > 512 ? `${message.slice(0, 509)}...` : message
+}
+
+function buildHostTargetUnverifiedIssue(error) {
+  return {
+    code: 'GLOBAL_HOST_TARGET_UNVERIFIED',
+    phase: 'configuration',
+    reasonCode: 'sandbox-read-denied',
+    errorCode: error.code,
+    evidence: boundedHostTargetEvidence(error),
+    nextStep: 'Grant read access to this host configuration directory, then rerun `devcodex status`.'
+  }
+}
+
+function buildUnverifiedHostInspection(host, issue) {
+  return {
+    host,
+    support: 'unverified',
+    root: null,
+    receiptFile: null,
+    runtimeEntry: null,
+    configFilesDeclared: 0,
+    invalidConfigFiles: [],
+    invalidPendingStaleManagedPaths: [],
+    pendingStaleManagedPaths: [],
+    missingConfigFiles: [],
+    missingEntrypoints: [],
+    driftedConfigFiles: [],
+    configured: false,
+    configurationIssues: [issue],
+    receiptFieldsComplete: false,
+    receiptMatchesCurrent: false,
+    ready: false,
+    stale: false,
+    packageVersion: null,
+    error: issue.evidence,
+    inspectionStatus: 'UNVERIFIED'
+  }
+}
 
 function portable(filePath) {
   return path.resolve(filePath).replace(/\\/g, '/')
@@ -948,7 +997,7 @@ function buildGlobalHostConfigPlan(options = {}) {
   const runtimeGeneration = buildRuntimeGeneration(packageRoot, fsImpl)
   const env = options.env || process.env
   const skillsDeployMode = resolveSkillsDeployMode(env, options)
-  const targets = resolveGlobalHostTargets({
+  const targets = options[INSPECTION_RESOLVED_TARGETS] || resolveGlobalHostTargets({
     env,
     home: options.home,
     hosts: options.hosts || GLOBAL_HOST_IDS,
@@ -956,9 +1005,11 @@ function buildGlobalHostConfigPlan(options = {}) {
     fs: fsImpl,
     runtimeGeneration
   })
-  const sharedRuntimeOwnerHost = targets.some(target => target.host === 'codex')
-    ? 'codex'
-    : targets[0]?.host
+  const sharedRuntimeOwnerHost = options[INSPECTION_SHARED_RUNTIME_OWNER] || (
+    targets.some(target => target.host === 'codex')
+      ? 'codex'
+      : targets[0]?.host
+  )
   const hostPlans = []
   const managedSkillIds = listManagedSkillIds(packageRoot)
   // Hidden mode must also remove gray/historical package skill dirs from L1 scan roots
@@ -1425,26 +1476,53 @@ function inspectGlobalHostConfiguration(options = {}) {
   const packageRoot = path.resolve(options.packageRoot || path.join(__dirname, '..', '..'))
   const packageJson = readPackage(packageRoot, fsImpl)
   const runtimeGeneration = buildRuntimeGeneration(packageRoot, fsImpl)
-  const targets = resolveGlobalHostTargets({
-    env: options.env || process.env,
-    home: options.home,
-    hosts: options.hosts || GLOBAL_HOST_IDS,
-    packageRoot,
-    fs: fsImpl,
-    runtimeGeneration
+  const requestedHosts = options.hosts || GLOBAL_HOST_IDS
+  const targetResults = requestedHosts.map(host => {
+    try {
+      return {
+        host,
+        target: resolveGlobalHostTarget(host, {
+          env: options.env || process.env,
+          home: options.home,
+          packageRoot,
+          fs: fsImpl,
+          runtimeGeneration
+        }),
+        issue: null
+      }
+    } catch (error) {
+      if (!isHostTargetPermissionError(error)) throw error
+      return {
+        host,
+        target: null,
+        issue: buildHostTargetUnverifiedIssue(error)
+      }
+    }
   })
+  const targets = targetResults.flatMap(result => result.target ? [result.target] : [])
+  const sharedRuntimeOwnerHost = requestedHosts.includes('codex')
+    ? 'codex'
+    : requestedHosts[0]
   const expectedPlan = buildGlobalHostConfigPlan({
     ...options,
     fs: fsImpl,
     packageRoot,
-    ignoreExistingReceipts: true
+    ignoreExistingReceipts: true,
+    [INSPECTION_RESOLVED_TARGETS]: targets,
+    [INSPECTION_SHARED_RUNTIME_OWNER]: sharedRuntimeOwnerHost
   })
-  const hosts = targets.map(target => {
+  const hosts = targetResults.map(result => {
+    if (!result.target) {
+      return buildUnverifiedHostInspection(result.host, result.issue)
+    }
+    const target = result.target
+    try {
     let receipt = null
     let error = null
     try {
       receipt = parseJsonObject(readText(target.receiptFile, fsImpl), `${target.host} receipt`)
     } catch (caught) {
+      if (isHostTargetPermissionError(caught)) throw caught
       error = caught.message
     }
     const runtimeEntry = path.join(target.runtimeRoot, 'hooks', '_runtime', 'lifecycle-host-adapters.cjs')
@@ -1652,7 +1730,15 @@ function inspectGlobalHostConfiguration(options = {}) {
       ready,
       stale,
       packageVersion: receipt?.packageVersion || null,
-      error
+      error,
+      inspectionStatus: 'PASS'
+    }
+    } catch (error) {
+      if (!isHostTargetPermissionError(error)) throw error
+      return buildUnverifiedHostInspection(
+        result.host,
+        buildHostTargetUnverifiedIssue(error)
+      )
     }
   })
   return {

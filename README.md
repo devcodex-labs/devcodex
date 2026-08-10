@@ -358,6 +358,36 @@ Get-Command devcodex
 npm root -g
 ```
 
+### “帮我审批”时反复重新连接，是否必须开启完全访问？
+
+不需要永久开启 Full access。“帮我审批”仍受 workspace 沙箱约束；它只决定符合条件的越界动作如何审批，不会自动扩大文件系统或可执行文件范围。先运行：
+
+```powershell
+Get-Command node
+node --version
+devcodex doctor
+devcodex doctor --json
+```
+
+重点看两类诊断：
+
+| 诊断 | 含义与恢复 |
+|------|------------|
+| `node runtime BLOCK (... reason=sandbox-exec-denied)` | ambient Node launcher 在 DevCodex JavaScript 启动前被沙箱拒绝，Hook 此时无法自我恢复。对该 launcher 做一次明确审批，或改用路径稳定、可受信任的系统 Node，然后重跑 `devcodex doctor`。Volta、NVM、FNM、asdf 等 shim 更新物理路径后可能需要重新批准。 |
+| 某个宿主为 `unverified`，JSON 含 `GLOBAL_HOST_TARGET_UNVERIFIED` / `sandbox-read-denied` | 只表示该用户级宿主目录在当前沙箱中不可读；其他宿主仍会继续检查。批准读取该目录后重试即可，不代表必须给整个 Codex 完全访问权限。 |
+
+如果界面只显示 Skill Route `blocked` 或一个待执行 `nextCall`，它表达的是工作流仍有待办，不足以证明是权限问题；`BUDGET_BLOCKED` 则表示当前路由预算耗尽且没有可执行恢复动作，同样不是权限证据。`REBIND_SEMANTIC_DRIFT` 表示刷新后的任务语义已经改变，旧路由会立即退役且不再重试；下一条真实用户消息会建立新路由。新版本会把可见恢复信息压缩为当前精确动作或 typed 状态，完整 `NextActionEnvelopeV1` 只保留在结构化机器字段中；不会自动重放修改性操作。
+
+若更新后仍看到整段原始 envelope 或旧的重复提醒，通常是旧任务仍绑定启动时运行态。执行：
+
+```bash
+npm update -g devcodex
+devcodex global-adapters apply
+devcodex doctor
+```
+
+然后完全关闭旧任务并新建任务。完全访问可以作为短时诊断对照，但不是默认修复方案。
+
 ## 更新
 
 ```bash

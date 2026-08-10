@@ -1229,25 +1229,6 @@ try {
     assert.strictEqual(foreignSessionStop.complete, true)
     assert.strictEqual(foreignSessionStop.ignoredReason, 'HOST_SESSION_MISMATCH')
 
-    const driftBinding = writeContextBindingState(
-      rebindFixture,
-      rebindEpoch,
-      'fix',
-      rebindSession,
-      '-drift'
-    )
-    const semanticDrift = handleSkillRoute({
-      op: 'rebind',
-      project: rebindFixture.project,
-      turnBinding: rebindBoot.bootstrap.turnBinding,
-      contextEpoch: rebindEpoch,
-      generation: firstCommit.receipt.plan.generation,
-      planDigest: firstCommit.receipt.plan.planDigest,
-      contextBinding: driftBinding
-    }, rebindFixture.runtimeOptions)
-    assert.strictEqual(semanticDrift.ok, false)
-    assert.strictEqual(semanticDrift.errorCode, 'REBIND_SEMANTIC_DRIFT')
-
     const freshBinding = writeContextBindingState(
       rebindFixture,
       rebindEpoch,
@@ -1293,16 +1274,137 @@ try {
       ).envelope.state.decision.skillId,
       'workspace-probe'
     )
-    loadStageAll(
+
+    // A real semantic change is never rebound in place. It atomically retires
+    // the old route so Status and Stop cannot replay the rejected rebind.
+    const driftBinding = writeContextBindingState(
       rebindFixture,
-      {
-        turnBinding: rebindBoot.bootstrap.turnBinding,
-        contextEpoch: rebindEpoch,
-        generation: rebound.receipt.plan.generation,
-        planDigest: rebound.receipt.plan.planDigest
-      },
-      'closeout'
+      rebindEpoch,
+      'fix',
+      rebindSession,
+      '-drift'
     )
+    const semanticDrift = handleSkillRoute({
+      op: 'rebind',
+      project: rebindFixture.project,
+      turnBinding: rebindBoot.bootstrap.turnBinding,
+      contextEpoch: rebindEpoch,
+      generation: rebound.receipt.plan.generation,
+      planDigest: rebound.receipt.plan.planDigest,
+      contextBinding: driftBinding
+    }, rebindFixture.runtimeOptions)
+    assert.strictEqual(semanticDrift.ok, false)
+    assert.strictEqual(semanticDrift.errorCode, 'REBIND_SEMANTIC_DRIFT')
+    assert.strictEqual(semanticDrift.stateChanged, true)
+    assert.strictEqual(semanticDrift.details.terminal, true)
+    assert.strictEqual(semanticDrift.details.retrySameCall, false)
+    assert.strictEqual(
+      semanticDrift.details.action,
+      'retire-and-rebootstrap-next-user-prompt'
+    )
+    assert(!semanticDrift.nextStep.includes('retry the same'))
+
+    const retiredEnvelope = loadEnvelope(
+      rebindFixture.activeRoot,
+      rebindBoot.bootstrap.turnBinding,
+      rebindFixture.runtimeOptions
+    ).envelope
+    assert.strictEqual(
+      retiredEnvelope.state.routeRetirement.reasonCode,
+      'REBIND_SEMANTIC_DRIFT'
+    )
+    assert.strictEqual(retiredEnvelope.state.routeRetirement.terminal, true)
+
+    const retiredStatus = handleSkillRoute({
+      op: 'status',
+      project: rebindFixture.project,
+      turnBinding: rebindBoot.bootstrap.turnBinding,
+      contextEpoch: rebindEpoch
+    }, rebindFixture.runtimeOptions)
+    assert.strictEqual(retiredStatus.ok, true)
+    assert.strictEqual(retiredStatus.receipt.retired, true)
+    assert.strictEqual(
+      retiredStatus.receipt.nextAction.errorCode,
+      'REBIND_SEMANTIC_DRIFT'
+    )
+    assert.strictEqual(retiredStatus.receipt.nextAction.nextOp, null)
+    assert.strictEqual(retiredStatus.receipt.nextAction.nextCall, null)
+    assert.strictEqual(
+      retiredStatus.receipt.nextAction.recovery.retrySameCall,
+      false
+    )
+
+    const retiredStop = evaluateProgressiveSkillRouteStop({
+      project: rebindFixture.project,
+      contextEpoch: rebindEpoch,
+      hostSessionId: rebindSession,
+      assistantText: 'Still working.'
+    }, rebindFixture.runtimeOptions)
+    assert.strictEqual(retiredStop.complete, true)
+    assert.strictEqual(retiredStop.retired, true)
+    assert.strictEqual(retiredStop.retirementReason, 'REBIND_SEMANTIC_DRIFT')
+    assert.strictEqual(retiredStop.processComplete, false)
+    assert.strictEqual(retiredStop.nextOp, null)
+    assert.strictEqual(retiredStop.nextCall, null)
+    assert.strictEqual(retiredStop.recovery.retrySameCall, false)
+    assert.strictEqual(
+      shouldEnforceProgressiveSkillRouteStop(retiredStop, true),
+      false
+    )
+
+    const postRetirementLoad = handleSkillRoute({
+      op: 'load_stage',
+      project: rebindFixture.project,
+      turnBinding: rebindBoot.bootstrap.turnBinding,
+      contextEpoch: rebindEpoch,
+      generation: rebound.receipt.plan.generation,
+      planDigest: rebound.receipt.plan.planDigest,
+      stageId: 'closeout'
+    }, rebindFixture.runtimeOptions)
+    assert.strictEqual(postRetirementLoad.ok, false)
+    assert.strictEqual(postRetirementLoad.op, 'load_stage')
+    assert.strictEqual(postRetirementLoad.errorCode, 'REBIND_SEMANTIC_DRIFT')
+    assert.strictEqual(postRetirementLoad.stateChanged, false)
+    assert.strictEqual(postRetirementLoad.details.retrySameCall, false)
+
+    const postRetirementCommit = handleSkillRoute({
+      op: 'commit',
+      project: rebindFixture.project,
+      turnBinding: rebindBoot.bootstrap.turnBinding,
+      contextEpoch: rebindEpoch,
+      catalogDigest: rebindBoot.bootstrap.catalogDigest,
+      skillId: 'workspace-probe',
+      contextBinding: driftBinding
+    }, rebindFixture.runtimeOptions)
+    assert.strictEqual(postRetirementCommit.ok, false)
+    assert.strictEqual(postRetirementCommit.op, 'commit')
+    assert.strictEqual(postRetirementCommit.errorCode, 'REBIND_SEMANTIC_DRIFT')
+    assert.strictEqual(postRetirementCommit.stateChanged, false)
+    assert.strictEqual(postRetirementCommit.details.retrySameCall, false)
+
+    const postRetirementBinding = writeContextBindingState(
+      rebindFixture,
+      rebindEpoch,
+      'dev',
+      rebindSession,
+      '-post-retirement'
+    )
+    const postRetirementRebind = handleSkillRoute({
+      op: 'rebind',
+      project: rebindFixture.project,
+      turnBinding: rebindBoot.bootstrap.turnBinding,
+      contextEpoch: rebindEpoch,
+      generation: rebound.receipt.plan.generation,
+      planDigest: rebound.receipt.plan.planDigest,
+      contextBinding: postRetirementBinding
+    }, rebindFixture.runtimeOptions)
+    assert.strictEqual(postRetirementRebind.ok, false)
+    assert.strictEqual(
+      postRetirementRebind.errorCode,
+      'REBIND_SEMANTIC_DRIFT'
+    )
+    assert.strictEqual(postRetirementRebind.stateChanged, false)
+    assert.strictEqual(postRetirementRebind.details.retrySameCall, false)
   } finally {
     rebindFixture.cleanup()
   }

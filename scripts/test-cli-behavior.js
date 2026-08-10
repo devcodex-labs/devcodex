@@ -385,6 +385,7 @@ function testDoctorAvoidsCodexBiasInMixedHostRepo() {
   assert.match(output, /workspace hosts:\s+codex, claude-code, copilot \(legacy\)/)
   assert.match(output, /global adapters:\s+\d\/5 ready/)
   assert.match(output, /native hosts:\s+\d\/5 ready/)
+  assert.match(output, /node runtime:\s+(?:PASS|WARN|BLOCK|UNVERIFIED)/)
 
   fs.rmSync(root, { recursive: true, force: true })
 }
@@ -409,6 +410,7 @@ function testMachineReadableDiagnosticsAndStableErrors() {
 
   const statusHuman = runCli(['status'], root)
   assert.match(statusHuman, /DevCodex status/)
+  assert.match(statusHuman, /node runtime\s+(?:PASS|WARN|BLOCK|UNVERIFIED)/)
   assert.match(statusHuman, /governance/)
   assert.doesNotMatch(statusHuman, /DevCodexCliEnvelopeV1/)
 
@@ -423,6 +425,8 @@ function testMachineReadableDiagnosticsAndStableErrors() {
   assert.strictEqual(status.payload.globalHostComparison.schemaVersion, 'GlobalHostDiagnosticScopeV1')
   assert.strictEqual(status.payload.globalHostComparison.scope, 'installed-package-vs-user-global-receipts')
   assert.strictEqual(status.payload.globalHostComparison.installedHealthClaim, true)
+  assert.strictEqual(status.payload.globalHostRuntime.nodeRuntime.schemaVersion, 'NodeRuntimeReadinessV1')
+  assert.match(status.payload.globalHostRuntime.nodeRuntime.status, /^(?:PASS|WARN|BLOCK|UNVERIFIED)$/)
   assert.deepStrictEqual(status.payload.globalHostComparison.candidateMismatchHosts, [])
   assert.ok(Array.isArray(status.payload.globalHostComparison.adapterIssueHosts))
   assert.strictEqual(status.payload.hostParity.diagnosticScope, 'installed-package-vs-user-global-receipts')
@@ -454,6 +458,7 @@ function testMachineReadableDiagnosticsAndStableErrors() {
   assert.strictEqual(doctor.payload.globalHostComparison.installedHealthClaim, true)
   assert.strictEqual(doctor.payload.hostParity.diagnosticScope, 'installed-package-vs-user-global-receipts')
   assert.strictEqual(doctor.payload.hostParity.installedHealthClaim, true)
+  assert.strictEqual(doctor.payload.globalHostRuntime.nodeRuntime.schemaVersion, 'NodeRuntimeReadinessV1')
   assert.strictEqual(doctor.payload.executionOptimization.config.effective, 'safe-auto')
   assert.deepStrictEqual(doctor.payload.hostConfigPolicy, status.payload.hostConfigPolicy)
   assert.strictEqual(doctor.payload.governanceSummary.schemaVersion, 'GovernanceStatusSummaryV1')

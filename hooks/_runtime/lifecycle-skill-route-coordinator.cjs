@@ -384,8 +384,8 @@ function reconcileProgressiveSkillRoute (state, routeStop, input = {}) {
     envelope,
     action: expected.action,
     message: circuitOpen
-      ? `Progressive Skill route made no durable progress after ${noProgressCount} reconciliation attempts. Execute the exact actionable field in this NextActionEnvelopeV1; do not replay an older hook instruction.`
-      : `Progressive Skill route requires ${routeStop?.nextOp || 'completion'} before unrelated work. Use the exact NextActionEnvelopeV1 below.`
+      ? `Progressive Skill route made no durable progress after ${noProgressCount} reconciliation attempts. Execute the exact actionable field in the structured recovery card; do not replay an older hook instruction.`
+      : `Progressive Skill route requires ${routeStop?.nextOp || 'completion'} before unrelated work. Use the exact next call in the structured recovery card.`
   }
 }
 

@@ -361,6 +361,19 @@ function isProgressiveSkillRouteContinuation (host, originalEvent, payload = {})
   }
 }
 
+function collectDevcodexMetadata (...containers) {
+  const metadata = {}
+  for (const container of containers) {
+    if (!container || typeof container !== 'object' || Array.isArray(container)) continue
+    for (const [key, value] of Object.entries(container)) {
+      if (key.startsWith('devcodex') && value !== undefined && value !== null && value !== '') {
+        metadata[key] = value
+      }
+    }
+  }
+  return metadata
+}
+
 function normalizeHostPayload(host, payload) {
   const originalEvent = String(
     payload?.hookEventName || payload?.hook_event_name || payload?.eventName || payload?.event || ''
@@ -483,6 +496,7 @@ function adaptGrokOutput(originalEvent, output) {
   }
 
   const event = normalizeEventToken(originalEvent)
+  const metadata = collectDevcodexMetadata(value, value.hookSpecificOutput)
   const isPreTool = event === 'pretooluse'
   const isStop = event === 'stop' || event === 'subagentstop' || event === 'agentstop'
   const permission = value.hookSpecificOutput?.permissionDecision
@@ -495,10 +509,10 @@ function adaptGrokOutput(originalEvent, output) {
 
   if (isPreTool) {
     if (wantsDeny) {
-      return Object.freeze({ decision: 'deny', reason: String(reason) })
+      return Object.freeze({ decision: 'deny', reason: String(reason), ...metadata })
     }
     if (wantsAllow) {
-      return Object.freeze({ decision: 'allow' })
+      return Object.freeze({ decision: 'allow', ...metadata })
     }
     // noop / continue-only: Grok treats exit 0 as allow; keep minimal shape.
     if (value.continue === true || value.continue === undefined) {
@@ -513,14 +527,15 @@ function adaptGrokOutput(originalEvent, output) {
       return Object.freeze({
         decision: 'block',
         reason: String(reason || 'DevCodex requires another agent turn.'),
+        ...metadata,
         devcodexGrokEvidenceMode: 'stop-decision-block'
       })
     }
     if (value.decision === 'allow') {
-      return Object.freeze({ decision: 'allow', devcodexGrokEvidenceMode: 'stop-decision-allow' })
+      return Object.freeze({ decision: 'allow', ...metadata, devcodexGrokEvidenceMode: 'stop-decision-allow' })
     }
     // Soft reminder only
-    const soft = { continue: true, devcodexGrokEvidenceMode: 'stop-soft' }
+    const soft = { continue: true, ...metadata, devcodexGrokEvidenceMode: 'stop-soft' }
     if (value.systemMessage) soft.systemMessage = value.systemMessage
     if (value.hookSpecificOutput && typeof value.hookSpecificOutput === 'object') {
       soft.hookSpecificOutput = { ...value.hookSpecificOutput }
@@ -549,6 +564,7 @@ function adaptCopilotOutput(originalEvent, output, input = {}) {
   const specific = value.hookSpecificOutput && typeof value.hookSpecificOutput === 'object'
     ? value.hookSpecificOutput
     : {}
+  const metadata = collectDevcodexMetadata(value, specific)
 
   if (event === 'pretooluse') {
     const permission = specific.permissionDecision || value.permissionDecision
@@ -567,7 +583,8 @@ function adaptCopilotOutput(originalEvent, output, input = {}) {
         : {}),
       ...(value.modifiedArgs && typeof value.modifiedArgs === 'object'
         ? { modifiedArgs: value.modifiedArgs }
-        : {})
+        : {}),
+      ...metadata
     }
   }
 
@@ -579,7 +596,8 @@ function adaptCopilotOutput(originalEvent, output, input = {}) {
         : {}),
       ...(value.modifiedResult && typeof value.modifiedResult === 'object'
         ? { modifiedResult: value.modifiedResult }
-        : {})
+        : {}),
+      ...metadata
     }
   }
 
@@ -605,10 +623,11 @@ function adaptCopilotOutput(originalEvent, output, input = {}) {
     if (value.decision === 'block') {
       return {
         decision: 'block',
-        reason: String(value.reason || 'DevCodex requires another agent turn.')
+        reason: String(value.reason || 'DevCodex requires another agent turn.'),
+        ...metadata
       }
     }
-    return value.decision === 'allow' ? { decision: 'allow' } : {}
+    return value.decision === 'allow' ? { decision: 'allow', ...metadata } : {}
   }
 
   // userPromptSubmitted and preCompact are notification-only in Copilot CLI.

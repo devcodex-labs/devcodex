@@ -1,5 +1,25 @@
 'use strict'
 
+function formatProgressiveSkillRouteRecoveryCard(coordination) {
+  if (coordination.noticeSuppressed) {
+    return 'Progressive Skill route remains blocked with no state change; continue with the previously emitted structured next action.'
+  }
+  const envelope = coordination.envelope || {}
+  const lines = [coordination.message || 'Progressive Skill route reconciliation is required.']
+  if (envelope.nextCall && typeof envelope.nextCall === 'object') {
+    lines.push(`Next call (exact): ${JSON.stringify(envelope.nextCall)}`)
+  } else {
+    lines.push(
+      `Route status: ${envelope.status || 'blocked'}; ` +
+      `nextOp: ${envelope.nextOp || 'none'}; ` +
+      `errorCode: ${envelope.errorCode || 'none'}.`
+    )
+    if (envelope.mustReplyCore) lines.push(`Required reply: ${envelope.mustReplyCore}`)
+    if (envelope.recovery?.action) lines.push(`Recovery: ${envelope.recovery.action}`)
+  }
+  return lines.join('\n')
+}
+
 function buildLifecycleHookOutput({ env, enforcementMode }) {
   function detectPlatform(payload) {
     const explicitHost = String(env.DEVCODEX_HOST_PLATFORM || '').trim().toLowerCase()
@@ -37,15 +57,16 @@ function buildLifecycleHookOutput({ env, enforcementMode }) {
 
   function decorateHookOutput(output, meta = {}) {
     if (!meta || !Object.keys(meta).length) return output
-    if (!output?.hookSpecificOutput || !Object.prototype.hasOwnProperty.call(output.hookSpecificOutput, 'permissionDecision')) {
-      return output
-    }
     const next = { ...output }
-    const hookSpecificOutput = { ...(next.hookSpecificOutput || {}) }
+    const hasPermissionCarrier = next?.hookSpecificOutput &&
+      Object.prototype.hasOwnProperty.call(next.hookSpecificOutput, 'permissionDecision')
+    const target = hasPermissionCarrier
+      ? { ...next.hookSpecificOutput }
+      : next
     for (const [key, value] of Object.entries(meta)) {
-      if (value !== undefined && value !== null && value !== '') hookSpecificOutput[key] = value
+      if (value !== undefined && value !== null && value !== '') target[key] = value
     }
-    if (Object.keys(hookSpecificOutput).length) next.hookSpecificOutput = hookSpecificOutput
+    if (hasPermissionCarrier) next.hookSpecificOutput = target
     return next
   }
 
@@ -111,14 +132,18 @@ function buildLifecycleHookOutput({ env, enforcementMode }) {
     return { continue: true, systemMessage: message }
   }
 
-  function contextMessageOutput(eventName, message) {
+  function contextMessageOutput(eventName, message, meta = {}) {
+    const hookSpecificOutput = {
+      hookEventName: eventName,
+      additionalContext: message
+    }
+    for (const [key, value] of Object.entries(meta || {})) {
+      if (value !== undefined && value !== null && value !== '') hookSpecificOutput[key] = value
+    }
     return {
       continue: true,
       systemMessage: message,
-      hookSpecificOutput: {
-        hookEventName: eventName,
-        additionalContext: message
-      }
+      hookSpecificOutput
     }
   }
 
@@ -157,6 +182,7 @@ function buildLifecycleHookOutput({ env, enforcementMode }) {
     blockOutput,
     systemMessageOutput,
     contextMessageOutput,
+    formatProgressiveSkillRouteRecoveryCard,
     warningOutput,
     eventSupportsHardBlock,
     normalizeHookEvent
@@ -164,5 +190,6 @@ function buildLifecycleHookOutput({ env, enforcementMode }) {
 }
 
 module.exports = {
-  buildLifecycleHookOutput
+  buildLifecycleHookOutput,
+  formatProgressiveSkillRouteRecoveryCard
 }

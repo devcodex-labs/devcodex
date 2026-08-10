@@ -46,6 +46,9 @@ const {
   validateCapabilityDocument
 } = require('../hooks/_runtime/skill-route-mode.cjs')
 const {
+  getGrokLauncherAdapterDigest
+} = require('./lib/grok-workspace-launcher')
+const {
   assertReplanProgressCompatible,
   preserveCompatibleStageProgress
 } = require('../hooks/_runtime/skill-route-tool.cjs')
@@ -586,6 +589,12 @@ try {
   assert.strictEqual(validateCapabilityDocument(capabilities, {
     packageRoot: fixture.packageRoot
   }).valid, true)
+  for (const capability of capabilities.capabilities.filter(item => item.status === 'PASS')) {
+    const sourceEvidencePath = path.join(fixture.packageRoot, capability.evidenceRef)
+    const fixtureEvidencePath = path.join(fixture.root, capability.evidenceRef)
+    fs.mkdirSync(path.dirname(fixtureEvidencePath), { recursive: true })
+    fs.copyFileSync(sourceEvidencePath, fixtureEvidencePath)
+  }
   const productionCapability = capabilities.capabilities.find(item =>
     item.hostVariant === 'codex-cli/exec-user-global-local-stdio'
   )
@@ -738,14 +747,19 @@ try {
     project: fixture.project,
     host: 'grok',
     capabilityPath: currentCapabilityPath,
-    hostAdapterDigest: ''
+    evidenceRoot: fixture.root,
+    hostAdapterDigest: getGrokLauncherAdapterDigest()
   })
   assert.strictEqual(grokAlias.effective, 'unified')
   assert.strictEqual(
     grokAlias.hostVariant,
     'grok-cli-single/global-launcher-local-stdio'
   )
-  assert.strictEqual(grokAlias.hostEligibility, 'UNVERIFIED')
+  assert.strictEqual(
+    grokAlias.hostEligibility,
+    'PASS',
+    JSON.stringify(grokAlias, null, 2)
+  )
 
   // Acceptance M02a: probe authority is exact-bound and cannot be forged by env.
   const missingAuthority = validateProbeAuthority('', {

@@ -13,9 +13,9 @@
       "status": "PASS",
       "testedVersion": "codex-cli 0.145.0",
       "protocol": "MCP 2024-11-05",
-      "runtimeContractDigest": "fc05c0514d7e281da937fb2d167a665a18252a4d2e1f373e0227c07ec65a406c",
-      "hostAdapterDigest": "5a3288c4220f3c6ba9e05912f9a31d8166be17397cf72ce9893a53047b590725",
-      "evidenceDigest": "f81ab9221211257116fadaebdcd54af590b36c6cf461819c4f2d4b5175ad7af2",
+      "runtimeContractDigest": "ab24083a63b13e622715ca1eeaf31f307f46185e93829ce3f54f7a9f4d47669a",
+      "hostAdapterDigest": "e0e81c95cc1e2517a228875569ee0ef6c6e8a3f1ec28582208d9c1716e007253",
+      "evidenceDigest": "9d7156bb7320cadb42e417ebf2fb08de1d1c87b22f17c7da9b2c8ecd5d108fdf",
       "evidenceRef": "hooks/_runtime/evidence/codex-skill-route-pass.v1.json",
       "entrySurface": "codex exec --ephemeral",
       "bootstrapDelivery": "user-global hooks.json UserPromptSubmit",
@@ -37,13 +37,16 @@
     },
     {
       "hostVariant": "grok-cli-single/global-launcher-local-stdio",
-      "status": "UNVERIFIED",
-      "testedVersion": "grok 0.2.112 (9bbd559437)",
+      "status": "PASS",
+      "testedVersion": "grok 1.0.0 (3cd0d0cbce)",
       "protocol": "MCP 2024-11-05",
-      "evidenceRef": null,
+      "runtimeContractDigest": "ab24083a63b13e622715ca1eeaf31f307f46185e93829ce3f54f7a9f4d47669a",
+      "hostAdapterDigest": "75cf925b6077c6fc90e4536c33ec5013c7d3d50909b92bb91477abec2e39ab87",
+      "evidenceDigest": "75a85a3e216eea96620a569d9c7f82b9d3cc6a75d822cf1472929cad9e1cdf1f",
+      "evidenceRef": "hooks/_runtime/evidence/grok-skill-route-pass.v1.json",
       "entrySurface": "devcodex grok -p/--single",
       "bootstrapDelivery": "global launcher --rules",
-      "defaultEligible": false
+      "defaultEligible": true
     }
   ]
 }

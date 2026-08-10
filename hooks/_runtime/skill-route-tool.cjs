@@ -2330,8 +2330,7 @@ function evaluateProgressiveSkillRouteStop (input, options = {}) {
                 op: 'catalog',
                 project: target.project,
                 turnBinding,
-                contextEpoch: state.contextEpoch,
-                cursor: null
+                contextEpoch: state.contextEpoch
               }
             : null)))
   return {
@@ -2355,13 +2354,17 @@ function evaluateProgressiveSkillRouteStop (input, options = {}) {
   }
 }
 
-function shouldEnforceProgressiveSkillRouteStop (routeStop, explicitRoutePending) {
+function shouldEnforceProgressiveSkillRouteStop (routeStop, explicitRoutePending, trigger = '') {
   if (!routeStop?.present || routeStop.complete) return false
   if (routeStop.retired === true) {
     return routeStop.businessSatisfied === false
   }
   if (routeStop.errorCode === 'PLAN_NOT_COMMITTED') {
-    return explicitRoutePending === true
+    // Explicit Skill requests remain fail-closed for every lifecycle phase.
+    // Non-explicit turns only become enforceable once the model attempts a
+    // tool call. This prevents real work from bypassing route selection while
+    // leaving tool-free chat free of a Stop/reconciliation loop.
+    return explicitRoutePending === true || trigger === 'PreToolUse'
   }
   if (ROUTE_RETIREMENT_IDENTITY_ERRORS.has(routeStop.errorCode)) {
     // Legacy projections without an explicit retirement disposition remain
@@ -2410,12 +2413,25 @@ function handleSkillRoute (input, options = {}) {
   }
 }
 
-function formatSkillRouteBootstrapInjection (bootstrap) {
+function formatSkillRouteBootstrapInjection (bootstrap, options = {}) {
+  const grokQualified = String(options.host || '').toLowerCase().startsWith('grok')
+  const routeTool = grokQualified
+    ? 'devcodex-profile__skill_route'
+    : 'skill_route'
+  const hostToolContract = grokQualified
+    ? [
+        'For this Grok host, use only these server-qualified MCP tool names: `devcodex-profile__profile_context_plan`, `devcodex-profile__profile_load`, `devcodex-profile__skill_route`, and `devcodex-memory__memory_status`.',
+        'Do not call unqualified names or another host\'s `mcp__...` aliases.'
+      ]
+    : []
   const injectionText = [
     '### DevCodex · SkillRouteBootstrapV1',
     JSON.stringify(bootstrap),
     '',
-    'Use the local `skill_route` Tool. For a non-explicit task, read every catalog page before one `commit` choice (`skillId` is one id or null).',
+    ...hostToolContract,
+    `Use the local \`${routeTool}\` Tool. For a non-explicit task, read every catalog page before one \`commit\` choice (\`skillId\` is one id or null).`,
+    'For the first `catalog` call, omit `cursor` entirely; never send `cursor:null`. Add `cursor` only when the preceding catalog page returns a non-empty `nextCursor`.',
+    'There is no `replan` operation. Activate a ready late condition with another `op:"commit"` call using the current `previousPlanDigest`, `lateConditionId`, and fresh `ContextReadBindingV1` before loading that conditional stage.',
     'A quoted, negated, diagnostic, screenshot, log, report, or explanatory mention of a skill id is not an invocation. Choose null unless the user positively asks to use that skill or its intent clearly matches the actual task.',
     'Do not infer workflow roots, paths, dependencies, or body content. After a complete plan, call `load_stage` only when entering that stage.',
     'If ContextRead becomes stale while stages remain pending, refresh ContextRead and call `rebind` with the current generation/planDigest and fresh contextBinding before retrying `load_stage`.'
@@ -2463,7 +2479,9 @@ function bootstrapSkillRouteForTurn (input, options = {}) {
     runtimeRoot: options.runtimeRoot,
     packageRoot: options.packageRoot
   })
-  const injectionText = formatSkillRouteBootstrapInjection(outcome.bootstrap)
+  const injectionText = formatSkillRouteBootstrapInjection(outcome.bootstrap, {
+    host: input.host
+  })
   return {
     schemaVersion: 'SkillRouteBootstrapOutcomeV1',
     active: true,

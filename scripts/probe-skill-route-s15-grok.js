@@ -20,6 +20,7 @@ const {
 } = require('../hooks/_runtime/progressive-skill-route-contract.cjs')
 const { resolveRuntimeStateRoot } = require('../hooks/_runtime/workspace-layout.cjs')
 const {
+  GROK_MCP_TOOL_NAMES,
   launchGrok
 } = require('./lib/grok-workspace-launcher')
 const {
@@ -112,11 +113,6 @@ function parseModelResult (stdout) {
     outer,
     final: JSON.parse(objects[objects.length - 1])
   }
-}
-
-function currentSourceHead (root) {
-  const result = run('git', ['rev-parse', 'HEAD'], { cwd: root, timeout: 30000 })
-  return result.stdout.trim()
 }
 
 function writeProbeSkill (fixture, skillId, marker) {
@@ -487,7 +483,7 @@ function main () {
     const prompt = [
       'This is an isolated direct-observation acceptance probe.',
       'Do not read the filesystem and do not infer any Skill body content.',
-      'First call profile_context_plan on server devcodex-profile with:',
+      `First call ${GROK_MCP_TOOL_NAMES.profileContextPlan} with exactly:`,
       JSON.stringify({
         intent: 'dev',
         changeTypes: ['source-code', 'testing'],
@@ -497,16 +493,17 @@ function main () {
         risk: 'normal',
         confidence: 1
       }),
-      'Use the exact ContextReadBindingV1 returned by that plan for profile_load, memory_status, and skill_route commit only.',
-      'For skill_route catalog send only op, project, turnBinding, contextEpoch, and cursor when present. Never send contextBinding to catalog, load_stage, or status.',
-      'Call profile_load for every selected Profile file in the plan and call memory_status on server devcodex-memory with agent=grok, scope=project, project=s15-grok, limit=5.',
+      `Use the exact ContextReadBindingV1 returned by that plan for ${GROK_MCP_TOOL_NAMES.profileLoad}, ${GROK_MCP_TOOL_NAMES.memoryStatus}, and the ${GROK_MCP_TOOL_NAMES.skillRoute} commit only.`,
+      `For the first ${GROK_MCP_TOOL_NAMES.skillRoute} catalog call send only op, project, turnBinding, and contextEpoch; omit cursor entirely and never send cursor:null. On later catalog pages add only the non-empty nextCursor returned by the preceding page. Never send contextBinding to catalog, load_stage, or status.`,
+      `Call ${GROK_MCP_TOOL_NAMES.profileLoad} serially for every selected Profile file in the plan and call ${GROK_MCP_TOOL_NAMES.memoryStatus} with agent=grok, scope=project, project=s15-grok, limit=5.`,
       'Do not start Skill routing until the lifecycle receipt is relevant-complete.',
       'Read every catalog page by following nextCursor until null.',
       'Choose exactly one top-level Skill from the catalog based on this task: run the named-host progressive routing probe.',
-      'Commit that choice with the exact catalogDigest and ContextReadBindingV1.',
-      'Immediately replan the same choice with previousPlanDigest and lateConditionId=test-validation.',
+      `Commit that choice through ${GROK_MCP_TOOL_NAMES.skillRoute} with op="commit", the exact catalogDigest, and ContextReadBindingV1. Do not call load_stage yet.`,
+      `Immediately activate test-validation through ${GROK_MCP_TOOL_NAMES.skillRoute} with a second op="commit" call containing the same choice, previousPlanDigest, lateConditionId="test-validation", and the current ContextReadBindingV1. There is no op="replan".`,
       'From the replanned result, load every page of every stage in dependency order: entry, execution:test-validation, then closeout.',
       'Call status and require processComplete=true with every required stage loaded.',
+      'Run every MCP call serially. If a required call returns an error, stop instead of replaying an older plan or inventing a replacement operation.',
       'Your final JSON must copy the context receipt status, catalogDigest/pageCount, selected skill, replanned planDigest/generation, loaded stage ids, and processComplete from Tool results.',
       `For entryBodyDigest, copy only the bodyDigest from the loaded bodyChunks item whose skillId is ${skillId}; never use a stage, page, chunk, selected-set, dependency Skill, or status digest.`,
       'Copy the exact marker line beginning S15_BODY_ from the loaded Skill body. Do not guess it.'
@@ -651,7 +648,6 @@ function main () {
       hostVariant,
       testedVersion: grokVersion,
       protocolVersion: '2024-11-05',
-      sourceHead: currentSourceHead(fixture.packageRoot),
       runtimeDigest,
       hostAdapterDigest: launch.plan.skillRoute.hostAdapterDigest,
       authorizationSource: productionEligible
@@ -716,6 +712,14 @@ function main () {
         'scripts/test-skill-route-state.js',
         'scripts/test-skill-route-lifecycle.js'
       ],
+      retirementAnomalies: {
+        legacyFallback: 0,
+        doubleBody: 0,
+        crossRoot: 0,
+        stateCorruption: 0,
+        missingStage: 0,
+        missingCloseout: 0
+      },
       transport: {
         kind: 'local-stdio',
         servers: ['devcodex-profile', 'devcodex-memory'],

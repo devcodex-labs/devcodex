@@ -53,6 +53,17 @@ const missingSandboxRecovery = publicReadme
 if (evaluatePublicReadmeContract(missingSandboxRecovery).valid) {
   failures.push('public README without Windows sandbox/runtime recovery diagnostics must fail its contract')
 }
+const missingGrokFullEntry = publicReadme
+  .replaceAll('devcodex grok', '')
+  .replaceAll('Grok Full 入口', '')
+  .replaceAll('普通 `grok` 是 Partial', '')
+if (evaluatePublicReadmeContract(missingGrokFullEntry).valid) {
+  failures.push('public README without the Grok Full/Partial entry contract must fail')
+}
+const missingStageLoadReceipt = publicReadme.replaceAll('StageLoadReceiptV1', '')
+if (evaluatePublicReadmeContract(missingStageLoadReceipt).valid) {
+  failures.push('public README without the canonical Skill body receipt must fail')
+}
 
 const readAbsolute = createCanonicalAwareReader(ROOT, file => fs.readFileSync(file, 'utf8'))
 const read = file => readAbsolute(path.join(ROOT, file))

@@ -157,6 +157,14 @@ function buildTestHooksRuntimeFixtures({
     return response.result
   }
 
+  function parseSkillRouteResult(result) {
+    const text = result?.content?.find(item => item?.type === 'text')?.text
+    if (!text) throw new Error('skill_route returned no text result')
+    const parsed = JSON.parse(text)
+    if (parsed.ok !== true) throw new Error(`skill_route failed: ${JSON.stringify(parsed)}`)
+    return parsed
+  }
+
   function getRuntimeStatePath(cwd) {
     const layoutPath = path.join(TEMP_ROOT, '.devcodex', 'layout.json')
     if (!fs.existsSync(layoutPath)) return STATE_FILE
@@ -219,6 +227,61 @@ function buildTestHooksRuntimeFixtures({
         telemetry: { bytes: 0, chars: 0, latencyMs: 0, tokens: null }
       }
     }, cwd)
+
+    const readyState = JSON.parse(fs.readFileSync(statePath, 'utf8'))
+    const bootstrap = readyState.progressiveSkillRoute?.bootstrap
+    if (!bootstrap) throw new Error('structured bootstrap did not emit SkillRouteBootstrapV1')
+    const layoutEnabled = fs.existsSync(path.join(TEMP_ROOT, '.devcodex', 'layout.json'))
+    const routeLifecycleStatePath = path.join(
+      readyState.contextAcquisition.activeRoot,
+      '.memory',
+      'hooks',
+      layoutEnabled ? readyState.contextAcquisition.project : '__workspace__',
+      'lifecycle-state.json'
+    )
+    if (path.resolve(routeLifecycleStatePath) !== path.resolve(statePath)) {
+      fs.mkdirSync(path.dirname(routeLifecycleStatePath), { recursive: true })
+      fs.writeFileSync(routeLifecycleStatePath, `${JSON.stringify(readyState, null, 2)}\n`)
+    }
+
+    let catalogCursor = null
+    do {
+      const catalog = parseSkillRouteResult(callProfileTool(cwd, 'skill_route', {
+        op: 'catalog',
+        project: bootstrap.project,
+        turnBinding: bootstrap.turnBinding,
+        contextEpoch: bootstrap.contextEpoch,
+        ...(catalogCursor ? { cursor: catalogCursor } : {})
+      }))
+      catalogCursor = catalog.receipt.nextCursor
+    } while (catalogCursor)
+
+    const commit = parseSkillRouteResult(callProfileTool(cwd, 'skill_route', {
+      op: 'commit',
+      project: bootstrap.project,
+      turnBinding: bootstrap.turnBinding,
+      contextEpoch: bootstrap.contextEpoch,
+      catalogDigest: bootstrap.catalogDigest,
+      skillId: null,
+      contextBinding: plannedContextBinding(cwd)
+    }))
+    for (const stageId of commit.receipt.obligations.requiredStageIds) {
+      let stageCursor = null
+      do {
+        const stage = parseSkillRouteResult(callProfileTool(cwd, 'skill_route', {
+          op: 'load_stage',
+          project: bootstrap.project,
+          turnBinding: bootstrap.turnBinding,
+          contextEpoch: bootstrap.contextEpoch,
+          generation: commit.receipt.plan.generation,
+          planDigest: commit.receipt.plan.planDigest,
+          stageId,
+          triggerRef: `hooks-runtime:${stageId}`,
+          ...(stageCursor ? { cursor: stageCursor } : {})
+        }))
+        stageCursor = stage.receipt.nextCursor
+      } while (stageCursor)
+    }
   }
 
   function runBootstrapReads(agent = TEST_AGENT) {

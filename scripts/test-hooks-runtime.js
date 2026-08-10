@@ -501,7 +501,7 @@ function main() {
     tool_input: { filePath: getMemoryFilePath('claude-code', 'SUMMARY.md') }
   }, TEMP_ROOT, { CODEX_HOME: '1' })
   const codexMismatchState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
-  assert.strictEqual(codexMismatchState.bootstrap.profileRead, true)
+  assert.strictEqual(codexMismatchState.bootstrap.profileRead, false)
   assert.strictEqual(codexMismatchState.bootstrap.summaryRead, false)
   run({
     hookEventName: 'PreToolUse',
@@ -516,11 +516,11 @@ function main() {
   const codexBootstrapState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
   assert.strictEqual(codexBootstrapState.bootstrapComplete, false)
   assert.deepStrictEqual(codexBootstrapState.contextAcquisition.legacyObserved, {
-    profileRead: true,
-    summaryRead: true,
-    tasksRead: true,
+    profileRead: false,
+    summaryRead: false,
+    tasksRead: false,
     bootstrapComplete: false
-  })
+  }, 'pre-commit raw-file reads must not bypass the structured route/context contract')
 
   cleanLayoutState(
     { mode: 'prod', agent: TEST_AGENT },

@@ -7,6 +7,9 @@ const {
 const {
   buildJsonContentIdentity
 } = require('../../hooks/_runtime/content-identity.cjs')
+const {
+  handleSkillRoute
+} = require('../../hooks/_runtime/skill-route-tool.cjs')
 const { resolveRuntimeStateRoot } = require('../../hooks/_runtime/workspace-layout.cjs')
 
 function runHooksRuntimeBootstrapLayoutScenarios(context) {
@@ -38,6 +41,73 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
 
   function readLegacyState() {
     return JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  }
+
+  function completeCurrentSkillRoute() {
+    const state = readLegacyState()
+    const bootstrap = state.progressiveSkillRoute?.bootstrap
+    assert(bootstrap, 'SkillRoute bootstrap must exist before completing the route')
+    // This legacy-layout fixture keeps Hook state under `hooks/legacy`, while
+    // the production SkillRoute context verifier reads the canonical
+    // `hooks/__workspace__` partition. Mirror the same observed state so this
+    // scenario exercises the real verifier instead of bypassing it.
+    const routeLifecycleStatePath = path.join(
+      state.contextAcquisition.activeRoot,
+      '.memory',
+      'hooks',
+      '__workspace__',
+      'lifecycle-state.json'
+    )
+    fs.mkdirSync(path.dirname(routeLifecycleStatePath), { recursive: true })
+    fs.writeFileSync(routeLifecycleStatePath, `${JSON.stringify(state, null, 2)}\n`)
+    const options = { inputRoot: TEMP_ROOT }
+    let cursor = null
+    do {
+      const page = handleSkillRoute({
+        op: 'catalog',
+        project: bootstrap.project,
+        turnBinding: bootstrap.turnBinding,
+        contextEpoch: bootstrap.contextEpoch,
+        ...(cursor ? { cursor } : {})
+      }, options)
+      assert.strictEqual(page.ok, true, JSON.stringify(page))
+      cursor = page.receipt.nextCursor
+    } while (cursor)
+    const commit = handleSkillRoute({
+      op: 'commit',
+      project: bootstrap.project,
+      turnBinding: bootstrap.turnBinding,
+      contextEpoch: bootstrap.contextEpoch,
+      catalogDigest: bootstrap.catalogDigest,
+      skillId: null,
+      contextBinding: {
+        schemaVersion: 'ContextReadBindingV1',
+        contextEpoch: state.contextAcquisition.plan.identity.contextEpoch,
+        planId: state.contextAcquisition.plan.planId,
+        planContentId: state.contextAcquisition.plan.planContentId,
+        activeRoot: state.contextAcquisition.plan.identity.activeRoot,
+        project: state.contextAcquisition.plan.identity.project
+      }
+    }, options)
+    assert.strictEqual(commit.ok, true, JSON.stringify(commit))
+    for (const stageId of commit.receipt.obligations.requiredStageIds) {
+      let stageCursor = null
+      do {
+        const stage = handleSkillRoute({
+          op: 'load_stage',
+          project: bootstrap.project,
+          turnBinding: bootstrap.turnBinding,
+          contextEpoch: bootstrap.contextEpoch,
+          generation: commit.receipt.plan.generation,
+          planDigest: commit.receipt.plan.planDigest,
+          stageId,
+          triggerRef: `hooks-runtime:${stageId}`,
+          ...(stageCursor ? { cursor: stageCursor } : {})
+        }, options)
+        assert.strictEqual(stage.ok, true, JSON.stringify(stage))
+        stageCursor = stage.receipt.nextCursor
+      } while (stageCursor)
+    }
   }
 
   function mutatePlanResult(result, mutate, { recomputePlanId = false } = {}) {
@@ -314,7 +384,7 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
     }
   })
   assert.strictEqual(warningBeforeBootstrap.continue, true)
-  assert.match(warningBeforeBootstrap.systemMessage || '', /context evidence/i)
+  assert.match(warningBeforeBootstrap.systemMessage || '', /progressive-skill-route/i)
 
   const duplicateWarningBeforeBootstrap = run({
     hookEventName: 'PreToolUse',
@@ -322,7 +392,7 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
     tool_input: { command: 'npm test' }
   })
   assert.strictEqual(duplicateWarningBeforeBootstrap.continue, true)
-  assert.ok(!duplicateWarningBeforeBootstrap.systemMessage)
+  assert.match(duplicateWarningBeforeBootstrap.systemMessage || '', /progressive-skill-route/i)
 
   cleanState()
   run({
@@ -337,9 +407,12 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
     }
   }, TEMP_ROOT, { DEVCODEX_HOOK_ENFORCEMENT: 'strict' })
   assert.strictEqual(blockedBeforeBootstrap.continue, true)
-  assert.ok(!blockedBeforeBootstrap.hookSpecificOutput?.permissionDecision,
-    'instruction-only fallback must not deadlock even under strict enforcement')
-  assert.match(blockedBeforeBootstrap.systemMessage || '', /context evidence/i)
+  assert.strictEqual(blockedBeforeBootstrap.hookSpecificOutput?.permissionDecision, 'deny')
+  assert.match(
+    blockedBeforeBootstrap.hookSpecificOutput?.additionalContext || '',
+    /Next call \(exact\):/
+  )
+  assert.match(blockedBeforeBootstrap.systemMessage || '', /progressive-skill-route/i)
 
   cleanState()
   run({
@@ -354,7 +427,10 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
     }
   }, TEMP_ROOT, { DEVCODEX_HOOK_ENFORCEMENT: 'strict', CLAUDE_CODE_VERSION: 'test' })
   assert.strictEqual(structuredBlockedBeforePlan.hookSpecificOutput.permissionDecision, 'deny')
-  assert.match(structuredBlockedBeforePlan.hookSpecificOutput.permissionDecisionReason || '', /context/i)
+  assert.match(
+    structuredBlockedBeforePlan.hookSpecificOutput.permissionDecisionReason || '',
+    /progressive-skill-route/i
+  )
 
   cleanState()
   run({
@@ -404,7 +480,7 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
     }
   })
   assert.strictEqual(prodWriteWarningBeforeBootstrap.continue, true)
-  assert.match(prodWriteWarningBeforeBootstrap.systemMessage || '', /context evidence/i)
+  assert.match(prodWriteWarningBeforeBootstrap.systemMessage || '', /progressive-skill-route/i)
 
   cleanState()
   run({
@@ -420,7 +496,7 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
     }
   })
   assert.strictEqual(shellWriteWarningDuringBootstrap.continue, true)
-  assert.match(shellWriteWarningDuringBootstrap.systemMessage || '', /context evidence/i)
+  assert.match(shellWriteWarningDuringBootstrap.systemMessage || '', /progressive-skill-route/i)
 
   const shellAliasWriteWarningDuringBootstrap = run({
     hookEventName: 'PreToolUse',
@@ -430,7 +506,10 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
     }
   })
   assert.strictEqual(shellAliasWriteWarningDuringBootstrap.continue, true)
-  assert.ok(!shellAliasWriteWarningDuringBootstrap.systemMessage)
+  assert.match(
+    shellAliasWriteWarningDuringBootstrap.systemMessage || '',
+    /progressive-skill-route/i
+  )
 
   run({
     hookEventName: 'PreToolUse',
@@ -477,11 +556,11 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
   const state = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
   assert.strictEqual(state.bootstrapComplete, false, 'legacy PreToolUse path touches must never form completion')
   assert.deepStrictEqual(state.contextAcquisition.legacyObserved, {
-    profileRead: true,
-    summaryRead: true,
-    tasksRead: true,
+    profileRead: false,
+    summaryRead: false,
+    tasksRead: false,
     bootstrapComplete: false
-  })
+  }, 'unbound raw-file reads must not be credited as ContextRead progress')
 
   cleanState()
   fs.mkdirSync(path.dirname(STATE_FILE), { recursive: true })
@@ -511,12 +590,13 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
 
   cleanState()
   run({ hookEventName: 'UserPromptSubmit', prompt: 'legacy no-arg profile compatibility' })
-  run({
+  const legacyProfilePre = run({
     hookEventName: 'PreToolUse',
     tool_use_id: 'legacy-profile-load',
     tool_name: 'devcodex-profile/profile_load',
     tool_input: {}
   })
+  assert.match(legacyProfilePre.systemMessage || '', /progressive-skill-route/i)
   const legacyProfileResult = callProfileTool(TEMP_ROOT, 'profile_load', {
     explicitFull: true,
     fullReadReason: 'hooks bootstrap legacy full-read fixture',
@@ -531,7 +611,7 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
   })
   const legacyProfileState = readLegacyState()
   assert.strictEqual(legacyProfileState.contextAcquisition.plan, null)
-  assert.strictEqual(legacyProfileState.contextAcquisition.fallbackAttempts, 1)
+  assert.strictEqual(legacyProfileState.contextAcquisition.fallbackAttempts, 0)
   assert.strictEqual(legacyProfileState.bootstrapComplete, false)
 
   cleanState({ mode: 'dev' })
@@ -829,6 +909,7 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
   observePlan({ intent: 'chat' })
   const releaseReady = observeMemoryStatus('release-memory-status')
   assert.strictEqual(releaseReady.contextAcquisition.receipt.status, 'relevant-complete')
+  completeCurrentSkillRoute()
 
   const releaseExpansion = run({
     hookEventName: 'PreToolUse',
@@ -1106,6 +1187,7 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
   assert(memoryState.contextAcquisition.receipt.missingSourceIds.includes('memory:memory_status'))
   memoryState = observeMemoryStatus('correct-memory-schema')
   assert.strictEqual(memoryState.bootstrapComplete, true)
+  completeCurrentSkillRoute()
   run({
     hookEventName: 'PreToolUse',
     tool_use_id: 'chat-to-source-mutation',

@@ -2,19 +2,19 @@
   "schemaVersion": "HostSkillRouteEvidenceV1",
   "status": "PASS",
   "portable": true,
-  "hostVariant": "codex-cli/exec-user-global-local-stdio",
-  "testedVersion": "codex-cli 0.145.0",
+  "hostVariant": "grok-cli-single/global-launcher-local-stdio",
+  "testedVersion": "grok 1.0.0 (3cd0d0cbce)",
   "protocol": "MCP 2024-11-05",
   "runtimeContractDigest": "ab24083a63b13e622715ca1eeaf31f307f46185e93829ce3f54f7a9f4d47669a",
-  "hostAdapterDigest": "e0e81c95cc1e2517a228875569ee0ef6c6e8a3f1ec28582208d9c1716e007253",
-  "sourceEvidenceDigest": "995b3494305519711b63b1ca0e6d89683e6aaf27b24e2dd22dfdb374397137be",
+  "hostAdapterDigest": "75cf925b6077c6fc90e4536c33ec5013c7d3d50909b92bb91477abec2e39ab87",
+  "sourceEvidenceDigest": "94b31184ce6283106c81ff4c47e960fa2df2aed4054a87933e944cbd2dd1c345",
   "sourceProbe": {
     "schemaVersion": "SkillRouteS15EvidenceV1",
-    "probeRunId": "s15-codex-probe-745d9063-fafa-45eb-b6ff-da29c43e1c92",
+    "probeRunId": "s15-grok-probe-74118188-37b0-47ff-9e82-09d43ae6d234",
     "authorizationSource": "isolated-probe-authority",
     "contextSource": "host-hooks",
     "receiptStatus": "relevant-complete",
-    "completedAt": "2026-08-10T17:36:46.648Z"
+    "completedAt": "2026-08-10T17:41:40.736Z"
   },
   "probe": {
     "schemaVersion": "SkillRouteProbeSummaryV1",

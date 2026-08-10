@@ -1,6 +1,6 @@
-# DevCodex v1.16.6 — 使用入口
+# DevCodex v1.16.7 — 使用入口
 
-> AI workflow injector for Copilot / Claude Code / Codex / Gemini / Grok · publisher: Rocky · version: 1.16.6
+> AI workflow injector for Copilot / Claude Code / Codex / Gemini / Grok · publisher: Rocky · version: 1.16.7
 
 ## 正式主支持客户端
 

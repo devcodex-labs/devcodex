@@ -122,6 +122,76 @@ function runLifecycle (fixture, payload = {}, env = {}, cwd = fixture.projectRoo
     'only the planner is a proactive refresh entry; remaining reads wait for the rebind recovery state'
   )
 
+  const preCommit = {
+    present: true,
+    complete: false,
+    processComplete: false,
+    businessSatisfied: true,
+    turnBinding: 'turn-precommit',
+    contextEpoch: 'ctx-precommit',
+    planDigest: null,
+    pendingStageIds: [],
+    errorCode: 'PLAN_NOT_COMMITTED',
+    nextOp: 'catalog',
+    nextCall: {
+      op: 'catalog',
+      project: 'sample',
+      turnBinding: 'turn-precommit',
+      contextEpoch: 'ctx-precommit'
+    }
+  }
+  const preCommitBinding = {
+    schemaVersion: 'ContextReadBindingV1',
+    contextEpoch: 'ctx-precommit',
+    planId: 'plan-precommit',
+    planContentId: 'content-precommit',
+    activeRoot: '/workspace/.devcodex/sample',
+    project: 'sample'
+  }
+  const boundProfileRead = reconcileProgressiveSkillRoute({}, preCommit, {
+    trigger: 'PreToolUse',
+    sessionKey: 'session-precommit',
+    payload: {
+      tool_name: 'mcp__devcodex_profile__profile_load',
+      tool_input: {
+        project: 'sample',
+        files: ['01-项目信息.md'],
+        contextBinding: preCommitBinding
+      }
+    }
+  })
+  assert.strictEqual(boundProfileRead.allowAction, true)
+  const unboundProfileRead = reconcileProgressiveSkillRoute({}, preCommit, {
+    trigger: 'PreToolUse',
+    sessionKey: 'session-precommit',
+    payload: {
+      tool_name: 'mcp__devcodex_profile__profile_load',
+      tool_input: { project: 'sample', files: ['01-项目信息.md'] }
+    }
+  })
+  assert.strictEqual(unboundProfileRead.allowAction, false)
+  const foreignEpochMemoryRead = reconcileProgressiveSkillRoute({}, preCommit, {
+    trigger: 'PreToolUse',
+    sessionKey: 'session-precommit',
+    payload: {
+      tool_name: 'mcp__devcodex_memory__memory_status',
+      tool_input: {
+        project: 'sample',
+        contextBinding: { ...preCommitBinding, contextEpoch: 'ctx-foreign' }
+      }
+    }
+  })
+  assert.strictEqual(foreignEpochMemoryRead.allowAction, false)
+  const boundMemoryRead = reconcileProgressiveSkillRoute({}, preCommit, {
+    trigger: 'PreToolUse',
+    sessionKey: 'session-precommit',
+    payload: {
+      tool_name: 'mcp__devcodex_memory__memory_status',
+      tool_input: { project: 'sample', contextBinding: preCommitBinding }
+    }
+  })
+  assert.strictEqual(boundMemoryRead.allowAction, true)
+
   const firstStop = reconcileProgressiveSkillRoute(state, pending, {
     trigger: 'Stop', sessionKey: 'session-coordinator', payload: { hook_run_id: 'hook-stop-1' }
   })
@@ -507,6 +577,73 @@ function runLifecycle (fixture, payload = {}, env = {}, cwd = fixture.projectRoo
       }, true),
       true
     )
+
+    const nonExplicitPreCommitStop = {
+      present: true,
+      complete: false,
+      processComplete: false,
+      businessSatisfied: true,
+      errorCode: 'PLAN_NOT_COMMITTED'
+    }
+    assert.strictEqual(
+      shouldEnforceProgressiveSkillRouteStop(nonExplicitPreCommitStop, false),
+      false,
+      'legacy callers and Stop remain non-enforcing for non-explicit precommit turns'
+    )
+    assert.strictEqual(
+      shouldEnforceProgressiveSkillRouteStop(nonExplicitPreCommitStop, false, 'Stop'),
+      false,
+      'tool-free chat must not enter a precommit Stop loop'
+    )
+    assert.strictEqual(
+      shouldEnforceProgressiveSkillRouteStop(nonExplicitPreCommitStop, false, 'PreToolUse'),
+      true,
+      'unrelated tool work must not bypass a non-explicit route decision'
+    )
+    assert.strictEqual(
+      shouldEnforceProgressiveSkillRouteStop(nonExplicitPreCommitStop, true, 'Stop'),
+      true,
+      'explicit Skill requests remain fail-closed before commit'
+    )
+
+    const preCommitSession = 'non-explicit-precommit-tool-gate'
+    runLifecycle(fixture, {
+      session_id: preCommitSession,
+      prompt: 'Inspect this project and identify the implementation defect'
+    }, {
+      DEVCODEX_HOST_PLATFORM: 'grok'
+    })
+    const preCommitTool = runLifecycle(fixture, {
+      hookEventName: 'PreToolUse',
+      hook_run_id: 'non-explicit-precommit-tool-1',
+      session_id: preCommitSession,
+      tool_name: 'exec_command',
+      tool_input: { cmd: 'git status' }
+    }, {
+      DEVCODEX_HOST_PLATFORM: 'grok'
+    })
+    assert.strictEqual(preCommitTool.output.devcodexCode, 'progressive-skill-route')
+    assert.strictEqual(preCommitTool.output.devcodexNextAction.schemaVersion, 'NextActionEnvelopeV1')
+    assert.strictEqual(preCommitTool.output.devcodexNextAction.errorCode, 'PLAN_NOT_COMMITTED')
+    assert.strictEqual(preCommitTool.output.devcodexNextAction.trigger, 'PreToolUse')
+    assert.strictEqual(preCommitTool.output.devcodexNextAction.nextCall.op, 'catalog')
+    assert.strictEqual(
+      Object.prototype.hasOwnProperty.call(
+        preCommitTool.output.devcodexNextAction.nextCall,
+        'cursor'
+      ),
+      false,
+      'the first catalog recovery call must omit cursor instead of emitting cursor:null'
+    )
+    const preCommitStop = runLifecycle(fixture, {
+      hookEventName: 'Stop',
+      hook_run_id: 'non-explicit-precommit-stop-1',
+      session_id: preCommitSession,
+      lastAssistantMessage: 'No tool work was required.'
+    }, {
+      DEVCODEX_HOST_PLATFORM: 'grok'
+    })
+    assert.notStrictEqual(preCommitStop.output.devcodexCode, 'progressive-skill-route')
 
     const staleSession = 'non-explicit-runtime-refresh'
     runLifecycle(fixture, {

@@ -12,6 +12,9 @@ const {
   getLifecycleHostAdapterDigest
 } = require('../hooks/_runtime/host-adapter-identity.cjs')
 const {
+  getGrokLauncherAdapterDigest
+} = require('./lib/grok-workspace-launcher')
+const {
   resolveFixtureGlobalRuntime
 } = require('./lib/skill-route-test-fixture')
 
@@ -167,26 +170,37 @@ const capabilities = JSON.parse(read(path.join(
 const pass = capabilities.capabilities.filter(item => item.status === 'PASS')
 const capabilityValidation = validateCapabilityDocument(capabilities, { packageRoot: ROOT })
 assert.strictEqual(capabilityValidation.valid, true, capabilityValidation.errors.join(', '))
-assert.strictEqual(pass.length, 1)
-assert.strictEqual(
-  pass[0].hostVariant,
-  'codex-cli/exec-user-global-local-stdio'
+assert.strictEqual(pass.length, 2)
+const passByVariant = new Map(pass.map(item => [item.hostVariant, item]))
+const expectedPassAdapters = new Map([
+  [
+    'codex-cli/exec-user-global-local-stdio',
+    getLifecycleHostAdapterDigest('codex')
+  ],
+  [
+    'grok-cli-single/global-launcher-local-stdio',
+    getGrokLauncherAdapterDigest()
+  ]
+])
+assert.deepStrictEqual(
+  [...passByVariant.keys()].sort(),
+  [...expectedPassAdapters.keys()].sort()
 )
-assert.strictEqual(
-  pass[0].runtimeContractDigest,
-  getRuntimeContractDigest({
-    globalRuntime: GLOBAL_RUNTIME
-  })
-)
-assert.strictEqual(
-  pass[0].hostAdapterDigest,
-  getLifecycleHostAdapterDigest('codex')
-)
-assert.match(pass[0].evidenceDigest, /^[a-f0-9]{64}$/)
-assert.strictEqual(path.isAbsolute(pass[0].evidenceRef), false)
-assert.strictEqual(path.win32.isAbsolute(pass[0].evidenceRef), false)
-assert(fs.existsSync(path.join(ROOT, pass[0].evidenceRef)))
-assert.strictEqual(pass[0].defaultEligible, true)
+for (const [hostVariant, adapterDigest] of expectedPassAdapters) {
+  const capability = passByVariant.get(hostVariant)
+  assert.strictEqual(
+    capability.runtimeContractDigest,
+    getRuntimeContractDigest({
+      globalRuntime: GLOBAL_RUNTIME
+    })
+  )
+  assert.strictEqual(capability.hostAdapterDigest, adapterDigest)
+  assert.match(capability.evidenceDigest, /^[a-f0-9]{64}$/)
+  assert.strictEqual(path.isAbsolute(capability.evidenceRef), false)
+  assert.strictEqual(path.win32.isAbsolute(capability.evidenceRef), false)
+  assert(fs.existsSync(path.join(ROOT, capability.evidenceRef)))
+  assert.strictEqual(capability.defaultEligible, true)
+}
 
 console.log(
   `test-skill-route-closure: ok requirements=${expectedRequirements.length} ` +

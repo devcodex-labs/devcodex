@@ -150,6 +150,15 @@ devcodex init
 
 安装和初始化完成后，重新打开 Codex、Claude Code、GitHub Copilot、Gemini CLI 或 Grok 的新会话。
 
+Grok 用户建议从目标项目目录通过 DevCodex 启动：
+
+```bash
+cd <你的项目或 workspace 根目录>
+devcodex grok
+```
+
+`devcodex grok` 是 Grok Full 入口：它会加载用户级控制内核、项目绑定、MCP 与渐进式 SkillRoute。直接运行普通 `grok` 是 Partial 兼容入口；它仍可使用用户级规则、MCP 和可用 Hook，但 UserPromptSubmit 属于被动提示面，不能据此宣称与 Full 启动注入完全等价。
+
 ## 项目 Profile
 
 普通单项目只需执行 `devcodex init`，无需再运行 Profile 命令。多项目 workspace 中，如果某个子项目需要独立于 workspace 基线的 Profile，可在 workspace 根目录按项目名初始化：
@@ -199,6 +208,8 @@ devcodex init --profile api --dry-run
 ```
 
 DevCodex 会按任务意图选择流程和 Skill。普通使用者不需要手动配置内置 Skill。
+
+如果当前宿主是 Grok，请在项目目录用 `devcodex grok` 打开该会话；不要把普通 `grok` 的 Partial 行为误判为内置 Skill 未安装。
 
 ### 自动推进：`@rocky`
 
@@ -358,6 +369,30 @@ Get-Command devcodex
 npm root -g
 ```
 
+### Grok 能看到 Skill 或 MCP，但为什么没有加载 Skill 正文？
+
+先确认入口。Grok Full 入口是：
+
+```bash
+cd <你的项目或 workspace 根目录>
+devcodex grok
+```
+
+普通 `grok` 是 Partial 兼容入口。新版本会在 PreToolUse 阶段阻止“路由尚未决策就执行无关工具”，但普通入口的被动 UserPromptSubmit 仍不等价于 `devcodex grok` 的完整 `--rules` 启动内核。
+
+正文加载的权威成功回执是 `StageLoadReceiptV1`，项目中没有 `SkillLoadSuccessV1`。只看到 catalog 或 `SkillRouteCommitReceiptV1`，表示候选目录或路由决策已完成，不表示 entry/execution/closeout 正文已经全部加载。
+
+按下面顺序恢复：
+
+```bash
+devcodex status
+devcodex doctor --json
+devcodex global-adapters apply
+devcodex grok
+```
+
+在目标项目目录中新建 Grok 会话后再验证。若 `status` 显示 `Grok parity full-capable — use: devcodex grok`，这正是在提示应走 Full 入口；它不是权限不足，也不要求永久开启完全访问。
+
 ### “帮我审批”时反复重新连接，是否必须开启完全访问？
 
 不需要永久开启 Full access。“帮我审批”仍受 workspace 沙箱约束；它只决定符合条件的越界动作如何审批，不会自动扩大文件系统或可执行文件范围。先运行：
@@ -454,7 +489,7 @@ DevCodex 分两层生效：
 
 如果你希望为某个项目增加自己的流程、检查清单或团队约定，可以创建 DevCodex 工作区 Skill。
 
-这里的 Skill 属于 DevCodex 工作区层，不是某个宿主的原生 Skill。新会话开始后，DevCodex 会读取它，并可在 Codex、Claude Code、GitHub Copilot、Gemini CLI 和 Grok 中按意图触发。
+这里的 Skill 属于 DevCodex 工作区层，不是某个宿主的原生 Skill。新会话开始后，DevCodex 会读取它，并可在 Codex、Claude Code、GitHub Copilot、Gemini CLI 和 Grok 中按意图触发；Grok 请优先使用 `devcodex grok` Full 入口。
 
 单项目时，可以放在项目根目录：
 

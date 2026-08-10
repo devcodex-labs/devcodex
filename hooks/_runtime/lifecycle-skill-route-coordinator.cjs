@@ -9,6 +9,12 @@ const BUDGET_TERMINAL_ERRORS = new Set([
   'BUDGET_BLOCKED',
   'BUDGET_RESERVATION_BLOCKED'
 ])
+const PRECOMMIT_BOUND_CONTEXT_TOOLS = new Set([
+  'profile_load',
+  'memory_status',
+  'memory_session_query',
+  'memory_summary_query'
+])
 
 function stableValue (value) {
   if (Array.isArray(value)) return value.map(stableValue)
@@ -86,8 +92,27 @@ function routeActionFromPayload (payload = {}, contextPost = null) {
     contextEpoch: firstString(nested.contextEpoch, input.contextEpoch),
     generation: nested.generation ?? input.generation,
     planDigest: firstString(nested.planDigest, input.planDigest),
-    stageId: firstString(nested.stageId, input.stageId)
+    stageId: firstString(nested.stageId, input.stageId),
+    contextBinding: nested.contextBinding && typeof nested.contextBinding === 'object'
+      ? nested.contextBinding
+      : (input.contextBinding && typeof input.contextBinding === 'object'
+          ? input.contextBinding
+          : null)
   }
+}
+
+function hasMatchingPrecommitContextBinding (action, routeStop) {
+  const binding = action?.contextBinding
+  if (!binding || binding.schemaVersion !== 'ContextReadBindingV1') return false
+  const expectedProject = firstString(routeStop?.nextCall?.project)
+  if (!binding.project || !binding.contextEpoch || !binding.planId || !binding.planContentId || !binding.activeRoot) {
+    return false
+  }
+  if (routeStop?.contextEpoch && binding.contextEpoch !== routeStop.contextEpoch) return false
+  if (expectedProject && binding.project !== expectedProject) return false
+  if (action.project && binding.project !== action.project) return false
+  if (action.contextEpoch && binding.contextEpoch !== action.contextEpoch) return false
+  return true
 }
 
 function buildRouteStateFingerprint (routeStop = {}, input = {}) {
@@ -163,9 +188,17 @@ function isExpectedRouteAction (routeStop, payload, contextPost = null) {
       return { expected: true, action }
     }
   }
-  if (routeStop.errorCode === 'PLAN_NOT_COMMITTED' &&
-      action.tool === 'skill_route' && ['catalog', 'commit', 'status'].includes(action.op)) {
-    return { expected: true, action }
+  if (routeStop.errorCode === 'PLAN_NOT_COMMITTED') {
+    if (action.tool === 'skill_route' && ['catalog', 'commit', 'status'].includes(action.op)) {
+      return { expected: true, action }
+    }
+    // ContextRead must finish before commit can validate its binding. Only
+    // bound, project/epoch-matching reads may cross the route gate; the
+    // ContextRead owner still validates selected files and sourceIds later.
+    if (PRECOMMIT_BOUND_CONTEXT_TOOLS.has(action.tool) &&
+        hasMatchingPrecommitContextBinding(action, routeStop)) {
+      return { expected: true, action }
+    }
   }
   if (action.tool === 'skill_route' && action.op === 'status') {
     return { expected: true, action }

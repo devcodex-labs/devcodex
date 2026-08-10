@@ -103,6 +103,26 @@ assert.match(
   grokProbeSource,
   /For entryBodyDigest, copy only the bodyDigest from the loaded bodyChunks item whose skillId is \$\{skillId\};/
 )
+for (const toolMember of [
+  'profileContextPlan',
+  'profileLoad',
+  'skillRoute',
+  'memoryStatus'
+]) {
+  assert.match(grokProbeSource, new RegExp(`GROK_MCP_TOOL_NAMES\\.${toolMember}`))
+}
+assert.match(grokProbeSource, /omit cursor entirely and never send cursor:null/)
+assert.match(grokProbeSource, /There is no op="replan"/)
+for (const anomaly of [
+  'legacyFallback',
+  'doubleBody',
+  'crossRoot',
+  'stateCorruption',
+  'missingStage',
+  'missingCloseout'
+]) {
+  assert.match(grokProbeSource, new RegExp(`${anomaly}: 0`))
+}
 assert.doesNotMatch(grokProbeSource, /and entry bodyDigest from Tool results/)
 assert.deepStrictEqual(
   parseContextToolIdentity('mcp__devcodex_profile__profile_context_plan'),

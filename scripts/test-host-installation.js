@@ -17,6 +17,8 @@ const {
 const {
   GROK_ROUTE_CONTEXT_EPOCH_RE,
   GROK_ROUTE_PROMPT_MAX_BYTES,
+  GROK_MCP_TOOL_CONTRACT,
+  GROK_MCP_TOOL_NAMES,
   buildGrokLaunchPlan,
   extractSinglePrompt,
   getGrokLauncherAdapterDigest,
@@ -962,7 +964,14 @@ console.log(`host installation tests passed selectors=5 dryRunWrites=0 collision
   assert.ok(launchPlan.kernelPath.startsWith(path.join(home, '.grok')))
   assert.match(launchPlan.args[1], /DevCodex user-global controlling kernel follows/)
   assert.match(launchPlan.args[1], /fixture-extra/)
+  assert.match(launchPlan.args[1], /DevCodex Grok MCP tool namespace contract/)
+  for (const toolName of Object.values(GROK_MCP_TOOL_NAMES)) {
+    assert.match(launchPlan.args[1], new RegExp(toolName))
+  }
+  assert.match(GROK_MCP_TOOL_CONTRACT, /omit cursor entirely/)
+  assert.match(GROK_MCP_TOOL_CONTRACT, /no replan operation/)
   let launchedOptions = null
+  let launchedArgs = null
   const launched = launchGrok(['-p', 'check'], {
     cwd: workspace,
     env: {
@@ -971,12 +980,15 @@ console.log(`host installation tests passed selectors=5 dryRunWrites=0 collision
       DEVCODEX_CONTEXT_EPOCH: '../../invalid-epoch'
     },
     home,
-    spawnSync: (_command, _args, options) => {
+    spawnSync: (_command, args, options) => {
+      launchedArgs = args
       launchedOptions = options
       return { status: 0, signal: null }
     }
   })
   assert.strictEqual(launched.status, 0)
+  assert.match(launchedArgs[1], /devcodex-profile__skill_route/)
+  assert.match(launchedArgs[1], /Never send cursor:null/)
   assert.strictEqual(launchedOptions.env.GROK_HOME, path.join(home, '.grok'))
   assert.match(launchedOptions.env.DEVCODEX_CONTEXT_EPOCH, GROK_ROUTE_CONTEXT_EPOCH_RE)
   assert.notStrictEqual(

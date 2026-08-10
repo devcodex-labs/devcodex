@@ -15,6 +15,22 @@ const {
 
 const GROK_ROUTE_CONTEXT_EPOCH_RE = /^ctx-[A-Za-z0-9-]{8,251}$/
 const GROK_ROUTE_PROMPT_MAX_BYTES = 256 * 1024
+const GROK_MCP_TOOL_NAMES = Object.freeze({
+  profileContextPlan: 'devcodex-profile__profile_context_plan',
+  profileLoad: 'devcodex-profile__profile_load',
+  skillRoute: 'devcodex-profile__skill_route',
+  memoryStatus: 'devcodex-memory__memory_status'
+})
+const GROK_MCP_TOOL_CONTRACT = [
+  'DevCodex Grok MCP tool namespace contract:',
+  `- Context plan: ${GROK_MCP_TOOL_NAMES.profileContextPlan}`,
+  `- Profile body: ${GROK_MCP_TOOL_NAMES.profileLoad}`,
+  `- Progressive Skill route: ${GROK_MCP_TOOL_NAMES.skillRoute}`,
+  `- Bounded memory status: ${GROK_MCP_TOOL_NAMES.memoryStatus}`,
+  '- Use these exact server-qualified names. Do not call unqualified names or another host\'s mcp__ aliases.',
+  '- On the first skill_route catalog call, omit cursor entirely; add it only after a non-empty nextCursor is returned. Never send cursor:null.',
+  '- skill_route has no replan operation. Activate a late condition with a second op="commit" call using previousPlanDigest, lateConditionId, and the fresh ContextReadBindingV1 before loading that conditional stage.'
+].join('\n')
 
 function getGrokLauncherAdapterDigest(options = {}) {
   const fsImpl = options.fs || fs
@@ -158,7 +174,8 @@ function buildGrokLaunchPlan(argv = [], options = {}) {
   const kernel = fs.readFileSync(kernelPath, 'utf8')
   const combinedRules = [
     `DevCodex user-global controlling kernel follows. Workspace runtime state remains under .devcodex.\n\n${kernel}`,
-    ...parsed.extraRules
+    ...parsed.extraRules,
+    GROK_MCP_TOOL_CONTRACT
   ].filter(Boolean).join('\n\n')
   const grokArgs = ['--rules', combinedRules, ...parsed.forwarded]
   const hostScope = {
@@ -285,6 +302,8 @@ function launchGrok(argv = [], options = {}) {
 module.exports = {
   GROK_ROUTE_CONTEXT_EPOCH_RE,
   GROK_ROUTE_PROMPT_MAX_BYTES,
+  GROK_MCP_TOOL_NAMES,
+  GROK_MCP_TOOL_CONTRACT,
   getGrokLauncherAdapterDigest,
   buildGrokLaunchPlan,
   extractSinglePrompt,

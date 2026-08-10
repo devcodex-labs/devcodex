@@ -83,6 +83,14 @@ const hostParitySurface = siteText || checklistText
 assert.match(hostParitySurface, /HostParity|GrokTurnChecklist/)
 assert.match(hostParitySurface, /GrokTurnChecklist/)
 assert.match(hostParitySurface, /scan-hygiene|ttfv-first-delivery/)
+const grokS15Source = fs.readFileSync(path.join(__dirname, 'probe-skill-route-s15-grok.js'), 'utf8')
+assert.doesNotMatch(
+  grokS15Source,
+  /git['"],\s*\[['"]rev-parse['"],\s*['"]HEAD['"]\]/,
+  'installed Grok S15 must not require its npm package root to be a Git checkout'
+)
+assert.match(grokS15Source, /runtimeDigest/)
+assert.match(grokS15Source, /hostAdapterDigest/)
 if (siteText) {
   assert.match(siteText, /devcodex grok/)
   assert.match(siteText, /repairSteps/)

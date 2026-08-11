@@ -1,10 +1,11 @@
 # 未发布变更（Unreleased）
 
 > **用途**: 记录尚未正式发版的实现级变更。
-> **当前**: Cursor 第六宿主 Beta 已归档到 `changelogs/releases/v1.17.0.md`；后续实现继续记录在本文件，已发布事实以 Git tag、npm registry 与 GitHub Release 为准。
+> **当前**: v1.17.1 六宿主 HOME 隔离补丁候选已迁入 `changelogs/releases/v1.17.1.md`；Cursor 第六宿主 Beta 历史见 `v1.17.0.md`，正式已发布事实以 Git tag、npm registry 与 GitHub Release 为准。
 
 ## 当前未发布实现候选
 
+- **v1.17.1 六宿主 HOME 隔离修复**：`global-adapters apply --home <dir>` 将显式 HOME 作为 CLI 隔离权威，在目标解析前屏蔽 Copilot/Claude/Codex/Gemini/Grok/Cursor、共享 Skill 根与 VS Code MCP 的 ambient 路径覆盖；空值/纯空白 `--home` 失败关闭，未传 `--home` 时保留原环境变量语义。事务后调用 Grok 官方 CLI 时，再把 committed `GlobalHostTargetV1.root` 绑定为派生环境的 `GROK_HOME`，且不修改 ambient process env；target root 缺失时返回 typed failure。单测覆盖六宿主 root、12 个路径覆盖键、原环境不变、legacy 路线和 malformed target；真实探针证明隔离 HOME 6/6 committed、12 个 ambient 目标零创建、真实五个既有宿主加 Grok 的 34 个受管条目快照不变。同步修复 package-lock 根版本漂移并扩展版本校验器。Cursor Local 继续为 Beta，Cloud 与模型驱动 replay 继续为 `UNVERIFIED`。
 - **v1.17.0 Cursor 第六宿主 Beta 接入**：`GlobalHostTargetV1` 扩展为六宿主，npm 全局安装在用户 HOME 写入 `~/.cursor/hooks.json`、动态 DevCodex Plugin、resolver Skill 与本地 stdio MCP；覆盖 workspaceOpen、sessionStart/sessionEnd、beforeSubmitPrompt、Pre/PostTool、failure、afterAgentResponse、preCompact 与 bounded Stop follow-up。本地 IDE、交互 CLI、Headless CLI 分列为 Beta，Cursor Cloud Agent 因不加载用户级 Hook 固定为 Partial / `UNVERIFIED`。`status/doctor`、HostEnforcementMatrix、能力目录、README、RULES、投影内核、安装/回滚/负向测试与 package 文件清单同步升级；业务 workspace 继续零 `.cursor` 产物。Windows native probe 会按 PATH/PATHEXT 优先解析官方 `cursor-agent.cmd` / `.bat`，再回退到 `agent` 并校验产品身份，既避免 Node 跳过 `.cmd` 后误命中 Grok `agent.exe`，也继续用 `HOST_NATIVE_IDENTITY_MISMATCH` 暴露真实别名冲突。Cursor Marketplace 发布不在本版本范围内。
 - **Cursor/S15 候选真实性加固**：Cursor Plugin MCP 的 workspace 参数改为 `${workspaceFolder}`；官方 Cursor CLI `2026.08.04-aaa8809` 已在隔离 HOME 中真实启动 memory/profile 两个 stdio server，并分别枚举 10/6 个工具。Codex/Grok 非 production S15 改为把当前源码安装到一次性宿主 HOME，强制核对 source、generation、mode receipt 与 route envelope 四个 runtime digest，避免“证据写当前 digest、实际执行旧全局 runtime”的跨版本假阳性；catalog stale 同步输出有界 index drift 诊断。Cursor 模型驱动 Hook/Skill replay 因隔离 CLI 未登录仍保持 `UNVERIFIED`，不升级 Beta/Cloud 声明。
 - **发布验证认证与 Windows 启动器安全修复**：Grok S15 检测旋转型 OAuth `refresh_token` 并禁止复制到一次性 HOME，改用专用持久 candidate HOME 或 `XAI_API_KEY`，防止探针轮换 token 后清理最新副本、使真实登录失效；Windows `checked-command` 不再直接 spawn `npm.cmd`，按 npm CLI、PATH 原生 `.exe`、installed CLI、受控 `cmd.exe` 顺序解析，兼容独立 Node 24 的 release-risk DAG；安全审计复用该 resolver 并以 `shell:false` 保留 npm audit 原始 exit code/JSON，消除 `DEP0190` 与参数拼接风险。

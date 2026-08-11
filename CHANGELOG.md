@@ -1,9 +1,9 @@
 # 变更日志 (CHANGELOG)
 
 > **说明**: 版本概览摘要；历史版本见对应详细变更文件。
-> **最新版本详细变更文档**: [`changelogs/releases/v1.17.0.md`](./changelogs/releases/v1.17.0.md)
+> **最新版本详细变更文档**: [`changelogs/releases/v1.17.1.md`](./changelogs/releases/v1.17.1.md)
 > **最后更新**: 2026-08-12
-> **当前版本**: v1.17.0 引入 Cursor 第六宿主本地 Beta；版本发布权威以对应 Git tag、npm registry 与 GitHub Release 为准。
+> **当前版本**: v1.17.1 修复显式 `--home` 的六宿主目标解析与 Grok 官方注册表作用域逃逸；Cursor 第六宿主仍为本地 Beta，版本发布权威以对应 Git tag、npm registry 与 GitHub Release 为准。
 
 ---
 
@@ -11,6 +11,7 @@
 
 | 版本 | 日期 | 变更摘要 | 详细 |
 |------|------|---------|------|
+| [v1.17.1](./changelogs/releases/v1.17.1.md) | 2026-08-12 | 🔧 **六宿主 `--home` 隔离修复**：显式 HOME 优先于宿主、共享 Skill 与 VS Code MCP 的 ambient 路径覆盖，Grok 官方 CLI 继承 resolved target；真实/隔离负向探针保证 Cursor 接入不改动其他宿主 | [查看](./changelogs/releases/v1.17.1.md) |
 | [v1.17.0](./changelogs/releases/v1.17.0.md) | 2026-08-12 | ✨ **Cursor 第六宿主 Beta 接入与候选证据加固**：六宿主统一安装、Hook/Plugin/MCP/SkillRoute、本地四形态诚实诊断、Windows CLI 身份解析及当前源码 S15 强绑定 | [查看](./changelogs/releases/v1.17.0.md) |
 | [v1.16.7](./changelogs/releases/v1.16.7.md) | 2026-08-11 | 🔧 **Grok 渐进式 Skill 路由与正文证据修复**：未提交路由在首次工具调用前 fail closed，ContextRead 保持可完成；Full 启动器固定 Grok 限定 MCP 名、首 catalog 与条件 commit 契约，并以真实三阶段 S15 晋级 Grok capability PASS | [查看](./changelogs/releases/v1.16.7.md) |
 | [v1.16.6](./changelogs/releases/v1.16.6.md) | 2026-08-10 | 🔧 **Windows 审批沙箱与 SkillRoute 恢复修复**：逐宿主隔离只读权限拒绝，新增 Node launcher readiness；可见恢复卡仅保留当前精确动作，语义漂移进入不可重试的持久退役终态 | [查看](./changelogs/releases/v1.16.6.md) |
@@ -143,8 +144,8 @@
 
 ## 相关文档
 
-- [`changelogs/releases/v1.16.3.md`](./changelogs/releases/v1.16.3.md) — 最新版本详细变更文档
-- [`changelogs/releases/v1.16.2.md`](./changelogs/releases/v1.16.2.md) — 上一版本详细变更文档
+- [`changelogs/releases/v1.17.1.md`](./changelogs/releases/v1.17.1.md) — 最新版本详细变更文档
+- [`changelogs/releases/v1.17.0.md`](./changelogs/releases/v1.17.0.md) — 上一版本详细变更文档
 - [`changelogs/releases/v1.15.7.md`](./changelogs/releases/v1.15.7.md) — 历史版本详细变更文档
 - [`changelogs/releases/v1.15.0.md`](./changelogs/releases/v1.15.0.md) — 上一版本详细变更文档
 - [`changelogs/releases/v1.14.0.md`](./changelogs/releases/v1.14.0.md) — 历史版本详细变更文档

@@ -1,6 +1,6 @@
 {
   "name": "devcodex",
-  "version": "1.17.0",
+  "version": "1.17.1",
   "description": "DevCodex — AI-powered development workflow rules for Copilot, Claude Code, Codex, Gemini CLI, Grok and Cursor",
   "main": "index.js",
   "bin": {

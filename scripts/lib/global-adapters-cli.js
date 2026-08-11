@@ -21,6 +21,29 @@ const {
 } = require('./host-adapter-scope.js')
 
 const COMMAND = 'global-adapters'
+const EXPLICIT_HOME_PATH_OVERRIDE_KEYS = new Set([
+  'COPILOT_HOME',
+  'CLAUDE_CONFIG_DIR',
+  'CODEX_HOME',
+  'GEMINI_CLI_HOME',
+  'GROK_HOME',
+  'CURSOR_HOME',
+  'DEVCODEX_GLOBAL_SHARED_ROOT',
+  'DEVCODEX_GLOBAL_SKILLS_ROOT',
+  'DEVCODEX_GLOBAL_SKILLS_RUNTIME',
+  'DEVCODEX_GLOBAL_FULL_FALLBACK',
+  'DEVCODEX_VSCODE_MCP_PATH',
+  'DEVCODEX_VSCODE_USER_DIR'
+])
+
+function scopeEnvToExplicitHome(env = {}, explicitHome = null) {
+  if (!explicitHome) return env
+  return Object.fromEntries(
+    Object.entries(env).filter(([key]) =>
+      !EXPLICIT_HOME_PATH_OVERRIDE_KEYS.has(String(key).toUpperCase())
+    )
+  )
+}
 
 function resolvePackageRoot(options = {}) {
   const pathImpl = options.path || path
@@ -45,14 +68,16 @@ function parseGlobalAdaptersArgv(argv = []) {
     else if (arg === '--json') options.json = true
     else if (arg === '--home') {
       const value = args[i + 1]
-      if (!value || String(value).startsWith('-')) {
+      if (!value || !String(value).trim() || String(value).startsWith('-')) {
         options.errors.push('--home requires a directory path')
       } else {
         options.home = value
         i++
       }
     } else if (arg.startsWith('--home=')) {
-      options.home = arg.slice('--home='.length)
+      const value = arg.slice('--home='.length)
+      if (!String(value).trim()) options.errors.push('--home requires a directory path')
+      else options.home = value
     } else if (arg === '--mode') {
       const value = args[i + 1]
       if (!value || String(value).startsWith('-')) {
@@ -176,12 +201,13 @@ function buildHandler(deps = {}) {
 
     let result
     try {
+      const applyEnv = scopeEnvToExplicitHome(processImpl.env, parsed.home)
       result = apply({
         packageRoot: pkgRoot,
         dryRun: parsed.dryRun === true,
         home: parsed.home || undefined,
         fs: fsImpl,
-        env: processImpl.env,
+        env: applyEnv,
         skillsDeployMode: parsed.skillsDeployMode || undefined
       })
     } catch (error) {
@@ -208,10 +234,18 @@ function buildHandler(deps = {}) {
     const grokTransaction = result?.transaction?.hosts?.find(item => item.host === 'grok')
     if (!parsed.dryRun && grokTransaction?.status === 'committed' && grokTarget?.files?.plugin) {
       try {
+        if (!grokTarget.root) {
+          const error = new Error('Committed Grok target is missing its resolved user-global root')
+          error.code = 'GLOBAL_ADAPTERS_GROK_TARGET_ROOT_MISSING'
+          throw error
+        }
         grokIntegration = syncGrok({
           pluginPath: grokTarget.files.plugin,
           activeRoot: result?.activeRoot || null,
-          env: processImpl.env
+          env: {
+            ...(processImpl.env || {}),
+            GROK_HOME: grokTarget.root
+          }
         })
       } catch (error) {
         grokIntegrationError = error
@@ -311,7 +345,9 @@ function buildHandler(deps = {}) {
 
 module.exports = {
   COMMAND,
+  EXPLICIT_HOME_PATH_OVERRIDE_KEYS,
   buildHandler,
   parseGlobalAdaptersArgv,
-  resolvePackageRoot
+  resolvePackageRoot,
+  scopeEnvToExplicitHome
 }

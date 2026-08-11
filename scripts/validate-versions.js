@@ -5,6 +5,7 @@ const path = require('path')
 
 const ROOT = path.resolve(__dirname, '..')
 const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
+const lock = JSON.parse(fs.readFileSync(path.join(ROOT, 'package-lock.json'), 'utf8'))
 const plugin = JSON.parse(fs.readFileSync(path.join(ROOT, 'plugin.json'), 'utf8'))
 
 function walk(dir) {
@@ -25,6 +26,12 @@ if (pkg.version !== plugin.version) {
 
 const rules = fs.readFileSync(path.join(ROOT, 'RULES.md'), 'utf8')
 const mismatches = []
+if (lock.name !== pkg.name || lock.version !== pkg.version) {
+  mismatches.push(`package-lock.json root ${lock.name}@${lock.version} ≠ ${pkg.name}@${pkg.version}`)
+}
+if (lock.packages?.['']?.name !== pkg.name || lock.packages?.['']?.version !== pkg.version) {
+  mismatches.push(`package-lock.json packages[""] ${lock.packages?.['']?.name}@${lock.packages?.['']?.version} ≠ ${pkg.name}@${pkg.version}`)
+}
 if (!rules.includes(`# DevCodex v${pkg.version}`) || !rules.includes(`version: ${pkg.version}`)) {
   mismatches.push(`RULES.md does not reference version ${pkg.version}`)
 }

@@ -77,7 +77,7 @@ try {
   assert.strictEqual(fs.existsSync(path.join(isolated, 'skills', 'routing', 'intent.json')), false)
   assert.strictEqual(fs.existsSync(path.join(isolated, 'content', 'skills', 'routing', 'SKILL.md')), true)
 
-  console.log('content root isolation tests passed old-roots=absent pack=materialize+cleanup hosts=5')
+  console.log('content root isolation tests passed old-roots=absent pack=materialize+cleanup hosts=6')
 } finally {
   fs.rmSync(isolated, { recursive: true, force: true, maxRetries: 10 })
 }

@@ -23,7 +23,7 @@ const {
 } = require('./lib/process-enforcement.js')
 
 const {
-  assertFiveHosts,
+  assertSixHosts,
   listHostIds,
   getHostEnforcement,
   summarizeMatrix,
@@ -210,11 +210,11 @@ const stopSrc = fs.readFileSync(
   console.log('E2E-08 PASS')
 }
 
-// ── E2E-09: five-host matrix consistent ─────────────────────────────────────
+// ── E2E-09: six-host matrix consistent ──────────────────────────────────────
 {
-  assertFiveHosts()
+  assertSixHosts()
   const ids = listHostIds()
-  assert.deepStrictEqual(ids.sort(), ['claude', 'codex', 'copilot', 'gemini', 'grok'].sort())
+  assert.deepStrictEqual(ids.sort(), ['claude', 'codex', 'copilot', 'cursor', 'gemini', 'grok'].sort())
   for (const id of ids) {
     const h = getHostEnforcement(id)
     assert.ok(h, `host ${id}`)
@@ -235,7 +235,7 @@ const stopSrc = fs.readFileSync(
     }
   }
   const summary = summarizeMatrix()
-  assert.strictEqual(summary.length, 5)
+  assert.strictEqual(summary.length, 6)
   assert.strictEqual(HOST_ENFORCEMENT_MATRIX_V1.schemaVersion, 'HostEnforcementMatrixV1')
   console.log('E2E-09 PASS')
 }
@@ -250,6 +250,16 @@ const stopSrc = fs.readFileSync(
   // Must not claim UPS inject as hard-deny success path
   assert.notStrictEqual(grok.upsInject, 'hard-deny')
   console.log('E2E-10 PASS')
+}
+
+// ── E2E-10B: Cursor local Beta is hard at PreTool and bounded at Stop ────────
+{
+  const cursor = getHostEnforcement('cursor')
+  assert.strictEqual(cursor.preToolMutationNoCp2, 'hard-deny')
+  assert.strictEqual(cursor.stopCompletion, 'stop-followup')
+  assert.strictEqual(cursor.upsInject, 'session-start-only')
+  assert.match(cursor.preToolNotes, /Cloud user hooks are unavailable/)
+  console.log('E2E-10B PASS')
 }
 
 // ── Wiring smoke (lifecycle consumes enforcement modules) ───────────────────

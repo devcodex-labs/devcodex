@@ -4,7 +4,7 @@
   "sourceMatrixRef": {
     "path": "scripts/lib/always-on-governance.js#buildHostAdapterCompatibilityMatrix",
     "schemaVersion": "HostAdapterCompatibilityMatrixV1",
-    "matrixId": "always-on-host-b38585a2c53b0c24ee67aa7b5d18ae2c9f92e41412bcb647ed28d2b900a6c41c",
+    "matrixId": "always-on-host-e658c8136dbff462141296a05bfbe2d1be3c38344283e4556477964ebeeba963",
     "sourceHead": "ef60b2b593a232747880b86316bec6f888c7cd89"
   },
   "entries": [
@@ -689,18 +689,94 @@
           "runtime-owner"
         ]
       }
-    }
-  ],
-  "unsupportedSurfaces": [
+    },
     {
       "hostId": "cursor",
       "hostSurfaceOrVariant": "cursor",
-      "reasonCode": "HOST_UNSUPPORTED",
-      "fallback": "manual full-instruction paste",
-      "evidenceRef": [
-        "HostAdapterCompatibilityMatrixV1#cursor"
-      ]
-    },
+      "capabilityFamilyId": "planning",
+      "leverVersion": "1.0.0",
+      "leverType": "none",
+      "invocation": "DevCodex portable plan-first workflow; no Cursor-native planning lever is claimed in this Beta",
+      "automationAuthority": "none",
+      "eligibility": {
+        "status": "portable-only",
+        "prerequisites": [
+          "user-global Cursor adapter contract",
+          "current DevCodex CP and execution authority"
+        ],
+        "requiredEvidence": [
+          "Cursor adapter contract tests",
+          "portable CP receipt"
+        ],
+        "requiresExplicitUserAuthority": false
+      },
+      "evidence": {
+        "evidenceStatus": "PASS",
+        "evidenceRef": [
+          "HostAdapterCompatibilityMatrixV1#cursor",
+          "CSD-cursor-sixth-host-beta"
+        ],
+        "evidenceCheckedAt": "2026-08-11T07:46:51Z",
+        "evidenceLease": {
+          "kind": "repo-local",
+          "duration": "source-bound",
+          "sourceHead": "ef60b2b593a232747880b86316bec6f888c7cd89"
+        }
+      },
+      "permission": {
+        "permissionDelta": "none",
+        "writeBoundary": "Cursor approval and permission modes do not create DevCodex Auto authority or replace CP."
+      },
+      "lifecycle": {
+        "enter": {
+          "owner": "DevCodex workflow",
+          "observable": true,
+          "evidenceRef": "PC0 through PC7 and implementation plan are visible"
+        },
+        "approve": {
+          "owner": "DevCodex CP",
+          "observable": true,
+          "evidenceRef": "digest-bound CP receipt"
+        },
+        "cancel": {
+          "owner": "user/workflow",
+          "observable": true,
+          "evidenceRef": "task cancellation remains outside any Cursor native plan claim"
+        },
+        "exit": {
+          "owner": "DevCodex workflow",
+          "observable": true,
+          "evidenceRef": "completion and report receipts"
+        }
+      },
+      "fallback": {
+        "portableDecision": "plan_first",
+        "reasonCode": "NATIVE_NOT_PHASE1",
+        "retryable": false
+      },
+      "validation": {
+        "negativeProbe": [
+          "do not claim a Cursor-native planning mode was entered",
+          "do not treat Cursor approval as CP confirmation",
+          "do not copy local adapter evidence to Cloud"
+        ],
+        "runtimeOwner": "lifecycle-host-adapters/cursor",
+        "validationOwner": "host-capability-routing"
+      },
+      "freshness": {
+        "invalidationTriggers": [
+          "schema",
+          "source",
+          "host",
+          "protocol",
+          "evidence",
+          "consumer",
+          "runtime-owner"
+        ]
+      }
+    }
+  ],
+  "unsupportedSurfaces": [
     {
       "hostId": "chatgpt-plain",
       "hostSurfaceOrVariant": "chatgpt-plain",

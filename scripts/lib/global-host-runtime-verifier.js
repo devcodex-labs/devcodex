@@ -6,13 +6,23 @@ const { spawnSync } = require('child_process')
 const { resolveGlobalHostTarget, samePath } = require('./global-host-target.js')
 const { inspectNodeRuntimeReadiness } = require('./node-runtime-readiness.js')
 
-const EXECUTABLE_ADAPTER_HOSTS = Object.freeze(['copilot', 'claude', 'codex', 'gemini', 'grok'])
+const EXECUTABLE_ADAPTER_HOSTS = Object.freeze(['copilot', 'claude', 'codex', 'gemini', 'grok', 'cursor'])
 const NATIVE_COMMANDS = Object.freeze({
   copilot: { command: 'copilot', args: ['--version'] },
   claude: { command: 'claude', args: ['--version'] },
   codex: { command: 'codex', args: ['--version'] },
   gemini: { command: 'gemini', args: ['--version'] },
-  grok: { command: 'grok', args: ['version'] }
+  grok: { command: 'grok', args: ['version'] },
+  cursor: {
+    command: 'agent',
+    windowsCommandCandidates: Object.freeze(['cursor-agent', 'agent']),
+    args: ['--version'],
+    identityArgs: ['--help'],
+    identityPattern: /\bcursor\b/i,
+    rejectedIdentities: Object.freeze([
+      Object.freeze({ host: 'grok', pattern: /\bgrok\b/i })
+    ])
+  }
 })
 
 function readJson(file, fsImpl = fs) {
@@ -33,6 +43,107 @@ function unavailable(result) {
     result?.error?.code === 'EACCES' ||
     (result?.status === null && !result?.signal && !result?.stdout && !result?.stderr)
   )
+}
+
+function envValue(env, name) {
+  const key = Object.keys(env || {}).find(candidate => candidate.toLowerCase() === name.toLowerCase())
+  return key ? String(env[key] || '') : ''
+}
+
+function resolveWindowsNativeCommand(command, options = {}) {
+  const fsImpl = options.fs || fs
+  const env = options.env || process.env
+  const raw = String(command || '').trim()
+  if (!raw) return { status: 'missing', command: raw, resolvedPath: null, accessErrors: [] }
+  const extensions = path.extname(raw)
+    ? ['']
+    : (envValue(env, 'PATHEXT') || '.COM;.EXE;.BAT;.CMD')
+        .split(';')
+        .map(value => value.trim())
+        .filter(Boolean)
+        .map(value => value.startsWith('.') ? value : `.${value}`)
+  const entries = /[\\/]/.test(raw)
+    ? ['']
+    : envValue(env, 'PATH')
+        .split(';')
+        .map(value => value.trim().replace(/^"|"$/g, ''))
+        .filter(Boolean)
+        .slice(0, 128)
+  const accessErrors = []
+  for (const entry of entries) {
+    for (const extension of extensions) {
+      const candidate = path.resolve(entry || '.', `${raw}${extension}`)
+      try {
+        if (fsImpl.statSync(candidate).isFile()) {
+          return {
+            status: 'resolved',
+            command: raw,
+            resolvedPath: candidate,
+            extension: path.extname(candidate).toLowerCase(),
+            accessErrors
+          }
+        }
+      } catch (error) {
+        if (error?.code !== 'ENOENT' && error?.code !== 'ENOTDIR' && accessErrors.length < 5) {
+          accessErrors.push({ path: candidate, errorCode: error?.code || 'UNKNOWN' })
+        }
+      }
+    }
+  }
+  return {
+    status: accessErrors.length ? 'unverified' : 'missing',
+    command: raw,
+    resolvedPath: null,
+    accessErrors
+  }
+}
+
+function buildWindowsNativeInvocation(command, args, options = {}) {
+  const env = options.env || process.env
+  const resolution = options.resolution || resolveWindowsNativeCommand(command, options)
+  if (resolution.status !== 'resolved') {
+    return { command, args, resolution, windowsVerbatimArguments: false }
+  }
+  if (resolution.extension === '.cmd' || resolution.extension === '.bat') {
+    const comspec = envValue(env, 'COMSPEC') || path.join(envValue(env, 'SystemRoot') || 'C:\\Windows', 'System32', 'cmd.exe')
+    return {
+      command: comspec,
+      args: ['/d', '/c', resolution.resolvedPath, ...args],
+      resolution,
+      windowsVerbatimArguments: false
+    }
+  }
+  return {
+    command: resolution.resolvedPath,
+    args,
+    resolution,
+    windowsVerbatimArguments: false
+  }
+}
+
+function nativeProbeInvocation(spec, args, options = {}) {
+  const platform = options.platform || process.platform
+  const shouldResolveWindows = platform === 'win32' && (
+    options.resolveWindowsCommand === true || options.nativeSpawnInjected !== true
+  )
+  if (!shouldResolveWindows) {
+    return {
+      command: spec.command,
+      args,
+      resolution: { status: 'ambient', command: spec.command, resolvedPath: null },
+      windowsVerbatimArguments: false
+    }
+  }
+  const candidates = Array.isArray(spec.windowsCommandCandidates) && spec.windowsCommandCandidates.length
+    ? spec.windowsCommandCandidates
+    : [spec.command]
+  for (const command of candidates) {
+    const resolution = resolveWindowsNativeCommand(command, options)
+    if (resolution.status === 'resolved') {
+      return buildWindowsNativeInvocation(command, args, { ...options, resolution })
+    }
+  }
+  return buildWindowsNativeInvocation(spec.command, args, options)
 }
 
 function parseProbeOutput(result) {
@@ -162,25 +273,174 @@ function grokStaticContract(target, options = {}) {
   return { status, registryStatus, mcpStatus, registry, mcpFile, expectedServers, issues }
 }
 
+function cursorStaticContract(target, options = {}) {
+  const fsImpl = options.fs || fs
+  const issues = []
+  const hooks = readJson(target.files.hooks, fsImpl)
+  const runtimeEntry = path.join(target.runtimeRoot, 'hooks', '_runtime', 'lifecycle-host-adapters.cjs')
+  const requiredEvents = [
+    'workspaceOpen',
+    'sessionStart',
+    'sessionEnd',
+    'beforeSubmitPrompt',
+    'preToolUse',
+    'postToolUse',
+    'postToolUseFailure',
+    'afterAgentResponse',
+    'preCompact',
+    'stop'
+  ]
+  const eventStatus = {}
+  for (const event of requiredEvents) {
+    const entries = Array.isArray(hooks?.hooks?.[event]) ? hooks.hooks[event] : []
+    const managed = entries.find(entry =>
+      typeof entry?.command === 'string' &&
+      entry.command.includes('lifecycle-host-adapters.cjs') &&
+      entry.command.includes(' cursor') &&
+      entry.command.includes('--cursor-plugin-path')
+    )
+    eventStatus[event] = Boolean(managed)
+    if (!managed) {
+      issues.push(probeIssue(
+        'CURSOR_HOOK_CONTRACT_FAILED',
+        'contract',
+        event + ':' + target.files.hooks,
+        'Refresh the Cursor user-global Hook configuration.'
+      ))
+    }
+  }
+
+  const manifestFile = path.join(target.files.plugin, '.cursor-plugin', 'plugin.json')
+  const manifest = readJson(manifestFile, fsImpl)
+  const skillFile = path.join(target.files.plugin, 'skills', 'devcodex-workspace', 'SKILL.md')
+  const pluginHooksFile = path.join(target.files.plugin, 'hooks', 'hooks.json')
+  const pluginStatus = Boolean(
+    manifest?.name === 'devcodex-workspace' &&
+    typeof manifest?.version === 'string' &&
+    manifest.version &&
+    manifest.skills === './skills' &&
+    manifest.mcpServers === './mcp.json' &&
+    fsImpl.existsSync(skillFile) &&
+    !fsImpl.existsSync(pluginHooksFile)
+  )
+  if (!pluginStatus) {
+    issues.push(probeIssue(
+      'CURSOR_PLUGIN_CONTRACT_FAILED',
+      'contract',
+      manifestFile,
+      'Refresh the Cursor user-global DevCodex Plugin.'
+    ))
+  }
+
+  const mcpFile = path.join(target.files.plugin, 'mcp.json')
+  const mcp = readJson(mcpFile, fsImpl)
+  const expectedServers = {
+    'devcodex-memory': path.join(target.runtimeRoot, 'mcp', 'memory-server.js'),
+    'devcodex-profile': path.join(target.runtimeRoot, 'mcp', 'profile-server.js')
+  }
+  let mcpStatus = true
+  for (const [name, serverPath] of Object.entries(expectedServers)) {
+    const server = mcp?.mcpServers?.[name]
+    const args = Array.isArray(server?.args) ? server.args : []
+    if (
+      server?.type !== 'stdio' ||
+      server?.command !== 'node' ||
+      server?.env?.DEVCODEX_AGENT !== 'cursor' ||
+      !fsImpl.existsSync(serverPath) ||
+      !args.some(value => samePath(String(value), serverPath)) ||
+      args[1] !== '${workspaceFolder}'
+    ) {
+      mcpStatus = false
+      issues.push(probeIssue(
+        'CURSOR_MCP_CONTRACT_FAILED',
+        'contract',
+        name + ':' + mcpFile,
+        'Refresh the Cursor Plugin and immutable DevCodex runtime.'
+      ))
+    }
+  }
+
+  return {
+    status: issues.length ? 'failed' : 'passed',
+    hooksFile: target.files.hooks,
+    eventStatus,
+    manifestFile,
+    pluginStatus,
+    skillFile,
+    pluginHooksAbsent: !fsImpl.existsSync(pluginHooksFile),
+    mcpFile,
+    mcpStatus,
+    expectedServers,
+    issues
+  }
+}
+
+function cursorVariantMatrix(adapterReady, nativeProbe) {
+  const cliDetected = nativeProbe?.status === 'passed'
+  const cliEvidence = cliDetected
+    ? 'agent --version passed; direct Hook/MCP replay still pending'
+    : 'Cursor agent CLI not directly available; native replay pending'
+  return [
+    {
+      id: 'cursor-ide-local',
+      support: 'beta',
+      configured: adapterReady,
+      adapterReady,
+      nativeStatus: 'unverified',
+      evidence: 'user-global Hook and Plugin contract only; direct Desktop replay pending'
+    },
+    {
+      id: 'cursor-cli-interactive',
+      support: 'beta',
+      configured: adapterReady,
+      adapterReady,
+      nativeStatus: 'unverified',
+      cliDetected,
+      evidence: cliEvidence
+    },
+    {
+      id: 'cursor-cli-headless',
+      support: 'beta',
+      configured: adapterReady,
+      adapterReady,
+      nativeStatus: 'unverified',
+      cliDetected,
+      evidence: cliEvidence
+    },
+    {
+      id: 'cursor-cloud-agent',
+      support: 'partial',
+      configured: false,
+      adapterReady: false,
+      nativeStatus: 'unverified',
+      evidence: 'Cursor Cloud does not load user-level Hooks, workspaceOpen or sessionStart'
+    }
+  ]
+}
+
 function nativeVersionProbe(host, options = {}) {
   if (options.depth !== 'deep') {
     return { status: 'unverified', evidence: { reason: 'status-light-probe' }, issues: [] }
   }
   const spec = NATIVE_COMMANDS[host]
-  const result = options.spawnSync(spec.command, spec.args, {
+  const spawn = options.spawnSync || spawnSync
+  const invocation = nativeProbeInvocation(spec, spec.args, options)
+  const result = spawn(invocation.command, invocation.args, {
     encoding: 'utf8',
     windowsHide: true,
+    windowsVerbatimArguments: invocation.windowsVerbatimArguments,
     env: options.env,
     timeout: options.timeoutMs
   })
+  const resolvedCommand = invocation.resolution?.resolvedPath || invocation.resolution?.command || spec.command
   if (unavailable(result)) {
     return {
       status: 'unavailable',
-      evidence: { command: spec.command, error: result?.error?.code || 'not-found' },
+      evidence: { command: spec.command, resolvedCommand, error: result?.error?.code || 'not-found' },
       issues: [probeIssue(
         'HOST_NATIVE_PROBE_UNAVAILABLE',
         'native',
-        `${spec.command}: ${result?.error?.code || 'not-found'}`,
+        `${resolvedCommand}: ${result?.error?.code || 'not-found'}`,
         `Install or repair the ${host} CLI, then re-run devcodex doctor.`
       )]
     }
@@ -190,6 +450,7 @@ function nativeVersionProbe(host, options = {}) {
       status: 'failed',
       evidence: {
         command: spec.command,
+        resolvedCommand,
         exitCode: result.status,
         output: String(result.stderr || result.stdout || '').trim()
       },
@@ -201,9 +462,58 @@ function nativeVersionProbe(host, options = {}) {
       )]
     }
   }
+  const version = String(result.stdout || result.stderr || '').trim()
+  if (spec.identityPattern && !spec.identityPattern.test(version)) {
+    const identityInvocation = Array.isArray(spec.identityArgs)
+      ? nativeProbeInvocation(spec, spec.identityArgs, {
+          ...options,
+          resolution: invocation.resolution
+        })
+      : null
+    const identityResult = identityInvocation
+      ? spawn(identityInvocation.command, identityInvocation.args, {
+          encoding: 'utf8',
+          windowsHide: true,
+          windowsVerbatimArguments: identityInvocation.windowsVerbatimArguments,
+          env: options.env,
+          timeout: options.timeoutMs
+        })
+      : null
+    const identityOutput = String(identityResult?.stdout || identityResult?.stderr || '').trim()
+    const combinedIdentityOutput = `${version}\n${identityOutput}`.trim()
+    if (!spec.identityPattern.test(combinedIdentityOutput)) {
+      const rejected = (spec.rejectedIdentities || []).find(item => item.pattern.test(combinedIdentityOutput))
+      const code = rejected ? 'HOST_NATIVE_IDENTITY_MISMATCH' : 'HOST_NATIVE_IDENTITY_UNVERIFIED'
+      const detail = rejected
+        ? `${resolvedCommand} resolved to ${rejected.host}, not ${host}`
+        : `${resolvedCommand} output did not identify ${host}`
+      return {
+        status: 'unverified',
+        evidence: {
+          command: spec.command,
+          resolvedCommand,
+          version,
+          identityOutput: identityOutput.slice(0, 300),
+          identityStatus: rejected ? 'mismatch' : 'unverified',
+          detectedHost: rejected?.host || null
+        },
+        issues: [probeIssue(
+          code,
+          'native',
+          detail,
+          `Ensure the ${host} CLI executable is available as cursor-agent or agent on PATH, then re-run devcodex doctor.`
+        )]
+      }
+    }
+  }
   return {
     status: 'passed',
-    evidence: { command: spec.command, version: String(result.stdout || result.stderr || '').trim() },
+    evidence: {
+      command: spec.command,
+      resolvedCommand,
+      version,
+      identityStatus: spec.identityPattern ? 'matched' : 'not-required'
+    },
     issues: []
   }
 }
@@ -530,7 +840,16 @@ function verifyGlobalHostRuntime(options = {}) {
   const depth = options.depth === 'deep' ? 'deep' : 'status'
   const configuration = options.configuration || { hosts: [] }
   const cwd = path.resolve(options.cwd || process.cwd())
-  const common = { fs: fsImpl, spawnSync: spawn, env, depth, timeoutMs: options.timeoutMs || 15000 }
+  const common = {
+    fs: fsImpl,
+    spawnSync: spawn,
+    env,
+    depth,
+    timeoutMs: options.timeoutMs || 15000,
+    platform: options.platform || process.platform,
+    nativeSpawnInjected: typeof options.spawnSync === 'function',
+    resolveWindowsCommand: options.resolveWindowsCommand === true
+  }
   const nodeRuntime = options.nodeRuntime || inspectNodeRuntimeReadiness({
     fs: fsImpl,
     spawnSync: spawn,
@@ -580,6 +899,12 @@ function verifyGlobalHostRuntime(options = {}) {
       issues.push(...staticGrok.issues)
       if (staticGrok.status === 'failed') contractStatus = 'failed'
     }
+    if (configurationHost.host === 'cursor') {
+      const staticCursor = cursorStaticContract(target, common)
+      probes.cursorStatic = staticCursor
+      issues.push(...staticCursor.issues)
+      if (staticCursor.status === 'failed') contractStatus = 'failed'
+    }
 
     const native = nativeVersionProbe(configurationHost.host, common)
     let nativeStatus = native.status
@@ -594,6 +919,12 @@ function verifyGlobalHostRuntime(options = {}) {
     }
 
     const adapterReady = configured && contractStatus === 'passed'
+    const variants = configurationHost.host === 'cursor'
+      ? cursorVariantMatrix(adapterReady, native)
+      : undefined
+    if (configurationHost.host === 'cursor' && nativeStatus !== 'failed') {
+      nativeStatus = 'unverified'
+    }
     const state = operationalState(configured, contractStatus, nativeStatus)
     return {
       ...configurationHost,
@@ -604,7 +935,8 @@ function verifyGlobalHostRuntime(options = {}) {
       operationalState: state,
       ready: state === 'ready',
       issues,
-      probes
+      probes,
+      ...(variants ? { variants } : {})
     }
   })
 
@@ -628,11 +960,16 @@ function verifyGlobalHostRuntime(options = {}) {
 module.exports = {
   EXECUTABLE_ADAPTER_HOSTS,
   adapterContractProbe,
+  cursorStaticContract,
+  cursorVariantMatrix,
+  buildWindowsNativeInvocation,
   grokPluginIdentities,
   grokStaticContract,
   mcpInitializeProbe,
   mcpToolCallProbe,
   nativeVersionProbe,
+  nativeProbeInvocation,
+  resolveWindowsNativeCommand,
   grokInstalledHookProbe,
   verifyGlobalHostRuntime
 }

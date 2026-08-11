@@ -613,9 +613,9 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → 
 
 执行顺序：`预检查 PC0~PC7 → FC → SC → RC → 报告验证 V1~V6 → 任务完成验证 T1~T13`
 
-### 入口检查输出格式（所有模式，所有工作流前置，chat 也须执行 · 五宿主同源）
+### 入口检查输出格式（所有模式，所有工作流前置，chat 也须执行 · 六宿主同源）
 
-> **UserVisibleReplyLayoutV1（人话优先）**：入口检查、正文、复审验证白话、完成检查/`FinalValidationSummaryV1` 对 **Copilot / Claude Code / Codex / Gemini / Grok** 使用**同一套**可见结构；宿主只影响硬拦/注入能力，不改变 PC 语义与人话规则。
+> **UserVisibleReplyLayoutV1（人话优先）**：入口检查、正文、复审验证白话、完成检查/`FinalValidationSummaryV1` 对 **Copilot / Claude Code / Codex / Gemini / Grok / Cursor** 使用**同一套**可见结构；宿主只影响硬拦/注入能力，不改变 PC 语义与人话规则。Cursor Cloud Agent 保持 Partial / UNVERIFIED，但不能省略入口结构。
 
 ```markdown
 ### DevCodex · 入口检查

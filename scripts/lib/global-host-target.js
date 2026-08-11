@@ -9,7 +9,7 @@ const {
 } = require('./runtime-generation.js')
 
 const GLOBAL_HOST_TARGET_SCHEMA = 'GlobalHostTargetV1'
-const GLOBAL_HOST_IDS = Object.freeze(['copilot', 'claude', 'codex', 'gemini', 'grok'])
+const GLOBAL_HOST_IDS = Object.freeze(['copilot', 'claude', 'codex', 'gemini', 'grok', 'cursor'])
 
 function resolveHome(options = {}) {
   const env = options.env || process.env
@@ -26,6 +26,7 @@ function hostRoot(host, home, env) {
     return path.resolve(path.join(geminiHome, '.gemini'))
   }
   if (host === 'grok') return path.resolve(env.GROK_HOME || path.join(home, '.grok'))
+  if (host === 'cursor') return path.resolve(env.CURSOR_HOME || path.join(home, '.cursor'))
   throw new Error(`GLOBAL_HOST_UNSUPPORTED: ${host}`)
 }
 
@@ -235,6 +236,17 @@ function resolveGlobalHostTarget(host, options = {}) {
       files: {
         instructions: path.join(root, 'GEMINI.md'),
         settings: path.join(root, 'settings.json')
+      }
+    })
+  }
+  if (normalized === 'cursor') {
+    return finalizeTarget({
+      ...common,
+      support: 'direct-probe-beta',
+      evidenceCeiling: 'Cursor local IDE/CLI/Headless user hooks and dynamic plugin; Cloud remains partial/unverified',
+      files: {
+        hooks: path.join(root, 'hooks.json'),
+        plugin: path.join(root, 'devcodex', 'plugins', 'devcodex-workspace')
       }
     })
   }

@@ -45,7 +45,12 @@ const HOST_COMPLETION_ROUTES = Object.freeze({
   claude: Object.freeze({ defaultSurface: 'code', directSurfaces: Object.freeze(['code']), enforcementCeiling: 'host-supported' }),
   copilot: Object.freeze({ defaultSurface: 'cli-cloud', directSurfaces: Object.freeze(['cli-cloud']), enforcementCeiling: 'surface-dependent' }),
   gemini: Object.freeze({ defaultSurface: 'cli', directSurfaces: Object.freeze(['cli']), enforcementCeiling: 'retry-supported' }),
-  grok: Object.freeze({ defaultSurface: 'build', directSurfaces: Object.freeze(['build']), enforcementCeiling: 'pre-tool-only' })
+  grok: Object.freeze({ defaultSurface: 'build', directSurfaces: Object.freeze(['build']), enforcementCeiling: 'pre-tool-only' }),
+  cursor: Object.freeze({
+    defaultSurface: 'local-agent',
+    directSurfaces: Object.freeze(['local-agent', 'local-ide', 'cli-interactive', 'cli-headless']),
+    enforcementCeiling: 'local-host-supported-cloud-unverified'
+  })
 })
 
 class WorkflowCompletionLifecycleError extends Error {

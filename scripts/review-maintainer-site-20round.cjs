@@ -3,9 +3,10 @@
 const fs = require('fs')
 const path = require('path')
 const { spawnSync } = require('child_process')
+const { resolveNpmInvocation } = require('./lib/checked-command.js')
 const {
   summarizeMatrix,
-  assertFiveHosts
+  assertSixHosts
 } = require('./lib/host-enforcement-matrix.js')
 const {
   scanDocsSurfaceInventory,
@@ -14,6 +15,17 @@ const {
 
 const ROOT = path.resolve(__dirname, '..')
 const rounds = []
+
+function runNpm (args, cwd) {
+  const env = { ...process.env }
+  const invocation = resolveNpmInvocation('npm', args, env)
+  return spawnSync(invocation.command, invocation.args, {
+    cwd,
+    env,
+    encoding: 'utf8',
+    windowsHide: true
+  })
+}
 
 function round (id, title, fn) {
   const r = { id, title, status: 'pass', findings: [], notes: [] }
@@ -49,17 +61,17 @@ const introGuide = activePages.filter((p) =>
 )
 
 // R01
-round('R01', 'HostEnforcementMatrix five hosts', (r) => {
-  assertFiveHosts()
+round('R01', 'HostEnforcementMatrix six hosts', (r) => {
+  assertSixHosts()
   const rows = summarizeMatrix()
-  if (rows.length !== 5) r.findings.push({ severity: 'high', msg: `expected 5 hosts got ${rows.length}` })
+  if (rows.length !== 6) r.findings.push({ severity: 'high', msg: `expected 6 hosts got ${rows.length}` })
   r.notes.push(rows.map((x) => x.id).join(','))
 })
 
 // R02
 round('R02', 'Matrix vs intro L0 table hosts', (r) => {
   const intro = fs.readFileSync(path.join(docsRoot, 'intro', 'index.md'), 'utf8')
-  for (const id of ['copilot', 'claude', 'codex', 'gemini', 'grok']) {
+  for (const id of ['copilot', 'claude', 'codex', 'gemini', 'grok', 'cursor']) {
     if (!new RegExp(id, 'i').test(intro)) {
       r.findings.push({ severity: 'high', msg: `intro missing host ${id}` })
     }
@@ -69,6 +81,9 @@ round('R02', 'Matrix vs intro L0 table hosts', (r) => {
   }
   if (!/无 UPS inject|UPS.*N\/A|禁止 UPS/i.test(intro)) {
     r.findings.push({ severity: 'medium', msg: 'intro missing Grok UPS N/A honesty' })
+  }
+  if (!/Cursor[^\n]*(Cloud|云端)[^\n]*(UNVERIFIED|未验证|partial)/i.test(intro)) {
+    r.findings.push({ severity: 'medium', msg: 'intro missing Cursor Cloud evidence ceiling' })
   }
 })
 
@@ -84,18 +99,18 @@ round('R03', 'Grok Stop false ceiling scan', (r) => {
 })
 
 // R04
-round('R04', 'Five-host full-green false claims', (r) => {
+round('R04', 'Multi-host full-green false claims', (r) => {
   for (const p of introGuide) {
     const t = fs.readFileSync(p, 'utf8')
     const rel = path.relative(ROOT, p).replace(/\\/g, '/')
     // Ignore negation / prohibition sentences (≠ 不得 禁止 不是 非)
-    const re = /五宿主[^\n]{0,40}(全绿|全就绪|全部就绪|均已就绪)/g
+    const re = /[五六]宿主[^\n]{0,40}(全绿|全就绪|全部就绪|均已就绪)/g
     let m
     while ((m = re.exec(t))) {
       const start = Math.max(0, m.index - 24)
       const window = t.slice(start, m.index + m[0].length + 8)
       if (/[≠]|不得|禁止|不是|而非|非默认|≠|不等于/.test(window)) continue
-      r.findings.push({ severity: 'high', msg: `five-host full-ready claim: ${rel} :: ${m[0]}` })
+      r.findings.push({ severity: 'high', msg: `multi-host full-ready claim: ${rel} :: ${m[0]}` })
     }
   }
 })
@@ -200,9 +215,9 @@ round('R12', 'host-parity-grok key claims', (r) => {
 })
 
 // R13
-round('R13', 'philosophy Auto table five hosts + Stop', (r) => {
+round('R13', 'philosophy Auto table six hosts + Stop', (r) => {
   const t = fs.readFileSync(path.join(docsRoot, 'intro', 'philosophy.md'), 'utf8')
-  for (const h of ['Claude', 'Codex', 'Copilot', 'Gemini', 'Grok']) {
+  for (const h of ['Claude', 'Codex', 'Copilot', 'Gemini', 'Grok', 'Cursor']) {
     if (!t.includes(h)) r.findings.push({ severity: 'medium', msg: `philosophy missing ${h}` })
   }
   if (/无\s*Stop\s*硬拦/.test(t) && /Grok/.test(t)) {
@@ -280,11 +295,7 @@ round('R17', 'npm test subset P0', (r) => {
 
 // R18
 round('R18', 'website build', (r) => {
-  const res = spawnSync(
-    process.platform === 'win32' ? 'npm.cmd' : 'npm',
-    ['run', 'build'],
-    { cwd: path.join(ROOT, 'website'), encoding: 'utf8', windowsHide: true, shell: true }
-  )
+  const res = runNpm(['run', 'build'], path.join(ROOT, 'website'))
   if (res.status !== 0) {
     r.findings.push({
       severity: 'high',
@@ -301,17 +312,17 @@ round('R19', 'doctor adapter vs native honesty', (r) => {
     windowsHide: true
   })
   const out = (res.stdout || '') + (res.stderr || '')
-  if (!/5\/5 match/.test(out) && !/adapters:\s*5\/5/.test(out) && !/global adapters:\s*5\/5/.test(out)) {
-    r.findings.push({ severity: 'medium', msg: 'doctor did not report 5/5 adapter match' })
+  if (!/(?:5\/5|6\/6) match/.test(out) && !/adapters:\s*(?:5\/5|6\/6)/.test(out) && !/global adapters:\s*(?:5\/5|6\/6)/.test(out)) {
+    r.findings.push({ severity: 'medium', msg: 'doctor did not report a complete installed adapter set' })
     r.notes.push(out.slice(0, 400))
   }
-  if (!/1\/5 ready|native hosts:\s*1\/5/.test(out)) {
+  if (!/[0-6]\/(?:5|6) ready|native hosts:\s*[0-6]\/(?:5|6)/.test(out)) {
     r.notes.push('native ready line not matched; check output')
     r.notes.push(out.match(/native hosts:.*/)?.[0] || 'no native line')
   }
   // intro must not affirm all native ready (negation sentences OK)
   const intro = fs.readFileSync(path.join(docsRoot, 'intro', 'index.md'), 'utf8')
-  const re = /五宿主 CLI 全就绪|五宿主均已 native/g
+  const re = /[五六]宿主 CLI 全就绪|[五六]宿主均已 native/g
   let m
   while ((m = re.exec(intro))) {
     const start = Math.max(0, m.index - 24)
@@ -323,11 +334,7 @@ round('R19', 'doctor adapter vs native honesty', (r) => {
 
 // R20
 round('R20', 'stop-gate + process-e2e', (r) => {
-  const res = spawnSync(
-    process.platform === 'win32' ? 'npm.cmd' : 'npm',
-    ['run', 'test:stop-gate'],
-    { cwd: ROOT, encoding: 'utf8', windowsHide: true, shell: true }
-  )
+  const res = runNpm(['run', 'test:stop-gate'], ROOT)
   if (res.status !== 0) {
     r.findings.push({
       severity: 'high',

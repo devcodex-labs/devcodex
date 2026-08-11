@@ -823,6 +823,64 @@ function rebuildIndex (target, options) {
   })
 }
 
+const INDEX_DRIFT_FIELDS = Object.freeze([
+  'effectiveLayer',
+  'sourceIdentity',
+  'bodyDigest',
+  'intentDigest',
+  'topologyDigest',
+  'bodyBytes',
+  'bodyChunkBytes',
+  'requires',
+  'conflicts',
+  'priority',
+  'reserved',
+  'lifecycle',
+  'autoSelectable',
+  'cardDigest',
+  'cardSource'
+])
+
+function buildCatalogIndexDriftDetails (expected, observed) {
+  const expectedById = new Map((expected?.entries || []).map(entry => [entry.skillId, entry]))
+  const observedById = new Map((observed?.entries || []).map(entry => [entry.skillId, entry]))
+  const addedSkillIds = [...observedById.keys()]
+    .filter(skillId => !expectedById.has(skillId))
+    .sort()
+    .slice(0, 64)
+  const removedSkillIds = [...expectedById.keys()]
+    .filter(skillId => !observedById.has(skillId))
+    .sort()
+    .slice(0, 64)
+  const changedSkills = [...expectedById.keys()]
+    .filter(skillId => observedById.has(skillId))
+    .map(skillId => ({
+      skillId,
+      fields: INDEX_DRIFT_FIELDS.filter(field =>
+        sha256(expectedById.get(skillId)[field]) !== sha256(observedById.get(skillId)[field])
+      )
+    }))
+    .filter(item => item.fields.length)
+    .sort((left, right) => left.skillId.localeCompare(right.skillId))
+    .slice(0, 64)
+  return {
+    schemaVersion: 'SkillRouteCatalogIndexDriftV1',
+    reasonCode: 'index-digest-mismatch',
+    expectedIndexDigest: expected?.indexDigest || null,
+    observedIndexDigest: observed?.indexDigest || null,
+    expectedRuntimeSource: expected?.globalRuntime?.source || null,
+    observedRuntimeSource: observed?.globalRuntime?.source || null,
+    expectedCoverage: expected?.coverage || null,
+    observedCoverage: observed?.coverage || null,
+    addedSkillIds,
+    removedSkillIds,
+    changedSkills,
+    truncated: addedSkillIds.length >= 64 ||
+      removedSkillIds.length >= 64 ||
+      changedSkills.length >= 64
+  }
+}
+
 function summarizePlan (plan) {
   return {
     schemaVersion: 'ProgressiveSkillPlanSummaryV1',
@@ -938,6 +996,7 @@ function handleCommit (input, target, options) {
       if (currentIndex.indexDigest !== state.index.indexDigest) {
         const error = new Error('CATALOG_STALE')
         error.code = 'CATALOG_STALE'
+        error.details = buildCatalogIndexDriftDetails(state.index, currentIndex)
         throw error
       }
       let selectedEntry = null
@@ -1169,6 +1228,7 @@ function handleRebind (input, target, options) {
       if (currentIndex.indexDigest !== state.index.indexDigest) {
         const error = new Error('CATALOG_STALE')
         error.code = 'CATALOG_STALE'
+        error.details = buildCatalogIndexDriftDetails(state.index, currentIndex)
         throw error
       }
       const selectedEntry = state.decision?.skillId
@@ -2514,5 +2574,6 @@ module.exports = {
   stageIdentityKeys,
   stageCompatibilitySignature,
   buildLoadStageNextCall,
-  rebindSemanticDigest
+  rebindSemanticDigest,
+  buildCatalogIndexDriftDetails
 }

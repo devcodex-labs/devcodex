@@ -2,7 +2,7 @@
 applyTo: "**"
 description: dev 模式合规检查规则，覆盖 FC/SC/RC/T、入口检查与完成验证
 priority: P4
-version: 1.16.7
+version: 1.17.0
 ---
 # 合规检查规则（17-compliance）
 
@@ -34,7 +34,7 @@ version: 1.16.7
 ### DevCodex · 入口检查
 `[PASS/WARN/BLOCK/UNVERIFIED]` · `[项目名/未识别]` · `[DEV/PROD]`
 
-| 项 | 内容（人话；禁止进度缩写 · 五宿主同源） |
+| 项 | 内容（人话；禁止进度缩写 · 六宿主同源） |
 |----|----------------------------------------|
 | PC0 | 上下文：项目 · 语言 · ContextReadPlan [已形成/降级] · 必要来源回执 [verified/partial/missing] |
 | PC1 | 意图：语义初判 → 扩展后工作流（有修正须写明） |
@@ -232,7 +232,7 @@ version: 1.16.7
 
 > ⚠️ chat 豁免的是**合规检查状态块**（FC/SC/RC/T），不豁免**入口检查块**（PC0~PC7）。chat 在所有模式下仍需在实质回答前输出入口检查结果，但回复末尾无需输出合规状态块。
 
-**dev 模式完成态**（UserVisibleNoisePolicyV1 · 五宿主同源）：
+**dev 模式完成态**（UserVisibleNoisePolicyV1 · 六宿主同源）：
 
 | 时机 | 用户面 |
 |------|--------|

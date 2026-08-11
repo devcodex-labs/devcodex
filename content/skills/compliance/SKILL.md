@@ -47,7 +47,7 @@ dev 模式 PC4 至少输出：
 
 > ⛔ 宣称完成却只有“全绿/详见报告” → `DevModeCompletionCheckDetailGate` 未通过。
 > ⛔ 未宣称完成时 **不得** 为过 Stop 而硬贴长完成检查（Stop 以 `workDoneClaimed` 为准）。
-> ℹ️ 五宿主同源：`user-visible-output-contract` · UserVisibleReplyLayoutV1 + UserVisibleNoisePolicyV1。
+> ℹ️ 六宿主同源：`user-visible-output-contract` · UserVisibleReplyLayoutV1 + UserVisibleNoisePolicyV1。
 > ⚠️ **FC5 填写规则**：触发 `user-visible-output-contract`。`ArtifactDeliveryManifestV1` 必须 planned=observed=internalDelivered，`UserFacingArtifactSetV1` 必须 required hidden=0 且 `listed+remaining=total`；session/daily/SUMMARY/task/checkpoint/raw ledger 默认 internal-only 但仍参与 ECR。链接按 `LinkCapabilityDecisionV1` 输出；Rich clickable 不重复绝对路径。Hook 未观察 payload 时只能 `unverified`，legacy 格式最多 `unverified-legacy`。
 > ℹ️ prod 模式不执行合规检查，不输出状态块。
 > ℹ️ chat 工作流豁免此输出。

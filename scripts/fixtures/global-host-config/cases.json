@@ -25,6 +25,11 @@
       "id": "grok",
       "root": ".grok",
       "support": "direct-probe"
+    },
+    {
+      "id": "cursor",
+      "root": ".cursor",
+      "support": "direct-probe-beta"
     }
   ],
   "workspaceForbidden": [
@@ -33,6 +38,7 @@
     ".codex",
     ".gemini",
     ".grok",
+    ".cursor",
     ".agents",
     "AGENTS.md",
     "CLAUDE.md",

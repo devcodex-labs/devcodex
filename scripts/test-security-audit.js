@@ -4,6 +4,7 @@ const assert = require('assert')
 const fs = require('fs')
 const path = require('path')
 const { spawnSync } = require('child_process')
+const { resolveNpmInvocation } = require('./lib/checked-command')
 const { advisoryIds, runAuditWithBoundedRecheck } = require('./lib/security-audit-runner')
 
 const ROOT = path.resolve(__dirname, '..')
@@ -29,25 +30,27 @@ process.on('exit', () => {
 })
 
 function npmAudit(cwd, expectedAdvisories) {
-  const command = process.platform === 'win32' ? 'npm.cmd' : 'npm'
+  const args = [
+    'audit',
+    '--omit=dev',
+    '--json',
+    `--registry=${registry}`
+  ]
   const audit = runAuditWithBoundedRecheck({
     cwd,
     registry,
     expectedAdvisories,
     maxAttempts: 3,
-    runAttempt: () => spawnSync(command, [
-      'audit',
-      '--omit=dev',
-      '--json',
-      `--registry=${registry}`
-    ], {
-      cwd,
-      encoding: 'utf8',
-      windowsHide: true,
-      shell: process.platform === 'win32',
-      timeout: 120000,
-      maxBuffer: 16 * 1024 * 1024
-    })
+    runAttempt: () => {
+      const invocation = resolveNpmInvocation('npm', args, process.env)
+      return spawnSync(invocation.command, invocation.args, {
+        cwd,
+        encoding: 'utf8',
+        windowsHide: true,
+        timeout: 120000,
+        maxBuffer: 16 * 1024 * 1024
+      })
+    }
   })
   auditEvidence.push(audit.evidence)
   return audit.payload

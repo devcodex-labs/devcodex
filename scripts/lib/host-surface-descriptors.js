@@ -1,12 +1,13 @@
 'use strict'
 
-const HOST_IDS = Object.freeze(['copilot', 'claude', 'codex', 'gemini', 'grok'])
+const HOST_IDS = Object.freeze(['copilot', 'claude', 'codex', 'gemini', 'grok', 'cursor'])
 const DEFAULT_HOSTS = HOST_IDS
 const HOST_ALIASES = Object.freeze({
   '--claude': 'claude',
   '--codex': 'codex',
   '--gemini': 'gemini',
-  '--grok': 'grok'
+  '--grok': 'grok',
+  '--cursor': 'cursor'
 })
 
 function normalizeHostList(hosts) {
@@ -82,6 +83,7 @@ function legacyWorkspaceProjectionDescriptors(hosts, { grokWorkspaceBridge = fal
       )
     }
   }
+  // Cursor is user-global only. Never emit project-local Cursor adapter artifacts.
   return descriptors
 }
 
@@ -125,6 +127,10 @@ function projectionDescriptors(hosts) {
   if (selected.has('grok')) {
     add('grok', 'user://grok/config.toml', 'host-config', 'direct-probe')
     add('grok', 'user://grok/devcodex/plugins/devcodex-workspace', 'plugin', 'direct-probe')
+  }
+  if (selected.has('cursor')) {
+    add('cursor', 'user://cursor/hooks.json', 'host-config', 'direct-probe-beta')
+    add('cursor', 'user://cursor/devcodex/plugins/devcodex-workspace', 'plugin', 'direct-probe-beta')
   }
   for (const host of selected) {
     add(host, `user://${host}/devcodex/runtime-<generation>`, 'immutable-runtime-generation', 'managed')

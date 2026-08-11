@@ -1,7 +1,7 @@
 'use strict'
 
 /**
- * HostEnforcementMatrixV1 — five hosts, process-enforcement truth source.
+ * HostEnforcementMatrixV1 — canonical hosts, process-enforcement truth source.
  * hard-deny | stop-block | honesty-only | N/A+platform-limit
  */
 
@@ -51,6 +51,16 @@ const HOST_ENFORCEMENT_MATRIX_V1 = Object.freeze({
       stopNotes: 'conditional decision:block when lastAssistantMessage present',
       upsInject: 'N/A+platform-limit',
       upsNotes: 'UPS stdout ignored; never claim inject'
+    }),
+    cursor: Object.freeze({
+      id: 'cursor',
+      label: 'Cursor Beta',
+      preToolMutationNoCp2: 'hard-deny',
+      preToolNotes: 'Local IDE/CLI/Headless user hooks support preToolUse allow/deny with failClosed; Cloud user hooks are unavailable',
+      stopCompletion: 'stop-followup',
+      stopNotes: 'Local stop uses bounded followup_message with loop_limit=5; not a Cloud claim',
+      upsInject: 'session-start-only',
+      upsNotes: 'sessionStart may inject initial context; beforeSubmitPrompt can block but does not inject context'
     })
   })
 })
@@ -64,15 +74,18 @@ function getHostEnforcement(hostId) {
   return HOST_ENFORCEMENT_MATRIX_V1.hosts[id] || null
 }
 
-function assertFiveHosts() {
+function assertSixHosts() {
   const ids = listHostIds()
-  const required = ['copilot', 'claude', 'codex', 'gemini', 'grok']
+  const required = ['copilot', 'claude', 'codex', 'gemini', 'grok', 'cursor']
   for (const r of required) {
     if (!ids.includes(r)) throw new Error(`HostEnforcementMatrix missing host: ${r}`)
   }
-  if (ids.length !== 5) throw new Error(`HostEnforcementMatrix expected 5 hosts, got ${ids.length}`)
+  if (ids.length !== required.length) throw new Error(`HostEnforcementMatrix expected ${required.length} hosts, got ${ids.length}`)
   return true
 }
+
+// Backward-compatible export for third-party consumers of the pre-Cursor helper name.
+const assertFiveHosts = assertSixHosts
 
 function summarizeMatrix() {
   return listHostIds().map((id) => {
@@ -92,5 +105,6 @@ module.exports = {
   listHostIds,
   getHostEnforcement,
   assertFiveHosts,
+  assertSixHosts,
   summarizeMatrix
 }

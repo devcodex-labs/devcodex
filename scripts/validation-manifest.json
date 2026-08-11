@@ -42,6 +42,7 @@
     "host-projections/**",
     "gemini/**",
     "grok/**",
+    "cursor/**",
     "scripts/lib/candidate-review-bundle.js",
     "scripts/test-candidate-review-bundle.js",
     "scripts/fixtures/candidate-review-bundle/**",
@@ -3291,7 +3292,7 @@
         "host-adapters"
       ],
       "invariants": [
-        "five-logical-hosts",
+        "six-logical-hosts",
         "eight-variant-coverage",
         "original-instruction-authority",
         "portable-fallback",
@@ -3901,7 +3902,7 @@
         "shadow-promotion-floor",
         "shadow-rolling-window-reset",
         "profile-rollout-overrides-task-input",
-        "five-host-semantic-parity"
+        "six-host-semantic-parity"
       ],
       "riskClass": "normal",
       "cachePolicy": "candidate-bound",
@@ -4370,6 +4371,7 @@
         "codex/**",
         "gemini/**",
         "grok/plugins/devcodex-workspace/**",
+        "cursor/**",
         "scripts/lib/global-host-*.js",
         "scripts/lib/runtime-generation.js",
         "scripts/lib/runtime-dependency-closure.js",
@@ -4381,7 +4383,7 @@
         "global-install-smoke"
       ],
       "invariants": [
-        "five-user-level-targets",
+        "six-user-level-targets",
         "managed-merge-preserves-user-content",
         "atomic-rollback",
         "per-host-failure-isolation",
@@ -4431,7 +4433,9 @@
         "package.json",
         "scripts/postinstall.js",
         "scripts/lib/npm-lifecycle-adapter.js",
+        "scripts/lib/checked-command.js",
         "scripts/lib/global-host-*.js",
+        "cursor/**",
         "scripts/lib/runtime-dependency-closure.js",
         "scripts/test-global-install-smoke.js"
       ],
@@ -4441,7 +4445,7 @@
       ],
       "invariants": [
         "isolated-global-home",
-        "five-global-receipts",
+        "six-global-receipts",
         "workspace-install-no-host-write",
         "global-only-guidance"
       ],
@@ -4484,6 +4488,7 @@
         "host-projections/**",
         "gemini/**",
         "grok/**",
+        "cursor/**",
         "hooks/_runtime/**",
         "scripts/lib/cli-*.js",
         "scripts/lib/deployment-manifest-utils.js",

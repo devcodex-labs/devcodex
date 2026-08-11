@@ -677,7 +677,8 @@ function buildCliMaintenanceCommands(ctx) {
     else if (platform === 'codex' && globalReady('codex')) mode = 'user-global hook adapter (Codex; event-dependent)'
     else if (platform === 'gemini' && globalReady('gemini')) mode = 'user-global hook adapter (Gemini; fixture-backed)'
     else if (platform === 'grok' && globalReady('grok')) mode = 'user-global plugin adapter (Grok)'
-    else if (['copilot', 'claude', 'codex', 'gemini', 'grok'].includes(platform) && globalAdapterReady(platform)) {
+    else if (platform === 'cursor' && globalAdapterReady('cursor')) mode = 'user-global Cursor Beta Hook + Plugin adapter (native variant unverified)'
+    else if (['copilot', 'claude', 'codex', 'gemini', 'grok', 'cursor'].includes(platform) && globalAdapterReady(platform)) {
       mode = `user-global ${platform} adapter installed (native CLI unavailable or unverified)`
     }
     else if (platform === 'vscode-copilot' && hasGithubHooks) mode = 'workspace-hooks detected (VS Code Copilot preview; verify target IDE)'
@@ -974,6 +975,10 @@ function buildCliMaintenanceCommands(ctx) {
         : '  ⚠️  Grok detected without a ready user-global adapter — run `npm install -g devcodex`.'))
       console.log()
     }
+    if (platform === 'cursor' && !globalReady('cursor') && !sourceCandidateMismatchSet.has('cursor')) {
+      console.log(c.yellow(globalAdapterReady('cursor') ? '  ⚠️  Cursor Beta user-global adapter is ready; native Cursor IDE/CLI execution remains UNVERIFIED. Run agent --version and devcodex doctor on the target machine.' : '  ⚠️  Cursor detected without a ready user-global adapter — run npm install -g devcodex.'))
+      console.log(`${c.dim('      Cursor Cloud Agent does not load user-level hooks; Cloud support remains partial and UNVERIFIED.')}\n`)
+    }
     if (hostParity && !hostParity.hardReady && sourceRepository) {
       console.log(c.dim('  Grok HostParity details are withheld in source-candidate scope; install the packed candidate before evaluating installed repair steps.'))
       console.log()
@@ -1069,9 +1074,8 @@ function buildCliMaintenanceCommands(ctx) {
   `)
       return
     }
-
     console.log(`
-    ${c.bold('DevCodex')} — AI-powered development workflow rules for Copilot, Claude, Codex, Gemini & Grok
+    ${c.bold('DevCodex')} — AI-powered development workflow rules for Copilot, Claude, Codex, Gemini, Grok & Cursor Beta
 
     ${c.bold('Usage:')}
       devcodex <command> [options]

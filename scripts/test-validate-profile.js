@@ -180,7 +180,7 @@ function currentProjectInfo() {
         '',
         '## GlobalOnlyHostConfigModeV1 + GlobalOnlyWorkspaceCleanModeV1',
         '',
-        '- `npm install -g devcodex` 配置五宿主用户级 adapter。',
+        '- `npm install -g devcodex` 配置六宿主用户级 adapter。',
         '- 共享 full fallback 与 Skills 写入用户级 `.agents/devcodex/` 与 `.agents/skills/`。',
         '- `agents/` 保留为包内源资产，不向 workspace 分发。',
         '- workspace 不生成任何宿主目录、`.agents`、根级宿主入口或 `.mcp.json`，只保留 `.devcodex`。',

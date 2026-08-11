@@ -2,7 +2,7 @@
 /**
  * DevCodex v1.9.6+ instruction-fallback soft-gate (P-002/P-003 mitigation)
  *
- * For hosts without Workspace Hooks (jetbrains-copilot / cursor / instruction-fallback),
+ * For hosts without an active local Hook surface (jetbrains-copilot / Cursor Cloud / instruction-fallback),
  * this script enforces CP gating at git-commit time:
  *   1. If staged changes include source files (non-doc, non-.devcodex)
  *      AND there exists an active task under .devcodex/{requirements,bugs,optimizations,scenario-tests}/ without CP3 confirmed

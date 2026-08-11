@@ -1613,6 +1613,20 @@ try {
     }, staleFixture.runtimeOptions)
     assert.strictEqual(staleCommit.ok, false)
     assert.strictEqual(staleCommit.errorCode, 'CATALOG_STALE')
+    assert.strictEqual(
+      staleCommit.details.schemaVersion,
+      'SkillRouteCatalogIndexDriftV1'
+    )
+    assert.strictEqual(staleCommit.details.reasonCode, 'index-digest-mismatch')
+    assert.deepStrictEqual(staleCommit.details.addedSkillIds, [])
+    assert.deepStrictEqual(staleCommit.details.removedSkillIds, [])
+    assert.deepStrictEqual(
+      staleCommit.details.changedSkills.map(item => item.skillId),
+      ['workspace-probe']
+    )
+    assert.ok(
+      staleCommit.details.changedSkills[0].fields.includes('bodyDigest')
+    )
   } finally {
     staleFixture.cleanup()
   }

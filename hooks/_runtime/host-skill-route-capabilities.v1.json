@@ -13,9 +13,9 @@
       "status": "PASS",
       "testedVersion": "codex-cli 0.145.0",
       "protocol": "MCP 2024-11-05",
-      "runtimeContractDigest": "ab24083a63b13e622715ca1eeaf31f307f46185e93829ce3f54f7a9f4d47669a",
-      "hostAdapterDigest": "e0e81c95cc1e2517a228875569ee0ef6c6e8a3f1ec28582208d9c1716e007253",
-      "evidenceDigest": "9d7156bb7320cadb42e417ebf2fb08de1d1c87b22f17c7da9b2c8ecd5d108fdf",
+      "runtimeContractDigest": "feafba167d271fb0808c6d65a23bcf3002c0df4958e8eb78ae5cd818907c81b4",
+      "hostAdapterDigest": "aed0188df73e9475b63fb5dfdfe5f8ef4d8bd2210620b638e694c5b3631aac4a",
+      "evidenceDigest": "b107a7ac2d8578a091bfb932b31aa825b2172287c2cea27382aa9d0df9a7459f",
       "evidenceRef": "hooks/_runtime/evidence/codex-skill-route-pass.v1.json",
       "entrySurface": "codex exec --ephemeral",
       "bootstrapDelivery": "user-global hooks.json UserPromptSubmit",
@@ -40,13 +40,23 @@
       "status": "PASS",
       "testedVersion": "grok 1.0.0 (3cd0d0cbce)",
       "protocol": "MCP 2024-11-05",
-      "runtimeContractDigest": "ab24083a63b13e622715ca1eeaf31f307f46185e93829ce3f54f7a9f4d47669a",
-      "hostAdapterDigest": "75cf925b6077c6fc90e4536c33ec5013c7d3d50909b92bb91477abec2e39ab87",
-      "evidenceDigest": "75a85a3e216eea96620a569d9c7f82b9d3cc6a75d822cf1472929cad9e1cdf1f",
+      "runtimeContractDigest": "feafba167d271fb0808c6d65a23bcf3002c0df4958e8eb78ae5cd818907c81b4",
+      "hostAdapterDigest": "da818bfbdc204254b7ecd6bbc153fbc4dd63cb07e8a7facf72f04d6b60579dda",
+      "evidenceDigest": "accc6758abc829e1311906fe784ee22649650b5409e8f19e80747110f99e2c9a",
       "evidenceRef": "hooks/_runtime/evidence/grok-skill-route-pass.v1.json",
       "entrySurface": "devcodex grok -p/--single",
       "bootstrapDelivery": "global launcher --rules",
       "defaultEligible": true
+    },
+    {
+      "hostVariant": "cursor/local-ide-cli-headless-user-global-stdio-beta",
+      "status": "UNVERIFIED",
+      "testedVersion": "beta-contract-only",
+      "protocol": "MCP 2024-11-05",
+      "evidenceRef": null,
+      "entrySurface": "Cursor local IDE/CLI/Headless",
+      "bootstrapDelivery": "user-global hooks.json sessionStart + dynamic Plugin",
+      "defaultEligible": false
     }
   ]
 }

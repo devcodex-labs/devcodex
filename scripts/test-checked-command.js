@@ -7,6 +7,9 @@ const os = require('os')
 const path = require('path')
 const {
   CheckedCommandError,
+  resolveExecutableOnPath,
+  resolveNpmInvocation,
+  resolveWindowsBatchInvocation,
   runChecked,
   runSequenceChecked
 } = require('./lib/checked-command')
@@ -75,6 +78,36 @@ try {
     () => runChecked(process.execPath, ['-e', 'process.exit(0)'], { cwd: root, shell: true }),
     /allowShellReason/
   )
+
+  if (process.platform === 'win32') {
+    const fakeBin = path.join(root, 'fake-bin')
+    fs.mkdirSync(fakeBin, { recursive: true })
+    const fakeNpmCmd = path.join(fakeBin, 'npm.cmd')
+    const fakeNpmExe = path.join(fakeBin, 'npm.exe')
+    fs.writeFileSync(fakeNpmCmd, '@echo off\r\n')
+    fs.writeFileSync(fakeNpmExe, '')
+    assert.strictEqual(
+      resolveExecutableOnPath('npm.exe', { PATH: fakeBin }),
+      fakeNpmExe
+    )
+    const preferredInvocation = resolveNpmInvocation('npm', ['--version'], {
+      PATH: fakeBin,
+      npm_execpath: ''
+    })
+    assert.ok(
+      preferredInvocation.command === fakeNpmExe ||
+      (preferredInvocation.command === process.execPath && /npm-cli\.js$/i.test(preferredInvocation.args[0])),
+      'npm resolver must prefer a directly executable npm implementation'
+    )
+
+    fs.rmSync(fakeNpmExe, { force: true })
+    const batchInvocation = resolveWindowsBatchInvocation(fakeNpmCmd, ['run', 'test:full'], {
+      ComSpec: 'C:\\Windows\\System32\\cmd.exe'
+    })
+    assert.strictEqual(batchInvocation.command, 'C:\\Windows\\System32\\cmd.exe')
+    assert.deepStrictEqual(batchInvocation.args.slice(0, 3), ['/d', '/s', '/c'])
+    assert.match(batchInvocation.args[3], /npm\.cmd run test:full$/i)
+  }
 
   // package is unscoped `devcodex` (org owns GitHub repo; npm module is not scoped)
   assert.strictEqual(packageScope('devcodex'), null)

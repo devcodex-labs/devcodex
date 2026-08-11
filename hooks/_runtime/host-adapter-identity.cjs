@@ -9,7 +9,8 @@ const HOST_VARIANTS = Object.freeze({
   codex: 'codex-cli/exec-user-global-local-stdio',
   copilot: 'copilot-cli/print-user-global-local-stdio',
   gemini: 'gemini-cli/headless-user-global-local-stdio',
-  grok: 'grok-cli-single/global-launcher-local-stdio'
+  grok: 'grok-cli-single/global-launcher-local-stdio',
+  cursor: 'cursor/local-ide-cli-headless-user-global-stdio-beta'
 })
 
 const HOST_ALIASES = Object.freeze({
@@ -17,7 +18,9 @@ const HOST_ALIASES = Object.freeze({
   'github-copilot': 'copilot',
   'gemini-cli': 'gemini',
   'grok-cli-single': 'grok',
-  'grok-single': 'grok'
+  'grok-single': 'grok',
+  'cursor-cli': 'cursor',
+  'cursor-ide': 'cursor'
 })
 
 function sha256 (value) {

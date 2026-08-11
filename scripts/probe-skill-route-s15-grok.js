@@ -12,6 +12,9 @@ const {
   normalizeHostVariant
 } = require('../hooks/_runtime/skill-route-mode.cjs')
 const {
+  getLifecycleHostAdapterDigest
+} = require('../hooks/_runtime/host-adapter-identity.cjs')
+const {
   loadEnvelope,
   recordSkillRouteProbeObservation
 } = require('../hooks/_runtime/skill-route-state.cjs')
@@ -30,6 +33,10 @@ const {
   createSkillRouteFixture,
   writeJson
 } = require('./lib/skill-route-test-fixture')
+const {
+  bindInstalledSourceCandidateRuntime,
+  prepareCandidateHostRuntime
+} = require('./lib/s15-candidate-host')
 
 function optionValue (name) {
   const index = process.argv.indexOf(name)
@@ -273,6 +280,11 @@ function writeFailureSnapshot (fixture, evidenceOutput, error, debugOutput) {
 function main () {
   const evidenceOutput = optionValue('--evidence-output')
   const productionEligible = hasOption('--production-eligible')
+  const installedSourceCandidate = hasOption('--installed-source-candidate')
+  assert(
+    !(productionEligible && installedSourceCandidate),
+    '--production-eligible and --installed-source-candidate are mutually exclusive'
+  )
   const maxTurns = optionValue('--max-turns') || '32'
   const fixture = createSkillRouteFixture({
     project: 's15-grok',
@@ -301,16 +313,47 @@ function main () {
   const runtimeDigest = getRuntimeContractDigest()
   let childEnv
   let globalTarget
+  let runtimeContext = {
+    schemaVersion: 'SkillRouteS15CandidateHostRuntimeV1',
+    source: 'installed-production',
+    home: userHome,
+    env: process.env,
+    generation: null,
+    credentialFiles: []
+  }
 
   try {
     writeProbeSkill(fixture, skillId, marker)
     assert(userHome, 'S15 requires the current user home for the production Grok host')
+    if (!productionEligible) {
+      runtimeContext = installedSourceCandidate
+        ? bindInstalledSourceCandidateRuntime({
+            hostId: 'grok',
+            home: userHome,
+            packageRoot: path.resolve(__dirname, '..'),
+            baseEnv: process.env,
+            expectedRuntimeDigest: runtimeDigest,
+            expectedHostAdapterDigest: getLifecycleHostAdapterDigest('grok')
+          })
+        : prepareCandidateHostRuntime({
+            hostId: 'grok',
+            fixtureRoot: fixture.root,
+            packageRoot: path.resolve(__dirname, '..'),
+            baseEnv: process.env,
+            sourceHome: userHome
+          })
+      assert.strictEqual(
+        runtimeContext.generation.runtimeContractDigest,
+        runtimeDigest,
+        'S15 isolated candidate generation does not match source runtime digest'
+      )
+    }
     globalTarget = resolveGlobalHostTarget('grok', {
-      env: process.env,
-      home: userHome
+      env: runtimeContext.env,
+      home: runtimeContext.home
     })
     childEnv = {
-      ...process.env,
+      ...runtimeContext.env,
       DEVCODEX_HOST_PLATFORM: host,
       DEVCODEX_AGENT: host,
       DEVCODEX_CONTEXT_EPOCH: contextEpoch,
@@ -532,8 +575,8 @@ function main () {
     ], {
       cwd: fixture.projectRoot,
       env: childEnv,
-      globalHostEnv: process.env,
-      home: userHome,
+      globalHostEnv: runtimeContext.env,
+      home: runtimeContext.home,
       stdio: 'pipe',
       spawnSync: (command, args, options) => {
         modelRun = spawnSync(command, args, {
@@ -624,6 +667,16 @@ function main () {
     assert(state.plan.activatedConditionIds.includes('test-validation'))
     assert.deepStrictEqual(loadedStageIds, requiredStageIds)
     assert.strictEqual(state.mode, 'unified')
+    assert.strictEqual(
+      state.runtimeContractDigest,
+      runtimeDigest,
+      'S15 route envelope runtime digest does not match candidate source'
+    )
+    assert.strictEqual(
+      launch.plan.skillRoute.modeReceipt.runtimeContractDigest,
+      runtimeDigest,
+      'S15 mode receipt runtime digest does not match candidate source'
+    )
     assert.strictEqual(contextAcquisition.contextEpoch, contextEpoch)
     assert.strictEqual(contextAcquisition.project, fixture.project)
     assert.strictEqual(contextAcquisition.receipt.status, 'relevant-complete')
@@ -652,7 +705,16 @@ function main () {
       hostAdapterDigest: launch.plan.skillRoute.hostAdapterDigest,
       authorizationSource: productionEligible
         ? 'capability-pass'
-        : 'isolated-probe-authority',
+        : installedSourceCandidate
+          ? 'installed-source-probe-authority'
+          : 'isolated-probe-authority',
+      runtimeBinding: {
+        source: runtimeContext.source,
+        expectedDigest: runtimeDigest,
+        generationDigest: runtimeContext.generation?.runtimeContractDigest || null,
+        modeReceiptDigest: launch.plan.skillRoute.modeReceipt.runtimeContractDigest,
+        routeEnvelopeDigest: state.runtimeContractDigest || null
+      },
       routeActivation: {
         requested: launch.plan.skillRoute.modeReceipt.requested,
         source: launch.plan.skillRoute.modeReceipt.source,

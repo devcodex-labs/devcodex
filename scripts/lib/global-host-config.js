@@ -299,6 +299,35 @@ function copilotHookDocument(runtimeFile) {
   }
 }
 
+function cursorShellCommand(runtimeFile, pluginPath) {
+  const escapedPlugin = String(pluginPath).replace(/"/g, '\\"')
+  return shellCommand(runtimeFile, 'cursor') + ' --cursor-plugin-path "' + escapedPlugin + '"'
+}
+
+function cursorHookDocument(runtimeFile, pluginPath) {
+  const command = cursorShellCommand(runtimeFile, pluginPath)
+  const entry = (options = {}) => ({
+    command,
+    timeout: 30,
+    ...options
+  })
+  return {
+    version: 1,
+    hooks: {
+      workspaceOpen: [entry()],
+      sessionStart: [entry()],
+      sessionEnd: [entry()],
+      beforeSubmitPrompt: [entry({ failClosed: true })],
+      preToolUse: [entry({ matcher: '.*', failClosed: true })],
+      postToolUse: [entry({ matcher: '.*' })],
+      postToolUseFailure: [entry({ matcher: '.*' })],
+      afterAgentResponse: [entry()],
+      preCompact: [entry()],
+      stop: [entry({ failClosed: true, loop_limit: 5 })]
+    }
+  }
+}
+
 /**
  * Map global host id → memory/profile agent identity (VALID_AGENTS).
  * Claude host root is `.claude` but agent id is `claude-code`.
@@ -306,7 +335,7 @@ function copilotHookDocument(runtimeFile) {
 function hostToRuntimeAgent (host) {
   const normalized = String(host || '').trim().toLowerCase()
   if (normalized === 'claude') return 'claude-code'
-  if (normalized === 'copilot' || normalized === 'codex' || normalized === 'grok') return normalized
+  if (normalized === 'copilot' || normalized === 'codex' || normalized === 'grok' || normalized === 'cursor') return normalized
   // gemini / unknown: leave unset so detectRuntimeAgent can still apply
   return ''
 }
@@ -314,6 +343,7 @@ function hostToRuntimeAgent (host) {
 function buildMcpServers(runtimeRoot, options = {}) {
   const agent = hostToRuntimeAgent(options.agent || options.host)
   const env = agent ? { DEVCODEX_AGENT: agent } : undefined
+  const inputRoot = String(options.inputRoot || '.').trim() || '.'
   const base = {
     type: 'stdio',
     command: 'node'
@@ -321,12 +351,12 @@ function buildMcpServers(runtimeRoot, options = {}) {
   return {
     'devcodex-memory': {
       ...base,
-      args: [portable(path.join(runtimeRoot, 'mcp', 'memory-server.js')), '.'],
+      args: [portable(path.join(runtimeRoot, 'mcp', 'memory-server.js')), inputRoot],
       ...(env ? { env } : {})
     },
     'devcodex-profile': {
       ...base,
-      args: [portable(path.join(runtimeRoot, 'mcp', 'profile-server.js')), '.'],
+      args: [portable(path.join(runtimeRoot, 'mcp', 'profile-server.js')), inputRoot],
       ...(env ? { env } : {})
     }
   }
@@ -686,13 +716,61 @@ function addGrokPlan(operations, target, packageRoot, fsImpl) {
   )
 }
 
+function addCursorPlan(operations, target, packageRoot, fsImpl) {
+  addCommonRuntime(operations, target, packageRoot, fsImpl)
+  const runtimeEntry = path.join(target.runtimeRoot, 'hooks', '_runtime', 'lifecycle-host-adapters.cjs')
+  const hooks = cursorHookDocument(runtimeEntry, target.files.plugin)
+  addFileOperation(
+    operations,
+    target.host,
+    target.files.hooks,
+    mergeHostJsonContent(readText(target.files.hooks, fsImpl), hooks, 'Cursor user hooks'),
+    'json',
+    JSON.stringify(hooks, null, 2) + '\n'
+  )
+
+  const pluginSource = path.join(packageRoot, 'cursor', 'plugins', 'devcodex-workspace')
+  addSourceTree(operations, target.host, pluginSource, target.files.plugin, fsImpl)
+  const packageJson = readPackage(packageRoot, fsImpl)
+  const sourceManifest = parseJsonObject(
+    readText(path.join(pluginSource, '.cursor-plugin', 'plugin.json'), fsImpl),
+    'Cursor plugin manifest'
+  )
+  const manifest = {
+    ...sourceManifest,
+    version: packageJson.version || sourceManifest.version,
+    skills: './skills',
+    mcpServers: './mcp.json'
+  }
+  replaceFileOperation(
+    operations,
+    target.host,
+    path.join(target.files.plugin, '.cursor-plugin', 'plugin.json'),
+    JSON.stringify(manifest, null, 2) + '\n',
+    'json'
+  )
+  replaceFileOperation(
+    operations,
+    target.host,
+    path.join(target.files.plugin, 'mcp.json'),
+    JSON.stringify({
+      mcpServers: buildMcpServers(target.runtimeRoot, {
+        host: 'cursor',
+        inputRoot: '${workspaceFolder}'
+      })
+    }, null, 2) + '\n',
+    'json'
+  )
+}
+
 function hostPlanBuilder(host) {
   return {
     copilot: addCopilotPlan,
     claude: addClaudePlan,
     codex: addCodexPlan,
     gemini: addGeminiPlan,
-    grok: addGrokPlan
+    grok: addGrokPlan,
+    cursor: addCursorPlan
   }[host]
 }
 
@@ -1773,6 +1851,7 @@ module.exports = {
   applyGlobalHostConfig,
   buildGlobalHostConfigPlan,
   buildCopilotMcpServers,
+  cursorHookDocument,
   buildMcpServers,
   buildVscodeMcpServers,
   hostToRuntimeAgent,

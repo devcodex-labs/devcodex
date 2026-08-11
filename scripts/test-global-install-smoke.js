@@ -6,6 +6,10 @@ const { spawnSync } = require('child_process')
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
+const {
+  resolveNpmInvocation,
+  resolveWindowsBatchInvocation
+} = require('./lib/checked-command')
 const { resolveControlAsset } = require('./lib/control-content-delivery')
 
 const packageRoot = path.resolve(__dirname, '..')
@@ -24,22 +28,21 @@ fs.mkdirSync(workspaceHome, { recursive: true })
 fs.mkdirSync(globalPrefix, { recursive: true })
 fs.mkdirSync(workspace, { recursive: true })
 
-const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm'
-
 function runNpm(args, options = {}) {
-  const result = spawnSync(npmCommand, args, {
+  const env = {
+    ...process.env,
+    npm_config_cache: cacheDir,
+    npm_config_update_notifier: 'false',
+    npm_config_fund: 'false',
+    npm_config_audit: 'false',
+    ...options.env
+  }
+  const invocation = resolveNpmInvocation('npm', args, env)
+  const result = spawnSync(invocation.command, invocation.args, {
     cwd: options.cwd || packageRoot,
-    env: {
-      ...process.env,
-      npm_config_cache: cacheDir,
-      npm_config_update_notifier: 'false',
-      npm_config_fund: 'false',
-      npm_config_audit: 'false',
-      ...options.env
-    },
+    env,
     encoding: 'utf8',
     input: options.input,
-    shell: options.shell ?? (process.platform === 'win32'),
     timeout: options.timeout || 180000
   })
   assert.strictEqual(
@@ -51,15 +54,18 @@ function runNpm(args, options = {}) {
 }
 
 function runCommand(command, args, options = {}) {
-  const result = spawnSync(command, args, {
+  const env = {
+    ...process.env,
+    ...options.env
+  }
+  const invocation = process.platform === 'win32' && /\.(?:cmd|bat)$/i.test(command)
+    ? resolveWindowsBatchInvocation(command, args, env)
+    : { command, args }
+  const result = spawnSync(invocation.command, invocation.args, {
     cwd: options.cwd || workspace,
-    env: {
-      ...process.env,
-      ...options.env
-    },
+    env,
     encoding: 'utf8',
     input: options.input,
-    shell: options.shell ?? (process.platform === 'win32'),
     timeout: options.timeout || 120000
   })
   assert.strictEqual(
@@ -84,6 +90,7 @@ function isolatedHostEnv(home) {
     CLAUDE_CONFIG_DIR: path.join(home, '.claude'),
     GEMINI_CLI_HOME: path.join(home, 'gemini-cli-home'),
     GROK_HOME: path.join(home, '.grok'),
+    CURSOR_HOME: path.join(home, '.cursor'),
     COPILOT_HOME: path.join(home, '.copilot')
   }
 }
@@ -110,7 +117,7 @@ runNpm([
   timeout: 240000
 })
 
-for (const host of ['.copilot', '.claude', '.codex', path.join('gemini-cli-home', '.gemini'), '.grok']) {
+for (const host of ['.copilot', '.claude', '.codex', path.join('gemini-cli-home', '.gemini'), '.grok', '.cursor']) {
   const file = receiptPath(globalHome, host)
   assert.ok(fs.existsSync(file), `${host} receipt missing after real global install`)
   const receipt = JSON.parse(fs.readFileSync(file, 'utf8'))
@@ -121,6 +128,17 @@ for (const host of ['.copilot', '.claude', '.codex', path.join('gemini-cli-home'
   assert.deepStrictEqual(receipt.pendingStaleManagedPaths, [])
   assert.strictEqual(receipt.workspaceCleanMode, 'GlobalOnlyWorkspaceCleanModeV1')
 }
+const installedCursorRoot = path.join(globalHome, '.cursor')
+const installedCursorPlugin = path.join(installedCursorRoot, 'devcodex', 'plugins', 'devcodex-workspace')
+assert.strictEqual(fs.existsSync(path.join(installedCursorRoot, 'hooks.json')), true)
+const installedCursorManifest = JSON.parse(fs.readFileSync(
+  path.join(installedCursorPlugin, '.cursor-plugin', 'plugin.json'),
+  'utf8'
+))
+assert.strictEqual(installedCursorManifest.name, 'devcodex-workspace')
+assert.strictEqual(installedCursorManifest.version, packageJson.version)
+assert.strictEqual(fs.existsSync(path.join(installedCursorPlugin, 'mcp.json')), true)
+assert.strictEqual(fs.existsSync(path.join(installedCursorPlugin, 'hooks')), false)
 assert.strictEqual(fs.existsSync(path.join(globalHome, '.agents', 'devcodex', 'instructions.full.md')), true)
 assert.strictEqual(
   fs.existsSync(path.join(globalHome, '.agents', 'devcodex', 'skills', 'portfolio.json')),
@@ -259,7 +277,7 @@ assert.match(
   'installed Codex hook must expose SkillRoute bootstrap from packed global runtime'
 )
 
-for (const host of ['copilot', 'claude', 'codex', 'gemini', 'grok']) {
+for (const host of ['copilot', 'claude', 'codex', 'gemini', 'grok', 'cursor']) {
   const installedAdapter = path.join(
     installedRuntimeRoot(host),
     'hooks',
@@ -298,7 +316,7 @@ function summarizeHostRuntime(hosts) {
 
 assert.strictEqual(statusPayload.ok, true)
 assert.strictEqual(statusPayload.payload.globalHostRuntime.schemaVersion, 'GlobalHostRuntimeVerificationV2')
-assert.strictEqual(statusPayload.payload.globalHostRuntime.hosts.length, 5)
+assert.strictEqual(statusPayload.payload.globalHostRuntime.hosts.length, 6)
 assert(
   statusPayload.payload.globalHostRuntime.hosts.every(host => host.configured === true),
   summarizeHostRuntime(statusPayload.payload.globalHostRuntime.hosts)
@@ -317,6 +335,11 @@ assert.strictEqual(
   statusPayload.payload.globalHostRuntime.hosts.find(host => host.host === 'copilot').nativeStatus,
   'unverified'
 )
+const cursorRuntime = statusPayload.payload.globalHostRuntime.hosts.find(host => host.host === 'cursor')
+assert.strictEqual(cursorRuntime.contractStatus, 'passed')
+assert.strictEqual(cursorRuntime.nativeStatus, 'unverified')
+assert.strictEqual(cursorRuntime.variants.length, 4)
+assert.strictEqual(cursorRuntime.variants.find(variant => variant.id === 'cursor-cloud-agent').support, 'partial')
 
 const grokVersion = spawnSync('grok', ['version'], {
   cwd: workspace,
@@ -389,14 +412,14 @@ runNpm(['install', '--foreground-scripts'], {
   timeout: 240000
 })
 
-for (const host of ['.github', '.claude', '.codex', '.gemini', '.grok', '.agents', 'AGENTS.md', 'CLAUDE.md', 'GEMINI.md', '.mcp.json']) {
+for (const host of ['.github', '.claude', '.codex', '.gemini', '.grok', '.cursor', '.agents', 'AGENTS.md', 'CLAUDE.md', 'GEMINI.md', '.mcp.json']) {
   assert.strictEqual(
     fs.existsSync(path.join(workspace, host)),
     false,
     `${host} must not be written by workspace install`
   )
 }
-for (const host of ['.copilot', '.claude', '.codex', path.join('gemini-cli-home', '.gemini'), '.grok']) {
+for (const host of ['.copilot', '.claude', '.codex', path.join('gemini-cli-home', '.gemini'), '.grok', '.cursor']) {
   assert.strictEqual(
     fs.existsSync(receiptPath(workspaceHome, host)),
     false,

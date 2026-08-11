@@ -23,7 +23,7 @@ function formatProgressiveSkillRouteRecoveryCard(coordination) {
 function buildLifecycleHookOutput({ env, enforcementMode }) {
   function detectPlatform(payload) {
     const explicitHost = String(env.DEVCODEX_HOST_PLATFORM || '').trim().toLowerCase()
-    if (['copilot', 'claude', 'codex', 'gemini', 'grok'].includes(explicitHost)) return explicitHost
+    if (['copilot', 'claude', 'codex', 'gemini', 'grok', 'cursor'].includes(explicitHost)) return explicitHost
     if (env.GEMINI_CLI || env.GEMINI_SESSION_ID) return 'gemini'
     if (env.CLAUDE_CODE_VERSION || env.CLAUDE_HOOK_COMMAND) return 'claude'
     if (env.CODEX_SANDBOX || env.CODEX_HOME || env.OPENAI_CODEX) return 'codex'
@@ -39,7 +39,7 @@ function buildLifecycleHookOutput({ env, enforcementMode }) {
     ) {
       return 'grok'
     }
-    if (env.CURSOR_TRACE_ID || env.CURSOR_USER_ID) return 'cursor'
+    if (env.CURSOR_TRACE_ID || env.CURSOR_USER_ID || env.CURSOR_PROJECT_DIR || env.CURSOR_VERSION) return 'cursor'
     if (env.IDEA_INITIAL_DIRECTORY || env.JETBRAINS_IDE) return 'jetbrains-copilot'
     const toolName = String(payload.tool_name || payload.toolName || '').trim()
     if (toolName && /^[A-Z]/.test(toolName)) return 'claude'
@@ -125,6 +125,18 @@ function buildLifecycleHookOutput({ env, enforcementMode }) {
       }
       return { continue: true, systemMessage: message }
     }
+    if (platform === 'cursor') {
+      if (event === 'pretooluse' || event === 'permissionrequest') {
+        return toolBlockOutput(eventName, reason, detail)
+      }
+      if (event === 'userpromptsubmit') {
+        return { decision: 'block', reason: message }
+      }
+      if (['stop', 'subagentstop', 'agentstop'].includes(event)) {
+        return { decision: 'block', reason: message }
+      }
+      return { continue: true, systemMessage: message }
+    }
     return toolBlockOutput(eventName, reason, detail)
   }
 
@@ -155,7 +167,7 @@ function buildLifecycleHookOutput({ env, enforcementMode }) {
 
   function eventSupportsHardBlock(platform, eventName) {
     const event = normalizeHookEvent(eventName)
-    if (platform === 'jetbrains-copilot' || platform === 'cursor' || platform === 'vscode-copilot') return false
+    if (platform === 'jetbrains-copilot' || platform === 'vscode-copilot') return false
     if (platform === 'claude') {
       return ['pretooluse', 'userpromptsubmit', 'posttooluse', 'stop', 'subagentstop', 'agentstop', 'precompact', 'configchange'].includes(event)
     }
@@ -170,6 +182,9 @@ function buildLifecycleHookOutput({ env, enforcementMode }) {
     // UserPromptSubmit remains non-hard for inject; UPS inject still not claimed.
     if (platform === 'grok') {
       return ['pretooluse', 'permissionrequest', 'stop', 'subagentstop', 'agentstop'].includes(event)
+    }
+    if (platform === 'cursor') {
+      return ['pretooluse', 'permissionrequest', 'userpromptsubmit', 'stop', 'subagentstop', 'agentstop'].includes(event)
     }
     return ['pretooluse', 'permissionrequest'].includes(event)
   }

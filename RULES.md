@@ -1,6 +1,6 @@
-# DevCodex v1.16.7 — 使用入口
+# DevCodex v1.17.0 — 使用入口
 
-> AI workflow injector for Copilot / Claude Code / Codex / Gemini / Grok · publisher: Rocky · version: 1.16.7
+> AI workflow injector for Copilot / Claude Code / Codex / Gemini / Grok / Cursor Beta · publisher: Rocky · version: 1.17.0
 
 ## 正式主支持客户端
 
@@ -8,17 +8,19 @@
 - **Claude Code**：从用户级 `CLAUDE.md`、settings、MCP 与稳定 runtime 加载。
 - **Codex**：从用户级 `.codex/AGENTS.md`、hooks、config 与用户级 `.agents/skills/` 加载；完整回退规范位于用户级 `.agents/devcodex/instructions.full.md`。
 - **Gemini / Grok**：分别使用用户级 settings/runtime 与用户级 plugin/config/runtime；Grok 完整入口为 `devcodex grok`。
+- **Cursor Beta**：使用用户级 `~/.cursor/hooks.json`、动态 Plugin、MCP 与 resolver Skill；本地 IDE/CLI/Headless 为 Beta，Cloud Agent 保持 Partial / `UNVERIFIED`。
 
-## 五宿主加载机制
+## 六宿主加载机制
 
-DevCodex 同时支持五宿主的用户级加载路径，规则语义保持一致，由宿主决定实际生效方式：
+DevCodex 同时支持六宿主的用户级加载路径，规则语义保持一致，由宿主决定实际生效方式：
 
 - **Copilot CLI**：用户级 instructions/hooks/MCP/Skills/runtime，adapter 合同按 fixture 验证，原生 CLI 就绪由 `doctor` 深探针判定。
 - **Claude / Gemini**：用户级 instruction/settings 投影，能力按 fixture ceiling 声明。
 - **Codex**：用户级 `.codex/AGENTS.md` + hooks/config，并从用户级 `.agents/skills/*` 按需读取 Skill；不读取工作区 `.agents`。
 - **Grok**：用户级 plugin/config/runtime；`devcodex grok` 用用户级 controlling kernel 启动。
+- **Cursor**：用户级 Hook/Plugin/MCP/runtime；不得把本地 adapter 合同或 CLI 探针结论复制为 Cloud readiness。
 
-无论哪条路径进入，所有 Instructions 均通过同一 `instructions.md` / instructions 目录派生。工作区只保留 `.devcodex`，不会因安装生成五宿主目录；已有目录也不会被自动删除。
+无论哪条路径进入，所有 Instructions 均通过同一 `instructions.md` / instructions 目录派生。工作区只保留 `.devcodex`，不会因安装生成六宿主目录；已有目录也不会被自动删除。
 
 ## 宿主模式
 

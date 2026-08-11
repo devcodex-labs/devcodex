@@ -72,6 +72,7 @@ const env = {
   CLAUDE_CONFIG_DIR: path.join(home, '.claude'),
   GEMINI_CLI_HOME: path.join(home, 'gemini-cli-home'),
   GROK_HOME: path.join(home, '.grok'),
+  CURSOR_HOME: path.join(home, '.cursor'),
   COPILOT_HOME: path.join(home, '.copilot')
 }
 const emptyPath = path.join(tmp, 'empty-path')
@@ -84,7 +85,8 @@ const doctorEnv = {
   CLAUDE_CODE_VERSION: '',
   OPENAI_CODEX: '',
   GEMINI_AGENT: '',
-  GROK_AGENT: ''
+  GROK_AGENT: '',
+  CURSOR_VERSION: ''
 }
 
 function runDoctorHuman() {
@@ -98,7 +100,7 @@ function runDoctorHuman() {
 }
 
 const targets = resolveGlobalHostTargets({ env, home })
-assert.strictEqual(targets.length, 5)
+assert.strictEqual(targets.length, 6)
 for (const target of targets) {
   assert.ok(target.root.startsWith(home), `${target.host} root escaped isolated home`)
 }
@@ -178,6 +180,9 @@ assert.deepStrictEqual(
 assert.ok(plan.operations.some(operation => operation.path.endsWith(path.join('.codex', 'AGENTS.md'))))
 assert.ok(plan.operations.some(operation => operation.path.endsWith(path.join('.claude', 'settings.json'))))
 assert.ok(plan.operations.some(operation => operation.path.endsWith(path.join('.grok', 'hooks', 'devcodex.json'))))
+assert.ok(plan.operations.some(operation => operation.path.endsWith(path.join('.cursor', 'hooks.json'))))
+assert.ok(plan.operations.some(operation => operation.path.endsWith(path.join('.cursor', 'devcodex', 'plugins', 'devcodex-workspace', '.cursor-plugin', 'plugin.json'))))
+assert.ok(plan.operations.some(operation => operation.path.endsWith(path.join('.cursor', 'devcodex', 'plugins', 'devcodex-workspace', 'mcp.json'))))
 assert.ok(plan.operations.some(operation => operation.path.endsWith(path.join('.agents', 'devcodex', 'instructions.full.md'))))
 // Default skillsDeployMode=hidden → G_RUNTIME under .agents/devcodex/skills (not L1 scan roots)
 assert.ok(
@@ -217,6 +222,7 @@ for (const graySkill of ['brand-visual-quality', 'consumer-validation-engineerin
 const dryRun = applyGlobalHostConfig({ packageRoot, env, home, dryRun: true })
 assert.strictEqual(dryRun.transaction.status, 'planned')
 assert.strictEqual(fs.existsSync(path.join(home, '.grok', 'devcodex', 'global-host-receipt.json')), false)
+assert.strictEqual(fs.existsSync(path.join(home, '.cursor', 'devcodex', 'global-host-receipt.json')), false)
 
 const applied = applyGlobalHostConfig({ packageRoot, env, home })
 assert.strictEqual(applied.transaction.status, 'committed')
@@ -231,12 +237,43 @@ for (const event of ['UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'Stop']) {
     /lifecycle-host-adapters\.cjs" grok$/
   )
 }
+const cursorTarget = targets.find(target => target.host === 'cursor')
+const cursorSourceManifest = JSON.parse(fs.readFileSync(
+  path.join(packageRoot, 'cursor', 'plugins', 'devcodex-workspace', '.cursor-plugin', 'plugin.json'),
+  'utf8'
+))
+assert.strictEqual(cursorSourceManifest.version, require('../package.json').version)
+const cursorHooks = JSON.parse(fs.readFileSync(cursorTarget.files.hooks, 'utf8'))
+for (const event of ['workspaceOpen', 'sessionStart', 'sessionEnd', 'beforeSubmitPrompt', 'preToolUse', 'postToolUse', 'postToolUseFailure', 'afterAgentResponse', 'preCompact', 'stop']) {
+  assert.ok(Array.isArray(cursorHooks.hooks[event]), `Cursor hook event missing: ${event}`)
+  assert.ok(JSON.stringify(cursorHooks.hooks[event]).includes('lifecycle-host-adapters.cjs'))
+  assert.ok(JSON.stringify(cursorHooks.hooks[event]).includes('--cursor-plugin-path'))
+}
+const cursorPluginManifest = JSON.parse(fs.readFileSync(
+  path.join(cursorTarget.files.plugin, '.cursor-plugin', 'plugin.json'),
+  'utf8'
+))
+assert.strictEqual(cursorPluginManifest.name, 'devcodex-workspace')
+assert.strictEqual(cursorPluginManifest.version, require('../package.json').version)
+assert.strictEqual(cursorPluginManifest.skills, './skills')
+assert.strictEqual(cursorPluginManifest.mcpServers, './mcp.json')
+assert.strictEqual(fs.existsSync(path.join(cursorTarget.files.plugin, 'hooks')), false)
+assert.strictEqual(fs.existsSync(path.join(cursorTarget.files.plugin, 'skills', 'devcodex-workspace', 'SKILL.md')), true)
+const cursorMcp = JSON.parse(fs.readFileSync(path.join(cursorTarget.files.plugin, 'mcp.json'), 'utf8'))
+for (const name of ['devcodex-memory', 'devcodex-profile']) {
+  assert.strictEqual(cursorMcp.mcpServers[name].type, 'stdio')
+  assert.strictEqual(cursorMcp.mcpServers[name].command, 'node')
+  assert.strictEqual(cursorMcp.mcpServers[name].env.DEVCODEX_AGENT, 'cursor')
+  assert.ok(cursorMcp.mcpServers[name].args.some(value => /mcp[\\/](?:memory|profile)-server\.js$/i.test(value)))
+  assert.strictEqual(cursorMcp.mcpServers[name].args[1], '${workspaceFolder}')
+}
 const promptEventByHost = {
   copilot: 'userPromptTransformed',
   claude: 'UserPromptSubmit',
   codex: 'UserPromptSubmit',
   gemini: 'BeforeAgent',
-  grok: 'user_prompt_submit'
+  grok: 'user_prompt_submit',
+  cursor: 'beforeSubmitPrompt'
 }
 for (const target of targets) {
   const adapter = path.join(target.runtimeRoot, 'hooks', '_runtime', 'lifecycle-host-adapters.cjs')
@@ -265,6 +302,8 @@ for (const target of targets) {
     const context = `${output.systemMessage || ''}\n${output.hookSpecificOutput?.additionalContext || ''}`
     assert.match(context, /SkillRouteBootstrapV1/, `${target.host} replay must expose unified skill route context`)
     assert.doesNotMatch(context, /小朋友真可爱/, `${target.host} replay must not preload a skill body`)
+  } else if (target.host === 'cursor') {
+    assert.deepStrictEqual(output, { continue: true }, 'Cursor prompt hook must use the official allow shape')
   }
 }
 assert.strictEqual(fs.existsSync(path.join(home, '.agents', 'devcodex', 'instructions.full.md')), true)
@@ -481,10 +520,10 @@ assert.ok(inspection.hosts.every(host => host.adapterReady))
 assert.ok(inspection.hosts.every(host => host.ready === false))
 assert.ok(inspection.hosts.every(host => host.nativeStatus === 'unverified'))
 const adapterReadyDoctor = runDoctorHuman()
-assert.match(adapterReadyDoctor, /global adapters:\s+5\/5 ready/)
-assert.match(adapterReadyDoctor, /native hosts:\s+0\/5 ready/)
+assert.match(adapterReadyDoctor, /global adapters:\s+6\/6 ready/)
+assert.match(adapterReadyDoctor, /native hosts:\s+0\/6 ready/)
 assert.match(adapterReadyDoctor, /All user-global adapters are installed and their contracts pass/)
-assert.match(adapterReadyDoctor, /Native host CLIs not operationally ready: copilot, claude, codex, gemini, grok/)
+assert.match(adapterReadyDoctor, /Native host CLIs not operationally ready: copilot, claude, codex, gemini, grok, cursor/)
 assert.doesNotMatch(adapterReadyDoctor, /Repair missing adapters/)
 
 const claudeRuntime = inspection.hosts.find(host => host.host === 'claude').runtimeEntry
@@ -1110,6 +1149,7 @@ const partialEnv = {
   CLAUDE_CONFIG_DIR: path.join(partialHome, '.claude'),
   GEMINI_CLI_HOME: path.join(partialHome, 'gemini-cli-home'),
   GROK_HOME: path.join(partialHome, '.grok'),
+  CURSOR_HOME: path.join(partialHome, '.cursor'),
   COPILOT_HOME: path.join(partialHome, '.copilot')
 }
 const partial = applyGlobalHostConfig({
@@ -1119,7 +1159,7 @@ const partial = applyGlobalHostConfig({
   failAfterByHost: { claude: 0 }
 })
 assert.strictEqual(partial.transaction.status, 'partial')
-assert.strictEqual(partial.transaction.hosts.length, 5)
+assert.strictEqual(partial.transaction.hosts.length, 6)
 assert.strictEqual(partial.transaction.hosts.find(item => item.host === 'claude').status, 'rolled-back')
 assert.ok(partial.transaction.hosts
   .filter(item => item.host !== 'claude')
@@ -1128,7 +1168,7 @@ assert.strictEqual(
   fs.existsSync(path.join(partialHome, '.claude', 'devcodex', 'global-host-receipt.json')),
   false
 )
-for (const host of ['.copilot', '.codex', path.join('gemini-cli-home', '.gemini'), '.grok']) {
+for (const host of ['.copilot', '.codex', path.join('gemini-cli-home', '.gemini'), '.grok', '.cursor']) {
   assert.ok(
     fs.existsSync(path.join(partialHome, host, 'devcodex', 'global-host-receipt.json')),
     `${host} must commit despite the isolated Claude failure`

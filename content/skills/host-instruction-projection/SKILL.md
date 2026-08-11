@@ -18,7 +18,7 @@ description: 宿主指令投影 Owner — 从统一 instructions 真相源确定
 |---|:---:|
 | 修改 `instructions.md` 中 S/C、路由、CP、Context、治理或闭环语义 | 必须 |
 | 修改宿主入口文件、安装路径或 deployment descriptor | 必须 |
-| 新增/调整 Copilot、Claude、Codex、Gemini、Grok surface | 必须 |
+| 新增/调整 Copilot、Claude、Codex、Gemini、Grok、Cursor surface | 必须 |
 | 调整 always-on 指令预算或 full fallback | 必须 |
 | 仅修改按需 Skill 正文且不触达投影锚点 | N/A + skipReason |
 
@@ -106,9 +106,9 @@ full fallback 是兼容/故障路径，不得与 kernel 同时作为两个 alway
 
 ## CLI 与部署消费者
 
-- 公共选择器：`--host <copilot|claude|codex|gemini|grok|all>`。
-- 旧 `--claude`、`--codex` 保留；`--gemini`、`--grok` 为等价 alias。
-- 无 selector 的 init/update **默认部署五宿主**（copilot+claude+codex+gemini+grok，经 `cmdInit({ includeExtended: true })`）；`--host all` 显式全量（init 无 force 时仍可能 `HOST_INSTRUCTION_COLLISION`，与 bare init 的 soft-skip 路径不同）。
+- 公共选择器：`--host <copilot|claude|codex|gemini|grok|cursor|all>`。
+- 旧 `--claude`、`--codex` 保留；`--gemini`、`--grok`、`--cursor` 为等价 alias。
+- `GlobalOnlyWorkspaceCleanModeV1` 下，bare `init/update` 只维护 `.devcodex`，不部署任何 workspace 宿主 adapter；用户级 `global-adapters apply` 默认部署六宿主。legacy project projection 仍只有 copilot+claude+codex+gemini+grok 五类工作区 surface，Cursor 必须保持零业务 workspace `.cursor` 产物。
 - 重复或冲突 selector 使用 `CLI_HOST_SELECTION_CONFLICT`；未知 host 使用 `CLI_HOST_UNSUPPORTED`。
 - managed manifest 必须记录 projection source/content digest，并保证规范化物理 destination 单一 current owner；dry-run 零写入；从 source cwd 与目标项目 cwd 分别验证边界。
 - workspace-namespace 从 child project 调用默认、单宿主或 `--host all` install/update 时，所有非 portable target/manifest owner 必须解析为 workspace root；Grok uninstall 与 status/doctor 也消费相同 scope identity。uninstall 不删除 workspace source。
@@ -117,8 +117,8 @@ full fallback 是兼容/故障路径，不得与 kernel 同时作为两个 alway
 
 1. `node scripts/generate-host-instruction-projections.js --check`。
 2. `node scripts/test-host-instruction-projection.js`：规则缺失、锚点 mutation、预算回退、重复内容碰撞、派生新鲜度。
-3. `node scripts/test-host-adapters.js`：Gemini/Grok event 与输出映射。
-4. `node scripts/test-cli-command-registry.js` 与 host install fixture：默认兼容、五 host、aliases、unknown/conflict、dry-run、collision、two-cwd，以及 Grok uninstall/repeat/reinstall 配置保真。
+3. `node scripts/test-host-adapters.js`：Gemini/Grok/Cursor event 与输出映射。
+4. `node scripts/test-cli-command-registry.js` 与 host install fixture：默认兼容、六 host、aliases、unknown/conflict、dry-run、collision、two-cwd、Cursor workspace 零产物，以及 Grok uninstall/repeat/reinstall 配置保真。
 5. `grok plugin validate grok/plugins/devcodex-workspace` + workspace/project/outside `grok inspect --json`；无 direct 的宿主保持 `UNVERIFIED`。
 6. `node scripts/run-validation.js --route full --no-cache`、package/Profile/deploy、staged freshness 与 post-commit clean replay。
 
@@ -133,7 +133,7 @@ full fallback 是兼容/故障路径，不得与 kernel 同时作为两个 alway
 
 ## 禁止事项
 
-- 手工维护五份完整规范。
+- 手工维护六份完整规范。
 - 用关键词计数代替 S/C ID 与语义锚点回放。
 - 为压缩体积删除安全、CP、Context、治理、恢复或 ECR 不变量。
 - 在缺少 direct evidence 时宣称宿主已实际加载、执行或强制。

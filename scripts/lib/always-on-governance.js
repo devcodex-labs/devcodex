@@ -364,16 +364,16 @@ function buildHostAdapterCompatibilityMatrix() {
     },
     {
       hostId: 'cursor',
-      scope: 'unsupported',
-      alwaysOnSurface: ['manual .cursor/rules or root AGENTS.md'],
-      onDemandSurface: ['manual text'],
-      hardBlockCapability: 'unsupported',
-      mcpCapability: 'none',
-      rootChildBehavior: 'not automatically distributed by DevCodex',
-      optimizationImpact: 'excluded from AO-3 quality denominator',
-      validationRoute: ['documentation only'],
-      fallback: 'manual paste full fallback',
-      ao3ClaimLevel: 'best-effort'
+      scope: 'user-global-beta',
+      alwaysOnSurface: ['user ~/.cursor/hooks.json', 'workspaceOpen dynamic DevCodex Plugin', 'sessionStart kernel context'],
+      onDemandSurface: ['Plugin resolver Skill', 'local stdio MCP', 'hidden staged SkillRoute'],
+      hardBlockCapability: 'local-pretool-and-prompt',
+      mcpCapability: 'auto-when-plugin-loaded',
+      rootChildBehavior: 'local IDE/CLI/Headless share the user adapter without project host artifacts; Cloud does not load user hooks',
+      optimizationImpact: 'local variants enter the beta denominator; Cloud remains separate and unverified',
+      validationRoute: ['test-host-adapters', 'test-global-host-config', 'test-global-host-runtime-verifier', 'direct Cursor replay when available'],
+      fallback: 'resolver rule-skill guidance with native status UNVERIFIED',
+      ao3ClaimLevel: 'local-beta-cloud-unverified'
     },
     {
       hostId: 'chatgpt-plain',

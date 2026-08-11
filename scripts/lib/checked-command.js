@@ -71,6 +71,42 @@ function assertNoLiteralPathGlob(args) {
   }
 }
 
+function resolveExecutableOnPath (fileName, env = process.env) {
+  const pathValue = String(env.PATH || env.Path || '')
+  for (const rawDirectory of pathValue.split(path.delimiter)) {
+    const directory = rawDirectory.trim().replace(/^"|"$/g, '')
+    if (!directory) continue
+    const candidate = path.join(directory, fileName)
+    try {
+      if (fs.statSync(candidate).isFile()) return candidate
+    } catch {}
+  }
+  return null
+}
+
+function quoteWindowsBatchArgument (value) {
+  const text = String(value)
+  if (!text) return '""'
+  if (!/[\s"&|<>^()%!]/.test(text)) return text
+  return `"${text.replace(/(["^&|<>])/g, '^$1')}"`
+}
+
+function resolveWindowsBatchInvocation (command, args, env) {
+  const comSpec = env.ComSpec || env.COMSPEC || path.join(
+    env.SystemRoot || env.SYSTEMROOT || 'C:\\Windows',
+    'System32',
+    'cmd.exe'
+  )
+  const commandLine = [command, ...args]
+    .map(quoteWindowsBatchArgument)
+    .join(' ')
+  return {
+    command: comSpec,
+    args: ['/d', '/s', '/c', commandLine],
+    batchCommand: command
+  }
+}
+
 function resolveNpmInvocation(command, args, env) {
   if (process.platform !== 'win32' || !['npm', 'npx'].includes(command)) {
     return { command, args }
@@ -83,7 +119,24 @@ function resolveNpmInvocation(command, args, env) {
   ].filter(Boolean)
   const cliPath = candidates.find(candidate => fs.existsSync(candidate))
   if (cliPath) return { command: process.execPath, args: [cliPath, ...args] }
-  return { command: `${command}.cmd`, args }
+
+  const nativeExecutable = resolveExecutableOnPath(`${command}.exe`, env)
+  if (nativeExecutable) return { command: nativeExecutable, args }
+
+  const batchCommand = resolveExecutableOnPath(`${command}.cmd`, env) || `${command}.cmd`
+  const siblingExecutable = batchCommand.toLowerCase().endsWith('.cmd')
+    ? `${batchCommand.slice(0, -4)}.exe`
+    : null
+  if (siblingExecutable && fs.existsSync(siblingExecutable)) {
+    return { command: siblingExecutable, args }
+  }
+  const installedCli = batchCommand.toLowerCase().endsWith('.cmd')
+    ? path.join(path.dirname(batchCommand), 'node_modules', 'npm', 'bin', cliName)
+    : null
+  if (installedCli && fs.existsSync(installedCli)) {
+    return { command: process.execPath, args: [installedCli, ...args] }
+  }
+  return resolveWindowsBatchInvocation(batchCommand, args, env)
 }
 
 /** Run a command and throw with structured evidence on any non-zero outcome. */
@@ -150,6 +203,9 @@ module.exports = {
   CheckedCommandError,
   assertNoLiteralPathGlob,
   hasBracketPathGlob,
+  resolveExecutableOnPath,
+  resolveNpmInvocation,
+  resolveWindowsBatchInvocation,
   runChecked,
   runSequenceChecked
 }

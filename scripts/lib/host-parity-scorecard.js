@@ -488,7 +488,7 @@ function composeEntryCheckBlock(options = {}) {
   const overall = String(options.status || 'UNVERIFIED').trim() || 'UNVERIFIED'
   const next = String(options.nextStep || '完成 ContextReadPlan 与有界 Profile/memory 读取后继续').trim()
   const digest = String(options.semanticDigest || 'pending-entry-check').trim()
-  // UserVisibleReplyLayoutV1: plain-language table for all five hosts.
+  // UserVisibleReplyLayoutV1: plain-language table shared by all six hosts.
   // Cell keeps "PC4 [STATUS] …" so parsers matching /PC4 \[STATUS\]/ still work.
   const pc4Cell = composePc4Line(options).replace(/^- /, '').trim()
   return [

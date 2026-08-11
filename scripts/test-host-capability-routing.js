@@ -80,10 +80,10 @@ const catalogReceipt = buildHostLeverCatalogReceipt(catalog, {
 assert.strictEqual(catalogReceipt.passed, true, JSON.stringify(catalogReceipt.issues))
 assert.strictEqual(catalogReceipt.openBlockers, 0)
 assert.deepStrictEqual(catalogReceipt.coverage, {
-  inScopeVariantCount: 8,
-  uniqueVariantCount: 8,
-  logicalHostCount: 5,
-  unsupportedCount: 2
+  inScopeVariantCount: 9,
+  uniqueVariantCount: 9,
+  logicalHostCount: 6,
+  unsupportedCount: 1
 })
 assert.strictEqual(catalog.sourceMatrixRef.matrixId, matrix.matrixId)
 assert.strictEqual(catalog.writer, 'host-capability-routing/catalog-maintainer')
@@ -99,7 +99,7 @@ assert.deepStrictEqual(catalogInScope, matrixInScope)
 const matrixUnsupported = matrix.hosts.filter(host => host.scope === 'unsupported').map(host => host.hostId).sort()
 const catalogUnsupported = catalog.unsupportedSurfaces.map(entry => entry.hostSurfaceOrVariant).sort()
 assert.deepStrictEqual(catalogUnsupported, matrixUnsupported)
-assert.strictEqual(new Set(catalog.entries.map(catalogEntryKey)).size, 8)
+assert.strictEqual(new Set(catalog.entries.map(catalogEntryKey)).size, 9)
 
 for (const entry of catalog.entries) {
   const receipt = resolveHostCapabilityLever({
@@ -134,6 +134,22 @@ for (const unsupported of catalog.unsupportedSurfaces) {
   assert.strictEqual(receipt.fallback.reasonCode, 'HOST_UNSUPPORTED')
   assert.strictEqual(receipt.safe, true)
 }
+
+const cursorPortable = resolveHostCapabilityLever({
+  catalog,
+  matrix,
+  hostId: 'cursor',
+  hostSurfaceOrVariant: 'cursor',
+  capabilityFamilyId: 'planning',
+  sourceHead: catalog.sourceMatrixRef.sourceHead,
+  now: NOW,
+  explicitUserAuthority: true,
+  allowNativeInvocation: true
+})
+assert.strictEqual(cursorPortable.classification, 'portable')
+assert.strictEqual(cursorPortable.nativeEligibility.eligible, false)
+assert.strictEqual(cursorPortable.fallback.applied, true)
+assert.strictEqual(cursorPortable.safe, true)
 
 const unknownVariant = resolveHostCapabilityLever({
   catalog,
@@ -569,9 +585,9 @@ for (const invariant of [
 console.log(JSON.stringify({
   schemaVersion: 'HostCapabilityRoutingTestReceiptV1',
   catalog: {
-    inScopeVariants: 8,
-    logicalHosts: 5,
-    unsupportedSurfaces: 2,
+    inScopeVariants: catalogReceipt.coverage.inScopeVariantCount,
+    logicalHosts: catalogReceipt.coverage.logicalHostCount,
+    unsupportedSurfaces: catalogReceipt.coverage.unsupportedCount,
     duplicateKeys: 0
   },
   contracts: {

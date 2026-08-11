@@ -6,6 +6,9 @@ const fs = require('fs')
 const os = require('os')
 const path = require('path')
 const {
+  buildWindowsNativeInvocation,
+  nativeVersionProbe,
+  resolveWindowsNativeCommand,
   verifyGlobalHostRuntime
 } = require('./lib/global-host-runtime-verifier.js')
 const {
@@ -23,6 +26,7 @@ const env = {
   USERPROFILE: home,
   HOME: home,
   GROK_HOME: grokRoot,
+  CURSOR_HOME: path.join(home, '.cursor'),
   CLAUDE_CONFIG_DIR: path.join(home, '.claude'),
   CODEX_HOME: path.join(home, '.codex'),
   GEMINI_CLI_HOME: home,
@@ -95,6 +99,57 @@ assert.strictEqual(deniedNode.status, 'BLOCK')
 assert.strictEqual(deniedNode.reasonCode, 'sandbox-exec-denied')
 assert.match(deniedNode.nextStep, /Approve this Node launcher once in Codex/)
 assert.match(deniedNode.startupBoundary, /before DevCodex JavaScript starts/)
+
+const cursorCmdBin = path.join(root, 'cursor-agent-bin')
+const grokAgentBin = path.join(root, 'grok-agent-bin')
+fs.mkdirSync(cursorCmdBin, { recursive: true })
+fs.mkdirSync(grokAgentBin, { recursive: true })
+const cursorCmdLauncher = path.join(cursorCmdBin, 'cursor-agent.cmd')
+const grokAgentLauncher = path.join(grokAgentBin, 'agent.exe')
+fs.writeFileSync(cursorCmdLauncher, '@echo off\n', 'utf8')
+fs.writeFileSync(grokAgentLauncher, 'fixture\n', 'utf8')
+const cursorWindowsEnv = {
+  PATH: `${grokAgentBin};${cursorCmdBin}`,
+  PATHEXT: '.exe;.cmd',
+  COMSPEC: path.join(root, 'Windows', 'System32', 'cmd.exe')
+}
+const resolvedCursorCmd = resolveWindowsNativeCommand('cursor-agent', {
+  fs,
+  env: cursorWindowsEnv
+})
+assert.strictEqual(resolvedCursorCmd.status, 'resolved')
+assert.strictEqual(path.resolve(resolvedCursorCmd.resolvedPath), path.resolve(cursorCmdLauncher))
+const cursorCmdInvocation = buildWindowsNativeInvocation('cursor-agent', ['--version'], {
+  fs,
+  env: cursorWindowsEnv,
+  resolution: resolvedCursorCmd
+})
+assert.strictEqual(path.resolve(cursorCmdInvocation.command), path.resolve(cursorWindowsEnv.COMSPEC))
+assert.deepStrictEqual(cursorCmdInvocation.args, ['/d', '/c', cursorCmdLauncher, '--version'])
+
+const cursorWindowsCalls = []
+const cursorWindowsProbe = nativeVersionProbe('cursor', {
+  depth: 'deep',
+  fs,
+  env: cursorWindowsEnv,
+  platform: 'win32',
+  resolveWindowsCommand: true,
+  nativeSpawnInjected: true,
+  spawnSync: (command, args) => {
+    cursorWindowsCalls.push({ command, args })
+    assert.strictEqual(path.resolve(command), path.resolve(cursorWindowsEnv.COMSPEC))
+    assert.strictEqual(path.resolve(args[2]), path.resolve(cursorCmdLauncher))
+    if (args[3] === '--version') return { status: 0, stdout: '2026.08.04-aaa8809\n', stderr: '' }
+    if (args[3] === '--help') return { status: 0, stdout: 'Start the Cursor Agent\n', stderr: '' }
+    return { status: 1, stdout: '', stderr: 'unexpected args' }
+  }
+})
+assert.strictEqual(cursorWindowsProbe.status, 'passed')
+assert.strictEqual(cursorWindowsProbe.evidence.command, 'agent')
+assert.strictEqual(path.resolve(cursorWindowsProbe.evidence.resolvedCommand), path.resolve(cursorCmdLauncher))
+assert.strictEqual(cursorWindowsProbe.evidence.identityStatus, 'matched')
+assert.deepStrictEqual(cursorWindowsCalls.map(call => call.args[3]), ['--version', '--help'])
+
 const canonicalPlugin = path.join(grokRoot, 'devcodex', 'plugins', 'devcodex-workspace')
 const installedPlugin = path.join(grokRoot, 'installed-plugins', 'canonical')
 const grokRuntime = resolveGlobalHostTarget('grok', { env, home }).runtimeRoot
@@ -128,7 +183,39 @@ fs.writeFileSync(path.join(grokRoot, 'installed-plugins', 'registry.json'), JSON
   }
 }, null, 2), 'utf8')
 
-const hosts = ['copilot', 'claude', 'codex', 'gemini', 'grok'].map(host => ({
+const cursorTarget = resolveGlobalHostTarget('cursor', { env, home })
+fs.mkdirSync(path.dirname(cursorTarget.files.plugin), { recursive: true })
+fs.cpSync(
+  path.join(__dirname, '..', 'cursor', 'plugins', 'devcodex-workspace'),
+  cursorTarget.files.plugin,
+  { recursive: true }
+)
+for (const name of ['memory-server.js', 'profile-server.js']) {
+  const serverPath = path.join(cursorTarget.runtimeRoot, 'mcp', name)
+  fs.mkdirSync(path.dirname(serverPath), { recursive: true })
+  fs.writeFileSync(serverPath, 'process.stdin.resume()\n', 'utf8')
+}
+const cursorRuntimeEntry = path.join(cursorTarget.runtimeRoot, 'hooks', '_runtime', 'lifecycle-host-adapters.cjs')
+const cursorCommand = `node "${cursorRuntimeEntry}" cursor --cursor-plugin-path "${cursorTarget.files.plugin}"`
+const cursorEvents = ['workspaceOpen', 'sessionStart', 'sessionEnd', 'beforeSubmitPrompt', 'preToolUse', 'postToolUse', 'postToolUseFailure', 'afterAgentResponse', 'preCompact', 'stop']
+fs.mkdirSync(path.dirname(cursorTarget.files.hooks), { recursive: true })
+fs.writeFileSync(cursorTarget.files.hooks, JSON.stringify({
+  version: 1,
+  hooks: Object.fromEntries(cursorEvents.map(event => [event, [{ command: cursorCommand }]]))
+}, null, 2), 'utf8')
+fs.writeFileSync(path.join(cursorTarget.files.plugin, 'mcp.json'), JSON.stringify({
+  mcpServers: Object.fromEntries(['memory', 'profile'].map(name => [
+    `devcodex-${name}`,
+    {
+      type: 'stdio',
+      command: 'node',
+      args: [path.join(cursorTarget.runtimeRoot, 'mcp', `${name}-server.js`), '${workspaceFolder}'],
+      env: { DEVCODEX_AGENT: 'cursor' }
+    }
+  ]))
+}, null, 2), 'utf8')
+
+const hosts = ['copilot', 'claude', 'codex', 'gemini', 'grok', 'cursor'].map(host => ({
   host,
   ready: true,
   runtimeEntry: path.join(
@@ -182,6 +269,16 @@ assert(healthy.hosts.every(host => host.operationalState === 'unverified'))
 assert.strictEqual(healthy.hosts.find(host => host.host === 'copilot').contractStatus, 'passed')
 assert.strictEqual(healthy.hosts.find(host => host.host === 'copilot').nativeStatus, 'unverified')
 assert.strictEqual(healthy.hosts.find(host => host.host === 'grok').nativeStatus, 'unverified')
+const healthyCursor = healthy.hosts.find(host => host.host === 'cursor')
+assert.strictEqual(healthyCursor.contractStatus, 'passed')
+assert.strictEqual(healthyCursor.nativeStatus, 'unverified')
+assert.deepStrictEqual(healthyCursor.variants.map(variant => variant.id), [
+  'cursor-ide-local',
+  'cursor-cli-interactive',
+  'cursor-cli-headless',
+  'cursor-cloud-agent'
+])
+assert.strictEqual(healthyCursor.variants.find(variant => variant.id === 'cursor-cloud-agent').support, 'partial')
 
 const deniedCodexRoot = path.resolve(env.CODEX_HOME)
 const deniedCodexFs = Object.create(fs)
@@ -228,7 +325,7 @@ const permissionIsolated = verifyGlobalHostRuntime({
 })
 const permissionIsolatedCodex = permissionIsolated.hosts.find(host => host.host === 'codex')
 assert.strictEqual(permissionIsolated.overallState, 'degraded')
-assert.strictEqual(permissionIsolatedAdapterProbes, 4)
+assert.strictEqual(permissionIsolatedAdapterProbes, 5)
 assert.strictEqual(permissionIsolatedCodex.adapterReady, false)
 assert.strictEqual(permissionIsolatedCodex.contractStatus, 'unverified')
 assert.strictEqual(permissionIsolatedCodex.nativeStatus, 'unverified')
@@ -282,6 +379,9 @@ const deepSpawn = (command, args) => {
   }
   if (command === 'grok' && args[0] === 'version') {
     return { status: 0, stdout: 'grok fixture\n', stderr: '' }
+  }
+  if (command === 'agent' && args[0] === '--version') {
+    return { status: 0, stdout: 'cursor-agent fixture\n', stderr: '' }
   }
   if (command === 'grok' && args[0] === 'plugin' && args[1] === 'list') {
     return {
@@ -339,14 +439,45 @@ const healthyDeep = verifyGlobalHostRuntime({
   depth: 'deep',
   spawnSync: deepSpawn
 })
-assert.strictEqual(healthyDeep.ready, true)
-assert.strictEqual(healthyDeep.overallState, 'ready')
-assert(healthyDeep.hosts.every(host => host.ready))
+assert.strictEqual(healthyDeep.ready, false)
+assert.strictEqual(healthyDeep.overallState, 'degraded')
+assert(healthyDeep.hosts.filter(host => host.host !== 'cursor').every(host => host.ready))
 assert(healthyDeep.hosts.every(host => host.adapterReady))
 assert.strictEqual(healthyDeep.hosts.find(host => host.host === 'copilot').nativeStatus, 'passed')
 assert.strictEqual(healthyDeep.hosts.find(host => host.host === 'grok').nativeStatus, 'passed')
+assert.strictEqual(healthyDeep.hosts.find(host => host.host === 'cursor').nativeStatus, 'unverified')
+assert.strictEqual(healthyDeep.hosts.find(host => host.host === 'cursor').operationalState, 'unverified')
+assert.strictEqual(
+  healthyDeep.hosts.find(host => host.host === 'cursor').variants.find(variant => variant.id === 'cursor-cli-headless').cliDetected,
+  true
+)
 assert.strictEqual(healthyDeep.hosts.find(host => host.host === 'grok').probes.grokDeep.inspectSummary.mcpServers.length, 2)
 assert.strictEqual(healthyDeep.hosts.find(host => host.host === 'grok').probes.grokDeep.installedHook.passed, true)
+
+const cursorCommandCollision = verifyGlobalHostRuntime({
+  configuration: healthy,
+  env,
+  home,
+  fs,
+  depth: 'deep',
+  spawnSync: (command, args, options) => {
+    if (command === 'agent' && args[0] === '--version') {
+      return { status: 0, stdout: 'grok 1.0.0 (fixture)\n', stderr: '' }
+    }
+    if (command === 'agent' && args[0] === '--help') {
+      return { status: 0, stdout: 'Grok agent commands\n', stderr: '' }
+    }
+    return deepSpawn(command, args, options)
+  }
+})
+const collisionCursor = cursorCommandCollision.hosts.find(host => host.host === 'cursor')
+assert.strictEqual(collisionCursor.nativeStatus, 'unverified')
+assert.strictEqual(
+  collisionCursor.variants.find(variant => variant.id === 'cursor-cli-headless').cliDetected,
+  false
+)
+assert(collisionCursor.issues.some(issue => issue.code === 'HOST_NATIVE_IDENTITY_MISMATCH'))
+assert.strictEqual(collisionCursor.probes.native.detectedHost, 'grok')
 
 const brokenInstalledHook = verifyGlobalHostRuntime({
   configuration: {
@@ -470,6 +601,27 @@ assert.strictEqual(inaccessibleCodexHost.adapterReady, true)
 assert.strictEqual(inaccessibleCodexHost.nativeStatus, 'unavailable')
 assert.strictEqual(inaccessibleCodexHost.ready, false)
 assert(inaccessibleCodexHost.issues.some(issue => issue.code === 'HOST_NATIVE_PROBE_UNAVAILABLE'))
+
+const cursorHooksOriginal = fs.readFileSync(cursorTarget.files.hooks, 'utf8')
+const cursorHooksDrift = JSON.parse(cursorHooksOriginal)
+cursorHooksDrift.hooks.stop = []
+fs.writeFileSync(cursorTarget.files.hooks, JSON.stringify(cursorHooksDrift, null, 2), 'utf8')
+const cursorContractFailure = verifyGlobalHostRuntime({
+  configuration: {
+    mode: 'GlobalOnlyHostConfigModeV1',
+    workspaceCleanMode: 'GlobalOnlyWorkspaceCleanModeV1',
+    packageVersion: 'test',
+    hosts
+  },
+  env,
+  home,
+  fs,
+  spawnSync: spawnProbe
+})
+const failedCursor = cursorContractFailure.hosts.find(host => host.host === 'cursor')
+assert.strictEqual(failedCursor.contractStatus, 'failed')
+assert(failedCursor.issues.some(issue => issue.code === 'CURSOR_HOOK_CONTRACT_FAILED'))
+fs.writeFileSync(cursorTarget.files.hooks, cursorHooksOriginal, 'utf8')
 
 const adapterFailure = verifyGlobalHostRuntime({
   configuration: healthy,

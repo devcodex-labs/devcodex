@@ -1,0 +1,10 @@
+{
+  "name": "devcodex-workspace",
+  "version": "1.17.0",
+  "description": "User-global DevCodex bridge for Cursor local IDE and CLI workflows.",
+  "author": {
+    "name": "DevCodex"
+  },
+  "skills": "./skills",
+  "mcpServers": "./mcp.json"
+}

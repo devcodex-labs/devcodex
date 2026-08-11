@@ -64,7 +64,7 @@ function mergeJsonContent(content, managed, label) {
 
 function isDevCodexManagedHookEntry(value) {
   if (typeof value === 'string') {
-    return /lifecycle-host-adapters\.cjs|(?:^|[\s"'\\/])(?:\.claude|\.codex|\.gemini|\.grok|\.github|devcodex)[\\/]+(?:hooks[\\/]_runtime[\\/]+)?lifecycle(?:-[\w-]+)?\.cjs/i.test(value)
+    return /lifecycle-host-adapters\.cjs|(?:^|[\s"'\\/])(?:\.claude|\.codex|\.gemini|\.grok|\.cursor|\.github|devcodex)[\\/]+(?:hooks[\\/]_runtime[\\/]+)?lifecycle(?:-[\w-]+)?\.cjs/i.test(value)
   }
   if (Array.isArray(value)) return value.some(isDevCodexManagedHookEntry)
   if (isPlainObject(value)) return Object.values(value).some(isDevCodexManagedHookEntry)

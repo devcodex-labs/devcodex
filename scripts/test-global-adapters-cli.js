@@ -44,7 +44,7 @@ try {
   assert.strictEqual(dry.payload.sourceKind, 'source-checkout-live')
   assert.strictEqual(dry.payload.sourceCheckout, true)
   assert.strictEqual(dry.payload.workspaceHostDirectoriesWritten, false)
-  assert.ok(Array.isArray(dry.payload.hosts) && dry.payload.hosts.length >= 5)
+  assert.ok(Array.isArray(dry.payload.hosts) && dry.payload.hosts.length >= 6)
   assert.ok(['planned', 'committed'].includes(dry.payload.transactionStatus))
   assert.strictEqual(fakeProcess.exitCode, 0)
 

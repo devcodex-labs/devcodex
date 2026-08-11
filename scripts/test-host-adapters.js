@@ -3,6 +3,8 @@
 
 const assert = require('assert')
 const fs = require('fs')
+const os = require('os')
+const path = require('path')
 const grokHooks = require('../grok/hooks/devcodex.json')
 const {
   buildPrompt: buildS15HostPrompt,
@@ -23,6 +25,233 @@ const {
   runHostAdapter
 } = require('../hooks/_runtime/lifecycle-host-adapters.cjs')
 const { createBoundedTextAccumulator } = require('../hooks/_runtime/stdio-bounds.cjs')
+const {
+  bindInstalledSourceCandidateRuntime,
+  buildCandidateHostEnv,
+  copyCandidateCredentials,
+  credentialJsonHasRefreshToken,
+  prepareCandidateHostRuntime
+} = require('./lib/s15-candidate-host')
+
+const candidateFixture = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-s15-candidate-'))
+try {
+  const sourceHome = path.join(candidateFixture, 'source-home')
+  const sourceCodex = path.join(sourceHome, '.codex')
+  fs.mkdirSync(sourceCodex, { recursive: true })
+  fs.writeFileSync(path.join(sourceCodex, 'auth.json'), '{"fixture":true}\n')
+  const baseEnv = {
+    ...process.env,
+    USERPROFILE: sourceHome,
+    CODEX_HOME: sourceCodex
+  }
+  const candidateEnv = buildCandidateHostEnv(
+    'codex',
+    path.join(candidateFixture, 'candidate-env'),
+    baseEnv
+  )
+  assert.notStrictEqual(candidateEnv.CODEX_HOME, sourceCodex)
+  assert.ok(candidateEnv.CODEX_HOME.startsWith(candidateFixture))
+  assert.ok(
+    candidateEnv.DEVCODEX_GLOBAL_SHARED_ROOT.startsWith(candidateEnv.CODEX_HOME)
+  )
+  assert.strictEqual(
+    Object.prototype.hasOwnProperty.call(candidateEnv, 'DEVCODEX_GLOBAL_SKILLS_ROOT'),
+    false
+  )
+  const expectedDigest = 'a'.repeat(64)
+  const prepared = prepareCandidateHostRuntime({
+    hostId: 'codex',
+    fixtureRoot: candidateFixture,
+    packageRoot: path.resolve(__dirname, '..'),
+    baseEnv,
+    sourceHome,
+    applyGlobalHostConfig: options => {
+      assert.deepStrictEqual(options.hosts, ['codex'])
+      assert.strictEqual(options.ignoreExistingReceipts, true)
+      const runtimeRoot = path.join(options.env.CODEX_HOME, 'devcodex', 'runtime-fixture')
+      fs.mkdirSync(runtimeRoot, { recursive: true })
+      fs.writeFileSync(path.join(runtimeRoot, 'runtime-generation.json'), `${JSON.stringify({
+        runtimeContractDigest: expectedDigest
+      })}\n`)
+      return {
+        transaction: { status: 'committed' },
+        targets: [{ host: 'codex', runtimeRoot }]
+      }
+    }
+  })
+  assert.strictEqual(prepared.source, 'isolated-source-candidate')
+  assert.deepStrictEqual(prepared.credentialFiles, ['auth.json'])
+  assert.strictEqual(prepared.generation.runtimeContractDigest, expectedDigest)
+  assert.strictEqual(
+    fs.readFileSync(path.join(prepared.env.CODEX_HOME, 'auth.json'), 'utf8'),
+    '{"fixture":true}\n'
+  )
+
+  const installedRuntimeRoot = path.join(candidateFixture, 'installed-source-runtime')
+  fs.mkdirSync(installedRuntimeRoot, { recursive: true })
+  fs.writeFileSync(path.join(installedRuntimeRoot, 'runtime-generation.json'), `${JSON.stringify({
+    runtimeContractDigest: expectedDigest
+  })}\n`)
+  const expectedAdapterDigest = 'c'.repeat(64)
+  const installedSource = bindInstalledSourceCandidateRuntime({
+    hostId: 'codex',
+    home: sourceHome,
+    packageRoot: path.resolve(__dirname, '..'),
+    baseEnv,
+    expectedRuntimeDigest: expectedDigest,
+    expectedHostAdapterDigest: expectedAdapterDigest,
+    resolveGlobalHostTarget: () => ({
+      root: sourceCodex,
+      runtimeRoot: installedRuntimeRoot
+    }),
+    getLifecycleHostAdapterDigest: () => expectedAdapterDigest
+  })
+  assert.strictEqual(installedSource.source, 'installed-source-candidate')
+  assert.strictEqual(installedSource.home, sourceHome)
+  assert.deepStrictEqual(installedSource.credentialFiles, ['host-auth:existing'])
+  assert.throws(
+    () => bindInstalledSourceCandidateRuntime({
+      hostId: 'codex',
+      home: sourceHome,
+      packageRoot: path.resolve(__dirname, '..'),
+      baseEnv,
+      expectedRuntimeDigest: 'd'.repeat(64),
+      expectedHostAdapterDigest: expectedAdapterDigest,
+      resolveGlobalHostTarget: () => ({
+        root: sourceCodex,
+        runtimeRoot: installedRuntimeRoot
+      }),
+      getLifecycleHostAdapterDigest: () => expectedAdapterDigest
+    }),
+    /runtime does not match current source/
+  )
+} finally {
+  fs.rmSync(candidateFixture, { recursive: true, force: true })
+}
+
+const rotatingCredentialFixture = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-s15-credential-'))
+try {
+  assert.throws(
+    () => prepareCandidateHostRuntime({
+      hostId: 'codex',
+      fixtureRoot: '',
+      baseEnv: { USERPROFILE: rotatingCredentialFixture }
+    }),
+    /S15 candidate fixture root is required/
+  )
+  assert.throws(
+    () => prepareCandidateHostRuntime({
+      hostId: 'codex',
+      fixtureRoot: rotatingCredentialFixture,
+      baseEnv: {}
+    }),
+    /S15 candidate credential source home is required/
+  )
+  const sourceHome = path.join(rotatingCredentialFixture, 'source-home')
+  const sourceRoot = path.join(sourceHome, '.grok')
+  const candidateRoot = path.join(rotatingCredentialFixture, 'candidate')
+  fs.mkdirSync(sourceRoot, { recursive: true })
+  const rotatingCredential = {
+    issuer: {
+      auth_mode: 'oauth',
+      refresh_token: 'fixture-only-value'
+    }
+  }
+  assert.strictEqual(credentialJsonHasRefreshToken(rotatingCredential), true)
+  assert.strictEqual(credentialJsonHasRefreshToken({ api_key: 'fixture' }), false)
+  fs.writeFileSync(
+    path.join(sourceRoot, 'auth.json'),
+    `${JSON.stringify(rotatingCredential)}\n`
+  )
+  assert.throws(
+    () => copyCandidateCredentials(
+      'grok',
+      { root: sourceRoot },
+      { root: candidateRoot }
+    ),
+    error => error && error.code === 'S15_ROTATING_CREDENTIAL_COPY_BLOCKED'
+  )
+  assert.strictEqual(fs.existsSync(path.join(candidateRoot, 'auth.json')), false)
+
+  const expectedDigest = 'b'.repeat(64)
+  const fakeApply = options => {
+    const runtimeRoot = path.join(options.env.GROK_HOME, 'devcodex', 'runtime-fixture')
+    fs.mkdirSync(runtimeRoot, { recursive: true })
+    fs.writeFileSync(path.join(runtimeRoot, 'runtime-generation.json'), `${JSON.stringify({
+      runtimeContractDigest: expectedDigest
+    })}\n`)
+    return {
+      transaction: { status: 'committed' },
+      targets: [{
+        host: 'grok',
+        runtimeRoot,
+        files: { plugin: path.join(options.env.GROK_HOME, 'plugins', 'devcodex') }
+      }]
+    }
+  }
+  const fakeSyncGrok = options => {
+    assert.ok(options.pluginPath.includes(path.join('.grok', 'plugins', 'devcodex')))
+    return {
+      schemaVersion: 'GrokWorkspacePluginInstallationV1',
+      status: 'verified',
+      refreshMode: 'fixture'
+    }
+  }
+  const baseGrokEnv = {
+    ...process.env,
+    USERPROFILE: sourceHome,
+    GROK_HOME: sourceRoot
+  }
+  const persistentHome = path.join(rotatingCredentialFixture, 'persistent-home')
+  const persistentGrokRoot = path.join(persistentHome, '.grok')
+  fs.mkdirSync(persistentGrokRoot, { recursive: true })
+  fs.writeFileSync(
+    path.join(persistentGrokRoot, 'auth.json'),
+    `${JSON.stringify(rotatingCredential)}\n`
+  )
+  const persistentPrepared = prepareCandidateHostRuntime({
+    hostId: 'grok',
+    fixtureRoot: rotatingCredentialFixture,
+    packageRoot: path.resolve(__dirname, '..'),
+    baseEnv: baseGrokEnv,
+    sourceHome,
+    candidateHome: persistentHome,
+    applyGlobalHostConfig: fakeApply,
+    syncGrokWorkspacePluginInstallation: fakeSyncGrok
+  })
+  assert.strictEqual(persistentPrepared.source, 'persistent-isolated-source-candidate')
+  assert.deepStrictEqual(persistentPrepared.credentialFiles, ['auth.json:existing'])
+  assert.strictEqual(persistentPrepared.generation.runtimeContractDigest, expectedDigest)
+
+  const apiKeyPrepared = prepareCandidateHostRuntime({
+    hostId: 'grok',
+    fixtureRoot: path.join(rotatingCredentialFixture, 'api-key-fixture'),
+    packageRoot: path.resolve(__dirname, '..'),
+    baseEnv: { ...baseGrokEnv, XAI_API_KEY: 'fixture-api-key' },
+    sourceHome,
+    applyGlobalHostConfig: fakeApply,
+    syncGrokWorkspacePluginInstallation: fakeSyncGrok
+  })
+  assert.deepStrictEqual(apiKeyPrepared.credentialFiles, ['env:XAI_API_KEY'])
+  assert.strictEqual(
+    fs.existsSync(path.join(apiKeyPrepared.env.GROK_HOME, 'auth.json')),
+    false
+  )
+
+  assert.throws(
+    () => prepareCandidateHostRuntime({
+      hostId: 'grok',
+      fixtureRoot: rotatingCredentialFixture,
+      packageRoot: path.resolve(__dirname, '..'),
+      baseEnv: baseGrokEnv,
+      sourceHome,
+      candidateHome: sourceHome
+    }),
+    error => error && error.code === 'S15_CANDIDATE_HOME_NOT_ISOLATED'
+  )
+} finally {
+  fs.rmSync(rotatingCredentialFixture, { recursive: true, force: true })
+}
 
 assert.strictEqual(STDIO_CHILD_TIMEOUT_MS, 30000)
 assert.strictEqual(STDIO_MAX_FRAME_BYTES, 4 * 1024 * 1024)
@@ -53,7 +282,7 @@ assert.strictEqual(cliOverrideEnv.DEVCODEX_CONTEXT_EPOCH, 'ctx-probe')
 assert.strictEqual(cliOverrideEnv.DEVCODEX_CONTEXT_EPOCH_SOURCE, 'host-adapter-cli')
 assert.strictEqual(cliOverrideEnv.DEVCODEX_HOST_EVENT, 'userPromptTransformed')
 
-assert.deepStrictEqual(Object.keys(EVENT_MAP).sort(), ['claude', 'codex', 'copilot', 'gemini', 'grok'])
+assert.deepStrictEqual(Object.keys(EVENT_MAP).sort(), ['claude', 'codex', 'copilot', 'cursor', 'gemini', 'grok'])
 const hostProbePrompt = buildS15HostPrompt({
   contextEpoch: 'ctx-prompt-contract',
   hostId: 'codex',
@@ -113,6 +342,8 @@ for (const toolMember of [
 }
 assert.match(grokProbeSource, /omit cursor entirely and never send cursor:null/)
 assert.match(grokProbeSource, /There is no op="replan"/)
+assert.match(grokProbeSource, /globalHostEnv: runtimeContext\.env/)
+assert.match(grokProbeSource, /home: runtimeContext\.home/)
 for (const anomaly of [
   'legacyFallback',
   'doubleBody',
@@ -145,7 +376,7 @@ assert.deepStrictEqual(
   }
 )
 
-for (const host of ['copilot', 'claude', 'codex', 'gemini', 'grok']) {
+for (const host of ['copilot', 'claude', 'codex', 'gemini', 'grok', 'cursor']) {
   const probe = probeHostAdapterContract(host)
   assert.strictEqual(probe.status, 'passed', `${host} contract probe must pass`)
   assert.ok(probe.events.length > 0, `${host} contract probe must exercise events`)
@@ -241,7 +472,8 @@ for (const [host, eventName] of [
   ['claude', 'UserPromptSubmit'],
   ['codex', 'UserPromptSubmit'],
   ['gemini', 'BeforeAgent'],
-  ['grok', 'user_prompt_submit']
+  ['grok', 'user_prompt_submit'],
+  ['cursor', 'beforeSubmitPrompt']
 ]) {
   for (const prompt of [
     'Progressive Skill route is incomplete: PLAN_NOT_COMMITTED.',
@@ -561,6 +793,58 @@ assert.strictEqual(grokStopSoft.continue, true)
 assert.strictEqual(Object.prototype.hasOwnProperty.call(grokStopSoft, 'decision'), false)
 assert.strictEqual(grokStopSoft.devcodexGrokEvidenceMode, 'stop-soft')
 
+const cursorPreTool = normalizeHostPayload('cursor', {
+  hookEventName: 'preToolUse',
+  conversation_id: 'cursor-conversation',
+  workspace_roots: [process.cwd()],
+  tool_name: 'Shell',
+  tool_input: { command: 'npm test' }
+})
+assert.strictEqual(cursorPreTool.mappedEvent, 'PreToolUse')
+assert.strictEqual(cursorPreTool.payload.session_id, 'cursor-conversation')
+assert.strictEqual(cursorPreTool.payload.cwd, process.cwd())
+assert.deepStrictEqual(cursorPreTool.payload.tool_input, { command: 'npm test' })
+const cursorFailure = normalizeHostPayload('cursor', {
+  hookEventName: 'postToolUseFailure',
+  error_message: 'fixture failure',
+  failure_type: 'execution'
+})
+assert.strictEqual(cursorFailure.mappedEvent, 'PostToolUse')
+assert.deepStrictEqual(cursorFailure.payload.tool_result, {
+  success: false,
+  error: 'fixture failure',
+  failureType: 'execution'
+})
+const cursorDeny = adaptHostOutput('cursor', 'preToolUse', {
+  decision: 'block',
+  reason: 'context acquisition incomplete'
+})
+assert.deepStrictEqual(cursorDeny, {
+  permission: 'deny',
+  user_message: 'context acquisition incomplete',
+  agent_message: 'context acquisition incomplete'
+})
+assert.deepStrictEqual(adaptHostOutput('cursor', 'preToolUse', { continue: true }), { permission: 'allow' })
+assert.deepStrictEqual(adaptHostOutput('cursor', 'beforeSubmitPrompt', {
+  decision: 'block',
+  reason: 'prompt blocked'
+}), { continue: false, user_message: 'prompt blocked' })
+assert.deepStrictEqual(adaptHostOutput('cursor', 'stop', {
+  decision: 'block',
+  reason: 'closure incomplete'
+}), { followup_message: 'closure incomplete' })
+assert.deepStrictEqual(adaptHostOutput('cursor', 'sessionStart', {
+  systemMessage: 'DevCodex kernel fixture'
+}), {
+  env: { DEVCODEX_AGENT: 'cursor' },
+  additional_context: 'DevCodex kernel fixture'
+})
+const cursorPluginPath = require('path').resolve('cursor-plugin-fixture')
+assert.deepStrictEqual(
+  adaptHostOutput('cursor', 'workspaceOpen', {}, {}, { cursorPluginPath }),
+  { pluginPaths: [cursorPluginPath] }
+)
+
 for (const event of ['UserPromptSubmit', 'Stop', 'PreCompact']) {
   for (const group of grokHooks.hooks[event]) {
     assert.strictEqual(
@@ -633,6 +917,7 @@ const bootstrapApi = buildLifecycleBootstrapStateUtils({
 })
 assert.strictEqual(typeof bootstrapApi.hostCapabilityFor, 'function')
 assert.strictEqual(bootstrapApi.hostCapabilityFor('grok', {}), 'path-observable')
+assert.strictEqual(bootstrapApi.hostCapabilityFor('cursor', {}), 'path-observable')
 assert.strictEqual(bootstrapApi.hostCapabilityFor('codex', {}), 'path-observable')
 assert.strictEqual(bootstrapApi.hostCapabilityFor('copilot', {}), 'path-observable')
 assert.strictEqual(bootstrapApi.hostCapabilityFor('claude', {}), 'structured-plan')
@@ -659,7 +944,7 @@ const {
   completionRouteForHost
 } = require('../hooks/_runtime/lifecycle-workflow-completion.cjs')
 const { projectWorkflowCompletionVisibleState } = require('../hooks/_runtime/lifecycle-visible-reply.cjs')
-const completionHosts = ['codex', 'claude', 'copilot', 'gemini', 'grok']
+const completionHosts = ['codex', 'claude', 'copilot', 'gemini', 'grok', 'cursor']
 assert.deepStrictEqual(Object.keys(HOST_COMPLETION_ROUTES).sort(), [...completionHosts].sort())
 
 const committedProjection = Object.freeze({
@@ -793,6 +1078,9 @@ assert.strictEqual(hookOut.eventSupportsHardBlock('codex', 'UserPromptSubmit'), 
 assert.strictEqual(hookOut.eventSupportsHardBlock('copilot', 'PreToolUse'), true)
 assert.strictEqual(hookOut.eventSupportsHardBlock('copilot', 'Stop'), true)
 assert.strictEqual(hookOut.eventSupportsHardBlock('copilot', 'UserPromptSubmit'), false)
+assert.strictEqual(hookOut.eventSupportsHardBlock('cursor', 'PreToolUse'), true)
+assert.strictEqual(hookOut.eventSupportsHardBlock('cursor', 'UserPromptSubmit'), true)
+assert.strictEqual(hookOut.eventSupportsHardBlock('cursor', 'Stop'), true)
 assert.strictEqual(
   buildLifecycleHookOutput({
     env: { ...process.env, DEVCODEX_HOST_PLATFORM: 'copilot', CODEX_HOME: 'would-otherwise-win' },
@@ -801,4 +1089,4 @@ assert.strictEqual(
   'copilot'
 )
 
-console.log('host adapter tests passed five-host mapping, Copilot CLI output contracts, capability ceilings, and completion parity')
+console.log('host adapter tests passed six-host mapping, Cursor Beta output contracts, capability ceilings, and completion parity')

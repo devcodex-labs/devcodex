@@ -1,7 +1,7 @@
 {
   "name": "devcodex",
-  "version": "1.16.7",
-  "description": "DevCodex — AI-powered development workflow rules for Copilot, Claude Code, Codex, Gemini CLI and Grok",
+  "version": "1.17.0",
+  "description": "DevCodex — AI-powered development workflow rules for Copilot, Claude Code, Codex, Gemini CLI, Grok and Cursor",
   "main": "index.js",
   "bin": {
     "devcodex": "index.js"
@@ -158,7 +158,8 @@
     "github-copilot",
     "claude-code",
     "codex",
-    "grok"
+    "grok",
+    "cursor"
   ],
   "author": "Rocky <rockyshi1993@gmail.com> (https://github.com/devcodex-labs)",
   "license": "AGPL-3.0-or-later",
@@ -191,6 +192,7 @@
     "codex/",
     "gemini/",
     "grok/",
+    "cursor/",
     "host-projections/",
     "changelogs/",
     "mcp/",
@@ -228,6 +230,7 @@
     "scripts/lib/test-hooks-runtime-bootstrap-layout.js",
     "scripts/probe-skill-route-s15-grok.js",
     "scripts/probe-skill-route-s15-host.js",
+    "scripts/lib/s15-candidate-host.js",
     "scripts/lib/skill-route-test-fixture.js",
     "scripts/test-implement-start-gate.js",
     "scripts/lib/skills-deploy-mode.js",

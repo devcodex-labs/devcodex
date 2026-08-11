@@ -165,9 +165,9 @@ Rich clickable 只显示一个语义 Markdown 链接作为名称主表示，**�
 
 默认 userAction 写「深读时打开归档报告」；**禁止**「请用 Typora/浏览器打开预览」作为默认动作。
 
-## UserVisibleReplyLayoutV1（五宿主同源 · 人话优先）
+## UserVisibleReplyLayoutV1（六宿主同源 · 人话优先）
 
-对 **Copilot / Claude Code / Codex / Gemini / Grok** 用户可见完成态与入口态使用同一布局；宿主只改变硬拦/注入，不改变语义字段。
+对 **Copilot / Claude Code / Codex / Gemini / Grok / Cursor** 用户可见完成态与入口态使用同一布局；宿主只改变硬拦/注入，不改变语义字段。Cursor Cloud Agent 保持 Partial / UNVERIFIED，但不能据此省略入口布局。
 
 推荐顺序：
 
@@ -177,7 +177,7 @@ Rich clickable 只显示一个语义 Markdown 链接作为名称主表示，**�
 
 禁止：入口检查写成施工日志；FVS 只有命令墙无白话；分析阶段失败证据冒充修复成功。
 
-## UserVisibleNoisePolicyV1（降噪 · 五宿主同源）
+## UserVisibleNoisePolicyV1（降噪 · 六宿主同源）
 
 | 原则 | 规则 |
 |------|------|
@@ -234,7 +234,7 @@ dev / fix / self-fix 的 `completion-check` 或 dev 模式合规块宣告完成�
 | 禁止施工日志 | PC3/PC6 等单元格禁止「写报告 02 / 见下清单 / 只读+复现」等进度缩写冒充语义 |
 | PC0 上下文 | PC0 行须含上下文/计划/项目等实质内容，不得空壳；禁止仅「Profile 已加载」 |
 | PC4 | **dev** 下 `N/A` 必须带 skipReason/跳过理由；不得无理由伪 N/A |
-| 五宿主 | 模板同源；Grok 无 inject 仍须模型输出完整 PC0~PC7 |
+| 六宿主 | 模板同源；Grok 无 inject、Cursor Cloud 无用户级 Hook 时，仍须模型输出完整 PC0~PC7 |
 | Owner | 本 Skill + `hooks/_runtime/lifecycle-visible-reply.cjs`（`analyzeEntryCheckCompleteness`）；**禁止**平行新 Gate 命名体系 |
 
 机器分类：`complete` / `incomplete` / `not-claimed`。负向 fixture：折叠行、缺 PC、dev PC4 无 skipReason。
@@ -265,7 +265,7 @@ compact 仍显示所有 check IDs、状态、整体状态、项目和“状态�
 - `compliance`、`report`、`memory`、`document-sync`、`host-contract-verification`、`test-router`、`execution-contract`；
 - precheck/compliance/progress/delivery/report prompts；
 - lifecycle visible reply、host/client tests、validation manifest、package files；
-- README、website、Profile、五宿主部署副本。
+- README、website、Profile、六宿主部署副本。
 
 ## 验收
 

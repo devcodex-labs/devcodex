@@ -7,9 +7,15 @@ function formatGlobalHostRuntimeState(host, c, options = {}) {
     `adapter=${host.adapterReady === true ? 'ready' : 'not-ready'}`,
     `contract=${host.contractStatus || 'unverified'}`,
     `native=${host.nativeStatus || 'unverified'}`
-  ].join('; ')
+  ]
+  if (host.host === 'cursor' && Array.isArray(host.variants)) {
+    const betaCount = host.variants.filter(variant => variant.support === 'beta').length
+    const partialCount = host.variants.filter(variant => variant.support === 'partial').length
+    details.push(`variants=${betaCount} beta/${partialCount} partial`)
+  }
+  const detailText = details.join('; ')
   const prefix = options.icon ? `${state === 'ready' ? '✅' : '⚠️'} ` : ''
-  const label = `${prefix}${state} (${details})`
+  const label = `${prefix}${state} (${detailText})`
   if (state === 'ready') return c.green(label)
   if (state === 'failed') return c.red(label)
   return c.yellow(label)

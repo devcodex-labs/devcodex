@@ -30,6 +30,9 @@ const {
   resolveGlobalHostTarget
 } = require('./lib/global-host-target')
 const {
+  prepareCandidateHostRuntime
+} = require('./lib/s15-candidate-host')
+const {
   parseModelResult,
   writeProbeSkill
 } = require('./probe-skill-route-s15-grok')
@@ -501,12 +504,14 @@ function patchProbeHookCommand (
   lifecycleTracePath,
   workspaceRoot,
   contextEpoch,
-  productionEligible = false
+  productionEligible = false,
+  options = {}
 ) {
-  const home = process.env.USERPROFILE || process.env.HOME
+  const env = options.env || process.env
+  const home = options.home || env.USERPROFILE || env.HOME
   assert(home, 'S15 host probe requires a user home')
   const target = resolveGlobalHostTarget(hostId, {
-    env: process.env,
+    env,
     home
   })
   const configPath = target.files.hooks || target.files.settings
@@ -604,8 +609,29 @@ function main () {
   const executable = resolveExecutable(hostId)
   let modelRun = null
   let restoreHookCommand = null
+  let runtimeContext = {
+    schemaVersion: 'SkillRouteS15CandidateHostRuntimeV1',
+    source: 'installed-production',
+    home: process.env.USERPROFILE || process.env.HOME,
+    env: process.env,
+    generation: null,
+    credentialFiles: []
+  }
 
   try {
+    if (!productionEligible) {
+      runtimeContext = prepareCandidateHostRuntime({
+        hostId,
+        fixtureRoot: fixture.root,
+        packageRoot: path.resolve(__dirname, '..'),
+        baseEnv: process.env
+      })
+      assert.strictEqual(
+        runtimeContext.generation.runtimeContractDigest,
+        runtimeDigest,
+        'S15 isolated candidate generation does not match source runtime digest'
+      )
+    }
     writeProbeSkill(fixture, skillId, marker)
     writeJson(schemaPath, resultSchema(exerciseContextRebind))
     if (!productionEligible) {
@@ -630,10 +656,14 @@ function main () {
       lifecycleTracePath,
       fixture.root,
       contextEpoch,
-      productionEligible
+      productionEligible,
+      {
+        env: runtimeContext.env,
+        home: runtimeContext.home
+      }
     )
     const childEnv = {
-      ...process.env,
+      ...runtimeContext.env,
       DEVCODEX_HOST_PLATFORM: descriptor.lifecycleHost,
       DEVCODEX_HOST_VARIANT: hostVariant,
       DEVCODEX_AGENT: descriptor.lifecycleHost,
@@ -724,6 +754,16 @@ function main () {
       assert.strictEqual(state.plan.generation, 1, 'S15 context rebind did not advance plan generation')
     }
     assert.strictEqual(state.mode, 'unified')
+    assert.strictEqual(
+      state.runtimeContractDigest,
+      runtimeDigest,
+      'S15 route envelope runtime digest does not match candidate source'
+    )
+    assert.strictEqual(
+      modeReceipt?.runtimeContractDigest,
+      runtimeDigest,
+      'S15 mode receipt runtime digest does not match candidate source'
+    )
     assert.strictEqual(contextAcquisition.contextEpoch, contextEpoch)
     assert.strictEqual(contextAcquisition.project, fixture.project)
     assert.strictEqual(contextAcquisition.receipt.status, 'relevant-complete')
@@ -754,6 +794,13 @@ function main () {
       authorizationSource: productionEligible
         ? 'capability-pass'
         : 'isolated-probe-authority',
+      runtimeBinding: {
+        source: runtimeContext.source,
+        expectedDigest: runtimeDigest,
+        generationDigest: runtimeContext.generation?.runtimeContractDigest || null,
+        modeReceiptDigest: modeReceipt?.runtimeContractDigest || null,
+        routeEnvelopeDigest: state.runtimeContractDigest || null
+      },
       routeActivation: {
         requested: modeReceipt?.requested || 'unified',
         source: modeReceipt?.source || null,

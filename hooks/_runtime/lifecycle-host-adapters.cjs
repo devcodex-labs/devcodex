@@ -70,6 +70,19 @@ const GROK_EVENT_MAP = Object.freeze({
   permission_denied: 'PermissionDenied'
 })
 
+const CURSOR_EVENT_MAP = Object.freeze({
+  workspaceOpen: 'WorkspaceOpen',
+  sessionStart: 'SessionStart',
+  sessionEnd: 'SessionEnd',
+  beforeSubmitPrompt: 'UserPromptSubmit',
+  preToolUse: 'PreToolUse',
+  postToolUse: 'PostToolUse',
+  postToolUseFailure: 'PostToolUse',
+  preCompact: 'PreCompact',
+  stop: 'Stop',
+  afterAgentResponse: 'Notification'
+})
+
 const EVENT_MAP = Object.freeze({
   copilot: COPILOT_EVENT_MAP,
   claude: CLAUDE_EVENT_MAP,
@@ -81,7 +94,8 @@ const EVENT_MAP = Object.freeze({
     BeforeTool: 'PreToolUse',
     AfterTool: 'PostToolUse'
   }),
-  grok: GROK_EVENT_MAP
+  grok: GROK_EVENT_MAP,
+  cursor: CURSOR_EVENT_MAP
 })
 
 function adapterTracePath(env = process.env) {
@@ -393,8 +407,8 @@ function normalizeHostPayload(host, payload) {
   if (normalized.tool_response !== undefined && normalized.tool_result === undefined) {
     normalized.tool_result = normalized.tool_response
   }
-  // Grok and Copilot camelCase payloads are normalized to the lifecycle field names.
-  if (host === 'grok' || host === 'copilot') {
+  // Grok, Copilot and Cursor camelCase payloads are normalized to lifecycle fields.
+  if (host === 'grok' || host === 'copilot' || host === 'cursor') {
     if (normalized.toolName && !normalized.tool_name) normalized.tool_name = normalized.toolName
     if (normalized.toolInput && !normalized.tool_input) normalized.tool_input = normalized.toolInput
     if (normalized.toolArgs && !normalized.tool_input) normalized.tool_input = normalized.toolArgs
@@ -445,6 +459,25 @@ function normalizeHostPayload(host, payload) {
     if (originalEvent === 'userPromptTransformed') {
       normalized.devcodex_host_transform_only = true
     }
+  }
+  if (host === 'cursor') {
+    if (normalized.conversation_id && !normalized.session_id) {
+      normalized.session_id = normalized.conversation_id
+    }
+    if (normalized.tool_output !== undefined && normalized.tool_result === undefined) {
+      normalized.tool_result = normalized.tool_output
+    }
+    if (normalized.error_message && normalized.tool_result === undefined) {
+      normalized.tool_result = {
+        success: false,
+        error: String(normalized.error_message),
+        failureType: normalized.failure_type || 'error'
+      }
+    }
+    if (!normalized.cwd && Array.isArray(normalized.workspace_roots) && normalized.workspace_roots[0]) {
+      normalized.cwd = normalized.workspace_roots[0]
+    }
+    if (mappedEvent === 'Stop') normalized.stop_hook_active = true
   }
   if (mappedEvent === 'UserPromptSubmit') {
     const continuation = isProgressiveSkillRouteContinuation(host, originalEvent, normalized)
@@ -634,7 +667,111 @@ function adaptCopilotOutput(originalEvent, output, input = {}) {
   return {}
 }
 
-function adaptHostOutput(host, originalEvent, output, input = {}) {
+function cursorKernelContext(options = {}) {
+  const runtimeRoot = path.resolve(options.runtimeRoot || path.join(__dirname, '..', '..'))
+  const kernelPath = path.join(runtimeRoot, 'AGENTS.md')
+  try {
+    const stat = fs.statSync(kernelPath)
+    if (!stat.isFile() || stat.size <= 0 || stat.size > 1024 * 1024) return ''
+    return fs.readFileSync(kernelPath, 'utf8').trim()
+  } catch {
+    return ''
+  }
+}
+
+function adaptCursorOutput(originalEvent, output, input = {}, options = {}) {
+  const value = output && typeof output === 'object' && !Array.isArray(output) ? { ...output } : {}
+  const event = normalizeEventToken(originalEvent)
+  const specific = value.hookSpecificOutput && typeof value.hookSpecificOutput === 'object'
+    ? value.hookSpecificOutput
+    : {}
+  const reason = String(
+    value.reason ||
+    specific.permissionDecisionReason ||
+    specific.additionalContext ||
+    value.systemMessage ||
+    'DevCodex requires another action.'
+  )
+
+  if (event === 'workspaceopen') {
+    const pluginPath = String(
+      options.cursorPluginPath ||
+      options.env?.DEVCODEX_CURSOR_PLUGIN_PATH ||
+      process.env.DEVCODEX_CURSOR_PLUGIN_PATH ||
+      ''
+    ).trim()
+    return pluginPath && path.isAbsolute(pluginPath)
+      ? { pluginPaths: [path.resolve(pluginPath)] }
+      : {}
+  }
+
+  if (event === 'sessionstart') {
+    const context = [
+      cursorKernelContext(options),
+      value.systemMessage,
+      specific.additionalContext,
+      value.additionalContext
+    ].filter(item => typeof item === 'string' && item.trim()).join('\n\n')
+    return {
+      env: { DEVCODEX_AGENT: 'cursor' },
+      ...(context ? { additional_context: context } : {})
+    }
+  }
+
+  if (event === 'beforesubmitprompt') {
+    const denied = value.continue === false ||
+      value.decision === 'block' ||
+      value.decision === 'deny' ||
+      specific.permissionDecision === 'deny'
+    return denied
+      ? { continue: false, user_message: reason }
+      : { continue: true }
+  }
+
+  if (event === 'pretooluse') {
+    const permission = specific.permissionDecision || value.permissionDecision || value.decision
+    const denied = permission === 'deny' || permission === 'block' || value.continue === false
+    const updatedInput = value.updated_input || value.modifiedInput || value.modifiedArgs
+    return {
+      permission: denied ? 'deny' : 'allow',
+      ...(denied ? { user_message: reason, agent_message: reason } : {}),
+      ...(updatedInput && typeof updatedInput === 'object' ? { updated_input: updatedInput } : {})
+    }
+  }
+
+  if (event === 'posttooluse') {
+    const additionalContext = specific.additionalContext || value.additionalContext || value.systemMessage
+    const updatedMcpOutput = value.updated_mcp_tool_output || value.modifiedResult
+    return {
+      ...(typeof additionalContext === 'string' && additionalContext.trim()
+        ? { additional_context: additionalContext }
+        : {}),
+      ...(updatedMcpOutput && typeof updatedMcpOutput === 'object'
+        ? { updated_mcp_tool_output: updatedMcpOutput }
+        : {})
+    }
+  }
+
+  if (event === 'precompact') {
+    const message = specific.additionalContext || value.systemMessage || value.reason
+    return typeof message === 'string' && message.trim()
+      ? { user_message: message }
+      : {}
+  }
+
+  if (event === 'stop') {
+    const blocked = value.decision === 'block' ||
+      value.decision === 'deny' ||
+      specific.permissionDecision === 'deny' ||
+      value.continue === false
+    return blocked ? { followup_message: reason } : {}
+  }
+
+  // sessionEnd, postToolUseFailure and afterAgentResponse have no supported output.
+  return {}
+}
+
+function adaptHostOutput(host, originalEvent, output, input = {}, options = {}) {
   const value = output && typeof output === 'object' && !Array.isArray(output) ? { ...output } : { continue: true }
   if (value.hookSpecificOutput && typeof value.hookSpecificOutput === 'object') {
     value.hookSpecificOutput = { ...value.hookSpecificOutput, hookEventName: originalEvent }
@@ -644,6 +781,9 @@ function adaptHostOutput(host, originalEvent, output, input = {}) {
   }
   if (host === 'copilot') {
     return adaptCopilotOutput(originalEvent, value, input)
+  }
+  if (host === 'cursor') {
+    return adaptCursorOutput(originalEvent, value, input, options)
   }
   if (host !== 'gemini') return value
 
@@ -697,7 +837,14 @@ function runHostAdapter(host, input, options = {}) {
   }
   const lifecycle = options.lifecycle || path.join(__dirname, 'lifecycle.cjs')
   const spawn = options.spawnSync || spawnSync
-  const payloadCwd = String(input?.cwd || input?.workingDirectory || '').trim()
+  const workspaceRoot = Array.isArray(input?.workspace_roots) ? input.workspace_roots[0] : ''
+  const payloadCwd = String(
+    input?.cwd ||
+    input?.workingDirectory ||
+    workspaceRoot ||
+    (options.env || process.env).CURSOR_PROJECT_DIR ||
+    ''
+  ).trim()
   const lifecycleCwd = (() => {
     if (!payloadCwd) return undefined
     try {
@@ -735,7 +882,7 @@ function runHostAdapter(host, input, options = {}) {
   const result = {
     status: 0,
     error: '',
-    output: adaptHostOutput(host, normalized.originalEvent, output, input)
+    output: adaptHostOutput(host, normalized.originalEvent, output, input, options)
   }
   appendAdapterTrace(host, 'output', input, normalized, result, options.env || process.env)
   return result
@@ -796,6 +943,10 @@ function applyCliEnvironmentOverrides (argv, env = process.env) {
   if (eventIndex >= 0 && argv[eventIndex + 1]) {
     env.DEVCODEX_HOST_EVENT = String(argv[eventIndex + 1]).trim()
   }
+  const cursorPluginIndex = argv.indexOf('--cursor-plugin-path')
+  if (cursorPluginIndex >= 0 && argv[cursorPluginIndex + 1]) {
+    env.DEVCODEX_CURSOR_PLUGIN_PATH = path.resolve(argv[cursorPluginIndex + 1])
+  }
   return env
 }
 
@@ -847,11 +998,13 @@ module.exports = {
   STDIO_MAX_FRAME_BYTES,
   applyCliEnvironmentOverrides,
   adaptCopilotOutput,
+  adaptCursorOutput,
   adaptHostOutput,
   adaptGrokOutput,
   isGrokImportedClaudePayload,
   isProgressiveSkillRouteContinuation,
   normalizeHostPayload,
+  cursorKernelContext,
   probeHostAdapterContract,
   runHostAdapter
 }

@@ -606,7 +606,7 @@ assert.throws(
   'a nested workspace with spaces and no kernel must fail closed instead of borrowing its parent kernel'
 )
 
-// B4: the default deployment covers all five supported hosts.
+// B4: the legacy project projection keeps five workspace surfaces; Cursor is global-only.
 const defaults = buildDeploymentDescriptors(ROOT, DEFAULT_HOSTS, deploymentOptions())
 const all = buildDeploymentDescriptors(ROOT, ['all'], deploymentOptions())
 const workspaceDescriptors = buildDeploymentDescriptors(ROOT, ['grok'], {
@@ -624,6 +624,7 @@ const workspaceAllDescriptorSurfaces = new Set(workspaceAllDescriptors.map(item 
 for (const surface of ['copilot', 'claude', 'codex', 'gemini', 'grok', 'shared-kernel', 'full-fallback']) {
   assert(defaultSurfaces.has(surface), `default descriptor missing ${surface}`)
 }
+assert.strictEqual(defaultSurfaces.has('cursor'), false, 'Cursor must not receive project-local adapter artifacts')
 for (const surface of ['gemini', 'grok']) assert(allSurfaces.has(surface), `all descriptor missing ${surface}`)
 assert(workspaceDescriptorSurfaces.has('grok-workspace-plugin'))
 assert(workspaceAllDescriptorSurfaces.has('grok-workspace-plugin'))
@@ -689,7 +690,7 @@ for (const rel of expectedRuntimeDeps) {
   )
 }
 
-console.log(`host installation tests passed selectors=5 dryRunWrites=0 collision=blocked managedManifest=verified workspacePlugin=verified grokCli=${grokCliAvailable ? 'available' : 'unavailable-honest'} uninstall=verified zeroProjectArtifacts=verified defaultHosts=5 runtimeScriptDeps=${expectedRuntimeDeps.length}`)
+console.log(`host installation tests passed selectors=6 dryRunWrites=0 collision=blocked managedManifest=verified workspacePlugin=verified grokCli=${grokCliAvailable ? 'available' : 'unavailable-honest'} uninstall=verified zeroProjectArtifacts=verified defaultHosts=6 runtimeScriptDeps=${expectedRuntimeDeps.length}`)
 } else {
   // Always-on descriptor contract (legacy branch is opt-in via env).
   {
@@ -749,6 +750,7 @@ console.log(`host installation tests passed selectors=5 dryRunWrites=0 collision
     CLAUDE_CONFIG_DIR: path.join(home, '.claude'),
     GEMINI_CLI_HOME: path.join(home, 'gemini-cli-home'),
     GROK_HOME: path.join(home, '.grok'),
+    CURSOR_HOME: path.join(home, '.cursor'),
     COPILOT_HOME: path.join(home, '.copilot')
   }
   const install = applyGlobalHostConfig({ packageRoot: ROOT, env, home })
@@ -762,8 +764,11 @@ console.log(`host installation tests passed selectors=5 dryRunWrites=0 collision
   assert.strictEqual(grokInspection.contractStatus, 'passed')
   assert.strictEqual(grokInspection.nativeStatus, 'unverified')
   assert(grokInspection.issues.some(issue => issue.code === 'GROK_PLUGIN_REGISTRY_UNVERIFIED'))
-  assert.strictEqual(inspection.hosts.length, 5)
+  assert.strictEqual(inspection.hosts.length, 6)
   assert.ok(fs.existsSync(path.join(home, 'gemini-cli-home', '.gemini', 'devcodex', 'global-host-receipt.json')))
+  assert.ok(fs.existsSync(path.join(home, '.cursor', 'devcodex', 'global-host-receipt.json')))
+  assert.ok(fs.existsSync(path.join(home, '.cursor', 'hooks.json')))
+  assert.ok(fs.existsSync(path.join(home, '.cursor', 'devcodex', 'plugins', 'devcodex-workspace', '.cursor-plugin', 'plugin.json')))
   assert.ok(fs.existsSync(path.join(home, '.agents', 'devcodex', 'instructions.full.md')))
   const codexReceipt = JSON.parse(fs.readFileSync(
     path.join(home, '.codex', 'devcodex', 'global-host-receipt.json'),
@@ -938,11 +943,11 @@ console.log(`host installation tests passed selectors=5 dryRunWrites=0 collision
   assert.strictEqual(runtimeInit.status, 0, runtimeInit.stderr || runtimeInit.stdout)
   const runtimeEnvelope = JSON.parse(runtimeInit.stdout)
   assert.strictEqual(runtimeEnvelope.payload.workspaceHostDirectoriesWritten, false)
-  for (const relative of ['.github', '.claude', '.codex', '.gemini', '.grok', '.agents', 'AGENTS.md', 'CLAUDE.md', 'GEMINI.md', '.mcp.json']) {
+  for (const relative of ['.github', '.claude', '.codex', '.gemini', '.grok', '.cursor', '.agents', 'AGENTS.md', 'CLAUDE.md', 'GEMINI.md', '.mcp.json']) {
     assert.strictEqual(fs.existsSync(path.join(workspace, relative)), false, `${relative} must remain absent`)
   }
 
-  for (const host of ['copilot', 'claude', 'codex', 'gemini', 'grok']) {
+  for (const host of ['copilot', 'claude', 'codex', 'gemini', 'grok', 'cursor']) {
     const denied = spawnSync(process.execPath, [INDEX, 'update', '--host', host, '--json'], {
       cwd: workspace,
       encoding: 'utf8',
@@ -1032,5 +1037,5 @@ console.log(`host installation tests passed selectors=5 dryRunWrites=0 collision
   fs.unlinkSync(oversizedPrompt)
 
   fs.rmSync(currentRoot, { recursive: true, force: true })
-  console.log('host installation tests passed mode=global-only hosts=5 workspaceHostDirs=0 selectors=blocked grokLauncher=global')
+  console.log('host installation tests passed mode=global-only hosts=6 workspaceHostDirs=0 selectors=blocked grokLauncher=global cursorBeta=ready')
 }

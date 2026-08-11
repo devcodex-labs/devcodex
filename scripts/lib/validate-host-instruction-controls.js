@@ -51,6 +51,8 @@ function buildHostInstructionControlChecks(ctx) {
       'grok/skills/devcodex-workspace/SKILL.md',
       'grok/mcp/workspace-bridge.cjs',
       'grok/workspace-config.toml',
+      'cursor/plugins/devcodex-workspace/.cursor-plugin/plugin.json',
+      'cursor/plugins/devcodex-workspace/skills/devcodex-workspace/SKILL.md',
       'host-projections/AGENTS.workspace-bridge.md'
     ]
     required.forEach(requireFile)
@@ -125,6 +127,23 @@ function buildHostInstructionControlChecks(ctx) {
     }
     if (fs.existsSync(path.join(ROOT, 'grok', 'rules'))) err('[V103] Grok must not receive a duplicate rules tree')
 
+    const cursorPluginManifest = JSON.parse(String(read(path.join(ROOT, 'cursor/plugins/devcodex-workspace/.cursor-plugin/plugin.json'))))
+    if (
+      cursorPluginManifest.name !== 'devcodex-workspace' ||
+      !cursorPluginManifest.version ||
+      cursorPluginManifest.skills !== './skills' ||
+      cursorPluginManifest.mcpServers !== './mcp.json'
+    ) {
+      err('[V103] Cursor Beta plugin identity or capability paths missing')
+    }
+    const cursorResolverSkill = String(read(path.join(ROOT, 'cursor/plugins/devcodex-workspace/skills/devcodex-workspace/SKILL.md')))
+    for (const anchor of ['skill_route', 'Do not recursively list', 'Cloud Agent', 'user-global']) {
+      if (!cursorResolverSkill.includes(anchor)) err(`[V103] Cursor resolver Skill contract missing: ${anchor}`)
+    }
+    if (fs.existsSync(path.join(ROOT, 'cursor', 'plugins', 'devcodex-workspace', 'hooks'))) {
+      err('[V103] Cursor Plugin must not duplicate the user-global hooks.json surface')
+    }
+
     const pkg = JSON.parse(String(read(path.join(ROOT, 'package.json'))))
     for (const script of [
       'test:host-instruction-projection',
@@ -138,6 +157,7 @@ function buildHostInstructionControlChecks(ctx) {
     for (const packaged of [
       'gemini/',
       'grok/',
+      'cursor/',
       'host-projections/',
       'scripts/lib/host-instruction-projection.js',
       'scripts/lib/host-surface-descriptors.js',
@@ -154,7 +174,7 @@ function buildHostInstructionControlChecks(ctx) {
     if (!plugin.skills?.some(skill => skill.id === 'host-instruction-projection')) {
       err('[V103] plugin registry missing host-instruction-projection')
     }
-    for (const keyword of ['gemini-cli', 'grok']) {
+    for (const keyword of ['gemini-cli', 'grok', 'cursor']) {
       if (!plugin.keywords?.includes(keyword)) err(`[V103] plugin keyword missing: ${keyword}`)
     }
 
@@ -207,7 +227,7 @@ function buildHostInstructionControlChecks(ctx) {
         }
       }
     }
-    console.log('[V103] host kernel coverage / global-only five-host distribution / collision closure checked')
+    console.log('[V103] host kernel coverage / global-only six-host distribution / collision closure checked')
   }
 
   return { checkV103 }

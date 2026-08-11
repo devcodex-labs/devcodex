@@ -2,7 +2,7 @@
 'use strict'
 
 /**
- * DevCodex unified lifecycle hook — Copilot, Claude Code, Codex, Gemini & Grok
+ * DevCodex unified lifecycle hook — Copilot, Claude Code, Codex, Gemini, Grok & Cursor local Beta
  *
  * Auto-detects platform from tool name casing:
  *   Claude Code  → PascalCase tools (Write, Edit, Bash, Read …)

@@ -383,8 +383,8 @@ function testDoctorAvoidsCodexBiasInMixedHostRepo() {
   assert.match(output, /platform:\s+unknown\s+\(unknown\)/)
   assert.match(output, /agent:\s+unknown-agent/)
   assert.match(output, /workspace hosts:\s+codex, claude-code, copilot \(legacy\)/)
-  assert.match(output, /global adapters:\s+\d\/5 ready/)
-  assert.match(output, /native hosts:\s+\d\/5 ready/)
+  assert.match(output, /global adapters:\s+\d\/6 ready/)
+  assert.match(output, /native hosts:\s+\d\/6 ready/)
   assert.match(output, /node runtime:\s+(?:PASS|WARN|BLOCK|UNVERIFIED)/)
 
   fs.rmSync(root, { recursive: true, force: true })
@@ -752,7 +752,7 @@ function testTenantSelectionIsExplicit() {
 function testGlobalOnlyHostSelectorsFailClosed() {
   const root = createTempRoot('devcodex-cli-global-only-')
   writeFile(root, 'package.json', '{ "name": "tmp-global-only" }\n')
-  for (const host of ['copilot', 'claude', 'codex', 'gemini', 'grok', 'all']) {
+  for (const host of ['copilot', 'claude', 'codex', 'gemini', 'grok', 'cursor', 'all']) {
     const result = runCliResult(['init', '--host', host, '--json'], root)
     assert.strictEqual(result.status, 2)
     const envelope = JSON.parse(result.stdout)

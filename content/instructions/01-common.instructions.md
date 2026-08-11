@@ -2,7 +2,7 @@
 applyTo: "**"
 description: 通用规范总则，覆盖优先级、意图路由、Profile/active-root、宿主适配与治理总线
 priority: P5
-version: 1.16.7
+version: 1.17.0
 ---
 # 通用规范
 
@@ -29,7 +29,7 @@ version: 1.16.7
 >
 > 上述"最小化展开"主要约束**面向用户的默认输出场景**；项目内 `dev` 模式下的规范优化、规则提升与实现讨论不受此条新增限制。
 >
-> ⚠️ **用户可见交付契约**：涉及入口/完成检查、确认、进度、结果、阻断或文件交付时，触发 `user-visible-output-contract`（**UserVisibleReplyLayoutV1**：人话优先、五宿主同源）。所有持久化产物先进入 `ArtifactDeliveryManifestV1`，用户面只由 `UserFacingArtifactSetV1` 确定性投影；入口检查用 PC0~PC7 表格/分列人话（禁止进度缩写）；dev/fix/self-fix 完成检查须 **白话复审 + FinalValidationSummaryV1（白话在上、命令+exitCode 在下）**，含关键计数、WorkspaceSyncStatus、dirty boundary、release action boundary，声明 commit 时追加 post-commit replay。session、daily、SUMMARY、task/checkpoint 与 raw receipt/manifest/ledger 默认 internal-only。链接按已验证能力选择 clickable/portable/plain/failed。每项交付必须满足 **ArtifactPathColumnGate（PF-175）**：语义名称 + 用途 + **路径列**（默认 workspace-relative portable）+ 操作；自由文本表默认列=`语义名称|用途|路径|操作`。Rich clickable 允许语义链接与 portable 路径列并存，且不得在路径列外再重复 `绝对路径：` 行；只有用户要求、链接失败、工作区外、歧义或无法定位时路径列/fallback 才使用绝对路径。
+> ⚠️ **用户可见交付契约**：涉及入口/完成检查、确认、进度、结果、阻断或文件交付时，触发 `user-visible-output-contract`（**UserVisibleReplyLayoutV1**：人话优先、六宿主同源）。所有持久化产物先进入 `ArtifactDeliveryManifestV1`，用户面只由 `UserFacingArtifactSetV1` 确定性投影；入口检查用 PC0~PC7 表格/分列人话（禁止进度缩写）；dev/fix/self-fix 完成检查须 **白话复审 + FinalValidationSummaryV1（白话在上、命令+exitCode 在下）**，含关键计数、WorkspaceSyncStatus、dirty boundary、release action boundary，声明 commit 时追加 post-commit replay。session、daily、SUMMARY、task/checkpoint 与 raw receipt/manifest/ledger 默认 internal-only。链接按已验证能力选择 clickable/portable/plain/failed。每项交付必须满足 **ArtifactPathColumnGate（PF-175）**：语义名称 + 用途 + **路径列**（默认 workspace-relative portable）+ 操作；自由文本表默认列=`语义名称|用途|路径|操作`。Rich clickable 允许语义链接与 portable 路径列并存，且不得在路径列外再重复 `绝对路径：` 行；只有用户要求、链接失败、工作区外、歧义或无法定位时路径列/fallback 才使用绝对路径。
 >
 > ⚠️ **MCP fallback**：Copilot / Codex 等非 Claude Code 宿主调用 DevCodex MCP 出现 `invoke` undefined、工具桥接不可用或 server 未连接时，视为宿主 MCP bridge 失败；停止重试同一 MCP，降级读取 Profile / SUMMARY / tasks 文件，并在报告或记忆中记录 `mcpFallback=used`。
 

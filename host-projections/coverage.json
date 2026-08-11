@@ -1,12 +1,12 @@
 {
   "schemaVersion": "HostInstructionCoverageReceiptV1",
   "sourceFile": "content/instructions.md",
-  "sourceDigest": "d2ede76e305bb91aaaf38430526b6131dc3d68ba83f91abf204ac022119bf406",
-  "configDigest": "aa34ae2dc6c1b1f105c5af6e0d3ad650bda0a8742ebc6d3e74ff72e37e4c823c",
+  "sourceDigest": "117826c3ee667202d4577080376221d317b5336d2b3ac34d1516c4c021fbb066",
+  "configDigest": "e2e2a4dde233366df758fb5fa1e9ac299a5f1dbd1b223390c4849e7d8ab9df3b",
   "mode": "kernel",
   "fallback": {
     "destination": "user://agents/devcodex/instructions.full.md",
-    "sourceDigest": "d2ede76e305bb91aaaf38430526b6131dc3d68ba83f91abf204ac022119bf406",
+    "sourceDigest": "117826c3ee667202d4577080376221d317b5336d2b3ac34d1516c4c021fbb066",
     "available": true
   },
   "budgets": {
@@ -284,12 +284,14 @@
       "sourceAnchors": [
         "user-visible-output-contract",
         "PC0~PC7",
-        "S07"
+        "S07",
+        "Cursor Cloud Agent"
       ],
       "projectionAnchors": [
         "devcodex grok",
         "GrokTurnChecklist",
-        "Skill bundle"
+        "Skill bundle",
+        "Cursor Cloud"
       ],
       "missingSourceAnchors": [],
       "missingProjectionAnchors": [],
@@ -303,14 +305,14 @@
   },
   "outputs": {
     "host-projections/AGENTS.md": {
-      "bytes": 11112,
-      "lines": 90,
-      "digest": "18bc2a8422e5971addd966ab61f2eb7a84e1a9b4b7565a70b9a8b7bc756f4d84"
+      "bytes": 11283,
+      "lines": 91,
+      "digest": "db5a1c8ec1ae4d0e21d470c3d488c95141ecd2238e3e04a58ad96f1ec2c277af"
     },
     "host-projections/copilot-instructions.md": {
-      "bytes": 11137,
-      "lines": 90,
-      "digest": "d81c43c195414904d6696fa70e52e3b4c5a5ceb9e298b59ad7f575f4381d1b82"
+      "bytes": 11308,
+      "lines": 91,
+      "digest": "95911946779a322766c2aaeffe11a783ecfd69527c0a9752e0af50c92d9e8902"
     },
     "host-projections/CLAUDE.md": {
       "bytes": 510,
@@ -328,5 +330,5 @@
     "valid": true,
     "errors": []
   },
-  "receiptId": "host-instruction-coverage-95ef1cbcbd1820d8867e19d61bc85e7236b4dc14f28c8caa02e48dc9061833dc"
+  "receiptId": "host-instruction-coverage-508c4647ebd122d8c57d6fe44ed4277da310d660ce9b8e46464af931455c17ae"
 }

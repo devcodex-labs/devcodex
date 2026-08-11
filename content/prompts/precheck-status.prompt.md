@@ -7,7 +7,7 @@ applyTo: "**"
 
 输出当前会话的头部信息，格式如下：
 
-## 全模式入口检查（推荐格式 · UserVisibleReplyLayoutV1 · 五宿主同源）
+## 全模式入口检查（推荐格式 · UserVisibleReplyLayoutV1 · 六宿主同源）
 
 ```markdown
 ### DevCodex · 入口检查
@@ -50,7 +50,7 @@ applyTo: "**"
 - PC5~PC7：与 `instructions/17-compliance.instructions.md` 保持一致；无法执行时必须标注 N/A 或 ⚠️ 原因，禁止省略
 - PC5 部署面：GlobalOnly 优先 doctor/receipt；legacy 父链诊断须能覆盖 `.github/`、`.claude/`、根 `AGENTS.md`、`.agents/` 与 `.codex/`（只检查某一宿主副本不得写「全部同步」）；须写当前宿主 Full/Partial 诚实上限
 - PC7 新会话首步 resume 强制检测：新任务、compact/summary 恢复或 `继续<任务名>任务` 首次响应必须重建 bounded continuation，并核对文件真相源后再继续
-- 五宿主（Copilot / Claude Code / Codex / Gemini / Grok）共用本模板；Grok 无 inject 时仍由模型输出本块
+- 六宿主（Copilot / Claude Code / Codex / Gemini / Grok / Cursor）共用本模板；Grok 无 inject、Cursor Cloud 无用户级 Hook 时仍由模型输出本块
 - 先用 `user-visible-output-contract` 形成完整 Envelope，再渲染为 rich/portable/plain；状态词固定为 PASS/WARN/BLOCK/UNVERIFIED/N/A
 - 新会话、resume/compact、target/intent/risk/CP/dirty/receipt 变化或存在 WARN/BLOCK/UNVERIFIED 时必须 expanded；同 epoch + semanticDigest 不变且全 PASS/N/A 才可 compact，compact 仍保留 PC0~PC7
 - 若主动建议或因 C08 要求新会话：同回复附内部完整 `NewSessionContinuationCard`，用户可复制入口固定为 `继续<displayName>任务`；长任务在记忆/报告记 `SessionTimingCard`（开始/结束/阶段，等人与执行分列）

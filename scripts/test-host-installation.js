@@ -975,15 +975,55 @@ console.log(`host installation tests passed selectors=6 dryRunWrites=0 collision
   }
   assert.match(GROK_MCP_TOOL_CONTRACT, /omit cursor entirely/)
   assert.match(GROK_MCP_TOOL_CONTRACT, /no replan operation/)
+  const grokInstallTarget = install.targets.find(target => target.host === 'grok')
+  assert(grokInstallTarget)
+  const publishedRuntimeRoot = path.join(
+    grokInstallTarget.runtimeBaseRoot,
+    'runtime-published-line-endings'
+  )
+  fs.mkdirSync(publishedRuntimeRoot, { recursive: true })
+  fs.writeFileSync(
+    path.join(publishedRuntimeRoot, 'AGENTS.md'),
+    'published receipt kernel\n',
+    'utf8'
+  )
+  const receiptBoundPlan = buildGrokLaunchPlan(['-p', 'check'], {
+    cwd: workspace,
+    env,
+    home,
+    globalTarget: {
+      ...grokInstallTarget,
+      runtimeRoot: publishedRuntimeRoot
+    }
+  })
+  assert.strictEqual(
+    receiptBoundPlan.kernelPath,
+    path.join(publishedRuntimeRoot, 'AGENTS.md')
+  )
+  assert.match(receiptBoundPlan.args[1], /published receipt kernel/)
+  assert.throws(
+    () => buildGrokLaunchPlan(['-p', 'check'], {
+      cwd: workspace,
+      env,
+      home,
+      globalTarget: {
+        ...grokInstallTarget,
+        runtimeRoot: path.join(currentRoot, 'escaped-runtime')
+      }
+    }),
+    /GROK_GLOBAL_TARGET_INVALID: runtime root escapes/
+  )
   let launchedOptions = null
   let launchedArgs = null
+  const launchEnv = {
+    ...env,
+    GROK_HOME: '',
+    GROK_CURSOR_HOOKS_ENABLED: 'true',
+    DEVCODEX_CONTEXT_EPOCH: '../../invalid-epoch'
+  }
   const launched = launchGrok(['-p', 'check'], {
     cwd: workspace,
-    env: {
-      ...env,
-      GROK_HOME: '',
-      DEVCODEX_CONTEXT_EPOCH: '../../invalid-epoch'
-    },
+    env: launchEnv,
     home,
     spawnSync: (_command, args, options) => {
       launchedArgs = args
@@ -995,6 +1035,8 @@ console.log(`host installation tests passed selectors=6 dryRunWrites=0 collision
   assert.match(launchedArgs[1], /devcodex-profile__skill_route/)
   assert.match(launchedArgs[1], /Never send cursor:null/)
   assert.strictEqual(launchedOptions.env.GROK_HOME, path.join(home, '.grok'))
+  assert.strictEqual(launchedOptions.env.GROK_CURSOR_HOOKS_ENABLED, 'false')
+  assert.strictEqual(launchEnv.GROK_CURSOR_HOOKS_ENABLED, 'true')
   assert.match(launchedOptions.env.DEVCODEX_CONTEXT_EPOCH, GROK_ROUTE_CONTEXT_EPOCH_RE)
   assert.notStrictEqual(
     launchedOptions.env.DEVCODEX_CONTEXT_EPOCH,
@@ -1005,6 +1047,7 @@ console.log(`host installation tests passed selectors=6 dryRunWrites=0 collision
   fs.mkdirSync(digestFixtureRoot, { recursive: true })
   const digestLauncher = path.join(digestFixtureRoot, 'grok-workspace-launcher.js')
   const digestTarget = path.join(digestFixtureRoot, 'global-host-target.js')
+  const digestCliEnv = path.join(digestFixtureRoot, 'grok-cli-env.js')
   fs.copyFileSync(
     path.join(ROOT, 'scripts', 'lib', 'grok-workspace-launcher.js'),
     digestLauncher
@@ -1013,17 +1056,37 @@ console.log(`host installation tests passed selectors=6 dryRunWrites=0 collision
     path.join(ROOT, 'scripts', 'lib', 'global-host-target.js'),
     digestTarget
   )
+  fs.copyFileSync(
+    path.join(ROOT, 'scripts', 'lib', 'grok-cli-env.js'),
+    digestCliEnv
+  )
   const adapterDigestBefore = getGrokLauncherAdapterDigest({
     launcherPath: digestLauncher,
-    globalHostTargetPath: digestTarget
+    globalHostTargetPath: digestTarget,
+    grokCliEnvPath: digestCliEnv
   })
   fs.appendFileSync(digestTarget, '\n// digest fixture change\n', 'utf8')
   assert.notStrictEqual(
     getGrokLauncherAdapterDigest({
       launcherPath: digestLauncher,
-      globalHostTargetPath: digestTarget
+      globalHostTargetPath: digestTarget,
+      grokCliEnvPath: digestCliEnv
     }),
     adapterDigestBefore
+  )
+  const targetChangedDigest = getGrokLauncherAdapterDigest({
+    launcherPath: digestLauncher,
+    globalHostTargetPath: digestTarget,
+    grokCliEnvPath: digestCliEnv
+  })
+  fs.appendFileSync(digestCliEnv, '\n// digest fixture env isolation change\n', 'utf8')
+  assert.notStrictEqual(
+    getGrokLauncherAdapterDigest({
+      launcherPath: digestLauncher,
+      globalHostTargetPath: digestTarget,
+      grokCliEnvPath: digestCliEnv
+    }),
+    targetChangedDigest
   )
   const oversizedPrompt = path.join(workspace, 'oversized-route-prompt.txt')
   fs.writeFileSync(

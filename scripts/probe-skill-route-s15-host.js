@@ -30,6 +30,7 @@ const {
   resolveGlobalHostTarget
 } = require('./lib/global-host-target')
 const {
+  bindInstalledProductionRuntime,
   prepareCandidateHostRuntime
 } = require('./lib/s15-candidate-host')
 const {
@@ -619,7 +620,16 @@ function main () {
   }
 
   try {
-    if (!productionEligible) {
+    if (productionEligible) {
+      runtimeContext = bindInstalledProductionRuntime({
+        hostId,
+        home: runtimeContext.home,
+        packageRoot: path.resolve(__dirname, '..'),
+        baseEnv: process.env,
+        expectedRuntimeDigest: runtimeDigest,
+        expectedHostAdapterDigest: hostAdapterDigest
+      })
+    } else {
       runtimeContext = prepareCandidateHostRuntime({
         hostId,
         fixtureRoot: fixture.root,

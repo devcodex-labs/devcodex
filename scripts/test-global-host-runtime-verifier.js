@@ -355,7 +355,12 @@ assert.strictEqual(missingRegistryGrok.nativeStatus, 'unverified')
 assert(missingRegistryGrok.issues.some(issue => issue.code === 'GROK_PLUGIN_REGISTRY_UNVERIFIED'))
 fs.writeFileSync(missingRegistryFile, missingRegistryContent, 'utf8')
 
-const deepSpawn = (command, args) => {
+const deepGrokCompatStates = []
+const deepSpawn = (command, args, options = {}) => {
+  if (command === 'grok' && options.env) {
+    deepGrokCompatStates.push(options.env.GROK_CURSOR_HOOKS_ENABLED)
+    assert.strictEqual(options.env.GROK_CURSOR_HOOKS_ENABLED, 'false')
+  }
   if (
     command === process.execPath &&
     args[1] === '--contract-probe' &&
@@ -445,6 +450,7 @@ assert(healthyDeep.hosts.filter(host => host.host !== 'cursor').every(host => ho
 assert(healthyDeep.hosts.every(host => host.adapterReady))
 assert.strictEqual(healthyDeep.hosts.find(host => host.host === 'copilot').nativeStatus, 'passed')
 assert.strictEqual(healthyDeep.hosts.find(host => host.host === 'grok').nativeStatus, 'passed')
+assert(deepGrokCompatStates.length >= 3, 'Grok native version/plugin/inspect probes must share the Cursor Hook isolation environment')
 assert.strictEqual(healthyDeep.hosts.find(host => host.host === 'cursor').nativeStatus, 'unverified')
 assert.strictEqual(healthyDeep.hosts.find(host => host.host === 'cursor').operationalState, 'unverified')
 assert.strictEqual(

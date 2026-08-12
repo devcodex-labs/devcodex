@@ -161,6 +161,8 @@ devcodex grok
 
 Cursor 当前是第六宿主 Beta。全局安装会写入用户级 `~/.cursor/hooks.json` 和 DevCodex Cursor Plugin；本地 IDE、交互 CLI 与 Headless CLI 共享 Hook、Plugin、MCP 和渐进式 SkillRoute。Cursor Cloud Agent 不加载用户级 Hook，因此只标记为 Partial / `UNVERIFIED`，不会继承本地 readiness 结论。能力依据见 [Cursor Hooks](https://cursor.com/docs/hooks)、[Cursor Plugins](https://cursor.com/docs/plugins) 与 [Cursor Headless CLI](https://cursor.com/docs/cli/headless)。
 
+Cursor 与 Grok 同机安装时，`devcodex grok` 只在它启动的 Grok 子进程中关闭 Grok 对 Cursor Hooks 的兼容导入，避免 Grok 二次解析 `~/.cursor/hooks.json`；Cursor 官方 Hook 配置不会被改写，用户直接运行普通 `grok` 时的兼容偏好也不会被永久修改。
+
 ## 项目 Profile
 
 普通单项目只需执行 `devcodex init`，无需再运行 Profile 命令。多项目 workspace 中，如果某个子项目需要独立于 workspace 基线的 Profile，可在 workspace 根目录按项目名初始化：

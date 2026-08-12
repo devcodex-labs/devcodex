@@ -5,23 +5,23 @@
   "hostVariant": "codex-cli/exec-user-global-local-stdio",
   "testedVersion": "codex-cli 0.145.0",
   "protocol": "MCP 2024-11-05",
-  "runtimeContractDigest": "1d80214f2364f61797ade03dbcaa5eff552649e2845e985894196499001dba89",
+  "runtimeContractDigest": "bc71eac4da1cac0a6cf6fd2dac90cb944912212187cab3b23a6990e3366e6ed9",
   "hostAdapterDigest": "aed0188df73e9475b63fb5dfdfe5f8ef4d8bd2210620b638e694c5b3631aac4a",
-  "sourceEvidenceDigest": "fd84affc451475c206df36036866b323c95e59a07989f416fa010cf52f7aad6c",
+  "sourceEvidenceDigest": "ccbc9068ca23bfd3dcaf69f57e52a91f20ca8386a634c7e467e270ee331bc96b",
   "sourceProbe": {
     "schemaVersion": "SkillRouteS15EvidenceV1",
-    "probeRunId": "s15-codex-probe-64504bd2-0836-4aa5-b237-be22f23c1415",
+    "probeRunId": "s15-codex-probe-12ae135e-cd07-4353-a367-ec059e7c41e2",
     "authorizationSource": "isolated-probe-authority",
     "contextSource": "host-hooks",
     "receiptStatus": "relevant-complete",
-    "completedAt": "2026-08-11T20:38:44.141Z"
+    "completedAt": "2026-08-12T01:18:46.103Z"
   },
   "runtimeBinding": {
     "source": "isolated-source-candidate",
-    "expectedDigest": "1d80214f2364f61797ade03dbcaa5eff552649e2845e985894196499001dba89",
-    "generationDigest": "1d80214f2364f61797ade03dbcaa5eff552649e2845e985894196499001dba89",
-    "modeReceiptDigest": "1d80214f2364f61797ade03dbcaa5eff552649e2845e985894196499001dba89",
-    "routeEnvelopeDigest": "1d80214f2364f61797ade03dbcaa5eff552649e2845e985894196499001dba89"
+    "expectedDigest": "bc71eac4da1cac0a6cf6fd2dac90cb944912212187cab3b23a6990e3366e6ed9",
+    "generationDigest": "bc71eac4da1cac0a6cf6fd2dac90cb944912212187cab3b23a6990e3366e6ed9",
+    "modeReceiptDigest": "bc71eac4da1cac0a6cf6fd2dac90cb944912212187cab3b23a6990e3366e6ed9",
+    "routeEnvelopeDigest": "bc71eac4da1cac0a6cf6fd2dac90cb944912212187cab3b23a6990e3366e6ed9"
   },
   "probe": {
     "schemaVersion": "SkillRouteProbeSummaryV1",

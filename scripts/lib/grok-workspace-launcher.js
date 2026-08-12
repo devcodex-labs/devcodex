@@ -5,6 +5,7 @@ const fs = require('fs')
 const path = require('path')
 const { spawnSync } = require('child_process')
 const { resolveGlobalHostTarget } = require('./global-host-target.js')
+const { buildGrokCliEnv } = require('./grok-cli-env.js')
 const {
   findLayoutInfo,
   inferProjectFromCwd
@@ -36,7 +37,8 @@ function getGrokLauncherAdapterDigest(options = {}) {
   const fsImpl = options.fs || fs
   const files = [
     path.resolve(options.launcherPath || __filename),
-    path.resolve(options.globalHostTargetPath || path.join(__dirname, 'global-host-target.js'))
+    path.resolve(options.globalHostTargetPath || path.join(__dirname, 'global-host-target.js')),
+    path.resolve(options.grokCliEnvPath || path.join(__dirname, 'grok-cli-env.js'))
   ]
   return crypto.createHash('sha256').update(JSON.stringify(
     files.map(file => ({
@@ -50,6 +52,41 @@ function samePath(left, right) {
   const a = path.resolve(left)
   const b = path.resolve(right)
   return process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b
+}
+
+function isPathInside (root, candidate) {
+  const relative = path.relative(path.resolve(root), path.resolve(candidate))
+  return relative === '' || (
+    relative !== '..' &&
+    !relative.startsWith(`..${path.sep}`) &&
+    !path.isAbsolute(relative)
+  )
+}
+
+function resolveGrokLaunchTarget (options, env) {
+  const baseline = resolveGlobalHostTarget('grok', {
+    env: options.globalHostEnv || env,
+    home: options.home
+  })
+  const supplied = options.globalTarget
+  if (!supplied) return baseline
+  const invalid = message => {
+    const error = new Error(`GROK_GLOBAL_TARGET_INVALID: ${message}`)
+    error.code = 'GROK_GLOBAL_TARGET_INVALID'
+    throw error
+  }
+  if (supplied.host !== 'grok') invalid('host must be grok')
+  if (!supplied.root || !samePath(supplied.root, baseline.root)) {
+    invalid('owner root does not match the requested HOME')
+  }
+  if (!supplied.runtimeRoot || !isPathInside(baseline.runtimeBaseRoot, supplied.runtimeRoot)) {
+    invalid('runtime root escapes the managed Grok root')
+  }
+  return {
+    ...baseline,
+    runtimeRoot: path.resolve(supplied.runtimeRoot),
+    runtimeGeneration: supplied.runtimeGeneration || baseline.runtimeGeneration
+  }
 }
 
 function findNestedGitRoot(cwd, workspaceRoot) {
@@ -159,10 +196,7 @@ function buildGrokLaunchPlan(argv = [], options = {}) {
   const invocationCwd = path.resolve(options.cwd || process.cwd())
   const parsed = collectExtraRules(argv)
   const cwd = parsed.requestedCwd ? path.resolve(invocationCwd, parsed.requestedCwd) : invocationCwd
-  const globalTarget = resolveGlobalHostTarget('grok', {
-    env: options.globalHostEnv || env,
-    home: options.home
-  })
+  const globalTarget = resolveGrokLaunchTarget(options, env)
   const workspaceRoot = findWorkspaceRoot(cwd)
   const nestedGitRoot = workspaceRoot ? findNestedGitRoot(cwd, workspaceRoot) : null
   const kernelPath = path.join(globalTarget.runtimeRoot, 'AGENTS.md')
@@ -286,9 +320,11 @@ function launchGrok(argv = [], options = {}) {
     stdio: options.stdio || 'inherit',
     windowsHide: false,
     env: {
-      ...process.env,
-      ...(options.env || {}),
-      ...prepared.env,
+      ...buildGrokCliEnv({
+        ...process.env,
+        ...(options.env || {}),
+        ...prepared.env
+      }),
       GROK_HOME: plan.hostScope.ownerRoot,
       DEVCODEX_GROK_EVIDENCE_MODE: plan.evidenceMode,
       ...(plan.hostScope.workspaceRoot ? { DEVCODEX_WORKSPACE_ROOT: plan.hostScope.workspaceRoot } : {}),
@@ -311,5 +347,6 @@ module.exports = {
   collectExtraRules,
   findNestedGitRoot,
   findWorkspaceRoot,
-  launchGrok
+  launchGrok,
+  resolveGrokLaunchTarget
 }

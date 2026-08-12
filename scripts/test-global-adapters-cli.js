@@ -257,6 +257,7 @@ try {
   assert.ok(grokSyncOptions)
   assert.strictEqual(grokSyncOptions.pluginPath, isolatedPlugin)
   assert.strictEqual(grokSyncOptions.env.GROK_HOME, isolatedGrokRoot)
+  assert.strictEqual(grokSyncOptions.env.GROK_CURSOR_HOOKS_ENABLED, 'false')
   assert.notStrictEqual(grokSyncOptions.env, isolatedProcess.env)
   assert.strictEqual(isolatedProcess.env.GROK_HOME, ambientGrokHome)
   assert.strictEqual(isolatedProcess.exitCode, 0)

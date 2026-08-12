@@ -26,6 +26,7 @@ const {
 } = require('../hooks/_runtime/lifecycle-host-adapters.cjs')
 const { createBoundedTextAccumulator } = require('../hooks/_runtime/stdio-bounds.cjs')
 const {
+  bindInstalledProductionRuntime,
   bindInstalledSourceCandidateRuntime,
   buildCandidateHostEnv,
   copyCandidateCredentials,
@@ -87,23 +88,54 @@ try {
     '{"fixture":true}\n'
   )
 
-  const installedRuntimeRoot = path.join(candidateFixture, 'installed-source-runtime')
+  const packageVersion = require('../package.json').version
+  const sharedRoot = path.join(sourceHome, '.agents')
+  const installedSkillsRuntime = path.join(sharedRoot, 'devcodex', 'skills')
+  const installedSourceReceiptFile = path.join(
+    sourceCodex,
+    'devcodex',
+    'global-host-receipt.json'
+  )
+  const installedRuntimeRoot = path.join(
+    sourceCodex,
+    'devcodex',
+    'runtime-installed-source'
+  )
   fs.mkdirSync(installedRuntimeRoot, { recursive: true })
+  fs.mkdirSync(installedSkillsRuntime, { recursive: true })
   fs.writeFileSync(path.join(installedRuntimeRoot, 'runtime-generation.json'), `${JSON.stringify({
+    packageVersion,
     runtimeContractDigest: expectedDigest
   })}\n`)
+  fs.writeFileSync(installedSourceReceiptFile, `${JSON.stringify({
+    schemaVersion: 'GlobalHostConfigReceiptV1',
+    host: 'codex',
+    packageName: 'devcodex',
+    packageVersion,
+    result: 'committed',
+    runtimeRoot: installedRuntimeRoot,
+    skillsRuntimeRoot: installedSkillsRuntime
+  })}\n`)
   const expectedAdapterDigest = 'c'.repeat(64)
+  const installedSourceTarget = {
+    root: sourceCodex,
+    runtimeBaseRoot: path.join(sourceCodex, 'devcodex'),
+    runtimeRoot: path.join(sourceCodex, 'devcodex', 'runtime-recomputed-source'),
+    receiptFile: installedSourceReceiptFile,
+    shared: {
+      root: sharedRoot,
+      skillsRuntime: path.join(sharedRoot, 'recomputed-source', 'skills')
+    }
+  }
   const installedSource = bindInstalledSourceCandidateRuntime({
     hostId: 'codex',
     home: sourceHome,
     packageRoot: path.resolve(__dirname, '..'),
     baseEnv,
+    expectedPackageVersion: packageVersion,
     expectedRuntimeDigest: expectedDigest,
     expectedHostAdapterDigest: expectedAdapterDigest,
-    resolveGlobalHostTarget: () => ({
-      root: sourceCodex,
-      runtimeRoot: installedRuntimeRoot
-    }),
+    resolveGlobalHostTarget: () => installedSourceTarget,
     getLifecycleHostAdapterDigest: () => expectedAdapterDigest
   })
   assert.strictEqual(installedSource.source, 'installed-source-candidate')
@@ -115,15 +147,137 @@ try {
       home: sourceHome,
       packageRoot: path.resolve(__dirname, '..'),
       baseEnv,
+      expectedPackageVersion: packageVersion,
       expectedRuntimeDigest: 'd'.repeat(64),
       expectedHostAdapterDigest: expectedAdapterDigest,
-      resolveGlobalHostTarget: () => ({
-        root: sourceCodex,
-        runtimeRoot: installedRuntimeRoot
-      }),
+      resolveGlobalHostTarget: () => installedSourceTarget,
       getLifecycleHostAdapterDigest: () => expectedAdapterDigest
     }),
     /runtime does not match current source/
+  )
+
+  const installedProductionRoot = path.join(
+    sourceCodex,
+    'devcodex',
+    'runtime-published-line-endings'
+  )
+  const recomputedSourceRoot = path.join(
+    sourceCodex,
+    'devcodex',
+    'runtime-source-line-endings'
+  )
+  const productionReceiptFile = installedSourceReceiptFile
+  fs.mkdirSync(installedProductionRoot, { recursive: true })
+  fs.mkdirSync(installedSkillsRuntime, { recursive: true })
+  fs.writeFileSync(path.join(installedProductionRoot, 'runtime-generation.json'), `${JSON.stringify({
+    packageVersion,
+    runtimeContractDigest: expectedDigest
+  })}\n`)
+  fs.writeFileSync(productionReceiptFile, `${JSON.stringify({
+    schemaVersion: 'GlobalHostConfigReceiptV1',
+    host: 'codex',
+    packageName: 'devcodex',
+    packageVersion,
+    result: 'committed',
+    runtimeRoot: installedProductionRoot,
+    skillsRuntimeRoot: installedSkillsRuntime
+  })}\n`)
+  const productionTarget = {
+    root: sourceCodex,
+    runtimeBaseRoot: path.join(sourceCodex, 'devcodex'),
+    runtimeRoot: recomputedSourceRoot,
+    receiptFile: productionReceiptFile,
+    shared: {
+      root: sharedRoot,
+      skillsRuntime: path.join(sharedRoot, 'source-line-endings', 'skills')
+    }
+  }
+  const installedProduction = bindInstalledProductionRuntime({
+    hostId: 'codex',
+    home: sourceHome,
+    packageRoot: path.resolve(__dirname, '..'),
+    baseEnv,
+    expectedPackageVersion: packageVersion,
+    expectedRuntimeDigest: expectedDigest,
+    expectedHostAdapterDigest: expectedAdapterDigest,
+    resolveGlobalHostTarget: () => productionTarget,
+    getLifecycleHostAdapterDigest: () => expectedAdapterDigest
+  })
+  assert.strictEqual(installedProduction.source, 'installed-production-receipt')
+  assert.strictEqual(installedProduction.target.runtimeRoot, installedProductionRoot)
+  assert.notStrictEqual(installedProduction.target.runtimeRoot, recomputedSourceRoot)
+  assert.strictEqual(
+    installedProduction.target.shared.skillsRuntime,
+    installedSkillsRuntime
+  )
+  fs.writeFileSync(productionReceiptFile, `${JSON.stringify({
+    schemaVersion: 'GlobalHostReceiptV0',
+    host: 'codex',
+    packageName: 'devcodex',
+    packageVersion,
+    result: 'committed',
+    runtimeRoot: installedProductionRoot,
+    skillsRuntimeRoot: installedSkillsRuntime
+  })}\n`)
+  assert.throws(
+    () => bindInstalledProductionRuntime({
+      hostId: 'codex',
+      home: sourceHome,
+      packageRoot: path.resolve(__dirname, '..'),
+      baseEnv,
+      expectedPackageVersion: packageVersion,
+      expectedRuntimeDigest: expectedDigest,
+      expectedHostAdapterDigest: expectedAdapterDigest,
+      resolveGlobalHostTarget: () => productionTarget,
+      getLifecycleHostAdapterDigest: () => expectedAdapterDigest
+    }),
+    /receipt schema mismatch/
+  )
+  fs.writeFileSync(productionReceiptFile, `${JSON.stringify({
+    schemaVersion: 'GlobalHostConfigReceiptV1',
+    host: 'codex',
+    packageName: 'another-package',
+    packageVersion,
+    result: 'committed',
+    runtimeRoot: installedProductionRoot,
+    skillsRuntimeRoot: installedSkillsRuntime
+  })}\n`)
+  assert.throws(
+    () => bindInstalledProductionRuntime({
+      hostId: 'codex',
+      home: sourceHome,
+      packageRoot: path.resolve(__dirname, '..'),
+      baseEnv,
+      expectedPackageVersion: packageVersion,
+      expectedRuntimeDigest: expectedDigest,
+      expectedHostAdapterDigest: expectedAdapterDigest,
+      resolveGlobalHostTarget: () => productionTarget,
+      getLifecycleHostAdapterDigest: () => expectedAdapterDigest
+    }),
+    /receipt package mismatch/
+  )
+  fs.writeFileSync(productionReceiptFile, `${JSON.stringify({
+    schemaVersion: 'GlobalHostConfigReceiptV1',
+    host: 'codex',
+    packageName: 'devcodex',
+    packageVersion,
+    result: 'committed',
+    runtimeRoot: path.join(candidateFixture, 'escaped-runtime'),
+    skillsRuntimeRoot: installedSkillsRuntime
+  })}\n`)
+  assert.throws(
+    () => bindInstalledProductionRuntime({
+      hostId: 'codex',
+      home: sourceHome,
+      packageRoot: path.resolve(__dirname, '..'),
+      baseEnv,
+      expectedPackageVersion: packageVersion,
+      expectedRuntimeDigest: expectedDigest,
+      expectedHostAdapterDigest: expectedAdapterDigest,
+      resolveGlobalHostTarget: () => productionTarget,
+      getLifecycleHostAdapterDigest: () => expectedAdapterDigest
+    }),
+    /runtime escapes the managed host root/
   )
 } finally {
   fs.rmSync(candidateFixture, { recursive: true, force: true })

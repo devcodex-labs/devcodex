@@ -5,6 +5,7 @@ const fs = require('fs')
 const os = require('os')
 const path = require('path')
 const { spawnSync } = require('child_process')
+const { buildGrokCliEnv } = require('./grok-cli-env.js')
 const {
   findLayoutInfo,
   inferProjectFromCwd,
@@ -444,7 +445,8 @@ function inspectGrokPluginInstallation(pluginPath, env = process.env) {
 
 function syncGrokPluginInstallation({ pluginPath, dryRun = false, env = process.env }) {
   const source = path.resolve(pluginPath)
-  const probe = spawnSync('grok', ['version'], { encoding: 'utf8', windowsHide: true, env })
+  const cliEnv = buildGrokCliEnv(env)
+  const probe = spawnSync('grok', ['version'], { encoding: 'utf8', windowsHide: true, env: cliEnv })
   if (isGrokCliUnavailableResult(probe)) {
     return {
       schemaVersion: 'GrokPluginInstallationReceiptV1',
@@ -473,7 +475,7 @@ function syncGrokPluginInstallation({ pluginPath, dryRun = false, env = process.
       fs.renameSync(temp, configPath)
     }
     const runPluginCommand = args => {
-      const result = spawnSync('grok', args, { encoding: 'utf8', windowsHide: true, env })
+      const result = spawnSync('grok', args, { encoding: 'utf8', windowsHide: true, env: cliEnv })
       restoreConfig()
       if (result.status !== 0) {
         const error = new Error(`GROK_PLUGIN_INSTALL_FAILED: ${String(result.stderr || result.stdout).trim()}`)
@@ -937,8 +939,9 @@ function uninstallGrokPluginInstallation({ pluginPath, activeRoot, dryRun = fals
   }
 
   if (installedBefore.repoId) {
+    const cliEnv = buildGrokCliEnv(env)
     const result = spawnSync('grok', ['plugin', 'uninstall', pluginName, '--confirm', '--keep-data'], {
-      encoding: 'utf8', windowsHide: true, env
+      encoding: 'utf8', windowsHide: true, env: cliEnv
     })
     if (result.error?.code === 'ENOENT') {
       const error = new Error('GROK_PLUGIN_CLI_UNAVAILABLE: grok CLI not found')

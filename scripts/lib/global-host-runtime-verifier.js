@@ -4,6 +4,7 @@ const fs = require('fs')
 const path = require('path')
 const { spawnSync } = require('child_process')
 const { resolveGlobalHostTarget, samePath } = require('./global-host-target.js')
+const { buildGrokCliEnv } = require('./grok-cli-env.js')
 const { inspectNodeRuntimeReadiness } = require('./node-runtime-readiness.js')
 
 const EXECUTABLE_ADAPTER_HOSTS = Object.freeze(['copilot', 'claude', 'codex', 'gemini', 'grok', 'cursor'])
@@ -878,13 +879,16 @@ function verifyGlobalHostRuntime(options = {}) {
         }
       }
     }
+    const hostCommon = configurationHost.host === 'grok'
+      ? { ...common, env: buildGrokCliEnv(env) }
+      : common
     const target = resolveGlobalHostTarget(configurationHost.host, {
-      env,
+      env: hostCommon.env,
       home: options.home,
       fs: fsImpl
     })
     const configured = configurationHost.ready === true || configurationHost.configured === true
-    const adapter = adapterContractProbe(configurationHost.host, configurationHost.runtimeEntry, common)
+    const adapter = adapterContractProbe(configurationHost.host, configurationHost.runtimeEntry, hostCommon)
     let contractStatus = adapter.status
     const configurationIssues = Array.isArray(configurationHost.configurationIssues)
       ? configurationHost.configurationIssues
@@ -894,25 +898,25 @@ function verifyGlobalHostRuntime(options = {}) {
     if (configurationIssues.length && contractStatus !== 'failed') contractStatus = 'failed'
 
     if (configurationHost.host === 'grok') {
-      const staticGrok = grokStaticContract(target, common)
+      const staticGrok = grokStaticContract(target, hostCommon)
       probes.grokStatic = staticGrok
       issues.push(...staticGrok.issues)
       if (staticGrok.status === 'failed') contractStatus = 'failed'
     }
     if (configurationHost.host === 'cursor') {
-      const staticCursor = cursorStaticContract(target, common)
+      const staticCursor = cursorStaticContract(target, hostCommon)
       probes.cursorStatic = staticCursor
       issues.push(...staticCursor.issues)
       if (staticCursor.status === 'failed') contractStatus = 'failed'
     }
 
-    const native = nativeVersionProbe(configurationHost.host, common)
+    const native = nativeVersionProbe(configurationHost.host, hostCommon)
     let nativeStatus = native.status
     probes.native = native.evidence
     issues.push(...native.issues)
 
     if (configurationHost.host === 'grok' && native.status === 'passed') {
-      const deep = deepGrokProbe(target, cwd, common)
+      const deep = deepGrokProbe(target, cwd, hostCommon)
       probes.grokDeep = deep.evidence
       issues.push(...deep.issues)
       if (deep.status === 'failed') nativeStatus = 'failed'

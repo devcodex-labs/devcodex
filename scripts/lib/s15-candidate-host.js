@@ -4,7 +4,10 @@ const assert = require('assert')
 const fs = require('fs')
 const path = require('path')
 
-const { applyGlobalHostConfig } = require('./global-host-config')
+const {
+  GLOBAL_HOST_RECEIPT_SCHEMA,
+  applyGlobalHostConfig
+} = require('./global-host-config')
 const { resolveGlobalHostTarget } = require('./global-host-target')
 const {
   getLifecycleHostAdapterDigest
@@ -104,10 +107,27 @@ function copyCandidateCredentials (
 }
 
 function bindInstalledSourceCandidateRuntime (options = {}) {
+  const bound = bindInstalledProductionRuntime(options)
+  return {
+    ...bound,
+    source: 'installed-source-candidate'
+  }
+}
+
+function isPathInside (root, candidate) {
+  const relative = path.relative(path.resolve(root), path.resolve(candidate))
+  return relative === '' || (
+    relative !== '..' &&
+    !relative.startsWith(`..${path.sep}`) &&
+    !path.isAbsolute(relative)
+  )
+}
+
+function bindInstalledProductionRuntime (options = {}) {
   const hostId = String(options.hostId || '').trim().toLowerCase()
-  assert(CANDIDATE_HOST_ROOTS[hostId], `S15 installed candidate is not supported for host: ${hostId}`)
+  assert(CANDIDATE_HOST_ROOTS[hostId], `S15 installed production is not supported for host: ${hostId}`)
   const rawHome = String(options.home || '').trim()
-  assert(rawHome, 'S15 installed candidate user home is required')
+  assert(rawHome, 'S15 installed production user home is required')
   const expectedRuntimeDigest = String(options.expectedRuntimeDigest || '').trim()
   const expectedHostAdapterDigest = String(options.expectedHostAdapterDigest || '').trim()
   assert.match(expectedRuntimeDigest, /^[a-f0-9]{64}$/, 'S15 expected runtime digest is required')
@@ -125,32 +145,92 @@ function bindInstalledSourceCandidateRuntime (options = {}) {
     packageRoot,
     fs: fsImpl
   })
-  const generationFile = path.join(target.runtimeRoot, 'runtime-generation.json')
-  assert(fsImpl.existsSync(generationFile), `S15 installed ${hostId} candidate generation is missing`)
+  assert(target.receiptFile, `S15 installed ${hostId} production receipt path is missing`)
+  assert(fsImpl.existsSync(target.receiptFile), `S15 installed ${hostId} production receipt is missing`)
+  const receipt = JSON.parse(fsImpl.readFileSync(target.receiptFile, 'utf8'))
+  assert.strictEqual(
+    receipt.schemaVersion,
+    GLOBAL_HOST_RECEIPT_SCHEMA,
+    `S15 installed ${hostId} production receipt schema mismatch`
+  )
+  assert.strictEqual(receipt.host, hostId, `S15 installed ${hostId} production receipt host mismatch`)
+  assert.strictEqual(receipt.result, 'committed', `S15 installed ${hostId} production receipt is not committed`)
+  assert.strictEqual(
+    receipt.packageName,
+    'devcodex',
+    `S15 installed ${hostId} production receipt package mismatch`
+  )
+  assert(target.runtimeBaseRoot, `S15 installed ${hostId} production managed runtime root is missing`)
+  assert(target.shared?.root, `S15 installed ${hostId} production managed shared root is missing`)
+
+  const packageManifest = JSON.parse(fsImpl.readFileSync(path.join(packageRoot, 'package.json'), 'utf8'))
+  const expectedPackageVersion = String(options.expectedPackageVersion || packageManifest.version || '').trim()
+  assert(expectedPackageVersion, 'S15 expected package version is required')
+  assert.strictEqual(
+    receipt.packageVersion,
+    expectedPackageVersion,
+    `S15 installed ${hostId} production package version does not match current source`
+  )
+
+  const runtimeRoot = path.resolve(String(receipt.runtimeRoot || ''))
+  assert(
+    receipt.runtimeRoot && isPathInside(target.runtimeBaseRoot, runtimeRoot),
+    `S15 installed ${hostId} production runtime escapes the managed host root`
+  )
+  const skillsRuntime = path.resolve(String(receipt.skillsRuntimeRoot || ''))
+  assert(
+    receipt.skillsRuntimeRoot && isPathInside(target.shared.root, skillsRuntime),
+    `S15 installed ${hostId} production skills runtime escapes the managed shared root`
+  )
+  assert(
+    fsImpl.existsSync(skillsRuntime),
+    `S15 installed ${hostId} production skills runtime is missing`
+  )
+  const generationFile = path.join(runtimeRoot, 'runtime-generation.json')
+  assert(fsImpl.existsSync(generationFile), `S15 installed ${hostId} production generation is missing`)
   const generation = JSON.parse(fsImpl.readFileSync(generationFile, 'utf8'))
+  assert.strictEqual(
+    generation.packageVersion,
+    expectedPackageVersion,
+    `S15 installed ${hostId} production generation version mismatch`
+  )
   assert.strictEqual(
     generation.runtimeContractDigest,
     expectedRuntimeDigest,
-    `S15 installed ${hostId} candidate runtime does not match current source`
+    `S15 installed ${hostId} production runtime does not match current source`
   )
   const installedHostAdapterDigest = readAdapterDigest(hostId, {
-    runtimeRoot: path.join(target.runtimeRoot, 'hooks', '_runtime'),
+    runtimeRoot: path.join(runtimeRoot, 'hooks', '_runtime'),
     fs: fsImpl
   })
   assert.strictEqual(
     installedHostAdapterDigest,
     expectedHostAdapterDigest,
-    `S15 installed ${hostId} candidate adapter does not match current source`
+    `S15 installed ${hostId} production adapter does not match current source`
   )
 
   return {
     schemaVersion: 'SkillRouteS15CandidateHostRuntimeV1',
-    source: 'installed-source-candidate',
+    source: 'installed-production-receipt',
     hostId,
     home,
     env: baseEnv,
-    target,
+    target: {
+      ...target,
+      runtimeRoot,
+      runtimeGeneration: generation,
+      shared: {
+        ...target.shared,
+        skillsRuntime
+      }
+    },
     generation,
+    receipt: {
+      schemaVersion: receipt.schemaVersion || null,
+      packageVersion: receipt.packageVersion,
+      runtimeRoot,
+      skillsRuntimeRoot: skillsRuntime
+    },
     credentialFiles: ['host-auth:existing'],
     nativeRegistration: null
   }
@@ -289,6 +369,7 @@ module.exports = {
   CANDIDATE_CREDENTIAL_FILES,
   CANDIDATE_HOST_ROOTS,
   assertCredentialCopySafe,
+  bindInstalledProductionRuntime,
   bindInstalledSourceCandidateRuntime,
   buildCandidateHostEnv,
   candidateHomeEnvName,

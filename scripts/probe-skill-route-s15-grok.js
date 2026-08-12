@@ -34,9 +34,11 @@ const {
   writeJson
 } = require('./lib/skill-route-test-fixture')
 const {
+  bindInstalledProductionRuntime,
   bindInstalledSourceCandidateRuntime,
   prepareCandidateHostRuntime
 } = require('./lib/s15-candidate-host')
+const { buildGrokCliEnv } = require('./lib/grok-cli-env')
 
 function optionValue (name) {
   const index = process.argv.indexOf(name)
@@ -325,7 +327,16 @@ function main () {
   try {
     writeProbeSkill(fixture, skillId, marker)
     assert(userHome, 'S15 requires the current user home for the production Grok host')
-    if (!productionEligible) {
+    if (productionEligible) {
+      runtimeContext = bindInstalledProductionRuntime({
+        hostId: 'grok',
+        home: userHome,
+        packageRoot: path.resolve(__dirname, '..'),
+        baseEnv: process.env,
+        expectedRuntimeDigest: runtimeDigest,
+        expectedHostAdapterDigest: getLifecycleHostAdapterDigest('grok')
+      })
+    } else {
       runtimeContext = installedSourceCandidate
         ? bindInstalledSourceCandidateRuntime({
             hostId: 'grok',
@@ -348,12 +359,12 @@ function main () {
         'S15 isolated candidate generation does not match source runtime digest'
       )
     }
-    globalTarget = resolveGlobalHostTarget('grok', {
+    globalTarget = runtimeContext.target || resolveGlobalHostTarget('grok', {
       env: runtimeContext.env,
       home: runtimeContext.home
     })
     childEnv = {
-      ...runtimeContext.env,
+      ...buildGrokCliEnv(runtimeContext.env),
       DEVCODEX_HOST_PLATFORM: host,
       DEVCODEX_AGENT: host,
       DEVCODEX_CONTEXT_EPOCH: contextEpoch,
@@ -396,6 +407,16 @@ function main () {
       env: childEnv,
       timeout: 30000
     }).stdout)
+    const cursorHookCompat = (inspection.externalCompat?.cells || []).find(cell =>
+      cell.vendor === 'cursor' && cell.surface === 'hooks'
+    )
+    assert.strictEqual(cursorHookCompat?.enabled, false, 'Grok must not load Cursor Hooks in a DevCodex-managed process')
+    assert.strictEqual(cursorHookCompat?.source, 'env', 'Grok Cursor Hook isolation must come from the child process environment')
+    assert.strictEqual(
+      inspection.hooks.some(hook => /[\\/]\.cursor(?:[\\/]|$)/i.test(String(hook.source?.path || ''))),
+      false,
+      'Grok DevCodex process must not discover Cursor Hook files'
+    )
     const pluginHook = inspection.hooks.find(hook =>
       hook.source?.type === 'plugin' &&
       hook.source?.plugin_name === 'devcodex-workspace' &&
@@ -576,6 +597,7 @@ function main () {
       cwd: fixture.projectRoot,
       env: childEnv,
       globalHostEnv: runtimeContext.env,
+      globalTarget,
       home: runtimeContext.home,
       stdio: 'pipe',
       spawnSync: (command, args, options) => {
@@ -756,6 +778,19 @@ function main () {
         receiptId: contextAcquisition.receipt.receiptId,
         receiptStatus: contextAcquisition.receipt.status,
         observedTools: contextAcquisition.postHistory.map(item => item.canonical)
+      },
+      crossHostIsolation: {
+        cursorHooksCompatibility: {
+          enabled: cursorHookCompat.enabled,
+          source: cursorHookCompat.source
+        },
+        cursorHookSourceCount: inspection.hooks.filter(hook =>
+          /[\\/]\.cursor(?:[\\/]|$)/i.test(String(hook.source?.path || ''))
+        ).length,
+        devcodexGrokHooks: {
+          userGlobal: Boolean(globalHook),
+          plugin: Boolean(pluginHook)
+        }
       },
       observedOps: [
         'profile_context_plan',

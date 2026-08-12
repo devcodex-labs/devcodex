@@ -5,23 +5,34 @@
   "hostVariant": "grok-cli-single/global-launcher-local-stdio",
   "testedVersion": "grok 1.0.0 (3cd0d0cbce)",
   "protocol": "MCP 2024-11-05",
-  "runtimeContractDigest": "1d80214f2364f61797ade03dbcaa5eff552649e2845e985894196499001dba89",
-  "hostAdapterDigest": "da818bfbdc204254b7ecd6bbc153fbc4dd63cb07e8a7facf72f04d6b60579dda",
-  "sourceEvidenceDigest": "39d98288bc4bd88341772e123733c1faa8fb00f7603176eeff6001079158aa2f",
+  "runtimeContractDigest": "bc71eac4da1cac0a6cf6fd2dac90cb944912212187cab3b23a6990e3366e6ed9",
+  "hostAdapterDigest": "a57d3ece859db2e8ad9c89967c8acf1b721e98f64a67a7325d24e6c85a45d918",
+  "sourceEvidenceDigest": "c004d9bb448f55f507c93a57b6a57f094374770e11aa1a7a11293af49f1eac0e",
   "sourceProbe": {
     "schemaVersion": "SkillRouteS15EvidenceV1",
-    "probeRunId": "s15-grok-probe-a0df0ab2-2c09-42f9-93cc-64f97eb550a1",
+    "probeRunId": "s15-grok-probe-624cd5d4-4149-4fc4-8968-ba4f8f4670b4",
     "authorizationSource": "installed-source-probe-authority",
     "contextSource": "host-hooks",
     "receiptStatus": "relevant-complete",
-    "completedAt": "2026-08-11T20:43:18.593Z"
+    "completedAt": "2026-08-12T01:40:59.724Z"
   },
   "runtimeBinding": {
     "source": "installed-source-candidate",
-    "expectedDigest": "1d80214f2364f61797ade03dbcaa5eff552649e2845e985894196499001dba89",
-    "generationDigest": "1d80214f2364f61797ade03dbcaa5eff552649e2845e985894196499001dba89",
-    "modeReceiptDigest": "1d80214f2364f61797ade03dbcaa5eff552649e2845e985894196499001dba89",
-    "routeEnvelopeDigest": "1d80214f2364f61797ade03dbcaa5eff552649e2845e985894196499001dba89"
+    "expectedDigest": "bc71eac4da1cac0a6cf6fd2dac90cb944912212187cab3b23a6990e3366e6ed9",
+    "generationDigest": "bc71eac4da1cac0a6cf6fd2dac90cb944912212187cab3b23a6990e3366e6ed9",
+    "modeReceiptDigest": "bc71eac4da1cac0a6cf6fd2dac90cb944912212187cab3b23a6990e3366e6ed9",
+    "routeEnvelopeDigest": "bc71eac4da1cac0a6cf6fd2dac90cb944912212187cab3b23a6990e3366e6ed9"
+  },
+  "crossHostIsolation": {
+    "cursorHooksCompatibility": {
+      "enabled": false,
+      "source": "env"
+    },
+    "cursorHookSourceCount": 0,
+    "devcodexGrokHooks": {
+      "userGlobal": true,
+      "plugin": true
+    }
   },
   "probe": {
     "schemaVersion": "SkillRouteProbeSummaryV1",

@@ -19,6 +19,7 @@ const {
 const {
   syncGrokWorkspacePluginInstallation
 } = require('./host-adapter-scope.js')
+const { buildGrokCliEnv } = require('./grok-cli-env.js')
 
 const COMMAND = 'global-adapters'
 const EXPLICIT_HOME_PATH_OVERRIDE_KEYS = new Set([
@@ -242,10 +243,10 @@ function buildHandler(deps = {}) {
         grokIntegration = syncGrok({
           pluginPath: grokTarget.files.plugin,
           activeRoot: result?.activeRoot || null,
-          env: {
+          env: buildGrokCliEnv({
             ...(processImpl.env || {}),
             GROK_HOME: grokTarget.root
-          }
+          })
         })
       } catch (error) {
         grokIntegrationError = error

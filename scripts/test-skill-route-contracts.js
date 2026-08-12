@@ -760,6 +760,15 @@ try {
     'PASS',
     JSON.stringify(grokAlias, null, 2)
   )
+  const grokPortableEvidence = JSON.parse(fs.readFileSync(
+    path.join(fixture.packageRoot, 'hooks', '_runtime', 'evidence', 'grok-skill-route-pass.v1.json'),
+    'utf8'
+  ))
+  assert.deepStrictEqual(grokPortableEvidence.crossHostIsolation, {
+    cursorHooksCompatibility: { enabled: false, source: 'env' },
+    cursorHookSourceCount: 0,
+    devcodexGrokHooks: { userGlobal: true, plugin: true }
+  })
 
   // Acceptance M02a: probe authority is exact-bound and cannot be forged by env.
   const missingAuthority = validateProbeAuthority('', {

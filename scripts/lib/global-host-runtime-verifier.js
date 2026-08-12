@@ -4,6 +4,7 @@ const fs = require('fs')
 const path = require('path')
 const { spawnSync } = require('child_process')
 const { resolveGlobalHostTarget, samePath } = require('./global-host-target.js')
+const { isDevCodexManagedHookEntry } = require('./global-host-config-merge.js')
 const { buildGrokCliEnv } = require('./grok-cli-env.js')
 const { inspectNodeRuntimeReadiness } = require('./node-runtime-readiness.js')
 
@@ -278,7 +279,7 @@ function cursorStaticContract(target, options = {}) {
   const fsImpl = options.fs || fs
   const issues = []
   const hooks = readJson(target.files.hooks, fsImpl)
-  const runtimeEntry = path.join(target.runtimeRoot, 'hooks', '_runtime', 'lifecycle-host-adapters.cjs')
+  const runtimeEntry = path.join(target.runtimeRoot, 'hooks', '_runtime', 'lifecycle-cursor-compatible.cjs')
   const requiredEvents = [
     'workspaceOpen',
     'sessionStart',
@@ -292,20 +293,28 @@ function cursorStaticContract(target, options = {}) {
     'stop'
   ]
   const eventStatus = {}
+  const eventManagedCounts = {}
+  const expectedCommand = `node "${runtimeEntry}" cursor --cursor-plugin-path "${target.files.plugin}"`
+  const normalizeCommand = value => String(value || '')
+    .trim()
+    .replace(/\\/g, '/')
+    .toLowerCase()
   for (const event of requiredEvents) {
     const entries = Array.isArray(hooks?.hooks?.[event]) ? hooks.hooks[event] : []
-    const managed = entries.find(entry =>
-      typeof entry?.command === 'string' &&
-      entry.command.includes('lifecycle-host-adapters.cjs') &&
-      entry.command.includes(' cursor') &&
-      entry.command.includes('--cursor-plugin-path')
+    const managed = entries.filter(isDevCodexManagedHookEntry)
+    const current = managed.filter(entry =>
+      normalizeCommand(entry?.command) === normalizeCommand(expectedCommand)
     )
-    eventStatus[event] = Boolean(managed)
-    if (!managed) {
+    eventManagedCounts[event] = {
+      current: current.length,
+      managed: managed.length
+    }
+    eventStatus[event] = current.length === 1 && managed.length === 1
+    if (!eventStatus[event]) {
       issues.push(probeIssue(
         'CURSOR_HOOK_CONTRACT_FAILED',
         'contract',
-        event + ':' + target.files.hooks,
+        `${event}:current=${current.length}:managed=${managed.length}:${target.files.hooks}`,
         'Refresh the Cursor user-global Hook configuration.'
       ))
     }
@@ -315,6 +324,17 @@ function cursorStaticContract(target, options = {}) {
   const manifest = readJson(manifestFile, fsImpl)
   const skillFile = path.join(target.files.plugin, 'skills', 'devcodex-workspace', 'SKILL.md')
   const pluginHooksFile = path.join(target.files.plugin, 'hooks', 'hooks.json')
+  const skillContractAnchors = [
+    'skill_route',
+    'Never invent project, turnBinding, contextEpoch, generation or',
+    'Next call (exact)'
+  ]
+  let skillContent = ''
+  try {
+    skillContent = fsImpl.readFileSync(skillFile, 'utf8')
+  } catch {}
+  const missingSkillAnchors = skillContractAnchors.filter(anchor => !skillContent.includes(anchor))
+  const skillContractStatus = missingSkillAnchors.length === 0
   const pluginStatus = Boolean(
     manifest?.name === 'devcodex-workspace' &&
     typeof manifest?.version === 'string' &&
@@ -322,6 +342,7 @@ function cursorStaticContract(target, options = {}) {
     manifest.skills === './skills' &&
     manifest.mcpServers === './mcp.json' &&
     fsImpl.existsSync(skillFile) &&
+    skillContractStatus &&
     !fsImpl.existsSync(pluginHooksFile)
   )
   if (!pluginStatus) {
@@ -365,9 +386,12 @@ function cursorStaticContract(target, options = {}) {
     status: issues.length ? 'failed' : 'passed',
     hooksFile: target.files.hooks,
     eventStatus,
+    eventManagedCounts,
     manifestFile,
     pluginStatus,
     skillFile,
+    skillContractStatus,
+    missingSkillAnchors,
     pluginHooksAbsent: !fsImpl.existsSync(pluginHooksFile),
     mcpFile,
     mcpStatus,

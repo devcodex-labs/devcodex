@@ -17,6 +17,9 @@ const {
 const {
   reconcileProgressiveSkillRoute
 } = require('../hooks/_runtime/lifecycle-skill-route-coordinator.cjs')
+const {
+  normalizeCursorPayload
+} = require('../hooks/_runtime/lifecycle-cursor-compatible.cjs')
 const { resolveRuntimeStateRoot } = require('../hooks/_runtime/workspace-layout.cjs')
 
 const RUNTIME = path.resolve(__dirname, '..', 'hooks', '_runtime', 'lifecycle.cjs')
@@ -87,6 +90,56 @@ function runLifecycle (fixture, payload = {}, env = {}, cwd = fixture.projectRoo
     }
   })
   assert.strictEqual(expected.allowAction, true)
+
+  const cursorOfficialExpected = reconcileProgressiveSkillRoute({}, pending, {
+    trigger: 'PreToolUse',
+    sessionKey: 'session-cursor-official',
+    payload: normalizeCursorPayload({
+      hook_run_id: 'hook-pre-cursor-official',
+      tool_name: 'MCP:skill_route',
+      tool_input: pending.nextCall
+    }, 'win32')
+  })
+  assert.strictEqual(
+    cursorOfficialExpected.allowAction,
+    true,
+    'Cursor official MCP:<tool_name> identifiers must resolve to the canonical route tool'
+  )
+  assert.strictEqual(cursorOfficialExpected.action.tool, 'skill_route')
+
+  const cursorQualifiedExpected = reconcileProgressiveSkillRoute({}, pending, {
+    trigger: 'PreToolUse',
+    sessionKey: 'session-cursor-qualified',
+    payload: normalizeCursorPayload({
+      hook_run_id: 'hook-pre-cursor-qualified',
+      tool_name: 'MCP:devcodex-profile/skill_route',
+      tool_input: pending.nextCall
+    }, 'win32')
+  })
+  assert.strictEqual(cursorQualifiedExpected.allowAction, true)
+  assert.strictEqual(cursorQualifiedExpected.action.tool, 'skill_route')
+
+  const cursorUnknown = reconcileProgressiveSkillRoute({}, pending, {
+    trigger: 'PreToolUse',
+    sessionKey: 'session-cursor-unknown',
+    payload: normalizeCursorPayload({
+      hook_run_id: 'hook-pre-cursor-unknown',
+      tool_name: 'MCP:unknown_tool',
+      tool_input: pending.nextCall
+    }, 'win32')
+  })
+  assert.strictEqual(cursorUnknown.allowAction, false)
+
+  const cursorWrongDigest = reconcileProgressiveSkillRoute({}, pending, {
+    trigger: 'PreToolUse',
+    sessionKey: 'session-cursor-wrong-digest',
+    payload: normalizeCursorPayload({
+      hook_run_id: 'hook-pre-cursor-wrong-digest',
+      tool_name: 'MCP:skill_route',
+      tool_input: { ...pending.nextCall, planDigest: 'wrong-plan-digest' }
+    }, 'win32')
+  })
+  assert.strictEqual(cursorWrongDigest.allowAction, false)
 
   const proactiveContextRefresh = reconcileProgressiveSkillRoute(state, pending, {
     trigger: 'PreToolUse',

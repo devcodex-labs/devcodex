@@ -5,6 +5,7 @@ const assert = require('assert')
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
+const { spawnSync } = require('child_process')
 const grokHooks = require('../grok/hooks/devcodex.json')
 const {
   buildPrompt: buildS15HostPrompt,
@@ -13,6 +14,12 @@ const {
 const {
   parseContextToolIdentity
 } = require('../hooks/_runtime/lifecycle-bootstrap-state.cjs')
+const {
+  getCompatibleLifecycleHostAdapterDigest
+} = require('../hooks/_runtime/compatible-host-adapter-identity.cjs')
+const {
+  getLifecycleHostAdapterDigest
+} = require('../hooks/_runtime/host-adapter-identity.cjs')
 const {
   EVENT_MAP,
   STDIO_CHILD_TIMEOUT_MS,
@@ -24,6 +31,15 @@ const {
   probeHostAdapterContract,
   runHostAdapter
 } = require('../hooks/_runtime/lifecycle-host-adapters.cjs')
+const {
+  applyCursorRecoveryContext,
+  isCursorImportedClaudePayload,
+  normalizeCursorMcpToolName,
+  normalizeCursorPayload,
+  normalizeCursorWorkspacePath,
+  parseHostHookPayload,
+  runCompatibleHostAdapter
+} = require('../hooks/_runtime/lifecycle-cursor-compatible.cjs')
 const { createBoundedTextAccumulator } = require('../hooks/_runtime/stdio-bounds.cjs')
 const {
   bindInstalledProductionRuntime,
@@ -33,6 +49,80 @@ const {
   credentialJsonHasRefreshToken,
   prepareCandidateHostRuntime
 } = require('./lib/s15-candidate-host')
+
+function hostAdapterDigestFixture (wrapperContent) {
+  const files = new Map([
+    ['host-adapter-identity.cjs', 'identity-v1'],
+    ['lifecycle-host-adapters.cjs', 'shared-adapter-v1'],
+    ['compatible-host-adapter-identity.cjs', 'compatible-identity-v1'],
+    ['lifecycle-cursor-compatible-preload.cjs', 'compatible-preload-v1'],
+    ['lifecycle-cursor-compatible.cjs', wrapperContent],
+    ['lifecycle.cjs', 'lifecycle-v1']
+  ])
+  return {
+    readFileSync (file) {
+      const name = path.basename(file)
+      assert(files.has(name), `unexpected adapter identity file: ${name}`)
+      return Buffer.from(files.get(name), 'utf8')
+    }
+  }
+}
+
+const adapterDigestBaselineFs = hostAdapterDigestFixture('compatible-wrapper-v1')
+const adapterDigestDriftFs = hostAdapterDigestFixture('compatible-wrapper-v2')
+const adapterDigestHosts = ['copilot', 'claude', 'codex', 'gemini', 'grok', 'cursor']
+const adapterDigestBaseline = Object.fromEntries(adapterDigestHosts.map(host => [
+  host,
+  getCompatibleLifecycleHostAdapterDigest(host, { fs: adapterDigestBaselineFs, runtimeRoot: 'C:/fixture/runtime' })
+]))
+const adapterDigestDrift = Object.fromEntries(adapterDigestHosts.map(host => [
+  host,
+  getCompatibleLifecycleHostAdapterDigest(host, { fs: adapterDigestDriftFs, runtimeRoot: 'C:/fixture/runtime' })
+]))
+for (const host of ['claude', 'cursor']) {
+  assert.notStrictEqual(adapterDigestDrift[host], adapterDigestBaseline[host])
+}
+for (const host of ['copilot', 'codex', 'gemini', 'grok']) {
+  assert.strictEqual(adapterDigestDrift[host], adapterDigestBaseline[host])
+}
+assert.strictEqual(
+  getCompatibleLifecycleHostAdapterDigest('cursor/local-ide-cli-headless-user-global-stdio-beta', {
+    fs: adapterDigestBaselineFs,
+    runtimeRoot: 'C:/fixture/runtime'
+  }),
+  adapterDigestBaseline.cursor
+)
+
+const compatibleIdentityPreload = path.resolve(
+  __dirname,
+  '..',
+  'hooks',
+  '_runtime',
+  'lifecycle-cursor-compatible-preload.cjs'
+)
+const baseIdentityModule = path.resolve(
+  __dirname,
+  '..',
+  'hooks',
+  '_runtime',
+  'host-adapter-identity.cjs'
+)
+const compatibleIdentityProbe = spawnSync(process.execPath, [
+  '--require',
+  compatibleIdentityPreload,
+  '-e',
+  `const identity=require(${JSON.stringify(baseIdentityModule)});process.stdout.write(JSON.stringify(Object.fromEntries(['claude','cursor','codex'].map(host=>[host,identity.getLifecycleHostAdapterDigest(host)]))))`
+], { encoding: 'utf8' })
+assert.strictEqual(compatibleIdentityProbe.status, 0, compatibleIdentityProbe.stderr)
+const compatibleIdentityObserved = JSON.parse(compatibleIdentityProbe.stdout)
+for (const host of ['claude', 'cursor']) {
+  assert.strictEqual(
+    compatibleIdentityObserved[host],
+    getCompatibleLifecycleHostAdapterDigest(host)
+  )
+  assert.notStrictEqual(compatibleIdentityObserved[host], getLifecycleHostAdapterDigest(host))
+}
+assert.strictEqual(compatibleIdentityObserved.codex, getLifecycleHostAdapterDigest('codex'))
 
 const candidateFixture = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-s15-candidate-'))
 try {
@@ -419,6 +509,57 @@ const defaultBoundedHostInput = createBoundedTextAccumulator()
 assert.strictEqual(defaultBoundedHostInput.push(null), true)
 assert.strictEqual(defaultBoundedHostInput.snapshot(), '')
 
+const cursorTransportPayload = {
+  hook_event_name: 'beforeSubmitPrompt',
+  conversation_id: 'cursor-transport-conversation'
+}
+const cursorTransportJson = JSON.stringify(cursorTransportPayload)
+assert.deepStrictEqual(parseHostHookPayload(cursorTransportJson), cursorTransportPayload)
+assert.deepStrictEqual(parseHostHookPayload(`\uFEFF${cursorTransportJson}`), cursorTransportPayload)
+assert.deepStrictEqual(parseHostHookPayload('\uFEFF'), {})
+assert.throws(() => parseHostHookPayload(`\uFEFF\uFEFF${cursorTransportJson}`), SyntaxError)
+assert.throws(() => parseHostHookPayload('{"unterminated":'), SyntaxError)
+
+const hostAdapterCli = path.resolve(__dirname, '..', 'hooks', '_runtime', 'lifecycle-cursor-compatible.cjs')
+const importedCursorCliPayload = JSON.stringify({
+  hook_event_name: 'beforeSubmitPrompt',
+  cursor_version: '3.15.6',
+  conversation_id: 'cursor-cli-transport-conversation',
+  generation_id: 'cursor-cli-transport-generation',
+  workspace_roots: [process.cwd()]
+})
+const singleBomCli = spawnSync(process.execPath, [hostAdapterCli, 'claude'], {
+  encoding: 'utf8',
+  input: `\uFEFF${importedCursorCliPayload}`
+})
+assert.strictEqual(singleBomCli.status, 0, singleBomCli.stderr)
+assert.deepStrictEqual(JSON.parse(singleBomCli.stdout), { continue: true })
+const doubleBomCli = spawnSync(process.execPath, [hostAdapterCli, 'claude'], {
+  encoding: 'utf8',
+  input: `\uFEFF\uFEFF${importedCursorCliPayload}`
+})
+assert.strictEqual(doubleBomCli.status, 2)
+assert.match(doubleBomCli.stderr, /Invalid host hook payload/)
+const malformedCli = spawnSync(process.execPath, [hostAdapterCli, 'claude'], {
+  encoding: 'utf8',
+  input: '{"unterminated":'
+})
+assert.strictEqual(malformedCli.status, 2)
+assert.match(malformedCli.stderr, /Invalid host hook payload/)
+const oversizedCli = spawnSync(process.execPath, [hostAdapterCli, 'cursor'], {
+  encoding: 'utf8',
+  input: 'x'.repeat(STDIO_MAX_FRAME_BYTES + 1)
+})
+assert.strictEqual(oversizedCli.status, 2)
+assert.match(oversizedCli.stderr, /HOST_ADAPTER_INPUT_TOO_LARGE/)
+
+assert.strictEqual(normalizeCursorWorkspacePath('/e:/Worker', 'win32'), 'e:/Worker')
+assert.strictEqual(normalizeCursorWorkspacePath('\\e:\\Worker', 'win32'), 'e:\\Worker')
+assert.strictEqual(normalizeCursorWorkspacePath('\\\\server\\share', 'win32'), '\\\\server\\share')
+assert.strictEqual(normalizeCursorWorkspacePath('/workspace', 'win32'), '/workspace')
+assert.strictEqual(normalizeCursorWorkspacePath('relative/workspace', 'win32'), 'relative/workspace')
+assert.strictEqual(normalizeCursorWorkspacePath('/e:/Worker', 'linux'), '/e:/Worker')
+
 const cliOverrideEnv = {}
 applyCliEnvironmentOverrides([
   '--skill-route-probe-authority', './probe-authority.json',
@@ -796,6 +937,42 @@ assert.strictEqual(
   2
 )
 
+const cursorImportedClaudeBase = {
+  cursor_version: '3.15.6',
+  conversation_id: 'cursor-imported-conversation',
+  generation_id: 'cursor-imported-generation',
+  workspace_roots: [process.cwd()]
+}
+const cursorImportedExpectedOutputs = {
+  beforeSubmitPrompt: { continue: true },
+  preToolUse: { permission: 'allow' },
+  postToolUse: {},
+  stop: {}
+}
+for (const [event, expectedOutput] of Object.entries(cursorImportedExpectedOutputs)) {
+  const payload = { ...cursorImportedClaudeBase, hook_event_name: event }
+  assert.strictEqual(isCursorImportedClaudePayload('claude', payload, event), true)
+  const imported = runCompatibleHostAdapter('claude', payload, {
+    spawnSync: () => {
+      throw new Error('Cursor-imported Claude hooks must not execute the lifecycle twice')
+    }
+  })
+  assert.strictEqual(imported.status, 0)
+  assert.strictEqual(imported.compatibilityBypass, 'cursor-imported-claude-hook')
+  assert.deepStrictEqual(imported.output, expectedOutput)
+}
+assert.strictEqual(isCursorImportedClaudePayload('cursor', {
+  ...cursorImportedClaudeBase,
+  hook_event_name: 'beforeSubmitPrompt'
+}, 'beforeSubmitPrompt'), false)
+assert.strictEqual(isCursorImportedClaudePayload('claude', {
+  ...cursorImportedClaudeBase,
+  hook_event_name: 'UserPromptSubmit'
+}, 'UserPromptSubmit'), false)
+assert.strictEqual(isCursorImportedClaudePayload('claude', {
+  hook_event_name: 'beforeSubmitPrompt'
+}, 'beforeSubmitPrompt'), false)
+
 const before = normalizeHostPayload('gemini', {
   hook_event_name: 'BeforeAgent',
   prompt: 'continue',
@@ -958,6 +1135,26 @@ assert.strictEqual(cursorPreTool.mappedEvent, 'PreToolUse')
 assert.strictEqual(cursorPreTool.payload.session_id, 'cursor-conversation')
 assert.strictEqual(cursorPreTool.payload.cwd, process.cwd())
 assert.deepStrictEqual(cursorPreTool.payload.tool_input, { command: 'npm test' })
+if (process.platform === 'win32') {
+  const slashDriveWorkspace = `/${process.cwd().replace(/\\/g, '/')}`
+  const cursorSlashDrive = normalizeHostPayload('cursor', normalizeCursorPayload({
+    hook_event_name: 'beforeSubmitPrompt',
+    workspace_roots: [slashDriveWorkspace]
+  }, 'win32'))
+  assert.strictEqual(cursorSlashDrive.payload.cwd, process.cwd().replace(/\\/g, '/'))
+  let cursorLifecycleCwd = null
+  const cursorWithSlashDrive = runCompatibleHostAdapter('cursor', {
+    hook_event_name: 'beforeSubmitPrompt',
+    workspace_roots: [slashDriveWorkspace]
+  }, {
+    spawnSync: (_command, _args, spawnOptions) => {
+      cursorLifecycleCwd = spawnOptions.cwd
+      return { status: 0, stdout: '{"continue":true}', stderr: '' }
+    }
+  })
+  assert.strictEqual(cursorWithSlashDrive.status, 0)
+  assert.strictEqual(cursorLifecycleCwd, path.resolve(process.cwd()))
+}
 const cursorFailure = normalizeHostPayload('cursor', {
   hookEventName: 'postToolUseFailure',
   error_message: 'fixture failure',
@@ -978,7 +1175,63 @@ assert.deepStrictEqual(cursorDeny, {
   user_message: 'context acquisition incomplete',
   agent_message: 'context acquisition incomplete'
 })
+const cursorExactRouteRecovery = [
+  'Progressive Skill route requires catalog before unrelated work.',
+  'Next call (exact): {"op":"catalog","project":"sample","turnBinding":"turn-cursor","contextEpoch":"ctx-cursor"}'
+].join('\n')
+const cursorRouteDeny = runCompatibleHostAdapter('cursor', {
+  hook_event_name: 'preToolUse',
+  tool_name: 'Search',
+  tool_input: { query: 'fixture' },
+  cwd: process.cwd()
+}, {
+  spawnSync: () => ({
+    status: 0,
+    stdout: JSON.stringify({
+      continue: true,
+      systemMessage: 'DevCodex hook: progressive-skill-route',
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: 'deny',
+        permissionDecisionReason: 'progressive-skill-route',
+        additionalContext: cursorExactRouteRecovery
+      }
+    }),
+    stderr: ''
+  })
+})
+assert.strictEqual(cursorRouteDeny.status, 0)
+assert.deepStrictEqual(cursorRouteDeny.output, {
+  permission: 'deny',
+  user_message: 'progressive-skill-route',
+  agent_message: cursorExactRouteRecovery
+})
+assert.strictEqual(normalizeCursorMcpToolName('MCP:skill_route'), 'skill_route')
+assert.strictEqual(
+  normalizeCursorMcpToolName('MCP:devcodex-profile/skill_route'),
+  'devcodex-profile/skill_route'
+)
+assert.strictEqual(normalizeCursorMcpToolName('Search'), 'Search')
+assert.strictEqual(applyCursorRecoveryContext({
+  status: 0,
+  output: { permission: 'allow' }
+}, {
+  hookSpecificOutput: { additionalContext: cursorExactRouteRecovery }
+}).output.permission, 'allow')
+assert.deepStrictEqual(adaptHostOutput('cursor', 'postToolUse', {
+  systemMessage: 'short fallback',
+  hookSpecificOutput: {
+    hookEventName: 'PostToolUse',
+    additionalContext: '### DevCodex · SkillRouteBootstrapV1\n{"project":"sample"}'
+  }
+}), {
+  additional_context: '### DevCodex · SkillRouteBootstrapV1\n{"project":"sample"}'
+})
 assert.deepStrictEqual(adaptHostOutput('cursor', 'preToolUse', { continue: true }), { permission: 'allow' })
+assert.deepStrictEqual(adaptHostOutput('cursor', 'beforeSubmitPrompt', {
+  continue: true,
+  systemMessage: 'hidden dynamic bootstrap must not be projected on allow'
+}), { continue: true })
 assert.deepStrictEqual(adaptHostOutput('cursor', 'beforeSubmitPrompt', {
   decision: 'block',
   reason: 'prompt blocked'

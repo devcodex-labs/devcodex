@@ -137,7 +137,7 @@ function buildHostInstructionControlChecks(ctx) {
       err('[V103] Cursor Beta plugin identity or capability paths missing')
     }
     const cursorResolverSkill = String(read(path.join(ROOT, 'cursor/plugins/devcodex-workspace/skills/devcodex-workspace/SKILL.md')))
-    for (const anchor of ['skill_route', 'Do not recursively list', 'Cloud Agent', 'user-global']) {
+    for (const anchor of ['skill_route', 'Do not recursively list', 'Cloud Agent', 'user-global', 'Never invent project', 'Next call (exact)']) {
       if (!cursorResolverSkill.includes(anchor)) err(`[V103] Cursor resolver Skill contract missing: ${anchor}`)
     }
     if (fs.existsSync(path.join(ROOT, 'cursor', 'plugins', 'devcodex-workspace', 'hooks'))) {

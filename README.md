@@ -387,6 +387,8 @@ devcodex doctor --json
 
 Cursor 行应至少显示 `adapter=ready; contract=passed`。`native=unverified` 是 Beta 的证据边界：它不等于适配器失败，也不能据此宣称本地 IDE、CLI 或 Headless 已完成真实模型回放。发布候选已使用官方 Cursor CLI 在隔离 HOME 中通过 `mcp list` / `mcp list-tools` 启动 memory/profile 两个 stdio server；这证明 Plugin、`${workspaceFolder}` 与 MCP 工具协商链可用，但没有登录的 CLI 仍不能替代 Hook/Skill 的端到端模型回放。若 adapter 或 contract 未通过，执行 `devcodex global-adapters apply`，完全退出 Cursor 后重新打开目标项目。
 
+如果 Cursor 显示 `Submission blocked by hook`、`progressive-skill-route` 持续阻断、反复探索 `CallMcpTool` / `workspace.exe`，或 Hook 报 `returned no output`，请升级到 `devcodex >= 1.17.3`，执行 `devcodex global-adapters apply`，完全退出所有 Cursor 窗口后重新打开项目并新建对话。该故障来自旧版 Windows Hook 传输、恢复消息或多 generation 活动入口，不是“完全访问权限”未开启；不要为此开启完全访问，也不要把用户级 `.cursor` 复制到业务仓库。
+
 DevCodex 的 Cursor 入口安装在用户 HOME：Hooks 位于 `~/.cursor/hooks.json`，动态 Plugin 位于 `~/.cursor/devcodex/plugins/devcodex-workspace`。业务项目里不应出现 `.cursor`、复制的 Hook 或第二套 Plugin；项目侧仍只保存 `.devcodex/` 运行态。
 
 Cursor 本地 IDE、交互 CLI、Headless CLI 与 Cloud Agent 必须分开判断。Cloud Agent 不加载用户级 Hook，所以状态固定为 Partial / `UNVERIFIED`；不要通过放宽权限、复制 `.cursor` 到仓库或开启完全访问来伪造本地等价性。若本地流程未出现，请优先检查用户级 adapter/contract、`agent --version` 和新会话加载，而不是修改业务仓库。

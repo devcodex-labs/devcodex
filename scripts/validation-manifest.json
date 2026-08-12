@@ -1219,6 +1219,9 @@
       "inputs": [
         "hooks/_runtime/lifecycle.cjs",
         "hooks/_runtime/lifecycle-host-adapters.cjs",
+        "hooks/_runtime/compatible-host-adapter-identity.cjs",
+        "hooks/_runtime/lifecycle-cursor-compatible.cjs",
+        "hooks/_runtime/lifecycle-cursor-compatible-preload.cjs",
         "hooks/_runtime/lifecycle-bootstrap-state.cjs",
         "hooks/_runtime/lifecycle-skill-route-coordinator.cjs",
         "hooks/_runtime/host-adapter-identity.cjs",
@@ -4221,6 +4224,9 @@
       "dependencies": [],
       "inputs": [
         "hooks/_runtime/lifecycle-host-adapters.cjs",
+        "hooks/_runtime/compatible-host-adapter-identity.cjs",
+        "hooks/_runtime/lifecycle-cursor-compatible.cjs",
+        "hooks/_runtime/lifecycle-cursor-compatible-preload.cjs",
         "hooks/_runtime/lifecycle-hook-output.cjs",
         "hooks/_runtime/lifecycle.cjs",
         "gemini/**",

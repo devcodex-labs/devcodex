@@ -557,7 +557,7 @@ function addClaudePlan(operations, target, packageRoot, fsImpl) {
   const managedSettings = {
     $schema: 'https://json.schemastore.org/claude-code-settings.json',
     hooks: hookMap(
-      path.join(target.runtimeRoot, 'hooks', '_runtime', 'lifecycle-host-adapters.cjs'),
+      path.join(target.runtimeRoot, 'hooks', '_runtime', 'lifecycle-cursor-compatible.cjs'),
       'claude',
       ['PreToolUse', 'UserPromptSubmit', 'PostToolUse', 'Stop']
     )
@@ -718,7 +718,7 @@ function addGrokPlan(operations, target, packageRoot, fsImpl) {
 
 function addCursorPlan(operations, target, packageRoot, fsImpl) {
   addCommonRuntime(operations, target, packageRoot, fsImpl)
-  const runtimeEntry = path.join(target.runtimeRoot, 'hooks', '_runtime', 'lifecycle-host-adapters.cjs')
+  const runtimeEntry = path.join(target.runtimeRoot, 'hooks', '_runtime', 'lifecycle-cursor-compatible.cjs')
   const hooks = cursorHookDocument(runtimeEntry, target.files.plugin)
   addFileOperation(
     operations,
@@ -1603,7 +1603,14 @@ function inspectGlobalHostConfiguration(options = {}) {
       if (isHostTargetPermissionError(caught)) throw caught
       error = caught.message
     }
-    const runtimeEntry = path.join(target.runtimeRoot, 'hooks', '_runtime', 'lifecycle-host-adapters.cjs')
+    const runtimeEntry = path.join(
+      target.runtimeRoot,
+      'hooks',
+      '_runtime',
+      ['claude', 'cursor'].includes(target.host)
+        ? 'lifecycle-cursor-compatible.cjs'
+        : 'lifecycle-host-adapters.cjs'
+    )
     const configFiles = Array.isArray(receipt?.configFiles)
       ? receipt.configFiles.map(file => path.resolve(file))
       : []

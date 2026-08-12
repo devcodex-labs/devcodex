@@ -14,6 +14,7 @@ const {
   inspectGlobalHostConfiguration
 } = require('./lib/global-host-config.js')
 const {
+  isDevCodexManagedHookEntry,
   mergeHostJsonContent,
   mergeJsonContent,
   mergeManagedBlock,
@@ -118,6 +119,15 @@ assert.deepStrictEqual(
 )
 
 fs.mkdirSync(path.join(home, '.claude'), { recursive: true })
+const legacyClaudeCompatibleCommand = `node "${path.join(
+  home,
+  '.claude',
+  'devcodex',
+  'runtime-1.17.2-legacy-generation',
+  'hooks',
+  '_runtime',
+  'lifecycle-cursor-compatible.cjs'
+)}" claude`
 fs.writeFileSync(path.join(home, '.claude', 'settings.json'), JSON.stringify({
   theme: 'user-owned',
   nested: { keep: true },
@@ -125,9 +135,100 @@ fs.writeFileSync(path.join(home, '.claude', 'settings.json'), JSON.stringify({
     CustomEvent: [{ hooks: [{ type: 'command', command: 'user-command' }] }],
     PreToolUse: [
       { matcher: 'custom', hooks: [{ type: 'command', command: 'echo custom-pre' }] },
-      { matcher: '', hooks: [{ type: 'command', command: 'node .claude/hooks/_runtime/lifecycle.cjs' }] }
-    ]
+      { matcher: '', hooks: [{ type: 'command', command: 'node .claude/hooks/_runtime/lifecycle.cjs' }] },
+      { matcher: '', hooks: [{ type: 'command', command: legacyClaudeCompatibleCommand }] }
+    ],
+    UserPromptSubmit: [{ matcher: '', hooks: [{ type: 'command', command: legacyClaudeCompatibleCommand }] }],
+    PostToolUse: [{ matcher: '', hooks: [{ type: 'command', command: legacyClaudeCompatibleCommand }] }],
+    Stop: [{ matcher: '', hooks: [{ type: 'command', command: legacyClaudeCompatibleCommand }] }]
   }
+}, null, 2) + '\n')
+const cursorManagedEvents = [
+  'workspaceOpen',
+  'sessionStart',
+  'sessionEnd',
+  'beforeSubmitPrompt',
+  'preToolUse',
+  'postToolUse',
+  'postToolUseFailure',
+  'afterAgentResponse',
+  'preCompact',
+  'stop'
+]
+const legacyCursorCompatibleCommand = `node "${path.join(
+  home,
+  '.cursor',
+  'devcodex',
+  'runtime-1.17.2-legacy-generation',
+  'hooks',
+  '_runtime',
+  'lifecycle-cursor-compatible.cjs'
+)}" cursor --cursor-plugin-path "${path.join(home, '.cursor', 'devcodex', 'plugins', 'devcodex-workspace')}"`
+const userCursorCompatibleCommand = `node "${path.join(
+  home,
+  'user-tools',
+  'lifecycle-cursor-compatible.cjs'
+)}" cursor`
+const userSharedAdapterCommand = `node "${path.join(
+  home,
+  'user-tools',
+  'lifecycle-host-adapters.cjs'
+)}" cursor`
+const userCursorNativeSharedCommand = `node "${path.join(
+  home,
+  '.cursor',
+  'hooks',
+  '_runtime',
+  'lifecycle-host-adapters.cjs'
+)}" cursor`
+const userClaudeCustomLifecycleCommand = `node "${path.join(
+  home,
+  '.claude',
+  'hooks',
+  '_runtime',
+  'lifecycle-company.cjs'
+)}"`
+assert.strictEqual(isDevCodexManagedHookEntry(legacyCursorCompatibleCommand), true)
+assert.strictEqual(isDevCodexManagedHookEntry(legacyClaudeCompatibleCommand), true)
+assert.strictEqual(isDevCodexManagedHookEntry(userCursorCompatibleCommand), false)
+assert.strictEqual(isDevCodexManagedHookEntry(userSharedAdapterCommand), false)
+assert.strictEqual(isDevCodexManagedHookEntry(userCursorNativeSharedCommand), false)
+assert.strictEqual(isDevCodexManagedHookEntry(userClaudeCustomLifecycleCommand), false)
+assert.strictEqual(isDevCodexManagedHookEntry(
+  legacyCursorCompatibleCommand.replace(
+    'lifecycle-cursor-compatible.cjs',
+    'lifecycle-cursor-compatible.cjs.backup'
+  )
+), false)
+assert.strictEqual(isDevCodexManagedHookEntry('node devcodex/runtime-old/hooks/_runtime/lifecycle.cjs.backup'), false)
+assert.strictEqual(isDevCodexManagedHookEntry('node .claude/hooks/_runtime/lifecycle.cjs'), true)
+assert.strictEqual(isDevCodexManagedHookEntry('node .gemini/hooks/_runtime/lifecycle-host-adapters.cjs gemini'), true)
+assert.strictEqual(isDevCodexManagedHookEntry({
+  command: 'echo user-command',
+  metadata: 'documentation example: node devcodex/runtime-old/hooks/_runtime/lifecycle.cjs'
+}), false)
+assert.strictEqual(isDevCodexManagedHookEntry({
+  matcher: '',
+  hooks: [{ type: 'command', command: legacyClaudeCompatibleCommand }]
+}), true)
+fs.mkdirSync(path.join(home, '.cursor'), { recursive: true })
+fs.writeFileSync(path.join(home, '.cursor', 'hooks.json'), JSON.stringify({
+  version: 1,
+  userOwned: { keep: true },
+  hooks: Object.fromEntries(cursorManagedEvents.map(event => [
+    event,
+    [
+      ...(event === 'preToolUse'
+        ? [
+            { command: 'echo cursor-user', matcher: 'custom', timeout: 9 },
+            { command: userCursorCompatibleCommand, matcher: 'user-compatible', timeout: 9 },
+            { command: userSharedAdapterCommand, matcher: 'user-shared-adapter', timeout: 9 },
+            { command: userCursorNativeSharedCommand, matcher: 'user-cursor-native-shared', timeout: 9 }
+          ]
+        : []),
+      { command: legacyCursorCompatibleCommand, timeout: 30 }
+    ]
+  ]))
 }, null, 2) + '\n')
 fs.mkdirSync(path.join(home, '.copilot', 'hooks'), { recursive: true })
 fs.writeFileSync(path.join(home, '.copilot', 'hooks', 'devcodex.json'), JSON.stringify({
@@ -244,11 +345,20 @@ const cursorSourceManifest = JSON.parse(fs.readFileSync(
 ))
 assert.strictEqual(cursorSourceManifest.version, require('../package.json').version)
 const cursorHooks = JSON.parse(fs.readFileSync(cursorTarget.files.hooks, 'utf8'))
-for (const event of ['workspaceOpen', 'sessionStart', 'sessionEnd', 'beforeSubmitPrompt', 'preToolUse', 'postToolUse', 'postToolUseFailure', 'afterAgentResponse', 'preCompact', 'stop']) {
+assert.strictEqual(cursorHooks.userOwned.keep, true)
+for (const event of cursorManagedEvents) {
   assert.ok(Array.isArray(cursorHooks.hooks[event]), `Cursor hook event missing: ${event}`)
-  assert.ok(JSON.stringify(cursorHooks.hooks[event]).includes('lifecycle-host-adapters.cjs'))
+  assert.ok(JSON.stringify(cursorHooks.hooks[event]).includes('lifecycle-cursor-compatible.cjs'))
   assert.ok(JSON.stringify(cursorHooks.hooks[event]).includes('--cursor-plugin-path'))
+  const managed = cursorHooks.hooks[event].filter(isDevCodexManagedHookEntry)
+  assert.strictEqual(managed.length, 1, `Cursor ${event} must retain exactly one managed generation`)
+  assert.ok(managed[0].command.includes(cursorTarget.runtimeRoot))
+  assert.ok(!managed[0].command.includes('runtime-1.17.2-legacy-generation'))
 }
+assert.ok(cursorHooks.hooks.preToolUse.some(entry => entry.command === 'echo cursor-user'))
+assert.ok(cursorHooks.hooks.preToolUse.some(entry => entry.command === userCursorCompatibleCommand))
+assert.ok(cursorHooks.hooks.preToolUse.some(entry => entry.command === userSharedAdapterCommand))
+assert.ok(cursorHooks.hooks.preToolUse.some(entry => entry.command === userCursorNativeSharedCommand))
 const cursorPluginManifest = JSON.parse(fs.readFileSync(
   path.join(cursorTarget.files.plugin, '.cursor-plugin', 'plugin.json'),
   'utf8'
@@ -276,17 +386,36 @@ const promptEventByHost = {
   cursor: 'beforeSubmitPrompt'
 }
 for (const target of targets) {
-  const adapter = path.join(target.runtimeRoot, 'hooks', '_runtime', 'lifecycle-host-adapters.cjs')
+  const adapter = path.join(
+    target.runtimeRoot,
+    'hooks',
+    '_runtime',
+    ['claude', 'cursor'].includes(target.host)
+      ? 'lifecycle-cursor-compatible.cjs'
+      : 'lifecycle-host-adapters.cjs'
+  )
+  const cursorWorkspaceRoot = process.platform === 'win32'
+    ? `/${workspace.replace(/\\/g, '/')}`
+    : workspace
+  const replayPayload = {
+    hookEventName: promptEventByHost[target.host],
+    prompt: 'test',
+    transformedPrompt: 'test transformed',
+    session_id: `global-host-workspace-skill-${target.host}`
+  }
+  if (target.host === 'cursor') {
+    delete replayPayload.hookEventName
+    replayPayload.hook_event_name = promptEventByHost[target.host]
+    replayPayload.cursor_version = 'fixture-3.15.6'
+    replayPayload.conversation_id = 'global-host-workspace-skill-cursor'
+    replayPayload.generation_id = 'global-host-generation-cursor'
+    replayPayload.workspace_roots = [cursorWorkspaceRoot]
+  }
   const result = spawnSync(process.execPath, [adapter, target.host], {
     cwd: workspace,
     encoding: 'utf8',
     env,
-    input: JSON.stringify({
-      hookEventName: promptEventByHost[target.host],
-      prompt: 'test',
-      transformedPrompt: 'test transformed',
-      session_id: `global-host-workspace-skill-${target.host}`
-    })
+    input: `${target.host === 'cursor' ? '\uFEFF' : ''}${JSON.stringify(replayPayload)}`
   })
   assert.strictEqual(result.status, 0, `${target.host} UserPromptSubmit replay failed: ${result.stderr || result.stdout}`)
   const output = JSON.parse(result.stdout || '{}')
@@ -391,9 +520,14 @@ assert.strictEqual(claudeSettings.theme, 'user-owned')
 assert.strictEqual(claudeSettings.nested.keep, true)
 assert.ok(claudeSettings.hooks.CustomEvent)
 assert.ok(claudeSettings.hooks.PreToolUse)
-assert.ok(JSON.stringify(claudeSettings.hooks).includes('lifecycle-host-adapters.cjs'))
+assert.ok(JSON.stringify(claudeSettings.hooks).includes('lifecycle-cursor-compatible.cjs'))
 assert.ok(JSON.stringify(claudeSettings.hooks.PreToolUse).includes('custom-pre'))
 assert.ok(!JSON.stringify(claudeSettings.hooks).includes('.claude/hooks/_runtime/lifecycle.cjs'))
+assert.ok(!JSON.stringify(claudeSettings.hooks).includes('runtime-1.17.2-legacy-generation'))
+for (const event of ['PreToolUse', 'UserPromptSubmit', 'PostToolUse', 'Stop']) {
+  const managed = claudeSettings.hooks[event].filter(isDevCodexManagedHookEntry)
+  assert.strictEqual(managed.length, 1, `Claude ${event} must retain exactly one managed generation`)
+}
 
 const codexConfig = fs.readFileSync(path.join(home, '.codex', 'config.toml'), 'utf8')
 assert.ok(codexConfig.includes('model = "user-choice"'))
@@ -528,7 +662,11 @@ assert.doesNotMatch(adapterReadyDoctor, /Repair missing adapters/)
 
 const claudeRuntime = inspection.hosts.find(host => host.host === 'claude').runtimeEntry
 const claudeRuntimeSource = fs.readFileSync(claudeRuntime, 'utf8')
-fs.writeFileSync(claudeRuntime, claudeRuntimeSource.replace(/\s+claude: CLAUDE_EVENT_MAP,\r?\n/, '\n'), 'utf8')
+fs.writeFileSync(
+  claudeRuntime,
+  claudeRuntimeSource.replace("new Set(['claude', 'cursor'])", "new Set(['cursor'])"),
+  'utf8'
+)
 const adapterDrift = inspectGlobalHostConfig({ packageRoot, env, home })
 const driftedClaude = adapterDrift.hosts.find(host => host.host === 'claude')
 assert.strictEqual(adapterDrift.ready, false)

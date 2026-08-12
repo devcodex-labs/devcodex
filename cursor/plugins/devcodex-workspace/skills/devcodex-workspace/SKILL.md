@@ -19,6 +19,11 @@ discovery adapter, not a second rules or state source.
 3. Use devcodex-profile skill_route in this order: bounded catalog, one commit,
    then load only the committed stage. Do not recursively list user Skill
    directories or load the entire Skill corpus.
+   Cursor does not expose dynamic context from an allowed beforeSubmitPrompt
+   response. Never invent project, turnBinding, contextEpoch, generation or
+   planDigest values. If preToolUse denies a tool and supplies an agent_message
+   with `Next call (exact)`, execute that exact action before unrelated work;
+   the shorter user_message is only a human-facing reason.
 4. A successful stage load is the evidence that the selected Skill body is
    active. A catalog entry or native Skill listing alone is not load evidence.
 5. Use devcodex-memory for CP receipts, task memory and summaries. Do not treat

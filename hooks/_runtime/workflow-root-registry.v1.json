@@ -3,7 +3,7 @@
   "sourceEvidence": [
     {
       "ref": "content:instructions/01-common.instructions.md",
-      "digest": "276c422881eca4df56c8f0767b830944c0530ee149e025a3e4f6cca37ce1dae8"
+      "digest": "f76d7601bff526b5323310799cd1889d06db46f42455bbe3034c861888a1c537"
     },
     {
       "ref": "content:skills/routing/SKILL.md",
@@ -14,7 +14,7 @@
       "digest": "ec3615abf188d2eee60fca938f3687f564291ae6721874449f66c2f0c0fed283"
     }
   ],
-  "sourceDigest": "bcfa65764e5a7d71e49d6e7fb1c15e4479d6ac4962225e4ffa0df235a3502ffa",
+  "sourceDigest": "578385f693c5dd8f108e9fab576fde58eb3acbd7eed3119ae8f510c51534d4db",
   "baseBundles": {
     "chat": [],
     "resume": [

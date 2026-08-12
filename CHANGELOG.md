@@ -1,9 +1,9 @@
 # 变更日志 (CHANGELOG)
 
 > **说明**: 版本概览摘要；历史版本见对应详细变更文件。
-> **最新版本详细变更文档**: [`changelogs/releases/v1.17.2.md`](./changelogs/releases/v1.17.2.md)
+> **最新版本详细变更文档**: [`changelogs/releases/v1.17.3.md`](./changelogs/releases/v1.17.3.md)
 > **最后更新**: 2026-08-12
-> **当前版本**: v1.17.2 修复生产 S15 从源码重算安装代次导致的错误绑定，并隔离 Grok 默认导入 Cursor Hooks 的跨宿主干扰；Cursor 第六宿主仍为本地 Beta，版本发布权威以对应 Git tag、npm registry 与 GitHub Release 为准。
+> **当前版本**: v1.17.3 修复 Cursor Windows Hook 传输、SkillRoute 精确恢复、多 generation 重复执行、受管所有权与诊断假绿；Cursor 第六宿主仍为本地 Beta，版本发布权威以对应 Git tag、npm registry 与 GitHub Release 为准。
 
 ---
 
@@ -11,6 +11,7 @@
 
 | 版本 | 日期 | 变更摘要 | 详细 |
 |------|------|---------|------|
+| [v1.17.3](./changelogs/releases/v1.17.3.md) | 2026-08-12 | 🔧 **Cursor Hook 与 SkillRoute 恢复闭环**：修复 Windows BOM/slash-drive、Claude 兼容导入重复执行、`MCP:` 名称与精确恢复消息；升级只保留单一活动 generation，并加固入口身份、用户 Hook 所有权和精确 Plugin 路径诊断 | [查看](./changelogs/releases/v1.17.3.md) |
 | [v1.17.2](./changelogs/releases/v1.17.2.md) | 2026-08-12 | 🔧 **生产回执绑定与跨宿主 Hook 隔离**：Codex/Grok 发布验收改以已安装回执为权威；DevCodex 管理的 Grok 子进程不再默认导入 Cursor Hooks，Cursor 官方配置与用户直接运行 Grok 的偏好保持不变 | [查看](./changelogs/releases/v1.17.2.md) |
 | [v1.17.1](./changelogs/releases/v1.17.1.md) | 2026-08-12 | 🔧 **六宿主 `--home` 隔离修复**：显式 HOME 优先于宿主、共享 Skill 与 VS Code MCP 的 ambient 路径覆盖，Grok 官方 CLI 继承 resolved target；真实/隔离负向探针保证 Cursor 接入不改动其他宿主 | [查看](./changelogs/releases/v1.17.1.md) |
 | [v1.17.0](./changelogs/releases/v1.17.0.md) | 2026-08-12 | ✨ **Cursor 第六宿主 Beta 接入与候选证据加固**：六宿主统一安装、Hook/Plugin/MCP/SkillRoute、本地四形态诚实诊断、Windows CLI 身份解析及当前源码 S15 强绑定 | [查看](./changelogs/releases/v1.17.0.md) |

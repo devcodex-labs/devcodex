@@ -195,7 +195,7 @@ for (const name of ['memory-server.js', 'profile-server.js']) {
   fs.mkdirSync(path.dirname(serverPath), { recursive: true })
   fs.writeFileSync(serverPath, 'process.stdin.resume()\n', 'utf8')
 }
-const cursorRuntimeEntry = path.join(cursorTarget.runtimeRoot, 'hooks', '_runtime', 'lifecycle-host-adapters.cjs')
+const cursorRuntimeEntry = path.join(cursorTarget.runtimeRoot, 'hooks', '_runtime', 'lifecycle-cursor-compatible.cjs')
 const cursorCommand = `node "${cursorRuntimeEntry}" cursor --cursor-plugin-path "${cursorTarget.files.plugin}"`
 const cursorEvents = ['workspaceOpen', 'sessionStart', 'sessionEnd', 'beforeSubmitPrompt', 'preToolUse', 'postToolUse', 'postToolUseFailure', 'afterAgentResponse', 'preCompact', 'stop']
 fs.mkdirSync(path.dirname(cursorTarget.files.hooks), { recursive: true })
@@ -222,7 +222,9 @@ const hosts = ['copilot', 'claude', 'codex', 'gemini', 'grok', 'cursor'].map(hos
     resolveGlobalHostTarget(host, { env, home }).runtimeRoot,
     'hooks',
     '_runtime',
-    'lifecycle-host-adapters.cjs'
+    ['claude', 'cursor'].includes(host)
+      ? 'lifecycle-cursor-compatible.cjs'
+      : 'lifecycle-host-adapters.cjs'
   )
 }))
 for (const host of hosts) {
@@ -272,6 +274,8 @@ assert.strictEqual(healthy.hosts.find(host => host.host === 'grok').nativeStatus
 const healthyCursor = healthy.hosts.find(host => host.host === 'cursor')
 assert.strictEqual(healthyCursor.contractStatus, 'passed')
 assert.strictEqual(healthyCursor.nativeStatus, 'unverified')
+assert.strictEqual(healthyCursor.probes.cursorStatic.skillContractStatus, true)
+assert.deepStrictEqual(healthyCursor.probes.cursorStatic.missingSkillAnchors, [])
 assert.deepStrictEqual(healthyCursor.variants.map(variant => variant.id), [
   'cursor-ide-local',
   'cursor-cli-interactive',
@@ -279,6 +283,122 @@ assert.deepStrictEqual(healthyCursor.variants.map(variant => variant.id), [
   'cursor-cloud-agent'
 ])
 assert.strictEqual(healthyCursor.variants.find(variant => variant.id === 'cursor-cloud-agent').support, 'partial')
+
+const healthyCursorHooks = fs.readFileSync(cursorTarget.files.hooks, 'utf8')
+const duplicateCursorHooks = JSON.parse(healthyCursorHooks)
+duplicateCursorHooks.hooks.preToolUse.push({
+  command: cursorCommand.replace(
+    cursorTarget.runtimeRoot,
+    path.join(cursorTarget.root, 'devcodex', 'runtime-test-previous-generation')
+  )
+})
+fs.writeFileSync(cursorTarget.files.hooks, JSON.stringify(duplicateCursorHooks, null, 2), 'utf8')
+const duplicateCursorGeneration = verifyGlobalHostRuntime({
+  configuration: {
+    mode: 'GlobalOnlyHostConfigModeV1',
+    workspaceCleanMode: 'GlobalOnlyWorkspaceCleanModeV1',
+    packageVersion: 'test',
+    hosts
+  },
+  env,
+  home,
+  fs,
+  spawnSync: spawnProbe
+})
+const duplicateCursorHost = duplicateCursorGeneration.hosts.find(host => host.host === 'cursor')
+assert.strictEqual(duplicateCursorHost.adapterReady, false)
+assert.strictEqual(duplicateCursorHost.contractStatus, 'failed')
+assert.deepStrictEqual(duplicateCursorHost.probes.cursorStatic.eventManagedCounts.preToolUse, {
+  current: 1,
+  managed: 2
+})
+assert(duplicateCursorHost.issues.some(issue => issue.code === 'CURSOR_HOOK_CONTRACT_FAILED'))
+fs.writeFileSync(cursorTarget.files.hooks, healthyCursorHooks, 'utf8')
+
+const stalePluginCursorHooks = JSON.parse(healthyCursorHooks)
+stalePluginCursorHooks.hooks.preToolUse[0].command = cursorCommand.replace(
+  cursorTarget.files.plugin,
+  path.join(cursorTarget.root, 'devcodex', 'plugins', 'stale-workspace-plugin')
+)
+fs.writeFileSync(cursorTarget.files.hooks, JSON.stringify(stalePluginCursorHooks, null, 2), 'utf8')
+const stalePluginCursorGeneration = verifyGlobalHostRuntime({
+  configuration: {
+    mode: 'GlobalOnlyHostConfigModeV1',
+    workspaceCleanMode: 'GlobalOnlyWorkspaceCleanModeV1',
+    packageVersion: 'test',
+    hosts
+  },
+  env,
+  home,
+  fs,
+  spawnSync: spawnProbe
+})
+const stalePluginCursorHost = stalePluginCursorGeneration.hosts.find(host => host.host === 'cursor')
+assert.strictEqual(stalePluginCursorHost.adapterReady, false)
+assert.strictEqual(stalePluginCursorHost.contractStatus, 'failed')
+assert.deepStrictEqual(stalePluginCursorHost.probes.cursorStatic.eventManagedCounts.preToolUse, {
+  current: 0,
+  managed: 1
+})
+assert(stalePluginCursorHost.issues.some(issue => issue.code === 'CURSOR_HOOK_CONTRACT_FAILED'))
+fs.writeFileSync(cursorTarget.files.hooks, healthyCursorHooks, 'utf8')
+
+const legacySharedCursorHooks = JSON.parse(healthyCursorHooks)
+legacySharedCursorHooks.hooks.preToolUse.push({
+  command: `node "${path.join(
+    cursorTarget.root,
+    'devcodex',
+    'runtime-test-legacy-shared',
+    'hooks',
+    '_runtime',
+    'lifecycle-host-adapters.cjs'
+  )}" cursor`
+})
+fs.writeFileSync(cursorTarget.files.hooks, JSON.stringify(legacySharedCursorHooks, null, 2), 'utf8')
+const legacySharedCursorGeneration = verifyGlobalHostRuntime({
+  configuration: {
+    mode: 'GlobalOnlyHostConfigModeV1',
+    workspaceCleanMode: 'GlobalOnlyWorkspaceCleanModeV1',
+    packageVersion: 'test',
+    hosts
+  },
+  env,
+  home,
+  fs,
+  spawnSync: spawnProbe
+})
+const legacySharedCursorHost = legacySharedCursorGeneration.hosts.find(host => host.host === 'cursor')
+assert.strictEqual(legacySharedCursorHost.adapterReady, false)
+assert.strictEqual(legacySharedCursorHost.contractStatus, 'failed')
+assert.deepStrictEqual(legacySharedCursorHost.probes.cursorStatic.eventManagedCounts.preToolUse, {
+  current: 1,
+  managed: 2
+})
+assert(legacySharedCursorHost.issues.some(issue => issue.code === 'CURSOR_HOOK_CONTRACT_FAILED'))
+fs.writeFileSync(cursorTarget.files.hooks, healthyCursorHooks, 'utf8')
+
+const cursorSkillFile = path.join(cursorTarget.files.plugin, 'skills', 'devcodex-workspace', 'SKILL.md')
+const cursorSkillContent = fs.readFileSync(cursorSkillFile, 'utf8')
+fs.writeFileSync(cursorSkillFile, cursorSkillContent.replace('Next call (exact)', 'Next call omitted'), 'utf8')
+const staleCursorResolver = verifyGlobalHostRuntime({
+  configuration: {
+    mode: 'GlobalOnlyHostConfigModeV1',
+    workspaceCleanMode: 'GlobalOnlyWorkspaceCleanModeV1',
+    packageVersion: 'test',
+    hosts
+  },
+  env,
+  home,
+  fs,
+  spawnSync: spawnProbe
+})
+const staleCursorHost = staleCursorResolver.hosts.find(host => host.host === 'cursor')
+assert.strictEqual(staleCursorHost.adapterReady, false)
+assert.strictEqual(staleCursorHost.contractStatus, 'failed')
+assert.strictEqual(staleCursorHost.probes.cursorStatic.skillContractStatus, false)
+assert.deepStrictEqual(staleCursorHost.probes.cursorStatic.missingSkillAnchors, ['Next call (exact)'])
+assert(staleCursorHost.issues.some(issue => issue.code === 'CURSOR_PLUGIN_CONTRACT_FAILED'))
+fs.writeFileSync(cursorSkillFile, cursorSkillContent, 'utf8')
 
 const deniedCodexRoot = path.resolve(env.CODEX_HOME)
 const deniedCodexFs = Object.create(fs)
